@@ -25,3 +25,4 @@ ingamehud.txt
 logs/
 *.log
 .DS_Store
+temp.txt

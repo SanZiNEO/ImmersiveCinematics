@@ -1,6 +1,7 @@
 package com.example.immersive_cinematics;
 
 import com.example.immersive_cinematics.handler.KeyHandler;
+import com.example.immersive_cinematics.handler.CommandHandler;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.Registries;
@@ -105,6 +106,9 @@ public class ImmersiveCinematics {
     public void onServerStarting(ServerStartingEvent event) {
         // Do something when the server starts
         LOGGER.info("HELLO from server starting");
+
+        // 注册自定义指令
+        CommandHandler.registerCommands(event.getServer().getCommands().getDispatcher());
     }
 
     // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
