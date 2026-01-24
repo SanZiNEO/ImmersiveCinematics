@@ -31,9 +31,14 @@ public class ClientForgeEvents {
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.ClientTickEvent.Phase.START) {
-            CinematicManager.getInstance().onClientTick();
             KeyHandler.getInstance().onClientTick();
         }
+    }
+
+    @SubscribeEvent
+    public static void onComputeCameraAngles(net.minecraftforge.client.event.ViewportEvent.ComputeCameraAngles event) {
+        // 使用 ViewportEvent 实现帧级精度的相机更新
+        CinematicManager.getInstance().onRenderUpdate(event.getPartialTick());
     }
 
     @SubscribeEvent
