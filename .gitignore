@@ -1,0 +1,27 @@
+# Gradle 缓存与编译产物
+.gradle/
+build/
+
+# 游戏运行数据与存档
+run/
+out/
+
+# IDEA 编辑器个人配置
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# 本地记录文件
+forge_dir.txt
+forge_jars.txt
+gradle_forge_path.txt
+ingamehud.txt
+
+# 参考项目文件夹（防止上传 example/Freecam-main）
+example/
+
+# 系统与日志
+logs/
+*.log
+.DS_Store
