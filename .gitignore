@@ -18,8 +18,8 @@ forge_jars.txt
 gradle_forge_path.txt
 ingamehud.txt
 
-# 参考项目文件夹（防止上传 example/Freecam-main）
-example/
+# --- 关键修复：只忽略根目录下的参考文件夹 ---
+/example/
 
 # 系统与日志
 logs/
