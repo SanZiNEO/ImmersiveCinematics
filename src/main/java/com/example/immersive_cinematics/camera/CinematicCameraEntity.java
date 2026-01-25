@@ -119,4 +119,14 @@ public class CinematicCameraEntity extends LocalPlayer {
     public float getAttackAnim(float tickDelta) {
         return MC.player.getAttackAnim(tickDelta);
     }
+
+    @Override
+    public boolean isPickable() {
+        return false;
+    }
+
+    @Override
+    public boolean canBeCollidedWith() {
+        return false;
+    }
 }
