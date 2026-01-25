@@ -129,4 +129,25 @@ public class CinematicCameraEntity extends LocalPlayer {
     public boolean canBeCollidedWith() {
         return false;
     }
+
+    public boolean isPushable() {
+        return false;
+    }
+
+    public boolean isPushableBy(Entity entity) {
+        return false;
+    }
+
+    public boolean isAffectedByFluids() {
+        return false;
+    }
+
+    public boolean isOnGround() {
+        return false;
+    }
+
+    public net.minecraft.world.phys.AABB getBoundingBoxForCulling() {
+        // 返回一个极小的碰撞箱，几乎不可见
+        return net.minecraft.world.phys.AABB.ofSize(getPosition(0), 0.001, 0.001, 0.001);
+    }
 }
