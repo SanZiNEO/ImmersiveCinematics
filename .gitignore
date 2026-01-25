@@ -20,7 +20,7 @@ ingamehud.txt
 
 # --- 关键修复：只忽略根目录下的参考文件夹 ---
 /example/
-
+/main/test/
 # 系统与日志
 logs/
 *.log
