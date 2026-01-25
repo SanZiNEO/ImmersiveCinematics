@@ -1,6 +1,7 @@
 package com.example.immersive_cinematics.script;
 
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.util.Mth;
 
 /**
  * 贝塞尔曲线路径实现
@@ -15,6 +16,10 @@ public class BezierPath implements IMovementPath {
     private final Vec3 startRotation;
     private final Vec3 endRotation;
     private final double durationInTicks; // 运动持续时间（ticks）
+    private double headingOffset; // 朝向偏移角度（相对于路径切线方向的偏移，单位：弧度）
+    private float startFOV; // 起始FOV
+    private float endFOV; // 结束FOV
+    private boolean useCustomFOV; // 是否使用自定义FOV
 
     /**
      * 构造二次贝塞尔曲线路径
@@ -33,6 +38,10 @@ public class BezierPath implements IMovementPath {
         this.startRotation = startRotation;
         this.endRotation = endRotation;
         this.durationInTicks = duration * 20.0; // 转换为 ticks（20 tick/s）
+        this.headingOffset = 0.0;
+        this.startFOV = 70.0f;
+        this.endFOV = 70.0f;
+        this.useCustomFOV = false;
     }
 
     @Override
@@ -43,10 +52,59 @@ public class BezierPath implements IMovementPath {
 
     @Override
     public Vec3 getRotation(double timeInTicks) {
+        // 计算路径切线方向
+        Vec3 tangent = getTangent(timeInTicks);
+        
+        // 计算基础偏航角（路径切线方向）
+        double baseYaw = Math.atan2(tangent.z, tangent.x) - Math.PI / 2;
+        
+        // 计算最终偏航角（基础偏航角 + 朝向偏移）
+        double finalYaw = baseYaw + headingOffset;
+        
+        // 计算俯仰角（保持原有的平滑插值逻辑）
         double normalizedTime = Math.min(timeInTicks / durationInTicks, 1.0);
         double pitch = interpolateAngle(startRotation.x, endRotation.x, normalizedTime);
-        double yaw = interpolateAngle(startRotation.y, endRotation.y, normalizedTime);
-        return new Vec3(pitch, yaw, 0);
+
+        return new Vec3(pitch, finalYaw, 0);
+    }
+    
+    @Override
+    public Vec3 getTangent(double timeInTicks) {
+        double normalizedTime = Math.min(timeInTicks / durationInTicks, 1.0);
+        return quadraticBezierDerivative(startPosition, controlPosition, endPosition, normalizedTime).normalize();
+    }
+    
+    @Override
+    public double getFOV(double timeInTicks) {
+        if (!useCustomFOV) {
+            return 70.0;
+        }
+        
+        double normalizedTime = Math.min(timeInTicks / durationInTicks, 1.0);
+        return (double) Mth.lerp((float) normalizedTime, startFOV, endFOV);
+    }
+    
+    @Override
+    public void setHeadingOffset(double headingOffset) {
+        this.headingOffset = headingOffset;
+    }
+    
+    @Override
+    public void setFOVRange(float startFOV, float endFOV) {
+        this.startFOV = startFOV;
+        this.endFOV = endFOV;
+        this.useCustomFOV = true;
+    }
+    
+    /**
+     * 二次贝塞尔曲线导数（用于计算切线方向）
+     */
+    private Vec3 quadraticBezierDerivative(Vec3 p0, Vec3 p1, Vec3 p2, double t) {
+        double u = 1 - t;
+        double dx = 2 * u * (p1.x - p0.x) + 2 * t * (p2.x - p1.x);
+        double dy = 2 * u * (p1.y - p0.y) + 2 * t * (p2.y - p1.y);
+        double dz = 2 * u * (p1.z - p0.z) + 2 * t * (p2.z - p1.z);
+        return new Vec3(dx, dy, dz);
     }
 
     /**

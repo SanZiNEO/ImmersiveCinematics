@@ -11,7 +11,10 @@
     "EntityRenderDispatcherMixin",
     "LocalPlayerMixin",
     "ItemInHandRendererMixin",
-    "GuiMixin"
+    "GuiMixin",
+    "GameRendererMixin",
+    "MinecraftMixin",
+    "LevelRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1
