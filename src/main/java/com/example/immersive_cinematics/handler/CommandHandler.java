@@ -214,24 +214,86 @@ public class CommandHandler {
                         .then(Commands.literal("simple")
                                 .then(Commands.argument("start", Vec3Argument.vec3())
                                         .then(Commands.argument("target", Vec3Argument.vec3())
-                                                .then(Commands.argument("distance", DoubleArgumentType.doubleArg(0.1))
-                                                        .then(Commands.argument("duration", DoubleArgumentType.doubleArg(0.1))
-                                                                .executes(ctx -> executeSimpleDollyZoomMovement(ctx))
+                                                .then(Commands.argument("duration", DoubleArgumentType.doubleArg(0.1))
+                                                        .executes(ctx -> executeSimpleDollyZoomMovement(ctx))
+                                                        .then(Commands.literal("forward")
+                                                                .executes(ctx -> executeSimpleDollyZoomMovementForward(ctx))
                                                                 .then(Commands.literal("strength")
                                                                         .then(Commands.argument("strength", DoubleArgumentType.doubleArg(0.1, 2.0))
-                                                                                .executes(ctx -> executeDollyZoomMovementWithStrength(ctx))
+                                                                                .executes(ctx -> executeDollyZoomMovementWithStrengthForward(ctx))
                                                                         )
                                                                 )
                                                                 .then(Commands.literal("fov")
                                                                         .then(Commands.argument("startFov", DoubleArgumentType.doubleArg(5, 120))
                                                                                 .then(Commands.argument("endFov", DoubleArgumentType.doubleArg(5, 120))
-                                                                                        .executes(ctx -> executeSimpleDollyZoomMovementWithFOV(ctx))
+                                                                                        .executes(ctx -> executeSimpleDollyZoomMovementWithFOVForward(ctx))
                                                                                 )
                                                                         )
                                                                 )
                                                                 .then(Commands.literal("heading")
                                                                         .then(Commands.argument("offset", DoubleArgumentType.doubleArg(-180, 180))
-                                                                                .executes(ctx -> executeSimpleDollyZoomMovementWithHeading(ctx))
+                                                                                .executes(ctx -> executeSimpleDollyZoomMovementWithHeadingForward(ctx))
+                                                                        )
+                                                                )
+                                                        )
+                                                        .then(Commands.literal("backward")
+                                                                .executes(ctx -> executeSimpleDollyZoomMovementBackward(ctx))
+                                                                .then(Commands.literal("strength")
+                                                                        .then(Commands.argument("strength", DoubleArgumentType.doubleArg(0.1, 2.0))
+                                                                                .executes(ctx -> executeDollyZoomMovementWithStrengthBackward(ctx))
+                                                                        )
+                                                                )
+                                                                .then(Commands.literal("fov")
+                                                                        .then(Commands.argument("startFov", DoubleArgumentType.doubleArg(5, 120))
+                                                                                .then(Commands.argument("endFov", DoubleArgumentType.doubleArg(5, 120))
+                                                                                        .executes(ctx -> executeSimpleDollyZoomMovementWithFOVBackward(ctx))
+                                                                                )
+                                                                        )
+                                                                )
+                                                                .then(Commands.literal("heading")
+                                                                        .then(Commands.argument("offset", DoubleArgumentType.doubleArg(-180, 180))
+                                                                                .executes(ctx -> executeSimpleDollyZoomMovementWithHeadingBackward(ctx))
+                                                                        )
+                                                                )
+                                                        )
+                                                )
+                                        )
+                                )
+                        )
+                        .then(Commands.literal("advanced")
+                                .then(Commands.argument("start", Vec3Argument.vec3())
+                                        .then(Commands.argument("target", Vec3Argument.vec3())
+                                                .then(Commands.argument("background", Vec3Argument.vec3())
+                                                        .then(Commands.argument("duration", DoubleArgumentType.doubleArg(0.1))
+                                                                .executes(ctx -> executeAdvancedDollyZoomMovement(ctx))
+                                                                .then(Commands.literal("forward")
+                                                                        .executes(ctx -> executeAdvancedDollyZoomMovementForward(ctx))
+                                                                        .then(Commands.literal("fov")
+                                                                                .then(Commands.argument("startFov", DoubleArgumentType.doubleArg(5, 120))
+                                                                                        .then(Commands.argument("endFov", DoubleArgumentType.doubleArg(5, 120))
+                                                                                                .executes(ctx -> executeAdvancedDollyZoomMovementWithFOVForward(ctx))
+                                                                                        )
+                                                                                )
+                                                                        )
+                                                                        .then(Commands.literal("heading")
+                                                                                .then(Commands.argument("offset", DoubleArgumentType.doubleArg(-180, 180))
+                                                                                        .executes(ctx -> executeAdvancedDollyZoomMovementWithHeadingForward(ctx))
+                                                                                )
+                                                                        )
+                                                                )
+                                                                .then(Commands.literal("backward")
+                                                                        .executes(ctx -> executeAdvancedDollyZoomMovementBackward(ctx))
+                                                                        .then(Commands.literal("fov")
+                                                                                .then(Commands.argument("startFov", DoubleArgumentType.doubleArg(5, 120))
+                                                                                        .then(Commands.argument("endFov", DoubleArgumentType.doubleArg(5, 120))
+                                                                                                .executes(ctx -> executeAdvancedDollyZoomMovementWithFOVBackward(ctx))
+                                                                                        )
+                                                                                )
+                                                                        )
+                                                                        .then(Commands.literal("heading")
+                                                                                .then(Commands.argument("offset", DoubleArgumentType.doubleArg(-180, 180))
+                                                                                        .executes(ctx -> executeAdvancedDollyZoomMovementWithHeadingBackward(ctx))
+                                                                                )
                                                                         )
                                                                 )
                                                         )
@@ -571,14 +633,24 @@ public class CommandHandler {
         return 1;
     }
 
-    // 执行简化版滑动变焦运动
+    // 执行简化版滑动变焦运动（自动计算结束位置）
     private static int executeSimpleDollyZoomMovement(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         Vec3 startPos = Vec3Argument.getVec3(context, "start");
         Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
-        double distance = DoubleArgumentType.getDouble(context, "distance");
         double duration = DoubleArgumentType.getDouble(context, "duration");
 
-        CinematicManager.getInstance().startSimpleDollyZoomMovement(startPos, targetPoint, distance, duration);
+        CinematicManager.getInstance().startSimpleDollyZoomMovement(startPos, targetPoint, duration);
+        return 1;
+    }
+
+    // 执行高级版滑动变焦运动（支持后景位置）
+    private static int executeAdvancedDollyZoomMovement(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        Vec3 backgroundPoint = Vec3Argument.getVec3(context, "background");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+
+        CinematicManager.getInstance().startAdvancedDollyZoomMovement(startPos, targetPoint, backgroundPoint, duration);
         return 1;
     }
 
@@ -586,11 +658,10 @@ public class CommandHandler {
     private static int executeDollyZoomMovementWithStrength(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         Vec3 startPos = Vec3Argument.getVec3(context, "start");
         Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
-        double distance = DoubleArgumentType.getDouble(context, "distance");
         double duration = DoubleArgumentType.getDouble(context, "duration");
         double strength = DoubleArgumentType.getDouble(context, "strength");
 
-        CinematicManager.getInstance().startDollyZoomMovementWithStrength(startPos, targetPoint, distance, duration, strength);
+        CinematicManager.getInstance().startDollyZoomMovementWithStrength(startPos, targetPoint, duration, strength);
         return 1;
     }
 
@@ -598,13 +669,12 @@ public class CommandHandler {
     private static int executeSimpleDollyZoomMovementWithFOV(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         Vec3 startPos = Vec3Argument.getVec3(context, "start");
         Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
-        double distance = DoubleArgumentType.getDouble(context, "distance");
         double duration = DoubleArgumentType.getDouble(context, "duration");
         float startFov = (float) DoubleArgumentType.getDouble(context, "startFov");
         float endFov = (float) DoubleArgumentType.getDouble(context, "endFov");
 
         CinematicManager manager = CinematicManager.getInstance();
-        manager.startSimpleDollyZoomMovement(startPos, targetPoint, distance, duration);
+        manager.startSimpleDollyZoomMovement(startPos, targetPoint, duration);
         manager.setFOVRange(startFov, endFov);
         return 1;
     }
@@ -613,12 +683,40 @@ public class CommandHandler {
     private static int executeSimpleDollyZoomMovementWithHeading(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         Vec3 startPos = Vec3Argument.getVec3(context, "start");
         Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
-        double distance = DoubleArgumentType.getDouble(context, "distance");
         double duration = DoubleArgumentType.getDouble(context, "duration");
         double headingOffset = DoubleArgumentType.getDouble(context, "offset");
 
         CinematicManager manager = CinematicManager.getInstance();
-        manager.startSimpleDollyZoomMovement(startPos, targetPoint, distance, duration);
+        manager.startSimpleDollyZoomMovement(startPos, targetPoint, duration);
+        manager.setHeadingOffset(headingOffset);
+        return 1;
+    }
+
+    // 执行带FOV参数的高级版滑动变焦运动
+    private static int executeAdvancedDollyZoomMovementWithFOV(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        Vec3 backgroundPoint = Vec3Argument.getVec3(context, "background");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+        float startFov = (float) DoubleArgumentType.getDouble(context, "startFov");
+        float endFov = (float) DoubleArgumentType.getDouble(context, "endFov");
+
+        CinematicManager manager = CinematicManager.getInstance();
+        manager.startAdvancedDollyZoomMovement(startPos, targetPoint, backgroundPoint, duration);
+        manager.setFOVRange(startFov, endFov);
+        return 1;
+    }
+
+    // 执行带朝向偏移参数的高级版滑动变焦运动
+    private static int executeAdvancedDollyZoomMovementWithHeading(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        Vec3 backgroundPoint = Vec3Argument.getVec3(context, "background");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+        double headingOffset = DoubleArgumentType.getDouble(context, "offset");
+
+        CinematicManager manager = CinematicManager.getInstance();
+        manager.startAdvancedDollyZoomMovement(startPos, targetPoint, backgroundPoint, duration);
         manager.setHeadingOffset(headingOffset);
         return 1;
     }
@@ -626,6 +724,182 @@ public class CommandHandler {
     // 执行重置摄像机设置
     private static int executeResetSettings(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         CinematicManager.getInstance().resetCustomCameraSettings();
+        return 1;
+    }
+
+    // 执行向前的简化版滑动变焦运动
+    private static int executeSimpleDollyZoomMovementForward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+
+        CinematicManager.getInstance().startSimpleDollyZoomMovement(startPos, targetPoint, duration, true);
+        return 1;
+    }
+
+    // 执行向后的简化版滑动变焦运动
+    private static int executeSimpleDollyZoomMovementBackward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+
+        CinematicManager.getInstance().startSimpleDollyZoomMovement(startPos, targetPoint, duration, false);
+        return 1;
+    }
+
+    // 执行向前的高级版滑动变焦运动
+    private static int executeAdvancedDollyZoomMovementForward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        Vec3 backgroundPoint = Vec3Argument.getVec3(context, "background");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+
+        CinematicManager.getInstance().startAdvancedDollyZoomMovement(startPos, targetPoint, backgroundPoint, duration, true);
+        return 1;
+    }
+
+    // 执行向后的高级版滑动变焦运动
+    private static int executeAdvancedDollyZoomMovementBackward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        Vec3 backgroundPoint = Vec3Argument.getVec3(context, "background");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+
+        CinematicManager.getInstance().startAdvancedDollyZoomMovement(startPos, targetPoint, backgroundPoint, duration, false);
+        return 1;
+    }
+
+    // 执行向前的带强度参数的滑动变焦运动
+    private static int executeDollyZoomMovementWithStrengthForward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+        double strength = DoubleArgumentType.getDouble(context, "strength");
+
+        CinematicManager.getInstance().startDollyZoomMovementWithStrength(startPos, targetPoint, duration, strength, true);
+        return 1;
+    }
+
+    // 执行向后的带强度参数的滑动变焦运动
+    private static int executeDollyZoomMovementWithStrengthBackward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+        double strength = DoubleArgumentType.getDouble(context, "strength");
+
+        CinematicManager.getInstance().startDollyZoomMovementWithStrength(startPos, targetPoint, duration, strength, false);
+        return 1;
+    }
+
+    // 执行向前的带FOV参数的简化版滑动变焦运动
+    private static int executeSimpleDollyZoomMovementWithFOVForward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+        float startFov = (float) DoubleArgumentType.getDouble(context, "startFov");
+        float endFov = (float) DoubleArgumentType.getDouble(context, "endFov");
+
+        CinematicManager manager = CinematicManager.getInstance();
+        manager.startSimpleDollyZoomMovement(startPos, targetPoint, duration, true);
+        manager.setFOVRange(startFov, endFov);
+        return 1;
+    }
+
+    // 执行向后的带FOV参数的简化版滑动变焦运动
+    private static int executeSimpleDollyZoomMovementWithFOVBackward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+        float startFov = (float) DoubleArgumentType.getDouble(context, "startFov");
+        float endFov = (float) DoubleArgumentType.getDouble(context, "endFov");
+
+        CinematicManager manager = CinematicManager.getInstance();
+        manager.startSimpleDollyZoomMovement(startPos, targetPoint, duration, false);
+        manager.setFOVRange(startFov, endFov);
+        return 1;
+    }
+
+    // 执行向前的带朝向偏移参数的简化版滑动变焦运动
+    private static int executeSimpleDollyZoomMovementWithHeadingForward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+        double headingOffset = DoubleArgumentType.getDouble(context, "offset");
+
+        CinematicManager manager = CinematicManager.getInstance();
+        manager.startSimpleDollyZoomMovement(startPos, targetPoint, duration, true);
+        manager.setHeadingOffset(headingOffset);
+        return 1;
+    }
+
+    // 执行向后的带朝向偏移参数的简化版滑动变焦运动
+    private static int executeSimpleDollyZoomMovementWithHeadingBackward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+        double headingOffset = DoubleArgumentType.getDouble(context, "offset");
+
+        CinematicManager manager = CinematicManager.getInstance();
+        manager.startSimpleDollyZoomMovement(startPos, targetPoint, duration, false);
+        manager.setHeadingOffset(headingOffset);
+        return 1;
+    }
+
+    // 执行向前的带FOV参数的高级版滑动变焦运动
+    private static int executeAdvancedDollyZoomMovementWithFOVForward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        Vec3 backgroundPoint = Vec3Argument.getVec3(context, "background");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+        float startFov = (float) DoubleArgumentType.getDouble(context, "startFov");
+        float endFov = (float) DoubleArgumentType.getDouble(context, "endFov");
+
+        CinematicManager manager = CinematicManager.getInstance();
+        manager.startAdvancedDollyZoomMovement(startPos, targetPoint, backgroundPoint, duration, true);
+        manager.setFOVRange(startFov, endFov);
+        return 1;
+    }
+
+    // 执行向后的带FOV参数的高级版滑动变焦运动
+    private static int executeAdvancedDollyZoomMovementWithFOVBackward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        Vec3 backgroundPoint = Vec3Argument.getVec3(context, "background");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+        float startFov = (float) DoubleArgumentType.getDouble(context, "startFov");
+        float endFov = (float) DoubleArgumentType.getDouble(context, "endFov");
+
+        CinematicManager manager = CinematicManager.getInstance();
+        manager.startAdvancedDollyZoomMovement(startPos, targetPoint, backgroundPoint, duration, false);
+        manager.setFOVRange(startFov, endFov);
+        return 1;
+    }
+
+    // 执行向前的带朝向偏移参数的高级版滑动变焦运动
+    private static int executeAdvancedDollyZoomMovementWithHeadingForward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        Vec3 backgroundPoint = Vec3Argument.getVec3(context, "background");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+        double headingOffset = DoubleArgumentType.getDouble(context, "offset");
+
+        CinematicManager manager = CinematicManager.getInstance();
+        manager.startAdvancedDollyZoomMovement(startPos, targetPoint, backgroundPoint, duration, true);
+        manager.setHeadingOffset(headingOffset);
+        return 1;
+    }
+
+    // 执行向后的带朝向偏移参数的高级版滑动变焦运动
+    private static int executeAdvancedDollyZoomMovementWithHeadingBackward(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        Vec3 startPos = Vec3Argument.getVec3(context, "start");
+        Vec3 targetPoint = Vec3Argument.getVec3(context, "target");
+        Vec3 backgroundPoint = Vec3Argument.getVec3(context, "background");
+        double duration = DoubleArgumentType.getDouble(context, "duration");
+        double headingOffset = DoubleArgumentType.getDouble(context, "offset");
+
+        CinematicManager manager = CinematicManager.getInstance();
+        manager.startAdvancedDollyZoomMovement(startPos, targetPoint, backgroundPoint, duration, false);
+        manager.setHeadingOffset(headingOffset);
         return 1;
     }
 }

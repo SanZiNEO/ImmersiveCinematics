@@ -369,28 +369,55 @@ public class CinematicManager {
         isMovementActive = true;
     }
 
-    // 启动简化版滑动变焦运动（推荐）
-    public void startSimpleDollyZoomMovement(Vec3 startPos, Vec3 targetPoint, double distance, double duration) {
+    // 启动简化版滑动变焦运动（推荐，自动计算结束位置）
+    public void startSimpleDollyZoomMovement(Vec3 startPos, Vec3 targetPoint, double duration, boolean forward) {
         if (!isCinematicActive && Minecraft.getInstance().player != null) {
             startCinematic();
         }
 
-        currentMovementPath = DollyZoomPath.createSimpleDollyZoomPath(startPos, targetPoint, distance, duration);
+        currentMovementPath = DollyZoomPath.createSimpleDollyZoomPath(startPos, targetPoint, duration, forward);
         movementStartGameTime = Minecraft.getInstance().level.getGameTime();
         movementDuration = duration;
         isMovementActive = true;
     }
 
-    // 启动增强版滑动变焦运动（支持变焦强度控制）
-    public void startDollyZoomMovementWithStrength(Vec3 startPos, Vec3 targetPoint, double distance, double duration, double strength) {
+    // 启动简化版滑动变焦运动（默认向前）
+    public void startSimpleDollyZoomMovement(Vec3 startPos, Vec3 targetPoint, double duration) {
+        startSimpleDollyZoomMovement(startPos, targetPoint, duration, true);
+    }
+
+    // 启动高级版滑动变焦运动（支持后景位置）
+    public void startAdvancedDollyZoomMovement(Vec3 startPos, Vec3 targetPoint, Vec3 backgroundPoint, double duration, boolean forward) {
         if (!isCinematicActive && Minecraft.getInstance().player != null) {
             startCinematic();
         }
 
-        currentMovementPath = DollyZoomPath.createDollyZoomPathWithStrength(startPos, targetPoint, distance, duration, strength);
+        currentMovementPath = DollyZoomPath.createAdvancedDollyZoomPath(startPos, targetPoint, backgroundPoint, duration, forward);
         movementStartGameTime = Minecraft.getInstance().level.getGameTime();
         movementDuration = duration;
         isMovementActive = true;
+    }
+
+    // 启动高级版滑动变焦运动（默认向前）
+    public void startAdvancedDollyZoomMovement(Vec3 startPos, Vec3 targetPoint, Vec3 backgroundPoint, double duration) {
+        startAdvancedDollyZoomMovement(startPos, targetPoint, backgroundPoint, duration, true);
+    }
+
+    // 启动增强版滑动变焦运动（支持变焦强度控制）
+    public void startDollyZoomMovementWithStrength(Vec3 startPos, Vec3 targetPoint, double duration, double strength, boolean forward) {
+        if (!isCinematicActive && Minecraft.getInstance().player != null) {
+            startCinematic();
+        }
+
+        currentMovementPath = DollyZoomPath.createDollyZoomPathWithStrength(startPos, targetPoint, duration, strength, forward);
+        movementStartGameTime = Minecraft.getInstance().level.getGameTime();
+        movementDuration = duration;
+        isMovementActive = true;
+    }
+
+    // 启动增强版滑动变焦运动（默认向前）
+    public void startDollyZoomMovementWithStrength(Vec3 startPos, Vec3 targetPoint, double duration, double strength) {
+        startDollyZoomMovementWithStrength(startPos, targetPoint, duration, strength, true);
     }
 
     // 启动静态旋转/摇镜头运动
