@@ -3,6 +3,7 @@ package com.example.immersive_cinematics.handler;
 import com.example.immersive_cinematics.camera.CinematicCameraEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.client.event.RenderGuiEvent;
@@ -12,7 +13,7 @@ import net.minecraftforge.client.event.MovementInputUpdateEvent;
 @Mod.EventBusSubscriber(Dist.CLIENT)
 public class ClientForgeEvents {
 
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onMovementInputUpdate(MovementInputUpdateEvent event) {
         // 只要电影模式开启，就强制清空所有移动输入
         if (CinematicManager.getInstance().isCinematicActive()) {
@@ -50,14 +51,14 @@ public class ClientForgeEvents {
         }
     }
 
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onRenderGuiPre(RenderGuiEvent.Pre event) {
         if (CinematicManager.getInstance().isCinematicActive()) {
             event.setCanceled(true);
         }
     }
 
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onRenderHand(RenderHandEvent event) {
         if (CinematicManager.getInstance().isCinematicActive()) {
             event.setCanceled(true);
