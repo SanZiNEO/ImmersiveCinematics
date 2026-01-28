@@ -36,14 +36,32 @@ public class ImmersiveCinematics {
 
         // Register ourselves for server and other game events we are interested in
         MinecraftForge.EVENT_BUS.register(this);
+        // 注册时间轴处理器到事件总线
+        MinecraftForge.EVENT_BUS.register(com.example.immersive_cinematics.director.TimelineProcessor.getInstance());
+        // 注册世界事件检测器到事件总线（关键：这是监听器能正常工作的必要条件）
+        MinecraftForge.EVENT_BUS.register(com.example.immersive_cinematics.trigger.WorldEventDetector.getInstance());
+        LOGGER.info("WorldEventDetector registered to Forge EVENT_BUS");
 
         // Register our mod's ForgeConfigSpec so that Forge can create and load the config file for us
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
+        // 强制输出高亮日志，确保能够在日志中看到
+        LOGGER.error("!!! [IMMERSIVE_CINEMATICS] COMMON SETUP EVENT TRIGGERED !!!");
+        System.out.println("!!! [IMMERSIVE_CINEMATICS] COMMON SETUP CALLED !!!");
+        
         // Some common setup code
         LOGGER.info("HELLO FROM COMMON SETUP");
+        
+        // 初始化网络通信系统
+        com.example.immersive_cinematics.network.NetworkHandler.register();
+        LOGGER.info("Network communication system initialized");
+        
+        // 初始化镜头脚本存储系统
+        LOGGER.info("Initializing camera script storage system...");
+        com.example.immersive_cinematics.director.CameraScriptStorage.getInstance().initialize();
+        LOGGER.info("Camera script storage system initialized");
     }
 
     // You can use SubscribeEvent and let the Event Bus discover methods to call
