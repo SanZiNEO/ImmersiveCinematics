@@ -1,0 +1,39 @@
+{
+  "name": "end_entry_cinematic",
+  "description": "末地维度进入时的环绕摄像机运镜",
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "shotRules": [
+    {
+      "ruleName": "end_center_orbit",
+      "routes": [
+        {
+          "routeName": "center_orbit",
+          "pathType": "ORBIT",
+          "duration": 20.0,
+          "startFOV": 70,
+          "endFOV": 70,
+          "speed": 5.0,
+          "radius": 50.0,
+          "height": 15.0,
+          "strength": 1.0,
+          "isForward": true,
+          "heading": 90,
+          "targetPoint": {
+            "x": 0,
+            "y": 65,
+            "z": 0
+          }
+        }
+      ],
+      "triggerConditions": [
+        {
+          "triggerType": "DIMENSION_CHANGE",
+          "parameter": "minecraft:the_end",
+          "value": 0
+        }
+      ],
+      "isLooping": false,
+      "delay": 2.0
+    }
+  ]
+}
