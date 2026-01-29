@@ -57,18 +57,25 @@ public class CinematicManager {
         virtualCamera = new CinematicCameraEntity(Minecraft.getInstance().player.getId() + 1000);
         virtualCamera.spawn();
 
-        // 设置摄像机位置
+        // 设置摄像机位置 - 在玩家头顶上方，避免固定在身体里
         if (customCameraPosition != null) {
             virtualCamera.setPos(customCameraPosition.x, customCameraPosition.y, customCameraPosition.z);
         } else {
-            // 默认位置：玩家头顶 10 格
+            // 摄像机位置在玩家头顶1.62米处（玩家身高），向前偏移0.5米
             double playerX = Minecraft.getInstance().player.getX();
-            double playerY = Minecraft.getInstance().player.getY() + 10;
+            double playerY = Minecraft.getInstance().player.getY() + 1.62;
             double playerZ = Minecraft.getInstance().player.getZ();
-            virtualCamera.setPos(playerX, playerY, playerZ);
+            
+            // 计算向前偏移
+            double forwardOffset = 0.5;
+            double yawRadians = Math.toRadians(Minecraft.getInstance().player.getYRot());
+            double offsetX = Math.sin(yawRadians) * forwardOffset;
+            double offsetZ = -Math.cos(yawRadians) * forwardOffset;
+            
+            virtualCamera.setPos(playerX + offsetX, playerY, playerZ + offsetZ);
         }
 
-        // 设置摄像机角度
+        // 设置摄像机角度 - 与玩家当前视角完全一致
         if (customCameraYaw != null) {
             virtualCamera.setYRot(customCameraYaw);
         } else {
@@ -81,13 +88,13 @@ public class CinematicManager {
             virtualCamera.setXRot(Minecraft.getInstance().player.getXRot());
         }
 
-        // 设置摄像机FOV
+        // 设置摄像机FOV - 与玩家当前FOV完全一致
         if (customCameraFOV != null) {
             currentFOV = customCameraFOV;
             targetFOV = customCameraFOV;
         } else {
-            currentFOV = 70.0;
-            targetFOV = 70.0;
+            currentFOV = Minecraft.getInstance().options.fov().get();
+            targetFOV = Minecraft.getInstance().options.fov().get();
         }
 
         // 设置为当前摄像机
@@ -118,6 +125,10 @@ public class CinematicManager {
         } else {
             startCinematic();
         }
+    }
+
+    public void toggleCinematicMode(net.minecraft.client.player.LocalPlayer player) {
+        toggleCinematic();
     }
 
     public boolean isCinematicActive() {
@@ -183,41 +194,48 @@ public class CinematicManager {
                     stopCinematic();
                 }
             } else {
-                // 没有运动时，保持在自定义位置或默认位置
-                if (customCameraPosition != null) {
-                    virtualCamera.setPos(customCameraPosition.x, customCameraPosition.y, customCameraPosition.z);
-                    virtualCamera.xo = customCameraPosition.x;
-                    virtualCamera.yo = customCameraPosition.y;
-                    virtualCamera.zo = customCameraPosition.z;
-                } else {
-                    // 默认位置：玩家头顶 10 格
-                    double playerX = Minecraft.getInstance().player.getX();
-                    double playerY = Minecraft.getInstance().player.getY() + 10;
-                    double playerZ = Minecraft.getInstance().player.getZ();
-                    virtualCamera.setPos(playerX, playerY, playerZ);
-                    virtualCamera.xo = playerX;
-                    virtualCamera.yo = playerY;
-                    virtualCamera.zo = playerZ;
-                }
-                
-                // 设置摄像机角度
-                if (customCameraYaw != null) {
-                    virtualCamera.setYRot(customCameraYaw);
-                    virtualCamera.yRotO = customCameraYaw;
-                }
-                if (customCameraPitch != null) {
-                    virtualCamera.setXRot(customCameraPitch);
-                    virtualCamera.xRotO = customCameraPitch;
-                }
-                
-                // 没有运动时，使用自定义FOV或默认FOV
-                if (customCameraFOV != null) {
-                    currentFOV = customCameraFOV;
-                    targetFOV = customCameraFOV;
-                } else {
-                    currentFOV = 70.0;
-                    targetFOV = 70.0;
-                }
+            // 没有运动时，保持在自定义位置或默认位置
+            if (customCameraPosition != null) {
+                virtualCamera.setPos(customCameraPosition.x, customCameraPosition.y, customCameraPosition.z);
+                virtualCamera.xo = customCameraPosition.x;
+                virtualCamera.yo = customCameraPosition.y;
+                virtualCamera.zo = customCameraPosition.z;
+            } else {
+                // 保持与玩家当前位置完全一致
+                double playerX = Minecraft.getInstance().player.getX();
+                double playerY = Minecraft.getInstance().player.getY();
+                double playerZ = Minecraft.getInstance().player.getZ();
+                virtualCamera.setPos(playerX, playerY, playerZ);
+                virtualCamera.xo = playerX;
+                virtualCamera.yo = playerY;
+                virtualCamera.zo = playerZ;
+            }
+            
+            // 设置摄像机角度
+            if (customCameraYaw != null) {
+                virtualCamera.setYRot(customCameraYaw);
+                virtualCamera.yRotO = customCameraYaw;
+            } else {
+                virtualCamera.setYRot(Minecraft.getInstance().player.getYRot());
+                virtualCamera.yRotO = Minecraft.getInstance().player.getYRot();
+            }
+            
+            if (customCameraPitch != null) {
+                virtualCamera.setXRot(customCameraPitch);
+                virtualCamera.xRotO = customCameraPitch;
+            } else {
+                virtualCamera.setXRot(Minecraft.getInstance().player.getXRot());
+                virtualCamera.xRotO = Minecraft.getInstance().player.getXRot();
+            }
+            
+            // 没有运动时，使用自定义FOV或与玩家一致的FOV
+            if (customCameraFOV != null) {
+                currentFOV = customCameraFOV;
+                targetFOV = customCameraFOV;
+            } else {
+                currentFOV = Minecraft.getInstance().options.fov().get();
+                targetFOV = Minecraft.getInstance().options.fov().get();
+            }
             }
         }
     }
@@ -482,16 +500,21 @@ public class CinematicManager {
         this.targetFOV = fov;
     }
     
+    // 这个方法是 TimelineProcessor 中调用的，需要添加
+    public void setCustomCameraFOV(float fov) {
+        setCustomCameraFOV((double) fov);
+    }
+    
     // 重置自定义摄像机设置
     public void resetCustomCameraSettings() {
         this.customCameraPosition = null;
         this.customCameraYaw = null;
         this.customCameraPitch = null;
         this.customCameraFOV = null;
-        // 如果摄像机已经激活，重置到默认设置
+        // 如果摄像机已经激活，重置到与玩家视角完全一致的设置
         if (isCinematicActive && virtualCamera != null && Minecraft.getInstance().player != null) {
             double playerX = Minecraft.getInstance().player.getX();
-            double playerY = Minecraft.getInstance().player.getY() + 10;
+            double playerY = Minecraft.getInstance().player.getY();
             double playerZ = Minecraft.getInstance().player.getZ();
             virtualCamera.setPos(playerX, playerY, playerZ);
             virtualCamera.xo = playerX;
@@ -503,8 +526,8 @@ public class CinematicManager {
             virtualCamera.yRotO = Minecraft.getInstance().player.getYRot();
             virtualCamera.xRotO = Minecraft.getInstance().player.getXRot();
             
-            currentFOV = 70.0;
-            targetFOV = 70.0;
+            currentFOV = Minecraft.getInstance().options.fov().get();
+            targetFOV = Minecraft.getInstance().options.fov().get();
         }
     }
     

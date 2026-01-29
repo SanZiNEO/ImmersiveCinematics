@@ -9,9 +9,29 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.Vec3Argument;
 import net.minecraft.world.phys.Vec3;
 
+import com.example.immersive_cinematics.director.TimelineProcessor;
+import com.example.immersive_cinematics.director.CameraScriptStorage;
+
 public class CommandHandler {
 
     public static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
+        // 镜头脚本管理指令
+        dispatcher.register(Commands.literal("ic-shot")
+                .requires(source -> source.hasPermission(2))
+                .then(Commands.literal("list")
+                        .executes(ctx -> executeListCameraScripts(ctx))
+                )
+                .then(Commands.literal("play")
+                        .then(Commands.argument("name", com.mojang.brigadier.arguments.StringArgumentType.string())
+                                .executes(ctx -> executePlayCameraScript(ctx))
+                        )
+                )
+                .then(Commands.literal("stop")
+                        .executes(ctx -> executeStopCameraScript(ctx))
+                )
+        );
+
+        // 设置摄像机参数指令
         // 设置摄像机参数指令
         dispatcher.register(Commands.literal("ic-run")
                 .requires(source -> source.hasPermission(2))
@@ -900,6 +920,53 @@ public class CommandHandler {
         CinematicManager manager = CinematicManager.getInstance();
         manager.startAdvancedDollyZoomMovement(startPos, targetPoint, backgroundPoint, duration, false);
         manager.setHeadingOffset(headingOffset);
+        return 1;
+    }
+
+    // 镜头脚本管理指令实现
+
+    private static int executeListCameraScripts(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        var scripts = CameraScriptStorage.getInstance().getAllScripts();
+        if (scripts.isEmpty()) {
+            context.getSource().sendSuccess(() -> net.minecraft.network.chat.Component.literal("没有找到镜头脚本"), false);
+        } else {
+            context.getSource().sendSuccess(() -> net.minecraft.network.chat.Component.literal("可用镜头脚本:"), false);
+            for (String name : scripts.keySet()) {
+                context.getSource().sendSuccess(() -> net.minecraft.network.chat.Component.literal("- " + name), false);
+            }
+        }
+        return 1;
+    }
+
+    private static int executePlayCameraScript(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        String name = com.mojang.brigadier.arguments.StringArgumentType.getString(context, "name");
+        var source = context.getSource();
+
+        if (!CameraScriptStorage.getInstance().hasScript(name)) {
+            source.sendFailure(net.minecraft.network.chat.Component.literal("镜头脚本未找到: " + name));
+            return 0;
+        }
+
+        if (source.getEntity() instanceof net.minecraft.client.player.LocalPlayer player) {
+            TimelineProcessor.getInstance().startCameraScript(player, name);
+            source.sendSuccess(() -> net.minecraft.network.chat.Component.literal("正在播放镜头脚本: " + name), false);
+        } else {
+            source.sendFailure(net.minecraft.network.chat.Component.literal("此命令只能在客户端执行"));
+        }
+
+        return 1;
+    }
+
+    private static int executeStopCameraScript(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        var source = context.getSource();
+
+        if (source.getEntity() instanceof net.minecraft.client.player.LocalPlayer player) {
+            TimelineProcessor.getInstance().stopCameraScript(player, true);
+            source.sendSuccess(() -> net.minecraft.network.chat.Component.literal("已停止镜头脚本"), false);
+        } else {
+            source.sendFailure(net.minecraft.network.chat.Component.literal("此命令只能在客户端执行"));
+        }
+
         return 1;
     }
 }
