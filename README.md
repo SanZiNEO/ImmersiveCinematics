@@ -10,3 +10,10 @@ I would like to express my sincere gratitude to the following projects for provi
 - freecam: For the camera implementation ideas that lay the foundation for the project's camera control functions.
 - ExplorersCompass: For the inspiration and reference on listener design, which helps optimize the project's target positioning and event-triggered logic.
 - Travelers-Titles: For the valuable ideas on listener implementation, which contributes to the improvement of the project's event monitoring system.
+
+
+**Future Plans**
+To further improve the project and enhance the Minecraft animation production experience, the following features are planned for future development:
+- Particle Visualization Method: Implement particle-based path visualization to intuitively display camera movement trajectories. Different path types will be distinguished by unique particle effects, with highlighted start/end points and optimized particle density to ensure performance while maintaining clarity.
+- Route Timeline Visualization: Develop a timeline interface for visualizing and controlling camera paths. This feature will support real-time progress adjustment, parameter linkage with camera movement, and intuitive editing of path duration and sequence.
+- Better Script Editing Structure: Optimize the script structure to improve compatibility, readability and extensibility. The enhanced structure will support more flexible configuration of camera parameters, event triggering rules, and target positioning, while enabling easier import, export and sharing of scripts.
