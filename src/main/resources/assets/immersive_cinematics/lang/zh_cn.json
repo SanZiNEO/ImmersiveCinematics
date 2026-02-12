@@ -3,5 +3,22 @@
   "key.immersive_cinematics.toggle": "切换电影模式",
   "key.immersive_cinematics.increase_fov": "增加视野",
   "key.immersive_cinematics.decrease_fov": "减少视野",
-  "key.immersive_cinematics.director_screen": "打开脚本界面"
+  "key.immersive_cinematics.director_screen": "打开脚本界面",
+  
+  "itemGroup.immersive_cinematics.immersive_cinematics": "沉浸式运镜",
+  
+  "item.immersive_cinematics.cinematic_movement_orbit": "轨道运镜",
+  "item.immersive_cinematics.cinematic_movement_direct": "直线运镜",
+  "item.immersive_cinematics.cinematic_movement_smooth": "平滑直线运镜",
+  "item.immersive_cinematics.cinematic_movement_bezier": "贝塞尔曲线运镜",
+  "item.immersive_cinematics.cinematic_movement_dolly": "推拉缩放运镜",
+  "item.immersive_cinematics.cinematic_movement_spiral": "螺旋运镜",
+  "item.immersive_cinematics.cinematic_static_camera": "固定摄像机",
+  "item.immersive_cinematics.cinematic_movement_pan": "静态摇镜头",
+  "item.immersive_cinematics.cinematic_master": "运镜总控制器",
+  
+  "gui.immersive_cinematics.save": "保存",
+  "gui.immersive_cinematics.save_success": "路径已保存",
+  "gui.immersive_cinematics.open_player": "打开播放器",
+  "gui.immersive_cinematics.toggle_particles": "切换粒子"
 }
