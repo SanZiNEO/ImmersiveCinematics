@@ -2,6 +2,8 @@ package com.example.immersive_cinematics;
 
 import com.example.immersive_cinematics.handler.KeyHandler;
 import com.example.immersive_cinematics.handler.CommandHandler;
+import com.example.immersive_cinematics.item.ModItems;
+import com.example.immersive_cinematics.item.ModCreativeTabs;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
@@ -30,6 +32,10 @@ public class ImmersiveCinematics {
 
     public ImmersiveCinematics() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+
+        // 注册物品和创造栏到ModEventBus（关键：这是物品显示的必要条件）
+        ModItems.ITEMS.register(modEventBus);
+        ModCreativeTabs.CREATIVE_MODE_TABS.register(modEventBus);
 
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
