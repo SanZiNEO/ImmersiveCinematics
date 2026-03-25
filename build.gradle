@@ -205,3 +205,100 @@ tasks.named('jar', Jar).configure {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
+
+// ==================== 多版本构建支持 ====================
+
+// 应用多版本构建脚本
+apply from: 'gradle/multiversion.gradle'
+
+// 配置版本特定的依赖
+def getTargetVersion() {
+    return System.getProperty('minecraft.version') ?: project.minecraft_version
+}
+
+// 动态设置Minecraft和Forge版本
+def targetVersion = getTargetVersion()
+def versionConfig = supportedVersions[targetVersion]
+
+if (versionConfig != null) {
+    // 覆盖项目属性
+    project.minecraft_version = versionConfig.minecraft_version
+    project.forge_version = versionConfig.forge_version
+    project.mapping_version = versionConfig.mapping_version
+    project.minecraft_version_range = versionConfig.minecraft_version_range
+    project.forge_version_range = versionConfig.forge_version_range
+    project.loader_version_range = versionConfig.loader_version_range
+    
+    println "使用版本配置: ${targetVersion}"
+    println "  Minecraft: ${project.minecraft_version}"
+    println "  Forge: ${project.forge_version}"
+}
+
+// 版本特定的依赖配置
+dependencies {
+    // 基础Forge依赖（会被版本配置覆盖）
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    
+    // 版本特定的依赖可以在这里添加
+    if (targetVersion.startsWith('1.21')) {
+        // 1.21.x版本可能需要额外的依赖
+        println "检测到1.21.x版本，添加兼容性依赖"
+    }
+}
+
+// 创建版本特定的资源目录
+sourceSets {
+    main {
+        resources {
+            // 添加版本特定的资源目录
+            srcDir "src/main/resources-${targetVersion.replace('.', '_')}"
+        }
+    }
+}
+
+// 版本构建后处理
+tasks.named('jar').configure {
+    doLast {
+        // 复制构建结果到版本特定的目录
+        def versionOutputDir = file("build/libs/${targetVersion}")
+        if (!versionOutputDir.exists()) {
+            versionOutputDir.mkdirs()
+        }
+        
+        copy {
+            from archiveFile
+            into versionOutputDir
+        }
+        
+        println "构建结果已复制到: ${versionOutputDir}"
+    }
+}
+
+// 版本信息显示任务
+tasks.register('showVersionInfo') {
+    group = 'multiversion'
+    description = '显示当前构建的版本信息'
+    
+    doLast {
+        println "当前构建版本信息:"
+        println "  Minecraft: ${project.minecraft_version}"
+        println "  Forge: ${project.forge_version}"
+        println "  映射: ${project.mapping_version}"
+        println "  模组ID: ${project.mod_id}"
+        println "  模组版本: ${project.mod_version}"
+        println "  目标版本: ${targetVersion}"
+        
+        // 检查版本映射系统
+        println "\n版本映射系统状态:"
+        try {
+            def mapperClass = Class.forName('com.example.immersive_cinematics.version.VersionMapper')
+            def supportedVersions = mapperClass.getMethod('getSupportedVersions').invoke(null)
+            println "  支持的版本: ${supportedVersions.join(', ')}"
+            
+            def currentAPI = mapperClass.getMethod('getCurrentVersionAPI').invoke(null)
+            println "  当前API实现: ${currentAPI.getClass().simpleName}"
+        } catch (Exception e) {
+            println "  版本映射系统未就绪: ${e.message}"
+        }
+    }
+}

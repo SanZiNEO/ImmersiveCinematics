@@ -1,0 +1,74 @@
+plugins {
+    id 'java'
+    id 'idea'
+}
+
+group = 'com.immersivecinematics'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'MinecraftForge'
+        url = 'https://maven.minecraftforge.net/'
+    }
+    maven {
+        name = 'Fabric'
+        url = 'https://maven.fabricmc.net/'
+    }
+    maven {
+        name = 'NeoForge'
+        url = 'https://maven.neoforged.net/releases/'
+    }
+}
+
+dependencies {
+    // Minecraft开发依赖（仅用于编译时，不包含运行时）
+    compileOnly "net.minecraftforge:forge:${rootProject.property('minecraft_version')}-${rootProject.property('forge_version')}:api"
+    
+    // JSON处理库（用于脚本解析）
+    implementation 'com.google.code.gson:gson:2.10.1'
+    
+    // 日志库
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    
+    // 测试依赖
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.1'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+    withSourcesJar()
+    withJavadocJar()
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// 配置构建输出
+jar {
+    archiveBaseName = 'immersive-cinematics-common'
+    manifest {
+        attributes([
+            'Specification-Title'     : 'ImmersiveCinematics Common Library',
+            'Specification-Vendor'    : 'ImmersiveCinematics Team',
+            'Specification-Version'   : '1',
+            'Implementation-Title'    : project.name,
+            'Implementation-Version'  : project.version,
+            'Implementation-Vendor'   : 'ImmersiveCinematics Team'
+        ])
+    }
+}
+
+// 发布配置（如果需要）
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}
