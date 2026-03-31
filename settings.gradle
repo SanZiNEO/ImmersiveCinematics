@@ -27,11 +27,11 @@ include 'common'
 include 'forge'
 include 'fabric'
 include 'neoforge'
-include 'editor'
 
 // 为每个模块配置项目目录
 project(':common').projectDir = file('common')
 project(':forge').projectDir = file('forge')
 project(':fabric').projectDir = file('fabric')
 project(':neoforge').projectDir = file('neoforge')
-project(':editor').projectDir = file('editor')
+
+// 编辑器功能作为common模块的一部分，通过build.editor开关控制
