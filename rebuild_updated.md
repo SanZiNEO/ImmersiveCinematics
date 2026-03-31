@@ -12,9 +12,10 @@
 ### 1.2 架构原则
 1. **解耦式相机系统** - CameraState与CameraTransform完全分离
 2. **客户端-服务器分离** - 服务端仅负责脚本分发，客户端专注播放
-3. **编辑器-播放器分离** - 支持两种产品版本
-4. **多加载器支持** - Forge/Fabric/NeoForge统一架构
-5. **实体继承规则** - 相机实体禁止继承Player类
+3. **游戏内编辑器集成** - 编辑器作为模组内置功能，在游戏内运行
+4. **双产品版本支持** - 完整版（包含编辑器）和播放器版（仅播放逻辑）
+5. **多加载器支持** - Forge/Fabric/NeoForge统一架构
+6. **实体继承规则** - 相机实体禁止继承Player类
 
 ## 2. 核心模块边界定义
 
@@ -26,7 +27,8 @@ ImmersiveCinematics/
 │   ├── timeline/                  # 时间轴系统
 │   ├── script/                    # 脚本格式与解析
 │   ├── events/                    # 事件系统
-│   └── network/                   # 网络通信协议
+│   ├── network/                   # 网络通信协议
+│   └── editor/                    # 游戏内编辑器（作为核心功能）
 ├── forge/                         # Forge加载器实现
 │   └── src/
 │       ├── main/java/
@@ -35,14 +37,10 @@ ImmersiveCinematics/
 │   └── src/
 │       ├── main/java/
 │       └── main/resources/
-├── neoforge/                      # NeoForge加载器实现
+└── neoforge/                      # NeoForge加载器实现
 │   └── src/
 │       ├── main/java/
 │       └── main/resources/
-└── editor/                        # 编辑器模块（可选）
-    ├── ui/                        # 编辑器UI
-    ├── timeline/                  # 时间轴编辑器
-    └── export/                    # 脚本导出
 ```
 
 ### 2.2 模块职责划分
@@ -64,13 +62,15 @@ ImmersiveCinematics/
   3. 事件总线集成
   4. 配置系统适配
 
-#### **编辑器模块 (editor)**
-- **职责**：提供图形化脚本创作工具
+#### **编辑器功能 (editor)**
+- **职责**：游戏内图形化脚本创作工具
+- **位置**：作为common模块的一部分
 - **包含**：
-  1. 可视化时间轴编辑器
-  2. 3D场景预览
-  3. 脚本导入/导出
-  4. 关键帧编辑工具
+  1. 可视化时间轴编辑器（游戏内UI）
+  2. 3D场景预览（在游戏世界中）
+  3. 脚本导入/导出（游戏内操作）
+  4. 关键帧编辑工具（游戏内交互）
+- **构建控制**：通过`build.editor`开关控制是否包含
 
 #### **播放器模块 (player)**
 - **职责**：轻量级脚本运行时
@@ -215,66 +215,128 @@ public class CinematicCameraEntity extends Entity {
 
 ## 4. 时间轴系统设计
 
-### 4.1 时间轴数据结构
+### 4.1 多轨道时间轴结构
 
-#### **主时间轴（Master Timeline）**
+根据ui_plan_v1.md中的设计需求，时间轴系统需要支持多轨道并行编辑，每个轨道代表不同的运镜路线或事件类型。
+
+#### **主时间轴管理器（MasterTimelineManager）**
 ```java
-public class MasterTimeline {
-    private final double duration; // 总时长（秒）
-    private final List<TimelineTrack> tracks;
-    private double currentTime; // 当前时间（秒）
+public class MasterTimelineManager {
+    private final double totalDuration; // 总时长（秒）
+    private final Map<String, TimelineTrack> tracks; // 轨道ID -> 轨道对象
+    private double currentPlaybackTime; // 当前播放时间（秒）
     
-    // 时间转换：秒 <-> Minecraft tick
-    public static double ticksToSeconds(long ticks) {
-        return ticks / 20.0;
-    }
+    // 轨道管理
+    public void addTrack(String trackId, TimelineTrack track);
+    public void removeTrack(String trackId);
+    public TimelineTrack getTrack(String trackId);
     
-    public static long secondsToTicks(double seconds) {
-        return (long) (seconds * 20.0);
-    }
+    // 时间管理
+    public void setCurrentTime(double timeInSeconds);
+    public double getTotalDuration();
+    public void updateAllTracks(double deltaTime);
+    
+    // 序列化支持
+    public JsonObject toJson();
+    public static MasterTimelineManager fromJson(JsonObject json);
 }
 ```
 
-#### **相机轨道（Camera Track）**
+#### **时间轴轨道基类（TimelineTrack）**
+```java
+public abstract class TimelineTrack {
+    protected final String trackId;
+    protected final TrackType trackType;
+    protected double startOffset; // 在当前时间轴中的起始偏移（秒）
+    protected double trackDuration; // 轨道自身时长
+    
+    public enum TrackType {
+        CAMERA_TRACK,     // 相机运镜轨道
+        AUDIO_TRACK,      // 音频轨道
+        VIDEO_TRACK,      // 视频轨道
+        EVENT_TRACK,      // 事件轨道
+        MOD_PLUGIN_TRACK, // 第三方模组插件轨道
+        CUSTOM_TRACK      // 自定义轨道
+    }
+    
+    // 抽象方法
+    public abstract void update(double timelineTime);
+    public abstract JsonObject toJson();
+}
+```
+
+#### **相机轨道（CameraTrack）**
 ```java
 public class CameraTrack extends TimelineTrack {
-    private final List<CameraKeyframe> keyframes;
+    private final List<CameraKeyframe> keyframes = new ArrayList<>();
+    
+    @Override
+    public void update(double timelineTime) {
+        // 计算相对于轨道起始的时间
+        double relativeTime = timelineTime - startOffset;
+        
+        // 如果时间在轨道范围内
+        if (relativeTime >= 0 && relativeTime <= trackDuration) {
+            // 查找相邻关键帧并进行插值
+            CameraKeyframe prev = findPreviousKeyframe(relativeTime);
+            CameraKeyframe next = findNextKeyframe(relativeTime);
+            
+            if (prev != null && next != null) {
+                float progress = (float) ((relativeTime - prev.time) / (next.time - prev.time));
+                CameraStateData interpolated = KeyframeInterpolator.interpolateState(
+                    prev.stateData, next.stateData, progress, next.interpolation);
+                
+                // 应用相机状态
+                applyCameraState(interpolated);
+            }
+        }
+    }
     
     // 关键帧数据结构
     public static class CameraKeyframe {
-        private final double time; // 时间（秒）
-        private final CameraStateData stateData;
-        private final TransformKeyframe transformData;
+        private final double time; // 轨道相对时间（秒）
+        private final CameraStateData stateData; // 相机状态：位置、镜头属性
         private final InterpolationType interpolation;
         
         public enum InterpolationType {
-            LINEAR,
-            SMOOTH,
-            EASE_IN,
-            EASE_OUT,
-            EASE_IN_OUT,
-            BEZIER
+            LINEAR,     // 线性插值
+            SMOOTH,     // 平滑插值（缓入缓出）
+            EASE_IN,    // 缓入
+            EASE_OUT,   // 缓出
+            EASE_IN_OUT // 缓入缓出
+            // 注：根据需求，贝塞尔曲线可能后续添加
         }
     }
 }
 ```
 
-#### **事件轨道（Event Track）**
+#### **事件轨道（EventTrack）**
 ```java
 public class EventTrack extends TimelineTrack {
-    private final List<TimelineEvent> events;
+    private final List<TimelineEvent> events = new ArrayList<>();
+    
+    @Override
+    public void update(double timelineTime) {
+        double relativeTime = timelineTime - startOffset;
+        
+        // 触发在相对时间发生的事件
+        for (TimelineEvent event : events) {
+            if (Math.abs(event.getTime() - relativeTime) < 0.001) {
+                event.trigger();
+            }
+        }
+    }
     
     // 时间轴事件接口
     public interface TimelineEvent {
-        double getTime();
+        double getTime(); // 轨道相对时间
         void trigger();
-        String getEventType();
+        String getEventType(); // 事件类型标识
         
-        // 支持的事件类型
         enum EventType {
             SOUND_EVENT,      // 音效事件
             PARTICLE_EVENT,   // 粒子效果
-            MOD_EVENT,        // 模组事件（第三方）
+            MOD_EVENT,        // 第三方模组事件（骨骼动画等）
             COMMAND_EVENT,    // 命令执行
             CUSTOM_EVENT      // 自定义事件
         }
@@ -500,106 +562,47 @@ public class FabricModInitializer implements ModInitializer, IModInitializer {
 }
 ```
 
-## 7. 脚本格式设计
-
-### 7.1 脚本JSON结构
-```json
-{
-  "metadata": {
-    "id": "end_entry_cinematic",
-    "version": 1,
-    "author": "整合包作者",
-    "description": "末地入口过场动画"
-  },
-  "timeline": {
-    "duration": 30.5,
-    "tracks": [
-      {
-        "type": "camera",
-        "keyframes": [
-          {
-            "time": 0.0,
-            "state": {
-              "yaw": 0.0,
-              "pitch": -0.349,
-              "roll": 0.0,
-              "fov": 70.0
-            },
-            "transform": {
-              "mode": "absolute",
-              "position": { "x": 0, "y": 64, "z": 0 }
-            },
-            "interpolation": "smooth"
-          },
-          {
-            "time": 10.0,
-            "state": {
-              "yaw": 1.571,
-              "pitch": 0.0,
-              "roll": 0.0,
-              "fov": 90.0
-            },
-            "transform": {
-              "mode": "relative_to_entity",
-              "entity_id": "minecraft:ender_dragon",
-              "offset": { "x": 0, "y": 3, "z": 5 }
-            },
-            "interpolation": "linear"
-          }
-        ]
-      },
-      {
-        "type": "event",
-        "events": [
-          {
-            "time": 5.0,
-            "type": "sound",
-            "sound": "minecraft:entity.ender_dragon.growl",
-            "volume": 1.0,
-            "pitch": 1.0
-          },
-          {
-            "time": 15.0,
-            "type": "mod:animation",
-            "animation_id": "custom_dragon_roar",
-            "target": "ender_dragon"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
 ## 8. 构建和部署策略
 
 ### 8.1 产品版本配置
 
-#### **完整版本构建（包含编辑器）**
+#### **完整版本构建（包含游戏内编辑器）**
 ```bash
 ./gradlew :forge:build -Pbuild.editor=true
 ```
 
-#### **仅播放器版本构建**
+#### **仅播放器版本构建（不包含编辑器）**
 ```bash
 ./gradlew :forge:build -Pbuild.editor=false
 ```
 
-### 8.2 Gradle配置
+### 8.2 Gradle配置说明
 ```gradle
 // gradle.properties
-build.editor=true  # 是否包含编辑器模块
+build.editor=true          # 是否包含编辑器功能（游戏内）
+build.ui_library=imgui     # UI库选择（可选：imgui, javaui等）
 build.version=1.0.0
 
-// 条件编译
-sourceSets {
-    main {
-        java {
-            if (project.hasProperty('build.editor') && project.property('build.editor') == 'true') {
-                srcDir 'editor/src/main/java'
-            }
-            srcDir 'player/src/main/java'
-            srcDir 'core/src/main/java'
+// 条件编译（概念说明）
+// 编辑器代码位于common/src/main/java/com/immersivecinematics/common/editor/
+// 通过构建开关控制是否编译和包含该目录
+
+// UI相关依赖（根据build.ui_library动态添加）
+dependencies {
+    if (project.hasProperty('build.editor') && project.property('build.editor') == 'true') {
+        // 根据选择的UI库添加相应依赖
+        switch (project.property('build.ui_library')) {
+            case 'imgui':
+                implementation 'org.lwjgl:lwjgl-glfw'
+                implementation 'org.lwjgl:lwjgl-opengl'
+                implementation 'io.github.spair:imgui-java-binding'
+                break
+            case 'javaui':
+                // 使用Java原生UI库
+                break
+            default:
+                // 使用默认UI库
+                break
         }
     }
 }
@@ -721,10 +724,23 @@ public class TimelineExecutor {
 }
 ```
 
-### 10.3 关键帧插值系统
+### 10.3 关键帧插值系统（支持多轨道平滑插值）
+
+根据需求，关键帧系统需要支持多种平滑插值类型，但不需要贝塞尔曲线等复杂插值。
+
 ```java
 public class KeyframeInterpolator {
     
+    // 插值类型枚举
+    public enum InterpolationType {
+        LINEAR,     // 线性插值
+        SMOOTH,     // 平滑插值（缓入缓出）
+        EASE_IN,    // 缓入
+        EASE_OUT,   // 缓出
+        EASE_IN_OUT // 缓入缓出
+    }
+    
+    // 完整的相机状态插值
     public static CameraStateData interpolateState(
             CameraStateData from, 
             CameraStateData to, 
@@ -733,37 +749,78 @@ public class KeyframeInterpolator {
         
         CameraStateData result = new CameraStateData();
         
-        // 使用不同的插值函数
-        switch (type) {
-            case LINEAR:
-                result.yaw = lerpAngle(from.yaw, to.yaw, progress);
-                result.pitch = lerpAngle(from.pitch, to.pitch, progress);
-                result.roll = lerp(from.roll, to.roll, progress);
-                result.fov = lerp(from.fov, to.fov, progress);
-                break;
-                
-            case SMOOTH:
-                float easeProgress = smoothstep(progress);
-                result.yaw = lerpAngle(from.yaw, to.yaw, easeProgress);
-                // ... 其他属性类似
-                break;
-                
-            case BEZIER:
-                // 使用贝塞尔曲线插值
-                float bezierProgress = cubicBezier(progress, 0.42, 0, 0.58, 1);
-                result.yaw = lerpAngle(from.yaw, to.yaw, bezierProgress);
-                break;
-        }
+        // 根据插值类型调整进度曲线
+        float adjustedProgress = applyInterpolationCurve(progress, type);
+        
+        // 位置插值（线性插值即可）
+        result.positionX = lerp(from.positionX, to.positionX, adjustedProgress);
+        result.positionY = lerp(from.positionY, to.positionY, adjustedProgress);
+        result.positionZ = lerp(from.positionZ, to.positionZ, adjustedProgress);
+        
+        // 角度插值（需要处理角度环绕）
+        result.yaw = lerpAngle(from.yaw, to.yaw, adjustedProgress);
+        result.pitch = lerpAngle(from.pitch, to.pitch, adjustedProgress);
+        result.roll = lerpAngle(from.roll, to.roll, adjustedProgress);
+        
+        // 视野插值
+        result.fov = lerp(from.fov, to.fov, adjustedProgress);
         
         return result;
     }
     
+    // 应用插值曲线
+    private static float applyInterpolationCurve(float progress, InterpolationType type) {
+        switch (type) {
+            case LINEAR:
+                return progress;
+                
+            case SMOOTH:
+                // 平滑插值：3t² - 2t³
+                return progress * progress * (3.0f - 2.0f * progress);
+                
+            case EASE_IN:
+                // 缓入：t²
+                return progress * progress;
+                
+            case EASE_OUT:
+                // 缓出：1 - (1-t)²
+                return 1.0f - (1.0f - progress) * (1.0f - progress);
+                
+            case EASE_IN_OUT:
+                // 缓入缓出：分段函数
+                if (progress < 0.5f) {
+                    return 2.0f * progress * progress;
+                } else {
+                    progress = 2.0f * progress - 1.0f;
+                    return 0.5f * (1.0f - (1.0f - progress) * (1.0f - progress)) + 0.5f;
+                }
+                
+            default:
+                return progress;
+        }
+    }
+    
+    // 线性插值
+    private static float lerp(float a, float b, float t) {
+        return a + (b - a) * t;
+    }
+    
+    // 角度插值（处理角度环绕）
     private static float lerpAngle(float a, float b, float t) {
-        // 处理角度环绕
+        // 处理角度环绕（-π 到 π）
         float diff = b - a;
         while (diff > Math.PI) diff -= 2 * Math.PI;
         while (diff < -Math.PI) diff += 2 * Math.PI;
         return a + diff * t;
+    }
+    
+    // 位置插值辅助方法（用于Vec3）
+    public static Vec3 interpolatePosition(Vec3 from, Vec3 to, float progress, InterpolationType type) {
+        float adjustedProgress = applyInterpolationCurve(progress, type);
+        double x = lerp((float) from.x(), (float) to.x(), adjustedProgress);
+        double y = lerp((float) from.y(), (float) to.y(), adjustedProgress);
+        double z = lerp((float) from.z(), (float) to.z(), adjustedProgress);
+        return new Vec3(x, y, z);
     }
 }
 ```
@@ -771,16 +828,19 @@ public class KeyframeInterpolator {
 ### 10.4 构建配置示例
 ```gradle
 // settings.gradle
-include 'core'
+include 'common'
 include 'forge'
 include 'fabric'
 include 'neoforge'
-include 'editor'
+
+// 编辑器功能在common模块中，通过build.editor开关控制
+// 当build.editor=true时，common模块中的editor目录被编译
+// 当build.editor=false时，editor目录被排除
 
 // 版本配置
 ext {
     minecraft_version = '1.20.1'
-    forge_version = '47.1.0'
+    forge_version = '47.4.16'
     fabric_version = '0.91.2+1.20.1'
     loader_version = '0.15.0'
 }
