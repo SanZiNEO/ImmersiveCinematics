@@ -8,8 +8,6 @@ import net.minecraft.world.phys.Vec3;
 
 public class CinematicCameraEntity extends Entity {
 
-    private float yaw;
-    private float pitch;
     private float fov = 70.0f;
 
     public CinematicCameraEntity(EntityType<? extends CinematicCameraEntity> type, Level level) {
@@ -19,24 +17,24 @@ public class CinematicCameraEntity extends Entity {
     public CinematicCameraEntity(Level level, Vec3 position, float yaw, float pitch) {
         super(Immersive_cinematics.CINEMATIC_CAMERA.get(), level);
         setPos(position);
-        this.yaw = yaw;
-        this.pitch = pitch;
+        setYRot(yaw);
+        setXRot(pitch);
     }
 
     public float getYaw() {
-        return yaw;
+        return getYRot();
     }
 
     public void setYaw(float yaw) {
-        this.yaw = yaw;
+        setYRot(yaw);
     }
 
     public float getPitch() {
-        return pitch;
+        return getXRot();
     }
 
     public void setPitch(float pitch) {
-        this.pitch = pitch;
+        setXRot(pitch);
     }
 
     public float getFov() {
