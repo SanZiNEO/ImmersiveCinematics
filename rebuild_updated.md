@@ -10,12 +10,14 @@
 - **提供编辑器-播放器分离的双产品版本**
 
 ### 1.2 架构原则
-1. **解耦式相机系统** - CameraState与CameraTransform完全分离
+1. **解耦式相机系统** - CameraProperties与CameraPath完全分离
 2. **客户端-服务器分离** - 服务端仅负责脚本分发，客户端专注播放
 3. **游戏内编辑器集成** - 编辑器作为模组内置功能，在游戏内运行
 4. **双产品版本支持** - 完整版（包含编辑器）和播放器版（仅播放逻辑）
 5. **多加载器支持** - Forge/Fabric/NeoForge统一架构
-6. **实体继承规则** - 相机实体禁止继承Player类
+6. **纯数据架构** - 相机系统不依赖Minecraft Entity，使用纯POJO数据类管理所有相机属性和位置
+7. **CameraManager唯一桥梁** - CameraProperties与CameraPath互不知晓，通过CameraManager间接交互
+8. **Mixin只读Manager** - Mixin注入层不直接依赖CameraProperties/CameraPath，统一从CameraManager读取
 
 ## 2. 核心模块边界定义
 
@@ -48,7 +50,7 @@ ImmersiveCinematics/
 #### **核心库 (core)**
 - **职责**：提供加载器无关的通用功能
 - **包含**：
-  1. CameraState/CameraTransform组件
+  1. CameraProperties/CameraPath/CameraManager组件
   2. 时间轴数据结构
   3. 脚本格式与序列化
   4. 网络通信协议定义
@@ -80,136 +82,238 @@ ImmersiveCinematics/
   3. 事件触发器（仅用于启动/停止脚本）
   4. 网络通信客户端
 
-## 3. 核心相机组件设计
+## 3. 核心相机组件设计（纯数据架构）
 
-### 3.1 CameraState（相机状态控制器）
+> **架构决策：不使用 Minecraft Entity 作为相机核心**
+>
+> 相机系统采用纯 POJO 数据类而非 Entity 实现，理由如下：
+> 1. **性能**：Entity 每tick执行 baseTick/碰撞检测/网络同步等无用开销，纯数据类仅做属性插值
+> 2. **解耦**：Entity 只能持有 MC 系统认知的属性（位置/旋转/生命值），FOV/Roll/DOF/缩放等必须靠外部数据类
+> 3. **稳定性**：Entity 生命周期管理（addFreshEntity/remove）是真实 bug 来源，纯数据单例无此问题
+> 4. **扩展性**：纯数据类加字段即可扩展，Entity 需要持续"堵漏"（isInvulnerable/isPushable/canBeCollidedWith）
+> 5. **强制渲染区块**：Forge 的 forceChunk API 使用 Ticket 机制与 Entity 无关，客户端区块缓存覆盖直接读 CameraManager 更直接
+>
+> 核心架构：`CameraProperties` ↔ `CameraManager` ↔ `CameraPath`，两者互不知晓，Manager 是唯一桥梁
 
-#### **类职责**
-- 管理相机的**视觉属性**，纯数学计算，无状态依赖
-- 提供属性插值和动画功能
-- 支持平滑过渡和关键帧动画
-
-#### **接口定义**
-```java
-public interface ICameraState {
-    // 获取当前相机状态
-    CameraStateData getCurrentState(double partialTicks);
-    
-    // 插值到目标状态
-    void interpolateTo(CameraStateData target, float progress);
-    
-    // 从实体获取状态
-    void setFromEntity(Entity entity);
-    
-    // 应用状态到游戏渲染器
-    void applyToRenderer();
-}
-```
-
-#### **CameraStateData数据结构**
-```java
-public class CameraStateData {
-    private float yaw;      // 偏航角（弧度）
-    private float pitch;    // 俯仰角（弧度）
-    private float roll;     // 翻滚角（弧度）
-    private float fov;      // 视野角度（度）
-    private float near;     // 近裁剪面
-    private float far;      // 远裁剪面
-    
-    // 插值方法
-    public CameraStateData interpolate(CameraStateData target, float t);
-}
-```
-
-### 3.2 CameraTransform（相机变换控制器）
+### 3.1 CameraProperties（相机属性控制器）
 
 #### **类职责**
-- 管理相机的**世界位置**，支持多种定位模式
-- 每帧最多执行一次坐标变换（性能优化）
-- 支持绝对坐标和相对目标定位
+- 管理相机的**视觉属性**：FOV、Roll、DOF、缩放等
+- 纯数学计算，无 Minecraft 类依赖
+- 提供带时长的目标插值（current → target，经 duration 完成）
+- 完全不知道 CameraPath 的存在
 
-#### **接口定义**
+#### **类定义**
 ```java
-public interface ICameraTransform {
-    // 获取当前位置
-    Vec3 getPosition(double partialTicks);
+public class CameraProperties {
+    // --- 当前值 ---
+    private float currentFov = 70.0f;
+    private float currentRoll = 0.0f;    // 翻滚角（度）
+    private float currentDof = 0.0f;     // 景深（0=关闭）
+    private float currentZoom = 1.0f;    // 缩放倍率
     
-    // 定位模式
-    enum PositioningMode {
-        ABSOLUTE,           // 绝对世界坐标
-        RELATIVE_TO_ENTITY, // 相对实体定位
-        RELATIVE_TO_BLOCK,  // 相对方块定位
-        RELATIVE_TO_STRUCTURE // 相对结构定位
-    }
+    // --- 目标值 ---
+    private float targetFov = 70.0f;
+    private float targetRoll = 0.0f;
+    private float targetDof = 0.0f;
+    private float targetZoom = 1.0f;
     
-    // 设置目标
-    void setTarget(@Nullable Object target);
+    // --- 插值控制 ---
+    private float startFov, startRoll, startDof, startZoom; // 插值起始值
+    private float transitionDuration = 0f;  // 过渡时长（秒），0=瞬时
+    private float transitionProgress = 1f;  // 0~1，1=已完成
     
-    // 更新变换
-    void update(double partialTicks);
+    // 设置目标值（带过渡时长）
+    public void setTargetFov(float fov, float duration);
+    public void setTargetRoll(float roll, float duration);
+    public void setTargetDof(float dof, float duration);
+    public void setTargetZoom(float zoom, float duration);
+    
+    // 每tick驱动插值
+    public void tick(float deltaTime);
+    
+    // 重置到默认值
+    public void reset();
+    
+    // 获取当前值（供 Mixin 读取）
+    public float getFov() { return currentFov; }
+    public float getRoll() { return currentRoll; }
+    public float getDof() { return currentDof; }
+    public float getZoom() { return currentZoom; }
 }
 ```
 
-#### **定位目标接口**
+#### **tick() 核心逻辑**
 ```java
-public interface ITargetProvider {
-    // 获取目标位置
-    Vec3 getTargetPosition();
-    
-    // 目标类型
-    enum TargetType {
-        ENTITY,
-        BLOCK_POSITION,
-        STRUCTURE_CENTER,
-        CUSTOM
+public void tick(float deltaTime) {
+    if (transitionProgress < 1f) {
+        transitionProgress = Math.min(1f, transitionProgress + deltaTime / transitionDuration);
+        float t = transitionProgress; // 线性插值，后续可替换为缓动函数
+        currentFov = lerp(startFov, targetFov, t);
+        currentRoll = lerp(startRoll, targetRoll, t);
+        currentDof = lerp(startDof, targetDof, t);
+        currentZoom = lerp(startZoom, targetZoom, t);
     }
 }
 ```
 
-### 3.3 相机实体实现
+### 3.2 CameraPath（相机位置控制器）
 
-#### **核心实体设计**
+#### **类职责**
+- 管理相机的**世界位置**：position(x,y,z) + rotation(yaw,pitch)
+- 纯数据，无 Minecraft 类依赖（Vec3d 除外）
+- 提供带时长的目标插值
+- 完全不知道 CameraProperties 的存在
+
+#### **类定义**
 ```java
-// 禁止继承Player类，直接继承Entity
-public class CinematicCameraEntity extends Entity {
+public class CameraPath {
+    // --- 当前值 ---
+    private Vec3 currentPosition = Vec3.ZERO;
+    private float currentYaw = 0f;
+    private float currentPitch = 0f;
     
-    private final CameraState cameraState;
-    private final CameraTransform cameraTransform;
+    // --- 目标值 ---
+    private Vec3 targetPosition = Vec3.ZERO;
+    private float targetYaw = 0f;
+    private float targetPitch = 0f;
     
-    public CinematicCameraEntity(EntityType<?> type, Level level) {
-        super(type, level);
-        this.cameraState = new CameraStateImpl();
-        this.cameraTransform = new CameraTransformImpl();
-        
-        // 禁用物理和碰撞
-        this.noPhysics = true;
-        this.setNoGravity(true);
-        this.setInvulnerable(true);
+    // --- 插值控制 ---
+    private Vec3 startPosition;
+    private float startYaw, startPitch;
+    private float transitionDuration = 0f;
+    private float transitionProgress = 1f;
+    
+    // 设置目标值（带过渡时长）
+    public void setTargetPosition(Vec3 pos, float duration);
+    public void setTargetRotation(float yaw, float pitch, float duration);
+    
+    // 每tick驱动插值
+    public void tick(float deltaTime);
+    
+    // 重置到玩家视角
+    public void resetFromPlayer();
+    
+    // 获取当前值（供 Mixin 读取）
+    public Vec3 getPosition() { return currentPosition; }
+    public float getYaw() { return currentYaw; }
+    public float getPitch() { return currentPitch; }
+}
+```
+
+#### **tick() 核心逻辑**
+```java
+public void tick(float deltaTime) {
+    if (transitionProgress < 1f) {
+        transitionProgress = Math.min(1f, transitionProgress + deltaTime / transitionDuration);
+        float t = transitionProgress;
+        currentPosition = startPosition.lerp(targetPosition, t);
+        currentYaw = lerpAngle(startYaw, targetYaw, t);
+        currentPitch = lerpAngle(startPitch, targetPitch, t);
     }
+}
+```
+
+### 3.3 CameraManager（统一调度器）
+
+#### **类职责**
+- 单例模式，是 CameraProperties 和 CameraPath 的唯一桥梁
+- 每tick驱动两个子系统的 tick()
+- 提供 Mixin 可读取的静态访问点
+- 管理相机激活/停用状态
+
+#### **类定义**
+```java
+public class CameraManager {
+    public static final CameraManager INSTANCE = new CameraManager();
     
-    @Override
+    private final CameraProperties properties = new CameraProperties();
+    private final CameraPath path = new CameraPath();
+    private boolean active = false;
+    
+    // --- 生命周期 ---
+    public void activate();   // 从玩家当前位置激活
+    public void deactivate();  // 停用，恢复玩家视角
+    
+    // --- 每tick驱动（由 ClientTickEvent 调用）---
     public void tick() {
-        super.tick();
-        
-        // 更新变换和状态
-        cameraTransform.update(1.0f);
-        cameraState.update(1.0f);
-        
-        // 应用相机状态到渲染器
-        if (level().isClientSide()) {
-            cameraState.applyToRenderer();
+        if (!active) return;
+        float deltaTime = 1f / 20f; // 每tick 0.05秒
+        properties.tick(deltaTime);
+        path.tick(deltaTime);
+    }
+    
+    // --- Mixin 读取接口 ---
+    public CameraProperties getProperties() { return properties; }
+    public CameraPath getPath() { return path; }
+    public boolean isActive() { return active; }
+    
+    // --- 便捷方法 ---
+    public void reset() {
+        properties.reset();
+        path.resetFromPlayer();
+    }
+}
+```
+
+### 3.4 Mixin 注入层
+
+> Mixin 层只读 CameraManager，不直接依赖 CameraProperties/CameraPath
+
+#### **CameraMixin — 覆盖位置和旋转**
+```java
+@Mixin(Camera.class)
+public abstract class CameraMixin {
+    @Shadow protected abstract void setPosition(double x, double y, double z);
+    @Shadow protected abstract void setRotation(float yaw, float pitch);
+    
+    @Inject(method = "setup", at = @At("HEAD"), cancellable = true)
+    private void onSetup(BlockGetter level, Entity entity, boolean detached,
+                         boolean mirror, float partialTick, CallbackInfo ci) {
+        CameraManager mgr = CameraManager.INSTANCE;
+        if (mgr.isActive()) {
+            Vec3 pos = mgr.getPath().getPosition();
+            setPosition(pos.x, pos.y, pos.z);
+            setRotation(mgr.getPath().getYaw(), mgr.getPath().getPitch());
+            ci.cancel();  // setRotation 内部会自动计算 forward/left/up 向量
+        }
+    }
+}
+```
+
+#### **GameRendererMixin — 覆盖 FOV 和 Roll**
+```java
+@Mixin(GameRenderer.class)
+public class GameRendererMixin {
+    // FOV 覆盖
+    @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
+    private void onGetFov(CallbackInfoReturnable<Double> cir) {
+        CameraManager mgr = CameraManager.INSTANCE;
+        if (mgr.isActive()) {
+            cir.setReturnValue((double) mgr.getProperties().getFov());
         }
     }
     
-    // 禁用不必要的玩家逻辑
-    @Override
-    public boolean isAffectedByFluids() { return false; }
-    
-    @Override
-    public boolean isPushable() { return false; }
-    
-    @Override
-    public boolean isPickable() { return false; }
+    // Roll 注入：在渲染世界前对 PoseStack 做 Z 轴旋转
+    // 具体注入点需在 renderLevel() 中相机设置之后、世界渲染之前
+    // poseStack.mulPose(Axis.ZP.rotationDegrees(roll));
+    // 注：Minecraft 1.20.1 无原生 Roll 支持，需修改投影矩阵
+}
+```
+
+#### **EntityRenderDispatcherMixin — 仅用于隐藏相机实体（如保留）**
+```java
+@Mixin(EntityRenderDispatcher.class)
+public class EntityRenderDispatcherMixin {
+    @Inject(method = "shouldRender", at = @At("HEAD"), cancellable = true)
+    private <E extends Entity> void onShouldRender(E entity, Frustum frustum,
+                                                    double x, double y, double z,
+                                                    CallbackInfoReturnable<Boolean> cir) {
+        // 纯数据方案无 Entity，此 Mixin 仅在保留 CinematicCameraEntity 时需要
+        if (entity instanceof CinematicCameraEntity) {
+            cir.setReturnValue(false);
+        }
+    }
 }
 ```
 
@@ -610,16 +714,16 @@ dependencies {
 
 ## 9. 开发路线图
 
-### 阶段1：核心架构实现（3-4周）
-- [ ] 实现CameraState/CameraTransform核心组件
-- [ ] 建立多加载器项目结构
-- [ ] 设计核心接口和抽象层
-- [ ] 创建基础网络通信协议
-- [ ] 实现时间轴基础数据结构
+### 阶段1：核心架构实现
+- [ ] 实现CameraProperties/CameraPath/CameraManager纯数据组件
+- [ ] 修改现有Mixin（CameraMixin/GameRendererMixin）从CameraManager读取
+- [ ] 删除CinematicCameraEntity数据角色和CinematicCameraHandler
+- [ ] 添加Roll注入（GameRendererMixin PoseStack Z轴旋转）
+- [ ] 添加测试命令验证分离工作正常
 
-### 阶段2：播放器模块开发（4-5周）
+### 阶段2：播放器模块开发
 - [ ] 实现轻量级脚本解析和执行引擎
-- [ ] 创建相机实体系统（继承Entity而非Player）
+- [ ] 相机系统与时间轴对接
 - [ ] 实现事件触发器系统（仅用于启动/停止脚本）
 - [ ] 优化运行时性能，建立性能基准
 - [ ] 创建自动化测试框架和测试用例
@@ -661,19 +765,21 @@ dependencies {
 
 ## 10. 关键技术决策与实现细节
 
-### 10.1 相机实体注册
+### 10.1 相机系统初始化（纯数据架构）
+
+> 相机核心不再使用 Entity，CinematicCameraEntity 仅在需要服务端追踪相机位置时保留注册。
+> 当前阶段不保留 Entity 注册，所有相机逻辑通过 CameraManager 纯数据驱动。
+
 ```java
-// 注册相机实体类型
-public class ModEntities {
-    public static final DeferredRegister<EntityType<?>> ENTITY_TYPES = 
-        DeferredRegister.create(ForgeRegistries.ENTITY_TYPES, MODID);
-    
-    public static final RegistryObject<EntityType<CinematicCameraEntity>> CINEMATIC_CAMERA =
-        ENTITY_TYPES.register("cinematic_camera", () -> 
-            EntityType.Builder.of(CinematicCameraEntity::new, MobCategory.MISC)
-                .sized(0.001f, 0.001f) // 极小碰撞箱
-                .clientTrackingRange(0) // 不进行客户端追踪
-                .build("cinematic_camera"));
+// CameraManager 在客户端初始化时注册 tick 驱动
+@Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
+public static class ClientEvents {
+    @SubscribeEvent
+    public static void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase == TickEvent.Phase.END) {
+            CameraManager.INSTANCE.tick();
+        }
+    }
 }
 ```
 
@@ -892,7 +998,7 @@ ext {
 ### 13.2 版本0.4.0（Beta）
 - 目标：播放器模块完整实现
 - 时间：阶段2完成后
-- 功能：脚本播放引擎、相机实体系统、事件触发器
+- 功能：脚本播放引擎、纯数据相机系统、事件触发器
 
 ### 13.3 版本0.5.0（RC1）
 - 目标：网络和同步系统
@@ -911,7 +1017,7 @@ ext {
 
 ---
 
-**文档状态**：完成技术规范修订  
-**最后更新**：2026/3/25  
-**下一步**：开始实施阶段1 - 核心架构实现  
-**备注**：此文档基于Minecraft模组架构设计提示词编写，确保符合所有架构原则和要求
+**文档状态**：完成纯数据架构修订（相机系统从 Entity 迁移至 POJO）
+**最后更新**：2026/4/27
+**下一步**：开始实施阶段1 - CameraProperties/CameraPath/CameraManager 核心组件
+**备注**：相机系统已确定为纯数据架构，不依赖 Minecraft Entity。详见 Section 3 架构决策说明。
