@@ -9,7 +9,7 @@
     "client": [
       "CameraMixin",
       "GameRendererMixin",
-      "EntityRenderDispatcherMixin"
+      "GuiMixin"
     ],
   "injectors": {
     "defaultRequire": 1
