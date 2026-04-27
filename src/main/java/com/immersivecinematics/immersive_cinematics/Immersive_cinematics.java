@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.handler.HudOverlayHandler;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.Registries;
@@ -15,6 +16,7 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
+import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
@@ -158,6 +160,18 @@ public class Immersive_cinematics {
             if (event.phase == TickEvent.Phase.END) {
                 CameraManager.INSTANCE.tick();
             }
+        }
+    }
+
+    /**
+     * 客户端 HUD overlay 事件 — 电影模式下隐藏所有 HUD（白名单机制）
+     */
+    @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
+    public static class ClientHudEvents {
+
+        @SubscribeEvent
+        public static void onRenderGuiOverlayPre(RenderGuiOverlayEvent.Pre event) {
+            HudOverlayHandler.onRenderGuiOverlayPre(event);
         }
     }
 }
