@@ -51,7 +51,8 @@ public abstract class CameraMixin {
      * 返回 true 使 Minecraft 认为相机处于"分离"（第三人称）模式
      * 效果：
      * 1. 渲染玩家身体模型（第一人称不渲染玩家自己）
-     * 2. 隐藏第一人称手臂渲染
+     * 2. ⚠️ 不影响手臂渲染！手臂渲染由 GameRenderer.renderItemInHand() 控制，
+     *    该方法检查的是 CameraType.isFirstPerson()，而不是 Camera.isDetached()
      * 3. 不影响 HUD，HUD 需要单独处理（GuiMixin）
      */
     @Inject(method = "isDetached", at = @At("HEAD"), cancellable = true)
