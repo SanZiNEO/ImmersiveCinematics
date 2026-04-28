@@ -21,6 +21,14 @@ public class CameraProperties {
     private float currentDof = DEFAULT_DOF;
     private float currentZoom = DEFAULT_ZOOM;
 
+    // --- 上一tick的值（用于帧级 partialTick 插值） ---
+    private float previousYaw = 0f;
+    private float previousPitch = 0f;
+    private float previousRoll = 0f;
+    private float previousFov = DEFAULT_FOV;
+    private float previousDof = DEFAULT_DOF;
+    private float previousZoom = DEFAULT_ZOOM;
+
     // --- 目标值 ---
     private float targetYaw = 0f;
     private float targetPitch = 0f;
@@ -132,18 +140,48 @@ public class CameraProperties {
     public float getDof() { return currentDof; }
     public float getZoom() { return currentZoom; }
 
+    // ========== partialTick 插值读取（给 Mixin 渲染帧用） ==========
+
+    /**
+     * 每tick开始时保存当前值为"上一tick值"，供渲染帧 partialTick 插值使用。
+     * 必须在 CameraManager.tick() 开头、所有 setTargetXxx 调用之前执行。
+     */
+    public void savePreviousTick() {
+        this.previousYaw = this.currentYaw;
+        this.previousPitch = this.currentPitch;
+        this.previousRoll = this.currentRoll;
+        this.previousFov = this.currentFov;
+        this.previousDof = this.currentDof;
+        this.previousZoom = this.currentZoom;
+    }
+
+    /** 获取 partialTick 插值后的 yaw（角度环绕） */
+    public float getYawInterpolated(float partialTick) {
+        return lerpAngle(previousYaw, currentYaw, partialTick);
+    }
+
+    /** 获取 partialTick 插值后的 pitch（角度环绕） */
+    public float getPitchInterpolated(float partialTick) {
+        return lerpAngle(previousPitch, currentPitch, partialTick);
+    }
+
+    /** 获取 partialTick 插值后的 fov（线性插值） */
+    public float getFovInterpolated(float partialTick) {
+        return lerp(previousFov, currentFov, partialTick);
+    }
+
     // ========== 重置 ==========
 
     /**
      * 重置到默认值
      */
     public void reset() {
-        currentYaw = targetYaw = startYaw = 0f;
-        currentPitch = targetPitch = startPitch = 0f;
-        currentRoll = targetRoll = startRoll = 0f;
-        currentFov = targetFov = startFov = DEFAULT_FOV;
-        currentDof = targetDof = startDof = DEFAULT_DOF;
-        currentZoom = targetZoom = startZoom = DEFAULT_ZOOM;
+        currentYaw = targetYaw = startYaw = previousYaw = 0f;
+        currentPitch = targetPitch = startPitch = previousPitch = 0f;
+        currentRoll = targetRoll = startRoll = previousRoll = 0f;
+        currentFov = targetFov = startFov = previousFov = DEFAULT_FOV;
+        currentDof = targetDof = startDof = previousDof = DEFAULT_DOF;
+        currentZoom = targetZoom = startZoom = previousZoom = DEFAULT_ZOOM;
         transitionDuration = 0f;
         transitionProgress = 1f;
     }
