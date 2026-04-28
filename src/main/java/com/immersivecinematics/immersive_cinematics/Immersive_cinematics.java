@@ -17,6 +17,7 @@ import net.minecraft.world.level.material.MapColor;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
+import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
@@ -172,6 +173,33 @@ public class Immersive_cinematics {
         @SubscribeEvent
         public static void onRenderGuiOverlayPre(RenderGuiOverlayEvent.Pre event) {
             HudOverlayHandler.onRenderGuiOverlayPre(event);
+        }
+    }
+
+    /**
+     * 客户端相机事件 — 通过 Forge 事件设置 roll
+     * <p>
+     * Forge 的 ViewportEvent.ComputeCameraAngles 在 GameRenderer.renderLevel() 中
+     * 相机旋转应用到 PoseStack 之前触发，调用 event.setRoll() 即可实现滚转。
+     * <p>
+     * GameRenderer.renderLevel() 中的执行顺序：
+     * 1. camera.setup() → 我们的 CameraMixin 拦截，设置自定义 position/yaw/pitch
+     * 2. Forge 事件触发 → 本方法设置 roll
+     * 3. camera.setAnglesInternal(event.yaw, event.pitch) → 用事件值覆写相机角度
+     * 4. poseStack.mulPose(Axis.ZP.rotationDegrees(event.roll)) → roll 应用到视图矩阵 ✅
+     * 5. poseStack.mulPose(Axis.XP.rotationDegrees(pitch)) → pitch 应用到视图矩阵
+     * 6. poseStack.mulPose(Axis.YP.rotationDegrees(yaw + 180)) → yaw 应用到视图矩阵
+     */
+    @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
+    public static class ClientCameraEvents {
+
+        @SubscribeEvent
+        public static void onComputeCameraAngles(ViewportEvent.ComputeCameraAngles event) {
+            CameraManager mgr = CameraManager.INSTANCE;
+            if (mgr.isActive()) {
+                float roll = mgr.getProperties().getRollInterpolated((float) event.getPartialTick());
+                event.setRoll(roll);
+            }
         }
     }
 }
