@@ -14,6 +14,7 @@ public class CameraManager {
 
     private final CameraProperties properties = new CameraProperties();
     private final CameraPath path = new CameraPath();
+    private final CameraTestPlayer testPlayer = new CameraTestPlayer();
     private boolean active = false;
 
     // ========== 生命周期 ==========
@@ -35,6 +36,9 @@ public class CameraManager {
         properties.setTargetPitch(playerPitch, 0f);
 
         active = true;
+
+        // 阶段1：激活后启动测试播放器
+        testPlayer.start();
     }
 
     /**
@@ -42,6 +46,7 @@ public class CameraManager {
      */
     public void deactivate() {
         active = false;
+        testPlayer.stop();
         reset();
     }
 
@@ -65,8 +70,22 @@ public class CameraManager {
     public void tick() {
         if (!active) return;
         float deltaTime = 1f / 20f; // 每tick 0.05秒
+
+        // 每tick开头保存当前值作为"上一帧基准"，供渲染帧 partialTick 插值使用。
+        // 必须在所有 setTargetXxx() 调用之前执行，确保 previous 值不被覆盖。
+        path.savePreviousTick();
+        properties.savePreviousTick();
+
+        // 阶段1：驱动测试播放器（在 properties/path tick 之前）
+        testPlayer.tick(deltaTime);
+
         properties.tick(deltaTime);
         path.tick(deltaTime);
+
+        // 播放结束后自动停用
+        if (testPlayer.isFinished()) {
+            deactivate();
+        }
     }
 
     // ========== Mixin 读取接口 ==========

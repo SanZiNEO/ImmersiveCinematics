@@ -11,6 +11,9 @@ public class CameraPath {
     // --- 当前值 ---
     private Vec3 currentPosition = Vec3.ZERO;
 
+    // --- 上一tick的值（用于帧级 partialTick 插值） ---
+    private Vec3 previousPosition = Vec3.ZERO;
+
     // --- 目标值 ---
     private Vec3 targetPosition = Vec3.ZERO;
 
@@ -56,10 +59,28 @@ public class CameraPath {
     }
 
     /**
+     * 每tick开始时保存当前值为"上一tick值"，供渲染帧 partialTick 插值使用。
+     * 必须在 CameraManager.tick() 开头、所有 setTargetPosition 调用之前执行。
+     */
+    public void savePreviousTick() {
+        this.previousPosition = this.currentPosition;
+    }
+
+    /**
+     * 获取 partialTick 插值后的位置，供 CameraMixin.onSetup 渲染帧使用。
+     * @param partialTick 渲染帧进度 [0, 1)，来自 Camera.setup() 的参数
+     * @return previousPosition.lerp(currentPosition, partialTick)
+     */
+    public Vec3 getPositionInterpolated(float partialTick) {
+        return previousPosition.lerp(currentPosition, partialTick);
+    }
+
+    /**
      * 重置到原点
      */
     public void reset() {
         currentPosition = Vec3.ZERO;
+        previousPosition = Vec3.ZERO;
         targetPosition = Vec3.ZERO;
         startPosition = Vec3.ZERO;
         transitionDuration = 0f;

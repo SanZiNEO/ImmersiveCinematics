@@ -27,9 +27,13 @@ public abstract class CameraMixin {
                          boolean mirror, float partialTick, CallbackInfo ci) {
         CameraManager mgr = CameraManager.INSTANCE;
         if (mgr.isActive()) {
-            Vec3 pos = mgr.getPath().getPosition();
+            // 使用 partialTick 插值，消除 20tick/s → 60fps 的阶梯感
+            Vec3 pos = mgr.getPath().getPositionInterpolated(partialTick);
             setPosition(pos.x, pos.y, pos.z);
-            setRotation(mgr.getProperties().getYaw(), mgr.getProperties().getPitch());
+            setRotation(
+                mgr.getProperties().getYawInterpolated(partialTick),
+                mgr.getProperties().getPitchInterpolated(partialTick)
+            );
             ci.cancel();  // setRotation 内部自动计算 forwards/up/left 向量
         }
     }
