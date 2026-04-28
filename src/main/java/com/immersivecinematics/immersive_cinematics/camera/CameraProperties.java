@@ -170,6 +170,16 @@ public class CameraProperties {
         return lerp(previousFov, currentFov, partialTick);
     }
 
+    /** 获取 partialTick 插值后的 roll（角度环绕） */
+    public float getRollInterpolated(float partialTick) {
+        return lerpAngle(previousRoll, currentRoll, partialTick);
+    }
+
+    /** 获取 partialTick 插值后的 zoom（线性插值） */
+    public float getZoomInterpolated(float partialTick) {
+        return lerp(previousZoom, currentZoom, partialTick);
+    }
+
     // ========== 重置 ==========
 
     /**
