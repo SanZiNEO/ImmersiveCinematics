@@ -6,6 +6,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -22,6 +24,18 @@ public abstract class CameraMixin {
     @Shadow
     protected abstract void setRotation(float yaw, float pitch);
 
+    @Shadow
+    private Quaternionf rotation;
+
+    @Shadow
+    private Vector3f forwards;
+
+    @Shadow
+    private Vector3f up;
+
+    @Shadow
+    private Vector3f left;
+
     @Inject(method = "setup", at = @At("HEAD"), cancellable = true)
     private void onSetup(BlockGetter level, Entity entity, boolean detached,
                          boolean mirror, float partialTick, CallbackInfo ci) {
@@ -30,11 +44,25 @@ public abstract class CameraMixin {
             // 使用 partialTick 插值，消除 20tick/s → 60fps 的阶梯感
             Vec3 pos = mgr.getPath().getPositionInterpolated(partialTick);
             setPosition(pos.x, pos.y, pos.z);
-            setRotation(
-                mgr.getProperties().getYawInterpolated(partialTick),
-                mgr.getProperties().getPitchInterpolated(partialTick)
-            );
-            ci.cancel();  // setRotation 内部自动计算 forwards/up/left 向量
+
+            float yaw = mgr.getProperties().getYawInterpolated(partialTick);
+            float pitch = mgr.getProperties().getPitchInterpolated(partialTick);
+            setRotation(yaw, pitch);
+
+            // 注入 Roll：覆写旋转四元数，加入 roll 分量
+            float roll = mgr.getProperties().getRollInterpolated(partialTick);
+            if (roll != 0f) {
+                rotation.rotationYXZ(
+                        -yaw * ((float)Math.PI / 180F),
+                        pitch * ((float)Math.PI / 180F),
+                        -roll * ((float)Math.PI / 180F)
+                );
+                forwards.set(0.0F, 0.0F, 1.0F).rotate(rotation);
+                up.set(0.0F, 1.0F, 0.0F).rotate(rotation);
+                left.set(1.0F, 0.0F, 0.0F).rotate(rotation);
+            }
+
+            ci.cancel();  // 取消原版 setup，使用我们的位置/旋转
         }
     }
 

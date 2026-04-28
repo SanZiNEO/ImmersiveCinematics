@@ -17,7 +17,9 @@ public class GameRendererMixin {
                           CallbackInfoReturnable<Double> cir) {
         CameraManager mgr = CameraManager.INSTANCE;
         if (mgr.isActive()) {
-            cir.setReturnValue((double) mgr.getProperties().getFovInterpolated(partialTick));
+            float fov = mgr.getProperties().getFovInterpolated(partialTick);
+            float zoom = mgr.getProperties().getZoomInterpolated(partialTick);
+            cir.setReturnValue((double) (fov / zoom));
         }
     }
 

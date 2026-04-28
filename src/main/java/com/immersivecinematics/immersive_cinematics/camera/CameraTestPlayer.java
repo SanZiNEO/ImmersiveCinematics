@@ -5,7 +5,7 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * 阶段1测试用：硬编码关键帧序列，P键激活后自动播放
- * 验证完整数据通路：Position/Yaw/Pitch/FOV → CameraManager → Mixin → 渲染
+ * 验证完整数据通路：Position/Yaw/Pitch/Roll/FOV/Zoom → CameraManager → Mixin → 渲染
  * <p>
  * 每次 P 键激活从玩家当前位置/朝向开始，不存储上次相机位置。
  * 播放结束后自动停用，恢复玩家视角。
@@ -22,24 +22,30 @@ public class CameraTestPlayer {
             float z,      // 绝对世界坐标 Z
             float yaw,    // 绝对偏航角（度）
             float pitch,  // 绝对俯仰角（度）
-            float fov     // 视场角（度）
+            float roll,   // 滚转角（度），0=正放
+            float fov,    // 视场角（度）
+            float zoom    // 缩放倍率，1.0=正常，>1=放大
     ) {}
 
     /**
      * 硬编码关键帧序列（绝对世界坐标）
      * <p>
      * 轨迹设计（超平坦世界，地面 Y≈0）：
-     * 0~3s:  (0,-50,0) → (0,5,0)  从地下50格上升到地面之上，俯视下方
-     * 3~6s:  (0,5,0)   → (50,5,0)  水平右移50格 + 右转90°
-     * 6~10s: (50,5,0)  → (50,5,50) 前移50格 + 掉头180° + 仰视15° + 窄角40°
-     * 10~13s:(50,5,50) → (0,-50,0) 斜线回起始点 + 恢复朝向/FOV
      */
     private static final TestKeyframe[] KEYFRAMES = {
-            new TestKeyframe( 0.0f,   0, -50,   0,    0,   0,  70),   // 起点地下
-            new TestKeyframe( 3.0f,   0,   5,   0,    0, -30,  50),   // 升到地面 + 俯视30°
-            new TestKeyframe( 6.0f,  50,   5,   0,   90,   0, 100),   // 右移50格 + 右转90° + 广角
-            new TestKeyframe(10.0f,  50,   5,  50,  180,  15,  40),   // 前移50格 + 掉头 + 仰视 + 窄角
-            new TestKeyframe(13.0f,   0, -50,   0,    0,   0,  70),   // 回到起点地下
+            new TestKeyframe( 0.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 起点，正常数值
+            new TestKeyframe( 5.0f,   20,   -50,   0,    0, -0,   0,  70, 1.0f),   // 从起点出发，角度不变，验证位置变换
+            new TestKeyframe( 10.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 回到起点，准备验证下一项
+            new TestKeyframe( 15.0f,  0,   -50,   0,   90,   0,  0, 100, 1.0f),   //右转90°
+            new TestKeyframe( 20.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 回到起点，准备验证下一项
+            new TestKeyframe( 25.0f,   0, -50,   0,    0,   90,   0,  70, 1.0f),   // 向下90°
+            new TestKeyframe( 30.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 回到起点，准备验证下一项
+            new TestKeyframe( 35.0f,   0, -50,   0,    0,   0,   45,  70, 1.0f),   // 旋转45°
+            new TestKeyframe( 40.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 回到起点，准备验证下一项
+            new TestKeyframe( 45.0f,   0, -50,   0,    0,   0,   0,  100, 1.0f),   // fov变换到100
+            new TestKeyframe( 50.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 回到起点，准备验证下一项
+            new TestKeyframe( 55.0f,   0, -50,   0,    0,   0,   0,  70, 5.0f),   // 放大5倍
+            new TestKeyframe( 60.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 回到起点，验证完成
     };
 
     // ========== 状态 ==========
@@ -113,14 +119,18 @@ public class CameraTestPlayer {
         );
         float yaw = lerpAngle(from.yaw(), to.yaw(), t);
         float pitch = lerp(from.pitch(), to.pitch(), t);
+        float roll = lerpAngle(from.roll(), to.roll(), t);
         float fov = lerp(from.fov(), to.fov(), t);
+        float zoom = lerp(from.zoom(), to.zoom(), t);
 
         // 写入 CameraManager（使用 duration=0 直接设置，绕过共享插值状态）
         CameraManager mgr = CameraManager.INSTANCE;
         mgr.getPath().setTargetPosition(pos, 0f);
         mgr.getProperties().setTargetYaw(yaw, 0f);
         mgr.getProperties().setTargetPitch(pitch, 0f);
+        mgr.getProperties().setTargetRoll(roll, 0f);
         mgr.getProperties().setTargetFov(fov, 0f);
+        mgr.getProperties().setTargetZoom(zoom, 0f);
     }
 
     // ========== 工具方法 ==========
