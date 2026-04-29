@@ -1,64 +1,50 @@
 package com.immersivecinematics.immersive_cinematics;
 
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Item;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
-import net.minecraftforge.registries.ForgeRegistries;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-// An example config class. This is not required, but it's a good idea to have one to keep your config organized.
-// Demonstrates how to use Forge's config APIs
+/**
+ * ImmersiveCinematics 模组配置
+ * <p>
+ * 当前为最小化配置，后续阶段按需扩展：
+ * - 阶段2：脚本播放相关配置（默认播放速度、循环行为等）
+ * - 阶段3：网络/触发器相关配置
+ * - 阶段4：编辑器相关配置
+ */
 @Mod.EventBusSubscriber(modid = Immersive_cinematics.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
-public class Config
-{
+public class Config {
+
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
-    private static final ForgeConfigSpec.BooleanValue LOG_DIRT_BLOCK = BUILDER
-            .comment("Whether to log the dirt block on common setup")
-            .define("logDirtBlock", true);
+    // ===== 相机系统配置 =====
 
-    private static final ForgeConfigSpec.IntValue MAGIC_NUMBER = BUILDER
-            .comment("A magic number")
-            .defineInRange("magicNumber", 42, 0, Integer.MAX_VALUE);
+    private static final ForgeConfigSpec.DoubleValue DEFAULT_FOV = BUILDER
+            .comment("默认视场角（度）", "标准值: 70, 广角: 90+, 长焦: 50-")
+            .defineInRange("defaultFov", 70.0, 20.0, 120.0);
 
-    public static final ForgeConfigSpec.ConfigValue<String> MAGIC_NUMBER_INTRODUCTION = BUILDER
-            .comment("What you want the introduction message to be for the magic number")
-            .define("magicNumberIntroduction", "The magic number is... ");
+    private static final ForgeConfigSpec.DoubleValue DEFAULT_ZOOM = BUILDER
+            .comment("默认缩放倍率", "1.0 = 正常, >1 = 放大（望远镜效果）, <1 = 广角")
+            .defineInRange("defaultZoom", 1.0, 0.1, 10.0);
 
-    // a list of strings that are treated as resource locations for items
-    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> ITEM_STRINGS = BUILDER
-            .comment("A list of items to log on common setup.")
-            .defineListAllowEmpty("items", List.of("minecraft:iron_ingot"), Config::validateItemName);
+    // ===== 调试配置 =====
+
+    private static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
+            .comment("启用调试日志输出")
+            .define("debugLogging", false);
 
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
-    public static boolean logDirtBlock;
-    public static int magicNumber;
-    public static String magicNumberIntroduction;
-    public static Set<Item> items;
-
-    private static boolean validateItemName(final Object obj)
-    {
-        return obj instanceof final String itemName && ForgeRegistries.ITEMS.containsKey(new ResourceLocation(itemName));
-    }
+    // 缓存值（配置加载后填充）
+    public static double defaultFov;
+    public static double defaultZoom;
+    public static boolean debugLogging;
 
     @SubscribeEvent
-    static void onLoad(final ModConfigEvent event)
-    {
-        logDirtBlock = LOG_DIRT_BLOCK.get();
-        magicNumber = MAGIC_NUMBER.get();
-        magicNumberIntroduction = MAGIC_NUMBER_INTRODUCTION.get();
-
-        // convert the list of strings into a set of items
-        items = ITEM_STRINGS.get().stream()
-                .map(itemName -> ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemName)))
-                .collect(Collectors.toSet());
+    static void onLoad(final ModConfigEvent event) {
+        defaultFov = DEFAULT_FOV.get();
+        defaultZoom = DEFAULT_ZOOM.get();
+        debugLogging = DEBUG_LOGGING.get();
     }
 }

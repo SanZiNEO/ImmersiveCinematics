@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
+import com.immersivecinematics.immersive_cinematics.util.MathUtil;
+
 /**
  * 相机属性控制器 — 管理相机的所有自身属性
  * 包含：朝向（yaw, pitch, roll）和 光学特征（FOV, DOF, Zoom）
@@ -174,14 +176,14 @@ public class CameraProperties {
             float t = transitionProgress;
 
             // 角度属性使用角度环绕插值
-            currentYaw = lerpAngle(startYaw, targetYaw, t);
-            currentPitch = lerpAngle(startPitch, targetPitch, t);
-            currentRoll = lerpAngle(startRoll, targetRoll, t);
+            currentYaw = MathUtil.lerpAngle(startYaw, targetYaw, t);
+            currentPitch = MathUtil.lerpAngle(startPitch, targetPitch, t);
+            currentRoll = MathUtil.lerpAngle(startRoll, targetRoll, t);
 
             // 标量属性使用线性插值
-            currentFov = lerp(startFov, targetFov, t);
-            currentDof = lerp(startDof, targetDof, t);
-            currentZoom = lerp(startZoom, targetZoom, t);
+            currentFov = MathUtil.lerp(startFov, targetFov, t);
+            currentDof = MathUtil.lerp(startDof, targetDof, t);
+            currentZoom = MathUtil.lerp(startZoom, targetZoom, t);
         }
     }
 
@@ -198,23 +200,6 @@ public class CameraProperties {
     public float getFov() { return currentFov; }
     public float getDof() { return currentDof; }
     public float getZoom() { return currentZoom; }
-
-    // ========== 兼容旧接口（partialTick 参数被忽略） ==========
-
-    /**
-     * 🎬 获取渲染帧值（兼容旧接口）
-     * <p>
-     * 帧回调驱动模式下，partialTick 参数被忽略，
-     * 直接返回 currentXxx（每帧已由 setXxxDirect() 精确设置）。
-     *
-     * @param partialTick 渲染帧进度（已忽略）
-     * @return 当前精确值
-     */
-    public float getYawInterpolated(float partialTick) { return currentYaw; }
-    public float getPitchInterpolated(float partialTick) { return currentPitch; }
-    public float getRollInterpolated(float partialTick) { return currentRoll; }
-    public float getFovInterpolated(float partialTick) { return currentFov; }
-    public float getZoomInterpolated(float partialTick) { return currentZoom; }
 
     // ========== 硬切换覆盖 ==========
 
@@ -267,19 +252,4 @@ public class CameraProperties {
         transitionProgress = 1f;
     }
 
-    // ========== 插值工具 ==========
-
-    private static float lerp(float from, float to, float t) {
-        return from + (to - from) * t;
-    }
-
-    /**
-     * 角度环绕插值（处理 -180° ~ 180° 的环绕）
-     */
-    private static float lerpAngle(float from, float to, float t) {
-        float diff = to - from;
-        while (diff > 180f) diff -= 360f;
-        while (diff < -180f) diff += 360f;
-        return from + diff * t;
-    }
 }
