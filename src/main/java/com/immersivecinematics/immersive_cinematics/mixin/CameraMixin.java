@@ -13,6 +13,18 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/**
+ * 相机 Mixin — 拦截 Camera.setup() 实现自定义相机位置和旋转
+ * <p>
+ * 🎬 帧回调驱动模式（ReplayMod 式）：
+ * - 每渲染帧在 onSetup 中先调 mgr.onRenderFrame() 计算精确位置
+ * - 然后直接读取 currentPosition / currentYaw / currentPitch
+ * - 不需要 partialTick 插值，因为每帧都已用 System.nanoTime() 精确重算
+ * <p>
+ * 这与 ReplayMod 的 CameraEntity.setCameraPosition(prevX=x) 思路一致：
+ * 当 prev=current 时，MC 自身的 partialTick 插值结果恒等于 current，
+ * 等效于直接使用精确值。
+ */
 @Mixin(Camera.class)
 public abstract class CameraMixin {
 
@@ -27,12 +39,15 @@ public abstract class CameraMixin {
                          boolean mirror, float partialTick, CallbackInfo ci) {
         CameraManager mgr = CameraManager.INSTANCE;
         if (mgr.isActive()) {
-            // 使用 partialTick 插值，消除 20tick/s → 60fps 的阶梯感
-            Vec3 pos = mgr.getPath().getPositionInterpolated(partialTick);
+            // 🎬 先驱动帧回调：用实时时间精确计算当前帧的相机状态
+            mgr.onRenderFrame();
+
+            // 直接读取精确值（每帧已由 onRenderFrame 精确重算，不需要 partialTick 插值）
+            Vec3 pos = mgr.getPath().getPosition();
             setPosition(pos.x, pos.y, pos.z);
 
-            float yaw = mgr.getProperties().getYawInterpolated(partialTick);
-            float pitch = mgr.getProperties().getPitchInterpolated(partialTick);
+            float yaw = mgr.getProperties().getYaw();
+            float pitch = mgr.getProperties().getPitch();
 
             setRotation(yaw, pitch);
 

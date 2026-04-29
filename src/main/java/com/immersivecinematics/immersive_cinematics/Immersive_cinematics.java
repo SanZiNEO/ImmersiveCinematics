@@ -197,7 +197,9 @@ public class Immersive_cinematics {
         public static void onComputeCameraAngles(ViewportEvent.ComputeCameraAngles event) {
             CameraManager mgr = CameraManager.INSTANCE;
             if (mgr.isActive()) {
-                float roll = mgr.getProperties().getRollInterpolated((float) event.getPartialTick());
+                // 🎬 帧回调驱动模式：直接读取当前值，不需要 partialTick 插值
+                // onRenderFrame() 已在 CameraMixin.onSetup() 中被调用，值已精确重算
+                float roll = mgr.getProperties().getRoll();
                 event.setRoll(roll);
             }
         }

@@ -13,7 +13,13 @@ import net.minecraft.world.phys.Vec3;
  * 硬切换流程：
  * 1. Player 在当前段快结束时，通过 stageXxx() 写入下一段第一帧到 staged
  * 2. 切换时刻调用 commitStagedState()，原子替换 active ← staged
- * 3. active 的 previous 与 current 一致，消除 partialTick 插值导致的"飞过去"过渡
+ * 3. active 的状态直接被新值覆盖，无需 partialTick 插值
+ * <p>
+ * 🎬 帧回调驱动模式（ReplayMod 式）：
+ * - onRenderFrame() 由 CameraMixin.onSetup() 每渲染帧调用
+ * - 用 System.nanoTime() 实时时间驱动，精确计算当前帧的相机状态
+ * - 不再依赖 tick() 驱动位置/角度更新
+ * - tick() 保留但只用于非位置逻辑（如未来可能需要的 staged 过渡驱动）
  * <p>
  * CameraProperties 和 CameraPath 互不知晓，CameraManager 是唯一桥梁。
  * Mixin 层不直接依赖 CameraProperties / CameraPath，统一从 CameraManager 读取。
@@ -51,21 +57,17 @@ public class CameraManager {
         float playerYaw = mc.player.getYRot();
         float playerPitch = mc.player.getXRot();
 
-        // 瞬时设置到 active（duration=0），不插值
-        activePath.setTargetPosition(playerPos, 0f);
-        activeProperties.setTargetYaw(playerYaw, 0f);
-        activeProperties.setTargetPitch(playerPitch, 0f);
-
-        // 同步 previous = current，消除首个渲染帧的"飞过去"
-        activePath.savePreviousTick();
-        activeProperties.savePreviousTick();
+        // 🎬 用 Direct 方法瞬时设置到 active，不插值
+        activePath.setPositionDirect(playerPos);
+        activeProperties.setYawDirect(playerYaw);
+        activeProperties.setPitchDirect(playerPitch);
 
         // 清空 staged
         stagedReady = false;
 
         active = true;
 
-        // 阶段1：激活后启动测试播放器
+        // 启动测试播放器
         testPlayer.start();
     }
 
@@ -148,10 +150,6 @@ public class CameraManager {
      * 提交预置状态到活跃状态，实现硬切换
      * <p>
      * 原子操作：active ← staged
-     * - active.current = staged.current
-     * - active.previous = staged.current（关键！消除 partialTick 插值）
-     * - active.target = staged.current
-     * <p>
      * 调用后 stagedReady 重置为 false
      */
     public void commitStagedState() {
@@ -170,31 +168,41 @@ public class CameraManager {
         return stagedReady;
     }
 
-    // ========== 每tick驱动 ==========
+    // ========== 🎬 帧回调驱动（核心改动） ==========
 
     /**
-     * 由 ClientTickEvent 调用
-     * 驱动 Properties 和 Path 的 tick 插值
+     * 🎬 每渲染帧驱动：由 CameraMixin.onSetup() 调用
+     * <p>
+     * ReplayMod 式帧回调驱动：
+     * - 用 System.nanoTime() 实时时间驱动
+     * - CameraTestPlayer 用实时时间精确计算当前帧的相机位置/角度
+     * - 直接设置到 active 缓冲区，不需要 partialTick 插值
+     * - 比tick驱动更丝滑，不受tick抖动影响
      */
-    public void tick() {
+    public void onRenderFrame() {
         if (!active) return;
-        float deltaTime = 1f / 20f; // 每tick 0.05秒
 
-        // 每tick开头保存当前值作为"上一帧基准"，供渲染帧 partialTick 插值使用。
-        // 必须在所有 setTargetXxx() 调用之前执行，确保 previous 值不被覆盖。
-        activePath.savePreviousTick();
-        activeProperties.savePreviousTick();
-
-        // 阶段1：驱动测试播放器（在 active tick 之前）
-        testPlayer.tick(deltaTime);
-
-        activeProperties.tick(deltaTime);
-        activePath.tick(deltaTime);
+        // 驱动测试播放器：用实时时间计算精确位置，直接写入 active
+        testPlayer.onRenderFrame();
 
         // 播放结束后自动停用
         if (testPlayer.isFinished()) {
             deactivate();
         }
+    }
+
+    // ========== tick 驱动（保留但简化） ==========
+
+    /**
+     * 由 ClientTickEvent 调用
+     * <p>
+     * 🎬 在帧回调驱动模式下，tick() 不再驱动位置/角度更新。
+     * 保留此方法供未来可能需要的非位置逻辑使用。
+     */
+    public void tick() {
+        if (!active) return;
+        // 帧回调驱动模式下，位置/角度更新由 onRenderFrame() 负责
+        // tick() 不再驱动 testPlayer、activeProperties、activePath
     }
 
     // ========== Mixin 读取接口（只读 active 状态）==========
