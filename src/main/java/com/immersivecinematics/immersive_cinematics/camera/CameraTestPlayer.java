@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
+import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 
@@ -417,15 +418,15 @@ public class CameraTestPlayer {
 
         // 插值计算当前状态（相对偏移 → 绝对坐标）
         Vec3 pos = new Vec3(
-                originX + lerp(from.dx(), to.dx(), t),
-                originY + lerp(from.dy(), to.dy(), t),
-                originZ + lerp(from.dz(), to.dz(), t)
+                originX + MathUtil.lerp(from.dx(), to.dx(), t),
+                originY + MathUtil.lerp(from.dy(), to.dy(), t),
+                originZ + MathUtil.lerp(from.dz(), to.dz(), t)
         );
-        float yaw = lerpAngle(from.yaw(), to.yaw(), t);
-        float pitch = lerp(from.pitch(), to.pitch(), t);
-        float roll = lerpAngle(from.roll(), to.roll(), t);
-        float fov = lerp(from.fov(), to.fov(), t);
-        float zoom = lerp(from.zoom(), to.zoom(), t);
+        float yaw = MathUtil.lerpAngle(from.yaw(), to.yaw(), t);
+        float pitch = MathUtil.lerp(from.pitch(), to.pitch(), t);
+        float roll = MathUtil.lerpAngle(from.roll(), to.roll(), t);
+        float fov = MathUtil.lerp(from.fov(), to.fov(), t);
+        float zoom = MathUtil.lerp(from.zoom(), to.zoom(), t);
 
         // 🎬 直接设置到 active（duration=0），每帧都精确重算，不需要过渡插值
         CameraManager mgr = CameraManager.INSTANCE;
@@ -458,19 +459,4 @@ public class CameraTestPlayer {
         mgr.stageTargetZoom(kf.zoom(), 0f);
     }
 
-    // ========== 工具方法 ==========
-
-    private static float lerp(float from, float to, float t) {
-        return from + (to - from) * t;
-    }
-
-    /**
-     * 角度环绕插值（处理 -180° ~ 180° 的环绕）
-     */
-    private static float lerpAngle(float from, float to, float t) {
-        float diff = to - from;
-        while (diff > 180f) diff -= 360f;
-        while (diff < -180f) diff += 360f;
-        return from + diff * t;
-    }
 }

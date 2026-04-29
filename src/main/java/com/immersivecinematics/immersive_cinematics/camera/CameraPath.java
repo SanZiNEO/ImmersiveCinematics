@@ -91,19 +91,6 @@ public class CameraPath {
     }
 
     /**
-     * 🎬 获取渲染帧位置（兼容旧接口）
-     * <p>
-     * 帧回调驱动模式下，partialTick 参数被忽略，
-     * 直接返回 currentPosition（每帧已由 setPositionDirect() 精确设置）。
-     *
-     * @param partialTick 渲染帧进度（已忽略）
-     * @return 当前精确位置
-     */
-    public Vec3 getPositionInterpolated(float partialTick) {
-        return currentPosition;
-    }
-
-    /**
      * 从另一个 CameraPath 实例覆盖当前状态（用于硬切换 commitStagedState）
      * <p>
      * 将 staged 缓冲区的状态原子替换到 active 缓冲区。
