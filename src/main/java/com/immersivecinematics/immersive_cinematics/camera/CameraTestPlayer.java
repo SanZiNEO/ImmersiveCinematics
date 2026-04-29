@@ -4,19 +4,30 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 阶段1测试用：硬编码关键帧序列，P键激活后自动播放
- * 验证完整数据通路：Position/Yaw/Pitch/Roll/FOV/Zoom → CameraManager → Mixin → 渲染
+ * 阶段2测试用：多段镜头硬编码测试脚本
  * <p>
- * 每次 P 键激活从玩家当前位置/朝向开始，不存储上次相机位置。
- * 播放结束后自动停用，恢复玩家视角。
+ * 验证完整数据通路 + 多段镜头间的硬切换逻辑（双缓冲 staged/commit 架构）：
+ * Position/Yaw/Pitch/Roll/FOV/Zoom → CameraManager → Mixin → 渲染
+ * <p>
+ * 核心设计：
+ * - 一个脚本 = 多段镜头（TestSegment[]）
+ * - 段内：关键帧间平滑插值 → 写入 active 状态
+ * - 段间：预置下一段第一帧到 staged → commitStagedState() 原子替换 → 真正硬切换
+ * - 总时长由各段时长累加得出，不硬编码
+ * <p>
+ * 每次 P 键激活从第一段开始播放，播放结束后自动停用，恢复玩家视角。
  * 测试完成后直接删除此文件，零残留。
  */
 public class CameraTestPlayer {
 
-    // ========== 关键帧定义 ==========
+    // ========== 关键帧 & 镜头段定义 ==========
 
+    /**
+     * 关键帧记录（绝对世界坐标）
+     * 段内 time 从 0 开始，相对于该段起点
+     */
     private record TestKeyframe(
-            float time,   // 时间点（秒）
+            float time,   // 段内时间点（秒）
             float x,      // 绝对世界坐标 X
             float y,      // 绝对世界坐标 Y
             float z,      // 绝对世界坐标 Z
@@ -28,29 +39,91 @@ public class CameraTestPlayer {
     ) {}
 
     /**
-     * 硬编码关键帧序列（绝对世界坐标）
-     * <p>
-     * 轨迹设计（超平坦世界，地面 Y≈0）：
+     * 一段镜头：包含段标识和关键帧序列
+     * 段内关键帧平滑插值，段间硬切换
      */
-    private static final TestKeyframe[] KEYFRAMES = {
-            new TestKeyframe( 0.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 起点，正常数值
-            new TestKeyframe( 5.0f,   20,   -50,   0,    0, -0,   0,  70, 1.0f),   // 从起点出发，角度不变，验证位置变换
-            new TestKeyframe( 10.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 回到起点，准备验证下一项
-            new TestKeyframe( 15.0f,  0,   -50,   0,   90,   0,  0, 100, 1.0f),   //右转90°
-            new TestKeyframe( 20.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 回到起点，准备验证下一项
-            new TestKeyframe( 25.0f,   0, -50,   0,    0,   90,   0,  70, 1.0f),   // 向下90°
-            new TestKeyframe( 30.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 回到起点，准备验证下一项
-            new TestKeyframe( 35.0f,   0, -50,   0,    0,   0,   45,  70, 1.0f),   // 旋转45°
-            new TestKeyframe( 40.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 回到起点，准备验证下一项
-            new TestKeyframe( 45.0f,   0, -50,   0,    0,   0,   0,  100, 1.0f),   // fov变换到100
-            new TestKeyframe( 50.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 回到起点，准备验证下一项
-            new TestKeyframe( 55.0f,   0, -50,   0,    0,   0,   0,  70, 5.0f),   // 放大5倍
-            new TestKeyframe( 60.0f,   0, -50,   0,    0,   0,   0,  70, 1.0f),   // 回到起点，验证完成
+    private record TestSegment(
+            String id,                  // 段标识（方便日志调试）
+            TestKeyframe[] keyframes    // 该段的关键帧序列（段内时间从0开始）
+    ) {
+        /** 该段的时长 = 最后一个关键帧的 time */
+        float getDuration() {
+            return keyframes[keyframes.length - 1].time();
+        }
+    }
+
+    /**
+     * 六段自由运镜测试脚本
+     * <p>
+     * 超平坦世界，地面 Y≈0，相机起点 (0, -50, 0)，yaw=0（朝南）
+     * 起点朝向与移动方向呈90°右偏角——经典横移运镜
+     * <p>
+     * 镜头1: 横移推镜 — 朝南看，沿+X横移，同时缓慢偏转+推近
+     * 镜头2: 环绕俯拍 — 绕焦点做半圆弧运动，同时升高+俯视
+     * 镜头3: 低角度跟推 — 低位前进，缓慢抬高视角
+     * 镜头4: 荷兰角特写 — roll渐变制造不安感，zoom放大模拟特写
+     * 镜头5: 上升鸟瞰 — 快速拉高，俯角增大到接近垂直
+     * 镜头6: 下降收束 — 缓慢回落，FOV收窄制造隧道视觉
+     */
+    private static final TestSegment[] SEGMENTS = {
+
+            // ---- 镜头1: 横移推镜 (8秒) ----
+            new TestSegment("lateral_track", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 0, -50, 0, 0, 0, 0, 70, 1.0f),
+                    new TestKeyframe(8.0f, 30, -50, 0, -15, -5, 0, 70, 1.5f),
+            }),
+
+            // ---- 镜头2: 环绕俯拍 (10秒) ----
+            new TestSegment("orbit_overhead", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 15, -50, 15, 45, -15, 0, 70, 1.0f),
+                    new TestKeyframe(5.0f, 0, -45, 30, 135, -25, 0, 75, 1.2f),
+                    new TestKeyframe(10.0f, -15, -40, 15, 225, -35, 0, 80, 1.0f),
+            }),
+
+            // ---- 镜头3: 低角度跟推 (7秒) ----
+            new TestSegment("low_angle_push", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, -15, -52, 10, 200, -5, 0, 70, 1.0f),
+                    new TestKeyframe(7.0f, -15, -48, 30, 180, -20, 8, 65, 1.3f),
+            }),
+
+            // ---- 镜头4: 荷兰角特写 (6秒) ----
+            new TestSegment("dutch_angle", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 0, -48, 20, 160, -10, 0, 70, 1.0f),
+                    new TestKeyframe(3.0f, 5, -48, 25, 170, -15, 15, 70, 2.0f),
+                    new TestKeyframe(6.0f, 0, -48, 20, 180, -10, 30, 70, 3.0f),
+            }),
+
+            // ---- 镜头5: 上升鸟瞰 (8秒) ----
+            new TestSegment("ascend_birds_eye", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 0, -48, 0, 0, -10, 0, 70, 1.0f),
+                    new TestKeyframe(8.0f, 0, -20, 0, 0, -80, 0, 90, 1.0f),
+            }),
+
+            // ---- 镜头6: 下降收束 (8秒) ----
+            new TestSegment("descend_converge", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 0, -25, 0, 0, -60, 0, 70, 1.0f),
+                    new TestKeyframe(4.0f, 0, -35, 5, -10, -40, -5, 60, 1.2f),
+                    new TestKeyframe(8.0f, 0, -48, 10, 0, -20, 0, 50, 1.5f),
+            }),
     };
+
+    /**
+     * 总脚本时长 = 各段时长累加，不硬编码
+     */
+    private static final float TOTAL_DURATION = computeTotalDuration();
+
+    private static float computeTotalDuration() {
+        float total = 0f;
+        for (TestSegment seg : SEGMENTS) {
+            total += seg.getDuration();
+        }
+        return total;
+    }
 
     // ========== 状态 ==========
 
-    private float currentTime = 0f;
+    private int currentSegmentIndex = 0;
+    private float segmentTime = 0f;       // 当前段内已播放时间
     private boolean playing = false;
 
     // ========== 生命周期 ==========
@@ -63,8 +136,14 @@ public class CameraTestPlayer {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
 
-        currentTime = 0f;
+        currentSegmentIndex = 0;
+        segmentTime = 0f;
         playing = true;
+
+        // 初始化：通过 staged + commit 将第一段第一帧写入 active
+        // 这保证了 active.previous = active.current，消除首个渲染帧的 partialTick 插值
+        prepareStagedKeyframe(SEGMENTS[0].keyframes()[0]);
+        CameraManager.INSTANCE.commitStagedState();
     }
 
     /**
@@ -79,36 +158,66 @@ public class CameraTestPlayer {
      * 检查播放是否已结束（供 CameraManager 判断是否需要停用）
      */
     public boolean isFinished() {
-        return playing && currentTime >= KEYFRAMES[KEYFRAMES.length - 1].time;
+        return playing && currentSegmentIndex >= SEGMENTS.length;
     }
 
     // ========== 核心逻辑 ==========
 
     /**
      * 每tick驱动关键帧插值，并将结果写入 CameraManager
+     * <p>
+     * 段内：关键帧间平滑插值 → 写入 active 状态
+     * 段间：预置下一段第一帧到 staged → commitStagedState() 原子替换
      *
      * @param deltaTime 距离上一tick的时间（秒），固定 1/20
      */
     public void tick(float deltaTime) {
         if (!playing) return;
 
-        currentTime += deltaTime;
+        segmentTime += deltaTime;
+
+        TestSegment currentSeg = SEGMENTS[currentSegmentIndex];
+
+        // 检查当前段是否播放完毕
+        if (segmentTime >= currentSeg.getDuration()) {
+            float overflow = segmentTime - currentSeg.getDuration();
+            currentSegmentIndex++;
+
+            // 所有段播放完毕
+            if (currentSegmentIndex >= SEGMENTS.length) {
+                return; // isFinished() 将返回 true
+            }
+
+            // 硬切换到下一段：
+            // 1. 预置新段第一帧到 staged 缓冲区
+            // 2. commitStagedState() 原子替换 active ← staged
+            //    active.previous = active.current = 新段第一帧
+            //    → partialTick 插值恒等于新段第一帧，无"飞过去"过渡
+            segmentTime = overflow;
+            prepareStagedKeyframe(SEGMENTS[currentSegmentIndex].keyframes()[0]);
+            CameraManager.INSTANCE.commitStagedState();
+            return;
+        }
+
+        // ---- 段内插值 → 写入 active ----
+
+        TestKeyframe[] kfs = currentSeg.keyframes();
 
         // 找到当前时间所在的关键帧区间
-        TestKeyframe from = KEYFRAMES[0];
-        TestKeyframe to = KEYFRAMES[KEYFRAMES.length - 1];
+        TestKeyframe from = kfs[0];
+        TestKeyframe to = kfs[kfs.length - 1];
 
-        for (int i = 0; i < KEYFRAMES.length - 1; i++) {
-            if (currentTime >= KEYFRAMES[i].time && currentTime < KEYFRAMES[i + 1].time) {
-                from = KEYFRAMES[i];
-                to = KEYFRAMES[i + 1];
+        for (int i = 0; i < kfs.length - 1; i++) {
+            if (segmentTime >= kfs[i].time() && segmentTime < kfs[i + 1].time()) {
+                from = kfs[i];
+                to = kfs[i + 1];
                 break;
             }
         }
 
         // 计算区间内插值进度 t ∈ [0, 1]
-        float segmentDuration = to.time() - from.time();
-        float t = (segmentDuration > 0f) ? (currentTime - from.time()) / segmentDuration : 1f;
+        float segDuration = to.time() - from.time();
+        float t = (segDuration > 0f) ? (segmentTime - from.time()) / segDuration : 1f;
         t = Math.min(1f, t);
 
         // 插值计算当前状态（绝对世界坐标）
@@ -123,7 +232,7 @@ public class CameraTestPlayer {
         float fov = lerp(from.fov(), to.fov(), t);
         float zoom = lerp(from.zoom(), to.zoom(), t);
 
-        // 写入 CameraManager（使用 duration=0 直接设置，绕过共享插值状态）
+        // 写入 CameraManager active 状态（duration=0 直接设置，绕过共享插值状态）
         CameraManager mgr = CameraManager.INSTANCE;
         mgr.getPath().setTargetPosition(pos, 0f);
         mgr.getProperties().setTargetYaw(yaw, 0f);
@@ -131,6 +240,25 @@ public class CameraTestPlayer {
         mgr.getProperties().setTargetRoll(roll, 0f);
         mgr.getProperties().setTargetFov(fov, 0f);
         mgr.getProperties().setTargetZoom(zoom, 0f);
+    }
+
+    // ========== 内部方法 ==========
+
+    /**
+     * 将关键帧状态写入 CameraManager 的 staged 缓冲区（预置下一段镜头位置）
+     * <p>
+     * 调用后需调用 CameraManager.commitStagedState() 将 staged 原子替换到 active
+     *
+     * @param kf 要预置的关键帧
+     */
+    private void prepareStagedKeyframe(TestKeyframe kf) {
+        CameraManager mgr = CameraManager.INSTANCE;
+        mgr.stageTargetPosition(new Vec3(kf.x(), kf.y(), kf.z()), 0f);
+        mgr.stageTargetYaw(kf.yaw(), 0f);
+        mgr.stageTargetPitch(kf.pitch(), 0f);
+        mgr.stageTargetRoll(kf.roll(), 0f);
+        mgr.stageTargetFov(kf.fov(), 0f);
+        mgr.stageTargetZoom(kf.zoom(), 0f);
     }
 
     // ========== 工具方法 ==========
