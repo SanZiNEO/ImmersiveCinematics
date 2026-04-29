@@ -76,6 +76,23 @@ public class CameraPath {
     }
 
     /**
+     * 从另一个 CameraPath 实例覆盖当前状态（用于硬切换 commitStagedState）
+     * <p>
+     * 关键：previousPosition 也被设为 source.currentPosition，
+     * 确保 partialTick 插值结果恒等于 source.currentPosition，消除1tick的"飞过去"过渡。
+     *
+     * @param source 源实例（通常是 staged 缓冲区）
+     */
+    public void overrideFrom(CameraPath source) {
+        this.currentPosition = source.currentPosition;
+        this.previousPosition = source.currentPosition;  // 关键：previous = current，消除 partialTick 插值
+        this.targetPosition = source.currentPosition;
+        this.startPosition = source.currentPosition;
+        this.transitionDuration = 0f;
+        this.transitionProgress = 1f;
+    }
+
+    /**
      * 重置到原点
      */
     public void reset() {

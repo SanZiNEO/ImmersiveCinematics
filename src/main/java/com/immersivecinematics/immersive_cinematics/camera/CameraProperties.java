@@ -180,6 +180,52 @@ public class CameraProperties {
         return lerp(previousZoom, currentZoom, partialTick);
     }
 
+    // ========== 硬切换覆盖 ==========
+
+    /**
+     * 从另一个 CameraProperties 实例覆盖当前状态（用于硬切换 commitStagedState）
+     * <p>
+     * 关键：所有 previous* 也被设为 source.current*，
+     * 确保 partialTick 插值结果恒等于 source 的当前值，消除1tick的"飞过去"过渡。
+     *
+     * @param source 源实例（通常是 staged 缓冲区）
+     */
+    public void overrideFrom(CameraProperties source) {
+        // current = source.current
+        this.currentYaw = source.currentYaw;
+        this.currentPitch = source.currentPitch;
+        this.currentRoll = source.currentRoll;
+        this.currentFov = source.currentFov;
+        this.currentDof = source.currentDof;
+        this.currentZoom = source.currentZoom;
+
+        // 关键：previous = current，消除 partialTick 插值
+        this.previousYaw = source.currentYaw;
+        this.previousPitch = source.currentPitch;
+        this.previousRoll = source.currentRoll;
+        this.previousFov = source.currentFov;
+        this.previousDof = source.currentDof;
+        this.previousZoom = source.currentZoom;
+
+        // target = current，start = current，确保后续 tick 不会产生残留过渡
+        this.targetYaw = source.currentYaw;
+        this.targetPitch = source.currentPitch;
+        this.targetRoll = source.currentRoll;
+        this.targetFov = source.currentFov;
+        this.targetDof = source.currentDof;
+        this.targetZoom = source.currentZoom;
+
+        this.startYaw = source.currentYaw;
+        this.startPitch = source.currentPitch;
+        this.startRoll = source.currentRoll;
+        this.startFov = source.currentFov;
+        this.startDof = source.currentDof;
+        this.startZoom = source.currentZoom;
+
+        this.transitionDuration = 0f;
+        this.transitionProgress = 1f;
+    }
+
     // ========== 重置 ==========
 
     /**
