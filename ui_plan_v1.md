@@ -1,52 +1,81 @@
-# 沉浸式电影摄影模组 - UI规划 v2.0（完全重构版）
+# 沉浸式电影摄影模组 - UI规划 v2.1（FBO预览区域渲染版）
 
-**版本**: 2.0（基于重建文档完全重新规划）
-**日期**: 2026/3/31  
-**状态**: 草案 - 基于全新架构设计
+**版本**: 2.1（基于0.3.0计划修订，采用FBO预览区域渲染方案）
+**日期**: 2026/4/29  
+**状态**: 草案 - 基于FBO预览区域渲染架构设计
 
 ---
 
-## 🔄 完全重新规划：基于重建文档的理解
+## 🔄 基于重建文档的理解
 
-我仔细阅读了 `rebuild_updated.md` 文档，现在我完全理解了项目的**全新架构**。我需要**完全摈弃旧代码思路**，重新规划UI设计。
-
-### **关键新理解**：
+### **关键架构理解**：
 
 1. **编辑器是游戏内功能**：编辑器作为模组内置功能，在游戏内运行
 2. **播放器和时间轴联动**：像剪辑软件那样，播放时时间轴有竖线指示当前时间
-3. **使用新的相机系统**：调用新相机（CameraEntity）在播放器区域渲染
+3. **FBO预览区域渲染**：编辑器模式下，Mixin渲染注入切换目标——从全屏渲染变为GUI区域渲染
 4. **动态布局**：根据窗口大小动态适配
-5. **完全重构**：旧代码太复杂，需要完全重做
+5. **关键帧系统**：使用关键帧系统，摒弃旧版固定路线方式
 
-### **基于重建文档的新架构**：
+### **编辑器预览方案核心原理**：
 
-#### **播放器区域原理**：
-1. **编辑器模式**：调用新的相机实体（`CinematicCameraEntity`）
-2. **实时渲染**：在播放器区域显示相机视角
-3. **时间联动**：播放时时间轴显示当前时间竖线
+在编辑器模式下，相机画面渲染到离屏Framebuffer（FBO），然后将FBO纹理绘制到编辑器GUI的预览区域中，就像视频剪辑软件那样。
 
-#### **时间轴系统**：
-1. **多轨道布局**：类似剪辑软件
-2. **无限滚动**：根据内容动态变化
-3. **左侧冻结区域**：显示轨道信息
-4. **播放联动**：与播放器区域时间同步
+```mermaid
+sequenceDiagram
+    participant Editor as 编辑器Screen
+    participant FBO as 离屏Framebuffer
+    participant CameraMgr as CameraManager
+    participant Mixin as CameraMixin/GameRendererMixin
+    participant GUI as GUI渲染
+    
+    Note over Editor,GUI: 编辑器模式 - 预览区域渲染
+    
+    Editor->>CameraMgr: 计算当前时间点的相机状态
+    CameraMgr->>Mixin: 写入position/yaw/pitch/roll/fov/zoom
+    
+    rect rgb(240, 248, 255)
+        Note over FBO,GUI: 第一步：渲染相机画面到FBO
+        Editor->>FBO: 绑定离屏Framebuffer<br/>预览区域尺寸，与游戏画面同比例
+        Mixin->>FBO: GameRenderer.renderLevel<br/>用覆写后的相机参数渲染世界
+        Editor->>FBO: 解绑Framebuffer
+    end
+    
+    rect rgb(255, 248, 240)
+        Note over Editor,GUI: 第二步：在GUI中绘制
+        Editor->>GUI: 绘制编辑器UI框架<br/>属性面板/时间轴/控制按钮
+        Editor->>GUI: 将FBO纹理绘制到<br/>预览区域 widget_right_player
+    end
+```
+
+### **双模式渲染切换**：
+
+| 模式 | 渲染目标 | 调用者 | Mixin行为 |
+|------|----------|--------|-----------|
+| **播放模式** | 主Framebuffer（全屏） | Minecraft主循环 | CameraMixin覆写相机参数 → 全屏显示相机画面 |
+| **编辑器模式** | 离屏FBO（预览区域尺寸） | 编辑器Screen | CameraMixin覆写相机参数 → 渲染到FBO → 绘制到预览区域 |
+
+**关键点**：不需要修改Mixin本身的覆写逻辑，只需要控制"谁来调用renderLevel()"和"渲染到哪个Framebuffer"。
 
 ---
 
-## 🎨 重新设计的UI规划（基于javaui.ui布局参考）
+## 🎨 UI规划（基于javaui.ui布局参考）
 
 ### **UI整体架构**：
 
 ```
 ┌─────────────────────────────────┐
-│           菜单栏                 │  # 文件、编辑、帮助
-├─────────────┬───────────────────┤
-│             │                   │
-│    左侧     │       右侧         │  # 中间主区域
-│   控制区    │     播放区         │  # 播放区域显示相机渲染
-│             │                   │
-├─────────────┴───────────────────┤
-│          底部时间轴区            │  # 多轨道，左侧冻结区域
+│         MenuBar (30px)           │  # 文件、编辑、帮助
+├──────────┬──────────────────────┤
+│          │  包名标签 (15px)      │
+│  左侧    ├──────────────────────┤
+│  控制区  │                      │
+│  (240px) │   📺 预览区域        │  ← FBO纹理绘制到这里
+│          │   (与游戏画面同比例)   │     CameraMixin渲染的结果
+│  属性    │                      │
+│  面板    ├──────────────────────┤
+│          │  播放控制 (15px)      │
+├──────────┴──────────────────────┤
+│       时间轴区域 (285px)         │  # 多轨道，左侧冻结区域
 └─────────────────────────────────┘
 ```
 
@@ -96,21 +125,29 @@
 - 固定宽度或百分比宽度
 - 垂直滚动（如需要）
 
-### **3. 右侧播放区 (widget_right_player)**
+### **3. 右侧播放区 (widget_right_player)** ← FBO预览区域
+
 | 组件 | 功能 | 状态 |
 |------|------|------|
-| 实时预览 | 显示镜头视角 | **稍后提供原理** |
+| **FBO实时预览** | 显示相机视角渲染结果 | **已确定：FBO预览区域渲染** |
 | 播放控制 | 播放、暂停、停止 | 待设计 |
 | 状态显示 | 当前时间、帧率等 | 待设计 |
 
-**特殊说明**：
-- 实时显示功能原理**稍后由您详细描述**
-- 需要集成Minecraft渲染系统
+**FBO预览区域渲染原理**：
+
+1. **离屏渲染**：创建 `SimpleFramebuffer`，尺寸与预览区域相同，保持游戏画面宽高比
+2. **渲染流程**：
+   - 编辑器Screen在 `render()` 中绑定FBO
+   - 调用 `GameRenderer.renderLevel()` 渲染世界（CameraMixin已覆写相机参数）
+   - 解绑FBO
+   - 将FBO的颜色纹理绘制到预览区域（`widget_right_player`）
+3. **时间联动**：拖动时间轴 → 计算该时间点相机状态 → 写入CameraManager → 下一帧FBO预览自动更新
 
 **布局要求**：
 - 剩余宽度（减去左侧控制区）
 - 可随窗口大小调整
-- 保持宽高比（如需要）
+- 保持宽高比（与游戏画面比例相同）
+- FBO尺寸随预览区域尺寸动态调整
 
 ### **4. 底部时间轴区 (widget_bottom)**
 | 组件 | 功能 | 状态 |
@@ -136,25 +173,29 @@
 
 ## 🔧 技术实现架构
 
-### **核心架构**
+### **核心架构 — FBO预览区域渲染**
+
 ```java
-// 主编辑器屏幕 (CameraEditorScreen.java)
 public class CameraEditorScreen extends Screen {
+    private Framebuffer previewFBO;  // 离屏帧缓冲
     private MenuBarWidget menuBar;
     private ControlPanelWidget leftControls;
     private PlayerPanelWidget rightPlayer;
     private TimelinePanelWidget bottomTimeline;
     
+    // 预览区域坐标（根据javaui.ui布局计算）
+    private int previewX, previewY, previewWidth, previewHeight;
+    
     @Override
     protected void init() {
-        // 动态计算布局
+        super.init();
         int windowWidth = this.width;
         int windowHeight = this.height;
         
         // 使用百分比动态设置bounds
         int menuHeight = (int)(windowHeight * 0.05); // 5%
         int bottomHeight = (int)(windowHeight * 0.3); // 30%
-        int leftWidth = (int)(windowWidth * 0.2); // 20%
+        int leftWidth = (int)(windowWidth * 0.2);     // 20%
         int mainHeight = windowHeight - menuHeight - bottomHeight;
         
         // 初始化组件
@@ -165,36 +206,88 @@ public class CameraEditorScreen extends Screen {
         bottomTimeline = new TimelinePanelWidget(0, menuHeight + mainHeight,
             windowWidth, bottomHeight);
         
-        // 添加组件
+        // 计算预览区域（基于javaui.ui的widget_right_player布局）
+        previewX = leftWidth;
+        previewY = menuHeight + 15; // +15是包名标签
+        previewWidth = windowWidth - leftWidth;
+        previewHeight = mainHeight - 30; // -30 控制区+标签
+        
+        // 创建FBO，保持游戏画面宽高比
+        previewFBO = new SimpleFramebuffer(previewWidth, previewHeight, true);
+        
         addRenderableWidget(menuBar);
         addRenderableWidget(leftControls);
         addRenderableWidget(rightPlayer);
         addRenderableWidget(bottomTimeline);
     }
+    
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // === 第一步：渲染相机视角到FBO ===
+        CameraManager mgr = CameraManager.INSTANCE;
+        mgr.setEditorPreviewMode(true);
+        
+        previewFBO.bindWrite(true);
+        Minecraft.getInstance().gameRenderer.renderLevel(partialTick);
+        previewFBO.unbindWrite();
+        
+        mgr.setEditorPreviewMode(false);
+        
+        // === 第二步：绘制编辑器GUI ===
+        this.renderBackground(graphics);
+        
+        // 绘制预览区域（FBO纹理）
+        graphics.blit(previewFBO.getColorTexture(), 
+            previewX, previewY, 0, 0, previewWidth, previewHeight);
+        
+        // 绘制编辑器UI组件
+        menuBar.render(graphics, mouseX, mouseY, partialTick);
+        leftControls.render(graphics, mouseX, mouseY, partialTick);
+        rightPlayer.render(graphics, mouseX, mouseY, partialTick);
+        bottomTimeline.render(graphics, mouseX, mouseY, partialTick);
+    }
+    
+    /** 时间轴拖动 → 更新预览 */
+    private void onTimelineScrub(double time) {
+        CameraState state = scriptPlayer.getStateAtTime(time);
+        CameraManager.INSTANCE.getPath().setPositionDirect(state.position);
+        CameraManager.INSTANCE.getProperties().setYawDirect(state.yaw);
+        CameraManager.INSTANCE.getProperties().setPitchDirect(state.pitch);
+        CameraManager.INSTANCE.getProperties().setRollDirect(state.roll);
+        CameraManager.INSTANCE.getProperties().setFovDirect(state.fov);
+        CameraManager.INSTANCE.getProperties().setZoomDirect(state.zoom);
+        // 下一帧渲染时，CameraMixin自动使用新值 → FBO预览更新
+    }
+    
+    @Override
+    public void onClose() {
+        // 清理FBO
+        if (previewFBO != null) {
+            previewFBO.destroyBuffers();
+            previewFBO = null;
+        }
+        CameraManager.INSTANCE.setEditorPreviewMode(false);
+        super.onClose();
+    }
 }
 ```
 
-## 🔧 技术实现方案（完全重构）
-
-### **1. 播放器区域实现**
+### **1. 播放器区域实现（FBO预览渲染）**
 
 ```java
 public class PlayerPanelWidget extends ContainerWidget {
-    private CameraPreviewRenderer previewRenderer;
     private PlaybackControlsWidget controls;
+    private TimeDisplayWidget timeDisplay;
     private double currentTime = 0.0;
     
     public PlayerPanelWidget(int x, int y, int width, int height) {
         super(x, y, width, height);
         
-        // 1. 创建相机预览渲染器
-        previewRenderer = new CameraPreviewRenderer();
-        
-        // 2. 创建播放控制
+        // 创建播放控制
         controls = new PlaybackControlsWidget();
         controls.setOnTimeUpdate(this::onTimeUpdated);
         
-        // 3. 创建时间显示
+        // 创建时间显示
         timeDisplay = new TimeDisplayWidget();
     }
     
@@ -208,28 +301,33 @@ public class PlayerPanelWidget extends ContainerWidget {
         // 2. 通知时间轴更新竖线位置
         timelinePanel.setCurrentTime(newTime);
         
-        // 3. 更新相机状态
+        // 3. 更新相机状态（写入CameraManager → 下一帧FBO自动渲染新视角）
         updateCameraAtTime(newTime);
     }
     
     // 根据时间更新相机
     private void updateCameraAtTime(double time) {
-        // 调用新的相机系统
-        CameraStateData state = timeline.getCameraStateAt(time);
-        CameraTransformData transform = timeline.getCameraTransformAt(time);
+        // 调用脚本系统计算相机状态
+        CameraState state = scriptPlayer.getStateAtTime(time);
         
-        // 应用相机状态
-        cinematicCamera.setCameraState(state);
-        cinematicCamera.setTransform(transform);
+        // 直接写入CameraManager
+        CameraManager.INSTANCE.getPath().setPositionDirect(state.position);
+        CameraManager.INSTANCE.getProperties().setYawDirect(state.yaw);
+        CameraManager.INSTANCE.getProperties().setPitchDirect(state.pitch);
+        CameraManager.INSTANCE.getProperties().setRollDirect(state.roll);
+        CameraManager.INSTANCE.getProperties().setFovDirect(state.fov);
+        CameraManager.INSTANCE.getProperties().setZoomDirect(state.zoom);
     }
     
-    // 渲染方法
+    // 渲染方法（FBO纹理绘制由CameraEditorScreen统一处理）
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
         super.render(graphics, mouseX, mouseY, delta);
         
-        // 渲染相机预览
-        previewRenderer.render(graphics, getX(), getY(), width, height);
+        // 绘制播放控制和时间显示
+        // 注意：FBO纹理的绘制在CameraEditorScreen.render()中统一处理
+        controls.render(graphics, mouseX, mouseY, delta);
+        timeDisplay.render(graphics, mouseX, mouseY, delta);
     }
 }
 ```
@@ -371,5 +469,36 @@ public class DynamicLayoutManager {
             windowWidth - leftWidth, mainHeight);
         screen.bottomTimeline.setBounds(0, menuHeight + mainHeight,
             windowWidth, bottomHeight);
+        
+        // 重新创建FBO（尺寸变化时）
+        if (screen.previewFBO != null) {
+            screen.previewFBO.destroyBuffers();
+        }
+        int previewWidth = windowWidth - leftWidth;
+        int previewHeight = mainHeight - 30; // -30 控制区+标签
+        screen.previewFBO = new SimpleFramebuffer(previewWidth, previewHeight, true);
     }
 }
+```
+
+### **5. CameraManager编辑器模式支持**
+
+```java
+// CameraManager 需要增加编辑器预览模式标志
+public class CameraManager {
+    private boolean editorPreviewMode = false;
+    
+    public void setEditorPreviewMode(boolean mode) {
+        this.editorPreviewMode = mode;
+    }
+    
+    public boolean isEditorPreviewMode() {
+        return editorPreviewMode;
+    }
+}
+```
+
+**Mixin行为说明**：
+- CameraMixin 和 GameRendererMixin 的覆写逻辑**不需要修改**
+- 编辑器模式下，由编辑器Screen控制 `renderLevel()` 的调用和渲染目标
+- 播放模式下，由Minecraft主循环控制 `renderLevel()`，Mixin照常覆写相机参数到全屏
