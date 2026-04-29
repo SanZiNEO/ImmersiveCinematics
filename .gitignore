@@ -31,3 +31,6 @@ temp.txt
 ITEM_ICON_GUIDE.md
 /.vscode
 /log
+/oldcode/
+/minecraft_code
+/.kilocode

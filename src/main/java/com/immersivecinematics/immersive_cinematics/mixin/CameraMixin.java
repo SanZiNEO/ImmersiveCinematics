@@ -1,0 +1,74 @@
+package com.immersivecinematics.immersive_cinematics.mixin;
+
+import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+@Mixin(Camera.class)
+public abstract class CameraMixin {
+
+    @Shadow
+    protected abstract void setPosition(double x, double y, double z);
+
+    @Shadow
+    protected abstract void setRotation(float yaw, float pitch);
+
+    @Inject(method = "setup", at = @At("HEAD"), cancellable = true)
+    private void onSetup(BlockGetter level, Entity entity, boolean detached,
+                         boolean mirror, float partialTick, CallbackInfo ci) {
+        CameraManager mgr = CameraManager.INSTANCE;
+        if (mgr.isActive()) {
+            // 使用 partialTick 插值，消除 20tick/s → 60fps 的阶梯感
+            Vec3 pos = mgr.getPath().getPositionInterpolated(partialTick);
+            setPosition(pos.x, pos.y, pos.z);
+
+            float yaw = mgr.getProperties().getYawInterpolated(partialTick);
+            float pitch = mgr.getProperties().getPitchInterpolated(partialTick);
+
+            setRotation(yaw, pitch);
+
+            // Roll 由 Forge 事件 ViewportEvent.ComputeCameraAngles 处理，
+            // 在 GameRenderer.renderLevel() 中通过 event.setRoll() 应用到 PoseStack
+
+            ci.cancel();  // 取消原版 setup，使用我们的位置/旋转
+        }
+    }
+
+    /**
+     * 返回玩家 Entity，避免渲染管线 NPE
+     * 原版 Camera.setup() 中 this.entity = entity，我们 cancel 了 setup 导致 entity 字段为 null
+     * 渲染管线多处调用 getEntity()，返回 null 会崩溃
+     */
+    @Inject(method = "getEntity", at = @At("HEAD"), cancellable = true)
+    private void onGetEntity(CallbackInfoReturnable<Entity> cir) {
+        CameraManager mgr = CameraManager.INSTANCE;
+        if (mgr.isActive()) {
+            cir.setReturnValue(Minecraft.getInstance().player);
+        }
+    }
+
+    /**
+     * 返回 true 使 Minecraft 认为相机处于"分离"（第三人称）模式
+     * 效果：
+     * 1. 渲染玩家身体模型（第一人称不渲染玩家自己）
+     * 2. ⚠️ 不影响手臂渲染！手臂渲染由 GameRenderer.renderItemInHand() 控制，
+     *    该方法检查的是 CameraType.isFirstPerson()，而不是 Camera.isDetached()
+     * 3. 不影响 HUD，HUD 需要单独处理（GuiMixin）
+     */
+    @Inject(method = "isDetached", at = @At("HEAD"), cancellable = true)
+    private void onIsDetached(CallbackInfoReturnable<Boolean> cir) {
+        CameraManager mgr = CameraManager.INSTANCE;
+        if (mgr.isActive()) {
+            cir.setReturnValue(true);
+        }
+    }
+}
