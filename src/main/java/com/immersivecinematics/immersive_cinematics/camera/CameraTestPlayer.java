@@ -11,10 +11,16 @@ import net.minecraft.world.phys.Vec3;
  * <p>
  * 核心设计：
  * - 一个脚本 = 多段镜头（TestSegment[]）
- * - 段内：关键帧间平滑插值 → 写入 active 状态
+ * - 段内：关键帧间平滑插值 → 每渲染帧用实时时间精确计算
  * - 段间：预置下一段第一帧到 staged → commitStagedState() 原子替换 → 真正硬切换
  * - 总时长由各段时长累加得出，不硬编码
  * - 位置使用相对玩家偏移（dx, dy, dz），在 start() 时解析为绝对坐标
+ * <p>
+ * 🎬 帧回调驱动模式（ReplayMod 式）：
+ * - 不再使用 tick() 驱动，改为 onRenderFrame() 由渲染帧回调驱动
+ * - 用 System.nanoTime() 实时时间计算精确位置
+ * - 每帧直接算出精确值 → 不需要 MC 的 partialTick 插值
+ * - 更丝滑、更低的逻辑复杂度、不受 tick 抖动影响
  * <p>
  * 每次 P 键激活从第一段开始播放，播放结束后自动停用，恢复玩家视角。
  * 测试完成后直接删除此文件，零残留。
@@ -276,8 +282,12 @@ public class CameraTestPlayer {
     // ========== 状态 ==========
 
     private int currentSegmentIndex = 0;
-    private float segmentTime = 0f;       // 当前段内已播放时间
+    private float segmentTime = 0f;       // 当前段内已播放时间（秒）
     private boolean playing = false;
+
+    // 🎬 实时时间驱动：纳秒级时间戳
+    private long startNanoTime = 0;       // 播放开始时的 System.nanoTime()
+    private float[] segmentStartTimes;    // 每段在总时间轴上的起始时间（秒）
 
     // 玩家激活时的基准位置（用于将相对偏移解析为绝对坐标）
     private float originX = 0f;
@@ -306,8 +316,18 @@ public class CameraTestPlayer {
         segmentTime = 0f;
         playing = true;
 
+        // 🎬 初始化实时时间
+        startNanoTime = System.nanoTime();
+
+        // 预计算每段在时间轴上的起始时间
+        segmentStartTimes = new float[SEGMENTS.length];
+        float cumulative = 0f;
+        for (int i = 0; i < SEGMENTS.length; i++) {
+            segmentStartTimes[i] = cumulative;
+            cumulative += SEGMENTS[i].getDuration();
+        }
+
         // 初始化：通过 staged + commit 将第一段第一帧写入 active
-        // 这保证了 active.previous = active.current，消除首个渲染帧的 partialTick 插值
         prepareStagedKeyframe(SEGMENTS[0].keyframes()[0]);
         CameraManager.INSTANCE.commitStagedState();
     }
@@ -327,46 +347,55 @@ public class CameraTestPlayer {
         return playing && currentSegmentIndex >= SEGMENTS.length;
     }
 
-    // ========== 核心逻辑 ==========
+    // ========== 核心逻辑：帧回调驱动 ==========
 
     /**
-     * 每tick驱动关键帧插值，并将结果写入 CameraManager
+     * 🎬 每渲染帧驱动：用实时时间精确计算当前位置，直接写入 CameraManager
      * <p>
-     * 段内：关键帧间平滑插值 → 写入 active 状态
-     * 段间：预置下一段第一帧到 staged → commitStagedState() 原子替换
-     *
-     * @param deltaTime 距离上一tick的时间（秒），固定 1/20
+     * ReplayMod 式：每帧用 System.nanoTime() 算精确时间，直接计算精确位置，
+     * 不需要 MC 的 partialTick 插值。比 tick 驱动更丝滑，不受 tick 抖动影响。
+     * <p>
+     * 由 CameraManager.onRenderFrame() 调用
      */
-    public void tick(float deltaTime) {
+    public void onRenderFrame() {
         if (!playing) return;
 
-        segmentTime += deltaTime;
+        // 🎬 用实时时间计算总经过时间（秒）
+        float elapsedSeconds = (System.nanoTime() - startNanoTime) / 1_000_000_000f;
 
-        TestSegment currentSeg = SEGMENTS[currentSegmentIndex];
-
-        // 检查当前段是否播放完毕
-        if (segmentTime >= currentSeg.getDuration()) {
-            float overflow = segmentTime - currentSeg.getDuration();
-            currentSegmentIndex++;
-
-            // 所有段播放完毕
-            if (currentSegmentIndex >= SEGMENTS.length) {
-                return; // isFinished() 将返回 true
-            }
-
-            // 硬切换到下一段：
-            // 1. 预置新段第一帧到 staged 缓冲区
-            // 2. commitStagedState() 原子替换 active ← staged
-            //    active.previous = active.current = 新段第一帧
-            //    → partialTick 插值恒等于新段第一帧，无"飞过去"过渡
-            segmentTime = overflow;
-            prepareStagedKeyframe(SEGMENTS[currentSegmentIndex].keyframes()[0]);
-            CameraManager.INSTANCE.commitStagedState();
+        // 检查总时长
+        if (elapsedSeconds >= TOTAL_DURATION) {
+            // 播放结束，isFinished() 将返回 true
+            currentSegmentIndex = SEGMENTS.length;
             return;
         }
 
+        // 根据总经过时间定位到当前段
+        int newSegmentIndex = 0;
+        for (int i = SEGMENTS.length - 1; i >= 0; i--) {
+            if (elapsedSeconds >= segmentStartTimes[i]) {
+                newSegmentIndex = i;
+                break;
+            }
+        }
+
+        // 检测段间切换
+        if (newSegmentIndex != currentSegmentIndex) {
+            // 硬切换到新段：
+            // 1. 预置新段第一帧到 staged 缓冲区
+            // 2. commitStagedState() 原子替换 active ← staged
+            currentSegmentIndex = newSegmentIndex;
+            prepareStagedKeyframe(SEGMENTS[currentSegmentIndex].keyframes()[0]);
+            CameraManager.INSTANCE.commitStagedState();
+            return;  // 这一帧先跳到第一帧，下一帧再插值
+        }
+
+        // 计算段内时间
+        segmentTime = elapsedSeconds - segmentStartTimes[currentSegmentIndex];
+
         // ---- 段内插值 → 写入 active ----
 
+        TestSegment currentSeg = SEGMENTS[currentSegmentIndex];
         TestKeyframe[] kfs = currentSeg.keyframes();
 
         // 找到当前时间所在的关键帧区间
@@ -398,14 +427,14 @@ public class CameraTestPlayer {
         float fov = lerp(from.fov(), to.fov(), t);
         float zoom = lerp(from.zoom(), to.zoom(), t);
 
-        // 写入 CameraManager active 状态（duration=0 直接设置，绕过共享插值状态）
+        // 🎬 直接设置到 active（duration=0），每帧都精确重算，不需要过渡插值
         CameraManager mgr = CameraManager.INSTANCE;
-        mgr.getPath().setTargetPosition(pos, 0f);
-        mgr.getProperties().setTargetYaw(yaw, 0f);
-        mgr.getProperties().setTargetPitch(pitch, 0f);
-        mgr.getProperties().setTargetRoll(roll, 0f);
-        mgr.getProperties().setTargetFov(fov, 0f);
-        mgr.getProperties().setTargetZoom(zoom, 0f);
+        mgr.getPath().setPositionDirect(pos);
+        mgr.getProperties().setYawDirect(yaw);
+        mgr.getProperties().setPitchDirect(pitch);
+        mgr.getProperties().setRollDirect(roll);
+        mgr.getProperties().setFovDirect(fov);
+        mgr.getProperties().setZoomDirect(zoom);
     }
 
     // ========== 内部方法 ==========

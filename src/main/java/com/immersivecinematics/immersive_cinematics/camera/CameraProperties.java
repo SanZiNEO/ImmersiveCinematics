@@ -4,6 +4,12 @@ package com.immersivecinematics.immersive_cinematics.camera;
  * 相机属性控制器 — 管理相机的所有自身属性
  * 包含：朝向（yaw, pitch, roll）和 光学特征（FOV, DOF, Zoom）
  * 完全不知道 CameraPath 的存在
+ * <p>
+ * 🎬 帧回调驱动模式（ReplayMod 式）：
+ * - 不再使用 partialTick 插值
+ * - 每渲染帧由 CameraTestPlayer.onRenderFrame() 直接设置精确值
+ * - getXxx() 直接返回 currentXxx，无插值层
+ * - 保留 setTargetXxx() + tick() 供 staged 缓冲区的过渡插值使用
  */
 public class CameraProperties {
 
@@ -21,15 +27,7 @@ public class CameraProperties {
     private float currentDof = DEFAULT_DOF;
     private float currentZoom = DEFAULT_ZOOM;
 
-    // --- 上一tick的值（用于帧级 partialTick 插值） ---
-    private float previousYaw = 0f;
-    private float previousPitch = 0f;
-    private float previousRoll = 0f;
-    private float previousFov = DEFAULT_FOV;
-    private float previousDof = DEFAULT_DOF;
-    private float previousZoom = DEFAULT_ZOOM;
-
-    // --- 目标值 ---
+    // --- 目标值（供 staged 缓冲区过渡插值使用） ---
     private float targetYaw = 0f;
     private float targetPitch = 0f;
     private float targetRoll = 0f;
@@ -37,7 +35,7 @@ public class CameraProperties {
     private float targetDof = DEFAULT_DOF;
     private float targetZoom = DEFAULT_ZOOM;
 
-    // --- 插值起点 ---
+    // --- 插值起点（供 staged 缓冲区过渡插值使用） ---
     private float startYaw = 0f;
     private float startPitch = 0f;
     private float startRoll = 0f;
@@ -49,7 +47,59 @@ public class CameraProperties {
     private float transitionDuration = 0f;   // 过渡时长（秒），0 = 瞬时
     private float transitionProgress = 1f;   // 0~1，1 = 已完成
 
-    // ========== 设置目标值 ==========
+    // ========== 🎬 直接设置方法（帧回调驱动模式） ==========
+
+    /**
+     * 🎬 直接设置 yaw（帧回调驱动模式）
+     * <p>
+     * 由 CameraTestPlayer.onRenderFrame() 每帧调用，
+     * 直接写入精确计算的值，无需过渡插值。
+     *
+     * @param yaw 精确计算的偏航角
+     */
+    public void setYawDirect(float yaw) {
+        this.currentYaw = yaw;
+        this.targetYaw = yaw;
+        this.startYaw = yaw;
+        this.transitionProgress = 1f;
+    }
+
+    public void setPitchDirect(float pitch) {
+        this.currentPitch = pitch;
+        this.targetPitch = pitch;
+        this.startPitch = pitch;
+        this.transitionProgress = 1f;
+    }
+
+    public void setRollDirect(float roll) {
+        this.currentRoll = roll;
+        this.targetRoll = roll;
+        this.startRoll = roll;
+        this.transitionProgress = 1f;
+    }
+
+    public void setFovDirect(float fov) {
+        this.currentFov = fov;
+        this.targetFov = fov;
+        this.startFov = fov;
+        this.transitionProgress = 1f;
+    }
+
+    public void setDofDirect(float dof) {
+        this.currentDof = dof;
+        this.targetDof = dof;
+        this.startDof = dof;
+        this.transitionProgress = 1f;
+    }
+
+    public void setZoomDirect(float zoom) {
+        this.currentZoom = zoom;
+        this.targetZoom = zoom;
+        this.startZoom = zoom;
+        this.transitionProgress = 1f;
+    }
+
+    // ========== 设置目标值（供 staged 缓冲区使用） ==========
 
     public void setTargetYaw(float yaw, float duration) {
         this.startYaw = this.currentYaw;
@@ -108,10 +158,14 @@ public class CameraProperties {
         }
     }
 
-    // ========== tick 驱动 ==========
+    // ========== tick 驱动（供 staged 缓冲区使用） ==========
 
     /**
-     * 每tick驱动插值
+     * 每tick驱动过渡插值
+     * <p>
+     * 在帧回调驱动模式下，active 缓冲区的属性由 setXxxDirect() 直接设置，
+     * 不需要 tick() 驱动。此方法保留用于 staged 缓冲区的过渡动画。
+     *
      * @param deltaTime 距离上一tick的时间（秒）
      */
     public void tick(float deltaTime) {
@@ -131,8 +185,13 @@ public class CameraProperties {
         }
     }
 
-    // ========== 获取当前值 ==========
+    // ========== 获取当前值（直接返回，无 partialTick 插值） ==========
 
+    /**
+     * 🎬 获取当前值（帧回调驱动模式）
+     * <p>
+     * 每帧已由 setXxxDirect() 精确重算，直接返回即可。
+     */
     public float getYaw() { return currentYaw; }
     public float getPitch() { return currentPitch; }
     public float getRoll() { return currentRoll; }
@@ -140,58 +199,33 @@ public class CameraProperties {
     public float getDof() { return currentDof; }
     public float getZoom() { return currentZoom; }
 
-    // ========== partialTick 插值读取（给 Mixin 渲染帧用） ==========
+    // ========== 兼容旧接口（partialTick 参数被忽略） ==========
 
     /**
-     * 每tick开始时保存当前值为"上一tick值"，供渲染帧 partialTick 插值使用。
-     * 必须在 CameraManager.tick() 开头、所有 setTargetXxx 调用之前执行。
+     * 🎬 获取渲染帧值（兼容旧接口）
+     * <p>
+     * 帧回调驱动模式下，partialTick 参数被忽略，
+     * 直接返回 currentXxx（每帧已由 setXxxDirect() 精确设置）。
+     *
+     * @param partialTick 渲染帧进度（已忽略）
+     * @return 当前精确值
      */
-    public void savePreviousTick() {
-        this.previousYaw = this.currentYaw;
-        this.previousPitch = this.currentPitch;
-        this.previousRoll = this.currentRoll;
-        this.previousFov = this.currentFov;
-        this.previousDof = this.currentDof;
-        this.previousZoom = this.currentZoom;
-    }
-
-    /** 获取 partialTick 插值后的 yaw（角度环绕） */
-    public float getYawInterpolated(float partialTick) {
-        return lerpAngle(previousYaw, currentYaw, partialTick);
-    }
-
-    /** 获取 partialTick 插值后的 pitch（角度环绕） */
-    public float getPitchInterpolated(float partialTick) {
-        return lerpAngle(previousPitch, currentPitch, partialTick);
-    }
-
-    /** 获取 partialTick 插值后的 fov（线性插值） */
-    public float getFovInterpolated(float partialTick) {
-        return lerp(previousFov, currentFov, partialTick);
-    }
-
-    /** 获取 partialTick 插值后的 roll（角度环绕） */
-    public float getRollInterpolated(float partialTick) {
-        return lerpAngle(previousRoll, currentRoll, partialTick);
-    }
-
-    /** 获取 partialTick 插值后的 zoom（线性插值） */
-    public float getZoomInterpolated(float partialTick) {
-        return lerp(previousZoom, currentZoom, partialTick);
-    }
+    public float getYawInterpolated(float partialTick) { return currentYaw; }
+    public float getPitchInterpolated(float partialTick) { return currentPitch; }
+    public float getRollInterpolated(float partialTick) { return currentRoll; }
+    public float getFovInterpolated(float partialTick) { return currentFov; }
+    public float getZoomInterpolated(float partialTick) { return currentZoom; }
 
     // ========== 硬切换覆盖 ==========
 
     /**
      * 从另一个 CameraProperties 实例覆盖当前状态（用于硬切换 commitStagedState）
      * <p>
-     * 关键：所有 previous* 也被设为 source.current*，
-     * 确保 partialTick 插值结果恒等于 source 的当前值，消除1tick的"飞过去"过渡。
+     * 将 staged 缓冲区的状态原子替换到 active 缓冲区。
      *
      * @param source 源实例（通常是 staged 缓冲区）
      */
     public void overrideFrom(CameraProperties source) {
-        // current = source.current
         this.currentYaw = source.currentYaw;
         this.currentPitch = source.currentPitch;
         this.currentRoll = source.currentRoll;
@@ -199,15 +233,6 @@ public class CameraProperties {
         this.currentDof = source.currentDof;
         this.currentZoom = source.currentZoom;
 
-        // 关键：previous = current，消除 partialTick 插值
-        this.previousYaw = source.currentYaw;
-        this.previousPitch = source.currentPitch;
-        this.previousRoll = source.currentRoll;
-        this.previousFov = source.currentFov;
-        this.previousDof = source.currentDof;
-        this.previousZoom = source.currentZoom;
-
-        // target = current，start = current，确保后续 tick 不会产生残留过渡
         this.targetYaw = source.currentYaw;
         this.targetPitch = source.currentPitch;
         this.targetRoll = source.currentRoll;
@@ -232,12 +257,12 @@ public class CameraProperties {
      * 重置到默认值
      */
     public void reset() {
-        currentYaw = targetYaw = startYaw = previousYaw = 0f;
-        currentPitch = targetPitch = startPitch = previousPitch = 0f;
-        currentRoll = targetRoll = startRoll = previousRoll = 0f;
-        currentFov = targetFov = startFov = previousFov = DEFAULT_FOV;
-        currentDof = targetDof = startDof = previousDof = DEFAULT_DOF;
-        currentZoom = targetZoom = startZoom = previousZoom = DEFAULT_ZOOM;
+        currentYaw = targetYaw = startYaw = 0f;
+        currentPitch = targetPitch = startPitch = 0f;
+        currentRoll = targetRoll = startRoll = 0f;
+        currentFov = targetFov = startFov = DEFAULT_FOV;
+        currentDof = targetDof = startDof = DEFAULT_DOF;
+        currentZoom = targetZoom = startZoom = DEFAULT_ZOOM;
         transitionDuration = 0f;
         transitionProgress = 1f;
     }
