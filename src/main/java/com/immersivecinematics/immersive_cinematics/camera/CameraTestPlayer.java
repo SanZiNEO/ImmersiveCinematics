@@ -31,6 +31,11 @@ public class CameraTestPlayer {
      * Minecraft 角度约定：
      * - yaw: 0=南(+Z), 90=西(-X), ±180=北(-Z), -90=东(+X)
      * - pitch: 正值=低头看地面, 负值=抬头看天空
+     * <p>
+     * 朝向玩家的yaw计算：从 (cx,cy,cz) 看向 (0,0,0)
+     * yaw = atan2(cx, -cz) 转角度
+     * 例: 东侧(25,_,0) → yaw=90; 西侧(-5,_,0) → yaw=-90=270;
+     *     南侧(0,_,15) → yaw=180; 北侧(0,_,-10) → yaw=0
      */
     private record TestKeyframe(
             float time,   // 段内时间点（秒）
@@ -59,102 +64,199 @@ public class CameraTestPlayer {
     }
 
     /**
-     * 十二段自由运镜测试脚本
+     * 十七段叙事运镜测试脚本 —— "世界中的一刻"
      * <p>
      * 所有位置使用相对玩家偏移（dx, dy, dz），在 start() 时解析为绝对坐标。
-     * pitch 值全部 ≥ 0（低头看地面/水平），不抬头看天。
+     * pitch 值全部 ≥ 0（低头看地面/水平），段7低位仰拍除外（微抬头看人，pitch小负值）。
      * <p>
-     * 运镜类型覆盖：推/拉/移/绕/升/降/摇/变焦/荷兰角/波浪/收束
+     * 叙事弧线（5幕）：
+     * Act 1「发现」— 从远处发现一个人影，慢慢靠近
+     * Act 2「注视」— 从各个角度仔细看这个人：侧面、绕行、越肩、仰拍、特写
+     * Act 3「环境」— 相机从人转向世界（他所在的世界是什么样的？）
+     * Act 4「戏剧」— 情绪变化，荷兰角+上升
+     * Act 5「回归」— 从高空回落，最终回到人身上，FOV收束收尾
+     * <p>
+     * 每段镜头的yaw均经过计算，朝向它的叙事主体（玩家/环境方向）。
+     * 运镜类型覆盖：推/拉/横移/绕行/越肩/仰拍/变焦/转头/全景/俯瞰/荷兰角/升降/收束
      */
     private static final TestSegment[] SEGMENTS = {
 
-            // ---- 1. 经典前推 (5秒) ----
-            // 从玩家位置正前方推入，水平视角
-            new TestSegment("forward_dolly", new TestKeyframe[]{
-                    new TestKeyframe(0.0f, 0, 0, 0, 0, 0, 0, 70, 1.0f),
-                    new TestKeyframe(5.0f, 0, 0, 15, 0, 0, 0, 70, 1.0f),
+            // ================================================================
+            // Act 1: 发现 (17秒)
+            // 叙事：从远处发现一个人影，慢慢靠近，人影逐渐变清晰
+            // ================================================================
+
+            // ---- 1. 远景推入 (6秒) ----
+            // 从东侧远处慢慢推入，人影在画面中心
+            // (30,2,0) → yaw=atan2(30,0)=90 朝西看玩家
+            new TestSegment("distant_approach", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 30, 2, 0, 90, 5, 0, 70, 1.0f),
+                    new TestKeyframe(6.0f, 20, 2, 0, 90, 5, 0, 70, 1.0f),
             }),
 
-            // ---- 2. 右侧横移 (5秒) ----
-            // 硬切到侧面，朝西看，沿+Z横移（侧滑运镜）
+            // ---- 2. 继续推近 (6秒) ----
+            // 硬切到更近，人影变清晰
+            // (18,1.5,0) → yaw=90
+            new TestSegment("closer_dolly", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 18, 1.5f, 0, 90, 5, 0, 70, 1.0f),
+                    new TestKeyframe(6.0f, 8, 1.5f, 0, 90, 8, 0, 70, 1.0f),
+            }),
+
+            // ---- 3. 近景侧角 (5秒) ----
+            // 微侧角度推入，不完全是正面——更自然的观察视角
+            // (7,1.5,2) → yaw=atan2(7,-2)≈105° 朝向玩家偏南
+            new TestSegment("intimate_push", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 7, 1.5f, 2, 105, 5, 0, 70, 1.0f),
+                    new TestKeyframe(5.0f, 3, 1.5f, 1, 100, 8, 0, 68, 1.0f),
+            }),
+
+            // ================================================================
+            // Act 2: 注视 (35秒)
+            // 叙事：从各个角度仔细看这个人——侧面、绕行、越肩、仰拍、特写
+            // ================================================================
+
+            // ---- 4. 右侧横移 (6秒) ----
+            // 从西侧，侧颜跟拍
+            // (-5,1,-5)→(-5,1,10) 始终 yaw=270 朝东看玩家
             new TestSegment("right_lateral", new TestKeyframe[]{
-                    new TestKeyframe(0.0f, -5, 0, 0, 90, 0, 0, 70, 1.0f),
-                    new TestKeyframe(5.0f, -5, 0, 20, 90, 5, 0, 70, 1.0f),
+                    new TestKeyframe(0.0f, -5, 1, -5, 270, 5, 0, 70, 1.0f),
+                    new TestKeyframe(6.0f, -5, 1, 10, 270, 8, 0, 70, 1.0f),
             }),
 
-            // ---- 3. 左弧线扫过 (6秒) ----
-            // 弧线运动+yaw旋转，朝向逐渐变化
-            new TestSegment("swoop_left", new TestKeyframe[]{
-                    new TestKeyframe(0.0f, 5, 0, -5, -45, 5, 0, 70, 1.0f),
-                    new TestKeyframe(3.0f, 10, 1, 5, -90, 10, 0, 72, 1.1f),
-                    new TestKeyframe(6.0f, 5, 2, 15, -135, 5, 0, 70, 1.0f),
-            }),
-
-            // ---- 4. 后拉上升 (5秒) ----
-            // 从近处后退+升高，视角缓慢下压
-            new TestSegment("pull_back_rise", new TestKeyframe[]{
-                    new TestKeyframe(0.0f, 0, 0, 5, 0, 5, 0, 70, 1.0f),
-                    new TestKeyframe(5.0f, 0, 5, -10, 0, 25, 0, 75, 1.0f),
-            }),
-
-            // ---- 5. 右绕1/4圈 (6秒) ----
-            // 绕目标点做1/4圆弧，yaw旋转90°
+            // ---- 5. 右绕半圈 (8秒) ----
+            // 从东南绕到西北，yaw始终朝向玩家
+            // t=0: (10,1.5,3) → yaw=atan2(10,-3)≈107°
+            // t=4: (0,2,-2) → yaw=atan2(0,2)=0°
+            // t=8: (-10,1.5,3) → yaw=atan2(-10,-3)≈-107°→253°
             new TestSegment("orbit_right", new TestKeyframe[]{
-                    new TestKeyframe(0.0f, 10, 2, 0, -90, 10, 0, 70, 1.0f),
-                    new TestKeyframe(6.0f, 0, 3, 10, 0, 15, 0, 70, 1.0f),
+                    new TestKeyframe(0.0f, 10, 1.5f, 3, 107, 5, 0, 70, 1.0f),
+                    new TestKeyframe(4.0f, 0, 2, -2, 0, 8, 0, 72, 1.1f),
+                    new TestKeyframe(8.0f, -10, 1.5f, 3, -107, 5, 0, 70, 1.0f),
             }),
 
-            // ---- 6. 低位前推 (5秒) ----
-            // 相对玩家偏低，缓慢前进+下压视角
-            new TestSegment("low_dolly", new TestKeyframe[]{
-                    new TestKeyframe(0.0f, 0, -1, -5, 0, 15, 0, 70, 1.0f),
-                    new TestKeyframe(5.0f, 0, -1, 10, 0, 20, 0, 65, 1.2f),
+            // ---- 6. 越肩看世界 (6秒) ----
+            // 从玩家身后往前看，展示玩家面前的世界
+            // (-1,2.5,-4) → yaw=atan2(-1,4)≈-14° 朝南偏东看
+            new TestSegment("behind_shoulder", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, -1, 2.5f, -4, -14, 5, 0, 70, 1.0f),
+                    new TestKeyframe(6.0f, -1, 3, -8, -7, 15, 0, 75, 1.0f),
             }),
 
-            // ---- 7. 升降机上升 (5秒) ----
-            // 垂直上升+俯角渐大（看地面），经典升降机镜头
-            new TestSegment("crane_up", new TestKeyframe[]{
-                    new TestKeyframe(0.0f, -3, 0, 0, 45, 0, 0, 70, 1.0f),
-                    new TestKeyframe(5.0f, -3, 8, 0, 45, 35, 0, 80, 1.0f),
+            // ---- 7. 低位仰拍 (5秒) ----
+            // 从东南低位仰拍，英雄感。微抬头看人（pitch小负值合理）
+            // (4,-1,4) → yaw=atan2(4,-4)≈135°
+            new TestSegment("low_hero", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 4, -1, 4, 135, -8, 0, 70, 1.0f),
+                    new TestKeyframe(5.0f, 3, -1, 3, 135, -5, 0, 68, 1.1f),
             }),
 
-            // ---- 8. 荷兰角 (4秒) ----
-            // roll渐变+zoom放大，制造不安感
-            new TestSegment("dutch_tilt", new TestKeyframe[]{
-                    new TestKeyframe(0.0f, 0, 2, 5, -20, 10, 0, 70, 1.0f),
-                    new TestKeyframe(2.0f, 2, 2, 8, -15, 15, 15, 70, 1.8f),
-                    new TestKeyframe(4.0f, 0, 2, 5, -10, 10, 30, 70, 2.5f),
+            // ---- 8. 变焦特写 (5秒) ----
+            // 从东侧，位置微移+zoom放大，凝视
+            // (5,1.5,0) → yaw=90
+            new TestSegment("close_zoom", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 5, 1.5f, 0, 90, 5, 0, 70, 1.0f),
+                    new TestKeyframe(2.5f, 4.5f, 1.5f, 0, 90, 8, 0, 68, 1.5f),
+                    new TestKeyframe(5.0f, 4, 1.5f, 0, 90, 10, 0, 65, 2.5f),
             }),
 
-            // ---- 9. 变焦推近 (5秒) ----
-            // 位置微移+zoom放大，模拟光学变焦推近
-            new TestSegment("zoom_in", new TestKeyframe[]{
-                    new TestKeyframe(0.0f, 0, 1, -3, 30, 5, 0, 70, 1.0f),
-                    new TestKeyframe(5.0f, 1, 1, 0, 20, 10, 0, 70, 2.5f),
+            // ---- 9. 缓慢后退 (5秒) ----
+            // 特写后退回中景，释放紧张感
+            // (4,1.5,0) → (8,1.5,0) yaw=90
+            new TestSegment("pull_back", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 4, 1.5f, 0, 90, 10, 0, 65, 2.0f),
+                    new TestKeyframe(5.0f, 8, 1.5f, 0, 90, 5, 0, 70, 1.0f),
             }),
 
-            // ---- 10. 大范围扫视 (6秒) ----
-            // yaw大幅旋转+横向移动，全景扫视
-            new TestSegment("pan_sweep", new TestKeyframe[]{
-                    new TestKeyframe(0.0f, -8, 2, 0, -90, 10, 0, 70, 1.0f),
-                    new TestKeyframe(3.0f, 0, 2, 5, 0, 5, 0, 72, 1.0f),
-                    new TestKeyframe(6.0f, 8, 2, 0, 90, 10, 0, 70, 1.0f),
+            // ================================================================
+            // Act 3: 环境 (22秒)
+            // 叙事：相机从人转向世界——"他所在的世界是什么样的？"
+            // ================================================================
+
+            // ---- 10. 转头·叙事转折 (5秒) ----
+            // 原地转头：从注视玩家(yaw=90)转向看北方环境(yaw=180)
+            // (6,2,0) 位置不变，纯yaw旋转
+            new TestSegment("turn_to_world", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 6, 2, 0, 90, 5, 0, 70, 1.0f),
+                    new TestKeyframe(2.5f, 6, 2, 0, 135, 8, 0, 70, 1.0f),
+                    new TestKeyframe(5.0f, 6, 2, 0, 180, 10, 0, 70, 1.0f),
             }),
 
-            // ---- 11. 波浪起伏 (5秒) ----
-            // dy先降后升+pitch联动，波浪形运镜
-            new TestSegment("wave_motion", new TestKeyframe[]{
-                    new TestKeyframe(0.0f, 0, 3, 0, 0, 10, 0, 70, 1.0f),
-                    new TestKeyframe(2.5f, 5, 0, 5, -15, 20, 0, 68, 1.1f),
-                    new TestKeyframe(5.0f, 10, 4, 10, -30, 5, 0, 72, 1.0f),
+            // ---- 11. 环境全景横移 (7秒) ----
+            // 从西到东横移，朝北看环境（建筑/自然景观）
+            // (-8,3,-15)→(8,3,-15) yaw=180 朝北
+            new TestSegment("env_pan", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, -8, 3, -15, 180, 10, 0, 70, 1.0f),
+                    new TestKeyframe(3.5f, 0, 3, -15, 180, 10, 0, 72, 1.0f),
+                    new TestKeyframe(7.0f, 8, 3, -15, 180, 10, 0, 70, 1.0f),
             }),
 
-            // ---- 12. 收束 (6秒) ----
-            // FOV收窄+微调回水平，隧道视觉效果收尾
-            new TestSegment("final_converge", new TestKeyframe[]{
-                    new TestKeyframe(0.0f, 0, 3, 5, 0, 15, 0, 70, 1.0f),
-                    new TestKeyframe(3.0f, 0, 1, 3, 0, 5, -5, 60, 1.2f),
-                    new TestKeyframe(6.0f, 0, 0, 0, 0, 0, 0, 50, 1.5f),
+            // ---- 12. 环境细节 (5秒) ----
+            // 近景扫过环境细节（假设东北方向有建筑/结构）
+            // (10,1,-8)→(14,1,-5) yaw渐变
+            new TestSegment("env_detail", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 10, 1, -8, 140, 12, 0, 70, 1.0f),
+                    new TestKeyframe(5.0f, 14, 1, -5, 150, 15, 0, 68, 1.1f),
+            }),
+
+            // ---- 13. 俯瞰全貌 (5秒) ----
+            // 高处俯瞰，位置几乎不动，pitch变化展示高度
+            // (0,12,0) yaw=180看北，pitch=50~55看地面
+            new TestSegment("env_overhead", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 0, 12, 0, 180, 55, 0, 80, 1.0f),
+                    new TestKeyframe(5.0f, 0, 12, 0, 180, 50, 0, 80, 1.0f),
+            }),
+
+            // ================================================================
+            // Act 4: 戏剧 (10秒)
+            // 叙事：情绪变化——荷兰角的不安，戏剧性上升拉远
+            // ================================================================
+
+            // ---- 14. 荷兰角·不安 (4秒) ----
+            // 画面倾斜+zoom放大=不安感，但yaw仍然朝向玩家（有主体！）
+            // (6,2,3) → yaw=atan2(6,-3)≈116°
+            new TestSegment("dutch_tension", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 6, 2, 3, 116, 10, 0, 70, 1.0f),
+                    new TestKeyframe(2.0f, 5.5f, 2, 2.5f, 115, 12, 15, 70, 1.5f),
+                    new TestKeyframe(4.0f, 5, 2, 2, 115, 15, 30, 70, 2.0f),
+            }),
+
+            // ---- 15. 戏剧性上升 (6秒) ----
+            // 从侧面升高，yaw始终朝向玩家
+            // (-6,1,5) → yaw=atan2(-6,-5)≈-130°→230°
+            new TestSegment("dramatic_rise", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, -6, 1, 5, -130, 5, 0, 70, 1.0f),
+                    new TestKeyframe(6.0f, -6, 10, 5, -130, 40, 0, 85, 1.0f),
+            }),
+
+            // ================================================================
+            // Act 5: 回归 (18秒)
+            // 叙事：从高空回落，最终回到人身上，FOV收束收尾
+            // ================================================================
+
+            // ---- 16. 下降回落 (6秒) ----
+            // 从高空缓缓下降，回到人的视线高度
+            // (0,10,8) → yaw=atan2(0,-8)=180 朝北看玩家
+            new TestSegment("descend_return", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 0, 10, 8, 180, 40, 0, 80, 1.0f),
+                    new TestKeyframe(3.0f, 0, 6, 6, 180, 25, 0, 75, 1.0f),
+                    new TestKeyframe(6.0f, 0, 3, 4, 180, 15, 0, 70, 1.0f),
+            }),
+
+            // ---- 17. 正面推近 (6秒) ----
+            // 从东南方向正面推近玩家
+            // (8,1.5,3) → yaw=atan2(8,-3)≈110°
+            new TestSegment("final_walk", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 8, 1.5f, 3, 110, 5, 0, 70, 1.0f),
+                    new TestKeyframe(6.0f, 4, 1.5f, 1, 100, 5, 0, 68, 1.0f),
+            }),
+
+            // ---- 18. 最终构图 (6秒) ----
+            // 微调位置，FOV缓慢收窄，隧道视觉收尾
+            // (5,2,2) → yaw=atan2(5,-2)≈112°
+            new TestSegment("final_composition", new TestKeyframe[]{
+                    new TestKeyframe(0.0f, 5, 2, 2, 112, 5, 0, 70, 1.0f),
+                    new TestKeyframe(3.0f, 4.5f, 1.5f, 1, 105, 5, -3, 60, 1.2f),
+                    new TestKeyframe(6.0f, 4, 1.5f, 1, 100, 5, 0, 50, 1.5f),
             }),
     };
 
