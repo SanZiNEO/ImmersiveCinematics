@@ -52,6 +52,12 @@ public class CameraManager {
     private boolean active = false;
     private boolean stopping = false;  // 正在执行退出动画（fade-out）
 
+    // 🎬 暂停行为控制：当游戏暂停时，脚本是否冻结
+    // true（默认）= 暂停菜单时脚本冻结；false = 暂停菜单时脚本继续播放
+    // 由 ScriptPlayer.start() 根据脚本属性 pause_when_game_paused 设置
+    // 当前 CameraTestPlayer 阶段默认 true，保持原有行为
+    private boolean pauseWhenGamePaused = true;
+
     // 🎬 虚拟时钟：只在非暂停时前进，暂停时自动冻结
     // 所有消费者（CameraTestPlayer/OverlayManager）使用虚拟时间，无需各自处理暂停补偿
     private long gameTimeNanos = 0;    // 虚拟游戏时间（纳秒），暂停时不增长
@@ -221,7 +227,9 @@ public class CameraManager {
 
         // 🎬 暂停时冻结虚拟时钟：gameTimeNanos 不增长，相机停在当前帧
         // 恢复后 lastRealNanos=0 → 首帧 deltaTime=0 → 无跳帧
-        if (Minecraft.getInstance().isPaused()) {
+        // ⚠️ 修正：查询 pauseWhenGamePaused 标志，支持 pause_when_game_paused=false 的脚本
+        // 当 pauseWhenGamePaused=false 时，游戏暂停但脚本继续播放（虚拟时钟继续前进）
+        if (Minecraft.getInstance().isPaused() && pauseWhenGamePaused) {
             lastRealNanos = 0;
             return;
         }
@@ -285,6 +293,7 @@ public class CameraManager {
     private void deactivateNow() {
         active = false;
         stopping = false;
+        pauseWhenGamePaused = true;  // 重置为默认值
         gameTimeNanos = 0;
         lastRealNanos = 0;
         testPlayer.stop();
@@ -318,6 +327,23 @@ public class CameraManager {
 
     public boolean isActive() {
         return active;
+    }
+
+    /**
+     * 设置暂停行为：游戏暂停时脚本是否冻结
+     * <p>
+     * 由 ScriptPlayer.start() 根据脚本属性 pause_when_game_paused 调用。
+     * 默认 true（暂停时冻结），设为 false 时游戏暂停但脚本继续播放。
+     */
+    public void setPauseWhenGamePaused(boolean pauseWhenGamePaused) {
+        this.pauseWhenGamePaused = pauseWhenGamePaused;
+    }
+
+    /**
+     * 获取当前暂停行为设置
+     */
+    public boolean isPauseWhenGamePaused() {
+        return pauseWhenGamePaused;
     }
 
     // ========== 便捷方法 ==========

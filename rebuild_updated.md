@@ -212,5 +212,93 @@ settings.gradle 多子项目 + gradle.properties 版本配置。
 ---
 
 **文档状态**：阶段1已实施完成，压缩归档
-**最后更新**：2026/4/29
+**最后更新**：2026/4/30
 **下一步**：阶段2 — 播放器模块（JSON脚本解析执行引擎 + 时间轴对接）
+
+## 14. 远期愿景：维度过渡运镜
+
+> 本节为远期愿景，不在 0.3.0 范围内。Phase 1.5 仅预留 `DimensionTransitionCallback` 接口和 `ChunkLoadingManager.onDimensionChange()` 方法（零成本）。
+
+### 14.1 愿景概述
+
+当玩家进入末地传送门/下界传送门时，不显示原版的 "Loading terrain..." 进度条，而是播放一段预设的运镜过场动画，让维度切换体验从"等待加载"变为"沉浸式过渡"。
+
+### 14.2 与沉浸式传送门（Immersive Portals）的区别
+
+| 维度 | 沉浸式传送门 | 我们的方案 |
+|------|-------------|-----------|
+| 核心机制 | 传送门另一侧实时渲染目标维度 | 维度切换时播放预设运镜过场动画 |
+| 渲染时机 | 传送前就开始渲染 | 维度切换后、区块就绪后才开始渲染 |
+| 技术复杂度 | 极高（自定义渲染管线/深度缓冲/着色器） | 中等（复用现有 CameraMixin + 区块预加载） |
+| 光影兼容性 | 严重冲突 | 完全兼容（复用原版渲染管线） |
+| 体验 | 真正的"无缝" | "伪无缝"：黑幕→运镜→游戏，体验流畅 |
+
+### 14.3 核心矛盾
+
+原版 `ReceivingLevelScreen` 显示期间，客户端还没有目标维度的区块数据，**无法渲染一个还不存在的世界**。因此不能在维度切换瞬间就开始运镜，必须等区块数据到达。
+
+### 14.4 解决方案：黑幕过渡 + 区块就绪后运镜
+
+```mermaid
+sequenceDiagram
+    participant Portal as 传送门交互
+    participant IC as ImmersiveCinematics
+    participant Server as 服务端
+    participant Client as 客户端渲染
+    participant Overlay as 黑幕/运镜
+    
+    Portal->>IC: 检测到维度切换事件
+    IC->>Overlay: 立即显示黑幕 - 遮住原版加载屏幕
+    IC->>Server: ForgeChunkManager 预加载目标维度区块
+    
+    Note over IC,Server: 原版加载逻辑同时进行
+    
+    loop 等待区块就绪
+        IC->>Server: areChunksReady?
+        Server-->>IC: 就绪进度
+    end
+    
+    IC->>IC: 区块就绪 → 启动运镜脚本
+    IC->>Client: CameraMixin 渲染目标维度运镜画面
+    IC->>Overlay: 渐变淡入运镜画面
+    
+    Note over Client: 玩家看到: 黑幕→运镜→游戏画面
+    
+    IC->>IC: 运镜结束 → 渐变到玩家视角
+    IC->>IC: deactivate 恢复正常
+```
+
+### 14.5 状态机
+
+```mermaid
+stateDiagram-v2
+    [*] --> BlackScreen: 检测到维度切换
+    BlackScreen --> Preloading: 原版加载+我们的区块预加载
+    Preloading --> CinematicPlay: 区块就绪
+    CinematicPlay --> FadeOut: 运镜脚本播放完毕
+    FadeOut --> PlayerView: 渐变到玩家视角
+    PlayerView --> [*]: deactivate
+```
+
+### 14.6 分层实现策略
+
+| 层级 | 版本 | 内容 | 说明 |
+|------|------|------|------|
+| **接口预留** | 0.3.0 Phase 1.5 | `DimensionTransitionCallback` + `ChunkLoadingManager.onDimensionChange()` | 区块预加载和运镜播放的基础能力已在 Phase 1.5 具备 |
+| **维度切换拦截** | 0.5.5 | `ReceivingLevelScreenMixin` + `CinematicTransitionScreen` | 拦截原版加载屏幕，替换为我们的过渡屏幕 |
+| **创作者 API** | 0.5.5+ | JSON 配置维度过渡运镜脚本 | 整合包作者自定义维度过渡动画 |
+
+### 14.7 需要新增的文件（0.5.5 版本）
+
+| 文件 | 位置 | 说明 |
+|------|------|------|
+| `ReceivingLevelScreenMixin.java` | `mixin/` 包 | 拦截原版维度切换屏幕 |
+| `CinematicTransitionScreen.java` | `transition/` 包 | 自定义过渡屏幕：黑幕等待→运镜播放→渐变到玩家视角 |
+| `DimensionTransitionConfig.java` | `transition/` 包 | 维度过渡脚本配置映射 |
+
+### 14.8 关键技术障碍
+
+1. **ReceivingLevelScreen 阻塞渲染**：原版加载屏幕完全接管渲染循环，需 Mixin `Minecraft.setScreen()` 替换为我们的过渡屏幕
+2. **区块就绪检测**：`ReceivingLevelScreen` 内部有 `waitingForChunks` 逻辑，完全跳过可能导致玩家在区块未就绪时被放入世界
+3. **玩家实体时序**：维度切换时玩家实体被移动到目标维度，需精确在玩家到达后激活相机模式
+4. **多人模式**：维度切换是客户端行为，C2S 网络包需通知服务端预加载目标维度区块
