@@ -348,6 +348,18 @@ public class CameraTestPlayer {
         return playing && currentSegmentIndex >= SEGMENTS.length;
     }
 
+    /**
+     * 获取剩余播放时间（秒）
+     * <p>
+     * 供 CameraManager 判断何时触发黑边退场动画：
+     * 当 remaining ≤ fadeOut 时长时，触发 startFadeOut()
+     */
+    public float getRemainingTime() {
+        if (!playing) return 0f;
+        float elapsed = (System.nanoTime() - startNanoTime) / 1_000_000_000f;
+        return Math.max(0f, TOTAL_DURATION - elapsed);
+    }
+
     // ========== 核心逻辑：帧回调驱动 ==========
 
     /**
