@@ -24,6 +24,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * 这与 ReplayMod 的 CameraEntity.setCameraPosition(prevX=x) 思路一致：
  * 当 prev=current 时，MC 自身的 partialTick 插值结果恒等于 current，
  * 等效于直接使用精确值。
+ * <p>
+ * 🔊 声音系统兼容：
+ * - 使用 HEAD + cancel 拦截原版 setup()，避免中间状态导致声音跳变
+ * - 手动设置 initialized = true，确保 SoundEngine.updateSource() 的
+ *   isInitialized() 检查通过，OpenAL Listener 正确更新到相机坐标
+ * - 同时设置 level 和 entity 字段，确保流体检测等子系统正常工作
  */
 @Mixin(Camera.class)
 public abstract class CameraMixin {
@@ -34,6 +40,31 @@ public abstract class CameraMixin {
     @Shadow
     protected abstract void setRotation(float yaw, float pitch);
 
+    @Shadow
+    private boolean initialized;
+
+    @Shadow
+    private BlockGetter level;
+
+    @Shadow
+    private Entity entity;
+
+    @Shadow
+    private boolean detached;
+
+    /**
+     * 🎬 拦截 Camera.setup()，用电影相机位置/旋转替换原版逻辑
+     * <p>
+     * 使用 HEAD + cancel 而非 RETURN，避免原版 setup() 先设置玩家位置
+     * 再被我们覆盖的中间状态——这种跳变会导致 OpenAL Listener 位置/朝向
+     * 在玩家和相机之间来回切换，产生声音卡顿噪音。
+     * <p>
+     * 手动设置原版 setup() 中会被初始化的关键字段：
+     * - initialized = true → 声音系统 isInitialized() 检查通过
+     * - level → 流体检测（getFluidInCamera）需要
+     * - entity → 渲染管线多处调用 getEntity()
+     * - detached → isDetached() 控制玩家模型渲染
+     */
     @Inject(method = "setup", at = @At("HEAD"), cancellable = true)
     private void onSetup(BlockGetter level, Entity entity, boolean detached,
                          boolean mirror, float partialTick, CallbackInfo ci) {
@@ -49,6 +80,12 @@ public abstract class CameraMixin {
             if (!mgr.isActive()) {
                 return;  // 不 cancel，让原版 setup 正常执行
             }
+
+            // 手动设置原版 setup() 中的关键字段（因为 ci.cancel() 跳过了原版逻辑）
+            this.initialized = true;
+            this.level = level;
+            this.entity = entity;
+            this.detached = detached;
 
             // 直接读取精确值（每帧已由 onRenderFrame 精确重算，不需要 partialTick 插值）
             Vec3 pos = mgr.getPath().getPosition();
@@ -70,6 +107,8 @@ public abstract class CameraMixin {
      * 返回玩家 Entity，避免渲染管线 NPE
      * 原版 Camera.setup() 中 this.entity = entity，我们 cancel 了 setup 导致 entity 字段为 null
      * 渲染管线多处调用 getEntity()，返回 null 会崩溃
+     * <p>
+     * 注意：现在我们在 onSetup 中手动设置了 this.entity，此拦截作为额外安全措施保留
      */
     @Inject(method = "getEntity", at = @At("HEAD"), cancellable = true)
     private void onGetEntity(CallbackInfoReturnable<Entity> cir) {
@@ -86,6 +125,8 @@ public abstract class CameraMixin {
      * 2. ⚠️ 不影响手臂渲染！手臂渲染由 GameRenderer.renderItemInHand() 控制，
      *    该方法检查的是 CameraType.isFirstPerson()，而不是 Camera.isDetached()
      * 3. 不影响 HUD，HUD 需要单独处理（GuiMixin）
+     * <p>
+     * 注意：现在我们在 onSetup 中手动设置了 this.detached，此拦截作为额外安全措施保留
      */
     @Inject(method = "isDetached", at = @At("HEAD"), cancellable = true)
     private void onIsDetached(CallbackInfoReturnable<Boolean> cir) {
