@@ -1,0 +1,282 @@
+{
+  "meta": {
+    "id": "world_moment",
+    "name": "世界中的一刻",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "十七段叙事运镜测试脚本——从远处发现一个人影，到各个角度注视，转向环境，戏剧性变化，最终回归。与 CameraTestPlayer 硬编码脚本完全等价。",
+    "interpolation": "linear",
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 102.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 6.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 30, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 6.0, "position": { "dx": 20, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 6.0,
+            "duration": 6.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 18, "dy": 1.5, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 6.0, "position": { "dx": 8, "dy": 1.5, "dz": 0 }, "yaw": 90, "pitch": 8, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 12.0,
+            "duration": 5.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 7, "dy": 1.5, "dz": 2 }, "yaw": 105, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 5.0, "position": { "dx": 3, "dy": 1.5, "dz": 1 }, "yaw": 100, "pitch": 8, "roll": 0, "fov": 68, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 17.0,
+            "duration": 6.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": -5, "dy": 1, "dz": -5 }, "yaw": 270, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 6.0, "position": { "dx": -5, "dy": 1, "dz": 10 }, "yaw": 270, "pitch": 8, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 23.0,
+            "duration": 8.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 10, "dy": 1.5, "dz": 3 }, "yaw": 107, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 4.0, "position": { "dx": 0, "dy": 2, "dz": -2 }, "yaw": 0, "pitch": 8, "roll": 0, "fov": 72, "zoom": 1.1, "dof": 0 },
+              { "time": 8.0, "position": { "dx": -10, "dy": 1.5, "dz": 3 }, "yaw": -107, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 31.0,
+            "duration": 6.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": -1, "dy": 2.5, "dz": -4 }, "yaw": -14, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 6.0, "position": { "dx": -1, "dy": 3, "dz": -8 }, "yaw": -7, "pitch": 15, "roll": 0, "fov": 75, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 37.0,
+            "duration": 5.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 4, "dy": -1, "dz": 4 }, "yaw": 135, "pitch": -8, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 5.0, "position": { "dx": 3, "dy": -1, "dz": 3 }, "yaw": 135, "pitch": -5, "roll": 0, "fov": 68, "zoom": 1.1, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 42.0,
+            "duration": 5.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 5, "dy": 1.5, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 2.5, "position": { "dx": 4.5, "dy": 1.5, "dz": 0 }, "yaw": 90, "pitch": 8, "roll": 0, "fov": 68, "zoom": 1.5, "dof": 0 },
+              { "time": 5.0, "position": { "dx": 4, "dy": 1.5, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 65, "zoom": 2.5, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 47.0,
+            "duration": 5.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 4, "dy": 1.5, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 65, "zoom": 2.0, "dof": 0 },
+              { "time": 5.0, "position": { "dx": 8, "dy": 1.5, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 52.0,
+            "duration": 5.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 2.5, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 135, "pitch": 8, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 5.0, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 57.0,
+            "duration": 7.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": -8, "dy": 3, "dz": -15 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 3.5, "position": { "dx": 0, "dy": 3, "dz": -15 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 72, "zoom": 1.0, "dof": 0 },
+              { "time": 7.0, "position": { "dx": 8, "dy": 3, "dz": -15 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 64.0,
+            "duration": 5.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 10, "dy": 1, "dz": -8 }, "yaw": 140, "pitch": 12, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 5.0, "position": { "dx": 14, "dy": 1, "dz": -5 }, "yaw": 150, "pitch": 15, "roll": 0, "fov": 68, "zoom": 1.1, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 69.0,
+            "duration": 5.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 0, "dy": 12, "dz": 0 }, "yaw": 180, "pitch": 55, "roll": 0, "fov": 80, "zoom": 1.0, "dof": 0 },
+              { "time": 5.0, "position": { "dx": 0, "dy": 12, "dz": 0 }, "yaw": 180, "pitch": 50, "roll": 0, "fov": 80, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 74.0,
+            "duration": 4.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 6, "dy": 2, "dz": 3 }, "yaw": 116, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 2.0, "position": { "dx": 5.5, "dy": 2, "dz": 2.5 }, "yaw": 115, "pitch": 12, "roll": 15, "fov": 70, "zoom": 1.5, "dof": 0 },
+              { "time": 4.0, "position": { "dx": 5, "dy": 2, "dz": 2 }, "yaw": 115, "pitch": 15, "roll": 30, "fov": 70, "zoom": 2.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 78.0,
+            "duration": 6.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": -6, "dy": 1, "dz": 5 }, "yaw": -130, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 6.0, "position": { "dx": -6, "dy": 10, "dz": 5 }, "yaw": -130, "pitch": 40, "roll": 0, "fov": 85, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 84.0,
+            "duration": 6.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 0, "dy": 10, "dz": 8 }, "yaw": 180, "pitch": 40, "roll": 0, "fov": 80, "zoom": 1.0, "dof": 0 },
+              { "time": 3.0, "position": { "dx": 0, "dy": 6, "dz": 6 }, "yaw": 180, "pitch": 25, "roll": 0, "fov": 75, "zoom": 1.0, "dof": 0 },
+              { "time": 6.0, "position": { "dx": 0, "dy": 3, "dz": 4 }, "yaw": 180, "pitch": 15, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 90.0,
+            "duration": 6.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 8, "dy": 1.5, "dz": 3 }, "yaw": 110, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 6.0, "position": { "dx": 4, "dy": 1.5, "dz": 1 }, "yaw": 100, "pitch": 5, "roll": 0, "fov": 68, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 96.0,
+            "duration": 6.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 5, "dy": 2, "dz": 2 }, "yaw": 112, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 3.0, "position": { "dx": 4.5, "dy": 1.5, "dz": 1 }, "yaw": 105, "pitch": 5, "roll": -3, "fov": 60, "zoom": 1.2, "dof": 0 },
+              { "time": 6.0, "position": { "dx": 4, "dy": 1.5, "dz": 1 }, "yaw": 100, "pitch": 5, "roll": 0, "fov": 50, "zoom": 1.5, "dof": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 102.0,
+            "enabled": true,
+            "aspect_ratio": 2.35,
+            "fade_in": 0.5,
+            "fade_out": 0.5
+          }
+        ]
+      }
+    ]
+  }
+}
