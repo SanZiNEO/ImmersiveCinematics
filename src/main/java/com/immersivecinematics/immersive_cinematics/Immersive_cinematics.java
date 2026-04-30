@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.command.CinematicCommand;
 import com.immersivecinematics.immersive_cinematics.handler.HudOverlayHandler;
 import com.immersivecinematics.immersive_cinematics.overlay.CinematicOverlay;
 import net.minecraftforge.api.distmarker.Dist;
@@ -9,6 +10,7 @@ import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -85,6 +87,21 @@ public class Immersive_cinematics {
         @SubscribeEvent
         public static void onRenderGuiOverlayPre(RenderGuiOverlayEvent.Pre event) {
             HudOverlayHandler.onRenderGuiOverlayPre(event);
+        }
+    }
+
+    /**
+     * 命令注册事件 — 注册 /cinematic 命令
+     * <p>
+     * RegisterCommandsEvent 在 FORGE 总线上触发，服务端执行。
+     * 命令内部通过 Minecraft.getInstance().execute() 将客户端操作调度到客户端线程。
+     */
+    @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
+    public static class CommandEvents {
+
+        @SubscribeEvent
+        public static void onRegisterCommands(RegisterCommandsEvent event) {
+            CinematicCommand.register(event.getDispatcher());
         }
     }
 

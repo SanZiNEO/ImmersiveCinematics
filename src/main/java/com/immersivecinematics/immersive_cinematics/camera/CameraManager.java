@@ -2,6 +2,8 @@ package com.immersivecinematics.immersive_cinematics.camera;
 
 import com.immersivecinematics.immersive_cinematics.overlay.LetterboxLayer;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
+import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
+import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 
@@ -49,6 +51,7 @@ public class CameraManager {
     // ========== 其他组件 ==========
 
     private final CameraTestPlayer testPlayer = new CameraTestPlayer();
+    private final ScriptPlayer scriptPlayer = new ScriptPlayer();
     private boolean active = false;
     private boolean stopping = false;  // 正在执行退出动画（fade-out）
 
@@ -121,6 +124,61 @@ public class CameraManager {
         } else {
             activate();
         }
+    }
+
+    // ========== 脚本播放模式 ==========
+
+    /**
+     * 启动脚本播放模式
+     * <p>
+     * 与 activate()（测试模式）互斥，脚本模式由 ScriptPlayer 驱动相机。
+     *
+     * @param script 已解析的脚本对象
+     */
+    public void playScript(CinematicScript script) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || mc.player == null) return;
+
+        // 如果已在播放，先停用
+        if (active) {
+            deactivateNow();
+        }
+
+        Vec3 playerPos = mc.player.position();
+        activePath.setPositionDirect(playerPos);
+        activeProperties.setYawDirect(mc.player.getYRot());
+        activeProperties.setPitchDirect(mc.player.getXRot());
+
+        stagedReady = false;
+        active = true;
+        stopping = false;
+
+        // 启动脚本播放器
+        scriptPlayer.start(script);
+    }
+
+    /**
+     * 停止脚本播放
+     */
+    public void stopScript() {
+        if (scriptPlayer.isPlaying()) {
+            scriptPlayer.stop();
+            deactivateNow();
+        }
+    }
+
+    /**
+     * 获取脚本播放器实例
+     */
+    public ScriptPlayer getScriptPlayer() {
+        return scriptPlayer;
+    }
+
+    /**
+     * 是否处于脚本播放模式
+     */
+    public boolean isScriptMode() {
+        return scriptPlayer.isPlaying();
     }
 
     // ========== 预置状态写入（staged）==========
@@ -249,7 +307,7 @@ public class CameraManager {
 
         // 🎬 自然结束前触发退场动画
         if (!stopping) {
-            float remaining = testPlayer.getRemainingTime();
+            float remaining = isScriptMode() ? scriptPlayer.getRemainingTime() : testPlayer.getRemainingTime();
             float fadeOut = OverlayManager.INSTANCE.getLetterboxLayer().getFadeOut();
             if (fadeOut > 0f && remaining > 0f && remaining <= fadeOut) {
                 OverlayManager.INSTANCE.startFadeOut();
@@ -262,6 +320,11 @@ public class CameraManager {
             testPlayer.onRenderFrame(gameTimeNanos);
         }
 
+        // 驱动脚本播放器
+        if (scriptPlayer.isPlaying()) {
+            scriptPlayer.onRenderFrame(gameTimeNanos);
+        }
+
         // 🎬 退场动画结束 → 实际停用
         if (stopping && !OverlayManager.INSTANCE.isAnimating()) {
             deactivateNow();
@@ -269,7 +332,9 @@ public class CameraManager {
         }
 
         // 无 fade-out 的自然结束（fadeOut=0 时的回退路径）
-        if (!stopping && testPlayer.isFinished()) {
+        boolean testFinished = !isScriptMode() && testPlayer.isFinished();
+        boolean scriptFinished = isScriptMode() && scriptPlayer.isFinished();
+        if (!stopping && (testFinished || scriptFinished)) {
             deactivateNow();
         }
     }
@@ -297,6 +362,7 @@ public class CameraManager {
         gameTimeNanos = 0;
         lastRealNanos = 0;
         testPlayer.stop();
+        scriptPlayer.stop();
         reset();
         OverlayManager.INSTANCE.reset();
     }
