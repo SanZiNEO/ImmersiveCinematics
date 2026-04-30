@@ -286,8 +286,8 @@ public class CameraTestPlayer {
     private float segmentTime = 0f;       // 当前段内已播放时间（秒）
     private boolean playing = false;
 
-    // 🎬 实时时间驱动：纳秒级时间戳
-    private long startNanoTime = 0;       // 播放开始时的 System.nanoTime()
+    // 🎬 虚拟时间驱动：使用 CameraManager 的虚拟时钟（暂停时自动冻结）
+    private long startGameTimeNanos = 0;  // 播放开始时的虚拟游戏时间（纳秒）
     private float[] segmentStartTimes;    // 每段在总时间轴上的起始时间（秒）
 
     // 玩家激活时的基准位置（用于将相对偏移解析为绝对坐标）
@@ -317,8 +317,8 @@ public class CameraTestPlayer {
         segmentTime = 0f;
         playing = true;
 
-        // 🎬 初始化实时时间
-        startNanoTime = System.nanoTime();
+        // 🎬 初始化虚拟时间起点
+        startGameTimeNanos = CameraManager.INSTANCE.getGameTimeNanos();
 
         // 预计算每段在时间轴上的起始时间
         segmentStartTimes = new float[SEGMENTS.length];
@@ -339,6 +339,7 @@ public class CameraTestPlayer {
      */
     public void stop() {
         playing = false;
+        startGameTimeNanos = 0;
     }
 
     /**
@@ -356,25 +357,27 @@ public class CameraTestPlayer {
      */
     public float getRemainingTime() {
         if (!playing) return 0f;
-        float elapsed = (System.nanoTime() - startNanoTime) / 1_000_000_000f;
+        float elapsed = (CameraManager.INSTANCE.getGameTimeNanos() - startGameTimeNanos) / 1_000_000_000f;
         return Math.max(0f, TOTAL_DURATION - elapsed);
     }
 
     // ========== 核心逻辑：帧回调驱动 ==========
 
     /**
-     * 🎬 每渲染帧驱动：用实时时间精确计算当前位置，直接写入 CameraManager
+     * 🎬 每渲染帧驱动：用虚拟时间精确计算当前位置，直接写入 CameraManager
      * <p>
-     * ReplayMod 式：每帧用 System.nanoTime() 算精确时间，直接计算精确位置，
-     * 不需要 MC 的 partialTick 插值。比 tick 驱动更丝滑，不受 tick 抖动影响。
+     * 虚拟时钟架构：gameTimeNanos 由 CameraManager 维护，暂停时自动冻结，
+     * 本类无需任何暂停补偿逻辑。
      * <p>
-     * 由 CameraManager.onRenderFrame() 调用
+     * 由 CameraManager.onRenderFrame(gameTimeNanos) 调用
+     *
+     * @param gameTimeNanos 当前虚拟游戏时间（纳秒），暂停时不增长
      */
-    public void onRenderFrame() {
+    public void onRenderFrame(long gameTimeNanos) {
         if (!playing) return;
 
-        // 🎬 用实时时间计算总经过时间（秒）
-        float elapsedSeconds = (System.nanoTime() - startNanoTime) / 1_000_000_000f;
+        // 🎬 用虚拟时间计算经过时间（秒），暂停时自动冻结
+        float elapsedSeconds = (gameTimeNanos - startGameTimeNanos) / 1_000_000_000f;
 
         // 检查总时长
         if (elapsedSeconds >= TOTAL_DURATION) {

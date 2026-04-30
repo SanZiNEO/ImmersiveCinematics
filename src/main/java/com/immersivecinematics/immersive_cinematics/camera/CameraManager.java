@@ -52,8 +52,10 @@ public class CameraManager {
     private boolean active = false;
     private boolean stopping = false;  // 正在执行退出动画（fade-out）
 
-    // 🎬 deltaTime 计算（用于驱动覆盖层动画）
-    private long lastNanoTime = 0;
+    // 🎬 虚拟时钟：只在非暂停时前进，暂停时自动冻结
+    // 所有消费者（CameraTestPlayer/OverlayManager）使用虚拟时间，无需各自处理暂停补偿
+    private long gameTimeNanos = 0;    // 虚拟游戏时间（纳秒），暂停时不增长
+    private long lastRealNanos = 0;    // 上一帧的 System.nanoTime()，用于计算增量
 
     // ========== 生命周期 ==========
 
@@ -199,11 +201,11 @@ public class CameraManager {
     /**
      * 🎬 每渲染帧驱动：由 CameraMixin.onSetup() 调用
      * <p>
-     * ReplayMod 式帧回调驱动：
-     * - 用 System.nanoTime() 实时时间驱动
-     * - CameraTestPlayer 用实时时间精确计算当前帧的相机位置/角度
-     * - 直接设置到 active 缓冲区，不需要 partialTick 插值
-     * - 比tick驱动更丝滑，不受tick抖动影响
+     * 虚拟时钟架构：
+     * - gameTimeNanos 只在非暂停时前进，暂停时自动冻结
+     * - 所有消费者（CameraTestPlayer/OverlayManager）使用虚拟时间，无需各自处理暂停补偿
+     * - 暂停时 return early，gameTimeNanos 不增长 → 相机冻结在当前帧
+     * - 恢复后 lastRealNanos=0 → 首帧 deltaTime=0 → 无跳帧
      * <p>
      * 退场时序：
      * - 当剩余时间 ≤ fadeOut 时长时，自动触发黑边退场动画
@@ -217,10 +219,24 @@ public class CameraManager {
     public void onRenderFrame() {
         if (!active) return;
 
-        // 🎬 驱动覆盖层动画（必须在 isAnimating() 检查之前！）
+        // 🎬 暂停时冻结虚拟时钟：gameTimeNanos 不增长，相机停在当前帧
+        // 恢复后 lastRealNanos=0 → 首帧 deltaTime=0 → 无跳帧
+        if (Minecraft.getInstance().isPaused()) {
+            lastRealNanos = 0;
+            return;
+        }
+
+        // 🎬 推进虚拟时钟（只在非暂停时执行）
         long now = System.nanoTime();
-        float deltaTime = (lastNanoTime == 0) ? 0f : (now - lastNanoTime) / 1_000_000_000f;
-        lastNanoTime = now;
+        long prevGameTimeNanos = gameTimeNanos;  // 记录推进前的虚拟时间
+        if (lastRealNanos != 0) {
+            gameTimeNanos += now - lastRealNanos;
+        }
+        lastRealNanos = now;
+
+        // 🎬 驱动覆盖层动画（必须在 isAnimating() 检查之前！）
+        // deltaTime = 本帧虚拟时钟增量，暂停后首帧为0（因为 lastRealNanos 刚被重置）
+        float deltaTime = (gameTimeNanos - prevGameTimeNanos) / 1_000_000_000f;
         OverlayManager.INSTANCE.update(deltaTime);
 
         // 🎬 自然结束前触发退场动画
@@ -235,7 +251,7 @@ public class CameraManager {
 
         // 驱动测试播放器（即使 stopping 也继续播放，保持最后一帧）
         if (!testPlayer.isFinished()) {
-            testPlayer.onRenderFrame();
+            testPlayer.onRenderFrame(gameTimeNanos);
         }
 
         // 🎬 退场动画结束 → 实际停用
@@ -251,6 +267,16 @@ public class CameraManager {
     }
 
     /**
+     * 获取当前虚拟游戏时间（纳秒）
+     * <p>
+     * 只在非暂停时前进，暂停时冻结。
+     * 供消费者（如 CameraTestPlayer）计算经过时间。
+     */
+    public long getGameTimeNanos() {
+        return gameTimeNanos;
+    }
+
+    /**
      * 立即停用相机，不做退出动画
      * <p>
      * 仅在退出动画结束后由 onRenderFrame() 调用，
@@ -259,7 +285,8 @@ public class CameraManager {
     private void deactivateNow() {
         active = false;
         stopping = false;
-        lastNanoTime = 0;
+        gameTimeNanos = 0;
+        lastRealNanos = 0;
         testPlayer.stop();
         reset();
         OverlayManager.INSTANCE.reset();
