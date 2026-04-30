@@ -1,9 +1,10 @@
 package com.immersivecinematics.immersive_cinematics.handler;
 
+import com.immersivecinematics.immersive_cinematics.Immersive_cinematics;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.overlay.CinematicOverlay;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
-import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 
 import java.util.Set;
 
@@ -23,13 +24,15 @@ public class HudOverlayHandler {
      * 电影模式下允许显示的 overlay 白名单
      * 使用 ResourceLocation 标识，兼容原版和模组 overlay
      *
-     * 目前白名单为空 — 电影模式下隐藏所有 HUD
+     * 当前白名单包含：
+     * - CinematicOverlay：我们的电影覆盖层（黑边、文字、视频等）
+     *
      * 后续可以添加自定义 overlay 到白名单，例如：
      *   VanillaGuiOverlay.SUBTITLES.id()
      */
     private static final Set<ResourceLocation> ALLOWED_OVERLAYS = Set.of(
-            // 白名单 — 电影模式下允许显示的 overlay
-            // 目前为空：电影模式下完全隐藏所有 HUD
+            // 我们的电影覆盖层 — 黑边/文字/视频等
+            new ResourceLocation(Immersive_cinematics.MODID, CinematicOverlay.OVERLAY_ID)
     );
 
     /**

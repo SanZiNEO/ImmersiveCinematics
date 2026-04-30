@@ -12,6 +12,9 @@ import com.immersivecinematics.immersive_cinematics.util.MathUtil;
  * - 每渲染帧由 CameraTestPlayer.onRenderFrame() 直接设置精确值
  * - getXxx() 直接返回 currentXxx，无插值层
  * - 保留 setTargetXxx() + tick() 供 staged 缓冲区的过渡插值使用
+ * <p>
+ * 注意：画幅比（aspectRatio）不在此处管理，因为它属于覆盖层系统，
+ * 独立于镜头跳转逻辑，由 CameraManager 直接管理。
  */
 public class CameraProperties {
 

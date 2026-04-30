@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
+import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 
@@ -20,6 +21,11 @@ import net.minecraft.world.phys.Vec3;
  * - 用 System.nanoTime() 实时时间驱动，精确计算当前帧的相机状态
  * - 不再依赖 tick() 驱动位置/角度更新
  * - tick() 保留但只用于非位置逻辑（如未来可能需要的 staged 过渡驱动）
+ * <p>
+ * 🎬 多时间轴架构：
+ * - 相机属性（position/yaw/pitch/roll/fov/zoom）跟随镜头跳转逻辑
+ * - 覆盖层属性（aspectRatio/文字/视频）独立于镜头跳转，全程保持
+ * - 覆盖层由 OverlayManager 独立管理，CameraManager 只在激活/停用时控制生命周期
  * <p>
  * CameraProperties 和 CameraPath 互不知晓，CameraManager 是唯一桥梁。
  * Mixin 层不直接依赖 CameraProperties / CameraPath，统一从 CameraManager 读取。
@@ -69,6 +75,10 @@ public class CameraManager {
 
         // 启动测试播放器
         testPlayer.start();
+
+        // 🎬 设置覆盖层：黑边全程保持，独立于镜头跳转
+        // 后续由脚本/UI 控制画幅比，当前测试默认 2.35:1
+        OverlayManager.INSTANCE.getLetterboxLayer().setAspectRatio(2.35f);
     }
 
     /**
@@ -78,6 +88,8 @@ public class CameraManager {
         active = false;
         testPlayer.stop();
         reset();
+        // 重置覆盖层（黑边消失等）
+        OverlayManager.INSTANCE.reset();
     }
 
     /**
@@ -151,6 +163,8 @@ public class CameraManager {
      * <p>
      * 原子操作：active ← staged
      * 调用后 stagedReady 重置为 false
+     * <p>
+     * 注意：覆盖层属性（aspectRatio等）不受硬切换影响
      */
     public void commitStagedState() {
         if (!stagedReady) return;
