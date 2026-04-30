@@ -57,4 +57,22 @@ public interface OverlayLayer {
      * 无需在 OverlayManager 中为每层硬编码 reset 调用。
      */
     void reset();
+
+    /**
+     * 每渲染帧更新（动画驱动）
+     * <p>
+     * 由 OverlayManager.update(deltaTime) 遍历调用，
+     * 实现类可重写以驱动过渡动画（如 LetterboxLayer 的 fade-in/fade-out）。
+     *
+     * @param deltaTime 距上一帧的秒数
+     */
+    default void tick(float deltaTime) {}
+
+    /**
+     * 触发退出动画
+     * <p>
+     * 实现类可重写以启动 fade-out 过渡，
+     * 默认实现为空操作（无动画的层无需关心）。
+     */
+    default void startFadeOut() {}
 }

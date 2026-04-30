@@ -109,6 +109,46 @@ public class OverlayManager {
         return letterboxLayer;
     }
 
+    // ========== 动画驱动 ==========
+
+    /**
+     * 每渲染帧更新所有层（驱动动画）
+     * <p>
+     * 在 render() 之前调用，遍历所有层调用 tick(deltaTime)。
+     *
+     * @param deltaTime 距上一帧的秒数
+     */
+    public void update(float deltaTime) {
+        for (OverlayLayer layer : layers) {
+            layer.tick(deltaTime);
+        }
+    }
+
+    /**
+     * 是否有层正在执行过渡动画
+     * <p>
+     * 用于 CinematicOverlay 判断是否需要继续渲染（即使相机已停用）。
+     * 当前简化实现：任何层可见即视为可能正在动画。
+     */
+    public boolean isAnimating() {
+        for (OverlayLayer layer : layers) {
+            if (layer.isVisible()) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 触发所有层的退出动画
+     * <p>
+     * 由 CameraManager 在脚本结束前 fadeOut 时长处调用，
+     * 遍历所有层调用 startFadeOut()。
+     */
+    public void startFadeOut() {
+        for (OverlayLayer layer : layers) {
+            layer.startFadeOut();
+        }
+    }
+
     // ========== 生命周期 ==========
 
     /**

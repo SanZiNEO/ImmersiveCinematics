@@ -42,6 +42,14 @@ public abstract class CameraMixin {
             // 🎬 先驱动帧回调：用实时时间精确计算当前帧的相机状态
             mgr.onRenderFrame();
 
+            // ⚠️ onRenderFrame() 可能触发 deactivateNow()（退场动画结束时），
+            // 导致 active 变为 false 且所有相机数据被 reset。
+            // 此时必须放弃自定义相机，让原版 setup 用玩家正常位置渲染，
+            // 否则会读到 reset 后的默认值 (0,0,0)，造成一帧白模闪烁。
+            if (!mgr.isActive()) {
+                return;  // 不 cancel，让原版 setup 正常执行
+            }
+
             // 直接读取精确值（每帧已由 onRenderFrame 精确重算，不需要 partialTick 插值）
             Vec3 pos = mgr.getPath().getPosition();
             setPosition(pos.x, pos.y, pos.z);

@@ -44,11 +44,19 @@ public class CinematicOverlay {
     /**
      * Forge IGuiOverlay 实现 — 委托给 OverlayManager
      * <p>
-     * 只在相机激活时渲染覆盖层，停用时自动跳过（性能零开销）。
+     * 在相机激活或有层正在动画时渲染覆盖层，否则自动跳过（性能零开销）。
+     * 动画驱动（update/deltaTime）已移至 CameraManager.onRenderFrame()，
+     * 确保动画状态在相机决策之前更新，避免闪帧。
      */
     private static final IGuiOverlay CINEMATIC_OVERLAY = (overlay, guiGraphics, partialTick, screenWidth, screenHeight) -> {
-        if (!CameraManager.INSTANCE.isActive()) return;
+        boolean cameraActive = CameraManager.INSTANCE.isActive();
+        boolean overlayAnimating = OverlayManager.INSTANCE.isAnimating();
 
+        if (!cameraActive && !overlayAnimating) {
+            return;
+        }
+
+        // 只负责渲染，动画驱动由 CameraManager.onRenderFrame() 负责
         OverlayManager.INSTANCE.render(guiGraphics, screenWidth, screenHeight);
     };
 }
