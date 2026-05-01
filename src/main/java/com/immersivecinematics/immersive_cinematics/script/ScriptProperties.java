@@ -80,21 +80,22 @@ public class ScriptProperties {
      * 由 ScriptPlayer.stop() 调用，调用后 ScriptPlayer 会将 currentProperties 设为 null
      */
     public void revert() {
-        this.blockKeyboard = true;
-        this.blockMouse = true;
-        this.blockMobAi = false;
-        this.hideHud = true;
-        this.hideArm = true;
-        this.suppressBob = true;
-        this.blockChat = false;
-        this.blockScoreboard = false;
-        this.blockActionBar = false;
-        this.blockParticles = false;
-        this.renderPlayerModel = true;
-        this.pauseWhenGamePaused = true;
-        this.interruptible = true;
-        this.skippable = true;
-        this.holdAtEnd = false;
+        ScriptMeta.RuntimeBehavior defaults = ScriptMeta.RuntimeBehavior.DEFAULT;
+        this.blockKeyboard = defaults.blockKeyboard();
+        this.blockMouse = defaults.blockMouse();
+        this.blockMobAi = defaults.blockMobAi();
+        this.hideHud = defaults.hideHud();
+        this.hideArm = defaults.hideArm();
+        this.suppressBob = defaults.suppressBob();
+        this.blockChat = defaults.blockChat();
+        this.blockScoreboard = defaults.blockScoreboard();
+        this.blockActionBar = defaults.blockActionBar();
+        this.blockParticles = defaults.blockParticles();
+        this.renderPlayerModel = defaults.renderPlayerModel();
+        this.pauseWhenGamePaused = defaults.pauseWhenGamePaused();
+        this.interruptible = defaults.interruptible();
+        this.skippable = defaults.skippable();
+        this.holdAtEnd = defaults.holdAtEnd();
     }
 
     // === Getters ===

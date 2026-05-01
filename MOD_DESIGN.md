@@ -542,3 +542,14 @@ com.immersivecinematics.immersive_cinematics/
 | A8 | onRenderFrame() 重复调用 getCurrent() | `CameraManager.java` | 方法开头获取 `currentProps` 一次，后续复用，删除两处重复局部声明 |
 | A9 | LetterboxLayer.render() 隐式除零 | `LetterboxLayer.java` | `render()` 开头增加 `targetAspectRatio <= 0f` 防护，提前返回 |
 | A10 | parseDataMap() 多余的 @SuppressWarnings | `ScriptParser.java` | 删除 `@SuppressWarnings("unchecked")` 注解，Gson tree API 无需此抑制 |
+
+### 10.2 Plan D — 深度审查额外发现修复 (2026/5/1)
+
+| 编号 | 修复内容 | 文件 | 说明 |
+|------|----------|------|------|
+| B1 | LetterboxClip/Timeline.isInfinite() 浮点等值比较 | `LetterboxClip.java`, `Timeline.java` | `duration == -1f` / `totalDuration == -1f` 改为 `< 0f`，与 CameraClip.isInfinite() 修复一致；Javadoc 更新为"负数=无限" |
+| B2 | CinematicCommand 异步反馈不准确 | `CinematicCommand.java` | `playScript()`/`stopScript()` 在客户端回调内检查实际结果，通过 `displayClientMessage()` 反馈成功/拒绝；服务端仅发送"正在调度"消息 |
+| B3 | ScriptProperties.revert() 硬编码默认值 | `ScriptProperties.java` | `revert()` 从 `RuntimeBehavior.DEFAULT` 读取默认值，消除与 DEFAULT 常量的重复定义（DRY） |
+| B4 | MathUtil.smoothstep() 除零 NaN | `MathUtil.java` | 添加 `edge0 == edge1` 守卫条件：`x >= edge0` 返回 1，否则返回 0，避免 0/0 产生 NaN |
+| B5 | ScriptPlayer holdAtEnd 魔法数 | `ScriptPlayer.java` | 提取 `0.0001f` 为命名常量 `HOLD_END_EPSILON`，添加 Javadoc 说明其含义和选择依据 |
+| B6 | ScriptPlayer 双重扫描 TrackPlayer | `ScriptPlayer.java` | 移除 `onRenderFrame()` 热路径中的 `isActiveAt()` 预检查，让 `onRenderFrame()` 内部自行判断是否有活跃 clip，避免每帧双重扫描 |

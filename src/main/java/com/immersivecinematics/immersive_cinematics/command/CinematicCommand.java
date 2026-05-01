@@ -98,11 +98,21 @@ public class CinematicCommand {
 
         // 在客户端线程执行播放（命令在服务端线程执行）
         net.minecraft.client.Minecraft.getInstance().execute(() -> {
-            CameraManager.INSTANCE.playScript(script);
+            boolean ok = CameraManager.INSTANCE.playScript(script);
+            var player = net.minecraft.client.Minecraft.getInstance().player;
+            if (player != null) {
+                if (ok) {
+                    player.displayClientMessage(
+                            Component.literal("§a脚本播放开始: §f" + script.getName() +
+                                    " §7(总时长: " + script.getTotalDuration() + "s)"), false);
+                } else {
+                    player.displayClientMessage(
+                            Component.literal("§c脚本播放被拒绝（当前脚本不可打断）"), false);
+                }
+            }
         });
 
-        source.sendSuccess(() -> Component.literal("§a脚本播放开始: §f" + script.getName() +
-                " §7(总时长: " + script.getTotalDuration() + "s)"), false);
+        source.sendSuccess(() -> Component.literal("§7脚本加载成功，正在调度播放..."), false);
         return 1;
     }
 
@@ -110,10 +120,21 @@ public class CinematicCommand {
         CommandSourceStack source = context.getSource();
 
         net.minecraft.client.Minecraft.getInstance().execute(() -> {
+            boolean wasPlaying = CameraManager.INSTANCE.isActive();
             CameraManager.INSTANCE.stopScript();
+            var player = net.minecraft.client.Minecraft.getInstance().player;
+            if (player != null) {
+                if (wasPlaying) {
+                    player.displayClientMessage(
+                            Component.literal("§a脚本播放已停止"), false);
+                } else {
+                    player.displayClientMessage(
+                            Component.literal("§7当前没有正在播放的脚本"), false);
+                }
+            }
         });
 
-        source.sendSuccess(() -> Component.literal("§a脚本播放已停止"), false);
+        source.sendSuccess(() -> Component.literal("§7正在调度停止脚本..."), false);
         return 1;
     }
 

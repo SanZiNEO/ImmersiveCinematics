@@ -153,6 +153,9 @@ public final class MathUtil {
      *       result = t² * (3 - 2t)
      * <p>
      * 用途：crossfade 过渡区间内的平滑混合权重计算。
+     * <p>
+     * 边界情况：当 edge0 == edge1 时，x >= edge0 返回 1，否则返回 0，
+     * 避免 0/0 产生 NaN。
      *
      * @param edge0 下边界
      * @param edge1 上边界
@@ -160,6 +163,9 @@ public final class MathUtil {
      * @return 平滑插值结果 [0, 1]
      */
     public static float smoothstep(float edge0, float edge1, float x) {
+        if (edge0 == edge1) {
+            return (x >= edge0) ? 1f : 0f;
+        }
         float t = (x - edge0) / (edge1 - edge0);
         t = Math.max(0f, Math.min(1f, t)); // clamp [0, 1]
         return t * t * (3f - 2f * t);
