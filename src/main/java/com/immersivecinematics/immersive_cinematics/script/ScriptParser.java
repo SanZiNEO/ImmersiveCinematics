@@ -143,13 +143,26 @@ public class ScriptParser {
                     metaObj.get("curve_composition_mode").getAsString(), p + ".curve_composition_mode");
         }
 
+        ScriptMeta.RuntimeBehavior behavior = ScriptMeta.RuntimeBehavior.builder()
+                .blockKeyboard(blockKeyboard)
+                .blockMouse(blockMouse)
+                .blockMobAi(blockMobAi)
+                .hideHud(hideHud)
+                .hideArm(hideArm)
+                .suppressBob(suppressBob)
+                .blockChat(blockChat)
+                .blockScoreboard(blockScoreboard)
+                .blockActionBar(blockActionBar)
+                .blockParticles(blockParticles)
+                .renderPlayerModel(renderPlayerModel)
+                .pauseWhenGamePaused(pauseWhenGamePaused)
+                .interruptible(interruptible)
+                .skippable(skippable)
+                .holdAtEnd(holdAtEnd)
+                .build();
+
         return new ScriptMeta(id, name, author, version, description,
-                new ScriptMeta.RuntimeBehavior(blockKeyboard, blockMouse, blockMobAi,
-                        hideHud, hideArm, suppressBob,
-                        blockChat, blockScoreboard, blockActionBar,
-                        blockParticles, renderPlayerModel,
-                        pauseWhenGamePaused, interruptible, skippable, holdAtEnd),
-                scriptInterpolation, compositionMode);
+                behavior, scriptInterpolation, compositionMode);
     }
 
     // ========== Timeline 解析 ==========
@@ -163,9 +176,9 @@ public class ScriptParser {
         JsonObject timelineObj = requireObject(root, p, key);
         float totalDuration = requireFloat(timelineObj, p, "total_duration");
 
-        // 验证 total_duration
-        if (totalDuration != -1f && totalDuration <= 0f) {
-            throw new ScriptParseException(p + ".total_duration", "只允许正数或 -1，实际: " + totalDuration);
+        // 验证 total_duration：正数=有限时长，负数=无限时长，0=非法
+        if (totalDuration == 0f) {
+            throw new ScriptParseException(p + ".total_duration", "不允许为0，正数=有限时长，负数=无限时长，实际: " + totalDuration);
         }
 
         JsonArray tracksArr = requireArray(timelineObj, p, "tracks");
@@ -211,7 +224,8 @@ public class ScriptParser {
     private static CameraClip parseCameraClip(JsonObject obj, String p) throws ScriptParseException {
         float startTime = requireFloat(obj, p, "start_time");
         float duration = requireFloat(obj, p, "duration");
-        String transition = optString(obj, "transition", "cut");
+        TransitionType transition = parseTransitionType(
+                optString(obj, "transition", "cut"), p + ".transition");
         float crossfadeDuration = optFloat(obj, "crossfade_duration", 0.5f);
         InterpolationType interpolation = parseInterpolationType(
                 optString(obj, "interpolation", "smooth"), p + ".interpolation");
@@ -233,8 +247,8 @@ public class ScriptParser {
         if (keyframes.isEmpty()) {
             throw new ScriptParseException(p, "camera clip 的 keyframes 至少1个");
         }
-        if (duration != -1f && duration <= 0f) {
-            throw new ScriptParseException(p + ".duration", "只允许正数或 -1，实际: " + duration);
+        if (duration == 0f) {
+            throw new ScriptParseException(p + ".duration", "不允许为0，正数=有限时长，负数=无限时长，实际: " + duration);
         }
         if (curve != null && !curve.isValid()) {
             throw new ScriptParseException(p + ".curve", "control_points 必须恰好2个点");
@@ -486,6 +500,15 @@ public class ScriptParser {
         }
     }
 
+    private static TransitionType parseTransitionType(String value, String p) throws ScriptParseException {
+        try {
+            return TransitionType.valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ScriptParseException(p, "未知的过渡类型: " + value +
+                    "，支持: cut/crossfade");
+        }
+    }
+
     // ========== JSON 辅助方法 ==========
 
     private static Vec3 parseVec3(JsonObject obj, String p) throws ScriptParseException {
@@ -496,7 +519,6 @@ public class ScriptParser {
         );
     }
 
-    @SuppressWarnings("unchecked")
     private static Map<String, Object> parseDataMap(JsonObject obj, String p) {
         Map<String, Object> map = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {

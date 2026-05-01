@@ -75,4 +75,13 @@ public interface OverlayLayer {
      * 默认实现为空操作（无动画的层无需关心）。
      */
     default void startFadeOut() {}
+
+    /**
+     * 是否正在执行过渡动画
+     * <p>
+     * 由 OverlayManager.isAnimating() 遍历调用，
+     * 用于判断所有层是否都已完成动画。
+     * 默认实现返回 false（无动画的层始终视为非动画状态）。
+     */
+    default boolean isAnimating() { return false; }
 }

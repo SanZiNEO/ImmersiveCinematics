@@ -60,6 +60,9 @@ public class LetterboxLayer implements OverlayLayer {
 
     @Override
     public void render(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {
+        // 显式守卫：避免 targetAspectRatio <= 0 时的隐式除零
+        if (targetAspectRatio <= 0f) return;
+
         // 计算目标画幅比下的内容高度
         float contentHeight = (float) screenWidth / targetAspectRatio;
 
@@ -201,6 +204,7 @@ public class LetterboxLayer implements OverlayLayer {
     /**
      * 是否正在执行过渡动画（fade-in 或 fade-out）
      */
+    @Override
     public boolean isAnimating() {
         return transitionState == TransitionState.FADE_IN || transitionState == TransitionState.FADE_OUT;
     }
