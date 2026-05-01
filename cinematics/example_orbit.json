@@ -4,7 +4,7 @@
     "name": "世界中的一刻",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "十七段叙事运镜测试脚本——从远处发现一个人影，到各个角度注视，转向环境，戏剧性变化，最终回归。与 CameraTestPlayer 硬编码脚本完全等价。",
+    "description": "全面的测试脚本",
     "interpolation": "linear",
     "block_keyboard": true,
     "block_mouse": true,
