@@ -1,8 +1,8 @@
-# 沉浸式电影摄影模组 - UI规划 v2.1（FBO预览区域渲染版）
+# 沉浸式电影摄影模组 - UI规划 v3.0（FBO预览区域渲染版）
 
-**版本**: 2.1（基于0.3.0计划修订，采用FBO预览区域渲染方案）
-**日期**: 2026/4/29  
-**状态**: 草案 - 基于FBO预览区域渲染架构设计
+**版本**: 3.0（对齐0.3.0已完成代码 + editor/包结构设计）
+**日期**: 2026/5/1
+**状态**: 草案 - 基于FBO预览区域渲染架构设计，对齐MOD_DESIGN.md §8包结构
 
 ---
 
@@ -10,11 +10,12 @@
 
 ### **关键架构理解**：
 
-1. **编辑器是游戏内功能**：编辑器作为模组内置功能，在游戏内运行
+1. **编辑器是游戏内功能**：编辑器作为模组内置功能，在游戏内运行，所有代码在 `editor/` 包下
 2. **播放器和时间轴联动**：像剪辑软件那样，播放时时间轴有竖线指示当前时间
 3. **FBO预览区域渲染**：编辑器模式下，Mixin渲染注入切换目标——从全屏渲染变为GUI区域渲染
-4. **动态布局**：根据窗口大小动态适配
+4. **动态布局**：根据窗口大小动态适配，由 `editor/layout/` 子包管理
 5. **关键帧系统**：使用关键帧系统，摒弃旧版固定路线方式
+6. **staged/commit双缓冲**：CameraManager已有staged/commit架构，编辑器scrub通过staged写入→commit提交→Mixin读取
 
 ### **编辑器预览方案核心原理**：
 
@@ -176,41 +177,42 @@ sequenceDiagram
 ### **核心架构 — FBO预览区域渲染**
 
 ```java
+// editor/CameraEditorScreen.java
 public class CameraEditorScreen extends Screen {
     private Framebuffer previewFBO;  // 离屏帧缓冲
-    private MenuBarWidget menuBar;
-    private ControlPanelWidget leftControls;
-    private PlayerPanelWidget rightPlayer;
-    private TimelinePanelWidget bottomTimeline;
+    private MenuBarWidget menuBar;                    // editor/panel/MenuBarWidget
+    private PropertyPanelWidget leftControls;         // editor/panel/PropertyPanelWidget
+    private PlayerPanelWidget rightPlayer;            // editor/panel/PlayerPanelWidget
+    private TimelinePanelWidget bottomTimeline;       // editor/panel/TimelinePanelWidget
+    private EditorSyncSystem syncSystem;              // editor/sync/EditorSyncSystem
     
-    // 预览区域坐标（根据javaui.ui布局计算）
+    // 预览区域坐标（由 EditorLayout 计算）
     private int previewX, previewY, previewWidth, previewHeight;
     
     @Override
     protected void init() {
         super.init();
-        int windowWidth = this.width;
-        int windowHeight = this.height;
         
-        // 使用百分比动态设置bounds
-        int menuHeight = (int)(windowHeight * 0.05); // 5%
-        int bottomHeight = (int)(windowHeight * 0.3); // 30%
-        int leftWidth = (int)(windowWidth * 0.2);     // 20%
-        int mainHeight = windowHeight - menuHeight - bottomHeight;
+        // 使用 EditorLayout 动态计算布局（基于javaui.ui比例）
+        EditorLayout layout = EditorLayout.calculate(this.width, this.height);
         
         // 初始化组件
-        menuBar = new MenuBarWidget(0, 0, windowWidth, menuHeight);
-        leftControls = new ControlPanelWidget(0, menuHeight, leftWidth, mainHeight);
-        rightPlayer = new PlayerPanelWidget(leftWidth, menuHeight, 
-            windowWidth - leftWidth, mainHeight);
-        bottomTimeline = new TimelinePanelWidget(0, menuHeight + mainHeight,
-            windowWidth, bottomHeight);
+        menuBar = new MenuBarWidget(0, 0, this.width, layout.menuHeight);
+        leftControls = new PropertyPanelWidget(0, layout.menuHeight,
+            layout.leftWidth, layout.mainHeight);
+        rightPlayer = new PlayerPanelWidget(layout.leftWidth, layout.menuHeight,
+            this.width - layout.leftWidth, layout.mainHeight);
+        bottomTimeline = new TimelinePanelWidget(0, layout.menuHeight + layout.mainHeight,
+            this.width, layout.bottomHeight);
+        
+        // 初始化联动系统
+        syncSystem = new EditorSyncSystem(rightPlayer, bottomTimeline, leftControls);
         
         // 计算预览区域（基于javaui.ui的widget_right_player布局）
-        previewX = leftWidth;
-        previewY = menuHeight + 15; // +15是包名标签
-        previewWidth = windowWidth - leftWidth;
-        previewHeight = mainHeight - 30; // -30 控制区+标签
+        previewX = layout.leftWidth;
+        previewY = layout.menuHeight + 15; // +15是包名标签
+        previewWidth = this.width - layout.leftWidth;
+        previewHeight = layout.mainHeight - 30; // -30 控制区+标签
         
         // 创建FBO，保持游戏画面宽高比
         previewFBO = new SimpleFramebuffer(previewWidth, previewHeight, true);
@@ -237,7 +239,7 @@ public class CameraEditorScreen extends Screen {
         this.renderBackground(graphics);
         
         // 绘制预览区域（FBO纹理）
-        graphics.blit(previewFBO.getColorTexture(), 
+        graphics.blit(previewFBO.getColorTexture(),
             previewX, previewY, 0, 0, previewWidth, previewHeight);
         
         // 绘制编辑器UI组件
@@ -247,15 +249,18 @@ public class CameraEditorScreen extends Screen {
         bottomTimeline.render(graphics, mouseX, mouseY, partialTick);
     }
     
-    /** 时间轴拖动 → 更新预览 */
+    /** 时间轴拖动 → 更新预览（使用staged/commit双缓冲） */
     private void onTimelineScrub(double time) {
         CameraState state = scriptPlayer.getStateAtTime(time);
-        CameraManager.INSTANCE.getPath().setPositionDirect(state.position);
-        CameraManager.INSTANCE.getProperties().setYawDirect(state.yaw);
-        CameraManager.INSTANCE.getProperties().setPitchDirect(state.pitch);
-        CameraManager.INSTANCE.getProperties().setRollDirect(state.roll);
-        CameraManager.INSTANCE.getProperties().setFovDirect(state.fov);
-        CameraManager.INSTANCE.getProperties().setZoomDirect(state.zoom);
+        // 通过staged写入（不直接修改active，避免与ScriptPlayer冲突）
+        CameraManager mgr = CameraManager.INSTANCE;
+        mgr.stageTargetPosition(state.position, 0);
+        mgr.stageTargetYaw(state.yaw, 0);
+        mgr.stageTargetPitch(state.pitch, 0);
+        mgr.stageTargetRoll(state.roll, 0);
+        mgr.stageTargetFov(state.fov, 0);
+        mgr.stageTargetZoom(state.zoom, 0);
+        mgr.commitStagedState();
         // 下一帧渲染时，CameraMixin自动使用新值 → FBO预览更新
     }
     
@@ -275,9 +280,10 @@ public class CameraEditorScreen extends Screen {
 ### **1. 播放器区域实现（FBO预览渲染）**
 
 ```java
+// editor/panel/PlayerPanelWidget.java
 public class PlayerPanelWidget extends ContainerWidget {
-    private PlaybackControlsWidget controls;
-    private TimeDisplayWidget timeDisplay;
+    private PlaybackControlsWidget controls;    // editor/playback/PlaybackControlsWidget
+    private TimeDisplayWidget timeDisplay;      // editor/playback/TimeDisplayWidget
     private double currentTime = 0.0;
     
     public PlayerPanelWidget(int x, int y, int width, int height) {
@@ -298,25 +304,27 @@ public class PlayerPanelWidget extends ContainerWidget {
         // 1. 更新自己的时间显示
         timeDisplay.setTime(newTime);
         
-        // 2. 通知时间轴更新竖线位置
-        timelinePanel.setCurrentTime(newTime);
+        // 2. 通过联动系统通知时间轴更新竖线位置
+        syncSystem.syncTime(newTime);
         
-        // 3. 更新相机状态（写入CameraManager → 下一帧FBO自动渲染新视角）
+        // 3. 更新相机状态（通过staged/commit → 下一帧FBO自动渲染新视角）
         updateCameraAtTime(newTime);
     }
     
-    // 根据时间更新相机
+    // 根据时间更新相机（使用staged/commit双缓冲）
     private void updateCameraAtTime(double time) {
         // 调用脚本系统计算相机状态
         CameraState state = scriptPlayer.getStateAtTime(time);
         
-        // 直接写入CameraManager
-        CameraManager.INSTANCE.getPath().setPositionDirect(state.position);
-        CameraManager.INSTANCE.getProperties().setYawDirect(state.yaw);
-        CameraManager.INSTANCE.getProperties().setPitchDirect(state.pitch);
-        CameraManager.INSTANCE.getProperties().setRollDirect(state.roll);
-        CameraManager.INSTANCE.getProperties().setFovDirect(state.fov);
-        CameraManager.INSTANCE.getProperties().setZoomDirect(state.zoom);
+        // 通过staged写入（不直接修改active，避免与ScriptPlayer冲突）
+        CameraManager mgr = CameraManager.INSTANCE;
+        mgr.stageTargetPosition(state.position, 0);
+        mgr.stageTargetYaw(state.yaw, 0);
+        mgr.stageTargetPitch(state.pitch, 0);
+        mgr.stageTargetRoll(state.roll, 0);
+        mgr.stageTargetFov(state.fov, 0);
+        mgr.stageTargetZoom(state.zoom, 0);
+        mgr.commitStagedState();
     }
     
     // 渲染方法（FBO纹理绘制由CameraEditorScreen统一处理）
@@ -335,10 +343,12 @@ public class PlayerPanelWidget extends ContainerWidget {
 ### **2. 时间轴区域实现**
 
 ```java
+// editor/panel/TimelinePanelWidget.java
 public class TimelinePanelWidget extends ContainerWidget {
-    private FrozenHeaderWidget frozenHeader;  // 左侧冻结区域
-    private TimelineCanvasWidget timelineCanvas; // 时间轴画布
-    private TimeIndicatorWidget timeIndicator; // 当前时间竖线
+    private FrozenHeaderWidget frozenHeader;      // editor/timeline/FrozenHeaderWidget
+    private TimelineCanvas timelineCanvas;         // editor/timeline/TimelineCanvas
+    private PlayheadWidget playhead;               // editor/timeline/PlayheadWidget
+    private TimeRulerWidget timeRuler;             // editor/timeline/TimeRulerWidget
     
     // 无限滚动参数
     private double maxHorizontalScroll; // 动态计算
@@ -351,20 +361,23 @@ public class TimelinePanelWidget extends ContainerWidget {
         frozenHeader = new FrozenHeaderWidget(0, 0, FROZEN_WIDTH, height);
         
         // 2. 创建时间轴画布（可滚动区域）
-        timelineCanvas = new TimelineCanvasWidget(FROZEN_WIDTH, 0, 
+        timelineCanvas = new TimelineCanvas(FROZEN_WIDTH, 0,
             width - FROZEN_WIDTH, height);
         
-        // 3. 创建时间指示器
-        timeIndicator = new TimeIndicatorWidget();
+        // 3. 创建时间标尺
+        timeRuler = new TimeRulerWidget(FROZEN_WIDTH, 0, width - FROZEN_WIDTH, RULER_HEIGHT);
         
-        // 4. 设置滚动监听
+        // 4. 创建播放头
+        playhead = new PlayheadWidget();
+        
+        // 5. 设置滚动监听
         timelineCanvas.setOnScroll(this::onScroll);
     }
     
-    // 设置当前时间（来自播放器区域）
+    // 设置当前时间（来自播放器区域/联动系统）
     public void setCurrentTime(double time) {
-        // 1. 更新时间指示器位置
-        timeIndicator.setTime(time);
+        // 1. 更新播放头位置
+        playhead.setTime(time);
         
         // 2. 如果需要，自动滚动到可见区域
         ensureTimeVisible(time);
@@ -417,10 +430,11 @@ public class TimelinePanelWidget extends ContainerWidget {
 ### **3. 联动系统设计**
 
 ```java
+// editor/sync/EditorSyncSystem.java
 public class EditorSyncSystem {
     private final PlayerPanelWidget playerPanel;
     private final TimelinePanelWidget timelinePanel;
-    private final ControlPanelWidget controlPanel;
+    private final PropertyPanelWidget propertyPanel;
     
     // 时间同步
     public void syncTime(double time) {
@@ -430,15 +444,15 @@ public class EditorSyncSystem {
         // 2. 时间轴区域更新
         timelinePanel.setCurrentTime(time);
         
-        // 3. 控制面板更新
+        // 3. 属性面板更新
         TimelineSelection selection = timelinePanel.getSelectionAtTime(time);
-        controlPanel.onSelectionChanged(selection);
+        propertyPanel.onSelectionChanged(selection);
     }
     
     // 选择同步
     public void syncSelection(TimelineSelection selection) {
-        // 1. 控制面板显示属性
-        controlPanel.onSelectionChanged(selection);
+        // 1. 属性面板显示属性
+        propertyPanel.onSelectionChanged(selection);
         
         // 2. 如果选择的是关键帧，播放器预览该帧
         if (selection.hasKeyframes()) {
@@ -451,40 +465,55 @@ public class EditorSyncSystem {
 ### **4. 动态布局系统**
 
 ```java
-public class DynamicLayoutManager {
-    public static void layoutComponents(CameraEditorScreen screen) {
-        int windowWidth = screen.width;
-        int windowHeight = screen.height;
-        
-        // 使用百分比而非固定像素
+// editor/layout/EditorLayout.java
+public class EditorLayout {
+    public final int menuHeight;
+    public final int bottomHeight;
+    public final int leftWidth;
+    public final int mainHeight;
+    
+    private EditorLayout(int menuHeight, int bottomHeight, int leftWidth, int mainHeight) {
+        this.menuHeight = menuHeight;
+        this.bottomHeight = bottomHeight;
+        this.leftWidth = leftWidth;
+        this.mainHeight = mainHeight;
+    }
+    
+    public static EditorLayout calculate(int windowWidth, int windowHeight) {
+        // 使用百分比而非固定像素（基于javaui.ui参考）
         int menuHeight = (int)(windowHeight * 0.05);  // 5%
         int bottomHeight = (int)(windowHeight * 0.3); // 30%
         int leftWidth = (int)(windowWidth * 0.2);     // 20%
         int mainHeight = windowHeight - menuHeight - bottomHeight;
-        
-        // 设置组件bounds
-        screen.menuBar.setBounds(0, 0, windowWidth, menuHeight);
-        screen.leftControls.setBounds(0, menuHeight, leftWidth, mainHeight);
-        screen.rightPlayer.setBounds(leftWidth, menuHeight, 
-            windowWidth - leftWidth, mainHeight);
-        screen.bottomTimeline.setBounds(0, menuHeight + mainHeight,
-            windowWidth, bottomHeight);
-        
-        // 重新创建FBO（尺寸变化时）
-        if (screen.previewFBO != null) {
-            screen.previewFBO.destroyBuffers();
-        }
-        int previewWidth = windowWidth - leftWidth;
-        int previewHeight = mainHeight - 30; // -30 控制区+标签
-        screen.previewFBO = new SimpleFramebuffer(previewWidth, previewHeight, true);
+        return new EditorLayout(menuHeight, bottomHeight, leftWidth, mainHeight);
     }
+}
+```
+
+```java
+// editor/layout/EditorConstants.java
+public final class EditorConstants {
+    // 基于javaui.ui的布局参考
+    public static final int MIN_WINDOW_WIDTH = 1200;
+    public static final int MIN_WINDOW_HEIGHT = 900;
+    public static final int FIXED_LEFT_WIDTH = 240;     // widget_left_controls
+    public static final int FIXED_MENU_HEIGHT = 30;     // MenuBar
+    public static final int FIXED_BOTTOM_HEIGHT = 285;  // widget_bottom
+    public static final int PACKAGE_LABEL_HEIGHT = 15;  // packagename标签
+    public static final int PLAYER_CONTROLS_HEIGHT = 15;// widget_player_controls
+    
+    // 布局百分比（动态模式）
+    public static final double MENU_HEIGHT_RATIO = 0.05;    // ~3.3%
+    public static final double BOTTOM_HEIGHT_RATIO = 0.3;   // 30%
+    public static final double LEFT_WIDTH_RATIO = 0.2;      // 20%
 }
 ```
 
 ### **5. CameraManager编辑器模式支持**
 
 ```java
-// CameraManager 需要增加编辑器预览模式标志
+// camera/CameraManager.java — 需要新增编辑器预览模式标志
+// 现有代码已有 staged/commit 双缓冲架构，编辑器scrub通过staged写入
 public class CameraManager {
     private boolean editorPreviewMode = false;
     
@@ -495,6 +524,10 @@ public class CameraManager {
     public boolean isEditorPreviewMode() {
         return editorPreviewMode;
     }
+    
+    // 现有staged/commit方法（已实现）：
+    // stageTargetPosition/commitStagedState 等
+    // 编辑器scrub时：stageXxx() → commitStagedState() → Mixin读取active值
 }
 ```
 
@@ -502,3 +535,32 @@ public class CameraManager {
 - CameraMixin 和 GameRendererMixin 的覆写逻辑**不需要修改**
 - 编辑器模式下，由编辑器Screen控制 `renderLevel()` 的调用和渲染目标
 - 播放模式下，由Minecraft主循环控制 `renderLevel()`，Mixin照常覆写相机参数到全屏
+- 编辑器scrub时通过 `stageTargetXxx()` + `commitStagedState()` 写入，避免直接修改active状态与ScriptPlayer冲突
+
+---
+
+## 📁 editor/包结构与javaui.ui映射
+
+| javaui.ui组件 | editor/包类 | 子包 | 说明 |
+|---------------|------------|------|------|
+| `Form` (整体窗口) | `CameraEditorScreen` | `editor/` | Screen主类，布局框架 |
+| — | `PreviewRenderer` | `editor/` | FBO离屏渲染+纹理绘制 |
+| — | `EditorLayout` | `editor/layout/` | 动态布局计算 |
+| — | `EditorConstants` | `editor/layout/` | 布局常量 |
+| `MenuBar` | `MenuBarWidget` | `editor/panel/` | 顶部菜单栏 |
+| `widget_left_controls` | `PropertyPanelWidget` | `editor/panel/` | 左侧属性面板 |
+| `widget_right_player` | `PlayerPanelWidget` | `editor/panel/` | 右侧预览区 |
+| `widget_bottom` | `TimelinePanelWidget` | `editor/panel/` | 底部时间轴 |
+| — | `TimelineCanvas` | `editor/timeline/` | 时间轴可滚动画布 |
+| — | `FrozenHeaderWidget` | `editor/timeline/` | 左侧冻结区域 |
+| — | `TimeRulerWidget` | `editor/timeline/` | 时间标尺 |
+| — | `PlayheadWidget` | `editor/timeline/` | 播放头竖线 |
+| — | `TrackRowWidget` | `editor/timeline/` | 单轨道行 |
+| — | `ClipBlockWidget` | `editor/timeline/` | 片段块 |
+| — | `KeyframeEditorWidget` | `editor/property/` | 关键帧属性编辑 |
+| — | `Vector3Input` | `editor/property/` | 三维向量输入 |
+| — | `FloatInput` | `editor/property/` | 浮点数输入 |
+| — | `PositionPicker` | `editor/property/` | 游戏内坐标拾取 |
+| — | `PlaybackControlsWidget` | `editor/playback/` | 播放控制 |
+| — | `TimeDisplayWidget` | `editor/playback/` | 时间显示 |
+| — | `EditorSyncSystem` | `editor/sync/` | 联动系统 |
