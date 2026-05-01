@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "id": "cam_ots",
+    "name": "固定机位-过肩",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "过肩视角固定摄像机，对话场景常用。修改 keyframes 中的 x/y/z 即可重新定位。无限时长，可被其他脚本打断。",
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": true,
+    "hide_hud": true,
+    "hide_arm": true
+  },
+  "timeline": {
+    "total_duration": -1,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": -1,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "absolute",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0.0,
+                "position": { "x": 98, "y": 66, "z": -48 },
+                "yaw": 30,
+                "pitch": -5,
+                "roll": 0,
+                "fov": 60,
+                "zoom": 1.0,
+                "dof": 0
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

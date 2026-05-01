@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "id": "test_keyboard_free",
+    "name": "属性测试-键盘自由",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "测试 block_keyboard=false：播放期间键盘不锁定，玩家可自由移动（与默认值 true 相反）。运镜为推拉变焦（Dolly Zoom），使用 ease_out 插值 + segment 作用域。",
+    "block_keyboard": false,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 10.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 10.0,
+            "transition": "cut",
+            "interpolation": "ease_out",
+            "interpolation_scope": "segment",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 20, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 0, "roll": 0, "fov": 90, "zoom": 1.0, "dof": 0 },
+              { "time": 5.0, "position": { "dx": 10, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 0, "roll": 0, "fov": 60, "zoom": 1.0, "dof": 0 },
+              { "time": 10.0, "position": { "dx": 5, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 0, "roll": 0, "fov": 35, "zoom": 1.0, "dof": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 10.0,
+            "enabled": true,
+            "aspect_ratio": 2.35,
+            "fade_in": 0.3,
+            "fade_out": 0.3
+          }
+        ]
+      }
+    ]
+  }
+}
