@@ -42,7 +42,7 @@ public abstract class GameRendererMixin {
      */
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void onRenderItemInHand(CallbackInfo ci) {
-        ScriptProperties props = ScriptProperties.getCurrent();
+        ScriptProperties props = CameraManager.INSTANCE.getCurrentProperties();
         if (props != null && props.isHideArm()) {
             ci.cancel();
         }
@@ -57,7 +57,7 @@ public abstract class GameRendererMixin {
      */
     @Inject(method = "bobHurt", at = @At("HEAD"), cancellable = true)
     private void onBobHurt(PoseStack poseStack, float partialTick, CallbackInfo ci) {
-        ScriptProperties props = ScriptProperties.getCurrent();
+        ScriptProperties props = CameraManager.INSTANCE.getCurrentProperties();
         if (props != null && props.isSuppressBob()) {
             ci.cancel();
         }
@@ -70,7 +70,7 @@ public abstract class GameRendererMixin {
      */
     @Inject(method = "bobView", at = @At("HEAD"), cancellable = true)
     private void onBobView(PoseStack poseStack, float partialTick, CallbackInfo ci) {
-        ScriptProperties props = ScriptProperties.getCurrent();
+        ScriptProperties props = CameraManager.INSTANCE.getCurrentProperties();
         if (props != null && props.isSuppressBob()) {
             ci.cancel();
         }
@@ -96,7 +96,7 @@ public abstract class GameRendererMixin {
                     target = "Lnet/minecraft/util/Mth;lerp(FFF)F",
                     ordinal = 0))
     private float redirectSpinningIntensity(float partialTick, float start, float end) {
-        ScriptProperties props = ScriptProperties.getCurrent();
+        ScriptProperties props = CameraManager.INSTANCE.getCurrentProperties();
         if (props != null && props.isSuppressBob()) {
             return 0.0F;
         }

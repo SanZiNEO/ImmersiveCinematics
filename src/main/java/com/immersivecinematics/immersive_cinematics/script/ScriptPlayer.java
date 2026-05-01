@@ -43,6 +43,9 @@ public class ScriptPlayer {
     // 脚本运行时属性（消费 ScriptMeta 中的标志位）
     private final ScriptProperties properties = new ScriptProperties();
 
+    // 当前活跃的脚本属性（替代原 ScriptProperties 静态单例）
+    private ScriptProperties currentProperties = null;
+
     // TrackPlayer 调度列表
     private List<TrackPlayer> trackPlayers = Collections.emptyList();
 
@@ -65,9 +68,10 @@ public class ScriptPlayer {
         this.playing = true;
         this.startGameTimeNanos = CameraManager.INSTANCE.getGameTimeNanos();
 
-        // 应用脚本元信息到 ScriptProperties 单例
+        // 应用脚本元信息到 ScriptProperties，并设置为当前活跃属性
         ScriptMeta meta = script.getMeta();
         properties.apply(meta);
+        currentProperties = properties;
         CameraManager.INSTANCE.setPauseWhenGamePaused(properties.isPauseWhenGamePaused());
 
         // 创建 TrackPlayer 实例
@@ -119,6 +123,7 @@ public class ScriptPlayer {
         this.script = null;
         this.trackPlayers = Collections.emptyList();
         properties.revert();  // 重置所有标志位为默认值
+        currentProperties = null;  // 清除当前活跃属性引用
     }
 
     public boolean isPlaying() {
@@ -166,6 +171,15 @@ public class ScriptPlayer {
 
     public CinematicScript getScript() {
         return script;
+    }
+
+    /**
+     * 获取当前活跃的脚本属性
+     *
+     * @return 当前脚本属性，无脚本播放时返回 null
+     */
+    public ScriptProperties getCurrentProperties() {
+        return currentProperties;
     }
 
     // ========== 帧回调驱动 ==========

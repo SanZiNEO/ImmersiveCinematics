@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.handler;
 
 import com.immersivecinematics.immersive_cinematics.Immersive_cinematics;
+import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.overlay.CinematicOverlay;
 import com.immersivecinematics.immersive_cinematics.script.ScriptProperties;
 import net.minecraft.resources.ResourceLocation;
@@ -42,7 +43,7 @@ public class HudOverlayHandler {
      * 如果脚本激活但 hideHud=false，则不屏蔽任何 overlay。
      */
     public static void onRenderGuiOverlayPre(RenderGuiOverlayEvent.Pre event) {
-        ScriptProperties props = ScriptProperties.getCurrent();
+        ScriptProperties props = CameraManager.INSTANCE.getCurrentProperties();
         if (props == null) {
             return;
         }
