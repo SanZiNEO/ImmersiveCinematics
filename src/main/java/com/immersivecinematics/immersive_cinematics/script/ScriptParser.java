@@ -5,6 +5,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,6 +26,8 @@ import java.util.Map;
  * </ul>
  */
 public class ScriptParser {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/ScriptParser");
 
     /**
      * 解析异常 — 包含字段路径信息
@@ -127,13 +131,20 @@ public class ScriptParser {
                     metaObj.get("interpolation").getAsString(), p + ".interpolation");
         }
 
+        // 曲线组合模式（可选，null=OVERRIDE）
+        CurveCompositionMode compositionMode = null;
+        if (metaObj.has("curve_composition_mode")) {
+            compositionMode = parseCurveCompositionMode(
+                    metaObj.get("curve_composition_mode").getAsString(), p + ".curve_composition_mode");
+        }
+
         return new ScriptMeta(id, name, author, version, description,
-                blockKeyboard, blockMouse, blockMobAi,
-                hideHud, hideArm, suppressBob,
-                blockChat, blockScoreboard, blockActionBar,
-                blockParticles, renderPlayerModel,
-                pauseWhenGamePaused, interruptible, holdAtEnd,
-                scriptInterpolation);
+                new ScriptMeta.RuntimeBehavior(blockKeyboard, blockMouse, blockMobAi,
+                        hideHud, hideArm, suppressBob,
+                        blockChat, blockScoreboard, blockActionBar,
+                        blockParticles, renderPlayerModel,
+                        pauseWhenGamePaused, interruptible, holdAtEnd),
+                scriptInterpolation, compositionMode);
     }
 
     // ========== Timeline 解析 ==========
@@ -200,7 +211,7 @@ public class ScriptParser {
         InterpolationType interpolation = parseInterpolationType(
                 optString(obj, "interpolation", "smooth"), p + ".interpolation");
         InterpolationScope interpolationScope = parseInterpolationScope(
-                optString(obj, "interpolation_scope", "clip"), p + ".interpolation_scope");
+                optString(obj, "interpolation_scope", "segment"), p + ".interpolation_scope");
         BezierCurve curve = obj.has("curve") ? parseBezierCurve(obj.getAsJsonObject("curve"), p + ".curve") : null;
         boolean positionModeRelative = "relative".equals(optString(obj, "position_mode", "relative"));
         boolean loop = optBool(obj, "loop", false);
@@ -391,19 +402,44 @@ public class ScriptParser {
     // ========== 验证方法 ==========
 
     private static void validateTracks(List<TimelineTrack> tracks, String p) throws ScriptParseException {
+        // O2: 轨道数量限制改为警告而非错误
         long cameraCount = tracks.stream().filter(t -> t.getType() == TrackType.CAMERA).count();
         if (cameraCount > 1) {
-            throw new ScriptParseException(p, "camera 轨道最多1条，实际: " + cameraCount);
+            LOGGER.warn("检测到 {} 条 CAMERA 轨道，当前仅支持第1条", cameraCount);
         }
 
         long letterboxCount = tracks.stream().filter(t -> t.getType() == TrackType.LETTERBOX).count();
         if (letterboxCount > 1) {
-            throw new ScriptParseException(p, "letterbox 轨道建议最多1条，实际: " + letterboxCount);
+            LOGGER.warn("检测到 {} 条 LETTERBOX 轨道，建议最多1条", letterboxCount);
         }
 
         long eventCount = tracks.stream().filter(t -> t.getType() == TrackType.EVENT).count();
         if (eventCount > 1) {
-            throw new ScriptParseException(p, "event 轨道建议最多1条，实际: " + eventCount);
+            LOGGER.warn("检测到 {} 条 EVENT 轨道，建议最多1条", eventCount);
+        }
+
+        // F1: crossfade 约束降级为警告
+        for (TimelineTrack track : tracks) {
+            if (track.getType() == TrackType.CAMERA) {
+                List<CameraClip> clips = track.getCameraClips();
+                for (int i = 1; i < clips.size(); i++) {
+                    CameraClip clip = clips.get(i);
+                    CameraClip prevClip = clips.get(i - 1);
+                    if (clip.isCrossfade() && prevClip != null) {
+                        if (prevClip.isPositionModeRelative() != clip.isPositionModeRelative()) {
+                            LOGGER.warn("crossfade 相邻 clip 的 position_mode 不同（{} → {}），" +
+                                    "运行时已统一为世界坐标，混合结果可能非预期",
+                                    prevClip.isPositionModeRelative() ? "relative" : "absolute",
+                                    clip.isPositionModeRelative() ? "relative" : "absolute");
+                        }
+                        if (prevClip.getInterpolation() != clip.getInterpolation()) {
+                            LOGGER.warn("crossfade 相邻 clip 的 interpolation 不同（{} → {}），" +
+                                    "混合结果可能产生速度跳变",
+                                    prevClip.getInterpolation(), clip.getInterpolation());
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -433,6 +469,15 @@ public class ScriptParser {
         } catch (IllegalArgumentException e) {
             throw new ScriptParseException(p, "未知的插值作用域: " + value +
                     "，支持: clip/segment");
+        }
+    }
+
+    private static CurveCompositionMode parseCurveCompositionMode(String value, String p) throws ScriptParseException {
+        try {
+            return CurveCompositionMode.valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ScriptParseException(p, "未知的曲线组合模式: " + value +
+                    "，支持: override/composed");
         }
     }
 
