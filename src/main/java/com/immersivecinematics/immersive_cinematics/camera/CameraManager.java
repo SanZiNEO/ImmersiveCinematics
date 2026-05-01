@@ -102,17 +102,6 @@ public class CameraManager {
         stopping = true;
     }
 
-    /**
-     * 切换相机激活/停用
-     */
-    public void toggle() {
-        if (active) {
-            deactivate();
-        } else {
-            activate();
-        }
-    }
-
     // ========== 脚本播放模式 ==========
 
     /**

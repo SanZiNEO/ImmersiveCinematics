@@ -5,7 +5,6 @@ import com.immersivecinematics.immersive_cinematics.command.CinematicCommand;
 import com.immersivecinematics.immersive_cinematics.handler.HudOverlayHandler;
 import com.immersivecinematics.immersive_cinematics.overlay.CinematicOverlay;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.event.ViewportEvent;
@@ -18,8 +17,6 @@ import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import org.lwjgl.glfw.GLFW;
-
 /**
  * ImmersiveCinematics 模组入口
  * <p>
@@ -44,24 +41,9 @@ public class Immersive_cinematics {
         modEventBus.addListener(CinematicOverlay::onRegisterGuiOverlays);
 
         // 注册客户端事件处理器
-        MinecraftForge.EVENT_BUS.register(ClientInputEvents.class);
         MinecraftForge.EVENT_BUS.register(ClientTickEvents.class);
         MinecraftForge.EVENT_BUS.register(ClientHudEvents.class);
         MinecraftForge.EVENT_BUS.register(ClientCameraEvents.class);
-    }
-
-    /**
-     * 客户端输入事件 — P键切换相机
-     */
-    @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
-    public static class ClientInputEvents {
-
-        @SubscribeEvent
-        public static void onKeyInput(InputEvent.Key event) {
-            if (event.getAction() == GLFW.GLFW_PRESS && event.getKey() == GLFW.GLFW_KEY_P) {
-                CameraManager.INSTANCE.toggle();
-            }
-        }
     }
 
     /**
