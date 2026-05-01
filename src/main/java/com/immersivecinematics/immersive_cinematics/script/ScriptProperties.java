@@ -1,17 +1,20 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 /**
- * 脚本运行时属性单例 — 消费 ScriptMeta 中的15个布尔标志位
+ * 脚本运行时属性 — 纯数据容器，消费 ScriptMeta 中的15个布尔标志位
  * <p>
  * 设计目标：
  * <ul>
  *   <li>ScriptPlayer.start() 时调用 apply(meta) 将脚本属性写入当前实例</li>
  *   <li>ScriptPlayer.stop() 时调用 revert() 重置为默认值</li>
- *   <li>Mixin 层和 Handler 通过 getCurrent() 读取当前脚本的行为配置</li>
+ *   <li>Mixin 层和 Handler 通过 CameraManager.INSTANCE.getCurrentProperties() 读取当前脚本的行为配置</li>
  *   <li>不再直接检查 CameraManager.INSTANCE.isActive()，而是检查具体标志位</li>
  * </ul>
  * <p>
  * 这使得不同脚本可以有不同的运行时行为（如 hide_hud: false 的脚本播放时 HUD 可见）。
+ * <p>
+ * 注意：此类不再是单例，current 的管理权已移至 ScriptPlayer，
+ * 外部通过 {@code CameraManager.INSTANCE.getCurrentProperties()} 访问。
  * <p>
  * 退出控制三属性（详见 ScriptMeta.RuntimeBehavior 的 Javadoc）：
  * <ul>
@@ -46,28 +49,14 @@ public class ScriptProperties {
     /** 播完保持控制：播完后是否保持最后一帧，而非自动退出 */
     private boolean holdAtEnd = false;
 
-    // === 单例访问 ===
-
-    private static ScriptProperties current;
-
     /**
-     * 获取当前活跃的脚本属性
-     *
-     * @return 当前脚本属性，无脚本播放时返回 null
-     */
-    public static ScriptProperties getCurrent() {
-        return current;
-    }
-
-    /**
-     * 应用脚本元信息到当前实例
+     * 应用脚本元信息到当前实例（纯数据赋值，不修改静态字段）
      * <p>
-     * 由 ScriptPlayer.start() 调用
+     * 由 ScriptPlayer.start() 调用，调用后 ScriptPlayer 会将此实例设置为 currentProperties
      *
      * @param meta 脚本元信息
      */
     public void apply(ScriptMeta meta) {
-        current = this;
         this.blockKeyboard = meta.isBlockKeyboard();
         this.blockMouse = meta.isBlockMouse();
         this.blockMobAi = meta.isBlockMobAi();
@@ -86,12 +75,11 @@ public class ScriptProperties {
     }
 
     /**
-     * 还原所有标志位为默认值
+     * 还原所有标志位为默认值（纯数据重置，不修改静态字段）
      * <p>
-     * 由 ScriptPlayer.stop() 调用
+     * 由 ScriptPlayer.stop() 调用，调用后 ScriptPlayer 会将 currentProperties 设为 null
      */
     public void revert() {
-        current = null;
         this.blockKeyboard = true;
         this.blockMouse = true;
         this.blockMobAi = false;

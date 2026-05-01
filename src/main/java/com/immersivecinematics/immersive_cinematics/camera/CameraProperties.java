@@ -106,61 +106,132 @@ public class CameraProperties {
 
     // ========== 设置目标值（供 staged 缓冲区使用） ==========
 
+    /**
+     * 设置目标偏航角
+     * <p>
+     * 当 duration <= 0 时，只跳转当前属性（currentYaw），不影响其他正在过渡中的属性。
+     *
+     * @param yaw     目标偏航角
+     * @param duration 过渡时长（秒），0 = 瞬时跳转
+     */
     public void setTargetYaw(float yaw, float duration) {
         this.startYaw = this.currentYaw;
         this.targetYaw = yaw;
-        onSetTarget(duration);
+        if (duration <= 0f) {
+            this.currentYaw = yaw;
+            this.transitionProgress = 1f;
+        } else {
+            onSetTarget(duration);
+        }
     }
 
+    /**
+     * 设置目标俯仰角
+     * <p>
+     * 当 duration <= 0 时，只跳转当前属性（currentPitch），不影响其他正在过渡中的属性。
+     *
+     * @param pitch    目标俯仰角
+     * @param duration 过渡时长（秒），0 = 瞬时跳转
+     */
     public void setTargetPitch(float pitch, float duration) {
         this.startPitch = this.currentPitch;
         this.targetPitch = pitch;
-        onSetTarget(duration);
+        if (duration <= 0f) {
+            this.currentPitch = pitch;
+            this.transitionProgress = 1f;
+        } else {
+            onSetTarget(duration);
+        }
     }
 
+    /**
+     * 设置目标翻滚角
+     * <p>
+     * 当 duration <= 0 时，只跳转当前属性（currentRoll），不影响其他正在过渡中的属性。
+     *
+     * @param roll     目标翻滚角
+     * @param duration 过渡时长（秒），0 = 瞬时跳转
+     */
     public void setTargetRoll(float roll, float duration) {
         this.startRoll = this.currentRoll;
         this.targetRoll = roll;
-        onSetTarget(duration);
+        if (duration <= 0f) {
+            this.currentRoll = roll;
+            this.transitionProgress = 1f;
+        } else {
+            onSetTarget(duration);
+        }
     }
 
+    /**
+     * 设置目标视场角
+     * <p>
+     * 当 duration <= 0 时，只跳转当前属性（currentFov），不影响其他正在过渡中的属性。
+     *
+     * @param fov      目标视场角
+     * @param duration 过渡时长（秒），0 = 瞬时跳转
+     */
     public void setTargetFov(float fov, float duration) {
         this.startFov = this.currentFov;
         this.targetFov = fov;
-        onSetTarget(duration);
+        if (duration <= 0f) {
+            this.currentFov = fov;
+            this.transitionProgress = 1f;
+        } else {
+            onSetTarget(duration);
+        }
     }
 
+    /**
+     * 设置目标景深
+     * <p>
+     * 当 duration <= 0 时，只跳转当前属性（currentDof），不影响其他正在过渡中的属性。
+     *
+     * @param dof      目标景深
+     * @param duration 过渡时长（秒），0 = 瞬时跳转
+     */
     public void setTargetDof(float dof, float duration) {
         this.startDof = this.currentDof;
         this.targetDof = dof;
-        onSetTarget(duration);
+        if (duration <= 0f) {
+            this.currentDof = dof;
+            this.transitionProgress = 1f;
+        } else {
+            onSetTarget(duration);
+        }
     }
 
+    /**
+     * 设置目标缩放
+     * <p>
+     * 当 duration <= 0 时，只跳转当前属性（currentZoom），不影响其他正在过渡中的属性。
+     *
+     * @param zoom     目标缩放
+     * @param duration 过渡时长（秒），0 = 瞬时跳转
+     */
     public void setTargetZoom(float zoom, float duration) {
         this.startZoom = this.currentZoom;
         this.targetZoom = zoom;
-        onSetTarget(duration);
+        if (duration <= 0f) {
+            this.currentZoom = zoom;
+            this.transitionProgress = 1f;
+        } else {
+            onSetTarget(duration);
+        }
     }
 
     /**
      * 统一的过渡初始化逻辑
-     * 注意：当多个属性同时设置时，它们共享同一个 transitionDuration/transitionProgress
-     * 如果需要独立过渡，后续可拆分为每个属性独立的插值控制
+     * <p>
+     * 注意：当多个属性同时设置时，它们共享同一个 transitionDuration/transitionProgress。
+     * 这是已知限制，长期方案为每个属性独立插值控制。
+     * <p>
+     * 瞬时跳转逻辑已移至各 setTargetXxx() 方法中，只跳转调用者指定的属性，
+     * 不再强制将所有属性同步到目标值。
      */
     private void onSetTarget(float duration) {
         this.transitionDuration = duration;
         this.transitionProgress = 0f;
-
-        if (duration <= 0f) {
-            // 瞬时跳转：直接将所有当前值同步到目标值
-            currentYaw = targetYaw;
-            currentPitch = targetPitch;
-            currentRoll = targetRoll;
-            currentFov = targetFov;
-            currentDof = targetDof;
-            currentZoom = targetZoom;
-            transitionProgress = 1f;
-        }
     }
 
     // ========== tick 驱动（供 staged 缓冲区使用） ==========

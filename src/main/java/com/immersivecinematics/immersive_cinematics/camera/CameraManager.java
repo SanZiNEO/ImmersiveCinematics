@@ -1,6 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
-import com.immersivecinematics.immersive_cinematics.overlay.LetterboxLayer;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
@@ -68,8 +67,8 @@ public class CameraManager {
     /**
      * 从玩家当前位置/朝向激活相机
      * <p>
-     * 重构后：使用默认测试脚本驱动（从 CameraTestPlayer 转换）。
-     * 如果没有测试脚本，则仅设置初始位置并等待 playScript() 调用。
+     * 仅设置相机初始位置/朝向和状态标志，不涉及覆盖层。
+     * letterbox 由 {@code playScript()} 的 {@code LetterboxTrackPlayer} 驱动，或由调用者手动设置。
      */
     public void activate() {
         Minecraft mc = Minecraft.getInstance();
@@ -88,11 +87,7 @@ public class CameraManager {
         active = true;
         stopping = false;
 
-        // 设置覆盖层：配置 fade 时长 + 触发 fade-in 入场动画
-        LetterboxLayer letterbox = OverlayManager.INSTANCE.getLetterboxLayer();
-        letterbox.setFadeIn(0.5f);
-        letterbox.setFadeOut(0.5f);
-        letterbox.setAspectRatio(2.35f);  // 触发 FADE_IN
+        // letterbox 由 playScript() 的 LetterboxTrackPlayer 驱动，或由调用者手动设置
     }
 
     /**
@@ -131,7 +126,7 @@ public class CameraManager {
 
         // 脚本间抢占控制：检查当前脚本的 interruptible 标志
         if (active && scriptPlayer.isPlaying()) {
-            ScriptProperties currentProps = ScriptProperties.getCurrent();
+            ScriptProperties currentProps = scriptPlayer.getCurrentProperties();
             if (currentProps != null && !currentProps.isInterruptible()) {
                 LOGGER.debug("脚本 {} 不可打断(interruptible=false)，拒绝新脚本: {}",
                         scriptPlayer.getScriptId(), script.getId());
@@ -258,7 +253,7 @@ public class CameraManager {
         // 自然结束前触发退场动画
         // holdAtEnd=true 时不触发退场动画：相机应保持最后一帧，等待用户退出或新脚本打断
         if (!stopping && scriptPlayer.isPlaying()) {
-            ScriptProperties currentProps = ScriptProperties.getCurrent();
+            ScriptProperties currentProps = scriptPlayer.getCurrentProperties();
             boolean holdAtEnd = currentProps != null && currentProps.isHoldAtEnd();
             if (!holdAtEnd) {
                 float remaining = scriptPlayer.getRemainingTime();
@@ -285,7 +280,7 @@ public class CameraManager {
         // holdAtEnd 控制：播完后保持最后一帧，不自动退出
         // 适用于固定视角区域，玩家持续处于脚本相机控制下
         if (!stopping && scriptPlayer.isPlaying() && scriptPlayer.isFinished()) {
-            ScriptProperties currentProps = ScriptProperties.getCurrent();
+            ScriptProperties currentProps = scriptPlayer.getCurrentProperties();
             boolean holdAtEnd = currentProps != null && currentProps.isHoldAtEnd();
             if (!holdAtEnd) {
                 deactivateNow();
@@ -345,6 +340,17 @@ public class CameraManager {
     }
 
     // ========== 便捷方法 ==========
+
+    /**
+     * 获取当前活跃的脚本属性
+     * <p>
+     * 委托到 scriptPlayer.getCurrentProperties()，供 Mixin/Handler 便捷访问。
+     *
+     * @return 当前脚本属性，无脚本播放时返回 null
+     */
+    public ScriptProperties getCurrentProperties() {
+        return scriptPlayer.getCurrentProperties();
+    }
 
     public void reset() {
         activeProperties.reset();
