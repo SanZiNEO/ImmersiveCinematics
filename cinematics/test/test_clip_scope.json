@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "id": "test_clip_scope",
+    "name": "属性测试-CLIP插值作用域",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "测试脚本级 interpolation=smooth + curve_composition_mode=override，重点测试片段级 interpolation_scope=clip：整体 clip 进度映射，中间关键帧处速度连续不归零。运镜为蛇形路径，5个关键帧。对比 segment 模式下每段都会停顿。",
+    "interpolation": "smooth",
+    "curve_composition_mode": "override",
+    "hide_hud": true,
+    "hide_arm": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 20.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 20.0,
+            "transition": "cut",
+            "interpolation": "smooth",
+            "interpolation_scope": "clip",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": -8, "dy": 2, "dz": -8 }, "yaw": 45, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 5.0, "position": { "dx": 8, "dy": 2, "dz": -8 }, "yaw": 135, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 10.0, "position": { "dx": 8, "dy": 2, "dz": 8 }, "yaw": 225, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 15.0, "position": { "dx": -8, "dy": 2, "dz": 8 }, "yaw": 315, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 20.0, "position": { "dx": -8, "dy": 2, "dz": -8 }, "yaw": 45, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 20.0,
+            "enabled": true,
+            "aspect_ratio": 1.778,
+            "fade_in": 0.5,
+            "fade_out": 0.5
+          }
+        ]
+      }
+    ]
+  }
+}

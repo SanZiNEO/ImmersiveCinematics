@@ -1,0 +1,57 @@
+{
+  "meta": {
+    "id": "test_bezier_arc",
+    "name": "属性测试-贝塞尔弧线",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "测试片段级 curve=bezier：摄像机沿贝塞尔弧线运动，而非直线插值。控制点 P1=P2 重合于前方偏移处，使路径呈半圆弧形。使用 smooth 插值 + segment 作用域。",
+    "hide_hud": true,
+    "hide_arm": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 10.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 10.0,
+            "transition": "cut",
+            "interpolation": "smooth",
+            "interpolation_scope": "segment",
+            "position_mode": "relative",
+            "loop": false,
+            "curve": {
+              "type": "bezier",
+              "control_points": [
+                { "x": 0.0, "y": 5.0, "z": -12.0 },
+                { "x": 0.0, "y": 5.0, "z": -12.0 }
+              ]
+            },
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": -10, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 10.0, "position": { "dx": 10, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 10.0,
+            "enabled": true,
+            "aspect_ratio": 2.35,
+            "fade_in": 0.5,
+            "fade_out": 0.5
+          }
+        ]
+      }
+    ]
+  }
+}

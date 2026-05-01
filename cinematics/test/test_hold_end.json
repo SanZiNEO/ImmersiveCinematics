@@ -1,0 +1,51 @@
+{
+  "meta": {
+    "id": "test_hold_end",
+    "name": "属性测试-播完保持",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "测试 hold_at_end=true：播完后保持最后一帧不退出（与默认值 false 相反）。运镜为垂直坠落，使用 ease_in 插值营造加速感 + segment 作用域。",
+    "hide_hud": true,
+    "hide_arm": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": true
+  },
+  "timeline": {
+    "total_duration": 8.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 8.0,
+            "transition": "cut",
+            "interpolation": "ease_in",
+            "interpolation_scope": "segment",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 0, "dy": 30, "dz": 5 }, "yaw": 180, "pitch": 70, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 4.0, "position": { "dx": 0, "dy": 15, "dz": 3 }, "yaw": 180, "pitch": 50, "roll": 0, "fov": 75, "zoom": 1.0, "dof": 0 },
+              { "time": 8.0, "position": { "dx": 0, "dy": 2, "dz": 1 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 85, "zoom": 1.0, "dof": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 8.0,
+            "enabled": true,
+            "aspect_ratio": 2.35,
+            "fade_in": 0.5,
+            "fade_out": 0.0
+          }
+        ]
+      }
+    ]
+  }
+}

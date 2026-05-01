@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "id": "cam_high",
+    "name": "固定机位-俯瞰",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "高角度俯视固定摄像机，上帝视角观察。修改 keyframes 中的 x/y/z 即可重新定位。无限时长，可被其他脚本打断。",
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": true,
+    "hide_hud": true,
+    "hide_arm": true
+  },
+  "timeline": {
+    "total_duration": -1,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": -1,
+            "transition": "cut",
+            "interpolation": "linear",
+            "interpolation_scope": "clip",
+            "position_mode": "absolute",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0.0,
+                "position": { "x": 100, "y": 75, "z": -45 },
+                "yaw": 0,
+                "pitch": 60,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
