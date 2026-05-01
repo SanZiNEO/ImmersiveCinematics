@@ -59,28 +59,6 @@ public class ScriptMeta {
         this.curveCompositionMode = curveCompositionMode;
     }
 
-    /**
-     * 兼容旧构造器 — 从布尔参数构建（内部转换为 RuntimeBehavior）
-     * <p>
-     * 注意：此构造器缺少 skippable 参数，默认使用 true。
-     * 推荐使用 {@link RuntimeBehavior#builder()} 构建完整行为后调用主构造器。
-     */
-    public ScriptMeta(String id, String name, String author, int version, String description,
-                      boolean blockKeyboard, boolean blockMouse, boolean blockMobAi,
-                      boolean hideHud, boolean hideArm, boolean suppressBob,
-                      boolean blockChat, boolean blockScoreboard, boolean blockActionBar,
-                      boolean blockParticles, boolean renderPlayerModel,
-                      boolean pauseWhenGamePaused, boolean interruptible, boolean holdAtEnd,
-                      @Nullable InterpolationType interpolation) {
-        this(id, name, author, version, description,
-                new RuntimeBehavior(blockKeyboard, blockMouse, blockMobAi,
-                        hideHud, hideArm, suppressBob,
-                        blockChat, blockScoreboard, blockActionBar,
-                        blockParticles, renderPlayerModel,
-                        pauseWhenGamePaused, interruptible, true, holdAtEnd),
-                interpolation, null);
-    }
-
     // ========== 元信息 Getter ==========
 
     public String getId() { return id; }

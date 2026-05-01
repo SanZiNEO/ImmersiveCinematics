@@ -34,7 +34,7 @@ import java.nio.file.Path;
  * </ol>
  * 首次使用时自动创建 cinematics/ 目录。
  */
-public class                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 CinematicCommand {
+public class CinematicCommand {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("cinematic")

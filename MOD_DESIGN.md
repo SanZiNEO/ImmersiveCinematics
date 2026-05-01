@@ -142,11 +142,11 @@ graph TD
 | 脚本容器 | `script/CinematicScript.java` | 顶层容器，id/name/timeline |
 | 脚本属性 | `script/ScriptMeta.java` | 元信息 + RuntimeBehavior 15标志位 + 插值控制 |
 | 时间轴 | `script/Timeline.java` | 轨道容器 |
-| 轨道 | `script/TimelineTrack.java` | 多态轨道，5种TrackType |
+| 轨道 | `script/TimelineTrack.java` | 多态轨道，5种TrackType，类型安全getter（类型不匹配抛IllegalStateException） |
 | 镜头片段 | `script/CameraClip.java` | 关键帧数组 + 过渡/插值/路径/循环 |
 | 关键帧 | `script/CameraKeyframe.java` | 8属性 + 逐关键帧插值覆盖 |
 | 贝塞尔曲线 | `script/BezierCurve.java` | 2控制点三次贝塞尔 |
-| 路径策略 | `script/PathStrategy.java` + `PathStrategies.java` | 可扩展路径插值注册表，当前注册 bezier + linear |
+| 路径策略 | `script/PathStrategy.java` + `PathStrategies.java` | 可扩展路径插值注册表，当前注册 bezier + linear，默认策略为 linear |
 | 插值类型 | `script/InterpolationType.java` | LINEAR/SMOOTH/EASE_IN/EASE_OUT/EASE_IN_OUT |
 | 插值作用域 | `script/InterpolationScope.java` | CLIP(整体进度映射) / SEGMENT(逐段映射) |
 | 曲线组合模式 | `script/CurveCompositionMode.java` | OVERRIDE(覆盖) / COMPOSED(数学组合) |
