@@ -41,8 +41,8 @@ public class ScriptPlayer {
     private CinematicScript script;
     private boolean playing = false;
 
-    // 虚拟时间驱动
-    private long startGameTimeNanos = 0;
+    // 虚拟时间驱动（单位：秒，double 精度）
+    private double startGameTimeSeconds = 0;
 
     // 相对模式基准位置（玩家激活时的位置）
     private Vec3 originPos = Vec3.ZERO;
@@ -73,7 +73,7 @@ public class ScriptPlayer {
         this.script = script;
         this.originPos = mc.player.position();
         this.playing = true;
-        this.startGameTimeNanos = CameraManager.INSTANCE.getGameTimeNanos();
+        this.startGameTimeSeconds = CameraManager.INSTANCE.getGameTimeSeconds();
 
         // 应用脚本元信息到 ScriptProperties，并设置为当前活跃属性
         ScriptMeta meta = script.getMeta();
@@ -194,9 +194,9 @@ public class ScriptPlayer {
     /**
      * 每渲染帧驱动：由 CameraManager.onRenderFrame() 调用
      *
-     * @param gameTimeNanos 当前虚拟游戏时间（纳秒）
+     * @param gameTimeSeconds 当前虚拟游戏时间（秒，double 精度）
      */
-    public void onRenderFrame(long gameTimeNanos) {
+    public void onRenderFrame(double gameTimeSeconds) {
         if (!playing || script == null) return;
 
         float elapsedSeconds = getElapsedSeconds();
@@ -226,6 +226,6 @@ public class ScriptPlayer {
     // ========== 内部方法 ==========
 
     private float getElapsedSeconds() {
-        return (CameraManager.INSTANCE.getGameTimeNanos() - startGameTimeNanos) / 1_000_000_000f;
+        return (float)(CameraManager.INSTANCE.getGameTimeSeconds() - startGameTimeSeconds);
     }
 }
