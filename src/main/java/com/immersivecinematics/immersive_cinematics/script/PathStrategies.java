@@ -16,6 +16,9 @@ import java.util.Map;
  *   <li>"linear" → 线性插值（from.lerp(to, t)）</li>
  * </ul>
  * <p>
+ * 默认策略为 "linear"：当 curveType 为 null 或未知时，使用最简单的线性插值，
+ * 语义更清晰（null/未知 → 最简路径）。显式指定 "bezier" 不受影响。
+ * <p>
  * 未来扩展：注册新的 curve.type 名称和对应的 PathStrategy 实现即可，
  * 无需修改 KeyframeInterpolator。
  */
@@ -25,8 +28,8 @@ public final class PathStrategies {
 
     private static final Map<String, PathStrategy> REGISTRY = new HashMap<>();
 
-    /** 默认策略：贝塞尔曲线 */
-    public static final String DEFAULT_TYPE = "bezier";
+    /** 默认策略：线性插值 */
+    public static final String DEFAULT_TYPE = "linear";
 
     static {
         // 注册默认策略

@@ -310,11 +310,22 @@ public class CameraManager {
         OverlayManager.INSTANCE.reset();
     }
 
-    // ========== tick 驱动（保留但简化） ==========
+    // ========== tick 驱动（staged 缓冲区过渡插值） ==========
 
+    /**
+     * 每 tick 驱动 staged 缓冲区的过渡插值（供编辑器预览使用）
+     * <p>
+     * 帧回调驱动模式下，active 缓冲区的位置/角度更新由 onRenderFrame() 负责，
+     * 但 staged 缓冲区的过渡动画需要 tick 级别驱动。
+     */
     public void tick() {
         if (!active) return;
-        // 帧回调驱动模式下，位置/角度更新由 onRenderFrame() 负责
+        // 驱动 staged 缓冲区的过渡插值（供编辑器预览使用）
+        if (stagedReady) {
+            float deltaTime = 1f / 20f;  // 假设 20 TPS
+            stagedProperties.tick(deltaTime);
+            stagedPath.tick(deltaTime);
+        }
     }
 
     // ========== Mixin 读取接口（只读 active 状态）==========
