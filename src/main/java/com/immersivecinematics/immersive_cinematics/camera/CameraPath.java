@@ -8,7 +8,7 @@ import net.minecraft.world.phys.Vec3;
  * <p>
  * 🎬 帧回调驱动模式（ReplayMod 式）：
  * - 不再使用 partialTick 插值
- * - 每渲染帧由 CameraTestPlayer.onRenderFrame() 直接设置精确位置
+ * - 每渲染帧由 CameraTrackPlayer.onRenderFrame() 直接设置精确位置
  * - getPosition() 直接返回 currentPosition，无插值层
  * - 保留 setTargetPosition() + tick() 供 staged 缓冲区的过渡插值使用
  */
@@ -28,7 +28,7 @@ public class CameraPath {
     /**
      * 🎬 直接设置当前位置（帧回调驱动模式）
      * <p>
-     * 由 CameraTestPlayer.onRenderFrame() 每帧调用，
+     * 由 CameraTrackPlayer.onRenderFrame() 每帧调用，
      * 直接写入精确计算的位置，无需过渡插值。
      * 类似 ReplayMod CameraEntity.setCameraPosition() 的 prevX=x 语义。
      *
@@ -46,7 +46,7 @@ public class CameraPath {
      * 设置目标位置（带过渡时长）
      * <p>
      * 主要用于 staged 缓冲区预置关键帧时的过渡控制。
-     * 在帧回调驱动模式下，段内插值由 CameraTestPlayer 自己完成，
+     * 在帧回调驱动模式下，段内插值由 CameraTrackPlayer 自己完成，
      * 此方法主要用于段间硬切换（duration=0）的 staged 预置。
      *
      * @param pos 目标位置

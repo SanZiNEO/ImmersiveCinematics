@@ -18,6 +18,12 @@ import java.util.List;
  *         <li>SEGMENT — 曲线映射应用到每个关键帧段（传统行为）</li>
  *       </ul>
  *   </li>
+ *   <li>支持两种曲线组合模式（CurveCompositionMode）：
+ *       <ul>
+ *         <li>OVERRIDE — 覆盖模式（默认）：片段/关键帧级覆盖脚本级默认值</li>
+ *         <li>COMPOSED — 数学组合模式：先脚本级，再片段/关键帧级（双重平滑）</li>
+ *       </ul>
+ *   </li>
  *   <li>支持逐关键帧插值覆盖（CameraKeyframe.interpolation）</li>
  *   <li>位置插值：直线 lerp 或贝塞尔曲线</li>
  *   <li>朝向插值：yaw/roll 使用角度环绕插值，pitch 使用线性插值</li>
@@ -51,32 +57,81 @@ public final class KeyframeInterpolator {
     }
 
     /**
-     * 数学组合插值 — 先应用脚本级曲线，再应用片段/关键帧级曲线
+     * 覆盖模式插值 — 片段/关键帧级覆盖脚本级默认值
      * <p>
-     * 三层插值体系（数学组合模式）：
-     * <pre>
-     * adjustedT = applyCurve(applyCurve(t, scriptInterp), clipOrKeyframeInterp)
-     * </pre>
-     * 脚本级 LINEAR = 恒等函数，不施加全局曲线，片段级单独生效。
-     * <p>
-     * 示例：脚本级 smooth + 片段级 ease_in =
-     * adjustedT = ease_in(smooth(t))，整体缓入缓出 + 局部缓入。
+     * 覆盖模式语义：
+     * <ul>
+     *   <li>片段/关键帧级已指定非 LINEAR → 使用它（覆盖脚本级）</li>
+     *   <li>片段/关键帧级为 LINEAR 且脚本级非 null → 使用脚本级</li>
+     *   <li>否则 → LINEAR（恒等）</li>
+     * </ul>
+     * 这符合用户心智模型：meta.interpolation 是"片段级未指定时的默认值"，
+     * 而非"全局叠加曲线"。
      *
      * @param t                      线性进度 [0, 1]
      * @param scriptInterpolation    脚本级插值（全局默认风格），null=LINEAR
      * @param clipOrKeyframeInterp   片段级或关键帧级插值
-     * @return 组合映射后的进度 [0, 1]
+     * @return 映射后的进度 [0, 1]
+     */
+    public static float applyEffectiveCurve(float t,
+                                            @Nullable InterpolationType scriptInterpolation,
+                                            InterpolationType clipOrKeyframeInterp) {
+        InterpolationType effective;
+        if (clipOrKeyframeInterp != InterpolationType.LINEAR) {
+            effective = clipOrKeyframeInterp;  // 片段/关键帧级覆盖
+        } else if (scriptInterpolation != null) {
+            effective = scriptInterpolation;   // 使用脚本级默认值
+        } else {
+            effective = InterpolationType.LINEAR;  // 恒等
+        }
+        return applyCurve(t, effective);
+    }
+
+    /**
+     * 数学组合模式插值 — 先应用脚本级曲线，再应用片段/关键帧级曲线
+     * <p>
+     * 数学组合语义：
+     * <pre>
+     * adjustedT = applyCurve(applyCurve(t, scriptInterp), clipOrKeyframeInterp)
+     * </pre>
+     * 产生双重平滑效果，适用于需要更强烈缓入缓出的场景。
+     * <p>
+     * 注意：当两层都使用 SMOOTH 时，smooth(smooth(t)) 会产生极端的 S 型曲线，
+     * 中间段几乎线性而两端极度压缩，可能不符合预期。
+     *
+     * @param t                      线性进度 [0, 1]
+     * @param scriptInterpolation    脚本级插值（全局默认风格），null=LINEAR（跳过第一层）
+     * @param clipOrKeyframeInterp   片段级或关键帧级插值
+     * @return 映射后的进度 [0, 1]
      */
     public static float applyComposedCurve(float t,
                                            @Nullable InterpolationType scriptInterpolation,
                                            InterpolationType clipOrKeyframeInterp) {
-        // 先应用脚本级曲线
-        InterpolationType effectiveScript = scriptInterpolation != null
-                ? scriptInterpolation : InterpolationType.LINEAR;
-        float t1 = applyCurve(t, effectiveScript);
-        // 再应用片段/关键帧级曲线
-        float t2 = applyCurve(t1, clipOrKeyframeInterp);
-        return t2;
+        // 第一层：脚本级曲线
+        float afterScript = (scriptInterpolation != null)
+                ? applyCurve(t, scriptInterpolation)
+                : t;
+        // 第二层：片段/关键帧级曲线
+        return applyCurve(afterScript, clipOrKeyframeInterp);
+    }
+
+    /**
+     * 根据曲线组合模式选择对应的曲线映射方法
+     *
+     * @param t                      线性进度 [0, 1]
+     * @param scriptInterpolation    脚本级插值，null=LINEAR
+     * @param clipOrKeyframeInterp   片段级或关键帧级插值
+     * @param mode                   曲线组合模式，null=OVERRIDE
+     * @return 映射后的进度 [0, 1]
+     */
+    public static float applyCurveWithMode(float t,
+                                           @Nullable InterpolationType scriptInterpolation,
+                                           InterpolationType clipOrKeyframeInterp,
+                                           @Nullable CurveCompositionMode mode) {
+        if (mode == CurveCompositionMode.COMPOSED) {
+            return applyComposedCurve(t, scriptInterpolation, clipOrKeyframeInterp);
+        }
+        return applyEffectiveCurve(t, scriptInterpolation, clipOrKeyframeInterp);
     }
 
     // ========== 位置插值 ==========
@@ -97,15 +152,12 @@ public final class KeyframeInterpolator {
         Vec3 p0 = from.getPosition().toVec3();
         Vec3 p3 = to.getPosition().toVec3();
 
-        if (clip.getCurve() != null && clip.getCurve().isValid()) {
-            // 三次贝塞尔曲线插值
-            Vec3 p1 = clip.getCurve().getP1();
-            Vec3 p2 = clip.getCurve().getP2();
-            return MathUtil.cubicBezier(p0, p1, p2, p3, t);
-        } else {
-            // 直线插值
-            return p0.lerp(p3, t);
-        }
+        // 通过 PathStrategies 注册表获取路径策略（O3: 支持扩展新曲线类型）
+        String curveType = (clip.getCurve() != null) ? clip.getCurve().getType() : null;
+        PathStrategy strategy = PathStrategies.get(curveType);
+        Vec3 result = strategy.interpolate(p0, p3, t, clip.getCurve());
+
+        return MathUtil.sanitizeVec3(result, p0);  // NaN 防护，fallback 到起始帧
     }
 
     // ========== 朝向插值 ==========
@@ -114,55 +166,63 @@ public final class KeyframeInterpolator {
      * 在两个关键帧之间插值偏航角（角度环绕插值）
      */
     public static float interpolateYaw(CameraKeyframe from, CameraKeyframe to, float t) {
-        return MathUtil.lerpAngle(from.getYaw(), to.getYaw(), t);
+        float result = MathUtil.lerpAngle(from.getYaw(), to.getYaw(), t);
+        return MathUtil.sanitizeFloat(result, from.getYaw());  // NaN 防护
     }
 
     /**
      * 在两个关键帧之间插值俯仰角（线性插值）
      */
     public static float interpolatePitch(CameraKeyframe from, CameraKeyframe to, float t) {
-        return MathUtil.lerp(from.getPitch(), to.getPitch(), t);
+        float result = MathUtil.lerp(from.getPitch(), to.getPitch(), t);
+        return MathUtil.sanitizeFloat(result, from.getPitch());  // NaN 防护
     }
 
     /**
      * 在两个关键帧之间插值滚转角（角度环绕插值）
      */
     public static float interpolateRoll(CameraKeyframe from, CameraKeyframe to, float t) {
-        return MathUtil.lerpAngle(from.getRoll(), to.getRoll(), t);
+        float result = MathUtil.lerpAngle(from.getRoll(), to.getRoll(), t);
+        return MathUtil.sanitizeFloat(result, from.getRoll());  // NaN 防护
     }
 
     // ========== 光学插值 ==========
 
     public static float interpolateFov(CameraKeyframe from, CameraKeyframe to, float t) {
-        return MathUtil.lerp(from.getFov(), to.getFov(), t);
+        float result = MathUtil.lerp(from.getFov(), to.getFov(), t);
+        return MathUtil.sanitizeFloat(result, from.getFov());  // NaN 防护
     }
 
     public static float interpolateZoom(CameraKeyframe from, CameraKeyframe to, float t) {
-        return MathUtil.lerp(from.getZoom(), to.getZoom(), t);
+        float result = MathUtil.lerp(from.getZoom(), to.getZoom(), t);
+        return MathUtil.sanitizeFloat(result, from.getZoom());  // NaN 防护
     }
 
     public static float interpolateDof(CameraKeyframe from, CameraKeyframe to, float t) {
-        return MathUtil.lerp(from.getDof(), to.getDof(), t);
+        float result = MathUtil.lerp(from.getDof(), to.getDof(), t);
+        return MathUtil.sanitizeFloat(result, from.getDof());  // NaN 防护
     }
 
     // ========== 时间计算 ==========
 
     /**
-     * 计算片段内的关键帧进度（三层插值 — 数学组合模式）
+     * 计算片段内的关键帧进度（支持覆盖/组合两种曲线模式）
      * <p>
      * 三层插值体系：
-     * <pre>
-     * adjustedT = applyCurve(applyCurve(t, scriptInterp), clipOrKeyframeInterp)
-     * </pre>
      * <ul>
-     *   <li>脚本级（scriptInterpolation）— 全局默认曲线，最先应用</li>
+     *   <li>脚本级（scriptInterpolation）— 全局默认曲线</li>
      *   <li>片段/关键帧级 — 根据 {@link InterpolationScope} 分两条路径：
      *     <ul>
      *       <li>{@link InterpolationScope#CLIP} — 曲线映射应用到整体 clip 进度，
-     *           然后在调整后的时间轴上找关键帧段并线性插值。
-     *           整个 clip 只在开头/结尾有缓入缓出，中间关键帧处速度连续。</li>
+     *           然后在调整后的时间轴上找关键帧段并线性插值。</li>
      *       <li>{@link InterpolationScope#SEGMENT} — 先找关键帧段，计算段内线性进度，
      *           再对段内进度应用曲线映射。支持逐关键帧插值覆盖。</li>
+     *     </ul>
+     *   </li>
+     *   <li>曲线组合模式（curveCompositionMode）：
+     *     <ul>
+     *       <li>{@link CurveCompositionMode#OVERRIDE} — 片段/关键帧级覆盖脚本级默认值</li>
+     *       <li>{@link CurveCompositionMode#COMPOSED} — 先脚本级，再片段/关键帧级（双重平滑）</li>
      *     </ul>
      *   </li>
      * </ul>
@@ -172,11 +232,13 @@ public final class KeyframeInterpolator {
      * @param clipTime            片段内时间（秒）
      * @param clip                所属片段
      * @param scriptInterpolation 脚本级插值（全局默认风格），null=LINEAR（不施加全局曲线）
+     * @param compositionMode     曲线组合模式，null=OVERRIDE
      * @return 插值结果，包含 from/to 关键帧和 adjustedT；
      *         如果时间在关键帧范围外，返回 null
      */
     public static InterpolationResult computeInterpolation(float clipTime, CameraClip clip,
-                                                           @Nullable InterpolationType scriptInterpolation) {
+                                                           @Nullable InterpolationType scriptInterpolation,
+                                                           @Nullable CurveCompositionMode compositionMode) {
         List<CameraKeyframe> keyframes = clip.getKeyframes();
         if (keyframes == null || keyframes.isEmpty()) return null;
 
@@ -202,24 +264,33 @@ public final class KeyframeInterpolator {
 
         // 根据插值作用域分两条路径
         if (clip.getInterpolationScope() == InterpolationScope.CLIP) {
-            return computeClipScope(effectiveTime, clip, keyframes, scriptInterpolation);
+            return computeClipScope(effectiveTime, clip, keyframes, scriptInterpolation, compositionMode);
         } else {
-            return computeSegmentScope(effectiveTime, clip, keyframes, scriptInterpolation);
+            return computeSegmentScope(effectiveTime, clip, keyframes, scriptInterpolation, compositionMode);
         }
     }
 
     /**
-     * CLIP scope — 曲线映射应用到整体 clip 进度（数学组合模式）
+     * 兼容旧签名 — 默认使用 OVERRIDE 模式
+     */
+    public static InterpolationResult computeInterpolation(float clipTime, CameraClip clip,
+                                                           @Nullable InterpolationType scriptInterpolation) {
+        return computeInterpolation(clipTime, clip, scriptInterpolation, null);
+    }
+
+    /**
+     * CLIP scope — 曲线映射应用到整体 clip 进度
      * <p>
      * 算法：
      * 1. 计算整体进度 overallT = (effectiveTime - firstTime) / (lastTime - firstTime)
-     * 2. 应用组合曲线映射 adjustedOverallT = applyComposedCurve(overallT, scriptInterp, clip.interpolation)
+     * 2. 根据组合模式应用曲线映射到整体进度
      * 3. 映射回时间轴 adjustedTime = firstTime + adjustedOverallT * overallDuration
      * 4. 在 adjustedTime 上找关键帧段 + 线性插值（不再 applyCurve）
      */
     private static InterpolationResult computeClipScope(float effectiveTime, CameraClip clip,
                                                         List<CameraKeyframe> keyframes,
-                                                        @Nullable InterpolationType scriptInterpolation) {
+                                                        @Nullable InterpolationType scriptInterpolation,
+                                                        @Nullable CurveCompositionMode compositionMode) {
         float firstTime = keyframes.get(0).getTime();
         float lastTime = keyframes.get(keyframes.size() - 1).getTime();
         float overallDuration = lastTime - firstTime;
@@ -233,8 +304,8 @@ public final class KeyframeInterpolator {
         float overallT = (effectiveTime - firstTime) / overallDuration;
         overallT = Math.max(0f, Math.min(1f, overallT));
 
-        // 2. 应用组合曲线映射到整体进度（先脚本级，再片段级）
-        float adjustedOverallT = applyComposedCurve(overallT, scriptInterpolation, clip.getInterpolation());
+        // 2. 根据组合模式应用曲线映射到整体进度
+        float adjustedOverallT = applyCurveWithMode(overallT, scriptInterpolation, clip.getInterpolation(), compositionMode);
 
         // 3. 映射回时间轴
         float adjustedTime = firstTime + adjustedOverallT * overallDuration;
@@ -275,17 +346,18 @@ public final class KeyframeInterpolator {
     }
 
     /**
-     * SEGMENT scope — 曲线映射应用到每个关键帧段（数学组合模式）
+     * SEGMENT scope — 曲线映射应用到每个关键帧段
      * <p>
      * 算法：
      * 1. 找到当前所处的关键帧段
      * 2. 计算段内线性进度 t
      * 3. 确定该段的插值类型（优先使用 to 关键帧的覆盖，否则用 clip 默认）
-     * 4. 对段内进度应用组合曲线映射（先脚本级，再关键帧/片段级）
+     * 4. 根据组合模式对段内进度应用曲线映射
      */
     private static InterpolationResult computeSegmentScope(float effectiveTime, CameraClip clip,
                                                            List<CameraKeyframe> keyframes,
-                                                           @Nullable InterpolationType scriptInterpolation) {
+                                                           @Nullable InterpolationType scriptInterpolation,
+                                                           @Nullable CurveCompositionMode compositionMode) {
         // 找到当前所处的两个关键帧
         CameraKeyframe from = null;
         CameraKeyframe to = null;
@@ -323,8 +395,8 @@ public final class KeyframeInterpolator {
                 ? to.getInterpolation()
                 : clip.getInterpolation();
 
-        // 应用组合插值曲线映射（先脚本级，再关键帧/片段级）
-        float adjustedT = applyComposedCurve(t, scriptInterpolation, segmentInterpolation);
+        // 根据组合模式应用插值曲线映射
+        float adjustedT = applyCurveWithMode(t, scriptInterpolation, segmentInterpolation, compositionMode);
 
         return new InterpolationResult(from, to, adjustedT);
     }

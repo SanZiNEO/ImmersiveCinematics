@@ -9,7 +9,7 @@ import com.immersivecinematics.immersive_cinematics.util.MathUtil;
  * <p>
  * 🎬 帧回调驱动模式（ReplayMod 式）：
  * - 不再使用 partialTick 插值
- * - 每渲染帧由 CameraTestPlayer.onRenderFrame() 直接设置精确值
+ * - 每渲染帧由 CameraTrackPlayer.onRenderFrame() 直接设置精确值
  * - getXxx() 直接返回 currentXxx，无插值层
  * - 保留 setTargetXxx() + tick() 供 staged 缓冲区的过渡插值使用
  * <p>
@@ -57,7 +57,7 @@ public class CameraProperties {
     /**
      * 🎬 直接设置 yaw（帧回调驱动模式）
      * <p>
-     * 由 CameraTestPlayer.onRenderFrame() 每帧调用，
+     * 由 CameraTrackPlayer.onRenderFrame() 每帧调用，
      * 直接写入精确计算的值，无需过渡插值。
      *
      * @param yaw 精确计算的偏航角

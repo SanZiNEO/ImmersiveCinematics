@@ -8,7 +8,7 @@ import net.minecraft.world.phys.Vec3;
  * 提供 lerp（线性插值）、lerpAngle（角度环绕插值）、
  * 多种插值曲线（smooth/easeIn/easeOut/easeInOut）、
  * 三次贝塞尔曲线、smoothstep 混合、NaN/Infinity 防护，
- * 供 CameraProperties、CameraTestPlayer、ScriptPlayer、KeyframeInterpolator 等组件共用。
+ * 供 CameraProperties、ScriptPlayer、KeyframeInterpolator 等组件共用。
  */
 public final class MathUtil {
 
