@@ -23,6 +23,9 @@ public class CameraTrackPlayer implements TrackPlayer {
     private final InterpolationType scriptInterpolation;
     private final CurveCompositionMode curveCompositionMode;
 
+    /** 缓存上一帧匹配的 clip 索引，用于优化顺序播放时的搜索 */
+    private int lastClipIndex = 0;
+
     public CameraTrackPlayer(TimelineTrack track, Vec3 originPos, CameraManager cameraManager,
                              InterpolationType scriptInterpolation, CurveCompositionMode curveCompositionMode) {
         this.clips = track.getCameraClips();
@@ -79,7 +82,7 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     @Override
     public void onStop() {
-        // Camera 轨道无需特殊清理
+        lastClipIndex = 0;
     }
 
     /**
@@ -88,39 +91,70 @@ public class CameraTrackPlayer implements TrackPlayer {
      * 如果时间在所有 clip 之前，返回第一个 clip；
      * 如果时间在所有 clip 之后，返回最后一个 clip；
      * 如果在两个 clip 之间的间隙，返回前一个 clip（保持最后一帧）。
-     * 无限时长 clip（duration=-1）一旦进入就永远活跃。
+     * 无限时长 clip（duration&lt;0）一旦进入就永远活跃。
+     * <p>
+     * 优化：利用 {@link #lastClipIndex} 缓存上一帧匹配位置，
+     * 顺序播放时从缓存索引开始搜索，避免每帧从头遍历。
      */
     private CameraClip findActiveClip(float globalTime) {
-        CameraClip result = null;
+        if (clips.isEmpty()) return null;
 
-        for (int i = 0; i < clips.size(); i++) {
+        CameraClip result = null;
+        int resultIndex = -1;
+        int startIdx = Math.max(0, Math.min(lastClipIndex, clips.size() - 1));
+
+        // 第一轮：从缓存索引向后搜索
+        for (int i = startIdx; i < clips.size(); i++) {
             CameraClip clip = clips.get(i);
             float clipEnd = clip.getStartTime() + clip.getDuration();
 
-            // 无限时长 clip：一旦进入就永远活跃
             if (clip.isInfinite()) {
                 if (globalTime >= clip.getStartTime()) {
-                    result = clip;  // 记录但继续查找，可能有更具体的有限时长 clip
+                    result = clip;
+                    resultIndex = i;
                 }
                 continue;
             }
 
             if (globalTime >= clip.getStartTime() && globalTime < clipEnd) {
-                return clip;  // 有限时长 clip 精确匹配，优先返回
+                lastClipIndex = i;
+                return clip;
+            }
+        }
+
+        // 第二轮：从 0 到缓存索引搜索（处理时间回退或间隙回绕）
+        for (int i = 0; i < startIdx; i++) {
+            CameraClip clip = clips.get(i);
+            float clipEnd = clip.getStartTime() + clip.getDuration();
+
+            if (clip.isInfinite()) {
+                if (globalTime >= clip.getStartTime()) {
+                    result = clip;
+                    resultIndex = i;
+                }
+                continue;
+            }
+
+            if (globalTime >= clip.getStartTime() && globalTime < clipEnd) {
+                lastClipIndex = i;
+                return clip;
             }
         }
 
         // 没有精确匹配的有限时长 clip，返回最后匹配的无限时长 clip
-        if (result != null) return result;
-
-        if (clips.isEmpty()) return null;
+        if (result != null) {
+            lastClipIndex = resultIndex;
+            return result;
+        }
 
         // 在所有 clip 之前：返回第一个 clip
         if (globalTime < clips.get(0).getStartTime()) {
+            lastClipIndex = 0;
             return clips.get(0);
         }
 
         // 在所有 clip 之后：返回最后一个 clip
+        lastClipIndex = clips.size() - 1;
         return clips.get(clips.size() - 1);
     }
 }

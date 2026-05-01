@@ -122,7 +122,7 @@ graph TD
 | 组件 | 文件 | 说明 |
 |------|------|------|
 | 相机位置 | `camera/CameraPath.java` | 纯POJO，x/y/z 三维坐标 |
-| 相机属性 | `camera/CameraProperties.java` | yaw/pitch/roll/fov/zoom/dof，双缓冲 staged/commit + partialTick 帧级插值 |
+| 相机属性 | `camera/CameraProperties.java` | yaw/pitch/roll/fov/zoom/dof，双缓冲 staged/commit + partialTick 帧级插值；默认值从 Config 读取（含 try-catch 回退） |
 | 相机管理器 | `camera/CameraManager.java` | 门面单例，Mixin层唯一入口，虚拟时钟驱动 |
 | Mixin注入 | `mixin/CameraMixin.java` | 覆写相机位置/朝向/roll，支持编辑器预览模式 |
 | 渲染注入 | `mixin/GameRendererMixin.java` | FOV除法zoom + 手臂隐藏 + bob/摇晃/反胃屏蔽 |
@@ -143,7 +143,8 @@ graph TD
 | 脚本属性 | `script/ScriptMeta.java` | 元信息 + RuntimeBehavior 15标志位 + 插值控制 |
 | 时间轴 | `script/Timeline.java` | 轨道容器 |
 | 轨道 | `script/TimelineTrack.java` | 多态轨道，5种TrackType，类型安全getter（类型不匹配抛IllegalStateException） |
-| 镜头片段 | `script/CameraClip.java` | 关键帧数组 + 过渡/插值/路径/循环 |
+| 镜头片段 | `script/CameraClip.java` | 关键帧数组 + 过渡/插值/路径/循环；无限时长判断改为 `duration < 0f`；过渡类型改为 `TransitionType` 枚举 |
+| 过渡类型 | `script/TransitionType.java` | CUT/CROSSFADE 枚举，替换原 String 类型 |
 | 关键帧 | `script/CameraKeyframe.java` | 8属性 + 逐关键帧插值覆盖 |
 | 贝塞尔曲线 | `script/BezierCurve.java` | 2控制点三次贝塞尔 |
 | 路径策略 | `script/PathStrategy.java` + `PathStrategies.java` | 可扩展路径插值注册表，当前注册 bezier + linear，默认策略为 linear |
@@ -155,7 +156,7 @@ graph TD
 | 播放器 | `script/ScriptPlayer.java` | 纯调度器，创建TrackPlayer + 驱动帧回调 |
 | 运行时属性 | `script/ScriptProperties.java` | 15个标志位单例，Mixin层直接读取 |
 | 轨道播放器接口 | `script/TrackPlayer.java` | isActiveAt/onRenderFrame/onStop + 6参数工厂 |
-| 镜头轨道播放器 | `script/CameraTrackPlayer.java` | clip定位 + 插值计算 + 写入CameraManager |
+| 镜头轨道播放器 | `script/CameraTrackPlayer.java` | clip定位 + 插值计算 + 写入CameraManager；缓存索引优化顺序播放搜索 |
 | 黑边轨道播放器 | `script/LetterboxTrackPlayer.java` | clip定位 + 写入OverlayManager |
 | 音频片段 | `script/AudioClip.java` | 数据层完成 |
 | 音频轨道播放器 | `script/AudioTrackPlayer.java` | 占位实现 |
@@ -169,9 +170,9 @@ graph TD
 
 | 组件 | 文件 | 说明 |
 |------|------|------|
-| 层接口 | `overlay/OverlayLayer.java` | render/isVisible/getZIndex/reset/tick/startFadeOut |
-| 层管理器 | `overlay/OverlayManager.java` | zIndex排序 + 分层渲染 + 生命周期管理 |
-| 黑边层 | `overlay/LetterboxLayer.java` | 画幅比黑边 + smooth缓动渐变动画 |
+| 层接口 | `overlay/OverlayLayer.java` | render/isVisible/isAnimating/getZIndex/reset/tick/startFadeOut；`isAnimating()` 区分"正在动画"与"仅可见" |
+| 层管理器 | `overlay/OverlayManager.java` | zIndex排序 + 分层渲染 + 生命周期管理；`isAnimating()` 委托给各层的 `isAnimating()` |
+| 黑边层 | `overlay/LetterboxLayer.java` | 画幅比黑边 + smooth缓动渐变动画；零/负画幅比防护 |
 | Forge注册 | `overlay/CinematicOverlay.java` | registerAboveAll + 白名单放行 |
 
 ### 4.4 命令系统 ✅
@@ -453,6 +454,7 @@ com.immersivecinematics.immersive_cinematics/
 │   ├── TrackPlayer.java             # 轨道播放器接口 + 工厂
 │   ├── CameraClip.java              # 镜头片段
 │   ├── CameraKeyframe.java          # 关键帧
+│   ├── TransitionType.java          # 过渡类型枚举 (CUT/CROSSFADE)
 │   ├── CameraTrackPlayer.java       # 镜头轨道播放器
 │   ├── BezierCurve.java             # 贝塞尔曲线
 │   ├── PathStrategy.java            # 路径策略接口
@@ -521,3 +523,22 @@ com.immersivecinematics.immersive_cinematics/
 | 脚本分发延迟 | < 100ms | 两阶段分发：预同步 + 触发时引用 |
 | 编辑器启动 | < 5秒 | 懒加载，按需构建 |
 | 区块强加载 | ~100区块 | 核心圈25 + 渲染圈75，轻量 |
+
+---
+
+## 10. 修复记录
+
+### 10.1 Plan C — 深度审查修复 (2026/5/1)
+
+| 编号 | 修复项 | 文件 | 说明 |
+|------|--------|------|------|
+| A1 | OverlayManager.isAnimating() 语义错误 | `OverlayLayer.java`, `OverlayManager.java`, `LetterboxLayer.java` | `isAnimating()` 原检查 `isVisible()`，无法区分"正在动画"和"仅可见"；在接口增加 `default isAnimating()` 方法，`OverlayManager` 改为委托 `layer.isAnimating()` |
+| A2 | CameraClip.isInfinite() 浮点等值比较 | `CameraClip.java`, `ScriptParser.java` | `duration == -1f` 改为 `duration < 0f`；Parser 验证从 `!= -1f && <= 0f` 改为 `== 0f`（仅零无效） |
+| A3 | 创建 TransitionType 枚举替换 String | `TransitionType.java`(新), `CameraClip.java`, `ScriptParser.java` | 新增 `CUT`/`CROSSFADE` 枚举，`CameraClip.transition` 字段类型从 `String` 改为 `TransitionType`，Parser 增加 `parseTransitionType()` |
+| A4 | Parser 使用 Builder 构建 RuntimeBehavior | `ScriptParser.java` | 替换位置参数构造为 `RuntimeBehavior.builder()...build()`，消除15参数位置依赖 |
+| A5 | LetterboxTrackPlayer 每帧调用 startFadeOut() | `LetterboxTrackPlayer.java` | `activeClip == null` 分支增加 `&& letterbox.isVisible()` 前置检查，避免已隐藏层重复触发 |
+| A6 | Config.defaultFov/defaultZoom 未被消费 | `CameraProperties.java` | 删除硬编码 `DEFAULT_FOV=70`/`DEFAULT_ZOOM=1`，改为 `getDefaultFov()`/`getDefaultZoom()` 从 Config 读取（含 try-catch 回退） |
+| A7 | findActiveClip() 每帧线性扫描 | `CameraTrackPlayer.java` | 增加 `lastClipIndex` 缓存，从上次匹配位置开始搜索；`onStop()` 时重置 |
+| A8 | onRenderFrame() 重复调用 getCurrent() | `CameraManager.java` | 方法开头获取 `currentProps` 一次，后续复用，删除两处重复局部声明 |
+| A9 | LetterboxLayer.render() 隐式除零 | `LetterboxLayer.java` | `render()` 开头增加 `targetAspectRatio <= 0f` 防护，提前返回 |
+| A10 | parseDataMap() 多余的 @SuppressWarnings | `ScriptParser.java` | 删除 `@SuppressWarnings("unchecked")` 注解，Gson tree API 无需此抑制 |

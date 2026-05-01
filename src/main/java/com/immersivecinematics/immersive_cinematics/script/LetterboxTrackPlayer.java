@@ -45,7 +45,7 @@ public class LetterboxTrackPlayer implements TrackPlayer {
                 letterbox.setFadeOut(activeClip.getFadeOut());
                 letterbox.setAspectRatio(activeClip.getAspectRatio());
             }
-        } else if (activeClip == null) {
+        } else if (activeClip == null && letterbox.isVisible()) {
             // 不在任何 letterbox clip 中：触发 fade-out
             letterbox.startFadeOut();
         }

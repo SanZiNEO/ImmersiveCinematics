@@ -127,12 +127,13 @@ public class OverlayManager {
     /**
      * 是否有层正在执行过渡动画
      * <p>
-     * 用于 CinematicOverlay 判断是否需要继续渲染（即使相机已停用）。
-     * 当前简化实现：任何层可见即视为可能正在动画。
+     * 用于 CameraManager.onRenderFrame() 判断退场动画是否结束，
+     * 以及 CinematicOverlay 判断是否需要继续渲染（即使相机已停用）。
+     * 遍历所有层调用各自的 isAnimating()，只有所有层都完成动画才返回 false。
      */
     public boolean isAnimating() {
         for (OverlayLayer layer : layers) {
-            if (layer.isVisible()) return true;
+            if (layer.isAnimating()) return true;
         }
         return false;
     }

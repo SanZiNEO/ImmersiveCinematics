@@ -232,6 +232,9 @@ public class CameraManager {
     public void onRenderFrame() {
         if (!active) return;
 
+        // 获取当前脚本属性（复用，避免重复调用）
+        ScriptProperties currentProps = scriptPlayer.getCurrentProperties();
+
         // 暂停时冻结虚拟时钟
         if (Minecraft.getInstance().isPaused() && pauseWhenGamePaused) {
             lastRealNanos = 0;
@@ -253,7 +256,6 @@ public class CameraManager {
         // 自然结束前触发退场动画
         // holdAtEnd=true 时不触发退场动画：相机应保持最后一帧，等待用户退出或新脚本打断
         if (!stopping && scriptPlayer.isPlaying()) {
-            ScriptProperties currentProps = scriptPlayer.getCurrentProperties();
             boolean holdAtEnd = currentProps != null && currentProps.isHoldAtEnd();
             if (!holdAtEnd) {
                 float remaining = scriptPlayer.getRemainingTime();
@@ -280,7 +282,6 @@ public class CameraManager {
         // holdAtEnd 控制：播完后保持最后一帧，不自动退出
         // 适用于固定视角区域，玩家持续处于脚本相机控制下
         if (!stopping && scriptPlayer.isPlaying() && scriptPlayer.isFinished()) {
-            ScriptProperties currentProps = scriptPlayer.getCurrentProperties();
             boolean holdAtEnd = currentProps != null && currentProps.isHoldAtEnd();
             if (!holdAtEnd) {
                 deactivateNow();

@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
+import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 
 /**
@@ -19,34 +20,58 @@ import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 public class CameraProperties {
 
     // --- 默认值 ---
-    private static final float DEFAULT_FOV = 70.0f;
     private static final float DEFAULT_ROLL = 0.0f;
     private static final float DEFAULT_DOF = 0.0f;
-    private static final float DEFAULT_ZOOM = 1.0f;
+
+    /**
+     * 获取配置的默认 FOV
+     * <p>
+     * 使用 Config.defaultFov，如果 Config 尚未加载则回退到 70.0f。
+     */
+    private static float getDefaultFov() {
+        try {
+            return (float) Config.defaultFov;
+        } catch (Exception e) {
+            return 70.0f; // Config 未加载时的回退值
+        }
+    }
+
+    /**
+     * 获取配置的默认 Zoom
+     * <p>
+     * 使用 Config.defaultZoom，如果 Config 尚未加载则回退到 1.0f。
+     */
+    private static float getDefaultZoom() {
+        try {
+            return (float) Config.defaultZoom;
+        } catch (Exception e) {
+            return 1.0f; // Config 未加载时的回退值
+        }
+    }
 
     // --- 当前值 ---
     private float currentYaw = 0f;
     private float currentPitch = 0f;
     private float currentRoll = 0f;
-    private float currentFov = DEFAULT_FOV;
+    private float currentFov = getDefaultFov();
     private float currentDof = DEFAULT_DOF;
-    private float currentZoom = DEFAULT_ZOOM;
+    private float currentZoom = getDefaultZoom();
 
     // --- 目标值（供 staged 缓冲区过渡插值使用） ---
     private float targetYaw = 0f;
     private float targetPitch = 0f;
     private float targetRoll = 0f;
-    private float targetFov = DEFAULT_FOV;
+    private float targetFov = getDefaultFov();
     private float targetDof = DEFAULT_DOF;
-    private float targetZoom = DEFAULT_ZOOM;
+    private float targetZoom = getDefaultZoom();
 
     // --- 插值起点（供 staged 缓冲区过渡插值使用） ---
     private float startYaw = 0f;
     private float startPitch = 0f;
     private float startRoll = 0f;
-    private float startFov = DEFAULT_FOV;
+    private float startFov = getDefaultFov();
     private float startDof = DEFAULT_DOF;
-    private float startZoom = DEFAULT_ZOOM;
+    private float startZoom = getDefaultZoom();
 
     // --- 插值控制 ---
     private float transitionDuration = 0f;   // 过渡时长（秒），0 = 瞬时
@@ -319,9 +344,9 @@ public class CameraProperties {
         currentYaw = targetYaw = startYaw = 0f;
         currentPitch = targetPitch = startPitch = 0f;
         currentRoll = targetRoll = startRoll = 0f;
-        currentFov = targetFov = startFov = DEFAULT_FOV;
+        currentFov = targetFov = startFov = getDefaultFov();
         currentDof = targetDof = startDof = DEFAULT_DOF;
-        currentZoom = targetZoom = startZoom = DEFAULT_ZOOM;
+        currentZoom = targetZoom = startZoom = getDefaultZoom();
         transitionDuration = 0f;
         transitionProgress = 1f;
     }

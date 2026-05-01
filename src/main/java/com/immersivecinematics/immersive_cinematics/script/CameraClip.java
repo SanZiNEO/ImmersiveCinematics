@@ -37,11 +37,11 @@ public class CameraClip {
     /** 在总时间轴上的开始时间（秒） */
     private final float startTime;
 
-    /** 片段持续时长（秒），-1 = 无限时长 */
+    /** 片段持续时长（秒），负数 = 无限时长 */
     private final float duration;
 
-    /** 与上一个片段的过渡方式："cut" 或 "crossfade" */
-    private final String transition;
+    /** 与上一个片段的过渡方式 */
+    private final TransitionType transition;
 
     /** 交叉淡化时长（秒），仅 transition=crossfade 时有效 */
     private final float crossfadeDuration;
@@ -67,7 +67,7 @@ public class CameraClip {
     /** 关键帧数组 */
     private final List<CameraKeyframe> keyframes;
 
-    public CameraClip(float startTime, float duration, String transition, float crossfadeDuration,
+    public CameraClip(float startTime, float duration, TransitionType transition, float crossfadeDuration,
                       InterpolationType interpolation, InterpolationScope interpolationScope,
                       BezierCurve curve, boolean positionModeRelative,
                       boolean loop, int loopCount, List<CameraKeyframe> keyframes) {
@@ -86,7 +86,7 @@ public class CameraClip {
 
     public float getStartTime() { return startTime; }
     public float getDuration() { return duration; }
-    public String getTransition() { return transition; }
+    public TransitionType getTransition() { return transition; }
     public float getCrossfadeDuration() { return crossfadeDuration; }
     public InterpolationType getInterpolation() { return interpolation; }
     public InterpolationScope getInterpolationScope() { return interpolationScope; }
@@ -96,11 +96,11 @@ public class CameraClip {
     public int getLoopCount() { return loopCount; }
     public List<CameraKeyframe> getKeyframes() { return keyframes; }
 
-    /** 是否为无限时长片段 */
-    public boolean isInfinite() { return duration == -1f; }
+    /** 是否为无限时长片段（负数即视为无限时长） */
+    public boolean isInfinite() { return duration < 0f; }
 
     /** 是否为交叉淡化过渡 */
-    public boolean isCrossfade() { return "crossfade".equals(transition); }
+    public boolean isCrossfade() { return transition == TransitionType.CROSSFADE; }
 
     @Override
     public String toString() {
