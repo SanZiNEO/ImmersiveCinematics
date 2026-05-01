@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
+import com.immersivecinematics.immersive_cinematics.overlay.LetterboxLayer;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
