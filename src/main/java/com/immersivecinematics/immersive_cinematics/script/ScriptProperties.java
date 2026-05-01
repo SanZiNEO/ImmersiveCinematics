@@ -1,7 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 /**
- * 脚本运行时属性单例 — 消费 ScriptMeta 中的14个标志位
+ * 脚本运行时属性单例 — 消费 ScriptMeta 中的15个布尔标志位
  * <p>
  * 设计目标：
  * <ul>
@@ -12,6 +12,13 @@ package com.immersivecinematics.immersive_cinematics.script;
  * </ul>
  * <p>
  * 这使得不同脚本可以有不同的运行时行为（如 hide_hud: false 的脚本播放时 HUD 可见）。
+ * <p>
+ * 退出控制三属性（详见 ScriptMeta.RuntimeBehavior 的 Javadoc）：
+ * <ul>
+ *   <li>{@code interruptible} — 脚本间抢占控制：是否允许被其他脚本打断（与用户退出无关）</li>
+ *   <li>{@code skippable} — 用户退出控制：是否允许用户长按退出键提前结束播放</li>
+ *   <li>{@code holdAtEnd} — 播完保持控制：播完后是否保持最后一帧，而非自动退出</li>
+ * </ul>
  */
 public class ScriptProperties {
 
@@ -29,6 +36,15 @@ public class ScriptProperties {
     private boolean blockParticles = false;
     private boolean renderPlayerModel = true;
     private boolean pauseWhenGamePaused = true;
+
+    // === 退出控制三属性 ===
+
+    /** 脚本间抢占控制：是否允许被其他脚本打断（与用户退出无关） */
+    private boolean interruptible = true;
+    /** 用户退出控制：是否允许用户长按退出键提前结束播放 */
+    private boolean skippable = true;
+    /** 播完保持控制：播完后是否保持最后一帧，而非自动退出 */
+    private boolean holdAtEnd = false;
 
     // === 单例访问 ===
 
@@ -64,6 +80,9 @@ public class ScriptProperties {
         this.blockParticles = meta.isBlockParticles();
         this.renderPlayerModel = meta.isRenderPlayerModel();
         this.pauseWhenGamePaused = meta.isPauseWhenGamePaused();
+        this.interruptible = meta.isInterruptible();
+        this.skippable = meta.isSkippable();
+        this.holdAtEnd = meta.isHoldAtEnd();
     }
 
     /**
@@ -85,6 +104,9 @@ public class ScriptProperties {
         this.blockParticles = false;
         this.renderPlayerModel = true;
         this.pauseWhenGamePaused = true;
+        this.interruptible = true;
+        this.skippable = true;
+        this.holdAtEnd = false;
     }
 
     // === Getters ===
@@ -101,4 +123,11 @@ public class ScriptProperties {
     public boolean isBlockParticles() { return blockParticles; }
     public boolean isRenderPlayerModel() { return renderPlayerModel; }
     public boolean isPauseWhenGamePaused() { return pauseWhenGamePaused; }
+
+    /** 脚本间抢占控制：是否允许被其他脚本打断（与用户退出无关） */
+    public boolean isInterruptible() { return interruptible; }
+    /** 用户退出控制：是否允许用户长按退出键提前结束播放 */
+    public boolean isSkippable() { return skippable; }
+    /** 播完保持控制：播完后是否保持最后一帧，而非自动退出 */
+    public boolean isHoldAtEnd() { return holdAtEnd; }
 }

@@ -13,6 +13,7 @@
     "suppress_bob": true,
     "pause_when_game_paused": true,
     "interruptible": true,
+    "skippable": true,
     "hold_at_end": false
   },
   "timeline": {

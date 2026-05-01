@@ -125,12 +125,33 @@ public class ScriptPlayer {
         return playing;
     }
 
+    /**
+     * 脚本是否已播放完成（时间耗尽）
+     * <p>
+     * 注意：此方法仅检查时间是否耗尽，不检查 holdAtEnd。
+     * holdAtEnd 的保持逻辑由 CameraManager.onRenderFrame() 负责：
+     * <ul>
+     *   <li>holdAtEnd=false → 播完后自动 deactivateNow()</li>
+     *   <li>holdAtEnd=true → 播完后保持相机状态，等待用户退出或新脚本打断</li>
+     * </ul>
+     */
     public boolean isFinished() {
         if (!playing || script == null) return false;
         float totalDuration = script.getTotalDuration();
         if (totalDuration < 0) return false; // 无限循环脚本
         float elapsed = getElapsedSeconds();
-        return elapsed >= totalDuration && !script.getMeta().isHoldAtEnd();
+        return elapsed >= totalDuration;
+    }
+
+    /**
+     * 获取当前播放脚本的ID
+     * <p>
+     * 用于日志和调试，如 CameraManager 打印脚本抢占拒绝信息。
+     *
+     * @return 脚本ID，无脚本播放时返回 "<none>"
+     */
+    public String getScriptId() {
+        return script != null ? script.getId() : "<none>";
     }
 
     /**
