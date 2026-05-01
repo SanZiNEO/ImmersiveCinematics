@@ -58,8 +58,8 @@ public class CameraManager {
     // 🎬 暂停行为控制：当游戏暂停时，脚本是否冻结
     private boolean pauseWhenGamePaused = true;
 
-    // 🎬 虚拟时钟：只在非暂停时前进，暂停时自动冻结
-    private long gameTimeNanos = 0;
+    // 🎬 虚拟时钟：只在非暂停时前进，暂停时自动冻结（单位：秒，double 精度）
+    private double gameTimeSeconds = 0;
     private long lastRealNanos = 0;
 
     // ========== 生命周期 ==========
@@ -243,14 +243,14 @@ public class CameraManager {
 
         // 推进虚拟时钟
         long now = System.nanoTime();
-        long prevGameTimeNanos = gameTimeNanos;
+        double prevGameTimeSeconds = gameTimeSeconds;
         if (lastRealNanos != 0) {
-            gameTimeNanos += now - lastRealNanos;
+            gameTimeSeconds += (double)(now - lastRealNanos) / 1_000_000_000.0;
         }
         lastRealNanos = now;
 
         // 驱动覆盖层动画
-        float deltaTime = (gameTimeNanos - prevGameTimeNanos) / 1_000_000_000f;
+        float deltaTime = (float)(gameTimeSeconds - prevGameTimeSeconds);
         OverlayManager.INSTANCE.update(deltaTime);
 
         // 自然结束前触发退场动画
@@ -269,7 +269,7 @@ public class CameraManager {
 
         // 唯一驱动路径：scriptPlayer
         if (scriptPlayer.isPlaying()) {
-            scriptPlayer.onRenderFrame(gameTimeNanos);
+            scriptPlayer.onRenderFrame(gameTimeSeconds);
         }
 
         // 退场动画结束 → 实际停用
@@ -291,10 +291,10 @@ public class CameraManager {
     }
 
     /**
-     * 获取当前虚拟游戏时间（纳秒）
+     * 获取当前虚拟游戏时间（秒，double 精度）
      */
-    public long getGameTimeNanos() {
-        return gameTimeNanos;
+    public double getGameTimeSeconds() {
+        return gameTimeSeconds;
     }
 
     /**
@@ -304,7 +304,7 @@ public class CameraManager {
         active = false;
         stopping = false;
         pauseWhenGamePaused = true;
-        gameTimeNanos = 0;
+        gameTimeSeconds = 0;
         lastRealNanos = 0;
         scriptPlayer.stop();
         reset();
