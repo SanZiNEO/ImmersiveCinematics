@@ -17,7 +17,7 @@ public class LetterboxClip {
     /** 总时间轴上的开始时间（秒） */
     private final float startTime;
 
-    /** 持续时长（秒），-1=无限 */
+    /** 持续时长（秒），负数=无限 */
     private final float duration;
 
     /** 是否启用黑边 */
@@ -50,7 +50,7 @@ public class LetterboxClip {
     public float getFadeOut() { return fadeOut; }
 
     /** 是否为无限时长片段 */
-    public boolean isInfinite() { return duration == -1f; }
+    public boolean isInfinite() { return duration < 0f; }
 
     @Override
     public String toString() {

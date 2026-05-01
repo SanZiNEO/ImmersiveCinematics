@@ -12,7 +12,7 @@ import java.util.Optional;
  */
 public class Timeline {
 
-    /** 脚本总时长（秒），-1 = 含无限时长片段（无法预计算） */
+    /** 脚本总时长（秒），负数 = 含无限时长片段（无法预计算） */
     private final float totalDuration;
 
     /** 并行轨道数组 */
@@ -27,7 +27,7 @@ public class Timeline {
     public List<TimelineTrack> getTracks() { return tracks; }
 
     /** 是否为无限时长时间轴 */
-    public boolean isInfinite() { return totalDuration == -1f; }
+    public boolean isInfinite() { return totalDuration < 0f; }
 
     // ========== 便捷查询方法 ==========
 

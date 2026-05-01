@@ -29,6 +29,13 @@ public class ScriptPlayer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/ScriptPlayer");
 
+    /**
+     * holdAtEnd 模式下的时间偏移量 — 略小于 totalDuration，
+     * 避免 isFinished() 判定脚本已结束。
+     * 0.1ms 的偏移在视觉上不可察觉，但确保插值仍取最后一帧的值。
+     */
+    private static final float HOLD_END_EPSILON = 0.0001f;
+
     // ========== 状态 ==========
 
     private CinematicScript script;
@@ -199,21 +206,19 @@ public class ScriptPlayer {
         if (totalDuration > 0 && elapsedSeconds >= totalDuration) {
             if (script.getMeta().isHoldAtEnd()) {
                 // holdAtEnd: 保持在最后一帧
-                elapsedSeconds = totalDuration - 0.0001f;
+                elapsedSeconds = totalDuration - HOLD_END_EPSILON;
             } else {
                 // 脚本结束，isFinished() 将返回 true
                 return;
             }
         }
 
-        // 调度所有 TrackPlayer
+        // 调度所有 TrackPlayer（onRenderFrame 内部自行判断是否有活跃 clip，无需 isActiveAt() 预检查）
         for (TrackPlayer tp : trackPlayers) {
-            if (tp.isActiveAt(elapsedSeconds)) {
-                try {
-                    tp.onRenderFrame(elapsedSeconds);
-                } catch (Exception e) {
-                    LOGGER.error("TrackPlayer 执行异常", e);
-                }
+            try {
+                tp.onRenderFrame(elapsedSeconds);
+            } catch (Exception e) {
+                LOGGER.error("TrackPlayer 执行异常", e);
             }
         }
     }
