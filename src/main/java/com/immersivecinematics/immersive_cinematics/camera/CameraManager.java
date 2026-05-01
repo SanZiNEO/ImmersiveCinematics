@@ -4,8 +4,11 @@ import com.immersivecinematics.immersive_cinematics.overlay.LetterboxLayer;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
+import com.immersivecinematics.immersive_cinematics.script.ScriptProperties;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 相机统一调度器 — 单例模式
@@ -31,6 +34,8 @@ import net.minecraft.world.phys.Vec3;
  * Mixin 层不直接依赖 CameraProperties / CameraPath，统一从 CameraManager 读取。
  */
 public class CameraManager {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CameraManager");
 
     public static final CameraManager INSTANCE = new CameraManager();
 
@@ -106,15 +111,33 @@ public class CameraManager {
 
     /**
      * 启动脚本播放模式
+     * <p>
+     * 脚本间抢占控制（interruptible）：
+     * <ul>
+     *   <li>如果当前有脚本正在播放且 interruptible=false，则拒绝新脚本，返回 false</li>
+     *   <li>如果当前有脚本正在播放且 interruptible=true，则打断当前脚本，播放新脚本</li>
+     *   <li>如果当前无脚本播放，直接启动新脚本</li>
+     * </ul>
+     * <p>
+     * 典型用法：区域固定视角脚本（生化危机0式）可设 interruptible=false，
+     * 防止玩家进入区域时其他脚本抢占固定视角。
      *
      * @param script 已解析的脚本对象
+     * @return true=成功启动，false=被当前脚本拒绝（interruptible=false）
      */
-    public void playScript(CinematicScript script) {
+    public boolean playScript(CinematicScript script) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || mc.player == null) return;
+        if (mc.level == null || mc.player == null) return false;
 
-        // 如果已在播放，先停用
-        if (active) {
+        // 脚本间抢占控制：检查当前脚本的 interruptible 标志
+        if (active && scriptPlayer.isPlaying()) {
+            ScriptProperties currentProps = ScriptProperties.getCurrent();
+            if (currentProps != null && !currentProps.isInterruptible()) {
+                LOGGER.debug("脚本 {} 不可打断(interruptible=false)，拒绝新脚本: {}",
+                        scriptPlayer.getScriptId(), script.getId());
+                return false;
+            }
+            // 当前脚本可打断，先停用
             deactivateNow();
         }
 
@@ -129,6 +152,7 @@ public class CameraManager {
 
         // 启动脚本播放器
         scriptPlayer.start(script);
+        return true;
     }
 
     /**
@@ -232,12 +256,17 @@ public class CameraManager {
         OverlayManager.INSTANCE.update(deltaTime);
 
         // 自然结束前触发退场动画
+        // holdAtEnd=true 时不触发退场动画：相机应保持最后一帧，等待用户退出或新脚本打断
         if (!stopping && scriptPlayer.isPlaying()) {
-            float remaining = scriptPlayer.getRemainingTime();
-            float fadeOut = OverlayManager.INSTANCE.getLetterboxLayer().getFadeOut();
-            if (fadeOut > 0f && remaining > 0f && remaining <= fadeOut) {
-                OverlayManager.INSTANCE.startFadeOut();
-                stopping = true;
+            ScriptProperties currentProps = ScriptProperties.getCurrent();
+            boolean holdAtEnd = currentProps != null && currentProps.isHoldAtEnd();
+            if (!holdAtEnd) {
+                float remaining = scriptPlayer.getRemainingTime();
+                float fadeOut = OverlayManager.INSTANCE.getLetterboxLayer().getFadeOut();
+                if (fadeOut > 0f && remaining > 0f && remaining <= fadeOut) {
+                    OverlayManager.INSTANCE.startFadeOut();
+                    stopping = true;
+                }
             }
         }
 
@@ -253,8 +282,15 @@ public class CameraManager {
         }
 
         // 无 fade-out 的自然结束
+        // holdAtEnd 控制：播完后保持最后一帧，不自动退出
+        // 适用于固定视角区域，玩家持续处于脚本相机控制下
         if (!stopping && scriptPlayer.isPlaying() && scriptPlayer.isFinished()) {
-            deactivateNow();
+            ScriptProperties currentProps = ScriptProperties.getCurrent();
+            boolean holdAtEnd = currentProps != null && currentProps.isHoldAtEnd();
+            if (!holdAtEnd) {
+                deactivateNow();
+            }
+            // holdAtEnd=true: 保持当前相机状态，等待用户退出或新脚本打断
         }
     }
 

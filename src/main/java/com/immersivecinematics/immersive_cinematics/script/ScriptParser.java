@@ -108,7 +108,7 @@ public class ScriptParser {
             throw new ScriptParseException(p + ".version", "当前仅支持版本3，实际: " + version);
         }
 
-        // 运行时行为（14个布尔）
+        // 运行时行为（15个布尔）
         boolean blockKeyboard = optBool(metaObj, "block_keyboard", true);
         boolean blockMouse = optBool(metaObj, "block_mouse", true);
         boolean blockMobAi = optBool(metaObj, "block_mob_ai", false);
@@ -121,7 +121,12 @@ public class ScriptParser {
         boolean blockParticles = optBool(metaObj, "block_particles", false);
         boolean renderPlayerModel = optBool(metaObj, "render_player_model", true);
         boolean pauseWhenGamePaused = optBool(metaObj, "pause_when_game_paused", true);
+        // 退出控制三属性：
+        // interruptible — 脚本间抢占控制：是否允许被其他脚本打断（与用户退出无关）
         boolean interruptible = optBool(metaObj, "interruptible", true);
+        // skippable — 用户退出控制：是否允许用户长按退出键提前结束播放
+        boolean skippable = optBool(metaObj, "skippable", true);
+        // holdAtEnd — 播完保持控制：播完后是否保持最后一帧，而非自动退出
         boolean holdAtEnd = optBool(metaObj, "hold_at_end", false);
 
         // 脚本级插值（可选，null=LINEAR，不施加全局曲线）
@@ -143,7 +148,7 @@ public class ScriptParser {
                         hideHud, hideArm, suppressBob,
                         blockChat, blockScoreboard, blockActionBar,
                         blockParticles, renderPlayerModel,
-                        pauseWhenGamePaused, interruptible, holdAtEnd),
+                        pauseWhenGamePaused, interruptible, skippable, holdAtEnd),
                 scriptInterpolation, compositionMode);
     }
 

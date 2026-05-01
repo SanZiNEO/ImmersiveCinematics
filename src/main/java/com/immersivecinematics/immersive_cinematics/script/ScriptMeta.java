@@ -60,7 +60,10 @@ public class ScriptMeta {
     }
 
     /**
-     * 兼容旧构造器 — 从 20 个参数构建（内部转换为 RuntimeBehavior）
+     * 兼容旧构造器 — 从布尔参数构建（内部转换为 RuntimeBehavior）
+     * <p>
+     * 注意：此构造器缺少 skippable 参数，默认使用 true。
+     * 推荐使用 {@link RuntimeBehavior#builder()} 构建完整行为后调用主构造器。
      */
     public ScriptMeta(String id, String name, String author, int version, String description,
                       boolean blockKeyboard, boolean blockMouse, boolean blockMobAi,
@@ -74,7 +77,7 @@ public class ScriptMeta {
                         hideHud, hideArm, suppressBob,
                         blockChat, blockScoreboard, blockActionBar,
                         blockParticles, renderPlayerModel,
-                        pauseWhenGamePaused, interruptible, holdAtEnd),
+                        pauseWhenGamePaused, interruptible, true, holdAtEnd),
                 interpolation, null);
     }
 
@@ -102,7 +105,11 @@ public class ScriptMeta {
     public boolean isBlockParticles() { return behavior.blockParticles(); }
     public boolean isRenderPlayerModel() { return behavior.renderPlayerModel(); }
     public boolean isPauseWhenGamePaused() { return behavior.pauseWhenGamePaused(); }
+    /** 脚本间抢占控制：是否允许被其他脚本打断（与用户退出无关） */
     public boolean isInterruptible() { return behavior.interruptible(); }
+    /** 用户退出控制：是否允许用户长按退出键提前结束播放 */
+    public boolean isSkippable() { return behavior.skippable(); }
+    /** 播完保持控制：播完后是否保持最后一帧，而非自动退出 */
     public boolean isHoldAtEnd() { return behavior.holdAtEnd(); }
 
     // ========== 插值控制 Getter ==========
@@ -124,11 +131,23 @@ public class ScriptMeta {
     }
 
     /**
-     * 运行时行为值对象 — 14 个布尔标志位
+     * 运行时行为值对象 — 15 个布尔标志位
      * <p>
      * 使用 Java record 实现，不可变。
      * 默认值通过 {@link #DEFAULT} 常量提供。
      * Builder 模式通过 {@link #builder()} 获取。
+     * <p>
+     * 退出控制三属性（设计意图）：
+     * <ul>
+     *   <li>{@code interruptible} — 脚本间抢占控制：当前脚本是否允许被<b>其他脚本</b>打断。
+     *       例如：区域固定视角脚本（生化危机0式）可设为 false，防止其他脚本抢占。
+     *       这与用户退出无关，仅控制脚本间的优先级调度。</li>
+     *   <li>{@code skippable} — 用户退出控制：用户是否可以通过长按退出键提前结束脚本播放。
+     *       false 时用户无法通过按键退出，适用于强制观看的过场动画或固定视角玩法区域。</li>
+     *   <li>{@code holdAtEnd} — 播完保持控制：脚本自然播完后是否保持最后一帧相机状态，
+     *       而非自动退出。适用于固定视角区域，玩家在该区域内持续处于脚本相机控制下，
+     *       直到离开区域触发新脚本或用户按键退出（需 skippable=true）。</li>
+     * </ul>
      */
     public record RuntimeBehavior(
             boolean blockKeyboard,
@@ -143,14 +162,18 @@ public class ScriptMeta {
             boolean blockParticles,
             boolean renderPlayerModel,
             boolean pauseWhenGamePaused,
+            /** 脚本间抢占控制：是否允许被其他脚本打断（与用户退出无关） */
             boolean interruptible,
+            /** 用户退出控制：是否允许用户长按退出键提前结束播放 */
+            boolean skippable,
+            /** 播完保持控制：播完后是否保持最后一帧，而非自动退出 */
             boolean holdAtEnd
     ) {
         /** 默认运行时行为 */
         public static final RuntimeBehavior DEFAULT = new RuntimeBehavior(
                 true, true, false, true, true, true,
                 false, false, false, false, true,
-                true, true, false
+                true, true, true, false
         );
 
         /**
@@ -176,7 +199,11 @@ public class ScriptMeta {
             private boolean blockParticles = DEFAULT.blockParticles();
             private boolean renderPlayerModel = DEFAULT.renderPlayerModel();
             private boolean pauseWhenGamePaused = DEFAULT.pauseWhenGamePaused();
+            /** 脚本间抢占控制：是否允许被其他脚本打断 */
             private boolean interruptible = DEFAULT.interruptible();
+            /** 用户退出控制：是否允许用户长按退出键提前结束播放 */
+            private boolean skippable = DEFAULT.skippable();
+            /** 播完保持控制：播完后是否保持最后一帧 */
             private boolean holdAtEnd = DEFAULT.holdAtEnd();
 
             public Builder blockKeyboard(boolean v) { this.blockKeyboard = v; return this; }
@@ -191,7 +218,11 @@ public class ScriptMeta {
             public Builder blockParticles(boolean v) { this.blockParticles = v; return this; }
             public Builder renderPlayerModel(boolean v) { this.renderPlayerModel = v; return this; }
             public Builder pauseWhenGamePaused(boolean v) { this.pauseWhenGamePaused = v; return this; }
+            /** 脚本间抢占控制：是否允许被其他脚本打断 */
             public Builder interruptible(boolean v) { this.interruptible = v; return this; }
+            /** 用户退出控制：是否允许用户长按退出键提前结束播放 */
+            public Builder skippable(boolean v) { this.skippable = v; return this; }
+            /** 播完保持控制：播完后是否保持最后一帧 */
             public Builder holdAtEnd(boolean v) { this.holdAtEnd = v; return this; }
 
             public RuntimeBehavior build() {
@@ -200,7 +231,7 @@ public class ScriptMeta {
                         hideHud, hideArm, suppressBob,
                         blockChat, blockScoreboard, blockActionBar,
                         blockParticles, renderPlayerModel,
-                        pauseWhenGamePaused, interruptible, holdAtEnd
+                        pauseWhenGamePaused, interruptible, skippable, holdAtEnd
                 );
             }
         }
