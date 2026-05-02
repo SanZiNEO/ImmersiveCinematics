@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.level.BlockGetter;
@@ -132,7 +133,7 @@ public abstract class CameraMixin {
     private void onIsDetached(CallbackInfoReturnable<Boolean> cir) {
         CameraManager mgr = CameraManager.INSTANCE;
         if (mgr.isActive()) {
-            cir.setReturnValue(true);
+            cir.setReturnValue(CinematicController.INSTANCE.isRenderPlayerModel());
         }
     }
 }

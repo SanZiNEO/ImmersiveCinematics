@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.command;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException;
@@ -121,7 +122,7 @@ public class CinematicCommand {
 
         net.minecraft.client.Minecraft.getInstance().execute(() -> {
             boolean wasPlaying = CameraManager.INSTANCE.isActive();
-            CameraManager.INSTANCE.stopScript();
+            CameraManager.INSTANCE.requestExit(ExitReason.SYSTEM_STOP);
             var player = net.minecraft.client.Minecraft.getInstance().player;
             if (player != null) {
                 if (wasPlaying) {

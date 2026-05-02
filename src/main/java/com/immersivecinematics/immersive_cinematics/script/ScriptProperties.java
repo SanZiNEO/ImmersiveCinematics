@@ -1,7 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 /**
- * 脚本运行时属性 — 纯数据容器，消费 ScriptMeta 中的15个布尔标志位
+ * 脚本运行时属性 — 纯数据容器，消费 ScriptMeta 中的14个布尔标志位
  * <p>
  * 设计目标：
  * <ul>
@@ -36,7 +36,6 @@ public class ScriptProperties {
     private boolean blockChat = false;
     private boolean blockScoreboard = false;
     private boolean blockActionBar = false;
-    private boolean blockParticles = false;
     private boolean renderPlayerModel = true;
     private boolean pauseWhenGamePaused = true;
 
@@ -66,7 +65,6 @@ public class ScriptProperties {
         this.blockChat = meta.isBlockChat();
         this.blockScoreboard = meta.isBlockScoreboard();
         this.blockActionBar = meta.isBlockActionBar();
-        this.blockParticles = meta.isBlockParticles();
         this.renderPlayerModel = meta.isRenderPlayerModel();
         this.pauseWhenGamePaused = meta.isPauseWhenGamePaused();
         this.interruptible = meta.isInterruptible();
@@ -90,7 +88,6 @@ public class ScriptProperties {
         this.blockChat = defaults.blockChat();
         this.blockScoreboard = defaults.blockScoreboard();
         this.blockActionBar = defaults.blockActionBar();
-        this.blockParticles = defaults.blockParticles();
         this.renderPlayerModel = defaults.renderPlayerModel();
         this.pauseWhenGamePaused = defaults.pauseWhenGamePaused();
         this.interruptible = defaults.interruptible();
@@ -109,7 +106,6 @@ public class ScriptProperties {
     public boolean isBlockChat() { return blockChat; }
     public boolean isBlockScoreboard() { return blockScoreboard; }
     public boolean isBlockActionBar() { return blockActionBar; }
-    public boolean isBlockParticles() { return blockParticles; }
     public boolean isRenderPlayerModel() { return renderPlayerModel; }
     public boolean isPauseWhenGamePaused() { return pauseWhenGamePaused; }
 
