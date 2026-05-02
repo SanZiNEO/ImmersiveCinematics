@@ -67,20 +67,6 @@ public abstract class GameRendererMixin {
             ci.cancel();
         }
     }
-    }
-
-    /**
-     * 屏蔽跑动/行走摇晃
-     * <p>
-     * 根据 ScriptProperties.suppressBob 决定是否屏蔽
-     */
-    @Inject(method = "bobView", at = @At("HEAD"), cancellable = true)
-    private void onBobView(PoseStack poseStack, float partialTick, CallbackInfo ci) {
-        ScriptProperties props = CameraManager.INSTANCE.getCurrentProperties();
-        if (props != null && props.isSuppressBob()) {
-            ci.cancel();
-        }
-    }
 
     /**
      * 屏蔽反胃/下界传送门旋转扭曲效果

@@ -4,7 +4,7 @@ import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.client.ClientRegistry;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import org.lwjgl.glfw.GLFW;
 
 public class CinematicKeyBindings {
@@ -18,8 +18,8 @@ public class CinematicKeyBindings {
     private static final long SKIP_HOLD_THRESHOLD_MS = 500;
     private static long skipKeyDownSince = 0;
 
-    public static void register() {
-        ClientRegistry.registerKeyBinding(SKIP_KEY);
+    public static void register(RegisterKeyMappingsEvent event) {
+        event.register(SKIP_KEY);
     }
 
     public static void onClientTick() {
