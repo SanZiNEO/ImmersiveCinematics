@@ -40,21 +40,21 @@ public interface TrackPlayer {
 
     /**
      * 工厂方法 — 根据轨道类型创建对应的 TrackPlayer
+     * <p>
+     * 速度驱动模型下，插值控制已下放到片段级（CameraClip.speed/interpolation），
+     * 脚本级不再传递插值参数。
      *
      * @param track               时间轴轨道
      * @param originPos           相对模式基准位置
      * @param cameraManager       相机管理器（Camera 轨道需要）
      * @param overlayManager      覆盖层管理器（Letterbox 轨道需要）
-     * @param scriptInterpolation 脚本级插值类型（Camera 轨道需要），null=LINEAR
-     * @param compositionMode     曲线组合模式（Camera 轨道需要），null=OVERRIDE
      * @return 对应的 TrackPlayer 实例
      */
     static TrackPlayer create(TimelineTrack track, Vec3 originPos,
                               com.immersivecinematics.immersive_cinematics.camera.CameraManager cameraManager,
-                              com.immersivecinematics.immersive_cinematics.overlay.OverlayManager overlayManager,
-                              InterpolationType scriptInterpolation, CurveCompositionMode compositionMode) {
+                              com.immersivecinematics.immersive_cinematics.overlay.OverlayManager overlayManager) {
         return switch (track.getType()) {
-            case CAMERA -> new CameraTrackPlayer(track, originPos, cameraManager, scriptInterpolation, compositionMode);
+            case CAMERA -> new CameraTrackPlayer(track, originPos, cameraManager);
             case LETTERBOX -> new LetterboxTrackPlayer(track, overlayManager);
             case AUDIO -> new AudioTrackPlayer(track);
             case MOD_EVENT -> new ModEventTrackPlayer(track);

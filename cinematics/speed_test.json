@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "id": "speed_test",
+    "name": "速度曲线测试",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "测试速度曲线效果 — 10秒内沿X轴移动60格，各段speed值不同，直观对比运动节奏",
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 10.5,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "transition": "cut",
+            "speed": 1.0,
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,  "position": { "dx": 0,  "dy": 1.6, "dz": 0 },  "yaw": -90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0, "speed": 1.0, "curve_bias": 0.0 },
+              { "time": 2,  "position": { "dx": 10, "dy": 1.6, "dz": 0 }, "yaw": -90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0, "speed": 1.0, "curve_bias": 0.0 },
+              { "time": 4,  "position": { "dx": 20, "dy": 1.6, "dz": 0 }, "yaw": -90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0, "speed": 0.3, "curve_bias": 0.0 },
+              { "time": 6,  "position": { "dx": 30, "dy": 1.6, "dz": 0 }, "yaw": -90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0, "speed": 2.0, "curve_bias": 0.0 },
+              { "time": 8,  "position": { "dx": 40, "dy": 1.6, "dz": 0 }, "yaw": -90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0, "speed": 2.0, "curve_bias": 0.0 },
+              { "time": 10, "position": { "dx": 60, "dy": 1.6, "dz": 0 }, "yaw": -90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0, "speed": 0.5, "curve_bias": 0.0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

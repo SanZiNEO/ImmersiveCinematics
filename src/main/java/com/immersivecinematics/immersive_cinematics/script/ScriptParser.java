@@ -129,19 +129,8 @@ public class ScriptParser {
         // holdAtEnd — 播完保持控制：播完后是否保持最后一帧，而非自动退出
         boolean holdAtEnd = optBool(metaObj, "hold_at_end", false);
 
-        // 脚本级插值（可选，null=LINEAR，不施加全局曲线）
-        InterpolationType scriptInterpolation = null;
-        if (metaObj.has("interpolation")) {
-            scriptInterpolation = parseInterpolationType(
-                    metaObj.get("interpolation").getAsString(), p + ".interpolation");
-        }
-
-        // 曲线组合模式（可选，null=OVERRIDE）
-        CurveCompositionMode compositionMode = null;
-        if (metaObj.has("curve_composition_mode")) {
-            compositionMode = parseCurveCompositionMode(
-                    metaObj.get("curve_composition_mode").getAsString(), p + ".curve_composition_mode");
-        }
+        // meta 级别的 interpolation/curve_composition_mode 已移除——
+        // 速度曲线控制下放到片段级 (CameraClip.speed/interpolation) 和属性级 (PropertyOverride)
 
         ScriptMeta.RuntimeBehavior behavior = ScriptMeta.RuntimeBehavior.builder()
                 .blockKeyboard(blockKeyboard)
@@ -161,8 +150,7 @@ public class ScriptParser {
                 .holdAtEnd(holdAtEnd)
                 .build();
 
-        return new ScriptMeta(id, name, author, version, description,
-                behavior, scriptInterpolation, compositionMode);
+        return new ScriptMeta(id, name, author, version, description, behavior);
     }
 
     // ========== Timeline 解析 ==========
@@ -227,10 +215,9 @@ public class ScriptParser {
         TransitionType transition = parseTransitionType(
                 optString(obj, "transition", "cut"), p + ".transition");
         float crossfadeDuration = optFloat(obj, "crossfade_duration", 0.5f);
+        float speed = optFloat(obj, "speed", 1.0f);
         InterpolationType interpolation = parseInterpolationType(
-                optString(obj, "interpolation", "smooth"), p + ".interpolation");
-        InterpolationScope interpolationScope = parseInterpolationScope(
-                optString(obj, "interpolation_scope", "segment"), p + ".interpolation_scope");
+                optString(obj, "interpolation", "linear"), p + ".interpolation");
         BezierCurve curve = obj.has("curve") ? parseBezierCurve(obj.getAsJsonObject("curve"), p + ".curve") : null;
         boolean positionModeRelative = "relative".equals(optString(obj, "position_mode", "relative"));
         boolean loop = optBool(obj, "loop", false);
@@ -241,6 +228,17 @@ public class ScriptParser {
         List<CameraKeyframe> keyframes = new ArrayList<>();
         for (int i = 0; i < kfArr.size(); i++) {
             keyframes.add(parseCameraKeyframe(kfArr.get(i).getAsJsonObject(), p + ".keyframes[" + i + "]", positionModeRelative));
+        }
+
+        // 解析属性级速度覆盖（可选）
+        Map<String, PropertyOverride> propertyOverrides = new HashMap<>();
+        if (obj.has("property_overrides")) {
+            JsonObject poObj = obj.getAsJsonObject("property_overrides");
+            for (Map.Entry<String, JsonElement> entry : poObj.entrySet()) {
+                String propName = entry.getKey();
+                propertyOverrides.put(propName, parsePropertyOverride(
+                        entry.getValue().getAsJsonObject(), p + ".property_overrides." + propName));
+            }
         }
 
         // 验证
@@ -263,7 +261,23 @@ public class ScriptParser {
         }
 
         return new CameraClip(startTime, duration, transition, crossfadeDuration,
-                interpolation, interpolationScope, curve, positionModeRelative, loop, loopCount, keyframes);
+                speed, interpolation, curve, positionModeRelative, loop, loopCount, keyframes, propertyOverrides);
+    }
+
+    private static PropertyOverride parsePropertyOverride(JsonObject obj, String p) throws ScriptParseException {
+        InterpolationType interpolation = parseInterpolationType(
+                optString(obj, "interpolation", "linear"), p + ".interpolation");
+        JsonArray kfArr = requireArray(obj, p, "keyframes");
+        List<PropertyOverride.SpeedKeyframe> keyframes = new ArrayList<>();
+        for (int i = 0; i < kfArr.size(); i++) {
+            JsonObject kfObj = kfArr.get(i).getAsJsonObject();
+            String kp = p + ".keyframes[" + i + "]";
+            float time = requireFloat(kfObj, kp, "time");
+            float speed = optFloat(kfObj, "speed", 1.0f);
+            float curveBias = optFloat(kfObj, "curve_bias", 0.0f);
+            keyframes.add(new PropertyOverride.SpeedKeyframe(time, speed, curveBias));
+        }
+        return new PropertyOverride(interpolation, keyframes);
     }
 
     // ========== CameraKeyframe 解析 ==========
@@ -277,19 +291,14 @@ public class ScriptParser {
         float fov = requireFloat(obj, p, "fov");
         float zoom = optFloat(obj, "zoom", 1.0f);
         float dof = optFloat(obj, "dof", 0f);
-
-        // 逐关键帧插值覆盖（可选，null=使用 clip 默认）
-        InterpolationType keyframeInterpolation = null;
-        if (obj.has("interpolation")) {
-            keyframeInterpolation = parseInterpolationType(
-                    obj.get("interpolation").getAsString(), p + ".interpolation");
-        }
+        float speed = optFloat(obj, "speed", 1.0f);
+        float curveBias = optFloat(obj, "curve_bias", 0.0f);
 
         if (time < 0) {
             throw new ScriptParseException(p + ".time", "不能为负数: " + time);
         }
 
-        return new CameraKeyframe(time, position, yaw, pitch, roll, fov, zoom, dof, keyframeInterpolation);
+        return new CameraKeyframe(time, position, yaw, pitch, roll, fov, zoom, dof, speed, curveBias);
     }
 
     // ========== PositionData 解析 ==========
@@ -477,26 +486,8 @@ public class ScriptParser {
         try {
             return InterpolationType.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new ScriptParseException(p, "未知的插值类型: " + value +
-                    "，支持: linear/smooth/ease_in/ease_out/ease_in_out");
-        }
-    }
-
-    private static InterpolationScope parseInterpolationScope(String value, String p) throws ScriptParseException {
-        try {
-            return InterpolationScope.valueOf(value.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new ScriptParseException(p, "未知的插值作用域: " + value +
-                    "，支持: clip/segment");
-        }
-    }
-
-    private static CurveCompositionMode parseCurveCompositionMode(String value, String p) throws ScriptParseException {
-        try {
-            return CurveCompositionMode.valueOf(value.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new ScriptParseException(p, "未知的曲线组合模式: " + value +
-                    "，支持: override/composed");
+            throw new ScriptParseException(p, "未知的速度曲线类型: " + value +
+                    "，支持: linear/smooth");
         }
     }
 

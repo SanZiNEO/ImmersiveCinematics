@@ -8,10 +8,12 @@ import java.util.List;
 /**
  * Camera 轨道播放器 — 从 ScriptPlayer.processCameraTrack() 抽取
  * <p>
+ * 速度驱动模型下，所有插值控制由片段级的 speed/interpolation/property_overrides 决定。
+ * <p>
  * 职责：
  * <ul>
  *   <li>定位当前活跃的 CameraClip</li>
- *   <li>调用 KeyframeInterpolator 计算相机状态</li>
+ *   <li>调用 KeyframeInterpolator 计算速度积分驱动的相机状态</li>
  *   <li>将结果写入注入的 CameraManager</li>
  * </ul>
  */
@@ -20,19 +22,14 @@ public class CameraTrackPlayer implements TrackPlayer {
     private final List<CameraClip> clips;
     private final Vec3 originPos;
     private final CameraManager cameraManager;
-    private final InterpolationType scriptInterpolation;
-    private final CurveCompositionMode curveCompositionMode;
 
     /** 缓存上一帧匹配的 clip 索引，用于优化顺序播放时的搜索 */
     private int lastClipIndex = 0;
 
-    public CameraTrackPlayer(TimelineTrack track, Vec3 originPos, CameraManager cameraManager,
-                             InterpolationType scriptInterpolation, CurveCompositionMode curveCompositionMode) {
+    public CameraTrackPlayer(TimelineTrack track, Vec3 originPos, CameraManager cameraManager) {
         this.clips = track.getCameraClips();
         this.originPos = originPos;
         this.cameraManager = cameraManager;
-        this.scriptInterpolation = scriptInterpolation;
-        this.curveCompositionMode = curveCompositionMode;
     }
 
     @Override
@@ -49,21 +46,22 @@ public class CameraTrackPlayer implements TrackPlayer {
 
         float clipLocalTime = globalTime - activeClip.getStartTime();
 
-        // 计算插值（根据 curveCompositionMode 选择覆盖/组合模式）
+        // 计算速度积分驱动的插值
         KeyframeInterpolator.InterpolationResult result =
-                KeyframeInterpolator.computeInterpolation(clipLocalTime, activeClip,
-                        scriptInterpolation, curveCompositionMode);
+                KeyframeInterpolator.computeInterpolation(clipLocalTime, activeClip);
 
         if (result == null) return;
 
-        // 插值所有属性（KeyframeInterpolator 已保证输出合法，无需额外 sanitize）
-        Vec3 pos = KeyframeInterpolator.interpolatePosition(result.from, result.to, result.adjustedT, activeClip);
-        float yaw = KeyframeInterpolator.interpolateYaw(result.from, result.to, result.adjustedT);
-        float pitch = KeyframeInterpolator.interpolatePitch(result.from, result.to, result.adjustedT);
-        float roll = KeyframeInterpolator.interpolateRoll(result.from, result.to, result.adjustedT);
-        float fov = KeyframeInterpolator.interpolateFov(result.from, result.to, result.adjustedT);
-        float zoom = KeyframeInterpolator.interpolateZoom(result.from, result.to, result.adjustedT);
-        float dof = KeyframeInterpolator.interpolateDof(result.from, result.to, result.adjustedT);
+        float s = result.adjustedT;
+
+        // 插值所有属性（使用速度积分进度 s）
+        Vec3 pos = KeyframeInterpolator.interpolatePosition(result.from, result.to, s, activeClip);
+        float yaw = KeyframeInterpolator.interpolateYaw(result.from, result.to, s);
+        float pitch = KeyframeInterpolator.interpolatePitch(result.from, result.to, s);
+        float roll = KeyframeInterpolator.interpolateRoll(result.from, result.to, s);
+        float fov = KeyframeInterpolator.interpolateFov(result.from, result.to, s);
+        float zoom = KeyframeInterpolator.interpolateZoom(result.from, result.to, s);
+        float dof = KeyframeInterpolator.interpolateDof(result.from, result.to, s);
 
         // 相对模式：加上玩家基准位置
         if (activeClip.isPositionModeRelative()) {
