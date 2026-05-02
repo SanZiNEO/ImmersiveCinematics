@@ -61,6 +61,16 @@ public final class MathUtil {
     }
 
     /**
+     * 平滑缓入缓出（五次 Hermite：6t⁵ - 15t⁴ + 10t³）
+     * <p>
+     * 比 smooth (3t²-2t³) 的一阶/二阶导数在端点处均为零，
+     * 过渡更平缓，适合摄影机运动等对平滑度要求更高的场景。
+     */
+    public static float smooth5(float t) {
+        return t * t * t * (t * (t * 6f - 15f) + 10f);
+    }
+
+    /**
      * 缓入曲线（二次：t²）
      * <p>
      * 起步慢，结束快。适合需要从静止加速的镜头运动。

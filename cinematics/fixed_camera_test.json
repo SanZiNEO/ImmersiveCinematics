@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "id": "fixed_camera_test",
+    "name": "固定机位 — 运行时属性测试",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "测试所有运行时布尔属性。修改 meta 中的属性值后重跑脚本即可验证对应效果。相机固定不动，便于聚焦属性变化",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "block_mob_ai": true,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "hide_chat": true,
+    "hide_scoreboard": true,
+    "hide_action_bar": true,
+    "render_player_model": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 30,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "transition": "cut",
+            "speed": 1.0,
+            "interpolation": "linear",
+            "position_mode": "absolute",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,  "position": { "x": -212, "y": -50, "z": 56 }, "yaw": 135, "pitch": 15, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0, "speed": 1.0, "curve_bias": 0.0 },
+              { "time": 30, "position": { "x": -212, "y": -50, "z": 56 }, "yaw": 135, "pitch": 15, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0, "speed": 1.0, "curve_bias": 0.0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

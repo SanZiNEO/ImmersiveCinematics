@@ -11,11 +11,12 @@ public class CinematicKeyBindings {
 
     public static final KeyMapping SKIP_KEY = new KeyMapping(
         "key.immersive_cinematics.skip",
-        GLFW.GLFW_KEY_ESCAPE,
+        InputConstants.Type.KEYSYM,
+        GLFW.GLFW_KEY_C,
         "key.categories.immersive_cinematics"
     );
 
-    private static final long SKIP_HOLD_THRESHOLD_MS = 500;
+    private static final long SKIP_HOLD_THRESHOLD_MS = 3000;
     private static long skipKeyDownSince = 0;
 
     public static void register(RegisterKeyMappingsEvent event) {
@@ -29,7 +30,12 @@ public class CinematicKeyBindings {
             return;
         }
 
-        if (SKIP_KEY.isDown()) {
+        // 跳过键强制绑定到 C 键，使用原始 GLFW 状态检测
+        // 不依赖 KeyMapping.getKey()（Minecraft 会从 options.txt 覆盖默认值导致旧绑定残留）
+        long window = Minecraft.getInstance().getWindow().getWindow();
+        boolean skipDown = InputConstants.isKeyDown(window, GLFW.GLFW_KEY_C);
+
+        if (skipDown) {
             if (skipKeyDownSince == 0) {
                 skipKeyDownSince = System.currentTimeMillis();
             } else if (System.currentTimeMillis() - skipKeyDownSince >= SKIP_HOLD_THRESHOLD_MS) {
@@ -42,7 +48,7 @@ public class CinematicKeyBindings {
             skipKeyDownSince = 0;
         }
 
-        long window = Minecraft.getInstance().getWindow().getWindow();
+        // Ctrl+P 强制退出 — 同样使用原始 GLFW 状态
         boolean ctrlDown = InputConstants.isKeyDown(window, GLFW.GLFW_KEY_LEFT_CONTROL)
                         || InputConstants.isKeyDown(window, GLFW.GLFW_KEY_RIGHT_CONTROL);
         boolean pDown = InputConstants.isKeyDown(window, GLFW.GLFW_KEY_P);

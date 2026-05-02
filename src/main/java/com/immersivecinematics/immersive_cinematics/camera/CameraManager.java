@@ -7,6 +7,7 @@ import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.script.ScriptProperties;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -106,21 +107,33 @@ public class CameraManager {
 
     // ========== 脚本播放模式 ==========
 
-    public boolean playScript(CinematicScript script) {
+    /**
+     * 播放或排队脚本
+     *
+     * @return 0=被拒绝, 1=已开始播放, 2=已排队等待
+     */
+    public int playScript(CinematicScript script) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || mc.player == null) return false;
+        if (mc.level == null || mc.player == null) return 0;
 
         if (active && scriptPlayer.isPlaying()) {
             boolean canInterrupt = requestExit(ExitReason.INTERRUPTED);
             if (!canInterrupt) {
-                return false;
+                // 不可打断: 排队等待当前脚本自然结束后播放
+                pendingScript = script;
+                return 2;
             }
             pendingScript = script;
-            return true;
+            return 2;
         }
 
         startScriptInternal(script);
-        return true;
+        return 1;
+    }
+
+    /** 是否有脚本在排队等待播放 */
+    public boolean hasPendingScript() {
+        return pendingScript != null;
     }
 
     public void stopScript() {
@@ -138,6 +151,10 @@ public class CameraManager {
     private void startScriptInternal(CinematicScript script) {
         Minecraft mc = Minecraft.getInstance();
         Vec3 playerPos = mc.player.position();
+
+        // 脚本开始时中断所有持续输入（键盘 + 鼠标）
+        // 用户即使还按着 W/右键，角色也立即停止，不受屏蔽前状态影响
+        KeyMapping.releaseAll();
 
         activePath.setPositionDirect(playerPos);
         activeProperties.setYawDirect(mc.player.getYRot());
@@ -256,6 +273,10 @@ public class CameraManager {
         stopping = false;
         gameTimeSeconds = 0;
         lastRealNanos = 0;
+
+        // 释放所有按键（键盘 + 鼠标），模拟玩家松开了所有按键
+        // 之后若玩家仍按住某个键，下一帧的 GLFW 输入事件会重新按下
+        KeyMapping.releaseAll();
 
         CompletionReason reason = pendingCompletionReason;
         pendingCompletionReason = CompletionReason.FINISHED;

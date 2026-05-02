@@ -99,10 +99,14 @@ public class CinematicCommand {
 
         // 在客户端线程执行播放（命令在服务端线程执行）
         net.minecraft.client.Minecraft.getInstance().execute(() -> {
-            boolean ok = CameraManager.INSTANCE.playScript(script);
+            int result = CameraManager.INSTANCE.playScript(script);
             var player = net.minecraft.client.Minecraft.getInstance().player;
             if (player != null) {
-                if (ok) {
+                if (result == 2) {
+                    player.displayClientMessage(
+                            Component.literal("§e脚本已排队: §f" + script.getName() +
+                                    " §7(将在当前脚本结束后自动播放)"), false);
+                } else if (result == 1) {
                     player.displayClientMessage(
                             Component.literal("§a脚本播放开始: §f" + script.getName() +
                                     " §7(总时长: " + script.getTotalDuration() + "s)"), false);
