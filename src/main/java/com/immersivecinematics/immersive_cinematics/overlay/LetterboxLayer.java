@@ -15,7 +15,7 @@ import net.minecraft.client.gui.GuiGraphics;
  *   <li>入场（FADE_IN）：黑边从 0 高度缓动到目标高度，产生"锁定"感</li>
  *   <li>退场（FADE_OUT）：黑边从目标高度缓动到 0，产生"交还操控"感</li>
  * </ul>
- * 缓动函数：smooth(t) = 3t² - 2t³（Hermite 插值，缓入缓出）
+ * 缓动函数：smooth5(t) = 6t⁵ - 15t⁴ + 10t³（五次 Hermite，更平滑的缓入缓出）
  * <p>
  * 算法：
  * <ol>
@@ -71,7 +71,7 @@ public class LetterboxLayer implements OverlayLayer {
             float targetBarHeight = (screenHeight - contentHeight) / 2.0f;
 
             // 用缓动后的 progress 缩放黑边高度
-            float easedProgress = MathUtil.smooth(progress);
+            float easedProgress = MathUtil.smooth5(progress);
             float animatedBarHeight = targetBarHeight * easedProgress;
 
             int topBarBottom = Math.round(animatedBarHeight);
@@ -100,7 +100,6 @@ public class LetterboxLayer implements OverlayLayer {
         switch (transitionState) {
             case FADE_IN -> {
                 if (fadeIn <= 0f) {
-                    // 无动画，直接到可见
                     progress = 1f;
                     transitionState = TransitionState.VISIBLE;
                 } else {
@@ -113,20 +112,16 @@ public class LetterboxLayer implements OverlayLayer {
             }
             case FADE_OUT -> {
                 if (fadeOut <= 0f) {
-                    // 无动画，直接隐藏
                     progress = 0f;
                     transitionState = TransitionState.HIDDEN;
-                    targetAspectRatio = 0f;
                 } else {
                     progress -= deltaTime / fadeOut;
                     if (progress <= 0f) {
                         progress = 0f;
                         transitionState = TransitionState.HIDDEN;
-                        targetAspectRatio = 0f;
                     }
                 }
             }
-            // HIDDEN / VISIBLE: 不需要更新
         }
     }
 

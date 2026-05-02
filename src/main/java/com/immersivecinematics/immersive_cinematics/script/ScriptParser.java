@@ -115,9 +115,13 @@ public class ScriptParser {
         boolean hideHud = optBool(metaObj, "hide_hud", true);
         boolean hideArm = optBool(metaObj, "hide_arm", true);
         boolean suppressBob = optBool(metaObj, "suppress_bob", true);
-        boolean blockChat = optBool(metaObj, "block_chat", false);
-        boolean blockScoreboard = optBool(metaObj, "block_scoreboard", false);
-        boolean blockActionBar = optBool(metaObj, "block_action_bar", false);
+        Boolean hideChat = metaObj.has("hide_chat") ? metaObj.get("hide_chat").getAsBoolean() : null;
+        Boolean hideScoreboard = metaObj.has("hide_scoreboard") ? metaObj.get("hide_scoreboard").getAsBoolean() : null;
+        Boolean hideActionBar = metaObj.has("hide_action_bar") ? metaObj.get("hide_action_bar").getAsBoolean() : null;
+        Boolean hideTitle = metaObj.has("hide_title") ? metaObj.get("hide_title").getAsBoolean() : null;
+        Boolean hideSubtitles = metaObj.has("hide_subtitles") ? metaObj.get("hide_subtitles").getAsBoolean() : null;
+        Boolean hideHotbar = metaObj.has("hide_hotbar") ? metaObj.get("hide_hotbar").getAsBoolean() : null;
+        Boolean hideCrosshair = metaObj.has("hide_crosshair") ? metaObj.get("hide_crosshair").getAsBoolean() : null;
         boolean renderPlayerModel = optBool(metaObj, "render_player_model", true);
         boolean pauseWhenGamePaused = optBool(metaObj, "pause_when_game_paused", true);
         // 退出控制三属性：
@@ -138,9 +142,13 @@ public class ScriptParser {
                 .hideHud(hideHud)
                 .hideArm(hideArm)
                 .suppressBob(suppressBob)
-                .blockChat(blockChat)
-                .blockScoreboard(blockScoreboard)
-                .blockActionBar(blockActionBar)
+                .hideChat(hideChat)
+                .hideScoreboard(hideScoreboard)
+                .hideActionBar(hideActionBar)
+                .hideTitle(hideTitle)
+                .hideSubtitles(hideSubtitles)
+                .hideHotbar(hideHotbar)
+                .hideCrosshair(hideCrosshair)
                 .renderPlayerModel(renderPlayerModel)
                 .pauseWhenGamePaused(pauseWhenGamePaused)
                 .interruptible(interruptible)

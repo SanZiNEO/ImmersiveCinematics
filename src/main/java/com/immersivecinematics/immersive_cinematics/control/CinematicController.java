@@ -14,9 +14,13 @@ public class CinematicController {
     private boolean blockMouse = true;
 
     private boolean hideHud = true;
-    private boolean blockChat = false;
-    private boolean blockScoreboard = false;
-    private boolean blockActionBar = false;
+    private Boolean hideChat = null;
+    private Boolean hideScoreboard = null;
+    private Boolean hideActionBar = null;
+    private Boolean hideTitle = null;
+    private Boolean hideSubtitles = null;
+    private Boolean hideHotbar = null;
+    private Boolean hideCrosshair = null;
 
     private boolean hideArm = true;
     private boolean suppressBob = true;
@@ -32,9 +36,13 @@ public class CinematicController {
         this.blockKeyboard = props.isBlockKeyboard();
         this.blockMouse = props.isBlockMouse();
         this.hideHud = props.isHideHud();
-        this.blockChat = props.isBlockChat();
-        this.blockScoreboard = props.isBlockScoreboard();
-        this.blockActionBar = props.isBlockActionBar();
+        this.hideChat = props.isHideChat();
+        this.hideScoreboard = props.isHideScoreboard();
+        this.hideActionBar = props.isHideActionBar();
+        this.hideTitle = props.isHideTitle();
+        this.hideSubtitles = props.isHideSubtitles();
+        this.hideHotbar = props.isHideHotbar();
+        this.hideCrosshair = props.isHideCrosshair();
         this.hideArm = props.isHideArm();
         this.suppressBob = props.isSuppressBob();
         this.renderPlayerModel = props.isRenderPlayerModel();
@@ -49,9 +57,13 @@ public class CinematicController {
         this.blockKeyboard = true;
         this.blockMouse = true;
         this.hideHud = true;
-        this.blockChat = false;
-        this.blockScoreboard = false;
-        this.blockActionBar = false;
+        this.hideChat = null;
+        this.hideScoreboard = null;
+        this.hideActionBar = null;
+        this.hideTitle = null;
+        this.hideSubtitles = null;
+        this.hideHotbar = null;
+        this.hideCrosshair = null;
         this.hideArm = true;
         this.suppressBob = true;
         this.renderPlayerModel = true;
@@ -65,9 +77,13 @@ public class CinematicController {
     public boolean isBlockKeyboard() { return blockKeyboard; }
     public boolean isBlockMouse() { return blockMouse; }
     public boolean isHideHud() { return hideHud; }
-    public boolean isBlockChat() { return blockChat; }
-    public boolean isBlockScoreboard() { return blockScoreboard; }
-    public boolean isBlockActionBar() { return blockActionBar; }
+    public Boolean isHideChat() { return hideChat; }
+    public Boolean isHideScoreboard() { return hideScoreboard; }
+    public Boolean isHideActionBar() { return hideActionBar; }
+    public Boolean isHideTitle() { return hideTitle; }
+    public Boolean isHideSubtitles() { return hideSubtitles; }
+    public Boolean isHideHotbar() { return hideHotbar; }
+    public Boolean isHideCrosshair() { return hideCrosshair; }
     public boolean isHideArm() { return hideArm; }
     public boolean isSuppressBob() { return suppressBob; }
     public boolean isRenderPlayerModel() { return renderPlayerModel; }
