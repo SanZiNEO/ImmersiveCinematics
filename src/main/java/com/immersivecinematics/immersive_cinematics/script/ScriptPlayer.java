@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
@@ -79,7 +80,6 @@ public class ScriptPlayer {
         ScriptMeta meta = script.getMeta();
         properties.apply(meta);
         currentProperties = properties;
-        CameraManager.INSTANCE.setPauseWhenGamePaused(properties.isPauseWhenGamePaused());
 
         // 创建 TrackPlayer 实例
         trackPlayers = new ArrayList<>();
@@ -108,10 +108,12 @@ public class ScriptPlayer {
 
     /**
      * 停止脚本播放
+     *
+     * @param reason 完成原因
      */
-    public void stop() {
+    public void stop(CompletionReason reason) {
         if (script != null) {
-            LOGGER.info("脚本播放停止: {}", script.getName());
+            LOGGER.info("脚本播放停止: {} (原因: {})", script.getName(), reason);
         }
 
         // 通知所有 TrackPlayer 停止

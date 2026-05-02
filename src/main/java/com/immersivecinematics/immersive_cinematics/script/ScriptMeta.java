@@ -48,6 +48,8 @@ public class ScriptMeta {
 
     public boolean isBlockKeyboard() { return behavior.blockKeyboard(); }
     public boolean isBlockMouse() { return behavior.blockMouse(); }
+    /** @deprecated 需要 C/S 架构，当前纯客户端无法实现 */
+    @Deprecated
     public boolean isBlockMobAi() { return behavior.blockMobAi(); }
     public boolean isHideHud() { return behavior.hideHud(); }
     public boolean isHideArm() { return behavior.hideArm(); }
@@ -55,7 +57,6 @@ public class ScriptMeta {
     public boolean isBlockChat() { return behavior.blockChat(); }
     public boolean isBlockScoreboard() { return behavior.blockScoreboard(); }
     public boolean isBlockActionBar() { return behavior.blockActionBar(); }
-    public boolean isBlockParticles() { return behavior.blockParticles(); }
     public boolean isRenderPlayerModel() { return behavior.renderPlayerModel(); }
     public boolean isPauseWhenGamePaused() { return behavior.pauseWhenGamePaused(); }
     /** 脚本间抢占控制：是否允许被其他脚本打断（与用户退出无关） */
@@ -72,7 +73,7 @@ public class ScriptMeta {
     }
 
     /**
-     * 运行时行为值对象 — 15 个布尔标志位
+     * 运行时行为值对象 — 14 个布尔标志位 + 1 个已弃用 (blockMobAi)
      * <p>
      * 使用 Java record 实现，不可变。
      * 默认值通过 {@link #DEFAULT} 常量提供。
@@ -93,6 +94,8 @@ public class ScriptMeta {
     public record RuntimeBehavior(
             boolean blockKeyboard,
             boolean blockMouse,
+            /** @deprecated 需要 C/S 架构，当前纯客户端无法实现 */
+            @Deprecated
             boolean blockMobAi,
             boolean hideHud,
             boolean hideArm,
@@ -100,7 +103,6 @@ public class ScriptMeta {
             boolean blockChat,
             boolean blockScoreboard,
             boolean blockActionBar,
-            boolean blockParticles,
             boolean renderPlayerModel,
             boolean pauseWhenGamePaused,
             /** 脚本间抢占控制：是否允许被其他脚本打断（与用户退出无关） */
@@ -113,7 +115,7 @@ public class ScriptMeta {
         /** 默认运行时行为 */
         public static final RuntimeBehavior DEFAULT = new RuntimeBehavior(
                 true, true, false, true, true, true,
-                false, false, false, false, true,
+                false, false, false, true,
                 true, true, true, false
         );
 
@@ -137,7 +139,6 @@ public class ScriptMeta {
             private boolean blockChat = DEFAULT.blockChat();
             private boolean blockScoreboard = DEFAULT.blockScoreboard();
             private boolean blockActionBar = DEFAULT.blockActionBar();
-            private boolean blockParticles = DEFAULT.blockParticles();
             private boolean renderPlayerModel = DEFAULT.renderPlayerModel();
             private boolean pauseWhenGamePaused = DEFAULT.pauseWhenGamePaused();
             /** 脚本间抢占控制：是否允许被其他脚本打断 */
@@ -156,7 +157,6 @@ public class ScriptMeta {
             public Builder blockChat(boolean v) { this.blockChat = v; return this; }
             public Builder blockScoreboard(boolean v) { this.blockScoreboard = v; return this; }
             public Builder blockActionBar(boolean v) { this.blockActionBar = v; return this; }
-            public Builder blockParticles(boolean v) { this.blockParticles = v; return this; }
             public Builder renderPlayerModel(boolean v) { this.renderPlayerModel = v; return this; }
             public Builder pauseWhenGamePaused(boolean v) { this.pauseWhenGamePaused = v; return this; }
             /** 脚本间抢占控制：是否允许被其他脚本打断 */
@@ -171,7 +171,7 @@ public class ScriptMeta {
                         blockKeyboard, blockMouse, blockMobAi,
                         hideHud, hideArm, suppressBob,
                         blockChat, blockScoreboard, blockActionBar,
-                        blockParticles, renderPlayerModel,
+                        renderPlayerModel,
                         pauseWhenGamePaused, interruptible, skippable, holdAtEnd
                 );
             }

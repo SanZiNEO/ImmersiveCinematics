@@ -1,7 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
-import com.immersivecinematics.immersive_cinematics.script.ScriptProperties;
+import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.util.Mth;
@@ -42,8 +42,7 @@ public abstract class GameRendererMixin {
      */
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void onRenderItemInHand(CallbackInfo ci) {
-        ScriptProperties props = CameraManager.INSTANCE.getCurrentProperties();
-        if (props != null && props.isHideArm()) {
+        if (CameraManager.INSTANCE.isActive() && CinematicController.INSTANCE.isHideArm()) {
             ci.cancel();
         }
     }
@@ -57,10 +56,17 @@ public abstract class GameRendererMixin {
      */
     @Inject(method = "bobHurt", at = @At("HEAD"), cancellable = true)
     private void onBobHurt(PoseStack poseStack, float partialTick, CallbackInfo ci) {
-        ScriptProperties props = CameraManager.INSTANCE.getCurrentProperties();
-        if (props != null && props.isSuppressBob()) {
+        if (CameraManager.INSTANCE.isActive() && CinematicController.INSTANCE.isSuppressBob()) {
             ci.cancel();
         }
+    }
+
+    @Inject(method = "bobView", at = @At("HEAD"), cancellable = true)
+    private void onBobView(PoseStack poseStack, float partialTick, CallbackInfo ci) {
+        if (CameraManager.INSTANCE.isActive() && CinematicController.INSTANCE.isSuppressBob()) {
+            ci.cancel();
+        }
+    }
     }
 
     /**
@@ -96,8 +102,7 @@ public abstract class GameRendererMixin {
                     target = "Lnet/minecraft/util/Mth;lerp(FFF)F",
                     ordinal = 0))
     private float redirectSpinningIntensity(float partialTick, float start, float end) {
-        ScriptProperties props = CameraManager.INSTANCE.getCurrentProperties();
-        if (props != null && props.isSuppressBob()) {
+        if (CameraManager.INSTANCE.isActive() && CinematicController.INSTANCE.isSuppressBob()) {
             return 0.0F;
         }
         return Mth.lerp(partialTick, start, end);

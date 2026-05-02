@@ -108,7 +108,7 @@ public class ScriptParser {
             throw new ScriptParseException(p + ".version", "当前仅支持版本3，实际: " + version);
         }
 
-        // 运行时行为（15个布尔）
+        // 运行时行为（14个布尔 + blockMobAi 已弃用）
         boolean blockKeyboard = optBool(metaObj, "block_keyboard", true);
         boolean blockMouse = optBool(metaObj, "block_mouse", true);
         boolean blockMobAi = optBool(metaObj, "block_mob_ai", false);
@@ -118,7 +118,6 @@ public class ScriptParser {
         boolean blockChat = optBool(metaObj, "block_chat", false);
         boolean blockScoreboard = optBool(metaObj, "block_scoreboard", false);
         boolean blockActionBar = optBool(metaObj, "block_action_bar", false);
-        boolean blockParticles = optBool(metaObj, "block_particles", false);
         boolean renderPlayerModel = optBool(metaObj, "render_player_model", true);
         boolean pauseWhenGamePaused = optBool(metaObj, "pause_when_game_paused", true);
         // 退出控制三属性：
@@ -142,7 +141,6 @@ public class ScriptParser {
                 .blockChat(blockChat)
                 .blockScoreboard(blockScoreboard)
                 .blockActionBar(blockActionBar)
-                .blockParticles(blockParticles)
                 .renderPlayerModel(renderPlayerModel)
                 .pauseWhenGamePaused(pauseWhenGamePaused)
                 .interruptible(interruptible)
