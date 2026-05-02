@@ -1,24 +1,11 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
-import javax.annotation.Nullable;
-
 /**
  * 脚本属性 — 脚本的身份信息和运行时行为配置
  * <p>
- * 重构后（O1）：
- * <ul>
- *   <li>运行时行为抽取为 {@link RuntimeBehavior} 值对象</li>
- *   <li>构造器参数从 20 个减少到 7 个</li>
- *   <li>ScriptParser 使用 Builder 模式构建 RuntimeBehavior</li>
- * </ul>
- * <p>
- * 插值控制（F2 修复后支持两种曲线组合模式）：
- * <ul>
- *   <li>脚本级 interpolation — 片段级未指定时的默认值</li>
- *   <li>片段级 interpolation — 覆盖脚本级默认值</li>
- *   <li>关键帧级 interpolation — 覆盖片段级（仅 SEGMENT 模式）</li>
- *   <li>curveCompositionMode — OVERRIDE（默认）或 COMPOSED（数学组合/双重平滑）</li>
- * </ul>
+ * 速度驱动模型下，脚本级不再控制插值类型——
+ * 插值控制下放到片段级（{@link CameraClip#getInterpolation()}）
+ * 和属性级（{@link PropertyOverride}）。
  */
 public class ScriptMeta {
 
@@ -34,29 +21,17 @@ public class ScriptMeta {
 
     private final RuntimeBehavior behavior;
 
-    // ========== 插值控制 ==========
-
-    @Nullable
-    private final InterpolationType interpolation;
-
-    /** 曲线组合模式：OVERRIDE（默认）或 COMPOSED（数学组合/双重平滑） */
-    @Nullable
-    private final CurveCompositionMode curveCompositionMode;
-
     /**
      * 简化构造器 — 使用 RuntimeBehavior 值对象
      */
     public ScriptMeta(String id, String name, String author, int version, String description,
-                      RuntimeBehavior behavior, @Nullable InterpolationType interpolation,
-                      @Nullable CurveCompositionMode curveCompositionMode) {
+                      RuntimeBehavior behavior) {
         this.id = id;
         this.name = name;
         this.author = author;
         this.version = version;
         this.description = description;
         this.behavior = behavior;
-        this.interpolation = interpolation;
-        this.curveCompositionMode = curveCompositionMode;
     }
 
     // ========== 元信息 Getter ==========
@@ -90,22 +65,10 @@ public class ScriptMeta {
     /** 播完保持控制：播完后是否保持最后一帧，而非自动退出 */
     public boolean isHoldAtEnd() { return behavior.holdAtEnd(); }
 
-    // ========== 插值控制 Getter ==========
-
-    @Nullable
-    public InterpolationType getInterpolation() { return interpolation; }
-
-    @Nullable
-    public CurveCompositionMode getCurveCompositionMode() { return curveCompositionMode; }
-
-    public InterpolationType getEffectiveInterpolation() {
-        return interpolation != null ? interpolation : InterpolationType.LINEAR;
-    }
-
     @Override
     public String toString() {
-        return String.format("ScriptMeta{id=%s, name=%s, author=%s, v%d, interp=%s}",
-                id, name, author, version, interpolation);
+        return String.format("ScriptMeta{id=%s, name=%s, author=%s, v%d}",
+                id, name, author, version);
     }
 
     /**

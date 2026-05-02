@@ -2,26 +2,23 @@ package com.immersivecinematics.immersive_cinematics.script;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 相机片段 — 时间轴上的一段镜头动画
  * <p>
- * 包含片段属性（transition/interpolation/interpolationScope/curve/position_mode/loop 等）
- * 和关键帧数组（time/position/yaw/pitch/roll/fov/zoom/dof）。
- * <p>
- * 过渡方式：
+ * 速度驱动模型下，片段控制速度曲线和路径：
  * <ul>
- *   <li>"cut" — 硬切换，对应 staged → commitStagedState() 原子替换</li>
- *   <li>"crossfade" — 交叉淡化，在两个片段的重叠区间内按比例混合所有属性</li>
+ *   <li>{@code speed} — 片段整体速度倍率 (0~2)，默认 1.0</li>
+ *   <li>{@code interpolation} — 速度曲线类型 (linear/smooth)</li>
+ *   <li>{@code property_overrides} — 可选，属性级速度覆盖</li>
+ *   <li>{@code curve} — 贝塞尔路径控制（与速度正交，仅影响位置）</li>
  * </ul>
  * <p>
- * 插值作用域（interpolationScope）：
- * <ul>
- *   <li>{@link InterpolationScope#CLIP} — 曲线映射应用到整体 clip 进度，关键帧段内线性。
- *       整个 clip 只在开头/结尾有缓入缓出，中间关键帧处速度连续。</li>
- *   <li>{@link InterpolationScope#SEGMENT} — 曲线映射应用到每个关键帧段（传统行为）。
- *       每段独立缓入缓出，中间关键帧处速度归零后重新加速。</li>
- * </ul>
+ * 速度驱动公式链：
+ * <pre>
+ * t ──[速度曲线]──→ v(t) ──[积分]──→ s(t) ──[弧长贝塞尔或lerp]──→ 属性值
+ * </pre>
  * <p>
  * 无限时长与循环语义：
  * <ul>
@@ -46,11 +43,11 @@ public class CameraClip {
     /** 交叉淡化时长（秒），仅 transition=crossfade 时有效 */
     private final float crossfadeDuration;
 
-    /** 插值曲线类型 */
-    private final InterpolationType interpolation;
+    /** 片段整体速度倍率 (0~2)，默认 1.0 */
+    private final float speed;
 
-    /** 插值作用域：CLIP=整体进度映射，SEGMENT=逐段映射 */
-    private final InterpolationScope interpolationScope;
+    /** 速度曲线类型 (linear/smooth) */
+    private final InterpolationType interpolation;
 
     /** 贝塞尔曲线路径控制（仅影响位置路径），null=直线插值 */
     private final BezierCurve curve;
@@ -67,34 +64,40 @@ public class CameraClip {
     /** 关键帧数组 */
     private final List<CameraKeyframe> keyframes;
 
+    /** 属性级速度覆盖（可选），key=属性名，value=覆盖配置 */
+    private final Map<String, PropertyOverride> propertyOverrides;
+
     public CameraClip(float startTime, float duration, TransitionType transition, float crossfadeDuration,
-                      InterpolationType interpolation, InterpolationScope interpolationScope,
+                      float speed, InterpolationType interpolation,
                       BezierCurve curve, boolean positionModeRelative,
-                      boolean loop, int loopCount, List<CameraKeyframe> keyframes) {
+                      boolean loop, int loopCount, List<CameraKeyframe> keyframes,
+                      Map<String, PropertyOverride> propertyOverrides) {
         this.startTime = startTime;
         this.duration = duration;
         this.transition = transition;
         this.crossfadeDuration = crossfadeDuration;
+        this.speed = speed;
         this.interpolation = interpolation;
-        this.interpolationScope = interpolationScope;
         this.curve = curve;
         this.positionModeRelative = positionModeRelative;
         this.loop = loop;
         this.loopCount = loopCount;
         this.keyframes = keyframes != null ? keyframes : Collections.emptyList();
+        this.propertyOverrides = propertyOverrides != null ? propertyOverrides : Collections.emptyMap();
     }
 
     public float getStartTime() { return startTime; }
     public float getDuration() { return duration; }
     public TransitionType getTransition() { return transition; }
     public float getCrossfadeDuration() { return crossfadeDuration; }
+    public float getSpeed() { return speed; }
     public InterpolationType getInterpolation() { return interpolation; }
-    public InterpolationScope getInterpolationScope() { return interpolationScope; }
     public BezierCurve getCurve() { return curve; }
     public boolean isPositionModeRelative() { return positionModeRelative; }
     public boolean isLoop() { return loop; }
     public int getLoopCount() { return loopCount; }
     public List<CameraKeyframe> getKeyframes() { return keyframes; }
+    public Map<String, PropertyOverride> getPropertyOverrides() { return propertyOverrides; }
 
     /** 是否为无限时长片段（负数即视为无限时长） */
     public boolean isInfinite() { return duration < 0f; }
@@ -102,11 +105,17 @@ public class CameraClip {
     /** 是否为交叉淡化过渡 */
     public boolean isCrossfade() { return transition == TransitionType.CROSSFADE; }
 
+    /** 获取指定属性的速度覆盖，无覆盖时返回 null */
+    public PropertyOverride getPropertyOverride(String propertyName) {
+        return propertyOverrides.get(propertyName);
+    }
+
     @Override
     public String toString() {
-        return String.format("CameraClip{start=%.2f, dur=%.2f, interp=%s, scope=%s, posMode=%s, loop=%s, keyframes=%d}",
-                startTime, duration, interpolation, interpolationScope,
+        return String.format("CameraClip{start=%.2f, dur=%.2f, speed=%.2f, interp=%s, posMode=%s, loop=%s, keyframes=%d, overrides=%d}",
+                startTime, duration, speed, interpolation,
                 positionModeRelative ? "relative" : "absolute",
-                loop, keyframes != null ? keyframes.size() : 0);
+                loop, keyframes != null ? keyframes.size() : 0,
+                propertyOverrides.size());
     }
 }

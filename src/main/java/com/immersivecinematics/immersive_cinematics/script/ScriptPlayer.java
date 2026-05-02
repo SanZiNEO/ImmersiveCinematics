@@ -83,13 +83,10 @@ public class ScriptPlayer {
 
         // 创建 TrackPlayer 实例
         trackPlayers = new ArrayList<>();
-        InterpolationType scriptInterp = meta.getInterpolation();
-        CurveCompositionMode compositionMode = meta.getCurveCompositionMode();
         for (TimelineTrack track : script.getTimeline().getTracks()) {
             if (track.getType() != TrackType.EVENT) {  // event 轨道不在客户端处理
                 trackPlayers.add(TrackPlayer.create(track, originPos,
-                        CameraManager.INSTANCE, OverlayManager.INSTANCE,
-                        scriptInterp, compositionMode));
+                        CameraManager.INSTANCE, OverlayManager.INSTANCE));
             }
         }
 

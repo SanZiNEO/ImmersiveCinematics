@@ -1,27 +1,25 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
-import javax.annotation.Nullable;
-
 /**
- * 相机关键帧 — 存储某一时刻的镜头完整状态
+ * 相机关键帧 — 存储某一时刻的镜头完整状态和速度控制
  * <p>
  * 字段与 CameraPath/CameraProperties 完全一一对应，无冗余无缺失。
  * <p>
- * 逐关键帧插值覆盖：
+ * 速度驱动模型下，每个关键帧控制该时刻的瞬时速度：
  * <ul>
- *   <li>可选的 {@code interpolation} 字段覆盖 clip 级别的默认插值类型</li>
- *   <li>含义："到达此关键帧"所使用的插值曲线，即 from→to 段使用 to 关键帧上的 interpolation</li>
- *   <li>null = 使用 clip 级别的默认 interpolation</li>
+ *   <li>{@code speed} — 该关键帧处的瞬时速度值 (0~2)，默认 1.0</li>
+ *   <li>{@code curve_bias} — smooth 模式下切线弯曲方向控制 (-1~1)，默认 0.0</li>
  * </ul>
  * <p>
- * JSON 示例（relative 模式 + 逐关键帧插值覆盖）：
+ * JSON 示例：
  * <pre>
  * {
  *   "time": 0.0,
  *   "position": { "dx": 30.0, "dy": 2.0, "dz": 0.0 },
  *   "yaw": 90.0, "pitch": 5.0, "roll": 0.0,
  *   "fov": 70.0, "zoom": 1.0,
- *   "interpolation": "ease_in"
+ *   "speed": 0.5,
+ *   "curve_bias": 0.3
  * }
  * </pre>
  */
@@ -51,24 +49,20 @@ public class CameraKeyframe {
     /** 景深（0=禁用），保留字段，预留给光影包合作 */
     private final float dof;
 
-    /**
-     * 逐关键帧插值覆盖 — 到达此关键帧所使用的插值曲线
-     * <p>
-     * null = 使用 clip 级别的默认 interpolation。
-     * 仅在 {@link InterpolationScope#SEGMENT} 模式下生效，
-     * CLIP 模式下曲线映射应用到整体进度，逐段覆盖无意义。
-     */
-    @Nullable
-    private final InterpolationType interpolation;
+    /** 该关键帧处的瞬时速度 (0~2)，默认 1.0 */
+    private final float speed;
+
+    /** smooth 模式下切线弯曲方向控制 (-1~1)，默认 0.0 */
+    private final float curveBias;
 
     public CameraKeyframe(float time, PositionData position, float yaw, float pitch,
                           float roll, float fov, float zoom, float dof) {
-        this(time, position, yaw, pitch, roll, fov, zoom, dof, null);
+        this(time, position, yaw, pitch, roll, fov, zoom, dof, 1.0f, 0.0f);
     }
 
     public CameraKeyframe(float time, PositionData position, float yaw, float pitch,
                           float roll, float fov, float zoom, float dof,
-                          @Nullable InterpolationType interpolation) {
+                          float speed, float curveBias) {
         this.time = time;
         this.position = position;
         this.yaw = yaw;
@@ -77,7 +71,8 @@ public class CameraKeyframe {
         this.fov = fov;
         this.zoom = zoom;
         this.dof = dof;
-        this.interpolation = interpolation;
+        this.speed = speed;
+        this.curveBias = curveBias;
     }
 
     public float getTime() { return time; }
@@ -88,14 +83,12 @@ public class CameraKeyframe {
     public float getFov() { return fov; }
     public float getZoom() { return zoom; }
     public float getDof() { return dof; }
-
-    /** 获取逐关键帧插值覆盖，null=使用 clip 默认 */
-    @Nullable
-    public InterpolationType getInterpolation() { return interpolation; }
+    public float getSpeed() { return speed; }
+    public float getCurveBias() { return curveBias; }
 
     @Override
     public String toString() {
-        return String.format("CameraKeyframe{time=%.2f, pos=%s, yaw=%.1f, pitch=%.1f, roll=%.1f, fov=%.1f, zoom=%.2f, dof=%.1f, interp=%s}",
-                time, position, yaw, pitch, roll, fov, zoom, dof, interpolation);
+        return String.format("CameraKeyframe{time=%.2f, pos=%s, yaw=%.1f, pitch=%.1f, roll=%.1f, fov=%.1f, zoom=%.2f, dof=%.1f, speed=%.2f, bias=%.2f}",
+                time, position, yaw, pitch, roll, fov, zoom, dof, speed, curveBias);
     }
 }
