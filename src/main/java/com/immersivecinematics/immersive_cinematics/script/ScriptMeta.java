@@ -94,8 +94,6 @@ public class ScriptMeta {
     public record RuntimeBehavior(
             boolean blockKeyboard,
             boolean blockMouse,
-            /** @deprecated 需要 C/S 架构，当前纯客户端无法实现 */
-            @Deprecated
             boolean blockMobAi,
             boolean hideHud,
             boolean hideArm,

@@ -7,6 +7,7 @@ import com.immersivecinematics.immersive_cinematics.handler.HudOverlayHandler;
 import com.immersivecinematics.immersive_cinematics.overlay.CinematicOverlay;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.common.MinecraftForge;
@@ -17,7 +18,6 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 /**
  * ImmersiveCinematics 模组入口
@@ -42,17 +42,13 @@ public class Immersive_cinematics {
         // 注册电影覆盖层到 MOD 事件总线（RegisterGuiOverlaysEvent 是 MOD 事件）
         modEventBus.addListener(CinematicOverlay::onRegisterGuiOverlays);
 
-        // 注册按键绑定（FMLClientSetupEvent 是 MOD 事件）
-        modEventBus.addListener(this::onClientSetup);
+        // 注册按键绑定（RegisterKeyMappingsEvent 是 MOD 事件）
+        modEventBus.addListener(CinematicKeyBindings::register);
 
         // 注册客户端事件处理器
         MinecraftForge.EVENT_BUS.register(ClientTickEvents.class);
         MinecraftForge.EVENT_BUS.register(ClientHudEvents.class);
         MinecraftForge.EVENT_BUS.register(ClientCameraEvents.class);
-    }
-
-    private void onClientSetup(final FMLClientSetupEvent event) {
-        CinematicKeyBindings.register();
     }
 
     /**
