@@ -148,7 +148,8 @@ public class ScriptParser {
                         ? parseDataMap(tObj.getAsJsonObject("conditions"), p + ".triggers[].conditions")
                         : new HashMap<>();
                 boolean repeatable = optBool(tObj, "repeatable", false);
-                triggers.add(new TriggerDefinition(type, conditions, repeatable));
+                float delay = optFloat(tObj, "delay", 0f);
+                triggers.add(new TriggerDefinition(type, conditions, repeatable, delay));
             }
         }
 

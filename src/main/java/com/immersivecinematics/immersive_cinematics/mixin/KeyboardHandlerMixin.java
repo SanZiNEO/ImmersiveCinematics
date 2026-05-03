@@ -16,12 +16,15 @@ public abstract class KeyboardHandlerMixin {
     @Inject(method = "keyPress", at = @At("HEAD"), cancellable = true)
     private void onKeyPress(long windowPointer, int key, int scanCode,
                             int action, int modifiers, CallbackInfo ci) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+
         CinematicController ctrl = CinematicController.INSTANCE;
         if (!CameraManager.INSTANCE.isActive()) return;
         if (!ctrl.isBlockKeyboard()) return;
 
         // 暂停中且 pauseWhenGamePaused=true → 放行所有按键（让玩家能操作暂停菜单）
-        if (Minecraft.getInstance().isPaused() && ctrl.isPauseWhenGamePaused()) return;
+        if (mc.isPaused() && ctrl.isPauseWhenGamePaused()) return;
 
         // 白名单: Esc — 原版暂停
         if (key == GLFW.GLFW_KEY_ESCAPE) return;

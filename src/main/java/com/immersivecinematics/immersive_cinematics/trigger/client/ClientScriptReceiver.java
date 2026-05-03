@@ -3,6 +3,8 @@ package com.immersivecinematics.immersive_cinematics.trigger.client;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser;
+import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPlaybackStartedPacket;
+import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPlayScriptPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CStopScriptPacket;
 import com.mojang.logging.LogUtils;
@@ -15,12 +17,11 @@ public class ClientScriptReceiver {
 
     public static void handlePlayScript(S2CPlayScriptPacket packet) {
         Minecraft.getInstance().execute(() -> {
-            String json = packet.getScriptJson();
-            LOGGER.info("Received play packet, JSON length: {}", json.length());
             try {
-                CinematicScript script = ScriptParser.parse(json);
+                CinematicScript script = ScriptParser.parse(packet.getScriptJson());
                 CameraManager.INSTANCE.playCinematic(script);
                 LOGGER.info("Playing script from server: {}", script.getId());
+                NetworkHandler.sendToServer(new C2SPlaybackStartedPacket(script.getId()));
             } catch (Exception e) {
                 LOGGER.error("Failed to parse script from server", e);
             }

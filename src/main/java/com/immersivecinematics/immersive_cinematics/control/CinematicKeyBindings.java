@@ -24,6 +24,9 @@ public class CinematicKeyBindings {
     }
 
     public static void onClientTick() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+
         CameraManager mgr = CameraManager.INSTANCE;
         if (!mgr.isActive()) {
             skipKeyDownSince = 0;
@@ -31,7 +34,7 @@ public class CinematicKeyBindings {
         }
 
         // 暂停中 → 禁止跳过
-        if (Minecraft.getInstance().isPaused()) {
+        if (mc.isPaused()) {
             skipKeyDownSince = 0;
             return;
         }

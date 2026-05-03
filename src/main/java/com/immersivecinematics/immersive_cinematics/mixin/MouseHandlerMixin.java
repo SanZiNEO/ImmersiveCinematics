@@ -13,10 +13,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MouseHandlerMixin {
 
     private static boolean shouldBlockMouse() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return false;
         if (!CameraManager.INSTANCE.isActive()) return false;
         if (!CinematicController.INSTANCE.isBlockMouse()) return false;
         // 暂停中且 pauseWhenGamePaused=true → 放行，让玩家能点击暂停菜单按钮
-        if (Minecraft.getInstance().isPaused() && CinematicController.INSTANCE.isPauseWhenGamePaused()) return false;
+        if (mc.isPaused() && CinematicController.INSTANCE.isPauseWhenGamePaused()) return false;
         return true;
     }
 
