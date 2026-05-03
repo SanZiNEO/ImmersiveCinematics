@@ -25,13 +25,17 @@ public class ScriptEventManager {
 
     private ScriptEventManager() {}
 
-    public void startPlayback(ServerPlayer player, CinematicScript script) {
+    public void startPlayback(ServerPlayer player, String scriptId) {
+        CinematicScript script = com.immersivecinematics.immersive_cinematics.script.ScriptManager.INSTANCE.getScript(scriptId);
+        if (script == null) return;
         ActivePlayback playback = new ActivePlayback(
                 script.getId(),
                 player.server.getTickCount(),
                 extractEventClips(script)
         );
         activePlaybacks.put(player.getUUID(), playback);
+        LOGGER.info("Started event playback for {} script={} (tick={})",
+                player.getName().getString(), scriptId, player.server.getTickCount());
     }
 
     public void stopPlayback(UUID playerUuid, String scriptId) {

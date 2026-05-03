@@ -1,7 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
-import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
-import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.trigger.server.store.TriggerStateStore;
 import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
@@ -22,6 +20,8 @@ public class TriggerEngine {
     private final Int2ObjectMap<List<TriggerRegistration>> pollBuckets = new Int2ObjectOpenHashMap<>();
     private final List<TriggerRegistration> allRegistrations = new ArrayList<>();
     private int tickCounter = 0;
+
+    private final Map<UUID, List<DelayedFire>> delayedFires = new HashMap<>();
 
     private boolean initialized = false;
 
@@ -63,6 +63,7 @@ public class TriggerEngine {
         allRegistrations.clear();
         eventIndex.clear();
         pollBuckets.clear();
+        delayedFires.clear();
     }
 
     // ===== Event-driven entry =====
@@ -97,9 +98,17 @@ public class TriggerEngine {
     // ===== Polling entry =====
 
     public void onServerTick(MinecraftServer server) {
-        if (!initialized || pollBuckets.isEmpty()) return;
+        if (!initialized) return;
 
         tickCounter++;
+
+        // 1. 处理延迟队列
+        if (!delayedFires.isEmpty()) {
+            processDelayedFires(server);
+        }
+
+        // 2. 处理轮询桶
+        if (pollBuckets.isEmpty()) return;
         for (Int2ObjectMap.Entry<List<TriggerRegistration>> entry : pollBuckets.int2ObjectEntrySet()) {
             int interval = entry.getIntKey();
             if (tickCounter % interval != 0) continue;
@@ -115,6 +124,35 @@ public class TriggerEngine {
         }
     }
 
+    // ===== Delayed fire =====
+
+    private void processDelayedFires(MinecraftServer server) {
+        int currentTick = server.getTickCount();
+        var iter = delayedFires.entrySet().iterator();
+        while (iter.hasNext()) {
+            var entry = iter.next();
+            UUID playerId = entry.getKey();
+            ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+            if (player == null) {
+                iter.remove();
+                continue;
+            }
+
+            var fires = entry.getValue();
+            fires.removeIf(df -> {
+                if (currentTick >= df.fireTick) {
+                    executeActions(player, df.reg);
+                    return true;
+                }
+                return false;
+            });
+
+            if (fires.isEmpty()) {
+                iter.remove();
+            }
+        }
+    }
+
     // ===== Script completion callback =====
 
     public void onScriptFinished(ServerPlayer player, String scriptId,
@@ -122,6 +160,10 @@ public class TriggerEngine {
         ScriptEventManager.INSTANCE.onScriptFinished(player, scriptId, reason);
         LOGGER.debug("Script finished: player={}, script={}, reason={}",
                 player.getName().getString(), scriptId, reason);
+    }
+
+    public void onPlaybackStarted(ServerPlayer player, String scriptId) {
+        ScriptEventManager.INSTANCE.startPlayback(player, scriptId);
     }
 
     // ===== Internal =====
@@ -145,13 +187,23 @@ public class TriggerEngine {
             TriggerStateStore.INSTANCE.markScriptCompleted(player.getUUID(), reg.getScriptId());
         }
 
+        int delayMs = reg.getDelayMs();
+        if (delayMs > 0) {
+            int delayTicks = Math.max(1, delayMs / 50);
+            delayedFires.computeIfAbsent(player.getUUID(), k -> new ArrayList<>())
+                    .add(new DelayedFire(reg, player.server.getTickCount() + delayTicks));
+            LOGGER.info("  delayed by {} ticks ({}ms)", delayTicks, delayMs);
+            return;
+        }
+
+        executeActions(player, reg);
+    }
+
+    private void executeActions(ServerPlayer player, TriggerRegistration reg) {
         for (var action : reg.getActions()) {
             action.execute(player);
         }
-
-        CinematicScript script = ScriptManager.INSTANCE.getScript(reg.getScriptId());
-        if (script != null) {
-            ScriptEventManager.INSTANCE.startPlayback(player, script);
-        }
     }
+
+    private record DelayedFire(TriggerRegistration reg, int fireTick) {}
 }

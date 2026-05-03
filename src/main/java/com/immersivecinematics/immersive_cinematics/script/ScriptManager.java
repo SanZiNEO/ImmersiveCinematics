@@ -106,11 +106,13 @@ public class ScriptManager {
                     else if (val instanceof Number n) conditions.addProperty(entry.getKey(), n);
                     else if (val instanceof Boolean b) conditions.addProperty(entry.getKey(), b);
                 }
+                int delayMs = (int)(td.getDelay() * 1000);
                 registrations.add(new TriggerRegistration(
                         meta.getId(), td.getType() + "_" + meta.getId(),
                         triggerType, conditions,
                         List.of(new StartPlaybackAction(meta.getId())),
-                        td.isRepeatable()
+                        td.isRepeatable(),
+                        delayMs
                 ));
             }
         }

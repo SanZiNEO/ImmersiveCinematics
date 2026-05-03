@@ -10,6 +10,7 @@
         "id": "on_login",
         "type": "login",
         "repeatable": true,
+        "delay": 1.5,
         "conditions": {}
       }
     ],

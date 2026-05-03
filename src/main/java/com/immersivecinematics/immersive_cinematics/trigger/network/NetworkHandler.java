@@ -34,6 +34,7 @@ public class NetworkHandler {
         registerS2C(S2CStopScriptPacket.class, S2CStopScriptPacket::new, S2CStopScriptPacket::write);
         registerS2C(S2CTriggerStateSyncPacket.class, S2CTriggerStateSyncPacket::new, S2CTriggerStateSyncPacket::write);
         registerC2S(C2SScriptFinishedPacket.class, C2SScriptFinishedPacket::new, C2SScriptFinishedPacket::write);
+        registerC2S(C2SPlaybackStartedPacket.class, C2SPlaybackStartedPacket::new, C2SPlaybackStartedPacket::write);
     }
 
     private static <T> void registerS2C(Class<T> clazz, Function<FriendlyByteBuf, T> decoder, BiConsumer<T, FriendlyByteBuf> encoder) {
