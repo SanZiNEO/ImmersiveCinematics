@@ -29,7 +29,7 @@ ImmersiveCinematics is a client-side Minecraft mod that gives you full control o
 - Smooth camera paths with keyframe animation
 - Bézier curve paths for elegant curved movements
 - 5 interpolation curves: linear, smooth, ease-in, ease-out, ease-in-out
-- Crossfade transitions between shots, or hard cuts for dramatic effect
+- Morph transitions between shots (linear fly from clip A's end to clip B's start over transition_duration), or hard cuts for dramatic effect
 - Loop and repeat with configurable count, or infinite duration
 
 **JSON Script System**

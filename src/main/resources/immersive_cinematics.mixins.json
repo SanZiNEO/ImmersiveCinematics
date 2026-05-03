@@ -9,7 +9,7 @@
     "client": [
       "CameraMixin",
       "GameRendererMixin",
-      "MobMixin",
+      "LivingEntityMixin",
       "KeyboardHandlerMixin",
       "MouseHandlerMixin"
     ],

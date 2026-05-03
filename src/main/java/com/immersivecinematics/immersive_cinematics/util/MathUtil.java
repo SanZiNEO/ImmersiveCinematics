@@ -162,7 +162,7 @@ public final class MathUtil {
      * 公式：t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
      *       result = t² * (3 - 2t)
      * <p>
-     * 用途：crossfade 过渡区间内的平滑混合权重计算。
+     * 用途：morph 过渡区间内的平滑混合权重计算。
      * <p>
      * 边界情况：当 edge0 == edge1 时，x >= edge0 返回 1，否则返回 0，
      * 避免 0/0 产生 NaN。

@@ -220,7 +220,7 @@ public class ScriptParser {
         float duration = requireFloat(obj, p, "duration");
         TransitionType transition = parseTransitionType(
                 optString(obj, "transition", "cut"), p + ".transition");
-        float crossfadeDuration = optFloat(obj, "crossfade_duration", 0.5f);
+        float transitionDuration = optFloat(obj, "transition_duration", 0.5f);
         float speed = optFloat(obj, "speed", 1.0f);
         InterpolationType interpolation = parseInterpolationType(
                 optString(obj, "interpolation", "linear"), p + ".interpolation");
@@ -266,7 +266,7 @@ public class ScriptParser {
             }
         }
 
-        return new CameraClip(startTime, duration, transition, crossfadeDuration,
+        return new CameraClip(startTime, duration, transition, transitionDuration,
                 speed, interpolation, curve, positionModeRelative, loop, loopCount, keyframes, propertyOverrides);
     }
 
@@ -452,22 +452,22 @@ public class ScriptParser {
             LOGGER.warn("检测到 {} 条 EVENT 轨道，建议最多1条", eventCount);
         }
 
-        // F1: crossfade 约束降级为警告
+        // F1: morph 约束降级为警告
         for (TimelineTrack track : tracks) {
             if (track.getType() == TrackType.CAMERA) {
                 List<CameraClip> clips = track.getCameraClips();
                 for (int i = 1; i < clips.size(); i++) {
                     CameraClip clip = clips.get(i);
                     CameraClip prevClip = clips.get(i - 1);
-                    if (clip.isCrossfade() && prevClip != null) {
+                    if (clip.isMorph() && prevClip != null) {
                         if (prevClip.isPositionModeRelative() != clip.isPositionModeRelative()) {
-                            LOGGER.warn("crossfade 相邻 clip 的 position_mode 不同（{} → {}），" +
+                            LOGGER.warn("morph 相邻 clip 的 position_mode 不同（{} → {}），" +
                                     "运行时已统一为世界坐标，混合结果可能非预期",
                                     prevClip.isPositionModeRelative() ? "relative" : "absolute",
                                     clip.isPositionModeRelative() ? "relative" : "absolute");
                         }
                         if (prevClip.getInterpolation() != clip.getInterpolation()) {
-                            LOGGER.warn("crossfade 相邻 clip 的 interpolation 不同（{} → {}），" +
+                            LOGGER.warn("morph 相邻 clip 的 interpolation 不同（{} → {}），" +
                                     "混合结果可能产生速度跳变",
                                     prevClip.getInterpolation(), clip.getInterpolation());
                         }
@@ -502,7 +502,7 @@ public class ScriptParser {
             return TransitionType.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new ScriptParseException(p, "未知的过渡类型: " + value +
-                    "，支持: cut/crossfade");
+                    "，支持: cut/morph");
         }
     }
 
