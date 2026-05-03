@@ -18,6 +18,12 @@ public class Config {
 
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
+    // ===== 跳过行为配置 =====
+
+    private static final ForgeConfigSpec.IntValue SKIP_HOLD_THRESHOLD_MS = BUILDER
+            .comment("长按跳过键的判定时间（毫秒）", "范围: 500 ~ 10000，默认 3000")
+            .defineInRange("skipHoldThresholdMs", 3000, 500, 10000);
+
     // ===== UI 配置 =====
 
     private static final ForgeConfigSpec.BooleanValue SHOW_SKIP_HUD = BUILDER
@@ -33,16 +39,24 @@ public class Config {
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     // 缓存值（配置加载后填充）
+    public static int skipHoldThresholdMs;
     public static boolean showSkipHud;
     public static boolean debugLogging;
 
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
+        skipHoldThresholdMs = SKIP_HOLD_THRESHOLD_MS.get();
         showSkipHud = SHOW_SKIP_HUD.get();
         debugLogging = DEBUG_LOGGING.get();
     }
 
     // ===== GUI 写入接口 =====
+
+    public static void setSkipHoldThresholdMs(int value) {
+        skipHoldThresholdMs = value;
+        SKIP_HOLD_THRESHOLD_MS.set(value);
+        SKIP_HOLD_THRESHOLD_MS.save();
+    }
 
     public static void setShowSkipHud(boolean value) {
         showSkipHud = value;

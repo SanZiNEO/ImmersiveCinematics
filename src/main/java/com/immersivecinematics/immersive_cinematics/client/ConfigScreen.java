@@ -38,6 +38,20 @@ public class ConfigScreen extends Screen {
         y += 28;
 
         addRenderableWidget(Button.builder(
+                Component.translatable("config.immersive_cinematics.skipHoldThresholdMs",
+                        Config.skipHoldThresholdMs + "ms"),
+                btn -> {
+                    int next = Config.skipHoldThresholdMs >= 10000 ? 500 : Config.skipHoldThresholdMs + 500;
+                    Config.setSkipHoldThresholdMs(next);
+                    btn.setMessage(Component.translatable("config.immersive_cinematics.skipHoldThresholdMs",
+                            Config.skipHoldThresholdMs + "ms"));
+                })
+                .bounds(midX - OPTION_WIDTH / 2, y, OPTION_WIDTH, 20)
+                .tooltip(Tooltip.create(Component.translatable("config.immersive_cinematics.skipHoldThresholdMs.tooltip")))
+                .build());
+        y += 28;
+
+        addRenderableWidget(Button.builder(
                 Component.translatable("config.immersive_cinematics.debugLogging",
                         toggleStr(Config.debugLogging)),
                 btn -> {

@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.control;
 
+import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -14,7 +15,6 @@ public class CinematicKeyBindings {
         "key.categories.immersive_cinematics"
     );
 
-    private static final long SKIP_HOLD_THRESHOLD_MS = 3000;
     private static long skipKeyDownSince = 0;
     private static boolean skipTriggered = false;
 
@@ -46,7 +46,7 @@ public class CinematicKeyBindings {
             if (skipDown) {
                 if (skipKeyDownSince == 0) {
                     skipKeyDownSince = System.currentTimeMillis();
-                } else if (System.currentTimeMillis() - skipKeyDownSince >= SKIP_HOLD_THRESHOLD_MS) {
+                } else if (System.currentTimeMillis() - skipKeyDownSince >= Config.skipHoldThresholdMs) {
                     boolean ok = mgr.requestExit(ExitReason.USER_SKIP);
                     if (ok) {
                         skipTriggered = true;
@@ -72,6 +72,6 @@ public class CinematicKeyBindings {
     public static float getSkipHoldProgress() {
         if (skipTriggered) return 1f;
         if (skipKeyDownSince == 0) return 0f;
-        return Math.min(1f, (float)(System.currentTimeMillis() - skipKeyDownSince) / SKIP_HOLD_THRESHOLD_MS);
+        return Math.min(1f, (float)(System.currentTimeMillis() - skipKeyDownSince) / Config.skipHoldThresholdMs);
     }
 }
