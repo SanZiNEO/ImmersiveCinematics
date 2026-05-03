@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server.evaluator;
 
 import com.google.gson.JsonObject;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -122,6 +123,46 @@ public class Evaluators {
 
     public static boolean evaluateCommand(ServerPlayer player, JsonObject c) {
         return false;
+    }
+
+    public static boolean evaluateStructure(ServerPlayer player, JsonObject c) {
+        if (!c.has("structure")) return false;
+        ResourceLocation targetId = ResourceLocation.parse(c.get("structure").getAsString());
+        var level = player.serverLevel();
+
+        int radius = c.has("radius") ? c.get("radius").getAsInt() : 0;
+        BlockPos center = player.blockPosition();
+
+        if (radius > 0) {
+            for (int dx = -radius; dx <= radius; dx += 8) {
+                for (int dz = -radius; dz <= radius; dz += 8) {
+                    var structures = level.structureManager().getAllStructuresAt(center.offset(dx, 0, dz));
+                    for (var structure : structures.keySet()) {
+                        ResourceLocation id = BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type());
+                        if (id != null && id.equals(targetId)) return true;
+                    }
+                }
+            }
+        } else {
+            var structures = level.structureManager().getAllStructuresAt(center);
+            for (var structure : structures.keySet()) {
+                ResourceLocation id = BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type());
+                if (id != null && id.equals(targetId)) return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean evaluateGamestage(ServerPlayer player, JsonObject c) {
+        if (!c.has("stage")) return false;
+        String stage = c.get("stage").getAsString();
+        try {
+            Class<?> helper = Class.forName("net.darkhax.gamestages.GameStageHelper");
+            var hasStage = helper.getMethod("hasStage", net.minecraft.world.entity.player.Player.class, String.class);
+            return (boolean) hasStage.invoke(null, player, stage);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static boolean matchesId(String actual, String pattern) {
