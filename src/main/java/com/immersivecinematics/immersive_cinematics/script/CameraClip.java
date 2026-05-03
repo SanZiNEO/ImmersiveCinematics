@@ -40,8 +40,8 @@ public class CameraClip {
     /** 与上一个片段的过渡方式 */
     private final TransitionType transition;
 
-    /** 交叉淡化时长（秒），仅 transition=crossfade 时有效 */
-    private final float crossfadeDuration;
+    /** morph 过渡时长（秒），仅 transition=morph 时有效 */
+    private final float transitionDuration;
 
     /** 片段整体速度倍率 (0~2)，默认 1.0 */
     private final float speed;
@@ -67,7 +67,7 @@ public class CameraClip {
     /** 属性级速度覆盖（可选），key=属性名，value=覆盖配置 */
     private final Map<String, PropertyOverride> propertyOverrides;
 
-    public CameraClip(float startTime, float duration, TransitionType transition, float crossfadeDuration,
+    public CameraClip(float startTime, float duration, TransitionType transition, float transitionDuration,
                       float speed, InterpolationType interpolation,
                       BezierCurve curve, boolean positionModeRelative,
                       boolean loop, int loopCount, List<CameraKeyframe> keyframes,
@@ -75,7 +75,7 @@ public class CameraClip {
         this.startTime = startTime;
         this.duration = duration;
         this.transition = transition;
-        this.crossfadeDuration = crossfadeDuration;
+        this.transitionDuration = transitionDuration;
         this.speed = speed;
         this.interpolation = interpolation;
         this.curve = curve;
@@ -89,7 +89,7 @@ public class CameraClip {
     public float getStartTime() { return startTime; }
     public float getDuration() { return duration; }
     public TransitionType getTransition() { return transition; }
-    public float getCrossfadeDuration() { return crossfadeDuration; }
+    public float getTransitionDuration() { return transitionDuration; }
     public float getSpeed() { return speed; }
     public InterpolationType getInterpolation() { return interpolation; }
     public BezierCurve getCurve() { return curve; }
@@ -102,8 +102,8 @@ public class CameraClip {
     /** 是否为无限时长片段（负数即视为无限时长） */
     public boolean isInfinite() { return duration < 0f; }
 
-    /** 是否为交叉淡化过渡 */
-    public boolean isCrossfade() { return transition == TransitionType.CROSSFADE; }
+    /** 是否为 morph 过渡 */
+    public boolean isMorph() { return transition == TransitionType.MORPH; }
 
     /** 获取指定属性的速度覆盖，无覆盖时返回 null */
     public PropertyOverride getPropertyOverride(String propertyName) {

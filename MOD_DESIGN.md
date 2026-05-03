@@ -144,7 +144,7 @@ graph TD
 | 时间轴 | `script/Timeline.java` | 轨道容器 |
 | 轨道 | `script/TimelineTrack.java` | 多态轨道，5种TrackType，类型安全getter（类型不匹配抛IllegalStateException） |
 | 镜头片段 | `script/CameraClip.java` | 关键帧数组 + 过渡/插值/路径/循环；无限时长判断改为 `duration < 0f`；过渡类型改为 `TransitionType` 枚举 |
-| 过渡类型 | `script/TransitionType.java` | CUT/CROSSFADE 枚举，替换原 String 类型 |
+| 过渡类型 | `script/TransitionType.java` | CUT/MORPH 枚举，替换原 String 类型 |
 | 关键帧 | `script/CameraKeyframe.java` | 8属性 + 逐关键帧插值覆盖 |
 | 贝塞尔曲线 | `script/BezierCurve.java` | 2控制点三次贝塞尔 |
 | 路径策略 | `script/PathStrategy.java` + `PathStrategies.java` | 可扩展路径插值注册表，当前注册 bezier + linear，默认策略为 linear |
@@ -454,7 +454,7 @@ com.immersivecinematics.immersive_cinematics/
 │   ├── TrackPlayer.java             # 轨道播放器接口 + 工厂
 │   ├── CameraClip.java              # 镜头片段
 │   ├── CameraKeyframe.java          # 关键帧
-│   ├── TransitionType.java          # 过渡类型枚举 (CUT/CROSSFADE)
+│   ├── TransitionType.java          # 过渡类型枚举 (CUT/MORPH)
 │   ├── CameraTrackPlayer.java       # 镜头轨道播放器
 │   ├── BezierCurve.java             # 贝塞尔曲线
 │   ├── PathStrategy.java            # 路径策略接口
@@ -534,7 +534,7 @@ com.immersivecinematics.immersive_cinematics/
 |------|--------|------|------|
 | A1 | OverlayManager.isAnimating() 语义错误 | `OverlayLayer.java`, `OverlayManager.java`, `LetterboxLayer.java` | `isAnimating()` 原检查 `isVisible()`，无法区分"正在动画"和"仅可见"；在接口增加 `default isAnimating()` 方法，`OverlayManager` 改为委托 `layer.isAnimating()` |
 | A2 | CameraClip.isInfinite() 浮点等值比较 | `CameraClip.java`, `ScriptParser.java` | `duration == -1f` 改为 `duration < 0f`；Parser 验证从 `!= -1f && <= 0f` 改为 `== 0f`（仅零无效） |
-| A3 | 创建 TransitionType 枚举替换 String | `TransitionType.java`(新), `CameraClip.java`, `ScriptParser.java` | 新增 `CUT`/`CROSSFADE` 枚举，`CameraClip.transition` 字段类型从 `String` 改为 `TransitionType`，Parser 增加 `parseTransitionType()` |
+| A3 | 创建 TransitionType 枚举替换 String | `TransitionType.java`(新), `CameraClip.java`, `ScriptParser.java` | 新增 `CUT`/`MORPH` 枚举，`CameraClip.transition` 字段类型从 `String` 改为 `TransitionType`，Parser 增加 `parseTransitionType()` |
 | A4 | Parser 使用 Builder 构建 RuntimeBehavior | `ScriptParser.java` | 替换位置参数构造为 `RuntimeBehavior.builder()...build()`，消除15参数位置依赖 |
 | A5 | LetterboxTrackPlayer 每帧调用 startFadeOut() | `LetterboxTrackPlayer.java` | `activeClip == null` 分支增加 `&& letterbox.isVisible()` 前置检查，避免已隐藏层重复触发 |
 | A6 | Config.defaultFov/defaultZoom 未被消费 | `CameraProperties.java` | 删除硬编码 `DEFAULT_FOV=70`/`DEFAULT_ZOOM=1`，改为 `getDefaultFov()`/`getDefaultZoom()` 从 Config 读取（含 try-catch 回退） |

@@ -5,25 +5,12 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 
-/**
- * Camera 轨道播放器 — 从 ScriptPlayer.processCameraTrack() 抽取
- * <p>
- * 速度驱动模型下，所有插值控制由片段级的 speed/interpolation/property_overrides 决定。
- * <p>
- * 职责：
- * <ul>
- *   <li>定位当前活跃的 CameraClip</li>
- *   <li>调用 KeyframeInterpolator 计算速度积分驱动的相机状态</li>
- *   <li>将结果写入注入的 CameraManager</li>
- * </ul>
- */
 public class CameraTrackPlayer implements TrackPlayer {
 
     private final List<CameraClip> clips;
     private final Vec3 originPos;
     private final CameraManager cameraManager;
 
-    /** 缓存上一帧匹配的 clip 索引，用于优化顺序播放时的搜索 */
     private int lastClipIndex = 0;
 
     public CameraTrackPlayer(TimelineTrack track, Vec3 originPos, CameraManager cameraManager) {
@@ -41,34 +28,122 @@ public class CameraTrackPlayer implements TrackPlayer {
     public void onRenderFrame(float globalTime) {
         if (clips.isEmpty()) return;
 
-        CameraClip activeClip = findActiveClip(globalTime);
-        if (activeClip == null) return;
+        // Morph: 在 [A_end, A_end+transition_duration) 内取 A 末帧→B 首帧 lerp
+        for (int i = 0; i < clips.size() - 1; i++) {
+            CameraClip prev = clips.get(i);
+            CameraClip next = clips.get(i + 1);
+            if (next.isMorph() && next.getTransitionDuration() > 0f && !prev.isInfinite()) {
+                float prevEnd = prev.getStartTime() + prev.getDuration();
+                float morphEnd = prevEnd + next.getTransitionDuration();
+                if (globalTime >= prevEnd && globalTime < morphEnd) {
+                    float weight = (globalTime - prevEnd) / next.getTransitionDuration();
+                    renderMorph(prev, next, weight);
+                    return;
+                }
+            }
+        }
 
-        float clipLocalTime = globalTime - activeClip.getStartTime();
+        CameraClip primaryClip = findActiveClip(globalTime);
+        if (primaryClip == null) return;
 
-        // 计算速度积分驱动的插值
+        float clipLocalTime = globalTime - primaryClip.getStartTime();
+        renderSingle(globalTime, primaryClip, clipLocalTime);
+    }
+
+    private void renderSingle(float globalTime, CameraClip clip, float clipLocalTime) {
         KeyframeInterpolator.InterpolationResult result =
-                KeyframeInterpolator.computeInterpolation(clipLocalTime, activeClip);
-
+                KeyframeInterpolator.computeInterpolation(clipLocalTime, clip);
         if (result == null) return;
 
         float s = result.adjustedT;
+        writeAttributes(result.from, result.to, s, clip);
+    }
 
-        // 插值所有属性（使用速度积分进度 s）
-        Vec3 pos = KeyframeInterpolator.interpolatePosition(result.from, result.to, s, activeClip);
-        float yaw = KeyframeInterpolator.interpolateYaw(result.from, result.to, s);
-        float pitch = KeyframeInterpolator.interpolatePitch(result.from, result.to, s);
-        float roll = KeyframeInterpolator.interpolateRoll(result.from, result.to, s);
-        float fov = KeyframeInterpolator.interpolateFov(result.from, result.to, s);
-        float zoom = KeyframeInterpolator.interpolateZoom(result.from, result.to, s);
-        float dof = KeyframeInterpolator.interpolateDof(result.from, result.to, s);
+    private void renderMorph(CameraClip prevClip, CameraClip nextClip, float weight) {
+        KeyframeInterpolator.InterpolationResult prevResult =
+                KeyframeInterpolator.computeInterpolation(prevClip.getDuration(), prevClip);
+        KeyframeInterpolator.InterpolationResult nextResult =
+                KeyframeInterpolator.computeInterpolation(0f, nextClip);
 
-        // 相对模式：加上玩家基准位置
-        if (activeClip.isPositionModeRelative()) {
+        if (prevResult == null && nextResult == null) return;
+
+        float prevS = prevResult != null ? prevResult.adjustedT : 0f;
+        float nextS = nextResult != null ? nextResult.adjustedT : 0f;
+
+        CameraKeyframe prevFrom = prevResult != null ? prevResult.from : null;
+        CameraKeyframe prevTo = prevResult != null ? prevResult.to : null;
+        CameraKeyframe nextFrom = nextResult != null ? nextResult.from : null;
+        CameraKeyframe nextTo = nextResult != null ? nextResult.to : null;
+
+        float invWeight = 1f - weight;
+
+        Vec3 prevPos = prevFrom != null
+                ? KeyframeInterpolator.interpolatePosition(prevFrom, prevTo, prevS, prevClip)
+                : Vec3.ZERO;
+        if (prevClip.isPositionModeRelative()) {
+            prevPos = originPos.add(prevPos);
+        }
+
+        Vec3 nextPos = nextFrom != null
+                ? KeyframeInterpolator.interpolatePosition(nextFrom, nextTo, nextS, nextClip)
+                : Vec3.ZERO;
+        if (nextClip.isPositionModeRelative()) {
+            nextPos = originPos.add(nextPos);
+        }
+
+        Vec3 pos = new Vec3(
+                prevPos.x * invWeight + nextPos.x * weight,
+                prevPos.y * invWeight + nextPos.y * weight,
+                prevPos.z * invWeight + nextPos.z * weight
+        );
+
+        float yaw = blendAngle(
+                prevFrom != null ? KeyframeInterpolator.interpolateYaw(prevFrom, prevTo, prevS) : 0f,
+                nextFrom != null ? KeyframeInterpolator.interpolateYaw(nextFrom, nextTo, nextS) : 0f,
+                weight);
+        float pitch = blendFloat(
+                prevFrom != null ? KeyframeInterpolator.interpolatePitch(prevFrom, prevTo, prevS) : 0f,
+                nextFrom != null ? KeyframeInterpolator.interpolatePitch(nextFrom, nextTo, nextS) : 0f,
+                weight);
+        float roll = blendAngle(
+                prevFrom != null ? KeyframeInterpolator.interpolateRoll(prevFrom, prevTo, prevS) : 0f,
+                nextFrom != null ? KeyframeInterpolator.interpolateRoll(nextFrom, nextTo, nextS) : 0f,
+                weight);
+        float fov = blendFloat(
+                prevFrom != null ? KeyframeInterpolator.interpolateFov(prevFrom, prevTo, prevS) : 70f,
+                nextFrom != null ? KeyframeInterpolator.interpolateFov(nextFrom, nextTo, nextS) : 70f,
+                weight);
+        float zoom = blendFloat(
+                prevFrom != null ? KeyframeInterpolator.interpolateZoom(prevFrom, prevTo, prevS) : 1f,
+                nextFrom != null ? KeyframeInterpolator.interpolateZoom(nextFrom, nextTo, nextS) : 1f,
+                weight);
+        float dof = blendFloat(
+                prevFrom != null ? KeyframeInterpolator.interpolateDof(prevFrom, prevTo, prevS) : 0f,
+                nextFrom != null ? KeyframeInterpolator.interpolateDof(nextFrom, nextTo, nextS) : 0f,
+                weight);
+
+        cameraManager.getPath().setPositionDirect(pos);
+        cameraManager.getProperties().setYawDirect(yaw);
+        cameraManager.getProperties().setPitchDirect(pitch);
+        cameraManager.getProperties().setRollDirect(roll);
+        cameraManager.getProperties().setFovDirect(fov);
+        cameraManager.getProperties().setZoomDirect(zoom);
+        cameraManager.getProperties().setDofDirect(dof);
+    }
+
+    private void writeAttributes(CameraKeyframe from, CameraKeyframe to, float s, CameraClip clip) {
+        Vec3 pos = KeyframeInterpolator.interpolatePosition(from, to, s, clip);
+        float yaw = KeyframeInterpolator.interpolateYaw(from, to, s);
+        float pitch = KeyframeInterpolator.interpolatePitch(from, to, s);
+        float roll = KeyframeInterpolator.interpolateRoll(from, to, s);
+        float fov = KeyframeInterpolator.interpolateFov(from, to, s);
+        float zoom = KeyframeInterpolator.interpolateZoom(from, to, s);
+        float dof = KeyframeInterpolator.interpolateDof(from, to, s);
+
+        if (clip.isPositionModeRelative()) {
             pos = originPos.add(pos);
         }
 
-        // 写入 CameraManager active 缓冲区
         cameraManager.getPath().setPositionDirect(pos);
         cameraManager.getProperties().setYawDirect(yaw);
         cameraManager.getProperties().setPitchDirect(pitch);
@@ -83,17 +158,6 @@ public class CameraTrackPlayer implements TrackPlayer {
         lastClipIndex = 0;
     }
 
-    /**
-     * 找到当前全局时间所在的 camera clip
-     * <p>
-     * 如果时间在所有 clip 之前，返回第一个 clip；
-     * 如果时间在所有 clip 之后，返回最后一个 clip；
-     * 如果在两个 clip 之间的间隙，返回前一个 clip（保持最后一帧）。
-     * 无限时长 clip（duration&lt;0）一旦进入就永远活跃。
-     * <p>
-     * 优化：利用 {@link #lastClipIndex} 缓存上一帧匹配位置，
-     * 顺序播放时从缓存索引开始搜索，避免每帧从头遍历。
-     */
     private CameraClip findActiveClip(float globalTime) {
         if (clips.isEmpty()) return null;
 
@@ -101,7 +165,6 @@ public class CameraTrackPlayer implements TrackPlayer {
         int resultIndex = -1;
         int startIdx = Math.max(0, Math.min(lastClipIndex, clips.size() - 1));
 
-        // 第一轮：从缓存索引向后搜索
         for (int i = startIdx; i < clips.size(); i++) {
             CameraClip clip = clips.get(i);
             float clipEnd = clip.getStartTime() + clip.getDuration();
@@ -120,7 +183,6 @@ public class CameraTrackPlayer implements TrackPlayer {
             }
         }
 
-        // 第二轮：从 0 到缓存索引搜索（处理时间回退或间隙回绕）
         for (int i = 0; i < startIdx; i++) {
             CameraClip clip = clips.get(i);
             float clipEnd = clip.getStartTime() + clip.getDuration();
@@ -139,20 +201,35 @@ public class CameraTrackPlayer implements TrackPlayer {
             }
         }
 
-        // 没有精确匹配的有限时长 clip，返回最后匹配的无限时长 clip
         if (result != null) {
             lastClipIndex = resultIndex;
             return result;
         }
 
-        // 在所有 clip 之前：返回第一个 clip
         if (globalTime < clips.get(0).getStartTime()) {
             lastClipIndex = 0;
             return clips.get(0);
         }
 
-        // 在所有 clip 之后：返回最后一个 clip
         lastClipIndex = clips.size() - 1;
         return clips.get(clips.size() - 1);
+    }
+
+    private static float blendFloat(float a, float b, float weight) {
+        return a * (1f - weight) + b * weight;
+    }
+
+    private static float blendAngle(float a, float b, float weight) {
+        float diff = ((b - a) % 360f + 540f) % 360f - 180f;
+        return a + diff * weight;
+    }
+
+    private static Vec3 blendVec3(Vec3 a, Vec3 b, float weight) {
+        float inv = 1f - weight;
+        return new Vec3(
+                a.x * inv + b.x * weight,
+                a.y * inv + b.y * weight,
+                a.z * inv + b.z * weight
+        );
     }
 }
