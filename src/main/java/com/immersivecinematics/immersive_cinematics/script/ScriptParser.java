@@ -133,7 +133,7 @@ public class ScriptParser {
         boolean holdAtEnd = optBool(metaObj, "hold_at_end", false);
 
         // meta 级别的 interpolation/curve_composition_mode 已移除——
-        // 速度曲线控制下放到片段级 (CameraClip.speed/interpolation) 和属性级 (PropertyOverride)
+        // 插值控制下放到片段级 (CameraClip.interpolation)
 
         ScriptMeta.RuntimeBehavior behavior = ScriptMeta.RuntimeBehavior.builder()
                 .blockKeyboard(blockKeyboard)
@@ -221,7 +221,6 @@ public class ScriptParser {
         TransitionType transition = parseTransitionType(
                 optString(obj, "transition", "cut"), p + ".transition");
         float transitionDuration = optFloat(obj, "transition_duration", 0.5f);
-        float speed = optFloat(obj, "speed", 1.0f);
         InterpolationType interpolation = parseInterpolationType(
                 optString(obj, "interpolation", "linear"), p + ".interpolation");
         BezierCurve curve = obj.has("curve") ? parseBezierCurve(obj.getAsJsonObject("curve"), p + ".curve") : null;
@@ -234,17 +233,6 @@ public class ScriptParser {
         List<CameraKeyframe> keyframes = new ArrayList<>();
         for (int i = 0; i < kfArr.size(); i++) {
             keyframes.add(parseCameraKeyframe(kfArr.get(i).getAsJsonObject(), p + ".keyframes[" + i + "]", positionModeRelative));
-        }
-
-        // 解析属性级速度覆盖（可选）
-        Map<String, PropertyOverride> propertyOverrides = new HashMap<>();
-        if (obj.has("property_overrides")) {
-            JsonObject poObj = obj.getAsJsonObject("property_overrides");
-            for (Map.Entry<String, JsonElement> entry : poObj.entrySet()) {
-                String propName = entry.getKey();
-                propertyOverrides.put(propName, parsePropertyOverride(
-                        entry.getValue().getAsJsonObject(), p + ".property_overrides." + propName));
-            }
         }
 
         // 验证
@@ -267,23 +255,7 @@ public class ScriptParser {
         }
 
         return new CameraClip(startTime, duration, transition, transitionDuration,
-                speed, interpolation, curve, positionModeRelative, loop, loopCount, keyframes, propertyOverrides);
-    }
-
-    private static PropertyOverride parsePropertyOverride(JsonObject obj, String p) throws ScriptParseException {
-        InterpolationType interpolation = parseInterpolationType(
-                optString(obj, "interpolation", "linear"), p + ".interpolation");
-        JsonArray kfArr = requireArray(obj, p, "keyframes");
-        List<PropertyOverride.SpeedKeyframe> keyframes = new ArrayList<>();
-        for (int i = 0; i < kfArr.size(); i++) {
-            JsonObject kfObj = kfArr.get(i).getAsJsonObject();
-            String kp = p + ".keyframes[" + i + "]";
-            float time = requireFloat(kfObj, kp, "time");
-            float speed = optFloat(kfObj, "speed", 1.0f);
-            float curveBias = optFloat(kfObj, "curve_bias", 0.0f);
-            keyframes.add(new PropertyOverride.SpeedKeyframe(time, speed, curveBias));
-        }
-        return new PropertyOverride(interpolation, keyframes);
+                interpolation, curve, positionModeRelative, loop, loopCount, keyframes);
     }
 
     // ========== CameraKeyframe 解析 ==========
@@ -297,14 +269,12 @@ public class ScriptParser {
         float fov = requireFloat(obj, p, "fov");
         float zoom = optFloat(obj, "zoom", 1.0f);
         float dof = optFloat(obj, "dof", 0f);
-        float speed = optFloat(obj, "speed", 1.0f);
-        float curveBias = optFloat(obj, "curve_bias", 0.0f);
 
         if (time < 0) {
             throw new ScriptParseException(p + ".time", "不能为负数: " + time);
         }
 
-        return new CameraKeyframe(time, position, yaw, pitch, roll, fov, zoom, dof, speed, curveBias);
+        return new CameraKeyframe(time, position, yaw, pitch, roll, fov, zoom, dof);
     }
 
     // ========== PositionData 解析 ==========

@@ -40,9 +40,6 @@ public interface TrackPlayer {
 
     /**
      * 工厂方法 — 根据轨道类型创建对应的 TrackPlayer
-     * <p>
-     * 速度驱动模型下，插值控制已下放到片段级（CameraClip.speed/interpolation），
-     * 脚本级不再传递插值参数。
      *
      * @param track               时间轴轨道
      * @param originPos           相对模式基准位置

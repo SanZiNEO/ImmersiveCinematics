@@ -6,20 +6,10 @@ import net.minecraft.world.phys.Vec3;
 import java.util.List;
 
 /**
- * 关键帧插值器 — 速度驱动模型
+ * 关键帧插值器 — 匀速插值模型
  * <p>
- * 核心公式链：
- * <pre>
- * 线性时间 t ──[SpeedCurve]──→ 弧长进度 s ──[ArcLengthLUT]──→ 路径 B(s)
- *                                                     ──[属性 lerp]──→ 属性值
- * </pre>
- * <p>
- * 关键分离：
- * <ul>
- *   <li><b>路径层</b>：贝塞尔曲线 B(s) 只关心形状，s 是弧长参数</li>
- *   <li><b>速度层</b>：速度曲线 v(t) 只关心快慢，t 是线性时间</li>
- *   <li><b>属性层</b>：各属性用各自的进度 s 插值</li>
- * </ul>
+ * 关键帧之间为匀速直线运动。弧长进度 s 等于线性时间进度 t，无需速度曲线。
+ * 贝塞尔路径通过 ArcLengthLUT 确保路径上的匀速运动。
  * <p>
  * 此类为无状态工具类，所有方法都是静态的，不持有任何运行时状态。
  */
@@ -30,13 +20,13 @@ public final class KeyframeInterpolator {
     // ========== 时间计算 ==========
 
     /**
-     * 计算速度积分驱动的插值结果
+     * 计算关键帧插值结果
      * <p>
      * 算法：
      * <ol>
      *   <li>根据 clipTime 找到关键帧段 (from, to)</li>
      *   <li>计算段内线性进度 t ∈ [0, 1]</li>
-     *   <li>通过 SpeedCurve 将 t 积分为弧长进度 s ∈ [0, 1]</li>
+     *   <li>弧长进度 s = t（匀速）</li>
      *   <li>返回 from, to, s</li>
      * </ol>
      * <p>
@@ -104,8 +94,7 @@ public final class KeyframeInterpolator {
         }
         t = Math.max(0f, Math.min(1f, t));
 
-        // 通过 SpeedCurve 将线性时间 t 积分为弧长进度 s
-        float s = SpeedCurve.computeProgress(t, fromIndex, keyframes, clip.getInterpolation());
+        float s = t;
 
         return new InterpolationResult(from, to, s);
     }
@@ -188,7 +177,7 @@ public final class KeyframeInterpolator {
         public final CameraKeyframe from;
         /** 目标关键帧 */
         public final CameraKeyframe to;
-        /** 弧长进度 s [0, 1]（由 SpeedCurve 积分得出） */
+        /** 弧长进度 s [0, 1]（匀速模型下 s = t） */
         public final float adjustedT;
 
         public InterpolationResult(CameraKeyframe from, CameraKeyframe to, float adjustedT) {

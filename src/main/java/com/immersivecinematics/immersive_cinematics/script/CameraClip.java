@@ -2,23 +2,17 @@ package com.immersivecinematics.immersive_cinematics.script;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 相机片段 — 时间轴上的一段镜头动画
  * <p>
- * 速度驱动模型下，片段控制速度曲线和路径：
+ * 片段控制贝塞尔路径和关键帧插值：
  * <ul>
- *   <li>{@code speed} — 片段整体速度倍率 (0~2)，默认 1.0</li>
- *   <li>{@code interpolation} — 速度曲线类型 (linear/smooth)</li>
- *   <li>{@code property_overrides} — 可选，属性级速度覆盖</li>
- *   <li>{@code curve} — 贝塞尔路径控制（与速度正交，仅影响位置）</li>
+ *   <li>{@code interpolation} — 速度曲线类型（保留给未来缓动公式）</li>
+ *   <li>{@code curve} — 贝塞尔路径控制（与插值正交，仅影响位置）</li>
  * </ul>
  * <p>
- * 速度驱动公式链：
- * <pre>
- * t ──[速度曲线]──→ v(t) ──[积分]──→ s(t) ──[弧长贝塞尔或lerp]──→ 属性值
- * </pre>
+ * 关键帧之间为匀速直线运动。要调整速度分布请添加更多关键帧。
  * <p>
  * 无限时长与循环语义：
  * <ul>
@@ -43,10 +37,7 @@ public class CameraClip {
     /** morph 过渡时长（秒），仅 transition=morph 时有效 */
     private final float transitionDuration;
 
-    /** 片段整体速度倍率 (0~2)，默认 1.0 */
-    private final float speed;
-
-    /** 速度曲线类型 (linear/smooth) */
+    /** 速度曲线类型（保留给未来缓动公式） */
     private final InterpolationType interpolation;
 
     /** 贝塞尔曲线路径控制（仅影响位置路径），null=直线插值 */
@@ -64,40 +55,32 @@ public class CameraClip {
     /** 关键帧数组 */
     private final List<CameraKeyframe> keyframes;
 
-    /** 属性级速度覆盖（可选），key=属性名，value=覆盖配置 */
-    private final Map<String, PropertyOverride> propertyOverrides;
-
     public CameraClip(float startTime, float duration, TransitionType transition, float transitionDuration,
-                      float speed, InterpolationType interpolation,
+                      InterpolationType interpolation,
                       BezierCurve curve, boolean positionModeRelative,
-                      boolean loop, int loopCount, List<CameraKeyframe> keyframes,
-                      Map<String, PropertyOverride> propertyOverrides) {
+                      boolean loop, int loopCount, List<CameraKeyframe> keyframes) {
         this.startTime = startTime;
         this.duration = duration;
         this.transition = transition;
         this.transitionDuration = transitionDuration;
-        this.speed = speed;
         this.interpolation = interpolation;
         this.curve = curve;
         this.positionModeRelative = positionModeRelative;
         this.loop = loop;
         this.loopCount = loopCount;
         this.keyframes = keyframes != null ? keyframes : Collections.emptyList();
-        this.propertyOverrides = propertyOverrides != null ? propertyOverrides : Collections.emptyMap();
     }
 
     public float getStartTime() { return startTime; }
     public float getDuration() { return duration; }
     public TransitionType getTransition() { return transition; }
     public float getTransitionDuration() { return transitionDuration; }
-    public float getSpeed() { return speed; }
     public InterpolationType getInterpolation() { return interpolation; }
     public BezierCurve getCurve() { return curve; }
     public boolean isPositionModeRelative() { return positionModeRelative; }
     public boolean isLoop() { return loop; }
     public int getLoopCount() { return loopCount; }
     public List<CameraKeyframe> getKeyframes() { return keyframes; }
-    public Map<String, PropertyOverride> getPropertyOverrides() { return propertyOverrides; }
 
     /** 是否为无限时长片段（负数即视为无限时长） */
     public boolean isInfinite() { return duration < 0f; }
@@ -105,17 +88,11 @@ public class CameraClip {
     /** 是否为 morph 过渡 */
     public boolean isMorph() { return transition == TransitionType.MORPH; }
 
-    /** 获取指定属性的速度覆盖，无覆盖时返回 null */
-    public PropertyOverride getPropertyOverride(String propertyName) {
-        return propertyOverrides.get(propertyName);
-    }
-
     @Override
     public String toString() {
-        return String.format("CameraClip{start=%.2f, dur=%.2f, speed=%.2f, interp=%s, posMode=%s, loop=%s, keyframes=%d, overrides=%d}",
-                startTime, duration, speed, interpolation,
+        return String.format("CameraClip{start=%.2f, dur=%.2f, interp=%s, posMode=%s, loop=%s, keyframes=%d}",
+                startTime, duration, interpolation,
                 positionModeRelative ? "relative" : "absolute",
-                loop, keyframes != null ? keyframes.size() : 0,
-                propertyOverrides.size());
+                loop, keyframes != null ? keyframes.size() : 0);
     }
 }
