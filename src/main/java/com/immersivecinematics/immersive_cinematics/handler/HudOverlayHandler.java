@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 public class HudOverlayHandler {
 
     private static final ResourceLocation CINEMATIC_OVERLAY_ID =
-            new ResourceLocation(Immersive_cinematics.MODID, CinematicOverlay.OVERLAY_ID);
+            new ResourceLocation(ImmersiveCinematics.MODID, CinematicOverlay.OVERLAY_ID);
 
     private static final ResourceLocation CHAT_PANEL_ID = new ResourceLocation("minecraft", "chat_panel");
     private static final ResourceLocation SCOREBOARD_ID = new ResourceLocation("minecraft", "scoreboard");
