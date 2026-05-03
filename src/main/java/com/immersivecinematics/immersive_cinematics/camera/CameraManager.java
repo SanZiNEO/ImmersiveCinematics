@@ -139,6 +139,18 @@ public class CameraManager {
         requestExit(ExitReason.SYSTEM_STOP);
     }
 
+    public void playCinematic(CinematicScript script) {
+        playScript(script);
+    }
+
+    public String getActiveScriptId() {
+        return scriptPlayer.getScriptId();
+    }
+
+    public void forceDeactivate() {
+        deactivateNow();
+    }
+
     public ScriptPlayer getScriptPlayer() {
         return scriptPlayer;
     }
