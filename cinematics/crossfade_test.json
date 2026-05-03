@@ -30,8 +30,8 @@
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": 0,  "dy": 1.6, "dz": 0 }, "yaw": -90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0, "speed": 1.0, "curve_bias": 0.0 },
-              { "time": 4,  "position": { "dx": 20, "dy": 1.6, "dz": 0 }, "yaw": -90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0, "speed": 1.0, "curve_bias": 0.0 }
+              { "time": 0,  "position": { "dx": 0,  "dy": 1.6, "dz": 0 }, "yaw": -90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 4,  "position": { "dx": 20, "dy": 1.6, "dz": 0 }, "yaw": -90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
             ]
           },
           {
@@ -44,8 +44,8 @@
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": 20, "dy": 1.6, "dz": 0 },  "yaw": 0, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0, "speed": 1.0, "curve_bias": 0.0 },
-              { "time": 3,  "position": { "dx": 20, "dy": 1.6, "dz": 15 }, "yaw": 0, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0, "speed": 1.0, "curve_bias": 0.0 }
+              { "time": 0,  "position": { "dx": 20, "dy": 1.6, "dz": 0 },  "yaw": 0, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 3,  "position": { "dx": 20, "dy": 1.6, "dz": 15 }, "yaw": 0, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
             ]
           }
         ]

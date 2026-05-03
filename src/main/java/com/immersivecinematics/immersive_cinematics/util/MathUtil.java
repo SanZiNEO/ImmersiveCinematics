@@ -219,42 +219,6 @@ public final class MathUtil {
         return t * t * t - t * t;
     }
 
-    /**
-     * 厄米基函数不定积分 ∫h₀₀(t)dt = t⁴/2 - t³ + t
-     * <p>
-     * 从 0 到 t 的定积分：∫₀ᵗ h₀₀(τ)dτ
-     */
-    public static float ih00(float t) {
-        return t * t * t * t / 2f - t * t * t + t;
-    }
-
-    /**
-     * 厄米基函数不定积分 ∫h₁₀(t)dt = t⁴/4 - 2t³/3 + t²/2
-     * <p>
-     * 从 0 到 t 的定积分：∫₀ᵗ h₁₀(τ)dτ
-     */
-    public static float ih10(float t) {
-        return t * t * t * t / 4f - 2f * t * t * t / 3f + t * t / 2f;
-    }
-
-    /**
-     * 厄米基函数不定积分 ∫h₀₁(t)dt = -t⁴/2 + t³
-     * <p>
-     * 从 0 到 t 的定积分：∫₀ᵗ h₀₁(τ)dτ
-     */
-    public static float ih01(float t) {
-        return -t * t * t * t / 2f + t * t * t;
-    }
-
-    /**
-     * 厄米基函数不定积分 ∫h₁₁(t)dt = t⁴/4 - t³/3
-     * <p>
-     * 从 0 到 t 的定积分：∫₀ᵗ h₁₁(τ)dτ
-     */
-    public static float ih11(float t) {
-        return t * t * t * t / 4f - t * t * t / 3f;
-    }
-
     // ========== NaN/Infinity 防护 ==========
 
     /**

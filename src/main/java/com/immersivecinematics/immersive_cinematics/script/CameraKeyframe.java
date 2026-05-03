@@ -1,15 +1,9 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 /**
- * 相机关键帧 — 存储某一时刻的镜头完整状态和速度控制
+ * 相机关键帧 — 存储某一时刻的镜头完整状态
  * <p>
  * 字段与 CameraPath/CameraProperties 完全一一对应，无冗余无缺失。
- * <p>
- * 速度驱动模型下，每个关键帧控制该时刻的瞬时速度：
- * <ul>
- *   <li>{@code speed} — 该关键帧处的瞬时速度值 (0~2)，默认 1.0</li>
- *   <li>{@code curve_bias} — smooth 模式下切线弯曲方向控制 (-1~1)，默认 0.0</li>
- * </ul>
  * <p>
  * JSON 示例：
  * <pre>
@@ -17,9 +11,7 @@ package com.immersivecinematics.immersive_cinematics.script;
  *   "time": 0.0,
  *   "position": { "dx": 30.0, "dy": 2.0, "dz": 0.0 },
  *   "yaw": 90.0, "pitch": 5.0, "roll": 0.0,
- *   "fov": 70.0, "zoom": 1.0,
- *   "speed": 0.5,
- *   "curve_bias": 0.3
+ *   "fov": 70.0, "zoom": 1.0
  * }
  * </pre>
  */
@@ -49,20 +41,8 @@ public class CameraKeyframe {
     /** 景深（0=禁用），保留字段，预留给光影包合作 */
     private final float dof;
 
-    /** 该关键帧处的瞬时速度 (0~2)，默认 1.0 */
-    private final float speed;
-
-    /** smooth 模式下切线弯曲方向控制 (-1~1)，默认 0.0 */
-    private final float curveBias;
-
     public CameraKeyframe(float time, PositionData position, float yaw, float pitch,
                           float roll, float fov, float zoom, float dof) {
-        this(time, position, yaw, pitch, roll, fov, zoom, dof, 1.0f, 0.0f);
-    }
-
-    public CameraKeyframe(float time, PositionData position, float yaw, float pitch,
-                          float roll, float fov, float zoom, float dof,
-                          float speed, float curveBias) {
         this.time = time;
         this.position = position;
         this.yaw = yaw;
@@ -71,8 +51,6 @@ public class CameraKeyframe {
         this.fov = fov;
         this.zoom = zoom;
         this.dof = dof;
-        this.speed = speed;
-        this.curveBias = curveBias;
     }
 
     public float getTime() { return time; }
@@ -83,12 +61,10 @@ public class CameraKeyframe {
     public float getFov() { return fov; }
     public float getZoom() { return zoom; }
     public float getDof() { return dof; }
-    public float getSpeed() { return speed; }
-    public float getCurveBias() { return curveBias; }
 
     @Override
     public String toString() {
-        return String.format("CameraKeyframe{time=%.2f, pos=%s, yaw=%.1f, pitch=%.1f, roll=%.1f, fov=%.1f, zoom=%.2f, dof=%.1f, speed=%.2f, bias=%.2f}",
-                time, position, yaw, pitch, roll, fov, zoom, dof, speed, curveBias);
+        return String.format("CameraKeyframe{time=%.2f, pos=%s, yaw=%.1f, pitch=%.1f, roll=%.1f, fov=%.1f, zoom=%.2f, dof=%.1f}",
+                time, position, yaw, pitch, roll, fov, zoom, dof);
     }
 }
