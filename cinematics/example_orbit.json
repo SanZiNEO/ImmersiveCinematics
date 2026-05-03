@@ -5,6 +5,14 @@
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "全面的测试脚本",
+    "triggers": [
+      {
+        "id": "on_login",
+        "type": "login",
+        "repeatable": true,
+        "conditions": {}
+      }
+    ],
     "block_keyboard": true,
     "block_mouse": true,
     "hide_hud": true,

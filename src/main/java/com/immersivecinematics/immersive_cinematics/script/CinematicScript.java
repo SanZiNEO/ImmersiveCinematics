@@ -24,13 +24,20 @@ public class CinematicScript {
     /** 时间轴 */
     private final Timeline timeline;
 
+    /** 原始 JSON（用于服务端→客户端网络同步，非解析时为空） */
+    private String rawJson;
+
     public CinematicScript(ScriptMeta meta, Timeline timeline) {
         this.meta = meta;
         this.timeline = timeline;
+        this.rawJson = null;
     }
 
     public ScriptMeta getMeta() { return meta; }
     public Timeline getTimeline() { return timeline; }
+
+    public String getRawJson() { return rawJson; }
+    public void setRawJson(String rawJson) { this.rawJson = rawJson; }
 
     /** 便捷方法：获取脚本ID */
     public String getId() { return meta.getId(); }
