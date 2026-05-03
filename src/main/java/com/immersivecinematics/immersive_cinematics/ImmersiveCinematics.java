@@ -88,6 +88,8 @@ public class ImmersiveCinematics {
                 Evaluators::evaluateDimension, Set.of(PlayerEvent.PlayerChangedDimensionEvent.class)));
         TriggerRegistry.register(new TriggerType("login", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateLogin, Set.of(PlayerEvent.PlayerLoggedInEvent.class)));
+        TriggerRegistry.register(new TriggerType("inventory", ListenStrategy.POLLING, 20,
+                Evaluators::evaluateInventory, Set.of()));
         TriggerRegistry.register(new TriggerType("item_craft", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateItemCraft, Set.of(PlayerEvent.ItemCraftedEvent.class)));
         TriggerRegistry.register(new TriggerType("custom", ListenStrategy.EVENT_DRIVEN, 0,

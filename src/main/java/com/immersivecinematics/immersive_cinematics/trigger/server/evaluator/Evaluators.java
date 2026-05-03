@@ -90,6 +90,31 @@ public class Evaluators {
         return matchesId(lastCrafted, c.get("item").getAsString());
     }
 
+    public static boolean evaluateInventory(ServerPlayer player, JsonObject c) {
+        if (!c.has("items") || !c.get("items").isJsonArray()) return false;
+        var items = c.getAsJsonArray("items");
+        if (items.size() == 0) return false;
+
+        // 收集需要检测的物品 ID
+        java.util.Set<String> required = new java.util.HashSet<>();
+        for (var elem : items) {
+            required.add(elem.getAsString());
+        }
+
+        // 扫描玩家背包，逐个移除已匹配的 ID
+        var inventory = player.getInventory();
+        int size = inventory.getContainerSize();
+        for (int i = 0; i < size; i++) {
+            var stack = inventory.getItem(i);
+            if (!stack.isEmpty()) {
+                String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+                required.remove(id);
+                if (required.isEmpty()) return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean evaluateCustom(ServerPlayer player, JsonObject c) {
         if (!c.has("event_id")) return false;
         return CustomEventTracker.hasFired(player, c.get("event_id").getAsString());
