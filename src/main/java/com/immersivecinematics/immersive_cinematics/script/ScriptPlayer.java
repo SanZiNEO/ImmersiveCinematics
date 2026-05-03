@@ -2,9 +2,18 @@ package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
+import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+
+import java.util.List;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,6 +63,8 @@ public class ScriptPlayer {
     // 当前活跃的脚本属性（替代原 ScriptProperties 静态单例）
     private ScriptProperties currentProperties = null;
 
+    private boolean stopping = false;
+
     // TrackPlayer 调度列表
     private List<TrackPlayer> trackPlayers = Collections.emptyList();
 
@@ -74,12 +85,28 @@ public class ScriptPlayer {
         this.script = script;
         this.originPos = mc.player.position();
         this.playing = true;
+        this.stopping = false;
         this.startGameTimeSeconds = CameraManager.INSTANCE.getGameTimeSeconds();
 
         // 应用脚本元信息到 ScriptProperties，并设置为当前活跃属性
         ScriptMeta meta = script.getMeta();
         properties.apply(meta);
         currentProperties = properties;
+
+        // block_mob_ai：清空已锁定玩家的生物目标
+        if (currentProperties.isBlockMobAi() && mc.level != null) {
+            Player player = mc.player;
+            AABB range = new AABB(player.blockPosition()).inflate(128);
+            List<Mob> mobs = mc.level.getEntitiesOfClass(Mob.class, range);
+            for (Mob mob : mobs) {
+                if (mob.getTarget() == player) mob.setTarget(null);
+                LivingEntity le = mob;
+                if (le.getBrain().hasMemoryValue(MemoryModuleType.ATTACK_TARGET)
+                        && le.getBrain().getMemory(MemoryModuleType.ATTACK_TARGET).orElse(null) == player) {
+                    le.getBrain().setMemory(MemoryModuleType.ATTACK_TARGET, Optional.empty());
+                }
+            }
+        }
 
         // 创建 TrackPlayer 实例
         trackPlayers = new ArrayList<>();
@@ -126,6 +153,7 @@ public class ScriptPlayer {
         }
 
         this.playing = false;
+        this.stopping = false;
         this.script = null;
         this.trackPlayers = Collections.emptyList();
         properties.revert();  // 重置所有标志位为默认值
@@ -208,6 +236,17 @@ public class ScriptPlayer {
                 elapsedSeconds = totalDuration - HOLD_END_EPSILON;
             } else {
                 // 脚本结束，isFinished() 将返回 true
+                return;
+            }
+        }
+
+        // 自动触发 fade-out（接近脚本结束时）
+        if (!stopping && totalDuration > 0 && elapsedSeconds > 0) {
+            float remaining = totalDuration - elapsedSeconds;
+            float fadeOut = OverlayManager.INSTANCE.getLetterboxLayer().getFadeOut();
+            if (fadeOut > 0f && remaining <= fadeOut) {
+                CameraManager.INSTANCE.requestExit(ExitReason.NATURAL_END);
+                stopping = true;
                 return;
             }
         }

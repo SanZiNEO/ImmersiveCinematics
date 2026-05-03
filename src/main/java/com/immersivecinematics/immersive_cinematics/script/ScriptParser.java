@@ -135,6 +135,23 @@ public class ScriptParser {
         // meta 级别的 interpolation/curve_composition_mode 已移除——
         // 插值控制下放到片段级 (CameraClip.interpolation)
 
+        // dimension（可选，脚本关联维度，预留给区块加载和 TriggerEngine）
+        String dimension = optString(metaObj, "dimension", null);
+
+        // triggers（可选，触发器数组，预留给 TriggerEngine）
+        List<TriggerDefinition> triggers = new ArrayList<>();
+        if (metaObj.has("triggers") && metaObj.get("triggers").isJsonArray()) {
+            for (JsonElement elem : metaObj.getAsJsonArray("triggers")) {
+                JsonObject tObj = elem.getAsJsonObject();
+                String type = requireString(tObj, p + ".triggers[]", "type");
+                Map<String, Object> conditions = tObj.has("conditions")
+                        ? parseDataMap(tObj.getAsJsonObject("conditions"), p + ".triggers[].conditions")
+                        : new HashMap<>();
+                boolean repeatable = optBool(tObj, "repeatable", false);
+                triggers.add(new TriggerDefinition(type, conditions, repeatable));
+            }
+        }
+
         ScriptMeta.RuntimeBehavior behavior = ScriptMeta.RuntimeBehavior.builder()
                 .blockKeyboard(blockKeyboard)
                 .blockMouse(blockMouse)
@@ -156,7 +173,7 @@ public class ScriptParser {
                 .holdAtEnd(holdAtEnd)
                 .build();
 
-        return new ScriptMeta(id, name, author, version, description, behavior);
+        return new ScriptMeta(id, name, author, version, description, behavior, dimension, triggers);
     }
 
     // ========== Timeline 解析 ==========
