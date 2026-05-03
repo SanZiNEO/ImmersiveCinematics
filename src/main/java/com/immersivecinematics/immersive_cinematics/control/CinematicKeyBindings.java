@@ -30,6 +30,12 @@ public class CinematicKeyBindings {
             return;
         }
 
+        // 暂停中 → 禁止跳过
+        if (Minecraft.getInstance().isPaused()) {
+            skipKeyDownSince = 0;
+            return;
+        }
+
         // 跳过键强制绑定到 C 键，使用原始 GLFW 状态检测
         // 不依赖 KeyMapping.getKey()（Minecraft 会从 options.txt 覆盖默认值导致旧绑定残留）
         long window = Minecraft.getInstance().getWindow().getWindow();
