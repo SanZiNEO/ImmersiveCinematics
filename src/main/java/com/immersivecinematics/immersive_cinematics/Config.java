@@ -13,7 +13,7 @@ import net.minecraftforge.fml.event.config.ModConfigEvent;
  * - 阶段3：网络/触发器相关配置
  * - 阶段4：编辑器相关配置
  */
-@Mod.EventBusSubscriber(modid = Immersive_cinematics.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
+@Mod.EventBusSubscriber(modid = ImmersiveCinematics.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class Config {
 
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();

@@ -1,6 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.overlay;
 
-import com.immersivecinematics.immersive_cinematics.Immersive_cinematics;
+import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
 import net.minecraftforge.client.gui.overlay.IGuiOverlay;
