@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.control;
 
+import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import net.minecraft.client.Minecraft;
@@ -26,6 +27,8 @@ public class SkipHudRenderer {
 
     @SubscribeEvent
     public static void onGuiOverlayPost(RenderGuiOverlayEvent.Post event) {
+        if (!Config.showSkipHud) return;
+
         var mc = Minecraft.getInstance();
         if (mc.level == null) return;
 
