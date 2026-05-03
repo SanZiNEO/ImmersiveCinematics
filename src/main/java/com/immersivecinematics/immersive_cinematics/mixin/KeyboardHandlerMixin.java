@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import net.minecraft.client.KeyboardHandler;
+import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -19,7 +20,10 @@ public abstract class KeyboardHandlerMixin {
         if (!CameraManager.INSTANCE.isActive()) return;
         if (!ctrl.isBlockKeyboard()) return;
 
-        // 白名单: Esc — 原版暂停（跳过键检测已改用原始 GLFW 状态，不依赖 KeyMapping）
+        // 暂停中且 pauseWhenGamePaused=true → 放行所有按键（让玩家能操作暂停菜单）
+        if (Minecraft.getInstance().isPaused() && ctrl.isPauseWhenGamePaused()) return;
+
+        // 白名单: Esc — 原版暂停
         if (key == GLFW.GLFW_KEY_ESCAPE) return;
 
         ci.cancel();
