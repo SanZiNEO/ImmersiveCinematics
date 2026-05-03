@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.control;
 
 import com.immersivecinematics.immersive_cinematics.script.ScriptProperties;
+import net.minecraft.client.KeyMapping;
 
 public class CinematicController {
 
@@ -76,6 +77,11 @@ public class CinematicController {
     public boolean isHoldAtEnd() { return holdAtEnd; }
     public boolean isBlockKeyboard() { return blockKeyboard; }
     public boolean isBlockMouse() { return blockMouse; }
+
+    /** 释放所有按键状态（键盘+鼠标），在脚本启动/结束时调用 */
+    public void releaseAllKeys() {
+        KeyMapping.releaseAll();
+    }
     public boolean isHideHud() { return hideHud; }
     public Boolean isHideChat() { return hideChat; }
     public Boolean isHideScoreboard() { return hideScoreboard; }

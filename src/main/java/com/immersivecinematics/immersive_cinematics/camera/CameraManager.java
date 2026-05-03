@@ -7,17 +7,8 @@ import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.script.ScriptProperties;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-
-import java.util.List;
-import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -160,9 +151,7 @@ public class CameraManager {
         Minecraft mc = Minecraft.getInstance();
         Vec3 playerPos = mc.player.position();
 
-        // 脚本开始时中断所有持续输入（键盘 + 鼠标）
-        // 用户即使还按着 W/右键，角色也立即停止，不受屏蔽前状态影响
-        KeyMapping.releaseAll();
+        CinematicController.INSTANCE.releaseAllKeys();
 
         activePath.setPositionDirect(playerPos);
         activeProperties.setYawDirect(mc.player.getYRot());
@@ -174,20 +163,6 @@ public class CameraManager {
 
         scriptPlayer.start(script);
         CinematicController.INSTANCE.apply(scriptPlayer.getCurrentProperties());
-
-        if (CinematicController.INSTANCE.isBlockMobAi() && mc.level != null) {
-            Player player = mc.player;
-            AABB range = new AABB(player.blockPosition()).inflate(128);
-            List<Mob> mobs = mc.level.getEntitiesOfClass(Mob.class, range);
-            for (Mob mob : mobs) {
-                if (mob.getTarget() == player) mob.setTarget(null);
-                LivingEntity le = mob;
-                if (le.getBrain().hasMemoryValue(MemoryModuleType.ATTACK_TARGET)
-                        && le.getBrain().getMemory(MemoryModuleType.ATTACK_TARGET).orElse(null) == player) {
-                    le.getBrain().setMemory(MemoryModuleType.ATTACK_TARGET, Optional.empty());
-                }
-            }
-        }
     }
 
     // ========== 预置状态写入（staged）— 仅供编辑器预览 ==========
@@ -257,18 +232,6 @@ public class CameraManager {
 
         ScriptProperties currentProps = scriptPlayer.getCurrentProperties();
 
-        if (!stopping && scriptPlayer.isPlaying()) {
-            boolean holdAtEnd = currentProps != null && currentProps.isHoldAtEnd();
-            if (!holdAtEnd) {
-                float remaining = scriptPlayer.getRemainingTime();
-                float fadeOut = OverlayManager.INSTANCE.getLetterboxLayer().getFadeOut();
-                if (fadeOut > 0f && remaining > 0f && remaining <= fadeOut) {
-                    OverlayManager.INSTANCE.startFadeOut();
-                    stopping = true;
-                }
-            }
-        }
-
         if (scriptPlayer.isPlaying()) {
             scriptPlayer.onRenderFrame(gameTimeSeconds);
         }
@@ -296,9 +259,7 @@ public class CameraManager {
         gameTimeSeconds = 0;
         lastRealNanos = 0;
 
-        // 释放所有按键（键盘 + 鼠标），模拟玩家松开了所有按键
-        // 之后若玩家仍按住某个键，下一帧的 GLFW 输入事件会重新按下
-        KeyMapping.releaseAll();
+        CinematicController.INSTANCE.releaseAllKeys();
 
         CompletionReason reason = pendingCompletionReason;
         pendingCompletionReason = CompletionReason.FINISHED;

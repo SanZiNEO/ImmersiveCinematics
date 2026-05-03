@@ -8,15 +8,20 @@ public class ScriptMeta {
     private final int version;
     private final String description;
     private final RuntimeBehavior behavior;
+    private final String dimension;
+    private final List<TriggerDefinition> triggers;
 
     public ScriptMeta(String id, String name, String author, int version, String description,
-                      RuntimeBehavior behavior) {
+                      RuntimeBehavior behavior, String dimension,
+                      List<TriggerDefinition> triggers) {
         this.id = id;
         this.name = name;
         this.author = author;
         this.version = version;
         this.description = description;
         this.behavior = behavior;
+        this.dimension = dimension;
+        this.triggers = triggers != null ? triggers : Collections.emptyList();
     }
 
     public String getId() { return id; }
@@ -25,6 +30,8 @@ public class ScriptMeta {
     public int getVersion() { return version; }
     public String getDescription() { return description; }
     public RuntimeBehavior getBehavior() { return behavior; }
+    public String getDimension() { return dimension; }
+    public List<TriggerDefinition> getTriggers() { return triggers; }
 
     public boolean isBlockKeyboard() { return behavior.blockKeyboard(); }
     public boolean isBlockMouse() { return behavior.blockMouse(); }
