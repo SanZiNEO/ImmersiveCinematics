@@ -106,6 +106,10 @@ public class ImmersiveCinematics {
                 Evaluators::evaluateCustom, Set.of()));
         TriggerRegistry.register(new TriggerType("command", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateCommand, Set.of()));
+        TriggerRegistry.register(new TriggerType("structure", ListenStrategy.POLLING, 20,
+                Evaluators::evaluateStructure, Set.of()));
+        TriggerRegistry.register(new TriggerType("gamestage", ListenStrategy.POLLING, 20,
+                Evaluators::evaluateGamestage, Set.of()));
     }
 
     // ===== Server-side Forge Event Handlers =====
