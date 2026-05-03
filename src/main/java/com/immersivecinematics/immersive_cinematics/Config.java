@@ -40,7 +40,7 @@ public class Config {
             .comment("启用调试日志输出")
             .define("debugLogging", false);
 
-    static final ForgeConfigSpec SPEC = BUILDER.build();
+    public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     // 缓存值（配置加载后填充）
     public static double defaultFov;
@@ -54,5 +54,31 @@ public class Config {
         defaultZoom = DEFAULT_ZOOM.get();
         showSkipHud = SHOW_SKIP_HUD.get();
         debugLogging = DEBUG_LOGGING.get();
+    }
+
+    // ===== GUI 写入接口 =====
+
+    public static void setShowSkipHud(boolean value) {
+        showSkipHud = value;
+        SHOW_SKIP_HUD.set(value);
+        SHOW_SKIP_HUD.save();
+    }
+
+    public static void setDebugLogging(boolean value) {
+        debugLogging = value;
+        DEBUG_LOGGING.set(value);
+        DEBUG_LOGGING.save();
+    }
+
+    public static void setDefaultFov(double value) {
+        defaultFov = value;
+        DEFAULT_FOV.set(value);
+        DEFAULT_FOV.save();
+    }
+
+    public static void setDefaultZoom(double value) {
+        defaultZoom = value;
+        DEFAULT_ZOOM.set(value);
+        DEFAULT_ZOOM.save();
     }
 }
