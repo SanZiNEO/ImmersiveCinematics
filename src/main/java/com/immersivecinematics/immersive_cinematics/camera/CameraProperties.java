@@ -49,256 +49,155 @@ public class CameraProperties {
         }
     }
 
-    // --- 当前值 ---
-    private float currentYaw = 0f;
-    private float currentPitch = 0f;
-    private float currentRoll = 0f;
-    private float currentFov = getDefaultFov();
-    private float currentDof = DEFAULT_DOF;
-    private float currentZoom = getDefaultZoom();
+    /**
+     * 单个动画属性的过渡状态跟踪
+     * <p>
+     * 每个属性（yaw/pitch/roll/fov/dof/zoom）拥有独立的过渡进度，
+     * 不再共享一个 transitionProgress，避免设置一个属性时错误地重置其他属性的过渡。
+     */
+    private static class AnimValue {
+        float current, target, start;
+        float duration;
+        float progress = 1f; // 0~1, 1 = 已完成
 
-    // --- 目标值（供 staged 缓冲区过渡插值使用） ---
-    private float targetYaw = 0f;
-    private float targetPitch = 0f;
-    private float targetRoll = 0f;
-    private float targetFov = getDefaultFov();
-    private float targetDof = DEFAULT_DOF;
-    private float targetZoom = getDefaultZoom();
+        /** 直接设置值（瞬移，无过渡） */
+        void setDirect(float v) {
+            current = target = start = v;
+            progress = 1f;
+        }
 
-    // --- 插值起点（供 staged 缓冲区过渡插值使用） ---
-    private float startYaw = 0f;
-    private float startPitch = 0f;
-    private float startRoll = 0f;
-    private float startFov = getDefaultFov();
-    private float startDof = DEFAULT_DOF;
-    private float startZoom = getDefaultZoom();
+        /** 设置目标值并启动过渡 */
+        void setTarget(float v, float dur) {
+            start = current;
+            target = v;
+            if (dur <= 0f) {
+                current = v;
+                progress = 1f;
+            } else {
+                duration = dur;
+                progress = 0f;
+            }
+        }
 
-    // --- 插值控制 ---
-    private float transitionDuration = 0f;   // 过渡时长（秒），0 = 瞬时
-    private float transitionProgress = 1f;   // 0~1，1 = 已完成
+        boolean isAnimating() {
+            return progress < 1f;
+        }
+    }
+
+    // --- 六个动画属性，各自独立跟踪过渡状态 ---
+    private final AnimValue yaw = new AnimValue();
+    private final AnimValue pitch = new AnimValue();
+    private final AnimValue roll = new AnimValue();
+    private final AnimValue fov = new AnimValue();
+    private final AnimValue dof = new AnimValue();
+    private final AnimValue zoom = new AnimValue();
+
+    {
+        // 初始化 fov 和 zoom 的默认值（需在构造后执行）
+        fov.setDirect(getDefaultFov());
+        zoom.setDirect(getDefaultZoom());
+    }
 
     // ========== 🎬 直接设置方法（帧回调驱动模式） ==========
 
-    /**
-     * 🎬 直接设置 yaw（帧回调驱动模式）
-     * <p>
-     * 由 CameraTrackPlayer.onRenderFrame() 每帧调用，
-     * 直接写入精确计算的值，无需过渡插值。
-     *
-     * @param yaw 精确计算的偏航角
-     */
-    public void setYawDirect(float yaw) {
-        this.currentYaw = yaw;
-        this.targetYaw = yaw;
-        this.startYaw = yaw;
-        this.transitionProgress = 1f;
+    /** 🎬 批量设置所有属性（帧回调驱动模式，CameraTrackPlayer 使用） */
+    public void setAllDirect(float yaw, float pitch, float roll, float fov, float zoom, float dof) {
+        this.yaw.setDirect(yaw);
+        this.pitch.setDirect(pitch);
+        this.roll.setDirect(roll);
+        this.fov.setDirect(fov);
+        this.zoom.setDirect(zoom);
+        this.dof.setDirect(dof);
     }
 
-    public void setPitchDirect(float pitch) {
-        this.currentPitch = pitch;
-        this.targetPitch = pitch;
-        this.startPitch = pitch;
-        this.transitionProgress = 1f;
-    }
+    /** 🎬 直接设置偏航角 */
+    public void setYawDirect(float v) { yaw.setDirect(v); }
 
-    public void setRollDirect(float roll) {
-        this.currentRoll = roll;
-        this.targetRoll = roll;
-        this.startRoll = roll;
-        this.transitionProgress = 1f;
-    }
+    /** 🎬 直接设置俯仰角 */
+    public void setPitchDirect(float v) { pitch.setDirect(v); }
 
-    public void setFovDirect(float fov) {
-        this.currentFov = fov;
-        this.targetFov = fov;
-        this.startFov = fov;
-        this.transitionProgress = 1f;
-    }
+    /** 🎬 直接设置翻滚角 */
+    public void setRollDirect(float v) { roll.setDirect(v); }
 
-    public void setDofDirect(float dof) {
-        this.currentDof = dof;
-        this.targetDof = dof;
-        this.startDof = dof;
-        this.transitionProgress = 1f;
-    }
+    /** 🎬 直接设置视场角 */
+    public void setFovDirect(float v) { fov.setDirect(v); }
 
-    public void setZoomDirect(float zoom) {
-        this.currentZoom = zoom;
-        this.targetZoom = zoom;
-        this.startZoom = zoom;
-        this.transitionProgress = 1f;
-    }
+    /** 🎬 直接设置景深 */
+    public void setDofDirect(float v) { dof.setDirect(v); }
+
+    /** 🎬 直接设置缩放 */
+    public void setZoomDirect(float v) { zoom.setDirect(v); }
 
     // ========== 设置目标值（供 staged 缓冲区使用） ==========
 
-    /**
-     * 设置目标偏航角
-     * <p>
-     * 当 duration <= 0 时，只跳转当前属性（currentYaw），不影响其他正在过渡中的属性。
-     *
-     * @param yaw     目标偏航角
-     * @param duration 过渡时长（秒），0 = 瞬时跳转
-     */
-    public void setTargetYaw(float yaw, float duration) {
-        this.startYaw = this.currentYaw;
-        this.targetYaw = yaw;
-        if (duration <= 0f) {
-            this.currentYaw = yaw;
-            this.transitionProgress = 1f;
-        } else {
-            onSetTarget(duration);
-        }
-    }
+    /** 设置目标偏航角与过渡时长 */
+    public void setTargetYaw(float v, float duration) { yaw.setTarget(v, duration); }
 
-    /**
-     * 设置目标俯仰角
-     * <p>
-     * 当 duration <= 0 时，只跳转当前属性（currentPitch），不影响其他正在过渡中的属性。
-     *
-     * @param pitch    目标俯仰角
-     * @param duration 过渡时长（秒），0 = 瞬时跳转
-     */
-    public void setTargetPitch(float pitch, float duration) {
-        this.startPitch = this.currentPitch;
-        this.targetPitch = pitch;
-        if (duration <= 0f) {
-            this.currentPitch = pitch;
-            this.transitionProgress = 1f;
-        } else {
-            onSetTarget(duration);
-        }
-    }
+    /** 设置目标俯仰角与过渡时长 */
+    public void setTargetPitch(float v, float duration) { pitch.setTarget(v, duration); }
 
-    /**
-     * 设置目标翻滚角
-     * <p>
-     * 当 duration <= 0 时，只跳转当前属性（currentRoll），不影响其他正在过渡中的属性。
-     *
-     * @param roll     目标翻滚角
-     * @param duration 过渡时长（秒），0 = 瞬时跳转
-     */
-    public void setTargetRoll(float roll, float duration) {
-        this.startRoll = this.currentRoll;
-        this.targetRoll = roll;
-        if (duration <= 0f) {
-            this.currentRoll = roll;
-            this.transitionProgress = 1f;
-        } else {
-            onSetTarget(duration);
-        }
-    }
+    /** 设置目标翻滚角与过渡时长 */
+    public void setTargetRoll(float v, float duration) { roll.setTarget(v, duration); }
 
-    /**
-     * 设置目标视场角
-     * <p>
-     * 当 duration <= 0 时，只跳转当前属性（currentFov），不影响其他正在过渡中的属性。
-     *
-     * @param fov      目标视场角
-     * @param duration 过渡时长（秒），0 = 瞬时跳转
-     */
-    public void setTargetFov(float fov, float duration) {
-        this.startFov = this.currentFov;
-        this.targetFov = fov;
-        if (duration <= 0f) {
-            this.currentFov = fov;
-            this.transitionProgress = 1f;
-        } else {
-            onSetTarget(duration);
-        }
-    }
+    /** 设置目标视场角与过渡时长 */
+    public void setTargetFov(float v, float duration) { fov.setTarget(v, duration); }
 
-    /**
-     * 设置目标景深
-     * <p>
-     * 当 duration <= 0 时，只跳转当前属性（currentDof），不影响其他正在过渡中的属性。
-     *
-     * @param dof      目标景深
-     * @param duration 过渡时长（秒），0 = 瞬时跳转
-     */
-    public void setTargetDof(float dof, float duration) {
-        this.startDof = this.currentDof;
-        this.targetDof = dof;
-        if (duration <= 0f) {
-            this.currentDof = dof;
-            this.transitionProgress = 1f;
-        } else {
-            onSetTarget(duration);
-        }
-    }
+    /** 设置目标景深与过渡时长 */
+    public void setTargetDof(float v, float duration) { dof.setTarget(v, duration); }
 
-    /**
-     * 设置目标缩放
-     * <p>
-     * 当 duration <= 0 时，只跳转当前属性（currentZoom），不影响其他正在过渡中的属性。
-     *
-     * @param zoom     目标缩放
-     * @param duration 过渡时长（秒），0 = 瞬时跳转
-     */
-    public void setTargetZoom(float zoom, float duration) {
-        this.startZoom = this.currentZoom;
-        this.targetZoom = zoom;
-        if (duration <= 0f) {
-            this.currentZoom = zoom;
-            this.transitionProgress = 1f;
-        } else {
-            onSetTarget(duration);
-        }
-    }
-
-    /**
-     * 统一的过渡初始化逻辑
-     * <p>
-     * 注意：当多个属性同时设置时，它们共享同一个 transitionDuration/transitionProgress。
-     * 这是已知限制，长期方案为每个属性独立插值控制。
-     * <p>
-     * 瞬时跳转逻辑已移至各 setTargetXxx() 方法中，只跳转调用者指定的属性，
-     * 不再强制将所有属性同步到目标值。
-     */
-    private void onSetTarget(float duration) {
-        this.transitionDuration = duration;
-        this.transitionProgress = 0f;
-    }
+    /** 设置目标缩放与过渡时长 */
+    public void setTargetZoom(float v, float duration) { zoom.setTarget(v, duration); }
 
     // ========== tick 驱动（供 staged 缓冲区使用） ==========
 
     /**
      * 每tick驱动过渡插值
      * <p>
-     * 在帧回调驱动模式下，active 缓冲区的属性由 setXxxDirect() 直接设置，
-     * 不需要 tick() 驱动。此方法保留用于 staged 缓冲区的过渡动画。
+     * 每个属性独立推进过渡进度，互不影响。
+     * 角度属性使用角度环绕插值（lerpAngle），标量属性使用线性插值（lerp）。
      *
      * @param deltaTime 距离上一tick的时间（秒）
      */
     public void tick(float deltaTime) {
-        if (transitionProgress < 1f) {
-            transitionProgress = Math.min(1f, transitionProgress + deltaTime / transitionDuration);
-            float t = transitionProgress;
+        tickAngle(yaw, deltaTime);
+        tickAngle(pitch, deltaTime);
+        tickAngle(roll, deltaTime);
+        tickScalar(fov, deltaTime);
+        tickScalar(dof, deltaTime);
+        tickScalar(zoom, deltaTime);
+    }
 
-            // 角度属性使用角度环绕插值
-            currentYaw = MathUtil.lerpAngle(startYaw, targetYaw, t);
-            currentPitch = MathUtil.lerpAngle(startPitch, targetPitch, t);
-            currentRoll = MathUtil.lerpAngle(startRoll, targetRoll, t);
+    private static void tickAngle(AnimValue v, float dt) {
+        if (v.progress >= 1f) return;
+        v.progress = Math.min(1f, v.progress + dt / v.duration);
+        v.current = MathUtil.lerpAngle(v.start, v.target, v.progress);
+    }
 
-            // 标量属性使用线性插值
-            currentFov = MathUtil.lerp(startFov, targetFov, t);
-            currentDof = MathUtil.lerp(startDof, targetDof, t);
-            currentZoom = MathUtil.lerp(startZoom, targetZoom, t);
-        }
+    private static void tickScalar(AnimValue v, float dt) {
+        if (v.progress >= 1f) return;
+        v.progress = Math.min(1f, v.progress + dt / v.duration);
+        v.current = MathUtil.lerp(v.start, v.target, v.progress);
     }
 
     // ========== 获取当前值（直接返回，无 partialTick 插值） ==========
 
-    /**
-     * 🎬 获取当前值（帧回调驱动模式）
-     * <p>
-     * 每帧已由 setXxxDirect() 精确重算，直接返回即可。
-     */
-    public float getYaw() { return currentYaw; }
-    public float getPitch() { return currentPitch; }
-    public float getRoll() { return currentRoll; }
-    public float getFov() { return currentFov; }
-    public float getDof() { return currentDof; }
-    public float getZoom() { return currentZoom; }
+    /** 🎬 获取当前偏航角 */
+    public float getYaw() { return yaw.current; }
+
+    /** 🎬 获取当前俯仰角 */
+    public float getPitch() { return pitch.current; }
+
+    /** 🎬 获取当前翻滚角 */
+    public float getRoll() { return roll.current; }
+
+    /** 🎬 获取当前视场角 */
+    public float getFov() { return fov.current; }
+
+    /** 🎬 获取当前景深 */
+    public float getDof() { return dof.current; }
+
+    /** 🎬 获取当前缩放 */
+    public float getZoom() { return zoom.current; }
 
     // ========== 硬切换覆盖 ==========
 
@@ -310,45 +209,24 @@ public class CameraProperties {
      * @param source 源实例（通常是 staged 缓冲区）
      */
     public void overrideFrom(CameraProperties source) {
-        this.currentYaw = source.currentYaw;
-        this.currentPitch = source.currentPitch;
-        this.currentRoll = source.currentRoll;
-        this.currentFov = source.currentFov;
-        this.currentDof = source.currentDof;
-        this.currentZoom = source.currentZoom;
-
-        this.targetYaw = source.currentYaw;
-        this.targetPitch = source.currentPitch;
-        this.targetRoll = source.currentRoll;
-        this.targetFov = source.currentFov;
-        this.targetDof = source.currentDof;
-        this.targetZoom = source.currentZoom;
-
-        this.startYaw = source.currentYaw;
-        this.startPitch = source.currentPitch;
-        this.startRoll = source.currentRoll;
-        this.startFov = source.currentFov;
-        this.startDof = source.currentDof;
-        this.startZoom = source.currentZoom;
-
-        this.transitionDuration = 0f;
-        this.transitionProgress = 1f;
+        yaw.setDirect(source.yaw.current);
+        pitch.setDirect(source.pitch.current);
+        roll.setDirect(source.roll.current);
+        fov.setDirect(source.fov.current);
+        dof.setDirect(source.dof.current);
+        zoom.setDirect(source.zoom.current);
     }
 
     // ========== 重置 ==========
 
-    /**
-     * 重置到默认值
-     */
+    /** 重置到默认值 */
     public void reset() {
-        currentYaw = targetYaw = startYaw = 0f;
-        currentPitch = targetPitch = startPitch = 0f;
-        currentRoll = targetRoll = startRoll = 0f;
-        currentFov = targetFov = startFov = getDefaultFov();
-        currentDof = targetDof = startDof = DEFAULT_DOF;
-        currentZoom = targetZoom = startZoom = getDefaultZoom();
-        transitionDuration = 0f;
-        transitionProgress = 1f;
+        yaw.setDirect(0f);
+        pitch.setDirect(0f);
+        roll.setDirect(0f);
+        fov.setDirect(getDefaultFov());
+        dof.setDirect(DEFAULT_DOF);
+        zoom.setDirect(getDefaultZoom());
     }
 
 }

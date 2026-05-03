@@ -29,7 +29,7 @@ public abstract class GameRendererMixin {
     }
 
     /**
-     * 当电影镜头激活时，根据 ScriptProperties.hideArm 决定是否取消手臂和手持物品的渲染
+     * 当电影镜头激活时，根据 CinematicController.isHideArm() 决定是否取消手臂和手持物品的渲染
      *
      * 原版 renderItemInHand() 内部通过 CameraType.isFirstPerson() 判断是否渲染手臂，
      * 而非 Camera.isDetached()。因此 CameraMixin.onIsDetached() 返回 true 无法阻止手臂渲染。
@@ -52,7 +52,7 @@ public abstract class GameRendererMixin {
     /**
      * 屏蔽受伤摇晃 + 死亡倾斜
      * <p>
-     * 根据 ScriptProperties.suppressBob 决定是否屏蔽
+     * 根据 CinematicController.isSuppressBob() 决定是否屏蔽
      */
     @Inject(method = "bobHurt", at = @At("HEAD"), cancellable = true)
     private void onBobHurt(PoseStack poseStack, float partialTick, CallbackInfo ci) {
@@ -71,7 +71,7 @@ public abstract class GameRendererMixin {
     /**
      * 屏蔽反胃/下界传送门旋转扭曲效果
      * <p>
-     * 根据 ScriptProperties.suppressBob 决定是否屏蔽
+     * 根据 CinematicController.isSuppressBob() 决定是否屏蔽
      * <p>
      * 在 renderLevel() 中，反胃和下界传送门共用同一套旋转扭曲代码：
      *   float f1 = Mth.lerp(partialTick, player.oSpinningEffectIntensity, player.spinningEffectIntensity);

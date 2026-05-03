@@ -1,6 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.control;
 
-import com.immersivecinematics.immersive_cinematics.script.ScriptProperties;
+import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import net.minecraft.client.KeyMapping;
 
 public class CinematicController {
@@ -30,25 +30,25 @@ public class CinematicController {
 
     private boolean pauseWhenGamePaused = true;
 
-    public void apply(ScriptProperties props) {
-        this.skippable = props.isSkippable();
-        this.interruptible = props.isInterruptible();
-        this.holdAtEnd = props.isHoldAtEnd();
-        this.blockKeyboard = props.isBlockKeyboard();
-        this.blockMouse = props.isBlockMouse();
-        this.hideHud = props.isHideHud();
-        this.hideChat = props.isHideChat();
-        this.hideScoreboard = props.isHideScoreboard();
-        this.hideActionBar = props.isHideActionBar();
-        this.hideTitle = props.isHideTitle();
-        this.hideSubtitles = props.isHideSubtitles();
-        this.hideHotbar = props.isHideHotbar();
-        this.hideCrosshair = props.isHideCrosshair();
-        this.hideArm = props.isHideArm();
-        this.suppressBob = props.isSuppressBob();
-        this.renderPlayerModel = props.isRenderPlayerModel();
-        this.blockMobAi = props.isBlockMobAi();
-        this.pauseWhenGamePaused = props.isPauseWhenGamePaused();
+    public void apply(ScriptMeta.RuntimeBehavior behavior) {
+        this.skippable = behavior.skippable();
+        this.interruptible = behavior.interruptible();
+        this.holdAtEnd = behavior.holdAtEnd();
+        this.blockKeyboard = behavior.blockKeyboard();
+        this.blockMouse = behavior.blockMouse();
+        this.hideHud = behavior.hideHud();
+        this.hideChat = behavior.hideChat();
+        this.hideScoreboard = behavior.hideScoreboard();
+        this.hideActionBar = behavior.hideActionBar();
+        this.hideTitle = behavior.hideTitle();
+        this.hideSubtitles = behavior.hideSubtitles();
+        this.hideHotbar = behavior.hideHotbar();
+        this.hideCrosshair = behavior.hideCrosshair();
+        this.hideArm = behavior.hideArm();
+        this.suppressBob = behavior.suppressBob();
+        this.renderPlayerModel = behavior.renderPlayerModel();
+        this.blockMobAi = behavior.blockMobAi();
+        this.pauseWhenGamePaused = behavior.pauseWhenGamePaused();
     }
 
     public void revert() {
