@@ -58,9 +58,36 @@ public class Evaluators {
 
     public static boolean evaluateEntityKill(ServerPlayer player, JsonObject c) {
         if (!c.has("entity")) return false;
+        var entity = c.get("entity");
+
+        if (!entity.isJsonArray()) {
+            String killedType = KillTracker.getLastKill(player);
+            if (killedType == null) return false;
+            return matchesId(killedType, entity.getAsString());
+        }
+
+        String mode = c.has("mode") ? c.get("mode").getAsString() : "or";
+
+        if ("and".equals(mode)) {
+            Set<String> allKills = KillTracker.getAllKills(player);
+            if (allKills.isEmpty()) return false;
+            for (var elem : entity.getAsJsonArray()) {
+                String pattern = elem.getAsString();
+                boolean matched = false;
+                for (String k : allKills) {
+                    if (matchesId(k, pattern)) { matched = true; break; }
+                }
+                if (!matched) return false;
+            }
+            return true;
+        }
+
         String killedType = KillTracker.getLastKill(player);
         if (killedType == null) return false;
-        return matchesId(killedType, c.get("entity").getAsString());
+        for (var elem : entity.getAsJsonArray()) {
+            if (matchesId(killedType, elem.getAsString())) return true;
+        }
+        return false;
     }
 
     public static boolean evaluateInteract(ServerPlayer player, JsonObject c) {
@@ -175,13 +202,23 @@ public class Evaluators {
 
     public static class KillTracker {
         private static final Map<UUID, String> lastKills = new java.util.HashMap<>();
+        private static final Map<UUID, Set<String>> allKills = new java.util.HashMap<>();
         public static void record(ServerPlayer player, EntityType<?> type) {
-            lastKills.put(player.getUUID(), BuiltInRegistries.ENTITY_TYPE.getKey(type).toString());
+            UUID uuid = player.getUUID();
+            String id = BuiltInRegistries.ENTITY_TYPE.getKey(type).toString();
+            lastKills.put(uuid, id);
+            allKills.computeIfAbsent(uuid, k -> new HashSet<>()).add(id);
         }
         public static String getLastKill(ServerPlayer player) {
             return lastKills.get(player.getUUID());
         }
-        public static void clear(UUID uuid) { lastKills.remove(uuid); }
+        public static Set<String> getAllKills(ServerPlayer player) {
+            return allKills.getOrDefault(player.getUUID(), java.util.Collections.emptySet());
+        }
+        public static void clear(UUID uuid) {
+            lastKills.remove(uuid);
+            allKills.remove(uuid);
+        }
     }
 
     public static class InteractTracker {
