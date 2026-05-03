@@ -12,14 +12,12 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * 脚本播放器 — 驱动 CinematicScript 的运行时播放
@@ -28,7 +26,7 @@ import java.util.List;
  * <ul>
  *   <li>管理全局播放时间（基于 CameraManager 虚拟时钟）</li>
  *   <li>创建并调度 TrackPlayer 实例（Camera/Letterbox/Audio/ModEvent）</li>
- *   <li>管理 ScriptProperties 单例（脚本运行时行为标志位）</li>
+ *   <li>管理当前脚本的运行时行为（从 ScriptMeta.RuntimeBehavior 直接持有）</li>
  *   <li>处理脚本结束 / holdAtEnd</li>
  * </ul>
  * <p>
@@ -57,11 +55,8 @@ public class ScriptPlayer {
     // 相对模式基准位置（玩家激活时的位置）
     private Vec3 originPos = Vec3.ZERO;
 
-    // 脚本运行时属性（消费 ScriptMeta 中的标志位）
-    private final ScriptProperties properties = new ScriptProperties();
-
-    // 当前活跃的脚本属性（替代原 ScriptProperties 静态单例）
-    private ScriptProperties currentProperties = null;
+    // 当前活跃的脚本运行时行为（从 ScriptMeta.RuntimeBehavior 直接持有）
+    private ScriptMeta.RuntimeBehavior currentBehavior = null;
 
     private boolean stopping = false;
 
@@ -88,13 +83,12 @@ public class ScriptPlayer {
         this.stopping = false;
         this.startGameTimeSeconds = CameraManager.INSTANCE.getGameTimeSeconds();
 
-        // 应用脚本元信息到 ScriptProperties，并设置为当前活跃属性
+        // 持有当前脚本的运行时行为
         ScriptMeta meta = script.getMeta();
-        properties.apply(meta);
-        currentProperties = properties;
+        this.currentBehavior = meta.getBehavior();
 
         // block_mob_ai：清空已锁定玩家的生物目标
-        if (currentProperties.isBlockMobAi() && mc.level != null) {
+        if (currentBehavior.blockMobAi() && mc.level != null) {
             Player player = mc.player;
             AABB range = new AABB(player.blockPosition()).inflate(128);
             List<Mob> mobs = mc.level.getEntitiesOfClass(Mob.class, range);
@@ -155,9 +149,8 @@ public class ScriptPlayer {
         this.playing = false;
         this.stopping = false;
         this.script = null;
+        this.currentBehavior = null;
         this.trackPlayers = Collections.emptyList();
-        properties.revert();  // 重置所有标志位为默认值
-        currentProperties = null;  // 清除当前活跃属性引用
     }
 
     public boolean isPlaying() {
@@ -208,12 +201,12 @@ public class ScriptPlayer {
     }
 
     /**
-     * 获取当前活跃的脚本属性
+     * 获取当前活跃的脚本运行时行为
      *
-     * @return 当前脚本属性，无脚本播放时返回 null
+     * @return 当前脚本运行时行为，无脚本播放时返回 null
      */
-    public ScriptProperties getCurrentProperties() {
-        return currentProperties;
+    public ScriptMeta.RuntimeBehavior getCurrentProperties() {
+        return currentBehavior;
     }
 
     // ========== 帧回调驱动 ==========

@@ -6,7 +6,7 @@ import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
-import com.immersivecinematics.immersive_cinematics.script.ScriptProperties;
+import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -230,8 +230,6 @@ public class CameraManager {
         float deltaTime = (float)(gameTimeSeconds - prevGameTimeSeconds);
         OverlayManager.INSTANCE.update(deltaTime);
 
-        ScriptProperties currentProps = scriptPlayer.getCurrentProperties();
-
         if (scriptPlayer.isPlaying()) {
             scriptPlayer.onRenderFrame(gameTimeSeconds);
         }
@@ -242,7 +240,8 @@ public class CameraManager {
         }
 
         if (!stopping && scriptPlayer.isPlaying() && scriptPlayer.isFinished()) {
-            boolean holdAtEnd = currentProps != null && currentProps.isHoldAtEnd();
+            ScriptMeta.RuntimeBehavior behavior = scriptPlayer.getCurrentProperties();
+            boolean holdAtEnd = behavior != null && behavior.holdAtEnd();
             if (!holdAtEnd) {
                 requestExit(ExitReason.NATURAL_END);
             }
@@ -301,7 +300,7 @@ public class CameraManager {
         return active;
     }
 
-    public ScriptProperties getCurrentProperties() {
+    public ScriptMeta.RuntimeBehavior getCurrentProperties() {
         return scriptPlayer.getCurrentProperties();
     }
 

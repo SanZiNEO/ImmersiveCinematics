@@ -123,12 +123,7 @@ public class CameraTrackPlayer implements TrackPlayer {
                 weight);
 
         cameraManager.getPath().setPositionDirect(pos);
-        cameraManager.getProperties().setYawDirect(yaw);
-        cameraManager.getProperties().setPitchDirect(pitch);
-        cameraManager.getProperties().setRollDirect(roll);
-        cameraManager.getProperties().setFovDirect(fov);
-        cameraManager.getProperties().setZoomDirect(zoom);
-        cameraManager.getProperties().setDofDirect(dof);
+        cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom, dof);
     }
 
     private void writeAttributes(CameraKeyframe from, CameraKeyframe to, float s, CameraClip clip) {
@@ -145,12 +140,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         }
 
         cameraManager.getPath().setPositionDirect(pos);
-        cameraManager.getProperties().setYawDirect(yaw);
-        cameraManager.getProperties().setPitchDirect(pitch);
-        cameraManager.getProperties().setRollDirect(roll);
-        cameraManager.getProperties().setFovDirect(fov);
-        cameraManager.getProperties().setZoomDirect(zoom);
-        cameraManager.getProperties().setDofDirect(dof);
+        cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom, dof);
     }
 
     @Override
