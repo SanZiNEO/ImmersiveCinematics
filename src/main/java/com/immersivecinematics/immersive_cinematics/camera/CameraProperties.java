@@ -1,6 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
-import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 
 /**
@@ -20,34 +19,10 @@ import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 public class CameraProperties {
 
     // --- 默认值 ---
+    private static final float DEFAULT_FOV = 70.0f;
     private static final float DEFAULT_ROLL = 0.0f;
     private static final float DEFAULT_DOF = 0.0f;
-
-    /**
-     * 获取配置的默认 FOV
-     * <p>
-     * 使用 Config.defaultFov，如果 Config 尚未加载则回退到 70.0f。
-     */
-    private static float getDefaultFov() {
-        try {
-            return (float) Config.defaultFov;
-        } catch (Exception e) {
-            return 70.0f; // Config 未加载时的回退值
-        }
-    }
-
-    /**
-     * 获取配置的默认 Zoom
-     * <p>
-     * 使用 Config.defaultZoom，如果 Config 尚未加载则回退到 1.0f。
-     */
-    private static float getDefaultZoom() {
-        try {
-            return (float) Config.defaultZoom;
-        } catch (Exception e) {
-            return 1.0f; // Config 未加载时的回退值
-        }
-    }
+    private static final float DEFAULT_ZOOM = 1.0f;
 
     /**
      * 单个动画属性的过渡状态跟踪
@@ -94,8 +69,8 @@ public class CameraProperties {
 
     {
         // 初始化 fov 和 zoom 的默认值（需在构造后执行）
-        fov.setDirect(getDefaultFov());
-        zoom.setDirect(getDefaultZoom());
+        fov.setDirect(DEFAULT_FOV);
+        zoom.setDirect(DEFAULT_ZOOM);
     }
 
     // ========== 🎬 直接设置方法（帧回调驱动模式） ==========
@@ -224,9 +199,9 @@ public class CameraProperties {
         yaw.setDirect(0f);
         pitch.setDirect(0f);
         roll.setDirect(0f);
-        fov.setDirect(getDefaultFov());
+        fov.setDirect(DEFAULT_FOV);
         dof.setDirect(DEFAULT_DOF);
-        zoom.setDirect(getDefaultZoom());
+        zoom.setDirect(DEFAULT_ZOOM);
     }
 
 }

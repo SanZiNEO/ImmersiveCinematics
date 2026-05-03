@@ -6,9 +6,5 @@
     "config.immersive_cinematics.showSkipHud": "显示跳过提示: %s",
     "config.immersive_cinematics.showSkipHud.tooltip": "过场动画播放时显示跳过提示",
     "config.immersive_cinematics.debugLogging": "调试日志: %s",
-    "config.immersive_cinematics.debugLogging.tooltip": "启用调试日志输出",
-    "config.immersive_cinematics.defaultFov": "默认视野: %s",
-    "config.immersive_cinematics.defaultFov.tooltip": "默认视场角（度）",
-    "config.immersive_cinematics.defaultZoom": "默认缩放倍率: %s",
-    "config.immersive_cinematics.defaultZoom.tooltip": "默认缩放倍率"
+    "config.immersive_cinematics.debugLogging.tooltip": "启用调试日志输出"
 }
