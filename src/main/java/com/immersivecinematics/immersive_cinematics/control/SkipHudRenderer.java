@@ -42,10 +42,9 @@ public class SkipHudRenderer {
         int sw = mc.getWindow().getGuiScaledWidth();
         int sh = mc.getWindow().getGuiScaledHeight();
 
-        String keyName = CinematicKeyBindings.SKIP_KEY.getTranslatedKeyMessage().getString();
-        Component text = Component.literal("长按 ").append(
-                Component.literal(keyName).withStyle(style -> style.withColor(0xFFFFFF)))
-                .append(Component.literal(" 跳过动画"));
+        Component keyDisplay = CinematicKeyBindings.SKIP_KEY.getTranslatedKeyMessage();
+        Component text = Component.translatable("hud.immersive_cinematics.skip_hold",
+                keyDisplay.plainCopy().withStyle(style -> style.withColor(0xFFFFFF)));
 
         int textWidth = font.width(text);
         int totalWidth = RING_RADIUS * 2 + GAP_TEXT_RING + textWidth;
@@ -70,10 +69,11 @@ public class SkipHudRenderer {
         guiGraphics.blit(SKIP_KEY_TEXTURE, iconX, iconY, ICON_SIZE, ICON_SIZE, 0, 0, 64, 64, 64, 64);
 
         // 按键文字
-        String keySingle = keyName.length() <= 3 ? keyName : keyName.substring(0, 2);
-        int keyTextX = ringCenterX - font.width(keySingle) / 2;
+        String keyName = keyDisplay.getString();
+        String keyShort = keyName.length() <= 3 ? keyName : keyName.substring(0, 2);
+        int keyTextX = ringCenterX - font.width(keyShort) / 2;
         int keyTextY = ringCenterY - font.lineHeight / 2 + 1;
-        guiGraphics.drawString(font, keySingle, keyTextX, keyTextY, textColor, true);
+        guiGraphics.drawString(font, keyShort, keyTextX, keyTextY, textColor, true);
 
         if (progress > 0f) {
             drawRingArc(guiGraphics, ringCenterX, ringCenterY, RING_RADIUS, RING_WIDTH, progress);
