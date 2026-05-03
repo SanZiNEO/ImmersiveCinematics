@@ -5,6 +5,8 @@
     "config.immersive_cinematics.title": "Immersive Cinematics Config",
     "config.immersive_cinematics.showSkipHud": "Show Skip HUD: %s",
     "config.immersive_cinematics.showSkipHud.tooltip": "Show skip hint overlay during cinematic playback",
+    "config.immersive_cinematics.skipHoldThresholdMs": "Skip Hold Duration: %s",
+    "config.immersive_cinematics.skipHoldThresholdMs.tooltip": "How long (ms) to hold the skip key before skipping",
     "config.immersive_cinematics.debugLogging": "Debug Logging: %s",
     "config.immersive_cinematics.debugLogging.tooltip": "Enable debug log output"
 }
