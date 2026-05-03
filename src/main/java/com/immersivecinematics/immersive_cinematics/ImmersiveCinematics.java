@@ -51,20 +51,19 @@ public class ImmersiveCinematics {
     public ImmersiveCinematics() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
-        MinecraftForge.EVENT_BUS.register(this);
-
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
 
-        modEventBus.addListener(CinematicOverlay::onRegisterGuiOverlays);
-        modEventBus.addListener(CinematicKeyBindings::register);
         modEventBus.addListener(this::onCommonSetup);
+
         if (FMLEnvironment.dist == Dist.CLIENT) {
+            modEventBus.addListener(CinematicOverlay::onRegisterGuiOverlays);
+            modEventBus.addListener(CinematicKeyBindings::register);
             modEventBus.addListener(com.immersivecinematics.immersive_cinematics.client.ClientModEvents::onClientSetup);
+            MinecraftForge.EVENT_BUS.register(ClientTickEvents.class);
+            MinecraftForge.EVENT_BUS.register(ClientHudEvents.class);
+            MinecraftForge.EVENT_BUS.register(ClientCameraEvents.class);
         }
 
-        MinecraftForge.EVENT_BUS.register(ClientTickEvents.class);
-        MinecraftForge.EVENT_BUS.register(ClientHudEvents.class);
-        MinecraftForge.EVENT_BUS.register(ClientCameraEvents.class);
         MinecraftForge.EVENT_BUS.register(ServerForgeEvents.class);
     }
 
