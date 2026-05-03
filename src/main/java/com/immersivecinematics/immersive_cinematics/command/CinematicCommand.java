@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.command;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
+import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException;
 import com.mojang.brigadier.CommandDispatcher;
@@ -11,34 +12,20 @@ import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.storage.LevelResource;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/**
- * /cinematic 命令 — 加载并播放脚本
- * <p>
- * 用法：
- * <ul>
- *   <li>/cinematic play <filepath> — 从文件加载并播放脚本</li>
- *   <li>/cinematic stop — 停止当前播放</li>
- *   <li>/cinematic status — 显示当前播放状态</li>
- * </ul>
- * <p>
- * 文件搜索路径（按优先级）：
- * <ol>
- *   <li>绝对路径</li>
- *   <li>游戏目录下（.minecraft/ 或 run/）</li>
- *   <li>游戏目录/cinematics/ 子目录</li>
- *   <li>自动添加 .json 后缀再搜索</li>
- * </ol>
- * 首次使用时自动创建 cinematics/ 目录。
- */
 public class CinematicCommand {
 
+    private static final LevelResource WORLD_SCRIPT_DIR = new LevelResource("immersive_cinematics/scripts");
+    private static final String GLOBAL_SCRIPT_DIR = "immersive_cinematics/scripts";
+
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(Commands.literal("cinematic")
+        dispatcher.register(Commands.literal("icinematics")
                 .then(Commands.literal("play")
                         .then(Commands.argument("file", StringArgumentType.greedyString())
                                 .executes(CinematicCommand::playScript)))
@@ -52,31 +39,21 @@ public class CinematicCommand {
     private static int playScript(CommandContext<CommandSourceStack> context) {
         String filePath = StringArgumentType.getString(context, "file");
         CommandSourceStack source = context.getSource();
+        MinecraftServer server = source.getServer();
 
-        Path gameDir = source.getServer().getServerDirectory().toPath().toAbsolutePath();
+        // 搜索路径：全局目录 → 世界目录 → 绝对路径
+        Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
+        Path worldDir = server.getWorldPath(WORLD_SCRIPT_DIR);
 
-        // 自动创建 cinematics/ 目录
-        Path cinematicsDir = gameDir.resolve("cinematics");
-        if (!Files.exists(cinematicsDir)) {
-            try {
-                Files.createDirectories(cinematicsDir);
-                source.sendSuccess(() -> Component.literal("§7已创建脚本目录: " + cinematicsDir), false);
-            } catch (IOException e) {
-                source.sendFailure(Component.literal("§c无法创建脚本目录: " + cinematicsDir + " — " + e.getMessage()));
-            }
-        }
-
-        // 读取文件：按优先级搜索
-        Path scriptPath = findScriptFile(filePath, gameDir);
-
+        Path scriptPath = findScriptFile(filePath, globalDir, worldDir);
         if (scriptPath == null) {
             source.sendFailure(Component.literal("§c脚本文件不存在: " + filePath +
                     "\n§7搜索路径:" +
-                    "\n§7  1. 绝对路径" +
-                    "\n§7  2. " + gameDir.resolve(filePath) +
-                    "\n§7  3. " + cinematicsDir.resolve(filePath) +
-                    "\n§7  4. " + cinematicsDir.resolve(filePath + ".json") +
-                    "\n§7请将 .json 脚本文件放入: " + cinematicsDir));
+                    "\n§7  1. " + globalDir.resolve(filePath) +
+                    "\n§7  2. " + globalDir.resolve(filePath + ".json") +
+                    "\n§7  3. " + worldDir.resolve(filePath) +
+                    "\n§7  4. " + worldDir.resolve(filePath + ".json") +
+                    "\n§7请将 .json 脚本文件放入: " + globalDir));
             return 0;
         }
 
@@ -88,7 +65,6 @@ public class CinematicCommand {
             return 0;
         }
 
-        // 解析脚本
         CinematicScript script;
         try {
             script = ScriptParser.parse(json);
@@ -97,7 +73,6 @@ public class CinematicCommand {
             return 0;
         }
 
-        // 在客户端线程执行播放（命令在服务端线程执行）
         net.minecraft.client.Minecraft.getInstance().execute(() -> {
             int result = CameraManager.INSTANCE.playScript(script);
             var player = net.minecraft.client.Minecraft.getInstance().player;
@@ -145,13 +120,12 @@ public class CinematicCommand {
 
     private static int showStatus(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
-        CameraManager mgr = CameraManager.INSTANCE;
+        MinecraftServer server = source.getServer();
+        Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
 
+        CameraManager mgr = CameraManager.INSTANCE;
         if (!mgr.isActive()) {
-            // 显示脚本目录位置
-            Path gameDir = source.getServer().getServerDirectory().toPath().toAbsolutePath();
-            Path cinematicsDir = gameDir.resolve("cinematics");
-            source.sendSuccess(() -> Component.literal("§7相机未激活 §8| 脚本目录: " + cinematicsDir), false);
+            source.sendSuccess(() -> Component.literal("§7相机未激活 §8| 全局脚本目录: " + globalDir), false);
             return 0;
         }
 
@@ -168,31 +142,28 @@ public class CinematicCommand {
         return 1;
     }
 
-    /**
-     * 按优先级搜索脚本文件
-     *
-     * @return 找到的文件路径，或 null
-     */
-    private static Path findScriptFile(String filePath, Path gameDir) {
-        Path cinematicsDir = gameDir.resolve("cinematics");
+    private static Path findScriptFile(String filePath, Path globalDir, Path worldDir) {
+        Path candidate;
 
-        // 1. 绝对路径
-        Path candidate = Path.of(filePath);
+        // 1. 全局目录
+        candidate = globalDir.resolve(filePath);
         if (Files.exists(candidate)) return candidate;
-
-        // 2. 游戏目录相对路径
-        candidate = gameDir.resolve(filePath);
-        if (Files.exists(candidate)) return candidate;
-
-        // 3. cinematics/ 子目录
-        candidate = cinematicsDir.resolve(filePath);
-        if (Files.exists(candidate)) return candidate;
-
-        // 4. 自动添加 .json 后缀
         if (!filePath.endsWith(".json")) {
-            candidate = cinematicsDir.resolve(filePath + ".json");
+            candidate = globalDir.resolve(filePath + ".json");
             if (Files.exists(candidate)) return candidate;
         }
+
+        // 2. 世界目录
+        candidate = worldDir.resolve(filePath);
+        if (Files.exists(candidate)) return candidate;
+        if (!filePath.endsWith(".json")) {
+            candidate = worldDir.resolve(filePath + ".json");
+            if (Files.exists(candidate)) return candidate;
+        }
+
+        // 3. 绝对路径
+        candidate = Path.of(filePath);
+        if (Files.exists(candidate)) return candidate;
 
         return null;
     }
