@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script;
-
+import java.util.Collections;
+import java.util.List;
 public class ScriptMeta {
 
     private final String id;
