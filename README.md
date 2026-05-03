@@ -10,7 +10,9 @@
 
 ## What Is This?
 
-ImmersiveCinematics is a client-side Minecraft mod that gives you full control over the game camera. Write a JSON script or use the in-game editor, run a command, and watch Minecraft transform into a cinematic experience.
+ImmersiveCinematics is a Minecraft mod (with both client and server components) that gives you full control over the game camera. Write a JSON script or use the in-game editor, run a command, and watch Minecraft transform into a cinematic experience.
+
+The server-side trigger system (location, advancement, kill, interact, etc.) enables automatic script playback when specified conditions are met.
 
 **Use cases:**
 - Cutscenes with smooth camera movements
