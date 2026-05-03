@@ -50,34 +50,6 @@ public class ConfigScreen extends Screen {
                 .build());
         y += 28;
 
-        addRenderableWidget(Button.builder(
-                Component.translatable("config.immersive_cinematics.defaultFov",
-                        String.format("%.1f", Config.defaultFov)),
-                btn -> {
-                    double next = Config.defaultFov >= 120 ? 20 : Config.defaultFov + 5;
-                    Config.setDefaultFov(next);
-                    btn.setMessage(Component.translatable("config.immersive_cinematics.defaultFov",
-                            String.format("%.1f", Config.defaultFov)));
-                })
-                .bounds(midX - OPTION_WIDTH / 2, y, OPTION_WIDTH, 20)
-                .tooltip(Tooltip.create(Component.translatable("config.immersive_cinematics.defaultFov.tooltip")))
-                .build());
-        y += 28;
-
-        addRenderableWidget(Button.builder(
-                Component.translatable("config.immersive_cinematics.defaultZoom",
-                        String.format("%.1f", Config.defaultZoom)),
-                btn -> {
-                    double next = Config.defaultZoom >= 10 ? 0.1 : Config.defaultZoom + 0.5;
-                    Config.setDefaultZoom(next);
-                    btn.setMessage(Component.translatable("config.immersive_cinematics.defaultZoom",
-                            String.format("%.1f", Config.defaultZoom)));
-                })
-                .bounds(midX - OPTION_WIDTH / 2, y, OPTION_WIDTH, 20)
-                .tooltip(Tooltip.create(Component.translatable("config.immersive_cinematics.defaultZoom.tooltip")))
-                .build());
-        y += 28;
-
         y += 10;
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, btn -> onClose())
                 .bounds(midX - OPTION_WIDTH / 2, y, OPTION_WIDTH, 20)

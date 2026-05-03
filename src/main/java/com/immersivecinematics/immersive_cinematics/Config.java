@@ -18,16 +18,6 @@ public class Config {
 
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
-    // ===== 相机系统配置 =====
-
-    private static final ForgeConfigSpec.DoubleValue DEFAULT_FOV = BUILDER
-            .comment("默认视场角（度）", "标准值: 70, 广角: 90+, 长焦: 50-")
-            .defineInRange("defaultFov", 70.0, 20.0, 120.0);
-
-    private static final ForgeConfigSpec.DoubleValue DEFAULT_ZOOM = BUILDER
-            .comment("默认缩放倍率", "1.0 = 正常, >1 = 放大（望远镜效果）, <1 = 广角")
-            .defineInRange("defaultZoom", 1.0, 0.1, 10.0);
-
     // ===== UI 配置 =====
 
     private static final ForgeConfigSpec.BooleanValue SHOW_SKIP_HUD = BUILDER
@@ -43,15 +33,11 @@ public class Config {
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     // 缓存值（配置加载后填充）
-    public static double defaultFov;
-    public static double defaultZoom;
     public static boolean showSkipHud;
     public static boolean debugLogging;
 
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
-        defaultFov = DEFAULT_FOV.get();
-        defaultZoom = DEFAULT_ZOOM.get();
         showSkipHud = SHOW_SKIP_HUD.get();
         debugLogging = DEBUG_LOGGING.get();
     }
@@ -68,17 +54,5 @@ public class Config {
         debugLogging = value;
         DEBUG_LOGGING.set(value);
         DEBUG_LOGGING.save();
-    }
-
-    public static void setDefaultFov(double value) {
-        defaultFov = value;
-        DEFAULT_FOV.set(value);
-        DEFAULT_FOV.save();
-    }
-
-    public static void setDefaultZoom(double value) {
-        defaultZoom = value;
-        DEFAULT_ZOOM.set(value);
-        DEFAULT_ZOOM.save();
     }
 }
