@@ -1,1 +1,0 @@
-package com.immersivecinematics.immersive_cinematics.script;
