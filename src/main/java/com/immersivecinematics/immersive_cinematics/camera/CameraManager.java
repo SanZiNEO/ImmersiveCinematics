@@ -6,6 +6,7 @@ import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
+import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptNotifier;
 import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
@@ -270,12 +271,17 @@ public class CameraManager {
         gameTimeSeconds = 0;
         lastRealNanos = 0;
 
-        CinematicController.INSTANCE.releaseAllKeys();
-
         CompletionReason reason = pendingCompletionReason;
         pendingCompletionReason = CompletionReason.FINISHED;
-        scriptPlayer.stop(reason);
 
+        String finishedScriptId = scriptPlayer.getScriptId();
+        if (finishedScriptId != null) {
+            com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptNotifier
+                    .notifyScriptFinished(finishedScriptId, reason);
+        }
+
+        scriptPlayer.stop(reason);
+        CinematicController.INSTANCE.releaseAllKeys();
         CinematicController.INSTANCE.revert();
         reset();
         OverlayManager.INSTANCE.reset();
