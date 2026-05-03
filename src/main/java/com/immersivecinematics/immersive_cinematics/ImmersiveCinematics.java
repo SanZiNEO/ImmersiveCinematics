@@ -25,12 +25,12 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
  * 纯客户端电影摄影模组，提供相机动画系统用于制作游戏内过场动画。
  * 核心架构：CameraProperties + CameraPath (纯POJO) ↔ CameraManager (唯一桥梁) ↔ Mixin (只读Manager)
  */
-@Mod(Immersive_cinematics.MODID)
-public class Immersive_cinematics {
+@Mod(ImmersiveCinematics.MODID)
+public class ImmersiveCinematics {
 
     public static final String MODID = "immersive_cinematics";
 
-    public Immersive_cinematics() {
+    public ImmersiveCinematics() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
         // 注册 Forge 事件总线

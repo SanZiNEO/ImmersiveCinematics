@@ -1,6 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.handler;
 
-import com.immersivecinematics.immersive_cinematics.Immersive_cinematics;
+import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import com.immersivecinematics.immersive_cinematics.overlay.CinematicOverlay;
