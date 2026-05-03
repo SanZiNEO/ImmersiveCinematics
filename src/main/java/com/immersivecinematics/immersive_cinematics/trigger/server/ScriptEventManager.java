@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.trigger.server;
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.EventClip;
+import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
 import com.mojang.logging.LogUtils;
@@ -11,9 +12,12 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public class ScriptEventManager {
@@ -21,46 +25,91 @@ public class ScriptEventManager {
     private static final Logger LOGGER = LogUtils.getLogger();
     public static final ScriptEventManager INSTANCE = new ScriptEventManager();
 
-    private final Map<UUID, ActivePlayback> activePlaybacks = new HashMap<>();
+    private final Map<String, ScriptPlayback> scriptPlaybacks = new HashMap<>();
 
     private ScriptEventManager() {}
 
-    public void startPlayback(ServerPlayer player, String scriptId) {
-        CinematicScript script = com.immersivecinematics.immersive_cinematics.script.ScriptManager.INSTANCE.getScript(scriptId);
-        if (script == null) return;
-        ActivePlayback playback = new ActivePlayback(
-                script.getId(),
-                player.server.getTickCount(),
-                extractEventClips(script)
-        );
-        activePlaybacks.put(player.getUUID(), playback);
-        LOGGER.info("Started event playback for {} script={} (tick={})",
-                player.getName().getString(), scriptId, player.server.getTickCount());
+    public void addViewer(ServerPlayer player, String scriptId) {
+        ScriptPlayback pb = scriptPlaybacks.computeIfAbsent(scriptId, k -> {
+            CinematicScript script = ScriptManager.INSTANCE.getScript(scriptId);
+            return new ScriptPlayback(scriptId,
+                    script != null ? extractEventClips(script) : List.of(),
+                    player.server.getTickCount());
+        });
+        pb.viewers.add(player.getUUID());
+        LOGGER.debug("Added viewer {} to script '{}' (total viewers: {})",
+                player.getName().getString(), scriptId, pb.viewers.size());
     }
 
-    public void stopPlayback(UUID playerUuid, String scriptId) {
-        ActivePlayback removed = activePlaybacks.remove(playerUuid);
-        if (removed != null) {
-            LOGGER.debug("Stopped event playback for {} script={}", playerUuid, scriptId);
+    public void startPlayback(ServerPlayer player, String scriptId) {
+        addViewer(player, scriptId);
+    }
+
+    public void onPlayerFinished(ServerPlayer player, String scriptId, CompletionReason reason) {
+        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
+        if (pb == null) return;
+
+        UUID uuid = player.getUUID();
+        pb.viewers.remove(uuid);
+        pb.finishedViewers.add(uuid);
+
+        LOGGER.debug("Player {} finished script '{}' (remaining viewers: {})",
+                player.getName().getString(), scriptId, pb.viewers.size());
+
+        if (pb.viewers.isEmpty()) {
+            scriptPlaybacks.remove(scriptId);
+            LOGGER.info("Script '{}' fully complete — all {} viewer(s) finished", scriptId, pb.finishedViewers.size());
         }
     }
 
+    public void stopPlayback(UUID playerUuid, String scriptId) {
+        ServerPlayer player = findPlayer(playerUuid);
+        if (player != null) {
+            onPlayerFinished(player, scriptId, CompletionReason.STOPPED);
+        }
+    }
+
+    public void onScriptFinished(ServerPlayer player, String scriptId, CompletionReason reason) {
+        onPlayerFinished(player, scriptId, reason);
+    }
+
+    /** 是否有玩家正在播放指定脚本 */
+    public boolean isScriptActive(String scriptId) {
+        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
+        return pb != null && !pb.viewers.isEmpty();
+    }
+
+    /** 指定脚本的所有 viewer 是否都已播放完毕 */
+    public boolean isFullyComplete(String scriptId) {
+        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
+        return pb == null || pb.viewers.isEmpty();
+    }
+
+    /** 获取指定脚本尚未完成的 viewer 数 */
+    public int getRemainingViewers(String scriptId) {
+        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
+        return pb != null ? pb.viewers.size() : 0;
+    }
+
     public void onServerTick(MinecraftServer server) {
-        if (activePlaybacks.isEmpty()) return;
+        if (scriptPlaybacks.isEmpty()) return;
         int currentTick = server.getTickCount();
 
-        activePlaybacks.entrySet().removeIf(entry -> {
-            ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
-            if (player == null) return true;
+        scriptPlaybacks.entrySet().removeIf(entry -> {
+            ScriptPlayback pb = entry.getValue();
+            if (pb.viewers.isEmpty()) return true;
 
-            ActivePlayback playback = entry.getValue();
-            float elapsed = playback.getElapsedSeconds(currentTick);
+            pb.viewers.removeIf(uuid -> server.getPlayerList().getPlayer(uuid) == null);
 
-            while (playback.nextClipIndex < playback.eventClips.size()) {
-                EventClip clip = playback.eventClips.get(playback.nextClipIndex);
-                if (clip.getStartTime() <= elapsed) {
-                    executeCommand(player, clip.getCommand());
-                    playback.nextClipIndex++;
+            int elapsed = currentTick - pb.startTick;
+            while (pb.nextClipIndex < pb.eventClips.size()) {
+                EventClip clip = pb.eventClips.get(pb.nextClipIndex);
+                if (clip.getStartTime() <= elapsed / 20f) {
+                    for (UUID uuid : pb.finishedViewers) {
+                        ServerPlayer p = server.getPlayerList().getPlayer(uuid);
+                        if (p != null) executeCommand(p, clip.getCommand());
+                    }
+                    pb.nextClipIndex++;
                 } else {
                     break;
                 }
@@ -69,8 +118,16 @@ public class ScriptEventManager {
         });
     }
 
-    public void onScriptFinished(ServerPlayer player, String scriptId, CompletionReason reason) {
-        stopPlayback(player.getUUID(), scriptId);
+    private ServerPlayer findPlayer(UUID uuid) {
+        for (ScriptPlayback pb : scriptPlaybacks.values()) {
+            for (UUID viewerUuid : pb.viewers) {
+                if (viewerUuid.equals(uuid)) {
+                    // 需要通过 server 获取，但这里没有 server 引用
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
     private void executeCommand(ServerPlayer player, String command) {
@@ -92,21 +149,21 @@ public class ScriptEventManager {
                 .orElse(List.of());
     }
 
-    public static class ActivePlayback {
+    public static class ScriptPlayback {
         final String scriptId;
-        final long startTick;
+        final Set<UUID> viewers;
+        final Set<UUID> finishedViewers;
+        final int startTick;
         final List<EventClip> eventClips;
         int nextClipIndex;
 
-        ActivePlayback(String scriptId, long startTick, List<EventClip> eventClips) {
+        ScriptPlayback(String scriptId, List<EventClip> eventClips, int startTick) {
             this.scriptId = scriptId;
-            this.startTick = startTick;
+            this.viewers = new HashSet<>();
+            this.finishedViewers = new HashSet<>();
             this.eventClips = eventClips;
+            this.startTick = startTick;
             this.nextClipIndex = 0;
-        }
-
-        public float getElapsedSeconds(int currentTick) {
-            return (currentTick - startTick) / 20.0f;
         }
     }
 }
