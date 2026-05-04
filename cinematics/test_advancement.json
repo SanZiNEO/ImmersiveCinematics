@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "id": "test_advancement",
+    "name": "测试-进度触发",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "玩家达成击杀怪物进度时触发",
+    "triggers": [
+      {
+        "id": "adv_kill_mob",
+        "type": "advancement",
+        "repeatable": false,
+        "delay": 0.5,
+        "conditions": { "advancement": "minecraft:adventure/kill_a_mob" }
+      }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 5.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 5.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 4, "dy": -1, "dz": 4 }, "yaw": 135, "pitch": -8, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 5.0, "position": { "dx": 3, "dy": -1, "dz": 3 }, "yaw": 135, "pitch": -5, "roll": 0, "fov": 68, "zoom": 1.1, "dof": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          { "start_time": 0.0, "duration": 5.0, "enabled": true, "aspect_ratio": 2.35, "fade_in": 0.3, "fade_out": 0.3 }
+        ]
+      }
+    ]
+  }
+}

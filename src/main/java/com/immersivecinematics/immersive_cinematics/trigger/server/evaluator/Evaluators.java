@@ -134,27 +134,85 @@ public class Evaluators {
         return matchesId(lastCrafted, c.get("item").getAsString());
     }
 
+    public static boolean evaluateItemUse(ServerPlayer player, JsonObject c) {
+        if (!c.has("item")) return false;
+        String lastUsed = UseItemTracker.getLastUsed(player);
+        if (lastUsed == null) return false;
+        return matchesId(lastUsed, c.get("item").getAsString());
+    }
+
     public static boolean evaluateInventory(ServerPlayer player, JsonObject c) {
         if (!c.has("items") || !c.get("items").isJsonArray()) return false;
         var items = c.getAsJsonArray("items");
         if (items.size() == 0) return false;
 
-        java.util.Set<String> required = new java.util.HashSet<>();
+        java.util.Set<String> patterns = new java.util.HashSet<>();
         for (var elem : items) {
-            required.add(elem.getAsString());
+            patterns.add(elem.getAsString());
         }
 
+        if (c.has("change")) {
+            String change = c.get("change").getAsString();
+            Map<String, Integer> snapshot = InventoryTracker.getSnapshot(player);
+            Map<String, Integer> current = scanInventoryCounts(player);
+            InventoryTracker.setSnapshot(player, current);
+
+            if ("increase".equals(change)) {
+                for (String p : patterns) {
+                    int prev = snapshot.getOrDefault(p, 0);
+                    int now = current.getOrDefault(p, 0);
+                    if (now > prev) return true;
+                }
+            } else if ("decrease".equals(change)) {
+                for (String p : patterns) {
+                    int prev = snapshot.getOrDefault(p, 0);
+                    int now = current.getOrDefault(p, 0);
+                    if (now < prev) return true;
+                }
+            }
+            return false;
+        }
+
+        String mode = c.has("mode") ? c.get("mode").getAsString() : "and";
         var inventory = player.getInventory();
         int size = inventory.getContainerSize();
+
+        if ("or".equals(mode)) {
+            for (int i = 0; i < size; i++) {
+                var stack = inventory.getItem(i);
+                if (!stack.isEmpty()) {
+                    String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+                    for (String p : patterns) {
+                        if (matchesId(id, p)) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        java.util.Set<String> remaining = new java.util.HashSet<>(patterns);
         for (int i = 0; i < size; i++) {
             var stack = inventory.getItem(i);
             if (!stack.isEmpty()) {
                 String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-                required.removeIf(pattern -> matchesId(id, pattern));
-                if (required.isEmpty()) return true;
+                remaining.removeIf(pattern -> matchesId(id, pattern));
+                if (remaining.isEmpty()) return true;
             }
         }
         return false;
+    }
+
+    private static Map<String, Integer> scanInventoryCounts(ServerPlayer player) {
+        Map<String, Integer> counts = new java.util.HashMap<>();
+        var inventory = player.getInventory();
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            var stack = inventory.getItem(i);
+            if (!stack.isEmpty()) {
+                String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+                counts.merge(id, stack.getCount(), Integer::sum);
+            }
+        }
+        return counts;
     }
 
     public static boolean evaluateCustom(ServerPlayer player, JsonObject c) {
@@ -276,5 +334,27 @@ public class Evaluators {
             return events != null && events.contains(eventId);
         }
         public static void clear(UUID uuid) { firedEvents.remove(uuid); }
+    }
+
+    public static class UseItemTracker {
+        private static final Map<UUID, String> lastUsed = new java.util.HashMap<>();
+        public static void record(ServerPlayer player, ItemStack stack) {
+            lastUsed.put(player.getUUID(), BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+        }
+        public static String getLastUsed(ServerPlayer player) {
+            return lastUsed.get(player.getUUID());
+        }
+        public static void clear(UUID uuid) { lastUsed.remove(uuid); }
+    }
+
+    public static class InventoryTracker {
+        private static final Map<UUID, Map<String, Integer>> snapshots = new java.util.HashMap<>();
+        public static Map<String, Integer> getSnapshot(ServerPlayer player) {
+            return snapshots.getOrDefault(player.getUUID(), java.util.Collections.emptyMap());
+        }
+        public static void setSnapshot(ServerPlayer player, Map<String, Integer> snapshot) {
+            snapshots.put(player.getUUID(), snapshot);
+        }
+        public static void clear(UUID uuid) { snapshots.remove(uuid); }
     }
 }

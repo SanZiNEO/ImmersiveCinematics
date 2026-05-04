@@ -1,0 +1,66 @@
+{
+  "meta": {
+    "id": "test_entity_kill_and",
+    "name": "测试-击杀触发AND",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "玩家击杀羊、僵尸、蜘蛛各至少一次后触发（AND模式）",
+    "triggers": [
+      {
+        "id": "kill_all",
+        "type": "entity_kill",
+        "repeatable": false,
+        "delay": 0.5,
+        "conditions": {
+          "entity": ["minecraft:sheep", "minecraft:zombie", "minecraft:spider"],
+          "mode": "and"
+        }
+      }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 5.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 5.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 2.5, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 135, "pitch": 8, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 5.0, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 5.0,
+            "enabled": true,
+            "aspect_ratio": 2.35,
+            "fade_in": 0.3,
+            "fade_out": 0.3
+          }
+        ]
+      }
+    ]
+  }
+}
