@@ -1,6 +1,6 @@
 # ImmersiveCinematics
 
-**A professional cinematic camera engine for Minecraft.** Create stunning cutscenes, sweeping camera movements, and immersive storytelling — all driven by JSON scripts with an in-game editor.
+**Add cutscenes to your modpack — no command blocks required.** A single mod for all your storytelling needs. Write JSON scripts or use the in-game editor.
 
 [中文文档](README_CN.md)
 
@@ -10,47 +10,41 @@
 
 ## What Is This?
 
-ImmersiveCinematics is a Minecraft mod (with both client and server components) that gives you full control over the game camera. Write a JSON script or use the in-game editor, run a command, and watch Minecraft transform into a cinematic experience.
-
-The server-side trigger system (location, advancement, kill, interact, etc.) enables automatic script playback when specified conditions are met.
+ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server-side trigger system coordinates with client-side playback: script authors define cutscenes in JSON (or via the in-game editor), and the trigger system plays them automatically when conditions are met — advancement, location, kill, interact, and 14 other trigger types.
 
 **Use cases:**
-- Cutscenes with smooth camera movements
-- Area fixed cameras (Resident Evil 0-style)
-- Automated world tours and flythroughs
-- Machinima and filmmaking
-- Immersive gameplay with scripted camera angles
+- Play an intro cutscene when entering a new area
+- Boss fight pre-rendered cinematics
+- Chest opening camera close-up
+- Fixed-camera puzzle rooms (Resident Evil 0-style)
+- Automated world tour flythroughs
 
 ---
 
 ## Features
 
-**Cinematic Camera**
-- 6 degrees of freedom: position, yaw, pitch, roll, FOV, zoom
-- Depth of field (DOF) is not planned — it requires complex OpenGL pipeline integration which conflicts with the mod's shader-compatible design
-- Smooth camera paths with keyframe animation
-- Bézier curve paths for elegant curved movements
-- 5 interpolation curves: linear, smooth, ease-in, ease-out, ease-in-out
-- Morph transitions between shots (linear fly from clip A's end to clip B's start over transition_duration), or hard cuts for dramatic effect
-- Loop and repeat with configurable count, or infinite duration
+**Cutscene System**
+- 6-DOF camera: position, yaw, pitch, roll, FOV, zoom
+- Keyframe animation + Bézier curve paths for smooth camera movement
+- Relative/absolute positioning, looping, infinite duration
+- Multi-track timeline: camera, letterbox, audio, event
+- Widescreen letterbox bars (2.35:1) with fade-in/out animation
+- Morph transitions between shots
 
-**JSON Script System**
-- Multi-track timeline: camera, letterbox, audio, event, and mod event tracks
-- Relative or absolute camera positioning
-- Script preemption control for area-based fixed cameras
-- Strict validation with clear error messages
+**Trigger System (Server-Side)**
+- 14 trigger types: location (point+radius / cuboid area), advancement, biome, dimension, kill, interact, craft, inventory, custom event, etc.
+- OR/AND logic and wildcard matching supported
+- Repeatable or single-fire, with configurable delay
 
-**Cinematic Presentation**
-- Letterbox bars (2.35:1 default) with fade-in/out animation
-- Automatic HUD, arm, and item hiding
+**Runtime Control**
+- 15 behavior flags: skippable/forced, interruptible, hold-at-end, HUD visibility, etc.
+- Script queuing and preemption for fixed-camera zones
+- Multi-player script tracking with completion sync
+
+**Compatibility**
+- Shader pack compatible (no OpenGL pipeline intrusion)
 - View bobbing suppression (hurt shake, walk bob, nausea)
-- Shader pack compatible
-
-**Full Control**
-- 15 runtime behavior flags for fine-tuned control
-- Skippable or forced cutscenes
-- Hold-at-end for fixed-angle zones
-- Pause-aware: script freezes when game is paused
+- Pause-aware: scripts freeze when game is paused
 
 ---
 
@@ -70,7 +64,14 @@ The server-side trigger system (location, advancement, kill, interact, etc.) ena
 
 ### In-Game Editor
 
-Use the built-in timeline editor to create and modify scripts visually without leaving the game. (Coming in 0.3.0 release)
+Use the built-in timeline editor to create and modify scripts visually without leaving the game. (In development)
+
+### Distribution
+
+| Build | Audience |
+|-------|----------|
+| **full** | Modpack makers / script authors (includes editor) |
+| **lite** | End users (playback runtime only) |
 
 ---
 
@@ -79,7 +80,7 @@ Use the built-in timeline editor to create and modify scripts visually without l
 **Current: 0.3.0 (In Development)**
 
 | | Version |
-|---|---|
+|---|---------|
 | Minecraft | 1.20.1 |
 | Forge | 47.x+ |
 | Script Format | v3 |
@@ -88,19 +89,12 @@ Use the built-in timeline editor to create and modify scripts visually without l
 
 ## What's Next
 
+- In-game timeline editor
 - Path visualization with in-world particles
 - Audio playback synced to timeline
-- Event system for triggering commands at precise moments
-- Cross-mod synchronization for character animations
+- Cross-mod character animation sync
 
 ---
-
-## Acknowledgments
-
-- **freecam** — Camera implementation inspiration
-- **ExplorersCompass** — Listener design reference
-- **Travelers-Titles** — Event monitoring ideas
-- **ReplayMod** — Frame-callback architecture inspiration
 
 ## License
 
