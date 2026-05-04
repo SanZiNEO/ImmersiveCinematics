@@ -33,6 +33,7 @@ public class NetworkHandler {
         registerS2C(S2CPlayScriptPacket.class, S2CPlayScriptPacket::new, S2CPlayScriptPacket::write);
         registerS2C(S2CStopScriptPacket.class, S2CStopScriptPacket::new, S2CStopScriptPacket::write);
         registerS2C(S2CTriggerStateSyncPacket.class, S2CTriggerStateSyncPacket::new, S2CTriggerStateSyncPacket::write);
+        registerS2C(S2CSkipVoteUpdatePacket.class, S2CSkipVoteUpdatePacket::new, S2CSkipVoteUpdatePacket::write);
         registerC2S(C2SScriptFinishedPacket.class, C2SScriptFinishedPacket::new, C2SScriptFinishedPacket::write);
         registerC2S(C2SPlaybackStartedPacket.class, C2SPlaybackStartedPacket::new, C2SPlaybackStartedPacket::write);
     }
@@ -69,6 +70,8 @@ public class NetworkHandler {
             com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver.handleStopScript(p);
         } else if (packet instanceof S2CTriggerStateSyncPacket p) {
             com.immersivecinematics.immersive_cinematics.trigger.client.ClientTriggerStateCache.handleSync(p);
+        } else if (packet instanceof S2CSkipVoteUpdatePacket p) {
+            com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver.handleSkipVoteUpdate(p);
         }
     }
 
