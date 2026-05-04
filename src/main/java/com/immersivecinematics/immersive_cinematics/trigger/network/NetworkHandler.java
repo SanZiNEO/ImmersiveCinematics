@@ -76,6 +76,8 @@ public class NetworkHandler {
     private static void handleServerPacket(Object packet, Supplier<NetworkEvent.Context> ctx) {
         if (packet instanceof C2SScriptFinishedPacket p) {
             p.handle(ctx);
+        } else if (packet instanceof C2SPlaybackStartedPacket p) {
+            p.handle(ctx);
         }
     }
 

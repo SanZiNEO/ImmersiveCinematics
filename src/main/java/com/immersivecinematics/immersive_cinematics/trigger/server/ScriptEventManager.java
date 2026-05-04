@@ -63,9 +63,14 @@ public class ScriptEventManager {
     }
 
     public void stopPlayback(UUID playerUuid, String scriptId) {
-        ServerPlayer player = findPlayer(playerUuid);
-        if (player != null) {
-            onPlayerFinished(player, scriptId, CompletionReason.STOPPED);
+        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
+        if (pb == null || !pb.viewers.remove(playerUuid)) return;
+        pb.finishedViewers.add(playerUuid);
+        LOGGER.debug("Player {} stopped script '{}' (remaining viewers: {})",
+                playerUuid, scriptId, pb.viewers.size());
+        if (pb.viewers.isEmpty()) {
+            scriptPlaybacks.remove(scriptId);
+            LOGGER.info("Script '{}' fully complete — all viewer(s) finished", scriptId);
         }
     }
 
@@ -120,20 +125,13 @@ public class ScriptEventManager {
                     break;
                 }
             }
+
+            if (pb.nextClipIndex >= pb.eventClips.size()) {
+                pb.finishedViewers.clear();
+            }
+
             return false;
         });
-    }
-
-    private ServerPlayer findPlayer(UUID uuid) {
-        for (ScriptPlayback pb : scriptPlaybacks.values()) {
-            for (UUID viewerUuid : pb.viewers) {
-                if (viewerUuid.equals(uuid)) {
-                    // 需要通过 server 获取，但这里没有 server 引用
-                    return null;
-                }
-            }
-        }
-        return null;
     }
 
     private void executeCommand(ServerPlayer player, String command) {

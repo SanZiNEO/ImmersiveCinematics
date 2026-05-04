@@ -186,10 +186,6 @@ public class TriggerEngine {
                 player.getUUID(), reg.getScriptId(), reg.getTriggerId());
         if (!isNew && !reg.isRepeatable()) return;
 
-        if (TriggerStateStore.INSTANCE.isScriptCompleted(player.getUUID(), reg.getScriptId())) {
-            TriggerStateStore.INSTANCE.markScriptCompleted(player.getUUID(), reg.getScriptId());
-        }
-
         int delayMs = reg.getDelayMs();
         if (delayMs > 0) {
             int delayTicks = Math.max(1, delayMs / 50);

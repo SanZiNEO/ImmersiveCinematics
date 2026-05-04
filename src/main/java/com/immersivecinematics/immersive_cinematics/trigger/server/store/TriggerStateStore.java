@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -128,12 +129,15 @@ public class TriggerStateStore {
 
     private void savePlayer(UUID player, PlayerTriggerState state) {
         Path file = storeRoot.resolve(player.toString() + ".snbt");
+        Path tmp = storeRoot.resolve(player.toString() + ".snbt.tmp");
         try {
             CompoundTag tag = serialize(state);
             String snbt = new StringTagVisitor().visit(tag);
-            Files.writeString(file, snbt);
+            Files.writeString(tmp, snbt);
+            Files.move(tmp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             LOGGER.error("Failed to save trigger state for player {}", player, e);
+            try { Files.deleteIfExists(tmp); } catch (IOException ignored) {}
         }
     }
 
