@@ -1,0 +1,76 @@
+{
+  "meta": {
+    "id": "test_biome",
+    "name": "测试-群系触发",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "玩家进入沙漠群系时触发",
+    "triggers": [
+      {
+        "id": "enter_desert",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0.5,
+        "conditions": {
+          "biome": "minecraft:desert"
+        }
+      }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 6.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 3.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 15, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 3.0, "position": { "dx": 10, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 3.0,
+            "duration": 3.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 8, "dy": 1.5, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 3.0, "position": { "dx": 3, "dy": 1.5, "dz": 0 }, "yaw": 90, "pitch": 8, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 6.0,
+            "enabled": true,
+            "aspect_ratio": 2.35,
+            "fade_in": 0.3,
+            "fade_out": 0.3
+          }
+        ]
+      }
+    ]
+  }
+}

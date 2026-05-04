@@ -516,13 +516,34 @@ public class ScriptParser {
                 } else {
                     map.put(entry.getKey(), val.getAsString());
                 }
-            } else if (val.isJsonNull()) {
-                map.put(entry.getKey(), null);
-            } else {
-                map.put(entry.getKey(), val.toString());
+            } else if (val.isJsonObject()) {
+                map.put(entry.getKey(), parseDataMap(val.getAsJsonObject(), p + "." + entry.getKey()));
+            } else if (val.isJsonArray()) {
+                map.put(entry.getKey(), parseDataArray(val.getAsJsonArray(), p + "." + entry.getKey()));
             }
         }
         return map;
+    }
+
+    private static Object parseDataArray(JsonArray arr, String p) {
+        List<Object> list = new ArrayList<>();
+        for (int i = 0; i < arr.size(); i++) {
+            JsonElement val = arr.get(i);
+            if (val.isJsonPrimitive()) {
+                if (val.getAsJsonPrimitive().isNumber()) {
+                    list.add(val.getAsDouble());
+                } else if (val.getAsJsonPrimitive().isBoolean()) {
+                    list.add(val.getAsBoolean());
+                } else {
+                    list.add(val.getAsString());
+                }
+            } else if (val.isJsonObject()) {
+                list.add(parseDataMap(val.getAsJsonObject(), p + "[" + i + "]"));
+            } else if (val.isJsonArray()) {
+                list.add(parseDataArray(val.getAsJsonArray(), p + "[" + i + "]"));
+            }
+        }
+        return list;
     }
 
     // ========== JSON 读取辅助（必填/可选） ==========
