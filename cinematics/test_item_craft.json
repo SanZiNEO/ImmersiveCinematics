@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "id": "test_item_craft",
+    "name": "测试-合成触发",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "玩家合成皮革胸甲时触发",
+    "triggers": [
+      {
+        "id": "craft_chestplate",
+        "type": "item_craft",
+        "repeatable": false,
+        "delay": 0.5,
+        "conditions": { "item": "minecraft:leather_chestplate" }
+      }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 6.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 6.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": -6, "dy": 1, "dz": 5 }, "yaw": -130, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 6.0, "position": { "dx": -6, "dy": 10, "dz": 5 }, "yaw": -130, "pitch": 40, "roll": 0, "fov": 85, "zoom": 1.0, "dof": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          { "start_time": 0.0, "duration": 6.0, "enabled": true, "aspect_ratio": 2.35, "fade_in": 0.3, "fade_out": 0.3 }
+        ]
+      }
+    ]
+  }
+}

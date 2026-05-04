@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "id": "test_inventory_increase",
+    "name": "测试-物品增加",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "玩家获得海绵时触发（物品增加检测）",
+    "triggers": [
+      {
+        "id": "got_pickaxe",
+        "type": "inventory",
+        "repeatable": false,
+        "delay": 0.5,
+        "conditions": {
+          "items": ["minecraft:sponge"],
+          "change": "increase"
+        }
+      }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 6.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 3.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": -8, "dy": 3, "dz": -15 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 3.0, "position": { "dx": 0, "dy": 3, "dz": -15 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 72, "zoom": 1.0, "dof": 0 }
+            ]
+          },
+          {
+            "start_time": 3.0,
+            "duration": 3.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 0, "dy": 3, "dz": -15 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 72, "zoom": 1.0, "dof": 0 },
+              { "time": 3.0, "position": { "dx": 8, "dy": 3, "dz": -15 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          { "start_time": 0.0, "duration": 6.0, "enabled": true, "aspect_ratio": 2.35, "fade_in": 0.3, "fade_out": 0.3 }
+        ]
+      }
+    ]
+  }
+}

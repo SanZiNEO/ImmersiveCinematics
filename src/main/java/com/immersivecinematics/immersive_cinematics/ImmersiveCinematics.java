@@ -25,6 +25,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.living.LivingEntityUseItemEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.player.AdvancementEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
@@ -104,6 +105,8 @@ public class ImmersiveCinematics {
                 Evaluators::evaluateStructure, Set.of()));
         TriggerRegistry.register(new TriggerType("gamestage", ListenStrategy.POLLING, 20,
                 Evaluators::evaluateGamestage, Set.of()));
+        TriggerRegistry.register(new TriggerType("item_use", ListenStrategy.EVENT_DRIVEN, 0,
+                Evaluators::evaluateItemUse, Set.of(LivingEntityUseItemEvent.Finish.class)));
     }
 
     // ===== Server-side Forge Event Handlers =====
@@ -186,6 +189,13 @@ public class ImmersiveCinematics {
         public static void onItemCrafted(PlayerEvent.ItemCraftedEvent event) {
             if (!(event.getEntity() instanceof ServerPlayer player)) return;
             Evaluators.CraftTracker.record(player, event.getCrafting());
+            TriggerEngine.INSTANCE.onGameEvent(event, player);
+        }
+
+        @SubscribeEvent
+        public static void onItemUsed(LivingEntityUseItemEvent.Finish event) {
+            if (!(event.getEntity() instanceof ServerPlayer player)) return;
+            Evaluators.UseItemTracker.record(player, event.getItem());
             TriggerEngine.INSTANCE.onGameEvent(event, player);
         }
 

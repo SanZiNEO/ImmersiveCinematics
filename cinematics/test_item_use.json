@@ -1,0 +1,56 @@
+{
+  "meta": {
+    "id": "test_item_use",
+    "name": "测试-物品使用触发",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "玩家使用钻石头盔（右键装备）时触发",
+    "triggers": [
+      {
+        "id": "use_helmet",
+        "type": "item_use",
+        "repeatable": false,
+        "delay": 0.5,
+        "conditions": { "item": "minecraft:diamond_helmet" }
+      }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 8.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 8.0,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 10, "dy": 1.5, "dz": 3 }, "yaw": 107, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
+              { "time": 4.0, "position": { "dx": 0, "dy": 2, "dz": -2 }, "yaw": 0, "pitch": 8, "roll": 0, "fov": 72, "zoom": 1.1, "dof": 0 },
+              { "time": 8.0, "position": { "dx": -10, "dy": 1.5, "dz": 3 }, "yaw": -107, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          { "start_time": 0.0, "duration": 8.0, "enabled": true, "aspect_ratio": 2.35, "fade_in": 0.3, "fade_out": 0.3 }
+        ]
+      }
+    ]
+  }
+}
