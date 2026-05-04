@@ -138,7 +138,14 @@ public class ImmersiveCinematics {
         @SubscribeEvent
         public static void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
             if (!(event.getEntity() instanceof ServerPlayer player)) return;
-            TriggerStateStore.INSTANCE.unloadForPlayer(player.getUUID());
+            UUID uuid = player.getUUID();
+            TriggerStateStore.INSTANCE.unloadForPlayer(uuid);
+            Evaluators.KillTracker.clear(uuid);
+            Evaluators.InteractTracker.clear(uuid);
+            Evaluators.CraftTracker.clear(uuid);
+            Evaluators.CustomEventTracker.clear(uuid);
+            Evaluators.UseItemTracker.clear(uuid);
+            Evaluators.InventoryTracker.clear(uuid);
         }
 
         @SubscribeEvent

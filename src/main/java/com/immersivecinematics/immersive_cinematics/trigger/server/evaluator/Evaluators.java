@@ -157,6 +157,8 @@ public class Evaluators {
             Map<String, Integer> current = scanInventoryCounts(player);
             InventoryTracker.setSnapshot(player, current);
 
+            if (snapshot.isEmpty()) return false;
+
             if ("increase".equals(change)) {
                 for (String p : patterns) {
                     int prev = snapshot.getOrDefault(p, 0);
