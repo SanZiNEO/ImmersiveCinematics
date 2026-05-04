@@ -49,10 +49,10 @@ public class Evaluators {
 
     public static boolean evaluateBiome(ServerPlayer player, JsonObject c) {
         if (!c.has("biome")) return false;
-        ResourceLocation biomeId = ResourceLocation.parse(c.get("biome").getAsString());
+        String pattern = c.get("biome").getAsString();
         Holder<Biome> biome = player.level().getBiome(player.blockPosition());
         return biome.unwrapKey()
-                .map(key -> key.location().equals(biomeId))
+                .map(key -> matchesId(key.location().toString(), pattern))
                 .orElse(false);
     }
 
@@ -100,7 +100,9 @@ public class Evaluators {
 
     public static boolean evaluateDimensionChange(ServerPlayer player, JsonObject c) {
         if (!c.has("dimension")) return false;
-        return player.level().dimension().location().toString().equals(c.get("dimension").getAsString());
+        return matchesId(
+                player.level().dimension().location().toString(),
+                c.get("dimension").getAsString());
     }
 
     public static boolean evaluateDimension(ServerPlayer player, JsonObject c) {
@@ -123,20 +125,18 @@ public class Evaluators {
         var items = c.getAsJsonArray("items");
         if (items.size() == 0) return false;
 
-        // 收集需要检测的物品 ID
         java.util.Set<String> required = new java.util.HashSet<>();
         for (var elem : items) {
             required.add(elem.getAsString());
         }
 
-        // 扫描玩家背包，逐个移除已匹配的 ID
         var inventory = player.getInventory();
         int size = inventory.getContainerSize();
         for (int i = 0; i < size; i++) {
             var stack = inventory.getItem(i);
             if (!stack.isEmpty()) {
                 String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-                required.remove(id);
+                required.removeIf(pattern -> matchesId(id, pattern));
                 if (required.isEmpty()) return true;
             }
         }
@@ -154,7 +154,7 @@ public class Evaluators {
 
     public static boolean evaluateStructure(ServerPlayer player, JsonObject c) {
         if (!c.has("structure")) return false;
-        ResourceLocation targetId = ResourceLocation.parse(c.get("structure").getAsString());
+        String pattern = c.get("structure").getAsString();
         var level = player.serverLevel();
 
         int radius = c.has("radius") ? c.get("radius").getAsInt() : 0;
@@ -166,7 +166,7 @@ public class Evaluators {
                     var structures = level.structureManager().getAllStructuresAt(center.offset(dx, 0, dz));
                     for (var structure : structures.keySet()) {
                         ResourceLocation id = BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type());
-                        if (id != null && id.equals(targetId)) return true;
+                        if (id != null && matchesId(id.toString(), pattern)) return true;
                     }
                 }
             }
@@ -174,7 +174,7 @@ public class Evaluators {
             var structures = level.structureManager().getAllStructuresAt(center);
             for (var structure : structures.keySet()) {
                 ResourceLocation id = BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type());
-                if (id != null && id.equals(targetId)) return true;
+                if (id != null && matchesId(id.toString(), pattern)) return true;
             }
         }
         return false;
