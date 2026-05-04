@@ -36,18 +36,50 @@ public class Config {
             .comment("启用调试日志输出")
             .define("debugLogging", false);
 
+    // ===== 触发器轮询间隔配置 =====
+
+    private static final ForgeConfigSpec.IntValue TRIGGER_POLL_LOCATION = BUILDER
+            .comment("location 触发器的轮询间隔（tick，20 tick = 1 秒）")
+            .defineInRange("triggerPollInterval_location", 20, 1, 600);
+
+    private static final ForgeConfigSpec.IntValue TRIGGER_POLL_BIOME = BUILDER
+            .comment("biome 触发器的轮询间隔（tick）")
+            .defineInRange("triggerPollInterval_biome", 40, 1, 600);
+
+    private static final ForgeConfigSpec.IntValue TRIGGER_POLL_INVENTORY = BUILDER
+            .comment("inventory 触发器的轮询间隔（tick）")
+            .defineInRange("triggerPollInterval_inventory", 20, 1, 600);
+
+    private static final ForgeConfigSpec.IntValue TRIGGER_POLL_STRUCTURE = BUILDER
+            .comment("structure 触发器的轮询间隔（tick）")
+            .defineInRange("triggerPollInterval_structure", 20, 1, 600);
+
+    private static final ForgeConfigSpec.IntValue TRIGGER_POLL_GAMESTAGE = BUILDER
+            .comment("gamestage 触发器的轮询间隔（tick）")
+            .defineInRange("triggerPollInterval_gamestage", 20, 1, 600);
+
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     // 缓存值（配置加载后填充）
     public static int skipHoldThresholdMs;
     public static boolean showSkipHud;
     public static boolean debugLogging;
+    public static int triggerPollIntervalLocation;
+    public static int triggerPollIntervalBiome;
+    public static int triggerPollIntervalInventory;
+    public static int triggerPollIntervalStructure;
+    public static int triggerPollIntervalGamestage;
 
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
         skipHoldThresholdMs = SKIP_HOLD_THRESHOLD_MS.get();
         showSkipHud = SHOW_SKIP_HUD.get();
         debugLogging = DEBUG_LOGGING.get();
+        triggerPollIntervalLocation = TRIGGER_POLL_LOCATION.get();
+        triggerPollIntervalBiome = TRIGGER_POLL_BIOME.get();
+        triggerPollIntervalInventory = TRIGGER_POLL_INVENTORY.get();
+        triggerPollIntervalStructure = TRIGGER_POLL_STRUCTURE.get();
+        triggerPollIntervalGamestage = TRIGGER_POLL_GAMESTAGE.get();
     }
 
     // ===== GUI 写入接口 =====

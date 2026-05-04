@@ -43,6 +43,7 @@ import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 
 import java.util.Set;
+import java.util.UUID;
 
 @Mod(ImmersiveCinematics.MODID)
 public class ImmersiveCinematics {
@@ -74,11 +75,11 @@ public class ImmersiveCinematics {
     }
 
     private void registerTriggerTypes() {
-        TriggerRegistry.register(new TriggerType("location", ListenStrategy.POLLING, 20,
+        TriggerRegistry.register(new TriggerType("location", ListenStrategy.POLLING, Config.triggerPollIntervalLocation,
                 Evaluators::evaluateLocation, Set.of()));
         TriggerRegistry.register(new TriggerType("advancement", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateAdvancement, Set.of(AdvancementEvent.AdvancementEarnEvent.class)));
-        TriggerRegistry.register(new TriggerType("biome", ListenStrategy.POLLING, 40,
+        TriggerRegistry.register(new TriggerType("biome", ListenStrategy.POLLING, Config.triggerPollIntervalBiome,
                 Evaluators::evaluateBiome, Set.of()));
         TriggerRegistry.register(new TriggerType("entity_kill", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateEntityKill, Set.of(LivingDeathEvent.class)));
@@ -93,7 +94,7 @@ public class ImmersiveCinematics {
                 Evaluators::evaluateDimension, Set.of(PlayerEvent.PlayerChangedDimensionEvent.class)));
         TriggerRegistry.register(new TriggerType("login", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateLogin, Set.of(PlayerEvent.PlayerLoggedInEvent.class)));
-        TriggerRegistry.register(new TriggerType("inventory", ListenStrategy.POLLING, 20,
+        TriggerRegistry.register(new TriggerType("inventory", ListenStrategy.POLLING, Config.triggerPollIntervalInventory,
                 Evaluators::evaluateInventory, Set.of()));
         TriggerRegistry.register(new TriggerType("item_craft", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateItemCraft, Set.of(PlayerEvent.ItemCraftedEvent.class)));
@@ -101,9 +102,9 @@ public class ImmersiveCinematics {
                 Evaluators::evaluateCustom, Set.of()));
         TriggerRegistry.register(new TriggerType("command", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateCommand, Set.of()));
-        TriggerRegistry.register(new TriggerType("structure", ListenStrategy.POLLING, 20,
+        TriggerRegistry.register(new TriggerType("structure", ListenStrategy.POLLING, Config.triggerPollIntervalStructure,
                 Evaluators::evaluateStructure, Set.of()));
-        TriggerRegistry.register(new TriggerType("gamestage", ListenStrategy.POLLING, 20,
+        TriggerRegistry.register(new TriggerType("gamestage", ListenStrategy.POLLING, Config.triggerPollIntervalGamestage,
                 Evaluators::evaluateGamestage, Set.of()));
         TriggerRegistry.register(new TriggerType("item_use", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateItemUse, Set.of(LivingEntityUseItemEvent.Finish.class)));
