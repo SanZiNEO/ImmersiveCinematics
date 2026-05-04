@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerEngine;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistration;
@@ -35,23 +36,41 @@ public class ScriptManager {
 
     private final Map<String, CinematicScript> scripts = new LinkedHashMap<>();
     private boolean loaded = false;
-    private Path globalScriptDir;
 
     private ScriptManager() {}
 
+    /** 首次启动时，将全局目录脚本复制到世界存档目录 */
+    public void copyGlobalToWorld(MinecraftServer server) {
+        Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
+        Path worldDir = server.getWorldPath(WORLD_SCRIPT_PATH);
+        if (!Files.isDirectory(globalDir)) return;
+
+        try {
+            Files.createDirectories(worldDir);
+            try (Stream<Path> files = Files.list(globalDir)) {
+                files.filter(p -> p.toString().endsWith(".json")).forEach(globalFile -> {
+                    Path target = worldDir.resolve(globalFile.getFileName());
+                    if (!Files.exists(target)) {
+                        try {
+                            Files.copy(globalFile, target);
+                            LOGGER.info("Copied script {} to world", globalFile.getFileName());
+                        } catch (IOException e) {
+                            LOGGER.error("Failed to copy {} to world: {}", globalFile.getFileName(), e.getMessage());
+                        }
+                    }
+                });
+            }
+        } catch (IOException e) {
+            LOGGER.error("Failed to copy global scripts to world: {}", e.getMessage());
+        }
+    }
+
     public void loadAll(MinecraftServer server) {
         scripts.clear();
-
-        // 1. 游戏根目录的全局脚本
-        globalScriptDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
-        loadFromDir(globalScriptDir, false);
-
-        // 2. 世界存档内的脚本（覆盖同名 ID）
         Path worldScriptDir = server.getWorldPath(WORLD_SCRIPT_PATH);
         loadFromDir(worldScriptDir, true);
-
         loaded = true;
-        LOGGER.info("Loaded {} scripts (global={})", scripts.size(), globalScriptDir);
+        LOGGER.info("Loaded {} scripts from world directory", scripts.size());
     }
 
     private void loadFromDir(Path dir, boolean overwrite) {
@@ -101,10 +120,7 @@ public class ScriptManager {
                 }
                 JsonObject conditions = new JsonObject();
                 for (Map.Entry<String, Object> entry : td.getConditions().entrySet()) {
-                    Object val = entry.getValue();
-                    if (val instanceof String s) conditions.addProperty(entry.getKey(), s);
-                    else if (val instanceof Number n) conditions.addProperty(entry.getKey(), n);
-                    else if (val instanceof Boolean b) conditions.addProperty(entry.getKey(), b);
+                    convertToJson(conditions, entry.getKey(), entry.getValue());
                 }
                 int delayMs = (int)(td.getDelay() * 1000);
                 registrations.add(new TriggerRegistration(
@@ -134,9 +150,34 @@ public class ScriptManager {
         return scripts.values();
     }
 
-    public Path getGlobalScriptDir() {
-        return globalScriptDir;
-    }
-
     public boolean isLoaded() { return loaded; }
+
+    @SuppressWarnings("unchecked")
+    private void convertToJson(com.google.gson.JsonObject target, String key, Object val) {
+        if (val instanceof String s) target.addProperty(key, s);
+        else if (val instanceof Number n) target.addProperty(key, n);
+        else if (val instanceof Boolean b) target.addProperty(key, b);
+        else if (val instanceof Map<?,?> m) {
+            com.google.gson.JsonObject obj = new com.google.gson.JsonObject();
+            for (Map.Entry<?,?> e : ((Map<String, Object>) m).entrySet()) {
+                convertToJson(obj, e.getKey().toString(), e.getValue());
+            }
+            target.add(key, obj);
+        } else if (val instanceof List<?> l) {
+            com.google.gson.JsonArray arr = new com.google.gson.JsonArray();
+            for (Object elem : l) {
+                if (elem instanceof String s) arr.add(s);
+                else if (elem instanceof Number n) arr.add(n);
+                else if (elem instanceof Boolean b) arr.add(b);
+                else if (elem instanceof Map<?,?> m) {
+                    com.google.gson.JsonObject obj = new com.google.gson.JsonObject();
+                    for (Map.Entry<?,?> e : ((Map<String, Object>) m).entrySet()) {
+                        convertToJson(obj, e.getKey().toString(), e.getValue());
+                    }
+                    arr.add(obj);
+                }
+            }
+            target.add(key, arr);
+        }
+    }
 }

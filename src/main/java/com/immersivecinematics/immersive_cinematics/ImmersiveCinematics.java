@@ -113,6 +113,7 @@ public class ImmersiveCinematics {
 
         @SubscribeEvent
         public static void onServerStarting(ServerStartedEvent event) {
+            ScriptManager.INSTANCE.copyGlobalToWorld(event.getServer());
             ScriptManager.INSTANCE.loadAll(event.getServer());
             TriggerStateStore.INSTANCE.initialize(event.getServer());
             TriggerEngine.INSTANCE.initialize();

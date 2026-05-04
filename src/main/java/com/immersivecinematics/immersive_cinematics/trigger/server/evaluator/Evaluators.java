@@ -170,6 +170,9 @@ public class Evaluators {
         if (!c.has("structure")) return false;
         String pattern = c.get("structure").getAsString();
         var level = player.serverLevel();
+        var structureRegistry = level.registryAccess()
+                .registry(net.minecraft.core.registries.Registries.STRUCTURE).orElse(null);
+        if (structureRegistry == null) return false;
 
         int radius = c.has("radius") ? c.get("radius").getAsInt() : 0;
         BlockPos center = player.blockPosition();
@@ -179,7 +182,7 @@ public class Evaluators {
                 for (int dz = -radius; dz <= radius; dz += 8) {
                     var structures = level.structureManager().getAllStructuresAt(center.offset(dx, 0, dz));
                     for (var structure : structures.keySet()) {
-                        ResourceLocation id = BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type());
+                        ResourceLocation id = structureRegistry.getKey(structure);
                         if (id != null && matchesId(id.toString(), pattern)) return true;
                     }
                 }
@@ -187,7 +190,7 @@ public class Evaluators {
         } else {
             var structures = level.structureManager().getAllStructuresAt(center);
             for (var structure : structures.keySet()) {
-                ResourceLocation id = BuiltInRegistries.STRUCTURE_TYPE.getKey(structure.type());
+                ResourceLocation id = structureRegistry.getKey(structure);
                 if (id != null && matchesId(id.toString(), pattern)) return true;
             }
         }
@@ -210,6 +213,9 @@ public class Evaluators {
         if (pattern.equals("*") || pattern.equals(actual)) return true;
         if (pattern.endsWith(":*")) {
             return actual.startsWith(pattern.substring(0, pattern.length() - 1));
+        }
+        if (!pattern.contains(":")) {
+            return actual.contains(pattern);
         }
         return false;
     }
