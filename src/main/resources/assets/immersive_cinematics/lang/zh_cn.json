@@ -8,5 +8,6 @@
     "config.immersive_cinematics.skipHoldThresholdMs": "长按跳过时间: %s",
     "config.immersive_cinematics.skipHoldThresholdMs.tooltip": "长按跳过键的判定时长（毫秒）",
     "config.immersive_cinematics.debugLogging": "调试日志: %s",
-    "config.immersive_cinematics.debugLogging.tooltip": "启用调试日志输出"
+    "config.immersive_cinematics.debugLogging.tooltip": "启用调试日志输出",
+    "hud.immersive_cinematics.skip_vote": "跳过投票: %s/%s"
 }

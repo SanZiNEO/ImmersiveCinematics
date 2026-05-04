@@ -1,18 +1,22 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
+import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.EventClip;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.trigger.network.S2CSkipVoteUpdatePacket;
+import com.immersivecinematics.immersive_cinematics.trigger.network.S2CStopScriptPacket;
 import com.mojang.logging.LogUtils;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import org.slf4j.Logger;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -53,12 +57,41 @@ public class ScriptEventManager {
         pb.viewers.remove(uuid);
         pb.finishedViewers.add(uuid);
 
-        LOGGER.debug("Player {} finished script '{}' (remaining viewers: {})",
-                player.getName().getString(), scriptId, pb.viewers.size());
+        if (reason == CompletionReason.SKIPPED) {
+            pb.skipVoters.add(uuid);
+        }
+
+        LOGGER.debug("Player {} finished script '{}' (viewers left: {}, skip voters: {})",
+                player.getName().getString(), scriptId, pb.viewers.size(), pb.skipVoters.size());
 
         if (pb.viewers.isEmpty()) {
             scriptPlaybacks.remove(scriptId);
             LOGGER.info("Script '{}' fully complete — all {} viewer(s) finished", scriptId, pb.finishedViewers.size());
+            return;
+        }
+
+        broadcastSkipVote(pb);
+
+        if (reason == CompletionReason.SKIPPED) {
+            int total = pb.viewers.size() + pb.skipVoters.size();
+            int needed = Mth.ceil(total * Config.skipVoteRatio / 100f);
+            if (pb.skipVoters.size() >= needed) {
+                LOGGER.info("Script '{}' force-stopped by skip vote ({} / {} needed)", scriptId, pb.skipVoters.size(), needed);
+                for (UUID remaining : pb.viewers) {
+                    ServerPlayer p = player.server.getPlayerList().getPlayer(remaining);
+                    if (p != null) S2CStopScriptPacket.send(p, scriptId);
+                }
+                scriptPlaybacks.remove(scriptId);
+            }
+        }
+    }
+
+    private void broadcastSkipVote(ScriptPlayback pb) {
+        if (pb.viewers.isEmpty()) return;
+        int total = pb.viewers.size() + pb.skipVoters.size();
+        for (UUID vid : pb.viewers) {
+            ServerPlayer p = pb.getServer().getPlayerList().getPlayer(vid);
+            if (p != null) S2CSkipVoteUpdatePacket.send(p, pb.scriptId, pb.skipVoters.size(), total);
         }
     }
 
@@ -157,17 +190,27 @@ public class ScriptEventManager {
         final String scriptId;
         final Set<UUID> viewers;
         final Set<UUID> finishedViewers;
+        final Set<UUID> skipVoters;
         final int startTick;
         final List<EventClip> eventClips;
         int nextClipIndex;
+        private MinecraftServer server;
 
         ScriptPlayback(String scriptId, List<EventClip> eventClips, int startTick) {
             this.scriptId = scriptId;
             this.viewers = new HashSet<>();
             this.finishedViewers = new HashSet<>();
+            this.skipVoters = new HashSet<>();
             this.eventClips = eventClips;
             this.startTick = startTick;
             this.nextClipIndex = 0;
+        }
+
+        MinecraftServer getServer() {
+            if (server == null) {
+                server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+            }
+            return server;
         }
     }
 }

@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.control;
 import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -80,6 +81,18 @@ public class SkipHudRenderer {
 
         if (progress > 0f) {
             drawRingArc(guiGraphics, ringCenterX, ringCenterY, RING_RADIUS, RING_WIDTH, progress);
+        }
+
+        // 左下角跳过投票文字（仅多人游戏）
+        if (!mc.isLocalServer()) {
+            int voters = ClientScriptReceiver.getSkipVoterCount();
+            int total = ClientScriptReceiver.getSkipTotalViewers();
+            if (total > 0) {
+                Component voteText = Component.translatable("hud.immersive_cinematics.skip_vote", voters, total);
+                int voteX = 4;
+                int voteY = sh - font.lineHeight - 4;
+                guiGraphics.drawString(font, voteText, voteX, voteY, 0xAAFFFFFF, true);
+            }
         }
     }
 

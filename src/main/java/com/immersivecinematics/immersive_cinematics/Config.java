@@ -30,6 +30,13 @@ public class Config {
             .comment("过场动画播放时显示跳过提示（长按进度环 + 按键提示）")
             .define("showSkipHud", true);
 
+    // ===== 跳过投票配置 =====
+
+    private static final ForgeConfigSpec.IntValue SKIP_VOTE_RATIO = BUILDER
+            .comment("跳过投票所需比例（百分比），全部玩家投票后跳过才生效",
+                    "例: 100 = 所有玩家必须投跳过, 50 = 半数即可")
+            .defineInRange("skipVoteRatio", 100, 10, 100);
+
     // ===== 调试配置 =====
 
     private static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
@@ -63,6 +70,7 @@ public class Config {
     // 缓存值（配置加载后填充）
     public static int skipHoldThresholdMs;
     public static boolean showSkipHud;
+    public static int skipVoteRatio;
     public static boolean debugLogging;
     public static int triggerPollIntervalLocation;
     public static int triggerPollIntervalBiome;
@@ -74,6 +82,7 @@ public class Config {
     static void onLoad(final ModConfigEvent event) {
         skipHoldThresholdMs = SKIP_HOLD_THRESHOLD_MS.get();
         showSkipHud = SHOW_SKIP_HUD.get();
+        skipVoteRatio = SKIP_VOTE_RATIO.get();
         debugLogging = DEBUG_LOGGING.get();
         triggerPollIntervalLocation = TRIGGER_POLL_LOCATION.get();
         triggerPollIntervalBiome = TRIGGER_POLL_BIOME.get();

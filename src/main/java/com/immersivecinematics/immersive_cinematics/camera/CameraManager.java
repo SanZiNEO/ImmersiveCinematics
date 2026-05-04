@@ -279,6 +279,7 @@ public class CameraManager {
             com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptNotifier
                     .notifyScriptFinished(finishedScriptId, reason);
         }
+        com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver.resetSkipVote();
 
         scriptPlayer.stop(reason);
         CinematicController.INSTANCE.releaseAllKeys();
