@@ -25,6 +25,20 @@ public class Evaluators {
                 return false;
             }
         }
+        if (c.has("corner1") && c.has("corner2")) {
+            JsonObject c1 = c.getAsJsonObject("corner1");
+            JsonObject c2 = c.getAsJsonObject("corner2");
+            double minX = Math.min(c1.get("x").getAsDouble(), c2.get("x").getAsDouble());
+            double maxX = Math.max(c1.get("x").getAsDouble(), c2.get("x").getAsDouble());
+            double minY = Math.min(c1.get("y").getAsDouble(), c2.get("y").getAsDouble());
+            double maxY = Math.max(c1.get("y").getAsDouble(), c2.get("y").getAsDouble());
+            double minZ = Math.min(c1.get("z").getAsDouble(), c2.get("z").getAsDouble());
+            double maxZ = Math.max(c1.get("z").getAsDouble(), c2.get("z").getAsDouble());
+            double px = player.getX(), py = player.getY(), pz = player.getZ();
+            if (px >= minX && px <= maxX && py >= minY && py <= maxY && pz >= minZ && pz <= maxZ) {
+                return true;
+            }
+        }
         if (c.has("position")) {
             JsonObject pos = c.getAsJsonObject("position");
             double px = pos.get("x").getAsDouble();
@@ -36,7 +50,7 @@ public class Evaluators {
             double dz = player.getZ() - pz;
             return dx * dx + dy * dy + dz * dz <= radius * radius;
         }
-        return true;
+        return c.has("dimension");
     }
 
     public static boolean evaluateAdvancement(ServerPlayer player, JsonObject c) {

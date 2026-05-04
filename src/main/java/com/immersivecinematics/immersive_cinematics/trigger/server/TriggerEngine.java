@@ -169,6 +169,9 @@ public class TriggerEngine {
     // ===== Internal =====
 
     private boolean shouldSkip(ServerPlayer player, TriggerRegistration reg) {
+        if (ScriptEventManager.INSTANCE.isPlayerPlayingScript(player.getUUID(), reg.getScriptId())) {
+            return true;
+        }
         if (!reg.isRepeatable()) {
             return TriggerStateStore.INSTANCE.isTriggered(
                     player.getUUID(), reg.getScriptId(), reg.getTriggerId());
