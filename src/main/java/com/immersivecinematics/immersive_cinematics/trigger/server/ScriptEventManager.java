@@ -79,6 +79,12 @@ public class ScriptEventManager {
         return pb != null && !pb.viewers.isEmpty();
     }
 
+    /** 指定玩家是否正在播放该脚本 */
+    public boolean isPlayerPlayingScript(UUID playerUuid, String scriptId) {
+        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
+        return pb != null && pb.viewers.contains(playerUuid);
+    }
+
     /** 指定脚本的所有 viewer 是否都已播放完毕 */
     public boolean isFullyComplete(String scriptId) {
         ScriptPlayback pb = scriptPlaybacks.get(scriptId);

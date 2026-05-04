@@ -30,12 +30,17 @@
 
 玩家进入指定位置/维度时触发（轮询，每 20 ticks ≈ 1 秒检测一次）。
 
+支持三种检测方式，满足任一即触发：
+
 | 条件字段 | 类型 | 必需 | 说明 |
 |---------|------|------|------|
-| `dimension` | string | 否 | 维度 ID，如 `"minecraft:overworld"`、`"minecraft:the_nether"` |
-| `position` | object | 否 | 坐标 `{ "x": ..., "y": ..., "z": ... }` |
-| `radius` | number | 否 | 检测半径（方块），配合 `position` 使用，默认 `0`（精确坐标） |
+| `dimension` | string | 否 | 维度 ID，如 `"minecraft:overworld"` |
+| `position` | object | 否 | 点+半径检测 `{ "x": ..., "y": ..., "z": ... }` |
+| `radius` | number | 否 | 配合 `position`，默认 `0`（精确点） |
+| `corner1` | object | 否 | 方体区域对角点1 `{ "x": ..., "y": ..., "z": ... }` |
+| `corner2` | object | 否 | 方体区域对角点2 `{ "x": ..., "y": ..., "z": ... }` |
 
+**点+半径：**
 ```json
 {
   "type": "location",
@@ -47,7 +52,19 @@
 }
 ```
 
-不写 `position` 时只检测维度。
+**方体区域（需同时定义两个对角点）：**
+```json
+{
+  "type": "location",
+  "conditions": {
+    "dimension": "minecraft:overworld",
+    "corner1": { "x": 0, "y": 60, "z": 0 },
+    "corner2": { "x": 50, "y": 80, "z": 50 }
+  }
+}
+```
+
+不写 `position` 或 `corner` 时只检测维度。
 
 ---
 
