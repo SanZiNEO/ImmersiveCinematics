@@ -40,6 +40,7 @@ public class EditorScreen extends Screen {
         this.core = new EditorCore();
         core.setOnChanged(this::onCoreChanged);
         core.setOnSelectionChanged((clip, kf) -> {
+            if (leftPanel == null) return;
             if (clip == null) leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);
             else if (kf == null) leftPanel.setMode(LeftPanelArea.PanelMode.CLIP_PROPERTIES);
             else leftPanel.setMode(LeftPanelArea.PanelMode.KEYFRAME_PROPERTIES);
@@ -62,6 +63,7 @@ public class EditorScreen extends Screen {
         wireMenu();
         wireTimeline();
         wirePreview();
+        wireLeftPanel();
 
         if (firstInit) {
             firstInit = false;
@@ -93,6 +95,7 @@ public class EditorScreen extends Screen {
         timeline.setOnToolDeleteClip(() -> { core.deleteSelectedClip(); syncPanels(); pushScript(); });
         timeline.setOnToolAddKeyframe(() -> { core.addKeyframeAt(playbackTime); syncPanels(); pushScript(); });
         timeline.setOnToolDeleteKeyframe(() -> { core.deleteSelectedKeyframe(); syncPanels(); pushScript(); });
+        timeline.setOnToolSnap(() -> { core.toggleAutoSnap(); syncPanels(); pushScript(); });
     }
 
     private void wirePreview() {
@@ -101,12 +104,31 @@ public class EditorScreen extends Screen {
         preview.setOnStop(this::stop);
     }
 
+    private void wireLeftPanel() {
+        leftPanel.setOnOpenScript(this::openScript);
+        leftPanel.setOnDeleteScript(this::deleteScript);
+        leftPanel.setOnNewScript(() -> { core.newScript(); syncPanels(); pushScript(); });
+        leftPanel.setOnNameChanged(v -> { core.setScriptName(v); syncPanels(); });
+        leftPanel.setOnAuthorChanged(v -> { core.setScriptAuthor(v); syncPanels(); });
+        leftPanel.setOnDescChanged(v -> { core.setScriptDescription(v); syncPanels(); });
+        leftPanel.setOnDurationChanged(v -> { core.setTotalDuration(v); syncPanels(); });
+        leftPanel.setOnBehaviorFlag(s -> {
+            String[] parts = s.split("=");
+            if (parts.length == 2) {
+                String field = parts[0];
+                boolean val = Boolean.parseBoolean(parts[1]);
+                core.setBehaviorFlag(field, val);
+                syncPanels();
+            }
+        });
+    }
+
     private void onCoreChanged() {
         pushScript();
     }
 
     private void syncPanels() {
-        menuBar.setScriptName(core.getScript().name);
+        menuBar.setScriptName(core.getFileName());
         leftPanel.setScript(core.getScript());
         leftPanel.setSelectedClip(core.getSelectedClip());
         leftPanel.setSelectedKeyframe(core.getSelectedKeyframe());
@@ -132,9 +154,7 @@ public class EditorScreen extends Screen {
             Path dest;
             if (scriptFilePath != null) dest = Paths.get(scriptFilePath);
             else {
-                String name = core.getScript().name.replaceAll("[^a-zA-Z0-9_\\-]", "_");
-                if (name.isEmpty()) name = "script";
-                dest = scriptsDir.resolve(name + ".json");
+                dest = scriptsDir.resolve(core.getFileName() + ".json");
                 scriptFilePath = dest.toString();
             }
             Files.writeString(dest, core.toJson());
@@ -146,6 +166,7 @@ public class EditorScreen extends Screen {
         try {
             String json = Files.readString(scriptsDir.resolve(fileName));
             core.loadFromJson(json);
+            core.setFileName(fileName.replace(".json", ""));
             scriptFilePath = scriptsDir.resolve(fileName).toString();
             playbackTime = 0;
             leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);
@@ -217,9 +238,18 @@ public class EditorScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        UITextInput focused = leftPanel.getFocusedInput();
+        if (focused != null && focused.keyPressed(keyCode, scanCode, modifiers)) return true;
         if (core.getSelectedKeyframe() != null) return handleKeyframeKey(keyCode);
         if (core.getSelectedClip() != null) return handleClipKey(keyCode);
         if (keyCode == 83 && hasControlDown()) { saveScript(); return true; }
+        return false;
+    }
+
+    @Override
+    public boolean charTyped(char codePoint, int modifiers) {
+        UITextInput focused = leftPanel.getFocusedInput();
+        if (focused != null) return focused.charTyped(codePoint);
         return false;
     }
 
