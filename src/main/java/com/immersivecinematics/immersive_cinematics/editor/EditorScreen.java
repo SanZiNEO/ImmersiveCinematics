@@ -32,13 +32,15 @@ public class EditorScreen extends Screen {
     private float playbackTime;
     private long lastPlayTick;
     private boolean firstInit = true;
+    private boolean scriptDirty;
+    private boolean playheadScrubbed;
 
     public EditorScreen(EditorBridge bridge, Path scriptsDir) {
         super(Component.literal("Cinematic Editor"));
         this.bridge = bridge;
         this.scriptsDir = scriptsDir;
         this.core = new EditorCore();
-        core.setOnChanged(this::onCoreChanged);
+        core.setOnChanged(() -> { scriptDirty = true; });
         core.setOnSelectionChanged((clip, kf) -> {
             if (leftPanel == null) return;
             if (clip == null) leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);
@@ -65,14 +67,18 @@ public class EditorScreen extends Screen {
         wirePreview();
         wireLeftPanel();
 
+        leftPanel.setDirtyCallback(() -> { scriptDirty = true; });
+
         if (firstInit) {
             firstInit = false;
             refreshScriptList();
             core.newScript();
             syncPanels();
+            leftPanel.build();
             pushScript();
         } else {
             syncPanels();
+            leftPanel.build();
         }
     }
 
@@ -87,15 +93,15 @@ public class EditorScreen extends Screen {
         timeline.setOnClickAtTime(t -> { playbackTime = t; if (bridge != null) bridge.setTime(t); });
         timeline.setOnClickClip(core::selectClip);
         timeline.setOnClickKeyframe((kf, clip) -> core.selectKeyframe(kf));
-        timeline.setOnMoveClip((clip, ns) -> { core.moveClip(clip, ns); syncPanels(); });
-        timeline.setOnResizeLeft((clip, ns) -> { core.resizeClipLeft(clip, ns); syncPanels(); });
-        timeline.setOnResizeRight((clip, ne) -> { core.resizeClipRight(clip, ne); syncPanels(); });
-        timeline.setOnMoveKeyframe((kf, clip, nt) -> { core.moveKeyframe(kf, clip, nt); syncPanels(); });
-        timeline.setOnToolAddClip(() -> { core.addClip(); syncPanels(); pushScript(); });
-        timeline.setOnToolDeleteClip(() -> { core.deleteSelectedClip(); syncPanels(); pushScript(); });
-        timeline.setOnToolAddKeyframe(() -> { core.addKeyframeAt(playbackTime); syncPanels(); pushScript(); });
-        timeline.setOnToolDeleteKeyframe(() -> { core.deleteSelectedKeyframe(); syncPanels(); pushScript(); });
-        timeline.setOnToolSnap(() -> { core.toggleAutoSnap(); syncPanels(); pushScript(); });
+        timeline.setOnMoveClip((clip, ns) -> core.moveClip(clip, ns));
+        timeline.setOnResizeLeft((clip, ns) -> core.resizeClipLeft(clip, ns));
+        timeline.setOnResizeRight((clip, ne) -> core.resizeClipRight(clip, ne));
+        timeline.setOnMoveKeyframe((kf, clip, nt) -> core.moveKeyframe(kf, clip, nt));
+        timeline.setOnToolAddClip(() -> core.addClip());
+        timeline.setOnToolDeleteClip(() -> core.deleteSelectedClip());
+        timeline.setOnToolAddKeyframe(() -> core.addKeyframeAt(playbackTime));
+        timeline.setOnToolDeleteKeyframe(() -> core.deleteSelectedKeyframe());
+        timeline.setOnToolSnap(() -> core.toggleAutoSnap());
     }
 
     private void wirePreview() {
@@ -108,23 +114,24 @@ public class EditorScreen extends Screen {
         leftPanel.setOnOpenScript(this::openScript);
         leftPanel.setOnDeleteScript(this::deleteScript);
         leftPanel.setOnNewScript(() -> { core.newScript(); syncPanels(); pushScript(); });
-        leftPanel.setOnNameChanged(v -> { core.setScriptName(v); syncPanels(); });
-        leftPanel.setOnAuthorChanged(v -> { core.setScriptAuthor(v); syncPanels(); });
-        leftPanel.setOnDescChanged(v -> { core.setScriptDescription(v); syncPanels(); });
-        leftPanel.setOnDurationChanged(v -> { core.setTotalDuration(v); syncPanels(); });
+        leftPanel.setOnNameChanged(v -> core.setScriptName(v));
+        leftPanel.setOnAuthorChanged(v -> core.setScriptAuthor(v));
+        leftPanel.setOnDescChanged(v -> core.setScriptDescription(v));
+        leftPanel.setOnDurationChanged(v -> core.setTotalDuration(v));
         leftPanel.setOnBehaviorFlag(s -> {
             String[] parts = s.split("=");
             if (parts.length == 2) {
-                String field = parts[0];
-                boolean val = Boolean.parseBoolean(parts[1]);
-                core.setBehaviorFlag(field, val);
-                syncPanels();
+                core.setBehaviorFlag(parts[0], Boolean.parseBoolean(parts[1]));
             }
         });
     }
 
-    private void onCoreChanged() {
-        pushScript();
+    private void flush() {
+        syncPanels();
+        if (scriptDirty) {
+            pushScript();
+            scriptDirty = false;
+        }
     }
 
     private void syncPanels() {
@@ -132,7 +139,6 @@ public class EditorScreen extends Screen {
         leftPanel.setScript(core.getScript());
         leftPanel.setSelectedClip(core.getSelectedClip());
         leftPanel.setSelectedKeyframe(core.getSelectedKeyframe());
-        leftPanel.build();
         timeline.setPlayheadTime(playbackTime);
         preview.setCurrentTime(playbackTime);
     }
@@ -189,6 +195,9 @@ public class EditorScreen extends Screen {
             } catch (IOException ignored) {}
         }
         leftPanel.setScriptFileNames(scriptFileNames);
+        if (leftPanel.getMode() == LeftPanelArea.PanelMode.SCRIPT_LIST) {
+            leftPanel.build();
+        }
     }
 
     private void play() { playing = true; lastPlayTick = System.currentTimeMillis(); if (bridge != null) bridge.play(); }
@@ -203,13 +212,22 @@ public class EditorScreen extends Screen {
             long now = System.currentTimeMillis();
             playbackTime += (now - lastPlayTick) / 1000f;
             lastPlayTick = now;
-            if (playbackTime >= core.getScript().totalDuration) { playbackTime = core.getScript().totalDuration; playing = false; }
-            if (bridge != null) bridge.setTime(playbackTime);
+            if (playbackTime >= core.getScript().totalDuration) {
+                playbackTime = core.getScript().totalDuration;
+                playing = false;
+                if (bridge != null) bridge.pause();
+            }
             timeline.setPlayheadTime(playbackTime);
             preview.setCurrentTime(playbackTime);
         }
 
-        timeline.updatePlayheadDrag(ctx);
+        float scrubDisplay = timeline.getScrubDisplay(ctx);
+        if (scrubDisplay >= 0) {
+            timeline.setPlayheadTime(scrubDisplay);
+            preview.setCurrentTime(scrubDisplay);
+            playheadScrubbed = true;
+        }
+
         menuBar.render(ctx);
         leftPanel.render(ctx);
         preview.render(ctx);
@@ -218,38 +236,54 @@ public class EditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        timeline.stopDrag();
         UIContext ctx = makeCtx(mx, my);
-        return menuBar.mouseClicked(ctx) || leftPanel.mouseClicked(ctx) || preview.mouseClicked(ctx) || timeline.mouseClicked(ctx);
+        boolean result = menuBar.mouseClicked(ctx) || leftPanel.mouseClicked(ctx) || preview.mouseClicked(ctx) || timeline.mouseClicked(ctx);
+        flush();
+        return result;
     }
 
     @Override
     public boolean mouseReleased(double mx, double my, int button) {
         UIContext ctx = makeCtx(mx, my);
-        menuBar.mouseReleased(ctx); leftPanel.mouseReleased(ctx); preview.mouseReleased(ctx); timeline.mouseReleased(ctx);
-        syncPanels();
+
+        if (playheadScrubbed) {
+            playbackTime = timeline.getScrubDisplay(ctx);
+            if (bridge != null) bridge.setTime(playbackTime);
+            playheadScrubbed = false;
+        }
+
+        menuBar.mouseReleased(ctx);
+        leftPanel.mouseReleased(ctx);
+        preview.mouseReleased(ctx);
+        timeline.mouseReleased(ctx);
+
+        flush();
         return false;
     }
 
     @Override
     public boolean mouseScrolled(double mx, double my, double scroll) {
         UIContext ctx = makeCtx(mx, my);
-        return timeline.mouseScrolled(ctx, scroll) || leftPanel.mouseScrolled(ctx, scroll);
+        boolean result = timeline.mouseScrolled(ctx, scroll) || leftPanel.mouseScrolled(ctx, scroll);
+        flush();
+        return result;
     }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         UITextInput focused = leftPanel.getFocusedInput();
-        if (focused != null && focused.keyPressed(keyCode, scanCode, modifiers)) return true;
-        if (core.getSelectedKeyframe() != null) return handleKeyframeKey(keyCode);
-        if (core.getSelectedClip() != null) return handleClipKey(keyCode);
-        if (keyCode == 83 && hasControlDown()) { saveScript(); return true; }
+        if (focused != null && focused.keyPressed(keyCode, scanCode, modifiers)) { flush(); return true; }
+        if (core.getSelectedKeyframe() != null) { boolean r = handleKeyframeKey(keyCode); flush(); return r; }
+        if (core.getSelectedClip() != null) { boolean r = handleClipKey(keyCode); flush(); return r; }
+        if (keyCode == 83 && hasControlDown()) { saveScript(); flush(); return true; }
         return false;
     }
 
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
         UITextInput focused = leftPanel.getFocusedInput();
-        if (focused != null) return focused.charTyped(codePoint);
+        if (focused != null) { boolean r = focused.charTyped(codePoint); flush(); return r; }
         return false;
     }
 
