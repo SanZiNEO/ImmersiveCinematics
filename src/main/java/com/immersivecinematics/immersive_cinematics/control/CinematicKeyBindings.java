@@ -1,11 +1,17 @@
 package com.immersivecinematics.immersive_cinematics.control;
 
 import com.immersivecinematics.immersive_cinematics.Config;
+import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.client.EditorBridgeImpl;
+import com.immersivecinematics.immersive_cinematics.editor.EditorScreen;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import org.lwjgl.glfw.GLFW;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class CinematicKeyBindings {
 
@@ -14,12 +20,20 @@ public class CinematicKeyBindings {
         GLFW.GLFW_KEY_C,
         "key.categories.immersive_cinematics"
     );
+    public static final KeyMapping EDITOR_KEY = ImmersiveCinematics.EDITOR_ENABLED
+        ? new KeyMapping("key.immersive_cinematics.editor", GLFW.GLFW_KEY_F6,
+            "key.categories.immersive_cinematics")
+        : null;
 
     private static long skipKeyDownSince = 0;
     private static boolean skipTriggered = false;
+    private static boolean editorKeyWasDown = false;
 
     public static void register(RegisterKeyMappingsEvent event) {
         event.register(SKIP_KEY);
+        if (ImmersiveCinematics.EDITOR_ENABLED && EDITOR_KEY != null) {
+            event.register(EDITOR_KEY);
+        }
     }
 
     public static void onClientTick() {
@@ -30,16 +44,23 @@ public class CinematicKeyBindings {
         if (!mgr.isActive()) {
             skipKeyDownSince = 0;
             skipTriggered = false;
-            return;
         }
 
         if (mc.isPaused()) {
             skipKeyDownSince = 0;
-            return;
+        }
+
+        if (ImmersiveCinematics.EDITOR_ENABLED && EDITOR_KEY != null) {
+            boolean editorDown = EDITOR_KEY.isDown();
+            if (editorDown && !editorKeyWasDown && !(mc.screen instanceof EditorScreen)) {
+                Path scriptsDir = Paths.get("cinematics");
+                EditorScreen editor = new EditorScreen(EditorBridgeImpl.INSTANCE, scriptsDir);
+                mc.setScreen(editor);
+            }
+            editorKeyWasDown = editorDown;
         }
 
         if (skipTriggered) {
-            // skip 已触发，不再处理跳过键（getSkipHoldProgress() 返回 1f）
         } else {
             boolean skipDown = SKIP_KEY.isDown();
 
@@ -58,7 +79,6 @@ public class CinematicKeyBindings {
             }
         }
 
-        // Ctrl+P 强制退出
         long window = mc.getWindow().getWindow();
         boolean ctrlDown = com.mojang.blaze3d.platform.InputConstants.isKeyDown(window, GLFW.GLFW_KEY_LEFT_CONTROL)
                         || com.mojang.blaze3d.platform.InputConstants.isKeyDown(window, GLFW.GLFW_KEY_RIGHT_CONTROL);
@@ -68,7 +88,6 @@ public class CinematicKeyBindings {
         }
     }
 
-    /** 0.0 ~ 1.0，跳过动画进度 */
     public static float getSkipHoldProgress() {
         if (skipTriggered) return 1f;
         if (skipKeyDownSince == 0) return 0f;
