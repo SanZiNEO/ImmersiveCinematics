@@ -17,10 +17,10 @@ import java.util.stream.Stream;
 
 public class EditorScreen extends Screen {
 
-    private EditorBridge bridge;
-    private EditorScript script;
-    private EditorClip selectedClip;
-    private EditorKeyframe selectedKeyframe;
+    private final EditorBridge bridge;
+    private final EditorCore core;
+    private final Path scriptsDir;
+    private final List<String> scriptFileNames = new ArrayList<>();
 
     private MenuBarArea menuBar;
     private LeftPanelArea leftPanel;
@@ -28,9 +28,6 @@ public class EditorScreen extends Screen {
     private TimelineArea timeline;
 
     private String scriptFilePath;
-    private Path scriptsDir;
-    private List<String> scriptFileNames = new ArrayList<>();
-
     private boolean playing;
     private float playbackTime;
     private long lastPlayTick;
@@ -40,6 +37,14 @@ public class EditorScreen extends Screen {
         super(Component.literal("Cinematic Editor"));
         this.bridge = bridge;
         this.scriptsDir = scriptsDir;
+        this.core = new EditorCore();
+        core.setOnChanged(this::onCoreChanged);
+        core.setOnSelectionChanged((clip, kf) -> {
+            if (clip == null) leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);
+            else if (kf == null) leftPanel.setMode(LeftPanelArea.PanelMode.CLIP_PROPERTIES);
+            else leftPanel.setMode(LeftPanelArea.PanelMode.KEYFRAME_PROPERTIES);
+            syncPanels();
+        });
     }
 
     @Override
@@ -54,108 +59,104 @@ public class EditorScreen extends Screen {
         preview = new PreviewArea(leftW, menuH, width - leftW, previewH);
         timeline = new TimelineArea(0, menuH + previewH, width, timelineH);
 
-        wireCallbacks();
+        wireMenu();
+        wireTimeline();
+        wirePreview();
 
         if (firstInit) {
             firstInit = false;
             refreshScriptList();
-            if (script == null) {
-                newScript();
-            }
-        }
-
-        if (script != null) {
-            syncAll();
+            core.newScript();
+            syncPanels();
+            pushScript();
+        } else {
+            syncPanels();
         }
     }
 
-    private void wireCallbacks() {
-        menuBar.setOnNewScript(this::newScript);
+    private void wireMenu() {
+        menuBar.setOnNewScript(() -> { core.newScript(); syncPanels(); pushScript(); });
         menuBar.setOnSaveScript(this::saveScript);
         menuBar.setOnToggleList(this::toggleScriptList);
+    }
 
-        leftPanel.setOnOpenScript(this::openScript);
-        leftPanel.setOnDeleteScript(this::deleteScript);
-        leftPanel.setOnNewScript(this::newScript);
-        leftPanel.setOnScriptChanged(this::onScriptChanged);
+    private void wireTimeline() {
+        timeline.setCore(core);
+        timeline.setOnClickAtTime(t -> { playbackTime = t; if (bridge != null) bridge.setTime(t); });
+        timeline.setOnClickClip(core::selectClip);
+        timeline.setOnClickKeyframe((kf, clip) -> core.selectKeyframe(kf));
+        timeline.setOnMoveClip((clip, ns) -> { core.moveClip(clip, ns); syncPanels(); });
+        timeline.setOnResizeLeft((clip, ns) -> { core.resizeClipLeft(clip, ns); syncPanels(); });
+        timeline.setOnResizeRight((clip, ne) -> { core.resizeClipRight(clip, ne); syncPanels(); });
+        timeline.setOnMoveKeyframe((kf, clip, nt) -> { core.moveKeyframe(kf, clip, nt); syncPanels(); });
+        timeline.setOnToolAddClip(() -> { core.addClip(); syncPanels(); pushScript(); });
+        timeline.setOnToolDeleteClip(() -> { core.deleteSelectedClip(); syncPanels(); pushScript(); });
+        timeline.setOnToolAddKeyframe(() -> { core.addKeyframeAt(playbackTime); syncPanels(); pushScript(); });
+        timeline.setOnToolDeleteKeyframe(() -> { core.deleteSelectedKeyframe(); syncPanels(); pushScript(); });
+    }
 
-        timeline.setOnClipSelected(this::selectClip);
-        timeline.setOnKeyframeSelected(this::selectKeyframe);
-        timeline.setOnPlayheadChanged(this::setPlaybackTime);
-        timeline.setOnClipChanged(this::onScriptChanged);
-
+    private void wirePreview() {
         preview.setOnPlay(this::play);
         preview.setOnPause(this::pause);
         preview.setOnStop(this::stop);
     }
 
-    private void newScript() {
-        script = new EditorScript();
-        script.name = "Untitled";
-        script.author = "Author";
-        selectedClip = null;
-        selectedKeyframe = null;
-        scriptFilePath = null;
-        leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);
-        syncAll();
+    private void onCoreChanged() {
         pushScript();
     }
 
+    private void syncPanels() {
+        menuBar.setScriptName(core.getScript().name);
+        leftPanel.setScript(core.getScript());
+        leftPanel.setSelectedClip(core.getSelectedClip());
+        leftPanel.setSelectedKeyframe(core.getSelectedKeyframe());
+        leftPanel.build();
+        timeline.setPlayheadTime(playbackTime);
+        preview.setCurrentTime(playbackTime);
+    }
+
+    private void pushScript() {
+        if (bridge != null) bridge.pushScript(core.toJson());
+    }
+
+    private void toggleScriptList() {
+        if (leftPanel.getMode() == LeftPanelArea.PanelMode.SCRIPT_LIST)
+            leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);
+        else leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_LIST);
+        syncPanels();
+    }
+
     private void saveScript() {
-        if (script == null) return;
         try {
             Files.createDirectories(scriptsDir);
             Path dest;
-            if (scriptFilePath != null) {
-                dest = Paths.get(scriptFilePath);
-            } else {
-                String name = script.name.replaceAll("[^a-zA-Z0-9_\\-]", "_");
+            if (scriptFilePath != null) dest = Paths.get(scriptFilePath);
+            else {
+                String name = core.getScript().name.replaceAll("[^a-zA-Z0-9_\\-]", "_");
                 if (name.isEmpty()) name = "script";
                 dest = scriptsDir.resolve(name + ".json");
                 scriptFilePath = dest.toString();
             }
-            String json = EditorSerializer.serialize(script);
-            Files.writeString(dest, json);
+            Files.writeString(dest, core.toJson());
             refreshScriptList();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        } catch (IOException e) { e.printStackTrace(); }
     }
 
     private void openScript(String fileName) {
         try {
-            Path path = scriptsDir.resolve(fileName);
-            String json = Files.readString(path);
-            script = EditorSerializer.deserialize(json);
-            scriptFilePath = path.toString();
-            selectedClip = null;
-            selectedKeyframe = null;
+            String json = Files.readString(scriptsDir.resolve(fileName));
+            core.loadFromJson(json);
+            scriptFilePath = scriptsDir.resolve(fileName).toString();
+            playbackTime = 0;
             leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);
-            syncAll();
+            syncPanels();
             pushScript();
-            leftPanel.setScriptFileNames(scriptFileNames);
-            leftPanel.build();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        } catch (IOException e) { e.printStackTrace(); }
     }
 
     private void deleteScript(String fileName) {
-        try {
-            Files.deleteIfExists(scriptsDir.resolve(fileName));
-            refreshScriptList();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void toggleScriptList() {
-        if (leftPanel.getMode() == LeftPanelArea.PanelMode.SCRIPT_LIST) {
-            leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);
-        } else {
-            leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_LIST);
-        }
-        syncAll();
+        try { Files.deleteIfExists(scriptsDir.resolve(fileName)); refreshScriptList(); }
+        catch (IOException e) { e.printStackTrace(); }
     }
 
     private void refreshScriptList() {
@@ -163,77 +164,15 @@ public class EditorScreen extends Screen {
         if (Files.exists(scriptsDir)) {
             try (Stream<Path> files = Files.list(scriptsDir)) {
                 files.filter(f -> f.toString().endsWith(".json"))
-                        .map(f -> f.getFileName().toString())
-                        .sorted()
-                        .forEach(scriptFileNames::add);
+                        .map(f -> f.getFileName().toString()).sorted().forEach(scriptFileNames::add);
             } catch (IOException ignored) {}
         }
         leftPanel.setScriptFileNames(scriptFileNames);
-        leftPanel.build();
     }
 
-    private void selectClip(EditorClip clip) {
-        selectedClip = clip;
-        selectedKeyframe = null;
-        leftPanel.setMode(LeftPanelArea.PanelMode.CLIP_PROPERTIES);
-        syncAll();
-    }
-
-    private void selectKeyframe(EditorKeyframe kf) {
-        selectedKeyframe = kf;
-        leftPanel.setMode(LeftPanelArea.PanelMode.KEYFRAME_PROPERTIES);
-        syncAll();
-    }
-
-    private void setPlaybackTime(float t) {
-        playbackTime = Math.max(0, Math.min(t, script != null ? script.totalDuration : 0));
-        if (bridge != null) bridge.setTime(playbackTime);
-        syncTimeDisplay();
-    }
-
-    private void play() {
-        playing = true;
-        lastPlayTick = System.currentTimeMillis();
-        if (bridge != null) bridge.play();
-    }
-
-    private void pause() {
-        playing = false;
-        if (bridge != null) bridge.pause();
-    }
-
-    private void stop() {
-        playing = false;
-        playbackTime = 0;
-        if (bridge != null) bridge.stop();
-        syncTimeDisplay();
-    }
-
-    private void onScriptChanged() {
-        pushScript();
-    }
-
-    private void pushScript() {
-        if (script != null && bridge != null) {
-            bridge.pushScript(EditorSerializer.serialize(script));
-        }
-    }
-
-    private void syncAll() {
-        if (script == null) return;
-        menuBar.setScriptName(script.name);
-        leftPanel.setScript(script);
-        leftPanel.setSelectedClip(selectedClip);
-        leftPanel.setSelectedKeyframe(selectedKeyframe);
-        leftPanel.build();
-        timeline.setScript(script);
-        syncTimeDisplay();
-    }
-
-    private void syncTimeDisplay() {
-        preview.setCurrentTime(playbackTime);
-        timeline.setPlayheadTime(playbackTime);
-    }
+    private void play() { playing = true; lastPlayTick = System.currentTimeMillis(); if (bridge != null) bridge.play(); }
+    private void pause() { playing = false; if (bridge != null) bridge.pause(); }
+    private void stop() { playing = false; playbackTime = 0; if (bridge != null) bridge.stop(); syncPanels(); }
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
@@ -241,19 +180,15 @@ public class EditorScreen extends Screen {
 
         if (playing) {
             long now = System.currentTimeMillis();
-            float dt = (now - lastPlayTick) / 1000f;
+            playbackTime += (now - lastPlayTick) / 1000f;
             lastPlayTick = now;
-            playbackTime += dt;
-            if (script != null && playbackTime >= script.totalDuration) {
-                playbackTime = script.totalDuration;
-                playing = false;
-            }
+            if (playbackTime >= core.getScript().totalDuration) { playbackTime = core.getScript().totalDuration; playing = false; }
             if (bridge != null) bridge.setTime(playbackTime);
-            syncTimeDisplay();
+            timeline.setPlayheadTime(playbackTime);
+            preview.setCurrentTime(playbackTime);
         }
 
-        timeline.updateDrag(ctx);
-
+        timeline.updatePlayheadDrag(ctx);
         menuBar.render(ctx);
         leftPanel.render(ctx);
         preview.render(ctx);
@@ -262,100 +197,66 @@ public class EditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
-        UIContext ctx = makeContext(mx, my, button);
-
-        if (menuBar.mouseClicked(ctx)) return true;
-        if (leftPanel.mouseClicked(ctx)) return true;
-        if (preview.mouseClicked(ctx)) return true;
-        if (timeline.mouseClicked(ctx)) return true;
-        return false;
+        UIContext ctx = makeCtx(mx, my);
+        return menuBar.mouseClicked(ctx) || leftPanel.mouseClicked(ctx) || preview.mouseClicked(ctx) || timeline.mouseClicked(ctx);
     }
 
     @Override
     public boolean mouseReleased(double mx, double my, int button) {
-        UIContext ctx = makeContext(mx, my, button);
-
-        menuBar.mouseReleased(ctx);
-        leftPanel.mouseReleased(ctx);
-        preview.mouseReleased(ctx);
-        timeline.mouseReleased(ctx);
+        UIContext ctx = makeCtx(mx, my);
+        menuBar.mouseReleased(ctx); leftPanel.mouseReleased(ctx); preview.mouseReleased(ctx); timeline.mouseReleased(ctx);
+        syncPanels();
         return false;
     }
 
     @Override
     public boolean mouseScrolled(double mx, double my, double scroll) {
-        UIContext ctx = makeContext(mx, my, 0);
-        ctx.mouseX = (int) mx;
-        ctx.mouseY = (int) my;
-
-        if (timeline.mouseScrolled(ctx, scroll)) return true;
-        if (leftPanel.mouseScrolled(ctx, scroll)) return true;
-        return false;
+        UIContext ctx = makeCtx(mx, my);
+        return timeline.mouseScrolled(ctx, scroll) || leftPanel.mouseScrolled(ctx, scroll);
     }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (script == null) return false;
-        if (selectedKeyframe != null) {
-            return handleKeyframeKey(keyCode);
-        }
-        if (selectedClip != null) {
-            return handleClipKey(keyCode);
-        }
-        if (keyCode == 83 && hasControlDown()) {
-            saveScript();
-            return true;
-        }
+        if (core.getSelectedKeyframe() != null) return handleKeyframeKey(keyCode);
+        if (core.getSelectedClip() != null) return handleClipKey(keyCode);
+        if (keyCode == 83 && hasControlDown()) { saveScript(); return true; }
         return false;
     }
 
     private boolean handleKeyframeKey(int keyCode) {
+        EditorKeyframe kf = core.getSelectedKeyframe();
         float step = hasShiftDown() ? 5 : 0.5f;
         switch (keyCode) {
-            case 265: selectedKeyframe.position.y += step; break;
-            case 264: selectedKeyframe.position.y -= step; break;
-            case 263: selectedKeyframe.position.x -= step; break;
-            case 262: selectedKeyframe.position.x += step; break;
+            case 265: kf.position.y += step; break;
+            case 264: kf.position.y -= step; break;
+            case 263: kf.position.x -= step; break;
+            case 262: kf.position.x += step; break;
             default: return false;
         }
-        onScriptChanged();
-        syncAll();
+        core.moveKeyframe(kf, core.getSelectedClip(), kf.time);
+        syncPanels();
         return true;
     }
 
     private boolean handleClipKey(int keyCode) {
+        EditorClip clip = core.getSelectedClip();
         float step = hasShiftDown() ? 1 : 0.1f;
         switch (keyCode) {
-            case 263: selectedClip.startTime = Math.max(0, selectedClip.startTime - step); break;
-            case 262: selectedClip.startTime += step; break;
+            case 263: core.moveClip(clip, clip.startTime - step); break;
+            case 262: core.moveClip(clip, clip.startTime + step); break;
             default: return false;
         }
-        onScriptChanged();
-        syncAll();
+        syncPanels();
         return true;
     }
 
     @Override
-    public boolean charTyped(char codePoint, int modifiers) {
-        return false;
-    }
-
-    private UIContext makeContext(double mx, double my, int button) {
-        UIContext ctx = new UIContext(null, font, width, height, 0, (int) mx, (int) my);
-        ctx.mouseButton = button;
-        return ctx;
-    }
+    public void onClose() { stop(); if (minecraft != null) minecraft.setScreen(null); }
 
     @Override
-    public void onClose() {
-        stop();
-        if (minecraft != null) {
-            minecraft.setScreen(null);
-        }
-    }
+    public boolean isPauseScreen() { return false; }
 
-    @Override
-    public boolean isPauseScreen() {
-        return false;
+    private UIContext makeCtx(double mx, double my) {
+        return new UIContext(null, font, width, height, 0, (int) mx, (int) my);
     }
 }
