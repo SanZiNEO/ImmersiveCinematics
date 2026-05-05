@@ -15,7 +15,7 @@ public class TimelineArea extends UIComponent {
     private float pixelsPerSecond = 60f;
     private float scrollOffset;
 
-    private boolean draggingPlayhead;
+    private boolean scrubbing;
     private EditorClip draggingClip;
     private EditorKeyframe draggingKeyframe;
     private EditorClip keyframeClip;
@@ -73,6 +73,15 @@ public class TimelineArea extends UIComponent {
     public float timeToX(float t) { return canvasX() + (t * pixelsPerSecond) + scrollOffset; }
     public float xToTime(float px) { return (px - canvasX() - scrollOffset) / pixelsPerSecond; }
 
+    public void stopDrag() {
+        scrubbing = false;
+        draggingClip = null;
+        draggingKeyframe = null;
+        keyframeClip = null;
+        draggingResizeLeft = false;
+        draggingResizeRight = false;
+    }
+
     @Override
     public void render(UIContext ctx) {
         int cx = canvasX();
@@ -124,8 +133,8 @@ public class TimelineArea extends UIComponent {
         int bg = active ? (hover ? 0xFF448844 : 0xFF337733) : (hover ? 0xFF444444 : 0xFF222222);
         ctx.graphics.fill(bx, by, bx + BTN, by + BTN, bg);
         ctx.graphics.renderOutline(bx, by, BTN, BTN, active ? 0xFF66AA66 : 0xFF555555);
-        int tw = ctx.font.width("«»");
-        ctx.graphics.drawString(ctx.font, "«»", bx + (BTN - tw) / 2, by + (BTN - 8) / 2, active ? 0xFFFFFFFF : 0xFF888888);
+        int tw = ctx.font.width("\u00AB\u00BB");
+        ctx.graphics.drawString(ctx.font, "\u00AB\u00BB", bx + (BTN - tw) / 2, by + (BTN - 8) / 2, active ? 0xFFFFFFFF : 0xFF888888);
     }
 
     private void drawBtn(UIContext ctx, int bx, int by, String label, int c, int hc, boolean active) {
@@ -203,7 +212,7 @@ public class TimelineArea extends UIComponent {
         if (ctx.mouseY < canvasY() && ctx.mouseX >= x + TOOLBAR_W) {
             float t = xToTime(ctx.mouseX);
             if (t >= 0 && onClickAtTime != null) onClickAtTime.accept(Math.max(0, t));
-            draggingPlayhead = true;
+            scrubbing = true;
             return true;
         }
 
@@ -294,10 +303,10 @@ public class TimelineArea extends UIComponent {
             float newLocal = xToTime(ctx.mouseX - dragOffsetX) - keyframeClip.startTime;
             onMoveKeyframe.accept(draggingKeyframe, keyframeClip, newLocal);
         }
+        scrubbing = false;
         draggingClip = null;
         draggingKeyframe = null;
         keyframeClip = null;
-        draggingPlayhead = false;
         draggingResizeLeft = false;
         draggingResizeRight = false;
         return false;
@@ -312,9 +321,15 @@ public class TimelineArea extends UIComponent {
         return true;
     }
 
-    public void updatePlayheadDrag(UIContext ctx) {
-        if (draggingPlayhead && onClickAtTime != null)
-            onClickAtTime.accept(Math.max(0, xToTime(ctx.mouseX)));
+    /**
+     * Called each frame from EditorScreen.render().
+     * If the ruler is being scrubbed (mouse held), returns the time
+     * at the current mouse X for display-only updates.
+     * Returns -1 if not scrubbing.
+     */
+    public float getScrubDisplay(UIContext ctx) {
+        if (scrubbing) return Math.max(0, xToTime(ctx.mouseX));
+        return -1;
     }
 
     @Override

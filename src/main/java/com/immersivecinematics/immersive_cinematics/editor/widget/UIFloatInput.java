@@ -1,40 +1,34 @@
 package com.immersivecinematics.immersive_cinematics.editor.widget;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class UIFloatInput extends UIComponent {
     private final String label;
+    private final Supplier<Float> source;
+    private final Consumer<Float> sink;
+    private final float min, max, step;
     private String text;
-    private final Consumer<Float> onChange;
     private boolean focused;
-    private float value;
-    private float min;
-    private float max;
-    private float step;
 
-    public UIFloatInput(int x, int y, int w, int h, String label, float initial, float min, float max, float step,
-                        Consumer<Float> onChange) {
+    public UIFloatInput(int x, int y, int w, int h, String label,
+                        Supplier<Float> source, float min, float max, float step,
+                        Consumer<Float> sink) {
         super(x, y, w, h);
         this.label = label;
-        this.value = initial;
+        this.source = source;
+        this.sink = sink;
         this.min = min;
         this.max = max;
         this.step = step;
-        this.onChange = onChange;
-        this.text = formatValue(value);
-    }
-
-    public float value() {
-        return value;
-    }
-
-    public void setValue(float v) {
-        value = v;
-        text = formatValue(v);
+        this.text = formatValue(source != null ? source.get() : 0);
     }
 
     @Override
     public void render(UIContext ctx) {
+        if (!focused && source != null) {
+            text = formatValue(source.get());
+        }
         int labelW = ctx.font.width(label) + 4;
         ctx.graphics.drawString(ctx.font, label, x, y + (h - 8) / 2, 0xFF999999);
 
@@ -57,15 +51,19 @@ public class UIFloatInput extends UIComponent {
     @Override
     public boolean mouseClicked(UIContext ctx) {
         focused = isHovered(ctx);
+        if (focused && source != null) {
+            text = formatValue(source.get());
+        }
         return focused;
     }
 
     @Override
     public boolean mouseScrolled(UIContext ctx, double scroll) {
         if (focused) {
-            value = clamp(value + (float) (scroll > 0 ? step : -step));
-            text = formatValue(value);
-            if (onChange != null) onChange.accept(value);
+            float cur = source != null ? source.get() : 0;
+            float v = clamp(cur + (float) (scroll > 0 ? step : -step));
+            text = formatValue(v);
+            if (sink != null) sink.accept(v);
             return true;
         }
         return false;
@@ -110,12 +108,14 @@ public class UIFloatInput extends UIComponent {
         }
     }
 
+    public boolean isFocused() { return focused; }
+
     private void commitText() {
         try {
-            value = clamp(Float.parseFloat(text));
+            float v = clamp(Float.parseFloat(text));
+            text = formatValue(v);
+            if (sink != null) sink.accept(v);
         } catch (NumberFormatException ignored) {}
-        text = formatValue(value);
-        if (onChange != null) onChange.accept(value);
     }
 
     private float clamp(float v) {

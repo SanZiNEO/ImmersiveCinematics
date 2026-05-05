@@ -1,29 +1,24 @@
 package com.immersivecinematics.immersive_cinematics.editor.widget;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class UIToggle extends UIComponent {
     private final String label;
-    private final Consumer<Boolean> onToggle;
-    private boolean value;
+    private final Supplier<Boolean> source;
+    private final Consumer<Boolean> sink;
 
-    public UIToggle(int x, int y, int w, int h, String label, boolean initial, Consumer<Boolean> onToggle) {
+    public UIToggle(int x, int y, int w, int h, String label,
+                    Supplier<Boolean> source, Consumer<Boolean> sink) {
         super(x, y, w, h);
         this.label = label;
-        this.value = initial;
-        this.onToggle = onToggle;
-    }
-
-    public boolean value() {
-        return value;
-    }
-
-    public void setValue(boolean v) {
-        value = v;
+        this.source = source;
+        this.sink = sink;
     }
 
     @Override
     public void render(UIContext ctx) {
+        boolean value = source != null && source.get();
         int toggleW = 20;
         int bg = value ? 0xFF555555 : 0xFF333333;
         ctx.graphics.fill(x, y, x + toggleW, y + h, bg);
@@ -38,8 +33,8 @@ public class UIToggle extends UIComponent {
     @Override
     public boolean mouseClicked(UIContext ctx) {
         if (isHovered(ctx)) {
-            value = !value;
-            if (onToggle != null) onToggle.accept(value);
+            boolean cur = source != null && source.get();
+            if (sink != null) sink.accept(!cur);
             return true;
         }
         return false;

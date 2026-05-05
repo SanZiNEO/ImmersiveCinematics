@@ -1,25 +1,31 @@
 package com.immersivecinematics.immersive_cinematics.editor.widget;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class UITextInput extends UIComponent {
     private final String label;
+    private final Supplier<String> source;
+    private final Consumer<String> sink;
     private String text;
-    private final Consumer<String> onChange;
     private boolean focused;
 
-    public UITextInput(int x, int y, int w, int h, String label, String initial, Consumer<String> onChange) {
+    public UITextInput(int x, int y, int w, int h, String label,
+                       Supplier<String> source, Consumer<String> sink) {
         super(x, y, w, h);
         this.label = label;
-        this.text = initial != null ? initial : "";
-        this.onChange = onChange;
+        this.source = source;
+        this.sink = sink;
+        this.text = source != null ? source.get() : "";
     }
-
-    public String value() { return text; }
-    public void setValue(String v) { text = v != null ? v : ""; }
 
     @Override
     public void render(UIContext ctx) {
+        if (source != null) {
+            if (!focused) {
+                text = source.get();
+            }
+        }
         int labelW = ctx.font.width(label) + 4;
         ctx.graphics.drawString(ctx.font, label, x, y + (h - 8) / 2, 0xFF999999);
 
@@ -49,6 +55,9 @@ public class UITextInput extends UIComponent {
     @Override
     public boolean mouseClicked(UIContext ctx) {
         focused = isHovered(ctx);
+        if (focused && source != null) {
+            text = source.get();
+        }
         return focused;
     }
 
@@ -57,7 +66,7 @@ public class UITextInput extends UIComponent {
         if (keyCode == 259) {
             if (!text.isEmpty()) {
                 text = text.substring(0, text.length() - 1);
-                fire();
+                if (sink != null) sink.accept(text);
             }
             return true;
         }
@@ -68,7 +77,7 @@ public class UITextInput extends UIComponent {
         if (!focused) return false;
         if (c >= 32 && c < 127) {
             text += c;
-            fire();
+            if (sink != null) sink.accept(text);
             return true;
         }
         return false;
@@ -76,8 +85,4 @@ public class UITextInput extends UIComponent {
 
     public void clearFocus() { focused = false; }
     public boolean isFocused() { return focused; }
-
-    private void fire() {
-        if (onChange != null) onChange.accept(text);
-    }
 }
