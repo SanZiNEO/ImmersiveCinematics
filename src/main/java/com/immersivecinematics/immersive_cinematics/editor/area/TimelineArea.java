@@ -36,6 +36,7 @@ public class TimelineArea extends UIComponent {
     private Runnable onToolDeleteClip;
     private Runnable onToolAddKeyframe;
     private Runnable onToolDeleteKeyframe;
+    private Runnable onToolSnap;
 
     private static final int TOOLBAR_W = 22;
     private static final int LABEL_W = 58;
@@ -64,6 +65,7 @@ public class TimelineArea extends UIComponent {
     public void setOnToolDeleteClip(Runnable r) { onToolDeleteClip = r; }
     public void setOnToolAddKeyframe(Runnable r) { onToolAddKeyframe = r; }
     public void setOnToolDeleteKeyframe(Runnable r) { onToolDeleteKeyframe = r; }
+    public void setOnToolSnap(Runnable r) { onToolSnap = r; }
 
     public int canvasX() { return x + LEFT_W; }
     public int canvasY() { return y + HEADER_H; }
@@ -108,11 +110,22 @@ public class TimelineArea extends UIComponent {
         EditorClip selClip = core != null ? core.getSelectedClip() : null;
         EditorKeyframe selKf = core != null ? core.getSelectedKeyframe() : null;
         boolean canAddKf = core != null && core.canAddKeyframeAt(playheadTime);
+        boolean snapOn = core != null && core.isAutoSnap();
 
         drawBtn(ctx, bx, by, "+C", 0xFF338833, 0xFF44AA44, true); by += BTN + BTN_GAP;
         drawBtn(ctx, bx, by, "-C", 0xFF883333, 0xFFAA4444, selClip != null); by += BTN + BTN_GAP + 4;
         drawBtn(ctx, bx, by, "+K", 0xFF333388, 0xFF4444AA, canAddKf); by += BTN + BTN_GAP;
-        drawBtn(ctx, bx, by, "-K", 0xFF883366, 0xFFAA4488, selKf != null);
+        drawBtn(ctx, bx, by, "-K", 0xFF883366, 0xFFAA4488, selKf != null); by += BTN + BTN_GAP + 4;
+        drawSnapBtn(ctx, bx, by, snapOn);
+    }
+
+    private void drawSnapBtn(UIContext ctx, int bx, int by, boolean active) {
+        boolean hover = ctx.isMouseIn(bx, by, BTN, BTN);
+        int bg = active ? (hover ? 0xFF448844 : 0xFF337733) : (hover ? 0xFF444444 : 0xFF222222);
+        ctx.graphics.fill(bx, by, bx + BTN, by + BTN, bg);
+        ctx.graphics.renderOutline(bx, by, BTN, BTN, active ? 0xFF66AA66 : 0xFF555555);
+        int tw = ctx.font.width("«»");
+        ctx.graphics.drawString(ctx.font, "«»", bx + (BTN - tw) / 2, by + (BTN - 8) / 2, active ? 0xFFFFFFFF : 0xFF888888);
     }
 
     private void drawBtn(UIContext ctx, int bx, int by, String label, int c, int hc, boolean active) {
@@ -208,6 +221,8 @@ public class TimelineArea extends UIComponent {
         if (ctx.isMouseIn(bx, by, BTN, BTN)) { if (core != null && core.canAddKeyframeAt(playheadTime) && onToolAddKeyframe != null) onToolAddKeyframe.run(); return true; }
         by += BTN + BTN_GAP;
         if (ctx.isMouseIn(bx, by, BTN, BTN)) { if (core != null && core.getSelectedKeyframe() != null && onToolDeleteKeyframe != null) onToolDeleteKeyframe.run(); return true; }
+        by += BTN + BTN_GAP + 4;
+        if (ctx.isMouseIn(bx, by, BTN, BTN)) { if (onToolSnap != null) onToolSnap.run(); return true; }
         return false;
     }
 

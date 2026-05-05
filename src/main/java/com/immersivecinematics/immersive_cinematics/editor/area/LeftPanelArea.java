@@ -19,7 +19,11 @@ public class LeftPanelArea extends UIComponent {
     private Consumer<String> onOpenScript;
     private Consumer<String> onDeleteScript;
     private Runnable onNewScript;
-    private Runnable onScriptChanged;
+    private Consumer<String> onNameChanged;
+    private Consumer<String> onAuthorChanged;
+    private Consumer<String> onDescChanged;
+    private Consumer<Float> onDurationChanged;
+    private Consumer<String> onBehaviorFlag;
 
     public LeftPanelArea(int x, int y, int w, int h) {
         super(x, y, w, h);
@@ -35,7 +39,11 @@ public class LeftPanelArea extends UIComponent {
     public void setOnOpenScript(Consumer<String> r) { onOpenScript = r; }
     public void setOnDeleteScript(Consumer<String> r) { onDeleteScript = r; }
     public void setOnNewScript(Runnable r) { onNewScript = r; }
-    public void setOnScriptChanged(Runnable r) { onScriptChanged = r; }
+    public void setOnNameChanged(Consumer<String> r) { onNameChanged = r; }
+    public void setOnAuthorChanged(Consumer<String> r) { onAuthorChanged = r; }
+    public void setOnDescChanged(Consumer<String> r) { onDescChanged = r; }
+    public void setOnDurationChanged(Consumer<Float> r) { onDurationChanged = r; }
+    public void setOnBehaviorFlag(Consumer<String> r) { onBehaviorFlag = r; }
 
     public void build() {
         children.clear();
@@ -49,8 +57,7 @@ public class LeftPanelArea extends UIComponent {
 
     private void buildScriptList() {
         int cy = y + 6;
-        UILabel header = new UILabel(x + 6, cy, "Scripts", 0xFFAAAAAA);
-        children.add(header);
+        children.add(new UILabel(x + 6, cy, "Scripts", 0xFFAAAAAA));
         cy += 16;
 
         for (String name : scriptFileNames) {
@@ -76,25 +83,25 @@ public class LeftPanelArea extends UIComponent {
 
         addSectionLabel("Script Info", lx, cy); cy += 16;
 
-        cy = addField("Name", script.name, lx, cy, v -> { script.name = v; changed(); });
-        cy = addField("Author", script.author, lx, cy, v -> { script.author = v; changed(); });
-        cy = addField("Description", script.description, lx, cy, v -> { script.description = v; changed(); });
+        cy = addField("Name", script.name, lx, cy, onNameChanged);
+        cy = addField("Author", script.author, lx, cy, onAuthorChanged);
+        cy = addField("Description", script.description, lx, cy, onDescChanged);
 
         cy += 4;
         addSectionLabel("Runtime", lx, cy); cy += 16;
 
-        cy = addToggle("Block Keys", script.blockKeyboard, lx, cy, v -> { script.blockKeyboard = v; changed(); });
-        cy = addToggle("Block Mouse", script.blockMouse, lx, cy, v -> { script.blockMouse = v; changed(); });
-        cy = addToggle("Hide HUD", script.hideHud, lx, cy, v -> { script.hideHud = v; changed(); });
-        cy = addToggle("Hide Arm", script.hideArm, lx, cy, v -> { script.hideArm = v; changed(); });
-        cy = addToggle("Suppress Bob", script.suppressBob, lx, cy, v -> { script.suppressBob = v; changed(); });
-        cy = addToggle("Skippable", script.skippable, lx, cy, v -> { script.skippable = v; changed(); });
-        cy = addToggle("Hold at End", script.holdAtEnd, lx, cy, v -> { script.holdAtEnd = v; changed(); });
-        cy = addToggle("Interruptible", script.interruptible, lx, cy, v -> { script.interruptible = v; changed(); });
+        cy = addToggle("Block Keys", script.blockKeyboard, lx, cy, "blockKeyboard");
+        cy = addToggle("Block Mouse", script.blockMouse, lx, cy, "blockMouse");
+        cy = addToggle("Hide HUD", script.hideHud, lx, cy, "hideHud");
+        cy = addToggle("Hide Arm", script.hideArm, lx, cy, "hideArm");
+        cy = addToggle("Suppress Bob", script.suppressBob, lx, cy, "suppressBob");
+        cy = addToggle("Skippable", script.skippable, lx, cy, "skippable");
+        cy = addToggle("Hold at End", script.holdAtEnd, lx, cy, "holdAtEnd");
+        cy = addToggle("Interruptible", script.interruptible, lx, cy, "interruptible");
 
         cy += 4;
         addSectionLabel("Duration", lx, cy); cy += 16;
-        addFloatField("Total", script.totalDuration, lx, cy, 0, 9999, 1, v -> { script.totalDuration = v; changed(); });
+        addFloatField("Total", script.totalDuration, lx, cy, 0, 9999, 1, onDurationChanged);
     }
 
     private void buildClipProperties() {
@@ -103,18 +110,18 @@ public class LeftPanelArea extends UIComponent {
         int lx = x + 6;
 
         addSectionLabel("Clip", lx, cy); cy += 16;
-        cy = addFloatField("Start", selectedClip.startTime, lx, cy, 0, 9999, 0.5f, v -> { selectedClip.startTime = v; changed(); });
-        cy = addFloatField("Duration", selectedClip.duration, lx, cy, 0.1f, 9999, 0.5f, v -> { selectedClip.duration = v; changed(); });
+        cy = addFloatField("Start", selectedClip.startTime, lx, cy, 0, 9999, 0.5f, null);
+        cy = addFloatField("Duration", selectedClip.duration, lx, cy, 0.1f, 9999, 0.5f, null);
 
         cy += 4;
         addSectionLabel("Settings", lx, cy); cy += 16;
         cy = addDropdown("Transition", new String[]{"cut", "morph"}, "cut".equals(selectedClip.transition) ? 0 : 1,
-                lx, cy, i -> { selectedClip.transition = i == 0 ? "cut" : "morph"; changed(); });
+                lx, cy, i -> { selectedClip.transition = i == 0 ? "cut" : "morph"; });
         cy = addDropdown("Interpolation", new String[]{"linear", "smooth"}, "linear".equals(selectedClip.interpolation) ? 0 : 1,
-                lx, cy, i -> { selectedClip.interpolation = i == 0 ? "linear" : "smooth"; changed(); });
+                lx, cy, i -> { selectedClip.interpolation = i == 0 ? "linear" : "smooth"; });
         cy = addDropdown("Position Mode", new String[]{"relative", "absolute"}, "relative".equals(selectedClip.positionMode) ? 0 : 1,
-                lx, cy, i -> { selectedClip.positionMode = i == 0 ? "relative" : "absolute"; changed(); });
-        cy = addToggle("Loop", selectedClip.loop, lx, cy, v -> { selectedClip.loop = v; changed(); });
+                lx, cy, i -> { selectedClip.positionMode = i == 0 ? "relative" : "absolute"; });
+        cy = addToggle("Loop", selectedClip.loop, lx, cy, "loop");
     }
 
     private void buildKeyframeProperties() {
@@ -123,24 +130,24 @@ public class LeftPanelArea extends UIComponent {
         int lx = x + 6;
 
         addSectionLabel("Keyframe", lx, cy); cy += 16;
-        cy = addFloatField("Time", selectedKeyframe.time, lx, cy, 0, 9999, 0.1f, v -> { selectedKeyframe.time = v; changed(); });
+        cy = addFloatField("Time", selectedKeyframe.time, lx, cy, 0, 9999, 0.1f, null);
 
         cy += 4;
         addSectionLabel("Position", lx, cy); cy += 16;
-        cy = addFloatField("X", selectedKeyframe.position.x, lx, cy, -999, 999, 0.5f, v -> { selectedKeyframe.position.x = v; changed(); });
-        cy = addFloatField("Y", selectedKeyframe.position.y, lx, cy, -999, 999, 0.5f, v -> { selectedKeyframe.position.y = v; changed(); });
-        cy = addFloatField("Z", selectedKeyframe.position.z, lx, cy, -999, 999, 0.5f, v -> { selectedKeyframe.position.z = v; changed(); });
+        cy = addFloatField("X", selectedKeyframe.position.x, lx, cy, -999, 999, 0.5f, null);
+        cy = addFloatField("Y", selectedKeyframe.position.y, lx, cy, -999, 999, 0.5f, null);
+        cy = addFloatField("Z", selectedKeyframe.position.z, lx, cy, -999, 999, 0.5f, null);
 
         cy += 4;
         addSectionLabel("Rotation", lx, cy); cy += 16;
-        cy = addFloatField("Yaw", selectedKeyframe.yaw, lx, cy, -180, 180, 1, v -> { selectedKeyframe.yaw = v; changed(); });
-        cy = addFloatField("Pitch", selectedKeyframe.pitch, lx, cy, -90, 90, 1, v -> { selectedKeyframe.pitch = v; changed(); });
-        cy = addFloatField("Roll", selectedKeyframe.roll, lx, cy, -180, 180, 1, v -> { selectedKeyframe.roll = v; changed(); });
+        cy = addFloatField("Yaw", selectedKeyframe.yaw, lx, cy, -180, 180, 1, null);
+        cy = addFloatField("Pitch", selectedKeyframe.pitch, lx, cy, -90, 90, 1, null);
+        cy = addFloatField("Roll", selectedKeyframe.roll, lx, cy, -180, 180, 1, null);
 
         cy += 4;
         addSectionLabel("Camera", lx, cy); cy += 16;
-        cy = addFloatField("FOV", selectedKeyframe.fov, lx, cy, 1, 179, 1, v -> { selectedKeyframe.fov = v; changed(); });
-        cy = addFloatField("Zoom", selectedKeyframe.zoom, lx, cy, 0.1f, 10, 0.1f, v -> { selectedKeyframe.zoom = v; changed(); });
+        cy = addFloatField("FOV", selectedKeyframe.fov, lx, cy, 1, 179, 1, null);
+        cy = addFloatField("Zoom", selectedKeyframe.zoom, lx, cy, 0.1f, 10, 0.1f, null);
     }
 
     private void addSectionLabel(String text, int lx, int cy) {
@@ -148,10 +155,9 @@ public class LeftPanelArea extends UIComponent {
     }
 
     private int addField(String label, String value, int lx, int cy, Consumer<String> onChange) {
-        // Simple inline text display for now
-        UILabel lbl = new UILabel(lx, cy, label + ": " + value, 0xFFCCCCCC);
-        children.add(lbl);
-        return cy + 12;
+        UITextInput ti = new UITextInput(lx, cy, w - 12, 16, label, value, onChange);
+        children.add(ti);
+        return cy + 18;
     }
 
     private int addFloatField(String label, float value, int lx, int cy, float min, float max, float step,
@@ -161,8 +167,9 @@ public class LeftPanelArea extends UIComponent {
         return cy + 18;
     }
 
-    private int addToggle(String label, boolean value, int lx, int cy, Consumer<Boolean> onChange) {
-        UIToggle tgl = new UIToggle(lx, cy, w - 12, 16, label, value, onChange);
+    private int addToggle(String label, boolean value, int lx, int cy, String flag) {
+        UIToggle tgl = new UIToggle(lx, cy, w - 12, 16, label, value,
+                v -> { if (flag.equals("loop") && selectedClip != null) selectedClip.loop = v; else if (onBehaviorFlag != null) onBehaviorFlag.accept(flag + "=" + v); });
         children.add(tgl);
         return cy + 18;
     }
@@ -173,8 +180,11 @@ public class LeftPanelArea extends UIComponent {
         return cy + 18;
     }
 
-    private void changed() {
-        if (onScriptChanged != null) onScriptChanged.run();
+    public UITextInput getFocusedInput() {
+        for (UIComponent c : children) {
+            if (c instanceof UITextInput ti && ti.isFocused()) return ti;
+        }
+        return null;
     }
 
     @Override

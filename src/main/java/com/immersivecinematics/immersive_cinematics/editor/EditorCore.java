@@ -8,6 +8,8 @@ public class EditorCore {
     private EditorScript script;
     private EditorClip selectedClip;
     private EditorKeyframe selectedKeyframe;
+    private String fileName = "untitled";
+    private boolean autoSnap;
     private Runnable onChanged;
     private BiConsumer<EditorClip, EditorKeyframe> onSelectionChanged;
 
@@ -18,14 +20,24 @@ public class EditorCore {
     public EditorScript getScript() { return script; }
     public EditorClip getSelectedClip() { return selectedClip; }
     public EditorKeyframe getSelectedKeyframe() { return selectedKeyframe; }
+    public String getFileName() { return fileName; }
+    public boolean isAutoSnap() { return autoSnap; }
 
     public void setOnChanged(Runnable r) { onChanged = r; }
     public void setOnSelectionChanged(BiConsumer<EditorClip, EditorKeyframe> r) { onSelectionChanged = r; }
+
+    public void toggleAutoSnap() {
+        autoSnap = !autoSnap;
+        if (autoSnap) snapAllClips();
+        fireChanged();
+    }
 
     public void newScript() {
         script = new EditorScript();
         script.name = "Untitled";
         script.author = "Author";
+        fileName = "untitled";
+        script.id = fileName;
         selectedClip = null;
         selectedKeyframe = null;
 
@@ -48,14 +60,23 @@ public class EditorCore {
     }
 
     public String toJson() {
+        script.id = fileName;
         return EditorSerializer.serialize(script);
+    }
+
+    public void setFileName(String name) {
+        fileName = name.replaceAll("[^a-zA-Z0-9_]", "").replaceAll("_+", "_");
+        if (fileName.isEmpty()) fileName = "untitled";
+        script.id = fileName;
     }
 
     public EditorClip addClip() {
         EditorTrack track = script.tracks.get(0);
         float start = 0;
-        for (EditorClip c : track.clips) {
-            start = Math.max(start, c.endTime());
+        if (autoSnap) {
+            for (EditorClip c : track.clips) start = Math.max(start, c.endTime());
+        } else {
+            start = script.totalDuration;
         }
         EditorClip clip = new EditorClip();
         clip.startTime = start;
@@ -75,6 +96,7 @@ public class EditorCore {
         }
         selectedClip = null;
         selectedKeyframe = null;
+        if (autoSnap) snapAllClips();
         recalc();
         fireChanged();
     }
@@ -116,6 +138,8 @@ public class EditorCore {
 
     public void moveClip(EditorClip clip, float newStart) {
         clip.startTime = Math.max(0, snap(newStart));
+        if (autoSnap) snapAllClips();
+        recalc();
         fireChanged();
     }
 
@@ -125,6 +149,8 @@ public class EditorCore {
         if (ns < oldEnd) {
             clip.startTime = ns;
             clip.duration = oldEnd - ns;
+            if (autoSnap) snapAllClips();
+            recalc();
             fireChanged();
         }
     }
@@ -132,6 +158,8 @@ public class EditorCore {
     public void resizeClipRight(EditorClip clip, float newEnd) {
         float ne = Math.max(clip.startTime + 0.1f, snap(newEnd));
         clip.duration = ne - clip.startTime;
+        if (autoSnap) snapAllClips();
+        recalc();
         fireChanged();
     }
 
@@ -162,10 +190,24 @@ public class EditorCore {
         float maxEnd = 0;
         for (EditorTrack track : script.tracks) {
             for (EditorClip clip : track.clips) {
-                maxEnd = Math.max(maxEnd, clip.endTime());
+                float end = clip.endTime();
+                if ("morph".equals(clip.transition)) {
+                    end += clip.transitionDuration;
+                }
+                maxEnd = Math.max(maxEnd, end);
             }
         }
         script.totalDuration = Math.max(1, maxEnd);
+    }
+
+    private void snapAllClips() {
+        for (EditorTrack track : script.tracks) {
+            float cursor = 0;
+            for (EditorClip clip : track.clips) {
+                clip.startTime = cursor;
+                cursor = clip.endTime();
+            }
+        }
     }
 
     private static float snap(float t) {
