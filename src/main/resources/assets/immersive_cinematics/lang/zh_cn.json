@@ -1,5 +1,6 @@
 {
     "key.immersive_cinematics.skip": "跳过",
+    "key.immersive_cinematics.editor": "打开编辑器",
     "key.categories.immersive_cinematics": "沉浸式过场动画",
     "hud.immersive_cinematics.skip_hold": "长按 %s 跳过动画",
     "config.immersive_cinematics.title": "沉浸式过场动画 配置",

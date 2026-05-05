@@ -1,5 +1,6 @@
 {
     "key.immersive_cinematics.skip": "Skip",
+    "key.immersive_cinematics.editor": "Open Editor",
     "key.categories.immersive_cinematics": "Immersive Cinematics",
     "hud.immersive_cinematics.skip_hold": "Hold %s to skip",
     "config.immersive_cinematics.title": "Immersive Cinematics Config",

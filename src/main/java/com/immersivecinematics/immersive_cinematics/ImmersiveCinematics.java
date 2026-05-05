@@ -50,6 +50,9 @@ public class ImmersiveCinematics {
 
     public static final String MODID = "immersive_cinematics";
 
+    /** Set to {@code false} to build the lite (player-only) version without the editor. */
+    public static final boolean EDITOR_ENABLED = true;
+
     public ImmersiveCinematics() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 

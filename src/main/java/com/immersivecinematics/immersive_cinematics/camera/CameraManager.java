@@ -36,6 +36,11 @@ public class CameraManager {
     private CinematicScript pendingScript = null;
     private CompletionReason pendingCompletionReason = CompletionReason.FINISHED;
 
+    private boolean previewMode = false;
+    private boolean previewPaused = true;
+    private float previewTime;
+    private CinematicScript previewScript;
+
     public void activate() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return;
@@ -160,6 +165,45 @@ public class CameraManager {
         return scriptPlayer.isPlaying();
     }
 
+    // ========== 编辑器预览 ==========
+
+    public void pushScript(String jsonContent) {
+        try {
+            previewScript = com.immersivecinematics.immersive_cinematics.script.ScriptParser.parse(jsonContent);
+        } catch (com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException e) {
+            LOGGER.error("编辑器传入的脚本 JSON 解析失败", e);
+        }
+    }
+
+    public void setTime(float seconds) {
+        previewTime = seconds;
+        previewMode = true;
+        previewPaused = true;
+        if (!active && previewScript != null) {
+            startScriptInternal(previewScript);
+        }
+    }
+
+    public void resume() {
+        if (!previewMode) return;
+        previewPaused = false;
+        lastRealNanos = 0;
+    }
+
+    public void pause() {
+        previewPaused = true;
+    }
+
+    public void stop() {
+        if (previewMode) {
+            previewMode = false;
+            previewPaused = true;
+            deactivateNow();
+        } else {
+            stopScript();
+        }
+    }
+
     private void startScriptInternal(CinematicScript script) {
         Minecraft mc = Minecraft.getInstance();
         Vec3 playerPos = mc.player.position();
@@ -233,14 +277,27 @@ public class CameraManager {
             return;
         }
 
-        long now = System.nanoTime();
-        double prevGameTimeSeconds = gameTimeSeconds;
-        if (lastRealNanos != 0) {
-            gameTimeSeconds += (double)(now - lastRealNanos) / 1_000_000_000.0;
+        if (previewMode) {
+            if (previewPaused) {
+                gameTimeSeconds = previewTime;
+                lastRealNanos = 0;
+            } else {
+                long now = System.nanoTime();
+                if (lastRealNanos != 0) {
+                    gameTimeSeconds += (double)(now - lastRealNanos) / 1_000_000_000.0;
+                }
+                lastRealNanos = now;
+            }
+        } else {
+            long now = System.nanoTime();
+            double prevGameTimeSeconds = gameTimeSeconds;
+            if (lastRealNanos != 0) {
+                gameTimeSeconds += (double)(now - lastRealNanos) / 1_000_000_000.0;
+            }
+            lastRealNanos = now;
         }
-        lastRealNanos = now;
 
-        float deltaTime = (float)(gameTimeSeconds - prevGameTimeSeconds);
+        float deltaTime = 1f / 20f;
         OverlayManager.INSTANCE.update(deltaTime);
 
         if (scriptPlayer.isPlaying()) {
