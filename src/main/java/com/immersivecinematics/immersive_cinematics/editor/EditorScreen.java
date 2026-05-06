@@ -91,6 +91,13 @@ public class EditorScreen extends Screen {
                         + " Preview=(" + leftW + "," + menuH + "," + (width - leftW) + "," + previewH + ")"
                         + " Timeline=(0," + (menuH + previewH) + "," + width + "," + timelineH + ")");
 
+        try {
+            Files.createDirectories(scriptsDir);
+            Files.createDirectories(scriptsDir.getParent().resolve("temp"));
+        } catch (IOException e) {
+            EditorLogger.error(EditorLogger.SCREEN, "init", e);
+        }
+
         wireMenu();
         wireTimeline();
         wirePreview();
@@ -438,10 +445,16 @@ public class EditorScreen extends Screen {
 
     private void openScript(String fileName) {
         try {
-            String json = Files.readString(scriptsDir.resolve(fileName));
+            Path src = scriptsDir.resolve(fileName);
+            Path tempDir = scriptsDir.getParent().resolve("temp");
+            Files.createDirectories(tempDir);
+            Path dst = tempDir.resolve(fileName);
+            Files.copy(src, dst, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+            String json = Files.readString(dst);
             doc.loadFromJson(json);
             doc.setFileName(fileName.replace(".json", ""));
-            scriptFilePath = scriptsDir.resolve(fileName).toString();
+            scriptFilePath = src.toString();
             playback.setTime(0);
             sel.clear();
             leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);

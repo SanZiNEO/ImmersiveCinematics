@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
+import com.immersivecinematics.immersive_cinematics.editor.trigger.TriggerPanel;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import java.util.*;
 import java.util.function.Consumer;
@@ -105,17 +106,18 @@ public class LeftPanelArea extends UIComponent {
 
         addSectionLabel("Script Info", lx, cy, 0); cy += 16;
         cy = reflectObject(script, lx, cy, new String[]{"id", "name", "author", "version", "description", "dimension"});
-        // triggers rendered inline via reflectField recursion
-        if (script.has("triggers")) {
-            addSectionLabel("Triggers", lx, cy, 0); cy += 16;
-            cy = reflectField("triggers", script.get("triggers"), lx, cy, 0, script, null);
-        }
         cy += 4;
         addSectionLabel("Runtime", lx, cy, 0); cy += 16;
         cy = reflectObject(script, lx, cy, new String[]{"block_keyboard", "block_mouse", "hide_hud", "hide_arm", "suppress_bob", "skippable", "hold_at_end", "interruptible"});
         cy += 4;
         addSectionLabel("Duration", lx, cy, 0); cy += 16;
         cy = reflectFloatField("total_duration", lx, cy, () -> script.has("total_duration") ? script.get("total_duration").getAsFloat() : 0, v -> { script.addProperty("total_duration", v); if (onDirty != null) onDirty.run(); });
+        cy += 6;
+        addSectionLabel("Triggers", lx, cy, 0); cy += 12;
+        JsonArray triggers = script.has("triggers") ? script.getAsJsonArray("triggers") : new JsonArray();
+        if (!script.has("triggers")) script.add("triggers", triggers);
+        TriggerPanel tp = new TriggerPanel(lx, cy, w - 12, 0, triggers, onDirty);
+        children.add(tp);
     }
 
     private void buildClipProperties() {

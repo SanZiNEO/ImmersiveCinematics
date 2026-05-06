@@ -56,7 +56,7 @@ public class CinematicKeyBindings {
             boolean editorDown = EDITOR_KEY.isDown();
             if (editorDown && !editorKeyWasDown && !(mc.screen instanceof EditorScreen)
                     && System.currentTimeMillis() - editorClosedAt > EDITOR_REOPEN_COOLDOWN) {
-                Path scriptsDir = Paths.get("cinematics");
+                Path scriptsDir = Paths.get("immersive_cinematics", "scripts");
                 EditorScreen editor = new EditorScreen(EditorBridgeImpl.INSTANCE, scriptsDir);
                 mc.setScreen(editor);
             }
