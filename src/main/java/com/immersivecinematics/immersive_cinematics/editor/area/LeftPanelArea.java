@@ -116,7 +116,7 @@ public class LeftPanelArea extends UIComponent {
         addSectionLabel("Triggers", lx, cy, 0); cy += 12;
         JsonArray triggers = script.has("triggers") ? script.getAsJsonArray("triggers") : new JsonArray();
         if (!script.has("triggers")) script.add("triggers", triggers);
-        TriggerPanel tp = new TriggerPanel(lx, cy, w - 12, 0, triggers, onDirty);
+        TriggerPanel tp = new TriggerPanel(lx, cy, w - 12, Math.max(0, (y + h) - cy), triggers, onDirty);
         children.add(tp);
     }
 

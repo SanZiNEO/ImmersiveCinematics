@@ -568,7 +568,7 @@ public class EditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
-        UIContext ctx = makeCtx(mx, my);
+        UIContext ctx = makeCtx(mx, my, button);
         int imx = (int) mx, imy = (int) my;
         mouseDownX = imx; mouseDownY = imy;
         EditorLogger.mousePressed(EditorLogger.SCREEN, button, imx, imy, activeArea);
@@ -588,7 +588,7 @@ public class EditorScreen extends Screen {
     @Override
     public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
         try {
-            UIContext ctx = makeCtx(mx, my);
+            UIContext ctx = makeCtx(mx, my, button);
             int imx = (int) mx, imy = (int) my;
             boolean timelineDrag = timeline.mouseDragged(ctx);
             if (timelineDrag) {
@@ -608,7 +608,7 @@ public class EditorScreen extends Screen {
     @Override
     public boolean mouseReleased(double mx, double my, int button) {
         try {
-            UIContext ctx = makeCtx(mx, my);
+            UIContext ctx = makeCtx(mx, my, button);
             int imx = (int) mx, imy = (int) my;
             EditorLogger.mouseReleased(EditorLogger.SCREEN, button, imx, imy, mouseDownX, mouseDownY, activeArea);
             menuBar.mouseReleased(ctx); leftPanel.mouseReleased(ctx);
@@ -622,7 +622,7 @@ public class EditorScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mx, double my, double scroll) {
         try {
-            UIContext ctx = makeCtx(mx, my);
+            UIContext ctx = makeCtx(mx, my, 0);
             int imx = (int) mx, imy = (int) my;
             if (timeline.mouseScrolled(ctx, scroll)) {
                 EditorLogger.mouseScroll(EditorLogger.SCREEN, scroll, imx, imy, "Timeline");
@@ -720,8 +720,9 @@ public class EditorScreen extends Screen {
 
     @Override public boolean isPauseScreen() { return false; }
 
-    private UIContext makeCtx(double mx, double my) {
+    private UIContext makeCtx(double mx, double my, int button) {
         UIContext ctx = new UIContext(null, font, width, height, 0, (int) mx, (int) my);
+        ctx.mouseButton = button;
         ctx.ctrlDown = hasControlDown();
         ctx.shiftDown = hasShiftDown();
         return ctx;
