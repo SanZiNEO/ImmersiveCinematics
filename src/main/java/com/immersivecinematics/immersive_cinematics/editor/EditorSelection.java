@@ -18,8 +18,9 @@ public class EditorSelection {
         fire();
     }
 
-    public void selectKeyframe(JsonObject kf) {
+    public void selectKeyframe(JsonObject kf, JsonObject clip) {
         selectedKeyframe = kf;
+        selectedClip = clip;
         fire();
     }
 
