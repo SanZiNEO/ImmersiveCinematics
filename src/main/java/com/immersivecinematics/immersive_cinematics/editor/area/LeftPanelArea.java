@@ -1,11 +1,13 @@
 package com.immersivecinematics.immersive_cinematics.editor.area;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
-import com.immersivecinematics.immersive_cinematics.editor.model.*;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import java.util.*;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public class LeftPanelArea extends UIComponent {
     private final List<UIComponent> children = new ArrayList<>();
@@ -13,10 +15,10 @@ public class LeftPanelArea extends UIComponent {
     public enum PanelMode { SCRIPT_LIST, SCRIPT_PROPERTIES, CLIP_PROPERTIES, KEYFRAME_PROPERTIES }
     private PanelMode mode = PanelMode.SCRIPT_PROPERTIES;
 
-    private EditorScript script;
+    private JsonObject script;
     private List<String> scriptFileNames = new ArrayList<>();
-    private EditorClip selectedClip;
-    private EditorKeyframe selectedKeyframe;
+    private JsonObject selectedClip;
+    private JsonObject selectedKeyframe;
 
     private Consumer<String> onOpenScript;
     private Consumer<String> onDeleteScript;
@@ -43,9 +45,12 @@ public class LeftPanelArea extends UIComponent {
     public PanelMode getMode() { return mode; }
 
     public void setDirtyCallback(Runnable r) { onDirty = r; }
-    public void setScript(EditorScript s) { script = s; }
-    public void setSelectedClip(EditorClip c) { selectedClip = c; }
-    public void setSelectedKeyframe(EditorKeyframe k) { selectedKeyframe = k; }
+
+    public void setData(JsonObject meta, JsonObject clip, JsonObject kf) {
+        this.script = meta;
+        this.selectedClip = clip;
+        this.selectedKeyframe = kf;
+    }
     public void setScriptFileNames(List<String> names) { scriptFileNames = names; }
     public void setOnOpenScript(Consumer<String> r) { onOpenScript = r; }
     public void setOnDeleteScript(Consumer<String> r) { onDeleteScript = r; }
@@ -94,34 +99,13 @@ public class LeftPanelArea extends UIComponent {
         int lx = x + 6;
 
         addSectionLabel("Script Info", lx, cy); cy += 16;
-
-        cy = addField("Name", () -> script.name, lx, cy, onNameChanged);
-        cy = addField("Author", () -> script.author, lx, cy, onAuthorChanged);
-        cy = addField("Description", () -> script.description, lx, cy, onDescChanged);
-
+        cy = reflectObject(script, lx, cy, new String[]{"id", "name", "author", "version", "description", "dimension", "triggers"});
         cy += 4;
         addSectionLabel("Runtime", lx, cy); cy += 16;
-
-        cy = addToggle("Block Keys", () -> script.blockKeyboard, lx, cy,
-                v -> { if (onBehaviorFlag != null) onBehaviorFlag.accept("blockKeyboard=" + v); });
-        cy = addToggle("Block Mouse", () -> script.blockMouse, lx, cy,
-                v -> { if (onBehaviorFlag != null) onBehaviorFlag.accept("blockMouse=" + v); });
-        cy = addToggle("Hide HUD", () -> script.hideHud, lx, cy,
-                v -> { if (onBehaviorFlag != null) onBehaviorFlag.accept("hideHud=" + v); });
-        cy = addToggle("Hide Arm", () -> script.hideArm, lx, cy,
-                v -> { if (onBehaviorFlag != null) onBehaviorFlag.accept("hideArm=" + v); });
-        cy = addToggle("Suppress Bob", () -> script.suppressBob, lx, cy,
-                v -> { if (onBehaviorFlag != null) onBehaviorFlag.accept("suppressBob=" + v); });
-        cy = addToggle("Skippable", () -> script.skippable, lx, cy,
-                v -> { if (onBehaviorFlag != null) onBehaviorFlag.accept("skippable=" + v); });
-        cy = addToggle("Hold at End", () -> script.holdAtEnd, lx, cy,
-                v -> { if (onBehaviorFlag != null) onBehaviorFlag.accept("holdAtEnd=" + v); });
-        cy = addToggle("Interruptible", () -> script.interruptible, lx, cy,
-                v -> { if (onBehaviorFlag != null) onBehaviorFlag.accept("interruptible=" + v); });
-
+        cy = reflectObject(script, lx, cy, new String[]{"block_keyboard", "block_mouse", "hide_hud", "hide_arm", "suppress_bob", "skippable", "hold_at_end", "interruptible"});
         cy += 4;
         addSectionLabel("Duration", lx, cy); cy += 16;
-        cy = addFloatField("Total", () -> script.totalDuration, lx, cy, 0, 9999, 1, onDurationChanged);
+        cy = reflectFloatField("total_duration", lx, cy, () -> script.has("total_duration") ? script.get("total_duration").getAsFloat() : 0, v -> { script.addProperty("total_duration", v); if (onDirty != null) onDirty.run(); });
     }
 
     private void buildClipProperties() {
@@ -129,25 +113,8 @@ public class LeftPanelArea extends UIComponent {
         int cy = y + 6;
         int lx = x + 6;
 
-        addSectionLabel("Clip", lx, cy); cy += 16;
-        cy = addFloatField("Start", () -> selectedClip.startTime, lx, cy, 0, 9999, 0.5f,
-                v -> { selectedClip.startTime = v; if (onDirty != null) onDirty.run(); });
-        cy = addFloatField("Duration", () -> selectedClip.duration, lx, cy, 0.1f, 9999, 0.5f,
-                v -> { selectedClip.duration = v; if (onDirty != null) onDirty.run(); });
-
-        cy += 4;
-        addSectionLabel("Settings", lx, cy); cy += 16;
-        cy = addDropdown("Transition", new String[]{"cut", "morph"},
-                () -> "cut".equals(selectedClip.transition) ? 0 : 1,
-                lx, cy, i -> { selectedClip.transition = i == 0 ? "cut" : "morph"; if (onDirty != null) onDirty.run(); });
-        cy = addDropdown("Interpolation", new String[]{"linear", "smooth"},
-                () -> "linear".equals(selectedClip.interpolation) ? 0 : 1,
-                lx, cy, i -> { selectedClip.interpolation = i == 0 ? "linear" : "smooth"; if (onDirty != null) onDirty.run(); });
-        cy = addDropdown("Position Mode", new String[]{"relative", "absolute"},
-                () -> "relative".equals(selectedClip.positionMode) ? 0 : 1,
-                lx, cy, i -> { selectedClip.positionMode = i == 0 ? "relative" : "absolute"; if (onDirty != null) onDirty.run(); });
-        cy = addToggle("Loop", () -> selectedClip.loop, lx, cy,
-                v -> { selectedClip.loop = v; if (onDirty != null) onDirty.run(); });
+        addSectionLabel("Clip Properties", lx, cy); cy += 16;
+        cy = reflectObject(selectedClip, lx, cy, null);
     }
 
     private void buildKeyframeProperties() {
@@ -155,63 +122,119 @@ public class LeftPanelArea extends UIComponent {
         int cy = y + 6;
         int lx = x + 6;
 
-        addSectionLabel("Keyframe", lx, cy); cy += 16;
-        cy = addFloatField("Time", () -> selectedKeyframe.time, lx, cy, 0, 9999, 0.1f,
-                v -> { selectedKeyframe.time = v; if (onDirty != null) onDirty.run(); });
+        addSectionLabel("Keyframe Properties", lx, cy); cy += 16;
+        cy = reflectObject(selectedKeyframe, lx, cy, null);
+    }
 
-        cy += 4;
-        addSectionLabel("Position", lx, cy); cy += 16;
-        cy = addFloatField("X", () -> selectedKeyframe.position.x, lx, cy, -999, 999, 0.5f,
-                v -> { selectedKeyframe.position.x = v; if (onDirty != null) onDirty.run(); });
-        cy = addFloatField("Y", () -> selectedKeyframe.position.y, lx, cy, -999, 999, 0.5f,
-                v -> { selectedKeyframe.position.y = v; if (onDirty != null) onDirty.run(); });
-        cy = addFloatField("Z", () -> selectedKeyframe.position.z, lx, cy, -999, 999, 0.5f,
-                v -> { selectedKeyframe.position.z = v; if (onDirty != null) onDirty.run(); });
+    /** Auto-reflect a JsonObject's fields as editable widgets. */
+    private int reflectObject(JsonObject obj, int lx, int cy, String[] orderedKeys) {
+        if (orderedKeys != null) {
+            for (String key : orderedKeys) {
+                if (obj.has(key)) {
+                    cy = reflectField(key, obj.get(key), lx, cy);
+                }
+            }
+            return cy;
+        }
+        for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
+            cy = reflectField(entry.getKey(), entry.getValue(), lx, cy);
+        }
+        return cy;
+    }
 
-        cy += 4;
-        addSectionLabel("Rotation", lx, cy); cy += 16;
-        cy = addFloatField("Yaw", () -> selectedKeyframe.yaw, lx, cy, -180, 180, 1,
-                v -> { selectedKeyframe.yaw = v; if (onDirty != null) onDirty.run(); });
-        cy = addFloatField("Pitch", () -> selectedKeyframe.pitch, lx, cy, -90, 90, 1,
-                v -> { selectedKeyframe.pitch = v; if (onDirty != null) onDirty.run(); });
-        cy = addFloatField("Roll", () -> selectedKeyframe.roll, lx, cy, -180, 180, 1,
-                v -> { selectedKeyframe.roll = v; if (onDirty != null) onDirty.run(); });
+    private int reflectField(String key, JsonElement val, int lx, int cy) {
+        if (!val.isJsonPrimitive()) return cy;
+        JsonPrimitive prim = val.getAsJsonPrimitive();
+        String label = formatKey(key);
 
-        cy += 4;
-        addSectionLabel("Camera", lx, cy); cy += 16;
-        cy = addFloatField("FOV", () -> selectedKeyframe.fov, lx, cy, 1, 179, 1,
-                v -> { selectedKeyframe.fov = v; if (onDirty != null) onDirty.run(); });
-        cy = addFloatField("Zoom", () -> selectedKeyframe.zoom, lx, cy, 0.1f, 10, 0.1f,
-                v -> { selectedKeyframe.zoom = v; if (onDirty != null) onDirty.run(); });
+        if (prim.isBoolean()) {
+            boolean current = prim.getAsBoolean();
+            addToggle(label, () -> {
+                JsonElement e = findRef(selectedClip != null ? selectedClip : (selectedKeyframe != null ? selectedKeyframe : script), key);
+                return e != null && e.getAsBoolean();
+            }, lx, cy, v -> {
+                findParent(key).addProperty(key, v);
+                if (onDirty != null) onDirty.run();
+            });
+            return cy + 18;
+        }
+
+        if (prim.isNumber()) {
+            float current = prim.getAsFloat();
+            boolean isInt = current == Math.floor(current) && !Float.isInfinite(current) && key.equals("version");
+            if (isInt) {
+                return cy;
+            }
+            addFloatField(label, () -> {
+                JsonElement e = findRef(findTarget(), key);
+                return e != null ? e.getAsFloat() : 0;
+            }, lx, cy, -9999, 9999, 0.5f, v -> {
+                findParent(key).addProperty(key, v);
+                if (onDirty != null) onDirty.run();
+            });
+            return cy + 18;
+        }
+
+        if (prim.isString()) {
+            UITextInput ti = new UITextInput(lx, cy, w - 12, 16, label,
+                    () -> {
+                        JsonElement e = findRef(findTarget(), key);
+                        return e != null ? e.getAsString() : "";
+                    },
+                    v -> {
+                        findParent(key).addProperty(key, v);
+                        if (onDirty != null) onDirty.run();
+                    });
+            children.add(ti);
+            return cy + 18;
+        }
+
+        return cy;
+    }
+
+    private int reflectFloatField(String label, int lx, int cy, java.util.function.Supplier<Float> src, Consumer<Float> sink) {
+        addFloatField(label, src, lx, cy, 0, 9999, 1, sink);
+        return cy + 18;
+    }
+
+    private JsonObject findTarget() {
+        return selectedKeyframe != null ? selectedKeyframe : (selectedClip != null ? selectedClip : script);
+    }
+
+    private JsonObject findParent(String key) {
+        if (selectedKeyframe != null && selectedKeyframe.has(key)) return selectedKeyframe;
+        if (selectedClip != null && selectedClip.has(key)) return selectedClip;
+        return script;
+    }
+
+    private static JsonElement findRef(JsonObject obj, String key) {
+        return obj != null && obj.has(key) ? obj.get(key) : null;
+    }
+
+    private static String formatKey(String key) {
+        return key.replace("_", " ");
     }
 
     private void addSectionLabel(String text, int lx, int cy) {
         children.add(new UILabel(lx, cy, text, 0xFF777777));
     }
 
-    private int addField(String label, Supplier<String> source, int lx, int cy, Consumer<String> sink) {
+    private int addField(String label, java.util.function.Supplier<String> source, int lx, int cy, Consumer<String> sink) {
         UITextInput ti = new UITextInput(lx, cy, w - 12, 16, label, source, sink);
         children.add(ti);
         return cy + 18;
     }
 
-    private int addFloatField(String label, Supplier<Float> source, int lx, int cy,
+    private int addFloatField(String label, java.util.function.Supplier<Float> source, int lx, int cy,
                               float min, float max, float step, Consumer<Float> sink) {
         UIFloatInput fi = new UIFloatInput(lx, cy, w - 12, 16, label, source, min, max, step, sink);
         children.add(fi);
         return cy + 18;
     }
 
-    private int addToggle(String label, Supplier<Boolean> source, int lx, int cy, Consumer<Boolean> sink) {
+    private int addToggle(String label, java.util.function.Supplier<Boolean> source, int lx, int cy, Consumer<Boolean> sink) {
         UIToggle tgl = new UIToggle(lx, cy, w - 12, 16, label, source, sink);
         children.add(tgl);
-        return cy + 18;
-    }
-
-    private int addDropdown(String label, String[] options, Supplier<Integer> source,
-                            int lx, int cy, Consumer<Integer> sink) {
-        UIDropdown dd = new UIDropdown(lx, cy, w - 12, 16, Arrays.asList(options), source, sink);
-        children.add(dd);
         return cy + 18;
     }
 

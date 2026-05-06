@@ -1,9 +1,15 @@
 package com.immersivecinematics.immersive_cinematics.editor;
 
-import com.immersivecinematics.immersive_cinematics.editor.model.*;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 public class EditorDocument {
-    private EditorScript script;
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+
+    private JsonObject root;
     private String fileName = "untitled";
     private boolean dirty;
 
@@ -11,10 +17,9 @@ public class EditorDocument {
         reset();
     }
 
-    public EditorScript getScript() { return script; }
+    public JsonObject getRoot() { return root; }
     public String getFileName() { return fileName; }
     public boolean isDirty() { return dirty; }
-
     public void markDirty() { dirty = true; }
     public void clearDirty() { dirty = false; }
 
@@ -24,21 +29,46 @@ public class EditorDocument {
     }
 
     public void reset() {
-        script = new EditorScript();
-        script.name = "Untitled";
-        script.author = "Author";
-        fileName = "untitled";
-        script.id = fileName;
+        root = new JsonObject();
+        JsonObject meta = new JsonObject();
+        meta.addProperty("id", "untitled");
+        meta.addProperty("name", "Untitled");
+        meta.addProperty("author", "Author");
+        meta.addProperty("version", 3);
+        meta.addProperty("block_keyboard", true);
+        meta.addProperty("block_mouse", true);
+        meta.addProperty("hide_hud", true);
+        meta.addProperty("hide_arm", true);
+        meta.addProperty("suppress_bob", true);
+        meta.addProperty("skippable", true);
+        meta.addProperty("interruptible", true);
+        root.add("meta", meta);
+
+        JsonObject timeline = new JsonObject();
+        timeline.addProperty("total_duration", 10f);
+        JsonArray tracks = new JsonArray();
+        JsonObject cameraTrack = new JsonObject();
+        cameraTrack.addProperty("type", "CAMERA");
+        cameraTrack.add("clips", new JsonArray());
+        tracks.add(cameraTrack);
+        timeline.add("tracks", tracks);
+        root.add("timeline", timeline);
+
         dirty = false;
     }
 
     public void loadFromJson(String json) {
-        script = EditorSerializer.deserialize(json);
+        root = JsonParser.parseString(json).getAsJsonObject();
         dirty = false;
     }
 
     public String toJson() {
-        script.id = fileName;
-        return EditorSerializer.serialize(script);
+        return GSON.toJson(root);
     }
+
+    public JsonObject getMeta() { return root.getAsJsonObject("meta"); }
+    public JsonObject getTimeline() { return root.getAsJsonObject("timeline"); }
+    public JsonArray getTracks() { return getTimeline().getAsJsonArray("tracks"); }
+    public float getTotalDuration() { return getTimeline().get("total_duration").getAsFloat(); }
+    public void setTotalDuration(float d) { getTimeline().addProperty("total_duration", d); }
 }

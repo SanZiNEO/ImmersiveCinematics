@@ -1,25 +1,24 @@
 package com.immersivecinematics.immersive_cinematics.editor;
 
-import com.immersivecinematics.immersive_cinematics.editor.model.*;
+import com.google.gson.JsonObject;
 import java.util.function.BiConsumer;
 
 public class EditorSelection {
-    private EditorClip selectedClip;
-    private EditorKeyframe selectedKeyframe;
-    private BiConsumer<EditorClip, EditorKeyframe> listener;
+    private JsonObject selectedClip;
+    private JsonObject selectedKeyframe;
+    private BiConsumer<JsonObject, JsonObject> listener;
 
-    public void setListener(BiConsumer<EditorClip, EditorKeyframe> l) { listener = l; }
+    public void setListener(BiConsumer<JsonObject, JsonObject> l) { listener = l; }
+    public JsonObject getClip() { return selectedClip; }
+    public JsonObject getKeyframe() { return selectedKeyframe; }
 
-    public EditorClip getClip() { return selectedClip; }
-    public EditorKeyframe getKeyframe() { return selectedKeyframe; }
-
-    public void selectClip(EditorClip clip) {
+    public void selectClip(JsonObject clip) {
         selectedClip = clip;
         selectedKeyframe = null;
         fire();
     }
 
-    public void selectKeyframe(EditorKeyframe kf) {
+    public void selectKeyframe(JsonObject kf) {
         selectedKeyframe = kf;
         fire();
     }

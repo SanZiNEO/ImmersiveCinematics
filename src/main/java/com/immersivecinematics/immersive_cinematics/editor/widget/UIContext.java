@@ -12,6 +12,8 @@ public class UIContext {
     public int mouseX;
     public int mouseY;
     public int mouseButton;
+    public boolean ctrlDown;
+    public boolean shiftDown;
 
     public UIContext(GuiGraphics graphics, Font font, int screenWidth, int screenHeight, float partialTick,
                      int mouseX, int mouseY) {
@@ -23,6 +25,9 @@ public class UIContext {
         this.mouseX = mouseX;
         this.mouseY = mouseY;
     }
+
+    public boolean isCtrlDown() { return ctrlDown; }
+    public boolean isShiftDown() { return shiftDown; }
 
     public boolean isMouseIn(int x, int y, int w, int h) {
         return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
