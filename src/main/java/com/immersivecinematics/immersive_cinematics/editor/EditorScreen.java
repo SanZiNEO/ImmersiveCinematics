@@ -19,7 +19,6 @@ import java.util.stream.Stream;
 
 public class EditorScreen extends Screen {
 
-    private final EditorBridge bridge;
     private final EditorCore core;
     private final Path scriptsDir;
     private final List<String> scriptFileNames = new ArrayList<>();
@@ -38,6 +37,8 @@ public class EditorScreen extends Screen {
     private String activeArea = "none";
     private int mouseDownX, mouseDownY;
 
+    private final EditorOutput editorOutput;
+
     // ── Loop monitoring ─────────────────────────────────────────
     private int renderCycle;
     private String renderPhase = "idle";
@@ -45,9 +46,9 @@ public class EditorScreen extends Screen {
 
     public EditorScreen(EditorBridge bridge, Path scriptsDir) {
         super(Component.literal("Cinematic Editor"));
-        this.bridge = bridge;
         this.scriptsDir = scriptsDir;
         this.core = new EditorCore();
+        this.editorOutput = new EditorOutput(bridge);
         core.setOnChanged(() -> { scriptDirty = true; });
         core.setOnSelectionChanged((clip, kf) -> {
             try {
@@ -95,7 +96,6 @@ public class EditorScreen extends Screen {
             core.newScript();
             syncPanels();
             leftPanel.build();
-            pushScript();
         } else {
             syncPanels();
             leftPanel.build();
@@ -105,7 +105,7 @@ public class EditorScreen extends Screen {
     private void wireMenu() {
         menuBar.setOnNewScript(() -> {
             EditorLogger.action(EditorLogger.SCREEN, "NEW_SCRIPT", "from menu");
-            core.newScript(); syncPanels(); pushScript();
+            core.newScript(); syncPanels();
         });
         menuBar.setOnSaveScript(() -> {
             EditorLogger.action(EditorLogger.SCREEN, "SAVE", "from menu");
@@ -120,7 +120,7 @@ public class EditorScreen extends Screen {
             EditorLogger.playhead(EditorLogger.SCREEN, t, 0, "ruler_click");
             float prev = playbackTime;
             playbackTime = t;
-            if (bridge != null) bridge.setTime(t);
+            editorOutput.setTime(t);
             EditorLogger.dataSync(EditorLogger.SCREEN, "playhead", t, prev);
             syncPanels();
         });
@@ -199,7 +199,7 @@ public class EditorScreen extends Screen {
         });
         leftPanel.setOnNewScript(() -> {
             EditorLogger.action(EditorLogger.LEFT, "NEW_SCRIPT", "from left panel");
-            core.newScript(); syncPanels(); pushScript();
+            core.newScript(); syncPanels();
         });
         leftPanel.setOnNameChanged(v -> {
             EditorLogger.state(EditorLogger.LEFT, "scriptName", core.getScript().name, v);
@@ -225,10 +225,6 @@ public class EditorScreen extends Screen {
 
     private void flush() {
         syncPanels();
-        if (scriptDirty) {
-            pushScript();
-            scriptDirty = false;
-        }
     }
 
     private void syncPanels() {
@@ -244,13 +240,6 @@ public class EditorScreen extends Screen {
                         + " scriptDirty=" + scriptDirty
                         + " selectedClip=" + (core.getSelectedClip() != null ? core.getSelectedClip().startTime : "null")
                         + " selectedKf=" + (core.getSelectedKeyframe() != null ? core.getSelectedKeyframe().time : "null"));
-    }
-
-    private void pushScript() {
-        if (bridge != null) {
-            bridge.pushScript(core.toJson());
-            EditorLogger.action(EditorLogger.SCREEN, "PUSH_SCRIPT", "file=" + core.getFileName());
-        }
     }
 
     private void toggleScriptList() {
@@ -271,6 +260,7 @@ public class EditorScreen extends Screen {
             String savedPath = dest.toString();
             if (scriptFilePath == null) scriptFilePath = savedPath;
             refreshScriptList();
+            editorOutput.pushScript(core.toJson());
             EditorLogger.action(EditorLogger.SCREEN, "SAVE_SCRIPT", "path=" + savedPath + " success=true");
         } catch (IOException e) {
             EditorLogger.action(EditorLogger.SCREEN, "SAVE_SCRIPT", "path=" + scriptFilePath + " success=false error=" + e.getMessage());
@@ -287,7 +277,6 @@ public class EditorScreen extends Screen {
             playbackTime = 0;
             leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);
             syncPanels();
-            pushScript();
             EditorLogger.action(EditorLogger.SCREEN, "OPEN_SCRIPT", "file=" + fileName + " success=true");
         } catch (IOException e) {
             EditorLogger.action(EditorLogger.SCREEN, "OPEN_SCRIPT", "file=" + fileName + " success=false error=" + e.getMessage());
@@ -320,17 +309,17 @@ public class EditorScreen extends Screen {
 
     private void play() {
         playing = true; lastPlayTick = System.currentTimeMillis();
-        if (bridge != null) bridge.play();
+        editorOutput.play();
         EditorLogger.marker(EditorLogger.SCREEN, "PLAY START time=" + String.format("%.3f", playbackTime));
     }
     private void pause() {
         playing = false;
-        if (bridge != null) bridge.pause();
+        editorOutput.pause();
         EditorLogger.marker(EditorLogger.SCREEN, "PAUSE time=" + String.format("%.3f", playbackTime));
     }
     private void stop() {
         playing = false; playbackTime = 0;
-        if (bridge != null) bridge.stop();
+        editorOutput.stop();
         syncPanels();
         EditorLogger.marker(EditorLogger.SCREEN, "STOP");
     }
@@ -362,7 +351,7 @@ public class EditorScreen extends Screen {
                 if (playbackTime >= core.getScript().totalDuration) {
                     playbackTime = core.getScript().totalDuration;
                     playing = false;
-                    if (bridge != null) bridge.pause();
+                    editorOutput.pause();
                     EditorLogger.action(EditorLogger.SCREEN, "PLAYBACK", "ended at=" + String.format("%.3f", playbackTime));
                 }
                 timeline.setPlayheadTime(playbackTime);
@@ -548,6 +537,8 @@ public class EditorScreen extends Screen {
             EditorLogger.error(EditorLogger.SCREEN, "handleClipKey crashed", e);
         }
     }
+
+    public EditorOutput getEditorOutput() { return editorOutput; }
 
     @Override
     public void onClose() {

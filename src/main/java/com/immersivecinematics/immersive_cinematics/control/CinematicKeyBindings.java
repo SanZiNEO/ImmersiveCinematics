@@ -60,6 +60,11 @@ public class CinematicKeyBindings {
             editorKeyWasDown = editorDown;
         }
 
+        // Tick the editor's output dispatcher (throttled bridge calls)
+        if (mc.screen instanceof EditorScreen editor) {
+            editor.getEditorOutput().tick();
+        }
+
         if (skipTriggered) {
         } else {
             boolean skipDown = SKIP_KEY.isDown();
