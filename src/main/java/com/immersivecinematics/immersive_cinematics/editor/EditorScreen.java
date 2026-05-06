@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.editor;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.immersivecinematics.immersive_cinematics.editor.area.*;
@@ -102,7 +103,37 @@ public class EditorScreen extends Screen {
             firstInit = false;
             refreshScriptList();
             doc.reset();
+
+            // CAMERA track — first clip with default fields
             JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10);
+            if (clip != null) {
+                clip.addProperty("transition", "cut");
+                clip.addProperty("interpolation", "linear");
+                clip.addProperty("position_mode", "relative");
+                clip.addProperty("loop", false);
+                JsonArray kfs = clip.getAsJsonArray("keyframes");
+                if (kfs != null) {
+                    for (JsonElement ke : kfs) {
+                        JsonObject kf = ke.getAsJsonObject();
+                        JsonObject pos = new JsonObject();
+                        pos.addProperty("dx", 0f); pos.addProperty("dy", 0f); pos.addProperty("dz", 0f);
+                        kf.add("position", pos);
+                        kf.addProperty("yaw", 0f); kf.addProperty("pitch", 0f); kf.addProperty("roll", 0f);
+                        kf.addProperty("fov", 70f); kf.addProperty("zoom", 1f); kf.addProperty("dof", 0f);
+                    }
+                }
+            }
+
+            // LETTERBOX track — full-duration clip
+            JsonObject lbClip = new JsonObject();
+            lbClip.addProperty("start_time", 0f);
+            lbClip.addProperty("duration", 10f);
+            lbClip.addProperty("enabled", true);
+            lbClip.addProperty("aspect_ratio", 2.35f);
+            lbClip.addProperty("fade_in", 0.5f);
+            lbClip.addProperty("fade_out", 0.5f);
+            doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
+
             syncPanels();
             leftPanel.build();
             if (clip != null) sel.selectClip(clip);
@@ -120,8 +151,36 @@ public class EditorScreen extends Screen {
         menuBar.setOnNewScript(() -> {
             EditorLogger.action(EditorLogger.SCREEN, "NEW_SCRIPT", "from menu");
             doc.reset();
-            sel.clear();
+
             JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10);
+            if (clip != null) {
+                clip.addProperty("transition", "cut");
+                clip.addProperty("interpolation", "linear");
+                clip.addProperty("position_mode", "relative");
+                clip.addProperty("loop", false);
+                JsonArray kfs = clip.getAsJsonArray("keyframes");
+                if (kfs != null) {
+                    for (JsonElement ke : kfs) {
+                        JsonObject kf = ke.getAsJsonObject();
+                        JsonObject pos = new JsonObject();
+                        pos.addProperty("dx", 0f); pos.addProperty("dy", 0f); pos.addProperty("dz", 0f);
+                        kf.add("position", pos);
+                        kf.addProperty("yaw", 0f); kf.addProperty("pitch", 0f); kf.addProperty("roll", 0f);
+                        kf.addProperty("fov", 70f); kf.addProperty("zoom", 1f); kf.addProperty("dof", 0f);
+                    }
+                }
+            }
+
+            JsonObject lbClip = new JsonObject();
+            lbClip.addProperty("start_time", 0f);
+            lbClip.addProperty("duration", 10f);
+            lbClip.addProperty("enabled", true);
+            lbClip.addProperty("aspect_ratio", 2.35f);
+            lbClip.addProperty("fade_in", 0.5f);
+            lbClip.addProperty("fade_out", 0.5f);
+            doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
+
+            sel.clear();
             syncPanels();
             leftPanel.build();
             if (clip != null) sel.selectClip(clip);
@@ -144,6 +203,9 @@ public class EditorScreen extends Screen {
             float st = EditorOperations.getStart(clip);
             EditorLogger.action(EditorLogger.TIMELINE, "SELECT_CLIP", "startTime=" + st);
             sel.selectClip(clip);
+        });
+        timeline.setOnClickEmpty(() -> {
+            sel.clear();
         });
         timeline.setOnClickKeyframe((kf, clip) -> {
             float globalTime = EditorOperations.getStart(clip) + kf.get("time").getAsFloat();
@@ -175,8 +237,31 @@ public class EditorScreen extends Screen {
         timeline.setOnToolAddClip(() -> {
             EditorLogger.action(EditorLogger.TIMELINE, "TOOL_ADD_CLIP", "");
             JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, doc.getTotalDuration(), 5);
-            doc.markDirty();
-            if (clip != null) sel.selectClip(clip);
+            if (clip != null) {
+                clip.addProperty("transition", "cut");
+                clip.addProperty("interpolation", "linear");
+                clip.addProperty("position_mode", "relative");
+                clip.addProperty("loop", false);
+                JsonArray kfs = clip.getAsJsonArray("keyframes");
+                if (kfs != null) {
+                    for (JsonElement ke : kfs) {
+                        JsonObject kf = ke.getAsJsonObject();
+                        if (!kf.has("position")) {
+                            JsonObject pos = new JsonObject();
+                            pos.addProperty("dx", 0f); pos.addProperty("dy", 0f); pos.addProperty("dz", 0f);
+                            kf.add("position", pos);
+                        }
+                        if (!kf.has("yaw")) kf.addProperty("yaw", 0f);
+                        if (!kf.has("pitch")) kf.addProperty("pitch", 0f);
+                        if (!kf.has("roll")) kf.addProperty("roll", 0f);
+                        if (!kf.has("fov")) kf.addProperty("fov", 70f);
+                        if (!kf.has("zoom")) kf.addProperty("zoom", 1f);
+                        if (!kf.has("dof")) kf.addProperty("dof", 0f);
+                    }
+                }
+                doc.markDirty();
+                sel.selectClip(clip);
+            }
         });
         timeline.setOnToolDeleteClip(() -> {
             JsonObject clip = sel.getClip();
@@ -242,8 +327,36 @@ public class EditorScreen extends Screen {
         leftPanel.setOnNewScript(() -> {
             EditorLogger.action(EditorLogger.LEFT, "NEW_SCRIPT", "from left panel");
             doc.reset();
-            sel.clear();
+
             JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10);
+            if (clip != null) {
+                clip.addProperty("transition", "cut");
+                clip.addProperty("interpolation", "linear");
+                clip.addProperty("position_mode", "relative");
+                clip.addProperty("loop", false);
+                JsonArray kfs = clip.getAsJsonArray("keyframes");
+                if (kfs != null) {
+                    for (JsonElement ke : kfs) {
+                        JsonObject kf = ke.getAsJsonObject();
+                        JsonObject pos = new JsonObject();
+                        pos.addProperty("dx", 0f); pos.addProperty("dy", 0f); pos.addProperty("dz", 0f);
+                        kf.add("position", pos);
+                        kf.addProperty("yaw", 0f); kf.addProperty("pitch", 0f); kf.addProperty("roll", 0f);
+                        kf.addProperty("fov", 70f); kf.addProperty("zoom", 1f); kf.addProperty("dof", 0f);
+                    }
+                }
+            }
+
+            JsonObject lbClip = new JsonObject();
+            lbClip.addProperty("start_time", 0f);
+            lbClip.addProperty("duration", 10f);
+            lbClip.addProperty("enabled", true);
+            lbClip.addProperty("aspect_ratio", 2.35f);
+            lbClip.addProperty("fade_in", 0.5f);
+            lbClip.addProperty("fade_out", 0.5f);
+            doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
+
+            sel.clear();
             syncPanels();
             leftPanel.build();
             if (clip != null) sel.selectClip(clip);

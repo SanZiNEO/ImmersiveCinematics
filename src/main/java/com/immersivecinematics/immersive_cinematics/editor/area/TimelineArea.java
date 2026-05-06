@@ -38,6 +38,7 @@ public class TimelineArea extends UIComponent {
     private Consumer<Float> onClickAtTime;
     private Consumer<JsonObject> onClickClip;
     private BiConsumer<JsonObject, JsonObject> onClickKeyframe;
+    private Runnable onClickEmpty;
     private BiConsumer<JsonObject, Float> onMoveClip;
     private BiConsumer<JsonObject, Float> onResizeLeft;
     private BiConsumer<JsonObject, Float> onResizeRight;
@@ -76,6 +77,7 @@ public class TimelineArea extends UIComponent {
     public void setOnClickAtTime(Consumer<Float> r) { onClickAtTime = r; }
     public void setOnClickClip(Consumer<JsonObject> r) { onClickClip = r; }
     public void setOnClickKeyframe(BiConsumer<JsonObject, JsonObject> r) { onClickKeyframe = r; }
+    public void setOnClickEmpty(Runnable r) { onClickEmpty = r; }
     public void setOnMoveClip(BiConsumer<JsonObject, Float> r) { onMoveClip = r; }
     public void setOnResizeLeft(BiConsumer<JsonObject, Float> r) { onResizeLeft = r; }
     public void setOnResizeRight(BiConsumer<JsonObject, Float> r) { onResizeRight = r; }
@@ -348,7 +350,8 @@ public class TimelineArea extends UIComponent {
             return true;
         }
         EditorLogger.areaHit(EditorLogger.TIMELINE, "canvas_miss", ctx.mouseX, ctx.mouseY, false);
-        return false;
+        if (onClickEmpty != null) onClickEmpty.run();
+        return true;
     }
 
     @Override

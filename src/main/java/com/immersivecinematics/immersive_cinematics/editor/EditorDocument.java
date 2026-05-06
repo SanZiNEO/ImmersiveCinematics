@@ -47,10 +47,17 @@ public class EditorDocument {
         JsonObject timeline = new JsonObject();
         timeline.addProperty("total_duration", 10f);
         JsonArray tracks = new JsonArray();
+
         JsonObject cameraTrack = new JsonObject();
         cameraTrack.addProperty("type", "CAMERA");
         cameraTrack.add("clips", new JsonArray());
         tracks.add(cameraTrack);
+
+        JsonObject letterboxTrack = new JsonObject();
+        letterboxTrack.addProperty("type", "LETTERBOX");
+        letterboxTrack.add("clips", new JsonArray());
+        tracks.add(letterboxTrack);
+
         timeline.add("tracks", tracks);
         root.add("timeline", timeline);
 
