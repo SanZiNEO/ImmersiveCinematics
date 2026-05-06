@@ -55,12 +55,12 @@ public class EditorScreen extends Screen {
         sel.setListener((clip, kf) -> {
             try {
                 if (leftPanel == null) return;
+                syncPanels();
                 LeftPanelArea.PanelMode m;
                 if (clip == null) m = LeftPanelArea.PanelMode.SCRIPT_PROPERTIES;
                 else if (kf == null) m = LeftPanelArea.PanelMode.CLIP_PROPERTIES;
                 else m = LeftPanelArea.PanelMode.KEYFRAME_PROPERTIES;
                 leftPanel.setMode(m);
-                syncPanels();
             } catch (Exception e) {
                 EditorLogger.error(EditorLogger.SCREEN, "onSelectionChanged crashed", e);
             }
@@ -134,8 +134,6 @@ public class EditorScreen extends Screen {
             lbClip.addProperty("fade_out", 0.5f);
             doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
 
-            syncPanels();
-            leftPanel.build();
             if (clip != null) sel.selectClip(clip);
         } else {
             syncPanels();
@@ -180,9 +178,6 @@ public class EditorScreen extends Screen {
             lbClip.addProperty("fade_out", 0.5f);
             doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
 
-            sel.clear();
-            syncPanels();
-            leftPanel.build();
             if (clip != null) sel.selectClip(clip);
         });
         menuBar.setOnSaveScript(() -> {
@@ -210,7 +205,7 @@ public class EditorScreen extends Screen {
         timeline.setOnClickKeyframe((kf, clip) -> {
             float globalTime = EditorOperations.getStart(clip) + kf.get("time").getAsFloat();
             EditorLogger.action(EditorLogger.TIMELINE, "SELECT_KEYFRAME", "time=" + kf.get("time").getAsFloat() + " global=" + globalTime);
-            sel.selectKeyframe(kf);
+            sel.selectKeyframe(kf, clip);
             playback.setTime(globalTime);
             output.setTime(globalTime);
         });
@@ -277,7 +272,7 @@ public class EditorScreen extends Screen {
             EditorLogger.action(EditorLogger.TIMELINE, "TOOL_ADD_KEYFRAME", "at=" + String.format("%.3f", playback.getTime()));
             JsonObject kf = EditorOperations.addKeyframeAt(sel.getClip(), playback.getTime());
             doc.markDirty();
-            if (kf != null) sel.selectKeyframe(kf);
+            if (kf != null) sel.selectKeyframe(kf, sel.getClip());
         });
         timeline.setOnToolDeleteKeyframe(() -> {
             JsonObject kf = sel.getKeyframe();
@@ -356,9 +351,6 @@ public class EditorScreen extends Screen {
             lbClip.addProperty("fade_out", 0.5f);
             doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
 
-            sel.clear();
-            syncPanels();
-            leftPanel.build();
             if (clip != null) sel.selectClip(clip);
         });
         leftPanel.setOnNameChanged(v -> {

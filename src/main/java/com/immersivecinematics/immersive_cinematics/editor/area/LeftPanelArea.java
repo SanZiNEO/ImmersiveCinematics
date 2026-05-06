@@ -19,6 +19,7 @@ public class LeftPanelArea extends UIComponent {
     private List<String> scriptFileNames = new ArrayList<>();
     private JsonObject selectedClip;
     private JsonObject selectedKeyframe;
+    private boolean dataDirty = true;
 
     private Consumer<String> onOpenScript;
     private Consumer<String> onDeleteScript;
@@ -36,8 +37,11 @@ public class LeftPanelArea extends UIComponent {
     }
 
     public void setMode(PanelMode m) {
-        if (this.mode != m) {
-            EditorLogger.areaMode(EditorLogger.LEFT, "mode", this.mode.name(), m.name());
+        if (this.mode != m || dataDirty) {
+            dataDirty = false;
+            if (this.mode != m) {
+                EditorLogger.areaMode(EditorLogger.LEFT, "mode", this.mode.name(), m.name());
+            }
             this.mode = m;
             build();
         }
@@ -50,6 +54,7 @@ public class LeftPanelArea extends UIComponent {
         this.script = meta;
         this.selectedClip = clip;
         this.selectedKeyframe = kf;
+        this.dataDirty = true;
     }
     public void setScriptFileNames(List<String> names) { scriptFileNames = names; }
     public void setOnOpenScript(Consumer<String> r) { onOpenScript = r; }
@@ -119,7 +124,10 @@ public class LeftPanelArea extends UIComponent {
         int lx = x + 6;
 
         addSectionLabel("Clip Properties", lx, cy, 0); cy += 16;
-        cy = reflectObject(selectedClip, lx, cy, null);
+        String[] keys = selectedClip.keySet().stream()
+                .filter(k -> !"keyframes".equals(k))
+                .toArray(String[]::new);
+        cy = reflectObject(selectedClip, lx, cy, keys);
     }
 
     private void buildKeyframeProperties() {
