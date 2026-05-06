@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.editor.area;
 
 import com.immersivecinematics.immersive_cinematics.editor.EditorCore;
+import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.model.*;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import java.util.ArrayList;
@@ -15,15 +16,18 @@ public class TimelineArea extends UIComponent {
     private float pixelsPerSecond = 60f;
     private float scrollOffset;
 
-    private boolean scrubbing;
     private EditorClip draggingClip;
     private EditorKeyframe draggingKeyframe;
     private EditorClip keyframeClip;
     private int dragOffsetX;
     private int mouseDownX;
     private int mouseDownY;
+    private int mouseDownButton;
     private boolean draggingResizeLeft;
     private boolean draggingResizeRight;
+    private long dragStartTime;
+    private long lastDragLogTime;
+    private int dragLogCounter;
 
     private Consumer<Float> onClickAtTime;
     private Consumer<EditorClip> onClickClip;
@@ -49,10 +53,12 @@ public class TimelineArea extends UIComponent {
 
     public TimelineArea(int x, int y, int w, int h) {
         super(x, y, w, h);
+        EditorLogger.areaRegister(EditorLogger.TIMELINE, "full_area", x, y, w, h);
     }
 
     public void setCore(EditorCore c) { core = c; }
     public void setPlayheadTime(float t) { playheadTime = t; }
+    public float getPlayheadTime() { return playheadTime; }
 
     public void setOnClickAtTime(Consumer<Float> r) { onClickAtTime = r; }
     public void setOnClickClip(Consumer<EditorClip> r) { onClickClip = r; }
@@ -72,15 +78,6 @@ public class TimelineArea extends UIComponent {
     public int canvasW() { return w - LEFT_W; }
     public float timeToX(float t) { return canvasX() + (t * pixelsPerSecond) + scrollOffset; }
     public float xToTime(float px) { return (px - canvasX() - scrollOffset) / pixelsPerSecond; }
-
-    public void stopDrag() {
-        scrubbing = false;
-        draggingClip = null;
-        draggingKeyframe = null;
-        keyframeClip = null;
-        draggingResizeLeft = false;
-        draggingResizeRight = false;
-    }
 
     @Override
     public void render(UIContext ctx) {
@@ -203,19 +200,32 @@ public class TimelineArea extends UIComponent {
 
     @Override
     public boolean mouseClicked(UIContext ctx) {
-        if (!ctx.isMouseIn(x, y, w, h)) return false;
+        if (!ctx.isMouseIn(x, y, w, h)) {
+            EditorLogger.areaHit(EditorLogger.TIMELINE, "full_area", ctx.mouseX, ctx.mouseY, false);
+            return false;
+        }
+        EditorLogger.areaHit(EditorLogger.TIMELINE, "full_area", ctx.mouseX, ctx.mouseY, true);
         mouseDownX = ctx.mouseX;
         mouseDownY = ctx.mouseY;
+        mouseDownButton = 0;
 
-        if (ctx.mouseX < x + TOOLBAR_W && ctx.mouseY >= y + HEADER_H) return clickToolbar(ctx);
+        if (ctx.mouseX < x + TOOLBAR_W && ctx.mouseY >= y + HEADER_H) {
+            EditorLogger.areaHit(EditorLogger.TIMELINE, "toolbar", ctx.mouseX, ctx.mouseY, true);
+            return clickToolbar(ctx);
+        }
 
         if (ctx.mouseY < canvasY() && ctx.mouseX >= x + TOOLBAR_W) {
+            EditorLogger.areaHit(EditorLogger.TIMELINE, "ruler", ctx.mouseX, ctx.mouseY, true);
             float t = xToTime(ctx.mouseX);
-            if (t >= 0 && onClickAtTime != null) onClickAtTime.accept(Math.max(0, t));
-            scrubbing = true;
+            if (t >= 0 && onClickAtTime != null) {
+                float snapped = Math.max(0, t);
+                EditorLogger.playhead(EditorLogger.TIMELINE, snapped, ctx.mouseX, "ruler_click");
+                onClickAtTime.accept(snapped);
+            }
             return true;
         }
 
+        EditorLogger.areaHit(EditorLogger.TIMELINE, "canvas", ctx.mouseX, ctx.mouseY, true);
         return clickCanvas(ctx);
     }
 
@@ -223,15 +233,33 @@ public class TimelineArea extends UIComponent {
         int bx = x + 3;
         int by = y + HEADER_H + 4;
 
-        if (ctx.isMouseIn(bx, by, BTN, BTN)) { if (onToolAddClip != null) onToolAddClip.run(); return true; }
+        if (ctx.isMouseIn(bx, by, BTN, BTN)) {
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "+C");
+            if (onToolAddClip != null) onToolAddClip.run(); return true;
+        }
         by += BTN + BTN_GAP;
-        if (ctx.isMouseIn(bx, by, BTN, BTN)) { if (core != null && core.getSelectedClip() != null && onToolDeleteClip != null) onToolDeleteClip.run(); return true; }
+        if (ctx.isMouseIn(bx, by, BTN, BTN)) {
+            boolean hasSel = core != null && core.getSelectedClip() != null;
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "-C hasSelection=" + hasSel);
+            if (hasSel && onToolDeleteClip != null) onToolDeleteClip.run(); return true;
+        }
         by += BTN + BTN_GAP + 4;
-        if (ctx.isMouseIn(bx, by, BTN, BTN)) { if (core != null && core.canAddKeyframeAt(playheadTime) && onToolAddKeyframe != null) onToolAddKeyframe.run(); return true; }
+        if (ctx.isMouseIn(bx, by, BTN, BTN)) {
+            boolean canAdd = core != null && core.canAddKeyframeAt(playheadTime);
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "+K canAdd=" + canAdd + " playhead=" + String.format("%.3f", playheadTime));
+            if (canAdd && onToolAddKeyframe != null) onToolAddKeyframe.run(); return true;
+        }
         by += BTN + BTN_GAP;
-        if (ctx.isMouseIn(bx, by, BTN, BTN)) { if (core != null && core.getSelectedKeyframe() != null && onToolDeleteKeyframe != null) onToolDeleteKeyframe.run(); return true; }
+        if (ctx.isMouseIn(bx, by, BTN, BTN)) {
+            boolean hasKf = core != null && core.getSelectedKeyframe() != null;
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "-K hasSelection=" + hasKf);
+            if (hasKf && onToolDeleteKeyframe != null) onToolDeleteKeyframe.run(); return true;
+        }
         by += BTN + BTN_GAP + 4;
-        if (ctx.isMouseIn(bx, by, BTN, BTN)) { if (onToolSnap != null) onToolSnap.run(); return true; }
+        if (ctx.isMouseIn(bx, by, BTN, BTN)) {
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "snap");
+            if (onToolSnap != null) onToolSnap.run(); return true;
+        }
         return false;
     }
 
@@ -240,7 +268,10 @@ public class TimelineArea extends UIComponent {
         if (script == null || ctx.mouseX < canvasX()) return false;
 
         int trackIdx = (ctx.mouseY - canvasY()) / TRACK_H;
-        if (trackIdx < 0 || trackIdx >= script.tracks.size()) return false;
+        if (trackIdx < 0 || trackIdx >= script.tracks.size()) {
+            EditorLogger.areaHit(EditorLogger.TIMELINE, "canvas_empty", ctx.mouseX, ctx.mouseY, false);
+            return false;
+        }
         EditorTrack track = script.tracks.get(trackIdx);
 
         for (int i = track.clips.size() - 1; i >= 0; i--) {
@@ -250,10 +281,16 @@ public class TimelineArea extends UIComponent {
             if (ctx.mouseX < sx || ctx.mouseX > ex) continue;
 
             if (ctx.mouseX <= sx + RESIZE_MARGIN) {
-                draggingResizeLeft = true; draggingClip = clip; return true;
+                draggingResizeLeft = true; draggingClip = clip;
+                dragStartTime = System.currentTimeMillis(); lastDragLogTime = dragStartTime; dragLogCounter = 0;
+                EditorLogger.action(EditorLogger.TIMELINE, "DRAG_START", "resizeLeft clip=" + clip.startTime);
+                return true;
             }
             if (ctx.mouseX >= ex - RESIZE_MARGIN) {
-                draggingResizeRight = true; draggingClip = clip; return true;
+                draggingResizeRight = true; draggingClip = clip;
+                dragStartTime = System.currentTimeMillis(); lastDragLogTime = dragStartTime; dragLogCounter = 0;
+                EditorLogger.action(EditorLogger.TIMELINE, "DRAG_START", "resizeRight clip=" + clip.endTime());
+                return true;
             }
 
             for (int j = clip.keyframes.size() - 1; j >= 0; j--) {
@@ -263,6 +300,8 @@ public class TimelineArea extends UIComponent {
                     keyframeClip = clip;
                     draggingKeyframe = kf;
                     dragOffsetX = (int) (ctx.mouseX - kx);
+                    dragStartTime = System.currentTimeMillis(); lastDragLogTime = dragStartTime; dragLogCounter = 0;
+                    EditorLogger.action(EditorLogger.TIMELINE, "DRAG_START", "keyframe time=" + kf.time + " clipStart=" + clip.startTime);
                     if (onClickKeyframe != null) onClickKeyframe.accept(kf, clip);
                     return true;
                 }
@@ -270,46 +309,81 @@ public class TimelineArea extends UIComponent {
 
             draggingClip = clip;
             dragOffsetX = (int) (ctx.mouseX - sx);
+            dragStartTime = System.currentTimeMillis(); lastDragLogTime = dragStartTime; dragLogCounter = 0;
+            EditorLogger.action(EditorLogger.TIMELINE, "DRAG_START", "moveClip start=" + clip.startTime);
             if (onClickClip != null) onClickClip.accept(clip);
             return true;
         }
+        EditorLogger.areaHit(EditorLogger.TIMELINE, "canvas_miss", ctx.mouseX, ctx.mouseY, false);
         return false;
     }
 
     @Override
     public boolean mouseReleased(UIContext ctx) {
         boolean moved = Math.abs(ctx.mouseX - mouseDownX) > 2 || Math.abs(ctx.mouseY - mouseDownY) > 2;
+        long dragDuration = System.currentTimeMillis() - dragStartTime;
 
         if (draggingClip != null) {
             if (draggingResizeLeft) {
                 if (moved) {
-                    if (onResizeLeft != null) onResizeLeft.accept(draggingClip, xToTime(ctx.mouseX));
+                    float newT = xToTime(ctx.mouseX);
+                    EditorLogger.scrubSession(EditorLogger.TIMELINE, newT, ctx.mouseX, "end_resizeLeft");
+                    EditorLogger.action(EditorLogger.TIMELINE, "DRAG_END", "resizeLeft clip=" + draggingClip.startTime + " to=" + newT + " moved=" + moved + " duration=" + dragDuration + "ms dragCalls=" + dragLogCounter);
+                    if (onResizeLeft != null) onResizeLeft.accept(draggingClip, newT);
                 } else if (!draggingClip.keyframes.isEmpty()) {
                     EditorKeyframe firstKf = draggingClip.keyframes.get(0);
+                    EditorLogger.action(EditorLogger.TIMELINE, "CLICK_NO_DRAG", "resizeLeft_selectFirstKf time=" + firstKf.time);
                     if (onClickKeyframe != null) onClickKeyframe.accept(firstKf, draggingClip);
                 }
             } else if (draggingResizeRight) {
                 if (moved) {
-                    if (onResizeRight != null) onResizeRight.accept(draggingClip, xToTime(ctx.mouseX));
+                    float newT = xToTime(ctx.mouseX);
+                    EditorLogger.scrubSession(EditorLogger.TIMELINE, newT, ctx.mouseX, "end_resizeRight");
+                    EditorLogger.action(EditorLogger.TIMELINE, "DRAG_END", "resizeRight clip=" + draggingClip.endTime() + " to=" + newT + " moved=" + moved + " duration=" + dragDuration + "ms dragCalls=" + dragLogCounter);
+                    if (onResizeRight != null) onResizeRight.accept(draggingClip, newT);
                 } else if (!draggingClip.keyframes.isEmpty()) {
                     EditorKeyframe lastKf = draggingClip.keyframes.get(draggingClip.keyframes.size() - 1);
+                    EditorLogger.action(EditorLogger.TIMELINE, "CLICK_NO_DRAG", "resizeRight_selectLastKf time=" + lastKf.time);
                     if (onClickKeyframe != null) onClickKeyframe.accept(lastKf, draggingClip);
                 }
             } else if (moved && onMoveClip != null) {
-                onMoveClip.accept(draggingClip, xToTime(ctx.mouseX - dragOffsetX));
+                float newT = xToTime(ctx.mouseX - dragOffsetX);
+                EditorLogger.scrubSession(EditorLogger.TIMELINE, newT, ctx.mouseX, "end_moveClip");
+                EditorLogger.action(EditorLogger.TIMELINE, "DRAG_END", "moveClip clip=" + draggingClip.startTime + " to=" + newT + " moved=" + moved + " duration=" + dragDuration + "ms dragCalls=" + dragLogCounter);
+                onMoveClip.accept(draggingClip, newT);
+            } else {
+                EditorLogger.action(EditorLogger.TIMELINE, "CLICK_NO_DRAG", "clip select=" + draggingClip.startTime + " moved=" + moved);
             }
         }
         if (draggingKeyframe != null && onMoveKeyframe != null && moved) {
             float newLocal = xToTime(ctx.mouseX - dragOffsetX) - keyframeClip.startTime;
+            EditorLogger.scrubSession(EditorLogger.TIMELINE, newLocal, ctx.mouseX, "end_moveKeyframe");
+            EditorLogger.action(EditorLogger.TIMELINE, "DRAG_END", "moveKeyframe kf=" + draggingKeyframe.time + " to=" + newLocal + " duration=" + dragDuration + "ms dragCalls=" + dragLogCounter);
             onMoveKeyframe.accept(draggingKeyframe, keyframeClip, newLocal);
         }
-        scrubbing = false;
         draggingClip = null;
         draggingKeyframe = null;
         keyframeClip = null;
         draggingResizeLeft = false;
         draggingResizeRight = false;
+        dragLogCounter = 0;
         return false;
+    }
+
+    @Override
+    public boolean mouseDragged(UIContext ctx) {
+        if (draggingClip == null && draggingKeyframe == null) return false;
+        long now = System.currentTimeMillis();
+        dragLogCounter++;
+        if (now - lastDragLogTime >= 250) {
+            EditorLogger.mouseDrag(EditorLogger.TIMELINE, ctx.mouseX, ctx.mouseY,
+                    draggingKeyframe != null ? "keyframe" : "clip",
+                    xToTime(ctx.mouseX));
+            lastDragLogTime = now;
+        }
+        String state = "dragging=" + (draggingKeyframe != null ? "kf" : draggingResizeLeft ? "resizeL" : draggingResizeRight ? "resizeR" : "clip");
+        EditorLogger.mouseMove(EditorLogger.TIMELINE, ctx.mouseX, ctx.mouseY, "canvas", true, "dragCounter=" + dragLogCounter + " " + state);
+        return true;
     }
 
     @Override
@@ -318,18 +392,9 @@ public class TimelineArea extends UIComponent {
         float old = pixelsPerSecond;
         pixelsPerSecond = Math.max(10, pixelsPerSecond + (float) scroll * 10);
         scrollOffset = scrollOffset * (pixelsPerSecond / old);
+        EditorLogger.mouseScroll(EditorLogger.TIMELINE, scroll, ctx.mouseX, ctx.mouseY, "canvas");
+        EditorLogger.state(EditorLogger.TIMELINE, "pixelsPerSecond", old, pixelsPerSecond);
         return true;
-    }
-
-    /**
-     * Called each frame from EditorScreen.render().
-     * If the ruler is being scrubbed (mouse held), returns the time
-     * at the current mouse X for display-only updates.
-     * Returns -1 if not scrubbing.
-     */
-    public float getScrubDisplay(UIContext ctx) {
-        if (scrubbing) return Math.max(0, xToTime(ctx.mouseX));
-        return -1;
     }
 
     @Override

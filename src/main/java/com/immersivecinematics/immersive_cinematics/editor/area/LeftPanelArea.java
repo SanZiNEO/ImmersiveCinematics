@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.editor.area;
 
+import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.model.*;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import java.util.*;
@@ -29,10 +30,12 @@ public class LeftPanelArea extends UIComponent {
 
     public LeftPanelArea(int x, int y, int w, int h) {
         super(x, y, w, h);
+        EditorLogger.areaRegister(EditorLogger.LEFT, "full_area", x, y, w, h);
     }
 
     public void setMode(PanelMode m) {
         if (this.mode != m) {
+            EditorLogger.areaMode(EditorLogger.LEFT, "mode", this.mode.name(), m.name());
             this.mode = m;
             build();
         }
@@ -54,6 +57,7 @@ public class LeftPanelArea extends UIComponent {
     public void setOnBehaviorFlag(Consumer<String> r) { onBehaviorFlag = r; }
 
     public void build() {
+        EditorLogger.action(EditorLogger.LEFT, "BUILD", "mode=" + mode);
         children.clear();
         switch (mode) {
             case SCRIPT_LIST -> buildScriptList();
@@ -226,6 +230,24 @@ public class LeftPanelArea extends UIComponent {
         for (UIComponent c : children) {
             c.render(ctx);
         }
+    }
+
+    @Override
+    public boolean mouseClicked(UIContext ctx) {
+        EditorLogger.areaHit(EditorLogger.LEFT, "full_area", ctx.mouseX, ctx.mouseY, true);
+        EditorLogger.areaHit(EditorLogger.LEFT, "mode_" + mode.name(), ctx.mouseX, ctx.mouseY, true);
+        for (int i = children.size() - 1; i >= 0; i--) {
+            UIComponent c = children.get(i);
+            if (c.isHovered(ctx)) {
+                if (c instanceof UIButton btn) {
+                    EditorLogger.action(EditorLogger.LEFT, "BUTTON_CLICK", "label=" + btn.getLabel() + " mode=" + mode);
+                } else if (c instanceof UIToggle tgl) {
+                    EditorLogger.action(EditorLogger.LEFT, "TOGGLE_CLICK", "label=" + mode + " value=" + !tgl.isOn());
+                }
+            }
+            if (c.mouseClicked(ctx)) return true;
+        }
+        return false;
     }
 
     @Override

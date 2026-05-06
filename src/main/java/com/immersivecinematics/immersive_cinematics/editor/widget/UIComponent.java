@@ -54,6 +54,17 @@ public abstract class UIComponent {
         return false;
     }
 
+    public boolean mouseDragged(UIContext ctx) {
+        if (!visible) return false;
+        List<UIComponent> children = getChildren();
+        if (children != null) {
+            for (int i = children.size() - 1; i >= 0; i--) {
+                if (children.get(i).mouseDragged(ctx)) return true;
+            }
+        }
+        return false;
+    }
+
     public boolean mouseScrolled(UIContext ctx, double scroll) {
         if (!visible) return false;
         List<UIComponent> children = getChildren();
