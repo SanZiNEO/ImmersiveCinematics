@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.editor;
 
+import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.immersivecinematics.immersive_cinematics.editor.area.*;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.debug.RawInputLogger;
@@ -584,6 +585,7 @@ public class EditorScreen extends Screen {
 
     @Override
     public void onClose() {
+        CinematicKeyBindings.notifyEditorClosed();
         playback.stop();
         output.stop();
         RawInputLogger.disable();

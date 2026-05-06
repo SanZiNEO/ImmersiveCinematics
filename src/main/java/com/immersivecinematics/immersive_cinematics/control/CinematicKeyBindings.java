@@ -28,6 +28,8 @@ public class CinematicKeyBindings {
     private static long skipKeyDownSince = 0;
     private static boolean skipTriggered = false;
     private static boolean editorKeyWasDown = false;
+    private static long editorClosedAt;
+    private static final long EDITOR_REOPEN_COOLDOWN = 300; // ms
 
     public static void register(RegisterKeyMappingsEvent event) {
         event.register(SKIP_KEY);
@@ -52,7 +54,8 @@ public class CinematicKeyBindings {
 
         if (ImmersiveCinematics.EDITOR_ENABLED && EDITOR_KEY != null) {
             boolean editorDown = EDITOR_KEY.isDown();
-            if (editorDown && !editorKeyWasDown && !(mc.screen instanceof EditorScreen)) {
+            if (editorDown && !editorKeyWasDown && !(mc.screen instanceof EditorScreen)
+                    && System.currentTimeMillis() - editorClosedAt > EDITOR_REOPEN_COOLDOWN) {
                 Path scriptsDir = Paths.get("cinematics");
                 EditorScreen editor = new EditorScreen(EditorBridgeImpl.INSTANCE, scriptsDir);
                 mc.setScreen(editor);
@@ -91,6 +94,12 @@ public class CinematicKeyBindings {
         if (ctrlDown && pDown) {
             mgr.requestExit(ExitReason.FORCE_QUIT);
         }
+    }
+
+    /** Call from EditorScreen.onClose() to prevent immediate reopen. */
+    public static void notifyEditorClosed() {
+        editorClosedAt = System.currentTimeMillis();
+        editorKeyWasDown = EDITOR_KEY != null && EDITOR_KEY.isDown();
     }
 
     public static float getSkipHoldProgress() {
