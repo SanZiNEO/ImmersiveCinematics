@@ -28,6 +28,8 @@ public class UIButton extends UIComponent {
         return this;
     }
 
+    public String getLabel() { return text; }
+
     public void setOnClick(Consumer<UIButton> c) {
         onClick = c;
     }

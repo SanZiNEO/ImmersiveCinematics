@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.editor.area;
 
+import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +19,7 @@ public class MenuBarArea extends UIComponent {
 
     public MenuBarArea(int x, int y, int w, int h) {
         super(x, y, w, h);
+        EditorLogger.areaRegister(EditorLogger.MENU, "full_area", x, y, w, h);
         scriptName = "Untitled";
 
         listBtn = new UIButton(x + 4, y + 2, 70, h - 4, "Scripts \u25BC", b -> {
@@ -65,8 +67,13 @@ public class MenuBarArea extends UIComponent {
 
     @Override
     public boolean mouseClicked(UIContext ctx) {
+        EditorLogger.areaHit(EditorLogger.MENU, "full_area", ctx.mouseX, ctx.mouseY, true);
         for (int i = children.size() - 1; i >= 0; i--) {
-            if (children.get(i).mouseClicked(ctx)) return true;
+            UIComponent child = children.get(i);
+            if (child.isHovered(ctx) && child instanceof UIButton btn) {
+                EditorLogger.action(EditorLogger.MENU, "BUTTON_CLICK", "label=" + btn.getLabel());
+            }
+            if (child.mouseClicked(ctx)) return true;
         }
         return false;
     }

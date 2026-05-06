@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.editor.area;
 
+import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +18,7 @@ public class PreviewArea extends UIComponent {
 
     public PreviewArea(int x, int y, int w, int h) {
         super(x, y, w, h);
+        EditorLogger.areaRegister(EditorLogger.PREVIEW, "full_area", x, y, w, h);
 
         int barW = 160;
         int barH = 24;
@@ -73,6 +75,19 @@ public class PreviewArea extends UIComponent {
         for (UIComponent c : children) {
             c.render(ctx);
         }
+    }
+
+    @Override
+    public boolean mouseClicked(UIContext ctx) {
+        EditorLogger.areaHit(EditorLogger.PREVIEW, "full_area", ctx.mouseX, ctx.mouseY, true);
+        for (int i = children.size() - 1; i >= 0; i--) {
+            UIComponent c = children.get(i);
+            if (c.isHovered(ctx) && c instanceof UIButton btn) {
+                EditorLogger.action(EditorLogger.PREVIEW, "BUTTON_CLICK", "label=" + btn.getLabel());
+            }
+            if (c.mouseClicked(ctx)) return true;
+        }
+        return false;
     }
 
     @Override

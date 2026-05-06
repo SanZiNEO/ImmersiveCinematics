@@ -30,6 +30,8 @@ public class UIToggle extends UIComponent {
         renderTooltipIfHovered(ctx);
     }
 
+    public boolean isOn() { return source != null && source.get(); }
+
     @Override
     public boolean mouseClicked(UIContext ctx) {
         if (isHovered(ctx)) {
