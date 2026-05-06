@@ -38,6 +38,19 @@ public class EditorScript {
         tracks.add(new EditorTrack("camera"));
     }
 
+    public void setFlag(String field, boolean value) {
+        switch (field) {
+            case "blockKeyboard" -> blockKeyboard = value;
+            case "blockMouse" -> blockMouse = value;
+            case "hideHud" -> hideHud = value;
+            case "hideArm" -> hideArm = value;
+            case "suppressBob" -> suppressBob = value;
+            case "skippable" -> skippable = value;
+            case "holdAtEnd" -> holdAtEnd = value;
+            case "interruptible" -> interruptible = value;
+        }
+    }
+
     public EditorScript copy() {
         EditorScript s = new EditorScript();
         s.id = id;

@@ -1,6 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.editor.area;
 
-import com.immersivecinematics.immersive_cinematics.editor.EditorCore;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.model.*;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
@@ -11,7 +10,11 @@ import java.util.function.Consumer;
 
 public class TimelineArea extends UIComponent {
     private final List<UIComponent> children = new ArrayList<>();
-    private EditorCore core;
+    private EditorScript script;
+    private EditorClip selectedClip;
+    private EditorKeyframe selectedKeyframe;
+    private boolean autoSnap;
+    private boolean canAddKf;
     private float playheadTime;
     private float pixelsPerSecond = 60f;
     private float scrollOffset;
@@ -56,7 +59,14 @@ public class TimelineArea extends UIComponent {
         EditorLogger.areaRegister(EditorLogger.TIMELINE, "full_area", x, y, w, h);
     }
 
-    public void setCore(EditorCore c) { core = c; }
+    public void setData(EditorScript script, EditorClip selClip, EditorKeyframe selKf,
+                        boolean autoSnap, boolean canAddKf) {
+        this.script = script;
+        this.selectedClip = selClip;
+        this.selectedKeyframe = selKf;
+        this.autoSnap = autoSnap;
+        this.canAddKf = canAddKf;
+    }
     public void setPlayheadTime(float t) { playheadTime = t; }
     public float getPlayheadTime() { return playheadTime; }
 
@@ -84,21 +94,19 @@ public class TimelineArea extends UIComponent {
         int cx = canvasX();
         int cy = canvasY();
         int cw = canvasW();
-        EditorScript script = core != null ? core.getScript() : null;
-
         ctx.graphics.fill(x, y, x + w, y + h, 0xFF171717);
         ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
         ctx.graphics.fill(x, y, x + w, y + HEADER_H, 0xFF1F1F1F);
 
-        drawRuler(ctx, cx, y, cw, script);
+        drawRuler(ctx, cx, y, cw);
         drawToolbar(ctx);
-        if (script != null) drawTracks(ctx, script, cx, cy);
+        if (script != null) drawTracks(ctx, cx, cy);
         drawPlayhead(ctx, cx, cy, cw);
 
         for (UIComponent c : children) c.render(ctx);
     }
 
-    private void drawRuler(UIContext ctx, int cx, int top, int cw, EditorScript script) {
+    private void drawRuler(UIContext ctx, int cx, int top, int cw) {
         float total = script != null ? script.totalDuration : 0;
         float interval = (total * pixelsPerSecond + Math.abs(scrollOffset)) < 200 ? 10
                 : (total * pixelsPerSecond + Math.abs(scrollOffset)) < 400 ? 5 : 1;
@@ -113,16 +121,12 @@ public class TimelineArea extends UIComponent {
     private void drawToolbar(UIContext ctx) {
         int bx = x + 3;
         int by = y + HEADER_H + 4;
-        EditorClip selClip = core != null ? core.getSelectedClip() : null;
-        EditorKeyframe selKf = core != null ? core.getSelectedKeyframe() : null;
-        boolean canAddKf = core != null && core.canAddKeyframeAt(playheadTime);
-        boolean snapOn = core != null && core.isAutoSnap();
 
         drawBtn(ctx, bx, by, "+C", 0xFF338833, 0xFF44AA44, true); by += BTN + BTN_GAP;
-        drawBtn(ctx, bx, by, "-C", 0xFF883333, 0xFFAA4444, selClip != null); by += BTN + BTN_GAP + 4;
+        drawBtn(ctx, bx, by, "-C", 0xFF883333, 0xFFAA4444, selectedClip != null); by += BTN + BTN_GAP + 4;
         drawBtn(ctx, bx, by, "+K", 0xFF333388, 0xFF4444AA, canAddKf); by += BTN + BTN_GAP;
-        drawBtn(ctx, bx, by, "-K", 0xFF883366, 0xFFAA4488, selKf != null); by += BTN + BTN_GAP + 4;
-        drawSnapBtn(ctx, bx, by, snapOn);
+        drawBtn(ctx, bx, by, "-K", 0xFF883366, 0xFFAA4488, selectedKeyframe != null); by += BTN + BTN_GAP + 4;
+        drawSnapBtn(ctx, bx, by, autoSnap);
     }
 
     private void drawSnapBtn(UIContext ctx, int bx, int by, boolean active) {
@@ -143,16 +147,14 @@ public class TimelineArea extends UIComponent {
         ctx.graphics.drawString(ctx.font, label, bx + (BTN - tw) / 2, by + (BTN - 8) / 2, active ? 0xFFFFFFFF : 0xFF555555);
     }
 
-    private void drawTracks(UIContext ctx, EditorScript script, int cx, int cy) {
-        EditorClip selClip = core.getSelectedClip();
-        EditorKeyframe selKf = core.getSelectedKeyframe();
+    private void drawTracks(UIContext ctx, int cx, int cy) {
         for (int ti = 0; ti < script.tracks.size(); ti++) {
             EditorTrack track = script.tracks.get(ti);
             int ty = cy + ti * TRACK_H;
             ctx.graphics.fill(x + TOOLBAR_W, ty, cx, ty + TRACK_H, 0xFF222222);
             ctx.graphics.drawString(ctx.font, track.type.toUpperCase(), x + TOOLBAR_W + 4, ty + (TRACK_H - 8) / 2, 0xFF888888);
             for (EditorClip clip : track.clips) {
-                drawClip(ctx, clip, selClip, selKf, ty);
+                drawClip(ctx, clip, selectedClip, selectedKeyframe, ty);
             }
         }
     }
@@ -239,19 +241,18 @@ public class TimelineArea extends UIComponent {
         }
         by += BTN + BTN_GAP;
         if (ctx.isMouseIn(bx, by, BTN, BTN)) {
-            boolean hasSel = core != null && core.getSelectedClip() != null;
+            boolean hasSel = selectedClip != null;
             EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "-C hasSelection=" + hasSel);
             if (hasSel && onToolDeleteClip != null) onToolDeleteClip.run(); return true;
         }
         by += BTN + BTN_GAP + 4;
         if (ctx.isMouseIn(bx, by, BTN, BTN)) {
-            boolean canAdd = core != null && core.canAddKeyframeAt(playheadTime);
-            EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "+K canAdd=" + canAdd + " playhead=" + String.format("%.3f", playheadTime));
-            if (canAdd && onToolAddKeyframe != null) onToolAddKeyframe.run(); return true;
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "+K canAdd=" + canAddKf + " playhead=" + String.format("%.3f", playheadTime));
+            if (canAddKf && onToolAddKeyframe != null) onToolAddKeyframe.run(); return true;
         }
         by += BTN + BTN_GAP;
         if (ctx.isMouseIn(bx, by, BTN, BTN)) {
-            boolean hasKf = core != null && core.getSelectedKeyframe() != null;
+            boolean hasKf = selectedKeyframe != null;
             EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "-K hasSelection=" + hasKf);
             if (hasKf && onToolDeleteKeyframe != null) onToolDeleteKeyframe.run(); return true;
         }
@@ -264,7 +265,6 @@ public class TimelineArea extends UIComponent {
     }
 
     private boolean clickCanvas(UIContext ctx) {
-        EditorScript script = core != null ? core.getScript() : null;
         if (script == null || ctx.mouseX < canvasX()) return false;
 
         int trackIdx = (ctx.mouseY - canvasY()) / TRACK_H;
