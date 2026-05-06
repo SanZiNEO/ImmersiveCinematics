@@ -98,13 +98,18 @@ public class LeftPanelArea extends UIComponent {
         int cy = y + 6;
         int lx = x + 6;
 
-        addSectionLabel("Script Info", lx, cy); cy += 16;
-        cy = reflectObject(script, lx, cy, new String[]{"id", "name", "author", "version", "description", "dimension", "triggers"});
+        addSectionLabel("Script Info", lx, cy, 0); cy += 16;
+        cy = reflectObject(script, lx, cy, new String[]{"id", "name", "author", "version", "description", "dimension"});
+        // triggers rendered inline via reflectField recursion
+        if (script.has("triggers")) {
+            addSectionLabel("Triggers", lx, cy, 0); cy += 16;
+            cy = reflectField("triggers", script.get("triggers"), lx, cy, 0, script, null);
+        }
         cy += 4;
-        addSectionLabel("Runtime", lx, cy); cy += 16;
+        addSectionLabel("Runtime", lx, cy, 0); cy += 16;
         cy = reflectObject(script, lx, cy, new String[]{"block_keyboard", "block_mouse", "hide_hud", "hide_arm", "suppress_bob", "skippable", "hold_at_end", "interruptible"});
         cy += 4;
-        addSectionLabel("Duration", lx, cy); cy += 16;
+        addSectionLabel("Duration", lx, cy, 0); cy += 16;
         cy = reflectFloatField("total_duration", lx, cy, () -> script.has("total_duration") ? script.get("total_duration").getAsFloat() : 0, v -> { script.addProperty("total_duration", v); if (onDirty != null) onDirty.run(); });
     }
 
@@ -113,7 +118,7 @@ public class LeftPanelArea extends UIComponent {
         int cy = y + 6;
         int lx = x + 6;
 
-        addSectionLabel("Clip Properties", lx, cy); cy += 16;
+        addSectionLabel("Clip Properties", lx, cy, 0); cy += 16;
         cy = reflectObject(selectedClip, lx, cy, null);
     }
 
@@ -122,38 +127,77 @@ public class LeftPanelArea extends UIComponent {
         int cy = y + 6;
         int lx = x + 6;
 
-        addSectionLabel("Keyframe Properties", lx, cy); cy += 16;
+        addSectionLabel("Keyframe Properties", lx, cy, 0); cy += 16;
         cy = reflectObject(selectedKeyframe, lx, cy, null);
     }
 
-    /** Auto-reflect a JsonObject's fields as editable widgets. */
+    /** Auto-reflect a JsonObject's fields as editable widgets (entry point). */
     private int reflectObject(JsonObject obj, int lx, int cy, String[] orderedKeys) {
+        return reflectObjectAll(obj, lx, cy, 0, orderedKeys, null);
+    }
+
+    private int reflectObjectAll(JsonObject obj, int lx, int cy, int depth,
+                                  String[] orderedKeys, String parentKey) {
         if (orderedKeys != null) {
             for (String key : orderedKeys) {
                 if (obj.has(key)) {
-                    cy = reflectField(key, obj.get(key), lx, cy);
+                    cy = reflectField(key, obj.get(key), lx, cy, depth, obj, parentKey);
                 }
             }
             return cy;
         }
         for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
-            cy = reflectField(entry.getKey(), entry.getValue(), lx, cy);
+            cy = reflectField(entry.getKey(), entry.getValue(), lx, cy, depth, obj, parentKey);
         }
         return cy;
     }
 
-    private int reflectField(String key, JsonElement val, int lx, int cy) {
+    private int reflectField(String key, JsonElement val, int lx, int cy,
+                              int depth, JsonObject parentObj, String parentKey) {
+        if (val.isJsonObject()) {
+            addSectionLabel(formatKey(key) + ":", lx, cy, depth);
+            cy += 12;
+            cy = reflectObjectAll(val.getAsJsonObject(), lx, cy, depth + 1, null, key);
+            cy += 2;
+            return cy;
+        }
+
+        if (val.isJsonArray()) {
+            addSectionLabel(formatKey(key), lx, cy, depth);
+            cy += 14;
+            JsonArray arr = val.getAsJsonArray();
+            for (int i = 0; i < arr.size(); i++) {
+                JsonElement el = arr.get(i);
+                if (el.isJsonObject()) {
+                    addSectionLabel("[" + i + "]", lx, cy, depth + 1);
+                    cy += 12;
+                    cy = reflectObjectAll(el.getAsJsonObject(), lx, cy, depth + 2, null, key);
+                }
+                // primitive array elements skipped (not used in our data model)
+            }
+            return cy;
+        }
+
         if (!val.isJsonPrimitive()) return cy;
+        return reflectPrimitive(key, val, lx, cy, depth, parentObj);
+    }
+
+    private int reflectPrimitive(String key, JsonElement val, int lx, int cy,
+                                  int depth, JsonObject parentObj) {
         JsonPrimitive prim = val.getAsJsonPrimitive();
+        int ix = lx + depth * 10;
+        int iw = w - 12 - depth * 10;
+
         String label = formatKey(key);
+        if (parentObj == selectedKeyframe && "position".equals(findKeyOf(parentObj, selectedKeyframe))) {
+            label = remapPositionLabel(key, label);
+        }
 
         if (prim.isBoolean()) {
-            boolean current = prim.getAsBoolean();
             addToggle(label, () -> {
-                JsonElement e = findRef(selectedClip != null ? selectedClip : (selectedKeyframe != null ? selectedKeyframe : script), key);
-                return e != null && e.getAsBoolean();
-            }, lx, cy, v -> {
-                findParent(key).addProperty(key, v);
+                return parentObj.has(key) && parentObj.get(key).getAsBoolean();
+            }, ix, cy, v -> {
+                parentObj.addProperty(key, v);
                 if (onDirty != null) onDirty.run();
             });
             return cy + 18;
@@ -162,34 +206,47 @@ public class LeftPanelArea extends UIComponent {
         if (prim.isNumber()) {
             float current = prim.getAsFloat();
             boolean isInt = current == Math.floor(current) && !Float.isInfinite(current) && key.equals("version");
-            if (isInt) {
-                return cy;
-            }
+            if (isInt) return cy;
             addFloatField(label, () -> {
-                JsonElement e = findRef(findTarget(), key);
-                return e != null ? e.getAsFloat() : 0;
-            }, lx, cy, -9999, 9999, 0.5f, v -> {
-                findParent(key).addProperty(key, v);
+                return parentObj.has(key) ? parentObj.get(key).getAsFloat() : 0;
+            }, ix, cy, -9999, 9999, 0.5f, v -> {
+                parentObj.addProperty(key, v);
                 if (onDirty != null) onDirty.run();
-            });
+            }, iw);
             return cy + 18;
         }
 
         if (prim.isString()) {
-            UITextInput ti = new UITextInput(lx, cy, w - 12, 16, label,
-                    () -> {
-                        JsonElement e = findRef(findTarget(), key);
-                        return e != null ? e.getAsString() : "";
-                    },
+            UITextInput ti = new UITextInput(ix, cy, iw, 16, label,
+                    () -> parentObj.has(key) ? parentObj.get(key).getAsString() : "",
                     v -> {
-                        findParent(key).addProperty(key, v);
+                        parentObj.addProperty(key, v);
                         if (onDirty != null) onDirty.run();
                     });
             children.add(ti);
             return cy + 18;
         }
-
         return cy;
+    }
+
+    private String findKeyOf(JsonObject child, JsonObject parent) {
+        for (Map.Entry<String, JsonElement> e : parent.entrySet()) {
+            if (e.getValue().isJsonObject() && e.getValue().getAsJsonObject() == child)
+                return e.getKey();
+        }
+        return null;
+    }
+
+    private String remapPositionLabel(String key, String defaultLabel) {
+        if (selectedClip != null && selectedClip.has("position_mode")) {
+            String mode = selectedClip.get("position_mode").getAsString();
+            if ("absolute".equals(mode)) {
+                if ("dx".equals(key)) return "x";
+                if ("dy".equals(key)) return "y";
+                if ("dz".equals(key)) return "z";
+            }
+        }
+        return defaultLabel;
     }
 
     private int reflectFloatField(String label, int lx, int cy, java.util.function.Supplier<Float> src, Consumer<Float> sink) {
@@ -197,26 +254,12 @@ public class LeftPanelArea extends UIComponent {
         return cy + 18;
     }
 
-    private JsonObject findTarget() {
-        return selectedKeyframe != null ? selectedKeyframe : (selectedClip != null ? selectedClip : script);
-    }
-
-    private JsonObject findParent(String key) {
-        if (selectedKeyframe != null && selectedKeyframe.has(key)) return selectedKeyframe;
-        if (selectedClip != null && selectedClip.has(key)) return selectedClip;
-        return script;
-    }
-
-    private static JsonElement findRef(JsonObject obj, String key) {
-        return obj != null && obj.has(key) ? obj.get(key) : null;
-    }
-
     private static String formatKey(String key) {
         return key.replace("_", " ");
     }
 
-    private void addSectionLabel(String text, int lx, int cy) {
-        children.add(new UILabel(lx, cy, text, 0xFF777777));
+    private void addSectionLabel(String text, int lx, int cy, int depth) {
+        children.add(new UILabel(lx + depth * 10, cy, text, 0xFF777777));
     }
 
     private int addField(String label, java.util.function.Supplier<String> source, int lx, int cy, Consumer<String> sink) {
@@ -227,7 +270,12 @@ public class LeftPanelArea extends UIComponent {
 
     private int addFloatField(String label, java.util.function.Supplier<Float> source, int lx, int cy,
                               float min, float max, float step, Consumer<Float> sink) {
-        UIFloatInput fi = new UIFloatInput(lx, cy, w - 12, 16, label, source, min, max, step, sink);
+        return addFloatField(label, source, lx, cy, min, max, step, sink, w - 12);
+    }
+
+    private int addFloatField(String label, java.util.function.Supplier<Float> source, int lx, int cy,
+                              float min, float max, float step, Consumer<Float> sink, int width) {
+        UIFloatInput fi = new UIFloatInput(lx, cy, width, 16, label, source, min, max, step, sink);
         children.add(fi);
         return cy + 18;
     }
