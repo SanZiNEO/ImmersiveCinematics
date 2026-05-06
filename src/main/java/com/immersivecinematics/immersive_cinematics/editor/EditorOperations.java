@@ -23,6 +23,14 @@ public class EditorOperations {
         JsonObject clip = new JsonObject();
         clip.addProperty("start_time", startTime);
         clip.addProperty("duration", duration);
+        JsonArray kfs = new JsonArray();
+        JsonObject kf0 = new JsonObject();
+        kf0.addProperty("time", 0f);
+        kfs.add(kf0);
+        JsonObject kf1 = new JsonObject();
+        kf1.addProperty("time", duration);
+        kfs.add(kf1);
+        clip.add("keyframes", kfs);
         tracks.get(trackIndex).getAsJsonObject().getAsJsonArray("clips").add(clip);
         recalc(tracks);
         return clip;
@@ -94,16 +102,57 @@ public class EditorOperations {
         if (ns < oldEnd) {
             clip.addProperty("start_time", ns);
             clip.addProperty("duration", oldEnd - ns);
+            clampKeyframes(clip);
+            ensureBoundaryKeyframes(clip);
         }
     }
 
     public static void resizeClipRight(JsonObject clip, float newEnd, float snapInterval) {
         float ne = Math.max(getStart(clip) + 0.1f, snap(newEnd, snapInterval));
         clip.addProperty("duration", ne - getStart(clip));
+        clampKeyframes(clip);
+        ensureBoundaryKeyframes(clip);
     }
 
     public static void moveKeyframe(JsonObject clip, JsonObject kf, float newLocalTime, float snapInterval) {
         kf.addProperty("time", Math.max(0, Math.min(getDuration(clip), snap(newLocalTime, snapInterval))));
+    }
+
+    public static void ensureBoundaryKeyframes(JsonObject clip) {
+        float dur = getDuration(clip);
+        JsonArray kfs = keyframes(clip);
+        if (kfs == null) {
+            kfs = new JsonArray();
+            clip.add("keyframes", kfs);
+        }
+
+        boolean hasStart = false, hasEnd = false;
+        for (JsonElement ke : kfs) {
+            float t = ke.getAsJsonObject().get("time").getAsFloat();
+            if (Math.abs(t) < 0.001f) hasStart = true;
+            if (Math.abs(t - dur) < 0.001f) hasEnd = true;
+        }
+        if (!hasStart) {
+            JsonObject kf = new JsonObject();
+            kf.addProperty("time", 0f);
+            kfs.add(kf);
+        }
+        if (!hasEnd) {
+            JsonObject kf = new JsonObject();
+            kf.addProperty("time", dur);
+            kfs.add(kf);
+        }
+    }
+
+    public static void clampKeyframes(JsonObject clip) {
+        float dur = getDuration(clip);
+        JsonArray kfs = keyframes(clip);
+        if (kfs == null) return;
+        for (JsonElement ke : kfs) {
+            JsonObject kf = ke.getAsJsonObject();
+            float t = kf.get("time").getAsFloat();
+            kf.addProperty("time", Math.max(0, Math.min(dur, t)));
+        }
     }
 
     public static void recalc(JsonArray tracks) {
@@ -155,5 +204,8 @@ public class EditorOperations {
     }
 
     public static float snap(float t) { return snap(t, 0.5f); }
-    public static float snap(float t, float interval) { return Math.round(t / interval) * interval; }
+    public static float snap(float t, float interval) {
+        if (interval <= 0) return t;
+        return Math.round(t / interval) * interval;
+    }
 }

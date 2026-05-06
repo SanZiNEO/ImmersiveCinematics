@@ -146,9 +146,11 @@ public class EditorScreen extends Screen {
             sel.selectClip(clip);
         });
         timeline.setOnClickKeyframe((kf, clip) -> {
-            float st = EditorOperations.getStart(clip);
-            EditorLogger.action(EditorLogger.TIMELINE, "SELECT_KEYFRAME", "time=" + kf.get("time").getAsFloat() + " clipStart=" + st);
+            float globalTime = EditorOperations.getStart(clip) + kf.get("time").getAsFloat();
+            EditorLogger.action(EditorLogger.TIMELINE, "SELECT_KEYFRAME", "time=" + kf.get("time").getAsFloat() + " global=" + globalTime);
             sel.selectKeyframe(kf);
+            playback.setTime(globalTime);
+            output.setTime(globalTime);
         });
         timeline.setOnMoveClip((clip, ns) -> {
             EditorLogger.action(EditorLogger.TIMELINE, "MOVE_CLIP", "from=" + EditorOperations.getStart(clip) + " to=" + ns);
@@ -203,10 +205,8 @@ public class EditorScreen extends Screen {
             }
         });
         timeline.setOnToolSnap(() -> {
-            boolean before = autoSnap;
             autoSnap = !autoSnap;
-            EditorLogger.action(EditorLogger.TIMELINE, "TOOL_SNAP", "before=" + before + " after=" + autoSnap);
-            if (autoSnap) EditorOperations.snapAllClips(doc.getTracks());
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOL_SNAP", "autoSnap=" + autoSnap);
             doc.markDirty();
         });
     }
