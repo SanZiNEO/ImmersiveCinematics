@@ -32,6 +32,14 @@ public abstract class UIComponent {
 
     public abstract void render(UIContext ctx);
 
+    /** Render pass that runs after all normal rendering, for overlays. */
+    public void renderOverlay(UIContext ctx) {
+        List<UIComponent> children = getChildren();
+        if (children != null) {
+            for (UIComponent c : children) c.renderOverlay(ctx);
+        }
+    }
+
     public boolean mouseClicked(UIContext ctx) {
         if (!visible) return false;
         List<UIComponent> children = getChildren();

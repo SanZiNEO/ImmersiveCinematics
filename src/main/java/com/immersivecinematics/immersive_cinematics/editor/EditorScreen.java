@@ -549,6 +549,16 @@ public class EditorScreen extends Screen {
             EditorLogger.error(EditorLogger.SCREEN, "RENDER_CRASH phase=timeline " + cycleStr, e); return;
         }
 
+        renderPhase = "overlays";
+        try {
+            menuBar.renderOverlay(ctx);
+            leftPanel.renderOverlay(ctx);
+            preview.renderOverlay(ctx);
+            timeline.renderOverlay(ctx);
+        } catch (Exception e) {
+            EditorLogger.error(EditorLogger.SCREEN, "RENDER_CRASH phase=overlays " + cycleStr, e); return;
+        }
+
         renderPhase = "done";
         long elapsedNs = System.nanoTime() - t0;
         long now = System.currentTimeMillis();

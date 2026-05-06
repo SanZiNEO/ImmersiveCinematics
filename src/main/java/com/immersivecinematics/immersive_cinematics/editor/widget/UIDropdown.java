@@ -37,6 +37,7 @@ public class UIDropdown extends UIComponent {
         return this;
     }
 
+    /** Render the collapsed button only. Expanded list is drawn in renderOverlay. */
     @Override
     public void render(UIContext ctx) {
         String rawText = "";
@@ -54,38 +55,38 @@ public class UIDropdown extends UIComponent {
         ctx.graphics.renderOutline(x, y, w, h, 0xFF555555);
         ctx.graphics.drawString(ctx.font, text, x + 4, y + (h - 8) / 2, 0xFFCCCCCC);
         ctx.graphics.drawString(ctx.font, "\u25BC", x + w - 12, y + (h - 8) / 2, 0xFF888888);
-
-        if (expanded) {
-            int totalH = options.size() * h;
-            int listH = Math.min(totalH, maxListHeight);
-            int maxScroll = Math.max(0, totalH - listH);
-            if (listScrollOffset > maxScroll) listScrollOffset = maxScroll;
-
-            ctx.graphics.fill(x, y + h, x + w, y + h + listH, 0xFF2F2F2F);
-            ctx.graphics.renderOutline(x, y + h, w, listH, 0xFF555555);
-
-            int itemStart = listScrollOffset / h;
-            int visible = listH / h + 1;
-            for (int i = itemStart; i < Math.min(options.size(), itemStart + visible); i++) {
-                int itemY = y + h + i * h - listScrollOffset;
-                int absItemBottom = y + h + i * h + h;
-                if (absItemBottom < y + h || absItemBottom > y + h + listH) continue;
-
-                boolean cur = (i == highlightIndex);
-                int bg = cur ? 0xFF3A3A3A : ctx.isMouseIn(x, itemY, w, h) ? 0xFF444444 : 0xFF2F2F2F;
-                ctx.graphics.fill(x, itemY, x + w, itemY + h, bg);
-                if (!cur) {
-                    ctx.graphics.drawString(ctx.font, options.get(i), x + 4, itemY + (h - 8) / 2, 0xFFBBBBBB);
-                }
-            }
-
-            if (totalH > listH) {
-                float barH = listH * listH / (float) totalH;
-                float barY = listH * listScrollOffset / (float) totalH;
-                ctx.graphics.fill(x + w - 3, (int) (y + h + barY), x + w - 1, (int) (y + h + barY + barH), 0xFF666666);
-            }
-        }
         renderTooltipIfHovered(ctx);
+    }
+
+    /** Render the expanded dropdown list on top of everything. */
+    @Override
+    public void renderOverlay(UIContext ctx) {
+        if (!expanded) return;
+        int totalH = options.size() * h;
+        int listH = Math.min(totalH, maxListHeight);
+        int maxScroll = Math.max(0, totalH - listH);
+        if (listScrollOffset > maxScroll) listScrollOffset = maxScroll;
+
+        ctx.graphics.fill(x, y + h, x + w, y + h + listH, 0xFF2F2F2F);
+        ctx.graphics.renderOutline(x, y + h, w, listH, 0xFF555555);
+
+        int itemStart = listScrollOffset / h;
+        int visible = listH / h + 1;
+        for (int i = itemStart; i < Math.min(options.size(), itemStart + visible); i++) {
+            int itemY = y + h + i * h - listScrollOffset;
+            if (itemY + h < y + h || itemY > y + h + listH) continue;
+            boolean cur = (i == highlightIndex);
+            int bg = cur ? 0xFF3A3A3A : ctx.isMouseIn(x, itemY, w, h) ? 0xFF444444 : 0xFF2F2F2F;
+            ctx.graphics.fill(x, itemY, x + w, itemY + h, bg);
+            if (!cur)
+                ctx.graphics.drawString(ctx.font, options.get(i), x + 4, itemY + (h - 8) / 2, 0xFFBBBBBB);
+        }
+
+        if (totalH > listH) {
+            float barH = listH * listH / (float) totalH;
+            float barY = listH * listScrollOffset / (float) totalH;
+            ctx.graphics.fill(x + w - 3, (int) (y + h + barY), x + w - 1, (int) (y + h + barY + barH), 0xFF666666);
+        }
     }
 
     @Override
