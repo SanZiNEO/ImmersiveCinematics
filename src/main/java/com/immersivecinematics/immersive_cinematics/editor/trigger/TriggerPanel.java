@@ -64,6 +64,23 @@ public class TriggerPanel extends UIComponent {
         if (onDirty != null) onDirty.run();
     }
 
+    private void deleteTrigger(int index) {
+        if (index < 0 || index >= triggers.size()) return;
+        triggers.remove(index);
+        if (selectedIndex >= triggers.size()) selectedIndex = triggers.size() - 1;
+        if (selectedIndex >= 0) {
+            JsonObject t = triggers.get(selectedIndex).getAsJsonObject();
+            JsonObject cond = t.has("conditions") ? t.getAsJsonObject("conditions") : new JsonObject();
+            t.add("conditions", cond);
+            editor = TriggerEditor.create(t.get("type").getAsString());
+            editor.setConditions(cond);
+        } else {
+            editor = null;
+        }
+        if (onDirty != null) onDirty.run();
+        rebuild();
+    }
+
     private void rebuild() {
         widgets.clear();
         if (triggers == null) return;
@@ -71,40 +88,25 @@ public class TriggerPanel extends UIComponent {
         int lx = x;
         int cy = y;
 
-        UIDropdown sel = new UIDropdown(lx, cy, w, 16, triggerOptions(),
-            () -> Math.min(selectedIndex, triggers.size()),
-            this::selectTrigger);
-        widgets.add(sel);
-
-        if (selectedIndex < 0 || selectedIndex >= triggers.size()) return;
-        cy += 20;
+        if (selectedIndex < 0 || selectedIndex >= triggers.size()) {
+            UIDropdown sel = new UIDropdown(lx, cy, w, 16, triggerOptions(),
+                () -> 0, this::selectTrigger);
+            sel.setHighlightIndex(-1);
+            sel.setOnRightClick(this::deleteTrigger);
+            sel.setMaxListHeight(h - 16);
+            widgets.add(sel);
+            return;
+        }
 
         JsonObject trigger = triggers.get(selectedIndex).getAsJsonObject();
+
+        // Non-dropdown widgets start below both dropdowns
+        cy = y + 36;
 
         UITextInput idInput = new UITextInput(lx, cy, w, 16, "id",
             () -> trigger.get("id").getAsString(),
             v -> { trigger.addProperty("id", v); if (onDirty != null) onDirty.run(); });
         widgets.add(idInput);
-        cy += 18;
-
-        UIDropdown typeDD = new UIDropdown(lx, cy, w, 16, TYPE_LIST,
-            () -> {
-                int idx = TYPE_LIST.indexOf(trigger.get("type").getAsString());
-                return idx >= 0 ? idx : 0;
-            },
-            i -> {
-                String newType = TYPE_LIST.get(i);
-                String oldType = trigger.get("type").getAsString();
-                if (newType.equals(oldType)) return;
-                trigger.addProperty("type", newType);
-                JsonObject newCond = new JsonObject();
-                trigger.add("conditions", newCond);
-                editor = TriggerEditor.create(newType);
-                editor.setConditions(newCond);
-                if (onDirty != null) onDirty.run();
-                rebuild();
-            });
-        widgets.add(typeDD);
         cy += 18;
 
         UIToggle repeatToggle = new UIToggle(lx, cy, w, 16, "repeatable",
@@ -127,6 +129,35 @@ public class TriggerPanel extends UIComponent {
         if (editor != null) {
             editor.build(widgets, lx, cy, w, onDirty != null ? onDirty : () -> {});
         }
+
+        // Dropdowns last (higher z-order – rendered/mouse-tested on top)
+        int curTypeIdx = TYPE_LIST.indexOf(trigger.get("type").getAsString());
+        int typeIdx = curTypeIdx < 0 ? 0 : curTypeIdx;
+
+        UIDropdown typeDD = new UIDropdown(lx, y + 18, w, 16, TYPE_LIST,
+            () -> typeIdx,
+            i -> {
+                String newType = TYPE_LIST.get(i);
+                if (newType.equals(trigger.get("type").getAsString())) return;
+                trigger.addProperty("type", newType);
+                JsonObject newCond = new JsonObject();
+                trigger.add("conditions", newCond);
+                editor = TriggerEditor.create(newType);
+                editor.setConditions(newCond);
+                if (onDirty != null) onDirty.run();
+                rebuild();
+            });
+        typeDD.setHighlightIndex(typeIdx);
+        typeDD.setMaxListHeight(Math.max(0, h - 34));
+        widgets.add(typeDD);
+
+        UIDropdown sel = new UIDropdown(lx, y, w, 16, triggerOptions(),
+            () -> Math.min(selectedIndex, triggers.size()),
+            this::selectTrigger);
+        sel.setHighlightIndex(selectedIndex);
+        sel.setOnRightClick(this::deleteTrigger);
+        sel.setMaxListHeight(Math.max(0, h - 16));
+        widgets.add(sel);
     }
 
     @Override
