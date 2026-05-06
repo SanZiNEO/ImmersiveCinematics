@@ -16,7 +16,6 @@ public class TimelineArea extends UIComponent {
     private JsonObject script;
     private JsonObject selectedClip;
     private JsonObject selectedKeyframe;
-    private boolean autoSnap;
     private boolean canAddKf;
     private float playheadTime;
     private float pixelsPerSecond = 60f;
@@ -64,11 +63,10 @@ public class TimelineArea extends UIComponent {
     }
 
     public void setData(JsonObject script, JsonObject selClip, JsonObject selKf,
-                        boolean autoSnap, boolean canAddKf) {
+                        boolean canAddKf) {
         this.script = script;
         this.selectedClip = selClip;
         this.selectedKeyframe = selKf;
-        this.autoSnap = autoSnap;
         this.canAddKf = canAddKf;
     }
     public void setPlayheadTime(float t) { playheadTime = t; }
@@ -93,6 +91,13 @@ public class TimelineArea extends UIComponent {
     public int canvasW() { return w - LEFT_W; }
     public float timeToX(float t) { return canvasX() + (t * pixelsPerSecond) + scrollOffset; }
     public float xToTime(float px) { return (px - canvasX() - scrollOffset) / pixelsPerSecond; }
+
+    private void clampScrollOffset() {
+        float maxScroll = 0;
+        float minScroll = Math.min(0, canvasW() - (totalDuration() + 30) * pixelsPerSecond);
+        if (scrollOffset > maxScroll) scrollOffset = maxScroll;
+        if (scrollOffset < minScroll) scrollOffset = minScroll;
+    }
 
     private JsonArray tracks() {
         return script != null ? script.getAsJsonArray("tracks") : null;
@@ -149,16 +154,7 @@ public class TimelineArea extends UIComponent {
         drawBtn(ctx, bx, by, "-C", 0xFF883333, 0xFFAA4444, selectedClip != null); by += BTN + BTN_GAP + 4;
         drawBtn(ctx, bx, by, "+K", 0xFF333388, 0xFF4444AA, canAddKf); by += BTN + BTN_GAP;
         drawBtn(ctx, bx, by, "-K", 0xFF883366, 0xFFAA4488, selectedKeyframe != null); by += BTN + BTN_GAP + 4;
-        drawSnapBtn(ctx, bx, by, autoSnap);
-    }
-
-    private void drawSnapBtn(UIContext ctx, int bx, int by, boolean active) {
-        boolean hover = ctx.isMouseIn(bx, by, BTN, BTN);
-        int bg = active ? (hover ? 0xFF448844 : 0xFF337733) : (hover ? 0xFF444444 : 0xFF222222);
-        ctx.graphics.fill(bx, by, bx + BTN, by + BTN, bg);
-        ctx.graphics.renderOutline(bx, by, BTN, BTN, active ? 0xFF66AA66 : 0xFF555555);
-        int tw = ctx.font.width("\u00AB\u00BB");
-        ctx.graphics.drawString(ctx.font, "\u00AB\u00BB", bx + (BTN - tw) / 2, by + (BTN - 8) / 2, active ? 0xFFFFFFFF : 0xFF888888);
+        drawBtn(ctx, bx, by, "\u00AB\u00BB", 0xFF336688, 0xFF4488AA, true);
     }
 
     private void drawBtn(UIContext ctx, int bx, int by, String label, int c, int hc, boolean active) {
@@ -439,12 +435,13 @@ public class TimelineArea extends UIComponent {
             float old = pixelsPerSecond;
             pixelsPerSecond = Math.max(10, pixelsPerSecond + (float) scroll * 10);
             float ratio = pixelsPerSecond / old;
-            float mouseTime = xToTime(ctx.mouseX);
             scrollOffset = scrollOffset * ratio;
+            clampScrollOffset();
             EditorLogger.state(EditorLogger.TIMELINE, "pixelsPerSecond", old, pixelsPerSecond);
         } else if (shift) {
             float old = scrollOffset;
             scrollOffset += (float) scroll * 30;
+            clampScrollOffset();
             EditorLogger.state(EditorLogger.TIMELINE, "scrollOffset", old, scrollOffset);
         } else {
             verticalScroll += (int) scroll * 20;

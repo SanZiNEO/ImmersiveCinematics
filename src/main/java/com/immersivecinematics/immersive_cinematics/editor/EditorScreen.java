@@ -35,7 +35,6 @@ public class EditorScreen extends Screen {
 
     private final List<String> scriptFileNames = new ArrayList<>();
     private String scriptFilePath;
-    private boolean autoSnap;
     private boolean firstInit = true;
     private String activeArea = "none";
     private int mouseDownX, mouseDownY;
@@ -211,22 +210,22 @@ public class EditorScreen extends Screen {
         });
         timeline.setOnMoveClip((clip, ns) -> {
             EditorLogger.action(EditorLogger.TIMELINE, "MOVE_CLIP", "from=" + EditorOperations.getStart(clip) + " to=" + ns);
-            EditorOperations.moveClip(clip, ns, autoSnap ? 0.5f : 0);
+            EditorOperations.moveClip(clip, ns, 0);
             doc.markDirty();
         });
         timeline.setOnResizeLeft((clip, ns) -> {
             EditorLogger.action(EditorLogger.TIMELINE, "RESIZE_CLIP_LEFT", "clipStart=" + EditorOperations.getStart(clip) + " newStart=" + ns);
-            EditorOperations.resizeClipLeft(clip, ns, autoSnap ? 0.5f : 0);
+            EditorOperations.resizeClipLeft(clip, ns, 0);
             doc.markDirty();
         });
         timeline.setOnResizeRight((clip, ne) -> {
             EditorLogger.action(EditorLogger.TIMELINE, "RESIZE_CLIP_RIGHT", "clipEnd=" + EditorOperations.getEnd(clip) + " newEnd=" + ne);
-            EditorOperations.resizeClipRight(clip, ne, autoSnap ? 0.5f : 0);
+            EditorOperations.resizeClipRight(clip, ne, 0);
             doc.markDirty();
         });
         timeline.setOnMoveKeyframe((kf, clip, nt) -> {
             EditorLogger.action(EditorLogger.TIMELINE, "MOVE_KEYFRAME", "from=" + kf.get("time").getAsFloat() + " to=" + nt + " clipStart=" + EditorOperations.getStart(clip));
-            EditorOperations.moveKeyframe(clip, kf, nt, autoSnap ? 0.5f : 0);
+            EditorOperations.moveKeyframe(clip, kf, nt, 0);
             doc.markDirty();
         });
         timeline.setOnToolAddClip(() -> {
@@ -285,9 +284,10 @@ public class EditorScreen extends Screen {
             }
         });
         timeline.setOnToolSnap(() -> {
-            autoSnap = !autoSnap;
-            EditorLogger.action(EditorLogger.TIMELINE, "TOOL_SNAP", "autoSnap=" + autoSnap);
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOL_ARRANGE", "");
+            EditorOperations.snapAllClips(doc.getTracks());
             doc.markDirty();
+            syncPanels();
         });
     }
 
@@ -392,7 +392,7 @@ public class EditorScreen extends Screen {
 
         float time = playback.getTime();
         timeline.setData(doc.getTimeline(), sel.getClip(), sel.getKeyframe(),
-                autoSnap, EditorOperations.canAddKeyframeAt(sel.getClip(), time));
+                EditorOperations.canAddKeyframeAt(sel.getClip(), time));
         timeline.setPlayheadTime(time);
         preview.setCurrentTime(time);
 
@@ -684,8 +684,8 @@ public class EditorScreen extends Screen {
         try {
             JsonObject clip = sel.getClip();
             float step = hasShiftDown() ? 1 : 0.1f;
-            if (keyCode == 263) { EditorOperations.moveClip(clip, EditorOperations.getStart(clip) - step, autoSnap ? 0.5f : 0); EditorLogger.action(EditorLogger.SCREEN, "CLIP_NUDGE", "left step=" + step); doc.markDirty(); }
-            else if (keyCode == 262) { EditorOperations.moveClip(clip, EditorOperations.getStart(clip) + step, autoSnap ? 0.5f : 0); EditorLogger.action(EditorLogger.SCREEN, "CLIP_NUDGE", "right step=" + step); doc.markDirty(); }
+            if (keyCode == 263) { EditorOperations.moveClip(clip, EditorOperations.getStart(clip) - step, 0); EditorLogger.action(EditorLogger.SCREEN, "CLIP_NUDGE", "left step=" + step); doc.markDirty(); }
+            else if (keyCode == 262) { EditorOperations.moveClip(clip, EditorOperations.getStart(clip) + step, 0); EditorLogger.action(EditorLogger.SCREEN, "CLIP_NUDGE", "right step=" + step); doc.markDirty(); }
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "handleClipKey crashed", e);
         }
