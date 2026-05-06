@@ -100,8 +100,11 @@ public class EditorOperations {
         float ns = Math.max(0, snap(newStart, snapInterval));
         float oldEnd = getEnd(clip);
         if (ns < oldEnd) {
+            float oldDur = getDuration(clip);
+            float newDur = oldEnd - ns;
             clip.addProperty("start_time", ns);
-            clip.addProperty("duration", oldEnd - ns);
+            clip.addProperty("duration", newDur);
+            moveEndBoundaryKeyframe(clip, oldDur, newDur);
             clampKeyframes(clip);
             ensureBoundaryKeyframes(clip);
         }
@@ -109,13 +112,28 @@ public class EditorOperations {
 
     public static void resizeClipRight(JsonObject clip, float newEnd, float snapInterval) {
         float ne = Math.max(getStart(clip) + 0.1f, snap(newEnd, snapInterval));
-        clip.addProperty("duration", ne - getStart(clip));
+        float oldDur = getDuration(clip);
+        float newDur = ne - getStart(clip);
+        clip.addProperty("duration", newDur);
+        moveEndBoundaryKeyframe(clip, oldDur, newDur);
         clampKeyframes(clip);
         ensureBoundaryKeyframes(clip);
     }
 
     public static void moveKeyframe(JsonObject clip, JsonObject kf, float newLocalTime, float snapInterval) {
         kf.addProperty("time", Math.max(0, Math.min(getDuration(clip), snap(newLocalTime, snapInterval))));
+    }
+
+    /** Move the existing end-boundary keyframe (time ≈ oldDur) to newDur. */
+    private static void moveEndBoundaryKeyframe(JsonObject clip, float oldDur, float newDur) {
+        JsonArray kfs = keyframes(clip);
+        if (kfs == null) return;
+        for (JsonElement ke : kfs) {
+            if (Math.abs(ke.getAsJsonObject().get("time").getAsFloat() - oldDur) < 0.001f) {
+                ke.getAsJsonObject().addProperty("time", newDur);
+                return;
+            }
+        }
     }
 
     public static void ensureBoundaryKeyframes(JsonObject clip) {
