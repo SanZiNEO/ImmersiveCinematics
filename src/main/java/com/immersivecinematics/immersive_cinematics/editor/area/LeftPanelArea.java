@@ -156,6 +156,22 @@ public class LeftPanelArea extends UIComponent {
         if (selectedKeyframe == null) return;
         fillKeyframeDefaults(selectedKeyframe);
 
+        if (selectedClip != null && selectedKeyframe.has("position")) {
+            String mode = selectedClip.has("position_mode") ? selectedClip.get("position_mode").getAsString() : "relative";
+            JsonObject pos = selectedKeyframe.getAsJsonObject("position");
+            if ("absolute".equals(mode) && pos.has("dx") && !pos.has("x")) {
+                pos.addProperty("x", pos.get("dx").getAsFloat());
+                pos.addProperty("y", pos.get("dy").getAsFloat());
+                pos.addProperty("z", pos.get("dz").getAsFloat());
+                pos.remove("dx"); pos.remove("dy"); pos.remove("dz");
+            } else if ("relative".equals(mode) && pos.has("x") && !pos.has("dx")) {
+                pos.addProperty("dx", pos.get("x").getAsFloat());
+                pos.addProperty("dy", pos.get("y").getAsFloat());
+                pos.addProperty("dz", pos.get("z").getAsFloat());
+                pos.remove("x"); pos.remove("y"); pos.remove("z");
+            }
+        }
+
         int cy = y + 6;
         int lx = x + 6;
 
@@ -240,6 +256,19 @@ public class LeftPanelArea extends UIComponent {
         "hide_title", "hide_subtitles", "hide_hotbar", "hide_crosshair"
     );
 
+    private static final Set<String> CLIP_ENUM_KEYS = Set.of(
+        "transition", "interpolation", "position_mode"
+    );
+
+    private static String cycleClipEnum(String key, String current) {
+        return switch (key) {
+            case "transition" -> current.equals("cut") ? "morph" : "cut";
+            case "interpolation" -> current.equals("linear") ? "smooth" : "linear";
+            case "position_mode" -> current.equals("relative") ? "absolute" : "relative";
+            default -> current;
+        };
+    }
+
     /** Auto-reflect a JsonObject's fields as editable widgets (entry point). */
     private int reflectObject(JsonObject obj, int lx, int cy, String[] orderedKeys) {
         return reflectObjectAll(obj, lx, cy, 0, orderedKeys, null);
@@ -249,7 +278,9 @@ public class LeftPanelArea extends UIComponent {
                                   String[] orderedKeys, String parentKey) {
         if (orderedKeys != null) {
             for (String key : orderedKeys) {
-                if (TRISTATE_KEYS.contains(key)) {
+                if (CLIP_ENUM_KEYS.contains(key)) {
+                    cy = reflectClipEnum(key, lx, cy, depth, obj);
+                } else if (TRISTATE_KEYS.contains(key)) {
                     cy = reflectTristate(key, lx, cy, depth, obj);
                 } else if (obj.has(key)) {
                     cy = reflectField(key, obj.get(key), lx, cy, depth, obj, parentKey);
@@ -298,6 +329,50 @@ public class LeftPanelArea extends UIComponent {
         return value ? label + ": \u2713" : label + ": \u2717";
     }
 
+    private int reflectClipEnum(String key, int lx, int cy, int depth, JsonObject parentObj) {
+        int ix = lx + depth * 10;
+        int iw = w - 12 - depth * 10;
+        String label = formatKey(key);
+        String current = parentObj.has(key) ? parentObj.get(key).getAsString() : cycleClipEnum(key, "");
+        UIButton btn = new UIButton(ix, cy, iw, 16, label + ": " + current, b -> {
+            String next = cycleClipEnum(key, current);
+            parentObj.addProperty(key, next);
+            if ("position_mode".equals(key)) {
+                convertKeyframePositions(parentObj, next);
+            }
+            if (onDirty != null) onDirty.run();
+            build();
+        });
+        btn.color(0x00, 0x44333A3A).textColor(0xFFAAAAAA);
+        children.add(btn);
+        return cy + 18;
+    }
+
+    private static void convertKeyframePositions(JsonObject clip, String mode) {
+        JsonArray kfs = clip.has("keyframes") ? clip.getAsJsonArray("keyframes") : null;
+        if (kfs == null) return;
+        for (JsonElement ke : kfs) {
+            JsonObject kf = ke.getAsJsonObject();
+            if (!kf.has("position")) continue;
+            JsonObject pos = kf.getAsJsonObject("position");
+            if ("absolute".equals(mode)) {
+                if (pos.has("dx") && !pos.has("x")) {
+                    pos.addProperty("x", pos.get("dx").getAsFloat());
+                    pos.addProperty("y", pos.get("dy").getAsFloat());
+                    pos.addProperty("z", pos.get("dz").getAsFloat());
+                    pos.remove("dx"); pos.remove("dy"); pos.remove("dz");
+                }
+            } else {
+                if (pos.has("x") && !pos.has("dx")) {
+                    pos.addProperty("dx", pos.get("x").getAsFloat());
+                    pos.addProperty("dy", pos.get("y").getAsFloat());
+                    pos.addProperty("dz", pos.get("z").getAsFloat());
+                    pos.remove("x"); pos.remove("y"); pos.remove("z");
+                }
+            }
+        }
+    }
+
     private int reflectField(String key, JsonElement val, int lx, int cy,
                               int depth, JsonObject parentObj, String parentKey) {
         if (val.isJsonObject()) {
@@ -334,9 +409,6 @@ public class LeftPanelArea extends UIComponent {
         int iw = w - 12 - depth * 10;
 
         String label = formatKey(key);
-        if (parentObj == selectedKeyframe && "position".equals(findKeyOf(parentObj, selectedKeyframe))) {
-            label = remapPositionLabel(key, label);
-        }
 
         if (prim.isBoolean()) {
             addToggle(label, () -> {
@@ -372,26 +444,6 @@ public class LeftPanelArea extends UIComponent {
             return cy + 18;
         }
         return cy;
-    }
-
-    private String findKeyOf(JsonObject child, JsonObject parent) {
-        for (Map.Entry<String, JsonElement> e : parent.entrySet()) {
-            if (e.getValue().isJsonObject() && e.getValue().getAsJsonObject() == child)
-                return e.getKey();
-        }
-        return null;
-    }
-
-    private String remapPositionLabel(String key, String defaultLabel) {
-        if (selectedClip != null && selectedClip.has("position_mode")) {
-            String mode = selectedClip.get("position_mode").getAsString();
-            if ("absolute".equals(mode)) {
-                if ("dx".equals(key)) return "x";
-                if ("dy".equals(key)) return "y";
-                if ("dz".equals(key)) return "z";
-            }
-        }
-        return defaultLabel;
     }
 
     private int reflectFloatField(String label, int lx, int cy, java.util.function.Supplier<Float> src, Consumer<Float> sink) {
