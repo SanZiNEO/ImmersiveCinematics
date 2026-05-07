@@ -1,8 +1,11 @@
 package com.immersivecinematics.immersive_cinematics.editor.widget;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.*;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.joml.Matrix4f;
 
 public class UIDropdown extends UIComponent {
     private final List<String> options;
@@ -67,26 +70,66 @@ public class UIDropdown extends UIComponent {
         int maxScroll = Math.max(0, totalH - listH);
         if (listScrollOffset > maxScroll) listScrollOffset = maxScroll;
 
-        ctx.graphics.fill(x, y + h, x + w, y + h + listH, 0xFF2F2F2F);
-        ctx.graphics.renderOutline(x, y + h, w, listH, 0xFF555555);
+        Matrix4f m = ctx.graphics.pose().last().pose();
 
-        int itemStart = listScrollOffset / h;
+        // Background fill
+        BufferBuilder bb = new BufferBuilder(256);
+        bb.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        vertex(bb, m, x, y + h, 0xFF2F2F2F);
+        vertex(bb, m, x, y + h + listH, 0xFF2F2F2F);
+        vertex(bb, m, x + w, y + h + listH, 0xFF2F2F2F);
+        vertex(bb, m, x + w, y + h, 0xFF2F2F2F);
+        RenderSystem.enableBlend();
+        BufferUploader.drawWithShader(bb.end());
+
+        // Outline
+        drawOutline(m, x, y + h, w, listH, 0xFF555555);
+
+        // Items
+        int itemStart = Math.max(0, listScrollOffset / h);
         int visible = listH / h + 1;
         for (int i = itemStart; i < Math.min(options.size(), itemStart + visible); i++) {
             int itemY = y + h + i * h - listScrollOffset;
             if (itemY + h < y + h || itemY > y + h + listH) continue;
-            boolean cur = (i == highlightIndex);
-            int bg = cur ? 0xFF3A3A3A : ctx.isMouseIn(x, itemY, w, h) ? 0xFF444444 : 0xFF2F2F2F;
-            ctx.graphics.fill(x, itemY, x + w, itemY + h, bg);
-            if (!cur)
-                ctx.graphics.drawString(ctx.font, options.get(i), x + 4, itemY + (h - 8) / 2, 0xFFBBBBBB);
+            if (i == highlightIndex) continue;
+            if (ctx.isMouseIn(x, itemY, w, h)) {
+                BufferBuilder hb = new BufferBuilder(64);
+                hb.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+                vertex(hb, m, x, itemY, 0xFF444444);
+                vertex(hb, m, x, itemY + h, 0xFF444444);
+                vertex(hb, m, x + w, itemY + h, 0xFF444444);
+                vertex(hb, m, x + w, itemY, 0xFF444444);
+                BufferUploader.drawWithShader(hb.end());
+            }
+            ctx.graphics.drawString(ctx.font, options.get(i), x + 4, itemY + (h - 8) / 2, 0xFFBBBBBB);
         }
 
+        // Scroll bar
         if (totalH > listH) {
             float barH = listH * listH / (float) totalH;
             float barY = listH * listScrollOffset / (float) totalH;
-            ctx.graphics.fill(x + w - 3, (int) (y + h + barY), x + w - 1, (int) (y + h + barY + barH), 0xFF666666);
+            BufferBuilder sb = new BufferBuilder(64);
+            sb.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+            vertex(sb, m, x + w - 3, (int) (y + h + barY), 0xFF666666);
+            vertex(sb, m, x + w - 3, (int) (y + h + barY + barH), 0xFF666666);
+            vertex(sb, m, x + w - 1, (int) (y + h + barY + barH), 0xFF666666);
+            vertex(sb, m, x + w - 1, (int) (y + h + barY), 0xFF666666);
+            BufferUploader.drawWithShader(sb.end());
         }
+    }
+
+    private static void vertex(BufferBuilder b, Matrix4f m, float x, float y, int argb) {
+        b.vertex(m, x, y, 0).color((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF, (argb >> 24) & 0xFF).endVertex();
+    }
+
+    private void drawOutline(Matrix4f m, int rx, int ry, int rw, int rh, int argb) {
+        BufferBuilder bb = new BufferBuilder(256);
+        bb.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        vertex(bb, m, rx, ry, argb); vertex(bb, m, rx + rw, ry, argb); vertex(bb, m, rx + rw, ry + 1, argb); vertex(bb, m, rx, ry + 1, argb);
+        vertex(bb, m, rx, ry + rh - 1, argb); vertex(bb, m, rx + rw, ry + rh - 1, argb); vertex(bb, m, rx + rw, ry + rh, argb); vertex(bb, m, rx, ry + rh, argb);
+        vertex(bb, m, rx, ry, argb); vertex(bb, m, rx + 1, ry, argb); vertex(bb, m, rx + 1, ry + rh, argb); vertex(bb, m, rx, ry + rh, argb);
+        vertex(bb, m, rx + rw - 1, ry, argb); vertex(bb, m, rx + rw, ry, argb); vertex(bb, m, rx + rw, ry + rh, argb); vertex(bb, m, rx + rw - 1, ry + rh, argb);
+        BufferUploader.drawWithShader(bb.end());
     }
 
     @Override
