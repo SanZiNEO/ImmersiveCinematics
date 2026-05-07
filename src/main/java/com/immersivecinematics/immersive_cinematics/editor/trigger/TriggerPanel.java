@@ -3,7 +3,9 @@ package com.immersivecinematics.immersive_cinematics.editor.trigger;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
+import net.minecraft.client.resources.language.I18n;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class TriggerPanel extends UIComponent {
     private final List<UIComponent> widgets = new ArrayList<>();
@@ -134,7 +136,8 @@ public class TriggerPanel extends UIComponent {
         int curTypeIdx = TYPE_LIST.indexOf(trigger.get("type").getAsString());
         int typeIdx = curTypeIdx < 0 ? 0 : curTypeIdx;
 
-        UIDropdown typeDD = new UIDropdown(lx, y + 18, w, 16, TYPE_LIST,
+        List<String> typeNames = TYPE_LIST.stream().map(t -> I18n.get("editor.trigger.type." + t)).collect(Collectors.toList());
+        UIDropdown typeDD = new UIDropdown(lx, y + 18, w, 16, typeNames,
             () -> typeIdx,
             i -> {
                 String newType = TYPE_LIST.get(i);

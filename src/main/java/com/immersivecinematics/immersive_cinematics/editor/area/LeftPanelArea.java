@@ -7,8 +7,10 @@ import com.google.gson.JsonPrimitive;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.trigger.TriggerPanel;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
+import net.minecraft.client.resources.language.I18n;
 import java.util.*;
 import java.util.function.Consumer;
+
 
 public class LeftPanelArea extends UIComponent {
     private final List<UIComponent> children = new ArrayList<>();
@@ -99,7 +101,7 @@ public class LeftPanelArea extends UIComponent {
             cy += 20;
         }
 
-        UIButton newBtn = new UIButton(x + 4, cy, w - 12, 20, "+ New Script", b -> {
+        UIButton newBtn = new UIButton(x + 4, cy, w - 12, 20, I18n.get("editor.script.new_button"), b -> {
             if (onNewScript != null) onNewScript.run();
         });
         newBtn.color(0xFF333333, 0xFF444444).textColor(0xFFAAAAAA);
@@ -113,7 +115,7 @@ public class LeftPanelArea extends UIComponent {
         int cy = y + 6;
         int lx = x + 6;
 
-        addSectionLabel("Triggers", lx, cy, 0); cy += 12;
+        addSectionLabel(I18n.get("editor.section.triggers"), lx, cy, 0); cy += 12;
         JsonArray triggers = script.has("triggers") ? script.getAsJsonArray("triggers") : new JsonArray();
         if (!script.has("triggers")) script.add("triggers", triggers);
         int tpHeight = Math.min(Math.max(0, (y + h) - cy), 160);
@@ -121,10 +123,10 @@ public class LeftPanelArea extends UIComponent {
         children.add(tp);
         cy += tp.h + 6;
 
-        addSectionLabel("Script Info", lx, cy, 0); cy += 16;
+        addSectionLabel(I18n.get("editor.section.script_info"), lx, cy, 0); cy += 16;
         cy = reflectObject(script, lx, cy, new String[]{"id", "name", "author", "version", "description", "dimension"});
         cy += 4;
-        addSectionLabel("Runtime", lx, cy, 0); cy += 16;
+        addSectionLabel(I18n.get("editor.section.runtime"), lx, cy, 0); cy += 16;
         cy = reflectObject(script, lx, cy, new String[]{
             "block_keyboard", "block_mouse", "block_mob_ai",
             "hide_hud", "hide_arm", "hide_chat", "hide_scoreboard",
@@ -134,7 +136,7 @@ public class LeftPanelArea extends UIComponent {
             "pause_when_game_paused", "skippable", "hold_at_end", "interruptible"
         });
         cy += 4;
-        addSectionLabel("Duration", lx, cy, 0); cy += 16;
+        addSectionLabel(I18n.get("editor.section.duration"), lx, cy, 0); cy += 16;
         cy = reflectFloatField("total_duration", lx, cy, () -> script.has("total_duration") ? script.get("total_duration").getAsFloat() : 0, v -> { script.addProperty("total_duration", v); if (onDirty != null) onDirty.run(); });
     }
 
@@ -145,7 +147,7 @@ public class LeftPanelArea extends UIComponent {
         int cy = y + 6;
         int lx = x + 6;
 
-        addSectionLabel("Clip Properties", lx, cy, 0); cy += 16;
+        addSectionLabel(I18n.get("editor.section.clip_properties"), lx, cy, 0); cy += 16;
         String[] keys = selectedClip.keySet().stream()
                 .filter(k -> !"keyframes".equals(k))
                 .toArray(String[]::new);
@@ -175,7 +177,7 @@ public class LeftPanelArea extends UIComponent {
         int cy = y + 6;
         int lx = x + 6;
 
-        addSectionLabel("Keyframe Properties", lx, cy, 0); cy += 16;
+        addSectionLabel(I18n.get("editor.section.keyframe_properties"), lx, cy, 0); cy += 16;
         cy = reflectObject(selectedKeyframe, lx, cy, null);
     }
 
@@ -324,8 +326,8 @@ public class LeftPanelArea extends UIComponent {
     }
 
     private static String displayTristate(String label, boolean hasValue, boolean value) {
-        if (!hasValue) return label + ": \u2014";
-        return value ? label + ": \u2713" : label + ": \u2717";
+        if (!hasValue) return label + ": " + I18n.get("editor.enum.tristate.null");
+        return value ? label + ": " + I18n.get("editor.enum.tristate.true") : label + ": " + I18n.get("editor.enum.tristate.false");
     }
 
     private int reflectClipEnum(String key, int lx, int cy, int depth, JsonObject parentObj) {
@@ -333,7 +335,9 @@ public class LeftPanelArea extends UIComponent {
         int iw = w - 12 - depth * 10;
         String label = formatKey(key);
         String current = parentObj.has(key) ? parentObj.get(key).getAsString() : cycleClipEnum(key, "");
-        UIButton btn = new UIButton(ix, cy, iw, 16, label + ": " + current, b -> {
+        String enumTKey = "editor.enum." + key + "." + current;
+        String displayVal = I18n.exists(enumTKey) ? I18n.get(enumTKey) : current;
+        UIButton btn = new UIButton(ix, cy, iw, 16, label + ": " + displayVal, b -> {
             String next = cycleClipEnum(key, current);
             parentObj.addProperty(key, next);
             if ("position_mode".equals(key)) {
@@ -451,6 +455,8 @@ public class LeftPanelArea extends UIComponent {
     }
 
     private static String formatKey(String key) {
+        String k = "editor.field." + key;
+        if (I18n.exists(k)) return I18n.get(k);
         return key.replace("_", " ");
     }
 

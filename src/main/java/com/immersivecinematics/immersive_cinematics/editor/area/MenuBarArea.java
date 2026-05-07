@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.editor.area;
 
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
+import net.minecraft.client.resources.language.I18n;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,7 +27,7 @@ public class MenuBarArea extends UIComponent {
         EditorLogger.areaRegister(EditorLogger.MENU, "full_area", x, y, w, h);
         scriptName = "Untitled";
 
-        listBtn = new UIButton(x + 4, y + 2, 70, h - 4, "Scripts \u25BC", b -> {
+        listBtn = new UIButton(x + 4, y + 2, 70, h - 4, I18n.get("editor.menu.script_list"), b -> {
             if (onToggleList != null) onToggleList.run();
         });
         listBtn.color(0x00, 0x443A3A3A).textColor(0xFFAAAAAA);
@@ -34,12 +35,12 @@ public class MenuBarArea extends UIComponent {
         titleLabel = new UILabel(0, y + (h - 10) / 2, scriptName, 0xFFBBBBBB);
         titleLabel.centered(true).setBounds(x, y, w, h);
 
-        newBtn = new UIButton(x + w - 128, y + 2, 50, h - 4, "New", b -> {
+        newBtn = new UIButton(x + w - 128, y + 2, 50, h - 4, I18n.get("editor.menu.new"), b -> {
             if (onNewScript != null) onNewScript.run();
         });
         newBtn.color(0xFF333333, 0xFF444444).textColor(0xFFBBBBBB);
 
-        saveBtn = new UIButton(x + w - 72, y + 2, 50, h - 4, "Save", b -> {
+        saveBtn = new UIButton(x + w - 72, y + 2, 50, h - 4, I18n.get("editor.menu.save"), b -> {
             if (onSaveScript != null) onSaveScript.run();
         });
         saveBtn.color(0xFF333333, 0xFF444444).textColor(0xFFBBBBBB);

@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.renderer.GameRenderer;
 import java.util.ArrayList;
 import java.util.List;
@@ -104,7 +105,7 @@ public class PreviewArea extends UIComponent {
             pose.popPose();
             RenderSystem.setShaderTexture(0, 0);
         } else {
-            String msg = "No Preview";
+            String msg = I18n.get("editor.menu.no_preview");
             int tw = ctx.font.width(msg);
             ctx.graphics.drawString(ctx.font, msg, px + (previewW - tw) / 2, py + previewH / 2 - 4, 0xFF555555);
         }

@@ -8,6 +8,7 @@ import com.immersivecinematics.immersive_cinematics.editor.area.*;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.debug.RawInputLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -116,8 +117,8 @@ public class EditorScreen extends Screen {
             refreshScriptList();
             doc.reset();
 
-            menuBar.setAction("New script created");
-            menuBar.setStatus("Editing Script", 0xFFAAAAAA);
+            menuBar.setAction(I18n.get("editor.action.new_script"));
+            menuBar.setStatus(I18n.get("editor.status.editing"), 0xFFAAAAAA);
 
             // CAMERA track — first clip with default fields
             JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10);
@@ -194,8 +195,8 @@ public class EditorScreen extends Screen {
             doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
 
             if (clip != null) sel.selectClip(clip);
-            menuBar.setAction("New script created");
-            menuBar.setStatus("Editing Script", 0xFFAAAAAA);
+            menuBar.setAction(I18n.get("editor.action.new_script"));
+            menuBar.setStatus(I18n.get("editor.status.editing"), 0xFFAAAAAA);
         });
         menuBar.setOnSaveScript(() -> {
             EditorLogger.action(EditorLogger.SCREEN, "SAVE", "from menu");
@@ -314,23 +315,25 @@ public class EditorScreen extends Screen {
             EditorLogger.action(EditorLogger.PREVIEW, "PLAY", "btn");
             playback.play();
             output.play();
-            menuBar.setStatus("\u25B6 Playing", 0xFF44AA44);
-            menuBar.setAction("Playback started");
+            menuBar.setStatus(I18n.get("editor.status.playing"), 0xFF44AA44);
+            menuBar.setAction(I18n.get("editor.action.playback_started"));
+
         });
         preview.setOnPause(() -> {
             EditorLogger.action(EditorLogger.PREVIEW, "PAUSE", "btn");
             playback.pause();
             output.pause();
-            menuBar.setStatus("\u23F8 Paused", 0xFFBBBB44);
-            menuBar.setAction("Playback paused");
+            menuBar.setStatus(I18n.get("editor.status.paused"), 0xFFBBBB44);
+            menuBar.setAction(I18n.get("editor.action.playback_paused"));
+
         });
         preview.setOnStop(() -> {
             EditorLogger.action(EditorLogger.PREVIEW, "STOP", "btn");
             playback.stop();
             output.stop();
             syncPanels();
-            menuBar.setStatus("Editing Script", 0xFFAAAAAA);
-            menuBar.setAction("Playback stopped");
+            menuBar.setStatus(I18n.get("editor.status.editing"), 0xFFAAAAAA);
+            menuBar.setAction(I18n.get("editor.action.playback_stopped"));
         });
     }
 
@@ -376,8 +379,8 @@ public class EditorScreen extends Screen {
             doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
 
             if (clip != null) sel.selectClip(clip);
-            menuBar.setAction("New script created");
-            menuBar.setStatus("Editing Script", 0xFFAAAAAA);
+            menuBar.setAction(I18n.get("editor.action.new_script"));
+            menuBar.setStatus(I18n.get("editor.status.editing"), 0xFFAAAAAA);
         });
         leftPanel.setOnNameChanged(v -> {
             doc.getMeta().addProperty("name", v);
@@ -455,7 +458,7 @@ public class EditorScreen extends Screen {
             doc.clearDirty();
             refreshScriptList();
             output.pushScript(doc.toJson());
-            menuBar.setAction("Saved " + dest.getFileName());
+            menuBar.setAction(I18n.get("editor.action.saved", dest.getFileName().toString()));
             EditorLogger.action(EditorLogger.SCREEN, "SAVE_SCRIPT", "path=" + savedPath + " success=true");
         } catch (IOException e) {
             EditorLogger.action(EditorLogger.SCREEN, "SAVE_SCRIPT", "path=" + scriptFilePath + " success=false error=" + e.getMessage());
@@ -480,8 +483,8 @@ public class EditorScreen extends Screen {
             sel.clear();
             leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);
             syncPanels();
-            menuBar.setAction("Opened " + fileName);
-            menuBar.setStatus("Editing Script", 0xFFAAAAAA);
+            menuBar.setAction(I18n.get("editor.action.opened", fileName));
+            menuBar.setStatus(I18n.get("editor.status.editing"), 0xFFAAAAAA);
             EditorLogger.action(EditorLogger.SCREEN, "OPEN_SCRIPT", "file=" + fileName + " success=true");
         } catch (IOException e) {
             EditorLogger.action(EditorLogger.SCREEN, "OPEN_SCRIPT", "file=" + fileName + " success=false error=" + e.getMessage());
