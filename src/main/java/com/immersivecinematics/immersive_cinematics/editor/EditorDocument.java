@@ -66,6 +66,7 @@ public class EditorDocument {
         timeline.add("tracks", tracks);
         root.add("timeline", timeline);
 
+        fileName = "untitled";
         dirty = false;
     }
 

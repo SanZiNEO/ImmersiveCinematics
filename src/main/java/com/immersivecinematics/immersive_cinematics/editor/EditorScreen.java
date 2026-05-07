@@ -105,7 +105,11 @@ public class EditorScreen extends Screen {
         wirePreview();
         wireLeftPanel();
 
-        leftPanel.setDirtyCallback(doc::markDirty);
+        leftPanel.setDirtyCallback(() -> {
+            doc.markDirty();
+            doc.setFileName(doc.getMeta().get("id").getAsString());
+            menuBar.setScriptName(doc.getFileName());
+        });
 
         if (firstInit) {
             firstInit = false;
@@ -469,7 +473,8 @@ public class EditorScreen extends Screen {
 
             String json = Files.readString(dst);
             doc.loadFromJson(json);
-            doc.setFileName(fileName.replace(".json", ""));
+            String loadedId = doc.getMeta().has("id") ? doc.getMeta().get("id").getAsString() : "";
+            doc.setFileName(loadedId.isEmpty() ? fileName.replace(".json", "") : loadedId);
             scriptFilePath = src.toString();
             playback.setTime(0);
             sel.clear();
