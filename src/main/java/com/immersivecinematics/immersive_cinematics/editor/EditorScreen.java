@@ -605,6 +605,7 @@ public class EditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        leftPanel.clearTextFocus();
         UIContext ctx = makeCtx(mx, my, button);
         int imx = (int) mx, imy = (int) my;
         mouseDownX = imx; mouseDownY = imy;
@@ -683,10 +684,13 @@ public class EditorScreen extends Screen {
                     "mods=" + modifiers + " shift=" + hasShiftDown() + " ctrl=" + hasControlDown());
             if (keyCode == 256) { EditorLogger.action(EditorLogger.SCREEN, "CLOSE", "ESC"); onClose(); return true; }
             if (keyCode == 66) { EditorLogger.action(EditorLogger.SCREEN, "CLOSE", "B"); onClose(); return true; }
-            UITextInput focused = leftPanel.getFocusedInput();
-            if (focused != null && focused.keyPressed(keyCode, scanCode, modifiers)) { return true; }
-            if (sel.getKeyframe() != null) { handleKeyframeKey(keyCode); return true; }
-            if (sel.getClip() != null) { handleClipKey(keyCode); return true; }
+            UIComponent focused = leftPanel.getFocusedInput();
+            if (focused != null) {
+                if (focused instanceof UITextInput ti && ti.keyPressed(keyCode, scanCode, modifiers)) return true;
+                if (focused instanceof UIFloatInput fi && fi.keyPressed(keyCode, scanCode, modifiers)) return true;
+            }
+            if (sel.getKeyframe() != null && handleKeyframeKey(keyCode)) { return true; }
+            if (sel.getClip() != null && handleClipKey(keyCode)) { return true; }
             if (keyCode == 83 && hasControlDown()) {
                 EditorLogger.action(EditorLogger.SCREEN, "SAVE", "Ctrl+S");
                 saveScript();
@@ -701,11 +705,16 @@ public class EditorScreen extends Screen {
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
         try {
-            UITextInput focused = leftPanel.getFocusedInput();
-            if (focused != null) {
+            UIComponent focused = leftPanel.getFocusedInput();
+            if (focused instanceof UITextInput ti) {
                 EditorLogger.keyPress(EditorLogger.SCREEN, "charTyped", (int) codePoint,
                         "char=" + (codePoint > 32 ? String.valueOf(codePoint) : "CTRL"));
-                focused.charTyped(codePoint); return true;
+                ti.charTyped(codePoint); return true;
+            }
+            if (focused instanceof UIFloatInput fi) {
+                EditorLogger.keyPress(EditorLogger.SCREEN, "charTyped", (int) codePoint,
+                        "char=" + (codePoint > 32 ? String.valueOf(codePoint) : "CTRL"));
+                fi.charTyped(codePoint); return true;
             }
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "charTyped crashed codePoint=" + (int) codePoint, e);
@@ -713,7 +722,7 @@ public class EditorScreen extends Screen {
         return false;
     }
 
-    private void handleKeyframeKey(int keyCode) {
+    private boolean handleKeyframeKey(int keyCode) {
         try {
             JsonObject kf = sel.getKeyframe();
             float step = hasShiftDown() ? 5 : 0.5f;
@@ -722,23 +731,26 @@ public class EditorScreen extends Screen {
             else if (keyCode == 264) { addTo(kf, "yaw", -step); dir = "yaw-"; }
             else if (keyCode == 263) { addTo(kf, "time", -step); dir = "time-"; }
             else if (keyCode == 262) { addTo(kf, "time", step); dir = "time+"; }
-            else return;
+            else return false;
             EditorLogger.action(EditorLogger.SCREEN, "KEYFRAME_NUDGE", dir + " step=" + step);
             doc.markDirty();
+            return true;
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "handleKeyframeKey crashed", e);
+            return false;
         }
     }
 
-    private void handleClipKey(int keyCode) {
+    private boolean handleClipKey(int keyCode) {
         try {
             JsonObject clip = sel.getClip();
             float step = hasShiftDown() ? 1 : 0.1f;
-            if (keyCode == 263) { EditorOperations.moveClip(clip, EditorOperations.getStart(clip) - step, 0); EditorLogger.action(EditorLogger.SCREEN, "CLIP_NUDGE", "left step=" + step); doc.markDirty(); }
-            else if (keyCode == 262) { EditorOperations.moveClip(clip, EditorOperations.getStart(clip) + step, 0); EditorLogger.action(EditorLogger.SCREEN, "CLIP_NUDGE", "right step=" + step); doc.markDirty(); }
+            if (keyCode == 263) { EditorOperations.moveClip(clip, EditorOperations.getStart(clip) - step, 0); EditorLogger.action(EditorLogger.SCREEN, "CLIP_NUDGE", "left step=" + step); doc.markDirty(); return true; }
+            else if (keyCode == 262) { EditorOperations.moveClip(clip, EditorOperations.getStart(clip) + step, 0); EditorLogger.action(EditorLogger.SCREEN, "CLIP_NUDGE", "right step=" + step); doc.markDirty(); return true; }
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "handleClipKey crashed", e);
         }
+        return false;
     }
 
     private static void addTo(JsonObject obj, String key, float delta) {

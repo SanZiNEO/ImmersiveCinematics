@@ -482,11 +482,34 @@ public class LeftPanelArea extends UIComponent {
         return cy + 18;
     }
 
-    public UITextInput getFocusedInput() {
-        for (UIComponent c : children) {
-            if (c instanceof UITextInput ti && ti.isFocused()) return ti;
+    public UIComponent getFocusedInput() {
+        return findFocusedInput(children);
+    }
+
+    private static UIComponent findFocusedInput(List<UIComponent> list) {
+        for (UIComponent c : list) {
+            if (c instanceof UITextInput ti && ti.isFocused()) return c;
+            if (c instanceof UIFloatInput fi && fi.isFocused()) return c;
+            List<UIComponent> sub = c.getChildren();
+            if (sub != null) {
+                UIComponent found = findFocusedInput(sub);
+                if (found != null) return found;
+            }
         }
         return null;
+    }
+
+    public void clearTextFocus() {
+        clearTextFocus(children);
+    }
+
+    private static void clearTextFocus(List<UIComponent> list) {
+        for (UIComponent c : list) {
+            if (c instanceof UITextInput ti) ti.clearFocus();
+            if (c instanceof UIFloatInput fi) fi.clearFocus();
+            List<UIComponent> sub = c.getChildren();
+            if (sub != null) clearTextFocus(sub);
+        }
     }
 
     @Override
