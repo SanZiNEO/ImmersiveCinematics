@@ -192,8 +192,7 @@ public class LeftPanelArea extends UIComponent {
             maxScroll = 0;
             return;
         }
-        maxScroll = Math.min(contentHeight - h, (int)(h * 0.4f));
-        maxScroll = Math.max(0, maxScroll);
+        maxScroll = Math.max(0, contentHeight - h);
         scrollY = Math.max(0, Math.min(scrollY, maxScroll));
     }
 
