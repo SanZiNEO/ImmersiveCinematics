@@ -35,12 +35,17 @@ public class EditorDocument {
         meta.addProperty("name", "Untitled");
         meta.addProperty("author", "Author");
         meta.addProperty("version", 3);
+        meta.addProperty("description", "");
         meta.addProperty("block_keyboard", true);
         meta.addProperty("block_mouse", true);
+        meta.addProperty("block_mob_ai", false);
         meta.addProperty("hide_hud", true);
         meta.addProperty("hide_arm", true);
         meta.addProperty("suppress_bob", true);
+        meta.addProperty("render_player_model", true);
+        meta.addProperty("pause_when_game_paused", true);
         meta.addProperty("skippable", true);
+        meta.addProperty("hold_at_end", false);
         meta.addProperty("interruptible", true);
         root.add("meta", meta);
 

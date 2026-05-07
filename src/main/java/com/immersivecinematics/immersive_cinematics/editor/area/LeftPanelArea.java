@@ -108,6 +108,8 @@ public class LeftPanelArea extends UIComponent {
 
     private void buildScriptProperties() {
         if (script == null) return;
+        fillMetaDefaults(script);
+
         int cy = y + 6;
         int lx = x + 6;
 
@@ -123,7 +125,14 @@ public class LeftPanelArea extends UIComponent {
         cy = reflectObject(script, lx, cy, new String[]{"id", "name", "author", "version", "description", "dimension"});
         cy += 4;
         addSectionLabel("Runtime", lx, cy, 0); cy += 16;
-        cy = reflectObject(script, lx, cy, new String[]{"block_keyboard", "block_mouse", "hide_hud", "hide_arm", "suppress_bob", "skippable", "hold_at_end", "interruptible"});
+        cy = reflectObject(script, lx, cy, new String[]{
+            "block_keyboard", "block_mouse", "block_mob_ai",
+            "hide_hud", "hide_arm", "hide_chat", "hide_scoreboard",
+            "hide_action_bar", "hide_title", "hide_subtitles",
+            "hide_hotbar", "hide_crosshair",
+            "suppress_bob", "render_player_model",
+            "pause_when_game_paused", "skippable", "hold_at_end", "interruptible"
+        });
         cy += 4;
         addSectionLabel("Duration", lx, cy, 0); cy += 16;
         cy = reflectFloatField("total_duration", lx, cy, () -> script.has("total_duration") ? script.get("total_duration").getAsFloat() : 0, v -> { script.addProperty("total_duration", v); if (onDirty != null) onDirty.run(); });
@@ -131,6 +140,8 @@ public class LeftPanelArea extends UIComponent {
 
     private void buildClipProperties() {
         if (selectedClip == null) return;
+        fillClipDefaults(selectedClip);
+
         int cy = y + 6;
         int lx = x + 6;
 
@@ -143,6 +154,8 @@ public class LeftPanelArea extends UIComponent {
 
     private void buildKeyframeProperties() {
         if (selectedKeyframe == null) return;
+        fillKeyframeDefaults(selectedKeyframe);
+
         int cy = y + 6;
         int lx = x + 6;
 
@@ -179,6 +192,54 @@ public class LeftPanelArea extends UIComponent {
         return b;
     }
 
+    private static void addDefault(JsonObject obj, String key, Object val) {
+        if (!obj.has(key)) {
+            if (val instanceof Boolean b) obj.addProperty(key, b);
+            else if (val instanceof Integer i) obj.addProperty(key, i);
+            else if (val instanceof Float f) obj.addProperty(key, f);
+            else if (val instanceof Double d) obj.addProperty(key, d);
+            else if (val instanceof String s) obj.addProperty(key, s);
+            else if (val instanceof JsonObject jo) obj.add(key, jo.deepCopy());
+        }
+    }
+
+    private static void fillMetaDefaults(JsonObject meta) {
+        addDefault(meta, "description", "");
+        addDefault(meta, "block_mob_ai", false);
+        addDefault(meta, "render_player_model", true);
+        addDefault(meta, "pause_when_game_paused", true);
+    }
+
+    private static void fillClipDefaults(JsonObject clip) {
+        addDefault(clip, "transition", "cut");
+        addDefault(clip, "transition_duration", 0.5f);
+        addDefault(clip, "interpolation", "linear");
+        addDefault(clip, "position_mode", "relative");
+        addDefault(clip, "loop", false);
+        addDefault(clip, "loop_count", -1);
+    }
+
+    private static void fillKeyframeDefaults(JsonObject kf) {
+        addDefault(kf, "yaw", 0f);
+        addDefault(kf, "pitch", 0f);
+        addDefault(kf, "roll", 0f);
+        addDefault(kf, "fov", 70f);
+        addDefault(kf, "zoom", 1.0f);
+        addDefault(kf, "dof", 0f);
+        if (!kf.has("position")) {
+            JsonObject pos = new JsonObject();
+            pos.addProperty("dx", 0f);
+            pos.addProperty("dy", 0f);
+            pos.addProperty("dz", 0f);
+            kf.add("position", pos);
+        }
+    }
+
+    private static final Set<String> TRISTATE_KEYS = Set.of(
+        "hide_chat", "hide_scoreboard", "hide_action_bar",
+        "hide_title", "hide_subtitles", "hide_hotbar", "hide_crosshair"
+    );
+
     /** Auto-reflect a JsonObject's fields as editable widgets (entry point). */
     private int reflectObject(JsonObject obj, int lx, int cy, String[] orderedKeys) {
         return reflectObjectAll(obj, lx, cy, 0, orderedKeys, null);
@@ -188,7 +249,9 @@ public class LeftPanelArea extends UIComponent {
                                   String[] orderedKeys, String parentKey) {
         if (orderedKeys != null) {
             for (String key : orderedKeys) {
-                if (obj.has(key)) {
+                if (TRISTATE_KEYS.contains(key)) {
+                    cy = reflectTristate(key, lx, cy, depth, obj);
+                } else if (obj.has(key)) {
                     cy = reflectField(key, obj.get(key), lx, cy, depth, obj, parentKey);
                 }
             }
@@ -198,6 +261,41 @@ public class LeftPanelArea extends UIComponent {
             cy = reflectField(entry.getKey(), entry.getValue(), lx, cy, depth, obj, parentKey);
         }
         return cy;
+    }
+
+    private int reflectTristate(String key, int lx, int cy, int depth, JsonObject parentObj) {
+        int ix = lx + depth * 10;
+        int iw = w - 12 - depth * 10;
+        String label = formatKey(key);
+        boolean hasValue = parentObj.has(key) && !parentObj.get(key).isJsonNull();
+        boolean value = hasValue && parentObj.get(key).getAsBoolean();
+
+        UIButton btn = new UIButton(ix, cy, iw, 16, displayTristate(label, hasValue, value), b -> {
+            if (!parentObj.has(key) || parentObj.get(key).isJsonNull()) {
+                parentObj.addProperty(key, true);
+            } else if (parentObj.get(key).getAsBoolean()) {
+                parentObj.addProperty(key, false);
+            } else {
+                parentObj.remove(key);
+            }
+            if (onDirty != null) onDirty.run();
+            build();
+        });
+
+        if (!hasValue) {
+            btn.color(0x00, 0x443A3A3A).textColor(0xFF777777);
+        } else if (value) {
+            btn.color(0x00, 0x44224422).textColor(0xFF44AA44);
+        } else {
+            btn.color(0x00, 0x44442222).textColor(0xFFAA4444);
+        }
+        children.add(btn);
+        return cy + 18;
+    }
+
+    private static String displayTristate(String label, boolean hasValue, boolean value) {
+        if (!hasValue) return label + ": \u2014";
+        return value ? label + ": \u2713" : label + ": \u2717";
     }
 
     private int reflectField(String key, JsonElement val, int lx, int cy,
