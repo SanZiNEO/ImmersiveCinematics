@@ -112,6 +112,9 @@ public class EditorScreen extends Screen {
             refreshScriptList();
             doc.reset();
 
+            menuBar.setAction("New script created");
+            menuBar.setStatus("Editing Script", 0xFFAAAAAA);
+
             // CAMERA track — first clip with default fields
             JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10);
             if (clip != null) {
@@ -187,6 +190,8 @@ public class EditorScreen extends Screen {
             doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
 
             if (clip != null) sel.selectClip(clip);
+            menuBar.setAction("New script created");
+            menuBar.setStatus("Editing Script", 0xFFAAAAAA);
         });
         menuBar.setOnSaveScript(() -> {
             EditorLogger.action(EditorLogger.SCREEN, "SAVE", "from menu");
@@ -305,17 +310,23 @@ public class EditorScreen extends Screen {
             EditorLogger.action(EditorLogger.PREVIEW, "PLAY", "btn");
             playback.play();
             output.play();
+            menuBar.setStatus("\u25B6 Playing", 0xFF44AA44);
+            menuBar.setAction("Playback started");
         });
         preview.setOnPause(() -> {
             EditorLogger.action(EditorLogger.PREVIEW, "PAUSE", "btn");
             playback.pause();
             output.pause();
+            menuBar.setStatus("\u23F8 Paused", 0xFFBBBB44);
+            menuBar.setAction("Playback paused");
         });
         preview.setOnStop(() -> {
             EditorLogger.action(EditorLogger.PREVIEW, "STOP", "btn");
             playback.stop();
             output.stop();
             syncPanels();
+            menuBar.setStatus("Editing Script", 0xFFAAAAAA);
+            menuBar.setAction("Playback stopped");
         });
     }
 
@@ -361,6 +372,8 @@ public class EditorScreen extends Screen {
             doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
 
             if (clip != null) sel.selectClip(clip);
+            menuBar.setAction("New script created");
+            menuBar.setStatus("Editing Script", 0xFFAAAAAA);
         });
         leftPanel.setOnNameChanged(v -> {
             doc.getMeta().addProperty("name", v);
@@ -438,6 +451,7 @@ public class EditorScreen extends Screen {
             doc.clearDirty();
             refreshScriptList();
             output.pushScript(doc.toJson());
+            menuBar.setAction("Saved " + dest.getFileName());
             EditorLogger.action(EditorLogger.SCREEN, "SAVE_SCRIPT", "path=" + savedPath + " success=true");
         } catch (IOException e) {
             EditorLogger.action(EditorLogger.SCREEN, "SAVE_SCRIPT", "path=" + scriptFilePath + " success=false error=" + e.getMessage());
@@ -461,6 +475,8 @@ public class EditorScreen extends Screen {
             sel.clear();
             leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);
             syncPanels();
+            menuBar.setAction("Opened " + fileName);
+            menuBar.setStatus("Editing Script", 0xFFAAAAAA);
             EditorLogger.action(EditorLogger.SCREEN, "OPEN_SCRIPT", "file=" + fileName + " success=true");
         } catch (IOException e) {
             EditorLogger.action(EditorLogger.SCREEN, "OPEN_SCRIPT", "file=" + fileName + " success=false error=" + e.getMessage());

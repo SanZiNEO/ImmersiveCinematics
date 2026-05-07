@@ -13,6 +13,10 @@ public class MenuBarArea extends UIComponent {
     private final List<UIComponent> children = new ArrayList<>();
 
     private String scriptName;
+    private String statusText = "Ready";
+    private int statusColor = 0xFF888888;
+    private String actionText;
+    private long actionTime;
     private Runnable onNewScript;
     private Runnable onSaveScript;
     private Runnable onToggleList;
@@ -51,6 +55,16 @@ public class MenuBarArea extends UIComponent {
         titleLabel.setText(name);
     }
 
+    public void setStatus(String text, int color) {
+        statusText = text;
+        statusColor = color;
+    }
+
+    public void setAction(String text) {
+        actionText = text;
+        actionTime = System.currentTimeMillis();
+    }
+
     public void setOnNewScript(Runnable r) { onNewScript = r; }
     public void setOnSaveScript(Runnable r) { onSaveScript = r; }
     public void setOnToggleList(Runnable r) { onToggleList = r; }
@@ -62,6 +76,21 @@ public class MenuBarArea extends UIComponent {
         ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
         for (UIComponent c : children) {
             c.render(ctx);
+        }
+
+        long now = System.currentTimeMillis();
+        boolean showAction = actionText != null && now - actionTime < 5000;
+
+        if (showAction) {
+            int tw = ctx.font.width(actionText);
+            int right = x + w - 205;
+            ctx.graphics.drawString(ctx.font, actionText, right - tw, y + (h - 10) / 2, 0xFF888888);
+        }
+
+        if (statusText != null) {
+            int tw = ctx.font.width(statusText);
+            int right = showAction ? x + w - 140 : x + w - 205;
+            ctx.graphics.drawString(ctx.font, statusText, Math.max(x + 80, right - tw), y + (h - 10) / 2, statusColor);
         }
     }
 
