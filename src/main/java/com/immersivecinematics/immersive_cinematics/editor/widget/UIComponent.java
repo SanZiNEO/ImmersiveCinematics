@@ -84,7 +84,7 @@ public abstract class UIComponent {
         return false;
     }
 
-    protected List<UIComponent> getChildren() {
+    public List<UIComponent> getChildren() {
         return null;
     }
 

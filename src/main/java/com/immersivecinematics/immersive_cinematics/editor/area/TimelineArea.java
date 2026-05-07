@@ -453,7 +453,7 @@ public class TimelineArea extends UIComponent {
     }
 
     @Override
-    protected List<UIComponent> getChildren() { return children; }
+    public List<UIComponent> getChildren() { return children; }
 
     private static String fmt(float s) {
         int m = (int)(s / 60);

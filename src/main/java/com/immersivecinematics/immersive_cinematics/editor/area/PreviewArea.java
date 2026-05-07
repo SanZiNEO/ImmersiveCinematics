@@ -91,7 +91,7 @@ public class PreviewArea extends UIComponent {
     }
 
     @Override
-    protected List<UIComponent> getChildren() {
+    public List<UIComponent> getChildren() {
         return children;
     }
 }

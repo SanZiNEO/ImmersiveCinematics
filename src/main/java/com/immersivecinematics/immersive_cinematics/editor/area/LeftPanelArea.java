@@ -22,6 +22,12 @@ public class LeftPanelArea extends UIComponent {
     private JsonObject selectedKeyframe;
     private boolean dataDirty = true;
 
+    private int scrollY;
+    private int maxScroll;
+    private int contentHeight;
+    private boolean scrollbarGrabbed;
+    private int scrollbarGrabOffset;
+
     private Consumer<String> onOpenScript;
     private Consumer<String> onDeleteScript;
     private Runnable onNewScript;
@@ -76,6 +82,7 @@ public class LeftPanelArea extends UIComponent {
             case CLIP_PROPERTIES -> buildClipProperties();
             case KEYFRAME_PROPERTIES -> buildKeyframeProperties();
         }
+        computeContentHeightAndClampScroll();
     }
 
     private void buildScriptList() {
@@ -84,7 +91,7 @@ public class LeftPanelArea extends UIComponent {
         cy += 16;
 
         for (String name : scriptFileNames) {
-            UIButton itemBtn = new UIButton(x + 4, cy, w - 8, 18, name, b -> {
+            UIButton itemBtn = new UIButton(x + 4, cy, w - 12, 18, name, b -> {
                 if (onOpenScript != null) onOpenScript.accept(name);
             });
             itemBtn.color(0x00, 0x443A3A3A).textColor(0xFFAAAAAA);
@@ -92,7 +99,7 @@ public class LeftPanelArea extends UIComponent {
             cy += 20;
         }
 
-        UIButton newBtn = new UIButton(x + 4, cy, w - 8, 20, "+ New Script", b -> {
+        UIButton newBtn = new UIButton(x + 4, cy, w - 12, 20, "+ New Script", b -> {
             if (onNewScript != null) onNewScript.run();
         });
         newBtn.color(0xFF333333, 0xFF444444).textColor(0xFFAAAAAA);
@@ -104,6 +111,14 @@ public class LeftPanelArea extends UIComponent {
         int cy = y + 6;
         int lx = x + 6;
 
+        addSectionLabel("Triggers", lx, cy, 0); cy += 12;
+        JsonArray triggers = script.has("triggers") ? script.getAsJsonArray("triggers") : new JsonArray();
+        if (!script.has("triggers")) script.add("triggers", triggers);
+        int tpHeight = Math.min(Math.max(0, (y + h) - cy), 160);
+        TriggerPanel tp = new TriggerPanel(lx, cy, w - 12, tpHeight, triggers, onDirty);
+        children.add(tp);
+        cy += tp.h + 6;
+
         addSectionLabel("Script Info", lx, cy, 0); cy += 16;
         cy = reflectObject(script, lx, cy, new String[]{"id", "name", "author", "version", "description", "dimension"});
         cy += 4;
@@ -112,12 +127,6 @@ public class LeftPanelArea extends UIComponent {
         cy += 4;
         addSectionLabel("Duration", lx, cy, 0); cy += 16;
         cy = reflectFloatField("total_duration", lx, cy, () -> script.has("total_duration") ? script.get("total_duration").getAsFloat() : 0, v -> { script.addProperty("total_duration", v); if (onDirty != null) onDirty.run(); });
-        cy += 6;
-        addSectionLabel("Triggers", lx, cy, 0); cy += 12;
-        JsonArray triggers = script.has("triggers") ? script.getAsJsonArray("triggers") : new JsonArray();
-        if (!script.has("triggers")) script.add("triggers", triggers);
-        TriggerPanel tp = new TriggerPanel(lx, cy, w - 12, Math.max(0, (y + h) - cy), triggers, onDirty);
-        children.add(tp);
     }
 
     private void buildClipProperties() {
@@ -139,6 +148,35 @@ public class LeftPanelArea extends UIComponent {
 
         addSectionLabel("Keyframe Properties", lx, cy, 0); cy += 16;
         cy = reflectObject(selectedKeyframe, lx, cy, null);
+    }
+
+    private void computeContentHeightAndClampScroll() {
+        int bottom = y;
+        for (UIComponent c : children) {
+            bottom = Math.max(bottom, getComponentBottom(c));
+        }
+        contentHeight = Math.max(0, bottom - y);
+
+        boolean shouldScroll = contentHeight > h * 0.8f;
+        if (!shouldScroll) {
+            scrollY = 0;
+            maxScroll = 0;
+            return;
+        }
+        maxScroll = Math.min(contentHeight - h, (int)(h * 0.4f));
+        maxScroll = Math.max(0, maxScroll);
+        scrollY = Math.max(0, Math.min(scrollY, maxScroll));
+    }
+
+    private static int getComponentBottom(UIComponent comp) {
+        int b = comp.y + comp.h;
+        List<UIComponent> sub = comp.getChildren();
+        if (sub != null) {
+            for (UIComponent s : sub) {
+                b = Math.max(b, getComponentBottom(s));
+            }
+        }
+        return b;
     }
 
     /** Auto-reflect a JsonObject's fields as editable widgets (entry point). */
@@ -183,7 +221,6 @@ public class LeftPanelArea extends UIComponent {
                     cy += 12;
                     cy = reflectObjectAll(el.getAsJsonObject(), lx, cy, depth + 2, null, key);
                 }
-                // primitive array elements skipped (not used in our data model)
             }
             return cy;
         }
@@ -307,16 +344,57 @@ public class LeftPanelArea extends UIComponent {
     public void render(UIContext ctx) {
         ctx.graphics.fill(x, y, x + w, y + h, 0xFF1A1A1A);
         ctx.graphics.fill(x + w - 1, y, x + w, y + h, 0xFF2A2A2A);
-        ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
+
+        ctx.graphics.enableScissor(x, y, x + w, y + h);
+        var pose = ctx.graphics.pose();
+        pose.pushPose();
+        pose.translate(0, -scrollY, 0);
         for (UIComponent c : children) {
             c.render(ctx);
         }
+        pose.popPose();
+        ctx.graphics.disableScissor();
+
+        if (maxScroll > 0) {
+            int sbX = x + w - 4;
+            int sbH = h;
+            ctx.graphics.fill(sbX, y, sbX + 4, y + sbH, 0xFF222222);
+            float thumbRatio = (float)h / contentHeight;
+            int thumbH = Math.max(8, (int)(sbH * thumbRatio));
+            int thumbY = y + (int)((float)scrollY / maxScroll * (sbH - thumbH));
+            ctx.graphics.fill(sbX, thumbY, sbX + 4, thumbY + thumbH, 0xFF777777);
+            ctx.graphics.renderOutline(sbX, thumbY, 4, thumbH, 0xFF555555);
+        }
+
+        ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
     }
 
     @Override
     public boolean mouseClicked(UIContext ctx) {
+        if (!ctx.isMouseIn(x, y, w, h)) return false;
+
+        if (maxScroll > 0) {
+            int sbX = x + w - 4;
+            if (ctx.mouseX >= sbX) {
+                float thumbRatio = (float)h / contentHeight;
+                int thumbH = Math.max(8, (int)(h * thumbRatio));
+                int thumbY = y + (int)((float)scrollY / maxScroll * (h - thumbH));
+                if (ctx.mouseY >= thumbY && ctx.mouseY < thumbY + thumbH) {
+                    scrollbarGrabbed = true;
+                    scrollbarGrabOffset = ctx.mouseY - thumbY;
+                } else {
+                    scrollY = (int)((float)(ctx.mouseY - y) / h * maxScroll);
+                    clampScrollY();
+                }
+                return true;
+            }
+        }
+
         EditorLogger.areaHit(EditorLogger.LEFT, "full_area", ctx.mouseX, ctx.mouseY, true);
         EditorLogger.areaHit(EditorLogger.LEFT, "mode_" + mode.name(), ctx.mouseX, ctx.mouseY, true);
+
+        int origY = ctx.mouseY;
+        ctx.mouseY += scrollY;
         for (int i = children.size() - 1; i >= 0; i--) {
             UIComponent c = children.get(i);
             if (c.isHovered(ctx)) {
@@ -326,13 +404,63 @@ public class LeftPanelArea extends UIComponent {
                     EditorLogger.action(EditorLogger.LEFT, "TOGGLE_CLICK", "label=" + mode + " value=" + !tgl.isOn());
                 }
             }
-            if (c.mouseClicked(ctx)) return true;
+            if (c.mouseClicked(ctx)) { ctx.mouseY = origY; return true; }
         }
+        ctx.mouseY = origY;
         return false;
     }
 
     @Override
-    protected List<UIComponent> getChildren() {
+    public boolean mouseDragged(UIContext ctx) {
+        if (scrollbarGrabbed && maxScroll > 0) {
+            float thumbRatio = (float)h / contentHeight;
+            int thumbH = Math.max(8, (int)(h * thumbRatio));
+            int trackSpace = h - thumbH;
+            if (trackSpace > 0) {
+                scrollY = (int)((float)(ctx.mouseY - y - scrollbarGrabOffset) / trackSpace * maxScroll);
+                clampScrollY();
+            }
+            return true;
+        }
+        int origY = ctx.mouseY;
+        ctx.mouseY += scrollY;
+        boolean result = false;
+        List<UIComponent> ch = getChildren();
+        if (ch != null) {
+            for (int i = ch.size() - 1; i >= 0; i--) {
+                if (ch.get(i).mouseDragged(ctx)) { result = true; break; }
+            }
+        }
+        ctx.mouseY = origY;
+        return result;
+    }
+
+    @Override
+    public boolean mouseReleased(UIContext ctx) {
+        scrollbarGrabbed = false;
+        return super.mouseReleased(ctx);
+    }
+
+    @Override
+    public boolean mouseScrolled(UIContext ctx, double scroll) {
+        if (!visible || !ctx.isMouseIn(x, y, w, h)) return false;
+        if (maxScroll > 0) {
+            scrollY -= (int)(scroll * 20);
+            clampScrollY();
+            return true;
+        }
+        for (int i = children.size() - 1; i >= 0; i--) {
+            if (children.get(i).mouseScrolled(ctx, scroll)) return true;
+        }
+        return false;
+    }
+
+    private void clampScrollY() {
+        scrollY = Math.max(0, Math.min(scrollY, maxScroll));
+    }
+
+    @Override
+    public List<UIComponent> getChildren() {
         return children;
     }
 }

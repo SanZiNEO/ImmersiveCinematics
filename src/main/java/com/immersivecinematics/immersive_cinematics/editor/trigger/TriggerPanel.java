@@ -161,7 +161,7 @@ public class TriggerPanel extends UIComponent {
     }
 
     @Override
-    protected List<UIComponent> getChildren() { return widgets; }
+    public List<UIComponent> getChildren() { return widgets; }
 
     @Override
     public void render(UIContext ctx) {
