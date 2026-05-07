@@ -10,7 +10,9 @@ import com.immersivecinematics.immersive_cinematics.editor.debug.RawInputLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.opengl.GL11;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -551,12 +553,16 @@ public class EditorScreen extends Screen {
 
         renderPhase = "overlays";
         try {
+            RenderSystem.depthFunc(GL11.GL_ALWAYS);
             menuBar.renderOverlay(ctx);
             leftPanel.renderOverlay(ctx);
             preview.renderOverlay(ctx);
             timeline.renderOverlay(ctx);
+            RenderSystem.depthFunc(GL11.GL_LEQUAL);
         } catch (Exception e) {
-            EditorLogger.error(EditorLogger.SCREEN, "RENDER_CRASH phase=overlays " + cycleStr, e); return;
+            EditorLogger.error(EditorLogger.SCREEN, "RENDER_CRASH phase=overlays " + cycleStr, e);
+            RenderSystem.depthFunc(GL11.GL_LEQUAL);
+            return;
         }
 
         renderPhase = "done";
