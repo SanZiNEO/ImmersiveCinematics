@@ -1,7 +1,11 @@
 package com.immersivecinematics.immersive_cinematics.editor.area;
 
+import com.immersivecinematics.immersive_cinematics.editor.PreviewCapture;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.*;
+import net.minecraft.client.renderer.GameRenderer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -66,7 +70,40 @@ public class PreviewArea extends UIComponent {
 
         ctx.graphics.fill(px, py, px + previewW, py + previewH, 0xFF0F0F0F);
         ctx.graphics.renderOutline(px, py, previewW, previewH, 0xFF3A3A3A);
-        if (fboTextureId < 0) {
+
+        int texId = PreviewCapture.getTextureId();
+        if (texId >= 0) {
+            int capW = PreviewCapture.getWidth();
+            int capH = PreviewCapture.getHeight();
+            float srcAspect = (float) capW / capH;
+            float dstAspect = (float) previewW / previewH;
+            int rx, ry, rw, rh;
+            if (srcAspect > dstAspect) {
+                rw = previewW;
+                rh = (int) (previewW / srcAspect);
+                rx = px;
+                ry = py + (previewH - rh) / 2;
+            } else {
+                rh = previewH;
+                rw = (int) (previewH * srcAspect);
+                rx = px + (previewW - rw) / 2;
+                ry = py;
+            }
+
+            RenderSystem.setShaderTexture(0, texId);
+            RenderSystem.setShader(GameRenderer::getPositionTexShader);
+            var pose = ctx.graphics.pose();
+            pose.pushPose();
+            var builder = new BufferBuilder(256);
+            builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+            builder.vertex(rx, ry + rh, 0).uv(0, 0).endVertex();
+            builder.vertex(rx + rw, ry + rh, 0).uv(1, 0).endVertex();
+            builder.vertex(rx + rw, ry, 0).uv(1, 1).endVertex();
+            builder.vertex(rx, ry, 0).uv(0, 1).endVertex();
+            BufferUploader.drawWithShader(builder.end());
+            pose.popPose();
+            RenderSystem.setShaderTexture(0, 0);
+        } else {
             String msg = "No Preview";
             int tw = ctx.font.width(msg);
             ctx.graphics.drawString(ctx.font, msg, px + (previewW - tw) / 2, py + previewH / 2 - 4, 0xFF555555);
