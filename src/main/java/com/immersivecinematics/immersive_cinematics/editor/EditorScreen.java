@@ -518,6 +518,7 @@ public class EditorScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        PreviewCapture.capture(minecraft);
         renderCycle++;
         String cycleStr = "cycle=" + renderCycle;
         EditorLogger.outRaw(EditorLogger.SCREEN, "LOOP", "RENDER_START " + cycleStr);
@@ -762,6 +763,7 @@ public class EditorScreen extends Screen {
         CinematicKeyBindings.notifyEditorClosed();
         playback.stop();
         output.stop();
+        PreviewCapture.destroy();
         RawInputLogger.disable();
         EditorLogger.close();
         if (minecraft != null) minecraft.setScreen(null);
