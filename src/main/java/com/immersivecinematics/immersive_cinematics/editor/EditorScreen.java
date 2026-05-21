@@ -394,10 +394,6 @@ public class EditorScreen extends Screen {
             doc.getMeta().addProperty("description", v);
             doc.markDirty();
         });
-        leftPanel.setOnDurationChanged(v -> {
-            doc.setTotalDuration(v);
-            doc.markDirty();
-        });
         leftPanel.setOnBehaviorFlag(s -> {
             String[] parts = s.split("=");
             if (parts.length == 2) {

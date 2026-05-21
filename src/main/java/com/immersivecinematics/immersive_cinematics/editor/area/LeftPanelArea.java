@@ -36,7 +36,6 @@ public class LeftPanelArea extends UIComponent {
     private Consumer<String> onNameChanged;
     private Consumer<String> onAuthorChanged;
     private Consumer<String> onDescChanged;
-    private Consumer<Float> onDurationChanged;
     private Consumer<String> onBehaviorFlag;
     private Runnable onDirty;
 
@@ -72,8 +71,8 @@ public class LeftPanelArea extends UIComponent {
     public void setOnNameChanged(Consumer<String> r) { onNameChanged = r; }
     public void setOnAuthorChanged(Consumer<String> r) { onAuthorChanged = r; }
     public void setOnDescChanged(Consumer<String> r) { onDescChanged = r; }
-    public void setOnDurationChanged(Consumer<Float> r) { onDurationChanged = r; }
     public void setOnBehaviorFlag(Consumer<String> r) { onBehaviorFlag = r; }
+
 
     public void build() {
         EditorLogger.action(EditorLogger.LEFT, "BUILD", "mode=" + mode);
@@ -137,7 +136,7 @@ public class LeftPanelArea extends UIComponent {
         });
         cy += 4;
         addSectionLabel(I18n.get("editor.section.duration"), lx, cy, 0); cy += 16;
-        cy = reflectFloatField("total_duration", lx, cy, () -> script.has("total_duration") ? script.get("total_duration").getAsFloat() : 0, v -> { script.addProperty("total_duration", v); if (onDirty != null) onDirty.run(); });
+        addSectionLabel(I18n.get("editor.field.total_duration") + ": " + fmtDuration(script.has("total_duration") ? script.get("total_duration").getAsFloat() : 0), lx, cy, 0); cy += 14;
     }
 
     private void buildClipProperties() {
@@ -452,6 +451,12 @@ public class LeftPanelArea extends UIComponent {
     private int reflectFloatField(String label, int lx, int cy, java.util.function.Supplier<Float> src, Consumer<Float> sink) {
         addFloatField(label, src, lx, cy, 0, 9999, 1, sink);
         return cy + 18;
+    }
+
+    private static String fmtDuration(float s) {
+        int m = (int)(s / 60);
+        int sec = (int)(s % 60);
+        return String.format("%d:%02d (%.1fs)", m, sec, s);
     }
 
     private static String formatKey(String key) {
