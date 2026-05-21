@@ -413,11 +413,15 @@ public class EditorScreen extends Screen {
         doc.setTotalDuration(dur);
 
         menuBar.setScriptName(doc.getFileName());
+        String trackType = findSelectedTrackType();
         leftPanel.setData(doc.getMeta(), sel.getClip(), sel.getKeyframe());
+        leftPanel.setTotalDuration(dur);
+        leftPanel.setSelectedTrackType(trackType);
 
         float time = playback.getTime();
-        timeline.setData(doc.getTimeline(), sel.getClip(), sel.getKeyframe(),
-                EditorOperations.canAddKeyframeAt(sel.getClip(), time));
+        boolean canAddKf = "CAMERA".equals(trackType)
+                && EditorOperations.canAddKeyframeAt(sel.getClip(), time);
+        timeline.setData(doc.getTimeline(), sel.getClip(), sel.getKeyframe(), canAddKf);
         timeline.setPlayheadTime(time);
         preview.setCurrentTime(time);
 
@@ -766,6 +770,20 @@ public class EditorScreen extends Screen {
         RawInputLogger.disable();
         EditorLogger.close();
         if (minecraft != null) minecraft.setScreen(null);
+    }
+
+    private String findSelectedTrackType() {
+        JsonObject clip = sel.getClip();
+        if (clip == null) return "CAMERA";
+        for (JsonElement te : doc.getTracks()) {
+            for (JsonElement ce : te.getAsJsonObject().getAsJsonArray("clips")) {
+                if (ce.getAsJsonObject() == clip) {
+                    String t = te.getAsJsonObject().get("type").getAsString();
+                    return t == null ? "CAMERA" : t.toUpperCase();
+                }
+            }
+        }
+        return "CAMERA";
     }
 
     @Override public boolean isPauseScreen() { return false; }
