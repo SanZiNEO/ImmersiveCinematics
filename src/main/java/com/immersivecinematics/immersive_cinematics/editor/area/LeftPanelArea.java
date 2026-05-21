@@ -22,6 +22,8 @@ public class LeftPanelArea extends UIComponent {
     private List<String> scriptFileNames = new ArrayList<>();
     private JsonObject selectedClip;
     private JsonObject selectedKeyframe;
+    private float totalDuration;
+    private String selectedTrackType = "CAMERA";
     private boolean dataDirty = true;
 
     private int scrollY;
@@ -64,6 +66,9 @@ public class LeftPanelArea extends UIComponent {
         this.selectedKeyframe = kf;
         this.dataDirty = true;
     }
+
+    public void setTotalDuration(float d) { totalDuration = d; }
+    public void setSelectedTrackType(String t) { selectedTrackType = t; }
     public void setScriptFileNames(List<String> names) { scriptFileNames = names; }
     public void setOnOpenScript(Consumer<String> r) { onOpenScript = r; }
     public void setOnDeleteScript(Consumer<String> r) { onDeleteScript = r; }
@@ -136,12 +141,12 @@ public class LeftPanelArea extends UIComponent {
         });
         cy += 4;
         addSectionLabel(I18n.get("editor.section.duration"), lx, cy, 0); cy += 16;
-        addSectionLabel(I18n.get("editor.field.total_duration") + ": " + fmtDuration(script.has("total_duration") ? script.get("total_duration").getAsFloat() : 0), lx, cy, 0); cy += 14;
+        addSectionLabel(I18n.get("editor.field.total_duration") + ": " + fmtDuration(totalDuration), lx, cy, 0); cy += 14;
     }
 
     private void buildClipProperties() {
         if (selectedClip == null) return;
-        fillClipDefaults(selectedClip);
+        fillClipDefaults(selectedClip, selectedTrackType);
 
         int cy = y + 6;
         int lx = x + 6;
@@ -226,13 +231,38 @@ public class LeftPanelArea extends UIComponent {
         addDefault(meta, "pause_when_game_paused", true);
     }
 
-    private static void fillClipDefaults(JsonObject clip) {
-        addDefault(clip, "transition", "cut");
-        addDefault(clip, "transition_duration", 0.5f);
-        addDefault(clip, "interpolation", "linear");
-        addDefault(clip, "position_mode", "relative");
-        addDefault(clip, "loop", false);
-        addDefault(clip, "loop_count", -1);
+    private static void fillClipDefaults(JsonObject clip, String trackType) {
+        if (trackType == null) trackType = "CAMERA";
+        switch (trackType.toUpperCase()) {
+            case "CAMERA" -> {
+                addDefault(clip, "transition", "cut");
+                addDefault(clip, "transition_duration", 0.5f);
+                addDefault(clip, "interpolation", "linear");
+                addDefault(clip, "position_mode", "relative");
+                addDefault(clip, "loop", false);
+                addDefault(clip, "loop_count", -1);
+            }
+            case "LETTERBOX" -> {
+                addDefault(clip, "enabled", true);
+                addDefault(clip, "aspect_ratio", 2.35f);
+                addDefault(clip, "fade_in", 0.5f);
+                addDefault(clip, "fade_out", 0.5f);
+            }
+            case "AUDIO" -> {
+                addDefault(clip, "sound", "");
+                addDefault(clip, "volume", 1.0f);
+                addDefault(clip, "pitch", 1.0f);
+                addDefault(clip, "loop", false);
+                addDefault(clip, "fade_in", 0.0f);
+                addDefault(clip, "fade_out", 0.0f);
+            }
+            case "EVENT" -> {
+                addDefault(clip, "event_type", "command");
+            }
+            case "MOD_EVENT" -> {
+                addDefault(clip, "event_type", "");
+            }
+        }
     }
 
     private static void fillKeyframeDefaults(JsonObject kf) {

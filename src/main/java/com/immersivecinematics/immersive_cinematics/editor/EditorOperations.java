@@ -51,10 +51,7 @@ public class EditorOperations {
 
     public static JsonObject addDefaultKeyframe(JsonObject clip) {
         JsonArray kfs = keyframes(clip);
-        if (kfs == null) {
-            kfs = new JsonArray();
-            clip.add("keyframes", kfs);
-        }
+        if (kfs == null) return null;
         JsonObject kf = new JsonObject();
         kf.addProperty("time", 0f);
         kfs.add(kf);
@@ -65,10 +62,7 @@ public class EditorOperations {
         float localTime = globalTime - getStart(clip);
         if (localTime < 0 || localTime > getDuration(clip)) return null;
         JsonArray kfs = keyframes(clip);
-        if (kfs == null) {
-            kfs = new JsonArray();
-            clip.add("keyframes", kfs);
-        }
+        if (kfs == null) return null;
         JsonObject kf = new JsonObject();
         kf.addProperty("time", localTime);
         kfs.add(kf);
@@ -104,9 +98,11 @@ public class EditorOperations {
             float newDur = oldEnd - ns;
             clip.addProperty("start_time", ns);
             clip.addProperty("duration", newDur);
-            moveEndBoundaryKeyframe(clip, oldDur, newDur);
-            clampKeyframes(clip);
-            ensureBoundaryKeyframes(clip);
+            if (keyframes(clip) != null) {
+                moveEndBoundaryKeyframe(clip, oldDur, newDur);
+                clampKeyframes(clip);
+                ensureBoundaryKeyframes(clip);
+            }
         }
     }
 
@@ -115,9 +111,11 @@ public class EditorOperations {
         float oldDur = getDuration(clip);
         float newDur = ne - getStart(clip);
         clip.addProperty("duration", newDur);
-        moveEndBoundaryKeyframe(clip, oldDur, newDur);
-        clampKeyframes(clip);
-        ensureBoundaryKeyframes(clip);
+        if (keyframes(clip) != null) {
+            moveEndBoundaryKeyframe(clip, oldDur, newDur);
+            clampKeyframes(clip);
+            ensureBoundaryKeyframes(clip);
+        }
     }
 
     public static void moveKeyframe(JsonObject clip, JsonObject kf, float newLocalTime, float snapInterval) {
@@ -137,13 +135,9 @@ public class EditorOperations {
     }
 
     public static void ensureBoundaryKeyframes(JsonObject clip) {
-        float dur = getDuration(clip);
         JsonArray kfs = keyframes(clip);
-        if (kfs == null) {
-            kfs = new JsonArray();
-            clip.add("keyframes", kfs);
-        }
-
+        if (kfs == null) return;
+        float dur = getDuration(clip);
         boolean hasStart = false, hasEnd = false;
         for (JsonElement ke : kfs) {
             float t = ke.getAsJsonObject().get("time").getAsFloat();
