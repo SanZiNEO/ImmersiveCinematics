@@ -18,10 +18,17 @@ public class PreviewCapture {
         if (fboId == -1 || w != prevW || h != prevH) {
             initFbo(w, h);
         }
+
         GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, main.frameBufferId);
         GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, fboId);
         GL30.glBlitFramebuffer(0, 0, w, h, 0, 0, w, h,
                 GL11.GL_COLOR_BUFFER_BIT, GL11.GL_NEAREST);
+
+        GL11.glColorMask(false, false, false, true);
+        GL11.glClearColor(0f, 0f, 0f, 1f);
+        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT);
+        GL11.glColorMask(true, true, true, true);
+
         GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, main.frameBufferId);
     }
 
@@ -41,6 +48,8 @@ public class PreviewCapture {
         GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, fboId);
         GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0,
                 GL11.GL_TEXTURE_2D, texId, 0);
+        GL11.glClearColor(0f, 0f, 0f, 1f);
+        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT);
         GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, 0);
 
         prevW = w;
