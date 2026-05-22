@@ -78,6 +78,9 @@ public class CinematicController {
     public boolean isBlockKeyboard() { return blockKeyboard; }
     public boolean isBlockMouse() { return blockMouse; }
 
+    public void setBlockKeyboard(boolean v) { this.blockKeyboard = v; }
+    public void setBlockMouse(boolean v) { this.blockMouse = v; }
+
     /** 释放所有按键状态（键盘+鼠标），在脚本启动/结束时调用 */
     public void releaseAllKeys() {
         KeyMapping.releaseAll();

@@ -254,6 +254,14 @@ public class ScriptPlayer {
         }
     }
 
+    /**
+     * Align the internal clock so that the script elapsed time matches a desired value.
+     * Called by CameraManager when the script is reloaded during preview.
+     */
+    public void alignTime(float desiredElapsedSeconds, double currentGameTimeSeconds) {
+        this.startGameTimeSeconds = currentGameTimeSeconds - desiredElapsedSeconds;
+    }
+
     // ========== 内部方法 ==========
 
     private float getElapsedSeconds() {

@@ -170,6 +170,14 @@ public class CameraManager {
     public void pushScript(String jsonContent) {
         try {
             previewScript = com.immersivecinematics.immersive_cinematics.script.ScriptParser.parse(jsonContent);
+            if (previewMode && previewScript != null) {
+                if (!active) {
+                    startScriptInternal(previewScript);
+                } else {
+                    scriptPlayer.start(previewScript);
+                }
+                scriptPlayer.alignTime(previewTime, previewTime);
+            }
         } catch (com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException e) {
             LOGGER.error("编辑器传入的脚本 JSON 解析失败", e);
         }
@@ -182,6 +190,8 @@ public class CameraManager {
         if (!active && previewScript != null) {
             startScriptInternal(previewScript);
         }
+        // Align so that elapsed = previewTime when onRenderFrame sets gameTimeSeconds = previewTime
+        scriptPlayer.alignTime(previewTime, previewTime);
     }
 
     public void resume() {
@@ -219,7 +229,12 @@ public class CameraManager {
         stopping = false;
 
         scriptPlayer.start(script);
-        CinematicController.INSTANCE.apply(scriptPlayer.getCurrentProperties());
+        if (previewMode) {
+            CinematicController.INSTANCE.setBlockKeyboard(false);
+            CinematicController.INSTANCE.setBlockMouse(false);
+        } else {
+            CinematicController.INSTANCE.apply(scriptPlayer.getCurrentProperties());
+        }
     }
 
     // ========== 预置状态写入（staged）— 仅供编辑器预览 ==========

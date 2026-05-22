@@ -425,6 +425,7 @@ public class EditorScreen extends Screen {
         timeline.setPlayheadTime(time);
         preview.setCurrentTime(time);
 
+        output.markDirty(doc.toJson(), time);
         EditorLogger.sync(EditorLogger.SCREEN, "panels",
                 "playbackTime=" + String.format("%.3f", time)
                         + " dirty=" + doc.isDirty()
@@ -541,6 +542,7 @@ public class EditorScreen extends Screen {
 
         renderPhase = "playback";
         try {
+            output.tick();
             if (playback.tick(doc.getTotalDuration())) {
                 float t = playback.getTime();
                 timeline.setPlayheadTime(t);
