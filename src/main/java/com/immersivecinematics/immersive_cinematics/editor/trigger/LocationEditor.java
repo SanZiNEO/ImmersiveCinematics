@@ -2,16 +2,20 @@ package com.immersivecinematics.immersive_cinematics.editor.trigger;
 
 import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
+import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.registries.Registries;
 
 public class LocationEditor extends TriggerEditor {
     private static final List<String> SUB_MODES = List.of("point+radius", "box");
 
     @Override
     public int build(List<UIComponent> widgets, int x, int y, int w, Runnable onDirty) {
-        UITextInput dim = new UITextInput(x, y, w, 16, "dimension",
+        UIAutoCompleteInput dim = new UIAutoCompleteInput(x, y, w, 16, "dimension",
             () -> conditions.has("dimension") ? conditions.get("dimension").getAsString() : "",
-            v -> { conditions.addProperty("dimension", v); onDirty.run(); });
+            v -> { conditions.addProperty("dimension", v); onDirty.run(); },
+            getDimensionCandidates());
         widgets.add(dim);
         y += 18;
 
@@ -75,5 +79,20 @@ public class LocationEditor extends TriggerEditor {
             y += 18;
         }
         return y;
+    }
+
+    private static List<String> getDimensionCandidates() {
+        try {
+            var level = Minecraft.getInstance().level;
+            if (level == null) return List.of();
+            var reg = level.registryAccess().registry(Registries.DIMENSION).orElse(null);
+            if (reg == null) return List.of();
+            List<String> list = new ArrayList<>();
+            for (var key : reg.keySet()) list.add(key.toString());
+            java.util.Collections.sort(list);
+            return list;
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 }

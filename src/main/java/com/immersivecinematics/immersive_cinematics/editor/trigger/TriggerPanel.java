@@ -13,6 +13,9 @@ public class TriggerPanel extends UIComponent {
     private int selectedIndex = -1;
     private TriggerEditor editor;
     private Runnable onDirty;
+    private Runnable onTriggerChanged;
+
+    public void setOnTriggerChanged(Runnable r) { onTriggerChanged = r; }
 
     private static final List<String> TYPE_LIST = List.of(
         "login", "location", "advancement", "biome", "entity_kill",
@@ -95,8 +98,9 @@ public class TriggerPanel extends UIComponent {
                 () -> 0, this::selectTrigger);
             sel.setHighlightIndex(-1);
             sel.setOnRightClick(this::deleteTrigger);
-            sel.setMaxListHeight(h - 16);
+            sel.setMaxListHeight(150);
             widgets.add(sel);
+            this.h = 22;
             return;
         }
 
@@ -132,6 +136,13 @@ public class TriggerPanel extends UIComponent {
             editor.build(widgets, lx, cy, w, onDirty != null ? onDirty : () -> {});
         }
 
+        // Compute content-only height for dropdown maxListHeight before creating them.
+        int contentBottom = y;
+        for (UIComponent wc : widgets) {
+            contentBottom = Math.max(contentBottom, wc.y + wc.h);
+        }
+        int effectiveH = Math.max(1, contentBottom - y + 4 + 16 + 16);
+
         // Dropdowns last (higher z-order – rendered/mouse-tested on top)
         int curTypeIdx = TYPE_LIST.indexOf(trigger.get("type").getAsString());
         int typeIdx = curTypeIdx < 0 ? 0 : curTypeIdx;
@@ -149,22 +160,43 @@ public class TriggerPanel extends UIComponent {
                 editor.setConditions(newCond);
                 if (onDirty != null) onDirty.run();
                 rebuild();
+                if (onTriggerChanged != null) onTriggerChanged.run();
             });
         typeDD.setHighlightIndex(typeIdx);
-        typeDD.setMaxListHeight(Math.max(0, h - 34));
+        typeDD.setMaxListHeight(Math.max(0, effectiveH - 34));
         widgets.add(typeDD);
 
         UIDropdown sel = new UIDropdown(lx, y, w, 16, triggerOptions(),
             () -> Math.min(selectedIndex, triggers.size()),
-            this::selectTrigger);
+            i -> { selectTrigger(i); if (onTriggerChanged != null) onTriggerChanged.run(); });
         sel.setHighlightIndex(selectedIndex);
-        sel.setOnRightClick(this::deleteTrigger);
-        sel.setMaxListHeight(Math.max(0, h - 16));
+        sel.setOnRightClick(i -> { deleteTrigger(i); if (onTriggerChanged != null) onTriggerChanged.run(); });
+        sel.setMaxListHeight(Math.max(0, effectiveH - 16));
         widgets.add(sel);
+
+        // Re-calculate final height including dropdown widgets.
+        int maxBottom = y;
+        for (UIComponent wc : widgets) {
+            maxBottom = Math.max(maxBottom, wc.y + wc.h);
+        }
+        this.h = Math.max(1, maxBottom - y + 4);
     }
 
     @Override
     public List<UIComponent> getChildren() { return widgets; }
+
+    @Override
+    public boolean mouseClicked(UIContext ctx) {
+        if (!visible) return false;
+        // Handle auto-complete suggestion popup clicks first (before reverse-iterating children,
+        // since popups may overlap with lower widgets that would otherwise intercept).
+        for (UIComponent w : widgets) {
+            if (w instanceof UIAutoCompleteInput ai && ai.isShowingSuggestions() && ai.isInSuggestionArea(ctx)) {
+                if (ai.mouseClicked(ctx)) return true;
+            }
+        }
+        return super.mouseClicked(ctx);
+    }
 
     @Override
     public void render(UIContext ctx) {

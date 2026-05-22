@@ -4,12 +4,14 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
+import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 public class EntityKillEditor extends TriggerEditor {
     @Override
     public int build(List<UIComponent> widgets, int x, int y, int w, Runnable onDirty) {
-        UITextInput ti = new UITextInput(x, y, w, 16, "entity",
+        UIAutoCompleteInput ti = new UIAutoCompleteInput(x, y, w, 16, "entity",
             () -> {
                 if (!conditions.has("entity")) return "";
                 JsonElement e = conditions.get("entity");
@@ -32,7 +34,8 @@ public class EntityKillEditor extends TriggerEditor {
                     conditions.addProperty("entity", v);
                 }
                 onDirty.run();
-            });
+            },
+            getEntityCandidates());
         widgets.add(ti);
         y += 18;
 
@@ -42,5 +45,13 @@ public class EntityKillEditor extends TriggerEditor {
             i -> { conditions.addProperty("mode", modes.get(i)); onDirty.run(); });
         widgets.add(dd);
         return y + 18;
+    }
+
+    private static List<String> getEntityCandidates() {
+        List<String> list = new ArrayList<>();
+        for (var key : BuiltInRegistries.ENTITY_TYPE.keySet())
+            list.add(key.toString());
+        java.util.Collections.sort(list);
+        return list;
     }
 }

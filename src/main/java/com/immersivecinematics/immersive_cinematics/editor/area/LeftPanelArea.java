@@ -122,8 +122,8 @@ public class LeftPanelArea extends UIComponent {
         addSectionLabel(I18n.get("editor.section.triggers"), lx, cy, 0); cy += 12;
         JsonArray triggers = script.has("triggers") ? script.getAsJsonArray("triggers") : new JsonArray();
         if (!script.has("triggers")) script.add("triggers", triggers);
-        int tpHeight = Math.min(Math.max(0, (y + h) - cy), 160);
-        TriggerPanel tp = new TriggerPanel(lx, cy, w - 12, tpHeight, triggers, onDirty);
+        TriggerPanel tp = new TriggerPanel(lx, cy, w - 12, 1, triggers, onDirty);
+        tp.setOnTriggerChanged(() -> { build(); });
         children.add(tp);
         cy += tp.h + 6;
 
@@ -531,6 +531,7 @@ public class LeftPanelArea extends UIComponent {
         for (UIComponent c : list) {
             if (c instanceof UITextInput ti && ti.isFocused()) return c;
             if (c instanceof UIFloatInput fi && fi.isFocused()) return c;
+            if (c instanceof UIAutoCompleteInput ai && ai.isFocused()) return c;
             List<UIComponent> sub = c.getChildren();
             if (sub != null) {
                 UIComponent found = findFocusedInput(sub);
@@ -548,6 +549,7 @@ public class LeftPanelArea extends UIComponent {
         for (UIComponent c : list) {
             if (c instanceof UITextInput ti) ti.clearFocus();
             if (c instanceof UIFloatInput fi) fi.clearFocus();
+            if (c instanceof UIAutoCompleteInput ai) ai.clearFocus();
             List<UIComponent> sub = c.getChildren();
             if (sub != null) clearTextFocus(sub);
         }
@@ -580,6 +582,17 @@ public class LeftPanelArea extends UIComponent {
         }
 
         ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
+    }
+
+    @Override
+    public void renderOverlay(UIContext ctx) {
+        var pose = ctx.graphics.pose();
+        pose.pushPose();
+        pose.translate(0, -scrollY, 0);
+        for (UIComponent c : children) {
+            c.renderOverlay(ctx);
+        }
+        pose.popPose();
     }
 
     @Override
@@ -657,13 +670,13 @@ public class LeftPanelArea extends UIComponent {
     @Override
     public boolean mouseScrolled(UIContext ctx, double scroll) {
         if (!visible || !ctx.isMouseIn(x, y, w, h)) return false;
+        for (int i = children.size() - 1; i >= 0; i--) {
+            if (children.get(i).mouseScrolled(ctx, scroll)) return true;
+        }
         if (maxScroll > 0) {
             scrollY -= (int)(scroll * 20);
             clampScrollY();
             return true;
-        }
-        for (int i = children.size() - 1; i >= 0; i--) {
-            if (children.get(i).mouseScrolled(ctx, scroll)) return true;
         }
         return false;
     }

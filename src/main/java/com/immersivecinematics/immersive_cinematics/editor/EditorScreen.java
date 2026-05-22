@@ -697,6 +697,7 @@ public class EditorScreen extends Screen {
             if (focused != null) {
                 if (focused instanceof UITextInput ti && ti.keyPressed(keyCode, scanCode, modifiers)) return true;
                 if (focused instanceof UIFloatInput fi && fi.keyPressed(keyCode, scanCode, modifiers)) return true;
+                if (focused instanceof UIAutoCompleteInput ai && ai.keyPressed(keyCode, scanCode, modifiers)) return true;
             }
             if (sel.getKeyframe() != null && handleKeyframeKey(keyCode)) { return true; }
             if (sel.getClip() != null && handleClipKey(keyCode)) { return true; }
@@ -724,6 +725,11 @@ public class EditorScreen extends Screen {
                 EditorLogger.keyPress(EditorLogger.SCREEN, "charTyped", (int) codePoint,
                         "char=" + (codePoint > 32 ? String.valueOf(codePoint) : "CTRL"));
                 fi.charTyped(codePoint); return true;
+            }
+            if (focused instanceof UIAutoCompleteInput ai) {
+                EditorLogger.keyPress(EditorLogger.SCREEN, "charTyped", (int) codePoint,
+                        "char=" + (codePoint > 32 ? String.valueOf(codePoint) : "CTRL"));
+                ai.charTyped(codePoint); return true;
             }
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "charTyped crashed codePoint=" + (int) codePoint, e);
