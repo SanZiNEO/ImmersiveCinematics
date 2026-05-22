@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.editor;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.client.EditorBridgeImpl;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.immersivecinematics.immersive_cinematics.editor.area.*;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
@@ -208,7 +209,9 @@ public class EditorScreen extends Screen {
     private void wireTimeline() {
         timeline.setOnClickAtTime(t -> {
             EditorLogger.playhead(EditorLogger.SCREEN, t, 0, "ruler_click");
+            playback.pause();
             playback.setTime(t);
+            output.pause();
             output.setTime(t);
             syncPanels();
         });
@@ -330,7 +333,7 @@ public class EditorScreen extends Screen {
         preview.setOnStop(() -> {
             EditorLogger.action(EditorLogger.PREVIEW, "STOP", "btn");
             playback.stop();
-            output.stop();
+            output.setTime(0);
             syncPanels();
             menuBar.setStatus(I18n.get("editor.status.editing"), 0xFFAAAAAA);
             menuBar.setAction(I18n.get("editor.action.playback_stopped"));
@@ -767,7 +770,7 @@ public class EditorScreen extends Screen {
     public void onClose() {
         CinematicKeyBindings.notifyEditorClosed();
         playback.stop();
-        output.stop();
+        EditorBridgeImpl.INSTANCE.stop();
         PreviewCapture.destroy();
         RawInputLogger.disable();
         EditorLogger.close();
