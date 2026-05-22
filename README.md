@@ -66,12 +66,7 @@ ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server
 
 Use the built-in timeline editor to create and modify scripts visually without leaving the game.
 
-### Distribution
-
-| Build | Audience |
-|-------|----------|
-| **full** | Modpack makers / script authors (includes editor) |
-| **lite** | End users (playback runtime only) |
+A single build includes both playback runtime and the in-game editor. All users download the same jar.
 
 ---
 
