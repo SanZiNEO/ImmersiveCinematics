@@ -20,7 +20,7 @@
 
 ## [0.2.0] - 2026-04-16
 
-已发布的旧版本（架构骨架见 `oldcode/`）。基于 entity 实现相机，主要包结构：
+已发布的旧版本。基于 entity 实现相机，主要包结构：
 
 - **entity-based 相机**：`camera/` 使用 Minecraft Entity 实现，利用原生 tick/同步/插值
 - **导演编排**：`director/` 负责镜头序列编排
