@@ -72,7 +72,7 @@ A single build includes both playback runtime and the in-game editor. All users 
 
 ## Version
 
-**Current: 0.3.0**
+**Current: 0.3.1**
 
 | | Version |
 |---|---------|
@@ -84,8 +84,10 @@ A single build includes both playback runtime and the in-game editor. All users 
 
 ## What's Next
 
-- Audio playback synced to timeline
-- Cross-mod character animation sync
+**0.4.0**
+- Audio track: background music and sound effects synced to timeline, with fade-in/out and looping
+- Event track: execute in-game commands at any point on the timeline
+- Full multi-track timeline support: all track types visible and editable
 
 ---
 
