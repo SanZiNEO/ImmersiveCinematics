@@ -23,6 +23,8 @@ public class TriggerEngine {
 
     private final Map<UUID, List<DelayedFire>> delayedFires = new HashMap<>();
 
+    private final Map<UUID, Map<String, Boolean>> enterStates = new HashMap<>();
+
     private boolean initialized = false;
 
     private TriggerEngine() {}
@@ -64,6 +66,7 @@ public class TriggerEngine {
         eventIndex.clear();
         pollBuckets.clear();
         delayedFires.clear();
+        enterStates.clear();
     }
 
     // ===== Event-driven entry =====
@@ -81,6 +84,7 @@ public class TriggerEngine {
         for (TriggerRegistration reg : triggers) {
             if (shouldSkip(player, reg)) continue;
             if (reg.getType().evaluate(player, reg.getConditions())) {
+                if (reg.isOnEnter() && wasAlreadyInside(player, reg)) continue;
                 fireTrigger(player, reg);
             }
         }
@@ -116,9 +120,13 @@ public class TriggerEngine {
             for (TriggerRegistration reg : entry.getValue()) {
                 for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                     if (shouldSkip(player, reg)) continue;
-                    if (reg.getType().evaluate(player, reg.getConditions())) {
-                        fireTrigger(player, reg);
+                    if (reg.isOnEnter()) {
+                        boolean isInside = reg.getType().evaluate(player, reg.getConditions());
+                        if (!updateEnterState(player, reg, isInside)) continue;
+                    } else {
+                        if (!reg.getType().evaluate(player, reg.getConditions())) continue;
                     }
+                    fireTrigger(player, reg);
                 }
             }
         }
@@ -205,4 +213,22 @@ public class TriggerEngine {
     }
 
     private record DelayedFire(TriggerRegistration reg, int fireTick) {}
+
+    private boolean wasAlreadyInside(ServerPlayer player, TriggerRegistration reg) {
+        UUID uuid = player.getUUID();
+        String key = reg.getScriptId() + ":" + reg.getTriggerId();
+        Map<String, Boolean> playerStates = enterStates.computeIfAbsent(uuid, k -> new HashMap<>());
+        boolean wasInside = playerStates.getOrDefault(key, false);
+        playerStates.put(key, true);
+        return wasInside;
+    }
+
+    private boolean updateEnterState(ServerPlayer player, TriggerRegistration reg, boolean isInside) {
+        UUID uuid = player.getUUID();
+        String key = reg.getScriptId() + ":" + reg.getTriggerId();
+        Map<String, Boolean> playerStates = enterStates.computeIfAbsent(uuid, k -> new HashMap<>());
+        boolean wasInside = playerStates.getOrDefault(key, false);
+        playerStates.put(key, isInside);
+        return isInside && !wasInside;
+    }
 }

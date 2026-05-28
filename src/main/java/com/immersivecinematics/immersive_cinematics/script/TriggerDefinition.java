@@ -9,22 +9,29 @@ public class TriggerDefinition {
     private final Map<String, Object> conditions;
     private final boolean repeatable;
     private final float delay;
+    private final boolean onEnter;
 
     public TriggerDefinition(String type, Map<String, Object> conditions, boolean repeatable) {
-        this(type, conditions, repeatable, 0f);
+        this(type, conditions, repeatable, 0f, false);
     }
 
     public TriggerDefinition(String type, Map<String, Object> conditions, boolean repeatable, float delay) {
+        this(type, conditions, repeatable, delay, false);
+    }
+
+    public TriggerDefinition(String type, Map<String, Object> conditions, boolean repeatable, float delay, boolean onEnter) {
         this.type = type;
         this.conditions = conditions != null ? conditions : Collections.emptyMap();
         this.repeatable = repeatable;
         this.delay = delay;
+        this.onEnter = onEnter;
     }
 
     public String getType() { return type; }
     public Map<String, Object> getConditions() { return conditions; }
     public boolean isRepeatable() { return repeatable; }
     public float getDelay() { return delay; }
+    public boolean isOnEnter() { return onEnter; }
 
     @Override
     public String toString() {
