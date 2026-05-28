@@ -149,7 +149,8 @@ public class ScriptParser {
                         : new HashMap<>();
                 boolean repeatable = optBool(tObj, "repeatable", false);
                 float delay = optFloat(tObj, "delay", 0f);
-                triggers.add(new TriggerDefinition(type, conditions, repeatable, delay));
+                boolean onEnter = optBool(tObj, "on_enter", false);
+                triggers.add(new TriggerDefinition(type, conditions, repeatable, delay, onEnter));
             }
         }
 

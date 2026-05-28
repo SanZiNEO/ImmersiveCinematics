@@ -121,6 +121,12 @@ public class TriggerPanel extends UIComponent {
         widgets.add(repeatToggle);
         cy += 18;
 
+        UIToggle onEnterToggle = new UIToggle(lx, cy, w, 16, "on_enter",
+            () -> trigger.has("on_enter") && trigger.get("on_enter").getAsBoolean(),
+            v -> { trigger.addProperty("on_enter", v); if (onDirty != null) onDirty.run(); });
+        widgets.add(onEnterToggle);
+        cy += 18;
+
         UIFloatInput delayInput = new UIFloatInput(lx, cy, w, 16, "delay",
             () -> trigger.has("delay") ? trigger.get("delay").getAsFloat() : 0,
             0, 9999, 0.5f,

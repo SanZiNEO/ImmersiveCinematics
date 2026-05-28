@@ -128,7 +128,8 @@ public class ScriptManager {
                         triggerType, conditions,
                         List.of(new StartPlaybackAction(meta.getId())),
                         td.isRepeatable(),
-                        delayMs
+                        delayMs,
+                        td.isOnEnter()
                 ));
             }
         }

@@ -12,6 +12,7 @@
 ### Added
 - `/icinematics reload` 命令（op 2 级）：同步全局脚本到世界存档并重载，使编辑内容立即生效
 - `/icinematics play` 命令增加 Tab 自动补全
+- 触发器新增 `on_enter` 字段。在 `repeatable: true` 基础上设置 `on_enter: true`，位置/群系/结构等触发器只在进入时触发，已在区域内不重复
 
 ## [0.3.0] - 2026-05-22
 
