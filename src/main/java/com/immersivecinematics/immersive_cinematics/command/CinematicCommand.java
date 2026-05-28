@@ -9,8 +9,10 @@ import com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptPa
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
@@ -18,21 +20,48 @@ import net.minecraft.world.level.storage.LevelResource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class CinematicCommand {
 
     private static final LevelResource WORLD_SCRIPT_DIR = new LevelResource("immersive_cinematics/scripts");
     private static final String GLOBAL_SCRIPT_DIR = "immersive_cinematics/scripts";
 
+    private static final SuggestionProvider<CommandSourceStack> SCRIPT_SUGGESTIONS = (ctx, builder) -> {
+        MinecraftServer server = ctx.getSource().getServer();
+        Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
+        Path worldDir = server.getWorldPath(WORLD_SCRIPT_DIR);
+        if (Files.isDirectory(globalDir)) {
+            try (Stream<Path> files = Files.list(globalDir)) {
+                files.filter(p -> p.toString().endsWith(".json"))
+                        .map(p -> p.getFileName().toString().replace(".json", ""))
+                        .forEach(builder::suggest);
+            } catch (IOException ignored) {}
+        }
+        if (Files.isDirectory(worldDir)) {
+            try (Stream<Path> files = Files.list(worldDir)) {
+                files.filter(p -> p.toString().endsWith(".json"))
+                        .map(p -> p.getFileName().toString().replace(".json", ""))
+                        .forEach(builder::suggest);
+            } catch (IOException ignored) {}
+        }
+        return SharedSuggestionProvider.suggest(new String[0], builder);
+    };
+
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("icinematics")
                 .then(Commands.literal("play")
                         .then(Commands.argument("file", StringArgumentType.greedyString())
+                                .suggests(SCRIPT_SUGGESTIONS)
                                 .executes(CinematicCommand::playScript)))
                 .then(Commands.literal("stop")
                         .executes(CinematicCommand::stopScript))
                 .then(Commands.literal("status")
                         .executes(CinematicCommand::showStatus))
+                .then(Commands.literal("reload")
+                        .requires(s -> s.hasPermission(2))
+                        .executes(CinematicCommand::reloadScripts))
         );
     }
 
@@ -139,6 +168,39 @@ public class CinematicCommand {
             source.sendSuccess(() -> Component.literal("§e测试模式 §7(P键激活)"), false);
         }
 
+        return 1;
+    }
+
+    private static int reloadScripts(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        MinecraftServer server = source.getServer();
+        Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
+        Path worldDir = server.getWorldPath(WORLD_SCRIPT_DIR);
+
+        if (!Files.isDirectory(globalDir)) {
+            source.sendFailure(Component.literal("§c全局脚本目录不存在: " + globalDir));
+            return 0;
+        }
+
+        try {
+            Files.createDirectories(worldDir);
+            try (Stream<Path> files = Files.list(globalDir)) {
+                files.filter(p -> p.toString().endsWith(".json")).forEach(globalFile -> {
+                    Path target = worldDir.resolve(globalFile.getFileName());
+                    try {
+                        Files.copy(globalFile, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        source.sendSuccess(() -> Component.literal("§7 同步: " + globalFile.getFileName()), false);
+                    } catch (IOException e) {
+                        source.sendFailure(Component.literal("§c同步失败 " + globalFile.getFileName() + ": " + e.getMessage()));
+                    }
+                });
+            }
+            ScriptManager.INSTANCE.reload(server);
+            source.sendSuccess(() -> Component.literal("§a脚本重载完成，共 " + ScriptManager.INSTANCE.getAllScripts().size() + " 个脚本生效"), false);
+        } catch (IOException e) {
+            source.sendFailure(Component.literal("§c重载失败: " + e.getMessage()));
+            return 0;
+        }
         return 1;
     }
 

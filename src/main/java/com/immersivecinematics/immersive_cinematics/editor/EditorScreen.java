@@ -165,6 +165,7 @@ public class EditorScreen extends Screen {
     private void wireMenu() {
         menuBar.setOnNewScript(() -> {
             EditorLogger.action(EditorLogger.SCREEN, "NEW_SCRIPT", "from menu");
+            scriptFilePath = null;
             doc.reset();
 
             JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10);
@@ -351,6 +352,7 @@ public class EditorScreen extends Screen {
         });
         leftPanel.setOnNewScript(() -> {
             EditorLogger.action(EditorLogger.LEFT, "NEW_SCRIPT", "from left panel");
+            scriptFilePath = null;
             doc.reset();
 
             JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10);
