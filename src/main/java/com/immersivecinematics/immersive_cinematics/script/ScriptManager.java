@@ -7,6 +7,7 @@ import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegist
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
 import com.immersivecinematics.immersive_cinematics.trigger.server.action.StartPlaybackAction;
+import com.immersivecinematics.immersive_cinematics.trigger.server.evaluator.Evaluators;
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
@@ -123,13 +124,18 @@ public class ScriptManager {
                     convertToJson(conditions, entry.getKey(), entry.getValue());
                 }
                 int delayMs = (int)(td.getDelay() * 1000);
+                JsonObject exitConditions = td.isOnEnter() && td.getExitBuffer() > 0f
+                        ? Evaluators.expandConditions(conditions, td.getExitBuffer())
+                        : null;
                 registrations.add(new TriggerRegistration(
                         meta.getId(), td.getType() + "_" + meta.getId(),
                         triggerType, conditions,
                         List.of(new StartPlaybackAction(meta.getId())),
                         td.isRepeatable(),
                         delayMs,
-                        td.isOnEnter()
+                        td.isOnEnter(),
+                        td.getExitBuffer(),
+                        exitConditions
                 ));
             }
         }

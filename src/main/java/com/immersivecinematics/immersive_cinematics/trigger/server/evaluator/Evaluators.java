@@ -18,6 +18,28 @@ import java.util.UUID;
 
 public class Evaluators {
 
+    public static JsonObject expandConditions(JsonObject c, float buffer) {
+        if (c == null || buffer <= 0f) return null;
+        if (!c.has("corner1") || !c.has("corner2")) {
+            if (c.has("position") && c.has("radius")) {
+                JsonObject expanded = c.deepCopy();
+                expanded.addProperty("radius", c.get("radius").getAsFloat() + buffer);
+                return expanded;
+            }
+            return null;
+        }
+        JsonObject result = c.deepCopy();
+        JsonObject c1 = result.getAsJsonObject("corner1");
+        JsonObject c2 = result.getAsJsonObject("corner2");
+        if (c1.has("x")) c1.addProperty("x", c1.get("x").getAsDouble() - buffer);
+        if (c1.has("y")) c1.addProperty("y", c1.get("y").getAsDouble() - buffer);
+        if (c1.has("z")) c1.addProperty("z", c1.get("z").getAsDouble() - buffer);
+        if (c2.has("x")) c2.addProperty("x", c2.get("x").getAsDouble() + buffer);
+        if (c2.has("y")) c2.addProperty("y", c2.get("y").getAsDouble() + buffer);
+        if (c2.has("z")) c2.addProperty("z", c2.get("z").getAsDouble() + buffer);
+        return result;
+    }
+
     public static boolean evaluateLocation(ServerPlayer player, JsonObject c) {
         if (c.has("dimension")) {
             String targetDim = c.get("dimension").getAsString();
