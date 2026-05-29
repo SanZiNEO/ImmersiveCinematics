@@ -127,6 +127,13 @@ public class TriggerPanel extends UIComponent {
         widgets.add(onEnterToggle);
         cy += 18;
 
+        UIFloatInput exitBufferInput = new UIFloatInput(lx, cy, w, 16, "exit_buffer",
+            () -> trigger.has("exit_buffer") ? trigger.get("exit_buffer").getAsFloat() : 0,
+            0, 9999, 1f,
+            v -> { trigger.addProperty("exit_buffer", v); if (onDirty != null) onDirty.run(); });
+        widgets.add(exitBufferInput);
+        cy += 18;
+
         UIFloatInput delayInput = new UIFloatInput(lx, cy, w, 16, "delay",
             () -> trigger.has("delay") ? trigger.get("delay").getAsFloat() : 0,
             0, 9999, 0.5f,

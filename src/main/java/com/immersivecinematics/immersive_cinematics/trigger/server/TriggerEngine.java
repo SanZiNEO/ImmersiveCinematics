@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
+import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.trigger.server.store.TriggerStateStore;
 import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
@@ -84,7 +85,7 @@ public class TriggerEngine {
         for (TriggerRegistration reg : triggers) {
             if (shouldSkip(player, reg)) continue;
             if (reg.getType().evaluate(player, reg.getConditions())) {
-                if (reg.isOnEnter() && wasAlreadyInside(player, reg)) continue;
+                if (reg.isOnEnter() && !checkEnterState(player, reg)) continue;
                 fireTrigger(player, reg);
             }
         }
@@ -121,8 +122,7 @@ public class TriggerEngine {
                 for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                     if (shouldSkip(player, reg)) continue;
                     if (reg.isOnEnter()) {
-                        boolean isInside = reg.getType().evaluate(player, reg.getConditions());
-                        if (!updateEnterState(player, reg, isInside)) continue;
+                        if (!checkEnterState(player, reg)) continue;
                     } else {
                         if (!reg.getType().evaluate(player, reg.getConditions())) continue;
                     }
@@ -214,20 +214,28 @@ public class TriggerEngine {
 
     private record DelayedFire(TriggerRegistration reg, int fireTick) {}
 
-    private boolean wasAlreadyInside(ServerPlayer player, TriggerRegistration reg) {
+    private boolean checkEnterState(ServerPlayer player, TriggerRegistration reg) {
         UUID uuid = player.getUUID();
         String key = reg.getScriptId() + ":" + reg.getTriggerId();
         Map<String, Boolean> playerStates = enterStates.computeIfAbsent(uuid, k -> new HashMap<>());
         boolean wasInside = playerStates.getOrDefault(key, false);
-        playerStates.put(key, true);
-        return wasInside;
-    }
 
-    private boolean updateEnterState(ServerPlayer player, TriggerRegistration reg, boolean isInside) {
-        UUID uuid = player.getUUID();
-        String key = reg.getScriptId() + ":" + reg.getTriggerId();
-        Map<String, Boolean> playerStates = enterStates.computeIfAbsent(uuid, k -> new HashMap<>());
-        boolean wasInside = playerStates.getOrDefault(key, false);
+        JsonObject exitCond = reg.getExitConditions();
+        if (exitCond != null) {
+            boolean inExpanded = reg.getType().evaluate(player, exitCond);
+            boolean inOriginal = reg.getType().evaluate(player, reg.getConditions());
+
+            if (inOriginal) {
+                playerStates.put(key, true);
+                return !wasInside;
+            }
+            if (!inExpanded) {
+                playerStates.put(key, false);
+            }
+            return false;
+        }
+
+        boolean isInside = reg.getType().evaluate(player, reg.getConditions());
         playerStates.put(key, isInside);
         return isInside && !wasInside;
     }

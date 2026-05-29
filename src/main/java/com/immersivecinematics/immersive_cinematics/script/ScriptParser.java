@@ -150,7 +150,8 @@ public class ScriptParser {
                 boolean repeatable = optBool(tObj, "repeatable", false);
                 float delay = optFloat(tObj, "delay", 0f);
                 boolean onEnter = optBool(tObj, "on_enter", false);
-                triggers.add(new TriggerDefinition(type, conditions, repeatable, delay, onEnter));
+                float exitBuffer = optFloat(tObj, "exit_buffer", 0f);
+                triggers.add(new TriggerDefinition(type, conditions, repeatable, delay, onEnter, exitBuffer));
             }
         }
 
