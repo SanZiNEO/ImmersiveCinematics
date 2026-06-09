@@ -86,15 +86,11 @@ public class ImmersiveCinematics {
                 Evaluators::evaluateBiome, Set.of()));
         TriggerRegistry.register(new TriggerType("entity_kill", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateEntityKill, Set.of(LivingDeathEvent.class)));
-        TriggerRegistry.register(new TriggerType("interact", ListenStrategy.EVENT_DRIVEN, 0,
+        TriggerRegistry.register(new TriggerType("entity_interact", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateInteract, Set.of(
-                        PlayerInteractEvent.RightClickBlock.class,
-                        PlayerInteractEvent.LeftClickBlock.class,
                         PlayerInteractEvent.EntityInteract.class)));
         TriggerRegistry.register(new TriggerType("dimension_change", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateDimensionChange, Set.of(PlayerEvent.PlayerChangedDimensionEvent.class)));
-        TriggerRegistry.register(new TriggerType("dimension", ListenStrategy.EVENT_DRIVEN, 0,
-                Evaluators::evaluateDimension, Set.of(PlayerEvent.PlayerChangedDimensionEvent.class)));
         TriggerRegistry.register(new TriggerType("login", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateLogin, Set.of(PlayerEvent.PlayerLoggedInEvent.class)));
         TriggerRegistry.register(new TriggerType("inventory", ListenStrategy.POLLING, Config.triggerPollIntervalInventory,
@@ -103,8 +99,6 @@ public class ImmersiveCinematics {
                 Evaluators::evaluateItemCraft, Set.of(PlayerEvent.ItemCraftedEvent.class)));
         TriggerRegistry.register(new TriggerType("custom", ListenStrategy.EVENT_DRIVEN, 0,
                 Evaluators::evaluateCustom, Set.of()));
-        TriggerRegistry.register(new TriggerType("command", ListenStrategy.EVENT_DRIVEN, 0,
-                Evaluators::evaluateCommand, Set.of()));
         TriggerRegistry.register(new TriggerType("structure", ListenStrategy.POLLING, Config.triggerPollIntervalStructure,
                 Evaluators::evaluateStructure, Set.of()));
         TriggerRegistry.register(new TriggerType("gamestage", ListenStrategy.POLLING, Config.triggerPollIntervalGamestage,
