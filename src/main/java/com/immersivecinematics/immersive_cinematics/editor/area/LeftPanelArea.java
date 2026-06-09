@@ -7,6 +7,7 @@ import com.google.gson.JsonPrimitive;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.trigger.TriggerPanel;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
+import com.immersivecinematics.immersive_cinematics.editor.widget.IFocusable;
 import net.minecraft.client.resources.language.I18n;
 import java.util.*;
 import java.util.function.Consumer;
@@ -529,9 +530,7 @@ public class LeftPanelArea extends UIComponent {
 
     private static UIComponent findFocusedInput(List<UIComponent> list) {
         for (UIComponent c : list) {
-            if (c instanceof UITextInput ti && ti.isFocused()) return c;
-            if (c instanceof UIFloatInput fi && fi.isFocused()) return c;
-            if (c instanceof UIAutoCompleteInput ai && ai.isFocused()) return c;
+            if (c instanceof IFocusable f && f.isFocused()) return c;
             List<UIComponent> sub = c.getChildren();
             if (sub != null) {
                 UIComponent found = findFocusedInput(sub);
@@ -547,9 +546,7 @@ public class LeftPanelArea extends UIComponent {
 
     private static void clearTextFocus(List<UIComponent> list) {
         for (UIComponent c : list) {
-            if (c instanceof UITextInput ti) ti.clearFocus();
-            if (c instanceof UIFloatInput fi) fi.clearFocus();
-            if (c instanceof UIAutoCompleteInput ai) ai.clearFocus();
+            if (c instanceof IFocusable f) f.clearFocus();
             List<UIComponent> sub = c.getChildren();
             if (sub != null) clearTextFocus(sub);
         }

@@ -110,7 +110,18 @@ public class ImmersiveCinematics {
         TriggerRegistry.register(new TriggerType("gamestage", ListenStrategy.POLLING, Config.triggerPollIntervalGamestage,
                 Evaluators::evaluateGamestage, Set.of()));
         TriggerRegistry.register(new TriggerType("item_use", ListenStrategy.EVENT_DRIVEN, 0,
-                Evaluators::evaluateItemUse, Set.of(LivingEntityUseItemEvent.Finish.class)));
+                Evaluators::evaluateItemUse, Set.of(PlayerInteractEvent.RightClickItem.class)));
+        TriggerRegistry.register(new TriggerType("item_consume", ListenStrategy.EVENT_DRIVEN, 0,
+                Evaluators::evaluateItemConsume, Set.of(LivingEntityUseItemEvent.Finish.class)));
+        TriggerRegistry.register(new TriggerType("block_interact", ListenStrategy.EVENT_DRIVEN, 0,
+                Evaluators::evaluateBlockInteract, Set.of(
+                        PlayerInteractEvent.RightClickBlock.class,
+                        PlayerInteractEvent.LeftClickBlock.class)));
+        TriggerRegistry.register(new TriggerType("item_on_interact", ListenStrategy.EVENT_DRIVEN, 0,
+                Evaluators::evaluateItemOnInteract, Set.of(
+                        PlayerInteractEvent.RightClickBlock.class,
+                        PlayerInteractEvent.LeftClickBlock.class,
+                        PlayerInteractEvent.EntityInteract.class)));
     }
 
     // ===== Server-side Forge Event Handlers =====
@@ -179,6 +190,7 @@ public class ImmersiveCinematics {
         public static void onPlayerInteractBlock(PlayerInteractEvent.RightClickBlock event) {
             if (!(event.getEntity() instanceof ServerPlayer player)) return;
             Evaluators.InteractTracker.recordBlock(player.getUUID(), event.getLevel().getBlockState(event.getPos()));
+            Evaluators.InteractTracker.recordInteractionItem(player.getUUID(), player.getItemInHand(event.getHand()));
             TriggerEngine.INSTANCE.onGameEvent(event, player);
         }
 
@@ -186,6 +198,7 @@ public class ImmersiveCinematics {
         public static void onPlayerLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
             if (!(event.getEntity() instanceof ServerPlayer player)) return;
             Evaluators.InteractTracker.recordBlock(player.getUUID(), event.getLevel().getBlockState(event.getPos()));
+            Evaluators.InteractTracker.recordInteractionItem(player.getUUID(), player.getItemInHand(event.getHand()));
             TriggerEngine.INSTANCE.onGameEvent(event, player);
         }
 
@@ -193,6 +206,7 @@ public class ImmersiveCinematics {
         public static void onPlayerInteractEntity(PlayerInteractEvent.EntityInteract event) {
             if (!(event.getEntity() instanceof ServerPlayer player)) return;
             Evaluators.InteractTracker.recordEntity(player.getUUID(), event.getTarget().getType());
+            Evaluators.InteractTracker.recordInteractionItem(player.getUUID(), player.getItemInHand(event.getHand()));
             TriggerEngine.INSTANCE.onGameEvent(event, player);
         }
 
@@ -204,9 +218,16 @@ public class ImmersiveCinematics {
         }
 
         @SubscribeEvent
-        public static void onItemUsed(LivingEntityUseItemEvent.Finish event) {
+        public static void onItemUse(PlayerInteractEvent.RightClickItem event) {
             if (!(event.getEntity() instanceof ServerPlayer player)) return;
-            Evaluators.UseItemTracker.record(player, event.getItem());
+            Evaluators.UseItemTracker.recordUsed(player, event.getItemStack());
+            TriggerEngine.INSTANCE.onGameEvent(event, player);
+        }
+
+        @SubscribeEvent
+        public static void onItemConsumed(LivingEntityUseItemEvent.Finish event) {
+            if (!(event.getEntity() instanceof ServerPlayer player)) return;
+            Evaluators.UseItemTracker.recordConsumed(player, event.getItem());
             TriggerEngine.INSTANCE.onGameEvent(event, player);
         }
 

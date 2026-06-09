@@ -3,7 +3,7 @@ package com.immersivecinematics.immersive_cinematics.editor.widget;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class UIFloatInput extends UIComponent {
+public class UIFloatInput extends UIComponent implements IFocusable {
     private final String label;
     private final Supplier<Float> source;
     private final Consumer<Float> sink;

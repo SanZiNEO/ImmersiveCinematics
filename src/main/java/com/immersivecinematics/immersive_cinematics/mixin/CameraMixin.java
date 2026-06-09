@@ -70,38 +70,43 @@ public abstract class CameraMixin {
     private void onSetup(BlockGetter level, Entity entity, boolean detached,
                          boolean mirror, float partialTick, CallbackInfo ci) {
         CameraManager mgr = CameraManager.INSTANCE;
-        if (mgr.isActive()) {
-            // 🎬 先驱动帧回调：用实时时间精确计算当前帧的相机状态
-            mgr.onRenderFrame();
+        if (!mgr.isActive()) return;
 
-            // ⚠️ onRenderFrame() 可能触发 deactivateNow()（退场动画结束时），
-            // 导致 active 变为 false 且所有相机数据被 reset。
-            // 此时必须放弃自定义相机，让原版 setup 用玩家正常位置渲染，
-            // 否则会读到 reset 后的默认值 (0,0,0)，造成一帧白模闪烁。
-            if (!mgr.isActive()) {
-                return;  // 不 cancel，让原版 setup 正常执行
-            }
+        // 🎬 始终驱动帧回调（时钟推进、Letterbox、脚本检查），不依赖是否有 Camera clip
+        mgr.onRenderFrame();
 
-            // 手动设置原版 setup() 中的关键字段（因为 ci.cancel() 跳过了原版逻辑）
-            this.initialized = true;
-            this.level = level;
-            this.entity = entity;
-            this.detached = detached;
-
-            // 直接读取精确值（每帧已由 onRenderFrame 精确重算，不需要 partialTick 插值）
-            Vec3 pos = mgr.getPath().getPosition();
-            setPosition(pos.x, pos.y, pos.z);
-
-            float yaw = mgr.getProperties().getYaw();
-            float pitch = mgr.getProperties().getPitch();
-
-            setRotation(yaw, pitch);
-
-            // Roll 由 Forge 事件 ViewportEvent.ComputeCameraAngles 处理，
-            // 在 GameRenderer.renderLevel() 中通过 event.setRoll() 应用到 PoseStack
-
-            ci.cancel();  // 取消原版 setup，使用我们的位置/旋转
+        // ⚠️ onRenderFrame() 可能触发 deactivateNow()（退场动画结束时），
+        // 导致 active 变为 false 且所有相机数据被 reset。
+        // 此时必须放弃自定义相机，让原版 setup 用玩家正常位置渲染，
+        // 否则会读到 reset 后的默认值 (0,0,0)，造成一帧白模闪烁。
+        if (!mgr.isActive()) {
+            return;
         }
+
+        // 没有活跃的 Camera clip → 不覆盖相机，原版 setup 正常执行
+        if (!mgr.hasActiveCameraClip()) {
+            return;
+        }
+
+        // 手动设置原版 setup() 中的关键字段（因为 ci.cancel() 跳过了原版逻辑）
+        this.initialized = true;
+        this.level = level;
+        this.entity = entity;
+        this.detached = detached;
+
+        // 直接读取精确值（每帧已由 onRenderFrame 精确重算，不需要 partialTick 插值）
+        Vec3 pos = mgr.getPath().getPosition();
+        setPosition(pos.x, pos.y, pos.z);
+
+        float yaw = mgr.getProperties().getYaw();
+        float pitch = mgr.getProperties().getPitch();
+
+        setRotation(yaw, pitch);
+
+        // Roll 由 Forge 事件 ViewportEvent.ComputeCameraAngles 处理，
+        // 在 GameRenderer.renderLevel() 中通过 event.setRoll() 应用到 PoseStack
+
+        ci.cancel();  // 取消原版 setup，使用我们的位置/旋转
     }
 
     /**
@@ -114,7 +119,7 @@ public abstract class CameraMixin {
     @Inject(method = "getEntity", at = @At("HEAD"), cancellable = true)
     private void onGetEntity(CallbackInfoReturnable<Entity> cir) {
         CameraManager mgr = CameraManager.INSTANCE;
-        if (mgr.isActive()) {
+        if (mgr.isActive() && mgr.hasActiveCameraClip()) {
             cir.setReturnValue(Minecraft.getInstance().player);
         }
     }
@@ -132,7 +137,7 @@ public abstract class CameraMixin {
     @Inject(method = "isDetached", at = @At("HEAD"), cancellable = true)
     private void onIsDetached(CallbackInfoReturnable<Boolean> cir) {
         CameraManager mgr = CameraManager.INSTANCE;
-        if (mgr.isActive()) {
+        if (mgr.isActive() && mgr.hasActiveCameraClip()) {
             cir.setReturnValue(CinematicController.INSTANCE.isRenderPlayerModel());
         }
     }

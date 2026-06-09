@@ -20,7 +20,7 @@ public abstract class GameRendererMixin {
     private void onGetFov(Camera camera, float partialTick, boolean useFOVSetting,
                           CallbackInfoReturnable<Double> cir) {
         CameraManager mgr = CameraManager.INSTANCE;
-        if (mgr.isActive()) {
+        if (mgr.isActive() && mgr.hasActiveCameraClip()) {
             // 🎬 帧回调驱动模式：直接读取当前值，不需要 partialTick 插值
             float fov = mgr.getProperties().getFov();
             float zoom = mgr.getProperties().getZoom();
@@ -42,7 +42,7 @@ public abstract class GameRendererMixin {
      */
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void onRenderItemInHand(CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive() && CinematicController.INSTANCE.isHideArm()) {
+        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip() && CinematicController.INSTANCE.isHideArm()) {
             ci.cancel();
         }
     }
@@ -56,14 +56,14 @@ public abstract class GameRendererMixin {
      */
     @Inject(method = "bobHurt", at = @At("HEAD"), cancellable = true)
     private void onBobHurt(PoseStack poseStack, float partialTick, CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive() && CinematicController.INSTANCE.isSuppressBob()) {
+        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip() && CinematicController.INSTANCE.isSuppressBob()) {
             ci.cancel();
         }
     }
 
     @Inject(method = "bobView", at = @At("HEAD"), cancellable = true)
     private void onBobView(PoseStack poseStack, float partialTick, CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive() && CinematicController.INSTANCE.isSuppressBob()) {
+        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip() && CinematicController.INSTANCE.isSuppressBob()) {
             ci.cancel();
         }
     }
@@ -88,7 +88,7 @@ public abstract class GameRendererMixin {
                     target = "Lnet/minecraft/util/Mth;lerp(FFF)F",
                     ordinal = 0))
     private float redirectSpinningIntensity(float partialTick, float start, float end) {
-        if (CameraManager.INSTANCE.isActive() && CinematicController.INSTANCE.isSuppressBob()) {
+        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip() && CinematicController.INSTANCE.isSuppressBob()) {
             return 0.0F;
         }
         return Mth.lerp(partialTick, start, end);

@@ -9,7 +9,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.joml.Matrix4f;
 
-public class UIAutoCompleteInput extends UIComponent {
+public class UIAutoCompleteInput extends UIComponent implements IFocusable {
     private final String label;
     private final Supplier<String> source;
     private final Consumer<String> sink;

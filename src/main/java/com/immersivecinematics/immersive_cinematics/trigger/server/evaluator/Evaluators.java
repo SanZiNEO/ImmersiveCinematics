@@ -163,6 +163,32 @@ public class Evaluators {
         return matchesId(lastUsed, c.get("item").getAsString());
     }
 
+    public static boolean evaluateItemConsume(ServerPlayer player, JsonObject c) {
+        if (!c.has("item")) return false;
+        String lastConsumed = UseItemTracker.getLastConsumed(player);
+        if (lastConsumed == null) return false;
+        return matchesId(lastConsumed, c.get("item").getAsString());
+    }
+
+    public static boolean evaluateBlockInteract(ServerPlayer player, JsonObject c) {
+        if (!c.has("target")) return false;
+        String lastInteract = InteractTracker.getLastInteraction(player);
+        if (lastInteract == null) return false;
+        return matchesId(lastInteract, c.get("target").getAsString());
+    }
+
+    public static boolean evaluateItemOnInteract(ServerPlayer player, JsonObject c) {
+        if (!c.has("item") || !c.has("target")) return false;
+        String lastItem = InteractTracker.getLastInteractionItem(player);
+        if (lastItem == null) return false;
+        String itemPattern = c.get("item").getAsString();
+        if (!matchesId(lastItem, itemPattern)) return false;
+        String lastTarget = InteractTracker.getLastInteraction(player);
+        if (lastTarget == null) return false;
+        String targetPattern = c.get("target").getAsString();
+        return matchesId(lastTarget, targetPattern);
+    }
+
     public static boolean evaluateInventory(ServerPlayer player, JsonObject c) {
         if (!c.has("items") || !c.get("items").isJsonArray()) return false;
         var items = c.getAsJsonArray("items");
@@ -325,16 +351,27 @@ public class Evaluators {
 
     public static class InteractTracker {
         private static final Map<UUID, String> lastInteractions = new java.util.HashMap<>();
+        private static final Map<UUID, String> lastInteractionItems = new java.util.HashMap<>();
         public static void recordBlock(UUID uuid, BlockState state) {
             lastInteractions.put(uuid, BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString());
         }
         public static void recordEntity(UUID uuid, EntityType<?> type) {
             lastInteractions.put(uuid, BuiltInRegistries.ENTITY_TYPE.getKey(type).toString());
         }
+        public static void recordInteractionItem(UUID uuid, ItemStack stack) {
+            if (stack.isEmpty()) return;
+            lastInteractionItems.put(uuid, BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+        }
         public static String getLastInteraction(ServerPlayer player) {
             return lastInteractions.get(player.getUUID());
         }
-        public static void clear(UUID uuid) { lastInteractions.remove(uuid); }
+        public static String getLastInteractionItem(ServerPlayer player) {
+            return lastInteractionItems.get(player.getUUID());
+        }
+        public static void clear(UUID uuid) {
+            lastInteractions.remove(uuid);
+            lastInteractionItems.remove(uuid);
+        }
     }
 
     public static class CraftTracker {
@@ -362,13 +399,23 @@ public class Evaluators {
 
     public static class UseItemTracker {
         private static final Map<UUID, String> lastUsed = new java.util.HashMap<>();
-        public static void record(ServerPlayer player, ItemStack stack) {
+        private static final Map<UUID, String> lastConsumed = new java.util.HashMap<>();
+        public static void recordUsed(ServerPlayer player, ItemStack stack) {
             lastUsed.put(player.getUUID(), BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+        }
+        public static void recordConsumed(ServerPlayer player, ItemStack stack) {
+            lastConsumed.put(player.getUUID(), BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
         }
         public static String getLastUsed(ServerPlayer player) {
             return lastUsed.get(player.getUUID());
         }
-        public static void clear(UUID uuid) { lastUsed.remove(uuid); }
+        public static String getLastConsumed(ServerPlayer player) {
+            return lastConsumed.get(player.getUUID());
+        }
+        public static void clear(UUID uuid) {
+            lastUsed.remove(uuid);
+            lastConsumed.remove(uuid);
+        }
     }
 
     public static class InventoryTracker {
