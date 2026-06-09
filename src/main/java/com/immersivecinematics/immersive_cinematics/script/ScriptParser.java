@@ -350,13 +350,15 @@ public class ScriptParser {
         for (int i = 0; i < clipsArr.size(); i++) {
             JsonObject obj = clipsArr.get(i).getAsJsonObject();
             String cp = p + "[" + i + "]";
+            JsonArray kfArr = requireArray(obj, cp, "keyframes");
+            List<CameraKeyframe> kfs = new ArrayList<>();
+            for (int j = 0; j < kfArr.size(); j++) {
+                kfs.add(parseCameraKeyframe(kfArr.get(j).getAsJsonObject(), cp + ".keyframes[" + j + "]", false));
+            }
             clips.add(new LetterboxClip(
                     requireFloat(obj, cp, "start_time"),
                     requireFloat(obj, cp, "duration"),
-                    optBool(obj, "enabled", true),
-                    optFloat(obj, "aspect_ratio", 2.35f),
-                    optFloat(obj, "fade_in", 0.5f),
-                    optFloat(obj, "fade_out", 0.5f)
+                    kfs
             ));
         }
         return clips;

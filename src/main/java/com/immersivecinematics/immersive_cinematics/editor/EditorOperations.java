@@ -21,7 +21,7 @@ public class EditorOperations {
         return getStart(clip) + getDuration(clip);
     }
 
-    public static JsonObject addClip(JsonArray tracks, int trackIndex, float startTime, float duration) {
+    public static JsonObject addClip(JsonArray tracks, int trackIndex, float startTime, float duration, String trackType) {
         if (trackIndex < 0 || trackIndex >= tracks.size()) return null;
         JsonObject clip = new JsonObject();
         clip.addProperty("start_time", startTime);
@@ -33,6 +33,33 @@ public class EditorOperations {
         JsonObject kf1 = new JsonObject();
         kf1.addProperty("time", duration);
         kfs.add(kf1);
+        if ("CAMERA".equals(trackType)) {
+            JsonObject pos = new JsonObject();
+            pos.addProperty("dx", 0f);
+            pos.addProperty("dy", 0f);
+            pos.addProperty("dz", 0f);
+            kf0.add("position", pos);
+            kf0.addProperty("yaw", 0f);
+            kf0.addProperty("pitch", 0f);
+            kf0.addProperty("roll", 0f);
+            kf0.addProperty("fov", 70f);
+            kf0.addProperty("zoom", 1.0f);
+            kf0.addProperty("dof", 0f);
+            kf1.addProperty("yaw", 0f);
+            kf1.addProperty("pitch", 0f);
+            kf1.addProperty("roll", 0f);
+            kf1.addProperty("fov", 70f);
+            kf1.addProperty("zoom", 1.0f);
+            kf1.addProperty("dof", 0f);
+            JsonObject pos1 = new JsonObject();
+            pos1.addProperty("dx", 0f);
+            pos1.addProperty("dy", 0f);
+            pos1.addProperty("dz", 0f);
+            kf1.add("position", pos1);
+        } else if ("LETTERBOX".equals(trackType)) {
+            kf0.addProperty("roll", 2.35f);
+            kf1.addProperty("roll", 2.35f);
+        }
         clip.add("keyframes", kfs);
         tracks.get(trackIndex).getAsJsonObject().getAsJsonArray("clips").add(clip);
         recalc(tracks);

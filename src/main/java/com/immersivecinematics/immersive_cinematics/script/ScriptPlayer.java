@@ -242,17 +242,6 @@ public class ScriptPlayer {
             }
         }
 
-        // 自动触发 fade-out（接近脚本结束时）
-        if (!stopping && totalDuration > 0 && elapsedSeconds > 0) {
-            float remaining = totalDuration - elapsedSeconds;
-            float fadeOut = OverlayManager.INSTANCE.getLetterboxLayer().getFadeOut();
-            if (fadeOut > 0f && remaining <= fadeOut) {
-                CameraManager.INSTANCE.requestExit(ExitReason.NATURAL_END);
-                stopping = true;
-                return;
-            }
-        }
-
         // 调度所有 TrackPlayer（onRenderFrame 内部自行判断是否有活跃 clip，无需 isActiveAt() 预检查）
         for (TrackPlayer tp : trackPlayers) {
             try {
