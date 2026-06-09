@@ -161,7 +161,7 @@ public class LeftPanelArea extends UIComponent {
 
     private void buildKeyframeProperties() {
         if (selectedKeyframe == null) return;
-        fillKeyframeDefaults(selectedKeyframe);
+        fillKeyframeDefaults(selectedKeyframe, selectedTrackType);
 
         if (selectedClip != null && selectedKeyframe.has("position")) {
             String mode = selectedClip.has("position_mode") ? selectedClip.get("position_mode").getAsString() : "relative";
@@ -243,12 +243,7 @@ public class LeftPanelArea extends UIComponent {
                 addDefault(clip, "loop", false);
                 addDefault(clip, "loop_count", -1);
             }
-            case "LETTERBOX" -> {
-                addDefault(clip, "enabled", true);
-                addDefault(clip, "aspect_ratio", 2.35f);
-                addDefault(clip, "fade_in", 0.5f);
-                addDefault(clip, "fade_out", 0.5f);
-            }
+
             case "AUDIO" -> {
                 addDefault(clip, "sound", "");
                 addDefault(clip, "volume", 1.0f);
@@ -266,7 +261,11 @@ public class LeftPanelArea extends UIComponent {
         }
     }
 
-    private static void fillKeyframeDefaults(JsonObject kf) {
+    private static void fillKeyframeDefaults(JsonObject kf, String trackType) {
+        if ("LETTERBOX".equals(trackType)) {
+            addDefault(kf, "roll", 2.35f);
+            return;
+        }
         addDefault(kf, "yaw", 0f);
         addDefault(kf, "pitch", 0f);
         addDefault(kf, "roll", 0f);

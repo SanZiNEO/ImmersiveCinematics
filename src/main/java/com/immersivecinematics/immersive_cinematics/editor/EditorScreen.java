@@ -125,7 +125,7 @@ public class EditorScreen extends Screen {
             menuBar.setStatus(I18n.get("editor.status.editing"), 0xFFAAAAAA);
 
             // CAMERA track — first clip with default fields
-            JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10);
+            JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10, "CAMERA");
             if (clip != null) {
                 clip.addProperty("transition", "cut");
                 clip.addProperty("interpolation", "linear");
@@ -171,7 +171,7 @@ public class EditorScreen extends Screen {
             scriptFilePath = null;
             doc.reset();
 
-            JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10);
+            JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10, "CAMERA");
             if (clip != null) {
                 clip.addProperty("transition", "cut");
                 clip.addProperty("interpolation", "linear");
@@ -256,7 +256,7 @@ public class EditorScreen extends Screen {
         });
         timeline.setOnToolAddClip(() -> {
             EditorLogger.action(EditorLogger.TIMELINE, "TOOL_ADD_CLIP", "");
-            JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, doc.getTotalDuration(), 5);
+            JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, doc.getTotalDuration(), 5, "CAMERA");
             if (clip != null) {
                 clip.addProperty("transition", "cut");
                 clip.addProperty("interpolation", "linear");
@@ -358,7 +358,7 @@ public class EditorScreen extends Screen {
             scriptFilePath = null;
             doc.reset();
 
-            JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10);
+            JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10, "CAMERA");
             if (clip != null) {
                 clip.addProperty("transition", "cut");
                 clip.addProperty("interpolation", "linear");
@@ -427,8 +427,7 @@ public class EditorScreen extends Screen {
         leftPanel.setSelectedTrackType(trackType);
 
         float time = playback.getTime();
-        boolean canAddKf = "CAMERA".equals(trackType)
-                && EditorOperations.canAddKeyframeAt(sel.getClip(), time);
+        boolean canAddKf = EditorOperations.canAddKeyframeAt(sel.getClip(), time);
         timeline.setData(doc.getTimeline(), sel.getClip(), sel.getKeyframe(), canAddKf);
         timeline.setPlayheadTime(time);
         preview.setCurrentTime(time);

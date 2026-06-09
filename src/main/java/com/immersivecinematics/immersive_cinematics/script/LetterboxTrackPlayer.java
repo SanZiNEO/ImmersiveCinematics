@@ -5,20 +5,11 @@ import com.immersivecinematics.immersive_cinematics.overlay.LetterboxLayer;
 
 import java.util.List;
 
-/**
- * Letterbox 轨道播放器 — 从 ScriptPlayer.processLetterboxTrack() 抽取
- * <p>
- * 职责：
- * <ul>
- *   <li>定位当前活跃的 LetterboxClip</li>
- *   <li>设置 LetterboxLayer 的 aspectRatio / fadeIn / fadeOut</li>
- *   <li>当无活跃 clip 时触发 fade-out</li>
- * </ul>
- */
 public class LetterboxTrackPlayer implements TrackPlayer {
 
     private final List<LetterboxClip> clips;
     private final OverlayManager overlayManager;
+    private int lastClipIdx = -1;
 
     public LetterboxTrackPlayer(TimelineTrack track, OverlayManager overlayManager) {
         this.clips = track.getLetterboxClips();
@@ -33,48 +24,66 @@ public class LetterboxTrackPlayer implements TrackPlayer {
     @Override
     public void onRenderFrame(float globalTime) {
         LetterboxLayer letterbox = overlayManager.getLetterboxLayer();
-
         LetterboxClip activeClip = findActiveClip(globalTime);
 
-        if (activeClip != null && activeClip.isEnabled()) {
-            // letterbox clip 活跃：确保 letterbox 层可见
-            // LetterboxLayer 的 fade-in/fade-out 由自身的 tick() 动画驱动
-            // 只需设置 aspectRatio（如果当前 HIDDEN 会自动触发 FADE_IN）
-            if (letterbox.getAspectRatio() != activeClip.getAspectRatio()) {
-                letterbox.setFadeIn(activeClip.getFadeIn());
-                letterbox.setFadeOut(activeClip.getFadeOut());
-                letterbox.setAspectRatio(activeClip.getAspectRatio());
-            }
-        } else if (activeClip == null && letterbox.isVisible()) {
-            // 不在任何 letterbox clip 中：触发 fade-out
-            letterbox.startFadeOut();
+        if (activeClip == null) {
+            letterbox.setAspectRatio(0.0f);
+            lastClipIdx = -1;
+            return;
         }
+
+        int clipIdx = clips.indexOf(activeClip);
+        float localTime = clipTime(activeClip, globalTime);
+        List<CameraKeyframe> kfs = activeClip.getKeyframes();
+
+        if (kfs == null || kfs.isEmpty()) {
+            lastClipIdx = clipIdx;
+            return;
+        }
+
+        float ratio;
+        if (kfs.size() < 2) {
+            ratio = kfs.get(0).getRoll();
+        } else {
+            CameraKeyframe from = kfs.get(0), to = kfs.get(kfs.size() - 1);
+            for (int i = 0; i < kfs.size() - 1; i++) {
+                if (localTime >= kfs.get(i).getTime() && localTime <= kfs.get(i + 1).getTime()) {
+                    from = kfs.get(i);
+                    to = kfs.get(i + 1);
+                    break;
+                }
+            }
+            float t = (to.getTime() - from.getTime() > 0.001f)
+                    ? (localTime - from.getTime()) / (to.getTime() - from.getTime()) : 0f;
+            t = Math.max(0f, Math.min(1f, t));
+            ratio = from.getRoll() + (to.getRoll() - from.getRoll()) * t;
+        }
+
+        if (clipIdx != lastClipIdx || Math.abs(letterbox.getAspectRatio() - ratio) > 0.001f) {
+            letterbox.setAspectRatio(ratio);
+        }
+        lastClipIdx = clipIdx;
     }
 
     @Override
     public void onStop() {
-        // 停止时触发 fade-out
-        overlayManager.getLetterboxLayer().startFadeOut();
+        overlayManager.getLetterboxLayer().setAspectRatio(0.0f);
     }
 
-    /**
-     * 找到当前全局时间所在的 letterbox clip
-     * <p>
-     * 支持无限时长 clip（duration=-1）
-     */
+    private float clipTime(LetterboxClip clip, float globalTime) {
+        return Math.max(0f, Math.min(clip.getDuration(), globalTime - clip.getStartTime()));
+    }
+
     private LetterboxClip findActiveClip(float globalTime) {
         for (LetterboxClip clip : clips) {
             boolean isActive;
             if (clip.getDuration() < 0) {
-                // 无限时长 clip：一旦进入就永远活跃
                 isActive = globalTime >= clip.getStartTime();
             } else {
                 float clipEnd = clip.getStartTime() + clip.getDuration();
                 isActive = globalTime >= clip.getStartTime() && globalTime < clipEnd;
             }
-            if (isActive) {
-                return clip;
-            }
+            if (isActive) return clip;
         }
         return null;
     }
