@@ -141,10 +141,6 @@ public class Evaluators {
                 c.get("dimension").getAsString());
     }
 
-    public static boolean evaluateDimension(ServerPlayer player, JsonObject c) {
-        return evaluateDimensionChange(player, c);
-    }
-
     public static boolean evaluateLogin(ServerPlayer player, JsonObject c) {
         return true;
     }
@@ -268,10 +264,6 @@ public class Evaluators {
     public static boolean evaluateCustom(ServerPlayer player, JsonObject c) {
         if (!c.has("event_id")) return false;
         return CustomEventTracker.hasFired(player, c.get("event_id").getAsString());
-    }
-
-    public static boolean evaluateCommand(ServerPlayer player, JsonObject c) {
-        return false;
     }
 
     public static boolean evaluateStructure(ServerPlayer player, JsonObject c) {
