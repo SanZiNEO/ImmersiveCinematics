@@ -1,14 +1,19 @@
 package com.immersivecinematics.immersive_cinematics.command;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
-import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.server.level.ServerPlayer;
+import java.util.Collection;
+import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPlayScriptPacket;
+import com.immersivecinematics.immersive_cinematics.trigger.network.S2CStopScriptPacket;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -52,11 +57,15 @@ public class CinematicCommand {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("icinematics")
                 .then(Commands.literal("play")
-                        .then(Commands.argument("file", StringArgumentType.greedyString())
+                        .then(Commands.argument("file", StringArgumentType.string())
                                 .suggests(SCRIPT_SUGGESTIONS)
-                                .executes(CinematicCommand::playScript)))
+                                .executes(CinematicCommand::playScript)
+                                .then(Commands.argument("players", EntityArgument.players())
+                                        .executes(CinematicCommand::playScript))))
                 .then(Commands.literal("stop")
-                        .executes(CinematicCommand::stopScript))
+                        .executes(CinematicCommand::stopScript)
+                        .then(Commands.argument("players", EntityArgument.players())
+                                .executes(CinematicCommand::stopScript)))
                 .then(Commands.literal("status")
                         .executes(CinematicCommand::showStatus))
                 .then(Commands.literal("reload")
@@ -70,7 +79,6 @@ public class CinematicCommand {
         CommandSourceStack source = context.getSource();
         MinecraftServer server = source.getServer();
 
-        // 搜索路径：全局目录 → 世界目录 → 绝对路径
         Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
         Path worldDir = server.getWorldPath(WORLD_SCRIPT_DIR);
 
@@ -102,48 +110,42 @@ public class CinematicCommand {
             return 0;
         }
 
-        net.minecraft.client.Minecraft.getInstance().execute(() -> {
-            int result = CameraManager.INSTANCE.playScript(script);
-            var player = net.minecraft.client.Minecraft.getInstance().player;
-            if (player != null) {
-                if (result == 2) {
-                    player.displayClientMessage(
-                            Component.literal("§e脚本已排队: §f" + script.getName() +
-                                    " §7(将在当前脚本结束后自动播放)"), false);
-                } else if (result == 1) {
-                    player.displayClientMessage(
-                            Component.literal("§a脚本播放开始: §f" + script.getName() +
-                                    " §7(总时长: " + script.getTotalDuration() + "s)"), false);
-                } else {
-                    player.displayClientMessage(
-                            Component.literal("§c脚本播放被拒绝（当前脚本不可打断）"), false);
-                }
-            }
-        });
+        Collection<ServerPlayer> targets;
+        try {
+            targets = EntityArgument.getPlayers(context, "players");
+        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
+            targets = server.getPlayerList().getPlayers();
+        }
 
-        source.sendSuccess(() -> Component.literal("§7脚本加载成功，正在调度播放..."), false);
+        for (ServerPlayer player : targets) {
+            S2CPlayScriptPacket.send(player, json);
+        }
+
+        final int count = targets.size();
+        source.sendSuccess(() -> Component.literal(
+                "§a已向 " + count + " 名玩家推送脚本: §f" + script.getMeta().getName() +
+                " §7(总时长: " + String.format("%.1f", script.getTimeline().getTotalDuration()) + "s)"), false);
         return 1;
     }
 
     private static int stopScript(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
+        MinecraftServer server = source.getServer();
 
-        net.minecraft.client.Minecraft.getInstance().execute(() -> {
-            boolean wasPlaying = CameraManager.INSTANCE.isActive();
-            CameraManager.INSTANCE.requestExit(ExitReason.SYSTEM_STOP);
-            var player = net.minecraft.client.Minecraft.getInstance().player;
-            if (player != null) {
-                if (wasPlaying) {
-                    player.displayClientMessage(
-                            Component.literal("§a脚本播放已停止"), false);
-                } else {
-                    player.displayClientMessage(
-                            Component.literal("§7当前没有正在播放的脚本"), false);
-                }
-            }
-        });
+        Collection<ServerPlayer> targets;
+        try {
+            targets = EntityArgument.getPlayers(context, "players");
+        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
+            targets = server.getPlayerList().getPlayers();
+        }
 
-        source.sendSuccess(() -> Component.literal("§7正在调度停止脚本..."), false);
+        for (ServerPlayer player : targets) {
+            S2CStopScriptPacket.send(player, "");
+        }
+
+        final int count = targets.size();
+        source.sendSuccess(() -> Component.literal(
+                "§a已向 " + count + " 名玩家发送停止指令"), false);
         return 1;
     }
 

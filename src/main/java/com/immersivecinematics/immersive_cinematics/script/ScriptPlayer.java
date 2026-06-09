@@ -196,6 +196,15 @@ public class ScriptPlayer {
         return Math.max(0f, totalDuration - getElapsedSeconds());
     }
 
+    public boolean hasActiveCameraTrack(float elapsed) {
+        for (TrackPlayer tp : trackPlayers) {
+            if (tp instanceof CameraTrackPlayer && tp.isActiveAt(elapsed)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public CinematicScript getScript() {
         return script;
     }

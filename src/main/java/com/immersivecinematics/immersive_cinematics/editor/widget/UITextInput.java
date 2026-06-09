@@ -3,7 +3,7 @@ package com.immersivecinematics.immersive_cinematics.editor.widget;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class UITextInput extends UIComponent {
+public class UITextInput extends UIComponent implements IFocusable {
     private final String label;
     private final Supplier<String> source;
     private final Consumer<String> sink;

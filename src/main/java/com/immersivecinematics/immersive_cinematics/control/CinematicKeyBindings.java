@@ -30,6 +30,7 @@ public class CinematicKeyBindings {
     private static boolean editorKeyWasDown = false;
     private static long editorClosedAt;
     private static final long EDITOR_REOPEN_COOLDOWN = 300; // ms
+    private static boolean wasEditorOpen = false;
 
     public static void register(RegisterKeyMappingsEvent event) {
         event.register(SKIP_KEY);
@@ -51,6 +52,12 @@ public class CinematicKeyBindings {
         if (mc.isPaused()) {
             skipKeyDownSince = 0;
         }
+
+        boolean currentlyEditorOpen = mc.screen instanceof EditorScreen;
+        if (wasEditorOpen && !currentlyEditorOpen) {
+            notifyEditorClosed();
+        }
+        wasEditorOpen = currentlyEditorOpen;
 
         if (ImmersiveCinematics.EDITOR_ENABLED && EDITOR_KEY != null) {
             boolean editorDown = EDITOR_KEY.isDown();
@@ -96,7 +103,7 @@ public class CinematicKeyBindings {
         }
     }
 
-    /** Call from EditorScreen.onClose() to prevent immediate reopen. */
+    /** Called automatically when editor screen closes. Prevents immediate reopen. */
     public static void notifyEditorClosed() {
         editorClosedAt = System.currentTimeMillis();
         editorKeyWasDown = EDITOR_KEY != null && EDITOR_KEY.isDown();

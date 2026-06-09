@@ -3,12 +3,12 @@ package com.immersivecinematics.immersive_cinematics.editor;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.immersivecinematics.immersive_cinematics.client.EditorBridgeImpl;
-import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
+
 import com.immersivecinematics.immersive_cinematics.editor.area.*;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.debug.RawInputLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
+import com.immersivecinematics.immersive_cinematics.editor.widget.IFocusable;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -47,9 +47,12 @@ public class EditorScreen extends Screen {
     private String renderPhase = "idle";
     private long lastRenderLog;
 
+    private final EditorBridge bridge;
+
     public EditorScreen(EditorBridge bridge, Path scriptsDir) {
         super(Component.literal("Cinematic Editor"));
         this.scriptsDir = scriptsDir;
+        this.bridge = bridge;
         this.doc = new EditorDocument();
         this.sel = new EditorSelection();
         this.playback = new EditorPlayback();
@@ -696,11 +699,7 @@ public class EditorScreen extends Screen {
             if (keyCode == 256) { EditorLogger.action(EditorLogger.SCREEN, "CLOSE", "ESC"); onClose(); return true; }
             if (keyCode == 66) { EditorLogger.action(EditorLogger.SCREEN, "CLOSE", "B"); onClose(); return true; }
             UIComponent focused = leftPanel.getFocusedInput();
-            if (focused != null) {
-                if (focused instanceof UITextInput ti && ti.keyPressed(keyCode, scanCode, modifiers)) return true;
-                if (focused instanceof UIFloatInput fi && fi.keyPressed(keyCode, scanCode, modifiers)) return true;
-                if (focused instanceof UIAutoCompleteInput ai && ai.keyPressed(keyCode, scanCode, modifiers)) return true;
-            }
+            if (focused instanceof IFocusable f && f.keyPressed(keyCode, scanCode, modifiers)) return true;
             if (sel.getKeyframe() != null && handleKeyframeKey(keyCode)) { return true; }
             if (sel.getClip() != null && handleClipKey(keyCode)) { return true; }
             if (keyCode == 83 && hasControlDown()) {
@@ -717,21 +716,12 @@ public class EditorScreen extends Screen {
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
         try {
-            UIComponent focused = leftPanel.getFocusedInput();
-            if (focused instanceof UITextInput ti) {
+            UIComponent focusedInput = leftPanel.getFocusedInput();
+            if (focusedInput instanceof IFocusable f) {
                 EditorLogger.keyPress(EditorLogger.SCREEN, "charTyped", (int) codePoint,
                         "char=" + (codePoint > 32 ? String.valueOf(codePoint) : "CTRL"));
-                ti.charTyped(codePoint); return true;
-            }
-            if (focused instanceof UIFloatInput fi) {
-                EditorLogger.keyPress(EditorLogger.SCREEN, "charTyped", (int) codePoint,
-                        "char=" + (codePoint > 32 ? String.valueOf(codePoint) : "CTRL"));
-                fi.charTyped(codePoint); return true;
-            }
-            if (focused instanceof UIAutoCompleteInput ai) {
-                EditorLogger.keyPress(EditorLogger.SCREEN, "charTyped", (int) codePoint,
-                        "char=" + (codePoint > 32 ? String.valueOf(codePoint) : "CTRL"));
-                ai.charTyped(codePoint); return true;
+                f.charTyped(codePoint);
+                return true;
             }
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "charTyped crashed codePoint=" + (int) codePoint, e);
@@ -776,9 +766,8 @@ public class EditorScreen extends Screen {
 
     @Override
     public void onClose() {
-        CinematicKeyBindings.notifyEditorClosed();
         playback.stop();
-        EditorBridgeImpl.INSTANCE.stop();
+        bridge.stop();
         PreviewCapture.destroy();
         RawInputLogger.disable();
         EditorLogger.close();

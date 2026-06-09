@@ -165,6 +165,10 @@ public class CameraManager {
         return scriptPlayer.isPlaying();
     }
 
+    public boolean hasActiveCameraClip() {
+        return scriptPlayer.hasActiveCameraTrack((float)getGameTimeSeconds());
+    }
+
     // ========== 编辑器预览 ==========
 
     public void pushScript(String jsonContent) {
