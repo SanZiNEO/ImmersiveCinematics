@@ -21,6 +21,17 @@ public class EditorOperations {
         return getStart(clip) + getDuration(clip);
     }
 
+    public static float getTransitionDuration(JsonObject clip) {
+        if (clip.has("transition") && "morph".equals(clip.get("transition").getAsString())) {
+            return clip.has("transition_duration") ? clip.get("transition_duration").getAsFloat() : 0f;
+        }
+        return 0f;
+    }
+
+    public static float getTotalEnd(JsonObject clip) {
+        return getEnd(clip) + getTransitionDuration(clip);
+    }
+
     public static JsonObject addClip(JsonArray tracks, int trackIndex, float startTime, float duration, String trackType) {
         if (trackIndex < 0 || trackIndex >= tracks.size()) return null;
         JsonObject clip = new JsonObject();
@@ -60,6 +71,8 @@ public class EditorOperations {
             kf0.addProperty("roll", 2.35f);
             kf1.addProperty("roll", 2.35f);
         }
+        clip.addProperty("transition", "cut");
+        clip.addProperty("transition_duration", 0.5f);
         clip.add("keyframes", kfs);
         tracks.get(trackIndex).getAsJsonObject().getAsJsonArray("clips").add(clip);
         recalc(tracks);
@@ -235,10 +248,7 @@ public class EditorOperations {
             JsonArray clips = te.getAsJsonObject().getAsJsonArray("clips");
             for (JsonElement ce : clips) {
                 JsonObject clip = ce.getAsJsonObject();
-                float end = getEnd(clip);
-                if (clip.has("transition") && "morph".equals(clip.get("transition").getAsString())) {
-                    end += clip.has("transition_duration") ? clip.get("transition_duration").getAsFloat() : 0;
-                }
+                float end = getTotalEnd(clip);
                 maxEnd = Math.max(maxEnd, end);
             }
         }
@@ -251,10 +261,7 @@ public class EditorOperations {
             JsonArray clips = te.getAsJsonObject().getAsJsonArray("clips");
             for (JsonElement ce : clips) {
                 JsonObject clip = ce.getAsJsonObject();
-                float end = getEnd(clip);
-                if (clip.has("transition") && "morph".equals(clip.get("transition").getAsString())) {
-                    end += clip.has("transition_duration") ? clip.get("transition_duration").getAsFloat() : 0;
-                }
+                float end = getTotalEnd(clip);
                 maxEnd = Math.max(maxEnd, end);
             }
         }
