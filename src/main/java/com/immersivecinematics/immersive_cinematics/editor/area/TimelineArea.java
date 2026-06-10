@@ -196,6 +196,19 @@ public class TimelineArea extends UIComponent {
         int fill = isSel ? 0xFF4A4F5A : 0xFF3A3F4A;
         if (ctx.isMouseIn(clipX, ty, clipW, TRACK_H)) fill = isSel ? 0xFF5A5F6A : 0xFF4A4F5A;
         ctx.graphics.fill(clipX, ty + 2, clipX + clipW, ty + TRACK_H - 2, fill);
+
+        float transDur = EditorOperations.getTransitionDuration(clip);
+        if (transDur > 0f) {
+            float tx = timeToX(EditorOperations.getEnd(clip));
+            float tex = timeToX(EditorOperations.getTotalEnd(clip));
+            int transW = Math.max(2, (int)(tex - tx));
+            ctx.graphics.fill((int)tx, ty + 2, (int)tx + transW, ty + TRACK_H - 2, 0x885533AA);
+            String tLabel = "morph " + fmt(transDur);
+            int tlw = ctx.font.width(tLabel);
+            if (tlw + 4 < transW)
+                ctx.graphics.drawString(ctx.font, tLabel, (int)tx + 2, ty + (TRACK_H - 8) / 2, 0xFFCCCCFF);
+        }
+
         ctx.graphics.renderOutline(clipX, ty + 2, clipW, TRACK_H - 4, isSel ? 0xFF707580 : 0xFF505560);
 
         if (ctx.isMouseIn(clipX, ty + 2, RESIZE_MARGIN, TRACK_H - 4))
@@ -305,7 +318,7 @@ public class TimelineArea extends UIComponent {
         for (int i = clips.size() - 1; i >= 0; i--) {
             JsonObject clip = clips.get(i).getAsJsonObject();
             float sx = timeToX(EditorOperations.getStart(clip));
-            float ex = timeToX(EditorOperations.getEnd(clip));
+        float ex = timeToX(EditorOperations.getTotalEnd(clip));
             if (ctx.mouseX < sx || ctx.mouseX > ex) continue;
 
             if (ctx.mouseX <= sx + RESIZE_MARGIN) {

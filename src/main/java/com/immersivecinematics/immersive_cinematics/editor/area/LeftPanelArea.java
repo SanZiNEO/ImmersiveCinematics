@@ -292,7 +292,11 @@ public class LeftPanelArea extends UIComponent {
 
     private static String cycleClipEnum(String key, String current) {
         return switch (key) {
-            case "transition" -> current.equals("cut") ? "morph" : "cut";
+            case "transition" -> switch (current) {
+                case "cut" -> "morph";
+                case "morph" -> "cut";
+                default -> "cut";
+            };
             case "interpolation" -> current.equals("linear") ? "smooth" : "linear";
             case "position_mode" -> current.equals("relative") ? "absolute" : "relative";
             default -> current;

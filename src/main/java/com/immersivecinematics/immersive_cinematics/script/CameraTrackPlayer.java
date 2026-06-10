@@ -28,15 +28,15 @@ public class CameraTrackPlayer implements TrackPlayer {
     public void onRenderFrame(float globalTime) {
         if (clips.isEmpty()) return;
 
-        // Morph: 在 [A_end, A_end+transition_duration) 内取 A 末帧→B 首帧 lerp
+        // Morph: 在 [A_end, A_end+A.transition_duration) 内取 A 末帧→B 首帧 lerp
         for (int i = 0; i < clips.size() - 1; i++) {
             CameraClip prev = clips.get(i);
             CameraClip next = clips.get(i + 1);
-            if (next.isMorph() && next.getTransitionDuration() > 0f && !prev.isInfinite()) {
+            if (prev.isMorph() && prev.getTransitionDuration() > 0f && !prev.isInfinite()) {
                 float prevEnd = prev.getStartTime() + prev.getDuration();
-                float morphEnd = prevEnd + next.getTransitionDuration();
+                float morphEnd = prevEnd + prev.getTransitionDuration();
                 if (globalTime >= prevEnd && globalTime < morphEnd) {
-                    float weight = (globalTime - prevEnd) / next.getTransitionDuration();
+                    float weight = (globalTime - prevEnd) / prev.getTransitionDuration();
                     renderMorph(prev, next, weight);
                     return;
                 }
