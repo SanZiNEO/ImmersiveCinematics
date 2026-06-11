@@ -266,7 +266,7 @@ public class LeftPanelArea extends UIComponent {
 
     private static void fillKeyframeDefaults(JsonObject kf, String trackType) {
         if ("LETTERBOX".equals(trackType)) {
-            addDefault(kf, "roll", 2.35f);
+            addDefault(kf, "aspect_ratio", 2.35f);
             return;
         }
         addDefault(kf, "yaw", 0f);

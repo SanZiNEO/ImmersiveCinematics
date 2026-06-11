@@ -19,9 +19,26 @@ public class CameraTrackPlayer implements TrackPlayer {
         this.cameraManager = cameraManager;
     }
 
+    private float lastMatchLogTime = -999f;
+
     @Override
     public boolean isActiveAt(float globalTime) {
-        return findActiveClip(globalTime) != null;
+        CameraClip c = findActiveClip(globalTime);
+        if (globalTime >= 4.0f && globalTime <= 5.0f && Math.abs(globalTime - lastMatchLogTime) > 0.5f) {
+            lastMatchLogTime = globalTime;
+            System.out.println("[MATCH] time=" + String.format("%.1f", globalTime) +
+                " clip=" + (c != null ? c.toString() : "null"));
+        }
+        if (c != null) return true;
+        for (int i = 0; i < clips.size() - 1; i++) {
+            CameraClip prev = clips.get(i);
+            if (prev.isMorph() && prev.getTransitionDuration() > 0f && !prev.isInfinite()) {
+                float prevEnd = prev.getStartTime() + prev.getDuration();
+                float morphEnd = prevEnd + prev.getTransitionDuration();
+                if (globalTime >= prevEnd && globalTime < morphEnd) return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -195,14 +212,7 @@ public class CameraTrackPlayer implements TrackPlayer {
             lastClipIndex = resultIndex;
             return result;
         }
-
-        if (globalTime < clips.get(0).getStartTime()) {
-            lastClipIndex = 0;
-            return clips.get(0);
-        }
-
-        lastClipIndex = clips.size() - 1;
-        return clips.get(clips.size() - 1);
+        return null;
     }
 
     private static float blendFloat(float a, float b, float weight) {

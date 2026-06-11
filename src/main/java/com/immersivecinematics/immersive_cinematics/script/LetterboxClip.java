@@ -6,9 +6,9 @@ public class LetterboxClip {
 
     private final float startTime;
     private final float duration;
-    private final List<CameraKeyframe> keyframes;
+    private final List<LetterboxKeyframe> keyframes;
 
-    public LetterboxClip(float startTime, float duration, List<CameraKeyframe> keyframes) {
+    public LetterboxClip(float startTime, float duration, List<LetterboxKeyframe> keyframes) {
         this.startTime = startTime;
         this.duration = duration;
         this.keyframes = keyframes;
@@ -16,7 +16,7 @@ public class LetterboxClip {
 
     public float getStartTime() { return startTime; }
     public float getDuration() { return duration; }
-    public List<CameraKeyframe> getKeyframes() { return keyframes; }
+    public List<LetterboxKeyframe> getKeyframes() { return keyframes; }
 
     public boolean isInfinite() { return duration < 0f; }
 

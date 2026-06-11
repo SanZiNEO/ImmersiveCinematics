@@ -119,11 +119,11 @@
             "keyframes": [
               {
                 "time": 0.0,
-                "roll": 2.35
+                "aspect_ratio": 2.35
               },
               {
                 "time": 6.0,
-                "roll": 2.35
+                "aspect_ratio": 2.35
               }
             ]
           }

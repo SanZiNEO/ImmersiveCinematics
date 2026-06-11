@@ -277,7 +277,7 @@ public class ImmersiveCinematics {
         @SubscribeEvent
         public static void onComputeCameraAngles(ViewportEvent.ComputeCameraAngles event) {
             CameraManager mgr = CameraManager.INSTANCE;
-            if (mgr.isActive()) {
+            if (mgr.isActive() && mgr.hasActiveCameraClip()) {
                 float roll = mgr.getProperties().getRoll();
                 event.setRoll(roll);
             }
