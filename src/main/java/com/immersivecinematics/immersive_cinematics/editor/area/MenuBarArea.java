@@ -27,7 +27,11 @@ public class MenuBarArea extends UIComponent {
         EditorLogger.areaRegister(EditorLogger.MENU, "full_area", x, y, w, h);
         scriptName = "Untitled";
 
-        listBtn = new UIButton(x + 4, y + 2, 70, h - 4, I18n.get("editor.menu.script_list"), b -> {
+        int px = (int)(4 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx);
+        int py = (int)(2 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
+        int bw = (int)(70 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx);
+        int bh = h - (int)(4 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
+        listBtn = new UIButton(x + px, y + py, bw, bh, I18n.get("editor.menu.script_list"), b -> {
             if (onToggleList != null) onToggleList.run();
         });
         listBtn.color(0x00, 0x443A3A3A).textColor(0xFFAAAAAA);
@@ -35,12 +39,15 @@ public class MenuBarArea extends UIComponent {
         titleLabel = new UILabel(0, y + (h - 10) / 2, scriptName, 0xFFBBBBBB);
         titleLabel.centered(true).setBounds(x, y, w, h);
 
-        newBtn = new UIButton(x + w - 128, y + 2, 50, h - 4, I18n.get("editor.menu.new"), b -> {
+        int newBtnW = (int)(50 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx);
+        int saveBtnW = (int)(50 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx);
+        int rightGap = (int)(4 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx);
+        newBtn = new UIButton(x + w - (int)(128 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx), y + py, newBtnW, bh, I18n.get("editor.menu.new"), b -> {
             if (onNewScript != null) onNewScript.run();
         });
         newBtn.color(0xFF333333, 0xFF444444).textColor(0xFFBBBBBB);
 
-        saveBtn = new UIButton(x + w - 72, y + 2, 50, h - 4, I18n.get("editor.menu.save"), b -> {
+        saveBtn = new UIButton(x + w - (int)(72 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx), y + py, saveBtnW, bh, I18n.get("editor.menu.save"), b -> {
             if (onSaveScript != null) onSaveScript.run();
         });
         saveBtn.color(0xFF333333, 0xFF444444).textColor(0xFFBBBBBB);
@@ -84,14 +91,14 @@ public class MenuBarArea extends UIComponent {
 
         if (showAction) {
             int tw = ctx.font.width(actionText);
-            int right = x + w - 205;
+            int right = x + w - (int)(205 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx);
             ctx.graphics.drawString(ctx.font, actionText, right - tw, y + (h - 10) / 2, 0xFF888888);
         }
 
         if (statusText != null) {
             int tw = ctx.font.width(statusText);
-            int right = showAction ? x + w - 140 : x + w - 205;
-            ctx.graphics.drawString(ctx.font, statusText, Math.max(x + 80, right - tw), y + (h - 10) / 2, statusColor);
+            int right = showAction ? x + w - (int)(140 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx) : x + w - (int)(205 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx);
+            ctx.graphics.drawString(ctx.font, statusText, Math.max(x + (int)(80 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx), right - tw), y + (h - 10) / 2, statusColor);
         }
     }
 
