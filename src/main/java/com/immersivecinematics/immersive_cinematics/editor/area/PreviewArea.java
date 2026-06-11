@@ -25,18 +25,22 @@ public class PreviewArea extends UIComponent {
         super(x, y, w, h);
         EditorLogger.areaRegister(EditorLogger.PREVIEW, "full_area", x, y, w, h);
 
-        int barW = 160;
-        int barH = 24;
+        float sx = com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx;
+        float sy = com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy;
+        int barW = (int)(160 * sx);
+        int barH = (int)(24 * sy);
         int barX = x + (w - barW) / 2;
-        int barY = y + h - barH - 8;
+        int barY = y + h - barH - (int)(8 * sy);
 
-        playBtn = new UIButton(barX, barY, 36, barH, "\u25B6", b -> {});
+        int btnW = (int)(36 * sx);
+        int btnGap = (int)(40 * sx);
+        playBtn = new UIButton(barX, barY, btnW, barH, "\u25B6", b -> {});
         playBtn.color(0xFF333333, 0xFF444444);
-        pauseBtn = new UIButton(barX + 40, barY, 36, barH, "\u23F8", b -> {});
+        pauseBtn = new UIButton(barX + btnGap, barY, btnW, barH, "\u23F8", b -> {});
         pauseBtn.color(0xFF333333, 0xFF444444);
-        stopBtn = new UIButton(barX + 80, barY, 36, barH, "\u25A0", b -> {});
+        stopBtn = new UIButton(barX + btnGap * 2, barY, btnW, barH, "\u25A0", b -> {});
         stopBtn.color(0xFF333333, 0xFF444444);
-        timeLabel = new UILabel(barX + 124, barY + (barH - 10) / 2, "0.0s", 0xFF999999);
+        timeLabel = new UILabel(barX + btnGap * 3 + (int)(8 * sx), barY + (int)(7 * sy), "0.0s", 0xFF999999);
 
         children.add(playBtn);
         children.add(pauseBtn);

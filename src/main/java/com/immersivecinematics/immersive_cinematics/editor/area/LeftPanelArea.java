@@ -98,15 +98,16 @@ public class LeftPanelArea extends UIComponent {
         cy += 16;
 
         for (String name : scriptFileNames) {
-            UIButton itemBtn = new UIButton(x + 4, cy, w - 12, 18, name, b -> {
+            int btnH = (int)(20 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
+            UIButton itemBtn = new UIButton(x + 4, cy, w - 12, btnH, name, b -> {
                 if (onOpenScript != null) onOpenScript.accept(name);
             });
             itemBtn.color(0x00, 0x443A3A3A).textColor(0xFFAAAAAA);
             children.add(itemBtn);
-            cy += 20;
+            cy += btnH + (int)(2 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
         }
 
-        UIButton newBtn = new UIButton(x + 4, cy, w - 12, 20, I18n.get("editor.script.new_button"), b -> {
+        UIButton newBtn = new UIButton(x + 4, cy, w - 12, (int)(20 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy), I18n.get("editor.script.new_button"), b -> {
             if (onNewScript != null) onNewScript.run();
         });
         newBtn.color(0xFF333333, 0xFF444444).textColor(0xFFAAAAAA);
@@ -120,7 +121,7 @@ public class LeftPanelArea extends UIComponent {
         int cy = y + 6;
         int lx = x + 6;
 
-        addSectionLabel(I18n.get("editor.section.triggers"), lx, cy, 0); cy += 12;
+        addSectionLabel(I18n.get("editor.section.triggers"), lx, cy, 0); cy += (int)(12 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
         JsonArray triggers = script.has("triggers") ? script.getAsJsonArray("triggers") : new JsonArray();
         if (!script.has("triggers")) script.add("triggers", triggers);
         TriggerPanel tp = new TriggerPanel(lx, cy, w - 12, 1, triggers, onDirty);
@@ -128,10 +129,12 @@ public class LeftPanelArea extends UIComponent {
         children.add(tp);
         cy += tp.h + 6;
 
-        addSectionLabel(I18n.get("editor.section.script_info"), lx, cy, 0); cy += 16;
+        int sectionGap = (int)(16 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
+        int smallGap = (int)(4 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
+        addSectionLabel(I18n.get("editor.section.script_info"), lx, cy, 0); cy += sectionGap;
         cy = reflectObject(script, lx, cy, new String[]{"id", "name", "author", "version", "description", "dimension"});
-        cy += 4;
-        addSectionLabel(I18n.get("editor.section.runtime"), lx, cy, 0); cy += 16;
+        cy += smallGap;
+        addSectionLabel(I18n.get("editor.section.runtime"), lx, cy, 0); cy += sectionGap;
         cy = reflectObject(script, lx, cy, new String[]{
             "block_keyboard", "block_mouse", "block_mob_ai",
             "hide_hud", "hide_arm", "hide_chat", "hide_scoreboard",
@@ -141,8 +144,8 @@ public class LeftPanelArea extends UIComponent {
             "pause_when_game_paused", "skippable", "hold_at_end", "interruptible"
         });
         cy += 4;
-        addSectionLabel(I18n.get("editor.section.duration"), lx, cy, 0); cy += 16;
-        addSectionLabel(I18n.get("editor.field.total_duration") + ": " + fmtDuration(totalDuration), lx, cy, 0); cy += 14;
+        addSectionLabel(I18n.get("editor.section.duration"), lx, cy, 0); cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
+        addSectionLabel(I18n.get("editor.field.total_duration") + ": " + fmtDuration(totalDuration), lx, cy, 0); cy += (int)(14 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
     }
 
     private void buildClipProperties() {
@@ -504,9 +507,10 @@ public class LeftPanelArea extends UIComponent {
     }
 
     private int addField(String label, java.util.function.Supplier<String> source, int lx, int cy, Consumer<String> sink) {
-        UITextInput ti = new UITextInput(lx, cy, w - 12, 16, label, source, sink);
+        int fh = (int)(16 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
+        UITextInput ti = new UITextInput(lx, cy, w - 12, fh, label, source, sink);
         children.add(ti);
-        return cy + 18;
+        return cy + fh + (int)(2 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
     }
 
     private int addFloatField(String label, java.util.function.Supplier<Float> source, int lx, int cy,
@@ -516,15 +520,17 @@ public class LeftPanelArea extends UIComponent {
 
     private int addFloatField(String label, java.util.function.Supplier<Float> source, int lx, int cy,
                               float min, float max, float step, Consumer<Float> sink, int width) {
-        UIFloatInput fi = new UIFloatInput(lx, cy, width, 16, label, source, min, max, step, sink);
+        int fh = (int)(16 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
+        UIFloatInput fi = new UIFloatInput(lx, cy, width, fh, label, source, min, max, step, sink);
         children.add(fi);
-        return cy + 18;
+        return cy + fh + (int)(2 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
     }
 
     private int addToggle(String label, java.util.function.Supplier<Boolean> source, int lx, int cy, Consumer<Boolean> sink) {
-        UIToggle tgl = new UIToggle(lx, cy, w - 12, 16, label, source, sink);
+        int fh = (int)(16 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
+        UIToggle tgl = new UIToggle(lx, cy, w - 12, fh, label, source, sink);
         children.add(tgl);
-        return cy + 18;
+        return cy + fh + (int)(2 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
     }
 
     public UIComponent getFocusedInput() {

@@ -24,6 +24,11 @@ import java.util.stream.Stream;
 
 public class EditorScreen extends Screen {
 
+    public static final float REF_W = 960f;
+    public static final float REF_H = 540f;
+    public static float sx = 1f;
+    public static float sy = 1f;
+
     private final EditorDocument doc;
     private final EditorSelection sel;
     private final EditorPlayback playback;
@@ -82,9 +87,11 @@ public class EditorScreen extends Screen {
 
     @Override
     protected void init() {
-        int menuH = 24;
-        int leftW = (int) (width * 0.2f);
-        int timelineH = (int) (height * 0.22f);
+        sx = (float)width / REF_W;
+        sy = (float)height / REF_H;
+        int menuH = clamp((int)(24 * sy), 20, 28);
+        int leftW = clamp((int)(260 * sx), 180, (int)(360 * sx));
+        int timelineH = clamp((int)(220 * sy), 150, (int)(280 * sy));
         int previewH = height - menuH - timelineH;
 
         menuBar = new MenuBarArea(0, 0, width, menuH);
@@ -771,5 +778,9 @@ public class EditorScreen extends Screen {
         ctx.ctrlDown = hasControlDown();
         ctx.shiftDown = hasShiftDown();
         return ctx;
+    }
+
+    private static int clamp(int val, int min, int max) {
+        return Math.max(min, Math.min(max, val));
     }
 }

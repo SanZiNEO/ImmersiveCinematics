@@ -48,14 +48,7 @@ public class TimelineArea extends UIComponent {
     private Runnable onToolDeleteKeyframe;
     private Runnable onToolSnap;
 
-    private static final int TOOLBAR_W = 22;
-    private static final int LABEL_W = 58;
-    private static final int LEFT_W = TOOLBAR_W + LABEL_W;
-    private static final int HEADER_H = 20;
-    private static final int TRACK_H = 28;
-    private static final int RESIZE_MARGIN = 4;
-    private static final int BTN = 16;
-    private static final int BTN_GAP = 2;
+    private static final int LEFT_W = -1; // placeholder, use toolbarW() + labelW()
 
     public TimelineArea(int x, int y, int w, int h) {
         super(x, y, w, h);
@@ -86,9 +79,17 @@ public class TimelineArea extends UIComponent {
     public void setOnToolDeleteKeyframe(Runnable r) { onToolDeleteKeyframe = r; }
     public void setOnToolSnap(Runnable r) { onToolSnap = r; }
 
-    public int canvasX() { return x + LEFT_W; }
-    public int canvasY() { return y + HEADER_H; }
-    public int canvasW() { return w - LEFT_W; }
+    private int toolbarW() { return (int)(22 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx); }
+    private int labelW()   { return (int)(58 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx); }
+    private int headerH()  { return (int)(20 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy); }
+    private int trackH()   { return (int)(28 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy); }
+    private int btn()      { return (int)(16 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy); }
+    private int btnGap()   { return (int)(2 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy); }
+    private int resizeMargin() { return (int)(4 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx); }
+
+    public int canvasX() { return x + toolbarW() + labelW(); }
+    public int canvasY() { return y + headerH(); }
+    public int canvasW() { return w - toolbarW() - labelW(); }
     public float timeToX(float t) { return canvasX() + (t * pixelsPerSecond) + scrollOffset; }
     public float xToTime(float px) { return (px - canvasX() - scrollOffset) / pixelsPerSecond; }
 
@@ -115,7 +116,7 @@ public class TimelineArea extends UIComponent {
 
         ctx.graphics.fill(x, y, x + w, y + h, 0xFF171717);
         ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
-        ctx.graphics.fill(x, y, x + w, y + HEADER_H, 0xFF1F1F1F);
+        ctx.graphics.fill(x, y, x + w, y + headerH(), 0xFF1F1F1F);
 
         drawRuler(ctx, cx, y, cw);
         drawToolbar(ctx);
@@ -141,29 +142,29 @@ public class TimelineArea extends UIComponent {
         for (float t = startTick; t <= visibleEnd + interval; t += interval) {
             float sx = cx + t * pixelsPerSecond + scrollOffset;
             if (sx < cx - 20 || sx > cx + cw) continue;
-            ctx.graphics.fill((int) sx, top, (int) sx + 1, top + HEADER_H, 0xFF3A3A3A);
+            ctx.graphics.fill((int) sx, top, (int) sx + 1, top + headerH(), 0xFF3A3A3A);
             ctx.graphics.drawString(ctx.font, fmt(t), (int) sx + 2, top + 2, 0xFF777777);
         }
     }
 
     private void drawToolbar(UIContext ctx) {
-        int bx = x + 3;
-        int by = y + HEADER_H + 4;
+        int bx = x + (int)(3 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx);
+        int by = y + headerH() + (int)(4 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
 
-        drawBtn(ctx, bx, by, "+C", 0xFF338833, 0xFF44AA44, true); by += BTN + BTN_GAP;
-        drawBtn(ctx, bx, by, "-C", 0xFF883333, 0xFFAA4444, selectedClip != null); by += BTN + BTN_GAP + 4;
-        drawBtn(ctx, bx, by, "+K", 0xFF333388, 0xFF4444AA, canAddKf); by += BTN + BTN_GAP;
-        drawBtn(ctx, bx, by, "-K", 0xFF883366, 0xFFAA4488, selectedKeyframe != null); by += BTN + BTN_GAP + 4;
+        drawBtn(ctx, bx, by, "+C", 0xFF338833, 0xFF44AA44, true); by += btn() + btnGap();
+        drawBtn(ctx, bx, by, "-C", 0xFF883333, 0xFFAA4444, selectedClip != null); by += btn() + btnGap() + 4;
+        drawBtn(ctx, bx, by, "+K", 0xFF333388, 0xFF4444AA, canAddKf); by += btn() + btnGap();
+        drawBtn(ctx, bx, by, "-K", 0xFF883366, 0xFFAA4488, selectedKeyframe != null); by += btn() + btnGap() + 4;
         drawBtn(ctx, bx, by, "\u00AB\u00BB", 0xFF336688, 0xFF4488AA, true);
     }
 
     private void drawBtn(UIContext ctx, int bx, int by, String label, int c, int hc, boolean active) {
-        boolean hover = ctx.isMouseIn(bx, by, BTN, BTN);
+        boolean hover = ctx.isMouseIn(bx, by, btn(), btn());
         int bg = !active ? 0xFF222222 : hover ? hc : c;
-        ctx.graphics.fill(bx, by, bx + BTN, by + BTN, bg);
-        ctx.graphics.renderOutline(bx, by, BTN, BTN, active ? 0xFF666666 : 0xFF333333);
+        ctx.graphics.fill(bx, by, bx + btn(), by + btn(), bg);
+        ctx.graphics.renderOutline(bx, by, btn(), btn(), active ? 0xFF666666 : 0xFF333333);
         int tw = ctx.font.width(label);
-        ctx.graphics.drawString(ctx.font, label, bx + (BTN - tw) / 2, by + (BTN - 8) / 2, active ? 0xFFFFFFFF : 0xFF555555);
+        ctx.graphics.drawString(ctx.font, label, bx + (btn() - tw) / 2, by + (btn() - 8) / 2, active ? 0xFFFFFFFF : 0xFF555555);
     }
 
     private void drawTracks(UIContext ctx, int cx, int cy) {
@@ -171,10 +172,10 @@ public class TimelineArea extends UIComponent {
         if (arr == null) return;
         for (int ti = 0; ti < arr.size(); ti++) {
             JsonObject track = arr.get(ti).getAsJsonObject();
-            int ty = cy + ti * TRACK_H;
-            ctx.graphics.fill(x + TOOLBAR_W, ty, cx, ty + TRACK_H, 0xFF222222);
+            int ty = cy + ti * trackH();
+            ctx.graphics.fill(x + toolbarW(), ty, cx, ty + trackH(), 0xFF222222);
             String type = track.has("type") ? track.get("type").getAsString() : "TRACK";
-            ctx.graphics.drawString(ctx.font, type.toUpperCase(), x + TOOLBAR_W + 4, ty + (TRACK_H - 8) / 2, 0xFF888888);
+            ctx.graphics.drawString(ctx.font, type.toUpperCase(), x + toolbarW() + 4, ty + (trackH() - 8) / 2, 0xFF888888);
             JsonArray clips = track.getAsJsonArray("clips");
             for (JsonElement ce : clips) {
                 drawClip(ctx, ce.getAsJsonObject(), ty);
@@ -194,32 +195,32 @@ public class TimelineArea extends UIComponent {
 
         boolean isSel = (clip == selectedClip);
         int fill = isSel ? 0xFF4A4F5A : 0xFF3A3F4A;
-        if (ctx.isMouseIn(clipX, ty, clipW, TRACK_H)) fill = isSel ? 0xFF5A5F6A : 0xFF4A4F5A;
-        ctx.graphics.fill(clipX, ty + 2, clipX + clipW, ty + TRACK_H - 2, fill);
+        if (ctx.isMouseIn(clipX, ty, clipW, trackH())) fill = isSel ? 0xFF5A5F6A : 0xFF4A4F5A;
+        ctx.graphics.fill(clipX, ty + 2, clipX + clipW, ty + trackH() - 2, fill);
 
         float transDur = EditorOperations.getTransitionDuration(clip);
         if (transDur > 0f) {
             float tx = timeToX(EditorOperations.getEnd(clip));
             float tex = timeToX(EditorOperations.getTotalEnd(clip));
             int transW = Math.max(2, (int)(tex - tx));
-            ctx.graphics.fill((int)tx, ty + 2, (int)tx + transW, ty + TRACK_H - 2, 0x885533AA);
+            ctx.graphics.fill((int)tx, ty + 2, (int)tx + transW, ty + trackH() - 2, 0x885533AA);
             String tLabel = "morph " + fmt(transDur);
             int tlw = ctx.font.width(tLabel);
             if (tlw + 4 < transW)
-                ctx.graphics.drawString(ctx.font, tLabel, (int)tx + 2, ty + (TRACK_H - 8) / 2, 0xFFCCCCFF);
+                ctx.graphics.drawString(ctx.font, tLabel, (int)tx + 2, ty + (trackH() - 8) / 2, 0xFFCCCCFF);
         }
 
-        ctx.graphics.renderOutline(clipX, ty + 2, clipW, TRACK_H - 4, isSel ? 0xFF707580 : 0xFF505560);
+        ctx.graphics.renderOutline(clipX, ty + 2, clipW, trackH() - 4, isSel ? 0xFF707580 : 0xFF505560);
 
-        if (ctx.isMouseIn(clipX, ty + 2, RESIZE_MARGIN, TRACK_H - 4))
-            ctx.graphics.fill(clipX, ty + 2, clipX + RESIZE_MARGIN, ty + TRACK_H - 2, 0x55FFFFFF);
-        if (ctx.isMouseIn(clipX + clipW - RESIZE_MARGIN, ty + 2, RESIZE_MARGIN, TRACK_H - 4))
-            ctx.graphics.fill(clipX + clipW - RESIZE_MARGIN, ty + 2, clipX + clipW, ty + TRACK_H - 2, 0x55FFFFFF);
+        if (ctx.isMouseIn(clipX, ty + 2, resizeMargin(), trackH() - 4))
+            ctx.graphics.fill(clipX, ty + 2, clipX + resizeMargin(), ty + trackH() - 2, 0x55FFFFFF);
+        if (ctx.isMouseIn(clipX + clipW - resizeMargin(), ty + 2, resizeMargin(), trackH() - 4))
+            ctx.graphics.fill(clipX + clipW - resizeMargin(), ty + 2, clipX + clipW, ty + trackH() - 2, 0x55FFFFFF);
 
         if (clipW > 30) {
             String label = fmt(EditorOperations.getStart(clip)) + "-" + fmt(EditorOperations.getEnd(clip));
             int lw = ctx.font.width(label);
-            if (lw + 8 < clipW) ctx.graphics.drawString(ctx.font, label, clipX + 4, ty + (TRACK_H - 8) / 2, 0xFFCCCCCC);
+            if (lw + 8 < clipW) ctx.graphics.drawString(ctx.font, label, clipX + 4, ty + (trackH() - 8) / 2, 0xFFCCCCCC);
         }
 
         JsonArray kfs = EditorOperations.keyframes(clip);
@@ -229,7 +230,7 @@ public class TimelineArea extends UIComponent {
                 float kx = timeToX(EditorOperations.getStart(clip) + kf.get("time").getAsFloat());
                 if (kx >= clipX + 2 && kx <= clipX + clipW - 2) {
                     int kc = (kf == selectedKeyframe && clip == selectedClip) ? 0xFFFFFF88 : 0xFFAAAAAA;
-                    ctx.graphics.fill((int) kx - 3, ty + TRACK_H / 2 - 3, (int) kx + 3, ty + TRACK_H / 2 + 3, kc);
+                    ctx.graphics.fill((int) kx - 3, ty + trackH() / 2 - 3, (int) kx + 3, ty + trackH() / 2 + 3, kc);
                 }
             }
         }
@@ -251,12 +252,12 @@ public class TimelineArea extends UIComponent {
         mouseDownX = ctx.mouseX;
         mouseDownY = ctx.mouseY;
 
-        if (ctx.mouseX < x + TOOLBAR_W && ctx.mouseY >= y + HEADER_H) {
+        if (ctx.mouseX < x + toolbarW() && ctx.mouseY >= y + headerH()) {
             EditorLogger.areaHit(EditorLogger.TIMELINE, "toolbar", ctx.mouseX, ctx.mouseY, true);
             return clickToolbar(ctx);
         }
 
-        if (ctx.mouseY < canvasY() && ctx.mouseX >= x + TOOLBAR_W) {
+        if (ctx.mouseY < canvasY() && ctx.mouseX >= x + toolbarW()) {
             EditorLogger.areaHit(EditorLogger.TIMELINE, "ruler", ctx.mouseX, ctx.mouseY, true);
             float t = xToTime(ctx.mouseX);
             if (t >= 0 && onClickAtTime != null) {
@@ -273,31 +274,31 @@ public class TimelineArea extends UIComponent {
 
     private boolean clickToolbar(UIContext ctx) {
         int bx = x + 3;
-        int by = y + HEADER_H + 4;
+        int by = y + headerH() + 4;
 
-        if (ctx.isMouseIn(bx, by, BTN, BTN)) {
+        if (ctx.isMouseIn(bx, by, btn(), btn())) {
             EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "+C");
             if (onToolAddClip != null) onToolAddClip.run(); return true;
         }
-        by += BTN + BTN_GAP;
-        if (ctx.isMouseIn(bx, by, BTN, BTN)) {
+        by += btn() + btnGap();
+        if (ctx.isMouseIn(bx, by, btn(), btn())) {
             boolean hasSel = selectedClip != null;
             EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "-C hasSelection=" + hasSel);
             if (hasSel && onToolDeleteClip != null) onToolDeleteClip.run(); return true;
         }
-        by += BTN + BTN_GAP + 4;
-        if (ctx.isMouseIn(bx, by, BTN, BTN)) {
+        by += btn() + btnGap() + 4;
+        if (ctx.isMouseIn(bx, by, btn(), btn())) {
             EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "+K canAdd=" + canAddKf + " playhead=" + String.format("%.3f", playheadTime));
             if (canAddKf && onToolAddKeyframe != null) onToolAddKeyframe.run(); return true;
         }
-        by += BTN + BTN_GAP;
-        if (ctx.isMouseIn(bx, by, BTN, BTN)) {
+        by += btn() + btnGap();
+        if (ctx.isMouseIn(bx, by, btn(), btn())) {
             boolean hasKf = selectedKeyframe != null;
             EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "-K hasSelection=" + hasKf);
             if (hasKf && onToolDeleteKeyframe != null) onToolDeleteKeyframe.run(); return true;
         }
-        by += BTN + BTN_GAP + 4;
-        if (ctx.isMouseIn(bx, by, BTN, BTN)) {
+        by += btn() + btnGap() + 4;
+        if (ctx.isMouseIn(bx, by, btn(), btn())) {
             EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "snap");
             if (onToolSnap != null) onToolSnap.run(); return true;
         }
@@ -308,7 +309,7 @@ public class TimelineArea extends UIComponent {
         JsonArray arr = tracks();
         if (arr == null || ctx.mouseX < canvasX()) return false;
 
-        int trackIdx = (ctx.mouseY - canvasY()) / TRACK_H;
+        int trackIdx = (ctx.mouseY - canvasY()) / trackH();
         if (trackIdx < 0 || trackIdx >= arr.size()) {
             EditorLogger.areaHit(EditorLogger.TIMELINE, "canvas_empty", ctx.mouseX, ctx.mouseY, false);
             return false;
@@ -321,13 +322,13 @@ public class TimelineArea extends UIComponent {
         float ex = timeToX(EditorOperations.getTotalEnd(clip));
             if (ctx.mouseX < sx || ctx.mouseX > ex) continue;
 
-            if (ctx.mouseX <= sx + RESIZE_MARGIN) {
+            if (ctx.mouseX <= sx + resizeMargin()) {
                 draggingResizeLeft = true; draggingClip = clip;
                 dragStartTime = System.currentTimeMillis(); lastDragLogTime = dragStartTime; dragLogCounter = 0;
                 EditorLogger.action(EditorLogger.TIMELINE, "DRAG_START", "resizeLeft clip=" + EditorOperations.getStart(clip));
                 return true;
             }
-            if (ctx.mouseX >= ex - RESIZE_MARGIN) {
+            if (ctx.mouseX >= ex - resizeMargin()) {
                 draggingResizeRight = true; draggingClip = clip;
                 dragStartTime = System.currentTimeMillis(); lastDragLogTime = dragStartTime; dragLogCounter = 0;
                 EditorLogger.action(EditorLogger.TIMELINE, "DRAG_START", "resizeRight clip=" + EditorOperations.getEnd(clip));
