@@ -286,10 +286,10 @@ public class ScriptParser {
         if (obj.has("position")) {
             position = parsePositionData(obj.getAsJsonObject("position"), p + ".position", positionModeRelative);
         }
-        float yaw = requireFloat(obj, p, "yaw");
-        float pitch = requireFloat(obj, p, "pitch");
-        float roll = requireFloat(obj, p, "roll");
-        float fov = requireFloat(obj, p, "fov");
+        float yaw   = optFloat(obj, "yaw", 0f);
+        float pitch = optFloat(obj, "pitch", 0f);
+        float roll  = optFloat(obj, "roll", 0f);
+        float fov   = optFloat(obj, "fov", 70f);
         float zoom = optFloat(obj, "zoom", 1.0f);
         float dof = optFloat(obj, "dof", 0f);
 
@@ -324,6 +324,12 @@ public class ScriptParser {
         }
     }
 
+    private static LetterboxKeyframe parseLetterboxKeyframe(JsonObject obj, String p) throws ScriptParseException {
+        float time = requireFloat(obj, p, "time");
+        float aspectRatio = optFloat(obj, "aspect_ratio", 2.35f);
+        return new LetterboxKeyframe(time, aspectRatio);
+    }
+
     // ========== BezierCurve 解析 ==========
 
     private static BezierCurve parseBezierCurve(JsonObject obj, String p) throws ScriptParseException {
@@ -350,9 +356,9 @@ public class ScriptParser {
             JsonObject obj = clipsArr.get(i).getAsJsonObject();
             String cp = p + "[" + i + "]";
             JsonArray kfArr = requireArray(obj, cp, "keyframes");
-            List<CameraKeyframe> kfs = new ArrayList<>();
+            List<LetterboxKeyframe> kfs = new ArrayList<>();
             for (int j = 0; j < kfArr.size(); j++) {
-                kfs.add(parseCameraKeyframe(kfArr.get(j).getAsJsonObject(), cp + ".keyframes[" + j + "]", false));
+                kfs.add(parseLetterboxKeyframe(kfArr.get(j).getAsJsonObject(), cp + ".keyframes[" + j + "]"));
             }
             clips.add(new LetterboxClip(
                     requireFloat(obj, cp, "start_time"),

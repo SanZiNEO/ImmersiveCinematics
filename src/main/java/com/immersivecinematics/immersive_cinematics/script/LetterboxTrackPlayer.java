@@ -34,7 +34,7 @@ public class LetterboxTrackPlayer implements TrackPlayer {
 
         int clipIdx = clips.indexOf(activeClip);
         float localTime = clipTime(activeClip, globalTime);
-        List<CameraKeyframe> kfs = activeClip.getKeyframes();
+        List<LetterboxKeyframe> kfs = activeClip.getKeyframes();
 
         if (kfs == null || kfs.isEmpty()) {
             lastClipIdx = clipIdx;
@@ -43,9 +43,9 @@ public class LetterboxTrackPlayer implements TrackPlayer {
 
         float ratio;
         if (kfs.size() < 2) {
-            ratio = kfs.get(0).getRoll();
+            ratio = kfs.get(0).getAspectRatio();
         } else {
-            CameraKeyframe from = kfs.get(0), to = kfs.get(kfs.size() - 1);
+            LetterboxKeyframe from = kfs.get(0), to = kfs.get(kfs.size() - 1);
             for (int i = 0; i < kfs.size() - 1; i++) {
                 if (localTime >= kfs.get(i).getTime() && localTime <= kfs.get(i + 1).getTime()) {
                     from = kfs.get(i);
@@ -56,7 +56,7 @@ public class LetterboxTrackPlayer implements TrackPlayer {
             float t = (to.getTime() - from.getTime() > 0.001f)
                     ? (localTime - from.getTime()) / (to.getTime() - from.getTime()) : 0f;
             t = Math.max(0f, Math.min(1f, t));
-            ratio = from.getRoll() + (to.getRoll() - from.getRoll()) * t;
+            ratio = from.getAspectRatio() + (to.getAspectRatio() - from.getAspectRatio()) * t;
         }
 
         if (clipIdx != lastClipIdx || Math.abs(letterbox.getAspectRatio() - ratio) > 0.001f) {

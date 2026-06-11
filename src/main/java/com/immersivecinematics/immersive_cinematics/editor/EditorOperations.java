@@ -68,8 +68,8 @@ public class EditorOperations {
             pos1.addProperty("dz", 0f);
             kf1.add("position", pos1);
         } else if ("LETTERBOX".equals(trackType)) {
-            kf0.addProperty("roll", 2.35f);
-            kf1.addProperty("roll", 2.35f);
+            kf0.addProperty("aspect_ratio", 2.35f);
+            kf1.addProperty("aspect_ratio", 2.35f);
         }
         clip.addProperty("transition", "cut");
         clip.addProperty("transition_duration", 0.5f);
