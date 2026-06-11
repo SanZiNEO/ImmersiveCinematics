@@ -282,7 +282,10 @@ public class ScriptParser {
 
     private static CameraKeyframe parseCameraKeyframe(JsonObject obj, String p, boolean positionModeRelative) throws ScriptParseException {
         float time = requireFloat(obj, p, "time");
-        PositionData position = parsePositionData(obj.getAsJsonObject("position"), p + ".position", positionModeRelative);
+        PositionData position = null;
+        if (obj.has("position")) {
+            position = parsePositionData(obj.getAsJsonObject("position"), p + ".position", positionModeRelative);
+        }
         float yaw = requireFloat(obj, p, "yaw");
         float pitch = requireFloat(obj, p, "pitch");
         float roll = requireFloat(obj, p, "roll");
@@ -300,10 +303,6 @@ public class ScriptParser {
     // ========== PositionData 解析 ==========
 
     private static PositionData parsePositionData(JsonObject obj, String p, boolean positionModeRelative) throws ScriptParseException {
-        if (obj == null) {
-            throw new ScriptParseException(p, "缺少必填字段: position");
-        }
-
         if (positionModeRelative) {
             // relative 模式：dx/dy/dz
             if (!obj.has("dx")) {

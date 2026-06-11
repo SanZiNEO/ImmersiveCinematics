@@ -11,7 +11,9 @@
         "type": "advancement",
         "repeatable": false,
         "delay": 0.5,
-        "conditions": { "advancement": "minecraft:adventure/kill_a_mob" }
+        "conditions": {
+          "advancement": "minecraft:adventure/kill_a_mob"
+        }
       }
     ],
     "block_keyboard": true,
@@ -38,8 +40,34 @@
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0.0, "position": { "dx": 4, "dy": -1, "dz": 4 }, "yaw": 135, "pitch": -8, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
-              { "time": 5.0, "position": { "dx": 3, "dy": -1, "dz": 3 }, "yaw": 135, "pitch": -5, "roll": 0, "fov": 68, "zoom": 1.1, "dof": 0 }
+              {
+                "time": 0.0,
+                "position": {
+                  "dx": 4,
+                  "dy": -1,
+                  "dz": 4
+                },
+                "yaw": 135,
+                "pitch": -8,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              },
+              {
+                "time": 5.0,
+                "position": {
+                  "dx": 3,
+                  "dy": -1,
+                  "dz": 3
+                },
+                "yaw": 135,
+                "pitch": -5,
+                "roll": 0,
+                "fov": 68,
+                "zoom": 1.1,
+                "dof": 0
+              }
             ]
           }
         ]
@@ -47,7 +75,20 @@
       {
         "type": "LETTERBOX",
         "clips": [
-          { "start_time": 0.0, "duration": 5.0, "enabled": true, "aspect_ratio": 2.35, "fade_in": 0.3, "fade_out": 0.3 }
+          {
+            "start_time": 0.0,
+            "duration": 5.0,
+            "keyframes": [
+              {
+                "time": 0.0,
+                "roll": 2.35
+              },
+              {
+                "time": 5.0,
+                "roll": 2.35
+              }
+            ]
+          }
         ]
       }
     ]

@@ -12,7 +12,9 @@
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
-          "items": ["minecraft:sponge"],
+          "items": [
+            "minecraft:sponge"
+          ],
           "change": "increase"
         }
       }
@@ -41,8 +43,34 @@
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0.0, "position": { "dx": -8, "dy": 3, "dz": -15 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
-              { "time": 3.0, "position": { "dx": 0, "dy": 3, "dz": -15 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 72, "zoom": 1.0, "dof": 0 }
+              {
+                "time": 0.0,
+                "position": {
+                  "dx": -8,
+                  "dy": 3,
+                  "dz": -15
+                },
+                "yaw": 180,
+                "pitch": 10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              },
+              {
+                "time": 3.0,
+                "position": {
+                  "dx": 0,
+                  "dy": 3,
+                  "dz": -15
+                },
+                "yaw": 180,
+                "pitch": 10,
+                "roll": 0,
+                "fov": 72,
+                "zoom": 1.0,
+                "dof": 0
+              }
             ]
           },
           {
@@ -53,8 +81,34 @@
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0.0, "position": { "dx": 0, "dy": 3, "dz": -15 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 72, "zoom": 1.0, "dof": 0 },
-              { "time": 3.0, "position": { "dx": 8, "dy": 3, "dz": -15 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+              {
+                "time": 0.0,
+                "position": {
+                  "dx": 0,
+                  "dy": 3,
+                  "dz": -15
+                },
+                "yaw": 180,
+                "pitch": 10,
+                "roll": 0,
+                "fov": 72,
+                "zoom": 1.0,
+                "dof": 0
+              },
+              {
+                "time": 3.0,
+                "position": {
+                  "dx": 8,
+                  "dy": 3,
+                  "dz": -15
+                },
+                "yaw": 180,
+                "pitch": 10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              }
             ]
           }
         ]
@@ -62,7 +116,20 @@
       {
         "type": "LETTERBOX",
         "clips": [
-          { "start_time": 0.0, "duration": 6.0, "enabled": true, "aspect_ratio": 2.35, "fade_in": 0.3, "fade_out": 0.3 }
+          {
+            "start_time": 0.0,
+            "duration": 6.0,
+            "keyframes": [
+              {
+                "time": 0.0,
+                "roll": 2.35
+              },
+              {
+                "time": 6.0,
+                "roll": 2.35
+              }
+            ]
+          }
         ]
       }
     ]
