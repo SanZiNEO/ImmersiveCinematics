@@ -7,6 +7,7 @@ public abstract class UIComponent {
     public boolean visible = true;
     protected UIComponent parent;
     protected String tooltip;
+    public List<UIComponent> children;
 
     public UIComponent(int x, int y, int w, int h) {
         this.x = x;
@@ -26,8 +27,20 @@ public abstract class UIComponent {
         tooltip = tip;
     }
 
+    public int absX() {
+        return parent != null ? parent.absX() + x : x;
+    }
+
+    public int absY() {
+        return parent != null ? parent.absY() + y : y;
+    }
+
+    public void setParent(UIComponent p) {
+        this.parent = p;
+    }
+
     public boolean isHovered(UIContext ctx) {
-        return visible && ctx.isMouseIn(x, y, w, h);
+        return visible && ctx.isMouseIn(absX(), absY(), w, h);
     }
 
     public abstract void render(UIContext ctx);
@@ -85,7 +98,7 @@ public abstract class UIComponent {
     }
 
     public List<UIComponent> getChildren() {
-        return null;
+        return children;
     }
 
     protected void renderTooltipIfHovered(UIContext ctx) {

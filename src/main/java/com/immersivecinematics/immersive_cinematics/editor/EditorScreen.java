@@ -12,9 +12,7 @@ import com.immersivecinematics.immersive_cinematics.editor.widget.IFocusable;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.opengl.GL11;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -48,6 +46,9 @@ public class EditorScreen extends Screen {
     private long lastRenderLog;
 
     private final EditorBridge bridge;
+
+    private UIComponent rootComponent;
+    private UIComponent overlayComponent;
 
     public EditorScreen(EditorBridge bridge, Path scriptsDir) {
         super(Component.literal("Cinematic Editor"));
@@ -90,6 +91,27 @@ public class EditorScreen extends Screen {
         leftPanel = new LeftPanelArea(0, menuH, leftW, previewH);
         preview = new PreviewArea(leftW, menuH, width - leftW, previewH);
         timeline = new TimelineArea(0, menuH + previewH, width, timelineH);
+
+        // ===== 构建 UI 树 =====
+        rootComponent = new UIComponent(0, 0, width, height) {
+            @Override public void render(UIContext ctx) {}
+        };
+        menuBar.setParent(rootComponent);
+        leftPanel.setParent(rootComponent);
+        preview.setParent(rootComponent);
+        timeline.setParent(rootComponent);
+        rootComponent.children = new java.util.ArrayList<>();
+        rootComponent.children.add(menuBar);
+        rootComponent.children.add(leftPanel);
+        rootComponent.children.add(preview);
+        rootComponent.children.add(timeline);
+
+        overlayComponent = new UIComponent(0, 0, width, height) {
+            @Override public void render(UIContext ctx) {}
+        };
+        overlayComponent.children = new java.util.ArrayList<>();
+        overlayComponent.setParent(rootComponent);
+        rootComponent.children.add(overlayComponent);
 
         RawInputLogger.enable();
         EditorLogger.areaBoundaries(EditorLogger.SCREEN,
@@ -565,38 +587,14 @@ public class EditorScreen extends Screen {
             return;
         }
 
-        renderPhase = "menuBar";
-        try { menuBar.render(ctx); } catch (Exception e) {
-            EditorLogger.error(EditorLogger.SCREEN, "RENDER_CRASH phase=menuBar " + cycleStr, e); return;
-        }
-
-        renderPhase = "leftPanel";
-        try { leftPanel.render(ctx); } catch (Exception e) {
-            EditorLogger.error(EditorLogger.SCREEN, "RENDER_CRASH phase=leftPanel " + cycleStr, e); return;
-        }
-
-        renderPhase = "preview";
-        try { preview.render(ctx); } catch (Exception e) {
-            EditorLogger.error(EditorLogger.SCREEN, "RENDER_CRASH phase=preview " + cycleStr, e); return;
-        }
-
-        renderPhase = "timeline";
-        try { timeline.render(ctx); } catch (Exception e) {
-            EditorLogger.error(EditorLogger.SCREEN, "RENDER_CRASH phase=timeline " + cycleStr, e); return;
-        }
-
-        renderPhase = "overlays";
+        renderPhase = "ui_tree";
         try {
-            RenderSystem.depthFunc(GL11.GL_ALWAYS);
-            menuBar.renderOverlay(ctx);
-            leftPanel.renderOverlay(ctx);
-            preview.renderOverlay(ctx);
-            timeline.renderOverlay(ctx);
-            RenderSystem.depthFunc(GL11.GL_LEQUAL);
+            if (rootComponent != null) {
+                rootComponent.render(ctx);
+                rootComponent.renderOverlay(ctx);
+            }
         } catch (Exception e) {
-            EditorLogger.error(EditorLogger.SCREEN, "RENDER_CRASH phase=overlays " + cycleStr, e);
-            RenderSystem.depthFunc(GL11.GL_LEQUAL);
-            return;
+            EditorLogger.error(EditorLogger.SCREEN, "RENDER_CRASH phase=ui_tree " + cycleStr, e); return;
         }
 
         renderPhase = "done";
@@ -618,18 +616,13 @@ public class EditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        if (rootComponent == null) return false;
         leftPanel.clearTextFocus();
         UIContext ctx = makeCtx(mx, my, button);
-        int imx = (int) mx, imy = (int) my;
-        mouseDownX = imx; mouseDownY = imy;
-        EditorLogger.mousePressed(EditorLogger.SCREEN, button, imx, imy, activeArea);
-
+        mouseDownX = (int) mx; mouseDownY = (int) my;
+        EditorLogger.mousePressed(EditorLogger.SCREEN, button, (int) mx, (int) my, activeArea);
         try {
-            if (menuBar.mouseClicked(ctx)) { activeArea = "MenuBar"; EditorLogger.mouseConsumedBy(EditorLogger.SCREEN, "MenuBar", true); syncPanels(); return true; }
-            if (leftPanel.mouseClicked(ctx)) { activeArea = "LeftPanel"; EditorLogger.mouseConsumedBy(EditorLogger.SCREEN, "LeftPanel", true); syncPanels(); return true; }
-            if (preview.mouseClicked(ctx)) { activeArea = "Preview"; EditorLogger.mouseConsumedBy(EditorLogger.SCREEN, "Preview", true); syncPanels(); return true; }
-            if (timeline.mouseClicked(ctx)) { activeArea = "Timeline"; EditorLogger.mouseConsumedBy(EditorLogger.SCREEN, "Timeline", true); syncPanels(); return true; }
-            EditorLogger.areaNoHit(EditorLogger.SCREEN, imx, imy);
+            if (rootComponent.mouseClicked(ctx)) { syncPanels(); return true; }
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "mouseClicked crashed button=" + button, e);
         }
@@ -638,18 +631,11 @@ public class EditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (rootComponent == null) return false;
         try {
             UIContext ctx = makeCtx(mx, my, button);
-            int imx = (int) mx, imy = (int) my;
-            boolean timelineDrag = timeline.mouseDragged(ctx);
-            if (timelineDrag) {
-                EditorLogger.mouseDrag(EditorLogger.SCREEN, imx, imy, "Timeline", timeline.xToTime(imx));
-            } else {
-                if (!EditorLogger.throttle("mouseDragged", 1000)) {
-                    EditorLogger.mouseMove(EditorLogger.SCREEN, imx, imy, activeArea, true);
-                }
-            }
-            return timelineDrag;
+            ctx.mouseDX = dx; ctx.mouseDY = dy;
+            return rootComponent.mouseDragged(ctx);
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "mouseDragged crashed", e);
             return false;
@@ -658,12 +644,10 @@ public class EditorScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mx, double my, int button) {
+        if (rootComponent == null) return false;
         try {
             UIContext ctx = makeCtx(mx, my, button);
-            int imx = (int) mx, imy = (int) my;
-            EditorLogger.mouseReleased(EditorLogger.SCREEN, button, imx, imy, mouseDownX, mouseDownY, activeArea);
-            menuBar.mouseReleased(ctx); leftPanel.mouseReleased(ctx);
-            preview.mouseReleased(ctx); timeline.mouseReleased(ctx);
+            return rootComponent.mouseReleased(ctx);
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "mouseReleased crashed", e);
         }
@@ -672,18 +656,10 @@ public class EditorScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double scroll) {
+        if (rootComponent == null) return false;
         try {
             UIContext ctx = makeCtx(mx, my, 0);
-            int imx = (int) mx, imy = (int) my;
-            if (timeline.mouseScrolled(ctx, scroll)) {
-                EditorLogger.mouseScroll(EditorLogger.SCREEN, scroll, imx, imy, "Timeline");
-                return true;
-            }
-            if (leftPanel.mouseScrolled(ctx, scroll)) {
-                EditorLogger.mouseScroll(EditorLogger.SCREEN, scroll, imx, imy, "LeftPanel");
-                return true;
-            }
-            EditorLogger.mouseScroll(EditorLogger.SCREEN, scroll, imx, imy, "NO_HIT");
+            return rootComponent.mouseScrolled(ctx, scroll);
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "mouseScrolled crashed", e);
         }

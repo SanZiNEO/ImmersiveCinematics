@@ -14,6 +14,8 @@ public class UIContext {
     public int mouseButton;
     public boolean ctrlDown;
     public boolean shiftDown;
+    public double mouseDX;
+    public double mouseDY;
 
     public UIContext(GuiGraphics graphics, Font font, int screenWidth, int screenHeight, float partialTick,
                      int mouseX, int mouseY) {
