@@ -12,7 +12,9 @@
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
-          "items": ["minecraft:wooden_pickaxe"]
+          "items": [
+            "minecraft:wooden_pickaxe"
+          ]
         }
       }
     ],
@@ -40,8 +42,34 @@
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0.0, "position": { "dx": 15, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
-              { "time": 3.0, "position": { "dx": 10, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+              {
+                "time": 0.0,
+                "position": {
+                  "dx": 15,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": 90,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              },
+              {
+                "time": 3.0,
+                "position": {
+                  "dx": 10,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": 90,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              }
             ]
           },
           {
@@ -52,8 +80,34 @@
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0.0, "position": { "dx": 8, "dy": 1.5, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
-              { "time": 3.0, "position": { "dx": 3, "dy": 1.5, "dz": 0 }, "yaw": 90, "pitch": 8, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+              {
+                "time": 0.0,
+                "position": {
+                  "dx": 8,
+                  "dy": 1.5,
+                  "dz": 0
+                },
+                "yaw": 90,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              },
+              {
+                "time": 3.0,
+                "position": {
+                  "dx": 3,
+                  "dy": 1.5,
+                  "dz": 0
+                },
+                "yaw": 90,
+                "pitch": 8,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              }
             ]
           }
         ]
@@ -64,10 +118,16 @@
           {
             "start_time": 0.0,
             "duration": 6.0,
-            "enabled": true,
-            "aspect_ratio": 2.35,
-            "fade_in": 0.3,
-            "fade_out": 0.3
+            "keyframes": [
+              {
+                "time": 0.0,
+                "roll": 2.35
+              },
+              {
+                "time": 6.0,
+                "roll": 2.35
+              }
+            ]
           }
         ]
       }

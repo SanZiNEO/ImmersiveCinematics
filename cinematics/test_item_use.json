@@ -11,7 +11,9 @@
         "type": "item_use",
         "repeatable": false,
         "delay": 0.5,
-        "conditions": { "item": "minecraft:diamond_helmet" }
+        "conditions": {
+          "item": "minecraft:diamond_helmet"
+        }
       }
     ],
     "block_keyboard": true,
@@ -38,9 +40,48 @@
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0.0, "position": { "dx": 10, "dy": 1.5, "dz": 3 }, "yaw": 107, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
-              { "time": 4.0, "position": { "dx": 0, "dy": 2, "dz": -2 }, "yaw": 0, "pitch": 8, "roll": 0, "fov": 72, "zoom": 1.1, "dof": 0 },
-              { "time": 8.0, "position": { "dx": -10, "dy": 1.5, "dz": 3 }, "yaw": -107, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 }
+              {
+                "time": 0.0,
+                "position": {
+                  "dx": 10,
+                  "dy": 1.5,
+                  "dz": 3
+                },
+                "yaw": 107,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              },
+              {
+                "time": 4.0,
+                "position": {
+                  "dx": 0,
+                  "dy": 2,
+                  "dz": -2
+                },
+                "yaw": 0,
+                "pitch": 8,
+                "roll": 0,
+                "fov": 72,
+                "zoom": 1.1,
+                "dof": 0
+              },
+              {
+                "time": 8.0,
+                "position": {
+                  "dx": -10,
+                  "dy": 1.5,
+                  "dz": 3
+                },
+                "yaw": -107,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              }
             ]
           }
         ]
@@ -48,7 +89,20 @@
       {
         "type": "LETTERBOX",
         "clips": [
-          { "start_time": 0.0, "duration": 8.0, "enabled": true, "aspect_ratio": 2.35, "fade_in": 0.3, "fade_out": 0.3 }
+          {
+            "start_time": 0.0,
+            "duration": 8.0,
+            "keyframes": [
+              {
+                "time": 0.0,
+                "roll": 2.35
+              },
+              {
+                "time": 8.0,
+                "roll": 2.35
+              }
+            ]
+          }
         ]
       }
     ]

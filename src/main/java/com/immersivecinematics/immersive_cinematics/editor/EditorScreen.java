@@ -101,7 +101,11 @@ public class EditorScreen extends Screen {
 
         // ===== 构建 UI 树 =====
         rootComponent = new UIComponent(0, 0, width, height) {
-            @Override public void render(UIContext ctx) {}
+            @Override public void render(UIContext ctx) {
+                for (UIComponent child : getChildren()) {
+                    if (child.visible) child.render(ctx);
+                }
+            }
         };
         menuBar.setParent(rootComponent);
         leftPanel.setParent(rootComponent);
@@ -114,7 +118,11 @@ public class EditorScreen extends Screen {
         rootComponent.children.add(timeline);
 
         overlayComponent = new UIComponent(0, 0, width, height) {
-            @Override public void render(UIContext ctx) {}
+            @Override public void render(UIContext ctx) {
+                for (UIComponent child : getChildren()) {
+                    if (child.visible) child.render(ctx);
+                }
+            }
         };
         overlayComponent.children = new java.util.ArrayList<>();
         overlayComponent.setParent(rootComponent);

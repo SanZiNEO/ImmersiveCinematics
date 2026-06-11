@@ -11,7 +11,9 @@
         "type": "item_craft",
         "repeatable": false,
         "delay": 0.5,
-        "conditions": { "item": "minecraft:leather_chestplate" }
+        "conditions": {
+          "item": "minecraft:leather_chestplate"
+        }
       }
     ],
     "block_keyboard": true,
@@ -38,8 +40,34 @@
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0.0, "position": { "dx": -6, "dy": 1, "dz": 5 }, "yaw": -130, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0, "dof": 0 },
-              { "time": 6.0, "position": { "dx": -6, "dy": 10, "dz": 5 }, "yaw": -130, "pitch": 40, "roll": 0, "fov": 85, "zoom": 1.0, "dof": 0 }
+              {
+                "time": 0.0,
+                "position": {
+                  "dx": -6,
+                  "dy": 1,
+                  "dz": 5
+                },
+                "yaw": -130,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              },
+              {
+                "time": 6.0,
+                "position": {
+                  "dx": -6,
+                  "dy": 10,
+                  "dz": 5
+                },
+                "yaw": -130,
+                "pitch": 40,
+                "roll": 0,
+                "fov": 85,
+                "zoom": 1.0,
+                "dof": 0
+              }
             ]
           }
         ]
@@ -47,7 +75,20 @@
       {
         "type": "LETTERBOX",
         "clips": [
-          { "start_time": 0.0, "duration": 6.0, "enabled": true, "aspect_ratio": 2.35, "fade_in": 0.3, "fade_out": 0.3 }
+          {
+            "start_time": 0.0,
+            "duration": 6.0,
+            "keyframes": [
+              {
+                "time": 0.0,
+                "roll": 2.35
+              },
+              {
+                "time": 6.0,
+                "roll": 2.35
+              }
+            ]
+          }
         ]
       }
     ]
