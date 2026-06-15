@@ -9,7 +9,9 @@ import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.debug.RawInputLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import com.immersivecinematics.immersive_cinematics.editor.widget.IFocusable;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.resources.language.I18n;
+import org.lwjgl.opengl.GL11;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -185,10 +187,11 @@ public class EditorScreen extends Screen {
             JsonObject lbClip = new JsonObject();
             lbClip.addProperty("start_time", 0f);
             lbClip.addProperty("duration", 10f);
-            lbClip.addProperty("enabled", true);
-            lbClip.addProperty("aspect_ratio", 2.35f);
-            lbClip.addProperty("fade_in", 0.5f);
-            lbClip.addProperty("fade_out", 0.5f);
+            JsonArray kfs = new JsonArray();
+            JsonObject kf0 = new JsonObject(); kf0.addProperty("time", 0f); kf0.addProperty("aspect_ratio", 2.35f);
+            JsonObject kf1 = new JsonObject(); kf1.addProperty("time", 10f); kf1.addProperty("aspect_ratio", 2.35f);
+            kfs.add(kf0); kfs.add(kf1);
+            lbClip.add("keyframes", kfs);
             doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
 
             if (clip != null) sel.selectClip(clip);
@@ -230,10 +233,11 @@ public class EditorScreen extends Screen {
             JsonObject lbClip = new JsonObject();
             lbClip.addProperty("start_time", 0f);
             lbClip.addProperty("duration", 10f);
-            lbClip.addProperty("enabled", true);
-            lbClip.addProperty("aspect_ratio", 2.35f);
-            lbClip.addProperty("fade_in", 0.5f);
-            lbClip.addProperty("fade_out", 0.5f);
+            JsonArray kfs = new JsonArray();
+            JsonObject kf0 = new JsonObject(); kf0.addProperty("time", 0f); kf0.addProperty("aspect_ratio", 2.35f);
+            JsonObject kf1 = new JsonObject(); kf1.addProperty("time", 10f); kf1.addProperty("aspect_ratio", 2.35f);
+            kfs.add(kf0); kfs.add(kf1);
+            lbClip.add("keyframes", kfs);
             doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
 
             if (clip != null) sel.selectClip(clip);
@@ -417,10 +421,11 @@ public class EditorScreen extends Screen {
             JsonObject lbClip = new JsonObject();
             lbClip.addProperty("start_time", 0f);
             lbClip.addProperty("duration", 10f);
-            lbClip.addProperty("enabled", true);
-            lbClip.addProperty("aspect_ratio", 2.35f);
-            lbClip.addProperty("fade_in", 0.5f);
-            lbClip.addProperty("fade_out", 0.5f);
+            JsonArray kfs = new JsonArray();
+            JsonObject kf0 = new JsonObject(); kf0.addProperty("time", 0f); kf0.addProperty("aspect_ratio", 2.35f);
+            JsonObject kf1 = new JsonObject(); kf1.addProperty("time", 10f); kf1.addProperty("aspect_ratio", 2.35f);
+            kfs.add(kf0); kfs.add(kf1);
+            lbClip.add("keyframes", kfs);
             doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
 
             if (clip != null) sel.selectClip(clip);
@@ -606,7 +611,9 @@ public class EditorScreen extends Screen {
         try {
             if (rootComponent != null) {
                 rootComponent.render(ctx);
+                RenderSystem.depthFunc(GL11.GL_ALWAYS);
                 rootComponent.renderOverlay(ctx);
+                RenderSystem.depthFunc(GL11.GL_LEQUAL);
             }
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "RENDER_CRASH phase=ui_tree " + cycleStr, e); return;
@@ -687,7 +694,7 @@ public class EditorScreen extends Screen {
             EditorLogger.keyPress(EditorLogger.SCREEN, "keyPressed", keyCode,
                     "mods=" + modifiers + " shift=" + hasShiftDown() + " ctrl=" + hasControlDown());
             if (keyCode == 256) { EditorLogger.action(EditorLogger.SCREEN, "CLOSE", "ESC"); onClose(); return true; }
-            if (keyCode == 66) { EditorLogger.action(EditorLogger.SCREEN, "CLOSE", "B"); onClose(); return true; }
+
             UIComponent focused = leftPanel.getFocusedInput();
             if (focused instanceof IFocusable f && f.keyPressed(keyCode, scanCode, modifiers)) return true;
             if (sel.getKeyframe() != null && handleKeyframeKey(keyCode)) { return true; }

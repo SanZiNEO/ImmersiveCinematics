@@ -220,6 +220,7 @@ public class CameraManager {
 
     private void startScriptInternal(CinematicScript script) {
         Minecraft mc = Minecraft.getInstance();
+        mc.setScreen(null);
         Vec3 playerPos = mc.player.position();
 
         CinematicController.INSTANCE.releaseAllKeys();
