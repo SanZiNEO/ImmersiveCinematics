@@ -113,7 +113,7 @@ public class CinematicCommand {
         Collection<ServerPlayer> targets;
         try {
             targets = EntityArgument.getPlayers(context, "players");
-        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
+        } catch (IllegalArgumentException | com.mojang.brigadier.exceptions.CommandSyntaxException e) {
             targets = server.getPlayerList().getPlayers();
         }
 
@@ -135,7 +135,7 @@ public class CinematicCommand {
         Collection<ServerPlayer> targets;
         try {
             targets = EntityArgument.getPlayers(context, "players");
-        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
+        } catch (IllegalArgumentException | com.mojang.brigadier.exceptions.CommandSyntaxException e) {
             targets = server.getPlayerList().getPlayers();
         }
 

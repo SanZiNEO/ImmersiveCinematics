@@ -355,7 +355,16 @@ public class ScriptParser {
         for (int i = 0; i < clipsArr.size(); i++) {
             JsonObject obj = clipsArr.get(i).getAsJsonObject();
             String cp = p + "[" + i + "]";
-            JsonArray kfArr = requireArray(obj, cp, "keyframes");
+            if (!obj.has("keyframes")) {
+                float ratio = optFloat(obj, "aspect_ratio", 2.35f);
+                float dur = requireFloat(obj, cp, "duration");
+                LetterboxKeyframe k0 = new LetterboxKeyframe(0f, ratio);
+                LetterboxKeyframe k1 = new LetterboxKeyframe(dur, ratio);
+                clips.add(new LetterboxClip(
+                        requireFloat(obj, cp, "start_time"), dur, List.of(k0, k1)));
+                continue;
+            }
+            JsonArray kfArr = obj.getAsJsonArray("keyframes");
             List<LetterboxKeyframe> kfs = new ArrayList<>();
             for (int j = 0; j < kfArr.size(); j++) {
                 kfs.add(parseLetterboxKeyframe(kfArr.get(j).getAsJsonObject(), cp + ".keyframes[" + j + "]"));
