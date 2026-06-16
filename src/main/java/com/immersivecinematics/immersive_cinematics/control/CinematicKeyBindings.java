@@ -27,10 +27,8 @@ public class CinematicKeyBindings {
 
     private static long skipKeyDownSince = 0;
     private static boolean skipTriggered = false;
-    private static boolean editorKeyWasDown = false;
     private static long editorClosedAt;
-    private static final long EDITOR_REOPEN_COOLDOWN = 300; // ms
-    private static boolean wasEditorOpen = false;
+    private static final long EDITOR_REOPEN_COOLDOWN = 500; // ms
 
     public static void register(RegisterKeyMappingsEvent event) {
         event.register(SKIP_KEY);
@@ -53,21 +51,13 @@ public class CinematicKeyBindings {
             skipKeyDownSince = 0;
         }
 
-        boolean currentlyEditorOpen = mc.screen instanceof EditorScreen;
-        if (wasEditorOpen && !currentlyEditorOpen) {
-            notifyEditorClosed();
-        }
-        wasEditorOpen = currentlyEditorOpen;
-
         if (ImmersiveCinematics.EDITOR_ENABLED && EDITOR_KEY != null) {
-            boolean editorDown = EDITOR_KEY.isDown();
-            if (editorDown && !editorKeyWasDown && !(mc.screen instanceof EditorScreen)
-                    && System.currentTimeMillis() - editorClosedAt > EDITOR_REOPEN_COOLDOWN) {
-                Path scriptsDir = Paths.get("immersive_cinematics", "scripts");
-                EditorScreen editor = new EditorScreen(EditorBridgeImpl.INSTANCE, scriptsDir);
-                mc.setScreen(editor);
+            Path scriptsDir = Paths.get("immersive_cinematics", "scripts");
+            while (EDITOR_KEY.consumeClick()) {
+                if (!(mc.screen instanceof EditorScreen) && System.currentTimeMillis() - editorClosedAt > EDITOR_REOPEN_COOLDOWN) {
+                    mc.setScreen(new EditorScreen(EditorBridgeImpl.INSTANCE, scriptsDir));
+                }
             }
-            editorKeyWasDown = editorDown;
         }
 
         // Tick the editor's output dispatcher (throttled bridge calls)
@@ -103,10 +93,9 @@ public class CinematicKeyBindings {
         }
     }
 
-    /** Called automatically when editor screen closes. Prevents immediate reopen. */
+    /** Cooldown reset when editor closes. */
     public static void notifyEditorClosed() {
         editorClosedAt = System.currentTimeMillis();
-        editorKeyWasDown = EDITOR_KEY != null && EDITOR_KEY.isDown();
     }
 
     public static float getSkipHoldProgress() {
