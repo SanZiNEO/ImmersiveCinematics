@@ -9,6 +9,7 @@ import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.debug.RawInputLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import com.immersivecinematics.immersive_cinematics.editor.widget.IFocusable;
+import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.resources.language.I18n;
 import org.lwjgl.opengl.GL11;
@@ -693,7 +694,8 @@ public class EditorScreen extends Screen {
         try {
             EditorLogger.keyPress(EditorLogger.SCREEN, "keyPressed", keyCode,
                     "mods=" + modifiers + " shift=" + hasShiftDown() + " ctrl=" + hasControlDown());
-            if (keyCode == 256) { EditorLogger.action(EditorLogger.SCREEN, "CLOSE", "ESC"); onClose(); return true; }
+            int editorKeyCode = CinematicKeyBindings.EDITOR_KEY != null ? CinematicKeyBindings.EDITOR_KEY.getKey().getValue() : -1;
+            if (keyCode == 256 || (editorKeyCode > 0 && keyCode == editorKeyCode)) { EditorLogger.action(EditorLogger.SCREEN, "CLOSE", "ESC"); CinematicKeyBindings.notifyEditorClosed(); onClose(); return true; }
 
             UIComponent focused = leftPanel.getFocusedInput();
             if (focused instanceof IFocusable f && f.keyPressed(keyCode, scanCode, modifiers)) return true;
