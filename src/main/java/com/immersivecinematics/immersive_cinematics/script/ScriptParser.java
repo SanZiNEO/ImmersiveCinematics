@@ -498,8 +498,8 @@ public class ScriptParser {
         try {
             return InterpolationType.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new ScriptParseException(p, "未知的速度曲线类型: " + value +
-                    "，支持: linear/smooth");
+throw new ScriptParseException(p, "未知的速度曲线类型: " + value +
+        "，支持: linear");
         }
     }
 
