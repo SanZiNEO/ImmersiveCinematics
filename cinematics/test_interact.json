@@ -8,7 +8,7 @@
     "triggers": [
       {
         "id": "use_jukebox",
-        "type": "interact",
+        "type": "block_interact",
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
