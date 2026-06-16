@@ -74,6 +74,8 @@
 | `conditions` | object | 否 | `{}` | 类型对应的条件参数 |
 | `repeatable` | boolean | 否 | `false` | 是否可重复触发 |
 | `delay` | number | 否 | `0` | 触发后延迟执行秒数 |
+| `on_enter` | boolean | 否 | `false` | 仅位置类触发器有效：仅在首次进入区域时触发，已在区域内不重复 |
+| `exit_buffer` | number | 否 | `0` | 配合 `on_enter`：玩家离开触发区域多少格后才标记为"已离开"，防止边界抖动 |
 
 全部触发类型及条件参数见 `TRIGGER_TYPES.md`。
 
@@ -184,14 +186,79 @@
 
 ## 5. Letterbox 轨道
 
+### Clip 字段
+
 | 字段 | 类型 | 必需 | 默认 | 说明 |
 |------|------|------|------|------|
 | `start_time` | float | 是 | — | 起始时间 |
-| `duration` | float | 是 | — | 持续时间 |
-| `enabled` | boolean | 否 | `true` | 是否启用遮幅 |
-| `aspect_ratio` | float | 否 | `2.35` | 画面宽高比。常见：`2.35`（电影）, `1.778`（16:9）, `2.0` |
-| `fade_in` | float | 否 | `0.5` | 渐入时长（秒），`0`=瞬间出现 |
-| `fade_out` | float | 否 | `0.5` | 渐出时长（秒），`0`=瞬间消失 |
+| `duration` | float | 是 | — | 持续时间，正数=定长，负数=无限 |
+| `keyframes` | array | 否 | — | 关键帧数组。省略时自动生成首尾两个关键帧 |
+
+### 向后兼容（无 keyframes 时自动转换）
+
+如果不写 `keyframes`，也可以直接在 clip 上写 `aspect_ratio`（默认 2.35），解析器会自动创建首尾两个关键帧保持恒定宽高比。
+
+### Keyframe 字段
+
+| 字段 | 类型 | 必需 | 默认 | 说明 |
+|------|------|------|------|------|
+| `time` | float | 是 | — | 在 clip 内的时间偏移（秒），从 0 开始 |
+| `aspect_ratio` | float | 否 | `2.35` | 目标宽高比。`0`=无遮幅（全屏），`2.35`=宽银幕电影，`1.778`=16:9 |
+
+关键帧之间宽高比线性插值。
+
+**恒定遮幅示例：**
+
+```json
+{
+  "type": "letterbox",
+  "clips": [
+    {
+      "start_time": 0.0,
+      "duration": 30.0,
+      "keyframes": [
+        { "time": 0.0, "aspect_ratio": 2.35 },
+        { "time": 30.0, "aspect_ratio": 2.35 }
+      ]
+    }
+  ]
+}
+```
+
+**动态遮幅 — 开场渐显、终场渐隐：**
+
+```json
+{
+  "type": "letterbox",
+  "clips": [
+    {
+      "start_time": 0.0,
+      "duration": 30.0,
+      "keyframes": [
+        { "time": 0.0, "aspect_ratio": 0.0 },
+        { "time": 1.0, "aspect_ratio": 2.35 },
+        { "time": 28.0, "aspect_ratio": 2.35 },
+        { "time": 30.0, "aspect_ratio": 0.0 }
+      ]
+    }
+  ]
+}
+```
+
+**向后兼容写法（自动展开为首尾关键帧）：**
+
+```json
+{
+  "type": "letterbox",
+  "clips": [
+    {
+      "start_time": 0.0,
+      "duration": 30.0,
+      "aspect_ratio": 2.35
+    }
+  ]
+}
+```
 
 ---
 
@@ -295,9 +362,12 @@
           {
             "start_time": 0.0,
             "duration": 30.0,
-            "aspect_ratio": 2.35,
-            "fade_in": 0.5,
-            "fade_out": 0.5
+            "keyframes": [
+              { "time": 0.0, "aspect_ratio": 0.0 },
+              { "time": 1.0, "aspect_ratio": 2.35 },
+              { "time": 28.0, "aspect_ratio": 2.35 },
+              { "time": 30.0, "aspect_ratio": 0.0 }
+            ]
           }
         ]
       },

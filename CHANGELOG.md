@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.3.2] - 2026-06-16
+
+编辑器和运行时的深度优化版本，重构脚本系统、UI 架构、布局系统，新增物品交互触发器，修复多项长期 bug。
+
+### Added
+- 新增 `item_on_interact` 触发器，同时检查手持物品和交互目标（方块/实体），例如 `carrot on iron_block` 触发 boss 出场
+- 新增 `LetterboxKeyframe` 类，letterbox 轨道支持完整关键帧（`start_time`/`duration`/`target_aspect_ratio`/`easing`）
+
+### Fixed
+- 相机 Mixin 注入条件从 `isActive()` 改为 `isActive() && hasActiveCameraClip()`，CAMERA gap 和纯 letterbox 脚本不再锁死视角
+- `/icinematics play` 改为 `EntityArgument.players()` + `S2CPlayScriptPacket` 分发，修复纯客户端类导致的服务端崩溃，同时支持 `@a`/`@p` 玩家选择器
+- 编辑器布局从百分比改为参考分辨率 960×540 等比缩放，不同 MC GUI Scale 下保持一致
+- 编辑器新建关键帧后画面空白（缺失 position/yaw/pitch 等默认属性）
+- B 键关闭编辑器逻辑修复
+
+### Refactored
+- `EditorScreen` 删除对 `EditorBridgeImpl` 和 `CinematicKeyBindings` 的直接引用，消除跨包依赖泄漏
+- 新增 `IFocusable` 接口，`UITextInput`/`UIFloatInput`/`UIAutoCompleteInput` 统一实现，4 处 instanceof 分发点合并为 1 行
+- `LetterboxClip` 结构对齐 `CameraClip`：删除 `fade_in`/`fade_out`/`enabled`，`aspect_ratio` 移入关键帧属性，`LetterboxTrackPlayer` 重写为关键帧插值
+- Transition morph 从独立行为改为前段 clip 的退场阶段（`exit_behavior`），修改 `CameraTrackPlayer`/`EditorOperations`/`TimelineArea`
+- 编辑器 UI 树重构：统一父元素相对偏移坐标（`absX()`/`absY()`），事件分发改为 `root.mouseClicked(ctx)` 替代 4 个手动调用，新增 Overlay 层解决跨区组件事件截断
+- 编辑器 LETTERBOX 特殊分支删除，合并到通用 clip 编辑流程
+
+### Cleanup
+- 清理死代码和重复触发器注册
+
 ## [0.3.1] - 2026-05-31
 
 0.3.0 发布后的修复版本，集中修复编辑器关键帧和脚本管理问题，新增 `on_enter` 和 `exit_buffer` 触发器字段。
