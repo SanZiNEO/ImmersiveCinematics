@@ -10,6 +10,8 @@
 | `repeatable` | boolean | 否 | 是否可重复触发，默认 `false` |
 | `delay` | number | 否 | 触发后延迟执行（秒），默认 `0` |
 | `conditions` | object | 否 | 各类型特有的条件，见下方 |
+| `on_enter` | boolean | 否 | 仅位置类触发器有效：设为 `true` 后只在首次进入区域时触发，已在区域内不重复。默认 `false` |
+| `exit_buffer` | number | 否 | 配合 `on_enter` 使用：玩家离开触发区域多少格后才标记为"已离开"，防止区域边界抖动导致反复触发。默认 `0` |
 
 所有匹配 ID 的字段均支持三种匹配模式：
 
@@ -170,24 +172,66 @@
 
 ---
 
-## 6. `interact`
+## 6. `entity_interact`
 
-玩家与方块或实体交互时触发。
+玩家与实体交互时触发（右键点击实体）。
 
 | 条件字段 | 类型 | 必需 | 说明 |
 |---------|------|------|------|
-| `target` | string | 是 | 目标方块/实体 ID，`"*"` 表示任意交互 |
+| `target` | string | 是 | 目标实体 ID，`"*"` 表示任意实体交互 |
 
 ```json
 {
-  "type": "interact",
+  "type": "entity_interact",
+  "conditions": { "target": "minecraft:villager" }
+}
+```
+
+---
+
+## 7. `block_interact`
+
+玩家与方块交互时触发（右键/左键点击方块）。
+
+| 条件字段 | 类型 | 必需 | 说明 |
+|---------|------|------|------|
+| `target` | string | 是 | 目标方块 ID，`"*"` 表示任意方块交互 |
+
+```json
+{
+  "type": "block_interact",
   "conditions": { "target": "minecraft:jukebox" }
 }
 ```
 
 ---
 
-## 7. `dimension_change`
+## 8. `item_on_interact`
+
+玩家手持指定物品与指定目标（方块或实体）交互时触发。需要同时满足手持物品和目标两个条件。**[0.3.2 新增]**
+
+| 条件字段 | 类型 | 必需 | 说明 |
+|---------|------|------|------|
+| `item` | string | 是 | 手持物品 ID，支持子串/通配符匹配 |
+| `target` | string | 是 | 目标方块/实体 ID，`"*"` 表示任意目标 |
+
+```json
+{
+  "type": "item_on_interact",
+  "conditions": { "item": "minecraft:carrot", "target": "minecraft:iron_block" }
+}
+```
+
+```json
+{
+  "type": "item_on_interact",
+  "conditions": { "item": "minecraft:diamond", "target": "*" }
+}
+```
+
+---
+
+## 9. `dimension_change`
 
 玩家切换维度时触发。
 
@@ -204,20 +248,9 @@
 
 ---
 
-## 8. `dimension`
-
-同 `dimension_change`。
-
-```json
-{
-  "type": "dimension",
-  "conditions": { "dimension": "minecraft:the_end" }
-}
-```
-
 ---
 
-## 9. `item_craft`
+## 10. `item_craft`
 
 玩家合成指定物品时触发。
 
@@ -234,7 +267,24 @@
 
 ---
 
-## 10. `item_use`
+## 11. `item_use`
+
+玩家右键点击使用指定物品时触发（右键按下即触发，不等使用完成）。
+
+| 条件字段 | 类型 | 必需 | 说明 |
+|---------|------|------|------|
+| `item` | string | 是 | 物品 ID，支持子串/通配符匹配 |
+
+```json
+{
+  "type": "item_use",
+  "conditions": { "item": "minecraft:ender_pearl" }
+}
+```
+
+---
+
+## 12. `item_consume`
 
 玩家使用完成指定物品时触发（吃完食物、喝完药水、射完箭等）。  
 仅监听 `LivingEntityUseItemEvent.Finish`，右键按下时**不**触发。
@@ -245,14 +295,14 @@
 
 ```json
 {
-  "type": "item_use",
+  "type": "item_consume",
   "conditions": { "item": "minecraft:golden_apple" }
 }
 ```
 
 ---
 
-## 11. `inventory`
+## 13. `inventory`
 
 玩家背包物品检测（轮询，每 20 ticks ≈ 1 秒检测一次）。
 
@@ -305,7 +355,7 @@
 
 ---
 
-## 12. `custom`
+## 14. `custom`
 
 通过外部模组/命令调用 `CustomEventTracker.fire(player, eventId)` 时触发。
 
@@ -322,20 +372,7 @@
 
 ---
 
-## 13. `command`
-
-通过服务端命令触发（预留，当前始终返回 `false`）。
-
-```json
-{
-  "type": "command",
-  "conditions": {}
-}
-```
-
----
-
-## 14. `structure`
+## 15. `structure`
 
 玩家进入指定结构时触发（轮询，每 20 ticks ≈ 1 秒检测一次）。  
 按配置级结构注册名匹配（如 `minecraft:village_plains`），支持子串匹配。
@@ -363,7 +400,7 @@
 
 ---
 
-## 15. `gamestage`
+## 16. `gamestage`
 
 玩家拥有指定游戏阶段时触发（轮询，每 20 ticks ≈ 1 秒检测一次）。  
 需要安装 [GameStages](https://www.curseforge.com/minecraft/mc-mods/gamestages) 模组，未安装时始终返回 `false`。

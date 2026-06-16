@@ -10,7 +10,7 @@
 
 ## What Is This?
 
-ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server-side trigger system coordinates with client-side playback: script authors define cutscenes in JSON (or via the in-game editor), and the trigger system plays them automatically when conditions are met — 14 trigger types covering login, location, advancement, biome, dimension change, entity kill, interact, item craft, item use, inventory, structure, gamestage, custom event, and command.
+ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server-side trigger system coordinates with client-side playback: script authors define cutscenes in JSON (or via the in-game editor), and the trigger system plays them automatically when conditions are met — 16 trigger types covering login, location, advancement, biome, dimension change, entity kill, entity interact, block interact, item-on-interact, item craft, item use, item consume, inventory, structure, gamestage, and custom event.
 
 **Use cases:**
 - Play an intro cutscene when entering a new area
@@ -28,11 +28,11 @@ ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server
 - Keyframe animation + Bézier curve paths for smooth camera movement
 - Relative/absolute positioning, looping, infinite duration
 - Multi-track timeline: camera, letterbox, audio, event, mod event
-- Widescreen letterbox bars (2.35:1) with fade-in/out animation
+- Widescreen letterbox bars with keyframe-driven aspect ratio animation
 - Morph transitions between shots
 
 **Trigger System (Server-Side)**
-- 14 trigger types: login, location (point+radius / cuboid area), advancement, biome, dimension change, entity kill, interact, item craft, item use, inventory, structure, gamestage, custom event, command
+- 16 trigger types: login, location (point+radius / cuboid area), advancement, biome, dimension change, entity kill, entity interact, block interact, item-on-interact, item craft, item use, item consume, inventory, structure, gamestage, custom event
 - OR/AND logic and wildcard matching supported
 - Repeatable or single-fire, with configurable delay
 
@@ -72,7 +72,7 @@ A single build includes both playback runtime and the in-game editor. All users 
 
 ## Version
 
-**Current: 0.3.1**
+**Current: 0.3.2**
 
 | | Version |
 |---|---------|
