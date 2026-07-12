@@ -3,13 +3,9 @@ package com.immersivecinematics.immersive_cinematics.client;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.editor.EditorBridge;
 
-import java.util.function.IntConsumer;
-
 public class EditorBridgeImpl implements EditorBridge {
 
     public static final EditorBridgeImpl INSTANCE = new EditorBridgeImpl();
-
-    private IntConsumer fboCallback;
 
     @Override
     public void setTime(float seconds) {
@@ -34,16 +30,5 @@ public class EditorBridgeImpl implements EditorBridge {
     @Override
     public void stop() {
         CameraManager.INSTANCE.stop();
-    }
-
-    @Override
-    public void setFboCallback(IntConsumer fboIdCallback) {
-        this.fboCallback = fboIdCallback;
-    }
-
-    public void notifyFbo(int textureId) {
-        if (fboCallback != null) {
-            fboCallback.accept(textureId);
-        }
     }
 }

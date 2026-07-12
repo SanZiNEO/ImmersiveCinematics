@@ -46,7 +46,7 @@ public class EditorLogger {
                 File dir = new File("logs/editor");
                 dir.mkdirs();
                 File f = new File(dir, "editor-" + ts + ".log");
-                fileOut = new PrintWriter(new FileWriter(f, true), true);
+                fileOut = new PrintWriter(new FileWriter(f, true), false);
                 System.out.println(PREFIX + " Logging to " + f.getAbsolutePath());
             } catch (IOException e) {
                 System.err.println(PREFIX + " Failed to open log file: " + e.getMessage());

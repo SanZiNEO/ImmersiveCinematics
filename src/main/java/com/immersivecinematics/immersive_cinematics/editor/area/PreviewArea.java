@@ -17,8 +17,6 @@ public class PreviewArea extends UIComponent {
     private final UIButton stopBtn;
     private final UILabel timeLabel;
 
-    private int fboTextureId = -1;
-    private boolean playing;
     private float currentTime;
 
     public PreviewArea(int x, int y, int w, int h) {
@@ -48,8 +46,6 @@ public class PreviewArea extends UIComponent {
         children.add(timeLabel);
     }
 
-    public void setFboTexture(int id) { fboTextureId = id; }
-    public void setPlaying(boolean p) { playing = p; }
     public void setCurrentTime(float t) {
         currentTime = t;
         timeLabel.setText(String.format("%.1fs", t));

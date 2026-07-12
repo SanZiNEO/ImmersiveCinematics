@@ -158,45 +158,16 @@ public class EditorScreen extends Screen {
 
         if (firstInit) {
             firstInit = false;
+            System.out.println("[KILO-DEBUG] EditorScreen.init() firstInit, scriptsDir=" + scriptsDir.toAbsolutePath() + " exists=" + Files.exists(scriptsDir));
             refreshScriptList();
-            doc.reset();
+            System.out.println("[KILO-DEBUG] After refreshScriptList, scriptFileNames=" + scriptFileNames);
+
+            bootstrapNewScript();
 
             menuBar.setAction(I18n.get("editor.action.new_script"));
             menuBar.setStatus(I18n.get("editor.status.editing"), 0xFFAAAAAA);
-
-            // CAMERA track — first clip with default fields
-            JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10, "CAMERA");
-            if (clip != null) {
-                clip.addProperty("transition", "cut");
-                clip.addProperty("interpolation", "linear");
-                clip.addProperty("position_mode", "relative");
-                clip.addProperty("loop", false);
-                JsonArray kfs = clip.getAsJsonArray("keyframes");
-                if (kfs != null) {
-                    for (JsonElement ke : kfs) {
-                        JsonObject kf = ke.getAsJsonObject();
-                        JsonObject pos = new JsonObject();
-                        pos.addProperty("dx", 0f); pos.addProperty("dy", 0f); pos.addProperty("dz", 0f);
-                        kf.add("position", pos);
-                        kf.addProperty("yaw", 0f); kf.addProperty("pitch", 0f); kf.addProperty("roll", 0f);
-                        kf.addProperty("fov", 70f); kf.addProperty("zoom", 1f); kf.addProperty("dof", 0f);
-                    }
-                }
-            }
-
-            // LETTERBOX track — full-duration clip
-            JsonObject lbClip = new JsonObject();
-            lbClip.addProperty("start_time", 0f);
-            lbClip.addProperty("duration", 10f);
-            JsonArray kfs = new JsonArray();
-            JsonObject kf0 = new JsonObject(); kf0.addProperty("time", 0f); kf0.addProperty("aspect_ratio", 2.35f);
-            JsonObject kf1 = new JsonObject(); kf1.addProperty("time", 10f); kf1.addProperty("aspect_ratio", 2.35f);
-            kfs.add(kf0); kfs.add(kf1);
-            lbClip.add("keyframes", kfs);
-            doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
-
-            if (clip != null) sel.selectClip(clip);
         } else {
+            leftPanel.setScriptFileNames(scriptFileNames);
             syncPanels();
             leftPanel.build();
         }
@@ -210,38 +181,7 @@ public class EditorScreen extends Screen {
         menuBar.setOnNewScript(() -> {
             EditorLogger.action(EditorLogger.SCREEN, "NEW_SCRIPT", "from menu");
             scriptFilePath = null;
-            doc.reset();
-
-            JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10, "CAMERA");
-            if (clip != null) {
-                clip.addProperty("transition", "cut");
-                clip.addProperty("interpolation", "linear");
-                clip.addProperty("position_mode", "relative");
-                clip.addProperty("loop", false);
-                JsonArray kfs = clip.getAsJsonArray("keyframes");
-                if (kfs != null) {
-                    for (JsonElement ke : kfs) {
-                        JsonObject kf = ke.getAsJsonObject();
-                        JsonObject pos = new JsonObject();
-                        pos.addProperty("dx", 0f); pos.addProperty("dy", 0f); pos.addProperty("dz", 0f);
-                        kf.add("position", pos);
-                        kf.addProperty("yaw", 0f); kf.addProperty("pitch", 0f); kf.addProperty("roll", 0f);
-                        kf.addProperty("fov", 70f); kf.addProperty("zoom", 1f); kf.addProperty("dof", 0f);
-                    }
-                }
-            }
-
-            JsonObject lbClip = new JsonObject();
-            lbClip.addProperty("start_time", 0f);
-            lbClip.addProperty("duration", 10f);
-            JsonArray kfs = new JsonArray();
-            JsonObject kf0 = new JsonObject(); kf0.addProperty("time", 0f); kf0.addProperty("aspect_ratio", 2.35f);
-            JsonObject kf1 = new JsonObject(); kf1.addProperty("time", 10f); kf1.addProperty("aspect_ratio", 2.35f);
-            kfs.add(kf0); kfs.add(kf1);
-            lbClip.add("keyframes", kfs);
-            doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
-
-            if (clip != null) sel.selectClip(clip);
+            bootstrapNewScript();
             menuBar.setAction(I18n.get("editor.action.new_script"));
             menuBar.setStatus(I18n.get("editor.status.editing"), 0xFFAAAAAA);
         });
@@ -398,38 +338,7 @@ public class EditorScreen extends Screen {
         leftPanel.setOnNewScript(() -> {
             EditorLogger.action(EditorLogger.LEFT, "NEW_SCRIPT", "from left panel");
             scriptFilePath = null;
-            doc.reset();
-
-            JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10, "CAMERA");
-            if (clip != null) {
-                clip.addProperty("transition", "cut");
-                clip.addProperty("interpolation", "linear");
-                clip.addProperty("position_mode", "relative");
-                clip.addProperty("loop", false);
-                JsonArray kfs = clip.getAsJsonArray("keyframes");
-                if (kfs != null) {
-                    for (JsonElement ke : kfs) {
-                        JsonObject kf = ke.getAsJsonObject();
-                        JsonObject pos = new JsonObject();
-                        pos.addProperty("dx", 0f); pos.addProperty("dy", 0f); pos.addProperty("dz", 0f);
-                        kf.add("position", pos);
-                        kf.addProperty("yaw", 0f); kf.addProperty("pitch", 0f); kf.addProperty("roll", 0f);
-                        kf.addProperty("fov", 70f); kf.addProperty("zoom", 1f); kf.addProperty("dof", 0f);
-                    }
-                }
-            }
-
-            JsonObject lbClip = new JsonObject();
-            lbClip.addProperty("start_time", 0f);
-            lbClip.addProperty("duration", 10f);
-            JsonArray kfs = new JsonArray();
-            JsonObject kf0 = new JsonObject(); kf0.addProperty("time", 0f); kf0.addProperty("aspect_ratio", 2.35f);
-            JsonObject kf1 = new JsonObject(); kf1.addProperty("time", 10f); kf1.addProperty("aspect_ratio", 2.35f);
-            kfs.add(kf0); kfs.add(kf1);
-            lbClip.add("keyframes", kfs);
-            doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
-
-            if (clip != null) sel.selectClip(clip);
+            bootstrapNewScript();
             menuBar.setAction(I18n.get("editor.action.new_script"));
             menuBar.setStatus(I18n.get("editor.status.editing"), 0xFFAAAAAA);
         });
@@ -453,6 +362,45 @@ public class EditorScreen extends Screen {
                 doc.markDirty();
             }
         });
+    }
+
+    // ========== 新建脚本引导（抽取公共块） ==========
+
+    private void bootstrapNewScript() {
+        doc.reset();
+
+        // CAMERA track — first clip with default fields
+        JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, 0, 10, "CAMERA");
+        if (clip != null) {
+            clip.addProperty("transition", "cut");
+            clip.addProperty("interpolation", "linear");
+            clip.addProperty("position_mode", "relative");
+            clip.addProperty("loop", false);
+            JsonArray kfs = clip.getAsJsonArray("keyframes");
+            if (kfs != null) {
+                for (JsonElement ke : kfs) {
+                    JsonObject kf = ke.getAsJsonObject();
+                    JsonObject pos = new JsonObject();
+                    pos.addProperty("dx", 0f); pos.addProperty("dy", 0f); pos.addProperty("dz", 0f);
+                    kf.add("position", pos);
+                    kf.addProperty("yaw", 0f); kf.addProperty("pitch", 0f); kf.addProperty("roll", 0f);
+                    kf.addProperty("fov", 70f); kf.addProperty("zoom", 1f); kf.addProperty("dof", 0f);
+                }
+            }
+        }
+
+        // LETTERBOX track — full-duration clip
+        JsonObject lbClip = new JsonObject();
+        lbClip.addProperty("start_time", 0f);
+        lbClip.addProperty("duration", 10f);
+        JsonArray lbs = new JsonArray();
+        JsonObject lf0 = new JsonObject(); lf0.addProperty("time", 0f); lf0.addProperty("aspect_ratio", 2.35f);
+        JsonObject lf1 = new JsonObject(); lf1.addProperty("time", 10f); lf1.addProperty("aspect_ratio", 2.35f);
+        lbs.add(lf0); lbs.add(lf1);
+        lbClip.add("keyframes", lbs);
+        doc.getTracks().get(1).getAsJsonObject().getAsJsonArray("clips").add(lbClip);
+
+        if (clip != null) sel.selectClip(clip);
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -491,7 +439,10 @@ public class EditorScreen extends Screen {
         LeftPanelArea.PanelMode prev = leftPanel.getMode();
         if (prev == LeftPanelArea.PanelMode.SCRIPT_LIST)
             leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);
-        else leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_LIST);
+        else {
+            refreshScriptList();
+            leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_LIST);
+        }
         EditorLogger.action(EditorLogger.SCREEN, "TOGGLE_LIST", "from=" + prev + " to=" + leftPanel.getMode());
         syncPanels();
     }
@@ -556,12 +507,19 @@ public class EditorScreen extends Screen {
 
     private void refreshScriptList() {
         scriptFileNames.clear();
+        System.out.println("[KILO-DEBUG] refreshScriptList: dir=" + scriptsDir.toAbsolutePath() + " exists=" + Files.exists(scriptsDir));
         if (Files.exists(scriptsDir)) {
             try (Stream<Path> files = Files.list(scriptsDir)) {
-                files.filter(f -> f.toString().endsWith(".json"))
+                List<Path> allFiles = files.collect(java.util.stream.Collectors.toList());
+                System.out.println("[KILO-DEBUG]   files in dir: " + allFiles.stream().map(p -> p.getFileName().toString()).collect(java.util.stream.Collectors.toList()));
+                allFiles.stream()
+                        .filter(f -> f.toString().endsWith(".json"))
                         .map(f -> f.getFileName().toString()).sorted().forEach(scriptFileNames::add);
-            } catch (IOException ignored) {}
+            } catch (IOException e) {
+                System.out.println("[KILO-DEBUG]   IOException: " + e.getMessage());
+            }
         }
+        System.out.println("[KILO-DEBUG]   matched .json files: " + scriptFileNames);
         leftPanel.setScriptFileNames(scriptFileNames);
         if (leftPanel.getMode() == LeftPanelArea.PanelMode.SCRIPT_LIST) leftPanel.build();
     }
@@ -575,7 +533,7 @@ public class EditorScreen extends Screen {
         PreviewCapture.capture(minecraft);
         renderCycle++;
         String cycleStr = "cycle=" + renderCycle;
-        EditorLogger.outRaw(EditorLogger.SCREEN, "LOOP", "RENDER_START " + cycleStr);
+        // per-frame RENDER_START log suppressed — too noisy for debugging
 
         long t0 = System.nanoTime();
 
@@ -621,16 +579,7 @@ public class EditorScreen extends Screen {
         }
 
         renderPhase = "done";
-        long elapsedNs = System.nanoTime() - t0;
-        long now = System.currentTimeMillis();
-
-        if (now - lastRenderLog >= 1000) {
-            lastRenderLog = now;
-            EditorLogger.outRaw(EditorLogger.SCREEN, "LOOP",
-                    "RENDER_TICK cycle=" + renderCycle + " elapsed=" + (elapsedNs / 1_000_000) + "ms"
-                            + " playing=" + playback.isPlaying() + " time=" + String.format("%.3f", playback.getTime())
-                            + " dirty=" + doc.isDirty());
-        }
+        // per-frame RENDER_TICK log suppressed — too noisy for debugging
     }
 
     // ══════════════════════════════════════════════════════════════

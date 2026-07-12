@@ -20,8 +20,6 @@ public class TimelineArea extends UIComponent {
     private float playheadTime;
     private float pixelsPerSecond = 60f;
     private float scrollOffset;
-    private int verticalScroll;
-
     private JsonObject draggingClip;
     private JsonObject draggingKeyframe;
     private JsonObject keyframeClip;
@@ -47,8 +45,6 @@ public class TimelineArea extends UIComponent {
     private Runnable onToolAddKeyframe;
     private Runnable onToolDeleteKeyframe;
     private Runnable onToolSnap;
-
-    private static final int LEFT_W = -1; // placeholder, use toolbarW() + labelW()
 
     public TimelineArea(int x, int y, int w, int h) {
         super(x, y, w, h);
@@ -273,8 +269,8 @@ public class TimelineArea extends UIComponent {
     }
 
     private boolean clickToolbar(UIContext ctx) {
-        int bx = x + 3;
-        int by = y + headerH() + 4;
+        int bx = x + (int)(3 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx);
+        int by = y + headerH() + (int)(4 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
 
         if (ctx.isMouseIn(bx, by, btn(), btn())) {
             EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "+C");
@@ -458,7 +454,7 @@ public class TimelineArea extends UIComponent {
             clampScrollOffset();
             EditorLogger.state(EditorLogger.TIMELINE, "scrollOffset", old, scrollOffset);
         } else {
-            verticalScroll += (int) scroll * 20;
+            // vertical scroll not implemented
         }
 
         EditorLogger.mouseScroll(EditorLogger.TIMELINE, scroll, ctx.mouseX, ctx.mouseY,

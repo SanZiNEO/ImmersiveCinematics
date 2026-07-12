@@ -40,7 +40,18 @@ public class RawInputLogger {
     // ── Editor-mode gating ───────────────────────────────────────
     private static boolean enabled;
     public static void enable() { enabled = true; resetCounters(); log("[STATE] enabled=true"); }
-    public static void disable() { enabled = false; log("[STATE] enabled=false"); }
+    public static void disable() {
+        enabled = false;
+        log("[STATE] enabled=false");
+        close();
+    }
+    public static void close() {
+        if (writer != null) {
+            writer.close();
+            writer = null;
+        }
+        opened = false;
+    }
 
     // ── Event counters (for stall detection) ─────────────────────
     private static long totalMouseButtons, totalKeys, totalScrolls;

@@ -75,7 +75,6 @@ public class EditorOperations {
         clip.addProperty("transition_duration", 0.5f);
         clip.add("keyframes", kfs);
         tracks.get(trackIndex).getAsJsonObject().getAsJsonArray("clips").add(clip);
-        recalc(tracks);
         return clip;
     }
 
@@ -85,7 +84,6 @@ public class EditorOperations {
             for (int i = 0; i < clips.size(); i++) {
                 if (clips.get(i).getAsJsonObject() == clip) {
                     clips.remove(i);
-                    recalc(tracks);
                     return;
                 }
             }
@@ -240,19 +238,6 @@ public class EditorOperations {
             float t = kf.get("time").getAsFloat();
             kf.addProperty("time", Math.max(0, Math.min(dur, t)));
         }
-    }
-
-    public static void recalc(JsonArray tracks) {
-        float maxEnd = 0;
-        for (JsonElement te : tracks) {
-            JsonArray clips = te.getAsJsonObject().getAsJsonArray("clips");
-            for (JsonElement ce : clips) {
-                JsonObject clip = ce.getAsJsonObject();
-                float end = getTotalEnd(clip);
-                maxEnd = Math.max(maxEnd, end);
-            }
-        }
-        // total_duration is in timeline, not accessible from here; caller handles it
     }
 
     public static float recalcDuration(JsonArray tracks) {

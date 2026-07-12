@@ -75,7 +75,7 @@ public class UITextInput extends UIComponent implements IFocusable {
 
     public boolean charTyped(char c) {
         if (!focused) return false;
-        if (c >= 32 && c < 127) {
+        if (!Character.isISOControl(c)) {
             text += c;
             if (sink != null) sink.accept(text);
             return true;

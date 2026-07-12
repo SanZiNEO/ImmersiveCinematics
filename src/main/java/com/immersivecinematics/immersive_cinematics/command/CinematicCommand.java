@@ -57,6 +57,7 @@ public class CinematicCommand {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("icinematics")
                 .then(Commands.literal("play")
+                        .requires(s -> s.hasPermission(2))
                         .then(Commands.argument("file", StringArgumentType.string())
                                 .suggests(SCRIPT_SUGGESTIONS)
                                 .executes(CinematicCommand::playScript)
@@ -209,25 +210,15 @@ public class CinematicCommand {
     private static Path findScriptFile(String filePath, Path globalDir, Path worldDir) {
         Path candidate;
 
-        // 1. 全局目录
-        candidate = globalDir.resolve(filePath);
+        // 只搜索世界存档目录，拒绝路径遍历
+        candidate = worldDir.resolve(filePath).normalize();
+        if (!candidate.startsWith(worldDir.normalize())) return null;
         if (Files.exists(candidate)) return candidate;
         if (!filePath.endsWith(".json")) {
-            candidate = globalDir.resolve(filePath + ".json");
+            candidate = worldDir.resolve(filePath + ".json").normalize();
+            if (!candidate.startsWith(worldDir.normalize())) return null;
             if (Files.exists(candidate)) return candidate;
         }
-
-        // 2. 世界目录
-        candidate = worldDir.resolve(filePath);
-        if (Files.exists(candidate)) return candidate;
-        if (!filePath.endsWith(".json")) {
-            candidate = worldDir.resolve(filePath + ".json");
-            if (Files.exists(candidate)) return candidate;
-        }
-
-        // 3. 绝对路径
-        candidate = Path.of(filePath);
-        if (Files.exists(candidate)) return candidate;
 
         return null;
     }

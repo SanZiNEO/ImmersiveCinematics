@@ -55,6 +55,7 @@ public class CinematicKeyBindings {
             Path scriptsDir = Paths.get("immersive_cinematics", "scripts");
             while (EDITOR_KEY.consumeClick()) {
                 if (!(mc.screen instanceof EditorScreen) && System.currentTimeMillis() - editorClosedAt > EDITOR_REOPEN_COOLDOWN) {
+                    System.out.println("[KILO-DEBUG] Opening editor, scriptsDir=" + scriptsDir.toAbsolutePath());
                     mc.setScreen(new EditorScreen(EditorBridgeImpl.INSTANCE, scriptsDir));
                 }
             }

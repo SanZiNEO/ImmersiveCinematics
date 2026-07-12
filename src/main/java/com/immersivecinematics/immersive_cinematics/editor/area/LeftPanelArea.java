@@ -93,9 +93,10 @@ public class LeftPanelArea extends UIComponent {
     }
 
     private void buildScriptList() {
+        System.out.println("[KILO-DEBUG] LeftPanelArea.buildScriptList: scriptFileNames=" + scriptFileNames);
         int cy = y + 6;
         children.add(new UILabel(x + 6, cy, "Scripts", 0xFFAAAAAA));
-        cy += 16;
+        cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
 
         for (String name : scriptFileNames) {
             int btnH = (int)(20 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
@@ -127,7 +128,7 @@ public class LeftPanelArea extends UIComponent {
         TriggerPanel tp = new TriggerPanel(lx, cy, w - 12, 1, triggers, onDirty);
         tp.setOnTriggerChanged(() -> { build(); });
         children.add(tp);
-        cy += tp.h + 6;
+        cy += tp.h + (int)(6 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
 
         int sectionGap = (int)(16 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
         int smallGap = (int)(4 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
@@ -155,7 +156,7 @@ public class LeftPanelArea extends UIComponent {
         int cy = y + 6;
         int lx = x + 6;
 
-        addSectionLabel(I18n.get("editor.section.clip_properties"), lx, cy, 0); cy += 16;
+        addSectionLabel(I18n.get("editor.section.clip_properties"), lx, cy, 0); cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
         String[] keys = selectedClip.keySet().stream()
                 .filter(k -> !"keyframes".equals(k))
                 .toArray(String[]::new);
@@ -185,7 +186,7 @@ public class LeftPanelArea extends UIComponent {
         int cy = y + 6;
         int lx = x + 6;
 
-        addSectionLabel(I18n.get("editor.section.keyframe_properties"), lx, cy, 0); cy += 16;
+        addSectionLabel(I18n.get("editor.section.keyframe_properties"), lx, cy, 0); cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
         cy = reflectObject(selectedKeyframe, lx, cy, null);
     }
 
@@ -485,11 +486,6 @@ public class LeftPanelArea extends UIComponent {
         return cy;
     }
 
-    private int reflectFloatField(String label, int lx, int cy, java.util.function.Supplier<Float> src, Consumer<Float> sink) {
-        addFloatField(label, src, lx, cy, 0, 9999, 1, sink);
-        return cy + 18;
-    }
-
     private static String fmtDuration(float s) {
         int m = (int)(s / 60);
         int sec = (int)(s % 60);
@@ -504,13 +500,6 @@ public class LeftPanelArea extends UIComponent {
 
     private void addSectionLabel(String text, int lx, int cy, int depth) {
         children.add(new UILabel(lx + depth * 10, cy, text, 0xFF777777));
-    }
-
-    private int addField(String label, java.util.function.Supplier<String> source, int lx, int cy, Consumer<String> sink) {
-        int fh = (int)(16 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
-        UITextInput ti = new UITextInput(lx, cy, w - 12, fh, label, source, sink);
-        children.add(ti);
-        return cy + fh + (int)(2 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
     }
 
     private int addFloatField(String label, java.util.function.Supplier<Float> source, int lx, int cy,
@@ -567,13 +556,11 @@ public class LeftPanelArea extends UIComponent {
         ctx.graphics.fill(x + w - 1, y, x + w, y + h, 0xFF2A2A2A);
 
         ctx.graphics.enableScissor(x, y, x + w, y + h);
-        var pose = ctx.graphics.pose();
-        pose.pushPose();
-        pose.translate(0, -scrollY, 0);
+        ctx.shiftY(scrollY);
         for (UIComponent c : children) {
             c.render(ctx);
         }
-        pose.popPose();
+        ctx.shiftY(-scrollY);
         ctx.graphics.disableScissor();
 
         if (maxScroll > 0) {
@@ -592,13 +579,11 @@ public class LeftPanelArea extends UIComponent {
 
     @Override
     public void renderOverlay(UIContext ctx) {
-        var pose = ctx.graphics.pose();
-        pose.pushPose();
-        pose.translate(0, -scrollY, 0);
+        ctx.shiftY(scrollY);
         for (UIComponent c : children) {
             c.renderOverlay(ctx);
         }
-        pose.popPose();
+        ctx.shiftY(-scrollY);
     }
 
     @Override
@@ -625,8 +610,7 @@ public class LeftPanelArea extends UIComponent {
         EditorLogger.areaHit(EditorLogger.LEFT, "full_area", ctx.mouseX, ctx.mouseY, true);
         EditorLogger.areaHit(EditorLogger.LEFT, "mode_" + mode.name(), ctx.mouseX, ctx.mouseY, true);
 
-        int origY = ctx.mouseY;
-        ctx.mouseY += scrollY;
+        ctx.shiftY(scrollY);
         for (int i = children.size() - 1; i >= 0; i--) {
             UIComponent c = children.get(i);
             if (c.isHovered(ctx)) {
@@ -636,9 +620,9 @@ public class LeftPanelArea extends UIComponent {
                     EditorLogger.action(EditorLogger.LEFT, "TOGGLE_CLICK", "label=" + mode + " value=" + !tgl.isOn());
                 }
             }
-            if (c.mouseClicked(ctx)) { ctx.mouseY = origY; return true; }
+            if (c.mouseClicked(ctx)) { ctx.shiftY(-scrollY); return true; }
         }
-        ctx.mouseY = origY;
+        ctx.shiftY(-scrollY);
         return false;
     }
 
@@ -654,16 +638,15 @@ public class LeftPanelArea extends UIComponent {
             }
             return true;
         }
-        int origY = ctx.mouseY;
-        ctx.mouseY += scrollY;
+        ctx.shiftY(scrollY);
         boolean result = false;
         List<UIComponent> ch = getChildren();
         if (ch != null) {
             for (int i = ch.size() - 1; i >= 0; i--) {
-                if (ch.get(i).mouseDragged(ctx)) { result = true; break; }
+                if (ch.get(i).mouseDragged(ctx)) { result = true; }
             }
         }
-        ctx.mouseY = origY;
+        ctx.shiftY(-scrollY);
         return result;
     }
 
