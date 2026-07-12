@@ -30,6 +30,9 @@ public class CameraManager {
     private boolean active = false;
     private boolean stopping = false;
 
+    /** hasActiveCameraClip 的帧级缓存，避免 9 个 Mixin 调用点每帧重复扫描 */
+    private boolean cachedHasActiveCameraClip = false;
+
     private double gameTimeSeconds = 0;
     private long lastRealNanos = 0;
 
@@ -166,7 +169,7 @@ public class CameraManager {
     }
 
     public boolean hasActiveCameraClip() {
-        return scriptPlayer.hasActiveCameraTrack((float)getGameTimeSeconds());
+        return cachedHasActiveCameraClip;
     }
 
     // ========== 编辑器预览 ==========
@@ -292,10 +295,14 @@ public class CameraManager {
     // ========== 帧回调驱动 ==========
 
     public void onRenderFrame() {
-        if (!active) return;
+        if (!active) {
+            cachedHasActiveCameraClip = false;
+            return;
+        }
 
         if (Minecraft.getInstance().isPaused() && CinematicController.INSTANCE.isPauseWhenGamePaused()) {
             lastRealNanos = 0;
+            cachedHasActiveCameraClip = false;
             return;
         }
 
@@ -325,6 +332,9 @@ public class CameraManager {
         if (scriptPlayer.isPlaying()) {
             scriptPlayer.onRenderFrame(gameTimeSeconds);
         }
+
+        // 帧级缓存：计算当前帧是否有活跃 Camera 轨道，供 9 个 Mixin 入口读取
+        cachedHasActiveCameraClip = scriptPlayer.hasActiveCameraTrack((float)getGameTimeSeconds());
 
         if (stopping && !OverlayManager.INSTANCE.isAnimating()) {
             deactivateNow();

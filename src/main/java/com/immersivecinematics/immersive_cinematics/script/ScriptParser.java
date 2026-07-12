@@ -282,10 +282,11 @@ public class ScriptParser {
 
     private static CameraKeyframe parseCameraKeyframe(JsonObject obj, String p, boolean positionModeRelative) throws ScriptParseException {
         float time = requireFloat(obj, p, "time");
-        PositionData position = null;
-        if (obj.has("position")) {
-            position = parsePositionData(obj.getAsJsonObject("position"), p + ".position", positionModeRelative);
+        // position 为必填字段，缺少时抛异常防止后续 NPE
+        if (!obj.has("position")) {
+            throw new ScriptParseException(p + ".position", "缺少必填字段 position");
         }
+        PositionData position = parsePositionData(obj.getAsJsonObject("position"), p + ".position", positionModeRelative);
         float yaw   = optFloat(obj, "yaw", 0f);
         float pitch = optFloat(obj, "pitch", 0f);
         float roll  = optFloat(obj, "roll", 0f);

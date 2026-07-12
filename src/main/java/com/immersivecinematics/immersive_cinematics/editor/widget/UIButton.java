@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.editor.widget;
 
+import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
+
 import java.util.function.Consumer;
 
 public class UIButton extends UIComponent {
@@ -47,6 +49,7 @@ public class UIButton extends UIComponent {
     @Override
     public boolean mouseClicked(UIContext ctx) {
         if (isHovered(ctx)) {
+            EditorLogger.action(EditorLogger.SCREEN, "BUTTON_CLICK", "label=" + text);
             if (onClick != null) onClick.accept(this);
             return true;
         }

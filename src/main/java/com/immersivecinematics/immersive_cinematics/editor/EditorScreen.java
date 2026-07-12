@@ -27,10 +27,7 @@ import java.util.stream.Stream;
 
 public class EditorScreen extends Screen {
 
-    public static final float REF_W = 960f;
-    public static final float REF_H = 540f;
-    public static float sx = 1f;
-    public static float sy = 1f;
+    // REF_W/REF_H/sx/sy 已迁移到 Scale 类
 
     private final EditorDocument doc;
     private final EditorSelection sel;
@@ -90,11 +87,10 @@ public class EditorScreen extends Screen {
 
     @Override
     protected void init() {
-        sx = (float)width / REF_W;
-        sy = (float)height / REF_H;
-        int menuH = clamp((int)(24 * sy), 20, 28);
-        int leftW = clamp((int)(260 * sx), 180, (int)(360 * sx));
-        int timelineH = clamp((int)(220 * sy), 150, (int)(280 * sy));
+        Scale.update(width, height);
+        int menuH = clamp((int)(24 * Scale.sy), 20, 28);
+        int leftW = clamp((int)(260 * Scale.sx), 180, (int)(360 * Scale.sx));
+        int timelineH = clamp((int)(220 * Scale.sy), 150, (int)(280 * Scale.sy));
         int previewH = height - menuH - timelineH;
 
         menuBar = new MenuBarArea(0, 0, width, menuH);
@@ -571,8 +567,11 @@ public class EditorScreen extends Screen {
             if (rootComponent != null) {
                 rootComponent.render(ctx);
                 RenderSystem.depthFunc(GL11.GL_ALWAYS);
-                rootComponent.renderOverlay(ctx);
-                RenderSystem.depthFunc(GL11.GL_LEQUAL);
+                try {
+                    rootComponent.renderOverlay(ctx);
+                } finally {
+                    RenderSystem.depthFunc(GL11.GL_LEQUAL);
+                }
             }
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "RENDER_CRASH phase=ui_tree " + cycleStr, e); return;

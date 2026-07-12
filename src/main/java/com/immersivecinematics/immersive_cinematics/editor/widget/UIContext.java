@@ -38,6 +38,9 @@ public class UIContext {
     /** 同时偏移鼠标坐标和渲染矩阵（用于滚动补偿，保证 hover 检测与渲染位置一致） */
     public void shiftY(int y) {
         this.mouseY += y;
-        this.graphics.pose().translate(0, -y, 0);
+        // graphics 在点击事件路径中为 null（makeCtx 传入 null），跳过矩阵变换即可
+        if (this.graphics != null) {
+            this.graphics.pose().translate(0, -y, 0);
+        }
     }
 }

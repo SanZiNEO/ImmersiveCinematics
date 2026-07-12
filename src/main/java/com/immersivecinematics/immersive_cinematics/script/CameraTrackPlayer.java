@@ -11,6 +11,9 @@ public class CameraTrackPlayer implements TrackPlayer {
     private final Vec3 originPos;
     private final CameraManager cameraManager;
 
+    /** 独立 Bezier 路径策略实例，脚本结束时随 TrackPlayer 一起 GC，LUT 缓存自动释放 */
+    private final PathStrategy bezierStrategy = new BezierPathStrategy();
+
     private int lastClipIndex = 0;
 
     public CameraTrackPlayer(TimelineTrack track, Vec3 originPos, CameraManager cameraManager) {
@@ -95,14 +98,14 @@ public class CameraTrackPlayer implements TrackPlayer {
         float invWeight = 1f - weight;
 
         Vec3 prevPos = prevFrom != null
-                ? KeyframeInterpolator.interpolatePosition(prevFrom, prevTo, prevS, prevClip)
+                ? KeyframeInterpolator.interpolatePosition(prevFrom, prevTo, prevS, prevClip, bezierStrategy)
                 : Vec3.ZERO;
         if (prevClip.isPositionModeRelative()) {
             prevPos = originPos.add(prevPos);
         }
 
         Vec3 nextPos = nextFrom != null
-                ? KeyframeInterpolator.interpolatePosition(nextFrom, nextTo, nextS, nextClip)
+                ? KeyframeInterpolator.interpolatePosition(nextFrom, nextTo, nextS, nextClip, bezierStrategy)
                 : Vec3.ZERO;
         if (nextClip.isPositionModeRelative()) {
             nextPos = originPos.add(nextPos);
@@ -144,7 +147,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     }
 
     private void writeAttributes(CameraKeyframe from, CameraKeyframe to, float s, CameraClip clip) {
-        Vec3 pos = KeyframeInterpolator.interpolatePosition(from, to, s, clip);
+        Vec3 pos = KeyframeInterpolator.interpolatePosition(from, to, s, clip, bezierStrategy);
         float yaw = KeyframeInterpolator.interpolateYaw(from, to, s);
         float pitch = KeyframeInterpolator.interpolatePitch(from, to, s);
         float roll = KeyframeInterpolator.interpolateRoll(from, to, s);
@@ -163,6 +166,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     @Override
     public void onStop() {
         lastClipIndex = 0;
+        // bezierStrategy 随 TrackPlayer 实例一起被 GC，其 LUT 缓存自动释放
     }
 
     private CameraClip findActiveClip(float globalTime) {

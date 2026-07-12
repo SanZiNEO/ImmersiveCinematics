@@ -5,6 +5,9 @@ import net.minecraft.client.Minecraft;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL30;
+import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+import org.lwjgl.system.MemoryStack;
 
 public class PreviewCapture {
     private static int fboId = -1;
@@ -19,17 +22,41 @@ public class PreviewCapture {
             initFbo(w, h);
         }
 
-        GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, main.frameBufferId);
-        GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, fboId);
-        GL30.glBlitFramebuffer(0, 0, w, h, 0, 0, w, h,
-                GL11.GL_COLOR_BUFFER_BIT, GL11.GL_NEAREST);
+        // Save current GL state
+        int prevReadFbo = GL30.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+        int prevDrawFbo = GL30.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            ByteBuffer colorMaskBuf = stack.malloc(4);
+            GL11.glGetBooleanv(GL11.GL_COLOR_WRITEMASK, colorMaskBuf);
+            boolean prevRed   = colorMaskBuf.get(0) != 0;
+            boolean prevGreen = colorMaskBuf.get(1) != 0;
+            boolean prevBlue  = colorMaskBuf.get(2) != 0;
+            boolean prevAlpha = colorMaskBuf.get(3) != 0;
 
-        GL11.glColorMask(false, false, false, true);
-        GL11.glClearColor(0f, 0f, 0f, 1f);
-        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT);
-        GL11.glColorMask(true, true, true, true);
+            FloatBuffer clearColorBuf = stack.mallocFloat(4);
+            GL11.glGetFloatv(GL11.GL_COLOR_CLEAR_VALUE, clearColorBuf);
+            float prevClearR = clearColorBuf.get(0);
+            float prevClearG = clearColorBuf.get(1);
+            float prevClearB = clearColorBuf.get(2);
+            float prevClearA = clearColorBuf.get(3);
 
-        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, main.frameBufferId);
+            try {
+                GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, main.frameBufferId);
+                GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, fboId);
+                GL30.glBlitFramebuffer(0, 0, w, h, 0, 0, w, h,
+                        GL11.GL_COLOR_BUFFER_BIT, GL11.GL_NEAREST);
+
+                GL11.glColorMask(false, false, false, true);
+                GL11.glClearColor(0f, 0f, 0f, 1f);
+                GL11.glClear(GL11.GL_COLOR_BUFFER_BIT);
+            } finally {
+                // Restore GL state
+                GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, prevReadFbo);
+                GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, prevDrawFbo);
+                GL11.glColorMask(prevRed, prevGreen, prevBlue, prevAlpha);
+                GL11.glClearColor(prevClearR, prevClearG, prevClearB, prevClearA);
+            }
+        }
     }
 
     private static void initFbo(int w, int h) {

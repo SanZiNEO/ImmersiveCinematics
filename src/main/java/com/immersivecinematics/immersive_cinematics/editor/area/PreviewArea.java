@@ -23,8 +23,8 @@ public class PreviewArea extends UIComponent {
         super(x, y, w, h);
         EditorLogger.areaRegister(EditorLogger.PREVIEW, "full_area", x, y, w, h);
 
-        float sx = com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx;
-        float sy = com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy;
+        float sx = com.immersivecinematics.immersive_cinematics.editor.Scale.sx;
+        float sy = com.immersivecinematics.immersive_cinematics.editor.Scale.sy;
         int barW = (int)(160 * sx);
         int barH = (int)(24 * sy);
         int barX = x + (w - barW) / 2;
@@ -119,11 +119,7 @@ public class PreviewArea extends UIComponent {
     public boolean mouseClicked(UIContext ctx) {
         EditorLogger.areaHit(EditorLogger.PREVIEW, "full_area", ctx.mouseX, ctx.mouseY, true);
         for (int i = children.size() - 1; i >= 0; i--) {
-            UIComponent c = children.get(i);
-            if (c.isHovered(ctx) && c instanceof UIButton btn) {
-                EditorLogger.action(EditorLogger.PREVIEW, "BUTTON_CLICK", "label=" + btn.getLabel());
-            }
-            if (c.mouseClicked(ctx)) return true;
+            if (children.get(i).mouseClicked(ctx)) return true;
         }
         return false;
     }

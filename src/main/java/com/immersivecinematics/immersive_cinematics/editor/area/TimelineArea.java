@@ -75,13 +75,13 @@ public class TimelineArea extends UIComponent {
     public void setOnToolDeleteKeyframe(Runnable r) { onToolDeleteKeyframe = r; }
     public void setOnToolSnap(Runnable r) { onToolSnap = r; }
 
-    private int toolbarW() { return (int)(22 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx); }
-    private int labelW()   { return (int)(58 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx); }
-    private int headerH()  { return (int)(20 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy); }
-    private int trackH()   { return (int)(28 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy); }
-    private int btn()      { return (int)(16 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy); }
-    private int btnGap()   { return (int)(2 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy); }
-    private int resizeMargin() { return (int)(4 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx); }
+    private int toolbarW() { return (int)(22 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx); }
+    private int labelW()   { return (int)(58 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx); }
+    private int headerH()  { return (int)(20 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy); }
+    private int trackH()   { return (int)(28 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy); }
+    private int btn()      { return (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy); }
+    private int btnGap()   { return (int)(2 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy); }
+    private int resizeMargin() { return (int)(4 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx); }
 
     public int canvasX() { return x + toolbarW() + labelW(); }
     public int canvasY() { return y + headerH(); }
@@ -144,8 +144,8 @@ public class TimelineArea extends UIComponent {
     }
 
     private void drawToolbar(UIContext ctx) {
-        int bx = x + (int)(3 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx);
-        int by = y + headerH() + (int)(4 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
+        int bx = x + (int)(3 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx);
+        int by = y + headerH() + (int)(4 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
 
         drawBtn(ctx, bx, by, "+C", 0xFF338833, 0xFF44AA44, true); by += btn() + btnGap();
         drawBtn(ctx, bx, by, "-C", 0xFF883333, 0xFFAA4444, selectedClip != null); by += btn() + btnGap() + 4;
@@ -269,8 +269,8 @@ public class TimelineArea extends UIComponent {
     }
 
     private boolean clickToolbar(UIContext ctx) {
-        int bx = x + (int)(3 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sx);
-        int by = y + headerH() + (int)(4 * com.immersivecinematics.immersive_cinematics.editor.EditorScreen.sy);
+        int bx = x + (int)(3 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx);
+        int by = y + headerH() + (int)(4 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
 
         if (ctx.isMouseIn(bx, by, btn(), btn())) {
             EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "+C");

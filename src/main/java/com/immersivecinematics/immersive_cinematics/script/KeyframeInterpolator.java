@@ -102,10 +102,9 @@ public final class KeyframeInterpolator {
     // ========== 位置插值 ==========
 
     /**
-     * 在两个关键帧之间插值位置
+     * 在两个关键帧之间插值位置（动态策略查找）
      * <p>
-     * 弧长进度 s 通过 PathStrategy 映射为实际位置。
-     * 贝塞尔路径策略内部使用 ArcLengthLUT 确保匀速运动。
+     * 通过 PathStrategies 注册表获取策略。保留作为后备入口。
      *
      * @param from 起始关键帧
      * @param to   目标关键帧
@@ -114,13 +113,28 @@ public final class KeyframeInterpolator {
      * @return 插值后的位置
      */
     public static Vec3 interpolatePosition(CameraKeyframe from, CameraKeyframe to, float s, CameraClip clip) {
-        Vec3 p0 = from.getPosition().toVec3();
-        Vec3 p3 = to.getPosition().toVec3();
-
         String curveType = (clip.getCurve() != null) ? clip.getCurve().getType() : null;
         PathStrategy strategy = PathStrategies.get(curveType);
-        Vec3 result = strategy.interpolate(p0, p3, s, clip.getCurve());
+        return interpolatePosition(from, to, s, clip, strategy);
+    }
 
+    /**
+     * 在两个关键帧之间插值位置（显式策略，用于 TrackPlayer 持有独立策略实例）
+     * <p>
+     * 允许调用者传入已创建的 PathStrategy 实例，避免静态单例。
+     * 贝塞尔路径策略内部使用 ArcLengthLUT 确保匀速运动。
+     *
+     * @param from    起始关键帧
+     * @param to      目标关键帧
+     * @param s       弧长进度 [0, 1]
+     * @param clip    所属片段（用于获取贝塞尔曲线）
+     * @param strategy 路径策略实例（允许调用者传入独立实例而非全局单例）
+     * @return 插值后的位置
+     */
+    public static Vec3 interpolatePosition(CameraKeyframe from, CameraKeyframe to, float s, CameraClip clip, PathStrategy strategy) {
+        Vec3 p0 = from.getPosition().toVec3();
+        Vec3 p3 = to.getPosition().toVec3();
+        Vec3 result = strategy.interpolate(p0, p3, s, clip.getCurve());
         return MathUtil.sanitizeVec3(result, p0);
     }
 
