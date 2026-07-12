@@ -43,6 +43,12 @@
 | `RenderGuiOverlayEvent.Pre` | `ClientGuiEvent.RENDER_HUD` |
 | `ViewportEvent.ComputeCameraAngles` | Mixin（已在阶段 4 处理） |
 
+## 迁移原则
+
+1. **有 Architectury 等效的事件** → 在 `common/` 中用 `Event.register()` 注册
+2. **无 Architectury 等效的事件**（如 `LivingEntityUseItemEvent.Finish`、`PlayerEvent.SaveToFile`）→ 参考 FTB-Quests 模式，在 `forge/` 模块中直接用 `MinecraftForge.EVENT_BUS` 注册，Fabric 端用 Mixin 等效替代
+3. **客户端初始化** → 用 `EnvExecutor.runInEnv(Env.CLIENT, ...)` 在 common 中安全执行客户端专用注册（参考 `FTBQuests.java`）
+
 ## 迁移步骤
 
 ### Step 1: 创建通用事件处理类
@@ -198,7 +204,7 @@ public static void init() {
     Config.init(createConfigProvider());
     
     // 网络（必须早于触发器初始化）
-    NetworkHandler.register();
+    NetworkHandler.init();  // SimpleNetworkManager static 字段加载
     
     // 触发器类型注册
     TriggerRegistration.registerAll();
@@ -210,24 +216,54 @@ public static void init() {
 
 ### Step 7: 客户端事件注册整合
 
-在 Fabric Client 和 Forge Client Setup 中调用：
+使用 `EnvExecutor.runInEnv(Env.CLIENT, ...)` 在 common 代码中安全执行客户端注册（参考 FTB-Quests 模式）：
+
+```java
+// common/ImmersiveCinematics.java - init() 末尾
+public static void init() {
+    // ... 服务端注册 ...
+
+    // 仅客户端注册
+    EnvExecutor.runInEnv(Env.CLIENT, () -> ClientEventHandler::register);
+}
+```
+
+```java
+// common/ - handler/ClientEventHandler.java
+public class ClientEventHandler {
+    public static void register() {
+        // 按键注册
+        KeyMappingRegistry.register(CinematicKeyBindings.SKIP_KEY);
+        if (ImmersiveCinematics.EDITOR_ENABLED && CinematicKeyBindings.EDITOR_KEY != null) {
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_KEY);
+        }
+
+        // 客户端 tick
+        ClientTickEvent.CLIENT_POST.register(mc -> {
+            CameraManager.INSTANCE.tick();
+            CinematicKeyBindings.onClientTick();
+        });
+
+        // HUD 渲染 - 追加绘制（隐藏元素用 Mixin）
+        ClientGuiEvent.RENDER_HUD.register(SkipHudRenderer::render);
+        ClientGuiEvent.RENDER_HUD.register((graphics, delta) ->
+            CinematicOverlay.render(graphics,
+                Minecraft.getInstance().getWindow().getGuiScaledWidth(),
+                Minecraft.getInstance().getWindow().getGuiScaledHeight()));
+    }
+}
+```
 
 ```java
 // fabric/ - ImmersiveCinematicsFabricClient.onInitializeClient()
 public void onInitializeClient() {
-    ClientEventHandler.register();
-    NetworkHandler.registerClientReceivers();
-    registerKeyMappings();
-    ClientGuiEvent.RENDER_HUD.register(SkipHudRenderer::render);
+    // fabric 端客户端额外注册（如果有）
+    // 核心注册已在 common 的 ClientEventHandler 中完成
 }
 
-// forge/ - 通过 ClientLifecycleEvent 或 @SubscribeEvent
-ClientLifecycleEvent.CLIENT_SETUP.register(mc -> {
-    ClientEventHandler.register();
-    NetworkHandler.registerClientReceivers();
-    registerKeyMappings();
-    ClientGuiEvent.RENDER_HUD.register(SkipHudRenderer::render);
-});
+// forge/ - forge 端在客户端设置阶段
+// 核心注册已在 common 的 ClientEventHandler 中完成
+// Forge 特有的事件直接在 Forge 入口点注册（参考 FTBQuestsForge.java）
 ```
 
 ## 编译与测试
