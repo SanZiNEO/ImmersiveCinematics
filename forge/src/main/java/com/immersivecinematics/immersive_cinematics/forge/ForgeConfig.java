@@ -12,6 +12,9 @@ import net.minecraftforge.fml.event.config.ModConfigEvent;
  * <p>
  * 使用 ForgeConfigSpec 管理配置，在 {@link ModConfigEvent} 触发时重新加载值。
  * 在 {@link ImmersiveCinematicsForge} 构造函数中创建并注册。
+ * <p>
+ * 注意：ForgeConfigSpec 的值在 {@link ModConfigEvent} 触发前不可调用 {@code get()}，
+ * 因此首次 {@link #load()} 返回 {@link Config.ConfigValues#defaults()}。
  */
 public class ForgeConfig implements Config.ConfigProvider {
 
@@ -68,12 +71,14 @@ public class ForgeConfig implements Config.ConfigProvider {
 
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
-    private ForgeConfig() {
-        // 由 INSTANCE 静态初始化
-    }
+    private boolean loaded = false;
+
+    private ForgeConfig() {}
 
     @Override
     public Config.ConfigValues load() {
+        // ForgeConfigSpec.get() 在 ModConfigEvent 触发前不可调用
+        if (!loaded) return Config.ConfigValues.defaults();
         return new Config.ConfigValues(
                 SKIP_HOLD_THRESHOLD_MS.get(),
                 SHOW_SKIP_HUD.get(),
@@ -140,7 +145,7 @@ public class ForgeConfig implements Config.ConfigProvider {
         @SubscribeEvent
         public static void onModConfig(final ModConfigEvent event) {
             if (event.getConfig().getSpec() == SPEC) {
-                // 重新加载配置值到 Config 静态字段
+                INSTANCE.loaded = true;
                 Config.init(INSTANCE);
             }
         }
