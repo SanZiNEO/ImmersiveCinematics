@@ -81,7 +81,7 @@ public abstract class GameRendererMixin {
             at = @At(value = "INVOKE",
                     target = "Lnet/minecraft/client/renderer/LevelRenderer;prepareCullFrustum(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/world/phys/Vec3;Lorg/joml/Matrix4f;)V",
                     shift = At.Shift.BEFORE))
-    private void onBeforePrepareCullFrustum(PoseStack poseStack, CallbackInfo ci) {
+    private void onBeforePrepareCullFrustum(float partialTick, long nanoTime, PoseStack poseStack, CallbackInfo ci) {
         CameraManager mgr = CameraManager.INSTANCE;
         if (mgr.isActive() && mgr.hasActiveCameraClip()) {
             float rollDeg = mgr.getProperties().getRoll();
