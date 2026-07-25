@@ -33,6 +33,6 @@ ITEM_ICON_GUIDE.md
 /oldcode/
 /minecraft_code
 /.kilocode
-/bin
+bin/
 /.kilo
 plans/0.3.3/phase4-unified-clip-model.md

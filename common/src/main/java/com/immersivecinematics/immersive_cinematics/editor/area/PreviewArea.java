@@ -1,0 +1,131 @@
+package com.immersivecinematics.immersive_cinematics.editor.area;
+
+import com.immersivecinematics.immersive_cinematics.editor.PreviewCapture;
+import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
+import com.immersivecinematics.immersive_cinematics.editor.widget.*;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.*;
+import net.minecraft.client.resources.language.I18n;
+import net.minecraft.client.renderer.GameRenderer;
+import java.util.ArrayList;
+import java.util.List;
+
+public class PreviewArea extends UIComponent {
+    private final List<UIComponent> children = new ArrayList<>();
+    private final UIButton playBtn;
+    private final UIButton pauseBtn;
+    private final UIButton stopBtn;
+    private final UILabel timeLabel;
+
+    private float currentTime;
+
+    public PreviewArea(int x, int y, int w, int h) {
+        super(x, y, w, h);
+        EditorLogger.areaRegister(EditorLogger.PREVIEW, "full_area", x, y, w, h);
+
+        float sx = com.immersivecinematics.immersive_cinematics.editor.Scale.sx;
+        float sy = com.immersivecinematics.immersive_cinematics.editor.Scale.sy;
+        int barW = (int)(160 * sx);
+        int barH = (int)(24 * sy);
+        int barX = x + (w - barW) / 2;
+        int barY = y + h - barH - (int)(8 * sy);
+
+        int btnW = (int)(36 * sx);
+        int btnGap = (int)(40 * sx);
+        playBtn = new UIButton(barX, barY, btnW, barH, "\u25B6", b -> {});
+        playBtn.color(0xFF333333, 0xFF444444);
+        pauseBtn = new UIButton(barX + btnGap, barY, btnW, barH, "\u23F8", b -> {});
+        pauseBtn.color(0xFF333333, 0xFF444444);
+        stopBtn = new UIButton(barX + btnGap * 2, barY, btnW, barH, "\u25A0", b -> {});
+        stopBtn.color(0xFF333333, 0xFF444444);
+        timeLabel = new UILabel(barX + btnGap * 3 + (int)(8 * sx), barY + (int)(7 * sy), "0.0s", 0xFF999999);
+
+        children.add(playBtn);
+        children.add(pauseBtn);
+        children.add(stopBtn);
+        children.add(timeLabel);
+    }
+
+    public void setCurrentTime(float t) {
+        currentTime = t;
+        timeLabel.setText(String.format("%.1fs", t));
+    }
+
+    public void setOnPlay(Runnable r) { playBtn.setOnClick(b -> r.run()); }
+    public void setOnPause(Runnable r) { pauseBtn.setOnClick(b -> r.run()); }
+    public void setOnStop(Runnable r) { stopBtn.setOnClick(b -> r.run()); }
+
+    @Override
+    public void render(UIContext ctx) {
+        ctx.graphics.fill(x, y, x + w, y + h, 0xFF151515);
+        ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
+
+        int previewH = h - 40;
+        int previewW = (int) (previewH * 16f / 9f);
+        if (previewW > w - 16) {
+            previewW = w - 16;
+            previewH = (int) (previewW * 9f / 16f);
+        }
+        int px = x + (w - previewW) / 2;
+        int py = y + 8;
+
+        ctx.graphics.fill(px, py, px + previewW, py + previewH, 0xFF0F0F0F);
+        ctx.graphics.renderOutline(px, py, previewW, previewH, 0xFF3A3A3A);
+
+        int texId = PreviewCapture.getTextureId();
+        if (texId >= 0) {
+            int capW = PreviewCapture.getWidth();
+            int capH = PreviewCapture.getHeight();
+            float srcAspect = (float) capW / capH;
+            float dstAspect = (float) previewW / previewH;
+            int rx, ry, rw, rh;
+            if (srcAspect > dstAspect) {
+                rw = previewW;
+                rh = (int) (previewW / srcAspect);
+                rx = px;
+                ry = py + (previewH - rh) / 2;
+            } else {
+                rh = previewH;
+                rw = (int) (previewH * srcAspect);
+                rx = px + (previewW - rw) / 2;
+                ry = py;
+            }
+
+            RenderSystem.setShaderTexture(0, texId);
+            RenderSystem.setShader(GameRenderer::getPositionTexShader);
+            var pose = ctx.graphics.pose();
+            pose.pushPose();
+            var builder = new BufferBuilder(256);
+            builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+            builder.vertex(rx, ry + rh, 0).uv(0, 0).endVertex();
+            builder.vertex(rx + rw, ry + rh, 0).uv(1, 0).endVertex();
+            builder.vertex(rx + rw, ry, 0).uv(1, 1).endVertex();
+            builder.vertex(rx, ry, 0).uv(0, 1).endVertex();
+            BufferUploader.drawWithShader(builder.end());
+            pose.popPose();
+            RenderSystem.setShaderTexture(0, 0);
+        } else {
+            String msg = I18n.get("editor.menu.no_preview");
+            int tw = ctx.font.width(msg);
+            ctx.graphics.drawString(ctx.font, msg, px + (previewW - tw) / 2, py + previewH / 2 - 4, 0xFF555555);
+        }
+
+        for (UIComponent c : children) {
+            c.render(ctx);
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(UIContext ctx) {
+        EditorLogger.areaHit(EditorLogger.PREVIEW, "full_area", ctx.mouseX, ctx.mouseY, true);
+        for (int i = children.size() - 1; i >= 0; i--) {
+            if (children.get(i).mouseClicked(ctx)) return true;
+        }
+        return false;
+    }
+
+    @Override
+    public List<UIComponent> getChildren() {
+        return children;
+    }
+}

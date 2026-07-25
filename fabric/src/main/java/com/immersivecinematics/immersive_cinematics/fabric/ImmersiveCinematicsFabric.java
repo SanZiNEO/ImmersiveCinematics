@@ -6,11 +6,9 @@ import net.fabricmc.api.ModInitializer;
 public final class ImmersiveCinematicsFabric implements ModInitializer {
     @Override
     public void onInitialize() {
-        // This code runs as soon as Minecraft is in a mod-load-ready state.
-        // However, some things (like resources) may still be uninitialized.
-        // Proceed with mild caution.
+        // 在模组加载就绪后立即运行
 
-        // Run our common setup.
-        ImmersiveCinematics.init();
+        // 运行通用初始化（传入 Fabric 配置实现）
+        ImmersiveCinematics.init(FabricConfig.INSTANCE);
     }
 }
