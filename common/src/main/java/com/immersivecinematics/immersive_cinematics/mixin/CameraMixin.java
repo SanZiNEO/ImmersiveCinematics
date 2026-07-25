@@ -53,8 +53,6 @@ public abstract class CameraMixin {
     @Shadow
     private boolean detached;
 
-    @Shadow
-    private org.joml.Quaternionf rotation;
 
     /**
      * 🎬 拦截 Camera.setup()，用电影相机位置/旋转替换原版逻辑
@@ -102,15 +100,9 @@ public abstract class CameraMixin {
         setPosition(pos.x, pos.y, pos.z);
         float yaw = mgr.getProperties().getYaw();
         float pitch = mgr.getProperties().getPitch();
-
         setRotation(yaw, pitch);
 
-        // 合并 Roll（翻滚角）—— 直接编码到相机的旋转四元数中
-        // 比修改 RenderSystem.getModelViewStack() 更干净，不影响碰撞箱等渲染
-        float roll = mgr.getProperties().getRoll();
-        if (roll != 0.0F) {
-            this.rotation.mul(new org.joml.Quaternionf().rotationZ(roll * org.joml.Math.toRadians(1.0F)));
-        }
+        // Roll 由 GameRendererMixin.onAfterCameraRotations() 在 renderLevel 中处理
 
         ci.cancel();  // 取消原版 setup，使用我们的位置/旋转
 
