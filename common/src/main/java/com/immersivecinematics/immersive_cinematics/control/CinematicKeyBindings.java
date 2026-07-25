@@ -28,8 +28,6 @@ public class CinematicKeyBindings {
      * 每客户端 tick 调用一次。
      * <p>
      * 处理跳过键逻辑、强制退出键（Ctrl+P），以及编辑器按键（如果启用）。
-     * 按键注册通过 {@link dev.architectury.registry.client.keymappings.KeyMappingRegistry}
-     * 在 ClientEventHandler 中完成（Phase 7）。
      */
     public static void onClientTick() {
         Minecraft mc = Minecraft.getInstance();
@@ -84,7 +82,6 @@ public class CinematicKeyBindings {
         }
     }
 
-    /** Cooldown reset when editor closes. */
     public static void notifyEditorClosed() {
         editorClosedAt = System.currentTimeMillis();
     }
