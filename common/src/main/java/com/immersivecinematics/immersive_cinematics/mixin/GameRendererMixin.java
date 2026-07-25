@@ -2,10 +2,11 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.util.Mth;
-import com.mojang.blaze3d.vertex.PoseStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -21,7 +22,6 @@ public abstract class GameRendererMixin {
                           CallbackInfoReturnable<Double> cir) {
         CameraManager mgr = CameraManager.INSTANCE;
         if (mgr.isActive() && mgr.hasActiveCameraClip()) {
-            // 🎬 帧回调驱动模式：直接读取当前值，不需要 partialTick 插值
             float fov = mgr.getProperties().getFov();
             float zoom = mgr.getProperties().getZoom();
             cir.setReturnValue((double) (fov / zoom));
@@ -29,16 +29,7 @@ public abstract class GameRendererMixin {
     }
 
     /**
-     * 当电影镜头激活时，根据 CinematicController.isHideArm() 决定是否取消手臂和手持物品的渲染
-     *
-     * 原版 renderItemInHand() 内部通过 CameraType.isFirstPerson() 判断是否渲染手臂，
-     * 而非 Camera.isDetached()。因此 CameraMixin.onIsDetached() 返回 true 无法阻止手臂渲染。
-     * 必须在此直接拦截 renderItemInHand 方法。
-     *
-     * 取消此方法同时也会跳过：
-     * - ItemInHandRenderer.renderHandsWithItems() — 手臂和手持物品
-     * - ScreenEffectRenderer.renderScreenEffect() — 屏幕覆盖效果（水/岩浆边框等）
-     * - 手臂渲染 pass 的 bobHurt / bobView 调用
+     * 当电影镜头激活时，取消手臂和手持物品的渲染。
      */
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void onRenderItemInHand(CallbackInfo ci) {
@@ -49,11 +40,6 @@ public abstract class GameRendererMixin {
 
     // ===== 视角摇晃屏蔽 =====
 
-    /**
-     * 屏蔽受伤摇晃 + 死亡倾斜
-     * <p>
-     * 根据 CinematicController.isSuppressBob() 决定是否屏蔽
-     */
     @Inject(method = "bobHurt", at = @At("HEAD"), cancellable = true)
     private void onBobHurt(PoseStack poseStack, float partialTick, CallbackInfo ci) {
         if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip() && CinematicController.INSTANCE.isSuppressBob()) {
@@ -69,19 +55,7 @@ public abstract class GameRendererMixin {
     }
 
     /**
-     * 屏蔽反胃/下界传送门旋转扭曲效果
-     * <p>
-     * 根据 CinematicController.isSuppressBob() 决定是否屏蔽
-     * <p>
-     * 在 renderLevel() 中，反胃和下界传送门共用同一套旋转扭曲代码：
-     *   float f1 = Mth.lerp(partialTick, player.oSpinningEffectIntensity, player.spinningEffectIntensity);
-     *   if (f1 > 0.0F) {
-     *       // 绕 (0, √2/2, √2/2) 轴旋转 + 缩放 + 反向旋转 → 画面波浪扭曲
-     *   }
-     * 通过 @Redirect 将此 Mth.lerp 调用的返回值替换为 0.0F，
-     * 使 f1 = 0，跳过整个旋转扭曲代码块。
-     *
-     * ordinal = 0：renderLevel() 中第一个 Mth.lerp(FFF) 调用
+     * 屏蔽反胃/下界传送门旋转扭曲效果。
      */
     @Redirect(method = "renderLevel",
             at = @At(value = "INVOKE",
@@ -94,5 +68,26 @@ public abstract class GameRendererMixin {
         return Mth.lerp(partialTick, start, end);
     }
 
+    // ===== 相机 Roll（翻滚角）=====
 
+    /**
+     * 在相机朝向（yaw/pitch）应用到 PoseStack 之后、世界渲染之前，施加 Roll 旋转。
+     * <p>
+     * 注入点 {@code LevelRenderer.prepareCullFrustum} 之前。
+     * 此时 {@code poseStack} 已完成 pitch 和 yaw 旋转，再添加 roll 不影响其他渲染环节。
+     * 等价于旧 Forge {@code ViewportEvent.ComputeCameraAngles} 的行为。
+     */
+    @Inject(method = "renderLevel",
+            at = @At(value = "INVOKE",
+                    target = "Lnet/minecraft/client/renderer/LevelRenderer;prepareCullFrustum(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/world/phys/Vec3;Lorg/joml/Matrix4f;)V",
+                    shift = At.Shift.BEFORE))
+    private void onBeforePrepareCullFrustum(PoseStack poseStack, CallbackInfo ci) {
+        CameraManager mgr = CameraManager.INSTANCE;
+        if (mgr.isActive() && mgr.hasActiveCameraClip()) {
+            float rollDeg = mgr.getProperties().getRoll();
+            if (rollDeg != 0.0F) {
+                poseStack.mulPose(Axis.ZP.rotationDegrees(rollDeg));
+            }
+        }
+    }
 }
