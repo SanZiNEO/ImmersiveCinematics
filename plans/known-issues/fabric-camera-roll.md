@@ -1,40 +1,29 @@
-# Fabric 相机 Roll 不生效
+# Fabric 相机 Roll 问题
 
-## 现象
+## 现象（已修复）
 
-在 Fabric 端运行测试时，电影脚本中的相机 Roll（翻滚角）参数无效。Forge 端正常。
+Fabric 端 Camera Roll 导致实体/方块碰撞箱被旋转。
 
-## 现有实现
+## 根因
 
-Camera Roll 在 `common/` 的 `GameRendererMixin.onCameraSetup()` 中处理：
+`GameRendererMixin.onCameraSetup()` 中直接修改 `RenderSystem.getModelViewStack()`，这个矩阵栈不仅控制相机视角，也控制碰撞箱/实体/方块的世界坐标渲染。Roll 旋转应用在错误的作用域，导致场景视觉和碰撞箱同时被旋转。
+
+## 修复方法
+
+将 Roll 合并到 `Camera` 本身的旋转四元数中，而不是修改全局模型视图矩阵：
 
 ```
-@Inject(method = "renderLevel",
-    at = @At(value = "INVOKE",
-        target = "Lnet/minecraft/client/Camera;setup(...)V",
-        shift = At.Shift.AFTER))
+CameraMixin.onSetup()
+  ├── setRotation(yaw, pitch)
+  ├── rotation.mul(rollQuaternion)   ← 新增：将 Roll 编码到相机旋转里
+  └── ci.cancel()
+
+GameRendererMixin.onCameraSetup()  ← 删除：不再需要
 ```
 
-注入后在模型视图矩阵上应用 Roll 旋转：
-```java
-RenderSystem.getModelViewStack().mulPose(com.mojang.math.Axis.ZP.rotationDegrees(rollDeg));
-```
+渲染管线使用 `Camera.rotation()` 获取相机朝向，自然包含 Roll。不需要修改矩阵栈。
 
-## 猜测原因
+## 修改的文件
 
-1. **Mixin 目标不匹配** — Fabric 加载的 `GameRenderer` 字节码可能和 Forge 有差异（Forge 用 transformers 修改了部分类），导致 `@At` 定位不到 `Camera.setup()` 调用点。Mixin 静默失败没有报错，但 Roll 没有生效。
-
-2. **模型视图栈状态不同** — Fabric 和 Forge 在 `renderLevel()` 中的 `RenderSystem.getModelViewStack()` 的 push/pop 时机可能不同，注入点时栈还没 push 导致矩阵操作被后续重置覆盖。
-
-3. **渲染管线差异** — Fabric 端 Sodium/Oculus/Iris 等渲染优化模组可能绕过了原版 `GameRenderer.renderLevel()`，导致 Mixin 根本不会触发。
-
-## 待验证
-
-- [ ] 在 Mixin 中添加日志输出，确认 `onCameraSetup` 方法是否被调用
-- [ ] 验证 `Camera.setup` 的 Mixin target 在 Fabric 端是否能匹配
-- [ ] 尝试用 `@At("HEAD")` 注入 `renderLevel` 并用 `LocalCapture` 捕获 PoseStack
-- [ ] 检查是否安装了 Sodium/Oculus 等渲染模组
-
-## 参考
-
-旧 Forge 实现使用 `ViewportEvent.ComputeCameraAngles`，通过 Forge 事件总线在 `renderLevel` 中触发。Fabric 没有等效事件，需通过 Mixin 直接注入。
+- `mixin/CameraMixin.java` — 添加 roll 到相机旋转
+- `mixin/GameRendererMixin.java` — 删除 `onCameraSetup()` 方法

@@ -94,27 +94,5 @@ public abstract class GameRendererMixin {
         return Mth.lerp(partialTick, start, end);
     }
 
-    // ===== 相机 Roll（翻滚角）=====
 
-    /**
-     * 电影模式下应用相机 Roll。
-     * <p>
-     * 在 {@code Camera.setup()} 完成后、世界渲染前，对模型视图矩阵施加 Roll 旋转。
-     * 替换旧 Forge {@code ViewportEvent.ComputeCameraAngles} 事件的处理。
-     */
-    @Inject(method = "renderLevel",
-            at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/client/Camera;setup(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/world/entity/Entity;ZZF)V",
-                    shift = At.Shift.AFTER))
-    private void onCameraSetup(CallbackInfo ci) {
-        CameraManager mgr = CameraManager.INSTANCE;
-        if (mgr.isActive() && mgr.hasActiveCameraClip()) {
-            float rollDeg = mgr.getProperties().getRoll();
-            if (rollDeg != 0.0F) {
-                com.mojang.blaze3d.systems.RenderSystem.getModelViewStack()
-                        .mulPose(com.mojang.math.Axis.ZP.rotationDegrees(rollDeg));
-            }
-        }
-    }
 }
-
