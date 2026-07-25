@@ -4,11 +4,16 @@
   "compatibilityLevel": "JAVA_17",
   "minVersion": "0.8",
   "client": [
+    "BossHealthOverlayMixin",
     "CameraMixin",
+    "ChatComponentMixin",
     "GameRendererMixin",
+    "GuiMixin",
     "KeyboardHandlerMixin",
     "LivingEntityMixin",
-    "MouseHandlerMixin"
+    "MouseHandlerMixin",
+    "PlayerTabOverlayMixin",
+    "SubtitleOverlayMixin"
   ],
   "mixins": [],
   "injectors": {
