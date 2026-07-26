@@ -1,20 +1,18 @@
 {
   "meta": {
     "id": "test_inventory_increase",
-    "name": "测试-物品增加",
+    "name": "测试-物品增加触发+pitch",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "玩家获得海绵时触发（物品增加检测）",
+    "description": "获得圆石时触发，测试 pitch 从 -30° 到 30° 摇摆",
     "triggers": [
       {
-        "id": "got_pickaxe",
+        "id": "got_cobblestone",
         "type": "inventory",
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
-          "items": [
-            "minecraft:sponge"
-          ],
+          "items": ["minecraft:cobblestone"],
           "change": "increase"
         }
       }
@@ -27,106 +25,61 @@
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,
-    "hold_at_end": false
+    "hold_at_end": false,
+    "render_player_model": false,
+    "hide_chat": null,
+    "hide_scoreboard": null,
+    "hide_action_bar": null,
+    "hide_title": null,
+    "hide_subtitles": null,
+    "hide_hotbar": null,
+    "hide_crosshair": null,
+    "hide_bossbar": null,
+    "hide_skip_hud": null
   },
   "timeline": {
-    "total_duration": 6.0,
+    "total_duration": 10,
     "tracks": [
       {
         "type": "CAMERA",
         "clips": [
           {
-            "start_time": 0.0,
-            "duration": 3.0,
+            "start_time": 0,
+            "duration": 10,
             "transition": "cut",
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
               {
-                "time": 0.0,
-                "position": {
-                  "dx": -8,
-                  "dy": 3,
-                  "dz": -15
-                },
-                "yaw": 180,
-                "pitch": 10,
+                "time": 0,
+                "position": { "dx": 5, "dy": 2, "dz": 5 },
+                "yaw": 45,
+                "pitch": -30,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1.0,
+                "zoom": 1,
                 "dof": 0
               },
               {
-                "time": 3.0,
-                "position": {
-                  "dx": 0,
-                  "dy": 3,
-                  "dz": -15
-                },
-                "yaw": 180,
-                "pitch": 10,
-                "roll": 0,
-                "fov": 72,
-                "zoom": 1.0,
-                "dof": 0
-              }
-            ]
-          },
-          {
-            "start_time": 3.0,
-            "duration": 3.0,
-            "transition": "cut",
-            "interpolation": "linear",
-            "position_mode": "relative",
-            "loop": false,
-            "keyframes": [
-              {
-                "time": 0.0,
-                "position": {
-                  "dx": 0,
-                  "dy": 3,
-                  "dz": -15
-                },
-                "yaw": 180,
-                "pitch": 10,
-                "roll": 0,
-                "fov": 72,
-                "zoom": 1.0,
-                "dof": 0
-              },
-              {
-                "time": 3.0,
-                "position": {
-                  "dx": 8,
-                  "dy": 3,
-                  "dz": -15
-                },
-                "yaw": 180,
-                "pitch": 10,
+                "time": 5,
+                "position": { "dx": 0, "dy": 4, "dz": 0 },
+                "yaw": 45,
+                "pitch": 0,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1.0,
+                "zoom": 1,
                 "dof": 0
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "type": "LETTERBOX",
-        "clips": [
-          {
-            "start_time": 0.0,
-            "duration": 6.0,
-            "keyframes": [
-              {
-                "time": 0.0,
-                "aspect_ratio": 2.35
               },
               {
-                "time": 6.0,
-                "aspect_ratio": 2.35
+                "time": 10,
+                "position": { "dx": -5, "dy": 2, "dz": -5 },
+                "yaw": 45,
+                "pitch": 30,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "dof": 0
               }
             ]
           }

@@ -110,6 +110,7 @@ public class ScriptManager {
     }
 
     public void registerAllTriggers() {
+        TriggerEngine.INSTANCE.clear();
         List<TriggerRegistration> registrations = new ArrayList<>();
         for (CinematicScript script : scripts.values()) {
             ScriptMeta meta = script.getMeta();

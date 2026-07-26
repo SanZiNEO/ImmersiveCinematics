@@ -1,18 +1,18 @@
 {
   "meta": {
-    "id": "test_item_use",
-    "name": "测试-物品使用触发+多关键帧插值",
+    "id": "test_gamestage",
+    "name": "测试-GameStage触发",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "手持胡萝卜右键时触发，测试 5 个关键帧的平滑插值",
+    "description": "需要 GameStages 模组支持。检测玩家是否有 example_stage 阶段",
     "triggers": [
       {
-        "id": "use_carrot",
-        "type": "item_use",
+        "id": "has_stage",
+        "type": "gamestage",
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
-          "item": "minecraft:carrot"
+          "stage": "example_stage"
         }
       }
     ],
@@ -52,7 +52,7 @@
             "keyframes": [
               {
                 "time": 0,
-                "position": { "dx": 3, "dy": 1.5, "dz": 0 },
+                "position": { "dx": 0, "dy": 2, "dz": 0 },
                 "yaw": 0,
                 "pitch": 0,
                 "roll": 0,
@@ -61,41 +61,11 @@
                 "dof": 0
               },
               {
-                "time": 2.5,
-                "position": { "dx": 2, "dy": 2, "dz": 2 },
-                "yaw": 45,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "dof": 0
-              },
-              {
-                "time": 5,
-                "position": { "dx": 0, "dy": 3, "dz": 3 },
-                "yaw": 90,
-                "pitch": 10,
-                "roll": 10,
-                "fov": 70,
-                "zoom": 1,
-                "dof": 0
-              },
-              {
-                "time": 7.5,
-                "position": { "dx": -2, "dy": 2, "dz": 2 },
-                "yaw": 135,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "dof": 0
-              },
-              {
                 "time": 10,
-                "position": { "dx": -3, "dy": 1.5, "dz": 0 },
-                "yaw": 180,
+                "position": { "dx": 0, "dy": 5, "dz": 0 },
+                "yaw": 0,
                 "pitch": 0,
-                "roll": -10,
+                "roll": 0,
                 "fov": 70,
                 "zoom": 1,
                 "dof": 0

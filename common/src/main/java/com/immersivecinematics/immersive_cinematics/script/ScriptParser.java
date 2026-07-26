@@ -93,18 +93,18 @@ public class ScriptParser {
         boolean blockMouse = optBool(metaObj, "block_mouse", true);
         boolean blockMobAi = optBool(metaObj, "block_mob_ai", false);
         boolean hideHud = optBool(metaObj, "hide_hud", true);
-        Boolean hideArm = metaObj.has("hide_arm") ? metaObj.get("hide_arm").getAsBoolean() : null;
-        Boolean suppressBob = metaObj.has("suppress_bob") ? metaObj.get("suppress_bob").getAsBoolean() : null;
-        Boolean hideChat = metaObj.has("hide_chat") ? metaObj.get("hide_chat").getAsBoolean() : null;
-        Boolean hideScoreboard = metaObj.has("hide_scoreboard") ? metaObj.get("hide_scoreboard").getAsBoolean() : null;
-        Boolean hideActionBar = metaObj.has("hide_action_bar") ? metaObj.get("hide_action_bar").getAsBoolean() : null;
-        Boolean hideTitle = metaObj.has("hide_title") ? metaObj.get("hide_title").getAsBoolean() : null;
-        Boolean hideSubtitles = metaObj.has("hide_subtitles") ? metaObj.get("hide_subtitles").getAsBoolean() : null;
-        Boolean hideHotbar = metaObj.has("hide_hotbar") ? metaObj.get("hide_hotbar").getAsBoolean() : null;
-        Boolean hideCrosshair = metaObj.has("hide_crosshair") ? metaObj.get("hide_crosshair").getAsBoolean() : null;
-        Boolean hideBossbar = metaObj.has("hide_bossbar") ? metaObj.get("hide_bossbar").getAsBoolean() : null;
-        Boolean hideSkipHud = metaObj.has("hide_skip_hud") ? metaObj.get("hide_skip_hud").getAsBoolean() : null;
-        boolean renderPlayerModel = optBool(metaObj, "render_player_model", false);
+        Boolean hideArm = optNullableBool(metaObj, "hide_arm");
+        Boolean suppressBob = optNullableBool(metaObj, "suppress_bob");
+        Boolean hideChat = optNullableBool(metaObj, "hide_chat");
+        Boolean hideScoreboard = optNullableBool(metaObj, "hide_scoreboard");
+        Boolean hideActionBar = optNullableBool(metaObj, "hide_action_bar");
+        Boolean hideTitle = optNullableBool(metaObj, "hide_title");
+        Boolean hideSubtitles = optNullableBool(metaObj, "hide_subtitles");
+        Boolean hideHotbar = optNullableBool(metaObj, "hide_hotbar");
+        Boolean hideCrosshair = optNullableBool(metaObj, "hide_crosshair");
+        Boolean hideBossbar = optNullableBool(metaObj, "hide_bossbar");
+        Boolean hideSkipHud = optNullableBool(metaObj, "hide_skip_hud");
+        boolean renderPlayerModel = optBool(metaObj, "render_player_model", true);
         boolean pauseWhenGamePaused = optBool(metaObj, "pause_when_game_paused", true);
         boolean interruptible = optBool(metaObj, "interruptible", true);
         boolean skippable = optBool(metaObj, "skippable", true);
@@ -565,5 +565,13 @@ public class ScriptParser {
 
     private static boolean optBool(JsonObject obj, String key, boolean defaultVal) {
         return obj.has(key) ? obj.get(key).getAsBoolean() : defaultVal;
+    }
+
+    /**
+     * 读取可空 Boolean：字段不存在或为 JsonNull 时返回 null
+     */
+    private static Boolean optNullableBool(JsonObject obj, String key) {
+        if (!obj.has(key) || obj.get(key).isJsonNull()) return null;
+        return obj.get(key).getAsBoolean();
     }
 }
