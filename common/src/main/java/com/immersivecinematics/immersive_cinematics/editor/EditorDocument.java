@@ -48,24 +48,18 @@ public class EditorDocument {
         meta.addProperty("hold_at_end", false);
         meta.addProperty("interruptible", true);
         root.add("meta", meta);
-
+        
         JsonObject timeline = new JsonObject();
         timeline.addProperty("total_duration", 10f);
         JsonArray tracks = new JsonArray();
-
-        JsonObject cameraTrack = new JsonObject();
-        cameraTrack.addProperty("type", "CAMERA");
-        cameraTrack.add("clips", new JsonArray());
-        tracks.add(cameraTrack);
-
-        JsonObject letterboxTrack = new JsonObject();
-        letterboxTrack.addProperty("type", "LETTERBOX");
-        letterboxTrack.add("clips", new JsonArray());
-        tracks.add(letterboxTrack);
-
+        for (String type : new String[]{"CAMERA", "LETTERBOX", "AUDIO", "EVENT", "MOD_EVENT"}) {
+            JsonObject track = new JsonObject();
+            track.addProperty("type", type);
+            track.add("clips", new JsonArray());
+            tracks.add(track);
+        }
         timeline.add("tracks", tracks);
         root.add("timeline", timeline);
-
         fileName = "untitled";
         dirty = false;
     }
