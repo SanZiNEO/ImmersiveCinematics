@@ -8,7 +8,6 @@ import com.immersivecinematics.immersive_cinematics.editor.area.*;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.debug.RawInputLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
-import com.immersivecinematics.immersive_cinematics.editor.widget.IFocusable;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.resources.language.I18n;
@@ -54,6 +53,8 @@ public class EditorScreen extends Screen {
     private final EditorUndoManager undoManager = new EditorUndoManager();
 
     private UIComponent rootComponent;
+    private ContextMenu contextMenu;
+    private List<JsonObject> clipboard;
     private UIComponent overlayComponent;
 
     public EditorScreen(EditorBridge bridge, Path scriptsDir) {
@@ -128,6 +129,8 @@ public class EditorScreen extends Screen {
         overlayComponent.setParent(rootComponent);
         rootComponent.children.add(overlayComponent);
 
+        contextMenu = new ContextMenu();
+        overlayComponent.children.add(contextMenu);
         RawInputLogger.enable();
         EditorLogger.areaBoundaries(EditorLogger.SCREEN,
                 "MenuBar=(0,0," + width + "," + menuH + ")"
@@ -292,6 +295,77 @@ public class EditorScreen extends Screen {
             doc.markDirty();
             syncPanels();
         });
+        // Context menu wiring
+        timeline.setOnShowClipContext((mx, my) -> {
+            contextMenu.clearEntries();
+            contextMenu.addEntry("复制 (Ctrl+C)", 0xFFCCCCCC, () -> {
+                clipboard = new ArrayList<>();
+                for (JsonObject c : sel.getClips()) clipboard.add(c.deepCopy());
+            });
+            contextMenu.addEntry("删除 (Delete)", 0xFFFF6666, () -> {
+                undoManager.push(doc.toJson());
+                for (JsonObject c : sel.getClips()) { EditorOperations.deleteClip(doc.getTracks(), c); }
+                sel.clear(); doc.markDirty();
+            });
+            contextMenu.addSeparator();
+            contextMenu.addEntry("在此添加关键帧", 0xFFCCCCCC, () -> {
+                JsonObject kf = EditorOperations.addKeyframeAt(sel.getClip(), playback.getTime());
+                if (kf != null) { doc.markDirty(); sel.selectKeyframe(kf, sel.getClip()); }
+            });
+            contextMenu.show(mx, my);
+        });
+        timeline.setOnShowTimelineContext((mx, my) -> {
+            contextMenu.clearEntries();
+            int trackIdx = (my - timeline.canvasY()) / (int)(28 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
+            int finalTrackIdx = Math.max(0, Math.min(trackIdx, doc.getTracks().size() - 1));
+            for (JsonElement te : doc.getTracks()) {
+                String type = te.getAsJsonObject().get("type").getAsString();
+                if ("LETTERBOX".equals(type)) continue;
+                contextMenu.addEntry("添加 " + type + " Clip", 0xFFCCCCCC, () -> {
+                    undoManager.push(doc.toJson());
+                    JsonObject clip = EditorOperations.addClip(doc.getTracks(), finalTrackIdx, doc.getTotalDuration(), 5, type);
+                    if (clip != null) { doc.markDirty(); sel.selectClip(clip); }
+                });
+            }
+            contextMenu.addSeparator();
+            for (String type : new String[]{"CAMERA", "AUDIO", "EVENT", "MOD_EVENT"}) {
+                contextMenu.addEntry("新增 " + type + " 轨道", 0xFFAAAAAA, () -> {
+                    EditorOperations.addTrack(doc.getTracks(), type);
+                    doc.markDirty(); syncPanels();
+                });
+            }
+            contextMenu.addSeparator();
+            contextMenu.addEntry("吸附排列 (" + "\u00AB\u00BB" + ")", 0xFFCCCCCC, () -> {
+                EditorOperations.snapAllClips(doc.getTracks()); doc.markDirty(); syncPanels();
+            });
+            contextMenu.show(mx, my);
+        });
+        timeline.setOnShowRulerContext((mx, my) -> {
+            contextMenu.clearEntries();
+            float t = timeline.xToTime(mx);
+            contextMenu.addEntry("播放头跳转到此处", 0xFFCCCCCC, () -> {
+                playback.setTime(Math.max(0, t)); output.setTime(playback.getTime()); syncPanels();
+            });
+            contextMenu.show(mx, my);
+        });
+        
+        // Track-aware +C: use current track if clip selected, else track 0
+        timeline.setOnToolAddClip(() -> {
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOL_ADD_CLIP", "");
+            JsonObject selC = sel.getClip();
+            int trackIdx = 0;
+            String trackType = "CAMERA";
+            if (selC != null) {
+                int ti = EditorOperations.findTrackIndex(doc.getTracks(), selC);
+                if (ti >= 0) {
+                    trackIdx = ti;
+                    trackType = doc.getTracks().get(ti).getAsJsonObject().get("type").getAsString();
+                }
+            }
+            if ("LETTERBOX".equals(trackType)) { trackType = "CAMERA"; }
+            JsonObject clip = EditorOperations.addClip(doc.getTracks(), trackIdx, doc.getTotalDuration(), 5, trackType);
+            if (clip != null) { doc.markDirty(); sel.selectClip(clip); }
+        });
     }
 
     private void wirePreview() {
@@ -356,6 +430,12 @@ public class EditorScreen extends Screen {
                 doc.getMeta().addProperty(parts[0], Boolean.parseBoolean(parts[1]));
                 doc.markDirty();
             }
+        });
+        leftPanel.setOnTrackSelected(trackIdx -> {
+            timeline.setSelectedTrackIndex(trackIdx);
+            // Clear clip selection when selecting a track
+            sel.clear();
+            syncPanels();
         });
     }
 
@@ -597,6 +677,8 @@ public class EditorScreen extends Screen {
         mouseDownX = (int) mx; mouseDownY = (int) my;
         EditorLogger.mousePressed(EditorLogger.SCREEN, button, (int) mx, (int) my, activeArea);
         try {
+            // Context menu overlay takes priority
+            if (contextMenu.isVisible() && contextMenu.mouseClicked(ctx)) { return true; }
             if (rootComponent.mouseClicked(ctx)) { syncPanels(); return true; }
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "mouseClicked crashed button=" + button, e);
@@ -648,51 +730,174 @@ public class EditorScreen extends Screen {
                     "mods=" + modifiers + " shift=" + hasShiftDown() + " ctrl=" + hasControlDown());
             boolean escPressed = keyCode == 256;
             boolean editorKeyPressed = CinematicKeyBindings.EDITOR_KEY != null && CinematicKeyBindings.EDITOR_KEY.matches(keyCode, scanCode);
-            if (escPressed || editorKeyPressed) { EditorLogger.action(EditorLogger.SCREEN, "CLOSE", "ESC"); CinematicKeyBindings.notifyEditorClosed(); onClose(); return true; }
+            if (escPressed || editorKeyPressed) {
+                if (contextMenu.isVisible()) { contextMenu.hide(); return true; }
+                EditorLogger.action(EditorLogger.SCREEN, "CLOSE", "ESC"); CinematicKeyBindings.notifyEditorClosed(); onClose(); return true;
+            }
 
             UIComponent focused = leftPanel.getFocusedInput();
             if (focused instanceof IFocusable f && f.keyPressed(keyCode, scanCode, modifiers)) return true;
 
             // Space — play/pause
-            if (keyCode == 57) {
-                if (playback.isPlaying()) {
-                    playback.pause(); output.pause();
-                    menuBar.setStatus(I18n.get("editor.status.paused"), 0xFFBBBB44);
-                } else {
-                    playback.play(); output.play();
-                    menuBar.setStatus(I18n.get("editor.status.playing"), 0xFF44AA44);
+            if (keyCode == 32) {
+                if (playback.isPlaying()) { playback.pause(); output.pause(); menuBar.setStatus(I18n.get("editor.status.paused"), 0xFFBBBB44); }
+                else { playback.play(); output.play(); menuBar.setStatus(I18n.get("editor.status.playing"), 0xFF44AA44); }
+                return true;
+            }
+
+            // Ctrl+A — select all
+            if (keyCode == 65 && hasControlDown()) {
+                List<JsonObject> allClips = new ArrayList<>();
+                for (JsonElement te : doc.getTracks()) {
+                    for (JsonElement ce : te.getAsJsonObject().getAsJsonArray("clips")) {
+                        allClips.add(ce.getAsJsonObject());
+                    }
                 }
+                sel.selectClips(allClips);
+                return true;
+            }
+
+            // Ctrl+C — copy selected
+            if (keyCode == 67 && hasControlDown() && !sel.getClips().isEmpty()) {
+                clipboard = new ArrayList<>();
+                for (JsonObject clip : sel.getClips()) {
+                    int trackIdx = EditorOperations.findTrackIndex(doc.getTracks(), clip);
+                    String trackType = trackIdx >= 0 ? doc.getTracks().get(trackIdx).getAsJsonObject().get("type").getAsString() : "CAMERA";
+                    JsonObject copy = clip.deepCopy();
+                    copy.addProperty("_trackType", trackType);
+                    clipboard.add(copy);
+                }
+                return true;
+            }
+            // Ctrl+V — paste
+            if (keyCode == 86 && hasControlDown() && clipboard != null && !clipboard.isEmpty()) {
+                undoManager.push(doc.toJson());
+                List<JsonObject> pasted = new ArrayList<>();
+                float offset = 0;
+                for (JsonObject clip : clipboard) {
+                    JsonObject copy = clip.deepCopy();
+                    EditorOperations.moveClip(copy, EditorOperations.getStart(clip) + offset, 0);
+                    String clipTrackType = clip.has("_trackType") ? clip.get("_trackType").getAsString() : "CAMERA";
+                    JsonObject targetTrack = EditorOperations.getTrackByType(doc.getTracks(), clipTrackType);
+                    if (targetTrack == null) {
+                        targetTrack = EditorOperations.addTrack(doc.getTracks(), clipTrackType);
+                    }
+                    targetTrack.getAsJsonArray("clips").add(copy);
+                    pasted.add(copy);
+                    offset += 0.5f;
+                }
+                if (!pasted.isEmpty()) { sel.selectClips(pasted); doc.markDirty(); }
+                return true;
+            }
+
+            // Ctrl+X — cut (copy + delete)
+            if (keyCode == 88 && hasControlDown() && !sel.getClips().isEmpty()) {
+                clipboard = new ArrayList<>();
+                for (JsonObject clip : sel.getClips()) {
+                    clipboard.add(clip.deepCopy());
+                    EditorOperations.deleteClip(doc.getTracks(), clip);
+                }
+                sel.clear(); doc.markDirty();
                 return true;
             }
 
             // Arrows — move playhead (when no clip/kf selected and no text focus)
             if (!(focused instanceof IFocusable) && sel.getClips().isEmpty() && sel.getKeyframe() == null) {
                 float step = hasShiftDown() ? 5f : 0.5f;
-                if (keyCode == 263) {
-                    playback.setTime(Math.max(0, playback.getTime() - step));
-                    output.setTime(playback.getTime()); syncPanels(); return true;
+                if (keyCode == 263) { playback.setTime(Math.max(0, playback.getTime() - step)); output.setTime(playback.getTime()); syncPanels(); return true; }
+                if (keyCode == 262) { playback.setTime(Math.min(doc.getTotalDuration(), playback.getTime() + step)); output.setTime(playback.getTime()); syncPanels(); return true; }
+            }
+
+            // Ctrl+←/→ — jump to prev/next clip
+            if (hasControlDown() && !sel.getClips().isEmpty()) {
+                JsonObject current = sel.getClip();
+                if (keyCode == 262) { // Ctrl+→ next clip
+                    // Find next clip after current in any track
+                    float currentStart = EditorOperations.getStart(current);
+                    JsonObject next = null;
+                    float nextStart = Float.MAX_VALUE;
+                    for (JsonElement te : doc.getTracks()) {
+                        for (JsonElement ce : te.getAsJsonObject().getAsJsonArray("clips")) {
+                            JsonObject c = ce.getAsJsonObject();
+                            float s = EditorOperations.getStart(c);
+                            if (s > currentStart + 0.01f && s < nextStart) { next = c; nextStart = s; }
+                        }
+                    }
+                    if (next != null) sel.selectClip(next);
+                    return true;
                 }
-                if (keyCode == 262) {
-                    playback.setTime(Math.min(doc.getTotalDuration(), playback.getTime() + step));
-                    output.setTime(playback.getTime()); syncPanels(); return true;
+                if (keyCode == 263) { // Ctrl+← prev clip
+                    float currentStart = EditorOperations.getStart(current);
+                    JsonObject prev = null;
+                    float prevStart = -1;
+                    for (JsonElement te : doc.getTracks()) {
+                        for (JsonElement ce : te.getAsJsonObject().getAsJsonArray("clips")) {
+                            JsonObject c = ce.getAsJsonObject();
+                            float s = EditorOperations.getStart(c);
+                            if (s < currentStart - 0.01f && s > prevStart) { prev = c; prevStart = s; }
+                        }
+                    }
+                    if (prev != null) sel.selectClip(prev);
+                    return true;
                 }
+            }
+
+            // Ctrl+Shift+←/→ — jump to timeline start/end
+            if (hasControlDown() && hasShiftDown()) {
+                if (keyCode == 263) { playback.setTime(0); output.setTime(0); syncPanels(); return true; }
+                if (keyCode == 262) { playback.setTime(doc.getTotalDuration()); output.setTime(doc.getTotalDuration()); syncPanels(); return true; }
+            }
+
+            // Ctrl+↑/↓ — move clip to prev/next track
+            if (hasControlDown() && !sel.getClips().isEmpty()) {
+                JsonObject clip = sel.getClip();
+                if (keyCode == 265) { // Ctrl+↑
+                    int targetIdx = EditorOperations.findTrackIndex(doc.getTracks(), clip) - 1;
+                    if (targetIdx >= 0) { EditorOperations.moveClipToTrack(doc.getTracks(), clip, targetIdx); doc.markDirty(); syncPanels(); }
+                    return true;
+                }
+                if (keyCode == 264) { // Ctrl+↓
+                    int targetIdx = EditorOperations.findTrackIndex(doc.getTracks(), clip) + 1;
+                    if (targetIdx < doc.getTracks().size()) { EditorOperations.moveClipToTrack(doc.getTracks(), clip, targetIdx); doc.markDirty(); syncPanels(); }
+                    return true;
+                }
+            }
+
+            // Home/End — timeline start/end
+            if (keyCode == 268) { playback.setTime(0); output.setTime(0); syncPanels(); return true; } // Home
+            if (keyCode == 269) { playback.setTime(doc.getTotalDuration()); output.setTime(doc.getTotalDuration()); syncPanels(); return true; } // End
+
+            // PageUp/PageDown — prev/next track
+            if (keyCode == 266 && sel.getClip() != null) { // PageUp
+                int ti = EditorOperations.findTrackIndex(doc.getTracks(), sel.getClip());
+                if (ti > 0) { JsonArray clips = doc.getTracks().get(ti - 1).getAsJsonObject().getAsJsonArray("clips"); if (clips.size() > 0) sel.selectClip(clips.get(0).getAsJsonObject()); }
+                return true;
+            }
+            if (keyCode == 267 && sel.getClip() != null) { // PageDown
+                int ti = EditorOperations.findTrackIndex(doc.getTracks(), sel.getClip());
+                if (ti < doc.getTracks().size() - 1) { JsonArray clips = doc.getTracks().get(ti + 1).getAsJsonObject().getAsJsonArray("clips"); if (clips.size() > 0) sel.selectClip(clips.get(0).getAsJsonObject()); }
+                return true;
+            }
+
+            // [ / ] — jump to clip start/end (cycle markers placeholder)
+            if (keyCode == 91 && sel.getClip() != null) { // [
+                playback.setTime(EditorOperations.getStart(sel.getClip())); output.setTime(playback.getTime()); syncPanels(); return true;
+            }
+            if (keyCode == 93 && sel.getClip() != null) { // ]
+                playback.setTime(EditorOperations.getEnd(sel.getClip())); output.setTime(playback.getTime()); syncPanels(); return true;
             }
 
             // Delete — delete selected clips
             if ((keyCode == 261 || keyCode == 127) && !sel.getClips().isEmpty()) {
                 undoManager.push(doc.toJson());
-                for (JsonObject clip : sel.getClips()) {
-                    EditorOperations.deleteClip(doc.getTracks(), clip);
-                }
+                for (JsonObject clip : sel.getClips()) { EditorOperations.deleteClip(doc.getTracks(), clip); }
                 sel.clear(); doc.markDirty(); return true;
             }
 
-            // Ctrl+ shortcuts
+            // Ctrl+ shortcuts group
             if (hasControlDown()) {
-                // Ctrl+S — save
                 if (keyCode == 83) { saveScript(); return true; }
-                // Ctrl+D — duplicate
-                if (keyCode == 68 && !sel.getClips().isEmpty()) {
+                if (keyCode == 68 && !sel.getClips().isEmpty()) { /* Ctrl+D duplicate */
                     undoManager.push(doc.toJson());
                     List<JsonObject> copies = new ArrayList<>();
                     for (JsonObject clip : sel.getClips()) {
@@ -705,13 +910,18 @@ public class EditorScreen extends Screen {
                     }
                     sel.selectClips(copies); doc.markDirty(); return true;
                 }
-                // Ctrl+Z — undo
-                if (keyCode == 90) {
-                    String prev = undoManager.pop();
+                // Undo
+                if (keyCode == 90 && !hasShiftDown()) {
+                    String prev = undoManager.undo();
                     if (prev != null) { doc.loadFromJson(prev); sel.clear(); syncPanels(); }
                     return true;
                 }
-                // Ctrl+0 — reset zoom
+                // Redo: Ctrl+Y or Ctrl+Shift+Z
+                if (keyCode == 89 || (keyCode == 90 && hasShiftDown())) {
+                    String next = undoManager.redo();
+                    if (next != null) { doc.loadFromJson(next); sel.clear(); syncPanels(); }
+                    return true;
+                }
                 if (keyCode == 48) { timeline.resetZoom(); return true; }
             }
 
@@ -730,11 +940,7 @@ public class EditorScreen extends Screen {
             // F — frame all
             if (keyCode == 70) {
                 float totalDur = doc.getTotalDuration();
-                if (totalDur > 0) {
-                    float targetPps = timeline.canvasW() / totalDur;
-                    timeline.setPixelsPerSecond(Math.min(targetPps, 5000));
-                    timeline.setScrollOffset(0);
-                }
+                if (totalDur > 0) { timeline.setPixelsPerSecond(Math.min(timeline.canvasW() / totalDur, 5000)); timeline.setScrollOffset(0); }
                 return true;
             }
 

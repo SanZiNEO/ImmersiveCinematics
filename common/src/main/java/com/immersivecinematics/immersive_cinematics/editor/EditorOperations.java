@@ -70,6 +70,17 @@ public class EditorOperations {
         } else if ("LETTERBOX".equals(trackType)) {
             kf0.addProperty("aspect_ratio", 2.35f);
             kf1.addProperty("aspect_ratio", 2.35f);
+        } else if ("AUDIO".equals(trackType)) {
+            clip.addProperty("sound", "");
+            clip.addProperty("volume", 1.0f);
+            clip.addProperty("pitch", 1.0f);
+            clip.addProperty("loop", false);
+            clip.addProperty("fade_in", 0.0f);
+            clip.addProperty("fade_out", 0.0f);
+        } else if ("EVENT".equals(trackType)) {
+            clip.addProperty("event_type", "command");
+        } else if ("MOD_EVENT".equals(trackType)) {
+            clip.addProperty("event_type", "");
         }
         clip.addProperty("transition", "cut");
         clip.addProperty("transition_duration", 0.5f);
@@ -344,5 +355,39 @@ public class EditorOperations {
 
     private static float lerp(float a, float b, float t) {
         return a + (b - a) * t;
+    }
+    
+    public static void moveClipToTrack(JsonArray tracks, JsonObject clip, int targetTrackIndex) {
+        if (targetTrackIndex < 0 || targetTrackIndex >= tracks.size()) return;
+        deleteClip(tracks, clip);
+        tracks.get(targetTrackIndex).getAsJsonObject().getAsJsonArray("clips").add(clip);
+    }
+    
+    public static int findTrackIndex(JsonArray tracks, JsonObject clip) {
+        for (int ti = 0; ti < tracks.size(); ti++) {
+            JsonArray clips = tracks.get(ti).getAsJsonObject().getAsJsonArray("clips");
+            for (JsonElement ce : clips) {
+                if (ce.getAsJsonObject() == clip) return ti;
+            }
+        }
+        return -1;
+    }
+    
+    public static JsonObject getTrackByType(JsonArray tracks, String type) {
+        for (JsonElement te : tracks) {
+            JsonObject track = te.getAsJsonObject();
+            if (type.equals(track.get("type").getAsString())) {
+                return track;
+            }
+        }
+        return null;
+    }
+    
+    public static JsonObject addTrack(JsonArray tracks, String type) {
+        JsonObject track = new JsonObject();
+        track.addProperty("type", type);
+        track.add("clips", new JsonArray());
+        tracks.add(track);
+        return track;
     }
 }
