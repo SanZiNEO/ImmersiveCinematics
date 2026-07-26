@@ -1,0 +1,89 @@
+{
+  "meta": {
+    "id": "test_custom",
+    "name": "测试-自定义触发+绝对坐标+zoom",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "通过 /icinematics trigger 触发，测试 absolute 坐标模式和 zoom 推拉效果",
+    "triggers": [
+      {
+        "id": "custom_event",
+        "type": "custom",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "event_id": "test_camera_zoom"
+        }
+      }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false,
+    "hide_chat": null,
+    "hide_scoreboard": null,
+    "hide_action_bar": null,
+    "hide_title": null,
+    "hide_subtitles": null,
+    "hide_hotbar": null,
+    "hide_crosshair": null,
+    "hide_bossbar": null,
+    "hide_skip_hud": null
+  },
+  "timeline": {
+    "total_duration": 10,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "absolute",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "x": 0, "y": 65, "z": 0 },
+                "yaw": 0,
+                "pitch": 10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "dof": 0
+              },
+              {
+                "time": 5,
+                "position": { "x": 10, "y": 68, "z": 10 },
+                "yaw": 45,
+                "pitch": 15,
+                "roll": 0,
+                "fov": 50,
+                "zoom": 1.5,
+                "dof": 0
+              },
+              {
+                "time": 10,
+                "position": { "x": 20, "y": 70, "z": 20 },
+                "yaw": 90,
+                "pitch": 20,
+                "roll": 0,
+                "fov": 30,
+                "zoom": 2,
+                "dof": 0
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
