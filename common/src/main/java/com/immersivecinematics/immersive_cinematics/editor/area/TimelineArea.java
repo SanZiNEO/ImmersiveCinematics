@@ -56,6 +56,7 @@ public class TimelineArea extends UIComponent {
 
     private Consumer<Float> onClickAtTime;
     private Consumer<JsonObject> onClickClip;
+    private Consumer<List<JsonObject>> onSelectClips;
     private BiConsumer<JsonObject, JsonObject> onClickKeyframe;
     private BiConsumer<JsonObject, Float> onMoveClip;
     private BiConsumer<JsonObject, Float> onResizeLeft;
@@ -101,6 +102,7 @@ public class TimelineArea extends UIComponent {
     public void setOnShowTimelineContext(BiConsumer<Integer, Integer> r) { onShowTimelineContext = r; }
     public void setOnShowRulerContext(BiConsumer<Integer, Integer> r) { onShowRulerContext = r; }
     public void setOnToolAddKeyframe(Runnable r) { onToolAddKeyframe = r; }
+    public void setOnSelectClips(Consumer<List<JsonObject>> r) { onSelectClips = r; }
     public void setOnToolDeleteKeyframe(Runnable r) { onToolDeleteKeyframe = r; }
     public void setSelectedTrackIndex(int idx) { this.selectedTrackIndex = idx; }
     public int getSelectedTrackIndex() { return selectedTrackIndex; }
@@ -154,7 +156,7 @@ public class TimelineArea extends UIComponent {
         drawToolbar(ctx);
         drawTracks(ctx, cx, cy);
         drawPlayhead(ctx, cx, cy, cw);
-
+        
         // Ghost drag preview
         if (isDragging && draggingClip != null) {
             int gx = (int) timeToX(ghostStart);
@@ -192,9 +194,10 @@ public class TimelineArea extends UIComponent {
         float visibleEnd = visibleStart + visibleWidth;
 
         float majorInterval;
-        if (visibleWidth <= 5) majorInterval = 10;
+        if (visibleWidth <= 2) majorInterval = 0.5f;
+        else if (visibleWidth <= 5) majorInterval = 1;
         else if (visibleWidth <= 15) majorInterval = 5;
-        else if (visibleWidth <= 60) majorInterval = 1;
+        else if (visibleWidth <= 60) majorInterval = 10;
         else majorInterval = (float) Math.pow(10, Math.ceil(Math.log10(visibleWidth)) - 1);
         float minorInterval = majorInterval / 2;
 
@@ -564,6 +567,7 @@ public class TimelineArea extends UIComponent {
         boxStartX = ctx.mouseX;
         boxStartY = ctx.mouseY;
         boxStartTime = xToTime(ctx.mouseX);
+        boxEndTime = boxStartTime;
         boxStartTrack = (ctx.mouseY - canvasY()) / trackH();
         return true;
     }
@@ -588,10 +592,11 @@ public class TimelineArea extends UIComponent {
                     float cs = EditorOperations.getStart(c);
                     float ce2 = EditorOperations.getEnd(c);
                     if (cs < maxTime && ce2 > minTime) hit.add(c);
-                }
-            }
-            if (!hit.isEmpty() && onClickClip != null) {
-                onClickClip.accept(hit.get(0));
+                } // end for (clips)
+            } // end for (ti)
+            if (!hit.isEmpty()) {
+                if (onSelectClips != null) onSelectClips.accept(hit);
+                if (onClickClip != null && !hit.isEmpty()) onClickClip.accept(hit.get(0));
             }
             return true;
         }
@@ -759,8 +764,12 @@ public class TimelineArea extends UIComponent {
     public List<UIComponent> getChildren() { return children; }
 
     private static String fmt(float s) {
-        int m = (int)(s / 60);
-        return String.format("%d:%02d", m, (int)(s % 60));
+        int totalSec = Math.round(s);
+        int h = totalSec / 3600;
+        int m = (totalSec % 3600) / 60;
+        int sec = totalSec % 60;
+        if (h > 0) return String.format("%d:%02d:%02d", h, m, sec);
+        return String.format("%d:%02d", m, sec);
     }
 
     @FunctionalInterface

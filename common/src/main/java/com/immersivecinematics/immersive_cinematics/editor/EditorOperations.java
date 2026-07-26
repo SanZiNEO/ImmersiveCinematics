@@ -34,6 +34,7 @@ public class EditorOperations {
 
     public static JsonObject addClip(JsonArray tracks, int trackIndex, float startTime, float duration, String trackType) {
         if (trackIndex < 0 || trackIndex >= tracks.size()) return null;
+        if (duration <= 0) duration = 0.1f;
         JsonObject clip = new JsonObject();
         clip.addProperty("start_time", startTime);
         clip.addProperty("duration", duration);
@@ -67,6 +68,8 @@ public class EditorOperations {
             pos1.addProperty("dy", 0f);
             pos1.addProperty("dz", 0f);
             kf1.add("position", pos1);
+            clip.addProperty("transition", "cut");
+            clip.addProperty("transition_duration", 0.5f);
         } else if ("LETTERBOX".equals(trackType)) {
             kf0.addProperty("aspect_ratio", 2.35f);
             kf1.addProperty("aspect_ratio", 2.35f);
@@ -79,13 +82,13 @@ public class EditorOperations {
             clip.addProperty("fade_out", 0.0f);
         } else if ("EVENT".equals(trackType)) {
             clip.addProperty("event_type", "command");
+            clip.addProperty("command", "");
         } else if ("MOD_EVENT".equals(trackType)) {
             clip.addProperty("event_type", "");
         }
-        clip.addProperty("transition", "cut");
-        clip.addProperty("transition_duration", 0.5f);
         clip.add("keyframes", kfs);
         tracks.get(trackIndex).getAsJsonObject().getAsJsonArray("clips").add(clip);
+        sortTrackClips(tracks);
         return clip;
     }
 
@@ -117,6 +120,7 @@ public class EditorOperations {
         return kf;
     }
 
+    /** Add an empty keyframe at the given global time, or return null if time is invalid/duplicate. */
     public static JsonObject addKeyframeAt(JsonObject clip, float globalTime) {
         float localTime = globalTime - getStart(clip);
         if (localTime < 0 || localTime > getDuration(clip)) return null;
@@ -131,16 +135,8 @@ public class EditorOperations {
         kf.addProperty("time", localTime);
         kfs.add(kf);
         sortKeyframes(clip);
-
-        for (int i = 0; i < kfs.size(); i++) {
-            if (kfs.get(i).getAsJsonObject() == kf) {
-                fillKeyframeProperties(kf, kfs, i);
-                break;
-            }
-        }
         return kf;
     }
-
     public static boolean canAddKeyframeAt(JsonObject clip, float globalTime) {
         if (clip == null) return false;
         float localTime = globalTime - getStart(clip);
@@ -161,7 +157,6 @@ public class EditorOperations {
     public static void moveClip(JsonObject clip, float newStart, float snapInterval) {
         clip.addProperty("start_time", Math.max(0, snap(newStart, snapInterval)));
     }
-
     public static void resizeClipLeft(JsonObject clip, float newStart, float snapInterval) {
         float ns = Math.max(0, snap(newStart, snapInterval));
         float oldEnd = getEnd(clip);
@@ -226,7 +221,9 @@ public class EditorOperations {
             JsonObject kf = new JsonObject();
             kf.addProperty("time", 0f);
             if (kfs.size() > 0) {
-                copyKeyframeProperties(kf, kfs.get(0).getAsJsonObject());
+                JsonObject first = kfs.get(0).getAsJsonObject();
+                boolean hasData = first.keySet().stream().anyMatch(k -> !"time".equals(k));
+                if (hasData) copyKeyframeProperties(kf, first);
             }
             kfs.add(kf);
         }
@@ -234,7 +231,9 @@ public class EditorOperations {
             JsonObject kf = new JsonObject();
             kf.addProperty("time", dur);
             if (kfs.size() > 0) {
-                copyKeyframeProperties(kf, kfs.get(kfs.size() - 1).getAsJsonObject());
+                JsonObject last = kfs.get(kfs.size() - 1).getAsJsonObject();
+                boolean hasData = last.keySet().stream().anyMatch(k -> !"time".equals(k));
+                if (hasData) copyKeyframeProperties(kf, last);
             }
             kfs.add(kf);
         }
@@ -250,7 +249,7 @@ public class EditorOperations {
             kf.addProperty("time", Math.max(0, Math.min(dur, t)));
         }
     }
-
+    
     public static float recalcDuration(JsonArray tracks) {
         float maxEnd = 0;
         for (JsonElement te : tracks) {
@@ -292,6 +291,12 @@ public class EditorOperations {
         List<JsonElement> list = new ArrayList<>(kfs.size());
         for (int i = 0; i < kfs.size(); i++) list.add(kfs.get(i));
         list.sort(Comparator.comparingDouble(e -> e.getAsJsonObject().get("time").getAsFloat()));
+        // Dedup: remove adjacent keyframes with same time
+        for (int i = list.size() - 1; i > 0; i--) {
+            float t0 = list.get(i).getAsJsonObject().get("time").getAsFloat();
+            float t1 = list.get(i - 1).getAsJsonObject().get("time").getAsFloat();
+            if (Math.abs(t0 - t1) < 0.001f) list.remove(i);
+        }
         for (int i = kfs.size() - 1; i >= 0; i--) kfs.remove(i);
         for (JsonElement e : list) kfs.add(e);
     }
@@ -345,14 +350,14 @@ public class EditorOperations {
         if (source.has("position")) {
             target.add("position", source.getAsJsonObject("position").deepCopy());
         }
-        target.addProperty("yaw", source.get("yaw").getAsFloat());
-        target.addProperty("pitch", source.get("pitch").getAsFloat());
-        target.addProperty("roll", source.get("roll").getAsFloat());
-        target.addProperty("fov", source.get("fov").getAsFloat());
+        if (source.has("yaw")) target.addProperty("yaw", source.get("yaw").getAsFloat());
+        if (source.has("pitch")) target.addProperty("pitch", source.get("pitch").getAsFloat());
+        if (source.has("roll")) target.addProperty("roll", source.get("roll").getAsFloat());
+        if (source.has("fov")) target.addProperty("fov", source.get("fov").getAsFloat());
         if (source.has("zoom")) target.addProperty("zoom", source.get("zoom").getAsFloat());
         if (source.has("dof")) target.addProperty("dof", source.get("dof").getAsFloat());
     }
-
+    
     private static float lerp(float a, float b, float t) {
         return a + (b - a) * t;
     }
@@ -389,5 +394,151 @@ public class EditorOperations {
         track.add("clips", new JsonArray());
         tracks.add(track);
         return track;
+    }
+    /** Split a clip at the given global time, creating two clips. Returns the new (right-half) clip, or null if split is impossible. */
+    public static JsonObject splitClip(JsonArray tracks, JsonObject clip, float splitGlobalTime) {
+        float cs = getStart(clip);
+        float cd = getDuration(clip);
+        float ce = getEnd(clip);
+        float localSplit = splitGlobalTime - cs;
+        if (localSplit <= 0.01f || localSplit >= cd - 0.01f) return null;
+        
+        // Shrink original to first half
+        float oldDur = cd;
+        clip.addProperty("duration", localSplit);
+        
+        // Create second half
+        JsonObject rightClip = new JsonObject();
+        rightClip.addProperty("start_time", cs + localSplit);
+        rightClip.addProperty("duration", oldDur - localSplit);
+        rightClip.addProperty("transition", clip.has("transition") ? clip.get("transition").getAsString() : "cut");
+        rightClip.addProperty("transition_duration", clip.has("transition_duration") ? clip.get("transition_duration").getAsFloat() : 0.5f);
+        
+        // Split keyframes
+        JsonArray leftKfs = keyframes(clip);
+        JsonArray rightKfs = new JsonArray();
+        if (leftKfs != null) {
+            java.util.List<JsonElement> toRemove = new java.util.ArrayList<>();
+            for (JsonElement ke : leftKfs) {
+                JsonObject kf = ke.getAsJsonObject();
+                float kt = kf.get("time").getAsFloat();
+                if (kt > localSplit + 0.001f) {
+                    // Move to right clip, adjust time
+                    JsonObject kfCopy = kf.deepCopy();
+                    kfCopy.addProperty("time", kt - localSplit);
+                    rightKfs.add(kfCopy);
+                    toRemove.add(ke);
+                } else if (Math.abs(kt - localSplit) <= 0.001f) {
+                    // Exact boundary — keep on both sides at respective bounds
+                    kf.addProperty("time", localSplit);
+                    JsonObject kfCopy = kf.deepCopy();
+                    kfCopy.addProperty("time", 0f);
+                    rightKfs.add(kfCopy);
+                }
+            }
+            for (JsonElement ke : toRemove) leftKfs.remove(ke);
+            // Ensure both sides have boundary keyframes
+            ensureBoundaryKeyframes(clip);
+        }
+        if (rightKfs.size() == 0) {
+            JsonObject rkf0 = new JsonObject(); rkf0.addProperty("time", 0f);
+            JsonObject rkf1 = new JsonObject(); rkf1.addProperty("time", oldDur - localSplit);
+            rightKfs.add(rkf0);
+            rightKfs.add(rkf1);
+        }
+        // Add right clip to same track — insert after original
+        for (int ti = 0; ti < tracks.size(); ti++) {
+            JsonArray tClips = tracks.get(ti).getAsJsonObject().getAsJsonArray("clips");
+            java.util.List<JsonElement> allClips = new java.util.ArrayList<>();
+            for (int ci = 0; ci < tClips.size(); ci++) allClips.add(tClips.get(ci));
+            boolean found = false;
+            for (int i = 0; i < allClips.size(); i++) {
+                if (allClips.get(i).getAsJsonObject() == clip) {
+                    allClips.add(i + 1, rightClip);
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                while (tClips.size() > 0) tClips.remove(0);
+                for (JsonElement elem : allClips) tClips.add(elem);
+                break;
+            }
+        }
+        sortTrackClips(tracks);
+        return rightClip;
+    }
+    
+    public static void sortTrackClips(JsonArray tracks) {
+        for (JsonElement te : tracks) {
+            JsonObject track = te.getAsJsonObject();
+            JsonArray clips = track.getAsJsonArray("clips");
+            if (clips == null || clips.size() < 2) continue;
+            List<JsonElement> list = new ArrayList<>();
+            for (int i = 0; i < clips.size(); i++) list.add(clips.get(i));
+            list.sort(Comparator.comparingDouble(e -> e.getAsJsonObject().get("start_time").getAsFloat()));
+            for (int i = clips.size() - 1; i >= 0; i--) clips.remove(i);
+            for (JsonElement e : list) clips.add(e);
+        }
+    }
+    
+    public static List<String> validateScript(JsonObject root) {
+        List<String> errors = new ArrayList<>();
+        if (root == null) { errors.add("root is null"); return errors; }
+        
+        JsonObject meta = root.getAsJsonObject("meta");
+        if (meta == null) { errors.add("缺少 meta"); return errors; }
+        if (!meta.has("version") || meta.get("version").getAsInt() != 3)
+            errors.add("meta.version 必须为 3");
+        
+        JsonObject timeline = root.getAsJsonObject("timeline");
+        if (timeline == null) { errors.add("缺少 timeline"); return errors; }
+        
+        float totalDur = timeline.has("total_duration") ? timeline.get("total_duration").getAsFloat() : 0;
+        if (totalDur == 0f) errors.add("timeline.total_duration 不允许为 0");
+        
+        JsonArray tracks = timeline.getAsJsonArray("tracks");
+        if (tracks == null) return errors;
+        
+        for (int ti = 0; ti < tracks.size(); ti++) {
+            JsonObject track = tracks.get(ti).getAsJsonObject();
+            String type = track.has("type") ? track.get("type").getAsString() : "";
+            JsonArray clips = track.getAsJsonArray("clips");
+            if (clips == null) continue;
+            
+            for (int ci = 0; ci < clips.size(); ci++) {
+                JsonObject clip = clips.get(ci).getAsJsonObject();
+                String prefix = "tracks[" + ti + "].clips[" + ci + "]";
+                float dur = clip.has("duration") ? clip.get("duration").getAsFloat() : 0;
+                if (dur == 0f) errors.add(prefix + ".duration: 不允许为 0");
+                if ("CAMERA".equals(type)) {
+                    if (!clip.has("keyframes") || clip.getAsJsonArray("keyframes").size() == 0)
+                        errors.add(prefix + ": CAMERA clip 至少需要1个关键帧");
+                }
+                if (clip.has("keyframes")) {
+                    JsonArray kfs = clip.getAsJsonArray("keyframes");
+                    float prevTime = -Float.MAX_VALUE;
+                    for (int ki = 0; ki < kfs.size(); ki++) {
+                        float t = kfs.get(ki).getAsJsonObject().get("time").getAsFloat();
+                        if (t <= prevTime)
+                            errors.add(prefix + ".keyframes[" + ki + "].time: 必须单调递增");
+                        prevTime = t;
+                    }
+                }
+            }
+            
+            List<JsonObject> clipList = new ArrayList<>();
+            for (JsonElement ce : clips) clipList.add(ce.getAsJsonObject());
+            clipList.sort(Comparator.comparingDouble(c -> c.get("start_time").getAsFloat()));
+            for (int ci = 1; ci < clipList.size(); ci++) {
+                JsonObject prev = clipList.get(ci - 1);
+                JsonObject curr = clipList.get(ci);
+                float prevEnd = prev.get("start_time").getAsFloat() + prev.get("duration").getAsFloat();
+                float currStart = curr.get("start_time").getAsFloat();
+                if (currStart < prevEnd - 0.001f)
+                    errors.add("tracks[" + ti + "]: clip 重叠 " + prevEnd + " > " + currStart);
+            }
+        }
+        return errors;
     }
 }

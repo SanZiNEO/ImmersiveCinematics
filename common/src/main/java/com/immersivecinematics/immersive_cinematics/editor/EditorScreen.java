@@ -56,6 +56,7 @@ public class EditorScreen extends Screen {
     private ContextMenu contextMenu;
     private List<JsonObject> clipboard;
     private UIComponent overlayComponent;
+    private long lastSpacePress;
 
     public EditorScreen(EditorBridge bridge, Path scriptsDir) {
         super(Component.literal("Cinematic Editor"));
@@ -151,6 +152,7 @@ public class EditorScreen extends Screen {
         wireLeftPanel();
 
         leftPanel.setDirtyCallback(() -> {
+            undoManager.push(doc.toJson());
             doc.markDirty();
             doc.setFileName(doc.getMeta().get("id").getAsString());
             menuBar.setScriptName(doc.getFileName());
@@ -206,6 +208,9 @@ public class EditorScreen extends Screen {
             EditorLogger.action(EditorLogger.TIMELINE, "SELECT_CLIP", "startTime=" + st);
             sel.selectClip(clip);
         });
+        timeline.setOnSelectClips(clips -> {
+            sel.selectClips(clips);
+        });
         timeline.setOnClickKeyframe((kf, clip) -> {
             float globalTime = EditorOperations.getStart(clip) + kf.get("time").getAsFloat();
             EditorLogger.action(EditorLogger.TIMELINE, "SELECT_KEYFRAME", "time=" + kf.get("time").getAsFloat() + " global=" + globalTime);
@@ -214,22 +219,26 @@ public class EditorScreen extends Screen {
             output.setTime(globalTime);
         });
         timeline.setOnMoveClip((clip, ns) -> {
+            undoManager.push(doc.toJson());
             EditorLogger.action(EditorLogger.TIMELINE, "MOVE_CLIP", "from=" + EditorOperations.getStart(clip) + " to=" + ns);
             EditorOperations.moveClip(clip, ns, 0);
             doc.markDirty();
         });
         timeline.setOnToggleClip(clip -> sel.toggleClip(clip));
         timeline.setOnResizeLeft((clip, ns) -> {
+            undoManager.push(doc.toJson());
             EditorLogger.action(EditorLogger.TIMELINE, "RESIZE_CLIP_LEFT", "clipStart=" + EditorOperations.getStart(clip) + " newStart=" + ns);
             EditorOperations.resizeClipLeft(clip, ns, 0);
             doc.markDirty();
         });
         timeline.setOnResizeRight((clip, ne) -> {
+            undoManager.push(doc.toJson());
             EditorLogger.action(EditorLogger.TIMELINE, "RESIZE_CLIP_RIGHT", "clipEnd=" + EditorOperations.getEnd(clip) + " newEnd=" + ne);
             EditorOperations.resizeClipRight(clip, ne, 0);
             doc.markDirty();
         });
         timeline.setOnMoveKeyframe((kf, clip, nt) -> {
+            undoManager.push(doc.toJson());
             EditorLogger.action(EditorLogger.TIMELINE, "MOVE_KEYFRAME", "from=" + kf.get("time").getAsFloat() + " to=" + nt + " clipStart=" + EditorOperations.getStart(clip));
             EditorOperations.moveKeyframe(clip, kf, nt, 0);
             doc.markDirty();
@@ -308,6 +317,14 @@ public class EditorScreen extends Screen {
                 sel.clear(); doc.markDirty();
             });
             contextMenu.addSeparator();
+            contextMenu.addEntry("分割 (在播放头位置)", 0xFFCCCCCC, () -> {
+                JsonObject clip = sel.getClip();
+                if (clip != null) {
+                    undoManager.push(doc.toJson());
+                    JsonObject right = EditorOperations.splitClip(doc.getTracks(), clip, playback.getTime());
+                    if (right != null) { doc.markDirty(); sel.selectClip(right); }
+                }
+            });
             contextMenu.addEntry("在此添加关键帧", 0xFFCCCCCC, () -> {
                 JsonObject kf = EditorOperations.addKeyframeAt(sel.getClip(), playback.getTime());
                 if (kf != null) { doc.markDirty(); sel.selectKeyframe(kf, sel.getClip()); }
@@ -528,6 +545,14 @@ public class EditorScreen extends Screen {
     }
 
     private void saveScript() {
+        // Validate before save
+        List<String> errors = EditorOperations.validateScript(doc.getRoot());
+        if (!errors.isEmpty()) {
+            String msg = "脚本存在 " + errors.size() + " 个问题，无法保存:\n";
+            for (String e : errors) msg += "  - " + e + "\n";
+            EditorLogger.error(EditorLogger.SCREEN, "SAVE_VALIDATION_FAILED", new RuntimeException(msg));
+            return;
+        }
         try {
             Files.createDirectories(scriptsDir);
             Path dest = scriptFilePath != null ? Paths.get(scriptFilePath)
@@ -738,8 +763,11 @@ public class EditorScreen extends Screen {
             UIComponent focused = leftPanel.getFocusedInput();
             if (focused instanceof IFocusable f && f.keyPressed(keyCode, scanCode, modifiers)) return true;
 
-            // Space — play/pause
+            // Space — play/pause (with repeat guard)
             if (keyCode == 32) {
+                long now = System.currentTimeMillis();
+                if (now - lastSpacePress < 300) return true;
+                lastSpacePress = now;
                 if (playback.isPlaying()) { playback.pause(); output.pause(); menuBar.setStatus(I18n.get("editor.status.paused"), 0xFFBBBB44); }
                 else { playback.play(); output.play(); menuBar.setStatus(I18n.get("editor.status.playing"), 0xFF44AA44); }
                 return true;
@@ -974,10 +1002,10 @@ public class EditorScreen extends Screen {
             JsonObject kf = sel.getKeyframe();
             float step = hasShiftDown() ? 5 : 0.5f;
             String dir;
-            if (keyCode == 265) { addTo(kf, "yaw", step); dir = "yaw+"; }
-            else if (keyCode == 264) { addTo(kf, "yaw", -step); dir = "yaw-"; }
-            else if (keyCode == 263) { addTo(kf, "time", -step); dir = "time-"; }
-            else if (keyCode == 262) { addTo(kf, "time", step); dir = "time+"; }
+            if (keyCode == 265) { undoManager.push(doc.toJson()); addTo(kf, "yaw", step); dir = "yaw+"; }
+            else if (keyCode == 264) { undoManager.push(doc.toJson()); addTo(kf, "yaw", -step); dir = "yaw-"; }
+            else if (keyCode == 263) { undoManager.push(doc.toJson()); addTo(kf, "time", -step); dir = "time-"; }
+            else if (keyCode == 262) { undoManager.push(doc.toJson()); addTo(kf, "time", step); dir = "time+"; }
             else return false;
             EditorLogger.action(EditorLogger.SCREEN, "KEYFRAME_NUDGE", dir + " step=" + step);
             doc.markDirty();
@@ -992,8 +1020,8 @@ public class EditorScreen extends Screen {
         try {
             JsonObject clip = sel.getClip();
             float step = hasShiftDown() ? 1 : 0.1f;
-            if (keyCode == 263) { EditorOperations.moveClip(clip, EditorOperations.getStart(clip) - step, 0); EditorLogger.action(EditorLogger.SCREEN, "CLIP_NUDGE", "left step=" + step); doc.markDirty(); return true; }
-            else if (keyCode == 262) { EditorOperations.moveClip(clip, EditorOperations.getStart(clip) + step, 0); EditorLogger.action(EditorLogger.SCREEN, "CLIP_NUDGE", "right step=" + step); doc.markDirty(); return true; }
+            if (keyCode == 263) { undoManager.push(doc.toJson()); EditorOperations.moveClip(clip, EditorOperations.getStart(clip) - step, 0); EditorLogger.action(EditorLogger.SCREEN, "CLIP_NUDGE", "left step=" + step); doc.markDirty(); return true; }
+            else if (keyCode == 262) { undoManager.push(doc.toJson()); EditorOperations.moveClip(clip, EditorOperations.getStart(clip) + step, 0); EditorLogger.action(EditorLogger.SCREEN, "CLIP_NUDGE", "right step=" + step); doc.markDirty(); return true; }
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "handleClipKey crashed", e);
         }
