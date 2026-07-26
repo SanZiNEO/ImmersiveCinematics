@@ -41,6 +41,8 @@ public class LeftPanelArea extends UIComponent {
     private Runnable onNewScript;
     private Consumer<String> onNameChanged;
     private Consumer<String> onAuthorChanged;
+    private Consumer<Integer> onTrackSelected;
+    
     private Consumer<String> onDescChanged;
     private Consumer<String> onBehaviorFlag;
     private Runnable onDirty;
@@ -730,17 +732,23 @@ public class LeftPanelArea extends UIComponent {
         addSectionLabel("Tracks", lx, cy, 0);
         cy += 16;
         
-        for (JsonElement te : tracks) {
-            JsonObject track = te.getAsJsonObject();
+        for (int ti = 0; ti < tracks.size(); ti++) {
+            JsonObject track = tracks.get(ti).getAsJsonObject();
             String type = track.has("type") ? track.get("type").getAsString() : "TRACK";
             int clipCount = track.has("clips") ? track.getAsJsonArray("clips").size() : 0;
             
             int rowH = 20;
+            int finalTi = ti;
             
-            String info = type + "  (" + clipCount + " clips)";
-            addSectionLabel(info, lx + 12, cy + 4, 0);
+            UIButton row = new UIButton(lx + 4, cy, w - 20, rowH, type + "  (" + clipCount + " clips)", btn -> {
+                if (onTrackSelected != null) onTrackSelected.accept(finalTi);
+            });
+            row.color(0x00, 0x443A3A3A).textColor(0xFFAAAAAA);
+            children.add(row);
             
             cy += rowH + 2;
         }
     }
+    
+    public void setOnTrackSelected(Consumer<Integer> r) { onTrackSelected = r; }
 }

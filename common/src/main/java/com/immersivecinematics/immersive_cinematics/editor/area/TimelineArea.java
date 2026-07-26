@@ -32,6 +32,7 @@ public class TimelineArea extends UIComponent {
     private long lastDragLogTime;
     private int dragLogCounter;
     private List<JsonObject> selectedClips = new ArrayList<>();
+    private int selectedTrackIndex = 0;
     private Consumer<JsonObject> onToggleClip;
     
     // Ghost drag
@@ -70,6 +71,9 @@ public class TimelineArea extends UIComponent {
         super(x, y, w, h);
         EditorLogger.areaRegister(EditorLogger.TIMELINE, "full_area", x, y, w, h);
     }
+    private BiConsumer<Integer, Integer> onShowClipContext;
+    private BiConsumer<Integer, Integer> onShowTimelineContext;
+    private BiConsumer<Integer, Integer> onShowRulerContext;
 
     public void setData(JsonObject script, JsonObject selClip, JsonObject selKf,
                         boolean canAddKf) {
@@ -93,8 +97,13 @@ public class TimelineArea extends UIComponent {
     public void setOnMoveKeyframe(MoveKeyframeCallback r) { onMoveKeyframe = r; }
     public void setOnToolAddClip(Runnable r) { onToolAddClip = r; }
     public void setOnToolDeleteClip(Runnable r) { onToolDeleteClip = r; }
+    public void setOnShowClipContext(BiConsumer<Integer, Integer> r) { onShowClipContext = r; }
+    public void setOnShowTimelineContext(BiConsumer<Integer, Integer> r) { onShowTimelineContext = r; }
+    public void setOnShowRulerContext(BiConsumer<Integer, Integer> r) { onShowRulerContext = r; }
     public void setOnToolAddKeyframe(Runnable r) { onToolAddKeyframe = r; }
     public void setOnToolDeleteKeyframe(Runnable r) { onToolDeleteKeyframe = r; }
+    public void setSelectedTrackIndex(int idx) { this.selectedTrackIndex = idx; }
+    public int getSelectedTrackIndex() { return selectedTrackIndex; }
     public void setOnToolSnap(Runnable r) { onToolSnap = r; }
     
     public void resetZoom() { pixelsPerSecond = 60f; scrollOffset = 0; }
@@ -249,7 +258,8 @@ public class TimelineArea extends UIComponent {
             ctx.graphics.fill(labelAreaX + 4, ty + 4, labelAreaX + 8, ty + trackH() - 4, colorMark);
             ctx.graphics.drawString(ctx.font, type, labelAreaX + 12, ty + (trackH() - 8) / 2, 0xFFAAAAAA);
             
-            ctx.graphics.fill(cx, ty, cx + canvasW(), ty + trackH(), trackBgColor(type));
+            int bgColor = (ti == selectedTrackIndex) ? lighten(trackBgColor(type), 0.15f) : trackBgColor(type);
+            ctx.graphics.fill(cx, ty, cx + canvasW(), ty + trackH(), bgColor);
             
             JsonArray clips = track.getAsJsonArray("clips");
             if (clips == null || clips.size() == 0) {
@@ -398,25 +408,63 @@ public class TimelineArea extends UIComponent {
         EditorLogger.areaHit(EditorLogger.TIMELINE, "full_area", ctx.mouseX, ctx.mouseY, true);
         mouseDownX = ctx.mouseX;
         mouseDownY = ctx.mouseY;
+        boolean rightClick = ctx.mouseButton == 1;
 
         if (ctx.mouseX < x + toolbarW() && ctx.mouseY >= y + headerH()) {
             EditorLogger.areaHit(EditorLogger.TIMELINE, "toolbar", ctx.mouseX, ctx.mouseY, true);
             return clickToolbar(ctx);
         }
 
+        // Label area click — select track
+        if (ctx.mouseX >= x + toolbarW() && ctx.mouseX < canvasX() && ctx.mouseY >= canvasY()) {
+            int ti = (ctx.mouseY - canvasY()) / trackH();
+            if (ti >= 0 && ti < tracks().size()) {
+                selectedTrackIndex = ti;
+                EditorLogger.action(EditorLogger.TIMELINE, "LABEL_CLICK", "track=" + ti);
+            }
+            return true;
+        }
         if (ctx.mouseY < canvasY() && ctx.mouseX >= x + toolbarW()) {
             EditorLogger.areaHit(EditorLogger.TIMELINE, "ruler", ctx.mouseX, ctx.mouseY, true);
+            if (rightClick) {
+                if (onShowRulerContext != null) onShowRulerContext.accept(ctx.mouseX, ctx.mouseY);
+                return true;
+            }
             float t = xToTime(ctx.mouseX);
             if (t >= 0 && onClickAtTime != null) {
-                float snapped = Math.max(0, t);
-                EditorLogger.playhead(EditorLogger.TIMELINE, snapped, ctx.mouseX, "ruler_click");
-                onClickAtTime.accept(snapped);
+                EditorLogger.playhead(EditorLogger.TIMELINE, Math.max(0, t), ctx.mouseX, "ruler_click");
+                onClickAtTime.accept(Math.max(0, t));
             }
             return true;
         }
 
         EditorLogger.areaHit(EditorLogger.TIMELINE, "canvas", ctx.mouseX, ctx.mouseY, true);
+        if (rightClick) {
+            return clickCanvasRight(ctx);
+        }
         return clickCanvas(ctx);
+    }
+    
+    private boolean clickCanvasRight(UIContext ctx) {
+        JsonArray arr = tracks();
+        if (arr == null || ctx.mouseX < canvasX()) return false;
+
+        int trackIdx = (ctx.mouseY - canvasY()) / trackH();
+        if (trackIdx < 0 || trackIdx >= arr.size()) return false;
+        JsonArray clips = arr.get(trackIdx).getAsJsonObject().getAsJsonArray("clips");
+
+        for (int i = clips.size() - 1; i >= 0; i--) {
+            JsonObject clip = clips.get(i).getAsJsonObject();
+            float sx = timeToX(EditorOperations.getStart(clip));
+            float ex = timeToX(EditorOperations.getTotalEnd(clip));
+            if (ctx.mouseX < sx || ctx.mouseX > ex) continue;
+            // Right-click on clip
+            if (onShowClipContext != null) onShowClipContext.accept(ctx.mouseX, ctx.mouseY);
+            return true;
+        }
+        // Right-click on blank track area
+        if (onShowTimelineContext != null) onShowTimelineContext.accept(ctx.mouseX, ctx.mouseY);
+        return true;
     }
 
     private boolean clickToolbar(UIContext ctx) {
