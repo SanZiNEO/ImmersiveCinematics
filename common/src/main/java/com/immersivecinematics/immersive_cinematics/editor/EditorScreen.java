@@ -213,6 +213,9 @@ public class EditorScreen extends Screen {
         });
         timeline.setOnClickKeyframe((kf, clip) -> {
             float globalTime = EditorOperations.getStart(clip) + kf.get("time").getAsFloat();
+            // Last keyframe at clip duration boundary needs epsilon to stay within active range [start, start+duration)
+            float clipEnd = EditorOperations.getStart(clip) + EditorOperations.getDuration(clip);
+            if (globalTime >= clipEnd) globalTime = clipEnd - 0.001f;
             EditorLogger.action(EditorLogger.TIMELINE, "SELECT_KEYFRAME", "time=" + kf.get("time").getAsFloat() + " global=" + globalTime);
             sel.selectKeyframe(kf, clip);
             playback.setTime(globalTime);
