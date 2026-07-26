@@ -33,24 +33,31 @@ public abstract class GameRendererMixin {
      */
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void onRenderItemInHand(CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip() && CinematicController.INSTANCE.isHideArm()) {
-            ci.cancel();
+        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip()) {
+            Boolean setting = CinematicController.INSTANCE.isHideArm();
+            if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
+                ci.cancel();
+            }
         }
     }
 
-    // ===== 视角摇晃屏蔽 =====
-
     @Inject(method = "bobHurt", at = @At("HEAD"), cancellable = true)
     private void onBobHurt(PoseStack poseStack, float partialTick, CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip() && CinematicController.INSTANCE.isSuppressBob()) {
-            ci.cancel();
+        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip()) {
+            Boolean setting = CinematicController.INSTANCE.isSuppressBob();
+            if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
+                ci.cancel();
+            }
         }
     }
 
     @Inject(method = "bobView", at = @At("HEAD"), cancellable = true)
     private void onBobView(PoseStack poseStack, float partialTick, CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip() && CinematicController.INSTANCE.isSuppressBob()) {
-            ci.cancel();
+        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip()) {
+            Boolean setting = CinematicController.INSTANCE.isSuppressBob();
+            if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
+                ci.cancel();
+            }
         }
     }
 
@@ -62,8 +69,11 @@ public abstract class GameRendererMixin {
                     target = "Lnet/minecraft/util/Mth;lerp(FFF)F",
                     ordinal = 0))
     private float redirectSpinningIntensity(float partialTick, float start, float end) {
-        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip() && CinematicController.INSTANCE.isSuppressBob()) {
-            return 0.0F;
+        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip()) {
+            Boolean setting = CinematicController.INSTANCE.isSuppressBob();
+            if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
+                return 0.0F;
+            }
         }
         return Mth.lerp(partialTick, start, end);
     }
@@ -72,10 +82,6 @@ public abstract class GameRendererMixin {
 
     /**
      * 在相机朝向（yaw/pitch）应用到 PoseStack 之后、世界渲染之前，施加 Roll 旋转。
-     * <p>
-     * 注入点 {@code LevelRenderer.prepareCullFrustum} 之前。
-     * 此时 {@code poseStack} 已完成 pitch 和 yaw 旋转，再添加 roll 不影响其他渲染环节。
-     * 等价于旧 Forge {@code ViewportEvent.ComputeCameraAngles} 的行为。
      */
     @Inject(method = "renderLevel",
             at = @At(value = "INVOKE",
@@ -90,4 +96,5 @@ public abstract class GameRendererMixin {
             }
         }
     }
+
 }

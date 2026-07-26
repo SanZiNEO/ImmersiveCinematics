@@ -30,6 +30,8 @@ public class SkipHudRenderer {
 
         if (!CameraManager.INSTANCE.isScriptMode()) return;
         if (!CinematicController.INSTANCE.isSkippable()) return;
+        Boolean hideSkipHud = CinematicController.INSTANCE.isHideSkipHud();
+        if (hideSkipHud != null ? hideSkipHud : CinematicController.INSTANCE.isHideHud()) return;
 
         float progress = CinematicKeyBindings.getSkipHoldProgress();
         renderInternal(mc, guiGraphics, progress);
