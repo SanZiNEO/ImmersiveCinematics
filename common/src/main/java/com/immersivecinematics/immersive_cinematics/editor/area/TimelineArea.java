@@ -31,11 +31,31 @@ public class TimelineArea extends UIComponent {
     private long dragStartTime;
     private long lastDragLogTime;
     private int dragLogCounter;
+    private List<JsonObject> selectedClips = new ArrayList<>();
+    private Consumer<JsonObject> onToggleClip;
+    
+    // Ghost drag
+    private float dragTargetTime;
+    private boolean isDragging;
+    private float ghostStart;
+    private float ghostEnd;
+    private int ghostTrackY;
+    
+    // Snap indicator
+    private float snapIndicatorTime = -1;
+    private int snapIndicatorTimer;
+    
+    // Box select
+    private boolean boxSelecting;
+    private int boxStartX, boxStartY;
+    private float boxStartTime, boxEndTime;
+    private int boxStartTrack, boxEndTrack;
+    
+    private static final float SNAP_THRESHOLD_PX = 8f;
 
     private Consumer<Float> onClickAtTime;
     private Consumer<JsonObject> onClickClip;
     private BiConsumer<JsonObject, JsonObject> onClickKeyframe;
-    private Runnable onClickEmpty;
     private BiConsumer<JsonObject, Float> onMoveClip;
     private BiConsumer<JsonObject, Float> onResizeLeft;
     private BiConsumer<JsonObject, Float> onResizeRight;
@@ -61,10 +81,12 @@ public class TimelineArea extends UIComponent {
     public void setPlayheadTime(float t) { playheadTime = t; }
     public float getPlayheadTime() { return playheadTime; }
 
+    
+    public void setSelectedClips(List<JsonObject> clips) { this.selectedClips = clips; }
+    public void setOnToggleClip(Consumer<JsonObject> r) { onToggleClip = r; }
     public void setOnClickAtTime(Consumer<Float> r) { onClickAtTime = r; }
     public void setOnClickClip(Consumer<JsonObject> r) { onClickClip = r; }
     public void setOnClickKeyframe(BiConsumer<JsonObject, JsonObject> r) { onClickKeyframe = r; }
-    public void setOnClickEmpty(Runnable r) { onClickEmpty = r; }
     public void setOnMoveClip(BiConsumer<JsonObject, Float> r) { onMoveClip = r; }
     public void setOnResizeLeft(BiConsumer<JsonObject, Float> r) { onResizeLeft = r; }
     public void setOnResizeRight(BiConsumer<JsonObject, Float> r) { onResizeRight = r; }
@@ -74,6 +96,10 @@ public class TimelineArea extends UIComponent {
     public void setOnToolAddKeyframe(Runnable r) { onToolAddKeyframe = r; }
     public void setOnToolDeleteKeyframe(Runnable r) { onToolDeleteKeyframe = r; }
     public void setOnToolSnap(Runnable r) { onToolSnap = r; }
+    
+    public void resetZoom() { pixelsPerSecond = 60f; scrollOffset = 0; }
+    public void setPixelsPerSecond(float pps) { this.pixelsPerSecond = Math.max(10, Math.min(5000, pps)); clampScrollOffset(); }
+    public void setScrollOffset(float offset) { this.scrollOffset = offset; clampScrollOffset(); }
 
     private int toolbarW() { return (int)(22 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx); }
     private int labelW()   { return (int)(58 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx); }
@@ -91,7 +117,8 @@ public class TimelineArea extends UIComponent {
 
     private void clampScrollOffset() {
         float maxScroll = 0;
-        float minScroll = Math.min(0, canvasW() - (totalDuration() + 30) * pixelsPerSecond);
+        float contentWidth = (totalDuration() + 30) * pixelsPerSecond;
+        float minScroll = Math.min(0, canvasW() - contentWidth);
         if (scrollOffset > maxScroll) scrollOffset = maxScroll;
         if (scrollOffset < minScroll) scrollOffset = minScroll;
     }
@@ -119,27 +146,68 @@ public class TimelineArea extends UIComponent {
         drawTracks(ctx, cx, cy);
         drawPlayhead(ctx, cx, cy, cw);
 
+        // Ghost drag preview
+        if (isDragging && draggingClip != null) {
+            int gx = (int) timeToX(ghostStart);
+            int gw = Math.max(2, (int)(timeToX(ghostEnd) - gx));
+            ctx.graphics.fill(gx, ghostTrackY + 2, gx + gw, ghostTrackY + trackH() - 2, 0x803A6DB5);
+            ctx.graphics.renderOutline(gx, ghostTrackY + 2, gw, trackH() - 4, 0x805A8DD5);
+        }
+
+        // Snap indicator
+        if (snapIndicatorTimer > 0 && snapIndicatorTime >= 0) {
+            int sx = (int) timeToX(snapIndicatorTime);
+            if (snapIndicatorTimer % 3 < 2) {
+                ctx.graphics.fill(sx, y + headerH(), sx + 2, y + h, 0xFFFFD700);
+            }
+            snapIndicatorTimer--;
+            if (snapIndicatorTimer <= 0) snapIndicatorTime = -1;
+        }
+
+        // Box select rect
+        if (boxSelecting) {
+            int bx = (int) Math.min(timeToX(boxStartTime), timeToX(boxEndTime));
+            int bw = (int) Math.abs(timeToX(boxEndTime) - timeToX(boxStartTime));
+            int by = Math.min(boxStartY, ctx.mouseY);
+            int bh = Math.abs(ctx.mouseY - boxStartY);
+            ctx.graphics.fill(bx, by, bx + bw, by + bh, 0x223A6DB5);
+            ctx.graphics.renderOutline(bx, by, bw, bh, 0xFF3A6DB5);
+        }
+
         for (UIComponent c : children) c.render(ctx);
     }
 
     private void drawRuler(UIContext ctx, int cx, int top, int cw) {
-        float total = totalDuration();
         float visibleWidth = cw / pixelsPerSecond;
         float visibleStart = Math.max(0, -scrollOffset / pixelsPerSecond);
         float visibleEnd = visibleStart + visibleWidth;
 
-        float interval;
-        if (visibleWidth <= 5) interval = 10;
-        else if (visibleWidth <= 15) interval = 5;
-        else if (visibleWidth <= 60) interval = 1;
-        else interval = (float) Math.pow(10, Math.ceil(Math.log10(visibleWidth)) - 1);
+        float majorInterval;
+        if (visibleWidth <= 5) majorInterval = 10;
+        else if (visibleWidth <= 15) majorInterval = 5;
+        else if (visibleWidth <= 60) majorInterval = 1;
+        else majorInterval = (float) Math.pow(10, Math.ceil(Math.log10(visibleWidth)) - 1);
+        float minorInterval = majorInterval / 2;
 
-        float startTick = (float) Math.floor(visibleStart / interval) * interval;
-        for (float t = startTick; t <= visibleEnd + interval; t += interval) {
+        ctx.graphics.fill(cx, top, cx + cw, top + headerH(), 0xFF1F1F1F);
+
+        float startTick = (float) Math.floor(visibleStart / majorInterval) * majorInterval;
+        for (float t = startTick; t <= visibleEnd + majorInterval; t += majorInterval) {
             float sx = cx + t * pixelsPerSecond + scrollOffset;
             if (sx < cx - 20 || sx > cx + cw) continue;
-            ctx.graphics.fill((int) sx, top, (int) sx + 1, top + headerH(), 0xFF3A3A3A);
-            ctx.graphics.drawString(ctx.font, fmt(t), (int) sx + 2, top + 2, 0xFF777777);
+            int sxInt = (int) sx;
+            ctx.graphics.fill(sxInt, top, sxInt + 2, top + headerH(), 0xFF3A3A3A);
+            ctx.graphics.drawString(ctx.font, fmt(t), sxInt + 3, top + 2, 0xFF777777);
+        }
+
+        float startMinor = (float) Math.floor(visibleStart / minorInterval) * minorInterval;
+        for (float t = startMinor; t <= visibleEnd + minorInterval; t += minorInterval) {
+            float sx = cx + t * pixelsPerSecond + scrollOffset;
+            if (sx < cx - 20 || sx > cx + cw) continue;
+            boolean isMajor = Math.abs(t % majorInterval) < 0.001f;
+            if (!isMajor) {
+                ctx.graphics.fill((int) sx, top + headerH() - 6, (int) sx + 1, top + headerH(), 0xFF2A2A2A);
+            }
         }
     }
 
@@ -166,20 +234,64 @@ public class TimelineArea extends UIComponent {
     private void drawTracks(UIContext ctx, int cx, int cy) {
         JsonArray arr = tracks();
         if (arr == null) return;
+        
+        int labelAreaX = x + toolbarW();
+        int labelAreaW = labelW();
+        
         for (int ti = 0; ti < arr.size(); ti++) {
             JsonObject track = arr.get(ti).getAsJsonObject();
             int ty = cy + ti * trackH();
-            ctx.graphics.fill(x + toolbarW(), ty, cx, ty + trackH(), 0xFF222222);
             String type = track.has("type") ? track.get("type").getAsString() : "TRACK";
-            ctx.graphics.drawString(ctx.font, type.toUpperCase(), x + toolbarW() + 4, ty + (trackH() - 8) / 2, 0xFF888888);
+            
+            ctx.graphics.fill(labelAreaX, ty, labelAreaX + labelAreaW, ty + trackH(), 0xFF1A1A1A);
+            ctx.graphics.renderOutline(labelAreaX, ty, labelAreaW, trackH(), 0xFF333333);
+            int colorMark = trackTypeColor(type);
+            ctx.graphics.fill(labelAreaX + 4, ty + 4, labelAreaX + 8, ty + trackH() - 4, colorMark);
+            ctx.graphics.drawString(ctx.font, type, labelAreaX + 12, ty + (trackH() - 8) / 2, 0xFFAAAAAA);
+            
+            ctx.graphics.fill(cx, ty, cx + canvasW(), ty + trackH(), trackBgColor(type));
+            
             JsonArray clips = track.getAsJsonArray("clips");
-            for (JsonElement ce : clips) {
-                drawClip(ctx, ce.getAsJsonObject(), ty);
+            if (clips == null || clips.size() == 0) {
+                String emptyHint = "(empty)";
+                int hintW = ctx.font.width(emptyHint);
+                ctx.graphics.drawString(ctx.font, emptyHint,
+                    cx + canvasW() / 2 - hintW / 2,
+                    ty + (trackH() - 8) / 2, 0xFF444444);
+            } else {
+                for (JsonElement ce : clips) {
+                    drawClip(ctx, ce.getAsJsonObject(), ty, type);
+                }
+            }
+            if (ti < arr.size() - 1) {
+                ctx.graphics.fill(cx, ty + trackH() - 1, cx + canvasW(), ty + trackH(), 0xFF333333);
             }
         }
     }
-
-    private void drawClip(UIContext ctx, JsonObject clip, int ty) {
+    
+    private int trackTypeColor(String type) {
+        return switch (type.toUpperCase()) {
+            case "CAMERA" -> 0xFF3A6DB5;
+            case "LETTERBOX" -> 0xFF3A8A3A;
+            case "AUDIO" -> 0xFF8A8A3A;
+            case "EVENT" -> 0xFF8A3A3A;
+            case "MOD_EVENT" -> 0xFF8A3A8A;
+            default -> 0xFF666666;
+        };
+    }
+    
+    private int trackBgColor(String type) {
+        return switch (type.toUpperCase()) {
+            case "CAMERA" -> 0xFF1a2744;
+            case "LETTERBOX" -> 0xFF1a2e1a;
+            case "AUDIO" -> 0xFF2e2e1a;
+            case "EVENT" -> 0xFF2e1a1a;
+            case "MOD_EVENT" -> 0xFF2e1a2e;
+            default -> 0xFF1A1A2E;
+        };
+    }
+    
+    private void drawClip(UIContext ctx, JsonObject clip, int ty, String trackType) {
         float sx = timeToX(EditorOperations.getStart(clip));
         float ex = timeToX(EditorOperations.getEnd(clip));
         int cw = canvasW();
@@ -189,10 +301,21 @@ public class TimelineArea extends UIComponent {
         int clipW = Math.min(cx + cw, (int) ex) - clipX;
         if (clipW < 2) clipW = 2;
 
-        boolean isSel = (clip == selectedClip);
-        int fill = isSel ? 0xFF4A4F5A : 0xFF3A3F4A;
-        if (ctx.isMouseIn(clipX, ty, clipW, trackH())) fill = isSel ? 0xFF5A5F6A : 0xFF4A4F5A;
+        boolean isSel = selectedClips != null && selectedClips.contains(clip);
+        boolean hovered = ctx.isMouseIn(clipX, ty, clipW, trackH());
+        int fill = clipFillColor(trackType, isSel, hovered);
         ctx.graphics.fill(clipX, ty + 2, clipX + clipW, ty + trackH() - 2, fill);
+
+        if (isSel) {
+            ctx.graphics.fill(clipX, ty + 2, clipX + 3, ty + trackH() - 2, 0xFFFFDD44);
+        }
+
+        int bright = lighten(clipFillColor(trackType, false, false), 0.4f);
+        ctx.graphics.fill(clipX, ty + 2, clipX + clipW, ty + 3, bright);
+        ctx.graphics.fill(clipX, ty + 2, clipX + 1, ty + trackH() - 2, bright);
+        int dark = 0xFF222222;
+        ctx.graphics.fill(clipX, ty + trackH() - 3, clipX + clipW, ty + trackH() - 2, dark);
+        ctx.graphics.fill(clipX + clipW - 1, ty + 2, clipX + clipW, ty + trackH() - 2, dark);
 
         float transDur = EditorOperations.getTransitionDuration(clip);
         if (transDur > 0f) {
@@ -206,15 +329,18 @@ public class TimelineArea extends UIComponent {
                 ctx.graphics.drawString(ctx.font, tLabel, (int)tx + 2, ty + (trackH() - 8) / 2, 0xFFCCCCFF);
         }
 
-        ctx.graphics.renderOutline(clipX, ty + 2, clipW, trackH() - 4, isSel ? 0xFF707580 : 0xFF505560);
-
         if (ctx.isMouseIn(clipX, ty + 2, resizeMargin(), trackH() - 4))
             ctx.graphics.fill(clipX, ty + 2, clipX + resizeMargin(), ty + trackH() - 2, 0x55FFFFFF);
         if (ctx.isMouseIn(clipX + clipW - resizeMargin(), ty + 2, resizeMargin(), trackH() - 4))
             ctx.graphics.fill(clipX + clipW - resizeMargin(), ty + 2, clipX + clipW, ty + trackH() - 2, 0x55FFFFFF);
 
-        if (clipW > 30) {
-            String label = fmt(EditorOperations.getStart(clip)) + "-" + fmt(EditorOperations.getEnd(clip));
+        if (clipW > 60) {
+            String label;
+            if (clip.has("name")) {
+                label = clip.get("name").getAsString();
+            } else {
+                label = fmt(EditorOperations.getStart(clip)) + "  " + trackType;
+            }
             int lw = ctx.font.width(label);
             if (lw + 8 < clipW) ctx.graphics.drawString(ctx.font, label, clipX + 4, ty + (trackH() - 8) / 2, 0xFFCCCCCC);
         }
@@ -231,11 +357,36 @@ public class TimelineArea extends UIComponent {
             }
         }
     }
+    
+    private static int clipFillColor(String trackType, boolean selected, boolean hovered) {
+        int base = switch (trackType.toUpperCase()) {
+            case "CAMERA" -> 0xFF3A6DB5;
+            case "LETTERBOX" -> 0xFF3A8A3A;
+            case "AUDIO" -> 0xFF8A8A3A;
+            case "EVENT" -> 0xFF8A3A3A;
+            case "MOD_EVENT" -> 0xFF8A3A8A;
+            default -> 0xFF3A3F4A;
+        };
+        if (selected) base = lighten(base, 0.3f);
+        if (hovered) base = lighten(base, 0.15f);
+        return base;
+    }
+    
+    private static int lighten(int argb, float amount) {
+        int r = Math.min(255, (int)(((argb >> 16) & 0xFF) * (1 + amount)));
+        int g = Math.min(255, (int)(((argb >> 8) & 0xFF) * (1 + amount)));
+        int b = Math.min(255, (int)((argb & 0xFF) * (1 + amount)));
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
+    }
 
     private void drawPlayhead(UIContext ctx, int cx, int cy, int cw) {
         float px = timeToX(playheadTime);
-        if (px >= cx && px <= cx + cw)
-            ctx.graphics.fill((int) px, cy, (int) px + 2, y + h, 0xFFFF3333);
+        if (px >= cx && px <= cx + cw) {
+            int pxInt = (int) px;
+            ctx.graphics.fill(pxInt, y, pxInt + 2, y + h, 0xFFFF3333);
+            ctx.graphics.fill(pxInt - 3, y, pxInt + 3, y + 4, 0xFFFF5555);
+            ctx.graphics.fill(pxInt - 1, y + 4, pxInt + 1, y + 6, 0xFFFF5555);
+        }
     }
 
     @Override
@@ -315,7 +466,7 @@ public class TimelineArea extends UIComponent {
         for (int i = clips.size() - 1; i >= 0; i--) {
             JsonObject clip = clips.get(i).getAsJsonObject();
             float sx = timeToX(EditorOperations.getStart(clip));
-        float ex = timeToX(EditorOperations.getTotalEnd(clip));
+            float ex = timeToX(EditorOperations.getTotalEnd(clip));
             if (ctx.mouseX < sx || ctx.mouseX > ex) continue;
 
             if (ctx.mouseX <= sx + resizeMargin()) {
@@ -337,11 +488,10 @@ public class TimelineArea extends UIComponent {
                     JsonObject kf = kfs.get(j).getAsJsonObject();
                     float kx = timeToX(EditorOperations.getStart(clip) + kf.get("time").getAsFloat());
                     if (Math.abs(ctx.mouseX - kx) <= 5) {
-                        keyframeClip = clip;
-                        draggingKeyframe = kf;
+                        keyframeClip = clip; draggingKeyframe = kf;
                         dragOffsetX = (int) (ctx.mouseX - kx);
                         dragStartTime = System.currentTimeMillis(); lastDragLogTime = dragStartTime; dragLogCounter = 0;
-                        EditorLogger.action(EditorLogger.TIMELINE, "DRAG_START", "keyframe time=" + kf.get("time").getAsFloat() + " clipStart=" + EditorOperations.getStart(clip));
+                        EditorLogger.action(EditorLogger.TIMELINE, "DRAG_START", "keyframe time=" + kf.get("time").getAsFloat());
                         if (onClickKeyframe != null) onClickKeyframe.accept(kf, clip);
                         return true;
                     }
@@ -352,11 +502,21 @@ public class TimelineArea extends UIComponent {
             dragOffsetX = (int) (ctx.mouseX - sx);
             dragStartTime = System.currentTimeMillis(); lastDragLogTime = dragStartTime; dragLogCounter = 0;
             EditorLogger.action(EditorLogger.TIMELINE, "DRAG_START", "moveClip start=" + EditorOperations.getStart(clip));
-            if (onClickClip != null) onClickClip.accept(clip);
+
+            if (ctx.isCtrlDown()) {
+                if (onToggleClip != null) onToggleClip.accept(clip);
+            } else if (!selectedClips.contains(clip)) {
+                if (onClickClip != null) onClickClip.accept(clip);
+            }
             return true;
         }
-        EditorLogger.areaHit(EditorLogger.TIMELINE, "canvas_miss", ctx.mouseX, ctx.mouseY, false);
-        if (onClickEmpty != null) onClickEmpty.run();
+
+        // Miss — start box select or jump playhead
+        boxSelecting = true;
+        boxStartX = ctx.mouseX;
+        boxStartY = ctx.mouseY;
+        boxStartTime = xToTime(ctx.mouseX);
+        boxStartTrack = (ctx.mouseY - canvasY()) / trackH();
         return true;
     }
 
@@ -365,72 +525,115 @@ public class TimelineArea extends UIComponent {
         boolean moved = Math.abs(ctx.mouseX - mouseDownX) > 2 || Math.abs(ctx.mouseY - mouseDownY) > 2;
         long dragDuration = System.currentTimeMillis() - dragStartTime;
 
+        // Box select
+        if (boxSelecting) {
+            boxSelecting = false;
+            float minTime = Math.min(boxStartTime, boxEndTime);
+            float maxTime = Math.max(boxStartTime, boxEndTime);
+            int minTrack = Math.max(0, Math.min(boxStartTrack, boxEndTrack));
+            int maxTrack = Math.min(tracks().size() - 1, Math.max(boxStartTrack, boxEndTrack));
+            java.util.List<JsonObject> hit = new java.util.ArrayList<>();
+            for (int ti = minTrack; ti <= maxTrack; ti++) {
+                JsonArray clips = tracks().get(ti).getAsJsonObject().getAsJsonArray("clips");
+                for (JsonElement ce : clips) {
+                    JsonObject c = ce.getAsJsonObject();
+                    float cs = EditorOperations.getStart(c);
+                    float ce2 = EditorOperations.getEnd(c);
+                    if (cs < maxTime && ce2 > minTime) hit.add(c);
+                }
+            }
+            if (!hit.isEmpty() && onClickClip != null) {
+                onClickClip.accept(hit.get(0));
+            }
+            return true;
+        }
+
         if (draggingClip != null) {
             if (draggingResizeLeft) {
                 if (moved) {
-                    float newT = xToTime(ctx.mouseX);
-                    EditorLogger.scrubSession(EditorLogger.TIMELINE, newT, ctx.mouseX, "end_resizeLeft");
-                    EditorLogger.action(EditorLogger.TIMELINE, "DRAG_END", "resizeLeft clip=" + EditorOperations.getStart(draggingClip) + " to=" + newT + " moved=" + moved + " duration=" + dragDuration + "ms dragCalls=" + dragLogCounter);
+                    float newT = snapToPlayhead(xToTime(ctx.mouseX));
+                    EditorLogger.action(EditorLogger.TIMELINE, "DRAG_END", "resizeLeft to=" + newT);
                     if (onResizeLeft != null) onResizeLeft.accept(draggingClip, newT);
                 } else {
                     JsonArray kfs = EditorOperations.keyframes(draggingClip);
                     if (kfs != null && kfs.size() > 0) {
-                        JsonObject firstKf = kfs.get(0).getAsJsonObject();
-                        EditorLogger.action(EditorLogger.TIMELINE, "CLICK_NO_DRAG", "resizeLeft_selectFirstKf time=" + firstKf.get("time").getAsFloat());
-                        if (onClickKeyframe != null) onClickKeyframe.accept(firstKf, draggingClip);
+                        if (onClickKeyframe != null) onClickKeyframe.accept(kfs.get(0).getAsJsonObject(), draggingClip);
                     }
                 }
             } else if (draggingResizeRight) {
                 if (moved) {
-                    float newT = xToTime(ctx.mouseX);
-                    EditorLogger.scrubSession(EditorLogger.TIMELINE, newT, ctx.mouseX, "end_resizeRight");
-                    EditorLogger.action(EditorLogger.TIMELINE, "DRAG_END", "resizeRight clip=" + EditorOperations.getEnd(draggingClip) + " to=" + newT + " moved=" + moved + " duration=" + dragDuration + "ms dragCalls=" + dragLogCounter);
+                    float newT = snapToPlayhead(xToTime(ctx.mouseX));
+                    EditorLogger.action(EditorLogger.TIMELINE, "DRAG_END", "resizeRight to=" + newT);
                     if (onResizeRight != null) onResizeRight.accept(draggingClip, newT);
                 } else {
                     JsonArray kfs = EditorOperations.keyframes(draggingClip);
                     if (kfs != null && kfs.size() > 0) {
                         JsonObject lastKf = kfs.get(kfs.size() - 1).getAsJsonObject();
-                        EditorLogger.action(EditorLogger.TIMELINE, "CLICK_NO_DRAG", "resizeRight_selectLastKf time=" + lastKf.get("time").getAsFloat());
                         if (onClickKeyframe != null) onClickKeyframe.accept(lastKf, draggingClip);
                     }
                 }
             } else if (moved && onMoveClip != null) {
-                float newT = xToTime(ctx.mouseX - dragOffsetX);
-                EditorLogger.scrubSession(EditorLogger.TIMELINE, newT, ctx.mouseX, "end_moveClip");
-                EditorLogger.action(EditorLogger.TIMELINE, "DRAG_END", "moveClip clip=" + EditorOperations.getStart(draggingClip) + " to=" + newT + " moved=" + moved + " duration=" + dragDuration + "ms dragCalls=" + dragLogCounter);
-                onMoveClip.accept(draggingClip, newT);
-            } else {
-                EditorLogger.action(EditorLogger.TIMELINE, "CLICK_NO_DRAG", "clip select=" + EditorOperations.getStart(draggingClip) + " moved=" + moved);
+                float finalTime = dragTargetTime;
+                EditorLogger.action(EditorLogger.TIMELINE, "DRAG_END", "moveClip to=" + finalTime);
+                onMoveClip.accept(draggingClip, finalTime);
             }
         }
         if (draggingKeyframe != null && onMoveKeyframe != null && moved) {
             float newLocal = xToTime(ctx.mouseX - dragOffsetX) - EditorOperations.getStart(keyframeClip);
-            EditorLogger.scrubSession(EditorLogger.TIMELINE, newLocal, ctx.mouseX, "end_moveKeyframe");
-            EditorLogger.action(EditorLogger.TIMELINE, "DRAG_END", "moveKeyframe kf=" + draggingKeyframe.get("time").getAsFloat() + " to=" + newLocal + " duration=" + dragDuration + "ms dragCalls=" + dragLogCounter);
             onMoveKeyframe.accept(draggingKeyframe, keyframeClip, newLocal);
         }
-        draggingClip = null;
-        draggingKeyframe = null;
-        keyframeClip = null;
-        draggingResizeLeft = false;
-        draggingResizeRight = false;
-        dragLogCounter = 0;
+        draggingClip = null; draggingKeyframe = null; keyframeClip = null;
+        draggingResizeLeft = false; draggingResizeRight = false;
+        dragLogCounter = 0; isDragging = false;
+        snapIndicatorTimer = 0; snapIndicatorTime = -1;
         return false;
     }
 
     @Override
     public boolean mouseDragged(UIContext ctx) {
+        // Box select drag
+        if (boxSelecting) {
+            boxEndTime = xToTime(ctx.mouseX);
+            boxEndTrack = (ctx.mouseY - canvasY()) / trackH();
+            return true;
+        }
+
         if (draggingClip == null && draggingKeyframe == null) return false;
+
+        // Update ghost
+        if (draggingClip != null && !draggingResizeLeft && !draggingResizeRight) {
+            float newStart = xToTime(ctx.mouseX - dragOffsetX);
+            float snappedStart = snapToPlayheadAndClips(newStart, draggingClip);
+            ghostStart = snappedStart;
+            ghostEnd = snappedStart + EditorOperations.getDuration(draggingClip);
+            ghostTrackY = computeTrackY(draggingClip);
+            isDragging = true;
+            dragTargetTime = snappedStart;
+        }
+        if (draggingResizeLeft) {
+            float newStart = xToTime(ctx.mouseX);
+            float snapped = snapToPlayhead(newStart);
+            ghostStart = snapped;
+            ghostEnd = EditorOperations.getTotalEnd(draggingClip);
+            ghostTrackY = computeTrackY(draggingClip);
+            isDragging = true;
+        }
+        if (draggingResizeRight) {
+            float newEnd = xToTime(ctx.mouseX);
+            float snapped = snapToPlayhead(newEnd);
+            ghostStart = EditorOperations.getStart(draggingClip);
+            ghostEnd = snapped;
+            ghostTrackY = computeTrackY(draggingClip);
+            isDragging = true;
+        }
+
         long now = System.currentTimeMillis();
         dragLogCounter++;
         if (now - lastDragLogTime >= 250) {
             EditorLogger.mouseDrag(EditorLogger.TIMELINE, ctx.mouseX, ctx.mouseY,
-                    draggingKeyframe != null ? "keyframe" : "clip",
-                    xToTime(ctx.mouseX));
+                    draggingKeyframe != null ? "keyframe" : "clip", xToTime(ctx.mouseX));
             lastDragLogTime = now;
         }
-        String state = "dragging=" + (draggingKeyframe != null ? "kf" : draggingResizeLeft ? "resizeL" : draggingResizeRight ? "resizeR" : "clip");
-        EditorLogger.mouseMove(EditorLogger.TIMELINE, ctx.mouseX, ctx.mouseY, "canvas", true, "dragCounter=" + dragLogCounter + " " + state);
         return true;
     }
 
@@ -442,26 +645,68 @@ public class TimelineArea extends UIComponent {
         boolean shift = ctx.isShiftDown();
 
         if (ctrl) {
-            float old = pixelsPerSecond;
-            pixelsPerSecond = Math.max(10, pixelsPerSecond + (float) scroll * 10);
-            float ratio = pixelsPerSecond / old;
-            scrollOffset = scrollOffset * ratio;
+            float oldPps = pixelsPerSecond;
+            float scaleFactor = (scroll > 0) ? 1.25f : 0.8f;
+            float newPps = Math.max(10, Math.min(5000, oldPps * scaleFactor));
+            float mouseTime = xToTime(ctx.mouseX);
+            pixelsPerSecond = newPps;
+            scrollOffset = scrollOffset + mouseTime * (oldPps - newPps);
             clampScrollOffset();
-            EditorLogger.state(EditorLogger.TIMELINE, "pixelsPerSecond", old, pixelsPerSecond);
-        } else if (shift) {
+            EditorLogger.state(EditorLogger.TIMELINE, "pixelsPerSecond", oldPps, pixelsPerSecond);
+        } else {
             float old = scrollOffset;
             scrollOffset += (float) scroll * 30;
             clampScrollOffset();
             EditorLogger.state(EditorLogger.TIMELINE, "scrollOffset", old, scrollOffset);
-        } else {
-            // vertical scroll not implemented
         }
 
         EditorLogger.mouseScroll(EditorLogger.TIMELINE, scroll, ctx.mouseX, ctx.mouseY,
-                ctrl ? "zoom" : shift ? "h_scroll" : "v_scroll");
+                ctrl ? "zoom" : "h_scroll");
         return true;
     }
 
+    private float snapToPlayheadAndClips(float time, JsonObject selfClip) {
+        float snapped = snapToPlayhead(time);
+        if (snapped != time) return snapped;
+        JsonArray arr = tracks();
+        if (arr != null) {
+            for (JsonElement te : arr) {
+                for (JsonElement ce : te.getAsJsonObject().getAsJsonArray("clips")) {
+                    JsonObject clip = ce.getAsJsonObject();
+                    if (clip == selfClip) continue;
+                    float otherStart = EditorOperations.getStart(clip);
+                    float otherEnd = EditorOperations.getTotalEnd(clip);
+                    if (Math.abs(timeToX(time) - timeToX(otherStart)) <= SNAP_THRESHOLD_PX) {
+                        snapIndicatorTime = otherStart; snapIndicatorTimer = 10; return otherStart;
+                    }
+                    if (Math.abs(timeToX(time) - timeToX(otherEnd)) <= SNAP_THRESHOLD_PX) {
+                        snapIndicatorTime = otherEnd; snapIndicatorTimer = 10; return otherEnd;
+                    }
+                }
+            }
+        }
+        return time;
+    }
+    
+    private float snapToPlayhead(float time) {
+        float px = Math.abs(timeToX(time) - timeToX(playheadTime));
+        if (px <= SNAP_THRESHOLD_PX) {
+            snapIndicatorTime = playheadTime; snapIndicatorTimer = 10; return playheadTime;
+        }
+        return time;
+    }
+    
+    private int computeTrackY(JsonObject clip) {
+        JsonArray arr = tracks();
+        if (arr == null) return canvasY();
+        for (int ti = 0; ti < arr.size(); ti++) {
+            for (JsonElement ce : arr.get(ti).getAsJsonObject().getAsJsonArray("clips")) {
+                if (ce.getAsJsonObject() == clip) return canvasY() + ti * trackH();
+            }
+        }
+        return canvasY();
+    }
+    
     @Override
     public List<UIComponent> getChildren() { return children; }
 

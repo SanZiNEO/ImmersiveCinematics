@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 public class LeftPanelArea extends UIComponent {
     private final List<UIComponent> children = new ArrayList<>();
 
-    public enum PanelMode { SCRIPT_LIST, SCRIPT_PROPERTIES, CLIP_PROPERTIES, KEYFRAME_PROPERTIES }
+    public enum PanelMode { SCRIPT_LIST, SCRIPT_PROPERTIES, CLIP_PROPERTIES, KEYFRAME_PROPERTIES, TRACK_LIST }
     private PanelMode mode = PanelMode.SCRIPT_PROPERTIES;
 
     private JsonObject script;
@@ -25,6 +25,9 @@ public class LeftPanelArea extends UIComponent {
     private JsonObject selectedKeyframe;
     private float totalDuration;
     private String selectedTrackType = "CAMERA";
+    private JsonArray tracks;
+    private static final int TAB_HEIGHT = 20;
+    private static final int TAB_GAP = 2;
     private boolean dataDirty = true;
 
     private int scrollY;
@@ -83,18 +86,20 @@ public class LeftPanelArea extends UIComponent {
     public void build() {
         EditorLogger.action(EditorLogger.LEFT, "BUILD", "mode=" + mode);
         children.clear();
+        buildTabBar();
         switch (mode) {
             case SCRIPT_LIST -> buildScriptList();
             case SCRIPT_PROPERTIES -> buildScriptProperties();
             case CLIP_PROPERTIES -> buildClipProperties();
             case KEYFRAME_PROPERTIES -> buildKeyframeProperties();
+            case TRACK_LIST -> buildTrackList();
         }
         computeContentHeightAndClampScroll();
     }
 
     private void buildScriptList() {
         System.out.println("[KILO-DEBUG] LeftPanelArea.buildScriptList: scriptFileNames=" + scriptFileNames);
-        int cy = y + 6;
+        int cy = contentY() + 6;
         children.add(new UILabel(x + 6, cy, "Scripts", 0xFFAAAAAA));
         cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
 
@@ -119,7 +124,7 @@ public class LeftPanelArea extends UIComponent {
         if (script == null) return;
         fillMetaDefaults(script);
 
-        int cy = y + 6;
+        int cy = contentY() + 6;
         int lx = x + 6;
 
         addSectionLabel(I18n.get("editor.section.triggers"), lx, cy, 0); cy += (int)(12 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
@@ -154,7 +159,7 @@ public class LeftPanelArea extends UIComponent {
         if (selectedClip == null) return;
         fillClipDefaults(selectedClip, selectedTrackType);
 
-        int cy = y + 6;
+        int cy = contentY() + 6;
         int lx = x + 6;
 
         addSectionLabel(I18n.get("editor.section.clip_properties"), lx, cy, 0); cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
@@ -184,7 +189,7 @@ public class LeftPanelArea extends UIComponent {
             }
         }
 
-        int cy = y + 6;
+        int cy = contentY() + 6;
         int lx = x + 6;
 
         addSectionLabel(I18n.get("editor.section.keyframe_properties"), lx, cy, 0); cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
@@ -675,5 +680,67 @@ public class LeftPanelArea extends UIComponent {
     @Override
     public List<UIComponent> getChildren() {
         return children;
+    }
+    private int tabBarY() { return y; }
+    private int contentY() { return y + TAB_HEIGHT + 4; }
+    private int contentH() { return h - TAB_HEIGHT - 4; }
+    
+    public void setTracks(JsonArray t) { this.tracks = t; dataDirty = true; }
+    
+    private void buildTabBar() {
+        int tabX = x + 2;
+        int tabY = y;
+        int tabH = TAB_HEIGHT;
+        int n = PanelMode.values().length;
+        int tabW = (w - 4 - (n - 1) * TAB_GAP) / n;
+        
+        for (PanelMode m : PanelMode.values()) {
+            String label = getTabLabel(m);
+            UIButton tab = new UIButton(tabX, tabY, tabW, tabH, label, btn -> {
+                setMode(m);
+            });
+            
+            if (m == mode) {
+                tab.color(0xFF333344, 0xFF444455).textColor(0xFFFFFFFF);
+            } else {
+                tab.color(0xFF222222, 0xFF333333).textColor(0xFF888888);
+            }
+            
+            children.add(tab);
+            tabX += tabW + TAB_GAP;
+        }
+    }
+    
+    private String getTabLabel(PanelMode m) {
+        return switch (m) {
+            case SCRIPT_LIST -> "Scripts";
+            case SCRIPT_PROPERTIES -> "Properties";
+            case CLIP_PROPERTIES -> "Clip";
+            case KEYFRAME_PROPERTIES -> "Keyframe";
+            case TRACK_LIST -> "Tracks";
+        };
+    }
+    
+    private void buildTrackList() {
+        if (tracks == null) return;
+        
+        int cy = contentY() + 4;
+        int lx = x + 6;
+        
+        addSectionLabel("Tracks", lx, cy, 0);
+        cy += 16;
+        
+        for (JsonElement te : tracks) {
+            JsonObject track = te.getAsJsonObject();
+            String type = track.has("type") ? track.get("type").getAsString() : "TRACK";
+            int clipCount = track.has("clips") ? track.getAsJsonArray("clips").size() : 0;
+            
+            int rowH = 20;
+            
+            String info = type + "  (" + clipCount + " clips)";
+            addSectionLabel(info, lx + 12, cy + 4, 0);
+            
+            cy += rowH + 2;
+        }
     }
 }
