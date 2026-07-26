@@ -13,9 +13,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class BossHealthOverlayMixin {
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
     private void onRender(GuiGraphics guiGraphics, CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip()
-                && CinematicController.INSTANCE.isHideHud()) {
-            ci.cancel();
+        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip()) {
+            Boolean setting = CinematicController.INSTANCE.isHideBossbar();
+            if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
+                ci.cancel();
+            }
         }
     }
 }

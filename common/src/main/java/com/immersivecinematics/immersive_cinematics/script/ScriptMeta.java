@@ -39,8 +39,8 @@ public class ScriptMeta {
     @Deprecated
     public boolean isBlockMobAi() { return behavior.blockMobAi(); }
     public boolean isHideHud() { return behavior.hideHud(); }
-    public boolean isHideArm() { return behavior.hideArm(); }
-    public boolean isSuppressBob() { return behavior.suppressBob(); }
+    public Boolean isHideArm() { return behavior.hideArm(); }
+    public Boolean isSuppressBob() { return behavior.suppressBob(); }
     public Boolean isHideChat() { return behavior.hideChat(); }
     public Boolean isHideScoreboard() { return behavior.hideScoreboard(); }
     public Boolean isHideActionBar() { return behavior.hideActionBar(); }
@@ -48,6 +48,8 @@ public class ScriptMeta {
     public Boolean isHideSubtitles() { return behavior.hideSubtitles(); }
     public Boolean isHideHotbar() { return behavior.hideHotbar(); }
     public Boolean isHideCrosshair() { return behavior.hideCrosshair(); }
+    public Boolean isHideBossbar() { return behavior.hideBossbar(); }
+    public Boolean isHideSkipHud() { return behavior.hideSkipHud(); }
     public boolean isRenderPlayerModel() { return behavior.renderPlayerModel(); }
     public boolean isPauseWhenGamePaused() { return behavior.pauseWhenGamePaused(); }
     public boolean isInterruptible() { return behavior.interruptible(); }
@@ -64,8 +66,8 @@ public class ScriptMeta {
             boolean blockMouse,
             boolean blockMobAi,
             boolean hideHud,
-            boolean hideArm,
-            boolean suppressBob,
+            Boolean hideArm,
+            Boolean suppressBob,
             Boolean hideChat,
             Boolean hideScoreboard,
             Boolean hideActionBar,
@@ -73,6 +75,8 @@ public class ScriptMeta {
             Boolean hideSubtitles,
             Boolean hideHotbar,
             Boolean hideCrosshair,
+            Boolean hideBossbar,
+            Boolean hideSkipHud,
             boolean renderPlayerModel,
             boolean pauseWhenGamePaused,
             boolean interruptible,
@@ -80,20 +84,21 @@ public class ScriptMeta {
             boolean holdAtEnd
     ) {
         public static final RuntimeBehavior DEFAULT = new RuntimeBehavior(
-                true, true, false, true, true, true,
-                null, null, null, null, null, null, null, true,
+                true, true, false, true,
+                null, null,
+                null, null, null, null, null, null, null, null, null,
+                true,
                 true, true, true, false
         );
 
         public static Builder builder() { return new Builder(); }
-
         public static class Builder {
             private boolean blockKeyboard = DEFAULT.blockKeyboard();
             private boolean blockMouse = DEFAULT.blockMouse();
             private boolean blockMobAi = DEFAULT.blockMobAi();
             private boolean hideHud = DEFAULT.hideHud();
-            private boolean hideArm = DEFAULT.hideArm();
-            private boolean suppressBob = DEFAULT.suppressBob();
+            private Boolean hideArm = DEFAULT.hideArm();
+            private Boolean suppressBob = DEFAULT.suppressBob();
             private Boolean hideChat = null;
             private Boolean hideScoreboard = null;
             private Boolean hideActionBar = null;
@@ -101,6 +106,8 @@ public class ScriptMeta {
             private Boolean hideSubtitles = null;
             private Boolean hideHotbar = null;
             private Boolean hideCrosshair = null;
+            private Boolean hideBossbar = null;
+            private Boolean hideSkipHud = null;
             private boolean renderPlayerModel = DEFAULT.renderPlayerModel();
             private boolean pauseWhenGamePaused = DEFAULT.pauseWhenGamePaused();
             private boolean interruptible = DEFAULT.interruptible();
@@ -111,8 +118,8 @@ public class ScriptMeta {
             public Builder blockMouse(boolean v) { this.blockMouse = v; return this; }
             public Builder blockMobAi(boolean v) { this.blockMobAi = v; return this; }
             public Builder hideHud(boolean v) { this.hideHud = v; return this; }
-            public Builder hideArm(boolean v) { this.hideArm = v; return this; }
-            public Builder suppressBob(boolean v) { this.suppressBob = v; return this; }
+            public Builder hideArm(Boolean v) { this.hideArm = v; return this; }
+            public Builder suppressBob(Boolean v) { this.suppressBob = v; return this; }
             public Builder hideChat(Boolean v) { this.hideChat = v; return this; }
             public Builder hideScoreboard(Boolean v) { this.hideScoreboard = v; return this; }
             public Builder hideActionBar(Boolean v) { this.hideActionBar = v; return this; }
@@ -120,6 +127,8 @@ public class ScriptMeta {
             public Builder hideSubtitles(Boolean v) { this.hideSubtitles = v; return this; }
             public Builder hideHotbar(Boolean v) { this.hideHotbar = v; return this; }
             public Builder hideCrosshair(Boolean v) { this.hideCrosshair = v; return this; }
+            public Builder hideBossbar(Boolean v) { this.hideBossbar = v; return this; }
+            public Builder hideSkipHud(Boolean v) { this.hideSkipHud = v; return this; }
             public Builder renderPlayerModel(boolean v) { this.renderPlayerModel = v; return this; }
             public Builder pauseWhenGamePaused(boolean v) { this.pauseWhenGamePaused = v; return this; }
             public Builder interruptible(boolean v) { this.interruptible = v; return this; }
@@ -132,6 +141,7 @@ public class ScriptMeta {
                         hideHud, hideArm, suppressBob,
                         hideChat, hideScoreboard, hideActionBar,
                         hideTitle, hideSubtitles, hideHotbar, hideCrosshair,
+                        hideBossbar, hideSkipHud,
                         renderPlayerModel,
                         pauseWhenGamePaused, interruptible, skippable, holdAtEnd
                 );

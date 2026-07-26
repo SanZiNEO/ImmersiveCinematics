@@ -93,8 +93,8 @@ public class ScriptParser {
         boolean blockMouse = optBool(metaObj, "block_mouse", true);
         boolean blockMobAi = optBool(metaObj, "block_mob_ai", false);
         boolean hideHud = optBool(metaObj, "hide_hud", true);
-        boolean hideArm = optBool(metaObj, "hide_arm", true);
-        boolean suppressBob = optBool(metaObj, "suppress_bob", true);
+        Boolean hideArm = metaObj.has("hide_arm") ? metaObj.get("hide_arm").getAsBoolean() : null;
+        Boolean suppressBob = metaObj.has("suppress_bob") ? metaObj.get("suppress_bob").getAsBoolean() : null;
         Boolean hideChat = metaObj.has("hide_chat") ? metaObj.get("hide_chat").getAsBoolean() : null;
         Boolean hideScoreboard = metaObj.has("hide_scoreboard") ? metaObj.get("hide_scoreboard").getAsBoolean() : null;
         Boolean hideActionBar = metaObj.has("hide_action_bar") ? metaObj.get("hide_action_bar").getAsBoolean() : null;
@@ -102,18 +102,20 @@ public class ScriptParser {
         Boolean hideSubtitles = metaObj.has("hide_subtitles") ? metaObj.get("hide_subtitles").getAsBoolean() : null;
         Boolean hideHotbar = metaObj.has("hide_hotbar") ? metaObj.get("hide_hotbar").getAsBoolean() : null;
         Boolean hideCrosshair = metaObj.has("hide_crosshair") ? metaObj.get("hide_crosshair").getAsBoolean() : null;
+        Boolean hideBossbar = metaObj.has("hide_bossbar") ? metaObj.get("hide_bossbar").getAsBoolean() : null;
+        Boolean hideSkipHud = metaObj.has("hide_skip_hud") ? metaObj.get("hide_skip_hud").getAsBoolean() : null;
         boolean renderPlayerModel = optBool(metaObj, "render_player_model", false);
-        boolean holdAtEnd = optBool(metaObj, "hold_at_end", true);
-        // 新增运行时行为字段
         boolean pauseWhenGamePaused = optBool(metaObj, "pause_when_game_paused", true);
         boolean interruptible = optBool(metaObj, "interruptible", true);
         boolean skippable = optBool(metaObj, "skippable", true);
+        boolean holdAtEnd = optBool(metaObj, "hold_at_end", true);
 
         ScriptMeta.RuntimeBehavior behavior = new ScriptMeta.RuntimeBehavior(
                 blockKeyboard, blockMouse, blockMobAi,
                 hideHud, hideArm, suppressBob,
                 hideChat, hideScoreboard, hideActionBar,
                 hideTitle, hideSubtitles, hideHotbar, hideCrosshair,
+                hideBossbar, hideSkipHud,
                 renderPlayerModel,
                 pauseWhenGamePaused, interruptible, skippable,
                 holdAtEnd);

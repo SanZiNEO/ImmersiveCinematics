@@ -22,9 +22,11 @@ public class CinematicController {
     private Boolean hideSubtitles = null;
     private Boolean hideHotbar = null;
     private Boolean hideCrosshair = null;
+    private Boolean hideBossbar = null;
+    private Boolean hideSkipHud = null;
 
-    private boolean hideArm = true;
-    private boolean suppressBob = true;
+    private Boolean hideArm = null;
+    private Boolean suppressBob = null;
     private boolean renderPlayerModel = true;
     private boolean blockMobAi = false;
 
@@ -44,6 +46,8 @@ public class CinematicController {
         this.hideSubtitles = behavior.hideSubtitles();
         this.hideHotbar = behavior.hideHotbar();
         this.hideCrosshair = behavior.hideCrosshair();
+        this.hideBossbar = behavior.hideBossbar();
+        this.hideSkipHud = behavior.hideSkipHud();
         this.hideArm = behavior.hideArm();
         this.suppressBob = behavior.suppressBob();
         this.renderPlayerModel = behavior.renderPlayerModel();
@@ -65,8 +69,10 @@ public class CinematicController {
         this.hideSubtitles = null;
         this.hideHotbar = null;
         this.hideCrosshair = null;
-        this.hideArm = true;
-        this.suppressBob = true;
+        this.hideBossbar = null;
+        this.hideSkipHud = null;
+        this.hideArm = null;
+        this.suppressBob = null;
         this.renderPlayerModel = true;
         this.blockMobAi = false;
         this.pauseWhenGamePaused = true;
@@ -81,10 +87,10 @@ public class CinematicController {
     public void setBlockKeyboard(boolean v) { this.blockKeyboard = v; }
     public void setBlockMouse(boolean v) { this.blockMouse = v; }
 
-    /** 释放所有按键状态（键盘+鼠标），在脚本启动/结束时调用 */
     public void releaseAllKeys() {
         KeyMapping.releaseAll();
     }
+
     public boolean isHideHud() { return hideHud; }
     public Boolean isHideChat() { return hideChat; }
     public Boolean isHideScoreboard() { return hideScoreboard; }
@@ -93,8 +99,10 @@ public class CinematicController {
     public Boolean isHideSubtitles() { return hideSubtitles; }
     public Boolean isHideHotbar() { return hideHotbar; }
     public Boolean isHideCrosshair() { return hideCrosshair; }
-    public boolean isHideArm() { return hideArm; }
-    public boolean isSuppressBob() { return suppressBob; }
+    public Boolean isHideBossbar() { return hideBossbar; }
+    public Boolean isHideSkipHud() { return hideSkipHud; }
+    public Boolean isHideArm() { return hideArm; }
+    public Boolean isSuppressBob() { return suppressBob; }
     public boolean isRenderPlayerModel() { return renderPlayerModel; }
     public boolean isBlockMobAi() { return blockMobAi; }
     public boolean isPauseWhenGamePaused() { return pauseWhenGamePaused; }
