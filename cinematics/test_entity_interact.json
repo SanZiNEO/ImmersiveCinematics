@@ -1,18 +1,18 @@
 {
   "meta": {
-    "id": "test_item_use",
-    "name": "测试-物品使用触发+多关键帧插值",
+    "id": "test_entity_interact",
+    "name": "测试-实体交互触发+roll",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "手持胡萝卜右键时触发，测试 5 个关键帧的平滑插值",
+    "description": "玩家与羊交互时触发，测试 roll=45° + yaw 旋转",
     "triggers": [
       {
-        "id": "use_carrot",
-        "type": "item_use",
+        "id": "interact_sheep",
+        "type": "entity_interact",
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
-          "item": "minecraft:carrot"
+          "target": "minecraft:sheep"
         }
       }
     ],
@@ -20,7 +20,7 @@
     "block_mouse": true,
     "hide_hud": true,
     "hide_arm": true,
-    "suppress_bob": true,
+    "suppress_bob": false,
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,
@@ -55,47 +55,27 @@
                 "position": { "dx": 3, "dy": 1.5, "dz": 0 },
                 "yaw": 0,
                 "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "dof": 0
-              },
-              {
-                "time": 2.5,
-                "position": { "dx": 2, "dy": 2, "dz": 2 },
-                "yaw": 45,
-                "pitch": 5,
-                "roll": 0,
+                "roll": 45,
                 "fov": 70,
                 "zoom": 1,
                 "dof": 0
               },
               {
                 "time": 5,
-                "position": { "dx": 0, "dy": 3, "dz": 3 },
+                "position": { "dx": 0, "dy": 2, "dz": -3 },
                 "yaw": 90,
-                "pitch": 10,
-                "roll": 10,
-                "fov": 70,
-                "zoom": 1,
-                "dof": 0
-              },
-              {
-                "time": 7.5,
-                "position": { "dx": -2, "dy": 2, "dz": 2 },
-                "yaw": 135,
                 "pitch": 5,
                 "roll": 0,
-                "fov": 70,
-                "zoom": 1,
+                "fov": 60,
+                "zoom": 1.2,
                 "dof": 0
               },
               {
                 "time": 10,
-                "position": { "dx": -3, "dy": 1.5, "dz": 0 },
+                "position": { "dx": 3, "dy": 1.5, "dz": 0 },
                 "yaw": 180,
-                "pitch": 0,
-                "roll": -10,
+                "pitch": 10,
+                "roll": -45,
                 "fov": 70,
                 "zoom": 1,
                 "dof": 0

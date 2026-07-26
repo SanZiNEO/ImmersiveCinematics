@@ -1,18 +1,18 @@
 {
   "meta": {
     "id": "test_item_craft",
-    "name": "测试-合成触发",
+    "name": "测试-合成触发+多clip+morph",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "玩家合成皮革胸甲时触发",
+    "description": "合成木棍时触发，测试两个 clip 之间的 morph 过渡",
     "triggers": [
       {
-        "id": "craft_chestplate",
+        "id": "craft_stick",
         "type": "item_craft",
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
-          "item": "minecraft:leather_chestplate"
+          "item": "minecraft:stick"
         }
       }
     ],
@@ -24,68 +24,82 @@
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,
-    "hold_at_end": false
+    "hold_at_end": false,
+    "render_player_model": false,
+    "hide_chat": null,
+    "hide_scoreboard": null,
+    "hide_action_bar": null,
+    "hide_title": null,
+    "hide_subtitles": null,
+    "hide_hotbar": null,
+    "hide_crosshair": null,
+    "hide_bossbar": null,
+    "hide_skip_hud": null
   },
   "timeline": {
-    "total_duration": 6.0,
+    "total_duration": 10,
     "tracks": [
       {
         "type": "CAMERA",
         "clips": [
           {
-            "start_time": 0.0,
-            "duration": 6.0,
+            "start_time": 0,
+            "duration": 4,
+            "transition": "morph",
+            "transition_duration": 1.5,
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 5, "dy": 2, "dz": 0 },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "dof": 0
+              },
+              {
+                "time": 4,
+                "position": { "dx": 3, "dy": 3, "dz": -2 },
+                "yaw": 30,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "dof": 0
+              }
+            ]
+          },
+          {
+            "start_time": 4,
+            "duration": 6,
             "transition": "cut",
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
               {
-                "time": 0.0,
-                "position": {
-                  "dx": -6,
-                  "dy": 1,
-                  "dz": 5
-                },
-                "yaw": -130,
+                "time": 0,
+                "position": { "dx": 3, "dy": 3, "dz": -2 },
+                "yaw": 30,
                 "pitch": 5,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1.0,
+                "zoom": 1,
                 "dof": 0
               },
               {
-                "time": 6.0,
-                "position": {
-                  "dx": -6,
-                  "dy": 10,
-                  "dz": 5
-                },
-                "yaw": -130,
-                "pitch": 40,
+                "time": 6,
+                "position": { "dx": -2, "dy": 4, "dz": -4 },
+                "yaw": 60,
+                "pitch": 10,
                 "roll": 0,
-                "fov": 85,
-                "zoom": 1.0,
+                "fov": 70,
+                "zoom": 1,
                 "dof": 0
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "type": "LETTERBOX",
-        "clips": [
-          {
-            "start_time": 0.0,
-            "duration": 6.0,
-            "keyframes": [
-              {
-                "time": 0.0,
-                "aspect_ratio": 2.35
-              },
-              {
-                "time": 6.0,
-                "aspect_ratio": 2.35
               }
             ]
           }

@@ -2,6 +2,10 @@ package com.immersivecinematics.immersive_cinematics;
 
 import com.immersivecinematics.immersive_cinematics.handler.ClientEventHandler;
 import com.immersivecinematics.immersive_cinematics.handler.ServerEventHandler;
+import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
+import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
+import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
+import com.immersivecinematics.immersive_cinematics.trigger.server.evaluator.Evaluators;
 import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler;
 import dev.architectury.utils.Env;
 import dev.architectury.utils.EnvExecutor;
@@ -9,33 +13,32 @@ import dev.architectury.utils.EnvExecutor;
 public final class ImmersiveCinematics {
     public static final String MOD_ID = "immersive_cinematics";
 
-    /** 设为 {@code false} 编译不带编辑器的轻量版（仅播放器） */
     public static final boolean EDITOR_ENABLED = true;
 
-    /**
-     * 模组初始化入口。
-     * <p>
-     * 按以下顺序初始化各子系统：
-     * <ol>
-     *   <li>配置系统（平台 provider 加载）</li>
-     *   <li>网络层</li>
-     *   <li>服务端事件</li>
-     *   <li>客户端事件（仅在客户端执行）</li>
-     * </ol>
-     *
-     * @param configProvider 平台相关配置提供者（ForgeConfig / FabricConfig）
-     */
     public static void init(Config.ConfigProvider configProvider) {
-        // === 基础 ===
         Config.init(configProvider);
-
-        // === 网络 ===
         NetworkHandler.init();
-
-        // === 服务端事件 ===
+        registerTriggerTypes();
         ServerEventHandler.register();
-
-        // === 客户端注册（安全，不在服务端执行） ===
         EnvExecutor.runInEnv(Env.CLIENT, () -> ClientEventHandler::register);
+    }
+
+    private static void registerTriggerTypes() {
+        TriggerRegistry.register(new TriggerType("location", ListenStrategy.POLLING, Config.triggerPollIntervalLocation, Evaluators::evaluateLocation));
+        TriggerRegistry.register(new TriggerType("advancement", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateAdvancement));
+        TriggerRegistry.register(new TriggerType("biome", ListenStrategy.POLLING, Config.triggerPollIntervalBiome, Evaluators::evaluateBiome));
+        TriggerRegistry.register(new TriggerType("entity_kill", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateEntityKill));
+        TriggerRegistry.register(new TriggerType("entity_interact", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateInteract));
+        TriggerRegistry.register(new TriggerType("dimension_change", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateDimensionChange));
+        TriggerRegistry.register(new TriggerType("login", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateLogin));
+        TriggerRegistry.register(new TriggerType("inventory", ListenStrategy.POLLING, Config.triggerPollIntervalInventory, Evaluators::evaluateInventory));
+        TriggerRegistry.register(new TriggerType("item_craft", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateItemCraft));
+        TriggerRegistry.register(new TriggerType("custom", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateCustom));
+        TriggerRegistry.register(new TriggerType("structure", ListenStrategy.POLLING, Config.triggerPollIntervalStructure, Evaluators::evaluateStructure));
+        TriggerRegistry.register(new TriggerType("gamestage", ListenStrategy.POLLING, Config.triggerPollIntervalGamestage, Evaluators::evaluateGamestage));
+        TriggerRegistry.register(new TriggerType("item_use", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateItemUse));
+        TriggerRegistry.register(new TriggerType("item_consume", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateItemConsume));
+        TriggerRegistry.register(new TriggerType("block_interact", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateBlockInteract));
+        TriggerRegistry.register(new TriggerType("item_on_interact", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateItemOnInteract));
     }
 }

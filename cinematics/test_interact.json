@@ -1,18 +1,18 @@
 {
   "meta": {
     "id": "test_interact",
-    "name": "测试-交互触发",
+    "name": "测试-交互触发+pitch俯仰",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "玩家与唱片机交互时触发",
+    "description": "右键工作台触发，测试 pitch 从 0° 到 90° 俯视",
     "triggers": [
       {
-        "id": "use_jukebox",
+        "id": "use_crafting_table",
         "type": "block_interact",
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
-          "target": "minecraft:jukebox"
+          "target": "minecraft:crafting_table"
         }
       }
     ],
@@ -24,82 +24,61 @@
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,
-    "hold_at_end": false
+    "hold_at_end": false,
+    "render_player_model": false,
+    "hide_chat": null,
+    "hide_scoreboard": null,
+    "hide_action_bar": null,
+    "hide_title": null,
+    "hide_subtitles": null,
+    "hide_hotbar": null,
+    "hide_crosshair": null,
+    "hide_bossbar": null,
+    "hide_skip_hud": null
   },
   "timeline": {
-    "total_duration": 5.0,
+    "total_duration": 10,
     "tracks": [
       {
         "type": "CAMERA",
         "clips": [
           {
-            "start_time": 0.0,
-            "duration": 5.0,
+            "start_time": 0,
+            "duration": 10,
             "transition": "cut",
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
               {
-                "time": 0.0,
-                "position": {
-                  "dx": 4,
-                  "dy": 1.5,
-                  "dz": 0
-                },
-                "yaw": 90,
-                "pitch": 5,
+                "time": 0,
+                "position": { "dx": 2, "dy": 1, "dz": 0 },
+                "yaw": 0,
+                "pitch": 0,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1.0,
+                "zoom": 1,
                 "dof": 0
               },
               {
-                "time": 2.5,
-                "position": {
-                  "dx": 4.5,
-                  "dy": 1.5,
-                  "dz": 0
-                },
-                "yaw": 90,
-                "pitch": 8,
+                "time": 5,
+                "position": { "dx": 0, "dy": 5, "dz": 0 },
+                "yaw": 0,
+                "pitch": 45,
                 "roll": 0,
-                "fov": 68,
-                "zoom": 1.5,
+                "fov": 70,
+                "zoom": 1,
                 "dof": 0
               },
               {
-                "time": 5.0,
-                "position": {
-                  "dx": 4,
-                  "dy": 1.5,
-                  "dz": 0
-                },
-                "yaw": 90,
-                "pitch": 10,
+                "time": 10,
+                "position": { "dx": -2, "dy": 10, "dz": 0 },
+                "yaw": 0,
+                "pitch": 90,
                 "roll": 0,
-                "fov": 65,
-                "zoom": 2.5,
+                "fov": 70,
+                "zoom": 1,
                 "dof": 0
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "type": "LETTERBOX",
-        "clips": [
-          {
-            "start_time": 0.0,
-            "duration": 5.0,
-            "keyframes": [
-              {
-                "time": 0.0,
-                "aspect_ratio": 2.35
-              },
-              {
-                "time": 5.0,
-                "aspect_ratio": 2.35
               }
             ]
           }

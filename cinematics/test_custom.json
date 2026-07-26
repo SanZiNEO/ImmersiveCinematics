@@ -1,18 +1,18 @@
 {
   "meta": {
-    "id": "test_item_use",
-    "name": "测试-物品使用触发+多关键帧插值",
+    "id": "test_custom",
+    "name": "测试-自定义触发+绝对坐标+zoom",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "手持胡萝卜右键时触发，测试 5 个关键帧的平滑插值",
+    "description": "通过 /icinematics trigger 触发，测试 absolute 坐标模式和 zoom 推拉效果",
     "triggers": [
       {
-        "id": "use_carrot",
-        "type": "item_use",
+        "id": "custom_event",
+        "type": "custom",
         "repeatable": false,
-        "delay": 0.5,
+        "delay": 0,
         "conditions": {
-          "item": "minecraft:carrot"
+          "event_id": "test_camera_zoom"
         }
       }
     ],
@@ -47,24 +47,14 @@
             "duration": 10,
             "transition": "cut",
             "interpolation": "linear",
-            "position_mode": "relative",
+            "position_mode": "absolute",
             "loop": false,
             "keyframes": [
               {
                 "time": 0,
-                "position": { "dx": 3, "dy": 1.5, "dz": 0 },
+                "position": { "x": 0, "y": 65, "z": 0 },
                 "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "dof": 0
-              },
-              {
-                "time": 2.5,
-                "position": { "dx": 2, "dy": 2, "dz": 2 },
-                "yaw": 45,
-                "pitch": 5,
+                "pitch": 10,
                 "roll": 0,
                 "fov": 70,
                 "zoom": 1,
@@ -72,32 +62,22 @@
               },
               {
                 "time": 5,
-                "position": { "dx": 0, "dy": 3, "dz": 3 },
-                "yaw": 90,
-                "pitch": 10,
-                "roll": 10,
-                "fov": 70,
-                "zoom": 1,
-                "dof": 0
-              },
-              {
-                "time": 7.5,
-                "position": { "dx": -2, "dy": 2, "dz": 2 },
-                "yaw": 135,
-                "pitch": 5,
+                "position": { "x": 10, "y": 68, "z": 10 },
+                "yaw": 45,
+                "pitch": 15,
                 "roll": 0,
-                "fov": 70,
-                "zoom": 1,
+                "fov": 50,
+                "zoom": 1.5,
                 "dof": 0
               },
               {
                 "time": 10,
-                "position": { "dx": -3, "dy": 1.5, "dz": 0 },
-                "yaw": 180,
-                "pitch": 0,
-                "roll": -10,
-                "fov": 70,
-                "zoom": 1,
+                "position": { "x": 20, "y": 70, "z": 20 },
+                "yaw": 90,
+                "pitch": 20,
+                "roll": 0,
+                "fov": 30,
+                "zoom": 2,
                 "dof": 0
               }
             ]
