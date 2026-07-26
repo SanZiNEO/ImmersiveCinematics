@@ -29,18 +29,20 @@ public interface InputRouter {
 
     static InputRouter createDefault() {
         return new InputRouter() {
-            @Override
             public InputTarget routeKeyboard(int key, int scanCode, int action, int modifiers) {
                 Minecraft mc = Minecraft.getInstance();
                 if (mc.level == null) return InputTarget.GAME;
                 if (!CameraManager.INSTANCE.isActive()) return InputTarget.GAME;
+
+                // 跳过键不走 blockKeyboard——即使用户关掉了键盘屏蔽也能长按跳过
+                if (CinematicKeyBindings.SKIP_KEY.matches(key, scanCode)) {
+                    return InputTarget.SELF;
+                }
+
                 CinematicController ctrl = CinematicController.INSTANCE;
                 if (!ctrl.isBlockKeyboard()) return InputTarget.GAME;
                 if (mc.isPaused() && ctrl.isPauseWhenGamePaused()) return InputTarget.GAME;
 
-                if (CinematicKeyBindings.SKIP_KEY.matches(key, scanCode)) {
-                    return InputTarget.SELF;
-                }
                 if (key == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
                     return InputTarget.GAME;
                 }

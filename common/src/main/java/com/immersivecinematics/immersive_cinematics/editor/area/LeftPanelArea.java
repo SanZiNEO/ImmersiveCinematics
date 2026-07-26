@@ -138,10 +138,11 @@ public class LeftPanelArea extends UIComponent {
         addSectionLabel(I18n.get("editor.section.runtime"), lx, cy, 0); cy += sectionGap;
         cy = reflectObject(script, lx, cy, new String[]{
             "block_keyboard", "block_mouse", "block_mob_ai",
-            "hide_hud", "hide_arm", "hide_chat", "hide_scoreboard",
-            "hide_action_bar", "hide_title", "hide_subtitles",
-            "hide_hotbar", "hide_crosshair",
-            "suppress_bob", "render_player_model",
+            "hide_hud", "hide_arm", "suppress_bob",
+            "hide_chat", "hide_scoreboard", "hide_action_bar",
+            "hide_title", "hide_subtitles",
+            "hide_hotbar", "hide_crosshair", "hide_bossbar", "hide_skip_hud",
+            "render_player_model",
             "pause_when_game_paused", "skippable", "hold_at_end", "interruptible"
         });
         cy += 4;
@@ -284,10 +285,11 @@ public class LeftPanelArea extends UIComponent {
             kf.add("position", pos);
         }
     }
-
     private static final Set<String> TRISTATE_KEYS = Set.of(
+        "hide_arm", "suppress_bob",
         "hide_chat", "hide_scoreboard", "hide_action_bar",
-        "hide_title", "hide_subtitles", "hide_hotbar", "hide_crosshair"
+        "hide_title", "hide_subtitles", "hide_hotbar", "hide_crosshair",
+        "hide_bossbar", "hide_skip_hud"
     );
 
     private static final Set<String> CLIP_ENUM_KEYS = Set.of(
