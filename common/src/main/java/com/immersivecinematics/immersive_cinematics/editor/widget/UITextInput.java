@@ -61,13 +61,30 @@ public class UITextInput extends UIComponent implements IFocusable {
         return focused;
     }
 
+    private void commitText() {
+        if (sink != null && text != null) {
+            sink.accept(text);
+        }
+    }
+
+    @Override
+    public void clearFocus() {
+        if (focused) {
+            commitText();
+            focused = false;
+        }
+    }
+
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (!focused) return false;
         if (keyCode == 259) {
             if (!text.isEmpty()) {
                 text = text.substring(0, text.length() - 1);
-                if (sink != null) sink.accept(text);
             }
+            return true;
+        }
+        if (keyCode == 257) {
+            commitText();
             return true;
         }
         return false;
@@ -77,12 +94,12 @@ public class UITextInput extends UIComponent implements IFocusable {
         if (!focused) return false;
         if (!Character.isISOControl(c)) {
             text += c;
-            if (sink != null) sink.accept(text);
             return true;
         }
         return false;
     }
 
-    public void clearFocus() { focused = false; }
+    @Override
     public boolean isFocused() { return focused; }
+
 }

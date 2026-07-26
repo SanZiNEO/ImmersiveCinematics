@@ -115,14 +115,9 @@ public class MenuBarArea extends UIComponent {
             ctx.graphics.drawString(ctx.font, statusText, Math.max(x + (int)(STATUS_LEFT_MIN * com.immersivecinematics.immersive_cinematics.editor.Scale.sx), right - tw), y + (h - 10) / 2, statusColor);
         }
     }
-
     @Override
     public boolean mouseClicked(UIContext ctx) {
-        EditorLogger.areaHit(EditorLogger.MENU, "full_area", ctx.mouseX, ctx.mouseY, true);
-        for (int i = children.size() - 1; i >= 0; i--) {
-            if (children.get(i).mouseClicked(ctx)) return true;
-        }
-        return false;
+        return UIComponent.dispatchMouseClicked(ctx, children, EditorLogger.MENU);
     }
 
     @Override

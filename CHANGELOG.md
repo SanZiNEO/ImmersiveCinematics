@@ -1,3 +1,24 @@
+## [0.3.3] - 2026-07-26
+
+Architectury 多平台迁移后的首个维护版本。全面重构运行时数据模型，统一 5 个 Clip 类和 2 个 Keyframe 类为 schema 驱动的通用容器。
+
+### Added
+- 新增 `schema.json` 定义所有轨道类型的字段结构和默认值
+- 新增 `SchemaLoader` 加载运行时字段定义
+- 新增统一 `Clip`/`Keyframe` 容器类，删除 7 个旧专用类
+
+### Changed
+- 运行时数据模型统一：`CameraClip`/`LetterboxClip`/`AudioClip`/`EventClip`/`ModEventClip` → 通用 `Clip` + `Map<String,Object> data`
+- 运行时数据模型统一：`CameraKeyframe`/`LetterboxKeyframe` → 通用 `Keyframe` + `Map<String,Object> data`
+- `TimelineTrack` 删除 5 个类型安全访问器，统一为 `getClips()` 返回 `List<Clip>`
+- `ScriptParser` 从每个轨道类型独立解析方法重构为 schema 驱动统一解析，新增轨道类型只需改 schema + 写 TrackPlayer
+- `UITextInput` 从实时提交改为失焦提交（Enter 确认），与 `UIFloatInput` 行为一致
+- `MenuBarArea`/`PreviewArea` 的 `mouseClicked` 提取共享静态方法 `UIComponent.dispatchMouseClicked()`
+
+### Removed
+- `CameraClip.java`、`CameraKeyframe.java`、`LetterboxClip.java`、`LetterboxKeyframe.java`
+- `AudioClip.java`、`EventClip.java`、`ModEventClip.java`
+
 # Changelog
 
 ## [0.3.2] - 2026-06-16

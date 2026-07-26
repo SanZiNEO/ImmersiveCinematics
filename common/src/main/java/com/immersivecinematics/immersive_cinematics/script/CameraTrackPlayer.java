@@ -7,7 +7,7 @@ import java.util.List;
 
 public class CameraTrackPlayer implements TrackPlayer {
 
-    private final List<CameraClip> clips;
+    private final List<Clip> clips;
     private final Vec3 originPos;
     private final CameraManager cameraManager;
 
@@ -17,7 +17,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     private int lastClipIndex = 0;
 
     public CameraTrackPlayer(TimelineTrack track, Vec3 originPos, CameraManager cameraManager) {
-        this.clips = track.getCameraClips();
+        this.clips = track.getClips();
         this.originPos = originPos;
         this.cameraManager = cameraManager;
     }
@@ -26,7 +26,7 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     @Override
     public boolean isActiveAt(float globalTime) {
-        CameraClip c = findActiveClip(globalTime);
+        Clip c = findActiveClip(globalTime);
         if (globalTime >= 4.0f && globalTime <= 5.0f && Math.abs(globalTime - lastMatchLogTime) > 0.5f) {
             lastMatchLogTime = globalTime;
             System.out.println("[MATCH] time=" + String.format("%.1f", globalTime) +
@@ -34,7 +34,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         }
         if (c != null) return true;
         for (int i = 0; i < clips.size() - 1; i++) {
-            CameraClip prev = clips.get(i);
+            Clip prev = clips.get(i);
             if (prev.isMorph() && prev.getTransitionDuration() > 0f && !prev.isInfinite()) {
                 float prevEnd = prev.getStartTime() + prev.getDuration();
                 float morphEnd = prevEnd + prev.getTransitionDuration();
@@ -50,8 +50,8 @@ public class CameraTrackPlayer implements TrackPlayer {
 
         // Morph: 在 [A_end, A_end+A.transition_duration) 内取 A 末帧→B 首帧 lerp
         for (int i = 0; i < clips.size() - 1; i++) {
-            CameraClip prev = clips.get(i);
-            CameraClip next = clips.get(i + 1);
+            Clip prev = clips.get(i);
+            Clip next = clips.get(i + 1);
             if (prev.isMorph() && prev.getTransitionDuration() > 0f && !prev.isInfinite()) {
                 float prevEnd = prev.getStartTime() + prev.getDuration();
                 float morphEnd = prevEnd + prev.getTransitionDuration();
@@ -63,14 +63,14 @@ public class CameraTrackPlayer implements TrackPlayer {
             }
         }
 
-        CameraClip primaryClip = findActiveClip(globalTime);
+        Clip primaryClip = findActiveClip(globalTime);
         if (primaryClip == null) return;
 
         float clipLocalTime = globalTime - primaryClip.getStartTime();
         renderSingle(globalTime, primaryClip, clipLocalTime);
     }
 
-    private void renderSingle(float globalTime, CameraClip clip, float clipLocalTime) {
+    private void renderSingle(float globalTime, Clip clip, float clipLocalTime) {
         KeyframeInterpolator.InterpolationResult result =
                 KeyframeInterpolator.computeInterpolation(clipLocalTime, clip);
         if (result == null) return;
@@ -79,7 +79,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         writeAttributes(result.from, result.to, s, clip);
     }
 
-    private void renderMorph(CameraClip prevClip, CameraClip nextClip, float weight) {
+    private void renderMorph(Clip prevClip, Clip nextClip, float weight) {
         KeyframeInterpolator.InterpolationResult prevResult =
                 KeyframeInterpolator.computeInterpolation(prevClip.getDuration(), prevClip);
         KeyframeInterpolator.InterpolationResult nextResult =
@@ -90,10 +90,10 @@ public class CameraTrackPlayer implements TrackPlayer {
         float prevS = prevResult != null ? prevResult.adjustedT : 0f;
         float nextS = nextResult != null ? nextResult.adjustedT : 0f;
 
-        CameraKeyframe prevFrom = prevResult != null ? prevResult.from : null;
-        CameraKeyframe prevTo = prevResult != null ? prevResult.to : null;
-        CameraKeyframe nextFrom = nextResult != null ? nextResult.from : null;
-        CameraKeyframe nextTo = nextResult != null ? nextResult.to : null;
+        Keyframe prevFrom = prevResult != null ? prevResult.from : null;
+        Keyframe prevTo = prevResult != null ? prevResult.to : null;
+        Keyframe nextFrom = nextResult != null ? nextResult.from : null;
+        Keyframe nextTo = nextResult != null ? nextResult.to : null;
 
         float invWeight = 1f - weight;
 
@@ -146,7 +146,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom, dof);
     }
 
-    private void writeAttributes(CameraKeyframe from, CameraKeyframe to, float s, CameraClip clip) {
+    private void writeAttributes(Keyframe from, Keyframe to, float s, Clip clip) {
         Vec3 pos = KeyframeInterpolator.interpolatePosition(from, to, s, clip, bezierStrategy);
         float yaw = KeyframeInterpolator.interpolateYaw(from, to, s);
         float pitch = KeyframeInterpolator.interpolatePitch(from, to, s);
@@ -169,15 +169,15 @@ public class CameraTrackPlayer implements TrackPlayer {
         // bezierStrategy 随 TrackPlayer 实例一起被 GC，其 LUT 缓存自动释放
     }
 
-    private CameraClip findActiveClip(float globalTime) {
+    private Clip findActiveClip(float globalTime) {
         if (clips.isEmpty()) return null;
 
-        CameraClip result = null;
+        Clip result = null;
         int resultIndex = -1;
         int startIdx = Math.max(0, Math.min(lastClipIndex, clips.size() - 1));
 
         for (int i = startIdx; i < clips.size(); i++) {
-            CameraClip clip = clips.get(i);
+            Clip clip = clips.get(i);
             float clipEnd = clip.getStartTime() + clip.getDuration();
 
             if (clip.isInfinite()) {
@@ -195,7 +195,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         }
 
         for (int i = 0; i < startIdx; i++) {
-            CameraClip clip = clips.get(i);
+            Clip clip = clips.get(i);
             float clipEnd = clip.getStartTime() + clip.getDuration();
 
             if (clip.isInfinite()) {

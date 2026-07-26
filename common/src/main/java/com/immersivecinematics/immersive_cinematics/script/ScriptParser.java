@@ -17,13 +17,7 @@ import java.util.Map;
  * 脚本解析器 — 将 JSON 字符串解析为 CinematicScript POJO
  * <p>
  * 使用 Gson 的 JsonElement 树 API 手动解析，而非反射绑定。
- * 优势：
- * <ul>
- *   <li>精确控制多态 clips 数组的反序列化</li>
- *   <li>PositionData 的 dx/dy/dz vs x/y/z 双格式处理</li>
- *   <li>每一步都可插入验证逻辑，提供清晰的错误路径</li>
- *   <li>POJO 类保持纯净，不耦合 Gson 注解</li>
- * </ul>
+ * 通过 {@link SchemaLoader} 驱动字段解析，不再为每种轨道类型编写独立解析方法。
  */
 public class ScriptParser {
 
@@ -50,17 +44,10 @@ public class ScriptParser {
         }
     }
 
-    private ScriptParser() {} // 禁止实例化，只提供静态方法
+    private ScriptParser() {}
 
     // ========== 入口方法 ==========
 
-    /**
-     * 将 JSON 字符串解析为 CinematicScript
-     *
-     * @param json 脚本 JSON 字符串
-     * @return 解析后的 CinematicScript 对象
-     * @throws ScriptParseException 解析或验证失败
-     */
     public static CinematicScript parse(String json) throws ScriptParseException {
         JsonElement root;
         try {
@@ -68,11 +55,9 @@ public class ScriptParser {
         } catch (Exception e) {
             throw new ScriptParseException("<root>", "JSON 语法错误: " + e.getMessage(), e);
         }
-
         if (!root.isJsonObject()) {
             throw new ScriptParseException("<root>", "根元素必须是 JSON 对象");
         }
-
         JsonObject rootObj = root.getAsJsonObject();
         ScriptMeta meta = parseMeta(rootObj);
         Timeline timeline = parseTimeline(rootObj, "timeline");
@@ -83,18 +68,14 @@ public class ScriptParser {
 
     private static ScriptMeta parseMeta(JsonObject root) throws ScriptParseException {
         String p = "meta";
-
-        // 提取 meta 子对象
         JsonObject metaObj = requireObject(root, p, "meta");
 
-        // 元信息
         String id = requireString(metaObj, p, "id");
         String name = requireString(metaObj, p, "name");
         String author = requireString(metaObj, p, "author");
         int version = requireInt(metaObj, p, "version");
         String description = optString(metaObj, "description", "");
 
-        // 验证元信息
         if (!id.matches("^[a-zA-Z0-9_]{1,32}$")) {
             throw new ScriptParseException(p + ".id", "必须匹配 ^[a-zA-Z0-9_]{1,32}$，实际: " + id);
         }
@@ -108,7 +89,6 @@ public class ScriptParser {
             throw new ScriptParseException(p + ".version", "当前仅支持版本3，实际: " + version);
         }
 
-        // 运行时行为（14个布尔 + blockMobAi 已弃用）
         boolean blockKeyboard = optBool(metaObj, "block_keyboard", true);
         boolean blockMouse = optBool(metaObj, "block_mouse", true);
         boolean blockMobAi = optBool(metaObj, "block_mob_ai", false);
@@ -122,59 +102,33 @@ public class ScriptParser {
         Boolean hideSubtitles = metaObj.has("hide_subtitles") ? metaObj.get("hide_subtitles").getAsBoolean() : null;
         Boolean hideHotbar = metaObj.has("hide_hotbar") ? metaObj.get("hide_hotbar").getAsBoolean() : null;
         Boolean hideCrosshair = metaObj.has("hide_crosshair") ? metaObj.get("hide_crosshair").getAsBoolean() : null;
-        boolean renderPlayerModel = optBool(metaObj, "render_player_model", true);
+        boolean renderPlayerModel = optBool(metaObj, "render_player_model", false);
+        boolean holdAtEnd = optBool(metaObj, "hold_at_end", true);
+        // 新增运行时行为字段
         boolean pauseWhenGamePaused = optBool(metaObj, "pause_when_game_paused", true);
-        // 退出控制三属性：
-        // interruptible — 脚本间抢占控制：是否允许被其他脚本打断（与用户退出无关）
         boolean interruptible = optBool(metaObj, "interruptible", true);
-        // skippable — 用户退出控制：是否允许用户长按退出键提前结束播放
         boolean skippable = optBool(metaObj, "skippable", true);
-        // holdAtEnd — 播完保持控制：播完后是否保持最后一帧，而非自动退出
-        boolean holdAtEnd = optBool(metaObj, "hold_at_end", false);
 
-        // meta 级别的 interpolation/curve_composition_mode 已移除——
-        // 插值控制下放到片段级 (CameraClip.interpolation)
+        ScriptMeta.RuntimeBehavior behavior = new ScriptMeta.RuntimeBehavior(
+                blockKeyboard, blockMouse, blockMobAi,
+                hideHud, hideArm, suppressBob,
+                hideChat, hideScoreboard, hideActionBar,
+                hideTitle, hideSubtitles, hideHotbar, hideCrosshair,
+                renderPlayerModel,
+                pauseWhenGamePaused, interruptible, skippable,
+                holdAtEnd);
 
-        // dimension（可选，脚本关联维度，预留给区块加载和 TriggerEngine）
-        String dimension = optString(metaObj, "dimension", null);
+        // 脚本维度限制（可选）
+        String dimension = optString(metaObj, "dimension", "");
 
-        // triggers（可选，触发器数组，预留给 TriggerEngine）
+        // 触发器定义（可选）
         List<TriggerDefinition> triggers = new ArrayList<>();
         if (metaObj.has("triggers") && metaObj.get("triggers").isJsonArray()) {
-            for (JsonElement elem : metaObj.getAsJsonArray("triggers")) {
-                JsonObject tObj = elem.getAsJsonObject();
-                String type = requireString(tObj, p + ".triggers[]", "type");
-                Map<String, Object> conditions = tObj.has("conditions")
-                        ? parseDataMap(tObj.getAsJsonObject("conditions"), p + ".triggers[].conditions")
-                        : new HashMap<>();
-                boolean repeatable = optBool(tObj, "repeatable", false);
-                float delay = optFloat(tObj, "delay", 0f);
-                boolean onEnter = optBool(tObj, "on_enter", false);
-                float exitBuffer = optFloat(tObj, "exit_buffer", 0f);
-                triggers.add(new TriggerDefinition(type, conditions, repeatable, delay, onEnter, exitBuffer));
+            JsonArray trigArr = metaObj.getAsJsonArray("triggers");
+            for (int i = 0; i < trigArr.size(); i++) {
+                triggers.add(parseTriggerDefinition(trigArr.get(i).getAsJsonObject(), p + ".triggers[" + i + "]"));
             }
         }
-
-        ScriptMeta.RuntimeBehavior behavior = ScriptMeta.RuntimeBehavior.builder()
-                .blockKeyboard(blockKeyboard)
-                .blockMouse(blockMouse)
-                .blockMobAi(blockMobAi)
-                .hideHud(hideHud)
-                .hideArm(hideArm)
-                .suppressBob(suppressBob)
-                .hideChat(hideChat)
-                .hideScoreboard(hideScoreboard)
-                .hideActionBar(hideActionBar)
-                .hideTitle(hideTitle)
-                .hideSubtitles(hideSubtitles)
-                .hideHotbar(hideHotbar)
-                .hideCrosshair(hideCrosshair)
-                .renderPlayerModel(renderPlayerModel)
-                .pauseWhenGamePaused(pauseWhenGamePaused)
-                .interruptible(interruptible)
-                .skippable(skippable)
-                .holdAtEnd(holdAtEnd)
-                .build();
 
         return new ScriptMeta(id, name, author, version, description, behavior, dimension, triggers);
     }
@@ -186,11 +140,8 @@ public class ScriptParser {
         if (!root.has(key)) {
             throw new ScriptParseException(p, "缺少必填字段: " + key);
         }
-
         JsonObject timelineObj = requireObject(root, p, key);
         float totalDuration = requireFloat(timelineObj, p, "total_duration");
-
-        // 验证 total_duration：正数=有限时长，负数=无限时长，0=非法
         if (totalDuration == 0f) {
             throw new ScriptParseException(p + ".total_duration", "不允许为0，正数=有限时长，负数=无限时长，实际: " + totalDuration);
         }
@@ -201,69 +152,80 @@ public class ScriptParser {
             tracks.add(parseTrack(tracksArr.get(i).getAsJsonObject(), p + ".tracks[" + i + "]"));
         }
 
-        // 轨道级验证
         validateTracks(tracks, p);
-
         return new Timeline(totalDuration, tracks);
     }
 
-    // ========== Track 解析 ==========
+    // ========== Track 解析（统一 schema 驱动）==========
 
     private static TimelineTrack parseTrack(JsonObject trackObj, String p) throws ScriptParseException {
         String typeStr = requireString(trackObj, p, "type");
         TrackType type = parseTrackType(typeStr, p + ".type");
         JsonArray clipsArr = requireArray(trackObj, p, "clips");
 
-        List<?> clips = switch (type) {
-            case CAMERA -> parseCameraClips(clipsArr, p + ".clips");
-            case LETTERBOX -> parseLetterboxClips(clipsArr, p + ".clips");
-            case AUDIO -> parseAudioClips(clipsArr, p + ".clips");
-            case EVENT -> parseEventClips(clipsArr, p + ".clips");
-            case MOD_EVENT -> parseModEventClips(clipsArr, p + ".clips");
-        };
+        List<Clip> clips = new ArrayList<>();
+        for (int i = 0; i < clipsArr.size(); i++) {
+            clips.add(parseClip(clipsArr.get(i).getAsJsonObject(), p + ".clips[" + i + "]", type));
+        }
 
         return new TimelineTrack(type, clips);
     }
 
-    // ========== CameraClip 解析 ==========
+    // ========== Clip 解析（统一 schema 驱动）==========
 
-    private static List<CameraClip> parseCameraClips(JsonArray clipsArr, String p) throws ScriptParseException {
-        List<CameraClip> clips = new ArrayList<>();
-        for (int i = 0; i < clipsArr.size(); i++) {
-            clips.add(parseCameraClip(clipsArr.get(i).getAsJsonObject(), p + "[" + i + "]"));
-        }
-        return clips;
-    }
-
-    private static CameraClip parseCameraClip(JsonObject obj, String p) throws ScriptParseException {
+    private static Clip parseClip(JsonObject obj, String p, TrackType type) throws ScriptParseException {
         float startTime = requireFloat(obj, p, "start_time");
         float duration = requireFloat(obj, p, "duration");
-        TransitionType transition = parseTransitionType(
-                optString(obj, "transition", "cut"), p + ".transition");
-        float transitionDuration = optFloat(obj, "transition_duration", 0.5f);
-        InterpolationType interpolation = parseInterpolationType(
-                optString(obj, "interpolation", "linear"), p + ".interpolation");
-        BezierCurve curve = obj.has("curve") ? parseBezierCurve(obj.getAsJsonObject("curve"), p + ".curve") : null;
-        boolean positionModeRelative = "relative".equals(optString(obj, "position_mode", "relative"));
-        boolean loop = optBool(obj, "loop", false);
-        int loopCount = optInt(obj, "loop_count", -1);
+
+        // 解析类型特有字段到 data map
+        Map<String, Object> data = new HashMap<>();
+        for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
+            String fieldName = entry.getKey();
+            if ("start_time".equals(fieldName) || "duration".equals(fieldName) || "keyframes".equals(fieldName)) {
+                continue; // 通用字段跳过
+            }
+            Object value = parseFieldBySchema(fieldName, entry.getValue(), p, type, false);
+            if (value != null) {
+                data.put(fieldName, value);
+            }
+        }
+
+        // 校验必填字段（来自 schema）
+        for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getClipFields(type).entrySet()) {
+            if (e.getValue().required() && !data.containsKey(e.getKey()) && !obj.has(e.getKey())) {
+                throw new ScriptParseException(p + "." + e.getKey(), "缺少必填字段");
+            }
+        }
 
         // 解析关键帧
-        JsonArray kfArr = requireArray(obj, p, "keyframes");
-        List<CameraKeyframe> keyframes = new ArrayList<>();
-        for (int i = 0; i < kfArr.size(); i++) {
-            keyframes.add(parseCameraKeyframe(kfArr.get(i).getAsJsonObject(), p + ".keyframes[" + i + "]", positionModeRelative));
+        List<Keyframe> keyframes = new ArrayList<>();
+        if (obj.has("keyframes")) {
+            JsonArray kfArr = obj.getAsJsonArray("keyframes");
+            for (int i = 0; i < kfArr.size(); i++) {
+                keyframes.add(parseKeyframe(kfArr.get(i).getAsJsonObject(), p + ".keyframes[" + i + "]", type));
+            }
+        }
+
+        // Letterbox 简写兼容：缺 keyframes 时从 clip 级 aspect_ratio 自动生成两个关键帧
+        if (type == TrackType.LETTERBOX && !obj.has("keyframes")) {
+            float ratio = optFloat(obj, "aspect_ratio", 2.35f);
+            Keyframe k0 = new Keyframe(0f, type, Map.of("aspect_ratio", ratio));
+            Keyframe k1 = new Keyframe(duration, type, Map.of("aspect_ratio", ratio));
+            keyframes = List.of(k0, k1);
         }
 
         // 验证
-        if (keyframes.isEmpty()) {
+        if (type == TrackType.CAMERA && keyframes.isEmpty()) {
             throw new ScriptParseException(p, "camera clip 的 keyframes 至少1个");
         }
         if (duration == 0f) {
             throw new ScriptParseException(p + ".duration", "不允许为0，正数=有限时长，负数=无限时长，实际: " + duration);
         }
-        if (curve != null && !curve.isValid()) {
-            throw new ScriptParseException(p + ".curve", "control_points 必须恰好2个点");
+        if (data.containsKey("curve")) {
+            BezierCurve curve = (BezierCurve) data.get("curve");
+            if (curve != null && !curve.isValid()) {
+                throw new ScriptParseException(p + ".curve", "control_points 必须恰好2个点");
+            }
         }
 
         // 验证关键帧时间单调递增
@@ -274,38 +236,109 @@ public class ScriptParser {
             }
         }
 
-        return new CameraClip(startTime, duration, transition, transitionDuration,
-                interpolation, curve, positionModeRelative, loop, loopCount, keyframes);
+        return new Clip(startTime, duration, type, data, keyframes);
     }
+    // ========== Keyframe 解析（统一 schema 驱动）==========
 
-    // ========== CameraKeyframe 解析 ==========
-
-    private static CameraKeyframe parseCameraKeyframe(JsonObject obj, String p, boolean positionModeRelative) throws ScriptParseException {
+    private static Keyframe parseKeyframe(JsonObject obj, String p, TrackType type) throws ScriptParseException {
         float time = requireFloat(obj, p, "time");
-        // position 为必填字段，缺少时抛异常防止后续 NPE
-        if (!obj.has("position")) {
-            throw new ScriptParseException(p + ".position", "缺少必填字段 position");
-        }
-        PositionData position = parsePositionData(obj.getAsJsonObject("position"), p + ".position", positionModeRelative);
-        float yaw   = optFloat(obj, "yaw", 0f);
-        float pitch = optFloat(obj, "pitch", 0f);
-        float roll  = optFloat(obj, "roll", 0f);
-        float fov   = optFloat(obj, "fov", 70f);
-        float zoom = optFloat(obj, "zoom", 1.0f);
-        float dof = optFloat(obj, "dof", 0f);
-
         if (time < 0) {
             throw new ScriptParseException(p + ".time", "不能为负数: " + time);
         }
+        Map<String, Object> data = new HashMap<>();
+        for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
+            String fieldName = entry.getKey();
+            if ("time".equals(fieldName)) continue;
+            Object value = parseFieldBySchema(fieldName, entry.getValue(), p, type, true);
+            if (value != null) data.put(fieldName, value);
+        }
+        // 校验必填字段（来自 schema）
+        for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getKeyframeFields(type).entrySet()) {
+            if (e.getValue().required() && !data.containsKey(e.getKey()) && !obj.has(e.getKey())) {
+                throw new ScriptParseException(p + "." + e.getKey(), "缺少必填字段");
+            }
+        }
+        return new Keyframe(time, type, data);
+    }
 
-        return new CameraKeyframe(time, position, yaw, pitch, roll, fov, zoom, dof);
+    /**
+     * 根据 schema 字段类型解析一个 JSON 值
+     */
+    private static Object parseFieldBySchema(String fieldName, JsonElement value, String p,
+                                              TrackType type, boolean isKeyframe) throws ScriptParseException {
+        SchemaLoader.FieldDef def = isKeyframe
+                ? SchemaLoader.getKeyframeFields(type).get(fieldName)
+                : SchemaLoader.getClipFields(type).get(fieldName);
+
+        if (def == null) {
+            // 不在 schema 中的字段 — 简单类型自动解析（向前兼容）
+            if (value.isJsonPrimitive()) {
+                if (value.getAsJsonPrimitive().isNumber()) {
+                    return value.getAsFloat();
+                } else if (value.getAsJsonPrimitive().isBoolean()) {
+                    return value.getAsBoolean();
+                } else {
+                    return value.getAsString();
+                }
+            } else if (value.isJsonArray()) {
+                return parseUnknownArray(value.getAsJsonArray(), p + "." + fieldName);
+            } else if (value.isJsonObject()) {
+                return parseUnknownObject(value.getAsJsonObject(), p + "." + fieldName);
+            }
+            return null;
+        }
+
+        return switch (def.type()) {
+            case "float", "int" -> value.getAsJsonPrimitive().isNumber() ? value.getAsFloat() : null;
+            case "string" -> value.getAsString();
+            case "bool" -> value.getAsBoolean();
+            case "position" -> {
+                if (!value.isJsonObject()) throw new ScriptParseException(p + "." + fieldName, "position 需要 JSON 对象");
+                // 从 clip 级无法直接获取 position_mode，但我们会从实际 JSON 推断
+                JsonObject posObj = value.getAsJsonObject();
+                boolean relative = posObj.has("dx");
+                if (relative) {
+                    yield PositionData.relative(
+                            requireFloat(posObj, p + "." + fieldName, "dx"),
+                            requireFloat(posObj, p + "." + fieldName, "dy"),
+                            requireFloat(posObj, p + "." + fieldName, "dz"));
+                } else {
+                    yield PositionData.absolute(
+                            requireFloat(posObj, p + "." + fieldName, "x"),
+                            requireFloat(posObj, p + "." + fieldName, "y"),
+                            requireFloat(posObj, p + "." + fieldName, "z"));
+                }
+            }
+            case "bezier_curve" -> parseBezierCurve(value.getAsJsonObject(), p + "." + fieldName);
+            case "map" -> {
+                if (value.isJsonObject()) {
+                    yield parseDataMap(value.getAsJsonObject(), p + "." + fieldName);
+                }
+                yield null;
+            }
+            default -> null;
+        };
+    }
+
+    // ========== BezierCurve 解析 ==========
+
+    private static BezierCurve parseBezierCurve(JsonObject obj, String p) throws ScriptParseException {
+        String type = optString(obj, "type", "bezier");
+        JsonArray cpArr = requireArray(obj, p, "control_points");
+        if (cpArr.size() != 2) {
+            throw new ScriptParseException(p + ".control_points", "必须恰好2个控制点，实际: " + cpArr.size());
+        }
+        List<Vec3> controlPoints = new ArrayList<>();
+        for (int i = 0; i < cpArr.size(); i++) {
+            controlPoints.add(parseVec3(cpArr.get(i).getAsJsonObject(), p + ".control_points[" + i + "]"));
+        }
+        return new BezierCurve(type, controlPoints);
     }
 
     // ========== PositionData 解析 ==========
 
     private static PositionData parsePositionData(JsonObject obj, String p, boolean positionModeRelative) throws ScriptParseException {
         if (positionModeRelative) {
-            // relative 模式：dx/dy/dz
             if (!obj.has("dx")) {
                 throw new ScriptParseException(p, "relative 模式需要 dx/dy/dz 字段");
             }
@@ -314,7 +347,6 @@ public class ScriptParser {
             float dz = requireFloat(obj, p, "dz");
             return PositionData.relative(dx, dy, dz);
         } else {
-            // absolute 模式：x/y/z
             if (!obj.has("x")) {
                 throw new ScriptParseException(p, "absolute 模式需要 x/y/z 字段");
             }
@@ -325,158 +357,47 @@ public class ScriptParser {
         }
     }
 
-    private static LetterboxKeyframe parseLetterboxKeyframe(JsonObject obj, String p) throws ScriptParseException {
-        float time = requireFloat(obj, p, "time");
-        float aspectRatio = optFloat(obj, "aspect_ratio", 2.35f);
-        return new LetterboxKeyframe(time, aspectRatio);
-    }
+    // ========== 触发器定义解析 ==========
 
-    // ========== BezierCurve 解析 ==========
-
-    private static BezierCurve parseBezierCurve(JsonObject obj, String p) throws ScriptParseException {
-        String type = optString(obj, "type", "bezier");
-        JsonArray cpArr = requireArray(obj, p, "control_points");
-
-        if (cpArr.size() != 2) {
-            throw new ScriptParseException(p + ".control_points", "必须恰好2个控制点，实际: " + cpArr.size());
-        }
-
-        List<Vec3> controlPoints = new ArrayList<>();
-        for (int i = 0; i < cpArr.size(); i++) {
-            controlPoints.add(parseVec3(cpArr.get(i).getAsJsonObject(), p + ".control_points[" + i + "]"));
-        }
-
-        return new BezierCurve(type, controlPoints);
-    }
-
-    // ========== LetterboxClip 解析 ==========
-
-    private static List<LetterboxClip> parseLetterboxClips(JsonArray clipsArr, String p) throws ScriptParseException {
-        List<LetterboxClip> clips = new ArrayList<>();
-        for (int i = 0; i < clipsArr.size(); i++) {
-            JsonObject obj = clipsArr.get(i).getAsJsonObject();
-            String cp = p + "[" + i + "]";
-            if (!obj.has("keyframes")) {
-                float ratio = optFloat(obj, "aspect_ratio", 2.35f);
-                float dur = requireFloat(obj, cp, "duration");
-                LetterboxKeyframe k0 = new LetterboxKeyframe(0f, ratio);
-                LetterboxKeyframe k1 = new LetterboxKeyframe(dur, ratio);
-                clips.add(new LetterboxClip(
-                        requireFloat(obj, cp, "start_time"), dur, List.of(k0, k1)));
-                continue;
-            }
-            JsonArray kfArr = obj.getAsJsonArray("keyframes");
-            List<LetterboxKeyframe> kfs = new ArrayList<>();
-            for (int j = 0; j < kfArr.size(); j++) {
-                kfs.add(parseLetterboxKeyframe(kfArr.get(j).getAsJsonObject(), cp + ".keyframes[" + j + "]"));
-            }
-            clips.add(new LetterboxClip(
-                    requireFloat(obj, cp, "start_time"),
-                    requireFloat(obj, cp, "duration"),
-                    kfs
-            ));
-        }
-        return clips;
-    }
-
-    // ========== AudioClip 解析 ==========
-
-    private static List<AudioClip> parseAudioClips(JsonArray clipsArr, String p) throws ScriptParseException {
-        List<AudioClip> clips = new ArrayList<>();
-        for (int i = 0; i < clipsArr.size(); i++) {
-            JsonObject obj = clipsArr.get(i).getAsJsonObject();
-            String cp = p + "[" + i + "]";
-            clips.add(new AudioClip(
-                    requireFloat(obj, cp, "start_time"),
-                    requireFloat(obj, cp, "duration"),
-                    requireString(obj, cp, "sound"),
-                    optFloat(obj, "volume", 1.0f),
-                    optFloat(obj, "pitch", 1.0f),
-                    optBool(obj, "loop", false),
-                    optFloat(obj, "fade_in", 0f),
-                    optFloat(obj, "fade_out", 0f)
-            ));
-        }
-        return clips;
-    }
-
-    // ========== EventClip 解析 ==========
-
-    private static List<EventClip> parseEventClips(JsonArray clipsArr, String p) throws ScriptParseException {
-        List<EventClip> clips = new ArrayList<>();
-        for (int i = 0; i < clipsArr.size(); i++) {
-            JsonObject obj = clipsArr.get(i).getAsJsonObject();
-            String cp = p + "[" + i + "]";
-            clips.add(new EventClip(
-                    requireFloat(obj, cp, "start_time"),
-                    requireFloat(obj, cp, "duration"),
-                    requireString(obj, cp, "event_type"),
-                    requireString(obj, cp, "command")
-            ));
-        }
-        return clips;
-    }
-
-    // ========== ModEventClip 解析 ==========
-
-    private static List<ModEventClip> parseModEventClips(JsonArray clipsArr, String p) throws ScriptParseException {
-        List<ModEventClip> clips = new ArrayList<>();
-        for (int i = 0; i < clipsArr.size(); i++) {
-            JsonObject obj = clipsArr.get(i).getAsJsonObject();
-            String cp = p + "[" + i + "]";
-
-            Map<String, Object> data = new HashMap<>();
-            if (obj.has("data") && obj.get("data").isJsonObject()) {
-                data = parseDataMap(obj.getAsJsonObject("data"), cp + ".data");
-            }
-
-            clips.add(new ModEventClip(
-                    requireFloat(obj, cp, "start_time"),
-                    requireFloat(obj, cp, "duration"),
-                    requireString(obj, cp, "event_type"),
-                    data
-            ));
-        }
-        return clips;
+    private static TriggerDefinition parseTriggerDefinition(JsonObject obj, String p) throws ScriptParseException {
+        String type = requireString(obj, p, "type");
+        Map<String, Object> conditions = obj.has("conditions")
+                ? parseDataMap(obj.getAsJsonObject("conditions"), p + ".conditions")
+                : new HashMap<>();
+        boolean repeatable = optBool(obj, "repeatable", false);
+        float delay = optFloat(obj, "delay", 0f);
+        boolean onEnter = optBool(obj, "on_enter", false);
+        float exitBuffer = optFloat(obj, "exit_buffer", 0f);
+        return new TriggerDefinition(type, conditions, repeatable, delay, onEnter, exitBuffer);
     }
 
     // ========== 验证方法 ==========
 
     private static void validateTracks(List<TimelineTrack> tracks, String p) throws ScriptParseException {
-        // O2: 轨道数量限制改为警告而非错误
         long cameraCount = tracks.stream().filter(t -> t.getType() == TrackType.CAMERA).count();
         if (cameraCount > 1) {
             LOGGER.warn("检测到 {} 条 CAMERA 轨道，当前仅支持第1条", cameraCount);
         }
-
         long letterboxCount = tracks.stream().filter(t -> t.getType() == TrackType.LETTERBOX).count();
         if (letterboxCount > 1) {
             LOGGER.warn("检测到 {} 条 LETTERBOX 轨道，建议最多1条", letterboxCount);
         }
-
         long eventCount = tracks.stream().filter(t -> t.getType() == TrackType.EVENT).count();
         if (eventCount > 1) {
             LOGGER.warn("检测到 {} 条 EVENT 轨道，建议最多1条", eventCount);
         }
 
-        // F1: morph 约束降级为警告
         for (TimelineTrack track : tracks) {
             if (track.getType() == TrackType.CAMERA) {
-                List<CameraClip> clips = track.getCameraClips();
+                List<Clip> clips = track.getClips();
                 for (int i = 1; i < clips.size(); i++) {
-                    CameraClip clip = clips.get(i);
-                    CameraClip prevClip = clips.get(i - 1);
+                    Clip clip = clips.get(i);
+                    Clip prevClip = clips.get(i - 1);
                     if (clip.isMorph() && prevClip != null) {
                         if (prevClip.isPositionModeRelative() != clip.isPositionModeRelative()) {
-                            LOGGER.warn("morph 相邻 clip 的 position_mode 不同（{} → {}），" +
-                                    "运行时已统一为世界坐标，混合结果可能非预期",
+                            LOGGER.warn("morph 相邻 clip 的 position_mode 不同（{} → {}），运行时已统一为世界坐标，混合结果可能非预期",
                                     prevClip.isPositionModeRelative() ? "relative" : "absolute",
                                     clip.isPositionModeRelative() ? "relative" : "absolute");
-                        }
-                        if (prevClip.getInterpolation() != clip.getInterpolation()) {
-                            LOGGER.warn("morph 相邻 clip 的 interpolation 不同（{} → {}），" +
-                                    "混合结果可能产生速度跳变",
-                                    prevClip.getInterpolation(), clip.getInterpolation());
                         }
                     }
                 }
@@ -490,26 +411,7 @@ public class ScriptParser {
         try {
             return TrackType.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new ScriptParseException(p, "未知的轨道类型: " + value +
-                    "，支持: camera/letterbox/audio/event/mod_event");
-        }
-    }
-
-    private static InterpolationType parseInterpolationType(String value, String p) throws ScriptParseException {
-        try {
-            return InterpolationType.valueOf(value.toUpperCase());
-        } catch (IllegalArgumentException e) {
-throw new ScriptParseException(p, "未知的速度曲线类型: " + value +
-        "，支持: linear");
-        }
-    }
-
-    private static TransitionType parseTransitionType(String value, String p) throws ScriptParseException {
-        try {
-            return TransitionType.valueOf(value.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new ScriptParseException(p, "未知的过渡类型: " + value +
-                    "，支持: cut/morph");
+            throw new ScriptParseException(p, "未知的轨道类型: " + value + "，支持: camera/letterbox/audio/event/mod_event");
         }
     }
 
@@ -565,19 +467,58 @@ throw new ScriptParseException(p, "未知的速度曲线类型: " + value +
         return list;
     }
 
+    // Fallback: for unknown JSON objects, parse as Map
+    private static Map<String, Object> parseUnknownObject(JsonObject obj, String p) {
+        Map<String, Object> map = new HashMap<>();
+        for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
+            JsonElement val = entry.getValue();
+            if (val.isJsonPrimitive()) {
+                if (val.getAsJsonPrimitive().isNumber()) {
+                    map.put(entry.getKey(), val.getAsFloat());
+                } else if (val.getAsJsonPrimitive().isBoolean()) {
+                    map.put(entry.getKey(), val.getAsBoolean());
+                } else {
+                    map.put(entry.getKey(), val.getAsString());
+                }
+            } else if (val.isJsonObject()) {
+                map.put(entry.getKey(), parseUnknownObject(val.getAsJsonObject(), p + "." + entry.getKey()));
+            } else if (val.isJsonArray()) {
+                map.put(entry.getKey(), parseUnknownArray(val.getAsJsonArray(), p + "." + entry.getKey()));
+            }
+        }
+        return map;
+    }
+
+    private static Object parseUnknownArray(JsonArray arr, String p) {
+        List<Object> list = new ArrayList<>();
+        for (int i = 0; i < arr.size(); i++) {
+            JsonElement val = arr.get(i);
+            if (val.isJsonPrimitive()) {
+                if (val.getAsJsonPrimitive().isNumber()) {
+                    list.add(val.getAsFloat());
+                } else if (val.getAsJsonPrimitive().isBoolean()) {
+                    list.add(val.getAsBoolean());
+                } else {
+                    list.add(val.getAsString());
+                }
+            } else if (val.isJsonObject()) {
+                list.add(parseUnknownObject(val.getAsJsonObject(), p + "[" + i + "]"));
+            } else if (val.isJsonArray()) {
+                list.add(parseUnknownArray(val.getAsJsonArray(), p + "[" + i + "]"));
+            }
+        }
+        return list;
+    }
+
     // ========== JSON 读取辅助（必填/可选） ==========
 
     private static String requireString(JsonObject obj, String p, String key) throws ScriptParseException {
-        if (!obj.has(key)) {
-            throw new ScriptParseException(p + "." + key, "缺少必填字段");
-        }
+        if (!obj.has(key)) throw new ScriptParseException(p + "." + key, "缺少必填字段");
         return obj.get(key).getAsString();
     }
 
     private static int requireInt(JsonObject obj, String p, String key) throws ScriptParseException {
-        if (!obj.has(key)) {
-            throw new ScriptParseException(p + "." + key, "缺少必填字段");
-        }
+        if (!obj.has(key)) throw new ScriptParseException(p + "." + key, "缺少必填字段");
         try {
             return obj.get(key).getAsInt();
         } catch (NumberFormatException e) {
@@ -586,9 +527,7 @@ throw new ScriptParseException(p, "未知的速度曲线类型: " + value +
     }
 
     private static float requireFloat(JsonObject obj, String p, String key) throws ScriptParseException {
-        if (!obj.has(key)) {
-            throw new ScriptParseException(p + "." + key, "缺少必填字段");
-        }
+        if (!obj.has(key)) throw new ScriptParseException(p + "." + key, "缺少必填字段");
         try {
             return obj.get(key).getAsFloat();
         } catch (NumberFormatException e) {

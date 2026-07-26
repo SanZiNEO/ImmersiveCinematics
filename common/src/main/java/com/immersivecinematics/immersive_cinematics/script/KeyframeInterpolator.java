@@ -37,8 +37,8 @@ public final class KeyframeInterpolator {
      * @return 插值结果，包含 from/to 关键帧和弧长进度 s；
      *         如果时间在关键帧范围外，返回 null
      */
-    public static InterpolationResult computeInterpolation(float clipTime, CameraClip clip) {
-        List<CameraKeyframe> keyframes = clip.getKeyframes();
+    public static InterpolationResult computeInterpolation(float clipTime, Clip clip) {
+        List<Keyframe> keyframes = clip.getKeyframes();
         if (keyframes == null || keyframes.isEmpty()) return null;
 
         float effectiveTime = clipTime;
@@ -50,8 +50,8 @@ public final class KeyframeInterpolator {
                 if (clip.getLoopCount() > 0) {
                     float maxLoopTime = animPeriod * clip.getLoopCount();
                     if (effectiveTime >= maxLoopTime) {
-                        CameraKeyframe last = keyframes.get(keyframes.size() - 1);
-                        CameraKeyframe secondLast = keyframes.get(keyframes.size() - 2);
+                        Keyframe last = keyframes.get(keyframes.size() - 1);
+                        Keyframe secondLast = keyframes.get(keyframes.size() - 2);
                         return new InterpolationResult(secondLast, last, 1.0f);
                     }
                 }
@@ -61,8 +61,8 @@ public final class KeyframeInterpolator {
         }
 
         // 找到当前所处的两个关键帧
-        CameraKeyframe from = null;
-        CameraKeyframe to = null;
+        Keyframe from = null;
+        Keyframe to = null;
         int fromIndex = -1;
 
         for (int i = 0; i < keyframes.size() - 1; i++) {
@@ -78,7 +78,7 @@ public final class KeyframeInterpolator {
             if (effectiveTime <= keyframes.get(0).getTime()) {
                 return new InterpolationResult(keyframes.get(0), keyframes.get(0), 0f);
             } else {
-                CameraKeyframe last = keyframes.get(keyframes.size() - 1);
+                Keyframe last = keyframes.get(keyframes.size() - 1);
                 return new InterpolationResult(last, last, 1f);
             }
         }
@@ -112,7 +112,7 @@ public final class KeyframeInterpolator {
      * @param clip 所属片段（用于获取贝塞尔曲线和位置模式）
      * @return 插值后的位置
      */
-    public static Vec3 interpolatePosition(CameraKeyframe from, CameraKeyframe to, float s, CameraClip clip) {
+    public static Vec3 interpolatePosition(Keyframe from, Keyframe to, float s, Clip clip) {
         String curveType = (clip.getCurve() != null) ? clip.getCurve().getType() : null;
         PathStrategy strategy = PathStrategies.get(curveType);
         return interpolatePosition(from, to, s, clip, strategy);
@@ -131,7 +131,7 @@ public final class KeyframeInterpolator {
      * @param strategy 路径策略实例（允许调用者传入独立实例而非全局单例）
      * @return 插值后的位置
      */
-    public static Vec3 interpolatePosition(CameraKeyframe from, CameraKeyframe to, float s, CameraClip clip, PathStrategy strategy) {
+    public static Vec3 interpolatePosition(Keyframe from, Keyframe to, float s, Clip clip, PathStrategy strategy) {
         Vec3 p0 = from.getPosition().toVec3();
         Vec3 p3 = to.getPosition().toVec3();
         Vec3 result = strategy.interpolate(p0, p3, s, clip.getCurve());
@@ -143,7 +143,7 @@ public final class KeyframeInterpolator {
     /**
      * 在两个关键帧之间插值偏航角（角度环绕插值）
      */
-    public static float interpolateYaw(CameraKeyframe from, CameraKeyframe to, float s) {
+    public static float interpolateYaw(Keyframe from, Keyframe to, float s) {
         float result = MathUtil.lerpAngle(from.getYaw(), to.getYaw(), s);
         return MathUtil.sanitizeFloat(result, from.getYaw());
     }
@@ -151,7 +151,7 @@ public final class KeyframeInterpolator {
     /**
      * 在两个关键帧之间插值俯仰角（线性插值）
      */
-    public static float interpolatePitch(CameraKeyframe from, CameraKeyframe to, float s) {
+    public static float interpolatePitch(Keyframe from, Keyframe to, float s) {
         float result = MathUtil.lerp(from.getPitch(), to.getPitch(), s);
         return MathUtil.sanitizeFloat(result, from.getPitch());
     }
@@ -159,24 +159,24 @@ public final class KeyframeInterpolator {
     /**
      * 在两个关键帧之间插值滚转角（角度环绕插值）
      */
-    public static float interpolateRoll(CameraKeyframe from, CameraKeyframe to, float s) {
+    public static float interpolateRoll(Keyframe from, Keyframe to, float s) {
         float result = MathUtil.lerpAngle(from.getRoll(), to.getRoll(), s);
         return MathUtil.sanitizeFloat(result, from.getRoll());
     }
 
     // ========== 光学插值 ==========
 
-    public static float interpolateFov(CameraKeyframe from, CameraKeyframe to, float s) {
+    public static float interpolateFov(Keyframe from, Keyframe to, float s) {
         float result = MathUtil.lerp(from.getFov(), to.getFov(), s);
         return MathUtil.sanitizeFloat(result, from.getFov());
     }
 
-    public static float interpolateZoom(CameraKeyframe from, CameraKeyframe to, float s) {
+    public static float interpolateZoom(Keyframe from, Keyframe to, float s) {
         float result = MathUtil.lerp(from.getZoom(), to.getZoom(), s);
         return MathUtil.sanitizeFloat(result, from.getZoom());
     }
 
-    public static float interpolateDof(CameraKeyframe from, CameraKeyframe to, float s) {
+    public static float interpolateDof(Keyframe from, Keyframe to, float s) {
         float result = MathUtil.lerp(from.getDof(), to.getDof(), s);
         return MathUtil.sanitizeFloat(result, from.getDof());
     }
@@ -188,13 +188,13 @@ public final class KeyframeInterpolator {
      */
     public static class InterpolationResult {
         /** 起始关键帧 */
-        public final CameraKeyframe from;
+        public final Keyframe from;
         /** 目标关键帧 */
-        public final CameraKeyframe to;
+        public final Keyframe to;
         /** 弧长进度 s [0, 1]（匀速模型下 s = t） */
         public final float adjustedT;
 
-        public InterpolationResult(CameraKeyframe from, CameraKeyframe to, float adjustedT) {
+        public InterpolationResult(Keyframe from, Keyframe to, float adjustedT) {
             this.from = from;
             this.to = to;
             this.adjustedT = adjustedT;

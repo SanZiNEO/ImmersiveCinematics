@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "track_types": {
+    "CAMERA": {
+      "clips": {
+        "transition": { "type": "enum", "values": ["cut", "morph"], "default": "cut" },
+        "transition_duration": { "type": "float", "default": 0.5 },
+        "interpolation": { "type": "enum", "values": ["linear"], "default": "linear" },
+        "curve": { "type": "bezier_curve" },
+        "position_mode": { "type": "enum", "values": ["relative", "absolute"], "default": "relative" },
+        "loop": { "type": "bool", "default": false },
+        "loop_count": { "type": "int", "default": -1 }
+      },
+      "keyframes": {
+        "position": { "type": "position", "required": true },
+        "yaw": { "type": "float", "default": 0 },
+        "pitch": { "type": "float", "default": 0 },
+        "roll": { "type": "float", "default": 0 },
+        "fov": { "type": "float", "default": 70 },
+        "zoom": { "type": "float", "default": 1.0 },
+        "dof": { "type": "float", "default": 0 }
+      }
+    },
+    "LETTERBOX": {
+      "clips": {},
+      "keyframes": {
+        "aspect_ratio": { "type": "float", "default": 2.35 }
+      }
+    },
+    "AUDIO": {
+      "clips": {
+        "sound": { "type": "string", "required": true },
+        "volume": { "type": "float", "default": 1.0 },
+        "pitch": { "type": "float", "default": 1.0 },
+        "loop": { "type": "bool", "default": false },
+        "fade_in": { "type": "float", "default": 0 },
+        "fade_out": { "type": "float", "default": 0 }
+      },
+      "keyframes": {}
+    },
+    "EVENT": {
+      "clips": {
+        "event_type": { "type": "string", "required": true },
+        "command": { "type": "string", "required": true }
+      },
+      "keyframes": {}
+    },
+    "MOD_EVENT": {
+      "clips": {
+        "event_type": { "type": "string", "required": true },
+        "data": { "type": "map" }
+      },
+      "keyframes": {}
+    }
+  }
+}
