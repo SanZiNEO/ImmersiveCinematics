@@ -29,6 +29,7 @@ public class LeftPanelArea extends UIComponent {
     private static final int TAB_HEIGHT = 20;
     private static final int TAB_GAP = 2;
     private boolean dataDirty = true;
+    private long lastBuildTime;
 
     private int scrollY;
     private int maxScroll;
@@ -97,6 +98,13 @@ public class LeftPanelArea extends UIComponent {
             case TRACK_LIST -> buildTrackList();
         }
         computeContentHeightAndClampScroll();
+    }
+    // Debounce: skip builds within 150ms to avoid flash on rapid property edits
+    private void scheduleBuild() {
+        long now = System.currentTimeMillis();
+        if (now - lastBuildTime < 150) return;
+        lastBuildTime = now;
+        build();
     }
 
     private void buildScriptList() {
@@ -266,6 +274,7 @@ public class LeftPanelArea extends UIComponent {
             }
             case "EVENT" -> {
                 addDefault(clip, "event_type", "command");
+                addDefault(clip, "command", "");
             }
             case "MOD_EVENT" -> {
                 addDefault(clip, "event_type", "");
@@ -278,6 +287,7 @@ public class LeftPanelArea extends UIComponent {
             addDefault(kf, "aspect_ratio", 2.35f);
             return;
         }
+        if (!"CAMERA".equals(trackType)) return; // AUDIO/EVENT/MOD_EVENT have no kf fields
         addDefault(kf, "yaw", 0f);
         addDefault(kf, "pitch", 0f);
         addDefault(kf, "roll", 0f);
@@ -357,7 +367,7 @@ public class LeftPanelArea extends UIComponent {
                 parentObj.remove(key);
             }
             if (onDirty != null) onDirty.run();
-            build();
+            scheduleBuild();
         });
 
         if (!hasValue) {
@@ -390,7 +400,7 @@ public class LeftPanelArea extends UIComponent {
                 convertKeyframePositions(parentObj, next);
             }
             if (onDirty != null) onDirty.run();
-            build();
+            scheduleBuild();
         });
         btn.color(0x00, 0x44333A3A).textColor(0xFFAAAAAA);
         children.add(btn);
@@ -496,8 +506,11 @@ public class LeftPanelArea extends UIComponent {
     }
 
     private static String fmtDuration(float s) {
-        int m = (int)(s / 60);
-        int sec = (int)(s % 60);
+        int totalSec = Math.round(s);
+        int h = totalSec / 3600;
+        int m = (totalSec % 3600) / 60;
+        int sec = totalSec % 60;
+        if (h > 0) return String.format("%d:%02d:%02d (%.1fs)", h, m, sec, s);
         return String.format("%d:%02d (%.1fs)", m, sec, s);
     }
 
