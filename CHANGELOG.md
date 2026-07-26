@@ -1,24 +1,74 @@
 ## [0.3.3] - 2026-07-26
 
-Architectury 多平台迁移后的首个维护版本。全面重构运行时数据模型，统一 5 个 Clip 类和 2 个 Keyframe 类为 schema 驱动的通用容器。
+Architectury 多平台迁移 + 编辑器交互大优化 + 播放器数据对齐。
 
-### Added
-- 新增 `schema.json` 定义所有轨道类型的字段结构和默认值
-- 新增 `SchemaLoader` 加载运行时字段定义
-- 新增统一 `Clip`/`Keyframe` 容器类，删除 7 个旧专用类
+### Added — 编辑器交互
+- **缩放系统**：Ctrl+滚轮以鼠标位置为中心缩放（每步25%），滚轮=水平滚动，Ctrl+0 重置为 1:1
+- **播放头与标尺**：纵贯全轨道的红色竖线 + 三角形指示器，标尺主/次刻度线，点击空白处跳转播放头
+- **多轨道渲染**：5 种轨道（CAMERA/LETTERBOX/AUDIO/EVENT/MOD_EVENT）全部独立显示，左侧标签列 + 颜色标记 + 分隔线 + 空轨道提示
+- **视觉设计**：clip 按轨道类型着色（蓝/绿/黄/红/紫），3D 凸起边框，选中态金色左侧条，clip 名称标签
+- **拖拽吸附**：半透明 ghost 拖拽预览，8px 阈值吸附到播放头/clip 边缘，金色闪烁吸附指示器
+- **框选与多选**：矩形框选（蓝色半透明）选中范围内所有 clip，Ctrl+click 多选切换，`sel.selectClips()` 全量选择
+- **右键菜单**：新建通用 ContextMenu 组件，支持 clip（复制/删除/添加关键帧）、空白（添加clip/新增轨道/吸附排列）、标尺（跳转）三种右键菜单
+- **标签栏**：LeftPanel 顶部 5 标签（Scripts/Properties/Clip/Keyframe/Tracks），TRACK_LIST 模式下可点击轨道行选中轨道
+- **轨道选中**：`selectedTrackIndex` 持久化轨道选中态，时间轴轨道高亮 + 标签列点击选轨
+- **关键帧空支持**：EVENT/AUDIO/MOD_EVENT 关键帧默认为空时间标记（仅 `{"time": x}`），不强制填充数据；`copyKeyframeProperties` 空安全
+- **剪贴板**：Ctrl+C 复制携带 `_trackType` 元数据，Ctrl+V 按轨道类型匹配自动粘贴，无匹配时自动 `addTrack`
+- **跨轨道操作**：Ctrl+↑/↓ 移动 clip 到上/下轨道，`moveClipToTrack`/`findTrackIndex`
+- **clip 分割（Razor）**：右键菜单"分割（在播放头位置）"，`EditorOperations.splitClip()` 拆分 keyframes
+
+### Added — 快捷键
+- `Space` 播放/暂停（300ms 防重复）、`Enter` 播放选中 clip
+- `Ctrl+A` 全选、`Ctrl+C` 复制、`Ctrl+V` 粘贴、`Ctrl+X` 剪切
+- `Ctrl+Z` 撤销、`Ctrl+Y`/`Ctrl+Shift+Z` 重做（50 步快照栈）
+- `←/→` 移动播放头 0.5s、`Shift+←/→` 5s
+- `Ctrl+←/→` 跳转 prev/next clip、`Ctrl+Shift+←/→` 时间线起点/终点
+- `Delete` 删除选中、`Ctrl+D` 复制偏移 0.5s
+- `F` 缩放至全部可见、`Ctrl+0` 重置缩放
+- `Home`/`End` 时间线起点/终点、`PageUp`/`PageDown` 上/下轨道
+- `[`/`]` 跳转 clip 起点/终点
+
+### Added — 播放器数据对齐
+- 新增 `EditorOperations.validateScript()` 保存前全量校验：version/duration/关键帧单调性/必填字段/同轨道重叠检测
+- 新增 `EditorOperations.sortTrackClips()` 保证 clips 数组按 start_time 升序，addClip/splitClip 后自动调用
+- `sortKeyframes()` 添加去重，相邻重复时间的关键帧自动合并
+- `EditorScreen.saveScript()` 调用 validateScript，有错误时阻断保存
+- EVENT clip 补齐必填字段 `command`，AUDIO 补齐 `sound`，`addClip()` 零时长保护
+- `transition`/`transition_duration` 从通用字段改为 CAMERA 专属，不再写入 AUDIO/EVENT/MOD_EVENT
 
 ### Changed
-- 运行时数据模型统一：`CameraClip`/`LetterboxClip`/`AudioClip`/`EventClip`/`ModEventClip` → 通用 `Clip` + `Map<String,Object> data`
-- 运行时数据模型统一：`CameraKeyframe`/`LetterboxKeyframe` → 通用 `Keyframe` + `Map<String,Object> data`
-- `TimelineTrack` 删除 5 个类型安全访问器，统一为 `getClips()` 返回 `List<Clip>`
-- `ScriptParser` 从每个轨道类型独立解析方法重构为 schema 驱动统一解析，新增轨道类型只需改 schema + 写 TrackPlayer
-- `UITextInput` 从实时提交改为失焦提交（Enter 确认），与 `UIFloatInput` 行为一致
-- `MenuBarArea`/`PreviewArea` 的 `mouseClicked` 提取共享静态方法 `UIComponent.dispatchMouseClicked()`
+- **Architectury 多平台迁移**：Forge + Fabric 统一构建（API 声明式配置、Mixin 模块化、事件总线抽象、网络层 AbstractPacket）
+- **运行时数据模型统一**：5 个 Clip 类 + 2 个 Keyframe 类 → schema 驱动通用 `Clip`/`Keyframe` + `Map<String,Object> data`
+- 新增 `schema.json` 定义所有轨道类型字段结构和默认值，`SchemaLoader` 运行时加载
+- `ScriptParser` 从独立解析方法重构为 schema 驱动统一解析
+- `TimelineTrack` 统一为 `getClips()`，删除 5 个类型安全访问器
+- `+C` 工具栏按钮改为按当前选中 clip 所在轨道添加，而非硬编码 CAMERA
+- `fillKeyframeDefaults()` 只对 CAMERA/LETTERBOX 填充默认值，AUDIO/EVENT/MOD_EVENT 保持空关键帧
+- `UITextInput` 从实时提交改为失焦提交（Enter 确认）
+- `MenuBarArea`/`PreviewArea` 的 `mouseClicked` 提取共享静态方法
+- LeftPanel 编辑触发 `scheduleBuild()` 防抖（150ms 内跳过重复重建）
+
+### Fixed
+- **致命**：EVENT clip 缺失 schema 必填字段 `command`，保存后播放器无法解析
+- **致命**：拖拽移动/裁剪/关键帧微调/属性编辑无撤销，操作后 Ctrl+Z 无效
+- `boxEndTime` 未初始化 → 点击空白处误触发从 t=0 开始的框选
+- 框选只选中第一个命中 clip，改为选中范围内所有 clip
+- Space 键码误绑为 57（数字 9），改为 32（Space）
+- Space 按住时重复触发播放/暂停，300ms 冷却防护
+- `fmt()` 无小时位 → `fmt(3661)` = `"61:01"`，改为 `"1:01:01"`
+- 标尺刻度极限缩放下异常（≤5s 时 interval=10s 零刻度），改为 0.5s/1s/5s/10s 自适应
+- 时间轴 render() 缺少 `drawTracks()`/`drawPlayhead()` 调用，导致时间轴空白
+- 点击末帧关键帧预览错位（边界时间在半开区间外），微减 0.001s 保持在活跃区间内
+- `copyKeyframeProperties()` 空指针风险，改为空安全访问
+- `sortKeyframes()` 不防重复时间，添加去重
+- 硬编码 `transition`/`transition_duration` 写入非 CAMERA clip
+- `ensureBoundaryKeyframes()` 仅非空源才复制属性
 
 ### Removed
 - `CameraClip.java`、`CameraKeyframe.java`、`LetterboxClip.java`、`LetterboxKeyframe.java`
 - `AudioClip.java`、`EventClip.java`、`ModEventClip.java`
-
+- `onClickEmpty` 回调（已合并到点击空白跳转播放头）
+- `architectury` 分支（已合并到 main）
 # Changelog
 
 ## [0.3.2] - 2026-06-16
