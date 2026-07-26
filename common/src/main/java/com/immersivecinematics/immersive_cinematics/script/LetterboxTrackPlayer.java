@@ -2,17 +2,19 @@ package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.overlay.LetterboxLayer;
+import com.immersivecinematics.immersive_cinematics.script.Clip;
+import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 
 import java.util.List;
 
 public class LetterboxTrackPlayer implements TrackPlayer {
 
-    private final List<LetterboxClip> clips;
+    private final List<Clip> clips;
     private final OverlayManager overlayManager;
     private int lastClipIdx = -1;
 
     public LetterboxTrackPlayer(TimelineTrack track, OverlayManager overlayManager) {
-        this.clips = track.getLetterboxClips();
+        this.clips = track.getClips();
         this.overlayManager = overlayManager;
     }
 
@@ -24,7 +26,7 @@ public class LetterboxTrackPlayer implements TrackPlayer {
     @Override
     public void onRenderFrame(float globalTime) {
         LetterboxLayer letterbox = overlayManager.getLetterboxLayer();
-        LetterboxClip activeClip = findActiveClip(globalTime);
+        Clip activeClip = findActiveClip(globalTime);
 
         if (activeClip == null) {
             letterbox.setAspectRatio(0.0f);
@@ -34,7 +36,7 @@ public class LetterboxTrackPlayer implements TrackPlayer {
 
         int clipIdx = clips.indexOf(activeClip);
         float localTime = clipTime(activeClip, globalTime);
-        List<LetterboxKeyframe> kfs = activeClip.getKeyframes();
+        List<Keyframe> kfs = activeClip.getKeyframes();
 
         if (kfs == null || kfs.isEmpty()) {
             lastClipIdx = clipIdx;
@@ -45,7 +47,7 @@ public class LetterboxTrackPlayer implements TrackPlayer {
         if (kfs.size() < 2) {
             ratio = kfs.get(0).getAspectRatio();
         } else {
-            LetterboxKeyframe from = kfs.get(0), to = kfs.get(kfs.size() - 1);
+            Keyframe from = kfs.get(0), to = kfs.get(kfs.size() - 1);
             for (int i = 0; i < kfs.size() - 1; i++) {
                 if (localTime >= kfs.get(i).getTime() && localTime <= kfs.get(i + 1).getTime()) {
                     from = kfs.get(i);
@@ -70,12 +72,12 @@ public class LetterboxTrackPlayer implements TrackPlayer {
         overlayManager.getLetterboxLayer().setAspectRatio(0.0f);
     }
 
-    private float clipTime(LetterboxClip clip, float globalTime) {
+    private float clipTime(Clip clip, float globalTime) {
         return Math.max(0f, Math.min(clip.getDuration(), globalTime - clip.getStartTime()));
     }
 
-    private LetterboxClip findActiveClip(float globalTime) {
-        for (LetterboxClip clip : clips) {
+    private Clip findActiveClip(float globalTime) {
+        for (Clip clip : clips) {
             boolean isActive;
             if (clip.getDuration() < 0) {
                 isActive = globalTime >= clip.getStartTime();

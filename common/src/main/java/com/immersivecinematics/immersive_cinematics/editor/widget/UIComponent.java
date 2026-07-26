@@ -106,4 +106,15 @@ public abstract class UIComponent {
             ctx.graphics.renderTooltip(ctx.font, net.minecraft.network.chat.Component.literal(tooltip), ctx.mouseX, ctx.mouseY);
         }
     }
+
+    /**
+     * 通用 mouseClicked 分发 — 记录 area 点击日志后倒序遍历子组件
+     */
+    public static boolean dispatchMouseClicked(UIContext ctx, List<UIComponent> children, String areaName) {
+        com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger.areaHit(areaName, "full_area", ctx.mouseX, ctx.mouseY, true);
+        for (int i = children.size() - 1; i >= 0; i--) {
+            if (children.get(i).mouseClicked(ctx)) return true;
+        }
+        return false;
+    }
 }

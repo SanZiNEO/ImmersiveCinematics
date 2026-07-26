@@ -117,11 +117,7 @@ public class PreviewArea extends UIComponent {
 
     @Override
     public boolean mouseClicked(UIContext ctx) {
-        EditorLogger.areaHit(EditorLogger.PREVIEW, "full_area", ctx.mouseX, ctx.mouseY, true);
-        for (int i = children.size() - 1; i >= 0; i--) {
-            if (children.get(i).mouseClicked(ctx)) return true;
-        }
-        return false;
+        return UIComponent.dispatchMouseClicked(ctx, children, EditorLogger.PREVIEW);
     }
 
     @Override

@@ -3,7 +3,7 @@ package com.immersivecinematics.immersive_cinematics.trigger.server;
 import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
-import com.immersivecinematics.immersive_cinematics.script.EventClip;
+import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
@@ -38,7 +38,7 @@ public class ScriptEventManager {
             CinematicScript script = ScriptManager.INSTANCE.getScript(scriptId);
             if (script == null) return;
 
-            List<EventClip> clips = extractEventClips(script);
+            List<Clip> clips = extractEventClips(script);
             pb = new ScriptPlayback(scriptId, clips, player.server.getTickCount());
             scriptPlaybacks.put(scriptId, pb);
         }
@@ -147,7 +147,7 @@ public class ScriptEventManager {
 
             int elapsed = currentTick - pb.startTick;
             while (pb.nextClipIndex < pb.eventClips.size()) {
-                EventClip clip = pb.eventClips.get(pb.nextClipIndex);
+                Clip clip = pb.eventClips.get(pb.nextClipIndex);
                 if (clip.getStartTime() <= elapsed / 20f) {
                     for (UUID uuid : pb.finishedViewers) {
                         ServerPlayer p = server.getPlayerList().getPlayer(uuid);
@@ -178,11 +178,11 @@ public class ScriptEventManager {
         }
     }
 
-    private List<EventClip> extractEventClips(CinematicScript script) {
+    private List<Clip> extractEventClips(CinematicScript script) {
         return script.getTimeline().getTracks().stream()
                 .filter(t -> t.getType() == TrackType.EVENT)
                 .findFirst()
-                .map(TimelineTrack::getEventClips)
+                .map(track -> track.getClips())
                 .orElse(List.of());
     }
 
@@ -192,11 +192,11 @@ public class ScriptEventManager {
         final Set<UUID> finishedViewers;
         final Set<UUID> skipVoters;
         final int startTick;
-        final List<EventClip> eventClips;
+        final List<Clip> eventClips;
         int nextClipIndex;
         MinecraftServer server;
 
-        ScriptPlayback(String scriptId, List<EventClip> eventClips, int startTick) {
+        ScriptPlayback(String scriptId, List<Clip> eventClips, int startTick) {
             this.scriptId = scriptId;
             this.viewers = new HashSet<>();
             this.finishedViewers = new HashSet<>();
