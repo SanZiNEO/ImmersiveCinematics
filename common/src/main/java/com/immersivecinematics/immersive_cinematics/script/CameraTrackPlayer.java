@@ -23,16 +23,10 @@ public class CameraTrackPlayer implements TrackPlayer {
         this.cameraManager = cameraManager;
     }
 
-    private float lastMatchLogTime = -999f;
 
     @Override
     public boolean isActiveAt(float globalTime) {
         Clip c = findActiveClip(globalTime);
-        if (globalTime >= 4.0f && globalTime <= 5.0f && Math.abs(globalTime - lastMatchLogTime) > 0.5f) {
-            lastMatchLogTime = globalTime;
-            System.out.println("[MATCH] time=" + String.format("%.1f", globalTime) +
-                " clip=" + (c != null ? c.toString() : "null"));
-        }
         if (c != null) return true;
         for (int i = 0; i < clips.size() - 1; i++) {
             Clip prev = clips.get(i);
