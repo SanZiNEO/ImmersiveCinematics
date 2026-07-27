@@ -77,6 +77,8 @@ public class TimelineArea extends UIComponent {
     private BiConsumer<Integer, Integer> onShowClipContext;
     private BiConsumer<Integer, Integer> onShowTimelineContext;
     private BiConsumer<Integer, Integer> onShowRulerContext;
+    private BiConsumer<Integer, Integer> onShowTrackLabelContext;
+
 
     public void setData(JsonObject script, JsonObject selClip, JsonObject selKf,
                         boolean canAddKf) {
@@ -99,10 +101,12 @@ public class TimelineArea extends UIComponent {
     public void setOnResizeRight(BiConsumer<JsonObject, Float> r) { onResizeRight = r; }
     public void setOnMoveKeyframe(MoveKeyframeCallback r) { onMoveKeyframe = r; }
     public void setOnToolAddClip(Runnable r) { onToolAddClip = r; }
-    public void setOnToolDeleteClip(Runnable r) { onToolDeleteClip = r; }
     public void setOnShowClipContext(BiConsumer<Integer, Integer> r) { onShowClipContext = r; }
     public void setOnShowTimelineContext(BiConsumer<Integer, Integer> r) { onShowTimelineContext = r; }
+
+    public void setOnToolDeleteClip(Runnable r) { onToolDeleteClip = r; }
     public void setOnShowRulerContext(BiConsumer<Integer, Integer> r) { onShowRulerContext = r; }
+    public void setOnShowTrackLabelContext(BiConsumer<Integer, Integer> r) { onShowTrackLabelContext = r; }
     public void setOnToolAddKeyframe(Runnable r) { onToolAddKeyframe = r; }
     public void setOnSelectClips(Consumer<List<JsonObject>> r) { onSelectClips = r; }
     public void setOnToolDeleteKeyframe(Runnable r) { onToolDeleteKeyframe = r; }
@@ -428,12 +432,15 @@ public class TimelineArea extends UIComponent {
             return clickToolbar(ctx);
         }
 
-        // Label area click — select track
+        // Label area click — select track (left) or context menu (right)
         if (ctx.mouseX >= x + toolbarW() && ctx.mouseX < canvasX() && ctx.mouseY >= canvasY()) {
             int ti = (ctx.mouseY - canvasY()) / trackH();
             if (ti >= 0 && ti < tracks().size()) {
                 selectedTrackIndex = ti;
                 EditorLogger.action(EditorLogger.TIMELINE, "LABEL_CLICK", "track=" + ti);
+                if (rightClick && onShowTrackLabelContext != null) {
+                    onShowTrackLabelContext.accept(ctx.mouseX, ctx.mouseY);
+                }
             }
             return true;
         }

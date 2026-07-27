@@ -105,7 +105,11 @@ public class EditorScreen extends Screen {
         rootComponent = new UIComponent(0, 0, width, height) {
             @Override public void render(UIContext ctx) {
                 for (UIComponent child : getChildren()) {
-                    if (child.visible) child.render(ctx);
+                    if (child.visible) {
+                        ctx.graphics.enableScissor(child.x, child.y, child.x + child.w, child.y + child.h);
+                        child.render(ctx);
+                        ctx.graphics.disableScissor();
+                    }
                 }
             }
         };
@@ -332,20 +336,45 @@ public class EditorScreen extends Screen {
             timeline.setSelectedTrackIndex(Math.max(0, idx - 1));
             doc.markDirty(); syncPanels();
         });
-        // Context menu wiring
+        // ============= Context menu wiring =============
+
+        // Clip right-click
         timeline.setOnShowClipContext((mx, my) -> {
             contextMenu.clearEntries();
-            contextMenu.addEntry("复制 (Ctrl+C)", 0xFFCCCCCC, () -> {
+            contextMenu.addEntry("Copy (Ctrl+C)", 0xFFCCCCCC, () -> {
                 clipboard = new ArrayList<>();
                 for (JsonObject c : sel.getClips()) clipboard.add(c.deepCopy());
             });
-            contextMenu.addEntry("删除 (Delete)", 0xFFFF6666, () -> {
+            contextMenu.addEntry("Cut (Ctrl+X)", 0xFFCCCCCC, () -> {
+                if (sel.getClip() == null) return;
+                clipboard = new ArrayList<>();
+                undoManager.push(doc.toJson());
+                for (JsonObject c : sel.getClips()) {
+                    clipboard.add(c.deepCopy());
+                    EditorOperations.deleteClip(doc.getTracks(), c);
+                }
+                sel.clear(); doc.markDirty();
+            });
+            contextMenu.addEntry("Delete (Del)", 0xFFFF6666, () -> {
                 undoManager.push(doc.toJson());
                 for (JsonObject c : sel.getClips()) { EditorOperations.deleteClip(doc.getTracks(), c); }
                 sel.clear(); doc.markDirty();
             });
+            contextMenu.addEntry("Duplicate", 0xFFCCCCCC, () -> {
+                JsonObject clip = sel.getClip();
+                if (clip == null) return;
+                undoManager.push(doc.toJson());
+                JsonObject copy = clip.deepCopy();
+                copy.addProperty("start_time", EditorOperations.getEnd(clip));
+                int trackIdx = timeline.getSelectedTrackIndex();
+                if (trackIdx >= 0 && trackIdx < doc.getTracks().size()) {
+                    doc.getTracks().get(trackIdx).getAsJsonObject().getAsJsonArray("clips").add(copy);
+                    EditorOperations.sortTrackClips(doc.getTracks());
+                    doc.markDirty(); sel.selectClip(copy);
+                }
+            });
             contextMenu.addSeparator();
-            contextMenu.addEntry("分割 (在播放头位置)", 0xFFCCCCCC, () -> {
+            contextMenu.addEntry("Split at Playhead", 0xFFCCCCCC, () -> {
                 JsonObject clip = sel.getClip();
                 if (clip != null) {
                     undoManager.push(doc.toJson());
@@ -353,48 +382,126 @@ public class EditorScreen extends Screen {
                     if (right != null) { doc.markDirty(); sel.selectClip(right); }
                 }
             });
-            contextMenu.addEntry("在此添加关键帧", 0xFFCCCCCC, () -> {
+            contextMenu.addEntry("Add Keyframe Here", 0xFFCCCCCC, () -> {
                 JsonObject kf = EditorOperations.addKeyframeAt(sel.getClip(), playback.getTime());
                 if (kf != null) { doc.markDirty(); sel.selectKeyframe(kf, sel.getClip()); }
             });
             contextMenu.show(mx, my);
         });
+
+        // Track label right-click
+        timeline.setOnShowTrackLabelContext((mx, my) -> {
+            contextMenu.clearEntries();
+            int idx = timeline.getSelectedTrackIndex();
+            String type = idx >= 0 && idx < doc.getTracks().size()
+                    ? doc.getTracks().get(idx).getAsJsonObject().get("type").getAsString() : "";
+            contextMenu.addEntry("Track: " + type + (idx >= 0 ? " #" + idx : ""), 0xFF888888, null);
+            contextMenu.addSeparator();
+            contextMenu.addEntry("Add Clip Here", 0xFFCCCCCC, () -> {
+                if (idx < 0) return;
+                undoManager.push(doc.toJson());
+                JsonObject clip = EditorOperations.addClip(doc.getTracks(), idx, playback.getTime(), 5, type);
+                if (clip != null) { doc.markDirty(); sel.selectClip(clip); }
+            });
+            contextMenu.addEntry("Delete Track", 0xFFFF6666, () -> {
+                if (idx < 0 || idx >= doc.getTracks().size()) return;
+                undoManager.push(doc.toJson());
+                EditorOperations.removeTrack(doc.getTracks(), idx);
+                timeline.setSelectedTrackIndex(Math.max(0, idx - 1));
+                doc.markDirty(); syncPanels();
+            });
+            for (String t : new String[]{"CAMERA", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY"}) {
+                contextMenu.addEntry("Add " + t + " Track", 0xFFAAAAAA, () -> {
+                    EditorOperations.addTrack(doc.getTracks(), t);
+                    doc.markDirty(); syncPanels();
+                });
+            }
+            contextMenu.show(mx, my);
+        });
+
+        // Timeline empty area right-click
         timeline.setOnShowTimelineContext((mx, my) -> {
             contextMenu.clearEntries();
             int trackIdx = (my - timeline.canvasY()) / (int)(28 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
             int finalTrackIdx = Math.max(0, Math.min(trackIdx, doc.getTracks().size() - 1));
             for (JsonElement te : doc.getTracks()) {
-                String type = te.getAsJsonObject().get("type").getAsString();
-                if ("LETTERBOX".equals(type)) continue;
-                contextMenu.addEntry("添加 " + type + " Clip", 0xFFCCCCCC, () -> {
+                String t = te.getAsJsonObject().get("type").getAsString();
+                if ("LETTERBOX".equals(t)) continue;
+                contextMenu.addEntry("Add " + t + " Clip", 0xFFCCCCCC, () -> {
                     undoManager.push(doc.toJson());
-                    JsonObject clip = EditorOperations.addClip(doc.getTracks(), finalTrackIdx, doc.getTotalDuration(), 5, type);
+                    JsonObject clip = EditorOperations.addClip(doc.getTracks(), finalTrackIdx, doc.getTotalDuration(), 5, t);
                     if (clip != null) { doc.markDirty(); sel.selectClip(clip); }
                 });
             }
+            contextMenu.addEntry("Add Keyframe Here", 0xFFCCCCCC, () -> {
+                JsonObject clip = sel.getClip();
+                if (clip != null) {
+                    JsonObject kf = EditorOperations.addKeyframeAt(clip, playback.getTime());
+                    if (kf != null) doc.markDirty();
+                }
+            });
+            contextMenu.addEntry("Select All (Ctrl+A)", 0xFFCCCCCC, () -> {
+                java.util.List<JsonObject> allClips = new java.util.ArrayList<>();
+                for (JsonElement te : doc.getTracks()) {
+                    JsonArray clips = te.getAsJsonObject().getAsJsonArray("clips");
+                    if (clips != null) {
+                        for (JsonElement ce : clips) allClips.add(ce.getAsJsonObject());
+                    }
+                }
+                sel.selectClips(allClips);
+            });
+            contextMenu.addEntry("Paste (Ctrl+V)", 0xFFCCCCCC, () -> {
+                if (clipboard == null || clipboard.isEmpty()) return;
+                undoManager.push(doc.toJson());
+                for (JsonObject c : clipboard) {
+                    JsonObject copy = c.deepCopy();
+                    String clipType = copy.has("transition") ? "CAMERA" : copy.has("sound") ? "AUDIO" : "EVENT";
+                    JsonObject targetTrack = null;
+                    for (JsonElement te : doc.getTracks()) {
+                        if (te.getAsJsonObject().get("type").getAsString().equals(clipType)) {
+                            targetTrack = te.getAsJsonObject();
+                            break;
+                        }
+                    }
+                    if (targetTrack == null) {
+                        targetTrack = EditorOperations.addTrack(doc.getTracks(), clipType);
+                    }
+                    targetTrack.getAsJsonArray("clips").add(copy);
+                }
+                EditorOperations.sortTrackClips(doc.getTracks());
+                doc.markDirty(); syncPanels();
+            });
             contextMenu.addSeparator();
-            for (String type : new String[]{"CAMERA", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY"}) {
-                contextMenu.addEntry("新增 " + type + " 轨道", 0xFFAAAAAA, () -> {
-                    EditorOperations.addTrack(doc.getTracks(), type);
+            for (String t : new String[]{"CAMERA", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY"}) {
+                contextMenu.addEntry("Add " + t + " Track", 0xFFAAAAAA, () -> {
+                    EditorOperations.addTrack(doc.getTracks(), t);
                     doc.markDirty(); syncPanels();
                 });
             }
             contextMenu.addSeparator();
-            contextMenu.addEntry("吸附排列 (" + "\u00AB\u00BB" + ")", 0xFFCCCCCC, () -> {
+            contextMenu.addEntry("Snap (" + "\u00AB\u00BB" + ")", 0xFFCCCCCC, () -> {
                 EditorOperations.snapAllClips(doc.getTracks()); doc.markDirty(); syncPanels();
             });
             contextMenu.show(mx, my);
         });
+
+        // Ruler right-click
         timeline.setOnShowRulerContext((mx, my) -> {
             contextMenu.clearEntries();
             float t = timeline.xToTime(mx);
-            contextMenu.addEntry("播放头跳转到此处", 0xFFCCCCCC, () -> {
+            contextMenu.addEntry("Jump Playhead Here", 0xFFCCCCCC, () -> {
                 playback.setTime(Math.max(0, t)); output.setTime(playback.getTime()); syncPanels();
+            });
+            contextMenu.addEntry("Zoom to Fit", 0xFFCCCCCC, () -> {
+                float totalDur = doc.getTotalDuration();
+                if (totalDur > 0) {
+                    timeline.setPixelsPerSecond(Math.min(timeline.canvasW() / totalDur, 5000));
+                    timeline.setScrollOffset(0);
+                    syncPanels();
+                }
             });
             contextMenu.show(mx, my);
         });
-        
-        // Track-aware +C: use current track if clip selected, else track 0
         timeline.setOnToolAddClip(() -> {
             EditorLogger.action(EditorLogger.TIMELINE, "TOOL_ADD_CLIP", "");
             JsonObject selC = sel.getClip();
