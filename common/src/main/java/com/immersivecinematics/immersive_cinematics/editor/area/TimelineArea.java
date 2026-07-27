@@ -173,6 +173,7 @@ public class TimelineArea extends UIComponent {
         ctx.graphics.fill(x, y, x + w, y + h, 0xFF171717);
         ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
         ctx.graphics.fill(x, y, x + w, y + headerH(), 0xFF1F1F1F);
+        ctx.graphics.enableScissor(x, y, x + w, y + h);
 
         drawRuler(ctx, cx, y, cw);
         drawToolbar(ctx);
@@ -206,6 +207,7 @@ public class TimelineArea extends UIComponent {
             ctx.graphics.fill(bx, by, bx + bw, by + bh, 0x223A6DB5);
             ctx.graphics.renderOutline(bx, by, bw, bh, 0xFF3A6DB5);
         }
+        ctx.graphics.disableScissor();
     }
 
     private void drawRuler(UIContext ctx, int cx, int top, int cw) {

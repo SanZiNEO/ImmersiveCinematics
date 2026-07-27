@@ -644,6 +644,8 @@ public class LeftPanelArea extends UIComponent {
     }
     @Override
     public void renderContent(UIContext ctx) {
+        ctx.graphics.fill(x, y, x + w, y + h, 0xFF1A1A1A);
+        ctx.graphics.fill(x + w - 1, y, x + w, y + h, 0xFF2A2A2A);
         ctx.graphics.enableScissor(x, y, x + w, y + h);
         ctx.pushScroll(scrollY);
 
@@ -659,6 +661,7 @@ public class LeftPanelArea extends UIComponent {
         }
 
         ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
+        ctx.graphics.disableScissor();
     }
 
     @Override

@@ -207,9 +207,5 @@ public class TriggerPanel extends UIComponent {
         return false;
     }
 
-    @Override
-    public void renderContent(UIContext ctx) {
-        for (UIComponent w : getChildren()) w.render(ctx);
-    }
     
 }

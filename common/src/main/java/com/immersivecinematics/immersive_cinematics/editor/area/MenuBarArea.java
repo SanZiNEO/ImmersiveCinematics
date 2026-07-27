@@ -73,13 +73,9 @@ public class MenuBarArea extends UIComponent {
     public void renderContent(UIContext ctx) {
         ctx.graphics.fill(x, y, x + w, y + h, 0xFF1F1F1F);
         ctx.graphics.fill(x, y + h - 1, x + w, y + h, 0xFF333333);
+        ctx.graphics.enableScissor(x, y, x + w, y + h);
 
         titleLabel.setText(getDisplayTitle());
-        titleLabel.render(ctx);
-
-        newBtn.render(ctx);
-        saveBtn.render(ctx);
-        listBtn.render(ctx);
 
         int sx = listBtn.x + listBtn.w + (int)(12 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx);
         if (statusText != null) {
@@ -89,5 +85,6 @@ public class MenuBarArea extends UIComponent {
         if (actionText != null && System.currentTimeMillis() - actionTime < 3000) {
             ctx.graphics.drawString(ctx.font, actionText, sx, y + (h - 8) / 2, 0xFF88AA88);
         }
+        ctx.graphics.disableScissor();
     }
 }

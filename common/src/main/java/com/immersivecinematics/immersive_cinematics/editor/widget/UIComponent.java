@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.editor.widget;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Collections;
 import java.util.List;
 
 public abstract class UIComponent {
@@ -14,6 +15,8 @@ public abstract class UIComponent {
     protected int zIndex = 0;
 
     public int getZIndex() { return zIndex; }
+    private int childrenVersion = 0;
+    private List<UIComponent> sortedChildren = Collections.emptyList();
     private final List<UIComponent> children = new ArrayList<>();
     protected UIComponent focused = null;
 
@@ -55,6 +58,7 @@ public abstract class UIComponent {
             child.setParent(null);
         }
         children.clear();
+        childrenVersion++;
     }
 
 
@@ -63,11 +67,13 @@ public abstract class UIComponent {
     public void addChild(UIComponent child) {
         children.add(child);
         child.setParent(this);
+        childrenVersion++;
     }
 
     public void removeChild(UIComponent child) {
         children.remove(child);
         child.setParent(null);
+        childrenVersion++;
     }
 
     public final List<UIComponent> getChildren() { return children; }
@@ -97,9 +103,14 @@ public abstract class UIComponent {
     public void render(UIContext ctx) {
         if (!visible) return;
         renderContent(ctx);
-        List<UIComponent> ch = new ArrayList<>(children);
-        ch.sort(Comparator.comparingInt(UIComponent::getZIndex).reversed());
-        for (UIComponent child : ch) {
+        if (sortedChildren.isEmpty() || childrenVersion > 0) {
+            sortedChildren = new ArrayList<>(children);
+            if (sortedChildren.size() > 1) {
+                sortedChildren.sort(Comparator.comparingInt(UIComponent::getZIndex).reversed());
+            }
+            childrenVersion = 0;
+        }
+        for (UIComponent child : sortedChildren) {
             if (child.visible) child.render(ctx);
         }
     }

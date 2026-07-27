@@ -58,17 +58,14 @@ public class PreviewArea extends UIComponent {
     public void renderContent(UIContext ctx) {
         ctx.graphics.fill(x, y, x + w, y + h, 0xFF111111);
         ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
+        ctx.graphics.enableScissor(x, y, x + w, y + h);
 
         if (currentTime >= 0) {
-            // Draw a simple preview area indicator
             int cx = x + w / 2;
             int cy2 = y + h / 2;
             ctx.graphics.drawString(ctx.font, I18n.get("editor.preview"), cx - ctx.font.width(I18n.get("editor.preview")) / 2, cy2 - 20, 0xFF444444);
         }
 
-        playBtn.render(ctx);
-        pauseBtn.render(ctx);
-        stopBtn.render(ctx);
-        timeLabel.render(ctx);
+        ctx.graphics.disableScissor();
     }
 }
