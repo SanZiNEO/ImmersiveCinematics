@@ -260,6 +260,28 @@ public class ScriptPlayer {
         this.startGameTimeSeconds = currentGameTimeSeconds - desiredElapsedSeconds;
     }
 
+    /**
+     * 暂停所有音频轨道（游戏暂停时调用）
+     */
+    public void pauseAudio() {
+        for (TrackPlayer tp : trackPlayers) {
+            if (tp instanceof AudioTrackPlayer atp) {
+                atp.pauseAll();
+            }
+        }
+    }
+
+    /**
+     * 恢复所有音频轨道（游戏恢复时调用）
+     */
+    public void resumeAudio() {
+        for (TrackPlayer tp : trackPlayers) {
+            if (tp instanceof AudioTrackPlayer atp) {
+                atp.resumeAll();
+            }
+        }
+    }
+
     // ========== 内部方法 ==========
 
     private float getElapsedSeconds() {

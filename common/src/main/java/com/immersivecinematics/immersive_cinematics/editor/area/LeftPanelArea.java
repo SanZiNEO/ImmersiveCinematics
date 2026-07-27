@@ -817,13 +817,6 @@ public class LeftPanelArea extends UIComponent {
         addSectionLabel("Tracks", lx, cy, 0);
         cy += 16;
 
-        UIButton addBtn = new UIButton(lx + 4, cy, w - 12, rowH, "+ 新增轨道", btn -> {
-            if (onTrackAdd != null) onTrackAdd.accept("");
-        });
-        addBtn.color(0xFF333333, 0xFF445544).textColor(0xFF88AA88);
-        children.add(addBtn);
-        cy += rowH + 2;
-
         for (int ti = 0; ti < tracks.size(); ti++) {
             JsonObject track = tracks.get(ti).getAsJsonObject();
             String type = track.has("type") ? track.get("type").getAsString() : "TRACK";
@@ -832,17 +825,11 @@ public class LeftPanelArea extends UIComponent {
             int finalTi = ti;
 
             String label = type + "  (" + clipCount + " clips)";
-            UIButton row = new UIButton(lx + 4, cy, w - 40, rowH, label, btn -> {
+            UIButton row = new UIButton(lx + 4, cy, w - 12, rowH, label, btn -> {
                 if (onTrackSelected != null) onTrackSelected.accept(finalTi);
             });
             row.color(0x00, 0x443A3A3A).textColor(0xFFAAAAAA);
             children.add(row);
-
-            UIButton delBtn = new UIButton(lx + w - 30, cy, 20, rowH, "×", btn -> {
-                if (onTrackDelete != null) onTrackDelete.accept(finalTi);
-            });
-            delBtn.color(0x00, 0x44553333).textColor(0xFFAA6666);
-            children.add(delBtn);
 
             cy += rowH + 2;
         }

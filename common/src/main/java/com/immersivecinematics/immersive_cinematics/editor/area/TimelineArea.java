@@ -66,6 +66,8 @@ public class TimelineArea extends UIComponent {
     private Runnable onToolDeleteClip;
     private Runnable onToolAddKeyframe;
     private Runnable onToolDeleteKeyframe;
+    private Runnable onToolAddTrack;
+    private Runnable onToolDeleteTrack;
     private Runnable onToolSnap;
 
     public TimelineArea(int x, int y, int w, int h) {
@@ -105,16 +107,19 @@ public class TimelineArea extends UIComponent {
     public void setOnSelectClips(Consumer<List<JsonObject>> r) { onSelectClips = r; }
     public void setOnToolDeleteKeyframe(Runnable r) { onToolDeleteKeyframe = r; }
     public void setSelectedTrackIndex(int idx) { this.selectedTrackIndex = idx; }
+    public void setOnToolAddTrack(Runnable r) { onToolAddTrack = r; }
+    public void setOnToolDeleteTrack(Runnable r) { onToolDeleteTrack = r; }
+
     public int getSelectedTrackIndex() { return selectedTrackIndex; }
     public void setOnToolSnap(Runnable r) { onToolSnap = r; }
-    
+    public int toolbarW() { return (int)(22 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx); }
     public void resetZoom() { pixelsPerSecond = 60f; scrollOffset = 0; }
     public void setPixelsPerSecond(float pps) { this.pixelsPerSecond = Math.max(10, Math.min(5000, pps)); clampScrollOffset(); }
+
+    public int headerH()  { return (int)(20 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy); }
     public void setScrollOffset(float offset) { this.scrollOffset = offset; clampScrollOffset(); }
 
-    private int toolbarW() { return (int)(22 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx); }
     private int labelW()   { return (int)(58 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx); }
-    private int headerH()  { return (int)(20 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy); }
     private int trackH()   { return (int)(28 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy); }
     private int btn()      { return (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy); }
     private int btnGap()   { return (int)(2 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy); }
@@ -231,6 +236,8 @@ public class TimelineArea extends UIComponent {
         drawBtn(ctx, bx, by, "-C", 0xFF883333, 0xFFAA4444, selectedClip != null); by += btn() + btnGap() + 4;
         drawBtn(ctx, bx, by, "+K", 0xFF333388, 0xFF4444AA, canAddKf); by += btn() + btnGap();
         drawBtn(ctx, bx, by, "-K", 0xFF883366, 0xFFAA4488, selectedKeyframe != null); by += btn() + btnGap() + 4;
+        drawBtn(ctx, bx, by, "+T", 0xFF338866, 0xFF44AA88, true); by += btn() + btnGap();
+        drawBtn(ctx, bx, by, "-T", 0xFF883355, 0xFFAA4477, selectedTrackIndex >= 0); by += btn() + btnGap() + 4;
         drawBtn(ctx, bx, by, "\u00AB\u00BB", 0xFF336688, 0xFF4488AA, true);
     }
 
@@ -497,6 +504,16 @@ public class TimelineArea extends UIComponent {
             boolean hasKf = selectedKeyframe != null;
             EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "-K hasSelection=" + hasKf);
             if (hasKf && onToolDeleteKeyframe != null) onToolDeleteKeyframe.run(); return true;
+        }
+        by += btn() + btnGap() + 4;
+        if (ctx.isMouseIn(bx, by, btn(), btn())) {
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "+T");
+            if (onToolAddTrack != null) onToolAddTrack.run(); return true;
+        }
+        by += btn() + btnGap();
+        if (ctx.isMouseIn(bx, by, btn(), btn())) {
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOLBAR", "-T trackIdx=" + selectedTrackIndex);
+            if (selectedTrackIndex >= 0 && onToolDeleteTrack != null) onToolDeleteTrack.run(); return true;
         }
         by += btn() + btnGap() + 4;
         if (ctx.isMouseIn(bx, by, btn(), btn())) {

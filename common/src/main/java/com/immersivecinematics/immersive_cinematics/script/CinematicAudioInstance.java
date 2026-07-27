@@ -126,6 +126,11 @@ public class CinematicAudioInstance {
         alSourcePause(source);
     }
 
+    public void resume() {
+        if (!valid) return;
+        alSourcePlay(source);
+    }
+
     public void setVolume(float vol) {
         this.currentVolume = vol;
         if (valid) alSourcef(source, AL_GAIN, vol);
@@ -135,14 +140,34 @@ public class CinematicAudioInstance {
         if (valid) alSource3f(source, AL_POSITION, (float) pos.x, (float) pos.y, (float) pos.z);
     }
 
-    public void setAttenuation(String mode) {
+    public void setAttenuation(String mode, float distance) {
         if (!valid) return;
         switch (mode) {
-            case "none" -> alSourcef(source, AL_ROLLOFF_FACTOR, 0f);
-            case "linear" -> alSourcef(source, AL_ROLLOFF_FACTOR, 1f);
-            case "inverse" -> alSourcef(source, AL_ROLLOFF_FACTOR, 2f);
-            default -> alSourcef(source, AL_ROLLOFF_FACTOR, 1f);
+            case "none" -> {
+                alSourcef(source, AL_ROLLOFF_FACTOR, 0f);
+                alSourcei(source, AL_SOURCE_RELATIVE, AL_TRUE);
+            }
+            case "linear" -> {
+                alSourcef(source, AL_ROLLOFF_FACTOR, 1f);
+                alSourcef(source, 0x1023, distance * 0.5f); // AL_REFERENCE_DISTANCE
+                alSourcef(source, 0x1024, distance);        // AL_MAX_DISTANCE
+                alSourcei(source, AL_SOURCE_RELATIVE, AL_FALSE);
+            }
+            case "inverse" -> {
+                alSourcef(source, AL_ROLLOFF_FACTOR, 2f);
+                alSourcef(source, 0x1023, distance * 0.5f);
+                alSourcef(source, 0x1024, distance);
+                alSourcei(source, AL_SOURCE_RELATIVE, AL_FALSE);
+            }
+            default -> {
+                alSourcef(source, AL_ROLLOFF_FACTOR, 1f);
+                alSourcei(source, AL_SOURCE_RELATIVE, AL_FALSE);
+            }
         }
+    }
+
+    public void setAttenuation(String mode) {
+        setAttenuation(mode, 16f); // 默认距离 16 格
     }
 
     public void update() {}

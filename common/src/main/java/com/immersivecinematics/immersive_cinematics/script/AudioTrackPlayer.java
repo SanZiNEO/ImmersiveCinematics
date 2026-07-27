@@ -102,6 +102,18 @@ public class AudioTrackPlayer implements TrackPlayer {
         lastClipIndex = -1;
     }
 
+    public void pauseAll() {
+        for (CinematicAudioInstance inst : instances.values()) {
+            inst.pause();
+        }
+    }
+
+    public void resumeAll() {
+        for (CinematicAudioInstance inst : instances.values()) {
+            inst.resume();
+        }
+    }
+
     private void startClipInstance(Clip clip) {
         String sound = clip.getSound();
         if (sound == null || sound.isEmpty()) {

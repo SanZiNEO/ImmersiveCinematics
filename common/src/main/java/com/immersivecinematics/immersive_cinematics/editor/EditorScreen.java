@@ -307,6 +307,31 @@ public class EditorScreen extends Screen {
             doc.markDirty();
             syncPanels();
         });
+
+        timeline.setOnToolAddTrack(() -> {
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOL_ADD_TRACK", "");
+            // 弹出轨道类型选择上下文菜单
+            contextMenu.clearEntries();
+            for (String t : new String[]{"CAMERA", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY"}) {
+                contextMenu.addEntry("Add " + t + " Track", 0xFFAAAAAA, () -> {
+                    undoManager.push(doc.toJson());
+                    EditorOperations.addTrack(doc.getTracks(), t);
+                    doc.markDirty(); syncPanels();
+                });
+            }
+            contextMenu.show(timeline.x + timeline.toolbarW() + 4,
+                    timeline.y + timeline.headerH() + 4);
+        });
+
+        timeline.setOnToolDeleteTrack(() -> {
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOL_DELETE_TRACK", "index=" + timeline.getSelectedTrackIndex());
+            int idx = timeline.getSelectedTrackIndex();
+            if (idx < 0 || idx >= doc.getTracks().size()) return;
+            undoManager.push(doc.toJson());
+            EditorOperations.removeTrack(doc.getTracks(), idx);
+            timeline.setSelectedTrackIndex(Math.max(0, idx - 1));
+            doc.markDirty(); syncPanels();
+        });
         // Context menu wiring
         timeline.setOnShowClipContext((mx, my) -> {
             contextMenu.clearEntries();

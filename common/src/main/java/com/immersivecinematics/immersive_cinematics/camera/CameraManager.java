@@ -304,14 +304,21 @@ public class CameraManager {
         }
 
         boolean gamePaused = Minecraft.getInstance().isPaused() && CinematicController.INSTANCE.isPauseWhenGamePaused();
+        // 编辑器预览暂停也算暂停
+        boolean effectivelyPaused = gamePaused || (previewMode && previewPaused);
 
         // 检测暂停↔恢复转换，通知服务端
-        if (gamePaused != lastFramePaused) {
-            lastFramePaused = gamePaused;
+        if (effectivelyPaused != lastFramePaused) {
+            lastFramePaused = effectivelyPaused;
             if (scriptPlayer.isPlaying()) {
                 String scriptId = scriptPlayer.getScriptId();
                 if (!"<none>".equals(scriptId)) {
-                    new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, gamePaused).sendToServer();
+                    new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, effectivelyPaused).sendToServer();
+                }
+                if (effectivelyPaused) {
+                    scriptPlayer.pauseAudio();
+                } else {
+                    scriptPlayer.resumeAudio();
                 }
             }
         }
