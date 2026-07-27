@@ -431,6 +431,18 @@ public class EditorOperations {
         tracks.add(track);
         return track;
     }
+
+    /**
+     * 从时间轴中移除指定索引的轨道
+     * @param tracks 时间轴轨道数组
+     * @param index  要移除的轨道索引
+     * @return 是否成功移除
+     */
+    public static boolean removeTrack(JsonArray tracks, int index) {
+        if (index < 0 || index >= tracks.size()) return false;
+        tracks.remove(index);
+        return true;
+    }
     /** Split a clip at the given global time, creating two clips. Returns the new (right-half) clip, or null if split is impossible. */
     public static JsonObject splitClip(JsonArray tracks, JsonObject clip, float splitGlobalTime) {
         float cs = getStart(clip);

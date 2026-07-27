@@ -348,7 +348,7 @@ public class EditorScreen extends Screen {
                 });
             }
             contextMenu.addSeparator();
-            for (String type : new String[]{"CAMERA", "AUDIO", "EVENT", "MOD_EVENT"}) {
+            for (String type : new String[]{"CAMERA", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY"}) {
                 contextMenu.addEntry("新增 " + type + " 轨道", 0xFFAAAAAA, () -> {
                     EditorOperations.addTrack(doc.getTracks(), type);
                     doc.markDirty(); syncPanels();
@@ -455,6 +455,29 @@ public class EditorScreen extends Screen {
             timeline.setSelectedTrackIndex(trackIdx);
             // Clear clip selection when selecting a track
             sel.clear();
+            syncPanels();
+        });
+
+        leftPanel.setOnTrackAdd(type -> {
+            // 弹出轨道类型选择
+            contextMenu.clearEntries();
+            for (String t : new String[]{"CAMERA", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY"}) {
+                contextMenu.addEntry("新增 " + t + " 轨道", 0xFFAAAAAA, () -> {
+                    undoManager.push(doc.toJson());
+                    EditorOperations.addTrack(doc.getTracks(), t);
+                    doc.markDirty();
+                    syncPanels();
+                });
+            }
+            contextMenu.show(leftPanel.x + 10, leftPanel.y + 60);
+        });
+
+        leftPanel.setOnTrackDelete(trackIdx -> {
+            if (trackIdx < 0 || trackIdx >= doc.getTracks().size()) return;
+            undoManager.push(doc.toJson());
+            EditorOperations.removeTrack(doc.getTracks(), trackIdx);
+            timeline.setSelectedTrackIndex(Math.max(0, trackIdx - 1));
+            doc.markDirty();
             syncPanels();
         });
     }

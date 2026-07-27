@@ -43,6 +43,9 @@ public class LeftPanelArea extends UIComponent {
     private Consumer<String> onNameChanged;
     private Consumer<String> onAuthorChanged;
     private Consumer<Integer> onTrackSelected;
+    private Consumer<String> onTrackAdd;
+    private Consumer<Integer> onTrackDelete;
+
     
     private Consumer<String> onDescChanged;
     private Consumer<String> onBehaviorFlag;
@@ -78,6 +81,9 @@ public class LeftPanelArea extends UIComponent {
     public void setSelectedTrackType(String t) { selectedTrackType = t; }
     public void setScriptFileNames(List<String> names) { scriptFileNames = names; }
     public void setOnOpenScript(Consumer<String> r) { onOpenScript = r; }
+    public void setOnTrackAdd(Consumer<String> r) { onTrackAdd = r; }
+    public void setOnTrackDelete(Consumer<Integer> r) { onTrackDelete = r; }
+
     public void setOnDeleteScript(Consumer<String> r) { onDeleteScript = r; }
     public void setOnNewScript(Runnable r) { onNewScript = r; }
     public void setOnNameChanged(Consumer<String> r) { onNameChanged = r; }
@@ -800,33 +806,48 @@ public class LeftPanelArea extends UIComponent {
             case TRACK_LIST -> "Tracks";
         };
     }
-    
+
     private void buildTrackList() {
         if (tracks == null) return;
-        
+
         int cy = contentY() + 4;
         int lx = x + 6;
-        
+        int rowH = 20;
+
         addSectionLabel("Tracks", lx, cy, 0);
         cy += 16;
-        
+
+        UIButton addBtn = new UIButton(lx + 4, cy, w - 12, rowH, "+ 新增轨道", btn -> {
+            if (onTrackAdd != null) onTrackAdd.accept("");
+        });
+        addBtn.color(0xFF333333, 0xFF445544).textColor(0xFF88AA88);
+        children.add(addBtn);
+        cy += rowH + 2;
+
         for (int ti = 0; ti < tracks.size(); ti++) {
             JsonObject track = tracks.get(ti).getAsJsonObject();
             String type = track.has("type") ? track.get("type").getAsString() : "TRACK";
             int clipCount = track.has("clips") ? track.getAsJsonArray("clips").size() : 0;
-            
-            int rowH = 20;
+
             int finalTi = ti;
-            
-            UIButton row = new UIButton(lx + 4, cy, w - 20, rowH, type + "  (" + clipCount + " clips)", btn -> {
+
+            String label = type + "  (" + clipCount + " clips)";
+            UIButton row = new UIButton(lx + 4, cy, w - 40, rowH, label, btn -> {
                 if (onTrackSelected != null) onTrackSelected.accept(finalTi);
             });
             row.color(0x00, 0x443A3A3A).textColor(0xFFAAAAAA);
             children.add(row);
-            
+
+            UIButton delBtn = new UIButton(lx + w - 30, cy, 20, rowH, "×", btn -> {
+                if (onTrackDelete != null) onTrackDelete.accept(finalTi);
+            });
+            delBtn.color(0x00, 0x44553333).textColor(0xFFAA6666);
+            children.add(delBtn);
+
             cy += rowH + 2;
         }
     }
-    
+
     public void setOnTrackSelected(Consumer<Integer> r) { onTrackSelected = r; }
 }
+    

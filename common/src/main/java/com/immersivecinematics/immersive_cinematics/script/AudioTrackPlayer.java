@@ -26,8 +26,6 @@ public class AudioTrackPlayer implements TrackPlayer {
     /** 记录每个 clip 的当前已触发时间，用于检测 clip 边界（active→inactive）。 */
     private final Set<Clip> previouslyActive = new HashSet<>();
 
-    /** 是否已停止 MC 背景音乐（只停一次） */
-    private boolean musicStopped = false;
 
     public AudioTrackPlayer(TimelineTrack track, Vec3 originPos) {
         this.clips = track.getClips();
@@ -76,11 +74,13 @@ public class AudioTrackPlayer implements TrackPlayer {
                 }
             }
         }
-
         if (activeClip == null) {
             lastClipIndex = -1;
             return;
         }
+
+        // 持续压制 MC 背景音乐（每帧停一次，MusicManager 就不会启动新曲）
+        Minecraft.getInstance().getSoundManager().stop(null, SoundSource.MUSIC);
 
         // New clip became active
         if (!instances.containsKey(activeClip)) {
@@ -99,7 +99,6 @@ public class AudioTrackPlayer implements TrackPlayer {
         }
         instances.clear();
         previouslyActive.clear();
-        musicStopped = false;
         lastClipIndex = -1;
     }
 
@@ -108,13 +107,6 @@ public class AudioTrackPlayer implements TrackPlayer {
         if (sound == null || sound.isEmpty()) {
             LOGGER.warn("AUDIO clip at time {} has no sound field, skipping", clip.getStartTime());
             return;
-        }
-
-        // 停止 MC 背景音乐（只做一次）
-        if (!musicStopped) {
-            musicStopped = true;
-            Minecraft.getInstance().getSoundManager().stop(null, SoundSource.MUSIC);
-            LOGGER.debug("Stopped Minecraft music for cinematic audio");
         }
 
         // Validate fade times against clip duration
