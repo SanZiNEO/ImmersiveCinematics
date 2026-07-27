@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,11 +23,11 @@ public class AudioTrackPlayer implements TrackPlayer {
     private final Map<Clip, CinematicAudioInstance> instances = new HashMap<>();
     private int lastClipIndex = -1;
 
-    /**
-     * 记录每个 clip 的当前已触发时间，用于检测 clip 边界（active→inactive）。
-     * 只在 clip 从 active 变 inactive 时使用。
-     */
+    /** 记录每个 clip 的当前已触发时间，用于检测 clip 边界（active→inactive）。 */
     private final Set<Clip> previouslyActive = new HashSet<>();
+
+    /** 是否已停止 MC 背景音乐（只停一次） */
+    private boolean musicStopped = false;
 
     public AudioTrackPlayer(TimelineTrack track, Vec3 originPos) {
         this.clips = track.getClips();
@@ -63,7 +65,8 @@ public class AudioTrackPlayer implements TrackPlayer {
                     fadeFactor = Math.max(0f, Math.min(1f, fadeFactor));
                     Keyframe lastKf = getLastKeyframe(clip);
                     float baseVol = lastKf != null ? lastKf.getFloat("volume", clip.getVolume()) : clip.getVolume();
-                    inst.setVolume(baseVol * fadeFactor);
+                    float musicVol = Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC);
+                    inst.setVolume(baseVol * fadeFactor * musicVol);
                     inst.update();
                 } else {
                     // Fade out complete or no fade — stop and cleanup
@@ -96,16 +99,22 @@ public class AudioTrackPlayer implements TrackPlayer {
         }
         instances.clear();
         previouslyActive.clear();
+        musicStopped = false;
         lastClipIndex = -1;
     }
-
-    // ── Private methods ──
 
     private void startClipInstance(Clip clip) {
         String sound = clip.getSound();
         if (sound == null || sound.isEmpty()) {
             LOGGER.warn("AUDIO clip at time {} has no sound field, skipping", clip.getStartTime());
             return;
+        }
+
+        // 停止 MC 背景音乐（只做一次）
+        if (!musicStopped) {
+            musicStopped = true;
+            Minecraft.getInstance().getSoundManager().stop(null, SoundSource.MUSIC);
+            LOGGER.debug("Stopped Minecraft music for cinematic audio");
         }
 
         // Validate fade times against clip duration
@@ -131,8 +140,9 @@ public class AudioTrackPlayer implements TrackPlayer {
         // Set initial attenuation
         inst.setAttenuation(clip.getAttenuation());
 
-        // Set initial volume (fade_in starts at 0)
-        float initialVol = fadeIn > 0f ? 0f : clip.getVolume();
+        // Set initial volume (fade_in starts at 0, multiplied by MC music volume)
+        float musicVol = Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC);
+        float initialVol = fadeIn > 0f ? 0f : clip.getVolume() * musicVol;
         inst.setVolume(initialVol);
 
         // Set initial position
@@ -162,13 +172,11 @@ public class AudioTrackPlayer implements TrackPlayer {
         float elapsed = localTime;
         float remaining = dur - elapsed;
 
-        // Fade-in (beginning of clip)
         float fadeIn = clip.getFadeIn();
         if (fadeIn > 0f && elapsed < fadeIn) {
             fadeFactor = elapsed / fadeIn;
         }
 
-        // Fade-out (end of clip)
         float fadeOut = clip.getFadeOut();
         if (fadeOut > 0f && remaining < fadeOut) {
             fadeFactor = remaining / fadeOut;
@@ -176,8 +184,9 @@ public class AudioTrackPlayer implements TrackPlayer {
 
         fadeFactor = Math.max(0f, Math.min(1f, fadeFactor));
 
-        // Apply effective volume
-        float effectiveVolume = interpolatedVolume * fadeFactor;
+        // Apply effective volume (multiplied by MC music volume slider)
+        float musicVol = Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC);
+        float effectiveVolume = interpolatedVolume * fadeFactor * musicVol;
         inst.setVolume(effectiveVolume);
 
         // Update position

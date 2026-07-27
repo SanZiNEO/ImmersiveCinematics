@@ -19,9 +19,18 @@ public class ExecuteCommandAction implements TriggerAction {
 
     @Override
     public void execute(ServerPlayer player) {
+        String[] parts = command.split("\\s*&&\\s*");
         CommandSourceStack source = player.createCommandSourceStack()
                 .withPermission(4)
                 .withSuppressedOutput();
-        player.server.getCommands().performPrefixedCommand(source, command);
+        for (String part : parts) {
+            if (part.trim().isEmpty()) continue;
+            try {
+                player.server.getCommands().performPrefixedCommand(source, part.trim());
+            } catch (Exception e) {
+                com.mojang.logging.LogUtils.getLogger().error("Failed to execute trigger command for player {}: /{}",
+                        player.getName().getString(), part.trim(), e);
+            }
+        }
     }
 }

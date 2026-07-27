@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "id": "test_tracking",
+    "name": "镜头跟踪测试",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "测试 CAMERA 轨道 look_at 注视目标点功能",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 15.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 15,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "absolute",
+            "loop": false,
+            "cam_tracking_look_at": "coordinate",
+            "cam_tracking_look_target_x": 0,
+            "cam_tracking_look_target_y": 64,
+            "cam_tracking_look_target_z": 0,
+            "cam_tracking_follow": "none",
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "x": 30, "y": 30, "z": 30 },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              },
+              {
+                "time": 7,
+                "position": { "x": 0, "y": 80, "z": 0 },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              },
+              {
+                "time": 15,
+                "position": { "x": -30, "y": 30, "z": -30 },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

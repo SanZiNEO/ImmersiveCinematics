@@ -215,13 +215,17 @@ public class ScriptEventManager {
     }
 
     private void executeCommand(ServerPlayer player, String command) {
+        String[] parts = command.split("\\s*&&\\s*");
         CommandSourceStack source = player.createCommandSourceStack()
                 .withPermission(4)
                 .withSuppressedOutput();
-        try {
-            player.server.getCommands().performPrefixedCommand(source, command);
-        } catch (Exception e) {
-            LOGGER.error("Failed to execute event command for player {}: /{}", player.getName().getString(), command, e);
+        for (String part : parts) {
+            if (part.trim().isEmpty()) continue;
+            try {
+                player.server.getCommands().performPrefixedCommand(source, part.trim());
+            } catch (Exception e) {
+                LOGGER.error("Failed to execute event command for player {}: /{}", player.getName().getString(), part.trim(), e);
+            }
         }
     }
 

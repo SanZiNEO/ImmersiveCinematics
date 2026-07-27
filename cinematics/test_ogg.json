@@ -1,0 +1,111 @@
+{
+  "meta": {
+    "id": "test_ogg",
+    "name": "OGG 音频测试",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "测试 AUDIO 轨道 OGG 播放 + 音量渐变 + 事件轨道",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 60.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 60,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 3, "dy": 2, "dz": -3 },
+                "yaw": 0,
+                "pitch": -5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              },
+              {
+                "time": 60,
+                "position": { "dx": -3, "dy": 2, "dz": 3 },
+                "yaw": 180,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "AUDIO",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 60,
+            "sound": "testmusic.ogg",
+            "source": "file",
+            "volume": 1.0,
+            "pitch": 1.0,
+            "loop": false,
+            "fade_in": 3.0,
+            "fade_out": 4.0,
+            "attenuation": "none",
+            "position_mode": "relative",
+            "keyframes": [
+              { "time": 0,   "volume": 1.0, "x": 0, "y": 0, "z": 0 },
+              { "time": 10,  "volume": 0.7, "x": 0, "y": 0, "z": 0 },
+              { "time": 20,  "volume": 0.3, "x": 0, "y": 0, "z": 0 },
+              { "time": 30,  "volume": 0.0, "x": 0, "y": 0, "z": 0 },
+              { "time": 35,  "volume": 0.5, "x": 0, "y": 0, "z": 0 },
+              { "time": 45,  "volume": 0.8, "x": 0, "y": 0, "z": 0 },
+              { "time": 60,  "volume": 1.0, "x": 0, "y": 0, "z": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 65,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0,   "event_type": "command", "command": "say [测试] 脚本开始，音乐响起" },
+              { "time": 5,   "event_type": "command", "command": "say [测试] 当前音量 1.0（最大）" },
+              { "time": 10,  "event_type": "command", "command": "say [测试] 音量降至 0.7" },
+              { "time": 15,  "event_type": "command", "command": "weather rain && say [测试] 天气变为雨天" },
+              { "time": 20,  "event_type": "command", "command": "say [测试] 音量降至 0.3，准备静音" },
+              { "time": 25,  "event_type": "command", "command": "time set 18000 && say [测试] 时间设为夜晚" },
+              { "time": 30,  "event_type": "command", "command": "say [测试] 音量归零（静音中）" },
+              { "time": 35,  "event_type": "command", "command": "say [测试] 音量恢复至 0.5" },
+              { "time": 40,  "event_type": "command", "command": "weather clear && time set 6000 && say [测试] 天气放晴，回到白天" },
+              { "time": 45,  "event_type": "command", "command": "say [测试] 音量升至 0.8" },
+              { "time": 50,  "event_type": "command", "command": "tellraw @a {\"text\":\"[测试] 即将结束，感谢聆听！\",\"color\":\"gold\"}" },
+              { "time": 55,  "event_type": "command", "command": "say [测试] 10秒后脚本结束" },
+              { "time": 60,  "event_type": "command", "command": "tellraw @a {\"text\":\"[测试] 脚本结束！\",\"color\":\"green\"}" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

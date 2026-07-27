@@ -31,6 +31,8 @@ import java.util.stream.Stream;
 public class CinematicCommand {
 
     private static final LevelResource WORLD_SCRIPT_DIR = new LevelResource("immersive_cinematics/scripts");
+
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/Command");
     private static final String GLOBAL_SCRIPT_DIR = "immersive_cinematics/scripts";
 
     private static final SuggestionProvider<CommandSourceStack> SCRIPT_SUGGESTIONS = (ctx, builder) -> {
@@ -123,9 +125,9 @@ public class CinematicCommand {
         }
 
         final int count = targets.size();
-        source.sendSuccess(() -> Component.literal(
-                "§a已向 " + count + " 名玩家推送脚本: §f" + script.getMeta().getName() +
-                " §7(总时长: " + String.format("%.1f", script.getTimeline().getTotalDuration()) + "s)"), false);
+        LOGGER.info("已向 {} 名玩家推送脚本: {} (总时长: {}s)",
+                count, script.getMeta().getName(),
+                String.format("%.1f", script.getTimeline().getTotalDuration()));
         return 1;
     }
 
@@ -145,8 +147,7 @@ public class CinematicCommand {
         }
 
         final int count = targets.size();
-        source.sendSuccess(() -> Component.literal(
-                "§a已向 " + count + " 名玩家发送停止指令"), false);
+        LOGGER.info("已向 {} 名玩家发送停止指令", count);
         return 1;
     }
 
@@ -157,7 +158,7 @@ public class CinematicCommand {
 
         CameraManager mgr = CameraManager.INSTANCE;
         if (!mgr.isActive()) {
-            source.sendSuccess(() -> Component.literal("§7相机未激活 §8| 全局脚本目录: " + globalDir), false);
+            LOGGER.info("相机未激活 | 全局脚本目录: {}", globalDir);
             return 0;
         }
 
@@ -165,10 +166,9 @@ public class CinematicCommand {
             CinematicScript script = mgr.getScriptPlayer().getScript();
             String name = script != null ? script.getName() : "未知";
             float remaining = mgr.getScriptPlayer().getRemainingTime();
-            source.sendSuccess(() -> Component.literal("§e脚本模式: §f" + name +
-                    " §7(剩余: " + String.format("%.1f", remaining) + "s)"), false);
+            LOGGER.info("脚本模式: {} (剩余: {}s)", name, String.format("%.1f", remaining));
         } else {
-            source.sendSuccess(() -> Component.literal("§e测试模式 §7(P键激活)"), false);
+            LOGGER.info("测试模式 (P键激活)");
         }
 
         return 1;
@@ -192,14 +192,14 @@ public class CinematicCommand {
                     Path target = worldDir.resolve(globalFile.getFileName());
                     try {
                         Files.copy(globalFile, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                        source.sendSuccess(() -> Component.literal("§7 同步: " + globalFile.getFileName()), false);
+                        LOGGER.info("同步: {}", globalFile.getFileName());
                     } catch (IOException e) {
                         source.sendFailure(Component.literal("§c同步失败 " + globalFile.getFileName() + ": " + e.getMessage()));
                     }
                 });
             }
             ScriptManager.INSTANCE.reload(server);
-            source.sendSuccess(() -> Component.literal("§a脚本重载完成，共 " + ScriptManager.INSTANCE.getAllScripts().size() + " 个脚本生效"), false);
+            LOGGER.info("脚本重载完成，共 {} 个脚本生效", ScriptManager.INSTANCE.getAllScripts().size());
         } catch (IOException e) {
             source.sendFailure(Component.literal("§c重载失败: " + e.getMessage()));
             return 0;

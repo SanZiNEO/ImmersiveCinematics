@@ -1,0 +1,81 @@
+{
+  "meta": {
+    "id": "test_wav",
+    "name": "WAV 音频测试",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "测试 AUDIO 轨道 WAV 格式播放",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 60.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 60,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 3, "dy": 2, "dz": -3 },
+                "yaw": 0,
+                "pitch": -5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              },
+              {
+                "time": 60,
+                "position": { "dx": -3, "dy": 2, "dz": 3 },
+                "yaw": 180,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "AUDIO",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 60,
+            "sound": "test.wav",
+            "source": "file",
+            "volume": 1.0,
+            "pitch": 1.0,
+            "loop": false,
+            "fade_in": 2.0,
+            "fade_out": 3.0,
+            "attenuation": "linear",
+            "position_mode": "relative",
+            "keyframes": [
+              { "time": 0,  "volume": 1.0, "x": 0, "y": 0, "z": 0 },
+              { "time": 60, "volume": 1.0, "x": 0, "y": 0, "z": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

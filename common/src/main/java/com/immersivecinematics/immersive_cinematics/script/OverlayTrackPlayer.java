@@ -100,10 +100,12 @@ public class OverlayTrackPlayer implements TrackPlayer {
                 ImageLayer il = new ImageLayer();
                 String path = clip.getString("path", "");
                 if (!path.isEmpty()) {
-                    // Try to parse as ResourceLocation (e.g., "minecraft:textures/overlay/...")
-                    // For custom paths, strip extension and use standard format
-                    String resourcePath = path.contains(":") ? path : "immersive_cinematics:" + path;
-                    il.setTexture(ResourceLocation.tryParse(resourcePath));
+                    ResourceLocation tex = com.immersivecinematics.immersive_cinematics.util.TextureLoader.loadTexture(path);
+                    if (tex != null) {
+                        il.setTexture(tex);
+                    } else {
+                        LOGGER.warn("Image not found in resource/: {}", path);
+                    }
                 }
                 il.setZIndex(zIndex);
                 layer = il;
