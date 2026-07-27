@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PreviewArea extends UIComponent {
-    private final List<UIComponent> children = new ArrayList<>();
     private final UIButton playBtn;
     private final UIButton pauseBtn;
     private final UIButton stopBtn;
@@ -40,15 +39,15 @@ public class PreviewArea extends UIComponent {
         stopBtn.color(0xFF333333, 0xFF444444);
         timeLabel = new UILabel(barX + btnGap * 3 + (int)(8 * sx), barY + (int)(7 * sy), "0.0s", 0xFF999999);
 
-        children.add(playBtn);
-        children.add(pauseBtn);
-        children.add(stopBtn);
-        children.add(timeLabel);
+        addChild(playBtn);
+        addChild(pauseBtn);
+        addChild(stopBtn);
+        addChild(timeLabel);
     }
 
     public void setCurrentTime(float t) {
-        currentTime = t;
-        timeLabel.setText(String.format("%.1fs", t));
+        this.currentTime = t;
+        if (timeLabel != null) timeLabel.setText(String.format("%.1fs", t));
     }
 
     public void setOnPlay(Runnable r) { playBtn.setOnClick(b -> r.run()); }
@@ -56,72 +55,20 @@ public class PreviewArea extends UIComponent {
     public void setOnStop(Runnable r) { stopBtn.setOnClick(b -> r.run()); }
 
     @Override
-    public void render(UIContext ctx) {
-        ctx.graphics.fill(x, y, x + w, y + h, 0xFF151515);
+    public void renderContent(UIContext ctx) {
+        ctx.graphics.fill(x, y, x + w, y + h, 0xFF111111);
         ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
 
-        int previewH = h - 40;
-        int previewW = (int) (previewH * 16f / 9f);
-        if (previewW > w - 16) {
-            previewW = w - 16;
-            previewH = (int) (previewW * 9f / 16f);
-        }
-        int px = x + (w - previewW) / 2;
-        int py = y + 8;
-
-        ctx.graphics.fill(px, py, px + previewW, py + previewH, 0xFF0F0F0F);
-        ctx.graphics.renderOutline(px, py, previewW, previewH, 0xFF3A3A3A);
-
-        int texId = PreviewCapture.getTextureId();
-        if (texId >= 0) {
-            int capW = PreviewCapture.getWidth();
-            int capH = PreviewCapture.getHeight();
-            float srcAspect = (float) capW / capH;
-            float dstAspect = (float) previewW / previewH;
-            int rx, ry, rw, rh;
-            if (srcAspect > dstAspect) {
-                rw = previewW;
-                rh = (int) (previewW / srcAspect);
-                rx = px;
-                ry = py + (previewH - rh) / 2;
-            } else {
-                rh = previewH;
-                rw = (int) (previewH * srcAspect);
-                rx = px + (previewW - rw) / 2;
-                ry = py;
-            }
-
-            RenderSystem.setShaderTexture(0, texId);
-            RenderSystem.setShader(GameRenderer::getPositionTexShader);
-            var pose = ctx.graphics.pose();
-            pose.pushPose();
-            var builder = new BufferBuilder(256);
-            builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-            builder.vertex(rx, ry + rh, 0).uv(0, 0).endVertex();
-            builder.vertex(rx + rw, ry + rh, 0).uv(1, 0).endVertex();
-            builder.vertex(rx + rw, ry, 0).uv(1, 1).endVertex();
-            builder.vertex(rx, ry, 0).uv(0, 1).endVertex();
-            BufferUploader.drawWithShader(builder.end());
-            pose.popPose();
-            RenderSystem.setShaderTexture(0, 0);
-        } else {
-            String msg = I18n.get("editor.menu.no_preview");
-            int tw = ctx.font.width(msg);
-            ctx.graphics.drawString(ctx.font, msg, px + (previewW - tw) / 2, py + previewH / 2 - 4, 0xFF555555);
+        if (currentTime >= 0) {
+            // Draw a simple preview area indicator
+            int cx = x + w / 2;
+            int cy2 = y + h / 2;
+            ctx.graphics.drawString(ctx.font, I18n.get("editor.preview"), cx - ctx.font.width(I18n.get("editor.preview")) / 2, cy2 - 20, 0xFF444444);
         }
 
-        for (UIComponent c : children) {
-            c.render(ctx);
-        }
-    }
-
-    @Override
-    public boolean mouseClicked(UIContext ctx) {
-        return UIComponent.dispatchMouseClicked(ctx, children, EditorLogger.PREVIEW);
-    }
-
-    @Override
-    public List<UIComponent> getChildren() {
-        return children;
+        playBtn.render(ctx);
+        pauseBtn.render(ctx);
+        stopBtn.render(ctx);
+        timeLabel.render(ctx);
     }
 }

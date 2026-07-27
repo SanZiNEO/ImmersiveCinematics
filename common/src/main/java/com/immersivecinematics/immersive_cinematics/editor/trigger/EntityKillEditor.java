@@ -6,12 +6,14 @@ import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.registries.BuiltInRegistries;
 
 public class EntityKillEditor extends TriggerEditor {
     @Override
     public int build(List<UIComponent> widgets, int x, int y, int w, Runnable onDirty) {
-        UIAutoCompleteInput ti = new UIAutoCompleteInput(x, y, w, 16, "entity",
+        UIAutoCompleteInput ti = new UIAutoCompleteInput(x, y, w, 16, I18n.get("editor.field.entity"),
             () -> {
                 if (!conditions.has("entity")) return "";
                 JsonElement e = conditions.get("entity");
@@ -39,10 +41,11 @@ public class EntityKillEditor extends TriggerEditor {
         widgets.add(ti);
         y += 18;
 
-        List<String> modes = List.of("or", "and");
-        UIDropdown dd = new UIDropdown(x, y, w, 16, modes,
+        List<String> rawModes = List.of("or", "and");
+        List<String> displayModes = rawModes.stream().map(m -> I18n.get("editor.trigger.mode." + m)).collect(Collectors.toList());
+        UIDropdown dd = new UIDropdown(x, y, w, 16, displayModes,
             () -> conditions.has("mode") ? ("or".equals(conditions.get("mode").getAsString()) ? 0 : 1) : 0,
-            i -> { conditions.addProperty("mode", modes.get(i)); onDirty.run(); });
+            i -> { conditions.addProperty("mode", rawModes.get(i)); onDirty.run(); });
         widgets.add(dd);
         return y + 18;
     }

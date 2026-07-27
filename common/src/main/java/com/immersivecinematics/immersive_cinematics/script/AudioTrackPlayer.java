@@ -283,4 +283,24 @@ public class AudioTrackPlayer implements TrackPlayer {
     private static float clipTime(Clip clip, float globalTime) {
         return Math.max(0f, Math.min(clip.getDuration(), globalTime - clip.getStartTime()));
     }
+    /**
+     * Reposition all active audio instances to match a new global time.
+     * Used by the editor when the playhead is dragged to a new position.
+     */
+    public void repositionAudio(float globalTime) {
+        Clip activeClip = findActiveClip(globalTime);
+        for (Map.Entry<Clip, CinematicAudioInstance> e : instances.entrySet()) {
+            Clip clip = e.getKey();
+            CinematicAudioInstance inst = e.getValue();
+            if (clip == activeClip) {
+                float local = clipTime(clip, globalTime);
+                float vol = interpolateFloat(clip, local, "volume", clip.getVolume());
+                inst.syncToTime(local, vol, clip.getFadeIn());
+            } else {
+                inst.cleanup();
+            }
+        }
+        instances.clear();
+        previouslyActive.clear();
+    }
 }

@@ -17,6 +17,8 @@ public class UIContext {
     public double mouseDX;
     public double mouseDY;
 
+    private int scrollOffsetY = 0;
+
     public UIContext(GuiGraphics graphics, Font font, int screenWidth, int screenHeight, float partialTick,
                      int mouseX, int mouseY) {
         this.graphics = graphics;
@@ -35,10 +37,25 @@ public class UIContext {
         return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
     }
 
-    /** 同时偏移鼠标坐标和渲染矩阵（用于滚动补偿，保证 hover 检测与渲染位置一致） */
+    /** Push a scroll offset: translates both mouse Y and rendering matrix. */
+    public void pushScroll(int offset) {
+        this.scrollOffsetY += offset;
+        if (graphics != null) graphics.pose().translate(0, -offset, 0);
+    }
+
+    /** Pop (restore) a scroll offset. Must be paired with a previous pushScroll. */
+    public void popScroll(int offset) {
+        this.scrollOffsetY -= offset;
+        if (graphics != null) graphics.pose().translate(0, offset, 0);
+    }
+
+    /** Get the mouse Y adjusted for accumulated scroll offset. */
+    public int getAdjustedMouseY() { return mouseY + scrollOffsetY; }
+
+    /** @deprecated Use pushScroll/popScroll instead. */
+    @Deprecated
     public void shiftY(int y) {
         this.mouseY += y;
-        // graphics 在点击事件路径中为 null（makeCtx 传入 null），跳过矩阵变换即可
         if (this.graphics != null) {
             this.graphics.pose().translate(0, -y, 0);
         }

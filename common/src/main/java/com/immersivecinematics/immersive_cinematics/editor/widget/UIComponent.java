@@ -1,13 +1,19 @@
 package com.immersivecinematics.immersive_cinematics.editor.widget;
 
+import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 public abstract class UIComponent {
     public int x, y, w, h;
     public boolean visible = true;
+    public boolean enabled = true;
     protected UIComponent parent;
     protected String tooltip;
-    public List<UIComponent> children;
+    protected int zIndex = 0;
+    private final List<UIComponent> children = new ArrayList<>();
+    protected UIComponent focused = null;
 
     public UIComponent(int x, int y, int w, int h) {
         this.x = x;
@@ -42,79 +48,149 @@ public abstract class UIComponent {
     public boolean isHovered(UIContext ctx) {
         return visible && ctx.isMouseIn(absX(), absY(), w, h);
     }
+    public void clearChildren() {
+        for (UIComponent child : children) {
+            child.setParent(null);
+        }
+        children.clear();
+    }
 
-    public abstract void render(UIContext ctx);
+
+    // ── Tree structure ──
+
+    public void addChild(UIComponent child) {
+        children.add(child);
+        child.setParent(this);
+    }
+
+    public void removeChild(UIComponent child) {
+        children.remove(child);
+        child.setParent(null);
+    }
+
+    public final List<UIComponent> getChildren() { return children; }
+
+
+    // ── Focus system ──
+
+    public void requestFocus() {
+        if (parent != null) parent.setFocused(this);
+    }
+
+    public void setFocused(UIComponent child) {
+        if (focused != null && focused != child) focused.onFocusLost();
+        if (child != null) {
+            focused = child;
+            focused.onFocusGained();
+        } else {
+            focused = null;
+        }
+    }
+
+    protected void onFocusGained() {}
+    protected void onFocusLost() {}
+
+    // ── Render ──
+
+    public void render(UIContext ctx) {
+        if (!visible) return;
+        renderContent(ctx);
+        List<UIComponent> ch = new ArrayList<>(children);
+        ch.sort(Comparator.comparingInt(UIComponent::getZIndex).reversed());
+        for (UIComponent child : ch) {
+            if (child.visible) child.render(ctx);
+        }
+    }
+
+    protected void renderContent(UIContext ctx) {}
 
     /** Render pass that runs after all normal rendering, for overlays. */
     public void renderOverlay(UIContext ctx) {
         List<UIComponent> children = getChildren();
-        if (children != null) {
-            for (UIComponent c : children) c.renderOverlay(ctx);
-        }
+        for (UIComponent c : children) c.renderOverlay(ctx);
     }
 
-    public boolean mouseClicked(UIContext ctx) {
-        if (!visible) return false;
-        List<UIComponent> children = getChildren();
-        if (children != null) {
-            for (int i = children.size() - 1; i >= 0; i--) {
-                if (children.get(i).mouseClicked(ctx)) return true;
-            }
-        }
-        return false;
-    }
+    // ── Mouse events (final template methods) ──
 
-    public boolean mouseReleased(UIContext ctx) {
-        if (!visible) return false;
-        List<UIComponent> children = getChildren();
-        if (children != null) {
-            for (int i = children.size() - 1; i >= 0; i--) {
-                if (children.get(i).mouseReleased(ctx)) return true;
-            }
+    public final boolean mouseClicked(UIContext ctx) {
+        if (!visible || !enabled) return false;
+        List<UIComponent> ch = getChildren();
+        for (int i = ch.size() - 1; i >= 0; i--) {
+            if (ch.get(i).mouseClicked(ctx)) return true;
+        }
+        if (onClicked(ctx)) {
+            requestFocus();
+            return true;
         }
         return false;
     }
 
-    public boolean mouseDragged(UIContext ctx) {
-        if (!visible) return false;
-        List<UIComponent> children = getChildren();
-        if (children != null) {
-            for (int i = children.size() - 1; i >= 0; i--) {
-                if (children.get(i).mouseDragged(ctx)) return true;
-            }
+    protected boolean onClicked(UIContext ctx) { return false; }
+
+    public final boolean mouseReleased(UIContext ctx) {
+        if (!visible || !enabled) return false;
+        List<UIComponent> ch = getChildren();
+        for (int i = ch.size() - 1; i >= 0; i--) {
+            if (ch.get(i).mouseReleased(ctx)) return true;
         }
-        return false;
+        return onReleased(ctx);
     }
 
-    public boolean mouseScrolled(UIContext ctx, double scroll) {
-        if (!visible) return false;
-        List<UIComponent> children = getChildren();
-        if (children != null) {
-            for (int i = children.size() - 1; i >= 0; i--) {
-                if (children.get(i).mouseScrolled(ctx, scroll)) return true;
-            }
+    protected boolean onReleased(UIContext ctx) { return false; }
+
+    public final boolean mouseDragged(UIContext ctx) {
+        if (!visible || !enabled) return false;
+        List<UIComponent> ch = getChildren();
+        for (int i = ch.size() - 1; i >= 0; i--) {
+            if (ch.get(i).mouseDragged(ctx)) return true;
         }
-        return false;
+        return onDragged(ctx);
     }
 
-    public List<UIComponent> getChildren() {
-        return children;
+    protected boolean onDragged(UIContext ctx) { return false; }
+
+    public final boolean mouseScrolled(UIContext ctx, double scroll) {
+        if (!visible || !enabled) return false;
+        List<UIComponent> ch = getChildren();
+        for (int i = ch.size() - 1; i >= 0; i--) {
+            if (ch.get(i).mouseScrolled(ctx, scroll)) return true;
+        }
+        return onScrolled(ctx, scroll);
     }
+
+    protected boolean onScrolled(UIContext ctx, double scroll) { return false; }
+
+    // ── Keyboard events (final template methods) ──
+
+    public final boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (!visible || !enabled) return false;
+        if (focused != null && focused.keyPressed(keyCode, scanCode, modifiers)) return true;
+        List<UIComponent> ch = getChildren();
+        for (int i = ch.size() - 1; i >= 0; i--) {
+            if (ch.get(i).keyPressed(keyCode, scanCode, modifiers)) return true;
+        }
+        return onKeyPressed(keyCode, scanCode, modifiers);
+    }
+
+    protected boolean onKeyPressed(int keyCode, int scanCode, int modifiers) { return false; }
+
+    public final boolean charTyped(char codePoint, int modifiers) {
+        if (!visible || !enabled) return false;
+        if (focused != null && focused.charTyped(codePoint, modifiers)) return true;
+        List<UIComponent> ch = getChildren();
+        for (int i = ch.size() - 1; i >= 0; i--) {
+            if (ch.get(i).charTyped(codePoint, modifiers)) return true;
+        }
+        return onCharTyped(codePoint, modifiers);
+    }
+
+    protected boolean onCharTyped(char codePoint, int modifiers) { return false; }
+
+    // ── Tooltip ──
 
     protected void renderTooltipIfHovered(UIContext ctx) {
         if (tooltip != null && isHovered(ctx)) {
             ctx.graphics.renderTooltip(ctx.font, net.minecraft.network.chat.Component.literal(tooltip), ctx.mouseX, ctx.mouseY);
         }
-    }
-
-    /**
-     * 通用 mouseClicked 分发 — 记录 area 点击日志后倒序遍历子组件
-     */
-    public static boolean dispatchMouseClicked(UIContext ctx, List<UIComponent> children, String areaName) {
-        com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger.areaHit(areaName, "full_area", ctx.mouseX, ctx.mouseY, true);
-        for (int i = children.size() - 1; i >= 0; i--) {
-            if (children.get(i).mouseClicked(ctx)) return true;
-        }
-        return false;
     }
 }

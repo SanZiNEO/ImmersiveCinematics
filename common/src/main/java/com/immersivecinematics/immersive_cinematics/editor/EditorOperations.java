@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import net.minecraft.client.resources.language.I18n;
 
 public class EditorOperations {
 
@@ -535,15 +536,15 @@ public class EditorOperations {
         if (root == null) { errors.add("root is null"); return errors; }
         
         JsonObject meta = root.getAsJsonObject("meta");
-        if (meta == null) { errors.add("缺少 meta"); return errors; }
+        if (meta == null) { errors.add(I18n.get("editor.validation.missing_meta")); return errors; }
         if (!meta.has("version") || meta.get("version").getAsInt() != 3)
-            errors.add("meta.version 必须为 3");
+            errors.add(I18n.get("editor.validation.version"));
         
         JsonObject timeline = root.getAsJsonObject("timeline");
-        if (timeline == null) { errors.add("缺少 timeline"); return errors; }
+        if (timeline == null) { errors.add(I18n.get("editor.validation.missing_timeline")); return errors; }
         
         float totalDur = timeline.has("total_duration") ? timeline.get("total_duration").getAsFloat() : 0;
-        if (totalDur == 0f) errors.add("timeline.total_duration 不允许为 0");
+        if (totalDur == 0f) errors.add(I18n.get("editor.validation.zero_duration"));
         
         JsonArray tracks = timeline.getAsJsonArray("tracks");
         if (tracks == null) return errors;
@@ -558,10 +559,10 @@ public class EditorOperations {
                 JsonObject clip = clips.get(ci).getAsJsonObject();
                 String prefix = "tracks[" + ti + "].clips[" + ci + "]";
                 float dur = clip.has("duration") ? clip.get("duration").getAsFloat() : 0;
-                if (dur == 0f) errors.add(prefix + ".duration: 不允许为 0");
+                if (dur == 0f) errors.add(prefix + ".duration: " + I18n.get("editor.validation.zero_clip_duration"));
                 if ("CAMERA".equals(type)) {
                     if (!clip.has("keyframes") || clip.getAsJsonArray("keyframes").size() == 0)
-                        errors.add(prefix + ": CAMERA clip 至少需要1个关键帧");
+                        errors.add(prefix + ": " + I18n.get("editor.validation.missing_keyframe"));
                 }
                 if (clip.has("keyframes")) {
                     JsonArray kfs = clip.getAsJsonArray("keyframes");
@@ -569,7 +570,7 @@ public class EditorOperations {
                     for (int ki = 0; ki < kfs.size(); ki++) {
                         float t = kfs.get(ki).getAsJsonObject().get("time").getAsFloat();
                         if (t <= prevTime)
-                            errors.add(prefix + ".keyframes[" + ki + "].time: 必须单调递增");
+                            errors.add(prefix + ".keyframes[" + ki + "].time: " + I18n.get("editor.validation.keyframe_order"));
                         prevTime = t;
                     }
                 }
@@ -584,7 +585,7 @@ public class EditorOperations {
                 float prevEnd = prev.get("start_time").getAsFloat() + prev.get("duration").getAsFloat();
                 float currStart = curr.get("start_time").getAsFloat();
                 if (currStart < prevEnd - 0.001f)
-                    errors.add("tracks[" + ti + "]: clip 重叠 " + prevEnd + " > " + currStart);
+                    errors.add("tracks[" + ti + "]: " + I18n.get("editor.validation.clip_overlap") + " " + prevEnd + " > " + currStart);
             }
         }
         return errors;

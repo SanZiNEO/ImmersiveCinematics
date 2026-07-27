@@ -170,6 +170,21 @@ public class CinematicAudioInstance {
         setAttenuation(mode, 16f); // 默认距离 16 格
     }
 
+    /**
+     * Sync audio to a specific time position. If the difference between
+     * current playback position and the target is larger than 0.5s, restart.
+     */
+    public void syncToTime(float targetLocalTime, float volume, float fadeIn) {
+        if (!valid) return;
+        float currentTime = getCurrentTime();
+        if (Math.abs(targetLocalTime - currentTime) > 0.5f) {
+            stop();
+            float vol = (fadeIn > 0f && targetLocalTime < fadeIn) ? 0f : volume;
+            setVolume(vol);
+            play();
+        }
+    }
+
     public void update() {}
 
     public boolean isPlaying() {

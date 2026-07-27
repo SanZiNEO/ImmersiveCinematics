@@ -8,19 +8,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.registries.Registries;
-
 public class StructureEditor extends TriggerEditor {
     @Override
     public int build(List<UIComponent> widgets, int x, int y, int w, Runnable onDirty) {
-        UIAutoCompleteInput ti = new UIAutoCompleteInput(x, y, w, 16, "structure",
+        UIAutoCompleteInput ti = new UIAutoCompleteInput(x, y, w, 16, I18n.get("editor.field.structure"),
             () -> conditions.has("structure") ? conditions.get("structure").getAsString() : "",
             v -> { conditions.addProperty("structure", v); onDirty.run(); },
             getStructureCandidates());
         widgets.add(ti);
         y += 18;
 
-        UIFloatInput ri = new UIFloatInput(x, y, w, 16, "radius",
+        UIFloatInput ri = new UIFloatInput(x, y, w, 16, I18n.get("editor.field.radius"),
             () -> conditions.has("radius") ? conditions.get("radius").getAsFloat() : 0,
             0, 9999, 1,
             v -> { conditions.addProperty("radius", v); onDirty.run(); });

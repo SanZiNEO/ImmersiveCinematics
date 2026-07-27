@@ -42,7 +42,7 @@ public class TriggerPanel extends UIComponent {
                 opts.add(t.get("id").getAsString() + " (" + t.get("type").getAsString() + ")");
             }
         }
-        opts.add("[+ Add]");
+        opts.add(I18n.get("editor.label.trigger_add"));
         return opts;
     }
 
@@ -87,7 +87,7 @@ public class TriggerPanel extends UIComponent {
     }
 
     private void rebuild() {
-        widgets.clear();
+        clearChildren();
         if (triggers == null) return;
 
         int lx = x;
@@ -99,7 +99,7 @@ public class TriggerPanel extends UIComponent {
             sel.setHighlightIndex(-1);
             sel.setOnRightClick(this::deleteTrigger);
             sel.setMaxListHeight(150);
-            widgets.add(sel);
+            addChild(sel);
             this.h = 22;
             return;
         }
@@ -109,44 +109,43 @@ public class TriggerPanel extends UIComponent {
         // Non-dropdown widgets start below both dropdowns
         cy = y + 36;
 
-        UITextInput idInput = new UITextInput(lx, cy, w, 16, "id",
+        UITextInput idInput = new UITextInput(lx, cy, w, 16, I18n.get("editor.field.trigger_id"),
             () -> trigger.get("id").getAsString(),
             v -> { trigger.addProperty("id", v); if (onDirty != null) onDirty.run(); });
-        widgets.add(idInput);
+        addChild(idInput);
         cy += 18;
 
-        UIToggle repeatToggle = new UIToggle(lx, cy, w, 16, "repeatable",
+        UIToggle repeatToggle = new UIToggle(lx, cy, w, 16, I18n.get("editor.field.repeatable"),
             () -> trigger.has("repeatable") && trigger.get("repeatable").getAsBoolean(),
             v -> { trigger.addProperty("repeatable", v); if (onDirty != null) onDirty.run(); });
-        widgets.add(repeatToggle);
+        addChild(repeatToggle);
         cy += 18;
 
-        UIToggle onEnterToggle = new UIToggle(lx, cy, w, 16, "on_enter",
+        UIToggle onEnterToggle = new UIToggle(lx, cy, w, 16, I18n.get("editor.field.on_enter"),
             () -> trigger.has("on_enter") && trigger.get("on_enter").getAsBoolean(),
             v -> { trigger.addProperty("on_enter", v); if (onDirty != null) onDirty.run(); });
-        widgets.add(onEnterToggle);
+        addChild(onEnterToggle);
         cy += 18;
-
-        UIFloatInput exitBufferInput = new UIFloatInput(lx, cy, w, 16, "exit_buffer",
+        UIFloatInput exitBufferInput = new UIFloatInput(lx, cy, w, 16, I18n.get("editor.field.exit_buffer"),
             () -> trigger.has("exit_buffer") ? trigger.get("exit_buffer").getAsFloat() : 0,
             0, 9999, 1f,
             v -> { trigger.addProperty("exit_buffer", v); if (onDirty != null) onDirty.run(); });
-        widgets.add(exitBufferInput);
+        addChild(exitBufferInput);
         cy += 18;
 
-        UIFloatInput delayInput = new UIFloatInput(lx, cy, w, 16, "delay",
+        UIFloatInput delayInput = new UIFloatInput(lx, cy, w, 16, I18n.get("editor.field.delay"),
             () -> trigger.has("delay") ? trigger.get("delay").getAsFloat() : 0,
             0, 9999, 0.5f,
             v -> { trigger.addProperty("delay", v); if (onDirty != null) onDirty.run(); });
-        widgets.add(delayInput);
+        addChild(delayInput);
         cy += 20;
 
-        UILabel condLabel = new UILabel(lx, cy, "Conditions", 0xFF777777);
-        widgets.add(condLabel);
+        UILabel condLabel = new UILabel(lx, cy, I18n.get("editor.section.conditions"), 0xFF777777);
+        addChild(condLabel);
         cy += 12;
 
         if (editor != null) {
-            editor.build(widgets, lx, cy, w, onDirty != null ? onDirty : () -> {});
+            editor.build(getChildren(), lx, cy, w, onDirty != null ? onDirty : () -> {});
         }
 
         // Compute content-only height for dropdown maxListHeight before creating them.
@@ -177,7 +176,7 @@ public class TriggerPanel extends UIComponent {
             });
         typeDD.setHighlightIndex(typeIdx);
         typeDD.setMaxListHeight(Math.max(0, effectiveH - 34));
-        widgets.add(typeDD);
+        addChild(typeDD);
 
         UIDropdown sel = new UIDropdown(lx, y, w, 16, triggerOptions(),
             () -> Math.min(selectedIndex, triggers.size()),
@@ -185,7 +184,7 @@ public class TriggerPanel extends UIComponent {
         sel.setHighlightIndex(selectedIndex);
         sel.setOnRightClick(i -> { deleteTrigger(i); if (onTriggerChanged != null) onTriggerChanged.run(); });
         sel.setMaxListHeight(Math.max(0, effectiveH - 16));
-        widgets.add(sel);
+        addChild(sel);
 
         // Re-calculate final height including dropdown widgets.
         int maxBottom = y;
@@ -199,20 +198,20 @@ public class TriggerPanel extends UIComponent {
     public List<UIComponent> getChildren() { return widgets; }
 
     @Override
-    public boolean mouseClicked(UIContext ctx) {
-        if (!visible) return false;
-        // Handle auto-complete suggestion popup clicks first (before reverse-iterating children,
-        // since popups may overlap with lower widgets that would otherwise intercept).
-        for (UIComponent w : widgets) {
+    protected boolean onClicked(UIContext ctx) {
+        for (UIComponent w : getChildren()) {
             if (w instanceof UIAutoCompleteInput ai && ai.isShowingSuggestions() && ai.isInSuggestionArea(ctx)) {
                 if (ai.mouseClicked(ctx)) return true;
             }
         }
-        return super.mouseClicked(ctx);
+        for (int i = getChildren().size() - 1; i >= 0; i--) {
+            if (getChildren().get(i).mouseClicked(ctx)) return true;
+        }
+        return false;
     }
 
     @Override
-    public void render(UIContext ctx) {
-        for (UIComponent w : widgets) w.render(ctx);
+    public void renderContent(UIContext ctx) {
+        for (UIComponent w : getChildren()) w.render(ctx);
     }
-}
+    

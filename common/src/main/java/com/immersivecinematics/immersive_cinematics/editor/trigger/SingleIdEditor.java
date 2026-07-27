@@ -7,9 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-
 public class SingleIdEditor extends TriggerEditor {
     private final String fieldKey;
 
@@ -20,7 +20,8 @@ public class SingleIdEditor extends TriggerEditor {
     @Override
     public int build(List<UIComponent> widgets, int x, int y, int w, Runnable onDirty) {
         List<String> candidates = getCandidates(fieldKey);
-        UIAutoCompleteInput ti = new UIAutoCompleteInput(x, y, w, 16, fieldKey,
+        String label = I18n.exists("editor.field." + fieldKey) ? I18n.get("editor.field." + fieldKey) : fieldKey;
+        UIAutoCompleteInput ti = new UIAutoCompleteInput(x, y, w, 16, label,
             () -> conditions.has(fieldKey) ? conditions.get(fieldKey).getAsString() : "",
             v -> { conditions.addProperty(fieldKey, v); onDirty.run(); },
             candidates);

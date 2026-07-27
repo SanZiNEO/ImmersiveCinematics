@@ -5,7 +5,6 @@ import java.util.List;
 
 public class ContextMenu extends UIComponent {
     private final List<MenuEntry> entries = new ArrayList<>();
-    private boolean visible;
     private int hoveredIndex = -1;
     private Runnable onClose;
 
@@ -15,6 +14,7 @@ public class ContextMenu extends UIComponent {
     public ContextMenu() {
         super(0, 0, 0, 0);
         visible = false;
+        zIndex = 1000;
     }
 
     public void show(int mx, int my) {
@@ -81,7 +81,7 @@ public class ContextMenu extends UIComponent {
     private int getScreenHeight() { return 1080; } // fallback
 
     @Override
-    public void render(UIContext ctx) {
+    public void renderContent(UIContext ctx) {
         if (!visible) return;
 
         int rx = clampX(x);
@@ -109,7 +109,7 @@ public class ContextMenu extends UIComponent {
     }
 
     @Override
-    public boolean mouseClicked(UIContext ctx) {
+    protected boolean onClicked(UIContext ctx) {
         if (!visible) return false;
 
         int rx = clampX(x);
@@ -135,7 +135,7 @@ public class ContextMenu extends UIComponent {
     }
 
     @Override
-    public boolean mouseScrolled(UIContext ctx, double scroll) {
+    protected boolean onScrolled(UIContext ctx, double scroll) {
         if (!visible) return false;
         int rx = clampX(x);
         int ry = clampY(y);
@@ -161,9 +161,9 @@ public class ContextMenu extends UIComponent {
     }
 
     @Override
-    public boolean mouseDragged(UIContext ctx) { return visible; }
+    protected boolean onDragged(UIContext ctx) { return visible; }
     @Override
-    public boolean mouseReleased(UIContext ctx) { return visible; }
+    protected boolean onReleased(UIContext ctx) { return visible; }
 
     private static class MenuEntry {
         final String label;

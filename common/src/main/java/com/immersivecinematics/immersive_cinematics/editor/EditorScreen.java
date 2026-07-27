@@ -55,7 +55,6 @@ public class EditorScreen extends Screen {
     private UIComponent rootComponent;
     private ContextMenu contextMenu;
     private List<JsonObject> clipboard;
-    private UIComponent overlayComponent;
     private long lastSpacePress;
 
     public EditorScreen(EditorBridge bridge, Path scriptsDir) {
@@ -113,29 +112,13 @@ public class EditorScreen extends Screen {
                 }
             }
         };
-        menuBar.setParent(rootComponent);
-        leftPanel.setParent(rootComponent);
-        preview.setParent(rootComponent);
-        timeline.setParent(rootComponent);
-        rootComponent.children = new java.util.ArrayList<>();
-        rootComponent.children.add(menuBar);
-        rootComponent.children.add(leftPanel);
-        rootComponent.children.add(preview);
-        rootComponent.children.add(timeline);
-
-        overlayComponent = new UIComponent(0, 0, width, height) {
-            @Override public void render(UIContext ctx) {
-                for (UIComponent child : getChildren()) {
-                    if (child.visible) child.render(ctx);
-                }
-            }
-        };
-        overlayComponent.children = new java.util.ArrayList<>();
-        overlayComponent.setParent(rootComponent);
-        rootComponent.children.add(overlayComponent);
+        rootComponent.addChild(menuBar);
+        rootComponent.addChild(leftPanel);
+        rootComponent.addChild(preview);
+        rootComponent.addChild(timeline);
 
         contextMenu = new ContextMenu();
-        overlayComponent.children.add(contextMenu);
+        rootComponent.addChild(contextMenu);
         RawInputLogger.enable();
         EditorLogger.areaBoundaries(EditorLogger.SCREEN,
                 "MenuBar=(0,0," + width + "," + menuH + ")"
@@ -196,6 +179,71 @@ public class EditorScreen extends Screen {
             saveScript();
         });
         menuBar.setOnToggleList(this::toggleScriptList);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  CLIPBOARD HELPERS (used by keyboard shortcuts + context menus)
+    // ══════════════════════════════════════════════════════════════
+
+    private void copySelectedClips() {
+        if (sel.getClips().isEmpty()) return;
+        clipboard = new ArrayList<>();
+        for (JsonObject clip : sel.getClips()) {
+            int trackIdx = EditorOperations.findTrackIndex(doc.getTracks(), clip);
+            String trackType = trackIdx >= 0 ? doc.getTracks().get(trackIdx).getAsJsonObject().get("type").getAsString() : "CAMERA";
+            JsonObject copy = clip.deepCopy();
+            copy.addProperty("_trackType", trackType);
+            clipboard.add(copy);
+        }
+    }
+
+    private void cutSelectedClips() {
+        if (sel.getClip() == null) return;
+        clipboard = new ArrayList<>();
+        undoManager.push(doc.toJson());
+        for (JsonObject c : sel.getClips()) {
+            clipboard.add(c.deepCopy());
+            EditorOperations.deleteClip(doc.getTracks(), c);
+        }
+        sel.clear(); doc.markDirty();
+    }
+
+    private void pasteClips() {
+        if (clipboard == null || clipboard.isEmpty()) return;
+        undoManager.push(doc.toJson());
+        List<JsonObject> pasted = new ArrayList<>();
+        float offset = 0;
+        for (JsonObject clip : clipboard) {
+            JsonObject copy = clip.deepCopy();
+            EditorOperations.moveClip(copy, EditorOperations.getStart(clip) + offset, 0);
+            String clipTrackType = clip.has("_trackType") ? clip.get("_trackType").getAsString() : "CAMERA";
+            JsonObject targetTrack = EditorOperations.getTrackByType(doc.getTracks(), clipTrackType);
+            if (targetTrack == null) {
+                targetTrack = EditorOperations.addTrack(doc.getTracks(), clipTrackType);
+            }
+            targetTrack.getAsJsonArray("clips").add(copy);
+            pasted.add(copy);
+            offset += 0.5f;
+        }
+        if (!pasted.isEmpty()) { sel.selectClips(pasted); doc.markDirty(); }
+    }
+
+    private void selectAllClips() {
+        List<JsonObject> allClips = new ArrayList<>();
+        for (JsonElement te : doc.getTracks()) {
+            for (JsonElement ce : te.getAsJsonObject().getAsJsonArray("clips")) {
+                allClips.add(ce.getAsJsonObject());
+            }
+        }
+        sel.selectClips(allClips);
+    }
+
+    private void deleteSelectedClips() {
+        undoManager.push(doc.toJson());
+        for (JsonObject clip : sel.getClips()) {
+            EditorOperations.deleteClip(doc.getTracks(), clip);
+        }
+        sel.clear(); doc.markDirty();
     }
 
     private void wireTimeline() {
@@ -317,7 +365,7 @@ public class EditorScreen extends Screen {
             // 弹出轨道类型选择上下文菜单
             contextMenu.clearEntries();
             for (String t : new String[]{"CAMERA", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY"}) {
-                contextMenu.addEntry("Add " + t + " Track", 0xFFAAAAAA, () -> {
+                contextMenu.addEntry(I18n.get("editor.contextmenu.add_track", t), 0xFFAAAAAA, () -> {
                     undoManager.push(doc.toJson());
                     EditorOperations.addTrack(doc.getTracks(), t);
                     doc.markDirty(); syncPanels();
@@ -341,26 +389,10 @@ public class EditorScreen extends Screen {
         // Clip right-click
         timeline.setOnShowClipContext((mx, my) -> {
             contextMenu.clearEntries();
-            contextMenu.addEntry("Copy (Ctrl+C)", 0xFFCCCCCC, () -> {
-                clipboard = new ArrayList<>();
-                for (JsonObject c : sel.getClips()) clipboard.add(c.deepCopy());
-            });
-            contextMenu.addEntry("Cut (Ctrl+X)", 0xFFCCCCCC, () -> {
-                if (sel.getClip() == null) return;
-                clipboard = new ArrayList<>();
-                undoManager.push(doc.toJson());
-                for (JsonObject c : sel.getClips()) {
-                    clipboard.add(c.deepCopy());
-                    EditorOperations.deleteClip(doc.getTracks(), c);
-                }
-                sel.clear(); doc.markDirty();
-            });
-            contextMenu.addEntry("Delete (Del)", 0xFFFF6666, () -> {
-                undoManager.push(doc.toJson());
-                for (JsonObject c : sel.getClips()) { EditorOperations.deleteClip(doc.getTracks(), c); }
-                sel.clear(); doc.markDirty();
-            });
-            contextMenu.addEntry("Duplicate", 0xFFCCCCCC, () -> {
+            contextMenu.addEntry(I18n.get("editor.contextmenu.copy"), 0xFFCCCCCC, () -> copySelectedClips());
+            contextMenu.addEntry(I18n.get("editor.contextmenu.cut"), 0xFFCCCCCC, () -> cutSelectedClips());
+            contextMenu.addEntry(I18n.get("editor.contextmenu.delete_clip"), 0xFFFF6666, () -> deleteSelectedClips());
+            contextMenu.addEntry(I18n.get("editor.contextmenu.duplicate"), 0xFFCCCCCC, () -> {
                 JsonObject clip = sel.getClip();
                 if (clip == null) return;
                 undoManager.push(doc.toJson());
@@ -374,7 +406,7 @@ public class EditorScreen extends Screen {
                 }
             });
             contextMenu.addSeparator();
-            contextMenu.addEntry("Split at Playhead", 0xFFCCCCCC, () -> {
+            contextMenu.addEntry(I18n.get("editor.contextmenu.split"), 0xFFCCCCCC, () -> {
                 JsonObject clip = sel.getClip();
                 if (clip != null) {
                     undoManager.push(doc.toJson());
@@ -382,7 +414,7 @@ public class EditorScreen extends Screen {
                     if (right != null) { doc.markDirty(); sel.selectClip(right); }
                 }
             });
-            contextMenu.addEntry("Add Keyframe Here", 0xFFCCCCCC, () -> {
+            contextMenu.addEntry(I18n.get("editor.contextmenu.add_keyframe"), 0xFFCCCCCC, () -> {
                 JsonObject kf = EditorOperations.addKeyframeAt(sel.getClip(), playback.getTime());
                 if (kf != null) { doc.markDirty(); sel.selectKeyframe(kf, sel.getClip()); }
             });
@@ -395,15 +427,15 @@ public class EditorScreen extends Screen {
             int idx = timeline.getSelectedTrackIndex();
             String type = idx >= 0 && idx < doc.getTracks().size()
                     ? doc.getTracks().get(idx).getAsJsonObject().get("type").getAsString() : "";
-            contextMenu.addEntry("Track: " + type + (idx >= 0 ? " #" + idx : ""), 0xFF888888, null);
+            contextMenu.addEntry(I18n.get("editor.contextmenu.track_header", type, idx), 0xFF888888, null);
             contextMenu.addSeparator();
-            contextMenu.addEntry("Add Clip Here", 0xFFCCCCCC, () -> {
+            contextMenu.addEntry(I18n.get("editor.contextmenu.add_clip_here"), 0xFFCCCCCC, () -> {
                 if (idx < 0) return;
                 undoManager.push(doc.toJson());
                 JsonObject clip = EditorOperations.addClip(doc.getTracks(), idx, playback.getTime(), 5, type);
                 if (clip != null) { doc.markDirty(); sel.selectClip(clip); }
             });
-            contextMenu.addEntry("Delete Track", 0xFFFF6666, () -> {
+            contextMenu.addEntry(I18n.get("editor.contextmenu.delete_track"), 0xFFFF6666, () -> {
                 if (idx < 0 || idx >= doc.getTracks().size()) return;
                 undoManager.push(doc.toJson());
                 EditorOperations.removeTrack(doc.getTracks(), idx);
@@ -411,7 +443,7 @@ public class EditorScreen extends Screen {
                 doc.markDirty(); syncPanels();
             });
             for (String t : new String[]{"CAMERA", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY"}) {
-                contextMenu.addEntry("Add " + t + " Track", 0xFFAAAAAA, () -> {
+                contextMenu.addEntry(I18n.get("editor.contextmenu.add_track", t), 0xFFAAAAAA, () -> {
                     EditorOperations.addTrack(doc.getTracks(), t);
                     doc.markDirty(); syncPanels();
                 });
@@ -427,59 +459,30 @@ public class EditorScreen extends Screen {
             for (JsonElement te : doc.getTracks()) {
                 String t = te.getAsJsonObject().get("type").getAsString();
                 if ("LETTERBOX".equals(t)) continue;
-                contextMenu.addEntry("Add " + t + " Clip", 0xFFCCCCCC, () -> {
+                contextMenu.addEntry(I18n.get("editor.contextmenu.add_clip", t), 0xFFCCCCCC, () -> {
                     undoManager.push(doc.toJson());
                     JsonObject clip = EditorOperations.addClip(doc.getTracks(), finalTrackIdx, doc.getTotalDuration(), 5, t);
                     if (clip != null) { doc.markDirty(); sel.selectClip(clip); }
                 });
             }
-            contextMenu.addEntry("Add Keyframe Here", 0xFFCCCCCC, () -> {
+            contextMenu.addEntry(I18n.get("editor.contextmenu.add_keyframe"), 0xFFCCCCCC, () -> {
                 JsonObject clip = sel.getClip();
                 if (clip != null) {
                     JsonObject kf = EditorOperations.addKeyframeAt(clip, playback.getTime());
                     if (kf != null) doc.markDirty();
                 }
             });
-            contextMenu.addEntry("Select All (Ctrl+A)", 0xFFCCCCCC, () -> {
-                java.util.List<JsonObject> allClips = new java.util.ArrayList<>();
-                for (JsonElement te : doc.getTracks()) {
-                    JsonArray clips = te.getAsJsonObject().getAsJsonArray("clips");
-                    if (clips != null) {
-                        for (JsonElement ce : clips) allClips.add(ce.getAsJsonObject());
-                    }
-                }
-                sel.selectClips(allClips);
-            });
-            contextMenu.addEntry("Paste (Ctrl+V)", 0xFFCCCCCC, () -> {
-                if (clipboard == null || clipboard.isEmpty()) return;
-                undoManager.push(doc.toJson());
-                for (JsonObject c : clipboard) {
-                    JsonObject copy = c.deepCopy();
-                    String clipType = copy.has("transition") ? "CAMERA" : copy.has("sound") ? "AUDIO" : "EVENT";
-                    JsonObject targetTrack = null;
-                    for (JsonElement te : doc.getTracks()) {
-                        if (te.getAsJsonObject().get("type").getAsString().equals(clipType)) {
-                            targetTrack = te.getAsJsonObject();
-                            break;
-                        }
-                    }
-                    if (targetTrack == null) {
-                        targetTrack = EditorOperations.addTrack(doc.getTracks(), clipType);
-                    }
-                    targetTrack.getAsJsonArray("clips").add(copy);
-                }
-                EditorOperations.sortTrackClips(doc.getTracks());
-                doc.markDirty(); syncPanels();
-            });
+            contextMenu.addEntry(I18n.get("editor.contextmenu.select_all"), 0xFFCCCCCC, () -> selectAllClips());
+            contextMenu.addEntry(I18n.get("editor.contextmenu.paste"), 0xFFCCCCCC, () -> { pasteClips(); syncPanels(); });
             contextMenu.addSeparator();
             for (String t : new String[]{"CAMERA", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY"}) {
-                contextMenu.addEntry("Add " + t + " Track", 0xFFAAAAAA, () -> {
+                contextMenu.addEntry(I18n.get("editor.contextmenu.add_track", t), 0xFFAAAAAA, () -> {
                     EditorOperations.addTrack(doc.getTracks(), t);
                     doc.markDirty(); syncPanels();
                 });
             }
             contextMenu.addSeparator();
-            contextMenu.addEntry("Snap (" + "\u00AB\u00BB" + ")", 0xFFCCCCCC, () -> {
+            contextMenu.addEntry(I18n.get("editor.contextmenu.snap", "\u00AB\u00BB"), 0xFFCCCCCC, () -> {
                 EditorOperations.snapAllClips(doc.getTracks()); doc.markDirty(); syncPanels();
             });
             contextMenu.show(mx, my);
@@ -489,10 +492,10 @@ public class EditorScreen extends Screen {
         timeline.setOnShowRulerContext((mx, my) -> {
             contextMenu.clearEntries();
             float t = timeline.xToTime(mx);
-            contextMenu.addEntry("Jump Playhead Here", 0xFFCCCCCC, () -> {
+            contextMenu.addEntry(I18n.get("editor.contextmenu.jump_playhead"), 0xFFCCCCCC, () -> {
                 playback.setTime(Math.max(0, t)); output.setTime(playback.getTime()); syncPanels();
             });
-            contextMenu.addEntry("Zoom to Fit", 0xFFCCCCCC, () -> {
+            contextMenu.addEntry(I18n.get("editor.contextmenu.zoom_to_fit"), 0xFFCCCCCC, () -> {
                 float totalDur = doc.getTotalDuration();
                 if (totalDur > 0) {
                     timeline.setPixelsPerSecond(Math.min(timeline.canvasW() / totalDur, 5000));
@@ -594,7 +597,7 @@ public class EditorScreen extends Screen {
             // 弹出轨道类型选择
             contextMenu.clearEntries();
             for (String t : new String[]{"CAMERA", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY"}) {
-                contextMenu.addEntry("新增 " + t + " 轨道", 0xFFAAAAAA, () -> {
+                contextMenu.addEntry(I18n.get("editor.contextmenu.add_track", t), 0xFFAAAAAA, () -> {
                     undoManager.push(doc.toJson());
                     EditorOperations.addTrack(doc.getTracks(), t);
                     doc.markDirty();
@@ -706,10 +709,9 @@ public class EditorScreen extends Screen {
         // Validate before save
         List<String> errors = EditorOperations.validateScript(doc.getRoot());
         if (!errors.isEmpty()) {
-            String msg = "脚本存在 " + errors.size() + " 个问题，无法保存:\n";
+            String msg = I18n.get("editor.validation.failed", errors.size());
             for (String e : errors) msg += "  - " + e + "\n";
             EditorLogger.error(EditorLogger.SCREEN, "SAVE_VALIDATION_FAILED", new RuntimeException(msg));
-            return;
         }
         try {
             Files.createDirectories(scriptsDir);
@@ -845,12 +847,7 @@ public class EditorScreen extends Screen {
         }
 
         renderPhase = "done";
-        // per-frame RENDER_TICK log suppressed — too noisy for debugging
     }
-
-    // ══════════════════════════════════════════════════════════════
-    //  INPUT
-    // ══════════════════════════════════════════════════════════════
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
@@ -860,48 +857,9 @@ public class EditorScreen extends Screen {
         mouseDownX = (int) mx; mouseDownY = (int) my;
         EditorLogger.mousePressed(EditorLogger.SCREEN, button, (int) mx, (int) my, activeArea);
         try {
-            // Context menu overlay takes priority
-            if (contextMenu.isVisible() && contextMenu.mouseClicked(ctx)) { return true; }
             if (rootComponent.mouseClicked(ctx)) { syncPanels(); return true; }
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "mouseClicked crashed button=" + button, e);
-        }
-        return false;
-    }
-
-    @Override
-    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
-        if (rootComponent == null) return false;
-        try {
-            UIContext ctx = makeCtx(mx, my, button);
-            ctx.mouseDX = dx; ctx.mouseDY = dy;
-            return rootComponent.mouseDragged(ctx);
-        } catch (Exception e) {
-            EditorLogger.error(EditorLogger.SCREEN, "mouseDragged crashed", e);
-            return false;
-        }
-    }
-
-    @Override
-    public boolean mouseReleased(double mx, double my, int button) {
-        if (rootComponent == null) return false;
-        try {
-            UIContext ctx = makeCtx(mx, my, button);
-            return rootComponent.mouseReleased(ctx);
-        } catch (Exception e) {
-            EditorLogger.error(EditorLogger.SCREEN, "mouseReleased crashed", e);
-        }
-        return false;
-    }
-
-    @Override
-    public boolean mouseScrolled(double mx, double my, double scroll) {
-        if (rootComponent == null) return false;
-        try {
-            UIContext ctx = makeCtx(mx, my, 0);
-            return rootComponent.mouseScrolled(ctx, scroll);
-        } catch (Exception e) {
-            EditorLogger.error(EditorLogger.SCREEN, "mouseScrolled crashed", e);
         }
         return false;
     }
@@ -911,6 +869,12 @@ public class EditorScreen extends Screen {
         try {
             EditorLogger.keyPress(EditorLogger.SCREEN, "keyPressed", keyCode,
                     "mods=" + modifiers + " shift=" + hasShiftDown() + " ctrl=" + hasControlDown());
+
+            // 1) Dispatch to component tree (focus-based + children traversal)
+            if (rootComponent != null && rootComponent.keyPressed(keyCode, scanCode, modifiers)) {
+                return true;
+            }
+
             boolean escPressed = keyCode == 256;
             boolean editorKeyPressed = CinematicKeyBindings.EDITOR_KEY != null && CinematicKeyBindings.EDITOR_KEY.matches(keyCode, scanCode);
             if (escPressed || editorKeyPressed) {
@@ -918,72 +882,34 @@ public class EditorScreen extends Screen {
                 EditorLogger.action(EditorLogger.SCREEN, "CLOSE", "ESC"); CinematicKeyBindings.notifyEditorClosed(); onClose(); return true;
             }
 
+            // 2) Legacy IFocusable dispatch (for left panel text inputs)
             UIComponent focused = leftPanel.getFocusedInput();
             if (focused instanceof IFocusable f && f.keyPressed(keyCode, scanCode, modifiers)) return true;
 
-            // Space — play/pause (with repeat guard)
-            if (keyCode == 32) {
-                long now = System.currentTimeMillis();
-                if (now - lastSpacePress < 300) return true;
-                lastSpacePress = now;
-                if (playback.isPlaying()) { playback.pause(); output.pause(); menuBar.setStatus(I18n.get("editor.status.paused"), 0xFFBBBB44); }
-                else { playback.play(); output.play(); menuBar.setStatus(I18n.get("editor.status.playing"), 0xFF44AA44); }
-                return true;
-            }
+            // 3) Editor-level shortcuts
 
             // Ctrl+A — select all
             if (keyCode == 65 && hasControlDown()) {
-                List<JsonObject> allClips = new ArrayList<>();
-                for (JsonElement te : doc.getTracks()) {
-                    for (JsonElement ce : te.getAsJsonObject().getAsJsonArray("clips")) {
-                        allClips.add(ce.getAsJsonObject());
-                    }
-                }
-                sel.selectClips(allClips);
+                selectAllClips();
                 return true;
             }
 
             // Ctrl+C — copy selected
-            if (keyCode == 67 && hasControlDown() && !sel.getClips().isEmpty()) {
-                clipboard = new ArrayList<>();
-                for (JsonObject clip : sel.getClips()) {
-                    int trackIdx = EditorOperations.findTrackIndex(doc.getTracks(), clip);
-                    String trackType = trackIdx >= 0 ? doc.getTracks().get(trackIdx).getAsJsonObject().get("type").getAsString() : "CAMERA";
-                    JsonObject copy = clip.deepCopy();
-                    copy.addProperty("_trackType", trackType);
-                    clipboard.add(copy);
-                }
+            if (keyCode == 67 && hasControlDown()) {
+                copySelectedClips();
                 return true;
             }
+
             // Ctrl+V — paste
-            if (keyCode == 86 && hasControlDown() && clipboard != null && !clipboard.isEmpty()) {
-                undoManager.push(doc.toJson());
-                List<JsonObject> pasted = new ArrayList<>();
-                float offset = 0;
-                for (JsonObject clip : clipboard) {
-                    JsonObject copy = clip.deepCopy();
-                    EditorOperations.moveClip(copy, EditorOperations.getStart(clip) + offset, 0);
-                    String clipTrackType = clip.has("_trackType") ? clip.get("_trackType").getAsString() : "CAMERA";
-                    JsonObject targetTrack = EditorOperations.getTrackByType(doc.getTracks(), clipTrackType);
-                    if (targetTrack == null) {
-                        targetTrack = EditorOperations.addTrack(doc.getTracks(), clipTrackType);
-                    }
-                    targetTrack.getAsJsonArray("clips").add(copy);
-                    pasted.add(copy);
-                    offset += 0.5f;
-                }
-                if (!pasted.isEmpty()) { sel.selectClips(pasted); doc.markDirty(); }
+            if (keyCode == 86 && hasControlDown()) {
+                pasteClips();
+                syncPanels();
                 return true;
             }
 
             // Ctrl+X — cut (copy + delete)
-            if (keyCode == 88 && hasControlDown() && !sel.getClips().isEmpty()) {
-                clipboard = new ArrayList<>();
-                for (JsonObject clip : sel.getClips()) {
-                    clipboard.add(clip.deepCopy());
-                    EditorOperations.deleteClip(doc.getTracks(), clip);
-                }
-                sel.clear(); doc.markDirty();
+            if (keyCode == 88 && hasControlDown()) {
+                cutSelectedClips();
                 return true;
             }
 
@@ -1075,9 +1001,8 @@ public class EditorScreen extends Screen {
 
             // Delete — delete selected clips
             if ((keyCode == 261 || keyCode == 127) && !sel.getClips().isEmpty()) {
-                undoManager.push(doc.toJson());
-                for (JsonObject clip : sel.getClips()) { EditorOperations.deleteClip(doc.getTracks(), clip); }
-                sel.clear(); doc.markDirty(); return true;
+                deleteSelectedClips();
+                return true;
             }
 
             // Ctrl+ shortcuts group
@@ -1138,10 +1063,15 @@ public class EditorScreen extends Screen {
         }
         return false;
     }
-
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
         try {
+            // Dispatch to component tree (focus-based)
+            if (rootComponent != null && rootComponent.charTyped(codePoint, modifiers)) {
+                return true;
+            }
+
+            // Legacy IFocusable dispatch
             UIComponent focusedInput = leftPanel.getFocusedInput();
             if (focusedInput instanceof IFocusable f) {
                 EditorLogger.keyPress(EditorLogger.SCREEN, "charTyped", (int) codePoint,

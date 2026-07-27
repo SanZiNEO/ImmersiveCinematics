@@ -282,6 +282,18 @@ public class ScriptPlayer {
         }
     }
 
+    /**
+     * Reposition audio tracks to match a new global time.
+     * Called from CameraManager when editor playhead is dragged.
+     */
+    public void repositionAudio(float globalTime) {
+        for (TrackPlayer tp : trackPlayers) {
+            if (tp instanceof AudioTrackPlayer atp) {
+                atp.repositionAudio(globalTime);
+            }
+        }
+    }
+
     // ========== 内部方法 ==========
 
     private float getElapsedSeconds() {

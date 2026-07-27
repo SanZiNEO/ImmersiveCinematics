@@ -5,11 +5,12 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import java.util.List;
-
+import java.util.stream.Collectors;
+import net.minecraft.client.resources.language.I18n;
 public class InventoryEditor extends TriggerEditor {
     @Override
     public int build(List<UIComponent> widgets, int x, int y, int w, Runnable onDirty) {
-        UITextInput ti = new UITextInput(x, y, w, 16, "items",
+        UITextInput ti = new UITextInput(x, y, w, 16, I18n.get("editor.field.items"),
             () -> {
                 if (!conditions.has("items")) return "";
                 JsonArray arr = conditions.getAsJsonArray("items");
@@ -29,15 +30,17 @@ public class InventoryEditor extends TriggerEditor {
         widgets.add(ti);
         y += 18;
 
-        List<String> modes = List.of("and", "or");
-        UIDropdown md = new UIDropdown(x, y, w, 16, modes,
+        List<String> rawModes = List.of("and", "or");
+        List<String> displayModes = rawModes.stream().map(m -> I18n.get("editor.trigger.mode." + m)).collect(Collectors.toList());
+        UIDropdown md = new UIDropdown(x, y, w, 16, displayModes,
             () -> conditions.has("mode") ? ("and".equals(conditions.get("mode").getAsString()) ? 0 : 1) : 0,
-            i -> { conditions.addProperty("mode", modes.get(i)); onDirty.run(); });
+            i -> { conditions.addProperty("mode", rawModes.get(i)); onDirty.run(); });
         widgets.add(md);
         y += 18;
 
-        List<String> changes = List.of("none", "increase", "decrease");
-        UIDropdown cd = new UIDropdown(x, y, w, 16, changes,
+        List<String> rawChanges = List.of("none", "increase", "decrease");
+        List<String> displayChanges = rawChanges.stream().map(c -> I18n.get("editor.trigger.change." + c)).collect(Collectors.toList());
+        UIDropdown cd = new UIDropdown(x, y, w, 16, displayChanges,
             () -> {
                 if (!conditions.has("change")) return 0;
                 String c = conditions.get("change").getAsString();
@@ -45,7 +48,7 @@ public class InventoryEditor extends TriggerEditor {
             },
             i -> {
                 if (i == 0) conditions.remove("change");
-                else conditions.addProperty("change", changes.get(i));
+                else conditions.addProperty("change", rawChanges.get(i));
                 onDirty.run();
             });
         widgets.add(cd);

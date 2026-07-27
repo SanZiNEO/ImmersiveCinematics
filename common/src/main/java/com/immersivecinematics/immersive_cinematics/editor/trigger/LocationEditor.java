@@ -4,7 +4,9 @@ import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.registries.Registries;
 
 public class LocationEditor extends TriggerEditor {
@@ -12,7 +14,7 @@ public class LocationEditor extends TriggerEditor {
 
     @Override
     public int build(List<UIComponent> widgets, int x, int y, int w, Runnable onDirty) {
-        UIAutoCompleteInput dim = new UIAutoCompleteInput(x, y, w, 16, "dimension",
+        UIAutoCompleteInput dim = new UIAutoCompleteInput(x, y, w, 16, I18n.get("editor.field.dimension2"),
             () -> conditions.has("dimension") ? conditions.get("dimension").getAsString() : "",
             v -> { conditions.addProperty("dimension", v); onDirty.run(); },
             getDimensionCandidates());
@@ -20,7 +22,9 @@ public class LocationEditor extends TriggerEditor {
         y += 18;
 
         boolean isBox = conditions.has("corner1");
-        UIDropdown mm = new UIDropdown(x, y, w, 16, SUB_MODES,
+        List<String> rawSubModes = List.of("point+radius", "box");
+        List<String> displaySubModes = rawSubModes.stream().map(m -> I18n.get("editor.trigger.submode." + m)).collect(Collectors.toList());
+        UIDropdown mm = new UIDropdown(x, y, w, 16, displaySubModes,
             () -> isBox ? 1 : 0,
             i -> {
                 if (i == 0) {
@@ -56,7 +60,7 @@ public class LocationEditor extends TriggerEditor {
             y = addPositionFields(widgets, x, y, w, "corner2", onDirty);
         } else {
             y = addPositionFields(widgets, x, y, w, "position", onDirty);
-            UIFloatInput rad = new UIFloatInput(x, y, w, 16, "radius",
+            UIFloatInput rad = new UIFloatInput(x, y, w, 16, I18n.get("editor.field.radius"),
                 () -> conditions.has("radius") ? conditions.get("radius").getAsFloat() : 0,
                 0, 9999, 1,
                 v -> { conditions.addProperty("radius", v); onDirty.run(); });
@@ -71,7 +75,7 @@ public class LocationEditor extends TriggerEditor {
         JsonObject pos = conditions.has(key) ? conditions.getAsJsonObject(key) : new JsonObject();
         if (!conditions.has(key)) conditions.add(key, pos);
         for (String axis : new String[]{"x", "y", "z"}) {
-            UIFloatInput fi = new UIFloatInput(x, y, w, 16, key + "." + axis,
+            UIFloatInput fi = new UIFloatInput(x, y, w, 16, I18n.get("editor.field.position_" + axis),
                 () -> pos.has(axis) ? pos.get(axis).getAsFloat() : 0,
                 -99999, 99999, 1,
                 v -> { pos.addProperty(axis, v); onDirty.run(); });

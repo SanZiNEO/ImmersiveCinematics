@@ -14,7 +14,6 @@ import java.util.function.Consumer;
 
 
 public class LeftPanelArea extends UIComponent {
-    private final List<UIComponent> children = new ArrayList<>();
 
     public enum PanelMode { SCRIPT_LIST, SCRIPT_PROPERTIES, CLIP_PROPERTIES, KEYFRAME_PROPERTIES, TRACK_LIST }
     private PanelMode mode = PanelMode.SCRIPT_PROPERTIES;
@@ -94,7 +93,7 @@ public class LeftPanelArea extends UIComponent {
 
     public void build() {
         EditorLogger.action(EditorLogger.LEFT, "BUILD", "mode=" + mode);
-        children.clear();
+        clearChildren();
         buildTabBar();
         switch (mode) {
             case SCRIPT_LIST -> buildScriptList();
@@ -116,7 +115,7 @@ public class LeftPanelArea extends UIComponent {
     private void buildScriptList() {
         System.out.println("[KILO-DEBUG] LeftPanelArea.buildScriptList: scriptFileNames=" + scriptFileNames);
         int cy = contentY() + 6;
-        children.add(new UILabel(x + 6, cy, "Scripts", 0xFFAAAAAA));
+        addChild(new UILabel(x + 6, cy, "Scripts", 0xFFAAAAAA));
         cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
 
         for (String name : scriptFileNames) {
@@ -125,7 +124,7 @@ public class LeftPanelArea extends UIComponent {
                 if (onOpenScript != null) onOpenScript.accept(name);
             });
             itemBtn.color(0x00, 0x443A3A3A).textColor(0xFFAAAAAA);
-            children.add(itemBtn);
+            addChild(itemBtn);
             cy += btnH + (int)(2 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
         }
 
@@ -133,7 +132,7 @@ public class LeftPanelArea extends UIComponent {
             if (onNewScript != null) onNewScript.run();
         });
         newBtn.color(0xFF333333, 0xFF444444).textColor(0xFFAAAAAA);
-        children.add(newBtn);
+        addChild(newBtn);
     }
 
     private void buildScriptProperties() {
@@ -148,7 +147,7 @@ public class LeftPanelArea extends UIComponent {
         if (!script.has("triggers")) script.add("triggers", triggers);
         TriggerPanel tp = new TriggerPanel(lx, cy, w - 12, 1, triggers, onDirty);
         tp.setOnTriggerChanged(() -> { build(); });
-        children.add(tp);
+        addChild(tp);
         cy += tp.h + (int)(6 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
 
         int sectionGap = (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
@@ -214,9 +213,10 @@ public class LeftPanelArea extends UIComponent {
 
     private void computeContentHeightAndClampScroll() {
         int bottom = y;
-        for (UIComponent c : children) {
+        for (UIComponent c : getChildren()) {
             bottom = Math.max(bottom, getComponentBottom(c));
         }
+        contentHeight = Math.max(0, bottom - y);
         contentHeight = Math.max(0, bottom - y);
 
         boolean shouldScroll = contentHeight > h * 0.8f;
@@ -448,7 +448,7 @@ public class LeftPanelArea extends UIComponent {
         } else {
             btn.color(0x00, 0x44442222).textColor(0xFFAA4444);
         }
-        children.add(btn);
+        addChild(btn);
         return cy + 18;
     }
 
@@ -474,7 +474,7 @@ public class LeftPanelArea extends UIComponent {
             scheduleBuild();
         });
         btn.color(0x00, 0x44333A3A).textColor(0xFFAAAAAA);
-        children.add(btn);
+        addChild(btn);
         return cy + 18;
     }
 
@@ -570,7 +570,7 @@ public class LeftPanelArea extends UIComponent {
                         parentObj.addProperty(key, v);
                         if (onDirty != null) onDirty.run();
                     });
-            children.add(ti);
+            addChild(ti);
             return cy + 18;
         }
         return cy;
@@ -592,7 +592,7 @@ public class LeftPanelArea extends UIComponent {
     }
 
     private void addSectionLabel(String text, int lx, int cy, int depth) {
-        children.add(new UILabel(lx + depth * 10, cy, text, 0xFF777777));
+        addChild(new UILabel(lx + depth * 10, cy, text, 0xFF777777));
     }
 
     private int addFloatField(String label, java.util.function.Supplier<Float> source, int lx, int cy,
@@ -604,19 +604,19 @@ public class LeftPanelArea extends UIComponent {
                               float min, float max, float step, Consumer<Float> sink, int width) {
         int fh = (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
         UIFloatInput fi = new UIFloatInput(lx, cy, width, fh, label, source, min, max, step, sink);
-        children.add(fi);
+        addChild(fi);
         return cy + fh + (int)(2 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
     }
 
     private int addToggle(String label, java.util.function.Supplier<Boolean> source, int lx, int cy, Consumer<Boolean> sink) {
         int fh = (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
         UIToggle tgl = new UIToggle(lx, cy, w - 12, fh, label, source, sink);
-        children.add(tgl);
+        addChild(tgl);
         return cy + fh + (int)(2 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
     }
 
     public UIComponent getFocusedInput() {
-        return findFocusedInput(children);
+        return findFocusedInput(getChildren());
     }
 
     private static UIComponent findFocusedInput(List<UIComponent> list) {
@@ -632,7 +632,7 @@ public class LeftPanelArea extends UIComponent {
     }
 
     public void clearTextFocus() {
-        clearTextFocus(children);
+        clearTextFocus(getChildren());
     }
 
     private static void clearTextFocus(List<UIComponent> list) {
@@ -642,19 +642,10 @@ public class LeftPanelArea extends UIComponent {
             if (sub != null) clearTextFocus(sub);
         }
     }
-
     @Override
-    public void render(UIContext ctx) {
-        ctx.graphics.fill(x, y, x + w, y + h, 0xFF1A1A1A);
-        ctx.graphics.fill(x + w - 1, y, x + w, y + h, 0xFF2A2A2A);
-
+    public void renderContent(UIContext ctx) {
         ctx.graphics.enableScissor(x, y, x + w, y + h);
-        ctx.shiftY(scrollY);
-        for (UIComponent c : children) {
-            c.render(ctx);
-        }
-        ctx.shiftY(-scrollY);
-        ctx.graphics.disableScissor();
+        ctx.pushScroll(scrollY);
 
         if (maxScroll > 0) {
             int sbX = x + w - 4;
@@ -672,15 +663,15 @@ public class LeftPanelArea extends UIComponent {
 
     @Override
     public void renderOverlay(UIContext ctx) {
-        ctx.shiftY(scrollY);
-        for (UIComponent c : children) {
+        ctx.pushScroll(scrollY);
+        for (UIComponent c : getChildren()) {
             c.renderOverlay(ctx);
         }
-        ctx.shiftY(-scrollY);
+        ctx.popScroll(scrollY);
     }
 
     @Override
-    public boolean mouseClicked(UIContext ctx) {
+    protected boolean onClicked(UIContext ctx) {
         if (!ctx.isMouseIn(x, y, w, h)) return false;
 
         if (maxScroll > 0) {
@@ -703,20 +694,20 @@ public class LeftPanelArea extends UIComponent {
         EditorLogger.areaHit(EditorLogger.LEFT, "full_area", ctx.mouseX, ctx.mouseY, true);
         EditorLogger.areaHit(EditorLogger.LEFT, "mode_" + mode.name(), ctx.mouseX, ctx.mouseY, true);
 
-        ctx.shiftY(scrollY);
-        for (int i = children.size() - 1; i >= 0; i--) {
-            UIComponent c = children.get(i);
+        ctx.pushScroll(scrollY);
+        List<UIComponent> ch = getChildren();
+        for (int i = ch.size() - 1; i >= 0; i--) {
+            UIComponent c = ch.get(i);
             if (c.isHovered(ctx) && c instanceof com.immersivecinematics.immersive_cinematics.editor.widget.UIToggle tgl) {
                 EditorLogger.action(EditorLogger.LEFT, "TOGGLE_CLICK", "label=" + mode + " value=" + !tgl.isOn());
             }
-            if (c.mouseClicked(ctx)) { ctx.shiftY(-scrollY); return true; }
+            if (c.mouseClicked(ctx)) { ctx.popScroll(scrollY); return true; }
         }
-        ctx.shiftY(-scrollY);
+        ctx.popScroll(scrollY);
         return false;
     }
-
     @Override
-    public boolean mouseDragged(UIContext ctx) {
+    protected boolean onDragged(UIContext ctx) {
         if (scrollbarGrabbed && maxScroll > 0) {
             float thumbRatio = (float)h / contentHeight;
             int thumbH = Math.max(8, (int)(h * thumbRatio));
@@ -727,7 +718,7 @@ public class LeftPanelArea extends UIComponent {
             }
             return true;
         }
-        ctx.shiftY(scrollY);
+        ctx.pushScroll(scrollY);
         boolean result = false;
         List<UIComponent> ch = getChildren();
         if (ch != null) {
@@ -735,21 +726,19 @@ public class LeftPanelArea extends UIComponent {
                 if (ch.get(i).mouseDragged(ctx)) { result = true; }
             }
         }
-        ctx.shiftY(-scrollY);
+        ctx.popScroll(scrollY);
         return result;
     }
-
     @Override
-    public boolean mouseReleased(UIContext ctx) {
+    protected boolean onReleased(UIContext ctx) {
         scrollbarGrabbed = false;
-        return super.mouseReleased(ctx);
+        return false;
     }
-
     @Override
-    public boolean mouseScrolled(UIContext ctx, double scroll) {
+    protected boolean onScrolled(UIContext ctx, double scroll) {
         if (!visible || !ctx.isMouseIn(x, y, w, h)) return false;
-        for (int i = children.size() - 1; i >= 0; i--) {
-            if (children.get(i).mouseScrolled(ctx, scroll)) return true;
+        for (int i = getChildren().size() - 1; i >= 0; i--) {
+            if (getChildren().get(i).mouseScrolled(ctx, scroll)) return true;
         }
         if (maxScroll > 0) {
             scrollY -= (int)(scroll * 20);
@@ -763,10 +752,6 @@ public class LeftPanelArea extends UIComponent {
         scrollY = Math.max(0, Math.min(scrollY, maxScroll));
     }
 
-    @Override
-    public List<UIComponent> getChildren() {
-        return children;
-    }
     private int tabBarY() { return y; }
     private int contentY() { return y + TAB_HEIGHT + 4; }
     private int contentH() { return h - TAB_HEIGHT - 4; }
@@ -792,18 +777,18 @@ public class LeftPanelArea extends UIComponent {
                 tab.color(0xFF222222, 0xFF333333).textColor(0xFF888888);
             }
             
-            children.add(tab);
+            addChild(tab);
             tabX += tabW + TAB_GAP;
         }
     }
     
     private String getTabLabel(PanelMode m) {
         return switch (m) {
-            case SCRIPT_LIST -> "Scripts";
-            case SCRIPT_PROPERTIES -> "Properties";
-            case CLIP_PROPERTIES -> "Clip";
-            case KEYFRAME_PROPERTIES -> "Keyframe";
-            case TRACK_LIST -> "Tracks";
+            case SCRIPT_LIST -> I18n.get("editor.tab.list");
+            case SCRIPT_PROPERTIES -> I18n.get("editor.tab.properties");
+            case CLIP_PROPERTIES -> I18n.get("editor.tab.clip");
+            case KEYFRAME_PROPERTIES -> I18n.get("editor.tab.keyframe");
+            case TRACK_LIST -> I18n.get("editor.tab.tracks");
         };
     }
 
@@ -814,7 +799,7 @@ public class LeftPanelArea extends UIComponent {
         int lx = x + 6;
         int rowH = 20;
 
-        addSectionLabel("Tracks", lx, cy, 0);
+        addSectionLabel(I18n.get("editor.section.track_list"), lx, cy, 0);
         cy += 16;
 
         for (int ti = 0; ti < tracks.size(); ti++) {
@@ -823,13 +808,12 @@ public class LeftPanelArea extends UIComponent {
             int clipCount = track.has("clips") ? track.getAsJsonArray("clips").size() : 0;
 
             int finalTi = ti;
-
-            String label = type + "  (" + clipCount + " clips)";
+            String label = type + "  (" + I18n.get("editor.label.clip_count", String.valueOf(clipCount)) + ")";
             UIButton row = new UIButton(lx + 4, cy, w - 12, rowH, label, btn -> {
                 if (onTrackSelected != null) onTrackSelected.accept(finalTi);
             });
             row.color(0x00, 0x443A3A3A).textColor(0xFFAAAAAA);
-            children.add(row);
+            addChild(row);
 
             cy += rowH + 2;
         }

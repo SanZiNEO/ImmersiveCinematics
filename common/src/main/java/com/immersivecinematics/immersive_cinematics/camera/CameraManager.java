@@ -202,6 +202,7 @@ public class CameraManager {
         }
         // Align so that elapsed = previewTime when onRenderFrame sets gameTimeSeconds = previewTime
         scriptPlayer.alignTime(previewTime, previewTime);
+        scriptPlayer.repositionAudio(previewTime);
     }
 
     public void resume() {

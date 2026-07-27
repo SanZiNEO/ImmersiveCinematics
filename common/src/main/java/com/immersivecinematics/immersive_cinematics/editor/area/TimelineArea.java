@@ -12,7 +12,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class TimelineArea extends UIComponent {
-    private final List<UIComponent> children = new ArrayList<>();
     private JsonObject script;
     private JsonObject selectedClip;
     private JsonObject selectedKeyframe;
@@ -115,6 +114,19 @@ public class TimelineArea extends UIComponent {
     public void setOnToolDeleteTrack(Runnable r) { onToolDeleteTrack = r; }
 
     public int getSelectedTrackIndex() { return selectedTrackIndex; }
+    private int scrollTrackOffset = 0;
+    public int getScrollTrackOffset() { return scrollTrackOffset; }
+    public void setScrollTrackOffset(int offset) {
+        int totalH = totalTrackHeight();
+        int ch = canvasH();
+        int maxOffset = Math.max(0, totalH - ch);
+        scrollTrackOffset = Math.max(0, Math.min(offset, maxOffset));
+    }
+    private int canvasH() { return h - headerH(); }
+    private int totalTrackHeight() {
+        JsonArray arr = tracks();
+        return arr != null ? arr.size() * trackH() : 0;
+    }
     public void setOnToolSnap(Runnable r) { onToolSnap = r; }
     public int toolbarW() { return (int)(22 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx); }
     public void resetZoom() { pixelsPerSecond = 60f; scrollOffset = 0; }
@@ -152,7 +164,7 @@ public class TimelineArea extends UIComponent {
     }
 
     @Override
-    public void render(UIContext ctx) {
+    public void renderContent(UIContext ctx) {
         int cx = canvasX();
         int cy = canvasY();
         int cw = canvasW();
@@ -165,7 +177,7 @@ public class TimelineArea extends UIComponent {
         drawToolbar(ctx);
         drawTracks(ctx, cx, cy);
         drawPlayhead(ctx, cx, cy, cw);
-        
+
         // Ghost drag preview
         if (isDragging && draggingClip != null) {
             int gx = (int) timeToX(ghostStart);
@@ -193,8 +205,6 @@ public class TimelineArea extends UIComponent {
             ctx.graphics.fill(bx, by, bx + bw, by + bh, 0x223A6DB5);
             ctx.graphics.renderOutline(bx, by, bw, bh, 0xFF3A6DB5);
         }
-
-        for (UIComponent c : children) c.render(ctx);
     }
 
     private void drawRuler(UIContext ctx, int cx, int top, int cw) {
@@ -236,13 +246,13 @@ public class TimelineArea extends UIComponent {
         int bx = x + (int)(3 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx);
         int by = y + headerH() + (int)(4 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
 
-        drawBtn(ctx, bx, by, "+C", 0xFF338833, 0xFF44AA44, true); by += btn() + btnGap();
-        drawBtn(ctx, bx, by, "-C", 0xFF883333, 0xFFAA4444, selectedClip != null); by += btn() + btnGap() + 4;
-        drawBtn(ctx, bx, by, "+K", 0xFF333388, 0xFF4444AA, canAddKf); by += btn() + btnGap();
-        drawBtn(ctx, bx, by, "-K", 0xFF883366, 0xFFAA4488, selectedKeyframe != null); by += btn() + btnGap() + 4;
-        drawBtn(ctx, bx, by, "+T", 0xFF338866, 0xFF44AA88, true); by += btn() + btnGap();
-        drawBtn(ctx, bx, by, "-T", 0xFF883355, 0xFFAA4477, selectedTrackIndex >= 0); by += btn() + btnGap() + 4;
-        drawBtn(ctx, bx, by, "\u00AB\u00BB", 0xFF336688, 0xFF4488AA, true);
+        drawBtn(ctx, bx, by, I18n.get("editor.toolbar.add_clip"), 0xFF338833, 0xFF44AA44, true); by += btn() + btnGap();
+        drawBtn(ctx, bx, by, I18n.get("editor.toolbar.delete_clip"), 0xFF883333, 0xFFAA4444, selectedClip != null); by += btn() + btnGap() + 4;
+        drawBtn(ctx, bx, by, I18n.get("editor.toolbar.add_keyframe"), 0xFF333388, 0xFF4444AA, canAddKf); by += btn() + btnGap();
+        drawBtn(ctx, bx, by, I18n.get("editor.toolbar.delete_keyframe"), 0xFF883366, 0xFFAA4488, selectedKeyframe != null); by += btn() + btnGap() + 4;
+        drawBtn(ctx, bx, by, I18n.get("editor.toolbar.add_track"), 0xFF338866, 0xFF44AA88, true); by += btn() + btnGap();
+        drawBtn(ctx, bx, by, I18n.get("editor.toolbar.delete_track"), 0xFF883355, 0xFFAA4477, selectedTrackIndex >= 0); by += btn() + btnGap() + 4;
+        drawBtn(ctx, bx, by, I18n.get("editor.toolbar.snap", "\u00AB\u00BB"), 0xFF336688, 0xFF4488AA, true);
     }
 
     private void drawBtn(UIContext ctx, int bx, int by, String label, int c, int hc, boolean active) {
@@ -263,7 +273,7 @@ public class TimelineArea extends UIComponent {
         
         for (int ti = 0; ti < arr.size(); ti++) {
             JsonObject track = arr.get(ti).getAsJsonObject();
-            int ty = cy + ti * trackH();
+            int ty = cy + ti * trackH() - scrollTrackOffset;
             String type = track.has("type") ? track.get("type").getAsString() : "TRACK";
             
             ctx.graphics.fill(labelAreaX, ty, labelAreaX + labelAreaW, ty + trackH(), 0xFF1A1A1A);
@@ -277,11 +287,7 @@ public class TimelineArea extends UIComponent {
             
             JsonArray clips = track.getAsJsonArray("clips");
             if (clips == null || clips.size() == 0) {
-                String emptyHint = "(empty)";
-                int hintW = ctx.font.width(emptyHint);
-                ctx.graphics.drawString(ctx.font, emptyHint,
-                    cx + canvasW() / 2 - hintW / 2,
-                    ty + (trackH() - 8) / 2, 0xFF444444);
+                String emptyHint = I18n.get("editor.timeline.empty_track");
             } else {
                 for (JsonElement ce : clips) {
                     drawClip(ctx, ce.getAsJsonObject(), ty, type);
@@ -348,8 +354,7 @@ public class TimelineArea extends UIComponent {
             float tx = timeToX(EditorOperations.getEnd(clip));
             float tex = timeToX(EditorOperations.getTotalEnd(clip));
             int transW = Math.max(2, (int)(tex - tx));
-            ctx.graphics.fill((int)tx, ty + 2, (int)tx + transW, ty + trackH() - 2, 0x885533AA);
-            String tLabel = "morph " + fmt(transDur);
+            String tLabel = I18n.get("editor.timeline.morph_label", fmt(transDur));
             int tlw = ctx.font.width(tLabel);
             if (tlw + 4 < transW)
                 ctx.graphics.drawString(ctx.font, tLabel, (int)tx + 2, ty + (trackH() - 8) / 2, 0xFFCCCCFF);
@@ -417,12 +422,8 @@ public class TimelineArea extends UIComponent {
     }
 
     @Override
-    public boolean mouseClicked(UIContext ctx) {
-        if (!ctx.isMouseIn(x, y, w, h)) {
-            EditorLogger.areaHit(EditorLogger.TIMELINE, "full_area", ctx.mouseX, ctx.mouseY, false);
-            return false;
-        }
-        EditorLogger.areaHit(EditorLogger.TIMELINE, "full_area", ctx.mouseX, ctx.mouseY, true);
+    protected boolean onClicked(UIContext ctx) {
+        if (!ctx.isMouseIn(x, y, w, h)) return false;
         mouseDownX = ctx.mouseX;
         mouseDownY = ctx.mouseY;
         boolean rightClick = ctx.mouseButton == 1;
@@ -434,7 +435,7 @@ public class TimelineArea extends UIComponent {
 
         // Label area click — select track (left) or context menu (right)
         if (ctx.mouseX >= x + toolbarW() && ctx.mouseX < canvasX() && ctx.mouseY >= canvasY()) {
-            int ti = (ctx.mouseY - canvasY()) / trackH();
+            int ti = (ctx.getAdjustedMouseY() - canvasY() + scrollTrackOffset) / trackH();
             if (ti >= 0 && ti < tracks().size()) {
                 selectedTrackIndex = ti;
                 EditorLogger.action(EditorLogger.TIMELINE, "LABEL_CLICK", "track=" + ti);
@@ -469,7 +470,7 @@ public class TimelineArea extends UIComponent {
         JsonArray arr = tracks();
         if (arr == null || ctx.mouseX < canvasX()) return false;
 
-        int trackIdx = (ctx.mouseY - canvasY()) / trackH();
+        int trackIdx = (ctx.getAdjustedMouseY() - canvasY() + scrollTrackOffset) / trackH();
         if (trackIdx < 0 || trackIdx >= arr.size()) return false;
         JsonArray clips = arr.get(trackIdx).getAsJsonObject().getAsJsonArray("clips");
 
@@ -534,7 +535,7 @@ public class TimelineArea extends UIComponent {
         JsonArray arr = tracks();
         if (arr == null || ctx.mouseX < canvasX()) return false;
 
-        int trackIdx = (ctx.mouseY - canvasY()) / trackH();
+        int trackIdx = (ctx.getAdjustedMouseY() - canvasY() + scrollTrackOffset) / trackH();
         if (trackIdx < 0 || trackIdx >= arr.size()) {
             EditorLogger.areaHit(EditorLogger.TIMELINE, "canvas_empty", ctx.mouseX, ctx.mouseY, false);
             return false;
@@ -595,12 +596,12 @@ public class TimelineArea extends UIComponent {
         boxStartY = ctx.mouseY;
         boxStartTime = xToTime(ctx.mouseX);
         boxEndTime = boxStartTime;
-        boxStartTrack = (ctx.mouseY - canvasY()) / trackH();
+        boxStartTrack = (ctx.getAdjustedMouseY() - canvasY() + scrollTrackOffset) / trackH();
         return true;
     }
 
     @Override
-    public boolean mouseReleased(UIContext ctx) {
+    protected boolean onReleased(UIContext ctx) {
         boolean moved = Math.abs(ctx.mouseX - mouseDownX) > 2 || Math.abs(ctx.mouseY - mouseDownY) > 2;
         long dragDuration = System.currentTimeMillis() - dragStartTime;
 
@@ -619,8 +620,8 @@ public class TimelineArea extends UIComponent {
                     float cs = EditorOperations.getStart(c);
                     float ce2 = EditorOperations.getEnd(c);
                     if (cs < maxTime && ce2 > minTime) hit.add(c);
-                } // end for (clips)
-            } // end for (ti)
+                }
+            }
             if (!hit.isEmpty()) {
                 if (onSelectClips != null) onSelectClips.accept(hit);
                 if (onClickClip != null && !hit.isEmpty()) onClickClip.accept(hit.get(0));
@@ -670,11 +671,11 @@ public class TimelineArea extends UIComponent {
     }
 
     @Override
-    public boolean mouseDragged(UIContext ctx) {
+    protected boolean onDragged(UIContext ctx) {
         // Box select drag
         if (boxSelecting) {
             boxEndTime = xToTime(ctx.mouseX);
-            boxEndTrack = (ctx.mouseY - canvasY()) / trackH();
+            boxEndTrack = (ctx.getAdjustedMouseY() - canvasY() + scrollTrackOffset) / trackH();
             return true;
         }
 
@@ -718,13 +719,21 @@ public class TimelineArea extends UIComponent {
     }
 
     @Override
-    public boolean mouseScrolled(UIContext ctx, double scroll) {
+    protected boolean onScrolled(UIContext ctx, double scroll) {
         if (!ctx.isMouseIn(x, y, w, h)) return false;
 
         boolean ctrl = ctx.isCtrlDown();
         boolean shift = ctx.isShiftDown();
 
+        if (!ctrl && !shift) {
+            // Vertical scroll (no modifiers)
+            setScrollTrackOffset(scrollTrackOffset - (int)(scroll * trackH() * 2));
+            EditorLogger.state(EditorLogger.TIMELINE, "scrollTrackOffset", scrollTrackOffset, scrollTrackOffset);
+            return true;
+        }
+
         if (ctrl) {
+            // Zoom (Ctrl+scroll)
             float oldPps = pixelsPerSecond;
             float scaleFactor = (scroll > 0) ? 1.25f : 0.8f;
             float newPps = Math.max(10, Math.min(5000, oldPps * scaleFactor));
@@ -733,7 +742,8 @@ public class TimelineArea extends UIComponent {
             scrollOffset = scrollOffset + mouseTime * (oldPps - newPps);
             clampScrollOffset();
             EditorLogger.state(EditorLogger.TIMELINE, "pixelsPerSecond", oldPps, pixelsPerSecond);
-        } else {
+        } else if (shift) {
+            // Horizontal scroll (Shift+scroll)
             float old = scrollOffset;
             scrollOffset += (float) scroll * 30;
             clampScrollOffset();
@@ -741,10 +751,9 @@ public class TimelineArea extends UIComponent {
         }
 
         EditorLogger.mouseScroll(EditorLogger.TIMELINE, scroll, ctx.mouseX, ctx.mouseY,
-                ctrl ? "zoom" : "h_scroll");
+                ctrl ? "zoom" : shift ? "h_scroll" : "v_scroll");
         return true;
     }
-
     private float snapToPlayheadAndClips(float time, JsonObject selfClip) {
         float snapped = snapToPlayhead(time);
         if (snapped != time) return snapped;
@@ -781,14 +790,13 @@ public class TimelineArea extends UIComponent {
         if (arr == null) return canvasY();
         for (int ti = 0; ti < arr.size(); ti++) {
             for (JsonElement ce : arr.get(ti).getAsJsonObject().getAsJsonArray("clips")) {
-                if (ce.getAsJsonObject() == clip) return canvasY() + ti * trackH();
+                if (ce.getAsJsonObject() == clip) return canvasY() + ti * trackH() - scrollTrackOffset;
             }
         }
         return canvasY();
     }
     
-    @Override
-    public List<UIComponent> getChildren() { return children; }
+    
 
     private static String fmt(float s) {
         int totalSec = Math.round(s);
