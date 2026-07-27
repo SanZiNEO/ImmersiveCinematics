@@ -12,6 +12,8 @@ public abstract class UIComponent {
     protected UIComponent parent;
     protected String tooltip;
     protected int zIndex = 0;
+
+    public int getZIndex() { return zIndex; }
     private final List<UIComponent> children = new ArrayList<>();
     protected UIComponent focused = null;
 

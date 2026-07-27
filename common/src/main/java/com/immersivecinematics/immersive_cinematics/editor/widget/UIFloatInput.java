@@ -49,7 +49,7 @@ public class UIFloatInput extends UIComponent implements IFocusable {
     }
 
     @Override
-    public boolean mouseClicked(UIContext ctx) {
+    protected boolean onClicked(UIContext ctx) {
         focused = isHovered(ctx);
         if (focused && source != null) {
             text = formatValue(source.get());
@@ -58,7 +58,7 @@ public class UIFloatInput extends UIComponent implements IFocusable {
     }
 
     @Override
-    public boolean mouseScrolled(UIContext ctx, double scroll) {
+    protected boolean onScrolled(UIContext ctx, double scroll) {
         if (focused) {
             float cur = source != null ? source.get() : 0;
             float v = clamp(cur + (float) (scroll > 0 ? step : -step));
@@ -69,7 +69,8 @@ public class UIFloatInput extends UIComponent implements IFocusable {
         return false;
     }
 
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    @Override
+    protected boolean onKeyPressed(int keyCode, int scanCode, int modifiers) {
         if (!focused) return false;
         if (keyCode == 259) {
             if (!text.isEmpty()) {

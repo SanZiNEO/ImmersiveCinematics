@@ -134,7 +134,7 @@ public class UIAutoCompleteInput extends UIComponent implements IFocusable {
     }
 
     @Override
-    public boolean mouseClicked(UIContext ctx) {
+    protected boolean onClicked(UIContext ctx) {
         if (showSuggestions && filtered.size() > 0) {
             int popupH = Math.min(filtered.size(), MAX_VISIBLE) * SUGGESTION_H;
             int px = x;
@@ -168,7 +168,8 @@ public class UIAutoCompleteInput extends UIComponent implements IFocusable {
             && ctx.mouseY >= y + h && ctx.mouseY < y + h + popupH;
     }
 
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    @Override
+    protected boolean onKeyPressed(int keyCode, int scanCode, int modifiers) {
         if (!focused) return false;
 
         if (showSuggestions && !filtered.isEmpty()) {
@@ -222,7 +223,7 @@ public class UIAutoCompleteInput extends UIComponent implements IFocusable {
     }
 
     @Override
-    public boolean mouseScrolled(UIContext ctx, double scroll) {
+    protected boolean onScrolled(UIContext ctx, double scroll) {
         if (!showSuggestions || filtered.isEmpty()) return false;
         int totalH = filtered.size() * SUGGESTION_H;
         int popupH = Math.min(filtered.size(), MAX_VISIBLE) * SUGGESTION_H;

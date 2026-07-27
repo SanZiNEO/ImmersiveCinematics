@@ -33,7 +33,7 @@ public class UIToggle extends UIComponent {
     public boolean isOn() { return source != null && source.get(); }
 
     @Override
-    public boolean mouseClicked(UIContext ctx) {
+    protected boolean onClicked(UIContext ctx) {
         if (isHovered(ctx)) {
             boolean cur = source != null && source.get();
             if (sink != null) sink.accept(!cur);

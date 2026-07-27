@@ -133,7 +133,7 @@ public class UIDropdown extends UIComponent {
     }
 
     @Override
-    public boolean mouseClicked(UIContext ctx) {
+    protected boolean onClicked(UIContext ctx) {
         if (expanded) {
             int totalH = options.size() * h;
             int listH = Math.min(totalH, maxListHeight);
@@ -157,7 +157,7 @@ public class UIDropdown extends UIComponent {
     }
 
     @Override
-    public boolean mouseScrolled(UIContext ctx, double scroll) {
+    protected boolean onScrolled(UIContext ctx, double scroll) {
         if (!expanded) return false;
         int totalH = options.size() * h;
         int listH = Math.min(totalH, maxListHeight);

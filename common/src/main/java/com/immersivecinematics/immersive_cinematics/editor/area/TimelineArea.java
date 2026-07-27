@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.editor.EditorOperations;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
+import net.minecraft.client.resources.language.I18n;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;

@@ -20,6 +20,10 @@ public class UILabel extends UIComponent {
         text = t;
     }
 
+    public String getText() {
+        return text;
+    }
+
     @Override
     public void render(UIContext ctx) {
         if (centered) {

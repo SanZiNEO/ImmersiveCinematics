@@ -47,7 +47,7 @@ public class UIButton extends UIComponent {
     }
 
     @Override
-    public boolean mouseClicked(UIContext ctx) {
+    protected boolean onClicked(UIContext ctx) {
         if (isHovered(ctx)) {
             EditorLogger.action(EditorLogger.SCREEN, "BUTTON_CLICK", "label=" + text);
             if (onClick != null) onClick.accept(this);

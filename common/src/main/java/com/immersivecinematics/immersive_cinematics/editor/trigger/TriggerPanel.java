@@ -8,7 +8,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class TriggerPanel extends UIComponent {
-    private final List<UIComponent> widgets = new ArrayList<>();
     private JsonArray triggers;
     private int selectedIndex = -1;
     private TriggerEditor editor;
@@ -150,7 +149,7 @@ public class TriggerPanel extends UIComponent {
 
         // Compute content-only height for dropdown maxListHeight before creating them.
         int contentBottom = y;
-        for (UIComponent wc : widgets) {
+        for (UIComponent wc : getChildren()) {
             contentBottom = Math.max(contentBottom, wc.y + wc.h);
         }
         int effectiveH = Math.max(1, contentBottom - y + 4 + 16 + 16);
@@ -188,14 +187,12 @@ public class TriggerPanel extends UIComponent {
 
         // Re-calculate final height including dropdown widgets.
         int maxBottom = y;
-        for (UIComponent wc : widgets) {
+        for (UIComponent wc : getChildren()) {
             maxBottom = Math.max(maxBottom, wc.y + wc.h);
         }
-        this.h = Math.max(1, maxBottom - y + 4);
     }
 
-    @Override
-    public List<UIComponent> getChildren() { return widgets; }
+    
 
     @Override
     protected boolean onClicked(UIContext ctx) {
@@ -215,3 +212,4 @@ public class TriggerPanel extends UIComponent {
         for (UIComponent w : getChildren()) w.render(ctx);
     }
     
+}

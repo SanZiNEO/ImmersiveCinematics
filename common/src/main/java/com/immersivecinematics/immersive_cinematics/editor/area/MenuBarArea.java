@@ -11,6 +11,7 @@ public class MenuBarArea extends UIComponent {
     private final UIButton newBtn;
     private final UIButton saveBtn;
     private final UIButton listBtn;
+    private String scriptName;
 
     private String statusText = I18n.get("editor.status.ready");
     private int statusColor = 0xFF888888;

@@ -53,7 +53,7 @@ public class UITextInput extends UIComponent implements IFocusable {
     }
 
     @Override
-    public boolean mouseClicked(UIContext ctx) {
+    protected boolean onClicked(UIContext ctx) {
         focused = isHovered(ctx);
         if (focused && source != null) {
             text = source.get();
@@ -75,7 +75,8 @@ public class UITextInput extends UIComponent implements IFocusable {
         }
     }
 
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    @Override
+    protected boolean onKeyPressed(int keyCode, int scanCode, int modifiers) {
         if (!focused) return false;
         if (keyCode == 259) {
             if (!text.isEmpty()) {
