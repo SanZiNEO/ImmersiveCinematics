@@ -289,6 +289,7 @@ public class TimelineArea extends UIComponent {
             case "AUDIO" -> 0xFF8A8A3A;
             case "EVENT" -> 0xFF8A3A3A;
             case "MOD_EVENT" -> 0xFF8A3A8A;
+            case "OVERLAY" -> 0xFF6A3A8A;
             default -> 0xFF666666;
         };
     }
@@ -300,6 +301,7 @@ public class TimelineArea extends UIComponent {
             case "AUDIO" -> 0xFF2e2e1a;
             case "EVENT" -> 0xFF2e1a1a;
             case "MOD_EVENT" -> 0xFF2e1a2e;
+            case "OVERLAY" -> 0xFF2e1a2e;
             default -> 0xFF1A1A2E;
         };
     }
@@ -378,6 +380,7 @@ public class TimelineArea extends UIComponent {
             case "AUDIO" -> 0xFF8A8A3A;
             case "EVENT" -> 0xFF8A3A3A;
             case "MOD_EVENT" -> 0xFF8A3A8A;
+            case "OVERLAY" -> 0xFF6A3A8A;
             default -> 0xFF3A3F4A;
         };
         if (selected) base = lighten(base, 0.3f);

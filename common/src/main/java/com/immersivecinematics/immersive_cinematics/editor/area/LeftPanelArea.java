@@ -262,44 +262,89 @@ public class LeftPanelArea extends UIComponent {
                 addDefault(clip, "position_mode", "relative");
                 addDefault(clip, "loop", false);
                 addDefault(clip, "loop_count", -1);
+                addDefault(clip, "cam_tracking_look_at", "none");
+                addDefault(clip, "cam_tracking_look_target_x", 0f);
+                addDefault(clip, "cam_tracking_look_target_y", 64f);
+                addDefault(clip, "cam_tracking_look_target_z", 0f);
+                addDefault(clip, "cam_tracking_target_selector", "@p");
+                addDefault(clip, "cam_tracking_follow", "none");
+                addDefault(clip, "cam_tracking_follow_offset_x", 0f);
+                addDefault(clip, "cam_tracking_follow_offset_y", 2f);
+                addDefault(clip, "cam_tracking_follow_offset_z", 0f);
+                addDefault(clip, "cam_breath_enabled", false);
+                addDefault(clip, "cam_breath_intensity", 0.05f);
+                addDefault(clip, "cam_breath_seed", 0);
             }
 
             case "AUDIO" -> {
                 addDefault(clip, "sound", "");
+                addDefault(clip, "source", "file");
                 addDefault(clip, "volume", 1.0f);
                 addDefault(clip, "pitch", 1.0f);
                 addDefault(clip, "loop", false);
                 addDefault(clip, "fade_in", 0.0f);
                 addDefault(clip, "fade_out", 0.0f);
+                addDefault(clip, "attenuation", "linear");
+                addDefault(clip, "position_mode", "relative");
             }
             case "EVENT" -> {
                 addDefault(clip, "event_type", "command");
-                addDefault(clip, "command", "");
             }
             case "MOD_EVENT" -> {
                 addDefault(clip, "event_type", "");
+            }
+            case "OVERLAY" -> {
+                addDefault(clip, "layer_type", "fade");
+                addDefault(clip, "color", "#000000");
+                addDefault(clip, "path", "");
+                addDefault(clip, "text", "");
+                addDefault(clip, "fade_in", 0.0f);
+                addDefault(clip, "fade_out", 0.0f);
+                addDefault(clip, "z_index", 10);
             }
         }
     }
 
     private static void fillKeyframeDefaults(JsonObject kf, String trackType) {
-        if ("LETTERBOX".equals(trackType)) {
-            addDefault(kf, "aspect_ratio", 2.35f);
-            return;
-        }
-        if (!"CAMERA".equals(trackType)) return; // AUDIO/EVENT/MOD_EVENT have no kf fields
-        addDefault(kf, "yaw", 0f);
-        addDefault(kf, "pitch", 0f);
-        addDefault(kf, "roll", 0f);
-        addDefault(kf, "fov", 70f);
-        addDefault(kf, "zoom", 1.0f);
-        addDefault(kf, "dof", 0f);
-        if (!kf.has("position")) {
-            JsonObject pos = new JsonObject();
-            pos.addProperty("dx", 0f);
-            pos.addProperty("dy", 0f);
-            pos.addProperty("dz", 0f);
-            kf.add("position", pos);
+        if (trackType == null) trackType = "CAMERA";
+        switch (trackType.toUpperCase()) {
+            case "CAMERA" -> {
+                addDefault(kf, "yaw", 0f);
+                addDefault(kf, "pitch", 0f);
+                addDefault(kf, "roll", 0f);
+                addDefault(kf, "fov", 70f);
+                addDefault(kf, "zoom", 1.0f);
+                addDefault(kf, "dof", 0f);
+                if (!kf.has("position")) {
+                    JsonObject pos = new JsonObject();
+                    pos.addProperty("dx", 0f);
+                    pos.addProperty("dy", 0f);
+                    pos.addProperty("dz", 0f);
+                    kf.add("position", pos);
+                }
+            }
+            case "LETTERBOX" -> {
+                addDefault(kf, "aspect_ratio", 2.35f);
+            }
+            case "AUDIO" -> {
+                addDefault(kf, "volume", 1.0f);
+                addDefault(kf, "x", 0f);
+                addDefault(kf, "y", 0f);
+                addDefault(kf, "z", 0f);
+            }
+            case "EVENT" -> {
+                addDefault(kf, "event_type", "command");
+                addDefault(kf, "command", "");
+            }
+            case "OVERLAY" -> {
+                addDefault(kf, "opacity", 0.0f);
+                addDefault(kf, "x", 0f);
+                addDefault(kf, "y", 0f);
+                addDefault(kf, "width", 0f);
+                addDefault(kf, "height", 0f);
+                addDefault(kf, "anchor_x", 0.5f);
+                addDefault(kf, "anchor_y", 0.5f);
+            }
         }
     }
     private static final Set<String> TRISTATE_KEYS = Set.of(
@@ -310,7 +355,9 @@ public class LeftPanelArea extends UIComponent {
     );
 
     private static final Set<String> CLIP_ENUM_KEYS = Set.of(
-        "transition", "interpolation", "position_mode"
+        "transition", "interpolation", "position_mode",
+        "source", "attenuation",
+        "cam_tracking_look_at", "cam_tracking_follow"
     );
 
     private static String cycleClipEnum(String key, String current) {
@@ -322,6 +369,24 @@ public class LeftPanelArea extends UIComponent {
             };
             case "interpolation" -> current.equals("linear") ? "smooth" : "linear";
             case "position_mode" -> current.equals("relative") ? "absolute" : "relative";
+            case "source" -> current.equals("file") ? "minecraft" : "file";
+            case "attenuation" -> switch (current) {
+                case "none" -> "linear";
+                case "linear" -> "inverse";
+                case "inverse" -> "none";
+                default -> "linear";
+            };
+            case "cam_tracking_look_at" -> switch (current) {
+                case "none" -> "coordinate";
+                case "coordinate" -> "entity";
+                case "entity" -> "none";
+                default -> "none";
+            };
+            case "cam_tracking_follow" -> switch (current) {
+                case "none" -> "entity";
+                case "entity" -> "none";
+                default -> "none";
+            };
             default -> current;
         };
     }

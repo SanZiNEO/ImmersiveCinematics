@@ -216,6 +216,13 @@ public class ScriptParser {
             keyframes = List.of(k0, k1);
         }
 
+        // EVENT 向后兼容：clip 级别的 command 迁移到 keyframe
+        if (type == TrackType.EVENT && obj.has("command") && !obj.has("keyframes")) {
+            String cmd = obj.get("command").getAsString();
+            Keyframe kf = new Keyframe(0f, type, Map.of("command", cmd, "event_type", "command"));
+            keyframes = List.of(kf);
+        }
+
         // 验证
         if (type == TrackType.CAMERA && keyframes.isEmpty()) {
             throw new ScriptParseException(p, "camera clip 的 keyframes 至少1个");

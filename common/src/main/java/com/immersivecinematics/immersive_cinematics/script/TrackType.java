@@ -10,6 +10,7 @@ package com.immersivecinematics.immersive_cinematics.script;
  *   <li>AUDIO → AudioClip</li>
  *   <li>EVENT → EventClip</li>
  *   <li>MOD_EVENT → ModEventClip</li>
+ *   <li>OVERLAY → OverlayTrack</li>
  * </ul>
  * <p>
  * 轨道数量限制：
@@ -19,6 +20,7 @@ package com.immersivecinematics.immersive_cinematics.script;
  *   <li>EVENT: 最多1条（建议）</li>
  *   <li>AUDIO: 不限制</li>
  *   <li>MOD_EVENT: 不限制</li>
+ *   <li>OVERLAY: 不限制</li>
  * </ul>
  */
 public enum TrackType {
@@ -36,5 +38,8 @@ public enum TrackType {
     EVENT,
 
     /** 第三方模组扩展事件 */
-    MOD_EVENT
+    MOD_EVENT,
+
+    /** 覆盖层轨道（fade/image/subtitle/pip），不限数量 */
+    OVERLAY
 }

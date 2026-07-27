@@ -9,7 +9,19 @@
         "curve": { "type": "bezier_curve" },
         "position_mode": { "type": "enum", "values": ["relative", "absolute"], "default": "relative" },
         "loop": { "type": "bool", "default": false },
-        "loop_count": { "type": "int", "default": -1 }
+        "loop_count": { "type": "int", "default": -1 },
+        "cam_tracking_look_at": { "type": "string", "default": "none" },
+        "cam_tracking_look_target_x": { "type": "float", "default": 0 },
+        "cam_tracking_look_target_y": { "type": "float", "default": 64 },
+        "cam_tracking_look_target_z": { "type": "float", "default": 0 },
+        "cam_tracking_target_selector": { "type": "string", "default": "@p" },
+        "cam_tracking_follow": { "type": "string", "default": "none" },
+        "cam_tracking_follow_offset_x": { "type": "float", "default": 0 },
+        "cam_tracking_follow_offset_y": { "type": "float", "default": 2 },
+        "cam_tracking_follow_offset_z": { "type": "float", "default": 0 },
+        "cam_breath_enabled": { "type": "bool", "default": false },
+        "cam_breath_intensity": { "type": "float", "default": 0.05 },
+        "cam_breath_seed": { "type": "int", "default": 0 }
       },
       "keyframes": {
         "position": { "type": "position", "required": true },
@@ -30,27 +42,60 @@
     "AUDIO": {
       "clips": {
         "sound": { "type": "string", "required": true },
+        "source": { "type": "string", "default": "file" },
         "volume": { "type": "float", "default": 1.0 },
         "pitch": { "type": "float", "default": 1.0 },
         "loop": { "type": "bool", "default": false },
         "fade_in": { "type": "float", "default": 0 },
-        "fade_out": { "type": "float", "default": 0 }
+        "fade_out": { "type": "float", "default": 0 },
+        "attenuation": { "type": "string", "default": "linear" },
+        "position_mode": { "type": "string", "default": "relative" }
       },
-      "keyframes": {}
+      "keyframes": {
+        "volume": { "type": "float", "default": 1.0 },
+        "x": { "type": "float", "default": 0 },
+        "y": { "type": "float", "default": 0 },
+        "z": { "type": "float", "default": 0 }
+      }
     },
     "EVENT": {
       "clips": {
-        "event_type": { "type": "string", "required": true },
-        "command": { "type": "string", "required": true }
+        "event_type": { "type": "string", "default": "command" }
       },
-      "keyframes": {}
+      "keyframes": {
+        "event_type": { "type": "string", "default": "command" },
+        "command": { "type": "string", "default": "" }
+      }
     },
     "MOD_EVENT": {
       "clips": {
         "event_type": { "type": "string", "required": true },
         "data": { "type": "map" }
       },
-      "keyframes": {}
+      "keyframes": {
+        "event_type": { "type": "string", "default": "mod_event" },
+        "data": { "type": "map" }
+      }
+    },
+    "OVERLAY": {
+      "clips": {
+        "layer_type": { "type": "string", "required": true },
+        "color": { "type": "string", "default": "#000000" },
+        "path": { "type": "string", "default": "" },
+        "text": { "type": "string", "default": "" },
+        "fade_in": { "type": "float", "default": 0 },
+        "fade_out": { "type": "float", "default": 0 },
+        "z_index": { "type": "int", "default": 10 }
+      },
+      "keyframes": {
+        "opacity": { "type": "float", "default": 0.0 },
+        "x": { "type": "float", "default": 0 },
+        "y": { "type": "float", "default": 0 },
+        "width": { "type": "float", "default": 0 },
+        "height": { "type": "float", "default": 0 },
+        "anchor_x": { "type": "float", "default": 0.5 },
+        "anchor_y": { "type": "float", "default": 0.5 }
+      }
     }
   }
 }

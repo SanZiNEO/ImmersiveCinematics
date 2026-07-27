@@ -1,0 +1,161 @@
+{
+  "meta": {
+    "id": "test_0_3_4",
+    "name": "0.3.4 Feature Test - All Tracks",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "Tests AUDIO/EVENT/OVERLAY tracks, camera tracking and breath",
+    "triggers": [
+      {
+        "id": "manual_trigger",
+        "type": "login",
+        "conditions": {},
+        "repeatable": true,
+        "delay": 0
+      }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 30.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "cam_tracking_look_at": "coordinate",
+            "cam_tracking_look_target_x": 0,
+            "cam_tracking_look_target_y": 64,
+            "cam_tracking_look_target_z": 0,
+            "cam_tracking_follow": "none",
+            "cam_breath_enabled": true,
+            "cam_breath_intensity": 0.05,
+            "cam_breath_seed": 42,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 5, "dy": 2, "dz": -5 },
+                "yaw": 45,
+                "pitch": -10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              },
+              {
+                "time": 15,
+                "position": { "dx": -5, "dy": 4, "dz": 5 },
+                "yaw": -45,
+                "pitch": 10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0,
+                "dof": 0
+              },
+              {
+                "time": 30,
+                "position": { "dx": 0, "dy": 3, "dz": 10 },
+                "yaw": 0,
+                "pitch": -5,
+                "roll": 0,
+                "fov": 80,
+                "zoom": 0.8,
+                "dof": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "AUDIO",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "sound": "test_background.ogg",
+            "source": "file",
+            "volume": 0.8,
+            "pitch": 1.0,
+            "loop": false,
+            "fade_in": 2.0,
+            "fade_out": 3.0,
+            "attenuation": "linear",
+            "position_mode": "absolute",
+            "keyframes": [
+              { "time": 0, "volume": 0.8, "x": 0, "y": 64, "z": 0 },
+              { "time": 15, "volume": 0.5, "x": 10, "y": 64, "z": 10 },
+              { "time": 30, "volume": 0.3, "x": -10, "y": 64, "z": -10 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "say Script started!" },
+              { "time": 5, "event_type": "command", "command": "say Halfway through first camera segment" },
+              { "time": 15, "event_type": "command", "command": "say 15 seconds - switching camera direction" },
+              { "time": 25, "event_type": "command", "command": "say 5 seconds remaining" },
+              { "time": 30, "event_type": "command", "command": "say Script finished!" }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 2,
+            "duration": 10,
+            "layer_type": "fade",
+            "color": "#000000",
+            "fade_in": 1.0,
+            "fade_out": 1.0,
+            "z_index": 10,
+            "keyframes": [
+              { "time": 0, "opacity": 0.0 },
+              { "time": 1, "opacity": 0.3 },
+              { "time": 8, "opacity": 0.3 },
+              { "time": 10, "opacity": 0.0 }
+            ]
+          },
+          {
+            "start_time": 15,
+            "duration": 10,
+            "layer_type": "fade",
+            "color": "#FF0000",
+            "fade_in": 1.0,
+            "fade_out": 1.0,
+            "z_index": 10,
+            "keyframes": [
+              { "time": 0, "opacity": 0.0 },
+              { "time": 1, "opacity": 0.2 },
+              { "time": 8, "opacity": 0.2 },
+              { "time": 10, "opacity": 0.0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

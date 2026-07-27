@@ -7,7 +7,7 @@ import dev.architectury.networking.simple.SimpleNetworkManager;
 /**
  * 网络层 — 使用 Architectury SimpleNetworkManager（参考 FTB-Quests 模式）。
  * <p>
- * 定义 6 个消息类型（4 S2C + 2 C2S），在 {@code ImmsersiveCinematics.init()} 中调用 {@link #init()} 触发 static 加载。
+ * 定义 7 个消息类型（4 S2C + 3 C2S），在 {@code ImmsersiveCinematics.init()} 中调用 {@link #init()} 触发 static 加载。
  */
 public interface NetworkHandler {
     SimpleNetworkManager NET = SimpleNetworkManager.create(ImmersiveCinematics.MOD_ID);
@@ -29,6 +29,8 @@ public interface NetworkHandler {
     MessageType SCRIPT_FINISHED = NET.registerC2S("script_finished", C2SScriptFinishedPacket::new);
     /** 客户端通知服务端脚本开始播放 */
     MessageType PLAYBACK_STARTED = NET.registerC2S("playback_started", C2SPlaybackStartedPacket::new);
+    /** 客户端通知服务端脚本暂停/恢复 */
+    MessageType SCRIPT_PAUSE = NET.registerC2S("script_pause", C2SScriptPausePacket::new);
 
     /** 触发 static 字段加载，SimpleNetworkManager 自动完成平台注册 */
     static void init() {

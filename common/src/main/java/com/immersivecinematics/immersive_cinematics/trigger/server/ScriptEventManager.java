@@ -6,6 +6,7 @@ import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
+import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CSkipVoteUpdatePacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CStopScriptPacket;
@@ -55,18 +56,17 @@ public class ScriptEventManager {
 
         UUID uuid = player.getUUID();
         pb.viewers.remove(uuid);
-        pb.finishedViewers.add(uuid);
 
         if (reason == CompletionReason.SKIPPED) {
             pb.skipVoters.add(uuid);
         }
 
-        LOGGER.debug("Player {} finished script '{}' (viewers left: {}, skip voters: {})",
-                player.getName().getString(), scriptId, pb.viewers.size(), pb.skipVoters.size());
+        LOGGER.debug("Player {} finished script '{}' (viewers left: {})",
+                player.getName().getString(), scriptId, pb.viewers.size());
 
         if (pb.viewers.isEmpty()) {
             scriptPlaybacks.remove(scriptId);
-            LOGGER.info("Script '{}' fully complete — all {} viewer(s) finished", scriptId, pb.finishedViewers.size());
+            LOGGER.info("Script '{}' fully complete — all viewers finished", scriptId);
             return;
         }
 
@@ -106,7 +106,7 @@ public class ScriptEventManager {
         ScriptPlayback pb = scriptPlaybacks.get(scriptId);
         if (pb == null) return;
         pb.viewers.remove(playerUuid);
-        pb.finishedViewers.remove(playerUuid);
+        pb.skipVoters.remove(playerUuid);
         if (pb.viewers.isEmpty()) {
             scriptPlaybacks.remove(scriptId);
         }
@@ -127,12 +127,12 @@ public class ScriptEventManager {
 
     public boolean isFullyComplete(String scriptId) {
         ScriptPlayback pb = scriptPlaybacks.get(scriptId);
-        return pb != null && pb.viewers.size() == pb.finishedViewers.size();
+        return pb == null || pb.viewers.isEmpty();
     }
 
     public int getRemainingViewers(String scriptId) {
         ScriptPlayback pb = scriptPlaybacks.get(scriptId);
-        return pb == null ? 0 : pb.viewers.size() - pb.finishedViewers.size();
+        return pb == null ? 0 : pb.viewers.size();
     }
 
     public void onServerTick(MinecraftServer server) {
@@ -145,26 +145,73 @@ public class ScriptEventManager {
 
             pb.viewers.removeIf(uuid -> server.getPlayerList().getPlayer(uuid) == null);
 
-            int elapsed = currentTick - pb.startTick;
-            while (pb.nextClipIndex < pb.eventClips.size()) {
-                Clip clip = pb.eventClips.get(pb.nextClipIndex);
-                if (clip.getStartTime() <= elapsed / 20f) {
-                    for (UUID uuid : pb.finishedViewers) {
-                        ServerPlayer p = server.getPlayerList().getPlayer(uuid);
-                        if (p != null) executeCommand(p, clip.getCommand());
-                    }
-                    pb.nextClipIndex++;
-                } else {
-                    break;
-                }
+            // 暂停态：不处理 keyframe，仅累计暂停 tick
+            if (pb.paused) {
+                return false;
             }
 
-            if (pb.nextClipIndex >= pb.eventClips.size()) {
-                pb.finishedViewers.clear();
+            // 有效 elapsed = (当前tick - 开始tick - 总暂停tick) / 20
+            float elapsed = (currentTick - pb.startTick - pb.totalPausedTicks) / 20f;
+
+            int clipIndex = 0;
+            for (Clip clip : pb.eventClips) {
+                float clipStart = clip.getStartTime();
+                float clipDuration = clip.getDuration();
+                float clipEnd = clipDuration < 0 ? Float.POSITIVE_INFINITY : clipStart + clipDuration;
+
+                if (elapsed < clipStart || elapsed > clipEnd) {
+                    clipIndex++;
+                    continue;
+                }
+
+                int kfIndex = 0;
+                for (Keyframe keyframe : clip.getKeyframes()) {
+                    float globalTime = clipStart + keyframe.getTime();
+                    int triggerKey = (clipIndex << 16) | kfIndex;
+
+                    if (elapsed >= globalTime && !pb.triggeredKeyframes.contains(triggerKey)) {
+                        String cmd = keyframe.getString("command", "");
+                        if (!cmd.isEmpty()) {
+                            for (UUID uuid : pb.viewers) {
+                                ServerPlayer p = server.getPlayerList().getPlayer(uuid);
+                                if (p != null) executeCommand(p, cmd);
+                            }
+                        }
+                        pb.triggeredKeyframes.add(triggerKey);
+                    }
+                    kfIndex++;
+                }
+                clipIndex++;
             }
 
             return false;
         });
+    }
+
+    /**
+     * 处理客户端发来的暂停/恢复信号。
+     * <p>
+     * 暂停时记录暂停起始 tick，恢复时累计暂停时长，
+     * 使 onServerTick 中的 elapsed 计算跳过暂停时段。
+     */
+    public void handlePause(ServerPlayer player, String scriptId, boolean paused) {
+        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
+        if (pb == null) return;
+
+        if (paused && !pb.paused) {
+            // 进入暂停
+            pb.paused = true;
+            pb.pauseStartTick = player.server.getTickCount();
+            LOGGER.debug("Script '{}' paused at tick {} by player {}", scriptId, pb.pauseStartTick, player.getName().getString());
+        } else if (!paused && pb.paused) {
+            // 恢复
+            int resumeTick = player.server.getTickCount();
+            int pausedThisTime = resumeTick - pb.pauseStartTick;
+            pb.totalPausedTicks += pausedThisTime;
+            pb.paused = false;
+            pb.pauseStartTick = -1;
+            LOGGER.debug("Script '{}' resumed at tick {} (paused {} ticks)", scriptId, resumeTick, pausedThisTime);
+        }
     }
 
     private void executeCommand(ServerPlayer player, String command) {
@@ -189,21 +236,23 @@ public class ScriptEventManager {
     public static class ScriptPlayback {
         final String scriptId;
         final Set<UUID> viewers;
-        final Set<UUID> finishedViewers;
         final Set<UUID> skipVoters;
+        final Set<Integer> triggeredKeyframes = new HashSet<>();
         final int startTick;
         final List<Clip> eventClips;
-        int nextClipIndex;
         MinecraftServer server;
+
+        // ── 暂停状态 ──
+        boolean paused = false;
+        int pauseStartTick = -1;
+        int totalPausedTicks = 0;
 
         ScriptPlayback(String scriptId, List<Clip> eventClips, int startTick) {
             this.scriptId = scriptId;
             this.viewers = new HashSet<>();
-            this.finishedViewers = new HashSet<>();
             this.skipVoters = new HashSet<>();
             this.eventClips = eventClips;
             this.startTick = startTick;
-            this.nextClipIndex = 0;
         }
     }
 }

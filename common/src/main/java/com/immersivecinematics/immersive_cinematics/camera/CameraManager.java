@@ -44,6 +44,9 @@ public class CameraManager {
     private float previewTime;
     private CinematicScript previewScript;
 
+    /** 上一帧的暂停状态，用于检测暂停↔恢复的转换 */
+    private boolean lastFramePaused = false;
+
     public void activate() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return;
@@ -300,7 +303,20 @@ public class CameraManager {
             return;
         }
 
-        if (Minecraft.getInstance().isPaused() && CinematicController.INSTANCE.isPauseWhenGamePaused()) {
+        boolean gamePaused = Minecraft.getInstance().isPaused() && CinematicController.INSTANCE.isPauseWhenGamePaused();
+
+        // 检测暂停↔恢复转换，通知服务端
+        if (gamePaused != lastFramePaused) {
+            lastFramePaused = gamePaused;
+            if (scriptPlayer.isPlaying()) {
+                String scriptId = scriptPlayer.getScriptId();
+                if (!"<none>".equals(scriptId)) {
+                    new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, gamePaused).sendToServer();
+                }
+            }
+        }
+
+        if (gamePaused) {
             lastRealNanos = 0;
             cachedHasActiveCameraClip = false;
             return;
@@ -319,7 +335,6 @@ public class CameraManager {
             }
         } else {
             long now = System.nanoTime();
-            double prevGameTimeSeconds = gameTimeSeconds;
             if (lastRealNanos != 0) {
                 gameTimeSeconds += (double)(now - lastRealNanos) / 1_000_000_000.0;
             }
@@ -333,7 +348,7 @@ public class CameraManager {
             scriptPlayer.onRenderFrame(gameTimeSeconds);
         }
 
-        // 帧级缓存：计算当前帧是否有活跃 Camera 轨道，供 9 个 Mixin 入口读取
+        // 帧级缓存：计算当前帧是否有活跃 Camera 轨道，供 Mixin 入口读取
         cachedHasActiveCameraClip = scriptPlayer.hasActiveCameraTrack((float)getGameTimeSeconds());
 
         if (stopping && !OverlayManager.INSTANCE.isAnimating()) {

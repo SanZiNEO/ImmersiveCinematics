@@ -53,8 +53,9 @@ public interface TrackPlayer {
         return switch (track.getType()) {
             case CAMERA -> new CameraTrackPlayer(track, originPos, cameraManager);
             case LETTERBOX -> new LetterboxTrackPlayer(track, overlayManager);
-            case AUDIO -> new AudioTrackPlayer(track);
+            case AUDIO -> new AudioTrackPlayer(track, originPos);
             case MOD_EVENT -> new ModEventTrackPlayer(track);
+            case OVERLAY -> new OverlayTrackPlayer(track, overlayManager);
             default -> throw new IllegalArgumentException("未知轨道类型: " + track.getType());
         };
     }

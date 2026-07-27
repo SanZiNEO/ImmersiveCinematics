@@ -114,6 +114,19 @@ public class Clip {
         return getFloat("fade_out", 0f);
     }
 
+    public String getSource() {
+        return getString("source", "file");
+    }
+
+    public String getAttenuation() {
+        return getString("attenuation", "linear");
+    }
+
+    public String getAudioPositionMode() {
+        return getString("position_mode", "relative");
+    }
+
+
     // ── Convenience: EVENT ──
 
     public String getEventType() {
