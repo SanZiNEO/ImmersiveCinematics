@@ -176,9 +176,19 @@ public class TimelineArea extends UIComponent {
 
         drawRuler(ctx, cx, y, cw);
         drawToolbar(ctx);
+
+        // 裁剪轨道绘制区域，防止滚动内容溢出到标尺/工具栏
+        ctx.graphics.enableScissor(cx, cy, cx + cw, cy + canvasH());
         drawTracks(ctx, cx, cy);
         drawPlayhead(ctx, cx, cy, cw);
+        ctx.graphics.disableScissor();
 
+        // 全局 overlay（无需裁剪：拖拽幽灵、吸附指示器、框选）
+        drawGhostOverlays(ctx, cx, cy, cw);
+    }
+
+    /** 绘制全局 overlay 元素（不在 canvas scissor 范围内） */
+    private void drawGhostOverlays(UIContext ctx, int cx, int cy, int cw) {
         // Ghost drag preview
         if (isDragging && draggingClip != null) {
             int gx = (int) timeToX(ghostStart);

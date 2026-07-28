@@ -661,6 +661,7 @@ public class LeftPanelArea extends UIComponent {
         }
 
         ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
+        ctx.graphics.disableScissor();
     }
 
     @Override

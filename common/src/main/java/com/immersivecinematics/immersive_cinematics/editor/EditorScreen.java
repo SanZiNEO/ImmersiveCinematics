@@ -104,11 +104,7 @@ public class EditorScreen extends Screen {
         rootComponent = new UIComponent(0, 0, width, height) {
             @Override public void render(UIContext ctx) {
                 for (UIComponent child : getChildren()) {
-                    if (child.visible) {
-                        ctx.graphics.enableScissor(child.x, child.y, child.x + child.w, child.y + child.h);
-                        child.render(ctx);
-                        ctx.graphics.disableScissor();
-                    }
+                    if (child.visible) child.render(ctx);
                 }
             }
         };
