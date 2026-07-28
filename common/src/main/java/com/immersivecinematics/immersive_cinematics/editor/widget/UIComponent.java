@@ -51,7 +51,7 @@ public abstract class UIComponent {
     }
 
     public boolean isHovered(UIContext ctx) {
-        return visible && ctx.isMouseIn(absX(), absY(), w, h);
+        return visible && ctx.isMouseIn(x, y, w, h);
     }
     public void clearChildren() {
         for (UIComponent child : children) {

@@ -762,9 +762,11 @@ public class LeftPanelArea extends UIComponent {
     @Override
     protected boolean onScrolled(UIContext ctx, double scroll) {
         if (!visible || !ctx.isMouseIn(x, y, w, h)) return false;
+        ctx.pushScroll(scrollY);
         for (int i = getChildren().size() - 1; i >= 0; i--) {
-            if (getChildren().get(i).mouseScrolled(ctx, scroll)) return true;
+            if (getChildren().get(i).mouseScrolled(ctx, scroll)) { ctx.popScroll(scrollY); return true; }
         }
+        ctx.popScroll(scrollY);
         if (maxScroll > 0) {
             int oldScroll = scrollY;
             scrollY -= (int)(scroll * 20);
