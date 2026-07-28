@@ -104,7 +104,11 @@ public class EditorScreen extends Screen {
         rootComponent = new UIComponent(0, 0, width, height) {
             @Override public void render(UIContext ctx) {
                 for (UIComponent child : getChildren()) {
-                    if (child.visible) child.render(ctx);
+                    if (child.visible) {
+                        ctx.graphics.enableScissor(child.x, child.y, child.x + child.w, child.y + child.h);
+                        child.render(ctx);
+                        ctx.graphics.disableScissor();
+                    }
                 }
             }
         };
@@ -856,6 +860,43 @@ public class EditorScreen extends Screen {
             if (rootComponent.mouseClicked(ctx)) { syncPanels(); return true; }
         } catch (Exception e) {
             EditorLogger.error(EditorLogger.SCREEN, "mouseClicked crashed button=" + button, e);
+        }
+        return false;
+    }
+
+    @Override
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (rootComponent == null) return false;
+        try {
+            UIContext ctx = makeCtx(mx, my, button);
+            ctx.mouseDX = dx; ctx.mouseDY = dy;
+            return rootComponent.mouseDragged(ctx);
+        } catch (Exception e) {
+            EditorLogger.error(EditorLogger.SCREEN, "mouseDragged crashed", e);
+            return false;
+        }
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int button) {
+        if (rootComponent == null) return false;
+        try {
+            UIContext ctx = makeCtx(mx, my, button);
+            return rootComponent.mouseReleased(ctx);
+        } catch (Exception e) {
+            EditorLogger.error(EditorLogger.SCREEN, "mouseReleased crashed", e);
+        }
+        return false;
+    }
+
+    @Override
+    public boolean mouseScrolled(double mx, double my, double scroll) {
+        if (rootComponent == null) return false;
+        try {
+            UIContext ctx = makeCtx(mx, my, 0);
+            return rootComponent.mouseScrolled(ctx, scroll);
+        } catch (Exception e) {
+            EditorLogger.error(EditorLogger.SCREEN, "mouseScrolled crashed", e);
         }
         return false;
     }

@@ -41,6 +41,7 @@ public class MenuBarArea extends UIComponent {
                 I18n.get("editor.action.list_short"), b -> { if (onToggleList != null) onToggleList.run(); });
         listBtn.color(0xFF333333, 0xFF444444);
 
+        addChild(titleLabel);
         addChild(newBtn);
         addChild(saveBtn);
         addChild(listBtn);
@@ -73,7 +74,6 @@ public class MenuBarArea extends UIComponent {
     public void renderContent(UIContext ctx) {
         ctx.graphics.fill(x, y, x + w, y + h, 0xFF1F1F1F);
         ctx.graphics.fill(x, y + h - 1, x + w, y + h, 0xFF333333);
-        ctx.graphics.enableScissor(x, y, x + w, y + h);
 
         titleLabel.setText(getDisplayTitle());
 
@@ -85,6 +85,5 @@ public class MenuBarArea extends UIComponent {
         if (actionText != null && System.currentTimeMillis() - actionTime < 3000) {
             ctx.graphics.drawString(ctx.font, actionText, sx, y + (h - 8) / 2, 0xFF88AA88);
         }
-        ctx.graphics.disableScissor();
     }
 }

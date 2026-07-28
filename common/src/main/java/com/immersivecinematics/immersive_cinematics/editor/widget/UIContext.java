@@ -40,14 +40,17 @@ public class UIContext {
     /** Push a scroll offset: translates both mouse Y and rendering matrix. */
     public void pushScroll(int offset) {
         this.scrollOffsetY += offset;
+        this.mouseY += offset;
         if (graphics != null) graphics.pose().translate(0, -offset, 0);
     }
 
     /** Pop (restore) a scroll offset. Must be paired with a previous pushScroll. */
     public void popScroll(int offset) {
         this.scrollOffsetY -= offset;
+        this.mouseY -= offset;
         if (graphics != null) graphics.pose().translate(0, offset, 0);
     }
+
 
     /** Get the mouse Y adjusted for accumulated scroll offset. */
     public int getAdjustedMouseY() { return mouseY + scrollOffsetY; }
