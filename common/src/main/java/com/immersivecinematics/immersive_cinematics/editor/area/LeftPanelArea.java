@@ -642,12 +642,32 @@ public class LeftPanelArea extends UIComponent {
             if (sub != null) clearTextFocus(sub);
         }
     }
+    /**
+     * Override render() to control the full rendering pipeline:
+     * 1. Fill background
+     * 2. pushViewport (scissor with scroll offset for visual clipping)
+     * 3. pushScroll (translate children positions for scroll visual)
+     * 4. Render children
+     * 5. popScroll (restore coordinates — NEVER leak to siblings)
+     * 6. popViewport (restore scissor)
+     * 7. Draw scrollbar + outline (not affected by scroll/ scissor)
+     */
     @Override
-    public void renderContent(UIContext ctx) {
+    public void render(UIContext ctx) {
+        if (!visible) return;
+
         ctx.graphics.fill(x, y, x + w, y + h, 0xFF1A1A1A);
         ctx.graphics.fill(x + w - 1, y, x + w, y + h, 0xFF2A2A2A);
-        ctx.graphics.enableScissor(x, y, x + w, y + h);
+
+        ctx.pushViewport(x, y, w, h);
         ctx.pushScroll(scrollY);
+
+        for (UIComponent child : getChildren()) {
+            if (child.visible) child.render(ctx);
+        }
+
+        ctx.popScroll(scrollY);
+        ctx.popViewport();
 
         if (maxScroll > 0) {
             int sbX = x + w - 4;
@@ -661,7 +681,6 @@ public class LeftPanelArea extends UIComponent {
         }
 
         ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
-        ctx.graphics.disableScissor();
     }
 
     @Override
@@ -709,6 +728,7 @@ public class LeftPanelArea extends UIComponent {
         ctx.popScroll(scrollY);
         return false;
     }
+
     @Override
     protected boolean onDragged(UIContext ctx) {
         if (scrollbarGrabbed && maxScroll > 0) {
@@ -732,11 +752,13 @@ public class LeftPanelArea extends UIComponent {
         ctx.popScroll(scrollY);
         return result;
     }
+
     @Override
     protected boolean onReleased(UIContext ctx) {
         scrollbarGrabbed = false;
         return false;
     }
+
     @Override
     protected boolean onScrolled(UIContext ctx, double scroll) {
         if (!visible || !ctx.isMouseIn(x, y, w, h)) return false;
@@ -744,42 +766,34 @@ public class LeftPanelArea extends UIComponent {
             if (getChildren().get(i).mouseScrolled(ctx, scroll)) return true;
         }
         if (maxScroll > 0) {
+            int oldScroll = scrollY;
             scrollY -= (int)(scroll * 20);
             clampScrollY();
+            int delta = scrollY - oldScroll;
+            ctx.shiftViewport(0, delta);
             return true;
         }
         return false;
     }
-
-    private void clampScrollY() {
-        scrollY = Math.max(0, Math.min(scrollY, maxScroll));
-    }
-
-    private int tabBarY() { return y; }
-    private int contentY() { return y + TAB_HEIGHT + 4; }
-    private int contentH() { return h - TAB_HEIGHT - 4; }
-    
-    public void setTracks(JsonArray t) { this.tracks = t; dataDirty = true; }
-    
     private void buildTabBar() {
         int tabX = x + 2;
         int tabY = y;
         int tabH = TAB_HEIGHT;
         int n = PanelMode.values().length;
         int tabW = (w - 4 - (n - 1) * TAB_GAP) / n;
-        
+
         for (PanelMode m : PanelMode.values()) {
             String label = getTabLabel(m);
             UIButton tab = new UIButton(tabX, tabY, tabW, tabH, label, btn -> {
                 setMode(m);
             });
-            
+
             if (m == mode) {
                 tab.color(0xFF333344, 0xFF444455).textColor(0xFFFFFFFF);
             } else {
                 tab.color(0xFF222222, 0xFF333333).textColor(0xFF888888);
             }
-            
+
             addChild(tab);
             tabX += tabW + TAB_GAP;
         }
@@ -822,6 +836,16 @@ public class LeftPanelArea extends UIComponent {
         }
     }
 
+
+    public void setTracks(JsonArray t) { this.tracks = t; dataDirty = true; }
+
+    private void clampScrollY() {
+        scrollY = Math.max(0, Math.min(scrollY, maxScroll));
+    }
+
+    private int tabBarY() { return y; }
+    private int contentY() { return y + TAB_HEIGHT + 4; }
+    private int contentH() { return h - TAB_HEIGHT - 4; }
     public void setOnTrackSelected(Consumer<Integer> r) { onTrackSelected = r; }
 }
     

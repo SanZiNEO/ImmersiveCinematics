@@ -59,10 +59,57 @@ public class PreviewArea extends UIComponent {
         ctx.graphics.fill(x, y, x + w, y + h, 0xFF111111);
         ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
 
-        if (currentTime >= 0) {
-            int cx = x + w / 2;
-            int cy2 = y + h / 2;
-            ctx.graphics.drawString(ctx.font, I18n.get("editor.preview"), cx - ctx.font.width(I18n.get("editor.preview")) / 2, cy2 - 20, 0xFF444444);
+        // 预览区域（16:9 保持宽高比，居中显示）
+        int previewH = h - 40;
+        int previewW = (int) (previewH * 16f / 9f);
+        if (previewW > w - 16) {
+            previewW = w - 16;
+            previewH = (int) (previewW * 9f / 16f);
+        }
+        int px = x + (w - previewW) / 2;
+        int py = y + 8;
+
+        ctx.graphics.fill(px, py, px + previewW, py + previewH, 0xFF0F0F0F);
+        ctx.graphics.renderOutline(px, py, previewW, previewH, 0xFF3A3A3A);
+
+        int texId = PreviewCapture.getTextureId();
+        if (texId >= 0) {
+            // 有捕获纹理：绘制带 UV 映射的四边形
+            int capW = PreviewCapture.getWidth();
+            int capH = PreviewCapture.getHeight();
+            float srcAspect = (float) capW / capH;
+            float dstAspect = (float) previewW / previewH;
+            int rx, ry, rw, rh;
+            if (srcAspect > dstAspect) {
+                rw = previewW;
+                rh = (int) (previewW / srcAspect);
+                rx = px;
+                ry = py + (previewH - rh) / 2;
+            } else {
+                rh = previewH;
+                rw = (int) (previewH * srcAspect);
+                rx = px + (previewW - rw) / 2;
+                ry = py;
+            }
+
+            RenderSystem.setShaderTexture(0, texId);
+            RenderSystem.setShader(GameRenderer::getPositionTexShader);
+            var pose = ctx.graphics.pose();
+            pose.pushPose();
+            var builder = new BufferBuilder(256);
+            builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+            builder.vertex(rx, ry + rh, 0).uv(0, 0).endVertex();
+            builder.vertex(rx + rw, ry + rh, 0).uv(1, 0).endVertex();
+            builder.vertex(rx + rw, ry, 0).uv(1, 1).endVertex();
+            builder.vertex(rx, ry, 0).uv(0, 1).endVertex();
+            BufferUploader.drawWithShader(builder.end());
+            pose.popPose();
+            RenderSystem.setShaderTexture(0, 0);
+        } else {
+            // 无捕获纹理：显示占位文字
+            String msg = I18n.get("editor.menu.no_preview");
+            int tw = ctx.font.width(msg);
+            ctx.graphics.drawString(ctx.font, msg, px + (previewW - tw) / 2, py + previewH / 2 - 4, 0xFF555555);
         }
     }
 }
