@@ -48,9 +48,9 @@
 | 南侧（dz > 0） | `180`（朝北） | **玩家正面**（玩家面朝南，这是正脸机位） |
 | 北侧（dz < 0） | `0`（朝南） | 玩家背影方向（跟拍机位） |
 | 东南（dx > 0, dz > 0） | `135` | 斜侧机位 |
-| 东北（dx > 0, dz < 0） | `-135` | 斜侧机位 |
-| 西南（dx < 0, dz > 0） | `-45` | 斜侧机位 |
-| 西北（dx < 0, dz < 0） | `45` | 斜侧机位 |
+| 东北（dx > 0, dz < 0） | `45` | 斜侧机位 |
+| 西南（dx < 0, dz > 0） | `-135` | 斜侧机位 |
+| 西北（dx < 0, dz < 0） | `-45` | 斜侧机位 |
 
 > 记忆法：相机在**东** → 朝**西**看（yaw 90）；相机在**南** → 朝**北**看（yaw 180）；依此类推，yaw 永远是相机方位的反方向。
 >
@@ -64,9 +64,7 @@
 - `-10` = 仰视（显高大、压迫感，适合拍 Boss）
 - `40~60` = 高空俯拍（航拍、开场全景）
 - `90` = 完全垂直向下（正头顶）
-
 ### 1.6 光学参数
-
 | 值 | 含义 |
 |---|---|
 | `fov` | 视野角。**玩家默认 70**，指南基准 70。**越小 = 越放大（长焦）**，越大 = 越广角。可用范围建议 30 ~ 110 |
@@ -122,6 +120,8 @@
 
 常用行为开关（默认值合理，不写也行）：`block_keyboard: true`、`block_mouse: true`、`hide_hud: true`、`hide_arm: true`、`suppress_bob: true`、`skippable: true`、`interruptible: true`、`hold_at_end: false`、`pause_when_game_paused: true`。
 
+> **`hide_skip_hud` 必读**：长按跳过键的提示（右下角图标+进度环）由 `hide_skip_hud` 控制——**不写时跟随 `hide_hud` 被隐藏**。凡是 `hide_hud: true` 的脚本，想保留跳过提示就必须显式写 **`"hide_skip_hud": false`**，否则玩家看不到"按 C 跳过"的提示。
+
 ### 3.3 timeline
 
 | 字段 | 说明 |
@@ -170,7 +170,7 @@
 | 轨道 | 用途 |
 |---|---|
 | `LETTERBOX` | 宽银幕黑边。keyframe 的 `aspect_ratio`：0 = 无黑边，2.35 = 电影宽银幕 |
-| `AUDIO` | 播放音频（`sound` + `source: "file"`），keyframe 控制 `volume` 和空间 `x/y/z` |
+| `AUDIO` | 播放音频（`sound` + `source: "file"`），keyframe 控制 `volume` 和空间 `x/y/z`。**音频文件必须用英文命名**（中文名在 Windows 下会解码失败） |
 | `EVENT` | 时间点执行服务端命令（keyframe 的 `command`），如 `"say 开始！"` |
 | `OVERLAY` | 覆盖层：`fade`（全屏颜色）/ `image`（图片）/ `subtitle`（字幕）/ `pip`（画中画） |
 | `MOD_EVENT` | 第三方模组自定义事件 |
@@ -237,7 +237,8 @@
     "hide_arm": true,
     "suppress_bob": true,
     "skippable": true,
-    "hold_at_end": false
+    "hold_at_end": false,
+    "hide_skip_hud": false
   },
   "timeline": {
     "total_duration": 15.0,
@@ -323,7 +324,8 @@
     "hide_arm": true,
     "suppress_bob": true,
     "skippable": true,
-    "hold_at_end": false
+    "hold_at_end": false,
+    "hide_skip_hud": false
   },
   "timeline": {
     "total_duration": 18.0,
@@ -393,6 +395,7 @@
 | 10 | relative 模式写了 `x/y/z`（或反之） | relative 用 `dx/dy/dz`，absolute 用 `x/y/z`，不要混 |
 | 11 | 特写后忘记恢复 | 段落结尾把 fov 回到 70、zoom 回到 1、roll 回到 0 |
 | 12 | `duration` 写 0 | 非法。正数 = 定长，负数 = 无限 |
+| 13 | 音频/图片资源用中文或其他非 ASCII 命名 | Windows 下 stb 解码走 ANSI 代码页，中文路径打不开。**资源文件统一英文命名**（如 `second_waltz.ogg`） |
 
 ---
 

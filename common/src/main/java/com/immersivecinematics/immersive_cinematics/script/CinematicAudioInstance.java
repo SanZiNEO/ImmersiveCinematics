@@ -48,6 +48,13 @@ public class CinematicAudioInstance {
         this.loop = loop;
         this.pitch = pitch;
 
+        // 非 ASCII 文件名（中文等）在 Windows 上可能解码失败：
+        // stb_vorbis_decode_filename 内部使用 C fopen（ANSI 代码页），
+        // 无法打开 UTF-8 编码的中文路径。统一警告并建议英文命名。
+        if (!fileName.chars().allMatch(c -> c < 128)) {
+            LOGGER.warn("音频文件名包含非 ASCII 字符: {} — Windows 下可能无法解码，建议使用英文命名", fileName);
+        }
+
         ByteBuffer rawAudio = null;
         int channels = 0;
         int sampleRate = 0;

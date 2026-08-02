@@ -1,10 +1,10 @@
 {
   "meta": {
-    "id": "world_moment",
-    "name": "世界中的一刻",
+    "id": "second_waltz",
+    "name": "第二圆舞曲",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "全面的测试脚本",
+    "description": "肖斯塔科维奇《第二圆舞曲》完整配乐脚本：20 段精细化运镜（环绕一周/特写微摆/拉升/头顶横穿/俯拍绕半圈/降落/双特写），AUDIO 固定音量 0.7，EVENT 时间/天气/title 章节提示",
     "triggers": [
       {
         "id": "on_login",
@@ -30,788 +30,287 @@
     "hide_subtitles": true,
     "hide_hotbar": true,
     "hide_crosshair": true,
+    "hide_skip_hud": false,
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 102,
+    "total_duration": 228.0,
     "tracks": [
       {
         "type": "CAMERA",
         "clips": [
           {
             "start_time": 0,
-            "duration": 6,
+            "duration": 10,
             "transition": "cut",
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 30,
-                  "dy": 2,
-                  "dz": 0
-                },
-                "yaw": 90,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 6,
-                "position": {
-                  "dx": 20,
-                  "dy": 2,
-                  "dz": 0
-                },
-                "yaw": 90,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
+              { "time": 0,  "position": { "dx": 22, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 10, "position": { "dx": 17, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 }
+            ]
           },
           {
-            "start_time": 6,
-            "duration": 6,
-            "transition": "cut",
+            "start_time": 10,
+            "duration": 10,
+            "transition": "morph",
+            "transition_duration": 1.0,
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 18,
-                  "dy": 1.5,
-                  "dz": 0
-                },
-                "yaw": 90,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 6,
-                "position": {
-                  "dx": 8,
-                  "dy": 1.5,
-                  "dz": 0
-                },
-                "yaw": 90,
-                "pitch": 8,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
+              { "time": 0,  "position": { "dx": 17, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 10, "position": { "dx": 12, "dy": 2, "dz": 0 }, "yaw": 95, "pitch": 6, "roll": 0, "fov": 70, "zoom": 1.0 }
+            ]
           },
           {
-            "start_time": 12,
-            "duration": 5,
-            "transition": "cut",
+            "start_time": 20,
+            "duration": 12,
+            "transition": "morph",
+            "transition_duration": 1.5,
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 7,
-                  "dy": 1.5,
-                  "dz": 2
-                },
-                "yaw": 105,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 5,
-                "position": {
-                  "dx": 3,
-                  "dy": 1.5,
-                  "dz": 1
-                },
-                "yaw": 100,
-                "pitch": 8,
-                "roll": 0,
-                "fov": 68,
-                "zoom": 1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
+              { "time": 0,  "position": { "dx": 12, "dy": 2, "dz": 0 },  "yaw": 90,  "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 6,  "position": { "dx": 8,  "dy": 2, "dz": 8 },  "yaw": 135, "pitch": 6, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 12, "position": { "dx": 0,  "dy": 2, "dz": 14 }, "yaw": 180, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 }
+            ]
           },
           {
-            "start_time": 17,
-            "duration": 6,
-            "transition": "cut",
+            "start_time": 32,
+            "duration": 12,
+            "transition": "morph",
+            "transition_duration": 1.5,
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": -5,
-                  "dy": 1,
-                  "dz": -5
-                },
-                "yaw": 270,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 6,
-                "position": {
-                  "dx": -5,
-                  "dy": 1,
-                  "dz": 10
-                },
-                "yaw": 270,
-                "pitch": 8,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
+              { "time": 0,  "position": { "dx": 0,  "dy": 2, "dz": 14 },  "yaw": 180, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 6,  "position": { "dx": -8, "dy": 2, "dz": 8 },  "yaw": -135, "pitch": 6, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 12, "position": { "dx": -14, "dy": 2, "dz": 0 }, "yaw": -90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 }
+            ]
           },
           {
-            "start_time": 23,
-            "duration": 8,
-            "transition": "cut",
+            "start_time": 44,
+            "duration": 12,
+            "transition": "morph",
+            "transition_duration": 1.5,
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 10,
-                  "dy": 1.5,
-                  "dz": 3
-                },
-                "yaw": 107,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 4,
-                "position": {
-                  "dx": 0,
-                  "dy": 2,
-                  "dz": -2
-                },
-                "yaw": 0,
-                "pitch": 8,
-                "roll": 0,
-                "fov": 72,
-                "zoom": 1.1
-              },
-              {
-                "time": 8,
-                "position": {
-                  "dx": -10,
-                  "dy": 1.5,
-                  "dz": 3
-                },
-                "yaw": -107,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
+              { "time": 0,  "position": { "dx": -14, "dy": 2, "dz": 0 },  "yaw": -90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 6,  "position": { "dx": -8, "dy": 2, "dz": -8 }, "yaw": -45, "pitch": 6, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 12, "position": { "dx": 0,  "dy": 2, "dz": -14 }, "yaw": 0,   "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 }
+            ]
           },
           {
-            "start_time": 31,
-            "duration": 6,
-            "transition": "cut",
+            "start_time": 56,
+            "duration": 12,
+            "transition": "morph",
+            "transition_duration": 1.5,
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": -1,
-                  "dy": 2.5,
-                  "dz": -4
-                },
-                "yaw": -14,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 6,
-                "position": {
-                  "dx": -1,
-                  "dy": 3,
-                  "dz": -8
-                },
-                "yaw": -7,
-                "pitch": 15,
-                "roll": 0,
-                "fov": 75,
-                "zoom": 1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
+              { "time": 0,  "position": { "dx": 0, "dy": 2, "dz": -14 }, "yaw": 0,  "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 6,  "position": { "dx": 8, "dy": 2, "dz": -8 },  "yaw": 45, "pitch": 6, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 12, "position": { "dx": 14, "dy": 2, "dz": 0 },  "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 }
+            ]
           },
           {
-            "start_time": 37,
-            "duration": 5,
-            "transition": "cut",
+            "start_time": 68,
+            "duration": 10,
+            "transition": "morph",
+            "transition_duration": 1.0,
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 4,
-                  "dy": -1,
-                  "dz": 4
-                },
-                "yaw": 135,
-                "pitch": -8,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 5,
-                "position": {
-                  "dx": 3,
-                  "dy": -1,
-                  "dz": 3
-                },
-                "yaw": 135,
-                "pitch": -5,
-                "roll": 0,
-                "fov": 68,
-                "zoom": 1.1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
-          },
-          {
-            "start_time": 42,
-            "duration": 5,
-            "transition": "cut",
-            "interpolation": "linear",
-            "position_mode": "relative",
-            "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 5,
-                  "dy": 1.5,
-                  "dz": 0
-                },
-                "yaw": 90,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 2.5,
-                "position": {
-                  "dx": 4.5,
-                  "dy": 1.5,
-                  "dz": 0
-                },
-                "yaw": 90,
-                "pitch": 8,
-                "roll": 0,
-                "fov": 68,
-                "zoom": 1.5
-              },
-              {
-                "time": 5,
-                "position": {
-                  "dx": 4,
-                  "dy": 1.5,
-                  "dz": 0
-                },
-                "yaw": 90,
-                "pitch": 10,
-                "roll": 0,
-                "fov": 65,
-                "zoom": 2.5
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
-          },
-          {
-            "start_time": 47,
-            "duration": 5,
-            "transition": "cut",
-            "interpolation": "linear",
-            "position_mode": "relative",
-            "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 4,
-                  "dy": 1.5,
-                  "dz": 0
-                },
-                "yaw": 90,
-                "pitch": 10,
-                "roll": 0,
-                "fov": 65,
-                "zoom": 2
-              },
-              {
-                "time": 5,
-                "position": {
-                  "dx": 8,
-                  "dy": 1.5,
-                  "dz": 0
-                },
-                "yaw": 90,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
-          },
-          {
-            "start_time": 52,
-            "duration": 5,
-            "transition": "cut",
-            "interpolation": "linear",
-            "position_mode": "relative",
-            "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 6,
-                  "dy": 2,
-                  "dz": 0
-                },
-                "yaw": 90,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 2.5,
-                "position": {
-                  "dx": 6,
-                  "dy": 2,
-                  "dz": 0
-                },
-                "yaw": 135,
-                "pitch": 8,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 5,
-                "position": {
-                  "dx": 6,
-                  "dy": 2,
-                  "dz": 0
-                },
-                "yaw": 180,
-                "pitch": 10,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
-          },
-          {
-            "start_time": 57,
-            "duration": 7,
-            "transition": "cut",
-            "interpolation": "linear",
-            "position_mode": "relative",
-            "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": -8,
-                  "dy": 3,
-                  "dz": -15
-                },
-                "yaw": 180,
-                "pitch": 10,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 3.5,
-                "position": {
-                  "dx": 0,
-                  "dy": 3,
-                  "dz": -15
-                },
-                "yaw": 180,
-                "pitch": 10,
-                "roll": 0,
-                "fov": 72,
-                "zoom": 1
-              },
-              {
-                "time": 7,
-                "position": {
-                  "dx": 8,
-                  "dy": 3,
-                  "dz": -15
-                },
-                "yaw": 180,
-                "pitch": 10,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
-          },
-          {
-            "start_time": 64,
-            "duration": 5,
-            "transition": "cut",
-            "interpolation": "linear",
-            "position_mode": "relative",
-            "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 10,
-                  "dy": 1,
-                  "dz": -8
-                },
-                "yaw": 140,
-                "pitch": 12,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 5,
-                "position": {
-                  "dx": 14,
-                  "dy": 1,
-                  "dz": -5
-                },
-                "yaw": 150,
-                "pitch": 15,
-                "roll": 0,
-                "fov": 68,
-                "zoom": 1.1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
-          },
-          {
-            "start_time": 69,
-            "duration": 5,
-            "transition": "cut",
-            "interpolation": "linear",
-            "position_mode": "relative",
-            "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 0,
-                  "dy": 12,
-                  "dz": 0
-                },
-                "yaw": 180,
-                "pitch": 55,
-                "roll": 0,
-                "fov": 80,
-                "zoom": 1
-              },
-              {
-                "time": 5,
-                "position": {
-                  "dx": 0,
-                  "dy": 12,
-                  "dz": 0
-                },
-                "yaw": 180,
-                "pitch": 50,
-                "roll": 0,
-                "fov": 80,
-                "zoom": 1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
-          },
-          {
-            "start_time": 74,
-            "duration": 4,
-            "transition": "cut",
-            "interpolation": "linear",
-            "position_mode": "relative",
-            "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 6,
-                  "dy": 2,
-                  "dz": 3
-                },
-                "yaw": 116,
-                "pitch": 10,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 2,
-                "position": {
-                  "dx": 5.5,
-                  "dy": 2,
-                  "dz": 2.5
-                },
-                "yaw": 115,
-                "pitch": 12,
-                "roll": 15,
-                "fov": 70,
-                "zoom": 1.5
-              },
-              {
-                "time": 4,
-                "position": {
-                  "dx": 5,
-                  "dy": 2,
-                  "dz": 2
-                },
-                "yaw": 115,
-                "pitch": 15,
-                "roll": 30,
-                "fov": 70,
-                "zoom": 2
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
+              { "time": 0,  "position": { "dx": 14, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 8, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 10, "position": { "dx": 10, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 60, "zoom": 1.2 }
+            ]
           },
           {
             "start_time": 78,
-            "duration": 6,
-            "transition": "cut",
+            "duration": 10,
+            "transition": "morph",
+            "transition_duration": 1.0,
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": -6,
-                  "dy": 1,
-                  "dz": 5
-                },
-                "yaw": -130,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 6,
-                "position": {
-                  "dx": -6,
-                  "dy": 10,
-                  "dz": 5
-                },
-                "yaw": -130,
-                "pitch": 40,
-                "roll": 0,
-                "fov": 85,
-                "zoom": 1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
+              { "time": 0,  "position": { "dx": 10, "dy": 2, "dz": 0 },    "yaw": 90, "pitch": 10, "roll": 0, "fov": 60, "zoom": 1.2 },
+              { "time": 5,  "position": { "dx": 9.5, "dy": 2, "dz": 0.5 }, "yaw": 95, "pitch": 12, "roll": 2, "fov": 58, "zoom": 1.25 },
+              { "time": 10, "position": { "dx": 10, "dy": 2, "dz": 0 },    "yaw": 90, "pitch": 10, "roll": 0, "fov": 60, "zoom": 1.2 }
+            ]
           },
           {
-            "start_time": 84,
-            "duration": 6,
-            "transition": "cut",
+            "start_time": 88,
+            "duration": 12,
+            "transition": "morph",
+            "transition_duration": 1.5,
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 0,
-                  "dy": 10,
-                  "dz": 8
-                },
-                "yaw": 180,
-                "pitch": 40,
-                "roll": 0,
-                "fov": 80,
-                "zoom": 1
-              },
-              {
-                "time": 3,
-                "position": {
-                  "dx": 0,
-                  "dy": 6,
-                  "dz": 6
-                },
-                "yaw": 180,
-                "pitch": 25,
-                "roll": 0,
-                "fov": 75,
-                "zoom": 1
-              },
-              {
-                "time": 6,
-                "position": {
-                  "dx": 0,
-                  "dy": 3,
-                  "dz": 4
-                },
-                "yaw": 180,
-                "pitch": 15,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
+              { "time": 0,  "position": { "dx": 10, "dy": 2, "dz": 0 }, "yaw": 90,  "pitch": 10, "roll": 0, "fov": 60, "zoom": 1.2 },
+              { "time": 6,  "position": { "dx": 13, "dy": 2, "dz": 4 }, "yaw": 115, "pitch": 8,  "roll": 0, "fov": 64, "zoom": 1.1 },
+              { "time": 12, "position": { "dx": 16, "dy": 2, "dz": 8 }, "yaw": 135, "pitch": 6,  "roll": 0, "fov": 68, "zoom": 1.0 }
+            ]
           },
           {
-            "start_time": 90,
-            "duration": 6,
-            "transition": "cut",
+            "start_time": 100,
+            "duration": 12,
+            "transition": "morph",
+            "transition_duration": 1.5,
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 8,
-                  "dy": 1.5,
-                  "dz": 3
-                },
-                "yaw": 110,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 6,
-                "position": {
-                  "dx": 4,
-                  "dy": 1.5,
-                  "dz": 1
-                },
-                "yaw": 100,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 68,
-                "zoom": 1
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
+              { "time": 0,  "position": { "dx": 16, "dy": 2,  "dz": 8 },  "yaw": 135, "pitch": 10, "roll": 0, "fov": 68, "zoom": 1.0 },
+              { "time": 6,  "position": { "dx": 10, "dy": 8,  "dz": 12 }, "yaw": 160, "pitch": 25, "roll": 0, "fov": 74, "zoom": 1.0 },
+              { "time": 12, "position": { "dx": 0,  "dy": 12, "dz": 14 }, "yaw": 180, "pitch": 40, "roll": 0, "fov": 76, "zoom": 1.0 }
+            ]
           },
           {
-            "start_time": 96,
-            "duration": 6,
-            "transition": "cut",
+            "start_time": 112,
+            "duration": 10,
+            "transition": "morph",
+            "transition_duration": 1.0,
             "interpolation": "linear",
             "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 5,
-                  "dy": 2,
-                  "dz": 2
-                },
-                "yaw": 112,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 3,
-                "position": {
-                  "dx": 4.5,
-                  "dy": 1.5,
-                  "dz": 1
-                },
-                "yaw": 105,
-                "pitch": 5,
-                "roll": -3,
-                "fov": 60,
-                "zoom": 1.2
-              },
-              {
-                "time": 6,
-                "position": {
-                  "dx": 4,
-                  "dy": 1.5,
-                  "dz": 1
-                },
-                "yaw": 100,
-                "pitch": 5,
-                "roll": 0,
-                "fov": 50,
-                "zoom": 1.5
-              }
-            ],
-            "transition_duration": 0.5,
-            "loop_count": -1
+              { "time": 0,  "position": { "dx": 0, "dy": 12, "dz": 14 }, "yaw": 180, "pitch": 40, "roll": 0, "fov": 76, "zoom": 1.0 },
+              { "time": 5,  "position": { "dx": 0, "dy": 12, "dz": 8 },  "yaw": 180, "pitch": 45, "roll": 0, "fov": 75, "zoom": 1.0 },
+              { "time": 10, "position": { "dx": 0, "dy": 12, "dz": 2 },  "yaw": 180, "pitch": 50, "roll": 0, "fov": 74, "zoom": 1.0 }
+            ]
+          },
+          {
+            "start_time": 122,
+            "duration": 10,
+            "transition": "morph",
+            "transition_duration": 1.0,
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,  "position": { "dx": 0, "dy": 12, "dz": 2 },  "yaw": 180, "pitch": 50, "roll": 0, "fov": 74, "zoom": 1.0 },
+              { "time": 5,  "position": { "dx": 0, "dy": 12, "dz": -4 }, "yaw": 90,  "pitch": 50, "roll": 0, "fov": 74, "zoom": 1.0 },
+              { "time": 10, "position": { "dx": 0, "dy": 12, "dz": -12 }, "yaw": 0,   "pitch": 45, "roll": 0, "fov": 75, "zoom": 1.0 }
+            ]
+          },
+          {
+            "start_time": 132,
+            "duration": 14,
+            "transition": "morph",
+            "transition_duration": 1.5,
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,  "position": { "dx": 0,  "dy": 13, "dz": -12 }, "yaw": 0, "pitch": 55, "roll": 0, "fov": 74, "zoom": 1.0 },
+              { "time": 7,  "position": { "dx": 12, "dy": 13, "dz": 0 },   "yaw": 90, "pitch": 55, "roll": 0, "fov": 74, "zoom": 1.0 },
+              { "time": 14, "position": { "dx": 0,  "dy": 13, "dz": 12 },  "yaw": 180, "pitch": 55, "roll": 0, "fov": 74, "zoom": 1.0 }
+            ]
+          },
+          {
+            "start_time": 146,
+            "duration": 12,
+            "transition": "morph",
+            "transition_duration": 1.5,
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,  "position": { "dx": 0,  "dy": 13, "dz": 12 }, "yaw": 180, "pitch": 50, "roll": 0, "fov": 74, "zoom": 1.0 },
+              { "time": 6,  "position": { "dx": -8, "dy": 6,  "dz": 6 },  "yaw": -135, "pitch": 25, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 12, "position": { "dx": -8, "dy": 2,  "dz": 6 },  "yaw": -135, "pitch": 12, "roll": 0, "fov": 70, "zoom": 1.0 }
+            ]
+          },
+          {
+            "start_time": 158,
+            "duration": 10,
+            "transition": "morph",
+            "transition_duration": 1.0,
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,  "position": { "dx": -8, "dy": 2, "dz": 6 }, "yaw": -135, "pitch": 12, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 10, "position": { "dx": -7, "dy": 2, "dz": 5 }, "yaw": -135, "pitch": 14, "roll": 0, "fov": 58, "zoom": 1.3 }
+            ]
+          },
+          {
+            "start_time": 168,
+            "duration": 10,
+            "transition": "morph",
+            "transition_duration": 1.0,
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,  "position": { "dx": -7, "dy": 2, "dz": 5 },  "yaw": -135, "pitch": 14, "roll": 0, "fov": 58, "zoom": 1.3 },
+              { "time": 10, "position": { "dx": -14, "dy": 2, "dz": -4 }, "yaw": -45,  "pitch": 8,  "roll": 0, "fov": 68, "zoom": 1.0 }
+            ]
+          },
+          {
+            "start_time": 178,
+            "duration": 10,
+            "transition": "morph",
+            "transition_duration": 1.0,
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,  "position": { "dx": -14, "dy": 2, "dz": -4 }, "yaw": -45, "pitch": 8,  "roll": 0, "fov": 68, "zoom": 1.0 },
+              { "time": 10, "position": { "dx": -11, "dy": 2, "dz": -3 }, "yaw": -45, "pitch": 12, "roll": 0, "fov": 50, "zoom": 1.5 }
+            ]
+          },
+          {
+            "start_time": 188,
+            "duration": 12,
+            "transition": "morph",
+            "transition_duration": 1.5,
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,  "position": { "dx": -11, "dy": 2, "dz": -4 }, "yaw": -45,  "pitch": 12, "roll": 0, "fov": 50, "zoom": 1.5 },
+              { "time": 6,  "position": { "dx": -16, "dy": 2, "dz": 2 },  "yaw": -90,  "pitch": 8,  "roll": 0, "fov": 60, "zoom": 1.2 },
+              { "time": 12, "position": { "dx": -18, "dy": 2, "dz": 8 },  "yaw": -135, "pitch": 6,  "roll": 0, "fov": 66, "zoom": 1.0 }
+            ]
+          },
+          {
+            "start_time": 200,
+            "duration": 12,
+            "transition": "morph",
+            "transition_duration": 1.5,
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,  "position": { "dx": -18, "dy": 2, "dz": 8 },  "yaw": -135, "pitch": 6, "roll": 0, "fov": 66, "zoom": 1.0 },
+              { "time": 6,  "position": { "dx": -12, "dy": 2, "dz": 10 }, "yaw": -135, "pitch": 5, "roll": 0, "fov": 68, "zoom": 1.0 },
+              { "time": 12, "position": { "dx": -8,  "dy": 2, "dz": 12 }, "yaw": -135, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 }
+            ]
+          },
+          {
+            "start_time": 212,
+            "duration": 16,
+            "transition": "morph",
+            "transition_duration": 2.0,
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,  "position": { "dx": -8, "dy": 2, "dz": 12 }, "yaw": -135, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 8,  "position": { "dx": -7, "dy": 2, "dz": 11 }, "yaw": -132, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 16, "position": { "dx": -6, "dy": 2, "dz": 10 }, "yaw": -130, "pitch": 4, "roll": 0, "fov": 70, "zoom": 1.0 }
+            ]
           }
         ]
       },
@@ -820,16 +319,60 @@
         "clips": [
           {
             "start_time": 0,
-            "duration": 102,
+            "duration": 228,
             "keyframes": [
-              {
-                "time": 0,
-                "aspect_ratio": 2.35
-              },
-              {
-                "time": 102,
-                "aspect_ratio": 2.35
-              }
+              { "time": 0,   "aspect_ratio": 0.0 },
+              { "time": 3,   "aspect_ratio": 2.35 },
+              { "time": 224, "aspect_ratio": 2.35 },
+              { "time": 228, "aspect_ratio": 0.0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "AUDIO",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 228,
+            "sound": "second_waltz.ogg",
+            "source": "file",
+            "volume": 0.7,
+            "pitch": 1.0,
+            "loop": false,
+            "fade_in": 1.5,
+            "fade_out": 4.0,
+            "attenuation": "none",
+            "position_mode": "relative",
+            "keyframes": [
+              { "time": 0,   "volume": 0.7, "x": 0, "y": 0, "z": 0 },
+              { "time": 228, "volume": 0.7, "x": 0, "y": 0, "z": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 228,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0,   "event_type": "command", "command": "time set 14000" },
+              { "time": 0.5, "event_type": "command", "command": "weather clear" },
+              { "time": 2,   "event_type": "command", "command": "title @a times 20 100 30" },
+              { "time": 3,   "event_type": "command", "command": "title @a title §l第二圆舞曲" },
+              { "time": 5,   "event_type": "command", "command": "title @a subtitle §7肖斯塔科维奇 · 爵士组曲第二号" },
+              { "time": 62,  "event_type": "command", "command": "title @a times 10 60 20" },
+              { "time": 63,  "event_type": "command", "command": "title @a title §l旋转的舞步" },
+              { "time": 65,  "event_type": "command", "command": "title @a subtitle §7镜头环绕一周" },
+              { "time": 120, "event_type": "command", "command": "time set 18000" },
+              { "time": 121, "event_type": "command", "command": "title @a times 10 60 20" },
+              { "time": 122, "event_type": "command", "command": "title @a title §l夜色降临" },
+              { "time": 200, "event_type": "command", "command": "title @a times 20 100 30" },
+              { "time": 201, "event_type": "command", "command": "title @a title §l谢谢观看" },
+              { "time": 203, "event_type": "command", "command": "title @a subtitle §7第二圆舞曲 · 完" }
             ]
           }
         ]
