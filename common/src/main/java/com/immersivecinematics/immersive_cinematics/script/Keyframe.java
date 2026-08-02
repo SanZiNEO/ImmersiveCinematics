@@ -65,7 +65,6 @@ public class Keyframe {
     public float getRoll() { return getFloat("roll", 0f); }
     public float getFov() { return getFloat("fov", 70f); }
     public float getZoom() { return getFloat("zoom", 1.0f); }
-    public float getDof() { return getFloat("dof", 0f); }
 
     // ── Convenience: Letterbox keyframes ──
 

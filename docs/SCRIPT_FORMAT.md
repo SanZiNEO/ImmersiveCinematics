@@ -153,10 +153,9 @@
 | `position` | object | 是 | — | 位置，格式见下方 |
 | `yaw` | float | 是 | — | 偏航角（度）。0=南，90=西，±180=北 |
 | `pitch` | float | 是 | — | 俯仰角（度）。正=向下看 |
-| `roll` | float | 是 | — | 翻滚角（度）。正=左倾 |
+| `roll` | float | 是 | — | 翻滚角（度）。正=屏幕顺时针（画面向右倒），任何朝向一致 |
 | `fov` | float | 是 | — | 视场角（度），标准 70 |
 | `zoom` | float | 否 | `1.0` | 缩放倍率，`>1`=放大 |
-| `dof` | float | 否 | `0.0` | 景深强度（预留） |
 
 ### Position（相对模式 `relative`）
 
@@ -344,13 +343,13 @@
                 "time": 0.0,
                 "position": { "dx": 5, "dy": 2, "dz": 3 },
                 "yaw": 90, "pitch": 5, "roll": 0,
-                "fov": 70, "zoom": 1.0, "dof": 0
+                "fov": 70, "zoom": 1.0
               },
               {
                 "time": 10.0,
                 "position": { "dx": 0, "dy": 2, "dz": 0 },
                 "yaw": 0, "pitch": 10, "roll": 0,
-                "fov": 70, "zoom": 1.0, "dof": 0
+                "fov": 70, "zoom": 1.0
               }
             ]
           }

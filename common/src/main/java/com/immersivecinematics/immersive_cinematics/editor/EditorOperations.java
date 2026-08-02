@@ -57,13 +57,11 @@ public class EditorOperations {
             kf0.addProperty("roll", 0f);
             kf0.addProperty("fov", 70f);
             kf0.addProperty("zoom", 1.0f);
-            kf0.addProperty("dof", 0f);
             kf1.addProperty("yaw", 0f);
             kf1.addProperty("pitch", 0f);
             kf1.addProperty("roll", 0f);
             kf1.addProperty("fov", 70f);
             kf1.addProperty("zoom", 1.0f);
-            kf1.addProperty("dof", 0f);
             JsonObject pos1 = new JsonObject();
             pos1.addProperty("dx", 0f);
             pos1.addProperty("dy", 0f);
@@ -378,9 +376,6 @@ public class EditorOperations {
         target.addProperty("zoom", lerp(
                 prev.has("zoom") ? prev.get("zoom").getAsFloat() : 1.0f,
                 next.has("zoom") ? next.get("zoom").getAsFloat() : 1.0f, ratio));
-        target.addProperty("dof", lerp(
-                prev.has("dof") ? prev.get("dof").getAsFloat() : 0f,
-                next.has("dof") ? next.get("dof").getAsFloat() : 0f, ratio));
     }
 
     private static void copyKeyframeProperties(JsonObject target, JsonObject source) {
@@ -392,7 +387,6 @@ public class EditorOperations {
         if (source.has("roll")) target.addProperty("roll", source.get("roll").getAsFloat());
         if (source.has("fov")) target.addProperty("fov", source.get("fov").getAsFloat());
         if (source.has("zoom")) target.addProperty("zoom", source.get("zoom").getAsFloat());
-        if (source.has("dof")) target.addProperty("dof", source.get("dof").getAsFloat());
     }
     
     private static float lerp(float a, float b, float t) {

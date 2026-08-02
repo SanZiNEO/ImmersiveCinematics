@@ -37,8 +37,7 @@
                 "pitch": -10,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1.0,
-                "dof": 0
+                "zoom": 1.0
               },
               {
                 "time": 15,
@@ -47,8 +46,7 @@
                 "pitch": 5,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1.0,
-                "dof": 0
+                "zoom": 1.0
               },
               {
                 "time": 30,
@@ -57,8 +55,7 @@
                 "pitch": -5,
                 "roll": 0,
                 "fov": 75,
-                "zoom": 1.0,
-                "dof": 0
+                "zoom": 1.0
               }
             ]
           }

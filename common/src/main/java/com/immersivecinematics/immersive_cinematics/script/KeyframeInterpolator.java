@@ -176,10 +176,6 @@ public final class KeyframeInterpolator {
         return MathUtil.sanitizeFloat(result, from.getZoom());
     }
 
-    public static float interpolateDof(Keyframe from, Keyframe to, float s) {
-        float result = MathUtil.lerp(from.getDof(), to.getDof(), s);
-        return MathUtil.sanitizeFloat(result, from.getDof());
-    }
 
     // ========== 结果容器 ==========
 

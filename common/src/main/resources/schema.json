@@ -29,8 +29,7 @@
         "pitch": { "type": "float", "default": 0 },
         "roll": { "type": "float", "default": 0 },
         "fov": { "type": "float", "default": 70 },
-        "zoom": { "type": "float", "default": 1.0 },
-        "dof": { "type": "float", "default": 0 }
+        "zoom": { "type": "float", "default": 1.0 }
       }
     },
     "LETTERBOX": {

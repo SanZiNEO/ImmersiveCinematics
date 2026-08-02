@@ -57,8 +57,7 @@
                 "pitch": 0,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1,
-                "dof": 0
+                "zoom": 1
               },
               {
                 "time": 2.5,
@@ -67,8 +66,7 @@
                 "pitch": 5,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1,
-                "dof": 0
+                "zoom": 1
               },
               {
                 "time": 5,
@@ -77,8 +75,7 @@
                 "pitch": 10,
                 "roll": 10,
                 "fov": 70,
-                "zoom": 1,
-                "dof": 0
+                "zoom": 1
               },
               {
                 "time": 7.5,
@@ -87,8 +84,7 @@
                 "pitch": 5,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1,
-                "dof": 0
+                "zoom": 1
               },
               {
                 "time": 10,
@@ -97,8 +93,7 @@
                 "pitch": 0,
                 "roll": -10,
                 "fov": 70,
-                "zoom": 1,
-                "dof": 0
+                "zoom": 1
               }
             ]
           }

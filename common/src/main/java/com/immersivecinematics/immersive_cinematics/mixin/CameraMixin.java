@@ -53,7 +53,6 @@ public abstract class CameraMixin {
     @Shadow
     private boolean detached;
 
-
     /**
      * 🎬 拦截 Camera.setup()，用电影相机位置/旋转替换原版逻辑
      * <p>
@@ -102,8 +101,10 @@ public abstract class CameraMixin {
         float pitch = mgr.getProperties().getPitch();
         setRotation(yaw, pitch);
 
-        // Roll 由 GameRendererMixin.onAfterCameraRotations() 在 renderLevel 中处理
-
+        // Roll 由 GameRendererMixin.onBeforePrepareCullFrustum() 在 renderLevel 中施加：
+        // 视图矩阵不读取 Camera.rotation() 四元数（原版用 getXRot/getYRot 标量构造），
+        // 必须绕相机视线轴（getLookVector）在 PoseStack 上旋转才能保证
+        // 任何朝向下 roll>0 均为屏幕空间顺时针（画面向右倒）。
         ci.cancel();  // 取消原版 setup，使用我们的位置/旋转
 
     }

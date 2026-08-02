@@ -316,7 +316,6 @@ public class EditorScreen extends Screen {
                         if (!kf.has("roll")) kf.addProperty("roll", 0f);
                         if (!kf.has("fov")) kf.addProperty("fov", 70f);
                         if (!kf.has("zoom")) kf.addProperty("zoom", 1f);
-                        if (!kf.has("dof")) kf.addProperty("dof", 0f);
                     }
                 }
                 doc.markDirty();
@@ -633,7 +632,7 @@ public class EditorScreen extends Screen {
                     pos.addProperty("dx", 0f); pos.addProperty("dy", 0f); pos.addProperty("dz", 0f);
                     kf.add("position", pos);
                     kf.addProperty("yaw", 0f); kf.addProperty("pitch", 0f); kf.addProperty("roll", 0f);
-                    kf.addProperty("fov", 70f); kf.addProperty("zoom", 1f); kf.addProperty("dof", 0f);
+                    kf.addProperty("fov", 70f); kf.addProperty("zoom", 1f);
                 }
             }
         }

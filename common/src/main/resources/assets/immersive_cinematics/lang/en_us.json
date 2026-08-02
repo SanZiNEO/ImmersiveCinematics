@@ -154,7 +154,6 @@
     "editor.field.roll": "roll",
     "editor.field.fov": "FOV",
     "editor.field.zoom": "zoom",
-    "editor.field.dof": "DoF",
     "editor.field.dx": "dx",
     "editor.field.dy": "dy",
     "editor.field.dz": "dz",

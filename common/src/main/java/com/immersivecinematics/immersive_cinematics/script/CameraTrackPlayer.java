@@ -132,10 +132,6 @@ public class CameraTrackPlayer implements TrackPlayer {
                 prevFrom != null ? KeyframeInterpolator.interpolateZoom(prevFrom, prevTo, prevS) : 1f,
                 nextFrom != null ? KeyframeInterpolator.interpolateZoom(nextFrom, nextTo, nextS) : 1f,
                 weight);
-        float dof = blendFloat(
-                prevFrom != null ? KeyframeInterpolator.interpolateDof(prevFrom, prevTo, prevS) : 0f,
-                nextFrom != null ? KeyframeInterpolator.interpolateDof(nextFrom, nextTo, nextS) : 0f,
-                weight);
 
         // ====== Tracking override ======
         String lookAt = prevClip.getString("cam_tracking_look_at", "none");
@@ -190,7 +186,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         // ====== End breath ======
 
         cameraManager.getPath().setPositionDirect(pos);
-        cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom, dof);
+        cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom);
     }
 
     private void writeAttributes(Keyframe from, Keyframe to, float s, Clip clip, float globalTime) {
@@ -200,7 +196,6 @@ public class CameraTrackPlayer implements TrackPlayer {
         float roll = KeyframeInterpolator.interpolateRoll(from, to, s);
         float fov = KeyframeInterpolator.interpolateFov(from, to, s);
         float zoom = KeyframeInterpolator.interpolateZoom(from, to, s);
-        float dof = KeyframeInterpolator.interpolateDof(from, to, s);
 
         // ====== Tracking override ======
         String lookAt = clip.getString("cam_tracking_look_at", "none");
@@ -259,7 +254,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         // ====== End breath ======
 
         cameraManager.getPath().setPositionDirect(pos);
-        cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom, dof);
+        cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom);
     }
 
     @Override

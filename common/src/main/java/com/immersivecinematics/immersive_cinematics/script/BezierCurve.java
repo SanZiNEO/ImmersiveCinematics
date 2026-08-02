@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * 贝塞尔曲线路径控制 — 仅影响位置路径
  * <p>
- * 朝向（yaw/pitch/roll）和光学属性（fov/zoom/dof）仍按片段的 interpolation 指定的曲线插值。
+ * 朝向（yaw/pitch/roll）和光学属性（fov/zoom）仍按片段的 interpolation 指定的曲线插值。
  * <p>
  * 数学逻辑：
  * <ul>

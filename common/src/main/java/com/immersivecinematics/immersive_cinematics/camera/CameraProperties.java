@@ -4,7 +4,7 @@ import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 
 /**
  * 相机属性控制器 — 管理相机的所有自身属性
- * 包含：朝向（yaw, pitch, roll）和 光学特征（FOV, DOF, Zoom）
+ * 包含：朝向（yaw, pitch, roll）和 光学特征（FOV, Zoom）
  * 完全不知道 CameraPath 的存在
  * <p>
  * 🎬 帧回调驱动模式（ReplayMod 式）：
@@ -21,13 +21,12 @@ public class CameraProperties {
     // --- 默认值 ---
     private static final float DEFAULT_FOV = 70.0f;
     private static final float DEFAULT_ROLL = 0.0f;
-    private static final float DEFAULT_DOF = 0.0f;
     private static final float DEFAULT_ZOOM = 1.0f;
 
     /**
      * 单个动画属性的过渡状态跟踪
      * <p>
-     * 每个属性（yaw/pitch/roll/fov/dof/zoom）拥有独立的过渡进度，
+     * 每个属性（yaw/pitch/roll/fov/zoom）拥有独立的过渡进度，
      * 不再共享一个 transitionProgress，避免设置一个属性时错误地重置其他属性的过渡。
      */
     private static class AnimValue {
@@ -59,12 +58,11 @@ public class CameraProperties {
         }
     }
 
-    // --- 六个动画属性，各自独立跟踪过渡状态 ---
+    // --- 五个动画属性，各自独立跟踪过渡状态 ---
     private final AnimValue yaw = new AnimValue();
     private final AnimValue pitch = new AnimValue();
     private final AnimValue roll = new AnimValue();
     private final AnimValue fov = new AnimValue();
-    private final AnimValue dof = new AnimValue();
     private final AnimValue zoom = new AnimValue();
 
     {
@@ -76,13 +74,12 @@ public class CameraProperties {
     // ========== 🎬 直接设置方法（帧回调驱动模式） ==========
 
     /** 🎬 批量设置所有属性（帧回调驱动模式，CameraTrackPlayer 使用） */
-    public void setAllDirect(float yaw, float pitch, float roll, float fov, float zoom, float dof) {
+    public void setAllDirect(float yaw, float pitch, float roll, float fov, float zoom) {
         this.yaw.setDirect(yaw);
         this.pitch.setDirect(pitch);
         this.roll.setDirect(roll);
         this.fov.setDirect(fov);
         this.zoom.setDirect(zoom);
-        this.dof.setDirect(dof);
     }
 
     /** 🎬 直接设置偏航角 */
@@ -97,8 +94,6 @@ public class CameraProperties {
     /** 🎬 直接设置视场角 */
     public void setFovDirect(float v) { fov.setDirect(v); }
 
-    /** 🎬 直接设置景深 */
-    public void setDofDirect(float v) { dof.setDirect(v); }
 
     /** 🎬 直接设置缩放 */
     public void setZoomDirect(float v) { zoom.setDirect(v); }
@@ -117,8 +112,6 @@ public class CameraProperties {
     /** 设置目标视场角与过渡时长 */
     public void setTargetFov(float v, float duration) { fov.setTarget(v, duration); }
 
-    /** 设置目标景深与过渡时长 */
-    public void setTargetDof(float v, float duration) { dof.setTarget(v, duration); }
 
     /** 设置目标缩放与过渡时长 */
     public void setTargetZoom(float v, float duration) { zoom.setTarget(v, duration); }
@@ -138,7 +131,6 @@ public class CameraProperties {
         tickAngle(pitch, deltaTime);
         tickAngle(roll, deltaTime);
         tickScalar(fov, deltaTime);
-        tickScalar(dof, deltaTime);
         tickScalar(zoom, deltaTime);
     }
 
@@ -168,8 +160,6 @@ public class CameraProperties {
     /** 🎬 获取当前视场角 */
     public float getFov() { return fov.current; }
 
-    /** 🎬 获取当前景深 */
-    public float getDof() { return dof.current; }
 
     /** 🎬 获取当前缩放 */
     public float getZoom() { return zoom.current; }
@@ -188,7 +178,6 @@ public class CameraProperties {
         pitch.setDirect(source.pitch.current);
         roll.setDirect(source.roll.current);
         fov.setDirect(source.fov.current);
-        dof.setDirect(source.dof.current);
         zoom.setDirect(source.zoom.current);
     }
 
@@ -200,7 +189,6 @@ public class CameraProperties {
         pitch.setDirect(0f);
         roll.setDirect(0f);
         fov.setDirect(DEFAULT_FOV);
-        dof.setDirect(DEFAULT_DOF);
         zoom.setDirect(DEFAULT_ZOOM);
     }
 

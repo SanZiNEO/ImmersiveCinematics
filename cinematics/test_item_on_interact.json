@@ -1,10 +1,10 @@
 {
   "meta": {
     "id": "test_item_on_interact",
-    "name": "测试-物品交互触发+dof+loop",
+    "name": "测试-物品交互触发+loop",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "手持木棍右键熔炉时触发，测试 dof 景深和 loop 循环",
+    "description": "手持木棍右键熔炉时触发，测试 loop 循环",
     "triggers": [
       {
         "id": "stick_on_furnace",
@@ -59,8 +59,7 @@
                 "pitch": 0,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1,
-                "dof": 0
+                "zoom": 1
               },
               {
                 "time": 3,
@@ -69,8 +68,7 @@
                 "pitch": -5,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1,
-                "dof": 0.5
+                "zoom": 1
               },
               {
                 "time": 7,
@@ -79,8 +77,7 @@
                 "pitch": 5,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1,
-                "dof": 0.3
+                "zoom": 1
               },
               {
                 "time": 10,
@@ -89,8 +86,7 @@
                 "pitch": 0,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1,
-                "dof": 0
+                "zoom": 1
               }
             ]
           }

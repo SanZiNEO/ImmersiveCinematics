@@ -320,7 +320,6 @@ public class LeftPanelArea extends UIComponent {
                 addDefault(kf, "roll", 0f);
                 addDefault(kf, "fov", 70f);
                 addDefault(kf, "zoom", 1.0f);
-                addDefault(kf, "dof", 0f);
                 if (!kf.has("position")) {
                     JsonObject pos = new JsonObject();
                     pos.addProperty("dx", 0f);
