@@ -72,7 +72,7 @@ A single build includes both playback runtime and the in-game editor. All users 
 
 ## Version
 
-**Current: 0.3.2**
+**Current: 0.3.4**
 
 | | Version |
 |---|---------|

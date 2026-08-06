@@ -1,3 +1,23 @@
+## [0.3.4] - 2026-08-06
+
+音乐配乐 + 覆盖层 + 事件重构 + 镜头追踪与呼吸扰动 + 翻滚角修复。
+
+### Added
+- **AUDIO 轨道**：OGG/WAV 音频播放（LWJGL OpenAL 直驱），关键帧控制音量与空间位置，淡入淡出、循环、衰减
+- **OVERLAY 轨道**：fade 全屏遮罩 / image 图片 / subtitle 字幕 / pip 画中画四类覆盖层，多层叠加按 zIndex 渲染
+- **EVENT 轨道重构**：从 clip 段改为 keyframe 驱动多点触发，`&&` 命令链、权限 4 执行
+- **镜头追踪**：CAMERA clip 级 `cam_tracking_look_at`（注视坐标/实体）+ `cam_tracking_follow`（跟随玩家）
+- **镜头呼吸扰动**：`cam_breath_enabled` / `cam_breath_intensity` / `cam_breath_seed` 运行时叠加随机微晃
+- **翻滚角（roll）修复**：改为绕相机视线轴旋转，任何朝向下 roll>0 均为屏幕顺时针（画面向右倒）
+- **删除景深（dof）字段**：原版 MC 无景深能力，全链路移除（代码/schema/文档/测试脚本）
+- **Fabric Loader 要求降至 0.14.0**：兼容主流整合包（原 0.19.3 为开发版本误写）
+- **新增 docs/AI_SCRIPTING_GUIDE.md**：面向 AI 的脚本编写指南（空间方向体系/速度档位/运镜配方/常见错误）
+- **参考脚本**：`cinematics/example_orbit.json` 重写为《第二圆舞曲》配乐脚本，18 段运镜覆盖全部可控字段（静态/直摇/慢推/摇入/环绕/推变焦/微摆/甩镜头/升降/航拍/俯拍/降落/希区柯克变焦/快环绕/荷兰角/拉远/离场/定格）
+- 音频文件非 ASCII 命名时输出警告（Windows 下 stb_vorbis fopen 无法解码中文路径）
+
+### Changed
+- 音频资源统一英文命名规范（写入指南与格式文档）
+
 ## [0.3.3] - 2026-07-26
 
 Architectury 多平台迁移 + 编辑器交互大优化 + 播放器数据对齐。
