@@ -19,7 +19,7 @@
   - ✅ 组件支持悬浮提示（tooltip）与 overlay 渲染层（下拉展开列表/右键菜单浮于顶层）（`UIComponent`、`UIDropdown`、`UIAutoCompleteInput`）
 - **时间轴**
   - ✅ `TimelineArea` 渲染多轨道：轨道标签列 + 类型颜色标记 + 轨道底色 + 分隔线 + 空轨道提示（`TimelineArea`）
-  - ✅ clip 按轨道类型着色（蓝/绿/黄/红/紫），3D 凸起描边，选中态金色左侧条，宽度足够时显示名称标签，morph 过渡段以半透明区段+时长标注显示（`TimelineArea`）
+  - ✅ clip 按轨道类型着色（蓝/绿/黄/红/紫），3D 凸起描边，选中态金色左侧条，宽度足够时显示名称标签；morph 过渡以灰白半透明装饰块显示（中心对齐片段末尾、无文字、不参与命中），clip 视觉起点 = 数据 start + 前导转场 t/2（视觉顺排不重叠，交界处左右可分别选中）（`TimelineArea`）
   - ✅ 标尺自适应刻度（0.5s/1s/5s/10s/10 的幂）与主/次刻度线，点击标尺跳转播放头（`TimelineArea`）
   - ✅ 播放头：纵贯全轨道的红色竖线 + 顶部三角形指示器（`TimelineArea`）
   - ✅ 缩放系统：Ctrl+滚轮以鼠标位置为中心缩放（每步 ±25%，10~5000 px/s），Shift+滚轮水平滚动，滚轮垂直滚动轨道，Ctrl+0 重置（`TimelineArea`）

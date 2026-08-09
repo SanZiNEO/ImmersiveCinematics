@@ -99,7 +99,16 @@
 
 ## 3. 轨道类型
 
-每条轨道包含 `type` 和 `clips[]`。
+每条轨道包含 `type`、`clips[]`，以及可选的 `id` / `name`。
+
+**轨道级字段：**
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `type` | string | 是 | 轨道类型，见下表 |
+| `id` | string | 否 | 轨道唯一标识（编辑器自动生成 `{type小写}_{n}`）。**同类型多条轨道靠 `id` 区分管理**（如多条 OVERLAY 轨道：`overlay_1`、`overlay_2`）；layout/上下层关系引用也用 `id` |
+| `name` | string | 否 | 轨道显示名/引用名（编辑器可重命名） |
+| `clips` | array | 是 | clip 数组 |
 
 | 轨道类型 | 说明 |
 |---------|------|
@@ -108,6 +117,7 @@
 | `"audio"` | 音频播放 |
 | `"event"` | 服务端命令事件 |
 | `"mod_event"` | 第三方模组扩展事件 |
+| `"overlay"` | 覆盖层（fade 全屏颜色 / image 图片 / subtitle 字幕 / pip 画中画），**支持多条同类型轨道同时渲染** |
 
 ---
 
@@ -295,6 +305,86 @@
 | `duration` | float | 是 | — | 持续时间 |
 | `event_type` | string | 是 | — | 自定义事件 ID，如 `"mymod:animation"` |
 | `data` | object | 否 | `{}` | 任意自定义数据 |
+
+---
+
+## 9. OVERLAY 轨道（覆盖层：图片 / 字幕 / 淡化）
+
+在屏幕上渲染图片、字幕、全屏淡化或画中画。**支持多条 OVERLAY 轨道同时渲染**（如图片一条轨道、字幕一条轨道，用 `id` 区分），层间按 `z_index` 分层（大者在上）。
+
+### Clip 字段
+
+| 字段 | 类型 | 必需 | 默认 | 说明 |
+|------|------|------|------|------|
+| `start_time` | float | 是 | — | 起始时间 |
+| `duration` | float | 是 | — | 持续时间 |
+| `layer_type` | string | 是 | — | `"fade"` 全屏颜色 / `"image"` 图片 / `"subtitle"` 字幕 / `"pip"` 画中画 |
+| `path` | string | image 必需 | — | 图片文件名（如 `"my_image.png"`）。**只支持 PNG**，文件放 `<游戏目录>/immersive_cinematics/resource/` 下，用英文命名 |
+| `text` | string | subtitle 必需 | — | 字幕文本，`\n` 换行 |
+| `color` | string | fade 必需 | — | 淡化颜色，如 `"#000000"` |
+| `z_index` | int | 否 | `20` | 层级，越大越靠上（subtitle 建议 30+） |
+| `interpolation` | string | 否 | `"linear"` | `"linear"` 线性 / `"smooth"` 平滑样条（Centripetal Catmull-Rom，非均匀关键帧下速度均匀、无折线拐弯） |
+| `keyframes` | array | 是 | — | 关键帧数组 |
+
+### Keyframe 字段（坐标 = 屏幕百分比）
+
+**所有坐标都是屏幕宽高的百分比（0 ~ 1）**，与窗口/分辨率无关：
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `time` | float | — | 在 clip 内的时间偏移（秒） |
+| `x` | float | `0` | 元素**左上角**的水平位置：`0` = 贴屏幕左缘，`1` = 左上角在屏幕右缘 |
+| `y` | float | `0` | 元素**左上角**的垂直位置：`0` = 贴屏幕顶缘，`1` = 左上角在屏幕底缘 |
+| `scale_x` | float | `1` | 图片宽度 = 原图分辨率 × 该乘数（`1` = 原尺寸，`0.5` = 半宽） |
+| `scale_y` | float | `1` | 图片高度 = 原图分辨率 × 该乘数 |
+| `opacity` | float | `0` | 透明度（`0` = 完全透明，`1` = 不透明）。**淡入/淡出完全由该字段的关键帧表达**，代码层不叠加其他淡化 |
+
+> 字幕的 `scale_x`/`scale_y` 不适用（字号由字体决定）；`fade`/`pip` 的字段见各自文档。**位置建议保持 `0 < x/y < 1` 且 `x + scale` 不超 1**，避免元素移出屏幕。
+
+### 示例：图片 + 字幕双 OVERLAY 轨道同时渲染
+
+```json
+{
+  "type": "overlay",
+  "id": "overlay_1",
+  "clips": [
+    {
+      "start_time": 0,
+      "duration": 12,
+      "layer_type": "image",
+      "path": "test_image.png",
+      "z_index": 20,
+      "interpolation": "smooth",
+      "keyframes": [
+        { "time": 0,  "x": 0.0, "y": 0.0,  "scale_x": 0.5, "scale_y": 0.5, "opacity": 0 },
+        { "time": 1,  "x": 0.03, "y": 0.03, "scale_x": 0.55, "scale_y": 0.55, "opacity": 1 },
+        { "time": 11, "x": 0.4, "y": 0.3, "scale_x": 0.6, "scale_y": 0.6, "opacity": 1 },
+        { "time": 12, "x": 0.45, "y": 0.45, "scale_x": 0.5, "scale_y": 0.5, "opacity": 0 }
+      ]
+    }
+  ]
+},
+{
+  "type": "overlay",
+  "id": "overlay_2",
+  "clips": [
+    {
+      "start_time": 0,
+      "duration": 12,
+      "layer_type": "subtitle",
+      "text": "副标题文字",
+      "z_index": 30,
+      "interpolation": "smooth",
+      "keyframes": [
+        { "time": 0,  "x": 0.02, "y": 0.5, "opacity": 0 },
+        { "time": 1,  "x": 0.02, "y": 0.5, "opacity": 1 },
+        { "time": 11, "x": 0.4,  "y": 0.6, "opacity": 1 },
+        { "time": 12, "x": 0.4,  "y": 0.6, "opacity": 0 }
+      ]
+    }
+  ]
+}
+```
 
 ---
 

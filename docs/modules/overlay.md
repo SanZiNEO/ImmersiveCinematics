@@ -19,9 +19,9 @@
 - **内置层：全屏遮罩（fade）**
   - ✅ `FadeLayer`（默认 zIndex=10）：渲染全屏 ARGB 矩形，颜色由 `#RRGGBB` 解析，透明度由关键帧 opacity 驱动，用于淡入淡出与色彩滤镜（`FadeLayer`）
 - **内置层：图片（image）**
-  - ✅ `ImageLayer`（默认 zIndex=20）：按位置/尺寸/锚点渲染纹理，支持透明度混合（`ImageLayer`）
+  - ✅ `ImageLayer`（默认 zIndex=20）：**坐标 = 屏幕百分比（0~1，元素左上角锚点）**，显示尺寸 = 原图分辨率 × `scale_x/scale_y` 百分比乘数（原图尺寸由 `TextureLoader` 记录）；透明度由关键帧 opacity 驱动，**渲染用 pose 浮点平移实现亚像素平滑**（`ImageLayer`、`TextureLoader`）
 - **内置层：字幕（subtitle）**
-  - ✅ `SubtitleLayer`（默认 zIndex=30）：渲染文字，支持多行（`\n` 分隔）与锚点对齐，透明度由 opacity 控制（`SubtitleLayer`）
+  - ✅ `SubtitleLayer`（默认 zIndex=30）：渲染文字，支持多行（`\n` 分隔），**坐标 = 屏幕百分比（0~1，文字块左上角）**，透明度由 opacity 控制，pose 浮点平移亚像素平滑（`SubtitleLayer`）
 - **内置层：画中画（pip）**
   - ⚠️ `PipLayer`（默认 zIndex=40）：仅渲染 2px 白色边框 + 半透明黑色填充的占位框，Phase 1 不包含实际摄像头画面，计划 Phase 2（0.3.5+）接入第二相机帧缓冲（`PipLayer`）
 - **扩展接口**

@@ -44,7 +44,7 @@
 - **播放器调度**
   - ✅ `ScriptPlayer` 驱动脚本运行时：记录起始虚拟时间、相对模式基准位置（玩家激活时位置）、持有当前脚本运行时行为（`ScriptPlayer`）
   - ✅ 启动时按轨道类型批量创建 `TrackPlayer` 实例（EVENT 轨道不在客户端处理），并预执行首帧避免闪烁（`ScriptPlayer`、`TrackPlayer`）
-  - ✅ `TrackPlayer` 工厂按类型分发：CAMERA→`CameraTrackPlayer`、LETTERBOX→`LetterboxTrackPlayer`、AUDIO→`AudioTrackPlayer`、MOD_EVENT→`ModEventTrackPlayer`、OVERLAY→`OverlayTrackPlayer`（`TrackPlayer`）
+  - ✅ `TrackPlayer` 工厂按类型分发：CAMERA→`CameraTrackPlayer`、LETTERBOX→`LetterboxTrackPlayer`、AUDIO→`AudioTrackPlayer`、MOD_EVENT→`ModEventTrackPlayer`、OVERLAY→`OverlayTrackPlayer`；创建时传入轨道索引，数据源按索引定位（`TrackPlayer`）
   - ✅ 帧回调驱动：每渲染帧调度所有 TrackPlayer；`holdAtEnd` 时钳制在最后一帧（0.1ms 偏移）等待退出（`ScriptPlayer`）
   - ✅ 启动时若 `block_mob_ai` 开启，清空 128 格范围内以玩家为目标的生物（`ScriptPlayer`）
   - ✅ 支持结束判定（时间耗尽/无限循环）、剩余时间查询、`hasActiveCameraTrack()` 供 Mixin 缓存（`ScriptPlayer`）
@@ -66,7 +66,8 @@
   - ✅ 关键帧插值驱动画幅比黑边（`aspect_ratio`），无活跃 clip 时归零，停止时重置（`LetterboxTrackPlayer`）
 - **OVERLAY 轨道播放器**
   - ✅ 按 clip 的 `layer_type` 创建对应覆盖层（fade/image/subtitle/pip）并注册到 `OverlayManager`，支持 z_index 分层（`OverlayTrackPlayer`）
-  - ✅ 首帧套用初始位置/尺寸/锚点，随后按关键帧插值驱动 opacity/x/y/width/height/anchor，叠加 fade_in/fade_out 因子（`OverlayTrackPlayer`）
+  - ✅ 首帧套用初始值，随后按关键帧插值驱动：`x/y`（屏幕百分比 0~1，左上角锚点）、`scale_x/scale_y`（原图百分比乘数，image）、`opacity`（透明度，淡入淡出完全由关键帧表达）；`interpolation: "smooth"` 走 Centripetal Catmull-Rom 样条（范围外钳制到边界关键帧）（`OverlayTrackPlayer`）
+  - ✅ 支持多条同类型 OVERLAY 轨道同时渲染：TrackPlayer 数据源按轨道索引定位（`clipsForTrack(trackIndex)`），轨道 JSON 以 `id` 区分管理（`ScriptPlayer`、`TrackPlayer`）
   - ✅ clip 切换或停止时移除并清理覆盖层（`OverlayTrackPlayer`）
 - **EVENT 轨道（服务端执行）**
   - ✅ EVENT 轨道不在客户端处理，由服务端 `ScriptEventManager` 按关键帧时间多点触发，支持 `&&` 命令链、权限等级 4 执行（`ScriptEventManager`）

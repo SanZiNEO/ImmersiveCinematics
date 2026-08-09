@@ -137,8 +137,8 @@
 |---|---|
 | `start_time` | 在全局时间线的起点（秒） |
 | `duration` | 持续时长。正数 = 定长；负数 = 无限 |
-| `transition` | `"cut"` = 硬切（默认）；`"morph"` = 与下一段平滑过渡 |
-| `transition_duration` | **仅 morph 时有效**，过渡时长秒。cut 时不要写 |
+| `transition` | `"cut"` = 硬切（默认）；`"morph"` = 本 clip 尾部与下一 clip 的交叉淡化过渡（重叠 t/2） |
+| `transition_duration` | **仅 morph 时有效**，过渡时长秒（后段 start 需 = 本段末尾 − t/2）。cut 时不要写 |
 | `position_mode` | `"relative"` = 相对玩家（默认，推荐）；`"absolute"` = 世界坐标（写 `x/y/z`，用于固定机位） |
 | `loop` / `loop_count` | 循环播放（`loop: true` 时 `loop_count: -1` = 无限循环） |
 | `curve` | 贝塞尔路径（可选，见 SCRIPT_FORMAT.md） |
@@ -172,8 +172,47 @@
 | `LETTERBOX` | 宽银幕黑边。keyframe 的 `aspect_ratio`：0 = 无黑边，2.35 = 电影宽银幕 |
 | `AUDIO` | 播放音频（`sound` + `source: "file"`），keyframe 控制 `volume` 和空间 `x/y/z`。**音频文件必须用英文命名**（中文名在 Windows 下会解码失败） |
 | `EVENT` | 时间点执行服务端命令（keyframe 的 `command`），如 `"say 开始！"` |
-| `OVERLAY` | 覆盖层：`fade`（全屏颜色）/ `image`（图片）/ `subtitle`（字幕）/ `pip`（画中画） |
+| `OVERLAY` | 覆盖层：`fade`（全屏颜色）/ `image`（图片）/ `subtitle`（字幕）/ `pip`（画中画）。**支持多条 OVERLAY 轨道同时渲染**（图片一条轨道、字幕一条轨道，靠轨道 `id` 区分） |
 | `MOD_EVENT` | 第三方模组自定义事件 |
+
+### 3.5b OVERLAY 轨道详细（图片/字幕）
+
+**坐标 = 屏幕百分比（0~1），与分辨率无关**——这是 OVERLAY 与 CAMERA 最大的区别（CAMERA 是方块坐标，OVERLAY 是屏幕坐标）。
+
+| 字段 | 说明 |
+|---|---|
+| `layer_type` | `"image"` 图片 / `"subtitle"` 字幕 / `"fade"` 全屏色 / `"pip"` 画中画 |
+| `x` / `y` | 元素**左上角**的屏幕位置：`0` = 贴屏幕左上角，`1` = 元素左上角到屏幕右/下边缘 |
+| `scale_x` / `scale_y` | 图片显示尺寸 = **原图分辨率 × 乘数**（`1` = 原尺寸，`0.5` = 半尺寸）。**图片按原图分辨率载入，不要写死像素尺寸** |
+| `opacity` | 透明度（0~1）。**淡入淡出 = 关键帧里写 opacity 0→1→0**，代码层不叠加其他淡化 |
+| `interpolation` | `"smooth"` 让移动轨迹平滑（样条），`"linear"` 直线 |
+| `path` | 图片文件名，**只支持 PNG**，放 `<游戏目录>/immersive_cinematics/resource/`，英文命名 |
+| `z_index` | 层级，大者在上（图片 20、字幕 30 起步） |
+
+**多轨道写法**（图片 + 字幕同时显示，各自一条 OVERLAY 轨道）：
+
+```json
+{ "type": "overlay", "id": "overlay_1",
+  "clips": [{ "start_time": 0, "duration": 12, "layer_type": "image", "path": "pic.png",
+    "keyframes": [
+      { "time": 0,  "x": 0.0, "y": 0.0, "scale_x": 0.5, "scale_y": 0.5, "opacity": 0 },
+      { "time": 1,  "x": 0.03, "y": 0.03, "scale_x": 0.55, "scale_y": 0.55, "opacity": 1 },
+      { "time": 11, "x": 0.4, "y": 0.3, "scale_x": 0.6, "scale_y": 0.6, "opacity": 1 },
+      { "time": 12, "x": 0.45, "y": 0.45, "scale_x": 0.5, "scale_y": 0.5, "opacity": 0 } ] }] },
+{ "type": "overlay", "id": "overlay_2",
+  "clips": [{ "start_time": 0, "duration": 12, "layer_type": "subtitle", "text": "副标题",
+    "keyframes": [
+      { "time": 0,  "x": 0.02, "y": 0.5, "opacity": 0 },
+      { "time": 1,  "x": 0.02, "y": 0.5, "opacity": 1 },
+      { "time": 11, "x": 0.4,  "y": 0.6, "opacity": 1 },
+      { "time": 12, "x": 0.4,  "y": 0.6, "opacity": 0 } ] }] }
+```
+
+**写 OVERLAY 的要点**：
+1. **不要让元素移出屏幕**：`x + scale_x` 应 ≤ 1（图片左上角 0.4 + 半屏宽 0.5 = 0.9 以内）；y 同理
+2. 想"中途消失再出现"：关键帧里 opacity 置 0 持续几秒再回 1
+3. 图片和字幕各用一条轨道（同轨道多个 clip 同时段会互相抢占，不要那样写）
+4. `"smooth"` 插值下轨迹是平滑曲线（无折线拐弯），适合斜向移动
 
 ### 3.6 触发器（什么时候播）
 
@@ -210,7 +249,7 @@
 
 **精细化的关键**：
 1. 一段 motion 至少 3 个关键帧（起→中→止），中间帧做缓急变化，比两点直线"有呼吸"
-2. 段落之间用 `morph` 过渡衔接，避免硬切跳变（morph 只影响两段之间，写在下段 clip 上）
+2. 段落之间用 `morph` 过渡衔接，避免硬切跳变——**morph 是交叉淡化：过渡时长 t 秒 = 前一段尾部 t/2 与后一段头部 t/2 重叠**。`transition` 写在前一段 clip 上（表示"本 clip 尾部与下一 clip 的过渡"），**后一段的 `start_time` 必须 = 前一段末尾 − t/2**（编辑器会自动对齐；手写脚本要自己算）
 3. 特写/情绪段落用变焦 + 微俯 + 慢速（1 格/秒），全景段落用快一点（2~3 格/秒）
 4. 长脚本分段设计：开场全景 → 中段叙事特写 → 结尾收回
 
@@ -249,7 +288,8 @@
           {
             "start_time": 0,
             "duration": 6,
-            "transition": "cut",
+            "transition": "morph",
+            "transition_duration": 1.0,
             "position_mode": "relative",
             "keyframes": [
               { "time": 0,   "position": { "dx": 24, "dy": 2, "dz": 0 },  "yaw": 90,  "pitch": 5,  "roll": 0, "fov": 70, "zoom": 1.0 },
@@ -258,10 +298,9 @@
             ]
           },
           {
-            "start_time": 6,
+            "start_time": 5.5,
             "duration": 5,
-            "transition": "morph",
-            "transition_duration": 1.0,
+            "transition": "cut",
             "position_mode": "relative",
             "keyframes": [
               { "time": 0, "position": { "dx": 10, "dy": 2, "dz": 0 },  "yaw": 90, "pitch": 8,  "roll": 0, "fov": 65, "zoom": 1.2 },
@@ -269,7 +308,7 @@
             ]
           },
           {
-            "start_time": 11,
+            "start_time": 10.5,
             "duration": 4,
             "transition": "cut",
             "position_mode": "relative",
