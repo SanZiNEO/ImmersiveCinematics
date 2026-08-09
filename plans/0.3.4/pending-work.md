@@ -1,27 +1,27 @@
 # 0.3.4 剩余事项 — 问题清单与解决方案
 
 **创建日期**: 2026-08-09  
-**状态**: 方案已调研（代码 + MC 原版 API），**尚未实施**  
+**状态**: ✅ **已全部实施完毕（2026-08-09 当日）**——除明确标注"待讨论/不做/未来"的项  
 **对照**: `plans/complete/0.3.4/unfinished-items.md`（归档版清单）的 B 组、C1、E 组
 
 ---
 
-## 状态总览（2026-08-09）
+## 状态总览（2026-08-09 实施完毕）
 
 | 项 | 内容 | 状态 |
 |----|------|------|
-| B1 | advancement 进度触发器接线（PLAYER_ADVANCEMENT，按进度 id 匹配，双线重复模型） | ✅ 方案定稿 |
-| B2 | 使用状态机完整覆盖（instant/consume/release/interrupt 4 事件，原版标志分流） | ✅ 方案定稿 |
-| B3 | item_on_interact 右键二合一（物品+目标+target_type，不做左键，空手修复） | ✅ 方案定稿 |
-| B4 | custom 触发器删除（命令 play 已覆盖跨模组触发） | ✅ 决定定稿 |
-| B5 | 触发器状态同步链路（触发/完成广播 + JOIN 补发） | 🔶 方案已拟，细节待确认 |
-| C1 | 播放队列（priority 队列排序/容量 8/自动接播：不可打断一律排队、可打断立即替换） | ✅ 方案定稿（2026-08-09 用户确认：优先级不能大于打断；移除 queueable 参数；移除客户端查询命令） |
-| E1-E5 | 遗留小项 | 🔶 方案已拟，实施时顺手 |
-| — | **新增候选：xp 经验 / dimension 驻留 / observation 观察** | ⏸ **暂缓，待单独讨论**（用户有专门问题） |
-| — | **新增候选：item_pickup / item_drop**（事件源已确认独立事件） | 🔶 事件源确认，条件细节待确认 |
-| — | **新增候选：stat 统计 / item_smelt 熔炼** | ⏸ 待讨论 |
-| — | 场景条件扩展（kill/interact/craft 等事件时刻记录维度/群系/位置） | 🔶 方案已拟，覆盖范围待确认 |
-| — | 物品检测平行线模型（事件型+快照型不互斥） | ✅ 原则定稿 |
+| B1 | advancement 进度触发器接线（PLAYER_ADVANCEMENT，按进度 id 匹配，双线重复模型） | ✅ **已实施**（PLAYER_ADVANCEMENT + AdvancementTracker，求值器改事件携带 id 匹配） |
+| B2 | 使用状态机完整覆盖（instant/consume/release/interrupt 4 事件） | ✅ **已实施**（ItemUseMixin：completeUsingItem→consume、releaseUsingItem 按 UseAnim 分流 release/interrupt；instant use 实现方式偏差：经 EntityEvent.ADD + ThrowableItemProjectile 判定，替代原方案的 Item.use @RETURN——MCP 确认 Item.use Mixin 捕不到投掷物，1.20.1 无 ProjectileItem 接口；烟花/末影之眼不覆盖，文档已标注） |
+| B3 | item_on_interact 右键二合一（物品+目标+target_type，不做左键，空手修复） | ✅ **已实施**（RIGHT_CLICK_BLOCK/INTERACT_ENTITY 接线 + target_type + 空手 `""`） |
+| B4 | custom 触发器删除（命令 play 已覆盖跨模组触发） | ✅ **已实施**（注册/求值器/tracker/编辑器/lang/文档/示例脚本全清） |
+| B5 | 触发器状态同步链路（触发/完成广播 + JOIN 补发） | ✅ **已实施**（fireTrigger / onScriptFinished / PLAYER_JOIN 三处发送） |
+| C1 | 播放队列（priority 队列排序/容量 8/自动接播：不可打断一律排队、可打断立即替换） | ✅ **已实施**（ScriptQueue 容量 8 + 决策树 + 自动接播；用户确认：优先级不能大于打断；queueable 与客户端查询命令已移除） |
+| E1-E5 | 遗留小项 | ✅ E1/E3/E4 已实施；E2 按计划放弃；E5 部分（validate 等已完成，游戏内手动回归待用户：ESC 重开/letterbox 旧格式/player selector） |
+| — | **新增：xp 经验 / dimension 驻留 / observation 观察** | ✅ **已实施**（讨论后纳入本批：xp 轮询、dimension 驻留复用求值器、observation 服务端射线 5 tick） |
+| — | **新增：item_pickup / item_drop**（事件源已确认独立事件） | ✅ **已实施**（PICKUP_ITEM_POST / DROP_ITEM 接线 + PickupDropTracker） |
+| — | **新增候选：stat 统计 / item_smelt 熔炼** | ⏸ 未纳入（待讨论，排期另定） |
+| — | 场景条件扩展（kill/interact/craft 等事件时刻记录维度/群系/位置） | 🔶 **entity_kill 已实施**（KillRecord 记录击杀时刻维度/群系/坐标）；interact/craft/pickup/drop 场景条件未做（覆盖范围待确认，本批只做 entity_kill 先行） |
+| — | 物品检测平行线模型（事件型+快照型不互斥） | ✅ 原则定稿并落地（pickup/drop/craft/use/consume/release/instant + inventory change 全部上线） |
 
 ---
 

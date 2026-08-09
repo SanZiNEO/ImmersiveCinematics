@@ -23,15 +23,15 @@
 
 ## B. 注册了但未接线（最严重 — 功能存在但永远不触发/不可达）
 
+> **全部已解决（2026-08-09）**：B1-B5 五条链路全部接线/删除完毕。
+
 | # | 功能 | 计划出处 | 代码现状 |
 |---|------|---------|---------|
-| B1 | `advancement` 触发器 | trigger_system_plan_v4 §4.2（走 AdvancementEvent） | 已注册，但全工程无 `onGameEvent("advancement")` 调用 → 永不触发 |
-| B2 | `item_consume` 触发器 | trigger_system_plan_v4 §4 | 已注册，无事件源（代码注释：需 Mixin `LivingEntity.completeUsingItem()`）→ 永不触发 |
-| B3 | `item_on_interact` 触发器 | 0.3.2 item-on-interact-trigger.md | 求值器与物品追踪（`InteractTracker.recordInteractionItem`）已实现，但迁移 Architectury 后事件分发机制丢失，无 `onGameEvent("item_on_interact")` → 永不触发 |
-| B4 | `custom` 触发器 | trigger_system_plan_v4 §11 / 0.3.3 README（P11 计划删除） | 既未删除也未接线，`CustomEventTracker.fire()` 无调用方 → 永不触发 |
-| B5 | 触发器状态同步链路（S2CTriggerStateSyncPacket） | trigger_system_plan_v4 §2.4 网络协议核心包 | 包与客户端缓存类（`ClientTriggerStateCache`）均存在，但服务端从不发送、客户端无人读取 → 整条链路休眠 |
-
-> 统计：16 个注册触发器类型中 4 个（B1-B4）无事件源；连同 B5 共 5 条未接线链路。
+| B1 | `advancement` 触发器 | trigger_system_plan_v4 §4.2（走 AdvancementEvent） | ✅ **已接线（2026-08-09）**：`PlayerEvent.PLAYER_ADVANCEMENT` + `AdvancementTracker`，求值器改事件携带 id 匹配（不再查历史进度 isDone） |
+| B2 | `item_consume` 触发器 | trigger_system_plan_v4 §4 | ✅ **已接线（2026-08-09）**：`ItemUseMixin` 注入 `completeUsingItem`/`releaseUsingItem`；同时新增 `item_release`/`item_use_interrupt`（UseAnim 分流）；`item_instant_use` 经 `EntityEvent.ADD` + 投掷物实体判定 |
+| B3 | `item_on_interact` 触发器 | 0.3.2 item-on-interact-trigger.md | ✅ **已接线（2026-08-09）**：RIGHT_CLICK_BLOCK/INTERACT_ENTITY 各加一行触发；补 target_type 与空手 `""` 记录 |
+| B4 | `custom` 触发器 | trigger_system_plan_v4 §11 / 0.3.3 README（P11 计划删除） | ✅ **已删除（2026-08-09）**：注册/求值器/tracker/编辑器/lang/文档/示例脚本全清（命令 play 已覆盖跨模组触发） |
+| B5 | 触发器状态同步链路（S2CTriggerStateSyncPacket） | trigger_system_plan_v4 §2.4 网络协议核心包 | ✅ **已接线（2026-08-09）**：触发成功（fireTrigger）/脚本完成（onScriptFinished）/玩家加入（PLAYER_JOIN）三处发送 |
 
 ## C. 只做了一半
 
@@ -58,11 +58,11 @@
 
 | # | 功能 | 出处 |
 |---|------|------|
-| E1 | `MenuBarArea` 硬编码数值提取（去魔法数） | 0.3.3 complete/01-fixes-pending.md D2 |
-| E2 | `UITextInput` 光标移动/位置插入/Ctrl+C/V | 0.3.3 complete/01-fixes-pending.md（原标注"优先级低，可不做"） |
-| E3 | letterbox 动画 ease-in-out 平滑 | phase_2_repair_plan.md P2-3（当前关键帧线性插值） |
-| E4 | `MathUtil` Hermite 基函数 h00/h10/h01/h11 残留 | speed_driven_interpolation_refactor.md（引擎已删除，基函数注释仍写"速度曲线引擎用"，属死代码） |
-| E5 | 0.3.2 测试清单未勾选项（ESC 重开保持、letterbox 旧格式兼容回归等） | 0.3.2/0.3.2_test_checklist.md（功能已实现，缺回归验证） |
+| E1 | `MenuBarArea` 硬编码数值提取（去魔法数） | 0.3.3 complete/01-fixes-pending.md D2 — ✅ **已实施（2026-08-09）**：TITLE_X_OFFSET/STATUS_TEXT_H/BORDER_H 常量提取 |
+| E2 | `UITextInput` 光标移动/位置插入/Ctrl+C/V | 0.3.3 complete/01-fixes-pending.md（原标注"优先级低，可不做"）— ❌ 按计划放弃 |
+| E3 | letterbox 动画 ease-in-out 平滑 | phase_2_repair_plan.md P2-3 — ✅ **已实施（2026-08-09）**：smoothstep（3t²-2t³） |
+| E4 | `MathUtil` Hermite 基函数 h00/h10/h01/h11 残留 | speed_driven_interpolation_refactor.md — ✅ **已删除（2026-08-09）**（零调用者） |
+| E5 | 0.3.2 测试清单未勾选项（ESC 重开保持、letterbox 旧格式兼容回归等） | 0.3.2/0.3.2_test_checklist.md — ⏳ 部分：脚本全量 validate 已通过；ESC 重开/letterbox 旧格式/player selector 需游戏内手动回归 |
 
 ---
 
