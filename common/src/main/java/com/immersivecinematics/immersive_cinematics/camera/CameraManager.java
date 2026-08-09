@@ -39,6 +39,9 @@ public class CameraManager {
     private CinematicScript pendingScript = null;
     private CompletionReason pendingCompletionReason = CompletionReason.FINISHED;
 
+    /** C1：播放队列（容量 8，当前脚本不可打断时新脚本一律入队，结束后自动接播） */
+    private final ScriptQueue scriptQueue = new ScriptQueue();
+
     private boolean previewMode = false;
     private boolean previewPaused = true;
     private float previewTime;
@@ -128,7 +131,12 @@ public class CameraManager {
     // ========== 脚本播放模式 ==========
 
     /**
-     * 播放或排队脚本
+     * 播放或排队脚本（C1 决策树，规则固定：优先级不能大于打断）
+     * <ul>
+     *   <li>无播放 → 直接开始（1）</li>
+     *   <li>当前脚本可打断 → 立即替换（无渐出，新脚本马上播）（1）</li>
+     *   <li>当前脚本不可打断 → 一律排队（容量 8，满则拒绝），priority 只用于队列内排序（2 / 0）</li>
+     * </ul>
      *
      * @return 0=被拒绝, 1=已开始播放, 2=已排队等待
      */
@@ -136,19 +144,23 @@ public class CameraManager {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return 0;
 
-        if (active && scriptPlayer.isPlaying()) {
-            boolean canInterrupt = requestExit(ExitReason.INTERRUPTED);
-            if (!canInterrupt) {
-                // 不可打断: 排队等待当前脚本自然结束后播放
-                pendingScript = script;
-                return 2;
-            }
-            pendingScript = script;
-            return 2;
+        if (!(active && scriptPlayer.isPlaying())) {
+            startScriptInternal(script);
+            return 1;
         }
 
-        startScriptInternal(script);
-        return 1;
+        CinematicController ctrl = CinematicController.INSTANCE;
+        if (ctrl.isInterruptible()) {
+            // 可打断 → 立即替换：置原因 + deactivateNow 直接切换（deactivateNow 末尾接播 pendingScript）
+            pendingScript = script;
+            pendingCompletionReason = CompletionReason.INTERRUPTED;
+            deactivateNow();
+            return 1;
+        }
+
+        // 不可打断 → 一律排队（容量满则拒绝）
+        if (scriptQueue.offer(script)) return 2;
+        return 0;
     }
 
     /** 是否有脚本在排队等待播放 */
@@ -265,6 +277,8 @@ public class CameraManager {
     public void emergencyStop() {
         previewMode = false;
         previewPaused = true;
+        // 世界已退出，不可能接播（pendingScript 会经 deactivateNow 自动启动，必须先清掉）
+        pendingScript = null;
         pendingCompletionReason = CompletionReason.STOPPED;
         deactivateNow();
     }
@@ -487,6 +501,8 @@ public class CameraManager {
             CinematicScript next = pendingScript;
             pendingScript = null;
             startScriptInternal(next);
+        } else if (!scriptQueue.isEmpty()) {
+            startScriptInternal(scriptQueue.poll());
         }
     }
 
@@ -525,5 +541,6 @@ public class CameraManager {
         stagedProperties.reset();
         stagedPath.reset();
         stagedReady = false;
+        scriptQueue.clear();
     }
 }

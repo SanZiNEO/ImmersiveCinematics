@@ -41,8 +41,7 @@ public class UIContext {
         viewportShiftY += dy;
     }
 
-    // ======== Legacy scroll API (used by LeftPanelArea for coordinate translation) ========
-    private int scrollOffsetY = 0;
+    // ======== 滚动渲染平移（仅渲染矩阵；命中统一走绝对坐标 + UIComponent.scrollCompensation，不再改 mouseY） ========
 
     public UIContext(GuiGraphics graphics, Font font, int screenWidth, int screenHeight, float partialTick,
                      int mouseX, int mouseY) {
@@ -62,32 +61,12 @@ public class UIContext {
         return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
     }
 
-    /** @deprecated Use viewport system + manual coordinate handling instead. */
-    @Deprecated
+    /** 滚动容器渲染平移：内容绘制下移 offset（视觉上内容上移）。只动渲染矩阵，不修改 mouseX/mouseY。 */
     public void pushScroll(int offset) {
-        this.scrollOffsetY += offset;
-        this.mouseY += offset;
         if (graphics != null) graphics.pose().translate(0, -offset, 0);
     }
 
-    /** @deprecated Use viewport system instead. */
-    @Deprecated
     public void popScroll(int offset) {
-        this.scrollOffsetY -= offset;
-        this.mouseY -= offset;
         if (graphics != null) graphics.pose().translate(0, offset, 0);
-    }
-
-    /** @deprecated Use getAdjustedMouseY only during migration. */
-    @Deprecated
-    public int getAdjustedMouseY() { return mouseY + scrollOffsetY; }
-
-    /** @deprecated Use pushScroll/popScroll instead. */
-    @Deprecated
-    public void shiftY(int y) {
-        this.mouseY += y;
-        if (this.graphics != null) {
-            this.graphics.pose().translate(0, -y, 0);
-        }
     }
 }

@@ -29,7 +29,7 @@ public class SingleIdEditor extends TriggerEditor {
         return y + 18;
     }
 
-    private static List<String> getCandidates(String field) {
+    static List<String> getCandidates(String field) {
         return switch (field) {
             case "item" -> rlKeys(BuiltInRegistries.ITEM.keySet());
             case "target" -> {

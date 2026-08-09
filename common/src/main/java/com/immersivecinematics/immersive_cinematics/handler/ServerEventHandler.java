@@ -3,7 +3,9 @@ package com.immersivecinematics.immersive_cinematics.handler;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ScriptEventManager;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerEngine;
+import com.immersivecinematics.immersive_cinematics.trigger.network.S2CTriggerStateSyncPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.server.evaluator.Evaluators;
+import com.immersivecinematics.immersive_cinematics.trigger.server.store.PlayerTriggerState;
 import com.immersivecinematics.immersive_cinematics.trigger.server.store.TriggerStateStore;
 import dev.architectury.event.EventResult;
 import dev.architectury.event.events.common.CommandRegistrationEvent;
@@ -14,6 +16,7 @@ import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.event.events.common.TickEvent;
 import net.minecraft.commands.Commands;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -42,6 +45,10 @@ public class ServerEventHandler {
             if (!(player instanceof ServerPlayer)) return;
             ServerPlayer serverPlayer = (ServerPlayer) player;
             TriggerStateStore.INSTANCE.loadForPlayer(serverPlayer.getUUID());
+            // JOIN 补发：把已加载的触发/完成状态同步给客户端
+            PlayerTriggerState joinState = TriggerStateStore.INSTANCE.getOrCreate(serverPlayer.getUUID());
+            S2CTriggerStateSyncPacket.send(
+                    serverPlayer, joinState.getTriggeredScripts(), joinState.getCompletedScripts());
             TriggerEngine.INSTANCE.onGameEvent("login", serverPlayer);
         });
 
@@ -51,10 +58,11 @@ public class ServerEventHandler {
             UUID uuid = serverPlayer.getUUID();
             TriggerStateStore.INSTANCE.unloadForPlayer(uuid);
             Evaluators.KillTracker.clear(uuid);
+            Evaluators.AdvancementTracker.clear(uuid);
             Evaluators.InteractTracker.clear(uuid);
             Evaluators.CraftTracker.clear(uuid);
-            Evaluators.CustomEventTracker.clear(uuid);
             Evaluators.UseItemTracker.clear(uuid);
+            Evaluators.PickupDropTracker.clear(uuid);
             Evaluators.InventoryTracker.clear(uuid);
         });
 
@@ -75,13 +83,17 @@ public class ServerEventHandler {
 
         // ===== 事件驱动触发器 =====
 
-        // advancement — 检查 PlayerEvent 是否有 ADVANCEMENT 事件
-        // 如果没有，需求通过 Mixin 或检查替代 API
+        PlayerEvent.PLAYER_ADVANCEMENT.register((player, advancement) -> {
+            Evaluators.AdvancementTracker.record(player, advancement.getId().toString());
+            TriggerEngine.INSTANCE.onGameEvent("advancement", player);
+        });
 
         EntityEvent.LIVING_DEATH.register((entity, source) -> {
             if (source.getEntity() instanceof ServerPlayer) {
                 ServerPlayer player = (ServerPlayer) source.getEntity();
-                Evaluators.KillTracker.record(player, entity.getType());
+                // 记录击杀时刻的维度/群系/坐标（被杀实体的位置，供场景条件判定）
+                Evaluators.KillTracker.record(player, entity.getType(),
+                        (ServerLevel) entity.level(), entity.getX(), entity.getY(), entity.getZ());
                 TriggerEngine.INSTANCE.onGameEvent("entity_kill", player);
             }
             return EventResult.pass();
@@ -95,6 +107,7 @@ public class ServerEventHandler {
             Evaluators.InteractTracker.recordInteractionItem(serverPlayer.getUUID(),
                     serverPlayer.getItemInHand(hand));
             TriggerEngine.INSTANCE.onGameEvent("block_interact", serverPlayer);
+            TriggerEngine.INSTANCE.onGameEvent("item_on_interact", serverPlayer);
             return EventResult.pass();
         });
 
@@ -116,6 +129,7 @@ public class ServerEventHandler {
             Evaluators.InteractTracker.recordInteractionItem(serverPlayer.getUUID(),
                     serverPlayer.getItemInHand(hand));
             TriggerEngine.INSTANCE.onGameEvent("entity_interact", serverPlayer);
+            TriggerEngine.INSTANCE.onGameEvent("item_on_interact", serverPlayer);
             return EventResult.pass();
         });
 
@@ -140,9 +154,35 @@ public class ServerEventHandler {
             TriggerEngine.INSTANCE.onGameEvent("dimension_change", serverPlayer);
         });
 
+        PlayerEvent.PICKUP_ITEM_POST.register((player, entity, stack) -> {
+            if (player instanceof ServerPlayer sp) {
+                Evaluators.PickupDropTracker.recordPickup(sp, stack);
+                TriggerEngine.INSTANCE.onGameEvent("item_pickup", sp);
+            }
+        });
+
+        PlayerEvent.DROP_ITEM.register((player, entity) -> {
+            if (player instanceof ServerPlayer sp) {
+                Evaluators.PickupDropTracker.recordDrop(sp, entity.getItem());
+                TriggerEngine.INSTANCE.onGameEvent("item_drop", sp);
+            }
+            return EventResult.pass();
+        });
+
         // ===== 特殊事件替代方案 =====
 
-        // item_consume: 需 Mixin LivingEntity.completeUsingItem()
+        // item_consume / item_release / item_use_interrupt: Mixin LivingEntity
+        // （completeUsingItem / releaseUsingItem，见 mixin/ItemUseMixin）
+        // item_instant_use: 投掷物实体加入时判定（雪球/鸡蛋/珍珠/药水/经验瓶）
+        EntityEvent.ADD.register((entity, level) -> {
+            if (entity instanceof net.minecraft.world.entity.projectile.ThrowableItemProjectile proj
+                    && proj.getOwner() instanceof ServerPlayer sp) {
+                Evaluators.UseItemTracker.recordInstantUse(sp, proj.getItem());
+                TriggerEngine.INSTANCE.onGameEvent("item_instant_use", sp);
+            }
+            return EventResult.pass();
+        });
+
         // world_save: 通过 SERVER_LEVEL_SAVE 兜底
         LifecycleEvent.SERVER_LEVEL_SAVE.register(level -> {
             TriggerStateStore.INSTANCE.saveAll();

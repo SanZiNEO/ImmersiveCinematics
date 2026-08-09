@@ -1,0 +1,76 @@
+{
+  "meta": {
+    "id": "test_trigger_observation",
+    "name": "测试-observation触发",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "准星注视羊时触发（observation，on_enter 注视进入）",
+    "triggers": [
+      {
+        "id": "look_at_sheep",
+        "type": "observation",
+        "repeatable": false,
+        "delay": 0,
+        "on_enter": true,
+        "conditions": {
+          "target": "minecraft:sheep",
+          "target_type": "entity"
+        }
+      }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 3,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 3,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": {
+                  "dx": 4,
+                  "dy": -1,
+                  "dz": 4
+                },
+                "yaw": 135,
+                "pitch": -8,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 3,
+                "position": {
+                  "dx": 3,
+                  "dy": -1,
+                  "dz": 3
+                },
+                "yaw": 135,
+                "pitch": -5,
+                "roll": 0,
+                "fov": 68,
+                "zoom": 1.1
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

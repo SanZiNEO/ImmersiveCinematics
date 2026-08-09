@@ -121,6 +121,9 @@ public class ScriptParser {
                 pauseWhenGamePaused, interruptible, skippable,
                 holdAtEnd);
 
+        // 播放优先级（默认值来自 schema.json "meta" 段；仅用于队列内排序）
+        int priority = optInt(metaObj, "priority", 0);
+
         // 脚本维度限制（可选）
         String dimension = optString(metaObj, "dimension", "");
 
@@ -133,7 +136,7 @@ public class ScriptParser {
             }
         }
 
-        return new ScriptMeta(id, name, author, version, description, behavior, dimension, triggers);
+        return new ScriptMeta(id, name, author, version, description, behavior, priority, dimension, triggers);
     }
 
     // ========== Timeline 解析 ==========

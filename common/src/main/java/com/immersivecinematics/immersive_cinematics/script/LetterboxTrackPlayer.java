@@ -68,6 +68,8 @@ public class LetterboxTrackPlayer implements TrackPlayer {
             float t = (to.getTime() - from.getTime() > 0.001f)
                     ? (localTime - from.getTime()) / (to.getTime() - from.getTime()) : 0f;
             t = Math.max(0f, Math.min(1f, t));
+            // E3：smoothstep（3t²-2t³）缓入缓出，letterbox 出入场变平滑
+            t = t * t * (3f - 2f * t);
             ratio = from.getAspectRatio() + (to.getAspectRatio() - from.getAspectRatio()) * t;
         }
 

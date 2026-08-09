@@ -191,14 +191,18 @@ public final class ScriptValidator {
                             } catch (Exception e) { issues.add(kp + ".time 不是数字"); }
                         }
 
-                        if (!kf.has("position")) {
-                            issues.add(kp + ".position 缺失（relative 模式: {dx,dy,dz}；absolute 模式: {x,y,z}）");
-                        } else if (!kf.get("position").isJsonObject()) {
-                            issues.add(kp + ".position 应为对象 {dx,dy,dz} 或 {x,y,z}，实际是 "
-                                    + (kf.get("position").isJsonArray() ? "数组（position 不是数组，改用对象写法）" : "其他类型"));
-                        } else {
-                            JsonObject pos = kf.getAsJsonObject("position");
-                            if (pos.size() == 0) issues.add(kp + ".position 为空对象");
+                        // position 仅 CAMERA 轨道必需（与 CAMERA_KF_FIELDS 检查同条件）；
+                        // letterbox/audio/event/overlay 轨道的字段体系与 camera 不同，不检查
+                        if ("CAMERA".equalsIgnoreCase(type)) {
+                            if (!kf.has("position")) {
+                                issues.add(kp + ".position 缺失（relative 模式: {dx,dy,dz}；absolute 模式: {x,y,z}）");
+                            } else if (!kf.get("position").isJsonObject()) {
+                                issues.add(kp + ".position 应为对象 {dx,dy,dz} 或 {x,y,z}，实际是 "
+                                        + (kf.get("position").isJsonArray() ? "数组（position 不是数组，改用对象写法）" : "其他类型"));
+                            } else {
+                                JsonObject pos = kf.getAsJsonObject("position");
+                                if (pos.size() == 0) issues.add(kp + ".position 为空对象");
+                            }
                         }
 
                         // CAMERA 关键帧缺省字段提示

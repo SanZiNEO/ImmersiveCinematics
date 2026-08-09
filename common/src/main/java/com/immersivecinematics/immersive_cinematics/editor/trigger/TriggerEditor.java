@@ -17,11 +17,15 @@ public abstract class TriggerEditor {
             case "advancement" -> new SingleIdEditor("advancement");
             case "biome" -> new SingleIdEditor("biome");
             case "dimension", "dimension_change" -> new SingleIdEditor("dimension");
-            case "interact" -> new SingleIdEditor("target");
+            case "entity_interact", "block_interact" -> new SingleIdEditor("target");
+            case "item_on_interact" -> new ItemOnInteractEditor();
             case "item_craft" -> new SingleIdEditor("item");
             case "item_use" -> new SingleIdEditor("item");
+            case "item_consume", "item_release", "item_instant_use",
+                 "item_use_interrupt", "item_pickup", "item_drop" -> new SingleIdEditor("item");
+            case "xp" -> new XpEditor();
+            case "observation" -> new ObservationEditor();
             case "gamestage" -> new SingleIdEditor("stage");
-            case "custom" -> new SingleIdEditor("event_id");
             case "structure" -> new StructureEditor();
             case "entity_kill" -> new EntityKillEditor();
             case "inventory" -> new InventoryEditor();

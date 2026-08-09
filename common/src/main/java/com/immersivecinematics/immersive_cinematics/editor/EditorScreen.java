@@ -187,7 +187,6 @@ public class EditorScreen extends Screen {
             EditorLogger.action(EditorLogger.SCREEN, "SAVE", "from menu");
             saveScript();
         });
-        menuBar.setOnToggleList(this::toggleScriptList);
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -960,18 +959,6 @@ public class EditorScreen extends Screen {
     // ══════════════════════════════════════════════════════════════
     //  FILE I/O
     // ══════════════════════════════════════════════════════════════
-
-    private void toggleScriptList() {
-        LeftPanelArea.PanelMode prev = leftPanel.getMode();
-        if (prev == LeftPanelArea.PanelMode.SCRIPT_LIST)
-            leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_PROPERTIES);
-        else {
-            refreshScriptList();
-            leftPanel.setMode(LeftPanelArea.PanelMode.SCRIPT_LIST);
-        }
-        EditorLogger.action(EditorLogger.SCREEN, "TOGGLE_LIST", "from=" + prev + " to=" + leftPanel.getMode());
-        syncPanels();
-    }
 
     private void saveScript() {
         // Validate before save

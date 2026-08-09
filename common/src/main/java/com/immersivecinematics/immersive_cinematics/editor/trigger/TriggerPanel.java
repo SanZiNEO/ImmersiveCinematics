@@ -19,8 +19,11 @@ public class TriggerPanel extends UIComponent {
 
     private static final List<String> TYPE_LIST = List.of(
         "login", "location", "advancement", "biome", "entity_kill",
-        "interact", "dimension", "item_craft", "item_use", "inventory",
-        "custom", "command", "structure", "gamestage"
+        "entity_interact", "block_interact", "item_on_interact",
+        "dimension_change", "dimension", "item_craft", "item_use",
+        "item_consume", "item_release", "item_instant_use", "item_use_interrupt",
+        "item_pickup", "item_drop", "xp", "observation",
+        "inventory", "structure", "gamestage"
     );
 
     public TriggerPanel(int x, int y, int w, int h, JsonArray triggers, Runnable onDirty) {
@@ -195,18 +198,4 @@ public class TriggerPanel extends UIComponent {
 
     
 
-    @Override
-    protected boolean onClicked(UIContext ctx) {
-        for (UIComponent w : getChildren()) {
-            if (w instanceof UIAutoCompleteInput ai && ai.isShowingSuggestions() && ai.isInSuggestionArea(ctx)) {
-                if (ai.mouseClicked(ctx)) return true;
-            }
-        }
-        for (int i = getChildren().size() - 1; i >= 0; i--) {
-            if (getChildren().get(i).mouseClicked(ctx)) return true;
-        }
-        return false;
-    }
-
-    
 }

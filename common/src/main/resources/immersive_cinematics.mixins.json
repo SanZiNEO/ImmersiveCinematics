@@ -15,7 +15,9 @@
     "PlayerTabOverlayMixin",
     "SubtitleOverlayMixin"
   ],
-  "mixins": [],
+  "mixins": [
+    "ItemUseMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   },

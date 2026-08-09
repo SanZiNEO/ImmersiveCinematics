@@ -41,6 +41,10 @@ public class LeftPanelArea extends UIComponent {
     private boolean scrollbarGrabbed;
     private int scrollbarGrabOffset;
 
+    /** 事件树滚动语义：子孙组件的命中坐标 = 绝对坐标 − scrollY（渲染平移与命中统一） */
+    @Override
+    public int getScrollOffset() { return scrollY; }
+
     private Consumer<String> onOpenScript;
     private Consumer<String> onDeleteScript;
     private Runnable onNewScript;
@@ -66,6 +70,9 @@ public class LeftPanelArea extends UIComponent {
             dataDirty = false;
             if (this.mode != m) {
                 EditorLogger.areaMode(EditorLogger.LEFT, "mode", this.mode.name(), m.name());
+                // 切模式回到面板顶部：scrollY 残留会把新面板内容/固定 tab 滚出可视区（面板"全白"根因）
+                scrollY = 0;
+                targetScrollY = 0;
             }
             this.mode = m;
             build();
@@ -97,9 +104,13 @@ public class LeftPanelArea extends UIComponent {
     public void setOnBehaviorFlag(Consumer<String> r) { onBehaviorFlag = r; }
 
 
+    /** tab 栏按钮（固定在面板顶部，不随内容滚动——渲染与命中均豁免滚动偏移） */
+    private final List<UIComponent> tabButtons = new ArrayList<>();
+
     public void build() {
         EditorLogger.action(EditorLogger.LEFT, "BUILD", "mode=" + mode);
         clearChildren();
+        tabButtons.clear();
         buildTabBar();
         switch (mode) {
             case SCRIPT_LIST -> buildScriptList();
@@ -623,10 +634,14 @@ public class LeftPanelArea extends UIComponent {
         }
 
         ctx.pushViewport(x, y, w, h);
+        // tab 栏固定在面板顶部：不平移渲染；内容 children 随滚动平移
+        for (UIComponent tab : tabButtons) {
+            if (tab.visible) tab.render(ctx);
+        }
         ctx.pushScroll(scrollY);
 
         for (UIComponent child : getChildren()) {
-            if (child.visible) child.render(ctx);
+            if (!tabButtons.contains(child) && child.visible) child.render(ctx);
         }
 
         ctx.popScroll(scrollY);
@@ -648,29 +663,19 @@ public class LeftPanelArea extends UIComponent {
 
     @Override
     public void renderOverlay(UIContext ctx) {
+        for (UIComponent tab : tabButtons) {
+            if (tab.visible) tab.renderOverlay(ctx);
+        }
         ctx.pushScroll(scrollY);
         for (UIComponent c : getChildren()) {
-            c.renderOverlay(ctx);
+            if (!tabButtons.contains(c)) c.renderOverlay(ctx);
         }
         ctx.popScroll(scrollY);
-    }
-
-    /** 浮层命中递归：滚动坐标补偿（pushScroll 平移 mouseY/渲染矩阵，与普通点击路径一致） */
-    @Override
-    public boolean overlayClicked(UIContext ctx) {
-        if (!visible || !enabled) return false;
-        if (overlayHit(ctx)) return mouseClicked(ctx);
-        ctx.pushScroll(scrollY);
-        for (int i = getChildren().size() - 1; i >= 0; i--) {
-            if (getChildren().get(i).overlayClicked(ctx)) { ctx.popScroll(scrollY); return true; }
-        }
-        ctx.popScroll(scrollY);
-        return false;
     }
 
     @Override
     protected boolean onClicked(UIContext ctx) {
-        if (!ctx.isMouseIn(x, y, w, h)) return false;
+        if (!ctx.isMouseIn(hitX(), hitY(), w, h)) return false;
 
         if (maxScroll > 0) {
             int sbX = x + w - 4;
@@ -692,16 +697,13 @@ public class LeftPanelArea extends UIComponent {
         EditorLogger.areaHit(EditorLogger.LEFT, "full_area", ctx.mouseX, ctx.mouseY, true);
         EditorLogger.areaHit(EditorLogger.LEFT, "mode_" + mode.name(), ctx.mouseX, ctx.mouseY, true);
 
-        ctx.pushScroll(scrollY);
-        List<UIComponent> ch = getChildren();
-        for (int i = ch.size() - 1; i >= 0; i--) {
-            UIComponent c = ch.get(i);
+        // 子组件命中已由 UIComponent.mouseClicked 模板统一分发（绝对坐标 + 滚动修正 + 容器裁剪），
+        // 这里只保留 toggle 点击日志特判，不再重复分发。
+        for (UIComponent c : getChildren()) {
             if (c.isHovered(ctx) && c instanceof com.immersivecinematics.immersive_cinematics.editor.widget.UIToggle tgl) {
                 EditorLogger.action(EditorLogger.LEFT, "TOGGLE_CLICK", "label=" + mode + " value=" + !tgl.isOn());
             }
-            if (c.mouseClicked(ctx)) { ctx.popScroll(scrollY); return true; }
         }
-        ctx.popScroll(scrollY);
         return false;
     }
 
@@ -717,16 +719,8 @@ public class LeftPanelArea extends UIComponent {
             }
             return true;
         }
-        ctx.pushScroll(scrollY);
-        boolean result = false;
-        List<UIComponent> ch = getChildren();
-        if (ch != null) {
-            for (int i = ch.size() - 1; i >= 0; i--) {
-                if (ch.get(i).mouseDragged(ctx)) { result = true; }
-            }
-        }
-        ctx.popScroll(scrollY);
-        return result;
+        // 子组件拖动由 UIComponent.mouseDragged 模板统一分发
+        return false;
     }
 
     @Override
@@ -737,12 +731,8 @@ public class LeftPanelArea extends UIComponent {
 
     @Override
     protected boolean onScrolled(UIContext ctx, double scroll) {
-        if (!visible || !ctx.isMouseIn(x, y, w, h)) return false;
-        ctx.pushScroll(scrollY);
-        for (int i = getChildren().size() - 1; i >= 0; i--) {
-            if (getChildren().get(i).mouseScrolled(ctx, scroll)) { ctx.popScroll(scrollY); return true; }
-        }
-        ctx.popScroll(scrollY);
+        if (!visible || !ctx.isMouseIn(hitX(), hitY(), w, h)) return false;
+        // 子组件滚轮（如聚焦的数值输入）由 UIComponent.mouseScrolled 模板先分发，未消费才到这里
         if (maxScroll > 0) {
             // E7：滚轮改 targetScrollY，视觉由 render 渐变驱动（shiftViewport 已删除）
             targetScrollY -= (int)(scroll * 20);
@@ -770,6 +760,8 @@ public class LeftPanelArea extends UIComponent {
                 tab.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER).textColor(0xFF888888);
             }
 
+            tab.fixedToParent = true;
+            tabButtons.add(tab);
             addChild(tab);
             tabX += tabW + TAB_GAP;
         }

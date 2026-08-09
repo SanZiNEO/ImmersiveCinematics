@@ -1,6 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.trigger.network.S2CTriggerStateSyncPacket;
+import com.immersivecinematics.immersive_cinematics.trigger.server.store.PlayerTriggerState;
 import com.immersivecinematics.immersive_cinematics.trigger.server.store.TriggerStateStore;
 import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
@@ -148,6 +150,10 @@ public class TriggerEngine {
 
     public void onScriptFinished(ServerPlayer player, String scriptId,
                                  com.immersivecinematics.immersive_cinematics.control.CompletionReason reason) {
+        // 完成状态落库 + 同步到客户端（C2SScriptFinishedPacket 的必经链路）
+        TriggerStateStore.INSTANCE.markScriptCompleted(player.getUUID(), scriptId);
+        PlayerTriggerState state = TriggerStateStore.INSTANCE.getOrCreate(player.getUUID());
+        S2CTriggerStateSyncPacket.send(player, state.getTriggeredScripts(), state.getCompletedScripts());
         ScriptEventManager.INSTANCE.onScriptFinished(player, scriptId, reason);
         LOGGER.debug("Script finished: player={}, script={}, reason={}",
                 player.getName().getString(), scriptId, reason);
@@ -176,6 +182,10 @@ public class TriggerEngine {
         boolean isNew = TriggerStateStore.INSTANCE.markTriggered(
                 player.getUUID(), reg.getScriptId(), reg.getTriggerId());
         if (!isNew && !reg.isRepeatable()) return;
+
+        // 触发成功 → 同步最新状态到客户端（编辑器 UI 消费）
+        PlayerTriggerState state = TriggerStateStore.INSTANCE.getOrCreate(player.getUUID());
+        S2CTriggerStateSyncPacket.send(player, state.getTriggeredScripts(), state.getCompletedScripts());
 
         int delayMs = reg.getDelayMs();
         if (delayMs > 0) {

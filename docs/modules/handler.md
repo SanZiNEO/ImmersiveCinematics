@@ -8,7 +8,7 @@
   - ✅ 服务器启动（SERVER_STARTED）：全局脚本复制到世界存档 → 加载全部脚本 → 初始化触发器状态存储与引擎 → 批量注册触发器（`ServerEventHandler`）
   - ✅ 服务器停止（SERVER_STOPPING）与世界保存（SERVER_LEVEL_SAVE）：全量保存触发器状态（`ServerEventHandler`）
   - ✅ 玩家加入（PLAYER_JOIN）：加载该玩家触发状态，并触发 `login` 触发器（`ServerEventHandler`）
-  - ✅ 玩家退出（PLAYER_QUIT）：保存并卸载玩家状态，清理全部内存追踪器（Kill/Interact/Craft/CustomEvent/UseItem/Inventory）（`ServerEventHandler`）
+  - ✅ 玩家退出（PLAYER_QUIT）：保存并卸载玩家状态，清理全部内存追踪器（Kill/Interact/Craft/UseItem/Inventory）（`ServerEventHandler`）
   - ✅ 服务器 tick（SERVER_POST）：驱动轮询触发器 `TriggerEngine.onServerTick()` 与脚本事件会话 `ScriptEventManager.onServerTick()`（`ServerEventHandler`）
   - ✅ 命令注册：集成/专用服务器环境下注册 `/icinematics` 命令树（`ServerEventHandler`、`CinematicCommand`）
   - ✅ 事件驱动触发器接线：`LIVING_DEATH`→entity_kill（记录击杀）、`RIGHT/LEFT_CLICK_BLOCK`→block_interact（记录方块与手持物品）、`INTERACT_ENTITY`→entity_interact（记录实体与手持物品）、`CRAFT_ITEM`→item_craft（记录合成物品）、`RIGHT_CLICK_ITEM`→item_use（记录使用物品）、`CHANGE_DIMENSION`→dimension_change（`ServerEventHandler`、`Evaluators`）
@@ -19,4 +19,4 @@
 
 ## 已知问题
 
-- 4 个事件驱动触发器注册了类型但没有任何事件源调用 `onGameEvent()`，永远不会触发：`advancement`（注释注明"需 Mixin 或替代 API"）、`item_consume`（注释注明"需 Mixin LivingEntity.completeUsingItem()"）、`item_on_interact`（无任何接线）、`custom`（`CustomEventTracker.fire()` 无调用方）（来源：`ServerEventHandler`、`ImmersiveCinematics.registerTriggerTypes`）
+- 3 个事件驱动触发器注册了类型但没有任何事件源调用 `onGameEvent()`，永远不会触发：`advancement`（注释注明"需 Mixin 或替代 API"）、`item_consume`（注释注明"需 Mixin LivingEntity.completeUsingItem()"）、`item_on_interact`（无任何接线）（来源：`ServerEventHandler`、`ImmersiveCinematics.registerTriggerTypes`）

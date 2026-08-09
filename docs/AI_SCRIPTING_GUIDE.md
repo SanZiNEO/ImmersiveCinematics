@@ -239,13 +239,23 @@
 | `login` | 玩家登录 | 无 |
 | `location` | 进入区域 | `dimension` / `position`+`radius` / `corner1`+`corner2` |
 | `structure` | 进入结构 | `structure`（如 `"village"`）+ `radius` |
-| `advancement` | 获得进度 | `advancement` |
+| `advancement` | 获得进度（事件携带 id 匹配） | `advancement` |
 | `biome` | 进入群系 | `biome` |
-| `entity_kill` | 击杀实体 | `entity` |
+| `entity_kill` | 击杀实体 | `entity`（+场景条件 `dimension`/`biome`/`position`） |
+| `entity_interact` / `block_interact` | 右键交互目标 | `target` |
+| `item_on_interact` | 持物交互 | `item` + `target`（+`target_type`；`"item": ""` = 空手） |
 | `item_craft` | 合成物品 | `item` |
-| `custom` | 外部调用 | `event_id` |
+| `item_use` | 右键按下 | `item` |
+| `item_consume` | 用完（吃完/喝完） | `item` |
+| `item_release` | 弓/弩/三叉戟/望远镜松手 | `item` |
+| `item_instant_use` | 扔投掷物（雪球/珍珠/药水/经验瓶） | `item` |
+| `item_use_interrupt` | 吃一半松手/中断使用 | `item` |
+| `item_pickup` / `item_drop` | 拾取/丢弃物品 | `item` |
+| `xp` | 经验达标（轮询） | `level` / `total` |
+| `dimension` | 驻留维度（轮询） | `dimension` |
+| `observation` | 准星注视目标（轮询） | `target` + `target_type` + `reach` |
 
-通用字段：`repeatable`（可重复触发）、`delay`（延迟秒）、`on_enter`（仅进入时触发，位置类用）。完整 16 种见 `docs/TRIGGER_TYPES.md`。
+通用字段：`repeatable`（可重复触发）、`delay`（延迟秒）、`on_enter`（仅进入时触发，位置类用）。完整 23 种见 `docs/TRIGGER_TYPES.md`。
 
 ---
 

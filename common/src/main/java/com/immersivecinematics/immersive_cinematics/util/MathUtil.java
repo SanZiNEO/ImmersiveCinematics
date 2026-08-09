@@ -181,44 +181,6 @@ public final class MathUtil {
         return t * t * (3f - 2f * t);
     }
 
-    // ========== 厄米（Hermite）基函数 — 速度曲线引擎 ==========
-
-    /**
-     * 厄米基函数 h₀₀(t) = 2t³ - 3t² + 1
-     * <p>
-     * 边界值：h₀₀(0)=1, h₀₀(1)=0, h'₀₀(0)=0, h'₀₀(1)=0
-     */
-    public static float h00(float t) {
-        return 2f * t * t * t - 3f * t * t + 1f;
-    }
-
-    /**
-     * 厄米基函数 h₁₀(t) = t³ - 2t² + t
-     * <p>
-     * 边界值：h'₁₀(0)=1, h'₁₀(1)=0
-     */
-    public static float h10(float t) {
-        return t * t * t - 2f * t * t + t;
-    }
-
-    /**
-     * 厄米基函数 h₀₁(t) = -2t³ + 3t²
-     * <p>
-     * 边界值：h₀₁(0)=0, h₀₁(1)=1, h'₀₁(0)=0, h'₀₁(1)=0
-     */
-    public static float h01(float t) {
-        return -2f * t * t * t + 3f * t * t;
-    }
-
-    /**
-     * 厄米基函数 h₁₁(t) = t³ - t²
-     * <p>
-     * 边界值：h'₁₁(0)=0, h'₁₁(1)=1
-     */
-    public static float h11(float t) {
-        return t * t * t - t * t;
-    }
-
     // ========== NaN/Infinity 防护 ==========
 
     /**

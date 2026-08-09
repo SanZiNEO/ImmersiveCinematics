@@ -15,7 +15,7 @@
 |---|---|---|
 | [camera.md](./camera.md) | `camera/` | 相机接管、虚拟时钟、播放调度、预览、roll、追踪、呼吸 |
 | [script.md](./script.md) | `script/` | 脚本解析/加载、6 种轨道、各 TrackPlayer、schema |
-| [trigger.md](./trigger.md) | `trigger/server/` | 16 种触发器、引擎、状态存储、事件管理 |
+| [trigger.md](./trigger.md) | `trigger/server/` | 23 种触发器、引擎、状态存储、事件管理 |
 | [network.md](./network.md) | `trigger/network/` | 7 个网络包、播放/停止/暂停/投票链路 |
 | [editor.md](./editor.md) | `editor/` | 时间轴编辑器、撤销重做、保存管线、已知 bug |
 | [overlay.md](./overlay.md) | `overlay/` | 覆盖层五种（黑边/fade/图片/字幕/画中画）、OverlayManager |
@@ -25,4 +25,4 @@
 | [handler.md](./handler.md) | `handler/` | 服务端/客户端事件注册 |
 | [client.md](./client.md) | `client/` | ConfigScreen、EditorBridgeImpl |
 | [util.md](./util.md) | `util/` | 工具类 |
-| [core.md](./core.md) | `common/`（根包入口） | 模组初始化、16 种触发器注册、全局配置项 |
+| [core.md](./core.md) | `common/`（根包入口） | 模组初始化、23 种触发器注册、全局配置项 |

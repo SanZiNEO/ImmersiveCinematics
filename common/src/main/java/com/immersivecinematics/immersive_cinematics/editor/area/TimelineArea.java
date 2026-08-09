@@ -795,7 +795,7 @@ public class TimelineArea extends UIComponent {
 
         // Label area click — select track (left) or context menu (right)
         if (ctx.mouseX >= x + toolbarW() && ctx.mouseX < canvasX() && ctx.mouseY >= canvasY()) {
-            int ti = visibleIndexToTrackIndex((ctx.getAdjustedMouseY() - canvasY() + scrollTrackOffset) / trackH());
+            int ti = visibleIndexToTrackIndex((ctx.mouseY - canvasY() + scrollTrackOffset) / trackH());
             if (ti >= 0 && ti < tracks().size()) {
                 JsonObject track = tracks().get(ti).getAsJsonObject();
                 String type = track.has("type") ? track.get("type").getAsString() : "";
@@ -898,7 +898,7 @@ public class TimelineArea extends UIComponent {
         JsonArray arr = tracks();
         if (arr == null || ctx.mouseX < canvasX()) return false;
 
-        int trackIdx = visibleIndexToTrackIndex((ctx.getAdjustedMouseY() - canvasY() + scrollTrackOffset) / trackH());
+        int trackIdx = visibleIndexToTrackIndex((ctx.mouseY - canvasY() + scrollTrackOffset) / trackH());
         if (trackIdx < 0 || trackIdx >= arr.size()) return false;
         JsonObject trackObj = arr.get(trackIdx).getAsJsonObject();
         // B2：锁定轨道右键也拒绝（不显示 clip 菜单）
@@ -966,7 +966,7 @@ public class TimelineArea extends UIComponent {
         JsonArray arr = tracks();
         if (arr == null || ctx.mouseX < canvasX()) return false;
 
-        int trackIdx = visibleIndexToTrackIndex((ctx.getAdjustedMouseY() - canvasY() + scrollTrackOffset) / trackH());
+        int trackIdx = visibleIndexToTrackIndex((ctx.mouseY - canvasY() + scrollTrackOffset) / trackH());
         if (trackIdx < 0 || trackIdx >= arr.size()) {
             EditorLogger.areaHit(EditorLogger.TIMELINE, "canvas_empty", ctx.mouseX, ctx.mouseY, false);
             return false;
@@ -1069,7 +1069,7 @@ public class TimelineArea extends UIComponent {
         boxStartY = ctx.mouseY;
         boxStartTime = xToTime(ctx.mouseX);
         boxEndTime = boxStartTime;
-        boxStartTrack = (ctx.getAdjustedMouseY() - canvasY() + scrollTrackOffset) / trackH();
+        boxStartTrack = (ctx.mouseY - canvasY() + scrollTrackOffset) / trackH();
         return true;
     }
 
@@ -1202,7 +1202,7 @@ public class TimelineArea extends UIComponent {
         if (trackResizing) {
             int n = tracks() != null ? tracks().size() : 1;
             if (n > 0) {
-                setTrackHRef(Math.round((ctx.getAdjustedMouseY() - canvasY() + scrollTrackOffset) / (float) n
+                setTrackHRef(Math.round((ctx.mouseY - canvasY() + scrollTrackOffset) / (float) n
                         / com.immersivecinematics.immersive_cinematics.editor.Scale.sy));
             }
             return true;
@@ -1215,7 +1215,7 @@ public class TimelineArea extends UIComponent {
         // Box select drag
         if (boxSelecting) {
             boxEndTime = xToTime(ctx.mouseX);
-            boxEndTrack = (ctx.getAdjustedMouseY() - canvasY() + scrollTrackOffset) / trackH();
+            boxEndTrack = (ctx.mouseY - canvasY() + scrollTrackOffset) / trackH();
             return true;
         }
 

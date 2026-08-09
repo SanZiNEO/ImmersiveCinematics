@@ -4,8 +4,8 @@
 
 功能树：
 
-- **16 种触发器类型**
-  - ✅ 入口类 `ImmersiveCinematics.registerTriggerTypes()` 注册 16 种触发器：location、biome、inventory、structure、gamestage（轮询）+ advancement、entity_kill、entity_interact、dimension_change、login、item_craft、item_use、item_consume、block_interact、item_on_interact、custom（事件驱动）（`TriggerRegistry`、`TriggerType`）
+- **23 种触发器类型**
+  - ✅ 入口类 `ImmersiveCinematics.registerTriggerTypes()` 注册 23 种触发器：location、biome、inventory、structure、gamestage、xp、dimension、observation（轮询）+ advancement、entity_kill、entity_interact、dimension_change、login、item_craft、item_use、item_consume、item_release、item_instant_use、item_use_interrupt、block_interact、item_on_interact、item_pickup、item_drop（事件驱动）（`TriggerRegistry`、`TriggerType`）
   - ✅ `TriggerType` 定义触发器元数据：id、监听策略（轮询/事件驱动）、轮询间隔、条件求值器（`TriggerType`）
   - ✅ `TriggerRegistry` 提供注册/查询/清空触发器类型（`TriggerRegistry`）
 - **双通道触发引擎**
@@ -31,8 +31,7 @@
   - ✅ item_craft/item_use/item_consume：匹配最近一次合成/使用/消耗的物品（`Evaluators`）
   - ✅ dimension_change：匹配玩家当前所在维度（`Evaluators`）
   - ✅ login：恒为真，由登录事件驱动（`Evaluators`）
-  - ✅ custom：匹配 `CustomEventTracker` 中是否触发过指定 `event_id`（`Evaluators`）
-  - ✅ 提供 per-player 内存追踪器：KillTracker、InteractTracker、CraftTracker、CustomEventTracker、UseItemTracker、InventoryTracker，玩家退出时清理（`Evaluators`）
+  - ✅ 提供 per-player 内存追踪器：KillTracker、InteractTracker、CraftTracker、UseItemTracker、InventoryTracker，玩家退出时清理（`Evaluators`）
   - ✅ id 模式匹配支持 `*` 通配、`mod:*` 前缀、裸名包含匹配（`Evaluators.matchesId`）
 - **触发器动作**
   - ✅ `TriggerAction` 动作接口，动作在玩家上下文执行（`TriggerAction`）

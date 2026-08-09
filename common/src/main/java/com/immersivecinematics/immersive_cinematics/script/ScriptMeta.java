@@ -9,11 +9,12 @@ public class ScriptMeta {
     private final int version;
     private final String description;
     private final RuntimeBehavior behavior;
+    private final int priority;
     private final String dimension;
     private final List<TriggerDefinition> triggers;
 
     public ScriptMeta(String id, String name, String author, int version, String description,
-                      RuntimeBehavior behavior, String dimension,
+                      RuntimeBehavior behavior, int priority, String dimension,
                       List<TriggerDefinition> triggers) {
         this.id = id;
         this.name = name;
@@ -21,6 +22,7 @@ public class ScriptMeta {
         this.version = version;
         this.description = description;
         this.behavior = behavior;
+        this.priority = priority;
         this.dimension = dimension;
         this.triggers = triggers != null ? triggers : Collections.emptyList();
     }
@@ -31,6 +33,8 @@ public class ScriptMeta {
     public int getVersion() { return version; }
     public String getDescription() { return description; }
     public RuntimeBehavior getBehavior() { return behavior; }
+    /** 播放优先级：数值越大优先级越高，仅用于队列内排序（不可打断脚本永不被打断） */
+    public int getPriority() { return priority; }
     public String getDimension() { return dimension; }
     public List<TriggerDefinition> getTriggers() { return triggers; }
 

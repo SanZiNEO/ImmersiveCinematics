@@ -53,7 +53,7 @@
   - ✅ 新建脚本引导 `bootstrapNewScript()`：自动生成默认 CAMERA clip（含完整关键帧属性）与 LETTERBOX 全时长 clip（2.35:1），新建文档轨道列表含 CAMERA/LETTERBOX/AUDIO/EVENT/MOD_EVENT 五种（`EditorScreen`、`EditorDocument`）
 - **触发器条件编辑**
   - ✅ `TriggerPanel` 集成触发器列表：选择/新增/删除触发器，编辑 id/repeatable/on_enter/exit_buffer/delay 与条件（`TriggerPanel`）
-  - ✅ `TriggerEditor` 工厂按类型分发条件编辑器：`NoConditionEditor`（login/command）、`SingleIdEditor`（advancement/biome/dimension/interact/item_craft/item_use/gamestage/custom，带注册表自动补全候选）、`LocationEditor`（point+radius / box 双模式）、`StructureEditor`、`EntityKillEditor`（多实体 + and/or）、`InventoryEditor`（物品列表 + mode + change）（`TriggerEditor`、`NoConditionEditor`、`SingleIdEditor`、`LocationEditor`、`StructureEditor`、`EntityKillEditor`、`InventoryEditor`）
+  - ✅ `TriggerEditor` 工厂按类型分发条件编辑器：`NoConditionEditor`（login/command）、`SingleIdEditor`（advancement/biome/dimension/interact/item_craft/item_use/gamestage，带注册表自动补全候选）、`LocationEditor`（point+radius / box 双模式）、`StructureEditor`、`EntityKillEditor`（多实体 + and/or）、`InventoryEditor`（物品列表 + mode + change）（`TriggerEditor`、`NoConditionEditor`、`SingleIdEditor`、`LocationEditor`、`StructureEditor`、`EntityKillEditor`、`InventoryEditor`）
 - **调试日志**
   - ✅ `EditorLogger` 分类日志（AREA/MOUSE/ACTION/STATE）写入 `logs/editor/editor-*.log` 并回显控制台（`EditorLogger`）
   - ⚠️ `RawInputLogger` 提供 GLFW 原始输入记录接口（鼠标/按键/滚轮 + tick 心跳 + 坐标轮询，写入 `logs/input/input-*.log`），但输入事件回调全工程无注册点，实际采集未接线（`RawInputLogger`）

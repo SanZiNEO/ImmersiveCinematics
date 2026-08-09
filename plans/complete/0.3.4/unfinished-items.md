@@ -37,7 +37,7 @@
 
 | # | 功能 | 计划出处 | 代码现状 |
 |---|------|---------|---------|
-| C1 | 播放队列完整方案 | repair_plan_E E2（priority 优先级抢占 + queueable + ScriptQueue 容量 8） | 仅实现单槽 `pendingScript` 排队（playScript 返回 2、deactivateNow 自动接播）；无 priority/queueable 字段、无优先级抢占、无队列容量 |
+| C1 | 播放队列完整方案 | repair_plan_E E2 / 0.3.4（2026-08-09 用户确认规则：priority 仅队列排序、移除 queueable、不可打断一律排队、可打断立即替换、无优先级抢占） | ✅ **已实施（2026-08-09）**：`ScriptQueue` 容量 8（priority 降序 + FIFO）+ `playScript` 决策树（可打断→立即替换；不可打断→一律入队满则拒）+ `deactivateNow` 自动接播 + schema/meta `priority` 字段；客户端 `/icinematics queue` 查询命令按用户要求移除（未实施） |
 | C2 | EVENT 轨道编辑器可视化 | 0.3.4 event-track-rework.md（"EVENT 不渲染 clip 段矩形，keyframe 显示为标记点"） | ✅ **按确认方案完成（2026-08-09）**：复用现有 clip 块 + 块内关键帧调控 EVENT（用户确认现成方案即可，不做专属标记点）；运行时 keyframe 驱动多点触发已实现 |
 | C3 | 编辑器音频联动 | 0.4.0（依赖 0.3.4 AUDIO） | 播放头 `setTime()` 跳转时 `repositionAudio` 已实现；拖拽 audio clip/关键帧过程中的实时跟随未做（待实施） |
 | C4 | 维度字段消费 | script_design_v3 §meta / 0.4.0（计划 0.3.5） | `meta.dimension` 仅解析存储，无任何运行时校验/限制 |

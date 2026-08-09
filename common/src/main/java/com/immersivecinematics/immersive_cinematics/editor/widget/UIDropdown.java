@@ -61,7 +61,7 @@ public class UIDropdown extends UIComponent {
     /** 浮层命中：展开列表区域（含溢出到父容器外的部分）优先于所有普通组件 */
     @Override
     protected boolean overlayHit(UIContext ctx) {
-        return expanded && ctx.isMouseIn(x, y + h, w, listHeight(ctx));
+        return expanded && ctx.isMouseIn(hitX(), hitY() + h, w, listHeight(ctx));
     }
 
     /** Render the collapsed button only. Expanded list is drawn in renderOverlay. */
@@ -121,7 +121,7 @@ public class UIDropdown extends UIComponent {
             int itemY = y + h + i * h - listScrollOffset;
             if (itemY + h < y + h || itemY > y + h + listH) continue;
             if (i == highlightIndex) continue;
-            if (ctx.isMouseIn(x, itemY, w, h)) {
+            if (ctx.isMouseIn(hitX(), hitY() + h + i * h - listScrollOffset, w, h)) {
                 BufferBuilder hb = new BufferBuilder(64);
                 hb.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
                 vertex(hb, m, x, itemY, EditorTheme.SEPARATOR);
@@ -166,10 +166,11 @@ public class UIDropdown extends UIComponent {
         if (expanded) {
             int totalH = options.size() * h;
             int listH = listHeight(ctx);
+            int baseY = hitY() + h;
             for (int i = 0; i < options.size(); i++) {
-                int itemY = y + h + i * h - listScrollOffset;
-                if (itemY + h < y + h || itemY > y + h + listH) continue;
-                if (!ctx.isMouseIn(x, itemY, w, h)) continue;
+                int itemY = baseY + i * h - listScrollOffset;
+                if (itemY + h < baseY || itemY > baseY + listH) continue;
+                if (!ctx.isMouseIn(hitX(), itemY, w, h)) continue;
                 expanded = false;
                 if (i == highlightIndex) return true;
                 if (ctx.mouseButton == 1 && onRightClick != null)
@@ -190,8 +191,8 @@ public class UIDropdown extends UIComponent {
         if (!expanded) return false;
         int totalH = options.size() * h;
         int listH = listHeight(ctx);
-        int scrollAreaY = y + h;
-        if (!ctx.isMouseIn(x, scrollAreaY, w, listH)) return false;
+        int scrollAreaY = hitY() + h;
+        if (!ctx.isMouseIn(hitX(), scrollAreaY, w, listH)) return false;
         listScrollOffset -= (int) scroll * h;
         int maxScroll = Math.max(0, totalH - listH);
         if (listScrollOffset < 0) listScrollOffset = 0;

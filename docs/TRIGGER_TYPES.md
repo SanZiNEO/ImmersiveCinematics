@@ -137,10 +137,28 @@
 |---------|------|------|------|
 | `entity` | string 或 string[] | 是 | 实体 ID，支持子串/通配符匹配 |
 | `mode` | string | 仅数组时可用 | `"or"`（默认）— 击杀任一触发；`"and"` — 全部击杀过才触发 |
+| `dimension` | string | 否 | 场景条件：击杀发生时的维度（如 `"minecraft:the_nether"`） |
+| `biome` | string | 否 | 场景条件：击杀发生时的群系 |
+| `position` | object | 否 | 场景条件：击杀位置点+半径 `{ "x": ..., "y": ..., "z": ... }` |
+| `radius` | number | 否 | 配合 `position`，默认 `0` |
+| `corner1`/`corner2` | object | 否 | 场景条件：击杀位置所在方体区域（两对角点） |
+
+> 场景条件按**击杀时刻**的记录判定（被杀实体的位置/维度/群系），不是玩家当前位置。
 
 **单实体：**
 ```json
 { "type": "entity_kill", "conditions": { "entity": "minecraft:zombie" } }
+```
+
+**场景组合 — 下界击杀僵尸（主世界击杀不触发）：**
+```json
+{
+  "type": "entity_kill",
+  "conditions": {
+    "entity": "minecraft:zombie",
+    "dimension": "minecraft:the_nether"
+  }
+}
 ```
 
 **通配：**
@@ -212,8 +230,9 @@
 
 | 条件字段 | 类型 | 必需 | 说明 |
 |---------|------|------|------|
-| `item` | string | 是 | 手持物品 ID，支持子串/通配符匹配 |
+| `item` | string | 是 | 手持物品 ID，支持子串/通配符匹配；`""`（空字符串）表示**空手** |
 | `target` | string | 是 | 目标方块/实体 ID，`"*"` 表示任意目标 |
+| `target_type` | string | 否 | `"block"` 或 `"entity"` — 限定目标类型；不写则方块/实体都算 |
 
 ```json
 {
@@ -222,10 +241,23 @@
 }
 ```
 
+**空手交互：**
 ```json
 {
   "type": "item_on_interact",
-  "conditions": { "item": "minecraft:diamond", "target": "*" }
+  "conditions": { "item": "", "target": "minecraft:sheep" }
+}
+```
+
+**限定目标类型 — 手持剪刀对羊：**
+```json
+{
+  "type": "item_on_interact",
+  "conditions": {
+    "item": "minecraft:shears",
+    "target": "minecraft:sheep",
+    "target_type": "entity"
+  }
 }
 ```
 
@@ -286,8 +318,8 @@
 
 ## 12. `item_consume`
 
-玩家使用完成指定物品时触发（吃完食物、喝完药水、射完箭等）。  
-仅监听 `LivingEntityUseItemEvent.Finish`，右键按下时**不**触发。
+玩家**用尽**指定物品时触发（食物吃完、药水喝完——`LivingEntity.completeUsingItem()` 完成路径，Mixin 注入）。  
+吃一半/喝一半松手**不**触发（走 `item_use_interrupt`）；右键按下也不触发（那是 `item_use`）。
 
 | 条件字段 | 类型 | 必需 | 说明 |
 |---------|------|------|------|
@@ -302,7 +334,167 @@
 
 ---
 
-## 13. `inventory`
+## 13. `item_release`
+
+玩家**松手释放**指定物品时触发（弓/弩满蓄松手射箭、三叉戟掷出、望远镜收起）。  
+按 `UseAnim` 判定：BOW / CROSSBOW / SPEAR / SPYGLASS 属于"释放"；不贴合原版状态机的模组自定义 `UseAnim.CUSTOM` 一律归入 `item_use_interrupt`。
+
+| 条件字段 | 类型 | 必需 | 说明 |
+|---------|------|------|------|
+| `item` | string | 是 | 物品 ID，支持子串/通配符匹配 |
+
+```json
+{
+  "type": "item_release",
+  "conditions": { "item": "minecraft:bow" }
+}
+```
+
+---
+
+## 14. `item_instant_use`
+
+玩家**瞬间使用**指定物品时触发（扔雪球/鸡蛋/末影珍珠、投掷喷溅与滞留药水、经验瓶）。  
+通过投掷物实体（`ThrowableItemProjectile`）加入世界判定，覆盖雪球/鸡蛋/珍珠/药水/经验瓶；**不覆盖**烟花火箭与末影之眼。
+
+| 条件字段 | 类型 | 必需 | 说明 |
+|---------|------|------|------|
+| `item` | string | 是 | 物品 ID，支持子串/通配符匹配 |
+
+```json
+{
+  "type": "item_instant_use",
+  "conditions": { "item": "minecraft:snowball" }
+}
+```
+
+---
+
+## 15. `item_use_interrupt`
+
+玩家**中断使用**指定物品时触发（食物/药水吃一半松手、普通物品右键后松开、模组自定义 UseAnim 物品）。  
+弓/弩/三叉戟/望远镜的松手归 `item_release`，不在此列。
+
+| 条件字段 | 类型 | 必需 | 说明 |
+|---------|------|------|------|
+| `item` | string | 是 | 物品 ID，支持子串/通配符匹配 |
+
+```json
+{
+  "type": "item_use_interrupt",
+  "conditions": { "item": "minecraft:bread" }
+}
+```
+
+---
+
+## 16. `item_pickup`
+
+玩家拾取指定物品时触发（捡起掉落物）。
+
+| 条件字段 | 类型 | 必需 | 说明 |
+|---------|------|------|------|
+| `item` | string | 是 | 物品 ID，支持子串/通配符匹配 |
+
+```json
+{
+  "type": "item_pickup",
+  "conditions": { "item": "minecraft:diamond" }
+}
+```
+
+---
+
+## 17. `item_drop`
+
+玩家丢弃指定物品时触发（Q 键丢出）。
+
+| 条件字段 | 类型 | 必需 | 说明 |
+|---------|------|------|------|
+| `item` | string | 是 | 物品 ID，支持子串/通配符匹配 |
+
+```json
+{
+  "type": "item_drop",
+  "conditions": { "item": "minecraft:*" }
+}
+```
+
+---
+
+## 18. `xp`
+
+玩家的经验条件达成时触发（轮询，每 20 ticks ≈ 1 秒检测一次）。
+
+| 条件字段 | 类型 | 必需 | 说明 |
+|---------|------|------|------|
+| `level` | int | 否 | 经验等级达到该值（`experienceLevel`） |
+| `total` | int | 否 | 累计总经验点达到该值（`totalExperience`，**含已花费**，非当前持有量） |
+
+`level` 与 `total` 至少写一个，同时写则两者都满足（AND）。
+
+```json
+{
+  "type": "xp",
+  "conditions": { "level": 30 }
+}
+```
+
+```json
+{
+  "type": "xp",
+  "conditions": { "total": 1000 }
+}
+```
+
+---
+
+## 19. `dimension`
+
+玩家**驻留**在指定维度时触发（轮询，每 20 ticks ≈ 1 秒检测一次）。  
+与 `dimension_change`（切换瞬间触发一次）的区别：`dimension` 是状态型，配合 `on_enter` 可实现"进入某维度时"语义。
+
+| 条件字段 | 类型 | 必需 | 说明 |
+|---------|------|------|------|
+| `dimension` | string | 是 | 维度 ID，支持子串/通配匹配（如 `"mod:*"`） |
+
+```json
+{
+  "type": "dimension",
+  "conditions": { "dimension": "minecraft:the_nether" }
+}
+```
+
+---
+
+## 20. `observation`
+
+玩家准星注视指定目标时触发（轮询，每 5 ticks ≈ 0.25 秒检测一次，服务端射线）。  
+配合 `on_enter` 即"注视进入"语义：首次注视到目标时触发一次，移开后再次注视可再触发（配合 `repeatable`）。
+
+| 条件字段 | 类型 | 必需 | 说明 |
+|---------|------|------|------|
+| `target` | string | 是 | 目标方块/实体 ID |
+| `target_type` | string | 否 | `"block"` 只查方块、`"entity"` 只查实体；不写两者都查、命中距离近者优先 |
+| `reach` | number | 否 | 射线距离（格），默认 `4.5` |
+
+```json
+{
+  "type": "observation",
+  "conditions": { "target": "minecraft:sheep", "target_type": "entity" }
+}
+```
+
+```json
+{
+  "type": "observation",
+  "conditions": { "target": "minecraft:lectern", "target_type": "block", "reach": 6 }
+}
+```
+
+---
+
+## 21. `inventory`
 
 玩家背包物品检测（轮询，每 20 ticks ≈ 1 秒检测一次）。
 
@@ -355,24 +547,7 @@
 
 ---
 
-## 14. `custom`
-
-通过外部模组/命令调用 `CustomEventTracker.fire(player, eventId)` 时触发。
-
-| 条件字段 | 类型 | 必需 | 说明 |
-|---------|------|------|------|
-| `event_id` | string | 是 | 自定义事件 ID |
-
-```json
-{
-  "type": "custom",
-  "conditions": { "event_id": "story_beat_1" }
-}
-```
-
----
-
-## 15. `structure`
+## 22. `structure`
 
 玩家进入指定结构时触发（轮询，每 20 ticks ≈ 1 秒检测一次）。  
 按配置级结构注册名匹配（如 `minecraft:village_plains`），支持子串匹配。
@@ -400,7 +575,7 @@
 
 ---
 
-## 16. `gamestage`
+## 23. `gamestage`
 
 玩家拥有指定游戏阶段时触发（轮询，每 20 ticks ≈ 1 秒检测一次）。  
 需要安装 [GameStages](https://www.curseforge.com/minecraft/mc-mods/gamestages) 模组，未安装时始终返回 `false`。
