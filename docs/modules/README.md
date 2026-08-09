@@ -16,7 +16,7 @@
 | [camera.md](./camera.md) | `camera/` | 相机接管、虚拟时钟、播放调度、预览、roll、追踪、呼吸 |
 | [script.md](./script.md) | `script/` | 脚本解析/加载、6 种轨道、各 TrackPlayer、schema |
 | [trigger.md](./trigger.md) | `trigger/server/` | 23 种触发器、引擎、状态存储、事件管理 |
-| [network.md](./network.md) | `trigger/network/` | 7 个网络包、播放/停止/暂停/投票链路 |
+| [network.md](./network.md) | `trigger/network/` | 10 个网络包、播放/停止/暂停/投票/状态同步链路 |
 | [editor.md](./editor.md) | `editor/` | 时间轴编辑器、撤销重做、保存管线、已知 bug |
 | [overlay.md](./overlay.md) | `overlay/` | 覆盖层五种（黑边/fade/图片/字幕/画中画）、OverlayManager |
 | [control.md](./control.md) | `control/` | 运行时行为、跳过、投票、输入屏蔽、HUD 白名单 |

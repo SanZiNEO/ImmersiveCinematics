@@ -7,7 +7,7 @@
 - **编辑器框架与布局**
   - ✅ `EditorScreen` 为游戏内全屏编辑器，四区布局：菜单栏/左侧属性面板/预览区/时间轴，以 960×540 参考分辨率等比缩放（`Scale`）
   - ✅ `Scale` 集中管理 UI 缩放系数（参考分辨率 960×540），各区域按 `sx/sy` 自适应窗口（`Scale`）
-  - ✅ `MenuBarArea` 提供标题、新建/保存/脚本列表按钮、状态文本与 3 秒动作提示（`MenuBarArea`）
+  - ✅ `MenuBarArea` 提供标题、新建/保存按钮、状态文本与 3 秒动作提示（脚本列表按钮已移除，由面板 tab 栏覆盖）（`MenuBarArea`）
   - ✅ `EditorDocument` 管理脚本 JSON 文档：新建默认模板（meta + 5 种轨道）、加载/序列化、文件名清洗、脏标记（`EditorDocument`）
   - ✅ `EditorBridge` 接口解耦编辑器与相机链路：setTime/pushScript/play/pause/stop（`EditorBridge`）
   - ✅ 编辑器打开时不暂停游戏（`isPauseScreen()` 返回 false），配合 `PreviewCapture` 实时捕获游戏画面供预览区显示（`EditorScreen`）
@@ -28,13 +28,13 @@
   - ✅ 工具栏按钮：添加/删除 clip、添加/删除关键帧、添加/删除轨道、吸附排列（`TimelineArea`）
   - ✅ 右键菜单三处入口：clip（复制/剪切/删除/复制偏移/分割/添加关键帧）、轨道标签（添加 clip/删除轨道/新增轨道）、时间轴空白（按轨道添加 clip/添加关键帧/全选/粘贴/新增轨道/吸附排列）、标尺（跳转播放头/缩放至全部可见）（`TimelineArea`、`EditorScreen`）
 - **左侧面板**
-  - ✅ `LeftPanelArea` 提供 5 个标签页：脚本列表/脚本属性/Clip 属性/关键帧属性/轨道列表（`LeftPanelArea`）
+  - ✅ `LeftPanelArea` 提供 6 个标签页：脚本列表/脚本属性/Clip 属性/关键帧属性/轨道列表/触发器（`LeftPanelArea`）
   - ✅ 脚本属性页：触发器面板 + 脚本信息（id/name/author/version/description/dimension）+ 20 个运行时行为开关（部分三态：未设置/真/假）+ 总时长显示（`LeftPanelArea`）
   - ✅ 属性反射编辑：clip/keyframe 的 JSON 字段自动生成对应控件（布尔→开关、数字→数值输入、字符串→文本输入、对象→递归展开、数组→逐项展开），枚举字段（transition/interpolation/position_mode/source/attenuation/cam_tracking_*）循环切换并联动转换关键帧坐标模式（`LeftPanelArea`）
-  - ✅ 面板滚动：内容超高时出现滚动条（点击/拖动/滚轮），视口裁剪 + 坐标平移（`LeftPanelArea`）
+  - ✅ 面板滚动：内容超高时出现滚动条（点击/拖动/滚轮）；滚动是树语义（`getScrollOffset` 沿父链），命中统一绝对屏幕坐标 + 容器裁剪，tab 栏固定不随内容滚动，切模式滚动归零（`LeftPanelArea`、`UIComponent`）
   - ✅ 编辑触发防抖重建（150ms 内跳过重复 build）（`LeftPanelArea`）
 - **预览区**
-  - ✅ `PreviewArea` 16:9 保持宽高比居中显示预览画面 + 播放/暂停/停止按钮与当前时间标签（`PreviewArea`）
+  - ✅ `PreviewArea` 16:9 保持宽高比居中显示预览画面 + 播放/暂停 toggle 按钮（播放中⏸/非播放▶）+ 终止按钮（重置播放头到第一帧，保持预览激活）+ 当前时间标签（`PreviewArea`）
   - ✅ `PreviewCapture` 通过 FBO 拷贝主渲染目标为纹理（分辨率变化时重建），供预览区带 UV 映射绘制（`PreviewCapture`）
 - **编辑操作**
   - ✅ `EditorOperations` 提供全部结构操作：添加/删除 clip、添加/删除关键帧、移动/左右裁剪 clip、移动关键帧、跨轨道移动 clip、添加/删除轨道、clip 分割（Razor）、吸附排列、关键帧排序去重、边界关键帧保证（`EditorOperations`）
@@ -53,16 +53,14 @@
   - ✅ 新建脚本引导 `bootstrapNewScript()`：自动生成默认 CAMERA clip（含完整关键帧属性）与 LETTERBOX 全时长 clip（2.35:1），新建文档轨道列表含 CAMERA/LETTERBOX/AUDIO/EVENT/MOD_EVENT 五种（`EditorScreen`、`EditorDocument`）
 - **触发器条件编辑**
   - ✅ `TriggerPanel` 集成触发器列表：选择/新增/删除触发器，编辑 id/repeatable/on_enter/exit_buffer/delay 与条件（`TriggerPanel`）
-  - ✅ `TriggerEditor` 工厂按类型分发条件编辑器：`NoConditionEditor`（login/command）、`SingleIdEditor`（advancement/biome/dimension/interact/item_craft/item_use/gamestage，带注册表自动补全候选）、`LocationEditor`（point+radius / box 双模式）、`StructureEditor`、`EntityKillEditor`（多实体 + and/or）、`InventoryEditor`（物品列表 + mode + change）（`TriggerEditor`、`NoConditionEditor`、`SingleIdEditor`、`LocationEditor`、`StructureEditor`、`EntityKillEditor`、`InventoryEditor`）
+  - ✅ `TriggerEditor` 工厂按类型分发条件编辑器：`NoConditionEditor`（login/command）、`SingleIdEditor`（advancement/biome/dimension/entity_interact/block_interact/item_* /gamestage，带注册表自动补全候选）、`LocationEditor`（point+radius / box 双模式）、`StructureEditor`、`EntityKillEditor`（多实体 + and/or + 场景条件）、`InventoryEditor`（物品列表 + mode + change）、`ItemOnInteractEditor`（item+target+target_type）、`XpEditor`（level/total）、`ObservationEditor`（target+target_type+reach）（`TriggerEditor`、`NoConditionEditor`、`SingleIdEditor`、`LocationEditor`、`StructureEditor`、`EntityKillEditor`、`InventoryEditor`、`ItemOnInteractEditor`、`XpEditor`、`ObservationEditor`）
 - **调试日志**
   - ✅ `EditorLogger` 分类日志（AREA/MOUSE/ACTION/STATE）写入 `logs/editor/editor-*.log` 并回显控制台（`EditorLogger`）
   - ⚠️ `RawInputLogger` 提供 GLFW 原始输入记录接口（鼠标/按键/滚轮 + tick 心跳 + 坐标轮询，写入 `logs/input/input-*.log`），但输入事件回调全工程无注册点，实际采集未接线（`RawInputLogger`）
 
 ## 已知问题
 
-- Space 播放/暂停未实现：`EditorScreen.lastSpacePress` 字段声明后从未使用，全编辑器无 Space 按键处理，与 CHANGELOG 0.3.3 声称的"Space 播放/暂停（300ms 防重复）"不符（来源：`EditorScreen`）
 - `RawInputLogger` 输入采集未接线：类注释声称通过 `ClientRawInputEvent` 注册（鼠标/按键/滚轮/心跳），但 `ClientEventHandler` 未注册任何回调，`onMouseButton/onKeyPress/onMouseScroll/onClientTick` 全工程无调用方；编辑器开启时仅写入 enable/disable 状态行，采集不到输入事件（来源：`RawInputLogger`、`ClientEventHandler`）
 - `EditorOperations.fillKeyframeProperties()`/`interpolateKeyframe()` 无调用方：新建关键帧实际只复制相邻帧属性（`copyKeyframeProperties`），不会按时间比例插值（来源：`EditorOperations`）
 - 保存校验不阻断：`EditorScreen.saveScript()` 在 `validateScript()` 返回错误时仅记录日志，仍继续写盘，与 CHANGELOG 0.3.3 声称的"有错误时阻断保存"不符（来源：`EditorScreen`）
-- 触发器类型名与服务端不一致：`TriggerPanel` 提供 interact/dimension/command 等类型名并直接写入脚本 JSON，而服务端 `TriggerRegistry` 注册的是 entity_interact/block_interact/item_on_interact/dimension_change 等 16 个 id；用编辑器创建这些类型后保存，服务端注册时告警 Unknown trigger type 并被跳过，脚本无法被触发（来源：`TriggerPanel`、`ImmersiveCinematics.registerTriggerTypes`）
 - 编辑器仍遗留 `[KILO-DEBUG]` 调试输出（脚本列表刷新/初始化时打印到控制台）（来源：`EditorScreen`、`LeftPanelArea`）

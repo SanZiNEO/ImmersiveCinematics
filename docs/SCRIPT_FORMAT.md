@@ -51,6 +51,7 @@
 | `interruptible` | boolean | `true` | 是否允许被其他脚本打断 |
 | `skippable` | boolean | `true` | 是否允许玩家长按跳过 |
 | `hold_at_end` | boolean | `false` | 播放完毕后是否停留在最后一帧 |
+| `priority` | int | `0` | 播放优先级，数值越大越优先；**仅用于队列内排序**（优先级不能大于打断——不可打断脚本永不被打断，新请求一律排队） |
 
 
 ### 1c. Triggers（触发条件）

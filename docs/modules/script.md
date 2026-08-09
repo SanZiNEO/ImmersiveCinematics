@@ -43,7 +43,7 @@
   - ✅ `PathStrategies` 注册表按 curve.type 名称提供策略工厂，默认 `linear`，未知类型回退线性（`PathStrategies`、`PathStrategy`）
 - **播放器调度**
   - ✅ `ScriptPlayer` 驱动脚本运行时：记录起始虚拟时间、相对模式基准位置（玩家激活时位置）、持有当前脚本运行时行为（`ScriptPlayer`）
-  - ✅ 启动时按轨道类型批量创建 `TrackPlayer` 实例（EVENT 轨道不在客户端处理），并预执行首帧避免闪烁（`ScriptPlayer`、`TrackPlayer`）
+  - ✅ 启动时按轨道类型批量创建 `TrackPlayer` 实例（EVENT 轨道不在客户端处理），并预执行首帧避免闪烁；编辑器加载不同轨道布局的脚本时 `replaceScript` 按新布局重建 TrackPlayer（轨道数量/类型顺序变化时旧索引失效，重建防止 OVERLAY/AUDIO 等读错轨道）（`ScriptPlayer`、`TrackPlayer`）
   - ✅ `TrackPlayer` 工厂按类型分发：CAMERA→`CameraTrackPlayer`、LETTERBOX→`LetterboxTrackPlayer`、AUDIO→`AudioTrackPlayer`、MOD_EVENT→`ModEventTrackPlayer`、OVERLAY→`OverlayTrackPlayer`；创建时传入轨道索引，数据源按索引定位（`TrackPlayer`）
   - ✅ 帧回调驱动：每渲染帧调度所有 TrackPlayer；`holdAtEnd` 时钳制在最后一帧（0.1ms 偏移）等待退出（`ScriptPlayer`）
   - ✅ 启动时若 `block_mob_ai` 开启，清空 128 格范围内以玩家为目标的生物（`ScriptPlayer`）

@@ -10,7 +10,7 @@
 
 ## What Is This?
 
-ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server-side trigger system coordinates with client-side playback: script authors define cutscenes in JSON (or via the in-game editor), and the trigger system plays them automatically when conditions are met — 16 trigger types covering login, location, advancement, biome, dimension change, entity kill, entity interact, block interact, item-on-interact, item craft, item use, item consume, inventory, structure, gamestage, and custom event.
+ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server-side trigger system coordinates with client-side playback: script authors define cutscenes in JSON (or via the in-game editor), and the trigger system plays them automatically when conditions are met — 23 trigger types covering login, location, advancement, biome, entity kill, entity/block/item-on-interact, dimension change/residency, item craft/use/consume/release/instant-use/use-interrupt, item pickup/drop, xp, observation, inventory, structure, and gamestage.
 
 **Use cases:**
 - Play an intro cutscene when entering a new area
@@ -26,22 +26,23 @@ ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server
 **Cutscene System**
 - 6-DOF camera: position, yaw, pitch, roll, FOV, zoom
 - Keyframe animation + Bézier curve paths for smooth camera movement
-- Relative/absolute positioning, looping, infinite duration
-- Multi-track timeline: camera, letterbox, audio, event, mod event
+- Relative/absolute positioning, looping, infinite duration, camera follow/look-at tracking
+- Multi-track timeline: camera, letterbox, audio, event, mod event, overlay (fade / image / subtitle / pip)
 - Widescreen letterbox bars with keyframe-driven aspect ratio animation
-- Morph transitions between shots
+- Morph transitions between shots (crossfade model)
 
 **Trigger System (Server-Side)**
-- 16 trigger types: login, location (point+radius / cuboid area), advancement, biome, dimension change, entity kill, entity interact, block interact, item-on-interact, item craft, item use, item consume, inventory, structure, gamestage, custom event
+- 23 trigger types: login, location (point+radius / cuboid area), advancement, biome, entity kill (with scene conditions: dimension/biome/position), entity interact, block interact, item-on-interact (item+target+target_type, bare-hand support), dimension change, dimension residency, item craft, item use, item consume, item release, item instant use, item use interrupt, item pickup, item drop, xp (level/total), observation (server raycast, block/entity), inventory, structure, gamestage
 - OR/AND logic and wildcard matching supported
-- Repeatable or single-fire, with configurable delay
+- Repeatable or single-fire, with configurable delay and on_enter/exit_buffer
 
 **Runtime Control**
 - 18 behavior flags: skippable, interruptible, hold-at-end, keyboard/mouse/mob-AI blocking, 7 independent HUD toggles, arm hiding, view bob suppression, player model rendering, pause-when-paused, etc.
-- Script queuing and preemption for fixed-camera zones
+- Playback queue: un-interruptible scripts queue incoming requests (capacity 8, priority-ordered, auto-continue); interruptible scripts are replaced immediately; priority never overrides interruptibility
 - Multi-player script tracking with completion sync
 
 **Compatibility**
+- Forge 47.x+ and Fabric (Architectury multi-loader)
 - Shader pack compatible (no OpenGL pipeline intrusion)
 - View bobbing suppression (hurt shake, walk bob, nausea)
 - Pause-aware: scripts freeze when game is paused
@@ -50,7 +51,7 @@ ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server
 
 ## Getting Started
 
-1. Install [Minecraft Forge 1.20.1](https://files.minecraftforge.net/net/minecraftforge/forge/index_1.20.1.html) (47.x+)
+1. Install [Minecraft Forge 1.20.1](https://files.minecraftforge.net/net/minecraftforge/forge/index_1.20.1.html) (47.x+) or Fabric 1.20.1
 2. Download ImmersiveCinematics and place it in `.minecraft/mods/`
 3. Launch the game
 
@@ -58,13 +59,15 @@ ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server
 
 | Command | Description |
 |---------|-------------|
-| `/icinematics play <file>` | Play a cinematic script |
-| `/icinematics stop` | Stop current playback |
+| `/icinematics play <file> [players]` | Play a cinematic script (defaults to all players, supports `@a`/`@p` selectors) |
+| `/icinematics stop [players]` | Stop current playback |
 | `/icinematics status` | Show playback status |
+| `/icinematics reload` | Sync global scripts to the world save and reload triggers |
+| `/icinematics validate <file>` | Static-validate a script file (authoring self-check) |
 
 ### In-Game Editor
 
-Use the built-in timeline editor to create and modify scripts visually without leaving the game.
+Use the built-in timeline editor to create and modify scripts visually without leaving the game. Multi-track timeline, keyframe editing, playback control (play/pause toggle + reset-to-first-frame), camera gizmo, and trigger condition editors.
 
 A single build includes both playback runtime and the in-game editor. All users download the same jar.
 
@@ -78,6 +81,7 @@ A single build includes both playback runtime and the in-game editor. All users 
 |---|---------|
 | Minecraft | 1.20.1 |
 | Forge | 47.x+ |
+| Fabric | 0.14.0+ |
 | Script Format | v3 |
 
 ---
@@ -85,9 +89,9 @@ A single build includes both playback runtime and the in-game editor. All users 
 ## What's Next
 
 **0.4.0**
-- Audio track: background music and sound effects synced to timeline, with fade-in/out and looping
-- Event track: execute in-game commands at any point on the timeline
-- Full multi-track timeline support: all track types visible and editable
+- Camera instance queue and picture-in-picture overlays
+- stat / item_smelt triggers
+- Relative-segment baseline for camera paths
 
 ---
 

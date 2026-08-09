@@ -2,6 +2,37 @@
 
 音乐配乐 + 覆盖层 + 事件重构 + 镜头追踪与呼吸扰动 + 翻滚角修复。
 
+### 2026-08-09 追加 — 触发器完成、播放队列、编辑器事件树重构、预览与网络加固
+
+**触发器（23 种，custom 删除）**
+- 接线 `item_on_interact`（物品+目标+target_type，支持空手 `""`）与 `advancement`（PLAYER_ADVANCEMENT 事件携带 id 匹配，不再误判历史进度）
+- 新增 `ItemUseMixin` 覆盖使用状态机：`item_consume`（用完，completeUsingItem）/ `item_release`（弓/弩/三叉戟/望远镜松手，UseAnim 判定）/ `item_use_interrupt`（吃一半松手等）
+- 新增 `item_instant_use`（投掷物实体判定：雪球/鸡蛋/珍珠/药水/经验瓶）、`xp`（等级/累计经验轮询）、`dimension`（维度驻留轮询）、`item_pickup`/`item_drop`（拾取/丢弃事件）
+- 新增 `observation`（服务端射线注视，block/entity/缺省近者优先，reach 可配）
+- `entity_kill` 场景条件：dimension/biome/position/corner1+corner2（按击杀时刻记录，非玩家当前位置）
+- 删除 `custom` 触发器（注册/求值/编辑器/文档/示例脚本全清）
+- B5 触发器状态同步：触发/完成/JOIN 补发 `S2CTriggerStateSyncPacket`
+
+**播放队列（C1，用户确认规则）**
+- `ScriptQueue` 容量 8：不可打断脚本播放时新请求一律排队（priority 降序 + FIFO），结束自动接播；可打断脚本被请求立即替换（无渐出）
+- 优先级不能大于打断：priority 仅用于队列内排序；移除 queueable 参数与高优先级强制抢占
+- 客户端 `/icinematics queue` 查询命令不实施（与服务端命令根冲突）
+
+**编辑器**
+- 事件树命中统一绝对屏幕坐标（修复面板/预览区点击错位：absX/absY 双加父偏移）；滚动容器语义化（getScrollOffset 沿父链），移除 pushScroll 改 mouseY 的坐标补偿
+- 鼠标事件模板加容器裁剪（滚动区外不再命中不可见内容）；tab 栏固定不随内容滚动；切模式滚动归零（修复面板"全白"）
+- 顶部状态栏移除脚本列表按钮（面板 tab 已覆盖）；播放/暂停合并 toggle 按钮；终止按钮改为重置播放头到第一帧（保持预览激活，不再退出到玩家视角；玩家视角由脚本时间空隙自然产生）
+- 预览器修复：编辑器加载不同轨道布局脚本后轨道索引错位（OVERLAY 层不创建/音频误读）→ replaceScript 按布局重建 TrackPlayer；捕获前 flush GUI 缓冲（覆盖层落盘）
+- E1 布局常量提取、E3 letterbox smoothstep、E4 删除无用 MathUtil 方法
+
+**网络加固**
+- 新增 `NetworkGuard`：所有 C2S 发包统一防护，玩家随时退出/断线不再因 `sendToServer` 抛异常闪退（覆盖脚本结束通知/暂停握手/ACK 重发/回执）
+
+**其它**
+- `ScriptValidator` position 检查限定 CAMERA 轨道（消除非 CAMERA 轨道误报）；新增 9 个触发器冒烟测试脚本
+
+
+
 ### Added
 - **AUDIO 轨道**：OGG/WAV 音频播放（LWJGL OpenAL 直驱），关键帧控制音量与空间位置，淡入淡出、循环、衰减
 - **OVERLAY 轨道**：fade 全屏遮罩 / image 图片 / subtitle 字幕 / pip 画中画四类覆盖层，多层叠加按 zIndex 渲染

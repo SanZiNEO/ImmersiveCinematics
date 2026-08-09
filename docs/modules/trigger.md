@@ -55,4 +55,4 @@
 
 ## 已知问题
 
-- 服务端脚本完成状态追踪未接线：`TriggerStateStore.markScriptCompleted()`/`isScriptCompleted()`/`resetScript()`/`resetAll()` 均无外部调用方，`completedScripts` 集合永远不会写入，仅 `markTriggered`（非 repeatable 去重）实际生效（来源：`TriggerStateStore`、`PlayerTriggerState`）
+- `item_consume`/`item_release`/`item_use_interrupt` 依赖 `ItemUseMixin`（LivingEntity 注入），运行时需确认 Mixin 应用成功（defaultRequire=1，失败即启动崩溃）
