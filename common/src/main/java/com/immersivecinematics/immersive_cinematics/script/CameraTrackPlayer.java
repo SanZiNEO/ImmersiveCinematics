@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
@@ -153,9 +154,20 @@ public class CameraTrackPlayer implements TrackPlayer {
                 nextFrom != null ? KeyframeInterpolator.interpolateZoom(nextFrom, nextTo, nextS) : 1f,
                 weight);
 
-        // ====== Tracking override ======
+        // ====== Tracking override（覆盖开关，同 writeAttributes：follow 先定位置，look_at 用最终位置）======
         String lookAt = prevClip.getString("cam_tracking_look_at", "none");
         String follow = prevClip.getString("cam_tracking_follow", "none");
+        String selector = prevClip.getString("cam_tracking_target_selector", "@p");
+
+        if ("entity".equals(follow)) {
+            Entity followTarget = resolveEntity(selector);
+            if (followTarget != null) {
+                float ox = prevClip.getFloat("cam_tracking_follow_offset_x", 0);
+                float oy = prevClip.getFloat("cam_tracking_follow_offset_y", 2);
+                float oz = prevClip.getFloat("cam_tracking_follow_offset_z", 0);
+                pos = entityPosInterp(followTarget).add(ox, oy, oz);
+            }
+        }
 
         if ("coordinate".equals(lookAt) || "entity".equals(lookAt)) {
             Vec3 targetPos;
@@ -165,27 +177,19 @@ public class CameraTrackPlayer implements TrackPlayer {
                 float tz = prevClip.getFloat("cam_tracking_look_target_z", 0);
                 targetPos = new Vec3(tx, ty, tz);
             } else {
-                String selector = prevClip.getString("cam_tracking_target_selector", "@p");
-                targetPos = resolveEntityTarget(selector);
+                Entity targetEntity = resolveEntity(selector);
+                targetPos = targetEntity != null
+                        ? entityPosInterp(targetEntity).add(0, targetEntity.getBbHeight() / 2.0, 0)
+                        : null;
             }
             if (targetPos != null) {
                 double dx = targetPos.x - pos.x;
                 double dy = targetPos.y - pos.y;
                 double dz = targetPos.z - pos.z;
                 float newYaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
-                float newPitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx*dx + dz*dz)));
+                float newPitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
                 yaw = newYaw;
                 pitch = newPitch;
-            }
-        }
-
-        if ("entity".equals(follow)) {
-            Vec3 followTarget = resolveEntityTarget(prevClip.getString("cam_tracking_target_selector", "@p"));
-            if (followTarget != null) {
-                float ox = prevClip.getFloat("cam_tracking_follow_offset_x", 0);
-                float oy = prevClip.getFloat("cam_tracking_follow_offset_y", 2);
-                float oz = prevClip.getFloat("cam_tracking_follow_offset_z", 0);
-                pos = followTarget.add(ox, oy, oz);
             }
         }
         // ====== End tracking ======
@@ -217,9 +221,22 @@ public class CameraTrackPlayer implements TrackPlayer {
         float fov = KeyframeInterpolator.interpolateFov(from, to, s);
         float zoom = KeyframeInterpolator.interpolateZoom(from, to, s);
 
-        // ====== Tracking override ======
+        // ====== Tracking override（覆盖开关：follow 改位置、look_at 改朝向，互不叠加）======
+        // 顺序：先 follow 定最终位置，再 look_at 用最终位置计算朝向（否则朝向偏离一个 follow 偏移量）
         String lookAt = clip.getString("cam_tracking_look_at", "none");
         String follow = clip.getString("cam_tracking_follow", "none");
+        String selector = clip.getString("cam_tracking_target_selector", "@p");
+
+        if ("entity".equals(follow)) {
+            Entity followTarget = resolveEntity(selector);
+            if (followTarget != null) {
+                float ox = clip.getFloat("cam_tracking_follow_offset_x", 0);
+                float oy = clip.getFloat("cam_tracking_follow_offset_y", 2);
+                float oz = clip.getFloat("cam_tracking_follow_offset_z", 0);
+                // 位置 = 实体渲染帧插值位置（脚底基准）+ 固定偏移（纯加减法）
+                pos = entityPosInterp(followTarget).add(ox, oy, oz);
+            }
+        }
 
         if ("coordinate".equals(lookAt) || "entity".equals(lookAt)) {
             Vec3 targetPos;
@@ -229,27 +246,20 @@ public class CameraTrackPlayer implements TrackPlayer {
                 float tz = clip.getFloat("cam_tracking_look_target_z", 0);
                 targetPos = new Vec3(tx, ty, tz);
             } else {
-                String selector = clip.getString("cam_tracking_target_selector", "@p");
-                targetPos = resolveEntityTarget(selector);
+                // 实体目标：渲染帧插值位置 + 实体半高 = 参考对象正中心（不特定化玩家）
+                Entity targetEntity = resolveEntity(selector);
+                targetPos = targetEntity != null
+                        ? entityPosInterp(targetEntity).add(0, targetEntity.getBbHeight() / 2.0, 0)
+                        : null;
             }
             if (targetPos != null) {
                 double dx = targetPos.x - pos.x;
                 double dy = targetPos.y - pos.y;
                 double dz = targetPos.z - pos.z;
                 float newYaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
-                float newPitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx*dx + dz*dz)));
+                float newPitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
                 yaw = newYaw;
                 pitch = newPitch;
-            }
-        }
-
-        if ("entity".equals(follow)) {
-            Vec3 followTarget = resolveEntityTarget(clip.getString("cam_tracking_target_selector", "@p"));
-            if (followTarget != null) {
-                float ox = clip.getFloat("cam_tracking_follow_offset_x", 0);
-                float oy = clip.getFloat("cam_tracking_follow_offset_y", 2);
-                float oz = clip.getFloat("cam_tracking_follow_offset_z", 0);
-                pos = followTarget.add(ox, oy, oz);
             }
         }
         // ====== End tracking ======
@@ -358,11 +368,22 @@ public class CameraTrackPlayer implements TrackPlayer {
         );
     }
 
-    private Vec3 resolveEntityTarget(String selector) {
+    /** 解析目标实体（目前支持 @p/@s；未来可扩展 @e selector） */
+    private net.minecraft.world.entity.Entity resolveEntity(String selector) {
         if ("@p".equals(selector) || "@s".equals(selector)) {
             net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-            if (mc.player != null) return mc.player.position();
+            return mc.player;
         }
         return null; // Phase 1: only @p/@s supported
+    }
+
+    /** 实体渲染帧插值位置（上一 tick → 当前 tick 按渲染 partialTick 插值，消除 20Hz 步进卡顿） */
+    private static Vec3 entityPosInterp(net.minecraft.world.entity.Entity e) {
+        float pt = net.minecraft.client.Minecraft.getInstance().getFrameTime();
+        return new Vec3(
+                net.minecraft.util.Mth.lerp(pt, e.xo, e.getX()),
+                net.minecraft.util.Mth.lerp(pt, e.yo, e.getY()),
+                net.minecraft.util.Mth.lerp(pt, e.zo, e.getZ())
+        );
     }
 }

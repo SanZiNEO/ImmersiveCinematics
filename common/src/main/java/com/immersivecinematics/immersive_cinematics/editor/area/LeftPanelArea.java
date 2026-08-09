@@ -204,6 +204,20 @@ public class LeftPanelArea extends UIComponent {
         for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getClipFields(TrackType.valueOf(trackType.toUpperCase())).entrySet()) {
             if (!"start_time".equals(e.getKey()) && !"duration".equals(e.getKey()) && !"keyframes".equals(e.getKey())) keys.add(e.getKey());
         }
+        // 对立字段互斥：注视实体（entity）用 target_selector、注视坐标（coordinate）用 look_target_xyz，二者不同时显示；
+        // selector 同时供"跟随实体"使用——coordinate 模式且未开 follow 时才隐藏 selector
+        if ("CAMERA".equals(trackType) && selectedClip != null) {
+            String lookAt = selectedClip.has("cam_tracking_look_at") ? selectedClip.get("cam_tracking_look_at").getAsString() : "none";
+            String follow = selectedClip.has("cam_tracking_follow") ? selectedClip.get("cam_tracking_follow").getAsString() : "none";
+            if (!"coordinate".equals(lookAt)) {
+                keys.remove("cam_tracking_look_target_x");
+                keys.remove("cam_tracking_look_target_y");
+                keys.remove("cam_tracking_look_target_z");
+            }
+            if ("coordinate".equals(lookAt) && !"entity".equals(follow)) {
+                keys.remove("cam_tracking_target_selector");
+            }
+        }
         cy = reflectObject(selectedClip, lx, cy, keys.toArray(new String[0]), false);
     }
 
@@ -340,6 +354,28 @@ public class LeftPanelArea extends UIComponent {
         String current = parentObj.has(key) ? parentObj.get(key).getAsString() : (values.isEmpty() ? "" : values.get(0));
         String enumTKey = "editor.enum." + key + "." + current;
         String displayVal = I18n.exists(enumTKey) ? I18n.get(enumTKey) : current;
+
+        // 模式切换字段（cam_tracking_look_at / cam_tracking_follow）用下拉菜单：
+        // 切换模式后对立字段组（target_selector vs look_target_xyz）单独显示（buildClipProperties 按模式过滤）
+        if ("cam_tracking_look_at".equals(key) || "cam_tracking_follow".equals(key)) {
+            List<String> display = new ArrayList<>();
+            for (String v : values) {
+                String tk = "editor.enum." + key + "." + v;
+                display.add(I18n.exists(tk) ? I18n.get(tk) : v);
+            }
+            UIDropdown dd = new UIDropdown(ix, cy, iw, 16, display,
+                    () -> Math.max(0, values.indexOf(parentObj.has(key) ? parentObj.get(key).getAsString() : (values.isEmpty() ? "" : values.get(0)))),
+                    idx -> {
+                        if (idx < 0 || idx >= values.size()) return;
+                        parentObj.addProperty(key, values.get(idx));
+                        if (onDirty != null) onDirty.run();
+                        scheduleBuild();
+                    });
+            dd.setLabel(label);
+            addChild(dd);
+            return cy + 18;
+        }
+
         UIButton btn = new UIButton(ix, cy, iw, 16, label + ": " + displayVal, b -> {
             // C4：按 schema values 顺序循环（indexOf 找不到 → 回到第一个）
             String next = values.isEmpty() ? current : values.get((values.indexOf(current) + 1) % values.size());

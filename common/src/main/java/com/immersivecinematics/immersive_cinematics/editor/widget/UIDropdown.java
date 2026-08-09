@@ -18,6 +18,8 @@ public class UIDropdown extends UIComponent {
     private int maxListHeight = Integer.MAX_VALUE;
     private int listScrollOffset;
     private Consumer<Integer> onRightClick;
+    /** 可选字段名前缀（左侧显示，如"注视："），选项从其后开始 */
+    private String label;
 
     public UIDropdown(int x, int y, int w, int h, List<String> options,
                       Supplier<Integer> source, Consumer<Integer> sink) {
@@ -25,6 +27,11 @@ public class UIDropdown extends UIComponent {
         this.options = options;
         this.source = source;
         this.sink = sink;
+    }
+
+    public UIDropdown setLabel(String label) {
+        this.label = label;
+        return this;
     }
 
     public UIDropdown setHighlightIndex(int idx) {
@@ -51,14 +58,19 @@ public class UIDropdown extends UIComponent {
             if (idx >= 0 && idx < options.size()) rawText = options.get(idx);
         }
         String text = rawText;
-        int maxTextW = w - 18;
+        int labelW = 0;
+        if (label != null && !label.isEmpty()) {
+            labelW = ctx.font.width(label);
+            ctx.graphics.drawString(ctx.font, label, x + 4, y + (h - 8) / 2, EditorTheme.TEXT_SECONDARY);
+        }
+        int maxTextW = w - 18 - labelW;
         while (ctx.font.width(text) > maxTextW && !text.isEmpty())
             text = text.substring(0, text.length() - 1);
         if (!text.equals(rawText) && !rawText.isEmpty()) text += "..";
 
         ctx.graphics.fill(x, y, x + w, y + h, EditorTheme.BG_HOVER);
         ctx.graphics.renderOutline(x, y, w, h, EditorTheme.TEXT_DISABLED);
-        ctx.graphics.drawString(ctx.font, text, x + 4, y + (h - 8) / 2, EditorTheme.TEXT_PRIMARY);
+        ctx.graphics.drawString(ctx.font, text, x + 4 + labelW, y + (h - 8) / 2, EditorTheme.TEXT_PRIMARY);
         ctx.graphics.drawString(ctx.font, "\u25BC", x + w - 12, y + (h - 8) / 2, EditorTheme.TEXT_SECONDARY);
         renderTooltipIfHovered(ctx);
     }

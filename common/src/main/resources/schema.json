@@ -10,12 +10,12 @@
         "position_mode": { "type": "enum", "values": ["relative", "absolute"], "default": "relative" },
         "loop": { "type": "bool", "default": false },
         "loop_count": { "type": "int", "default": -1 },
-        "cam_tracking_look_at": { "type": "string", "default": "none" },
+        "cam_tracking_look_at": { "type": "enum", "values": ["none", "coordinate", "entity"], "default": "none" },
         "cam_tracking_look_target_x": { "type": "float", "default": 0 },
         "cam_tracking_look_target_y": { "type": "float", "default": 64 },
         "cam_tracking_look_target_z": { "type": "float", "default": 0 },
         "cam_tracking_target_selector": { "type": "string", "default": "@p" },
-        "cam_tracking_follow": { "type": "string", "default": "none" },
+        "cam_tracking_follow": { "type": "enum", "values": ["none", "entity"], "default": "none" },
         "cam_tracking_follow_offset_x": { "type": "float", "default": 0 },
         "cam_tracking_follow_offset_y": { "type": "float", "default": 2 },
         "cam_tracking_follow_offset_z": { "type": "float", "default": 0 },
@@ -41,14 +41,14 @@
     "AUDIO": {
       "clips": {
         "sound": { "type": "string", "required": true },
-        "source": { "type": "string", "default": "file" },
+        "source": { "type": "enum", "values": ["file", "minecraft"], "default": "file" },
         "volume": { "type": "float", "default": 1.0 },
         "pitch": { "type": "float", "default": 1.0 },
         "loop": { "type": "bool", "default": false },
         "fade_in": { "type": "float", "default": 0 },
         "fade_out": { "type": "float", "default": 0 },
-        "attenuation": { "type": "string", "default": "linear" },
-        "position_mode": { "type": "string", "default": "relative" }
+        "attenuation": { "type": "enum", "values": ["none", "linear", "inverse"], "default": "linear" },
+        "position_mode": { "type": "enum", "values": ["relative", "absolute"], "default": "relative" }
       },
       "keyframes": {
         "volume": { "type": "float", "default": 1.0 },
@@ -78,22 +78,19 @@
     },
     "OVERLAY": {
       "clips": {
-        "layer_type": { "type": "string", "required": true, "default": "fade" },
+        "layer_type": { "type": "enum", "values": ["fade", "image", "subtitle", "pip"], "required": true, "default": "fade" },
         "color": { "type": "string", "default": "#000000" },
         "path": { "type": "string", "default": "" },
         "text": { "type": "string", "default": "" },
-        "fade_in": { "type": "float", "default": 0 },
-        "fade_out": { "type": "float", "default": 0 },
-        "z_index": { "type": "int", "default": 10 }
+        "z_index": { "type": "int", "default": 20 },
+        "interpolation": { "type": "enum", "values": ["linear", "smooth"], "default": "linear" }
       },
       "keyframes": {
         "opacity": { "type": "float", "default": 0.0 },
         "x": { "type": "float", "default": 0 },
         "y": { "type": "float", "default": 0 },
-        "width": { "type": "float", "default": 0 },
-        "height": { "type": "float", "default": 0 },
-        "anchor_x": { "type": "float", "default": 0.5 },
-        "anchor_y": { "type": "float", "default": 0.5 }
+        "scale_x": { "type": "float", "default": 1 },
+        "scale_y": { "type": "float", "default": 1 }
       }
     }
   },

@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "id": "test_follow",
+    "name": "跟拍跟随测试",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "cam_tracking_follow 跟拍测试：相机位置 = 玩家实时位置 + 固定偏移，每帧更新跟随；朝向固定（不受玩家位置影响）；只屏蔽准星与手臂，键鼠不屏蔽，玩家可自由移动操控",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_crosshair": true,
+    "hide_arm": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 30,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "id": "camera_1",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "transition": "cut",
+            "interpolation": "linear",
+            "position_mode": "relative",
+            "loop": false,
+            "cam_tracking_follow": "entity",
+            "cam_tracking_target_selector": "@p",
+            "cam_tracking_follow_offset_x": 0,
+            "cam_tracking_follow_offset_y": 4,
+            "cam_tracking_follow_offset_z": -5,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 0, "dz": 0 }, "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 30, "position": { "dx": 0, "dy": 0, "dz": 0 }, "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
