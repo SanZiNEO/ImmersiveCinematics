@@ -241,7 +241,7 @@ public class LeftPanelArea extends UIComponent {
             if (!"time".equals(e.getKey())) kfKeys.add(e.getKey());
         }
         // 对立字段互斥（关键帧级）：look_at=entity 显示 look_at_selector、coordinate 显示 look_at_target_xyz/structure，
-        // follow=entity 显示 follow_selector
+        // follow=entity 显示 follow_selector；look_at 非 none 时 yaw/pitch 被目标点覆盖，隐藏编辑
         if ("CAMERA".equals(kfTrackType) && selectedKeyframe != null) {
             String lookAt = selectedKeyframe.has("look_at") ? selectedKeyframe.get("look_at").getAsString() : "none";
             String follow = selectedKeyframe.has("follow") ? selectedKeyframe.get("follow").getAsString() : "none";
@@ -251,6 +251,10 @@ public class LeftPanelArea extends UIComponent {
                 kfKeys.remove("look_at_target_y");
                 kfKeys.remove("look_at_target_z");
                 kfKeys.remove("look_at_target_structure");
+            }
+            if (!"none".equals(lookAt)) {
+                kfKeys.remove("yaw");
+                kfKeys.remove("pitch");
             }
             if (!"entity".equals(follow)) kfKeys.remove("follow_selector");
         }
