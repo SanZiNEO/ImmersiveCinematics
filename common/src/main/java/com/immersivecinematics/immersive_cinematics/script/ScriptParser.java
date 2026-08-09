@@ -89,10 +89,11 @@ public class ScriptParser {
             throw new ScriptParseException(p + ".version", "当前仅支持版本3，实际: " + version);
         }
 
-        boolean blockKeyboard = optBool(metaObj, "block_keyboard", true);
-        boolean blockMouse = optBool(metaObj, "block_mouse", true);
-        boolean blockMobAi = optBool(metaObj, "block_mob_ai", false);
-        boolean hideHud = optBool(metaObj, "hide_hud", true);
+        // 运行时行为默认值来自 schema.json "meta" 段（编辑器与播放器共用同一份 schema）
+        boolean blockKeyboard = optBoolMeta(metaObj, "block_keyboard");
+        boolean blockMouse = optBoolMeta(metaObj, "block_mouse");
+        boolean blockMobAi = optBoolMeta(metaObj, "block_mob_ai");
+        boolean hideHud = optBoolMeta(metaObj, "hide_hud");
         Boolean hideArm = optNullableBool(metaObj, "hide_arm");
         Boolean suppressBob = optNullableBool(metaObj, "suppress_bob");
         Boolean hideChat = optNullableBool(metaObj, "hide_chat");
@@ -104,11 +105,11 @@ public class ScriptParser {
         Boolean hideCrosshair = optNullableBool(metaObj, "hide_crosshair");
         Boolean hideBossbar = optNullableBool(metaObj, "hide_bossbar");
         Boolean hideSkipHud = optNullableBool(metaObj, "hide_skip_hud");
-        boolean renderPlayerModel = optBool(metaObj, "render_player_model", true);
-        boolean pauseWhenGamePaused = optBool(metaObj, "pause_when_game_paused", true);
-        boolean interruptible = optBool(metaObj, "interruptible", true);
-        boolean skippable = optBool(metaObj, "skippable", true);
-        boolean holdAtEnd = optBool(metaObj, "hold_at_end", true);
+        boolean renderPlayerModel = optBoolMeta(metaObj, "render_player_model");
+        boolean pauseWhenGamePaused = optBoolMeta(metaObj, "pause_when_game_paused");
+        boolean interruptible = optBoolMeta(metaObj, "interruptible");
+        boolean skippable = optBoolMeta(metaObj, "skippable");
+        boolean holdAtEnd = optBoolMeta(metaObj, "hold_at_end");
 
         ScriptMeta.RuntimeBehavior behavior = new ScriptMeta.RuntimeBehavior(
                 blockKeyboard, blockMouse, blockMobAi,
@@ -299,7 +300,7 @@ public class ScriptParser {
 
         return switch (def.type()) {
             case "float", "int" -> value.getAsJsonPrimitive().isNumber() ? value.getAsFloat() : null;
-            case "string" -> value.getAsString();
+            case "string", "enum" -> value.getAsString();
             case "bool" -> value.getAsBoolean();
             case "position" -> {
                 if (!value.isJsonObject()) throw new ScriptParseException(p + "." + fieldName, "position 需要 JSON 对象");
@@ -572,6 +573,14 @@ public class ScriptParser {
 
     private static boolean optBool(JsonObject obj, String key, boolean defaultVal) {
         return obj.has(key) ? obj.get(key).getAsBoolean() : defaultVal;
+    }
+
+    /** meta 字段默认值来自 schema.json "meta" 段（编辑器与播放器共用同一份 schema） */
+    private static boolean optBoolMeta(JsonObject obj, String key) {
+        if (obj.has(key)) return obj.get(key).getAsBoolean();
+        SchemaLoader.FieldDef def = SchemaLoader.getMetaFields().get(key);
+        if (def != null && def.defaultValue() instanceof Boolean b) return b;
+        return false;
     }
 
     /**

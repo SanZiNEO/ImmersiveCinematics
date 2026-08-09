@@ -44,8 +44,17 @@ public class CameraManager {
     private float previewTime;
     private CinematicScript previewScript;
 
+    /** D3：停止后阻止 setTime/pushScript 重新激活播放，直到用户显式 resume */
+    private boolean stopRequested = false;
+
     /** 上一帧的暂停状态，用于检测暂停↔恢复的转换 */
     private boolean lastFramePaused = false;
+
+    /** 组 6：预览模式相机是否已初始化（首次 start 时从玩家位置起步，之后重启不再重置相机 → 消除拖拽卡顿） */
+    private boolean previewInitialized = false;
+
+    /** 组 7：编辑器拖拽直控标志 — 直控期间 CameraTrackPlayer 跳过轨道写入，相机由编辑器直驱 */
+    private boolean previewDirectControl = false;
 
     public void activate() {
         Minecraft mc = Minecraft.getInstance();
@@ -180,13 +189,23 @@ public class CameraManager {
     public void pushScript(String jsonContent) {
         try {
             previewScript = com.immersivecinematics.immersive_cinematics.script.ScriptParser.parse(jsonContent);
-            if (previewMode && previewScript != null) {
+            // D3：停止后编辑内容照常缓存，但不重启激活
+            if (previewMode && !stopRequested && previewScript != null) {
                 if (!active) {
                     startScriptInternal(previewScript);
                 } else {
-                    scriptPlayer.start(previewScript);
+                    // 组 A：编辑模式常驻播放器 — 增量替换数据（零重建零重启；
+                    // TrackPlayer 数据源动态化，音频实例按 sound+startTime+duration 重映射复用）
+                    scriptPlayer.replaceScript(previewScript);
                 }
                 scriptPlayer.alignTime(previewTime, previewTime);
+                // 组 1/2：数据替换后同步暂停态并把实例定位到播放头
+                if (previewPaused) {
+                    scriptPlayer.pauseAudio();
+                } else {
+                    scriptPlayer.resumeAudio();
+                }
+                scriptPlayer.repositionAudio(previewTime);
             }
         } catch (com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException e) {
             LOGGER.error("编辑器传入的脚本 JSON 解析失败", e);
@@ -194,6 +213,11 @@ public class CameraManager {
     }
 
     public void setTime(float seconds) {
+        // D3：停止后只更新预览时间，不重新激活播放（NLE 语义：停止后点击只移动播放头）
+        if (stopRequested) {
+            previewTime = seconds;
+            return;
+        }
         previewTime = seconds;
         previewMode = true;
         previewPaused = true;
@@ -202,11 +226,21 @@ public class CameraManager {
         }
         // Align so that elapsed = previewTime when onRenderFrame sets gameTimeSeconds = previewTime
         scriptPlayer.alignTime(previewTime, previewTime);
+        // 组 1：定位即同步暂停态——先于 repositionAudio（其 paused 分支依赖此标志），
+        // 并覆盖 startScriptInternal 预执行首帧已创建/播放的实例。
+        scriptPlayer.pauseAudio();
         scriptPlayer.repositionAudio(previewTime);
     }
 
     public void resume() {
-        if (!previewMode) return;
+        // D3：停止后点播放 → 用最新 previewScript 重新激活并从 previewTime 续播
+        stopRequested = false;
+        if (!previewMode) {
+            if (previewScript == null) return;
+            previewMode = true;
+            if (!active) startScriptInternal(previewScript);
+            scriptPlayer.alignTime(previewTime, previewTime);
+        }
         previewPaused = false;
         lastRealNanos = 0;
     }
@@ -219,10 +253,20 @@ public class CameraManager {
         if (previewMode) {
             previewMode = false;
             previewPaused = true;
+            stopRequested = true;
             deactivateNow();
         } else {
+            // 游戏内停止路径：不设 stopRequested（避免污染后续编辑器会话）
             stopScript();
         }
+    }
+
+    /** D2：紧急停止（世界退出/断线时调用）：跳过退场动画直接清理，防止 OpenAL 音频残留 */
+    public void emergencyStop() {
+        previewMode = false;
+        previewPaused = true;
+        pendingCompletionReason = CompletionReason.STOPPED;
+        deactivateNow();
     }
 
     private void startScriptInternal(CinematicScript script) {
@@ -230,19 +274,25 @@ public class CameraManager {
         if (!previewMode) {
             mc.setScreen(null);
         }
-        Vec3 playerPos = mc.player.position();
 
         CinematicController.INSTANCE.releaseAllKeys();
 
-        activePath.setPositionDirect(playerPos);
-        activeProperties.setYawDirect(mc.player.getYRot());
-        activeProperties.setPitchDirect(mc.player.getXRot());
+        // 组 6：预览模式重启不再重置相机到玩家位置（否则每次 pushScript 节流重启都闪回 → 拖拽卡顿）。
+        // 首次进入预览（previewInitialized=false）仍初始化一次，保证预览首帧从玩家位置起步不闪白。
+        if (!previewMode || !previewInitialized) {
+            Vec3 playerPos = mc.player.position();
+            activePath.setPositionDirect(playerPos);
+            activeProperties.setYawDirect(mc.player.getYRot());
+            activeProperties.setPitchDirect(mc.player.getXRot());
+        }
+        previewInitialized = true;
 
         stagedReady = false;
         active = true;
         stopping = false;
 
-        scriptPlayer.start(script);
+        // 组 A：预执行首帧用播放头时间（预览模式），避免首帧写 t=0 造成画面跳变；游戏内播放传 0 保持原语义
+        scriptPlayer.start(script, previewMode ? previewTime : 0f);
         if (previewMode) {
             CinematicController.INSTANCE.setBlockKeyboard(false);
             CinematicController.INSTANCE.setBlockMouse(false);
@@ -252,6 +302,18 @@ public class CameraManager {
     }
 
     // ========== 预置状态写入（staged）— 仅供编辑器预览 ==========
+
+    // ========== 组 7：编辑器拖拽直控（bbs 式"编辑即生效"，零解析零重启） ==========
+
+    /** 编辑器拖拽直控：进入/退出直控态（直控期间 CameraTrackPlayer 跳过写入，相机由编辑器直驱） */
+    public void setPreviewDirectControl(boolean on) { previewDirectControl = on; }
+
+    public boolean isPreviewDirectControl() { return previewDirectControl; }
+
+    /** 编辑器拖拽直控：直接设置当前相机值（立即生效，零解析零重启） */
+    public void previewSetCamera(float yaw, float pitch, float roll, float fov, float zoom) {
+        activeProperties.setAllDirect(yaw, pitch, roll, fov, zoom);
+    }
 
     public void stageTargetPosition(Vec3 pos, float duration) {
         stagedPath.setTargetPosition(pos, duration);
@@ -308,18 +370,30 @@ public class CameraManager {
         // 编辑器预览暂停也算暂停
         boolean effectivelyPaused = gamePaused || (previewMode && previewPaused);
 
-        // 检测暂停↔恢复转换，通知服务端
+        // 组 1：每帧同步音频暂停状态（幂等；对齐 MC SoundEngine：暂停时无新声音、已有实例幂等 pause）。
+        // 必须位于 scriptPlayer.onRenderFrame 之前并每帧执行——修复「暂停检测在实例创建前」的时序缺陷。
+        // 诊断：打印暂停判定组成——若游戏内播放被误判为暂停（gamePaused/previewMode 异常）即可见。
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("camera pauseSync: eff={} gamePaused={} previewMode={} previewPaused={}",
+                    effectivelyPaused, gamePaused, previewMode, previewPaused);
+        }
+        if (effectivelyPaused) {
+            scriptPlayer.pauseAudio();
+        } else {
+            scriptPlayer.resumeAudio();
+        }
+
+        // 检测暂停↔恢复转换，通知服务端（握手仅转换时发送）
         if (effectivelyPaused != lastFramePaused) {
             lastFramePaused = effectivelyPaused;
             if (scriptPlayer.isPlaying()) {
                 String scriptId = scriptPlayer.getScriptId();
                 if (!"<none>".equals(scriptId)) {
-                    new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, effectivelyPaused).sendToServer();
-                }
-                if (effectivelyPaused) {
-                    scriptPlayer.pauseAudio();
-                } else {
-                    scriptPlayer.resumeAudio();
+                    // N1：暂停/恢复握手 — 登记 ACK，超时重发（handlePause 幂等）
+                    String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
+                    com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId,
+                            () -> new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, effectivelyPaused, refId).sendToServer());
+                    new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, effectivelyPaused, refId).sendToServer();
                 }
             }
         }
@@ -382,6 +456,9 @@ public class CameraManager {
         stopping = false;
         gameTimeSeconds = 0;
         lastRealNanos = 0;
+        // 组 6/7：停止后复位直控与初始化标志（下次预览重新从玩家位置起步）
+        previewDirectControl = false;
+        previewInitialized = false;
 
         CompletionReason reason = pendingCompletionReason;
         pendingCompletionReason = CompletionReason.FINISHED;

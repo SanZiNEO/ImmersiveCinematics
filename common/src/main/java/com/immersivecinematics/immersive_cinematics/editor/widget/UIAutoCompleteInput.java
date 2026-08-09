@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.editor.widget;
 
+import com.immersivecinematics.immersive_cinematics.editor.EditorTheme;
+
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import java.util.ArrayList;
@@ -42,13 +44,13 @@ public class UIAutoCompleteInput extends UIComponent implements IFocusable {
             text = source.get();
         }
         int labelW = ctx.font.width(label) + 4;
-        ctx.graphics.drawString(ctx.font, label, x, y + (h - 8) / 2, 0xFF999999);
+        ctx.graphics.drawString(ctx.font, label, x, y + (h - 8) / 2, EditorTheme.TEXT_MUTED);
 
         int inputX = x + labelW;
         int inputW = w - labelW;
-        int bg = focused ? 0xFF3A3A3A : 0xFF2A2A2A;
+        int bg = focused ? EditorTheme.BORDER_LIGHT : EditorTheme.BG_HOVER;
         ctx.graphics.fill(inputX, y, inputX + inputW, y + h, bg);
-        ctx.graphics.renderOutline(inputX, y, inputW, h, 0xFF555555);
+        ctx.graphics.renderOutline(inputX, y, inputW, h, EditorTheme.TEXT_DISABLED);
 
         String display = text;
         int tw = ctx.font.width(display);
@@ -58,7 +60,7 @@ public class UIAutoCompleteInput extends UIComponent implements IFocusable {
             }
             display += "...";
         }
-        ctx.graphics.drawString(ctx.font, display, inputX + 3, y + (h - 8) / 2, 0xFFCCCCCC);
+        ctx.graphics.drawString(ctx.font, display, inputX + 3, y + (h - 8) / 2, EditorTheme.TEXT_PRIMARY);
 
         if (focused) {
             int cursorX = inputX + 3 + ctx.font.width(display);

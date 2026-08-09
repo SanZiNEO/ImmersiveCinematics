@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.editor.widget;
 
+import com.immersivecinematics.immersive_cinematics.editor.EditorTheme;
+
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import java.util.List;
@@ -54,10 +56,10 @@ public class UIDropdown extends UIComponent {
             text = text.substring(0, text.length() - 1);
         if (!text.equals(rawText) && !rawText.isEmpty()) text += "..";
 
-        ctx.graphics.fill(x, y, x + w, y + h, 0xFF2A2A2A);
-        ctx.graphics.renderOutline(x, y, w, h, 0xFF555555);
-        ctx.graphics.drawString(ctx.font, text, x + 4, y + (h - 8) / 2, 0xFFCCCCCC);
-        ctx.graphics.drawString(ctx.font, "\u25BC", x + w - 12, y + (h - 8) / 2, 0xFF888888);
+        ctx.graphics.fill(x, y, x + w, y + h, EditorTheme.BG_HOVER);
+        ctx.graphics.renderOutline(x, y, w, h, EditorTheme.TEXT_DISABLED);
+        ctx.graphics.drawString(ctx.font, text, x + 4, y + (h - 8) / 2, EditorTheme.TEXT_PRIMARY);
+        ctx.graphics.drawString(ctx.font, "\u25BC", x + w - 12, y + (h - 8) / 2, EditorTheme.TEXT_SECONDARY);
         renderTooltipIfHovered(ctx);
     }
 
@@ -95,10 +97,10 @@ public class UIDropdown extends UIComponent {
             if (ctx.isMouseIn(x, itemY, w, h)) {
                 BufferBuilder hb = new BufferBuilder(64);
                 hb.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
-                vertex(hb, m, x, itemY, 0xFF444444);
-                vertex(hb, m, x, itemY + h, 0xFF444444);
-                vertex(hb, m, x + w, itemY + h, 0xFF444444);
-                vertex(hb, m, x + w, itemY, 0xFF444444);
+                vertex(hb, m, x, itemY, EditorTheme.SEPARATOR);
+                vertex(hb, m, x, itemY + h, EditorTheme.SEPARATOR);
+                vertex(hb, m, x + w, itemY + h, EditorTheme.SEPARATOR);
+                vertex(hb, m, x + w, itemY, EditorTheme.SEPARATOR);
                 BufferUploader.drawWithShader(hb.end());
             }
             ctx.graphics.drawString(ctx.font, options.get(i), x + 4, itemY + (h - 8) / 2, 0xFFBBBBBB);

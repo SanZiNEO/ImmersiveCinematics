@@ -55,7 +55,8 @@ public class FabricConfig implements Config.ConfigProvider {
                 getInt("triggerPollIntervalBiome", 40),
                 getInt("triggerPollIntervalInventory", 20),
                 getInt("triggerPollIntervalStructure", 20),
-                getInt("triggerPollIntervalGamestage", 20)
+                getInt("triggerPollIntervalGamestage", 20),
+                getBoolean("editorEnabled", true)
         );
     }
 
@@ -95,6 +96,7 @@ public class FabricConfig implements Config.ConfigProvider {
         root.addProperty("triggerPollIntervalInventory", 20);
         root.addProperty("triggerPollIntervalStructure", 20);
         root.addProperty("triggerPollIntervalGamestage", 20);
+        root.addProperty("editorEnabled", true);
         save();
     }
 

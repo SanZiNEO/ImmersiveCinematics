@@ -63,14 +63,68 @@ public class ScriptPlayer {
     // TrackPlayer 调度列表
     private List<TrackPlayer> trackPlayers = Collections.emptyList();
 
-    // ========== 生命周期 ==========
+    /** 组 A：当前脚本中指定类型轨道的 clips（动态数据源；TrackPlayer 不再持有构造快照） */
+    public List<Clip> clipsForTrack(TrackType type) {
+        if (script == null) return Collections.emptyList();
+        for (TimelineTrack t : script.getTimeline().getTracks()) {
+            if (t.getType() == type) return t.getClips();
+        }
+        return Collections.emptyList();
+    }
 
     /**
-     * 启动脚本播放
+     * 组 A：增量替换脚本数据（编辑器编辑路径，常驻播放器零重启）。
+     * <p>
+     * 只替换 CinematicScript 引用并通知各 TrackPlayer 复位/重映射——
+     * 不重建 TrackPlayer、不重新解码音频。相机/音频在下一帧用新数据驱动。
+     */
+    public void replaceScript(CinematicScript newScript) {
+        if (newScript == null) return;
+        this.script = newScript;
+        this.currentBehavior = newScript.getMeta() != null ? newScript.getMeta().getBehavior() : null;
+        for (TrackPlayer tp : trackPlayers) {
+            try {
+                tp.onScriptReplaced();
+            } catch (Exception e) {
+                LOGGER.error("TrackPlayer onScriptReplaced 异常", e);
+            }
+        }
+    }
+
+    // ========== 生命周期 ==========
+
+    /** 停止并清空当前所有 TrackPlayer（start 前与 stop 时共用，防音频实例泄漏） */
+    private void cleanupTrackPlayers() {
+        for (TrackPlayer tp : trackPlayers) {
+            try {
+                tp.onStop();
+            } catch (Exception e) {
+                LOGGER.error("TrackPlayer 停止异常", e);
+            }
+        }
+        trackPlayers = Collections.emptyList();
+    }
+
+    /**
+     * 启动脚本播放（预执行首帧从脚本开头开始——游戏内播放路径）
      *
      * @param script 已解析的脚本对象
      */
     public void start(CinematicScript script) {
+        start(script, 0f);
+    }
+
+    /**
+     * 启动脚本播放
+     *
+     * @param script        已解析的脚本对象
+     * @param preExecuteAt  预执行首帧的期望 elapsed 时间（预览模式 = previewTime，
+     *                      避免重启后首帧写 t=0 造成画面跳变；游戏内 = 0）
+     */
+    public void start(CinematicScript script, float preExecuteAt) {
+        // D1：替换 trackPlayers 前先清理旧实例（否则 AudioTrackPlayer 的 OpenAL source 泄漏 → 重复播放/无法停止）
+        cleanupTrackPlayers();
+
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) {
             LOGGER.error("无法启动脚本：玩家不存在");
@@ -102,17 +156,17 @@ public class ScriptPlayer {
             }
         }
 
-        // 创建 TrackPlayer 实例
+        // 创建 TrackPlayer 实例（组 A：数据源动态化，后续 replaceScript 不重建）
         trackPlayers = new ArrayList<>();
         for (TimelineTrack track : script.getTimeline().getTracks()) {
             if (track.getType() != TrackType.EVENT) {  // event 轨道不在客户端处理
-                trackPlayers.add(TrackPlayer.create(track, originPos,
+                trackPlayers.add(TrackPlayer.create(track.getType(), this, originPos,
                         CameraManager.INSTANCE, OverlayManager.INSTANCE));
             }
         }
 
-        // 预执行第一帧（避免首帧闪烁）
-        float elapsedSeconds = 0f;
+        // 预执行第一帧（避免首帧闪烁）— 用调用方期望的 elapsed（预览模式 = previewTime，避免 t=0 跳变）
+        float elapsedSeconds = preExecuteAt;
         for (TrackPlayer tp : trackPlayers) {
             if (tp.isActiveAt(elapsedSeconds)) {
                 try {
@@ -137,20 +191,13 @@ public class ScriptPlayer {
             LOGGER.info("脚本播放停止: {} (原因: {})", script.getName(), reason);
         }
 
-        // 通知所有 TrackPlayer 停止
-        for (TrackPlayer tp : trackPlayers) {
-            try {
-                tp.onStop();
-            } catch (Exception e) {
-                LOGGER.error("TrackPlayer 停止异常", e);
-            }
-        }
+        // 通知所有 TrackPlayer 停止并清空
+        cleanupTrackPlayers();
 
         this.playing = false;
         this.stopping = false;
         this.script = null;
         this.currentBehavior = null;
-        this.trackPlayers = Collections.emptyList();
     }
 
     public boolean isPlaying() {

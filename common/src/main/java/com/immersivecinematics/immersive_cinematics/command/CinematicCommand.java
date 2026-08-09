@@ -120,8 +120,16 @@ public class CinematicCommand {
             targets = server.getPlayerList().getPlayers();
         }
 
+        // N1：握手 — 登记 ACK，超时重发（幂等：playCinematic 有打断/排队逻辑）
+        final Collection<ServerPlayer> ackTargets = targets;
+        String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
+        com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId, () -> {
+            for (ServerPlayer p : ackTargets) {
+                S2CPlayScriptPacket.send(p, json, refId);
+            }
+        });
         for (ServerPlayer player : targets) {
-            S2CPlayScriptPacket.send(player, json);
+            S2CPlayScriptPacket.send(player, json, refId);
         }
 
         final int count = targets.size();
@@ -142,8 +150,16 @@ public class CinematicCommand {
             targets = server.getPlayerList().getPlayers();
         }
 
+        // N1：握手 — 登记 ACK，超时重发（幂等：重复 stop 安全）
+        final Collection<ServerPlayer> ackTargets = targets;
+        String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
+        com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId, () -> {
+            for (ServerPlayer p : ackTargets) {
+                S2CStopScriptPacket.send(p, "", refId);
+            }
+        });
         for (ServerPlayer player : targets) {
-            S2CStopScriptPacket.send(player, "");
+            S2CStopScriptPacket.send(player, "", refId);
         }
 
         final int count = targets.size();

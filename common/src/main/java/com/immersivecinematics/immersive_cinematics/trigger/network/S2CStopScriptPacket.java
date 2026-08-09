@@ -10,13 +10,20 @@ import net.minecraft.server.level.ServerPlayer;
 public class S2CStopScriptPacket extends BaseS2CMessage {
 
     private final String scriptId;
+    private final String refId;
 
     public S2CStopScriptPacket(String scriptId) {
+        this(scriptId, "");
+    }
+
+    public S2CStopScriptPacket(String scriptId, String refId) {
         this.scriptId = scriptId;
+        this.refId = refId;
     }
 
     public S2CStopScriptPacket(FriendlyByteBuf buf) {
         this.scriptId = buf.readUtf();
+        this.refId = buf.readUtf();
     }
 
     @Override
@@ -27,6 +34,7 @@ public class S2CStopScriptPacket extends BaseS2CMessage {
     @Override
     public void write(FriendlyByteBuf buf) {
         buf.writeUtf(scriptId);
+        buf.writeUtf(refId);
     }
 
     @Override
@@ -35,8 +43,13 @@ public class S2CStopScriptPacket extends BaseS2CMessage {
     }
 
     public String getScriptId() { return scriptId; }
+    public String getRefId() { return refId; }
 
     public static void send(ServerPlayer player, String scriptId) {
         new S2CStopScriptPacket(scriptId).sendTo(player);
+    }
+
+    public static void send(ServerPlayer player, String scriptId, String refId) {
+        new S2CStopScriptPacket(scriptId, refId).sendTo(player);
     }
 }

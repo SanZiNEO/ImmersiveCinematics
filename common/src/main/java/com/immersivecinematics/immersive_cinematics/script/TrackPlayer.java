@@ -39,24 +39,38 @@ public interface TrackPlayer {
     void onStop();
 
     /**
+     * 组 A：脚本数据被替换（编辑器编辑 → replaceScript）时调用。
+     * 实现应复位依赖 clip 对象身份的状态（lastClipIndex 等）；
+     * 音频轨道在此重映射实例（sound+startTime+duration 匹配复用，避免重解码）。
+     */
+    default void onScriptReplaced() {
+        // 默认无状态
+    }
+
+    /**
      * 工厂方法 — 根据轨道类型创建对应的 TrackPlayer
+     * <p>
+     * 组 A：TrackPlayer 不再持有轨道数据快照，数据源改为运行时从 {@link ScriptPlayer}
+     * 动态获取（{@link ScriptPlayer#clipsForTrack(TrackType)}）——编辑器编辑走 replaceScript
+     * 增量替换，TrackPlayer 零重建、常驻活跃。
      *
-     * @param track               时间轴轨道
-     * @param originPos           相对模式基准位置
-     * @param cameraManager       相机管理器（Camera 轨道需要）
-     * @param overlayManager      覆盖层管理器（Letterbox 轨道需要）
+     * @param type            轨道类型
+     * @param scriptPlayer    所属播放器（动态数据源）
+     * @param originPos       相对模式基准位置
+     * @param cameraManager   相机管理器（Camera 轨道需要）
+     * @param overlayManager  覆盖层管理器（Letterbox/Overlay 轨道需要）
      * @return 对应的 TrackPlayer 实例
      */
-    static TrackPlayer create(TimelineTrack track, Vec3 originPos,
+    static TrackPlayer create(TrackType type, ScriptPlayer scriptPlayer, Vec3 originPos,
                               com.immersivecinematics.immersive_cinematics.camera.CameraManager cameraManager,
                               com.immersivecinematics.immersive_cinematics.overlay.OverlayManager overlayManager) {
-        return switch (track.getType()) {
-            case CAMERA -> new CameraTrackPlayer(track, originPos, cameraManager);
-            case LETTERBOX -> new LetterboxTrackPlayer(track, overlayManager);
-            case AUDIO -> new AudioTrackPlayer(track, originPos);
-            case MOD_EVENT -> new ModEventTrackPlayer(track);
-            case OVERLAY -> new OverlayTrackPlayer(track, overlayManager);
-            default -> throw new IllegalArgumentException("未知轨道类型: " + track.getType());
+        return switch (type) {
+            case CAMERA -> new CameraTrackPlayer(scriptPlayer, type, originPos, cameraManager);
+            case LETTERBOX -> new LetterboxTrackPlayer(scriptPlayer, type, overlayManager);
+            case AUDIO -> new AudioTrackPlayer(scriptPlayer, type, originPos);
+            case MOD_EVENT -> new ModEventTrackPlayer(scriptPlayer, type);
+            case OVERLAY -> new OverlayTrackPlayer(scriptPlayer, type, overlayManager);
+            default -> throw new IllegalArgumentException("未知轨道类型: " + type);
         };
     }
 }

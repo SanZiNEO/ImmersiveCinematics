@@ -104,6 +104,10 @@ public class CinematicAudioInstance {
             return;
         }
 
+        // 诊断：解码结果（数据量/时长）——"滴滴"重复噪音常因数据极短（解码异常）导致每帧重播一个瞬态
+        LOGGER.debug("audio decode: file={} bytes={} ch={} sr={} dur={}",
+                fileName, rawAudio.remaining(), channels, sampleRate, duration);
+
         int format = channels == 1 ? AL_FORMAT_MONO16 : AL_FORMAT_STEREO16;
 
         this.buffer = alGenBuffers();
@@ -178,17 +182,29 @@ public class CinematicAudioInstance {
     }
 
     /**
+     * 精确定位（不改变播放状态；OpenAL AL_SEC_OFFSET）。
+     * 供暂停态定位使用：只 seek 不播放（用户语义：拖动播放头音频不触发）。
+     */
+    public void seekTo(float seconds) {
+        if (!valid) return;
+        alSourcef(source, AL_SEC_OFFSET, Math.max(0f, seconds));
+    }
+
+    /**
      * Sync audio to a specific time position. If the difference between
-     * current playback position and the target is larger than 0.5s, restart.
+     * current playback position and the target is larger than 0.5s, seek.
+     * 组 2：不再 stop+play 从头重播（会重复淡入），改为 AL_SEC_OFFSET 精确 seek。
      */
     public void syncToTime(float targetLocalTime, float volume, float fadeIn) {
         if (!valid) return;
         float currentTime = getCurrentTime();
         if (Math.abs(targetLocalTime - currentTime) > 0.5f) {
-            stop();
+            alSourcef(source, AL_SEC_OFFSET, Math.max(0f, targetLocalTime));
             float vol = (fadeIn > 0f && targetLocalTime < fadeIn) ? 0f : volume;
             setVolume(vol);
-            play();
+            if (alGetSourcei(source, AL_SOURCE_STATE) != AL_PLAYING) {
+                alSourcePlay(source);
+            }
         }
     }
 
@@ -212,6 +228,23 @@ public class CinematicAudioInstance {
     }
 
     public float getDuration() { return duration; }
+
+    /** 诊断：源状态（AL_SOURCE_STATE 4112；INITIAL=4113/PLAYING=4114/PAUSED=4115/STOPPED=4116） */
+    public int getSourceState() {
+        if (!valid) return -1;
+        return alGetSourcei(source, AL_SOURCE_STATE);
+    }
+
+    /** 诊断：实际增益（AL_GAIN 4106） */
+    public float getGain() {
+        if (!valid) return -1f;
+        return alGetSourcef(source, AL_GAIN);
+    }
+
+    /** 诊断：OpenAL 错误码（0 = AL_NO_ERROR） */
+    public int getOpenAlError() {
+        return alGetError();
+    }
 
     public float getCurrentTime() {
         if (!valid) return 0f;
@@ -306,6 +339,40 @@ public class CinematicAudioInstance {
             }
         } catch (Exception e) {
             LOGGER.error("Error loading Minecraft sound: {}", fileName, e);
+            return null;
+        }
+    }
+
+    /**
+     * 解码音频峰值（每 bucket 一个最大绝对值 0..1）；失败返回 null；file/minecraft 双源。
+     * 供编辑器波形显示（E1）。
+     */
+    public static float[] decodePeaks(String fileName, String sourceType, int buckets) {
+        try {
+            OggDecodeResult r;
+            if ("minecraft".equals(sourceType)) {
+                r = decodeOggFromMinecraft(fileName);
+            } else {
+                Path filePath = ResourcePath.resolve(fileName);
+                if (!Files.exists(filePath)) return null;
+                r = decodeOggFromFile(filePath);
+            }
+            if (r == null) return null;
+            r.rawAudio.rewind();
+            int n = r.rawAudio.remaining() / 2;
+            short[] samples = new short[n];
+            for (int i = 0; i < n; i++) samples[i] = r.rawAudio.getShort();
+            float[] peaks = new float[Math.max(1, buckets)];
+            int per = Math.max(1, n / peaks.length);
+            for (int b = 0; b < peaks.length; b++) {
+                float max = 0;
+                int from = b * per, to = Math.min(n, from + per);
+                for (int i = from; i < to; i++) max = Math.max(max, Math.abs(samples[i]) / 32768f);
+                peaks[b] = max;
+            }
+            return peaks;
+        } catch (Exception e) {
+            LOGGER.error("波形解码失败: {}", fileName, e);
             return null;
         }
     }

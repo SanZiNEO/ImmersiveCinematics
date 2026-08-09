@@ -9,15 +9,41 @@ import org.lwjgl.glfw.GLFW;
 
 public class CinematicKeyBindings {
 
+    private static final String EDITOR_CATEGORY = "key.categories.immersive_cinematics";
+
     public static final KeyMapping SKIP_KEY = new KeyMapping(
         "key.immersive_cinematics.skip",
         GLFW.GLFW_KEY_C,
-        "key.categories.immersive_cinematics"
+        EDITOR_CATEGORY
     );
-    public static final KeyMapping EDITOR_KEY = ImmersiveCinematics.EDITOR_ENABLED
+    // 组 8：运行时判断 Config.editorEnabled（类加载时求值一次；开关需重启生效）。
+    // 关闭后 EDITOR_KEY 为 null → 不注册键绑定、onClientTick 不响应、控制菜单无 "Open Editor" 项。
+    public static final KeyMapping EDITOR_KEY = (ImmersiveCinematics.EDITOR_ENABLED && Config.editorEnabled)
         ? new KeyMapping("key.immersive_cinematics.editor", GLFW.GLFW_KEY_F6,
-            "key.categories.immersive_cinematics")
+            EDITOR_CATEGORY)
         : null;
+
+    // ══════════════════════════════════════════════════════════════
+    //  编辑器单键快捷键（可绑定，与 EDITOR_KEY 一样在 Controls 中可改）
+    //  默认键与历史硬编码一致；未注册（编辑器禁用）时无任何副作用
+    // ══════════════════════════════════════════════════════════════
+    public static final KeyMapping EDITOR_PLAY_PAUSE    = new KeyMapping("key.immersive_cinematics.editor.play_pause",    GLFW.GLFW_KEY_SPACE,       EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_ADD_MARKER    = new KeyMapping("key.immersive_cinematics.editor.add_marker",    GLFW.GLFW_KEY_M,           EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_SET_LOOP_IN   = new KeyMapping("key.immersive_cinematics.editor.set_loop_in",   GLFW.GLFW_KEY_I,           EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_SET_LOOP_OUT  = new KeyMapping("key.immersive_cinematics.editor.set_loop_out",  GLFW.GLFW_KEY_O,           EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_PLAYHEAD_LEFT = new KeyMapping("key.immersive_cinematics.editor.playhead_left", GLFW.GLFW_KEY_LEFT,        EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_PLAYHEAD_RIGHT= new KeyMapping("key.immersive_cinematics.editor.playhead_right",GLFW.GLFW_KEY_RIGHT,       EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_NUDGE_UP      = new KeyMapping("key.immersive_cinematics.editor.nudge_up",      GLFW.GLFW_KEY_UP,          EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_NUDGE_DOWN    = new KeyMapping("key.immersive_cinematics.editor.nudge_down",    GLFW.GLFW_KEY_DOWN,        EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_HOME          = new KeyMapping("key.immersive_cinematics.editor.home",          GLFW.GLFW_KEY_HOME,        EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_END           = new KeyMapping("key.immersive_cinematics.editor.end",           GLFW.GLFW_KEY_END,         EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_PAGE_UP       = new KeyMapping("key.immersive_cinematics.editor.page_up",       GLFW.GLFW_KEY_PAGE_UP,     EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_PAGE_DOWN     = new KeyMapping("key.immersive_cinematics.editor.page_down",     GLFW.GLFW_KEY_PAGE_DOWN,   EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_CLIP_START    = new KeyMapping("key.immersive_cinematics.editor.clip_start",    GLFW.GLFW_KEY_LEFT_BRACKET, EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_CLIP_END      = new KeyMapping("key.immersive_cinematics.editor.clip_end",      GLFW.GLFW_KEY_RIGHT_BRACKET, EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_PLAY_CLIP     = new KeyMapping("key.immersive_cinematics.editor.play_clip",     GLFW.GLFW_KEY_ENTER,       EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_DELETE        = new KeyMapping("key.immersive_cinematics.editor.delete",        GLFW.GLFW_KEY_DELETE,      EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_FRAME_ALL     = new KeyMapping("key.immersive_cinematics.editor.frame_all",     GLFW.GLFW_KEY_F,           EDITOR_CATEGORY);
 
     private static long skipKeyDownSince = 0;
     private static boolean skipTriggered = false;

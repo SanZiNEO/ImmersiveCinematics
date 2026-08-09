@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.editor.trigger;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.editor.EditorTheme;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import net.minecraft.client.resources.language.I18n;
 import java.util.*;
@@ -139,7 +140,7 @@ public class TriggerPanel extends UIComponent {
         addChild(delayInput);
         cy += 20;
 
-        UILabel condLabel = new UILabel(lx, cy, I18n.get("editor.section.conditions"), 0xFF777777);
+        UILabel condLabel = new UILabel(lx, cy, I18n.get("editor.section.conditions"), EditorTheme.TEXT_DIM);
         addChild(condLabel);
         cy += 12;
 

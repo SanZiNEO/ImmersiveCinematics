@@ -64,6 +64,19 @@ public class ConfigScreen extends Screen {
                 .build());
         y += 28;
 
+        addRenderableWidget(Button.builder(
+                Component.translatable("config.immersive_cinematics.editorEnabled",
+                        toggleStr(Config.editorEnabled)),
+                btn -> {
+                    Config.setEditorEnabled(!Config.editorEnabled);
+                    btn.setMessage(Component.translatable("config.immersive_cinematics.editorEnabled",
+                            toggleStr(Config.editorEnabled)));
+                })
+                .bounds(midX - OPTION_WIDTH / 2, y, OPTION_WIDTH, 20)
+                .tooltip(Tooltip.create(Component.translatable("config.immersive_cinematics.editorEnabled.tooltip")))
+                .build());
+        y += 28;
+
         y += 10;
         addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, btn -> onClose())
                 .bounds(midX - OPTION_WIDTH / 2, y, OPTION_WIDTH, 20)

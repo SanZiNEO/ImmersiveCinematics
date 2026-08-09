@@ -9,13 +9,20 @@ import java.util.List;
 
 public class LetterboxTrackPlayer implements TrackPlayer {
 
-    private final List<Clip> clips;
+    private final ScriptPlayer scriptPlayer;
+    private final TrackType type;
     private final OverlayManager overlayManager;
     private int lastClipIdx = -1;
 
-    public LetterboxTrackPlayer(TimelineTrack track, OverlayManager overlayManager) {
-        this.clips = track.getClips();
+    public LetterboxTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, OverlayManager overlayManager) {
+        this.scriptPlayer = scriptPlayer;
+        this.type = type;
         this.overlayManager = overlayManager;
+    }
+
+    /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建） */
+    private List<Clip> clips() {
+        return scriptPlayer.clipsForTrack(type);
     }
 
     @Override
@@ -26,6 +33,7 @@ public class LetterboxTrackPlayer implements TrackPlayer {
     @Override
     public void onRenderFrame(float globalTime) {
         LetterboxLayer letterbox = overlayManager.getLetterboxLayer();
+        List<Clip> clips = clips();
         Clip activeClip = findActiveClip(globalTime);
 
         if (activeClip == null) {
@@ -72,12 +80,18 @@ public class LetterboxTrackPlayer implements TrackPlayer {
         overlayManager.getLetterboxLayer().setAspectRatio(0.0f);
     }
 
+    /** 组 A：数据替换后复位 clip 索引状态 */
+    @Override
+    public void onScriptReplaced() {
+        lastClipIdx = -1;
+    }
+
     private float clipTime(Clip clip, float globalTime) {
         return Math.max(0f, Math.min(clip.getDuration(), globalTime - clip.getStartTime()));
     }
 
     private Clip findActiveClip(float globalTime) {
-        for (Clip clip : clips) {
+        for (Clip clip : clips()) {
             boolean isActive;
             if (clip.getDuration() < 0) {
                 isActive = globalTime >= clip.getStartTime();

@@ -136,6 +136,8 @@ public class ScriptEventManager {
     }
 
     public void onServerTick(MinecraftServer server) {
+        // N1：ACK 超时重发检查（服务端侧；先于空检查执行）
+        com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.tick();
         if (scriptPlaybacks.isEmpty()) return;
         int currentTick = server.getTickCount();
 

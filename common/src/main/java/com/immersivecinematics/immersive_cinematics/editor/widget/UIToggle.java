@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.editor.widget;
 
+import com.immersivecinematics.immersive_cinematics.editor.EditorTheme;
+
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -20,13 +22,13 @@ public class UIToggle extends UIComponent {
     public void render(UIContext ctx) {
         boolean value = source != null && source.get();
         int toggleW = 20;
-        int bg = value ? 0xFF555555 : 0xFF333333;
+        int bg = value ? EditorTheme.TEXT_DISABLED : EditorTheme.BORDER;
         ctx.graphics.fill(x, y, x + toggleW, y + h, bg);
-        ctx.graphics.renderOutline(x, y, toggleW, h, 0xFF555555);
+        ctx.graphics.renderOutline(x, y, toggleW, h, EditorTheme.TEXT_DISABLED);
         if (value) {
-            ctx.graphics.fill(x + toggleW - h + 3, y + 3, x + toggleW - 3, y + h - 3, 0xFFAAAAAA);
+            ctx.graphics.fill(x + toggleW - h + 3, y + 3, x + toggleW - 3, y + h - 3, EditorTheme.TEXT_SECONDARY);
         }
-        ctx.graphics.drawString(ctx.font, label, x + toggleW + 5, y + (h - 8) / 2, 0xFF999999);
+        ctx.graphics.drawString(ctx.font, label, x + toggleW + 5, y + (h - 8) / 2, EditorTheme.TEXT_MUTED);
         renderTooltipIfHovered(ctx);
     }
 

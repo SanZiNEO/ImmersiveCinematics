@@ -7,10 +7,12 @@ package com.immersivecinematics.immersive_cinematics.script;
  */
 public class ModEventTrackPlayer implements TrackPlayer {
 
-    private final TimelineTrack track;
+    private final ScriptPlayer scriptPlayer;
+    private final TrackType type;
 
-    public ModEventTrackPlayer(TimelineTrack track) {
-        this.track = track;
+    public ModEventTrackPlayer(ScriptPlayer scriptPlayer, TrackType type) {
+        this.scriptPlayer = scriptPlayer;
+        this.type = type;
     }
 
     @Override

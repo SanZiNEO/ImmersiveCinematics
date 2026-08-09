@@ -22,6 +22,10 @@ public interface NetworkHandler {
     MessageType TRIGGER_STATE_SYNC = NET.registerS2C("trigger_state_sync", S2CTriggerStateSyncPacket::new);
     /** 更新跳过投票计数 */
     MessageType SKIP_VOTE_UPDATE = NET.registerS2C("skip_vote_update", S2CSkipVoteUpdatePacket::new);
+    /** 暂停/恢复包 ACK 回执（N1） */
+    MessageType SCRIPT_PAUSE_ACK = NET.registerS2C("script_pause_ack", S2CScriptPauseAckPacket::new);
+    /** 脚本文件重载通知（N2b，S2C — 只带文件名） */
+    MessageType SCRIPT_RELOAD = NET.registerS2C("script_reload", S2CScriptReloadPacket::new);
 
     // ===== C2S（客户端 → 服务端）=====
 
@@ -31,6 +35,8 @@ public interface NetworkHandler {
     MessageType PLAYBACK_STARTED = NET.registerC2S("playback_started", C2SPlaybackStartedPacket::new);
     /** 客户端通知服务端脚本暂停/恢复 */
     MessageType SCRIPT_PAUSE = NET.registerC2S("script_pause", C2SScriptPausePacket::new);
+    /** 编辑器保存成功通知（N2b，C2S — 只带文件名） */
+    MessageType SCRIPT_SAVED = NET.registerC2S("script_saved", C2SScriptSavedPacket::new);
 
     /** 触发 static 字段加载，SimpleNetworkManager 自动完成平台注册 */
     static void init() {

@@ -18,6 +18,24 @@ public class ClientEventHandler {
         KeyMappingRegistry.register(CinematicKeyBindings.SKIP_KEY);
         if (ImmersiveCinematics.EDITOR_ENABLED && CinematicKeyBindings.EDITOR_KEY != null) {
             KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_KEY);
+            // 编辑器单键快捷键（可绑定）
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_PLAY_PAUSE);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_ADD_MARKER);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_SET_LOOP_IN);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_SET_LOOP_OUT);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_PLAYHEAD_LEFT);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_PLAYHEAD_RIGHT);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_NUDGE_UP);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_NUDGE_DOWN);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_HOME);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_END);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_PAGE_UP);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_PAGE_DOWN);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_CLIP_START);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_CLIP_END);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_PLAY_CLIP);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_DELETE);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FRAME_ALL);
         }
 
         // ===== 客户端 Tick =====
@@ -25,6 +43,12 @@ public class ClientEventHandler {
         ClientTickEvent.CLIENT_POST.register(mc -> {
             CameraManager.INSTANCE.tick();
             CinematicKeyBindings.onClientTick();
+            // N1：ACK 超时重发检查（客户端侧）
+            com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.tick();
+            // D2：世界退出/断线时紧急停止（防止 OpenAL 音频残留播放）
+            if (mc.level == null && CameraManager.INSTANCE.isActive()) {
+                CameraManager.INSTANCE.emergencyStop();
+            }
         });
 
         // ===== HUD 渲染 =====

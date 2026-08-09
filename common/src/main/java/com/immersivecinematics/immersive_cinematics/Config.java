@@ -34,6 +34,11 @@ public class Config {
     /** 启用调试日志输出 */
     public static boolean debugLogging = false;
 
+    // ===== 编辑器配置 =====
+
+    /** 是否启用编辑器（F6 键绑定与编辑器界面；关闭即"无编辑器版本"，需重启生效） */
+    public static boolean editorEnabled = true;
+
     // ===== 触发器轮询间隔配置 =====
 
     /** location 触发器的轮询间隔（tick） */
@@ -78,11 +83,12 @@ public class Config {
             int triggerPollIntervalBiome,
             int triggerPollIntervalInventory,
             int triggerPollIntervalStructure,
-            int triggerPollIntervalGamestage
+            int triggerPollIntervalGamestage,
+            boolean editorEnabled
     ) {
         /** 使用默认值构造 */
         public static ConfigValues defaults() {
-            return new ConfigValues(3000, true, 100, false, 20, 40, 20, 20, 20);
+            return new ConfigValues(3000, true, 100, false, 20, 40, 20, 20, 20, true);
         }
     }
 
@@ -109,6 +115,7 @@ public class Config {
         triggerPollIntervalInventory = values.triggerPollIntervalInventory();
         triggerPollIntervalStructure = values.triggerPollIntervalStructure();
         triggerPollIntervalGamestage = values.triggerPollIntervalGamestage();
+        editorEnabled = values.editorEnabled();
     }
 
     // ===== ConfigScreen 写入接口 =====
@@ -126,5 +133,10 @@ public class Config {
     public static void setDebugLogging(boolean value) {
         debugLogging = value;
         if (provider != null) provider.setBoolean("debugLogging", value);
+    }
+
+    public static void setEditorEnabled(boolean value) {
+        editorEnabled = value;
+        if (provider != null) provider.setBoolean("editorEnabled", value);
     }
 }

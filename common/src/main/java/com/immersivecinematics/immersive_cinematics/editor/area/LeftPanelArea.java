@@ -4,7 +4,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import com.immersivecinematics.immersive_cinematics.editor.EditorTheme;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
+import com.immersivecinematics.immersive_cinematics.script.SchemaLoader;
+import com.immersivecinematics.immersive_cinematics.script.TrackType;
 import com.immersivecinematics.immersive_cinematics.editor.trigger.TriggerPanel;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import com.immersivecinematics.immersive_cinematics.editor.widget.IFocusable;
@@ -31,6 +34,8 @@ public class LeftPanelArea extends UIComponent {
     private long lastBuildTime;
 
     private int scrollY;
+    /** E7：滚轮滚动目标值（render 逐帧向它插值，实现平滑滚动） */
+    private int targetScrollY;
     private int maxScroll;
     private int contentHeight;
     private boolean scrollbarGrabbed;
@@ -49,6 +54,7 @@ public class LeftPanelArea extends UIComponent {
     private Consumer<String> onDescChanged;
     private Consumer<String> onBehaviorFlag;
     private Runnable onDirty;
+    private Consumer<JsonObject> onToggleTrackVisible;
 
     public LeftPanelArea(int x, int y, int w, int h) {
         super(x, y, w, h);
@@ -115,7 +121,7 @@ public class LeftPanelArea extends UIComponent {
     private void buildScriptList() {
         System.out.println("[KILO-DEBUG] LeftPanelArea.buildScriptList: scriptFileNames=" + scriptFileNames);
         int cy = contentY() + 6;
-        addChild(new UILabel(x + 6, cy, "Scripts", 0xFFAAAAAA));
+        addChild(new UILabel(x + 6, cy, "Scripts", EditorTheme.TEXT_SECONDARY));
         cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
 
         for (String name : scriptFileNames) {
@@ -123,7 +129,7 @@ public class LeftPanelArea extends UIComponent {
             UIButton itemBtn = new UIButton(x + 4, cy, w - 12, btnH, name, b -> {
                 if (onOpenScript != null) onOpenScript.accept(name);
             });
-            itemBtn.color(0x00, 0x443A3A3A).textColor(0xFFAAAAAA);
+            itemBtn.color(0x00, 0x443A3A3A).textColor(EditorTheme.TEXT_SECONDARY);
             addChild(itemBtn);
             cy += btnH + (int)(2 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
         }
@@ -131,13 +137,13 @@ public class LeftPanelArea extends UIComponent {
         UIButton newBtn = new UIButton(x + 4, cy, w - 12, (int)(20 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy), I18n.get("editor.script.new_button"), b -> {
             if (onNewScript != null) onNewScript.run();
         });
-        newBtn.color(0xFF333333, 0xFF444444).textColor(0xFFAAAAAA);
+        newBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER).textColor(EditorTheme.TEXT_SECONDARY);
         addChild(newBtn);
     }
 
     private void buildScriptProperties() {
         if (script == null) return;
-        fillMetaDefaults(script);
+        com.immersivecinematics.immersive_cinematics.editor.EditorDefaults.fillMetaDefaults(script);
 
         int cy = contentY() + 6;
         int lx = x + 6;
@@ -153,40 +159,50 @@ public class LeftPanelArea extends UIComponent {
         int sectionGap = (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
         int smallGap = (int)(4 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
         addSectionLabel(I18n.get("editor.section.script_info"), lx, cy, 0); cy += sectionGap;
-        cy = reflectObject(script, lx, cy, new String[]{"id", "name", "author", "version", "description", "dimension"});
+        cy = buildMetaFields(lx, cy, "info");
         cy += smallGap;
         addSectionLabel(I18n.get("editor.section.runtime"), lx, cy, 0); cy += sectionGap;
-        cy = reflectObject(script, lx, cy, new String[]{
-            "block_keyboard", "block_mouse", "block_mob_ai",
-            "hide_hud", "hide_arm", "suppress_bob",
-            "hide_chat", "hide_scoreboard", "hide_action_bar",
-            "hide_title", "hide_subtitles",
-            "hide_hotbar", "hide_crosshair", "hide_bossbar", "hide_skip_hud",
-            "render_player_model",
-            "pause_when_game_paused", "skippable", "hold_at_end", "interruptible"
-        });
+        cy = buildMetaFields(lx, cy, "runtime");
         cy += 4;
         addSectionLabel(I18n.get("editor.section.duration"), lx, cy, 0); cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
         addSectionLabel(I18n.get("editor.field.total_duration") + ": " + fmtDuration(totalDuration), lx, cy, 0); cy += (int)(14 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
     }
 
+    /** C4：按 schema 的 "meta" 段渲染指定 section 的字段（tristate 走三态按钮，其余按类型反射） */
+    private int buildMetaFields(int lx, int cy, String section) {
+        for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getMetaFields().entrySet()) {
+            if (!section.equals(e.getValue().section())) continue;
+            String key = e.getKey();
+            if ("tristate".equals(e.getValue().type())) {
+                cy = reflectTristate(key, lx, cy, 0, script);
+            } else if (script.has(key)) {
+                cy = reflectField(key, script.get(key), lx, cy, 0, script, null, false);
+            }
+        }
+        return cy;
+    }
+
     private void buildClipProperties() {
         if (selectedClip == null) return;
-        fillClipDefaults(selectedClip, selectedTrackType);
+        com.immersivecinematics.immersive_cinematics.editor.EditorDefaults.fillClipDefaults(selectedClip, selectedTrackType);
 
         int cy = contentY() + 6;
         int lx = x + 6;
 
         addSectionLabel(I18n.get("editor.section.clip_properties"), lx, cy, 0); cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
-        String[] keys = selectedClip.keySet().stream()
-                .filter(k -> !"keyframes".equals(k))
-                .toArray(String[]::new);
-        cy = reflectObject(selectedClip, lx, cy, keys);
+        // C4：字段顺序 = 通用字段 + schema clip 字段（白名单语义，schema 外字段不显示）
+        String trackType = selectedTrackType != null ? selectedTrackType : "CAMERA";
+        java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<>();
+        keys.add("start_time"); keys.add("duration");
+        for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getClipFields(TrackType.valueOf(trackType.toUpperCase())).entrySet()) {
+            if (!"start_time".equals(e.getKey()) && !"duration".equals(e.getKey()) && !"keyframes".equals(e.getKey())) keys.add(e.getKey());
+        }
+        cy = reflectObject(selectedClip, lx, cy, keys.toArray(new String[0]), false);
     }
 
     private void buildKeyframeProperties() {
         if (selectedKeyframe == null) return;
-        fillKeyframeDefaults(selectedKeyframe, selectedTrackType);
+        com.immersivecinematics.immersive_cinematics.editor.EditorDefaults.fillKeyframeDefaults(selectedKeyframe, selectedTrackType);
 
         if (selectedClip != null && selectedKeyframe.has("position")) {
             String mode = selectedClip.has("position_mode") ? selectedClip.get("position_mode").getAsString() : "relative";
@@ -208,7 +224,14 @@ public class LeftPanelArea extends UIComponent {
         int lx = x + 6;
 
         addSectionLabel(I18n.get("editor.section.keyframe_properties"), lx, cy, 0); cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
-        cy = reflectObject(selectedKeyframe, lx, cy, null);
+        // C4：字段顺序 = time + schema keyframe 字段
+        String kfTrackType = selectedTrackType != null ? selectedTrackType : "CAMERA";
+        java.util.LinkedHashSet<String> kfKeys = new java.util.LinkedHashSet<>();
+        kfKeys.add("time");
+        for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getKeyframeFields(TrackType.valueOf(kfTrackType.toUpperCase())).entrySet()) {
+            if (!"time".equals(e.getKey())) kfKeys.add(e.getKey());
+        }
+        cy = reflectObject(selectedKeyframe, lx, cy, kfKeys.toArray(new String[0]), true);
     }
 
     private void computeContentHeightAndClampScroll() {
@@ -240,183 +263,29 @@ public class LeftPanelArea extends UIComponent {
         return b;
     }
 
-    private static void addDefault(JsonObject obj, String key, Object val) {
-        if (!obj.has(key)) {
-            if (val instanceof Boolean b) obj.addProperty(key, b);
-            else if (val instanceof Integer i) obj.addProperty(key, i);
-            else if (val instanceof Float f) obj.addProperty(key, f);
-            else if (val instanceof Double d) obj.addProperty(key, d);
-            else if (val instanceof String s) obj.addProperty(key, s);
-            else if (val instanceof JsonObject jo) obj.add(key, jo.deepCopy());
-        }
-    }
-
-    private static void fillMetaDefaults(JsonObject meta) {
-        addDefault(meta, "description", "");
-        addDefault(meta, "block_mob_ai", false);
-        addDefault(meta, "render_player_model", true);
-        addDefault(meta, "pause_when_game_paused", true);
-    }
-
-    private static void fillClipDefaults(JsonObject clip, String trackType) {
-        if (trackType == null) trackType = "CAMERA";
-        switch (trackType.toUpperCase()) {
-            case "CAMERA" -> {
-                addDefault(clip, "transition", "cut");
-                addDefault(clip, "transition_duration", 0.5f);
-                addDefault(clip, "interpolation", "linear");
-                addDefault(clip, "position_mode", "relative");
-                addDefault(clip, "loop", false);
-                addDefault(clip, "loop_count", -1);
-                addDefault(clip, "cam_tracking_look_at", "none");
-                addDefault(clip, "cam_tracking_look_target_x", 0f);
-                addDefault(clip, "cam_tracking_look_target_y", 64f);
-                addDefault(clip, "cam_tracking_look_target_z", 0f);
-                addDefault(clip, "cam_tracking_target_selector", "@p");
-                addDefault(clip, "cam_tracking_follow", "none");
-                addDefault(clip, "cam_tracking_follow_offset_x", 0f);
-                addDefault(clip, "cam_tracking_follow_offset_y", 2f);
-                addDefault(clip, "cam_tracking_follow_offset_z", 0f);
-                addDefault(clip, "cam_breath_enabled", false);
-                addDefault(clip, "cam_breath_intensity", 0.05f);
-                addDefault(clip, "cam_breath_seed", 0);
-            }
-
-            case "AUDIO" -> {
-                addDefault(clip, "sound", "");
-                addDefault(clip, "source", "file");
-                addDefault(clip, "volume", 1.0f);
-                addDefault(clip, "pitch", 1.0f);
-                addDefault(clip, "loop", false);
-                addDefault(clip, "fade_in", 0.0f);
-                addDefault(clip, "fade_out", 0.0f);
-                addDefault(clip, "attenuation", "linear");
-                addDefault(clip, "position_mode", "relative");
-            }
-            case "EVENT" -> {
-                addDefault(clip, "event_type", "command");
-            }
-            case "MOD_EVENT" -> {
-                addDefault(clip, "event_type", "");
-            }
-            case "OVERLAY" -> {
-                addDefault(clip, "layer_type", "fade");
-                addDefault(clip, "color", "#000000");
-                addDefault(clip, "path", "");
-                addDefault(clip, "text", "");
-                addDefault(clip, "fade_in", 0.0f);
-                addDefault(clip, "fade_out", 0.0f);
-                addDefault(clip, "z_index", 10);
-            }
-        }
-    }
-
-    private static void fillKeyframeDefaults(JsonObject kf, String trackType) {
-        if (trackType == null) trackType = "CAMERA";
-        switch (trackType.toUpperCase()) {
-            case "CAMERA" -> {
-                addDefault(kf, "yaw", 0f);
-                addDefault(kf, "pitch", 0f);
-                addDefault(kf, "roll", 0f);
-                addDefault(kf, "fov", 70f);
-                addDefault(kf, "zoom", 1.0f);
-                if (!kf.has("position")) {
-                    JsonObject pos = new JsonObject();
-                    pos.addProperty("dx", 0f);
-                    pos.addProperty("dy", 0f);
-                    pos.addProperty("dz", 0f);
-                    kf.add("position", pos);
-                }
-            }
-            case "LETTERBOX" -> {
-                addDefault(kf, "aspect_ratio", 2.35f);
-            }
-            case "AUDIO" -> {
-                addDefault(kf, "volume", 1.0f);
-                addDefault(kf, "x", 0f);
-                addDefault(kf, "y", 0f);
-                addDefault(kf, "z", 0f);
-            }
-            case "EVENT" -> {
-                addDefault(kf, "event_type", "command");
-                addDefault(kf, "command", "");
-            }
-            case "OVERLAY" -> {
-                addDefault(kf, "opacity", 0.0f);
-                addDefault(kf, "x", 0f);
-                addDefault(kf, "y", 0f);
-                addDefault(kf, "width", 0f);
-                addDefault(kf, "height", 0f);
-                addDefault(kf, "anchor_x", 0.5f);
-                addDefault(kf, "anchor_y", 0.5f);
-            }
-        }
-    }
-    private static final Set<String> TRISTATE_KEYS = Set.of(
-        "hide_arm", "suppress_bob",
-        "hide_chat", "hide_scoreboard", "hide_action_bar",
-        "hide_title", "hide_subtitles", "hide_hotbar", "hide_crosshair",
-        "hide_bossbar", "hide_skip_hud"
-    );
-
-    private static final Set<String> CLIP_ENUM_KEYS = Set.of(
-        "transition", "interpolation", "position_mode",
-        "source", "attenuation",
-        "cam_tracking_look_at", "cam_tracking_follow"
-    );
-
-    private static String cycleClipEnum(String key, String current) {
-        return switch (key) {
-            case "transition" -> switch (current) {
-                case "cut" -> "morph";
-                case "morph" -> "cut";
-                default -> "cut";
-            };
-            case "interpolation" -> current.equals("linear") ? "smooth" : "linear";
-            case "position_mode" -> current.equals("relative") ? "absolute" : "relative";
-            case "source" -> current.equals("file") ? "minecraft" : "file";
-            case "attenuation" -> switch (current) {
-                case "none" -> "linear";
-                case "linear" -> "inverse";
-                case "inverse" -> "none";
-                default -> "linear";
-            };
-            case "cam_tracking_look_at" -> switch (current) {
-                case "none" -> "coordinate";
-                case "coordinate" -> "entity";
-                case "entity" -> "none";
-                default -> "none";
-            };
-            case "cam_tracking_follow" -> switch (current) {
-                case "none" -> "entity";
-                case "entity" -> "none";
-                default -> "none";
-            };
-            default -> current;
-        };
-    }
-
     /** Auto-reflect a JsonObject's fields as editable widgets (entry point). */
-    private int reflectObject(JsonObject obj, int lx, int cy, String[] orderedKeys) {
-        return reflectObjectAll(obj, lx, cy, 0, orderedKeys, null);
+    private int reflectObject(JsonObject obj, int lx, int cy, String[] orderedKeys, boolean isKeyframe) {
+        return reflectObjectAll(obj, lx, cy, 0, orderedKeys, null, isKeyframe);
     }
 
     private int reflectObjectAll(JsonObject obj, int lx, int cy, int depth,
-                                  String[] orderedKeys, String parentKey) {
+                                  String[] orderedKeys, String parentKey, boolean isKeyframe) {
         if (orderedKeys != null) {
             for (String key : orderedKeys) {
-                if (CLIP_ENUM_KEYS.contains(key)) {
-                    cy = reflectClipEnum(key, lx, cy, depth, obj);
-                } else if (TRISTATE_KEYS.contains(key)) {
-                    cy = reflectTristate(key, lx, cy, depth, obj);
+                // C4：枚举字段由 schema enum values 驱动（原 CLIP_ENUM_KEYS 硬编码集合已删除）
+                List<String> enumVals = SchemaLoader.getEnumValues(
+                        TrackType.valueOf((selectedTrackType != null ? selectedTrackType : "CAMERA").toUpperCase()),
+                        isKeyframe, key);
+                if (!enumVals.isEmpty()) {
+                    cy = reflectClipEnum(key, lx, cy, depth, obj, isKeyframe, enumVals);
                 } else if (obj.has(key)) {
-                    cy = reflectField(key, obj.get(key), lx, cy, depth, obj, parentKey);
+                    cy = reflectField(key, obj.get(key), lx, cy, depth, obj, parentKey, isKeyframe);
                 }
             }
             return cy;
         }
         for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
-            cy = reflectField(entry.getKey(), entry.getValue(), lx, cy, depth, obj, parentKey);
+            cy = reflectField(entry.getKey(), entry.getValue(), lx, cy, depth, obj, parentKey, isKeyframe);
         }
         return cy;
     }
@@ -441,7 +310,7 @@ public class LeftPanelArea extends UIComponent {
         });
 
         if (!hasValue) {
-            btn.color(0x00, 0x443A3A3A).textColor(0xFF777777);
+            btn.color(0x00, 0x443A3A3A).textColor(EditorTheme.TEXT_DIM);
         } else if (value) {
             btn.color(0x00, 0x44224422).textColor(0xFF44AA44);
         } else {
@@ -456,15 +325,17 @@ public class LeftPanelArea extends UIComponent {
         return value ? label + ": " + I18n.get("editor.enum.tristate.true") : label + ": " + I18n.get("editor.enum.tristate.false");
     }
 
-    private int reflectClipEnum(String key, int lx, int cy, int depth, JsonObject parentObj) {
+    private int reflectClipEnum(String key, int lx, int cy, int depth, JsonObject parentObj,
+                                boolean isKeyframe, List<String> values) {
         int ix = lx + depth * 10;
         int iw = w - 12 - depth * 10;
         String label = formatKey(key);
-        String current = parentObj.has(key) ? parentObj.get(key).getAsString() : cycleClipEnum(key, "");
+        String current = parentObj.has(key) ? parentObj.get(key).getAsString() : (values.isEmpty() ? "" : values.get(0));
         String enumTKey = "editor.enum." + key + "." + current;
         String displayVal = I18n.exists(enumTKey) ? I18n.get(enumTKey) : current;
         UIButton btn = new UIButton(ix, cy, iw, 16, label + ": " + displayVal, b -> {
-            String next = cycleClipEnum(key, current);
+            // C4：按 schema values 顺序循环（indexOf 找不到 → 回到第一个）
+            String next = values.isEmpty() ? current : values.get((values.indexOf(current) + 1) % values.size());
             parentObj.addProperty(key, next);
             if ("position_mode".equals(key)) {
                 convertKeyframePositions(parentObj, next);
@@ -472,7 +343,7 @@ public class LeftPanelArea extends UIComponent {
             if (onDirty != null) onDirty.run();
             scheduleBuild();
         });
-        btn.color(0x00, 0x44333A3A).textColor(0xFFAAAAAA);
+        btn.color(0x00, 0x44333A3A).textColor(EditorTheme.TEXT_SECONDARY);
         addChild(btn);
         return cy + 18;
     }
@@ -503,11 +374,11 @@ public class LeftPanelArea extends UIComponent {
     }
 
     private int reflectField(String key, JsonElement val, int lx, int cy,
-                              int depth, JsonObject parentObj, String parentKey) {
+                              int depth, JsonObject parentObj, String parentKey, boolean isKeyframe) {
         if (val.isJsonObject()) {
             addSectionLabel(formatKey(key) + ":", lx, cy, depth);
             cy += 12;
-            cy = reflectObjectAll(val.getAsJsonObject(), lx, cy, depth + 1, null, key);
+            cy = reflectObjectAll(val.getAsJsonObject(), lx, cy, depth + 1, null, key, isKeyframe);
             cy += 2;
             return cy;
         }
@@ -521,18 +392,18 @@ public class LeftPanelArea extends UIComponent {
                 if (el.isJsonObject()) {
                     addSectionLabel("[" + i + "]", lx, cy, depth + 1);
                     cy += 12;
-                    cy = reflectObjectAll(el.getAsJsonObject(), lx, cy, depth + 2, null, key);
+                    cy = reflectObjectAll(el.getAsJsonObject(), lx, cy, depth + 2, null, key, isKeyframe);
                 }
             }
             return cy;
         }
 
         if (!val.isJsonPrimitive()) return cy;
-        return reflectPrimitive(key, val, lx, cy, depth, parentObj);
+        return reflectPrimitive(key, val, lx, cy, depth, parentObj, isKeyframe);
     }
 
     private int reflectPrimitive(String key, JsonElement val, int lx, int cy,
-                                  int depth, JsonObject parentObj) {
+                                  int depth, JsonObject parentObj, boolean isKeyframe) {
         JsonPrimitive prim = val.getAsJsonPrimitive();
         int ix = lx + depth * 10;
         int iw = w - 12 - depth * 10;
@@ -553,6 +424,23 @@ public class LeftPanelArea extends UIComponent {
             float current = prim.getAsFloat();
             boolean isInt = current == Math.floor(current) && !Float.isInfinite(current) && key.equals("version");
             if (isInt) return cy;
+            // C4：schema int 类型字段 → 整数步进 1，提交时取整
+            boolean isIntField = false;
+            try {
+                SchemaLoader.FieldDef def = isKeyframe
+                        ? SchemaLoader.getKeyframeFields(TrackType.valueOf((selectedTrackType != null ? selectedTrackType : "CAMERA").toUpperCase())).get(key)
+                        : SchemaLoader.getClipFields(TrackType.valueOf((selectedTrackType != null ? selectedTrackType : "CAMERA").toUpperCase())).get(key);
+                isIntField = def != null && "int".equals(def.type());
+            } catch (Exception ignored) { }
+            if (isIntField) {
+                addFloatField(label, () -> {
+                    return parentObj.has(key) ? parentObj.get(key).getAsFloat() : 0;
+                }, ix, cy, -9999, 9999, 1f, v -> {
+                    parentObj.addProperty(key, Math.round(v));
+                    if (onDirty != null) onDirty.run();
+                }, iw);
+                return cy + 18;
+            }
             addFloatField(label, () -> {
                 return parentObj.has(key) ? parentObj.get(key).getAsFloat() : 0;
             }, ix, cy, -9999, 9999, 0.5f, v -> {
@@ -591,7 +479,7 @@ public class LeftPanelArea extends UIComponent {
     }
 
     private void addSectionLabel(String text, int lx, int cy, int depth) {
-        addChild(new UILabel(lx + depth * 10, cy, text, 0xFF777777));
+        addChild(new UILabel(lx + depth * 10, cy, text, EditorTheme.TEXT_DIM));
     }
 
     private int addFloatField(String label, java.util.function.Supplier<Float> source, int lx, int cy,
@@ -655,8 +543,14 @@ public class LeftPanelArea extends UIComponent {
     public void render(UIContext ctx) {
         if (!visible) return;
 
-        ctx.graphics.fill(x, y, x + w, y + h, 0xFF1A1A1A);
-        ctx.graphics.fill(x + w - 1, y, x + w, y + h, 0xFF2A2A2A);
+        ctx.graphics.fill(x, y, x + w, y + h, EditorTheme.BG_TRACK);
+        ctx.graphics.fill(x + w - 1, y, x + w, y + h, EditorTheme.BORDER_DARK);
+
+        // E7：向目标滚动值平滑逼近（滚动条拖动走即时路径不受影响）
+        if (scrollY != targetScrollY) {
+            scrollY += (int)((targetScrollY - scrollY) * 0.25f);
+            if (Math.abs(targetScrollY - scrollY) < 1) scrollY = targetScrollY;
+        }
 
         ctx.pushViewport(x, y, w, h);
         ctx.pushScroll(scrollY);
@@ -671,15 +565,15 @@ public class LeftPanelArea extends UIComponent {
         if (maxScroll > 0) {
             int sbX = x + w - 4;
             int sbH = h;
-            ctx.graphics.fill(sbX, y, sbX + 4, y + sbH, 0xFF222222);
+            ctx.graphics.fill(sbX, y, sbX + 4, y + sbH, EditorTheme.SCROLLBAR_BG);
             float thumbRatio = (float)h / contentHeight;
             int thumbH = Math.max(8, (int)(sbH * thumbRatio));
             int thumbY = y + (int)((float)scrollY / maxScroll * (sbH - thumbH));
-            ctx.graphics.fill(sbX, thumbY, sbX + 4, thumbY + thumbH, 0xFF777777);
-            ctx.graphics.renderOutline(sbX, thumbY, 4, thumbH, 0xFF555555);
+            ctx.graphics.fill(sbX, thumbY, sbX + 4, thumbY + thumbH, EditorTheme.SCROLLBAR_THUMB);
+            ctx.graphics.renderOutline(sbX, thumbY, 4, thumbH, EditorTheme.BORDER_LIGHT);
         }
 
-        ctx.graphics.renderOutline(x, y, w, h, 0xFF333333);
+        ctx.graphics.renderOutline(x, y, w, h, EditorTheme.BORDER);
     }
 
     @Override
@@ -705,7 +599,7 @@ public class LeftPanelArea extends UIComponent {
                     scrollbarGrabbed = true;
                     scrollbarGrabOffset = ctx.mouseY - thumbY;
                 } else {
-                    scrollY = (int)((float)(ctx.mouseY - y) / h * maxScroll);
+                    scrollY = targetScrollY = (int)((float)(ctx.mouseY - y) / h * maxScroll);
                     clampScrollY();
                 }
                 return true;
@@ -735,7 +629,7 @@ public class LeftPanelArea extends UIComponent {
             int thumbH = Math.max(8, (int)(h * thumbRatio));
             int trackSpace = h - thumbH;
             if (trackSpace > 0) {
-                scrollY = (int)((float)(ctx.mouseY - y - scrollbarGrabOffset) / trackSpace * maxScroll);
+                scrollY = targetScrollY = (int)((float)(ctx.mouseY - y - scrollbarGrabOffset) / trackSpace * maxScroll);
                 clampScrollY();
             }
             return true;
@@ -767,11 +661,9 @@ public class LeftPanelArea extends UIComponent {
         }
         ctx.popScroll(scrollY);
         if (maxScroll > 0) {
-            int oldScroll = scrollY;
-            scrollY -= (int)(scroll * 20);
+            // E7：滚轮改 targetScrollY，视觉由 render 渐变驱动（shiftViewport 已删除）
+            targetScrollY -= (int)(scroll * 20);
             clampScrollY();
-            int delta = scrollY - oldScroll;
-            ctx.shiftViewport(0, delta);
             return true;
         }
         return false;
@@ -792,7 +684,7 @@ public class LeftPanelArea extends UIComponent {
             if (m == mode) {
                 tab.color(0xFF333344, 0xFF444455).textColor(0xFFFFFFFF);
             } else {
-                tab.color(0xFF222222, 0xFF333333).textColor(0xFF888888);
+                tab.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER).textColor(0xFF888888);
             }
 
             addChild(tab);
@@ -827,11 +719,19 @@ public class LeftPanelArea extends UIComponent {
 
             int finalTi = ti;
             String label = type + "  (" + I18n.get("editor.label.clip_count", String.valueOf(clipCount)) + ")";
-            UIButton row = new UIButton(lx + 4, cy, w - 12, rowH, label, btn -> {
+            UIButton row = new UIButton(lx + 4, cy, w - 12 - 26, rowH, label, btn -> {
                 if (onTrackSelected != null) onTrackSelected.accept(finalTi);
             });
-            row.color(0x00, 0x443A3A3A).textColor(0xFFAAAAAA);
+            row.color(0x00, 0x443A3A3A).textColor(EditorTheme.TEXT_SECONDARY);
             addChild(row);
+
+            // 显隐开关 👁（点击切换，不切换选中轨道）
+            UIButton visBtn = new UIButton(lx + 4 + (w - 12 - 26) + 2, cy, 24, rowH,
+                    I18n.get("editor.tab.track_visible"), btn -> {
+                        if (onToggleTrackVisible != null) onToggleTrackVisible.accept(track);
+                    });
+            visBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER).textColor(EditorTheme.TEXT_SECONDARY);
+            addChild(visBtn);
 
             cy += rowH + 2;
         }
@@ -841,12 +741,13 @@ public class LeftPanelArea extends UIComponent {
     public void setTracks(JsonArray t) { this.tracks = t; dataDirty = true; }
 
     private void clampScrollY() {
-        scrollY = Math.max(0, Math.min(scrollY, maxScroll));
+        targetScrollY = Math.max(0, Math.min(targetScrollY, maxScroll));
     }
 
     private int tabBarY() { return y; }
     private int contentY() { return y + TAB_HEIGHT + 4; }
     private int contentH() { return h - TAB_HEIGHT - 4; }
     public void setOnTrackSelected(Consumer<Integer> r) { onTrackSelected = r; }
+    public void setOnToggleTrackVisible(Consumer<JsonObject> r) { onToggleTrackVisible = r; }
 }
     

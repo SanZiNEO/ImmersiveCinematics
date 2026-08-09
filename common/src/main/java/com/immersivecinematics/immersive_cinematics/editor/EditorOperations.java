@@ -46,81 +46,10 @@ public class EditorOperations {
         JsonObject kf1 = new JsonObject();
         kf1.addProperty("time", duration);
         kfs.add(kf1);
-        if ("CAMERA".equals(trackType)) {
-            JsonObject pos = new JsonObject();
-            pos.addProperty("dx", 0f);
-            pos.addProperty("dy", 0f);
-            pos.addProperty("dz", 0f);
-            kf0.add("position", pos);
-            kf0.addProperty("yaw", 0f);
-            kf0.addProperty("pitch", 0f);
-            kf0.addProperty("roll", 0f);
-            kf0.addProperty("fov", 70f);
-            kf0.addProperty("zoom", 1.0f);
-            kf1.addProperty("yaw", 0f);
-            kf1.addProperty("pitch", 0f);
-            kf1.addProperty("roll", 0f);
-            kf1.addProperty("fov", 70f);
-            kf1.addProperty("zoom", 1.0f);
-            JsonObject pos1 = new JsonObject();
-            pos1.addProperty("dx", 0f);
-            pos1.addProperty("dy", 0f);
-            pos1.addProperty("dz", 0f);
-            kf1.add("position", pos1);
-            clip.addProperty("transition", "cut");
-            clip.addProperty("transition_duration", 0.5f);
-            clip.addProperty("cam_tracking_look_at", "none");
-            clip.addProperty("cam_tracking_look_target_x", 0f);
-            clip.addProperty("cam_tracking_look_target_y", 64f);
-            clip.addProperty("cam_tracking_look_target_z", 0f);
-            clip.addProperty("cam_tracking_target_selector", "@p");
-            clip.addProperty("cam_tracking_follow", "none");
-            clip.addProperty("cam_tracking_follow_offset_x", 0f);
-            clip.addProperty("cam_tracking_follow_offset_y", 2f);
-            clip.addProperty("cam_tracking_follow_offset_z", 0f);
-            clip.addProperty("cam_breath_enabled", false);
-            clip.addProperty("cam_breath_intensity", 0.05f);
-            clip.addProperty("cam_breath_seed", 0);
-        } else if ("LETTERBOX".equals(trackType)) {
-            kf0.addProperty("aspect_ratio", 2.35f);
-            kf1.addProperty("aspect_ratio", 2.35f);
-        } else if ("AUDIO".equals(trackType)) {
-            clip.addProperty("sound", "");
-            clip.addProperty("source", "file");
-            clip.addProperty("volume", 1.0f);
-            clip.addProperty("pitch", 1.0f);
-            clip.addProperty("loop", false);
-            clip.addProperty("fade_in", 0.0f);
-            clip.addProperty("fade_out", 0.0f);
-            clip.addProperty("attenuation", "linear");
-            clip.addProperty("position_mode", "relative");
-        } else if ("EVENT".equals(trackType)) {
-            clip.addProperty("event_type", "command");
-            kf0.addProperty("event_type", "command");
-            kf0.addProperty("command", "");
-        } else if ("MOD_EVENT".equals(trackType)) {
-            clip.addProperty("event_type", "");
-        } else if ("OVERLAY".equals(trackType)) {
-            clip.addProperty("layer_type", "fade");
-            clip.addProperty("color", "#000000");
-            clip.addProperty("fade_in", 0.0f);
-            clip.addProperty("fade_out", 0.0f);
-            clip.addProperty("z_index", 10);
-            kf0.addProperty("opacity", 0.0f);
-            kf0.addProperty("x", 0f);
-            kf0.addProperty("y", 0f);
-            kf0.addProperty("width", 0f);
-            kf0.addProperty("height", 0f);
-            kf0.addProperty("anchor_x", 0.5f);
-            kf0.addProperty("anchor_y", 0.5f);
-            kf1.addProperty("opacity", 0.0f);
-            kf1.addProperty("x", 0f);
-            kf1.addProperty("y", 0f);
-            kf1.addProperty("width", 0f);
-            kf1.addProperty("height", 0f);
-            kf1.addProperty("anchor_x", 0.5f);
-            kf1.addProperty("anchor_y", 0.5f);
-        }
+        // C3：默认值由 schema.json 单源生成（原硬编码 switch 镜像已删除）
+        EditorDefaults.fillClipDefaults(clip, trackType);
+        EditorDefaults.fillKeyframeDefaults(kf0, trackType);
+        EditorDefaults.fillKeyframeDefaults(kf1, trackType);
         clip.add("keyframes", kfs);
         tracks.get(trackIndex).getAsJsonObject().getAsJsonArray("clips").add(clip);
         sortTrackClips(tracks);
@@ -191,6 +120,16 @@ public class EditorOperations {
 
     public static void moveClip(JsonObject clip, float newStart, float snapInterval) {
         clip.addProperty("start_time", Math.max(0, snap(newStart, snapInterval)));
+    }
+
+    /** D1：批量移动 clip（保持相对位置；start 不低于 0）；每 clip 调 moveClip 后统一排序 */
+    public static void moveClips(JsonArray tracks, List<JsonObject> clips, float deltaSeconds) {
+        for (JsonObject clip : clips) {
+            float ns = getStart(clip) + deltaSeconds;
+            if (ns < 0) ns = 0;
+            moveClip(clip, ns, 0);
+        }
+        sortTrackClips(tracks);
     }
     public static void resizeClipLeft(JsonObject clip, float newStart, float snapInterval) {
         float ns = Math.max(0, snap(newStart, snapInterval));

@@ -18,17 +18,26 @@ public class AudioTrackPlayer implements TrackPlayer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/Audio");
 
-    private final List<Clip> clips;
+    private final ScriptPlayer scriptPlayer;
+    private final TrackType type;
     private final Vec3 originPos;
     private final Map<Clip, CinematicAudioInstance> instances = new HashMap<>();
     private int lastClipIndex = -1;
 
+    /** 组 1：暂停状态（对齐 MC SoundEngine：暂停时不创建实例、不更新、不启动任何声音） */
+    private boolean paused = false;
+
     /** 记录每个 clip 的当前已触发时间，用于检测 clip 边界（active→inactive）。 */
     private final Set<Clip> previouslyActive = new HashSet<>();
 
+    /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建） */
+    private List<Clip> clips() {
+        return scriptPlayer.clipsForTrack(type);
+    }
 
-    public AudioTrackPlayer(TimelineTrack track, Vec3 originPos) {
-        this.clips = track.getClips();
+    public AudioTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos) {
+        this.scriptPlayer = scriptPlayer;
+        this.type = type;
         this.originPos = originPos;
     }
 
@@ -39,7 +48,14 @@ public class AudioTrackPlayer implements TrackPlayer {
 
     @Override
     public void onRenderFrame(float globalTime) {
+        // 持续压制 MC 背景音乐（每帧停一次，MusicManager 就不会启动新曲）—
+        // 放在暂停早退之前：编辑器会话内（含暂停态）始终替换 MC 音乐，保持旧行为。
+        Minecraft.getInstance().getSoundManager().stop(null, SoundSource.MUSIC);
+
+        // 组 1：暂停时不创建实例、不更新、不启动任何声音（对齐 MC SoundEngine tickNonPaused 语义）
+        if (paused) return;
         Clip activeClip = findActiveClip(globalTime);
+        List<Clip> clips = clips();
 
         // Handle clip transition: previously active clips that are no longer active
         Iterator<Map.Entry<Clip, CinematicAudioInstance>> it = instances.entrySet().iterator();
@@ -79,9 +95,6 @@ public class AudioTrackPlayer implements TrackPlayer {
             return;
         }
 
-        // 持续压制 MC 背景音乐（每帧停一次，MusicManager 就不会启动新曲）
-        Minecraft.getInstance().getSoundManager().stop(null, SoundSource.MUSIC);
-
         // New clip became active
         if (!instances.containsKey(activeClip)) {
             startClipInstance(activeClip);
@@ -94,6 +107,7 @@ public class AudioTrackPlayer implements TrackPlayer {
 
     @Override
     public void onStop() {
+        paused = false;   // 组 1：停止后复位暂停状态
         for (CinematicAudioInstance inst : instances.values()) {
             inst.cleanup();
         }
@@ -102,16 +116,66 @@ public class AudioTrackPlayer implements TrackPlayer {
         lastClipIndex = -1;
     }
 
-    public void pauseAll() {
-        for (CinematicAudioInstance inst : instances.values()) {
-            inst.pause();
+    /**
+     * 组 A：脚本数据替换（编辑器编辑）后，把旧实例重映射到新 clip 对象——
+     * 按 sound+startTime+duration 匹配复用（不重解码、不重建），失配的清理。
+     * 随后 CameraManager 会调用 repositionAudio 把实例 seek 到播放头。
+     */
+    @Override
+    public void onScriptReplaced() {
+        List<Clip> newClips = clips();
+        Map<Clip, CinematicAudioInstance> remapped = new HashMap<>();
+        for (Map.Entry<Clip, CinematicAudioInstance> e : instances.entrySet()) {
+            Clip old = e.getKey();
+            CinematicAudioInstance inst = e.getValue();
+            Clip match = null;
+            for (Clip nc : newClips) {
+                if (java.util.Objects.equals(nc.getSound(), old.getSound())
+                        && Math.abs(nc.getStartTime() - old.getStartTime()) < 0.001f
+                        && Math.abs(nc.getDuration() - old.getDuration()) < 0.001f) {
+                    match = nc;
+                    break;
+                }
+            }
+            if (match != null) {
+                remapped.put(match, inst);
+            } else {
+                inst.cleanup();
+            }
         }
+        instances.clear();
+        instances.putAll(remapped);
+        lastClipIndex = -1;
+        previouslyActive.clear();
     }
 
-    public void resumeAll() {
-        for (CinematicAudioInstance inst : instances.values()) {
-            inst.resume();
+    /**
+     * 组 1：幂等暂停 — 仅在暂停转换时暂停实例（对齐 MC SoundEngine.pause()：只转换时操作源）。
+     * 每帧同步只置标志不碰源——否则 PLAYING 源每帧被 alSourcePlay 反复触发 → 周期性从头重启（"滴滴"噪音）。
+     */
+    public void pauseAll() {
+        if (!paused) {
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("audio pause: instances={}", instances.size());
+            }
+            for (CinematicAudioInstance inst : instances.values()) {
+                inst.pause();
+            }
         }
+        paused = true;
+    }
+
+    /** 组 1：幂等恢复 — 仅在恢复转换时恢复实例（对齐 MC SoundEngine.resume()） */
+    public void resumeAll() {
+        if (paused) {
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("audio resume: instances={}", instances.size());
+            }
+            for (CinematicAudioInstance inst : instances.values()) {
+                inst.resume();
+            }
+        }
+        paused = false;
     }
 
     private void startClipInstance(Clip clip) {
@@ -158,6 +222,9 @@ public class AudioTrackPlayer implements TrackPlayer {
 
         inst.play();
         instances.put(clip, inst);
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("audio start: sound={} instances={} paused={}", sound, instances.size(), paused);
+        }
     }
 
     private void updateClipInstance(Clip clip, CinematicAudioInstance inst, float globalTime) {
@@ -192,6 +259,15 @@ public class AudioTrackPlayer implements TrackPlayer {
         float musicVol = Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC);
         float effectiveVolume = interpolatedVolume * fadeFactor * musicVol;
         inst.setVolume(effectiveVolume);
+
+        // 组 4：音量链路诊断日志（debug 级）— 确认 eff/interp/fade/music 实际值
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("audio vol: eff={} interp={} fade={} music={} local={}",
+                    effectiveVolume, interpolatedVolume, fadeFactor, musicVol, localTime);
+            // 输出层诊断：源状态（4112=AL_SOURCE_STATE）/ 播放偏移 / 实际增益 / OpenAL 错误码
+            LOGGER.debug("audio state: state={} offset={} gain={} err={}",
+                    inst.getSourceState(), inst.getCurrentTime(), inst.getGain(), inst.getOpenAlError());
+        }
 
         // Update position
         Vec3 pos = new Vec3(ix, iy, iz);
@@ -267,7 +343,7 @@ public class AudioTrackPlayer implements TrackPlayer {
     }
 
     private Clip findActiveClip(float globalTime) {
-        for (Clip clip : clips) {
+        for (Clip clip : clips()) {
             boolean isActive;
             if (clip.getDuration() < 0f) {
                 isActive = globalTime >= clip.getStartTime();
@@ -289,18 +365,47 @@ public class AudioTrackPlayer implements TrackPlayer {
      */
     public void repositionAudio(float globalTime) {
         Clip activeClip = findActiveClip(globalTime);
-        for (Map.Entry<Clip, CinematicAudioInstance> e : instances.entrySet()) {
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("audio reposition: global={} active={} instances={}", globalTime, activeClip != null, instances.size());
+        }
+        Iterator<Map.Entry<Clip, CinematicAudioInstance>> it = instances.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Clip, CinematicAudioInstance> e = it.next();
             Clip clip = e.getKey();
             CinematicAudioInstance inst = e.getValue();
             if (clip == activeClip) {
+                // 组 2：active 实例保留在 map（下一帧 onRenderFrame 正常 update，不重复创建）
                 float local = clipTime(clip, globalTime);
                 float vol = interpolateFloat(clip, local, "volume", clip.getVolume());
-                inst.syncToTime(local, vol, clip.getFadeIn());
+                if (paused) {
+                    // 暂停时定位：仅 seek 不播放（用户语义：拖动播放头音频不触发）
+                    inst.seekTo(local);
+                    inst.setVolume(vol);
+                } else {
+                    inst.syncToTime(local, vol, clip.getFadeIn());
+                }
             } else {
+                // 组 2：非 active 实例迭代清理（不再 instances.clear() 泄漏 active 实例）
                 inst.cleanup();
+                it.remove();
             }
         }
-        instances.clear();
+        // 组 2：定位到从未创建实例的 clip（如直接拖入另一 clip 内部）→ 补创建并按暂停态处理
+        if (activeClip != null && !instances.containsKey(activeClip)) {
+            startClipInstance(activeClip);
+            CinematicAudioInstance inst = instances.get(activeClip);
+            if (inst != null) {
+                float local = clipTime(activeClip, globalTime);
+                float vol = interpolateFloat(activeClip, local, "volume", activeClip.getVolume());
+                if (paused) {
+                    inst.pause();
+                    inst.seekTo(local);
+                    inst.setVolume(vol);
+                } else {
+                    inst.syncToTime(local, vol, activeClip.getFadeIn());
+                }
+            }
+        }
         previouslyActive.clear();
     }
 }

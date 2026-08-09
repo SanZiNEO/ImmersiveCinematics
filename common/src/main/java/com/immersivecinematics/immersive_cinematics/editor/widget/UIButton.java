@@ -10,6 +10,8 @@ public class UIButton extends UIComponent {
     private int color;
     private int hoverColor;
     private int textColor = 0xFFFFFF;
+    /** E1：显示中的颜色（向目标色逐帧插值，实现 hover 平滑过渡） */
+    private int displayColor;
 
     public UIButton(int x, int y, int w, int h, String text, Consumer<UIButton> onClick) {
         super(x, y, w, h);
@@ -17,6 +19,7 @@ public class UIButton extends UIComponent {
         this.onClick = onClick;
         this.color = 0xFF333333;
         this.hoverColor = 0xFF444444;
+        this.displayColor = this.color;
     }
 
     public UIButton color(int c, int hc) {
@@ -38,9 +41,10 @@ public class UIButton extends UIComponent {
 
     @Override
     public void render(UIContext ctx) {
-        int bg = isHovered(ctx) ? hoverColor : color;
-        ctx.graphics.fill(x, y, x + w, y + h, bg);
-        ctx.graphics.renderOutline(x, y, w, h, 0xFF555555);
+        int target = isHovered(ctx) ? hoverColor : color;
+        displayColor = com.immersivecinematics.immersive_cinematics.editor.EditorTheme.lerpColor(displayColor, target, 0.25f);
+        ctx.graphics.fill(x, y, x + w, y + h, displayColor);
+        ctx.graphics.renderOutline(x, y, w, h, com.immersivecinematics.immersive_cinematics.editor.EditorTheme.TEXT_DISABLED);
         int tw = ctx.font.width(text);
         ctx.graphics.drawString(ctx.font, text, x + (w - tw) / 2, y + (h - 8) / 2, textColor);
         renderTooltipIfHovered(ctx);

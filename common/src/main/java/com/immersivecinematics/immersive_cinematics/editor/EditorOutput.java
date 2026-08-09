@@ -53,16 +53,21 @@ public class EditorOutput {
     /** Called from editor Play button. */
     public void play() {
         pendingPlay = true;
+        pendingPause = false;
+        pendingStop = false;
     }
 
     /** Called from editor Pause button. */
     public void pause() {
         pendingPause = true;
+        pendingPlay = false;
     }
 
     /** Called from editor Stop button. */
     public void stop() {
         pendingStop = true;
+        pendingPlay = false;
+        pendingPause = false;
     }
 
     /**

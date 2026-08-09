@@ -5,7 +5,7 @@
       "clips": {
         "transition": { "type": "enum", "values": ["cut", "morph"], "default": "cut" },
         "transition_duration": { "type": "float", "default": 0.5 },
-        "interpolation": { "type": "enum", "values": ["linear"], "default": "linear" },
+        "interpolation": { "type": "enum", "values": ["linear", "smooth"], "default": "linear" },
         "curve": { "type": "bezier_curve" },
         "position_mode": { "type": "enum", "values": ["relative", "absolute"], "default": "relative" },
         "loop": { "type": "bool", "default": false },
@@ -78,7 +78,7 @@
     },
     "OVERLAY": {
       "clips": {
-        "layer_type": { "type": "string", "required": true },
+        "layer_type": { "type": "string", "required": true, "default": "fade" },
         "color": { "type": "string", "default": "#000000" },
         "path": { "type": "string", "default": "" },
         "text": { "type": "string", "default": "" },
@@ -96,5 +96,33 @@
         "anchor_y": { "type": "float", "default": 0.5 }
       }
     }
+  },
+  "meta": {
+    "id": { "type": "string", "default": "untitled", "required": true, "section": "info" },
+    "name": { "type": "string", "default": "Untitled", "required": true, "section": "info" },
+    "author": { "type": "string", "default": "", "section": "info" },
+    "version": { "type": "int", "default": 3, "required": true, "section": "info" },
+    "description": { "type": "string", "default": "", "section": "info" },
+    "dimension": { "type": "string", "default": "", "section": "info" },
+    "block_keyboard": { "type": "bool", "default": true, "section": "runtime" },
+    "block_mouse": { "type": "bool", "default": true, "section": "runtime" },
+    "block_mob_ai": { "type": "bool", "default": false, "section": "runtime" },
+    "hide_hud": { "type": "bool", "default": true, "section": "runtime" },
+    "hide_arm": { "type": "tristate", "section": "runtime" },
+    "suppress_bob": { "type": "tristate", "section": "runtime" },
+    "hide_chat": { "type": "tristate", "section": "runtime" },
+    "hide_scoreboard": { "type": "tristate", "section": "runtime" },
+    "hide_action_bar": { "type": "tristate", "section": "runtime" },
+    "hide_title": { "type": "tristate", "section": "runtime" },
+    "hide_subtitles": { "type": "tristate", "section": "runtime" },
+    "hide_hotbar": { "type": "tristate", "section": "runtime" },
+    "hide_crosshair": { "type": "tristate", "section": "runtime" },
+    "hide_bossbar": { "type": "tristate", "section": "runtime" },
+    "hide_skip_hud": { "type": "tristate", "section": "runtime" },
+    "render_player_model": { "type": "bool", "default": true, "section": "runtime" },
+    "pause_when_game_paused": { "type": "bool", "default": true, "section": "runtime" },
+    "interruptible": { "type": "bool", "default": true, "section": "runtime" },
+    "skippable": { "type": "bool", "default": true, "section": "runtime" },
+    "hold_at_end": { "type": "bool", "default": true, "section": "runtime" }
   }
 }

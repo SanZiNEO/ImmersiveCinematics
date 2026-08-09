@@ -8,7 +8,8 @@ import java.util.Random;
 
 public class CameraTrackPlayer implements TrackPlayer {
 
-    private final List<Clip> clips;
+    private final ScriptPlayer scriptPlayer;
+    private final TrackType type;
     private final Vec3 originPos;
     private final CameraManager cameraManager;
 
@@ -17,15 +18,22 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     private int lastClipIndex = 0;
 
-    public CameraTrackPlayer(TimelineTrack track, Vec3 originPos, CameraManager cameraManager) {
-        this.clips = track.getClips();
+    public CameraTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos, CameraManager cameraManager) {
+        this.scriptPlayer = scriptPlayer;
+        this.type = type;
         this.originPos = originPos;
         this.cameraManager = cameraManager;
+    }
+
+    /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建） */
+    private List<Clip> clips() {
+        return scriptPlayer.clipsForTrack(type);
     }
 
 
     @Override
     public boolean isActiveAt(float globalTime) {
+        List<Clip> clips = clips();
         Clip c = findActiveClip(globalTime);
         if (c != null) return true;
         for (int i = 0; i < clips.size() - 1; i++) {
@@ -41,7 +49,11 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     @Override
     public void onRenderFrame(float globalTime) {
+        List<Clip> clips = clips();
         if (clips.isEmpty()) return;
+
+        // 组 7：编辑器拖拽直控期间，相机由编辑器直驱（previewSetCamera），跳过轨道写入
+        if (cameraManager.isPreviewDirectControl()) return;
 
         // Morph: 在 [A_end, A_end+A.transition_duration) 内取 A 末帧→B 首帧 lerp
         for (int i = 0; i < clips.size() - 1; i++) {
@@ -263,7 +275,14 @@ public class CameraTrackPlayer implements TrackPlayer {
         // bezierStrategy 随 TrackPlayer 实例一起被 GC，其 LUT 缓存自动释放
     }
 
+    /** 组 A：数据替换后复位 clip 索引状态 */
+    @Override
+    public void onScriptReplaced() {
+        lastClipIndex = 0;
+    }
+
     private Clip findActiveClip(float globalTime) {
+        List<Clip> clips = clips();
         if (clips.isEmpty()) return null;
 
         Clip result = null;

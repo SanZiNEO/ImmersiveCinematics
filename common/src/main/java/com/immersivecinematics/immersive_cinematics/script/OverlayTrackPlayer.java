@@ -22,14 +22,21 @@ public class OverlayTrackPlayer implements TrackPlayer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OverlayTrackPlayer.class);
 
-    private final List<Clip> clips;
+    private final ScriptPlayer scriptPlayer;
+    private final TrackType type;
     private final OverlayManager overlayManager;
     private OverlayLayer currentLayer = null;
     private Clip activeClip = null;
 
-    public OverlayTrackPlayer(TimelineTrack track, OverlayManager overlayManager) {
-        this.clips = track.getClips();
+    public OverlayTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, OverlayManager overlayManager) {
+        this.scriptPlayer = scriptPlayer;
+        this.type = type;
         this.overlayManager = overlayManager;
+    }
+
+    /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建） */
+    private List<Clip> clips() {
+        return scriptPlayer.clipsForTrack(type);
     }
 
     @Override
@@ -71,6 +78,12 @@ public class OverlayTrackPlayer implements TrackPlayer {
 
     @Override
     public void onStop() {
+        cleanupCurrentLayer();
+    }
+
+    /** 组 A：数据替换后 clip 对象身份变化，onRenderFrame 的 activeClip 比较会自动重建 layer；这里仅清理当前层 */
+    @Override
+    public void onScriptReplaced() {
         cleanupCurrentLayer();
     }
 
@@ -255,9 +268,9 @@ public class OverlayTrackPlayer implements TrackPlayer {
     }
 
     private Clip findActiveClip(float globalTime) {
-        for (Clip clip : clips) {
+        for (Clip clip : clips()) {
             boolean isActive;
-            if (clip.getDuration() < 0) {
+            if (clip.getDuration() < 0f) {
                 isActive = globalTime >= clip.getStartTime();
             } else {
                 float clipEnd = clip.getStartTime() + clip.getDuration();

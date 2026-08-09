@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.editor.widget;
 
+import com.immersivecinematics.immersive_cinematics.editor.EditorTheme;
+
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -30,16 +32,16 @@ public class UIFloatInput extends UIComponent implements IFocusable {
             text = formatValue(source.get());
         }
         int labelW = ctx.font.width(label) + 4;
-        ctx.graphics.drawString(ctx.font, label, x, y + (h - 8) / 2, 0xFF999999);
+        ctx.graphics.drawString(ctx.font, label, x, y + (h - 8) / 2, EditorTheme.TEXT_MUTED);
 
         int inputX = x + labelW;
         int inputW = w - labelW;
-        int bg = focused ? 0xFF3A3A3A : 0xFF2A2A2A;
+        int bg = focused ? EditorTheme.BORDER_LIGHT : EditorTheme.BG_HOVER;
         ctx.graphics.fill(inputX, y, inputX + inputW, y + h, bg);
-        ctx.graphics.renderOutline(inputX, y, inputW, h, 0xFF555555);
+        ctx.graphics.renderOutline(inputX, y, inputW, h, EditorTheme.TEXT_DISABLED);
 
         int tw = ctx.font.width(text);
-        ctx.graphics.drawString(ctx.font, text, inputX + 4, y + (h - 8) / 2, 0xFFCCCCCC);
+        ctx.graphics.drawString(ctx.font, text, inputX + 4, y + (h - 8) / 2, EditorTheme.TEXT_PRIMARY);
 
         if (focused) {
             int cursorX = inputX + 4 + tw;
@@ -60,8 +62,10 @@ public class UIFloatInput extends UIComponent implements IFocusable {
     @Override
     protected boolean onScrolled(UIContext ctx, double scroll) {
         if (focused) {
+            // E10：Shift+滚轮 5 倍步进
+            float s = ctx.isShiftDown() ? step * 5 : step;
             float cur = source != null ? source.get() : 0;
-            float v = clamp(cur + (float) (scroll > 0 ? step : -step));
+            float v = clamp(cur + (float) (scroll > 0 ? s : -s));
             text = formatValue(v);
             if (sink != null) sink.accept(v);
             return true;

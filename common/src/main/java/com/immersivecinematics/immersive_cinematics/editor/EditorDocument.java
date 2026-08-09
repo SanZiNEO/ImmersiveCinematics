@@ -6,6 +6,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import java.util.Map;
+
 public class EditorDocument {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
@@ -31,30 +33,24 @@ public class EditorDocument {
     public void reset() {
         root = new JsonObject();
         JsonObject meta = new JsonObject();
-        meta.addProperty("id", "untitled");
-        meta.addProperty("name", "Untitled");
-        meta.addProperty("author", "Author");
-        meta.addProperty("version", 3);
-        meta.addProperty("description", "");
-        meta.addProperty("block_keyboard", true);
-        meta.addProperty("block_mouse", true);
-        meta.addProperty("block_mob_ai", false);
-        meta.addProperty("hide_hud", true);
-        meta.addProperty("hide_arm", true);
-        meta.addProperty("suppress_bob", true);
-        meta.addProperty("render_player_model", true);
-        meta.addProperty("pause_when_game_paused", true);
-        meta.addProperty("skippable", true);
-        meta.addProperty("hold_at_end", false);
-        meta.addProperty("interruptible", true);
+        // C5/C6：meta 默认值由 schema.json 的 "meta" 段单源生成（tristate 无默认不写入）
+        for (Map.Entry<String, com.immersivecinematics.immersive_cinematics.script.SchemaLoader.FieldDef> e
+                : com.immersivecinematics.immersive_cinematics.script.SchemaLoader.getMetaFields().entrySet()) {
+            Object def = e.getValue().defaultValue();
+            if (def instanceof Boolean b) meta.addProperty(e.getKey(), b);
+            else if (def instanceof Number n) meta.addProperty(e.getKey(), n.floatValue());
+            else if (def instanceof String s) meta.addProperty(e.getKey(), s);
+        }
         root.add("meta", meta);
         
         JsonObject timeline = new JsonObject();
         timeline.addProperty("total_duration", 10f);
         JsonArray tracks = new JsonArray();
-        for (String type : new String[]{"CAMERA", "LETTERBOX", "AUDIO", "EVENT", "MOD_EVENT"}) {
+        // C5：轨道列表跟随 TrackType 枚举（与 schema track_types 一致，含 OVERLAY）
+        for (com.immersivecinematics.immersive_cinematics.script.TrackType t
+                : com.immersivecinematics.immersive_cinematics.script.TrackType.values()) {
             JsonObject track = new JsonObject();
-            track.addProperty("type", type);
+            track.addProperty("type", t.name());
             track.add("clips", new JsonArray());
             tracks.add(track);
         }
