@@ -110,6 +110,12 @@ public class ContextMenu extends UIComponent {
         }
     }
 
+    /** 右键菜单属于浮层：overlay 阶段重绘，保证盖住任何展开的下拉列表/建议弹层 */
+    @Override
+    public void renderOverlay(UIContext ctx) {
+        if (visible) renderContent(ctx);
+    }
+
     @Override
     protected boolean onClicked(UIContext ctx) {
         if (!visible) return false;

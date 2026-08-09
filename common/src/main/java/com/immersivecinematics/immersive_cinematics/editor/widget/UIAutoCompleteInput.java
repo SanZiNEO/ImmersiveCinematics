@@ -69,11 +69,25 @@ public class UIAutoCompleteInput extends UIComponent implements IFocusable {
         renderTooltipIfHovered(ctx);
     }
 
+    /** 建议弹层高度（限高 + 不超出屏幕底部） */
+    private int popupHeight(UIContext ctx) {
+        int popupH = Math.min(filtered.size(), MAX_VISIBLE) * SUGGESTION_H;
+        int maxToBottom = ctx.screenHeight - (y + h);
+        if (popupH > maxToBottom) popupH = Math.max(0, maxToBottom);
+        return popupH;
+    }
+
+    /** 浮层命中：建议弹层区域优先于所有普通组件 */
+    @Override
+    protected boolean overlayHit(UIContext ctx) {
+        return isShowingSuggestions() && isInSuggestionArea(ctx);
+    }
+
     @Override
     public void renderOverlay(UIContext ctx) {
         if (!showSuggestions || filtered.isEmpty()) return;
 
-        int popupH = Math.min(filtered.size(), MAX_VISIBLE) * SUGGESTION_H;
+        int popupH = popupHeight(ctx);
         int totalH = filtered.size() * SUGGESTION_H;
         int maxScroll = Math.max(0, totalH - popupH);
         if (listScrollOffset > maxScroll) listScrollOffset = maxScroll;
@@ -138,7 +152,7 @@ public class UIAutoCompleteInput extends UIComponent implements IFocusable {
     @Override
     protected boolean onClicked(UIContext ctx) {
         if (showSuggestions && filtered.size() > 0) {
-            int popupH = Math.min(filtered.size(), MAX_VISIBLE) * SUGGESTION_H;
+            int popupH = popupHeight(ctx);
             int px = x;
             int py = y + h;
             for (int i = 0; i < filtered.size(); i++) {
@@ -165,7 +179,7 @@ public class UIAutoCompleteInput extends UIComponent implements IFocusable {
     /** Returns true if the given mouse position is within the suggestion popup area. */
     public boolean isInSuggestionArea(UIContext ctx) {
         if (!showSuggestions || filtered.isEmpty()) return false;
-        int popupH = Math.min(filtered.size(), MAX_VISIBLE) * SUGGESTION_H;
+        int popupH = popupHeight(ctx);
         return ctx.mouseX >= x && ctx.mouseX < x + w
             && ctx.mouseY >= y + h && ctx.mouseY < y + h + popupH;
     }
@@ -228,7 +242,7 @@ public class UIAutoCompleteInput extends UIComponent implements IFocusable {
     protected boolean onScrolled(UIContext ctx, double scroll) {
         if (!showSuggestions || filtered.isEmpty()) return false;
         int totalH = filtered.size() * SUGGESTION_H;
-        int popupH = Math.min(filtered.size(), MAX_VISIBLE) * SUGGESTION_H;
+        int popupH = popupHeight(ctx);
         if (!ctx.isMouseIn(x, y + h, w, popupH)) return false;
         listScrollOffset -= (int) scroll * SUGGESTION_H;
         int maxScroll = Math.max(0, totalH - popupH);

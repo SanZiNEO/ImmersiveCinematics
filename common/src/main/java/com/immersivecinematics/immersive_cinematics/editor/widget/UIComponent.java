@@ -128,12 +128,35 @@ public abstract class UIComponent {
     public final boolean mouseClicked(UIContext ctx) {
         if (!visible || !enabled) return false;
         List<UIComponent> ch = getChildren();
+        // pass 1：浮层优先（展开下拉列表/自动补全建议——后添加的优先）。
+        // 展开列表可能溢出父容器（画在兄弟区域之上），必须先于普通命中检查，
+        // 否则点击被下层组件（时间轴/预览区）吃掉。
+        for (int i = ch.size() - 1; i >= 0; i--) {
+            if (ch.get(i).overlayClicked(ctx)) return true;
+        }
         for (int i = ch.size() - 1; i >= 0; i--) {
             if (ch.get(i).mouseClicked(ctx)) return true;
         }
         if (onClicked(ctx)) {
             requestFocus();
             return true;
+        }
+        return false;
+    }
+
+    /** 浮层区域命中判断（默认 false；UIDropdown/UIAutoCompleteInput 重写为展开列表/建议弹层区域） */
+    protected boolean overlayHit(UIContext ctx) { return false; }
+
+    /**
+     * 浮层命中通道（递归）：自身浮层区域命中则走完整点击流程；否则递归子树浮层。
+     * 用于把展开列表的点击提升到所有普通组件之上。
+     */
+    public boolean overlayClicked(UIContext ctx) {
+        if (!visible || !enabled) return false;
+        if (overlayHit(ctx)) return mouseClicked(ctx);
+        List<UIComponent> ch = getChildren();
+        for (int i = ch.size() - 1; i >= 0; i--) {
+            if (ch.get(i).overlayClicked(ctx)) return true;
         }
         return false;
     }

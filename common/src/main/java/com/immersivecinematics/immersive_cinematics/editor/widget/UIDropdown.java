@@ -49,6 +49,21 @@ public class UIDropdown extends UIComponent {
         return this;
     }
 
+    /** 展开列表高度（限高 + 不超出屏幕底部） */
+    private int listHeight(UIContext ctx) {
+        int totalH = options.size() * h;
+        int listH = Math.min(totalH, maxListHeight);
+        int maxToBottom = ctx.screenHeight - (y + h);
+        if (listH > maxToBottom) listH = Math.max(0, maxToBottom);
+        return listH;
+    }
+
+    /** 浮层命中：展开列表区域（含溢出到父容器外的部分）优先于所有普通组件 */
+    @Override
+    protected boolean overlayHit(UIContext ctx) {
+        return expanded && ctx.isMouseIn(x, y + h, w, listHeight(ctx));
+    }
+
     /** Render the collapsed button only. Expanded list is drawn in renderOverlay. */
     @Override
     public void render(UIContext ctx) {
@@ -80,7 +95,7 @@ public class UIDropdown extends UIComponent {
     public void renderOverlay(UIContext ctx) {
         if (!expanded) return;
         int totalH = options.size() * h;
-        int listH = Math.min(totalH, maxListHeight);
+        int listH = listHeight(ctx);
         int maxScroll = Math.max(0, totalH - listH);
         if (listScrollOffset > maxScroll) listScrollOffset = maxScroll;
 
@@ -150,7 +165,7 @@ public class UIDropdown extends UIComponent {
     protected boolean onClicked(UIContext ctx) {
         if (expanded) {
             int totalH = options.size() * h;
-            int listH = Math.min(totalH, maxListHeight);
+            int listH = listHeight(ctx);
             for (int i = 0; i < options.size(); i++) {
                 int itemY = y + h + i * h - listScrollOffset;
                 if (itemY + h < y + h || itemY > y + h + listH) continue;
@@ -174,7 +189,7 @@ public class UIDropdown extends UIComponent {
     protected boolean onScrolled(UIContext ctx, double scroll) {
         if (!expanded) return false;
         int totalH = options.size() * h;
-        int listH = Math.min(totalH, maxListHeight);
+        int listH = listHeight(ctx);
         int scrollAreaY = y + h;
         if (!ctx.isMouseIn(x, scrollAreaY, w, listH)) return false;
         listScrollOffset -= (int) scroll * h;

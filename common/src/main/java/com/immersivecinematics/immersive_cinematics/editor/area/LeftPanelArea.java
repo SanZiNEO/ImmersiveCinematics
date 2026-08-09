@@ -197,26 +197,13 @@ public class LeftPanelArea extends UIComponent {
         int lx = x + 6;
 
         addSectionLabel(I18n.get("editor.section.clip_properties"), lx, cy, 0); cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
-        // C4：字段顺序 = 通用字段 + schema clip 字段（白名单语义，schema 外字段不显示）
+        // C4：字段顺序 = 通用字段 + schema clip 字段（白名单语义，schema 外字段不显示）。
+        // position_mode/follow/look_at 均已迁移到关键帧级，clip 面板不再有互斥过滤
         String trackType = selectedTrackType != null ? selectedTrackType : "CAMERA";
         java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<>();
         keys.add("start_time"); keys.add("duration");
         for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getClipFields(TrackType.valueOf(trackType.toUpperCase())).entrySet()) {
             if (!"start_time".equals(e.getKey()) && !"duration".equals(e.getKey()) && !"keyframes".equals(e.getKey())) keys.add(e.getKey());
-        }
-        // 对立字段互斥：注视实体（entity）用 target_selector、注视坐标（coordinate）用 look_target_xyz，二者不同时显示；
-        // selector 同时供"跟随实体"使用——coordinate 模式且未开 follow 时才隐藏 selector
-        if ("CAMERA".equals(trackType) && selectedClip != null) {
-            String lookAt = selectedClip.has("cam_tracking_look_at") ? selectedClip.get("cam_tracking_look_at").getAsString() : "none";
-            String follow = selectedClip.has("cam_tracking_follow") ? selectedClip.get("cam_tracking_follow").getAsString() : "none";
-            if (!"coordinate".equals(lookAt)) {
-                keys.remove("cam_tracking_look_target_x");
-                keys.remove("cam_tracking_look_target_y");
-                keys.remove("cam_tracking_look_target_z");
-            }
-            if ("coordinate".equals(lookAt) && !"entity".equals(follow)) {
-                keys.remove("cam_tracking_target_selector");
-            }
         }
         cy = reflectObject(selectedClip, lx, cy, keys.toArray(new String[0]), false);
     }
@@ -225,8 +212,9 @@ public class LeftPanelArea extends UIComponent {
         if (selectedKeyframe == null) return;
         com.immersivecinematics.immersive_cinematics.editor.EditorDefaults.fillKeyframeDefaults(selectedKeyframe, selectedTrackType);
 
-        if (selectedClip != null && selectedKeyframe.has("position")) {
-            String mode = selectedClip.has("position_mode") ? selectedClip.get("position_mode").getAsString() : "relative";
+        // 关键帧级 position_mode：切换时把该帧 position 在 dx/dy/dz ↔ x/y/z 间转换
+        if (selectedKeyframe.has("position")) {
+            String mode = selectedKeyframe.has("position_mode") ? selectedKeyframe.get("position_mode").getAsString() : "relative";
             JsonObject pos = selectedKeyframe.getAsJsonObject("position");
             if ("absolute".equals(mode) && pos.has("dx") && !pos.has("x")) {
                 pos.addProperty("x", pos.get("dx").getAsFloat());
@@ -252,6 +240,20 @@ public class LeftPanelArea extends UIComponent {
         for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getKeyframeFields(TrackType.valueOf(kfTrackType.toUpperCase())).entrySet()) {
             if (!"time".equals(e.getKey())) kfKeys.add(e.getKey());
         }
+        // 对立字段互斥（关键帧级）：look_at=entity 显示 look_at_selector、coordinate 显示 look_at_target_xyz/structure，
+        // follow=entity 显示 follow_selector
+        if ("CAMERA".equals(kfTrackType) && selectedKeyframe != null) {
+            String lookAt = selectedKeyframe.has("look_at") ? selectedKeyframe.get("look_at").getAsString() : "none";
+            String follow = selectedKeyframe.has("follow") ? selectedKeyframe.get("follow").getAsString() : "none";
+            if (!"entity".equals(lookAt)) kfKeys.remove("look_at_selector");
+            if (!"coordinate".equals(lookAt)) {
+                kfKeys.remove("look_at_target_x");
+                kfKeys.remove("look_at_target_y");
+                kfKeys.remove("look_at_target_z");
+                kfKeys.remove("look_at_target_structure");
+            }
+            if (!"entity".equals(follow)) kfKeys.remove("follow_selector");
+        }
         cy = reflectObject(selectedKeyframe, lx, cy, kfKeys.toArray(new String[0]), true);
     }
 
@@ -271,6 +273,53 @@ public class LeftPanelArea extends UIComponent {
         }
         maxScroll = Math.max(0, contentHeight - h);
         scrollY = Math.max(0, Math.min(scrollY, maxScroll));
+    }
+
+    /**
+     * 结构目标下拉（look_at_target_structure）：列出注册表（原版+模组）所有结构 id，自动补全。
+     * 选项含"（空）"= 不使用结构目标（回退 look_at_target_xyz）。未进世界时回退文本输入。
+     */
+    private int reflectStructureDropdown(String key, int lx, int cy, int depth, JsonObject parentObj) {
+        int ix = lx + depth * 10;
+        int iw = w - 12 - depth * 10;
+        String label = formatKey(key);
+        String current = parentObj.has(key) ? parentObj.get(key).getAsString() : "";
+
+        java.util.List<String> structureIds = new java.util.ArrayList<>();
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.level != null) {
+            try {
+                for (net.minecraft.resources.ResourceLocation id :
+                        mc.level.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE).keySet()) {
+                    structureIds.add(id.toString());
+                }
+                structureIds.sort(String::compareTo);
+            } catch (Exception ignored) {
+            }
+        }
+        if (structureIds.isEmpty()) {
+            return reflectField(key, parentObj.get(key), lx, cy, depth, parentObj, null, true);
+        }
+
+        java.util.List<String> display = new java.util.ArrayList<>();
+        display.add("(" + I18n.get("editor.enum.none") + ")");
+        for (String id : structureIds) {
+            display.add(id.equals(current) ? id : id);
+        }
+        UIDropdown dd = new UIDropdown(ix, cy, iw, 16, display,
+                () -> {
+                    int idx = structureIds.indexOf(parentObj.has(key) ? parentObj.get(key).getAsString() : "");
+                    return idx < 0 ? 0 : idx + 1;
+                },
+                idx -> {
+                    if (idx <= 0) parentObj.remove(key);
+                    else if (idx - 1 < structureIds.size()) parentObj.addProperty(key, structureIds.get(idx - 1));
+                    if (onDirty != null) onDirty.run();
+                    scheduleBuild();
+                });
+        dd.setLabel(label);
+        addChild(dd);
+        return cy + 18;
     }
 
     private static int getComponentBottom(UIComponent comp) {
@@ -299,6 +348,8 @@ public class LeftPanelArea extends UIComponent {
                         isKeyframe, key);
                 if (!enumVals.isEmpty()) {
                     cy = reflectClipEnum(key, lx, cy, depth, obj, isKeyframe, enumVals);
+                } else if ("look_at_target_structure".equals(key) && obj.has(key)) {
+                    cy = reflectStructureDropdown(key, lx, cy, depth, obj);
                 } else if (obj.has(key)) {
                     cy = reflectField(key, obj.get(key), lx, cy, depth, obj, parentKey, isKeyframe);
                 }
@@ -355,9 +406,9 @@ public class LeftPanelArea extends UIComponent {
         String enumTKey = "editor.enum." + key + "." + current;
         String displayVal = I18n.exists(enumTKey) ? I18n.get(enumTKey) : current;
 
-        // 模式切换字段（cam_tracking_look_at / cam_tracking_follow）用下拉菜单：
-        // 切换模式后对立字段组（target_selector vs look_target_xyz）单独显示（buildClipProperties 按模式过滤）
-        if ("cam_tracking_look_at".equals(key) || "cam_tracking_follow".equals(key)) {
+        // 模式切换字段（关键帧级 follow / look_at / position_mode）用下拉菜单：
+        // 切换模式后对立字段组（selector vs target_xyz、dx/dy/dz vs x/y/z）单独显示（buildKeyframeProperties 按模式过滤）
+        if ("cam_tracking_look_at".equals(key) || "follow".equals(key) || "look_at".equals(key) || "position_mode".equals(key)) {
             List<String> display = new ArrayList<>();
             for (String v : values) {
                 String tk = "editor.enum." + key + "." + v;
@@ -380,40 +431,12 @@ public class LeftPanelArea extends UIComponent {
             // C4：按 schema values 顺序循环（indexOf 找不到 → 回到第一个）
             String next = values.isEmpty() ? current : values.get((values.indexOf(current) + 1) % values.size());
             parentObj.addProperty(key, next);
-            if ("position_mode".equals(key)) {
-                convertKeyframePositions(parentObj, next);
-            }
             if (onDirty != null) onDirty.run();
             scheduleBuild();
         });
         btn.color(0x00, 0x44333A3A).textColor(EditorTheme.TEXT_SECONDARY);
         addChild(btn);
         return cy + 18;
-    }
-
-    private static void convertKeyframePositions(JsonObject clip, String mode) {
-        JsonArray kfs = clip.has("keyframes") ? clip.getAsJsonArray("keyframes") : null;
-        if (kfs == null) return;
-        for (JsonElement ke : kfs) {
-            JsonObject kf = ke.getAsJsonObject();
-            if (!kf.has("position")) continue;
-            JsonObject pos = kf.getAsJsonObject("position");
-            if ("absolute".equals(mode)) {
-                if (pos.has("dx") && !pos.has("x")) {
-                    pos.addProperty("x", pos.get("dx").getAsFloat());
-                    pos.addProperty("y", pos.get("dy").getAsFloat());
-                    pos.addProperty("z", pos.get("dz").getAsFloat());
-                    pos.remove("dx"); pos.remove("dy"); pos.remove("dz");
-                }
-            } else {
-                if (pos.has("x") && !pos.has("dx")) {
-                    pos.addProperty("dx", pos.get("x").getAsFloat());
-                    pos.addProperty("dy", pos.get("y").getAsFloat());
-                    pos.addProperty("dz", pos.get("z").getAsFloat());
-                    pos.remove("x"); pos.remove("y"); pos.remove("z");
-                }
-            }
-        }
     }
 
     private int reflectField(String key, JsonElement val, int lx, int cy,
@@ -626,6 +649,19 @@ public class LeftPanelArea extends UIComponent {
             c.renderOverlay(ctx);
         }
         ctx.popScroll(scrollY);
+    }
+
+    /** 浮层命中递归：滚动坐标补偿（pushScroll 平移 mouseY/渲染矩阵，与普通点击路径一致） */
+    @Override
+    public boolean overlayClicked(UIContext ctx) {
+        if (!visible || !enabled) return false;
+        if (overlayHit(ctx)) return mouseClicked(ctx);
+        ctx.pushScroll(scrollY);
+        for (int i = getChildren().size() - 1; i >= 0; i--) {
+            if (getChildren().get(i).overlayClicked(ctx)) { ctx.popScroll(scrollY); return true; }
+        }
+        ctx.popScroll(scrollY);
+        return false;
     }
 
     @Override
