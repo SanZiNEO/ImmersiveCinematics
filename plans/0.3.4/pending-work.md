@@ -16,7 +16,7 @@
 | B4 | custom 触发器删除（命令 play 已覆盖跨模组触发） | ✅ **已实施**（注册/求值器/tracker/编辑器/lang/文档/示例脚本全清） |
 | B5 | 触发器状态同步链路（触发/完成广播 + JOIN 补发） | ✅ **已实施**（fireTrigger / onScriptFinished / PLAYER_JOIN 三处发送） |
 | C1 | 播放队列（priority 队列排序/容量 8/自动接播：不可打断一律排队、可打断立即替换） | ✅ **已实施**（ScriptQueue 容量 8 + 决策树 + 自动接播；用户确认：优先级不能大于打断；queueable 与客户端查询命令已移除） |
-| E1-E5 | 遗留小项 | ✅ E1/E3/E4 已实施；E2 按计划放弃；E5 部分（validate 等已完成，游戏内手动回归待用户：ESC 重开/letterbox 旧格式/player selector） |
+| E1-E5 | 遗留小项 | ✅ E1/E3/E4 已实施；E2 按计划放弃；E5 收尾：letterbox/EVENT clip 级简写兼容按用户决定**不保留**（兼容代码已删，统一关键帧级）；按钮/滚动/快速退出已验证；player selector 未测（无联机环境）、ESC 重开无预期不测 |
 | — | **新增：xp 经验 / dimension 驻留 / observation 观察** | ✅ **已实施**（讨论后纳入本批：xp 轮询、dimension 驻留复用求值器、observation 服务端射线 5 tick） |
 | — | **新增：item_pickup / item_drop**（事件源已确认独立事件） | ✅ **已实施**（PICKUP_ITEM_POST / DROP_ITEM 接线 + PickupDropTracker） |
 | — | **新增候选：stat 统计 / item_smelt 熔炼** | ⏸ 未纳入（待讨论，排期另定） |

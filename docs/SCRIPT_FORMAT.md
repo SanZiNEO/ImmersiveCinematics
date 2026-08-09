@@ -222,11 +222,7 @@
 |------|------|------|------|------|
 | `start_time` | float | 是 | — | 起始时间 |
 | `duration` | float | 是 | — | 持续时间，正数=定长，负数=无限 |
-| `keyframes` | array | 否 | — | 关键帧数组。省略时自动生成首尾两个关键帧 |
-
-### 向后兼容（无 keyframes 时自动转换）
-
-如果不写 `keyframes`，也可以直接在 clip 上写 `aspect_ratio`（默认 2.35），解析器会自动创建首尾两个关键帧保持恒定宽高比。
+| `keyframes` | array | 是 | — | 关键帧数组（统一关键帧级调控，clip 级 `aspect_ratio` 简写已移除） |
 
 ### Keyframe 字段
 
@@ -275,21 +271,6 @@
 }
 ```
 
-**向后兼容写法（自动展开为首尾关键帧）：**
-
-```json
-{
-  "type": "letterbox",
-  "clips": [
-    {
-      "start_time": 0.0,
-      "duration": 30.0,
-      "aspect_ratio": 2.35
-    }
-  ]
-}
-```
-
 ---
 
 ## 6. Audio 轨道
@@ -309,12 +290,36 @@
 
 ## 7. Event 轨道
 
-| 字段 | 类型 | 必需 | 说明 |
+`command` 一律写在**关键帧**上（clip 级 command 旧写法已移除）；关键帧可只写 `time` + `command`。片段首尾关键帧允许 command 为空值（仅时间占位，供编辑器绘制片段图形）。
+
+| Clip 字段 | 类型 | 必需 | 说明 |
 |------|------|------|------|
 | `start_time` | float | 是 | 起始时间 |
 | `duration` | float | 是 | `0`=瞬间执行 |
-| `event_type` | string | 是 | 固定为 `"command"` |
-| `command` | string | 是 | 要执行的命令，如 `"/time set 6000"` |
+| `event_type` | string | 否 | 固定为 `"command"` |
+
+| Keyframe 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `time` | float | 是 | 在 clip 内的时间偏移（秒），从 0 开始 |
+| `command` | string | 否 | 要执行的命令，如 `"/time set 6000"`；空 = 仅占位关键帧 |
+| `event_type` | string | 否 | 固定为 `"command"` |
+
+```json
+{
+  "type": "event",
+  "clips": [
+    {
+      "start_time": 0.0,
+      "duration": 5.0,
+      "keyframes": [
+        { "time": 0.0, "command": "" },
+        { "time": 2.0, "command": "/time set 6000" },
+        { "time": 5.0, "command": "/say 结束" }
+      ]
+    }
+  ]
+}
+```
 
 ---
 
@@ -500,7 +505,9 @@
             "start_time": 5.0,
             "duration": 0.0,
             "event_type": "command",
-            "command": "/weather clear"
+            "keyframes": [
+              { "time": 0.0, "command": "/weather clear" }
+            ]
           }
         ]
       }

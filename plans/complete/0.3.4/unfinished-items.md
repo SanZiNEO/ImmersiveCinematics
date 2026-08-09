@@ -62,7 +62,7 @@
 | E2 | `UITextInput` 光标移动/位置插入/Ctrl+C/V | 0.3.3 complete/01-fixes-pending.md（原标注"优先级低，可不做"）— ❌ 按计划放弃 |
 | E3 | letterbox 动画 ease-in-out 平滑 | phase_2_repair_plan.md P2-3 — ✅ **已实施（2026-08-09）**：smoothstep（3t²-2t³） |
 | E4 | `MathUtil` Hermite 基函数 h00/h10/h01/h11 残留 | speed_driven_interpolation_refactor.md — ✅ **已删除（2026-08-09）**（零调用者） |
-| E5 | 0.3.2 测试清单未勾选项（ESC 重开保持、letterbox 旧格式兼容回归等） | 0.3.2/0.3.2_test_checklist.md — ⏳ 部分：脚本全量 validate 已通过；ESC 重开/letterbox 旧格式/player selector 需游戏内手动回归 |
+| E5 | 0.3.2 测试清单未勾选项（ESC 重开保持、letterbox 旧格式兼容回归等） | 0.3.2/0.3.2_test_checklist.md — ✅ **已按用户决定收尾（2026-08-09）**：letterbox/EVENT clip 级简写兼容**不保留**（兼容代码已删，全部走关键帧级）；播放/暂停/终止按钮、面板滚动、快速退出已手动验证；玩家选择器未测（无联机环境）；ESC 重开保持无预期不测 |
 
 ---
 

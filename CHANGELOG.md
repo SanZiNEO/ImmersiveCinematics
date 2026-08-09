@@ -30,6 +30,7 @@
 
 **其它**
 - `ScriptValidator` position 检查限定 CAMERA 轨道（消除非 CAMERA 轨道误报）；新增 9 个触发器冒烟测试脚本
+- **统一关键帧级调控（用户决定）**：删除 letterbox clip 级 `aspect_ratio` 简写兼容与 EVENT clip 级 `command` 向后兼容——所有轨道一律以 keyframes 调控，旧格式脚本需改写（校验会报缺 keyframes）；补建 inventory change 冒烟脚本（共 10 个）
 
 
 

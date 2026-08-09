@@ -212,20 +212,10 @@ public class ScriptParser {
             }
         }
 
-        // Letterbox 简写兼容：缺 keyframes 时从 clip 级 aspect_ratio 自动生成两个关键帧
-        if (type == TrackType.LETTERBOX && !obj.has("keyframes")) {
-            float ratio = optFloat(obj, "aspect_ratio", 2.35f);
-            Keyframe k0 = new Keyframe(0f, type, Map.of("aspect_ratio", ratio));
-            Keyframe k1 = new Keyframe(duration, type, Map.of("aspect_ratio", ratio));
-            keyframes = List.of(k0, k1);
-        }
-
-        // EVENT 向后兼容：clip 级别的 command 迁移到 keyframe
-        if (type == TrackType.EVENT && obj.has("command") && !obj.has("keyframes")) {
-            String cmd = obj.get("command").getAsString();
-            Keyframe kf = new Keyframe(0f, type, Map.of("command", cmd, "event_type", "command"));
-            keyframes = List.of(kf);
-        }
+        // 关键帧级统一设计（2026-08-09 决定）：所有轨道一律以 keyframes 调控，
+        // 不再提供 clip 级简写/旧格式兼容（letterbox 的 clip 级 aspect_ratio 简写、
+        // EVENT 的 clip 级 command 迁移等遗留兼容已删除）——旧格式脚本会因缺 keyframes
+        // 校验失败，需按关键帧形式改写。
 
         // 验证
         if (type == TrackType.CAMERA && keyframes.isEmpty()) {
