@@ -120,6 +120,12 @@
 
 常用行为开关（默认值合理，不写也行）：`block_keyboard: true`、`block_mouse: true`、`hide_hud: true`、`hide_arm: true`、`suppress_bob: true`、`skippable: true`、`interruptible: true`、`hold_at_end: false`、`pause_when_game_paused: true`。
 
+> **`interruptible` 与 `priority` 必读（播放队列规则）**：
+> - **可打断（`interruptible: true`，默认）** = 区域切换型脚本：新脚本请求时**立即替换**当前脚本（打断就替换）。适合"进 A 区播 A、进 B 区播 B"的场景。
+> - **不可打断（`interruptible: false`）** = 强制过程型脚本：播放期间其它脚本请求一律**排队**（容量 8），等它播完自动接播。适合强制观看的过场、循环氛围镜头。
+> - **`priority`**（int，默认 0，可选）：数值越大越优先，**仅用于排队顺序**（高优先先接播）。注意：优先级**不能大于打断**——不可打断的脚本永远不会被抢占，`priority` 再高也只能排队。
+> - 玩家视角（无脚本覆盖）由**时间空隙**自然产生：相机片段之间留空档，那段玩家恢复自由视角。
+
 > **`hide_skip_hud` 必读**：长按跳过键的提示（右下角图标+进度环）由 `hide_skip_hud` 控制——**不写时跟随 `hide_hud` 被隐藏**。凡是 `hide_hud: true` 的脚本，想保留跳过提示就必须显式写 **`"hide_skip_hud": false`**，否则玩家看不到"按 C 跳过"的提示。
 
 > **写完必须自查**：脚本写完后在游戏内执行 `/icinematics validate <文件名>`，**直到输出"§a校验通过"才能交付**。该命令会一次列出所有问题（结构错误/缺失字段/语义错误/缺省字段提示），逐条修掉即可——不要在没有校验的情况下直接交付脚本。
