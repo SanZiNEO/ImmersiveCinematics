@@ -47,9 +47,6 @@ public class CameraManager {
     private float previewTime;
     private CinematicScript previewScript;
 
-    /** D3：停止后阻止 setTime/pushScript 重新激活播放，直到用户显式 resume */
-    private boolean stopRequested = false;
-
     /** 上一帧的暂停状态，用于检测暂停↔恢复的转换 */
     private boolean lastFramePaused = false;
 
@@ -201,8 +198,8 @@ public class CameraManager {
     public void pushScript(String jsonContent) {
         try {
             previewScript = com.immersivecinematics.immersive_cinematics.script.ScriptParser.parse(jsonContent);
-            // D3：停止后编辑内容照常缓存，但不重启激活
-            if (previewMode && !stopRequested && previewScript != null) {
+            // 编辑内容照常缓存;预览模式且已有脚本时保持激活(编辑即预览)
+            if (previewMode && previewScript != null) {
                 if (!active) {
                     startScriptInternal(previewScript);
                 } else {
@@ -225,11 +222,7 @@ public class CameraManager {
     }
 
     public void setTime(float seconds) {
-        // D3：停止后只更新预览时间，不重新激活播放（NLE 语义：停止后点击只移动播放头）
-        if (stopRequested) {
-            previewTime = seconds;
-            return;
-        }
+        // 预览模式定位:始终激活并显示对应帧的相机视角(终止后点关键帧/拖播放头即时可见)
         previewTime = seconds;
         previewMode = true;
         previewPaused = true;
@@ -245,8 +238,7 @@ public class CameraManager {
     }
 
     public void resume() {
-        // D3：停止后点播放 → 用最新 previewScript 重新激活并从 previewTime 续播
-        stopRequested = false;
+        // 点播放 → 用最新 previewScript 重新激活并从 previewTime 续播
         if (!previewMode) {
             if (previewScript == null) return;
             previewMode = true;
@@ -263,12 +255,11 @@ public class CameraManager {
 
     public void stop() {
         if (previewMode) {
-            previewMode = false;
-            previewPaused = true;
-            stopRequested = true;
-            deactivateNow();
+            // 终止 = 重置播放头到第一帧并保持预览激活(相机回到脚本第一帧视角,而非玩家视角;
+            // 玩家视角由脚本时间空隙自然产生——相机片段之间的空缺时段会归还视角)
+            setTime(0f);
         } else {
-            // 游戏内停止路径：不设 stopRequested（避免污染后续编辑器会话）
+            // 游戏内停止路径
             stopScript();
         }
     }

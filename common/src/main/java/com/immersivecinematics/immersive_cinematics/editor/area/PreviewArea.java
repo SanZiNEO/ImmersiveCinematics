@@ -15,7 +15,6 @@ import java.util.function.Consumer;
 
 public class PreviewArea extends UIComponent {
     private final UIButton playBtn;
-    private final UIButton pauseBtn;
     private final UIButton stopBtn;
     private final UILabel timeLabel;
 
@@ -48,16 +47,14 @@ public class PreviewArea extends UIComponent {
 
         int btnW = (int)(36 * sx);
         int btnGap = (int)(40 * sx);
+        // 播放/暂停合并为一个 toggle 按钮:播放中显示 ⏸(点击暂停),非播放显示 ▶(点击播放/继续)
         playBtn = new UIButton(barX, barY, btnW, barH, "\u25B6", b -> {});
         playBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER);
-        pauseBtn = new UIButton(barX + btnGap, barY, btnW, barH, "\u23F8", b -> {});
-        pauseBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER);
-        stopBtn = new UIButton(barX + btnGap * 2, barY, btnW, barH, "\u25A0", b -> {});
+        stopBtn = new UIButton(barX + btnGap, barY, btnW, barH, "\u25A0", b -> {});
         stopBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER);
-        timeLabel = new UILabel(barX + btnGap * 3 + (int)(8 * sx), barY + (int)(7 * sy), "00:00.000", EditorTheme.TEXT_MUTED);
+        timeLabel = new UILabel(barX + btnGap * 2 + (int)(8 * sx), barY + (int)(7 * sy), "00:00.000", EditorTheme.TEXT_MUTED);
 
         addChild(playBtn);
-        addChild(pauseBtn);
         addChild(stopBtn);
         addChild(timeLabel);
 
@@ -79,21 +76,18 @@ public class PreviewArea extends UIComponent {
         return String.format("%02d:%06.3f", m, sec);
     }
 
+    /** 播放/暂停 toggle 回调(由 EditorScreen 按当前播放状态决定暂停或继续) */
     public void setOnPlay(Runnable r) { playBtn.setOnClick(b -> r.run()); }
-    public void setOnPause(Runnable r) { pauseBtn.setOnClick(b -> r.run()); }
     public void setOnStop(Runnable r) { stopBtn.setOnClick(b -> r.run()); }
 
-    /** E5：播放状态按钮高亮（播放→绿色 playBtn，暂停→黄色 pauseBtn，停止→全部复位） */
+    /** 播放状态按钮:播放中显示 ⏸(绿,点击=暂停),非播放显示 ▶(点击=播放/继续) */
     public void setPlayingState(boolean playing, boolean paused) {
         if (playing) {
+            playBtn.setText("\u23F8");
             playBtn.color(0xFF2A5A2A, 0xFF3A7A3A);
-            pauseBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER);
-        } else if (paused) {
-            playBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER);
-            pauseBtn.color(0xFF5A5A2A, 0xFF7A7A3A);
         } else {
+            playBtn.setText("\u25B6");
             playBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER);
-            pauseBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER);
         }
     }
 

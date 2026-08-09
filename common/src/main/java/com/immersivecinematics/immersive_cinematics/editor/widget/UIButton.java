@@ -5,7 +5,7 @@ import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import java.util.function.Consumer;
 
 public class UIButton extends UIComponent {
-    private final String text;
+    private String text;
     private Consumer<UIButton> onClick;
     private int color;
     private int hoverColor;
@@ -34,6 +34,11 @@ public class UIButton extends UIComponent {
     }
 
     public String getLabel() { return text; }
+
+    /** 动态改文本(如播放/暂停 toggle 图标切换) */
+    public void setText(String t) {
+        this.text = t;
+    }
 
     public void setOnClick(Consumer<UIButton> c) {
         onClick = c;

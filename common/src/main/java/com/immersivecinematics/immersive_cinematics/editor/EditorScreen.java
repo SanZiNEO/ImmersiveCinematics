@@ -586,28 +586,30 @@ public class EditorScreen extends Screen {
     }
 
     private void wirePreview() {
+        // 播放/暂停合并 toggle:播放中点击=暂停(停在当前),非播放点击=播放/继续(从当前位置)
         preview.setOnPlay(() -> {
-            EditorLogger.action(EditorLogger.PREVIEW, "PLAY", "btn");
-            // 组 7：播放前退出直控态（否则 CameraTrackPlayer 被跳过，播放不写相机）
-            CameraManager.INSTANCE.setPreviewDirectControl(false);
-            gizmoDragging = false;
-            playback.play();
-            output.play();
-            preview.setPlayingState(true, false);
-            menuBar.setStatus(I18n.get("editor.status.playing"), 0xFF44AA44);
-            menuBar.setAction(I18n.get("editor.action.playback_started"));
-
-        });
-        preview.setOnPause(() -> {
-            EditorLogger.action(EditorLogger.PREVIEW, "PAUSE", "btn");
-            playback.pause();
-            output.pause();
-            preview.setPlayingState(false, true);
-            menuBar.setStatus(I18n.get("editor.status.paused"), 0xFFBBBB44);
-            menuBar.setAction(I18n.get("editor.action.playback_paused"));
-
+            if (playback.isPlaying()) {
+                EditorLogger.action(EditorLogger.PREVIEW, "PAUSE", "btn");
+                playback.pause();
+                output.pause();
+                preview.setPlayingState(false, true);
+                menuBar.setStatus(I18n.get("editor.status.paused"), 0xFFBBBB44);
+                menuBar.setAction(I18n.get("editor.action.playback_paused"));
+            } else {
+                EditorLogger.action(EditorLogger.PREVIEW, "PLAY", "btn");
+                // 组 7：播放前退出直控态（否则 CameraTrackPlayer 被跳过，播放不写相机）
+                CameraManager.INSTANCE.setPreviewDirectControl(false);
+                gizmoDragging = false;
+                playback.play();
+                output.play();
+                preview.setPlayingState(true, false);
+                menuBar.setStatus(I18n.get("editor.status.playing"), 0xFF44AA44);
+                menuBar.setAction(I18n.get("editor.action.playback_started"));
+            }
         });
         preview.setOnStop(() -> {
+            // 终止 = 重置播放头到脚本第一帧并保持预览激活(相机回第一帧视角,而非玩家视角;
+            // 玩家视角由脚本时间空隙自然产生)
             EditorLogger.action(EditorLogger.PREVIEW, "STOP", "btn");
             playback.stop();
             output.stop();
