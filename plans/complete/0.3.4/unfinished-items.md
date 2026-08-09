@@ -14,7 +14,7 @@
 |---|------|---------|---------|
 | A1 | PAUSE_POINT 轨道 | 0.3.4 README 不做清单 / 0.4.0 | 无此轨道类型 |
 | A2 | 区块预加载 | 0.4.0（计划 0.3.5） | 无 |
-| A3 | 跟踪系统非玩家实体/结构目标 | 0.3.4 camera-tracking-system.md | `resolveEntityTarget` 仅支持 `@p`/`@s`，其余选择器返回 null |
+| A3 | ~~跟踪系统非玩家实体/结构目标~~ | 0.3.4 camera-tracking-system.md | ✅ **已实现（2026-08-09）**：`@e`/`@e[type=..,name=..]`/`uuid:..` 选择器 + `look_at_target_structure` 服务端 findNearestMapStructure 定位推送，不依赖区块预加载；实现为关键帧级字段 |
 | A4 | Bezier 曲线编辑器（控制点可视化） | 0.4.0 | 编辑器无曲线编辑 |
 | A5 | 预设片段库 | 0.4.0 | 无 |
 | A6 | dissolve crossfade 过渡 | script_system.md / 0.3.0 排除项 | `TransitionType` 只有 CUT/MORPH |
@@ -38,10 +38,10 @@
 | # | 功能 | 计划出处 | 代码现状 |
 |---|------|---------|---------|
 | C1 | 播放队列完整方案 | repair_plan_E E2（priority 优先级抢占 + queueable + ScriptQueue 容量 8） | 仅实现单槽 `pendingScript` 排队（playScript 返回 2、deactivateNow 自动接播）；无 priority/queueable 字段、无优先级抢占、无队列容量 |
-| C2 | EVENT 轨道编辑器可视化 | 0.3.4 event-track-rework.md（"EVENT 不渲染 clip 段矩形，keyframe 显示为标记点"） | 运行时 keyframe 驱动多点触发已实现；编辑器仍统一渲染 clip 矩形 + 关键帧小方块，无 EVENT 专属标记点 |
+| C2 | EVENT 轨道编辑器可视化 | 0.3.4 event-track-rework.md（"EVENT 不渲染 clip 段矩形，keyframe 显示为标记点"） | ✅ **按确认方案完成（2026-08-09）**：复用现有 clip 块 + 块内关键帧调控 EVENT（用户确认现成方案即可，不做专属标记点）；运行时 keyframe 驱动多点触发已实现 |
 | C3 | 编辑器音频联动 | 0.4.0（依赖 0.3.4 AUDIO） | 播放头 `setTime()` 跳转时 `repositionAudio` 已实现；拖拽 audio clip/关键帧过程中的实时跟随未做（待实施） |
 | C4 | 维度字段消费 | script_design_v3 §meta / 0.4.0（计划 0.3.5） | `meta.dimension` 仅解析存储，无任何运行时校验/限制 |
-| C5 | Schema 双向驱动（编辑器字段白名单） | 0.3.3 complete/02-post-migration.md ③ | schema.json 只驱动运行时解析；编辑器字段 UI 仍硬编码于 `LeftPanelArea.fillClipDefaults` / `EditorOperations.addClip`。⚠️ **依赖标注**：Schema 模型的编辑器调用需待编辑器完全重新优化（交互设计、样式设计等整体重构）时一并实施，不单独排期 |
+| C5 | Schema 双向驱动（编辑器字段白名单） | 0.3.3 complete/02-post-migration.md ③ | ✅ **实际已完成（2026-08-09 复核）**：编辑器字段 UI 由 `SchemaLoader.getClipFields/getKeyframeFields` 白名单驱动（LeftPanelArea），默认值补齐走 `EditorDefaults`（schema 驱动）——原清单标注过时 |
 | C6 | Timeline Widget 化 | 0.3.3 complete/02-post-migration.md ② | `TimelineArea.drawClip()` 仍是巨石方法，未拆分为 UIClipWidget / UIKeyframeDiamond / UITransitionZone |
 
 ## D. 编辑器交互计划（0.3.3）未做的小项
@@ -50,7 +50,7 @@
 |---|------|------|
 | D1 | Ctrl+中键框选 → 缩放到选区（Olive Zoom Tool） | editor-interaction-plan §一 |
 | D2 | 轨道高度可调（拖拽轨道间分隔线） | editor-interaction-plan §四 |
-| D3 | TRACK_LIST 每行轨道显隐开关 👁 | editor-interaction-plan §八 |
+| D3 | ~~TRACK_LIST 每行轨道显隐开关 👁~~ | editor-interaction-plan §八 — ✅ 已实现（2026-08-09 复核）：TimelineArea 轨道头 👁 显隐按钮（含锁定/静音），原清单标注过时 |
 | D4 | 时间码 `MM:SS.mmm` 格式 | editor-interaction-plan §六（当前为 `h:mm:ss`） |
 | D5 | 滚轮映射与行业惯例：计划"滚轮=水平滚动、Shift+滚轮=垂直" | editor-interaction-plan §一/§五；CHANGELOG 0.3.3 声称"滚轮=水平滚动"——代码实际为"无修饰=垂直滚动轨道、Shift+滚轮=水平滚动、Ctrl+滚轮=缩放"，计划与 CHANGELOG 均与代码不符 |
 

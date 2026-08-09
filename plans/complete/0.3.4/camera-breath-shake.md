@@ -1,4 +1,8 @@
-# 镜头呼吸扰动
+# 镜头呼吸扰动 —【已实现，2026-08-09 归档】
+
+> **状态**：✅ 已在 0.3.4 完成：clip 级 `cam_breath_enabled` / `cam_breath_intensity` / `cam_breath_seed`
+> （字段名与本文档的 `breath_enabled` 等略有差异，功能等价——以 `cam_breath_*` 为准）。
+> 实现参照 `docs/SCRIPT_FORMAT.md` 与 `docs/modules/script.md`。
 
 **版本**: 0.4.x  
 **类型**: 新功能  
