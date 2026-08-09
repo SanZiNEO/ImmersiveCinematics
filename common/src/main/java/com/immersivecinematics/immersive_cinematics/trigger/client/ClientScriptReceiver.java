@@ -72,11 +72,13 @@ public class ClientScriptReceiver {
                     LOGGER.info("Stopped script by server: {}", scriptId);
                 }
             }
-            // N1：stop 回执（refId 非空才回；旧格式 stop 由 forceDeactivate 现有通知链路覆盖）
+            // N1：stop 回执（refId 非空才回；旧格式 stop 由 forceDeactivate 现有通知链路覆盖）；
+            // 经 NetworkGuard 防断线崩溃
             if (packet.getRefId() != null && !packet.getRefId().isEmpty()) {
-                new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptFinishedPacket(
-                        scriptId, com.immersivecinematics.immersive_cinematics.control.CompletionReason.STOPPED,
-                        packet.getRefId()).sendToServer();
+                com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptFinished(stop ack)",
+                        () -> new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptFinishedPacket(
+                                scriptId, com.immersivecinematics.immersive_cinematics.control.CompletionReason.STOPPED,
+                                packet.getRefId()).sendToServer());
             }
         });
     }

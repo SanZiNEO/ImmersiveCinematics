@@ -56,7 +56,17 @@ public final class AckTracker {
                 }
                 Runnable resend = pending.get(refId);
                 if (resend != null) {
-                    resend.run();
+                    try {
+                        resend.run();
+                    } catch (Exception e) {
+                        // 重发时玩家可能已断线/退出世界,忽略并停止重试
+                        com.mojang.logging.LogUtils.getLogger().warn(
+                                "ACK 重发失败(可能已断线),放弃: {} - {}", refId, e.getMessage());
+                        pending.remove(refId);
+                        retries.remove(refId);
+                        sentAt.remove(refId);
+                        continue;
+                    }
                     sentAt.put(refId, now);
                 }
             }

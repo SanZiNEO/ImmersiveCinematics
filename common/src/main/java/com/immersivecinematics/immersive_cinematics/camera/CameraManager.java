@@ -394,11 +394,13 @@ public class CameraManager {
             if (scriptPlayer.isPlaying()) {
                 String scriptId = scriptPlayer.getScriptId();
                 if (!"<none>".equals(scriptId)) {
-                    // N1：暂停/恢复握手 — 登记 ACK，超时重发（handlePause 幂等）
+                    // N1：暂停/恢复握手 — 登记 ACK，超时重发（handlePause 幂等）；发包经 NetworkGuard 防断线崩溃
                     String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
                     com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId,
+                            () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptPause",
+                                    () -> new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, effectivelyPaused, refId).sendToServer()));
+                    com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptPause",
                             () -> new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, effectivelyPaused, refId).sendToServer());
-                    new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, effectivelyPaused, refId).sendToServer();
                 }
             }
         }
