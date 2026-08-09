@@ -25,6 +25,8 @@ import net.minecraft.world.level.storage.LevelResource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -74,6 +76,11 @@ public class CinematicCommand {
                 .then(Commands.literal("reload")
                         .requires(s -> s.hasPermission(2))
                         .executes(CinematicCommand::reloadScripts))
+                .then(Commands.literal("validate")
+                        .requires(s -> s.hasPermission(2))
+                        .then(Commands.argument("file", StringArgumentType.string())
+                                .suggests(SCRIPT_SUGGESTIONS)
+                                .executes(CinematicCommand::validateScriptFile)))
         );
     }
 
@@ -85,14 +92,12 @@ public class CinematicCommand {
         Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
         Path worldDir = server.getWorldPath(WORLD_SCRIPT_DIR);
 
-        Path scriptPath = findScriptFile(filePath, globalDir, worldDir);
+        Path scriptPath = findScriptFile(filePath, worldDir);
         if (scriptPath == null) {
             source.sendFailure(Component.literal("§c脚本文件不存在: " + filePath +
                     "\n§7搜索路径:" +
-                    "\n§7  1. " + globalDir.resolve(filePath) +
-                    "\n§7  2. " + globalDir.resolve(filePath + ".json") +
-                    "\n§7  3. " + worldDir.resolve(filePath) +
-                    "\n§7  4. " + worldDir.resolve(filePath + ".json") +
+                    "\n§7  1. " + worldDir.resolve(filePath) +
+                    "\n§7  2. " + worldDir.resolve(filePath + ".json") +
                     "\n§7请将 .json 脚本文件放入: " + globalDir));
             return 0;
         }
@@ -223,10 +228,51 @@ public class CinematicCommand {
         return 1;
     }
 
-    private static Path findScriptFile(String filePath, Path globalDir, Path worldDir) {
+    /**
+     * /icinematics validate <file> — 脚本静态校验（AI 写脚本后的自查闭环）：
+     * 输出完整问题清单（结构错误/字段缺失/语义错误/缺省字段提示），一次给全。
+     */
+    private static int validateScriptFile(CommandContext<CommandSourceStack> context) {
+        String filePath = StringArgumentType.getString(context, "file");
+        CommandSourceStack source = context.getSource();
+        MinecraftServer server = source.getServer();
+
+        Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
+        Path worldDir = server.getWorldPath(WORLD_SCRIPT_DIR);
+
+        Path scriptPath = findScriptFile(filePath, worldDir);
+        if (scriptPath == null) {
+            source.sendFailure(Component.literal("§c脚本文件不存在: " + filePath
+                    + "\n§7请将 .json 脚本文件放入: " + globalDir));
+            return 0;
+        }
+
+        String json;
+        try {
+            json = Files.readString(scriptPath);
+        } catch (IOException e) {
+            source.sendFailure(Component.literal("§c读取脚本文件失败: " + e.getMessage()));
+            return 0;
+        }
+
+        List<String> issues = com.immersivecinematics.immersive_cinematics.script.ScriptValidator.validate(json);
+        if (issues.isEmpty()) {
+            source.sendSuccess(() -> Component.literal("§a校验通过: " + scriptPath.getFileName()), false);
+            return 1;
+        }
+
+        StringBuilder msg = new StringBuilder("§c发现 " + issues.size() + " 个问题:\n");
+        for (String issue : issues) {
+            msg.append("§7  - ").append(issue).append("\n");
+        }
+        source.sendSuccess(() -> Component.literal(msg.toString()), false);
+        return 1;
+    }
+
+    private static Path findScriptFile(String filePath, Path worldDir) {
         Path candidate;
 
-        // 只搜索世界存档目录，拒绝路径遍历
+        // 只搜索世界存档目录，拒绝路径遍历（全局目录脚本由 /icinematics reload 同步进世界目录）
         candidate = worldDir.resolve(filePath).normalize();
         if (!candidate.startsWith(worldDir.normalize())) return null;
         if (Files.exists(candidate)) return candidate;
