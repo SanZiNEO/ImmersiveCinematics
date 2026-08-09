@@ -47,12 +47,15 @@
             "duration": 10,
             "transition": "cut",
             "interpolation": "linear",
-            "position_mode": "absolute",
             "loop": false,
             "keyframes": [
               {
                 "time": 0,
-                "position": { "x": 0, "y": 65, "z": 0 },
+                "position": {
+                  "x": 0,
+                  "y": 65,
+                  "z": 0
+                },
                 "yaw": 0,
                 "pitch": 10,
                 "roll": 0,
@@ -61,7 +64,11 @@
               },
               {
                 "time": 5,
-                "position": { "x": 10, "y": 68, "z": 10 },
+                "position": {
+                  "x": 10,
+                  "y": 68,
+                  "z": 10
+                },
                 "yaw": 45,
                 "pitch": 15,
                 "roll": 0,
@@ -70,7 +77,11 @@
               },
               {
                 "time": 10,
-                "position": { "x": 20, "y": 70, "z": 20 },
+                "position": {
+                  "x": 20,
+                  "y": 70,
+                  "z": 20
+                },
                 "yaw": 90,
                 "pitch": 20,
                 "roll": 0,

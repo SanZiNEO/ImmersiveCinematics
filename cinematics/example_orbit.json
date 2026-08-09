@@ -34,7 +34,7 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 205.0,
+    "total_duration": 205,
     "tracks": [
       {
         "type": "CAMERA",
@@ -44,37 +44,106 @@
             "duration": 6,
             "transition": "cut",
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 4, "dz": 22 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 6, "position": { "dx": 0, "dy": 4, "dz": 22 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 0,
+                  "dy": 4,
+                  "dz": 22
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 6,
+                "position": {
+                  "dx": 0,
+                  "dy": 4,
+                  "dz": 22
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
             ]
           },
           {
             "start_time": 6,
             "duration": 6,
             "transition": "morph",
-            "transition_duration": 1.0,
+            "transition_duration": 1,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 4, "dz": 22 }, "yaw": 0, "pitch": -15, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 6, "position": { "dx": 0, "dy": 4, "dz": 22 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 0,
+                  "dy": 4,
+                  "dz": 22
+                },
+                "yaw": 0,
+                "pitch": -15,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 6,
+                "position": {
+                  "dx": 0,
+                  "dy": 4,
+                  "dz": 22
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
             ]
           },
           {
             "start_time": 12,
             "duration": 8,
             "transition": "morph",
-            "transition_duration": 1.0,
+            "transition_duration": 1,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 4, "dz": 22 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 8, "position": { "dx": 0, "dy": 4, "dz": 17 }, "yaw": 0, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 0,
+                  "dy": 4,
+                  "dz": 22
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 8,
+                "position": {
+                  "dx": 0,
+                  "dy": 4,
+                  "dz": 17
+                },
+                "yaw": 0,
+                "pitch": 2,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
             ]
           },
           {
@@ -83,12 +152,47 @@
             "transition": "morph",
             "transition_duration": 1.5,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": 0, "dy": 4, "dz": 17 }, "yaw": 0,   "pitch": 2, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 6,  "position": { "dx": 3, "dy": 3, "dz": 15 }, "yaw": 70,  "pitch": 4, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 12, "position": { "dx": 6, "dy": 3, "dz": 14 }, "yaw": 135, "pitch": 6, "roll": 0, "fov": 70, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 0,
+                  "dy": 4,
+                  "dz": 17
+                },
+                "yaw": 0,
+                "pitch": 2,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 6,
+                "position": {
+                  "dx": 3,
+                  "dy": 3,
+                  "dz": 15
+                },
+                "yaw": 70,
+                "pitch": 4,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 12,
+                "position": {
+                  "dx": 6,
+                  "dy": 3,
+                  "dz": 14
+                },
+                "yaw": 135,
+                "pitch": 6,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
             ]
           },
           {
@@ -97,14 +201,73 @@
             "transition": "morph",
             "transition_duration": 1.5,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": 8,  "dy": 2, "dz": 8 },  "yaw": 135, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 6,  "position": { "dx": 0,  "dy": 2, "dz": 13 }, "yaw": 180, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 12, "position": { "dx": -13, "dy": 2, "dz": 0 }, "yaw": -90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 18, "position": { "dx": 0,  "dy": 2, "dz": -13 }, "yaw": 0,   "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 23, "position": { "dx": 12, "dy": 2, "dz": 0 },  "yaw": 90,  "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 8,
+                  "dy": 2,
+                  "dz": 8
+                },
+                "yaw": 135,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 6,
+                "position": {
+                  "dx": 0,
+                  "dy": 2,
+                  "dz": 13
+                },
+                "yaw": 180,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 12,
+                "position": {
+                  "dx": -13,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 18,
+                "position": {
+                  "dx": 0,
+                  "dy": 2,
+                  "dz": -13
+                },
+                "yaw": 0,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 23,
+                "position": {
+                  "dx": 12,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": 90,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
             ]
           },
           {
@@ -113,26 +276,96 @@
             "transition": "morph",
             "transition_duration": 1.5,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": 12, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 5,  "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 8,  "position": { "dx": 9,  "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 8,  "roll": 0, "fov": 62, "zoom": 1.15 },
-              { "time": 15, "position": { "dx": 8,  "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 58, "zoom": 1.2 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 12,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": 90,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 8,
+                "position": {
+                  "dx": 9,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": 90,
+                "pitch": 8,
+                "roll": 0,
+                "fov": 62,
+                "zoom": 1.15
+              },
+              {
+                "time": 15,
+                "position": {
+                  "dx": 8,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": 90,
+                "pitch": 10,
+                "roll": 0,
+                "fov": 58,
+                "zoom": 1.2
+              }
             ]
           },
           {
             "start_time": 70,
             "duration": 10,
             "transition": "morph",
-            "transition_duration": 1.0,
+            "transition_duration": 1,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": 8,   "dy": 2, "dz": 0 },   "yaw": 90, "pitch": 10, "roll": 0, "fov": 58, "zoom": 1.2 },
-              { "time": 5,  "position": { "dx": 7.5, "dy": 2, "dz": 0.4 }, "yaw": 95, "pitch": 12, "roll": 2, "fov": 56, "zoom": 1.25 },
-              { "time": 10, "position": { "dx": 8,   "dy": 2, "dz": 0 },   "yaw": 90, "pitch": 10, "roll": 0, "fov": 58, "zoom": 1.2 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 8,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": 90,
+                "pitch": 10,
+                "roll": 0,
+                "fov": 58,
+                "zoom": 1.2
+              },
+              {
+                "time": 5,
+                "position": {
+                  "dx": 7.5,
+                  "dy": 2,
+                  "dz": 0.4
+                },
+                "yaw": 95,
+                "pitch": 12,
+                "roll": 2,
+                "fov": 56,
+                "zoom": 1.25
+              },
+              {
+                "time": 10,
+                "position": {
+                  "dx": 8,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": 90,
+                "pitch": 10,
+                "roll": 0,
+                "fov": 58,
+                "zoom": 1.2
+              }
             ]
           },
           {
@@ -141,12 +374,47 @@
             "transition": "morph",
             "transition_duration": 0.8,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": 8, "dy": 2, "dz": 0 }, "yaw": 90,  "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 2,  "position": { "dx": 8, "dy": 2, "dz": 0 }, "yaw": -90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 10, "position": { "dx": 8, "dy": 2, "dz": 0 }, "yaw": -90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 8,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": 90,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 2,
+                "position": {
+                  "dx": 8,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 10,
+                "position": {
+                  "dx": 8,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
             ]
           },
           {
@@ -155,12 +423,47 @@
             "transition": "morph",
             "transition_duration": 1.5,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": 8,  "dy": 2,  "dz": 0 }, "yaw": -90, "pitch": 5,  "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 6,  "position": { "dx": 10, "dy": 7,  "dz": -4 }, "yaw": 45,  "pitch": 20, "roll": 0, "fov": 72, "zoom": 1.0 },
-              { "time": 13, "position": { "dx": 8,  "dy": 12, "dz": -2 }, "yaw": 45,  "pitch": 35, "roll": 0, "fov": 74, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 8,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 6,
+                "position": {
+                  "dx": 10,
+                  "dy": 7,
+                  "dz": -4
+                },
+                "yaw": 45,
+                "pitch": 20,
+                "roll": 0,
+                "fov": 72,
+                "zoom": 1
+              },
+              {
+                "time": 13,
+                "position": {
+                  "dx": 8,
+                  "dy": 12,
+                  "dz": -2
+                },
+                "yaw": 45,
+                "pitch": 35,
+                "roll": 0,
+                "fov": 74,
+                "zoom": 1
+              }
             ]
           },
           {
@@ -169,12 +472,47 @@
             "transition": "morph",
             "transition_duration": 1.5,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": 8,  "dy": 12, "dz": -2 }, "yaw": 90, "pitch": 32, "roll": 0, "fov": 74, "zoom": 1.0 },
-              { "time": 7,  "position": { "dx": 0,  "dy": 12, "dz": 4 },  "yaw": 90, "pitch": 32, "roll": 0, "fov": 74, "zoom": 1.0 },
-              { "time": 14, "position": { "dx": -8, "dy": 12, "dz": 10 }, "yaw": 90, "pitch": 30, "roll": 0, "fov": 74, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 8,
+                  "dy": 12,
+                  "dz": -2
+                },
+                "yaw": 90,
+                "pitch": 32,
+                "roll": 0,
+                "fov": 74,
+                "zoom": 1
+              },
+              {
+                "time": 7,
+                "position": {
+                  "dx": 0,
+                  "dy": 12,
+                  "dz": 4
+                },
+                "yaw": 90,
+                "pitch": 32,
+                "roll": 0,
+                "fov": 74,
+                "zoom": 1
+              },
+              {
+                "time": 14,
+                "position": {
+                  "dx": -8,
+                  "dy": 12,
+                  "dz": 10
+                },
+                "yaw": 90,
+                "pitch": 30,
+                "roll": 0,
+                "fov": 74,
+                "zoom": 1
+              }
             ]
           },
           {
@@ -183,12 +521,47 @@
             "transition": "morph",
             "transition_duration": 1.5,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": -8, "dy": 12, "dz": 10 }, "yaw": 0, "pitch": 55, "roll": 0, "fov": 74, "zoom": 1.0 },
-              { "time": 6,  "position": { "dx": 0,  "dy": 13, "dz": 14 }, "yaw": 0, "pitch": 55, "roll": 0, "fov": 74, "zoom": 1.0 },
-              { "time": 13, "position": { "dx": 8,  "dy": 13, "dz": 8 },  "yaw": 0, "pitch": 55, "roll": 0, "fov": 74, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": -8,
+                  "dy": 12,
+                  "dz": 10
+                },
+                "yaw": 0,
+                "pitch": 55,
+                "roll": 0,
+                "fov": 74,
+                "zoom": 1
+              },
+              {
+                "time": 6,
+                "position": {
+                  "dx": 0,
+                  "dy": 13,
+                  "dz": 14
+                },
+                "yaw": 0,
+                "pitch": 55,
+                "roll": 0,
+                "fov": 74,
+                "zoom": 1
+              },
+              {
+                "time": 13,
+                "position": {
+                  "dx": 8,
+                  "dy": 13,
+                  "dz": 8
+                },
+                "yaw": 0,
+                "pitch": 55,
+                "roll": 0,
+                "fov": 74,
+                "zoom": 1
+              }
             ]
           },
           {
@@ -197,25 +570,83 @@
             "transition": "morph",
             "transition_duration": 1.5,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": 8,  "dy": 13, "dz": 8 },  "yaw": 0,   "pitch": 55, "roll": 0, "fov": 74, "zoom": 1.0 },
-              { "time": 6,  "position": { "dx": 10, "dy": 7,  "dz": 6 },  "yaw": 60,  "pitch": 30, "roll": 0, "fov": 72, "zoom": 1.0 },
-              { "time": 12, "position": { "dx": 11, "dy": 2,  "dz": 4 },  "yaw": 115, "pitch": 12, "roll": 0, "fov": 70, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 8,
+                  "dy": 13,
+                  "dz": 8
+                },
+                "yaw": 0,
+                "pitch": 55,
+                "roll": 0,
+                "fov": 74,
+                "zoom": 1
+              },
+              {
+                "time": 6,
+                "position": {
+                  "dx": 10,
+                  "dy": 7,
+                  "dz": 6
+                },
+                "yaw": 60,
+                "pitch": 30,
+                "roll": 0,
+                "fov": 72,
+                "zoom": 1
+              },
+              {
+                "time": 12,
+                "position": {
+                  "dx": 11,
+                  "dy": 2,
+                  "dz": 4
+                },
+                "yaw": 115,
+                "pitch": 12,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
             ]
           },
           {
             "start_time": 142,
             "duration": 10,
             "transition": "morph",
-            "transition_duration": 1.0,
+            "transition_duration": 1,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": 11, "dy": 2, "dz": 4 }, "yaw": 115, "pitch": 12, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 10, "position": { "dx": 6,  "dy": 2, "dz": 2 }, "yaw": 115, "pitch": 12, "roll": 0, "fov": 92, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 11,
+                  "dy": 2,
+                  "dz": 4
+                },
+                "yaw": 115,
+                "pitch": 12,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 10,
+                "position": {
+                  "dx": 6,
+                  "dy": 2,
+                  "dz": 2
+                },
+                "yaw": 115,
+                "pitch": 12,
+                "roll": 0,
+                "fov": 92,
+                "zoom": 1
+              }
             ]
           },
           {
@@ -224,26 +655,96 @@
             "transition": "morph",
             "transition_duration": 1.5,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": 12, "dy": 2, "dz": 0 },  "yaw": 90, "pitch": 6, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 6,  "position": { "dx": 0,  "dy": 2, "dz": -12 }, "yaw": 0,  "pitch": 6, "roll": 0, "fov": 68, "zoom": 1.0 },
-              { "time": 12, "position": { "dx": -12, "dy": 2, "dz": 0 }, "yaw": -90, "pitch": 6, "roll": 0, "fov": 66, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 12,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": 90,
+                "pitch": 6,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 6,
+                "position": {
+                  "dx": 0,
+                  "dy": 2,
+                  "dz": -12
+                },
+                "yaw": 0,
+                "pitch": 6,
+                "roll": 0,
+                "fov": 68,
+                "zoom": 1
+              },
+              {
+                "time": 12,
+                "position": {
+                  "dx": -12,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": 6,
+                "roll": 0,
+                "fov": 66,
+                "zoom": 1
+              }
             ]
           },
           {
             "start_time": 164,
             "duration": 12,
             "transition": "morph",
-            "transition_duration": 1.0,
+            "transition_duration": 1,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": -8, "dy": 2, "dz": 0 }, "yaw": -90, "pitch": 8,  "roll": 0, "fov": 60, "zoom": 1.1 },
-              { "time": 6,  "position": { "dx": -7, "dy": 2, "dz": 0 }, "yaw": -90, "pitch": 10, "roll": 3, "fov": 56, "zoom": 1.25 },
-              { "time": 12, "position": { "dx": -6, "dy": 2, "dz": 0 }, "yaw": -90, "pitch": 12, "roll": 6, "fov": 52, "zoom": 1.4 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": -8,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": 8,
+                "roll": 0,
+                "fov": 60,
+                "zoom": 1.1
+              },
+              {
+                "time": 6,
+                "position": {
+                  "dx": -7,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": 10,
+                "roll": 3,
+                "fov": 56,
+                "zoom": 1.25
+              },
+              {
+                "time": 12,
+                "position": {
+                  "dx": -6,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": 12,
+                "roll": 6,
+                "fov": 52,
+                "zoom": 1.4
+              }
             ]
           },
           {
@@ -252,12 +753,47 @@
             "transition": "morph",
             "transition_duration": 1.5,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": -6, "dy": 2, "dz": 0 }, "yaw": -90, "pitch": 12, "roll": 6, "fov": 52, "zoom": 1.4 },
-              { "time": 6,  "position": { "dx": -10, "dy": 2, "dz": 0 }, "yaw": -90, "pitch": 8,  "roll": 3, "fov": 58, "zoom": 1.2 },
-              { "time": 12, "position": { "dx": -14, "dy": 2, "dz": 0 }, "yaw": -90, "pitch": 5,  "roll": 0, "fov": 64, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": -6,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": 12,
+                "roll": 6,
+                "fov": 52,
+                "zoom": 1.4
+              },
+              {
+                "time": 6,
+                "position": {
+                  "dx": -10,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": 8,
+                "roll": 3,
+                "fov": 58,
+                "zoom": 1.2
+              },
+              {
+                "time": 12,
+                "position": {
+                  "dx": -14,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 64,
+                "zoom": 1
+              }
             ]
           },
           {
@@ -266,25 +802,83 @@
             "transition": "morph",
             "transition_duration": 1.5,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0,  "position": { "dx": -14, "dy": 2, "dz": 0 },  "yaw": -90,  "pitch": 5, "roll": 0, "fov": 64, "zoom": 1.0 },
-              { "time": 6,  "position": { "dx": -16, "dy": 3, "dz": -3 }, "yaw": -110, "pitch": 3, "roll": 0, "fov": 67, "zoom": 1.0 },
-              { "time": 12, "position": { "dx": -18, "dy": 3, "dz": -6 }, "yaw": -135, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": -14,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 64,
+                "zoom": 1
+              },
+              {
+                "time": 6,
+                "position": {
+                  "dx": -16,
+                  "dy": 3,
+                  "dz": -3
+                },
+                "yaw": -110,
+                "pitch": 3,
+                "roll": 0,
+                "fov": 67,
+                "zoom": 1
+              },
+              {
+                "time": 12,
+                "position": {
+                  "dx": -18,
+                  "dy": 3,
+                  "dz": -6
+                },
+                "yaw": -135,
+                "pitch": 2,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
             ]
           },
           {
             "start_time": 200,
             "duration": 5,
             "transition": "morph",
-            "transition_duration": 1.0,
+            "transition_duration": 1,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0, "position": { "dx": -18, "dy": 3, "dz": -6 }, "yaw": -135, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 5, "position": { "dx": -18, "dy": 3, "dz": -6 }, "yaw": -135, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1.0 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": -18,
+                  "dy": 3,
+                  "dz": -6
+                },
+                "yaw": -135,
+                "pitch": 2,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 5,
+                "position": {
+                  "dx": -18,
+                  "dy": 3,
+                  "dz": -6
+                },
+                "yaw": -135,
+                "pitch": 2,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
             ]
           }
         ]
@@ -296,10 +890,22 @@
             "start_time": 0,
             "duration": 205,
             "keyframes": [
-              { "time": 0,   "aspect_ratio": 0.0 },
-              { "time": 3,   "aspect_ratio": 2.35 },
-              { "time": 201, "aspect_ratio": 2.35 },
-              { "time": 205, "aspect_ratio": 0.0 }
+              {
+                "time": 0,
+                "aspect_ratio": 0
+              },
+              {
+                "time": 3,
+                "aspect_ratio": 2.35
+              },
+              {
+                "time": 201,
+                "aspect_ratio": 2.35
+              },
+              {
+                "time": 205,
+                "aspect_ratio": 0
+              }
             ]
           }
         ]
@@ -313,16 +919,33 @@
             "sound": "second_waltz.ogg",
             "source": "file",
             "volume": 0.7,
-            "pitch": 1.0,
+            "pitch": 1,
             "loop": false,
             "fade_in": 1.5,
-            "fade_out": 0.0,
+            "fade_out": 0,
             "attenuation": "none",
-            "position_mode": "relative",
             "keyframes": [
-              { "time": 0,   "volume": 0.7, "x": 0, "y": 0, "z": 0 },
-              { "time": 200, "volume": 0.7, "x": 0, "y": 0, "z": 0 },
-              { "time": 205, "volume": 0.0, "x": 0, "y": 0, "z": 0 }
+              {
+                "time": 0,
+                "volume": 0.7,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              {
+                "time": 200,
+                "volume": 0.7,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              {
+                "time": 205,
+                "volume": 0,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
             ]
           }
         ]
@@ -335,20 +958,76 @@
             "duration": 205,
             "event_type": "command",
             "keyframes": [
-              { "time": 0,   "event_type": "command", "command": "time set 10000" },
-              { "time": 2,   "event_type": "command", "command": "title @a times 20 100 30" },
-              { "time": 3,   "event_type": "command", "command": "title @a title §l第二圆舞曲" },
-              { "time": 5,   "event_type": "command", "command": "title @a subtitle §7肖斯塔科维奇 · 爵士组曲第二号" },
-              { "time": 60,  "event_type": "command", "command": "time set 12000" },
-              { "time": 61,  "event_type": "command", "command": "weather rain" },
-              { "time": 63,  "event_type": "command", "command": "title @a times 10 60 20" },
-              { "time": 64,  "event_type": "command", "command": "title @a title §l旋转的舞步" },
-              { "time": 110, "event_type": "command", "command": "weather clear" },
-              { "time": 155, "event_type": "command", "command": "title @a times 10 60 20" },
-              { "time": 156, "event_type": "command", "command": "title @a title §l华彩" },
-              { "time": 196, "event_type": "command", "command": "title @a times 20 100 30" },
-              { "time": 197, "event_type": "command", "command": "title @a title §l谢谢观看" },
-              { "time": 199, "event_type": "command", "command": "title @a subtitle §7第二圆舞曲 · 完" }
+              {
+                "time": 0,
+                "event_type": "command",
+                "command": "time set 10000"
+              },
+              {
+                "time": 2,
+                "event_type": "command",
+                "command": "title @a times 20 100 30"
+              },
+              {
+                "time": 3,
+                "event_type": "command",
+                "command": "title @a title §l第二圆舞曲"
+              },
+              {
+                "time": 5,
+                "event_type": "command",
+                "command": "title @a subtitle §7肖斯塔科维奇 · 爵士组曲第二号"
+              },
+              {
+                "time": 60,
+                "event_type": "command",
+                "command": "time set 12000"
+              },
+              {
+                "time": 61,
+                "event_type": "command",
+                "command": "weather rain"
+              },
+              {
+                "time": 63,
+                "event_type": "command",
+                "command": "title @a times 10 60 20"
+              },
+              {
+                "time": 64,
+                "event_type": "command",
+                "command": "title @a title §l旋转的舞步"
+              },
+              {
+                "time": 110,
+                "event_type": "command",
+                "command": "weather clear"
+              },
+              {
+                "time": 155,
+                "event_type": "command",
+                "command": "title @a times 10 60 20"
+              },
+              {
+                "time": 156,
+                "event_type": "command",
+                "command": "title @a title §l华彩"
+              },
+              {
+                "time": 196,
+                "event_type": "command",
+                "command": "title @a times 20 100 30"
+              },
+              {
+                "time": 197,
+                "event_type": "command",
+                "command": "title @a title §l谢谢观看"
+              },
+              {
+                "time": 199,
+                "event_type": "command",
+                "command": "title @a subtitle §7第二圆舞曲 · 完"
+              }
             ]
           }
         ]

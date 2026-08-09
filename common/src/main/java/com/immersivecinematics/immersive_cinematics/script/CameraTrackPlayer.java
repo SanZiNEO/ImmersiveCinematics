@@ -25,12 +25,23 @@ public class CameraTrackPlayer implements TrackPlayer {
     /** 诊断：look_at 日志节流 */
     private long lastLookAtLog;
 
+    /** 上一帧最终世界坐标（实体目标消失时停在原地、以及作为 @e 就近基准） */
+    private Vec3 lastWorldPos;
+
+    /** 非玩家目标解析缓存（selector → 实体+时间；1 秒有效，避免每帧全量遍历实体列表） */
+    private static class CachedTarget {
+        Entity entity;
+        long resolvedAt;
+    }
+    private final java.util.Map<String, CachedTarget> targetCache = new java.util.HashMap<>();
+
     public CameraTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos, CameraManager cameraManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
         this.type = type;
         this.trackIndex = trackIndex;
         this.originPos = originPos;
         this.cameraManager = cameraManager;
+        this.lastWorldPos = originPos;
     }
 
     /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建） */
@@ -119,18 +130,12 @@ public class CameraTrackPlayer implements TrackPlayer {
         float invWeight = 1f - weight;
 
         Vec3 prevPos = prevFrom != null
-                ? KeyframeInterpolator.interpolatePosition(prevFrom, prevTo, prevS, prevClip, bezierStrategy)
-                : Vec3.ZERO;
-        if (prevClip.isPositionModeRelative()) {
-            prevPos = originPos.add(prevPos);
-        }
+                ? interpolateWorldPosition(prevFrom, prevTo, prevS, prevClip)
+                : lastWorldPos;
 
         Vec3 nextPos = nextFrom != null
-                ? KeyframeInterpolator.interpolatePosition(nextFrom, nextTo, nextS, nextClip, bezierStrategy)
-                : Vec3.ZERO;
-        if (nextClip.isPositionModeRelative()) {
-            nextPos = originPos.add(nextPos);
-        }
+                ? interpolateWorldPosition(nextFrom, nextTo, nextS, nextClip)
+                : lastWorldPos;
 
         Vec3 pos = new Vec3(
                 prevPos.x * invWeight + nextPos.x * weight,
@@ -138,14 +143,14 @@ public class CameraTrackPlayer implements TrackPlayer {
                 prevPos.z * invWeight + nextPos.z * weight
         );
 
-        float yaw = blendAngle(
-                prevFrom != null ? KeyframeInterpolator.interpolateYaw(prevFrom, prevTo, prevS) : 0f,
-                nextFrom != null ? KeyframeInterpolator.interpolateYaw(nextFrom, nextTo, nextS) : 0f,
-                weight);
-        float pitch = blendFloat(
-                prevFrom != null ? KeyframeInterpolator.interpolatePitch(prevFrom, prevTo, prevS) : 0f,
-                nextFrom != null ? KeyframeInterpolator.interpolatePitch(nextFrom, nextTo, nextS) : 0f,
-                weight);
+        float prevYawBase = prevFrom != null ? KeyframeInterpolator.interpolateYaw(prevFrom, prevTo, prevS) : 0f;
+        float prevPitchBase = prevFrom != null ? KeyframeInterpolator.interpolatePitch(prevFrom, prevTo, prevS) : 0f;
+        float nextYawBase = nextFrom != null ? KeyframeInterpolator.interpolateYaw(nextFrom, nextTo, nextS) : 0f;
+        float nextPitchBase = nextFrom != null ? KeyframeInterpolator.interpolatePitch(nextFrom, nextTo, nextS) : 0f;
+        float[] prevYp = segmentYawPitch(prevFrom, prevTo, prevS, prevClip, prevPos, prevYawBase, prevPitchBase);
+        float[] nextYp = segmentYawPitch(nextFrom, nextTo, nextS, nextClip, nextPos, nextYawBase, nextPitchBase);
+        float yaw = blendAngle(prevYp[0], nextYp[0], weight);
+        float pitch = blendFloat(prevYp[1], nextYp[1], weight);
         float roll = blendAngle(
                 prevFrom != null ? KeyframeInterpolator.interpolateRoll(prevFrom, prevTo, prevS) : 0f,
                 nextFrom != null ? KeyframeInterpolator.interpolateRoll(nextFrom, nextTo, nextS) : 0f,
@@ -158,55 +163,6 @@ public class CameraTrackPlayer implements TrackPlayer {
                 prevFrom != null ? KeyframeInterpolator.interpolateZoom(prevFrom, prevTo, prevS) : 1f,
                 nextFrom != null ? KeyframeInterpolator.interpolateZoom(nextFrom, nextTo, nextS) : 1f,
                 weight);
-
-        // ====== Tracking override（覆盖开关，同 writeAttributes：follow 先定位置，look_at 用最终位置）======
-        String lookAt = prevClip.getString("cam_tracking_look_at", "none");
-        String follow = prevClip.getString("cam_tracking_follow", "none");
-        String selector = prevClip.getString("cam_tracking_target_selector", "@p");
-
-        if ("entity".equals(follow)) {
-            Entity followTarget = resolveEntity(selector);
-            if (followTarget != null) {
-                float ox = prevClip.getFloat("cam_tracking_follow_offset_x", 0);
-                float oy = prevClip.getFloat("cam_tracking_follow_offset_y", 2);
-                float oz = prevClip.getFloat("cam_tracking_follow_offset_z", 0);
-                pos = entityPosInterp(followTarget).add(ox, oy, oz);
-            }
-        }
-
-        if ("coordinate".equals(lookAt) || "entity".equals(lookAt)) {
-            Vec3 targetPos;
-            if ("coordinate".equals(lookAt)) {
-                float tx = prevClip.getFloat("cam_tracking_look_target_x", 0);
-                float ty = prevClip.getFloat("cam_tracking_look_target_y", 64);
-                float tz = prevClip.getFloat("cam_tracking_look_target_z", 0);
-                targetPos = new Vec3(tx, ty, tz);
-            } else {
-                Entity targetEntity = resolveEntity(selector);
-                targetPos = targetEntity != null
-                        ? entityPosInterp(targetEntity).add(0, targetEntity.getBbHeight() / 2.0, 0)
-                        : null;
-            }
-            if (targetPos != null) {
-                double dx = targetPos.x - pos.x;
-                double dy = targetPos.y - pos.y;
-                double dz = targetPos.z - pos.z;
-                float newYaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
-                float newPitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-                // 诊断：morph 转场中的 look_at（相机位置 / 目标位置 / 算出的角度），1 秒节流
-                long now = System.currentTimeMillis();
-                if (now - lastLookAtLog >= 1000) {
-                    lastLookAtLog = now;
-                    LOGGER.info("LOOK_AT[morph]: cam=({}, {}, {}) target=({}, {}, {}) yaw={} pitch={}",
-                            String.format("%.2f", pos.x), String.format("%.2f", pos.y), String.format("%.2f", pos.z),
-                            String.format("%.2f", targetPos.x), String.format("%.2f", targetPos.y), String.format("%.2f", targetPos.z),
-                            String.format("%.2f", newYaw), String.format("%.2f", newPitch));
-                }
-                yaw = newYaw;
-                pitch = newPitch;
-            }
-        }
-        // ====== End tracking ======
 
         // ====== Breath disturbance ======
         if (prevClip.getBool("cam_breath_enabled", false)) {
@@ -225,73 +181,182 @@ public class CameraTrackPlayer implements TrackPlayer {
 
         cameraManager.getPath().setPositionDirect(pos);
         cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom);
+        lastWorldPos = pos;
+    }
+
+    /**
+     * 关键帧世界坐标求值：
+     * follow=entity → 实体渲染帧插值位置 + position 偏移（动态，每帧重算；实体消失时停在上一帧位置）
+     * 普通关键帧    → position_mode=absolute ? position : originPos + position
+     */
+    private Vec3 evalKeyframeWorldPos(Keyframe kf, Clip clip) {
+        if ("entity".equals(kf.getString("follow", "none"))) {
+            Entity target = resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos);
+            if (target != null) {
+                PositionData pd = kf.getPosition();
+                Vec3 off = pd != null ? pd.toVec3() : Vec3.ZERO;
+                return entityPosInterp(target).add(off);
+            }
+            return lastWorldPos;
+        }
+        PositionData pd = kf.getPosition();
+        Vec3 p = pd != null ? pd.toVec3() : Vec3.ZERO;
+        // position 对象自描述模式（有 dx/dy/dz=相对、有 x/y/z=绝对），不依赖 position_mode 字段
+        return pd != null && !pd.isRelative() ? p : originPos.add(p);
+    }
+
+    /** 结构坐标缓存条目 */
+    private static class StructurePosCache {
+        Vec3 pos;
+        long resolvedAt;
+    }
+
+    /** 结构坐标缓存（structure id → 解析结果，1 秒有效） */
+    private final java.util.Map<String, StructurePosCache> structureCache = new java.util.HashMap<>();
+
+    /**
+     * 结构坐标解析（客户端）：单人/集成服务器（含编辑器预览）直接访问服务端 level，
+     * 用原版 findNearestMapStructure（/locate 同源）定位结构中心。结果 1 秒缓存。
+     * 多人服务器（无服务端访问）或找不到返回 null（调用方回退 xyz）。
+     * 注：服务端 /icinematics play 推送前已把 look_at_target_structure 替换为坐标，此路径主要为编辑器预览兜底。
+     */
+    private Vec3 resolveStructurePos(String structureId) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        long now = System.currentTimeMillis();
+        StructurePosCache cached = structureCache.get(structureId);
+        if (cached != null && now - cached.resolvedAt < 1000) {
+            return cached.pos;
+        }
+        Vec3 result = null;
+        try {
+            net.minecraft.resources.ResourceLocation id = new net.minecraft.resources.ResourceLocation(structureId);
+            net.minecraft.server.MinecraftServer singleplayer = mc.getSingleplayerServer();
+            if (singleplayer == null) {
+                LOGGER.warn("多人服务器无法解析结构 '{}'（服务端 play 推送会替换为坐标；编辑器预览仅限单人）", structureId);
+            } else {
+                net.minecraft.server.level.ServerLevel serverLevel = singleplayer.getLevel(mc.level.dimension());
+                if (serverLevel != null) {
+                    net.minecraft.tags.TagKey<net.minecraft.world.level.levelgen.structure.Structure> tag =
+                            net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.STRUCTURE, id);
+                    net.minecraft.core.BlockPos pos = serverLevel.findNearestMapStructure(
+                            tag, net.minecraft.core.BlockPos.containing(mc.player.getX(), mc.player.getY(), mc.player.getZ()), 100, false);
+                    if (pos != null) {
+                        result = new Vec3(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+                    } else {
+                        LOGGER.warn("结构 '{}' 在搜索半径内未找到（原版 /locate 同范围）", structureId);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.warn("结构坐标解析失败 '{}': {}", structureId, e.getMessage());
+        }
+        StructurePosCache entry = new StructurePosCache();
+        entry.pos = result;
+        entry.resolvedAt = now;
+        structureCache.put(structureId, entry);
+        return result;
+    }
+
+    /**
+     * 关键帧 look_at 目标点求值：
+     * entity     → 实体正中心（渲染帧插值位置 + 半高，动态）
+     * coordinate → 固定坐标点
+     * none       → 由该关键帧 yaw/pitch 决定的 100 格方向远点（看向它 = 保持该朝向）
+     * 返回 null 表示该端无法求值（实体消失），调用方回退角度插值。
+     */
+    private Vec3 evalLookTarget(Keyframe kf, Clip clip, Vec3 pos) {
+        String lookAt = kf.getString("look_at", "none");
+        if ("entity".equals(lookAt)) {
+            Entity target = resolveEntity(kf.getString("look_at_selector", "@p"), pos);
+            return target != null
+                    ? entityPosInterp(target).add(0, target.getBbHeight() / 2.0, 0)
+                    : null;
+        }
+        if ("coordinate".equals(lookAt)) {
+            String structureId = kf.getString("look_at_target_structure", "");
+            if (!structureId.isEmpty()) {
+                Vec3 structurePos = resolveStructurePos(structureId);
+                if (structurePos != null) return structurePos;
+                LOGGER.warn("结构 '{}' 未在附近已加载区块中找到，回退 look_at_target_xyz", structureId);
+            }
+            return new Vec3(
+                    kf.getFloat("look_at_target_x", 0),
+                    kf.getFloat("look_at_target_y", 64),
+                    kf.getFloat("look_at_target_z", 0));
+        }
+        // none：关键帧朝向的 100 格远点（MC 视线方向 forwards = (-sin yaw·cos pitch, sin pitch, cos yaw·cos pitch)）
+        double yawRad = Math.toRadians(kf.getYaw());
+        double pitchRad = Math.toRadians(kf.getPitch());
+        double fx = -Math.sin(yawRad) * Math.cos(pitchRad);
+        double fy = Math.sin(pitchRad);
+        double fz = Math.cos(yawRad) * Math.cos(pitchRad);
+        return pos.add(fx * 100, fy * 100, fz * 100);
+    }
+
+    /**
+     * 世界坐标空间插值：两端关键帧各自求值成世界坐标后按路径策略插值。
+     * 任一端为 follow（动态目标）时强制 linear（曲线控制点对动态实体无意义）。
+     * 由此 follow↔普通、换实体、换偏移的过渡天然平滑（两端都是世界坐标）。
+     */
+    private Vec3 interpolateWorldPosition(Keyframe from, Keyframe to, float s, Clip clip) {
+        Vec3 p0 = evalKeyframeWorldPos(from, clip);
+        Vec3 p3 = evalKeyframeWorldPos(to, clip);
+        boolean anyFollow = "entity".equals(from.getString("follow", "none"))
+                || "entity".equals(to.getString("follow", "none"));
+        PathStrategy strategy = anyFollow ? PathStrategies.get("linear") : bezierStrategy;
+        return strategy.interpolate(p0, p3, s, anyFollow ? null : clip.getCurve());
+    }
+
+    /**
+     * 单段朝向求值：任一端 look_at != none 时用目标点插值模型（看向插值目标点），
+     * 否则回退角度插值。返回 [yaw, pitch]。
+     */
+    private float[] segmentYawPitch(Keyframe from, Keyframe to, float s, Clip clip, Vec3 segPos,
+                                    float yawFallback, float pitchFallback) {
+        if (from != null && to != null) {
+            boolean anyLook = !"none".equals(from.getString("look_at", "none"))
+                    || !"none".equals(to.getString("look_at", "none"));
+            if (anyLook) {
+                Vec3 t0 = evalLookTarget(from, clip, segPos);
+                Vec3 t1 = evalLookTarget(to, clip, segPos);
+                if (t0 != null && t1 != null) {
+                    Vec3 target = new Vec3(t0.x + (t1.x - t0.x) * s, t0.y + (t1.y - t0.y) * s, t0.z + (t1.z - t0.z) * s);
+                    double dx = target.x - segPos.x;
+                    double dy = target.y - segPos.y;
+                    double dz = target.z - segPos.z;
+                    float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
+                    float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+                    // 诊断：look_at 计算链路（相机位置 / 目标点 / 算出的角度），1 秒节流
+                    long now = System.currentTimeMillis();
+                    if (now - lastLookAtLog >= 1000) {
+                        lastLookAtLog = now;
+                        LOGGER.info("LOOK_AT: cam=({}, {}, {}) target=({}, {}, {}) yaw={} pitch={}",
+                                String.format("%.2f", segPos.x), String.format("%.2f", segPos.y), String.format("%.2f", segPos.z),
+                                String.format("%.2f", target.x), String.format("%.2f", target.y), String.format("%.2f", target.z),
+                                String.format("%.2f", yaw), String.format("%.2f", pitch));
+                    }
+                    return new float[]{yaw, pitch};
+                }
+            }
+        }
+        return new float[]{yawFallback, pitchFallback};
     }
 
     private void writeAttributes(Keyframe from, Keyframe to, float s, Clip clip, float globalTime) {
-        Vec3 pos = KeyframeInterpolator.interpolatePosition(from, to, s, clip, bezierStrategy);
-        float yaw = KeyframeInterpolator.interpolateYaw(from, to, s);
-        float pitch = KeyframeInterpolator.interpolatePitch(from, to, s);
+        Vec3 pos = interpolateWorldPosition(from, to, s, clip);
+        float yawBase = KeyframeInterpolator.interpolateYaw(from, to, s);
+        float pitchBase = KeyframeInterpolator.interpolatePitch(from, to, s);
         float roll = KeyframeInterpolator.interpolateRoll(from, to, s);
         float fov = KeyframeInterpolator.interpolateFov(from, to, s);
         float zoom = KeyframeInterpolator.interpolateZoom(from, to, s);
 
-        // ====== 先得到世界坐标位置（relative 加成），后续 follow/look_at 均基于世界坐标 ======
-        if (clip.isPositionModeRelative()) {
-            pos = originPos.add(pos);
-        }
-
-        // ====== Tracking override（覆盖开关：follow 改位置、look_at 改朝向，互不叠加）======
-        // 顺序：先 follow 定最终位置，再 look_at 用最终位置计算朝向（否则朝向偏离一个 follow 偏移量）
-        String lookAt = clip.getString("cam_tracking_look_at", "none");
-        String follow = clip.getString("cam_tracking_follow", "none");
-        String selector = clip.getString("cam_tracking_target_selector", "@p");
-
-        if ("entity".equals(follow)) {
-            Entity followTarget = resolveEntity(selector);
-            if (followTarget != null) {
-                float ox = clip.getFloat("cam_tracking_follow_offset_x", 0);
-                float oy = clip.getFloat("cam_tracking_follow_offset_y", 2);
-                float oz = clip.getFloat("cam_tracking_follow_offset_z", 0);
-                // 位置 = 实体渲染帧插值位置（脚底基准）+ 固定偏移（纯加减法）
-                pos = entityPosInterp(followTarget).add(ox, oy, oz);
-            }
-        }
-
-        if ("coordinate".equals(lookAt) || "entity".equals(lookAt)) {
-            Vec3 targetPos;
-            if ("coordinate".equals(lookAt)) {
-                float tx = clip.getFloat("cam_tracking_look_target_x", 0);
-                float ty = clip.getFloat("cam_tracking_look_target_y", 64);
-                float tz = clip.getFloat("cam_tracking_look_target_z", 0);
-                targetPos = new Vec3(tx, ty, tz);
-            } else {
-                // 实体目标：渲染帧插值位置 + 实体半高 = 参考对象正中心（不特定化玩家）
-                Entity targetEntity = resolveEntity(selector);
-                targetPos = targetEntity != null
-                        ? entityPosInterp(targetEntity).add(0, targetEntity.getBbHeight() / 2.0, 0)
-                        : null;
-            }
-            if (targetPos != null) {
-                double dx = targetPos.x - pos.x;
-                double dy = targetPos.y - pos.y;
-                double dz = targetPos.z - pos.z;
-                float newYaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
-                float newPitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-                // 诊断：look_at 计算链路（相机位置 / 目标位置 / 算出的角度），1 秒节流
-                long now = System.currentTimeMillis();
-                if (now - lastLookAtLog >= 1000) {
-                    lastLookAtLog = now;
-                    LOGGER.info("LOOK_AT: cam=({}, {}, {}) target=({}, {}, {}) dx={} dy={} dz={} yaw={} pitch={}",
-                            String.format("%.2f", pos.x), String.format("%.2f", pos.y), String.format("%.2f", pos.z),
-                            String.format("%.2f", targetPos.x), String.format("%.2f", targetPos.y), String.format("%.2f", targetPos.z),
-                            String.format("%.2f", dx), String.format("%.2f", dy), String.format("%.2f", dz),
-                            String.format("%.2f", newYaw), String.format("%.2f", newPitch));
-                }
-                yaw = newYaw;
-                pitch = newPitch;
-            }
-        }
-
+        // ====== look_at 目标点插值模型 ======
+        // 关键帧 look_at 定义"目标点"（entity=实体正中心、coordinate=固定点、none=由该关键帧 yaw/pitch 决定的方向远点）。
+        // 目标点在关键帧间插值后相机看向插值点——look_at 切换/开关天然平滑；两端都 none 时保持角度插值（零回归）。
+        float[] yp = segmentYawPitch(from, to, s, clip, pos, yawBase, pitchBase);
+        float yaw = yp[0];
+        float pitch = yp[1];
+        // ====== End look_at ======
         // ====== Breath disturbance ======
         if (clip.getBool("cam_breath_enabled", false)) {
             float intensity = clip.getFloat("cam_breath_intensity", 0.05f);
@@ -309,6 +374,7 @@ public class CameraTrackPlayer implements TrackPlayer {
 
         cameraManager.getPath().setPositionDirect(pos);
         cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom);
+        lastWorldPos = pos;
     }
 
     @Override
@@ -321,6 +387,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     @Override
     public void onScriptReplaced() {
         lastClipIndex = 0;
+        targetCache.clear();
     }
 
     private Clip findActiveClip(float globalTime) {
@@ -392,13 +459,82 @@ public class CameraTrackPlayer implements TrackPlayer {
         );
     }
 
-    /** 解析目标实体（目前支持 @p/@s；未来可扩展 @e selector） */
-    private net.minecraft.world.entity.Entity resolveEntity(String selector) {
+    /** 非玩家目标缓存（范围内唯一目标不会频繁切换，避免每帧全量遍历实体列表） */
+    private Entity cachedTarget;
+    private long cachedTargetResolvedAt;
+
+    /**
+     * 解析目标实体（原版 EntitySelectorParser 语义的子集，就近优先）：
+     * @p / @s        = 玩家（原版 @p ORDER_NEAREST limit 1 的等价简化）
+     * @e             = 范围内按离 origin 最近取 1 个活实体
+     * @e[type=…]     = 按实体类型过滤后就近取 1（如 minecraft:sheep / 模组 boss id）
+     * @e[name=…]     = 按自定义名过滤后就近取 1
+     * uuid:xxxxxxxx  = UUID 直绑（唯一确定，不排序）
+     * 解析失败或无匹配返回 null：follow 停在上一帧位置、look_at 不生效
+     */
+    private net.minecraft.world.entity.Entity resolveEntity(String selector, Vec3 origin) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
         if ("@p".equals(selector) || "@s".equals(selector)) {
-            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
             return mc.player;
         }
-        return null; // Phase 1: only @p/@s supported
+
+        // 非玩家目标：按 selector 分键缓存 1 秒（目标仍存活时复用，避免每帧全量遍历）
+        long now = System.currentTimeMillis();
+        CachedTarget cached = targetCache.get(selector);
+        if (cached != null && cached.entity.isAlive() && now - cached.resolvedAt < 1000) {
+            return cached.entity;
+        }
+
+        net.minecraft.world.entity.Entity found = null;
+        if (selector.startsWith("uuid:")) {
+            try {
+                java.util.UUID uuid = java.util.UUID.fromString(selector.substring(5));
+                for (net.minecraft.world.entity.Entity e : mc.level.entitiesForRendering()) {
+                    if (uuid.equals(e.getUUID())) {
+                        found = e;
+                        break;
+                    }
+                }
+            } catch (IllegalArgumentException ex) {
+                LOGGER.warn("无效的实体 UUID selector: {}", selector);
+            }
+        } else if ("@e".equals(selector) || selector.startsWith("@e[")) {
+            String typeId = null;
+            String name = null;
+            if (selector.startsWith("@e[")) {
+                String inner = selector.substring(3, selector.length() - 1);
+                for (String kv : inner.split(",")) {
+                    int eq = kv.indexOf('=');
+                    if (eq <= 0) continue;
+                    String key = kv.substring(0, eq).trim();
+                    String val = kv.substring(eq + 1).trim();
+                    if ("type".equals(key)) typeId = val;
+                    else if ("name".equals(key)) name = val;
+                    // 未知选项忽略（容错，不崩溃）
+                }
+            }
+            final String fType = typeId;
+            final String fName = name;
+            double bestDist = Double.MAX_VALUE;
+            for (net.minecraft.world.entity.Entity e : mc.level.entitiesForRendering()) {
+                if (!e.isAlive()) continue;
+                if (fType != null && !fType.equals(net.minecraft.world.entity.EntityType.getKey(e.getType()).toString())) continue;
+                if (fName != null && (e.getCustomName() == null || !fName.equals(e.getCustomName().getString()))) continue;
+                double dist = e.distanceToSqr(origin);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    found = e;
+                }
+            }
+        } else {
+            LOGGER.warn("不支持的实体 selector: {}（支持 @p/@s/@e/@e[type=…,name=…]/uuid:xxx）", selector);
+        }
+
+        CachedTarget entry = new CachedTarget();
+        entry.entity = found;
+        entry.resolvedAt = now;
+        targetCache.put(selector, entry);
+        return found;
     }
 
     /** 实体渲染帧插值位置（上一 tick → 当前 tick 按渲染 partialTick 插值，消除 20Hz 步进卡顿） */

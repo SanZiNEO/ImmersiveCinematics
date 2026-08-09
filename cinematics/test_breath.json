@@ -17,7 +17,7 @@
     "render_player_model": false
   },
   "timeline": {
-    "total_duration": 15.0,
+    "total_duration": 15,
     "tracks": [
       {
         "type": "CAMERA",
@@ -27,7 +27,6 @@
             "duration": 15,
             "transition": "cut",
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "cam_breath_enabled": true,
             "cam_breath_intensity": 0.1,
@@ -35,21 +34,29 @@
             "keyframes": [
               {
                 "time": 0,
-                "position": { "dx": 3, "dy": 2, "dz": -3 },
+                "position": {
+                  "dx": 3,
+                  "dy": 2,
+                  "dz": -3
+                },
                 "yaw": 0,
                 "pitch": -5,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1.0
+                "zoom": 1
               },
               {
                 "time": 15,
-                "position": { "dx": -3, "dy": 2, "dz": 3 },
+                "position": {
+                  "dx": -3,
+                  "dy": 2,
+                  "dz": 3
+                },
                 "yaw": 180,
                 "pitch": 0,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1.0
+                "zoom": 1
               }
             ]
           }

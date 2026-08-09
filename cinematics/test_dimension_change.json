@@ -48,12 +48,15 @@
             "transition": "morph",
             "transition_duration": 1,
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
               {
                 "time": 0,
-                "position": { "dx": 3, "dy": 2, "dz": 0 },
+                "position": {
+                  "dx": 3,
+                  "dy": 2,
+                  "dz": 0
+                },
                 "yaw": 0,
                 "pitch": 0,
                 "roll": 0,
@@ -62,7 +65,11 @@
               },
               {
                 "time": 4,
-                "position": { "dx": 0, "dy": 3, "dz": -3 },
+                "position": {
+                  "dx": 0,
+                  "dy": 3,
+                  "dz": -3
+                },
                 "yaw": 90,
                 "pitch": 5,
                 "roll": 0,
@@ -76,12 +83,15 @@
             "duration": 6,
             "transition": "cut",
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
               {
                 "time": 0,
-                "position": { "dx": 0, "dy": 3, "dz": -3 },
+                "position": {
+                  "dx": 0,
+                  "dy": 3,
+                  "dz": -3
+                },
                 "yaw": 90,
                 "pitch": 5,
                 "roll": 0,
@@ -90,7 +100,11 @@
               },
               {
                 "time": 6,
-                "position": { "dx": -3, "dy": 5, "dz": 0 },
+                "position": {
+                  "dx": -3,
+                  "dy": 5,
+                  "dz": 0
+                },
                 "yaw": 180,
                 "pitch": 15,
                 "roll": 0,

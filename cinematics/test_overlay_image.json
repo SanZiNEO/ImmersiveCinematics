@@ -19,11 +19,34 @@
             "duration": 12,
             "transition": "cut",
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 2, "dz": 0 }, "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 12, "position": { "dx": 0, "dy": 2, "dz": 0 }, "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 }
+              {
+                "time": 0,
+                "position": {
+                  "dx": 0,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": -10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 12,
+                "position": {
+                  "dx": 0,
+                  "dy": 2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": -10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
             ]
           }
         ]
@@ -40,14 +63,70 @@
             "z_index": 20,
             "interpolation": "smooth",
             "keyframes": [
-              { "time": 0,  "x": 0.0,  "y": 0.0,  "scale_x": 0.5,  "scale_y": 0.5,  "opacity": 0 },
-              { "time": 1,  "x": 0.03, "y": 0.03, "scale_x": 0.55, "scale_y": 0.55, "opacity": 1 },
-              { "time": 3,  "x": 0.12, "y": 0.08, "scale_x": 0.65, "scale_y": 0.65, "opacity": 1 },
-              { "time": 4,  "x": 0.16, "y": 0.1,  "scale_x": 0.7,  "scale_y": 0.7,  "opacity": 0 },
-              { "time": 7,  "x": 0.28, "y": 0.18, "scale_x": 0.8,  "scale_y": 0.8,  "opacity": 0 },
-              { "time": 8,  "x": 0.31, "y": 0.2,  "scale_x": 0.75, "scale_y": 0.75, "opacity": 1 },
-              { "time": 10, "x": 0.4,  "y": 0.3,  "scale_x": 0.6,  "scale_y": 0.6,  "opacity": 1 },
-              { "time": 12, "x": 0.45, "y": 0.45, "scale_x": 0.5,  "scale_y": 0.5,  "opacity": 0 }
+              {
+                "time": 0,
+                "x": 0,
+                "y": 0,
+                "scale_x": 0.5,
+                "scale_y": 0.5,
+                "opacity": 0
+              },
+              {
+                "time": 1,
+                "x": 0.03,
+                "y": 0.03,
+                "scale_x": 0.55,
+                "scale_y": 0.55,
+                "opacity": 1
+              },
+              {
+                "time": 3,
+                "x": 0.12,
+                "y": 0.08,
+                "scale_x": 0.65,
+                "scale_y": 0.65,
+                "opacity": 1
+              },
+              {
+                "time": 4,
+                "x": 0.16,
+                "y": 0.1,
+                "scale_x": 0.7,
+                "scale_y": 0.7,
+                "opacity": 0
+              },
+              {
+                "time": 7,
+                "x": 0.28,
+                "y": 0.18,
+                "scale_x": 0.8,
+                "scale_y": 0.8,
+                "opacity": 0
+              },
+              {
+                "time": 8,
+                "x": 0.31,
+                "y": 0.2,
+                "scale_x": 0.75,
+                "scale_y": 0.75,
+                "opacity": 1
+              },
+              {
+                "time": 10,
+                "x": 0.4,
+                "y": 0.3,
+                "scale_x": 0.6,
+                "scale_y": 0.6,
+                "opacity": 1
+              },
+              {
+                "time": 12,
+                "x": 0.45,
+                "y": 0.45,
+                "scale_x": 0.5,
+                "scale_y": 0.5,
+                "opacity": 0
+              }
             ]
           }
         ]
@@ -64,10 +143,30 @@
             "z_index": 30,
             "interpolation": "smooth",
             "keyframes": [
-              { "time": 0,  "x": 0.0,  "y": 0.5, "opacity": 0 },
-              { "time": 1,  "x": 0.02, "y": 0.5, "opacity": 1 },
-              { "time": 6,  "x": 0.25, "y": 0.55, "opacity": 1 },
-              { "time": 11, "x": 0.4,  "y": 0.6, "opacity": 0 }
+              {
+                "time": 0,
+                "x": 0,
+                "y": 0.5,
+                "opacity": 0
+              },
+              {
+                "time": 1,
+                "x": 0.02,
+                "y": 0.5,
+                "opacity": 1
+              },
+              {
+                "time": 6,
+                "x": 0.25,
+                "y": 0.55,
+                "opacity": 1
+              },
+              {
+                "time": 11,
+                "x": 0.4,
+                "y": 0.6,
+                "opacity": 0
+              }
             ]
           }
         ]

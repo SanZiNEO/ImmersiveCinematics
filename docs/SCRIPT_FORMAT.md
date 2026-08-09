@@ -132,11 +132,12 @@
 | `transition` | string | 否 | `"cut"` | `"cut"`=硬切，`"morph"`=线性过渡 |
 | `transition_duration` | float | 否 | `0.5` | morph 过渡时长（秒） |
 | `interpolation` | string | 否 | `"linear"` | `"linear"` 或 `"smooth"`（预留） |
-| `position_mode` | string | 否 | `"relative"` | `"relative"`=相对玩家，`"absolute"`=世界坐标 |
 | `loop` | boolean | 否 | `false` | 是否循环播放 |
 | `loop_count` | int | 否 | `-1` | `-1`=无限循环 |
 | `curve` | object | 否 | `null` | 贝塞尔路径曲线 |
 | `keyframes` | array | 是 | — | 关键帧数组，至少 1 个 |
+
+> **v3 迁移**：`position_mode`、`cam_tracking_follow*`、`cam_tracking_look_at*` 已全部迁移到**关键帧级**（见下方 Keyframe 字段）。clip 级不再支持这些字段（保留会被 validate 报废弃提示）。
 
 ### curve（贝塞尔曲线）
 
@@ -160,12 +161,31 @@
 | 字段 | 类型 | 必需 | 默认 | 说明 |
 |------|------|------|------|------|
 | `time` | float | 是 | — | 在 clip 内的时间偏移（秒），从 0 开始 |
-| `position` | object | 是 | — | 位置，格式见下方 |
-| `yaw` | float | 是 | — | 偏航角（度）。0=南，90=西，±180=北 |
-| `pitch` | float | 是 | — | 俯仰角（度）。正=向下看 |
+| `position` | object | 是 | — | 位置，格式见下方。**follow=entity 时表示相对实体脚底的偏移** |
+| `position_mode` | string | 否 | `"relative"` | 该关键帧的坐标模式：`"relative"`=相对触发点（position 用 dx/dy/dz），`"absolute"`=世界坐标（position 用 x/y/z）。可与前后关键帧不同，两端世界坐标平滑插值 |
+| `follow` | string | 否 | `"none"` | `"none"`=不跟随；`"entity"`=位置跟随目标实体（动态，每帧取实体插值位置 + position 偏移）。follow↔普通关键帧之间两端世界坐标插值 → 平滑过渡 |
+| `follow_selector` | string | 否 | `"@p"` | 跟随目标选择器（见下方"目标选择器"） |
+| `look_at` | string | 否 | `"none"` | `"none"`=用 yaw/pitch；`"coordinate"`=注视固定点（xyz 或结构中心）；`"entity"`=注视实体正中心（渲染帧插值位置+半高）。look_at 关键帧的目标点之间插值 → 切换/开关平滑过渡 |
+| `look_at_selector` | string | 否 | `"@p"` | 注视目标选择器（`entity` 模式） |
+| `look_at_target_x/y/z` | float | 否 | `0/64/0` | 注视固定坐标（`coordinate` 模式，未填 `look_at_target_structure` 时使用） |
+| `look_at_target_structure` | string | 否 | `""` | 注视结构中心（`coordinate` 模式）：填结构 id（如 `minecraft:village`）。播放时服务端自动定位结构中心（原版 /locate 同源）并替换为坐标后推送；编辑器里为注册表下拉补全；多人服务器播放同样生效 |
+| `yaw` | float | 是 | — | 偏航角（度）。0=南，90=西，±180=北。`look_at != none` 时被覆盖 |
+| `pitch` | float | 是 | — | 俯仰角（度）。正=向下看。`look_at != none` 时被覆盖 |
 | `roll` | float | 是 | — | 翻滚角（度）。正=屏幕顺时针（画面向右倒），任何朝向一致 |
 | `fov` | float | 是 | — | 视场角（度），标准 70 |
 | `zoom` | float | 否 | `1.0` | 缩放倍率，`>1`=放大 |
+
+**目标选择器**（`follow_selector` / `look_at_selector`）：
+
+| 写法 | 行为 |
+|------|------|
+| `@p` / `@s` | 玩家 |
+| `@e` | 离相机最近的活实体 |
+| `@e[type=minecraft:iron_golem]` | 类型过滤后就近（模组 boss 用其注册 id） |
+| `@e[name=自定义名]` | 命名牌名字过滤后就近 |
+| `uuid:xxxxxxxx-…` | UUID 直绑（唯一确定，不排序） |
+
+无匹配时：follow 停在上一帧位置、look_at 回退 yaw/pitch。
 
 ### Position（相对模式 `relative`）
 
@@ -175,9 +195,9 @@
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `dx` | float | 相对玩家位置的 X 偏移 |
-| `dy` | float | 相对玩家位置的 Y 偏移 |
-| `dz` | float | 相对玩家位置的 Z 偏移 |
+| `dx` | float | 相对玩家位置的 X 偏移（**follow=entity 时 = 相对实体脚底的 X 偏移**） |
+| `dy` | float | 相对玩家位置的 Y 偏移（**follow=entity 时 = 相对实体脚底的 Y 偏移**） |
+| `dz` | float | 相对玩家位置的 Z 偏移（**follow=entity 时 = 相对实体脚底的 Z 偏移**） |
 
 ### Position（绝对模式 `absolute`）
 

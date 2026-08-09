@@ -143,7 +143,17 @@ public final class ScriptValidator {
 
                 checkEnum(clip, cp, "interpolation", issues, "linear", "smooth");
                 checkEnum(clip, cp, "transition", issues, "cut", "morph");
-                checkEnum(clip, cp, "position_mode", issues, "relative", "absolute");
+                if ("CAMERA".equalsIgnoreCase(type)) {
+                    // 废弃检测：position_mode / cam_tracking_* 已迁移到关键帧级
+                    if (clip.has("position_mode") || clip.has("cam_tracking_look_at")
+                            || clip.has("cam_tracking_look_target_x") || clip.has("cam_tracking_look_target_y")
+                            || clip.has("cam_tracking_look_target_z") || clip.has("cam_tracking_target_selector")
+                            || clip.has("cam_tracking_follow") || clip.has("cam_tracking_follow_offset_x")
+                            || clip.has("cam_tracking_follow_offset_y") || clip.has("cam_tracking_follow_offset_z")) {
+                        issues.add(cp + " 使用了已废弃的 clip 级字段（position_mode / cam_tracking_*）——已迁移到关键帧级："
+                                + "position_mode、follow、follow_selector、look_at、look_at_selector、look_at_target_x/y/z 写在关键帧对象里");
+                    }
+                }
                 if ("OVERLAY".equalsIgnoreCase(type)) {
                     checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle", "pip");
                     if ("image".equals(clip.has("layer_type") ? clip.get("layer_type").getAsString() : "") && !clip.has("path")) {
@@ -195,6 +205,25 @@ public final class ScriptValidator {
                         if ("CAMERA".equalsIgnoreCase(type)) {
                             for (String f : CAMERA_KF_FIELDS) {
                                 if (!kf.has(f)) issues.add(kp + "." + f + " 缺失，将使用默认值 " + cameraKfDefault(f));
+                            }
+                            checkEnum(kf, kp, "position_mode", issues, "relative", "absolute");
+                            checkEnum(kf, kp, "follow", issues, "none", "entity");
+                            checkEnum(kf, kp, "look_at", issues, "none", "coordinate", "entity");
+                            String follow = kf.has("follow") ? kf.get("follow").getAsString() : "none";
+                            String lookAt = kf.has("look_at") ? kf.get("look_at").getAsString() : "none";
+                            if ("entity".equals(follow) && !kf.has("follow_selector")) {
+                                issues.add(kp + ".follow_selector 缺失（follow=entity 时指定目标，如 @p / @e[type=minecraft:iron_golem]），默认 @p");
+                            }
+                            if ("entity".equals(follow) && !kf.has("position")) {
+                                issues.add(kp + ".position 缺失（follow=entity 时 position 的 dx/dy/dz 即相对实体脚底的偏移）");
+                            }
+                            if ("entity".equals(lookAt) && !kf.has("look_at_selector")) {
+                                issues.add(kp + ".look_at_selector 缺失（look_at=entity 时指定目标），默认 @p");
+                            }
+                            if ("coordinate".equals(lookAt)
+                                    && !kf.has("look_at_target_structure")
+                                    && (!kf.has("look_at_target_x") || !kf.has("look_at_target_y") || !kf.has("look_at_target_z"))) {
+                                issues.add(kp + ".look_at_target 缺失（look_at=coordinate 时指定 look_at_target_x/y/z 坐标，或 look_at_target_structure 结构名）");
                             }
                         }
                     }

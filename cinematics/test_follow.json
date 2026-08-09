@@ -4,7 +4,7 @@
     "name": "跟拍跟随测试",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "cam_tracking_follow 跟拍测试：相机位置 = 玩家实时位置 + 固定偏移，每帧更新跟随；朝向固定（不受玩家位置影响）；只屏蔽准星与手臂，键鼠不屏蔽，玩家可自由移动操控",
+    "description": "关键帧级 follow 跟拍测试：关键帧 follow=entity(@p)，position 的 dx/dy/dz 即相对玩家实时位置的偏移（上4格/南5格），每帧更新跟随；朝向固定（无 look_at，走 yaw/pitch 角度插值）；只屏蔽准星与手臂，键鼠不屏蔽，玩家可自由移动操控",
     "block_keyboard": false,
     "block_mouse": false,
     "hide_crosshair": true,
@@ -24,16 +24,10 @@
             "duration": 30,
             "transition": "cut",
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
-            "cam_tracking_follow": "entity",
-            "cam_tracking_target_selector": "@p",
-            "cam_tracking_follow_offset_x": 0,
-            "cam_tracking_follow_offset_y": 4,
-            "cam_tracking_follow_offset_z": -5,
             "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 0, "dz": 0 }, "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 30, "position": { "dx": 0, "dy": 0, "dz": 0 }, "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 }
+              { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@p", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 30, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@p", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 }
             ]
           }
         ]

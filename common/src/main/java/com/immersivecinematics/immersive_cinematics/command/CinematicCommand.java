@@ -21,6 +21,7 @@ import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.world.phys.Vec3;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -128,13 +129,16 @@ public class CinematicCommand {
         // N1：握手 — 登记 ACK，超时重发（幂等：playCinematic 有打断/排队逻辑）
         final Collection<ServerPlayer> ackTargets = targets;
         String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
+        // 结构坐标解析：脚本关键帧中的 look_at_target_structure 字段 → 服务端定位结构中心 → 替换为 look_at_target_x/y/z
+        // （坐标按执行者所在维度/位置定位最近结构，随脚本 JSON 推送；脚本文件本身不被修改）
+        final String resolvedJson = resolveStructureTargets(json, source);
         com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId, () -> {
             for (ServerPlayer p : ackTargets) {
-                S2CPlayScriptPacket.send(p, json, refId);
+                S2CPlayScriptPacket.send(p, resolvedJson, refId);
             }
         });
         for (ServerPlayer player : targets) {
-            S2CPlayScriptPacket.send(player, json, refId);
+            S2CPlayScriptPacket.send(player, resolvedJson, refId);
         }
 
         final int count = targets.size();
@@ -142,6 +146,72 @@ public class CinematicCommand {
                 count, script.getMeta().getName(),
                 String.format("%.1f", script.getTimeline().getTotalDuration()));
         return 1;
+    }
+
+    /**
+     * 服务端结构坐标解析：遍历脚本关键帧，把 look_at_target_structure 字段替换为
+     * 原版 findNearestMapStructure（/locate 同源）定位到的结构中心坐标（look_at_target_x/y/z）。
+     * 脚本文件本身不被修改，只替换推送内容。定位失败保留原字段（客户端回退 xyz + warn）。
+     */
+    private static String resolveStructureTargets(String json, CommandSourceStack source) {
+        try {
+            com.google.gson.JsonObject root = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
+            com.google.gson.JsonArray tracks = root.getAsJsonObject("timeline").getAsJsonArray("tracks");
+            if (tracks == null) return json;
+            java.util.Map<String, Vec3> posCache = new java.util.HashMap<>();
+            boolean changed = false;
+            for (com.google.gson.JsonElement te : tracks) {
+                if (!te.isJsonObject()) continue;
+                com.google.gson.JsonArray clips = te.getAsJsonObject().getAsJsonArray("clips");
+                if (clips == null) continue;
+                for (com.google.gson.JsonElement ce : clips) {
+                    if (!ce.isJsonObject()) continue;
+                    com.google.gson.JsonArray kfs = ce.getAsJsonObject().getAsJsonArray("keyframes");
+                    if (kfs == null) continue;
+                    for (com.google.gson.JsonElement ke : kfs) {
+                        if (!ke.isJsonObject()) continue;
+                        com.google.gson.JsonObject kf = ke.getAsJsonObject();
+                        if (!kf.has("look_at_target_structure")) continue;
+                        String structureId = kf.get("look_at_target_structure").getAsString();
+                        Vec3 pos = posCache.containsKey(structureId) ? posCache.get(structureId) : locateStructure(source, structureId);
+                        posCache.put(structureId, pos);
+                        if (pos != null) {
+                            kf.addProperty("look_at_target_x", (float) pos.x);
+                            kf.addProperty("look_at_target_y", (float) pos.y);
+                            kf.addProperty("look_at_target_z", (float) pos.z);
+                            kf.remove("look_at_target_structure");
+                            changed = true;
+                        } else {
+                            LOGGER.warn("结构 '{}' 定位失败，脚本保留 structure 字段（客户端将回退 look_at_target_xyz）", structureId);
+                        }
+                    }
+                }
+            }
+            return changed ? new com.google.gson.Gson().toJson(root) : json;
+        } catch (Exception e) {
+            LOGGER.warn("结构坐标替换失败（原脚本照常推送）: {}", e.getMessage());
+            return json;
+        }
+    }
+
+    /** 服务端结构定位：原版 /locate 同源（执行者所在维度，以执行者位置为中心搜 100 区块），返回结构中心 */
+    private static Vec3 locateStructure(CommandSourceStack source, String structureId) {
+        try {
+            net.minecraft.resources.ResourceLocation id = new net.minecraft.resources.ResourceLocation(structureId);
+            if (source.getLevel() instanceof net.minecraft.server.level.ServerLevel) {
+                net.minecraft.server.level.ServerLevel serverLevel = (net.minecraft.server.level.ServerLevel) source.getLevel();
+                net.minecraft.tags.TagKey<net.minecraft.world.level.levelgen.structure.Structure> tag =
+                        net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.STRUCTURE, id);
+                net.minecraft.core.BlockPos pos = serverLevel.findNearestMapStructure(
+                        tag, net.minecraft.core.BlockPos.containing(source.getPosition()), 100, false);
+                if (pos != null) {
+                    return new Vec3(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.warn("结构定位异常 '{}': {}", structureId, e.getMessage());
+        }
+        return null;
     }
 
     private static int stopScript(CommandContext<CommandSourceStack> context) {

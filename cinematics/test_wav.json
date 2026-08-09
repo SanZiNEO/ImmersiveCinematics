@@ -17,7 +17,7 @@
     "render_player_model": false
   },
   "timeline": {
-    "total_duration": 60.0,
+    "total_duration": 60,
     "tracks": [
       {
         "type": "CAMERA",
@@ -27,26 +27,33 @@
             "duration": 60,
             "transition": "cut",
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
               {
                 "time": 0,
-                "position": { "dx": 3, "dy": 2, "dz": -3 },
+                "position": {
+                  "dx": 3,
+                  "dy": 2,
+                  "dz": -3
+                },
                 "yaw": 0,
                 "pitch": -5,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1.0
+                "zoom": 1
               },
               {
                 "time": 60,
-                "position": { "dx": -3, "dy": 2, "dz": 3 },
+                "position": {
+                  "dx": -3,
+                  "dy": 2,
+                  "dz": 3
+                },
                 "yaw": 180,
                 "pitch": 0,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1.0
+                "zoom": 1
               }
             ]
           }
@@ -60,16 +67,27 @@
             "duration": 60,
             "sound": "test.wav",
             "source": "file",
-            "volume": 1.0,
-            "pitch": 1.0,
+            "volume": 1,
+            "pitch": 1,
             "loop": false,
-            "fade_in": 2.0,
-            "fade_out": 3.0,
+            "fade_in": 2,
+            "fade_out": 3,
             "attenuation": "linear",
-            "position_mode": "relative",
             "keyframes": [
-              { "time": 0,  "volume": 1.0, "x": 0, "y": 0, "z": 0 },
-              { "time": 60, "volume": 1.0, "x": 0, "y": 0, "z": 0 }
+              {
+                "time": 0,
+                "volume": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              {
+                "time": 60,
+                "volume": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              }
             ]
           }
         ]

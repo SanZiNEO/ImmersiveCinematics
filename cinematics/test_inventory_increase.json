@@ -12,7 +12,9 @@
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
-          "items": ["minecraft:cobblestone"],
+          "items": [
+            "minecraft:cobblestone"
+          ],
           "change": "increase"
         }
       }
@@ -48,12 +50,15 @@
             "duration": 10,
             "transition": "cut",
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
               {
                 "time": 0,
-                "position": { "dx": 5, "dy": 2, "dz": 5 },
+                "position": {
+                  "dx": 5,
+                  "dy": 2,
+                  "dz": 5
+                },
                 "yaw": 45,
                 "pitch": -30,
                 "roll": 0,
@@ -62,7 +67,11 @@
               },
               {
                 "time": 5,
-                "position": { "dx": 0, "dy": 4, "dz": 0 },
+                "position": {
+                  "dx": 0,
+                  "dy": 4,
+                  "dz": 0
+                },
                 "yaw": 45,
                 "pitch": 0,
                 "roll": 0,
@@ -71,7 +80,11 @@
               },
               {
                 "time": 10,
-                "position": { "dx": -5, "dy": 2, "dz": -5 },
+                "position": {
+                  "dx": -5,
+                  "dy": 2,
+                  "dz": -5
+                },
                 "yaw": 45,
                 "pitch": 30,
                 "roll": 0,

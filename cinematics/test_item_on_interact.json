@@ -48,13 +48,16 @@
             "duration": 10,
             "transition": "cut",
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": true,
             "loop_count": 2,
             "keyframes": [
               {
                 "time": 0,
-                "position": { "dx": 2, "dy": 1, "dz": 0 },
+                "position": {
+                  "dx": 2,
+                  "dy": 1,
+                  "dz": 0
+                },
                 "yaw": 0,
                 "pitch": 0,
                 "roll": 0,
@@ -63,7 +66,11 @@
               },
               {
                 "time": 3,
-                "position": { "dx": 0, "dy": 2, "dz": -2 },
+                "position": {
+                  "dx": 0,
+                  "dy": 2,
+                  "dz": -2
+                },
                 "yaw": 30,
                 "pitch": -5,
                 "roll": 0,
@@ -72,7 +79,11 @@
               },
               {
                 "time": 7,
-                "position": { "dx": -2, "dy": 1, "dz": 2 },
+                "position": {
+                  "dx": -2,
+                  "dy": 1,
+                  "dz": 2
+                },
                 "yaw": -30,
                 "pitch": 5,
                 "roll": 0,
@@ -81,7 +92,11 @@
               },
               {
                 "time": 10,
-                "position": { "dx": 2, "dy": 1, "dz": 0 },
+                "position": {
+                  "dx": 2,
+                  "dy": 1,
+                  "dz": 0
+                },
                 "yaw": 0,
                 "pitch": 0,
                 "roll": 0,

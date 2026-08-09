@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "id": "test_follow_lookat",
+    "name": "跟拍+注视基准点测试",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "组合测试：关键帧 follow=entity(@p) 相机位置跟随玩家（position dx/dy/dz 即相对偏移），look_at=coordinate 固定看向空间基准点 (-1.5, -60, -0.5)——玩家移动时相机跟着走但一直转头看基准点",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_crosshair": true,
+    "hide_arm": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 30,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "id": "camera_1",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@p", "look_at": "coordinate", "look_at_target_x": -1.5, "look_at_target_y": -60, "look_at_target_z": -0.5, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 30, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@p", "look_at": "coordinate", "look_at_target_x": -1.5, "look_at_target_y": -60, "look_at_target_z": -0.5, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

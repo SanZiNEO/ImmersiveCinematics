@@ -52,9 +52,11 @@
 - **CAMERA 轨道播放器**
   - ✅ 每渲染帧定位活跃 clip（含循环/无限片段）并写入精确相机状态，无 partialTick 插值（`CameraTrackPlayer`）
   - ✅ morph 过渡窗口内混合上一片段末帧与下一片段首帧（位置线性混合、角度最短路径混合）（`CameraTrackPlayer`）
-  - ✅ 支持 `cam_tracking_look_at` 注视坐标/实体与 `cam_tracking_follow` 跟随实体（带三轴偏移）（`CameraTrackPlayer`）
-  - ✅ 支持 `cam_breath_*` 呼吸扰动：按时间+种子生成确定性随机微晃叠加到 yaw/pitch/roll（`CameraTrackPlayer`）
-  - ✅ 相对模式坐标统一加上玩家基准位置后写入 `CameraManager`（`CameraTrackPlayer`）
+  - ✅ 关键帧级 `follow`（位置跟随实体，position 即相对实体偏移）与 `look_at`（注视实体/坐标/结构）：两端关键帧各自求值为世界坐标再插值 → follow↔普通、换目标、look_at 开关全部平滑过渡；look_at 目标点插值模型（none 端=该关键帧 yaw/pitch 方向远点）（`CameraTrackPlayer`）
+  - ✅ 实体选择器子集：`@p`/`@s`/`@e`/`@e[type=…,name=…]`/`uuid:…`，就近优先 + 1 秒缓存（`CameraTrackPlayer`）
+  - ✅ 结构目标：服务端 `/icinematics play` 推送前把 `look_at_target_structure` 替换为原版 findNearestMapStructure 定位的结构中心坐标；编辑器预览（单人）客户端直连集成服务端兜底（`CinematicCommand`、`CameraTrackPlayer`）
+  - ✅ 支持 `cam_breath_*` 呼吸扰动（clip 级）：按时间+种子生成确定性随机微晃叠加到 yaw/pitch/roll（`CameraTrackPlayer`）
+  - ✅ 相对/绝对坐标模式为关键帧级（position 对象自描述：有 dx=相对、有 x=绝对），统一世界坐标空间插值（`CameraTrackPlayer`）
 - **AUDIO 轨道播放器**
   - ✅ 通过 LWJGL OpenAL 多音源播放：每 clip 一个 `CinematicAudioInstance`，clip 切换时淡出并清理旧实例（`AudioTrackPlayer`）
   - ✅ 支持 OGG（stb_vorbis 文件/资源包解码）与 WAV（javax.sound，8/16 位）两种格式（`CinematicAudioInstance`）
@@ -76,8 +78,7 @@
 
 ## 已知问题
 
-- schema 中 `enum` 类型字段（CAMERA 的 `transition`/`interpolation`/`position_mode`）在解析时被静默丢弃：`ScriptParser.parseFieldBySchema()` 的 switch 没有 `enum` 分支（落入 default 返回 null），字段不写入 Clip.data；后果是 morph 过渡（`isMorph()` 恒为 cut）与绝对坐标模式（`isPositionModeRelative()` 恒为 relative，绝对坐标仍被加上玩家基准偏移）从解析后的脚本中无法生效（来源：`ScriptParser`、`SchemaLoader`、`schema.json`）
 - `PathStrategies` 注册表实际只注册了 `linear`，javadoc 声称的 `bezier` 注册缺失；动态查找 `curve.type=bezier` 会告警并回退线性，实际播放中由 `CameraTrackPlayer` 显式持有 `BezierPathStrategy` 实例才生效（来源：`PathStrategies`）
-- `cam_tracking_target_selector` 仅支持 `@p`/`@s`，其他选择器返回 null，追踪/跟随静默失效（来源：`CameraTrackPlayer` Phase 1 限制）
+- 多人服务器下编辑器预览（本地播放）无法解析 `look_at_target_structure`（客户端无服务端访问）；服务端 `/icinematics play` 推送前会替换为坐标，不受影响（来源：`CameraTrackPlayer`）
 - AUDIO clip 的 `fade_in + fade_out` 超过 clip 时长时整段跳过不播放（来源：`AudioTrackPlayer`）
 - 音频文件名含非 ASCII 字符（中文等）时在 Windows 下可能无法解码（stb_vorbis 内部 C fopen 使用 ANSI 代码页），仅输出警告（来源：`CinematicAudioInstance`、CHANGELOG 0.3.4）

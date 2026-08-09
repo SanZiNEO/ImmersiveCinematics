@@ -27,21 +27,20 @@
     "hold_at_end": false
   },
   "timeline": {
-    "total_duration": 5.0,
+    "total_duration": 5,
     "tracks": [
       {
         "type": "CAMERA",
         "clips": [
           {
-            "start_time": 0.0,
-            "duration": 5.0,
+            "start_time": 0,
+            "duration": 5,
             "transition": "cut",
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
               {
-                "time": 0.0,
+                "time": 0,
                 "position": {
                   "dx": 4,
                   "dy": -1,
@@ -51,10 +50,10 @@
                 "pitch": -8,
                 "roll": 0,
                 "fov": 70,
-                "zoom": 1.0
+                "zoom": 1
               },
               {
-                "time": 5.0,
+                "time": 5,
                 "position": {
                   "dx": 3,
                   "dy": -1,
@@ -74,15 +73,15 @@
         "type": "LETTERBOX",
         "clips": [
           {
-            "start_time": 0.0,
-            "duration": 5.0,
+            "start_time": 0,
+            "duration": 5,
             "keyframes": [
               {
-                "time": 0.0,
+                "time": 0,
                 "aspect_ratio": 2.35
               },
               {
-                "time": 5.0,
+                "time": 5,
                 "aspect_ratio": 2.35
               }
             ]

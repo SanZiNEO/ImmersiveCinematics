@@ -12,8 +12,16 @@
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
-          "corner1": { "x": -50, "y": -64, "z": -50 },
-          "corner2": { "x": 50, "y": 320, "z": 50 }
+          "corner1": {
+            "x": -50,
+            "y": -64,
+            "z": -50
+          },
+          "corner2": {
+            "x": 50,
+            "y": 320,
+            "z": 50
+          }
         }
       }
     ],
@@ -48,12 +56,15 @@
             "duration": 10,
             "transition": "cut",
             "interpolation": "linear",
-            "position_mode": "relative",
             "loop": false,
             "keyframes": [
               {
                 "time": 0,
-                "position": { "dx": 0, "dy": 2, "dz": 0 },
+                "position": {
+                  "dx": 0,
+                  "dy": 2,
+                  "dz": 0
+                },
                 "yaw": 0,
                 "pitch": 0,
                 "roll": 0,
@@ -62,7 +73,11 @@
               },
               {
                 "time": 5,
-                "position": { "dx": 0, "dy": 3, "dz": -10 },
+                "position": {
+                  "dx": 0,
+                  "dy": 3,
+                  "dz": -10
+                },
                 "yaw": 0,
                 "pitch": 5,
                 "roll": 0,
@@ -71,7 +86,11 @@
               },
               {
                 "time": 10,
-                "position": { "dx": 0, "dy": 4, "dz": -20 },
+                "position": {
+                  "dx": 0,
+                  "dy": 4,
+                  "dz": -20
+                },
                 "yaw": 0,
                 "pitch": 10,
                 "roll": 0,

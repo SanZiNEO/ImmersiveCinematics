@@ -141,19 +141,21 @@
 | `duration` | 持续时长。正数 = 定长；负数 = 无限 |
 | `transition` | `"cut"` = 硬切（默认）；`"morph"` = 本 clip 尾部与下一 clip 的交叉淡化过渡（重叠 t/2） |
 | `transition_duration` | **仅 morph 时有效**，过渡时长秒（后段 start 需 = 本段末尾 − t/2）。cut 时不要写 |
-| `position_mode` | `"relative"` = 相对玩家（默认，推荐）；`"absolute"` = 世界坐标（写 `x/y/z`，用于固定机位） |
 | `loop` / `loop_count` | 循环播放（`loop: true` 时 `loop_count: -1` = 无限循环） |
 | `curve` | 贝塞尔路径（可选，见 SCRIPT_FORMAT.md） |
-| `cam_tracking_look_at` | `"coordinate"`（注视固定坐标）/ `"entity"`（注视玩家）——覆盖 yaw/pitch，镜头始终对准目标 |
-| `cam_tracking_follow` | `"entity"` = 跟随玩家移动（位置 = 玩家 + 偏移） |
-| `cam_breath_enabled` | 呼吸扰动（手持感），配 `cam_breath_intensity`（0.05~0.1）和 `cam_breath_seed` |
+| `cam_breath_enabled` | 呼吸扰动（手持感，clip 级），配 `cam_breath_intensity`（0.05~0.1）和 `cam_breath_seed` |
 
-**keyframe 字段**（每个关键帧都是完整镜头状态）：
+> **跟随/注视/坐标模式都在关键帧级配置**（`position_mode`、`follow`、`look_at` 系列字段写在 keyframe 对象里，见下）。
+
+**keyframe 字段**（每个关键帧都是完整镜头状态；`position_mode`/`follow`/`look_at` 可逐关键帧独立配置，关键帧间自动平滑过渡）：
 
 ```json
 {
   "time": 0,
   "position": { "dx": 30, "dy": 2, "dz": 0 },
+  "position_mode": "relative",
+  "follow": "none",
+  "look_at": "none",
   "yaw": 90,
   "pitch": 5,
   "roll": 0,
@@ -161,6 +163,18 @@
   "zoom": 1.0
 }
 ```
+
+| 字段 | 说明 |
+|---|---|
+| `position_mode` | `"relative"`（默认）= 相对触发点（position 写 dx/dy/dz）；`"absolute"` = 世界坐标（写 x/y/z） |
+| `follow` | `"none"`（默认）= 位置走关键帧；`"entity"` = 位置跟随实体（position 的 dx/dy/dz 变成相对实体脚底的偏移）。**follow↔普通关键帧之间是平滑过渡**（两端都是世界坐标，直接插值） |
+| `follow_selector` | 跟随目标选择器，默认 `@p`（见下方"目标选择器"） |
+| `look_at` | `"none"`（默认）= 用 yaw/pitch；`"coordinate"` = 注视固定点（xyz 或结构中心）；`"entity"` = 注视实体正中心。**look_at 关键帧的目标点之间插值，切换/开关平滑过渡**（如 0s 看玩家 → 15s 看铁傀儡） |
+| `look_at_selector` | 注视目标选择器（`entity` 模式），默认 `@p` |
+| `look_at_target_x/y/z` | 注视固定坐标（`coordinate` 模式） |
+| `look_at_target_structure` | 注视结构中心（`coordinate` 模式）：填结构 id 如 `minecraft:village`。播放时服务端自动定位结构中心并替换为坐标（原版 /locate 同源，多人服务器也生效）；编辑器里是注册表下拉补全 |
+
+**目标选择器**（`follow_selector` / `look_at_selector`）：`@p`/`@s`（玩家）、`@e`（离相机最近实体）、`@e[type=minecraft:sheep]`（类型过滤后就近，模组 boss 用其注册 id）、`@e[name=自定义名]`（命名牌名字过滤后就近）、`uuid:xxxxxxxx-…`（UUID 直绑）——就近基准为相机当前位置。
 
 规则：
 - `time` 是 **clip 内**偏移（从 0 到 duration），必须严格递增
@@ -246,7 +260,7 @@
 | **俯拍降落** | dy 12→3，pitch 55→15（航拍收回，回到人物） |
 | **变焦特写** | 位置不动，fov 70→50（或 zoom 1→2），pitch 略压（特写情绪） |
 | **荷兰角** | roll 0→15（紧张、不安感），配 zoom 1.2~1.5，慎用 |
-| **注视追踪** | `cam_tracking_look_at: "entity"`，位置走关键帧，镜头自动锁定玩家 |
+| **注视追踪** | `look_at: "entity"` + `look_at_selector`，位置走关键帧，镜头自动锁定目标（也可 `look_at: "coordinate"` 锁定固定点/结构） |
 | **手持感** | `cam_breath_enabled: true` + `cam_breath_intensity: 0.05`，让固定机位"活"起来 |
 
 **精细化的关键**：
