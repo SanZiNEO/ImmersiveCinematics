@@ -1070,6 +1070,10 @@ public class EditorScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // 覆盖层(letterbox/图片/文字)在 gui.render 阶段通过 GuiGraphics 排队到 GUI 顶点缓冲、帧末才统一提交;
+        // 必须先 flush 再捕获,预览纹理才能包含完整播放画面(世界+覆盖层)。
+        // 编辑器 UI 在 capture 之后才绘制,不会入镜(时序错开的既有特性保持不变)。
+        minecraft.renderBuffers().bufferSource().endBatch();
         PreviewCapture.capture(minecraft);
         renderCycle++;
         String cycleStr = "cycle=" + renderCycle;

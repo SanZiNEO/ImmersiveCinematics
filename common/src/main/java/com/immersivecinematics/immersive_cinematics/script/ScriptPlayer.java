@@ -79,13 +79,51 @@ public class ScriptPlayer {
      */
     public void replaceScript(CinematicScript newScript) {
         if (newScript == null) return;
+        List<TimelineTrack> oldTracks = script != null ? script.getTimeline().getTracks() : null;
+        List<TimelineTrack> newTracks = newScript.getTimeline().getTracks();
+        boolean layoutChanged = !sameTrackLayout(oldTracks, newTracks);
+
         this.script = newScript;
         this.currentBehavior = newScript.getMeta() != null ? newScript.getMeta().getBehavior() : null;
-        for (TrackPlayer tp : trackPlayers) {
-            try {
-                tp.onScriptReplaced();
-            } catch (Exception e) {
-                LOGGER.error("TrackPlayer onScriptReplaced 异常", e);
+
+        if (layoutChanged) {
+            // 轨道布局变化(轨道数/类型顺序不同):旧 TrackPlayer 绑定的轨道索引对新脚本失效,
+            // 必须重建——否则编辑器加载不同轨道结构的脚本后,OVERLAY/AUDIO 等会读到错位/越界的轨道
+            // (症状:OVERLAY 层不出现、AUDIO 把字幕轨当音频报错)
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.player != null) this.originPos = mc.player.position();
+            cleanupTrackPlayers();
+            buildTrackPlayers(newScript);
+        } else {
+            for (TrackPlayer tp : trackPlayers) {
+                try {
+                    tp.onScriptReplaced();
+                } catch (Exception e) {
+                    LOGGER.error("TrackPlayer onScriptReplaced 异常", e);
+                }
+            }
+        }
+    }
+
+    /** 轨道布局相同判断:轨道数 + 类型顺序一致(忽略 clip 内容) */
+    private static boolean sameTrackLayout(List<TimelineTrack> a, List<TimelineTrack> b) {
+        if (a == null || b == null) return false;
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) {
+            if (a.get(i).getType() != b.get(i).getType()) return false;
+        }
+        return true;
+    }
+
+    /** 按脚本轨道创建 TrackPlayer(跳过 EVENT 轨道;trackIndex 用原始轨道索引,轨道布局变化时必须重建) */
+    private void buildTrackPlayers(CinematicScript script) {
+        trackPlayers = new ArrayList<>();
+        List<TimelineTrack> tracks = script.getTimeline().getTracks();
+        for (int ti = 0; ti < tracks.size(); ti++) {
+            TimelineTrack track = tracks.get(ti);
+            if (track.getType() != TrackType.EVENT) {  // event 轨道不在客户端处理
+                trackPlayers.add(TrackPlayer.create(track.getType(), this, originPos,
+                        CameraManager.INSTANCE, OverlayManager.INSTANCE, ti));
             }
         }
     }
@@ -156,15 +194,7 @@ public class ScriptPlayer {
         }
 
         // 创建 TrackPlayer 实例（组 A：数据源动态化，后续 replaceScript 不重建；传轨道索引支持同类型多轨道）
-        trackPlayers = new ArrayList<>();
-        List<TimelineTrack> tracks = script.getTimeline().getTracks();
-        for (int ti = 0; ti < tracks.size(); ti++) {
-            TimelineTrack track = tracks.get(ti);
-            if (track.getType() != TrackType.EVENT) {  // event 轨道不在客户端处理
-                trackPlayers.add(TrackPlayer.create(track.getType(), this, originPos,
-                        CameraManager.INSTANCE, OverlayManager.INSTANCE, ti));
-            }
-        }
+        buildTrackPlayers(script);
 
         // 预执行第一帧（避免首帧闪烁）— 用调用方期望的 elapsed（预览模式 = previewTime，避免 t=0 跳变）
         float elapsedSeconds = preExecuteAt;
