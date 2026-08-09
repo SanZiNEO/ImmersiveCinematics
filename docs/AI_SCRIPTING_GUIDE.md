@@ -197,6 +197,8 @@
 | `OVERLAY` | 覆盖层：`fade`（全屏颜色）/ `image`（图片）/ `subtitle`（字幕）/ `pip`（画中画）。**支持多条 OVERLAY 轨道同时渲染**（图片一条轨道、字幕一条轨道，靠轨道 `id` 区分） |
 | `MOD_EVENT` | 第三方模组自定义事件 |
 
+> **统一关键帧级调控（必读）**：**所有轨道一律用 `keyframes` 表达调控**——letterbox 的 `aspect_ratio`、EVENT 的 `command`、AUDIO 的 `volume`、OVERLAY 的 `opacity/x/y/scale` 全部写在关键帧上，**没有 clip 级简写**（旧写法如 letterbox clip 直接写 `aspect_ratio`、EVENT clip 直接写 `command` 已移除，写了会被校验拦下）。EVENT 片段的首尾关键帧允许 `command` 为空（仅时间占位，供编辑器绘制片段图形）。
+
 ### 3.5b OVERLAY 轨道详细（图片/字幕）
 
 **坐标 = 屏幕百分比（0~1），与分辨率无关**——这是 OVERLAY 与 CAMERA 最大的区别（CAMERA 是方块坐标，OVERLAY 是屏幕坐标）。
@@ -474,7 +476,7 @@
 
 - [ ] `meta.version = 3`，`id` 只含字母/数字/下划线
 - [ ] `total_duration` 等于最后一段 clip 的结束时间（或为负 = 无限）
-- [ ] 每个 clip：`duration ≠ 0`，CAMERA 至少 1 个关键帧
+- [ ] 每个 clip：`duration ≠ 0`，**所有轨道都有 `keyframes`**（letterbox/EVENT/AUDIO/OVERLAY 同 CAMERA，无 clip 级简写）
 - [ ] 每个 clip 内：keyframe 的 `time` 严格递增
 - [ ] 逐段核对：相机方位 ↔ yaw 是否匹配（§1.4 对照表）
 - [ ] 逐段核算：位移距离 ÷ 时长 ∈ 五档合理范围
