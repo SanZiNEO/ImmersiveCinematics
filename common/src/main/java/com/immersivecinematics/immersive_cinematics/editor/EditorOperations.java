@@ -392,9 +392,31 @@ public class EditorOperations {
     public static JsonObject addTrack(JsonArray tracks, String type) {
         JsonObject track = new JsonObject();
         track.addProperty("type", type);
+        // 轨道 id（写进脚本 JSON，供多轨道管理/layout 上下层引用）
+        track.addProperty("id", generateTrackId(tracks, type));
         track.add("clips", new JsonArray());
         tracks.add(track);
         return track;
+    }
+
+    /**
+     * 生成唯一轨道 id：{type小写}_{n}（n 从 1 递增直到无冲突；同类型多条轨道通过 id 区分管理）。
+     */
+    public static String generateTrackId(JsonArray tracks, String type) {
+        String base = type.toLowerCase();
+        int n = 1;
+        while (true) {
+            String id = base + "_" + n;
+            boolean taken = false;
+            if (tracks != null) {
+                for (JsonElement te : tracks) {
+                    JsonObject t = te.getAsJsonObject();
+                    if (id.equals(t.get("id").getAsString())) { taken = true; break; }
+                }
+            }
+            if (!taken) return id;
+            n++;
+        }
     }
 
     /**

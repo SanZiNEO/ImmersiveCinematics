@@ -51,6 +51,8 @@ public class EditorDocument {
                 : com.immersivecinematics.immersive_cinematics.script.TrackType.values()) {
             JsonObject track = new JsonObject();
             track.addProperty("type", t.name());
+            // 轨道 id（写进脚本 JSON，多轨道管理/layout 上下层引用）
+            track.addProperty("id", com.immersivecinematics.immersive_cinematics.editor.EditorOperations.generateTrackId(tracks, t.name()));
             track.add("clips", new JsonArray());
             tracks.add(track);
         }

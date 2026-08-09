@@ -24,19 +24,21 @@ public class OverlayTrackPlayer implements TrackPlayer {
 
     private final ScriptPlayer scriptPlayer;
     private final TrackType type;
+    private final int trackIndex;
     private final OverlayManager overlayManager;
     private OverlayLayer currentLayer = null;
     private Clip activeClip = null;
 
-    public OverlayTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, OverlayManager overlayManager) {
+    public OverlayTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, OverlayManager overlayManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
         this.type = type;
+        this.trackIndex = trackIndex;
         this.overlayManager = overlayManager;
     }
 
-    /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建） */
+    /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建；按轨道索引定位，支持同类型多轨道） */
     private List<Clip> clips() {
-        return scriptPlayer.clipsForTrack(type);
+        return scriptPlayer.clipsForTrack(trackIndex);
     }
 
     @Override
@@ -50,6 +52,14 @@ public class OverlayTrackPlayer implements TrackPlayer {
 
         // Transition: clip changed or no longer active
         if (clip != activeClip) {
+            // 诊断：层切换（排查脚本结束后字幕残留）
+            if (activeClip != null || clip != null) {
+                LOGGER.info("OVERLAY switch: global={} old={} new={} layer={}",
+                        String.format("%.2f", globalTime),
+                        activeClip != null ? activeClip.getString("layer_type", "?") : "null",
+                        clip != null ? clip.getString("layer_type", "?") : "null",
+                        clip != null ? clip.getString("layer_type", "?") : "null");
+            }
             cleanupCurrentLayer();
             activeClip = null;
 
@@ -69,11 +79,11 @@ public class OverlayTrackPlayer implements TrackPlayer {
         float localTime = clipTime(clip, globalTime);
         List<Keyframe> kfs = clip.getKeyframes();
 
-        float opacity = interpolateFloat(kfs, localTime, "opacity", 0f);
-        float fadeFactor = computeFadeFactor(clip, localTime);
+        // 透明度完全由关键帧 opacity 控制（fade_in/fade_out 由关键帧表达，代码层不叠加）
+        float opacity = interpolateFloat(kfs, localTime, "opacity", 0f,
+                "smooth".equals(clip.getString("interpolation", "linear")));
 
-        // Apply opacity with fade
-        updateLayer(clip, opacity * fadeFactor, kfs, localTime);
+        updateLayer(clip, opacity, kfs, localTime);
     }
 
     @Override
@@ -115,7 +125,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
                 if (!path.isEmpty()) {
                     ResourceLocation tex = com.immersivecinematics.immersive_cinematics.util.TextureLoader.loadTexture(path);
                     if (tex != null) {
-                        il.setTexture(tex);
+                        il.setTexture(path, tex);
                     } else {
                         LOGGER.warn("Image not found in resource/: {}", path);
                     }
@@ -150,11 +160,9 @@ public class OverlayTrackPlayer implements TrackPlayer {
         Keyframe first = kfs.get(0);
         if (currentLayer instanceof ImageLayer il) {
             il.setPosition(first.getFloat("x", 0f), first.getFloat("y", 0f));
-            il.setSize(first.getFloat("width", 0f), first.getFloat("height", 0f));
-            il.setAnchor(first.getFloat("anchor_x", 0.5f), first.getFloat("anchor_y", 0.5f));
+            il.setScale(first.getFloat("scale_x", 1f), first.getFloat("scale_y", 1f));
         } else if (currentLayer instanceof SubtitleLayer sl) {
             sl.setPosition(first.getFloat("x", 0f), first.getFloat("y", 0f));
-            sl.setAnchor(first.getFloat("anchor_x", 0.5f), first.getFloat("anchor_y", 0.5f));
         } else if (currentLayer instanceof PipLayer pl) {
             pl.setPosition(first.getFloat("x", 0f), first.getFloat("y", 0f));
             pl.setSize(first.getFloat("width", 0f), first.getFloat("height", 0f));
@@ -163,45 +171,39 @@ public class OverlayTrackPlayer implements TrackPlayer {
     }
 
     private void updateLayer(Clip clip, float opacity, List<Keyframe> kfs, float localTime) {
+        boolean smooth = "smooth".equals(clip.getString("interpolation", "linear"));
         if (currentLayer instanceof FadeLayer fl) {
             fl.setOpacity(opacity);
         } else if (currentLayer instanceof ImageLayer il) {
             il.setOpacity(opacity);
+            // 屏幕百分比位置 + 原图百分比乘数（scale_x/scale_y，默认 1 = 原尺寸）
             il.setPosition(
-                    interpolateFloat(kfs, localTime, "x", 0f),
-                    interpolateFloat(kfs, localTime, "y", 0f)
+                    interpolateFloat(kfs, localTime, "x", 0f, smooth),
+                    interpolateFloat(kfs, localTime, "y", 0f, smooth)
             );
-            il.setSize(
-                    interpolateFloat(kfs, localTime, "width", 0f),
-                    interpolateFloat(kfs, localTime, "height", 0f)
-            );
-            il.setAnchor(
-                    interpolateFloat(kfs, localTime, "anchor_x", 0.5f),
-                    interpolateFloat(kfs, localTime, "anchor_y", 0.5f)
+            il.setScale(
+                    interpolateFloat(kfs, localTime, "scale_x", 1f, smooth),
+                    interpolateFloat(kfs, localTime, "scale_y", 1f, smooth)
             );
         } else if (currentLayer instanceof SubtitleLayer sl) {
             sl.setOpacity(opacity);
             sl.setPosition(
-                    interpolateFloat(kfs, localTime, "x", 0f),
-                    interpolateFloat(kfs, localTime, "y", 0f)
-            );
-            sl.setAnchor(
-                    interpolateFloat(kfs, localTime, "anchor_x", 0.5f),
-                    interpolateFloat(kfs, localTime, "anchor_y", 0.5f)
+                    interpolateFloat(kfs, localTime, "x", 0f, smooth),
+                    interpolateFloat(kfs, localTime, "y", 0f, smooth)
             );
         } else if (currentLayer instanceof PipLayer pl) {
             pl.setOpacity(opacity);
             pl.setPosition(
-                    interpolateFloat(kfs, localTime, "x", 0f),
-                    interpolateFloat(kfs, localTime, "y", 0f)
+                    interpolateFloat(kfs, localTime, "x", 0f, smooth),
+                    interpolateFloat(kfs, localTime, "y", 0f, smooth)
             );
             pl.setSize(
-                    interpolateFloat(kfs, localTime, "width", 0f),
-                    interpolateFloat(kfs, localTime, "height", 0f)
+                    interpolateFloat(kfs, localTime, "width", 0f, smooth),
+                    interpolateFloat(kfs, localTime, "height", 0f, smooth)
             );
             pl.setAnchor(
-                    interpolateFloat(kfs, localTime, "anchor_x", 0.5f),
-                    interpolateFloat(kfs, localTime, "anchor_y", 0.5f)
+                    interpolateFloat(kfs, localTime, "anchor_x", 0.5f, smooth),
+                    interpolateFloat(kfs, localTime, "anchor_y", 0.5f, smooth)
             );
         }
     }
@@ -209,21 +211,33 @@ public class OverlayTrackPlayer implements TrackPlayer {
     // ========== Interpolation (same pattern as LetterboxTrackPlayer) ==========
 
     /**
-     * 线性插值两个关键帧之间的 float 字段值
+     * 关键帧插值（线性或 smooth 样条）。
+     * smooth（clip.interpolation="smooth"）：Catmull-Rom 样条，轨迹平滑穿过关键帧，消除折线拐弯。
      */
-    private float interpolateFloat(List<Keyframe> kfs, float localTime, String key, float defaultValue) {
+    private float interpolateFloat(List<Keyframe> kfs, float localTime, String key, float defaultValue, boolean smooth) {
         if (kfs == null || kfs.isEmpty()) return defaultValue;
         if (kfs.size() < 2) return kfs.get(0).getFloat(key, defaultValue);
 
         Keyframe from = kfs.get(0);
         Keyframe to = kfs.get(kfs.size() - 1);
+        int segIdx = 0;
+        boolean found = false;
 
         for (int i = 0; i < kfs.size() - 1; i++) {
             if (localTime >= kfs.get(i).getTime() && localTime <= kfs.get(i + 1).getTime()) {
                 from = kfs.get(i);
                 to = kfs.get(i + 1);
+                segIdx = i;
+                found = true;
                 break;
             }
+        }
+
+        if (!found) {
+            // 范围外：返回边界关键帧的值（不进入样条——否则 Catmull-Rom 在 t=1 会算出 p2 的值而非末帧）
+            return localTime < kfs.get(0).getTime()
+                    ? kfs.get(0).getFloat(key, defaultValue)
+                    : kfs.get(kfs.size() - 1).getFloat(key, defaultValue);
         }
 
         float t = (to.getTime() - from.getTime() > 0.001f)
@@ -232,33 +246,38 @@ public class OverlayTrackPlayer implements TrackPlayer {
 
         float vFrom = from.getFloat(key, defaultValue);
         float vTo = to.getFloat(key, defaultValue);
+
+        if (smooth && kfs.size() >= 3) {
+            // Centripetal Catmull-Rom（Barry-Goldman 金字塔，参数 = 时间间距平方根）：
+            // 非均匀关键帧下速度更均匀、过冲更小；统一时间参数保证 x/y 轨迹同步
+            Keyframe p0 = segIdx > 0 ? kfs.get(segIdx - 1) : kfs.get(0);
+            Keyframe p1 = kfs.get(segIdx);
+            Keyframe p2 = kfs.get(segIdx + 1);
+            Keyframe p3 = (segIdx + 2 < kfs.size()) ? kfs.get(segIdx + 2) : kfs.get(kfs.size() - 1);
+            float v0 = p0.getFloat(key, defaultValue);
+            float v1 = p1.getFloat(key, defaultValue);
+            float v2 = p2.getFloat(key, defaultValue);
+            float v3 = p3.getFloat(key, defaultValue);
+            float tt0 = 0f;
+            float tt1 = (float) Math.sqrt(Math.max(0f, p1.getTime() - p0.getTime()));
+            float tt2 = tt1 + (float) Math.sqrt(Math.max(0f, p2.getTime() - p1.getTime()));
+            float tt3 = tt2 + (float) Math.sqrt(Math.max(0f, p3.getTime() - p2.getTime()));
+            float u = tt1 + t * (tt2 - tt1);
+            float a1 = bgLerp(v0, v1, tt0, tt1, u);
+            float a2 = bgLerp(v1, v2, tt1, tt2, u);
+            float a3 = bgLerp(v2, v3, tt2, tt3, u);
+            float b1 = bgLerp(a1, a2, tt0, tt2, u);
+            float b2 = bgLerp(a2, a3, tt1, tt3, u);
+            return bgLerp(b1, b2, tt1, tt2, u);
+        }
         return vFrom + (vTo - vFrom) * t;
     }
 
-    // ========== Fade ==========
-
-    /**
-     * 计算 fade_in / fade_out 因子
-     * <p>
-     * 在淡入阶段：0 → 1，淡出阶段：1 → 0，中间阶段：1
-     */
-    private float computeFadeFactor(Clip clip, float localTime) {
-        float fadeIn = clip.getFadeIn();
-        float fadeOut = clip.getFadeOut();
-        float duration = clip.getDuration();
-
-        if (fadeIn > 0f && localTime < fadeIn) {
-            return localTime / fadeIn;
-        }
-
-        if (fadeOut > 0f && duration > 0f) {
-            float remaining = duration - localTime;
-            if (remaining < fadeOut && remaining > 0f) {
-                return remaining / fadeOut;
-            }
-        }
-
-        return 1f;
+    /** Barry-Goldman 金字塔单层：参数区间 [ta, tb] 内在 u 处对 va/vb 线性插值（除零保护） */
+    private static float bgLerp(float va, float vb, float ta, float tb, float u) {
+        float denom = tb - ta;
+        if (denom <= 1e-6f) return vb;
+        return (tb - u) / denom * va + (u - ta) / denom * vb;
     }
 
     // ========== Helpers ==========

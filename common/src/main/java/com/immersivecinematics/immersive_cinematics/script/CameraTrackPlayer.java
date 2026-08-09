@@ -10,6 +10,7 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     private final ScriptPlayer scriptPlayer;
     private final TrackType type;
+    private final int trackIndex;
     private final Vec3 originPos;
     private final CameraManager cameraManager;
 
@@ -18,16 +19,17 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     private int lastClipIndex = 0;
 
-    public CameraTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos, CameraManager cameraManager) {
+    public CameraTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos, CameraManager cameraManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
         this.type = type;
+        this.trackIndex = trackIndex;
         this.originPos = originPos;
         this.cameraManager = cameraManager;
     }
 
     /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建） */
     private List<Clip> clips() {
-        return scriptPlayer.clipsForTrack(type);
+        return scriptPlayer.clipsForTrack(trackIndex);
     }
 
 

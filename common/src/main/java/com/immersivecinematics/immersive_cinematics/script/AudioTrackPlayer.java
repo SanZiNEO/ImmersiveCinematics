@@ -20,6 +20,7 @@ public class AudioTrackPlayer implements TrackPlayer {
 
     private final ScriptPlayer scriptPlayer;
     private final TrackType type;
+    private final int trackIndex;
     private final Vec3 originPos;
     private final Map<Clip, CinematicAudioInstance> instances = new HashMap<>();
     private int lastClipIndex = -1;
@@ -32,12 +33,13 @@ public class AudioTrackPlayer implements TrackPlayer {
 
     /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建） */
     private List<Clip> clips() {
-        return scriptPlayer.clipsForTrack(type);
+        return scriptPlayer.clipsForTrack(trackIndex);
     }
 
-    public AudioTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos) {
+    public AudioTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
         this.type = type;
+        this.trackIndex = trackIndex;
         this.originPos = originPos;
     }
 

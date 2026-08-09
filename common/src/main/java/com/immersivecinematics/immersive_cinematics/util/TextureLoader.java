@@ -23,6 +23,8 @@ public final class TextureLoader {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/TextureLoader");
     private static final Map<String, ResourceLocation> textureCache = new HashMap<>();
+    /** 纹理原始像素尺寸缓存（fileName → {width, height}），供 OVERLAY 按原图比例渲染 */
+    private static final Map<String, int[]> sizeCache = new HashMap<>();
 
     private TextureLoader() {}
 
@@ -59,7 +61,8 @@ public final class TextureLoader {
             }
             Minecraft.getInstance().getTextureManager().register(loc, texture);
             textureCache.put(fileName, loc);
-            LOGGER.debug("Loaded texture: {} -> {}", fileName, loc);
+            sizeCache.put(fileName, new int[]{image.getWidth(), image.getHeight()});
+            LOGGER.debug("Loaded texture: {} -> {} ({}x{})", fileName, loc, image.getWidth(), image.getHeight());
             return loc;
         } catch (Exception e) {
             LOGGER.error("Failed to load texture: {}", filePath, e);
@@ -67,8 +70,17 @@ public final class TextureLoader {
         }
     }
 
+    /**
+     * 查询已加载纹理的原始像素尺寸（{width, height}）；未加载/失败返回 null。
+     * 供 OVERLAY 层按原图分辨率 × scale 百分比乘数渲染。
+     */
+    public static int[] getTextureSize(String fileName) {
+        return sizeCache.get(fileName);
+    }
+
     /** 清空纹理缓存（在资源重载时调用） */
     public static void clearCache() {
         textureCache.clear();
+        sizeCache.clear();
     }
 }

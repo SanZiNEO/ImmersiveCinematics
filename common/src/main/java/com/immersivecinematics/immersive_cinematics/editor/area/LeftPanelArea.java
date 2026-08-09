@@ -726,7 +726,9 @@ public class LeftPanelArea extends UIComponent {
             int clipCount = track.has("clips") ? track.getAsJsonArray("clips").size() : 0;
 
             int finalTi = ti;
-            String label = type + "  (" + I18n.get("editor.label.clip_count", String.valueOf(clipCount)) + ")";
+            // 显示 id（多轨道管理：同类型多条轨道通过 id 区分）
+            String trackId = track.has("id") ? track.get("id").getAsString() : type;
+            String label = trackId + "  (" + I18n.get("editor.label.clip_count", String.valueOf(clipCount)) + ")";
             UIButton row = new UIButton(lx + 4, cy, w - 12 - 26, rowH, label, btn -> {
                 if (onTrackSelected != null) onTrackSelected.accept(finalTi);
             });

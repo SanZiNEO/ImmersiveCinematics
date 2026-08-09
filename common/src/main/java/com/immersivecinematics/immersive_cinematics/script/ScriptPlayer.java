@@ -63,13 +63,12 @@ public class ScriptPlayer {
     // TrackPlayer 调度列表
     private List<TrackPlayer> trackPlayers = Collections.emptyList();
 
-    /** 组 A：当前脚本中指定类型轨道的 clips（动态数据源；TrackPlayer 不再持有构造快照） */
-    public List<Clip> clipsForTrack(TrackType type) {
+    /** 组 A：按轨道索引取 clips（动态数据源；支持同类型多条轨道——OVERLAY 多轨道） */
+    public List<Clip> clipsForTrack(int trackIndex) {
         if (script == null) return Collections.emptyList();
-        for (TimelineTrack t : script.getTimeline().getTracks()) {
-            if (t.getType() == type) return t.getClips();
-        }
-        return Collections.emptyList();
+        List<TimelineTrack> tracks = script.getTimeline().getTracks();
+        if (trackIndex < 0 || trackIndex >= tracks.size()) return Collections.emptyList();
+        return tracks.get(trackIndex).getClips();
     }
 
     /**
@@ -156,12 +155,14 @@ public class ScriptPlayer {
             }
         }
 
-        // 创建 TrackPlayer 实例（组 A：数据源动态化，后续 replaceScript 不重建）
+        // 创建 TrackPlayer 实例（组 A：数据源动态化，后续 replaceScript 不重建；传轨道索引支持同类型多轨道）
         trackPlayers = new ArrayList<>();
-        for (TimelineTrack track : script.getTimeline().getTracks()) {
+        List<TimelineTrack> tracks = script.getTimeline().getTracks();
+        for (int ti = 0; ti < tracks.size(); ti++) {
+            TimelineTrack track = tracks.get(ti);
             if (track.getType() != TrackType.EVENT) {  // event 轨道不在客户端处理
                 trackPlayers.add(TrackPlayer.create(track.getType(), this, originPos,
-                        CameraManager.INSTANCE, OverlayManager.INSTANCE));
+                        CameraManager.INSTANCE, OverlayManager.INSTANCE, ti));
             }
         }
 

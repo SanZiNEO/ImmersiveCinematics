@@ -59,17 +59,19 @@ public interface TrackPlayer {
      * @param originPos       相对模式基准位置
      * @param cameraManager   相机管理器（Camera 轨道需要）
      * @param overlayManager  覆盖层管理器（Letterbox/Overlay 轨道需要）
+     * @param trackIndex      轨道索引（数据源定位；支持同类型多条轨道，如多 OVERLAY 轨道）
      * @return 对应的 TrackPlayer 实例
      */
     static TrackPlayer create(TrackType type, ScriptPlayer scriptPlayer, Vec3 originPos,
                               com.immersivecinematics.immersive_cinematics.camera.CameraManager cameraManager,
-                              com.immersivecinematics.immersive_cinematics.overlay.OverlayManager overlayManager) {
+                              com.immersivecinematics.immersive_cinematics.overlay.OverlayManager overlayManager,
+                              int trackIndex) {
         return switch (type) {
-            case CAMERA -> new CameraTrackPlayer(scriptPlayer, type, originPos, cameraManager);
-            case LETTERBOX -> new LetterboxTrackPlayer(scriptPlayer, type, overlayManager);
-            case AUDIO -> new AudioTrackPlayer(scriptPlayer, type, originPos);
-            case MOD_EVENT -> new ModEventTrackPlayer(scriptPlayer, type);
-            case OVERLAY -> new OverlayTrackPlayer(scriptPlayer, type, overlayManager);
+            case CAMERA -> new CameraTrackPlayer(scriptPlayer, type, originPos, cameraManager, trackIndex);
+            case LETTERBOX -> new LetterboxTrackPlayer(scriptPlayer, type, overlayManager, trackIndex);
+            case AUDIO -> new AudioTrackPlayer(scriptPlayer, type, originPos, trackIndex);
+            case MOD_EVENT -> new ModEventTrackPlayer(scriptPlayer, type, trackIndex);
+            case OVERLAY -> new OverlayTrackPlayer(scriptPlayer, type, overlayManager, trackIndex);
             default -> throw new IllegalArgumentException("未知轨道类型: " + type);
         };
     }

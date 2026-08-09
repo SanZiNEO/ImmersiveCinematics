@@ -441,7 +441,12 @@ public class CameraManager {
         if (!stopping && scriptPlayer.isPlaying() && scriptPlayer.isFinished()) {
             ScriptMeta.RuntimeBehavior behavior = scriptPlayer.getCurrentProperties();
             boolean holdAtEnd = behavior != null && behavior.holdAtEnd();
+            // 诊断：退出链路（脚本自然结束检查）
+            LOGGER.info("NATURAL_END check: playing={} finished=true stopping={} holdAtEnd={} elapsed={}",
+                    scriptPlayer.isPlaying(), stopping, holdAtEnd,
+                    String.format("%.2f", (float)(getGameTimeSeconds() - 0)));
             if (!holdAtEnd) {
+                LOGGER.info("NATURAL_END -> requestExit");
                 requestExit(ExitReason.NATURAL_END);
             }
         }
@@ -452,6 +457,8 @@ public class CameraManager {
     }
 
     private void deactivateNow() {
+        // 诊断：退出链路（deactivateNow 执行）
+        LOGGER.info("deactivateNow: reason={}", pendingCompletionReason);
         active = false;
         stopping = false;
         gameTimeSeconds = 0;

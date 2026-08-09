@@ -53,16 +53,16 @@ public class ClientEventHandler {
 
         // ===== HUD 渲染 =====
 
-        // 跳过提示 HUD（追加绘制）
-        ClientGuiEvent.RENDER_HUD.register((graphics, deltaTracker) -> {
-            SkipHudRenderer.render(graphics);
-        });
-        // 电影黑边覆盖层（追加绘制）
+        // 电影黑边覆盖层（先画，作底层——letterbox 盖住世界画面，但不得盖住 HUD 元素）
         ClientGuiEvent.RENDER_HUD.register((graphics, deltaTracker) -> {
             Minecraft mc = Minecraft.getInstance();
             CinematicOverlay.render(graphics,
                     mc.getWindow().getGuiScaledWidth(),
                     mc.getWindow().getGuiScaledHeight());
+        });
+        // 跳过提示 HUD（后画，最上层——长按跳过为整体：文字+图标+环，不被 letterbox 覆盖）
+        ClientGuiEvent.RENDER_HUD.register((graphics, deltaTracker) -> {
+            SkipHudRenderer.render(graphics);
         });
     }
 }

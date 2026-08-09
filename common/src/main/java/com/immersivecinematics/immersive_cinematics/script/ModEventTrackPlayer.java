@@ -9,10 +9,12 @@ public class ModEventTrackPlayer implements TrackPlayer {
 
     private final ScriptPlayer scriptPlayer;
     private final TrackType type;
+    private final int trackIndex;
 
-    public ModEventTrackPlayer(ScriptPlayer scriptPlayer, TrackType type) {
+    public ModEventTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
         this.type = type;
+        this.trackIndex = trackIndex;
     }
 
     @Override

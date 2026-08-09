@@ -11,18 +11,20 @@ public class LetterboxTrackPlayer implements TrackPlayer {
 
     private final ScriptPlayer scriptPlayer;
     private final TrackType type;
+    private final int trackIndex;
     private final OverlayManager overlayManager;
     private int lastClipIdx = -1;
 
-    public LetterboxTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, OverlayManager overlayManager) {
+    public LetterboxTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, OverlayManager overlayManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
         this.type = type;
+        this.trackIndex = trackIndex;
         this.overlayManager = overlayManager;
     }
 
     /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建） */
     private List<Clip> clips() {
-        return scriptPlayer.clipsForTrack(type);
+        return scriptPlayer.clipsForTrack(trackIndex);
     }
 
     @Override
