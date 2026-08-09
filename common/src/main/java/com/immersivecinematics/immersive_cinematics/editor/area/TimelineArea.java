@@ -288,6 +288,31 @@ public class TimelineArea extends UIComponent {
     public float timeToX(float t) { return canvasX() + (t * pixelsPerSecond) + scrollOffset; }
     public float xToTime(float px) { return (px - canvasX() - scrollOffset) / pixelsPerSecond; }
 
+    /**
+     * B 模型：clip 视觉起点 = 数据 start + 前一个片段转场时长的一半。
+     * 转场数据重叠（next.start = prevEnd − t/2），但渲染/命中用视觉起点（顺排不重叠）——
+     * 否则 next 会盖住 prev 尾部，prev 末尾关键帧无法 hover/选中。过渡块是独立装饰层，不参与命中。
+     */
+    private float visualStart(JsonObject clip) {
+        float lead = 0f;
+        JsonArray arr = tracks();
+        if (arr != null) {
+            for (JsonElement te : arr) {
+                JsonArray clipsArr = te.getAsJsonObject().getAsJsonArray("clips");
+                JsonObject prev = null;
+                for (JsonElement ce : clipsArr) {
+                    JsonObject c = ce.getAsJsonObject();
+                    if (c == clip) {
+                        if (prev != null) lead = EditorOperations.getTransitionDuration(prev);
+                        return EditorOperations.getStart(clip) + lead / 2f;
+                    }
+                    prev = c;
+                }
+            }
+        }
+        return EditorOperations.getStart(clip);
+    }
+
     private void clampScrollOffset() {
         float maxScroll = 0;
         float contentWidth = (totalDuration() + 30) * pixelsPerSecond;
@@ -335,21 +360,23 @@ public class TimelineArea extends UIComponent {
 
     /** 绘制全局 overlay 元素（不在 canvas scissor 范围内） */
     private void drawGhostOverlays(UIContext ctx, int cx, int cy, int cw) {
-        // Ghost drag preview
+        // Ghost drag preview（视觉起点修正：数据位移 + 前导转场偏移）
         if (isDragging && draggingClip != null) {
-            int gx = (int) timeToX(ghostStart);
-            int gw = Math.max(2, (int)(timeToX(ghostEnd) - gx));
+            float vOff = visualStart(draggingClip) - EditorOperations.getStart(draggingClip);
+            int gx = (int) timeToX(ghostStart + vOff);
+            int gw = Math.max(2, (int)(timeToX(ghostEnd + vOff) - gx));
             ctx.graphics.fill(gx, ghostTrackY + 2, gx + gw, ghostTrackY + trackH() - 2, EditorTheme.GHOST_FILL);
             ctx.graphics.renderOutline(gx, ghostTrackY + 2, gw, trackH() - 4, EditorTheme.GHOST_BORDER);
         }
 
-        // D1：多选组拖拽 — 其余选中 clip 的偏移 ghost
+        // D1：多选组拖拽 — 其余选中 clip 的偏移 ghost（视觉起点修正）
         if (draggingSelection && isDragging && draggingClip != null) {
             float offset = dragTargetTime - selectionDragStartTime;
             if (Math.abs(offset) > 0.001f) {
                 for (JsonObject c : selectedClips) {
                     if (c == draggingClip) continue;
-                    int gx = (int) timeToX(EditorOperations.getStart(c) + offset);
+                    float vOff = visualStart(c) - EditorOperations.getStart(c);
+                    int gx = (int) timeToX(EditorOperations.getStart(c) + offset + vOff);
                     int gw = Math.max(2, (int) (timeToX(EditorOperations.getEnd(c) + offset) - gx));
                     int gy = computeTrackY(c);
                     ctx.graphics.fill(gx, gy + 2, gx + gw, gy + trackH() - 2, 0x603A6DB5);
@@ -584,6 +611,21 @@ public class TimelineArea extends UIComponent {
                 for (JsonElement ce : clips) {
                     drawClip(ctx, ce.getAsJsonObject(), ty, type);
                 }
+                // B 模型：转场覆盖层（画在所有 clip 之上）— 灰白半透明块 [end−t/2, end+t/2)，中心对齐片段末尾，显示时长
+                for (JsonElement ce : clips) {
+                    JsonObject clip = ce.getAsJsonObject();
+                    float td = EditorOperations.getTransitionDuration(clip);
+                    if (td <= 0f) continue;
+                    float tx = timeToX(EditorOperations.getTransitionStart(clip));
+                    float tex = timeToX(EditorOperations.getTotalEnd(clip));
+                    if (tex < cx || tx > cx + canvasW()) continue;
+                    int txx = Math.max(cx, (int) tx);
+                    int tww = Math.min(cx + canvasW(), (int) tex) - txx;
+                    if (tww < 2) tww = 2;
+                    ctx.graphics.fill(txx, ty + 2, txx + tww, ty + trackH() - 2, 0x40CCCCCC);
+                    ctx.graphics.renderOutline(txx, ty + 2, tww, trackH() - 4, 0x66CCCCCC);
+                    // 纯装饰：无文字（避免与轨道文字/时间码叠加），中心对齐片段末尾（getTransitionStart/End 已保证）
+                }
             }
             if (vi < visible.size() - 1) {
                 int sepY = ty + trackH() - 1;
@@ -601,7 +643,7 @@ public class TimelineArea extends UIComponent {
     }
 
     private void drawClipBody(UIContext ctx, JsonObject clip, int ty, String trackType) {
-        float sx = timeToX(EditorOperations.getStart(clip));
+        float sx = timeToX(visualStart(clip));
         float ex = timeToX(EditorOperations.getEnd(clip));
         int cw = canvasW();
         int cx = canvasX();
@@ -636,17 +678,6 @@ public class TimelineArea extends UIComponent {
         ctx.graphics.fill(clipX, ty + trackH() - 3, clipX + clipW, ty + trackH() - 2, dark);
         ctx.graphics.fill(clipX + clipW - 1, ty + 2, clipX + clipW, ty + trackH() - 2, dark);
 
-        float transDur = EditorOperations.getTransitionDuration(clip);
-        if (transDur > 0f) {
-            float tx = timeToX(EditorOperations.getEnd(clip));
-            float tex = timeToX(EditorOperations.getTotalEnd(clip));
-            int transW = Math.max(2, (int)(tex - tx));
-            String tLabel = I18n.get("editor.timeline.morph_label", fmt(transDur));
-            int tlw = ctx.font.width(tLabel);
-            if (tlw + 4 < transW)
-                ctx.graphics.drawString(ctx.font, tLabel, (int)tx + 2, ty + (trackH() - 8) / 2, 0xFFCCCCFF);
-        }
-
         if (ctx.isMouseIn(clipX, ty + 2, resizeMargin(), trackH() - 4))
             ctx.graphics.fill(clipX, ty + 2, clipX + resizeMargin(), ty + trackH() - 2, 0x55FFFFFF);
         if (ctx.isMouseIn(clipX + clipW - resizeMargin(), ty + 2, resizeMargin(), trackH() - 4))
@@ -667,7 +698,7 @@ public class TimelineArea extends UIComponent {
         if (kfs != null) {
             for (JsonElement ke : kfs) {
                 JsonObject kf = ke.getAsJsonObject();
-                float kx = timeToX(EditorOperations.getStart(clip) + kf.get("time").getAsFloat());
+                float kx = timeToX(visualStart(clip) + kf.get("time").getAsFloat());
                 if (kx >= clipX + 2 && kx <= clipX + clipW - 2) {
                     int kc = (kf == selectedKeyframe && clip == selectedClip) ? 0xFFFFFF88 : EditorTheme.TEXT_SECONDARY;
                     ctx.graphics.fill((int) kx - 3, ty + trackH() / 2 - 3, (int) kx + 3, ty + trackH() / 2 + 3, kc);
@@ -690,7 +721,7 @@ public class TimelineArea extends UIComponent {
         }
         if (peaks == null) return;
 
-        float sx = timeToX(EditorOperations.getStart(clip));
+        float sx = timeToX(visualStart(clip));
         float ex = timeToX(EditorOperations.getEnd(clip));
         int cx = canvasX(), cw = canvasW();
         if (ex < cx || sx > cx + cw) return;
@@ -710,7 +741,7 @@ public class TimelineArea extends UIComponent {
 
     /** EVENT 轨道专属渲染：活动区间细线 + 关键帧菱形标记点（不画 clip 矩形） */
     private void drawEventClip(UIContext ctx, JsonObject clip, int ty) {
-        float sx = timeToX(EditorOperations.getStart(clip));
+        float sx = timeToX(visualStart(clip));
         float ex = timeToX(EditorOperations.getEnd(clip));
         int cx = canvasX(), cw = canvasW();
         if (ex < cx || sx > cx + cw) return;
@@ -728,7 +759,7 @@ public class TimelineArea extends UIComponent {
         if (kfs == null) return;
         for (JsonElement ke : kfs) {
             JsonObject kf = ke.getAsJsonObject();
-            float kx = timeToX(EditorOperations.getStart(clip) + kf.get("time").getAsFloat());
+            float kx = timeToX(visualStart(clip) + kf.get("time").getAsFloat());
             if (kx < clipX - 8 || kx > clipX + clipW + 8) continue;
             boolean sel = (kf == selectedKeyframe && clip == selectedClip);
             int c = sel ? 0xFFFFFF88 : 0xFF8A3A3A;
@@ -876,8 +907,8 @@ public class TimelineArea extends UIComponent {
 
         for (int i = clips.size() - 1; i >= 0; i--) {
             JsonObject clip = clips.get(i).getAsJsonObject();
-            float sx = timeToX(EditorOperations.getStart(clip));
-            float ex = timeToX(EditorOperations.getTotalEnd(clip));
+            float sx = timeToX(visualStart(clip));
+            float ex = timeToX(EditorOperations.getEnd(clip));
             if (ctx.mouseX < sx || ctx.mouseX > ex) continue;
             // Right-click on clip
             if (onShowClipContext != null) onShowClipContext.accept(ctx.mouseX, ctx.mouseY);
@@ -948,8 +979,8 @@ public class TimelineArea extends UIComponent {
 
         for (int i = clips.size() - 1; i >= 0; i--) {
             JsonObject clip = clips.get(i).getAsJsonObject();
-            float sx = timeToX(EditorOperations.getStart(clip));
-            float ex = timeToX(EditorOperations.getTotalEnd(clip));
+            float sx = timeToX(visualStart(clip));
+            float ex = timeToX(EditorOperations.getEnd(clip));
             if (ctx.mouseX < sx || ctx.mouseX > ex) continue;
 
             if (isEventTrack) {
@@ -958,7 +989,7 @@ public class TimelineArea extends UIComponent {
                 if (kfs != null) {
                     for (int j = kfs.size() - 1; j >= 0; j--) {
                         JsonObject kf = kfs.get(j).getAsJsonObject();
-                        float kx = timeToX(EditorOperations.getStart(clip) + kf.get("time").getAsFloat());
+                        float kx = timeToX(visualStart(clip) + kf.get("time").getAsFloat());
                         if (Math.abs(ctx.mouseX - kx) <= 5) {
                             keyframeClip = clip; draggingKeyframe = kf;
                             dragOffsetX = (int) (ctx.mouseX - kx);
@@ -1004,7 +1035,7 @@ public class TimelineArea extends UIComponent {
             if (kfs != null) {
                 for (int j = kfs.size() - 1; j >= 0; j--) {
                     JsonObject kf = kfs.get(j).getAsJsonObject();
-                    float kx = timeToX(EditorOperations.getStart(clip) + kf.get("time").getAsFloat());
+                    float kx = timeToX(visualStart(clip) + kf.get("time").getAsFloat());
                     if (Math.abs(ctx.mouseX - kx) <= 5) {
                         keyframeClip = clip; draggingKeyframe = kf;
                         dragOffsetX = (int) (ctx.mouseX - kx);
@@ -1142,7 +1173,8 @@ public class TimelineArea extends UIComponent {
             }
         }
         if (draggingKeyframe != null && onMoveKeyframe != null && moved) {
-            float newLocal = xToTime(ctx.mouseX - dragOffsetX) - EditorOperations.getStart(keyframeClip);
+            // 命中基准是视觉起点（visualStart），local 计算同样以视觉起点为基准
+            float newLocal = xToTime(ctx.mouseX - dragOffsetX) - visualStart(keyframeClip);
             onMoveKeyframe.accept(draggingKeyframe, keyframeClip, newLocal);
         }
         draggingClip = null; draggingKeyframe = null; keyframeClip = null;
@@ -1282,7 +1314,8 @@ public class TimelineArea extends UIComponent {
                     JsonObject clip = ce.getAsJsonObject();
                     if (clip == selfClip) continue;
                     float otherStart = EditorOperations.getStart(clip);
-                    float otherEnd = EditorOperations.getTotalEnd(clip);
+                    // B 模型：吸附到内容边界（重叠由转场数据决定，不由手动吸附产生）
+                    float otherEnd = EditorOperations.getEnd(clip);
                     if (Math.abs(timeToX(time) - timeToX(otherStart)) <= SNAP_THRESHOLD_PX) {
                         snapIndicatorTime = otherStart; snapIndicatorTimer = 10; return otherStart;
                     }

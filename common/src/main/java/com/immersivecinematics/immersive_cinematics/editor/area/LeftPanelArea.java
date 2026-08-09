@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 
 public class LeftPanelArea extends UIComponent {
 
-    public enum PanelMode { SCRIPT_LIST, SCRIPT_PROPERTIES, CLIP_PROPERTIES, KEYFRAME_PROPERTIES, TRACK_LIST }
+    public enum PanelMode { SCRIPT_LIST, SCRIPT_PROPERTIES, CLIP_PROPERTIES, KEYFRAME_PROPERTIES, TRACK_LIST, TRIGGER }
     private PanelMode mode = PanelMode.SCRIPT_PROPERTIES;
 
     private JsonObject script;
@@ -107,6 +107,7 @@ public class LeftPanelArea extends UIComponent {
             case CLIP_PROPERTIES -> buildClipProperties();
             case KEYFRAME_PROPERTIES -> buildKeyframeProperties();
             case TRACK_LIST -> buildTrackList();
+            case TRIGGER -> buildTriggerPanel();
         }
         computeContentHeightAndClampScroll();
     }
@@ -148,14 +149,7 @@ public class LeftPanelArea extends UIComponent {
         int cy = contentY() + 6;
         int lx = x + 6;
 
-        addSectionLabel(I18n.get("editor.section.triggers"), lx, cy, 0); cy += (int)(12 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
-        JsonArray triggers = script.has("triggers") ? script.getAsJsonArray("triggers") : new JsonArray();
-        if (!script.has("triggers")) script.add("triggers", triggers);
-        TriggerPanel tp = new TriggerPanel(lx, cy, w - 12, 1, triggers, onDirty);
-        tp.setOnTriggerChanged(() -> { build(); });
-        addChild(tp);
-        cy += tp.h + (int)(6 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
-
+        // 触发器已独立到 TRIGGER tab（TriggerPanel 高度不固定，不再与 meta 叠放）
         int sectionGap = (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
         int smallGap = (int)(4 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
         addSectionLabel(I18n.get("editor.section.script_info"), lx, cy, 0); cy += sectionGap;
@@ -166,6 +160,19 @@ public class LeftPanelArea extends UIComponent {
         cy += 4;
         addSectionLabel(I18n.get("editor.section.duration"), lx, cy, 0); cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
         addSectionLabel(I18n.get("editor.field.total_duration") + ": " + fmtDuration(totalDuration), lx, cy, 0); cy += (int)(14 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
+    }
+
+    /** TRIGGER tab：触发器独立面板（高度自适应，不与其他数据叠放） */
+    private void buildTriggerPanel() {
+        if (script == null) return;
+        int cy = contentY() + 6;
+        int lx = x + 6;
+        addSectionLabel(I18n.get("editor.section.triggers"), lx, cy, 0); cy += (int)(12 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
+        JsonArray triggers = script.has("triggers") ? script.getAsJsonArray("triggers") : new JsonArray();
+        if (!script.has("triggers")) script.add("triggers", triggers);
+        TriggerPanel tp = new TriggerPanel(lx, cy, w - 12, 1, triggers, onDirty);
+        tp.setOnTriggerChanged(() -> { build(); });
+        addChild(tp);
     }
 
     /** C4：按 schema 的 "meta" 段渲染指定 section 的字段（tristate 走三态按钮，其余按类型反射） */
@@ -699,6 +706,7 @@ public class LeftPanelArea extends UIComponent {
             case CLIP_PROPERTIES -> I18n.get("editor.tab.clip");
             case KEYFRAME_PROPERTIES -> I18n.get("editor.tab.keyframe");
             case TRACK_LIST -> I18n.get("editor.tab.tracks");
+            case TRIGGER -> I18n.get("editor.tab.triggers");
         };
     }
 

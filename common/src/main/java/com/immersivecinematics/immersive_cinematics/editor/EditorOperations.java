@@ -29,8 +29,37 @@ public class EditorOperations {
         return 0f;
     }
 
+    /** B 模型：转场区起点 = 片段末尾 − t/2（转场以片段边界为中心，各占一半重叠） */
+    public static float getTransitionStart(JsonObject clip) {
+        return getEnd(clip) - getTransitionDuration(clip) / 2f;
+    }
+
+    /** B 模型：转场区终点 = 片段末尾 + t/2 */
     public static float getTotalEnd(JsonObject clip) {
-        return getEnd(clip) + getTransitionDuration(clip);
+        return getEnd(clip) + getTransitionDuration(clip) / 2f;
+    }
+
+    /**
+     * B 模型：转场对齐不变量（强制）— 有 transition_duration 的片段，其同轨道下一个片段的 start 恒为 end − t/2。
+     * 任何编辑路径（字段/拖拽/resize/split/打开）后调用，保证重叠转场数据恒成立；
+     * 用户留空隙 = 不想转场，应移除 transition 字段（B 语义下转场必然重叠）。
+     */
+    public static void applyTransitionAlignment(JsonArray tracks) {
+        for (JsonElement te : tracks) {
+            JsonArray clips = te.getAsJsonObject().getAsJsonArray("clips");
+            if (clips == null || clips.size() < 2) continue;
+            List<JsonObject> sorted = new ArrayList<>();
+            for (JsonElement ce : clips) sorted.add(ce.getAsJsonObject());
+            sorted.sort(Comparator.comparingDouble(c -> getStart(c)));
+            for (int i = 0; i < sorted.size() - 1; i++) {
+                JsonObject prev = sorted.get(i);
+                float t = getTransitionDuration(prev);
+                if (t <= 0f) continue;
+                JsonObject next = sorted.get(i + 1);
+                float expected = Math.max(getStart(prev), getEnd(prev) - t / 2f);
+                next.addProperty("start_time", expected);
+            }
+        }
     }
 
     public static JsonObject addClip(JsonArray tracks, int trackIndex, float startTime, float duration, String trackType) {
@@ -230,7 +259,8 @@ public class EditorOperations {
             JsonArray clips = te.getAsJsonObject().getAsJsonArray("clips");
             for (JsonElement ce : clips) {
                 JsonObject clip = ce.getAsJsonObject();
-                float end = getTotalEnd(clip);
+                // B 模型：转场吃中间不延长总时长（总时长 = 内容实际末尾）
+                float end = getEnd(clip);
                 maxEnd = Math.max(maxEnd, end);
             }
         }
@@ -244,7 +274,8 @@ public class EditorOperations {
             for (JsonElement ce : clips) {
                 JsonObject clip = ce.getAsJsonObject();
                 clip.addProperty("start_time", cursor);
-                cursor = getEnd(clip);
+                // B 模型：下一个片段从 end − t/2 开始（转场重叠），顺排含转场间距
+                cursor = getEnd(clip) - getTransitionDuration(clip) / 2f;
             }
         }
     }

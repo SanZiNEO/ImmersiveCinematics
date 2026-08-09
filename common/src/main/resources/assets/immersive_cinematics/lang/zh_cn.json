@@ -55,6 +55,7 @@
     "editor.tab.clip": "片段",
     "editor.tab.keyframe": "关键帧",
     "editor.tab.tracks": "轨道",
+    "editor.tab.triggers": "触发器",
     "editor.tab.list": "脚本列表",
     "editor.tab.track_visible": "\uD83D\uDC41",
     "editor.tab.track_hidden": "\u2014",

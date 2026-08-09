@@ -39,9 +39,10 @@ public class CameraTrackPlayer implements TrackPlayer {
         for (int i = 0; i < clips.size() - 1; i++) {
             Clip prev = clips.get(i);
             if (prev.isMorph() && prev.getTransitionDuration() > 0f && !prev.isInfinite()) {
+                // B 模型：转场区以片段边界为中心 [end−t/2, end+t/2)
                 float prevEnd = prev.getStartTime() + prev.getDuration();
-                float morphEnd = prevEnd + prev.getTransitionDuration();
-                if (globalTime >= prevEnd && globalTime < morphEnd) return true;
+                float half = prev.getTransitionDuration() / 2f;
+                if (globalTime >= prevEnd - half && globalTime < prevEnd + half) return true;
             }
         }
         return false;
@@ -55,15 +56,17 @@ public class CameraTrackPlayer implements TrackPlayer {
         // 组 7：编辑器拖拽直控期间，相机由编辑器直驱（previewSetCamera），跳过轨道写入
         if (cameraManager.isPreviewDirectControl()) return;
 
-        // Morph: 在 [A_end, A_end+A.transition_duration) 内取 A 末帧→B 首帧 lerp
+        // B 模型 morph：转场区 [A_end−t/2, A_end+t/2) 内双轨各自插值交叉（A 尾部真实走完、B 头部真实进入）
         for (int i = 0; i < clips.size() - 1; i++) {
             Clip prev = clips.get(i);
             Clip next = clips.get(i + 1);
             if (prev.isMorph() && prev.getTransitionDuration() > 0f && !prev.isInfinite()) {
                 float prevEnd = prev.getStartTime() + prev.getDuration();
-                float morphEnd = prevEnd + prev.getTransitionDuration();
-                if (globalTime >= prevEnd && globalTime < morphEnd) {
-                    float weight = (globalTime - prevEnd) / prev.getTransitionDuration();
+                float half = prev.getTransitionDuration() / 2f;
+                float morphStart = prevEnd - half;
+                float morphEnd = prevEnd + half;
+                if (globalTime >= morphStart && globalTime < morphEnd) {
+                    float weight = (globalTime - morphStart) / prev.getTransitionDuration();
                     renderMorph(prev, next, weight, globalTime);
                     return;
                 }
@@ -87,10 +90,13 @@ public class CameraTrackPlayer implements TrackPlayer {
     }
 
     private void renderMorph(Clip prevClip, Clip nextClip, float weight, float globalTime) {
+        // B 模型：双轨各自按自身时间插值（prev 走 [dur−t/2, dur)，next 走 [0, t)），再按 weight 交叉
+        float prevLocal = globalTime - prevClip.getStartTime();
+        float nextLocal = globalTime - nextClip.getStartTime();
         KeyframeInterpolator.InterpolationResult prevResult =
-                KeyframeInterpolator.computeInterpolation(prevClip.getDuration(), prevClip);
+                KeyframeInterpolator.computeInterpolation(prevLocal, prevClip);
         KeyframeInterpolator.InterpolationResult nextResult =
-                KeyframeInterpolator.computeInterpolation(0f, nextClip);
+                KeyframeInterpolator.computeInterpolation(nextLocal, nextClip);
 
         if (prevResult == null && nextResult == null) return;
 

@@ -55,6 +55,7 @@
     "editor.tab.clip": "Clip",
     "editor.tab.keyframe": "Keyframe",
     "editor.tab.tracks": "Tracks",
+    "editor.tab.triggers": "Triggers",
     "editor.tab.list": "Scripts",
     "editor.tab.track_visible": "\uD83D\uDC41",
     "editor.tab.track_hidden": "\u2014",

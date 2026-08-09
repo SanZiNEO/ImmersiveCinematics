@@ -147,6 +147,8 @@ public class EditorScreen extends Screen {
         leftPanel.setDirtyCallback(() -> {
             undoManager.push(doc.toJson());
             doc.markDirty();
+            // B 模型：字段编辑后保证转场对齐不变量（transition_duration 变化时后续片段重叠修正）
+            EditorOperations.applyTransitionAlignment(doc.getTracks());
             pushScriptUpdate();
             doc.setFileName(doc.getMeta().get("id").getAsString());
             menuBar.setScriptName(doc.getFileName());
@@ -282,6 +284,8 @@ public class EditorScreen extends Screen {
             EditorLogger.action(EditorLogger.TIMELINE, "MOVE_CLIPS", "count=" + clips.size() + " delta=" + delta);
             EditorOperations.moveClips(doc.getTracks(), clips, delta);
             doc.markDirty();
+            // B 模型：拖拽后保持转场重叠不变量
+            EditorOperations.applyTransitionAlignment(doc.getTracks());
             pushScriptUpdate();
             syncPanels();
         });
@@ -305,6 +309,7 @@ public class EditorScreen extends Screen {
             EditorLogger.action(EditorLogger.TIMELINE, "RESIZE_CLIP_LEFT", "clipStart=" + EditorOperations.getStart(clip) + " newStart=" + ns);
             EditorOperations.resizeClipLeft(clip, ns, 0);
             doc.markDirty();
+            EditorOperations.applyTransitionAlignment(doc.getTracks());
             pushScriptUpdate();
         });
         timeline.setOnResizeRight((clip, ne) -> {
@@ -312,6 +317,7 @@ public class EditorScreen extends Screen {
             EditorLogger.action(EditorLogger.TIMELINE, "RESIZE_CLIP_RIGHT", "clipEnd=" + EditorOperations.getEnd(clip) + " newEnd=" + ne);
             EditorOperations.resizeClipRight(clip, ne, 0);
             doc.markDirty();
+            EditorOperations.applyTransitionAlignment(doc.getTracks());
             pushScriptUpdate();
         });
         timeline.setOnMoveKeyframe((kf, clip, nt) -> {
@@ -323,7 +329,14 @@ public class EditorScreen extends Screen {
         });
         timeline.setOnToolAddClip(() -> {
             EditorLogger.action(EditorLogger.TIMELINE, "TOOL_ADD_CLIP", "");
-            JsonObject clip = EditorOperations.addClip(doc.getTracks(), 0, doc.getTotalDuration(), 5, "CAMERA");
+            // 对象树：加到选中项（关键帧→片段→轨道）所属轨道；无选中兜底轨道 0
+            int idx = selectedTrackIndex();
+            String type = "CAMERA";
+            if (idx >= 0 && idx < doc.getTracks().size()) {
+                type = doc.getTracks().get(idx).getAsJsonObject().get("type").getAsString();
+            }
+            if ("LETTERBOX".equals(type)) type = "CAMERA";
+            JsonObject clip = EditorOperations.addClip(doc.getTracks(), idx, doc.getTotalDuration(), 5, type);
             if (clip != null) {
                 doc.markDirty();
                 pushScriptUpdate();
@@ -386,8 +399,9 @@ public class EditorScreen extends Screen {
         });
 
         timeline.setOnToolDeleteTrack(() -> {
-            EditorLogger.action(EditorLogger.TIMELINE, "TOOL_DELETE_TRACK", "index=" + timeline.getSelectedTrackIndex());
-            int idx = timeline.getSelectedTrackIndex();
+            // 对象树：删选中项（关键帧→片段→轨道）所属轨道——不再按顺序删第 0 条（相机轨道）
+            int idx = selectedTrackIndex();
+            EditorLogger.action(EditorLogger.TIMELINE, "TOOL_DELETE_TRACK", "index=" + idx);
             if (idx < 0 || idx >= doc.getTracks().size()) return;
             undoManager.push(doc.toJson());
             hiddenTracks.remove(doc.getTracks().get(idx).getAsJsonObject());
@@ -424,7 +438,11 @@ public class EditorScreen extends Screen {
                 if (clip != null) {
                     undoManager.push(doc.toJson());
                     JsonObject right = EditorOperations.splitClip(doc.getTracks(), clip, playback.getTime());
-                    if (right != null) { doc.markDirty(); pushScriptUpdate(); sel.selectClip(right); }
+                    if (right != null) {
+                        // B 模型：拆分后保持转场重叠不变量（左片段尾部转场指向右片段）
+                        EditorOperations.applyTransitionAlignment(doc.getTracks());
+                        doc.markDirty(); pushScriptUpdate(); sel.selectClip(right);
+                    }
                 }
             });
             contextMenu.addEntry(I18n.get("editor.contextmenu.add_keyframe"), 0xFFCCCCCC, () -> {
@@ -1002,6 +1020,8 @@ public class EditorScreen extends Screen {
             String loadedId = doc.getMeta().has("id") ? doc.getMeta().get("id").getAsString() : "";
             doc.setFileName(loadedId.isEmpty() ? fileName.replace(".json", "") : loadedId);
             scriptFilePath = src.toString();
+            // B 模型：旧脚本迁移（next.start == prevEnd → 修正为 end−t/2 重叠转场）
+            EditorOperations.applyTransitionAlignment(doc.getTracks());
             playback.setTime(0);
             sel.clear();
             // 打开脚本后自动选中第一个 CAMERA clip——否则相机控件（滑块/三维球）显示可用但 applyCameraParam 因无选中直接 return
@@ -1539,6 +1559,23 @@ public class EditorScreen extends Screen {
             }
         }
         return "CAMERA";
+    }
+
+    /**
+     * 对象树追溯：选中项（关键帧→片段→轨道）所属的轨道索引。
+     * 选中关键帧/片段时从选中 clip 向上找父轨道；无选中时回落时间轴标签选中索引。
+     */
+    private int selectedTrackIndex() {
+        JsonObject clip = sel.getClip();
+        if (clip != null) {
+            for (int i = 0; i < doc.getTracks().size(); i++) {
+                JsonArray clips = doc.getTracks().get(i).getAsJsonObject().getAsJsonArray("clips");
+                for (JsonElement ce : clips) {
+                    if (ce.getAsJsonObject() == clip) return i;
+                }
+            }
+        }
+        return timeline.getSelectedTrackIndex();
     }
     
     private static JsonObject findTrackByType(JsonArray tracks, String type) {
