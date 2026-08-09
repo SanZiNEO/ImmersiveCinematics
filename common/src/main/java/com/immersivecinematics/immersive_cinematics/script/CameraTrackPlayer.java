@@ -9,6 +9,8 @@ import java.util.Random;
 
 public class CameraTrackPlayer implements TrackPlayer {
 
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/CameraTrackPlayer");
+
     private final ScriptPlayer scriptPlayer;
     private final TrackType type;
     private final int trackIndex;
@@ -19,6 +21,9 @@ public class CameraTrackPlayer implements TrackPlayer {
     private final PathStrategy bezierStrategy = new BezierPathStrategy();
 
     private int lastClipIndex = 0;
+
+    /** 诊断：look_at 日志节流 */
+    private long lastLookAtLog;
 
     public CameraTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos, CameraManager cameraManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
@@ -188,6 +193,15 @@ public class CameraTrackPlayer implements TrackPlayer {
                 double dz = targetPos.z - pos.z;
                 float newYaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
                 float newPitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+                // 诊断：morph 转场中的 look_at（相机位置 / 目标位置 / 算出的角度），1 秒节流
+                long now = System.currentTimeMillis();
+                if (now - lastLookAtLog >= 1000) {
+                    lastLookAtLog = now;
+                    LOGGER.info("LOOK_AT[morph]: cam=({}, {}, {}) target=({}, {}, {}) yaw={} pitch={}",
+                            String.format("%.2f", pos.x), String.format("%.2f", pos.y), String.format("%.2f", pos.z),
+                            String.format("%.2f", targetPos.x), String.format("%.2f", targetPos.y), String.format("%.2f", targetPos.z),
+                            String.format("%.2f", newYaw), String.format("%.2f", newPitch));
+                }
                 yaw = newYaw;
                 pitch = newPitch;
             }
@@ -220,6 +234,11 @@ public class CameraTrackPlayer implements TrackPlayer {
         float roll = KeyframeInterpolator.interpolateRoll(from, to, s);
         float fov = KeyframeInterpolator.interpolateFov(from, to, s);
         float zoom = KeyframeInterpolator.interpolateZoom(from, to, s);
+
+        // ====== 先得到世界坐标位置（relative 加成），后续 follow/look_at 均基于世界坐标 ======
+        if (clip.isPositionModeRelative()) {
+            pos = originPos.add(pos);
+        }
 
         // ====== Tracking override（覆盖开关：follow 改位置、look_at 改朝向，互不叠加）======
         // 顺序：先 follow 定最终位置，再 look_at 用最终位置计算朝向（否则朝向偏离一个 follow 偏移量）
@@ -258,14 +277,19 @@ public class CameraTrackPlayer implements TrackPlayer {
                 double dz = targetPos.z - pos.z;
                 float newYaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
                 float newPitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+                // 诊断：look_at 计算链路（相机位置 / 目标位置 / 算出的角度），1 秒节流
+                long now = System.currentTimeMillis();
+                if (now - lastLookAtLog >= 1000) {
+                    lastLookAtLog = now;
+                    LOGGER.info("LOOK_AT: cam=({}, {}, {}) target=({}, {}, {}) dx={} dy={} dz={} yaw={} pitch={}",
+                            String.format("%.2f", pos.x), String.format("%.2f", pos.y), String.format("%.2f", pos.z),
+                            String.format("%.2f", targetPos.x), String.format("%.2f", targetPos.y), String.format("%.2f", targetPos.z),
+                            String.format("%.2f", dx), String.format("%.2f", dy), String.format("%.2f", dz),
+                            String.format("%.2f", newYaw), String.format("%.2f", newPitch));
+                }
                 yaw = newYaw;
                 pitch = newPitch;
             }
-        }
-        // ====== End tracking ======
-
-        if (clip.isPositionModeRelative()) {
-            pos = originPos.add(pos);
         }
 
         // ====== Breath disturbance ======
