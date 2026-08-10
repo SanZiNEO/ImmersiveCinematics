@@ -121,7 +121,9 @@ public class ScriptManager {
     public void reload(MinecraftServer server) {
         TriggerEngine.INSTANCE.clear();
         loadAll(server);
-        TriggerEngine.INSTANCE.rebuildIndex();
+        // 重新注册全部触发器（registerAllTriggers 内部会重建索引）——
+        // 之前只调 rebuildIndex 而 allRegistrations 已被 clear 清空，导致 reload 后触发器全部失效
+        registerAllTriggers();
     }
 
     public CinematicScript getScript(String id) {
