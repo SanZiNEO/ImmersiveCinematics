@@ -307,9 +307,9 @@ public class CameraTrackPlayer implements TrackPlayer {
                 if (serverLevel != null) {
                     result = com.immersivecinematics.immersive_cinematics.util.StructureLocator.locateCenter(
                             serverLevel, structureId,
-                            net.minecraft.core.BlockPos.containing(mc.player.getX(), mc.player.getY(), mc.player.getZ()), 100);
+                            net.minecraft.core.BlockPos.containing(mc.player.getX(), mc.player.getY(), mc.player.getZ()), 3);
                     if (result == null) {
-                        LOGGER.debug("结构 '{}' 在搜索半径内未找到（原版 /locate 同范围）", structureId);
+                        LOGGER.debug("结构 '{}' 在附近（3 区块内已加载区域）未找到", structureId);
                     }
                 }
             }

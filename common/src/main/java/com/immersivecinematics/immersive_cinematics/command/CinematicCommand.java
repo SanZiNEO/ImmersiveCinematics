@@ -206,13 +206,13 @@ public class CinematicCommand {
         return false;
     }
 
-    /** 服务端结构定位：原版 /locate 同源（执行者所在维度，以执行者位置为中心搜 100 区块），返回结构 bounding box 中心 */
+    /** 服务端结构定位：以执行者位置为中心做附近搜寻（3 区块），返回结构 bounding box 中心 */
     private static Vec3 locateStructure(CommandSourceStack source, String structureId) {
         if (source.getLevel() instanceof net.minecraft.server.level.ServerLevel) {
             net.minecraft.server.level.ServerLevel serverLevel =
                     (net.minecraft.server.level.ServerLevel) source.getLevel();
             return com.immersivecinematics.immersive_cinematics.util.StructureLocator.locateCenter(
-                    serverLevel, structureId, net.minecraft.core.BlockPos.containing(source.getPosition()), 100);
+                    serverLevel, structureId, net.minecraft.core.BlockPos.containing(source.getPosition()), 3);
         }
         return null;
     }
