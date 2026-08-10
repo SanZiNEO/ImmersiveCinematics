@@ -113,11 +113,11 @@ public class CameraTrackPlayer implements TrackPlayer {
         renderSingle(globalTime, primaryClip, clipLocalTime);
     }
 
-    /** 片段目标不可用提示只打一次（避免每帧刷屏） */
+    /** 片段目标不可用提示只打一次（debug 级：作者排查可见，不打扰玩家） */
     private void warnClipUnusableOnce() {
         if (!clipUnusableWarnOnce) {
             clipUnusableWarnOnce = true;
-            LOGGER.warn("片段目标不可用（结构/实体未找到），该片段按空处理（玩家视角）");
+            LOGGER.debug("片段目标不可用（结构/实体未找到），该片段按空处理（玩家视角）");
         }
     }
 
@@ -268,7 +268,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         if (structureId != null && !structureId.isEmpty()) {
             Vec3 structurePos = resolveStructurePos(structureId);
             if (structurePos != null) return structurePos;
-            LOGGER.warn("相对基准结构 '{}' 未找到（防御路径）", structureId);
+            LOGGER.debug("相对基准结构 '{}' 未找到（防御路径）", structureId);
         }
         return originPos;
     }
@@ -301,7 +301,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         try {
             net.minecraft.server.MinecraftServer singleplayer = mc.getSingleplayerServer();
             if (singleplayer == null) {
-                LOGGER.warn("多人服务器无法解析结构 '{}'（服务端 play 推送会替换为坐标；编辑器预览仅限单人）", structureId);
+                LOGGER.debug("多人服务器无法解析结构 '{}'（服务端 play 推送会替换为坐标；编辑器预览仅限单人）", structureId);
             } else {
                 net.minecraft.server.level.ServerLevel serverLevel = singleplayer.getLevel(mc.level.dimension());
                 if (serverLevel != null) {
@@ -309,12 +309,12 @@ public class CameraTrackPlayer implements TrackPlayer {
                             serverLevel, structureId,
                             net.minecraft.core.BlockPos.containing(mc.player.getX(), mc.player.getY(), mc.player.getZ()), 100);
                     if (result == null) {
-                        LOGGER.warn("结构 '{}' 在搜索半径内未找到（原版 /locate 同范围）", structureId);
+                        LOGGER.debug("结构 '{}' 在搜索半径内未找到（原版 /locate 同范围）", structureId);
                     }
                 }
             }
         } catch (Exception e) {
-            LOGGER.warn("结构坐标解析失败 '{}': {}", structureId, e.getMessage());
+            LOGGER.debug("结构坐标解析失败 '{}': {}", structureId, e.getMessage());
         }
         StructurePosCache entry = new StructurePosCache();
         entry.pos = result;
@@ -345,10 +345,10 @@ public class CameraTrackPlayer implements TrackPlayer {
                 // 整个片段已被 isClipUsable 拦截按空处理，此处为防御。
                 Vec3 structurePos = resolveStructurePos(structureId);
                 if (structurePos != null) return structurePos;
-                // 定位失败只提示一次（避免每帧刷屏）
+                // 定位失败只提示一次（debug 级：作者排查可见，不打扰玩家）
                 if (!lookAtWarnOnce) {
                     lookAtWarnOnce = true;
-                    LOGGER.warn("结构 '{}' 未找到（该端无注视目标）", structureId);
+                    LOGGER.debug("结构 '{}' 未找到（该端无注视目标）", structureId);
                 }
                 return null;
             }

@@ -43,7 +43,8 @@ public final class TextureLoader {
 
         Path filePath = ResourcePath.resolve(fileName);
         if (!Files.exists(filePath)) {
-            LOGGER.error("Texture file not found: {}", filePath);
+            // debug 级：资源缺失不影响脚本播放，作者排查时开调试日志可见
+            LOGGER.debug("Texture file not found: {}", filePath);
             return null;
         }
 
@@ -65,7 +66,7 @@ public final class TextureLoader {
             LOGGER.debug("Loaded texture: {} -> {} ({}x{})", fileName, loc, image.getWidth(), image.getHeight());
             return loc;
         } catch (Exception e) {
-            LOGGER.error("Failed to load texture: {}", filePath, e);
+            LOGGER.debug("Failed to load texture: {}", filePath, e);
             return null;
         }
     }

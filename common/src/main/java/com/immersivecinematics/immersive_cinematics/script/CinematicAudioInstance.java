@@ -70,7 +70,8 @@ public class CinematicAudioInstance {
             } else {
                 Path filePath = ResourcePath.resolve(fileName);
                 if (!Files.exists(filePath)) {
-                    LOGGER.error("Audio file not found: {}", filePath);
+                    // debug 级：资源缺失不影响脚本播放，作者排查时开调试日志可见
+                    LOGGER.debug("Audio file not found: {}", filePath);
                     return;
                 }
 
@@ -307,7 +308,7 @@ public class CinematicAudioInstance {
             ResourceLocation loc = new ResourceLocation(fileName);
             Resource resource = Minecraft.getInstance().getResourceManager().getResource(loc).orElse(null);
             if (resource == null) {
-                LOGGER.error("Minecraft sound resource not found: {}", fileName);
+                LOGGER.debug("Minecraft sound resource not found: {}", fileName);
                 return null;
             }
             try (InputStream is = resource.open()) {

@@ -202,7 +202,7 @@ public class CinematicCommand {
             obj.remove(sourceField);
             return true;
         }
-        LOGGER.warn("结构 '{}' 定位失败，脚本保留 structure 字段（客户端该端无目标，片段按空处理）", structureId);
+        LOGGER.debug("结构 '{}' 定位失败，脚本保留 structure 字段（客户端该端无目标，片段按空处理）", structureId);
         return false;
     }
 

@@ -127,7 +127,8 @@ public class OverlayTrackPlayer implements TrackPlayer {
                     if (tex != null) {
                         il.setTexture(path, tex);
                     } else {
-                        LOGGER.warn("Image not found in resource/: {}", path);
+                        // debug 级：资源缺失不影响脚本播放，作者排查时开调试日志可见
+                        LOGGER.debug("Image not found in resource/: {}", path);
                     }
                 }
                 il.setZIndex(zIndex);

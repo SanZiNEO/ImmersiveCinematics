@@ -33,21 +33,21 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 12.0,
+    "total_duration": 15.0,
     "tracks": [
       {
         "type": "CAMERA",
         "clips": [
           {
             "start_time": 0,
-            "duration": 12,
+            "duration": 15,
             "transition": "cut",
             "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
                 "time": 0,
-                "position": { "dx": 0, "dy": 3, "dz": 0 },
+                "position": { "dx": 0, "dy": 2, "dz": 0 },
                 "position_mode": "relative",
                 "follow": "none",
                 "look_at": "coordinate",
@@ -63,8 +63,8 @@
                 "zoom": 1.0
               },
               {
-                "time": 3,
-                "position": { "dx": 0, "dy": 20, "dz": 0 },
+                "time": 15,
+                "position": { "dx": 20, "dy": 15, "dz": 20, "relative_origin": "minecraft:village_plains" },
                 "position_mode": "relative",
                 "follow": "none",
                 "look_at": "coordinate",
@@ -77,40 +77,6 @@
                 "pitch": 0,
                 "roll": 0,
                 "fov": 80,
-                "zoom": 1.0
-              },
-              {
-                "time": 8,
-                "position": { "dx": -6, "dy": 20, "dz": -6 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "coordinate",
-                "look_at_selector": "@p",
-                "look_at_target_x": 0,
-                "look_at_target_y": 80,
-                "look_at_target_z": 0,
-                "look_at_target_structure": "minecraft:village_plains",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 80,
-                "zoom": 1.0
-              },
-              {
-                "time": 12,
-                "position": { "dx": -6, "dy": 12, "dz": -6 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "coordinate",
-                "look_at_selector": "@p",
-                "look_at_target_x": 0,
-                "look_at_target_y": 80,
-                "look_at_target_z": 0,
-                "look_at_target_structure": "minecraft:village_plains",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 75,
                 "zoom": 1.0
               }
             ]
@@ -138,8 +104,8 @@
             ]
           },
           {
-            "start_time": 7.5,
-            "duration": 4,
+            "start_time": 11.5,
+            "duration": 3.5,
             "layer_type": "subtitle",
             "text": "去和村民打个招呼吧",
             "z_index": 30,
