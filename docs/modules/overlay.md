@@ -22,6 +22,7 @@
   - ✅ `ImageLayer`（默认 zIndex=20）：**坐标 = 屏幕百分比（0~1，元素中心锚点，0.5 = 屏幕正中）**，显示尺寸 = 原图分辨率 × `scale_x/scale_y` 百分比乘数（原图尺寸由 `TextureLoader` 记录）；透明度由关键帧 opacity 驱动，**渲染用 pose 浮点平移实现亚像素平滑**（`ImageLayer`、`TextureLoader`）
 - **内置层：字幕（subtitle）**
   - ✅ `SubtitleLayer`（默认 zIndex=30）：渲染文字，支持多行（`\n` 分隔），**坐标 = 屏幕百分比（0~1，文字块中心）**，字号两级缩放（`font_scale` 矩阵缩放 + `scale_x/y` 百分比缩放），透明度由 opacity 控制，pose 浮点平移亚像素平滑（`SubtitleLayer`）
+  - ⚠️ **MC 透明度补全坑**：`Font.adjustColor()` 会把 alpha 高 6 位为 0 的颜色（alpha 0~3，透明度 <1.6%）补成完全不透明——低透明度文字反而满透明度渲染。渲染层已用 `alpha < 4` 跳过规避；**未来任何走 Font.drawString 的 fade/文字动画都必须避开该区间**（ImageLayer 走 shader 颜色不受影响）
 - **内置层：画中画（pip）**
   - ⚠️ `PipLayer`（默认 zIndex=40）：仅渲染 2px 白色边框 + 半透明黑色填充的占位框，Phase 1 不包含实际摄像头画面，计划 Phase 2（0.3.5+）接入第二相机帧缓冲（`PipLayer`）
 - **扩展接口**

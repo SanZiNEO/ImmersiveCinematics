@@ -2,6 +2,34 @@
 
 音乐配乐 + 覆盖层 + 事件重构 + 镜头追踪与呼吸扰动 + 翻滚角修复。
 
+### 2026-08-10 追加 — 字幕两级缩放、OVERLAY 中心锚点、循环增强、结构中心定位、相对基准扩展、透明度补全修复
+
+**OVERLAY 字幕缩放（用户需求：字号与固定字号缩放分离）**
+- `font_scale` 关键帧：字号倍数（`1` = 原版 9px），矩阵缩放实现，与 MC `/title` 大字同一机制；`scale_x/scale_y` 在固定字号基础上做百分比缩放（与图片 scale 语义一致），两级叠加（最终 = `font_scale × scale_x/y`）
+- schema 补 `font_scale` 字段，编辑器属性面板/默认值自动对齐（schema 驱动）
+
+**OVERLAY 锚点统一为元素中心**
+- `x/y` = 0.5 即屏幕居中（不再手算左上角偏移）；ImageLayer/SubtitleLayer 按渲染尺寸/2 偏移；旧脚本按"中心 = 左上角 + 尺寸/2"迁移（仓库脚本与文档同步）
+
+**循环功能增强**
+- `loop_mode` 支持 `"repeat"`（默认）与 `"pingpong"`（往复折返，监控视角来回摇，关键帧只写半程）
+- 无限循环（`loop: true` + `loop_count: -1`）已开始的片段使脚本永不自然结束（唯一退出 = skippable/interruptible 手动退出）
+- `loop_count: 0` 解析报错并按 1 处理；Clip 新增窗口语义（`getWindowEnd`/`getAnimPeriod`/`isEffectivelyInfinite`）
+
+**结构目标改为真中心**
+- 新增 `StructureLocator`：`findNearestMapStructure` 锚点（/locate 同源，结构起点）→ STRUCTURE_STARTS → `getBoundingBox().getCenter()`，返回结构**几何中心**（含 +0.5 块中心偏移）
+- `look_at_target_structure` 与 `position.relative_origin`（结构 id）均按结构中心解析，服务端推送前替换为坐标（多人生效），编辑器预览（单人）客户端直连兜底；就近搜索 100 区块，不做无限查找
+
+**position 相对基准扩展（relative_origin）**
+- 相对模式基准可选：缺省 = 玩家激活位置；`"coordinate"` = 相对固定坐标（`relative_origin_x/y/z`）；结构 id = 相对结构中心
+
+**编辑器**
+- look_at 坐标/结构互斥：`coordinate` 模式下指定结构后坐标输入隐藏，结构下拉选"（空）"自动恢复
+- 脚本重组：`showcase_welcome` 拆分为 `showcase_01_welcome` / `showcase_02_kill_sheep` / `showcase_03_village`
+
+**修复**
+- **字幕低透明度被补全为不透明**（根因：opacity 量化为 alpha 0~3 时颜色 alpha 高 6 位为 0，触发 MC `Font.adjustColor()` 的"未指定 alpha"补全 → `0x00FFFFFF` → `0xFFFFFFFF`，透明度 <1.6% 的文字反而满透明度渲染；表现为渐出/渐入段末尾闪现全亮文本）。修复：`alpha < 4` 直接跳过渲染；代码注释与文档记录该坑，未来走 Font 的 fade 需避开（ImageLayer 走 shader 颜色不受影响）
+
 ### 2026-08-09 追加 — 触发器完成、播放队列、编辑器事件树重构、预览与网络加固
 
 **触发器（23 种，custom 删除）**
