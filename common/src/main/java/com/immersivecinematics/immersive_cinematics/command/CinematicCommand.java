@@ -271,12 +271,9 @@ public class CinematicCommand {
         Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
         Path worldDir = server.getWorldPath(WORLD_SCRIPT_DIR);
 
-        if (!Files.isDirectory(globalDir)) {
-            source.sendFailure(Component.literal("§c全局脚本目录不存在: " + globalDir));
-            return 0;
-        }
-
         try {
+            // 自动创建必要目录（全局 + 世界存档两侧）
+            Files.createDirectories(globalDir);
             Files.createDirectories(worldDir);
             try (Stream<Path> files = Files.list(globalDir)) {
                 files.filter(p -> p.toString().endsWith(".json")).forEach(globalFile -> {
@@ -289,6 +286,9 @@ public class CinematicCommand {
                     }
                 });
             }
+            // 资源目录同步（音频/图片）
+            com.immersivecinematics.immersive_cinematics.script.ScriptManager.syncResourcesToWorld(server,
+                    msg -> source.sendFailure(Component.literal(msg)));
             ScriptManager.INSTANCE.reload(server);
             LOGGER.info("脚本重载完成，共 {} 个脚本生效", ScriptManager.INSTANCE.getAllScripts().size());
         } catch (IOException e) {

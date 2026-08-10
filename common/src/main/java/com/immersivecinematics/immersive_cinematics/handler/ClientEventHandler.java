@@ -13,6 +13,9 @@ import net.minecraft.client.Minecraft;
 public class ClientEventHandler {
 
     public static void register() {
+        // 启动时确保资源目录存在（音频/图片等外部资源统一放 <游戏目录>/immersive_cinematics/resource/）
+        com.immersivecinematics.immersive_cinematics.util.ResourcePath.ensureDir();
+
         // ===== 按键注册 =====
 
         KeyMappingRegistry.register(CinematicKeyBindings.SKIP_KEY);
