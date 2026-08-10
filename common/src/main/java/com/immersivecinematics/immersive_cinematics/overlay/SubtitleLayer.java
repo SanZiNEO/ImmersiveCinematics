@@ -34,8 +34,12 @@ public class SubtitleLayer implements OverlayLayer {
         if (opacity <= 0.001f || text == null || text.isEmpty()) return;
 
         int alpha = (int) (opacity * 255);
-        // 幽灵文本根因：alpha 量化为 0~3 时，MC Font.adjustColor() 会把颜色补成全不透明
-        // （0x00FFFFFF → 0xFFFFFFFF），导致低透明度文字以完全不透明渲染；肉眼本不可见，直接跳过
+        // ⚠️ MC 透明度补全坑（Font.adjustColor）：drawString 传入的颜色若 alpha 高 6 位为 0
+        // （即 alpha 0~3，透明度 < 1.6%），会被 MC 视为"未指定 alpha"并强制补成 0xFF（完全不透明）——
+        // 0x00FFFFFF → 0xFFFFFFFF，低透明度文字反而以满透明度渲染。
+        // 规避：alpha < 4 时肉眼本不可见，直接跳过渲染（不要用 alpha=1~3 的"几乎透明"颜色走 Font）。
+        // 注意：仅 Font.drawString 系列有此补全；ImageLayer 走 RenderSystem.setShaderColor（GPU 混合）不受影响。
+        // 未来实现任何走 Font 的 fade/文字动画时都必须避开该区间。
         if (alpha < 4) return;
         int color = (alpha << 24) | 0x00FFFFFF;
 
