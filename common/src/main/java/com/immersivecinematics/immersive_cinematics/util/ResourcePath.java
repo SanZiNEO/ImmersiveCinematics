@@ -8,10 +8,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * 资源路径工具 — 统一管理音频、图片等外部资源的读取路径。
- * <p>
- * 所有资源文件位于 {@code <游戏目录>/immersive_cinematics/resource/} 目录下，
- * 防止从任意文件路径加载导致的安全问题。
+ * 资源路径工具 — 客户端按需读取播放所需资源（音频/图片）。
+ * 资源统一放在游戏根目录 {@code <游戏目录>/immersive_cinematics/resource/}，
+ * 单机/联机/编辑器共用同一份，不走服务器流量、不做文件同步；
+ * 资源缺失时由各加载点记录日志，不阻塞脚本播放。
  */
 public final class ResourcePath {
 
@@ -20,9 +20,7 @@ public final class ResourcePath {
 
     private ResourcePath() {}
 
-    /**
-     * 获取资源根目录：{@code <gameDir>/immersive_cinematics/resource/}
-     */
+    /** 资源根目录：{@code <gameDir>/immersive_cinematics/resource/} */
     public static Path getBasePath() {
         return Minecraft.getInstance().gameDirectory.toPath()
                 .resolve("immersive_cinematics")

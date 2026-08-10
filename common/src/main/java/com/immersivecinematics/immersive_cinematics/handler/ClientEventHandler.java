@@ -13,8 +13,14 @@ import net.minecraft.client.Minecraft;
 public class ClientEventHandler {
 
     public static void register() {
-        // 启动时确保资源目录存在（音频/图片等外部资源统一放 <游戏目录>/immersive_cinematics/resource/）
+        // 启动时确保游戏根必要目录存在：resource（播放读取音频/图片）+ scripts（编辑器使用）
         com.immersivecinematics.immersive_cinematics.util.ResourcePath.ensureDir();
+        try {
+            java.nio.file.Files.createDirectories(
+                    Minecraft.getInstance().gameDirectory.toPath()
+                            .resolve("immersive_cinematics").resolve("scripts"));
+        } catch (Exception ignored) {
+        }
 
         // ===== 按键注册 =====
 

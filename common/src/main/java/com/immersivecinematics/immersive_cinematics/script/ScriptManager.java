@@ -32,14 +32,8 @@ public class ScriptManager {
     /** 世界存档内的脚本目录 */
     private static final LevelResource WORLD_SCRIPT_PATH = new LevelResource("immersive_cinematics/scripts");
 
-    /** 世界存档内的资源目录（音频/图片等，与全局资源目录同步） */
-    private static final LevelResource WORLD_RESOURCE_PATH = new LevelResource("immersive_cinematics/resource");
-
     /** 游戏根目录的全局脚本目录名 */
     private static final String GLOBAL_SCRIPT_DIR = "immersive_cinematics/scripts";
-
-    /** 游戏根目录的全局资源目录名 */
-    private static final String GLOBAL_RESOURCE_DIR = "immersive_cinematics/resource";
 
     private final Map<String, CinematicScript> scripts = new LinkedHashMap<>();
     private boolean loaded = false;
@@ -48,24 +42,20 @@ public class ScriptManager {
 
     /**
      * 首次启动时（创建/加载世界）：
-     * 1. 确保游戏根目录 immersive_cinematics/{scripts,resource} 与
-     *    世界存档 immersive_cinematics/{scripts,resource} 目录存在；
-     * 2. 把全局脚本（*.json）与资源文件复制到世界存档（缺失才复制，不覆盖已有）。
+     * 1. 确保游戏根 immersive_cinematics/scripts 与世界存档 immersive_cinematics/scripts 目录存在；
+     * 2. 把全局脚本（*.json）复制到世界存档（缺失才复制，不覆盖已有）。
+     * 资源不参与同步——客户端统一读游戏根 immersive_cinematics/resource（单机/联机/编辑器共用）。
      */
     public void copyGlobalToWorld(MinecraftServer server) {
         Path gameRoot = server.getServerDirectory().toPath().toAbsolutePath();
         try {
-            // 自动创建必要目录（全局 + 世界存档两侧）
             Files.createDirectories(gameRoot.resolve(GLOBAL_SCRIPT_DIR));
-            Files.createDirectories(gameRoot.resolve(GLOBAL_RESOURCE_DIR));
             Files.createDirectories(server.getWorldPath(WORLD_SCRIPT_PATH));
-            Files.createDirectories(server.getWorldPath(WORLD_RESOURCE_PATH));
         } catch (IOException e) {
             LOGGER.error("Failed to create immersive_cinematics directories: {}", e.getMessage());
         }
 
         copyMissing(gameRoot.resolve(GLOBAL_SCRIPT_DIR), server.getWorldPath(WORLD_SCRIPT_PATH), ".json");
-        copyMissing(gameRoot.resolve(GLOBAL_RESOURCE_DIR), server.getWorldPath(WORLD_RESOURCE_PATH), null);
     }
 
     /** 把源目录中缺失的文件复制到目标目录（不覆盖已有；extension 非 null 时只复制该后缀文件） */
@@ -86,40 +76,6 @@ public class ScriptManager {
                     });
         } catch (IOException e) {
             LOGGER.error("Failed to copy {} to world: {}", srcDir, e.getMessage());
-        }
-    }
-
-    /** 同步（覆盖）：把全局 resource 目录文件同步到世界存档（供 /icinematics reload 复用） */
-    public static void syncResourcesToWorld(MinecraftServer server, java.util.function.Consumer<String> onFailure) {
-        Path gameRoot = server.getServerDirectory().toPath().toAbsolutePath();
-        Path globalDir = gameRoot.resolve(GLOBAL_RESOURCE_DIR);
-        Path worldDir = server.getWorldPath(WORLD_RESOURCE_PATH);
-        if (!Files.isDirectory(globalDir)) {
-            try {
-                Files.createDirectories(globalDir);
-            } catch (IOException e) {
-                LOGGER.error("Failed to create global resource directory: {}", e.getMessage());
-            }
-            return;
-        }
-        try {
-            Files.createDirectories(worldDir);
-            try (Stream<Path> files = Files.list(globalDir)) {
-                files.filter(Files::isRegularFile).forEach(globalFile -> {
-                    Path target = worldDir.resolve(globalFile.getFileName());
-                    try {
-                        Files.copy(globalFile, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                        LOGGER.info("资源同步: {}", globalFile.getFileName());
-                    } catch (IOException e) {
-                        if (onFailure != null) {
-                            onFailure.accept("§c资源同步失败 " + globalFile.getFileName() + ": " + e.getMessage());
-                        }
-                        LOGGER.error("Failed to sync resource {}: {}", globalFile.getFileName(), e.getMessage());
-                    }
-                });
-            }
-        } catch (IOException e) {
-            LOGGER.error("Failed to sync resources to world: {}", e.getMessage());
         }
     }
 

@@ -286,9 +286,8 @@ public class CinematicCommand {
                     }
                 });
             }
-            // 资源目录同步（音频/图片）
-            com.immersivecinematics.immersive_cinematics.script.ScriptManager.syncResourcesToWorld(server,
-                    msg -> source.sendFailure(Component.literal(msg)));
+            // 资源不做文件同步（客户端统一读游戏根 immersive_cinematics/resource）；
+            // reload 只刷新持有的脚本
             ScriptManager.INSTANCE.reload(server);
             LOGGER.info("脚本重载完成，共 {} 个脚本生效", ScriptManager.INSTANCE.getAllScripts().size());
         } catch (IOException e) {
