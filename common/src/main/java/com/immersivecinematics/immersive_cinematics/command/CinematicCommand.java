@@ -202,7 +202,7 @@ public class CinematicCommand {
             obj.remove(sourceField);
             return true;
         }
-        LOGGER.warn("结构 '{}' 定位失败，脚本保留 structure 字段（客户端将回退）", structureId);
+        LOGGER.warn("结构 '{}' 定位失败，脚本保留 structure 字段（客户端该端无注视目标，回退角度插值）", structureId);
         return false;
     }
 

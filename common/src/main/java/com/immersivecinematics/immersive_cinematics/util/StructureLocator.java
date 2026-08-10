@@ -41,11 +41,27 @@ public final class StructureLocator {
     public static Vec3 locateCenter(ServerLevel level, String structureId, BlockPos center, int radius) {
         try {
             ResourceLocation id = new ResourceLocation(structureId);
-            TagKey<Structure> tag = TagKey.create(Registries.STRUCTURE, id);
-            BlockPos locatePos = level.findNearestMapStructure(tag, center, radius, false);
+            net.minecraft.core.Registry<Structure> reg = level.registryAccess()
+                    .registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+
+            // 定位结构锚点：支持结构 tag（如 minecraft:village）与单结构（如 minecraft:village_plains）。
+            // ⚠️ 不能用 TagKey 直接查单结构——registry.getTag() 对该 id 返回 empty，定位必然失败；
+            // 原版 /locate 对单结构构造的是单元素 HolderSet（ChunkGenerator.findNearestMapStructure 的 HolderSet 重载）。
+            TagKey<Structure> tag = TagKey.create(net.minecraft.core.registries.Registries.STRUCTURE, id);
+            BlockPos locatePos;
+            if (reg.getTag(tag).isPresent()) {
+                locatePos = level.findNearestMapStructure(tag, center, radius, false);
+            } else {
+                net.minecraft.core.Holder.Reference<Structure> holder = reg.getHolderOrThrow(
+                        net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.STRUCTURE, id));
+                com.mojang.datafixers.util.Pair<BlockPos, net.minecraft.core.Holder<Structure>> pair =
+                        level.getChunkSource().getGenerator()
+                                .findNearestMapStructure(level, net.minecraft.core.HolderSet.direct(holder), center, radius, false);
+                locatePos = pair != null ? pair.getFirst() : null;
+            }
             if (locatePos == null) return null;
 
-            Structure structure = level.registryAccess().registryOrThrow(Registries.STRUCTURE).get(id);
+            Structure structure = reg.get(id);
             if (structure == null) return null;
 
             // 锚点所在 chunk 的 STRUCTURE_STARTS 数据 → StructureStart（getLocatePos 保证锚点在结构 chunk 内）

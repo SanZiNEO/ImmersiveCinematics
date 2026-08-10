@@ -22,8 +22,10 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     private int lastClipIndex = 0;
 
-    /** 诊断：look_at 日志节流 */
-    private long lastLookAtLog;
+    /** 诊断：look_at 目标位置一次性日志（播放期间只打印 1 次） */
+    private boolean lookAtLoggedOnce;
+    /** 结构定位失败回退提示只打一次 */
+    private boolean lookAtWarnOnce;
 
     /** 上一帧最终世界坐标（实体目标消失时停在原地、以及作为 @e 就近基准） */
     private Vec3 lastWorldPos;
@@ -232,7 +234,9 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     /**
      * 结构坐标解析（客户端）：单人/集成服务器（含编辑器预览）直接访问服务端 level，
-     * 用原版 findNearestMapStructure（/locate 同源）定位结构中心。结果 1 秒缓存。
+     * 用原版 findNearestMapStructure（/locate 同源）定位结构中心。
+     * 结构是静态目标：解析成功的结果永久缓存（整场播放直接复用，无需刷新——与实体目标不同）；
+     * 失败结果 2 秒后重试（结构可能随后被生成/加载）。
      * 多人服务器（无服务端访问）或找不到返回 null（调用方回退 xyz）。
      * 注：服务端 /icinematics play 推送前已把 look_at_target_structure 替换为坐标，此路径主要为编辑器预览兜底。
      */
@@ -240,7 +244,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
         long now = System.currentTimeMillis();
         StructurePosCache cached = structureCache.get(structureId);
-        if (cached != null && now - cached.resolvedAt < 1000) {
+        if (cached != null && (cached.pos != null || now - cached.resolvedAt < 2000)) {
             return cached.pos;
         }
         Vec3 result = null;
@@ -272,9 +276,9 @@ public class CameraTrackPlayer implements TrackPlayer {
     /**
      * 关键帧 look_at 目标点求值：
      * entity     → 实体正中心（渲染帧插值位置 + 半高，动态）
-     * coordinate → 固定坐标点
+     * coordinate → 固定坐标点（与结构互斥：指定结构后只解析结构）
      * none       → 由该关键帧 yaw/pitch 决定的 100 格方向远点（看向它 = 保持该朝向）
-     * 返回 null 表示该端无法求值（实体消失），调用方回退角度插值。
+     * 返回 null 表示该端无注视目标（实体消失 / 结构定位失败），该段按 look_at=none 处理（关键帧角度）。
      */
     private Vec3 evalLookTarget(Keyframe kf, Clip clip, Vec3 pos) {
         String lookAt = kf.getString("look_at", "none");
@@ -287,9 +291,15 @@ public class CameraTrackPlayer implements TrackPlayer {
         if ("coordinate".equals(lookAt)) {
             String structureId = kf.getString("look_at_target_structure", "");
             if (!structureId.isEmpty()) {
+                // 结构目标与坐标互斥：指定了结构就只用结构，定位失败不读坐标（返回 null，调用方回退角度插值）
                 Vec3 structurePos = resolveStructurePos(structureId);
                 if (structurePos != null) return structurePos;
-                LOGGER.warn("结构 '{}' 未在附近已加载区块中找到，回退 look_at_target_xyz", structureId);
+                // 定位失败只提示一次（避免每帧刷屏）
+                if (!lookAtWarnOnce) {
+                    lookAtWarnOnce = true;
+                    LOGGER.warn("结构 '{}' 未找到（结构/坐标互斥，该端无注视目标，回退角度插值）", structureId);
+                }
+                return null;
             }
             return new Vec3(
                     kf.getFloat("look_at_target_x", 0),
@@ -320,11 +330,13 @@ public class CameraTrackPlayer implements TrackPlayer {
     }
 
     /**
-     * 单段朝向求值：任一端 look_at != none 时用目标点插值模型（看向插值目标点），
-     * 否则回退角度插值。返回 [yaw, pitch]。
+     * 单段朝向求值：任一端 look_at != none 时用目标点插值模型（看向插值目标点）。
+     * 两端目标齐全才用目标点；任一端目标缺失（实体消失 / 结构定位失败 → evalLookTarget 返回 null）
+     * 则该段按 look_at=none 处理——用两端关键帧自身的 yaw/pitch 角度插值（yawBase/pitchBase），
+     * 不引入任何"替换目标"逻辑。返回 [yaw, pitch]。
      */
     private float[] segmentYawPitch(Keyframe from, Keyframe to, float s, Clip clip, Vec3 segPos,
-                                    float yawFallback, float pitchFallback) {
+                                    float yawBase, float pitchBase) {
         if (from != null && to != null) {
             boolean anyLook = !"none".equals(from.getString("look_at", "none"))
                     || !"none".equals(to.getString("look_at", "none"));
@@ -338,11 +350,10 @@ public class CameraTrackPlayer implements TrackPlayer {
                     double dz = target.z - segPos.z;
                     float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
                     float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-                    // 诊断：look_at 计算链路（相机位置 / 目标点 / 算出的角度），1 秒节流
-                    long now = System.currentTimeMillis();
-                    if (now - lastLookAtLog >= 1000) {
-                        lastLookAtLog = now;
-                        LOGGER.info("LOOK_AT: cam=({}, {}, {}) target=({}, {}, {}) yaw={} pitch={}",
+                    // 诊断：look_at 目标位置，播放期间只打印 1 次
+                    if (!lookAtLoggedOnce) {
+                        lookAtLoggedOnce = true;
+                        LOGGER.info("LOOK_AT_ONCE: cam=({}, {}, {}) target=({}, {}, {}) yaw={} pitch={}",
                                 String.format("%.2f", segPos.x), String.format("%.2f", segPos.y), String.format("%.2f", segPos.z),
                                 String.format("%.2f", target.x), String.format("%.2f", target.y), String.format("%.2f", target.z),
                                 String.format("%.2f", yaw), String.format("%.2f", pitch));
@@ -351,7 +362,8 @@ public class CameraTrackPlayer implements TrackPlayer {
                 }
             }
         }
-        return new float[]{yawFallback, pitchFallback};
+        // 目标缺失：按 look_at=none 处理（关键帧角度插值）
+        return new float[]{yawBase, pitchBase};
     }
 
     private void writeAttributes(Keyframe from, Keyframe to, float s, Clip clip, float globalTime) {
