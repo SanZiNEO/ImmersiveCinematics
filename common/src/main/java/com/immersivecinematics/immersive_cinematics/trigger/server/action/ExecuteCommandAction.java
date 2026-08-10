@@ -20,9 +20,8 @@ public class ExecuteCommandAction implements TriggerAction {
     @Override
     public void execute(ServerPlayer player) {
         String[] parts = command.split("\\s*&&\\s*");
-        CommandSourceStack source = player.createCommandSourceStack()
-                .withPermission(4)
-                .withSuppressedOutput();
+        // 成功结果（/locate 坐标等）发给玩家，失败反馈吞掉（不打扰玩家，错误原因进 ErrorLog 排查）
+        CommandSourceStack source = new com.immersivecinematics.immersive_cinematics.util.SuccessOnlySource(player);
         for (String part : parts) {
             if (part.trim().isEmpty()) continue;
             try {
