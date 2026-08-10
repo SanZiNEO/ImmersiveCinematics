@@ -264,6 +264,22 @@ public class CameraManager {
         }
     }
 
+    /**
+     * 编辑器完全退出(关闭编辑器时调用):停止预览播放并释放相机,回到玩家视角。
+     * 与 {@link #stop()}("终止=归零保持激活")语义不同——关闭编辑器必须真正退出。
+     */
+    public void exitPreview() {
+        if (previewMode) {
+            previewMode = false;
+            previewPaused = true;
+            pendingScript = null;
+            scriptQueue.clear();
+            deactivateNow();
+        } else {
+            stopScript();
+        }
+    }
+
     /** D2：紧急停止（世界退出/断线时调用）：跳过退场动画直接清理，防止 OpenAL 音频残留 */
     public void emergencyStop() {
         previewMode = false;

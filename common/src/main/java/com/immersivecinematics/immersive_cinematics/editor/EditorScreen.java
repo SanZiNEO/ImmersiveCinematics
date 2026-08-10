@@ -51,7 +51,6 @@ public class EditorScreen extends Screen {
     private String renderPhase = "idle";
     private long lastRenderLog;
 
-    private final EditorBridge bridge;
     private final EditorUndoManager undoManager = new EditorUndoManager();
 
     private UIComponent rootComponent;
@@ -70,7 +69,6 @@ public class EditorScreen extends Screen {
     public EditorScreen(EditorBridge bridge, Path scriptsDir) {
         super(Component.literal("Cinematic Editor"));
         this.scriptsDir = scriptsDir;
-        this.bridge = bridge;
         this.doc = new EditorDocument();
         this.sel = new EditorSelection();
         this.playback = new EditorPlayback();
@@ -1533,7 +1531,8 @@ public class EditorScreen extends Screen {
     @Override
     public void onClose() {
         playback.stop();
-        bridge.stop();
+        // 关闭编辑器 = 完全退出预览播放(回到玩家视角);与终止按钮(归零保持)语义不同
+        CameraManager.INSTANCE.exitPreview();
         PreviewCapture.destroy();
         RawInputLogger.disable();
         EditorLogger.close();
