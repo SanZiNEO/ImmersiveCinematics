@@ -167,9 +167,18 @@ public class Evaluators {
 
     public static boolean evaluateDimensionChange(ServerPlayer player, JsonObject c) {
         if (!c.has("dimension")) return false;
-        return matchesId(
-                player.level().dimension().location().toString(),
-                c.get("dimension").getAsString());
+        // 目标维度匹配（现有）
+        if (!matchesId(player.level().dimension().location().toString(),
+                c.get("dimension").getAsString())) {
+            return false;
+        }
+        // 可选来源维度过滤：from_dimension 不写 = 不限制来源（旧脚本零迁移）
+        if (c.has("from_dimension")) {
+            String from = DimensionTracker.getLastFrom(player);
+            if (from == null) return false;
+            if (!matchesId(from, c.get("from_dimension").getAsString())) return false;
+        }
+        return true;
     }
 
     public static boolean evaluateLogin(ServerPlayer player, JsonObject c) {
@@ -470,6 +479,21 @@ public class Evaluators {
             return lastAdvancements.get(player.getUUID());
         }
         public static void clear(UUID uuid) { lastAdvancements.remove(uuid); }
+    }
+
+    public static class DimensionTracker {
+        private static final Map<UUID, String> lastFrom = new java.util.HashMap<>();
+        /** 记录玩家最近一次维度切换的来源维度 id */
+        public static void record(UUID uuid, String fromDimensionId) {
+            lastFrom.put(uuid, fromDimensionId);
+        }
+        /** 玩家最近一次维度切换的来源维度（dimension_change 触发时同步写入，轮询型共用时可能过期） */
+        public static String getLastFrom(ServerPlayer player) {
+            return lastFrom.get(player.getUUID());
+        }
+        public static void clear(UUID uuid) {
+            lastFrom.remove(uuid);
+        }
     }
 
     public static class InteractTracker {

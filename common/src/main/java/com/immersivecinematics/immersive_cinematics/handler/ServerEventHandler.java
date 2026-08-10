@@ -63,6 +63,7 @@ public class ServerEventHandler {
             Evaluators.UseItemTracker.clear(uuid);
             Evaluators.PickupDropTracker.clear(uuid);
             Evaluators.InventoryTracker.clear(uuid);
+            Evaluators.DimensionTracker.clear(uuid);
         });
 
         // ===== 服务器 Tick =====
@@ -150,6 +151,9 @@ public class ServerEventHandler {
         PlayerEvent.CHANGE_DIMENSION.register((player, oldLevel, newLevel) -> {
             if (!(player instanceof ServerPlayer)) return;
             ServerPlayer serverPlayer = (ServerPlayer) player;
+            // 记录来源维度，供 dimension_change 的 from_dimension 过滤求值
+            Evaluators.DimensionTracker.record(serverPlayer.getUUID(),
+                    oldLevel.location().toString());
             TriggerEngine.INSTANCE.onGameEvent("dimension_change", serverPlayer);
         });
 

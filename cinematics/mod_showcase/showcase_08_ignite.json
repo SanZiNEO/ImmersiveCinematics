@@ -1,18 +1,18 @@
 {
   "meta": {
-    "id": "showcase_06_nether",
-    "name": "进入下界",
+    "id": "showcase_08_ignite",
+    "name": "点燃传送门",
     "author": "AI",
     "version": 3,
-    "description": "进入下界触发：欢迎 + 给金锭/抗火/再生效果 + 引导猪灵交易，环绕镜头展示地狱环境",
+    "description": "使用打火石触发：点燃传送门瞬间近景特写，引导回到主世界",
     "triggers": [
       {
-        "id": "enter_nether",
-        "type": "dimension_change",
+        "id": "use_flint",
+        "type": "item_use",
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
-          "dimension": "minecraft:the_nether"
+          "item": "minecraft:flint_and_steel"
         }
       }
     ],
@@ -32,28 +32,21 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 12.0,
+    "total_duration": 10.0,
     "tracks": [
       {
         "type": "CAMERA",
         "clips": [
           {
             "start_time": 0,
-            "duration": 8,
+            "duration": 10,
             "transition": "cut",
             "interpolation": "linear",
             "loop": false,
-            "curve": {
-              "type": "bezier",
-              "control_points": [
-                { "dx": 0, "dy": 0, "dz": 8 },
-                { "dx": -12, "dy": 0, "dz": 8 }
-              ]
-            },
             "keyframes": [
               {
                 "time": 0,
-                "position": { "dx": 6, "dy": 4, "dz": 0 },
+                "position": { "dx": 4, "dy": 2.5, "dz": 4 },
                 "position_mode": "relative",
                 "follow": "none",
                 "look_at": "entity",
@@ -61,12 +54,12 @@
                 "yaw": 0,
                 "pitch": 0,
                 "roll": 0,
-                "fov": 75,
+                "fov": 65,
                 "zoom": 1.0
               },
               {
-                "time": 8,
-                "position": { "dx": -6, "dy": 4, "dz": 0 },
+                "time": 5,
+                "position": { "dx": 3, "dy": 2.5, "dz": 3 },
                 "position_mode": "relative",
                 "follow": "none",
                 "look_at": "entity",
@@ -74,40 +67,21 @@
                 "yaw": 0,
                 "pitch": 0,
                 "roll": 0,
-                "fov": 75,
+                "fov": 60,
                 "zoom": 1.0
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "type": "EVENT",
-        "clips": [
-          {
-            "start_time": 0.5,
-            "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0,
-                "event_type": "command",
-                "command": "give @p minecraft:gold_ingot 64"
               },
               {
-                "time": 0.005,
-                "event_type": "command",
-                "command": "give @p minecraft:golden_helmet 1"
-              },
-              {
-                "time": 0.01,
-                "event_type": "command",
-                "command": "effect give @p minecraft:fire_resistance infinite 1 true"
-              },
-              {
-                "time": 0.02,
-                "event_type": "command",
-                "command": "effect give @p minecraft:regeneration 60 1 true"
+                "time": 10,
+                "position": { "dx": 3, "dy": 2.5, "dz": 3 },
+                "position_mode": "relative",
+                "follow": "none",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 60,
+                "zoom": 1.0
               }
             ]
           }
@@ -115,13 +89,13 @@
       },
       {
         "type": "OVERLAY",
-        "id": "overlay_nether",
+        "id": "overlay_ignite",
         "clips": [
           {
             "start_time": 0,
             "duration": 3.5,
             "layer_type": "subtitle",
-            "text": "欢迎来到下界",
+            "text": "传送门已点燃",
             "z_index": 30,
             "interpolation": "linear",
             "color": "#000000",
@@ -135,9 +109,9 @@
           },
           {
             "start_time": 5,
-            "duration": 5,
+            "duration": 4,
             "layer_type": "subtitle",
-            "text": "猪灵喜爱金锭，把金锭丢给它，它会回赠你物品",
+            "text": "回到主世界，继续你的冒险",
             "z_index": 30,
             "interpolation": "linear",
             "color": "#000000",
@@ -145,8 +119,8 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 5.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
             ]
           }
         ]

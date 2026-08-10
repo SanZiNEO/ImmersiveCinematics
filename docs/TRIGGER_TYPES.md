@@ -270,13 +270,19 @@
 | 条件字段 | 类型 | 必需 | 说明 |
 |---------|------|------|------|
 | `dimension` | string | 是 | 目标维度 ID，支持子串匹配 |
+| `from_dimension` | string | 否 | 来源维度 ID，支持子串匹配；不写 = 不限制来源（旧脚本零迁移） |
 
 ```json
 {
   "type": "dimension_change",
-  "conditions": { "dimension": "minecraft:the_nether" }
+  "conditions": {
+    "dimension": "minecraft:the_nether",
+    "from_dimension": "minecraft:overworld"
+  }
 }
 ```
+
+> 触发时机不变（原版切换维度事件）；求值 = 当前维度匹配 `dimension` &&（无 `from_dimension` || 来源维度匹配 `from_dimension`）。驻留型 `dimension` 共用求值器，不写 `from_dimension` 行为不变。
 
 ---
 

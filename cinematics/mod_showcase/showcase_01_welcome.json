@@ -56,7 +56,7 @@
             "start_time": 5,
             "duration": 4,
             "layer_type": "subtitle",
-            "text": "Immersive Cinematics 是一款提升 Minecraft 叙事能力的模组",
+            "text": "Immersive Cinematics 是一款 Minecraft 过场动画模组",
             "z_index": 30,
             "interpolation": "linear",
             "color": "#000000",
