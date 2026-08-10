@@ -173,13 +173,13 @@
 
 | 字段 | 说明 |
 |---|---|
-| `position_mode` | `"relative"`（默认）= 相对触发点（position 写 dx/dy/dz）；`"absolute"` = 世界坐标（写 x/y/z） |
+| `position_mode` | `"relative"`（默认）= 相对基准点（position 写 dx/dy/dz；基准默认 = 玩家激活位置，可用 `relative_origin` 指定坐标/结构中心）；`"absolute"` = 世界坐标（写 x/y/z） |
 | `follow` | `"none"`（默认）= 位置走关键帧；`"entity"` = 位置跟随实体（position 的 dx/dy/dz 变成相对实体脚底的偏移）。**follow↔普通关键帧之间是平滑过渡**（两端都是世界坐标，直接插值） |
 | `follow_selector` | 跟随目标选择器，默认 `@p`（见下方"目标选择器"） |
 | `look_at` | `"none"`（默认）= 用 yaw/pitch；`"coordinate"` = 注视固定点（xyz 或结构中心）；`"entity"` = 注视实体正中心。**look_at 关键帧的目标点之间插值，切换/开关平滑过渡**（如 0s 看玩家 → 15s 看铁傀儡） |
 | `look_at_selector` | 注视目标选择器（`entity` 模式），默认 `@p` |
-| `look_at_target_x/y/z` | 注视固定坐标（`coordinate` 模式） |
-| `look_at_target_structure` | 注视结构中心（`coordinate` 模式）：填结构 id 如 `minecraft:village`。播放时服务端自动定位结构中心并替换为坐标（原版 /locate 同源，多人服务器也生效）；编辑器里是注册表下拉补全 |
+| `look_at_target_x/y/z` | 注视固定坐标（`coordinate` 模式）。**与 `look_at_target_structure` 互斥** |
+| `look_at_target_structure` | 注视结构中心（`coordinate` 模式）：填结构 id 如 `minecraft:village`。播放时服务端自动定位**结构 bounding box 中心**并替换为坐标（就近搜索，原版 /locate 同范围，多人服务器也生效）；编辑器里是注册表下拉补全；定位失败回退 `look_at_target_x/y/z` |
 
 **目标选择器**（`follow_selector` / `look_at_selector`）：`@p`/`@s`（玩家）、`@e`（离相机最近实体）、`@e[type=minecraft:sheep]`（类型过滤后就近，模组 boss 用其注册 id）、`@e[name=自定义名]`（命名牌名字过滤后就近）、`uuid:xxxxxxxx-…`（UUID 直绑）——就近基准为相机当前位置。
 

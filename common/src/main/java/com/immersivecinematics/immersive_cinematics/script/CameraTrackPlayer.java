@@ -187,7 +187,8 @@ public class CameraTrackPlayer implements TrackPlayer {
     /**
      * 关键帧世界坐标求值：
      * follow=entity → 实体渲染帧插值位置 + position 偏移（动态，每帧重算；实体消失时停在上一帧位置）
-     * 普通关键帧    → position_mode=absolute ? position : originPos + position
+     * 普通关键帧    → position 对象自描述：absolute = 世界坐标；relative = 相对基准 + 偏移
+     *                （基准默认玩家激活位置 originPos，可用 relative_origin 指定坐标/结构中心）
      */
     private Vec3 evalKeyframeWorldPos(Keyframe kf, Clip clip) {
         if ("entity".equals(kf.getString("follow", "none"))) {
@@ -201,8 +202,23 @@ public class CameraTrackPlayer implements TrackPlayer {
         }
         PositionData pd = kf.getPosition();
         Vec3 p = pd != null ? pd.toVec3() : Vec3.ZERO;
-        // position 对象自描述模式（有 dx/dy/dz=相对、有 x/y/z=绝对），不依赖 position_mode 字段
-        return pd != null && !pd.isRelative() ? p : originPos.add(p);
+        if (pd == null || !pd.isRelative()) return p;
+        // 相对基准：relative_origin = "coordinate"（固定坐标）/ 结构 id（结构中心）/ 默认玩家激活位置
+        return resolveRelativeBase(pd).add(p);
+    }
+
+    /** 相对基准求值：coordinate → 固定坐标；结构 id → 结构中心（找不到回退玩家位置 + warn）；默认玩家激活位置 */
+    private Vec3 resolveRelativeBase(PositionData pd) {
+        if (pd.isOriginCoordinate()) {
+            return new Vec3(pd.getOriginX(), pd.getOriginY(), pd.getOriginZ());
+        }
+        String structureId = pd.getOriginStructure();
+        if (structureId != null && !structureId.isEmpty()) {
+            Vec3 structurePos = resolveStructurePos(structureId);
+            if (structurePos != null) return structurePos;
+            LOGGER.warn("相对基准结构 '{}' 未找到，回退玩家激活位置", structureId);
+        }
+        return originPos;
     }
 
     /** 结构坐标缓存条目 */
@@ -229,20 +245,16 @@ public class CameraTrackPlayer implements TrackPlayer {
         }
         Vec3 result = null;
         try {
-            net.minecraft.resources.ResourceLocation id = new net.minecraft.resources.ResourceLocation(structureId);
             net.minecraft.server.MinecraftServer singleplayer = mc.getSingleplayerServer();
             if (singleplayer == null) {
                 LOGGER.warn("多人服务器无法解析结构 '{}'（服务端 play 推送会替换为坐标；编辑器预览仅限单人）", structureId);
             } else {
                 net.minecraft.server.level.ServerLevel serverLevel = singleplayer.getLevel(mc.level.dimension());
                 if (serverLevel != null) {
-                    net.minecraft.tags.TagKey<net.minecraft.world.level.levelgen.structure.Structure> tag =
-                            net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.STRUCTURE, id);
-                    net.minecraft.core.BlockPos pos = serverLevel.findNearestMapStructure(
-                            tag, net.minecraft.core.BlockPos.containing(mc.player.getX(), mc.player.getY(), mc.player.getZ()), 100, false);
-                    if (pos != null) {
-                        result = new Vec3(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
-                    } else {
+                    result = com.immersivecinematics.immersive_cinematics.util.StructureLocator.locateCenter(
+                            serverLevel, structureId,
+                            net.minecraft.core.BlockPos.containing(mc.player.getX(), mc.player.getY(), mc.player.getZ()), 100);
+                    if (result == null) {
                         LOGGER.warn("结构 '{}' 在搜索半径内未找到（原版 /locate 同范围）", structureId);
                     }
                 }

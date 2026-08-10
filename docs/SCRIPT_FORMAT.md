@@ -193,8 +193,8 @@
 | `follow_selector` | string | 否 | `"@p"` | 跟随目标选择器（见下方"目标选择器"） |
 | `look_at` | string | 否 | `"none"` | `"none"`=用 yaw/pitch；`"coordinate"`=注视固定点（xyz 或结构中心）；`"entity"`=注视实体正中心（渲染帧插值位置+半高）。look_at 关键帧的目标点之间插值 → 切换/开关平滑过渡 |
 | `look_at_selector` | string | 否 | `"@p"` | 注视目标选择器（`entity` 模式） |
-| `look_at_target_x/y/z` | float | 否 | `0/64/0` | 注视固定坐标（`coordinate` 模式，未填 `look_at_target_structure` 时使用） |
-| `look_at_target_structure` | string | 否 | `""` | 注视结构中心（`coordinate` 模式）：填结构 id（如 `minecraft:village`）。播放时服务端自动定位结构中心（原版 /locate 同源）并替换为坐标后推送；编辑器里为注册表下拉补全；多人服务器播放同样生效 |
+| `look_at_target_x/y/z` | float | 否 | `0/64/0` | 注视固定坐标（`coordinate` 模式）。**与 `look_at_target_structure` 互斥**（编辑器：填结构后坐标输入隐藏） |
+| `look_at_target_structure` | string | 否 | `""` | 注视结构中心（`coordinate` 模式）：填结构 id（如 `minecraft:village`）。播放时服务端自动定位**结构 bounding box 中心**（就近搜索，原版 /locate 同范围）并替换为坐标后推送；编辑器里为注册表下拉补全；多人服务器播放同样生效。定位失败回退 `look_at_target_x/y/z` |
 | `yaw` | float | 是 | — | 偏航角（度）。0=南，90=西，±180=北。`look_at != none` 时被覆盖 |
 | `pitch` | float | 是 | — | 俯仰角（度）。正=向下看。`look_at != none` 时被覆盖 |
 | `roll` | float | 是 | — | 翻滚角（度）。正=屏幕顺时针（画面向右倒），任何朝向一致 |
@@ -221,9 +221,11 @@
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `dx` | float | 相对玩家位置的 X 偏移（**follow=entity 时 = 相对实体脚底的 X 偏移**） |
-| `dy` | float | 相对玩家位置的 Y 偏移（**follow=entity 时 = 相对实体脚底的 Y 偏移**） |
-| `dz` | float | 相对玩家位置的 Z 偏移（**follow=entity 时 = 相对实体脚底的 Z 偏移**） |
+| `dx` | float | 相对基准点的 X 偏移（**follow=entity 时 = 相对实体脚底的 X 偏移**） |
+| `dy` | float | 相对基准点的 Y 偏移（**follow=entity 时 = 相对实体脚底的 Y 偏移**） |
+| `dz` | float | 相对基准点的 Z 偏移（**follow=entity 时 = 相对实体脚底的 Z 偏移**） |
+| `relative_origin` | string | 可选，相对基准。缺省 = 玩家激活位置；`"coordinate"` = 相对固定坐标（配 `relative_origin_x/y/z`）；其他字符串 = 结构 id，相对**结构中心**（如 `"minecraft:village"`，服务端自动定位，就近搜索） |
+| `relative_origin_x/y/z` | float | `"coordinate"` 基准时的基准坐标 |
 
 ### Position（绝对模式 `absolute`）
 

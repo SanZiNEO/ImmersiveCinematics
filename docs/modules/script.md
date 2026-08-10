@@ -33,7 +33,7 @@
   - ✅ 共 6 种轨道类型：CAMERA、LETTERBOX、AUDIO、EVENT、MOD_EVENT、OVERLAY（`TrackType`）
   - ✅ 轨道数量限制：CAMERA 最多 1 条，LETTERBOX/EVENT 建议最多 1 条，AUDIO/MOD_EVENT/OVERLAY 不限（`TrackType`）
 - **关键帧插值与路径**
-  - ✅ `KeyframeInterpolator` 提供无状态静态插值：段定位、匀速时间进度、循环（`loop`/`loop_count` 取模）、范围外钳制到首/末关键帧（`KeyframeInterpolator`）
+  - ✅ `KeyframeInterpolator` 提供无状态静态插值：段定位、匀速时间进度、循环（`loop`/`loop_count` 取模，`loop_mode` 支持 `repeat` 重复与 `pingpong` 往复折返）、范围外钳制到首/末关键帧（`KeyframeInterpolator`）
   - ✅ 位置/偏航/滚转插值使用角度环绕插值，俯仰/FOV/缩放使用线性插值（`KeyframeInterpolator`）
   - ✅ 支持 clip 级 `loop` 循环与 `loop_count` 次数限制（`KeyframeInterpolator`、`Clip`）
   - ✅ 片段过渡：`TransitionType.CUT` 硬切换（staged 原子提交）、`TransitionType.MORPH` 在 transition_duration 内从上一片段末帧飞向下一片段首帧（`TransitionType`、`CameraTrackPlayer`）
@@ -54,9 +54,9 @@
   - ✅ morph 过渡窗口内混合上一片段末帧与下一片段首帧（位置线性混合、角度最短路径混合）（`CameraTrackPlayer`）
   - ✅ 关键帧级 `follow`（位置跟随实体，position 即相对实体偏移）与 `look_at`（注视实体/坐标/结构）：两端关键帧各自求值为世界坐标再插值 → follow↔普通、换目标、look_at 开关全部平滑过渡；look_at 目标点插值模型（none 端=该关键帧 yaw/pitch 方向远点）（`CameraTrackPlayer`）
   - ✅ 实体选择器子集：`@p`/`@s`/`@e`/`@e[type=…,name=…]`/`uuid:…`，就近优先 + 1 秒缓存（`CameraTrackPlayer`）
-  - ✅ 结构目标：服务端 `/icinematics play` 推送前把 `look_at_target_structure` 替换为原版 findNearestMapStructure 定位的结构中心坐标；编辑器预览（单人）客户端直连集成服务端兜底（`CinematicCommand`、`CameraTrackPlayer`）
+  - ✅ 结构目标：服务端 `/icinematics play` 推送前把 `look_at_target_structure` / `position.relative_origin`（结构 id）替换为结构 **bounding box 中心**坐标（`StructureLocator`：findNearestMapStructure 锚点 → STRUCTURE_STARTS → getBoundingBox().getCenter()，就近搜索 100 区块）；编辑器预览（单人）客户端直连集成服务端兜底（`StructureLocator`、`CinematicCommand`、`CameraTrackPlayer`）
   - ✅ 支持 `cam_breath_*` 呼吸扰动（clip 级）：按时间+种子生成确定性随机微晃叠加到 yaw/pitch/roll（`CameraTrackPlayer`）
-  - ✅ 相对/绝对坐标模式为关键帧级（position 对象自描述：有 dx=相对、有 x=绝对），统一世界坐标空间插值（`CameraTrackPlayer`）
+  - ✅ 相对/绝对坐标模式为关键帧级（position 对象自描述：有 dx=相对、有 x=绝对），统一世界坐标空间插值；相对基准可扩展：`relative_origin` = 玩家激活位置（默认）/ `"coordinate"` 固定坐标 / 结构 id 结构中心（`CameraTrackPlayer`、`PositionData`）
 - **AUDIO 轨道播放器**
   - ✅ 通过 LWJGL OpenAL 多音源播放：每 clip 一个 `CinematicAudioInstance`，clip 切换时淡出并清理旧实例（`AudioTrackPlayer`）
   - ✅ 支持 OGG（stb_vorbis 文件/资源包解码）与 WAV（javax.sound，8/16 位）两种格式（`CinematicAudioInstance`）

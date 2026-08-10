@@ -137,9 +137,10 @@ public class CinematicCommand {
     }
 
     /**
-     * 服务端结构坐标解析：遍历脚本关键帧，把 look_at_target_structure 字段替换为
-     * 原版 findNearestMapStructure（/locate 同源）定位到的结构中心坐标（look_at_target_x/y/z）。
-     * 脚本文件本身不被修改，只替换推送内容。定位失败保留原字段（客户端回退 xyz + warn）。
+     * 服务端结构坐标解析：遍历脚本关键帧，把结构目标替换为结构中心坐标——
+     * look_at_target_structure → look_at_target_x/y/z；position.relative_origin（结构 id）→
+     * "coordinate" + relative_origin_x/y/z。脚本文件本身不被修改，只替换推送内容。
+     * 定位失败保留原字段（客户端回退 + warn）。
      */
     private static String resolveStructureTargets(String json, CommandSourceStack source) {
         try {
@@ -159,18 +160,16 @@ public class CinematicCommand {
                     for (com.google.gson.JsonElement ke : kfs) {
                         if (!ke.isJsonObject()) continue;
                         com.google.gson.JsonObject kf = ke.getAsJsonObject();
-                        if (!kf.has("look_at_target_structure")) continue;
-                        String structureId = kf.get("look_at_target_structure").getAsString();
-                        Vec3 pos = posCache.containsKey(structureId) ? posCache.get(structureId) : locateStructure(source, structureId);
-                        posCache.put(structureId, pos);
-                        if (pos != null) {
-                            kf.addProperty("look_at_target_x", (float) pos.x);
-                            kf.addProperty("look_at_target_y", (float) pos.y);
-                            kf.addProperty("look_at_target_z", (float) pos.z);
-                            kf.remove("look_at_target_structure");
-                            changed = true;
-                        } else {
-                            LOGGER.warn("结构 '{}' 定位失败，脚本保留 structure 字段（客户端将回退 look_at_target_xyz）", structureId);
+                        if (kf.has("look_at_target_structure")) {
+                            changed |= replaceStructureTarget(kf, "look_at_target_structure",
+                                    "look_at_target_x", "look_at_target_y", "look_at_target_z", posCache, source);
+                        }
+                        if (kf.has("position") && kf.get("position").isJsonObject()) {
+                            com.google.gson.JsonObject pos = kf.getAsJsonObject("position");
+                            if (pos.has("relative_origin")) {
+                                changed |= replaceStructureTarget(pos, "relative_origin",
+                                        "relative_origin_x", "relative_origin_y", "relative_origin_z", posCache, source);
+                            }
                         }
                     }
                 }
@@ -182,22 +181,38 @@ public class CinematicCommand {
         }
     }
 
-    /** 服务端结构定位：原版 /locate 同源（执行者所在维度，以执行者位置为中心搜 100 区块），返回结构中心 */
+    /**
+     * 把对象内的结构字段替换为结构中心坐标：
+     * sourceField（结构 id）→ 解析成功：写入 targetX/Y/Z 并移除 sourceField；
+     * 解析失败（或 sourceField 非结构 id，如 "coordinate"）：保留原字段。
+     *
+     * @return 是否发生了替换
+     */
+    private static boolean replaceStructureTarget(com.google.gson.JsonObject obj, String sourceField,
+                                                  String targetX, String targetY, String targetZ,
+                                                  java.util.Map<String, Vec3> posCache, CommandSourceStack source) {
+        String structureId = obj.get(sourceField).getAsString();
+        if ("coordinate".equals(structureId) || structureId.isEmpty()) return false;
+        Vec3 pos = posCache.containsKey(structureId) ? posCache.get(structureId) : locateStructure(source, structureId);
+        posCache.put(structureId, pos);
+        if (pos != null) {
+            obj.addProperty(targetX, (float) pos.x);
+            obj.addProperty(targetY, (float) pos.y);
+            obj.addProperty(targetZ, (float) pos.z);
+            obj.remove(sourceField);
+            return true;
+        }
+        LOGGER.warn("结构 '{}' 定位失败，脚本保留 structure 字段（客户端将回退）", structureId);
+        return false;
+    }
+
+    /** 服务端结构定位：原版 /locate 同源（执行者所在维度，以执行者位置为中心搜 100 区块），返回结构 bounding box 中心 */
     private static Vec3 locateStructure(CommandSourceStack source, String structureId) {
-        try {
-            net.minecraft.resources.ResourceLocation id = new net.minecraft.resources.ResourceLocation(structureId);
-            if (source.getLevel() instanceof net.minecraft.server.level.ServerLevel) {
-                net.minecraft.server.level.ServerLevel serverLevel = (net.minecraft.server.level.ServerLevel) source.getLevel();
-                net.minecraft.tags.TagKey<net.minecraft.world.level.levelgen.structure.Structure> tag =
-                        net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.STRUCTURE, id);
-                net.minecraft.core.BlockPos pos = serverLevel.findNearestMapStructure(
-                        tag, net.minecraft.core.BlockPos.containing(source.getPosition()), 100, false);
-                if (pos != null) {
-                    return new Vec3(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
-                }
-            }
-        } catch (Exception e) {
-            LOGGER.warn("结构定位异常 '{}': {}", structureId, e.getMessage());
+        if (source.getLevel() instanceof net.minecraft.server.level.ServerLevel) {
+            net.minecraft.server.level.ServerLevel serverLevel =
+                    (net.minecraft.server.level.ServerLevel) source.getLevel();
+            return com.immersivecinematics.immersive_cinematics.util.StructureLocator.locateCenter(
+                    serverLevel, structureId, net.minecraft.core.BlockPos.containing(source.getPosition()), 100);
         }
         return null;
     }

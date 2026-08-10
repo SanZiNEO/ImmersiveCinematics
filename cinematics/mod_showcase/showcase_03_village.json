@@ -1,0 +1,160 @@
+{
+  "meta": {
+    "id": "showcase_03_village",
+    "name": "发现村庄",
+    "author": "AI",
+    "version": 3,
+    "description": "进入村庄触发：高空俯瞰结构注视，展示 look_at_target_structure 结构定位",
+    "triggers": [
+      {
+        "id": "enter_village",
+        "type": "structure",
+        "repeatable": false,
+        "delay": 0.5,
+        "conditions": {
+          "structure": "village",
+          "radius": 32
+        }
+      }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "skippable": true,
+    "interruptible": true,
+    "hold_at_end": false,
+    "hide_skip_hud": true,
+    "dimension": "",
+    "block_mob_ai": false,
+    "render_player_model": true,
+    "pause_when_game_paused": true,
+    "priority": 0
+  },
+  "timeline": {
+    "total_duration": 12.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 0, "dy": 3, "dz": 0 },
+                "position_mode": "relative",
+                "follow": "none",
+                "look_at": "coordinate",
+                "look_at_selector": "@p",
+                "look_at_target_x": 0,
+                "look_at_target_y": 80,
+                "look_at_target_z": 0,
+                "look_at_target_structure": "minecraft:village_plains",
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 75,
+                "zoom": 1.0
+              },
+              {
+                "time": 3,
+                "position": { "dx": 0, "dy": 20, "dz": 0 },
+                "position_mode": "relative",
+                "follow": "none",
+                "look_at": "coordinate",
+                "look_at_selector": "@p",
+                "look_at_target_x": 0,
+                "look_at_target_y": 80,
+                "look_at_target_z": 0,
+                "look_at_target_structure": "minecraft:village_plains",
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 80,
+                "zoom": 1.0
+              },
+              {
+                "time": 8,
+                "position": { "dx": -6, "dy": 20, "dz": -6 },
+                "position_mode": "relative",
+                "follow": "none",
+                "look_at": "coordinate",
+                "look_at_selector": "@p",
+                "look_at_target_x": 0,
+                "look_at_target_y": 80,
+                "look_at_target_z": 0,
+                "look_at_target_structure": "minecraft:village_plains",
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 80,
+                "zoom": 1.0
+              },
+              {
+                "time": 12,
+                "position": { "dx": -6, "dy": 12, "dz": -6 },
+                "position_mode": "relative",
+                "follow": "none",
+                "look_at": "coordinate",
+                "look_at_selector": "@p",
+                "look_at_target_x": 0,
+                "look_at_target_y": 80,
+                "look_at_target_z": 0,
+                "look_at_target_structure": "minecraft:village_plains",
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 75,
+                "zoom": 1.0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "id": "overlay_village",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 3.5,
+            "layer_type": "subtitle",
+            "text": "前方发现一座村庄",
+            "z_index": 30,
+            "interpolation": "linear",
+            "color": "#000000",
+            "path": "",
+            "keyframes": [
+              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 2.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 3.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
+            ]
+          },
+          {
+            "start_time": 7.5,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "去和村民打个招呼吧",
+            "z_index": 30,
+            "interpolation": "linear",
+            "color": "#000000",
+            "path": "",
+            "keyframes": [
+              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

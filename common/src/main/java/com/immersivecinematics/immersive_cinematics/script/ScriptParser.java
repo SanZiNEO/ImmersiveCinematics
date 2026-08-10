@@ -307,10 +307,11 @@ public class ScriptParser {
                 JsonObject posObj = value.getAsJsonObject();
                 boolean relative = posObj.has("dx");
                 if (relative) {
-                    yield PositionData.relative(
-                            requireFloat(posObj, p + "." + fieldName, "dx"),
-                            requireFloat(posObj, p + "." + fieldName, "dy"),
-                            requireFloat(posObj, p + "." + fieldName, "dz"));
+                    String pp = p + "." + fieldName;
+                    yield parseRelativeWithOrigin(posObj, pp,
+                            requireFloat(posObj, pp, "dx"),
+                            requireFloat(posObj, pp, "dy"),
+                            requireFloat(posObj, pp, "dz"));
                 } else {
                     yield PositionData.absolute(
                             requireFloat(posObj, p + "." + fieldName, "x"),
@@ -354,7 +355,7 @@ public class ScriptParser {
             float dx = requireFloat(obj, p, "dx");
             float dy = requireFloat(obj, p, "dy");
             float dz = requireFloat(obj, p, "dz");
-            return PositionData.relative(dx, dy, dz);
+            return parseRelativeWithOrigin(obj, p, dx, dy, dz);
         } else {
             if (!obj.has("x")) {
                 throw new ScriptParseException(p, "absolute 模式需要 x/y/z 字段");
@@ -364,6 +365,25 @@ public class ScriptParser {
             float z = requireFloat(obj, p, "z");
             return PositionData.absolute(x, y, z);
         }
+    }
+
+    /**
+     * 相对 position 的基准解析：relative_origin 字段可选——
+     * 缺省 = 玩家激活位置；"coordinate" = 相对固定坐标（relative_origin_x/y/z）；其他字符串 = 结构 id（相对结构中心）。
+     */
+    private static PositionData parseRelativeWithOrigin(JsonObject posObj, String p, float dx, float dy, float dz) throws ScriptParseException {
+        if (!posObj.has("relative_origin")) {
+            return PositionData.relative(dx, dy, dz);
+        }
+        String origin = posObj.get("relative_origin").getAsString();
+        if ("coordinate".equals(origin)) {
+            return PositionData.relativeToCoordinate(dx, dy, dz,
+                    requireFloat(posObj, p, "relative_origin_x"),
+                    requireFloat(posObj, p, "relative_origin_y"),
+                    requireFloat(posObj, p, "relative_origin_z"));
+        }
+        // 其他字符串视为结构 id（相对结构中心；服务端推送前会解析为坐标，客户端预览自行定位）
+        return PositionData.relativeToStructure(dx, dy, dz, origin);
     }
 
     // ========== 触发器定义解析 ==========

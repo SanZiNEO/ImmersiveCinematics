@@ -262,6 +262,15 @@ public class LeftPanelArea extends UIComponent {
                 kfKeys.remove("look_at_target_y");
                 kfKeys.remove("look_at_target_z");
                 kfKeys.remove("look_at_target_structure");
+            } else {
+                // 互斥：已指定结构时坐标输入隐藏（下拉选"（空）"移除结构字段后坐标自动恢复显示）
+                String structureId = selectedKeyframe.has("look_at_target_structure")
+                        ? selectedKeyframe.get("look_at_target_structure").getAsString() : "";
+                if (!structureId.isEmpty()) {
+                    kfKeys.remove("look_at_target_x");
+                    kfKeys.remove("look_at_target_y");
+                    kfKeys.remove("look_at_target_z");
+                }
             }
             if (!"none".equals(lookAt)) {
                 kfKeys.remove("yaw");

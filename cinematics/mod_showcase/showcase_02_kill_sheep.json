@@ -1,0 +1,220 @@
+{
+  "meta": {
+    "id": "showcase_kill_sheep",
+    "name": "击败羊演示",
+    "author": "AI",
+    "version": 3,
+    "description": "击杀羊触发：恭喜 + 变天打雷 + 闪电劈玩家 + 天气转晴，展示 EVENT 多点触发与 look_at 注视机位",
+    "triggers": [
+      {
+        "id": "kill_sheep",
+        "type": "entity_kill",
+        "repeatable": false,
+        "delay": 0.5,
+        "conditions": {
+          "entity": [
+            "minecraft:sheep"
+          ],
+          "mode": "and"
+        }
+      }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "skippable": true,
+    "interruptible": true,
+    "hold_at_end": false,
+    "hide_skip_hud": false,
+    "dimension": "",
+    "block_mob_ai": false,
+    "render_player_model": true,
+    "pause_when_game_paused": true,
+    "priority": 0
+  },
+  "timeline": {
+    "total_duration": 15.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 15,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 8, "dy": 9, "dz": 8 },
+                "position_mode": "relative",
+                "follow": "none",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0
+              },
+              {
+                "time": 15,
+                "position": { "dx": 8, "dy": 9, "dz": 8 },
+                "position_mode": "relative",
+                "follow": "none",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1.0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "id": "overlay_kill_sheep",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 3,
+            "layer_type": "subtitle",
+            "text": "你击败了一只羊，恭喜你",
+            "z_index": 30,
+            "interpolation": "linear",
+            "color": "#000000",
+            "path": "",
+            "keyframes": [
+              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 2.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 3.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+            ]
+          },
+          {
+            "start_time": 3,
+            "duration": 3,
+            "layer_type": "subtitle",
+            "text": "要下雨了",
+            "z_index": 30,
+            "interpolation": "linear",
+            "color": "#000000",
+            "path": "",
+            "keyframes": [
+              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 2.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 3.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 3.5,
+            "layer_type": "subtitle",
+            "text": "小心被雷电击中",
+            "z_index": 30,
+            "interpolation": "linear",
+            "color": "#000000",
+            "path": "",
+            "keyframes": [
+              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 2.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 3.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
+            ]
+          },
+          {
+            "start_time": 12,
+            "duration": 3,
+            "layer_type": "subtitle",
+            "text": "雨过天晴，继续冒险吧",
+            "z_index": 30,
+            "interpolation": "linear",
+            "color": "#000000",
+            "path": "",
+            "keyframes": [
+              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 2.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 3.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 3.0,
+            "duration": 0.5,
+            "event_type": "command",
+            "keyframes": [
+              {
+                "time": 0,
+                "event_type": "command",
+                "command": "weather thunder"
+              }
+            ]
+          },
+          {
+            "start_time": 7.0,
+            "duration": 3,
+            "event_type": "command",
+            "keyframes": [
+              {
+                "time": 0,
+                "event_type": "command",
+                "command": "summon minecraft:lightning_bolt ~5 ~ ~"
+              },
+              {
+                "time": 0.8,
+                "event_type": "command",
+                "command": "summon minecraft:lightning_bolt ~-4 ~ ~3"
+              },
+              {
+                "time": 1.6,
+                "event_type": "command",
+                "command": "summon minecraft:lightning_bolt ~2 ~ ~-5"
+              },
+              {
+                "time": 2.4,
+                "event_type": "command",
+                "command": "summon minecraft:lightning_bolt ~ ~ ~"
+              }
+            ]
+          },
+          {
+            "start_time": 12.8,
+            "duration": 0.5,
+            "event_type": "command",
+            "keyframes": [
+              {
+                "time": 0,
+                "event_type": "command",
+                "command": "weather clear"
+              }
+            ]
+          },
+          {
+            "start_time": 13.2,
+            "duration": 0.5,
+            "event_type": "command",
+            "keyframes": [
+              {
+                "time": 0,
+                "event_type": "command",
+                "command": "locate structure minecraft:village_plains"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

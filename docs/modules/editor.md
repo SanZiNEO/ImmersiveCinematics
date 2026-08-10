@@ -30,7 +30,7 @@
 - **左侧面板**
   - ✅ `LeftPanelArea` 提供 6 个标签页：脚本列表/脚本属性/Clip 属性/关键帧属性/轨道列表/触发器（`LeftPanelArea`）
   - ✅ 脚本属性页：触发器面板 + 脚本信息（id/name/author/version/description/dimension）+ 20 个运行时行为开关（部分三态：未设置/真/假）+ 总时长显示（`LeftPanelArea`）
-  - ✅ 属性反射编辑：clip/keyframe 的 JSON 字段自动生成对应控件（布尔→开关、数字→数值输入、字符串→文本输入、对象→递归展开、数组→逐项展开），枚举字段（transition/interpolation/position_mode/source/attenuation/cam_tracking_*）循环切换并联动转换关键帧坐标模式（`LeftPanelArea`）
+  - ✅ 属性反射编辑：clip/keyframe 的 JSON 字段自动生成对应控件（布尔→开关、数字→数值输入、字符串→文本输入、对象→递归展开、数组→逐项展开），枚举字段（transition/interpolation/loop_mode/layer_type/position_mode/source/attenuation/cam_tracking_*）循环切换并联动转换关键帧坐标模式（`LeftPanelArea`）
   - ✅ 面板滚动：内容超高时出现滚动条（点击/拖动/滚轮）；滚动是树语义（`getScrollOffset` 沿父链），命中统一绝对屏幕坐标 + 容器裁剪，tab 栏固定不随内容滚动，切模式滚动归零（`LeftPanelArea`、`UIComponent`）
   - ✅ 编辑触发防抖重建（150ms 内跳过重复 build）（`LeftPanelArea`）
 - **预览区**
