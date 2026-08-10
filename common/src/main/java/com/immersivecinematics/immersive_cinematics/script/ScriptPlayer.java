@@ -99,7 +99,7 @@ public class ScriptPlayer {
                 try {
                     tp.onScriptReplaced();
                 } catch (Exception e) {
-                    LOGGER.error("TrackPlayer onScriptReplaced 异常", e);
+                    com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackPlayer onScriptReplaced 异常", e);
                 }
             }
         }
@@ -136,7 +136,7 @@ public class ScriptPlayer {
             try {
                 tp.onStop();
             } catch (Exception e) {
-                LOGGER.error("TrackPlayer 停止异常", e);
+                com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackPlayer 停止异常", e);
             }
         }
         trackPlayers = Collections.emptyList();
@@ -164,7 +164,7 @@ public class ScriptPlayer {
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) {
-            LOGGER.error("无法启动脚本：玩家不存在");
+            com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "无法启动脚本：玩家不存在");
             return;
         }
 
@@ -203,7 +203,7 @@ public class ScriptPlayer {
                 try {
                     tp.onRenderFrame(elapsedSeconds);
                 } catch (Exception e) {
-                    LOGGER.error("TrackPlayer 首帧执行异常", e);
+                    com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackPlayer 首帧执行异常", e);
                 }
             }
         }
@@ -330,7 +330,7 @@ public class ScriptPlayer {
             try {
                 tp.onRenderFrame(elapsedSeconds);
             } catch (Exception e) {
-                LOGGER.error("TrackPlayer 执行异常", e);
+                com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackPlayer 执行异常", e);
             }
         }
     }

@@ -50,7 +50,7 @@ public class ScriptManager {
             try {
                 Files.createDirectories(dir);
             } catch (IOException e) {
-                LOGGER.error("Failed to create scripts directory: {}", dir, e);
+                com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("ScriptLoad", "Failed to create scripts directory: " + dir, e);
             }
             return;
         }
@@ -59,7 +59,7 @@ public class ScriptManager {
         try (Stream<Path> stream = Files.list(dir)) {
             jsonFiles = stream.filter(p -> p.toString().endsWith(".json")).collect(Collectors.toList());
         } catch (IOException e) {
-            LOGGER.error("Failed to list scripts directory: {}", dir, e);
+            com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("ScriptLoad", "Failed to list scripts directory: " + dir, e);
             return;
         }
 
@@ -75,7 +75,9 @@ public class ScriptManager {
                 scripts.put(id, script);
                 LOGGER.info("Loaded script: {} (id={}) from {}", script.getName(), id, dir);
             } catch (Exception e) {
-                LOGGER.error("Failed to load script from {}", file.getFileName(), e);
+                // 脚本解析失败：写错误日志文件（作者排查），不影响其他脚本加载
+                com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("ScriptLoad",
+                        "Failed to load script from " + file.getFileName() + ": " + e.getMessage(), e);
             }
         }
     }
@@ -88,7 +90,8 @@ public class ScriptManager {
             for (TriggerDefinition td : meta.getTriggers()) {
                 TriggerType triggerType = TriggerRegistry.get(td.getType());
                 if (triggerType == null) {
-                    LOGGER.warn("Unknown trigger type '{}' in script '{}'", td.getType(), meta.getId());
+                    com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("ScriptLoad",
+                            "Unknown trigger type '" + td.getType() + "' in script '" + meta.getId() + "'");
                     continue;
                 }
                 JsonObject conditions = new JsonObject();

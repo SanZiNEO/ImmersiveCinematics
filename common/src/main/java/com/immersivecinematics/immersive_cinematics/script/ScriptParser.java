@@ -227,7 +227,8 @@ public class ScriptParser {
         // loop_count=0 非法：-1=无限循环，正整数=循环次数；记录错误并按 1 处理（不阻断运行）
         Object loopCount = data.get("loop_count");
         if (loopCount instanceof Number && ((Number) loopCount).intValue() == 0) {
-            LOGGER.error(p + ".loop_count 不允许为 0（-1=无限循环，正整数=循环次数），已按 1 处理");
+            com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Parse",
+                    p + ".loop_count 不允许为 0（-1=无限循环，正整数=循环次数），已按 1 处理");
             data.put("loop_count", 1);
         }
         if (data.containsKey("curve")) {
@@ -405,15 +406,18 @@ public class ScriptParser {
     private static void validateTracks(List<TimelineTrack> tracks, String p) throws ScriptParseException {
         long cameraCount = tracks.stream().filter(t -> t.getType() == TrackType.CAMERA).count();
         if (cameraCount > 1) {
-            LOGGER.warn("检测到 {} 条 CAMERA 轨道，当前仅支持第1条", cameraCount);
+            com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Parse",
+                    "检测到 " + cameraCount + " 条 CAMERA 轨道，当前仅支持第1条");
         }
         long letterboxCount = tracks.stream().filter(t -> t.getType() == TrackType.LETTERBOX).count();
         if (letterboxCount > 1) {
-            LOGGER.warn("检测到 {} 条 LETTERBOX 轨道，建议最多1条", letterboxCount);
+            com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Parse",
+                    "检测到 " + letterboxCount + " 条 LETTERBOX 轨道，建议最多1条");
         }
         long eventCount = tracks.stream().filter(t -> t.getType() == TrackType.EVENT).count();
         if (eventCount > 1) {
-            LOGGER.warn("检测到 {} 条 EVENT 轨道，建议最多1条", eventCount);
+            com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Parse",
+                    "检测到 " + eventCount + " 条 EVENT 轨道，建议最多1条");
         }
 
         for (TimelineTrack track : tracks) {
@@ -424,9 +428,10 @@ public class ScriptParser {
                     Clip prevClip = clips.get(i - 1);
                     if (clip.isMorph() && prevClip != null) {
                         if (prevClip.isPositionModeRelative() != clip.isPositionModeRelative()) {
-                            LOGGER.warn("morph 相邻 clip 的 position_mode 不同（{} → {}），运行时已统一为世界坐标，混合结果可能非预期",
-                                    prevClip.isPositionModeRelative() ? "relative" : "absolute",
-                                    clip.isPositionModeRelative() ? "relative" : "absolute");
+                            com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Parse",
+                                    "morph 相邻 clip 的 position_mode 不同（" + (prevClip.isPositionModeRelative() ? "relative" : "absolute")
+                                            + " → " + (clip.isPositionModeRelative() ? "relative" : "absolute")
+                                            + "），运行时已统一为世界坐标，混合结果可能非预期");
                         }
                     }
                 }
