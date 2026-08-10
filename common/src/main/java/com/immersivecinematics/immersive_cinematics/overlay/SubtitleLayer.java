@@ -28,14 +28,15 @@ public class SubtitleLayer implements OverlayLayer {
     private float scaleX = 1f;
     private float scaleY = 1f;
     private int zIndex = DEFAULT_Z_INDEX;
-    /** 诊断：位置日志节流 */
-    private long lastPosLog;
 
     @Override
     public void render(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {
         if (opacity <= 0.001f || text == null || text.isEmpty()) return;
 
         int alpha = (int) (opacity * 255);
+        // 幽灵文本根因：alpha 量化为 0~3 时，MC Font.adjustColor() 会把颜色补成全不透明
+        // （0x00FFFFFF → 0xFFFFFFFF），导致低透明度文字以完全不透明渲染；肉眼本不可见，直接跳过
+        if (alpha < 4) return;
         int color = (alpha << 24) | 0x00FFFFFF;
 
         var font = Minecraft.getInstance().font;
@@ -53,15 +54,6 @@ public class SubtitleLayer implements OverlayLayer {
         // 中心锚点：x/y 指向文字块中心，左上角 = 中心 − 缩放后块尺寸/2（fontScale×scale 已在 pose 中应用）
         float blockX = x * screenWidth - (maxLineWidth * fontScale * scaleX) / 2f;
         float blockY = y * screenHeight - (totalHeight * fontScale * scaleY) / 2f;
-
-        // 诊断：屏幕尺寸 + 文字实际渲染位置（节流 1s，控制台可见）
-        long now = System.currentTimeMillis();
-        if (now - lastPosLog >= 1000) {
-            lastPosLog = now;
-            LOGGER.info("OVERLAY subtitle: screen={}x{} pos=({}, {}) text={} opacity={}",
-                    screenWidth, screenHeight, Math.round(blockX), Math.round(blockY),
-                    text.replace('\n', ' '), opacity);
-        }
 
         // 亚像素平滑：pose 浮点平移（drawString 只收 int，直接传浮点坐标会量化成阶梯移动）
         // 字号缩放：两级合成一次矩阵——fontScale（原版 title 同款矩阵缩放）× scaleX/Y（图片同款百分比缩放）
