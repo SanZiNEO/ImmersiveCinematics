@@ -24,8 +24,10 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     /** 诊断：look_at 目标位置一次性日志（播放期间只打印 1 次） */
     private boolean lookAtLoggedOnce;
-    /** 结构定位失败回退提示只打一次 */
+    /** 结构定位失败提示只打一次 */
     private boolean lookAtWarnOnce;
+    /** 片段目标不可用（按空片段处理）提示只打一次 */
+    private boolean clipUnusableWarnOnce;
 
     /** 上一帧最终世界坐标（实体目标消失时停在原地、以及作为 @e 就近基准） */
     private Vec3 lastWorldPos;
@@ -87,6 +89,11 @@ public class CameraTrackPlayer implements TrackPlayer {
                 float morphStart = prevEnd - half;
                 float morphEnd = prevEnd + half;
                 if (globalTime >= morphStart && globalTime < morphEnd) {
+                    // 进入的片段目标不可用 → 整个转场按空处理
+                    if (!isClipUsable(next)) {
+                        warnClipUnusableOnce();
+                        return;
+                    }
                     float weight = (globalTime - morphStart) / prev.getTransitionDuration();
                     renderMorph(prev, next, weight, globalTime);
                     return;
@@ -96,9 +103,48 @@ public class CameraTrackPlayer implements TrackPlayer {
 
         Clip primaryClip = findActiveClip(globalTime);
         if (primaryClip == null) return;
+        // 目标不可用（结构/实体找不到）= 该片段按空处理（不写相机 → 玩家视角，与片段间隙同语义）
+        if (!isClipUsable(primaryClip)) {
+            warnClipUnusableOnce();
+            return;
+        }
 
         float clipLocalTime = globalTime - primaryClip.getStartTime();
         renderSingle(globalTime, primaryClip, clipLocalTime);
+    }
+
+    /** 片段目标不可用提示只打一次（避免每帧刷屏） */
+    private void warnClipUnusableOnce() {
+        if (!clipUnusableWarnOnce) {
+            clipUnusableWarnOnce = true;
+            LOGGER.warn("片段目标不可用（结构/实体未找到），该片段按空处理（玩家视角）");
+        }
+    }
+
+    /**
+     * 片段目标可用性：look_at/follow 的实体、结构目标、position.relative_origin 结构基准
+     * 任一不可解析 → 片段不可用，按空片段处理（不写相机，玩家视角）。
+     * 找不到就找不到——不引入任何替代值/回退逻辑。
+     */
+    private boolean isClipUsable(Clip clip) {
+        for (Keyframe kf : clip.getKeyframes()) {
+            String lookAt = kf.getString("look_at", "none");
+            if ("entity".equals(lookAt)) {
+                if (resolveEntity(kf.getString("look_at_selector", "@p"), lastWorldPos) == null) return false;
+            } else if ("coordinate".equals(lookAt)) {
+                String sid = kf.getString("look_at_target_structure", "");
+                if (!sid.isEmpty() && resolveStructurePos(sid) == null) return false;
+            }
+            if ("entity".equals(kf.getString("follow", "none"))) {
+                if (resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos) == null) return false;
+            }
+            PositionData pd = kf.getPosition();
+            if (pd != null && pd.isRelative()) {
+                String sid = pd.getOriginStructure();
+                if (sid != null && !sid.isEmpty() && resolveStructurePos(sid) == null) return false;
+            }
+        }
+        return true;
     }
 
     private void renderSingle(float globalTime, Clip clip, float clipLocalTime) {
@@ -188,9 +234,10 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     /**
      * 关键帧世界坐标求值：
-     * follow=entity → 实体渲染帧插值位置 + position 偏移（动态，每帧重算；实体消失时停在上一帧位置）
+     * follow=entity → 实体渲染帧插值位置 + position 偏移（动态，每帧重算）
      * 普通关键帧    → position 对象自描述：absolute = 世界坐标；relative = 相对基准 + 偏移
      *                （基准默认玩家激活位置 originPos，可用 relative_origin 指定坐标/结构中心）
+     * 注意：实体/结构目标不可用已在 isClipUsable 前置拦截（该片段按空处理），此处分支为防御。
      */
     private Vec3 evalKeyframeWorldPos(Keyframe kf, Clip clip) {
         if ("entity".equals(kf.getString("follow", "none"))) {
@@ -209,7 +256,10 @@ public class CameraTrackPlayer implements TrackPlayer {
         return resolveRelativeBase(pd).add(p);
     }
 
-    /** 相对基准求值：coordinate → 固定坐标；结构 id → 结构中心（找不到回退玩家位置 + warn）；默认玩家激活位置 */
+    /**
+     * 相对基准求值：coordinate → 固定坐标；结构 id → 结构中心；默认玩家激活位置。
+     * 结构基准不可用已在 isClipUsable 前置拦截（该片段按空处理），此处为防御。
+     */
     private Vec3 resolveRelativeBase(PositionData pd) {
         if (pd.isOriginCoordinate()) {
             return new Vec3(pd.getOriginX(), pd.getOriginY(), pd.getOriginZ());
@@ -218,7 +268,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         if (structureId != null && !structureId.isEmpty()) {
             Vec3 structurePos = resolveStructurePos(structureId);
             if (structurePos != null) return structurePos;
-            LOGGER.warn("相对基准结构 '{}' 未找到，回退玩家激活位置", structureId);
+            LOGGER.warn("相对基准结构 '{}' 未找到（防御路径）", structureId);
         }
         return originPos;
     }
@@ -237,7 +287,7 @@ public class CameraTrackPlayer implements TrackPlayer {
      * 用原版 findNearestMapStructure（/locate 同源）定位结构中心。
      * 结构是静态目标：解析成功的结果永久缓存（整场播放直接复用，无需刷新——与实体目标不同）；
      * 失败结果 2 秒后重试（结构可能随后被生成/加载）。
-     * 多人服务器（无服务端访问）或找不到返回 null（调用方回退 xyz）。
+     * 多人服务器（无服务端访问）或找不到返回 null——调用方（isClipUsable）按空片段处理，不引入替代值。
      * 注：服务端 /icinematics play 推送前已把 look_at_target_structure 替换为坐标，此路径主要为编辑器预览兜底。
      */
     private Vec3 resolveStructurePos(String structureId) {
@@ -291,13 +341,14 @@ public class CameraTrackPlayer implements TrackPlayer {
         if ("coordinate".equals(lookAt)) {
             String structureId = kf.getString("look_at_target_structure", "");
             if (!structureId.isEmpty()) {
-                // 结构目标与坐标互斥：指定了结构就只用结构，定位失败不读坐标（返回 null，调用方回退角度插值）
+                // 结构目标与坐标互斥：指定了结构就只用结构。定位失败返回 null（该端无注视目标），
+                // 整个片段已被 isClipUsable 拦截按空处理，此处为防御。
                 Vec3 structurePos = resolveStructurePos(structureId);
                 if (structurePos != null) return structurePos;
                 // 定位失败只提示一次（避免每帧刷屏）
                 if (!lookAtWarnOnce) {
                     lookAtWarnOnce = true;
-                    LOGGER.warn("结构 '{}' 未找到（结构/坐标互斥，该端无注视目标，回退角度插值）", structureId);
+                    LOGGER.warn("结构 '{}' 未找到（该端无注视目标）", structureId);
                 }
                 return null;
             }
@@ -331,9 +382,9 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     /**
      * 单段朝向求值：任一端 look_at != none 时用目标点插值模型（看向插值目标点）。
-     * 两端目标齐全才用目标点；任一端目标缺失（实体消失 / 结构定位失败 → evalLookTarget 返回 null）
-     * 则该段按 look_at=none 处理——用两端关键帧自身的 yaw/pitch 角度插值（yawBase/pitchBase），
-     * 不引入任何"替换目标"逻辑。返回 [yaw, pitch]。
+     * 两端目标齐全才用目标点；目标缺失（evalLookTarget 返回 null）时该段按 look_at=none 处理
+     * ——用两端关键帧自身的 yaw/pitch 角度插值（yawBase/pitchBase）。目标不可用已由
+     * isClipUsable 前置拦截（片段按空处理），此处为防御。返回 [yaw, pitch]。
      */
     private float[] segmentYawPitch(Keyframe from, Keyframe to, float s, Clip clip, Vec3 segPos,
                                     float yawBase, float pitchBase) {

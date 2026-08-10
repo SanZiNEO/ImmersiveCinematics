@@ -301,7 +301,7 @@ public class LeftPanelArea extends UIComponent {
 
     /**
      * 结构目标下拉（look_at_target_structure）：列出注册表（原版+模组）所有结构 id，自动补全。
-     * 选项含"（空）"= 不使用结构目标（回退 look_at_target_xyz）。未进世界时回退文本输入。
+     * 选项含"（空）"= 不使用结构目标（结构/坐标互斥，选空后坐标输入恢复显示）。未进世界时用文本输入代替下拉。
      */
     private int reflectStructureDropdown(String key, int lx, int cy, int depth, JsonObject parentObj) {
         int ix = lx + depth * 10;

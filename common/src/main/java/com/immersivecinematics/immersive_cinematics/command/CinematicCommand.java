@@ -140,7 +140,7 @@ public class CinematicCommand {
      * 服务端结构坐标解析：遍历脚本关键帧，把结构目标替换为结构中心坐标——
      * look_at_target_structure → look_at_target_x/y/z；position.relative_origin（结构 id）→
      * "coordinate" + relative_origin_x/y/z。脚本文件本身不被修改，只替换推送内容。
-     * 定位失败保留原字段（客户端回退 + warn）。
+     * 定位失败保留原字段（客户端该端无目标，片段按空处理）。
      */
     private static String resolveStructureTargets(String json, CommandSourceStack source) {
         try {
@@ -202,7 +202,7 @@ public class CinematicCommand {
             obj.remove(sourceField);
             return true;
         }
-        LOGGER.warn("结构 '{}' 定位失败，脚本保留 structure 字段（客户端该端无注视目标，回退角度插值）", structureId);
+        LOGGER.warn("结构 '{}' 定位失败，脚本保留 structure 字段（客户端该端无目标，片段按空处理）", structureId);
         return false;
     }
 
