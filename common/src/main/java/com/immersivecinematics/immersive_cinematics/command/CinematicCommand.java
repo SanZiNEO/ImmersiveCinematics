@@ -20,7 +20,6 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.phys.Vec3;
 
 import java.io.IOException;
@@ -33,24 +32,14 @@ import java.util.stream.Stream;
 
 public class CinematicCommand {
 
-    private static final LevelResource WORLD_SCRIPT_DIR = new LevelResource("immersive_cinematics/scripts");
-
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/Command");
     private static final String GLOBAL_SCRIPT_DIR = "immersive_cinematics/scripts";
 
     private static final SuggestionProvider<CommandSourceStack> SCRIPT_SUGGESTIONS = (ctx, builder) -> {
         MinecraftServer server = ctx.getSource().getServer();
         Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
-        Path worldDir = server.getWorldPath(WORLD_SCRIPT_DIR);
         if (Files.isDirectory(globalDir)) {
             try (Stream<Path> files = Files.list(globalDir)) {
-                files.filter(p -> p.toString().endsWith(".json"))
-                        .map(p -> p.getFileName().toString().replace(".json", ""))
-                        .forEach(builder::suggest);
-            } catch (IOException ignored) {}
-        }
-        if (Files.isDirectory(worldDir)) {
-            try (Stream<Path> files = Files.list(worldDir)) {
                 files.filter(p -> p.toString().endsWith(".json"))
                         .map(p -> p.getFileName().toString().replace(".json", ""))
                         .forEach(builder::suggest);
@@ -91,14 +80,13 @@ public class CinematicCommand {
         MinecraftServer server = source.getServer();
 
         Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
-        Path worldDir = server.getWorldPath(WORLD_SCRIPT_DIR);
 
-        Path scriptPath = findScriptFile(filePath, worldDir);
+        Path scriptPath = findScriptFile(filePath, globalDir);
         if (scriptPath == null) {
             source.sendFailure(Component.literal("§c脚本文件不存在: " + filePath +
                     "\n§7搜索路径:" +
-                    "\n§7  1. " + worldDir.resolve(filePath) +
-                    "\n§7  2. " + worldDir.resolve(filePath + ".json") +
+                    "\n§7  1. " + globalDir.resolve(filePath) +
+                    "\n§7  2. " + globalDir.resolve(filePath + ".json") +
                     "\n§7请将 .json 脚本文件放入: " + globalDir));
             return 0;
         }
@@ -269,31 +257,16 @@ public class CinematicCommand {
         CommandSourceStack source = context.getSource();
         MinecraftServer server = source.getServer();
         Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
-        Path worldDir = server.getWorldPath(WORLD_SCRIPT_DIR);
 
+        // 脚本统一从游戏根目录加载，reload = 重新加载持有的脚本（不做任何文件同步）
         try {
-            // 自动创建必要目录（全局 + 世界存档两侧）
             Files.createDirectories(globalDir);
-            Files.createDirectories(worldDir);
-            try (Stream<Path> files = Files.list(globalDir)) {
-                files.filter(p -> p.toString().endsWith(".json")).forEach(globalFile -> {
-                    Path target = worldDir.resolve(globalFile.getFileName());
-                    try {
-                        Files.copy(globalFile, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                        LOGGER.info("同步: {}", globalFile.getFileName());
-                    } catch (IOException e) {
-                        source.sendFailure(Component.literal("§c同步失败 " + globalFile.getFileName() + ": " + e.getMessage()));
-                    }
-                });
-            }
-            // 资源不做文件同步（客户端统一读游戏根 immersive_cinematics/resource）；
-            // reload 只刷新持有的脚本
-            ScriptManager.INSTANCE.reload(server);
-            LOGGER.info("脚本重载完成，共 {} 个脚本生效", ScriptManager.INSTANCE.getAllScripts().size());
         } catch (IOException e) {
-            source.sendFailure(Component.literal("§c重载失败: " + e.getMessage()));
+            source.sendFailure(Component.literal("§c创建脚本目录失败: " + e.getMessage()));
             return 0;
         }
+        ScriptManager.INSTANCE.reload(server);
+        LOGGER.info("脚本重载完成，共 {} 个脚本生效", ScriptManager.INSTANCE.getAllScripts().size());
         return 1;
     }
 
@@ -307,9 +280,8 @@ public class CinematicCommand {
         MinecraftServer server = source.getServer();
 
         Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
-        Path worldDir = server.getWorldPath(WORLD_SCRIPT_DIR);
 
-        Path scriptPath = findScriptFile(filePath, worldDir);
+        Path scriptPath = findScriptFile(filePath, globalDir);
         if (scriptPath == null) {
             source.sendFailure(Component.literal("§c脚本文件不存在: " + filePath
                     + "\n§7请将 .json 脚本文件放入: " + globalDir));
@@ -338,16 +310,16 @@ public class CinematicCommand {
         return 1;
     }
 
-    private static Path findScriptFile(String filePath, Path worldDir) {
+    private static Path findScriptFile(String filePath, Path scriptDir) {
         Path candidate;
 
-        // 只搜索世界存档目录，拒绝路径遍历（全局目录脚本由 /icinematics reload 同步进世界目录）
-        candidate = worldDir.resolve(filePath).normalize();
-        if (!candidate.startsWith(worldDir.normalize())) return null;
+        // 只搜索游戏根脚本目录，拒绝路径遍历
+        candidate = scriptDir.resolve(filePath).normalize();
+        if (!candidate.startsWith(scriptDir.normalize())) return null;
         if (Files.exists(candidate)) return candidate;
         if (!filePath.endsWith(".json")) {
-            candidate = worldDir.resolve(filePath + ".json").normalize();
-            if (!candidate.startsWith(worldDir.normalize())) return null;
+            candidate = scriptDir.resolve(filePath + ".json").normalize();
+            if (!candidate.startsWith(scriptDir.normalize())) return null;
             if (Files.exists(candidate)) return candidate;
         }
 

@@ -19,8 +19,8 @@
 - **validate — 脚本静态校验**
   - ✅ `/icinematics validate <file>`：权限等级 2（op），用 `ScriptValidator` 静态校验脚本 JSON（结构/字段缺失/语义/缺省提示），一次输出完整问题清单；零问题输出"校验通过"（`CinematicCommand`、`ScriptValidator`）
 - **文件查找**
-  - ✅ `findScriptFile()` 仅在**世界存档目录**内查找（自动补全 .json 后缀），并使用 normalize + startsWith 校验拒绝路径遍历（`CinematicCommand`）
+  - ✅ `findScriptFile()` 在**游戏根脚本目录**（`immersive_cinematics/scripts`）内查找（自动补全 .json 后缀），并使用 normalize + startsWith 校验拒绝路径遍历（`CinematicCommand`）
 
 ## 已知问题
 
-- `/icinematics play` 的报错文案声称搜索全局目录 + 世界存档 4 条路径，但 `findScriptFile()` 实际只搜索世界存档目录；仅存在于全局目录（尚未 reload 同步）的脚本会提示"文件不存在"（来源：`CinematicCommand`）
+- `/icinematics play` 的报错文案声称搜索 4 条路径，但 `findScriptFile()` 实际只搜索游戏根脚本目录（来源：`CinematicCommand`）

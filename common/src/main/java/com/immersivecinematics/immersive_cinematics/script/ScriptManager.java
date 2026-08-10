@@ -10,7 +10,6 @@ import com.immersivecinematics.immersive_cinematics.trigger.server.action.StartP
 import com.immersivecinematics.immersive_cinematics.trigger.server.evaluator.Evaluators;
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.storage.LevelResource;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -29,10 +28,7 @@ public class ScriptManager {
     private static final Logger LOGGER = LogUtils.getLogger();
     public static final ScriptManager INSTANCE = new ScriptManager();
 
-    /** 世界存档内的脚本目录 */
-    private static final LevelResource WORLD_SCRIPT_PATH = new LevelResource("immersive_cinematics/scripts");
-
-    /** 游戏根目录的全局脚本目录名 */
+    /** 游戏根目录的全局脚本目录（服务端统一从根目录加载,不再同步进世界存档） */
     private static final String GLOBAL_SCRIPT_DIR = "immersive_cinematics/scripts";
 
     private final Map<String, CinematicScript> scripts = new LinkedHashMap<>();
@@ -40,51 +36,13 @@ public class ScriptManager {
 
     private ScriptManager() {}
 
-    /**
-     * 首次启动时（创建/加载世界）：
-     * 1. 确保游戏根 immersive_cinematics/scripts 与世界存档 immersive_cinematics/scripts 目录存在；
-     * 2. 把全局脚本（*.json）复制到世界存档（缺失才复制，不覆盖已有）。
-     * 资源不参与同步——客户端统一读游戏根 immersive_cinematics/resource（单机/联机/编辑器共用）。
-     */
-    public void copyGlobalToWorld(MinecraftServer server) {
-        Path gameRoot = server.getServerDirectory().toPath().toAbsolutePath();
-        try {
-            Files.createDirectories(gameRoot.resolve(GLOBAL_SCRIPT_DIR));
-            Files.createDirectories(server.getWorldPath(WORLD_SCRIPT_PATH));
-        } catch (IOException e) {
-            LOGGER.error("Failed to create immersive_cinematics directories: {}", e.getMessage());
-        }
-
-        copyMissing(gameRoot.resolve(GLOBAL_SCRIPT_DIR), server.getWorldPath(WORLD_SCRIPT_PATH), ".json");
-    }
-
-    /** 把源目录中缺失的文件复制到目标目录（不覆盖已有；extension 非 null 时只复制该后缀文件） */
-    private static void copyMissing(Path srcDir, Path dstDir, String extension) {
-        if (!Files.isDirectory(srcDir)) return;
-        try (Stream<Path> files = Files.list(srcDir)) {
-            files.filter(p -> extension == null || p.toString().endsWith(extension))
-                    .forEach(srcFile -> {
-                        Path target = dstDir.resolve(srcFile.getFileName());
-                        if (!Files.exists(target)) {
-                            try {
-                                Files.copy(srcFile, target);
-                                LOGGER.info("Copied {} to world", srcFile.getFileName());
-                            } catch (IOException e) {
-                                LOGGER.error("Failed to copy {} to world: {}", srcFile.getFileName(), e.getMessage());
-                            }
-                        }
-                    });
-        } catch (IOException e) {
-            LOGGER.error("Failed to copy {} to world: {}", srcDir, e.getMessage());
-        }
-    }
-
     public void loadAll(MinecraftServer server) {
         scripts.clear();
-        Path worldScriptDir = server.getWorldPath(WORLD_SCRIPT_PATH);
-        loadFromDir(worldScriptDir, true);
+        // 服务端统一从游戏根目录加载脚本（不依赖世界存档；播放时通过 S2C 包下发完整 JSON 给客户端）
+        Path scriptDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
+        loadFromDir(scriptDir, true);
         loaded = true;
-        LOGGER.info("Loaded {} scripts from world directory", scripts.size());
+        LOGGER.info("Loaded {} scripts from {}", scripts.size(), scriptDir);
     }
 
     private void loadFromDir(Path dir, boolean overwrite) {

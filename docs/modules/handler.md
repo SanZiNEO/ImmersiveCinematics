@@ -5,7 +5,7 @@
 功能树：
 
 - **服务端事件注册（`ServerEventHandler`）**
-  - ✅ 服务器启动（SERVER_STARTED）：全局脚本复制到世界存档 → 加载全部脚本 → 初始化触发器状态存储与引擎 → 批量注册触发器（`ServerEventHandler`）
+  - ✅ 服务器启动（SERVER_STARTED）：从游戏根 `immersive_cinematics/scripts` 加载全部脚本（不再复制进世界存档）→ 初始化触发器状态存储与引擎 → 批量注册触发器（`ServerEventHandler`）
   - ✅ 服务器停止（SERVER_STOPPING）与世界保存（SERVER_LEVEL_SAVE）：全量保存触发器状态（`ServerEventHandler`）
   - ✅ 玩家加入（PLAYER_JOIN）：加载该玩家触发状态并补发状态同步包，触发 `login` 触发器（`ServerEventHandler`）
   - ✅ 玩家退出（PLAYER_QUIT）：保存并卸载玩家状态，清理全部内存追踪器（Kill/Advancement/Interact/Craft/UseItem/PickupDrop/Inventory）（`ServerEventHandler`）

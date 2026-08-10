@@ -28,7 +28,6 @@ public class ServerEventHandler {
         // ===== 服务器生命周期 =====
 
         LifecycleEvent.SERVER_STARTED.register(server -> {
-            ScriptManager.INSTANCE.copyGlobalToWorld(server);
             ScriptManager.INSTANCE.loadAll(server);
             TriggerStateStore.INSTANCE.initialize(server);
             TriggerEngine.INSTANCE.initialize();
