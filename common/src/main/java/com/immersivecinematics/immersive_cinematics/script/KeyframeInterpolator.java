@@ -45,7 +45,7 @@ public final class KeyframeInterpolator {
 
         // 循环处理
         if (clip.isLoop() && keyframes.size() >= 2) {
-            float animPeriod = keyframes.get(keyframes.size() - 1).getTime() - keyframes.get(0).getTime();
+            float animPeriod = clip.getAnimPeriod();
             if (animPeriod > 0) {
                 if (clip.getLoopCount() > 0) {
                     float maxLoopTime = animPeriod * clip.getLoopCount();
@@ -56,7 +56,14 @@ public final class KeyframeInterpolator {
                     }
                 }
                 float offset = keyframes.get(0).getTime();
-                effectiveTime = offset + (effectiveTime - offset) % animPeriod;
+                if ("pingpong".equals(clip.getLoopMode())) {
+                    // 往复折返：以 2×周期为模，超周期部分镜像（监控来回摇，端点速度反向、位置连续）
+                    float t = (effectiveTime - offset) % (2f * animPeriod);
+                    effectiveTime = offset + (t <= animPeriod ? t : 2f * animPeriod - t);
+                } else {
+                    // repeat：周期内从头到尾重复
+                    effectiveTime = offset + (effectiveTime - offset) % animPeriod;
+                }
             }
         }
 

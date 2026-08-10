@@ -9,6 +9,7 @@
         "curve": { "type": "bezier_curve" },
         "loop": { "type": "bool", "default": false },
         "loop_count": { "type": "int", "default": -1 },
+        "loop_mode": { "type": "enum", "values": ["repeat", "pingpong"], "default": "repeat" },
         "cam_breath_enabled": { "type": "bool", "default": false },
         "cam_breath_intensity": { "type": "float", "default": 0.05 },
         "cam_breath_seed": { "type": "int", "default": 0 }
@@ -88,6 +89,7 @@
         "opacity": { "type": "float", "default": 0.0 },
         "x": { "type": "float", "default": 0 },
         "y": { "type": "float", "default": 0 },
+        "font_scale": { "type": "float", "default": 1 },
         "scale_x": { "type": "float", "default": 1 },
         "scale_y": { "type": "float", "default": 1 }
       }

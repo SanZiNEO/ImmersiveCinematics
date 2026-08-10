@@ -181,6 +181,7 @@
     "editor.field.position_mode": "位置模式",
     "editor.field.loop": "循环",
     "editor.field.loop_count": "循环次数",
+    "editor.field.loop_mode": "循环模式",
     "editor.field.curve": "贝塞尔曲线",
     "editor.field.position": "位置",
     "editor.field.follow": "跟随",

@@ -224,6 +224,12 @@ public class ScriptParser {
         if (duration == 0f) {
             throw new ScriptParseException(p + ".duration", "不允许为0，正数=有限时长，负数=无限时长，实际: " + duration);
         }
+        // loop_count=0 非法：-1=无限循环，正整数=循环次数；记录错误并按 1 处理（不阻断运行）
+        Object loopCount = data.get("loop_count");
+        if (loopCount instanceof Number && ((Number) loopCount).intValue() == 0) {
+            LOGGER.error(p + ".loop_count 不允许为 0（-1=无限循环，正整数=循环次数），已按 1 处理");
+            data.put("loop_count", 1);
+        }
         if (data.containsKey("curve")) {
             BezierCurve curve = (BezierCurve) data.get("curve");
             if (curve != null && !curve.isValid()) {

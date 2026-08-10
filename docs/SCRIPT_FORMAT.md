@@ -133,12 +133,37 @@
 | `transition` | string | 否 | `"cut"` | `"cut"`=硬切，`"morph"`=线性过渡 |
 | `transition_duration` | float | 否 | `0.5` | morph 过渡时长（秒） |
 | `interpolation` | string | 否 | `"linear"` | `"linear"` 或 `"smooth"`（预留） |
-| `loop` | boolean | 否 | `false` | 是否循环播放 |
-| `loop_count` | int | 否 | `-1` | `-1`=无限循环 |
+| `loop` | boolean | 否 | `false` | 是否循环播放（生命周期开关） |
+| `loop_count` | int | 否 | `-1` | 循环次数：`-1`=无限循环；正整数=播 N 个周期后停在末帧；`0` 非法（运行时按 1 处理） |
+| `loop_mode` | string | 否 | `"repeat"` | 循环时间映射：`"repeat"`=从头到尾重复；`"pingpong"`=往复折返（监控来回摇） |
 | `curve` | object | 否 | `null` | 贝塞尔路径曲线 |
 | `keyframes` | array | 是 | — | 关键帧数组，至少 1 个 |
 
 > **v3 迁移**：`position_mode`、`cam_tracking_follow*`、`cam_tracking_look_at*` 已全部迁移到**关键帧级**（见下方 Keyframe 字段）。clip 级不再支持这些字段（保留会被 validate 报废弃提示）。
+
+### 循环（loop）语义
+
+`loop` + `loop_count` 决定片段的**生命周期**（活跃窗口），`loop_mode` 决定周期内的**时间映射**：
+
+- **无限循环**（`loop: true` + `loop_count: -1`）：片段一旦开始就永不结束，脚本也随之持续播放（唯一退出方式是 skippable/interruptible 的手动退出）。适合常驻跟随视角（follow/look_at 固定镜头）：
+  ```json
+  { "start_time": 0, "duration": 10, "loop": true, "loop_count": -1,
+    "keyframes": [
+      { "time": 0,  "follow": "entity", "follow_selector": "@p", "position": { "dx": 0, "dy": 4, "dz": -5 }, "yaw": 0, "pitch": -10 },
+      { "time": 10, "follow": "entity", "follow_selector": "@p", "position": { "dx": 0, "dy": 4, "dz": -5 }, "yaw": 0, "pitch": -10 }
+    ] }
+  ```
+- **有限循环**（`loop: true` + `loop_count: N`）：播放 N 个周期后停在末帧，活跃窗口 = `start_time + 周期 × N`（周期 = 末关键帧时间 − 首关键帧时间，validate 会检查与 `duration` 的一致性）。
+- **往复折返**（`loop: true` + `loop_mode: "pingpong"`）：周期内走到末帧后反向走回首帧，适合监控视角来回摇——关键帧只写半程即可：
+  ```json
+  { "start_time": 0, "duration": 5, "loop": true, "loop_count": -1, "loop_mode": "pingpong",
+    "keyframes": [
+      { "time": 0, "yaw": -30 },
+      { "time": 5, "yaw": 30 }
+    ] }
+  ```
+- `loop_count: 0` 非法，解析时记录错误并按 1 处理。
+- 无限循环片段后接的其他片段会作为特写覆盖播放（其窗口内优先渲染），播完回落到循环视角。
 
 ### curve（贝塞尔曲线）
 
@@ -359,13 +384,14 @@
 | 字段 | 类型 | 默认 | 说明 |
 |------|------|------|------|
 | `time` | float | — | 在 clip 内的时间偏移（秒） |
-| `x` | float | `0` | 元素**左上角**的水平位置：`0` = 贴屏幕左缘，`1` = 左上角在屏幕右缘 |
-| `y` | float | `0` | 元素**左上角**的垂直位置：`0` = 贴屏幕顶缘，`1` = 左上角在屏幕底缘 |
-| `scale_x` | float | `1` | 图片宽度 = 原图分辨率 × 该乘数（`1` = 原尺寸，`0.5` = 半宽） |
-| `scale_y` | float | `1` | 图片高度 = 原图分辨率 × 该乘数 |
+| `x` | float | `0` | 元素**中心**的水平位置：`0.5` = 屏幕正中，`1` = 中心在屏幕右缘 |
+| `y` | float | `0` | 元素**中心**的垂直位置：`0.5` = 屏幕正中，`1` = 中心在屏幕底缘 |
+| `scale_x` | float | `1` | 图片：宽度 = 原图分辨率 × 该乘数；**字幕：固定字号后的横向百分比缩放**（`1` = 基准字号原尺寸） |
+| `scale_y` | float | `1` | 图片：高度 = 原图分辨率 × 该乘数；**字幕：固定字号后的纵向百分比缩放** |
+| `font_scale` | float | `1` | **字幕专用**：字号倍数（`1` = 原版 9px 字号）。矩阵缩放实现，与 MC `/title` 大字同一机制；可与 `scale_x/y` 叠加（最终缩放 = `font_scale × scale_x/y`），字号等比用 `font_scale`，非等比微调用 `scale_x/y` |
 | `opacity` | float | `0` | 透明度（`0` = 完全透明，`1` = 不透明）。**淡入/淡出完全由该字段的关键帧表达**，代码层不叠加其他淡化 |
 
-> 字幕的 `scale_x`/`scale_y` 不适用（字号由字体决定）；`fade`/`pip` 的字段见各自文档。**位置建议保持 `0 < x/y < 1` 且 `x + scale` 不超 1**，避免元素移出屏幕。
+> 字幕缩放是两级语义：`font_scale` 调整基准字号（1.0 = 原版 9px），`scale_x/scale_y` 在固定字号基础上做百分比缩放（与图片的 scale 语义一致），两者可叠加。`fade`/`pip` 的字段见各自文档。**x/y = 0.5 即屏幕居中**；贴边需按元素尺寸/2 折算（如贴左缘 = 元素半宽），避免元素移出屏幕。
 
 ### 示例：图片 + 字幕双 OVERLAY 轨道同时渲染
 
@@ -382,10 +408,10 @@
       "z_index": 20,
       "interpolation": "smooth",
       "keyframes": [
-        { "time": 0,  "x": 0.0, "y": 0.0,  "scale_x": 0.5, "scale_y": 0.5, "opacity": 0 },
-        { "time": 1,  "x": 0.03, "y": 0.03, "scale_x": 0.55, "scale_y": 0.55, "opacity": 1 },
-        { "time": 11, "x": 0.4, "y": 0.3, "scale_x": 0.6, "scale_y": 0.6, "opacity": 1 },
-        { "time": 12, "x": 0.45, "y": 0.45, "scale_x": 0.5, "scale_y": 0.5, "opacity": 0 }
+        { "time": 0,  "x": 0.5, "y": 0.5, "scale_x": 0.5, "scale_y": 0.5, "opacity": 0 },
+        { "time": 1,  "x": 0.5, "y": 0.5, "scale_x": 0.55, "scale_y": 0.55, "opacity": 1 },
+        { "time": 11, "x": 0.5, "y": 0.45, "scale_x": 0.6, "scale_y": 0.6, "opacity": 1 },
+        { "time": 12, "x": 0.5, "y": 0.45, "scale_x": 0.5, "scale_y": 0.5, "opacity": 0 }
       ]
     }
   ]
@@ -402,10 +428,10 @@
       "z_index": 30,
       "interpolation": "smooth",
       "keyframes": [
-        { "time": 0,  "x": 0.02, "y": 0.5, "opacity": 0 },
-        { "time": 1,  "x": 0.02, "y": 0.5, "opacity": 1 },
-        { "time": 11, "x": 0.4,  "y": 0.6, "opacity": 1 },
-        { "time": 12, "x": 0.4,  "y": 0.6, "opacity": 0 }
+        { "time": 0,  "x": 0.5, "y": 0.5, "font_scale": 2.0, "opacity": 0 },
+        { "time": 1,  "x": 0.5, "y": 0.5, "font_scale": 2.0, "opacity": 1 },
+        { "time": 11, "x": 0.5, "y": 0.6, "font_scale": 2.0, "scale_x": 1.2, "scale_y": 0.8, "opacity": 1 },
+        { "time": 12, "x": 0.5, "y": 0.6, "font_scale": 2.0, "opacity": 0 }
       ]
     }
   ]

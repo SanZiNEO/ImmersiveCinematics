@@ -160,6 +160,45 @@ public final class ScriptValidator {
                         issues.add(cp + ".path 缺失（layer_type=image 需要图片文件名，只支持 PNG）");
                     }
                 }
+                // ===== 循环参数校验（CAMERA）=====
+                if ("CAMERA".equalsIgnoreCase(type)) {
+                    boolean loop = clip.has("loop") && clip.get("loop").getAsBoolean();
+                    if (clip.has("loop_count")) {
+                        try {
+                            int lc = clip.get("loop_count").getAsInt();
+                            if (lc == 0) {
+                                issues.add(cp + ".loop_count 不允许为 0（-1=无限循环，正整数=循环次数），运行时将按 1 处理");
+                            }
+                        } catch (Exception e) {
+                            issues.add(cp + ".loop_count 不是整数");
+                        }
+                    }
+                    checkEnum(clip, cp, "loop_mode", issues, "repeat", "pingpong");
+                    if (loop) {
+                        boolean infinite = !clip.has("loop_count") || clip.get("loop_count").getAsInt() < 0;
+                        if (infinite && ci < clips.size() - 1) {
+                            issues.add(cp + " 无限循环（loop=true + loop_count=-1）后仍有其他片段：后续片段作为特写覆盖播放，播完回落该循环视角");
+                        }
+                        if (clip.has("keyframes") && clip.get("keyframes").isJsonArray()) {
+                            JsonArray kfs = clip.getAsJsonArray("keyframes");
+                            if (kfs.size() >= 2) {
+                                try {
+                                    float first = kfs.get(0).getAsJsonObject().get("time").getAsFloat();
+                                    float last = kfs.get(kfs.size() - 1).getAsJsonObject().get("time").getAsFloat();
+                                    float animPeriod = last - first;
+                                    if (animPeriod <= 0f) {
+                                        issues.add(cp + " 循环周期无效：首末关键帧时间差必须 > 0");
+                                    } else if (clip.has("duration") && Math.abs(clip.get("duration").getAsFloat() - animPeriod) > 0.5f) {
+                                        issues.add(cp + " duration 与循环周期不匹配（duration=" + clip.get("duration").getAsFloat()
+                                                + "，周期=" + animPeriod + "）：有限循环窗口=周期×loop_count，不匹配会造成播放跳变");
+                                    }
+                                } catch (Exception ignored) { }
+                            } else {
+                                issues.add(cp + " loop=true 但关键帧不足 2 个：循环取模不生效（单帧循环 = 固定视角模式，由首帧决定位置/朝向）");
+                            }
+                        }
+                    }
+                }
 
                 // 关键帧
                 if (!clip.has("keyframes") || !clip.get("keyframes").isJsonArray()) {

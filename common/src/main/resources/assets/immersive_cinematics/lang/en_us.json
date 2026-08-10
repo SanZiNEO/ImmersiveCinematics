@@ -181,6 +181,7 @@
     "editor.field.position_mode": "position mode",
     "editor.field.loop": "loop",
     "editor.field.loop_count": "loop count",
+    "editor.field.loop_mode": "loop mode",
     "editor.field.curve": "bezier curve",
     "editor.field.position": "position",
     "editor.field.follow": "follow",

@@ -250,7 +250,9 @@ public class ScriptPlayer {
         float totalDuration = script.getTotalDuration();
         if (totalDuration < 0) return false; // 无限循环脚本
         float elapsed = getElapsedSeconds();
-        return elapsed >= totalDuration;
+        if (elapsed < totalDuration) return false;
+        // 时间耗尽后：若存在已开始的无限循环片段（loop=true + loop_count=-1），脚本永不结束
+        return !hasActiveInfiniteLoopClip(elapsed);
     }
 
     /**
@@ -271,6 +273,7 @@ public class ScriptPlayer {
         if (!playing || script == null) return 0f;
         float totalDuration = script.getTotalDuration();
         if (totalDuration < 0) return Float.MAX_VALUE; // 无限循环
+        if (hasActiveInfiniteLoopClip(getElapsedSeconds())) return Float.MAX_VALUE; // 无限循环片段已开始
         return Math.max(0f, totalDuration - getElapsedSeconds());
     }
 
@@ -311,7 +314,9 @@ public class ScriptPlayer {
 
         // 检查脚本是否结束
         if (totalDuration > 0 && elapsedSeconds >= totalDuration) {
-            if (script.getMeta().isHoldAtEnd()) {
+            if (hasActiveInfiniteLoopClip(elapsedSeconds)) {
+                // 无限循环片段（loop=true + loop_count=-1）已开始：脚本持续播放，不退出
+            } else if (script.getMeta().isHoldAtEnd()) {
                 // holdAtEnd: 保持在最后一帧
                 elapsedSeconds = totalDuration - HOLD_END_EPSILON;
             } else {
@@ -373,6 +378,22 @@ public class ScriptPlayer {
     }
 
     // ========== 内部方法 ==========
+
+    /**
+     * 是否存在已开始（elapsed >= clip.startTime）且永不结束（无限时长或无限循环）的片段。
+     * 用于时间耗尽后判定脚本是否因无限循环片段而持续播放。
+     */
+    private boolean hasActiveInfiniteLoopClip(float elapsed) {
+        if (script == null) return false;
+        for (TimelineTrack track : script.getTimeline().getTracks()) {
+            for (Clip clip : track.getClips()) {
+                if (clip.isEffectivelyInfinite() && elapsed >= clip.getStartTime()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     private float getElapsedSeconds() {
         return (float)(CameraManager.INSTANCE.getGameTimeSeconds() - startGameTimeSeconds);

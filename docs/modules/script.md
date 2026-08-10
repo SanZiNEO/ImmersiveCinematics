@@ -68,7 +68,7 @@
   - ✅ 关键帧插值驱动画幅比黑边（`aspect_ratio`），无活跃 clip 时归零，停止时重置（`LetterboxTrackPlayer`）
 - **OVERLAY 轨道播放器**
   - ✅ 按 clip 的 `layer_type` 创建对应覆盖层（fade/image/subtitle/pip）并注册到 `OverlayManager`，支持 z_index 分层（`OverlayTrackPlayer`）
-  - ✅ 首帧套用初始值，随后按关键帧插值驱动：`x/y`（屏幕百分比 0~1，左上角锚点）、`scale_x/scale_y`（原图百分比乘数，image）、`opacity`（透明度，淡入淡出完全由关键帧表达）；`interpolation: "smooth"` 走 Centripetal Catmull-Rom 样条（范围外钳制到边界关键帧）（`OverlayTrackPlayer`）
+  - ✅ 首帧套用初始值，随后按关键帧插值驱动：`x/y`（屏幕百分比 0~1，中心锚点）、`scale_x/scale_y`（原图百分比乘数，image / 固定字号后缩放，subtitle）、`font_scale`（字号倍数，subtitle）、`opacity`（透明度，淡入淡出完全由关键帧表达）；`interpolation: "smooth"` 走 Centripetal Catmull-Rom 样条（范围外钳制到边界关键帧）（`OverlayTrackPlayer`）
   - ✅ 支持多条同类型 OVERLAY 轨道同时渲染：TrackPlayer 数据源按轨道索引定位（`clipsForTrack(trackIndex)`），轨道 JSON 以 `id` 区分管理（`ScriptPlayer`、`TrackPlayer`）
   - ✅ clip 切换或停止时移除并清理覆盖层（`OverlayTrackPlayer`）
 - **EVENT 轨道（服务端执行）**

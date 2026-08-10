@@ -88,6 +88,53 @@ public class Clip {
         return getInt("loop_count", -1);
     }
 
+    /**
+     * 循环时间映射模式：repeat=周期内从头到尾重复；pingpong=往复折返。
+     * 仅 loop=true 时生效。
+     */
+    public String getLoopMode() {
+        return getString("loop_mode", "repeat");
+    }
+
+    /** 单次循环周期 = 末关键帧时间 - 首关键帧时间（关键帧不足 2 个时为 0） */
+    public float getAnimPeriod() {
+        if (keyframes.size() < 2) return 0f;
+        return keyframes.get(keyframes.size() - 1).getTime() - keyframes.get(0).getTime();
+    }
+
+    /**
+     * 是否为无限循环（loop=true 且 loop_count=-1）。
+     * 注：loop_count=0 在解析期已被修正为 1（有限循环），不会到达这里。
+     */
+    public boolean isLoopInfinite() {
+        return isLoop() && getLoopCount() < 0;
+    }
+
+    /**
+     * 片段是否"永不结束"的统一判断：
+     * duration 为负（无限时长片段）或无限循环（loop=true + loop_count=-1）。
+     * 所有"这个片段会不会结束"的判定都应走此方法。
+     */
+    public boolean isEffectivelyInfinite() {
+        return isInfinite() || isLoopInfinite();
+    }
+
+    /**
+     * 片段活跃窗口末端（不含）：
+     * 无限（时长或循环）→ Float.MAX_VALUE；
+     * 有限循环 → start + 周期 × 次数；
+     * 普通 → start + duration。
+     * 与 KeyframeInterpolator 的循环钳制共用同一窗口公式。
+     */
+    public float getWindowEnd() {
+        if (isEffectivelyInfinite()) return Float.MAX_VALUE;
+        if (isLoop() && getLoopCount() > 0) {
+            float animPeriod = getAnimPeriod();
+            if (animPeriod > 0) return startTime + animPeriod * getLoopCount();
+        }
+        return startTime + duration;
+    }
+
     public BezierCurve getCurve() {
         return getObject("curve");
     }

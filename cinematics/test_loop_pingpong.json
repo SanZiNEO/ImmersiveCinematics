@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "id": "test_loop_pingpong",
+    "name": "无限循环-监控来回摇",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "无限循环样式 B：loop=true + loop_count=-1 + loop_mode=pingpong，关键帧只写半程（yaw -30°→30°），引擎自动往复折返，模拟监控摄像头来回扫描；退出靠 skippable 手动跳过",
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "skippable": true,
+    "interruptible": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 5,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "id": "camera_1",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 5,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": true,
+            "loop_count": -1,
+            "loop_mode": "pingpong",
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 6, "dz": 0 }, "yaw": -30, "pitch": -20, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 5, "position": { "dx": 0, "dy": 6, "dz": 0 }, "yaw": 30, "pitch": -20, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

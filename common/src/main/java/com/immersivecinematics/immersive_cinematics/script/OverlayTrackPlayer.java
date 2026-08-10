@@ -163,6 +163,8 @@ public class OverlayTrackPlayer implements TrackPlayer {
             il.setScale(first.getFloat("scale_x", 1f), first.getFloat("scale_y", 1f));
         } else if (currentLayer instanceof SubtitleLayer sl) {
             sl.setPosition(first.getFloat("x", 0f), first.getFloat("y", 0f));
+            sl.setFontScale(first.getFloat("font_scale", 1f));
+            sl.setScale(first.getFloat("scale_x", 1f), first.getFloat("scale_y", 1f));
         } else if (currentLayer instanceof PipLayer pl) {
             pl.setPosition(first.getFloat("x", 0f), first.getFloat("y", 0f));
             pl.setSize(first.getFloat("width", 0f), first.getFloat("height", 0f));
@@ -190,6 +192,12 @@ public class OverlayTrackPlayer implements TrackPlayer {
             sl.setPosition(
                     interpolateFloat(kfs, localTime, "x", 0f, smooth),
                     interpolateFloat(kfs, localTime, "y", 0f, smooth)
+            );
+            // 两级缩放：font_scale（原版 title 同款矩阵缩放）+ scale_x/y（图片同款百分比缩放）
+            sl.setFontScale(interpolateFloat(kfs, localTime, "font_scale", 1f, smooth));
+            sl.setScale(
+                    interpolateFloat(kfs, localTime, "scale_x", 1f, smooth),
+                    interpolateFloat(kfs, localTime, "scale_y", 1f, smooth)
             );
         } else if (currentLayer instanceof PipLayer pl) {
             pl.setOpacity(opacity);

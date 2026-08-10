@@ -24,7 +24,8 @@
             "duration": 30,
             "transition": "cut",
             "interpolation": "linear",
-            "loop": false,
+            "loop": true,
+            "loop_count": -1,
             "keyframes": [
               { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@e[type=minecraft:iron_golem]", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
               { "time": 15, "position": { "dx": 0, "dy": 6, "dz": -8 }, "follow": "entity", "follow_selector": "@e[type=minecraft:iron_golem]", "look_at": "entity", "look_at_selector": "@e[type=minecraft:iron_golem]", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },

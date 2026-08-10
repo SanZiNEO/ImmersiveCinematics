@@ -1,0 +1,39 @@
+{
+  "meta": {
+    "id": "test_loop_follow_infinite",
+    "name": "无限循环-常驻跟随视角",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "无限循环样式 A：loop=true + loop_count=-1，关键帧为固定 follow(@p) 视角（上4格/南5格）。片段一旦开始永不结束，脚本持续播放，相机始终跟随玩家；退出靠 skippable 手动跳过",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_crosshair": true,
+    "hide_arm": true,
+    "skippable": true,
+    "interruptible": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 10,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "id": "camera_1",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": true,
+            "loop_count": -1,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@p", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 10, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@p", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

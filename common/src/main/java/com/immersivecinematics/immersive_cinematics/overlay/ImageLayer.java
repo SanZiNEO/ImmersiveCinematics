@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
  * <p>
  * 坐标语义（百分比，跨屏幕一致）：
  * <ul>
- *   <li>x/y = 屏幕宽高的百分比（0~1）——元素左上角位置；0 = 贴屏幕零点，1 = 左上角在屏幕右/下边缘</li>
+ *   <li>x/y = 屏幕宽高的百分比（0~1）——元素中心位置；0.5 = 屏幕正中，1 = 中心在屏幕右/下边缘</li>
  *   <li>scale_x/scale_y = 相对原图分辨率的百分比乘数（1 = 原尺寸，0.5 = 半尺寸）</li>
  *   <li>opacity = 透明度（0~1）</li>
  * </ul>
@@ -24,7 +24,7 @@ public class ImageLayer implements OverlayLayer {
     private static final int DEFAULT_Z_INDEX = 20;
 
     private float opacity = 0f;
-    /** 屏幕百分比位置（0~1，元素左上角） */
+    /** 屏幕百分比位置（0~1，元素中心） */
     private float x = 0f;
     private float y = 0f;
     /** 相对原图尺寸的百分比乘数（1 = 原尺寸） */
@@ -46,9 +46,9 @@ public class ImageLayer implements OverlayLayer {
         float dispH = texSize[1] * scaleY;
         if (dispW <= 0f || dispH <= 0f) return;
 
-        // 左上角锚点：位置百分比 × 屏幕尺寸
-        float actualX = x * screenWidth;
-        float actualY = y * screenHeight;
+        // 中心锚点：x/y 指向图片中心，左上角 = 中心 − 尺寸/2
+        float actualX = x * screenWidth - dispW / 2f;
+        float actualY = y * screenHeight - dispH / 2f;
 
         // 诊断：屏幕尺寸 + 图片实际渲染位置（节流 1s，控制台可见）
         long now = System.currentTimeMillis();
@@ -102,7 +102,7 @@ public class ImageLayer implements OverlayLayer {
         this.opacity = opacity;
     }
 
-    /** 设置屏幕百分比位置（0~1，元素左上角） */
+    /** 设置屏幕百分比位置（0~1，元素中心） */
     public void setPosition(float x, float y) {
         this.x = x;
         this.y = y;

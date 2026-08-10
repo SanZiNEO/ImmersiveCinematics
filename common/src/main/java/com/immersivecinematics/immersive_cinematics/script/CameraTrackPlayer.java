@@ -57,9 +57,9 @@ public class CameraTrackPlayer implements TrackPlayer {
         if (c != null) return true;
         for (int i = 0; i < clips.size() - 1; i++) {
             Clip prev = clips.get(i);
-            if (prev.isMorph() && prev.getTransitionDuration() > 0f && !prev.isInfinite()) {
+            if (prev.isMorph() && prev.getTransitionDuration() > 0f && !prev.isEffectivelyInfinite()) {
                 // B 模型：转场区以片段边界为中心 [end−t/2, end+t/2)
-                float prevEnd = prev.getStartTime() + prev.getDuration();
+                float prevEnd = prev.getWindowEnd();
                 float half = prev.getTransitionDuration() / 2f;
                 if (globalTime >= prevEnd - half && globalTime < prevEnd + half) return true;
             }
@@ -79,8 +79,8 @@ public class CameraTrackPlayer implements TrackPlayer {
         for (int i = 0; i < clips.size() - 1; i++) {
             Clip prev = clips.get(i);
             Clip next = clips.get(i + 1);
-            if (prev.isMorph() && prev.getTransitionDuration() > 0f && !prev.isInfinite()) {
-                float prevEnd = prev.getStartTime() + prev.getDuration();
+            if (prev.isMorph() && prev.getTransitionDuration() > 0f && !prev.isEffectivelyInfinite()) {
+                float prevEnd = prev.getWindowEnd();
                 float half = prev.getTransitionDuration() / 2f;
                 float morphStart = prevEnd - half;
                 float morphEnd = prevEnd + half;
@@ -400,9 +400,9 @@ public class CameraTrackPlayer implements TrackPlayer {
 
         for (int i = startIdx; i < clips.size(); i++) {
             Clip clip = clips.get(i);
-            float clipEnd = clip.getStartTime() + clip.getDuration();
+            float clipEnd = clip.getWindowEnd();
 
-            if (clip.isInfinite()) {
+            if (clip.isEffectivelyInfinite()) {
                 if (globalTime >= clip.getStartTime()) {
                     result = clip;
                     resultIndex = i;
@@ -418,9 +418,9 @@ public class CameraTrackPlayer implements TrackPlayer {
 
         for (int i = 0; i < startIdx; i++) {
             Clip clip = clips.get(i);
-            float clipEnd = clip.getStartTime() + clip.getDuration();
+            float clipEnd = clip.getWindowEnd();
 
-            if (clip.isInfinite()) {
+            if (clip.isEffectivelyInfinite()) {
                 if (globalTime >= clip.getStartTime()) {
                     result = clip;
                     resultIndex = i;
