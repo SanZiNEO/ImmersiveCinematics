@@ -339,9 +339,22 @@ public class ScriptParser {
         if (cpArr.size() != 2) {
             throw new ScriptParseException(p + ".control_points", "必须恰好2个控制点，实际: " + cpArr.size());
         }
-        List<Vec3> controlPoints = new ArrayList<>();
+        List<BezierCurve.ControlPoint> controlPoints = new ArrayList<>();
         for (int i = 0; i < cpArr.size(); i++) {
-            controlPoints.add(parseVec3(cpArr.get(i).getAsJsonObject(), p + ".control_points[" + i + "]"));
+            JsonObject cp = cpArr.get(i).getAsJsonObject();
+            String pp = p + ".control_points[" + i + "]";
+            // 自描述：有 dx/dy/dz = 相对段起点偏移；有 x/y/z = 世界绝对坐标
+            if (cp.has("dx")) {
+                controlPoints.add(BezierCurve.ControlPoint.relative(
+                        requireFloat(cp, pp, "dx"),
+                        requireFloat(cp, pp, "dy"),
+                        requireFloat(cp, pp, "dz")));
+            } else {
+                controlPoints.add(BezierCurve.ControlPoint.absolute(
+                        requireFloat(cp, pp, "x"),
+                        requireFloat(cp, pp, "y"),
+                        requireFloat(cp, pp, "z")));
+            }
         }
         return new BezierCurve(type, controlPoints);
     }

@@ -1,20 +1,18 @@
 {
   "meta": {
-    "id": "showcase_05_portal",
-    "name": "送花与传送门",
+    "id": "showcase_06_nether",
+    "name": "进入下界",
     "author": "AI",
     "version": 3,
-    "description": "手持虞美人右键铁傀儡触发：变焦特写铁傀儡，搭建黑曜石传送门框架",
+    "description": "进入下界触发：欢迎 + 给金锭/抗火/再生效果 + 引导猪灵交易，环绕镜头展示地狱环境",
     "triggers": [
       {
-        "id": "give_flower",
-        "type": "item_on_interact",
+        "id": "enter_nether",
+        "type": "dimension_change",
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
-          "item": "minecraft:poppy",
-          "target": "minecraft:iron_golem",
-          "target_type": "entity"
+          "dimension": "minecraft:the_nether"
         }
       }
     ],
@@ -41,14 +39,14 @@
         "clips": [
           {
             "start_time": 0,
-            "duration": 4.5,
+            "duration": 10,
             "transition": "cut",
             "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
                 "time": 0,
-                "position": { "dx": 7, "dy": 4, "dz": 0 },
+                "position": { "dx": 6, "dy": 4, "dz": 6 },
                 "position_mode": "relative",
                 "follow": "none",
                 "look_at": "entity",
@@ -56,12 +54,12 @@
                 "yaw": 0,
                 "pitch": 0,
                 "roll": 0,
-                "fov": 70,
+                "fov": 75,
                 "zoom": 1.0
               },
               {
-                "time": 4.5,
-                "position": { "dx": 5, "dy": 4, "dz": 0 },
+                "time": 5,
+                "position": { "dx": 0, "dy": 5, "dz": -6 },
                 "position_mode": "relative",
                 "follow": "none",
                 "look_at": "entity",
@@ -69,34 +67,12 @@
                 "yaw": 0,
                 "pitch": 0,
                 "roll": 0,
-                "fov": 70,
-                "zoom": 1.0
-              }
-            ]
-          },
-          {
-            "start_time": 4.5,
-            "duration": 7.5,
-            "transition": "cut",
-            "interpolation": "linear",
-            "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": -4, "dy": 4, "dz": 11 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
+                "fov": 75,
                 "zoom": 1.0
               },
               {
-                "time": 3.5,
-                "position": { "dx": 0, "dy": 5, "dz": 12 },
+                "time": 10,
+                "position": { "dx": -6, "dy": 4, "dz": 6 },
                 "position_mode": "relative",
                 "follow": "none",
                 "look_at": "entity",
@@ -104,20 +80,7 @@
                 "yaw": 0,
                 "pitch": 0,
                 "roll": 0,
-                "fov": 70,
-                "zoom": 1.0
-              },
-              {
-                "time": 7.5,
-                "position": { "dx": 4, "dy": 6, "dz": 11 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
+                "fov": 75,
                 "zoom": 1.0
               }
             ]
@@ -128,41 +91,24 @@
         "type": "EVENT",
         "clips": [
           {
-            "start_time": 4.5,
+            "start_time": 0.5,
             "duration": 0.5,
             "event_type": "command",
             "keyframes": [
               {
                 "time": 0,
                 "event_type": "command",
-                "command": "fill ~-1 ~0 ~6 ~2 ~0 ~6 minecraft:obsidian"
+                "command": "give @p minecraft:gold_ingot 64"
               },
               {
                 "time": 0.01,
                 "event_type": "command",
-                "command": "fill ~-1 ~4 ~6 ~2 ~4 ~6 minecraft:obsidian"
+                "command": "effect @p minecraft:fire_resistance infinite 1 true"
               },
               {
                 "time": 0.02,
                 "event_type": "command",
-                "command": "fill ~-1 ~0 ~6 ~-1 ~4 ~6 minecraft:obsidian"
-              },
-              {
-                "time": 0.03,
-                "event_type": "command",
-                "command": "fill ~2 ~0 ~6 ~2 ~4 ~6 minecraft:obsidian"
-              }
-            ]
-          },
-          {
-            "start_time": 6.5,
-            "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0,
-                "event_type": "command",
-                "command": "give @p minecraft:flint_and_steel 1"
+                "command": "effect @p minecraft:regeneration 60 1 true"
               }
             ]
           }
@@ -170,13 +116,13 @@
       },
       {
         "type": "OVERLAY",
-        "id": "overlay_portal",
+        "id": "overlay_nether",
         "clips": [
           {
             "start_time": 0,
             "duration": 3.5,
             "layer_type": "subtitle",
-            "text": "铁傀儡接受了你的花",
+            "text": "欢迎来到下界",
             "z_index": 30,
             "interpolation": "linear",
             "color": "#000000",
@@ -189,10 +135,10 @@
             ]
           },
           {
-            "start_time": 6.5,
-            "duration": 4,
+            "start_time": 5,
+            "duration": 5,
             "layer_type": "subtitle",
-            "text": "用打火石点燃传送门，通往新的世界",
+            "text": "猪灵喜爱金锭，把金锭丢给它，它会回赠你物品",
             "z_index": 30,
             "interpolation": "linear",
             "color": "#000000",
@@ -200,8 +146,8 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 4.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 5.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
             ]
           }
         ]

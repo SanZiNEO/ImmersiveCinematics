@@ -18,13 +18,19 @@ import java.util.List;
  *   <li>四段贝塞尔曲线首尾相连：可近似任意圆或椭圆运动</li>
  * </ul>
  * <p>
+ * 控制点支持两种模式（与 position 对象同模式，每个控制点自描述）：
+ * <ul>
+ *   <li>绝对（有 x/y/z）：世界坐标，直接参与曲线</li>
+ *   <li>相对（有 dx/dy/dz）：相对<b>段起点关键帧</b>（from）的偏移——运行时求值为
+ *       {@code from + 偏移}；适合"以玩家为出发点绕圆"等相对场景（玩家位置运行时才知道，绝对模式写不了）</li>
+ * </ul>
  * JSON 示例：
  * <pre>
  * {
  *   "type": "bezier",
  *   "control_points": [
- *     { "x": 10.0, "y": 1.5, "z": 3.0 },
- *     { "x": 0.0, "y": 2.0, "z": -2.0 }
+ *     { "dx": 10.0, "dy": 1.5, "dz": 3.0 },
+ *     { "dx": 0.0, "dy": 2.0, "dz": -2.0 }
  *   ]
  * }
  * </pre>
@@ -34,10 +40,10 @@ public class BezierCurve {
     /** 曲线类型，当前仅支持 "bezier" */
     private final String type;
 
-    /** 两个控制点 P1、P2 */
-    private final List<Vec3> controlPoints;
+    /** 两个控制点（自描述：相对/绝对） */
+    private final List<ControlPoint> controlPoints;
 
-    public BezierCurve(String type, List<Vec3> controlPoints) {
+    public BezierCurve(String type, List<ControlPoint> controlPoints) {
         this.type = type;
         this.controlPoints = controlPoints;
     }
@@ -46,18 +52,22 @@ public class BezierCurve {
         return type;
     }
 
-    /** 获取控制点 P1（第一个控制点） */
-    public Vec3 getP1() {
-        return controlPoints.get(0);
+    /**
+     * 求值控制点 P1 的世界坐标：相对模式 = 段起点 from + 偏移；绝对模式 = 原值。
+     */
+    public Vec3 resolveP1(Vec3 segmentStart) {
+        return controlPoints.get(0).resolve(segmentStart);
     }
 
-    /** 获取控制点 P2（第二个控制点） */
-    public Vec3 getP2() {
-        return controlPoints.get(1);
+    /**
+     * 求值控制点 P2 的世界坐标：相对模式 = 段起点 from + 偏移；绝对模式 = 原值。
+     */
+    public Vec3 resolveP2(Vec3 segmentStart) {
+        return controlPoints.get(1).resolve(segmentStart);
     }
 
     /** 获取所有控制点（不可变视图） */
-    public List<Vec3> getControlPoints() {
+    public List<ControlPoint> getControlPoints() {
         return controlPoints;
     }
 
@@ -77,5 +87,55 @@ public class BezierCurve {
                     type, controlPoints.get(0), controlPoints.get(1));
         }
         return String.format("BezierCurve{type=%s, controlPoints=%s}", type, controlPoints);
+    }
+
+    /**
+     * 贝塞尔控制点 — 自描述坐标（与 PositionData 同模式）
+     * <ul>
+     *   <li>relative=true：dx/dy/dz — 相对段起点关键帧的偏移</li>
+     *   <li>relative=false：x/y/z — 世界绝对坐标</li>
+     * </ul>
+     */
+    public static class ControlPoint {
+
+        /** true=相对偏移（dx/dy/dz），false=绝对坐标（x/y/z） */
+        private final boolean relative;
+        private final float x;
+        private final float y;
+        private final float z;
+
+        public static ControlPoint absolute(float x, float y, float z) {
+            return new ControlPoint(false, x, y, z);
+        }
+
+        public static ControlPoint relative(float dx, float dy, float dz) {
+            return new ControlPoint(true, dx, dy, dz);
+        }
+
+        private ControlPoint(boolean relative, float x, float y, float z) {
+            this.relative = relative;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
+
+        public boolean isRelative() {
+            return relative;
+        }
+
+        /** 分量（绝对坐标或相对偏移） */
+        public Vec3 toVec3() {
+            return new Vec3(x, y, z);
+        }
+
+        /** 求值世界坐标：相对 = 段起点 + 偏移；绝对 = 原值 */
+        public Vec3 resolve(Vec3 segmentStart) {
+            return relative ? segmentStart.add(x, y, z) : new Vec3(x, y, z);
+        }
+
+        @Override
+        public String toString() {
+            return String.format("ControlPoint{%s, %s, %s, %s}", relative ? "relative" : "absolute", x, y, z);
+        }
     }
 }

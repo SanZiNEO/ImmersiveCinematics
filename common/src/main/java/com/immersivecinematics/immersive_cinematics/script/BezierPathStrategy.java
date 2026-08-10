@@ -22,8 +22,9 @@ public class BezierPathStrategy implements PathStrategy {
     @Override
     public Vec3 interpolate(Vec3 from, Vec3 to, float s, BezierCurve curve) {
         if (curve != null && curve.isValid()) {
-            Vec3 p1 = curve.getP1();
-            Vec3 p2 = curve.getP2();
+            // 控制点世界化：相对控制点（dx/dy/dz）= 段起点 from + 偏移；绝对控制点（x/y/z）= 原值
+            Vec3 p1 = curve.resolveP1(from);
+            Vec3 p2 = curve.resolveP2(from);
 
             ArcLengthLUT lut = lutCache.computeIfAbsent(
                     new LutKey(from, p1, p2, to),
