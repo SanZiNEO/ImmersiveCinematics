@@ -167,7 +167,7 @@
         "clips": [
           {
             "start_time": 0,
-            "duration": 3.5,
+            "duration": 4,
             "layer_type": "subtitle",
             "text": "铁傀儡接受了你的花",
             "z_index": 30,
@@ -177,13 +177,13 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 2.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 3.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
+              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
             ]
           },
           {
-            "start_time": 6.5,
-            "duration": 4,
+            "start_time": 6,
+            "duration": 5,
             "layer_type": "subtitle",
             "text": "走进传送门，前往新的世界",
             "z_index": 30,
@@ -193,8 +193,39 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 4.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 5.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "AUDIO",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 2.59,
+            "sound": "5_reverb_part1.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 3.36,
+            "sound": "5_reverb_part2.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
             ]
           }
         ]

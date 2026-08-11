@@ -35,7 +35,7 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 15.0,
+    "total_duration": 24.0,
     "tracks": [
       {
         "type": "CAMERA",
@@ -83,7 +83,7 @@
         "clips": [
           {
             "start_time": 0,
-            "duration": 3,
+            "duration": 5,
             "layer_type": "subtitle",
             "text": "你击败了一只羊，恭喜你",
             "z_index": 30,
@@ -93,13 +93,13 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 2.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 4.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 5.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
             ]
           },
           {
-            "start_time": 3,
-            "duration": 3,
+            "start_time": 5,
+            "duration": 4,
             "layer_type": "subtitle",
             "text": "但是，要下雨了！",
             "z_index": 30,
@@ -109,13 +109,13 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 2.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 3.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
+              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
             ]
           },
           {
-            "start_time": 6,
-            "duration": 3.5,
+            "start_time": 9,
+            "duration": 5.5,
             "layer_type": "subtitle",
             "text": "注意！小心被雷电击中！",
             "z_index": 30,
@@ -125,15 +125,15 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 2.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 3.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
+              { "time": 4.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 5.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
             ]
           },
           {
-            "start_time": 12,
-            "duration": 3,
+            "start_time": 14.5,
+            "duration": 4.5,
             "layer_type": "subtitle",
-            "text": "雨过天晴，继续冒险吧。我已给你发送村庄的位置。",
+            "text": "雨过天晴，继续冒险吧。",
             "z_index": 30,
             "interpolation": "linear",
             "color": "#000000",
@@ -141,8 +141,24 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 2.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+            ]
+          },
+          {
+            "start_time": 19,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "我已给你发送村庄的位置。",
+            "z_index": 30,
+            "interpolation": "linear",
+            "color": "#000000",
+            "path": "",
+            "keyframes": [
+              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 4.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 5.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
             ]
           }
         ]
@@ -151,7 +167,7 @@
         "type": "EVENT",
         "clips": [
           {
-            "start_time": 3.0,
+            "start_time": 5.0,
             "duration": 0.5,
             "event_type": "command",
             "keyframes": [
@@ -163,7 +179,7 @@
             ]
           },
           {
-            "start_time": 7.0,
+            "start_time": 9.0,
             "duration": 3,
             "event_type": "command",
             "keyframes": [
@@ -190,7 +206,7 @@
             ]
           },
           {
-            "start_time": 12.8,
+            "start_time": 15.0,
             "duration": 0.5,
             "event_type": "command",
             "keyframes": [
@@ -202,7 +218,7 @@
             ]
           },
           {
-            "start_time": 13.2,
+            "start_time": 19.5,
             "duration": 0.5,
             "event_type": "command",
             "keyframes": [
@@ -211,6 +227,76 @@
                 "event_type": "command",
                 "command": "locate structure minecraft:village_plains"
               }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "AUDIO",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 3.48,
+            "sound": "2_reverb_part1.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 5,
+            "duration": 2.47,
+            "sound": "2_reverb_part2.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 9,
+            "duration": 3.79,
+            "sound": "2_reverb_part3.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 14.5,
+            "duration": 3.17,
+            "sound": "2_reverb_part4.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 19,
+            "duration": 3.36,
+            "sound": "2_reverb_part5.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
             ]
           }
         ]

@@ -30,7 +30,7 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 21.0,
+    "total_duration": 31.5,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -54,7 +54,7 @@
           },
           {
             "start_time": 5,
-            "duration": 4,
+            "duration": 7,
             "layer_type": "subtitle",
             "text": "Immersive Cinematics 是一款 Minecraft 过场动画模组",
             "z_index": 30,
@@ -64,13 +64,13 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 6.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 7.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
             ]
           },
           {
-            "start_time": 9,
-            "duration": 4,
+            "start_time": 12,
+            "duration": 8,
             "layer_type": "subtitle",
             "text": "编写脚本，即可操控相机运镜、播放音频、添加字幕",
             "z_index": 30,
@@ -80,13 +80,13 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 7.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 8.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
             ]
           },
           {
-            "start_time": 13,
-            "duration": 4,
+            "start_time": 20,
+            "duration": 6.5,
             "layer_type": "subtitle",
             "text": "脚本由触发器触发，满足条件即自动播放",
             "z_index": 30,
@@ -96,13 +96,13 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 5.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 6.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
             ]
           },
           {
-            "start_time": 17,
-            "duration": 4,
+            "start_time": 26.5,
+            "duration": 4.5,
             "layer_type": "subtitle",
             "text": "接下来击败一只羊试试",
             "z_index": 30,
@@ -112,8 +112,8 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.5 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.5 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.5 }
+              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.5 },
+              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.5 }
             ]
           }
         ]
@@ -136,6 +136,95 @@
                 "event_type": "command",
                 "command": "give @p minecraft:diamond_sword 1 && give @p minecraft:iron_helmet 1 && give @p minecraft:iron_chestplate 1 && give @p minecraft:iron_leggings 1 && give @p minecraft:iron_boots 1"
               }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "AUDIO",
+        "id": "audio_prompt",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 0.83,
+            "sound": "prompt_tone.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "AUDIO",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 3.79,
+            "sound": "1_reverb_part1.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 5,
+            "duration": 5.28,
+            "sound": "1_reverb_part2.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 12,
+            "duration": 6.36,
+            "sound": "1_reverb_part3.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 20,
+            "duration": 4.99,
+            "sound": "1_reverb_part4.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 26.5,
+            "duration": 2.86,
+            "sound": "1_reverb_part5.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
             ]
           }
         ]

@@ -33,7 +33,7 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 60.0,
+    "total_duration": 62.0,
     "tracks": [
       {
         "type": "CAMERA",
@@ -134,7 +134,7 @@
           },
           {
             "start_time": 49.5,
-            "duration": 10.5,
+            "duration": 12.5,
             "transition": "morph",
             "transition_duration": 1.0,
             "interpolation": "linear",
@@ -145,7 +145,7 @@
               { "time": 4,   "position": { "dx": 8.7, "dy": 4.8, "dz": 5.2 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 12, "fov": 56, "zoom": 1.0 },
               { "time": 6,   "position": { "dx": 9.1, "dy": 5.3, "dz": 5.8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 10, "fov": 60, "zoom": 1.0 },
               { "time": 8,   "position": { "dx": 9.6, "dy": 5.7, "dz": 6.5 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 8, "fov": 65, "zoom": 1.0 },
-              { "time": 10.5, "position": { "dx": 10, "dy": 6,  "dz": 7 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 6, "fov": 70, "zoom": 1.0 }
+              { "time": 12.5, "position": { "dx": 10.5, "dy": 6.5, "dz": 7.5 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 6, "fov": 70, "zoom": 1.0 }
             ]
           }
         ]
@@ -155,12 +155,12 @@
         "clips": [
           {
             "start_time": 0,
-            "duration": 60,
+            "duration": 62,
             "keyframes": [
               { "time": 0,   "aspect_ratio": 0.0 },
               { "time": 0.8, "aspect_ratio": 2.35 },
-              { "time": 58.5, "aspect_ratio": 2.35 },
-              { "time": 60,  "aspect_ratio": 0.0 }
+              { "time": 60.5, "aspect_ratio": 2.35 },
+              { "time": 62,  "aspect_ratio": 0.0 }
             ]
           }
         ]
@@ -188,7 +188,7 @@
         "clips": [
           {
             "start_time": 0,
-            "duration": 3.5,
+            "duration": 4,
             "layer_type": "subtitle",
             "text": "欢迎回到主世界",
             "z_index": 30,
@@ -198,13 +198,13 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 2.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 3.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
+              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
             ]
           },
           {
             "start_time": 8,
-            "duration": 4.5,
+            "duration": 5.5,
             "layer_type": "subtitle",
             "text": "主世界，一切冒险开始的地方",
             "z_index": 30,
@@ -214,13 +214,13 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 4.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 5.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
             ]
           },
           {
             "start_time": 50,
-            "duration": 4.5,
+            "duration": 4,
             "layer_type": "subtitle",
             "text": "你的冒险仍在继续",
             "z_index": 30,
@@ -230,15 +230,15 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
             ]
           },
           {
             "start_time": 55.5,
-            "duration": 4.5,
+            "duration": 6,
             "layer_type": "subtitle",
-            "text": "你饿了，右键长按面包恢复饱食度",
+            "text": "你探索了这么久，应该饿了，吃个面包吧",
             "z_index": 30,
             "interpolation": "linear",
             "color": "#000000",
@@ -246,8 +246,65 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 5.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 6.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "AUDIO",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 2.28,
+            "sound": "9_reverb_part1.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 8,
+            "duration": 3.67,
+            "sound": "9_reverb_part2.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 50,
+            "duration": 2.50,
+            "sound": "9_reverb_part3.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 55.5,
+            "duration": 4.42,
+            "sound": "9_reverb_part4.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
             ]
           }
         ]

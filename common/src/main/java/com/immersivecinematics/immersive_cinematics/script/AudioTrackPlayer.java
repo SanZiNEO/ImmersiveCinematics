@@ -215,10 +215,10 @@ public class AudioTrackPlayer implements TrackPlayer {
         float initialVol = fadeIn > 0f ? 0f : clip.getVolume() * musicVol;
         inst.setVolume(initialVol);
 
-        // Set initial position
+        // Set initial position（相对模式 = 跟随玩家：玩家当前位置 + 偏移）
         Vec3 pos = getInterpolatedPosition(clip, 0f);
         if ("relative".equals(clip.getAudioPositionMode())) {
-            pos = originPos.add(pos);
+            pos = Minecraft.getInstance().player.position().add(pos);
         }
         inst.setPosition(pos);
 
@@ -271,10 +271,10 @@ public class AudioTrackPlayer implements TrackPlayer {
                     inst.getSourceState(), inst.getCurrentTime(), inst.getGain(), inst.getOpenAlError());
         }
 
-        // Update position
+        // Update position（相对模式 = 跟随玩家：每帧 玩家当前位置 + 关键帧偏移，音源始终相对玩家发声）
         Vec3 pos = new Vec3(ix, iy, iz);
         if ("relative".equals(clip.getAudioPositionMode())) {
-            pos = originPos.add(pos);
+            pos = Minecraft.getInstance().player.position().add(pos);
         }
         inst.setPosition(pos);
 

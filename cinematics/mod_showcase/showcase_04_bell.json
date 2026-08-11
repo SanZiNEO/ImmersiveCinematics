@@ -99,7 +99,7 @@
         "clips": [
           {
             "start_time": 0,
-            "duration": 3.5,
+            "duration": 4,
             "layer_type": "subtitle",
             "text": "村庄的钟声响了",
             "z_index": 30,
@@ -109,13 +109,13 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 2.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 3.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
+              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
             ]
           },
           {
-            "start_time": 5,
-            "duration": 4,
+            "start_time": 4,
+            "duration": 4.5,
             "layer_type": "subtitle",
             "text": "铁傀儡正在巡视村庄",
             "z_index": 30,
@@ -125,13 +125,13 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
             ]
           },
           {
-            "start_time": 9.5,
-            "duration": 4,
+            "start_time": 8.5,
+            "duration": 4.5,
             "layer_type": "subtitle",
             "text": "快去送一朵花给它吧",
             "z_index": 30,
@@ -141,8 +141,8 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
+              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
+              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
             ]
           }
         ]
@@ -189,6 +189,50 @@
               { "time": 6.8,  "x": 0.85, "y": 0.90, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
               { "time": 9.8,  "x": 0.15, "y": 0.90, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
               { "time": 12.8, "x": 0.15, "y": 0.20, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "AUDIO",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 2.50,
+            "sound": "4_reverb_part1.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 4,
+            "duration": 2.98,
+            "sound": "4_reverb_part2.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          },
+          {
+            "start_time": 8.5,
+            "duration": 2.86,
+            "sound": "4_reverb_part3.ogg",
+            "source": "file",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
             ]
           }
         ]
