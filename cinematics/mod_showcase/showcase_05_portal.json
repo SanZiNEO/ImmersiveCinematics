@@ -151,18 +151,11 @@
                 "time": 0.03,
                 "event_type": "command",
                 "command": "fill ~2 ~0 ~6 ~2 ~4 ~6 minecraft:obsidian"
-              }
-            ]
-          },
-          {
-            "start_time": 6.5,
-            "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
+              },
               {
-                "time": 0,
+                "time": 0.04,
                 "event_type": "command",
-                "command": "give @p minecraft:flint_and_steel 1"
+                "command": "fill ~0 ~1 ~6 ~1 ~3 ~6 minecraft:nether_portal"
               }
             ]
           }
@@ -192,7 +185,7 @@
             "start_time": 6.5,
             "duration": 4,
             "layer_type": "subtitle",
-            "text": "用打火石点燃传送门，通往新的世界",
+            "text": "走进传送门，前往新的世界",
             "z_index": 30,
             "interpolation": "linear",
             "color": "#000000",

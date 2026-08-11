@@ -169,6 +169,29 @@
             ]
           }
         ]
+      },
+      {
+        "type": "OVERLAY",
+        "id": "overlay_avatar",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12.8,
+            "layer_type": "image",
+            "path": "test_image.png",
+            "z_index": 20,
+            "interpolation": "smooth",
+            "color": "#000000",
+            "text": "",
+            "keyframes": [
+              { "time": 0,    "x": 0.15, "y": 0.20, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
+              { "time": 3.8,  "x": 0.85, "y": 0.20, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
+              { "time": 6.8,  "x": 0.85, "y": 0.90, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
+              { "time": 9.8,  "x": 0.15, "y": 0.90, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
+              { "time": 12.8, "x": 0.15, "y": 0.20, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 }
+            ]
+          }
+        ]
       }
     ]
   }

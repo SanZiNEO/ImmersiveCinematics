@@ -99,6 +99,11 @@
                 "time": 0,
                 "event_type": "command",
                 "command": "give @p minecraft:obsidian 20"
+              },
+              {
+                "time": 0.01,
+                "event_type": "command",
+                "command": "give @p minecraft:flint_and_steel 1"
               }
             ]
           }
@@ -128,7 +133,7 @@
             "start_time": 5,
             "duration": 4,
             "layer_type": "subtitle",
-            "text": "你获得了黑曜石，搭一座传送门回去吧",
+            "text": "搭一座传送门，用打火石点燃回去吧",
             "z_index": 30,
             "interpolation": "linear",
             "color": "#000000",

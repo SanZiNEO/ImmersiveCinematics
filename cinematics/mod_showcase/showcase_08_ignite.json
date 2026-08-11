@@ -8,11 +8,13 @@
     "triggers": [
       {
         "id": "use_flint",
-        "type": "item_use",
+        "type": "item_on_interact",
         "repeatable": false,
         "delay": 0.5,
         "conditions": {
-          "item": "minecraft:flint_and_steel"
+          "item": "minecraft:flint_and_steel",
+          "target": "minecraft:obsidian",
+          "target_type": "block"
         }
       }
     ],

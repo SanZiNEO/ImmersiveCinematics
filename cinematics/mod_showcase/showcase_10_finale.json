@@ -1,0 +1,61 @@
+{
+  "meta": {
+    "id": "showcase_10_finale",
+    "name": "吃面包收尾",
+    "author": "AI",
+    "version": 3,
+    "description": "吃面包触发：屏幕展示图片 + 宣传标语收尾，演示 OVERLAY image 轨道",
+    "triggers": [
+      {
+        "id": "eat_bread",
+        "type": "item_consume",
+        "repeatable": false,
+        "delay": 0.5,
+        "conditions": {
+          "item": "minecraft:bread"
+        }
+      }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "skippable": true,
+    "interruptible": true,
+    "hold_at_end": false,
+    "hide_skip_hud": true,
+    "dimension": "",
+    "block_mob_ai": false,
+    "render_player_model": true,
+    "pause_when_game_paused": true,
+    "priority": 0
+  },
+  "timeline": {
+    "total_duration": 8.0,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "id": "overlay_slogan",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "Immersive Cinematics —— 故事从这里开始",
+            "z_index": 30,
+            "interpolation": "linear",
+            "color": "#000000",
+            "path": "",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.78, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
+              { "time": 1, "x": 0.5, "y": 0.78, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
+              { "time": 7, "x": 0.5, "y": 0.78, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
+              { "time": 8, "x": 0.5, "y": 0.78, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

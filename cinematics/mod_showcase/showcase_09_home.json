@@ -4,42 +4,172 @@
     "name": "回到主世界",
     "author": "AI",
     "version": 3,
-    "description": "从下界回主世界触发（延迟4s）。【第一幕 0~12s】纯字幕介绍主世界，CAMERA 轨道无片段（玩家视角），无黑边。【长镜头】12s 之后参考 example_orbit 加音乐+系列长镜头（CAMERA 轨道片段从 12s 开始），LETTERBOX 黑边等滤镜也在此部分，届时延长 total_duration。【待调整】食物 EVENT 当前 9.0s 占位，长镜头定稿后移到脚本真正末尾",
+    "description": "从下界回主世界触发（延迟10s让玩家先自由走动）。60秒电影长镜头：开场微推→摇镜扫远景→拉升→高空贝塞尔环绕→俯拍降落→希区柯克变焦→荷兰角收尾，全程屏蔽键鼠/HUD+宽银幕，末尾给食物引导饱食度（衔接脚本10）",
     "triggers": [
       {
         "id": "back_overworld",
         "type": "dimension_change",
         "repeatable": false,
-        "delay": 4.0,
+        "delay": 10.0,
         "conditions": {
           "dimension": "minecraft:overworld",
           "from_dimension": "minecraft:the_nether"
         }
       }
     ],
-    "block_keyboard": false,
-    "block_mouse": false,
-    "hide_hud": false,
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
     "hide_arm": true,
     "suppress_bob": true,
     "skippable": true,
     "interruptible": true,
     "hold_at_end": false,
-    "hide_skip_hud": true,
+    "hide_skip_hud": false,
     "dimension": "",
-    "block_mob_ai": false,
+    "block_mob_ai": true,
     "render_player_model": true,
     "pause_when_game_paused": true,
     "priority": 0
   },
   "timeline": {
-    "total_duration": 12.5,
+    "total_duration": 60.0,
     "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,   "position": { "dx": -2, "dy": 2.5, "dz": -8 },   "yaw": 15,  "pitch": 3,   "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 1.6, "position": { "dx": -2, "dy": 2.5, "dz": -7.7 }, "yaw": 14,  "pitch": 2.5, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 3.2, "position": { "dx": -2, "dy": 2.55, "dz": -7.4 }, "yaw": 13, "pitch": 2.5, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 4.8, "position": { "dx": -2, "dy": 2.6, "dz": -7.1 }, "yaw": 12,  "pitch": 3,   "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 6.4, "position": { "dx": -2, "dy": 2.65, "dz": -6.8 }, "yaw": 11, "pitch": 3,   "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 8,   "position": { "dx": -2, "dy": 2.7, "dz": -6.5 }, "yaw": 10,  "pitch": 2.5, "roll": 0, "fov": 70, "zoom": 1.0 }
+            ]
+          },
+          {
+            "start_time": 7.5,
+            "duration": 8.5,
+            "transition": "morph",
+            "transition_duration": 1.0,
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,   "position": { "dx": -2, "dy": 2.7, "dz": -6.5 }, "yaw": 10,  "pitch": 2.5, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 2,   "position": { "dx": -2, "dy": 2.7, "dz": -6.5 }, "yaw": 30,  "pitch": 0,   "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 4,   "position": { "dx": -2, "dy": 2.75, "dz": -6.5 }, "yaw": 55, "pitch": -4,  "roll": 0, "fov": 72, "zoom": 1.0 },
+              { "time": 6,   "position": { "dx": -2, "dy": 2.8, "dz": -6.5 }, "yaw": 75,  "pitch": -8,  "roll": 0, "fov": 72, "zoom": 1.0 },
+              { "time": 8.5, "position": { "dx": -2, "dy": 2.8, "dz": -6.5 }, "yaw": 90,  "pitch": -10, "roll": 0, "fov": 73, "zoom": 1.0 }
+            ]
+          },
+          {
+            "start_time": 15.5,
+            "duration": 8.5,
+            "transition": "morph",
+            "transition_duration": 1.0,
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,   "position": { "dx": 4,   "dy": 2.5, "dz": 4 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 2,   "position": { "dx": 3.5, "dy": 5,   "dz": 4.5 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 72, "zoom": 1.0 },
+              { "time": 4,   "position": { "dx": 2.5, "dy": 8,   "dz": 5 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 75, "zoom": 1.0 },
+              { "time": 6,   "position": { "dx": 1,   "dy": 11,  "dz": 5.5 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 78, "zoom": 1.0 },
+              { "time": 8.5, "position": { "dx": 0,   "dy": 14,  "dz": 6 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 80, "zoom": 1.0 }
+            ]
+          },
+          {
+            "start_time": 23.5,
+            "duration": 10.5,
+            "transition": "morph",
+            "transition_duration": 1.0,
+            "interpolation": "linear",
+            "loop": false,
+            "curve": {
+              "type": "bezier",
+              "control_points": [
+                { "dx": 0,  "dy": 0, "dz": 13.33 },
+                { "dx": -20, "dy": 0, "dz": 13.33 }
+              ]
+            },
+            "keyframes": [
+              { "time": 0,   "position": { "dx": 10,  "dy": 13, "dz": 0 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 80, "zoom": 1.0 },
+              { "time": 10.5, "position": { "dx": -10, "dy": 13, "dz": 0 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 80, "zoom": 1.0 }
+            ]
+          },
+          {
+            "start_time": 33.5,
+            "duration": 8.5,
+            "transition": "morph",
+            "transition_duration": 1.0,
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,   "position": { "dx": 0, "dy": 14, "dz": -10 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 80, "zoom": 1.0 },
+              { "time": 2,   "position": { "dx": 1, "dy": 10, "dz": -7 },  "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 76, "zoom": 1.0 },
+              { "time": 4,   "position": { "dx": 2, "dy": 7,  "dz": -4 },  "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 73, "zoom": 1.0 },
+              { "time": 6,   "position": { "dx": 3, "dy": 5,  "dz": -1 },  "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 71, "zoom": 1.0 },
+              { "time": 8.5, "position": { "dx": 4, "dy": 4,  "dz": 2 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0 }
+            ]
+          },
+          {
+            "start_time": 41.5,
+            "duration": 8.5,
+            "transition": "morph",
+            "transition_duration": 1.0,
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,   "position": { "dx": 4,   "dy": 4,   "dz": 2 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0 },
+              { "time": 2,   "position": { "dx": 5,   "dy": 4,   "dz": 2.5 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 62, "zoom": 1.0 },
+              { "time": 4,   "position": { "dx": 6,   "dy": 4,   "dz": 3 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 55, "zoom": 1.0 },
+              { "time": 6,   "position": { "dx": 7,   "dy": 4,   "dz": 3.5 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 50, "zoom": 1.0 },
+              { "time": 8.5, "position": { "dx": 8,   "dy": 4,   "dz": 4 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 48, "zoom": 1.0 }
+            ]
+          },
+          {
+            "start_time": 49.5,
+            "duration": 10.5,
+            "transition": "morph",
+            "transition_duration": 1.0,
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0,   "position": { "dx": 8,   "dy": 4,   "dz": 4 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 48, "zoom": 1.0 },
+              { "time": 2,   "position": { "dx": 8.3, "dy": 4.4, "dz": 4.6 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 8, "fov": 52, "zoom": 1.0 },
+              { "time": 4,   "position": { "dx": 8.7, "dy": 4.8, "dz": 5.2 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 12, "fov": 56, "zoom": 1.0 },
+              { "time": 6,   "position": { "dx": 9.1, "dy": 5.3, "dz": 5.8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 10, "fov": 60, "zoom": 1.0 },
+              { "time": 8,   "position": { "dx": 9.6, "dy": 5.7, "dz": 6.5 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 8, "fov": 65, "zoom": 1.0 },
+              { "time": 10.5, "position": { "dx": 10, "dy": 6,  "dz": 7 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 6, "fov": 70, "zoom": 1.0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 60,
+            "keyframes": [
+              { "time": 0,   "aspect_ratio": 0.0 },
+              { "time": 0.8, "aspect_ratio": 2.35 },
+              { "time": 58.5, "aspect_ratio": 2.35 },
+              { "time": 60,  "aspect_ratio": 0.0 }
+            ]
+          }
+        ]
+      },
       {
         "type": "EVENT",
         "clips": [
           {
-            "start_time": 9.0,
+            "start_time": 56.5,
             "duration": 0.5,
             "event_type": "command",
             "keyframes": [
@@ -73,8 +203,8 @@
             ]
           },
           {
-            "start_time": 4.5,
-            "duration": 4,
+            "start_time": 8,
+            "duration": 4.5,
             "layer_type": "subtitle",
             "text": "主世界，一切冒险开始的地方",
             "z_index": 30,
@@ -84,13 +214,29 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
             ]
           },
           {
-            "start_time": 9.0,
-            "duration": 3.5,
+            "start_time": 50,
+            "duration": 4.5,
+            "layer_type": "subtitle",
+            "text": "你的冒险仍在继续",
+            "z_index": 30,
+            "interpolation": "linear",
+            "color": "#000000",
+            "path": "",
+            "keyframes": [
+              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+            ]
+          },
+          {
+            "start_time": 55.5,
+            "duration": 4.5,
             "layer_type": "subtitle",
             "text": "你饿了，右键长按面包恢复饱食度",
             "z_index": 30,
@@ -100,8 +246,8 @@
             "keyframes": [
               { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
               { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 2.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
+              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
+              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
             ]
           }
         ]
