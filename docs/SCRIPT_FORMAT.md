@@ -314,6 +314,8 @@
 | `loop` | boolean | 否 | `false` | 是否循环 |
 | `fade_in` | float | 否 | `0.0` | 淡入时长（秒） |
 | `fade_out` | float | 否 | `0.0` | 淡出时长（秒） |
+| `position_mode` | string | 否 | `"relative"` | 音源位置模式：`"relative"` = 每帧跟随**玩家**（玩家位置 + 关键帧 x/y/z 偏移，随身声，可走空间衰减）；`"relative_camera"` = 每帧跟随**相机**（镜头位置 + 偏移，播报/旁白，**强制无衰减恒定音量**——镜头飞远也听得到）；`"absolute"` = 偏移直接作为世界坐标（音源固定） |
+| `attenuation` | string | 否 | `"none"` | 空间衰减：`"none"` 无衰减 / `"linear"` 线性（默认距离 16 格）/ `"inverse"` 反比。`relative_camera` 模式强制无衰减 |
 
 ---
 

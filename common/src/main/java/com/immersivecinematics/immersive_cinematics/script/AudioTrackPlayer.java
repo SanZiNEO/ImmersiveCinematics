@@ -207,19 +207,20 @@ public class AudioTrackPlayer implements TrackPlayer {
             return;
         }
 
-        // Set initial attenuation
-        inst.setAttenuation(clip.getAttenuation());
+        // Set initial attenuation（relative_camera = 播报语义，强制无衰减恒定音量）
+        if ("relative_camera".equals(clip.getAudioPositionMode())) {
+            inst.setAttenuation("none");
+        } else {
+            inst.setAttenuation(clip.getAttenuation());
+        }
 
         // Set initial volume (fade_in starts at 0, multiplied by MC music volume)
         float musicVol = Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC);
         float initialVol = fadeIn > 0f ? 0f : clip.getVolume() * musicVol;
         inst.setVolume(initialVol);
 
-        // Set initial position（相对模式 = 跟随玩家：玩家当前位置 + 偏移）
-        Vec3 pos = getInterpolatedPosition(clip, 0f);
-        if ("relative".equals(clip.getAudioPositionMode())) {
-            pos = Minecraft.getInstance().player.position().add(pos);
-        }
+        // Set initial position（relative = 跟随玩家；relative_camera = 跟随相机；absolute = 世界坐标）
+        Vec3 pos = resolveAudioPosition(clip, getInterpolatedPosition(clip, 0f));
         inst.setPosition(pos);
 
         inst.play();
@@ -271,14 +272,29 @@ public class AudioTrackPlayer implements TrackPlayer {
                     inst.getSourceState(), inst.getCurrentTime(), inst.getGain(), inst.getOpenAlError());
         }
 
-        // Update position（相对模式 = 跟随玩家：每帧 玩家当前位置 + 关键帧偏移，音源始终相对玩家发声）
-        Vec3 pos = new Vec3(ix, iy, iz);
-        if ("relative".equals(clip.getAudioPositionMode())) {
-            pos = Minecraft.getInstance().player.position().add(pos);
-        }
-        inst.setPosition(pos);
+        // Update position（relative = 每帧玩家当前位置 + 偏移，跟随玩家；relative_camera = 相机位置 + 偏移，跟随镜头播报）
+        inst.setPosition(resolveAudioPosition(clip, new Vec3(ix, iy, iz)));
 
         inst.update();
+    }
+
+    /**
+     * 音频音源位置求值：
+     * position_mode = "relative"（默认）→ 每帧玩家当前位置 + 偏移（跟随玩家，随身声，可走空间衰减）
+     * position_mode = "relative_camera" → 每帧相机当前位置 + 偏移（跟随镜头，播报/旁白；
+     *               配合强制无衰减 = 恒定音量，镜头飞远也听得到）
+     * position_mode = "absolute" → 偏移直接作为世界坐标（音源固定）
+     */
+    private Vec3 resolveAudioPosition(Clip clip, Vec3 offset) {
+        String mode = clip.getAudioPositionMode();
+        if ("relative_camera".equals(mode)) {
+            return com.immersivecinematics.immersive_cinematics.camera.CameraManager.INSTANCE
+                    .getPath().getPosition().add(offset);
+        }
+        if ("relative".equals(mode)) {
+            return Minecraft.getInstance().player.position().add(offset);
+        }
+        return offset;
     }
 
     /**
