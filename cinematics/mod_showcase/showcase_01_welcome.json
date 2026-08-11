@@ -22,7 +22,7 @@
     "skippable": true,
     "interruptible": true,
     "hold_at_end": false,
-    "hide_skip_hud": false,
+    "hide_skip_hud": true,
     "dimension": "",
     "block_mob_ai": false,
     "render_player_model": true,

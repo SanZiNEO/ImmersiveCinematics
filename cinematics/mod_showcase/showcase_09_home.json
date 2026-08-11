@@ -254,18 +254,37 @@
       },
       {
         "type": "AUDIO",
+        "id": "audio_music",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 62,
+            "sound": "showcase9_bgm.ogg",
+            "source": "file",
+            "volume": 0.7,
+            "pitch": 1,
+            "loop": false,
+            "attenuation": "linear",
+            "keyframes": [
+              { "time": 0, "volume": 0.7, "x": 0, "y": 0, "z": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "AUDIO",
         "clips": [
           {
             "start_time": 0,
             "duration": 2.28,
             "sound": "9_reverb_part1.ogg",
             "source": "file",
-            "volume": 1,
+            "volume": 0.7,
             "pitch": 1,
             "loop": false,
             "attenuation": "linear",
             "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+              { "time": 0, "volume": 0.7, "x": 0, "y": 0, "z": 0 }
             ]
           },
           {
@@ -273,12 +292,12 @@
             "duration": 3.67,
             "sound": "9_reverb_part2.ogg",
             "source": "file",
-            "volume": 1,
+            "volume": 0.7,
             "pitch": 1,
             "loop": false,
             "attenuation": "linear",
             "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+              { "time": 0, "volume": 0.7, "x": 0, "y": 0, "z": 0 }
             ]
           },
           {
@@ -286,12 +305,12 @@
             "duration": 2.50,
             "sound": "9_reverb_part3.ogg",
             "source": "file",
-            "volume": 1,
+            "volume": 0.7,
             "pitch": 1,
             "loop": false,
             "attenuation": "linear",
             "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+              { "time": 0, "volume": 0.7, "x": 0, "y": 0, "z": 0 }
             ]
           },
           {
@@ -299,12 +318,12 @@
             "duration": 4.42,
             "sound": "9_reverb_part4.ogg",
             "source": "file",
-            "volume": 1,
+            "volume": 0.7,
             "pitch": 1,
             "loop": false,
             "attenuation": "linear",
             "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+              { "time": 0, "volume": 0.7, "x": 0, "y": 0, "z": 0 }
             ]
           }
         ]
