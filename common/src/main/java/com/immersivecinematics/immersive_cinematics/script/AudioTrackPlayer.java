@@ -54,6 +54,13 @@ public class AudioTrackPlayer implements TrackPlayer {
         // 放在暂停早退之前：编辑器会话内（含暂停态）始终替换 MC 音乐，保持旧行为。
         Minecraft.getInstance().getSoundManager().stop(null, SoundSource.MUSIC);
 
+        // 音频接收者（listener）显式设为玩家位置：相对模式（跟随玩家）距离恒为 0，衰减恒为 0
+        net.minecraft.client.player.LocalPlayer listenerPlayer = Minecraft.getInstance().player;
+        if (listenerPlayer != null) {
+            org.lwjgl.openal.AL10.alListener3f(org.lwjgl.openal.AL10.AL_POSITION,
+                    (float) listenerPlayer.getX(), (float) listenerPlayer.getY(), (float) listenerPlayer.getZ());
+        }
+
         // 组 1：暂停时不创建实例、不更新、不启动任何声音（对齐 MC SoundEngine tickNonPaused 语义）
         if (paused) return;
         Clip activeClip = findActiveClip(globalTime);
@@ -213,15 +220,15 @@ public class AudioTrackPlayer implements TrackPlayer {
         inst.setVolume(initialVol);
 
         // Set initial position：
-        // relative_camera = 播报式（相对听者偏移 + 无衰减，恒定音量，默认居中无空间感）
-        // relative / absolute = 世界坐标（relative 跟随玩家，可走空间衰减）
+        // relative（默认）= 跟随玩家（音源=玩家位置+偏移，listener=玩家 → 距离 0，强制无衰减）
+        // absolute = 世界坐标（音源固定，可走空间衰减）
         Vec3 offset = getInterpolatedPosition(clip, 0f);
-        if ("relative_camera".equals(clip.getAudioPositionMode())) {
-            inst.setPositionRelative(offset);
-        } else {
+        if ("absolute".equals(clip.getAudioPositionMode())) {
             inst.setAttenuation(clip.getAttenuation());
-            inst.setPosition(resolveAudioPosition(clip, offset));
+        } else {
+            inst.setAttenuation("none");
         }
+        inst.setPosition(resolveAudioPosition(clip, offset));
 
         inst.play();
         instances.put(clip, inst);
@@ -272,24 +279,16 @@ public class AudioTrackPlayer implements TrackPlayer {
                     inst.getSourceState(), inst.getCurrentTime(), inst.getGain(), inst.getOpenAlError());
         }
 
-        // Update position：
-        // relative_camera = 播报式（相对听者偏移 + 无衰减，恒定音量）
-        // relative / absolute = 世界坐标（relative 每帧玩家位置 + 偏移，跟随玩家）
-        Vec3 offset = new Vec3(ix, iy, iz);
-        if ("relative_camera".equals(clip.getAudioPositionMode())) {
-            inst.setPositionRelative(offset);
-        } else {
-            inst.setPosition(resolveAudioPosition(clip, offset));
-        }
+        // Update position：relative = 每帧玩家位置 + 偏移（跟随玩家，无衰减）；absolute = 世界坐标
+        inst.setPosition(resolveAudioPosition(clip, new Vec3(ix, iy, iz)));
 
         inst.update();
     }
 
     /**
      * 音频音源位置求值（世界坐标）：
-     * position_mode = "relative"（默认）→ 每帧玩家当前位置 + 偏移（跟随玩家，随身声，可走空间衰减）
-     * position_mode = "absolute" → 偏移直接作为世界坐标（音源固定）
-     * （relative_camera 不走此方法——用 setPositionRelative 播报式相对听者偏移）
+     * position_mode = "relative"（默认）→ 每帧玩家当前位置 + 偏移（跟随玩家；listener=玩家，距离 0 无衰减）
+     * position_mode = "absolute" → 偏移直接作为世界坐标（音源固定，可走空间衰减）
      */
     private Vec3 resolveAudioPosition(Clip clip, Vec3 offset) {
         if ("relative".equals(clip.getAudioPositionMode())) {

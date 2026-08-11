@@ -152,18 +152,6 @@ public class CinematicAudioInstance {
         if (valid) alSource3f(source, AL_POSITION, (float) pos.x, (float) pos.y, (float) pos.z);
     }
 
-    /**
-     * 播报式定位（relative_camera）：音源坐标 = 相对听者（玩家）的偏移 + 无衰减。
-     * 恒定音量、无距离衰减；偏移默认 0 = 居中（无方向感）。避免把世界坐标喂给
-     * AL_SOURCE_RELATIVE 导致的"离谱远处"去空间化问题。
-     */
-    public void setPositionRelative(Vec3 offset) {
-        if (!valid) return;
-        alSourcef(source, AL_ROLLOFF_FACTOR, 0f);
-        alSourcei(source, AL_SOURCE_RELATIVE, AL_TRUE);
-        alSource3f(source, AL_POSITION, (float) offset.x, (float) offset.y, (float) offset.z);
-    }
-
     public void setAttenuation(String mode, float distance) {
         if (!valid) return;
         switch (mode) {
