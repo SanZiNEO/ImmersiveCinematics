@@ -146,6 +146,29 @@
             ]
           }
         ]
+      },
+      {
+        "type": "OVERLAY",
+        "id": "overlay_author_note",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12.8,
+            "layer_type": "subtitle",
+            "text": "作者做到一半，突然想起来之前的文本展示好像和游戏原版的提示重叠了，所以加一段这个文本轨道进来",
+            "z_index": 30,
+            "interpolation": "smooth",
+            "color": "#000000",
+            "path": "",
+            "keyframes": [
+              { "time": 0,    "x": 0.15, "y": 0.15, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
+              { "time": 3.8,  "x": 0.85, "y": 0.15, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
+              { "time": 6.8,  "x": 0.85, "y": 0.85, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
+              { "time": 9.8,  "x": 0.15, "y": 0.85, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
+              { "time": 12.8, "x": 0.15, "y": 0.15, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 }
+            ]
+          }
+        ]
       }
     ]
   }
