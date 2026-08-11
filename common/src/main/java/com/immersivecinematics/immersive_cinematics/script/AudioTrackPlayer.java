@@ -207,21 +207,21 @@ public class AudioTrackPlayer implements TrackPlayer {
             return;
         }
 
-        // Set initial attenuation（relative_camera = 播报语义，强制无衰减恒定音量）
-        if ("relative_camera".equals(clip.getAudioPositionMode())) {
-            inst.setAttenuation("none");
-        } else {
-            inst.setAttenuation(clip.getAttenuation());
-        }
-
         // Set initial volume (fade_in starts at 0, multiplied by MC music volume)
         float musicVol = Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC);
         float initialVol = fadeIn > 0f ? 0f : clip.getVolume() * musicVol;
         inst.setVolume(initialVol);
 
-        // Set initial position（relative = 跟随玩家；relative_camera = 跟随相机；absolute = 世界坐标）
-        Vec3 pos = resolveAudioPosition(clip, getInterpolatedPosition(clip, 0f));
-        inst.setPosition(pos);
+        // Set initial position：
+        // relative_camera = 播报式（相对听者偏移 + 无衰减，恒定音量，默认居中无空间感）
+        // relative / absolute = 世界坐标（relative 跟随玩家，可走空间衰减）
+        Vec3 offset = getInterpolatedPosition(clip, 0f);
+        if ("relative_camera".equals(clip.getAudioPositionMode())) {
+            inst.setPositionRelative(offset);
+        } else {
+            inst.setAttenuation(clip.getAttenuation());
+            inst.setPosition(resolveAudioPosition(clip, offset));
+        }
 
         inst.play();
         instances.put(clip, inst);
@@ -272,26 +272,27 @@ public class AudioTrackPlayer implements TrackPlayer {
                     inst.getSourceState(), inst.getCurrentTime(), inst.getGain(), inst.getOpenAlError());
         }
 
-        // Update position（relative = 每帧玩家当前位置 + 偏移，跟随玩家；relative_camera = 相机位置 + 偏移，跟随镜头播报）
-        inst.setPosition(resolveAudioPosition(clip, new Vec3(ix, iy, iz)));
+        // Update position：
+        // relative_camera = 播报式（相对听者偏移 + 无衰减，恒定音量）
+        // relative / absolute = 世界坐标（relative 每帧玩家位置 + 偏移，跟随玩家）
+        Vec3 offset = new Vec3(ix, iy, iz);
+        if ("relative_camera".equals(clip.getAudioPositionMode())) {
+            inst.setPositionRelative(offset);
+        } else {
+            inst.setPosition(resolveAudioPosition(clip, offset));
+        }
 
         inst.update();
     }
 
     /**
-     * 音频音源位置求值：
+     * 音频音源位置求值（世界坐标）：
      * position_mode = "relative"（默认）→ 每帧玩家当前位置 + 偏移（跟随玩家，随身声，可走空间衰减）
-     * position_mode = "relative_camera" → 每帧相机当前位置 + 偏移（跟随镜头，播报/旁白；
-     *               配合强制无衰减 = 恒定音量，镜头飞远也听得到）
      * position_mode = "absolute" → 偏移直接作为世界坐标（音源固定）
+     * （relative_camera 不走此方法——用 setPositionRelative 播报式相对听者偏移）
      */
     private Vec3 resolveAudioPosition(Clip clip, Vec3 offset) {
-        String mode = clip.getAudioPositionMode();
-        if ("relative_camera".equals(mode)) {
-            return com.immersivecinematics.immersive_cinematics.camera.CameraManager.INSTANCE
-                    .getPath().getPosition().add(offset);
-        }
-        if ("relative".equals(mode)) {
+        if ("relative".equals(clip.getAudioPositionMode())) {
             return Minecraft.getInstance().player.position().add(offset);
         }
         return offset;
