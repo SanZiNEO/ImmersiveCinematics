@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server.evaluator;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -235,9 +236,38 @@ public class Evaluators {
 
     public static boolean evaluateItemPickup(ServerPlayer player, JsonObject c) {
         if (!c.has("item")) return false;
+        JsonElement item = c.get("item");
+
+        // 数组模式：item 为数组 + mode（"or" 默认 = 捡起任一触发；"and" = 全部捡过才触发，基于本会话捡起历史）
+        if (item.isJsonArray()) {
+            String mode = c.has("mode") ? c.get("mode").getAsString() : "or";
+            if ("and".equals(mode)) {
+                Set<String> picked = PickupDropTracker.getPickedUpSet(player);
+                if (picked == null || picked.isEmpty()) return false;
+                for (JsonElement elem : item.getAsJsonArray()) {
+                    boolean found = false;
+                    for (String id : picked) {
+                        if (matchesId(id, elem.getAsString())) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) return false;
+                }
+                return true;
+            }
+            String lastPickedUp = PickupDropTracker.getLastPickedUp(player);
+            if (lastPickedUp == null) return false;
+            for (JsonElement elem : item.getAsJsonArray()) {
+                if (matchesId(lastPickedUp, elem.getAsString())) return true;
+            }
+            return false;
+        }
+
+        // 单物品模式：item 为字符串，匹配最近一次捡起
         String lastPickedUp = PickupDropTracker.getLastPickedUp(player);
         if (lastPickedUp == null) return false;
-        return matchesId(lastPickedUp, c.get("item").getAsString());
+        return matchesId(lastPickedUp, item.getAsString());
     }
 
     public static boolean evaluateItemDrop(ServerPlayer player, JsonObject c) {
@@ -541,8 +571,12 @@ public class Evaluators {
     public static class PickupDropTracker {
         private static final Map<UUID, String> lastPickedUp = new java.util.HashMap<>();
         private static final Map<UUID, String> lastDropped = new java.util.HashMap<>();
+        /** 捡起历史（and 模式用）：玩家本会话捡起过的全部物品 id 集合 */
+        private static final Map<UUID, Set<String>> pickedUpSet = new java.util.HashMap<>();
         public static void recordPickup(ServerPlayer player, ItemStack stack) {
-            lastPickedUp.put(player.getUUID(), BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+            String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            lastPickedUp.put(player.getUUID(), id);
+            pickedUpSet.computeIfAbsent(player.getUUID(), k -> new java.util.HashSet<>()).add(id);
         }
         public static void recordDrop(ServerPlayer player, ItemStack stack) {
             lastDropped.put(player.getUUID(), BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
@@ -553,9 +587,14 @@ public class Evaluators {
         public static String getLastDropped(ServerPlayer player) {
             return lastDropped.get(player.getUUID());
         }
+        /** 本会话捡起历史集合（可能为 null：从未捡起过） */
+        public static Set<String> getPickedUpSet(ServerPlayer player) {
+            return pickedUpSet.get(player.getUUID());
+        }
         public static void clear(UUID uuid) {
             lastPickedUp.remove(uuid);
             lastDropped.remove(uuid);
+            pickedUpSet.remove(uuid);
         }
     }
 
