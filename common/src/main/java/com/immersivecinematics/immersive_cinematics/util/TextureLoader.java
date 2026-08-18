@@ -66,7 +66,8 @@ public final class TextureLoader {
             LOGGER.debug("Loaded texture: {} -> {} ({}x{})", fileName, loc, image.getWidth(), image.getHeight());
             return loc;
         } catch (Exception e) {
-            LOGGER.debug("Failed to load texture: {}", filePath, e);
+            // 作者引用的图片加载失败（文件缺失/解码错误）→ WARN 可见，回退 null（overlay 不渲染该图）
+            LOGGER.warn("Failed to load texture: {}", filePath, e);
             return null;
         }
     }

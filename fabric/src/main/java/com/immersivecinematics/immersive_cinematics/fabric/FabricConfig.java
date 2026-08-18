@@ -37,6 +37,9 @@ public class FabricConfig implements Config.ConfigProvider {
             try (Reader reader = Files.newBufferedReader(CONFIG_PATH)) {
                 root = GSON.fromJson(reader, JsonObject.class);
             } catch (IOException e) {
+                // 配置读取失败 → 回退默认配置；作者应看到（WARN）
+                org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/Config")
+                        .warn("配置读取失败，将使用默认配置: {}", e.getMessage());
                 root = null;
             }
         }
@@ -105,7 +108,9 @@ public class FabricConfig implements Config.ConfigProvider {
             Files.createDirectories(CONFIG_PATH.getParent());
             Files.writeString(CONFIG_PATH, GSON.toJson(root));
         } catch (IOException e) {
-            // 静默失败，配置写入非关键路径
+            // 配置写入失败 → 改动本次不生效，作者该知道（WARN 可见）
+            org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/Config")
+                    .warn("配置写入失败: {} ({})", e.getMessage(), CONFIG_PATH);
         }
     }
 }

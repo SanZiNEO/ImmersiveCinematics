@@ -97,6 +97,7 @@ public class LocationEditor extends TriggerEditor {
             return list;
         } catch (Exception e) {
             return List.of();
+            // 编辑器防御：维度注册表读取失败 → 回退空列表（可选探测，缺失即无下拉候选）
         }
     }
 }

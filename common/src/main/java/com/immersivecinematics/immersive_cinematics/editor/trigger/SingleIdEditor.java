@@ -63,6 +63,7 @@ public class SingleIdEditor extends TriggerEditor {
                     .collect(Collectors.toList());
         } catch (Exception e) {
             advancementIds = List.of();
+            // 编辑器防御：进度反射读取失败（反混淆/权限环境）→ 回退空列表（可选探测，缺失即无下拉候选）
         }
         return advancementIds;
     }
@@ -83,6 +84,7 @@ public class SingleIdEditor extends TriggerEditor {
                     .collect(Collectors.toList());
         } catch (Exception e) {
             return List.of();
+            // 编辑器防御：动态注册表读取失败 → 回退空列表（可选探测，缺失即无下拉候选）
         }
     }
 }

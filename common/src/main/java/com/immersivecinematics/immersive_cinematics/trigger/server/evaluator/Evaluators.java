@@ -457,6 +457,7 @@ public class Evaluators {
             var hasStage = helper.getMethod("hasStage", net.minecraft.world.entity.player.Player.class, String.class);
             return (boolean) hasStage.invoke(null, player, stage);
         } catch (Exception e) {
+            // 可选集成：Gamestage 模组未安装 / 反射失败 → 该触发永不生效（特性缺失即正确行为，非错误，不刷屏）
             return false;
         }
     }

@@ -56,6 +56,9 @@ public class FadeLayer implements OverlayLayer {
             int rgb = Integer.parseInt(clean, 16);
             color = rgb & 0x00FFFFFF;
         } catch (NumberFormatException e) {
+            // 脚本配置写了非法颜色：这是作者该看到的错，WARN 可见（回退黑色继续渲染）
+            org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/FadeLayer")
+                    .warn("无效的 fade 颜色 '{}' → 使用黑色: {}", hex, e.getMessage());
             color = 0x000000;
         }
     }

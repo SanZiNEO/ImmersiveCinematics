@@ -69,6 +69,9 @@ public final class StructureLocator {
             }
             return null;
         } catch (Exception e) {
+            // 定位失败 → null（调用方按"结构未找到"处理，片段空）；真实扫描异常要可见
+            org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/StructureLocator")
+                    .warn("结构定位异常 '{}': {}", structureId, e.getMessage());
             return null;
         }
     }

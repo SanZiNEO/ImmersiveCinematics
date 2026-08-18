@@ -361,6 +361,7 @@ public class LeftPanelArea extends UIComponent {
                 }
                 structureIds.sort(String::compareTo);
             } catch (Exception ignored) {
+                // 编辑器防御：结构注册表读取失败 → 结构列表为空，回退文本输入（可选探测，缺失即无下拉候选）
             }
         }
         if (structureIds.isEmpty()) {

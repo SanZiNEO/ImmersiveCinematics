@@ -20,6 +20,7 @@ public class ClientEventHandler {
                     Minecraft.getInstance().gameDirectory.toPath()
                             .resolve("immersive_cinematics").resolve("scripts"));
         } catch (Exception ignored) {
+            // 目录已存在/权限受限即跳过（ResourcePath.ensureDir 已处理 resource；scripts 由编辑器按需创建）
         }
 
         // ===== 按键注册 =====

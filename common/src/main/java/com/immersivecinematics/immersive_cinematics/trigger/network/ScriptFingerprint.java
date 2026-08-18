@@ -23,6 +23,9 @@ public final class ScriptFingerprint {
             }
             return sb.toString();
         } catch (Exception e) {
+            // 摘要不可用极罕见；长度兜底可能造成"内容变但指纹不变"，作者该知道 → WARN
+            org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/ScriptFingerprint")
+                    .warn("脚本指纹计算失败，回退为内容长度: {}", e.getMessage());
             return String.valueOf(content.length);
         }
     }

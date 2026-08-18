@@ -559,7 +559,7 @@ public class CameraTrackPlayer implements TrackPlayer {
                     }
                 }
             } catch (IllegalArgumentException ex) {
-                LOGGER.warn("无效的实体 UUID selector: {}", selector);
+                LOGGER.warn("无效的实体 UUID selector '{}': {}", selector, ex.getMessage());
             }
         } else if ("@e".equals(selector) || selector.startsWith("@e[")) {
             String typeId = null;

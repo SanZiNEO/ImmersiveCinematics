@@ -63,6 +63,7 @@ public class RawInputLogger {
                 writer = new PrintWriter(new FileWriter("logs/input/input-" + ts + ".log", true));
             } catch (IOException e) {
                 writer = null;
+                // 调试工具：输入日志文件写不了 → 控制台输出仍是主通道，回退"不落盘"合法（注释记录而非静默）
             }
         }
         return writer;

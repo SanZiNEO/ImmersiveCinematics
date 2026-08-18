@@ -11,9 +11,8 @@ import java.io.PrintWriter;
 /**
  * 脚本错误日志 — 写游戏目录 {@code logs/immersive_cinematics/script-errors.log}。
  * <p>
- * 用途：脚本运行中的各种报错（解析失败/校验问题/资源缺失/运行时异常）只写文件，
- * 控制台仅 debug 级（默认安静，不打扰玩家、不刷屏）。
- * 作者排查时直接翻日志文件即可，无需开任何开关。
+ * 用途：脚本运行中的各种报错（解析失败/校验问题/资源缺失/运行时异常）。
+ * 控制台 **ERROR 级可见**（模组规范：报错不吞，作者直接看到），同时落盘完整堆栈供深挖。
  */
 public final class ErrorLog {
 
@@ -51,6 +50,7 @@ public final class ErrorLog {
                 }
                 writer.flush();
             } catch (IOException ignored) {
+                // 日志文件都写不了就不强求（控制台 ERROR 已打过；不影响脚本播放）
             }
         }
     }

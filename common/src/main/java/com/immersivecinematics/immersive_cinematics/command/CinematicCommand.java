@@ -123,6 +123,7 @@ public class CinematicCommand {
         try {
             targets = EntityArgument.getPlayers(context, "players");
         } catch (IllegalArgumentException | com.mojang.brigadier.exceptions.CommandSyntaxException e) {
+            // 未指定 players 或选择器解析失败 → 回退全体在线玩家（play 的默认目标语义）
             targets = server.getPlayerList().getPlayers();
         }
 
@@ -237,6 +238,7 @@ public class CinematicCommand {
         try {
             targets = EntityArgument.getPlayers(context, "players");
         } catch (IllegalArgumentException | com.mojang.brigadier.exceptions.CommandSyntaxException e) {
+            // 未指定 players 或选择器解析失败 → 回退全体在线玩家（stop 的默认目标语义）
             targets = server.getPlayerList().getPlayers();
         }
 
