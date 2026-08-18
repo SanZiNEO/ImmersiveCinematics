@@ -143,7 +143,11 @@ public class TriggerStateStore {
             Files.move(tmp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             LOGGER.error("Failed to save trigger state for player {}", player, e);
-            try { Files.deleteIfExists(tmp); } catch (IOException ignored) {}
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (IOException ignored) {
+                // 临时文件清理失败可忽略（主保存错误已在上方 LOGGER.error 记录）；防清理异常掩盖主错误
+            }
         }
     }
 

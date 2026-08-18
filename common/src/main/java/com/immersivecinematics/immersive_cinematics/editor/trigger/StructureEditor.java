@@ -40,7 +40,9 @@ public class StructureEditor extends TriggerEditor {
                             .collect(Collectors.toList());
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+            // 编辑器防御：注册表不可用/读取失败 → 回落到内置常用结构列表（可选探测，缺失即有默认兜底，非运行时错误）
+        }
         return List.of("minecraft:village_plains", "minecraft:fortress",
                 "minecraft:stronghold", "minecraft:mineshaft",
                 "minecraft:ancient_city");

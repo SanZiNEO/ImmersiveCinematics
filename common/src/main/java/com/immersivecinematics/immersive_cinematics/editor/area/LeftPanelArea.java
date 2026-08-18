@@ -563,7 +563,10 @@ public class LeftPanelArea extends UIComponent {
                         ? SchemaLoader.getKeyframeFields(TrackType.valueOf((selectedTrackType != null ? selectedTrackType : "CAMERA").toUpperCase())).get(key)
                         : SchemaLoader.getClipFields(TrackType.valueOf((selectedTrackType != null ? selectedTrackType : "CAMERA").toUpperCase())).get(key);
                 isIntField = def != null && "int".equals(def.type());
-            } catch (Exception ignored) { }
+            } catch (Exception ignored) {
+                // 编辑器防御：schema 字段查询失败则按 float 渲染该字段（视觉略退化，不影响数据）；
+                // 若某类字段反复走这里说明 schema 与轨道类型不匹配，属应修复的配置问题，非运行时错误
+            }
             if (isIntField) {
                 addFloatField(label, () -> {
                     return parentObj.has(key) ? parentObj.get(key).getAsFloat() : 0;

@@ -209,7 +209,10 @@ public final class ScriptValidator {
                                         issues.add(cp + " duration 与循环周期不匹配（duration=" + clip.get("duration").getAsFloat()
                                                 + "，周期=" + animPeriod + "）：有限循环窗口=周期×loop_count，不匹配会造成播放跳变");
                                     }
-                                } catch (Exception ignored) { }
+                                } catch (Exception ignored) {
+                                    // 校验期防御读取：关键帧 time 字段异常 → 跳过循环周期校验，该问题会经其它校验项
+                                    // （如 "time 不是数字"/"不单调"）单独报出，此处不重复刷屏——保留 catch 避免中断整个收集
+                                }
                             } else {
                                 issues.add(cp + " loop=true 但关键帧不足 2 个：循环取模不生效（单帧循环 = 固定视角模式，由首帧决定位置/朝向）");
                             }
@@ -296,7 +299,9 @@ public final class ScriptValidator {
                     JsonObject prevClip = clips.get(ci - 1).getAsJsonObject();
                     if ("morph".equals(prevClip.has("transition") ? prevClip.get("transition").getAsString() : "")) {
                         try { prevTransition = prevClip.has("transition_duration") ? prevClip.get("transition_duration").getAsFloat() : 0f; }
-                        catch (Exception ignored) {}
+                        catch (Exception ignored) {
+                            // 校验期防御读取：transition_duration 异常按 0 处理（该问题经 duration/字段校验项单独报出）
+                        }
                     }
                     float minStart = prevEnd - prevTransition / 2f;
                     if (start < minStart - 0.001f) {

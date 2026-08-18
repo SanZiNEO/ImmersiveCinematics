@@ -307,7 +307,8 @@ public class CameraTrackPlayer implements TrackPlayer {
                 }
             }
         } catch (Exception e) {
-            LOGGER.debug("结构坐标解析失败 '{}': {}", structureId, e.getMessage());
+            // 结构定位失败会直接表现为"片段按空处理"，作者难察觉，升级为 WARN 可见（2 秒缓存不刷屏）
+            LOGGER.warn("结构坐标解析失败 '{}': {}", structureId, e.getMessage());
         }
         StructurePosCache entry = new StructurePosCache();
         entry.pos = result;

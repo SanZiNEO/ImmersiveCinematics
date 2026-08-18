@@ -47,7 +47,10 @@ public class CinematicCommand {
                         .map(p -> toForwardRel(globalDir, p).replace(".json", ""))
                         .sorted()
                         .forEach(builder::suggest);
-            } catch (IOException ignored) {}
+            } catch (IOException e) {
+                // Tab 补全是 best-effort：目录不可读时无建议即可，但这是真实问题，报 WARN 可见
+                LOGGER.warn("Tab 补全扫描脚本目录失败: {} ({})", e.getMessage(), globalDir);
+            }
         }
         return SharedSuggestionProvider.suggest(new String[0], builder);
     };

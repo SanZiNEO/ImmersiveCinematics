@@ -25,9 +25,9 @@ public final class ErrorLog {
 
     private ErrorLog() {}
 
-    /** 记录一条脚本错误：控制台 debug + 日志文件追加（线程安全） */
+    /** 记录一条脚本错误：控制台 ERROR + 日志文件追加（线程安全） */
     public static void log(String category, String message) {
-        LOGGER.debug("[{}] {}", category, message);
+        LOGGER.error("[{}] {}", category, message);
         synchronized (LOCK) {
             try {
                 ensureWriter();
@@ -39,9 +39,9 @@ public final class ErrorLog {
         }
     }
 
-    /** 记录一条带异常的脚本错误（堆栈写入文件） */
+    /** 记录一条带异常的脚本错误（堆栈写入文件，控制台 ERROR 可见） */
     public static void log(String category, String message, Throwable t) {
-        LOGGER.debug("[{}] {}: {}", category, message, t != null ? t.getClass().getSimpleName() + " " + t.getMessage() : "");
+        LOGGER.error("[{}] {}: {}", category, message, t != null ? t.getClass().getSimpleName() + " " + t.getMessage() : "");
         synchronized (LOCK) {
             try {
                 ensureWriter();

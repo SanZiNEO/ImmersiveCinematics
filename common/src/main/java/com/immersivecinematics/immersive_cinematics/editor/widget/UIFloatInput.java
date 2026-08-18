@@ -120,7 +120,10 @@ public class UIFloatInput extends UIComponent implements IFocusable {
             float v = clamp(Float.parseFloat(text));
             text = formatValue(v);
             if (sink != null) sink.accept(v);
-        } catch (NumberFormatException ignored) {}
+        } catch (NumberFormatException ignored) {
+            // 合法场景：用户输入未完成/非法数字（如空串、"."、"1.2.3"）→ 保留旧值。
+            // 这是输入校验而非错误，不应每次都刷 ERROR。
+        }
     }
 
     private float clamp(float v) {
