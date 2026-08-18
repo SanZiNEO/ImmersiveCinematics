@@ -151,3 +151,18 @@
 7. **冒烟测试**：player 模式回归、camera 模式（环境音跟随镜头、远处轨道声音按相机衰减）、MUSIC 类非空间、relative 衰减、多人独立听者
 
 > 服务端零改动；无相机位置上报；与区块预加载（画面）完全解耦。
+
+## 执行前再看 / 具体方案
+
+- **MC 源码**（已抽取到 `build/mc-sources/`）：
+  - `client/sounds/SoundEngine.java`：`updateSource(Camera)`（listener = camera pos/look/up）、`tickNonPaused()`（每 tick 读 `TickableSoundInstance.getX/Y/Z/volume/pitch` 推 OpenAL channel）。
+  - `client/resources/sounds/AbstractSoundInstance.java`（`x/y/z/volume/pitch/attenuation/relative/looping` 字段）、`AbstractTickableSoundInstance.java`、`TickableSoundInstance.java`、`Sound.java`（`Type.FILE` + `stream=true` 可绕开注册表）、`client/sounds/WeighedSoundEvents.java`。
+  - `client/resources/sounds/BiomeAmbientSoundsHandler.java` / `UnderwaterAmbientSoundHandler.java` / `BubbleColumnAmbientSoundHandler.java`（都直接用 `this.player` 采样，camera 模式要重定向采样点）。
+- **项目现状**：
+  - `script/AudioTrackPlayer.java` 每帧 `alListener3f` 裸写 listener + `stop(MUSIC)` 压制；`script/CinematicAudioInstance.java` 是裸 OpenAL 源。
+  - `mixin/CameraMixin.java` HEAD+cancel 已让原版 `SoundEngine.updateSource` 使用电影相机——**听者=相机天然成立**；听者=玩家时需要“玩家代理 Camera”或每帧用玩家位置/朝向的 Camera 调 `SoundManager.updateSource`。
+- **外部参考**：
+  - `hackermdch/MediaPlayer` → `AudioInstance.java`（自定义 SoundInstance 的 `getStream` 返回 CompletableFuture<AudioStream>）。
+  - `Rogic460/Minecraft-laowu-meme` → `ImportedSoundInstance.java`（继承 AbstractTickableSoundInstance + 自造 WeighedSoundEvents）。
+  - `Dseelis/TrueMusic` / `metrovoc/Phonon` 的 Speaker/Headphones SoundInstance 同类。
+- **执行时再看**：`AudioTrackPlayer`、`CinematicAudioInstance`、`CameraMixin`、`SoundEngine.tickNonPaused/updateSource`、`AbstractSoundInstance`、`Sound`、`WeighedSoundEvents`、三个环境音 handler、`ClientLevel.animateTick`。

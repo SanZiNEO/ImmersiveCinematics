@@ -40,7 +40,9 @@ public class ScriptEventManager {
             if (script == null) return;
 
             List<Clip> clips = extractEventClips(script);
-            pb = new ScriptPlayback(scriptId, clips, player.server.getTickCount());
+            Integer scriptRatio = script.getMeta().getSkipVoteRatio();
+            int voteRatio = scriptRatio != null ? scriptRatio : Config.skipVoteRatio;
+            pb = new ScriptPlayback(scriptId, clips, player.server.getTickCount(), voteRatio);
             scriptPlaybacks.put(scriptId, pb);
         }
         pb.viewers.add(player.getUUID());
@@ -74,7 +76,7 @@ public class ScriptEventManager {
 
         if (reason == CompletionReason.SKIPPED) {
             int total = pb.viewers.size() + pb.skipVoters.size();
-            int needed = Mth.ceil(total * Config.skipVoteRatio / 100f);
+            int needed = Mth.ceil(total * pb.skipVoteRatio / 100f);
             if (pb.skipVoters.size() >= needed) {
                 LOGGER.info("Script '{}' force-stopped by skip vote ({} / {} needed)", scriptId, pb.skipVoters.size(), needed);
                 for (UUID remaining : pb.viewers) {
@@ -89,7 +91,7 @@ public class ScriptEventManager {
     private void broadcastSkipVote(ScriptPlayback pb) {
         if (pb.viewers.isEmpty()) return;
         float ratio = (float) pb.skipVoters.size() / pb.viewers.size() * 100f;
-        int requiredRatio = Config.skipVoteRatio;
+        int requiredRatio = pb.skipVoteRatio;
         boolean skip = ratio >= requiredRatio;
         if (!skip) {
             for (UUID vid : pb.viewers) {
@@ -242,6 +244,8 @@ public class ScriptEventManager {
         final String scriptId;
         final Set<UUID> viewers;
         final Set<UUID> skipVoters;
+        /** 本场播放实际生效的跳过投票比例（脚本覆盖 ?? 全局配置），创建时解析一次 */
+        final int skipVoteRatio;
         final Set<Integer> triggeredKeyframes = new HashSet<>();
         final int startTick;
         final List<Clip> eventClips;
@@ -252,10 +256,11 @@ public class ScriptEventManager {
         int pauseStartTick = -1;
         int totalPausedTicks = 0;
 
-        ScriptPlayback(String scriptId, List<Clip> eventClips, int startTick) {
+        ScriptPlayback(String scriptId, List<Clip> eventClips, int startTick, int skipVoteRatio) {
             this.scriptId = scriptId;
             this.viewers = new HashSet<>();
             this.skipVoters = new HashSet<>();
+            this.skipVoteRatio = skipVoteRatio;
             this.eventClips = eventClips;
             this.startTick = startTick;
         }

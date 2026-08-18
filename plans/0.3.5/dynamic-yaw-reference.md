@@ -103,3 +103,12 @@
 
 - L4（连线相对坐标系）要不要做——用户当前倾向"先不做，记录待定"
 - 第三人称跟拍的"玩家视线同步"是否还要额外的镜头平滑（避免转头时猛甩）
+
+## 执行前再看 / 具体方案
+
+- **项目文件**：
+  - `script/CameraTrackPlayer.java`：`segmentYawPitch`（look_at=none 时返回 yawBase/pitchBase）、`writeAttributes`、`renderMorph`、`resolveEntity`。
+  - `script/KeyframeInterpolator.interpolateYaw`（`MathUtil.lerpAngle`）。
+  - `common/src/main/resources/schema.json` CAMERA keyframes：新增 `yaw_base` / `yaw_base_selector`（及 line 的 from/to）。
+- **做法**：每帧先求 `baseYaw`（world=0；entity=`getYRot()`；line=`Math.toDegrees(atan2(dz,dx))-90`），最终 yaw = `baseYaw + 插值后的 yaw 偏移`；look_at != none 时忽略 yaw_base；pitch/roll/fov/zoom 不动；morph 两端各自求 finalYaw 再 `blendAngle`。
+- **执行时再看**：`CameraTrackPlayer.segmentYawPitch/writeAttributes/renderMorph`、`KeyframeInterpolator`、`MathUtil.lerpAngle`、schema.json。

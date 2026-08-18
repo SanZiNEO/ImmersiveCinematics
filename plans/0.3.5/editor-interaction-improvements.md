@@ -98,3 +98,31 @@ Esc → 取消退出（不记录，仅退出操控模式还原 UI）
 1. 全屏预览：做 vs 只放大预览区（倾向做，用户确认中）
 2. 键位 F6 最终确认
 3. 升降键：空格/Shift（vs 滚轮）确认
+
+## 执行前再看 / 具体方案
+
+- **项目文件**：
+  - `camera/CameraManager.java`：`setPreviewDirectControl(boolean)`、`previewSetCamera(...)`（飞行模式直驱入口）。
+  - `script/CameraTrackPlayer.onRenderFrame`：`if (cameraManager.isPreviewDirectControl()) return;`。
+  - `editor/EditorOperations.java`：`addKeyframeAt` / `interpolateKeyframe` / `copyKeyframeProperties`（中间帧继承复用）。
+  - `control/InputRouter.java`、`mixin/MouseHandlerMixin.java`、`mixin/KeyboardHandlerMixin.java`（现有输入路由，飞行模式需新增路由/目标）。
+  - `editor/EditorUndoManager.java`（记录 undo）。
+- **MC 源码**（已抽取到 `build/mc-sources/`）：
+  - `client/player/KeyboardInput.java`：`calculateImpulse`。
+  - `client/MouseHandler.java`：`turnPlayer()` 灵敏度公式 `(sensitivity*0.6+0.2)^3*8`、`invertYMouse`、`SmoothDouble`。
+  - `client/Options.java`：`keyUp/keyDown/keyLeft/keyRight/keyJump/keyShift`。
+- **外部参考（软 grab / 自由相机）**：
+  - **FreeCam（Zergatul）**：mcmod [class/7117](https://www.mcmod.cn/class/7117.html)，GitHub `Zergatul/freecam`。重点看：
+    - `common/mod/java/com/zergatul/freecam/mixins/MixinMouseHandler.java`：拦截 `MouseHandler.turnPlayer` 里的 `LocalPlayer.turn`，转发给 `FreeCam.onPlayerTurn`——与本项目 `MouseHandlerMixin` + `InputRouter` 对应。
+    - `common/mod/java/com/zergatul/freecam/FreeCam.java`：主逻辑（键位读取/位移/相机覆盖）。
+    - `common/mod/java/com/zergatul/freecam/mixins/MixinCamera.java`、`MixinGameRenderer.java`。
+  - mcmod 另有 [FreeCam by kapiteon](https://www.mcmod.cn/class/6729.html)（Fork: `mhornbacher/freercam-minecraft`）。
+  - `SkyblockerMod/Skyblocker` → `MouseHandlerMixin`（`glfwSetCursorPos` 回中）。
+  - `menglannnn/NewSim_U_Kraft` → `MixinMouseHandler`（帧间增量 + turnPlayer 接管自由相机）。
+- **移动方案（已定，参考 Freecam/Zergatul）**：
+  - 每 tick 直接读 `Options.keyUp/keyDown/keyLeft/keyRight/keyJump/keyShift` 的 `isDown()`，用 `KeyboardInput.calculateImpulse` 得前后/左右输入。
+  - 由预览相机当前 yaw 计算 forward/right 水平向量：`forward = (-sin(yaw), 0, cos(yaw))`，`right = (cos(yaw), 0, sin(yaw))`（注意 MC yaw 约定）。
+  - 位移 = `(forward * forwardImpulse + right * leftImpulse) * speed * dt`；空格/Shift 直接改 y；速度默认 10 格/秒（可调）。
+  - 鼠标用 `GLFW.glfwGetCursorPos` 算 delta，再 `glfwSetCursorPos` 回中；应用 `MouseHandler.turnPlayer` 同款灵敏度公式到预览相机 yaw/pitch。
+  - 不 cancel 原始输入事件，保持输入状态连续；飞行模式退出时复用 `plans/0.3.5/input-handoff.md` 的状态重同步。
+- **执行时再看**：`CameraManager` 直控、`EditorOperations`、`InputRouter`/两个输入 Mixin、`CinematicKeyBindings`、`EditorUndoManager`；MC `MouseHandler.turnPlayer`/`KeyboardInput`；FreeCam `FreeCam.java` 的位移读取逻辑。

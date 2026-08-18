@@ -183,3 +183,17 @@ clip 切换（prewarm）→ 提前 prewarm 秒对 clip B 初始位置走同一�
 
 - `plans/0.4.0/camera-chunk-preload.md`：被本设计取代
 - 本设计相对中间简化版的增量：**磁盘分流（scanChunk + 分级超时 + 未生成配额）恢复为核心机制**（用户要求利用磁盘记录节流）；砍掉实体 tick 档与升级档；补发记账/渐进完整明确化
+
+## 执行前再看 / 具体方案
+
+- **MC 源码**（已抽取到 `build/mc-sources/`）：
+  - `server/level/ServerChunkCache.java`：`addRegionTicket/removeRegionTicket/hasChunk/chunkScanner`。
+  - `world/level/chunk/storage/ChunkScanAccess.java`：`scanChunk(ChunkPos, StreamTagVisitor)` 返回 `CompletableFuture<Void>`。
+  - `nbt/visitors/CollectFields.java` + `FieldSelector`：`new CollectFields(new FieldSelector(StringTag.TYPE, "Status"))` 后 `getResult()` 取 Status。
+  - `server/level/ChunkMap.java`：`prepareTickingChunk`（3×3 FULL + `MutableObject<ClientboundLevelChunkWithLightPacket>` 多玩家共享）、`playerLoadedChunk`（`new ClientboundLevelChunkWithLightPacket(chunk, lightEngine, null, null)` + `trackChunk`）。
+  - `network/protocol/game/ClientboundLevelChunkWithLightPacket.java`、`ClientboundForgetLevelChunkPacket`（客户端 `ClientPacketListener.handleForgetLevelChunk` → `level.getChunkSource().drop(pos)`）。
+- **外部参考**：
+  - `pop4959/Chunky`：`forge/fabric/neoforge` 三平台 `ForgeWorld/FabricWorld/NeoForgeWorld` 用 `scanChunk + CollectFields(Status)` 判断磁盘已生成/未生成——**同款技巧**。
+  - `Moulberry/Flashback`：回放相机用自定义 `addRegionTicket` 加载区块并处理区块包。
+- **项目文件**：`trigger/network/NetworkHandler.java`（注册新包）、`AckTracker.java`/`NetworkGuard.java`（可靠发送模式）、`command/CinematicCommand.java`（服务端推送入口）、`Config.java`（新配置项）。
+- **执行时再看**：以上 MC 源码 + 项目网络层；先网络包，再服务端 ChunkPreloadManager，再客户端 PreloadRequester。

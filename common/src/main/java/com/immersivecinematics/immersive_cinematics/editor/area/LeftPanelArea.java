@@ -193,11 +193,46 @@ public class LeftPanelArea extends UIComponent {
             String key = e.getKey();
             if ("tristate".equals(e.getValue().type())) {
                 cy = reflectTristate(key, lx, cy, 0, script);
+            } else if ("int".equals(e.getValue().type()) && e.getValue().defaultValue() == null) {
+                // 可选 int 字段（schema 声明但无默认值）：未写入 JSON 时也渲染，带"未设置（跟随全局配置）"态
+                cy = reflectOptionalInt(key, lx, cy, 0, script);
             } else if (script.has(key)) {
                 cy = reflectField(key, script.get(key), lx, cy, 0, script, null, false);
             }
         }
         return cy;
+    }
+
+    /**
+     * 可选 int 字段下拉（schema 无默认值的 int meta 字段）：始终渲染。
+     * 未设置 = 不写入 JSON（运行时回落到全局配置）；当前用于 skip_vote_ratio（10~100 每 10 一档）。
+     */
+    private int reflectOptionalInt(String key, int lx, int cy, int depth, JsonObject parentObj) {
+        int ix = lx + depth * 10;
+        int iw = w - 12 - depth * 10;
+        String label = formatKey(key);
+        List<String> options = new java.util.ArrayList<>();
+        options.add(I18n.get("editor.field." + key + ".unset"));
+        for (int v = 100; v >= 10; v -= 10) options.add(String.valueOf(v));
+
+        UIDropdown dd = new UIDropdown(ix, cy, iw, 16, options,
+                () -> {
+                    if (!parentObj.has(key) || parentObj.get(key).isJsonNull()) return 0;
+                    int cur = parentObj.get(key).getAsInt();
+                    for (int i = 1; i < options.size(); i++) {
+                        if (Integer.parseInt(options.get(i)) == cur) return i;
+                    }
+                    return -1; // 非预设值（如手写 55）→ 显示空白，仍可下拉改选
+                },
+                i -> {
+                    if (i <= 0) parentObj.remove(key);
+                    else parentObj.addProperty(key, Integer.parseInt(options.get(i)));
+                    if (onDirty != null) onDirty.run();
+                    scheduleBuild();
+                });
+        dd.setLabel(label + ":");
+        addChild(dd);
+        return cy + 18;
     }
 
     private void buildClipProperties() {

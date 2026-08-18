@@ -78,3 +78,12 @@ look_at_target 对象存在 →
 
 - 求值框架与 isClipUsable 已有（相对实体检查是增量）
 - 不依赖 yaw 基准 / 预设，可独立排期
+
+## 执行前再看 / 具体方案
+
+- **项目文件**：
+  - `script/CameraTrackPlayer.java`：`evalLookTarget`（coordinate/entity/none 三分支）、`isClipUsable`、`resolveEntity`、`originPos`。
+  - `script/ScriptParser.parseFieldBySchema`：未知对象会自动转 `Map`，`look_at_target` 可直接用 `kf.getObject("look_at_target")` 解析。
+  - `common/src/main/resources/schema.json` CAMERA keyframes：新增 `look_at_target`（map 类型），保留旧散字段。
+- **做法**：在 `evalLookTarget` 优先读 `look_at_target` 对象——有 x/y/z 为绝对；`relative_to=coordinate` 用 `relative_x/y/z + dx/dy/dz`；`relative_to` 为实体 selector 每帧 `resolveEntity` + 偏移；只有 dx/dy/dz 用 `originPos` + 偏移。`isClipUsable` 增加对 `relative_to` 实体不存在返回 false。
+- **执行时再看**：`CameraTrackPlayer.evalLookTarget/isClipUsable/resolveEntity`、`ScriptParser`、schema.json、编辑器属性面板。

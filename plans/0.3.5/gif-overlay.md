@@ -57,3 +57,17 @@ STBIGifResult result = STBImage.stbi_load_gif(buffer);   // 1.20.1 自带 LWJGL 
 
 - LWJGL `org.lwjgl.stb.STBImage.stbi_load_gif` / `STBIGifResult`
 - bbs-mod 的 AnimatedTexture（KeyframeChannel 轮播帧）是同类模型
+
+## 执行前再看 / 具体方案
+
+- **LWJGL API**：`STBImage.stbi_load_gif_from_memory(ByteBuffer, PointerBuffer delays, IntBuffer x, IntBuffer y, IntBuffer z, IntBuffer channels, int desired)`；返回按帧顺序交错排列的像素数据，`delays` 为每帧延迟数组，`z` 为帧数。
+- **外部参考**：
+  - `CreeperHost/PolyLib` → `common/src/main/java/net/creeperhost/polylib/client/gif/AnimatedGif.java`（拆帧切片 + 纹理轮播）。
+  - `The-Plum-Team/Quick-Skin-Mod` → `StbGifLoader.java`（先解析 GIF 容器防止解压炸弹，可参考内存上限思路）。
+  - `SamsTheNerd/inline` → `ImgFormatParser.java`、`DarkKronicle/Facelift` → `ImageUtil.java`、`aratakileo/elegantia` → `GifImage.java`。
+- **项目文件**：
+  - `util/TextureLoader.java`（`NativeImage.read` 目前只解第一帧；新增 gif 分支与缓存）
+  - `overlay/ImageLayer.java`（加“动态纹理”模式，渲染前按帧索引上传）
+  - `script/OverlayTrackPlayer.java`（把 `globalTime` 传给 ImageLayer 计算帧索引）
+  - `client/renderer/texture/DynamicTexture.java`（单帧纹理复用上传）
+- **执行时再看**：`TextureLoader`、`ImageLayer`、`OverlayTrackPlayer`、`DynamicTexture`、PolyLib AnimatedGif / Quick-Skin StbGifLoader。

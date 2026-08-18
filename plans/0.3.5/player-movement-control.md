@@ -89,3 +89,15 @@
 3. 假输入注入（Mixin serverAiStep）+ 朝向控制
 4. 停止/暂停/打断的移动状态处理
 5. 冒烟测试：A→B 直线移动（动画/速度/停点）、折线多段、纯命令关键帧兼容、被挡停住、脚本中断时玩家位置
+
+## 执行前再看 / 具体方案
+
+- **MC 源码**（已抽取到 `build/mc-sources/`）：
+  - `client/player/LocalPlayer.java`：`serverAiStep()` 在 `super.serverAiStep()` 后把 `input.leftImpulse/forwardImpulse` 复制到 `xxa/zza`；`tick()` 内 `sendPosition()` 自动上报。
+  - `client/player/KeyboardInput.java`：`calculateImpulse(up, down)` 公式（同向 0，否则 ±1）。
+- **项目文件**：
+  - `script/ModEventTrackPlayer.java`（EVENT 轨道播放器现状占位）
+  - `common/src/main/resources/schema.json` EVENT keyframes：新增 `position`（x/z）
+  - `mixin/` 目录新增 `LocalPlayerMixin`（执行时建）
+- **做法**：Mixin `LocalPlayer.serverAiStep` @HEAD 在移动段激活时设置 `input.leftImpulse/forwardImpulse`（并设 `yRot/yRotO` 为移动方向），原版 `serverAiStep` 会自动复制到 `xxa/zza` 并走 `travel()` 完整链路；停止/暂停/打断时清输入。
+- **执行时再看**：`LocalPlayer.serverAiStep/tick/sendPosition`、`KeyboardInput`、`ScriptPlayer` 如何实例化 TrackPlayer、`ModEventTrackPlayer`。

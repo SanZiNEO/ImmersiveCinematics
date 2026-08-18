@@ -116,6 +116,8 @@
     "editor.field.position_x": "X",
     "editor.field.position_y": "Y",
     "editor.field.position_z": "Z",
+    "editor.field.skip_vote_ratio": "跳过投票比例",
+    "editor.field.skip_vote_ratio.unset": "未设置（跟随全局配置）",
 
     "editor.status.ready": "就绪",
     "editor.title.cinematic_editor": "沉浸式过场动画编辑器",

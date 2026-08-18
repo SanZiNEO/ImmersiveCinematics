@@ -116,6 +116,8 @@
     "editor.field.position_x": "x",
     "editor.field.position_y": "y",
     "editor.field.position_z": "z",
+    "editor.field.skip_vote_ratio": "skip vote ratio",
+    "editor.field.skip_vote_ratio.unset": "Unset (global config)",
 
     "editor.status.ready": "Ready",
     "editor.title.cinematic_editor": "Cinematic Editor",

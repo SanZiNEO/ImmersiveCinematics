@@ -12,10 +12,12 @@ public class ScriptMeta {
     private final int priority;
     private final String dimension;
     private final List<TriggerDefinition> triggers;
+    /** 跳过投票比例（百分比，10~100）；null = 未指定，运行时回落到全局配置 Config.skipVoteRatio */
+    private final Integer skipVoteRatio;
 
     public ScriptMeta(String id, String name, String author, int version, String description,
                       RuntimeBehavior behavior, int priority, String dimension,
-                      List<TriggerDefinition> triggers) {
+                      List<TriggerDefinition> triggers, Integer skipVoteRatio) {
         this.id = id;
         this.name = name;
         this.author = author;
@@ -25,6 +27,7 @@ public class ScriptMeta {
         this.priority = priority;
         this.dimension = dimension;
         this.triggers = triggers != null ? triggers : Collections.emptyList();
+        this.skipVoteRatio = skipVoteRatio;
     }
 
     public String getId() { return id; }
@@ -37,6 +40,8 @@ public class ScriptMeta {
     public int getPriority() { return priority; }
     public String getDimension() { return dimension; }
     public List<TriggerDefinition> getTriggers() { return triggers; }
+    /** 跳过投票比例（10~100）；null = 未指定，运行时使用全局配置 Config.skipVoteRatio */
+    public Integer getSkipVoteRatio() { return skipVoteRatio; }
 
     public boolean isBlockKeyboard() { return behavior.blockKeyboard(); }
     public boolean isBlockMouse() { return behavior.blockMouse(); }

@@ -73,3 +73,17 @@
 
 - 前置：脚本生成走现有 schema/validator（已具备）
 - 可与 dynamic-yaw-reference（yaw_base）并行/在其后落地——环绕预设若用相对控制点（贝塞尔相对模式已实现）初版即可工作，无需等 yaw 基准
+
+## 执行前再看 / 具体方案
+
+- **数学参考**：
+  - 用三段三次贝塞尔拟合整圆：每段 120°，控制点到端点距离 = `R * 4/3 * tan(θ/4)`；θ=120° → `4/3 * tan(30°) ≈ 0.7698R`。
+  - 参考：StackOverflow “How to create circle with Bézier curves?”、Charles Petzold “Bézier Circles and Bézier Ellipses”。
+- **项目文件**：
+  - `script/MathUtil.java`（`cubicBezier`）
+  - `script/BezierCurve.java`（每段两个控制点，支持相对/绝对）
+  - `script/BezierPathStrategy.java` / `ArcLengthLUT.java`（匀速贝塞尔）
+  - `script/ScriptParser.java` / `ScriptValidator.java`（生成结果校验）
+  - `editor/EditorOperations.addClip`（插入生成脚本）
+- **做法**：预设 = 参数 schema + Java 生成函数；输出标准脚本 JSON 后走 `ScriptParser`/`ScriptValidator`，与手写脚本等价。先做“环绕轨道”时确认现有 `BezierCurve` 是 clip 级单段（两个控制点），整圆需要用 3 个 clip 或扩展为多段。
+- **执行时再看**：`BezierCurve`、`MathUtil`、`BezierPathStrategy`、`ArcLengthLUT`、`ScriptParser`、`EditorOperations.addClip`。

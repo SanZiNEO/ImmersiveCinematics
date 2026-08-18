@@ -26,3 +26,8 @@ AUDIO 轨道的 `relative` 位置模式发生过语义分歧，已修复为"跟�
 
 - 保持当前"相对 = 跟随玩家"（已修复、语义干净）
 - 两种模式的取舍留到 0.3.5 之后，有真实需求（场景声钉锚）再实现
+
+## 执行前注意
+
+- ⚠️ 本文件是讨论记录，结论已并入 `plans/0.3.5/audio-listener-model.md`。
+- 执行时以 `audio-listener-model.md` 及其“执行前再看 / 具体方案”为准；`relative_fixed` 不再实现（锚定需求用 absolute 表达）。

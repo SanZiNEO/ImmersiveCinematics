@@ -71,3 +71,14 @@
 - 基准解析器统一（与 look-at-relative-target 一起做）
 - 服务端/客户端双路径（resolveStructurePos 模式复用）
 - 不依赖 yaw 基准/预设，可独立排期
+
+## 执行前再看 / 具体方案
+
+- **项目文件**：
+  - `script/PositionData.java`（现有 ORIGIN_PLAYER/COORDINATE/STRUCTURE，需加 ORIGIN_BLOCK）
+  - `script/ScriptParser.parseRelativeWithOrigin`（识别 `block:` 前缀或结构化对象）
+  - `script/CameraTrackPlayer.resolveRelativeBase/evalLookTarget/isClipUsable`（加 block 分支）
+  - `util/StructureLocator.java`（作为“服务端/客户端双路径 + 缓存 + 失败重试”的模式参考）
+  - `command/CinematicCommand.resolveStructureTargets`（服务端推送前替换 block 基准为坐标，或保留给客户端解析）
+- **做法**：新增 `BlockLocator`：玩家附近 xz 平面按方块遍历 + y ±8~16，`level.getBlockState(pos).getBlock()` 精确匹配 id，取最近；成功缓存、失败短重试；默认半径 16~32 格（执行时定）。
+- **执行时再看**：`PositionData`、`ScriptParser`、`CameraTrackPlayer.resolveRelativeBase`、`CinematicCommand.resolveStructureTargets`、`StructureLocator`。

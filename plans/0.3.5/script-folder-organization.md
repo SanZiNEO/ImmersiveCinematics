@@ -61,3 +61,12 @@ immersive_cinematics/
 - 编辑器列表显示相对路径：脚本列表构建处取相对路径
 - 文档目录约定：几行
 - 总量很小（~30 行），与"作者友好"的诉求匹配
+
+## 执行前再看 / 具体方案
+
+- **项目文件**：`common/src/main/java/com/immersivecinematics/immersive_cinematics/script/ScriptManager.java`（`loadFromDir` 用 `Files.list`）、`command/CinematicCommand.java`（`SCRIPT_SUGGESTIONS` 与 `findScriptFile` 只搜根目录）。
+- **改法**：
+  - `Files.list` → `Files.walk(dir)`（限制深度 ≤5），过滤 `Files.isRegularFile && .json`。
+  - 命令补全：`dir.relativize(p)` 后去掉 `.json` 作为建议；`findScriptFile` 支持子路径但保留路径穿越防护。
+  - 编辑器脚本列表改为显示相对路径（执行时 grep `getAllScripts` 或脚本列表构建处）。
+- **执行时再看**：`ScriptManager.java`、`CinematicCommand.java`、编辑器脚本列表 UI。

@@ -81,3 +81,14 @@ onGameEvent / onServerTick
 - 解锁粒度：触发过 vs 播完（当前倾向 triggered）
 - 是否需要 OR 组合
 - 是否需要"解锁但不自动触发"（A 播完 → B 自动接续，而非等 B 自己的触发器）——这是另一种机制（自动接续），可能未来单独讨论
+
+## 执行前再看 / 具体方案
+
+- **项目文件**：
+  - `script/TriggerDefinition.java`（目前只有 type/conditions/repeatable/delay/on_enter/exit_buffer，需加 `requires`）
+  - `script/ScriptParser.parseTriggerDefinition`（解析 `requires` 数组）
+  - `trigger/server/TriggerEngine.java`（`onGameEvent` / `onServerTick` 最前面加依赖检查）
+  - `trigger/server/store/TriggerStateStore.java`（复用 `isTriggered` / `isScriptCompleted`）
+  - `script/ScriptValidator.java`（加 requires 指向不存在脚本的提示）
+- **改法**：`TriggerDefinition`/`TriggerRegistration` 增加 `List<String> requires`；`TriggerEngine` 两个入口在 `shouldSkip` 前遍历 requires，任一 `!TriggerStateStore.isTriggered(...)` 则跳过；默认解锁语义 = triggered（触发即算）。
+- **执行时再看**：`TriggerEngine.onGameEvent/onServerTick`、`TriggerStateStore`、`ScriptParser.parseTriggerDefinition`。

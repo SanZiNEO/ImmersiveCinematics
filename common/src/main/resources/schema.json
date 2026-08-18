@@ -122,6 +122,7 @@
     "interruptible": { "type": "bool", "default": true, "section": "runtime" },
     "skippable": { "type": "bool", "default": true, "section": "runtime" },
     "hold_at_end": { "type": "bool", "default": false, "section": "runtime" },
-    "priority": { "type": "int", "default": 0, "section": "runtime" }
+    "priority": { "type": "int", "default": 0, "section": "runtime" },
+    "skip_vote_ratio": { "type": "int", "section": "runtime" }
   }
 }

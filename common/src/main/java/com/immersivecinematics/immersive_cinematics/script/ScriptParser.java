@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -124,6 +125,14 @@ public class ScriptParser {
         // 播放优先级（默认值来自 schema.json "meta" 段；仅用于队列内排序）
         int priority = optInt(metaObj, "priority", 0);
 
+        // 跳过投票比例（可选，10~100）：缺省/非法 → null，运行时回落到全局配置 Config.skipVoteRatio
+        Integer skipVoteRatio = optNullableInt(metaObj, "skip_vote_ratio");
+        if (skipVoteRatio != null && (skipVoteRatio < 10 || skipVoteRatio > 100)) {
+            ErrorLog.log("Parse", p + ".skip_vote_ratio 超出范围 10~100，实际: " + skipVoteRatio
+                    + "，已忽略（使用全局配置）");
+            skipVoteRatio = null;
+        }
+
         // 脚本维度限制（可选）
         String dimension = optString(metaObj, "dimension", "");
 
@@ -136,7 +145,7 @@ public class ScriptParser {
             }
         }
 
-        return new ScriptMeta(id, name, author, version, description, behavior, priority, dimension, triggers);
+        return new ScriptMeta(id, name, author, version, description, behavior, priority, dimension, triggers, skipVoteRatio);
     }
 
     // ========== Timeline 解析 ==========
@@ -606,6 +615,14 @@ public class ScriptParser {
 
     private static int optInt(JsonObject obj, String key, int defaultVal) {
         return obj.has(key) ? obj.get(key).getAsInt() : defaultVal;
+    }
+
+    /** 可选整数：缺省 / JSON null / 非数字 → null */
+    private static Integer optNullableInt(JsonObject obj, String key) {
+        if (!obj.has(key) || obj.get(key).isJsonNull()) return null;
+        JsonElement el = obj.get(key);
+        if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isNumber()) return null;
+        return el.getAsInt();
     }
 
     private static boolean optBool(JsonObject obj, String key, boolean defaultVal) {
