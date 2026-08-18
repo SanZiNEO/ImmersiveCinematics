@@ -14,7 +14,7 @@
   - ✅ 支持未知字段自动解析（向前兼容），触发器定义解析支持 `on_enter`/`exit_buffer`（`ScriptParser`）
   - ✅ 解析轨道级合法性：超过 1 条 CAMERA 轨道仅使用第 1 条、LETTERBOX/EVENT 建议最多 1 条、morph 相邻 clip position_mode 不一致时告警（`ScriptParser`）
 - **脚本加载与触发器注册**
-  - ✅ 提供单例 `ScriptManager.INSTANCE`，从世界存档目录 `immersive_cinematics/scripts` 加载全部 .json 脚本并缓存原始 JSON（`ScriptManager`）
+  - ✅ 提供单例 `ScriptManager.INSTANCE`，从游戏根目录 `immersive_cinematics/scripts` 递归加载子文件夹全部 .json 脚本并缓存原始 JSON（深度 ≤ 5）（`ScriptManager`）
   - ✅ 首次启动时将游戏根目录全局脚本复制到世界存档（已存在的不覆盖）（`ScriptManager`）
   - ✅ 提供 `registerAllTriggers()` 将脚本 meta 中的触发器定义批量注册进 `TriggerEngine`，动作统一为 `StartPlaybackAction`（`ScriptManager`）
   - ✅ 提供 `reload()` 清空引擎、重新加载并重建索引（`ScriptManager`）
@@ -55,7 +55,7 @@
   - ✅ 关键帧级 `follow`（位置跟随实体，position 即相对实体偏移）与 `look_at`（注视实体/坐标/结构）：两端关键帧各自求值为世界坐标再插值 → follow↔普通、换目标、look_at 开关全部平滑过渡；look_at 目标点插值模型（none 端=该关键帧 yaw/pitch 方向远点）（`CameraTrackPlayer`）
   - ✅ 实体选择器子集：`@p`/`@s`/`@e`/`@e[type=…,name=…]`/`uuid:…`，就近优先 + 1 秒缓存（`CameraTrackPlayer`）
   - ✅ 结构目标：服务端 `/icinematics play` 推送前把 `look_at_target_structure` / `position.relative_origin`（结构 id）替换为结构 **bounding box 中心**坐标（`StructureLocator`：触发器同款附近搜寻——getAllStructuresAt 按 chunk 步进扫描玩家附近 3 区块已加载区域 → StructureStart → getBoundingBox().getCenter()；不采用原版 findNearestMapStructure 的网格环序，避免命中远处未加载结构）；编辑器预览（单人）客户端直连集成服务端兜底（`StructureLocator`、`CinematicCommand`、`CameraTrackPlayer`）
-  - ✅ 支持 `cam_breath_*` 呼吸扰动（clip 级）：按时间+种子生成确定性随机微晃叠加到 yaw/pitch/roll（`CameraTrackPlayer`）
+  - ✅ 支持 `cam_breath_*` 呼吸扰动 v2（clip 级）：`cam_breath_type` 多类型（perlin/perlin_axis/sine/trauma）+ speed，确定性叠加到最终 yaw/pitch/roll（`BreathDisturbance`、`CameraTrackPlayer`）
   - ✅ 相对/绝对坐标模式为关键帧级（position 对象自描述：有 dx=相对、有 x=绝对），统一世界坐标空间插值；相对基准可扩展：`relative_origin` = 玩家激活位置（默认）/ `"coordinate"` 固定坐标 / 结构 id 结构中心（`CameraTrackPlayer`、`PositionData`）
 - **AUDIO 轨道播放器**
   - ✅ 通过 LWJGL OpenAL 多音源播放：每 clip 一个 `CinematicAudioInstance`，clip 切换时淡出并清理旧实例（`AudioTrackPlayer`）

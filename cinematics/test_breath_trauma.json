@@ -1,0 +1,71 @@
+{
+  "meta": {
+    "id": "test_breath_trauma",
+    "name": "镜头呼吸测试-trauma",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "测试呼吸扰动 v2 的 trauma 类型（冲击衰减：越播越稳）",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 10,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "cam_breath_enabled": true,
+            "cam_breath_type": "trauma",
+            "cam_breath_intensity": 0.5,
+            "cam_breath_seed": 7,
+            "cam_breath_speed": 1.0,
+            "cam_breath_trauma": 1.0,
+            "cam_breath_decay": 0.4,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": {
+                  "dx": 0,
+                  "dy": 1,
+                  "dz": -3
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 10,
+                "position": {
+                  "dx": 0,
+                  "dy": 1,
+                  "dz": -3
+                },
+                "yaw": 20,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -54,6 +54,12 @@ public class TriggerStateStore {
         return state != null && state.isScriptCompleted(scriptId);
     }
 
+    /** 该玩家是否触发过指定脚本的任意触发器（requires 前置依赖的默认解锁语义：触发即算） */
+    public boolean hasAnyTriggered(UUID player, String scriptId) {
+        PlayerTriggerState state = playerStates.get(player);
+        return state != null && state.hasAnyTriggered(scriptId);
+    }
+
     public Set<String> getTriggeredIds(UUID player, String scriptId) {
         PlayerTriggerState state = playerStates.get(player);
         return state != null ? state.getTriggeredIds(scriptId) : null;

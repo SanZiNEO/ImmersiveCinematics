@@ -150,7 +150,7 @@
 | `loop` / `loop_count` | 循环生命周期：`loop: true` + `loop_count: -1` = 无限循环（配合 follow/look_at 可做常驻跟随视角）；正整数 = 播 N 个周期后停在末帧；`loop_count: 0` 非法（按 1 处理） |
 | `loop_mode` | 循环时间映射：`"repeat"`（默认）= 从头到尾重复；`"pingpong"` = 往复折返（监控视角来回摇，关键帧只写半程即可） |
 | `curve` | 贝塞尔路径（可选，见 SCRIPT_FORMAT.md） |
-| `cam_breath_enabled` | 呼吸扰动（手持感，clip 级），配 `cam_breath_intensity`（0.05~0.1）和 `cam_breath_seed` |
+| `cam_breath_enabled` | 呼吸扰动（手持感，clip 级），配 `cam_breath_intensity`（0.05~0.1）、`cam_breath_seed`、`cam_breath_type`（`perlin` 默认 / `perlin_axis` / `sine` / `trauma`）、`cam_breath_speed`（越大晃越快）；`trauma` 额外配 `cam_breath_trauma`（初始冲击 0~1）与 `cam_breath_decay`（衰减速率）；同 seed 重放一致 |
 
 > **跟随/注视/坐标模式都在关键帧级配置**（`position_mode`、`follow`、`look_at` 系列字段写在 keyframe 对象里，见下）。
 

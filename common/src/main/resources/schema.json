@@ -12,7 +12,11 @@
         "loop_mode": { "type": "enum", "values": ["repeat", "pingpong"], "default": "repeat" },
         "cam_breath_enabled": { "type": "bool", "default": false },
         "cam_breath_intensity": { "type": "float", "default": 0.05 },
-        "cam_breath_seed": { "type": "int", "default": 0 }
+        "cam_breath_seed": { "type": "int", "default": 0 },
+        "cam_breath_type": { "type": "enum", "values": ["perlin", "perlin_axis", "sine", "trauma"], "default": "perlin" },
+        "cam_breath_speed": { "type": "float", "default": 1.0 },
+        "cam_breath_trauma": { "type": "float", "default": 1.0 },
+        "cam_breath_decay": { "type": "float", "default": 0.5 }
       },
       "keyframes": {
         "position": { "type": "position", "required": true },

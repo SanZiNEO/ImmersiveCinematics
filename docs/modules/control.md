@@ -22,4 +22,4 @@
   - ✅ `InputRouter` 接口定义输入路由决策（键盘/鼠标按钮/滚轮/视角转动），两层设计：Mixin 在 HEAD 捕获原始事件，本接口决定目标（`InputRouter`）
   - ✅ `InputTarget` 枚举三种路由结果：GAME（放行）、SELF（拦截但更新自身按键状态，如跳过键）、BLOCK（完全拦截）（`InputTarget`）
   - ✅ 默认路由实现：非激活/无世界时放行；跳过键始终 SELF；block_keyboard 开启且游戏未暂停（或暂停不随游戏）时拦截键盘，Esc 放行；block_mouse 开启时拦截鼠标按钮/滚轮/视角转动（`InputRouter`）
-  - ✅ `CinematicController.releaseAllKeys()` 在播放开始/结束时释放全部按键，防止按键卡住（`CinematicController`）
+  - ✅ `CinematicController.releaseAllKeys()` 在**播放开始**释放全部按键，清旧状态；**播放退出**改用 `syncInputStateAfterExit()` 优雅交接：`KeyMapping.setAll()` 按当前物理按键状态重同步键盘 + 鼠标按钮单独按 GLFW 状态同步 + 清空鼠标累积量——避免玩家持续按键时退出导致"按键失效直到松开重按"与视角跳变（`CinematicController`、`MouseHandlerMixin.resetAccumulated`）

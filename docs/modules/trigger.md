@@ -15,6 +15,7 @@
   - ✅ 支持延迟触发：`delay`（秒）转换为 tick 数，到期后执行动作（`TriggerEngine`）
   - ✅ 去重与防重：播放同一脚本的玩家跳过触发；非 repeatable 触发器已触发过则不再触发（`TriggerEngine`、`TriggerStateStore`）
   - ✅ 支持 `on_enter` 进入检测：只在玩家从区域外进入时触发，配合 `exit_buffer` 扩展离开判定，防止区域边界抖动反复触发（`TriggerEngine`、`Evaluators.expandConditions`）
+  - ✅ 支持**前置依赖 `requires`**：触发器声明前置脚本 id 列表（AND），全部前置脚本"触发过"（跳过/打断/播完都算）才允许触发——按剧情线逐级解锁；依赖检查在 shouldSkip 之前（未解锁时连去重都不碰）；解锁后 repeatable 语义照旧（`TriggerEngine.prerequisitesMet`、`TriggerStateStore.hasAnyTriggered`）
   - ✅ 触发后标记状态并依次执行注册的动作列表（`TriggerEngine`）
 - **触发器注册模型**
   - ✅ `TriggerRegistration` 封装一次注册：脚本 id、触发器 id、类型、条件、退出条件、动作列表、repeatable/delay/on_enter/exit_buffer（`TriggerRegistration`）

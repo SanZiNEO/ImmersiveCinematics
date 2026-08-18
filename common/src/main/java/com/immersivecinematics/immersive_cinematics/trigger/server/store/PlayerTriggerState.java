@@ -26,6 +26,12 @@ public class PlayerTriggerState {
         return completedScripts.contains(scriptId);
     }
 
+    /** 该脚本是否触发过任意触发器（触发即标记，跳过/打断都算解锁） */
+    public boolean hasAnyTriggered(String scriptId) {
+        Set<String> triggers = triggeredScripts.get(scriptId);
+        return triggers != null && !triggers.isEmpty();
+    }
+
     public Set<String> getTriggeredIds(String scriptId) {
         return triggeredScripts.get(scriptId);
     }

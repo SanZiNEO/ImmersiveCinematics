@@ -1000,6 +1000,8 @@ public class EditorScreen extends Screen {
             Path tempDir = scriptsDir.getParent().resolve("temp");
             Files.createDirectories(tempDir);
             Path dst = tempDir.resolve(fileName);
+            // 子目录脚本的 temp 拷贝：确保目标父目录存在（否则 Files.copy 抛 NoSuchFileException）
+            if (dst.getParent() != null) Files.createDirectories(dst.getParent());
             Files.copy(src, dst, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
             String json = Files.readString(dst);
@@ -1049,12 +1051,14 @@ public class EditorScreen extends Screen {
         scriptFileNames.clear();
         System.out.println("[KILO-DEBUG] refreshScriptList: dir=" + scriptsDir.toAbsolutePath() + " exists=" + Files.exists(scriptsDir));
         if (Files.exists(scriptsDir)) {
-            try (Stream<Path> files = Files.list(scriptsDir)) {
-                List<Path> allFiles = files.collect(java.util.stream.Collectors.toList());
-                System.out.println("[KILO-DEBUG]   files in dir: " + allFiles.stream().map(p -> p.getFileName().toString()).collect(java.util.stream.Collectors.toList()));
+            // 递归加载：子文件夹组织的 .json 也进列表，条目显示相对路径（如 dungeon/enter.json）
+            try (Stream<Path> files = Files.walk(scriptsDir, 5)) {
+                List<Path> allFiles = files.filter(f -> Files.isRegularFile(f) && f.toString().endsWith(".json"))
+                        .collect(java.util.stream.Collectors.toList());
+                System.out.println("[KILO-DEBUG]   files in dir: " + allFiles.stream().map(p -> scriptsDir.relativize(p).toString()).collect(java.util.stream.Collectors.toList()));
                 allFiles.stream()
-                        .filter(f -> f.toString().endsWith(".json"))
-                        .map(f -> f.getFileName().toString()).sorted().forEach(scriptFileNames::add);
+                        .map(f -> scriptsDir.relativize(f).toString().replace('\\', '/'))
+                        .sorted().forEach(scriptFileNames::add);
             } catch (IOException e) {
                 System.out.println("[KILO-DEBUG]   IOException: " + e.getMessage());
             }

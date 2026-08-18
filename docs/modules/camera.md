@@ -38,4 +38,4 @@
   - ✅ 支持 `cam_tracking_look_at=entity` 注视实体（`cam_tracking_target_selector` 选择器解析目标）（`CameraTrackPlayer`）
   - ✅ 支持 `cam_tracking_follow=entity` 跟随实体，可配三轴偏移（`CameraTrackPlayer`）
 - **镜头呼吸扰动（cam_breath_*）**
-  - ✅ 支持 `cam_breath_enabled` 开关、`cam_breath_intensity` 强度、`cam_breath_seed` 随机种子，运行时叠加随机微晃（`CameraTrackPlayer`）
+  - ✅ v2：`cam_breath_type` 多类型（`perlin` 默认 / `perlin_axis` / `sine` / `trauma`）+ `cam_breath_speed`，旧 `enabled/intensity/seed` 兼容（缺省 type 按 perlin 处理）；`trauma` 专属 `cam_breath_trauma/decay`；确定性（同 seed + 同时间 → 同抖动），叠加在最终 yaw/pitch/roll 上（`BreathDisturbance`、`CameraTrackPlayer`）

@@ -5,7 +5,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
-import java.util.Random;
 
 public class CameraTrackPlayer implements TrackPlayer {
 
@@ -212,18 +211,12 @@ public class CameraTrackPlayer implements TrackPlayer {
                 nextFrom != null ? KeyframeInterpolator.interpolateZoom(nextFrom, nextTo, nextS) : 1f,
                 weight);
 
-        // ====== Breath disturbance ======
+        // ====== Breath disturbance (v2: 按 cam_breath_type 分派, 确定性) ======
         if (prevClip.getBool("cam_breath_enabled", false)) {
-            float intensity = prevClip.getFloat("cam_breath_intensity", 0.05f);
-            int seed = prevClip.getInt("cam_breath_seed", 0);
-            long timeSeed = (long)(globalTime * 100) + seed;
-            Random rng = new Random(timeSeed);
-            float yawJitter = (rng.nextFloat() - 0.5f) * 2f * intensity;
-            float pitchJitter = (rng.nextFloat() - 0.5f) * 2f * intensity;
-            float rollJitter = (rng.nextFloat() - 0.5f) * 2f * intensity;
-            yaw += yawJitter;
-            pitch += pitchJitter;
-            roll += rollJitter;
+            float[] jitter = BreathDisturbance.fromClip(prevClip).compute(globalTime);
+            yaw += jitter[0];
+            pitch += jitter[1];
+            roll += jitter[2];
         }
         // ====== End breath ======
 
@@ -432,18 +425,12 @@ public class CameraTrackPlayer implements TrackPlayer {
         float yaw = yp[0];
         float pitch = yp[1];
         // ====== End look_at ======
-        // ====== Breath disturbance ======
+        // ====== Breath disturbance (v2: 按 cam_breath_type 分派, 确定性) ======
         if (clip.getBool("cam_breath_enabled", false)) {
-            float intensity = clip.getFloat("cam_breath_intensity", 0.05f);
-            int seed = clip.getInt("cam_breath_seed", 0);
-            long timeSeed = (long)(globalTime * 100) + seed;
-            Random rng = new Random(timeSeed);
-            float yawJitter = (rng.nextFloat() - 0.5f) * 2f * intensity;
-            float pitchJitter = (rng.nextFloat() - 0.5f) * 2f * intensity;
-            float rollJitter = (rng.nextFloat() - 0.5f) * 2f * intensity;
-            yaw += yawJitter;
-            pitch += pitchJitter;
-            roll += rollJitter;
+            float[] jitter = BreathDisturbance.fromClip(clip).compute(globalTime);
+            yaw += jitter[0];
+            pitch += jitter[1];
+            roll += jitter[2];
         }
         // ====== End breath ======
 

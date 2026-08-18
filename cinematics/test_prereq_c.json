@@ -1,0 +1,75 @@
+{
+  "meta": {
+    "id": "test_prereq_c",
+    "name": "测试-前置依赖C(requires B)",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "前置依赖冒烟C：requires [test_prereq_b]，B 触发过之后合成面包才触发。",
+    "triggers": [
+      {
+        "id": "c_craft_bread",
+        "type": "item_craft",
+        "repeatable": false,
+        "delay": 0,
+        "requires": ["test_prereq_b"],
+        "conditions": {
+          "item": "minecraft:bread"
+        }
+      }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 3,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 3,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": {
+                  "dx": 0,
+                  "dy": 1,
+                  "dz": 2
+                },
+                "yaw": 0,
+                "pitch": 20,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 3,
+                "position": {
+                  "dx": 0,
+                  "dy": 1,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 35,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -31,6 +31,9 @@ public class ScriptManager {
     /** 游戏根目录的全局脚本目录（服务端统一从根目录加载,不再同步进世界存档） */
     private static final String GLOBAL_SCRIPT_DIR = "immersive_cinematics/scripts";
 
+    /** 脚本递归加载的最大深度（子文件夹组织，防异常目录结构） */
+    public static final int MAX_SCRIPT_DEPTH = 5;
+
     private final Map<String, CinematicScript> scripts = new LinkedHashMap<>();
     private boolean loaded = false;
 
@@ -55,9 +58,11 @@ public class ScriptManager {
             return;
         }
 
+        // 递归加载：支持子文件夹组织（深度 ≤ MAX_SCRIPT_DEPTH），只加载常规 .json 文件
         List<Path> jsonFiles;
-        try (Stream<Path> stream = Files.list(dir)) {
-            jsonFiles = stream.filter(p -> p.toString().endsWith(".json")).collect(Collectors.toList());
+        try (Stream<Path> stream = Files.walk(dir, MAX_SCRIPT_DEPTH)) {
+            jsonFiles = stream.filter(p -> Files.isRegularFile(p) && p.toString().endsWith(".json"))
+                              .collect(Collectors.toList());
         } catch (IOException e) {
             com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("ScriptLoad", "Failed to list scripts directory: " + dir, e);
             return;
@@ -73,11 +78,11 @@ public class ScriptManager {
                     continue;
                 }
                 scripts.put(id, script);
-                LOGGER.info("Loaded script: {} (id={}) from {}", script.getName(), id, dir);
+                LOGGER.info("Loaded script: {} (id={}) from {}", script.getName(), id, toForwardRel(dir, file));
             } catch (Exception e) {
                 // 脚本解析失败：写错误日志文件（作者排查），不影响其他脚本加载
                 com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("ScriptLoad",
-                        "Failed to load script from " + file.getFileName() + ": " + e.getMessage(), e);
+                        "Failed to load script from " + toForwardRel(dir, file) + ": " + e.getMessage(), e);
             }
         }
     }
@@ -102,6 +107,17 @@ public class ScriptManager {
                 JsonObject exitConditions = td.isOnEnter() && td.getExitBuffer() > 0f
                         ? Evaluators.expandConditions(conditions, td.getExitBuffer())
                         : null;
+                // 前置依赖引用校验：指向不存在脚本 → 该触发器永不触发；自引用 → 永不解锁
+                for (String req : td.getRequires()) {
+                    if (!scripts.containsKey(req)) {
+                        com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("ScriptLoad",
+                                "脚本 '" + meta.getId() + "' 的触发器 '" + td.getType() + "' requires 指向不存在的脚本 '"
+                                        + req + "'（该触发器将永不触发）");
+                    } else if (req.equals(meta.getId())) {
+                        com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("ScriptLoad",
+                                "脚本 '" + meta.getId() + "' 的触发器 requires 自引用自身（可能永不解锁）");
+                    }
+                }
                 registrations.add(new TriggerRegistration(
                         meta.getId(), td.getType() + "_" + meta.getId(),
                         triggerType, conditions,
@@ -110,7 +126,8 @@ public class ScriptManager {
                         delayMs,
                         td.isOnEnter(),
                         td.getExitBuffer(),
-                        exitConditions
+                        exitConditions,
+                        td.getRequires()
                 ));
             }
         }
@@ -135,6 +152,11 @@ public class ScriptManager {
     }
 
     public boolean isLoaded() { return loaded; }
+
+    /** 把 dir 下的文件转为向前斜杠的相对路径（目录结构组织的显示/日志用） */
+    private static String toForwardRel(Path dir, Path file) {
+        return dir.relativize(file).toString().replace('\\', '/');
+    }
 
     @SuppressWarnings("unchecked")
     private void convertToJson(com.google.gson.JsonObject target, String key, Object val) {

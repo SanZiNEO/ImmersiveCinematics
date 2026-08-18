@@ -35,18 +35,27 @@ public class CinematicCommand {
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/Command");
     private static final String GLOBAL_SCRIPT_DIR = "immersive_cinematics/scripts";
 
+    /** Tab 补全递归深度（与 ScriptManager 保持一致：子文件夹组织） */
+    private static final int MAX_SCRIPT_DEPTH = 5;
+
     private static final SuggestionProvider<CommandSourceStack> SCRIPT_SUGGESTIONS = (ctx, builder) -> {
         MinecraftServer server = ctx.getSource().getServer();
         Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
         if (Files.isDirectory(globalDir)) {
-            try (Stream<Path> files = Files.list(globalDir)) {
-                files.filter(p -> p.toString().endsWith(".json"))
-                        .map(p -> p.getFileName().toString().replace(".json", ""))
+            try (Stream<Path> files = Files.walk(globalDir, MAX_SCRIPT_DEPTH)) {
+                files.filter(p -> Files.isRegularFile(p) && p.toString().endsWith(".json"))
+                        .map(p -> toForwardRel(globalDir, p).replace(".json", ""))
+                        .sorted()
                         .forEach(builder::suggest);
             } catch (IOException ignored) {}
         }
         return SharedSuggestionProvider.suggest(new String[0], builder);
     };
+
+    /** 把 globalDir 下的文件转为向前斜杠的相对路径（命令建议显示子目录路径） */
+    private static String toForwardRel(Path globalDir, Path p) {
+        return globalDir.relativize(p).toString().replace('\\', '/');
+    }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("icinematics")
@@ -311,7 +320,11 @@ public class CinematicCommand {
             return 0;
         }
 
-        List<String> issues = com.immersivecinematics.immersive_cinematics.script.ScriptValidator.validate(json);
+        // 附带已加载脚本 id：validator 可跨脚本检查 requires 是否指向不存在的脚本
+        java.util.Set<String> knownIds = ScriptManager.INSTANCE.getAllScripts().stream()
+                .map(CinematicScript::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<String> issues = com.immersivecinematics.immersive_cinematics.script.ScriptValidator.validate(json, knownIds);
         if (issues.isEmpty()) {
             source.sendSuccess(() -> Component.literal("§a校验通过: " + scriptPath.getFileName()), false);
             return 1;

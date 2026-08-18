@@ -17,28 +17,37 @@ public class TriggerRegistration {
     private final int delayMs;
     private final boolean onEnter;
     private final float exitBuffer;
+    /** 前置依赖：本触发器解锁前必须已触发的脚本 id 列表（AND），空 = 无前置 */
+    private final List<String> requires;
 
     public TriggerRegistration(String scriptId, String triggerId, TriggerType type,
                                 JsonObject conditions, List<TriggerAction> actions,
                                 boolean repeatable) {
-        this(scriptId, triggerId, type, conditions, actions, repeatable, 0, false, 0f, null);
+        this(scriptId, triggerId, type, conditions, actions, repeatable, 0, false, 0f, null, null);
     }
 
     public TriggerRegistration(String scriptId, String triggerId, TriggerType type,
                                 JsonObject conditions, List<TriggerAction> actions,
                                 boolean repeatable, int delayMs) {
-        this(scriptId, triggerId, type, conditions, actions, repeatable, delayMs, false, 0f, null);
+        this(scriptId, triggerId, type, conditions, actions, repeatable, delayMs, false, 0f, null, null);
     }
 
     public TriggerRegistration(String scriptId, String triggerId, TriggerType type,
                                 JsonObject conditions, List<TriggerAction> actions,
                                 boolean repeatable, int delayMs, boolean onEnter) {
-        this(scriptId, triggerId, type, conditions, actions, repeatable, delayMs, onEnter, 0f, null);
+        this(scriptId, triggerId, type, conditions, actions, repeatable, delayMs, onEnter, 0f, null, null);
     }
 
     public TriggerRegistration(String scriptId, String triggerId, TriggerType type,
                                 JsonObject conditions, List<TriggerAction> actions,
                                 boolean repeatable, int delayMs, boolean onEnter, float exitBuffer, JsonObject exitConditions) {
+        this(scriptId, triggerId, type, conditions, actions, repeatable, delayMs, onEnter, exitBuffer, exitConditions, null);
+    }
+
+    public TriggerRegistration(String scriptId, String triggerId, TriggerType type,
+                                JsonObject conditions, List<TriggerAction> actions,
+                                boolean repeatable, int delayMs, boolean onEnter, float exitBuffer, JsonObject exitConditions,
+                                List<String> requires) {
         this.scriptId = scriptId;
         this.triggerId = triggerId;
         this.type = type;
@@ -49,6 +58,7 @@ public class TriggerRegistration {
         this.delayMs = delayMs;
         this.onEnter = onEnter;
         this.exitBuffer = exitBuffer;
+        this.requires = requires != null ? requires : List.of();
     }
 
     public String getScriptId() { return scriptId; }
@@ -61,4 +71,5 @@ public class TriggerRegistration {
     public int getDelayMs() { return delayMs; }
     public boolean isOnEnter() { return onEnter; }
     public float getExitBuffer() { return exitBuffer; }
+    public List<String> getRequires() { return requires; }
 }

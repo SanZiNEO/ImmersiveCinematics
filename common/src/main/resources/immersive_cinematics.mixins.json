@@ -12,6 +12,7 @@
     "KeyboardHandlerMixin",
     "LivingEntityMixin",
     "MouseHandlerMixin",
+    "MouseHandlerAccessor",
     "PlayerTabOverlayMixin",
     "SubtitleOverlayMixin"
   ],

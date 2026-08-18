@@ -1,7 +1,11 @@
 package com.immersivecinematics.immersive_cinematics.control;
 
+import com.immersivecinematics.immersive_cinematics.mixin.MouseHandlerAccessor;
 import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import org.lwjgl.glfw.GLFW;
 
 public class CinematicController {
 
@@ -89,6 +93,38 @@ public class CinematicController {
 
     public void releaseAllKeys() {
         KeyMapping.releaseAll();
+    }
+
+    /**
+     * 播放退出后的输入状态重同步（优雅交接）——播放开始用 {@link #releaseAllKeys()} 清旧状态，
+     * 退出改用本方法按实际物理按键状态重建，避免玩家持续按住 W 时退出导致"按键被强制松开，
+     * 直到松开重按才恢复"的卡键现象。
+     * <ol>
+     *   <li>键盘：{@code KeyMapping.setAll()} 把全部 KEYSYM 绑定按当前物理按键状态 setDown；</li>
+     *   <li>鼠标按钮：{@code KeyMapping.setAll()} 只处理键盘，鼠标按键单独按 GLFW 物理状态同步；</li>
+     *   <li>鼠标视角累积量：清空 accumulatedDX/DY，避免退出后第一次 turnPlayer 消费播放期间积压位移。</li>
+     * </ol>
+     */
+    public void syncInputStateAfterExit() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+
+        // 1) 键盘状态重同步（替代 releaseAll 的"全量释放"）
+        KeyMapping.setAll();
+
+        // 2) 鼠标按键状态重同步（KeyMapping.setAll() 只处理键盘；set() 内部按 Key 的类型/值匹配所有绑定该键的映射）
+        long window = mc.getWindow().getWindow();
+        for (int button = 0; button < 8; button++) { // 常用鼠标按钮 0..7（左/右/中/侧键等）
+            boolean down = GLFW.glfwGetMouseButton(window, button) == GLFW.GLFW_PRESS;
+            KeyMapping.set(InputConstants.Type.MOUSE.getOrCreate(button), down);
+        }
+
+        // 3) 鼠标视角累积量清理（Accessor 接口——mixin 类不可直接引用，会抛 IllegalClassLoadError）
+        if (mc.mouseHandler != null) {
+            MouseHandlerAccessor accessor = (MouseHandlerAccessor) mc.mouseHandler;
+            accessor.setAccumulatedDX(0.0D);
+            accessor.setAccumulatedDY(0.0D);
+        }
     }
 
     public boolean isHideHud() { return hideHud; }

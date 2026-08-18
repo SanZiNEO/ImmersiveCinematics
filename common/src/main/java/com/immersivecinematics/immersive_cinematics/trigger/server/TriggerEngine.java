@@ -85,6 +85,7 @@ public class TriggerEngine {
         if (triggers == null || triggers.isEmpty()) return;
 
         for (TriggerRegistration reg : triggers) {
+            if (!prerequisitesMet(player, reg)) continue;
             if (shouldSkip(player, reg)) continue;
             if (reg.getType().evaluate(player, reg.getConditions())) {
                 if (reg.isOnEnter() && !checkEnterState(player, reg)) continue;
@@ -105,6 +106,7 @@ public class TriggerEngine {
 
             for (TriggerRegistration reg : entry.getValue()) {
                 for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                    if (!prerequisitesMet(player, reg)) continue;
                     if (shouldSkip(player, reg)) continue;
                     if (reg.getType().evaluate(player, reg.getConditions())) {
                         if (reg.isOnEnter() && !checkEnterState(player, reg)) continue;
@@ -164,6 +166,23 @@ public class TriggerEngine {
     }
 
     // ===== Internal =====
+
+    /**
+     * 前置依赖检查：requires 中任一脚本尚未"触发过" → 跳过（AND 语义）。
+     * 放在 shouldSkip 之前——依赖未解锁时连去重逻辑都不需要碰。
+     * 解锁后 repeatable 语义照旧（repeatable=true 可重复触发，false 触发一次）。
+     */
+    private boolean prerequisitesMet(ServerPlayer player, TriggerRegistration reg) {
+        List<String> requires = reg.getRequires();
+        if (requires.isEmpty()) return true;
+        UUID uuid = player.getUUID();
+        for (String requiredScript : requires) {
+            if (!TriggerStateStore.INSTANCE.hasAnyTriggered(uuid, requiredScript)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     private boolean shouldSkip(ServerPlayer player, TriggerRegistration reg) {
         if (ScriptEventManager.INSTANCE.isPlayerPlayingScript(player.getUUID(), reg.getScriptId())) {

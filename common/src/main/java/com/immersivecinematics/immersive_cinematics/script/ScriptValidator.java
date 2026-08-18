@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -29,6 +30,17 @@ public final class ScriptValidator {
      * @return 问题列表，每条含路径与说明；无问题返回空列表
      */
     public static List<String> validate(String json) {
+        return validate(json, null);
+    }
+
+    /**
+     * 校验脚本 JSON 文本（可附带已知脚本 id 集合做跨脚本引用检查）。
+     *
+     * @param json            脚本文件内容
+     * @param knownScriptIds  当前已加载的全部脚本 id（null = 不做跨脚本 exists 检查）
+     * @return 问题列表，每条含路径与说明；无问题返回空列表
+     */
+    public static List<String> validate(String json, Collection<String> knownScriptIds) {
         List<String> issues = new ArrayList<>();
 
         JsonObject root;
@@ -58,6 +70,11 @@ public final class ScriptValidator {
                     issues.add("meta.version 不是整数");
                 }
             }
+        }
+
+        // ===== meta.triggers：前置依赖（requires）校验 =====
+        if (root.has("meta") && root.get("meta").isJsonObject()) {
+            validateTriggerRequires(root.getAsJsonObject("meta"), "meta", knownScriptIds, issues);
         }
 
         // ===== timeline =====
@@ -311,6 +328,53 @@ public final class ScriptValidator {
         }
         sb.append("）");
         issues.add(sb.toString());
+    }
+
+    /**
+     * 校验 meta.triggers 的 requires 前置依赖：
+     * - 结构性：requires 必须是字符串数组，元素必须是字符串脚本 id；
+     * - 自引用：requires 指向脚本自身 → 永不解锁；
+     * - 跨脚本：requires 指向不存在的脚本（knownScriptIds 非 null 时）→ 该触发器永不触发。
+     */
+    private static void validateTriggerRequires(JsonObject meta, String path,
+                                                 Collection<String> knownScriptIds, List<String> issues) {
+        if (!meta.has("triggers")) return;
+        if (!meta.get("triggers").isJsonArray()) {
+            issues.add(path + ".triggers 不是数组");
+            return;
+        }
+        JsonArray triggers = meta.getAsJsonArray("triggers");
+        String selfId = meta.has("id") && meta.get("id").isJsonPrimitive()
+                ? meta.get("id").getAsString() : null;
+        for (int i = 0; i < triggers.size(); i++) {
+            JsonElement te = triggers.get(i);
+            if (!te.isJsonObject()) {
+                issues.add(path + ".triggers[" + i + "] 不是对象");
+                continue;
+            }
+            JsonObject t = te.getAsJsonObject();
+            String tp = path + ".triggers[" + i + "]";
+            if (!t.has("requires")) continue;
+            if (!t.get("requires").isJsonArray()) {
+                issues.add(tp + ".requires 必须是字符串数组");
+                continue;
+            }
+            JsonArray reqs = t.getAsJsonArray("requires");
+            for (int j = 0; j < reqs.size(); j++) {
+                JsonElement re = reqs.get(j);
+                if (!re.isJsonPrimitive() || !re.getAsJsonPrimitive().isString()) {
+                    issues.add(tp + ".requires[" + j + "] 必须是字符串脚本 id");
+                    continue;
+                }
+                String reqId = re.getAsString();
+                if (selfId != null && reqId.equals(selfId)) {
+                    issues.add(tp + ".requires 自引用自身脚本 '" + reqId + "'（可能永不解锁）");
+                }
+                if (knownScriptIds != null && !knownScriptIds.contains(reqId)) {
+                    issues.add(tp + ".requires 指向不存在的脚本 '" + reqId + "'（该触发器将永不触发）");
+                }
+            }
+        }
     }
 
     private static boolean isKnownType(String type) {

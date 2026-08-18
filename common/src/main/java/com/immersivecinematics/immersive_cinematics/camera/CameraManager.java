@@ -501,7 +501,9 @@ public class CameraManager {
         com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver.resetSkipVote();
 
         scriptPlayer.stop(reason);
-        CinematicController.INSTANCE.releaseAllKeys();
+        // 退出输入优雅交接：键盘按当前物理状态重同步 + 鼠标按钮同步 + 清鼠标累积量
+        // （不再 releaseAll 全量释放——避免玩家仍按着键时退出导致按键失效直到松开重按）
+        CinematicController.INSTANCE.syncInputStateAfterExit();
         CinematicController.INSTANCE.revert();
         reset();
         OverlayManager.INSTANCE.reset();

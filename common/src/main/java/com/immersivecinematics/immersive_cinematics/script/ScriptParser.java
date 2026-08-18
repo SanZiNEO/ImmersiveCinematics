@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -420,7 +421,33 @@ public class ScriptParser {
         float delay = optFloat(obj, "delay", 0f);
         boolean onEnter = optBool(obj, "on_enter", false);
         float exitBuffer = optFloat(obj, "exit_buffer", 0f);
-        return new TriggerDefinition(type, conditions, repeatable, delay, onEnter, exitBuffer);
+        List<String> requires = parseTriggerRequires(obj, p);
+        return new TriggerDefinition(type, conditions, repeatable, delay, onEnter, exitBuffer, requires);
+    }
+
+    /**
+     * 解析触发器前置依赖 requires: string[]（AND 语义；缺省 = 无前置，兼容旧脚本）。
+     * 每条是前置脚本 id（该脚本"触发过"即解锁，跳过/打断都算）。
+     */
+    private static List<String> parseTriggerRequires(JsonObject obj, String p) throws ScriptParseException {
+        if (!obj.has("requires")) return Collections.emptyList();
+        if (!obj.get("requires").isJsonArray()) {
+            throw new ScriptParseException(p + ".requires", "requires 必须是字符串数组");
+        }
+        List<String> result = new ArrayList<>();
+        JsonArray arr = obj.getAsJsonArray("requires");
+        for (int i = 0; i < arr.size(); i++) {
+            JsonElement el = arr.get(i);
+            if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isString()) {
+                throw new ScriptParseException(p + ".requires[" + i + "]", "前置脚本 id 必须是字符串");
+            }
+            String id = el.getAsString();
+            if (id.isEmpty()) {
+                throw new ScriptParseException(p + ".requires[" + i + "]", "前置脚本 id 不能为空");
+            }
+            result.add(id);
+        }
+        return result;
     }
 
     // ========== 验证方法 ==========

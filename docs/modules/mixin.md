@@ -23,6 +23,6 @@
   - ✅ `SubtitleOverlayMixin`（注入 `SubtitleOverlay`）：按 hide_subtitles 取消字幕渲染（`SubtitleOverlayMixin`）
 - **输入拦截**
   - ✅ `KeyboardHandlerMixin`（注入 `KeyboardHandler`）：HEAD 拦截 `keyPress()`，经 `InputRouter` 路由——GAME 放行、SELF 仅更新跳过键状态、BLOCK 取消事件（`KeyboardHandlerMixin`）
-  - ✅ `MouseHandlerMixin`（注入 `MouseHandler`）：HEAD 拦截 `onPress()`/`onScroll()`/`turnPlayer()`，按路由结果取消鼠标按键、滚轮与视角移动（`MouseHandlerMixin`）
+  - ✅ `MouseHandlerMixin`（注入 `MouseHandler`）：HEAD 拦截 `onPress()`/`onScroll()`/`turnPlayer()`，按路由结果取消鼠标按键、滚轮与视角移动；暴露 `resetAccumulated()` 清空 `accumulatedDX/DY`（播放退出时清除视角累积量）（`MouseHandlerMixin`）
 - **生物 AI 屏蔽**
   - ✅ `LivingEntityMixin`（注入 `LivingEntity`）：`canAttack()` 在 block_mob_ai 开启且目标为玩家时返回 false，阻止生物攻击玩家（`LivingEntityMixin`）

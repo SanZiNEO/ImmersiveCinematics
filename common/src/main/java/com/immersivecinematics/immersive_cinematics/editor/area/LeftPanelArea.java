@@ -251,6 +251,13 @@ public class LeftPanelArea extends UIComponent {
         for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getClipFields(TrackType.valueOf(trackType.toUpperCase())).entrySet()) {
             if (!"start_time".equals(e.getKey()) && !"duration".equals(e.getKey()) && !"keyframes".equals(e.getKey())) keys.add(e.getKey());
         }
+        // 呼吸扰动 v2：trauma 专属参数（cam_breath_trauma/decay）仅当 cam_breath_type=trauma 时显示
+        if (selectedClip != null && selectedClip.has("cam_breath_type")) {
+            if (!"trauma".equals(selectedClip.get("cam_breath_type").getAsString())) {
+                keys.remove("cam_breath_trauma");
+                keys.remove("cam_breath_decay");
+            }
+        }
         cy = reflectObject(selectedClip, lx, cy, keys.toArray(new String[0]), false);
     }
 

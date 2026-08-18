@@ -15,6 +15,31 @@
 
 ---
 
+## 0. 脚本目录组织约定
+
+脚本统一放在 `<游戏目录>/immersive_cinematics/scripts/`。支持**子文件夹组织**——按章节/场景/剧情线建文件夹放脚本，加载时递归遍历（深度 ≤ 5），编辑器脚本列表与 `/icinematics` 命令 Tab 补全都会显示相对路径（如 `chapter1/boss_fight`）。
+
+```
+immersive_cinematics/
+├── scripts/
+│   ├── intro/            # 序章脚本
+│   │   ├── welcome.json
+│   │   └── village.json
+│   ├── chapter1/         # 第一章脚本
+│   │   └── boss_fight.json
+│   └── showcase_01.json  # 根目录平铺也可以（兼容现状）
+└── resource/
+    ├── intro/            # 音频/图片按同样结构组织
+    │   └── bgm.ogg
+    └── overlay.png       # 根目录平铺也可以
+```
+
+- 脚本 `id` 仍是 `meta.id`（全局唯一），子目录**只是文件组织**，不参与 id 语义；同 `id` 冲突时按相对路径提示。
+- 命令用相对路径定位文件：`/icinematics play chapter1/boss_fight`（Tab 补全会给出建议）。
+- 音频/图片已有子路径支持（`resource/` 下 `path` 写 `"sub/bgm.ogg"` 即可）。
+
+---
+
 ## 1. `meta` — 脚本元信息
 
 ### 1a. 身份标识
@@ -78,6 +103,7 @@
 | `delay` | number | 否 | `0` | 触发后延迟执行秒数 |
 | `on_enter` | boolean | 否 | `false` | 仅位置类触发器有效：仅在首次进入区域时触发，已在区域内不重复 |
 | `exit_buffer` | number | 否 | `0` | 配合 `on_enter`：玩家离开触发区域多少格后才标记为"已离开"，防止边界抖动 |
+| `requires` | string[] | 否 | `[]` | **前置依赖**：前置脚本 id 列表（AND），全部前置脚本"触发过"（跳过/打断/播完都算）本触发器才允许触发。缺省 = 无前置。示例：`"requires": ["script_a"]` |
 
 全部触发类型及条件参数见 `TRIGGER_TYPES.md`。
 
@@ -138,6 +164,13 @@
 | `loop_count` | int | 否 | `-1` | 循环次数：`-1`=无限循环；正整数=播 N 个周期后停在末帧；`0` 非法（运行时按 1 处理） |
 | `loop_mode` | string | 否 | `"repeat"` | 循环时间映射：`"repeat"`=从头到尾重复；`"pingpong"`=往复折返（监控来回摇） |
 | `curve` | object | 否 | `null` | 贝塞尔路径曲线 |
+| `cam_breath_enabled` | boolean | 否 | `false` | 呼吸扰动总开关 |
+| `cam_breath_type` | string | 否 | `"perlin"` | 扰动类型：`perlin`（默认，平滑手持感）/ `perlin_axis`（每轴独立、更随机）/ `sine`（规律正弦"呼吸感"）/ `trauma`（冲击衰减，受击镜头晃动） |
+| `cam_breath_intensity` | float | 否 | `0.05` | 振幅/力度（约等于角度） |
+| `cam_breath_seed` | int | 否 | `0` | 波形种子（决定形状/相位，同 seed + 同时间 → 同抖动，重放一致） |
+| `cam_breath_speed` | float | 否 | `1.0` | 时间推进速度，越大晃得越快 |
+| `cam_breath_trauma` | float | 否 | `1.0` | 仅 `cam_breath_type=trauma`：初始冲击强度 0~1 |
+| `cam_breath_decay` | float | 否 | `0.5` | 仅 `cam_breath_type=trauma`：强度每秒衰减速率 |
 | `keyframes` | array | 是 | — | 关键帧数组，至少 1 个 |
 
 > **v3 迁移**：`position_mode`、`cam_tracking_follow*`、`cam_tracking_look_at*` 已全部迁移到**关键帧级**（见下方 Keyframe 字段）。clip 级不再支持这些字段（保留会被 validate 报废弃提示）。
