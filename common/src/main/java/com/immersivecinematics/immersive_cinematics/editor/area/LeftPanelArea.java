@@ -688,11 +688,14 @@ public class LeftPanelArea extends UIComponent {
             if (Math.abs(targetScrollY - scrollY) < 1) scrollY = targetScrollY;
         }
 
-        ctx.pushViewport(x, y, w, h);
-        // tab 栏固定在面板顶部：不平移渲染；内容 children 随滚动平移
+        // Tab 栏：不透明背景（内容滚动不会穿透）+ 固定按钮（不随内容滚动）
+        ctx.graphics.fill(x, y, x + w, y + TAB_HEIGHT, EditorTheme.BG_TRACK);
         for (UIComponent tab : tabButtons) {
             if (tab.visible) tab.render(ctx);
         }
+
+        // 内容区视口裁剪到 Tab 下方（滚动内容不会画到 Tab 栏上）
+        ctx.pushViewport(x, y + TAB_HEIGHT, w, h - TAB_HEIGHT);
         ctx.pushScroll(scrollY);
 
         for (UIComponent child : getChildren()) {
@@ -701,6 +704,12 @@ public class LeftPanelArea extends UIComponent {
 
         ctx.popScroll(scrollY);
         ctx.popViewport();
+
+        // Tab 栏最后再盖一层（防止滚动内容在视口边缘残留）并重绘按钮
+        ctx.graphics.fill(x, y, x + w, y + TAB_HEIGHT, EditorTheme.BG_TRACK);
+        for (UIComponent tab : tabButtons) {
+            if (tab.visible) tab.render(ctx);
+        }
 
         if (maxScroll > 0) {
             int sbX = x + w - 4;
