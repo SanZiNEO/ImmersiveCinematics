@@ -421,22 +421,12 @@ public class CameraManager {
             }
         }
 
-        if (gamePaused) {
+        // 暂停：不退出相机画面——冻结时钟但继续应用相机/轨道（修复"暂停切回玩家视角"）
+        boolean freezeTime = gamePaused || (previewMode && previewPaused);
+        if (freezeTime) {
             lastRealNanos = 0;
-            cachedHasActiveCameraClip = false;
-            return;
-        }
-
-        if (previewMode) {
-            if (previewPaused) {
+            if (previewMode && previewPaused) {
                 gameTimeSeconds = previewTime;
-                lastRealNanos = 0;
-            } else {
-                long now = System.nanoTime();
-                if (lastRealNanos != 0) {
-                    gameTimeSeconds += (double)(now - lastRealNanos) / 1_000_000_000.0;
-                }
-                lastRealNanos = now;
             }
         } else {
             long now = System.nanoTime();

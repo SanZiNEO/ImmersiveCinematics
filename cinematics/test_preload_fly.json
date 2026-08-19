@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "id": "test_preload_fly",
+    "name": "预加载·超平坦平飞测试(往村庄区域飞)",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "超平坦世界：固定相对玩家高2格，沿 -X(西) 平飞约300格（目标村庄 -288,0），yaw=90(前方)/pitch=0(不抬头)，观察远处虚空/村庄是否被预加载补顶。",
+    "triggers": [
+      { "id": "tpf_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 30,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 0, "dy": 2, "dz": 0 },
+                "yaw": 90,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 10,
+                "position": { "dx": -100, "dy": 2, "dz": 0 },
+                "yaw": 90,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 20,
+                "position": { "dx": -200, "dy": 2, "dz": 0 },
+                "yaw": 90,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 30,
+                "position": { "dx": -300, "dy": 2, "dz": 0 },
+                "yaw": 90,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "say [预加载] 起飞：沿 -X(西) 平飞向村庄区域(-288,0)，30s 约300格" },
+              { "time": 10, "event_type": "command", "command": "say [预加载] 10s：约 -100 格" },
+              { "time": 20, "event_type": "command", "command": "say [预加载] 20s：约 -200 格，前方应接近村庄" },
+              { "time": 30, "event_type": "command", "command": "say [预加载] 结束：约 -300 格；看远处村庄/地形是否被补顶" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

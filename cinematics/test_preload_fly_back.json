@@ -1,0 +1,83 @@
+{
+  "meta": {
+    "id": "test_preload_fly_back",
+    "name": "预加载·倒飞测试(村庄往回飞)",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "从村庄区域(-300,0)往回飞向出生点(0,0)：验证超远端按玩家视距整块加载——起飞先在远端-300把整片按视距铺出来，飞回来时一路跟随，回到玩家视距内恢复。",
+    "triggers": [
+      { "id": "tpfb_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 30,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": -300, "dy": 2, "dz": 0 },
+                "yaw": -90,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 15,
+                "position": { "dx": -150, "dy": 2, "dz": 0 },
+                "yaw": -90,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 30,
+                "position": { "dx": 0, "dy": 2, "dz": 0 },
+                "yaw": -90,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "say [预加载] 起飞：村庄-300 往回飞向出生点，验证远端按玩家视距整块加载" },
+              { "time": 15, "event_type": "command", "command": "say [预加载] 15s：约 -150 格，一路看地形是否跟随" },
+              { "time": 30, "event_type": "command", "command": "say [预加载] 结束：回到约 0 格；看全程是否有断块/虚空" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

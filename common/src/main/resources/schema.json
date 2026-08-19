@@ -7,6 +7,7 @@
         "transition_duration": { "type": "float", "default": 0.5 },
         "interpolation": { "type": "enum", "values": ["linear", "smooth"], "default": "linear" },
         "curve": { "type": "bezier_curve" },
+        "dimension": { "type": "string", "default": "" },
         "loop": { "type": "bool", "default": false },
         "loop_count": { "type": "int", "default": -1 },
         "loop_mode": { "type": "enum", "values": ["repeat", "pingpong"], "default": "repeat" },

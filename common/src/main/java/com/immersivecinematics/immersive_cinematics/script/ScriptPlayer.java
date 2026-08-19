@@ -113,9 +113,28 @@ public class ScriptPlayer {
         playerMovement.onScriptStart(newScript, originPos);
     }
 
+    /**
+     * 维度校验（0.3.5 B）：CAMERA clip 的 dimension 字段 ≠ 玩家当前维度 → 日志提示。
+     * 不做自动切换（跨维度运镜为 0.4.0 F 类，消费本字段）。有错即报错，不兜底。
+     */
+    private void validateClipDimensions(CinematicScript script) {
+        if (script == null || script.getTimeline() == null) return;
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        String playerDim = mc.level != null ? mc.level.dimension().location().toString() : "";
+        for (TimelineTrack track : script.getTimeline().getTracks()) {
+            if (track.getType() != TrackType.CAMERA) continue;
+            for (Clip clip : track.getClips()) {
+                String dim = clip.getString("dimension", "");
+                if (!dim.isEmpty() && !dim.equals(playerDim)) {
+                    LOGGER.warn("脚本 '{}' CAMERA clip ({}s) 声明维度 '{}' ≠ 玩家当前维度 '{}'：本版本不自动切换维度（0.4.0 预留）",
+                            script.getId(), clip.getStartTime(), dim, playerDim);
+                }
+            }
+        }
+    }
+
     /** 轨道布局相同判断:轨道数 + 类型顺序一致(忽略 clip 内容) */
-    private static boolean sameTrackLayout(List<TimelineTrack> a, List<TimelineTrack> b) {
-        if (a == null || b == null) return false;
+    private static boolean sameTrackLayout(List<TimelineTrack> a, List<TimelineTrack> b) {        if (a == null || b == null) return false;
         if (a.size() != b.size()) return false;
         for (int i = 0; i < a.size(); i++) {
             if (a.get(i).getType() != b.get(i).getType()) return false;
@@ -206,6 +225,9 @@ public class ScriptPlayer {
 
         // 玩家移动控制：提取 EVENT position 关键帧
         playerMovement.onScriptStart(script, originPos);
+
+        // 维度校验（0.3.5 B）：CAMERA clip 声明 dimension ≠ 玩家当前维度 → 提示（不做自动切换，0.4.0 F 类）
+        validateClipDimensions(script);
 
         // 预执行第一帧（避免首帧闪烁）— 用调用方期望的 elapsed（预览模式 = previewTime，避免 t=0 跳变）
         float elapsedSeconds = preExecuteAt;

@@ -26,6 +26,8 @@ public interface NetworkHandler {
     MessageType SCRIPT_PAUSE_ACK = NET.registerS2C("script_pause_ack", S2CScriptPauseAckPacket::new);
     /** 脚本文件重载通知（N2b，S2C — 只带文件名） */
     MessageType SCRIPT_RELOAD = NET.registerS2C("script_reload", S2CScriptReloadPacket::new);
+    /** 区块预加载：仅"无需加载"回执（日志用，不阻塞播放） */
+    MessageType PRELOAD_RESULT = NET.registerS2C("preload_result", S2CPreloadResultPacket::new);
 
     // ===== C2S（客户端 → 服务端）=====
 
@@ -37,6 +39,10 @@ public interface NetworkHandler {
     MessageType SCRIPT_PAUSE = NET.registerC2S("script_pause", C2SScriptPausePacket::new);
     /** 编辑器保存成功通知（N2b，C2S — 只带文件名） */
     MessageType SCRIPT_SAVED = NET.registerC2S("script_saved", C2SScriptSavedPacket::new);
+    /** 区块预加载请求（PRELOAD/PREWARM/RELEASE） */
+    MessageType PRELOAD_REQ = NET.registerC2S("preload_req", C2SPreloadRequestPacket::new);
+    /** 相机位置上报（20 tick） */
+    MessageType PRELOAD_POS = NET.registerC2S("preload_pos", C2SPreloadPositionPacket::new);
 
     /** 触发 static 字段加载，SimpleNetworkManager 自动完成平台注册 */
     static void init() {

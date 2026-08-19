@@ -55,6 +55,8 @@ public class ServerEventHandler {
             if (!(player instanceof ServerPlayer)) return;
             ServerPlayer serverPlayer = (ServerPlayer) player;
             UUID uuid = serverPlayer.getUUID();
+            // 区块预加载：断线释放票据/补发记账
+            com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager.INSTANCE.onDisconnect(uuid, serverPlayer);
             TriggerStateStore.INSTANCE.unloadForPlayer(uuid);
             Evaluators.KillTracker.clear(uuid);
             Evaluators.AdvancementTracker.clear(uuid);
@@ -71,6 +73,7 @@ public class ServerEventHandler {
         TickEvent.SERVER_POST.register(server -> {
             TriggerEngine.INSTANCE.onServerTick(server);
             ScriptEventManager.INSTANCE.onServerTick(server);
+            com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager.INSTANCE.tick();
         });
 
         // ===== 命令注册 =====

@@ -53,6 +53,8 @@ public class ClientEventHandler {
         ClientTickEvent.CLIENT_POST.register(mc -> {
             CameraManager.INSTANCE.tick();
             CinematicKeyBindings.onClientTick();
+            // 区块预加载：客户端请求器（开始 PRELOAD / 位置上报 / 结束 RELEASE）
+            com.immersivecinematics.immersive_cinematics.trigger.client.PreloadRequester.INSTANCE.tick(mc);
             // N1：ACK 超时重发检查（客户端侧）
             com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.tick();
             // D2：世界退出/断线时紧急停止（防止 OpenAL 音频残留播放）

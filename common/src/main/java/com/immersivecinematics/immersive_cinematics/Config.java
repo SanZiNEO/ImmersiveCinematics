@@ -52,6 +52,31 @@ public class Config {
     /** gamestage 触发器的轮询间隔（tick） */
     public static int triggerPollIntervalGamestage = 20;
 
+    // ===== 区块预加载配置（0.3.5 第3轮；静态默认值，平台配置文件持久化随第5轮配置/编辑器接入） =====
+
+    /** 全局总闸：区块预加载（服务端强制；脚本可 meta.preload:false 单独关闭） */
+    public static boolean preloadEnabled = true;
+    /** 滑动窗口半径（区块） */
+    public static int preloadWindowRadius = 2;
+    /** 单次请求区块总量上限 */
+    public static int preloadMaxChunks = 256;
+    /** 未生成区块硬配额（防卡服） */
+    public static int preloadMaxWorldgenChunks = 64;
+    /** 已生成区块就绪超时（秒） */
+    public static int preloadTimeoutGenerated = 2;
+    /** 未生成区块就绪超时（秒），超时降频轮询不放弃 */
+    public static int preloadTimeoutWorldgen = 15;
+    /** clip 切换提前预热量（秒） */
+    public static float preloadPrewarm = 2.0f;
+    /** 相机位置上报间隔（tick） */
+    public static int preloadReportInterval = 20;
+    /** 相机距玩家超此阈值（区块）→ 启用 far-view（客户端中心跟相机 + 玩家小块票券） */
+    public static int preloadFarViewCenterThreshold = 8;
+    /** far-view 时玩家所在块的小块票券半径（区块）——保证玩家区最小稳定加载、不卸载 */
+    public static int preloadPlayerZoneRadius = 4;
+    /** far-view 时相机区按玩家视距整块加载；每 tick 补发包上限（防一次性 625 块洪峰，渐续铺开） */
+    public static int preloadMaxBurstPerTick = 20;
+
     private static ConfigProvider provider;
 
     /**

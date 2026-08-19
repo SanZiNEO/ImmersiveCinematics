@@ -1,5 +1,15 @@
 # 区块预加载（Chunk Preload）：利用原版机制节流的相机画面加载
 
+> **v4 整体方案（2026-08-19 定稿，覆盖下文方案细节）**
+> 目标：相机超视距也能加载画面；玩家区最小稳定加载不卸载；不拉大视距。
+> - **门控**：仅当 `|相机块 − 玩家块| > farViewCenterThreshold` 才启用全套；近程零介入
+> - **A. CameraWindow（已有）**：相机窗口 ticket + 就绪补发 + 释放
+> - **B. PlayerZoneGuard（新增）**：对玩家所在块挂小块票券区（radius 4~8）→ 玩家服务端稳定加载、不卸载（流式半径收敛为可选优化）
+> - **C. ViewCenterOverride（新增）**：客户端缓存中心由服务端 `ClientboundSetChunkCacheCenterPacket` 指定——相机远时中心=相机（补发包落进 inRange）、近/返回时回玩家块
+> - **声音**：走客户端相机 listener 的声音包，不依赖区块在客户端缓存 → 远镜头玩家区声音照常在
+> - **边界**：客户端单主渲染区；相机远时玩家区画面不渲染（被镜头替代），返回小范围快速重下（服务端未卸）
+> - 配置：preloadEnabled / meta.preload / farViewCenterThreshold / playerZoneRadius / windowRadius / maxChunks / 配额 / 超时 / reportInterval / prewarm(待用)
+
 **版本**: 0.3.5
 **类型**: 新功能（2026-08-13 设计定稿）
 **状态**: 📋 设计定稿，待实施
