@@ -504,6 +504,13 @@ public class CameraManager {
             startScriptInternal(next);
         } else if (!scriptQueue.isEmpty()) {
             startScriptInternal(scriptQueue.poll());
+        } else {
+            // 真正回到正常游戏：强制一次全量区块重建——让 resync 回来的玩家区区块立即渲染，
+            // 而不是"只有玩家所在区块可见、动一下才全部出现"
+            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+            if (mc.levelRenderer != null) {
+                mc.levelRenderer.allChanged();
+            }
         }
     }
 
