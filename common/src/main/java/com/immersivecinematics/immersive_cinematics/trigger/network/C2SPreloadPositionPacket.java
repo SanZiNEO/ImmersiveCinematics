@@ -12,15 +12,18 @@ public class C2SPreloadPositionPacket extends BaseC2SMessage {
 
     private final int x;
     private final int z;
+    private final float yaw;
 
-    public C2SPreloadPositionPacket(int x, int z) {
+    public C2SPreloadPositionPacket(int x, int z, float yaw) {
         this.x = x;
         this.z = z;
+        this.yaw = yaw;
     }
 
     public C2SPreloadPositionPacket(FriendlyByteBuf buf) {
         this.x = buf.readInt();
         this.z = buf.readInt();
+        this.yaw = buf.readFloat();
     }
 
     @Override
@@ -32,12 +35,13 @@ public class C2SPreloadPositionPacket extends BaseC2SMessage {
     public void write(FriendlyByteBuf buf) {
         buf.writeInt(x);
         buf.writeInt(z);
+        buf.writeFloat(yaw);
     }
 
     @Override
     public void handle(NetworkManager.PacketContext context) {
         // 回服务端主线程（同 C2SPreloadRequestPacket）：ticket 变更/发包必须主线程
         ServerPlayer player = (ServerPlayer) context.getPlayer();
-        context.queue(() -> ChunkPreloadManager.INSTANCE.handlePosition(player, x, z));
+        context.queue(() -> ChunkPreloadManager.INSTANCE.handlePosition(player, x, z, yaw));
     }
 }

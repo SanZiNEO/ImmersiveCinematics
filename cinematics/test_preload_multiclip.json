@@ -1,0 +1,81 @@
+{
+  "meta": {
+    "id": "test_preload_multiclip",
+    "name": "预加载·多片段顺序加载测试",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "三个 CAMERA 片段依次跳远：村庄(-288,0) → 正东(288,0) → 正南(0,288)。每个片段 10s，观察 far-start 后可见区先铺、后台补全的顺序。",
+    "triggers": [
+      { "id": "tpmc_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 30,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": -288, "dy": 40, "dz": 0 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 10, "position": { "dx": -288, "dy": 40, "dz": 0 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 10,
+            "duration": 10,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 10, "position": { "dx": 288, "dy": 40, "dz": 0 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 20, "position": { "dx": 288, "dy": 40, "dz": 0 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 20,
+            "duration": 10,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 20, "position": { "dx": 0, "dy": 40, "dz": 288 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 30, "position": { "dx": 0, "dy": 40, "dz": 288 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "say [预加载] 片段1：村庄(-288,0)，10s" },
+              { "time": 10, "event_type": "command", "command": "say [预加载] 片段2：跳远到正东(288,0)，观察新 far-start 与补全顺序" },
+              { "time": 20, "event_type": "command", "command": "say [预加载] 片段3：跳远到正南(0,288)，观察第三次 far-start" },
+              { "time": 30, "event_type": "command", "command": "say [预加载] 结束：全程看是否每个片段可见区先铺、后台补全、无永久空洞" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

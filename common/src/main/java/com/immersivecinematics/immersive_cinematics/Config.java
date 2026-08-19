@@ -76,6 +76,22 @@ public class Config {
     public static int preloadPlayerZoneRadius = 4;
     /** far-view 时相机区按玩家视距整块加载；每 tick 补发包上限（防一次性 625 块洪峰，渐续铺开） */
     public static int preloadMaxBurstPerTick = 20;
+    /** far-view 时每 tick 新增区块 ticket 上限（限制 worldgen/读盘洪峰，默认 8 块/tick） */
+    public static int preloadMaxRequestsPerTick = 8;
+    /** far-view 方向性加载：相机后方保留的后带半径（区块）；前方全加载到视距 */
+    public static int preloadRearRadius = 2;
+    /** 预加载范围上限（区块）：防止低配/过大视距导致卡顿；有效半径不会超过它 */
+    public static int preloadRadiusCap = 32;
+    /** 强制使用配置预设范围（忽略玩家渲染距离） */
+    public static boolean preloadForceRadius = false;
+    /** 强制时的预设范围（区块） */
+    public static int preloadForceRadiusValue = 8;
+    /** lookahead 预载：当前片段剩余多少秒开始预载下一片段 */
+    public static float preloadPrewarmLeadSeconds = 2.0f;
+    /** lookahead 预载：下一片段预载范围（区块，取小区域慢速铺） */
+    public static int preloadPrewarmRadius = 8;
+    /** lookahead 预载：每 tick 新增预载 ticket 上限（慢速，默认 6） */
+    public static int preloadPrewarmRequestsPerTick = 6;
 
     private static ConfigProvider provider;
 

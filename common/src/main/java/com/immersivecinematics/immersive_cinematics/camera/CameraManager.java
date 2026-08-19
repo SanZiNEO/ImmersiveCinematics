@@ -537,6 +537,13 @@ public class CameraManager {
         return previewMode;
     }
 
+    /** 当前镜头 yaw（方向性预加载用）；无活跃属性时回退玩家朝向 */
+    public float getCameraYaw() {
+        if (activeProperties != null) return activeProperties.getYaw();
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        return mc.player != null ? mc.player.getYRot() : 0;
+    }
+
     public ScriptMeta.RuntimeBehavior getCurrentProperties() {
         return scriptPlayer.getCurrentProperties();
     }

@@ -17,7 +17,7 @@
     "interruptible": true,
     "skippable": true,
     "hold_at_end": false,
-    "render_player_model": false
+    "render_player_model": true
   },
   "timeline": {
     "total_duration": 30,

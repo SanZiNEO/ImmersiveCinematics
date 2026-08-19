@@ -19,13 +19,17 @@ public class C2SPreloadRequestPacket extends BaseC2SMessage {
     private final int x;
     private final int z;
     private final int radius;
+    private final float yaw;
+    private final int renderDistance;
 
-    public C2SPreloadRequestPacket(int mode, String scriptId, int x, int z, int radius) {
+    public C2SPreloadRequestPacket(int mode, String scriptId, int x, int z, int radius, float yaw, int renderDistance) {
         this.mode = mode;
         this.scriptId = scriptId;
         this.x = x;
         this.z = z;
         this.radius = radius;
+        this.yaw = yaw;
+        this.renderDistance = renderDistance;
     }
 
     public C2SPreloadRequestPacket(FriendlyByteBuf buf) {
@@ -34,6 +38,8 @@ public class C2SPreloadRequestPacket extends BaseC2SMessage {
         this.x = buf.readInt();
         this.z = buf.readInt();
         this.radius = buf.readInt();
+        this.yaw = buf.readFloat();
+        this.renderDistance = buf.readInt();
     }
 
     @Override
@@ -48,6 +54,8 @@ public class C2SPreloadRequestPacket extends BaseC2SMessage {
         buf.writeInt(x);
         buf.writeInt(z);
         buf.writeInt(radius);
+        buf.writeFloat(yaw);
+        buf.writeInt(renderDistance);
     }
 
     @Override
@@ -55,6 +63,6 @@ public class C2SPreloadRequestPacket extends BaseC2SMessage {
         // 必须回服务端主线程：addRegionTicket/removeRegionTicket/connection.send 都要主线程，
         // 否则网络线程改 DistanceManager 会把区块 ticket 状态写坏（症状：个别区块永久不加载）
         ServerPlayer player = (ServerPlayer) context.getPlayer();
-        context.queue(() -> ChunkPreloadManager.INSTANCE.handleRequest(player, mode, scriptId, x, z, radius));
+        context.queue(() -> ChunkPreloadManager.INSTANCE.handleRequest(player, mode, scriptId, x, z, radius, yaw, renderDistance));
     }
 }

@@ -48,6 +48,8 @@ public class C2SScriptFinishedPacket extends BaseC2SMessage {
         // N1：stop 包的自然回执
         AckTracker.ack(refId);
         TriggerEngine.INSTANCE.onScriptFinished(player, scriptId, reason);
+        // 区块预加载保底：任意退出（含强退）都强制释放，把加载交还玩家/原版机制
+        context.queue(() -> com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager.INSTANCE.onScriptFinished(player));
     }
 
     public String getScriptId() { return scriptId; }
