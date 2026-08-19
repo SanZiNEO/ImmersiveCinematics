@@ -59,7 +59,8 @@
         "fade_in": { "type": "float", "default": 0 },
         "fade_out": { "type": "float", "default": 0 },
         "attenuation": { "type": "enum", "values": ["none", "linear", "inverse"], "default": "linear" },
-        "position_mode": { "type": "enum", "values": ["relative", "absolute"], "default": "relative" }
+        "position_mode": { "type": "enum", "values": ["relative", "absolute"], "default": "relative" },
+        "category": { "type": "enum", "values": ["music", "ambient"], "default": "music" }
       },
       "keyframes": {
         "volume": { "type": "float", "default": 1.0 },

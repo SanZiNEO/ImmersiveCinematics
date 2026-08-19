@@ -24,6 +24,20 @@ public final class AudioListenerController {
         return !"camera".equals(listenerMode());
     }
 
+    /** 是否听者=相机（用于环境音采样点重定向） */
+    public static boolean isCameraListener() {
+        return CameraManager.INSTANCE.isActive() && "camera".equals(listenerMode());
+    }
+
+    /** 当前听者世界坐标：camera → 镜头位置；player → 玩家位置 */
+    public static net.minecraft.world.phys.Vec3 getListenerPosition() {
+        if (isCameraListener() && CameraManager.INSTANCE.getPath() != null) {
+            return CameraManager.INSTANCE.getPath().getPosition();
+        }
+        net.minecraft.client.Minecraft mc = Minecraft.getInstance();
+        return mc.player != null ? mc.player.position() : net.minecraft.world.phys.Vec3.ZERO;
+    }
+
     /** 构造玩家视角代理 Camera（位置=玩家、朝向=玩家视线） */
     public static Camera playerCamera() {
         Minecraft mc = Minecraft.getInstance();

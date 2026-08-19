@@ -55,7 +55,10 @@
             "y": -58,
             "z": 0,
             "category": "ambient",
-            "keyframes": []
+            "keyframes": [
+              { "time": 0, "x": 5, "y": -58, "z": 0 },
+              { "time": 6, "x": 15, "y": -58, "z": 0 }
+            ]
           },
           {
             "start_time": 10,

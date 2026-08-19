@@ -180,13 +180,21 @@ public class AudioTrackPlayer implements TrackPlayer {
         float initialVol = fadeIn > 0f ? 0f : clip.getVolume();
         inst.setVolume(initialVol);
 
-        Vec3 offset = getInterpolatedPosition(clip, 0f);
-        if ("absolute".equals(clip.getAudioPositionMode())) {
-            inst.setAttenuation(clip.getAttenuation());
-        } else {
+        // 两类语义：music=背景音（非空间，强制无衰减/relative）；ambient=环境音（空间，按 position_mode+attenuation）
+        if (category == SoundSource.MUSIC) {
+            inst.setRelative(true);
             inst.setAttenuation("none");
+            inst.setPosition(Minecraft.getInstance().player != null
+                    ? Minecraft.getInstance().player.position() : Vec3.ZERO);
+        } else {
+            Vec3 offset = getInterpolatedPosition(clip, 0f);
+            if ("absolute".equals(clip.getAudioPositionMode())) {
+                inst.setAttenuation(clip.getAttenuation());
+            } else {
+                inst.setAttenuation("none");
+            }
+            inst.setPosition(resolveAudioPosition(clip, offset));
         }
-        inst.setPosition(resolveAudioPosition(clip, offset));
 
         inst.play();
         instances.put(clip, inst);
@@ -304,18 +312,9 @@ public class AudioTrackPlayer implements TrackPlayer {
     }
 
     private static SoundSource parseCategory(String category) {
-        if (category == null) return SoundSource.MUSIC;
-        return switch (category.toLowerCase()) {
-            case "ambient" -> SoundSource.AMBIENT;
-            case "voice" -> SoundSource.VOICE;
-            case "blocks" -> SoundSource.BLOCKS;
-            case "players" -> SoundSource.PLAYERS;
-            case "master" -> SoundSource.MASTER;
-            case "neutral" -> SoundSource.NEUTRAL;
-            case "records" -> SoundSource.RECORDS;
-            case "weather" -> SoundSource.WEATHER;
-            default -> SoundSource.MUSIC;
-        };
+        if ("ambient".equalsIgnoreCase(category)) return SoundSource.AMBIENT;
+        // 背景音（music 及任何其它/旧值）统一归 MUSIC——只保留两类，不写兼容
+        return SoundSource.MUSIC;
     }
 
     /** 编辑器 reposition：seek/sync 精确实现属于第 E 项；当前保留 API 结构 */

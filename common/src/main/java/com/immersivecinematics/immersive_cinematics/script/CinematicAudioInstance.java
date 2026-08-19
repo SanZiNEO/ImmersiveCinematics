@@ -154,6 +154,11 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
         setAttenuation(mode, 16f);
     }
 
+    /** 背景音（music）强制相对听者、无空间性 */
+    public void setRelative(boolean rel) {
+        this.relative = rel;
+    }
+
     /** 编辑器 seek：流式 SoundInstance 不支持直接 seek，第 E 项再补 */
     public void seekTo(float seconds) {
         // no-op
