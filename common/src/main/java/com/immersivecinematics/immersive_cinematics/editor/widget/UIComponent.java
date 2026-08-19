@@ -153,7 +153,7 @@ public abstract class UIComponent {
 
     /** 鼠标是否在本容器可视矩形内（容器自身不滚动，用绝对坐标；滚出可视区的内容由 hitY 修正自然 miss） */
     private boolean mouseInsideSelf(UIContext ctx) {
-        return ctx.isMouseIn(absX(), absY(), w, h);
+        return ctx.isMouseIn(hitX(), hitY(), w, h);
     }
 
     public final boolean mouseClicked(UIContext ctx) {

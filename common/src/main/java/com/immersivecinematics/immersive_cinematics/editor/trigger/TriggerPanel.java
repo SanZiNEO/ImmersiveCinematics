@@ -194,6 +194,8 @@ public class TriggerPanel extends UIComponent {
         for (UIComponent wc : getChildren()) {
             maxBottom = Math.max(maxBottom, wc.y + wc.h);
         }
+        // 修复：rebuild 后必须把实际内容高度写回 this.h，否则命中区只有初始高度（子组件点不到）
+        this.h = Math.max(1, maxBottom - y + 4);
     }
 
     
