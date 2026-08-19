@@ -88,4 +88,13 @@ public class PanelTabBar extends UIComponent {
         if (!visible) return;
         super.renderOverlay(ctx);
     }
+
+    /**
+     * Tab 栏区域命中优先：走 UIComponent 的浮层优先通道（overlay pass 先于普通内容命中）。
+     * 否则滚动后叠在 Tab 栏下方的内容会先抢到点击。
+     */
+    @Override
+    protected boolean overlayHit(UIContext ctx) {
+        return visible && ctx.isMouseIn(hitX(), hitY(), w, h);
+    }
 }
