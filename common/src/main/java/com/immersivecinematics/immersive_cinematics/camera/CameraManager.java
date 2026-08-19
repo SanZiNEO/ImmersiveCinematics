@@ -542,6 +542,11 @@ public class CameraManager {
         return active;
     }
 
+    /** 是否处于编辑器预览模式（预览时 PlayerMoveController 不驱动真实玩家） */
+    public boolean isPreviewMode() {
+        return previewMode;
+    }
+
     public ScriptMeta.RuntimeBehavior getCurrentProperties() {
         return scriptPlayer.getCurrentProperties();
     }

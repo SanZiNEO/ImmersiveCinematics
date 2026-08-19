@@ -73,7 +73,8 @@
       },
       "keyframes": {
         "event_type": { "type": "string", "default": "command" },
-        "command": { "type": "string", "default": "" }
+        "command": { "type": "string", "default": "" },
+        "position": { "type": "map" }
       }
     },
     "MOD_EVENT": {

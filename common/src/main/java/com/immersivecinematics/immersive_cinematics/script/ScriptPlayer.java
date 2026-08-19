@@ -55,6 +55,12 @@ public class ScriptPlayer {
     // 相对模式基准位置（玩家激活时的位置）
     private Vec3 originPos = Vec3.ZERO;
 
+    // 玩家移动控制（EVENT 关键帧 position 驱动，假输入走原版链路；不建 TrackPlayer，直接读 EVENT 轨道数据）
+    private final PlayerMoveController playerMovement = new PlayerMoveController();
+
+    public PlayerMoveController getPlayerMovement() { return playerMovement; }
+    public Vec3 getOriginPos() { return originPos; }
+
     // 当前活跃的脚本运行时行为（从 ScriptMeta.RuntimeBehavior 直接持有）
     private ScriptMeta.RuntimeBehavior currentBehavior = null;
 
@@ -103,6 +109,8 @@ public class ScriptPlayer {
                 }
             }
         }
+        // 玩家移动控制：增量替换后重新提取 EVENT position 关键帧
+        playerMovement.onScriptStart(newScript, originPos);
     }
 
     /** 轨道布局相同判断:轨道数 + 类型顺序一致(忽略 clip 内容) */
@@ -196,6 +204,9 @@ public class ScriptPlayer {
         // 创建 TrackPlayer 实例（组 A：数据源动态化，后续 replaceScript 不重建；传轨道索引支持同类型多轨道）
         buildTrackPlayers(script);
 
+        // 玩家移动控制：提取 EVENT position 关键帧
+        playerMovement.onScriptStart(script, originPos);
+
         // 预执行第一帧（避免首帧闪烁）— 用调用方期望的 elapsed（预览模式 = previewTime，避免 t=0 跳变）
         float elapsedSeconds = preExecuteAt;
         for (TrackPlayer tp : trackPlayers) {
@@ -224,6 +235,8 @@ public class ScriptPlayer {
 
         // 通知所有 TrackPlayer 停止并清空
         cleanupTrackPlayers();
+        // 玩家移动控制：停止驱动
+        playerMovement.onStop();
 
         this.playing = false;
         this.stopping = false;
@@ -333,6 +346,9 @@ public class ScriptPlayer {
                 com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackPlayer 执行异常", e);
             }
         }
+
+        // 玩家移动控制（EVENT position 关键帧驱动，与相机同一虚拟时钟，暂停感知）
+        playerMovement.onRenderFrame(elapsedSeconds);
     }
 
     /**

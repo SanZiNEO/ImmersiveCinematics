@@ -11,6 +11,7 @@
     "GuiMixin",
     "KeyboardHandlerMixin",
     "LivingEntityMixin",
+    "LocalPlayerMixin",
     "MouseHandlerMixin",
     "MouseHandlerAccessor",
     "PlayerTabOverlayMixin",

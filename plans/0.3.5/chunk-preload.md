@@ -21,6 +21,7 @@
 | 3 | 极远距离 | 相机可距玩家几千区块——画面由滑动窗口跟随保证；未探索区域受预算/超时约束，渐进出现 |
 | 4 | **节流 = 磁盘分流** | 核心机制：`scanChunk` 只读磁盘 Status 分流——已生成（读盘快）与未生成（worldgen 贵）分开处理，分别配额与超时 |
 | 5 | 简化 | 砍掉朝向扇形采样、升级档 ticket（radius=1 一步到位）、forceTicks、实体 tick 档（radius=2，生物不做）；区块包补发构造一次、多玩家共享 |
+| 6 | **开关分层（2026-08-19 用户确认）** | 两处开关：① 全局 `Config.preload_enabled`（服务端，默认 true，**服务端强制执行**——防客户端刷请求）；② 脚本级 `meta.preload: false`（可选，默认跟随全局，作者对"不出加载区/已预生成"脚本关掉省开销）。客户端 `PreloadRequester` 在任一开关关闭时根本不发请求（省流量），服务端再兜底强制 |
 
 ---
 
@@ -132,7 +133,7 @@ clip 切换（prewarm）→ 提前 prewarm 秒对 clip B 初始位置走同一�
 
 | 配置项 | 默认 | 说明 |
 |---|---|---|
-| `preload_enabled` | true | 总开关 |
+| `preload_enabled` | true | **全局总闸（服务端强制）**；脚本可 `meta.preload: false` 单独关闭（默认跟随全局） |
 | `window_radius` | 2 | 滑动窗口半径（区块） |
 | `max_chunks` | 256 | 单次请求区块总量上限 |
 | `max_worldgen_chunks` | 64 | 未生成区块硬配额（防卡服） |
