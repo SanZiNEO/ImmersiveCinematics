@@ -1,12 +1,16 @@
 {
   "meta": {
     "id": "test_audio",
-    "name": "AUDIO 轨道测试",
+    "name": "音频回归测试（原版 SoundEngine）",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "测试 AUDIO 轨道：OGG 播放、音量关键帧、淡入淡出",
-    "block_keyboard": false,
-    "block_mouse": false,
+    "description": "验证第4轮音频：AUDIO 轨道走原版 SoundEngine，listener=camera，外部音效文件，category 分类，relative/absolute 位置。",
+    "triggers": [
+      { "id": "ta_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} }
+    ],
+    "listener": "camera",
+    "block_keyboard": true,
+    "block_mouse": true,
     "hide_hud": false,
     "hide_arm": true,
     "suppress_bob": true,
@@ -14,87 +18,73 @@
     "interruptible": true,
     "skippable": true,
     "hold_at_end": false,
-    "render_player_model": false
+    "render_player_model": true
   },
   "timeline": {
-    "total_duration": 20,
+    "total_duration": 14,
     "tracks": [
-      {
-        "type": "CAMERA",
-        "clips": [
-          {
-            "start_time": 0,
-            "duration": 20,
-            "transition": "cut",
-            "interpolation": "linear",
-            "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "dx": 3,
-                  "dy": 2,
-                  "dz": -3
-                },
-                "yaw": 0,
-                "pitch": -5,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              },
-              {
-                "time": 20,
-                "position": {
-                  "dx": -3,
-                  "dy": 2,
-                  "dz": 3
-                },
-                "yaw": 180,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
-              }
-            ]
-          }
-        ]
-      },
       {
         "type": "AUDIO",
         "clips": [
           {
             "start_time": 0,
-            "duration": 20,
-            "sound": "test_background.ogg",
+            "duration": 4,
+            "sound": "prompt_tone.ogg",
             "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "fade_in": 2,
-            "fade_out": 3,
+            "volume": 1.0,
+            "loop": true,
+            "fade_in": 0.5,
+            "fade_out": 0.5,
+            "attenuation": "none",
+            "position_mode": "relative",
+            "category": "ambient",
+            "keyframes": []
+          },
+          {
+            "start_time": 4,
+            "duration": 6,
+            "sound": "1_reverb_part1.ogg",
+            "source": "file",
+            "volume": 1.0,
+            "loop": true,
+            "fade_in": 0.5,
+            "fade_out": 0.5,
             "attenuation": "linear",
+            "position_mode": "absolute",
+            "x": 5,
+            "y": -58,
+            "z": 0,
+            "category": "ambient",
+            "keyframes": []
+          },
+          {
+            "start_time": 10,
+            "duration": 4,
+            "sound": "testmusic.ogg",
+            "source": "file",
+            "volume": 0.6,
+            "loop": true,
+            "fade_in": 0.5,
+            "fade_out": 0.5,
+            "attenuation": "none",
+            "position_mode": "relative",
+            "category": "music",
+            "keyframes": []
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 14,
+            "event_type": "command",
             "keyframes": [
-              {
-                "time": 0,
-                "volume": 1,
-                "x": 0,
-                "y": 0,
-                "z": 0
-              },
-              {
-                "time": 10,
-                "volume": 0.5,
-                "x": 5,
-                "y": 2,
-                "z": 0
-              },
-              {
-                "time": 20,
-                "volume": 1,
-                "x": 0,
-                "y": 0,
-                "z": 0
-              }
+              { "time": 0, "event_type": "command", "command": "say [音频] 0s：relative prompt_tone（listener=camera，ambient）" },
+              { "time": 4, "event_type": "command", "command": "say [音频] 4s：absolute 1_reverb_part1 (5,1,0) linear 衰减" },
+              { "time": 10, "event_type": "command", "command": "say [音频] 10s：music testmusic（非空间，压制 MC 音乐）" },
+              { "time": 14, "event_type": "command", "command": "say [音频] 结束" }
             ]
           }
         ]

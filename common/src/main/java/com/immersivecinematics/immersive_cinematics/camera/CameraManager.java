@@ -505,11 +505,13 @@ public class CameraManager {
         } else if (!scriptQueue.isEmpty()) {
             startScriptInternal(scriptQueue.poll());
         } else {
-            // 真正回到正常游戏：强制一次全量区块重建——让 resync 回来的玩家区区块立即渲染，
-            // 而不是"只有玩家所在区块可见、动一下才全部出现"
-            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-            if (mc.levelRenderer != null) {
-                mc.levelRenderer.allChanged();
+            // 真正回到正常游戏：仅当区块预载真的激活过（far-view）才强制一次全量区块重建，
+            // 让 resync 回来的玩家区区块立即渲染；近程脚本不触发（避免无谓全量刷新）
+            if (com.immersivecinematics.immersive_cinematics.trigger.client.PreloadRequester.INSTANCE.isPreloadActive()) {
+                net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+                if (mc.levelRenderer != null) {
+                    mc.levelRenderer.allChanged();
+                }
             }
         }
     }

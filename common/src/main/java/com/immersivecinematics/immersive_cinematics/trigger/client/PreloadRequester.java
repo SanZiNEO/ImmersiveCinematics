@@ -37,8 +37,14 @@ public final class PreloadRequester {
     private String lastScript = "";
     private int tickCounter = 0;
     private String lastPrewarm = "";
+    private boolean preloadActive = false;
 
     private PreloadRequester() {}
+
+    /** 预载是否真的激活过（用于退出时是否触发全量渲染重建） */
+    public boolean isPreloadActive() {
+        return preloadActive;
+    }
 
     public void tick(Minecraft mc) {
         CameraManager cam = CameraManager.INSTANCE;
@@ -61,12 +67,24 @@ public final class PreloadRequester {
             Vec3 pos = cam.getPath().getPosition();
             int bx = (int) Math.floor(pos.x);
             int bz = (int) Math.floor(pos.z);
+            boolean far = isFarFromPlayer(mc, bx, bz);
             if (!sid.equals(lastScript)) {
+                if (!far) {
+                    // 近程脚本不预载（零状态/零日志），并释放上一个预载
+                    releaseIfNeeded();
+                    return;
+                }
                 lastScript = sid;
                 lastPrewarm = "";
                 tickCounter = 0;
+                preloadActive = true;
                 new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, Config.preloadWindowRadius,
                         cam.getCameraYaw(), mc.options.renderDistance().get()).sendToServer();
+                return;
+            }
+            if (!far) {
+                // 相机回到玩家视距 → 释放
+                releaseIfNeeded();
                 return;
             }
             tickCounter++;
@@ -77,6 +95,14 @@ public final class PreloadRequester {
         } else {
             releaseIfNeeded();
         }
+    }
+
+    private static boolean isFarFromPlayer(Minecraft mc, int bx, int bz) {
+        if (mc.player == null) return false;
+        int pcx = mc.player.blockPosition().getX() >> 4;
+        int pcz = mc.player.blockPosition().getZ() >> 4;
+        int far = Math.max(2, Config.preloadFarViewCenterThreshold);
+        return Math.abs((bx >> 4) - pcx) > far || Math.abs((bz >> 4) - pcz) > far;
     }
 
     /**
@@ -146,6 +172,7 @@ public final class PreloadRequester {
         new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_RELEASE, lastScript, 0, 0, 0, 0f, 0).sendToServer();
         lastScript = "";
         lastPrewarm = "";
+        preloadActive = false;
     }
 
     /** 脚本级开关：meta.preload 缺省/true = 启用；false = 本脚本关闭预加载（不发任何预载请求） */

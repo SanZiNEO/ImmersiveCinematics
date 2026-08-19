@@ -2,8 +2,19 @@ package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.util.ResourcePath;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
+import net.minecraft.client.resources.sounds.Sound;
+import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.client.sounds.AudioStream;
+import net.minecraft.client.sounds.SoundBufferLibrary;
+import net.minecraft.client.sounds.SoundManager;
+import net.minecraft.client.sounds.WeighedSoundEvents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.RandomSource;
+import net.minecraft.util.valueproviders.ConstantFloat;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.stb.STBVorbis;
@@ -14,393 +25,256 @@ import org.slf4j.LoggerFactory;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-
-import static org.lwjgl.openal.AL10.*;
-import static org.lwjgl.openal.AL11.AL_SEC_OFFSET;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * 单声源 OpenAL 音频实例 — 管理 OGG/WAV 音频的加载、播放、空间定位。
+ * AUDIO 轨道实例 — 回归原版 SoundEngine（0.3.5 第4轮，跨平台 common Mixin 方案）。
  * <p>
- * 全部使用 {@link ByteBuffer#allocateDirect} 分配内存，由 GC 自动回收，
- * 不使用手动 {@code memFree}，避免 jemalloc 崩溃。
+ * 继承 {@link AbstractTickableSoundInstance}，由原版 SoundEngine 统一管理空间/衰减/分类音量/暂停。
+ * 自定义流通过 {@link CustomStreamProvider} + {@code SoundEngineMixin} 提供给原版，不依赖 Forge 补丁。
  */
-public class CinematicAudioInstance {
+public class CinematicAudioInstance extends AbstractTickableSoundInstance implements CustomStreamProvider {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/Audio");
 
-    private int source = 0;
-    private int buffer = 0;
-    private boolean valid = false;
-    private float duration = 0f;
-
     private final boolean loop;
-    private final float pitch;
+    private final float audioPitch;
+    private final String id;
+    private boolean valid = false;
+    private boolean playing = false;
+    private float duration = 0f;
     private float currentVolume = 1.0f;
 
-    public CinematicAudioInstance(String fileName, String sourceType, boolean loop, float pitch) {
-        this.loop = loop;
-        this.pitch = pitch;
+    private ByteBuffer pcmData;
+    private int channels;
+    private int sampleRate;
 
-        // 非 ASCII 文件名（中文等）在 Windows 上可能解码失败：
-        // stb_vorbis_decode_filename 内部使用 C fopen（ANSI 代码页），
-        // 无法打开 UTF-8 编码的中文路径。统一警告并建议英文命名。
+    public CinematicAudioInstance(String fileName, String sourceType, boolean loop, float pitch, SoundSource category) {
+        super(SoundEvent.createVariableRangeEvent(new ResourceLocation(
+                        "immersive_cinematics", "audio_" + Integer.toHexString(Objects.hash(fileName, sourceType)))),
+                category, SoundInstance.createUnseededRandom());
+        this.loop = loop;
+        this.audioPitch = pitch;
+        this.pitch = pitch;
+        this.id = "audio_" + Integer.toHexString(Objects.hash(fileName, sourceType));
+
         if (!fileName.chars().allMatch(c -> c < 128)) {
             LOGGER.warn("音频文件名包含非 ASCII 字符: {} — Windows 下可能无法解码，建议使用英文命名", fileName);
         }
 
-        ByteBuffer rawAudio = null;
-        int channels = 0;
-        int sampleRate = 0;
-
-        try {
-            if ("minecraft".equals(sourceType)) {
-                OggDecodeResult result = decodeOggFromMinecraft(fileName);
-                if (result == null) return;
-                rawAudio = result.rawAudio;
-                channels = result.channels;
-                sampleRate = result.sampleRate;
-                this.duration = result.duration;
-            } else {
-                Path filePath = ResourcePath.resolve(fileName);
-                if (!Files.exists(filePath)) {
-                    // debug 级：资源缺失不影响脚本播放，作者排查时开调试日志可见
-                    LOGGER.debug("Audio file not found: {}", filePath);
-                    return;
-                }
-
-                String lower = fileName.toLowerCase();
-                if (lower.endsWith(".ogg")) {
-                    OggDecodeResult result = decodeOggFromFile(filePath);
-                    if (result == null) return;
-                    rawAudio = result.rawAudio;
-                    channels = result.channels;
-                    sampleRate = result.sampleRate;
-                    this.duration = result.duration;
-                } else if (lower.endsWith(".wav")) {
-                    WavDecodeResult result = decodeWav(filePath);
-                    if (result == null) return;
-                    rawAudio = result.rawAudio;
-                    channels = result.channels;
-                    sampleRate = result.sampleRate;
-                    this.duration = result.duration;
-                } else {
-                    LOGGER.error("Unsupported audio format: {} (supported: .ogg, .wav)", fileName);
-                    return;
-                }
-            }
-        } catch (Exception e) {
-            LOGGER.error("Error loading audio: {}", fileName, e);
-            return;
-        }
-
-        if (rawAudio == null || channels == 0 || sampleRate == 0) {
-            LOGGER.error("Invalid audio data for: {}", fileName);
-            return;
-        }
-
-        // 诊断：解码结果（数据量/时长）——"滴滴"重复噪音常因数据极短（解码异常）导致每帧重播一个瞬态
-        LOGGER.debug("audio decode: file={} bytes={} ch={} sr={} dur={}",
-                fileName, rawAudio.remaining(), channels, sampleRate, duration);
-
-        int format = channels == 1 ? AL_FORMAT_MONO16 : AL_FORMAT_STEREO16;
-
-        this.buffer = alGenBuffers();
-        alBufferData(this.buffer, format, rawAudio, sampleRate);
-
-        this.source = alGenSources();
-        alSourcei(this.source, AL_BUFFER, this.buffer);
-        alSourcef(this.source, AL_PITCH, this.pitch);
-        alSourcei(this.source, AL_LOOPING, this.loop ? AL_TRUE : AL_FALSE);
-
+        DecodeResult result = decode(fileName, sourceType);
+        this.pcmData = result.rawAudio;
+        this.channels = result.channels;
+        this.sampleRate = result.sampleRate;
+        this.duration = result.duration;
         this.valid = true;
+
+        LOGGER.debug("audio decode: file={} bytes={} ch={} sr={} dur={}",
+                fileName, pcmData.remaining(), channels, sampleRate, duration);
     }
+
+    // ===== 原版 SoundEngine 集成 =====
+
+    @Override
+    public boolean canPlaySound() {
+        return valid;
+    }
+
+    @Override
+    public boolean canStartSilent() {
+        // 淡入从 0 音量开始：原版 SoundEngine 遇 0 音量会直接跳过播放，必须允许静音启动
+        return true;
+    }
+
+    @Override
+    public WeighedSoundEvents resolve(SoundManager manager) {
+        WeighedSoundEvents events = new WeighedSoundEvents(getLocation(), null);
+        this.sound = new Sound(getLocation().toString(), ConstantFloat.of(1.0F), ConstantFloat.of(1.0F), 1,
+                Sound.Type.FILE, true, false, 16);
+        events.addSound(this.sound);
+        return events;
+    }
+
+    @Override
+    public CompletableFuture<AudioStream> getStream(SoundBufferLibrary soundBuffers, Sound sound, boolean looping) {
+        return CompletableFuture.completedFuture(new CinematicAudioStream(pcmData, channels, sampleRate, loop));
+    }
+
+    @Override
+    public void tick() {
+        // 位置/音量由 AudioTrackPlayer 每帧通过 setVolume/setPosition 写入字段，原版自动读取
+    }
+
+    // ===== 对外兼容 API =====
 
     public void play() {
-        if (!valid) return;
-        alSourcePlay(source);
+        if (!valid || playing) return;
+        playing = true;
+        Minecraft.getInstance().getSoundManager().play(this);
     }
 
-    public void stop() {
-        if (!valid) return;
-        alSourceStop(source);
-        alSourceRewind(source);
+    public void stopInstance() {
+        if (!valid || !playing) return;
+        playing = false;
+        Minecraft.getInstance().getSoundManager().stop(this);
     }
 
     public void pause() {
-        if (!valid) return;
-        alSourcePause(source);
+        // 暂停语义由 AudioTrackPlayer 走 SoundEngine.pause() 全局处理
     }
 
     public void resume() {
-        if (!valid) return;
-        alSourcePlay(source);
+        // 同上
     }
 
     public void setVolume(float vol) {
         this.currentVolume = vol;
-        if (valid) alSourcef(source, AL_GAIN, vol);
+        this.volume = vol;
     }
 
     public void setPosition(Vec3 pos) {
-        if (valid) alSource3f(source, AL_POSITION, (float) pos.x, (float) pos.y, (float) pos.z);
+        this.x = pos.x;
+        this.y = pos.y;
+        this.z = pos.z;
     }
 
     public void setAttenuation(String mode, float distance) {
-        if (!valid) return;
-        switch (mode) {
-            case "none" -> {
-                // 无衰减：世界坐标 + rolloff=0（恒定音量）；不设 AL_SOURCE_RELATIVE，
-                // 避免"世界坐标被当成相对听者偏移"的语义错误（音源跑到离谱远处被去空间化）
-                alSourcef(source, AL_ROLLOFF_FACTOR, 0f);
-                alSourcei(source, AL_SOURCE_RELATIVE, AL_FALSE);
-            }
-            case "linear" -> {
-                alSourcef(source, AL_ROLLOFF_FACTOR, 1f);
-                alSourcef(source, 0x1023, distance * 0.5f); // AL_REFERENCE_DISTANCE
-                alSourcef(source, 0x1024, distance);        // AL_MAX_DISTANCE
-                alSourcei(source, AL_SOURCE_RELATIVE, AL_FALSE);
-            }
-            case "inverse" -> {
-                alSourcef(source, AL_ROLLOFF_FACTOR, 2f);
-                alSourcef(source, 0x1023, distance * 0.5f);
-                alSourcef(source, 0x1024, distance);
-                alSourcei(source, AL_SOURCE_RELATIVE, AL_FALSE);
-            }
-            default -> {
-                alSourcef(source, AL_ROLLOFF_FACTOR, 1f);
-                alSourcei(source, AL_SOURCE_RELATIVE, AL_FALSE);
-            }
-        }
+        this.attenuation = "none".equals(mode) ? SoundInstance.Attenuation.NONE : SoundInstance.Attenuation.LINEAR;
     }
 
     public void setAttenuation(String mode) {
-        setAttenuation(mode, 16f); // 默认距离 16 格
+        setAttenuation(mode, 16f);
     }
 
-    /**
-     * 精确定位（不改变播放状态；OpenAL AL_SEC_OFFSET）。
-     * 供暂停态定位使用：只 seek 不播放（用户语义：拖动播放头音频不触发）。
-     */
+    /** 编辑器 seek：流式 SoundInstance 不支持直接 seek，第 E 项再补 */
     public void seekTo(float seconds) {
-        if (!valid) return;
-        alSourcef(source, AL_SEC_OFFSET, Math.max(0f, seconds));
+        // no-op
     }
 
-    /**
-     * Sync audio to a specific time position. If the difference between
-     * current playback position and the target is larger than 0.5s, seek.
-     * 组 2：不再 stop+play 从头重播（会重复淡入），改为 AL_SEC_OFFSET 精确 seek。
-     */
     public void syncToTime(float targetLocalTime, float volume, float fadeIn) {
-        if (!valid) return;
-        float currentTime = getCurrentTime();
-        if (Math.abs(targetLocalTime - currentTime) > 0.5f) {
-            alSourcef(source, AL_SEC_OFFSET, Math.max(0f, targetLocalTime));
-            float vol = (fadeIn > 0f && targetLocalTime < fadeIn) ? 0f : volume;
-            setVolume(vol);
-            if (alGetSourcei(source, AL_SOURCE_STATE) != AL_PLAYING) {
-                alSourcePlay(source);
-            }
-        }
+        // no-op
     }
 
-    public void update() {}
+    public void update() {
+        // 原版 tick 已自动处理
+    }
 
     public boolean isPlaying() {
-        if (!valid) return false;
-        return alGetSourcei(source, AL_SOURCE_STATE) == AL_PLAYING;
+        return valid && playing && !isStopped();
     }
 
     public void cleanup() {
-        if (source != 0) {
-            alDeleteSources(source);
-            source = 0;
+        if (valid && playing) {
+            Minecraft.getInstance().getSoundManager().stop(this);
         }
-        if (buffer != 0) {
-            alDeleteBuffers(buffer);
-            buffer = 0;
-        }
+        playing = false;
         valid = false;
+        stop();
     }
 
     public float getDuration() { return duration; }
 
-    /** 诊断：源状态（AL_SOURCE_STATE 4112；INITIAL=4113/PLAYING=4114/PAUSED=4115/STOPPED=4116） */
     public int getSourceState() {
-        if (!valid) return -1;
-        return alGetSourcei(source, AL_SOURCE_STATE);
+        return playing ? 1 : 0;
     }
 
-    /** 诊断：实际增益（AL_GAIN 4106） */
     public float getGain() {
-        if (!valid) return -1f;
-        return alGetSourcef(source, AL_GAIN);
+        return currentVolume;
     }
 
-    /** 诊断：OpenAL 错误码（0 = AL_NO_ERROR） */
     public int getOpenAlError() {
-        return alGetError();
+        return 0;
     }
 
     public float getCurrentTime() {
-        if (!valid) return 0f;
-        return alGetSourcef(source, AL_SEC_OFFSET);
+        return 0f;
     }
 
     public boolean isValid() { return valid; }
 
-    // ========== OGG decoding (STBVorbis) ==========
+    // ===== 解码（失败即抛 RuntimeException，可见） =====
 
-    private static class OggDecodeResult {
-        final ByteBuffer rawAudio;
-        final int channels;
-        final int sampleRate;
-        final float duration;
+    private static DecodeResult decode(String fileName, String sourceType) {
+        if ("minecraft".equals(sourceType)) {
+            return decodeOggFromMinecraft(fileName);
+        }
+        Path filePath = ResourcePath.resolve(fileName);
+        if (!Files.exists(filePath)) {
+            throw new RuntimeException("音频文件不存在: " + filePath);
+        }
+        String lower = fileName.toLowerCase();
+        if (lower.endsWith(".ogg")) {
+            return decodeOggFromFile(filePath);
+        }
+        if (lower.endsWith(".wav")) {
+            return decodeWav(filePath);
+        }
+        throw new RuntimeException("不支持的音频格式: " + fileName + "（支持 .ogg/.wav）");
+    }
 
-        OggDecodeResult(ByteBuffer rawAudio, int channels, int sampleRate, float duration) {
-            this.rawAudio = rawAudio;
-            this.channels = channels;
-            this.sampleRate = sampleRate;
-            this.duration = duration;
+    private static DecodeResult decodeOggFromFile(Path oggPath) {
+        IntBuffer chBuf = BufferUtils.createIntBuffer(1);
+        IntBuffer srBuf = BufferUtils.createIntBuffer(1);
+        ShortBuffer decoded = STBVorbis.stb_vorbis_decode_filename(oggPath.toString(), chBuf, srBuf);
+        if (decoded == null) {
+            throw new RuntimeException("OGG 解码失败: " + oggPath);
+        }
+        int ch = chBuf.get(0);
+        int sr = srBuf.get(0);
+        int totalBytes = decoded.remaining() * 2;
+        float dur = (float) decoded.remaining() / (float) sr / (float) ch;
+        ByteBuffer raw = BufferUtils.createByteBuffer(totalBytes);
+        raw.asShortBuffer().put(decoded);
+        return new DecodeResult(raw, ch, sr, dur);
+    }
+
+    private static DecodeResult decodeOggFromMinecraft(String fileName) {
+        ResourceLocation loc = new ResourceLocation(fileName);
+        Resource resource = Minecraft.getInstance().getResourceManager().getResource(loc).orElse(null);
+        if (resource == null) {
+            throw new RuntimeException("Minecraft 音频资源不存在: " + fileName);
+        }
+        try (InputStream is = resource.open()) {
+            byte[] bytes = readAllBytes(is);
+            ByteBuffer buf = BufferUtils.createByteBuffer(bytes.length);
+            buf.put(bytes).flip();
+
+            IntBuffer error = BufferUtils.createIntBuffer(1);
+            long handle = STBVorbis.stb_vorbis_open_memory(buf, error, null);
+            if (handle == 0) {
+                throw new RuntimeException("内存 OGG 解码失败: " + fileName);
+            }
+            STBVorbisInfo info = STBVorbisInfo.malloc();
+            STBVorbis.stb_vorbis_get_info(handle, info);
+            int ch = info.channels();
+            int sr = info.sample_rate();
+            int totalSamples = STBVorbis.stb_vorbis_stream_length_in_samples(handle);
+            float dur = (float) totalSamples / (float) sr / (float) ch;
+
+            ByteBuffer raw = BufferUtils.createByteBuffer(totalSamples * ch * 2);
+            ShortBuffer rawShort = raw.asShortBuffer();
+            STBVorbis.stb_vorbis_get_samples_short_interleaved(handle, ch, rawShort);
+
+            info.free();
+            STBVorbis.stb_vorbis_close(handle);
+            return new DecodeResult(raw, ch, sr, dur);
+        } catch (IOException e) {
+            throw new RuntimeException("读取 Minecraft 音频资源失败: " + fileName, e);
         }
     }
 
-    /**
-     * 从文件解码 OGG — 使用 stb_vorbis_decode_filename 直接传路径，解码后复制到 DirectByteBuffer。
-     * 不调 memFree，避免 jemalloc 崩溃。
-     */
-    private static OggDecodeResult decodeOggFromFile(Path oggPath) {
-        try {
-            IntBuffer chBuf = BufferUtils.createIntBuffer(1);
-            IntBuffer srBuf = BufferUtils.createIntBuffer(1);
-            ShortBuffer decoded = STBVorbis.stb_vorbis_decode_filename(oggPath.toString(), chBuf, srBuf);
-            if (decoded == null) {
-                LOGGER.error("Failed to decode OGG file: {}", oggPath);
-                return null;
-            }
-
-            int ch = chBuf.get(0);
-            int sr = srBuf.get(0);
-            int totalBytes = decoded.remaining() * 2; // shorts → bytes
-            float dur = (float) decoded.remaining() / (float) sr / (float) ch;
-
-            // 复制到 DirectByteBuffer（MC 的方式：BufferUtils.createByteBuffer）
-            ByteBuffer raw = BufferUtils.createByteBuffer(totalBytes);
-            raw.asShortBuffer().put(decoded);
-
-            return new OggDecodeResult(raw, ch, sr, dur);
-        } catch (Exception e) {
-            LOGGER.error("Error decoding OGG file: {}", oggPath, e);
-            return null;
-        }
-    }
-
-    /**
-     * 从 Minecraft 资源包解码 OGG。
-     */
-    private static OggDecodeResult decodeOggFromMinecraft(String fileName) {
-        try {
-            ResourceLocation loc = new ResourceLocation(fileName);
-            Resource resource = Minecraft.getInstance().getResourceManager().getResource(loc).orElse(null);
-            if (resource == null) {
-                LOGGER.debug("Minecraft sound resource not found: {}", fileName);
-                return null;
-            }
-            try (InputStream is = resource.open()) {
-                byte[] bytes = readAllBytes(is);
-                ByteBuffer buf = BufferUtils.createByteBuffer(bytes.length);
-                buf.put(bytes).flip();
-
-                IntBuffer error = BufferUtils.createIntBuffer(1);
-                long handle = STBVorbis.stb_vorbis_open_memory(buf, error, null);
-                if (handle == 0) {
-                    LOGGER.error("Failed to decode OGG from memory for: {}", fileName);
-                    return null;
-                }
-
-                STBVorbisInfo info = STBVorbisInfo.malloc();
-                STBVorbis.stb_vorbis_get_info(handle, info);
-                int ch = info.channels();
-                int sr = info.sample_rate();
-                int totalSamples = STBVorbis.stb_vorbis_stream_length_in_samples(handle);
-                float dur = (float) totalSamples / (float) sr / (float) ch;
-
-                ByteBuffer raw = BufferUtils.createByteBuffer(totalSamples * ch * 2);
-                ShortBuffer rawShort = raw.asShortBuffer();
-                STBVorbis.stb_vorbis_get_samples_short_interleaved(handle, ch, rawShort);
-
-                info.free();
-                STBVorbis.stb_vorbis_close(handle);
-                return new OggDecodeResult(raw, ch, sr, dur);
-            }
-        } catch (Exception e) {
-            LOGGER.error("Error loading Minecraft sound: {}", fileName, e);
-            return null;
-        }
-    }
-
-    /**
-     * 解码音频峰值（每 bucket 一个最大绝对值 0..1）；失败返回 null；file/minecraft 双源。
-     * 供编辑器波形显示（E1）。
-     */
-    public static float[] decodePeaks(String fileName, String sourceType, int buckets) {
-        try {
-            OggDecodeResult r;
-            if ("minecraft".equals(sourceType)) {
-                r = decodeOggFromMinecraft(fileName);
-            } else {
-                Path filePath = ResourcePath.resolve(fileName);
-                if (!Files.exists(filePath)) return null;
-                r = decodeOggFromFile(filePath);
-            }
-            if (r == null) return null;
-            r.rawAudio.rewind();
-            int n = r.rawAudio.remaining() / 2;
-            short[] samples = new short[n];
-            for (int i = 0; i < n; i++) samples[i] = r.rawAudio.getShort();
-            float[] peaks = new float[Math.max(1, buckets)];
-            int per = Math.max(1, n / peaks.length);
-            for (int b = 0; b < peaks.length; b++) {
-                float max = 0;
-                int from = b * per, to = Math.min(n, from + per);
-                for (int i = from; i < to; i++) max = Math.max(max, Math.abs(samples[i]) / 32768f);
-                peaks[b] = max;
-            }
-            return peaks;
-        } catch (Exception e) {
-            LOGGER.error("波形解码失败: {}", fileName, e);
-            return null;
-        }
-    }
-
-    // ========== WAV decoding ==========
-
-    private static class WavDecodeResult {
-        final ByteBuffer rawAudio;
-        final int channels;
-        final int sampleRate;
-        final float duration;
-
-        WavDecodeResult(ByteBuffer rawAudio, int channels, int sampleRate, float duration) {
-            this.rawAudio = rawAudio;
-            this.channels = channels;
-            this.sampleRate = sampleRate;
-            this.duration = duration;
-        }
-    }
-
-    private static WavDecodeResult decodeWav(Path wavPath) {
+    private static DecodeResult decodeWav(Path wavPath) {
         try {
             AudioInputStream ais = AudioSystem.getAudioInputStream(wavPath.toFile());
             AudioFormat fmt = ais.getFormat();
-
             int ch = fmt.getChannels();
             int sr = (int) fmt.getSampleRate();
             int bits = fmt.getSampleSizeInBits();
@@ -414,28 +288,40 @@ public class CinematicAudioInstance {
                 buffer.put(allBytes);
                 buffer.flip();
             } else if (bits == 8) {
-                // 8-bit unsigned → 转 16-bit signed
                 buffer = BufferUtils.createByteBuffer(allBytes.length * 2);
                 ShortBuffer sb = buffer.asShortBuffer();
                 for (byte b : allBytes) {
                     sb.put((short) ((b & 0xFF) - 128 << 8));
                 }
             } else {
-                LOGGER.error("Unsupported WAV bit depth: {}", bits);
-                return null;
+                throw new RuntimeException("不支持的 WAV 位深: " + bits);
             }
-
             float dur = (float) buffer.limit() / 2f / (float) sr / (float) ch;
-            return new WavDecodeResult(buffer, ch, sr, dur);
+            return new DecodeResult(buffer, ch, sr, dur);
         } catch (Exception e) {
-            LOGGER.error("Failed to decode WAV file: {}", wavPath, e);
-            return null;
+            throw new RuntimeException("WAV 解码失败: " + wavPath, e);
         }
     }
 
-    // ========== Helpers ==========
+    /** 编辑器波形峰值解码（失败即抛） */
+    public static float[] decodePeaks(String fileName, String sourceType, int buckets) {
+        DecodeResult r = decode(fileName, sourceType);
+        r.rawAudio.rewind();
+        int n = r.rawAudio.remaining() / 2;
+        short[] samples = new short[n];
+        for (int i = 0; i < n; i++) samples[i] = r.rawAudio.getShort();
+        float[] peaks = new float[Math.max(1, buckets)];
+        int per = Math.max(1, n / peaks.length);
+        for (int b = 0; b < peaks.length; b++) {
+            float max = 0;
+            int from = b * per, to = Math.min(n, from + per);
+            for (int i = from; i < to; i++) max = Math.max(max, Math.abs(samples[i]) / 32768f);
+            peaks[b] = max;
+        }
+        return peaks;
+    }
 
-    private static byte[] readAllBytes(InputStream is) throws java.io.IOException {
+    private static byte[] readAllBytes(InputStream is) throws IOException {
         byte[] buf = new byte[8192];
         int total = 0, n;
         while ((n = is.read(buf, total, buf.length - total)) > 0) {
@@ -449,5 +335,60 @@ public class CinematicAudioInstance {
         byte[] result = new byte[total];
         System.arraycopy(buf, 0, result, 0, total);
         return result;
+    }
+
+    // ===== PCM 流（喂给原版 SoundEngine） =====
+
+    private static final class CinematicAudioStream implements AudioStream {
+        private final AudioFormat format;
+        private final ByteBuffer data;
+        private final boolean loop;
+
+        CinematicAudioStream(ByteBuffer data, int channels, int sampleRate, boolean loop) {
+            this.data = data;
+            this.loop = loop;
+            this.format = new AudioFormat(sampleRate, 16, channels, true, false);
+        }
+
+        @Override
+        public AudioFormat getFormat() {
+            return format;
+        }
+
+        @Override
+        public ByteBuffer read(int size) {
+            ByteBuffer out = BufferUtils.createByteBuffer(size);
+            while (out.hasRemaining()) {
+                if (!data.hasRemaining()) {
+                    if (!loop) break;
+                    data.rewind();
+                }
+                int n = Math.min(out.remaining(), data.remaining());
+                byte[] arr = new byte[n];
+                data.get(arr);
+                out.put(arr);
+            }
+            out.flip();
+            return out;
+        }
+
+        @Override
+        public void close() {
+            // PCM 数据由实例持有
+        }
+    }
+
+    private static final class DecodeResult {
+        final ByteBuffer rawAudio;
+        final int channels;
+        final int sampleRate;
+        final float duration;
+
+        DecodeResult(ByteBuffer rawAudio, int channels, int sampleRate, float duration) {
+            this.rawAudio = rawAudio;
+            this.channels = channels;
+            this.sampleRate = sampleRate;
+            this.duration = duration;
+        }
     }
 }

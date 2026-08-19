@@ -16,6 +16,8 @@
     "MouseHandlerMixin",
     "MouseHandlerAccessor",
     "PlayerTabOverlayMixin",
+    "SoundEngineMixin",
+    "SoundManagerMixin",
     "SubtitleOverlayMixin"
   ],
   "mixins": [
