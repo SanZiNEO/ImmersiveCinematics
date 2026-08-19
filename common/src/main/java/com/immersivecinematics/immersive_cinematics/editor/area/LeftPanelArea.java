@@ -104,14 +104,15 @@ public class LeftPanelArea extends UIComponent {
     public void setOnBehaviorFlag(Consumer<String> r) { onBehaviorFlag = r; }
 
 
-    /** tab 栏按钮（固定在面板顶部，不随内容滚动——渲染与命中均豁免滚动偏移） */
-    private final List<UIComponent> tabButtons = new ArrayList<>();
+    /** tab 栏独立组件（固定在面板顶部，不随内容滚动；渲染与命中均豁免滚动偏移） */
+    private PanelTabBar tabBar;
 
     public void build() {
         EditorLogger.action(EditorLogger.LEFT, "BUILD", "mode=" + mode);
         clearChildren();
-        tabButtons.clear();
-        buildTabBar();
+        tabBar = new PanelTabBar(x, y, w, TAB_HEIGHT, mode, this::setMode);
+        tabBar.fixedToParent = true;
+        addChild(tabBar);
         switch (mode) {
             case SCRIPT_LIST -> buildScriptList();
             case SCRIPT_PROPERTIES -> buildScriptProperties();
@@ -689,27 +690,21 @@ public class LeftPanelArea extends UIComponent {
         }
 
         // Tab 栏：不透明背景（内容滚动不会穿透）+ 固定按钮（不随内容滚动）
-        ctx.graphics.fill(x, y, x + w, y + TAB_HEIGHT, EditorTheme.BG_TRACK);
-        for (UIComponent tab : tabButtons) {
-            if (tab.visible) tab.render(ctx);
-        }
+        if (tabBar != null) tabBar.render(ctx);
 
         // 内容区视口裁剪到 Tab 下方（滚动内容不会画到 Tab 栏上）
         ctx.pushViewport(x, y + TAB_HEIGHT, w, h - TAB_HEIGHT);
         ctx.pushScroll(scrollY);
 
         for (UIComponent child : getChildren()) {
-            if (!tabButtons.contains(child) && child.visible) child.render(ctx);
+            if (child != tabBar && child.visible) child.render(ctx);
         }
 
         ctx.popScroll(scrollY);
         ctx.popViewport();
 
         // Tab 栏最后再盖一层（防止滚动内容在视口边缘残留）并重绘按钮
-        ctx.graphics.fill(x, y, x + w, y + TAB_HEIGHT, EditorTheme.BG_TRACK);
-        for (UIComponent tab : tabButtons) {
-            if (tab.visible) tab.render(ctx);
-        }
+        if (tabBar != null) tabBar.render(ctx);
 
         if (maxScroll > 0) {
             int sbX = x + w - 4;
@@ -727,12 +722,10 @@ public class LeftPanelArea extends UIComponent {
 
     @Override
     public void renderOverlay(UIContext ctx) {
-        for (UIComponent tab : tabButtons) {
-            if (tab.visible) tab.renderOverlay(ctx);
-        }
+        if (tabBar != null) tabBar.renderOverlay(ctx);
         ctx.pushScroll(scrollY);
         for (UIComponent c : getChildren()) {
-            if (!tabButtons.contains(c)) c.renderOverlay(ctx);
+            if (c != tabBar) c.renderOverlay(ctx);
         }
         ctx.popScroll(scrollY);
     }
@@ -804,42 +797,6 @@ public class LeftPanelArea extends UIComponent {
             return true;
         }
         return false;
-    }
-    private void buildTabBar() {
-        int tabX = x + 2;
-        int tabY = y;
-        int tabH = TAB_HEIGHT;
-        int n = PanelMode.values().length;
-        int tabW = (w - 4 - (n - 1) * TAB_GAP) / n;
-
-        for (PanelMode m : PanelMode.values()) {
-            String label = getTabLabel(m);
-            UIButton tab = new UIButton(tabX, tabY, tabW, tabH, label, btn -> {
-                setMode(m);
-            });
-
-            if (m == mode) {
-                tab.color(0xFF333344, 0xFF444455).textColor(0xFFFFFFFF);
-            } else {
-                tab.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER).textColor(0xFF888888);
-            }
-
-            tab.fixedToParent = true;
-            tabButtons.add(tab);
-            addChild(tab);
-            tabX += tabW + TAB_GAP;
-        }
-    }
-    
-    private String getTabLabel(PanelMode m) {
-        return switch (m) {
-            case SCRIPT_LIST -> I18n.get("editor.tab.list");
-            case SCRIPT_PROPERTIES -> I18n.get("editor.tab.properties");
-            case CLIP_PROPERTIES -> I18n.get("editor.tab.clip");
-            case KEYFRAME_PROPERTIES -> I18n.get("editor.tab.keyframe");
-            case TRACK_LIST -> I18n.get("editor.tab.tracks");
-            case TRIGGER -> I18n.get("editor.tab.triggers");
-        };
     }
 
     private void buildTrackList() {
