@@ -3,6 +3,10 @@ package com.immersivecinematics.immersive_cinematics.trigger.server;
 import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPreloadRequestPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPreloadResultPacket;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.StringTag;
+import net.minecraft.nbt.visitors.CollectFields;
+import net.minecraft.nbt.visitors.FieldSelector;
 import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
 import net.minecraft.network.protocol.game.ClientboundSetChunkCacheCenterPacket;
 import net.minecraft.server.MinecraftServer;
@@ -43,6 +47,9 @@ public final class ChunkPreloadManager {
 
     private final Map<UUID, PlayerState> states = new HashMap<>();
     private final Map<net.minecraft.server.level.ServerLevel, ChunkTicketPool> pools = new HashMap<>();
+    /** 磁盘扫描缓存：pos→已生成(true)/未生成(false)；会话内磁盘状态稳定 */
+    private final Map<Long, Boolean> scanCache = new HashMap<>();
+    private final Set<Long> scanInFlight = new HashSet<>();
     private long lastStatusLog = 0;
 
     private ChunkTicketPool pool(net.minecraft.server.level.ServerLevel level) {
@@ -231,13 +238,38 @@ public final class ChunkPreloadManager {
         for (ChunkPos pos : sortedByPriority(st)) {
             if (added >= budget) break;
             if (st.ticketed.contains(pos)) continue;
-            if (p.level() instanceof net.minecraft.server.level.ServerLevel) {
-                net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) p.level();
-                pool(level).request(level, pos);
+            if (!(p.level() instanceof net.minecraft.server.level.ServerLevel)) continue;
+            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) p.level();
+            // 磁盘分流：内存已加载 → 直接请求；未加载 → scanChunk 分类（已生成优先，未生成走 worldgen 配额）
+            if (!level.getChunkSource().hasChunk(pos.x, pos.z)) {
+                classify(level, pos);
+                Boolean generated = scanCache.get(pos.toLong());
+                if (generated == null) continue; // 等 scan 结果
+                if (!generated) {
+                    if (st.worldgenIssued >= Config.preloadMaxWorldgenChunks) continue;
+                    st.worldgenIssued++;
+                }
             }
+            pool(level).request(level, pos);
             st.ticketed.add(pos);
             added++;
         }
+    }
+
+    /** 只读磁盘 Status 分流：已生成("minecraft:full") vs 未生成；结果缓存，回调回主线程写缓存 */
+    private void classify(net.minecraft.server.level.ServerLevel level, ChunkPos pos) {
+        long key = pos.toLong();
+        if (scanCache.containsKey(key) || scanInFlight.contains(key)) return;
+        scanInFlight.add(key);
+        CollectFields fields = new CollectFields(new FieldSelector(StringTag.TYPE, "Status"));
+        level.getChunkSource().chunkScanner().scanChunk(pos, fields).thenAccept(v -> {
+            String status = ((CompoundTag) fields.getResult()).getString("Status");
+            boolean generated = "minecraft:full".equals(status);
+            level.getServer().execute(() -> {
+                scanCache.put(key, generated);
+                scanInFlight.remove(key);
+            });
+        });
     }
 
     private void sendReady(PlayerState st, int budget) {
@@ -442,6 +474,7 @@ public final class ChunkPreloadManager {
         ChunkPos center;
         ChunkPos playerChunk;
         int regionRadius = 2;
+        int worldgenIssued = 0;
         final Set<ChunkPos> desired = new HashSet<>();
         final Set<ChunkPos> ticketed = new HashSet<>();
         final Map<ChunkPos, Long> sent = new HashMap<>();

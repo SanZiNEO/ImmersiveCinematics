@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.trigger.client;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
@@ -49,6 +51,10 @@ public final class PreloadRequester {
             CinematicScript script = sp.getScript();
             String sid = script != null ? script.getId() : "";
             if (sid.isEmpty()) {
+                releaseIfNeeded();
+                return;
+            }
+            if (!isScriptPreloadEnabled(script)) {
                 releaseIfNeeded();
                 return;
             }
@@ -140,6 +146,22 @@ public final class PreloadRequester {
         new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_RELEASE, lastScript, 0, 0, 0, 0f, 0).sendToServer();
         lastScript = "";
         lastPrewarm = "";
+    }
+
+    /** 脚本级开关：meta.preload 缺省/true = 启用；false = 本脚本关闭预加载（不发任何预载请求） */
+    private static boolean isScriptPreloadEnabled(CinematicScript script) {
+        if (script == null) return true;
+        Object raw = script.getRawJson();
+        if (raw instanceof String s && !s.isEmpty()) {
+            JsonObject root = JsonParser.parseString(s).getAsJsonObject();
+            if (root.has("meta") && root.get("meta").isJsonObject()) {
+                JsonObject meta = root.getAsJsonObject("meta");
+                if (meta.has("preload")) {
+                    return meta.get("preload").getAsBoolean();
+                }
+            }
+        }
+        return true;
     }
 
     private static Double num(Object o) {
