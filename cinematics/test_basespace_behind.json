@@ -1,0 +1,68 @@
+{
+  "meta": {
+    "id": "test_basespace_behind",
+    "name": "基准空间·背后第三人称(fwd-4)",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "固定机位·无限循环：相机在玩家正后方4格(眼睛高)，随玩家视线转（fwd:-4 up_axis:view）",
+    "triggers": [
+      { "id": "bsb_login", "type": "login", "repeatable": true, "delay": 0, "conditions": {} }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": true,
+            "loop_count": -1,
+            "keyframes": [
+              {
+                "time": 0,
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": { "fwd": -4, "up": 0, "right": 0, "up_axis": "view" },
+                "yaw_base": "entity",
+                "yaw_base_selector": "@p",
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "say [基准空间·A] 背后第三人称：相机在玩家正后方4格(眼睛高)；转鼠标=绕玩家转，走=跟着走；长按C停止" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

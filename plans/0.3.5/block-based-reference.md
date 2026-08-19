@@ -1,5 +1,9 @@
 # 方块搜索基准（Block-Based Reference）：相对坐标/注视目标的基准可以是"玩家附近搜索到的方块"
 
+> **状态（2026-08-19）**：✅ `relative_origin`（位置基准）用 block 已实现；
+> 🔒 `look_at_target`（注视目标）用 block **留后 / 低优先级**——需求低，位置用 block + 看目标用实体/坐标/结构已覆盖 99% 场景；
+> `look_at_target` 为自描述 map，留后补（`relative_to:"block:id"`）向后兼容，成本约半天。
+
 ## 一句话定义
 
 `relative_origin`（position 相对基准）与 `look_at_target`（注视目标）的基准体系再增加一种：**在玩家附近搜索匹配的方块**（如传送门框架 obsidian、钻石矿），以找到的方块位置为基准——脚本可以直接写"相对传送门方块的坐标"、"看向最近的水井"之类。

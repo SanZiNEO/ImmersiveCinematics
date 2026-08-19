@@ -314,21 +314,11 @@ public class ScriptParser {
             case "bool" -> value.getAsBoolean();
             case "position" -> {
                 if (!value.isJsonObject()) throw new ScriptParseException(p + "." + fieldName, "position 需要 JSON 对象");
-                // 从 clip 级无法直接获取 position_mode，但我们会从实际 JSON 推断
+                // 从 clip 级无法直接获取 position_mode，按实际 JSON 推断：
+                // 有 dx（世界轴相对）或有 fwd/up/right（基准空间相对）= 相对；有 x/y/z = 绝对
                 JsonObject posObj = value.getAsJsonObject();
-                boolean relative = posObj.has("dx");
-                if (relative) {
-                    String pp = p + "." + fieldName;
-                    yield parseRelativeWithOrigin(posObj, pp,
-                            requireFloat(posObj, pp, "dx"),
-                            requireFloat(posObj, pp, "dy"),
-                            requireFloat(posObj, pp, "dz"));
-                } else {
-                    yield PositionData.absolute(
-                            requireFloat(posObj, p + "." + fieldName, "x"),
-                            requireFloat(posObj, p + "." + fieldName, "y"),
-                            requireFloat(posObj, p + "." + fieldName, "z"));
-                }
+                boolean relative = posObj.has("dx") || posObj.has("fwd") || posObj.has("up") || posObj.has("right");
+                yield parsePositionData(posObj, p + "." + fieldName, relative);
             }
             case "bezier_curve" -> parseBezierCurve(value.getAsJsonObject(), p + "." + fieldName);
             case "map" -> {
@@ -373,8 +363,12 @@ public class ScriptParser {
 
     private static PositionData parsePositionData(JsonObject obj, String p, boolean positionModeRelative) throws ScriptParseException {
         if (positionModeRelative) {
+            // 基准空间坐标系偏移（fwd/up/right 相对基准朝向，仅实体/玩家基准）
+            if (obj.has("fwd") || obj.has("up") || obj.has("right")) {
+                return parseFacingRelative(obj, p);
+            }
             if (!obj.has("dx")) {
-                throw new ScriptParseException(p, "relative 模式需要 dx/dy/dz 字段");
+                throw new ScriptParseException(p, "relative 模式需要 dx/dy/dz（世界轴偏移）或 fwd/up/right（基准空间偏移）字段");
             }
             float dx = requireFloat(obj, p, "dx");
             float dy = requireFloat(obj, p, "dy");
@@ -392,19 +386,59 @@ public class ScriptParser {
     }
 
     /**
+     * 基准空间坐标系偏移：fwd/up/right 相对基准（玩家/实体）朝向的三维偏移。
+     * 仅玩家/实体基准有效——禁止与 relative_origin（坐标/结构/方块基准）混用。
+     */
+    private static PositionData parseFacingRelative(JsonObject obj, String p) throws ScriptParseException {
+        if (obj.has("dx") || obj.has("dy") || obj.has("dz") || obj.has("relative_origin")) {
+            throw new ScriptParseException(p,
+                    "fwd/up/right（基准空间偏移）不能与 dx/dy/dz 或 relative_origin 混用（仅实体/玩家基准）");
+        }
+        float fwd = optFloat(obj, "fwd", 0f);
+        float up = optFloat(obj, "up", 0f);
+        float right = optFloat(obj, "right", 0f);
+        String upAxis = optString(obj, "up_axis", "view");
+        if (!"view".equals(upAxis) && !"world".equals(upAxis)) {
+            throw new ScriptParseException(p + ".up_axis", "仅支持 view（up随俯仰）/ world（up保持竖直），实际: " + upAxis);
+        }
+        return PositionData.facing(fwd, up, right, upAxis);
+    }
+
+    /**
      * 相对 position 的基准解析：relative_origin 字段可选——
-     * 缺省 = 玩家激活位置；"coordinate" = 相对固定坐标（relative_origin_x/y/z）；其他字符串 = 结构 id（相对结构中心）。
+     * 缺省 = 玩家激活位置；"coordinate" = 相对固定坐标（relative_origin_x/y/z）；
+     * "block:id[:radius]" 或 {type:"block",block,radius} = 玩家附近搜索的方块；其他字符串 = 结构 id（相对结构中心）。
      */
     private static PositionData parseRelativeWithOrigin(JsonObject posObj, String p, float dx, float dy, float dz) throws ScriptParseException {
         if (!posObj.has("relative_origin")) {
             return PositionData.relative(dx, dy, dz);
         }
-        String origin = posObj.get("relative_origin").getAsString();
+        JsonElement originEl = posObj.get("relative_origin");
+        if (originEl.isJsonObject()) {
+            // 结构化对象：{ "type": "block", "block": "minecraft:obsidian", "radius": 32 }
+            JsonObject o = originEl.getAsJsonObject();
+            String type = requireString(o, p + ".relative_origin", "type");
+            if (!"block".equals(type)) {
+                throw new ScriptParseException(p + ".relative_origin", "对象写法目前仅支持 type=block");
+            }
+            String blockId = requireString(o, p + ".relative_origin", "block");
+            int radius = o.has("radius") ? o.get("radius").getAsInt() : PositionData.DEFAULT_BLOCK_RADIUS;
+            if (radius <= 0) {
+                throw new ScriptParseException(p + ".relative_origin.radius", "radius 必须为正整数");
+            }
+            return PositionData.relativeToBlock(dx, dy, dz, blockId, radius);
+        }
+        String origin = originEl.getAsString();
         if ("coordinate".equals(origin)) {
             return PositionData.relativeToCoordinate(dx, dy, dz,
                     requireFloat(posObj, p, "relative_origin_x"),
                     requireFloat(posObj, p, "relative_origin_y"),
                     requireFloat(posObj, p, "relative_origin_z"));
+        }
+        if (origin.startsWith("block:")) {
+            // block:id 或 block:id:radius
+            String[] parsed = PositionData.parseBlockOriginString(origin);
+            return PositionData.relativeToBlock(dx, dy, dz, parsed[0], Integer.parseInt(parsed[1]));
         }
         // 其他字符串视为结构 id（相对结构中心；服务端推送前会解析为坐标，客户端预览自行定位）
         return PositionData.relativeToStructure(dx, dy, dz, origin);

@@ -180,8 +180,15 @@ public class CinematicCommand {
                         if (kf.has("position") && kf.get("position").isJsonObject()) {
                             com.google.gson.JsonObject pos = kf.getAsJsonObject("position");
                             if (pos.has("relative_origin")) {
-                                changed |= replaceStructureTarget(pos, "relative_origin",
-                                        "relative_origin_x", "relative_origin_y", "relative_origin_z", posCache, source);
+                                com.google.gson.JsonElement ro = pos.get("relative_origin");
+                                if (ro.isJsonObject() || (ro.isJsonPrimitive() && ro.getAsString().startsWith("block:"))) {
+                                    // 方块基准：服务端定位 → 替换为 coordinate + 方块中心坐标
+                                    changed |= replaceRelativeOriginBlock(pos, source);
+                                } else if (ro.isJsonPrimitive()) {
+                                    // 结构 id / coordinate：走原结构替换路径
+                                    changed |= replaceStructureTarget(pos, "relative_origin",
+                                            "relative_origin_x", "relative_origin_y", "relative_origin_z", posCache, source);
+                                }
                             }
                         }
                     }
@@ -217,6 +224,53 @@ public class CinematicCommand {
         }
         LOGGER.debug("结构 '{}' 定位失败，脚本保留 structure 字段（客户端该端无目标，片段按空处理）", structureId);
         return false;
+    }
+
+    /**
+     * 服务端方块基准替换：relative_origin 的 block 写法（字符串 "block:id[:radius]" 或结构化对象
+     * {type:"block",block,radius}）→ 定位服务端最近匹配方块，替换为 "coordinate" + 方块中心坐标。
+     * 定位失败保留原字段（客户端该端无目标，片段按空处理）。
+     */
+    private static boolean replaceRelativeOriginBlock(com.google.gson.JsonObject pos, CommandSourceStack source) {
+        com.google.gson.JsonElement ro = pos.get("relative_origin");
+        String blockId;
+        int radius;
+        if (ro.isJsonPrimitive()) {
+            String[] parsed = com.immersivecinematics.immersive_cinematics.script.PositionData.parseBlockOriginString(ro.getAsString());
+            blockId = parsed[0];
+            radius = Integer.parseInt(parsed[1]);
+        } else {
+            com.google.gson.JsonObject o = ro.getAsJsonObject();
+            String type = o.has("type") ? o.get("type").getAsString() : "";
+            if (!"block".equals(type)) return false;
+            blockId = o.get("block").getAsString();
+            radius = o.has("radius") ? o.get("radius").getAsInt()
+                    : com.immersivecinematics.immersive_cinematics.script.PositionData.DEFAULT_BLOCK_RADIUS;
+        }
+        Vec3 p = locateBlock(source, blockId, radius);
+        if (p != null) {
+            pos.addProperty("relative_origin_x", (float) p.x);
+            pos.addProperty("relative_origin_y", (float) p.y);
+            pos.addProperty("relative_origin_z", (float) p.z);
+            pos.addProperty("relative_origin", "coordinate");
+            return true;
+        }
+        LOGGER.debug("方块基准 '{}' 定位失败，脚本保留 block 字段（客户端该端无目标，片段按空处理）", blockId);
+        return false;
+    }
+
+    /** 服务端方块定位：以执行者位置为中心搜索最近匹配方块，返回方块中心坐标 */
+    private static Vec3 locateBlock(CommandSourceStack source, String blockId, int radius) {
+        if (source.getLevel() instanceof net.minecraft.server.level.ServerLevel) {
+            net.minecraft.server.level.ServerLevel serverLevel =
+                    (net.minecraft.server.level.ServerLevel) source.getLevel();
+            net.minecraft.core.BlockPos found = com.immersivecinematics.immersive_cinematics.util.BlockLocator.findNearest(
+                    serverLevel, blockId, net.minecraft.core.BlockPos.containing(source.getPosition()), radius);
+            if (found != null) {
+                return new Vec3(found.getX() + 0.5, found.getY() + 0.5, found.getZ() + 0.5);
+            }
+        }
+        return null;
     }
 
     /** 服务端结构定位：以执行者位置为中心做附近搜寻（3 区块），返回结构 bounding box 中心 */

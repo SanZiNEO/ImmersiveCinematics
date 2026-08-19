@@ -1,0 +1,204 @@
+{
+  "meta": {
+    "id": "test_relative_axis",
+    "name": "第二轮相对基准演示（双片段·丰富版）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "片段1不设跟随·纯事件；片段2召唤羊后多阶段：背上看玩家(look_at@玩家)/羊背后(yaw_base)/看羊头顶(look_at_target)/回世界基准",
+    "triggers": [
+      {
+        "id": "rel_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {}
+      }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 24,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": {
+                  "dx": 3,
+                  "dy": 1,
+                  "dz": -4
+                },
+                "yaw": 30,
+                "pitch": -5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 6,
+                "position": {
+                  "dx": -3,
+                  "dy": 2,
+                  "dz": 2
+                },
+                "yaw": -60,
+                "pitch": 5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 18,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": {
+                  "dx": 0,
+                  "dy": 2,
+                  "dz": -3
+                },
+                "follow": "entity",
+                "follow_selector": "@e[type=minecraft:sheep,limit=1]",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "pitch": -5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 4,
+                "position": {
+                  "dx": 0,
+                  "dy": 2,
+                  "dz": -3
+                },
+                "follow": "entity",
+                "follow_selector": "@e[type=minecraft:sheep,limit=1]",
+                "yaw_base": "entity",
+                "yaw_base_selector": "@e[type=minecraft:sheep,limit=1]",
+                "yaw": 180,
+                "pitch": -5,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "pitch_base": "world"
+              },
+              {
+                "time": 9,
+                "position": {
+                  "dx": 0,
+                  "dy": 1.6,
+                  "dz": 0
+                },
+                "follow": "entity",
+                "follow_selector": "@e[type=minecraft:sheep,limit=1]",
+                "look_at": "coordinate",
+                "look_at_target": {
+                  "relative_to": "@e[type=minecraft:sheep,limit=1]",
+                  "dx": 0,
+                  "dy": 1.6,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 60,
+                "zoom": 1
+              },
+              {
+                "time": 15,
+                "position": {
+                  "dx": 4,
+                  "dy": 3,
+                  "dz": -6
+                },
+                "yaw": 45,
+                "pitch": -15,
+                "roll": 0,
+                "fov": 75,
+                "zoom": 1,
+                "yaw_base": "world"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 24,
+            "event_type": "command",
+            "keyframes": [
+              {
+                "time": 0,
+                "event_type": "command",
+                "command": "say [相对] 片段1：普通事件镜头（世界基准，无跟随）"
+              },
+              {
+                "time": 3,
+                "event_type": "command",
+                "command": "say [相对] 第3秒：仍在普通镜头"
+              },
+              {
+                "time": 6,
+                "event_type": "command",
+                "command": "execute at @p run summon minecraft:sheep ~ ~1 ~"
+              },
+              {
+                "time": 7,
+                "event_type": "command",
+                "command": "say [相对] 片段2·阶段A：相机在羊背后，一直盯着你（follow羊 + look_at玩家）"
+              },
+              {
+                "time": 10,
+                "event_type": "command",
+                "command": "say [相对] 阶段B：yaw_base=羊视线，相机始终在羊背后（羊转头镜头绕）"
+              },
+              {
+                "time": 15,
+                "event_type": "command",
+                "command": "say [相对] 阶段C：look_at_target 相对羊，看向羊头顶上方1.6格"
+              },
+              {
+                "time": 21,
+                "event_type": "command",
+                "command": "say [相对] 阶段D：回到世界基准普通镜头（拉远）"
+              },
+              {
+                "time": 24,
+                "event_type": "command",
+                "command": "say [相对] 结束"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
