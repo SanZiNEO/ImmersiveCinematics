@@ -22,7 +22,8 @@
     ]
   },
   "mixins": [
-    "immersive_cinematics.mixins.json"
+    "immersive_cinematics.mixins.json",
+    "immersive_cinematics.fabric.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.14.0",

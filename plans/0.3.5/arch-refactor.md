@@ -76,16 +76,15 @@
 - ✅ 事件层改为 common 纯逻辑 + 平台转发
 - ✅ `:common:compileJava` / `:fabric:compileJava` / `:forge:compileJava` 全部通过
 
-### 已知缺口（后续补）
+### Fabric 事件补齐（已通过 Mixin 完成）
 
-- Fabric 端部分服务端事件暂无对应 Fabric API 回调，需 Mixin 补齐：
-  - `advancement` 成就触发
-  - `item_craft` 合成
-  - `item_pickup` 拾取
-  - `item_drop` 丢弃
-  - 存档保存（level save，目前靠 server stopping 兜底）
-- Fabric `dimension_change` 已用 `ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD` 补齐 ✅
-- Forge 端已通过 Forge 事件覆盖上述功能
+- ✅ `advancement` 成就：`PlayerAdvancementsMixin`
+- ✅ `item_craft` 合成：`ResultSlotMixin`
+- ✅ `item_pickup` 拾取：`ItemEntityMixin`
+- ✅ `item_drop` 丢弃：`PlayerMixin`
+- ✅ `dimension_change` 维度：`ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD`
+- ✅ 存档保存：`MinecraftServerMixin`（saveEverything）
+- 这些 Mixin 放在 `fabric` 模块，不影响 Forge
 
 ---
 
