@@ -175,8 +175,12 @@ public final class ChunkPreloadManager {
                         }
                     }
                 }
-                LOGGER.info("[preload status] 玩家={} far={} 中心={} 玩家块={} 半径={} 目标={} 已票={} 已发={} 玩家小块={} 玩家区已载={} 预载票={} 玩家实体={} 相机实体={}",
+                LOGGER.info("[preload status] 玩家={} 坐标=({},{},{}) 维度={} far={} 中心={} 玩家块={} 半径={} 目标={} 已票={} 已发={} 玩家小块={} 玩家区已载={} 预载票={} 玩家实体={} 相机实体={}",
                         st.player.getName().getString(),
+                        String.format("%.1f", st.player.getX()),
+                        String.format("%.1f", st.player.getY()),
+                        String.format("%.1f", st.player.getZ()),
+                        st.player.level().dimension().location(),
                         st.farMode,
                         st.center != null ? fmt(st.center) : "null",
                         st.playerChunk != null ? fmt(st.playerChunk) : "null",

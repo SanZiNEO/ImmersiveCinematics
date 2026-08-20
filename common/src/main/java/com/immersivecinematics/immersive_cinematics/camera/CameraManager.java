@@ -9,6 +9,8 @@ import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptNotifier;
 import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +51,9 @@ public class CameraManager {
 
     /** 上一帧的暂停状态，用于检测暂停↔恢复的转换 */
     private boolean lastFramePaused = false;
+
+    /** 客户端实际实体数日志计数 */
+    private int clientEntityLogCounter = 0;
 
     /** 组 6：预览模式相机是否已初始化（首次 start 时从玩家位置起步，之后重启不再重置相机 → 消除拖拽卡顿） */
     private boolean previewInitialized = false;
@@ -522,6 +527,21 @@ public class CameraManager {
 
     public void tick() {
         if (!active) return;
+        clientEntityLogCounter++;
+        if (clientEntityLogCounter % 100 == 0) {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level != null) {
+                Vec3 pos = activePath.getPosition();
+                int radius = 64;
+                AABB box = new AABB(
+                        pos.x - radius, pos.y - radius, pos.z - radius,
+                        pos.x + radius, pos.y + radius, pos.z + radius);
+                int count = mc.level.getEntities((Entity) null, box, e -> true).size();
+                LOGGER.info("[camera-client] 实际实体数 radius={} count={} pos=({},{},{})",
+                        radius, count,
+                        String.format("%.1f", pos.x), String.format("%.1f", pos.y), String.format("%.1f", pos.z));
+            }
+        }
         if (stagedReady) {
             float deltaTime = 1f / 20f;
             stagedProperties.tick(deltaTime);
