@@ -107,13 +107,13 @@ public class FlightKeyHints extends UIComponent {
             int ry = y + PAD + i * ROW_H;
             int iconX = x + PAD;
             if (row.mouse) {
-                drawTexture(ctx, MOUSE, iconX, ry + (ROW_H - MOUSE_SIZE) / 2, MOUSE_SIZE, MOUSE_SIZE);
+                drawTexture(ctx, MOUSE, iconX, ry + (ROW_H - MOUSE_SIZE) / 2, MOUSE_SIZE, MOUSE_SIZE, true);
             } else {
                 int kx = iconX;
                 int ky = ry + (ROW_H - KEYCAP_HEIGHT) / 2;
                 for (String key : row.keys) {
                     int kw = keycapWidth(ctx, key);
-                    drawTexture(ctx, KEYCAP, kx, ky, kw, KEYCAP_HEIGHT);
+                    drawTexture(ctx, KEYCAP, kx, ky, kw, KEYCAP_HEIGHT, false);
                     drawKeyLabel(ctx, key, kx, ky, kw, KEYCAP_HEIGHT);
                     kx += kw + KEYCAP_GAP;
                 }
@@ -180,17 +180,24 @@ public class FlightKeyHints extends UIComponent {
         ctx.graphics.drawString(ctx.font, label, tx, ty, 0xFFFFFFFF, false);
     }
 
-    private void drawTexture(UIContext ctx, ResourceLocation loc, int x, int y, int w, int h) {
+    private void drawTexture(UIContext ctx, ResourceLocation loc, int x, int y, int w, int h, boolean flipX) {
         RenderSystem.setShaderTexture(0, loc);
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
         var pose = ctx.graphics.pose();
         pose.pushPose();
         var builder = new BufferBuilder(256);
         builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        builder.vertex(x, y + h, 0).uv(0, 0).endVertex();
-        builder.vertex(x + w, y + h, 0).uv(1, 0).endVertex();
-        builder.vertex(x + w, y, 0).uv(1, 1).endVertex();
-        builder.vertex(x, y, 0).uv(0, 1).endVertex();
+        if (flipX) {
+            builder.vertex(x, y + h, 0).uv(1, 0).endVertex();
+            builder.vertex(x + w, y + h, 0).uv(0, 0).endVertex();
+            builder.vertex(x + w, y, 0).uv(0, 1).endVertex();
+            builder.vertex(x, y, 0).uv(1, 1).endVertex();
+        } else {
+            builder.vertex(x, y + h, 0).uv(0, 0).endVertex();
+            builder.vertex(x + w, y + h, 0).uv(1, 0).endVertex();
+            builder.vertex(x + w, y, 0).uv(1, 1).endVertex();
+            builder.vertex(x, y, 0).uv(0, 1).endVertex();
+        }
         BufferUploader.drawWithShader(builder.end());
         pose.popPose();
         RenderSystem.setShaderTexture(0, 0);
