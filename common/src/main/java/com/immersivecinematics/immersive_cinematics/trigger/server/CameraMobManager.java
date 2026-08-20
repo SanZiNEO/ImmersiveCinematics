@@ -97,7 +97,8 @@ public final class CameraMobManager {
         AABB box = new AABB(
                 pos.getMinBlockX(), level.getMinBuildHeight(), pos.getMinBlockZ(),
                 pos.getMaxBlockX() + 1.0, level.getMaxBuildHeight(), pos.getMaxBlockZ() + 1.0);
-        for (Entity entity : level.getEntities((Entity) null, box, e -> !(e instanceof CameraFakePlayer))) {
+        for (Entity entity : level.getEntities((Entity) null, box,
+                e -> !(e instanceof CameraFakePlayer) && e != player)) {
             if (a.fakeConnection.isEntitySynced(entity.getId())) continue;
             ServerEntity serverEntity = new ServerEntity(level, entity, 0, false, p -> {});
             serverEntity.sendPairingData(player, player.connection::send);
@@ -118,15 +119,26 @@ public final class CameraMobManager {
                 if (a.spawn && !a.ai) {
                     applyNoAi(a);
                 }
+                updateEntitySyncState(a);
                 resyncCameraEntities(a);
             }
         }
     }
 
+    /** 相机进入真实玩家范围后关闭实体转发/补发，交还原版玩家跟踪；声音/粒子仍由假连接转发 */
+    private void updateEntitySyncState(Anchor a) {
+        ServerPlayer player = a.level.getServer().getPlayerList().getPlayer(a.player);
+        if (player == null || a.fakeConnection == null || a.fakePlayer == null) return;
+        double threshold = a.radius * 16.0 + 16.0;
+        boolean near = player.distanceToSqr(a.fakePlayer) < threshold * threshold;
+        a.fakeConnection.setEntitySyncEnabled(!near);
+    }
+
     /** 周期性补发相机区尚未同步过的实体（兜底区块发送后才刷出来的怪） */
     private void resyncCameraEntities(Anchor a) {
+        if (a.fakeConnection == null || !a.fakeConnection.isEntitySyncEnabled()) return;
         ServerPlayer player = a.level.getServer().getPlayerList().getPlayer(a.player);
-        if (player == null || a.fakeConnection == null) return;
+        if (player == null) return;
         int r = a.radius;
         for (int dx = -r; dx <= r; dx++) {
             for (int dz = -r; dz <= r; dz++) {

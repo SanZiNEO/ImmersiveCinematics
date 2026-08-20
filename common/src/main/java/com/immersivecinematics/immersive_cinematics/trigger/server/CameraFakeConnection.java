@@ -15,7 +15,9 @@ import java.util.Set;
 /**
  * 相机假人的连接：接收服务端发给假人的世界数据包，并转发给真实玩家客户端。
  * <ul>
- *   <li>只转发实体/声音/粒子等“世界观察包”</li>
+ *   <li>声音/粒子/方块音效类包始终转发</li>
+ *   <li>实体/方块更新类包仅在 {@code entitySyncEnabled} 时转发</li>
+ *   <li>相机进入真实玩家范围后关闭实体转发，交还原版玩家跟踪</li>
  *   <li>不转发区块包（区块仍由 ChunkPreloadManager 手动发送）</li>
  *   <li>不转发玩家自身状态包（登录/生命/物品栏/命令树/keep-alive 等）</li>
  *   <li>记录已转发的实体生成 ID，供 ChunkPreloadManager 补发时去重</li>
@@ -27,6 +29,7 @@ public class CameraFakeConnection extends Connection {
 
     private final ServerPlayer target;
     private final Set<Integer> syncedEntityIds = new HashSet<>();
+    private boolean entitySyncEnabled = true;
 
     public CameraFakeConnection(ServerPlayer target) {
         super(PacketFlow.SERVERBOUND);
@@ -39,6 +42,14 @@ public class CameraFakeConnection extends Connection {
 
     public void markEntitySynced(int entityId) {
         syncedEntityIds.add(entityId);
+    }
+
+    public boolean isEntitySyncEnabled() {
+        return entitySyncEnabled;
+    }
+
+    public void setEntitySyncEnabled(boolean entitySyncEnabled) {
+        this.entitySyncEnabled = entitySyncEnabled;
     }
 
     @Override
@@ -89,20 +100,31 @@ public class CameraFakeConnection extends Connection {
     }
 
     private boolean shouldForward(Packet<?> packet) {
+        if (isSoundOrParticle(packet)) return true;
+        return entitySyncEnabled && isWorldPacket(packet);
+    }
+
+    private boolean isSoundOrParticle(Packet<?> packet) {
+        return packet instanceof net.minecraft.network.protocol.game.ClientboundSoundPacket
+                || packet instanceof net.minecraft.network.protocol.game.ClientboundSoundEntityPacket
+                || packet instanceof net.minecraft.network.protocol.game.ClientboundStopSoundPacket
+                || packet instanceof net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket
+                || packet instanceof net.minecraft.network.protocol.game.ClientboundLevelEventPacket
+                || packet instanceof net.minecraft.network.protocol.game.ClientboundExplodePacket
+                || packet instanceof net.minecraft.network.protocol.game.ClientboundBlockEventPacket;
+    }
+
+    private boolean isWorldPacket(Packet<?> packet) {
         return packet instanceof net.minecraft.network.protocol.game.ClientboundAddEntityPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundAddExperienceOrbPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundAnimatePacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundBlockDestructionPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket
-                || packet instanceof net.minecraft.network.protocol.game.ClientboundBlockEventPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundBossEventPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundDamageEventPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundEntityEventPacket
-                || packet instanceof net.minecraft.network.protocol.game.ClientboundExplodePacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundHurtAnimationPacket
-                || packet instanceof net.minecraft.network.protocol.game.ClientboundLevelEventPacket
-                || packet instanceof net.minecraft.network.protocol.game.ClientboundLevelParticlesPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundMapItemDataPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundMoveEntityPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundMoveVehiclePacket
@@ -114,9 +136,6 @@ public class CameraFakeConnection extends Connection {
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundSetPassengersPacket
-                || packet instanceof net.minecraft.network.protocol.game.ClientboundSoundEntityPacket
-                || packet instanceof net.minecraft.network.protocol.game.ClientboundSoundPacket
-                || packet instanceof net.minecraft.network.protocol.game.ClientboundStopSoundPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundTakeItemEntityPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket
                 || packet instanceof net.minecraft.network.protocol.game.ClientboundUpdateAttributesPacket
