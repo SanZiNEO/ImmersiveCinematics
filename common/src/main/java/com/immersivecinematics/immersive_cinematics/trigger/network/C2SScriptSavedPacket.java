@@ -1,9 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.trigger.network;
 
 import com.immersivecinematics.immersive_cinematics.trigger.server.ScriptSyncState;
-import dev.architectury.networking.NetworkManager;
-import dev.architectury.networking.simple.BaseC2SMessage;
-import dev.architectury.networking.simple.MessageType;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -12,7 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
  * <p>
  * 服务端只做文件存在性校验 + 指纹登记 + 广播（零解析），客户端指纹变化才解析一次。
  */
-public class C2SScriptSavedPacket extends BaseC2SMessage {
+public class C2SScriptSavedPacket implements CinematicC2SPacket {
 
     private final String fileName;
 
@@ -25,18 +22,13 @@ public class C2SScriptSavedPacket extends BaseC2SMessage {
     }
 
     @Override
-    public MessageType getType() {
-        return NetworkHandler.SCRIPT_SAVED;
-    }
-
-    @Override
     public void write(FriendlyByteBuf buf) {
         buf.writeUtf(fileName);
     }
 
     @Override
-    public void handle(NetworkManager.PacketContext context) {
-        ScriptSyncState.onScriptSaved((ServerPlayer) context.getPlayer(), fileName);
+    public void handle(ServerPlayer player) {
+        ScriptSyncState.onScriptSaved(player, fileName);
     }
 
     public String getFileName() { return fileName; }

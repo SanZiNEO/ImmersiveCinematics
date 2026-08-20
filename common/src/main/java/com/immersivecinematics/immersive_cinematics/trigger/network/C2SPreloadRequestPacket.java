@@ -1,14 +1,11 @@
 package com.immersivecinematics.immersive_cinematics.trigger.network;
 
 import com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager;
-import dev.architectury.networking.NetworkManager;
-import dev.architectury.networking.simple.BaseC2SMessage;
-import dev.architectury.networking.simple.MessageType;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
 /** 区块预加载请求（C2S）：模式 PRELOAD(0) / PREWARM(1) / RELEASE(2)，携带相机中心坐标（方块）+ 窗口半径 */
-public class C2SPreloadRequestPacket extends BaseC2SMessage {
+public class C2SPreloadRequestPacket implements CinematicC2SPacket {
 
     public static final int MODE_PRELOAD = 0;
     public static final int MODE_PREWARM = 1;
@@ -43,11 +40,6 @@ public class C2SPreloadRequestPacket extends BaseC2SMessage {
     }
 
     @Override
-    public MessageType getType() {
-        return NetworkHandler.PRELOAD_REQ;
-    }
-
-    @Override
     public void write(FriendlyByteBuf buf) {
         buf.writeByte(mode);
         buf.writeUtf(scriptId);
@@ -59,10 +51,8 @@ public class C2SPreloadRequestPacket extends BaseC2SMessage {
     }
 
     @Override
-    public void handle(NetworkManager.PacketContext context) {
-        // 必须回服务端主线程：addRegionTicket/removeRegionTicket/connection.send 都要主线程，
-        // 否则网络线程改 DistanceManager 会把区块 ticket 状态写坏（症状：个别区块永久不加载）
-        ServerPlayer player = (ServerPlayer) context.getPlayer();
-        context.queue(() -> ChunkPreloadManager.INSTANCE.handleRequest(player, mode, scriptId, x, z, radius, yaw, renderDistance));
+    public void handle(ServerPlayer player) {
+        // 平台网络层保证在主线程执行（addRegionTicket/removeRegionTicket/connection.send 必须主线程）
+        ChunkPreloadManager.INSTANCE.handleRequest(player, mode, scriptId, x, z, radius, yaw, renderDistance);
     }
 }

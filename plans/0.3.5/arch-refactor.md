@@ -67,6 +67,28 @@
 
 ---
 
+## 迁移进度（当前）
+
+- ✅ 构建系统已切换为 Java17 MultiLoader（ForgeGradle + VanillaGradle + Fabric Loom）
+- ✅ 移除全部 `dev.architectury.*` Java import
+- ✅ 移除 fabric.mod.json / mods.toml 的 architectury 依赖
+- ✅ 网络层改为自研 `CinematicPacket` / `NetworkBridge`，Fabric/Forge 各自注册
+- ✅ 事件层改为 common 纯逻辑 + 平台转发
+- ✅ `:common:compileJava` / `:fabric:compileJava` / `:forge:compileJava` 全部通过
+
+### 已知缺口（后续补）
+
+- Fabric 端部分服务端事件暂无对应 Fabric API 回调，需 Mixin 补齐：
+  - `advancement` 成就触发
+  - `item_craft` 合成
+  - `item_pickup` 拾取
+  - `item_drop` 丢弃
+  - `dimension_change` 维度切换
+  - 存档保存（level save）
+- Forge 端已通过 Forge 事件覆盖上述功能
+
+---
+
 ## Spike 验证结果
 
 - 使用 `MultiLoader-Template` 的 **1.20.1 分支 Java 17 版本**（ForgeGradle 6 + VanillaGradle + Fabric Loom 1.6.x）

@@ -1,13 +1,10 @@
 package com.immersivecinematics.immersive_cinematics.trigger.network;
 
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerEngine;
-import dev.architectury.networking.NetworkManager;
-import dev.architectury.networking.simple.BaseC2SMessage;
-import dev.architectury.networking.simple.MessageType;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
-public class C2SPlaybackStartedPacket extends BaseC2SMessage {
+public class C2SPlaybackStartedPacket implements CinematicC2SPacket {
 
     private final String scriptId;
     private final String refId;
@@ -27,19 +24,13 @@ public class C2SPlaybackStartedPacket extends BaseC2SMessage {
     }
 
     @Override
-    public MessageType getType() {
-        return NetworkHandler.PLAYBACK_STARTED;
-    }
-
-    @Override
     public void write(FriendlyByteBuf buf) {
         buf.writeUtf(scriptId);
         buf.writeUtf(refId);
     }
 
     @Override
-    public void handle(NetworkManager.PacketContext context) {
-        ServerPlayer player = (ServerPlayer) context.getPlayer();
+    public void handle(ServerPlayer player) {
         // N1：play 包的自然回执
         AckTracker.ack(refId);
         TriggerEngine.INSTANCE.onPlaybackStarted(player, scriptId);

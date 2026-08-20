@@ -1,9 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.trigger.network;
 
 import com.immersivecinematics.immersive_cinematics.trigger.server.ScriptEventManager;
-import dev.architectury.networking.NetworkManager;
-import dev.architectury.networking.simple.BaseC2SMessage;
-import dev.architectury.networking.simple.MessageType;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -15,7 +12,7 @@ import net.minecraft.server.level.ServerPlayer;
  * <p>
  * N1：携带 refId 做 ACK 握手（服务端回 {@link S2CScriptPauseAckPacket} 确认）。
  */
-public class C2SScriptPausePacket extends BaseC2SMessage {
+public class C2SScriptPausePacket implements CinematicC2SPacket {
 
     private final String scriptId;
     private final boolean paused;
@@ -38,11 +35,6 @@ public class C2SScriptPausePacket extends BaseC2SMessage {
     }
 
     @Override
-    public MessageType getType() {
-        return NetworkHandler.SCRIPT_PAUSE;
-    }
-
-    @Override
     public void write(FriendlyByteBuf buf) {
         buf.writeUtf(scriptId);
         buf.writeBoolean(paused);
@@ -50,8 +42,7 @@ public class C2SScriptPausePacket extends BaseC2SMessage {
     }
 
     @Override
-    public void handle(NetworkManager.PacketContext context) {
-        ServerPlayer player = (ServerPlayer) context.getPlayer();
+    public void handle(ServerPlayer player) {
         ScriptEventManager.INSTANCE.handlePause(player, scriptId, paused);
         // N1：处理成功后回执
         if (refId != null && !refId.isEmpty()) {

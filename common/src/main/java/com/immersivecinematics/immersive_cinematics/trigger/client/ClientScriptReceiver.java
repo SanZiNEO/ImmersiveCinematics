@@ -51,7 +51,8 @@ public class ClientScriptReceiver {
                 CameraManager.INSTANCE.playCinematic(script);
                 LOGGER.info("Playing script from server: {}", script.getId());
                 // N1：play 回执（refId 随包回填）
-                new C2SPlaybackStartedPacket(script.getId(), packet.getRefId()).sendToServer();
+                com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                        new C2SPlaybackStartedPacket(script.getId(), packet.getRefId()));
             } catch (Exception e) {
                 LOGGER.error("Failed to parse script from server", e);
             }
@@ -76,9 +77,10 @@ public class ClientScriptReceiver {
             // 经 NetworkGuard 防断线崩溃
             if (packet.getRefId() != null && !packet.getRefId().isEmpty()) {
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptFinished(stop ack)",
-                        () -> new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptFinishedPacket(
-                                scriptId, com.immersivecinematics.immersive_cinematics.control.CompletionReason.STOPPED,
-                                packet.getRefId()).sendToServer());
+                        () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                                new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptFinishedPacket(
+                                        scriptId, com.immersivecinematics.immersive_cinematics.control.CompletionReason.STOPPED,
+                                        packet.getRefId())));
             }
         });
     }

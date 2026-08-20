@@ -1,14 +1,10 @@
 package com.immersivecinematics.immersive_cinematics;
 
-import com.immersivecinematics.immersive_cinematics.handler.ClientEventHandler;
-import com.immersivecinematics.immersive_cinematics.handler.ServerEventHandler;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
 import com.immersivecinematics.immersive_cinematics.trigger.server.evaluator.Evaluators;
 import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler;
-import dev.architectury.utils.Env;
-import dev.architectury.utils.EnvExecutor;
 
 public final class ImmersiveCinematics {
     public static final String MOD_ID = "immersive_cinematics";
@@ -19,8 +15,7 @@ public final class ImmersiveCinematics {
         Config.init(configProvider);
         NetworkHandler.init();
         registerTriggerTypes();
-        ServerEventHandler.register();
-        EnvExecutor.runInEnv(Env.CLIENT, () -> ClientEventHandler::register);
+        // 平台入口负责：设置 NetworkBridge、注册服务端/客户端事件、注册键位
     }
 
     private static void registerTriggerTypes() {

@@ -414,9 +414,11 @@ public class CameraManager {
                     String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
                     com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId,
                             () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptPause",
-                                    () -> new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, effectivelyPaused, refId).sendToServer()));
+                                    () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                                            new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, effectivelyPaused, refId))));
                     com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptPause",
-                            () -> new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, effectivelyPaused, refId).sendToServer());
+                            () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                                    new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, effectivelyPaused, refId)));
                 }
             }
         }

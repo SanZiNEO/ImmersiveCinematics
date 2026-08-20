@@ -78,8 +78,9 @@ public final class PreloadRequester {
                 lastPrewarm = "";
                 tickCounter = 0;
                 preloadActive = true;
-                new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, Config.preloadWindowRadius,
-                        cam.getCameraYaw(), mc.options.renderDistance().get()).sendToServer();
+                com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                        new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, Config.preloadWindowRadius,
+                                cam.getCameraYaw(), mc.options.renderDistance().get()));
                 return;
             }
             if (!far) {
@@ -89,7 +90,8 @@ public final class PreloadRequester {
             }
             tickCounter++;
             if (tickCounter % Math.max(1, Config.preloadReportInterval) == 0) {
-                new C2SPreloadPositionPacket(bx, bz, cam.getCameraYaw()).sendToServer();
+                com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                        new C2SPreloadPositionPacket(bx, bz, cam.getCameraYaw()));
             }
             maybePrewarm(mc, sp);
         } else {
@@ -162,14 +164,16 @@ public final class PreloadRequester {
         String key = script.getId() + "|" + targetCx + "," + targetCz;
         if (key.equals(lastPrewarm)) return;
         lastPrewarm = key;
-        new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PREWARM, script.getId(),
-                (int) tx, (int) tz, Config.preloadPrewarmRadius, 0f,
-                mc.options.renderDistance().get()).sendToServer();
+        com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PREWARM, script.getId(),
+                        (int) tx, (int) tz, Config.preloadPrewarmRadius, 0f,
+                        mc.options.renderDistance().get()));
     }
 
     private void releaseIfNeeded() {
         if (lastScript.isEmpty()) return;
-        new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_RELEASE, lastScript, 0, 0, 0, 0f, 0).sendToServer();
+        com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_RELEASE, lastScript, 0, 0, 0, 0f, 0));
         lastScript = "";
         lastPrewarm = "";
         preloadActive = false;

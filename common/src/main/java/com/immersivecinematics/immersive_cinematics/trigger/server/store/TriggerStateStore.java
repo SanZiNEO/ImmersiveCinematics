@@ -25,7 +25,7 @@ public class TriggerStateStore {
     private static final Logger LOGGER = LogUtils.getLogger();
     public static final TriggerStateStore INSTANCE = new TriggerStateStore();
 
-    private static final LevelResource STORE_PATH = new LevelResource("immersive_cinematics/trigger_state");
+    private static final String STORE_PATH = "immersive_cinematics/trigger_state";
     private static final int VERSION = 1;
 
     private final Map<UUID, PlayerTriggerState> playerStates = new HashMap<>();
@@ -34,7 +34,7 @@ public class TriggerStateStore {
     private TriggerStateStore() {}
 
     public void initialize(MinecraftServer server) {
-        this.storeRoot = server.getWorldPath(STORE_PATH);
+        this.storeRoot = server.getWorldPath(LevelResource.ROOT).resolve(STORE_PATH);
         try {
             Files.createDirectories(storeRoot);
         } catch (IOException e) {

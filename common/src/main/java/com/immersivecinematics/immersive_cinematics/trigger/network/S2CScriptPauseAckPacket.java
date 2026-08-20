@@ -1,8 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.trigger.network;
 
-import dev.architectury.networking.NetworkManager;
-import dev.architectury.networking.simple.BaseS2CMessage;
-import dev.architectury.networking.simple.MessageType;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -11,7 +8,7 @@ import net.minecraft.server.level.ServerPlayer;
  * <p>
  * 客户端收到后 {@link AckTracker#ack} 对应 refId，确认包不丢。
  */
-public class S2CScriptPauseAckPacket extends BaseS2CMessage {
+public class S2CScriptPauseAckPacket implements CinematicS2CPacket {
 
     private final String refId;
 
@@ -24,23 +21,18 @@ public class S2CScriptPauseAckPacket extends BaseS2CMessage {
     }
 
     @Override
-    public MessageType getType() {
-        return NetworkHandler.SCRIPT_PAUSE_ACK;
-    }
-
-    @Override
     public void write(FriendlyByteBuf buf) {
         buf.writeUtf(refId);
     }
 
     @Override
-    public void handle(NetworkManager.PacketContext context) {
+    public void handle() {
         AckTracker.ack(refId);
     }
 
     public String getRefId() { return refId; }
 
     public static void send(ServerPlayer player, String refId) {
-        new S2CScriptPauseAckPacket(refId).sendTo(player);
+        NetworkHandler.sendToPlayer(player, new S2CScriptPauseAckPacket(refId));
     }
 }

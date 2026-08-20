@@ -41,7 +41,8 @@ public final class ScriptSyncState {
             fingerprints.put(fileName, ScriptFingerprint.of(content));
             // 广播 reload 给所有在线玩家（含发送者；客户端本地指纹对比去重）
             for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-                new S2CScriptReloadPacket(fileName).sendTo(p);
+                com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToPlayer(
+                        p, new S2CScriptReloadPacket(fileName));
             }
         } catch (IOException e) {
             LOGGER.error("C2SScriptSaved: 读取失败 {}", fileName, e);

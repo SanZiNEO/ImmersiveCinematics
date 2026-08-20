@@ -26,10 +26,3 @@ mandatory = true
 versionRange = "[1.20.1,)"
 ordering = "NONE"
 side = "BOTH"
-
-[[dependencies.immersive_cinematics]]
-modId = "architectury"
-mandatory = true
-versionRange = "[9.2.14,)"
-ordering = "AFTER"
-side = "BOTH"

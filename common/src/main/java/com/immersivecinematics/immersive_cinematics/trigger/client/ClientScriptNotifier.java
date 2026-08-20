@@ -20,7 +20,8 @@ public class ClientScriptNotifier {
             return;
         }
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer(
-                "C2SScriptFinished", () -> new C2SScriptFinishedPacket(scriptId, reason).sendToServer());
+                "C2SScriptFinished", () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                        new C2SScriptFinishedPacket(scriptId, reason)));
         LOGGER.debug("Sent script finished notification: {} reason={}", scriptId, reason);
     }
 }

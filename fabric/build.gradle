@@ -1,53 +1,70 @@
 plugins {
-    id 'com.github.johnrengelman.shadow'
+    id 'java'
+    id 'idea'
+    id 'maven-publish'
+    id 'fabric-loom'
 }
-
-architectury {
-    platformSetupLoomIde()
-    fabric()
+base {
+    archivesName = "${mod_name}-fabric-${minecraft_version}"
 }
-
-configurations {
-    common {
-        canBeResolved = true
-        canBeConsumed = false
-    }
-    compileClasspath.extendsFrom common
-    runtimeClasspath.extendsFrom common
-    developmentFabric.extendsFrom common
-
-    // Files in this configuration will be bundled into your mod using the Shadow plugin.
-    // Don't use the `shadow` configuration from the plugin itself as it's meant for excluding files.
-    shadowBundle {
-        canBeResolved = true
-        canBeConsumed = false
-    }
-}
-
 dependencies {
-    modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    modImplementation "io.github.llamalad7:mixinextras-fabric:0.3.6"
+    include "io.github.llamalad7:mixinextras-fabric:0.3.6"
+    implementation group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.1'
+    implementation project(":common")
+}
 
-    modImplementation "net.fabricmc.fabric-api:fabric-api:$rootProject.fabric_api_version"
+loom {
+    if (project(":common").file("src/main/resources/${mod_id}.accesswidener").exists()) {
+        accessWidenerPath.set(project(":common").file("src/main/resources/${mod_id}.accesswidener"))
+    }
+    mixin {
+        defaultRefmapName.set("${mod_id}.refmap.json")
+    }
+    runs {
+        client {
+            client()
+            setConfigName("Fabric Client")
+            ideConfigGenerated(true)
+            runDir("run")
+        }
+        server {
+            server()
+            setConfigName("Fabric Server")
+            ideConfigGenerated(true)
+            runDir("run")
+        }
+    }
+}
 
-    modImplementation "dev.architectury:architectury-fabric:$rootProject.architectury_api_version"
-
-    common(project(path: ':common', configuration: 'namedElements')) { transitive false }
-    shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
+tasks.withType(JavaCompile).configureEach {
+    source(project(":common").sourceSets.main.allSource)
+}
+tasks.withType(Javadoc).configureEach {
+    source(project(":common").sourceSets.main.allJava)
+}
+tasks.named("sourcesJar", Jar) {
+    from(project(":common").sourceSets.main.allSource)
 }
 
 processResources {
-    inputs.property 'version', project.version
+    from project(":common").sourceSets.main.resources
+}
 
-    filesMatching('fabric.mod.json') {
-        expand version: project.version
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId base.archivesName.get()
+            from components.java
+        }
     }
-}
-
-shadowJar {
-    configurations = [project.configurations.shadowBundle]
-    archiveClassifier = 'dev-shadow'
-}
-
-remapJar {
-    input.set shadowJar.archiveFile
+    repositories {
+        maven {
+            url "file://" + System.getenv("local_maven")
+        }
+    }
 }

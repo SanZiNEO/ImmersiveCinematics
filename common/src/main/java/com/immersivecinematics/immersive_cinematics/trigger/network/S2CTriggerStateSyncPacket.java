@@ -1,9 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.trigger.network;
 
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientTriggerStateCache;
-import dev.architectury.networking.NetworkManager;
-import dev.architectury.networking.simple.BaseS2CMessage;
-import dev.architectury.networking.simple.MessageType;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.minecraft.nbt.CompoundTag;
@@ -15,7 +12,7 @@ import net.minecraft.server.level.ServerPlayer;
 import java.util.Map;
 import java.util.Set;
 
-public class S2CTriggerStateSyncPacket extends BaseS2CMessage {
+public class S2CTriggerStateSyncPacket implements CinematicS2CPacket {
 
     private final Object2ObjectOpenHashMap<String, ObjectOpenHashSet<String>> triggeredScripts;
     private final ObjectOpenHashSet<String> completedScripts;
@@ -56,11 +53,6 @@ public class S2CTriggerStateSyncPacket extends BaseS2CMessage {
     }
 
     @Override
-    public MessageType getType() {
-        return NetworkHandler.TRIGGER_STATE_SYNC;
-    }
-
-    @Override
     public void write(FriendlyByteBuf buf) {
         CompoundTag tag = new CompoundTag();
         CompoundTag ts = new CompoundTag();
@@ -81,7 +73,7 @@ public class S2CTriggerStateSyncPacket extends BaseS2CMessage {
     }
 
     @Override
-    public void handle(NetworkManager.PacketContext context) {
+    public void handle() {
         ClientTriggerStateCache.handleSync(this);
     }
 
@@ -91,6 +83,6 @@ public class S2CTriggerStateSyncPacket extends BaseS2CMessage {
     public static void send(ServerPlayer player,
                             Object2ObjectOpenHashMap<String, ObjectOpenHashSet<String>> triggered,
                             ObjectOpenHashSet<String> completed) {
-        new S2CTriggerStateSyncPacket(triggered, completed).sendTo(player);
+        NetworkHandler.sendToPlayer(player, new S2CTriggerStateSyncPacket(triggered, completed));
     }
 }

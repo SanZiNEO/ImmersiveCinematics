@@ -1,13 +1,10 @@
 package com.immersivecinematics.immersive_cinematics.trigger.network;
 
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver;
-import dev.architectury.networking.NetworkManager;
-import dev.architectury.networking.simple.BaseS2CMessage;
-import dev.architectury.networking.simple.MessageType;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
-public class S2CSkipVoteUpdatePacket extends BaseS2CMessage {
+public class S2CSkipVoteUpdatePacket implements CinematicS2CPacket {
 
     private final String scriptId;
     private final int voterCount;
@@ -26,11 +23,6 @@ public class S2CSkipVoteUpdatePacket extends BaseS2CMessage {
     }
 
     @Override
-    public MessageType getType() {
-        return NetworkHandler.SKIP_VOTE_UPDATE;
-    }
-
-    @Override
     public void write(FriendlyByteBuf buf) {
         buf.writeUtf(scriptId);
         buf.writeVarInt(voterCount);
@@ -38,7 +30,7 @@ public class S2CSkipVoteUpdatePacket extends BaseS2CMessage {
     }
 
     @Override
-    public void handle(NetworkManager.PacketContext context) {
+    public void handle() {
         ClientScriptReceiver.handleSkipVoteUpdate(this);
     }
 
@@ -47,6 +39,6 @@ public class S2CSkipVoteUpdatePacket extends BaseS2CMessage {
     public int getTotalViewers() { return totalViewers; }
 
     public static void send(ServerPlayer player, String scriptId, int voterCount, int totalViewers) {
-        new S2CSkipVoteUpdatePacket(scriptId, voterCount, totalViewers).sendTo(player);
+        NetworkHandler.sendToPlayer(player, new S2CSkipVoteUpdatePacket(scriptId, voterCount, totalViewers));
     }
 }

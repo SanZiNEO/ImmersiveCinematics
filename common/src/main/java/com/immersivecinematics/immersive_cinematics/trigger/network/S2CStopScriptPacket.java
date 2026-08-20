@@ -1,13 +1,10 @@
 package com.immersivecinematics.immersive_cinematics.trigger.network;
 
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver;
-import dev.architectury.networking.NetworkManager;
-import dev.architectury.networking.simple.BaseS2CMessage;
-import dev.architectury.networking.simple.MessageType;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
-public class S2CStopScriptPacket extends BaseS2CMessage {
+public class S2CStopScriptPacket implements CinematicS2CPacket {
 
     private final String scriptId;
     private final String refId;
@@ -27,18 +24,13 @@ public class S2CStopScriptPacket extends BaseS2CMessage {
     }
 
     @Override
-    public MessageType getType() {
-        return NetworkHandler.STOP_SCRIPT;
-    }
-
-    @Override
     public void write(FriendlyByteBuf buf) {
         buf.writeUtf(scriptId);
         buf.writeUtf(refId);
     }
 
     @Override
-    public void handle(NetworkManager.PacketContext context) {
+    public void handle() {
         ClientScriptReceiver.handleStopScript(this);
     }
 
@@ -46,10 +38,10 @@ public class S2CStopScriptPacket extends BaseS2CMessage {
     public String getRefId() { return refId; }
 
     public static void send(ServerPlayer player, String scriptId) {
-        new S2CStopScriptPacket(scriptId).sendTo(player);
+        NetworkHandler.sendToPlayer(player, new S2CStopScriptPacket(scriptId));
     }
 
     public static void send(ServerPlayer player, String scriptId, String refId) {
-        new S2CStopScriptPacket(scriptId, refId).sendTo(player);
+        NetworkHandler.sendToPlayer(player, new S2CStopScriptPacket(scriptId, refId));
     }
 }

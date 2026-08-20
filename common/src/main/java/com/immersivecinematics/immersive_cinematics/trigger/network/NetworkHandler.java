@@ -1,50 +1,49 @@
 package com.immersivecinematics.immersive_cinematics.trigger.network;
 
-import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
-import dev.architectury.networking.simple.MessageType;
-import dev.architectury.networking.simple.SimpleNetworkManager;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
- * 网络层 — 使用 Architectury SimpleNetworkManager（参考 FTB-Quests 模式）。
+ * 网络层（0.3.5 第7轮去 Arch）。
  * <p>
- * 定义 7 个消息类型（4 S2C + 3 C2S），在 {@code ImmsersiveCinematics.init()} 中调用 {@link #init()} 触发 static 加载。
+ * 平台无关：由 {@link NetworkBridge} 注入实际发送实现，
+ * 包 ID 常量供 Fabric/Forge 平台注册时使用。
  */
-public interface NetworkHandler {
-    SimpleNetworkManager NET = SimpleNetworkManager.create(ImmersiveCinematics.MOD_ID);
+public final class NetworkHandler {
 
-    // ===== S2C（服务端 → 客户端）=====
+    // ===== 包 ID（平台注册用）=====
 
-    /** 通知客户端播放脚本 */
-    MessageType PLAY_SCRIPT = NET.registerS2C("play_script", S2CPlayScriptPacket::new);
-    /** 通知客户端停止脚本 */
-    MessageType STOP_SCRIPT = NET.registerS2C("stop_script", S2CStopScriptPacket::new);
-    /** 同步触发器状态到客户端 */
-    MessageType TRIGGER_STATE_SYNC = NET.registerS2C("trigger_state_sync", S2CTriggerStateSyncPacket::new);
-    /** 更新跳过投票计数 */
-    MessageType SKIP_VOTE_UPDATE = NET.registerS2C("skip_vote_update", S2CSkipVoteUpdatePacket::new);
-    /** 暂停/恢复包 ACK 回执（N1） */
-    MessageType SCRIPT_PAUSE_ACK = NET.registerS2C("script_pause_ack", S2CScriptPauseAckPacket::new);
-    /** 脚本文件重载通知（N2b，S2C — 只带文件名） */
-    MessageType SCRIPT_RELOAD = NET.registerS2C("script_reload", S2CScriptReloadPacket::new);
-    /** 区块预加载：仅"无需加载"回执（日志用，不阻塞播放） */
-    MessageType PRELOAD_RESULT = NET.registerS2C("preload_result", S2CPreloadResultPacket::new);
+    public static final String PLAY_SCRIPT = "play_script";
+    public static final String STOP_SCRIPT = "stop_script";
+    public static final String TRIGGER_STATE_SYNC = "trigger_state_sync";
+    public static final String SKIP_VOTE_UPDATE = "skip_vote_update";
+    public static final String SCRIPT_PAUSE_ACK = "script_pause_ack";
+    public static final String SCRIPT_RELOAD = "script_reload";
+    public static final String PRELOAD_RESULT = "preload_result";
 
-    // ===== C2S（客户端 → 服务端）=====
+    public static final String SCRIPT_FINISHED = "script_finished";
+    public static final String PLAYBACK_STARTED = "playback_started";
+    public static final String SCRIPT_PAUSE = "script_pause";
+    public static final String SCRIPT_SAVED = "script_saved";
+    public static final String PRELOAD_REQ = "preload_req";
+    public static final String PRELOAD_POS = "preload_pos";
 
-    /** 客户端通知服务端脚本播放完毕 */
-    MessageType SCRIPT_FINISHED = NET.registerC2S("script_finished", C2SScriptFinishedPacket::new);
-    /** 客户端通知服务端脚本开始播放 */
-    MessageType PLAYBACK_STARTED = NET.registerC2S("playback_started", C2SPlaybackStartedPacket::new);
-    /** 客户端通知服务端脚本暂停/恢复 */
-    MessageType SCRIPT_PAUSE = NET.registerC2S("script_pause", C2SScriptPausePacket::new);
-    /** 编辑器保存成功通知（N2b，C2S — 只带文件名） */
-    MessageType SCRIPT_SAVED = NET.registerC2S("script_saved", C2SScriptSavedPacket::new);
-    /** 区块预加载请求（PRELOAD/PREWARM/RELEASE） */
-    MessageType PRELOAD_REQ = NET.registerC2S("preload_req", C2SPreloadRequestPacket::new);
-    /** 相机位置上报（20 tick） */
-    MessageType PRELOAD_POS = NET.registerC2S("preload_pos", C2SPreloadPositionPacket::new);
+    private static NetworkBridge bridge;
 
-    /** 触发 static 字段加载，SimpleNetworkManager 自动完成平台注册 */
-    static void init() {
+    private NetworkHandler() {}
+
+    public static void setBridge(NetworkBridge b) {
+        bridge = b;
+    }
+
+    public static void sendToPlayer(ServerPlayer player, CinematicS2CPacket packet) {
+        if (bridge != null) bridge.sendToPlayer(player, packet);
+    }
+
+    public static void sendToServer(CinematicC2SPacket packet) {
+        if (bridge != null) bridge.sendToServer(packet);
+    }
+
+    /** 兼容旧调用：由平台在 common init 前注入 bridge */
+    public static void init() {
     }
 }

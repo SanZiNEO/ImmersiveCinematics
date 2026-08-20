@@ -5,15 +5,25 @@ import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.immersivecinematics.immersive_cinematics.control.SkipHudRenderer;
 import com.immersivecinematics.immersive_cinematics.overlay.CinematicOverlay;
-import dev.architectury.event.events.client.ClientGuiEvent;
-import dev.architectury.event.events.client.ClientTickEvent;
-import dev.architectury.registry.client.keymappings.KeyMappingRegistry;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 
-public class ClientEventHandler {
+/**
+ * 客户端事件处理（0.3.5 第7轮去 Arch）。
+ * <p>
+ * 只保留纯逻辑；平台（Fabric/Forge）负责把原生事件转发到这里。
+ */
+public final class ClientEventHandler {
 
-    public static void register() {
-        // 启动时确保游戏根必要目录存在：resource（播放读取音频/图片）+ scripts（编辑器使用）
+    @FunctionalInterface
+    public interface KeyMappingRegistrar {
+        void register(KeyMapping keyMapping);
+    }
+
+    private ClientEventHandler() {}
+
+    public static void onClientInit() {
         com.immersivecinematics.immersive_cinematics.util.ResourcePath.ensureDir();
         try {
             java.nio.file.Files.createDirectories(
@@ -22,68 +32,56 @@ public class ClientEventHandler {
         } catch (Exception ignored) {
             // 目录已存在/权限受限即跳过（ResourcePath.ensureDir 已处理 resource；scripts 由编辑器按需创建）
         }
+    }
 
-        // ===== 按键注册 =====
-
-        KeyMappingRegistry.register(CinematicKeyBindings.SKIP_KEY);
+    public static void registerKeyMappings(KeyMappingRegistrar registrar) {
+        registrar.register(CinematicKeyBindings.SKIP_KEY);
         if (ImmersiveCinematics.EDITOR_ENABLED && CinematicKeyBindings.EDITOR_KEY != null) {
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_KEY);
-            // 编辑器单键快捷键（可绑定）
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_PLAY_PAUSE);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_ADD_MARKER);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_SET_LOOP_IN);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_SET_LOOP_OUT);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_PLAYHEAD_LEFT);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_PLAYHEAD_RIGHT);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_NUDGE_UP);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_NUDGE_DOWN);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_HOME);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_END);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_PAGE_UP);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_PAGE_DOWN);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_CLIP_START);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_CLIP_END);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_PLAY_CLIP);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_DELETE);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FRAME_ALL);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_FOV_IN);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_FOV_OUT);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_ZOOM_IN);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_ZOOM_OUT);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_ROLL_LEFT);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_ROLL_RIGHT);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_MODE);
-            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_RESET_OPTICS);
+            registrar.register(CinematicKeyBindings.EDITOR_KEY);
+            registrar.register(CinematicKeyBindings.EDITOR_PLAY_PAUSE);
+            registrar.register(CinematicKeyBindings.EDITOR_ADD_MARKER);
+            registrar.register(CinematicKeyBindings.EDITOR_SET_LOOP_IN);
+            registrar.register(CinematicKeyBindings.EDITOR_SET_LOOP_OUT);
+            registrar.register(CinematicKeyBindings.EDITOR_PLAYHEAD_LEFT);
+            registrar.register(CinematicKeyBindings.EDITOR_PLAYHEAD_RIGHT);
+            registrar.register(CinematicKeyBindings.EDITOR_NUDGE_UP);
+            registrar.register(CinematicKeyBindings.EDITOR_NUDGE_DOWN);
+            registrar.register(CinematicKeyBindings.EDITOR_HOME);
+            registrar.register(CinematicKeyBindings.EDITOR_END);
+            registrar.register(CinematicKeyBindings.EDITOR_PAGE_UP);
+            registrar.register(CinematicKeyBindings.EDITOR_PAGE_DOWN);
+            registrar.register(CinematicKeyBindings.EDITOR_CLIP_START);
+            registrar.register(CinematicKeyBindings.EDITOR_CLIP_END);
+            registrar.register(CinematicKeyBindings.EDITOR_PLAY_CLIP);
+            registrar.register(CinematicKeyBindings.EDITOR_DELETE);
+            registrar.register(CinematicKeyBindings.EDITOR_FRAME_ALL);
+            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT);
+            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_FOV_IN);
+            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_FOV_OUT);
+            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_ZOOM_IN);
+            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_ZOOM_OUT);
+            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_ROLL_LEFT);
+            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_ROLL_RIGHT);
+            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_MODE);
+            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_RESET_OPTICS);
         }
+    }
 
-        // ===== 客户端 Tick =====
+    public static void onClientTick(Minecraft mc) {
+        CameraManager.INSTANCE.tick();
+        CinematicKeyBindings.onClientTick();
+        com.immersivecinematics.immersive_cinematics.trigger.client.PreloadRequester.INSTANCE.tick(mc);
+        com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.tick();
+        if (mc.level == null && CameraManager.INSTANCE.isActive()) {
+            CameraManager.INSTANCE.emergencyStop();
+        }
+    }
 
-        ClientTickEvent.CLIENT_POST.register(mc -> {
-            CameraManager.INSTANCE.tick();
-            CinematicKeyBindings.onClientTick();
-            // 区块预加载：客户端请求器（开始 PRELOAD / 位置上报 / 结束 RELEASE）
-            com.immersivecinematics.immersive_cinematics.trigger.client.PreloadRequester.INSTANCE.tick(mc);
-            // N1：ACK 超时重发检查（客户端侧）
-            com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.tick();
-            // D2：世界退出/断线时紧急停止（防止 OpenAL 音频残留播放）
-            if (mc.level == null && CameraManager.INSTANCE.isActive()) {
-                CameraManager.INSTANCE.emergencyStop();
-            }
-        });
-
-        // ===== HUD 渲染 =====
-
-        // 电影黑边覆盖层（先画，作底层——letterbox 盖住世界画面，但不得盖住 HUD 元素）
-        ClientGuiEvent.RENDER_HUD.register((graphics, deltaTracker) -> {
-            Minecraft mc = Minecraft.getInstance();
-            CinematicOverlay.render(graphics,
-                    mc.getWindow().getGuiScaledWidth(),
-                    mc.getWindow().getGuiScaledHeight());
-        });
-        // 跳过提示 HUD（后画，最上层——长按跳过为整体：文字+图标+环，不被 letterbox 覆盖）
-        ClientGuiEvent.RENDER_HUD.register((graphics, deltaTracker) -> {
-            SkipHudRenderer.render(graphics);
-        });
+    public static void onRenderHud(GuiGraphics graphics) {
+        Minecraft mc = Minecraft.getInstance();
+        CinematicOverlay.render(graphics,
+                mc.getWindow().getGuiScaledWidth(),
+                mc.getWindow().getGuiScaledHeight());
+        SkipHudRenderer.render(graphics);
     }
 }

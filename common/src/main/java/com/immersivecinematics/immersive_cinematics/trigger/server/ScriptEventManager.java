@@ -81,7 +81,7 @@ public class ScriptEventManager {
                 LOGGER.info("Script '{}' force-stopped by skip vote ({} / {} needed)", scriptId, pb.skipVoters.size(), needed);
                 for (UUID remaining : pb.viewers) {
                     ServerPlayer p = player.server.getPlayerList().getPlayer(remaining);
-                    if (p != null) new S2CStopScriptPacket(scriptId).sendTo(p);
+                    if (p != null) S2CStopScriptPacket.send(p, scriptId);
                 }
                 scriptPlaybacks.remove(scriptId);
             }
@@ -97,8 +97,7 @@ public class ScriptEventManager {
             for (UUID vid : pb.viewers) {
                 ServerPlayer vp = pb.server.getPlayerList().getPlayer(vid);
                 if (vp != null) {
-                    new S2CSkipVoteUpdatePacket(pb.scriptId, pb.skipVoters.size(), pb.viewers.size())
-                            .sendTo(vp);
+                    S2CSkipVoteUpdatePacket.send(vp, pb.scriptId, pb.skipVoters.size(), pb.viewers.size());
                 }
             }
         }

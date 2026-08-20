@@ -2,13 +2,10 @@ package com.immersivecinematics.immersive_cinematics.trigger.network;
 
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerEngine;
-import dev.architectury.networking.NetworkManager;
-import dev.architectury.networking.simple.BaseC2SMessage;
-import dev.architectury.networking.simple.MessageType;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
-public class C2SScriptFinishedPacket extends BaseC2SMessage {
+public class C2SScriptFinishedPacket implements CinematicC2SPacket {
 
     private final String scriptId;
     private final CompletionReason reason;
@@ -31,11 +28,6 @@ public class C2SScriptFinishedPacket extends BaseC2SMessage {
     }
 
     @Override
-    public MessageType getType() {
-        return NetworkHandler.SCRIPT_FINISHED;
-    }
-
-    @Override
     public void write(FriendlyByteBuf buf) {
         buf.writeUtf(scriptId);
         buf.writeEnum(reason);
@@ -43,13 +35,12 @@ public class C2SScriptFinishedPacket extends BaseC2SMessage {
     }
 
     @Override
-    public void handle(NetworkManager.PacketContext context) {
-        ServerPlayer player = (ServerPlayer) context.getPlayer();
+    public void handle(ServerPlayer player) {
         // N1：stop 包的自然回执
         AckTracker.ack(refId);
         TriggerEngine.INSTANCE.onScriptFinished(player, scriptId, reason);
         // 区块预加载保底：任意退出（含强退）都强制释放，把加载交还玩家/原版机制
-        context.queue(() -> com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager.INSTANCE.onScriptFinished(player));
+        com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager.INSTANCE.onScriptFinished(player);
     }
 
     public String getScriptId() { return scriptId; }

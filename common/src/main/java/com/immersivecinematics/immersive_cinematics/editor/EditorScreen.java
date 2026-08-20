@@ -1148,7 +1148,8 @@ public class EditorScreen extends Screen {
             output.pushScript(doc.toJson());
             // N2b：轻量通知服务端脚本已保存（只带文件名；服务端指纹对比 + 广播，失败不影响保存）
             try {
-                new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptSavedPacket(dest.getFileName().toString()).sendToServer();
+                com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                        new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptSavedPacket(dest.getFileName().toString()));
             } catch (Exception notifyEx) {
                 EditorLogger.action(EditorLogger.SCREEN, "SAVE_SCRIPT", "scriptSavedNotify failed " + notifyEx.getMessage());
             }
