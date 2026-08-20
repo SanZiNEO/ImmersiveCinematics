@@ -106,6 +106,7 @@ public class TriggerEngine {
 
             for (TriggerRegistration reg : entry.getValue()) {
                 for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                    if (player instanceof com.immersivecinematics.immersive_cinematics.trigger.server.CameraFakePlayer) continue;
                     if (!prerequisitesMet(player, reg)) continue;
                     if (shouldSkip(player, reg)) continue;
                     if (reg.getType().evaluate(player, reg.getConditions())) {

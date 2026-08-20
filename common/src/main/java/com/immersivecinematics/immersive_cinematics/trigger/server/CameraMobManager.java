@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
 import com.mojang.authlib.GameProfile;
+import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
 import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
 import net.minecraft.server.level.ServerEntity;
 import net.minecraft.server.level.ServerLevel;
@@ -87,6 +88,7 @@ public final class CameraMobManager {
         cleanupSyncedEntities(a);
         if (a.fakePlayer != null) {
             a.level.getServer().getPlayerList().remove(a.fakePlayer);
+            LOGGER.info("[camera-fake] 假人移除 玩家={} 中心={}", a.player, a.center);
             a.fakePlayer = null;
         }
     }
@@ -197,14 +199,30 @@ public final class CameraMobManager {
         if (a.fakePlayer != null) return;
         GameProfile profile = new GameProfile(
                 UUID.nameUUIDFromBytes(("camera_anchor_" + a.player).getBytes(StandardCharsets.UTF_8)),
-                "camera_anchor");
+                CameraFakePlayer.FAKE_PLAYER_NAME);
         CameraFakePlayer fake = new CameraFakePlayer(a.level.getServer(), a.level, profile);
         ServerPlayer real = a.level.getServer().getPlayerList().getPlayer(a.player);
         CameraFakeConnection connection = new CameraFakeConnection(real);
         a.level.getServer().getPlayerList().placeNewPlayer(connection, fake);
+        // placeNewPlayer 可能重置外观状态，这里重新强制隐藏/静默/无敌
+        fake.setInvisible(true);
+        fake.setCustomNameVisible(false);
+        fake.setSilent(true);
+        fake.getAbilities().invulnerable = true;
+
+        // 从所有真实玩家的 Tab 列表中移除假人
+        ClientboundPlayerInfoRemovePacket remove = new ClientboundPlayerInfoRemovePacket(java.util.List.of(fake.getUUID()));
+        for (ServerPlayer p : a.level.getServer().getPlayerList().getPlayers()) {
+            if (p instanceof CameraFakePlayer) continue;
+            if (p.connection != null) {
+                p.connection.send(remove);
+            }
+        }
+
         a.fakePlayer = fake;
         a.fakeConnection = connection;
         applyGameMode(a);
+        LOGGER.info("[camera-fake] 假人创建 玩家={} 中心={} uuid={}", a.player, a.center, fake.getUUID());
     }
 
     private void applyGameMode(Anchor a) {

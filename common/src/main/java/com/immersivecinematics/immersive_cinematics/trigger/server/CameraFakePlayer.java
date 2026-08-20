@@ -15,6 +15,9 @@ import net.minecraft.server.level.ServerPlayer;
  */
 public class CameraFakePlayer extends ServerPlayer {
 
+    /** 内部专用标识名：只用于隐藏/过滤我们自己的假人，不对外泄露 */
+    public static final String FAKE_PLAYER_NAME = "__ic_camera__";
+
     public CameraFakePlayer(MinecraftServer server, ServerLevel level, GameProfile profile) {
         super(server, level, profile);
         setInvisible(true);

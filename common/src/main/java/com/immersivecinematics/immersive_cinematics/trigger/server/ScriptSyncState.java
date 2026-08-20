@@ -41,6 +41,7 @@ public final class ScriptSyncState {
             fingerprints.put(fileName, ScriptFingerprint.of(content));
             // 广播 reload 给所有在线玩家（含发送者；客户端本地指纹对比去重）
             for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                if (p instanceof com.immersivecinematics.immersive_cinematics.trigger.server.CameraFakePlayer) continue;
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToPlayer(
                         p, new S2CScriptReloadPacket(fileName));
             }
