@@ -131,6 +131,7 @@ public abstract class EditorPanel extends UIComponent {
             addChild(title);
             cy += 18;
 
+            int fieldStart = cy;
             int start = getChildren().size();
             for (String key : group.getKeys()) {
                 cy = reflectFieldOrAdd(obj, key, lx, cy, isKeyframe);
@@ -140,6 +141,7 @@ public abstract class EditorPanel extends UIComponent {
                 for (int i = start; i < end; i++) {
                     getChildren().get(i).visible = false;
                 }
+                cy = fieldStart;
             }
             cy += 4;
         }

@@ -50,6 +50,8 @@ public class LeftPanelArea extends UIComponent {
     private ScrollablePanel content;
     /** 当前模式面板实例（同模式复用，保留折叠状态等面板内状态） */
     private EditorPanel currentPanel;
+    /** 上次 build 的模式（同模式复用 ScrollablePanel，保留滚动位置） */
+    private PanelMode lastBuiltMode;
 
     public LeftPanelArea(int x, int y, int w, int h) {
         super(x, y, w, h);
@@ -96,12 +98,18 @@ public class LeftPanelArea extends UIComponent {
 
     public void build() {
         EditorLogger.action(EditorLogger.LEFT, "BUILD", "mode=" + mode);
-        clearChildren();
-        tabBar = new PanelTabBar(x, y, w, TAB_HEIGHT, mode, this::setMode);
-        tabBar.fixedToParent = true;
-        addChild(tabBar);
-        content = new ScrollablePanel(x, y + TAB_HEIGHT, w, h - TAB_HEIGHT);
-        addChild(content);
+
+        if (tabBar == null || content == null || lastBuiltMode != mode) {
+            clearChildren();
+            tabBar = new PanelTabBar(x, y, w, TAB_HEIGHT, mode, this::setMode);
+            tabBar.fixedToParent = true;
+            addChild(tabBar);
+            content = new ScrollablePanel(x, y + TAB_HEIGHT, w, h - TAB_HEIGHT);
+            addChild(content);
+            lastBuiltMode = mode;
+        } else {
+            content.clearChildren();
+        }
 
         EditorPanel panel = currentPanel;
         if (panel == null) {
