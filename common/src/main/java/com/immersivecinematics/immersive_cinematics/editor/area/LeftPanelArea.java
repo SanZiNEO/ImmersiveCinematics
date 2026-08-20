@@ -29,21 +29,8 @@ public class LeftPanelArea extends UIComponent {
     private String selectedTrackType = "CAMERA";
     private JsonArray tracks;
     private static final int TAB_HEIGHT = 20;
-    private static final int TAB_GAP = 2;
     private boolean dataDirty = true;
     private long lastBuildTime;
-
-    private int scrollY;
-    /** E7：滚轮滚动目标值（render 逐帧向它插值，实现平滑滚动） */
-    private int targetScrollY;
-    private int maxScroll;
-    private int contentHeight;
-    private boolean scrollbarGrabbed;
-    private int scrollbarGrabOffset;
-
-    /** 事件树滚动语义：子孙组件的命中坐标 = 绝对坐标 − scrollY（渲染平移与命中统一） */
-    @Override
-    public int getScrollOffset() { return scrollY; }
 
     private Consumer<String> onOpenScript;
     private Consumer<String> onDeleteScript;
@@ -71,8 +58,7 @@ public class LeftPanelArea extends UIComponent {
             if (this.mode != m) {
                 EditorLogger.areaMode(EditorLogger.LEFT, "mode", this.mode.name(), m.name());
                 // 切模式回到面板顶部：scrollY 残留会把新面板内容/固定 tab 滚出可视区（面板"全白"根因）
-                scrollY = 0;
-                targetScrollY = 0;
+                if (content != null) content.resetScroll();
             }
             this.mode = m;
             build();
@@ -106,6 +92,8 @@ public class LeftPanelArea extends UIComponent {
 
     /** tab 栏独立组件（固定在面板顶部，不随内容滚动；渲染与命中均豁免滚动偏移） */
     private PanelTabBar tabBar;
+    /** 可滚动内容容器（位于 Tab 栏下方，承载各模式 build 出的子组件） */
+    private ScrollablePanel content;
 
     public void build() {
         EditorLogger.action(EditorLogger.LEFT, "BUILD", "mode=" + mode);
@@ -113,6 +101,8 @@ public class LeftPanelArea extends UIComponent {
         tabBar = new PanelTabBar(x, y, w, TAB_HEIGHT, mode, this::setMode);
         tabBar.fixedToParent = true;
         addChild(tabBar);
+        content = new ScrollablePanel(x, y + TAB_HEIGHT, w, h - TAB_HEIGHT);
+        addChild(content);
         switch (mode) {
             case SCRIPT_LIST -> buildScriptList();
             case SCRIPT_PROPERTIES -> buildScriptProperties();
@@ -121,7 +111,7 @@ public class LeftPanelArea extends UIComponent {
             case TRACK_LIST -> buildTrackList();
             case TRIGGER -> buildTriggerPanel();
         }
-        computeContentHeightAndClampScroll();
+        content.recompute();
     }
     // Debounce: skip builds within 150ms to avoid flash on rapid property edits
     private void scheduleBuild() {
@@ -134,7 +124,7 @@ public class LeftPanelArea extends UIComponent {
     private void buildScriptList() {
         System.out.println("[KILO-DEBUG] LeftPanelArea.buildScriptList: scriptFileNames=" + scriptFileNames);
         int cy = contentY() + 6;
-        addChild(new UILabel(x + 6, cy, "Scripts", EditorTheme.TEXT_SECONDARY));
+        content.addChild(new UILabel(x + 6, cy, "Scripts", EditorTheme.TEXT_SECONDARY));
         cy += (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
 
         for (String name : scriptFileNames) {
@@ -143,7 +133,7 @@ public class LeftPanelArea extends UIComponent {
                 if (onOpenScript != null) onOpenScript.accept(name);
             });
             itemBtn.color(0x00, 0x443A3A3A).textColor(EditorTheme.TEXT_SECONDARY);
-            addChild(itemBtn);
+            content.addChild(itemBtn);
             cy += btnH + (int)(2 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
         }
 
@@ -151,7 +141,7 @@ public class LeftPanelArea extends UIComponent {
             if (onNewScript != null) onNewScript.run();
         });
         newBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER).textColor(EditorTheme.TEXT_SECONDARY);
-        addChild(newBtn);
+        content.addChild(newBtn);
     }
 
     private void buildScriptProperties() {
@@ -184,7 +174,7 @@ public class LeftPanelArea extends UIComponent {
         if (!script.has("triggers")) script.add("triggers", triggers);
         TriggerPanel tp = new TriggerPanel(lx, cy, w - 12, 1, triggers, onDirty);
         tp.setOnTriggerChanged(() -> { build(); });
-        addChild(tp);
+        content.addChild(tp);
     }
 
     /** C4：按 schema 的 "meta" 段渲染指定 section 的字段（tristate 走三态按钮，其余按类型反射） */
@@ -232,7 +222,7 @@ public class LeftPanelArea extends UIComponent {
                     scheduleBuild();
                 });
         dd.setLabel(label + ":");
-        addChild(dd);
+        content.addChild(dd);
         return cy + 18;
     }
 
@@ -324,24 +314,6 @@ public class LeftPanelArea extends UIComponent {
         cy = reflectObject(selectedKeyframe, lx, cy, kfKeys.toArray(new String[0]), true);
     }
 
-    private void computeContentHeightAndClampScroll() {
-        int bottom = y;
-        for (UIComponent c : getChildren()) {
-            bottom = Math.max(bottom, getComponentBottom(c));
-        }
-        contentHeight = Math.max(0, bottom - y);
-        contentHeight = Math.max(0, bottom - y);
-
-        boolean shouldScroll = contentHeight > h * 0.8f;
-        if (!shouldScroll) {
-            scrollY = 0;
-            maxScroll = 0;
-            return;
-        }
-        maxScroll = Math.max(0, contentHeight - h);
-        scrollY = Math.max(0, Math.min(scrollY, maxScroll));
-    }
-
     /**
      * 结构目标下拉（look_at_target_structure）：列出注册表（原版+模组）所有结构 id，自动补全。
      * 选项含"（空）"= 不使用结构目标（结构/坐标互斥，选空后坐标输入恢复显示）。未进世界时用文本输入代替下拉。
@@ -386,19 +358,8 @@ public class LeftPanelArea extends UIComponent {
                     scheduleBuild();
                 });
         dd.setLabel(label);
-        addChild(dd);
+        content.addChild(dd);
         return cy + 18;
-    }
-
-    private static int getComponentBottom(UIComponent comp) {
-        int b = comp.y + comp.h;
-        List<UIComponent> sub = comp.getChildren();
-        if (sub != null) {
-            for (UIComponent s : sub) {
-                b = Math.max(b, getComponentBottom(s));
-            }
-        }
-        return b;
     }
 
     /** Auto-reflect a JsonObject's fields as editable widgets (entry point). */
@@ -456,7 +417,7 @@ public class LeftPanelArea extends UIComponent {
         } else {
             btn.color(0x00, 0x44442222).textColor(0xFFAA4444);
         }
-        addChild(btn);
+        content.addChild(btn);
         return cy + 18;
     }
 
@@ -491,7 +452,7 @@ public class LeftPanelArea extends UIComponent {
                         scheduleBuild();
                     });
             dd.setLabel(label);
-            addChild(dd);
+            content.addChild(dd);
             return cy + 18;
         }
 
@@ -503,7 +464,7 @@ public class LeftPanelArea extends UIComponent {
             scheduleBuild();
         });
         btn.color(0x00, 0x44333A3A).textColor(EditorTheme.TEXT_SECONDARY);
-        addChild(btn);
+        content.addChild(btn);
         return cy + 18;
     }
 
@@ -594,7 +555,7 @@ public class LeftPanelArea extends UIComponent {
                         parentObj.addProperty(key, v);
                         if (onDirty != null) onDirty.run();
                     });
-            addChild(ti);
+            content.addChild(ti);
             return cy + 18;
         }
         return cy;
@@ -616,7 +577,7 @@ public class LeftPanelArea extends UIComponent {
     }
 
     private void addSectionLabel(String text, int lx, int cy, int depth) {
-        addChild(new UILabel(lx + depth * 10, cy, text, EditorTheme.TEXT_DIM));
+        content.addChild(new UILabel(lx + depth * 10, cy, text, EditorTheme.TEXT_DIM));
     }
 
     private int addFloatField(String label, java.util.function.Supplier<Float> source, int lx, int cy,
@@ -628,14 +589,14 @@ public class LeftPanelArea extends UIComponent {
                               float min, float max, float step, Consumer<Float> sink, int width) {
         int fh = (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
         UIFloatInput fi = new UIFloatInput(lx, cy, width, fh, label, source, min, max, step, sink);
-        addChild(fi);
+        content.addChild(fi);
         return cy + fh + (int)(2 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
     }
 
     private int addToggle(String label, java.util.function.Supplier<Boolean> source, int lx, int cy, Consumer<Boolean> sink) {
         int fh = (int)(16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
         UIToggle tgl = new UIToggle(lx, cy, w - 12, fh, label, source, sink);
-        addChild(tgl);
+        content.addChild(tgl);
         return cy + fh + (int)(2 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
     }
 
@@ -645,7 +606,10 @@ public class LeftPanelArea extends UIComponent {
 
     private static UIComponent findFocusedInput(List<UIComponent> list) {
         for (UIComponent c : list) {
-            if (c instanceof IFocusable f && f.isFocused()) return c;
+            if (c instanceof IFocusable) {
+                IFocusable f = (IFocusable) c;
+                if (f.isFocused()) return c;
+            }
             List<UIComponent> sub = c.getChildren();
             if (sub != null) {
                 UIComponent found = findFocusedInput(sub);
@@ -661,20 +625,14 @@ public class LeftPanelArea extends UIComponent {
 
     private static void clearTextFocus(List<UIComponent> list) {
         for (UIComponent c : list) {
-            if (c instanceof IFocusable f) f.clearFocus();
+            if (c instanceof IFocusable) ((IFocusable) c).clearFocus();
             List<UIComponent> sub = c.getChildren();
             if (sub != null) clearTextFocus(sub);
         }
     }
     /**
-     * Override render() to control the full rendering pipeline:
-     * 1. Fill background
-     * 2. pushViewport (scissor with scroll offset for visual clipping)
-     * 3. pushScroll (translate children positions for scroll visual)
-     * 4. Render children
-     * 5. popScroll (restore coordinates — NEVER leak to siblings)
-     * 6. popViewport (restore scissor)
-     * 7. Draw scrollbar + outline (not affected by scroll/ scissor)
+     * 渲染管线：背景 + Tab 栏 + ScrollablePanel 内容 + 外框。
+     * 滚动、视口裁剪、滚动条全部由 ScrollablePanel 自管。
      */
     @Override
     public void render(UIContext ctx) {
@@ -683,39 +641,11 @@ public class LeftPanelArea extends UIComponent {
         ctx.graphics.fill(x, y, x + w, y + h, EditorTheme.BG_TRACK);
         ctx.graphics.fill(x + w - 1, y, x + w, y + h, EditorTheme.BORDER_DARK);
 
-        // E7：向目标滚动值平滑逼近（滚动条拖动走即时路径不受影响）
-        if (scrollY != targetScrollY) {
-            scrollY += (int)((targetScrollY - scrollY) * 0.25f);
-            if (Math.abs(targetScrollY - scrollY) < 1) scrollY = targetScrollY;
-        }
-
         // Tab 栏：不透明背景（内容滚动不会穿透）+ 固定按钮（不随内容滚动）
         if (tabBar != null) tabBar.render(ctx);
-
-        // 内容区视口裁剪到 Tab 下方（滚动内容不会画到 Tab 栏上）
-        ctx.pushViewport(x, y + TAB_HEIGHT, w, h - TAB_HEIGHT);
-        ctx.pushScroll(scrollY);
-
-        for (UIComponent child : getChildren()) {
-            if (child != tabBar && child.visible) child.render(ctx);
-        }
-
-        ctx.popScroll(scrollY);
-        ctx.popViewport();
-
+        if (content != null) content.render(ctx);
         // Tab 栏最后再盖一层（防止滚动内容在视口边缘残留）并重绘按钮
         if (tabBar != null) tabBar.render(ctx);
-
-        if (maxScroll > 0) {
-            int sbX = x + w - 4;
-            int sbH = h;
-            ctx.graphics.fill(sbX, y, sbX + 4, y + sbH, EditorTheme.SCROLLBAR_BG);
-            float thumbRatio = (float)h / contentHeight;
-            int thumbH = Math.max(8, (int)(sbH * thumbRatio));
-            int thumbY = y + (int)((float)scrollY / maxScroll * (sbH - thumbH));
-            ctx.graphics.fill(sbX, thumbY, sbX + 4, thumbY + thumbH, EditorTheme.SCROLLBAR_THUMB);
-            ctx.graphics.renderOutline(sbX, thumbY, 4, thumbH, EditorTheme.BORDER_LIGHT);
-        }
 
         ctx.graphics.renderOutline(x, y, w, h, EditorTheme.BORDER);
     }
@@ -723,33 +653,12 @@ public class LeftPanelArea extends UIComponent {
     @Override
     public void renderOverlay(UIContext ctx) {
         if (tabBar != null) tabBar.renderOverlay(ctx);
-        ctx.pushScroll(scrollY);
-        for (UIComponent c : getChildren()) {
-            if (c != tabBar) c.renderOverlay(ctx);
-        }
-        ctx.popScroll(scrollY);
+        if (content != null) content.renderOverlay(ctx);
     }
 
     @Override
     protected boolean onClicked(UIContext ctx) {
         if (!ctx.isMouseIn(hitX(), hitY(), w, h)) return false;
-
-        if (maxScroll > 0) {
-            int sbX = x + w - 4;
-            if (ctx.mouseX >= sbX) {
-                float thumbRatio = (float)h / contentHeight;
-                int thumbH = Math.max(8, (int)(h * thumbRatio));
-                int thumbY = y + (int)((float)scrollY / maxScroll * (h - thumbH));
-                if (ctx.mouseY >= thumbY && ctx.mouseY < thumbY + thumbH) {
-                    scrollbarGrabbed = true;
-                    scrollbarGrabOffset = ctx.mouseY - thumbY;
-                } else {
-                    scrollY = targetScrollY = (int)((float)(ctx.mouseY - y) / h * maxScroll);
-                    clampScrollY();
-                }
-                return true;
-            }
-        }
 
         EditorLogger.areaHit(EditorLogger.LEFT, "full_area", ctx.mouseX, ctx.mouseY, true);
         EditorLogger.areaHit(EditorLogger.LEFT, "mode_" + mode.name(), ctx.mouseX, ctx.mouseY, true);
@@ -757,44 +666,11 @@ public class LeftPanelArea extends UIComponent {
         // 子组件命中已由 UIComponent.mouseClicked 模板统一分发（绝对坐标 + 滚动修正 + 容器裁剪），
         // 这里只保留 toggle 点击日志特判，不再重复分发。
         for (UIComponent c : getChildren()) {
-            if (c.isHovered(ctx) && c instanceof com.immersivecinematics.immersive_cinematics.editor.widget.UIToggle tgl) {
+            if (c.isHovered(ctx) && c instanceof com.immersivecinematics.immersive_cinematics.editor.widget.UIToggle) {
+                com.immersivecinematics.immersive_cinematics.editor.widget.UIToggle tgl =
+                        (com.immersivecinematics.immersive_cinematics.editor.widget.UIToggle) c;
                 EditorLogger.action(EditorLogger.LEFT, "TOGGLE_CLICK", "label=" + mode + " value=" + !tgl.isOn());
             }
-        }
-        return false;
-    }
-
-    @Override
-    protected boolean onDragged(UIContext ctx) {
-        if (scrollbarGrabbed && maxScroll > 0) {
-            float thumbRatio = (float)h / contentHeight;
-            int thumbH = Math.max(8, (int)(h * thumbRatio));
-            int trackSpace = h - thumbH;
-            if (trackSpace > 0) {
-                scrollY = targetScrollY = (int)((float)(ctx.mouseY - y - scrollbarGrabOffset) / trackSpace * maxScroll);
-                clampScrollY();
-            }
-            return true;
-        }
-        // 子组件拖动由 UIComponent.mouseDragged 模板统一分发
-        return false;
-    }
-
-    @Override
-    protected boolean onReleased(UIContext ctx) {
-        scrollbarGrabbed = false;
-        return false;
-    }
-
-    @Override
-    protected boolean onScrolled(UIContext ctx, double scroll) {
-        if (!visible || !ctx.isMouseIn(hitX(), hitY(), w, h)) return false;
-        // 子组件滚轮（如聚焦的数值输入）由 UIComponent.mouseScrolled 模板先分发，未消费才到这里
-        if (maxScroll > 0) {
-            // E7：滚轮改 targetScrollY，视觉由 render 渐变驱动（shiftViewport 已删除）
-            targetScrollY -= (int)(scroll * 20);
-            clampScrollY();
-            return true;
         }
         return false;
     }
@@ -822,7 +698,7 @@ public class LeftPanelArea extends UIComponent {
                 if (onTrackSelected != null) onTrackSelected.accept(finalTi);
             });
             row.color(0x00, 0x443A3A3A).textColor(EditorTheme.TEXT_SECONDARY);
-            addChild(row);
+            content.addChild(row);
 
             // 显隐开关 👁（点击切换，不切换选中轨道）
             UIButton visBtn = new UIButton(lx + 4 + (w - 12 - 26) + 2, cy, 24, rowH,
@@ -830,7 +706,7 @@ public class LeftPanelArea extends UIComponent {
                         if (onToggleTrackVisible != null) onToggleTrackVisible.accept(track);
                     });
             visBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER).textColor(EditorTheme.TEXT_SECONDARY);
-            addChild(visBtn);
+            content.addChild(visBtn);
 
             cy += rowH + 2;
         }
@@ -839,13 +715,7 @@ public class LeftPanelArea extends UIComponent {
 
     public void setTracks(JsonArray t) { this.tracks = t; dataDirty = true; }
 
-    private void clampScrollY() {
-        targetScrollY = Math.max(0, Math.min(targetScrollY, maxScroll));
-    }
-
-    private int tabBarY() { return y; }
-    private int contentY() { return y + TAB_HEIGHT + 4; }
-    private int contentH() { return h - TAB_HEIGHT - 4; }
+    private int contentY() { return content != null ? content.y + 4 : y + TAB_HEIGHT + 4; }
     public void setOnTrackSelected(Consumer<Integer> r) { onTrackSelected = r; }
     public void setOnToggleTrackVisible(Consumer<JsonObject> r) { onToggleTrackVisible = r; }
 }
