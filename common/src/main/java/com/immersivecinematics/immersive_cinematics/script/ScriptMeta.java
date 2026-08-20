@@ -14,10 +14,17 @@ public class ScriptMeta {
     private final List<TriggerDefinition> triggers;
     /** 跳过投票比例（百分比，10~100）；null = 未指定，运行时回落到全局配置 Config.skipVoteRatio */
     private final Integer skipVoteRatio;
+    /** 脚本级相机区域刷怪开关（0.3.5 第5.5轮，仅脚本 meta，不进全局 Config） */
+    private final boolean cameraMobSpawn;
+    /** 脚本级相机刷怪半径（区块） */
+    private final int cameraMobRadius;
+    /** 脚本级相机区实体 AI 开关（true=实体 tick，false=静态布景） */
+    private final boolean cameraMobAi;
 
     public ScriptMeta(String id, String name, String author, int version, String description,
                       RuntimeBehavior behavior, int priority, String dimension,
-                      List<TriggerDefinition> triggers, Integer skipVoteRatio) {
+                      List<TriggerDefinition> triggers, Integer skipVoteRatio,
+                      boolean cameraMobSpawn, int cameraMobRadius, boolean cameraMobAi) {
         this.id = id;
         this.name = name;
         this.author = author;
@@ -28,6 +35,9 @@ public class ScriptMeta {
         this.dimension = dimension;
         this.triggers = triggers != null ? triggers : Collections.emptyList();
         this.skipVoteRatio = skipVoteRatio;
+        this.cameraMobSpawn = cameraMobSpawn;
+        this.cameraMobRadius = cameraMobRadius;
+        this.cameraMobAi = cameraMobAi;
     }
 
     public String getId() { return id; }
@@ -42,6 +52,12 @@ public class ScriptMeta {
     public List<TriggerDefinition> getTriggers() { return triggers; }
     /** 跳过投票比例（10~100）；null = 未指定，运行时使用全局配置 Config.skipVoteRatio */
     public Integer getSkipVoteRatio() { return skipVoteRatio; }
+    /** 脚本级：是否在相机区域刷怪 */
+    public boolean isCameraMobSpawn() { return cameraMobSpawn; }
+    /** 脚本级：相机刷怪半径（区块） */
+    public int getCameraMobRadius() { return cameraMobRadius; }
+    /** 脚本级：是否让相机区实体正常 AI */
+    public boolean isCameraMobAi() { return cameraMobAi; }
 
     public boolean isBlockKeyboard() { return behavior.blockKeyboard(); }
     public boolean isBlockMouse() { return behavior.blockMouse(); }

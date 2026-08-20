@@ -72,6 +72,7 @@ public final class ServerEventHandler {
         TriggerEngine.INSTANCE.onServerTick(server);
         ScriptEventManager.INSTANCE.onServerTick(server);
         com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager.INSTANCE.tick();
+        com.immersivecinematics.immersive_cinematics.trigger.server.CameraMobManager.INSTANCE.tick();
     }
 
     public static void onRegisterCommands(CommandDispatcher<CommandSourceStack> dispatcher) {

@@ -138,6 +138,16 @@ public class ScriptParser {
         // 脚本维度限制（可选）
         String dimension = optString(metaObj, "dimension", "");
 
+        // 相机区域刷怪（0.3.5 第5.5轮）：仅脚本 meta，不进全局 Config
+        boolean cameraMobSpawn = optBoolMeta(metaObj, "camera_mob_spawn");
+        int cameraMobRadius = optInt(metaObj, "camera_mob_radius", 2);
+        if (cameraMobRadius < 1 || cameraMobRadius > 16) {
+            ErrorLog.log("Parse", p + ".camera_mob_radius 超出范围 1~16，实际: " + cameraMobRadius
+                    + "，已使用默认 2");
+            cameraMobRadius = 2;
+        }
+        boolean cameraMobAi = optBoolMeta(metaObj, "camera_mob_ai");
+
         // 触发器定义（可选）
         List<TriggerDefinition> triggers = new ArrayList<>();
         if (metaObj.has("triggers") && metaObj.get("triggers").isJsonArray()) {
@@ -147,7 +157,8 @@ public class ScriptParser {
             }
         }
 
-        return new ScriptMeta(id, name, author, version, description, behavior, priority, dimension, triggers, skipVoteRatio);
+        return new ScriptMeta(id, name, author, version, description, behavior, priority, dimension, triggers, skipVoteRatio,
+                cameraMobSpawn, cameraMobRadius, cameraMobAi);
     }
 
     // ========== Timeline 解析 ==========

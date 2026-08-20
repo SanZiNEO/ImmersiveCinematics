@@ -44,6 +44,11 @@ public final class MetaSchemas {
         map.put("priority", new FieldDef("int", 0, false, java.util.Collections.emptyList(), "runtime"));
         map.put("skip_vote_ratio", new FieldDef("int", null, false, java.util.Collections.emptyList(), "runtime"));
 
+        // 相机区域刷怪（0.3.5 第5.5轮）：脚本级开关，不属于全局 Config
+        map.put("camera_mob_spawn", new FieldDef("bool", false, false, java.util.Collections.emptyList(), "camera"));
+        map.put("camera_mob_radius", new FieldDef("int", 2, false, java.util.Collections.emptyList(), "camera"));
+        map.put("camera_mob_ai", new FieldDef("bool", false, false, java.util.Collections.emptyList(), "camera"));
+
         return map;
     }
 }

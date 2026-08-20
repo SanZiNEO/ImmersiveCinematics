@@ -1,6 +1,6 @@
 # 0.3.5 第 5.5 轮：相机区域原版机制激活方案
 
-**状态**: 📋 方案已定，待实施
+**状态**: 🔄 已改为“隐藏假人完全接管”路线，服务端代码已重构，待联调
 **排期**: 插在第 5 轮之后、第 6 轮（文档/回归/发布）之前
 **关联**: `chunk-preload.md`（相机区域已全加载）、`audio-listener-model.md`（环境音听者模型）、`plans/0.3.5/1.md`（六轮拆分）
 
@@ -65,14 +65,17 @@
 
 ### 服务端
 
-- 新增 `CameraMobManager`（或并入预加载模块）：
-  - 持有每个播放者的相机锚点
-  - 按 `radius` 驱动原版 `NaturalSpawner` 刷怪
-  - 脚本结束 / 相机释放时移除锚点
-- Mixin 修改点（仅做原版逻辑的“锚点替换”）：
-  - `NaturalSpawner`：最近玩家距离计算改为“相机锚点 + 真实玩家取最近”
-  - `Mob.removeWhenFarAway` / despawn：相机区域内按相机距离判定
-- 配置：3 个开关接入现有平台配置体系
+- 新增 `CameraFakePlayer` / `CameraFakeConnection`：
+  - 隐藏 `ServerPlayer`，加入服务端玩家列表
+  - 不可见、不出现在玩家列表、发包全部丢弃
+  - 驱动原版区块加载/生成/刷怪/despawn
+- `CameraMobManager`：
+  - 持有每个播放者的相机假人锚点
+  - 脚本结束 / 相机释放时移除假人
+  - `camera_mob_spawn=false` → 假人设旁观模式（只加载不刷怪）
+  - `camera_mob_ai=false` → 相机区刷出的怪用原版 NoAI 冻结
+- 不再手写 `NaturalSpawner` 距离替换 / `Mob` despawn mixin
+- 配置：3 个开关改为脚本 meta 字段（`camera_mob_spawn` / `camera_mob_radius` / `camera_mob_ai`），客户端随预加载请求上报
 
 ---
 

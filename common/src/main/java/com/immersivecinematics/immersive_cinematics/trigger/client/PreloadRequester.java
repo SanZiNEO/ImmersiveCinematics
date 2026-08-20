@@ -80,7 +80,9 @@ public final class PreloadRequester {
                 preloadActive = true;
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                         new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, Config.preloadWindowRadius,
-                                cam.getCameraYaw(), mc.options.renderDistance().get()));
+                                cam.getCameraYaw(), mc.options.renderDistance().get(),
+                                script.getMeta().isCameraMobSpawn(), script.getMeta().getCameraMobRadius(),
+                                script.getMeta().isCameraMobAi()));
                 return;
             }
             if (!far) {
@@ -167,13 +169,18 @@ public final class PreloadRequester {
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                 new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PREWARM, script.getId(),
                         (int) tx, (int) tz, Config.preloadPrewarmRadius, 0f,
-                        mc.options.renderDistance().get()));
+                        mc.options.renderDistance().get(),
+                        script.getMeta().isCameraMobSpawn(), script.getMeta().getCameraMobRadius(),
+                        script.getMeta().isCameraMobAi()));
     }
 
     private void releaseIfNeeded() {
         if (lastScript.isEmpty()) return;
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_RELEASE, lastScript, 0, 0, 0, 0f, 0));
+                new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_RELEASE, lastScript, 0, 0, 0, 0f, 0,
+                        C2SPreloadRequestPacket.DEFAULT_CAMERA_MOB_SPAWN,
+                        C2SPreloadRequestPacket.DEFAULT_CAMERA_MOB_RADIUS,
+                        C2SPreloadRequestPacket.DEFAULT_CAMERA_MOB_AI));
         lastScript = "";
         lastPrewarm = "";
         preloadActive = false;

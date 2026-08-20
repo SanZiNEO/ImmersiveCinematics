@@ -4,7 +4,9 @@
   "compatibilityLevel": "JAVA_17",
   "minVersion": "0.8",
   "client": [
+    "BiomeAmbientSoundsHandlerMixin",
     "BossHealthOverlayMixin",
+    "BubbleColumnAmbientSoundHandlerMixin",
     "CameraMixin",
     "ChatComponentMixin",
     "GameRendererMixin",
@@ -13,15 +15,18 @@
     "LevelRendererMixin",
     "LivingEntityMixin",
     "LocalPlayerMixin",
+    "MinecraftMixin",
     "MouseHandlerMixin",
     "MouseHandlerAccessor",
     "PlayerTabOverlayMixin",
     "SoundEngineMixin",
     "SoundManagerMixin",
-    "SubtitleOverlayMixin"
+    "SubtitleOverlayMixin",
+    "UnderwaterAmbientSoundHandlerMixin"
   ],
   "mixins": [
-    "ItemUseMixin"
+    "ItemUseMixin",
+    "PlayerListMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -11,6 +11,11 @@ public class C2SPreloadRequestPacket implements CinematicC2SPacket {
     public static final int MODE_PREWARM = 1;
     public static final int MODE_RELEASE = 2;
 
+    /** RELEASE 等不需要相机刷怪信息的模式使用的默认值 */
+    public static final boolean DEFAULT_CAMERA_MOB_SPAWN = false;
+    public static final int DEFAULT_CAMERA_MOB_RADIUS = 2;
+    public static final boolean DEFAULT_CAMERA_MOB_AI = false;
+
     private final int mode;
     private final String scriptId;
     private final int x;
@@ -18,8 +23,12 @@ public class C2SPreloadRequestPacket implements CinematicC2SPacket {
     private final int radius;
     private final float yaw;
     private final int renderDistance;
+    private final boolean cameraMobSpawn;
+    private final int cameraMobRadius;
+    private final boolean cameraMobAi;
 
-    public C2SPreloadRequestPacket(int mode, String scriptId, int x, int z, int radius, float yaw, int renderDistance) {
+    public C2SPreloadRequestPacket(int mode, String scriptId, int x, int z, int radius, float yaw, int renderDistance,
+                                   boolean cameraMobSpawn, int cameraMobRadius, boolean cameraMobAi) {
         this.mode = mode;
         this.scriptId = scriptId;
         this.x = x;
@@ -27,6 +36,9 @@ public class C2SPreloadRequestPacket implements CinematicC2SPacket {
         this.radius = radius;
         this.yaw = yaw;
         this.renderDistance = renderDistance;
+        this.cameraMobSpawn = cameraMobSpawn;
+        this.cameraMobRadius = cameraMobRadius;
+        this.cameraMobAi = cameraMobAi;
     }
 
     public C2SPreloadRequestPacket(FriendlyByteBuf buf) {
@@ -37,6 +49,9 @@ public class C2SPreloadRequestPacket implements CinematicC2SPacket {
         this.radius = buf.readInt();
         this.yaw = buf.readFloat();
         this.renderDistance = buf.readInt();
+        this.cameraMobSpawn = buf.readBoolean();
+        this.cameraMobRadius = buf.readInt();
+        this.cameraMobAi = buf.readBoolean();
     }
 
     @Override
@@ -48,11 +63,15 @@ public class C2SPreloadRequestPacket implements CinematicC2SPacket {
         buf.writeInt(radius);
         buf.writeFloat(yaw);
         buf.writeInt(renderDistance);
+        buf.writeBoolean(cameraMobSpawn);
+        buf.writeInt(cameraMobRadius);
+        buf.writeBoolean(cameraMobAi);
     }
 
     @Override
     public void handle(ServerPlayer player) {
         // 平台网络层保证在主线程执行（addRegionTicket/removeRegionTicket/connection.send 必须主线程）
-        ChunkPreloadManager.INSTANCE.handleRequest(player, mode, scriptId, x, z, radius, yaw, renderDistance);
+        ChunkPreloadManager.INSTANCE.handleRequest(player, mode, scriptId, x, z, radius, yaw, renderDistance,
+                cameraMobSpawn, cameraMobRadius, cameraMobAi);
     }
 }

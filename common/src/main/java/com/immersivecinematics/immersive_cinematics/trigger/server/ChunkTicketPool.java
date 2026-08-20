@@ -22,30 +22,51 @@ public final class ChunkTicketPool {
     private static final TicketType<ChunkPos> TICKET =
             TicketType.create("immersive_cinematics_pool", Comparator.comparingLong(ChunkPos::toLong));
 
-    private final Map<ChunkPos, Integer> refs = new HashMap<>();
+    /** 按区块、按 ticket distance 分别引用计数；distance=1 → block ticking，distance=2 → entity ticking */
+    private final Map<ChunkPos, Map<Integer, Integer>> refs = new HashMap<>();
 
     public void request(ServerLevel level, ChunkPos pos) {
-        int count = refs.getOrDefault(pos, 0);
+        request(level, pos, 1);
+    }
+
+    public void request(ServerLevel level, ChunkPos pos, int distance) {
+        Map<Integer, Integer> byDistance = refs.computeIfAbsent(pos, k -> new HashMap<>());
+        int count = byDistance.getOrDefault(distance, 0);
         if (count == 0) {
-            level.getChunkSource().addRegionTicket(TICKET, pos, 1, pos);
+            level.getChunkSource().addRegionTicket(TICKET, pos, distance, pos);
         }
-        refs.put(pos, count + 1);
+        byDistance.put(distance, count + 1);
     }
 
     public void release(ServerLevel level, ChunkPos pos) {
-        Integer count = refs.get(pos);
-        if (count == null || count <= 0) {
+        release(level, pos, 1);
+    }
+
+    public void release(ServerLevel level, ChunkPos pos, int distance) {
+        Map<Integer, Integer> byDistance = refs.get(pos);
+        if (byDistance == null) {
             throw new IllegalStateException("ChunkTicketPool.release 释放一个从未请求的区块: " + pos);
         }
+        Integer count = byDistance.get(distance);
+        if (count == null || count <= 0) {
+            throw new IllegalStateException("ChunkTicketPool.release 释放一个从未请求的 ticket distance " + distance + " 区块: " + pos);
+        }
         if (count == 1) {
-            level.getChunkSource().removeRegionTicket(TICKET, pos, 1, pos);
-            refs.remove(pos);
+            level.getChunkSource().removeRegionTicket(TICKET, pos, distance, pos);
+            byDistance.remove(distance);
         } else {
-            refs.put(pos, count - 1);
+            byDistance.put(distance, count - 1);
+        }
+        if (byDistance.isEmpty()) {
+            refs.remove(pos);
         }
     }
 
     public int refs(ChunkPos pos) {
-        return refs.getOrDefault(pos, 0);
+        Map<Integer, Integer> byDistance = refs.get(pos);
+        if (byDistance == null) return 0;
+        int sum = 0;
+        for (int count : byDistance.values()) sum += count;
+        return sum;
     }
 }
