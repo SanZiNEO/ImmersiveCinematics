@@ -5,6 +5,8 @@ import net.minecraft.network.PacketSendListener;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketFlow;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntList;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.net.InetSocketAddress;
@@ -42,6 +44,13 @@ public class CameraFakeConnection extends Connection {
 
     public void markEntitySynced(int entityId) {
         syncedEntityIds.add(entityId);
+    }
+
+    /** 取出并清空所有已同步实体 ID，用于退出 far 模式时向玩家发送移除包 */
+    public IntList takeSyncedEntityIds() {
+        IntList ids = new IntArrayList(syncedEntityIds);
+        syncedEntityIds.clear();
+        return ids;
     }
 
     public boolean isEntitySyncEnabled() {

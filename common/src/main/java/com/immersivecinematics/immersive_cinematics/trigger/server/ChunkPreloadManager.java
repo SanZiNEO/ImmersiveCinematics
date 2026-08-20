@@ -132,6 +132,7 @@ public final class ChunkPreloadManager {
             st.farMode = false;
             clearCameraArea(player, st);
             setPlayerZone(player, st, false);
+            CameraMobManager.INSTANCE.removeAnchor(player.getUUID());
             LOGGER.info("[preload far-end] 玩家={} 中心→玩家块 {}", player.getName().getString(), fmt(st.playerChunk));
             sendCenter(player, st.playerChunk);
             resyncPlayerArea(player, st);
@@ -191,6 +192,12 @@ public final class ChunkPreloadManager {
     /** 玩家断线清理 */
     public void onDisconnect(UUID uuid, ServerPlayer player) {
         release(uuid, player);
+    }
+
+    /** 是否处于 far 模式（相机远离玩家，需要假人接管实体/区块中继） */
+    public boolean isFarMode(UUID player) {
+        PlayerState st = states.get(player);
+        return st != null && st.farMode;
     }
 
     /** 客户端上报脚本结束（任意退出方式，含强退）→ 强制释放，区块加载交还玩家/原版 */
