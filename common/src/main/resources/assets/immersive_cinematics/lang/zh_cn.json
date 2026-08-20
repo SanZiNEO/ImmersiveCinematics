@@ -58,8 +58,12 @@
     "editor.tab.list": "脚本列表",
     "editor.tab.track_visible": "\uD83D\uDC41",
     "editor.tab.track_hidden": "\u2014",
+    "editor.tab.presets": "预设",
 
     "editor.section.track_list": "轨道",
+    "editor.section.presets": "预设",
+    "editor.preset.select": "预设",
+    "editor.preset.generate": "生成",
     "editor.section.conditions": "条件",
     "editor.label.clip_count": "%s 个片段",
     "editor.label.trigger_add": "[+ 添加]",

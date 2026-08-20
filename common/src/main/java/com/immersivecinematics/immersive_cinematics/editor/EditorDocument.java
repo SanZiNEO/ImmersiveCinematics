@@ -67,6 +67,11 @@ public class EditorDocument {
         dirty = false;
     }
 
+    public void setRoot(JsonObject root) {
+        this.root = root;
+        dirty = true;
+    }
+
     public String toJson() {
         return GSON.toJson(root);
     }

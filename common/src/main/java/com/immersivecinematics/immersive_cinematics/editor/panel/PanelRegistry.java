@@ -22,6 +22,7 @@ public final class PanelRegistry {
         register(LeftPanelArea.PanelMode.KEYFRAME_PROPERTIES, KeyframePropertiesPanel::new);
         register(LeftPanelArea.PanelMode.TRACK_LIST, TrackListPanel::new);
         register(LeftPanelArea.PanelMode.TRIGGER, TriggerPanel::new);
+        register(LeftPanelArea.PanelMode.PRESET, PresetPanel::new);
     }
 
     private PanelRegistry() {}

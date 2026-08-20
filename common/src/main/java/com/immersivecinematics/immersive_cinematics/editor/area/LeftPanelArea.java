@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 
 public class LeftPanelArea extends UIComponent {
 
-    public enum PanelMode { SCRIPT_LIST, SCRIPT_PROPERTIES, CLIP_PROPERTIES, KEYFRAME_PROPERTIES, TRACK_LIST, TRIGGER }
+    public enum PanelMode { SCRIPT_LIST, SCRIPT_PROPERTIES, CLIP_PROPERTIES, KEYFRAME_PROPERTIES, TRACK_LIST, TRIGGER, PRESET }
     private PanelMode mode = PanelMode.SCRIPT_PROPERTIES;
 
     private JsonObject script;
@@ -42,6 +42,7 @@ public class LeftPanelArea extends UIComponent {
     private Consumer<String> onBehaviorFlag;
     private Runnable onDirty;
     private Consumer<JsonObject> onToggleTrackVisible;
+    private Consumer<JsonObject> onPresetGenerated;
 
     /** tab 栏独立组件（固定在面板顶部，不随内容滚动；渲染与命中均豁免滚动偏移） */
     private PanelTabBar tabBar;
@@ -125,6 +126,7 @@ public class LeftPanelArea extends UIComponent {
         c.onNewScript = onNewScript;
         c.onTrackSelected = onTrackSelected;
         c.onToggleTrackVisible = onToggleTrackVisible;
+        c.onPresetGenerated = onPresetGenerated;
         return c;
     }
 
@@ -221,4 +223,5 @@ public class LeftPanelArea extends UIComponent {
     public void setTracks(JsonArray t) { this.tracks = t; dataDirty = true; }
     public void setOnTrackSelected(Consumer<Integer> r) { onTrackSelected = r; }
     public void setOnToggleTrackVisible(Consumer<JsonObject> r) { onToggleTrackVisible = r; }
+    public void setOnPresetGenerated(Consumer<JsonObject> r) { onPresetGenerated = r; }
 }

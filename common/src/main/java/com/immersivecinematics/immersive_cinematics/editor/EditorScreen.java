@@ -759,6 +759,14 @@ public class EditorScreen extends Screen {
             leftPanel.build();
         });
 
+        leftPanel.setOnPresetGenerated(script -> {
+            undoManager.push(doc.toJson());
+            doc.setRoot(script);
+            doc.markDirty();
+            pushScriptUpdate();
+            syncPanels();
+        });
+
         leftPanel.setOnTrackAdd(type -> {
             // 弹出轨道类型选择
             contextMenu.clearEntries();

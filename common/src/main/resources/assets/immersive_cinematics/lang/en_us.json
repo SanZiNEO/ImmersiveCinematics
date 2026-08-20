@@ -58,8 +58,12 @@
     "editor.tab.list": "Scripts",
     "editor.tab.track_visible": "\uD83D\uDC41",
     "editor.tab.track_hidden": "\u2014",
+    "editor.tab.presets": "Presets",
 
     "editor.section.track_list": "Tracks",
+    "editor.section.presets": "Presets",
+    "editor.preset.select": "Preset",
+    "editor.preset.generate": "Generate",
     "editor.section.conditions": "Conditions",
     "editor.label.clip_count": "%s clips",
     "editor.label.trigger_add": "[+ Add]",

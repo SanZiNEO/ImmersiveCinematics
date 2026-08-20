@@ -59,6 +59,7 @@ public class PanelTabBar extends UIComponent {
                 case KEYFRAME_PROPERTIES -> I18n.get("editor.tab.keyframe");
                 case TRACK_LIST -> I18n.get("editor.tab.tracks");
                 case TRIGGER -> I18n.get("editor.tab.triggers");
+                case PRESET -> I18n.get("editor.tab.presets");
             };
             UIButton tab = new UIButton(tabX, y, tabW, tabH, label, btn -> {
                 if (listener != null) listener.onSelect(m);

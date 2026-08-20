@@ -29,4 +29,5 @@ public class PanelContext {
     public Runnable onNewScript;
     public Consumer<Integer> onTrackSelected;
     public Consumer<JsonObject> onToggleTrackVisible;
+    public Consumer<JsonObject> onPresetGenerated;
 }
