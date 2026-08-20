@@ -56,7 +56,7 @@ public final class EditorDefaults {
             } else if ("position".equals(e.getValue().type()) && tt == TrackType.CAMERA) {
                 JsonObject pos = new JsonObject();
                 pos.addProperty("dx", 0f);
-                pos.addProperty("dy", 0f);
+                pos.addProperty("dy", 2f);
                 pos.addProperty("dz", 0f);
                 kf.add("position", pos);
             }

@@ -381,7 +381,7 @@ public class EditorScreen extends Screen {
         });
         timeline.setOnToolAddKeyframe(() -> {
             EditorLogger.action(EditorLogger.TIMELINE, "TOOL_ADD_KEYFRAME", "at=" + String.format("%.3f", playback.getTime()));
-            JsonObject kf = EditorOperations.addKeyframeAt(sel.getClip(), playback.getTime());
+            JsonObject kf = EditorOperations.addKeyframeAt(sel.getClip(), playback.getTime(), findSelectedTrackType());
             doc.markDirty();
             pushScriptUpdate();
             if (kf != null) sel.selectKeyframe(kf, sel.getClip());
@@ -471,7 +471,7 @@ public class EditorScreen extends Screen {
                 }
             });
             contextMenu.addEntry(I18n.get("editor.contextmenu.add_keyframe"), 0xFFCCCCCC, () -> {
-                JsonObject kf = EditorOperations.addKeyframeAt(sel.getClip(), playback.getTime());
+                JsonObject kf = EditorOperations.addKeyframeAt(sel.getClip(), playback.getTime(), findSelectedTrackType());
                 if (kf != null) { doc.markDirty(); pushScriptUpdate(); sel.selectKeyframe(kf, sel.getClip()); }
             });
             contextMenu.show(mx, my);
@@ -544,7 +544,7 @@ public class EditorScreen extends Screen {
             contextMenu.addEntry(I18n.get("editor.contextmenu.add_keyframe"), 0xFFCCCCCC, () -> {
                 JsonObject clip = sel.getClip();
                 if (clip != null) {
-                    JsonObject kf = EditorOperations.addKeyframeAt(clip, playback.getTime());
+                    JsonObject kf = EditorOperations.addKeyframeAt(clip, playback.getTime(), findSelectedTrackType());
                     if (kf != null) { doc.markDirty(); pushScriptUpdate(); }
                 }
             });
@@ -679,7 +679,7 @@ public class EditorScreen extends Screen {
         float localTime = globalTime - EditorOperations.getStart(clip);
         if (localTime < 0 || localTime > EditorOperations.getDuration(clip)) return;
         JsonObject kf = findKeyframeAt(clip, localTime);
-        if (kf == null) kf = EditorOperations.addKeyframeAt(clip, globalTime);
+        if (kf == null) kf = EditorOperations.addKeyframeAt(clip, globalTime, "CAMERA");
         if (kf == null) return;
         if ("pitch".equals(key)) value = Math.max(-89f, Math.min(89f, value));
         if ("fov".equals(key)) value = Math.max(30f, Math.min(110f, value));
@@ -721,7 +721,7 @@ public class EditorScreen extends Screen {
         float localTime = globalTime - EditorOperations.getStart(clip);
         if (localTime < 0 || localTime > EditorOperations.getDuration(clip)) return;
         JsonObject kf = findKeyframeAt(clip, localTime);
-        if (kf == null) kf = EditorOperations.addKeyframeAt(clip, globalTime);
+        if (kf == null) kf = EditorOperations.addKeyframeAt(clip, globalTime, "CAMERA");
         if (kf == null) return;
         float cur = kf.has(key) ? kf.get(key).getAsFloat() : 0f;
         applyCameraParam(key, cur + delta);
@@ -977,7 +977,7 @@ public class EditorScreen extends Screen {
         JsonObject clip = sel.getClip();
         if (kf == null && clip != null && EditorOperations.canAddKeyframeAt(clip, playback.getTime())) {
             undoManager.push(doc.toJson());
-            kf = EditorOperations.addKeyframeAt(clip, playback.getTime());
+            kf = EditorOperations.addKeyframeAt(clip, playback.getTime(), "CAMERA");
             if (kf != null) {
                 sel.selectKeyframe(kf, clip);
             }

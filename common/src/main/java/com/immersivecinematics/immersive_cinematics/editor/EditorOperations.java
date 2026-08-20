@@ -130,6 +130,15 @@ public class EditorOperations {
         sortKeyframes(clip);
         return kf;
     }
+    /** 添加关键帧并按轨道类型补齐默认值（CAMERA 默认 dy=2） */
+    public static JsonObject addKeyframeAt(JsonObject clip, float globalTime, String trackType) {
+        JsonObject kf = addKeyframeAt(clip, globalTime);
+        if (kf != null && trackType != null) {
+            EditorDefaults.fillKeyframeDefaults(kf, trackType);
+        }
+        return kf;
+    }
+
     public static boolean canAddKeyframeAt(JsonObject clip, float globalTime) {
         if (clip == null) return false;
         float localTime = globalTime - getStart(clip);
