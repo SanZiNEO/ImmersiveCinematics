@@ -180,18 +180,18 @@ public class FlightKeyHints extends UIComponent {
         ctx.graphics.drawString(ctx.font, label, tx, ty, 0xFFFFFFFF, false);
     }
 
-    private void drawTexture(UIContext ctx, ResourceLocation loc, int x, int y, int w, int h, boolean flipX) {
+    private void drawTexture(UIContext ctx, ResourceLocation loc, int x, int y, int w, int h, boolean flipY) {
         RenderSystem.setShaderTexture(0, loc);
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
         var pose = ctx.graphics.pose();
         pose.pushPose();
         var builder = new BufferBuilder(256);
         builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        if (flipX) {
-            builder.vertex(x, y + h, 0).uv(1, 0).endVertex();
-            builder.vertex(x + w, y + h, 0).uv(0, 0).endVertex();
-            builder.vertex(x + w, y, 0).uv(0, 1).endVertex();
-            builder.vertex(x, y, 0).uv(1, 1).endVertex();
+        if (flipY) {
+            builder.vertex(x, y + h, 0).uv(0, 1).endVertex();
+            builder.vertex(x + w, y + h, 0).uv(1, 1).endVertex();
+            builder.vertex(x + w, y, 0).uv(1, 0).endVertex();
+            builder.vertex(x, y, 0).uv(0, 0).endVertex();
         } else {
             builder.vertex(x, y + h, 0).uv(0, 0).endVertex();
             builder.vertex(x + w, y + h, 0).uv(1, 0).endVertex();
