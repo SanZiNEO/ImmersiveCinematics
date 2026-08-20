@@ -63,8 +63,8 @@ public class CinematicController {
         this.skippable = true;
         this.interruptible = true;
         this.holdAtEnd = false;
-        this.blockKeyboard = true;
-        this.blockMouse = true;
+        this.blockKeyboard = false;
+        this.blockMouse = false;
         this.hideHud = true;
         this.hideChat = null;
         this.hideScoreboard = null;

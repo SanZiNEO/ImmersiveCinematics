@@ -144,6 +144,25 @@
 
 ---
 
+## 新发现：脚本结束后状态不干净
+
+### 6.1 脚本自动播放结束后玩家无法移动
+- **现象**：脚本播放完自动停止后，只能转视角，不能移动
+- **疑似**：输入封锁（`block_keyboard` / `block_mouse`）或玩家移动控制未在停止时恢复
+- **探索方向**：检查 `ScriptPlayer` / `CameraManager` / `CinematicController` 的停止清理链
+
+### 6.2 不干净状态下再次播放，敌对生物可能不出现
+- **现象**：脚本停止后（卡住状态下）再次播放，偶尔不刷/不显示敌对生物；重进世界后正常
+- **疑似**：
+  - 假人/实体同步状态（`syncedEntityIds`、`CameraFakeConnection`、`CameraMobManager.anchors`）没有完全清理
+  - 或玩家输入/相机状态未复位导致预加载/假人链路异常
+- **探索方向**：
+  - 检查 `ChunkPreloadManager.release()` / `CameraMobManager.removeAnchor()` 是否完整清理
+  - 检查脚本结束事件是否一定触发释放
+  - 检查 `syncedEntityIds` 是否在重建假人时被重置
+
+---
+
 ## 探索记录
 
 （待逐条补充）
