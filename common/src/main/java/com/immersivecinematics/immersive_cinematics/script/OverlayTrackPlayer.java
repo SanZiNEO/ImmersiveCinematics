@@ -84,6 +84,9 @@ public class OverlayTrackPlayer implements TrackPlayer {
                 "smooth".equals(clip.getString("interpolation", "linear")));
 
         updateLayer(clip, opacity, kfs, localTime);
+        if (currentLayer instanceof ImageLayer) {
+            ((ImageLayer) currentLayer).setTime(globalTime);
+        }
     }
 
     @Override

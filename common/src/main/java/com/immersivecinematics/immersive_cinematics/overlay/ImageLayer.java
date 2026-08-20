@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.overlay;
 
+import com.immersivecinematics.immersive_cinematics.util.GifAnimation;
 import com.immersivecinematics.immersive_cinematics.util.TextureLoader;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.GuiGraphics;
@@ -32,6 +33,8 @@ public class ImageLayer implements OverlayLayer {
     private float scaleY = 1f;
     private ResourceLocation texture = null;
     private String fileName = null;
+    private GifAnimation gif = null;
+    private float time = 0f;
     private int zIndex = DEFAULT_Z_INDEX;
     /** 诊断：位置日志节流 */
     private long lastPosLog;
@@ -39,6 +42,8 @@ public class ImageLayer implements OverlayLayer {
     @Override
     public void render(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {
         if (opacity <= 0.001f || texture == null) return;
+
+        if (gif != null) gif.update(time);
 
         int[] texSize = TextureLoader.getTextureSize(fileName);
         if (texSize == null) return;
@@ -91,11 +96,18 @@ public class ImageLayer implements OverlayLayer {
     public void reset() {
         opacity = 0f;
         texture = null;
+        gif = null;
     }
 
     public void setTexture(String fileName, ResourceLocation texture) {
         this.fileName = fileName;
         this.texture = texture;
+        this.gif = TextureLoader.getGif(fileName);
+    }
+
+    /** 设置当前全局时间（秒），GIF 层据此计算帧索引 */
+    public void setTime(float globalTime) {
+        this.time = globalTime;
     }
 
     public void setOpacity(float opacity) {
