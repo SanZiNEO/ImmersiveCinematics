@@ -9,11 +9,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 区块临时强加载票据池（借鉴 ChunkLoaders 的全局票据 + 引用计数）：
+ * 区块临时强加载票据池（当前仅 lookahead PREWARM 使用）：
  * <ul>
- *   <li>所有请求方（far 相机区 / lookahead PREWARM / 将来多人）共享一张全局 TicketType</li>
- *   <li>{@code Map<ChunkPos, Integer>} 引用计数：有人要 +1，没人要（count 0）才真正 removeRegionTicket</li>
- *   <li>far 接管 prewarm 的块时只是"所有权转移"，票不撤、count 不变 → 无重复票/无残留</li>
+ *   <li>按区块、按 ticket distance 分别引用计数</li>
+ *   <li>有人要 +1，没人要（count 0）才真正 removeRegionTicket</li>
  *   <li>释放从未请求的块直接抛 {@link IllegalStateException}（有错即报，不 try/catch）</li>
  * </ul>
  */

@@ -45,6 +45,7 @@ public class CameraFakeConnection extends Connection {
     public void send(Packet<?> packet) {
         if (target != null && target.connection != null && shouldForward(packet)) {
             rememberSpawned(packet);
+            forgetRemoved(packet);
             target.connection.send(packet);
         }
     }
@@ -53,6 +54,7 @@ public class CameraFakeConnection extends Connection {
     public void send(Packet<?> packet, PacketSendListener listener) {
         if (target != null && target.connection != null && shouldForward(packet)) {
             rememberSpawned(packet);
+            forgetRemoved(packet);
             target.connection.send(packet, listener);
         }
     }
@@ -62,6 +64,12 @@ public class CameraFakeConnection extends Connection {
             syncedEntityIds.add(add.getId());
         } else if (packet instanceof net.minecraft.network.protocol.game.ClientboundAddExperienceOrbPacket orb) {
             syncedEntityIds.add(orb.getId());
+        }
+    }
+
+    private void forgetRemoved(Packet<?> packet) {
+        if (packet instanceof net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket remove) {
+            remove.getEntityIds().forEach(syncedEntityIds::remove);
         }
     }
 

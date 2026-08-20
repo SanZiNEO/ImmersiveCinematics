@@ -3,10 +3,6 @@ package com.immersivecinematics.immersive_cinematics.trigger.server;
 import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPreloadRequestPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPreloadResultPacket;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.StringTag;
-import net.minecraft.nbt.visitors.CollectFields;
-import net.minecraft.nbt.visitors.FieldSelector;
 import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
 import net.minecraft.network.protocol.game.ClientboundSetChunkCacheCenterPacket;
 import net.minecraft.server.MinecraftServer;
@@ -50,10 +46,10 @@ public final class ChunkPreloadManager {
 
     private final Map<UUID, PlayerState> states = new HashMap<>();
     private final Map<net.minecraft.server.level.ServerLevel, ChunkTicketPool> pools = new HashMap<>();
-    /** 磁盘扫描缓存：pos→已生成(true)/未生成(false)；会话内磁盘状态稳定 */
-    private final Map<Long, Boolean> scanCache = new HashMap<>();
-    private final Set<Long> scanInFlight = new HashSet<>();
     private long lastStatusLog = 0;
+    private long lastEntityCountTime = 0;
+    private int cachedPlayerEntities = 0;
+    private int cachedCameraEntities = 0;
 
     private ChunkTicketPool pool(net.minecraft.server.level.ServerLevel level) {
         return pools.computeIfAbsent(level, k -> new ChunkTicketPool());
@@ -165,14 +161,17 @@ public final class ChunkPreloadManager {
             lastStatusLog = now;
             for (PlayerState st : states.values()) {
                 if (st.player == null) continue;
-                int playerEntities = 0;
-                int cameraEntities = 0;
-                if (st.player.level() instanceof ServerLevel serverLevel) {
-                    if (st.playerChunk != null) {
-                        playerEntities = countEntities(serverLevel, st.playerChunk, st.regionRadius);
-                    }
-                    if (st.center != null) {
-                        cameraEntities = countEntities(serverLevel, st.center, st.regionRadius);
+                if (now - st.lastEntityCountTime >= 5000) {
+                    st.lastEntityCountTime = now;
+                    st.cachedPlayerEntities = 0;
+                    st.cachedCameraEntities = 0;
+                    if (st.player.level() instanceof ServerLevel serverLevel) {
+                        if (st.playerChunk != null) {
+                            st.cachedPlayerEntities = countEntities(serverLevel, st.playerChunk, st.regionRadius);
+                        }
+                        if (st.center != null) {
+                            st.cachedCameraEntities = countEntities(serverLevel, st.center, st.regionRadius);
+                        }
                     }
                 }
                 LOGGER.info("[preload status] 玩家={} far={} 中心={} 玩家块={} 半径={} 目标={} 已票={} 已发={} 玩家小块={} 玩家区已载={} 预载票={} 玩家实体={} 相机实体={}",
@@ -184,7 +183,7 @@ public final class ChunkPreloadManager {
                         st.playerZone.size(),
                         countLoadedPlayerArea(st),
                         st.prewarm != null ? st.prewarm.ticketed.size() : 0,
-                        playerEntities, cameraEntities);
+                        st.cachedPlayerEntities, st.cachedCameraEntities);
             }
         }
     }
@@ -265,22 +264,6 @@ public final class ChunkPreloadManager {
             st.ticketed.add(pos);
             added++;
         }
-    }
-
-    /** 只读磁盘 Status 分流：已生成("minecraft:full") vs 未生成；结果缓存，回调回主线程写缓存 */
-    private void classify(net.minecraft.server.level.ServerLevel level, ChunkPos pos) {
-        long key = pos.toLong();
-        if (scanCache.containsKey(key) || scanInFlight.contains(key)) return;
-        scanInFlight.add(key);
-        CollectFields fields = new CollectFields(new FieldSelector(StringTag.TYPE, "Status"));
-        level.getChunkSource().chunkScanner().scanChunk(pos, fields).thenAccept(v -> {
-            String status = ((CompoundTag) fields.getResult()).getString("Status");
-            boolean generated = "minecraft:full".equals(status);
-            level.getServer().execute(() -> {
-                scanCache.put(key, generated);
-                scanInFlight.remove(key);
-            });
-        });
     }
 
     private void sendReady(PlayerState st, int budget) {
@@ -509,7 +492,9 @@ public final class ChunkPreloadManager {
         int cameraMobRadius = 2;
         boolean cameraMobAi = false;
         int cameraTicketDistance = 1;
-        int worldgenIssued = 0;
+        long lastEntityCountTime = 0;
+        int cachedPlayerEntities = 0;
+        int cachedCameraEntities = 0;
         final Set<ChunkPos> desired = new HashSet<>();
         final Set<ChunkPos> ticketed = new HashSet<>();
         final Map<ChunkPos, Long> sent = new HashMap<>();

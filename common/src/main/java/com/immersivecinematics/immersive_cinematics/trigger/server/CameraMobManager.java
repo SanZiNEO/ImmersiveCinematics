@@ -179,7 +179,6 @@ public final class CameraMobManager {
         int cx = (a.center.x << 4) + 8;
         int cz = (a.center.z << 4) + 8;
         int y = Math.max(a.level.getMinBuildHeight() + 1, a.level.getHeight(Heightmap.Types.MOTION_BLOCKING, cx, cz));
-        a.fakePlayer.connection.teleport(cx, y, cz, 0.0F, 0.0F);
         a.fakePlayer.moveTo(cx, y, cz, 0.0F, 0.0F);
         a.level.getChunkSource().move(a.fakePlayer);
     }
