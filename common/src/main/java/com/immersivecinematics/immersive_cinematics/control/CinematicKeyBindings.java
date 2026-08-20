@@ -45,6 +45,14 @@ public class CinematicKeyBindings {
     public static final KeyMapping EDITOR_DELETE        = new KeyMapping("key.immersive_cinematics.editor.delete",        GLFW.GLFW_KEY_DELETE,      EDITOR_CATEGORY);
     public static final KeyMapping EDITOR_FRAME_ALL     = new KeyMapping("key.immersive_cinematics.editor.frame_all",     GLFW.GLFW_KEY_F,           EDITOR_CATEGORY);
     public static final KeyMapping EDITOR_FLIGHT        = new KeyMapping("key.immersive_cinematics.editor.flight",        GLFW.GLFW_KEY_F7,          EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_FLIGHT_FOV_IN  = new KeyMapping("key.immersive_cinematics.editor.flight.fov_in",   GLFW.GLFW_KEY_EQUAL,       EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_FLIGHT_FOV_OUT = new KeyMapping("key.immersive_cinematics.editor.flight.fov_out",  GLFW.GLFW_KEY_MINUS,       EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_FLIGHT_ZOOM_IN = new KeyMapping("key.immersive_cinematics.editor.flight.zoom_in",  GLFW.GLFW_KEY_RIGHT_BRACKET, EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_FLIGHT_ZOOM_OUT= new KeyMapping("key.immersive_cinematics.editor.flight.zoom_out", GLFW.GLFW_KEY_LEFT_BRACKET, EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_FLIGHT_ROLL_LEFT = new KeyMapping("key.immersive_cinematics.editor.flight.roll_left", GLFW.GLFW_KEY_Q, EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_FLIGHT_ROLL_RIGHT = new KeyMapping("key.immersive_cinematics.editor.flight.roll_right", GLFW.GLFW_KEY_E, EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_FLIGHT_MODE    = new KeyMapping("key.immersive_cinematics.editor.flight.mode",     GLFW.GLFW_KEY_R,           EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_FLIGHT_RESET_OPTICS = new KeyMapping("key.immersive_cinematics.editor.flight.reset_optics", GLFW.GLFW_KEY_C, EDITOR_CATEGORY);
 
     private static long skipKeyDownSince = 0;
     private static boolean skipTriggered = false;

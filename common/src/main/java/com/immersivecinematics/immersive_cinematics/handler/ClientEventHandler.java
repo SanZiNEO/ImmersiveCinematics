@@ -47,6 +47,14 @@ public class ClientEventHandler {
             KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_DELETE);
             KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FRAME_ALL);
             KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_FOV_IN);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_FOV_OUT);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_ZOOM_IN);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_ZOOM_OUT);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_ROLL_LEFT);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_ROLL_RIGHT);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_MODE);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT_RESET_OPTICS);
         }
 
         // ===== 客户端 Tick =====

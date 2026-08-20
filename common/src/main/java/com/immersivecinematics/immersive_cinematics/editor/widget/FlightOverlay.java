@@ -8,7 +8,6 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.resources.language.I18n;
 
 /**
  * 飞行取景覆盖层组件（0.3.5 第5轮）。
@@ -19,8 +18,13 @@ import net.minecraft.client.resources.language.I18n;
  */
 public class FlightOverlay extends UIComponent {
 
+    private final FlightHud hud = new FlightHud();
+    private final FlightKeyHints keyHints = new FlightKeyHints();
+
     public FlightOverlay() {
         super(0, 0, 0, 0);
+        addChild(hud);
+        addChild(keyHints);
     }
 
     @Override
@@ -50,7 +54,7 @@ public class FlightOverlay extends UIComponent {
         }
 
         // 内容区比例 = 预览画面比例，居中放在屏幕内，边框正好包住画面
-        int margin = Math.max(24, (int)(Math.min(screenW, screenH) * 0.08));
+        int margin = Math.max(24, (int)(Math.min(screenW, screenH) * 0.075));
         int availW = screenW - margin * 2;
         int availH = screenH - margin * 2;
         int cw, ch;
@@ -90,10 +94,12 @@ public class FlightOverlay extends UIComponent {
             RenderSystem.setShaderTexture(0, 0);
         }
 
-        RenderSystem.enableDepthTest();
+        // 子组件 HUD / 按键提示绑定在预览框内部绘制
+        hud.setFrame(cx, cy, cw, ch);
+        keyHints.setFrame(cx, cy, cw, ch);
+        super.renderOverlay(ctx);
 
-        String hint = I18n.get("editor.flight.hint");
-        guiGraphics.drawString(ctx.font, hint, cx + 8, cy + 6, 0xFFA0A0B0);
+        RenderSystem.enableDepthTest();
     }
 
     private void fillColor(int x1, int y1, int x2, int y2, int color) {

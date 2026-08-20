@@ -127,7 +127,8 @@ public abstract class EditorPanel extends UIComponent {
             UIButton title = new UIButton(lx, cy, w - 12, 16, (expanded ? "▾ " : "▸ ") + label, b -> {
                 toggleGroup(group.getTitleKey());
             });
-            title.color(0xFF2A2A35, 0xFF333344).textColor(0xFFCCCCCC);
+            title.leftAlign();
+            title.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER).textColor(EditorTheme.TEXT_PRIMARY);
             addChild(title);
             cy += 18;
 

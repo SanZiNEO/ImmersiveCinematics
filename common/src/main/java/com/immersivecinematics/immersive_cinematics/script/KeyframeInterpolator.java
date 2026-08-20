@@ -179,8 +179,16 @@ public final class KeyframeInterpolator {
     }
 
     public static float interpolateZoom(Keyframe from, Keyframe to, float s) {
-        float result = MathUtil.lerp(from.getZoom(), to.getZoom(), s);
-        return MathUtil.sanitizeFloat(result, from.getZoom());
+        float a = from.getZoom();
+        float b = to.getZoom();
+        float result;
+        if (a > 0f && b > 0f) {
+            // 对数插值：倍率变化在视觉上均匀（1→100 的中点 = 10，而不是 50.5）
+            result = (float) Math.exp(Math.log(a) + (Math.log(b) - Math.log(a)) * s);
+        } else {
+            result = MathUtil.lerp(a, b, s);
+        }
+        return MathUtil.sanitizeFloat(result, a);
     }
 
 

@@ -48,10 +48,10 @@ public class PreviewArea extends UIComponent {
         int btnW = (int)(36 * sx);
         int btnGap = (int)(40 * sx);
         // 播放/暂停合并为一个 toggle 按钮:播放中显示 ⏸(点击暂停),非播放显示 ▶(点击播放/继续)
-        playBtn = new UIButton(barX, barY, btnW, barH, "\u25B6", b -> {});
-        playBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER);
-        stopBtn = new UIButton(barX + btnGap, barY, btnW, barH, "\u25A0", b -> {});
-        stopBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER);
+        playBtn = new UIButton(barX, barY, btnW, barH, "", b -> {});
+        playBtn.icon("play").color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER);
+        stopBtn = new UIButton(barX + btnGap, barY, btnW, barH, "", b -> {});
+        stopBtn.icon("stop").color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER);
         timeLabel = new UILabel(barX + btnGap * 2 + (int)(8 * sx), barY + (int)(7 * sy), "00:00.000", EditorTheme.TEXT_MUTED);
 
         addChild(playBtn);
@@ -83,10 +83,10 @@ public class PreviewArea extends UIComponent {
     /** 播放状态按钮:播放中显示 ⏸(绿,点击=暂停),非播放显示 ▶(点击=播放/继续) */
     public void setPlayingState(boolean playing, boolean paused) {
         if (playing) {
-            playBtn.setText("\u23F8");
+            playBtn.setIcon("pause");
             playBtn.color(0xFF2A5A2A, 0xFF3A7A3A);
         } else {
-            playBtn.setText("\u25B6");
+            playBtn.setIcon("play");
             playBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER);
         }
     }
@@ -135,19 +135,19 @@ public class PreviewArea extends UIComponent {
     private static float sliderStepFor(int i) {
         return switch (i) {
             case 3 -> 1f;      // fov
-            case 4 -> 0.05f;   // zoom
+            case 4 -> 0.01f;   // zoom（对数比例步进）
             default -> 1f;     // yaw/pitch/roll（度）
         };
     }
 
-    /** 滑块位置 → 参数值 */
+    /** 滑块位置 → 参数值（zoom 用对数映射，0.5x~100x 手感均匀） */
     private static float sliderValueFor(int i, float ratio) {
         return switch (i) {
             case 0 -> -180f + ratio * 360f;   // yaw
             case 1 -> -90f + ratio * 180f;    // pitch
             case 2 -> -180f + ratio * 360f;   // roll
             case 3 -> 30f + ratio * 80f;      // fov
-            default -> 0.1f + ratio * 4.9f;   // zoom
+            default -> (float)(0.5 * Math.pow(200.0, ratio));   // zoom
         };
     }
 
@@ -158,7 +158,7 @@ public class PreviewArea extends UIComponent {
             case 1 -> (value + 90f) / 180f;    // pitch
             case 2 -> (value + 180f) / 360f;   // roll
             case 3 -> (value - 30f) / 80f;     // fov
-            default -> (value - 0.1f) / 4.9f;  // zoom
+            default -> (float)(Math.log(Math.max(0.5f, value) / 0.5) / Math.log(200.0));  // zoom
         };
         return Math.max(0f, Math.min(1f, ratio));
     }
@@ -168,7 +168,7 @@ public class PreviewArea extends UIComponent {
             case 0, 2 -> Math.max(-180f, Math.min(180f, v));
             case 1 -> Math.max(-90f, Math.min(90f, v));
             case 3 -> Math.max(30f, Math.min(110f, v));
-            default -> Math.max(0.1f, Math.min(5f, v));
+            default -> Math.max(0.5f, Math.min(100f, v));
         };
     }
 

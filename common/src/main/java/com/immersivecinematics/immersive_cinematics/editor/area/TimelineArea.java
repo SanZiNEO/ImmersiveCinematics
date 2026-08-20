@@ -486,12 +486,12 @@ public class TimelineArea extends UIComponent {
         int bx = x + (int)(3 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx);
         int by = y + headerH() + (int)(4 * com.immersivecinematics.immersive_cinematics.editor.Scale.sy);
 
-        drawBtn(ctx, bx, by, I18n.get("editor.toolbar.add_clip"), 0xFF338833, 0xFF44AA44, true); by += btn() + btnGap();
-        drawBtn(ctx, bx, by, I18n.get("editor.toolbar.delete_clip"), 0xFF883333, 0xFFAA4444, selectedClip != null); by += btn() + btnGap() + 4;
-        drawBtn(ctx, bx, by, I18n.get("editor.toolbar.add_keyframe"), 0xFF333388, 0xFF4444AA, canAddKf); by += btn() + btnGap();
-        drawBtn(ctx, bx, by, I18n.get("editor.toolbar.delete_keyframe"), 0xFF883366, 0xFFAA4488, selectedKeyframe != null); by += btn() + btnGap() + 4;
-        drawBtn(ctx, bx, by, I18n.get("editor.toolbar.add_track"), 0xFF338866, 0xFF44AA88, true); by += btn() + btnGap();
-        drawBtn(ctx, bx, by, I18n.get("editor.toolbar.delete_track"), 0xFF883355, 0xFFAA4477, selectedTrackIndex >= 0); by += btn() + btnGap() + 4;
+        drawIconBtn(ctx, bx, by, "add-clip", 0xFF338833, 0xFF44AA44, true); by += btn() + btnGap();
+        drawIconBtn(ctx, bx, by, "delete", 0xFF883333, 0xFFAA4444, selectedClip != null); by += btn() + btnGap() + 4;
+        drawIconBtn(ctx, bx, by, "keyframe", 0xFF333388, 0xFF4444AA, canAddKf); by += btn() + btnGap();
+        drawIconBtn(ctx, bx, by, "circle-x", 0xFF883366, 0xFFAA4488, selectedKeyframe != null); by += btn() + btnGap() + 4;
+        drawIconBtn(ctx, bx, by, "add-track", 0xFF338866, 0xFF44AA88, true); by += btn() + btnGap();
+        drawIconBtn(ctx, bx, by, "remove-track", 0xFF883355, 0xFFAA4477, selectedTrackIndex >= 0); by += btn() + btnGap() + 4;
         drawBtn(ctx, bx, by, I18n.get("editor.toolbar.snap", "\u00AB\u00BB"), 0xFF336688, 0xFF4488AA, true);
     }
 
@@ -504,16 +504,26 @@ public class TimelineArea extends UIComponent {
         ctx.graphics.drawString(ctx.font, label, bx + (btn() - tw) / 2, by + (btn() - 8) / 2, active ? 0xFFFFFFFF : EditorTheme.TEXT_DISABLED);
     }
 
-    /** B2：轨道头小按钮（👁/🔒/🔇）— 自绘，不建 widget */
-    private void drawTrackHeadBtn(UIContext ctx, int bx, int ty, int bw, String glyph,
+    private void drawIconBtn(UIContext ctx, int bx, int by, String icon, int c, int hc, boolean active) {
+        boolean hover = ctx.isMouseIn(bx, by, btn(), btn());
+        int bg = !active ? EditorTheme.BG_WIDGET : hover ? hc : c;
+        ctx.graphics.fill(bx, by, bx + btn(), by + btn(), bg);
+        ctx.graphics.renderOutline(bx, by, btn(), btn(), active ? EditorTheme.BORDER_LIGHT : EditorTheme.BORDER);
+        int iconColor = active ? (hover ? 0xFFFFFFFF : 0xFFE8E8F0) : 0xFF555555;
+        int iconSize = Math.max(8, (int)(btn() * 0.55));
+        EditorIcons.render(ctx, icon, bx + (btn() - iconSize) / 2, by + (btn() - iconSize) / 2, iconSize, iconColor);
+    }
+
+    /** B2：轨道头小按钮（显隐/锁定/静音）— 自绘，不建 widget，使用极简图标 */
+    private void drawTrackHeadBtn(UIContext ctx, int bx, int ty, int bw, String icon,
                                   boolean active, int activeColor, int activeBg, boolean hover) {
         int bg = active ? (activeColor & 0x00FFFFFF) | 0x33000000
                 : hover ? EditorTheme.BG_HOVER : 0;
         if (bg != 0) ctx.graphics.fill(bx, ty, bx + bw, ty + trackH(), bg);
         int color = active ? activeColor : EditorTheme.TEXT_SECONDARY;
         if (hover && !active) color = EditorTheme.lighten(color, 0.2f);
-        int tw = ctx.font.width(glyph);
-        ctx.graphics.drawString(ctx.font, glyph, bx + (bw - tw) / 2, ty + (trackH() - 8) / 2, color);
+        int iconSize = Math.max(8, (int)(bw * 0.6));
+        EditorIcons.render(ctx, icon, bx + (bw - iconSize) / 2, ty + (trackH() - iconSize) / 2, iconSize, color);
     }
 
     private void drawTracks(UIContext ctx, int cx, int cy) {
@@ -562,14 +572,17 @@ public class TimelineArea extends UIComponent {
                 int bxLock = (int)(labelAreaX + labelAreaW - 32 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx);
                 int bxMute = (int)(labelAreaX + labelAreaW - 16 * com.immersivecinematics.immersive_cinematics.editor.Scale.sx);
                 drawTrackHeadBtn(ctx, bxEye, ty, btnW,
-                        "\uD83D\uDC41", hiddenTracks.contains(track), EditorTheme.SELECTED, 0x33FFFFFF,
+                        hiddenTracks.contains(track) ? "eye-off" : "eye",
+                        hiddenTracks.contains(track), EditorTheme.SELECTED, 0x33FFFFFF,
                         ctx.isMouseIn(bxEye, ty, btnW, trackH()));
                 drawTrackHeadBtn(ctx, bxLock, ty, btnW,
-                        "\uD83D\uDD12", lockedTracks.contains(track), EditorTheme.DANGER, 0x33FFFFFF,
+                        lockedTracks.contains(track) ? "lock" : "lock-open",
+                        lockedTracks.contains(track), EditorTheme.DANGER, 0x33FFFFFF,
                         ctx.isMouseIn(bxLock, ty, btnW, trackH()));
                 if ("AUDIO".equals(type)) {
                     drawTrackHeadBtn(ctx, bxMute, ty, btnW,
-                            "\uD83D\uDD07", mutedTracks.contains(track), EditorTheme.SUCCESS, 0x33FFFFFF,
+                            mutedTracks.contains(track) ? "mute" : "volume",
+                            mutedTracks.contains(track), EditorTheme.SUCCESS, 0x33FFFFFF,
                             ctx.isMouseIn(bxMute, ty, btnW, trackH()));
                 }
             }

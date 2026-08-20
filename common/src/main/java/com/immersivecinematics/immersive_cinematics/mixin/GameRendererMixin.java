@@ -26,7 +26,11 @@ public abstract class GameRendererMixin {
         if (mgr.isActive() && mgr.hasActiveCameraClip()) {
             float fov = mgr.getProperties().getFov();
             float zoom = mgr.getProperties().getZoom();
-            cir.setReturnValue((double) (fov / zoom));
+            double effective = fov / zoom;
+            // 投影矩阵安全保护：FOV 超过约 170° 会导致画面翻转/畸变
+            if (effective > 170.0) effective = 170.0;
+            if (effective < 0.1) effective = 0.1;
+            cir.setReturnValue(effective);
         }
     }
 

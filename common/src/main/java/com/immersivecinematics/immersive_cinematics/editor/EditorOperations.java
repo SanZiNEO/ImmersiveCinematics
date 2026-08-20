@@ -343,7 +343,7 @@ public class EditorOperations {
         target.addProperty("pitch", lerp(prev.get("pitch").getAsFloat(), next.get("pitch").getAsFloat(), ratio));
         target.addProperty("roll", lerp(prev.get("roll").getAsFloat(), next.get("roll").getAsFloat(), ratio));
         target.addProperty("fov", lerp(prev.get("fov").getAsFloat(), next.get("fov").getAsFloat(), ratio));
-        target.addProperty("zoom", lerp(
+        target.addProperty("zoom", lerpZoom(
                 prev.has("zoom") ? prev.get("zoom").getAsFloat() : 1.0f,
                 next.has("zoom") ? next.get("zoom").getAsFloat() : 1.0f, ratio));
     }
@@ -361,6 +361,11 @@ public class EditorOperations {
     
     private static float lerp(float a, float b, float t) {
         return a + (b - a) * t;
+    }
+
+    private static float lerpZoom(float a, float b, float t) {
+        if (a <= 0f || b <= 0f) return lerp(a, b, t);
+        return (float) Math.exp(Math.log(a) + (Math.log(b) - Math.log(a)) * t);
     }
     
     public static void moveClipToTrack(JsonArray tracks, JsonObject clip, int targetTrackIndex) {

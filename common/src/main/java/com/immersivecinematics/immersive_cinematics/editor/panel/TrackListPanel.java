@@ -36,10 +36,10 @@ public class TrackListPanel extends EditorPanel {
             addChild(row);
 
             UIButton visBtn = new UIButton(lx + 4 + (w - 12 - 26) + 2, cy, 24, rowH,
-                    I18n.get("editor.tab.track_visible"), btn -> {
+                    "", btn -> {
                         if (ctx.onToggleTrackVisible != null) ctx.onToggleTrackVisible.accept(track);
                     });
-            visBtn.color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER).textColor(EditorTheme.TEXT_SECONDARY);
+            visBtn.icon("eye").color(EditorTheme.BG_WIDGET, EditorTheme.BG_HOVER).textColor(EditorTheme.TEXT_SECONDARY);
             addChild(visBtn);
 
             cy += rowH + 2;

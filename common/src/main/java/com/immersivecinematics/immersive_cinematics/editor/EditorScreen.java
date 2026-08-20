@@ -78,8 +78,14 @@ public class EditorScreen extends Screen {
     private Vec3 flightStartPos = Vec3.ZERO;
     private float flightYaw;
     private float flightPitch;
+    private float flightRoll;
+    private float flightFov;
+    private float flightZoom;
     private float flightStartYaw;
     private float flightStartPitch;
+    private float flightStartRoll;
+    private float flightStartFov;
+    private float flightStartZoom;
 
     public EditorScreen(EditorBridge bridge, Path scriptsDir) {
         super(Component.literal("Cinematic Editor"));
@@ -677,7 +683,7 @@ public class EditorScreen extends Screen {
         if (kf == null) return;
         if ("pitch".equals(key)) value = Math.max(-89f, Math.min(89f, value));
         if ("fov".equals(key)) value = Math.max(30f, Math.min(110f, value));
-        if ("zoom".equals(key)) value = Math.max(0.1f, Math.min(5f, value));
+        if ("zoom".equals(key)) value = Math.max(0.5f, Math.min(100f, value));
         kf.addProperty(key, value);
         doc.markDirty();
         if (gizmoDragging) {
@@ -916,10 +922,22 @@ public class EditorScreen extends Screen {
         flightPos = cam.getPath().getPosition();
         flightYaw = cam.getProperties().getYaw();
         flightPitch = cam.getProperties().getPitch();
+        flightRoll = cam.getProperties().getRoll();
+        flightFov = cam.getProperties().getFov();
+        flightZoom = cam.getProperties().getZoom();
         flightStartPos = flightPos;
         flightStartYaw = flightYaw;
         flightStartPitch = flightPitch;
-        FlightController.INSTANCE.enter(flightPos, flightYaw, flightPitch);
+        flightStartRoll = flightRoll;
+        flightStartFov = flightFov;
+        flightStartZoom = flightZoom;
+        boolean modeAbsolute = false;
+        JsonObject modeSrc = sel.getKeyframe() != null ? sel.getKeyframe() : sel.getClip();
+        if (modeSrc != null && modeSrc.has("position_mode")) {
+            modeAbsolute = "absolute".equals(modeSrc.get("position_mode").getAsString());
+        }
+        FlightController.INSTANCE.enter(flightPos, flightYaw, flightPitch,
+                flightRoll, flightFov, flightZoom, modeAbsolute);
         flightMode = true;
         if (flightOverlay != null) flightOverlay.visible = true;
         GLFW.glfwSetInputMode(Minecraft.getInstance().getWindow().getWindow(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
@@ -935,6 +953,9 @@ public class EditorScreen extends Screen {
             flightPos = FlightController.INSTANCE.getPos();
             flightYaw = FlightController.INSTANCE.getYaw();
             flightPitch = FlightController.INSTANCE.getPitch();
+            flightRoll = FlightController.INSTANCE.getRoll();
+            flightFov = FlightController.INSTANCE.getFov();
+            flightZoom = FlightController.INSTANCE.getZoom();
             FlightController.INSTANCE.exit();
             recordFlightCamera();
         } else {
@@ -986,6 +1007,9 @@ public class EditorScreen extends Screen {
         kf.add("position", pos);
         kf.addProperty("yaw", flightYaw);
         kf.addProperty("pitch", flightPitch);
+        kf.addProperty("roll", flightRoll);
+        kf.addProperty("fov", flightFov);
+        kf.addProperty("zoom", flightZoom);
         doc.markDirty();
         syncPanels();
         pushScriptUpdate();
@@ -1380,12 +1404,7 @@ public class EditorScreen extends Screen {
             if (escPressed || editorKeyPressed) {
                 if (contextMenu.isVisible()) { contextMenu.hide(); return true; }
                 if (timeline.isRenaming()) { timeline.cancelRename(); return true; }
-                // D3：Esc 先清选择，再按才关编辑器（逐级退出）
-                if (!sel.getClips().isEmpty() || sel.getKeyframe() != null) {
-                    sel.clear();
-                    syncPanels();
-                    return true;
-                }
+                // 一次 Esc 直接关闭编辑器（有菜单/重命名时先关它们）
                 EditorLogger.action(EditorLogger.SCREEN, "CLOSE", "ESC"); CinematicKeyBindings.notifyEditorClosed(); onClose(); return true;
             }
 

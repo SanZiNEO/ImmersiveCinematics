@@ -228,7 +228,7 @@ public class CameraTrackPlayer implements TrackPlayer {
                 prevFrom != null ? KeyframeInterpolator.interpolateFov(prevFrom, prevTo, prevS) : 70f,
                 nextFrom != null ? KeyframeInterpolator.interpolateFov(nextFrom, nextTo, nextS) : 70f,
                 weight);
-        float zoom = blendFloat(
+        float zoom = blendZoom(
                 prevFrom != null ? KeyframeInterpolator.interpolateZoom(prevFrom, prevTo, prevS) : 1f,
                 nextFrom != null ? KeyframeInterpolator.interpolateZoom(nextFrom, nextTo, nextS) : 1f,
                 weight);
@@ -766,6 +766,11 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     private static float blendFloat(float a, float b, float weight) {
         return a * (1f - weight) + b * weight;
+    }
+
+    private static float blendZoom(float a, float b, float weight) {
+        if (a <= 0f || b <= 0f) return blendFloat(a, b, weight);
+        return (float) Math.exp(Math.log(a) * (1f - weight) + Math.log(b) * weight);
     }
 
     private static float blendAngle(float a, float b, float weight) {
