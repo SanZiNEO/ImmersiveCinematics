@@ -48,6 +48,8 @@ public class LeftPanelArea extends UIComponent {
     private PanelTabBar tabBar;
     /** 可滚动内容容器（位于 Tab 栏下方，承载当前模式面板） */
     private ScrollablePanel content;
+    /** 当前模式面板实例（同模式复用，保留折叠状态等面板内状态） */
+    private EditorPanel currentPanel;
 
     public LeftPanelArea(int x, int y, int w, int h) {
         super(x, y, w, h);
@@ -61,6 +63,7 @@ public class LeftPanelArea extends UIComponent {
                 EditorLogger.areaMode(EditorLogger.LEFT, "mode", this.mode.name(), m.name());
                 // 切模式回到面板顶部：scrollY 残留会把新面板内容/固定 tab 滚出可视区（面板"全白"根因）
                 if (content != null) content.resetScroll();
+                currentPanel = null;
             }
             this.mode = m;
             build();
@@ -100,7 +103,11 @@ public class LeftPanelArea extends UIComponent {
         content = new ScrollablePanel(x, y + TAB_HEIGHT, w, h - TAB_HEIGHT);
         addChild(content);
 
-        EditorPanel panel = PanelRegistry.create(mode);
+        EditorPanel panel = currentPanel;
+        if (panel == null) {
+            panel = PanelRegistry.create(mode);
+            currentPanel = panel;
+        }
         panel.setContext(buildContext());
         panel.setBounds(x, content.y + 4, w, Math.max(1, content.h - 4));
         if (panel instanceof TriggerPanel) {
