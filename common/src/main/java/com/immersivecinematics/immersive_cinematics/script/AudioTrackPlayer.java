@@ -231,6 +231,9 @@ public class AudioTrackPlayer implements TrackPlayer {
 
         inst.setVolume(interpolatedVolume * fadeFactor);
         inst.setPosition(resolveAudioPosition(clip, new Vec3(ix, iy, iz)));
+        if (!inst.isPlaying()) {
+            inst.play();
+        }
         inst.update();
     }
 

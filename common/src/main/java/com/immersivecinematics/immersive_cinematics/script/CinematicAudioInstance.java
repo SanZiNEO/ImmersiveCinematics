@@ -52,6 +52,8 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
     private boolean playing = false;
     private float duration = 0f;
     private float currentVolume = 1.0f;
+    /** 编辑器 seek 目标偏移（秒），play() 时把 PCM 游标移到此处 */
+    private float seekOffset = 0f;
 
     private ByteBuffer pcmData;
     private int channels;
@@ -117,6 +119,9 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
 
     public void play() {
         if (!valid || playing) return;
+        if (pcmData != null) {
+            pcmData.position(byteOffset(seekOffset));
+        }
         playing = true;
         Minecraft.getInstance().getSoundManager().play(this);
     }
@@ -159,13 +164,29 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
         this.relative = rel;
     }
 
-    /** 编辑器 seek：流式 SoundInstance 不支持直接 seek，第 E 项再补 */
+    /** 编辑器 seek：把 PCM 游标移到目标秒；若正在播放则先停止（由 syncToTime 负责按需重启） */
     public void seekTo(float seconds) {
-        // no-op
+        if (!valid) return;
+        seekOffset = Math.max(0f, Math.min(seconds, duration));
+        if (playing) {
+            stopInstance();
+        }
     }
 
+    /** 编辑器定位：seek + 音量，并在非暂停场景下立即以新位置重启播放 */
     public void syncToTime(float targetLocalTime, float volume, float fadeIn) {
-        // no-op
+        setVolume(volume);
+        seekTo(targetLocalTime);
+        if (!playing) {
+            play();
+        }
+    }
+
+    private int byteOffset(float seconds) {
+        if (pcmData == null || sampleRate <= 0 || channels <= 0) return 0;
+        long bytes = (long) (seconds * sampleRate * channels * 2);
+        int limit = pcmData.limit();
+        return (int) Math.max(0, Math.min(bytes, limit));
     }
 
     public void update() {
