@@ -810,7 +810,7 @@ public class EditorScreen extends Screen {
                 for (JsonElement ke : kfs) {
                     JsonObject kf = ke.getAsJsonObject();
                     JsonObject pos = new JsonObject();
-                    pos.addProperty("dx", 0f); pos.addProperty("dy", 0f); pos.addProperty("dz", 0f);
+                    pos.addProperty("dx", 0f); pos.addProperty("dy", 2f); pos.addProperty("dz", 0f);
                     kf.add("position", pos);
                     kf.addProperty("yaw", 0f); kf.addProperty("pitch", 0f); kf.addProperty("roll", 0f);
                     kf.addProperty("fov", 70f); kf.addProperty("zoom", 1f);
