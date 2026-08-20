@@ -163,6 +163,20 @@
 
 ---
 
+## 本轮已处理
+
+- 修复脚本结束后输入未恢复：`CinematicController.revert()` 的 `blockKeyboard/blockMouse` 改为 `false`
+- 清理硬编码：
+  - 删除 Biome lambda 方法名硬编码（保留 `tick()` 主采样重定向）
+  - `PlayerListMixin` 改用 `instanceof CameraFakePlayer`
+  - `releaseIfNeeded()` 魔法值改为常量
+- 假人实体同步：
+  - 假连接转发世界包 + 区块发送后补发实体 + 周期补发未同步实体
+  - `syncedEntityIds` 去重，避免重复生成
+- 跨平台 Mixin：
+  - `SoundEngineMixin` 支持 Fabric/Forge 双目标
+  - `PlayerListMixin` 修正外层参数签名
+
 ## 探索记录
 
 （待逐条补充）
