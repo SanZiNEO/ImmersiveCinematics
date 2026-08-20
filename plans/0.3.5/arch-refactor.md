@@ -1,6 +1,6 @@
 # 0.3.5 第 7 轮：去除 Architectury 架构重构
 
-**状态**: 📋 方案细化中，Spike 未开始
+**状态**: 📋 方案已定，Spike 已验证通过
 **分支**: `refactor/remove-arch`
 **排期**: 第 6 轮（文档/回归/发布）之前，先于 5.5 或与 5.5 并行（以实际进度为准）
 
@@ -64,6 +64,18 @@
 - 移除 `architectury-plugin` / Arch API 依赖
 - `gradlew build` 全平台通过
 - 体积对比记录
+
+---
+
+## Spike 验证结果
+
+- 使用 `MultiLoader-Template` 的 **1.20.1 分支 Java 17 版本**（ForgeGradle 6 + VanillaGradle + Fabric Loom 1.6.x）
+- 在本机 Java 17 / Gradle 8.8 下验证：
+  - `:common:compileJava` ✅
+  - `:fabric:compileJava` ✅
+  - `:forge:compileJava` ✅
+- 结论：**不需要 Java 21，也不依赖 Architectury**，可以用这套模板做实际迁移
+- 注意：模板 1.20.1 分支后来切到 ModDevGradle/LegacyForge 2.0.77 需要 Java 21；我们应使用切换前的 ForgeGradle 版本
 
 ---
 
