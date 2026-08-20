@@ -14,6 +14,7 @@ import com.immersivecinematics.immersive_cinematics.editor.widget.UITextInput;
 import com.immersivecinematics.immersive_cinematics.editor.widget.UIToggle;
 import com.immersivecinematics.immersive_cinematics.script.SchemaLoader;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import net.minecraft.client.resources.language.I18n;
 
 import java.util.ArrayList;
@@ -307,7 +308,7 @@ public abstract class EditorPanel extends UIComponent {
             float current = prim.getAsFloat();
             boolean isInt = current == Math.floor(current) && !Float.isInfinite(current) && key.equals("version");
             if (isInt) return cy;
-            SchemaLoader.FieldDef def = isKeyframe
+            FieldDef def = isKeyframe
                     ? SchemaLoader.getKeyframeFields(TrackType.valueOf(selectedTrackType().toUpperCase())).get(key)
                     : SchemaLoader.getClipFields(TrackType.valueOf(selectedTrackType().toUpperCase())).get(key);
             boolean isIntField = def != null && "int".equals(def.type());

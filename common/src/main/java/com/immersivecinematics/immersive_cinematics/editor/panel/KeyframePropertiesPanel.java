@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.editor.EditorDefaults;
 import com.immersivecinematics.immersive_cinematics.editor.Scale;
 import com.immersivecinematics.immersive_cinematics.script.SchemaLoader;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import net.minecraft.client.resources.language.I18n;
 
 import java.util.LinkedHashSet;
@@ -46,7 +47,7 @@ public class KeyframePropertiesPanel extends EditorPanel {
         String kfTrackType = selectedTrackType();
         LinkedHashSet<String> kfKeys = new LinkedHashSet<>();
         kfKeys.add("time");
-        for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getKeyframeFields(TrackType.valueOf(kfTrackType.toUpperCase())).entrySet()) {
+        for (Map.Entry<String, FieldDef> e : SchemaLoader.getKeyframeFields(TrackType.valueOf(kfTrackType.toUpperCase())).entrySet()) {
             if (!"time".equals(e.getKey())) kfKeys.add(e.getKey());
         }
 

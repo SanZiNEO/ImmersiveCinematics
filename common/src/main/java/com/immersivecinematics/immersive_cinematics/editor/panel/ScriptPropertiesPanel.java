@@ -4,6 +4,7 @@ import com.immersivecinematics.immersive_cinematics.editor.EditorDefaults;
 import com.immersivecinematics.immersive_cinematics.editor.Scale;
 import com.immersivecinematics.immersive_cinematics.editor.widget.UILabel;
 import com.immersivecinematics.immersive_cinematics.script.SchemaLoader;
+import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import net.minecraft.client.resources.language.I18n;
 
 import java.util.Map;
@@ -34,7 +35,7 @@ public class ScriptPropertiesPanel extends EditorPanel {
     }
 
     private int buildMetaFields(int lx, int cy, String section) {
-        for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getMetaFields().entrySet()) {
+        for (Map.Entry<String, FieldDef> e : SchemaLoader.getMetaFields().entrySet()) {
             if (!section.equals(e.getValue().section())) continue;
             String key = e.getKey();
             if ("tristate".equals(e.getValue().type())) {

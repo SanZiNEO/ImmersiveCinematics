@@ -34,12 +34,12 @@ public class EditorDocument {
         root = new JsonObject();
         JsonObject meta = new JsonObject();
         // C5/C6：meta 默认值由 schema.json 的 "meta" 段单源生成（tristate 无默认不写入）
-        for (Map.Entry<String, com.immersivecinematics.immersive_cinematics.script.SchemaLoader.FieldDef> e
+        for (Map.Entry<String, com.immersivecinematics.immersive_cinematics.script.schema.FieldDef> e
                 : com.immersivecinematics.immersive_cinematics.script.SchemaLoader.getMetaFields().entrySet()) {
             Object def = e.getValue().defaultValue();
-            if (def instanceof Boolean b) meta.addProperty(e.getKey(), b);
-            else if (def instanceof Number n) meta.addProperty(e.getKey(), n.floatValue());
-            else if (def instanceof String s) meta.addProperty(e.getKey(), s);
+            if (def instanceof Boolean) meta.addProperty(e.getKey(), (Boolean) def);
+            else if (def instanceof Number) meta.addProperty(e.getKey(), ((Number) def).floatValue());
+            else if (def instanceof String) meta.addProperty(e.getKey(), (String) def);
         }
         root.add("meta", meta);
         

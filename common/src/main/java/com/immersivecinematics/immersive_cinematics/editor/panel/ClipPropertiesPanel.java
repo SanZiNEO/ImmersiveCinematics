@@ -4,6 +4,7 @@ import com.immersivecinematics.immersive_cinematics.editor.EditorDefaults;
 import com.immersivecinematics.immersive_cinematics.editor.Scale;
 import com.immersivecinematics.immersive_cinematics.script.SchemaLoader;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import net.minecraft.client.resources.language.I18n;
 
 import java.util.LinkedHashSet;
@@ -29,7 +30,7 @@ public class ClipPropertiesPanel extends EditorPanel {
         LinkedHashSet<String> keys = new LinkedHashSet<>();
         keys.add("start_time");
         keys.add("duration");
-        for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getClipFields(TrackType.valueOf(trackType.toUpperCase())).entrySet()) {
+        for (Map.Entry<String, FieldDef> e : SchemaLoader.getClipFields(TrackType.valueOf(trackType.toUpperCase())).entrySet()) {
             if (!"start_time".equals(e.getKey()) && !"duration".equals(e.getKey()) && !"keyframes".equals(e.getKey())) {
                 keys.add(e.getKey());
             }

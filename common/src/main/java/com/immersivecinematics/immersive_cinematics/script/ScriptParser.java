@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -207,7 +208,7 @@ public class ScriptParser {
         }
 
         // 校验必填字段（来自 schema）
-        for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getClipFields(type).entrySet()) {
+        for (Map.Entry<String, FieldDef> e : SchemaLoader.getClipFields(type).entrySet()) {
             if (e.getValue().required() && !data.containsKey(e.getKey()) && !obj.has(e.getKey())) {
                 throw new ScriptParseException(p + "." + e.getKey(), "缺少必填字段");
             }
@@ -273,7 +274,7 @@ public class ScriptParser {
             if (value != null) data.put(fieldName, value);
         }
         // 校验必填字段（来自 schema）
-        for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getKeyframeFields(type).entrySet()) {
+        for (Map.Entry<String, FieldDef> e : SchemaLoader.getKeyframeFields(type).entrySet()) {
             if (e.getValue().required() && !data.containsKey(e.getKey()) && !obj.has(e.getKey())) {
                 throw new ScriptParseException(p + "." + e.getKey(), "缺少必填字段");
             }
@@ -286,7 +287,7 @@ public class ScriptParser {
      */
     private static Object parseFieldBySchema(String fieldName, JsonElement value, String p,
                                               TrackType type, boolean isKeyframe) throws ScriptParseException {
-        SchemaLoader.FieldDef def = isKeyframe
+        FieldDef def = isKeyframe
                 ? SchemaLoader.getKeyframeFields(type).get(fieldName)
                 : SchemaLoader.getClipFields(type).get(fieldName);
 
@@ -693,8 +694,8 @@ public class ScriptParser {
     /** meta 字段默认值来自 schema.json "meta" 段（编辑器与播放器共用同一份 schema） */
     private static boolean optBoolMeta(JsonObject obj, String key) {
         if (obj.has(key)) return obj.get(key).getAsBoolean();
-        SchemaLoader.FieldDef def = SchemaLoader.getMetaFields().get(key);
-        if (def != null && def.defaultValue() instanceof Boolean b) return b;
+        FieldDef def = SchemaLoader.getMetaFields().get(key);
+        if (def != null && def.defaultValue() instanceof Boolean) return (Boolean) def.defaultValue();
         return false;
     }
 

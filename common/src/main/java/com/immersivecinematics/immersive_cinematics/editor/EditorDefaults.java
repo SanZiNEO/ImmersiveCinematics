@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.script.SchemaLoader;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 
 import java.util.Map;
 
@@ -20,7 +21,7 @@ public final class EditorDefaults {
 
     /** meta 字段按 schema 的 "meta" 段补齐（tristate/无默认字段不写） */
     public static void fillMetaDefaults(JsonObject meta) {
-        for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getMetaFields().entrySet()) {
+        for (Map.Entry<String, FieldDef> e : SchemaLoader.getMetaFields().entrySet()) {
             String key = e.getKey();
             if (meta.has(key)) continue;
             Object def = e.getValue().defaultValue();
@@ -31,7 +32,7 @@ public final class EditorDefaults {
     /** 按 schema 补齐 clip 缺失字段；无默认值字段跳过；required 无默认的 string 字段补 ""（与现状一致） */
     public static void fillClipDefaults(JsonObject clip, String trackType) {
         TrackType tt = TrackType.valueOf(trackType.toUpperCase());
-        for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getClipFields(tt).entrySet()) {
+        for (Map.Entry<String, FieldDef> e : SchemaLoader.getClipFields(tt).entrySet()) {
             String key = e.getKey();
             if (clip.has(key)) continue;
             Object def = e.getValue().defaultValue();
@@ -46,7 +47,7 @@ public final class EditorDefaults {
     /** 按 schema 补齐 keyframe 缺失字段；CAMERA position 特例保留（无 default 的 position → {dx,dy,dz}=0） */
     public static void fillKeyframeDefaults(JsonObject kf, String trackType) {
         TrackType tt = TrackType.valueOf(trackType.toUpperCase());
-        for (Map.Entry<String, SchemaLoader.FieldDef> e : SchemaLoader.getKeyframeFields(tt).entrySet()) {
+        for (Map.Entry<String, FieldDef> e : SchemaLoader.getKeyframeFields(tt).entrySet()) {
             String key = e.getKey();
             if (kf.has(key)) continue;
             Object def = e.getValue().defaultValue();
@@ -63,9 +64,9 @@ public final class EditorDefaults {
     }
 
     private static void applyDefault(JsonObject obj, String key, Object def) {
-        if (def instanceof Boolean b) obj.addProperty(key, b);
-        else if (def instanceof Number n) obj.addProperty(key, n.floatValue());
-        else if (def instanceof String s) obj.addProperty(key, s);
+        if (def instanceof Boolean) obj.addProperty(key, (Boolean) def);
+        else if (def instanceof Number) obj.addProperty(key, ((Number) def).floatValue());
+        else if (def instanceof String) obj.addProperty(key, (String) def);
         else obj.add(key, JsonParser.parseString(def.toString()));
     }
 }
