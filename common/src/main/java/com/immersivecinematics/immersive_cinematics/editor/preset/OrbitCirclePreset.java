@@ -23,8 +23,11 @@ public final class OrbitCirclePreset {
                 "环绕轨道",
                 "围绕中心点做三段贝塞尔拼圆的环绕镜头",
                 List.of(
+                        new PresetParam("center_x", "中心 X", "number", 0f, -100000f, 100000f),
+                        new PresetParam("center_y", "中心 Y", "number", 0f, -100000f, 100000f),
+                        new PresetParam("center_z", "中心 Z", "number", 0f, -100000f, 100000f),
                         new PresetParam("radius", "半径", "number", 8f, 2f, 200f),
-                        new PresetParam("height", "高度", "number", 2f, -50f, 50f),
+                        new PresetParam("height", "高度（相对中心）", "number", 2f, -50f, 50f),
                         new PresetParam("duration", "时长", "number", 8f, 1f, 600f)
                 ),
                 OrbitCirclePreset::generate
@@ -32,9 +35,13 @@ public final class OrbitCirclePreset {
     }
 
     private static JsonObject generate(JsonObject params) {
+        float cx = getFloat(params, "center_x", 0f);
+        float cy = getFloat(params, "center_y", 0f);
+        float cz = getFloat(params, "center_z", 0f);
         float radius = getFloat(params, "radius", 8f);
         float height = getFloat(params, "height", 2f);
         float duration = getFloat(params, "duration", 8f);
+        float camY = cy + height;
         float segDur = Math.max(0.1f, duration / 3f);
 
         JsonObject script = new JsonObject();
@@ -56,10 +63,10 @@ public final class OrbitCirclePreset {
         for (int i = 0; i < 3; i++) {
             float a0 = (float) Math.toRadians(i * 120);
             float a1 = (float) Math.toRadians((i + 1) * 120);
-            float sx = radius * (float) Math.cos(a0);
-            float sz = radius * (float) Math.sin(a0);
-            float ex = radius * (float) Math.cos(a1);
-            float ez = radius * (float) Math.sin(a1);
+            float sx = cx + radius * (float) Math.cos(a0);
+            float sz = cz + radius * (float) Math.sin(a0);
+            float ex = cx + radius * (float) Math.cos(a1);
+            float ez = cz + radius * (float) Math.sin(a1);
 
             float p1x = sx + CTRL * radius * (float) -Math.sin(a0);
             float p1z = sz + CTRL * radius * (float) Math.cos(a0);
@@ -76,14 +83,14 @@ public final class OrbitCirclePreset {
             JsonObject curve = new JsonObject();
             curve.addProperty("type", "bezier");
             JsonArray cps = new JsonArray();
-            cps.add(pos(p1x, height, p1z));
-            cps.add(pos(p2x, height, p2z));
+            cps.add(pos(p1x, camY, p1z));
+            cps.add(pos(p2x, camY, p2z));
             curve.add("control_points", cps);
             clip.add("curve", curve);
 
             JsonArray kfs = new JsonArray();
-            kfs.add(keyframe(0f, sx, height, sz));
-            kfs.add(keyframe(segDur, ex, height, ez));
+            kfs.add(keyframe(0f, sx, camY, sz, cx, cz));
+            kfs.add(keyframe(segDur, ex, camY, ez, cx, cz));
             clip.add("keyframes", kfs);
 
             clips.add(clip);
@@ -96,15 +103,15 @@ public final class OrbitCirclePreset {
         return script;
     }
 
-    private static JsonObject keyframe(float time, float x, float y, float z) {
+    private static JsonObject keyframe(float time, float x, float y, float z, float lookX, float lookZ) {
         JsonObject kf = new JsonObject();
         kf.addProperty("time", time);
         kf.add("position", pos(x, y, z));
         kf.addProperty("position_mode", "absolute");
         kf.addProperty("look_at", "coordinate");
-        kf.addProperty("look_at_target_x", 0f);
+        kf.addProperty("look_at_target_x", lookX);
         kf.addProperty("look_at_target_y", y);
-        kf.addProperty("look_at_target_z", 0f);
+        kf.addProperty("look_at_target_z", lookZ);
         kf.addProperty("fov", 70f);
         kf.addProperty("zoom", 1f);
         return kf;
