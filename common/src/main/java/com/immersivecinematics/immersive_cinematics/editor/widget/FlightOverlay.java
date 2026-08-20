@@ -40,53 +40,51 @@ public class FlightOverlay extends UIComponent {
         RenderSystem.disableScissor();
         RenderSystem.disableDepthTest();
 
-        int margin = Math.max(24, (int)(Math.min(screenW, screenH) * 0.08));
-        int ox = margin;
-        int oy = margin;
-        int ow = screenW - margin * 2;
-        int oh = screenH - margin * 2;
-
         // 全屏不透明背景
         fillColor(0, 0, screenW, screenH, 0xFF101015);
-        // 外框阴影
-        fillColor(ox - 4, oy - 4, ox + ow + 4, oy + oh + 4, 0xFF000000);
-        // 覆盖层内容底
-        fillColor(ox, oy, ox + ow, oy + oh, 0xFF101016);
-        // 边框
-        fillColor(ox, oy, ox + ow, oy + 1, 0xFF33333D);
-        fillColor(ox, oy + oh - 1, ox + ow, oy + oh, 0xFF33333D);
-        fillColor(ox, oy + 1, ox + 1, oy + oh - 1, 0xFF33333D);
-        fillColor(ox + ow - 1, oy + 1, ox + ow, oy + oh - 1, 0xFF33333D);
 
         int texId = PreviewCapture.getTextureId();
+        float srcAspect = 16f / 9f;
         if (texId >= 0) {
-            int capW = PreviewCapture.getWidth();
-            int capH = PreviewCapture.getHeight();
-            float srcAspect = (float) capW / capH;
-            float dstAspect = (float) ow / oh;
-            int rx, ry, rw, rh;
-            if (srcAspect > dstAspect) {
-                rw = ow;
-                rh = (int) (ow / srcAspect);
-                rx = ox;
-                ry = oy + (oh - rh) / 2;
-            } else {
-                rh = oh;
-                rw = (int) (oh * srcAspect);
-                rx = ox + (ow - rw) / 2;
-                ry = oy;
-            }
+            srcAspect = (float) PreviewCapture.getWidth() / PreviewCapture.getHeight();
+        }
 
+        // 内容区比例 = 预览画面比例，居中放在屏幕内，边框正好包住画面
+        int margin = Math.max(24, (int)(Math.min(screenW, screenH) * 0.08));
+        int availW = screenW - margin * 2;
+        int availH = screenH - margin * 2;
+        int cw, ch;
+        if (srcAspect > (float) availW / availH) {
+            cw = availW;
+            ch = Math.max(1, (int) (cw / srcAspect));
+        } else {
+            ch = availH;
+            cw = Math.max(1, (int) (ch * srcAspect));
+        }
+        int cx = (screenW - cw) / 2;
+        int cy = (screenH - ch) / 2;
+
+        // 外框阴影
+        fillColor(cx - 4, cy - 4, cx + cw + 4, cy + ch + 4, 0xFF000000);
+        // 内容底
+        fillColor(cx, cy, cx + cw, cy + ch, 0xFF101016);
+        // 边框
+        fillColor(cx, cy, cx + cw, cy + 1, 0xFF33333D);
+        fillColor(cx, cy + ch - 1, cx + cw, cy + ch, 0xFF33333D);
+        fillColor(cx, cy + 1, cx + 1, cy + ch - 1, 0xFF33333D);
+        fillColor(cx + cw - 1, cy + 1, cx + cw, cy + ch - 1, 0xFF33333D);
+
+        if (texId >= 0) {
             RenderSystem.setShaderTexture(0, texId);
             RenderSystem.setShader(GameRenderer::getPositionTexShader);
             var pose = guiGraphics.pose();
             pose.pushPose();
             var builder = new BufferBuilder(256);
             builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-            builder.vertex(rx, ry + rh, 0).uv(0, 0).endVertex();
-            builder.vertex(rx + rw, ry + rh, 0).uv(1, 0).endVertex();
-            builder.vertex(rx + rw, ry, 0).uv(1, 1).endVertex();
-            builder.vertex(rx, ry, 0).uv(0, 1).endVertex();
+            builder.vertex(cx, cy + ch, 0).uv(0, 0).endVertex();
+            builder.vertex(cx + cw, cy + ch, 0).uv(1, 0).endVertex();
+            builder.vertex(cx + cw, cy, 0).uv(1, 1).endVertex();
+            builder.vertex(cx, cy, 0).uv(0, 1).endVertex();
             BufferUploader.drawWithShader(builder.end());
             pose.popPose();
             RenderSystem.setShaderTexture(0, 0);
@@ -95,7 +93,7 @@ public class FlightOverlay extends UIComponent {
         RenderSystem.enableDepthTest();
 
         String hint = I18n.get("editor.flight.hint");
-        guiGraphics.drawString(ctx.font, hint, ox + 8, oy + 6, 0xFFA0A0B0);
+        guiGraphics.drawString(ctx.font, hint, cx + 8, cy + 6, 0xFFA0A0B0);
     }
 
     private void fillColor(int x1, int y1, int x2, int y2, int color) {
