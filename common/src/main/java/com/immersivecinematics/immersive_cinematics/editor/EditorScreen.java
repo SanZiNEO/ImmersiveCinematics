@@ -307,6 +307,7 @@ public class EditorScreen extends Screen {
             EditorOperations.resizeClipLeft(clip, ns, 0);
             doc.markDirty();
             EditorOperations.applyTransitionAlignment(doc.getTracks());
+            syncPanels();
             pushScriptUpdate();
         });
         timeline.setOnResizeRight((clip, ne) -> {
@@ -315,6 +316,7 @@ public class EditorScreen extends Screen {
             EditorOperations.resizeClipRight(clip, ne, 0);
             doc.markDirty();
             EditorOperations.applyTransitionAlignment(doc.getTracks());
+            syncPanels();
             pushScriptUpdate();
         });
         timeline.setOnMoveKeyframe((kf, clip, nt) -> {
