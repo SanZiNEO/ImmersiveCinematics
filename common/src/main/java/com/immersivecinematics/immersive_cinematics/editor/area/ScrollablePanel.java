@@ -67,10 +67,12 @@ public class ScrollablePanel extends UIComponent {
     }
 
     private static int getComponentBottom(UIComponent comp) {
+        if (!comp.visible) return comp.y;
         int b = comp.y + comp.h;
         List<UIComponent> sub = comp.getChildren();
         if (sub != null) {
             for (UIComponent s : sub) {
+                if (!s.visible) continue;
                 b = Math.max(b, getComponentBottom(s));
             }
         }

@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.immersivecinematics.immersive_cinematics.editor.EditorTheme;
+import com.immersivecinematics.immersive_cinematics.editor.fields.FieldGroup;
 import com.immersivecinematics.immersive_cinematics.editor.widget.UIButton;
 import com.immersivecinematics.immersive_cinematics.editor.widget.UIComponent;
 import com.immersivecinematics.immersive_cinematics.editor.widget.UIDropdown;
@@ -18,6 +19,7 @@ import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import net.minecraft.client.resources.language.I18n;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -33,6 +35,8 @@ import java.util.function.Consumer;
 public abstract class EditorPanel extends UIComponent {
 
     protected PanelContext ctx;
+    /** 折叠组展开状态（titleKey → expanded），跨 build 保留 */
+    private final Map<String, Boolean> groupStates = new HashMap<>();
 
     public EditorPanel() {
         super(0, 0, 0, 0);
@@ -70,20 +74,131 @@ public abstract class EditorPanel extends UIComponent {
     protected void finishBuild() {
         int bottom = y;
         for (UIComponent c : getChildren()) {
+            if (!c.visible) continue;
             bottom = Math.max(bottom, getComponentBottom(c));
         }
         this.h = Math.max(1, bottom - y + 4);
     }
 
     private static int getComponentBottom(UIComponent comp) {
+        if (!comp.visible) return comp.y;
         int b = comp.y + comp.h;
         List<UIComponent> sub = comp.getChildren();
         if (sub != null) {
             for (UIComponent s : sub) {
+                if (!s.visible) continue;
                 b = Math.max(b, getComponentBottom(s));
             }
         }
         return b;
+    }
+
+    // ── 折叠分组 + 字段全覆盖 ──
+
+    protected boolean isGroupExpanded(String titleKey) {
+        Boolean state = groupStates.get(titleKey);
+        if (state == null) {
+            for (FieldGroup group : currentGroups()) {
+                if (group.getTitleKey().equals(titleKey)) {
+                    groupStates.put(titleKey, group.isDefaultExpanded());
+                    return group.isDefaultExpanded();
+                }
+            }
+            return true;
+        }
+        return state;
+    }
+
+    protected void toggleGroup(String titleKey) {
+        groupStates.put(titleKey, !isGroupExpanded(titleKey));
+        requestRebuild();
+    }
+
+    /** 子类可覆盖，用于解析折叠组默认状态；未覆盖时按默认展开 */
+    protected List<FieldGroup> currentGroups() {
+        return java.util.Collections.emptyList();
+    }
+
+    /** 按折叠组渲染字段；组内未设置字段也会显示“点击添加”入口 */
+    protected int reflectGroupedFields(JsonObject obj, int lx, int cy, List<FieldGroup> groups, boolean isKeyframe) {
+        for (FieldGroup group : groups) {
+            boolean expanded = isGroupExpanded(group.getTitleKey());
+            String label = I18n.get(group.getTitleKey());
+            UIButton title = new UIButton(lx, cy, w - 12, 16, (expanded ? "▾ " : "▸ ") + label, b -> {
+                toggleGroup(group.getTitleKey());
+            });
+            title.color(0xFF2A2A35, 0xFF333344).textColor(0xFFCCCCCC);
+            addChild(title);
+            cy += 18;
+
+            int start = getChildren().size();
+            for (String key : group.getKeys()) {
+                cy = reflectFieldOrAdd(obj, key, lx, cy, isKeyframe);
+            }
+            int end = getChildren().size();
+            if (!expanded) {
+                for (int i = start; i < end; i++) {
+                    getChildren().get(i).visible = false;
+                }
+            }
+            cy += 4;
+        }
+        return cy;
+    }
+
+    /** 字段全覆盖：已有字段正常渲染；缺失字段显示“未设置/点击添加” */
+    protected int reflectFieldOrAdd(JsonObject obj, String key, int lx, int cy, boolean isKeyframe) {
+        if (obj.has(key)) {
+            return reflectField(key, obj.get(key), lx, cy, 0, obj, null, isKeyframe);
+        }
+
+        FieldDef def = findFieldDef(key, isKeyframe);
+        String type = def != null ? def.type() : "string";
+        if ("tristate".equals(type)) {
+            return reflectTristate(key, lx, cy, 0, obj);
+        }
+        if ("int".equals(type) && (def == null || def.defaultValue() == null)) {
+            return reflectOptionalInt(key, lx, cy, 0, obj);
+        }
+
+        String label = formatKey(key) + ": " + I18n.get("editor.field.unset");
+        UIButton add = new UIButton(lx, cy, w - 12, 16, label, b -> {
+            addMissingField(obj, key, type, def);
+            markDirty();
+            requestRebuild();
+        });
+        add.color(0x00, 0x442A2A2A).textColor(EditorTheme.TEXT_DIM);
+        addChild(add);
+        return cy + 18;
+    }
+
+    private void addMissingField(JsonObject obj, String key, String type, FieldDef def) {
+        Object defVal = def != null ? def.defaultValue() : null;
+        if (defVal instanceof Boolean) {
+            obj.addProperty(key, (Boolean) defVal);
+        } else if (defVal instanceof Number) {
+            obj.addProperty(key, ((Number) defVal).floatValue());
+        } else if (defVal instanceof String) {
+            obj.addProperty(key, (String) defVal);
+        } else if ("map".equals(type) || "position".equals(type) || "object".equals(type)) {
+            obj.add(key, new JsonObject());
+        } else if ("array".equals(type) || "bezier_curve".equals(type)) {
+            obj.add(key, new JsonArray());
+        } else {
+            obj.addProperty(key, "");
+        }
+    }
+
+    private FieldDef findFieldDef(String key, boolean isKeyframe) {
+        if (ctx != null) {
+            TrackType tt = TrackType.valueOf(selectedTrackType().toUpperCase());
+            Map<String, FieldDef> fields = isKeyframe
+                    ? SchemaLoader.getKeyframeFields(tt)
+                    : SchemaLoader.getClipFields(tt);
+            FieldDef def = fields.get(key);
+            if (def != null) return def;
+        }
+        return SchemaLoader.getMetaFields().get(key);
     }
 
     // ── 字段反射工具（后续可整体迁到 fields/ 包） ──

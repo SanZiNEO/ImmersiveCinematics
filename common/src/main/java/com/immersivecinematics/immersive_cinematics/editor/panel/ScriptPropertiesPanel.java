@@ -1,18 +1,34 @@
 package com.immersivecinematics.immersive_cinematics.editor.panel;
 
 import com.immersivecinematics.immersive_cinematics.editor.EditorDefaults;
-import com.immersivecinematics.immersive_cinematics.editor.Scale;
-import com.immersivecinematics.immersive_cinematics.editor.widget.UILabel;
-import com.immersivecinematics.immersive_cinematics.script.SchemaLoader;
-import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
+import com.immersivecinematics.immersive_cinematics.editor.fields.FieldGroup;
 import net.minecraft.client.resources.language.I18n;
 
-import java.util.Map;
+import java.util.List;
 
 /**
- * 脚本属性面板（0.3.5 第5轮 5A）。
+ * 脚本属性面板（0.3.5 第5轮 5A + 字段全覆盖/折叠分组）。
  */
 public class ScriptPropertiesPanel extends EditorPanel {
+
+    private static final List<FieldGroup> GROUPS = List.of(
+            new FieldGroup("editor.group.basic", true,
+                    List.of("id", "name", "author", "version", "description", "dimension")),
+            new FieldGroup("editor.group.runtime", true,
+                    List.of("block_keyboard", "block_mouse", "block_mob_ai", "hide_hud",
+                            "render_player_model", "pause_when_game_paused")),
+            new FieldGroup("editor.group.hide", false,
+                    List.of("hide_arm", "suppress_bob", "hide_chat", "hide_scoreboard",
+                            "hide_action_bar", "hide_title", "hide_subtitles", "hide_hotbar",
+                            "hide_crosshair", "hide_bossbar", "hide_skip_hud")),
+            new FieldGroup("editor.group.playback", false,
+                    List.of("interruptible", "skippable", "hold_at_end", "priority", "skip_vote_ratio"))
+    );
+
+    @Override
+    protected List<FieldGroup> currentGroups() {
+        return GROUPS;
+    }
 
     @Override
     protected void buildContent() {
@@ -22,30 +38,10 @@ public class ScriptPropertiesPanel extends EditorPanel {
         int cy = y + 6;
         int lx = x + 6;
 
-        int sectionGap = (int)(16 * Scale.sy);
-        int smallGap = (int)(4 * Scale.sy);
-        addSectionLabel(I18n.get("editor.section.script_info"), lx, cy, 0); cy += sectionGap;
-        cy = buildMetaFields(lx, cy, "info");
-        cy += smallGap;
-        addSectionLabel(I18n.get("editor.section.runtime"), lx, cy, 0); cy += sectionGap;
-        cy = buildMetaFields(lx, cy, "runtime");
+        addSectionLabel(I18n.get("editor.section.script_info"), lx, cy, 0);
+        cy += 16;
+        cy = reflectGroupedFields(ctx.script, lx, cy, GROUPS, false);
         cy += 4;
-        addSectionLabel(I18n.get("editor.section.duration"), lx, cy, 0); cy += (int)(16 * Scale.sy);
         addSectionLabel(I18n.get("editor.field.total_duration") + ": " + fmtDuration(ctx.totalDuration), lx, cy, 0);
-    }
-
-    private int buildMetaFields(int lx, int cy, String section) {
-        for (Map.Entry<String, FieldDef> e : SchemaLoader.getMetaFields().entrySet()) {
-            if (!section.equals(e.getValue().section())) continue;
-            String key = e.getKey();
-            if ("tristate".equals(e.getValue().type())) {
-                cy = reflectTristate(key, lx, cy, 0, ctx.script);
-            } else if ("int".equals(e.getValue().type()) && e.getValue().defaultValue() == null) {
-                cy = reflectOptionalInt(key, lx, cy, 0, ctx.script);
-            } else if (ctx.script.has(key)) {
-                cy = reflectField(key, ctx.script.get(key), lx, cy, 0, ctx.script, null, false);
-            }
-        }
-        return cy;
     }
 }
