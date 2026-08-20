@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.entity.event.v1.ServerEntityWorldChangeEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -56,8 +57,10 @@ public final class FabricEvents {
             return net.minecraft.world.InteractionResultHolder.pass(player.getItemInHand(hand));
         });
         ServerEntityEvents.ENTITY_LOAD.register((entity, world) -> ServerEventHandler.onEntityAdded(entity));
+        ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD.register((player, origin, destination) ->
+                ServerEventHandler.onChangeDimension((ServerPlayer) player, origin.dimension(), destination.dimension()));
 
-        // Craft / pickup / drop / dimension / level save 在 Fabric 上通过 Mixin 或可用事件补齐；
+        // Craft / pickup / drop / advancement / level save 在 Fabric 上通过 Mixin 或可用事件补齐；
         // 这里先注册已有 API，缺失项由后续 Mixin 补充。
     }
 

@@ -83,8 +83,8 @@
   - `item_craft` 合成
   - `item_pickup` 拾取
   - `item_drop` 丢弃
-  - `dimension_change` 维度切换
-  - 存档保存（level save）
+  - 存档保存（level save，目前靠 server stopping 兜底）
+- Fabric `dimension_change` 已用 `ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD` 补齐 ✅
 - Forge 端已通过 Forge 事件覆盖上述功能
 
 ---
