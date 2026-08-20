@@ -1,9 +1,13 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
+import com.immersivecinematics.immersive_cinematics.control.FlightController;
 import com.immersivecinematics.immersive_cinematics.control.InputRouter;
 import com.immersivecinematics.immersive_cinematics.control.InputTarget;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
+import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -16,6 +20,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(MouseHandler.class)
 public abstract class MouseHandlerMixin {
+
+    @Shadow
+    private double xpos;
+
+    @Shadow
+    private double ypos;
 
     @Unique
     private static InputRouter inputRouter = InputRouter.createDefault();
@@ -38,6 +48,25 @@ public abstract class MouseHandlerMixin {
                           CallbackInfo ci) {
         InputTarget target = inputRouter.routeMouseScroll(yOffset);
         if (target != InputTarget.GAME) {
+            ci.cancel();
+        }
+    }
+
+    // ===== 鼠标原始移动（飞行取景软回中 + delta） =====
+
+    @Inject(method = "onMove", at = @At("HEAD"), cancellable = true)
+    private void onMove(long windowPointer, double x, double y, CallbackInfo ci) {
+        if (FlightController.INSTANCE.isActive()) {
+            double dx = x - this.xpos;
+            double dy = y - this.ypos;
+            FlightController.INSTANCE.onMouseMove(dx, dy);
+
+            long win = Minecraft.getInstance().getWindow().getWindow();
+            int cw = Minecraft.getInstance().getWindow().getScreenWidth();
+            int ch = Minecraft.getInstance().getWindow().getScreenHeight();
+            GLFW.glfwSetCursorPos(win, cw / 2.0, ch / 2.0);
+            this.xpos = cw / 2.0;
+            this.ypos = ch / 2.0;
             ci.cancel();
         }
     }

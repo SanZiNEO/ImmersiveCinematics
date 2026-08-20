@@ -46,6 +46,7 @@ public class ClientEventHandler {
             KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_PLAY_CLIP);
             KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_DELETE);
             KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FRAME_ALL);
+            KeyMappingRegistry.register(CinematicKeyBindings.EDITOR_FLIGHT);
         }
 
         // ===== 客户端 Tick =====

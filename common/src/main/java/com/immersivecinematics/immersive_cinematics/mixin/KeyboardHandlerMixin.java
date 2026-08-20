@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
+import com.immersivecinematics.immersive_cinematics.control.FlightController;
 import com.immersivecinematics.immersive_cinematics.control.InputRouter;
 import com.immersivecinematics.immersive_cinematics.control.InputTarget;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
@@ -60,6 +61,11 @@ public abstract class KeyboardHandlerMixin {
                 ci.cancel();
                 return;
             case BLOCK:
+                ci.cancel();
+                return;
+            case FLIGHT:
+                // 走中转层：把原始键事件喂给飞控，再拦截，不给游戏/编辑器 UI
+                FlightController.INSTANCE.onKeyEvent(key, scanCode, action);
                 ci.cancel();
                 return;
         }

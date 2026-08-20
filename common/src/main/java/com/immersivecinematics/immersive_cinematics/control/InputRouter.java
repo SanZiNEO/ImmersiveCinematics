@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.control;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import net.minecraft.client.Minecraft;
+import org.lwjgl.glfw.GLFW;
 
 /**
  * 输入路由器——决定按键/鼠标事件要路由到哪里。
@@ -32,6 +33,15 @@ public interface InputRouter {
             public InputTarget routeKeyboard(int key, int scanCode, int action, int modifiers) {
                 Minecraft mc = Minecraft.getInstance();
                 if (mc.level == null) return InputTarget.GAME;
+
+                // 飞行取景：F7/Esc 放行给 EditorScreen 退出/取消，其余按键全部交给飞控
+                if (FlightController.INSTANCE.isActive()) {
+                    if (CinematicKeyBindings.EDITOR_FLIGHT.matches(key, scanCode) || key == GLFW.GLFW_KEY_ESCAPE) {
+                        return InputTarget.GAME;
+                    }
+                    return InputTarget.FLIGHT;
+                }
+
                 if (!CameraManager.INSTANCE.isActive()) return InputTarget.GAME;
 
                 // 跳过键不走 blockKeyboard——即使用户关掉了键盘屏蔽也能长按跳过
@@ -51,16 +61,19 @@ public interface InputRouter {
 
             @Override
             public InputTarget routeMouseButton(int button, int action, int modifiers) {
+                if (FlightController.INSTANCE.isActive()) return InputTarget.FLIGHT;
                 return shouldBlockMouse() ? InputTarget.BLOCK : InputTarget.GAME;
             }
 
             @Override
             public InputTarget routeMouseScroll(double delta) {
+                if (FlightController.INSTANCE.isActive()) return InputTarget.FLIGHT;
                 return shouldBlockMouse() ? InputTarget.BLOCK : InputTarget.GAME;
             }
 
             @Override
             public InputTarget routeTurnPlayer() {
+                if (FlightController.INSTANCE.isActive()) return InputTarget.FLIGHT;
                 return shouldBlockMouse() ? InputTarget.BLOCK : InputTarget.GAME;
             }
 

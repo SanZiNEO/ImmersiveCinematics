@@ -8,10 +8,15 @@ import com.immersivecinematics.immersive_cinematics.editor.area.*;
 import com.immersivecinematics.immersive_cinematics.editor.debug.EditorLogger;
 import com.immersivecinematics.immersive_cinematics.editor.debug.RawInputLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
+import com.immersivecinematics.immersive_cinematics.editor.widget.FlightOverlay;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
+import com.immersivecinematics.immersive_cinematics.control.FlightController;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.language.I18n;
+import net.minecraft.world.phys.Vec3;
+import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL11;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -55,6 +60,7 @@ public class EditorScreen extends Screen {
 
     private UIComponent rootComponent;
     private ContextMenu contextMenu;
+    private FlightOverlay flightOverlay;
     private List<JsonObject> clipboard;
     private long lastSpacePress;
     /** A6 轨道显隐（会话级，引用轨道 JSON 对象） */
@@ -65,6 +71,15 @@ public class EditorScreen extends Screen {
     private final Set<JsonObject> mutedTracks = new java.util.HashSet<>();
     /** 组 7：gizmo/滑块拖拽中标志 — 拖拽期走直控播放体系（零重载），松手一次性推送 */
     private boolean gizmoDragging = false;
+
+    // ══════════ 飞行取景操控模式（0.3.5 第5轮） ══════════
+    private boolean flightMode = false;
+    private Vec3 flightPos = Vec3.ZERO;
+    private Vec3 flightStartPos = Vec3.ZERO;
+    private float flightYaw;
+    private float flightPitch;
+    private float flightStartYaw;
+    private float flightStartPitch;
 
     public EditorScreen(EditorBridge bridge, Path scriptsDir) {
         super(Component.literal("Cinematic Editor"));
@@ -123,6 +138,11 @@ public class EditorScreen extends Screen {
 
         contextMenu = new ContextMenu();
         rootComponent.addChild(contextMenu);
+
+        flightOverlay = new FlightOverlay();
+        flightOverlay.setBounds(0, 0, width, height);
+        flightOverlay.visible = false;
+        rootComponent.addChild(flightOverlay);
         RawInputLogger.enable();
         EditorLogger.areaBoundaries(EditorLogger.SCREEN,
                 "MenuBar=(0,0," + width + "," + menuH + ")"
@@ -885,6 +905,92 @@ public class EditorScreen extends Screen {
         output.markDirty(filterPreviewJson(), playback.getTime());
     }
 
+    // ══════════ 飞行取景操控模式 ══════════
+
+    private boolean enterFlightMode() {
+        if (flightMode) return false;
+        CameraManager cam = CameraManager.INSTANCE;
+        playback.pause();
+        output.pause();
+        cam.setPreviewDirectControl(true);
+        flightPos = cam.getPath().getPosition();
+        flightYaw = cam.getProperties().getYaw();
+        flightPitch = cam.getProperties().getPitch();
+        flightStartPos = flightPos;
+        flightStartYaw = flightYaw;
+        flightStartPitch = flightPitch;
+        FlightController.INSTANCE.enter(flightPos, flightYaw, flightPitch);
+        flightMode = true;
+        if (flightOverlay != null) flightOverlay.visible = true;
+        GLFW.glfwSetInputMode(Minecraft.getInstance().getWindow().getWindow(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
+        EditorLogger.action(EditorLogger.SCREEN, "FLIGHT", "enter");
+        return true;
+    }
+
+    private void exitFlightMode(boolean record) {
+        if (!flightMode) return;
+        flightMode = false;
+        CameraManager.INSTANCE.setPreviewDirectControl(false);
+        if (record) {
+            flightPos = FlightController.INSTANCE.getPos();
+            flightYaw = FlightController.INSTANCE.getYaw();
+            flightPitch = FlightController.INSTANCE.getPitch();
+            FlightController.INSTANCE.exit();
+            recordFlightCamera();
+        } else {
+            FlightController.INSTANCE.cancel();
+            syncPanels();
+        }
+        if (flightOverlay != null) flightOverlay.visible = false;
+        GLFW.glfwSetInputMode(Minecraft.getInstance().getWindow().getWindow(), GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_NORMAL);
+        EditorLogger.action(EditorLogger.SCREEN, "FLIGHT", record ? "exit+record" : "cancel");
+    }
+
+    private void updateFlightControls() {
+        if (!flightMode) return;
+        FlightController.INSTANCE.tick();
+    }
+
+    private void recordFlightCamera() {
+        JsonObject kf = sel.getKeyframe();
+        JsonObject clip = sel.getClip();
+        if (kf == null && clip != null && EditorOperations.canAddKeyframeAt(clip, playback.getTime())) {
+            undoManager.push(doc.toJson());
+            kf = EditorOperations.addKeyframeAt(clip, playback.getTime());
+            if (kf != null) {
+                sel.selectKeyframe(kf, clip);
+            }
+        } else if (kf != null) {
+            undoManager.push(doc.toJson());
+        }
+        if (kf == null) {
+            EditorLogger.action(EditorLogger.SCREEN, "FLIGHT", "no keyframe target");
+            return;
+        }
+
+        JsonObject pos = kf.has("position") ? kf.getAsJsonObject("position") : new JsonObject();
+        String mode = kf.has("position_mode") ? kf.get("position_mode").getAsString() : "relative";
+        if ("absolute".equals(mode)) {
+            pos.addProperty("x", (float) flightPos.x);
+            pos.addProperty("y", (float) flightPos.y);
+            pos.addProperty("z", (float) flightPos.z);
+            pos.remove("dx"); pos.remove("dy"); pos.remove("dz");
+        } else {
+            Vec3 playerPos = Minecraft.getInstance().player != null
+                    ? Minecraft.getInstance().player.position() : Vec3.ZERO;
+            pos.addProperty("dx", (float) (flightPos.x - playerPos.x));
+            pos.addProperty("dy", (float) (flightPos.y - playerPos.y));
+            pos.addProperty("dz", (float) (flightPos.z - playerPos.z));
+            pos.remove("x"); pos.remove("y"); pos.remove("z");
+        }
+        kf.add("position", pos);
+        kf.addProperty("yaw", flightYaw);
+        kf.addProperty("pitch", flightPitch);
+        doc.markDirty();
+        syncPanels();
+        pushScriptUpdate();
+    }
+
     /** 预设生成结果追加到当前脚本末尾（不替换 meta/旧轨道/旧片段） */
     private void appendPresetToDocument(JsonObject generated) {
         JsonArray targetTracks = doc.getTracks();
@@ -1114,6 +1220,7 @@ public class EditorScreen extends Screen {
         // 必须先 flush 再捕获,预览纹理才能包含完整播放画面(世界+覆盖层)。
         // 编辑器 UI 在 capture 之后才绘制,不会入镜(时序错开的既有特性保持不变)。
         minecraft.renderBuffers().bufferSource().endBatch();
+        if (flightMode) updateFlightControls();
         PreviewCapture.capture(minecraft);
         renderCycle++;
         String cycleStr = "cycle=" + renderCycle;
@@ -1181,6 +1288,7 @@ public class EditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        if (flightMode) return true;
         if (rootComponent == null) return false;
         leftPanel.clearTextFocus();
         UIContext ctx = makeCtx(mx, my, button);
@@ -1196,6 +1304,7 @@ public class EditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (flightMode) return true;
         if (rootComponent == null) return false;
         try {
             UIContext ctx = makeCtx(mx, my, button);
@@ -1209,6 +1318,7 @@ public class EditorScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mx, double my, int button) {
+        if (flightMode) return true;
         if (rootComponent == null) return false;
         try {
             UIContext ctx = makeCtx(mx, my, button);
@@ -1221,6 +1331,7 @@ public class EditorScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double scroll) {
+        if (flightMode) return true;
         if (rootComponent == null) return false;
         try {
             UIContext ctx = makeCtx(mx, my, 0);
@@ -1242,6 +1353,20 @@ public class EditorScreen extends Screen {
                 if (keyCode == 257) { timeline.commitRename(); doc.markDirty(); pushScriptUpdate(); syncPanels(); }
                 else if (keyCode == 256) { timeline.cancelRename(); }
                 else if (keyCode == 259) { timeline.backspaceRename(); }
+                return true;
+            }
+
+            // 飞行取景：F7 进入/退出记录，Esc 取消；期间所有键都被飞行模式消费
+            if (flightMode) {
+                if (CinematicKeyBindings.EDITOR_FLIGHT.matches(keyCode, scanCode)) {
+                    exitFlightMode(true);
+                } else if (keyCode == 256) {
+                    exitFlightMode(false);
+                }
+                return true;
+            }
+            if (CinematicKeyBindings.EDITOR_FLIGHT.matches(keyCode, scanCode)) {
+                enterFlightMode();
                 return true;
             }
 

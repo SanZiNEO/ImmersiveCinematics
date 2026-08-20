@@ -44,6 +44,7 @@ public class CinematicKeyBindings {
     public static final KeyMapping EDITOR_PLAY_CLIP     = new KeyMapping("key.immersive_cinematics.editor.play_clip",     GLFW.GLFW_KEY_ENTER,       EDITOR_CATEGORY);
     public static final KeyMapping EDITOR_DELETE        = new KeyMapping("key.immersive_cinematics.editor.delete",        GLFW.GLFW_KEY_DELETE,      EDITOR_CATEGORY);
     public static final KeyMapping EDITOR_FRAME_ALL     = new KeyMapping("key.immersive_cinematics.editor.frame_all",     GLFW.GLFW_KEY_F,           EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_FLIGHT        = new KeyMapping("key.immersive_cinematics.editor.flight",        GLFW.GLFW_KEY_F7,          EDITOR_CATEGORY);
 
     private static long skipKeyDownSince = 0;
     private static boolean skipTriggered = false;

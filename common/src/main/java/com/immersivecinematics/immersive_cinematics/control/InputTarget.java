@@ -12,5 +12,7 @@ public enum InputTarget {
     /** 拦截，但更新我们自己关注的 KeyMapping 状态（如跳过键） */
     SELF,
     /** 完全拦截，不传给任何人 */
-    BLOCK
+    BLOCK,
+    /** 飞行取景模式：输入交给 FlightController，不传给游戏/编辑器 UI */
+    FLIGHT
 }
