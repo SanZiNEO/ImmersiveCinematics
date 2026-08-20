@@ -763,10 +763,10 @@ public class EditorScreen extends Screen {
 
         leftPanel.setOnPresetGenerated(script -> {
             undoManager.push(doc.toJson());
-            doc.setRoot(script);
+            appendPresetToDocument(script);
             doc.markDirty();
-            pushScriptUpdate();
             syncPanels();
+            pushScriptUpdate();
         });
 
         leftPanel.setOnTrackAdd(type -> {
@@ -883,6 +883,32 @@ public class EditorScreen extends Screen {
     /** N2a：显式编辑推送（替代 syncPanels 的隐式 markDirty；200ms 节流由 EditorOutput 处理） */
     private void pushScriptUpdate() {
         output.markDirty(filterPreviewJson(), playback.getTime());
+    }
+
+    /** 预设生成结果追加到当前脚本末尾（不替换 meta/旧轨道/旧片段） */
+    private void appendPresetToDocument(JsonObject generated) {
+        JsonArray targetTracks = doc.getTracks();
+        float insertAt = EditorOperations.recalcDuration(targetTracks);
+        if (!generated.has("timeline") || !generated.getAsJsonObject("timeline").has("tracks")) return;
+
+        JsonArray genTracks = generated.getAsJsonObject("timeline").getAsJsonArray("tracks");
+        for (JsonElement te : genTracks) {
+            JsonObject genTrack = te.getAsJsonObject();
+            String type = genTrack.has("type") ? genTrack.get("type").getAsString() : "CAMERA";
+            JsonArray genClips = genTrack.has("clips") ? genTrack.getAsJsonArray("clips") : new JsonArray();
+
+            JsonObject targetTrack = findTrackByType(targetTracks, type);
+            if (targetTrack == null) {
+                targetTrack = EditorOperations.addTrack(targetTracks, type);
+            }
+            JsonArray targetClips = targetTrack.getAsJsonArray("clips");
+            for (JsonElement ce : genClips) {
+                JsonObject clip = ce.getAsJsonObject();
+                float start = clip.has("start_time") ? clip.get("start_time").getAsFloat() : 0f;
+                clip.addProperty("start_time", insertAt + start);
+                targetClips.add(clip);
+            }
+        }
     }
 
     /**
