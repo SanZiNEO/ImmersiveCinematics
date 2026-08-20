@@ -32,6 +32,9 @@ public class CameraFakeConnection extends Connection {
     private final ServerPlayer target;
     private final Set<Integer> syncedEntityIds = new HashSet<>();
     private boolean entitySyncEnabled = true;
+    private int forwardedEntityPackets = 0;
+    private int forwardedSoundPackets = 0;
+    private int blockedEntityPackets = 0;
 
     public CameraFakeConnection(ServerPlayer target) {
         super(PacketFlow.SERVERBOUND);
@@ -61,9 +64,28 @@ public class CameraFakeConnection extends Connection {
         this.entitySyncEnabled = entitySyncEnabled;
     }
 
+    /** 取出并重置包统计：[转发的实体/方块包, 转发的声音/粒子包, 被拦截的实体/方块包] */
+    public int[] takeAndResetPacketStats() {
+        int[] stats = new int[]{forwardedEntityPackets, forwardedSoundPackets, blockedEntityPackets};
+        forwardedEntityPackets = 0;
+        forwardedSoundPackets = 0;
+        blockedEntityPackets = 0;
+        return stats;
+    }
+
     @Override
     public void send(Packet<?> packet) {
-        if (target != null && target.connection != null && shouldForward(packet)) {
+        if (target == null || target.connection == null) return;
+        boolean sound = isSoundOrParticle(packet);
+        boolean world = isWorldPacket(packet);
+        boolean forward = shouldForward(packet);
+        if (sound) {
+            forwardedSoundPackets++;
+        } else if (world) {
+            if (forward) forwardedEntityPackets++;
+            else blockedEntityPackets++;
+        }
+        if (forward) {
             rememberSpawned(packet);
             forgetRemoved(packet);
             target.connection.send(packet);
@@ -72,7 +94,17 @@ public class CameraFakeConnection extends Connection {
 
     @Override
     public void send(Packet<?> packet, PacketSendListener listener) {
-        if (target != null && target.connection != null && shouldForward(packet)) {
+        if (target == null || target.connection == null) return;
+        boolean sound = isSoundOrParticle(packet);
+        boolean world = isWorldPacket(packet);
+        boolean forward = shouldForward(packet);
+        if (sound) {
+            forwardedSoundPackets++;
+        } else if (world) {
+            if (forward) forwardedEntityPackets++;
+            else blockedEntityPackets++;
+        }
+        if (forward) {
             rememberSpawned(packet);
             forgetRemoved(packet);
             target.connection.send(packet, listener);

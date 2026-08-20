@@ -144,6 +144,12 @@ public final class CameraMobManager {
                 updateEntitySyncState(a);
                 resyncCameraEntities(a);
             }
+            if (tickCounter % 100 == 0 && a.fakeConnection != null) {
+                int[] stats = a.fakeConnection.takeAndResetPacketStats();
+                if (stats[0] + stats[1] + stats[2] > 0) {
+                    LOGGER.info("[camera-entity] 包统计 转实体={} 转声音={} 拦实体={}", stats[0], stats[1], stats[2]);
+                }
+            }
         }
     }
 
