@@ -19,6 +19,10 @@ public final class ImmersiveCinematicsForge {
         // 网络桥接
         ForgeNetwork.init();
 
+        // Forge 假人引导器（绕开 placeNewPlayer 的 Forge 网络钩子）
+        com.immersivecinematics.immersive_cinematics.trigger.server.CameraMobManager.setBootstrapper(
+                new ForgeFakePlayerBootstrapper());
+
         // 服务端事件
         ForgeEvents.registerServer(FMLJavaModLoadingContext.get().getModEventBus(), MinecraftForge.EVENT_BUS);
 

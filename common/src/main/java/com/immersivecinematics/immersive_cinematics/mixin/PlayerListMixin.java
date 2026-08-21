@@ -3,6 +3,8 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 import com.immersivecinematics.immersive_cinematics.trigger.server.CameraFakePlayer;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.players.PlayerList;
 import org.slf4j.Logger;
@@ -45,6 +47,33 @@ public abstract class PlayerListMixin {
                                                       Connection connection, ServerPlayer player) {
         if (!(player instanceof CameraFakePlayer)) {
             logger.info(message, args);
+        }
+    }
+
+    @Redirect(
+            method = "placeNewPlayer",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/server/players/PlayerList;broadcastAll(Lnet/minecraft/network/protocol/Packet;)V"
+            )
+    )
+    private void immersivecinematics_hideFakePlayerInfo(PlayerList instance, Packet<?> packet,
+                                                        Connection connection, ServerPlayer player) {
+        if (!(player instanceof CameraFakePlayer) || !(packet instanceof ClientboundPlayerInfoUpdatePacket)) {
+            instance.broadcastAll(packet);
+        }
+    }
+
+    @Redirect(
+            method = "remove",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/server/players/PlayerList;broadcastAll(Lnet/minecraft/network/protocol/Packet;)V"
+            )
+    )
+    private void immersivecinematics_hideFakePlayerInfoRemove(PlayerList instance, Packet<?> packet, ServerPlayer player) {
+        if (!(player instanceof CameraFakePlayer) || !(packet instanceof net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket)) {
+            instance.broadcastAll(packet);
         }
     }
 }

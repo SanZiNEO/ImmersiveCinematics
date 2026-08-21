@@ -94,7 +94,7 @@ public final class ChunkPreloadManager {
         st.playerChunk = new ChunkPos(player.blockPosition());
         st.cameraYaw = yaw;
         st.playerRenderDistance = renderDistance;
-        if (isFar(cam, st.playerChunk) && freshScript) {
+        if (isFar(cam, st.playerChunk, viewDistanceChunks(st)) && freshScript) {
             enterFar(player, st, cam); // 立即进入（无防抖；退出/回玩家靠玩家区对账补发兜底）
         }
         // 近程 / 同脚本重入：零介入
@@ -106,7 +106,17 @@ public final class ChunkPreloadManager {
         if (st == null) return;
         ChunkPos cam = new ChunkPos(x >> 4, z >> 4);
         st.cameraYaw = yaw;
-        boolean farNow = isFar(cam, st.playerChunk);
+        boolean farNow = isFar(cam, st.playerChunk, viewDistanceChunks(st));
+
+        // 只要假人已经存在，就持续把它钉在最新相机位置（即使 chunk far 已结束，
+        // 假人还要继续补“原版跟踪范围之外”的实体，直到脚本结束）。
+        if (CameraMobManager.INSTANCE.hasAnchor(player.getUUID())) {
+            if (player.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+                CameraMobManager.INSTANCE.setAnchor(player.getUUID(), serverLevel, cam,
+                        st.cameraMobRadius, st.cameraMobSpawn, st.cameraMobAi);
+            }
+        }
+
         if (farNow && !st.farMode) {
             enterFar(player, st, cam);
             return;
@@ -128,12 +138,12 @@ public final class ChunkPreloadManager {
             return;
         }
         if (!farNow && st.farMode) {
-            // 回到玩家视距：撤票、还玩家小块、中心回玩家、玩家区对账补发
+            // 回到玩家视距：撤区块票、还玩家小块、中心回玩家、玩家区对账补发。
+            // 注意：不在这里移除假人——假人继续负责“玩家跟踪范围之外”的实体中继，直到脚本结束。
             st.farMode = false;
             clearCameraArea(player, st);
             setPlayerZone(player, st, false);
-            CameraMobManager.INSTANCE.removeAnchor(player.getUUID());
-            LOGGER.info("[preload far-end] 玩家={} 中心→玩家块 {}", player.getName().getString(), fmt(st.playerChunk));
+            LOGGER.info("[preload far-end] 玩家={} 中心→玩家块 {}（假人保留用于实体中继）", player.getName().getString(), fmt(st.playerChunk));
             sendCenter(player, st.playerChunk);
             resyncPlayerArea(player, st);
             return;
@@ -204,6 +214,12 @@ public final class ChunkPreloadManager {
         return st != null && st.farMode;
     }
 
+    /** 玩家实际视距（区块数）：客户端渲染距离与服务端视距取小；未知时回退服务端视距 */
+    public int getPlayerViewDistanceChunks(UUID player) {
+        PlayerState st = states.get(player);
+        return viewDistanceChunks(st);
+    }
+
     /** 客户端上报脚本结束（任意退出方式，含强退）→ 强制释放，区块加载交还玩家/原版 */
     public void onScriptFinished(ServerPlayer player) {
         release(player.getUUID(), player);
@@ -239,7 +255,7 @@ public final class ChunkPreloadManager {
                 player.getName().getString(), fmt(cam), fmt(st.playerChunk),
                 st.regionRadius, st.playerRenderDistance, serverRd, cap,
                 Config.preloadForceRadius ? Config.preloadForceRadiusValue : "-",
-                Config.preloadFarViewCenterThreshold);
+                viewDistanceChunks(st));
         updateDesired(st, cam);
         setPlayerZone(player, st, true);
         sendCenter(player, cam);
@@ -278,20 +294,8 @@ public final class ChunkPreloadManager {
     }
 
     private void sendReady(PlayerState st, int budget) {
-        ServerPlayer p = st.player;
-        if (!(p.level() instanceof net.minecraft.server.level.ServerLevel)) return;
-        net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) p.level();
-        int sent = 0;
-        for (ChunkPos pos : sortedByPriority(st)) {
-            if (sent >= budget) break;
-            if (!st.ticketed.contains(pos) || st.sent.containsKey(pos)) continue;
-            if (!level.getChunkSource().hasChunk(pos.x, pos.z)) continue;
-            LevelChunk chunk = level.getChunk(pos.x, pos.z);
-            p.connection.send(new ClientboundLevelChunkWithLightPacket(chunk, level.getLightEngine(), null, null)); // 先发后记账
-            sendEntitiesForChunk(level, pos, p);
-            st.sent.put(pos, System.currentTimeMillis());
-            sent++;
-        }
+        // 区块不再手动发送：相机区区块由 CameraFakeConnection 转发假人收到的原版区块流，
+        // 这样区块和实体走同一条原版时序，避免“实体到了、区块没到”的丢包问题。
     }
 
     /** 相机可见性：前方半平面（dot >= 0） */
@@ -390,11 +394,6 @@ public final class ChunkPreloadManager {
         LOGGER.info("[preload resync] 玩家={} 玩家区对账补发 {} 块", p.getName().getString(), count);
     }
 
-    /** 区块发给真实玩家后，补发该区块内尚未同步过的实体（去重逻辑在 CameraMobManager） */
-    private void sendEntitiesForChunk(ServerLevel level, ChunkPos pos, ServerPlayer player) {
-        CameraMobManager.INSTANCE.sendEntitiesForChunk(player, level, pos);
-    }
-
     /** 统计以 center 为中心、radius 个区块范围内已加载区块里的实体数量 */
     private int countEntities(ServerLevel level, ChunkPos center, int radius) {
         int count = 0;
@@ -461,9 +460,17 @@ public final class ChunkPreloadManager {
         p.connection.send(new ClientboundSetChunkCacheCenterPacket(c.x, c.z));
     }
 
-    private static boolean isFar(ChunkPos cam, ChunkPos player) {
-        int t = Math.max(2, Config.preloadFarViewCenterThreshold);
+    private static boolean isFar(ChunkPos cam, ChunkPos player, int viewDistance) {
+        int t = Math.max(2, viewDistance);
         return Math.abs(cam.x - player.x) > t || Math.abs(cam.z - player.z) > t;
+    }
+
+    /** 玩家实际视距（区块数）：客户端渲染距离与服务端视距取小；未知时回退服务端视距 */
+    private int viewDistanceChunks(PlayerState st) {
+        if (st == null || st.player == null) return 2;
+        int serverRd = Math.max(2, st.player.server.getPlayerList().getViewDistance());
+        int playerRd = st.playerRenderDistance > 0 ? Math.max(2, st.playerRenderDistance) : serverRd;
+        return Math.min(playerRd, serverRd);
     }
 
     private static String fmt(ChunkPos c) {

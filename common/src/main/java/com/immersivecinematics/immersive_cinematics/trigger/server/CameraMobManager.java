@@ -1,11 +1,12 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
+import com.immersivecinematics.immersive_cinematics.mixin.PlayerListAccessor;
 import com.mojang.authlib.GameProfile;
-import net.minecraft.network.protocol.game.ClientboundPlayerInfoRemovePacket;
 import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
 import net.minecraft.server.level.ServerEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.players.PlayerList;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.ChunkPos;
@@ -36,6 +37,13 @@ public final class CameraMobManager {
 
     public static final CameraMobManager INSTANCE = new CameraMobManager();
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CameraMob");
+
+    /** 平台假人引导器：Fabric/Forge 各自注入实现 */
+    private static FakePlayerBootstrapper bootstrapper;
+
+    public static void setBootstrapper(FakePlayerBootstrapper b) {
+        bootstrapper = b;
+    }
 
     private static final class Anchor {
         final UUID player;
@@ -93,42 +101,58 @@ public final class CameraMobManager {
         }
     }
 
-    /** 退出 far 模式时，把之前中继给玩家的实体全部移除，避免客户端残留“自己分身/幽灵实体” */
+    /**
+     * 退出 far 模式时按“玩家附近”区分清理：
+     * <ul>
+     *   <li>实体仍在服务端且位于玩家视距内 → 不删，交还原版玩家跟踪（原版会自己补发）</li>
+     *   <li>实体已不存在 / 位于玩家视距外 → 发移除包，避免客户端残留幽灵实体</li>
+     * </ul>
+     */
     private void cleanupSyncedEntities(Anchor a) {
         if (a.fakeConnection == null) return;
         ServerPlayer player = a.level.getServer().getPlayerList().getPlayer(a.player);
-        if (player == null || player.connection == null) return;
         it.unimi.dsi.fastutil.ints.IntList ids = a.fakeConnection.takeSyncedEntityIds();
-        if (!ids.isEmpty()) {
-            player.connection.send(new ClientboundRemoveEntitiesPacket(ids));
-            LOGGER.info("[camera-entity] 退出 far 清理 {} 个已同步实体", ids.size());
+        if (ids.isEmpty()) return;
+        if (player == null || player.connection == null) return;
+
+        it.unimi.dsi.fastutil.ints.IntList removeIds = new it.unimi.dsi.fastutil.ints.IntArrayList();
+        int nearLeft = 0;
+        for (int i = 0; i < ids.size(); i++) {
+            int id = ids.getInt(i);
+            Entity e = a.level.getEntity(id);
+            if (e != null && isNearPlayer(player, e)) {
+                nearLeft++;
+            } else {
+                removeIds.add(id);
+            }
         }
+        if (!removeIds.isEmpty()) {
+            player.connection.send(new ClientboundRemoveEntitiesPacket(removeIds));
+        }
+        LOGGER.info("[camera-entity] 退出 far 交还 {} 个附近实体，移除 {} 个远处/已消失实体",
+                nearLeft, removeIds.size());
+    }
+
+    /** 实体是否已进入原版玩家跟踪范围（按实体类型自身的 clientTrackingRange，XZ 平面判断） */
+    private boolean isNearPlayer(ServerPlayer player, Entity e) {
+        double radius = e.getType().clientTrackingRange() * 16.0;
+        double dx = e.getX() - player.getX();
+        double dz = e.getZ() - player.getZ();
+        return dx * dx + dz * dz <= radius * radius;
     }
 
     public boolean isActive() {
         return !anchors.isEmpty();
     }
 
-    /** 区块发给真实玩家后，补发该区块内尚未同步过的实体（跳过相机假人和玩家自己），返回本次新增同步数 */
-    public int sendEntitiesForChunk(ServerPlayer player, ServerLevel level, ChunkPos pos) {
-        Anchor a = anchors.get(player.getUUID());
-        if (a == null || a.fakeConnection == null) return 0;
-        AABB box = new AABB(
-                pos.getMinBlockX(), level.getMinBuildHeight(), pos.getMinBlockZ(),
-                pos.getMaxBlockX() + 1.0, level.getMaxBuildHeight(), pos.getMaxBlockZ() + 1.0);
-        int sent = 0;
-        for (Entity entity : level.getEntities((Entity) null, box,
-                e -> !(e instanceof CameraFakePlayer) && e != player)) {
-            if (a.fakeConnection.isEntitySynced(entity.getId())) continue;
-            ServerEntity serverEntity = new ServerEntity(level, entity, 0, false, p -> {});
-            serverEntity.sendPairingData(player, player.connection::send);
-            a.fakeConnection.markEntitySynced(entity.getId());
-            sent++;
-        }
-        return sent;
+    public boolean hasAnchor(UUID player) {
+        return anchors.containsKey(player);
     }
 
-    /** 每 10 tick 把假人钉在相机锚点，防止任何意外移动；每 20 tick 处理 NoAI + 补发相机区实体 */
+    /**
+     * 每 10 tick 把假人钉在相机锚点，防止任何意外移动；每 20 tick 处理 NoAI + 同步状态。
+     * 实体发包不再手动补发——完全由 {@link CameraFakeConnection} 转发假人收到的原版实体流。
+     */
     public void tick() {
         tickCounter++;
         boolean moveFake = tickCounter % 10 == 0;
@@ -142,7 +166,7 @@ public final class CameraMobManager {
                     applyNoAi(a);
                 }
                 updateEntitySyncState(a);
-                resyncCameraEntities(a);
+                syncCameraEntities(a);
             }
             if (tickCounter % 100 == 0 && a.fakeConnection != null) {
                 int[] stats = a.fakeConnection.takeAndResetPacketStats();
@@ -153,33 +177,56 @@ public final class CameraMobManager {
         }
     }
 
-    /** far 模式是唯一开关：far=true 时中继实体/方块包；far=false 时关闭（假人也会被移除） */
+    /**
+     * 实体中继不再按 far 开关整体开/关，而是由 {@link CameraFakeConnection} 按“实体是否已被原版玩家跟踪”逐实体过滤。
+     * 假人在脚本期间保持存活，只转发真实玩家跟踪范围之外的实体。
+     */
     private void updateEntitySyncState(Anchor a) {
         if (a.fakeConnection == null || a.fakePlayer == null) return;
-        boolean far = ChunkPreloadManager.INSTANCE.isFarMode(a.player);
         boolean previous = a.fakeConnection.isEntitySyncEnabled();
-        a.fakeConnection.setEntitySyncEnabled(far);
-        if (previous != far) {
-            LOGGER.info("[camera-entity] far={} 实体中继={}", far, far);
+        a.fakeConnection.setEntitySyncEnabled(true);
+        boolean far = ChunkPreloadManager.INSTANCE.isFarMode(a.player);
+        boolean prevChunk = a.fakeConnection.isChunkSyncEnabled();
+        a.fakeConnection.setChunkSyncEnabled(far);
+        if (!previous) {
+            LOGGER.info("[camera-entity] 实体中继保持开启（逐实体过滤）");
+        }
+        if (prevChunk != far) {
+            LOGGER.info("[camera-entity] 区块中继 far={}", far);
         }
     }
 
-    /** 周期性补发相机区尚未同步过的实体（兜底区块发送后才刷出来的怪） */
-    private void resyncCameraEntities(Anchor a) {
+    /**
+     * 对账补发：只补“原版玩家跟踪范围之外、但相机/假人能看到”的实体。
+     * 这些实体原版不会发给真实客户端，必须由我们主动发 Add/配对数据。
+     * 已同步过的跳过；假人连接后续收到的重复 Add 也会被去重。
+     */
+    private void syncCameraEntities(Anchor a) {
         if (a.fakeConnection == null || !a.fakeConnection.isEntitySyncEnabled()) return;
         ServerPlayer player = a.level.getServer().getPlayerList().getPlayer(a.player);
-        if (player == null) return;
+        if (player == null || player.connection == null) return;
         int r = a.radius;
-        int totalSent = 0;
+        int sent = 0;
         for (int dx = -r; dx <= r; dx++) {
             for (int dz = -r; dz <= r; dz++) {
                 ChunkPos pos = new ChunkPos(a.center.x + dx, a.center.z + dz);
                 if (!a.level.getChunkSource().hasChunk(pos.x, pos.z)) continue;
-                totalSent += sendEntitiesForChunk(player, a.level, pos);
+                AABB box = new AABB(
+                        pos.getMinBlockX(), a.level.getMinBuildHeight(), pos.getMinBlockZ(),
+                        pos.getMaxBlockX() + 1.0, a.level.getMaxBuildHeight(), pos.getMaxBlockZ() + 1.0);
+                for (Entity entity : a.level.getEntities((Entity) null, box,
+                        e -> !(e instanceof CameraFakePlayer) && e != player)) {
+                    if (a.fakeConnection.isEntitySynced(entity.getId())) continue;
+                    if (isNearPlayer(player, entity)) continue; // 原版自己会发
+                    ServerEntity serverEntity = new ServerEntity(a.level, entity, 0, false, p -> {});
+                    serverEntity.sendPairingData(player, player.connection::send);
+                    a.fakeConnection.markEntitySynced(entity.getId());
+                    sent++;
+                }
             }
         }
-        if (totalSent > 0) {
-            LOGGER.info("[camera-entity] 周期补发 新增 {} 实体", totalSent);
+        if (sent > 0) {
+            LOGGER.info("[camera-entity] 对账补发 新增 {} 实体（原版范围外）", sent);
         }
     }
 
@@ -208,22 +255,23 @@ public final class CameraMobManager {
                 CameraFakePlayer.FAKE_PLAYER_NAME);
         CameraFakePlayer fake = new CameraFakePlayer(a.level.getServer(), a.level, profile);
         ServerPlayer real = a.level.getServer().getPlayerList().getPlayer(a.player);
-        CameraFakeConnection connection = new CameraFakeConnection(real);
-        a.level.getServer().getPlayerList().placeNewPlayer(connection, fake);
-        // placeNewPlayer 可能重置外观状态，这里重新强制隐藏/静默/无敌
+        CameraFakeConnection connection = new CameraFakeConnection(real, a.level);
+        if (bootstrapper == null) {
+            LOGGER.error("[camera-fake] 未设置平台假人引导器，无法创建假人 玩家={}", a.player);
+            return;
+        }
+        // 平台各自引导：Fabric 走 placeNewPlayer；Forge 手动拼最小假玩家（绕开 Forge 网络登录钩子）
+        bootstrapper.bootstrap(fake, connection, a.level);
+        // 引导过程可能重置外观状态，这里重新强制隐藏/静默/无敌
         fake.setInvisible(true);
         fake.setCustomNameVisible(false);
         fake.setSilent(true);
         fake.getAbilities().invulnerable = true;
 
-        // 从所有真实玩家的 Tab 列表中移除假人
-        ClientboundPlayerInfoRemovePacket remove = new ClientboundPlayerInfoRemovePacket(java.util.List.of(fake.getUUID()));
-        for (ServerPlayer p : a.level.getServer().getPlayerList().getPlayers()) {
-            if (p instanceof CameraFakePlayer) continue;
-            if (p.connection != null) {
-                p.connection.send(remove);
-            }
-        }
+        // 假人只作为区块/刷怪占位，绝不能进入 PlayerList 广播列表（否则 Tab/延迟更新会泄漏给真实客户端）。
+        // 注意：Forge 的 getPlayers() 是不可变视图，必须通过 Accessor 拿内部可变列表。
+        PlayerList playerList = a.level.getServer().getPlayerList();
+        ((PlayerListAccessor) playerList).immersivecinematics_getPlayersList().remove(fake);
 
         a.fakePlayer = fake;
         a.fakeConnection = connection;

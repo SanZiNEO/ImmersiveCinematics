@@ -85,11 +85,8 @@ public final class PreloadRequester {
                                 script.getMeta().isCameraMobAi()));
                 return;
             }
-            if (!far) {
-                // 相机回到玩家视距 → 释放
-                releaseIfNeeded();
-                return;
-            }
+            // 注意：相机回到玩家视距后不释放预载会话，继续上报位置，
+            // 让服务端假人跟着相机移动，继续补“原版跟踪范围之外”的实体，直到脚本结束。
             tickCounter++;
             if (tickCounter % Math.max(1, Config.preloadReportInterval) == 0) {
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
@@ -101,11 +98,16 @@ public final class PreloadRequester {
         }
     }
 
+    /** 中继/预载开关统一使用玩家实际渲染视距（区块数），与服务端 ChunkPreloadManager 一致 */
+    private static int viewDistance(Minecraft mc) {
+        return Math.max(2, mc.options.renderDistance().get());
+    }
+
     private static boolean isFarFromPlayer(Minecraft mc, int bx, int bz) {
         if (mc.player == null) return false;
         int pcx = mc.player.blockPosition().getX() >> 4;
         int pcz = mc.player.blockPosition().getZ() >> 4;
-        int far = Math.max(2, Config.preloadFarViewCenterThreshold);
+        int far = viewDistance(mc);
         return Math.abs((bx >> 4) - pcx) > far || Math.abs((bz >> 4) - pcz) > far;
     }
 
@@ -159,7 +161,7 @@ public final class PreloadRequester {
         if (mc.player == null) return;
         int playerCx = mc.player.blockPosition().getX() >> 4;
         int playerCz = mc.player.blockPosition().getZ() >> 4;
-        int far = Math.max(2, Config.preloadFarViewCenterThreshold);
+        int far = viewDistance(mc);
         if (Math.abs(targetCx - playerCx) <= far && Math.abs(targetCz - playerCz) <= far) {
             return; // 下一片段在玩家附近，无需预载
         }
@@ -176,6 +178,14 @@ public final class PreloadRequester {
 
     private void releaseIfNeeded() {
         if (lastScript.isEmpty()) return;
+        Minecraft mc = Minecraft.getInstance();
+        // 不在游戏内/连接已关闭时只清状态，绝不发包（异常断线/世界退出场景）
+        if (mc.level == null || mc.getConnection() == null) {
+            lastScript = "";
+            lastPrewarm = "";
+            preloadActive = false;
+            return;
+        }
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                 new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_RELEASE, lastScript, 0, 0, 0, 0f, 0,
                         C2SPreloadRequestPacket.DEFAULT_CAMERA_MOB_SPAWN,
