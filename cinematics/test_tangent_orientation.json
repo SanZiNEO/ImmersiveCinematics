@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "id": "test_tangent_orientation",
+    "name": "切线朝向测试",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "测试 orient=tangent：相机沿贝塞尔路径切线方向看，并叠加 pitch_offset=-5 轻微俯视",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": true,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "id": "camera_1",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "orient": "tangent",
+            "yaw_offset": 0,
+            "pitch_offset": -5,
+            "curve": {
+              "type": "bezier",
+              "control_points": [
+                { "dx": 0, "dy": 0, "dz": 20 },
+                { "dx": 0, "dy": 0, "dz": 40 }
+              ]
+            },
+            "keyframes": [
+              { "time": 0, "position": { "dx": -20, "dy": 2, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 12, "position": { "dx": 20, "dy": 4, "dz": 60 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
