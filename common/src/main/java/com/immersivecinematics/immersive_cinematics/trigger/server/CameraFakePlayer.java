@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
 import com.mojang.authlib.GameProfile;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -25,6 +26,18 @@ public class CameraFakePlayer extends ServerPlayer {
         setSilent(true);
         setInvulnerable(true);
         getAbilities().invulnerable = true;
+    }
+
+    /** 假人不落盘：不写入任何玩家/实体数据 */
+    @Override
+    public void addAdditionalSaveData(CompoundTag tag) {
+        // 故意留空——CameraFakePlayer 只是运行时占位，不应产生存档数据
+    }
+
+    /** 假人不读旧档：忽略可能存在的历史假人数据，避免旧坐标/旧状态被加载 */
+    @Override
+    public void readAdditionalSaveData(CompoundTag tag) {
+        // 故意留空——每次创建都是全新假人，不读取任何历史数据
     }
 
     @Override

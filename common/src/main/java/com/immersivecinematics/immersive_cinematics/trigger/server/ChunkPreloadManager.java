@@ -156,7 +156,8 @@ public final class ChunkPreloadManager {
             if (st.player == null || st.prewarm == null) continue;
             requestPrewarmTickets(st, Math.max(1, Config.preloadPrewarmRequestsPerTick));
         }
-        if (now - lastStatusLog >= 1000 && !states.isEmpty()) {
+        // 健康/诊断日志只在调试模式输出；生产环境不每秒扫区块做实体统计
+        if (Config.debugLogging && now - lastStatusLog >= 1000 && !states.isEmpty()) {
             lastStatusLog = now;
             for (PlayerState st : states.values()) {
                 if (st.player == null) continue;
