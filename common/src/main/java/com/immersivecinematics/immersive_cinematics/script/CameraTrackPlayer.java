@@ -568,6 +568,17 @@ public class CameraTrackPlayer implements TrackPlayer {
      */
     private float[] segmentYawPitch(Keyframe from, Keyframe to, float s, Clip clip, Vec3 segPos,
                                     float yawBase, float pitchBase) {
+        // 切线朝向：相机沿路径切线方向看，可叠加水平/垂直偏移
+        if (from != null && to != null && isTangentOrientation(from, to, clip)) {
+            Vec3 p0 = evalKeyframeWorldPos(from, clip);
+            Vec3 p3 = evalKeyframeWorldPos(to, clip);
+            boolean anyFollow = "entity".equals(from.getString("follow", "none"))
+                    || "entity".equals(to.getString("follow", "none"));
+            PathStrategy strategy = anyFollow ? PathStrategies.get("linear") : bezierStrategy;
+            return TangentOrientation.compute(p0, p3, s,
+                    anyFollow ? null : clip.getCurve(), strategy,
+                    yawOffsetOf(from, to, clip), pitchOffsetOf(from, to, clip));
+        }
         if (from != null && to != null) {
             boolean anyLook = !"none".equals(from.getString("look_at", "none"))
                     || !"none".equals(to.getString("look_at", "none"));
@@ -608,6 +619,37 @@ public class CameraTrackPlayer implements TrackPlayer {
         }
         // 单端防御：退回调用方传入的插值角
         return new float[]{yawBase, pitchBase};
+    }
+
+    // ===== 切线朝向辅助 =====
+
+    private boolean isTangentOrientation(Keyframe from, Keyframe to, Clip clip) {
+        return "tangent".equals(orientOf(from, to, clip));
+    }
+
+    /** 朝向模式：关键帧优先，其次 clip；默认 manual */
+    private String orientOf(Keyframe from, Keyframe to, Clip clip) {
+        if (from != null) {
+            String v = from.getString("orient", "");
+            if (!v.isEmpty()) return v;
+        }
+        if (to != null) {
+            String v = to.getString("orient", "");
+            if (!v.isEmpty()) return v;
+        }
+        return clip.getString("orient", "manual");
+    }
+
+    private float yawOffsetOf(Keyframe from, Keyframe to, Clip clip) {
+        if (from != null && from.getData().containsKey("yaw_offset")) return from.getFloat("yaw_offset", 0f);
+        if (to != null && to.getData().containsKey("yaw_offset")) return to.getFloat("yaw_offset", 0f);
+        return clip.getFloat("yaw_offset", 0f);
+    }
+
+    private float pitchOffsetOf(Keyframe from, Keyframe to, Clip clip) {
+        if (from != null && from.getData().containsKey("pitch_offset")) return from.getFloat("pitch_offset", 0f);
+        if (to != null && to.getData().containsKey("pitch_offset")) return to.getFloat("pitch_offset", 0f);
+        return clip.getFloat("pitch_offset", 0f);
     }
 
     /** 单关键帧最终世界 yaw = 基准方向 + 偏移（look_at=none 语义） */

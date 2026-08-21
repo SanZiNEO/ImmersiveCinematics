@@ -38,6 +38,29 @@ public class BezierPathStrategy implements PathStrategy {
         }
     }
 
+    @Override
+    public Vec3 tangent(Vec3 from, Vec3 to, float s, BezierCurve curve) {
+        if (curve != null && curve.isValid()) {
+            Vec3 p1 = curve.resolveP1(from);
+            Vec3 p2 = curve.resolveP2(from);
+
+            ArcLengthLUT lut = lutCache.computeIfAbsent(
+                    new LutKey(from, p1, p2, to),
+                    k -> new ArcLengthLUT(from, p1, p2, to)
+            );
+
+            // B'(u) = 3(1-u)^2(P1-P0) + 6(1-u)u(P2-P1) + 3u^2(P3-P2)
+            float u = lut.lookupT(s);
+            double a = 3.0 * (1.0 - u) * (1.0 - u);
+            double b = 6.0 * (1.0 - u) * u;
+            double c = 3.0 * u * u;
+            return p1.subtract(from).scale(a)
+                    .add(p2.subtract(p1).scale(b))
+                    .add(to.subtract(p2).scale(c));
+        }
+        return to.subtract(from);
+    }
+
     private record LutKey(Vec3 from, Vec3 p1, Vec3 p2, Vec3 to) {
         private LutKey {
             Objects.requireNonNull(from);

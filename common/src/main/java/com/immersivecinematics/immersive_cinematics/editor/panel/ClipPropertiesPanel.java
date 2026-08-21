@@ -17,7 +17,8 @@ public class ClipPropertiesPanel extends EditorPanel {
             new FieldGroup("editor.group.loop", false,
                     List.of("loop_count", "loop_mode")),
             new FieldGroup("editor.group.path", false,
-                    List.of("curve", "dimension", "transition_duration")),
+                    List.of("curve", "dimension", "transition_duration",
+                            "orient", "yaw_offset", "pitch_offset")),
             new FieldGroup("editor.group.breath", false,
                     List.of("cam_breath_enabled", "cam_breath_intensity", "cam_breath_seed",
                             "cam_breath_type", "cam_breath_speed", "cam_breath_trauma", "cam_breath_decay"))

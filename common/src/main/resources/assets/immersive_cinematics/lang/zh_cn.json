@@ -269,6 +269,13 @@
     "editor.field.x": "X",
     "editor.field.y": "Y",
     "editor.field.z": "Z",
+    "editor.field.orient": "朝向模式",
+    "editor.field.yaw_offset": "水平偏移",
+    "editor.field.pitch_offset": "垂直偏移",
+
+    "editor.enum.orient.manual": "手动",
+    "editor.enum.orient.look_at": "注视目标",
+    "editor.enum.orient.tangent": "沿路径切线",
 
     "editor.enum.transition.cut": "切",
     "editor.enum.transition.morph": "渐变",

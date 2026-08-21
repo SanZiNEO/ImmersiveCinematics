@@ -269,6 +269,13 @@
     "editor.field.x": "x",
     "editor.field.y": "y",
     "editor.field.z": "z",
+    "editor.field.orient": "orientation",
+    "editor.field.yaw_offset": "yaw offset",
+    "editor.field.pitch_offset": "pitch offset",
+
+    "editor.enum.orient.manual": "manual",
+    "editor.enum.orient.look_at": "look at",
+    "editor.enum.orient.tangent": "path tangent",
 
     "editor.enum.transition.cut": "cut",
     "editor.enum.transition.morph": "morph",

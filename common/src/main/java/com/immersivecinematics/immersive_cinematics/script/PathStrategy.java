@@ -29,4 +29,19 @@ public interface PathStrategy {
      * @return 插值后的位置
      */
     Vec3 interpolate(Vec3 from, Vec3 to, float t, BezierCurve curve);
+
+    /**
+     * 计算路径上指定参数位置的切线方向（未归一化）。
+     * <p>
+     * 默认实现为直线方向；曲线策略应覆写为真实导数。
+     *
+     * @param from  起始关键帧位置
+     * @param to    终止关键帧位置
+     * @param t     归一化参数 [0, 1]
+     * @param curve 贝塞尔控制点（可为 null）
+     * @return 切线向量（可为零向量，调用方自行兜底）
+     */
+    default Vec3 tangent(Vec3 from, Vec3 to, float t, BezierCurve curve) {
+        return to.subtract(from);
+    }
 }
