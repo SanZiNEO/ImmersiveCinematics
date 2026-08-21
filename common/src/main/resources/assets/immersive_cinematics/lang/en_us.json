@@ -274,7 +274,6 @@
     "editor.field.pitch_offset": "pitch offset",
 
     "editor.enum.orient.manual": "manual",
-    "editor.enum.orient.look_at": "look at",
     "editor.enum.orient.tangent": "path tangent",
 
     "editor.enum.transition.cut": "cut",

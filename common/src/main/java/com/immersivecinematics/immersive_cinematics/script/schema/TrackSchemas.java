@@ -43,7 +43,7 @@ public final class TrackSchemas {
         clips.put("cam_breath_speed", new FieldDef("float", 1.0f));
         clips.put("cam_breath_trauma", new FieldDef("float", 1.0f));
         clips.put("cam_breath_decay", new FieldDef("float", 0.5f));
-        clips.put("orient", new FieldDef("enum", "manual", false, List.of("manual", "look_at", "tangent")));
+        clips.put("orient", new FieldDef("enum", "manual", false, List.of("manual", "tangent")));
         clips.put("yaw_offset", new FieldDef("float", 0f));
         clips.put("pitch_offset", new FieldDef("float", 0f));
 
@@ -69,9 +69,6 @@ public final class TrackSchemas {
         kfs.put("roll", new FieldDef("float", 0));
         kfs.put("fov", new FieldDef("float", 70));
         kfs.put("zoom", new FieldDef("float", 1.0f));
-        kfs.put("orient", new FieldDef("enum", "manual", false, List.of("manual", "look_at", "tangent")));
-        kfs.put("yaw_offset", new FieldDef("float", 0f));
-        kfs.put("pitch_offset", new FieldDef("float", 0f));
 
         return new TrackTypeSchema(clips, kfs);
     }

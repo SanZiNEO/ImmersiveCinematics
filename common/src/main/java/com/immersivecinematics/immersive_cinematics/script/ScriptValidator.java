@@ -160,7 +160,7 @@ public final class ScriptValidator {
 
                 checkEnum(clip, cp, "interpolation", issues, "linear", "smooth");
                 checkEnum(clip, cp, "transition", issues, "cut", "morph");
-                checkEnum(clip, cp, "orient", issues, "manual", "look_at", "tangent");
+                checkEnum(clip, cp, "orient", issues, "manual", "tangent");
                 if ("CAMERA".equalsIgnoreCase(type)) {
                     // 废弃检测：position_mode / cam_tracking_* 已迁移到关键帧级
                     if (clip.has("position_mode") || clip.has("cam_tracking_look_at")
@@ -273,7 +273,6 @@ public final class ScriptValidator {
                             checkEnum(kf, kp, "position_mode", issues, "relative", "absolute");
                             checkEnum(kf, kp, "follow", issues, "none", "entity");
                             checkEnum(kf, kp, "look_at", issues, "none", "coordinate", "entity");
-                            checkEnum(kf, kp, "orient", issues, "manual", "look_at", "tangent");
                             String follow = kf.has("follow") ? kf.get("follow").getAsString() : "none";
                             String lookAt = kf.has("look_at") ? kf.get("look_at").getAsString() : "none";
                             if ("entity".equals(follow) && !kf.has("follow_selector")) {

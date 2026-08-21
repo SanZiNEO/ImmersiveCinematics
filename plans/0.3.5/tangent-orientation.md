@@ -74,9 +74,7 @@ roll  = 关键帧手写 roll
 
 ---
 
-## 4. 脚本参数草案
-
-### 4.1 clip 级（整段统一）
+## 4. 脚本参数（已定：片段级）
 
 ```json
 {
@@ -92,36 +90,23 @@ roll  = 关键帧手写 roll
 }
 ```
 
-### 4.2 关键帧级（更细，可选）
-
-```json
-{
-  "time": 1.0,
-  "position": {...},
-  "orient": "tangent",
-  "yaw_offset": 30,
-  "pitch_offset": -10
-}
-```
-
-优先采用 **clip 默认 + 关键帧覆盖**（与缓动粒度方案一致）。
+- `orient`：片段级，`manual` / `tangent`
+- `yaw_offset / pitch_offset`：片段级，仅 `tangent` 生效
+- `look_at`：关键帧级，保持现状
 
 ---
 
-## 5. 优先级规则
+## 5. 优先级规则（已定）
 
-`orient` 三选一：
+```text
+1. 段内有 look_at（任一端写了） → 用 look_at
+2. 否则片段 orient = tangent   → 沿路径切线 + offset
+3. 否则                         → 手写 yaw/pitch 插值
+```
 
-| orient | 行为 |
-|---|---|
-| `manual`（默认） | 手写 yaw/pitch/roll |
-| `look_at` | 看向目标点/实体 |
-| `tangent` | 沿路径切线 + offset |
-
-规则：
-- 不写 `orient`：保持现状（有 `look_at` 则 look_at，否则手写）
-- `orient: "look_at"`：必须能解析目标，否则回退手写
-- `orient: "tangent"`：只对非 follow 的普通路径有效；follow 动态实体时回退手写或 look_at
+- `orient` 只保留 `manual` / `tangent`
+- `look_at` 由关键帧控制，优先于 tangent
+- `tangent` 只对非 follow 的普通路径有效；follow 动态实体时回退手写或 look_at
 
 ---
 
@@ -146,16 +131,18 @@ roll  = 关键帧手写 roll
 
 ---
 
-## 7. 需要讨论/确认
+## 7. 已定/待确认
 
-1. 粒度：clip 级还是关键帧级？
-2. morph 过渡：前一段 manual、后一段 tangent，过渡时朝向怎么混合？
+已定：
+- 粒度：`orient` / offset 为片段级；`look_at` 为关键帧级
+- 优先级：look_at > tangent > manual
+- `roll` 在 tangent 下不自动压弯，仍手写
+
+待确认/后续：
+1. morph 过渡：前一段 look_at、后一段 tangent，过渡时朝向怎么混合？
    - 简单方案：过渡期间按现有角度插值混合
    - 复杂方案：每帧分别算两种朝向再 blend
-3. `roll` 在 tangent 下是否要自动压弯（bank）？
-   - 本期建议：不自动，roll 仍手写
-4. 编辑器 UI：是否要可视化 `yaw_offset / pitch_offset`？
-   - 本期建议：先不做 UI，只支持脚本字段
+2. 编辑器 UI：目前字段已接入，后续统一优化为切换按钮/面板
 
 ---
 
