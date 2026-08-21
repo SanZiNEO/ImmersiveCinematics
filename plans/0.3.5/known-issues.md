@@ -1,63 +1,43 @@
 # 0.3.5 已知问题记录（第 5.5 轮后）
 
-**状态**: 记录中，未修复
+**状态**: 已修复（2026-08-21）
 **日期**: 2026-08-21
 
 ---
 
 ## 1. 触发器持久化：Forge 与 Fabric 行为不一致
 
-### 现象
+### 状态
 
-- **Forge**：登录脚本（`repeatable: false`）在同一个存档里**不会重复触发**。
-- **Fabric**：登录脚本每次进入世界都会**重新触发**。
+✅ 已修复。Fabric 已接入与 Forge 同一套 `TriggerStateStore` 存档读写链路：
+- `ServerEventHandler.onServerStarted` → `TriggerStateStore.initialize(server)` 初始化存档目录
+- `ServerPlayConnectionEvents.JOIN` → `loadForPlayer` 读取 `trigger_state/<uuid>.snbt`
+- `ServerPlayConnectionEvents.DISCONNECT` → `unloadForPlayer` 保存并卸载
+- `MinecraftServerMixin` → `saveEverything` 返回后 `saveAll()` 兜底
+- `SERVER_STOPPING` → `saveAll()` 兜底
 
-### 原因
+因此 Fabric 现在也会把 `repeatable: false` 的登录触发器写入存档，再次进入同一存档不会重复触发，与 Forge 行为一致。
 
-- Forge 侧已经实现了触发器状态持久化：
-  - `TriggerStateStore` 会把已触发/已完成脚本写到存档目录 `immersive_cinematics/trigger_state/*.snbt`；
-  - 再次进入同一存档时，`repeatable: false` 的登录触发器被判定为“已触发”，不再触发。
-- Fabric 侧**没有实现持久化**：
-  - 触发器状态只存在内存里；
-  - 每次重新进入世界，状态被重置，所以登录脚本会再次触发。
+### 原因（历史）
 
-### 影响
-
-- 同一个测试脚本在 Forge / Fabric 上的“是否自动播放”表现不同。
-- 对玩家体验来说，Forge 更符合“一次性触发”的预期；Fabric 目前是“每次登录都触发”。
-
-### 后续方向
-
-- 决定是否统一：
-  - 方案 A：给 Fabric 补持久化，让两端都遵循 `repeatable: false`；
-  - 方案 B：明确接受差异，在文档中说明 Fabric 登录触发器可重复。
-- 如果补 Fabric 持久化，需要接入 Fabric 的存档目录读写，并复用 `TriggerStateStore` 的序列化格式。
+- 之前 Fabric 侧没有把 `TriggerStateStore` 的存档读写接到 Fabric 生命周期事件/存档保存上，状态只存在内存里。
+- 现已补齐 Fabric 的存档保存 Mixin 与玩家加入/退出加载保存链路。
 
 ---
 
 ## 2. Forge 实体数量偏少：疑似 Forge 专属包时序问题
 
-### 现象
+### 状态
 
-- Fabric：相机区实体数量充足，表现正常。
-- Forge：
-  - 服务端 `相机实体=110~120`；
-  - 客户端 `radius=64 count=23~25`；
-  - 实际画面里村庄生物偏少。
+✅ 已修复（2026-08-21 同村庄测试确认）。
+- 修复前：Forge 客户端 `radius=64 count=23~25`
+- 修复后：同一村庄位置稳定 `count=60~66`，与 Fabric 同区间
 
-### 判断
+### 处理摘要
 
-- 服务端实体数量是有的，不是刷怪/加载问题。
-- 更像是 **Forge 侧实体包在转发/到达客户端的过程中有丢失或时序错位**。
-- 第 3 轮区块预加载本身不是原因；Fabric 同样逻辑下数量正常，说明问题集中在 Forge 网络/包处理路径。
-
-### 后续方向
-
-- 对比 Forge / Fabric 的实体包转发路径：
-  - `ClientboundBundlePacket` 拆包后是否在 Forge 上完整到达；
-  - 区块包与实体包的到达顺序是否在 Forge 上不一致；
-  - 是否需要在 Forge 侧增加专门的实体对账/补发日志。
-- 目标：让 Forge 客户端实体数接近服务端“64 格范围内”的实体数。
+- 假人先 `moveTo` 相机坐标再 bootstrap，使 `addNewPlayer` 按原版顺序发送初始区块与实体
+- `CameraFakeConnection` 解包 `ClientboundBundlePacket` 并原样转发，保持区块/实体同源时序
+- 增加节流日志后确认初始 `ClientboundAddEntityPacket` 均到达客户端
 
 ---
 

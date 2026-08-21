@@ -13,8 +13,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(MinecraftServer.class)
 public abstract class MinecraftServerMixin {
 
-    @Inject(method = "saveEverything", at = @At("HEAD"))
+    @Inject(method = "saveEverything", at = @At("RETURN"))
     private void immersivecinematics_onSaveEverything(boolean bl, boolean bl2, boolean bl3, CallbackInfoReturnable<Boolean> cir) {
+        // 在原版存档保存完成后落盘触发器状态，确保 Fabric 与 Forge 一样持久化
         ServerEventHandler.onLevelSave();
     }
 }
