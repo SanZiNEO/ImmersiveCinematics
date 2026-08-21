@@ -42,10 +42,15 @@ ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server
 - Multi-player script tracking with completion sync
 
 **Compatibility**
-- Forge 47.x+ and Fabric (Architectury multi-loader)
+- Forge 47.x+ and Fabric 1.20.1 (MultiLoader, no third-party API dependency)
 - Shader pack compatible (no OpenGL pipeline intrusion)
 - View bobbing suppression (hurt shake, walk bob, nausea)
 - Pause-aware: scripts freeze when game is paused
+
+**World & Audio**
+- Chunk preloading with far camera-region support: hidden fake player drives vanilla chunk/entity tracking, so distant cutscene locations stay loaded and entities are relayed to the real client
+- Per-script preload toggle (`meta.preload`), configurable radius/cap/force/prewarm settings persisted per platform
+- Audio listener modes (`meta.listener`: player/camera), sound-engine based AUDIO tracks, relative/absolute positioning and environment-sound redirection
 
 ---
 
@@ -75,7 +80,7 @@ A single build includes both playback runtime and the in-game editor. All users 
 
 ## Version
 
-**Current: 0.3.4**
+**Current: 0.3.5**
 
 | | Version |
 |---|---------|

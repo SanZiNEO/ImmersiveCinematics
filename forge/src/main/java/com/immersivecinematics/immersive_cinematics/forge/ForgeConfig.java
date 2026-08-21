@@ -53,6 +53,84 @@ public class ForgeConfig implements Config.ConfigProvider {
             .comment("是否启用编辑器（F6 键绑定与编辑器界面；关闭即无编辑器版本，需重启生效）")
             .define("editorEnabled", true);
 
+    // ===== 区块预加载配置 =====
+
+    private static final ForgeConfigSpec.BooleanValue PRELOAD_ENABLED = BUILDER
+            .comment("全局总闸：区块预加载（服务端强制；脚本可 meta.preload:false 单独关闭）")
+            .define("preloadEnabled", true);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_WINDOW_RADIUS = BUILDER
+            .comment("滑动窗口半径（区块）")
+            .defineInRange("preloadWindowRadius", 2, 1, 64);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_MAX_CHUNKS = BUILDER
+            .comment("单次请求区块总量上限")
+            .defineInRange("preloadMaxChunks", 256, 1, 10000);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_MAX_WORLDGEN_CHUNKS = BUILDER
+            .comment("未生成区块硬配额（防卡服）")
+            .defineInRange("preloadMaxWorldgenChunks", 64, 1, 10000);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_TIMEOUT_GENERATED = BUILDER
+            .comment("已生成区块就绪超时（秒）")
+            .defineInRange("preloadTimeoutGenerated", 2, 1, 600);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_TIMEOUT_WORLDGEN = BUILDER
+            .comment("未生成区块就绪超时（秒），超时降频轮询不放弃")
+            .defineInRange("preloadTimeoutWorldgen", 15, 1, 600);
+
+    private static final ForgeConfigSpec.DoubleValue PRELOAD_PREWARM = BUILDER
+            .comment("clip 切换提前预热量（秒）")
+            .defineInRange("preloadPrewarm", 2.0, 0.0, 60.0);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_REPORT_INTERVAL = BUILDER
+            .comment("相机位置上报间隔（tick）")
+            .defineInRange("preloadReportInterval", 20, 1, 600);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_FAR_VIEW_CENTER_THRESHOLD = BUILDER
+            .comment("相机距玩家超此阈值（区块）→ 启用 far-view（客户端中心跟相机 + 玩家小块票券）")
+            .defineInRange("preloadFarViewCenterThreshold", 8, 1, 64);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_PLAYER_ZONE_RADIUS = BUILDER
+            .comment("far-view 时玩家所在块的小块票券半径（区块）——保证玩家区最小稳定加载、不卸载")
+            .defineInRange("preloadPlayerZoneRadius", 4, 0, 64);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_MAX_BURST_PER_TICK = BUILDER
+            .comment("far-view 时每 tick 补发包上限（防一次性 625 块洪峰，渐续铺开）")
+            .defineInRange("preloadMaxBurstPerTick", 20, 1, 1000);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_MAX_REQUESTS_PER_TICK = BUILDER
+            .comment("far-view 时每 tick 新增区块 ticket 上限（限制 worldgen/读盘洪峰，默认 8 块/tick）")
+            .defineInRange("preloadMaxRequestsPerTick", 8, 1, 1000);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_REAR_RADIUS = BUILDER
+            .comment("far-view 方向性加载：相机后方保留的后带半径（区块）；前方全加载到视距")
+            .defineInRange("preloadRearRadius", 2, 0, 64);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_RADIUS_CAP = BUILDER
+            .comment("预加载范围上限（区块）：防止低配/过大视距导致卡顿；有效半径不会超过它")
+            .defineInRange("preloadRadiusCap", 32, 1, 64);
+
+    private static final ForgeConfigSpec.BooleanValue PRELOAD_FORCE_RADIUS = BUILDER
+            .comment("强制使用配置预设范围（忽略玩家渲染距离）")
+            .define("preloadForceRadius", false);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_FORCE_RADIUS_VALUE = BUILDER
+            .comment("强制时的预设范围（区块）")
+            .defineInRange("preloadForceRadiusValue", 8, 1, 64);
+
+    private static final ForgeConfigSpec.DoubleValue PRELOAD_PREWARM_LEAD_SECONDS = BUILDER
+            .comment("lookahead 预载：当前片段剩余多少秒开始预载下一片段")
+            .defineInRange("preloadPrewarmLeadSeconds", 2.0, 0.0, 60.0);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_PREWARM_RADIUS = BUILDER
+            .comment("lookahead 预载：下一片段预载范围（区块，取小区域慢速铺）")
+            .defineInRange("preloadPrewarmRadius", 8, 1, 64);
+
+    private static final ForgeConfigSpec.IntValue PRELOAD_PREWARM_REQUESTS_PER_TICK = BUILDER
+            .comment("lookahead 预载：每 tick 新增预载 ticket 上限（慢速，默认 6）")
+            .defineInRange("preloadPrewarmRequestsPerTick", 6, 1, 1000);
+
     // ===== 触发器轮询间隔配置 =====
 
     private static final ForgeConfigSpec.IntValue TRIGGER_POLL_LOCATION = BUILDER
@@ -95,7 +173,26 @@ public class ForgeConfig implements Config.ConfigProvider {
                 TRIGGER_POLL_INVENTORY.get(),
                 TRIGGER_POLL_STRUCTURE.get(),
                 TRIGGER_POLL_GAMESTAGE.get(),
-                EDITOR_ENABLED.get()
+                EDITOR_ENABLED.get(),
+                PRELOAD_ENABLED.get(),
+                PRELOAD_WINDOW_RADIUS.get(),
+                PRELOAD_MAX_CHUNKS.get(),
+                PRELOAD_MAX_WORLDGEN_CHUNKS.get(),
+                PRELOAD_TIMEOUT_GENERATED.get(),
+                PRELOAD_TIMEOUT_WORLDGEN.get(),
+                (float) (double) PRELOAD_PREWARM.get(),
+                PRELOAD_REPORT_INTERVAL.get(),
+                PRELOAD_FAR_VIEW_CENTER_THRESHOLD.get(),
+                PRELOAD_PLAYER_ZONE_RADIUS.get(),
+                PRELOAD_MAX_BURST_PER_TICK.get(),
+                PRELOAD_MAX_REQUESTS_PER_TICK.get(),
+                PRELOAD_REAR_RADIUS.get(),
+                PRELOAD_RADIUS_CAP.get(),
+                PRELOAD_FORCE_RADIUS.get(),
+                PRELOAD_FORCE_RADIUS_VALUE.get(),
+                (float) (double) PRELOAD_PREWARM_LEAD_SECONDS.get(),
+                PRELOAD_PREWARM_RADIUS.get(),
+                PRELOAD_PREWARM_REQUESTS_PER_TICK.get()
         );
     }
 
@@ -130,6 +227,66 @@ public class ForgeConfig implements Config.ConfigProvider {
                 TRIGGER_POLL_GAMESTAGE.set(value);
                 TRIGGER_POLL_GAMESTAGE.save();
             }
+            case "preloadWindowRadius" -> {
+                PRELOAD_WINDOW_RADIUS.set(value);
+                PRELOAD_WINDOW_RADIUS.save();
+            }
+            case "preloadMaxChunks" -> {
+                PRELOAD_MAX_CHUNKS.set(value);
+                PRELOAD_MAX_CHUNKS.save();
+            }
+            case "preloadMaxWorldgenChunks" -> {
+                PRELOAD_MAX_WORLDGEN_CHUNKS.set(value);
+                PRELOAD_MAX_WORLDGEN_CHUNKS.save();
+            }
+            case "preloadTimeoutGenerated" -> {
+                PRELOAD_TIMEOUT_GENERATED.set(value);
+                PRELOAD_TIMEOUT_GENERATED.save();
+            }
+            case "preloadTimeoutWorldgen" -> {
+                PRELOAD_TIMEOUT_WORLDGEN.set(value);
+                PRELOAD_TIMEOUT_WORLDGEN.save();
+            }
+            case "preloadReportInterval" -> {
+                PRELOAD_REPORT_INTERVAL.set(value);
+                PRELOAD_REPORT_INTERVAL.save();
+            }
+            case "preloadFarViewCenterThreshold" -> {
+                PRELOAD_FAR_VIEW_CENTER_THRESHOLD.set(value);
+                PRELOAD_FAR_VIEW_CENTER_THRESHOLD.save();
+            }
+            case "preloadPlayerZoneRadius" -> {
+                PRELOAD_PLAYER_ZONE_RADIUS.set(value);
+                PRELOAD_PLAYER_ZONE_RADIUS.save();
+            }
+            case "preloadMaxBurstPerTick" -> {
+                PRELOAD_MAX_BURST_PER_TICK.set(value);
+                PRELOAD_MAX_BURST_PER_TICK.save();
+            }
+            case "preloadMaxRequestsPerTick" -> {
+                PRELOAD_MAX_REQUESTS_PER_TICK.set(value);
+                PRELOAD_MAX_REQUESTS_PER_TICK.save();
+            }
+            case "preloadRearRadius" -> {
+                PRELOAD_REAR_RADIUS.set(value);
+                PRELOAD_REAR_RADIUS.save();
+            }
+            case "preloadRadiusCap" -> {
+                PRELOAD_RADIUS_CAP.set(value);
+                PRELOAD_RADIUS_CAP.save();
+            }
+            case "preloadForceRadiusValue" -> {
+                PRELOAD_FORCE_RADIUS_VALUE.set(value);
+                PRELOAD_FORCE_RADIUS_VALUE.save();
+            }
+            case "preloadPrewarmRadius" -> {
+                PRELOAD_PREWARM_RADIUS.set(value);
+                PRELOAD_PREWARM_RADIUS.save();
+            }
+            case "preloadPrewarmRequestsPerTick" -> {
+                PRELOAD_PREWARM_REQUESTS_PER_TICK.set(value);
+                PRELOAD_PREWARM_REQUESTS_PER_TICK.save();
+            }
         }
     }
 
@@ -147,6 +304,28 @@ public class ForgeConfig implements Config.ConfigProvider {
             case "editorEnabled" -> {
                 EDITOR_ENABLED.set(value);
                 EDITOR_ENABLED.save();
+            }
+            case "preloadEnabled" -> {
+                PRELOAD_ENABLED.set(value);
+                PRELOAD_ENABLED.save();
+            }
+            case "preloadForceRadius" -> {
+                PRELOAD_FORCE_RADIUS.set(value);
+                PRELOAD_FORCE_RADIUS.save();
+            }
+        }
+    }
+
+    @Override
+    public void setFloat(String key, float value) {
+        switch (key) {
+            case "preloadPrewarm" -> {
+                PRELOAD_PREWARM.set((double) value);
+                PRELOAD_PREWARM.save();
+            }
+            case "preloadPrewarmLeadSeconds" -> {
+                PRELOAD_PREWARM_LEAD_SECONDS.set((double) value);
+                PRELOAD_PREWARM_LEAD_SECONDS.save();
             }
         }
     }

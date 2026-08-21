@@ -59,7 +59,26 @@ public class FabricConfig implements Config.ConfigProvider {
                 getInt("triggerPollIntervalInventory", 20),
                 getInt("triggerPollIntervalStructure", 20),
                 getInt("triggerPollIntervalGamestage", 20),
-                getBoolean("editorEnabled", true)
+                getBoolean("editorEnabled", true),
+                getBoolean("preloadEnabled", true),
+                getInt("preloadWindowRadius", 2),
+                getInt("preloadMaxChunks", 256),
+                getInt("preloadMaxWorldgenChunks", 64),
+                getInt("preloadTimeoutGenerated", 2),
+                getInt("preloadTimeoutWorldgen", 15),
+                getFloat("preloadPrewarm", 2.0f),
+                getInt("preloadReportInterval", 20),
+                getInt("preloadFarViewCenterThreshold", 8),
+                getInt("preloadPlayerZoneRadius", 4),
+                getInt("preloadMaxBurstPerTick", 20),
+                getInt("preloadMaxRequestsPerTick", 8),
+                getInt("preloadRearRadius", 2),
+                getInt("preloadRadiusCap", 32),
+                getBoolean("preloadForceRadius", false),
+                getInt("preloadForceRadiusValue", 8),
+                getFloat("preloadPrewarmLeadSeconds", 2.0f),
+                getInt("preloadPrewarmRadius", 8),
+                getInt("preloadPrewarmRequestsPerTick", 6)
         );
     }
 
@@ -71,6 +90,12 @@ public class FabricConfig implements Config.ConfigProvider {
 
     @Override
     public void setBoolean(String key, boolean value) {
+        root.add(key, new JsonPrimitive(value));
+        save();
+    }
+
+    @Override
+    public void setFloat(String key, float value) {
         root.add(key, new JsonPrimitive(value));
         save();
     }
@@ -89,6 +114,13 @@ public class FabricConfig implements Config.ConfigProvider {
         return defaultValue;
     }
 
+    private float getFloat(String key, float defaultValue) {
+        if (root.has(key) && root.get(key).isJsonPrimitive()) {
+            return root.get(key).getAsFloat();
+        }
+        return defaultValue;
+    }
+
     private void saveDefaults() {
         root.addProperty("skipHoldThresholdMs", 3000);
         root.addProperty("showSkipHud", true);
@@ -100,6 +132,25 @@ public class FabricConfig implements Config.ConfigProvider {
         root.addProperty("triggerPollIntervalStructure", 20);
         root.addProperty("triggerPollIntervalGamestage", 20);
         root.addProperty("editorEnabled", true);
+        root.addProperty("preloadEnabled", true);
+        root.addProperty("preloadWindowRadius", 2);
+        root.addProperty("preloadMaxChunks", 256);
+        root.addProperty("preloadMaxWorldgenChunks", 64);
+        root.addProperty("preloadTimeoutGenerated", 2);
+        root.addProperty("preloadTimeoutWorldgen", 15);
+        root.addProperty("preloadPrewarm", 2.0f);
+        root.addProperty("preloadReportInterval", 20);
+        root.addProperty("preloadFarViewCenterThreshold", 8);
+        root.addProperty("preloadPlayerZoneRadius", 4);
+        root.addProperty("preloadMaxBurstPerTick", 20);
+        root.addProperty("preloadMaxRequestsPerTick", 8);
+        root.addProperty("preloadRearRadius", 2);
+        root.addProperty("preloadRadiusCap", 32);
+        root.addProperty("preloadForceRadius", false);
+        root.addProperty("preloadForceRadiusValue", 8);
+        root.addProperty("preloadPrewarmLeadSeconds", 2.0f);
+        root.addProperty("preloadPrewarmRadius", 8);
+        root.addProperty("preloadPrewarmRequestsPerTick", 6);
         save();
     }
 

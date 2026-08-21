@@ -52,6 +52,7 @@ immersive_cinematics/
 | `version` | int | 是 | — | 固定为 `3`（仅支持版本 3） |
 | `description` | string | 否 | `""` | 脚本描述文本 |
 | `dimension` | string | 否 | `null` | 限制脚本只在指定维度可用 |
+| `preload` | boolean | 否 | `true` | 脚本级区块预加载开关：`false` 关闭本脚本的预加载（不发任何预载请求）；`true`/缺省 = 跟随全局配置启用 |
 
 
 ### 1b. 运行时行为 (RuntimeBehavior)

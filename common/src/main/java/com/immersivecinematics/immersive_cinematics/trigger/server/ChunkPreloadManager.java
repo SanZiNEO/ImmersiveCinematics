@@ -16,11 +16,9 @@ import net.minecraft.world.phys.AABB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -122,9 +120,8 @@ public final class ChunkPreloadManager {
             return;
         }
         if (farNow && st.farMode && !cam.equals(st.center)) {
-            // far 滑到预载目标：把预载所有权转移给 far（票不撤、count 不变）
+            // far 滑到预载目标：预载 ticket 由 PREWARM 生命周期自己释放，这里只清状态
             if (st.prewarm != null && st.prewarm.center != null && st.prewarm.center.equals(cam)) {
-                st.ticketed.addAll(st.prewarm.ticketed);
                 st.prewarm = null;
             }
             st.center = cam;
@@ -132,9 +129,7 @@ public final class ChunkPreloadManager {
                 CameraMobManager.INSTANCE.setAnchor(player.getUUID(), serverLevel, cam,
                         st.cameraMobRadius, st.cameraMobSpawn, st.cameraMobAi);
             }
-            updateDesired(st, cam);
             sendCenter(player, cam);
-            pruneSent(st, cam);
             return;
         }
         if (!farNow && st.farMode) {
@@ -156,13 +151,6 @@ public final class ChunkPreloadManager {
     /** 由 ServerEventHandler 服务端 tick 调用 */
     public void tick() {
         long now = System.currentTimeMillis();
-        int requestBudget = Math.max(1, Config.preloadMaxRequestsPerTick);
-        int sendBudget = Math.max(1, Config.preloadMaxBurstPerTick);
-        for (PlayerState st : states.values()) {
-            if (st.player == null || !st.farMode || st.center == null) continue;
-            requestTickets(st, requestBudget);
-            sendReady(st, sendBudget);
-        }
         // lookahead 预载：独立慢速加票（只加票、不发包）
         for (PlayerState st : states.values()) {
             if (st.player == null || st.prewarm == null) continue;
@@ -185,7 +173,7 @@ public final class ChunkPreloadManager {
                         }
                     }
                 }
-                LOGGER.info("[preload status] 玩家={} 坐标=({},{},{}) 维度={} far={} 中心={} 玩家块={} 半径={} 目标={} 已票={} 已发={} 玩家小块={} 玩家区已载={} 预载票={} 玩家实体={} 相机实体={}",
+                LOGGER.info("[preload status] 玩家={} 坐标=({},{},{}) 维度={} far={} 中心={} 玩家块={} 半径={} 玩家小块={} 玩家区已载={} 预载票={} 玩家实体={} 相机实体={}",
                         st.player.getName().getString(),
                         String.format("%.1f", st.player.getX()),
                         String.format("%.1f", st.player.getY()),
@@ -194,7 +182,7 @@ public final class ChunkPreloadManager {
                         st.farMode,
                         st.center != null ? fmt(st.center) : "null",
                         st.playerChunk != null ? fmt(st.playerChunk) : "null",
-                        st.regionRadius, st.desired.size(), st.ticketed.size(), st.sent.size(),
+                        st.regionRadius,
                         st.playerZone.size(),
                         countLoadedPlayerArea(st),
                         st.prewarm != null ? st.prewarm.ticketed.size() : 0,
@@ -256,70 +244,8 @@ public final class ChunkPreloadManager {
                 st.regionRadius, st.playerRenderDistance, serverRd, cap,
                 Config.preloadForceRadius ? Config.preloadForceRadiusValue : "-",
                 viewDistanceChunks(st));
-        updateDesired(st, cam);
         setPlayerZone(player, st, true);
         sendCenter(player, cam);
-    }
-
-    /** desired = 相机 ± regionRadius 全圆（最终全加载）；处理顺序见 sortedByPriority（先可见、后补全） */
-    private void updateDesired(PlayerState st, ChunkPos cam) {
-        st.center = cam;
-        Set<ChunkPos> next = new HashSet<>();
-        for (int dx = -st.regionRadius; dx <= st.regionRadius; dx++) {
-            for (int dz = -st.regionRadius; dz <= st.regionRadius; dz++) {
-                next.add(new ChunkPos(cam.x + dx, cam.z + dz));
-            }
-        }
-        st.desired.removeIf(pos -> {
-            if (!next.contains(pos)) {
-                st.ticketed.remove(pos);
-                return true;
-            }
-            return false;
-        });
-        st.desired.addAll(next);
-    }
-
-    private void requestTickets(PlayerState st, int budget) {
-        // 相机区域由隐藏假人（CameraFakePlayer）驱动原版加载/生成，这里只负责“标记待发送给真实客户端”。
-        ServerPlayer p = st.player;
-        if (p == null) return;
-        int added = 0;
-        for (ChunkPos pos : sortedByPriority(st)) {
-            if (added >= budget) break;
-            if (st.ticketed.contains(pos)) continue;
-            st.ticketed.add(pos);
-            added++;
-        }
-    }
-
-    private void sendReady(PlayerState st, int budget) {
-        // 区块不再手动发送：相机区区块由 CameraFakeConnection 转发假人收到的原版区块流，
-        // 这样区块和实体走同一条原版时序，避免“实体到了、区块没到”的丢包问题。
-    }
-
-    /** 相机可见性：前方半平面（dot >= 0） */
-    private boolean isVisible(PlayerState st, ChunkPos pos) {
-        double rad = Math.toRadians(st.cameraYaw);
-        double fx = -Math.sin(rad);
-        double fz = Math.cos(rad);
-        int dx = pos.x - st.center.x;
-        int dz = pos.z - st.center.z;
-        return dx * fx + dz * fz >= 0;
-    }
-
-    /** 优先级：先可见（P1）后不可见（P2），同组内按距相机近→远（先加载能看到的，再补剩下的） */
-    private List<ChunkPos> sortedByPriority(PlayerState st) {
-        List<ChunkPos> list = new ArrayList<>(st.desired);
-        ChunkPos c = st.center;
-        list.sort(Comparator
-                .comparingInt((ChunkPos pos) -> isVisible(st, pos) ? 0 : 1)
-                .thenComparingLong(pos -> {
-                    long dx = pos.x - c.x;
-                    long dz = pos.z - c.z;
-                    return dx * dx + dz * dz;
-                }));
-        return list;
     }
 
     /** lookahead 预载：给预载目标区域慢速加票（只加票、不发包；跳过去后 far-view 接管补发） */
@@ -352,12 +278,6 @@ public final class ChunkPreloadManager {
         st.prewarm.ticketed.clear();
     }
 
-    private void pruneSent(PlayerState st, ChunkPos cam) {
-        int margin = st.regionRadius + 2;
-        st.sent.keySet().removeIf(pos ->
-                Math.abs(pos.x - cam.x) > margin || Math.abs(pos.z - cam.z) > margin);
-    }
-
     private void removeTicket(ServerPlayer p, ChunkPos pos, int distance) {
         if (p == null) return;
         if (p.level() instanceof net.minecraft.server.level.ServerLevel) {
@@ -367,9 +287,6 @@ public final class ChunkPreloadManager {
     }
 
     private void clearCameraArea(ServerPlayer p, PlayerState st) {
-        st.ticketed.clear();
-        st.desired.clear();
-        st.sent.clear();
         st.center = null;
     }
 
@@ -513,9 +430,6 @@ public final class ChunkPreloadManager {
         long lastEntityCountTime = 0;
         int cachedPlayerEntities = 0;
         int cachedCameraEntities = 0;
-        final Set<ChunkPos> desired = new HashSet<>();
-        final Set<ChunkPos> ticketed = new HashSet<>();
-        final Map<ChunkPos, Long> sent = new HashMap<>();
         final Set<ChunkPos> playerZone = new HashSet<>();
         PrewarmState prewarm;
     }

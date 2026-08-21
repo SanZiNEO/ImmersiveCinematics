@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
+import com.immersivecinematics.immersive_cinematics.Config;
 import net.minecraft.network.Connection;
 import net.minecraft.network.PacketSendListener;
 import net.minecraft.network.chat.Component;
@@ -13,8 +14,13 @@ import net.minecraft.world.entity.Entity;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 相机假人的连接：接收服务端发给假人的世界数据包，并转发给真实玩家客户端。
@@ -22,13 +28,14 @@ import java.util.Set;
  *   <li>声音/粒子/方块音效类包始终转发</li>
  *   <li>实体/方块更新类包仅在 {@code entitySyncEnabled} 时转发</li>
  *   <li>相机进入真实玩家范围后关闭实体转发，交还原版玩家跟踪</li>
- *   <li>不转发区块包（区块仍由 ChunkPreloadManager 手动发送）</li>
+ *   <li>区块包在 {@code chunkSyncEnabled}（far 模式）时转发，让区块和实体走同一条原版时序</li>
  *   <li>不转发玩家自身状态包（登录/生命/物品栏/命令树/keep-alive 等）</li>
- *   <li>记录已转发的实体生成 ID，供 ChunkPreloadManager 补发时去重</li>
+ *   <li>记录已转发的实体生成 ID，供退出 far 时清理/对账去重</li>
  * </ul>
  */
 public class CameraFakeConnection extends Connection {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CameraFakeConnection");
     private static final SocketAddress FAKE_ADDRESS = new InetSocketAddress("127.0.0.1", 0);
 
     private final ServerPlayer target;
@@ -39,6 +46,11 @@ public class CameraFakeConnection extends Connection {
     private int forwardedEntityPackets = 0;
     private int forwardedSoundPackets = 0;
     private int blockedEntityPackets = 0;
+
+    /** 节流诊断统计：按包类型累计收到的数量，由 CameraMobManager 定时 flush 成一行日志 */
+    private final Map<String, Integer> debugCounts = new HashMap<>();
+    private int debugForwarded = 0;
+    private int debugBlocked = 0;
 
     public CameraFakeConnection(ServerPlayer target, ServerLevel level) {
         super(PacketFlow.SERVERBOUND);
@@ -100,6 +112,7 @@ public class CameraFakeConnection extends Connection {
         boolean sound = isSoundOrParticle(packet);
         boolean world = isWorldPacket(packet);
         boolean forward = shouldForward(packet);
+        recordDebug(packet, sound, world, forward);
         if (sound) {
             forwardedSoundPackets++;
         } else if (world) {
@@ -127,6 +140,7 @@ public class CameraFakeConnection extends Connection {
         boolean sound = isSoundOrParticle(packet);
         boolean world = isWorldPacket(packet);
         boolean forward = shouldForward(packet);
+        recordDebug(packet, sound, world, forward);
         if (sound) {
             forwardedSoundPackets++;
         } else if (world) {
@@ -138,6 +152,77 @@ public class CameraFakeConnection extends Connection {
             forgetRemoved(toSend);
             target.connection.send(toSend, listener);
         }
+    }
+
+    /** 节流诊断：关键包立即打明细，高频包只累计计数，由 {@link #flushDebugLog()} 定时汇总成一行 */
+    private void recordDebug(Packet<?> packet, boolean sound, boolean world, boolean forward) {
+        if (!Config.debugLogging) return;
+        if (packet instanceof net.minecraft.network.protocol.game.ClientboundAddEntityPacket
+                || packet instanceof net.minecraft.network.protocol.game.ClientboundAddExperienceOrbPacket
+                || packet instanceof net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket
+                || packet instanceof net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket
+                || packet instanceof net.minecraft.network.protocol.game.ClientboundSetChunkCacheCenterPacket
+                || packet instanceof net.minecraft.network.protocol.game.ClientboundForgetLevelChunkPacket) {
+            logDetailed(packet, sound, world, forward);
+            return;
+        }
+        debugCounts.merge(packet.getClass().getSimpleName(), 1, Integer::sum);
+        if (forward) {
+            debugForwarded++;
+        } else if (world) {
+            debugBlocked++;
+        }
+    }
+
+    /** 定时输出一次节流汇总（由 CameraMobManager 每 20 tick 调用），避免高频包刷屏 */
+    public void flushDebugLog() {
+        if (!Config.debugLogging || (debugCounts.isEmpty() && debugForwarded == 0 && debugBlocked == 0)) return;
+        String counts = debugCounts.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> e.getKey() + "=" + e.getValue())
+                .collect(Collectors.joining(" "));
+        LOGGER.info("[camera-fake] 1s汇总 forwarded={} blocked={} {}", debugForwarded, debugBlocked, counts);
+        debugCounts.clear();
+        debugForwarded = 0;
+        debugBlocked = 0;
+    }
+
+    private void logDetailed(Packet<?> packet, boolean sound, boolean world, boolean forward) {
+        StringBuilder sb = new StringBuilder("[camera-fake] recv ").append(packet.getClass().getSimpleName());
+        if (packet instanceof net.minecraft.network.protocol.game.ClientboundAddEntityPacket add) {
+            sb.append(" addEntity id=").append(add.getId())
+              .append(" type=").append(add.getType())
+              .append(" pos=(").append(fmt(add.getX())).append(',').append(fmt(add.getY())).append(',').append(fmt(add.getZ())).append(')')
+              .append(" uuid=").append(add.getUUID());
+        } else if (packet instanceof net.minecraft.network.protocol.game.ClientboundAddExperienceOrbPacket orb) {
+            sb.append(" orb id=").append(orb.getId())
+              .append(" pos=(").append(fmt(orb.getX())).append(',').append(fmt(orb.getY())).append(',').append(fmt(orb.getZ())).append(')');
+        } else if (packet instanceof net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket remove) {
+            sb.append(" removeIds=").append(remove.getEntityIds());
+        } else if (packet instanceof net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket chunk) {
+            sb.append(" chunk=(").append(chunk.getX()).append(',').append(chunk.getZ()).append(')');
+        } else if (packet instanceof net.minecraft.network.protocol.game.ClientboundSetChunkCacheCenterPacket center) {
+            sb.append(" center=(").append(center.getX()).append(',').append(center.getZ()).append(')');
+        } else if (packet instanceof net.minecraft.network.protocol.game.ClientboundForgetLevelChunkPacket forget) {
+            sb.append(" forget=(").append(forget.getX()).append(',').append(forget.getZ()).append(')');
+        }
+        int eid = entityIdOf(packet);
+        if (eid >= 0) {
+            sb.append(" eid=").append(eid)
+              .append(" managed=").append(isManagedByVanilla(eid))
+              .append(" synced=").append(isEntitySynced(eid))
+              .append(" selfOrFake=").append(isPacketForSelfOrFake(packet));
+        }
+        sb.append(" sound=").append(sound)
+          .append(" world=").append(world)
+          .append(" forward=").append(forward)
+          .append(" chunkSync=").append(chunkSyncEnabled)
+          .append(" entitySync=").append(entitySyncEnabled);
+        LOGGER.info(sb.toString());
+    }
+
+    private static String fmt(double v) {
+        return String.format(java.util.Locale.ROOT, "%.1f", v);
     }
 
     private void rememberSpawned(Packet<?> packet) {

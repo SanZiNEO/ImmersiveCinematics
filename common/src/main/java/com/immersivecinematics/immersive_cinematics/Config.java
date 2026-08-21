@@ -110,6 +110,9 @@ public class Config {
 
         /** 持久化单个 boolean 配置项 */
         void setBoolean(String key, boolean value);
+
+        /** 持久化单个 float 配置项 */
+        void setFloat(String key, float value);
     }
 
     /**
@@ -125,11 +128,31 @@ public class Config {
             int triggerPollIntervalInventory,
             int triggerPollIntervalStructure,
             int triggerPollIntervalGamestage,
-            boolean editorEnabled
+            boolean editorEnabled,
+            boolean preloadEnabled,
+            int preloadWindowRadius,
+            int preloadMaxChunks,
+            int preloadMaxWorldgenChunks,
+            int preloadTimeoutGenerated,
+            int preloadTimeoutWorldgen,
+            float preloadPrewarm,
+            int preloadReportInterval,
+            int preloadFarViewCenterThreshold,
+            int preloadPlayerZoneRadius,
+            int preloadMaxBurstPerTick,
+            int preloadMaxRequestsPerTick,
+            int preloadRearRadius,
+            int preloadRadiusCap,
+            boolean preloadForceRadius,
+            int preloadForceRadiusValue,
+            float preloadPrewarmLeadSeconds,
+            int preloadPrewarmRadius,
+            int preloadPrewarmRequestsPerTick
     ) {
         /** 使用默认值构造 */
         public static ConfigValues defaults() {
-            return new ConfigValues(3000, true, 100, false, 20, 40, 20, 20, 20, true);
+            return new ConfigValues(3000, true, 100, false, 20, 40, 20, 20, 20, true,
+                    true, 2, 256, 64, 2, 15, 2.0f, 20, 8, 4, 20, 8, 2, 32, false, 8, 2.0f, 8, 6);
         }
     }
 
@@ -157,6 +180,25 @@ public class Config {
         triggerPollIntervalStructure = values.triggerPollIntervalStructure();
         triggerPollIntervalGamestage = values.triggerPollIntervalGamestage();
         editorEnabled = values.editorEnabled();
+        preloadEnabled = values.preloadEnabled();
+        preloadWindowRadius = values.preloadWindowRadius();
+        preloadMaxChunks = values.preloadMaxChunks();
+        preloadMaxWorldgenChunks = values.preloadMaxWorldgenChunks();
+        preloadTimeoutGenerated = values.preloadTimeoutGenerated();
+        preloadTimeoutWorldgen = values.preloadTimeoutWorldgen();
+        preloadPrewarm = values.preloadPrewarm();
+        preloadReportInterval = values.preloadReportInterval();
+        preloadFarViewCenterThreshold = values.preloadFarViewCenterThreshold();
+        preloadPlayerZoneRadius = values.preloadPlayerZoneRadius();
+        preloadMaxBurstPerTick = values.preloadMaxBurstPerTick();
+        preloadMaxRequestsPerTick = values.preloadMaxRequestsPerTick();
+        preloadRearRadius = values.preloadRearRadius();
+        preloadRadiusCap = values.preloadRadiusCap();
+        preloadForceRadius = values.preloadForceRadius();
+        preloadForceRadiusValue = values.preloadForceRadiusValue();
+        preloadPrewarmLeadSeconds = values.preloadPrewarmLeadSeconds();
+        preloadPrewarmRadius = values.preloadPrewarmRadius();
+        preloadPrewarmRequestsPerTick = values.preloadPrewarmRequestsPerTick();
     }
 
     // ===== ConfigScreen 写入接口 =====
@@ -179,5 +221,102 @@ public class Config {
     public static void setEditorEnabled(boolean value) {
         editorEnabled = value;
         if (provider != null) provider.setBoolean("editorEnabled", value);
+    }
+
+    // ===== 区块预加载配置写入接口 =====
+
+    public static void setPreloadEnabled(boolean value) {
+        preloadEnabled = value;
+        if (provider != null) provider.setBoolean("preloadEnabled", value);
+    }
+
+    public static void setPreloadWindowRadius(int value) {
+        preloadWindowRadius = value;
+        if (provider != null) provider.setInt("preloadWindowRadius", value);
+    }
+
+    public static void setPreloadMaxChunks(int value) {
+        preloadMaxChunks = value;
+        if (provider != null) provider.setInt("preloadMaxChunks", value);
+    }
+
+    public static void setPreloadMaxWorldgenChunks(int value) {
+        preloadMaxWorldgenChunks = value;
+        if (provider != null) provider.setInt("preloadMaxWorldgenChunks", value);
+    }
+
+    public static void setPreloadTimeoutGenerated(int value) {
+        preloadTimeoutGenerated = value;
+        if (provider != null) provider.setInt("preloadTimeoutGenerated", value);
+    }
+
+    public static void setPreloadTimeoutWorldgen(int value) {
+        preloadTimeoutWorldgen = value;
+        if (provider != null) provider.setInt("preloadTimeoutWorldgen", value);
+    }
+
+    public static void setPreloadPrewarm(float value) {
+        preloadPrewarm = value;
+        if (provider != null) provider.setFloat("preloadPrewarm", value);
+    }
+
+    public static void setPreloadReportInterval(int value) {
+        preloadReportInterval = value;
+        if (provider != null) provider.setInt("preloadReportInterval", value);
+    }
+
+    public static void setPreloadFarViewCenterThreshold(int value) {
+        preloadFarViewCenterThreshold = value;
+        if (provider != null) provider.setInt("preloadFarViewCenterThreshold", value);
+    }
+
+    public static void setPreloadPlayerZoneRadius(int value) {
+        preloadPlayerZoneRadius = value;
+        if (provider != null) provider.setInt("preloadPlayerZoneRadius", value);
+    }
+
+    public static void setPreloadMaxBurstPerTick(int value) {
+        preloadMaxBurstPerTick = value;
+        if (provider != null) provider.setInt("preloadMaxBurstPerTick", value);
+    }
+
+    public static void setPreloadMaxRequestsPerTick(int value) {
+        preloadMaxRequestsPerTick = value;
+        if (provider != null) provider.setInt("preloadMaxRequestsPerTick", value);
+    }
+
+    public static void setPreloadRearRadius(int value) {
+        preloadRearRadius = value;
+        if (provider != null) provider.setInt("preloadRearRadius", value);
+    }
+
+    public static void setPreloadRadiusCap(int value) {
+        preloadRadiusCap = value;
+        if (provider != null) provider.setInt("preloadRadiusCap", value);
+    }
+
+    public static void setPreloadForceRadius(boolean value) {
+        preloadForceRadius = value;
+        if (provider != null) provider.setBoolean("preloadForceRadius", value);
+    }
+
+    public static void setPreloadForceRadiusValue(int value) {
+        preloadForceRadiusValue = value;
+        if (provider != null) provider.setInt("preloadForceRadiusValue", value);
+    }
+
+    public static void setPreloadPrewarmLeadSeconds(float value) {
+        preloadPrewarmLeadSeconds = value;
+        if (provider != null) provider.setFloat("preloadPrewarmLeadSeconds", value);
+    }
+
+    public static void setPreloadPrewarmRadius(int value) {
+        preloadPrewarmRadius = value;
+        if (provider != null) provider.setInt("preloadPrewarmRadius", value);
+    }
+
+    public static void setPreloadPrewarmRequestsPerTick(int value) {
+        preloadPrewarmRequestsPerTick = value;
+        if (provider != null) provider.setInt("preloadPrewarmRequestsPerTick", value);
     }
 }

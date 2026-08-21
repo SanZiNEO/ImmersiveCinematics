@@ -168,6 +168,9 @@ public final class CameraMobManager {
                 updateEntitySyncState(a);
                 syncCameraEntities(a);
             }
+            if (tickCounter % 20 == 0 && a.fakeConnection != null) {
+                a.fakeConnection.flushDebugLog();
+            }
             if (tickCounter % 100 == 0 && a.fakeConnection != null) {
                 int[] stats = a.fakeConnection.takeAndResetPacketStats();
                 if (stats[0] + stats[1] + stats[2] > 0) {
@@ -260,6 +263,15 @@ public final class CameraMobManager {
             LOGGER.error("[camera-fake] 未设置平台假人引导器，无法创建假人 玩家={}", a.player);
             return;
         }
+        // 时序关键：先让假人落到相机锚点，再执行引导（addNewPlayer / placeNewPlayer）。
+        // 这样 ChunkMap 会先按“相机位置”发送区块包，之后 move() 才补发实体包，
+        // 与正常玩家“先区块、后实体”的时序一致，避免实体包先于区块包到达客户端。
+        int preX = (a.center.x << 4) + 8;
+        int preZ = (a.center.z << 4) + 8;
+        int preY = Math.max(a.level.getMinBuildHeight() + 1,
+                a.level.getHeight(Heightmap.Types.MOTION_BLOCKING, preX, preZ));
+        fake.moveTo(preX, preY, preZ, 0.0F, 0.0F);
+
         // 平台各自引导：Fabric 走 placeNewPlayer；Forge 手动拼最小假玩家（绕开 Forge 网络登录钩子）
         bootstrapper.bootstrap(fake, connection, a.level);
         // 引导过程可能重置外观状态，这里重新强制隐藏/静默/无敌

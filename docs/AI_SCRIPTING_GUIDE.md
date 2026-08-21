@@ -120,6 +120,8 @@
 
 常用行为开关（默认值合理，不写也行）：`block_keyboard: true`、`block_mouse: true`、`hide_hud: true`、`hide_arm: true`、`suppress_bob: true`、`skippable: true`、`interruptible: true`、`hold_at_end: false`、`pause_when_game_paused: true`。
 
+> **远距离场景记得保留预加载**：`meta.preload` 默认 `true`。如果镜头要飞到玩家视距外（跨区块/跨维度），**不要写 `"preload": false`**；只有确认该脚本不需要预加载（例如纯 HUD/字幕/本地小范围）时才关掉，避免不必要开销。
+
 > **`interruptible` 与 `priority` 必读（播放队列规则）**：
 > - **可打断（`interruptible: true`，默认）** = 区域切换型脚本：新脚本请求时**立即替换**当前脚本（打断就替换）。适合"进 A 区播 A、进 B 区播 B"的场景。
 > - **不可打断（`interruptible: false`）** = 强制过程型脚本：播放期间其它脚本请求一律**排队**（容量 8），等它播完自动接播。适合强制观看的过场、循环氛围镜头。

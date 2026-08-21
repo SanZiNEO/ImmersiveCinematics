@@ -1,3 +1,32 @@
+## [0.3.5] - 2026-08-20
+
+0.3.5：世界预加载与运镜体系、音频听者重构、编辑器/预设/GIF 增强、去除 Architectury 第三方依赖。
+
+### Added
+- **脚本文件夹组织**：`scripts/` 支持子文件夹递归加载（深度 ≤ 5），编辑器/命令显示相对路径；`id` 仍全局唯一，子目录仅文件组织
+- **触发器前置依赖**：`triggers[].requires: string[]`（AND），全部前置脚本触发过才允许本触发器触发；validator 提示失效引用
+- **呼吸扰动 v2**：`cam_breath_type`（`perlin` / `perlin_axis` / `sine` / `trauma`）、`cam_breath_speed`，trauma 新增 `cam_breath_trauma` / `cam_breath_decay`
+- **look_at 相对目标**：`look_at_target` 对象（绝对/触发点偏移/实体偏移/坐标偏移），兼容旧字段
+- **动态 yaw 基准**：`yaw_base`（world/entity/line）与 `pitch_base`，`yaw` 变为相对偏移，与 look_at 互斥；基准空间系 `fwd/up/right`
+- **区块预加载统一**：`preload-camera-region-unified` 设计落地——far-view 由隐藏假人驱动原版区块/实体追踪，退出时玩家区对账补发，实体中继与区块同源时序；脚本级 `meta.preload` 开关
+- **预加载配置平台持久化**：ForgeConfigSpec / Fabric JSON 接入全部预加载字段（cap/force/prewarm/playerZone 等），配置修改后跨重启生效
+- **音频体系重构**：`meta.listener`（player/camera）听者模式；AUDIO 轨道回归原版 SoundEngine，相对/绝对位置语义 + 默认衰减；环境音（群系/水下/气泡柱/animateTick）在 camera 模式采样到相机；编辑器音频联动重写
+- **编辑器飞行取景**：F6 + WASD/鼠标操控相机取景，可记录/取消；编辑器模块化 + 面板重构
+- **Schema Java 元数据化**：`schema.json` 迁移为 Java `FieldDef` / `TrackSchemas` / `SchemaRegistry`，编辑器/解析器/默认值共用
+- **GIF Overlay**：stbi_load_gif 拆帧 + 单帧 DynamicTexture 轮播，带内存上限与释放
+- **预设系统**：参数 schema + 生成函数注册，初版预设库（环绕轨道等），生成结果可编辑
+- **去除 Architectury**：MultiLoader 重构，common/forge/fabric 三模块，无第三方前置依赖
+
+### Changed
+- README/README_CN 版本更新为 0.3.5；文档补充 `meta.preload`、目录组织、触发器前置依赖
+- 预加载日志节流：高频包按秒聚合，关键包（AddEntity/chunk/center/remove）保留逐条
+- Forge 假人就位时序：先 `moveTo` 相机坐标再 bootstrap，初始实体与区块按原版 `addNewPlayer` 顺序送达
+
+### Fixed
+- Forge 远距离实体数量偏少：同一村庄位置下客户端 radius=64 实体数从 ~20 提升到 ~60~66，与 Fabric 同区间
+- 修复 Forge 实体中继中 `ClientboundBundlePacket` 解包转发时序
+- 清理 `ChunkPreloadManager` 死代码（requestTickets/sendReady/desired/ticketed/sent 残留）
+
 ## [0.3.4] - 2026-08-06
 
 音乐配乐 + 覆盖层 + 事件重构 + 镜头追踪与呼吸扰动 + 翻滚角修复。
