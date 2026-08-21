@@ -125,7 +125,7 @@
 - `preloadRadiusCap` / `preloadForceRadius` / `preloadForceRadiusValue`
 - `preloadPrewarmLeadSeconds` / `preloadPrewarmRadius` / `preloadPrewarmRequestsPerTick`
 
-当前 `Config.java` 只有静态默认值，`ConfigProvider/ConfigValues` 未包含这些字段，属于未完成项。
+✅ 已完成：`Config.ConfigValues` 已扩展全部字段，`ForgeConfigSpec` / Fabric JSON 均已接入读写（含 `setFloat`）。
 
 ---
 
@@ -136,11 +136,11 @@
 | `scanChunk` 磁盘分流（已生成/未生成分级） | 废弃，不再实现；如需“未探索区域渐进加载”，由假人原版加载 + 预算控制承担 |
 | 相机区手动 `addRegionTicket` | 删除；相机区由假人驱动 |
 | 手动 `ClientboundLevelChunkWithLightPacket` 补发相机区 | 删除；由 `CameraFakeConnection` 转发原版包流 |
-| `ChunkPreloadManager.requestTickets()` | 若只剩记账/日志，删除或改为纯状态跟踪 |
-| `ChunkPreloadManager.sendReady()` | 空实现，删除 |
-| `desired/ticketed/sent` 状态 | 若不再参与实际加载/发送，只保留日志所需最小状态，否则删除 |
-| `ChunkTicketPool` | 仅保留给 prewarm / 玩家区票券使用，删除相机区用途 |
-| 配置静态默认值 | 保留默认值，但必须接入平台持久化 |
+| `ChunkPreloadManager.requestTickets()` | ✅ 已删除 |
+| `ChunkPreloadManager.sendReady()` | ✅ 已删除 |
+| `desired/ticketed/sent` 状态 | ✅ 已删除 |
+| `ChunkTicketPool` | 仅保留给 prewarm / 玩家区票券使用，删除相机区用途；注释仍待同步（见 code-review 3.2） |
+| 配置静态默认值 | ✅ 已接入平台持久化 |
 | 旧文档 `chunk-preload.md` 中的 3.5 方案 | 标记为历史方案，本文为唯一设计源 |
 
 ---
@@ -152,8 +152,8 @@
 | 问题 | 来源 | 处理方向 |
 |---|---|---|
 | Forge 实体数量偏少（服务端 110~120，客户端仅 23~25） | `known-issues.md` / 5.5 联调 | 重点查 `CameraFakeConnection` 转发链路：`ClientboundBundlePacket` 拆包、区块/实体同序、Forge 假人引导差异；必要时加 Forge 侧实体对账日志 |
-| 预加载配置平台持久化未完成 | 3.5 轮 | 按 §3.5 接入 Forge/Fabric 配置 |
-| `ChunkPreloadManager` 死代码 / 每秒全量扫描 | `code-review-round.md` | 本文 §4 清理；`countEntities()` 改为 debug 级或降频（如 30s/只在调试模式） |
+| 预加载配置平台持久化未完成 | 3.5 轮 | ✅ 已完成，按 §3.5 接入 Forge/Fabric 配置 |
+| `ChunkPreloadManager` 死代码 / 每秒全量扫描 | `code-review-round.md` | ✅ 死代码已清理；`countEntities()` 降频/性能优化仍待做 |
 | `C2SPreloadRequestPacket` 协议扩展无版本保护 | `code-review-round.md` | 加协议版本或兼容读取，避免旧客户端/服务端错位 |
 | 假人生命周期“不干净”风险（数据落盘、状态残留、重复实体） | `code-review-round.md` | 纳入假人生命周期验收：不落盘、退出清理 `syncedEntityIds` / anchors、断线释放 |
 
