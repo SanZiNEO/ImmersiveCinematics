@@ -2,7 +2,7 @@
 
 **版本**: 0.3.5
 **类型**: 重构 / 架构
-**状态**: 📋 方案待细化
+**状态**: ✅ 已完成（Java 元数据注册表已落地，schema.json 已删除）
 **关联**: `editor-modularization.md`（编辑器拆分）、`script-folder-organization.md`、所有新增字段计划
 
 ---

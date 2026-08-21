@@ -2,7 +2,7 @@
 
 **版本**: 0.3.5
 **类型**: 修复 / 稳定性
-**状态**: 📋 方案已定
+**状态**: ✅ 已完成（退出输入重同步已实现）
 **关联**: `editor-interaction-improvements.md`（飞行取景共用输入中间层）、`control/InputRouter.java`、`CinematicController.java`
 
 ---

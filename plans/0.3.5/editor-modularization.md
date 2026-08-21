@@ -2,7 +2,7 @@
 
 **版本**: 0.3.5
 **类型**: 重构 / 稳定性
-**状态**: 📋 方案待细化
+**状态**: ✅ 已完成（PanelTabBar / ScrollablePanel / panel / fields 拆分已落地）
 **关联**: `editor-interaction-improvements.md`（飞行取景）、`presets.md`（预设库 UI 接入）、`schema-java-metadata.md`（字段元数据迁移）
 
 ---

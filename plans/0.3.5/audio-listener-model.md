@@ -2,7 +2,7 @@
 
 **版本**: 0.3.5
 **类型**: 音频体系设计（2026-08-13 定稿）
-**状态**: 📋 设计定稿，待实施
+**状态**: ✅ 已完成（listener 模型 / 回归 SoundEngine / 环境音重定向；category 目前实现 music/ambient 两类）
 **关联**: 取代 `audio-playback-model.md`（草案）、`audio-relative-position-modes.md`（结论并入）、`plans/0.4.0/audio-system.md`（旧草案）；与 `chunk-preload.md`（画面/区块加载）构成 0.3.5 的"画面 + 声音"两条线，**互不依赖**
 
 ---

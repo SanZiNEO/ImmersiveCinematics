@@ -1,5 +1,7 @@
 # 区块预加载（Chunk Preload）：利用原版机制节流的相机画面加载
 
+> **⚠️ 本文为 3.5 历史方案（手动 ticket + scanChunk + 手动补发），已被 `preload-camera-region-unified.md`（v5.5 假人完全接管版）取代。保留本文仅作追溯，执行以统一设计文档为准。**
+
 > **v4 整体方案（2026-08-19 定稿，覆盖下文方案细节）**
 > 目标：相机超视距也能加载画面；玩家区最小稳定加载不卸载；不拉大视距。
 > - **门控**：仅当 `|相机块 − 玩家块| > farViewCenterThreshold` 才启用全套；近程零介入
@@ -12,7 +14,7 @@
 
 **版本**: 0.3.5
 **类型**: 新功能（2026-08-13 设计定稿）
-**状态**: 📋 设计定稿，待实施
+**状态**: ✅ 主体已完成（v7 门控/ticket/滑动窗口/补发/玩家区对账；scanChunk 磁盘分流设计未保留，配置平台持久化未完成——见 1.md 第 3.5 轮剩余项）
 **关联**: `plans/0.4.0/camera-chunk-preload.md`（旧草案，本设计取代之）；与 `audio-listener-model.md`（声音线）构成 0.3.5 的"画面 + 声音"，互不依赖
 **非侵入性**: 只调用原版公开 API（`ServerChunkCache.addRegionTicket/removeRegionTicket/hasChunk`、`ChunkScanAccess.scanChunk`、构造 `ClientboundLevelChunkWithLightPacket` 补发），不 Mixin、不持久化、不 forceload
 

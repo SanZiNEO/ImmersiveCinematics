@@ -1,7 +1,7 @@
 # 方块搜索基准（Block-Based Reference）：相对坐标/注视目标的基准可以是"玩家附近搜索到的方块"
 
-> **状态（2026-08-19）**：✅ `relative_origin`（位置基准）用 block 已实现；
-> 🔒 `look_at_target`（注视目标）用 block **留后 / 低优先级**——需求低，位置用 block + 看目标用实体/坐标/结构已覆盖 99% 场景；
+> **状态（2026-08-19）**：✅ 已完成——`relative_origin`（位置基准）用 block 已实现；
+> 🔒 `look_at_target`（注视目标）用 block **留后 / 低优先级**（2026-08-19 裁定：需求低，位置用 block + 看目标用实体/坐标/结构已覆盖 99% 场景）；
 > `look_at_target` 为自描述 map，留后补（`relative_to:"block:id"`）向后兼容，成本约半天。
 
 ## 一句话定义
