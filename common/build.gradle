@@ -16,7 +16,7 @@ minecraft {
 
 dependencies {
      compileOnly group:'org.spongepowered', name:'mixin', version:'0.8.5'
-     compileOnly 'io.github.llamalad7:mixinextras-common:0.3.6'
+     compileOnly 'org.ow2.asm:asm-tree:9.5'
      implementation group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.1'
 }
 

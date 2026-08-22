@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "com.immersivecinematics.immersive_cinematics.forge.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "minVersion": "0.8",
+  "refmap": "immersive_cinematics.refmap.json",
+  "client": [
+    "SoundEngineMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

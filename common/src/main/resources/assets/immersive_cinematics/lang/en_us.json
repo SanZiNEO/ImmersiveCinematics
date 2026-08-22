@@ -203,6 +203,7 @@
     "editor.field.hide_hud": "hide HUD",
     "editor.field.hide_arm": "hide arm",
     "editor.field.suppress_bob": "suppress bob",
+    "editor.field.suppress_distortion": "suppress distortion",
     "editor.field.skippable": "skippable",
     "editor.field.hold_at_end": "hold at end",
     "editor.field.interruptible": "interruptible",

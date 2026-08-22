@@ -27,6 +27,7 @@ public final class MetaSchemas {
         map.put("hide_hud", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
         map.put("hide_arm", new FieldDef("tristate", null, false, java.util.Collections.emptyList(), "runtime"));
         map.put("suppress_bob", new FieldDef("tristate", null, false, java.util.Collections.emptyList(), "runtime"));
+        map.put("suppress_distortion", new FieldDef("tristate", null, false, java.util.Collections.emptyList(), "runtime"));
         map.put("hide_chat", new FieldDef("tristate", null, false, java.util.Collections.emptyList(), "runtime"));
         map.put("hide_scoreboard", new FieldDef("tristate", null, false, java.util.Collections.emptyList(), "runtime"));
         map.put("hide_action_bar", new FieldDef("tristate", null, false, java.util.Collections.emptyList(), "runtime"));

@@ -11,6 +11,9 @@
     "PlayerMixin",
     "MinecraftServerMixin"
   ],
+  "client": [
+    "SoundEngineMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

@@ -99,6 +99,7 @@ public class ScriptParser {
         boolean hideHud = optBoolMeta(metaObj, "hide_hud");
         Boolean hideArm = optNullableBool(metaObj, "hide_arm");
         Boolean suppressBob = optNullableBool(metaObj, "suppress_bob");
+        Boolean suppressDistortion = optNullableBool(metaObj, "suppress_distortion");
         Boolean hideChat = optNullableBool(metaObj, "hide_chat");
         Boolean hideScoreboard = optNullableBool(metaObj, "hide_scoreboard");
         Boolean hideActionBar = optNullableBool(metaObj, "hide_action_bar");
@@ -116,7 +117,7 @@ public class ScriptParser {
 
         ScriptMeta.RuntimeBehavior behavior = new ScriptMeta.RuntimeBehavior(
                 blockKeyboard, blockMouse, blockMobAi,
-                hideHud, hideArm, suppressBob,
+                hideHud, hideArm, suppressBob, suppressDistortion,
                 hideChat, hideScoreboard, hideActionBar,
                 hideTitle, hideSubtitles, hideHotbar, hideCrosshair,
                 hideBossbar, hideSkipHud,

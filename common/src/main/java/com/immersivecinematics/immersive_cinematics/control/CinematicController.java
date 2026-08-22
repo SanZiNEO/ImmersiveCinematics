@@ -31,8 +31,13 @@ public class CinematicController {
 
     private Boolean hideArm = null;
     private Boolean suppressBob = null;
+    private Boolean suppressDistortion = null;
     private boolean renderPlayerModel = true;
     private boolean blockMobAi = false;
+
+    /** 播放期间临时修改 screenEffectScale 的保存/恢复状态 */
+    private double savedScreenEffectScale = 1.0;
+    private boolean distortionOverridden = false;
 
     private boolean pauseWhenGamePaused = true;
 
@@ -54,9 +59,11 @@ public class CinematicController {
         this.hideSkipHud = behavior.hideSkipHud();
         this.hideArm = behavior.hideArm();
         this.suppressBob = behavior.suppressBob();
+        this.suppressDistortion = behavior.suppressDistortion();
         this.renderPlayerModel = behavior.renderPlayerModel();
         this.blockMobAi = behavior.blockMobAi();
         this.pauseWhenGamePaused = behavior.pauseWhenGamePaused();
+        updateScreenEffectScale();
     }
 
     public void revert() {
@@ -77,9 +84,11 @@ public class CinematicController {
         this.hideSkipHud = null;
         this.hideArm = null;
         this.suppressBob = null;
+        this.suppressDistortion = null;
         this.renderPlayerModel = true;
         this.blockMobAi = false;
         this.pauseWhenGamePaused = true;
+        restoreScreenEffectScale();
     }
 
     public boolean isSkippable() { return skippable; }
@@ -139,7 +148,49 @@ public class CinematicController {
     public Boolean isHideSkipHud() { return hideSkipHud; }
     public Boolean isHideArm() { return hideArm; }
     public Boolean isSuppressBob() { return suppressBob; }
+    public Boolean isSuppressDistortion() { return suppressDistortion; }
     public boolean isRenderPlayerModel() { return renderPlayerModel; }
     public boolean isBlockMobAi() { return blockMobAi; }
     public boolean isPauseWhenGamePaused() { return pauseWhenGamePaused; }
+
+    /**
+     * 是否屏蔽屏幕扭曲（反胃/传送门旋转）。
+     * <ul>
+     *   <li>脚本显式写了 {@code suppress_distortion} 时以脚本为准；</li>
+     *   <li>未写时兼容旧行为：跟随 {@code suppress_bob}，再回落到 {@code hide_hud}。</li>
+     * </ul>
+     */
+    private boolean shouldSuppressDistortion() {
+        if (suppressDistortion != null) return suppressDistortion;
+        if (suppressBob != null) return suppressBob;
+        return hideHud;
+    }
+
+    /**
+     * 根据当前脚本设置临时修改原版 {@code screenEffectScale}。
+     * 需要屏蔽时设为 0，不需要时恢复原值。
+     */
+    private void updateScreenEffectScale() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.options == null) return;
+        if (shouldSuppressDistortion()) {
+            if (!distortionOverridden) {
+                savedScreenEffectScale = mc.options.screenEffectScale().get();
+                distortionOverridden = true;
+            }
+            mc.options.screenEffectScale().set(0.0);
+        } else {
+            restoreScreenEffectScale();
+        }
+    }
+
+    /** 恢复播放前保存的 {@code screenEffectScale}。 */
+    private void restoreScreenEffectScale() {
+        if (!distortionOverridden) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.options != null) {
+            mc.options.screenEffectScale().set(savedScreenEffectScale);
+        }
+        distortionOverridden = false;
+    }
 }

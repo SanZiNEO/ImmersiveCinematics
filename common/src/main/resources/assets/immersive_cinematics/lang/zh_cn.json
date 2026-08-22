@@ -203,6 +203,7 @@
     "editor.field.hide_hud": "隐藏HUD",
     "editor.field.hide_arm": "隐藏手臂",
     "editor.field.suppress_bob": "抑制镜头晃动",
+    "editor.field.suppress_distortion": "抑制屏幕扭曲",
     "editor.field.skippable": "可跳过",
     "editor.field.hold_at_end": "结束时停留",
     "editor.field.interruptible": "可中断",

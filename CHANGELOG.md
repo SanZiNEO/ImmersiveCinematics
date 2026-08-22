@@ -27,6 +27,16 @@
 - 修复 Forge 实体中继中 `ClientboundBundlePacket` 解包转发时序
 - 清理 `ChunkPreloadManager` 死代码（requestTickets/sendReady/desired/ticketed/sent 残留）
 
+### 2026-08-22 追加 — 渲染优化模组兼容与 Forge 打包修复
+
+**Fixed**
+- 修复与 Sodium / Rubidium / Embeddium 的 `LevelRendererMixin` 注入冲突：检测到这三类渲染优化模组时跳过 `LevelRendererMixin`，由它们的 Camera/Frustum 管线接管渲染中心；`CameraMixin` 仍驱动虚拟相机，远端画面渲染功能保留
+- 修复 Forge 普通 jar 因缺少 MixinExtras 无法启动的问题：Forge `SoundEngineMixin` 拆分为平台专属实现（Forge 用原版 `@Redirect`，Fabric 保留 `@WrapOperation`），Forge 不再依赖/内置 MixinExtras，普通 jar 可直接运行
+- 新增跨平台 Mixin 配置插件 `ImmersiveCinematicsMixinPlugin`，用于按平台/环境条件跳过冲突 mixin
+- 新增脚本 meta 开关 `suppress_distortion`：独立控制是否屏蔽屏幕扭曲（反胃/传送门旋转）；未设置时兼容旧行为（跟随 `suppress_bob` → `hide_hud`）
+- 移除 `GameRendererMixin` 对 `Mth.lerp` 的 `@Redirect`：扭曲屏蔽改为播放期间临时设置原版 `screenEffectScale` 为 0，播放结束恢复；同时解决与 SecurityCraft `GameRendererMixin` 的注入冲突
+- 安全化三处 `@Redirect`：`SoundManagerMixin` → `@ModifyArg`、`LevelRendererMixin` → `@ModifyVariable`、`BubbleColumnAmbientSoundHandlerMixin` → `@ModifyArg`，功能不变且降低与其他模组注入冲突的概率
+
 ## [0.3.4] - 2026-08-06
 
 音乐配乐 + 覆盖层 + 事件重构 + 镜头追踪与呼吸扰动 + 翻滚角修复。

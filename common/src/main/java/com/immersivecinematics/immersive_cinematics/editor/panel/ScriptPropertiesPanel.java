@@ -18,7 +18,7 @@ public class ScriptPropertiesPanel extends EditorPanel {
                     List.of("block_keyboard", "block_mouse", "block_mob_ai", "hide_hud",
                             "render_player_model", "pause_when_game_paused")),
             new FieldGroup("editor.group.hide", false,
-                    List.of("hide_arm", "suppress_bob", "hide_chat", "hide_scoreboard",
+                    List.of("hide_arm", "suppress_bob", "suppress_distortion", "hide_chat", "hide_scoreboard",
                             "hide_action_bar", "hide_title", "hide_subtitles", "hide_hotbar",
                             "hide_crosshair", "hide_bossbar", "hide_skip_hud")),
             new FieldGroup("editor.group.playback", false,

@@ -187,3 +187,22 @@
 - 0.3.5 不做
 - 0.3.6 作为核心功能攻克
 - 先做原型验证二次渲染，再谈数据模型和 UI
+
+---
+
+## 11. 参考：Sodium / Rubidium / Embeddium 源码
+
+0.3.5 已验证一个重要事实：
+
+- Sodium / Rubidium / Embeddium 的渲染中心来自 `Camera` / `Frustum`。
+- 我们通过 `CameraMixin` 把虚拟相机写进 `Camera`，它们的 `Viewport` / `setupTerrain` 就会自动以虚拟相机为中心渲染。
+- 因此 0.3.6 做 PIP / 分屏 / 叠化时，可以优先考虑“复用它们的 Camera/Frustum 管线”，而不是自己再硬改 `LevelRenderer.setupRender`。
+
+参考源码位置：
+
+- `example/embeddium-20.1-forge/src/main/java/me/jellysquid/mods/sodium/mixin/core/render/world/WorldRendererMixin.java`
+- `example/embeddium-20.1-forge/src/main/java/me/jellysquid/mods/sodium/client/render/viewport/Viewport.java`
+- `example/embeddium-20.1-forge/src/main/java/me/jellysquid/mods/sodium/mixin/core/render/frustum/FrustumMixin.java`
+- `example/embeddium-20.1-forge/src/main/java/me/jellysquid/mods/sodium/client/render/SodiumWorldRenderer.java`
+
+后续做副相机 / 多 RenderTarget / 光影兼容调研时，这些实现可以作为重要参考。

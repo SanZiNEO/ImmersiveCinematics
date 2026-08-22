@@ -66,6 +66,7 @@ public class ScriptMeta {
     public boolean isHideHud() { return behavior.hideHud(); }
     public Boolean isHideArm() { return behavior.hideArm(); }
     public Boolean isSuppressBob() { return behavior.suppressBob(); }
+    public Boolean isSuppressDistortion() { return behavior.suppressDistortion(); }
     public Boolean isHideChat() { return behavior.hideChat(); }
     public Boolean isHideScoreboard() { return behavior.hideScoreboard(); }
     public Boolean isHideActionBar() { return behavior.hideActionBar(); }
@@ -93,6 +94,7 @@ public class ScriptMeta {
             boolean hideHud,
             Boolean hideArm,
             Boolean suppressBob,
+            Boolean suppressDistortion,
             Boolean hideChat,
             Boolean hideScoreboard,
             Boolean hideActionBar,
@@ -110,7 +112,7 @@ public class ScriptMeta {
     ) {
         public static final RuntimeBehavior DEFAULT = new RuntimeBehavior(
                 true, true, false, true,
-                null, null,
+                null, null, null,
                 null, null, null, null, null, null, null, null, null,
                 true,
                 true, true, true, false
@@ -124,6 +126,7 @@ public class ScriptMeta {
             private boolean hideHud = DEFAULT.hideHud();
             private Boolean hideArm = DEFAULT.hideArm();
             private Boolean suppressBob = DEFAULT.suppressBob();
+            private Boolean suppressDistortion = DEFAULT.suppressDistortion();
             private Boolean hideChat = null;
             private Boolean hideScoreboard = null;
             private Boolean hideActionBar = null;
@@ -145,6 +148,7 @@ public class ScriptMeta {
             public Builder hideHud(boolean v) { this.hideHud = v; return this; }
             public Builder hideArm(Boolean v) { this.hideArm = v; return this; }
             public Builder suppressBob(Boolean v) { this.suppressBob = v; return this; }
+            public Builder suppressDistortion(Boolean v) { this.suppressDistortion = v; return this; }
             public Builder hideChat(Boolean v) { this.hideChat = v; return this; }
             public Builder hideScoreboard(Boolean v) { this.hideScoreboard = v; return this; }
             public Builder hideActionBar(Boolean v) { this.hideActionBar = v; return this; }
@@ -163,7 +167,7 @@ public class ScriptMeta {
             public RuntimeBehavior build() {
                 return new RuntimeBehavior(
                         blockKeyboard, blockMouse, blockMobAi,
-                        hideHud, hideArm, suppressBob,
+                        hideHud, hideArm, suppressBob, suppressDistortion,
                         hideChat, hideScoreboard, hideActionBar,
                         hideTitle, hideSubtitles, hideHotbar, hideCrosshair,
                         hideBossbar, hideSkipHud,

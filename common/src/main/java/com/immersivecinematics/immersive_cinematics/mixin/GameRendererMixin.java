@@ -7,12 +7,10 @@ import com.mojang.math.Axis;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.util.Mth;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -65,23 +63,6 @@ public abstract class GameRendererMixin {
                 ci.cancel();
             }
         }
-    }
-
-    /**
-     * 屏蔽反胃/下界传送门旋转扭曲效果。
-     */
-    @Redirect(method = "renderLevel",
-            at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/util/Mth;lerp(FFF)F",
-                    ordinal = 0))
-    private float redirectSpinningIntensity(float partialTick, float start, float end) {
-        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip()) {
-            Boolean setting = CinematicController.INSTANCE.isSuppressBob();
-            if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
-                return 0.0F;
-            }
-        }
-        return Mth.lerp(partialTick, start, end);
     }
 
     // ===== 相机 Roll（翻滚角）=====
