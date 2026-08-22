@@ -449,6 +449,13 @@ public abstract class EditorPanel extends UIComponent {
         }
 
         if (prim.isString()) {
+            FieldDef def = isKeyframe
+                    ? SchemaLoader.getKeyframeFields(TrackType.valueOf(selectedTrackType().toUpperCase())).get(key)
+                    : SchemaLoader.getClipFields(TrackType.valueOf(selectedTrackType().toUpperCase())).get(key);
+            if (def != null && "enum".equals(def.type()) && !def.enumValues().isEmpty()) {
+                return reflectClipEnum(key, lx, cy, depth, parentObj, isKeyframe, def.enumValues());
+            }
+
             UITextInput ti = new UITextInput(ix, cy, iw, 16, label,
                     () -> parentObj.has(key) ? parentObj.get(key).getAsString() : "",
                     v -> {
