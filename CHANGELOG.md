@@ -36,6 +36,7 @@
 - 新增脚本 meta 开关 `suppress_distortion`：独立控制是否屏蔽屏幕扭曲（反胃/传送门旋转）；未设置时兼容旧行为（跟随 `suppress_bob` → `hide_hud`）
 - 移除 `GameRendererMixin` 对 `Mth.lerp` 的 `@Redirect`：扭曲屏蔽改为播放期间临时设置原版 `screenEffectScale` 为 0，播放结束恢复；同时解决与 SecurityCraft `GameRendererMixin` 的注入冲突
 - 安全化三处 `@Redirect`：`SoundManagerMixin` → `@ModifyArg`、`LevelRendererMixin` → `@ModifyVariable`、`BubbleColumnAmbientSoundHandlerMixin` → `@ModifyArg`，功能不变且降低与其他模组注入冲突的概率
+- Mixin 配置插件去反射：`ImmersiveCinematicsMixinPlugin` 拆分为 Forge / Fabric 平台专属实现，分别直接使用 `FMLLoader` / `ModList` 与 `FabricLoader` API，不再使用 Java 反射
 
 ## [0.3.4] - 2026-08-06
 

@@ -55,19 +55,22 @@
 
 ---
 
-## 4. MixinConfigPlugin 使用 Java 反射不稳定（待处理）
+## 4. MixinConfigPlugin 使用 Java 反射不稳定
 
 ### 问题
 
-- `ImmersiveCinematicsMixinPlugin` 目前用 `Class.forName` + 反射调用 Forge/Fabric 加载器 API 来检测 mod。
+- `ImmersiveCinematicsMixinPlugin` 曾用 `Class.forName` + 反射调用 Forge/Fabric 加载器 API 来检测 mod。
 - 反射在早期加载阶段不稳定，曾导致 `ModList.get()` 为 null 时 NPE。
 - 用户明确要求：**不要用反射**。
 
-### 处理方向
+### 处理状态
 
-- Forge 写 Forge 专属 Mixin 配置插件，直接使用 `FMLLoader` / `ModList` API。
-- Fabric 写 Fabric 专属 Mixin 配置插件，直接使用 `FabricLoader` API。
-- common 只保留公共接口/逻辑，不写反射。
+✅ 已处理（2026-08-22）
+
+- 删除 common 里的反射插件类。
+- Forge 侧新增同名插件类，直接使用 `FMLLoader` / `ModList` API。
+- Fabric 侧新增同名插件类，直接使用 `FabricLoader` API。
+- common 不再包含平台加载器反射逻辑。
 
 ---
 
