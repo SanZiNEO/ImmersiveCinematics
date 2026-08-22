@@ -77,6 +77,9 @@ dependencies {
     compileOnly 'io.github.llamalad7:mixinextras-common:0.3.6'
     testCompileOnly 'io.github.llamalad7:mixinextras-common:0.3.6'
     implementation fg.deobf("io.github.llamalad7:mixinextras-forge:0.3.6")
+    jarJar("io.github.llamalad7:mixinextras-forge:0.3.6") {
+        jarJar.ranged(it, "[0.3.6,)")
+    }
     annotationProcessor("org.spongepowered:mixin:0.8.5-SNAPSHOT:processor")
 }
 
