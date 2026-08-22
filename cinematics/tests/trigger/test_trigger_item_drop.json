@@ -1,0 +1,43 @@
+﻿{
+  "meta": {
+    "id": "test_trigger_item_drop",
+    "name": "触发器测试-item_drop",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "触发 item_drop 后显示文字提示",
+    "triggers": [ {"id":"trg_item_drop","type":"item_drop","repeatable":false,"delay":0,"conditions":{"item":"minecraft:*"}} ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 6,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "已触发 item_drop 触发器",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "opacity": 0 },
+              { "time": 0.5, "opacity": 1 },
+              { "time": 5, "opacity": 1 },
+              { "time": 6, "opacity": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
