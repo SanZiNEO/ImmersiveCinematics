@@ -1,0 +1,54 @@
+{
+  "meta": {
+    "id": "test_camera_follow_entity",
+    "name": "相机测试-follow实体",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "只测试 follow 会逃跑的豹猫实体",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+  "type": "EVENT",
+  "clips": [
+    {
+      "start_time": 0,
+      "duration": 12,
+      "event_type": "command",
+      "keyframes": [
+        { "time": 0, "event_type": "command", "command": "summon minecraft:ocelot ~ ~2 ~" }
+      ]
+    }
+  ]
+},
+{
+  "type": "CAMERA",
+  "clips": [
+    {
+      "start_time": 1,
+      "duration": 11,
+      "transition": "cut",
+      "interpolation": "linear",
+      "loop": false,
+      "keyframes": [
+        { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@e[type=minecraft:ocelot,limit=1]", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 },
+        { "time": 11, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@e[type=minecraft:ocelot,limit=1]", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 }
+      ]
+    }
+  ]
+}
+    ]
+  }
+}

@@ -1,0 +1,47 @@
+﻿{
+  "meta": {
+    "id": "test_camera_breath_trauma",
+    "name": "相机测试-呼吸扰动Trauma",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "只测试 trauma 呼吸扰动",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+  "type": "CAMERA",
+  "clips": [
+    {
+      "start_time": 0,
+      "duration": 12,
+      "transition": "cut",
+      "interpolation": "linear",
+      "loop": false,
+      "cam_breath_enabled": true,
+      "cam_breath_type": "trauma",
+      "cam_breath_intensity": 0.15,
+      "cam_breath_seed": 7,
+      "cam_breath_trauma": 0.8,
+      "cam_breath_decay": 0.5,
+      "keyframes": [
+        { "time": 0, "position": { "dx": 0, "dy": 2, "dz": -3 }, "yaw": 0, "pitch": -5, "roll": 0, "fov": 70, "zoom": 1 },
+        { "time": 12, "position": { "dx": 0, "dy": 2, "dz": -3 }, "yaw": 0, "pitch": -5, "roll": 0, "fov": 70, "zoom": 1 }
+      ]
+    }
+  ]
+}
+    ]
+  }
+}

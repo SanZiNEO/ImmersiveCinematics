@@ -1,0 +1,56 @@
+﻿{
+  "meta": {
+    "id": "test_overlay_zindex",
+    "name": "覆盖层测试-ZIndex",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "只测试不同 z_index 的叠加顺序",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+  "type": "OVERLAY",
+  "clips": [
+    {
+      "start_time": 0,
+      "duration": 8,
+      "layer_type": "subtitle",
+      "text": "底层文字 z=10",
+      "z_index": 10,
+      "keyframes": [
+        { "time": 0, "x": 0.2, "y": 0.5, "opacity": 0 },
+        { "time": 1, "x": 0.2, "y": 0.5, "opacity": 1 },
+        { "time": 7, "x": 0.2, "y": 0.5, "opacity": 1 },
+        { "time": 8, "x": 0.2, "y": 0.5, "opacity": 0 }
+      ]
+    },
+    {
+      "start_time": 0,
+      "duration": 8,
+      "layer_type": "fade",
+      "color": "#FF0000",
+      "z_index": 20,
+      "keyframes": [
+        { "time": 0, "opacity": 0 },
+        { "time": 1, "opacity": 0.4 },
+        { "time": 7, "opacity": 0.4 },
+        { "time": 8, "opacity": 0 }
+      ]
+    }
+  ]
+}
+    ]
+  }
+}

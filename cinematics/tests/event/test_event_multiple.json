@@ -1,0 +1,36 @@
+﻿{
+  "meta": {
+    "id": "test_event_multiple",
+    "name": "事件测试-多命令",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "只测试 EVENT 多条命令按时间触发",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 10,
+    "tracks": [
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "event_type": "command",
+            "keyframes": [ { "time": 0, "event_type": "command", "command": "say [EVENT] 0s" },{ "time": 3, "event_type": "command", "command": "say [EVENT] 3s" },{ "time": 6, "event_type": "command", "command": "say [EVENT] 6s" },{ "time": 9, "event_type": "command", "command": "say [EVENT] 9s" } ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+﻿{
+  "meta": {
+    "id": "test_letterbox_basic",
+    "name": "黑边测试-基础",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "只测试 LETTERBOX 黑边出现与恢复",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "keyframes": [
+              { "time": 0, "aspect_ratio": 0 },
+              { "time": 1, "aspect_ratio": 2.35 },
+              { "time": 7, "aspect_ratio": 2.35 },
+              { "time": 8, "aspect_ratio": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

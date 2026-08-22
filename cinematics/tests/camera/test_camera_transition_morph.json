@@ -1,0 +1,53 @@
+﻿{
+  "meta": {
+    "id": "test_camera_transition_morph",
+    "name": "相机测试-过渡Morph",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "只测试 clip 间 morph 过渡",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+  "type": "CAMERA",
+  "clips": [
+    {
+      "start_time": 0,
+      "duration": 4,
+      "transition": "morph",
+      "transition_duration": 1,
+      "interpolation": "linear",
+      "loop": false,
+      "keyframes": [
+        { "time": 0, "position": { "dx": 3, "dy": 2, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+        { "time": 4, "position": { "dx": 0, "dy": 3, "dz": -3 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1 }
+      ]
+    },
+    {
+      "start_time": 4,
+      "duration": 8,
+      "transition": "cut",
+      "interpolation": "linear",
+      "loop": false,
+      "keyframes": [
+        { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -3 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1 },
+        { "time": 8, "position": { "dx": -3, "dy": 2, "dz": 3 }, "yaw": 180, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+      ]
+    }
+  ]
+}
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+﻿{
+  "meta": {
+    "id": "test_meta_suppress_distortion_off",
+    "name": "Meta测试-扭曲屏蔽关",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "只测试 suppress_distortion=false 时显示扭曲",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false,
+    "suppress_distortion": false
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "Meta测试-扭曲屏蔽关",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.2, "y": 0.3, "opacity": 0 },
+              { "time": 1, "x": 0.2, "y": 0.3, "opacity": 1 },
+              { "time": 7, "x": 0.2, "y": 0.3, "opacity": 1 },
+              { "time": 8, "x": 0.2, "y": 0.3, "opacity": 0 }
+            ]
+          }
+        ]
+      }
+      ,
+{
+  "type": "EVENT",
+  "clips": [
+    {
+      "start_time": 0,
+      "duration": 8,
+      "event_type": "command",
+      "keyframes": [
+        { "time": 0, "event_type": "command", "command": "effect give @p minecraft:nausea 6 1" }
+      ]
+    }
+  ]
+}
+    ]
+  }
+}

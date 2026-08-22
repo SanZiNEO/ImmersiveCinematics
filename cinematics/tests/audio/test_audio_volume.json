@@ -1,0 +1,45 @@
+﻿{
+  "meta": {
+    "id": "test_audio_volume",
+    "name": "音频测试-音量渐变",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "只测试音量关键帧变化",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "listener": "camera",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 10,
+    "tracks": [
+      {
+  "type": "AUDIO",
+  "clips": [
+    {
+      "start_time": 0,
+      "duration": 10,
+      "sound": "second_waltz.ogg",
+      "source": "file",
+      "volume": 1,
+      "pitch": 1,
+      "loop": false,
+      "fade_in": 0.5,
+      "fade_out": 0.5,
+      "attenuation": "none",
+      
+      "keyframes": [ { "time": 0, "volume": 1 }, { "time": 5, "volume": 0.2 }, { "time": 10, "volume": 1 } ]
+    }
+  ]
+}
+    ]
+  }
+}
