@@ -11,6 +11,7 @@
     "BubbleColumnAmbientSoundHandlerMixin",
     "CameraMixin",
     "ChatComponentMixin",
+    "ClientChunkCacheMixin",
     "GameRendererMixin",
     "GuiMixin",
     "KeyboardHandlerMixin",
@@ -26,10 +27,9 @@
     "UnderwaterAmbientSoundHandlerMixin"
   ],
   "mixins": [
+    "ChunkMapMixin",
     "ItemUseMixin",
-    "PlayerListAccessor",
-    "PlayerListMixin",
-    "ServerEntityMixin"
+    "NaturalSpawnerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

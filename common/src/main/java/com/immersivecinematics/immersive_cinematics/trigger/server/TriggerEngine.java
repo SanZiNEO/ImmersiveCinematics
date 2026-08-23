@@ -87,7 +87,7 @@ public class TriggerEngine {
         for (TriggerRegistration reg : triggers) {
             if (!prerequisitesMet(player, reg)) continue;
             if (shouldSkip(player, reg)) continue;
-            if (reg.getType().evaluate(player, reg.getConditions())) {
+            if (evaluateSafely(reg, player)) {
                 if (reg.isOnEnter() && !checkEnterState(player, reg)) continue;
                 fireTrigger(player, reg);
             }
@@ -106,10 +106,9 @@ public class TriggerEngine {
 
             for (TriggerRegistration reg : entry.getValue()) {
                 for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-                    if (player instanceof com.immersivecinematics.immersive_cinematics.trigger.server.CameraFakePlayer) continue;
                     if (!prerequisitesMet(player, reg)) continue;
                     if (shouldSkip(player, reg)) continue;
-                    if (reg.getType().evaluate(player, reg.getConditions())) {
+                    if (evaluateSafely(reg, player)) {
                         if (reg.isOnEnter() && !checkEnterState(player, reg)) continue;
                         fireTrigger(player, reg);
                     }
@@ -235,8 +234,8 @@ public class TriggerEngine {
 
         JsonObject exitCond = reg.getExitConditions();
         if (exitCond != null) {
-            boolean inExpanded = reg.getType().evaluate(player, exitCond);
-            boolean inOriginal = reg.getType().evaluate(player, reg.getConditions());
+            boolean inExpanded = evaluateSafely(reg, player, exitCond);
+            boolean inOriginal = evaluateSafely(reg, player);
 
             if (inOriginal) {
                 playerStates.put(key, true);
@@ -248,8 +247,25 @@ public class TriggerEngine {
             return false;
         }
 
-        boolean isInside = reg.getType().evaluate(player, reg.getConditions());
+        boolean isInside = evaluateSafely(reg, player);
         playerStates.put(key, isInside);
         return isInside && !wasInside;
+    }
+
+    /**
+     * 安全求值：触发器条件数据损坏/缺失时只跳过该触发器并记录错误，不拖垮服务端。
+     */
+    private boolean evaluateSafely(TriggerRegistration reg, ServerPlayer player) {
+        return evaluateSafely(reg, player, reg.getConditions());
+    }
+
+    private boolean evaluateSafely(TriggerRegistration reg, ServerPlayer player, JsonObject conditions) {
+        try {
+            return reg.getType().evaluate(player, conditions);
+        } catch (Exception e) {
+            LOGGER.error("Failed to evaluate trigger '{}' for script '{}' (player: {}); skipping trigger",
+                    reg.getTriggerId(), reg.getScriptId(), player.getName().getString(), e);
+            return false;
+        }
     }
 }

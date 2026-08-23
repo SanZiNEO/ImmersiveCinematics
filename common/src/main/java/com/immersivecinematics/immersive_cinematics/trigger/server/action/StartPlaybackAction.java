@@ -47,13 +47,11 @@ public class StartPlaybackAction implements TriggerAction {
         switch (target) {
             case "all" -> {
                 for (ServerPlayer p : player.server.getPlayerList().getPlayers()) {
-                    if (p instanceof com.immersivecinematics.immersive_cinematics.trigger.server.CameraFakePlayer) continue;
                     sendTo(p, script);
                 }
             }
             case "all_except_trigger" -> {
                 for (ServerPlayer p : player.server.getPlayerList().getPlayers()) {
-                    if (p instanceof com.immersivecinematics.immersive_cinematics.trigger.server.CameraFakePlayer) continue;
                     if (p != player) sendTo(p, script);
                 }
             }

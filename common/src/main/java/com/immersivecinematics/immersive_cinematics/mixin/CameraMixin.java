@@ -2,11 +2,13 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
+import com.mojang.logging.LogUtils;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -34,6 +36,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(Camera.class)
 public abstract class CameraMixin {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
+    private static long lastCameraLog;
 
     @Shadow
     protected abstract void setPosition(double x, double y, double z);
@@ -100,6 +105,14 @@ public abstract class CameraMixin {
         float yaw = mgr.getProperties().getYaw();
         float pitch = mgr.getProperties().getPitch();
         setRotation(yaw, pitch);
+
+        long now = System.currentTimeMillis();
+        if (now - lastCameraLog >= 1000) {
+            lastCameraLog = now;
+            LOGGER.info("[camera-client] 渲染相机 pos=({},{},{}) yaw={} pitch={}",
+                    String.format("%.1f", pos.x), String.format("%.1f", pos.y), String.format("%.1f", pos.z),
+                    String.format("%.1f", yaw), String.format("%.1f", pitch));
+        }
 
         // Roll 由 GameRendererMixin.onBeforePrepareCullFrustum() 在 renderLevel 中施加：
         // 视图矩阵不读取 Camera.rotation() 四元数（原版用 getXRot/getYRot 标量构造），

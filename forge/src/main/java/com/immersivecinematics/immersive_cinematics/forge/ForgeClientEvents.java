@@ -1,12 +1,15 @@
 package com.immersivecinematics.immersive_cinematics.forge;
 
 import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
+import com.immersivecinematics.immersive_cinematics.client.ConfigScreen;
 import com.immersivecinematics.immersive_cinematics.handler.ClientEventHandler;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
@@ -21,6 +24,10 @@ public final class ForgeClientEvents {
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         ClientEventHandler.onClientInit();
+        ModLoadingContext.get().registerExtensionPoint(
+                ConfigScreenHandler.ConfigScreenFactory.class,
+                () -> new ConfigScreenHandler.ConfigScreenFactory(
+                        (mc, parent) -> new ConfigScreen(parent)));
     }
 
     @SubscribeEvent

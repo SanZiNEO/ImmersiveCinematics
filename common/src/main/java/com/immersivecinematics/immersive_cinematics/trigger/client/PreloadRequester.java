@@ -67,13 +67,7 @@ public final class PreloadRequester {
             Vec3 pos = cam.getPath().getPosition();
             int bx = (int) Math.floor(pos.x);
             int bz = (int) Math.floor(pos.z);
-            boolean far = isFarFromPlayer(mc, bx, bz);
             if (!sid.equals(lastScript)) {
-                if (!far) {
-                    // 近程脚本不预载（零状态/零日志），并释放上一个预载
-                    releaseIfNeeded();
-                    return;
-                }
                 lastScript = sid;
                 lastPrewarm = "";
                 tickCounter = 0;
@@ -92,7 +86,7 @@ public final class PreloadRequester {
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                         new C2SPreloadPositionPacket(bx, bz, cam.getCameraYaw()));
             }
-            maybePrewarm(mc, sp);
+            // 独立 prewarm 已取消：只有一个相机中心，不需要预载第二个中心
         } else {
             releaseIfNeeded();
         }

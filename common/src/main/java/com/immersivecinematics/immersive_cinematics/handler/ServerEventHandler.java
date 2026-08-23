@@ -47,7 +47,6 @@ public final class ServerEventHandler {
     }
 
     public static void onPlayerJoin(ServerPlayer serverPlayer) {
-        if (serverPlayer instanceof com.immersivecinematics.immersive_cinematics.trigger.server.CameraFakePlayer) return;
         TriggerStateStore.INSTANCE.loadForPlayer(serverPlayer.getUUID());
         PlayerTriggerState joinState = TriggerStateStore.INSTANCE.getOrCreate(serverPlayer.getUUID());
         S2CTriggerStateSyncPacket.send(
@@ -56,7 +55,6 @@ public final class ServerEventHandler {
     }
 
     public static void onPlayerQuit(ServerPlayer serverPlayer) {
-        if (serverPlayer instanceof com.immersivecinematics.immersive_cinematics.trigger.server.CameraFakePlayer) return;
         UUID uuid = serverPlayer.getUUID();
         com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager.INSTANCE.onDisconnect(uuid, serverPlayer);
         TriggerStateStore.INSTANCE.unloadForPlayer(uuid);
@@ -74,7 +72,8 @@ public final class ServerEventHandler {
         TriggerEngine.INSTANCE.onServerTick(server);
         ScriptEventManager.INSTANCE.onServerTick(server);
         com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager.INSTANCE.tick();
-        com.immersivecinematics.immersive_cinematics.trigger.server.CameraMobManager.INSTANCE.tick();
+        com.immersivecinematics.immersive_cinematics.trigger.server.CameraAnchorManager.INSTANCE.tick();
+        com.immersivecinematics.immersive_cinematics.trigger.server.CameraEntitySyncManager.INSTANCE.tick();
     }
 
     public static void onRegisterCommands(CommandDispatcher<CommandSourceStack> dispatcher) {

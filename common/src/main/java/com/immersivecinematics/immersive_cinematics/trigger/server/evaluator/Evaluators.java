@@ -30,11 +30,16 @@ public class Evaluators {
     public static JsonObject expandConditions(JsonObject c, float buffer) {
         if (c == null || buffer <= 0f) return null;
         if (!c.has("corner1") || !c.has("corner2")) {
-            if (c.has("position") && c.has("radius")) {
+            if (c.has("position") && c.get("position").isJsonObject()
+                    && c.has("radius") && c.get("radius").isJsonPrimitive()
+                    && c.get("radius").getAsJsonPrimitive().isNumber()) {
                 JsonObject expanded = c.deepCopy();
                 expanded.addProperty("radius", c.get("radius").getAsFloat() + buffer);
                 return expanded;
             }
+            return null;
+        }
+        if (!c.get("corner1").isJsonObject() || !c.get("corner2").isJsonObject()) {
             return null;
         }
         JsonObject result = c.deepCopy();
@@ -56,14 +61,18 @@ public class Evaluators {
                 return false;
             }
         }
-        if (c.has("corner1") && c.has("corner2")) {
+        if (c.has("corner1") && c.has("corner2")
+                && c.get("corner1").isJsonObject() && c.get("corner2").isJsonObject()) {
             if (inBox(player.getX(), player.getY(), player.getZ(),
                     c.getAsJsonObject("corner1"), c.getAsJsonObject("corner2"))) {
                 return true;
             }
         }
         if (c.has("position")) {
-            double radius = c.has("radius") ? c.get("radius").getAsDouble() : 0.0;
+            if (!c.get("position").isJsonObject()) return false;
+            double radius = c.has("radius") && c.get("radius").isJsonPrimitive()
+                    && c.get("radius").getAsJsonPrimitive().isNumber()
+                    ? c.get("radius").getAsDouble() : 0.0;
             return inRadius(player.getX(), player.getY(), player.getZ(),
                     c.getAsJsonObject("position"), radius);
         }
@@ -129,16 +138,23 @@ public class Evaluators {
         if (c.has("dimension") && !matchesId(rec.dimension(), c.get("dimension").getAsString())) return false;
         if (c.has("biome") && !matchesId(rec.biome(), c.get("biome").getAsString())) return false;
         if (c.has("position")) {
-            double radius = c.has("radius") ? c.get("radius").getAsDouble() : 0.0;
+            if (!c.get("position").isJsonObject()) return false;
+            double radius = c.has("radius") && c.get("radius").isJsonPrimitive()
+                    && c.get("radius").getAsJsonPrimitive().isNumber()
+                    ? c.get("radius").getAsDouble() : 0.0;
             if (!inRadius(rec.x(), rec.y(), rec.z(), c.getAsJsonObject("position"), radius)) return false;
         }
-        if (c.has("corner1") && c.has("corner2")) {
+        if (c.has("corner1") && c.has("corner2")
+                && c.get("corner1").isJsonObject() && c.get("corner2").isJsonObject()) {
             if (!inBox(rec.x(), rec.y(), rec.z(), c.getAsJsonObject("corner1"), c.getAsJsonObject("corner2"))) return false;
         }
         return true;
     }
 
     private static boolean inRadius(double x, double y, double z, JsonObject pos, double radius) {
+        if (pos == null || !pos.has("x") || !pos.has("y") || !pos.has("z")) {
+            return false;
+        }
         double px = pos.get("x").getAsDouble();
         double py = pos.get("y").getAsDouble();
         double pz = pos.get("z").getAsDouble();
@@ -149,6 +165,11 @@ public class Evaluators {
     }
 
     private static boolean inBox(double x, double y, double z, JsonObject c1, JsonObject c2) {
+        if (c1 == null || c2 == null
+                || !c1.has("x") || !c1.has("y") || !c1.has("z")
+                || !c2.has("x") || !c2.has("y") || !c2.has("z")) {
+            return false;
+        }
         double minX = Math.min(c1.get("x").getAsDouble(), c2.get("x").getAsDouble());
         double maxX = Math.max(c1.get("x").getAsDouble(), c2.get("x").getAsDouble());
         double minY = Math.min(c1.get("y").getAsDouble(), c2.get("y").getAsDouble());

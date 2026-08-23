@@ -1,6 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.command;
 
-import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser;
@@ -73,8 +72,6 @@ public class CinematicCommand {
                         .executes(CinematicCommand::stopScript)
                         .then(Commands.argument("players", EntityArgument.players())
                                 .executes(CinematicCommand::stopScript)))
-                .then(Commands.literal("status")
-                        .executes(CinematicCommand::showStatus))
                 .then(Commands.literal("reload")
                         .requires(s -> s.hasPermission(2))
                         .executes(CinematicCommand::reloadScripts))
@@ -310,29 +307,6 @@ public class CinematicCommand {
 
         final int count = targets.size();
         LOGGER.info("已向 {} 名玩家发送停止指令", count);
-        return 1;
-    }
-
-    private static int showStatus(CommandContext<CommandSourceStack> context) {
-        CommandSourceStack source = context.getSource();
-        MinecraftServer server = source.getServer();
-        Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
-
-        CameraManager mgr = CameraManager.INSTANCE;
-        if (!mgr.isActive()) {
-            LOGGER.info("相机未激活 | 全局脚本目录: {}", globalDir);
-            return 0;
-        }
-
-        if (mgr.isScriptMode()) {
-            CinematicScript script = mgr.getScriptPlayer().getScript();
-            String name = script != null ? script.getName() : "未知";
-            float remaining = mgr.getScriptPlayer().getRemainingTime();
-            LOGGER.info("脚本模式: {} (剩余: {}s)", name, String.format("%.1f", remaining));
-        } else {
-            LOGGER.info("测试模式 (P键激活)");
-        }
-
         return 1;
     }
 

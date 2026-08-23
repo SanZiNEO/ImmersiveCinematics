@@ -100,3 +100,24 @@
 - `SoundManagerMixin` → listener 更新相关 `@Redirect`（✅ 已改为 `@ModifyArg`）
 - `BiomeAmbientSoundsHandlerMixin` / `BubbleColumnAmbientSoundHandlerMixin` / `UnderwaterAmbientSoundHandlerMixin` → 玩家位置/状态相关 `@Redirect`（BubbleColumn ✅ 已改为 `@ModifyArg`；Biome / Underwater 保留，源码结构不支持温和替代）
 - Forge `SoundEngineMixin` → `SoundInstance.getStream` 的 `@Redirect`（保留，返回值链式调用无法 `@ModifyVariable`）
+
+---
+
+## 6. 设计原则：能用 Mixin 注入实现就不要碰私有字段（2026-08-22 记录）
+
+### 原则
+
+- Mixin 本身提供了 `@Inject` / `@Redirect` / `@ModifyArg` / `@ModifyVariable` / `@WrapOperation` 等足够多的注入手段，理论上大部分目标行为都能在不直接访问私有字段的前提下实现。
+- 如果某个功能“用 Mixin 都能改”，却仍然去 `getDeclaredField` / `setAccessible` / 写 `@Accessor` 接口 / 依赖私有字段名，那就是我们的实现不够好。
+- 后续新功能优先：
+  1. 用 Mixin 注入/重定向/改参/改局部变量完成；
+  2. 确实需要读写字段时，优先用 `@Shadow` + 普通 class mixin 暴露方法，而不是 `@Accessor` 接口；
+  3. 不要用 Java 反射摸 Minecraft/Forge 私有字段；
+  4. 平台能走公开 API / 原版正常流程（如 `placeNewPlayer` + `EmbeddedChannel`）就不要手动操作内部集合。
+
+### 待办映射
+
+- `PlayerListAccessor` / `PlayerListMixin` 的 `players` / `playersByUUID`：目标是彻底去掉私有字段访问，参考 Carpet 的 `EmbeddedChannel + placeNewPlayer` 方案。
+- `ServerEntityMixin` 的 `@Shadow entity`：评估能否用注入参数 / 公开方法替代。
+- `SingleIdEditor` 的 `getDeclaredField("advancements")`：编辑器反射读取进度列表，后续换成公开 API 或 Mixin 暴露。
+- `MouseHandlerAccessor` 的 `@Accessor`：客户端低风险，但按同一原则可改成普通接口 + 普通 mixin 实现。

@@ -72,9 +72,15 @@ public class LocationEditor extends TriggerEditor {
 
     private int addPositionFields(List<UIComponent> widgets, int x, int y, int w,
                                    String key, Runnable onDirty) {
-        JsonObject pos = conditions.has(key) ? conditions.getAsJsonObject(key) : new JsonObject();
-        if (!conditions.has(key)) conditions.add(key, pos);
+        // 确保 position/corner 一定是对象，且 x/y/z 有默认值，避免保存出空对象导致服务端 NPE。
+        if (!conditions.has(key) || !conditions.get(key).isJsonObject()) {
+            conditions.add(key, new JsonObject());
+        }
+        JsonObject pos = conditions.getAsJsonObject(key);
         for (String axis : new String[]{"x", "y", "z"}) {
+            if (!pos.has(axis)) {
+                pos.addProperty(axis, 0);
+            }
             UIFloatInput fi = new UIFloatInput(x, y, w, 16, I18n.get("editor.field.position_" + axis),
                 () -> pos.has(axis) ? pos.get(axis).getAsFloat() : 0,
                 -99999, 99999, 1,

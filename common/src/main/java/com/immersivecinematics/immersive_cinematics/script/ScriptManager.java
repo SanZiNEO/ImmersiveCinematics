@@ -103,6 +103,11 @@ public class ScriptManager {
                 for (Map.Entry<String, Object> entry : td.getConditions().entrySet()) {
                     convertToJson(conditions, entry.getKey(), entry.getValue());
                 }
+                if ("location".equals(td.getType()) && !hasValidLocationConditions(conditions)) {
+                    com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("ScriptLoad",
+                            "脚本 '" + meta.getId() + "' 的 location 触发器缺少完整的 position/corner 坐标，已跳过该触发器");
+                    continue;
+                }
                 int delayMs = (int)(td.getDelay() * 1000);
                 JsonObject exitConditions = td.isOnEnter() && td.getExitBuffer() > 0f
                         ? Evaluators.expandConditions(conditions, td.getExitBuffer())
@@ -185,5 +190,29 @@ public class ScriptManager {
             }
             target.add(key, arr);
         }
+    }
+
+    /**
+     * 校验 location 触发器条件是否完整：
+     * 只有 dimension 也合法；有 position 则必须是含 x/y/z 的对象；
+     * 有 corner1/corner2 则两个都必须是含 x/y/z 的对象。
+     */
+    private static boolean hasValidLocationConditions(JsonObject c) {
+        boolean hasArea = c.has("position") || (c.has("corner1") && c.has("corner2"));
+        if (!hasArea) return true;
+
+        if (c.has("position")) {
+            if (!c.get("position").isJsonObject()) return false;
+            JsonObject p = c.getAsJsonObject("position");
+            if (!p.has("x") || !p.has("y") || !p.has("z")) return false;
+        }
+        if (c.has("corner1") && c.has("corner2")) {
+            if (!c.get("corner1").isJsonObject() || !c.get("corner2").isJsonObject()) return false;
+            JsonObject c1 = c.getAsJsonObject("corner1");
+            JsonObject c2 = c.getAsJsonObject("corner2");
+            if (!c1.has("x") || !c1.has("y") || !c1.has("z")
+                    || !c2.has("x") || !c2.has("y") || !c2.has("z")) return false;
+        }
+        return true;
     }
 }
