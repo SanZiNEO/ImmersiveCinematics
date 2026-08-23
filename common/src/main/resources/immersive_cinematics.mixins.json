@@ -20,7 +20,6 @@
     "LocalPlayerMixin",
     "MinecraftMixin",
     "MouseHandlerMixin",
-    "MouseHandlerAccessor",
     "PlayerTabOverlayMixin",
     "SoundManagerMixin",
     "SubtitleOverlayMixin",

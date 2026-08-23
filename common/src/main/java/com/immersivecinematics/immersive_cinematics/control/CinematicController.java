@@ -1,6 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.control;
 
-import com.immersivecinematics.immersive_cinematics.mixin.MouseHandlerAccessor;
 import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
@@ -128,12 +127,8 @@ public class CinematicController {
             KeyMapping.set(InputConstants.Type.MOUSE.getOrCreate(button), down);
         }
 
-        // 3) 鼠标视角累积量清理（Accessor 接口——mixin 类不可直接引用，会抛 IllegalClassLoadError）
-        if (mc.mouseHandler != null) {
-            MouseHandlerAccessor accessor = (MouseHandlerAccessor) mc.mouseHandler;
-            accessor.setAccumulatedDX(0.0D);
-            accessor.setAccumulatedDY(0.0D);
-        }
+        // 3) 鼠标视角累积量不再需要清理：飞行时 onMove 在 vanilla 累积前已被中继层拦截，
+        //    accumulatedDX/DY 不会在播放期间增长；退出时保持原样即可。
     }
 
     public boolean isHideHud() { return hideHud; }
