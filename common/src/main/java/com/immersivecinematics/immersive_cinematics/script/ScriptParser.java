@@ -468,31 +468,52 @@ public class ScriptParser {
         float delay = optFloat(obj, "delay", 0f);
         boolean onEnter = optBool(obj, "on_enter", false);
         float exitBuffer = optFloat(obj, "exit_buffer", 0f);
-        List<String> requires = parseTriggerRequires(obj, p);
+        List<TriggerRequirement> requires = parseTriggerRequires(obj, p);
         return new TriggerDefinition(type, conditions, repeatable, delay, onEnter, exitBuffer, requires);
     }
 
     /**
-     * 解析触发器前置依赖 requires: string[]（AND 语义；缺省 = 无前置，兼容旧脚本）。
-     * 每条是前置脚本 id（该脚本"触发过"即解锁，跳过/打断都算）。
+     * 解析触发器前置条件 requires（AND 语义；缺省 = 无前置，兼容旧脚本）。
+     * <ul>
+     *   <li>旧语法：字符串 = 前置脚本 id，等价于 {@code {"type":"script_played","script":"id"}}</li>
+     *   <li>新语法：对象 = {@code {"type":"...", ...}}，可注册自定义前置条件</li>
+     * </ul>
      */
-    private static List<String> parseTriggerRequires(JsonObject obj, String p) throws ScriptParseException {
+    private static List<TriggerRequirement> parseTriggerRequires(JsonObject obj, String p) throws ScriptParseException {
         if (!obj.has("requires")) return Collections.emptyList();
         if (!obj.get("requires").isJsonArray()) {
-            throw new ScriptParseException(p + ".requires", "requires 必须是字符串数组");
+            throw new ScriptParseException(p + ".requires", "requires 必须是数组");
         }
-        List<String> result = new ArrayList<>();
+        List<TriggerRequirement> result = new ArrayList<>();
         JsonArray arr = obj.getAsJsonArray("requires");
         for (int i = 0; i < arr.size(); i++) {
             JsonElement el = arr.get(i);
-            if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isString()) {
-                throw new ScriptParseException(p + ".requires[" + i + "]", "前置脚本 id 必须是字符串");
+            String rp = p + ".requires[" + i + "]";
+            if (el.isJsonPrimitive() && el.getAsJsonPrimitive().isString()) {
+                String id = el.getAsString();
+                if (id.isEmpty()) {
+                    throw new ScriptParseException(rp, "前置脚本 id 不能为空");
+                }
+                result.add(TriggerRequirement.scriptPlayed(id));
+            } else if (el.isJsonObject()) {
+                JsonObject reqObj = el.getAsJsonObject();
+                if (!reqObj.has("type") || !reqObj.get("type").isJsonPrimitive() || !reqObj.get("type").getAsJsonPrimitive().isString()) {
+                    throw new ScriptParseException(rp, "对象型前置条件必须包含字符串 type");
+                }
+                String type = reqObj.get("type").getAsString();
+                if (type.isEmpty()) {
+                    throw new ScriptParseException(rp, "前置条件 type 不能为空");
+                }
+                JsonObject data = new JsonObject();
+                for (var entry : reqObj.entrySet()) {
+                    if (!"type".equals(entry.getKey())) {
+                        data.add(entry.getKey(), entry.getValue());
+                    }
+                }
+                result.add(new TriggerRequirement(type, data));
+            } else {
+                throw new ScriptParseException(rp, "requires 元素必须是字符串脚本 id 或对象型前置条件");
             }
-            String id = el.getAsString();
-            if (id.isEmpty()) {
-                throw new ScriptParseException(p + ".requires[" + i + "]", "前置脚本 id 不能为空");
-            }
-            result.add(id);
         }
         return result;
     }

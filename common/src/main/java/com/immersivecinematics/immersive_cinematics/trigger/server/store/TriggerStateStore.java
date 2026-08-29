@@ -54,7 +54,19 @@ public class TriggerStateStore {
         return state != null && state.isScriptCompleted(scriptId);
     }
 
-    /** 该玩家是否触发过指定脚本的任意触发器（requires 前置依赖的默认解锁语义：触发即算） */
+    /** 该玩家是否已经开始播放指定脚本 */
+    public boolean isScriptStarted(UUID player, String scriptId) {
+        PlayerTriggerState state = playerStates.get(player);
+        return state != null && state.isScriptStarted(scriptId);
+    }
+
+    /** 该玩家是否“播放过”指定脚本：开始播放 && 结束播放（任何退出原因都算） */
+    public boolean hasPlayed(UUID player, String scriptId) {
+        PlayerTriggerState state = playerStates.get(player);
+        return state != null && state.hasPlayed(scriptId);
+    }
+
+    /** 该玩家是否触发过指定脚本的任意触发器（保留给需要“触发即算”的旧用法） */
     public boolean hasAnyTriggered(UUID player, String scriptId) {
         PlayerTriggerState state = playerStates.get(player);
         return state != null && state.hasAnyTriggered(scriptId);
@@ -74,6 +86,11 @@ public class TriggerStateStore {
     public boolean markTriggered(UUID player, String scriptId, String triggerId) {
         PlayerTriggerState state = getOrCreate(player);
         return state.markTriggered(scriptId, triggerId);
+    }
+
+    public boolean markScriptStarted(UUID player, String scriptId) {
+        PlayerTriggerState state = getOrCreate(player);
+        return state.markScriptStarted(scriptId);
     }
 
     public boolean markScriptCompleted(UUID player, String scriptId) {
@@ -165,6 +182,12 @@ public class TriggerStateStore {
         }
         root.put("triggered_scripts", triggeredScripts);
 
+        ListTag startedScripts = new ListTag();
+        for (String scriptId : state.getStartedScripts()) {
+            startedScripts.add(StringTag.valueOf(scriptId));
+        }
+        root.put("started_scripts", startedScripts);
+
         ListTag completedScripts = new ListTag();
         for (String scriptId : state.getCompletedScripts()) {
             completedScripts.add(StringTag.valueOf(scriptId));
@@ -185,6 +208,12 @@ public class TriggerStateStore {
                     triggers.add(triggerList.getString(i));
                 }
                 state.getTriggeredScripts().put(scriptId, triggers);
+            }
+        }
+        if (tag.contains("started_scripts")) {
+            ListTag started = tag.getList("started_scripts", 8);
+            for (int i = 0; i < started.size(); i++) {
+                state.getStartedScripts().add(started.getString(i));
             }
         }
         if (tag.contains("completed_scripts")) {

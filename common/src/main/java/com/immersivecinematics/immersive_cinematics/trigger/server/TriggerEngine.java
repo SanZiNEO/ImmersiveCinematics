@@ -1,7 +1,9 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.script.TriggerRequirement;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CTriggerStateSyncPacket;
+import com.immersivecinematics.immersive_cinematics.trigger.server.prereq.PrerequisiteRegistry;
 import com.immersivecinematics.immersive_cinematics.trigger.server.store.PlayerTriggerState;
 import com.immersivecinematics.immersive_cinematics.trigger.server.store.TriggerStateStore;
 import com.mojang.logging.LogUtils;
@@ -162,22 +164,23 @@ public class TriggerEngine {
     }
 
     public void onPlaybackStarted(ServerPlayer player, String scriptId) {
+        // 记录“开始播放”信号：配合结束信号构成“播放过”语义
+        TriggerStateStore.INSTANCE.markScriptStarted(player.getUUID(), scriptId);
         ScriptEventManager.INSTANCE.startPlayback(player, scriptId);
     }
 
     // ===== Internal =====
 
     /**
-     * 前置依赖检查：requires 中任一脚本尚未"触发过" → 跳过（AND 语义）。
-     * 放在 shouldSkip 之前——依赖未解锁时连去重逻辑都不需要碰。
-     * 解锁后 repeatable 语义照旧（repeatable=true 可重复触发，false 触发一次）。
+     * 前置条件检查：requires 中任一条件不满足 → 跳过（AND 语义）。
+     * 内置 script_played 要求“开始播放 && 结束播放（任何退出原因）”，
+     * 其他类型由自定义注册者定义。放在 shouldSkip 之前——依赖未解锁时连去重逻辑都不需要碰。
      */
     private boolean prerequisitesMet(ServerPlayer player, TriggerRegistration reg) {
-        List<String> requires = reg.getRequires();
+        List<TriggerRequirement> requires = reg.getRequires();
         if (requires.isEmpty()) return true;
-        UUID uuid = player.getUUID();
-        for (String requiredScript : requires) {
-            if (!TriggerStateStore.INSTANCE.hasAnyTriggered(uuid, requiredScript)) {
+        for (TriggerRequirement req : requires) {
+            if (!PrerequisiteRegistry.evaluate(req.getType(), player, req.getData())) {
                 return false;
             }
         }

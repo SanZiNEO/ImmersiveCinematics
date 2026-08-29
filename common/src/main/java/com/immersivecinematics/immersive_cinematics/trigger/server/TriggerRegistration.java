@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.script.TriggerRequirement;
 import com.immersivecinematics.immersive_cinematics.trigger.server.action.TriggerAction;
 
 import java.util.List;
@@ -17,8 +18,8 @@ public class TriggerRegistration {
     private final int delayMs;
     private final boolean onEnter;
     private final float exitBuffer;
-    /** 前置依赖：本触发器解锁前必须已触发的脚本 id 列表（AND），空 = 无前置 */
-    private final List<String> requires;
+    /** 前置条件：AND 语义，全部满足才允许触发；空 = 无前置 */
+    private final List<TriggerRequirement> requires;
 
     public TriggerRegistration(String scriptId, String triggerId, TriggerType type,
                                 JsonObject conditions, List<TriggerAction> actions,
@@ -47,7 +48,7 @@ public class TriggerRegistration {
     public TriggerRegistration(String scriptId, String triggerId, TriggerType type,
                                 JsonObject conditions, List<TriggerAction> actions,
                                 boolean repeatable, int delayMs, boolean onEnter, float exitBuffer, JsonObject exitConditions,
-                                List<String> requires) {
+                                List<TriggerRequirement> requires) {
         this.scriptId = scriptId;
         this.triggerId = triggerId;
         this.type = type;
@@ -71,5 +72,5 @@ public class TriggerRegistration {
     public int getDelayMs() { return delayMs; }
     public boolean isOnEnter() { return onEnter; }
     public float getExitBuffer() { return exitBuffer; }
-    public List<String> getRequires() { return requires; }
+    public List<TriggerRequirement> getRequires() { return requires; }
 }

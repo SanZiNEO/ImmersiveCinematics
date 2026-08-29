@@ -337,10 +337,10 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 meta.triggers 的 requires 前置依赖：
-     * - 结构性：requires 必须是字符串数组，元素必须是字符串脚本 id；
-     * - 自引用：requires 指向脚本自身 → 永不解锁；
-     * - 跨脚本：requires 指向不存在的脚本（knownScriptIds 非 null 时）→ 该触发器永不触发。
+     * 校验 meta.triggers 的 requires 前置条件：
+     * - 结构性：requires 必须是数组，元素可以是字符串脚本 id 或对象型前置条件；
+     * - 字符串（旧语法）：按 script_played 前置条件校验脚本存在/自引用；
+     * - 对象型：内置 script_played / script_started / script_completed 需要有效的 script 字段。
      */
     private static void validateTriggerRequires(JsonObject meta, String path,
                                                  Collection<String> knownScriptIds, List<String> issues) {
@@ -362,22 +362,60 @@ public final class ScriptValidator {
             String tp = path + ".triggers[" + i + "]";
             if (!t.has("requires")) continue;
             if (!t.get("requires").isJsonArray()) {
-                issues.add(tp + ".requires 必须是字符串数组");
+                issues.add(tp + ".requires 必须是数组");
                 continue;
             }
             JsonArray reqs = t.getAsJsonArray("requires");
             for (int j = 0; j < reqs.size(); j++) {
                 JsonElement re = reqs.get(j);
-                if (!re.isJsonPrimitive() || !re.getAsJsonPrimitive().isString()) {
-                    issues.add(tp + ".requires[" + j + "] 必须是字符串脚本 id");
-                    continue;
-                }
-                String reqId = re.getAsString();
-                if (selfId != null && reqId.equals(selfId)) {
-                    issues.add(tp + ".requires 自引用自身脚本 '" + reqId + "'（可能永不解锁）");
-                }
-                if (knownScriptIds != null && !knownScriptIds.contains(reqId)) {
-                    issues.add(tp + ".requires 指向不存在的脚本 '" + reqId + "'（该触发器将永不触发）");
+                String rp = tp + ".requires[" + j + "]";
+                if (re.isJsonPrimitive() && re.getAsJsonPrimitive().isString()) {
+                    String reqId = re.getAsString();
+                    if (reqId.isEmpty()) {
+                        issues.add(rp + " 前置脚本 id 不能为空");
+                        continue;
+                    }
+                    if (selfId != null && reqId.equals(selfId)) {
+                        issues.add(rp + " 自引用自身脚本 '" + reqId + "'（可能永不解锁）");
+                    }
+                    if (knownScriptIds != null && !knownScriptIds.contains(reqId)) {
+                        issues.add(rp + " 指向不存在的脚本 '" + reqId + "'（该触发器将永不触发）");
+                    }
+                } else if (re.isJsonObject()) {
+                    JsonObject reqObj = re.getAsJsonObject();
+                    if (!reqObj.has("type") || !reqObj.get("type").isJsonPrimitive() || !reqObj.get("type").getAsJsonPrimitive().isString()) {
+                        issues.add(rp + " 对象型前置条件必须包含字符串 type");
+                        continue;
+                    }
+                    String type = reqObj.get("type").getAsString();
+                    if (type.isEmpty()) {
+                        issues.add(rp + " 前置条件 type 不能为空");
+                        continue;
+                    }
+                    // 内置脚本类前置条件：必须带 script 字段，并做跨脚本/自引用校验
+                    boolean needsScript = type.equals("script_played")
+                            || type.equals("script_started")
+                            || type.equals("script_completed");
+                    if (needsScript) {
+                        if (!reqObj.has("script") || !reqObj.get("script").isJsonPrimitive() || !reqObj.get("script").getAsJsonPrimitive().isString()) {
+                            issues.add(rp + " script_* 前置条件必须提供字符串 script 字段");
+                            continue;
+                        }
+                        String reqId = reqObj.get("script").getAsString();
+                        if (reqId.isEmpty()) {
+                            issues.add(rp + " script 不能为空");
+                            continue;
+                        }
+                        if (selfId != null && reqId.equals(selfId)) {
+                            issues.add(rp + " 自引用自身脚本 '" + reqId + "'（可能永不解锁）");
+                        }
+                        if (knownScriptIds != null && !knownScriptIds.contains(reqId)) {
+                            issues.add(rp + " 指向不存在的脚本 '" + reqId + "'（该触发器将永不触发）");
+                        }
+                    }
+                    // 未知/自定义类型不在这里硬报错：允许其他模组注册后使用
+                } else {
+                    issues.add(rp + " 必须是字符串脚本 id 或对象型前置条件");
                 }
             }
         }

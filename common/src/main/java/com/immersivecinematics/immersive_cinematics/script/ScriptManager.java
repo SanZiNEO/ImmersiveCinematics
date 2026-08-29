@@ -113,12 +113,14 @@ public class ScriptManager {
                         ? Evaluators.expandConditions(conditions, td.getExitBuffer())
                         : null;
                 // 前置依赖引用校验：指向不存在脚本 → 该触发器永不触发；自引用 → 永不解锁
-                for (String req : td.getRequires()) {
-                    if (!scripts.containsKey(req)) {
+                for (TriggerRequirement req : td.getRequires()) {
+                    String reqId = scriptIdOfRequirement(req);
+                    if (reqId == null) continue;
+                    if (!scripts.containsKey(reqId)) {
                         com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("ScriptLoad",
                                 "脚本 '" + meta.getId() + "' 的触发器 '" + td.getType() + "' requires 指向不存在的脚本 '"
-                                        + req + "'（该触发器将永不触发）");
-                    } else if (req.equals(meta.getId())) {
+                                        + reqId + "'（该触发器将永不触发）");
+                    } else if (reqId.equals(meta.getId())) {
                         com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("ScriptLoad",
                                 "脚本 '" + meta.getId() + "' 的触发器 requires 自引用自身（可能永不解锁）");
                     }
@@ -157,6 +159,20 @@ public class ScriptManager {
     }
 
     public boolean isLoaded() { return loaded; }
+
+    /** 从内置脚本类前置条件中取 script id；自定义类型返回 null（由注册者自行管理） */
+    private static String scriptIdOfRequirement(TriggerRequirement req) {
+        String type = req.getType();
+        boolean builtinScriptType = "script_played".equals(type)
+                || "script_started".equals(type)
+                || "script_completed".equals(type);
+        if (!builtinScriptType) return null;
+        var data = req.getData();
+        if (!data.has("script") || !data.get("script").isJsonPrimitive() || !data.get("script").getAsJsonPrimitive().isString()) {
+            return null;
+        }
+        return data.get("script").getAsString();
+    }
 
     /** 把 dir 下的文件转为向前斜杠的相对路径（目录结构组织的显示/日志用） */
     private static String toForwardRel(Path dir, Path file) {

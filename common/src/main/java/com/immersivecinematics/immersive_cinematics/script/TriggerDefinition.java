@@ -12,8 +12,8 @@ public class TriggerDefinition {
     private final float delay;
     private final boolean onEnter;
     private final float exitBuffer;
-    /** 前置依赖：本触发器解锁前必须已触发的脚本 id 列表（AND 语义），空 = 无前置 */
-    private final List<String> requires;
+    /** 前置条件：AND 语义，全部满足才允许触发；空 = 无前置 */
+    private final List<TriggerRequirement> requires;
 
     public TriggerDefinition(String type, Map<String, Object> conditions, boolean repeatable) {
         this(type, conditions, repeatable, 0f, false, 0f, Collections.emptyList());
@@ -31,7 +31,7 @@ public class TriggerDefinition {
         this(type, conditions, repeatable, delay, onEnter, exitBuffer, Collections.emptyList());
     }
 
-    public TriggerDefinition(String type, Map<String, Object> conditions, boolean repeatable, float delay, boolean onEnter, float exitBuffer, List<String> requires) {
+    public TriggerDefinition(String type, Map<String, Object> conditions, boolean repeatable, float delay, boolean onEnter, float exitBuffer, List<TriggerRequirement> requires) {
         this.type = type;
         this.conditions = conditions != null ? conditions : Collections.emptyMap();
         this.repeatable = repeatable;
@@ -47,7 +47,7 @@ public class TriggerDefinition {
     public float getDelay() { return delay; }
     public boolean isOnEnter() { return onEnter; }
     public float getExitBuffer() { return exitBuffer; }
-    public List<String> getRequires() { return requires; }
+    public List<TriggerRequirement> getRequires() { return requires; }
 
     @Override
     public String toString() {
