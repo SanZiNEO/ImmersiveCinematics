@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_camera_breath_sine",
     "name": "相机测试-呼吸扰动Sine",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 sine 呼吸扰动",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_bezier"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

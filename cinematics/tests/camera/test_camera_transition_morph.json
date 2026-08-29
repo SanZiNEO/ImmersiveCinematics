@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_camera_transition_morph",
     "name": "相机测试-过渡Morph",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 clip 间 morph 过渡",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_tangent"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

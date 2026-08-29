@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_advancement",
     "name": "触发器测试-advancement",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 advancement 后显示文字提示",
-    "triggers": [ {"id":"trg_advancement","type":"advancement","repeatable":false,"delay":0,"conditions":{"advancement":"minecraft:story/enter_the_nether"}} ],
+    "triggers": [ {"id":"trg_advancement","type":"advancement","repeatable":false,"delay":0,"requires":["test_prereq_c"],"conditions":{"advancement":"minecraft:story/enter_the_nether"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

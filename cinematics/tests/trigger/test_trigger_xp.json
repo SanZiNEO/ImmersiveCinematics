@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_xp",
     "name": "触发器测试-xp",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 xp 后显示文字提示",
-    "triggers": [ {"id":"trg_xp","type":"xp","repeatable":false,"delay":0,"conditions":{"level":30}} ],
+    "triggers": [ {"id":"trg_xp","type":"xp","repeatable":false,"delay":0,"requires":["test_trigger_structure"],"conditions":{"level":30}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

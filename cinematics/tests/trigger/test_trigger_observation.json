@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_observation",
     "name": "触发器测试-observation",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 observation 后显示文字提示",
-    "triggers": [ {"id":"trg_observation","type":"observation","repeatable":false,"delay":0,"on_enter":true,"conditions":{"target":"minecraft:sheep","target_type":"entity"}} ],
+    "triggers": [ {"id":"trg_observation","type":"observation","repeatable":false,"delay":0,"requires":["test_trigger_location"],"on_enter":true,"conditions":{"target":"minecraft:sheep","target_type":"entity"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_item_pickup",
     "name": "触发器测试-item_pickup",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 item_pickup 后显示文字提示",
-    "triggers": [ {"id":"trg_item_pickup","type":"item_pickup","repeatable":false,"delay":0,"conditions":{"item":"minecraft:diamond"}} ],
+    "triggers": [ {"id":"trg_item_pickup","type":"item_pickup","repeatable":false,"delay":0,"requires":["test_trigger_item_on_interact"],"conditions":{"item":"minecraft:diamond"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

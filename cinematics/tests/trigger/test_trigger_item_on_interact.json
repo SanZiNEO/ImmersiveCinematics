@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_item_on_interact",
     "name": "触发器测试-item_on_interact",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 item_on_interact 后显示文字提示",
-    "triggers": [ {"id":"trg_item_on_interact","type":"item_on_interact","repeatable":false,"delay":0,"conditions":{"item":"minecraft:stick","target":"minecraft:furnace"}} ],
+    "triggers": [ {"id":"trg_item_on_interact","type":"item_on_interact","repeatable":false,"delay":0,"requires":["test_trigger_item_instant_use"],"conditions":{"item":"minecraft:stick","target":"minecraft:furnace"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

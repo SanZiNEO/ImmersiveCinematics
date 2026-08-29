@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_camera_pitch",
     "name": "相机测试-俯仰Pitch",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 pitch 从 0 到 45 度",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_loop_repeat"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

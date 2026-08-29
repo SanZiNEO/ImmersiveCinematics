@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_overlay_fade",
     "name": "覆盖层测试-Fade",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 fade 全屏遮罩",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_meta_suppress_distortion_on"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_item_instant_use",
     "name": "触发器测试-item_instant_use",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 item_instant_use 后显示文字提示",
-    "triggers": [ {"id":"trg_item_instant_use","type":"item_instant_use","repeatable":false,"delay":0,"conditions":{"item":"minecraft:snowball"}} ],
+    "triggers": [ {"id":"trg_item_instant_use","type":"item_instant_use","repeatable":false,"delay":0,"requires":["test_trigger_item_drop"],"conditions":{"item":"minecraft:snowball"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

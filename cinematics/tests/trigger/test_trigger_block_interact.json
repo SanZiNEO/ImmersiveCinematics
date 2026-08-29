@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_block_interact",
     "name": "触发器测试-block_interact",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 block_interact 后显示文字提示",
-    "triggers": [ {"id":"trg_block_interact","type":"block_interact","repeatable":false,"delay":0,"conditions":{"target":"minecraft:crafting_table"}} ],
+    "triggers": [ {"id":"trg_block_interact","type":"block_interact","repeatable":false,"delay":0,"requires":["test_trigger_biome"],"conditions":{"target":"minecraft:crafting_table"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_audio_wav",
     "name": "音频测试-WAV",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 WAV 文件播放",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_audio_volume"] } ],
     "listener": "camera",
     "block_keyboard": false,
     "block_mouse": false,

@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_event_sequence",
     "name": "事件测试-顺序时序",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 EVENT 命令顺序与间隔",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_event_multiple"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

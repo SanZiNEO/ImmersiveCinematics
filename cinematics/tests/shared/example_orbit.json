@@ -8,10 +8,11 @@
     "triggers": [
       {
         "id": "on_login",
-        "type": "login",
-        "repeatable": true,
-        "delay": 1.5,
-        "conditions": {}
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "requires": ["test_trigger_xp"],
+        "conditions": { "biome": "*" }
       }
     ],
     "block_keyboard": true,

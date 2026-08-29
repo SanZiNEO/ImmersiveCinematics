@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_camera_basespace_birdeye",
     "name": "相机测试-基准空间鸟瞰",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试鸟瞰基准空间",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_basespace_behind"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

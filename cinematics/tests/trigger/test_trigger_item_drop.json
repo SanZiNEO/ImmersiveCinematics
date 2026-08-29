@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_item_drop",
     "name": "触发器测试-item_drop",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 item_drop 后显示文字提示",
-    "triggers": [ {"id":"trg_item_drop","type":"item_drop","repeatable":false,"delay":0,"conditions":{"item":"minecraft:*"}} ],
+    "triggers": [ {"id":"trg_item_drop","type":"item_drop","repeatable":false,"delay":0,"requires":["test_trigger_item_craft"],"conditions":{"item":"minecraft:*"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

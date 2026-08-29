@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_gamestage",
     "name": "触发器测试-gamestage",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 gamestage 后显示文字提示",
-    "triggers": [ {"id":"trg_gamestage","type":"gamestage","repeatable":false,"delay":0,"conditions":{"stage":"example_stage"}} ],
+    "triggers": [ {"id":"trg_gamestage","type":"gamestage","repeatable":false,"delay":0,"requires":["test_trigger_entity_kill"],"conditions":{"stage":"example_stage"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

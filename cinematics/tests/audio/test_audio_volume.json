@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_audio_volume",
     "name": "音频测试-音量渐变",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试音量关键帧变化",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_audio_underwater_camera"] } ],
     "listener": "camera",
     "block_keyboard": false,
     "block_mouse": false,

@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_meta_hide_scoreboard_on",
     "name": "Meta测试-隐藏记分板开",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 hide_scoreboard=true",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_meta_hide_hud_on"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

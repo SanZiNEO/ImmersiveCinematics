@@ -6,7 +6,7 @@
     "version": 3,
     "description": "从村庄区域(-300,0)往回飞向出生点(0,0)：验证超远端按玩家视距整块加载——起飞先在远端-300把整片按视距铺出来，飞回来时一路跟随，回到玩家视距内恢复。",
     "triggers": [
-      { "id": "tpfb_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} }
+      { "id": "tpfb_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_preload_fly"] }
     ],
     "block_keyboard": true,
     "block_mouse": true,

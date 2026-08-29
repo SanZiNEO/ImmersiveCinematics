@@ -6,7 +6,7 @@
     "version": 3,
     "description": "超平坦世界：固定相对玩家高2格，沿 -X(西) 平飞约300格（目标村庄 -288,0），yaw=90(前方)/pitch=0(不抬头)，观察远处虚空/村庄是否被预加载补顶。",
     "triggers": [
-      { "id": "tpf_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} }
+      { "id": "tpf_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_audio_wav"] }
     ],
     "block_keyboard": true,
     "block_mouse": true,

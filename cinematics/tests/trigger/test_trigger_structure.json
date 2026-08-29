@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_structure",
     "name": "触发器测试-structure",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 structure 后显示文字提示",
-    "triggers": [ {"id":"trg_structure","type":"structure","repeatable":false,"delay":0,"conditions":{"structure":"village"}} ],
+    "triggers": [ {"id":"trg_structure","type":"structure","repeatable":false,"delay":0,"requires":["test_trigger_observation"],"conditions":{"structure":"village"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_camera_roll",
     "name": "相机测试-翻滚Roll",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 roll 从 0 到 45 度",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_relative_player"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

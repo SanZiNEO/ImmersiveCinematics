@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_prereq_a",
-    "name": "触发链-A(login)",
+    "name": "触发链-A(自动起点)",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "触发链 A：登录触发",
-    "triggers": [ {"id":"chain_a","type":"login","repeatable":false,"delay":0,"conditions":{}} ],
+    "description": "触发链 A：测试链起点，biome 轮询自动触发",
+    "triggers": [ {"id":"chain_a","type":"biome","repeatable":false,"delay":0,"conditions":{"biome":"*"},"requires":["test_preload_multiclip"]} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

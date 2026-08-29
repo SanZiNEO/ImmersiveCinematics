@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_item_craft",
     "name": "触发器测试-item_craft",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 item_craft 后显示文字提示",
-    "triggers": [ {"id":"trg_item_craft","type":"item_craft","repeatable":false,"delay":0,"conditions":{"item":"minecraft:stick"}} ],
+    "triggers": [ {"id":"trg_item_craft","type":"item_craft","repeatable":false,"delay":0,"requires":["test_trigger_item_consume"],"conditions":{"item":"minecraft:stick"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

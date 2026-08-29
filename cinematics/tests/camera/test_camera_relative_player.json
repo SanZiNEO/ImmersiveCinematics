@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_camera_relative_player",
     "name": "相机测试-相对基准Player",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试以玩家为 yaw 基准的相对旋转",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_relative_axis"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

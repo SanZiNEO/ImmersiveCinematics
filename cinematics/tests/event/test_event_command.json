@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_event_command",
     "name": "事件测试-单命令",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 EVENT 单条命令",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_letterbox_basic"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

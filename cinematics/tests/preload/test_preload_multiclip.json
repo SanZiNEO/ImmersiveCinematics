@@ -6,7 +6,7 @@
     "version": 3,
     "description": "三个 CAMERA 片段依次跳远：村庄(-288,0) → 正东(288,0) → 正南(0,288)。每个片段 10s，观察 far-start 后可见区先铺、后台补全的顺序。",
     "triggers": [
-      { "id": "tpmc_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} }
+      { "id": "tpmc_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_preload_fly_back"] }
     ],
     "block_keyboard": true,
     "block_mouse": true,

@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_dimension",
     "name": "触发器测试-dimension",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 dimension 后显示文字提示",
-    "triggers": [ {"id":"trg_dimension","type":"dimension","repeatable":false,"delay":0,"conditions":{"dimension":"minecraft:the_nether"}} ],
+    "triggers": [ {"id":"trg_dimension","type":"dimension","repeatable":false,"delay":0,"requires":["test_trigger_block_interact"],"conditions":{"dimension":"minecraft:the_nether"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

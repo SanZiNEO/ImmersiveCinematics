@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_letterbox_basic",
     "name": "黑边测试-基础",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 LETTERBOX 黑边出现与恢复",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_overlay_zindex"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

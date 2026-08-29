@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_camera_tangent",
     "name": "相机测试-切线朝向",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 orient=tangent 切线朝向",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_roll"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

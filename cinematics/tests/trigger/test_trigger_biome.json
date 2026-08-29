@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_biome",
     "name": "触发器测试-biome",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 biome 后显示文字提示",
-    "triggers": [ {"id":"trg_biome","type":"biome","repeatable":false,"delay":0,"conditions":{"biome":"minecraft:plains"}} ],
+    "triggers": [ {"id":"trg_biome","type":"biome","repeatable":false,"delay":0,"requires":["test_trigger_advancement"],"conditions":{"biome":"minecraft:plains"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_camera_pos_y",
     "name": "相机测试-位置Y",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试相机沿 Y 方向移动",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_pos_x"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

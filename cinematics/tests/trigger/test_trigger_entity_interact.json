@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_entity_interact",
     "name": "触发器测试-entity_interact",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 entity_interact 后显示文字提示",
-    "triggers": [ {"id":"trg_entity_interact","type":"entity_interact","repeatable":false,"delay":0,"conditions":{"target":"minecraft:sheep"}} ],
+    "triggers": [ {"id":"trg_entity_interact","type":"entity_interact","repeatable":false,"delay":0,"requires":["test_trigger_dimension_change"],"conditions":{"target":"minecraft:sheep"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

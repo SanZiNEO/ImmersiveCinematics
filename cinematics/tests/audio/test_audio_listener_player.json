@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_audio_listener_player",
     "name": "音频测试-听者Player",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 listener=player",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_audio_listener_camera"] } ],
     "listener": "player",
     "block_keyboard": false,
     "block_mouse": false,

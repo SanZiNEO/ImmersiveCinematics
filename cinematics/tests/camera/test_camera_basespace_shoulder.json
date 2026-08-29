@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_camera_basespace_shoulder",
     "name": "相机测试-基准空间肩位",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试肩位第三人称基准空间",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_basespace_birdeye"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

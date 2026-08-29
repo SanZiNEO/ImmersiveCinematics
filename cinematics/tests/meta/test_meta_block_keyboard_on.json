@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_meta_block_keyboard_on",
     "name": "Meta测试-阻止键盘开",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 block_keyboard=true 时阻止键盘输入",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_zoom"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

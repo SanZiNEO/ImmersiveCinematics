@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_audio_relative",
     "name": "音频测试-相对位置",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 position_mode=relative",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_audio_ogg"] } ],
     "listener": "camera",
     "block_keyboard": false,
     "block_mouse": false,

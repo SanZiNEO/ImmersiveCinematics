@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_camera_zoom",
     "name": "相机测试-缩放Zoom",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 zoom 从 1 到 2",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_yaw"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

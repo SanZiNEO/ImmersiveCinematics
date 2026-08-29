@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_location",
     "name": "触发器测试-location",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 location 后显示文字提示",
-    "triggers": [ {"id":"trg_location","type":"location","repeatable":false,"delay":0,"conditions":{"corner1":{"x":-50,"y":-64,"z":-50},"corner2":{"x":50,"y":320,"z":50}}} ],
+    "triggers": [ {"id":"trg_location","type":"location","repeatable":false,"delay":0,"requires":["test_trigger_item_use_interrupt"],"conditions":{"corner1":{"x":-50,"y":-64,"z":-50},"corner2":{"x":50,"y":320,"z":50}}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

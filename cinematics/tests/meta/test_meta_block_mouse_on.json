@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_meta_block_mouse_on",
     "name": "Meta测试-阻止鼠标开",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 block_mouse=true 时阻止鼠标操作",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_meta_block_keyboard_on"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

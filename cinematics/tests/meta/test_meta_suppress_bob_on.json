@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_meta_suppress_bob_on",
     "name": "Meta测试-晃动抑制开",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 suppress_bob=true 时抑制镜头晃动",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_meta_suppress_bob_off"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

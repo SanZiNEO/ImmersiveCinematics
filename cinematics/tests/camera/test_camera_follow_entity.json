@@ -5,7 +5,7 @@
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 follow 会逃跑的豹猫实体",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_breath_trauma"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

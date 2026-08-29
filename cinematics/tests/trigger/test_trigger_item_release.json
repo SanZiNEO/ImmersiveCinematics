@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_item_release",
     "name": "触发器测试-item_release",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 item_release 后显示文字提示",
-    "triggers": [ {"id":"trg_item_release","type":"item_release","repeatable":false,"delay":0,"conditions":{"item":"minecraft:bow"}} ],
+    "triggers": [ {"id":"trg_item_release","type":"item_release","repeatable":false,"delay":0,"requires":["test_trigger_item_pickup"],"conditions":{"item":"minecraft:bow"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

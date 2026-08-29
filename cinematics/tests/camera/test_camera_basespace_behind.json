@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_camera_basespace_behind",
     "name": "相机测试-基准空间背后",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试背后第三人称基准空间",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_trigger_login"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

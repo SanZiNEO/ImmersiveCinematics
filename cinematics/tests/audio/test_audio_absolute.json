@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_audio_absolute",
     "name": "音频测试-绝对位置",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 position_mode=absolute 与坐标移动",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_event_sequence"] } ],
     "listener": "camera",
     "block_keyboard": false,
     "block_mouse": false,

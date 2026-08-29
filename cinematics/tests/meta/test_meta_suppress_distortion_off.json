@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_meta_suppress_distortion_off",
     "name": "Meta测试-扭曲屏蔽关",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 suppress_distortion=false 时显示扭曲",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_meta_suppress_bob_on"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

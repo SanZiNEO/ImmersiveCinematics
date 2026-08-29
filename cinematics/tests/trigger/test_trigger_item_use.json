@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_trigger_item_use",
     "name": "触发器测试-item_use",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发 item_use 后显示文字提示",
-    "triggers": [ {"id":"trg_item_use","type":"item_use","repeatable":false,"delay":0,"conditions":{"item":"minecraft:carrot"}} ],
+    "triggers": [ {"id":"trg_item_use","type":"item_use","repeatable":false,"delay":0,"requires":["test_trigger_item_release"],"conditions":{"item":"minecraft:carrot"}} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

@@ -1,11 +1,11 @@
-﻿{
+{
   "meta": {
     "id": "test_audio_biome_camera",
     "name": "音频测试-群系环境音",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 camera 在对应群系时触发群系环境音（需站在平原群系）",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_audio_absolute"] } ],
     "listener": "camera",
     "block_keyboard": false,
     "block_mouse": false,
