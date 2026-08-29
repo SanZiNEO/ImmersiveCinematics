@@ -42,8 +42,16 @@ public final class ChunkPreloadManager {
     public static final ChunkPreloadManager INSTANCE = new ChunkPreloadManager();
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/ChunkPreload");
 
-    private static final TicketType<ChunkPos> TICKET =
-            TicketType.create("immersive_cinematics_camera", Comparator.comparingLong(ChunkPos::toLong));
+    /**
+     * 每个玩家独立的相机区 ticket key：key = player UUID + chunkPos。
+     * 不能只用 ChunkPos 当 key——否则两个玩家会对同一个区块持有同一个 ticket，
+     * 一个人释放会把另一个人的也一起撤掉（多人播放会互相拆台）。
+     */
+    private static final TicketType<String> TICKET =
+            TicketType.<String>create("immersive_cinematics_camera", Comparator.naturalOrder());
+
+    /** 单脚本内保留的旧相机区块上限：超出后从“离当前相机最远”的开始淘汰 */
+    private static final int MAX_RETAINED_CHUNKS = 2048;
 
     private final Map<UUID, PlayerState> states = new HashMap<>();
     private final Map<net.minecraft.server.level.ServerLevel, ChunkTicketPool> pools = new HashMap<>();
@@ -268,11 +276,12 @@ public final class ChunkPreloadManager {
                 }
             }
         }
-        // 离开窗口的已发区块：通知客户端 forget，防止内存堆积/过期画面
+        // 离开保留池（真正被淘汰/释放）的已发区块：通知客户端 forget。
+        // 仍在 cameraZone（当前窗口 + 单脚本保留池）里的区块不 forget，供后续片段复用。
         java.util.Iterator<ChunkPos> it = st.sentCameraChunks.iterator();
         while (it.hasNext()) {
             ChunkPos pos = it.next();
-            if (!window.contains(pos)) {
+            if (!st.cameraZone.contains(pos)) {
                 p.connection.send(new ClientboundForgetLevelChunkPacket(pos.x, pos.z));
                 it.remove();
             }
@@ -339,7 +348,7 @@ public final class ChunkPreloadManager {
             if (p.level() instanceof net.minecraft.server.level.ServerLevel) {
                 net.minecraft.server.level.ServerLevel lv = (net.minecraft.server.level.ServerLevel) p.level();
                 for (ChunkPos pos : new HashSet<>(st.cameraZone)) {
-                    lv.getChunkSource().removeRegionTicket(TICKET, pos, st.cameraTicketDistance, pos);
+                    lv.getChunkSource().removeRegionTicket(TICKET, pos, st.cameraTicketDistance, cameraTicketKey(p.getUUID(), pos));
                 }
             }
             st.cameraZone.clear();
@@ -348,7 +357,7 @@ public final class ChunkPreloadManager {
         }
     }
 
-    /** 相机中心滑动：新窗口并入待加队列、离开窗口的立即撤票，并按新朝向重排 */
+    /** 相机中心滑动：新窗口并入待加队列；旧窗口区块进入保留池不撤票，超出容量再淘汰 */
     private void updateCameraZone(ServerPlayer p, PlayerState st, ChunkPos newCenter) {
         if (st.center == null) {
             st.center = newCenter;
@@ -362,20 +371,48 @@ public final class ChunkPreloadManager {
                 next.add(new ChunkPos(newCenter.x + dx, newCenter.z + dz));
             }
         }
-        // 离开窗口：撤票并移出待加
-        for (ChunkPos pos : new HashSet<>(st.cameraWindow)) {
-            if (!next.contains(pos)) {
-                if (st.cameraZone.remove(pos) && p.level() instanceof net.minecraft.server.level.ServerLevel) {
-                    net.minecraft.server.level.ServerLevel lv = (net.minecraft.server.level.ServerLevel) p.level();
-                    lv.getChunkSource().removeRegionTicket(TICKET, pos, st.cameraTicketDistance, pos);
-                }
-                st.pendingCameraChunks.remove(pos);
-            }
-        }
         st.cameraWindow.clear();
         st.cameraWindow.addAll(next);
         st.center = newCenter;
         rebuildPending(st);
+        evictRetained(p, st);
+    }
+
+    /**
+     * 单脚本内保留池淘汰：cameraZone 同时包含“当前窗口 + 之前片段保留的旧区块”。
+     * 超过 {@link #MAX_RETAINED_CHUNKS} 时，从离当前相机中心最远的非当前窗口区块开始撤票。
+     * 当前窗口永远不淘汰。
+     */
+    private void evictRetained(ServerPlayer p, PlayerState st) {
+        if (st.cameraZone.size() <= MAX_RETAINED_CHUNKS) return;
+        if (!(p.level() instanceof net.minecraft.server.level.ServerLevel)) return;
+        net.minecraft.server.level.ServerLevel lv = (net.minecraft.server.level.ServerLevel) p.level();
+        int cx = (st.center.x << 4) + 8;
+        int cz = (st.center.z << 4) + 8;
+
+        java.util.List<ChunkPos> evictCandidates = new ArrayList<>();
+        for (ChunkPos pos : st.cameraZone) {
+            if (st.cameraWindow.contains(pos)) continue;
+            double dx = (pos.x << 4) + 8 - cx;
+            double dz = (pos.z << 4) + 8 - cz;
+            evictCandidates.add(pos);
+        }
+        evictCandidates.sort((a, b) -> {
+            double adx = (a.x << 4) + 8 - cx;
+            double adz = (a.z << 4) + 8 - cz;
+            double bdx = (b.x << 4) + 8 - cx;
+            double bdz = (b.z << 4) + 8 - cz;
+            return Double.compare(bdx * bdx + bdz * bdz, adx * adx + adz * adz);
+        });
+
+        int toRemove = st.cameraZone.size() - MAX_RETAINED_CHUNKS;
+        for (ChunkPos pos : evictCandidates) {
+            if (toRemove <= 0) break;
+            if (st.cameraZone.remove(pos)) {
+                lv.getChunkSource().removeRegionTicket(TICKET, pos, st.cameraTicketDistance, cameraTicketKey(p.getUUID(), pos));
+                toRemove--;
+            }
+        }
     }
 
     /** 重建待加队列：窗口内还没加票的区块，按前向半圆优先 + 距离近优先排序 */
@@ -421,10 +458,15 @@ public final class ChunkPreloadManager {
             ChunkPos pos = it.next();
             it.remove();
             if (st.cameraZone.contains(pos)) continue;
-            lv.getChunkSource().addRegionTicket(TICKET, pos, st.cameraTicketDistance, pos);
+            lv.getChunkSource().addRegionTicket(TICKET, pos, st.cameraTicketDistance, cameraTicketKey(st.player.getUUID(), pos));
             st.cameraZone.add(pos);
             added++;
         }
+    }
+
+    /** 每个玩家、每个区块一个独立 ticket key，避免多人播放互相撤票 */
+    private static String cameraTicketKey(UUID player, ChunkPos pos) {
+        return player + "|" + pos.x + "," + pos.z;
     }
 
     // ===== C 客户端缓存中心 =====
