@@ -4,7 +4,7 @@
     "name": "黑边测试-基础",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "只测试 LETTERBOX 黑边出现与恢复",
+    "description": "只测试 LETTERBOX 黑边出现与恢复，配运镜看黑边效果",
     "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_overlay_zindex"] } ],
     "block_keyboard": false,
     "block_mouse": false,
@@ -34,6 +34,22 @@
             "keyframes": [
               { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
               { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 8, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
             ]
           }
         ]

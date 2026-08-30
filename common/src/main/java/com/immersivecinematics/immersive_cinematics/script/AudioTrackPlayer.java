@@ -188,11 +188,8 @@ public class AudioTrackPlayer implements TrackPlayer {
                     ? Minecraft.getInstance().player.position() : Vec3.ZERO);
         } else {
             Vec3 offset = getInterpolatedPosition(clip, 0f);
-            if ("absolute".equals(clip.getAudioPositionMode())) {
-                inst.setAttenuation(clip.getAttenuation());
-            } else {
-                inst.setAttenuation("none");
-            }
+            // 相对模式也允许空间衰减：声音在世界坐标 = 玩家 + offset，由原版按听者距离衰减
+            inst.setAttenuation(clip.getAttenuation());
             inst.setPosition(resolveAudioPosition(clip, offset));
         }
 

@@ -29,7 +29,10 @@
             "duration": 12,
             "event_type": "command",
             "keyframes": [
-              { "time": 0, "event_type": "command", "command": "fill ~-3 ~-1 ~-3 ~3 ~3 ~3 minecraft:water" }
+              { "time": 0, "event_type": "command", "command": "fill ~-3 ~-1 ~-3 ~3 ~3 ~3 minecraft:water" },
+              { "time": 0.01, "event_type": "command", "command": "summon minecraft:cod ~ ~ ~" },
+              { "time": 0.02, "event_type": "command", "command": "summon minecraft:salmon ~3 ~ ~2" },
+              { "time": 0.03, "event_type": "command", "command": "summon minecraft:squid ~-3 ~ ~-2" }
             ]
           }
         ]

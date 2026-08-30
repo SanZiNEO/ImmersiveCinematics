@@ -4,13 +4,13 @@
     "name": "Meta测试-结束停留开",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "只测试 hold_at_end=true",
+    "description": "只测试 hold_at_end=true，运镜结束后保持最后一帧",
     "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_meta_hide_title_on"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": true,
-    "hide_arm": false,
-    "suppress_bob": false,
+    "hide_arm": true,
+    "suppress_bob": true,
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,
@@ -37,8 +37,23 @@
             ]
           }
         ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": -6, "dy": 2, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
       }
-      
     ]
   }
 }

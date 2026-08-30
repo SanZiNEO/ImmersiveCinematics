@@ -4,14 +4,14 @@
     "name": "音频测试-听者Player",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "只测试 listener=player",
+    "description": "声音放在玩家侧，听者=玩家应清晰；若错误地以相机为听者则会变远变轻",
     "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_audio_listener_camera"] } ],
     "listener": "player",
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
-    "hide_arm": false,
-    "suppress_bob": false,
+    "hide_arm": true,
+    "suppress_bob": true,
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,
@@ -40,24 +40,57 @@
         ]
       },
       {
-  "type": "AUDIO",
-  "clips": [
-    {
-      "start_time": 0,
-      "duration": 10,
-      "sound": "second_waltz.ogg",
-      "source": "file",
-      "volume": 1,
-      "pitch": 1,
-      "loop": false,
-      "fade_in": 0.5,
-      "fade_out": 0.5,
-      "attenuation": "none",
-      
-      "keyframes": [ { "time": 0, "volume": 1 } ]
-    }
-  ]
-}
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "summon minecraft:zombie ~300 ~ ~" },
+              { "time": 0.01, "event_type": "command", "command": "summon minecraft:sheep ~ ~ ~" }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 300, "dy": 20, "dz": 0 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 10, "position": { "dx": 300, "dy": 20, "dz": 0 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "AUDIO",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "sound": "second_waltz.ogg",
+            "source": "file",
+            "category": "ambient",
+            "volume": 1,
+            "pitch": 1,
+            "loop": false,
+            "fade_in": 0.5,
+            "fade_out": 0.5,
+            "attenuation": "linear",
+            "position_mode": "relative",
+            "keyframes": [
+              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
+            ]
+          }
+        ]
+      }
     ]
   }
 }

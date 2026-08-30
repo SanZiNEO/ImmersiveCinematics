@@ -4,11 +4,10 @@ import com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadM
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
-/** 区块预加载请求（C2S）：模式 PRELOAD(0) / PREWARM(1) / RELEASE(2)，携带相机中心坐标（方块）+ 窗口半径 */
+/** 区块预加载请求（C2S）：模式 PRELOAD(0) / RELEASE(2)，携带相机中心坐标（方块）+ 窗口半径 */
 public class C2SPreloadRequestPacket implements CinematicC2SPacket {
 
     public static final int MODE_PRELOAD = 0;
-    public static final int MODE_PREWARM = 1;
     public static final int MODE_RELEASE = 2;
 
     /** RELEASE 等不需要相机刷怪信息的模式使用的默认值 */

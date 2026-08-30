@@ -301,7 +301,10 @@ public class CameraManager {
             mc.setScreen(null);
         }
 
-        CinematicController.INSTANCE.releaseAllKeys();
+        // 只有真正屏蔽键鼠的脚本才清空按键；非屏蔽脚本保留玩家当前输入状态，避免切换时中断
+        if (script.getMeta().isBlockKeyboard() || script.getMeta().isBlockMouse()) {
+            CinematicController.INSTANCE.releaseAllKeys();
+        }
 
         // 组 6：预览模式重启不再重置相机到玩家位置（否则每次 pushScript 节流重启都闪回 → 拖拽卡顿）。
         // 首次进入预览（previewInitialized=false）仍初始化一次，保证预览首帧从玩家位置起步不闪白。
@@ -446,12 +449,21 @@ public class CameraManager {
         float deltaTime = 1f / 20f;
         OverlayManager.INSTANCE.update(deltaTime);
 
+        float effectiveTime = (float) getGameTimeSeconds();
         if (scriptPlayer.isPlaying()) {
-            scriptPlayer.onRenderFrame(gameTimeSeconds);
+            // holdAtEnd=true：时间耗尽后把渲染时间钳到总时长末尾，让最后一帧保持住
+            if (scriptPlayer.isFinished() && CinematicController.INSTANCE.isHoldAtEnd()) {
+                CinematicScript s = scriptPlayer.getScript();
+                if (s != null) {
+                    float total = s.getTotalDuration();
+                    if (total > 0f) effectiveTime = Math.max(0f, total - 0.001f);
+                }
+            }
+            scriptPlayer.onRenderFrame(effectiveTime);
         }
 
-        // 帧级缓存：计算当前帧是否有活跃 Camera 轨道，供 Mixin 入口读取
-        cachedHasActiveCameraClip = scriptPlayer.hasActiveCameraTrack((float)getGameTimeSeconds());
+        // 帧级缓存：用与实际渲染相同的 effectiveTime 判断活跃 Camera 轨道
+        cachedHasActiveCameraClip = scriptPlayer.hasActiveCameraTrack(effectiveTime);
 
         if (stopping && !OverlayManager.INSTANCE.isAnimating()) {
             deactivateNow();
