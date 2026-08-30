@@ -60,7 +60,7 @@ public class TriggerStateStore {
         return state != null && state.isScriptStarted(scriptId);
     }
 
-    /** 该玩家是否“播放过”指定脚本：开始播放 && 结束播放（任何退出原因都算） */
+    /** 该玩家是否“播放过”指定脚本：开始播放 &amp;&amp; 结束播放（任何退出原因都算） */
     public boolean hasPlayed(UUID player, String scriptId) {
         PlayerTriggerState state = playerStates.get(player);
         return state != null && state.hasPlayed(scriptId);

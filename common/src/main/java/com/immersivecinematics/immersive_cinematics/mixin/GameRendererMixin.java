@@ -37,7 +37,7 @@ public abstract class GameRendererMixin {
      */
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void onRenderItemInHand(CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip()) {
+        if (CameraManager.INSTANCE.isActive()) {
             Boolean setting = CinematicController.INSTANCE.isHideArm();
             if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
                 ci.cancel();
@@ -47,7 +47,7 @@ public abstract class GameRendererMixin {
 
     @Inject(method = "bobHurt", at = @At("HEAD"), cancellable = true)
     private void onBobHurt(PoseStack poseStack, float partialTick, CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip()) {
+        if (CameraManager.INSTANCE.isActive()) {
             Boolean setting = CinematicController.INSTANCE.isSuppressBob();
             if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
                 ci.cancel();
@@ -57,7 +57,7 @@ public abstract class GameRendererMixin {
 
     @Inject(method = "bobView", at = @At("HEAD"), cancellable = true)
     private void onBobView(PoseStack poseStack, float partialTick, CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip()) {
+        if (CameraManager.INSTANCE.isActive()) {
             Boolean setting = CinematicController.INSTANCE.isSuppressBob();
             if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
                 ci.cancel();

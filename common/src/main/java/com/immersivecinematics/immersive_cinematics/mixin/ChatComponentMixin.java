@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class ChatComponentMixin {
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
     private void onRender(GuiGraphics guiGraphics, int tickCount, int x, int y, CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip()) {
+        if (CameraManager.INSTANCE.isActive()) {
             Boolean setting = CinematicController.INSTANCE.isHideChat();
             if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
                 ci.cancel();

@@ -51,7 +51,7 @@ public interface TrackPlayer {
      * 工厂方法 — 根据轨道类型创建对应的 TrackPlayer
      * <p>
      * 组 A：TrackPlayer 不再持有轨道数据快照，数据源改为运行时从 {@link ScriptPlayer}
-     * 动态获取（{@link ScriptPlayer#clipsForTrack(TrackType)}）——编辑器编辑走 replaceScript
+     * 动态获取（{@link ScriptPlayer#clipsForTrack(int)}）——编辑器编辑走 replaceScript
      * 增量替换，TrackPlayer 零重建、常驻活跃。
      *
      * @param type            轨道类型

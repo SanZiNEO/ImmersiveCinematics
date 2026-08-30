@@ -10,8 +10,6 @@
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": true,
-    "hide_arm": false,
-    "suppress_bob": false,
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,

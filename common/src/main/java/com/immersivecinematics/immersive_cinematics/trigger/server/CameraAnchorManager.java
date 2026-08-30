@@ -59,7 +59,7 @@ public final class CameraAnchorManager {
     public void tick() {
     }
 
-    /** 刷怪 mixin 查询：某区块附近是否存在相机锚点（距离 < 128 格，同原版刷怪判定） */
+    /** 刷怪 mixin 查询：某区块附近是否存在相机锚点（距离 &lt; 128 格，同原版刷怪判定） */
     public boolean isAnyAnchorNear(ServerLevel level, ChunkPos chunkPos) {
         for (Anchor a : anchors.values()) {
             if (a.level != level || a.center == null) continue;

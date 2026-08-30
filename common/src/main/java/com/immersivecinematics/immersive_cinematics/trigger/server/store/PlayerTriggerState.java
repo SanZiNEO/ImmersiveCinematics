@@ -33,7 +33,7 @@ public class PlayerTriggerState {
         return startedScripts.contains(scriptId);
     }
 
-    /** 该脚本是否“播放过”：开始播放 && 结束播放（任何退出原因都算） */
+    /** 该脚本是否“播放过”：开始播放 &amp;&amp; 结束播放（任何退出原因都算） */
     public boolean hasPlayed(String scriptId) {
         return startedScripts.contains(scriptId) && completedScripts.contains(scriptId);
     }

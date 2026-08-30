@@ -160,7 +160,7 @@ public class Config {
      * 初始化配置系统。
      * <p>
      * 从平台 provider 加载配置值，填充到静态字段。
-     * 游戏启动时由 {@link ImmersiveCinematics#init()} 调用。
+     * 游戏启动时由 {@link ImmersiveCinematics} 调用。
      */
     public static void init(ConfigProvider p) {
         provider = p;

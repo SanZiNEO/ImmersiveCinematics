@@ -23,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class GuiMixin {
 
     private static boolean isActive() {
-        return CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip();
+        return CameraManager.INSTANCE.isActive();
     }
 
     private static boolean shouldHide(Boolean setting) {

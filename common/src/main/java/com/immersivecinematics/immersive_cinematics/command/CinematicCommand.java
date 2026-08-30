@@ -6,9 +6,10 @@ import com.immersivecinematics.immersive_cinematics.script.ScriptParser;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
-import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.commands.arguments.ResourceLocationArgument;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import java.util.Collection;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPlayScriptPacket;
@@ -43,7 +44,7 @@ public class CinematicCommand {
         if (Files.isDirectory(globalDir)) {
             try (Stream<Path> files = Files.walk(globalDir, MAX_SCRIPT_DEPTH)) {
                 files.filter(p -> Files.isRegularFile(p) && p.toString().endsWith(".json"))
-                        .map(p -> toForwardRel(globalDir, p).replace(".json", ""))
+                        .map(p -> toCommandId(globalDir, p))
                         .sorted()
                         .forEach(builder::suggest);
             } catch (IOException e) {
@@ -54,7 +55,15 @@ public class CinematicCommand {
         return SharedSuggestionProvider.suggest(new String[0], builder);
     };
 
-    /** 把 globalDir 下的文件转为向前斜杠的相对路径（命令建议显示子目录路径） */
+    /** 把 globalDir 下的文件转为命令 ID：目录中的 / 用 _ 代替，目录与文件名用 : 分隔 */
+    private static String toCommandId(Path globalDir, Path p) {
+        String rel = toForwardRel(globalDir, p).replace(".json", "");
+        int idx = rel.lastIndexOf('/');
+        if (idx < 0) return rel;
+        return rel.substring(0, idx).replace('/', '_') + ":" + rel.substring(idx + 1);
+    }
+
+    /** 把 globalDir 下的文件转为向前斜杠的相对路径 */
     private static String toForwardRel(Path globalDir, Path p) {
         return globalDir.relativize(p).toString().replace('\\', '/');
     }
@@ -63,7 +72,7 @@ public class CinematicCommand {
         dispatcher.register(Commands.literal("icinematics")
                 .then(Commands.literal("play")
                         .requires(s -> s.hasPermission(2))
-                        .then(Commands.argument("file", StringArgumentType.string())
+                        .then(Commands.argument("file", ResourceLocationArgument.id())
                                 .suggests(SCRIPT_SUGGESTIONS)
                                 .executes(CinematicCommand::playScript)
                                 .then(Commands.argument("players", EntityArgument.players())
@@ -77,14 +86,15 @@ public class CinematicCommand {
                         .executes(CinematicCommand::reloadScripts))
                 .then(Commands.literal("validate")
                         .requires(s -> s.hasPermission(2))
-                        .then(Commands.argument("file", StringArgumentType.string())
+                        .then(Commands.argument("file", ResourceLocationArgument.id())
                                 .suggests(SCRIPT_SUGGESTIONS)
                                 .executes(CinematicCommand::validateScriptFile)))
         );
     }
 
     private static int playScript(CommandContext<CommandSourceStack> context) {
-        String filePath = StringArgumentType.getString(context, "file");
+        ResourceLocation location = ResourceLocationArgument.getId(context, "file");
+        String filePath = scriptPathOf(location);
         CommandSourceStack source = context.getSource();
         MinecraftServer server = source.getServer();
 
@@ -332,7 +342,8 @@ public class CinematicCommand {
      * 输出完整问题清单（结构错误/字段缺失/语义错误/缺省字段提示），一次给全。
      */
     private static int validateScriptFile(CommandContext<CommandSourceStack> context) {
-        String filePath = StringArgumentType.getString(context, "file");
+        ResourceLocation location = ResourceLocationArgument.getId(context, "file");
+        String filePath = scriptPathOf(location);
         CommandSourceStack source = context.getSource();
         MinecraftServer server = source.getServer();
 
@@ -369,6 +380,20 @@ public class CinematicCommand {
         }
         source.sendSuccess(() -> Component.literal(msg.toString()), false);
         return 1;
+    }
+
+    /**
+     * 命令 ID → 相对文件路径：
+     * <ul>
+     *   <li>根目录脚本：直接返回文件名（ResourceLocation 的默认 namespace 为 minecraft）；</li>
+     *   <li>子目录脚本：namespace 中的下划线还原为目录斜杠，再拼接文件名。</li>
+     * </ul>
+     */
+    private static String scriptPathOf(ResourceLocation location) {
+        String ns = location.getNamespace();
+        String path = location.getPath();
+        if ("minecraft".equals(ns)) return path;
+        return ns.replace('_', '/') + "/" + path;
     }
 
     private static Path findScriptFile(String filePath, Path scriptDir) {
