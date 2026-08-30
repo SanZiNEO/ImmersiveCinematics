@@ -94,26 +94,57 @@ public final class ChunkPreloadManager {
         st.cameraYaw = yaw;
         st.playerRenderDistance = renderDistance;
         if (freshScript) {
-            enterFar(player, st, cam); // 全程相机中心：脚本开始即进入相机预载，不再按距离门控
+            st.center = cam;
+            int viewDistance = viewDistanceChunks(st);
+            if (shouldEnterFar(cam, st.playerChunk, viewDistance)) {
+                enterFar(player, st, cam);
+            } else {
+                st.farMode = false;
+                LOGGER.info("[preload state] 玩家={} NEAR 中心={} 玩家块={} 视距={}",
+                        player.getName().getString(), fmt(cam), fmt(st.playerChunk), viewDistance);
+            }
         }
         // 同脚本重入：零介入
     }
 
-    /** 相机位置上报：脚本全程相机中心，中心变化即滑动相机区块窗口并更新客户端缓存中心 */
+    /**
+     * 相机位置上报：按距离门控进入/退出 far。
+     * <ul>
+     *   <li>NEAR：相机在玩家视距内，走原版玩家中心，不预载；相机跑远时进入 FAR</li>
+     *   <li>FAR：相机中心发送；相机回到玩家视距内时提前退出并补发玩家区</li>
+     * </ul>
+     */
     public void handlePosition(ServerPlayer player, int x, int z, float yaw) {
         PlayerState st = states.get(player.getUUID());
         if (st == null) return;
         ChunkPos cam = new ChunkPos(x >> 4, z >> 4);
         st.cameraYaw = yaw;
+        st.playerChunk = new ChunkPos(player.blockPosition());
+        int viewDistance = viewDistanceChunks(st);
 
-        // 锚点始终钉在最新相机位置（刷怪/实体同步用）
-        if (CameraAnchorManager.INSTANCE.hasAnchor(player.getUUID())) {
-            if (player.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-                updateAnchors(player.getUUID(), serverLevel, cam, st);
+        if (!st.farMode) {
+            // NEAR：相机进入玩家视距外 → 进入 far 预载
+            if (shouldEnterFar(cam, st.playerChunk, viewDistance)) {
+                LOGGER.info("[preload state] 玩家={} NEAR->FAR 中心={} 玩家块={} 视距={}",
+                        player.getName().getString(), fmt(cam), fmt(st.playerChunk), viewDistance);
+                enterFar(player, st, cam);
             }
+            return;
         }
 
-        if (!st.farMode) return; // 未进入预载模式（脚本开始后都会进入）
+        // FAR：相机回到玩家视距内 → 提前退出，交还玩家中心
+        if (shouldExitFar(cam, st.playerChunk, viewDistance)) {
+            LOGGER.info("[preload state] 玩家={} FAR->NEAR 中心={} 玩家块={} 视距={}",
+                    player.getName().getString(), fmt(cam), fmt(st.playerChunk), viewDistance);
+            exitFar(player, st);
+            return;
+        }
+
+        // FAR：继续跟随相机，并更新锚点/实体同步
+        if (player.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+            updateAnchors(player.getUUID(), serverLevel, cam, st);
+        }
+
         if (cam.equals(st.center)) return;
 
         // 相机区块窗口滑动：先加新窗口票，再释放离开窗口的票
@@ -228,6 +259,24 @@ public final class ChunkPreloadManager {
     private void clearCameraArea(ServerPlayer p, PlayerState st) {
         st.center = null;
         forgetCameraChunks(p, st);
+    }
+
+    /**
+     * 退出 far：撤相机票、清理已发相机区块、中心回玩家、补发玩家区。
+     * 用于“相机回到玩家视距内”和“脚本结束释放”两条路径。
+     */
+    private void exitFar(ServerPlayer p, PlayerState st) {
+        if (!st.farMode) return;
+        setCameraZone(p, st, false);
+        clearCameraArea(p, st);
+        if (st.playerChunk != null) {
+            sendCenter(p, st.playerChunk);
+            resyncPlayerArea(p, st);
+        }
+        forgetCameraChunks(p, st);
+        st.farMode = false;
+        CameraAnchorManager.INSTANCE.removeAnchor(p.getUUID());
+        CameraEntitySyncManager.INSTANCE.removeAnchor(p.getUUID());
     }
 
     // ===== 玩家区对账补发（拆掉原版记账脱节的空洞） =====
@@ -480,6 +529,16 @@ public final class ChunkPreloadManager {
         return Math.abs(cam.x - player.x) > t || Math.abs(cam.z - player.z) > t;
     }
 
+    /** 进入 far 的滞回判定：距离超过视距 + 1 才进入，避免边界抖动 */
+    private static boolean shouldEnterFar(ChunkPos cam, ChunkPos player, int viewDistance) {
+        return isFar(cam, player, Math.max(2, viewDistance + 1));
+    }
+
+    /** 退出 far 的滞回判定：距离回到视距 - 1 以内才退出，避免边界抖动 */
+    private static boolean shouldExitFar(ChunkPos cam, ChunkPos player, int viewDistance) {
+        return !isFar(cam, player, Math.max(2, viewDistance - 1));
+    }
+
     /** 玩家实际视距（区块数）：客户端渲染距离与服务端视距取小；未知时回退服务端视距 */
     private int viewDistanceChunks(PlayerState st) {
         if (st == null || st.player == null) return 2;
@@ -500,15 +559,10 @@ public final class ChunkPreloadManager {
         CameraEntitySyncManager.INSTANCE.removeAnchor(uuid);
         if (st == null) return;
         if (st.farMode) {
-            setCameraZone(p, st, false);
-            clearCameraArea(p, st);
-            if (st.playerChunk != null) {
-                sendCenter(p, st.playerChunk);
-                resyncPlayerArea(p, st);
-            }
+            exitFar(p, st);
         }
-        forgetCameraChunks(p, st);
-        LOGGER.info("预加载释放: 玩家 {}", p.getName().getString());
+        // NEAR：没有任何 chunk 操作，避免近景结束刷新玩家侧
+        LOGGER.info("预加载释放: 玩家 {} state={}", p.getName().getString(), st.farMode ? "FAR" : "NEAR");
     }
 
     /** 更新相机锚点 + 实体同步器（无假人方案） */
