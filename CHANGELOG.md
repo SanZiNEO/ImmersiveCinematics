@@ -9,6 +9,7 @@
 - **look_at 相对目标**：`look_at_target` 对象（绝对/触发点偏移/实体偏移/坐标偏移），兼容旧字段
 - **动态 yaw 基准**：`yaw_base`（world/entity/line）与 `pitch_base`，`yaw` 变为相对偏移，与 look_at 互斥；基准空间系 `fwd/up/right`
 - **区块预加载统一**：`preload-camera-region-unified` 设计落地——far-view 由隐藏假人驱动原版区块/实体追踪，退出时玩家区对账补发，实体中继与区块同源时序；脚本级 `meta.preload` 开关
+- **预加载预热与释放复用**：下一 CAMERA 片段按 `prewarmLeadSeconds` 提前加 ticket 预热；脚本结束用 `playerNeed ∩ sentCameraChunks` 差集复用，只需补发玩家区缺失块，近距离结束不再全量重发
 - **预加载配置平台持久化**：ForgeConfigSpec / Fabric JSON 接入全部预加载字段（cap/force/prewarm/playerZone 等），配置修改后跨重启生效
 - **音频体系重构**：`meta.listener`（player/camera）听者模式；AUDIO 轨道回归原版 SoundEngine，相对/绝对位置语义 + 默认衰减；环境音（群系/水下/气泡柱/animateTick）在 camera 模式采样到相机；编辑器音频联动重写
 - **编辑器飞行取景**：F6 + WASD/鼠标操控相机取景，可记录/取消；编辑器模块化 + 面板重构

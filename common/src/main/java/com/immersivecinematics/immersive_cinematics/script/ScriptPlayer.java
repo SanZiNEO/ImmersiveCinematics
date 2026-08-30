@@ -433,7 +433,7 @@ public class ScriptPlayer {
         return false;
     }
 
-    private float getElapsedSeconds() {
+    public float getElapsedSeconds() {
         return (float)(CameraManager.INSTANCE.getGameTimeSeconds() - startGameTimeSeconds);
     }
 }

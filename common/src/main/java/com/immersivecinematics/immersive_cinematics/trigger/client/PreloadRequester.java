@@ -5,11 +5,18 @@ import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
+import com.immersivecinematics.immersive_cinematics.script.Clip;
+import com.immersivecinematics.immersive_cinematics.script.Keyframe;
+import com.immersivecinematics.immersive_cinematics.script.PositionData;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
+import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPreloadPositionPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPreloadRequestPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
+
+import java.util.List;
+import java.util.Optional;
 
 /**
  * 区块预加载客户端请求器 — 由 ClientEventHandler 客户端 tick 驱动。
@@ -29,6 +36,9 @@ public final class PreloadRequester {
     private String lastScript = "";
     private int tickCounter = 0;
     private boolean preloadActive = false;
+
+    /** 已发送预热的脚本/片段目标，避免每 tick 重复发包 */
+    private String prewarmTargetKey = "";
 
     private PreloadRequester() {}
 
@@ -62,6 +72,7 @@ public final class PreloadRequester {
                 lastScript = sid;
                 tickCounter = 0;
                 preloadActive = true;
+                prewarmTargetKey = "";
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                         new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, Config.preloadWindowRadius,
                                 cam.getCameraYaw(), mc.options.renderDistance().get(),
@@ -74,6 +85,7 @@ public final class PreloadRequester {
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                         new C2SPreloadPositionPacket(bx, bz, cam.getCameraYaw()));
             }
+            tickPrewarm(mc, sid, script, sp);
         } else {
             releaseIfNeeded();
         }
@@ -86,6 +98,7 @@ public final class PreloadRequester {
         if (mc.level == null || mc.getConnection() == null) {
             lastScript = "";
             preloadActive = false;
+            prewarmTargetKey = "";
             return;
         }
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
@@ -95,6 +108,66 @@ public final class PreloadRequester {
                         C2SPreloadRequestPacket.DEFAULT_CAMERA_MOB_AI));
         lastScript = "";
         preloadActive = false;
+        prewarmTargetKey = "";
+    }
+
+    /** 预热：接近下个 CAMERA 片段时，把下一片段首帧位置发给服务端提前加载 */
+    private void tickPrewarm(Minecraft mc, String sid, CinematicScript script, ScriptPlayer sp) {
+        if (!preloadActive || script == null) return;
+        Optional<TimelineTrack> camTrack = script.getTimeline().getCameraTrack();
+        if (camTrack.isEmpty()) return;
+        List<Clip> clips = camTrack.get().getClips();
+        if (clips.size() < 2) return;
+
+        float elapsed = sp.getElapsedSeconds();
+        int activeIdx = findActiveCameraClipIndex(clips, elapsed);
+        if (activeIdx < 0 || activeIdx + 1 >= clips.size()) return;
+
+        Clip next = clips.get(activeIdx + 1);
+        float lead = next.getStartTime() - elapsed;
+        // 仍在提前量窗口内；lead<0 说明已切过去，不再发旧目标
+        if (lead > Config.preloadPrewarmLeadSeconds || lead < -0.5f) return;
+
+        Vec3 target = computeClipStartWorldPos(next, sp.getOriginPos());
+        if (target == null) return;
+
+        String key = sid + "|" + activeIdx + "|" + ((long) Math.floor(target.x)) + "," + ((long) Math.floor(target.z));
+        if (key.equals(prewarmTargetKey)) return;
+
+        int bx = (int) Math.floor(target.x);
+        int bz = (int) Math.floor(target.z);
+        com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PREWARM, sid, bx, bz,
+                        Config.preloadPrewarmRadius,
+                        CameraManager.INSTANCE.getCameraYaw(), mc.options.renderDistance().get(),
+                        script.getMeta().isCameraMobSpawn(), script.getMeta().getCameraMobRadius(),
+                        script.getMeta().isCameraMobAi()));
+        prewarmTargetKey = key;
+    }
+
+    private static int findActiveCameraClipIndex(List<Clip> clips, float elapsed) {
+        int active = -1;
+        for (int i = 0; i < clips.size(); i++) {
+            Clip c = clips.get(i);
+            if (elapsed >= c.getStartTime() && elapsed < c.getWindowEnd()) {
+                active = i;
+            }
+        }
+        return active;
+    }
+
+    /** 静态可解析的下一片段首帧世界坐标；结构/方块/实体/facing 等动态基准返回 null（首版跳过） */
+    private static Vec3 computeClipStartWorldPos(Clip clip, Vec3 originPos) {
+        if (clip.getKeyframes().isEmpty()) return null;
+        Keyframe kf = clip.getKeyframes().get(0);
+        PositionData pd = kf.getPosition();
+        if (pd == null) return null;
+        if (!pd.isRelative()) return pd.toVec3();
+        if (pd.isOriginCoordinate()) {
+            return new Vec3(pd.getOriginX() + pd.getDx(), pd.getOriginY() + pd.getDy(), pd.getOriginZ() + pd.getDz());
+        }
+        if (pd.getOriginStructure() != null || pd.isOriginBlock() || pd.isFacingRelative()) return null;
+        return originPos.add(pd.toVec3());
     }
 
     /** 脚本级开关：meta.preload 缺省/true = 启用；false = 本脚本关闭预加载（不发任何预载请求） */

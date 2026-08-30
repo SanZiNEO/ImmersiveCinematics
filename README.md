@@ -49,7 +49,7 @@ ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server
 
 **World & Audio**
 - Chunk preloading with far camera-region support: hidden fake player drives vanilla chunk/entity tracking, so distant cutscene locations stay loaded and entities are relayed to the real client
-- Per-script preload toggle (`meta.preload`), configurable radius/cap/force/prewarm settings persisted per platform
+- Per-script preload toggle (`meta.preload`), next-clip prewarm and end-of-script release diff reuse, configurable radius/cap/force/prewarm settings persisted per platform
 - Audio listener modes (`meta.listener`: player/camera), sound-engine based AUDIO tracks, relative/absolute positioning and environment-sound redirection
 
 ---
