@@ -71,20 +71,34 @@ public final class PreloadRequester {
                 lastScript = sid;
                 lastPrewarm = "";
                 tickCounter = 0;
-                preloadActive = true;
-                com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                        new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, Config.preloadWindowRadius,
-                                cam.getCameraYaw(), mc.options.renderDistance().get(),
-                                script.getMeta().isCameraMobSpawn(), script.getMeta().getCameraMobRadius(),
-                                script.getMeta().isCameraMobAi()));
+                // 相机在玩家视距内：不启动预载，走原版玩家中心
+                if (isFarFromPlayer(mc, bx, bz)) {
+                    preloadActive = true;
+                    com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                            new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, Config.preloadWindowRadius,
+                                    cam.getCameraYaw(), mc.options.renderDistance().get(),
+                                    script.getMeta().isCameraMobSpawn(), script.getMeta().getCameraMobRadius(),
+                                    script.getMeta().isCameraMobAi()));
+                } else {
+                    preloadActive = false;
+                }
                 return;
             }
-            // 注意：相机回到玩家视距后不释放预载会话，继续上报位置，
-            // 让服务端假人跟着相机移动，继续补“原版跟踪范围之外”的实体，直到脚本结束。
+            // 相机回到玩家视距后不释放会话：继续上报位置，服务端会把 FAR 状态切回 NEAR；
+            // 相机再次离开玩家视距时，下面的分支会补发 MODE_PRELOAD 重新进入 far。
             tickCounter++;
             if (tickCounter % Math.max(1, Config.preloadReportInterval) == 0) {
-                com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                        new C2SPreloadPositionPacket(bx, bz, cam.getCameraYaw()));
+                if (preloadActive) {
+                    com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                            new C2SPreloadPositionPacket(bx, bz, cam.getCameraYaw()));
+                } else if (isFarFromPlayer(mc, bx, bz)) {
+                    preloadActive = true;
+                    com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                            new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, Config.preloadWindowRadius,
+                                    cam.getCameraYaw(), mc.options.renderDistance().get(),
+                                    script.getMeta().isCameraMobSpawn(), script.getMeta().getCameraMobRadius(),
+                                    script.getMeta().isCameraMobAi()));
+                }
             }
             // 独立 prewarm 已取消：只有一个相机中心，不需要预载第二个中心
         } else {
