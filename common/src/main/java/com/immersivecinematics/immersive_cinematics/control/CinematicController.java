@@ -33,6 +33,7 @@ public class CinematicController {
     private Boolean suppressDistortion = null;
     private boolean renderPlayerModel = true;
     private boolean blockMobAi = false;
+    private java.util.Map<String, Boolean> hudLayers = new java.util.LinkedHashMap<>();
 
     /** 播放期间临时修改 screenEffectScale 的保存/恢复状态 */
     private double savedScreenEffectScale = 1.0;
@@ -62,6 +63,7 @@ public class CinematicController {
         this.renderPlayerModel = behavior.renderPlayerModel();
         this.blockMobAi = behavior.blockMobAi();
         this.pauseWhenGamePaused = behavior.pauseWhenGamePaused();
+        this.hudLayers = new java.util.LinkedHashMap<>(behavior.hudLayers());
         updateScreenEffectScale();
     }
 
@@ -87,6 +89,7 @@ public class CinematicController {
         this.renderPlayerModel = true;
         this.blockMobAi = false;
         this.pauseWhenGamePaused = true;
+        this.hudLayers.clear();
         restoreScreenEffectScale();
     }
 
@@ -129,6 +132,34 @@ public class CinematicController {
 
         // 3) 鼠标视角累积量不再需要清理：飞行时 onMove 在 vanilla 累积前已被中继层拦截，
         //    accumulatedDX/DY 不会在播放期间增长；退出时保持原样即可。
+    }
+
+    /**
+     * 判断某个 HUD 层是否应该隐藏。固定分类优先使用对应单项开关，否则看 {@code hud_layers} 覆盖。
+     */
+    public boolean isLayerHidden(String layer) {
+        switch (layer) {
+            case "hotbar": return resolveLayer(hideHotbar);
+            case "crosshair": return resolveLayer(hideCrosshair);
+            case "chat": return resolveLayer(hideChat);
+            case "scoreboard": return resolveLayer(hideScoreboard);
+            case "bossbar": return resolveLayer(hideBossbar);
+            case "subtitles": return resolveLayer(hideSubtitles);
+            case "action_bar": return resolveLayer(hideActionBar);
+            case "title": return resolveLayer(hideTitle);
+            case "arm": return resolveLayer(hideArm);
+            case "skip_hud": return resolveLayer(hideSkipHud);
+            case "bob": return resolveLayer(suppressBob);
+            default: {
+                Boolean v = hudLayers.get(layer);
+                return v != null ? v : hideHud;
+            }
+        }
+    }
+
+    private boolean resolveLayer(Boolean setting) {
+        if (setting == null) return hideHud;
+        return setting;
     }
 
     public boolean isHideHud() { return hideHud; }

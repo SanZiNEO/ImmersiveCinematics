@@ -5,7 +5,7 @@
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 render_player_model=true 时渲染玩家模型",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_meta_pause_when_game_paused_on"] } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_meta_pause_game_paused_on"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": true,

@@ -5,7 +5,7 @@
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "只测试 suppress_distortion=true 时屏蔽扭曲",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_meta_suppress_distortion_off"] } ],
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_meta_suppress_dist_off"] } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": true,

@@ -108,14 +108,16 @@ public class ScriptMeta {
             boolean pauseWhenGamePaused,
             boolean interruptible,
             boolean skippable,
-            boolean holdAtEnd
+            boolean holdAtEnd,
+            java.util.Map<String, Boolean> hudLayers
     ) {
         public static final RuntimeBehavior DEFAULT = new RuntimeBehavior(
                 true, true, false, true,
                 null, null, null,
                 null, null, null, null, null, null, null, null, null,
                 true,
-                true, true, true, false
+                true, true, true, false,
+                java.util.Collections.emptyMap()
         );
 
         public static Builder builder() { return new Builder(); }
@@ -141,6 +143,7 @@ public class ScriptMeta {
             private boolean interruptible = DEFAULT.interruptible();
             private boolean skippable = DEFAULT.skippable();
             private boolean holdAtEnd = DEFAULT.holdAtEnd();
+            private java.util.Map<String, Boolean> hudLayers = new java.util.LinkedHashMap<>();
 
             public Builder blockKeyboard(boolean v) { this.blockKeyboard = v; return this; }
             public Builder blockMouse(boolean v) { this.blockMouse = v; return this; }
@@ -163,6 +166,7 @@ public class ScriptMeta {
             public Builder interruptible(boolean v) { this.interruptible = v; return this; }
             public Builder skippable(boolean v) { this.skippable = v; return this; }
             public Builder holdAtEnd(boolean v) { this.holdAtEnd = v; return this; }
+            public Builder hudLayers(java.util.Map<String, Boolean> v) { this.hudLayers = v; return this; }
 
             public RuntimeBehavior build() {
                 return new RuntimeBehavior(
@@ -172,7 +176,8 @@ public class ScriptMeta {
                         hideTitle, hideSubtitles, hideHotbar, hideCrosshair,
                         hideBossbar, hideSkipHud,
                         renderPlayerModel,
-                        pauseWhenGamePaused, interruptible, skippable, holdAtEnd
+                        pauseWhenGamePaused, interruptible, skippable, holdAtEnd,
+                        hudLayers
                 );
             }
         }

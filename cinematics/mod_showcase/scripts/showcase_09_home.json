@@ -19,7 +19,7 @@
     ],
     "block_keyboard": true,
     "block_mouse": true,
-    "hide_hud": true,
+    "hide_hud": false,
     "hide_arm": true,
     "suppress_bob": true,
     "skippable": true,

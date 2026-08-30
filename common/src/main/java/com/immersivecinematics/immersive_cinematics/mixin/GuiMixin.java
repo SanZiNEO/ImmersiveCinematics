@@ -7,6 +7,8 @@ import net.minecraft.world.entity.PlayerRideableJumping;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.scores.Objective;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -30,6 +32,40 @@ public abstract class GuiMixin {
         CinematicController ctrl = CinematicController.INSTANCE;
         if (setting == null) return ctrl.isHideHud();
         return setting;
+    }
+
+    // ===== Action Bar / Title（GUI.render 内联渲染，帧内清零时间以跳过渲染并恢复） =====
+
+    @Shadow private int overlayMessageTime;
+    @Shadow private int titleTime;
+    @Unique private int savedOverlayMessageTime;
+    @Unique private int savedTitleTime;
+    @Unique private boolean suppressOverlayMessage;
+    @Unique private boolean suppressTitle;
+
+    @Inject(method = "render", at = @At("HEAD"))
+    private void onRenderHead(GuiGraphics guiGraphics, float partialTick, CallbackInfo ci) {
+        if (isActive() && shouldHide(CinematicController.INSTANCE.isHideActionBar()) && overlayMessageTime > 0) {
+            savedOverlayMessageTime = overlayMessageTime;
+            overlayMessageTime = 0;
+            suppressOverlayMessage = true;
+        } else {
+            suppressOverlayMessage = false;
+        }
+
+        if (isActive() && shouldHide(CinematicController.INSTANCE.isHideTitle()) && titleTime > 0) {
+            savedTitleTime = titleTime;
+            titleTime = 0;
+            suppressTitle = true;
+        } else {
+            suppressTitle = false;
+        }
+    }
+
+    @Inject(method = "render", at = @At("RETURN"))
+    private void onRenderReturn(GuiGraphics guiGraphics, float partialTick, CallbackInfo ci) {
+        if (suppressOverlayMessage) overlayMessageTime = savedOverlayMessageTime;
+        if (suppressTitle) titleTime = savedTitleTime;
     }
 
     // ===== 快捷栏 =====
@@ -87,5 +123,12 @@ public abstract class GuiMixin {
     @Inject(method = "displayScoreboardSidebar", at = @At("HEAD"), cancellable = true)
     private void onDisplayScoreboardSidebar(GuiGraphics guiGraphics, Objective objective, CallbackInfo ci) {
         if (isActive() && shouldHide(CinematicController.INSTANCE.isHideScoreboard())) ci.cancel();
+    }
+
+    // ===== 保存提示（F1 隐藏块内） =====
+
+    @Inject(method = "renderSavingIndicator", at = @At("HEAD"), cancellable = true)
+    private void onRenderSavingIndicator(GuiGraphics guiGraphics, CallbackInfo ci) {
+        if (isActive() && shouldHide(null)) ci.cancel();
     }
 }

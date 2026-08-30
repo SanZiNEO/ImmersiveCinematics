@@ -42,6 +42,7 @@ public final class MetaSchemas {
         map.put("interruptible", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
         map.put("skippable", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
         map.put("hold_at_end", new FieldDef("bool", false, false, java.util.Collections.emptyList(), "runtime"));
+        map.put("hud_layers", new FieldDef("object", null, false, java.util.Collections.emptyList(), "runtime"));
         map.put("priority", new FieldDef("int", 0, false, java.util.Collections.emptyList(), "runtime"));
         map.put("skip_vote_ratio", new FieldDef("int", null, false, java.util.Collections.emptyList(), "runtime"));
 

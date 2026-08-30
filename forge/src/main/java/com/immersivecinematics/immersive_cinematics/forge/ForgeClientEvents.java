@@ -1,15 +1,20 @@
 package com.immersivecinematics.immersive_cinematics.forge;
 
 import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
+import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.client.ConfigScreen;
+import com.immersivecinematics.immersive_cinematics.control.CinematicController;
+import com.immersivecinematics.immersive_cinematics.forge.hud.ForgeHudLayerRegistry;
 import com.immersivecinematics.immersive_cinematics.handler.ClientEventHandler;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderGuiEvent;
+import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
@@ -49,6 +54,17 @@ public final class ForgeClientEvents {
         @SubscribeEvent
         public static void onRenderGui(RenderGuiEvent.Post event) {
             ClientEventHandler.onRenderHud(event.getGuiGraphics());
+        }
+
+        @SubscribeEvent
+        public static void onRenderGuiOverlayPre(RenderGuiOverlayEvent.Pre event) {
+            if (!CameraManager.INSTANCE.isActive()) return;
+            ResourceLocation overlayId = event.getOverlay().id();
+            if (ForgeHudLayerRegistry.isWorldOverlay(overlayId)) return;
+            String category = ForgeHudLayerRegistry.categoryOf(overlayId);
+            if (CinematicController.INSTANCE.isLayerHidden(category)) {
+                event.setCanceled(true);
+            }
         }
     }
 }

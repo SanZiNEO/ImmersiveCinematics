@@ -1,6 +1,6 @@
 {
   "meta": {
-    "id": "test_meta_suppress_distortion_off",
+    "id": "test_meta_suppress_dist_off",
     "name": "Meta测试-扭曲屏蔽关",
     "author": "ImmersiveCinematics",
     "version": 3,
@@ -28,7 +28,7 @@
             "start_time": 0,
             "duration": 8,
             "layer_type": "subtitle",
-            "text": "测试: test_meta_suppress_distortion_off | 功能: 扭曲屏蔽关 | 触发: biome自动",
+            "text": "测试: test_meta_suppress_dist_off | 功能: 扭曲屏蔽关 | 触发: biome自动",
             "x": 0.5,
             "y": 0.5,
             "z_index": 100,

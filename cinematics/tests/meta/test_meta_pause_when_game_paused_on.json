@@ -1,6 +1,6 @@
 {
   "meta": {
-    "id": "test_meta_pause_when_game_paused_on",
+    "id": "test_meta_pause_game_paused_on",
     "name": "Meta测试-暂停跟随开",
     "author": "ImmersiveCinematics",
     "version": 3,
@@ -27,7 +27,7 @@
             "start_time": 0,
             "duration": 8,
             "layer_type": "subtitle",
-            "text": "测试: test_meta_pause_when_game_paused_on | 功能: 暂停跟随 | 触发: biome自动",
+            "text": "测试: test_meta_pause_game_paused_on | 功能: 暂停跟随 | 触发: biome自动",
             "x": 0.5,
             "y": 0.5,
             "z_index": 100,

@@ -825,7 +825,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         // 非玩家目标：按 selector 分键缓存 1 秒（目标仍存活时复用，避免每帧全量遍历）
         long now = System.currentTimeMillis();
         CachedTarget cached = targetCache.get(selector);
-        if (cached != null && cached.entity.isAlive() && now - cached.resolvedAt < 1000) {
+        if (cached != null && cached.entity != null && cached.entity.isAlive() && now - cached.resolvedAt < 1000) {
             return cached.entity;
         }
 

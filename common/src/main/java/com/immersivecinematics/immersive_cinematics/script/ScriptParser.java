@@ -114,6 +114,7 @@ public class ScriptParser {
         boolean interruptible = optBoolMeta(metaObj, "interruptible");
         boolean skippable = optBoolMeta(metaObj, "skippable");
         boolean holdAtEnd = optBoolMeta(metaObj, "hold_at_end");
+        java.util.Map<String, Boolean> hudLayers = parseHudLayers(metaObj);
 
         ScriptMeta.RuntimeBehavior behavior = new ScriptMeta.RuntimeBehavior(
                 blockKeyboard, blockMouse, blockMobAi,
@@ -123,7 +124,7 @@ public class ScriptParser {
                 hideBossbar, hideSkipHud,
                 renderPlayerModel,
                 pauseWhenGamePaused, interruptible, skippable,
-                holdAtEnd);
+                holdAtEnd, hudLayers);
 
         // 播放优先级（默认值来自 schema.json "meta" 段；仅用于队列内排序）
         int priority = optInt(metaObj, "priority", 0);
@@ -718,6 +719,20 @@ public class ScriptParser {
         JsonElement el = obj.get(key);
         if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isNumber()) return null;
         return el.getAsInt();
+    }
+
+    /** 解析 meta.hud_layers：模组/自定义 HUD 层的显隐覆盖（true=隐藏，false=显示） */
+    private static java.util.Map<String, Boolean> parseHudLayers(JsonObject metaObj) {
+        java.util.Map<String, Boolean> map = new java.util.LinkedHashMap<>();
+        if (!metaObj.has("hud_layers") || !metaObj.get("hud_layers").isJsonObject()) {
+            return map;
+        }
+        for (java.util.Map.Entry<String, com.google.gson.JsonElement> e : metaObj.getAsJsonObject("hud_layers").entrySet()) {
+            if (e.getValue().isJsonPrimitive() && e.getValue().getAsJsonPrimitive().isBoolean()) {
+                map.put(e.getKey(), e.getValue().getAsBoolean());
+            }
+        }
+        return map;
     }
 
     private static boolean optBool(JsonObject obj, String key, boolean defaultVal) {

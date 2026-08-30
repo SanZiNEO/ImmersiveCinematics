@@ -8,7 +8,9 @@
     "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_basespace_birdeye"] } ],
     "block_keyboard": false,
     "block_mouse": false,
-    "hide_hud": true,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,
@@ -46,7 +48,7 @@
       "interpolation": "linear",
       "loop": false,
       "keyframes": [
-        { "time": 0, "follow": "entity", "follow_selector": "@p", "position": { "fwd": 0, "up": 0, "right": 3, "up_axis": "view" }, "yaw_base": "entity", "yaw_base_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+        { "time": 0, "follow": "entity", "follow_selector": "@p", "position": { "fwd": -3, "up": 0, "right": 1.5, "up_axis": "view" }, "yaw_base": "entity", "yaw_base_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
       ]
     }
   ]

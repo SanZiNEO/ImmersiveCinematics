@@ -8,7 +8,9 @@
     "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_pos_z"] } ],
     "block_keyboard": false,
     "block_mouse": false,
-    "hide_hud": true,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,
@@ -59,8 +61,8 @@
       "interpolation": "linear",
       "loop": false,
       "keyframes": [
-        { "time": 0, "follow": "entity", "follow_selector": "@e[type=minecraft:sheep,limit=1]", "look_at": "entity", "look_at_selector": "@p", "pitch": -5, "roll": 0, "fov": 70, "zoom": 1 },
-        { "time": 11, "follow": "entity", "follow_selector": "@e[type=minecraft:sheep,limit=1]", "look_at": "entity", "look_at_selector": "@p", "pitch": -5, "roll": 0, "fov": 70, "zoom": 1 }
+        { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@e[type=minecraft:sheep,limit=1]", "look_at": "entity", "look_at_selector": "@p", "pitch": -5, "roll": 0, "fov": 70, "zoom": 1 },
+        { "time": 11, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@e[type=minecraft:sheep,limit=1]", "look_at": "entity", "look_at_selector": "@p", "pitch": -5, "roll": 0, "fov": 70, "zoom": 1 }
       ]
     }
   ]
