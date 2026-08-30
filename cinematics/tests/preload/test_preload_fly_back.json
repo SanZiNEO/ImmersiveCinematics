@@ -10,7 +10,7 @@
     ],
     "block_keyboard": true,
     "block_mouse": true,
-    "hide_hud": false,
+    "hide_hud": true,
     "hide_arm": true,
     "suppress_bob": true,
     "pause_when_game_paused": true,
@@ -25,6 +25,24 @@
   "timeline": {
     "total_duration": 30,
     "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "layer_type": "subtitle",
+            "text": "测试: test_preload_fly_back | 功能: 预加载倒飞 | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 30, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
       {
         "type": "CAMERA",
         "clips": [

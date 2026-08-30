@@ -15,7 +15,7 @@
     "interruptible": true,
     "skippable": true,
     "hold_at_end": false,
-    "render_player_model": false,
+    "render_player_model": true,
     "hide_scoreboard": true
   },
   "timeline": {
@@ -28,13 +28,13 @@
             "start_time": 0,
             "duration": 8,
             "layer_type": "subtitle",
-            "text": "Meta测试-隐藏记分板开",
+            "text": "测试: test_meta_hide_scoreboard_on | 功能: 隐藏记分板 | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
             "z_index": 100,
             "keyframes": [
-              { "time": 0, "x": 0.2, "y": 0.3, "opacity": 0 },
-              { "time": 1, "x": 0.2, "y": 0.3, "opacity": 1 },
-              { "time": 7, "x": 0.2, "y": 0.3, "opacity": 1 },
-              { "time": 8, "x": 0.2, "y": 0.3, "opacity": 0 }
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
             ]
           }
         ]

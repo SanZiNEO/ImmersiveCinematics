@@ -9,14 +9,14 @@
     "listener": "camera",
     "block_keyboard": false,
     "block_mouse": false,
-    "hide_hud": false,
+    "hide_hud": true,
     "hide_arm": false,
     "suppress_bob": false,
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,
     "hold_at_end": false,
-    "render_player_model": false
+    "render_player_model": true
   },
   "timeline": {
     "total_duration": 12,
@@ -57,13 +57,13 @@
             "start_time": 0,
             "duration": 12,
             "layer_type": "subtitle",
-            "text": "音频测试-群系环境音",
+            "text": "测试: test_audio_biome_camera | 功能: 群系环境音 | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
             "z_index": 100,
             "keyframes": [
-              { "time": 0, "x": 0.2, "y": 0.2, "opacity": 0 },
-              { "time": 1, "x": 0.2, "y": 0.2, "opacity": 1 },
-              { "time": 11, "x": 0.2, "y": 0.2, "opacity": 1 },
-              { "time": 12, "x": 0.2, "y": 0.2, "opacity": 0 }
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
             ]
           }
         ]

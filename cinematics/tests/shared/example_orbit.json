@@ -38,6 +38,24 @@
     "total_duration": 205,
     "tracks": [
       {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 205,
+            "layer_type": "subtitle",
+            "text": "测试: second_waltz | 功能: 演示运镜 | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 205, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
         "type": "CAMERA",
         "clips": [
           {

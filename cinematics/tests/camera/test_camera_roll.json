@@ -8,18 +8,36 @@
     "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_relative_player"] } ],
     "block_keyboard": false,
     "block_mouse": false,
-    "hide_hud": false,
+    "hide_hud": true,
     "hide_arm": false,
     "suppress_bob": false,
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,
     "hold_at_end": false,
-    "render_player_model": false
+    "render_player_model": true
   },
   "timeline": {
     "total_duration": 8,
     "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: test_camera_roll | 功能: 翻滚 Roll | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
       {
   "type": "CAMERA",
   "clips": [

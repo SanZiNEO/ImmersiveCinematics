@@ -8,14 +8,14 @@
     "triggers": [ {"id":"trg_location","type":"location","repeatable":false,"delay":0,"requires":["test_trigger_item_use_interrupt"],"conditions":{"corner1":{"x":-50,"y":-64,"z":-50},"corner2":{"x":50,"y":320,"z":50}}} ],
     "block_keyboard": false,
     "block_mouse": false,
-    "hide_hud": false,
+    "hide_hud": true,
     "hide_arm": false,
     "suppress_bob": false,
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,
     "hold_at_end": false,
-    "render_player_model": false
+    "render_player_model": true
   },
   "timeline": {
     "total_duration": 6,
@@ -27,13 +27,13 @@
             "start_time": 0,
             "duration": 6,
             "layer_type": "subtitle",
-            "text": "已触发 location 触发器",
+            "text": "测试: test_trigger_location | 功能: location | 触发: location",
+            "x": 0.5,
+            "y": 0.5,
             "z_index": 100,
             "keyframes": [
-              { "time": 0, "opacity": 0 },
-              { "time": 0.5, "opacity": 1 },
-              { "time": 5, "opacity": 1 },
-              { "time": 6, "opacity": 0 }
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.5, "opacity": 1 }
             ]
           }
         ]
