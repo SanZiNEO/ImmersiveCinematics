@@ -205,101 +205,18 @@ TimelineTrack(PAUSE_POINT)
 
 ## 9. 示例：死亡 / 重生
 
-一个死亡重生的用例：
+逻辑：
 
-- 触发器：玩家死亡（`player_death`）；
-- 脚本播放死亡画面；
-- 到达 PAUSE_POINT 暂停点；
-- 等待玩家点击“重生”按钮；
-- 点击后自动继续播放剩余片段。
-
-```json
-{
-  "meta": {
-    "id": "example_death_respawn",
-    "name": "示例：死亡重生",
-    "triggers": [
-      {
-        "type": "player_death",
-        "repeatable": true
-      }
-    ]
-  },
-  "timeline": {
-    "total_duration": 20,
-    "tracks": [
-      {
-        "type": "CAMERA",
-        "clips": [
-          {
-            "start_time": 0,
-            "duration": 20,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 2, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p" },
-              { "time": 8, "position": { "dx": 0, "dy": 4, "dz": -12 }, "look_at": "entity", "look_at_selector": "@p" },
-              { "time": 20, "position": { "dx": 0, "dy": 2, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p" }
-            ]
-          }
-        ]
-      },
-      {
-        "type": "OVERLAY",
-        "clips": [
-          {
-            "start_time": 0,
-            "duration": 20,
-            "layer_type": "subtitle",
-            "keyframes": [
-              { "time": 0, "text": "你死了", "opacity": 1 },
-              { "time": 8, "text": "点击重生按钮", "opacity": 1 },
-              { "time": 20, "text": "重生中...", "opacity": 1 }
-            ]
-          }
-        ]
-      },
-      {
-        "type": "AUDIO",
-        "clips": [
-          {
-            "start_time": 0,
-            "duration": 20,
-            "sound": "example:death_bgm",
-            "pause_managed": true
-          }
-        ]
-      },
-      {
-        "type": "PAUSE_POINT",
-        "clips": [
-          {
-            "start_time": 8,
-            "duration": 0,
-            "keyframes": [
-              {
-                "time": 8,
-                "wait": {
-                  "type": "button",
-                  "params": { "button_id": "respawn" },
-                  "timeout": { "enabled": false }
-                },
-                "action": "continue"
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-说明：
-
-- 脚本在 `8s` 到达 PAUSE_POINT，停止推进时间轴；
-- 等待按钮事件 `respawn`；
-- 点击后 `action: continue`，继续播放 `8s~20s` 的剩余片段；
-- 音频片段 `pause_managed: true`，暂停点等待期间背景音乐继续；
-- “隐藏原版死亡界面 / 自动重生 / 显示重生按钮”属于外部集成，不硬编码进脚本框架。
+- 玩家死亡触发 `player_death` 触发器；
+- 触发器启动一个死亡/重生脚本；
+- 脚本播放死亡画面：死亡镜头、黑场、字幕等；
+- 脚本到达某个 `PAUSE_POINT` 暂停点；
+- 到达后，整个脚本时间轴停在当前位置，等待事件；
+- 等待的事件是“点击重生按钮”；
+- 点击后暂停点被触发，执行 `action: continue`；
+- 脚本继续播放暂停点之后的剩余片段，例如重生动画、字幕、音乐；
+- 可选：音频片段标记为托管模式，暂停点等待期间背景音乐继续播放；
+- 隐藏原版死亡界面、显示重生按钮、执行重生等属于外部集成，由触发/交互层负责，不硬编码进脚本框架。
 
 ---
 
