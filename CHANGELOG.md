@@ -39,6 +39,38 @@
 - 安全化三处 `@Redirect`：`SoundManagerMixin` → `@ModifyArg`、`LevelRendererMixin` → `@ModifyVariable`、`BubbleColumnAmbientSoundHandlerMixin` → `@ModifyArg`，功能不变且降低与其他模组注入冲突的概率
 - Mixin 配置插件去反射：`ImmersiveCinematicsMixinPlugin` 拆分为 Forge / Fabric 平台专属实现，分别直接使用 `FMLLoader` / `ModList` 与 `FabricLoader` API，不再使用 Java 反射
 
+### 2026-08-31 追加 — 预加载状态边界统一差集、空片段处理、编辑器收尾与 WebUI 预留
+
+**预加载 / 相机区域**
+- **状态边界统一差集**：区块预加载不再使用 far/near 距离门控；客户端按“当前视口”上报（活跃镜头=相机位置，空档=玩家位置），服务端在镜头切换、空档进出、脚本结束统一执行 `desired - playerCovered - 已持有` 差集
+- **下一片段预热**：接近下一个 CAMERA 片段起点时提前加 ticket 预热，镜头切过去后直接晋级到当前相机区，不重复加票
+- **释放差集复用**：脚本结束时按 `playerNeed ∩ sentCameraChunks` 复用已持有区块，只补发玩家区缺失块；不再强制客户端 `allChanged()` 全量重建
+- **空片段/尾段空档处理**：没有活跃 CAMERA 片段时上报玩家位置，让差集自然切回玩家区；尾段有空档的脚本结束后无需强制刷新
+- **无 CAMERA 轨道脚本**：客户端/服务端双重判断，不再触发预加载/释放
+- **配置精简**：移除旧预加载配置项（`preloadWindowRadius`、`preloadMaxChunks`、`preloadMaxWorldgenChunks`、`preloadTimeoutGenerated/Worldgen`、旧 `preloadPrewarm`、`preloadFarViewCenterThreshold`、`preloadPlayerZoneRadius`、`preloadRearRadius`）
+
+**HUD / 输入 / 兼容**
+- HUD/手臂行为不再依赖相机轨道；脚本命令标识改为 `目录:文件名` 冒号格式
+- Forge/Fabric HUD 白名单工具，补齐 ActionBar/Title/保存提示
+- 键鼠屏蔽改用中继层 + 公开 API，移除对私有字段的访问
+- 修复相机实体缓存 NPE
+
+**触发器 / 测试**
+- 触发器前置条件改为“播放完成”语义，并支持自定义注册
+- 修复 `item_use_interrupt` 松手时未记录物品，导致该触发器永不匹配
+- 触发链测试脚本逐个补充“下一步提示 + 准备命令”
+
+**编辑器**
+- 字段控件按 `FieldDef` 类型驱动：`bool`→开关、`tristate`→三态、`enum≤3`→循环切换、`enum>3`→下拉
+- 缺失的 bool/enum 字段直接显示正确控件，不再“添加后控件突变”
+- 清理 `schema.json` 残留注释与编辑器 `cam_tracking_*` 特判
+- `ScriptPropertiesPanel` 暴露 `hud_layers`、`camera_mob_spawn`、`camera_mob_radius`、`camera_mob_ai`
+- 新增 `SchemaExporter` 与 `FieldControl`，为 WebUI 迁移预留 schema 导出与控件决策
+
+**文档 / 归档**
+- 0.3.5 计划文档归档到 `plans/complete/0.3.5/`
+- 0.3.6 文档整理：删除被 WebUI 迁移取代的 UI 缩放布局方案；无假人相机区域方案归档到 0.3.5 并标记已实施
+
 ## [0.3.4] - 2026-08-06
 
 音乐配乐 + 覆盖层 + 事件重构 + 镜头追踪与呼吸扰动 + 翻滚角修复。
