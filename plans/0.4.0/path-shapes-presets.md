@@ -115,7 +115,7 @@ x = c_x + r\cos\theta,\quad y = c_y + h\frac{\theta}{2\pi},\quad z = c_z + r\sin
 ## 5. 朝向（与路径的关系）
 
 - 现状：手写 yaw/pitch/roll、look_at
-- 0.3.5：新增 `orient: tangent`（见 `plans/0.3.5/tangent-orientation.md`）
+- 0.3.5：新增 `orient: tangent`（见 `plans/complete/0.3.5/tangent-orientation.md`）
 - 0.4.0 长期：是否支持 Frenet 滚转 / 压弯，待讨论
 
 ---

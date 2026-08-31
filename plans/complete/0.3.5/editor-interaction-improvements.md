@@ -124,5 +124,5 @@ Esc → 取消退出（不记录，仅退出操控模式还原 UI）
   - 由预览相机当前 yaw 计算 forward/right 水平向量：`forward = (-sin(yaw), 0, cos(yaw))`，`right = (cos(yaw), 0, sin(yaw))`（注意 MC yaw 约定）。
   - 位移 = `(forward * forwardImpulse + right * leftImpulse) * speed * dt`；空格/Shift 直接改 y；速度默认 10 格/秒（可调）。
   - 鼠标用 `GLFW.glfwGetCursorPos` 算 delta，再 `glfwSetCursorPos` 回中；应用 `MouseHandler.turnPlayer` 同款灵敏度公式到预览相机 yaw/pitch。
-  - 不 cancel 原始输入事件，保持输入状态连续；飞行模式退出时复用 `plans/0.3.5/input-handoff.md` 的状态重同步。
+  - 不 cancel 原始输入事件，保持输入状态连续；飞行模式退出时复用 `input-handoff.md` 的状态重同步。
 - **执行时再看**：`CameraManager` 直控、`EditorOperations`、`InputRouter`/两个输入 Mixin、`CinematicKeyBindings`、`EditorUndoManager`；MC `MouseHandler.turnPlayer`/`KeyboardInput`；FreeCam `FreeCam.java` 的位移读取逻辑。

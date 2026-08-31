@@ -29,5 +29,5 @@ AUDIO 轨道的 `relative` 位置模式发生过语义分歧，已修复为"跟�
 
 ## 执行前注意
 
-- ⚠️ 本文件是讨论记录，结论已并入 `plans/0.3.5/audio-listener-model.md`。
+- ⚠️ 本文件是讨论记录，结论已并入 `audio-listener-model.md`。
 - 执行时以 `audio-listener-model.md` 及其“执行前再看 / 具体方案”为准；`relative_fixed` 不再实现（锚定需求用 absolute 表达）。

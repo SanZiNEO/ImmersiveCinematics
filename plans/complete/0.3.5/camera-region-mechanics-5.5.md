@@ -4,7 +4,7 @@
 
 **状态**: 🔄 已并入统一设计（`preload-camera-region-unified.md`），服务端代码已重构，待按统一设计清理/联调
 **排期**: 插在第 5 轮之后、第 6 轮（文档/回归/发布）之前
-**关联**: `chunk-preload.md`（相机区域已全加载）、`audio-listener-model.md`（环境音听者模型）、`plans/0.3.5/1.md`（六轮拆分）
+**关联**: `chunk-preload.md`（相机区域已全加载）、`audio-listener-model.md`（环境音听者模型）、`1.md`（六轮拆分）
 
 ---
 
