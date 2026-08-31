@@ -37,6 +37,19 @@
             ]
           }
         ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "give @p minecraft:snowball 1 && say [下一步] 右键扔出雪球，触发 test_trigger_item_instant_use" }
+            ]
+          }
+        ]
       }
     ]
   }

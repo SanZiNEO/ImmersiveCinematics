@@ -37,6 +37,19 @@
             ]
           }
         ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "give @p minecraft:wheat 3 && say [下一步] 用小麦合成面包，触发 test_prereq_c" }
+            ]
+          }
+        ]
       }
     ]
   }

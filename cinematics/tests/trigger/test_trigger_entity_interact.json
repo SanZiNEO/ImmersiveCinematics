@@ -37,6 +37,19 @@
             ]
           }
         ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "summon minecraft:zombie ~ ~ ~ && say [下一步] 杀死僵尸，触发 test_trigger_entity_kill" }
+            ]
+          }
+        ]
       }
     ]
   }

@@ -37,6 +37,19 @@
             ]
           }
         ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "say [下一步] 前往平原生物群系 minecraft:plains，触发 test_trigger_biome" }
+            ]
+          }
+        ]
       }
     ]
   }

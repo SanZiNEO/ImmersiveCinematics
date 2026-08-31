@@ -37,6 +37,19 @@
             ]
           }
         ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "give @p minecraft:obsidian 10 && give @p minecraft:flint_and_steel 1 && say [下一步] 进入下界，触发 test_trigger_dimension" }
+            ]
+          }
+        ]
       }
     ]
   }

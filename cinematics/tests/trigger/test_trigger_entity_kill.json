@@ -37,6 +37,19 @@
             ]
           }
         ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "gamestage add @p example_stage && say [下一步] 获取 example_stage（未装 GameStages 则仅提示），触发 test_trigger_gamestage" }
+            ]
+          }
+        ]
       }
     ]
   }

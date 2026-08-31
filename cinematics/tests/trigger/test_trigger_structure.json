@@ -37,6 +37,19 @@
             ]
           }
         ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "xp add @p 30 levels && say [下一步] 达到等级 30，触发 test_trigger_xp" }
+            ]
+          }
+        ]
       }
     ]
   }
