@@ -5,9 +5,7 @@ import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
-import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
-import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptNotifier;
 import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import net.minecraft.client.Minecraft;
@@ -16,9 +14,6 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.List;
-import java.util.Optional;
 
 public class CameraManager {
 
@@ -493,27 +488,6 @@ public class CameraManager {
         return gameTimeSeconds;
     }
 
-    /**
-     * 结束是否强制客户端重载：脚本最后落在相机片段里才需要；
-     * 若最后一个 CAMERA 片段结束时间早于总时长（尾段空档），玩家视角已自然接上。
-     */
-    private static boolean shouldForceClientReload(CinematicScript script) {
-        if (script == null || script.getTimeline() == null) return false;
-        Optional<TimelineTrack> track = script.getTimeline().getCameraTrack();
-        if (track.isEmpty()) return false;
-        List<Clip> clips = track.get().getClips();
-        if (clips.isEmpty()) return false;
-        float total = script.getTotalDuration();
-        if (total < 0) return true;
-        float lastEnd = 0f;
-        for (Clip c : clips) {
-            if (c.isEffectivelyInfinite()) return true;
-            float end = c.getWindowEnd();
-            if (end > lastEnd) lastEnd = end;
-        }
-        return lastEnd >= total;
-    }
-
     private void deactivateNow() {
         // 诊断：退出链路（deactivateNow 执行）
         LOGGER.info("deactivateNow: reason={}", pendingCompletionReason);
@@ -535,13 +509,6 @@ public class CameraManager {
         }
         com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver.resetSkipVote();
 
-        // 结束判定：只有“最后没有尾段空档、脚本确实结束在相机片段里”才强制全量重建；
-        // 有尾段空档/无 CAMERA 片段的脚本，玩家视角已经自然接上，不额外刷新。
-        CinematicScript finishedScript = scriptPlayer.getScript();
-        boolean needsForceReload = finishedScript != null
-                && com.immersivecinematics.immersive_cinematics.trigger.client.PreloadRequester.INSTANCE.isPreloadActive()
-                && shouldForceClientReload(finishedScript);
-
         scriptPlayer.stop(reason);
         // 退出输入优雅交接：键盘按当前物理状态重同步 + 鼠标按钮同步 + 清鼠标累积量
         // （不再 releaseAll 全量释放——避免玩家仍按着键时退出导致按键失效直到松开重按）
@@ -557,14 +524,8 @@ public class CameraManager {
         } else if (!scriptQueue.isEmpty()) {
             startScriptInternal(scriptQueue.poll());
         } else {
-            // 真正回到正常游戏：仅当脚本结束在相机片段里才强制一次全量区块重建；
-            // 尾段空档/无 CAMERA 片段的脚本已自然回到玩家视角，不触发。
-            if (needsForceReload) {
-                net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-                if (mc.levelRenderer != null) {
-                    mc.levelRenderer.allChanged();
-                }
-            }
+            // 真正回到正常游戏：不再无条件/按尾段空档强制 allChanged；
+            // 释放时由服务端差集补发自动决定需要重发的玩家区区块。
         }
     }
 
