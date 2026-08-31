@@ -95,6 +95,7 @@ public final class PreloadRequester {
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                         new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, 0,
                                 cam.getCameraYaw(), mc.options.renderDistance().get(),
+                                activeCamera,
                                 script.getMeta().isCameraMobSpawn(), script.getMeta().getCameraMobRadius(),
                                 script.getMeta().isCameraMobAi()));
                 return;
@@ -104,7 +105,7 @@ public final class PreloadRequester {
             if (activeChanged) lastHadActiveCamera = activeCamera;
             if ((tickCounter % Math.max(1, Config.preloadReportInterval) == 0 && preloadActive) || activeChanged) {
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                        new C2SPreloadPositionPacket(bx, bz, cam.getCameraYaw()));
+                        new C2SPreloadPositionPacket(bx, bz, cam.getCameraYaw(), activeCamera));
             }
             tickPrewarm(mc, sid, script, sp);
         } else {
@@ -125,6 +126,7 @@ public final class PreloadRequester {
         }
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                 new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_RELEASE, lastScript, 0, 0, 0, 0f, 0,
+                        C2SPreloadRequestPacket.DEFAULT_CAMERA_MODE,
                         C2SPreloadRequestPacket.DEFAULT_CAMERA_MOB_SPAWN,
                         C2SPreloadRequestPacket.DEFAULT_CAMERA_MOB_RADIUS,
                         C2SPreloadRequestPacket.DEFAULT_CAMERA_MOB_AI));
@@ -163,6 +165,7 @@ public final class PreloadRequester {
                 new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PREWARM, sid, bx, bz,
                         Config.preloadPrewarmRadius,
                         CameraManager.INSTANCE.getCameraYaw(), mc.options.renderDistance().get(),
+                        CameraManager.INSTANCE.hasActiveCameraClip(),
                         script.getMeta().isCameraMobSpawn(), script.getMeta().getCameraMobRadius(),
                         script.getMeta().isCameraMobAi()));
         prewarmTargetKey = key;

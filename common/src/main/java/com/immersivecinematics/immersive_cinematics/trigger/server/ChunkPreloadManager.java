@@ -60,6 +60,7 @@ public final class ChunkPreloadManager {
     private ChunkPreloadManager() {}
 
     public void handleRequest(ServerPlayer player, int mode, String scriptId, int x, int z, int radius, float yaw, int renderDistance,
+                              boolean cameraMode,
                               boolean cameraMobSpawn, int cameraMobRadius, boolean cameraMobAi) {
         if (!Config.preloadEnabled) {
             S2CPreloadResultPacket.send(player, scriptId, "预加载全局已关闭");
@@ -86,6 +87,7 @@ public final class ChunkPreloadManager {
             clearPrewarm(player, st);
         }
         st.player = player;
+        st.cameraMode = cameraMode;
         st.cameraMobSpawn = cameraMobSpawn;
         st.cameraMobRadius = Math.max(1, Math.min(16, cameraMobRadius));
         st.cameraMobAi = cameraMobAi;
@@ -144,11 +146,12 @@ public final class ChunkPreloadManager {
     /**
      * 相机位置上报：更新相机/玩家中心，跑一次差集加载。
      */
-    public void handlePosition(ServerPlayer player, int x, int z, float yaw) {
+    public void handlePosition(ServerPlayer player, int x, int z, float yaw, boolean cameraMode) {
         PlayerState st = states.get(player.getUUID());
         if (st == null) return;
         ChunkPos cam = new ChunkPos(x >> 4, z >> 4);
         st.cameraYaw = yaw;
+        st.cameraMode = cameraMode;
         st.center = cam;
         st.playerChunk = new ChunkPos(player.blockPosition());
         if (player.level() instanceof ServerLevel serverLevel) {
@@ -375,6 +378,9 @@ public final class ChunkPreloadManager {
                 LevelChunk chunk = serverLevel.getChunk(pos.x, pos.z);
                 p.connection.send(new ClientboundLevelChunkWithLightPacket(chunk, serverLevel.getLightEngine(), null, null));
                 st.sentCameraChunks.add(pos);
+                if (!st.cameraMode) {
+                    st.sentPlayerChunks.add(pos);
+                }
                 sent++;
             }
         }
@@ -384,6 +390,7 @@ public final class ChunkPreloadManager {
             if (!st.cameraWindow.contains(pos)) {
                 p.connection.send(new ClientboundForgetLevelChunkPacket(pos.x, pos.z));
                 it.remove();
+                st.sentPlayerChunks.remove(pos);
             }
         }
     }
@@ -491,6 +498,7 @@ public final class ChunkPreloadManager {
             if (!keep.contains(pos)) {
                 p.connection.send(new ClientboundForgetLevelChunkPacket(pos.x, pos.z));
                 st.sentCameraChunks.remove(pos);
+                st.sentPlayerChunks.remove(pos);
             }
         }
     }
@@ -524,9 +532,10 @@ public final class ChunkPreloadManager {
         st.prewarmCenter = null;
         st.prewarmRadius = 0;
 
-        // 释放差集复用：只忘掉玩家不需要的相机块，只补发玩家需要且相机没发过的块
+        // 释放差集复用：只信任玩家/空档模式下发送的玩家区区块；
+        // 相机模式下发送的边界区块即使落在玩家区也不复用，释放时重新补发。
         Set<ChunkPos> playerNeed = st.playerChunk != null ? computePlayerCoveredSet(st) : new HashSet<>();
-        Set<ChunkPos> reusable = new HashSet<>(st.sentCameraChunks);
+        Set<ChunkPos> reusable = new HashSet<>(st.sentPlayerChunks);
         reusable.retainAll(playerNeed);
         forgetCameraChunks(p, st, playerNeed);
         if (st.playerChunk != null) {
@@ -578,10 +587,13 @@ public final class ChunkPreloadManager {
         long lastEntityCountTime = 0;
         int cachedPlayerEntities = 0;
         int cachedCameraEntities = 0;
+        boolean cameraMode = false;
         Set<ChunkPos> cameraWindow = new HashSet<>();
         Set<ChunkPos> cameraZone = new HashSet<>();
         List<ChunkPos> pendingCameraChunks = new ArrayList<>();
         Set<ChunkPos> sentCameraChunks = new HashSet<>();
+        /** 玩家/空档模式下已发送的玩家区区块；释放时只有这些才可复用 */
+        Set<ChunkPos> sentPlayerChunks = new HashSet<>();
 
         // 下一片段预热区：只加服务端 ticket，不补发、不切客户端中心
         ChunkPos prewarmCenter;

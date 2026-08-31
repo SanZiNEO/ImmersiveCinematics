@@ -10,17 +10,20 @@ public class C2SPreloadPositionPacket implements CinematicC2SPacket {
     private final int x;
     private final int z;
     private final float yaw;
+    private final boolean cameraMode;
 
-    public C2SPreloadPositionPacket(int x, int z, float yaw) {
+    public C2SPreloadPositionPacket(int x, int z, float yaw, boolean cameraMode) {
         this.x = x;
         this.z = z;
         this.yaw = yaw;
+        this.cameraMode = cameraMode;
     }
 
     public C2SPreloadPositionPacket(FriendlyByteBuf buf) {
         this.x = buf.readInt();
         this.z = buf.readInt();
         this.yaw = buf.readFloat();
+        this.cameraMode = buf.readBoolean();
     }
 
     @Override
@@ -28,11 +31,12 @@ public class C2SPreloadPositionPacket implements CinematicC2SPacket {
         buf.writeInt(x);
         buf.writeInt(z);
         buf.writeFloat(yaw);
+        buf.writeBoolean(cameraMode);
     }
 
     @Override
     public void handle(ServerPlayer player) {
         // 平台网络层保证在主线程执行（ticket 变更/发包必须主线程）
-        ChunkPreloadManager.INSTANCE.handlePosition(player, x, z, yaw);
+        ChunkPreloadManager.INSTANCE.handlePosition(player, x, z, yaw, cameraMode);
     }
 }
