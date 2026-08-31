@@ -8,7 +8,7 @@ import java.util.Map;
 /**
  * 各轨道类型的 Java 字段元数据（0.3.5 第5轮 5B）。
  * <p>
- * 数据源从 schema.json 迁移到此处；顺序即编辑器渲染顺序。
+ * 数据源为 Java 字段元数据；顺序即编辑器渲染顺序。
  */
 public final class TrackSchemas {
 

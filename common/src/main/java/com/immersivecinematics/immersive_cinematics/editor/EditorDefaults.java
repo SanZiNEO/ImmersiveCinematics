@@ -9,7 +9,7 @@ import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import java.util.Map;
 
 /**
- * 编辑器默认值工具——由 schema.json 单源驱动（C3/C5 生成自适应）。
+ * 编辑器默认值工具——由 SchemaRegistry Java 元数据单源驱动（C3/C5 生成自适应）。
  * <p>
  * 替代原 LeftPanelArea.fillMetaDefaults/fillClipDefaults/fillKeyframeDefaults 与
  * EditorOperations.addClip 中的硬编码字段镜像。meta 的 tristate 字段无默认值，

@@ -19,7 +19,7 @@
   - ✅ 提供 `registerAllTriggers()` 将脚本 meta 中的触发器定义批量注册进 `TriggerEngine`，动作统一为 `StartPlaybackAction`（`ScriptManager`）
   - ✅ 提供 `reload()` 清空引擎、重新加载并重建索引（`ScriptManager`）
 - **Schema 驱动的字段定义**
-  - ✅ `SchemaLoader` 运行时加载 `schema.json`，为每种轨道定义 clip/keyframe 字段（类型、默认值、是否必填）（`SchemaLoader`）
+  - ✅ `SchemaLoader` / `SchemaRegistry` 提供 Java 字段元数据，为每种轨道定义 clip/keyframe 字段（类型、默认值、是否必填）（`SchemaLoader`、`SchemaRegistry`）
   - ✅ 提供字段查询 API：`getDefaultValue()`/`isRequired()`/`hasField()`/`getClipFields()`/`getKeyframeFields()`（`SchemaLoader`）
 - **数据模型**
   - ✅ `CinematicScript` 为顶层容器：meta + timeline + 原始 JSON（供网络同步）（`CinematicScript`）

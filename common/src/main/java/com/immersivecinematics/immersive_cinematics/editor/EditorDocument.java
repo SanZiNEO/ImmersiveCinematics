@@ -33,7 +33,7 @@ public class EditorDocument {
     public void reset() {
         root = new JsonObject();
         JsonObject meta = new JsonObject();
-        // C5/C6：meta 默认值由 schema.json 的 "meta" 段单源生成（tristate 无默认不写入）
+        // C5/C6：meta 默认值由 SchemaRegistry.getMetaFields() 单源生成（tristate 无默认不写入）
         for (Map.Entry<String, com.immersivecinematics.immersive_cinematics.script.schema.FieldDef> e
                 : com.immersivecinematics.immersive_cinematics.script.SchemaLoader.getMetaFields().entrySet()) {
             Object def = e.getValue().defaultValue();

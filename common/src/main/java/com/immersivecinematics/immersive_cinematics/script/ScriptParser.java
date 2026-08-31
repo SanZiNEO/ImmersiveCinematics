@@ -92,7 +92,7 @@ public class ScriptParser {
             throw new ScriptParseException(p + ".version", "当前仅支持版本3，实际: " + version);
         }
 
-        // 运行时行为默认值来自 schema.json "meta" 段（编辑器与播放器共用同一份 schema）
+        // 运行时行为默认值来自 SchemaRegistry.getMetaFields()（编辑器与播放器共用同一份 schema）
         boolean blockKeyboard = optBoolMeta(metaObj, "block_keyboard");
         boolean blockMouse = optBoolMeta(metaObj, "block_mouse");
         boolean blockMobAi = optBoolMeta(metaObj, "block_mob_ai");
@@ -126,7 +126,7 @@ public class ScriptParser {
                 pauseWhenGamePaused, interruptible, skippable,
                 holdAtEnd, hudLayers);
 
-        // 播放优先级（默认值来自 schema.json "meta" 段；仅用于队列内排序）
+        // 播放优先级（默认值来自 SchemaRegistry.getMetaFields()；仅用于队列内排序）
         int priority = optInt(metaObj, "priority", 0);
 
         // 跳过投票比例（可选，10~100）：缺省/非法 → null，运行时回落到全局配置 Config.skipVoteRatio
@@ -739,7 +739,7 @@ public class ScriptParser {
         return obj.has(key) ? obj.get(key).getAsBoolean() : defaultVal;
     }
 
-    /** meta 字段默认值来自 schema.json "meta" 段（编辑器与播放器共用同一份 schema） */
+    /** meta 字段默认值来自 SchemaRegistry.getMetaFields()（编辑器与播放器共用同一份 schema） */
     private static boolean optBoolMeta(JsonObject obj, String key) {
         if (obj.has(key)) return obj.get(key).getAsBoolean();
         FieldDef def = SchemaLoader.getMetaFields().get(key);

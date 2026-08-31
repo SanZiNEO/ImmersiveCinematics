@@ -75,7 +75,7 @@ public class EditorOperations {
         JsonObject kf1 = new JsonObject();
         kf1.addProperty("time", duration);
         kfs.add(kf1);
-        // C3：默认值由 schema.json 单源生成（原硬编码 switch 镜像已删除）
+        // C3：默认值由 SchemaRegistry Java 元数据单源生成（原硬编码 switch 镜像已删除）
         EditorDefaults.fillClipDefaults(clip, trackType);
         EditorDefaults.fillKeyframeDefaults(kf0, trackType);
         EditorDefaults.fillKeyframeDefaults(kf1, trackType);

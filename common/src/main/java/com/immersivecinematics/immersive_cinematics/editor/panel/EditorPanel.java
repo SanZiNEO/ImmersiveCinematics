@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.immersivecinematics.immersive_cinematics.editor.EditorTheme;
+import com.immersivecinematics.immersive_cinematics.editor.fields.FieldControl;
 import com.immersivecinematics.immersive_cinematics.editor.fields.FieldGroup;
 import com.immersivecinematics.immersive_cinematics.editor.widget.UIButton;
 import com.immersivecinematics.immersive_cinematics.editor.widget.UIComponent;
@@ -162,6 +163,20 @@ public abstract class EditorPanel extends UIComponent {
         }
         if ("int".equals(type) && (def == null || def.defaultValue() == null)) {
             return reflectOptionalInt(key, lx, cy, 0, obj);
+        }
+        if ("bool".equals(type) && (def == null || def.defaultValue() instanceof Boolean)) {
+            boolean defValue = def != null && def.defaultValue() instanceof Boolean b ? b : false;
+            addToggle(formatKey(key),
+                    () -> obj.has(key) ? obj.get(key).getAsBoolean() : defValue,
+                    lx, cy,
+                    v -> {
+                        obj.addProperty(key, v);
+                        markDirty();
+                    });
+            return cy + 18;
+        }
+        if ("enum".equals(type) && def != null && !def.enumValues().isEmpty()) {
+            return reflectClipEnum(key, lx, cy, 0, obj, isKeyframe, def.enumValues());
         }
 
         String label = formatKey(key) + ": " + I18n.get("editor.field.unset");
@@ -345,7 +360,9 @@ public abstract class EditorPanel extends UIComponent {
         String enumTKey = "editor.enum." + key + "." + current;
         String displayVal = I18n.exists(enumTKey) ? I18n.get(enumTKey) : current;
 
-        if ("cam_tracking_look_at".equals(key) || "follow".equals(key) || "look_at".equals(key) || "position_mode".equals(key)) {
+        FieldDef def = findFieldDef(key, isKeyframe);
+        FieldControl control = FieldControl.of(def);
+        if (control == FieldControl.DROPDOWN) {
             List<String> display = new ArrayList<>();
             for (String v : values) {
                 String tk = "editor.enum." + key + "." + v;

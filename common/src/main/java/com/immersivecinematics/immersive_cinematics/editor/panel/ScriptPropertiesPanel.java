@@ -20,7 +20,9 @@ public class ScriptPropertiesPanel extends EditorPanel {
             new FieldGroup("editor.group.hide", false,
                     List.of("hide_arm", "suppress_bob", "suppress_distortion", "hide_chat", "hide_scoreboard",
                             "hide_action_bar", "hide_title", "hide_subtitles", "hide_hotbar",
-                            "hide_crosshair", "hide_bossbar", "hide_skip_hud")),
+                            "hide_crosshair", "hide_bossbar", "hide_skip_hud", "hud_layers")),
+            new FieldGroup("editor.group.camera", false,
+                    List.of("camera_mob_spawn", "camera_mob_radius", "camera_mob_ai")),
             new FieldGroup("editor.group.playback", false,
                     List.of("interruptible", "skippable", "hold_at_end", "priority", "skip_vote_ratio"))
     );

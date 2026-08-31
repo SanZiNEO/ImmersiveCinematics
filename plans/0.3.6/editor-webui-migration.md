@@ -342,6 +342,30 @@ S→C: { "type": "registry.data", "data": { "kind": "biome", "values": [...] } }
 | 飞控状态 | Web 显示飞控 HUD | `flight.state` 推送 |
 | 相机状态 | 预览/飞控信息 | `camera.state` |
 
+### 7.5.1 Schema 导出预留（Java 侧已实现）
+
+- Java 侧已提供 `SchemaExporter.exportAll()`，把当前 Java 字段元数据导出为标准 JSON。
+- WebUI 连接后通过 `schema.get` 获取，前端动态生成表单，不再重复维护字段。
+- 导出结构示例：
+
+```json
+{
+  "meta": {
+    "block_keyboard": { "type": "bool", "default": true, "required": false, "enumValues": [], "section": "runtime" }
+  },
+  "tracks": {
+    "CAMERA": {
+      "clips": {
+        "transition": { "type": "enum", "default": "cut", "required": false, "enumValues": ["cut", "morph"], "section": "info" }
+      },
+      "keyframes": { "...": "..." }
+    }
+  }
+}
+```
+
+- 同时新增 `FieldControl`：由 `FieldDef.type` + enum 数量决定控件类型（bool→开关、tristate→三态、enum≤3→循环、enum>3→下拉），游戏内编辑器与未来 WebUI 共用。
+
 ---
 
 ## 8. 画面传输：如何做到 60fps

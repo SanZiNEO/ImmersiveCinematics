@@ -7,8 +7,11 @@ import java.util.List;
 /**
  * 字段元数据定义（0.3.5 第5轮 5B）。
  * <p>
- * 替代 schema.json 中单个字段的 JSON 对象；type/default/required/enum/section
+ * 单个字段的 Java 元数据；type/default/required/enum/section
  * 全部在 Java 侧编译期可检查。
+ * <p>
+ * {@code section} 为未来 WebUI / 自动分组预留；当前游戏内编辑器使用 {@code FieldGroup}，
+ * 不直接消费 section。
  */
 public record FieldDef(String type, Object defaultValue, boolean required,
                        List<String> enumValues, String section) {

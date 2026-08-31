@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * 字段定义查询入口（0.3.5 第5轮 5B）。
  * <p>
- * 对外接口保持不变；内部已从 schema.json 迁移为 {@link SchemaRegistry} 的 Java 元数据。
+ * 对外接口保持不变；内部读取 {@link SchemaRegistry} 的 Java 元数据。
  */
 public final class SchemaLoader {
 

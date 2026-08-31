@@ -154,6 +154,7 @@
     "editor.group.runtime":  "Runtime",
     "editor.group.hide":  "HUD / Interface",
     "editor.group.playback":  "Playback Behavior",
+    "editor.group.camera":  "Camera Area",
     "editor.group.loop":  "Loop",
     "editor.group.path":  "Path / Camera",
     "editor.group.breath":  "Breath",

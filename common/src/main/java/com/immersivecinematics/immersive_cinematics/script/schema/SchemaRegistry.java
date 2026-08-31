@@ -6,7 +6,7 @@ import java.util.Map;
 /**
  * Java 字段元数据统一入口（0.3.5 第5轮 5B）。
  * <p>
- * SchemaLoader 对外接口保持不变，内部改从这里读取，替代 schema.json。
+ * SchemaLoader 对外接口保持不变，内部从这里读取 Java 字段元数据。
  */
 public final class SchemaRegistry {
 

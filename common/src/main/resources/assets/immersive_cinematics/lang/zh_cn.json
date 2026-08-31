@@ -154,6 +154,7 @@
     "editor.group.runtime":  "运行时",
     "editor.group.hide":  "HUD / 界面",
     "editor.group.playback":  "播放行为",
+    "editor.group.camera":  "相机区域",
     "editor.group.loop":  "循环",
     "editor.group.path":  "路径 / 镜头",
     "editor.group.breath":  "呼吸扰动",
