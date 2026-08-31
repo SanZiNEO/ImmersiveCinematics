@@ -61,18 +61,9 @@ public class FabricConfig implements Config.ConfigProvider {
                 getInt("triggerPollIntervalGamestage", 20),
                 getBoolean("editorEnabled", true),
                 getBoolean("preloadEnabled", true),
-                getInt("preloadWindowRadius", 2),
-                getInt("preloadMaxChunks", 256),
-                getInt("preloadMaxWorldgenChunks", 64),
-                getInt("preloadTimeoutGenerated", 2),
-                getInt("preloadTimeoutWorldgen", 15),
-                getFloat("preloadPrewarm", 2.0f),
                 getInt("preloadReportInterval", 20),
-                getInt("preloadFarViewCenterThreshold", 8),
-                getInt("preloadPlayerZoneRadius", 4),
                 getInt("preloadMaxBurstPerTick", 20),
                 getInt("preloadMaxRequestsPerTick", 8),
-                getInt("preloadRearRadius", 2),
                 getInt("preloadRadiusCap", 32),
                 getBoolean("preloadForceRadius", false),
                 getInt("preloadForceRadiusValue", 8),
@@ -133,18 +124,9 @@ public class FabricConfig implements Config.ConfigProvider {
         root.addProperty("triggerPollIntervalGamestage", 20);
         root.addProperty("editorEnabled", true);
         root.addProperty("preloadEnabled", true);
-        root.addProperty("preloadWindowRadius", 2);
-        root.addProperty("preloadMaxChunks", 256);
-        root.addProperty("preloadMaxWorldgenChunks", 64);
-        root.addProperty("preloadTimeoutGenerated", 2);
-        root.addProperty("preloadTimeoutWorldgen", 15);
-        root.addProperty("preloadPrewarm", 2.0f);
         root.addProperty("preloadReportInterval", 20);
-        root.addProperty("preloadFarViewCenterThreshold", 8);
-        root.addProperty("preloadPlayerZoneRadius", 4);
         root.addProperty("preloadMaxBurstPerTick", 20);
         root.addProperty("preloadMaxRequestsPerTick", 8);
-        root.addProperty("preloadRearRadius", 2);
         root.addProperty("preloadRadiusCap", 32);
         root.addProperty("preloadForceRadius", false);
         root.addProperty("preloadForceRadiusValue", 8);

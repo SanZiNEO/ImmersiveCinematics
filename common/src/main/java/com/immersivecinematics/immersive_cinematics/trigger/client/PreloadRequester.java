@@ -93,7 +93,7 @@ public final class PreloadRequester {
                 prewarmTargetKey = "";
                 lastHadActiveCamera = activeCamera;
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                        new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, Config.preloadWindowRadius,
+                        new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, 0,
                                 cam.getCameraYaw(), mc.options.renderDistance().get(),
                                 script.getMeta().isCameraMobSpawn(), script.getMeta().getCameraMobRadius(),
                                 script.getMeta().isCameraMobAi()));

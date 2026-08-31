@@ -1,6 +1,9 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
 import com.immersivecinematics.immersive_cinematics.Config;
+import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
+import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
+import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPreloadRequestPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPreloadResultPacket;
 import net.minecraft.network.protocol.game.ClientboundForgetLevelChunkPacket;
@@ -24,6 +27,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -66,6 +70,13 @@ public final class ChunkPreloadManager {
             release(uuid, player);
             return;
         }
+        if (mode == C2SPreloadRequestPacket.MODE_PRELOAD || mode == C2SPreloadRequestPacket.MODE_PREWARM) {
+            CinematicScript preloadScript = ScriptManager.INSTANCE.getScript(scriptId);
+            if (preloadScript != null && !hasCameraTrack(preloadScript)) {
+                S2CPreloadResultPacket.send(player, scriptId, "脚本无CAMERA轨道，跳过预加载");
+                return;
+            }
+        }
         if (mode == C2SPreloadRequestPacket.MODE_PREWARM) {
             handlePrewarm(uuid, player, scriptId, x, z, radius, renderDistance);
             return;
@@ -92,6 +103,13 @@ public final class ChunkPreloadManager {
         }
         updateCameraDiff(player, st);
         sendCenter(player, cam);
+    }
+
+    /** 只有非空 CAMERA 轨道才允许预加载；纯 OVERLAY/EVENT 脚本由服务端兜底拒绝 */
+    private static boolean hasCameraTrack(CinematicScript script) {
+        if (script == null || script.getTimeline() == null) return false;
+        Optional<TimelineTrack> track = script.getTimeline().getCameraTrack();
+        return track.isPresent() && !track.get().getClips().isEmpty();
     }
 
     /** 下一片段预热：只更新预热目标/待加载队列，不动当前相机差集与客户端中心。 */
