@@ -15,11 +15,18 @@
   - ✅ 支持延迟触发：`delay`（秒）转换为 tick 数，到期后执行动作（`TriggerEngine`）
   - ✅ 去重与防重：播放同一脚本的玩家跳过触发；非 repeatable 触发器已触发过则不再触发（`TriggerEngine`、`TriggerStateStore`）
   - ✅ 支持 `on_enter` 进入检测：只在玩家从区域外进入时触发，配合 `exit_buffer` 扩展离开判定，防止区域边界抖动反复触发（`TriggerEngine`、`Evaluators.expandConditions`）
-  - ✅ 支持**前置依赖 `requires`**：触发器声明前置脚本 id 列表（AND），全部前置脚本"触发过"（跳过/打断/播完都算）才允许触发——按剧情线逐级解锁；依赖检查在 shouldSkip 之前（未解锁时连去重都不碰）；解锁后 repeatable 语义照旧（`TriggerEngine.prerequisitesMet`、`TriggerStateStore.hasAnyTriggered`）
+  - ✅ 支持**前置依赖 `requires`**：旧写法为前置脚本 id 字符串数组，AND 语义，要求前置脚本**播放完成**（开始播放且结束播放，跳过/打断/自然播完都算）；也支持对象型 `{ "type": "script_played"/"script_started"/"script_completed", "script": "id" }` 与自定义前置类型。依赖检查在 shouldSkip 之前（未解锁时连去重都不碰）；解锁后 repeatable 语义照旧（`TriggerEngine.prerequisitesMet`、`PrerequisiteRegistry`、`BuiltinPrerequisites`、`TriggerStateStore`）
   - ✅ 触发后标记状态并依次执行注册的动作列表（`TriggerEngine`）
 - **触发器注册模型**
   - ✅ `TriggerRegistration` 封装一次注册：脚本 id、触发器 id、类型、条件、退出条件、动作列表、repeatable/delay/on_enter/exit_buffer（`TriggerRegistration`）
   - ✅ `ScriptManager.registerAllTriggers()` 将脚本内嵌触发器批量转成注册项，动作统一为 `StartPlaybackAction`（`ScriptManager`）
+- **区块预加载与相机锚点（0.3.5）**
+  - ✅ `ChunkPreloadManager` 采用**状态边界统一差集**：每次相机中心变化时计算 `desired - playerCovered - 已持有`；没有 far/near 距离门控，也没有 `CameraFakePlayer`/假人接管（`ChunkPreloadManager`）
+  - ✅ 客户端按当前视口上报：有活跃 CAMERA 片段时上报相机位置，空档/无镜头时上报玩家位置；脚本无 CAMERA 轨道不触发预加载（`PreloadRequester`、`ChunkPreloadManager`）
+  - ✅ 支持“下一片段预热”（`MODE_PREWARM`，按提前量预载下一片段首帧区域）与“结束释放差集复用”：释放时 `playerNeed ∩ sentCameraChunks` 保留复用，其余相机块补 forget，并按差集补发玩家区（`ChunkPreloadManager`）
+  - ✅ 预加载配置集中在 `Config`：`preloadEnabled` 总闸、`preloadReportInterval`、`preloadMaxBurstPerTick`、`preloadMaxRequestsPerTick`、`preloadRadiusCap`、`preloadForceRadius`/`preloadForceRadiusValue`、`preloadPrewarmLeadSeconds`/`preloadPrewarmRadius`/`preloadPrewarmRequestsPerTick`（`Config`、`ChunkPreloadManager`）
+  - ✅ `CameraAnchorManager` 纯坐标锚点（不创建世界实体）：记录玩家维度、相机中心、刷怪半径，供区块/刷怪/实体同步查询；`CameraAnchorVirtualPlayer` 仅是自然刷怪距离计算的纯坐标引用（`CameraAnchorManager`、`CameraAnchorVirtualPlayer`）
+  - ✅ `CameraEntitySyncManager` 为相机半径内实体创建专用 `ServerEntity` 转发给真实玩家，原版自动算移动/旋转/装备增量包，不做实体假人（`CameraEntitySyncManager`）
 - **条件求值器**
   - ✅ `Evaluators` 为每种触发器提供静态求值方法（`Evaluators`）
   - ✅ location：维度匹配 + 方块区域（corner1/corner2）或 圆心+半径 判断（`Evaluators`）

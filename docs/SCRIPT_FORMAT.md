@@ -17,7 +17,7 @@
 
 ## 0. 脚本目录组织约定
 
-脚本统一放在 `<游戏目录>/immersive_cinematics/scripts/`。支持**子文件夹组织**——按章节/场景/剧情线建文件夹放脚本，加载时递归遍历（深度 ≤ 5），编辑器脚本列表与 `/icinematics` 命令 Tab 补全都会显示相对路径（如 `chapter1/boss_fight`）。
+脚本统一放在 `<游戏目录>/immersive_cinematics/scripts/`。支持**子文件夹组织**——按章节/场景/剧情线建文件夹放脚本，加载时递归遍历（深度 ≤ 5）。编辑器脚本列表显示相对路径（如 `chapter1/boss_fight`）；`/icinematics` 命令 Tab 补全显示**命令标识**：目录名转命名空间 + 冒号 + 文件名（如 `chapter1:boss_fight`）。
 
 ```
 immersive_cinematics/
@@ -35,7 +35,7 @@ immersive_cinematics/
 ```
 
 - 脚本 `id` 仍是 `meta.id`（全局唯一），子目录**只是文件组织**，不参与 id 语义；同 `id` 冲突时按相对路径提示。
-- 命令用相对路径定位文件：`/icinematics play chapter1/boss_fight`（Tab 补全会给出建议）。
+- 命令用“目录:文件名”标识定位文件：`/icinematics play chapter1:boss_fight`（Tab 补全会给出建议；根目录脚本直接写 `showcase_01`）。
 - 音频/图片已有子路径支持（`resource/` 下 `path` 写 `"sub/bgm.ogg"` 即可）。
 
 ---
@@ -51,8 +51,12 @@ immersive_cinematics/
 | `author` | string | 是 | — | 作者名，最长 30 字符 |
 | `version` | int | 是 | — | 固定为 `3`（仅支持版本 3） |
 | `description` | string | 否 | `""` | 脚本描述文本 |
-| `dimension` | string | 否 | `null` | 限制脚本只在指定维度可用 |
-| `preload` | boolean | 否 | `true` | 脚本级区块预加载开关：`false` 关闭本脚本的预加载（不发任何预载请求）；`true`/缺省 = 跟随全局配置启用 |
+| `dimension` | string | 否 | `""` | 限制脚本只在指定维度可用；空 = 不限制 |
+| `preload` | boolean | 否 | `true` | 脚本级区块预加载开关：`false` 关闭本脚本的预加载（不发任何预载请求）；`true`/缺省 = 跟随全局配置启用。仅当脚本存在**非空 CAMERA 轨道**时才实际触发预加载，无 CAMERA 轨道（纯 HUD/字幕/事件等）不发送预载请求 |
+| `listener` | string | 否 | `"player"` | 音频听者：`"player"`=默认，电影相机下仍以玩家视角听音；`"camera"`=听者切换到镜头位置，环境音/方块音/水声等按相机采样 |
+| `camera_mob_spawn` | boolean | 否 | `false` | 脚本级相机区域刷怪开关：是否允许相机锚点附近按原版规则自然刷怪 |
+| `camera_mob_radius` | int | 否 | `2` | 脚本级相机刷怪半径（区块），范围 1~16 |
+| `camera_mob_ai` | boolean | 否 | `false` | 脚本级相机区实体 AI 开关：`true`=实体正常 tick/AI，`false`=仅静态布景 |
 
 
 ### 1b. 运行时行为 (RuntimeBehavior)
@@ -63,15 +67,19 @@ immersive_cinematics/
 | `block_mouse` | boolean | `true` | 播放期间屏蔽鼠标输入 |
 | `block_mob_ai` | boolean | `false` | 清除附近怪物 AI（性能消耗较大，慎用） |
 | `hide_hud` | boolean | `true` | 隐藏全部 HUD |
-| `hide_arm` | boolean | `true` | 隐藏第一人称手臂 |
-| `suppress_bob` | boolean | `true` | 抑制视角晃动 |
-| `hide_chat` | boolean | `null` | `null`=跟随 `hide_hud`，`true/false`=强制显隐 |
-| `hide_scoreboard` | boolean | `null` | 同上 |
-| `hide_action_bar` | boolean | `null` | 同上 |
-| `hide_title` | boolean | `null` | 同上 |
-| `hide_subtitles` | boolean | `null` | 同上 |
-| `hide_hotbar` | boolean | `null` | 同上 |
-| `hide_crosshair` | boolean | `null` | 同上 |
+| `hide_arm` | boolean/null | `null` | **三态**：隐藏第一人称手臂与手持物品。`null`=跟随 `hide_hud`，`true/false`=强制 |
+| `suppress_bob` | boolean/null | `null` | **三态**：抑制视角晃动。`null`=跟随 `hide_hud` |
+| `suppress_distortion` | boolean/null | `null` | **三态**：抑制反胃/下界传送门等画面扭曲。`null`=跟随 `hide_hud` |
+| `hide_chat` | boolean/null | `null` | `null`=跟随 `hide_hud`，`true/false`=强制显隐 |
+| `hide_scoreboard` | boolean/null | `null` | 同上 |
+| `hide_action_bar` | boolean/null | `null` | 同上 |
+| `hide_title` | boolean/null | `null` | 同上 |
+| `hide_subtitles` | boolean/null | `null` | 同上 |
+| `hide_hotbar` | boolean/null | `null` | 同上 |
+| `hide_crosshair` | boolean/null | `null` | 同上 |
+| `hide_bossbar` | boolean/null | `null` | 同上 |
+| `hide_skip_hud` | boolean/null | `null` | 同上；控制长按跳过提示（右下角图标+进度环） |
+| `hud_layers` | object | `{}` | 模组/自定义 HUD 层的显隐覆盖：`{ "modid:layer": true/false }`，`true`=隐藏、`false`=显示 |
 | `render_player_model` | boolean | `true` | 是否渲染玩家模型（第三人称时） |
 | `pause_when_game_paused` | boolean | `true` | 游戏暂停时是否暂停过场动画 |
 | `interruptible` | boolean | `true` | 是否允许被其他脚本打断 |
@@ -79,6 +87,8 @@ immersive_cinematics/
 | `hold_at_end` | boolean | `false` | 播放完毕后是否停留在最后一帧 |
 | `priority` | int | `0` | 播放优先级，数值越大越优先；**仅用于队列内排序**（优先级不能大于打断——不可打断脚本永不被打断，新请求一律排队） |
 | `skip_vote_ratio` | int | 无（用全局配置） | **可选**。多人跳过投票所需比例（10~100，百分比），仅当所有看过此脚本的观众投票后才生效。缺省/非法值 → 回落到全局配置 `skipVoteRatio`（默认 100 = 全票）。例：`50` = 半数观众投跳过即强制停止 |
+
+> 运行时行为在脚本播放激活期间生效，**不要求存在活跃 CAMERA clip**；纯 HUD/字幕/手臂等行为的显隐只判断当前是否处于电影播放状态。
 
 
 ### 1c. Triggers（触发条件）
@@ -104,7 +114,7 @@ immersive_cinematics/
 | `delay` | number | 否 | `0` | 触发后延迟执行秒数 |
 | `on_enter` | boolean | 否 | `false` | 仅位置类触发器有效：仅在首次进入区域时触发，已在区域内不重复 |
 | `exit_buffer` | number | 否 | `0` | 配合 `on_enter`：玩家离开触发区域多少格后才标记为"已离开"，防止边界抖动 |
-| `requires` | string[] | 否 | `[]` | **前置依赖**：前置脚本 id 列表（AND），全部前置脚本"触发过"（跳过/打断/播完都算）本触发器才允许触发。缺省 = 无前置。示例：`"requires": ["script_a"]` |
+| `requires` | array | 否 | `[]` | **前置依赖**：AND 语义，全部满足才允许触发。旧写法为前置脚本 id 字符串数组，等价于“脚本**播放完成**”（开始播放且结束播放，跳过/打断/自然播完都算）；也支持对象型前置条件 `{ "type": "script_played"/"script_started"/"script_completed", "script": "xxx" }` 或其他模组注册的自定义类型。示例：`"requires": ["script_a"]` |
 
 全部触发类型及条件参数见 `TRIGGER_TYPES.md`。
 
@@ -161,6 +171,10 @@ immersive_cinematics/
 | `transition` | string | 否 | `"cut"` | `"cut"`=硬切，`"morph"`=线性过渡 |
 | `transition_duration` | float | 否 | `0.5` | morph 过渡时长（秒） |
 | `interpolation` | string | 否 | `"linear"` | `"linear"` 或 `"smooth"`（预留） |
+| `dimension` | string | 否 | `""` | CAMERA clip 声明的维度；与玩家当前维度不同时仅日志提示（0.4.0 预留，不自动切换） |
+| `orient` | string | 否 | `"manual"` | 朝向模式：`"manual"`=用关键帧角度；`"tangent"`=沿路径切线方向看，可配合 `yaw_offset`/`pitch_offset` |
+| `yaw_offset` | float | 否 | `0` | `orient=tangent` 时的水平偏移角（度） |
+| `pitch_offset` | float | 否 | `0` | `orient=tangent` 时的垂直偏移角（度） |
 | `loop` | boolean | 否 | `false` | 是否循环播放（生命周期开关） |
 | `loop_count` | int | 否 | `-1` | 循环次数：`-1`=无限循环；正整数=播 N 个周期后停在末帧；`0` 非法（运行时按 1 处理） |
 | `loop_mode` | string | 否 | `"repeat"` | 循环时间映射：`"repeat"`=从头到尾重复；`"pingpong"`=往复折返（监控来回摇） |
@@ -174,7 +188,7 @@ immersive_cinematics/
 | `cam_breath_decay` | float | 否 | `0.5` | 仅 `cam_breath_type=trauma`：强度每秒衰减速率 |
 | `keyframes` | array | 是 | — | 关键帧数组，至少 1 个 |
 
-> **v3 迁移**：`position_mode`、`cam_tracking_follow*`、`cam_tracking_look_at*` 已全部迁移到**关键帧级**（见下方 Keyframe 字段）。clip 级不再支持这些字段（保留会被 validate 报废弃提示）。
+> **v3 迁移**：`position_mode` 已迁移到**关键帧级**；旧 `cam_tracking_follow*`/`cam_tracking_look_at*` 字段已由关键帧级 `follow`/`look_at` 系列字段取代。clip 级不再支持这些旧字段（保留会被 validate 报废弃提示）。
 
 ### 循环（loop）语义
 
@@ -232,7 +246,12 @@ immersive_cinematics/
 | `look_at_selector` | string | 否 | `"@p"` | 注视目标选择器（`entity` 模式） |
 | `look_at_target_x/y/z` | float | 否 | `0/64/0` | 注视固定坐标（`coordinate` 模式）。**与 `look_at_target_structure` 互斥**（编辑器：填结构后坐标输入隐藏） |
 | `look_at_target_structure` | string | 否 | `""` | 注视结构中心（`coordinate` 模式）：填结构 id（如 `minecraft:village`）。播放时服务端自动定位**结构 bounding box 中心**（就近搜索，原版 /locate 同范围）并替换为坐标后推送；编辑器里为注册表下拉补全；多人服务器播放同样生效。**与 `look_at_target_x/y/z` 互斥**：指定结构后定位失败也不回退坐标，该端无注视目标（回退角度插值） |
-| `yaw` | float | 是 | — | 偏航角（度）。0=南，90=西，±180=北。`look_at != none` 时被覆盖 |
+| `look_at_target` | object | 否 | `null` | `look_at=coordinate` 时的相对目标对象，优先级高于散字段绝对坐标。支持：`{x,y,z}` 绝对点、`{dx,dy,dz}` 相对触发点、`{relative_to:<selector>,dx,dy,dz}` 相对实体、`{relative_to:"coordinate",relative_x/y/z,dx,dy,dz}` 相对固定坐标 |
+| `yaw_base` | string | 否 | `"world"` | `yaw` 的基准方向：`"world"`=0 世界角（`yaw` 即世界朝向）；`"entity"`=实体视线水平角（用 `yaw_base_selector`）；`"line"`=从 `yaw_base_from` 到 `yaw_base_to` 的连线水平角。此时 `yaw` 为相对基准的偏移 |
+| `pitch_base` | string | 否 | `"world"` | `pitch` 的基准俯仰：同上，`entity` 取实体视线俯仰、`line` 取连线垂直角 |
+| `yaw_base_selector` | string | 否 | `"@p"` | `yaw_base/pitch_base=entity` 时的实体选择器 |
+| `yaw_base_from` / `yaw_base_to` | string | 否 | `""` | `yaw_base/pitch_base=line` 时的两个端点选择器 |
+| `yaw` | float | 是 | — | 偏航角（度）。0=南，90=西，±180=北。`look_at != none` 时被覆盖；使用 `yaw_base` 时表示相对基准的偏移 |
 | `pitch` | float | 是 | — | 俯仰角（度）。正=向下看。`look_at != none` 时被覆盖 |
 | `roll` | float | 是 | — | 翻滚角（度）。正=屏幕顺时针（画面向右倒），任何朝向一致 |
 | `fov` | float | 是 | — | 视场角（度），标准 70 |
@@ -343,14 +362,18 @@ immersive_cinematics/
 |------|------|------|------|------|
 | `start_time` | float | 是 | — | 起始时间 |
 | `duration` | float | 是 | — | 持续时间 |
-| `sound` | string | 是 | — | 声音 ID，如 `"minecraft:ambient.cave"` |
-| `volume` | float | 否 | `1.0` | 音量（`0.0` ~ `1.0`） |
+| `sound` | string | 是 | — | 声音 ID 或音频文件名：`source="file"` 时写资源目录下的文件名（如 `"bgm.ogg"`）；`source="minecraft"` 时写原版声音 ID（如 `"minecraft:ambient.cave"`） |
+| `source` | string | 否 | `"file"` | 音频来源：`"file"`= `resource/` 下的外部文件 / `"minecraft"`= 原版声音事件 |
+| `category` | string | 否 | `"music"` | 音频类别：`"music"` 或 `"ambient"` |
+| `volume` | float | 否 | `1.0` | 音量（`0.0` ~ `1.0`）；关键帧可对 `volume` 做淡入淡出 |
 | `pitch` | float | 否 | `1.0` | 音调（`0.5` ~ `2.0`） |
 | `loop` | boolean | 否 | `false` | 是否循环 |
 | `fade_in` | float | 否 | `0.0` | 淡入时长（秒） |
 | `fade_out` | float | 否 | `0.0` | 淡出时长（秒） |
-| `position_mode` | string | 否 | `"relative"` | 音源位置模式：`"relative"` = 每帧跟随**玩家**（玩家位置 + 关键帧 x/y/z 偏移，随身声；接收者=玩家，距离恒 0 **强制无衰减**）；`"absolute"` = 偏移直接作为世界坐标（音源固定，可走空间衰减） |
-| `attenuation` | string | 否 | `"none"` | 空间衰减（仅 `absolute` 模式生效）：`"none"` 无衰减 / `"linear"` 线性（默认距离 16 格）/ `"inverse"` 反比。相对模式强制无衰减 |
+| `position_mode` | string | 否 | `"relative"` | 音源位置模式：`"relative"` = 每帧跟随**玩家**（玩家位置 + 关键帧 x/y/z 偏移，随身声；接收者=玩家，距离恒 0 **强制无衰减**）；`"absolute"` = 关键帧 x/y/z 作为世界坐标（音源固定，可走空间衰减） |
+| `attenuation` | string | 否 | `"linear"` | 空间衰减（仅 `absolute` 模式生效）：`"none"` 无衰减 / `"linear"` 线性（默认距离 16 格）/ `"inverse"` 反比。相对模式强制无衰减 |
+
+AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音量与空间位置。
 
 ---
 
@@ -411,7 +434,7 @@ immersive_cinematics/
 | `start_time` | float | 是 | — | 起始时间 |
 | `duration` | float | 是 | — | 持续时间 |
 | `layer_type` | string | 是 | — | `"fade"` 全屏颜色 / `"image"` 图片 / `"subtitle"` 字幕 / `"pip"` 画中画 |
-| `path` | string | image 必需 | — | 图片文件名（如 `"my_image.png"`）。**只支持 PNG**，文件放 `<游戏目录>/immersive_cinematics/resource/` 下，用英文命名 |
+| `path` | string | image 必需 | — | 图片文件名（如 `"my_image.png"` 或 `"flame.gif"`）。支持 **PNG / GIF**（GIF 自动拆帧按帧延迟轮播），文件放 `<游戏目录>/immersive_cinematics/resource/` 下，用英文命名 |
 | `text` | string | subtitle 必需 | — | 字幕文本，`\n` 换行 |
 | `color` | string | fade 必需 | — | 淡化颜色，如 `"#000000"` |
 | `z_index` | int | 否 | `20` | 层级，越大越靠上（subtitle 建议 30+） |
@@ -520,16 +543,17 @@ immersive_cinematics/
             "duration": 10.0,
             "transition": "cut",
             "interpolation": "linear",
-            "position_mode": "relative",
             "keyframes": [
               {
                 "time": 0.0,
+                "position_mode": "relative",
                 "position": { "dx": 5, "dy": 2, "dz": 3 },
                 "yaw": 90, "pitch": 5, "roll": 0,
                 "fov": 70, "zoom": 1.0
               },
               {
                 "time": 10.0,
+                "position_mode": "relative",
                 "position": { "dx": 0, "dy": 2, "dz": 0 },
                 "yaw": 0, "pitch": 10, "roll": 0,
                 "fov": 70, "zoom": 1.0

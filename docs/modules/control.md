@@ -5,8 +5,8 @@
 功能树：
 
 - **运行时行为控制**
-  - ✅ `CinematicController` 单例持有脚本运行时行为标志（与 `ScriptMeta.RuntimeBehavior` 的 20 个标志一一对应）：可跳过/可打断/结尾保持、屏蔽键盘/鼠标、隐藏 HUD/聊天/记分板/动作栏/标题/字幕/快捷栏/准星/Boss 条/跳过 HUD、隐藏手臂、抑制视角摆动、渲染玩家模型、屏蔽生物 AI、游戏暂停时暂停（`CinematicController`）
-  - ✅ `apply()` 在脚本开始时套用行为标志，`revert()` 在播放结束时恢复默认值（三态字段恢复为 null = 未设置）（`CinematicController`）
+  - ✅ `CinematicController` 单例持有脚本运行时行为标志（与 `ScriptMeta.RuntimeBehavior` 一一对应）：可跳过/可打断/结尾保持、屏蔽键盘/鼠标、隐藏 HUD/手臂/聊天/记分板/动作栏/标题/字幕/快捷栏/准星/Boss 条/跳过 HUD、`hud_layers` 自定义 HUD 覆盖、抑制视角摆动/画面扭曲、渲染玩家模型、屏蔽生物 AI、游戏暂停时暂停（`CinematicController`）
+  - ✅ `apply()` 在脚本开始时套用行为标志，`revert()` 在播放结束时恢复默认值（三态字段恢复为 null = 未设置）；`suppress_distortion` 通过临时修改原版 `screenEffectScale` 实现并在退出时恢复（`CinematicController`）
   - ✅ 提供 `setBlockKeyboard/setBlockMouse` 供编辑器预览模式临时放行输入（`CinematicController`）
 - **退出原因与完成原因**
   - ✅ `ExitReason` 枚举 5 种退出请求：FORCE_QUIT（Ctrl+P 强退）、SYSTEM_STOP（系统停止）、INTERRUPTED（被新脚本打断）、USER_SKIP（用户长按跳过）、NATURAL_END（自然播完）（`ExitReason`）
@@ -20,6 +20,7 @@
   - ✅ 跳过 HUD 受 `Config.showSkipHud` 总开关控制（`SkipHudRenderer`）
 - **输入屏蔽与路由**
   - ✅ `InputRouter` 接口定义输入路由决策（键盘/鼠标按钮/滚轮/视角转动），两层设计：Mixin 在 HEAD 捕获原始事件，本接口决定目标（`InputRouter`）
-  - ✅ `InputTarget` 枚举三种路由结果：GAME（放行）、SELF（拦截但更新自身按键状态，如跳过键）、BLOCK（完全拦截）（`InputTarget`）
-  - ✅ 默认路由实现：非激活/无世界时放行；跳过键始终 SELF；block_keyboard 开启且游戏未暂停（或暂停不随游戏）时拦截键盘，Esc 放行；block_mouse 开启时拦截鼠标按钮/滚轮/视角转动（`InputRouter`）
+  - ✅ `InputTarget` 枚举四种路由结果：GAME（放行）、SELF（拦截但更新自身按键状态，如跳过键）、BLOCK（完全拦截）、FLIGHT（交给编辑器飞行取景控制器）（`InputTarget`）
+  - ✅ 默认路由实现：非激活/无世界时放行；跳过键始终 SELF；block_keyboard 开启且游戏未暂停（或暂停不随游戏）时拦截键盘，Esc 放行；block_mouse 开启时拦截鼠标按钮/滚轮/视角转动；编辑器飞行取景时路由到 FLIGHT（`InputRouter`）
+  - ✅ 飞行取景：`FlightController` 读取原版键位与鼠标增量，直接驱动 `CameraManager` 的相机 POJO 状态，支持相对/绝对模式、FOV/变焦/翻滚微调（`FlightController`）
   - ✅ `CinematicController.releaseAllKeys()` 在**播放开始**释放全部按键，清旧状态；**播放退出**改用 `syncInputStateAfterExit()` 优雅交接：`KeyMapping.setAll()` 按当前物理按键状态重同步键盘 + 鼠标按钮单独按 GLFW 状态同步 + 清空鼠标累积量——避免玩家持续按键时退出导致"按键失效直到松开重按"与视角跳变（`CinematicController`、`MouseHandlerMixin.resetAccumulated`）

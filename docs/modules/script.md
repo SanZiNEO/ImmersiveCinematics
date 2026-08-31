@@ -15,16 +15,18 @@
   - ✅ 解析轨道级合法性：超过 1 条 CAMERA 轨道仅使用第 1 条、LETTERBOX/EVENT 建议最多 1 条、morph 相邻 clip position_mode 不一致时告警（`ScriptParser`）
 - **脚本加载与触发器注册**
   - ✅ 提供单例 `ScriptManager.INSTANCE`，从游戏根目录 `immersive_cinematics/scripts` 递归加载子文件夹全部 .json 脚本并缓存原始 JSON（深度 ≤ 5）（`ScriptManager`）
-  - ✅ 首次启动时将游戏根目录全局脚本复制到世界存档（已存在的不覆盖）（`ScriptManager`）
+  - ✅ 服务端统一从游戏根目录加载脚本，通过 S2C 包下发完整 JSON，**不再复制到世界存档**（`ScriptManager`）
   - ✅ 提供 `registerAllTriggers()` 将脚本 meta 中的触发器定义批量注册进 `TriggerEngine`，动作统一为 `StartPlaybackAction`（`ScriptManager`）
   - ✅ 提供 `reload()` 清空引擎、重新加载并重建索引（`ScriptManager`）
-- **Schema 驱动的字段定义**
-  - ✅ `SchemaLoader` / `SchemaRegistry` 提供 Java 字段元数据，为每种轨道定义 clip/keyframe 字段（类型、默认值、是否必填）（`SchemaLoader`、`SchemaRegistry`）
-  - ✅ 提供字段查询 API：`getDefaultValue()`/`isRequired()`/`hasField()`/`getClipFields()`/`getKeyframeFields()`（`SchemaLoader`）
+- **Schema 驱动的字段定义（Java 元数据）**
+  - ✅ 字段元数据位于 Java 侧：`FieldDef` / `TrackSchemas` / `MetaSchemas` / `SchemaRegistry` 提供类型、默认值、必填、枚举、分组，无外部 `schema.json` 文件（`SchemaRegistry`、`TrackSchemas`、`MetaSchemas`、`FieldDef`）
+  - ✅ `SchemaLoader` 保持对外查询接口：`getDefaultValue()`/`isRequired()`/`hasField()`/`getClipFields()`/`getKeyframeFields()`/`getMetaFields()`，内部读取 Java 注册表（`SchemaLoader`、`SchemaRegistry`）
+  - ✅ 新增 `SchemaExporter`：把 Java 元数据导出为标准 JSON schema，供未来 WebUI 动态表单使用；Java 侧始终是唯一 schema 权威（`SchemaExporter`）
+  - ✅ 新增 `FieldControl`：按 `FieldDef.type` 决定编辑器控件类型（bool→开关、tristate→三态、enum≤3→循环、enum>3→下拉、数值/文本/映射等），游戏内编辑器与未来 WebUI 共用同一套决策（`FieldControl`）
 - **数据模型**
   - ✅ `CinematicScript` 为顶层容器：meta + timeline + 原始 JSON（供网络同步）（`CinematicScript`）
-  - ✅ `ScriptMeta` 持有 id/name/author/version/description/dimension/triggers 及 20 个运行时行为标志（`ScriptMeta`）
-  - ✅ 运行时行为标志：屏蔽键盘/鼠标、屏蔽生物 AI（已弃用）、隐藏 HUD/手臂/聊天/记分板/动作栏/标题/字幕/快捷栏/准星/Boss 条/跳过 HUD、抑制视角摆动、渲染玩家模型、游戏暂停时暂停、可打断、可跳过、结尾保持（`ScriptMeta`）
+  - ✅ `ScriptMeta` 持有 id/name/author/version/description/dimension/triggers、priority、skip_vote_ratio、camera_mob_* 及完整运行时行为（`ScriptMeta`）
+  - ✅ 运行时行为：屏蔽键盘/鼠标、屏蔽生物 AI、隐藏 HUD/手臂/聊天/记分板/动作栏/标题/字幕/快捷栏/准星/Boss 条/跳过 HUD、`hud_layers` 自定义 HUD 覆盖、抑制视角摆动/画面扭曲、渲染玩家模型、游戏暂停时暂停、可打断、可跳过、结尾保持（`ScriptMeta`）
   - ✅ `Timeline` 管理总时长与并行轨道，提供按类型查询轨道的便捷方法（`Timeline`）
   - ✅ `TimelineTrack` 为同类型通用片段数组，`Clip` 为通用片段容器（start_time/duration + data map + keyframes）（`TimelineTrack`、`Clip`）
   - ✅ `Keyframe` 为通用关键帧容器（time + data map），`PositionData` 区分相对（dx/dy/dz）与绝对（x/y/z）两种坐标模式（`Keyframe`、`PositionData`）
@@ -54,6 +56,8 @@
   - ✅ morph 过渡窗口内混合上一片段末帧与下一片段首帧（位置线性混合、角度最短路径混合）（`CameraTrackPlayer`）
   - ✅ 关键帧级 `follow`（位置跟随实体，position 即相对实体偏移）与 `look_at`（注视实体/坐标/结构）：两端关键帧各自求值为世界坐标再插值 → follow↔普通、换目标、look_at 开关全部平滑过渡；look_at 目标点插值模型（none 端=该关键帧 yaw/pitch 方向远点）（`CameraTrackPlayer`）
   - ✅ 实体选择器子集：`@p`/`@s`/`@e`/`@e[type=…,name=…]`/`uuid:…`，就近优先 + 1 秒缓存（`CameraTrackPlayer`）
+  - ✅ 切线朝向：clip 级 `orient=tangent` 时沿路径切线方向看，可叠 `yaw_offset`/`pitch_offset`；关键帧级 `yaw_base`/`pitch_base` 支持 world/entity/line 三种基准，`yaw`/`pitch` 作为相对基准偏移（`TangentOrientation`、`CameraTrackPlayer`）
+  - ✅ `look_at_target` 对象目标支持绝对点 / 相对触发点 / 相对实体 / 相对固定坐标偏移（`CameraTrackPlayer`）
   - ✅ 结构目标：服务端 `/icinematics play` 推送前把 `look_at_target_structure` / `position.relative_origin`（结构 id）替换为结构 **bounding box 中心**坐标（`StructureLocator`：触发器同款附近搜寻——getAllStructuresAt 按 chunk 步进扫描玩家附近 3 区块已加载区域 → StructureStart → getBoundingBox().getCenter()；不采用原版 findNearestMapStructure 的网格环序，避免命中远处未加载结构）；编辑器预览（单人）客户端直连集成服务端兜底（`StructureLocator`、`CinematicCommand`、`CameraTrackPlayer`）
   - ✅ 支持 `cam_breath_*` 呼吸扰动 v2（clip 级）：`cam_breath_type` 多类型（perlin/perlin_axis/sine/trauma）+ speed，确定性叠加到最终 yaw/pitch/roll（`BreathDisturbance`、`CameraTrackPlayer`）
   - ✅ 相对/绝对坐标模式为关键帧级（position 对象自描述：有 dx=相对、有 x=绝对），统一世界坐标空间插值；相对基准可扩展：`relative_origin` = 玩家激活位置（默认）/ `"coordinate"` 固定坐标 / 结构 id 结构中心（`CameraTrackPlayer`、`PositionData`）
@@ -64,6 +68,7 @@
   - ✅ 支持空间衰减模式 none/linear/inverse（默认距离 16 格），最终音量乘以 MC 音乐音量滑块（`CinematicAudioInstance`、`AudioTrackPlayer`）
   - ✅ 播放期间每帧压制 MC 背景音乐（`SoundSource.MUSIC`），防止原版音乐串场（`AudioTrackPlayer`）
   - ✅ 支持暂停/恢复/按时间重定位（`syncToTime` 偏差超 0.5s 时重播）（`CinematicAudioInstance`）
+  - ✅ 音频听者：`meta.listener="camera"` 时环境音/方块音/水声等按相机采样（配合相关 Mixin）；`"player"`（默认）时 `SoundManagerMixin` 用玩家视角代理听音（`AudioListenerController`）
 - **LETTERBOX 轨道播放器**
   - ✅ 关键帧插值驱动画幅比黑边（`aspect_ratio`），无活跃 clip 时归零，停止时重置（`LetterboxTrackPlayer`）
 - **OVERLAY 轨道播放器**

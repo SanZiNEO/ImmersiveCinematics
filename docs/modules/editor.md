@@ -11,6 +11,7 @@
   - ✅ `EditorDocument` 管理脚本 JSON 文档：新建默认模板（meta + 5 种轨道）、加载/序列化、文件名清洗、脏标记（`EditorDocument`）
   - ✅ `EditorBridge` 接口解耦编辑器与相机链路：setTime/pushScript/play/pause/stop（`EditorBridge`）
   - ✅ 编辑器打开时不暂停游戏（`isPauseScreen()` 返回 false），配合 `PreviewCapture` 实时捕获游戏画面供预览区显示（`EditorScreen`）
+  - ✅ WebUI 迁移预留：`SchemaExporter` / `FieldControl` 作为未来 WebUI 动态表单的铺垫保留；WebUI 迁移计划目前搁置，仍以游戏内编辑器为准（`SchemaExporter`、`FieldControl`）
 - **UI 组件树与事件分发**
   - ✅ `UIComponent` 为组件树基类：子节点渲染（zIndex 降序）、焦点系统、鼠标/键盘事件模板方法逐层分发（点击/拖拽/释放/滚动/按键/字符）（`UIComponent`）
   - ✅ `UIContext` 传递渲染上下文：GuiGraphics/字体/鼠标/修饰键，提供视口裁剪（push/pop/shiftViewport）与遗留滚动 API（`UIContext`）
@@ -28,10 +29,12 @@
   - ✅ 工具栏按钮：添加/删除 clip、添加/删除关键帧、添加/删除轨道、吸附排列（`TimelineArea`）
   - ✅ 右键菜单三处入口：clip（复制/剪切/删除/复制偏移/分割/添加关键帧）、轨道标签（添加 clip/删除轨道/新增轨道）、时间轴空白（按轨道添加 clip/添加关键帧/全选/粘贴/新增轨道/吸附排列）、标尺（跳转播放头/缩放至全部可见）（`TimelineArea`、`EditorScreen`）
 - **左侧面板**
-  - ✅ `LeftPanelArea` 提供 6 个标签页：脚本列表/脚本属性/Clip 属性/关键帧属性/轨道列表/触发器（`LeftPanelArea`）
+  - ✅ `LeftPanelArea` 提供 7 个标签页：脚本列表/脚本属性/Clip 属性/关键帧属性/轨道列表/触发器/预设（`LeftPanelArea`、`PanelRegistry`）
   - ✅ 脚本列表：递归扫描 `immersive_cinematics/scripts` 子文件夹，条目显示相对路径（如 `chapter1/boss_fight.json`）以区分同名文件（`EditorScreen`）
-  - ✅ 脚本属性页：触发器面板 + 脚本信息（id/name/author/version/description/dimension）+ 20 个运行时行为开关（部分三态：未设置/真/假）+ 总时长显示（`LeftPanelArea`）
-  - ✅ 属性反射编辑：clip/keyframe 的 JSON 字段自动生成对应控件（布尔→开关、数字→数值输入、字符串→文本输入、对象→递归展开、数组→逐项展开），枚举字段（transition/interpolation/loop_mode/layer_type/position_mode/source/attenuation/cam_tracking_*）循环切换并联动转换关键帧坐标模式（`LeftPanelArea`）
+  - ✅ 脚本属性页：触发器面板 + 脚本信息（id/name/author/version/description/dimension）+ 运行时行为分组（bool 开关、三态 `null`/true/false、`hud_layers`、`priority`、`skip_vote_ratio`）+ 相机区域刷怪（`camera_mob_spawn`/`camera_mob_radius`/`camera_mob_ai`）+ 总时长显示（`ScriptPropertiesPanel`、`EditorPanel`）
+  - ✅ 属性反射编辑：由 `FieldDef.type` 通过 `FieldControl` 决定控件——`bool`→开关、`tristate`→三态按钮、`enum`≤3 值→循环切换、`enum`>3 值→下拉、`int`/`float`→数值输入、`string`→文本输入、对象/映射/数组/位置/贝塞尔→对应递归或专用控件；缺失字段显示“未设置/点击添加”（`EditorPanel`、`FieldControl`、`SchemaLoader`）
+  - ✅ 折叠分组：脚本/Clip/关键帧属性按 `FieldGroup` 分组渲染（基础/隐藏/相机/播放/路径/呼吸/注视/跟随/光学等），组标题点击折叠，跨 build 保留展开状态（`EditorPanel`、`FieldGroup`）
+  - ✅ 预设面板：选择预设 → 填参数 → 生成完整脚本 JSON（当前内置“环绕轨道”预设，三段贝塞尔拼圆）（`PresetPanel`、`PresetRegistry`、`OrbitCirclePreset`）
   - ✅ 面板滚动：内容超高时出现滚动条（点击/拖动/滚轮）；滚动是树语义（`getScrollOffset` 沿父链），命中统一绝对屏幕坐标 + 容器裁剪，tab 栏固定不随内容滚动，切模式滚动归零（`LeftPanelArea`、`UIComponent`）
   - ✅ 编辑触发防抖重建（150ms 内跳过重复 build）（`LeftPanelArea`）
 - **预览区**

@@ -118,9 +118,9 @@
 | `author` | 作者 ≤30 字符 |
 | `version` | **固定 3** |
 
-常用行为开关（默认值合理，不写也行）：`block_keyboard: true`、`block_mouse: true`、`hide_hud: true`、`hide_arm: true`、`suppress_bob: true`、`skippable: true`、`interruptible: true`、`hold_at_end: false`、`pause_when_game_paused: true`。
+常用行为开关（默认值合理，不写也行）：`block_keyboard: true`、`block_mouse: true`、`hide_hud: true`、`skippable: true`、`interruptible: true`、`hold_at_end: false`、`pause_when_game_paused: true`。`hide_arm`/`suppress_bob` 等隐藏类字段缺省为三态 `null`（跟随 `hide_hud`），需要显式覆盖时才写 `true`/`false`。
 
-> **远距离场景记得保留预加载**：`meta.preload` 默认 `true`。如果镜头要飞到玩家视距外（跨区块/跨维度），**不要写 `"preload": false`**；只有确认该脚本不需要预加载（例如纯 HUD/字幕/本地小范围）时才关掉，避免不必要开销。
+> **远距离场景记得保留预加载**：`meta.preload` 默认 `true`，但只有存在**非空 CAMERA 轨道**的脚本才会实际触发预加载（纯 HUD/字幕/事件脚本不会）。如果镜头要飞到玩家视距外（跨区块/跨维度），**不要写 `"preload": false`**；只有确认该脚本不需要预加载（例如纯 HUD/字幕/本地小范围）时才关掉，避免不必要开销。
 
 > **`interruptible` 与 `priority` 必读（播放队列规则）**：
 > - **可打断（`interruptible: true`，默认）** = 区域切换型脚本：新脚本请求时**立即替换**当前脚本（打断就替换）。适合"进 A 区播 A、进 B 区播 B"的场景。
@@ -213,7 +213,7 @@
 | `scale_x` / `scale_y` | 图片显示尺寸 = **原图分辨率 × 乘数**（`1` = 原尺寸，`0.5` = 半尺寸）。**图片按原图分辨率载入，不要写死像素尺寸** |
 | `opacity` | 透明度（0~1）。**淡入淡出 = 关键帧里写 opacity 0→1→0**，代码层不叠加其他淡化 |
 | `interpolation` | `"smooth"` 让移动轨迹平滑（样条），`"linear"` 直线 |
-| `path` | 图片文件名，**只支持 PNG**，放 `<游戏目录>/immersive_cinematics/resource/`，英文命名 |
+| `path` | 图片文件名，支持 **PNG / GIF**（GIF 自动拆帧轮播），放 `<游戏目录>/immersive_cinematics/resource/`，英文命名 |
 | `z_index` | 层级，大者在上（图片 20、字幕 30 起步） |
 
 **多轨道写法**（图片 + 字幕同时显示，各自一条 OVERLAY 轨道）：
@@ -327,7 +327,6 @@
             "duration": 6,
             "transition": "morph",
             "transition_duration": 1.0,
-            "position_mode": "relative",
             "keyframes": [
               { "time": 0,   "position": { "dx": 24, "dy": 2, "dz": 0 },  "yaw": 90,  "pitch": 5,  "roll": 0, "fov": 70, "zoom": 1.0 },
               { "time": 3,   "position": { "dx": 18, "dy": 2, "dz": 0 },  "yaw": 90,  "pitch": 5,  "roll": 0, "fov": 68, "zoom": 1.1 },
@@ -338,7 +337,6 @@
             "start_time": 5.5,
             "duration": 5,
             "transition": "cut",
-            "position_mode": "relative",
             "keyframes": [
               { "time": 0, "position": { "dx": 10, "dy": 2, "dz": 0 },  "yaw": 90, "pitch": 8,  "roll": 0, "fov": 65, "zoom": 1.2 },
               { "time": 5, "position": { "dx": 6,  "dy": 2, "dz": 6 },  "yaw": 135, "pitch": 10, "roll": 0, "fov": 62, "zoom": 1.3 }
@@ -348,7 +346,6 @@
             "start_time": 10.5,
             "duration": 4,
             "transition": "cut",
-            "position_mode": "relative",
             "keyframes": [
               { "time": 0, "position": { "dx": 6, "dy": 2, "dz": 6 }, "yaw": 135, "pitch": 10, "roll": 0, "fov": 62, "zoom": 1.3 },
               { "time": 4, "position": { "dx": 5, "dy": 2, "dz": 5 }, "yaw": 135, "pitch": 12, "roll": 0, "fov": 55, "zoom": 1.5 }
@@ -413,7 +410,6 @@
             "start_time": 0,
             "duration": 8,
             "transition": "cut",
-            "position_mode": "relative",
             "keyframes": [
               { "time": 0, "position": { "dx": 12, "dy": 2, "dz": 0 },  "yaw": 90,  "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
               { "time": 4, "position": { "dx": 0,  "dy": 2, "dz": -12 }, "yaw": 0,   "pitch": 5, "roll": 0, "fov": 70, "zoom": 1.0 },
@@ -425,7 +421,6 @@
             "duration": 5,
             "transition": "morph",
             "transition_duration": 1.0,
-            "position_mode": "relative",
             "keyframes": [
               { "time": 0, "position": { "dx": -12, "dy": 2, "dz": 0 },  "yaw": -90, "pitch": 5,  "roll": 0, "fov": 70, "zoom": 1.0 },
               { "time": 5, "position": { "dx": 0,   "dy": 12, "dz": 0 },  "yaw": 180, "pitch": 55, "roll": 0, "fov": 80, "zoom": 1.0 }
@@ -435,7 +430,6 @@
             "start_time": 13,
             "duration": 5,
             "transition": "cut",
-            "position_mode": "relative",
             "keyframes": [
               { "time": 0, "position": { "dx": 0, "dy": 12, "dz": 0 }, "yaw": 180, "pitch": 55, "roll": 0, "fov": 80, "zoom": 1.0 },
               { "time": 5, "position": { "dx": 0, "dy": 3,  "dz": 8 }, "yaw": 180, "pitch": 20, "roll": 0, "fov": 70, "zoom": 1.0 }

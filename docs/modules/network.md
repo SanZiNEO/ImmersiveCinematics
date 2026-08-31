@@ -5,9 +5,10 @@
 功能树：
 
 - **网络层框架**
-  - ✅ 基于 Architectury `SimpleNetworkManager` 建立通道（mod id `immersive_cinematics`），共注册 10 个消息类型：7 个 S2C + 3 个 C2S（`NetworkHandler`）
-  - ✅ `NetworkGuard` 统一防护 C2S 发包：玩家断线/退出世界时 `sendToServer` 抛异常只记日志不崩溃（覆盖脚本结束通知/暂停握手/ACK 重发/回执）（`NetworkGuard`）
-  - ✅ `init()` 在模组入口触发 static 字段加载，由 SimpleNetworkManager 自动完成平台注册（Forge/Fabric 统一）（`NetworkHandler`）
+  - ✅ 平台无关：`CinematicPacket`/`CinematicC2SPacket`/`CinematicS2CPacket` 定义包协议，`NetworkBridge` 由 Forge/Fabric 平台入口注入实际发送实现；包 ID 常量供两端注册（`NetworkHandler`、`NetworkBridge`、`CinematicPacket`）
+  - ✅ 共 13 个消息类型：7 个 S2C（`play_script`、`stop_script`、`trigger_state_sync`、`skip_vote_update`、`script_pause_ack`、`script_reload`、`preload_result`）+ 6 个 C2S（`script_finished`、`playback_started`、`script_pause`、`script_saved`、`preload_req`、`preload_pos`）（`NetworkHandler`）
+  - ✅ `NetworkGuard` 统一防护部分 C2S 发包：玩家断线/退出世界时 `sendToServer` 抛异常只记日志不崩溃（覆盖脚本结束通知/暂停握手/ACK 重发/回执）（`NetworkGuard`）
+  - ✅ `init()` 为兼容入口；平台注册由 Fabric/Forge 侧在 common init 后注入 `NetworkBridge` 完成（`NetworkHandler`）
 - **S2C 播放/停止链路**
   - ✅ `S2CPlayScriptPacket`（服务端→客户端，`play_script`）：携带脚本原始 JSON，客户端解析为 `CinematicScript` 并交给 `CameraManager.playCinematic()` 开始播放（`S2CPlayScriptPacket`、`ClientScriptReceiver`）
   - ✅ `S2CStopScriptPacket`（服务端→客户端，`stop_script`）：指定 scriptId 停止；scriptId 为空时强制停止全部脚本（`S2CStopScriptPacket`、`ClientScriptReceiver`）
@@ -29,5 +30,9 @@
 - **触发器状态同步**
   - ✅ `S2CTriggerStateSyncPacket`（服务端→客户端，`trigger_state_sync`）：携带已触发触发器集合与已完成脚本集合，客户端整包替换本地缓存（`S2CTriggerStateSyncPacket`、`ClientTriggerStateCache`）
   - ✅ 同步链路已接线：触发成功（`TriggerEngine.fireTrigger`）、脚本完成（`TriggerEngine.onScriptFinished`）、玩家加入（`ServerEventHandler.PLAYER_JOIN`）三处发送（`S2CTriggerStateSyncPacket`、`TriggerEngine`、`ServerEventHandler`）
+- **区块预加载链路**
+  - ✅ `C2SPreloadRequestPacket`（客户端→服务端，`preload_req`）：模式 `PRELOAD(0)` / `PREWARM(1)` / `RELEASE(2)`，携带脚本 id、相机中心坐标、窗口半径、朝向、渲染距离与相机刷怪参数（`C2SPreloadRequestPacket`、`ChunkPreloadManager`）
+  - ✅ `C2SPreloadPositionPacket`（客户端→服务端，`preload_pos`）：播放中按 `preloadReportInterval` 上报相机/玩家中心（有活跃镜头=相机位置，空档=玩家位置）（`C2SPreloadPositionPacket`、`ChunkPreloadManager`）
+  - ✅ `S2CPreloadResultPacket`（服务端→客户端，`preload_result`）：仅日志/命中回执，不阻塞播放（`S2CPreloadResultPacket`）
 - **客户端脚本缓存**
   - ⚠️ `ClientScriptCache` 提供按 id 缓存/查询/清空 `CinematicScript` 的静态容器，但全工程无任何调用方，未接入任何链路（`ClientScriptCache`）

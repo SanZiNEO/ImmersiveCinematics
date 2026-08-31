@@ -8,13 +8,13 @@
   - ✅ 服务器启动（SERVER_STARTED）：从游戏根 `immersive_cinematics/scripts` 加载全部脚本（不再复制进世界存档）→ 初始化触发器状态存储与引擎 → 批量注册触发器（`ServerEventHandler`）
   - ✅ 服务器停止（SERVER_STOPPING）与世界保存（SERVER_LEVEL_SAVE）：全量保存触发器状态（`ServerEventHandler`）
   - ✅ 玩家加入（PLAYER_JOIN）：加载该玩家触发状态并补发状态同步包，触发 `login` 触发器（`ServerEventHandler`）
-  - ✅ 玩家退出（PLAYER_QUIT）：保存并卸载玩家状态，清理全部内存追踪器（Kill/Advancement/Interact/Craft/UseItem/PickupDrop/Inventory）（`ServerEventHandler`）
-  - ✅ 服务器 tick（SERVER_POST）：驱动轮询触发器 `TriggerEngine.onServerTick()` 与脚本事件会话 `ScriptEventManager.onServerTick()`（`ServerEventHandler`）
+  - ✅ 玩家退出（PLAYER_QUIT）：释放该玩家预加载状态，保存并卸载玩家状态，清理全部内存追踪器（Kill/Advancement/Interact/Craft/UseItem/PickupDrop/Inventory/Dimension）（`ServerEventHandler`）
+  - ✅ 服务器 tick（SERVER_POST）：驱动轮询触发器 `TriggerEngine.onServerTick()`、脚本事件会话 `ScriptEventManager.onServerTick()`、区块预加载 `ChunkPreloadManager.tick()`、相机锚点与实体同步 `CameraAnchorManager.tick()`/`CameraEntitySyncManager.tick()`（`ServerEventHandler`）
   - ✅ 命令注册：集成/专用服务器环境下注册 `/icinematics` 命令树（`ServerEventHandler`、`CinematicCommand`）
-  - ✅ 事件驱动触发器接线：`LIVING_DEATH`→entity_kill（记录击杀含场景数据）、`PLAYER_ADVANCEMENT`→advancement、`RIGHT_CLICK_BLOCK`→block_interact+item_on_interact、`INTERACT_ENTITY`→entity_interact+item_on_interact、`CRAFT_ITEM`→item_craft、`RIGHT_CLICK_ITEM`→item_use、`PICKUP_ITEM_POST`→item_pickup、`DROP_ITEM`→item_drop、`CHANGE_DIMENSION`→dimension_change、`EntityEvent.ADD`(投掷物)→item_instant_use（`ServerEventHandler`、`Evaluators`）
+  - ✅ 事件驱动触发器接线：`LIVING_DEATH`→entity_kill（记录击杀含场景数据）、`PLAYER_ADVANCEMENT`→advancement、`RIGHT_CLICK_BLOCK`→block_interact+item_on_interact、`INTERACT_ENTITY`→entity_interact+item_on_interact、`CRAFT_ITEM`→item_craft、`RIGHT_CLICK_ITEM`→item_use、`PICKUP_ITEM_POST`→item_pickup、`DROP_ITEM`→item_drop、`CHANGE_DIMENSION`→dimension_change、`EntityEvent.ADD`(投掷物)→item_instant_use；`item_consume`/`item_release`/`item_use_interrupt` 由 `ItemUseMixin`（LivingEntity 使用状态机）注入（`ServerEventHandler`、`ItemUseMixin`、`Evaluators`）
 - **客户端事件注册（`ClientEventHandler`）**
-  - ✅ 按键注册：跳过键（默认 C）与编辑器键（默认 F6，EDITOR_ENABLED 时）注册进 KeyMappingRegistry（`ClientEventHandler`、`CinematicKeyBindings`）
-  - ✅ 客户端 tick（CLIENT_POST）：驱动 `CameraManager.tick()`（staged 缓冲插值）与 `CinematicKeyBindings.onClientTick()`（跳过/强退/编辑器键）（`ClientEventHandler`）
+  - ✅ 按键注册：跳过键（默认 C）与编辑器键（默认 F6，EDITOR_ENABLED 时），以及编辑器播放/播放头/飞行/光学等快捷键注册进 KeyMappingRegistry（`ClientEventHandler`、`CinematicKeyBindings`）
+  - ✅ 客户端 tick（CLIENT_POST）：驱动 `CameraManager.tick()`（staged 缓冲插值）、`CinematicKeyBindings.onClientTick()`（跳过/强退/编辑器键）、`PreloadRequester.tick()`（区块预加载上报/释放）、`AckTracker.tick()`（N1 握手 ACK 重发）（`ClientEventHandler`）
   - ✅ HUD 渲染（RENDER_HUD）：追加绘制跳过提示 HUD 与电影覆盖层（黑边等）（`ClientEventHandler`、`SkipHudRenderer`、`CinematicOverlay`）
 
 ## 已知问题

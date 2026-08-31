@@ -14,13 +14,13 @@
 | 文档 | 对应包路径 | 内容范围 |
 |---|---|---|
 | [camera.md](./camera.md) | `camera/` | 相机接管、虚拟时钟、播放调度、预览、roll、追踪、呼吸 |
-| [script.md](./script.md) | `script/` | 脚本解析/加载、6 种轨道、各 TrackPlayer、schema |
-| [trigger.md](./trigger.md) | `trigger/server/` | 23 种触发器、引擎、状态存储、事件管理 |
-| [network.md](./network.md) | `trigger/network/` | 10 个网络包、播放/停止/暂停/投票/状态同步链路 |
+| [script.md](./script.md) | `script/` | 脚本解析/加载、6 种轨道、各 TrackPlayer、Java Schema 元数据（FieldDef/TrackSchemas/SchemaRegistry/SchemaExporter） |
+| [trigger.md](./trigger.md) | `trigger/server/` | 23 种触发器、引擎、状态存储、事件管理、区块预加载/相机锚点/实体同步 |
+| [network.md](./network.md) | `trigger/network/` | 13 个网络包、播放/停止/暂停/投票/状态同步/预加载链路 |
 | [editor.md](./editor.md) | `editor/` | 时间轴编辑器、撤销重做、保存管线、已知 bug |
 | [overlay.md](./overlay.md) | `overlay/` | 覆盖层五种（黑边/fade/图片/字幕/画中画）、OverlayManager |
 | [control.md](./control.md) | `control/` | 运行时行为、跳过、投票、输入屏蔽、HUD 白名单 |
-| [mixin.md](./mixin.md) | `mixin/`（资源声明） | 10 个 mixin 各司其职 |
+| [mixin.md](./mixin.md) | `mixin/`（资源声明） | 21 个 mixin：相机/渲染、HUD 隐藏、输入、区块预加载/刷怪、音频听者 |
 | [command.md](./command.md) | `command/` | /icinematics 命令 |
 | [handler.md](./handler.md) | `handler/` | 服务端/客户端事件注册 |
 | [client.md](./client.md) | `client/` | ConfigScreen、EditorBridgeImpl |
