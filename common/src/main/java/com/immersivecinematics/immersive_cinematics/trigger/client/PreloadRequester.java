@@ -40,6 +40,9 @@ public final class PreloadRequester {
     /** 已发送预热的脚本/片段目标，避免每 tick 重复发包 */
     private String prewarmTargetKey = "";
 
+    /** 上一刷新是否有活跃 CAMERA 片段；空档/无镜头切换时立即上报玩家位置 */
+    private boolean lastHadActiveCamera = false;
+
     private PreloadRequester() {}
 
     /** 预载是否真的激活过（用于退出时是否触发全量渲染重建） */
@@ -65,7 +68,22 @@ public final class PreloadRequester {
                 releaseIfNeeded();
                 return;
             }
-            Vec3 pos = cam.getPath().getPosition();
+            if (!hasCameraTrack(script)) {
+                releaseIfNeeded();
+                return;
+            }
+            boolean activeCamera = cam.hasActiveCameraClip();
+            Vec3 pos;
+            if (activeCamera) {
+                pos = cam.getPath().getPosition();
+            } else {
+                // 空档/无镜头片段：相机不覆盖，实际是玩家视角，报玩家位置让服务端差集切回玩家区
+                if (mc.player == null) {
+                    releaseIfNeeded();
+                    return;
+                }
+                pos = mc.player.position();
+            }
             int bx = (int) Math.floor(pos.x);
             int bz = (int) Math.floor(pos.z);
             if (!sid.equals(lastScript)) {
@@ -73,6 +91,7 @@ public final class PreloadRequester {
                 tickCounter = 0;
                 preloadActive = true;
                 prewarmTargetKey = "";
+                lastHadActiveCamera = activeCamera;
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                         new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, Config.preloadWindowRadius,
                                 cam.getCameraYaw(), mc.options.renderDistance().get(),
@@ -81,7 +100,9 @@ public final class PreloadRequester {
                 return;
             }
             tickCounter++;
-            if (tickCounter % Math.max(1, Config.preloadReportInterval) == 0 && preloadActive) {
+            boolean activeChanged = activeCamera != lastHadActiveCamera;
+            if (activeChanged) lastHadActiveCamera = activeCamera;
+            if ((tickCounter % Math.max(1, Config.preloadReportInterval) == 0 && preloadActive) || activeChanged) {
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                         new C2SPreloadPositionPacket(bx, bz, cam.getCameraYaw()));
             }
@@ -99,6 +120,7 @@ public final class PreloadRequester {
             lastScript = "";
             preloadActive = false;
             prewarmTargetKey = "";
+            lastHadActiveCamera = false;
             return;
         }
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
@@ -109,6 +131,7 @@ public final class PreloadRequester {
         lastScript = "";
         preloadActive = false;
         prewarmTargetKey = "";
+        lastHadActiveCamera = false;
     }
 
     /** 预热：接近下个 CAMERA 片段时，把下一片段首帧位置发给服务端提前加载 */
@@ -168,6 +191,13 @@ public final class PreloadRequester {
         }
         if (pd.getOriginStructure() != null || pd.isOriginBlock() || pd.isFacingRelative()) return null;
         return originPos.add(pd.toVec3());
+    }
+
+    /** 只有脚本时间轴存在非空 CAMERA 轨道才进入预加载；纯 OVERLAY/EVENT 脚本不触发 */
+    private static boolean hasCameraTrack(CinematicScript script) {
+        if (script == null || script.getTimeline() == null) return false;
+        Optional<TimelineTrack> track = script.getTimeline().getCameraTrack();
+        return track.isPresent() && !track.get().getClips().isEmpty();
     }
 
     /** 脚本级开关：meta.preload 缺省/true = 启用；false = 本脚本关闭预加载（不发任何预载请求） */
