@@ -8,6 +8,7 @@
 | 文档 | 说明 |
 |---|---|
 | `prewarm-release-diff.md` | **区块预加载最终实现**：状态边界统一差集、下一片段预热、结束释放差集复用 |
+| `no-fake-camera-region.md` | **无假人相机区域最终实现**：坐标锚点 + CameraEntitySyncManager 实体同步 |
 | `arch-refactor.md` | **去 Architectury 最终实现**：MultiLoader 重构 |
 | `schema-java-metadata.md` | **Schema Java 元数据化最终实现**：`SchemaRegistry` / `FieldDef` |
 | `input-handoff.md` | 输入中间层退出重同步最终实现 |
