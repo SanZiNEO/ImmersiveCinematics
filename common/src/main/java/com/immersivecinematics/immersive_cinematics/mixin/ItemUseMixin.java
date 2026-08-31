@@ -43,6 +43,7 @@ public abstract class ItemUseMixin {
                 Evaluators.UseItemTracker.recordReleased(sp, self.getUseItem());
                 TriggerEngine.INSTANCE.onGameEvent("item_release", sp);
             } else {
+                Evaluators.UseItemTracker.recordInterrupted(sp, self.getUseItem());
                 TriggerEngine.INSTANCE.onGameEvent("item_use_interrupt", sp);
             }
         }
