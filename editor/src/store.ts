@@ -9,6 +9,7 @@ import type {
 } from './types'
 import * as ops from './operations'
 import { stripScriptDefaults } from './schema'
+import { DEMO_SCHEMA, DEMO_SCRIPT } from './demo'
 
 const SERVER_URL = 'ws://127.0.0.1:8765/ws'
 
@@ -397,4 +398,17 @@ export function setTool(tool: TimelineTool): void {
 
 export function toggleSnap(): void {
   state.snapEnabled = !state.snapEnabled
+}
+
+// ── 离线演示模式 ──────────────────────────────────────────────
+
+/** 未连接游戏时加载演示脚本和 schema，让编辑器界面完整可见 */
+export function loadDemo(): void {
+  state.schema = DEMO_SCHEMA
+  state.doc = JSON.parse(JSON.stringify(DEMO_SCRIPT))
+  state.currentPath = 'demo_cinematic.json (离线演示)'
+  state.scripts = ['demo_cinematic.json']
+  resetHistory()
+  initTrackView()
+  clearSelection()
 }

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue'
-import { connect, undo, redo, state } from './store'
+import { connect, undo, redo, state, loadDemo } from './store'
 import TitleBar from './components/TitleBar.vue'
 import ScriptDock from './components/ScriptDock.vue'
 import ScriptList from './components/ScriptList.vue'
+import ScriptStructure from './components/ScriptStructure.vue'
 import TrackListPanel from './components/TrackListPanel.vue'
 import PresetsPanel from './components/PresetsPanel.vue'
 import TabbedPanel from './components/TabbedPanel.vue'
@@ -80,7 +81,8 @@ function onKeydown(e: KeyboardEvent) {
 
 onMounted(() => {
   initSizes()
-  connect()
+  loadDemo() // 先加载离线演示，界面立即可用
+  connect()  // 后台尝试连接游戏，成功后替换
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('mousemove', onMouseMove)
   window.addEventListener('mouseup', onMouseUp)
@@ -119,8 +121,9 @@ onUnmounted(() => {
                 <PresetsPanel v-else />
               </template>
               <template #content>
-                <div class="panel-placeholder">
-                  {{ leftActiveTab === 'scripts' ? '脚本详情' : leftActiveTab === 'tracks' ? '轨道详情' : '预设详情' }}
+                <ScriptStructure v-if="leftActiveTab === 'scripts'" />
+                <div v-else class="panel-placeholder">
+                  {{ leftActiveTab === 'tracks' ? '轨道详情' : '预设详情' }}
                 </div>
               </template>
             </TabbedPanel>

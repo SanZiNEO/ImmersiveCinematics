@@ -654,7 +654,7 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 .track-header {
-  height: 44px;
+  height: 52px;
   display: flex;
   align-items: center;
   padding: 4px 6px;
@@ -805,7 +805,7 @@ onUnmounted(() => {
 
 /* 轨道行 */
 .track-row {
-  height: 44px;
+  height: 52px;
   border-bottom: 1px solid #2a2a30;
   position: relative;
 }
@@ -821,8 +821,8 @@ onUnmounted(() => {
 /* Clip */
 .clip {
   position: absolute;
-  top: 4px;
-  height: 36px;
+  top: 6px;
+  height: 40px;
   border-radius: 4px;
   cursor: grab;
   overflow: hidden;
