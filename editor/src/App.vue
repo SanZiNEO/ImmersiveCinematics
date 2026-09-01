@@ -4,8 +4,9 @@ import { connect, undo, redo } from './store'
 import TitleBar from './components/TitleBar.vue'
 import ScriptDock from './components/ScriptDock.vue'
 import ScriptList from './components/ScriptList.vue'
-import LibraryPanel from './components/LibraryPanel.vue'
-import PanelTabs from './components/PanelTabs.vue'
+import TrackListPanel from './components/TrackListPanel.vue'
+import PresetsPanel from './components/PresetsPanel.vue'
+import TabbedPanel from './components/TabbedPanel.vue'
 import Preview from './components/Preview.vue'
 import PropertyPanel from './components/PropertyPanel.vue'
 import TriggerPanel from './components/TriggerPanel.vue'
@@ -19,7 +20,8 @@ const dragging = ref<'left' | 'leftPanel' | 'rightPanel' | 'bottom' | null>(null
 
 const leftTabs = [
   { id: 'scripts', label: '脚本' },
-  { id: 'library', label: '素材/预设' },
+  { id: 'tracks', label: '轨道' },
+  { id: 'presets', label: '预设' },
 ]
 const rightTabs = [
   { id: 'properties', label: '属性' },
@@ -98,9 +100,23 @@ onUnmounted(() => {
       <div class="editor-workspace">
         <div class="editor-top">
           <div class="left-panel-area" :style="{ width: leftPanelWidth + 'px' }">
-            <PanelTabs :tabs="leftTabs" :active="leftActiveTab" @change="leftActiveTab = $event" />
-            <ScriptList v-if="leftActiveTab === 'scripts'" />
-            <LibraryPanel v-else />
+            <TabbedPanel
+              :tabs="leftTabs"
+              :active="leftActiveTab"
+              :show-list="true"
+              @change="leftActiveTab = $event"
+            >
+              <template #list>
+                <ScriptList v-if="leftActiveTab === 'scripts'" />
+                <TrackListPanel v-else-if="leftActiveTab === 'tracks'" />
+                <PresetsPanel v-else />
+              </template>
+              <template #content>
+                <div class="panel-placeholder">
+                  {{ leftActiveTab === 'scripts' ? '脚本详情' : leftActiveTab === 'tracks' ? '轨道详情' : '预设详情' }}
+                </div>
+              </template>
+            </TabbedPanel>
           </div>
           <div class="resize-h panel-left" @mousedown="startDrag('leftPanel', $event)"></div>
           <div class="preview-area">
@@ -108,9 +124,16 @@ onUnmounted(() => {
           </div>
           <div class="resize-h panel-right" @mousedown="startDrag('rightPanel', $event)"></div>
           <div class="right-panel-area" :style="{ width: rightPanelWidth + 'px' }">
-            <PanelTabs :tabs="rightTabs" :active="rightActiveTab" @change="rightActiveTab = $event" />
-            <PropertyPanel v-if="rightActiveTab === 'properties'" />
-            <TriggerPanel v-else />
+            <TabbedPanel
+              :tabs="rightTabs"
+              :active="rightActiveTab"
+              @change="rightActiveTab = $event"
+            >
+              <template #content>
+                <PropertyPanel v-if="rightActiveTab === 'properties'" />
+                <TriggerPanel v-else />
+              </template>
+            </TabbedPanel>
           </div>
         </div>
 
@@ -196,6 +219,11 @@ button:disabled { opacity: .4; cursor: default; }
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+}
+.panel-placeholder {
+  padding: 10px;
+  font-size: 12px;
+  color: #8a8a96;
 }
 .right-panel-area {
   border-left: 1px solid var(--border);
