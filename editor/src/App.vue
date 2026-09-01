@@ -5,6 +5,7 @@ import TitleBar from './components/TitleBar.vue'
 import ScriptDock from './components/ScriptDock.vue'
 import ScriptList from './components/ScriptList.vue'
 import LibraryPanel from './components/LibraryPanel.vue'
+import PanelTabs from './components/PanelTabs.vue'
 import Preview from './components/Preview.vue'
 import PropertyPanel from './components/PropertyPanel.vue'
 import TriggerPanel from './components/TriggerPanel.vue'
@@ -15,6 +16,17 @@ const leftPanelWidth = ref(340)
 const rightPanelWidth = ref(380)
 const timelineHeight = ref(280)
 const dragging = ref<'left' | 'leftPanel' | 'rightPanel' | 'bottom' | null>(null)
+
+const leftTabs = [
+  { id: 'scripts', label: '脚本' },
+  { id: 'library', label: '素材/预设' },
+]
+const rightTabs = [
+  { id: 'properties', label: '属性' },
+  { id: 'triggers', label: '触发器' },
+]
+const leftActiveTab = ref('scripts')
+const rightActiveTab = ref('properties')
 
 function initSizes() {
   const w = window.innerWidth
@@ -86,8 +98,9 @@ onUnmounted(() => {
       <div class="editor-workspace">
         <div class="editor-top">
           <div class="left-panel-area" :style="{ width: leftPanelWidth + 'px' }">
-            <ScriptList />
-            <LibraryPanel />
+            <PanelTabs :tabs="leftTabs" :active="leftActiveTab" @change="leftActiveTab = $event" />
+            <ScriptList v-if="leftActiveTab === 'scripts'" />
+            <LibraryPanel v-else />
           </div>
           <div class="resize-h panel-left" @mousedown="startDrag('leftPanel', $event)"></div>
           <div class="preview-area">
@@ -95,8 +108,9 @@ onUnmounted(() => {
           </div>
           <div class="resize-h panel-right" @mousedown="startDrag('rightPanel', $event)"></div>
           <div class="right-panel-area" :style="{ width: rightPanelWidth + 'px' }">
-            <PropertyPanel />
-            <TriggerPanel />
+            <PanelTabs :tabs="rightTabs" :active="rightActiveTab" @change="rightActiveTab = $event" />
+            <PropertyPanel v-if="rightActiveTab === 'properties'" />
+            <TriggerPanel v-else />
           </div>
         </div>
 
@@ -180,12 +194,16 @@ button:disabled { opacity: .4; cursor: default; }
   background: var(--bg2);
   overflow: auto;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
 }
 .right-panel-area {
   border-left: 1px solid var(--border);
   background: var(--bg2);
   overflow: auto;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
 }
 .preview-area {
   flex: 1;
