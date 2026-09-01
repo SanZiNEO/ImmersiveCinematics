@@ -1,0 +1,20 @@
+appId: com.immersivecinematics.editor
+productName: ImmersiveCinematicsEditor
+directories:
+  output: release
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+asar: true
+compression: maximum
+electronDist: E:\Documents\GitHub\liveget\app\node_modules\electron\dist
+electronLanguages:
+  - zh-CN
+  - en-US
+win:
+  target: nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: ImmersiveCinematics Editor

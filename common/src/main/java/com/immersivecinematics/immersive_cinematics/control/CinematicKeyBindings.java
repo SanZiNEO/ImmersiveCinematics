@@ -80,11 +80,9 @@ public class CinematicKeyBindings {
 
         if (ImmersiveCinematics.EDITOR_ENABLED && EDITOR_KEY != null) {
             while (EDITOR_KEY.consumeClick()) {
-                if (!(mc.screen instanceof com.immersivecinematics.immersive_cinematics.editor.EditorScreen)
+                if (!(mc.screen instanceof com.immersivecinematics.immersive_cinematics.webui.WebPreviewScreen)
                         && System.currentTimeMillis() - editorClosedAt > EDITOR_REOPEN_COOLDOWN) {
-                    mc.setScreen(new com.immersivecinematics.immersive_cinematics.editor.EditorScreen(
-                            com.immersivecinematics.immersive_cinematics.client.EditorBridgeImpl.INSTANCE,
-                            java.nio.file.Paths.get("immersive_cinematics", "scripts")));
+                    mc.setScreen(new com.immersivecinematics.immersive_cinematics.webui.WebPreviewScreen());
                 }
             }
         }

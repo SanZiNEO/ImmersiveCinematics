@@ -1,6 +1,17 @@
 # Gradle 缓存与编译产物
 .gradle/
+.gradle-fresh*/
 build/
+
+# 本地规划会话记录（不提交）
+/task_plan.md
+/findings.md
+/progress.md
+
+# Editor Web 项目产物
+editor/node_modules/
+editor/dist/
+editor/release/
 
 # 游戏运行数据与存档
 run/
