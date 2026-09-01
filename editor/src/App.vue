@@ -9,6 +9,8 @@ import PresetsPanel from './components/PresetsPanel.vue'
 import TabbedPanel from './components/TabbedPanel.vue'
 import Preview from './components/Preview.vue'
 import PropertyPanel from './components/PropertyPanel.vue'
+import ClipPanel from './components/ClipPanel.vue'
+import KeyframePanel from './components/KeyframePanel.vue'
 import TriggerPanel from './components/TriggerPanel.vue'
 import Timeline from './components/Timeline.vue'
 
@@ -25,6 +27,8 @@ const leftTabs = [
 ]
 const rightTabs = [
   { id: 'properties', label: '属性' },
+  { id: 'clip', label: '片段' },
+  { id: 'keyframe', label: '关键帧' },
   { id: 'triggers', label: '触发器' },
 ]
 const leftActiveTab = ref('scripts')
@@ -131,6 +135,8 @@ onUnmounted(() => {
             >
               <template #content>
                 <PropertyPanel v-if="rightActiveTab === 'properties'" />
+                <ClipPanel v-else-if="rightActiveTab === 'clip'" />
+                <KeyframePanel v-else-if="rightActiveTab === 'keyframe'" />
                 <TriggerPanel v-else />
               </template>
             </TabbedPanel>
