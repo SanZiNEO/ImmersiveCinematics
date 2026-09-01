@@ -6,9 +6,12 @@ import pauseIcon from '../assets/icons/pause.svg'
 import prevIcon from '../assets/icons/prev.svg'
 import nextIcon from '../assets/icons/next.svg'
 import stopIcon from '../assets/icons/record.svg'
+import OrbitGizmo from './OrbitGizmo.vue'
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const fpsRef = ref(0)
+const showGizmo = ref(true)
+const cameraParams = ref({ yaw: 0, pitch: 0, roll: 0, fov: 70, zoom: 1 })
 let frames = 0
 let lastTime = performance.now()
 let cleanup: (() => void) | null = null
@@ -96,6 +99,22 @@ onUnmounted(() => {
         <div class="no-signal-text">未连接游戏</div>
         <div class="no-signal-hint">在游戏内输入 /webui 启动服务端</div>
       </div>
+    </div>
+    <!-- 相机控制面板（可折叠） -->
+    <div class="camera-panel" :class="{ collapsed: !showGizmo }">
+      <div class="camera-panel-header" @click="showGizmo = !showGizmo">
+        <span>相机控制</span>
+        <span class="toggle">{{ showGizmo ? '▼' : '▲' }}</span>
+      </div>
+      <OrbitGizmo
+        v-if="showGizmo"
+        :yaw="cameraParams.yaw"
+        :pitch="cameraParams.pitch"
+        :roll="cameraParams.roll"
+        :fov="cameraParams.fov"
+        :zoom="cameraParams.zoom"
+        @update="cameraParams = $event"
+      />
     </div>
   </div>
 </template>
@@ -200,5 +219,30 @@ canvas {
 .no-signal-hint {
   font-size: 12px;
   color: #555;
+}
+.camera-panel {
+  border-top: 1px solid #222;
+  background: #0f0f12;
+  flex-shrink: 0;
+}
+.camera-panel.collapsed .camera-panel-header {
+  border-bottom: none;
+}
+.camera-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #8a8a96;
+  border-bottom: 1px solid #222;
+  user-select: none;
+}
+.camera-panel-header:hover {
+  color: #d8d8e0;
+}
+.camera-panel-header .toggle {
+  font-size: 10px;
 }
 </style>

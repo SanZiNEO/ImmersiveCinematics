@@ -4,6 +4,8 @@ import {
   state, commit, seek, selectClip, selectKeyframe, clearSelection,
   zoomIn, zoomOut, setTool, toggleSnap, getTrackView, toggleTrackVisible,
   toggleTrackLocked, toggleTrackMuted,
+  copySelectedClips, cutSelectedClips, pasteClips, deleteSelectedClips,
+  duplicateSelectedClips, selectClipMulti, clearSelectedClips,
 } from '../store'
 import * as ops from '../operations'
 import { fillClipDefaults, fillKeyframeDefaults } from '../schema'
@@ -15,6 +17,70 @@ import { t } from '../i18n'
 const scrollerRef = ref<HTMLDivElement | null>(null)
 const contentRef = ref<HTMLDivElement | null>(null)
 const trackHeaderRef = ref<HTMLDivElement | null>(null)
+
+// 右键菜单
+const contextMenu = ref<{
+  visible: boolean
+  x: number
+  y: number
+  track: number
+  clip: number
+  time: number
+}>({ visible: false, x: 0, y: 0, track: -1, clip: -1, time: 0 })
+
+function showContextMenu(e: MouseEvent, track: number, clip: number, time: number) {
+  e.preventDefault()
+  contextMenu.value = { visible: true, x: e.clientX, y: e.clientY, track, clip, time }
+}
+
+function hideContextMenu() {
+  contextMenu.value.visible = false
+}
+
+function ctxCopy() {
+  copySelectedClips()
+  hideContextMenu()
+}
+function ctxCut() {
+  cutSelectedClips()
+  hideContextMenu()
+}
+function ctxPaste() {
+  pasteClips()
+  hideContextMenu()
+}
+function ctxDelete() {
+  deleteSelectedClips()
+  hideContextMenu()
+}
+function ctxDuplicate() {
+  duplicateSelectedClips()
+  hideContextMenu()
+}
+function ctxSplit() {
+  if (contextMenu.value.track >= 0 && contextMenu.value.clip >= 0) {
+    commit(() => {
+      ops.splitClip(state.doc!.timeline!.tracks, contextMenu.value.track, contextMenu.value.clip, contextMenu.value.time)
+    })
+  }
+  hideContextMenu()
+}
+function ctxAddKeyframe() {
+  if (contextMenu.value.track >= 0 && contextMenu.value.clip >= 0) {
+    commit(() => {
+      ops.addKeyframe(state.doc!.timeline!.tracks, contextMenu.value.track, contextMenu.value.clip, contextMenu.value.time)
+    })
+  }
+  hideContextMenu()
+}
+function ctxAddClip() {
+  if (contextMenu.value.track >= 0) {
+    commit(() => {
+      ops.addClip(state.doc!.timeline!.tracks, contextMenu.value.track, contextMenu.value.time, 3)
+    })
+  }
+  hideContextMenu()
+}
 
 // ── 计算属性 ──────────────────────────────────────────────────
 
@@ -261,9 +327,11 @@ function onClipDblClick(e: MouseEvent, trackIndex: number, clipIndex: number) {
 
 function onContentMouseDown(e: MouseEvent) {
   if (e.button !== 0) return
+  hideContextMenu()
   const t = getMouseTime(e)
   seek(Math.max(0, Math.min(canvasDuration.value, t)))
   clearSelection()
+  clearSelectedClips()
 }
 
 // ── 拖拽结束 ──────────────────────────────────────────────────
@@ -561,7 +629,7 @@ onUnmounted(() => {
             class="track-row"
             :class="{ hidden: !getTrackView(track.id).visible }"
           >
-            <div class="track-lines">
+            <div class="track-lines" @contextmenu="showContextMenu($event, ti, -1, getMouseTime($event))">
               <!-- Clip -->
               <div
                 v-for="(clip, ci) in track.clips"
@@ -579,6 +647,7 @@ onUnmounted(() => {
                 }"
                 @mousedown="onClipMouseDown($event, ti, ci)"
                 @dblclick="onClipDblClick($event, ti, ci)"
+                @contextmenu="showContextMenu($event, ti, ci, clip.start_time + clip.duration / 2)"
               >
                 <span v-if="!((clip.duration < 0 ? canvasDuration : clip.duration) * pxPerSecond < 40)" class="clip-label">{{ clipLabel(clip, track.type) }}</span>
                 <span v-if="!((clip.duration < 0 ? canvasDuration : clip.duration) * pxPerSecond < 60)" class="clip-time">{{ formatTime(clip.start_time) }}</span>
@@ -603,6 +672,25 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- 右键菜单 -->
+    <div
+      v-if="contextMenu.visible"
+      class="context-menu"
+      :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+      @click.stop
+    >
+      <div class="ctx-item" @click="ctxCopy">{{ t('context.copy') }}</div>
+      <div class="ctx-item" @click="ctxCut">{{ t('context.cut') }}</div>
+      <div class="ctx-item" @click="ctxPaste">{{ t('context.paste') }}</div>
+      <div class="ctx-item" @click="ctxDuplicate">{{ t('context.duplicate') }}</div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item" @click="ctxSplit">{{ t('context.split') }}</div>
+      <div class="ctx-item" @click="ctxAddKeyframe">{{ t('context.add_keyframe') }}</div>
+      <div class="ctx-item" v-if="contextMenu.clip < 0" @click="ctxAddClip">{{ t('context.add_clip') }}</div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item danger" @click="ctxDelete">{{ t('context.delete') }}</div>
     </div>
   </div>
 </template>
@@ -984,5 +1072,39 @@ onUnmounted(() => {
 }
 .resize-handle:hover {
   background: rgba(255,255,255,0.15);
+}
+
+/* 右键菜单 */
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: #28282e;
+  border: 1px solid #3a3a44;
+  border-radius: 6px;
+  padding: 4px;
+  min-width: 160px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+.ctx-item {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #d8d8e0;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.ctx-item:hover {
+  background: #3a4a6b;
+  color: #fff;
+}
+.ctx-item.danger {
+  color: #ef4444;
+}
+.ctx-item.danger:hover {
+  background: rgba(239,68,68,0.15);
+}
+.ctx-sep {
+  height: 1px;
+  background: #3a3a44;
+  margin: 4px 0;
 }
 </style>

@@ -50,6 +50,7 @@ public final class WebEditorApi {
                     CameraManager.INSTANCE.stop();
                     pushPlaybackState();
                 }
+                case "editor.setCamera" -> handleSetCamera(data);
                 default -> sendError(session, id, "unknown type: " + type);
             }
         } catch (Exception e) {
@@ -130,6 +131,15 @@ public final class WebEditorApi {
         if (data.has("time")) {
             CameraManager.INSTANCE.setTime(data.get("time").getAsFloat());
         }
+    }
+
+    private static void handleSetCamera(JsonObject data) {
+        float yaw = data.has("yaw") ? data.get("yaw").getAsFloat() : 0f;
+        float pitch = data.has("pitch") ? data.get("pitch").getAsFloat() : 0f;
+        float roll = data.has("roll") ? data.get("roll").getAsFloat() : 0f;
+        float fov = data.has("fov") ? data.get("fov").getAsFloat() : 70f;
+        float zoom = data.has("zoom") ? data.get("zoom").getAsFloat() : 1f;
+        CameraManager.INSTANCE.setCameraDirect(yaw, pitch, roll, fov, zoom);
     }
 
     private static void pushPlaybackState() {

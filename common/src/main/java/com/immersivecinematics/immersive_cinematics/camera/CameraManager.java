@@ -585,6 +585,11 @@ public class CameraManager {
         return scriptPlayer.getCurrentProperties();
     }
 
+    /** WebUI 编辑器直接设置预览相机参数（yaw/pitch/roll/fov/zoom） */
+    public void setCameraDirect(float yaw, float pitch, float roll, float fov, float zoom) {
+        if (!active) return;
+        activeProperties.setAllDirect(yaw, pitch, roll, fov, zoom);
+    }
     public void reset() {
         activeProperties.reset();
         activePath.reset();
