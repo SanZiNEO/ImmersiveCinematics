@@ -1,43 +1,15 @@
-## [0.3.5] - 2026-08-20
+### 2026-09-01 追加 — 虚拟相机中心：完全接入原版 ChunkMap 差集
 
-0.3.5：世界预加载与运镜体系、音频听者重构、编辑器/预设/GIF 增强、去除 Architectury 第三方依赖。
-
-### Added
-- **脚本文件夹组织**：`scripts/` 支持子文件夹递归加载（深度 ≤ 5），编辑器/命令显示相对路径；`id` 仍全局唯一，子目录仅文件组织
-- **触发器前置依赖**：`triggers[].requires: string[]`（AND），全部前置脚本触发过才允许本触发器触发；validator 提示失效引用
-- **呼吸扰动 v2**：`cam_breath_type`（`perlin` / `perlin_axis` / `sine` / `trauma`）、`cam_breath_speed`，trauma 新增 `cam_breath_trauma` / `cam_breath_decay`
-- **look_at 相对目标**：`look_at_target` 对象（绝对/触发点偏移/实体偏移/坐标偏移），兼容旧字段
-- **动态 yaw 基准**：`yaw_base`（world/entity/line）与 `pitch_base`，`yaw` 变为相对偏移，与 look_at 互斥；基准空间系 `fwd/up/right`
-- **区块预加载统一**：`preload-camera-region-unified` 设计落地——far-view 由隐藏假人驱动原版区块/实体追踪，退出时玩家区对账补发，实体中继与区块同源时序；脚本级 `meta.preload` 开关
-- **预加载预热与释放复用**：下一 CAMERA 片段按 `prewarmLeadSeconds` 提前加 ticket 预热；脚本结束用 `playerNeed ∩ sentCameraChunks` 差集复用，只需补发玩家区缺失块，近距离结束不再全量重发
-- **预加载配置平台持久化**：ForgeConfigSpec / Fabric JSON 接入全部预加载字段（cap/force/prewarm/playerZone 等），配置修改后跨重启生效
-- **音频体系重构**：`meta.listener`（player/camera）听者模式；AUDIO 轨道回归原版 SoundEngine，相对/绝对位置语义 + 默认衰减；环境音（群系/水下/气泡柱/animateTick）在 camera 模式采样到相机；编辑器音频联动重写
-- **编辑器飞行取景**：F6 + WASD/鼠标操控相机取景，可记录/取消；编辑器模块化 + 面板重构
-- **Schema Java 元数据化**：`schema.json` 迁移为 Java `FieldDef` / `TrackSchemas` / `SchemaRegistry`，编辑器/解析器/默认值共用
-- **GIF Overlay**：stbi_load_gif 拆帧 + 单帧 DynamicTexture 轮播，带内存上限与释放
-- **预设系统**：参数 schema + 生成函数注册，初版预设库（环绕轨道等），生成结果可编辑
-- **去除 Architectury**：MultiLoader 重构，common/forge/fabric 三模块，无第三方前置依赖
-
-### Changed
-- README/README_CN 版本更新为 0.3.5；文档补充 `meta.preload`、目录组织、触发器前置依赖
-- 预加载日志节流：高频包按秒聚合，关键包（AddEntity/chunk/center/remove）保留逐条
-- Forge 假人就位时序：先 `moveTo` 相机坐标再 bootstrap，初始实体与区块按原版 `addNewPlayer` 顺序送达
-
-### Fixed
-- Forge 远距离实体数量偏少：同一村庄位置下客户端 radius=64 实体数从 ~20 提升到 ~60~66，与 Fabric 同区间
-- 修复 Forge 实体中继中 `ClientboundBundlePacket` 解包转发时序
-- 清理 `ChunkPreloadManager` 死代码（requestTickets/sendReady/desired/ticketed/sent 残留）
-
-### 2026-08-22 追加 — 渲染优化模组兼容与 Forge 打包修复
-
-**Fixed**
-- 修复与 Sodium / Rubidium / Embeddium 的 `LevelRendererMixin` 注入冲突：检测到这三类渲染优化模组时跳过 `LevelRendererMixin`，由它们的 Camera/Frustum 管线接管渲染中心；`CameraMixin` 仍驱动虚拟相机，远端画面渲染功能保留
-- 修复 Forge 普通 jar 因缺少 MixinExtras 无法启动的问题：Forge `SoundEngineMixin` 拆分为平台专属实现（Forge 用原版 `@Redirect`，Fabric 保留 `@WrapOperation`），Forge 不再依赖/内置 MixinExtras，普通 jar 可直接运行
-- 新增跨平台 Mixin 配置插件 `ImmersiveCinematicsMixinPlugin`，用于按平台/环境条件跳过冲突 mixin
-- 新增脚本 meta 开关 `suppress_distortion`：独立控制是否屏蔽屏幕扭曲（反胃/传送门旋转）；未设置时兼容旧行为（跟随 `suppress_bob` → `hide_hud`）
-- 移除 `GameRendererMixin` 对 `Mth.lerp` 的 `@Redirect`：扭曲屏蔽改为播放期间临时设置原版 `screenEffectScale` 为 0，播放结束恢复；同时解决与 SecurityCraft `GameRendererMixin` 的注入冲突
-- 安全化三处 `@Redirect`：`SoundManagerMixin` → `@ModifyArg`、`LevelRendererMixin` → `@ModifyVariable`、`BubbleColumnAmbientSoundHandlerMixin` → `@ModifyArg`，功能不变且降低与其他模组注入冲突的概率
-- Mixin 配置插件去反射：`ImmersiveCinematicsMixinPlugin` 拆分为 Forge / Fabric 平台专属实现，分别直接使用 `FMLLoader` / `ModList` 与 `FabricLoader` API，不再使用 Java 反射
+**预加载核心重构**
+- 新增 `ChunkMapCameraMixin`：向 `ChunkMap` 注入玩家 UUID → 虚拟相机 `SectionPos`，把 `move` / `updatePlayerPos` 的新中心重定向到相机；复用原版 `DistanceManager` 方形加载 ticket 与 `isChunkInRange` 客户端发送/遗忘差集
+- 新增 `CameraVirtualCenterAccess`（位于 `trigger.server`，避免 Mixin 包引用限制）
+- `ChunkPreloadManager` 改为“设置虚拟中心 → 调用原版 `ChunkMap.move`”，删除自建 `desired / playerCovered / sentCamera / sentPlayer / resync / forget / sendCenter` 手工链路
+- 删除多片段预热：原版虚拟中心在片段激活时按原版规则加载，不再使用冗余 `addRegionTicket` 预热
+- 删除自建 `CameraEntitySyncManager`：原版虚拟中心自动向真实玩家发送相机区实体
+- 修复 Mixin 注入：`getBlockX / getBlockZ` 实际字节码 owner 为 `ServerPlayer`，target 改为 `ServerPlayer` 后正常
+- 修复接口放入 mixin package 导致 `IllegalClassLoadError`，移至普通业务包
+- 日志去重：仅相机模式或中心变化时才设置虚拟中心并触发 `move`；移除旧 `[preload status/diff/send/resync/prewarm]` 日志
+- 清理 `ChunkPreloadManager` / `ServerEventHandler` 中全部废弃代码与字段
 
 ### 2026-08-31 追加 — 预加载状态边界统一差集、空片段处理、编辑器收尾与 WebUI 预留
 
@@ -70,6 +42,47 @@
 **文档 / 归档**
 - 0.3.5 计划文档归档到 `plans/complete/0.3.5/`
 - 0.3.6 文档整理：删除被 WebUI 迁移取代的 UI 缩放布局方案；无假人相机区域方案归档到 0.3.5 并标记已实施
+
+### 2026-08-22 追加 — 渲染优化模组兼容与 Forge 打包修复
+
+**Fixed**
+- 修复与 Sodium / Rubidium / Embeddium 的 `LevelRendererMixin` 注入冲突：检测到这三类渲染优化模组时跳过 `LevelRendererMixin`，由它们的 Camera/Frustum 管线接管渲染中心；`CameraMixin` 仍驱动虚拟相机，远端画面渲染功能保留
+- 修复 Forge 普通 jar 因缺少 MixinExtras 无法启动的问题：Forge `SoundEngineMixin` 拆分为平台专属实现（Forge 用原版 `@Redirect`，Fabric 保留 `@WrapOperation`），Forge 不再依赖/内置 MixinExtras，普通 jar 可直接运行
+- 新增跨平台 Mixin 配置插件 `ImmersiveCinematicsMixinPlugin`，用于按平台/环境条件跳过冲突 mixin
+- 新增脚本 meta 开关 `suppress_distortion`：独立控制是否屏蔽屏幕扭曲（反胃/传送门旋转）；未设置时兼容旧行为（跟随 `suppress_bob` → `hide_hud`）
+- 移除 `GameRendererMixin` 对 `Mth.lerp` 的 `@Redirect`：扭曲屏蔽改为播放期间临时设置原版 `screenEffectScale` 为 0，播放结束恢复；同时解决与 SecurityCraft `GameRendererMixin` 的注入冲突
+- 安全化三处 `@Redirect`：`SoundManagerMixin` → `@ModifyArg`、`LevelRendererMixin` → `@ModifyVariable`、`BubbleColumnAmbientSoundHandlerMixin` → `@ModifyArg`，功能不变且降低与其他模组注入冲突的概率
+- Mixin 配置插件去反射：`ImmersiveCinematicsMixinPlugin` 拆分为 Forge / Fabric 平台专属实现，分别直接使用 `FMLLoader` / `ModList` 与 `FabricLoader` API，不再使用 Java 反射
+
+## [0.3.5] - 2026-08-20
+
+0.3.5：世界预加载与运镜体系、音频听者重构、编辑器/预设/GIF 增强、去除 Architectury 第三方依赖。
+
+### Added
+- **脚本文件夹组织**：`scripts/` 支持子文件夹递归加载（深度 ≤ 5），编辑器/命令显示相对路径；`id` 仍全局唯一，子目录仅文件组织
+- **触发器前置依赖**：`triggers[].requires: string[]`（AND），全部前置脚本触发过才允许本触发器触发；validator 提示失效引用
+- **呼吸扰动 v2**：`cam_breath_type`（`perlin` / `perlin_axis` / `sine` / `trauma`）、`cam_breath_speed`，trauma 新增 `cam_breath_trauma` / `cam_breath_decay`
+- **look_at 相对目标**：`look_at_target` 对象（绝对/触发点偏移/实体偏移/坐标偏移），兼容旧字段
+- **动态 yaw 基准**：`yaw_base`（world/entity/line）与 `pitch_base`，`yaw` 变为相对偏移，与 look_at 互斥；基准空间系 `fwd/up/right`
+- **区块预加载统一**：`preload-camera-region-unified` 设计落地——far-view 由隐藏假人驱动原版区块/实体追踪，退出时玩家区对账补发，实体中继与区块同源时序；脚本级 `meta.preload` 开关
+- **预加载预热与释放复用**：下一 CAMERA 片段按 `prewarmLeadSeconds` 提前加 ticket 预热；脚本结束用 `playerNeed ∩ sentCameraChunks` 差集复用，只需补发玩家区缺失块，近距离结束不再全量重发
+- **预加载配置平台持久化**：ForgeConfigSpec / Fabric JSON 接入全部预加载字段（cap/force/prewarm/playerZone 等），配置修改后跨重启生效
+- **音频体系重构**：`meta.listener`（player/camera）听者模式；AUDIO 轨道回归原版 SoundEngine，相对/绝对位置语义 + 默认衰减；环境音（群系/水下/气泡柱/animateTick）在 camera 模式采样到相机；编辑器音频联动重写
+- **编辑器飞行取景**：F6 + WASD/鼠标操控相机取景，可记录/取消；编辑器模块化 + 面板重构
+- **Schema Java 元数据化**：`schema.json` 迁移为 Java `FieldDef` / `TrackSchemas` / `SchemaRegistry`，编辑器/解析器/默认值共用
+- **GIF Overlay**：stbi_load_gif 拆帧 + 单帧 DynamicTexture 轮播，带内存上限与释放
+- **预设系统**：参数 schema + 生成函数注册，初版预设库（环绕轨道等），生成结果可编辑
+- **去除 Architectury**：MultiLoader 重构，common/forge/fabric 三模块，无第三方前置依赖
+
+### Changed
+- README/README_CN 版本更新为 0.3.5；文档补充 `meta.preload`、目录组织、触发器前置依赖
+- 预加载日志节流：高频包按秒聚合，关键包（AddEntity/chunk/center/remove）保留逐条
+- Forge 假人就位时序：先 `moveTo` 相机坐标再 bootstrap，初始实体与区块按原版 `addNewPlayer` 顺序送达
+
+### Fixed
+- Forge 远距离实体数量偏少：同一村庄位置下客户端 radius=64 实体数从 ~20 提升到 ~60~66，与 Fabric 同区间
+- 修复 Forge 实体中继中 `ClientboundBundlePacket` 解包转发时序
+- 清理 `ChunkPreloadManager` 死代码（requestTickets/sendReady/desired/ticketed/sent 残留）
 
 ## [0.3.4] - 2026-08-06
 

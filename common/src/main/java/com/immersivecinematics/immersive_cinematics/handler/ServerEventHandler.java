@@ -71,9 +71,7 @@ public final class ServerEventHandler {
     public static void onServerTick(MinecraftServer server) {
         TriggerEngine.INSTANCE.onServerTick(server);
         ScriptEventManager.INSTANCE.onServerTick(server);
-        com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager.INSTANCE.tick();
         com.immersivecinematics.immersive_cinematics.trigger.server.CameraAnchorManager.INSTANCE.tick();
-        com.immersivecinematics.immersive_cinematics.trigger.server.CameraEntitySyncManager.INSTANCE.tick();
     }
 
     public static void onRegisterCommands(CommandDispatcher<CommandSourceStack> dispatcher) {

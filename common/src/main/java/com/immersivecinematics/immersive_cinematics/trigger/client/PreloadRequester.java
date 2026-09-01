@@ -14,6 +14,8 @@ import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPreloadPo
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPreloadRequestPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +34,7 @@ import java.util.Optional;
 public final class PreloadRequester {
 
     public static final PreloadRequester INSTANCE = new PreloadRequester();
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/PreloadClient");
 
     private String lastScript = "";
     private int tickCounter = 0;
@@ -92,6 +95,10 @@ public final class PreloadRequester {
                 preloadActive = true;
                 prewarmTargetKey = "";
                 lastHadActiveCamera = activeCamera;
+                if (Config.debugLogging) {
+                    LOGGER.info("[preload client] START script={} 位置=({},{}) 相机块=({},{}) cameraMode={} render={}",
+                            sid, bx, bz, bx >> 4, bz >> 4, activeCamera, mc.options.renderDistance().get());
+                }
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                         new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, 0,
                                 cam.getCameraYaw(), mc.options.renderDistance().get(),
@@ -104,6 +111,10 @@ public final class PreloadRequester {
             boolean activeChanged = activeCamera != lastHadActiveCamera;
             if (activeChanged) lastHadActiveCamera = activeCamera;
             if ((tickCounter % Math.max(1, Config.preloadReportInterval) == 0 && preloadActive) || activeChanged) {
+                if (Config.debugLogging) {
+                    LOGGER.info("[preload client] POS script={} 位置=({},{}) 相机块=({},{}) cameraMode={} activeChanged={}",
+                            sid, bx, bz, bx >> 4, bz >> 4, activeCamera, activeChanged);
+                }
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                         new C2SPreloadPositionPacket(bx, bz, cam.getCameraYaw(), activeCamera));
             }
@@ -123,6 +134,9 @@ public final class PreloadRequester {
             prewarmTargetKey = "";
             lastHadActiveCamera = false;
             return;
+        }
+        if (Config.debugLogging) {
+            LOGGER.info("[preload client] RELEASE script={}", lastScript);
         }
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                 new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_RELEASE, lastScript, 0, 0, 0, 0f, 0,
@@ -161,6 +175,10 @@ public final class PreloadRequester {
 
         int bx = (int) Math.floor(target.x);
         int bz = (int) Math.floor(target.z);
+        if (Config.debugLogging) {
+            LOGGER.info("[preload client] PREWARM script={} 目标=({},{}) 相机块=({},{}) lead={}",
+                    sid, bx, bz, bx >> 4, bz >> 4, String.format("%.1f", lead));
+        }
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                 new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PREWARM, sid, bx, bz,
                         Config.preloadPrewarmRadius,

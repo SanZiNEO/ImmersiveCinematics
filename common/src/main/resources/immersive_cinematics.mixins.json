@@ -26,6 +26,7 @@
     "UnderwaterAmbientSoundHandlerMixin"
   ],
   "mixins": [
+    "ChunkMapCameraMixin",
     "ChunkMapMixin",
     "ItemUseMixin",
     "NaturalSpawnerMixin"
