@@ -63,10 +63,18 @@ onUnmounted(() => {
       <span>{{ fpsRef }} fps</span>
     </div>
     <div class="controls">
-      <button @click="state.playing ? pause() : play()">{{ state.playing ? '暂停' : '播放' }}</button>
-      <button @click="stop">停止</button>
-      <button @click="seek(Math.max(0, state.time - 1))">-1s</button>
-      <button @click="seek(state.time + 1)">+1s</button>
+      <button class="icon-btn" @click="state.playing ? pause() : play()" :title="state.playing ? '暂停' : '播放'">
+        <img :src="state.playing ? '../assets/icons/pause.svg' : '../assets/icons/play.svg'" alt="" />
+      </button>
+      <button class="icon-btn" @click="stop" title="停止">
+        <img src="../assets/icons/record.svg" alt="" />
+      </button>
+      <button class="icon-btn" @click="seek(Math.max(0, state.time - 1))" title="后退 1s">
+        <img src="../assets/icons/prev.svg" alt="" />
+      </button>
+      <button class="icon-btn" @click="seek(state.time + 1)" title="前进 1s">
+        <img src="../assets/icons/next.svg" alt="" />
+      </button>
       <input type="range" min="0" :max="state.doc?.timeline?.total_duration || 0" step="0.1"
              :value="state.time" @input="onSeekInput" />
     </div>
@@ -87,6 +95,26 @@ onUnmounted(() => {
 .bar span { margin-right: 12px; }
 .ok { color: #4f4; }
 .bad { color: #f66; }
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: #101318;
+}
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:hover { background: #28282e; }
+.icon-btn img { width: 18px; height: 18px; }
 canvas {
   flex: 1;
   width: 100%;
