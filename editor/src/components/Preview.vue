@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import { state, onFrame, play, pause, stop, seek } from '../store'
+import playIcon from '../assets/icons/play.svg'
+import pauseIcon from '../assets/icons/pause.svg'
+import prevIcon from '../assets/icons/prev.svg'
+import nextIcon from '../assets/icons/next.svg'
+import stopIcon from '../assets/icons/record.svg'
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const fpsRef = ref(0)
@@ -63,22 +68,35 @@ onUnmounted(() => {
       <span>{{ fpsRef }} fps</span>
     </div>
     <div class="controls">
-      <button class="icon-btn" @click="state.playing ? pause() : play()" :title="state.playing ? '暂停' : '播放'">
-        <img :src="state.playing ? '../assets/icons/pause.svg' : '../assets/icons/play.svg'" alt="" />
+      <button class="icon-btn" @click="seek(Math.max(0, state.time - 1))" title="后退 1s">
+        <img :src="prevIcon" alt="后退" />
+      </button>
+      <button class="icon-btn play-btn" @click="state.playing ? pause() : play()" :title="state.playing ? '暂停' : '播放'">
+        <img :src="state.playing ? pauseIcon : playIcon" alt="播放" />
       </button>
       <button class="icon-btn" @click="stop" title="停止">
-        <img src="../assets/icons/record.svg" alt="" />
-      </button>
-      <button class="icon-btn" @click="seek(Math.max(0, state.time - 1))" title="后退 1s">
-        <img src="../assets/icons/prev.svg" alt="" />
+        <img :src="stopIcon" alt="停止" />
       </button>
       <button class="icon-btn" @click="seek(state.time + 1)" title="前进 1s">
-        <img src="../assets/icons/next.svg" alt="" />
+        <img :src="nextIcon" alt="前进" />
       </button>
-      <input type="range" min="0" :max="state.doc?.timeline?.total_duration || 0" step="0.1"
-             :value="state.time" @input="onSeekInput" />
+      <input
+        type="range"
+        class="seek-slider"
+        min="0"
+        :max="state.doc?.timeline?.total_duration || 100"
+        step="0.05"
+        :value="state.time"
+        @input="onSeekInput"
+      />
     </div>
-    <canvas ref="canvasRef" />
+    <div class="canvas-wrap">
+      <canvas ref="canvasRef" />
+      <div v-if="!state.connected" class="no-signal">
+        <div class="no-signal-text">未连接游戏</div>
+        <div class="no-signal-hint">在游戏内输入 /webui 启动服务端</div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -87,40 +105,100 @@ onUnmounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  background: #0a0a0c;
 }
 .bar {
-  padding: 6px 10px;
+  padding: 6px 12px;
   background: #101318;
+  border-bottom: 1px solid #222;
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  font-family: monospace;
 }
-.bar span { margin-right: 12px; }
-.ok { color: #4f4; }
-.bad { color: #f66; }
+.bar span { color: #8a8a96; }
+.ok { color: #34d399 !important; }
+.bad { color: #ef4444 !important; }
 .controls {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 10px;
+  padding: 8px 12px;
   background: #101318;
+  border-bottom: 1px solid #222;
 }
 .icon-btn {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   background: transparent;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 .icon-btn:hover { background: #28282e; }
-.icon-btn img { width: 18px; height: 18px; }
-canvas {
+.icon-btn img {
+  width: 18px;
+  height: 18px;
+  filter: brightness(0) invert(0.85);
+}
+.play-btn {
+  width: 36px;
+  height: 36px;
+  background: #2f3b55;
+}
+.play-btn:hover { background: #3a4a6b; }
+.play-btn img {
+  width: 20px;
+  height: 20px;
+  filter: brightness(0) invert(1);
+}
+.seek-slider {
   flex: 1;
-  width: 100%;
-  height: calc(100% - 28px);
+  height: 4px;
+  -webkit-appearance: none;
+  background: #333;
+  border-radius: 2px;
+  outline: none;
+  margin-left: 8px;
+}
+.seek-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #4e7bd3;
+  cursor: pointer;
+}
+.canvas-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+canvas {
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
-  background: #000;
   image-rendering: pixelated;
+}
+.no-signal {
+  position: absolute;
+  text-align: center;
+  color: #444;
+}
+.no-signal-text {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.no-signal-hint {
+  font-size: 12px;
+  color: #555;
 }
 </style>

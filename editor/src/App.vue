@@ -15,11 +15,12 @@ import KeyframePanel from './components/KeyframePanel.vue'
 import TriggerPanel from './components/TriggerPanel.vue'
 import Timeline from './components/Timeline.vue'
 
-const leftWidth = ref(330)
-const leftPanelWidth = ref(340)
-const rightPanelWidth = ref(380)
-const timelineHeight = ref(280)
-const dragging = ref<'left' | 'leftPanel' | 'rightPanel' | 'bottom' | null>(null)
+// 各区域宽度（可拖拽调整，有最小/最大限制）
+const jsonColWidth = ref(280)       // 最左 JSON 实时预览列
+const leftPanelWidth = ref(300)     // 编辑器左侧面板（脚本/轨道/预设）
+const rightPanelWidth = ref(360)    // 右侧属性面板
+const timelineHeight = ref(260)     // 底部时间轴高度
+const dragging = ref<'json' | 'left' | 'right' | 'bottom' | null>(null)
 
 const leftTabs = [
   { id: 'scripts', label: '脚本' },
@@ -38,29 +39,44 @@ const rightActiveTab = computed({
   set: (v: any) => { state.rightTab = v },
 })
 
+/**
+ * 自适应初始布局：根据窗口大小按比例分配各区域宽度，
+ * 保证每个区域有合理的最小宽度，窗口小时自动压缩。
+ */
 function initSizes() {
   const w = window.innerWidth
   const h = window.innerHeight
-  leftWidth.value = Math.max(280, Math.min(560, Math.floor(w * 0.18)))
-  leftPanelWidth.value = Math.max(280, Math.min(520, Math.floor(w * 0.18)))
-  rightPanelWidth.value = Math.max(300, Math.min(600, Math.floor(w * 0.22)))
-  timelineHeight.value = Math.max(200, Math.min(420, Math.floor(h * 0.3)))
+
+  // JSON 列：14%，最小 200，最大 400
+  jsonColWidth.value = clamp(Math.floor(w * 0.14), 200, 400)
+  // 编辑器左侧面板：16%，最小 220，最大 420
+  leftPanelWidth.value = clamp(Math.floor(w * 0.16), 220, 420)
+  // 右侧属性面板：20%，最小 280，最大 520
+  rightPanelWidth.value = clamp(Math.floor(w * 0.2), 280, 520)
+  // 时间轴：28% 高度，最小 180，最大 400
+  timelineHeight.value = clamp(Math.floor(h * 0.28), 180, 400)
 }
 
-function startDrag(kind: 'left' | 'leftPanel' | 'rightPanel' | 'bottom', event: MouseEvent) {
+function clamp(v: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, v))
+}
+
+function startDrag(kind: 'json' | 'left' | 'right' | 'bottom', event: MouseEvent) {
   dragging.value = kind
   event.preventDefault()
 }
 
 function onMouseMove(event: MouseEvent) {
-  if (dragging.value === 'left') {
-    leftWidth.value = Math.min(560, Math.max(200, event.clientX))
-  } else if (dragging.value === 'leftPanel') {
-    leftPanelWidth.value = Math.min(560, Math.max(220, event.clientX - leftWidth.value - 8))
-  } else if (dragging.value === 'rightPanel') {
-    rightPanelWidth.value = Math.min(700, Math.max(240, window.innerWidth - event.clientX))
+  if (dragging.value === 'json') {
+    jsonColWidth.value = clamp(event.clientX, 180, 450)
+  } else if (dragging.value === 'left') {
+    // 左侧面板的左边界 = jsonColWidth + 分隔条
+    const leftEdge = jsonColWidth.value + 4
+    leftPanelWidth.value = clamp(event.clientX - leftEdge, 200, 480)
+  } else if (dragging.value === 'right') {
+    rightPanelWidth.value = clamp(window.innerWidth - event.clientX, 260, 600)
   } else if (dragging.value === 'bottom') {
-    timelineHeight.value = Math.min(640, Math.max(120, window.innerHeight - event.clientY))
+    timelineHeight.value = clamp(window.innerHeight - event.clientY, 140, 500)
   }
 }
 
@@ -79,20 +95,34 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
+// 窗口大小变化时重新计算（仅在用户从未手动拖拽过时自适应）
+let userDragged = false
+function onResize() {
+  if (userDragged) return
+  initSizes()
+}
+
 onMounted(() => {
   initSizes()
-  loadDemo() // 先加载离线演示，界面立即可用
-  connect()  // 后台尝试连接游戏，成功后替换
+  loadDemo()
+  connect()
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('mousemove', onMouseMove)
   window.addEventListener('mouseup', onMouseUp)
+  window.addEventListener('resize', onResize)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseup', onMouseUp)
+  window.removeEventListener('resize', onResize)
 })
+
+// 标记用户已手动拖拽，停止自动自适应
+function markUserDragged() {
+  userDragged = true
+}
 </script>
 
 <template>
@@ -100,40 +130,43 @@ onUnmounted(() => {
     <TitleBar />
 
     <div class="body-row">
-      <aside class="script-column" :style="{ width: leftWidth + 'px' }">
+      <!-- 最左：JSON 实时预览（原始设计，保留） -->
+      <aside class="json-column" :style="{ width: jsonColWidth + 'px' }">
         <ScriptDock />
       </aside>
+      <div class="resize-h" @mousedown="startDrag('json', $event); markUserDragged()"></div>
 
-      <div class="resize-h" @mousedown="startDrag('left', $event)"></div>
+      <!-- 编辑器左侧面板（脚本/轨道/预设）—— 参考剪映左侧素材面板模式 -->
+      <div class="editor-left-panel" :style="{ width: leftPanelWidth + 'px' }">
+        <TabbedPanel
+          :tabs="leftTabs"
+          :active="leftActiveTab"
+          @change="leftActiveTab = $event"
+        >
+          <template #content>
+            <div v-if="leftActiveTab === 'scripts'" class="scripts-tab">
+              <div class="scripts-list-section">
+                <ScriptList />
+              </div>
+              <div class="scripts-structure-section">
+                <ScriptStructure />
+              </div>
+            </div>
+            <TrackListPanel v-else-if="leftActiveTab === 'tracks'" />
+            <PresetsPanel v-else-if="leftActiveTab === 'presets'" />
+          </template>
+        </TabbedPanel>
+      </div>
+      <div class="resize-h" @mousedown="startDrag('left', $event); markUserDragged()"></div>
 
+      <!-- 中间编辑区 -->
       <div class="editor-workspace">
         <div class="editor-top">
-          <div class="left-panel-area" :style="{ width: leftPanelWidth + 'px' }">
-            <TabbedPanel
-              :tabs="leftTabs"
-              :active="leftActiveTab"
-              :show-list="true"
-              @change="leftActiveTab = $event"
-            >
-              <template #list>
-                <ScriptList v-if="leftActiveTab === 'scripts'" />
-                <TrackListPanel v-else-if="leftActiveTab === 'tracks'" />
-                <PresetsPanel v-else />
-              </template>
-              <template #content>
-                <ScriptStructure v-if="leftActiveTab === 'scripts'" />
-                <div v-else class="panel-placeholder">
-                  {{ leftActiveTab === 'tracks' ? '轨道详情' : '预设详情' }}
-                </div>
-              </template>
-            </TabbedPanel>
-          </div>
-          <div class="resize-h panel-left" @mousedown="startDrag('leftPanel', $event)"></div>
           <div class="preview-area">
             <Preview />
           </div>
-          <div class="resize-h panel-right" @mousedown="startDrag('rightPanel', $event)"></div>
-          <div class="right-panel-area" :style="{ width: rightPanelWidth + 'px' }">
+          <div class="resize-h" @mousedown="startDrag('right', $event); markUserDragged()"></div>
+          <div class="right-panel" :style="{ width: rightPanelWidth + 'px' }">
             <TabbedPanel
               :tabs="rightTabs"
               :active="rightActiveTab"
@@ -149,7 +182,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="resize-v" @mousedown="startDrag('bottom', $event)"></div>
+        <div class="resize-v" @mousedown="startDrag('bottom', $event); markUserDragged()"></div>
         <footer class="timeline-area" :style="{ height: timelineHeight + 'px' }">
           <Timeline />
         </footer>
@@ -189,6 +222,26 @@ button {
 }
 button:hover:not(:disabled) { background: #34343c; }
 button:disabled { opacity: .4; cursor: default; }
+
+/* 全局细滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3a3a44;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4a4a54;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -198,13 +251,43 @@ button:disabled { opacity: .4; cursor: default; }
   flex: 1;
   display: flex;
   min-height: 0;
+  min-width: 0;
 }
-.script-column {
+
+/* 最左 JSON 列 */
+.json-column {
+  background: #1e1e24;
   border-right: 1px solid var(--border);
+  overflow: hidden;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+/* 编辑器左侧面板 */
+.editor-left-panel {
   background: var(--bg2);
   overflow: hidden;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
+.scripts-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.scripts-list-section {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.scripts-structure-section {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
 .resize-h {
   width: 4px;
   cursor: col-resize;
@@ -213,6 +296,7 @@ button:disabled { opacity: .4; cursor: default; }
   transition: background .15s;
 }
 .resize-h:hover { background: var(--accent); }
+
 .editor-workspace {
   flex: 1;
   display: flex;
@@ -224,30 +308,18 @@ button:disabled { opacity: .4; cursor: default; }
   display: flex;
   min-height: 0;
 }
-.left-panel-area {
-  border-right: 1px solid var(--border);
-  background: var(--bg2);
-  overflow: auto;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-}
-.panel-placeholder {
-  padding: 10px;
-  font-size: 12px;
-  color: #8a8a96;
-}
-.right-panel-area {
+.right-panel {
   border-left: 1px solid var(--border);
   background: var(--bg2);
-  overflow: auto;
+  overflow: hidden;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 .preview-area {
   flex: 1;
-  min-width: 0;
+  min-width: 200px;
   background: #121216;
 }
 .resize-v {
@@ -261,7 +333,8 @@ button:disabled { opacity: .4; cursor: default; }
 .timeline-area {
   border-top: 1px solid var(--border);
   background: var(--bg2);
-  overflow: auto;
+  overflow: hidden;
   flex-shrink: 0;
+  min-height: 0;
 }
 </style>

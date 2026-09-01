@@ -13,18 +13,20 @@ import type { Clip, Keyframe, Track, TrackType } from '../types'
 
 const scrollerRef = ref<HTMLDivElement | null>(null)
 const contentRef = ref<HTMLDivElement | null>(null)
+const trackHeaderRef = ref<HTMLDivElement | null>(null)
 
 // ── 计算属性 ──────────────────────────────────────────────────
 
 const tracks = computed<Track[]>(() => state.doc?.timeline?.tracks ?? [])
 const totalDuration = computed(() => state.doc?.timeline?.total_duration ?? 10)
-const contentWidth = computed(() => Math.max(totalDuration.value * state.pxPerSecond + 200, 800))
+// 无限画布：至少比总时长长 50%，右侧留 300px 空白用于扩展
+const canvasDuration = computed(() => Math.max(totalDuration.value * 1.5 + 5, 30))
+const contentWidth = computed(() => canvasDuration.value * state.pxPerSecond + 300)
 const pxPerSecond = computed(() => state.pxPerSecond)
 
-// 时间标尺刻度
+// 时间标尺刻度（延伸到整个画布，而不是只到 total_duration）
 const rulerMarks = computed(() => {
   const pps = pxPerSecond.value
-  // 根据缩放选择刻度间隔
   let interval = 1
   if (pps < 15) interval = 10
   else if (pps < 30) interval = 5
@@ -32,10 +34,11 @@ const rulerMarks = computed(() => {
   else if (pps < 200) interval = 0.5
   else interval = 0.1
   const marks: { time: number; label: string; major: boolean }[] = []
-  const count = Math.ceil(totalDuration.value / interval) + 2
+  const end = canvasDuration.value
+  const count = Math.ceil(end / interval) + 1
   for (let i = 0; i <= count; i++) {
     const t = i * interval
-    if (t > totalDuration.value + interval) break
+    if (t > end + interval) break
     marks.push({
       time: t,
       label: formatTime(t),
@@ -128,7 +131,7 @@ function onPlayheadMouseDown(e: MouseEvent) {
 
 function onPlayheadDrag(e: MouseEvent) {
   if (dragMode.value !== 'playhead') return
-  const t = Math.max(0, Math.min(totalDuration.value, getMouseTime(e)))
+  const t = Math.max(0, Math.min(canvasDuration.value, getMouseTime(e)))
   seek(t)
 }
 
@@ -258,7 +261,7 @@ function onClipDblClick(e: MouseEvent, trackIndex: number, clipIndex: number) {
 function onContentMouseDown(e: MouseEvent) {
   if (e.button !== 0) return
   const t = getMouseTime(e)
-  seek(Math.max(0, Math.min(totalDuration.value, t)))
+  seek(Math.max(0, Math.min(canvasDuration.value, t)))
   clearSelection()
 }
 
@@ -326,14 +329,20 @@ function removeTrack(index: number) {
   })
 }
 
-// ── 滚轮缩放 ──────────────────────────────────────────────────
+// ── 滚轮缩放 + 滚动联动 ──────────────────────────────────────
 
 function onWheel(e: WheelEvent) {
   if (e.ctrlKey || e.metaKey) {
     e.preventDefault()
     const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15
-    setTool // noop
     state.pxPerSecond = Math.max(5, Math.min(500, state.pxPerSecond * factor))
+  }
+}
+
+function onScrollerScroll() {
+  // 纵向滚动时同步轨道头
+  if (scrollerRef.value && trackHeaderRef.value) {
+    trackHeaderRef.value.scrollTop = scrollerRef.value.scrollTop
   }
 }
 
@@ -372,6 +381,7 @@ onMounted(() => {
   const scroller = scrollerRef.value
   if (scroller) {
     scroller.addEventListener('wheel', onWheel, { passive: false })
+    scroller.addEventListener('scroll', onScrollerScroll)
   }
 })
 
@@ -379,6 +389,7 @@ onUnmounted(() => {
   const scroller = scrollerRef.value
   if (scroller) {
     scroller.removeEventListener('wheel', onWheel)
+    scroller.removeEventListener('scroll', onScrollerScroll)
   }
   onDragEnd()
 })
@@ -432,7 +443,7 @@ onUnmounted(() => {
     <!-- 时间轴主体 -->
     <div class="timeline-body">
       <!-- 左侧轨道头列 -->
-      <div class="track-header-col">
+      <div class="track-header-col" ref="trackHeaderRef">
         <div class="ruler-spacer"></div>
         <div
           v-for="(track, ti) in tracks"
@@ -527,17 +538,18 @@ onUnmounted(() => {
                 :class="{
                   active: isClipSelected(ti, ci),
                   infinite: clip.duration < 0,
+                  narrow: (clip.duration < 0 ? canvasDuration : clip.duration) * pxPerSecond < 40,
                 }"
                 :style="{
                   left: timeToPx(clip.start_time) + 'px',
-                  width: Math.max(8, (clip.duration < 0 ? totalDuration : clip.duration) * pxPerSecond) + 'px',
+                  width: Math.max(24, (clip.duration < 0 ? canvasDuration : clip.duration) * pxPerSecond) + 'px',
                   background: trackColor(track.type),
                 }"
                 @mousedown="onClipMouseDown($event, ti, ci)"
                 @dblclick="onClipDblClick($event, ti, ci)"
               >
-                <span class="clip-label">{{ clipLabel(clip, track.type) }}</span>
-                <span class="clip-time">{{ formatTime(clip.start_time) }}</span>
+                <span v-if="!((clip.duration < 0 ? canvasDuration : clip.duration) * pxPerSecond < 40)" class="clip-label">{{ clipLabel(clip, track.type) }}</span>
+                <span v-if="!((clip.duration < 0 ? canvasDuration : clip.duration) * pxPerSecond < 60)" class="clip-time">{{ formatTime(clip.start_time) }}</span>
 
                 <!-- 关键帧 -->
                 <div
@@ -646,7 +658,7 @@ onUnmounted(() => {
   background: #202026;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;
 }
 .ruler-spacer {
   height: 24px;
@@ -731,8 +743,7 @@ onUnmounted(() => {
 /* 滚动区 */
 .timeline-scroller {
   flex: 1;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: auto;
   position: relative;
 }
 .timeline-content {
