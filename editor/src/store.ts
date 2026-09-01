@@ -3,7 +3,7 @@
 // WebSocket 连接 + 请求/响应 + 撤销重做 + 编辑器状态
 // ─────────────────────────────────────────────────────────────
 
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import type {
   ScriptDoc, Schema, Selection, TrackViewState, TimelineTool, Track, Clip, Keyframe,
 } from './types'
@@ -60,6 +60,12 @@ export const state = reactive({
   // 轨道视图状态（纯编辑器状态，按 track id 索引，不写入脚本）
   trackView: {} as Record<string, TrackViewState>,
 })
+
+// ── 飞控模式状态 ──────────────────────────────────────────────
+export const flightMode = ref(false)
+export const flightState = ref<{
+  x: number; y: number; z: number; yaw: number; pitch: number; roll: number; fov: number; zoom: number
+} | null>(null)
 
 // ── 撤销重做 ──────────────────────────────────────────────────
 
@@ -209,38 +215,17 @@ function handleMessage(msg: any): void {
     state.time = msg.data?.time ?? state.time
     state.playing = !!msg.data?.playing
   }
-  // ── 游戏端 EDITOR_* 绑定键广播事件 ──
-  if (msg.type === 'editor.play_pause') {
-    if (state.playing) pause()
-    else play()
+  // ── 飞控模式实时状态 ──
+  if (msg.type === 'flight.state') {
+    flightState.value = { ...msg.data }
+    // 实时更新当前选中关键帧
+    updateKeyframeFromFlight(msg.data)
   }
-  if (msg.type === 'editor.add_marker') {
-    addMarker(state.time)
-  }
-  if (msg.type === 'editor.set_loop_in') {
-    setLoopIn(state.time)
-  }
-  if (msg.type === 'editor.set_loop_out') {
-    setLoopOut(state.time)
-  }
-  if (msg.type === 'editor.nudge_playhead') {
-    const dir = msg.data?.direction ?? 1
-    const step = msg.data?.large ? 5 : 0.5
-    seek(Math.max(0, state.time + dir * step))
-  }
-  if (msg.type === 'editor.goto_start') {
-    seek(0)
-  }
-  if (msg.type === 'editor.goto_end') {
-    seek(state.doc?.timeline?.total_duration ?? 0)
-  }
-  if (msg.type === 'editor.delete_selected') {
-    deleteSelectedClips()
-  }
-  if (msg.type === 'editor.frame_all') {
-    // 缩放以适应所有内容（目标 800px 宽度）
-    const total = state.doc?.timeline?.total_duration ?? 10
-    setZoom(800 / Math.max(total, 1))
+  if (msg.type === 'flight.exit') {
+    flightMode.value = false
+    if (!msg.data?.cancelled) {
+      updateKeyframeFromFlight(msg.data)
+    }
   }
   if (listener) listener(msg.type, msg.data || {})
 }
@@ -318,6 +303,47 @@ export function pushScript(): void {
     stripScriptDefaults(docToPush, state.schema)
   }
   send('editor.pushScript', { script: JSON.stringify(docToPush) })
+}
+
+// ── 飞控模式 ──────────────────────────────────────────────────
+
+/** 进入飞控模式：用当前选中关键帧的参数初始化 */
+export function enterFlightMode(): void {
+  const kf = getSelectedKeyframe()
+  if (!kf) return
+  flightMode.value = true
+  const pos = (kf as any).position || { x: 0, y: 0, z: 0 }
+  send('editor.enter_flight_mode', {
+    x: pos.x ?? 0,
+    y: pos.y ?? 0,
+    z: pos.z ?? 0,
+    yaw: (kf as any).yaw ?? 0,
+    pitch: (kf as any).pitch ?? 0,
+    roll: (kf as any).roll ?? 0,
+    fov: (kf as any).fov ?? 70,
+    zoom: (kf as any).zoom ?? 1,
+    absolute: true,
+  })
+}
+
+/** 用飞控模式的实时数据更新当前选中关键帧（不记录 undo，退出时统一记录） */
+function updateKeyframeFromFlight(data: any): void {
+  if (state.selection.track < 0 || state.selection.clip < 0 || state.selection.keyframe < 0) return
+  const track = state.doc?.timeline?.tracks[state.selection.track]
+  const clip = track?.clips[state.selection.clip]
+  const kf = clip?.keyframes[state.selection.keyframe]
+  if (!kf) return
+  const k = kf as any
+  if (!k.position) k.position = {}
+  k.position.x = data.x
+  k.position.y = data.y
+  k.position.z = data.z
+  k.yaw = data.yaw
+  k.pitch = data.pitch
+  k.roll = data.roll
+  k.fov = data.fov
+  k.zoom = data.zoom
+  state.dirty = true
 }
 
 export function play(): void {

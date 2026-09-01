@@ -3,7 +3,7 @@ import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { connect, undo, redo, state, loadDemo, play, pause, seek, stop,
   copySelectedClips, cutSelectedClips, pasteClips, deleteSelectedClips,
   selectAllClips, duplicateSelectedClips, setLoopIn, setLoopOut, clearLoop,
-  addMarker, clearSelectedClips } from './store'
+  addMarker, clearSelectedClips, enterFlightMode, flightMode } from './store'
 import TitleBar from './components/TitleBar.vue'
 import ScriptDock from './components/ScriptDock.vue'
 import ScriptList from './components/ScriptList.vue'
@@ -211,6 +211,15 @@ function onKeydown(e: KeyboardEvent) {
   // Escape — 取消选择
   if (e.key === 'Escape') {
     clearSelectedClips()
+    return
+  }
+
+  // F7 — 进入飞控模式（编辑当前选中关键帧）
+  if (e.key === 'F7') {
+    e.preventDefault()
+    if (state.selection.keyframe >= 0 && state.connected) {
+      enterFlightMode()
+    }
     return
   }
 }

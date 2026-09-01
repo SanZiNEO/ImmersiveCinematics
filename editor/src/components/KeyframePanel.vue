@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { state, commit, getSelectedClip, getSelectedTrack, selectKeyframe } from '../store'
+import { state, commit, getSelectedClip, getSelectedTrack, selectKeyframe, enterFlightMode, flightMode } from '../store'
 import { fillKeyframeDefaults } from '../schema'
 import * as ops from '../operations'
 import DynamicForm from './DynamicForm.vue'
@@ -117,6 +117,14 @@ function formatTime(t: number): string {
     <div v-if="selectedKf && state.schema" class="kf-props">
       <DynamicForm :fields="allFields" :data="kfData" @update="onUpdate" />
       <div class="panel-actions">
+        <button
+          class="flight-btn"
+          :disabled="!state.connected || flightMode"
+          @click="enterFlightMode"
+          title="在游戏中用 WASD 飞行编辑此关键帧的位置和朝向"
+        >
+          {{ flightMode ? '飞控模式进行中...' : '✈ 飞控编辑 (F7)' }}
+        </button>
         <button @click="ensureDefaults">补齐默认字段</button>
       </div>
     </div>
@@ -207,9 +215,25 @@ function formatTime(t: number): string {
 .panel-actions {
   padding: 8px 10px;
   border-top: 1px solid #2a2a30;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .panel-actions button {
   width: 100%;
+}
+.flight-btn {
+  background: #2f5a3a !important;
+  border-color: #3a7a4a !important;
+  color: #4ade80 !important;
+  font-weight: 600;
+}
+.flight-btn:hover:not(:disabled) {
+  background: #3a7a4a !important;
+}
+.flight-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .empty {
   padding: 16px;

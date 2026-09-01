@@ -52,6 +52,7 @@ public final class WebEditorApi {
                 }
                 case "editor.setCamera" -> handleSetCamera(data);
                 case "editor.pushScript" -> handlePushScript(data);
+                case "editor.enter_flight_mode" -> handleEnterFlightMode(data);
                 default -> sendError(session, id, "unknown type: " + type);
             }
         } catch (Exception e) {
@@ -140,6 +141,19 @@ public final class WebEditorApi {
             CameraManager.INSTANCE.pushScript(json);
             CameraManager.INSTANCE.setTime(0f);
         }
+    }
+
+    private static void handleEnterFlightMode(JsonObject data) {
+        double x = data.has("x") ? data.get("x").getAsDouble() : 0;
+        double y = data.has("y") ? data.get("y").getAsDouble() : 0;
+        double z = data.has("z") ? data.get("z").getAsDouble() : 0;
+        float yaw = data.has("yaw") ? data.get("yaw").getAsFloat() : 0f;
+        float pitch = data.has("pitch") ? data.get("pitch").getAsFloat() : 0f;
+        float roll = data.has("roll") ? data.get("roll").getAsFloat() : 0f;
+        float fov = data.has("fov") ? data.get("fov").getAsFloat() : 70f;
+        float zoom = data.has("zoom") ? data.get("zoom").getAsFloat() : 1f;
+        boolean absolute = data.has("absolute") && data.get("absolute").getAsBoolean();
+        WebPreviewScreen.enterFlightMode(x, y, z, yaw, pitch, roll, fov, zoom, absolute);
     }
 
     private static void handleSetCamera(JsonObject data) {
