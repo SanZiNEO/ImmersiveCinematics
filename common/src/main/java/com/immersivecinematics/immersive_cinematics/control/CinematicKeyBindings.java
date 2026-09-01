@@ -3,8 +3,10 @@ package com.immersivecinematics.immersive_cinematics.control;
 import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.webui.WebEditorServer;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 public class CinematicKeyBindings {
@@ -16,17 +18,11 @@ public class CinematicKeyBindings {
         GLFW.GLFW_KEY_C,
         EDITOR_CATEGORY
     );
-    // 组 8：运行时判断 Config.editorEnabled（类加载时求值一次；开关需重启生效）。
-    // 关闭后 EDITOR_KEY 为 null → 不注册键绑定、onClientTick 不响应、控制菜单无 "Open Editor" 项。
     public static final KeyMapping EDITOR_KEY = (ImmersiveCinematics.EDITOR_ENABLED && Config.editorEnabled)
         ? new KeyMapping("key.immersive_cinematics.editor", GLFW.GLFW_KEY_F6,
             EDITOR_CATEGORY)
         : null;
 
-    // ══════════════════════════════════════════════════════════════
-    //  编辑器单键快捷键（可绑定，与 EDITOR_KEY 一样在 Controls 中可改）
-    //  默认键与历史硬编码一致；未注册（编辑器禁用）时无任何副作用
-    // ══════════════════════════════════════════════════════════════
     public static final KeyMapping EDITOR_PLAY_PAUSE    = new KeyMapping("key.immersive_cinematics.editor.play_pause",    GLFW.GLFW_KEY_SPACE,       EDITOR_CATEGORY);
     public static final KeyMapping EDITOR_ADD_MARKER    = new KeyMapping("key.immersive_cinematics.editor.add_marker",    GLFW.GLFW_KEY_M,           EDITOR_CATEGORY);
     public static final KeyMapping EDITOR_SET_LOOP_IN   = new KeyMapping("key.immersive_cinematics.editor.set_loop_in",   GLFW.GLFW_KEY_I,           EDITOR_CATEGORY);
@@ -45,6 +41,7 @@ public class CinematicKeyBindings {
     public static final KeyMapping EDITOR_DELETE        = new KeyMapping("key.immersive_cinematics.editor.delete",        GLFW.GLFW_KEY_DELETE,      EDITOR_CATEGORY);
     public static final KeyMapping EDITOR_FRAME_ALL     = new KeyMapping("key.immersive_cinematics.editor.frame_all",     GLFW.GLFW_KEY_F,           EDITOR_CATEGORY);
     public static final KeyMapping EDITOR_FLIGHT        = new KeyMapping("key.immersive_cinematics.editor.flight",        GLFW.GLFW_KEY_F7,          EDITOR_CATEGORY);
+    public static final KeyMapping EDITOR_WEBUI         = new KeyMapping("key.immersive_cinematics.editor.webui",         GLFW.GLFW_KEY_F8,          EDITOR_CATEGORY);
     public static final KeyMapping EDITOR_FLIGHT_FOV_IN  = new KeyMapping("key.immersive_cinematics.editor.flight.fov_in",   GLFW.GLFW_KEY_EQUAL,       EDITOR_CATEGORY);
     public static final KeyMapping EDITOR_FLIGHT_FOV_OUT = new KeyMapping("key.immersive_cinematics.editor.flight.fov_out",  GLFW.GLFW_KEY_MINUS,       EDITOR_CATEGORY);
     public static final KeyMapping EDITOR_FLIGHT_ZOOM_IN = new KeyMapping("key.immersive_cinematics.editor.flight.zoom_in",  GLFW.GLFW_KEY_RIGHT_BRACKET, EDITOR_CATEGORY);
@@ -57,13 +54,9 @@ public class CinematicKeyBindings {
     private static long skipKeyDownSince = 0;
     private static boolean skipTriggered = false;
     private static long editorClosedAt;
-    private static final long EDITOR_REOPEN_COOLDOWN = 500; // ms
+    private static final long EDITOR_REOPEN_COOLDOWN = 500;
+    private static boolean webUiConnectedNotified = false;
 
-    /**
-     * 每客户端 tick 调用一次。
-     * <p>
-     * 处理跳过键逻辑、强制退出键（Ctrl+P），以及编辑器按键（如果启用）。
-     */
     public static void onClientTick() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;
@@ -87,10 +80,27 @@ public class CinematicKeyBindings {
             }
         }
 
+        // F8 — 启动 WebUI 独立编辑器服务端，聊天框提示连接状态
+        if (ImmersiveCinematics.EDITOR_ENABLED) {
+            while (EDITOR_WEBUI.consumeClick()) {
+                toggleWebUiServer(mc);
+            }
+        }
+
+        // 服务端运行时，检测到首次客户端连接后在聊天框提示一次
+        if (WebEditorServer.INSTANCE.isRunning() && !webUiConnectedNotified && WebEditorServer.INSTANCE.hasClients()) {
+            webUiConnectedNotified = true;
+            if (mc.player != null) {
+                mc.player.displayClientMessage(Component.translatable("message.immersive_cinematics.webui_connected"), false);
+            }
+        }
+        if (!WebEditorServer.INSTANCE.hasClients()) {
+            webUiConnectedNotified = false;
+        }
+
         if (skipTriggered) {
         } else {
             boolean skipDown = SKIP_KEY.isDown();
-
             if (skipDown) {
                 if (skipKeyDownSince == 0) {
                     skipKeyDownSince = System.currentTimeMillis();
@@ -112,6 +122,27 @@ public class CinematicKeyBindings {
         boolean pDown = com.mojang.blaze3d.platform.InputConstants.isKeyDown(window, GLFW.GLFW_KEY_P);
         if (ctrlDown && pDown) {
             mgr.requestExit(ExitReason.FORCE_QUIT);
+        }
+    }
+
+    private static void toggleWebUiServer(Minecraft mc) {
+        if (mc.player == null) return;
+        if (WebEditorServer.INSTANCE.isRunning()) {
+            WebEditorServer.INSTANCE.stop();
+            webUiConnectedNotified = false;
+            mc.player.displayClientMessage(Component.translatable("message.immersive_cinematics.webui_stopped"), false);
+        } else {
+            boolean ok = WebEditorServer.INSTANCE.start();
+            if (ok) {
+                if (WebEditorServer.INSTANCE.hasClients()) {
+                    webUiConnectedNotified = true;
+                    mc.player.displayClientMessage(Component.translatable("message.immersive_cinematics.webui_connected"), false);
+                } else {
+                    mc.player.displayClientMessage(Component.translatable("message.immersive_cinematics.webui_not_running"), false);
+                }
+            } else {
+                mc.player.displayClientMessage(Component.translatable("message.immersive_cinematics.webui_start_failed"), false);
+            }
         }
     }
 

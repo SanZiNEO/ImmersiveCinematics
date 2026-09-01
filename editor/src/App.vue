@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue'
-import { connect, undo, redo, state, loadDemo } from './store'
+import { connect, undo, redo, state, loadDemo, play, pause, seek, stop,
+  copySelectedClips, cutSelectedClips, pasteClips, deleteSelectedClips,
+  selectAllClips, duplicateSelectedClips, setLoopIn, setLoopOut, clearLoop,
+  addMarker, clearSelectedClips } from './store'
 import TitleBar from './components/TitleBar.vue'
 import ScriptDock from './components/ScriptDock.vue'
 import ScriptList from './components/ScriptList.vue'
@@ -85,13 +88,130 @@ function onMouseUp() {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  const target = e.target as HTMLElement
+  const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+
+  // Ctrl+Z / Ctrl+Y
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
     e.preventDefault()
     if (e.shiftKey) redo()
     else undo()
-  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+    return
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
     e.preventDefault()
     redo()
+    return
+  }
+
+  // 文本输入时不触发编辑器快捷键
+  if (isInput) return
+
+  // Space — 播放/暂停
+  if (e.code === 'Space') {
+    e.preventDefault()
+    if (state.playing) pause()
+    else play()
+    return
+  }
+
+  // Delete / Backspace — 删除选中
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault()
+    deleteSelectedClips()
+    return
+  }
+
+  // Ctrl+C — 复制
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+    e.preventDefault()
+    copySelectedClips()
+    return
+  }
+
+  // Ctrl+X — 剪切
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
+    e.preventDefault()
+    cutSelectedClips()
+    return
+  }
+
+  // Ctrl+V — 粘贴
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+    e.preventDefault()
+    pasteClips()
+    return
+  }
+
+  // Ctrl+A — 全选
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+    e.preventDefault()
+    selectAllClips()
+    return
+  }
+
+  // Ctrl+D — 复制片段
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+    e.preventDefault()
+    duplicateSelectedClips()
+    return
+  }
+
+  // M — 添加 marker
+  if (e.key.toLowerCase() === 'm') {
+    e.preventDefault()
+    addMarker(state.time)
+    return
+  }
+
+  // I — 设置循环入点
+  if (e.key.toLowerCase() === 'i') {
+    e.preventDefault()
+    if (e.shiftKey) clearLoop()
+    else setLoopIn(state.time)
+    return
+  }
+
+  // O — 设置循环出点
+  if (e.key.toLowerCase() === 'o') {
+    e.preventDefault()
+    if (e.shiftKey) clearLoop()
+    else setLoopOut(state.time)
+    return
+  }
+
+  // 方向键 — 移动播放头
+  const step = e.shiftKey ? 5 : 0.5
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    seek(Math.max(0, state.time - step))
+    return
+  }
+  if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    const total = state.doc?.timeline?.total_duration ?? 100
+    seek(Math.min(total, state.time + step))
+    return
+  }
+
+  // Home — 跳到起点
+  if (e.key === 'Home') {
+    e.preventDefault()
+    seek(0)
+    return
+  }
+
+  // End — 跳到终点
+  if (e.key === 'End') {
+    e.preventDefault()
+    seek(state.doc?.timeline?.total_duration ?? 0)
+    return
+  }
+
+  // Escape — 取消选择
+  if (e.key === 'Escape') {
+    clearSelectedClips()
+    return
   }
 }
 

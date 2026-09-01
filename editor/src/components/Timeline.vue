@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import {
   state, commit, seek, selectClip, selectKeyframe, clearSelection,
   zoomIn, zoomOut, setTool, toggleSnap, getTrackView, toggleTrackVisible,
@@ -8,6 +8,7 @@ import {
 import * as ops from '../operations'
 import { fillClipDefaults, fillKeyframeDefaults } from '../schema'
 import type { Clip, Keyframe, Track, TrackType } from '../types'
+import { t } from '../i18n'
 
 // ── refs ──────────────────────────────────────────────────────
 
@@ -383,6 +384,20 @@ onMounted(() => {
     scroller.addEventListener('wheel', onWheel, { passive: false })
     scroller.addEventListener('scroll', onScrollerScroll)
   }
+  // 播放头自动跟随：播放中超出可视区域时自动滚动
+  watch(() => state.time, () => {
+    if (!state.playing || !scrollerRef.value) return
+    const scroller = scrollerRef.value
+    const playheadX = state.time * state.pxPerSecond
+    const viewLeft = scroller.scrollLeft
+    const viewRight = viewLeft + scroller.clientWidth
+    const margin = 40
+    if (playheadX < viewLeft + margin) {
+      scroller.scrollLeft = playheadX - margin
+    } else if (playheadX > viewRight - margin) {
+      scroller.scrollLeft = playheadX - scroller.clientWidth + margin
+    }
+  })
 })
 
 onUnmounted(() => {
@@ -501,6 +516,23 @@ onUnmounted(() => {
         <div class="timeline-content" ref="contentRef" :style="{ width: contentWidth + 'px' }" @mousedown="onContentMouseDown">
           <!-- 时间标尺 -->
           <div class="ruler">
+            <!-- A-B 循环区间 -->
+            <div
+              v-if="state.loopStart >= 0 && state.loopEnd > state.loopStart"
+              class="loop-range"
+              :style="{
+                left: timeToPx(state.loopStart) + 'px',
+                width: (state.loopEnd - state.loopStart) * state.pxPerSecond + 'px',
+              }"
+            ></div>
+            <!-- Marker 标记 -->
+            <div
+              v-for="(mk, mi) in state.markers"
+              :key="mi"
+              class="marker"
+              :style="{ left: timeToPx(mk) + 'px' }"
+              :title="'Marker @ ' + mk.toFixed(2) + 's'"
+            ></div>
             <div
               v-for="mark in rulerMarks"
               :key="mark.time"
@@ -759,6 +791,37 @@ onUnmounted(() => {
   position: relative;
   flex-shrink: 0;
   overflow: hidden;
+}
+/* A-B 循环区间 */
+.loop-range {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: rgba(78, 123, 211, 0.15);
+  border-left: 2px solid #4e7bd3;
+  border-right: 2px solid #4e7bd3;
+  pointer-events: none;
+  z-index: 1;
+}
+/* Marker 标记 */
+.marker {
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 100%;
+  border-left: 2px solid #f0b429;
+  pointer-events: none;
+  z-index: 2;
+}
+.marker::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 6px;
+  height: 6px;
+  background: #f0b429;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
 }
 .ruler-mark {
   position: absolute;

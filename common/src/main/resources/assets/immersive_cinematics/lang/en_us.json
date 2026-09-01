@@ -1,4 +1,4 @@
-{
+﻿{
     "key.immersive_cinematics.skip":  "Skip",
     "key.immersive_cinematics.editor":  "Open Editor",
     "key.immersive_cinematics.editor.play_pause":  "Play / Pause",
@@ -19,6 +19,7 @@
     "key.immersive_cinematics.editor.delete":  "Delete Selected",
     "key.immersive_cinematics.editor.frame_all":  "Frame All",
     "key.immersive_cinematics.editor.flight":  "Flight Camera",
+    "key.immersive_cinematics.editor.webui":  "WebUI Editor Server",
     "key.immersive_cinematics.editor.flight.fov_in":  "Flight FOV +",
     "key.immersive_cinematics.editor.flight.fov_out":  "Flight FOV -",
     "key.immersive_cinematics.editor.flight.zoom_in":  "Flight Zoom +",
@@ -356,5 +357,4 @@
     "editor.field.cam_breath_speed":  "breath speed",
     "editor.field.camera_mob_ai":  "camera mob AI",
     "editor.field.yaw_base_selector":  "yaw base entity",
-    "editor.field.priority":  "priority"
-}
+    "editor.field.priority":  "`priority",`n    "message.immersive_cinematics.webui_not_running": "WebUI editor service started. Please download, install and open the ImmersiveCinematics Editor client.",`n    "message.immersive_cinematics.webui_connected": "WebUI editor connected.",`n    "message.immersive_cinematics.webui_stopped": "WebUI editor service stopped.",`n    "message.immersive_cinematics.webui_start_failed": "WebUI editor service failed to start, port may be in use."`n}

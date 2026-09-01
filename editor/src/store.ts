@@ -38,6 +38,15 @@ export const state = reactive({
     clip: -1,
     keyframe: -1,
   } as Selection,
+  // 多选 clips（{track, clip} 索引对列表）
+  selectedClips: [] as { track: number; clip: number }[],
+  // 剪贴板（深拷贝的 clip 数据 + 轨道类型）
+  clipboard: [] as { clip: Clip; trackType: string }[],
+  // A-B 循环
+  loopStart: -1,
+  loopEnd: -1,
+  // Marker 标记
+  markers: [] as number[],
 
   // 右面板激活 tab（智能切换用）
   rightTab: 'properties' as 'properties' | 'clip' | 'keyframe' | 'triggers',
@@ -411,4 +420,123 @@ export function loadDemo(): void {
   resetHistory()
   initTrackView()
   clearSelection()
+}
+
+// ── 多选 / 剪贴板 ─────────────────────────────────────────────
+
+export function selectClipMulti(trackIndex: number, clipIndex: number, additive: boolean): void {
+  const exists = state.selectedClips.findIndex(c => c.track === trackIndex && c.clip === clipIndex)
+  if (additive) {
+    if (exists >= 0) state.selectedClips.splice(exists, 1)
+    else state.selectedClips.push({ track: trackIndex, clip: clipIndex })
+  } else {
+    state.selectedClips = [{ track: trackIndex, clip: clipIndex }]
+  }
+  selectClip(trackIndex, clipIndex)
+}
+
+export function selectAllClips(): void {
+  if (!state.doc?.timeline?.tracks) return
+  state.selectedClips = []
+  for (let ti = 0; ti < state.doc.timeline.tracks.length; ti++) {
+    const track = state.doc.timeline.tracks[ti]
+    for (let ci = 0; ci < track.clips.length; ci++) {
+      state.selectedClips.push({ track: ti, clip: ci })
+    }
+  }
+}
+
+export function clearSelectedClips(): void {
+  state.selectedClips = []
+}
+
+export function copySelectedClips(): void {
+  if (!state.doc?.timeline?.tracks) return
+  state.clipboard = []
+  for (const sel of state.selectedClips) {
+    const track = state.doc.timeline.tracks[sel.track]
+    if (!track) continue
+    const clip = track.clips[sel.clip]
+    if (!clip) continue
+    state.clipboard.push({
+      clip: JSON.parse(JSON.stringify(clip)),
+      trackType: track.type,
+    })
+  }
+}
+
+export function cutSelectedClips(): void {
+  if (state.selectedClips.length === 0) return
+  copySelectedClips()
+  deleteSelectedClips()
+}
+
+export function pasteClips(): void {
+  if (state.clipboard.length === 0 || !state.doc?.timeline?.tracks) return
+  commit(() => {
+    const newSelections: { track: number; clip: number }[] = []
+    let offset = 0
+    for (const item of state.clipboard) {
+      const copy: Clip = JSON.parse(JSON.stringify(item.clip))
+      copy.start_time = (copy.start_time ?? 0) + offset
+      // 找到对应类型的轨道，没有就新建
+      let trackIdx = state.doc!.timeline!.tracks.findIndex(t => t.type === item.trackType)
+      if (trackIdx < 0) {
+        ops.addTrack(state.doc!.timeline!.tracks, item.trackType as any)
+        trackIdx = state.doc!.timeline!.tracks.length - 1
+      }
+      state.doc!.timeline!.tracks[trackIdx].clips.push(copy)
+      newSelections.push({ track: trackIdx, clip: state.doc!.timeline!.tracks[trackIdx].clips.length - 1 })
+      offset += 0.5
+    }
+    state.selectedClips = newSelections
+  })
+}
+
+export function deleteSelectedClips(): void {
+  if (state.selectedClips.length === 0 || !state.doc?.timeline?.tracks) return
+  commit(() => {
+    // 按轨道和索引降序删除，避免索引偏移
+    const sorted = [...state.selectedClips].sort((a, b) => b.clip - a.clip || b.track - a.track)
+    for (const sel of sorted) {
+      const track = state.doc!.timeline!.tracks[sel.track]
+      if (track) track.clips.splice(sel.clip, 1)
+    }
+    state.selectedClips = []
+    clearSelection()
+  })
+}
+
+export function duplicateSelectedClips(): void {
+  copySelectedClips()
+  pasteClips()
+}
+
+// ── A-B 循环 ──────────────────────────────────────────────────
+
+export function setLoopIn(time: number): void {
+  state.loopStart = time
+  if (state.loopEnd >= 0 && state.loopEnd <= time) state.loopEnd = time + 1
+}
+
+export function setLoopOut(time: number): void {
+  state.loopEnd = time
+}
+
+export function clearLoop(): void {
+  state.loopStart = -1
+  state.loopEnd = -1
+}
+
+// ── Marker ────────────────────────────────────────────────────
+
+export function addMarker(time: number): void {
+  if (state.markers.some(m => Math.abs(m - time) < 0.001)) return
+  state.markers.push(time)
+  state.markers.sort((a, b) => a - b)
+}
+
+export function removeMarker(time: number): void {
+  const idx = state.markers.findIndex(m => Math.abs(m - time) < 0.001)
+  if (idx >= 0) state.markers.splice(idx, 1)
 }
