@@ -30,6 +30,19 @@ public final class SchemaExporter {
             tracks.add(type.name(), track);
         }
         root.add("tracks", tracks);
+
+        // 触发器 schema：类型列表 + 每种类型的 conditions 字段
+        JsonObject triggers = new JsonObject();
+        JsonArray typeList = new JsonArray();
+        for (String t : TriggerSchemas.typeList()) typeList.add(t);
+        triggers.add("types", typeList);
+        JsonObject conditions = new JsonObject();
+        for (Map.Entry<String, Map<String, FieldDef>> e : TriggerSchemas.all().entrySet()) {
+            conditions.add(e.getKey(), exportFields(e.getValue()));
+        }
+        triggers.add("conditions", conditions);
+        root.add("triggers", triggers);
+
         return root;
     }
 

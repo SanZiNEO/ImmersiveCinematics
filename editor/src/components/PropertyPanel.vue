@@ -1,59 +1,65 @@
 <script setup lang="ts">
-import { state } from '../store'
+import { computed } from 'vue'
+import { state, commit } from '../store'
+import DynamicForm from './DynamicForm.vue'
 
-const META_FIELDS = [
-  'id', 'name', 'author', 'version', 'description', 'dimension',
-  'block_keyboard', 'block_mouse', 'block_mob_ai', 'hide_hud',
-  'render_player_model', 'pause_when_game_paused', 'interruptible',
-  'skippable', 'hold_at_end', 'priority'
-]
+const metaFields = computed(() => state.schema?.meta ?? {})
 
-function setMeta(key: string, value: any) {
-  if (!state.doc) return
-  if (!state.doc.meta) state.doc.meta = {}
-  state.doc.meta[key] = value
-}
+const meta = computed(() => {
+  if (!state.doc) return {}
+  return state.doc.meta as Record<string, unknown>
+})
 
-function setBool(key: string, event: Event) {
-  setMeta(key, (event.target as HTMLInputElement).checked)
-}
-
-function setNumber(key: string, event: Event) {
-  setMeta(key, parseFloat((event.target as HTMLInputElement).value))
-}
-
-function setString(key: string, event: Event) {
-  setMeta(key, (event.target as HTMLInputElement).value)
+function onUpdate(key: string, value: unknown) {
+  commit(() => {
+    if (!state.doc) return
+    state.doc.meta[key] = value
+  })
 }
 </script>
 
 <template>
   <div class="property-panel">
-    <h3>属性</h3>
-    <template v-if="state.doc?.meta">
-      <div v-for="key in META_FIELDS" :key="key" class="field">
-        <label>{{ key }}</label>
-        <input v-if="typeof state.doc.meta[key] === 'boolean'"
-               type="checkbox"
-               :checked="!!state.doc.meta[key]"
-               @change="setBool(key, $event)" />
-        <input v-else-if="typeof state.doc.meta[key] === 'number'"
-               type="number"
-               :value="state.doc.meta[key]"
-               @input="setNumber(key, $event)" />
-        <input v-else
-               :value="state.doc.meta[key] ?? ''"
-               @input="setString(key, $event)" />
-      </div>
-    </template>
-    <p v-else>未打开脚本</p>
+    <div class="panel-header">
+      <span>脚本属性</span>
+      <span v-if="state.doc?.meta?.id" class="doc-id">{{ state.doc.meta.id }}</span>
+    </div>
+    <div v-if="state.doc && state.schema" class="panel-body">
+      <DynamicForm :fields="metaFields" :data="meta" @update="onUpdate" />
+    </div>
+    <p v-else class="empty">未打开脚本或未获取 Schema</p>
   </div>
 </template>
 
 <style scoped>
-.property-panel { padding: 10px; }
-.property-panel h3 { margin: 0 0 8px; }
-.field { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.field label { color: #8a8a96; font-size: 12px; }
-.field input { width: 150px; background: #111; color: #ddd; border: 1px solid #333; padding: 2px 4px; }
+.property-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid #33333a;
+  background: #202026;
+  font-size: 13px;
+  font-weight: 600;
+}
+.doc-id {
+  font-size: 11px;
+  color: #6a8abf;
+  font-weight: normal;
+}
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.empty {
+  padding: 16px;
+  color: #666;
+  font-size: 12px;
+}
 </style>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
-import { connect, undo, redo } from './store'
+import { onMounted, onUnmounted, ref, computed } from 'vue'
+import { connect, undo, redo, state } from './store'
 import TitleBar from './components/TitleBar.vue'
 import ScriptDock from './components/ScriptDock.vue'
 import ScriptList from './components/ScriptList.vue'
@@ -32,7 +32,10 @@ const rightTabs = [
   { id: 'triggers', label: '触发器' },
 ]
 const leftActiveTab = ref('scripts')
-const rightActiveTab = ref('properties')
+const rightActiveTab = computed({
+  get: () => state.rightTab,
+  set: (v: any) => { state.rightTab = v },
+})
 
 function initSizes() {
   const w = window.innerWidth
