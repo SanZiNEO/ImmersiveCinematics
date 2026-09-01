@@ -84,54 +84,151 @@ function trackColor(type: string) {
 
 <template>
   <div class="timeline">
-    <div class="toolbar">
-      <button @click="addTrack">添加轨道</button>
-      <button @click="addClip">添加片段</button>
-      <button @click="deleteSelected">删除选中</button>
-      <button @click="moveSelected(-0.5)">←0.5</button>
-      <button @click="moveSelected(0.5)">0.5→</button>
-      <button @click="seek(Math.max(0, state.time - 5))">⏪5s</button>
-      <button @click="seek(state.time + 5)">5s⏩</button>
-    </div>
-    <div class="ruler">
-      <span>0s</span>
-      <span>播放头: {{ state.time.toFixed(2) }}</span>
-      <span>选中: T{{ state.selection.track }} C{{ state.selection.clip }} K{{ state.selection.keyframe }}</span>
-    </div>
-    <div v-for="(track, ti) in tracks" :key="ti" class="track">
-      <div class="track-header">{{ track.type }} #{{ ti + 1 }}</div>
-      <div class="track-clips">
-        <div v-for="(clip, ci) in (track.clips || [])" :key="ci"
-             class="clip"
-             :class="{ active: state.selection.track === ti && state.selection.clip === ci }"
-             :style="{ left: (clip.start_time || 0) * 40 + 'px', width: Math.max(8, (clip.duration || 1) * 40) + 'px', background: trackColor(track.type) }"
-             @click="selectClip(ti, ci)">
-          {{ formatTime(clip.start_time || 0) }}
-        </div>
+    <div class="timeline-toolbar">
+      <div class="toolbar-left">
+        <span class="timeline-label">时间轴</span>
+      </div>
+      <div class="toolbar-right">
+        <button class="icon-btn" title="放大">
+          <img src="../assets/icons/zoomin.svg" alt="" />
+        </button>
+        <button class="icon-btn" title="缩小">
+          <img src="../assets/icons/zoomout.svg" alt="" />
+        </button>
+        <button class="icon-btn" title="关键帧">
+          <img src="../assets/icons/treeview.svg" alt="" />
+        </button>
+        <button class="icon-btn" title="吸附">
+          <img src="../assets/icons/magnet.svg" alt="" />
+        </button>
+        <button class="icon-btn" title="循环">
+          <img src="../assets/icons/track-tool.svg" alt="" />
+        </button>
       </div>
     </div>
-    <div v-if="!tracks.length" class="empty">打开脚本后显示轨道</div>
+
+    <div class="timeline-body">
+      <div class="tool-rail">
+        <button class="icon-btn rail" title="选择" @click="state.selection.clip = -1">
+          <img src="../assets/icons/treeview.svg" alt="" />
+        </button>
+        <button class="icon-btn rail" title="添加轨道" @click="addTrack">
+          <img src="../assets/icons/plus.svg" alt="" />
+        </button>
+        <button class="icon-btn rail" title="添加Clip" @click="addClip">
+          <img src="../assets/icons/new.svg" alt="" />
+        </button>
+        <button class="icon-btn rail" title="拆分">
+          <img src="../assets/icons/razor.svg" alt="" />
+        </button>
+        <button class="icon-btn rail" title="转场">
+          <img src="../assets/icons/transition-tool.svg" alt="" />
+        </button>
+        <button class="icon-btn rail" title="删除选中" @click="deleteSelected">
+          <img src="../assets/icons/minus.svg" alt="" />
+        </button>
+      </div>
+
+      <div class="timeline-canvas">
+        <div class="ruler">
+          <span>0s</span>
+          <span>播放头: {{ state.time.toFixed(2) }}</span>
+        </div>
+        <div v-for="(track, ti) in tracks" :key="ti" class="track">
+          <div class="track-header">{{ track.type }} #{{ ti + 1 }}</div>
+          <div class="track-clips">
+            <div v-for="(clip, ci) in (track.clips || [])" :key="ci"
+                 class="clip"
+                 :class="{ active: state.selection.track === ti && state.selection.clip === ci }"
+                 :style="{ left: (clip.start_time || 0) * 40 + 'px', width: Math.max(8, (clip.duration || 1) * 40) + 'px', background: trackColor(track.type) }"
+                 @click="selectClip(ti, ci)">
+              {{ formatTime(clip.start_time || 0) }}
+            </div>
+          </div>
+        </div>
+        <div v-if="!tracks.length" class="empty">打开脚本后显示轨道</div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.timeline { padding: 8px 12px; height: 100%; overflow: auto; }
-.toolbar { margin-bottom: 6px; }
-.toolbar button { margin-right: 4px; }
-.ruler { background: #101318; padding: 4px; margin-bottom: 6px; }
-.ruler span { margin-right: 12px; }
+.timeline {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e24;
+  color: #d8d8e0;
+}
+.timeline-toolbar {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  border-bottom: 1px solid #33333a;
+  background: #202026;
+  flex-shrink: 0;
+}
+.timeline-label { font-size: 12px; color: #8a8a96; }
+.toolbar-right { display: flex; gap: 4px; }
+.icon-btn {
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:hover { background: #33333a; }
+.icon-btn img { width: 16px; height: 16px; }
+.timeline-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.tool-rail {
+  width: 40px;
+  border-right: 1px solid #33333a;
+  background: #202026;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 6px;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.rail { width: 30px; height: 30px; }
+.timeline-canvas {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 8px 12px;
+}
+.ruler {
+  background: #18181c;
+  padding: 4px 6px;
+  margin-bottom: 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #8a8a96;
+}
 .track { display: flex; margin-bottom: 4px; }
 .track-header {
-  width: 140px;
-  background: #252a35;
+  width: 130px;
+  background: #28282e;
   padding: 4px 6px;
-  font-size: 12px;
+  font-size: 11px;
+  color: #c9c9d2;
   flex-shrink: 0;
 }
 .track-clips {
   position: relative;
   flex: 1;
-  background: #0d0f13;
+  background: #141418;
   height: 24px;
   overflow: hidden;
 }
@@ -139,14 +236,14 @@ function trackColor(type: string) {
   position: absolute;
   top: 2px;
   height: 20px;
-  background: #3b4a6b;
   border-radius: 3px;
   font-size: 10px;
   line-height: 20px;
   padding: 0 4px;
   white-space: nowrap;
   cursor: pointer;
+  color: #fff;
 }
-.clip.active { background: #4e7bd3; }
-.empty { color: #888; }
+.clip.active { outline: 2px solid #fff; }
+.empty { color: #666; font-size: 12px; padding: 10px; }
 </style>

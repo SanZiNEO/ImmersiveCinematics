@@ -4,34 +4,41 @@ import { connect, undo, redo } from './store'
 import TitleBar from './components/TitleBar.vue'
 import ScriptDock from './components/ScriptDock.vue'
 import ScriptList from './components/ScriptList.vue'
+import LibraryPanel from './components/LibraryPanel.vue'
 import Preview from './components/Preview.vue'
 import PropertyPanel from './components/PropertyPanel.vue'
 import TriggerPanel from './components/TriggerPanel.vue'
 import Timeline from './components/Timeline.vue'
 
-const leftWidth = ref(320)
-const panelWidth = ref(340)
-const timelineHeight = ref(260)
-const dragging = ref<'left' | 'panel' | 'bottom' | null>(null)
+const leftWidth = ref(330)
+const leftPanelWidth = ref(340)
+const rightPanelWidth = ref(380)
+const timelineHeight = ref(280)
+const dragging = ref<'left' | 'leftPanel' | 'rightPanel' | 'bottom' | null>(null)
 
 function initSizes() {
-  leftWidth.value = Math.max(240, Math.min(520, Math.floor(window.innerWidth * 0.2)))
-  panelWidth.value = Math.max(260, Math.min(520, Math.floor(window.innerWidth * 0.22)))
-  timelineHeight.value = Math.max(180, Math.min(380, Math.floor(window.innerHeight * 0.3)))
+  const w = window.innerWidth
+  const h = window.innerHeight
+  leftWidth.value = Math.max(280, Math.min(560, Math.floor(w * 0.18)))
+  leftPanelWidth.value = Math.max(280, Math.min(520, Math.floor(w * 0.18)))
+  rightPanelWidth.value = Math.max(300, Math.min(600, Math.floor(w * 0.22)))
+  timelineHeight.value = Math.max(200, Math.min(420, Math.floor(h * 0.3)))
 }
 
-function startDrag(kind: 'left' | 'panel' | 'bottom', event: MouseEvent) {
+function startDrag(kind: 'left' | 'leftPanel' | 'rightPanel' | 'bottom', event: MouseEvent) {
   dragging.value = kind
   event.preventDefault()
 }
 
 function onMouseMove(event: MouseEvent) {
   if (dragging.value === 'left') {
-    leftWidth.value = Math.min(520, Math.max(180, event.clientX))
-  } else if (dragging.value === 'panel') {
-    panelWidth.value = Math.min(640, Math.max(200, event.clientX - leftWidth.value - 4))
+    leftWidth.value = Math.min(560, Math.max(200, event.clientX))
+  } else if (dragging.value === 'leftPanel') {
+    leftPanelWidth.value = Math.min(560, Math.max(220, event.clientX - leftWidth.value - 8))
+  } else if (dragging.value === 'rightPanel') {
+    rightPanelWidth.value = Math.min(700, Math.max(240, window.innerWidth - event.clientX))
   } else if (dragging.value === 'bottom') {
-    timelineHeight.value = Math.min(640, Math.max(100, window.innerHeight - event.clientY))
+    timelineHeight.value = Math.min(640, Math.max(120, window.innerHeight - event.clientY))
   }
 }
 
@@ -78,14 +85,18 @@ onUnmounted(() => {
 
       <div class="editor-workspace">
         <div class="editor-top">
-          <div class="panel-area" :style="{ width: panelWidth + 'px' }">
+          <div class="left-panel-area" :style="{ width: leftPanelWidth + 'px' }">
             <ScriptList />
-            <PropertyPanel />
-            <TriggerPanel />
+            <LibraryPanel />
           </div>
-          <div class="resize-h panel" @mousedown="startDrag('panel', $event)"></div>
+          <div class="resize-h panel-left" @mousedown="startDrag('leftPanel', $event)"></div>
           <div class="preview-area">
             <Preview />
+          </div>
+          <div class="resize-h panel-right" @mousedown="startDrag('rightPanel', $event)"></div>
+          <div class="right-panel-area" :style="{ width: rightPanelWidth + 'px' }">
+            <PropertyPanel />
+            <TriggerPanel />
           </div>
         </div>
 
@@ -118,6 +129,17 @@ html, body, #app {
   background: var(--bg);
   overflow: hidden;
 }
+button {
+  background: #28282e;
+  color: #d8d8e0;
+  border: 1px solid #3a3a44;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+button:hover:not(:disabled) { background: #34343c; }
+button:disabled { opacity: .4; cursor: default; }
 .app {
   display: flex;
   flex-direction: column;
@@ -153,8 +175,14 @@ html, body, #app {
   display: flex;
   min-height: 0;
 }
-.panel-area {
+.left-panel-area {
   border-right: 1px solid var(--border);
+  background: var(--bg2);
+  overflow: auto;
+  flex-shrink: 0;
+}
+.right-panel-area {
+  border-left: 1px solid var(--border);
   background: var(--bg2);
   overflow: auto;
   flex-shrink: 0;
