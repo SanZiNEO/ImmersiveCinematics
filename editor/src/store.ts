@@ -108,6 +108,10 @@ export function commit(fn: () => void): void {
   pushUndo()
   fn()
   maintainInvariants()
+  // 编辑即预览：自动推送到游戏端
+  if (state.connected) {
+    pushScript()
+  }
 }
 
 /** 维护不变量：总时长 + 转场对齐 + 排序 */
@@ -205,6 +209,39 @@ function handleMessage(msg: any): void {
     state.time = msg.data?.time ?? state.time
     state.playing = !!msg.data?.playing
   }
+  // ── 游戏端 EDITOR_* 绑定键广播事件 ──
+  if (msg.type === 'editor.play_pause') {
+    if (state.playing) pause()
+    else play()
+  }
+  if (msg.type === 'editor.add_marker') {
+    addMarker(state.time)
+  }
+  if (msg.type === 'editor.set_loop_in') {
+    setLoopIn(state.time)
+  }
+  if (msg.type === 'editor.set_loop_out') {
+    setLoopOut(state.time)
+  }
+  if (msg.type === 'editor.nudge_playhead') {
+    const dir = msg.data?.direction ?? 1
+    const step = msg.data?.large ? 5 : 0.5
+    seek(Math.max(0, state.time + dir * step))
+  }
+  if (msg.type === 'editor.goto_start') {
+    seek(0)
+  }
+  if (msg.type === 'editor.goto_end') {
+    seek(state.doc?.timeline?.total_duration ?? 0)
+  }
+  if (msg.type === 'editor.delete_selected') {
+    deleteSelectedClips()
+  }
+  if (msg.type === 'editor.frame_all') {
+    // 缩放以适应所有内容（目标 800px 宽度）
+    const total = state.doc?.timeline?.total_duration ?? 10
+    setZoom(800 / Math.max(total, 1))
+  }
   if (listener) listener(msg.type, msg.data || {})
 }
 
@@ -271,6 +308,16 @@ export function deleteScript(path: string): Promise<void> {
 export function seek(time: number): void {
   state.time = time
   send('editor.seek', { time })
+}
+
+/** 推送当前脚本到游戏端预览（编辑即预览） */
+export function pushScript(): void {
+  if (!state.doc) return
+  const docToPush = JSON.parse(JSON.stringify(state.doc))
+  if (state.schema) {
+    stripScriptDefaults(docToPush, state.schema)
+  }
+  send('editor.pushScript', { script: JSON.stringify(docToPush) })
 }
 
 export function play(): void {

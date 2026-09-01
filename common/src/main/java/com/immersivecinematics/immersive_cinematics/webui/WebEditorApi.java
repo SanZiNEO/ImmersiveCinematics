@@ -51,6 +51,7 @@ public final class WebEditorApi {
                     pushPlaybackState();
                 }
                 case "editor.setCamera" -> handleSetCamera(data);
+                case "editor.pushScript" -> handlePushScript(data);
                 default -> sendError(session, id, "unknown type: " + type);
             }
         } catch (Exception e) {
@@ -130,6 +131,14 @@ public final class WebEditorApi {
     private static void handleSeek(JsonObject data) {
         if (data.has("time")) {
             CameraManager.INSTANCE.setTime(data.get("time").getAsFloat());
+        }
+    }
+
+    private static void handlePushScript(JsonObject data) {
+        if (data.has("script")) {
+            String json = data.get("script").getAsString();
+            CameraManager.INSTANCE.pushScript(json);
+            CameraManager.INSTANCE.setTime(0f);
         }
     }
 
