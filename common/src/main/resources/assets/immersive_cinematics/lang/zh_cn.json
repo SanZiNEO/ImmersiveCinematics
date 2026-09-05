@@ -19,7 +19,6 @@
     "key.immersive_cinematics.editor.delete":  "删除选中",
     "key.immersive_cinematics.editor.frame_all":  "帧显示全部",
     "key.immersive_cinematics.editor.flight":  "飞行取景",
-    "key.immersive_cinematics.editor.webui":  "WebUI 编辑器服务",
     "key.immersive_cinematics.editor.webui_open":  "打开 WebUI 编辑器",
     "key.immersive_cinematics.editor.flight.fov_in":  "飞行 FOV +",
     "key.immersive_cinematics.editor.flight.fov_out":  "飞行 FOV -",

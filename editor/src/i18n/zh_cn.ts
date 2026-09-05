@@ -67,7 +67,7 @@ export default {
   'preview.prev': '后退',
   'preview.next': '前进',
   'preview.no_signal': '未连接游戏',
-  'preview.no_signal_hint': '在游戏内输入 /webui 启动服务端',
+  'preview.no_signal_hint': '游戏内按 F9 打开/关闭 WebUI 编辑器',
   'preview.fps': 'fps',
 
   // 字段标签（与 Java 侧 editor.field.* 对齐）

@@ -19,7 +19,6 @@
     "key.immersive_cinematics.editor.delete":  "Delete Selected",
     "key.immersive_cinematics.editor.frame_all":  "Frame All",
     "key.immersive_cinematics.editor.flight":  "Flight Camera",
-    "key.immersive_cinematics.editor.webui":  "WebUI Editor Server",
     "key.immersive_cinematics.editor.webui_open":  "Open WebUI Editor",
     "key.immersive_cinematics.editor.flight.fov_in":  "Flight FOV +",
     "key.immersive_cinematics.editor.flight.fov_out":  "Flight FOV -",

@@ -69,7 +69,7 @@ onUnmounted(() => {
       <canvas ref="canvasRef" />
       <div v-if="!state.connected" class="no-signal">
         <div class="no-signal-text">未连接游戏</div>
-        <div class="no-signal-hint">游戏内按 F9 打开 WebUI 预览，F8 启动/停止服务端</div>
+        <div class="no-signal-hint">游戏内按 F9 打开/关闭 WebUI 编辑器</div>
       </div>
     </div>
     <div class="controls">

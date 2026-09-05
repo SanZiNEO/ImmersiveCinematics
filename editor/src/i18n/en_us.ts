@@ -54,7 +54,7 @@ export default {
   'preview.prev': 'Back',
   'preview.next': 'Forward',
   'preview.no_signal': 'No Signal',
-  'preview.no_signal_hint': 'Type /webui in game to start server',
+  'preview.no_signal_hint': 'Press F9 in game to open/close the WebUI editor',
   'preview.fps': 'fps',
   'field.id': 'Script ID',
   'field.name': 'Name',
