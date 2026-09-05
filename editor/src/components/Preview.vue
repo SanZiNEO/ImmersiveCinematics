@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
-import { state, onFrame, play, pause, stop, seek } from '../store'
+import { state, onFrame, play, pause, stop } from '../store'
 import playIcon from '../assets/icons/play.svg'
 import pauseIcon from '../assets/icons/pause.svg'
-import prevIcon from '../assets/icons/prev.svg'
-import nextIcon from '../assets/icons/next.svg'
 import stopIcon from '../assets/icons/record.svg'
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -51,10 +49,6 @@ function drawBinary(buf: ArrayBuffer) {
   }
 }
 
-function onSeekInput(event: Event) {
-  seek(parseFloat((event.target as HTMLInputElement).value))
-}
-
 onMounted(() => {
   cleanup = onFrame(drawBinary)
 })
@@ -71,35 +65,20 @@ onUnmounted(() => {
       <span>{{ state.time.toFixed(3) }}s</span>
       <span>{{ fpsRef }} fps</span>
     </div>
-    <div class="controls">
-      <button class="icon-btn" @click="seek(Math.max(0, state.time - 1))" title="后退 1s">
-        <img :src="prevIcon" alt="后退" />
-      </button>
-      <button class="icon-btn play-btn" @click="state.playing ? pause() : play()" :title="state.playing ? '暂停' : '播放'">
-        <img :src="state.playing ? pauseIcon : playIcon" alt="播放" />
-      </button>
-      <button class="icon-btn" @click="stop" title="停止">
-        <img :src="stopIcon" alt="停止" />
-      </button>
-      <button class="icon-btn" @click="seek(state.time + 1)" title="前进 1s">
-        <img :src="nextIcon" alt="前进" />
-      </button>
-      <input
-        type="range"
-        class="seek-slider"
-        min="0"
-        :max="state.doc?.timeline?.total_duration || 100"
-        step="0.05"
-        :value="state.time"
-        @input="onSeekInput"
-      />
-    </div>
     <div class="canvas-wrap">
       <canvas ref="canvasRef" />
       <div v-if="!state.connected" class="no-signal">
         <div class="no-signal-text">未连接游戏</div>
         <div class="no-signal-hint">游戏内按 F9 打开 WebUI 预览，F8 启动/停止服务端</div>
       </div>
+    </div>
+    <div class="controls">
+      <button class="icon-btn play-btn" @click="state.playing ? pause() : play()" :title="state.playing ? '暂停' : '播放'">
+        <img :src="state.playing ? pauseIcon : playIcon" alt="播放" />
+      </button>
+      <button class="icon-btn" @click="stop" title="停止">
+        <img :src="stopIcon" alt="停止" />
+      </button>
     </div>
   </div>
 </template>
@@ -126,10 +105,11 @@ onUnmounted(() => {
 .controls {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   padding: 8px 12px;
   background: #101318;
-  border-bottom: 1px solid #222;
+  border-top: 1px solid #222;
 }
 .icon-btn {
   width: 32px;
@@ -159,23 +139,6 @@ onUnmounted(() => {
   width: 20px;
   height: 20px;
   filter: brightness(0) invert(1);
-}
-.seek-slider {
-  flex: 1;
-  height: 4px;
-  -webkit-appearance: none;
-  background: #333;
-  border-radius: 2px;
-  outline: none;
-  margin-left: 8px;
-}
-.seek-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #4e7bd3;
-  cursor: pointer;
 }
 .canvas-wrap {
   flex: 1;

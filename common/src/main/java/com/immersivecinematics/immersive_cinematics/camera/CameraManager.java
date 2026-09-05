@@ -255,6 +255,10 @@ public class CameraManager {
     }
 
     public void pause() {
+        // 暂停必须记住当前播放进度，否则冻结时钟时会回退到上一次 setTime 的旧位置（表现为“暂停回到开头”）
+        if (previewMode && !previewPaused) {
+            previewTime = (float) getGameTimeSeconds();
+        }
         previewPaused = true;
     }
 

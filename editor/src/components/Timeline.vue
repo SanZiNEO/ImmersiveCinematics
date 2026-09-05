@@ -214,7 +214,7 @@ function getMouseTime(e: MouseEvent): number {
 
 // ── 拖拽状态 ──────────────────────────────────────────────────
 
-type DragMode = 'none' | 'playhead' | 'clip-move' | 'clip-resize-l' | 'clip-resize-r' | 'keyframe'
+type DragMode = 'none' | 'playhead' | 'ruler' | 'clip-move' | 'clip-resize-l' | 'clip-resize-r' | 'keyframe'
 const dragMode = ref<DragMode>('none')
 const dragData = ref<{
   trackIndex?: number
@@ -238,6 +238,25 @@ function onPlayheadMouseDown(e: MouseEvent) {
 
 function onPlayheadDrag(e: MouseEvent) {
   if (dragMode.value !== 'playhead') return
+  const t = Math.max(0, Math.min(canvasDuration.value, getMouseTime(e)))
+  seek(t)
+}
+
+// ── 标尺拖拽：与游戏内/Olive 一致，按住标尺任意位置即可持续拖动播放头 ──
+
+function onRulerMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return
+  e.stopPropagation()
+  hideContextMenu()
+  dragMode.value = 'ruler'
+  const t = Math.max(0, Math.min(canvasDuration.value, getMouseTime(e)))
+  seek(t)
+  window.addEventListener('mousemove', onRulerDrag)
+  window.addEventListener('mouseup', onDragEnd)
+}
+
+function onRulerDrag(e: MouseEvent) {
+  if (dragMode.value !== 'ruler') return
   const t = Math.max(0, Math.min(canvasDuration.value, getMouseTime(e)))
   seek(t)
 }
@@ -375,10 +394,15 @@ function onClipDblClick(e: MouseEvent, trackIndex: number, clipIndex: number) {
 function onContentMouseDown(e: MouseEvent) {
   if (e.button !== 0) return
   hideContextMenu()
+  // 空白区域（轨道行/标尺未命中 clip/keyframe/播放头时）也进入持续拖动模式，
+  // 避免“只在标尺能拖、在画布上拖不动播放头”的割裂体验。
+  dragMode.value = 'ruler'
   const t = getMouseTime(e)
   seek(Math.max(0, Math.min(canvasDuration.value, t)))
   clearSelection()
   clearSelectedClips()
+  window.addEventListener('mousemove', onRulerDrag)
+  window.addEventListener('mouseup', onDragEnd)
 }
 
 // ── 拖拽结束 ──────────────────────────────────────────────────
@@ -387,6 +411,7 @@ function onDragEnd() {
   dragMode.value = 'none'
   dragData.value = {}
   window.removeEventListener('mousemove', onPlayheadDrag)
+  window.removeEventListener('mousemove', onRulerDrag)
   window.removeEventListener('mousemove', onClipDrag)
   window.removeEventListener('mousemove', onKeyframeDrag)
   window.removeEventListener('mouseup', onDragEnd)
@@ -653,7 +678,7 @@ onUnmounted(() => {
       <div class="timeline-scroller" ref="scrollerRef">
         <div class="timeline-content" ref="contentRef" :style="{ width: contentWidth + 'px' }" @mousedown="onContentMouseDown">
           <!-- 时间标尺 -->
-          <div class="ruler" @contextmenu="showRulerMenu($event, getMouseTime($event))">
+          <div class="ruler" @mousedown="onRulerMouseDown" @contextmenu="showRulerMenu($event, getMouseTime($event))">
             <!-- A-B 循环区间 -->
             <div
               v-if="state.loopStart >= 0 && state.loopEnd > state.loopStart"
