@@ -3,7 +3,8 @@ import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { connect, undo, redo, state, loadDemo, play, pause, seek, stop,
   copySelectedClips, cutSelectedClips, pasteClips, deleteSelectedClips,
   selectAllClips, duplicateSelectedClips, setLoopIn, setLoopOut, clearLoop,
-  addMarker, clearSelectedClips, enterFlightMode, flightMode } from './store'
+  addMarker, clearSelectedClips, enterFlightMode, flightMode,
+  saveScript, getSelectedClip, getSelectedTrack } from './store'
 import TitleBar from './components/TitleBar.vue'
 import ScriptDock from './components/ScriptDock.vue'
 import ScriptList from './components/ScriptList.vue'
@@ -157,6 +158,20 @@ function onKeydown(e: KeyboardEvent) {
     return
   }
 
+  // Ctrl+S — 保存
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault()
+    saveScript()
+    return
+  }
+
+  // Ctrl+0 — 重置缩放
+  if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+    e.preventDefault()
+    state.pxPerSecond = 40
+    return
+  }
+
   // M — 添加 marker
   if (e.key.toLowerCase() === 'm') {
     e.preventDefault()
@@ -208,16 +223,63 @@ function onKeydown(e: KeyboardEvent) {
     return
   }
 
+  // F — Frame All
+  if (e.key.toLowerCase() === 'f') {
+    e.preventDefault()
+    const total = state.doc?.timeline?.total_duration || 10
+    state.pxPerSecond = Math.max(5, Math.min(500, (window.innerWidth - 480) / total))
+    return
+  }
+
+  // Enter — 播放选中 clip
+  if (e.key === 'Enter') {
+    const clip = getSelectedClip()
+    if (clip) {
+      e.preventDefault()
+      seek(clip.start_time)
+      play()
+    }
+    return
+  }
+
+  // PageUp / PageDown — 切换上/下轨道
+  if (e.key === 'PageUp' || e.key === 'PageDown') {
+    const cur = getSelectedTrack()
+    if (cur) {
+      const idx = state.selection.track
+      const dir = e.key === 'PageUp' ? -1 : 1
+      const target = idx + dir
+      const tracks = state.doc?.timeline?.tracks || []
+      if (target >= 0 && target < tracks.length && tracks[target].clips.length > 0) {
+        e.preventDefault()
+        state.selection.track = target
+        state.selection.clip = 0
+        state.selection.keyframe = -1
+      }
+    }
+    return
+  }
+
+  // [ / ] — 跳转到选中 clip 起点/终点
+  if (e.key === '[' || e.key === ']') {
+    const clip = getSelectedClip()
+    if (clip) {
+      e.preventDefault()
+      seek(e.key === '[' ? clip.start_time : clip.start_time + clip.duration)
+    }
+    return
+  }
+
   // Escape — 取消选择
   if (e.key === 'Escape') {
     clearSelectedClips()
     return
   }
 
-  // F7 — 进入飞控模式（编辑当前选中关键帧）
+  // F7 — 进入飞控模式（编辑当前选中关键帧；没有关键帧时自动在当前时间新建）
   if (e.key === 'F7') {
     e.preventDefault()
-    if (state.selection.keyframe >= 0 && state.connected) {
+    if (state.connected && (state.selection.keyframe >= 0 || state.selection.clip >= 0)) {
       enterFlightMode()
     }
     return
@@ -257,6 +319,12 @@ function markUserDragged() {
 <template>
   <div class="app">
     <TitleBar />
+
+    <div v-if="state.validationIssues.length" class="validation-banner">
+      <span class="validation-title">校验问题 ({{ state.validationIssues.length }})</span>
+      <span class="validation-item">{{ state.validationIssues[0] }}</span>
+      <button class="validation-clear" @click="state.validationIssues = []">×</button>
+    </div>
 
     <div class="body-row">
       <!-- 最左：JSON 实时预览（原始设计，保留） -->
@@ -375,6 +443,37 @@ button:disabled { opacity: .4; cursor: default; }
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.validation-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  background: #3a2a2a;
+  border-bottom: 1px solid #643;
+  color: #fbb;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.validation-title {
+  color: #f88;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.validation-item {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.validation-clear {
+  background: transparent;
+  border: none;
+  color: #f88;
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 14px;
 }
 .body-row {
   flex: 1;

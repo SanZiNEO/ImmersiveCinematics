@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SchemaField } from '../../types'
 
-defineProps<{
+const props = defineProps<{
   field: SchemaField
   modelValue: unknown
 }>()
@@ -13,9 +13,9 @@ const emit = defineEmits<{
 // 三态：null = 跟随 hide_hud，true = 强制开，false = 强制关
 function cycle() {
   // null → true → false → null
-  if (modelValue === null || modelValue === undefined) {
+  if (props.modelValue === null || props.modelValue === undefined) {
     emit('update:modelValue', true)
-  } else if (modelValue === true) {
+  } else if (props.modelValue === true) {
     emit('update:modelValue', false)
   } else {
     emit('update:modelValue', null)
@@ -23,8 +23,8 @@ function cycle() {
 }
 
 function label(): string {
-  if (modelValue === null || modelValue === undefined) return '跟随'
-  return modelValue ? '强制隐藏' : '强制显示'
+  if (props.modelValue === null || props.modelValue === undefined) return '跟随'
+  return props.modelValue ? '强制隐藏' : '强制显示'
 }
 
 function stateClass(): string {

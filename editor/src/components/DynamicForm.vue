@@ -87,6 +87,7 @@ function fieldLabel(key: string): string {
             :field="field"
             :model-value="data[key]"
             :parent="data"
+            :field-key="key"
             @update:model-value="onUpdate(key, $event)"
           />
         </div>

@@ -2,7 +2,19 @@
 import { ref, computed } from 'vue'
 import { state, commit } from '../store'
 import DynamicForm from './DynamicForm.vue'
+import CommitTextField from './fields/CommitTextField.vue'
+import CommitNumberField from './fields/CommitNumberField.vue'
 import type { TriggerDefinition, SchemaField } from '../types'
+import NoConditionTriggerEditor from './trigger/NoConditionTriggerEditor.vue'
+import SingleFieldTriggerEditor from './trigger/SingleFieldTriggerEditor.vue'
+import LocationTriggerEditor from './trigger/LocationTriggerEditor.vue'
+import EntityKillTriggerEditor from './trigger/EntityKillTriggerEditor.vue'
+import ItemOnInteractTriggerEditor from './trigger/ItemOnInteractTriggerEditor.vue'
+import ObservationTriggerEditor from './trigger/ObservationTriggerEditor.vue'
+import InventoryTriggerEditor from './trigger/InventoryTriggerEditor.vue'
+import StructureTriggerEditor from './trigger/StructureTriggerEditor.vue'
+import XpTriggerEditor from './trigger/XpTriggerEditor.vue'
+import DimensionChangeTriggerEditor from './trigger/DimensionChangeTriggerEditor.vue'
 
 const selectedIndex = ref(-1)
 
@@ -83,7 +95,19 @@ function updateCondition(key: string, value: unknown) {
   const trig = selectedTrigger.value
   if (!trig) return
   commit(() => {
-    trig.conditions[key] = value
+    if (value === undefined) delete trig.conditions[key]
+    else trig.conditions[key] = value
+  })
+}
+
+function updateConditionMany(patch: Record<string, unknown>) {
+  const trig = selectedTrigger.value
+  if (!trig) return
+  commit(() => {
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === undefined) delete trig.conditions[key]
+      else trig.conditions[key] = value
+    }
   })
 }
 
@@ -170,6 +194,27 @@ function typeLabel(type: string): string {
   }
   return labels[type] ?? type
 }
+
+const SINGLE_FIELD_TYPES: Record<string, string> = {
+  advancement: 'advancement',
+  biome: 'biome',
+  entity_interact: 'target',
+  block_interact: 'target',
+  item_craft: 'item',
+  item_use: 'item',
+  item_consume: 'item',
+  item_release: 'item',
+  item_instant_use: 'item',
+  item_use_interrupt: 'item',
+  item_pickup: 'item',
+  item_drop: 'item',
+  dimension: 'dimension',
+  gamestage: 'stage',
+}
+
+function singleFieldKey(type: string): string {
+  return SINGLE_FIELD_TYPES[type] || ''
+}
 </script>
 
 <template>
@@ -202,10 +247,9 @@ function typeLabel(type: string): string {
         <div class="section-title">基本设置</div>
         <div class="form-field">
           <label>触发器 ID</label>
-          <input
-            type="text"
-            :value="selectedTrigger.id"
-            @input="updateCommon('id', ($event.target as HTMLInputElement).value)"
+          <CommitTextField
+            :model-value="selectedTrigger.id"
+            @update:model-value="(v: string) => updateCommon('id', v)"
           />
         </div>
         <div class="form-field">
@@ -229,11 +273,10 @@ function typeLabel(type: string): string {
         </div>
         <div class="form-field">
           <label>延迟 (秒)</label>
-          <input
-            type="number"
-            step="0.1"
-            :value="selectedTrigger.delay ?? 0"
-            @input="updateCommon('delay', parseFloat(($event.target as HTMLInputElement).value) || 0)"
+          <CommitNumberField
+            :model-value="selectedTrigger.delay ?? 0"
+            :step="0.1"
+            @update:model-value="(v: number) => updateCommon('delay', v)"
           />
         </div>
         <div class="form-field inline">
@@ -248,27 +291,71 @@ function typeLabel(type: string): string {
         </div>
         <div class="form-field">
           <label>离开缓冲 (格)</label>
-          <input
-            type="number"
-            step="0.5"
-            :value="selectedTrigger.exit_buffer ?? 0"
-            @input="updateCommon('exit_buffer', parseFloat(($event.target as HTMLInputElement).value) || 0)"
+          <CommitNumberField
+            :model-value="selectedTrigger.exit_buffer ?? 0"
+            :step="0.5"
+            @update:model-value="(v: number) => updateCommon('exit_buffer', v)"
           />
         </div>
       </div>
 
-      <!-- 条件字段（动态） -->
-      <div v-if="Object.keys(conditionFields).length > 0" class="editor-section">
+      <!-- 条件字段（各触发器专用组件） -->
+      <div class="editor-section">
         <div class="section-title">触发条件</div>
+        <NoConditionTriggerEditor v-if="selectedTrigger.type === 'login'" :data="conditionsData" />
+        <LocationTriggerEditor
+          v-else-if="selectedTrigger.type === 'location'"
+          :data="conditionsData"
+          @update="updateCondition"
+          @update-many="updateConditionMany"
+        />
+        <EntityKillTriggerEditor
+          v-else-if="selectedTrigger.type === 'entity_kill'"
+          :data="conditionsData"
+          @update="updateCondition"
+        />
+        <ItemOnInteractTriggerEditor
+          v-else-if="selectedTrigger.type === 'item_on_interact'"
+          :data="conditionsData"
+          @update="updateCondition"
+        />
+        <ObservationTriggerEditor
+          v-else-if="selectedTrigger.type === 'observation'"
+          :data="conditionsData"
+          @update="updateCondition"
+        />
+        <InventoryTriggerEditor
+          v-else-if="selectedTrigger.type === 'inventory'"
+          :data="conditionsData"
+          @update="updateCondition"
+        />
+        <StructureTriggerEditor
+          v-else-if="selectedTrigger.type === 'structure'"
+          :data="conditionsData"
+          @update="updateCondition"
+        />
+        <XpTriggerEditor
+          v-else-if="selectedTrigger.type === 'xp'"
+          :data="conditionsData"
+          @update="updateCondition"
+        />
+        <DimensionChangeTriggerEditor
+          v-else-if="selectedTrigger.type === 'dimension_change'"
+          :data="conditionsData"
+          @update="updateCondition"
+        />
+        <SingleFieldTriggerEditor
+          v-else-if="singleFieldKey(selectedTrigger.type)"
+          :data="conditionsData"
+          :field-key="singleFieldKey(selectedTrigger.type)"
+          @update="updateCondition"
+        />
         <DynamicForm
+          v-else
           :fields="conditionFields"
           :data="conditionsData"
           @update="updateCondition"
         />
-      </div>
-      <div v-else class="editor-section">
-        <div class="section-title">触发条件</div>
-        <p class="no-conditions">该类型无额外条件</p>
       </div>
 
       <!-- 前置条件 -->

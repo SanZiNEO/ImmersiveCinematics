@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import net.minecraft.client.Minecraft;
 
 /**
  * 单个 WebSocket 客户端会话。
@@ -35,7 +36,11 @@ class WebSocketSession {
                 Frame frame = readFrame(in);
                 if (frame == null) break;
                 switch (frame.opcode) {
-                    case 0x1 -> WebEditorApi.handle(new String(frame.payload, StandardCharsets.UTF_8), this);
+                    case 0x1 -> {
+                        String text = new String(frame.payload, StandardCharsets.UTF_8);
+                        // 对齐旧 Java 编辑器：所有 CameraManager/播放器操作必须在 Minecraft 主线程执行。
+                        Minecraft.getInstance().execute(() -> WebEditorApi.handle(text, this));
+                    }
                     case 0x9 -> sendFrame(0xA, frame.payload); // pong
                     case 0x8 -> {
                         close();
@@ -109,11 +114,15 @@ class WebSocketSession {
         if (len < 0 || len > 64 * 1024 * 1024) {
             throw new IOException("ws frame too large");
         }
+        byte[] mask = null;
+        if (masked) {
+            // WebSocket 协议：mask key 在 payload 之前，必须先读掩码
+            mask = new byte[4];
+            readFully(in, mask);
+        }
         byte[] payload = new byte[(int) len];
         readFully(in, payload);
         if (masked) {
-            byte[] mask = new byte[4];
-            readFully(in, mask);
             for (int i = 0; i < payload.length; i++) {
                 payload[i] ^= mask[i & 3];
             }

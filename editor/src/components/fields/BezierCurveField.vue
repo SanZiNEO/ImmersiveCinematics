@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { SchemaField } from '../../types'
+import CommitNumberField from './CommitNumberField.vue'
 
 const props = defineProps<{
   field: SchemaField
@@ -32,10 +33,9 @@ function removePoint(idx: number) {
   emit('update:modelValue', { ...curve.value, control_points: pts })
 }
 
-function setPoint(idx: number, key: string, e: Event) {
-  const val = parseFloat((e.target as HTMLInputElement).value)
+function setPoint(idx: number, key: string, value: number) {
   const pts = points.value.map((p, i) =>
-    i === idx ? { ...p, [key]: isNaN(val) ? 0 : val } : p
+    i === idx ? { ...p, [key]: value } : p
   )
   emit('update:modelValue', { ...curve.value, control_points: pts })
 }
@@ -45,9 +45,24 @@ function setPoint(idx: number, key: string, e: Event) {
   <div class="bezier-field">
     <div v-for="(p, i) in points" :key="i" class="cp-row">
       <span class="cp-label">P{{ i + 1 }}</span>
-      <input type="number" step="0.1" :value="p.dx ?? p.x ?? 0" @input="setPoint(i, p.dx !== undefined ? 'dx' : 'x', $event)" placeholder="x" />
-      <input type="number" step="0.1" :value="p.dy ?? p.y ?? 0" @input="setPoint(i, p.dy !== undefined ? 'dy' : 'y', $event)" placeholder="y" />
-      <input type="number" step="0.1" :value="p.dz ?? p.z ?? 0" @input="setPoint(i, p.dz !== undefined ? 'dz' : 'z', $event)" placeholder="z" />
+      <CommitNumberField
+        :model-value="p.dx ?? p.x ?? 0"
+        :step="0.1"
+        placeholder="x"
+        @update:model-value="setPoint(i, p.dx !== undefined ? 'dx' : 'x', $event)"
+      />
+      <CommitNumberField
+        :model-value="p.dy ?? p.y ?? 0"
+        :step="0.1"
+        placeholder="y"
+        @update:model-value="setPoint(i, p.dy !== undefined ? 'dy' : 'y', $event)"
+      />
+      <CommitNumberField
+        :model-value="p.dz ?? p.z ?? 0"
+        :step="0.1"
+        placeholder="z"
+        @update:model-value="setPoint(i, p.dz !== undefined ? 'dz' : 'z', $event)"
+      />
       <button class="cp-del" @click="removePoint(i)">×</button>
     </div>
     <button class="cp-add" @click="addPoint">+ 控制点</button>
@@ -71,14 +86,9 @@ function setPoint(idx: number, key: string, e: Event) {
   font-size: 11px;
   color: #888;
 }
-.cp-row input {
+.cp-row :deep(.commit-number) {
   width: 50px;
-  background: #111;
-  color: #ddd;
-  border: 1px solid #333;
-  padding: 2px 3px;
-  border-radius: 3px;
-  font-size: 11px;
+  flex: none;
 }
 .cp-del {
   background: transparent;

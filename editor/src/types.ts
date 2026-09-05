@@ -201,6 +201,9 @@ export interface Track {
 export interface Timeline {
   total_duration: number
   tracks: Track[]
+  markers?: { time: number }[]
+  loop_start?: number
+  loop_end?: number
   [key: string]: unknown
 }
 

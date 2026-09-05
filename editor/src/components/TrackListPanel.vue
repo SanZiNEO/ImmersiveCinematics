@@ -54,13 +54,25 @@ function moveTrack(index: number, dir: -1 | 1) {
 function onTrackClick(index: number) {
   selectTrack(index)
 }
+
+function removeEmptyTracks() {
+  if (!state.doc?.timeline?.tracks) return
+  commit(() => {
+    const arr = state.doc!.timeline!.tracks
+    for (let i = arr.length - 1; i >= 0; i--) {
+      if ((arr[i].clips?.length ?? 0) === 0) arr.splice(i, 1)
+    }
+  })
+}
 </script>
 
 <template>
   <div class="track-list-panel">
     <div class="panel-header">
       <span class="panel-title">{{ t('tab.tracks') }}</span>
-      <div class="add-track-wrap">
+      <div class="header-actions">
+        <button class="clean-btn" title="删除所有空轨道" @click="removeEmptyTracks">清空轨道</button>
+        <div class="add-track-wrap">
         <button class="add-btn" @click="showAddMenu = !showAddMenu">+ {{ t('track.add') }}</button>
         <div v-if="showAddMenu" class="add-menu">
           <div
@@ -74,6 +86,7 @@ function onTrackClick(index: number) {
           </div>
         </div>
       </div>
+    </div>
     </div>
     <div class="track-list">
       <div
@@ -116,6 +129,16 @@ function onTrackClick(index: number) {
   font-size: 13px;
   font-weight: 600;
   color: #d8d8e0;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.clean-btn {
+  font-size: 10px;
+  padding: 2px 6px;
+  color: #888;
 }
 .add-track-wrap {
   position: relative;

@@ -6,6 +6,7 @@ import {
   toggleTrackLocked, toggleTrackMuted,
   copySelectedClips, cutSelectedClips, pasteClips, deleteSelectedClips,
   duplicateSelectedClips, selectClipMulti, clearSelectedClips,
+  removeMarker, setLoopIn, setLoopOut, clearLoop,
 } from '../store'
 import * as ops from '../operations'
 import { fillClipDefaults, fillKeyframeDefaults } from '../schema'
@@ -28,13 +29,41 @@ const contextMenu = ref<{
   time: number
 }>({ visible: false, x: 0, y: 0, track: -1, clip: -1, time: 0 })
 
+const markerMenu = ref<{ visible: boolean; x: number; y: number; time: number }>({ visible: false, x: 0, y: 0, time: 0 })
+const rulerMenu = ref<{ visible: boolean; x: number; y: number; time: number }>({ visible: false, x: 0, y: 0, time: 0 })
+
 function showContextMenu(e: MouseEvent, track: number, clip: number, time: number) {
   e.preventDefault()
+  markerMenu.value.visible = false
   contextMenu.value = { visible: true, x: e.clientX, y: e.clientY, track, clip, time }
 }
 
 function hideContextMenu() {
   contextMenu.value.visible = false
+}
+
+function showMarkerMenu(e: MouseEvent, time: number) {
+  e.preventDefault()
+  contextMenu.value.visible = false
+  markerMenu.value = { visible: true, x: e.clientX, y: e.clientY, time }
+}
+
+function deleteMarkerFromMenu() {
+  removeMarker(markerMenu.value.time)
+  markerMenu.value.visible = false
+}
+
+function showRulerMenu(e: MouseEvent, time: number) {
+  e.preventDefault()
+  contextMenu.value.visible = false
+  markerMenu.value.visible = false
+  rulerMenu.value = { visible: true, x: e.clientX, y: e.clientY, time }
+}
+
+function zoomFit() {
+  const total = totalDuration.value || 10
+  state.pxPerSecond = Math.max(5, Math.min(500, (window.innerWidth - 480) / total))
+  rulerMenu.value.visible = false
 }
 
 function ctxCopy() {
@@ -59,6 +88,7 @@ function ctxDuplicate() {
 }
 function ctxSplit() {
   if (contextMenu.value.track >= 0 && contextMenu.value.clip >= 0) {
+    if (getTrackView(tracks.value[contextMenu.value.track]?.id ?? '').locked) { hideContextMenu(); return }
     commit(() => {
       ops.splitClip(state.doc!.timeline!.tracks, contextMenu.value.track, contextMenu.value.clip, contextMenu.value.time)
     })
@@ -67,14 +97,24 @@ function ctxSplit() {
 }
 function ctxAddKeyframe() {
   if (contextMenu.value.track >= 0 && contextMenu.value.clip >= 0) {
+    const track = tracks.value[contextMenu.value.track]
+    const clip = track?.clips[contextMenu.value.clip]
+    if (!track || !clip || getTrackView(track.id).locked) { hideContextMenu(); return }
     commit(() => {
-      ops.addKeyframe(state.doc!.timeline!.tracks, contextMenu.value.track, contextMenu.value.clip, contextMenu.value.time)
+      const kf = ops.addKeyframeAt(clip, contextMenu.value.time)
+      if (kf && state.schema) {
+        fillKeyframeDefaults(kf as any, state.schema, track.type)
+        ops.interpolateNewKeyframe(clip, kf)
+        const idx = clip.keyframes.indexOf(kf)
+        if (idx >= 0) selectKeyframe(contextMenu.value.track, contextMenu.value.clip, idx)
+      }
     })
   }
   hideContextMenu()
 }
 function ctxAddClip() {
   if (contextMenu.value.track >= 0) {
+    if (getTrackView(tracks.value[contextMenu.value.track]?.id ?? '').locked) { hideContextMenu(); return }
     commit(() => {
       ops.addClip(state.doc!.timeline!.tracks, contextMenu.value.track, contextMenu.value.time, 3)
     })
@@ -220,6 +260,9 @@ function onClipMouseDown(e: MouseEvent, trackIndex: number, clipIndex: number) {
 
   selectClip(trackIndex, clipIndex)
 
+  // 轨道锁定：允许选中，但禁止拖拽/resize
+  if (getTrackView(tracks.value[trackIndex].id).locked) return
+
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   const relX = e.clientX - rect.left
   const edgeThreshold = 8
@@ -278,6 +321,8 @@ function onKeyframeMouseDown(e: MouseEvent, trackIndex: number, clipIndex: numbe
   const kf = clip?.keyframes[kfIndex]
   if (!clip || !kf) return
 
+  if (getTrackView(tracks.value[trackIndex].id).locked) return
+
   dragMode.value = 'keyframe'
   dragData.value = { trackIndex, clipIndex, kfIndex, startX: e.clientX, startKfTime: kf.time }
   window.addEventListener('mousemove', onKeyframeDrag)
@@ -308,6 +353,8 @@ function onClipDblClick(e: MouseEvent, trackIndex: number, clipIndex: number) {
   const clip = tracks.value[trackIndex]?.clips[clipIndex]
   const track = tracks.value[trackIndex]
   if (!clip || !track) return
+
+  if (getTrackView(track.id).locked) return
 
   const t = getMouseTime(e)
   if (!ops.canAddKeyframeAt(clip, t)) return
@@ -368,7 +415,7 @@ function snapTime(t: number, clip: Clip): number {
 
 function addClipToTrack(trackIndex: number) {
   const track = tracks.value[trackIndex]
-  if (!track) return
+  if (!track || getTrackView(track.id).locked) return
   commit(() => {
     // 找到该轨道最后一个片段的末尾
     const clips = track.clips
@@ -395,6 +442,26 @@ function addTrack(type: TrackType) {
 function removeTrack(index: number) {
   commit(() => {
     ops.removeTrack(tracks.value, index)
+  })
+}
+
+function snapAll() {
+  commit(() => {
+    ops.snapAllClips(tracks.value)
+  })
+}
+
+function renameTrack(index: number) {
+  const track = tracks.value[index]
+  if (!track) return
+  const current = track.name || track.id
+  const name = window.prompt('轨道名称（留空删除自定义名称）', current)
+  if (name == null) return
+  commit(() => {
+    const t = track as any
+    const trimmed = name.trim()
+    if (trimmed) t.name = trimmed
+    else delete t.name
   })
 }
 
@@ -519,6 +586,9 @@ onUnmounted(() => {
         >
           <img src="../assets/icons/magnet.svg" alt="" />
         </button>
+        <button class="tool-btn" title="顺排全部片段" @click="snapAll">
+          <span class="tool-text">顺排</span>
+        </button>
         <span class="zoom-label">{{ Math.round(pxPerSecond) }}px/s</span>
       </div>
     </div>
@@ -534,9 +604,9 @@ onUnmounted(() => {
           class="track-header"
           :style="{ borderLeftColor: trackColor(track.type) }"
         >
-          <div class="track-info">
+          <div class="track-info" @dblclick="renameTrack(ti)">
             <span class="track-type">{{ trackLabel(track.type) }}</span>
-            <span class="track-id">{{ track.id }}</span>
+            <span class="track-id" :title="'双击重命名'">{{ track.name || track.id }}</span>
           </div>
           <div class="track-controls">
             <button
@@ -583,7 +653,7 @@ onUnmounted(() => {
       <div class="timeline-scroller" ref="scrollerRef">
         <div class="timeline-content" ref="contentRef" :style="{ width: contentWidth + 'px' }" @mousedown="onContentMouseDown">
           <!-- 时间标尺 -->
-          <div class="ruler">
+          <div class="ruler" @contextmenu="showRulerMenu($event, getMouseTime($event))">
             <!-- A-B 循环区间 -->
             <div
               v-if="state.loopStart >= 0 && state.loopEnd > state.loopStart"
@@ -600,6 +670,7 @@ onUnmounted(() => {
               class="marker"
               :style="{ left: timeToPx(mk) + 'px' }"
               :title="'Marker @ ' + mk.toFixed(2) + 's'"
+              @contextmenu="showMarkerMenu($event, mk)"
             ></div>
             <div
               v-for="mark in rulerMarks"
@@ -692,6 +763,30 @@ onUnmounted(() => {
       <div class="ctx-sep"></div>
       <div class="ctx-item danger" @click="ctxDelete">{{ t('context.delete') }}</div>
     </div>
+
+    <!-- Marker 右键菜单 -->
+    <div
+      v-if="markerMenu.visible"
+      class="context-menu"
+      :style="{ left: markerMenu.x + 'px', top: markerMenu.y + 'px' }"
+      @click.stop
+    >
+      <div class="ctx-item danger" @click="deleteMarkerFromMenu">{{ t('context.delete_marker') }}</div>
+    </div>
+
+    <!-- 标尺右键菜单 -->
+    <div
+      v-if="rulerMenu.visible"
+      class="context-menu"
+      :style="{ left: rulerMenu.x + 'px', top: rulerMenu.y + 'px' }"
+      @click.stop
+    >
+      <div class="ctx-item" @click="setLoopIn(rulerMenu.time); rulerMenu.visible = false">{{ t('context.set_loop_in') }}</div>
+      <div class="ctx-item" @click="setLoopOut(rulerMenu.time); rulerMenu.visible = false">{{ t('context.set_loop_out') }}</div>
+      <div class="ctx-item" @click="clearLoop(); rulerMenu.visible = false">{{ t('context.clear_loop') }}</div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item" @click="zoomFit">{{ t('context.zoom_to_fit') }}</div>
+    </div>
   </div>
 </template>
 
@@ -749,6 +844,7 @@ onUnmounted(() => {
 .tool-btn:hover { background: #33333a; }
 .tool-btn.active { background: #2f3b55; }
 .tool-btn img { width: 15px; height: 15px; }
+.tool-text { font-size: 10px; color: #aaa; }
 .divider {
   width: 1px;
   height: 18px;

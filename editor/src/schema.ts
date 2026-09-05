@@ -99,6 +99,9 @@ export function stripDefaults(
   for (const [key, def] of Object.entries(fields)) {
     const val = obj[key]
     if (val === undefined) continue
+    // 必填字段绝不能删：例如 meta.version / meta.id / meta.name
+    // 删掉后 ScriptParser 会报“缺少必填字段”，导致脚本根本无法播放。
+    if (def.required) continue
     // tristate 为 null 时删除
     if (def.type === 'tristate' && val === null) {
       delete obj[key]
@@ -113,11 +116,8 @@ export function stripDefaults(
 
 /** 精简整个脚本 doc（meta + 所有 clip/keyframe） */
 export function stripScriptDefaults(doc: Record<string, unknown>, schema: Schema): void {
-  // meta
-  if (doc.meta && typeof doc.meta === 'object') {
-    stripDefaults(doc.meta as Record<string, unknown>, schema.meta)
-    // triggers 不精简（conditions 结构复杂，保留原样）
-  }
+  // meta 不精简：id/name/author/version 都是 ScriptParser 必填字段，
+  // 精简会把看似“默认”的 author/version 删掉，导致播放器无法解析。
   // timeline.tracks
   const timeline = doc.timeline as Record<string, unknown> | undefined
   const tracks = timeline?.tracks as unknown[] | undefined

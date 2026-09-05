@@ -1,4 +1,4 @@
-﻿{
+{
     "key.immersive_cinematics.skip":  "跳过",
     "key.immersive_cinematics.editor":  "打开编辑器",
     "key.immersive_cinematics.editor.play_pause":  "播放 / 暂停",
@@ -20,6 +20,7 @@
     "key.immersive_cinematics.editor.frame_all":  "帧显示全部",
     "key.immersive_cinematics.editor.flight":  "飞行取景",
     "key.immersive_cinematics.editor.webui":  "WebUI 编辑器服务",
+    "key.immersive_cinematics.editor.webui_open":  "打开 WebUI 编辑器",
     "key.immersive_cinematics.editor.flight.fov_in":  "飞行 FOV +",
     "key.immersive_cinematics.editor.flight.fov_out":  "飞行 FOV -",
     "key.immersive_cinematics.editor.flight.zoom_in":  "飞行缩放 +",
@@ -170,6 +171,7 @@
     "editor.status.editing":  "编辑脚本",
     "editor.status.playing":  "▶ 播放中",
     "editor.status.paused":  "⏸ 已暂停",
+    "editor.status.playing_clip":  "▶ 播放选中片段",
     "editor.action.new_script":  "已创建新脚本",
     "editor.action.opened":  "已打开 %s",
     "editor.action.saved":  "已保存 %s",
@@ -357,4 +359,9 @@
     "editor.field.cam_breath_speed":  "呼吸扰动速度",
     "editor.field.camera_mob_ai":  "相机区实体AI",
     "editor.field.yaw_base_selector":  "偏航基准实体",
-    "editor.field.priority":  "优先级",`n    "message.immersive_cinematics.webui_not_running": "WebUI 编辑器服务已启动。请下载安装并打开 ImmersiveCinematics Editor 客户端进行连接。",`n    "message.immersive_cinematics.webui_connected": "WebUI 编辑器已连接。",`n    "message.immersive_cinematics.webui_stopped": "WebUI 编辑器服务已停止。",`n    "message.immersive_cinematics.webui_start_failed": "WebUI 编辑器服务启动失败，端口可能被占用。"`n}
+    "editor.field.priority":  "优先级",
+    "message.immersive_cinematics.webui_not_running": "WebUI 编辑器服务已启动。请下载安装并打开 ImmersiveCinematics Editor 客户端进行连接。",
+    "message.immersive_cinematics.webui_connected": "WebUI 编辑器已连接。",
+    "message.immersive_cinematics.webui_stopped": "WebUI 编辑器服务已停止。",
+    "message.immersive_cinematics.webui_start_failed": "WebUI 编辑器服务启动失败，端口可能被占用。"
+}

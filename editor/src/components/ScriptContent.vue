@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, watch } from 'vue'
 import { state } from '../store'
 
 // 彩虹括号颜色（按深度循环）
@@ -14,11 +14,25 @@ const BRACKET_COLORS = [
   '#ff9bce', // 粉
 ]
 
-const highlighted = computed(() => {
-  if (!state.doc) return ''
-  const json = JSON.stringify(state.doc, null, 2)
-  return highlightJson(json)
-})
+const highlighted = ref('')
+let highlightTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleHighlight() {
+  if (highlightTimer) clearTimeout(highlightTimer)
+  highlightTimer = setTimeout(() => {
+    highlightTimer = null
+    if (state.doc) {
+      const json = JSON.stringify(state.doc, null, 2)
+      highlighted.value = highlightJson(json)
+    } else {
+      highlighted.value = ''
+    }
+  }, 200)
+}
+
+watch(() => state.doc, () => {
+  scheduleHighlight()
+}, { deep: true, immediate: true })
 
 /**
  * JSON 语法高亮 + 彩虹括号

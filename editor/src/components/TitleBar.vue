@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { state, newScript, saveScript, undo, redo } from '../store'
+import { state, newScript, saveScript, undo, redo, loadScript, refreshScripts } from '../store'
 
 const emit = defineEmits<{
   (e: 'toggle-left'): void
@@ -15,6 +15,18 @@ function toggle(name: string) {
 
 function run(action: () => void) {
   action()
+  openMenu.value = ''
+}
+
+async function openScriptByPrompt() {
+  const path = window.prompt('输入要打开的脚本路径（如 chapter/boss.json）', state.currentPath || '')
+  if (!path) return
+  try {
+    await loadScript(path)
+    await refreshScripts()
+  } catch (e: any) {
+    window.alert('打开失败: ' + (e?.message || e))
+  }
   openMenu.value = ''
 }
 
@@ -48,7 +60,7 @@ function windowAction(kind: 'minimize' | 'maximize' | 'close') {
         <div v-if="openMenu === 'file'" class="dropdown">
           <button @click="run(() => newScript())">新建</button>
           <button @click="run(() => saveScript())" :disabled="!state.currentPath">保存</button>
-          <button @click="openMenu = ''">打开…</button>
+          <button @click="openScriptByPrompt">打开…</button>
         </div>
       </div>
       <div class="menu-item" @click.stop="toggle('edit')">

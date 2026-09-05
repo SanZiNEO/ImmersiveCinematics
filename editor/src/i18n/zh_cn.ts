@@ -186,6 +186,11 @@ export default {
   'context.split': '在播放头处分割',
   'context.add_keyframe': '在此添加关键帧',
   'context.add_clip': '在此添加片段',
+  'context.delete_marker': '删除标记',
+  'context.set_loop_in': '设置循环入点',
+  'context.set_loop_out': '设置循环出点',
+  'context.clear_loop': '清除循环',
+  'context.zoom_to_fit': '缩放适配全部',
 
   // 触发器
   'trigger.add': '添加触发器',

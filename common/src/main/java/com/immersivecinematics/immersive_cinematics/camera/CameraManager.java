@@ -488,6 +488,11 @@ public class CameraManager {
         return gameTimeSeconds;
     }
 
+    /** 编辑器预览是否处于暂停（对应旧 Java EditorPlayback.isPlaying 的反义）。 */
+    public boolean isPreviewPaused() {
+        return previewPaused;
+    }
+
     private void deactivateNow() {
         // 诊断：退出链路（deactivateNow 执行）
         LOGGER.info("deactivateNow: reason={}", pendingCompletionReason);

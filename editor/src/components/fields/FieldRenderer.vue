@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { SchemaField } from '../../types'
 import StringField from './StringField.vue'
+import RegistryStringField from './RegistryStringField.vue'
 import NumberField from './NumberField.vue'
 import BoolField from './BoolField.vue'
 import TristateField from './TristateField.vue'
@@ -15,7 +16,17 @@ const props = defineProps<{
   modelValue: unknown
   /** 所属对象，用于 position 字段读取 position_mode 等联动字段 */
   parent?: Record<string, unknown>
+  fieldKey?: string
 }>()
+
+const REGISTRY_KEYS = new Set([
+  'item', 'target', 'entity', 'biome', 'dimension', 'from_dimension',
+  'advancement', 'structure', 'look_at_target_structure', 'stage', 'sound',
+])
+
+const useRegistry = computed(() =>
+  props.field.type === 'string' && props.fieldKey != null && REGISTRY_KEYS.has(props.fieldKey)
+)
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: unknown): void
@@ -23,7 +34,7 @@ const emit = defineEmits<{
 
 const component = computed(() => {
   switch (props.field.type) {
-    case 'string': return StringField
+    case 'string': return useRegistry.value ? RegistryStringField : StringField
     case 'int':
     case 'float': return NumberField
     case 'bool': return BoolField
@@ -48,6 +59,7 @@ function onUpdate(value: unknown) {
     :field="field"
     :model-value="modelValue"
     :parent="parent"
+    :field-key="fieldKey"
     @update:model-value="onUpdate"
   />
 </template>

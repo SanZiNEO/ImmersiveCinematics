@@ -57,6 +57,7 @@ public final class ClientEventHandler {
             registrar.register(CinematicKeyBindings.EDITOR_FRAME_ALL);
             registrar.register(CinematicKeyBindings.EDITOR_FLIGHT);
             registrar.register(CinematicKeyBindings.EDITOR_WEBUI);
+            registrar.register(CinematicKeyBindings.EDITOR_WEBUI_OPEN);
             registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_FOV_IN);
             registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_FOV_OUT);
             registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_ZOOM_IN);

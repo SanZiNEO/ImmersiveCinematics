@@ -79,6 +79,7 @@ public class EditorOutput {
 
         // Throttled time update
         if (pendingTime >= 0 && now - lastTimeSend >= TIME_THROTTLE_MS) {
+            System.out.println("[IC-JavaEditor] setTime " + String.format("%.3f", pendingTime));
             bridge.setTime(pendingTime);
             EditorLogger.action(EditorLogger.SCREEN, "OUTPUT_SET_TIME",
                     String.format("%.3f", pendingTime));
@@ -88,6 +89,7 @@ public class EditorOutput {
 
         // Throttled script push
         if (pendingScriptJson != null && now - lastScriptSend >= SCRIPT_THROTTLE_MS) {
+            System.out.println("[IC-JavaEditor] pushScript len=" + pendingScriptJson.length());
             bridge.pushScript(pendingScriptJson);
             EditorLogger.action(EditorLogger.SCREEN, "OUTPUT_PUSH_SCRIPT",
                     "len=" + pendingScriptJson.length());
@@ -97,16 +99,19 @@ public class EditorOutput {
 
         // One-shot intents
         if (pendingPlay) {
+            System.out.println("[IC-JavaEditor] play");
             bridge.play();
             EditorLogger.action(EditorLogger.SCREEN, "OUTPUT_PLAY", "");
             pendingPlay = false;
         }
         if (pendingPause) {
+            System.out.println("[IC-JavaEditor] pause");
             bridge.pause();
             EditorLogger.action(EditorLogger.SCREEN, "OUTPUT_PAUSE", "");
             pendingPause = false;
         }
         if (pendingStop) {
+            System.out.println("[IC-JavaEditor] stop");
             bridge.stop();
             EditorLogger.action(EditorLogger.SCREEN, "OUTPUT_STOP", "");
             pendingStop = false;

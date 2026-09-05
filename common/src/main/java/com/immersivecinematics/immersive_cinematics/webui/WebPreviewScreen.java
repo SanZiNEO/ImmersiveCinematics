@@ -22,6 +22,11 @@ import org.lwjgl.glfw.GLFW;
  */
 public class WebPreviewScreen extends Screen {
 
+    /** 飞控状态广播节流：100ms 一次，避免每帧 JSON 刷屏导致 CPU 高负载 */
+    private long lastFlightStateBroadcast;
+    /** 播放状态广播节流：50ms 一次（约 20Hz），对齐旧 EditorOutput 节流 */
+    private long lastPlaybackStateBroadcast;
+
     public WebPreviewScreen() {
         super(Component.literal("Web Preview"));
     }
@@ -46,16 +51,28 @@ public class WebPreviewScreen extends Screen {
         WebFrameCapture.capture(minecraft);
         WebFrameStreamer.onFrame();
 
-        // 飞控模式下每帧把当前相机参数发给前端（实时预览）
+        // 核心双向通信：按 50ms 节流把真实播放器时间/播放状态推给外部编辑器。
+        // 没有这个，前端只能收到画面，永远不知道脚本是否在播放、播到哪。
+        long nowPs = System.currentTimeMillis();
+        if (nowPs - lastPlaybackStateBroadcast >= 50) {
+            lastPlaybackStateBroadcast = nowPs;
+            WebEditorApi.pushPlaybackState();
+        }
+
+        // 飞控模式下按 100ms 节流发当前相机参数（不再每帧刷，避免卡顿）
         if (FlightController.INSTANCE.isActive()) {
-            broadcastFlightState();
+            long nowFlight = System.currentTimeMillis();
+            if (nowFlight - lastFlightStateBroadcast >= 100) {
+                lastFlightStateBroadcast = nowFlight;
+                broadcastFlightState();
+            }
         }
     }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        // F6 / ESC 关闭编辑器
-        if (CinematicKeyBindings.EDITOR_KEY != null && CinematicKeyBindings.EDITOR_KEY.matches(keyCode, scanCode)) {
+        // F9 / ESC 关闭 WebUI 编辑器
+        if (CinematicKeyBindings.EDITOR_WEBUI_OPEN.matches(keyCode, scanCode)) {
             onClose();
             return true;
         }

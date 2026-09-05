@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import type { SchemaField } from '../../types'
+import CommitNumberField from './CommitNumberField.vue'
 
 const props = defineProps<{
   field: SchemaField
@@ -23,9 +24,22 @@ const isAbsolute = computed(() => props.parent?.position_mode === 'absolute')
 
 const keys = computed(() => isAbsolute.value ? ['x', 'y', 'z'] : ['dx', 'dy', 'dz'])
 
-function setKey(key: string, e: Event) {
-  const val = parseFloat((e.target as HTMLInputElement).value)
-  emit('update:modelValue', { ...pos.value, [key]: isNaN(val) ? 0 : val })
+// 旧 Java 逻辑：切换 relative/absolute 时把坐标字段互转，避免保存出脏数据
+watch(isAbsolute, (abs) => {
+  const p = pos.value
+  if (abs && p.dx !== undefined) {
+    const converted = { ...p, x: p.dx, y: p.dy, z: p.dz }
+    delete converted.dx; delete converted.dy; delete converted.dz
+    emit('update:modelValue', converted)
+  } else if (!abs && p.x !== undefined) {
+    const converted = { ...p, dx: p.x, dy: p.y, dz: p.z }
+    delete converted.x; delete converted.y; delete converted.z
+    emit('update:modelValue', converted)
+  }
+})
+
+function setKey(key: string, value: number) {
+  emit('update:modelValue', { ...pos.value, [key]: value })
 }
 </script>
 
@@ -33,11 +47,10 @@ function setKey(key: string, e: Event) {
   <div class="position-field">
     <div v-for="k in keys" :key="k" class="pos-row">
       <span class="pos-key">{{ k }}</span>
-      <input
-        type="number"
-        step="0.1"
-        :value="pos[k] ?? 0"
-        @input="setKey(k, $event)"
+      <CommitNumberField
+        :model-value="pos[k] ?? 0"
+        :step="0.1"
+        @update:model-value="setKey(k, $event)"
       />
     </div>
   </div>
@@ -60,13 +73,7 @@ function setKey(key: string, e: Event) {
   color: #888;
   text-align: right;
 }
-.pos-row input {
+.pos-row :deep(.commit-number) {
   flex: 1;
-  background: #111;
-  color: #ddd;
-  border: 1px solid #333;
-  padding: 2px 4px;
-  border-radius: 3px;
-  font-size: 12px;
 }
 </style>
