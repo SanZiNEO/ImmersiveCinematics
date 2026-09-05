@@ -47,3 +47,9 @@ ITEM_ICON_GUIDE.md
 bin/
 /.kilo
 plans/0.3.3/phase4-unified-clip-model.md
+
+# --- 本地/隐私 UI 截图，禁止跟踪 ---
+/editor_screenshot*.png
+/feedback*.png
+/editor/layout_check*.png
+/editor/right_panel_crop.png
