@@ -36,3 +36,5 @@
   - ✅ `S2CPreloadResultPacket`（服务端→客户端，`preload_result`）：仅日志/命中回执，不阻塞播放（`S2CPreloadResultPacket`）
 - **客户端脚本缓存**
   - ⚠️ `ClientScriptCache` 提供按 id 缓存/查询/清空 `CinematicScript` 的静态容器，但全工程无任何调用方，未接入任何链路（`ClientScriptCache`）
+
+> 注：WebUI 编辑器的**本地** WebSocket 协议（19 个命令 + 二进制帧流）不属于本层，见 [editor.md](./editor.md)。

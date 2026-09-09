@@ -1,17 +1,38 @@
-# editor（游戏内编辑器）
+# editor（编辑器：游戏内 + WebUI）
 
-对应路径：`common/src/main/java/com/immersivecinematics/immersive_cinematics/editor/`
+对应路径：
+- 游戏内编辑器：`common/src/main/java/com/immersivecinematics/immersive_cinematics/editor/`
+- WebUI 服务端：`common/src/main/java/com/immersivecinematics/immersive_cinematics/webui/`
+- WebUI 前端：`editor/`（Electron + Vue 3）
 
 功能树：
 
-- **编辑器框架与布局**
+- **两个编辑器的关系**
+  - ✅ 共用同一套脚本格式（v3）与字段 schema（`SchemaExporter` / `FieldControl` 同时服务两边），脚本互通
+  - ✅ 共用同一条相机链路、预览帧捕获与飞控会话（`FlightModeManager`）
+  - ⏳ **当前为对比测试阶段**：两个编辑器同时提供，供用户自行体验选择，最终取舍未定
+  - 差异：游戏内编辑器随模组 jar 分发、按 F6 打开、受游戏分辨率与 UI 缩放限制；WebUI 是独立桌面程序、界面空间更大、需单独下载安装
+
+- **WebUI 编辑器**
+  - ✅ `WebEditorServer` 本地 WebSocket 服务端（只绑定 127.0.0.1）：模组作服务端、编辑器作客户端，支持双向文本 JSON 与二进制帧流（`WebEditorServer`）
+  - ✅ `WebSocketSession` 单客户端会话：读取客户端帧、发送文本/二进制帧、断开时自动移除（`WebSocketSession`）
+  - ✅ `WebEditorApi` 消息路由，协议 `{ "type", "data", "id" }`；19 个命令：`hello`、`script.list/load/save/delete/new/validate`、`registry.query/get`、`schema.get`、`editor.seek/play/pause/stop/setCamera/pushScript/enter_flight_mode/exit_flight_mode/cancel_flight_mode`（`WebEditorApi`）
+  - ✅ `ScriptFileService` 独立的脚本文件服务（替代原先散落在 `EditorScreen` 的文件 IO），两个编辑器共用（`ScriptFileService`）
+  - ✅ `WebRegistryService` 注册表/自动补全数据源：即时查询 MC 注册表并过滤，与旧 `SingleIdEditor` / `LocationEditor` 数据源一致，Forge/Fabric 通用（`WebRegistryService`）
+  - ✅ `WebPreviewScreen` 预览屏幕，游戏端只做三件事：画面传输、播放控制（play/pause/seek/stop/pushScript）、飞控模式（前端发 `enter_flight_mode` 后玩家在游戏内用 WASD 取景）；编辑器按键绑定全部由前端处理，游戏端不转发（`WebPreviewScreen`）
+  - ✅ 飞控 HUD：在游戏画面叠加当前键位提示（鼠标/移动/升降/慢速/滚转/FOV/Zoom/模式切换/光学重置/保存退出/取消）（`WebPreviewScreen`）
+  - ✅ `WebFrameCapture` WebUI 专用低分辨率帧捕获：主 RenderTarget 缩放到固定 16:9 小 FBO 后 `glReadPixels` 读回，与游戏内编辑器的 `PreviewCapture` 分离、互不影响（`WebFrameCapture`）
+  - ✅ `WebFrameStreamer` 把读回的 RGBA 像素经 WebSocket 发送：读帧在渲染线程，翻转/发送在独立 worker 线程，落后时只保留最新帧；帧格式 `[type][frameId][w][h][RGBA]`（`WebFrameStreamer`）
+  - ✅ 前端 `editor/`：Electron + Vue 3 桌面程序，多轨道时间轴、属性/关键帧/触发器面板、预设库、飞控浮层；时间头以游戏端为唯一源，拖动时由前端驱动并以 16ms 节流上报（`editor/src`）
+
+- **编辑器框架与布局（游戏内）**
   - ✅ `EditorScreen` 为游戏内全屏编辑器，四区布局：菜单栏/左侧属性面板/预览区/时间轴，以 960×540 参考分辨率等比缩放（`Scale`）
   - ✅ `Scale` 集中管理 UI 缩放系数（参考分辨率 960×540），各区域按 `sx/sy` 自适应窗口（`Scale`）
   - ✅ `MenuBarArea` 提供标题、新建/保存按钮、状态文本与 3 秒动作提示（脚本列表按钮已移除，由面板 tab 栏覆盖）（`MenuBarArea`）
   - ✅ `EditorDocument` 管理脚本 JSON 文档：新建默认模板（meta + 5 种轨道）、加载/序列化、文件名清洗、脏标记（`EditorDocument`）
   - ✅ `EditorBridge` 接口解耦编辑器与相机链路：setTime/pushScript/play/pause/stop（`EditorBridge`）
   - ✅ 编辑器打开时不暂停游戏（`isPauseScreen()` 返回 false），配合 `PreviewCapture` 实时捕获游戏画面供预览区显示（`EditorScreen`）
-  - ✅ WebUI 迁移预留：`SchemaExporter` / `FieldControl` 作为未来 WebUI 动态表单的铺垫保留；WebUI 迁移计划目前搁置，仍以游戏内编辑器为准（`SchemaExporter`、`FieldControl`）
+  - ✅ `SchemaExporter` / `FieldControl` 为脚本字段 schema 与控件决策的共用层：游戏内编辑器与 WebUI 动态表单同源，Java 侧始终是 schema 权威（`SchemaExporter`、`FieldControl`）
 - **UI 组件树与事件分发**
   - ✅ `UIComponent` 为组件树基类：子节点渲染（zIndex 降序）、焦点系统、鼠标/键盘事件模板方法逐层分发（点击/拖拽/释放/滚动/按键/字符）（`UIComponent`）
   - ✅ `UIContext` 传递渲染上下文：GuiGraphics/字体/鼠标/修饰键，提供视口裁剪（push/pop/shiftViewport）与遗留滚动 API（`UIContext`）

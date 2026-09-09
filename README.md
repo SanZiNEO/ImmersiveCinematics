@@ -70,11 +70,16 @@ ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server
 | `/icinematics reload` | Sync global scripts to the world save and reload triggers |
 | `/icinematics validate <file>` | Static-validate a script file (authoring self-check) |
 
-### In-Game Editor
+### Editors
 
-Use the built-in timeline editor to create and modify scripts visually without leaving the game. Multi-track timeline, keyframe editing, playback control (play/pause toggle + reset-to-first-frame), camera gizmo, and trigger condition editors.
+This version ships **two editors**, both in testing — feel free to compare:
 
-A single build includes both playback runtime and the in-game editor. All users download the same jar.
+| Editor | Notes |
+|------|------|
+| **In-Game Editor** | Built into the mod, opened with F6, edit visually without leaving the game. Multi-track timeline, keyframe editing, playback control (play/pause toggle + reset-to-first-frame), camera gizmo, trigger condition editors |
+| **Standalone Editor (WebUI)** | Separate desktop app that drives the game over a local connection, with more screen space; requires a separate download |
+
+Both share the same script format (v3) and field schema, so scripts work in either. A single build already includes the playback runtime and the in-game editor — all users download the same jar.
 
 ---
 
@@ -86,8 +91,9 @@ A single build includes both playback runtime and the in-game editor. All users 
 |---|---------|
 | Minecraft | 1.20.1 |
 | Forge | 47.x+ |
-| Fabric | 0.14.0+ |
+| Fabric | 0.16.10+ |
 | Script Format | v3 |
+| Standalone Editor | 0.1.0 (testing) |
 
 ---
 
