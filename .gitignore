@@ -13,6 +13,9 @@ editor/node_modules/
 editor/dist/
 editor/release/
 
+# electron-builder 资源目录（图标源文件，不是构建产物，需纳入版本控制）
+!editor/build/
+
 # 游戏运行数据与存档
 run/
 out/
