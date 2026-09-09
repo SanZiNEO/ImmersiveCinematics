@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import {
-  state, commit, seek, selectClip, selectKeyframe, clearSelection,
+  state, commit, seek, beginSeekDrag, endSeekDrag, selectClip, selectKeyframe, clearSelection,
   zoomIn, zoomOut, setTool, toggleSnap, getTrackView, toggleTrackVisible,
   toggleTrackLocked, toggleTrackMuted,
   copySelectedClips, cutSelectedClips, pasteClips, deleteSelectedClips,
@@ -231,6 +231,7 @@ const dragData = ref<{
 
 function onPlayheadMouseDown(e: MouseEvent) {
   e.stopPropagation()
+  beginSeekDrag()
   dragMode.value = 'playhead'
   window.addEventListener('mousemove', onPlayheadDrag)
   window.addEventListener('mouseup', onDragEnd)
@@ -248,6 +249,7 @@ function onRulerMouseDown(e: MouseEvent) {
   if (e.button !== 0) return
   e.stopPropagation()
   hideContextMenu()
+  beginSeekDrag()
   dragMode.value = 'ruler'
   const t = Math.max(0, Math.min(canvasDuration.value, getMouseTime(e)))
   seek(t)
@@ -396,6 +398,7 @@ function onContentMouseDown(e: MouseEvent) {
   hideContextMenu()
   // 空白区域（轨道行/标尺未命中 clip/keyframe/播放头时）也进入持续拖动模式，
   // 避免“只在标尺能拖、在画布上拖不动播放头”的割裂体验。
+  beginSeekDrag()
   dragMode.value = 'ruler'
   const t = getMouseTime(e)
   seek(Math.max(0, Math.min(canvasDuration.value, t)))
@@ -408,6 +411,7 @@ function onContentMouseDown(e: MouseEvent) {
 // ── 拖拽结束 ──────────────────────────────────────────────────
 
 function onDragEnd() {
+  endSeekDrag()
   dragMode.value = 'none'
   dragData.value = {}
   window.removeEventListener('mousemove', onPlayheadDrag)

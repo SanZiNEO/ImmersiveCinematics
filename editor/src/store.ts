@@ -144,10 +144,15 @@ let frameListener: ((buf: ArrayBuffer) => void) | null = null
 
 /** 脚本推送防抖：对齐旧 Java EditorOutput（200ms 节流），避免每次输入全量推送 */
 const SCRIPT_PUSH_DELAY_MS = 160
-/** seek 节流：对齐旧 Java EditorOutput（50ms 节流） */
-const SEEK_SEND_DELAY_MS = 50
+/** seek 节流：拖动时保持高频，不尾随防抖 */
+const SEEK_SEND_THROTTLE_MS = 16
 let scriptPushTimer: ReturnType<typeof setTimeout> | null = null
-let seekSendTimer: ReturnType<typeof setTimeout> | null = null
+let seekLastSendAt = 0
+let seekPendingTime: number | null = null
+let seekTrailingTimer: ReturnType<typeof setTimeout> | null = null
+/** 拖动会话：拖动中前端驱动时间头，松手后短暂确认再交回游戏端唯一源 */
+let seekingDrag = false
+let dragAcceptAfter = 0
 
 function wsOpen(): boolean {
   return !!ws && ws.readyState === WebSocket.OPEN
@@ -194,7 +199,10 @@ export function connect(): void {
     state.connected = false
     state.status = 'disconnected'
     if (scriptPushTimer) { clearTimeout(scriptPushTimer); scriptPushTimer = null }
-    if (seekSendTimer) { clearTimeout(seekSendTimer); seekSendTimer = null }
+    if (seekTrailingTimer) { clearTimeout(seekTrailingTimer); seekTrailingTimer = null }
+    seekPendingTime = null
+    seekingDrag = false
+    dragAcceptAfter = 0
     for (const [, p] of pending) p.reject(new Error('connection closed'))
     pending.clear()
     reconnectTimer = setTimeout(() => connect(), 1500)
@@ -241,7 +249,11 @@ function handleMessage(msg: any): void {
     return
   }
   if (msg.type === 'playback.state') {
-    state.time = msg.data?.time ?? state.time
+    // 拖动会话期间前端是驱动方，忽略游戏端时间回推；松手确认期后再恢复接受
+    const ignoreTime = seekingDrag || performance.now() < dragAcceptAfter
+    if (!ignoreTime) {
+      state.time = msg.data?.time ?? state.time
+    }
     state.playing = !!msg.data?.playing
   }
   // ── 飞控模式实时状态：只更新 HUD/状态，绝不每帧写关键帧 ──
@@ -375,16 +387,54 @@ export function deleteScript(path: string): Promise<void> {
 
 export function seek(time: number): void {
   log('seek', time)
-  // 游戏端唯一源：前端不直接写 state.time，只发送 seek 请求，
-  // 时间头由游戏端 playback.state 回推后更新，避免鼠标与回推互相抢。
+  // 拖动会话：前端时间头立即跟手，seek 命令以高频节流发给游戏端
+  state.time = time
   if (!wsOpen()) return
-  if (seekSendTimer) clearTimeout(seekSendTimer)
-  seekSendTimer = setTimeout(() => {
-    seekSendTimer = null
-    if (wsOpen()) {
-      send('editor.seek', { time })
+  const now = performance.now()
+  if (now - seekLastSendAt >= SEEK_SEND_THROTTLE_MS) {
+    seekLastSendAt = now
+    sendSeek(time)
+  } else {
+    seekPendingTime = time
+    if (!seekTrailingTimer) {
+      seekTrailingTimer = setTimeout(flushSeek, SEEK_SEND_THROTTLE_MS)
     }
-  }, SEEK_SEND_DELAY_MS)
+  }
+}
+
+function sendSeek(time: number): void {
+  if (wsOpen()) send('editor.seek', { time })
+}
+
+function flushSeek(): void {
+  seekTrailingTimer = null
+  if (seekPendingTime == null) return
+  const t = seekPendingTime
+  seekPendingTime = null
+  seekLastSendAt = performance.now()
+  sendSeek(t)
+}
+
+/** 开始拖动时间轴：进入前端驱动阶段，忽略游戏端时间回推 */
+export function beginSeekDrag(): void {
+  seekingDrag = true
+}
+
+/** 结束拖动：补发最终 seek，短暂确认期后再交回游戏端唯一源 */
+export function endSeekDrag(): void {
+  if (!seekingDrag) return
+  seekingDrag = false
+  dragAcceptAfter = performance.now() + 150
+  if (seekPendingTime != null) {
+    if (seekTrailingTimer) {
+      clearTimeout(seekTrailingTimer)
+      seekTrailingTimer = null
+    }
+    const t = seekPendingTime
+    seekPendingTime = null
+    seekLastSendAt = performance.now()
+    sendSeek(t)
+  }
 }
 
 /** 调度一次防抖脚本推送：多次 commit 只推最新一份，未连接直接不调度 */
