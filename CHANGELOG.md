@@ -1,3 +1,34 @@
+### 2026-09-09 追加 — WebUI 时间头唯一源、独立飞控模块接入、时间轴滚动重构与图标体系
+
+**WebUI 时间头唯一源**
+- 前端 `seek / play / pause / stop` 不再直接写 `state.time / state.playing`，只发送命令，时间头与播放状态统一由游戏端 `playback.state` 回推，消除鼠标拖动与回推互相抢时间
+- `CameraManager.setTime` 立即同步 `gameTimeSeconds`，修复 `handleSeek` 后紧接着 `pushPlaybackState` 读到旧时间导致的回跳
+- 移除 `ScriptStructure.vue`（脚本结构树）；左侧面板（脚本/轨道/预设）移入编辑区内部；`ScriptList` 增加「刷新」按钮
+
+**独立飞控模块**
+- 新增 `FlightModeManager`：飞控会话与 `EditorScreen` 解耦，WebUI / 游戏内编辑器 / 键盘中转统一走同一入口，为后续移除游戏内编辑器后 WebUI 飞控独立工作做准备
+- 职责内聚：进入（暂停相机 + 启用直控 + 初始化）、退出（返回最终相机数据）、取消（恢复进入前状态）、每帧 tick、键盘/鼠标事件转发、光学 reset（只恢复 FOV/Zoom/Roll，不动位置与朝向）
+- WebUI 完整接入飞控：新增 `editor.exit_flight_mode` / `editor.cancel_flight_mode` 协议；进入飞控改用当前实际相机状态作为初始值（与 Java 编辑器行为一致），前端只传保存模式
+- `WebPreviewScreen` 每帧驱动飞控并按 100ms 节流回推相机参数；新增飞控 HUD，展示鼠标/移动/升降/慢速/滚转/FOV/Zoom/模式切换/光学重置/保存退出/取消 的键位提示
+- 前端 `Preview` 增加飞控浮层：实时位置、Yaw/Pitch/Roll、FOV/Zoom，以及「退出并保存 / 取消」按钮
+- 修复 RELATIVE 模式落点：世界坐标先减去基准点（玩家位置/触发点）再写入 `dx/dy/dz`
+
+**时间轴**
+- 拖动会话：拖动中由前端驱动时间头并即时跟手，`seek` 改为 16ms 高频节流（原为 50ms 尾随防抖），松手后经短暂确认期再交回游戏端唯一源
+- 拖动期间忽略游戏端 `playback.state` 的时间回推，避免互相抢；播放头、标尺、画布空白区域均可拖动
+- 统一滚动容器：轨道头与画布合并进同一纵向滚动区，删除手动 `scrollTop` 同步；轨道头横向吸左（sticky），播放头改为贯穿标尺与全部轨道行的竖线
+- 时间轴默认高度 260 → 320，响应式比例 28% → 34%（最小 280，最大 520）
+
+**音频 / 示例脚本**
+- `AudioTrackPlayer` 新增失败 clip 集合：缺失或无法加载的音频只记录一次并跳过该 clip，不再每帧重试刷异常
+- demo 脚本移除音频轨，避免依赖不存在的示例音频
+
+**图标体系**
+- 模组图标 `assets/immersive_cinematics/icon.png`（256×256）：Fabric 由 `fabric.mod.json` 的 `icon` 引用，Forge 启用 `mods.toml` 的 `logoFile` 指向同一路径
+- 编辑器应用图标：`editor/build/icon.png`（512×512）与 `icon.ico`（16/32/48/64/128/256 六尺寸），`electron-builder.yml` 增加 `win.icon`
+- `.gitignore` 放行 `editor/build/`：该目录是 electron-builder 的图标源文件而非构建产物，否则 clone 后打包会退回 Electron 默认图标
+- 编辑器标题栏 logo：原本的蓝色文字 `IC` 方块改为引用图标图片（`editor/src/assets/icon.png`）
+
 ### 2026-09-01 追加 — 虚拟相机中心：完全接入原版 ChunkMap 差集
 
 **预加载核心重构**
