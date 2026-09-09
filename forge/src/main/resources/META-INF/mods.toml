@@ -11,7 +11,7 @@ authors = "sanzi"
 description = '''
 A cinematic camera mod designed for cutscenes and immersive storytelling. Allows detached camera control and tripod mode.
 '''
-#logoFile = ""
+logoFile = "assets/immersive_cinematics/icon.png"
 
 [[dependencies.immersive_cinematics]]
 modId = "forge"
