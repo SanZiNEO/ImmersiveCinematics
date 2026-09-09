@@ -35,7 +35,7 @@ public interface InputRouter {
                 if (mc.level == null) return InputTarget.GAME;
 
                 // 飞行取景：F7/Esc 放行给 EditorScreen 退出/取消，其余按键全部交给飞控
-                if (FlightController.INSTANCE.isActive()) {
+                if (FlightModeManager.INSTANCE.isActive()) {
                     if (CinematicKeyBindings.EDITOR_FLIGHT.matches(key, scanCode) || key == GLFW.GLFW_KEY_ESCAPE) {
                         return InputTarget.GAME;
                     }
@@ -61,19 +61,19 @@ public interface InputRouter {
 
             @Override
             public InputTarget routeMouseButton(int button, int action, int modifiers) {
-                if (FlightController.INSTANCE.isActive()) return InputTarget.FLIGHT;
+                if (FlightModeManager.INSTANCE.isActive()) return InputTarget.FLIGHT;
                 return shouldBlockMouse() ? InputTarget.BLOCK : InputTarget.GAME;
             }
 
             @Override
             public InputTarget routeMouseScroll(double delta) {
-                if (FlightController.INSTANCE.isActive()) return InputTarget.FLIGHT;
+                if (FlightModeManager.INSTANCE.isActive()) return InputTarget.FLIGHT;
                 return shouldBlockMouse() ? InputTarget.BLOCK : InputTarget.GAME;
             }
 
             @Override
             public InputTarget routeTurnPlayer() {
-                if (FlightController.INSTANCE.isActive()) return InputTarget.FLIGHT;
+                if (FlightModeManager.INSTANCE.isActive()) return InputTarget.FLIGHT;
                 return shouldBlockMouse() ? InputTarget.BLOCK : InputTarget.GAME;
             }
 

@@ -451,14 +451,7 @@ export function enterFlightMode(): void {
   const isAbsolute = k.position_mode === 'absolute'
     || (k.position_mode !== 'relative' && pos.x !== undefined && pos.dx === undefined)
   send('editor.enter_flight_mode', {
-    x: pos.x ?? pos.dx ?? 0,
-    y: pos.y ?? pos.dy ?? 2,
-    z: pos.z ?? pos.dz ?? 0,
-    yaw: k.yaw ?? 0,
-    pitch: k.pitch ?? 0,
-    roll: k.roll ?? 0,
-    fov: k.fov ?? 70,
-    zoom: k.zoom ?? 1,
+    // 初始相机参数由游戏端当前相机决定（与 Java 编辑器一致），前端只传保存模式
     absolute: isAbsolute,
   })
 }
@@ -481,9 +474,13 @@ function updateKeyframeFromFlight(data: any): void {
     pos.z = data.z
     delete pos.dx; delete pos.dy; delete pos.dz
   } else {
-    pos.dx = data.x
-    pos.dy = data.y
-    pos.dz = data.z
+    // RELATIVE：世界坐标必须减去基准点（玩家位置/触发点），不能直接写 dx/dy/dz
+    const bx = Number(data.baseX ?? 0)
+    const by = Number(data.baseY ?? 0)
+    const bz = Number(data.baseZ ?? 0)
+    pos.dx = Number(data.x) - bx
+    pos.dy = Number(data.y) - by
+    pos.dz = Number(data.z) - bz
     delete pos.x; delete pos.y; delete pos.z
   }
   k.yaw = data.yaw
@@ -492,6 +489,12 @@ function updateKeyframeFromFlight(data: any): void {
   k.fov = data.fov
   k.zoom = data.zoom
   state.dirty = true
+}
+
+/** 退出飞控：record=true 保存最终相机数据到关键帧，false 取消并恢复原值 */
+export function exitFlightMode(record = true): void {
+  if (!flightMode.value) return
+  send(record ? 'editor.exit_flight_mode' : 'editor.cancel_flight_mode')
 }
 
 export function play(): void {

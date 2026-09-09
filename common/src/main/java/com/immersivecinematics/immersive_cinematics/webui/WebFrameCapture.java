@@ -105,6 +105,10 @@ public class WebFrameCapture {
         return TARGET_H;
     }
 
+    public static int getTextureId() {
+        return texId;
+    }
+
     private static void initFbo(int w, int h) {
         destroy();
         texId = GL11.glGenTextures();

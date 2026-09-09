@@ -66,6 +66,8 @@ public final class WebEditorApi {
                 case "editor.setCamera" -> handleSetCamera(data);
                 case "editor.pushScript" -> handlePushScript(data);
                 case "editor.enter_flight_mode" -> handleEnterFlightMode(data);
+                case "editor.exit_flight_mode" -> WebPreviewScreen.requestFlightExit(true);
+                case "editor.cancel_flight_mode" -> WebPreviewScreen.requestFlightExit(false);
                 default -> sendError(session, id, "unknown type: " + type);
             }
         } catch (Exception e) {
@@ -235,9 +237,7 @@ public final class WebEditorApi {
         float fov = data.has("fov") ? data.get("fov").getAsFloat() : 70f;
         float zoom = data.has("zoom") ? data.get("zoom").getAsFloat() : 1f;
         boolean absolute = data.has("absolute") && data.get("absolute").getAsBoolean();
-        // 旧编辑器语义：进入飞控前暂停播放并接管直控
-        CameraManager.INSTANCE.pause();
-        CameraManager.INSTANCE.setPreviewDirectControl(true);
+        // 进入飞控由独立 FlightModeManager 统一处理：暂停+直控+初始化
         WebPreviewScreen.enterFlightMode(x, y, z, yaw, pitch, roll, fov, zoom, absolute);
     }
 

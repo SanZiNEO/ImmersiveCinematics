@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
-import { state, onFrame, play, pause, stop } from '../store'
+import { state, onFrame, play, pause, stop, flightMode, flightState, exitFlightMode } from '../store'
 import playIcon from '../assets/icons/play.svg'
 import pauseIcon from '../assets/icons/pause.svg'
 import stopIcon from '../assets/icons/record.svg'
@@ -70,6 +70,18 @@ onUnmounted(() => {
       <div v-if="!state.connected" class="no-signal">
         <div class="no-signal-text">未连接游戏</div>
         <div class="no-signal-hint">游戏内按 F9 打开/关闭 WebUI 编辑器</div>
+      </div>
+      <div v-if="flightMode" class="flight-overlay">
+        <div class="flight-title">飞控模式</div>
+        <template v-if="flightState">
+          <div class="flight-line">位置: {{ flightState.x.toFixed(1) }} / {{ flightState.y.toFixed(1) }} / {{ flightState.z.toFixed(1) }}</div>
+          <div class="flight-line">Yaw: {{ flightState.yaw.toFixed(1) }}  Pitch: {{ flightState.pitch.toFixed(1) }}  Roll: {{ flightState.roll.toFixed(1) }}</div>
+          <div class="flight-line">FOV: {{ flightState.fov.toFixed(1) }}  Zoom: {{ flightState.zoom.toFixed(1) }}</div>
+        </template>
+        <div class="flight-actions">
+          <button @click="exitFlightMode(true)">退出并保存</button>
+          <button @click="exitFlightMode(false)">取消</button>
+        </div>
       </div>
     </div>
     <div class="controls">
@@ -167,5 +179,35 @@ canvas {
 .no-signal-hint {
   font-size: 12px;
   color: #555;
+}
+.flight-overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid #4e7bd3;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #e0e0e0;
+  font-size: 12px;
+  z-index: 10;
+  min-width: 220px;
+}
+.flight-title {
+  font-weight: 700;
+  color: #4e7bd3;
+  margin-bottom: 4px;
+}
+.flight-line {
+  font-family: monospace;
+  margin-bottom: 2px;
+}
+.flight-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.flight-actions button {
+  font-size: 11px;
 }
 </style>

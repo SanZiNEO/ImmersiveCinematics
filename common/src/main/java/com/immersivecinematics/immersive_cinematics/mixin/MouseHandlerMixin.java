@@ -1,6 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
-import com.immersivecinematics.immersive_cinematics.control.FlightController;
+import com.immersivecinematics.immersive_cinematics.control.FlightModeManager;
 import com.immersivecinematics.immersive_cinematics.control.InputRouter;
 import com.immersivecinematics.immersive_cinematics.control.InputTarget;
 import net.minecraft.client.Minecraft;
@@ -62,7 +62,7 @@ public abstract class MouseHandlerMixin {
 
     @Inject(method = "onMove", at = @At("HEAD"), cancellable = true)
     private void onMove(long windowPointer, double x, double y, CallbackInfo ci) {
-        if (!FlightController.INSTANCE.isActive()) {
+        if (!FlightModeManager.INSTANCE.isActive()) {
             // 非飞行：正常交给 vanilla；顺带清掉我们自己的残留同步状态
             icAwaitingCenterSync = false;
             icHasLastMouse = false;
@@ -88,7 +88,7 @@ public abstract class MouseHandlerMixin {
 
         double dx = x - icLastMouseX;
         double dy = y - icLastMouseY;
-        FlightController.INSTANCE.onMouseMove(dx, dy);
+        FlightModeManager.INSTANCE.onMouseMove(dx, dy);
 
         long win = mc.getWindow().getWindow();
         int cw = mc.getWindow().getScreenWidth();

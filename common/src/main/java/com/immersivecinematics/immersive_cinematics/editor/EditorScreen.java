@@ -10,7 +10,7 @@ import com.immersivecinematics.immersive_cinematics.editor.debug.RawInputLogger;
 import com.immersivecinematics.immersive_cinematics.editor.widget.*;
 import com.immersivecinematics.immersive_cinematics.editor.widget.FlightOverlay;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
-import com.immersivecinematics.immersive_cinematics.control.FlightController;
+import com.immersivecinematics.immersive_cinematics.control.FlightModeManager;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
@@ -936,7 +936,7 @@ public class EditorScreen extends Screen {
         if (modeSrc != null && modeSrc.has("position_mode")) {
             modeAbsolute = "absolute".equals(modeSrc.get("position_mode").getAsString());
         }
-        FlightController.INSTANCE.enter(flightPos, flightYaw, flightPitch,
+        FlightModeManager.INSTANCE.enter(flightPos, flightYaw, flightPitch,
                 flightRoll, flightFov, flightZoom, modeAbsolute);
         flightMode = true;
         if (flightOverlay != null) flightOverlay.visible = true;
@@ -950,16 +950,18 @@ public class EditorScreen extends Screen {
         flightMode = false;
         CameraManager.INSTANCE.setPreviewDirectControl(false);
         if (record) {
-            flightPos = FlightController.INSTANCE.getPos();
-            flightYaw = FlightController.INSTANCE.getYaw();
-            flightPitch = FlightController.INSTANCE.getPitch();
-            flightRoll = FlightController.INSTANCE.getRoll();
-            flightFov = FlightController.INSTANCE.getFov();
-            flightZoom = FlightController.INSTANCE.getZoom();
-            FlightController.INSTANCE.exit();
+            FlightModeManager.FlightState state = FlightModeManager.INSTANCE.exit();
+            if (state != null) {
+                flightPos = state.pos;
+                flightYaw = state.yaw;
+                flightPitch = state.pitch;
+                flightRoll = state.roll;
+                flightFov = state.fov;
+                flightZoom = state.zoom;
+            }
             recordFlightCamera();
         } else {
-            FlightController.INSTANCE.cancel();
+            FlightModeManager.INSTANCE.cancel();
             syncPanels();
         }
         if (flightOverlay != null) flightOverlay.visible = false;
@@ -969,7 +971,7 @@ public class EditorScreen extends Screen {
 
     private void updateFlightControls() {
         if (!flightMode) return;
-        FlightController.INSTANCE.tick();
+        FlightModeManager.INSTANCE.tick();
     }
 
     private void recordFlightCamera() {
