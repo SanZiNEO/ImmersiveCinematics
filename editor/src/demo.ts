@@ -318,29 +318,6 @@ export const DEMO_SCRIPT: ScriptDoc = {
         ],
       },
       {
-        type: 'AUDIO',
-        id: 'audio_1',
-        clips: [
-          {
-            start_time: 0,
-            duration: 10,
-            sound: 'music/demo_bgm.ogg',
-            source: 'file',
-            volume: 1.0,
-            pitch: 1.0,
-            fade_in: 1.0,
-            fade_out: 2.0,
-            category: 'music',
-            keyframes: [
-              { time: 0, volume: 0.0 },
-              { time: 1, volume: 1.0 },
-              { time: 8, volume: 1.0 },
-              { time: 10, volume: 0.0 },
-            ],
-          },
-        ],
-      },
-      {
         type: 'OVERLAY',
         id: 'overlay_1',
         clips: [

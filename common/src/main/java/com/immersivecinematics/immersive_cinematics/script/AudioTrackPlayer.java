@@ -23,6 +23,8 @@ public class AudioTrackPlayer implements TrackPlayer {
     private final int trackIndex;
     private final Vec3 originPos;
     private final Map<Clip, CinematicAudioInstance> instances = new HashMap<>();
+    /** 创建失败的音频 clip：跳过并只提示一次，避免每帧刷异常 */
+    private final Set<Clip> failedClips = new HashSet<>();
     private int lastClipIndex = -1;
 
     /** 组 1：暂停状态（对齐 MC SoundEngine） */
@@ -105,6 +107,7 @@ public class AudioTrackPlayer implements TrackPlayer {
         }
         instances.clear();
         previouslyActive.clear();
+        failedClips.clear();
         lastClipIndex = -1;
     }
 
@@ -132,6 +135,7 @@ public class AudioTrackPlayer implements TrackPlayer {
         }
         instances.clear();
         instances.putAll(remapped);
+        failedClips.clear();
         lastClipIndex = -1;
         previouslyActive.clear();
     }
@@ -159,6 +163,8 @@ public class AudioTrackPlayer implements TrackPlayer {
             return;
         }
 
+        if (failedClips.contains(clip)) return;
+
         float dur = clip.getDuration();
         float fadeIn = clip.getFadeIn();
         float fadeOut = clip.getFadeOut();
@@ -169,8 +175,16 @@ public class AudioTrackPlayer implements TrackPlayer {
         }
 
         SoundSource category = parseCategory(clip.getString("category", "music"));
-        CinematicAudioInstance inst = new CinematicAudioInstance(
-                sound, clip.getSource(), clip.isLoop(), clip.getAudioPitch(), category);
+        CinematicAudioInstance inst;
+        try {
+            inst = new CinematicAudioInstance(
+                    sound, clip.getSource(), clip.isLoop(), clip.getAudioPitch(), category);
+        } catch (RuntimeException e) {
+            // 缺失/无法加载的音频：只报一次并跳过该 clip，不再每帧重试
+            LOGGER.error("AUDIO clip failed to start: {} ({})", sound, e.getMessage());
+            failedClips.add(clip);
+            return;
+        }
 
         if (!inst.isValid()) {
             LOGGER.error("Failed to create audio instance for: {}", sound);
