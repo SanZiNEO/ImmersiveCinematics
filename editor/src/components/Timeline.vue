@@ -505,10 +505,7 @@ function onWheel(e: WheelEvent) {
 }
 
 function onScrollerScroll() {
-  // 纵向滚动时同步轨道头
-  if (scrollerRef.value && trackHeaderRef.value) {
-    trackHeaderRef.value.scrollTop = scrollerRef.value.scrollTop
-  }
+  // 统一滚动容器：轨道头与画布在同一个纵向滚动里，无需手动同步
 }
 
 // ── 工具函数 ──────────────────────────────────────────────────
@@ -622,8 +619,9 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- 时间轴主体 -->
-    <div class="timeline-body">
+    <!-- 时间轴主体：统一滚动容器，左轨道头吸顶不横向滚动，与画布同一纵向坐标 -->
+    <div class="timeline-scroll" ref="scrollerRef">
+      <div class="timeline-inner">
       <!-- 左侧轨道头列 -->
       <div class="track-header-col" ref="trackHeaderRef">
         <div class="ruler-spacer"></div>
@@ -631,6 +629,7 @@ onUnmounted(() => {
           v-for="(track, ti) in tracks"
           :key="ti"
           class="track-header"
+          :class="{ hidden: !getTrackView(track.id).visible }"
           :style="{ borderLeftColor: trackColor(track.type) }"
         >
           <div class="track-info" @dblclick="renameTrack(ti)">
@@ -678,9 +677,10 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- 右侧可滚动内容 -->
-      <div class="timeline-scroller" ref="scrollerRef">
-        <div class="timeline-content" ref="contentRef" :style="{ width: contentWidth + 'px' }" @mousedown="onContentMouseDown">
+      <!-- 右侧画布 -->
+      <div class="timeline-content" ref="contentRef" :style="{ width: contentWidth + 'px' }" @mousedown="onContentMouseDown">
+          <!-- 播放头贯穿线：覆盖标尺 + 所有轨道行 -->
+          <div class="playhead-vertical" :style="{ left: timeToPx(state.time) + 'px' }"></div>
           <!-- 时间标尺 -->
           <div class="ruler" @mousedown="onRulerMouseDown" @contextmenu="showRulerMenu($event, getMouseTime($event))">
             <!-- A-B 循环区间 -->
@@ -718,7 +718,6 @@ onUnmounted(() => {
               @mousedown="onPlayheadMouseDown"
             >
               <div class="playhead-handle"></div>
-              <div class="playhead-line"></div>
             </div>
           </div>
 
@@ -828,6 +827,10 @@ onUnmounted(() => {
   color: #d8d8e0;
   user-select: none;
 }
+.timeline,
+.timeline * {
+  box-sizing: border-box;
+}
 
 /* 工具栏 */
 .timeline-toolbar {
@@ -887,18 +890,25 @@ onUnmounted(() => {
   min-width: 50px;
 }
 
-/* 主体 */
-.timeline-body {
+/* 主体：统一横纵滚动 */
+.timeline-scroll {
   flex: 1;
+  overflow: auto;
+  position: relative;
+}
+.timeline-inner {
   display: flex;
-  min-height: 0;
-  overflow: hidden;
+  min-width: max-content;
+  min-height: 100%;
 }
 
-/* 轨道头列 */
+/* 轨道头列：横向滚动时吸左侧，纵向与画布同一滚动 */
 .track-header-col {
   width: 150px;
   flex-shrink: 0;
+  position: sticky;
+  left: 0;
+  z-index: 2;
   border-right: 1px solid #33333a;
   background: #202026;
   display: flex;
@@ -919,6 +929,11 @@ onUnmounted(() => {
   border-bottom: 1px solid #2a2a30;
   border-left: 3px solid transparent;
   flex-shrink: 0;
+  overflow: hidden;
+}
+.track-header.hidden {
+  height: 20px;
+  opacity: 0.4;
 }
 .track-info {
   flex: 1;
@@ -985,12 +1000,7 @@ onUnmounted(() => {
   font-size: 11px;
 }
 
-/* 滚动区 */
-.timeline-scroller {
-  flex: 1;
-  overflow: auto;
-  position: relative;
-}
+/* 画布内容 */
 .timeline-content {
   position: relative;
   min-height: 100%;
@@ -1080,14 +1090,16 @@ onUnmounted(() => {
   background: #ef4444;
   clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%);
 }
-.playhead-line {
+/* 贯穿整个时间轴画布的播放头竖线 */
+.playhead-vertical {
   position: absolute;
   top: 0;
-  left: 0;
+  bottom: 0;
   width: 1px;
-  height: 100vh;
   background: #ef4444;
   opacity: 0.8;
+  z-index: 5;
+  pointer-events: none;
 }
 
 /* 轨道行 */

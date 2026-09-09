@@ -22,7 +22,7 @@ import Timeline from './components/Timeline.vue'
 const jsonColWidth = ref(280)       // 最左 JSON 实时预览列
 const leftPanelWidth = ref(300)     // 编辑器左侧面板（脚本/轨道/预设）
 const rightPanelWidth = ref(360)    // 右侧属性面板
-const timelineHeight = ref(260)     // 底部时间轴高度
+const timelineHeight = ref(320)     // 底部时间轴高度，默认足够显示常见轨道数
 const dragging = ref<'json' | 'left' | 'right' | 'bottom' | null>(null)
 
 const leftTabs = [
@@ -56,8 +56,8 @@ function initSizes() {
   leftPanelWidth.value = clamp(Math.floor(w * 0.16), 220, 420)
   // 右侧属性面板：20%，最小 280，最大 520
   rightPanelWidth.value = clamp(Math.floor(w * 0.2), 280, 520)
-  // 时间轴：28% 高度，最小 180，最大 400
-  timelineHeight.value = clamp(Math.floor(h * 0.28), 180, 400)
+  // 时间轴：34% 高度，最小 280，最大 520
+  timelineHeight.value = clamp(Math.floor(h * 0.34), 280, 520)
 }
 
 function clamp(v: number, min: number, max: number): number {
