@@ -40,7 +40,7 @@ function windowAction(kind: 'minimize' | 'maximize' | 'close') {
   <div class="chrome">
     <div class="title-bar">
       <div class="brand">
-        <span class="logo">IC</span>
+        <img class="logo" src="../assets/icon.png" alt="IC" />
         <span class="title">ImmersiveCinematics</span>
       </div>
       <div class="status">
@@ -99,10 +99,9 @@ function windowAction(kind: 'minimize' | 'maximize' | 'close') {
 .brand { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; }
 .logo {
   width: 20px; height: 20px;
-  background: #4e7bd3; color: #fff;
   border-radius: 5px;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 10px;
+  display: block;
+  object-fit: contain;
 }
 .status { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #8a8a96; }
 .dot { width: 7px; height: 7px; border-radius: 50%; }
