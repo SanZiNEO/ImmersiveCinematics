@@ -26,6 +26,7 @@ async function onDelete(path: string) {
     <h3>脚本</h3>
     <button @click="onNew">新建</button>
     <button @click="onSave" :disabled="!state.currentPath">保存</button>
+    <button @click="refreshScripts">刷新</button>
     <ul>
       <li v-for="path in state.scripts" :key="path"
           :class="{ active: path === state.currentPath }"

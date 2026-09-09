@@ -8,7 +8,6 @@ import { connect, undo, redo, state, loadDemo, play, pause, seek, stop,
 import TitleBar from './components/TitleBar.vue'
 import ScriptDock from './components/ScriptDock.vue'
 import ScriptList from './components/ScriptList.vue'
-import ScriptStructure from './components/ScriptStructure.vue'
 import TrackListPanel from './components/TrackListPanel.vue'
 import PresetsPanel from './components/PresetsPanel.vue'
 import TabbedPanel from './components/TabbedPanel.vue'
@@ -327,42 +326,42 @@ function markUserDragged() {
     </div>
 
     <div class="body-row">
-      <!-- 最左：JSON 实时预览（原始设计，保留） -->
+      <!-- 最左：当前脚本 JSON 文本 -->
       <aside class="json-column" :style="{ width: jsonColWidth + 'px' }">
         <ScriptDock />
       </aside>
       <div class="resize-h" @mousedown="startDrag('json', $event); markUserDragged()"></div>
 
-      <!-- 编辑器左侧面板（脚本/轨道/预设）—— 参考剪映左侧素材面板模式 -->
-      <div class="editor-left-panel" :style="{ width: leftPanelWidth + 'px' }">
-        <TabbedPanel
-          :tabs="leftTabs"
-          :active="leftActiveTab"
-          @change="leftActiveTab = $event"
-        >
-          <template #content>
-            <div v-if="leftActiveTab === 'scripts'" class="scripts-tab">
-              <div class="scripts-list-section">
-                <ScriptList />
-              </div>
-              <div class="scripts-structure-section">
-                <ScriptStructure />
-              </div>
-            </div>
-            <TrackListPanel v-else-if="leftActiveTab === 'tracks'" />
-            <PresetsPanel v-else-if="leftActiveTab === 'presets'" />
-          </template>
-        </TabbedPanel>
-      </div>
-      <div class="resize-h" @mousedown="startDrag('left', $event); markUserDragged()"></div>
-
-      <!-- 中间编辑区 -->
+      <!-- 编辑器区域：上（左面板 / 预览 / 右面板）+ 下（时间轴） -->
       <div class="editor-workspace">
         <div class="editor-top">
+          <!-- 左面板：脚本 / 轨道 / 预设 -->
+          <div class="editor-left-panel" :style="{ width: leftPanelWidth + 'px' }">
+            <TabbedPanel
+              :tabs="leftTabs"
+              :active="leftActiveTab"
+              @change="leftActiveTab = $event"
+            >
+              <template #content>
+                <div v-if="leftActiveTab === 'scripts'" class="scripts-tab">
+                  <div class="scripts-list-section">
+                    <ScriptList />
+                  </div>
+                </div>
+                <TrackListPanel v-else-if="leftActiveTab === 'tracks'" />
+                <PresetsPanel v-else-if="leftActiveTab === 'presets'" />
+              </template>
+            </TabbedPanel>
+          </div>
+          <div class="resize-h" @mousedown="startDrag('left', $event); markUserDragged()"></div>
+
+          <!-- 中间：预览 -->
           <div class="preview-area">
             <Preview />
           </div>
           <div class="resize-h" @mousedown="startDrag('right', $event); markUserDragged()"></div>
+
+          <!-- 右面板：属性 / Clip / 关键帧 / 触发器 -->
           <div class="right-panel" :style="{ width: rightPanelWidth + 'px' }">
             <TabbedPanel
               :tabs="rightTabs"
@@ -507,10 +506,6 @@ button:disabled { opacity: .4; cursor: default; }
   min-height: 0;
 }
 .scripts-list-section {
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
-}
-.scripts-structure-section {
   flex: 1;
   overflow-y: auto;
   min-height: 0;

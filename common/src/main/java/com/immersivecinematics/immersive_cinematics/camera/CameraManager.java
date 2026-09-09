@@ -229,6 +229,8 @@ public class CameraManager {
     public void setTime(float seconds) {
         // 预览模式定位:始终激活并显示对应帧的相机视角(终止后点关键帧/拖播放头即时可见)
         previewTime = seconds;
+        // 根因修复：立即同步实际游戏时间，避免 handleSeek 后立刻 pushPlaybackState 读到旧时间
+        gameTimeSeconds = seconds;
         previewMode = true;
         previewPaused = true;
         if (!active && previewScript != null) {

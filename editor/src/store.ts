@@ -375,13 +375,14 @@ export function deleteScript(path: string): Promise<void> {
 
 export function seek(time: number): void {
   log('seek', time)
-  state.time = time
+  // 游戏端唯一源：前端不直接写 state.time，只发送 seek 请求，
+  // 时间头由游戏端 playback.state 回推后更新，避免鼠标与回推互相抢。
   if (!wsOpen()) return
   if (seekSendTimer) clearTimeout(seekSendTimer)
   seekSendTimer = setTimeout(() => {
     seekSendTimer = null
     if (wsOpen()) {
-      send('editor.seek', { time: state.time })
+      send('editor.seek', { time })
     }
   }, SEEK_SEND_DELAY_MS)
 }
@@ -495,20 +496,19 @@ function updateKeyframeFromFlight(data: any): void {
 
 export function play(): void {
   log('play')
-  state.playing = true
+  // 游戏端唯一源：只发命令，playing 状态由 playback.state 回推
   send('editor.play')
 }
 
 export function pause(): void {
   log('pause')
-  state.playing = false
+  // 同上，只发命令，等待游戏端回推
   send('editor.pause')
 }
 
 export function stop(): void {
   log('stop')
-  state.playing = false
-  state.time = 0
+  // 同上，只发命令，时间/播放状态由游戏端回推
   send('editor.stop')
 }
 
