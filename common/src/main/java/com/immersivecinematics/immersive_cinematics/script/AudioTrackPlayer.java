@@ -250,7 +250,8 @@ public class AudioTrackPlayer implements TrackPlayer {
 
     private Vec3 resolveAudioPosition(Clip clip, Vec3 offset) {
         if ("relative".equals(clip.getAudioPositionMode())) {
-            return Minecraft.getInstance().player.position().add(offset);
+            // 相对模式锚点=当前真实听者：listener=camera 时是镜头，listener=player 时是玩家
+            return AudioListenerController.getListenerPosition().add(offset);
         }
         return offset;
     }

@@ -13,7 +13,7 @@ import net.minecraft.client.Minecraft;
  */
 public final class AudioListenerController {
 
-    private static String cachedScriptId = "";
+    private static CinematicScript cachedScript;
     private static String cachedListener = "player";
 
     private AudioListenerController() {}
@@ -24,9 +24,16 @@ public final class AudioListenerController {
         return !"camera".equals(listenerMode());
     }
 
-    /** 是否听者=相机（用于环境音采样点重定向） */
+    /**
+     * 是否听者=相机（用于环境音采样点重定向）。
+     * <p>
+     * 必须同时有活跃 CAMERA clip：没有 CAMERA clip 时 {@code CameraMixin} 不会覆盖相机，
+     * 原版听者实际回落到玩家，这里也必须回落，否则采样点/上报位置和真实听者不一致。
+     */
     public static boolean isCameraListener() {
-        return CameraManager.INSTANCE.isActive() && "camera".equals(listenerMode());
+        return CameraManager.INSTANCE.isActive()
+                && CameraManager.INSTANCE.hasActiveCameraClip()
+                && "camera".equals(listenerMode());
     }
 
     /** 当前听者世界坐标：camera → 镜头位置；player → 玩家位置 */
@@ -51,18 +58,22 @@ public final class AudioListenerController {
     private static String listenerMode() {
         CinematicScript script = CameraManager.INSTANCE.getScriptPlayer().getScript();
         if (script == null) return "player";
-        String sid = script.getId();
-        if (!sid.equals(cachedScriptId)) {
-            cachedScriptId = sid;
+        // 按脚本对象刷新：同一 id 的脚本被编辑器增量替换后，listener 变化也能生效
+        if (script != cachedScript) {
+            cachedScript = script;
             cachedListener = "player";
-            Object raw = script.getRawJson();
-            if (raw instanceof String s && !s.isEmpty()) {
-                JsonObject root = JsonParser.parseString(s).getAsJsonObject();
-                if (root.has("meta") && root.get("meta").isJsonObject()) {
-                    JsonObject meta = root.getAsJsonObject("meta");
-                    if (meta.has("listener")) {
-                        cachedListener = meta.get("listener").getAsString();
+            String raw = script.getRawJson();
+            if (raw != null && !raw.isEmpty()) {
+                try {
+                    JsonObject root = JsonParser.parseString(raw).getAsJsonObject();
+                    if (root.has("meta") && root.get("meta").isJsonObject()) {
+                        JsonObject meta = root.getAsJsonObject("meta");
+                        if (meta.has("listener")) {
+                            cachedListener = meta.get("listener").getAsString();
+                        }
                     }
+                } catch (RuntimeException ignored) {
+                    // rawJson 异常时按默认 player 处理，不影响正常播放
                 }
             }
         }

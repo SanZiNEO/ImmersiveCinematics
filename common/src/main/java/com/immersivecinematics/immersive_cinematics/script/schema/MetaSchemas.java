@@ -20,6 +20,7 @@ public final class MetaSchemas {
         map.put("version", new FieldDef("int", 3, true, java.util.Collections.emptyList(), "info"));
         map.put("description", new FieldDef("string", "", false, java.util.Collections.emptyList(), "info"));
         map.put("dimension", new FieldDef("string", "", false, java.util.Collections.emptyList(), "info"));
+        map.put("listener", new FieldDef("enum", "player", false, java.util.List.of("player", "camera"), "runtime"));
 
         map.put("block_keyboard", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
         map.put("block_mouse", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));

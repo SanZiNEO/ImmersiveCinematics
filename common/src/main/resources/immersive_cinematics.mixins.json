@@ -21,6 +21,7 @@
     "MinecraftMixin",
     "MouseHandlerMixin",
     "PlayerTabOverlayMixin",
+    "SoundEngineMixin",
     "SoundManagerMixin",
     "SubtitleOverlayMixin",
     "UnderwaterAmbientSoundHandlerMixin"
@@ -29,7 +30,8 @@
     "ChunkMapCameraMixin",
     "ChunkMapMixin",
     "ItemUseMixin",
-    "NaturalSpawnerMixin"
+    "NaturalSpawnerMixin",
+    "PlayerListAudioBroadcastMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -72,6 +72,7 @@ public final class ClientEventHandler {
         CameraManager.INSTANCE.tick();
         CinematicKeyBindings.onClientTick();
         com.immersivecinematics.immersive_cinematics.trigger.client.PreloadRequester.INSTANCE.tick(mc);
+        com.immersivecinematics.immersive_cinematics.trigger.client.AudioListenerReporter.INSTANCE.tick(mc);
         com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.tick();
         if (mc.level == null && CameraManager.INSTANCE.isActive()) {
             CameraManager.INSTANCE.emergencyStop();

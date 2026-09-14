@@ -42,6 +42,10 @@ public final class FabricNetwork implements NetworkBridge {
             C2SPreloadPositionPacket pkt = new C2SPreloadPositionPacket(buf);
             server.execute(() -> pkt.handle(player));
         });
+        ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.AUDIO_LISTENER), (server, player, handler, buf, responseSender) -> {
+            C2SAudioListenerPacket pkt = new C2SAudioListenerPacket(buf);
+            server.execute(() -> pkt.handle(player));
+        });
         ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.RESOLVE_ENTITY_SELECTOR), (server, player, handler, buf, responseSender) -> {
             C2SResolveEntitySelectorPacket pkt = new C2SResolveEntitySelectorPacket(buf);
             server.execute(() -> pkt.handle(player));
@@ -109,6 +113,7 @@ public final class FabricNetwork implements NetworkBridge {
         if (packet instanceof C2SScriptSavedPacket) return id(NetworkHandler.SCRIPT_SAVED);
         if (packet instanceof C2SPreloadRequestPacket) return id(NetworkHandler.PRELOAD_REQ);
         if (packet instanceof C2SPreloadPositionPacket) return id(NetworkHandler.PRELOAD_POS);
+        if (packet instanceof C2SAudioListenerPacket) return id(NetworkHandler.AUDIO_LISTENER);
         if (packet instanceof C2SResolveEntitySelectorPacket) return id(NetworkHandler.RESOLVE_ENTITY_SELECTOR);
         if (packet instanceof S2CPlayScriptPacket) return id(NetworkHandler.PLAY_SCRIPT);
         if (packet instanceof S2CStopScriptPacket) return id(NetworkHandler.STOP_SCRIPT);

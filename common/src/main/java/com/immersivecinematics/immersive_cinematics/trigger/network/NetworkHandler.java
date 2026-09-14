@@ -28,6 +28,7 @@ public final class NetworkHandler {
     public static final String SCRIPT_SAVED = "script_saved";
     public static final String PRELOAD_REQ = "preload_req";
     public static final String PRELOAD_POS = "preload_pos";
+    public static final String AUDIO_LISTENER = "audio_listener";
 
     private static NetworkBridge bridge;
 

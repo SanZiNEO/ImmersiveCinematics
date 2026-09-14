@@ -64,7 +64,11 @@ public class ScriptParser {
         JsonObject rootObj = root.getAsJsonObject();
         ScriptMeta meta = parseMeta(rootObj);
         Timeline timeline = parseTimeline(rootObj, "timeline");
-        return new CinematicScript(meta, timeline);
+        CinematicScript script = new CinematicScript(meta, timeline);
+        // 保留原始 JSON：meta.listener 等运行期扩展字段只在 rawJson 里读取；
+        // 服务端推送脚本也必须走这里，否则脚本会被当成默认 listener=player。
+        script.setRawJson(json);
+        return script;
     }
 
     // ========== ScriptMeta 解析 ==========

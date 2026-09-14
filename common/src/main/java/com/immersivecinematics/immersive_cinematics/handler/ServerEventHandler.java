@@ -47,6 +47,7 @@ public final class ServerEventHandler {
     }
 
     public static void onPlayerJoin(ServerPlayer serverPlayer) {
+        com.immersivecinematics.immersive_cinematics.trigger.server.AudioListenerServerState.clear(serverPlayer.getUUID());
         TriggerStateStore.INSTANCE.loadForPlayer(serverPlayer.getUUID());
         PlayerTriggerState joinState = TriggerStateStore.INSTANCE.getOrCreate(serverPlayer.getUUID());
         S2CTriggerStateSyncPacket.send(
@@ -57,6 +58,7 @@ public final class ServerEventHandler {
     public static void onPlayerQuit(ServerPlayer serverPlayer) {
         UUID uuid = serverPlayer.getUUID();
         com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager.INSTANCE.onDisconnect(uuid, serverPlayer);
+        com.immersivecinematics.immersive_cinematics.trigger.server.AudioListenerServerState.clear(uuid);
         TriggerStateStore.INSTANCE.unloadForPlayer(uuid);
         Evaluators.KillTracker.clear(uuid);
         Evaluators.AdvancementTracker.clear(uuid);
