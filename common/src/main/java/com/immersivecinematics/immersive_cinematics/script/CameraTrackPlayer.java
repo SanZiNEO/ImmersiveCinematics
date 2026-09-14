@@ -300,8 +300,9 @@ public class CameraTrackPlayer implements TrackPlayer {
                 : basePos.y + 2.0;
         Vec3 origin = new Vec3(basePos.x, eyeY, basePos.z);
 
-        float yawRad = (float) Math.toRadians(base.getYRot());
-        float pitchRad = (float) Math.toRadians(base.getXRot());
+        // 跟随实体朝向必须按渲染 partialTick 插值：raw getYRot()/getXRot() 会在 20Hz tick 间跳变。
+        float yawRad = (float) Math.toRadians(entityBodyYawInterp(base));
+        float pitchRad = (float) Math.toRadians(entityPitchInterp(base));
         boolean viewUp = "view".equals(pd.getUpAxis());
         // 正交基（对齐 MC Entity.calculateViewVector / Camera up-left-look；参考 ShoulderSurfing 本地偏移→世界）：
         //   look  = ( -sinY·cosP, -sinP, cosY·cosP )   ← pitch 的 Y 分量带负号（俯视时 look 向下）
@@ -646,7 +647,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         String base = kf.getString("yaw_base", "world");
         if ("entity".equals(base)) {
             Entity e = resolveEntity(kf.getString("yaw_base_selector", "@p"), lastWorldPos);
-            return e != null ? e.getYRot() : 0f;
+            return e != null ? entityBodyYawInterp(e) : 0f;
         }
         if ("line".equals(base)) {
             float[] dir = lineDir(kf);
@@ -660,7 +661,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         String base = kf.getString("pitch_base", "world");
         if ("entity".equals(base)) {
             Entity e = resolveEntity(kf.getString("yaw_base_selector", "@p"), lastWorldPos);
-            return e != null ? e.getXRot() : 0f;
+            return e != null ? entityPitchInterp(e) : 0f;
         }
         if ("line".equals(base)) {
             float[] dir = lineDir(kf);
@@ -979,6 +980,26 @@ public class CameraTrackPlayer implements TrackPlayer {
             }
         }
         return null;
+    }
+
+    /**
+     * 实体身体 yaw 的渲染帧插值。
+     * <p>
+     * 原版 {@code LivingEntityRenderer} 使用 {@code Mth.rotLerp(partialTick, yBodyRotO, yBodyRot)}；
+     * 非 LivingEntity 退化为 {@code Entity.yRotO → getYRot()}。
+     */
+    private static float entityBodyYawInterp(net.minecraft.world.entity.Entity e) {
+        float pt = net.minecraft.client.Minecraft.getInstance().getFrameTime();
+        if (e instanceof net.minecraft.world.entity.LivingEntity le) {
+            return net.minecraft.util.Mth.rotLerp(pt, le.yBodyRotO, le.yBodyRot);
+        }
+        return net.minecraft.util.Mth.rotLerp(pt, e.yRotO, e.getYRot());
+    }
+
+    /** 实体 pitch 的渲染帧插值：原版使用 {@code Mth.lerp(partialTick, xRotO, getXRot())}。 */
+    private static float entityPitchInterp(net.minecraft.world.entity.Entity e) {
+        float pt = net.minecraft.client.Minecraft.getInstance().getFrameTime();
+        return net.minecraft.util.Mth.lerp(pt, e.xRotO, e.getXRot());
     }
 
     /** 实体渲染帧插值位置（上一 tick → 当前 tick 按渲染 partialTick 插值，消除 20Hz 步进卡顿） */
