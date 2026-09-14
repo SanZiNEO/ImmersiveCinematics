@@ -56,3 +56,11 @@
 
 - `block-based-reference.md`：`look_at_target` 使用 block 留后（低优先级）。
 - `1.md`：部分低优先级项留后，不影响 0.3.5 主体完成。
+
+## 六、WebUI / 功能清单（归档）
+
+| 文档 | 说明 |
+|---|---|
+| `webui-editor-standalone-plan.md` | WebUI 编辑器独立化方案 |
+| `webui-logic-completion.md` | WebUI 逻辑补全记录 |
+| `FEATURE_LIST_0.3.5.md` | 0.3.5 功能清单 |
