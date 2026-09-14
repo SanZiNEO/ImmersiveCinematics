@@ -34,12 +34,36 @@ public class CameraTrackPlayer implements TrackPlayer {
     /** 上一帧最终世界坐标（实体目标消失时停在原地、以及作为 @e 就近基准） */
     private Vec3 lastWorldPos;
 
-    /** 非玩家目标解析缓存（selector → 实体+时间；1 秒有效，避免每帧全量遍历实体列表） */
-    private static class CachedTarget {
+    /**
+     * 目标锁定状态：按 {@code role + selector} 维护。
+     * <ul>
+     *   <li>{@code uuid/entity/resolvedAt}：当前锁定的目标与刷新时间；</li>
+     *   <li>{@code switchGeneration}：目标 UUID 每次变化 +1，供各通道检测“是否刚切换”；</li>
+     *   <li>{@code points}：按通道（look_at/follow 位置/朝向基准）各自维护平滑状态。</li>
+     * </ul>
+     */
+    private static final class TargetLock {
+        UUID uuid;
         Entity entity;
         long resolvedAt;
+        long switchGeneration;
+
+        final Map<String, PointState> points = new java.util.HashMap<>();
     }
-    private final java.util.Map<String, CachedTarget> targetCache = new java.util.HashMap<>();
+
+    /** 单个目标点在切换窗口内的平滑状态。 */
+    private static final class PointState {
+        Vec3 last;
+        long generation = -1L;
+        Vec3 from;
+        long startNanos;
+        float smooth;
+    }
+
+    private final Map<String, TargetLock> targetLocks = new java.util.HashMap<>();
+
+    /** 选择器策略（keyframe 级，作用于该帧所有 selector 字段） */
+    private record SelectorPolicy(float refreshSeconds, boolean switchWhileAlive, float switchSmooth) {}
 
     public CameraTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos, CameraManager cameraManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
@@ -132,7 +156,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         for (Keyframe kf : clip.getKeyframes()) {
             String lookAt = kf.getString("look_at", "none");
             if ("entity".equals(lookAt)) {
-                if (resolveEntity(kf.getString("look_at_selector", "@p"), lastWorldPos) == null) return false;
+                if (resolveEntity(kf.getString("look_at_selector", "@p"), lastWorldPos, "look_at", kf) == null) return false;
             } else if ("coordinate".equals(lookAt)) {
                 String sid = kf.getString("look_at_target_structure", "");
                 if (!sid.isEmpty() && resolveStructurePos(sid) == null) return false;
@@ -141,22 +165,22 @@ public class CameraTrackPlayer implements TrackPlayer {
                 if (targetObj instanceof Map<?, ?> m) {
                     Object relTo = m.get("relative_to");
                     if (relTo != null && !"coordinate".equals(relTo)
-                            && resolveEntity(String.valueOf(relTo), lastWorldPos) == null) {
+                            && resolveEntity(String.valueOf(relTo), lastWorldPos, "look_at_target", kf) == null) {
                         return false;
                     }
                 }
             }
             if ("entity".equals(kf.getString("follow", "none"))) {
-                if (resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos) == null) return false;
+                if (resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf) == null) return false;
             }
             // 朝向基准（yaw_base/pitch_base）：entity 实体缺失 / line 端点缺失 → 空片段
             String yawBase = kf.getString("yaw_base", "world");
             String pitchBase = kf.getString("pitch_base", "world");
             if ("entity".equals(yawBase) || "entity".equals(pitchBase)) {
-                if (resolveEntity(kf.getString("yaw_base_selector", "@p"), lastWorldPos) == null) return false;
+                if (resolveEntity(kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf) == null) return false;
             } else if ("line".equals(yawBase) || "line".equals(pitchBase)) {
-                if (resolveEntity(kf.getString("yaw_base_from", ""), lastWorldPos) == null
-                        || resolveEntity(kf.getString("yaw_base_to", ""), lastWorldPos) == null) return false;
+                if (resolveEntity(kf.getString("yaw_base_from", ""), lastWorldPos, "yaw_base_from", kf) == null
+                        || resolveEntity(kf.getString("yaw_base_to", ""), lastWorldPos, "yaw_base_to", kf) == null) return false;
             }
             PositionData pd = kf.getPosition();
             if (pd != null && pd.isRelative()) {
@@ -263,10 +287,11 @@ public class CameraTrackPlayer implements TrackPlayer {
             return evalFacingOffset(kf, pd);
         }
         if ("entity".equals(kf.getString("follow", "none"))) {
-            Entity target = resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos);
+            String selector = kf.getString("follow_selector", "@p");
+            Entity target = resolveEntity(selector, lastWorldPos, "follow", kf);
             if (target != null) {
                 Vec3 off = pd != null ? pd.toVec3() : Vec3.ZERO;
-                return entityPosInterp(target).add(off);
+                return smoothTargetPoint("follow", selector, "pos", entityPosInterp(target).add(off), selectorPolicy(kf).switchSmooth());
             }
             return lastWorldPos;
         }
@@ -285,8 +310,9 @@ public class CameraTrackPlayer implements TrackPlayer {
     private Vec3 evalFacingOffset(Keyframe kf, PositionData pd) {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
         Entity base = null;
+        String followSelector = kf.getString("follow_selector", "@p");
         if ("entity".equals(kf.getString("follow", "none"))) {
-            base = resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos);
+            base = resolveEntity(followSelector, lastWorldPos, "follow", kf);
         } else if (mc.player != null) {
             base = mc.player;
         }
@@ -294,7 +320,7 @@ public class CameraTrackPlayer implements TrackPlayer {
             LOGGER.warn("基准空间偏移：基准实体/玩家不可用（防御路径，按当前视点处理）");
             return lastWorldPos;
         }
-        Vec3 basePos = entityPosInterp(base);
+        Vec3 basePos = smoothTargetPoint("follow", followSelector, "base", entityPosInterp(base), selectorPolicy(kf).switchSmooth());
         double eyeY = base instanceof net.minecraft.world.entity.LivingEntity le
                 ? basePos.y + le.getEyeHeight()
                 : basePos.y + 2.0;
@@ -464,10 +490,11 @@ public class CameraTrackPlayer implements TrackPlayer {
     private Vec3 evalLookTarget(Keyframe kf, Clip clip, Vec3 pos) {
         String lookAt = kf.getString("look_at", "none");
         if ("entity".equals(lookAt)) {
-            Entity target = resolveEntity(kf.getString("look_at_selector", "@p"), pos);
-            return target != null
-                    ? entityPosInterp(target).add(0, target.getBbHeight() / 2.0, 0)
-                    : null;
+            String selector = kf.getString("look_at_selector", "@p");
+            Entity target = resolveEntity(selector, pos, "look_at", kf);
+            if (target == null) return null;
+            Vec3 raw = entityPosInterp(target).add(0, target.getBbHeight() / 2.0, 0);
+            return smoothTargetPoint("look_at", selector, "point", raw, selectorPolicy(kf).switchSmooth());
         }
         if ("coordinate".equals(lookAt)) {
             String structureId = kf.getString("look_at_target_structure", "");
@@ -486,7 +513,7 @@ public class CameraTrackPlayer implements TrackPlayer {
             // 相对目标对象（优先级高于散字段绝对坐标）：绝对点 / 触发点偏移 / 相对实体偏移 / 相对坐标点+偏移
             Object targetObj = kf.getObject("look_at_target");
             if (targetObj instanceof Map<?, ?> m) {
-                Vec3 target = evalLookTargetObject(m, pos);
+                Vec3 target = evalLookTargetObject(m, kf, pos);
                 if (target != null) return target;
                 // 对象解析失败（相对实体找不到/基准缺失）→ 该端无注视目标（isClipUsable 已前置拦截，此处防御）
                 return null;
@@ -515,7 +542,7 @@ public class CameraTrackPlayer implements TrackPlayer {
      * </ul>
      * 返回 null = 该端无注视目标（相对实体找不到等；isClipUsable 已前置拦截，此处防御）。
      */
-    private Vec3 evalLookTargetObject(Map<?, ?> m, Vec3 pos) {
+    private Vec3 evalLookTargetObject(Map<?, ?> m, Keyframe kf, Vec3 pos) {
         Float x = numOrNull(m.get("x"));
         Float y = numOrNull(m.get("y"));
         Float z = numOrNull(m.get("z"));
@@ -537,8 +564,10 @@ public class CameraTrackPlayer implements TrackPlayer {
             return new Vec3(rx + dx, ry + dy, rz + dz);
         }
         // 相对实体 selector（每帧求实体位置 + 偏移）
-        Entity target = resolveEntity(String.valueOf(relTo), pos);
-        return target != null ? entityPosInterp(target).add(dx, dy, dz) : null;
+        String selector = String.valueOf(relTo);
+        Entity target = resolveEntity(selector, pos, "look_at_target", kf);
+        if (target == null) return null;
+        return smoothTargetPoint("look_at_target", selector, "point", entityPosInterp(target).add(dx, dy, dz), selectorPolicy(kf).switchSmooth());
     }
 
     private static Float numOrNull(Object o) {
@@ -646,7 +675,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     private float yawBaseOf(Keyframe kf) {
         String base = kf.getString("yaw_base", "world");
         if ("entity".equals(base)) {
-            Entity e = resolveEntity(kf.getString("yaw_base_selector", "@p"), lastWorldPos);
+            Entity e = resolveEntity(kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf);
             return e != null ? entityBodyYawInterp(e) : 0f;
         }
         if ("line".equals(base)) {
@@ -660,7 +689,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     private float pitchBaseOf(Keyframe kf) {
         String base = kf.getString("pitch_base", "world");
         if ("entity".equals(base)) {
-            Entity e = resolveEntity(kf.getString("yaw_base_selector", "@p"), lastWorldPos);
+            Entity e = resolveEntity(kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf);
             return e != null ? entityPitchInterp(e) : 0f;
         }
         if ("line".equals(base)) {
@@ -675,8 +704,8 @@ public class CameraTrackPlayer implements TrackPlayer {
      * 两端点至少一个缺失（实体找不到）返回 null。
      */
     private float[] lineDir(Keyframe kf) {
-        Entity a = resolveEntity(kf.getString("yaw_base_from", ""), lastWorldPos);
-        Entity b = resolveEntity(kf.getString("yaw_base_to", ""), lastWorldPos);
+        Entity a = resolveEntity(kf.getString("yaw_base_from", ""), lastWorldPos, "yaw_base_from", kf);
+        Entity b = resolveEntity(kf.getString("yaw_base_to", ""), lastWorldPos, "yaw_base_to", kf);
         if (a == null || b == null) return null;
         Vec3 from = entityPosInterp(a);
         Vec3 to = entityPosInterp(b);
@@ -722,7 +751,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     @Override
     public void onStop() {
         lastClipIndex = 0;
-        targetCache.clear();
+        targetLocks.clear();
         ClientEntitySelectorCache.clear();
         // bezierStrategy 随 TrackPlayer 实例一起被 GC，其 LUT 缓存自动释放
     }
@@ -731,7 +760,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     @Override
     public void onScriptReplaced() {
         lastClipIndex = 0;
-        targetCache.clear();
+        targetLocks.clear();
         ClientEntitySelectorCache.clear();
     }
 
@@ -828,22 +857,153 @@ public class CameraTrackPlayer implements TrackPlayer {
      * <p>
      * 解析失败或无匹配返回 null：follow 停在上一帧位置、look_at 不生效。
      */
-    private net.minecraft.world.entity.Entity resolveEntity(String selector, Vec3 origin) {
+    private static final long MISS_RETRY_MS = 200L;
+
+    private net.minecraft.world.entity.Entity resolveEntity(String selector, Vec3 origin, String role, Keyframe kf) {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (selector == null || selector.isEmpty()) return null;
         if ("@p".equals(selector) || "@s".equals(selector)) {
             return mc.player;
         }
-        if (requiresServerSelector(selector)) {
-            return resolveServerSelector(selector, origin);
-        }
+        if (mc.level == null) return null;
 
-        // 非玩家目标：按 selector 分键缓存 1 秒（目标仍存活时复用，避免每帧全量遍历）
+        SelectorPolicy policy = selectorPolicy(kf);
+        String key = targetKey(role, selector);
+        TargetLock lock = targetLocks.computeIfAbsent(key, k -> new TargetLock());
         long now = System.currentTimeMillis();
-        CachedTarget cached = targetCache.get(selector);
-        if (cached != null && cached.entity != null && cached.entity.isAlive() && now - cached.resolvedAt < 1000) {
-            return cached.entity;
+
+        Entity current = lockEntity(lock);
+        // 本地 selector 无匹配时做 200ms 重试节流；服务端 selector 交给 pending 去重，避免拖慢回包首帧
+        if (current == null && lock.uuid == null
+                && !requiresServerSelector(selector)
+                && now - lock.resolvedAt < MISS_RETRY_MS) {
+            return null;
+        }
+        if (current != null) {
+            // 存活期不切换：当前目标还活着就直接复用，死亡/卸载后才重新选
+            if (!policy.switchWhileAlive()) {
+                return current;
+            }
+            // 允许存活期切换：按刷新频率重新求值
+            if (now - lock.resolvedAt < (long) (policy.refreshSeconds() * 1000.0f)) {
+                return current;
+            }
         }
 
+        long refreshMs = (long) Math.max(50.0f, policy.refreshSeconds() * 1000.0f);
+        // 旧目标已失效（死亡/卸载）：强制立即重新求值一次；首次解析/无匹配则遵守 refresh 缓存
+        boolean force = current == null && lock.uuid != null;
+        Entity found = resolveEntityInternal(selector, origin, refreshMs, force);
+        if (found == null) {
+            // 瞬时无结果（服务端回包未到等）：还活着就继续用旧目标
+            if (current != null) return current;
+            lock.uuid = null;
+            lock.entity = null;
+            lock.resolvedAt = now;
+            return null;
+        }
+
+        UUID newUuid = found.getUUID();
+        if (lock.uuid != null && !lock.uuid.equals(newUuid)) {
+            lock.switchGeneration++;
+        }
+        lock.uuid = newUuid;
+        lock.entity = found;
+        lock.resolvedAt = now;
+        return found;
+    }
+
+    private SelectorPolicy selectorPolicy(Keyframe kf) {
+        float refresh = kf != null ? kf.getFloat("selector_refresh", 1.0f) : 1.0f;
+        boolean switchWhileAlive = kf == null || kf.getBool("selector_switch_while_alive", true);
+        float smooth = kf != null ? Math.max(0f, kf.getFloat("selector_switch_smooth", 0f)) : 0f;
+        return new SelectorPolicy(Math.max(0.05f, refresh), switchWhileAlive, smooth);
+    }
+
+    private static String targetKey(String role, String selector) {
+        return role + "\u0000" + selector;
+    }
+
+    /** 把锁定的 UUID 映射回客户端实体；已卸载/死亡返回 null。 */
+    private Entity lockEntity(TargetLock lock) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (lock.entity != null && lock.entity.isAlive()) {
+            return lock.entity;
+        }
+        if (lock.uuid != null) {
+            Entity e = findEntityByUuid(mc, lock.uuid);
+            if (e != null && e.isAlive()) {
+                lock.entity = e;
+                return e;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 目标点/位置切换平滑：按通道（look_at / follow 位置 / follow 朝向基准）分别维护。
+     * 只有目标 UUID 变化时才启动过渡，稳定跟踪同一目标不额外延迟。
+     */
+    private Vec3 smoothTargetPoint(String role, String selector, String channel, Vec3 raw, float smoothSeconds) {
+        if (raw == null) return null;
+        TargetLock lock = targetLocks.get(targetKey(role, selector));
+        if (lock == null) return raw;
+
+        PointState state = lock.points.computeIfAbsent(channel, k -> new PointState());
+        long now = System.nanoTime();
+
+        if (state.last == null) {
+            state.last = raw;
+            state.generation = lock.switchGeneration;
+            return raw;
+        }
+
+        if (state.generation != lock.switchGeneration) {
+            state.generation = lock.switchGeneration;
+            if (smoothSeconds > 0f) {
+                state.from = state.last;
+                state.startNanos = now;
+                state.smooth = smoothSeconds;
+            } else {
+                state.startNanos = 0L;
+                state.smooth = 0f;
+                state.last = raw;
+                return raw;
+            }
+        }
+
+        if (state.startNanos == 0L || state.smooth <= 0f) {
+            state.last = raw;
+            return raw;
+        }
+
+        float t = (now - state.startNanos) / 1.0e9f / state.smooth;
+        if (t >= 1f) {
+            state.startNanos = 0L;
+            state.last = raw;
+            return raw;
+        }
+
+        float k = t * t * (3f - 2f * t);
+        Vec3 blended = new Vec3(
+                state.from.x + (raw.x - state.from.x) * k,
+                state.from.y + (raw.y - state.from.y) * k,
+                state.from.z + (raw.z - state.from.z) * k);
+        state.last = blended;
+        return blended;
+    }
+
+    private net.minecraft.world.entity.Entity resolveEntityInternal(String selector, Vec3 origin, long refreshMs, boolean force) {
+        if (requiresServerSelector(selector)) {
+            return resolveServerSelector(selector, origin, refreshMs, force);
+        }
+        return resolveLocalSelector(selector, origin);
+    }
+
+    /** 客户端本地解析：只处理 @e / @e[type=…,name=…] / uuid:xxx；复杂选项走服务端。 */
+    private net.minecraft.world.entity.Entity resolveLocalSelector(String selector, Vec3 origin) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.level == null) return null;
         net.minecraft.world.entity.Entity found = null;
         if (selector.startsWith("uuid:")) {
             try {
@@ -888,19 +1048,16 @@ public class CameraTrackPlayer implements TrackPlayer {
         } else {
             LOGGER.warn("不支持的实体 selector: {}（支持 @p/@s/@e/@e[type=…,name=…]/uuid:xxx）", selector);
         }
-
-        CachedTarget entry = new CachedTarget();
-        entry.entity = found;
-        entry.resolvedAt = now;
-        targetCache.put(selector, entry);
         return found;
     }
 
     /**
      * 是否需要交给服务端解析。
      * <p>
-     * 客户端本地只支持 type / name；其他原版选项（nbt、tag、distance、sort、limit 等）
-     * 由服务端用原版 EntitySelectorParser 完整解析。
+     * 客户端本地只支持普通 {@code type=xxx} / {@code name=xxx}；以下情况交给服务端原版选择器：
+     * {@code nbt} / {@code tag} / {@code distance} / {@code sort} / {@code limit} 等其他选项、
+     * 实体类型 tag（{@code type=#tag}）、反向 type（{@code type=!xxx} / {@code type=!#tag}）、
+     * 多个 type 选项、反向 name。
      */
     private static boolean requiresServerSelector(String selector) {
         if (selector == null || !selector.startsWith("@e[") || !selector.endsWith("]")) {
@@ -909,6 +1066,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         String inner = selector.substring(3, selector.length() - 1);
         int depth = 0;
         int start = 0;
+        int typeCount = 0;
         for (int i = 0; i <= inner.length(); i++) {
             char c = i < inner.length() ? inner.charAt(i) : ',';
             if (c == '{' || c == '[') {
@@ -923,7 +1081,17 @@ public class CameraTrackPlayer implements TrackPlayer {
                     continue;
                 }
                 String key = kv.substring(0, eq).trim();
-                if (!"type".equals(key) && !"name".equals(key)) {
+                String val = kv.substring(eq + 1).trim();
+                if ("type".equals(key)) {
+                    typeCount++;
+                    if (val.startsWith("!") || val.startsWith("#") || typeCount > 1) {
+                        return true;
+                    }
+                } else if ("name".equals(key)) {
+                    if (val.startsWith("!")) {
+                        return true;
+                    }
+                } else {
                     return true;
                 }
             }
@@ -933,9 +1101,9 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     /**
      * 服务端解析路径：请求服务端用原版选择器求值，然后把 UUID 映射回客户端实体。
-     * 结果按 selector 缓存 1 秒；pending 期间不会重复发请求。
+     * {@code refreshMs} 由 keyframe 的 selector_refresh 驱动；pending 期间不会重复发请求。
      */
-    private Entity resolveServerSelector(String selector, Vec3 origin) {
+    private Entity resolveServerSelector(String selector, Vec3 origin, long refreshMs, boolean force) {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
         if (mc.level == null || mc.getConnection() == null) {
             return null;
@@ -943,7 +1111,7 @@ public class CameraTrackPlayer implements TrackPlayer {
 
         long now = System.currentTimeMillis();
         ClientEntitySelectorCache.Entry entry = ClientEntitySelectorCache.get(selector);
-        if (entry == null || (!entry.pending && now - entry.resolvedAt >= ClientEntitySelectorCache.TTL_MS)) {
+        if (force || entry == null || (!entry.pending && now - entry.resolvedAt >= refreshMs)) {
             ClientEntitySelectorCache.request(selector, origin.x, origin.y, origin.z);
             entry = ClientEntitySelectorCache.get(selector);
         }
@@ -966,7 +1134,6 @@ public class CameraTrackPlayer implements TrackPlayer {
             }
         }
 
-        // 目标全部死亡/未加载：等下一次 TTL 到期后重新解析（避免每帧刷请求）。
         return null;
     }
 

@@ -247,6 +247,9 @@ immersive_cinematics/
 | `look_at_target_x/y/z` | float | 否 | `0/64/0` | 注视固定坐标（`coordinate` 模式）。**与 `look_at_target_structure` 互斥**（编辑器：填结构后坐标输入隐藏） |
 | `look_at_target_structure` | string | 否 | `""` | 注视结构中心（`coordinate` 模式）：填结构 id（如 `minecraft:village`）。播放时服务端自动定位**结构 bounding box 中心**（就近搜索，原版 /locate 同范围）并替换为坐标后推送；编辑器里为注册表下拉补全；多人服务器播放同样生效。**与 `look_at_target_x/y/z` 互斥**：指定结构后定位失败也不回退坐标，该端无注视目标（回退角度插值） |
 | `look_at_target` | object | 否 | `null` | `look_at=coordinate` 时的相对目标对象，优先级高于散字段绝对坐标。支持：`{x,y,z}` 绝对点、`{dx,dy,dz}` 相对触发点、`{relative_to:<selector>,dx,dy,dz}` 相对实体、`{relative_to:"coordinate",relative_x/y/z,dx,dy,dz}` 相对固定坐标 |
+| `selector_refresh` | float | 否 | `1.0` | 选择器重新求值间隔（秒）。仅 `selector_switch_while_alive=true` 时生效；目标死亡/卸载时仍立即重选。作用于本关键帧所有 selector 字段 |
+| `selector_switch_while_alive` | bool | 否 | `true` | `true`=目标存活时也按 `selector_refresh` 重新求值并切到新的最近目标；`false`=当前目标活着就不换，只有死亡/移除/未加载才重选 |
+| `selector_switch_smooth` | float | 否 | `0.0` | 目标真的切换时，注视点/跟随位置在 N 秒内以 smoothstep 过渡；`0`=硬切。作用于本关键帧所有目标点 |
 | `yaw_base` | string | 否 | `"world"` | `yaw` 的基准方向：`"world"`=0 世界角（`yaw` 即世界朝向）；`"entity"`=实体视线水平角（用 `yaw_base_selector`）；`"line"`=从 `yaw_base_from` 到 `yaw_base_to` 的连线水平角。此时 `yaw` 为相对基准的偏移 |
 | `pitch_base` | string | 否 | `"world"` | `pitch` 的基准俯仰：同上，`entity` 取实体视线俯仰、`line` 取连线垂直角 |
 | `yaw_base_selector` | string | 否 | `"@p"` | `yaw_base/pitch_base=entity` 时的实体选择器 |
@@ -264,10 +267,16 @@ immersive_cinematics/
 | `@p` / `@s` | 玩家 |
 | `@e` | 离相机最近的活实体 |
 | `@e[type=minecraft:iron_golem]` | 类型过滤后就近（模组 boss 用其注册 id） |
+| `@e[type=#your_mod:units]` | 实体类型 tag 过滤（推荐：只选单位、排除投掷物）。tag 由数据包/模组提供 |
+| `@e[type=!#minecraft:impact_projectiles]` | 反向实体类型 tag：排除投掷物等 |
 | `@e[name=自定义名]` | 命名牌名字过滤后就近 |
 | `uuid:xxxxxxxx-…` | UUID 直绑（唯一确定，不排序） |
 
-无匹配时：follow 停在上一帧位置、look_at 回退 yaw/pitch。
+> `type=` 可以是 `#tag` / `!#tag`，也可以在一条 selector 里组合多个 `type=!xxx`。
+> 含 `nbt=` / `type=#tag` / `type=!` / 多个 `type=` 的 selector 会交给服务端用原版
+> `EntitySelectorParser` 解析（`nbt=` 只做 NBT 子集匹配，不区分生物/投掷物；要区分种类请用 `type=`）。
+>
+> 无匹配时：follow 停在上一帧位置、look_at 回退 yaw/pitch。
 
 ### Position（相对模式 `relative`）
 

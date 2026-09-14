@@ -15,11 +15,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p>
  * 只保存服务端回传的 UUID，不引用任何客户端实体类。
  * 相机跟拍/注视仍在 {@code CameraTrackPlayer} 里把 UUID 映射成客户端实体。
+ * <p>
+ * 缓存有效期由 {@code CameraTrackPlayer} 的目标锁（keyframe 的 {@code selector_refresh}）
+ * 控制；本类只负责缓存与 pending 去重。
  */
 public final class ClientEntitySelectorCache {
-
-    /** 解析结果有效期；与本地 selector 缓存保持一致。 */
-    public static final long TTL_MS = 1000L;
 
     private static final int MAX_PENDING = 64;
 

@@ -59,6 +59,10 @@ public final class TrackSchemas {
         kfs.put("look_at_target_z", new FieldDef("float", null));
         kfs.put("look_at_target_structure", new FieldDef("string", ""));
         kfs.put("look_at_target", new FieldDef("map", null));
+        // 选择器目标锁定策略（作用于该关键帧所有 selector 字段）
+        kfs.put("selector_refresh", new FieldDef("float", 1.0f));
+        kfs.put("selector_switch_while_alive", new FieldDef("bool", true));
+        kfs.put("selector_switch_smooth", new FieldDef("float", 0.0f));
         kfs.put("yaw_base", new FieldDef("enum", "world", false, List.of("world", "entity", "line")));
         kfs.put("pitch_base", new FieldDef("enum", "world", false, List.of("world", "entity", "line")));
         kfs.put("yaw_base_selector", new FieldDef("string", "@p"));
