@@ -42,6 +42,10 @@ public final class FabricNetwork implements NetworkBridge {
             C2SPreloadPositionPacket pkt = new C2SPreloadPositionPacket(buf);
             server.execute(() -> pkt.handle(player));
         });
+        ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.RESOLVE_ENTITY_SELECTOR), (server, player, handler, buf, responseSender) -> {
+            C2SResolveEntitySelectorPacket pkt = new C2SResolveEntitySelectorPacket(buf);
+            server.execute(() -> pkt.handle(player));
+        });
 
         // ===== S2C =====
 
@@ -73,6 +77,10 @@ public final class FabricNetwork implements NetworkBridge {
             S2CPreloadResultPacket pkt = new S2CPreloadResultPacket(buf);
             client.execute(pkt::handle);
         });
+        ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.RESOLVE_ENTITY_SELECTOR_RESULT), (client, handler, buf, responseSender) -> {
+            S2CResolveEntitySelectorResultPacket pkt = new S2CResolveEntitySelectorResultPacket(buf);
+            client.execute(pkt::handle);
+        });
     }
 
     @Override
@@ -101,6 +109,7 @@ public final class FabricNetwork implements NetworkBridge {
         if (packet instanceof C2SScriptSavedPacket) return id(NetworkHandler.SCRIPT_SAVED);
         if (packet instanceof C2SPreloadRequestPacket) return id(NetworkHandler.PRELOAD_REQ);
         if (packet instanceof C2SPreloadPositionPacket) return id(NetworkHandler.PRELOAD_POS);
+        if (packet instanceof C2SResolveEntitySelectorPacket) return id(NetworkHandler.RESOLVE_ENTITY_SELECTOR);
         if (packet instanceof S2CPlayScriptPacket) return id(NetworkHandler.PLAY_SCRIPT);
         if (packet instanceof S2CStopScriptPacket) return id(NetworkHandler.STOP_SCRIPT);
         if (packet instanceof S2CTriggerStateSyncPacket) return id(NetworkHandler.TRIGGER_STATE_SYNC);
@@ -108,6 +117,7 @@ public final class FabricNetwork implements NetworkBridge {
         if (packet instanceof S2CScriptPauseAckPacket) return id(NetworkHandler.SCRIPT_PAUSE_ACK);
         if (packet instanceof S2CScriptReloadPacket) return id(NetworkHandler.SCRIPT_RELOAD);
         if (packet instanceof S2CPreloadResultPacket) return id(NetworkHandler.PRELOAD_RESULT);
+        if (packet instanceof S2CResolveEntitySelectorResultPacket) return id(NetworkHandler.RESOLVE_ENTITY_SELECTOR_RESULT);
         throw new IllegalArgumentException("Unknown cinematic packet: " + packet.getClass().getName());
     }
 }

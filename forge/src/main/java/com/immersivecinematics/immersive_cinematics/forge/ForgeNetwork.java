@@ -46,6 +46,9 @@ public final class ForgeNetwork implements NetworkBridge {
         CHANNEL.registerMessage(id++, C2SPreloadPositionPacket.class,
                 CinematicPacket::write, C2SPreloadPositionPacket::new,
                 (pkt, ctx) -> { ctx.get().enqueueWork(() -> pkt.handle(ctx.get().getSender())); ctx.get().setPacketHandled(true); });
+        CHANNEL.registerMessage(id++, C2SResolveEntitySelectorPacket.class,
+                CinematicPacket::write, C2SResolveEntitySelectorPacket::new,
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> pkt.handle(ctx.get().getSender())); ctx.get().setPacketHandled(true); });
 
         // ===== S2C =====
         CHANNEL.registerMessage(id++, S2CPlayScriptPacket.class,
@@ -68,6 +71,9 @@ public final class ForgeNetwork implements NetworkBridge {
                 (pkt, ctx) -> { ctx.get().enqueueWork(pkt::handle); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, S2CPreloadResultPacket.class,
                 CinematicPacket::write, S2CPreloadResultPacket::new,
+                (pkt, ctx) -> { ctx.get().enqueueWork(pkt::handle); ctx.get().setPacketHandled(true); });
+        CHANNEL.registerMessage(id++, S2CResolveEntitySelectorResultPacket.class,
+                CinematicPacket::write, S2CResolveEntitySelectorResultPacket::new,
                 (pkt, ctx) -> { ctx.get().enqueueWork(pkt::handle); ctx.get().setPacketHandled(true); });
     }
 

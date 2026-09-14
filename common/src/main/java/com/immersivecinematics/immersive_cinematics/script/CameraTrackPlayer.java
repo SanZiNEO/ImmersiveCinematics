@@ -1,11 +1,13 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.trigger.client.ClientEntitySelectorCache;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class CameraTrackPlayer implements TrackPlayer {
 
@@ -719,6 +721,8 @@ public class CameraTrackPlayer implements TrackPlayer {
     @Override
     public void onStop() {
         lastClipIndex = 0;
+        targetCache.clear();
+        ClientEntitySelectorCache.clear();
         // bezierStrategy 随 TrackPlayer 实例一起被 GC，其 LUT 缓存自动释放
     }
 
@@ -727,6 +731,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     public void onScriptReplaced() {
         lastClipIndex = 0;
         targetCache.clear();
+        ClientEntitySelectorCache.clear();
     }
 
     private Clip findActiveClip(float globalTime) {
@@ -808,18 +813,27 @@ public class CameraTrackPlayer implements TrackPlayer {
     private long cachedTargetResolvedAt;
 
     /**
-     * 解析目标实体（原版 EntitySelectorParser 语义的子集，就近优先）：
+     * 解析目标实体。
+     * <p>
+     * 客户端本地快速路径（原版语义子集，就近优先）：
      * @p / @s        = 玩家（原版 @p ORDER_NEAREST limit 1 的等价简化）
      * @e             = 范围内按离 origin 最近取 1 个活实体
      * @e[type=…]     = 按实体类型过滤后就近取 1（如 minecraft:sheep / 模组 boss id）
      * @e[name=…]     = 按自定义名过滤后就近取 1
      * uuid:xxxxxxxx  = UUID 直绑（唯一确定，不排序）
-     * 解析失败或无匹配返回 null：follow 停在上一帧位置、look_at 不生效
+     * <p>
+     * 含 nbt= / tag= 等原版扩展选项的 @e[...] selector 会转到服务端解析；
+     * 服务端回传 UUID 列表，这里再映射成客户端实体。
+     * <p>
+     * 解析失败或无匹配返回 null：follow 停在上一帧位置、look_at 不生效。
      */
     private net.minecraft.world.entity.Entity resolveEntity(String selector, Vec3 origin) {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
         if ("@p".equals(selector) || "@s".equals(selector)) {
             return mc.player;
+        }
+        if (requiresServerSelector(selector)) {
+            return resolveServerSelector(selector, origin);
         }
 
         // 非玩家目标：按 selector 分键缓存 1 秒（目标仍存活时复用，避免每帧全量遍历）
@@ -879,6 +893,92 @@ public class CameraTrackPlayer implements TrackPlayer {
         entry.resolvedAt = now;
         targetCache.put(selector, entry);
         return found;
+    }
+
+    /**
+     * 是否需要交给服务端解析。
+     * <p>
+     * 客户端本地只支持 type / name；其他原版选项（nbt、tag、distance、sort、limit 等）
+     * 由服务端用原版 EntitySelectorParser 完整解析。
+     */
+    private static boolean requiresServerSelector(String selector) {
+        if (selector == null || !selector.startsWith("@e[") || !selector.endsWith("]")) {
+            return false;
+        }
+        String inner = selector.substring(3, selector.length() - 1);
+        int depth = 0;
+        int start = 0;
+        for (int i = 0; i <= inner.length(); i++) {
+            char c = i < inner.length() ? inner.charAt(i) : ',';
+            if (c == '{' || c == '[') {
+                depth++;
+            } else if (c == '}' || c == ']') {
+                depth--;
+            } else if (c == ',' && depth == 0) {
+                String kv = inner.substring(start, i).trim();
+                start = i + 1;
+                int eq = kv.indexOf('=');
+                if (eq <= 0) {
+                    continue;
+                }
+                String key = kv.substring(0, eq).trim();
+                if (!"type".equals(key) && !"name".equals(key)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 服务端解析路径：请求服务端用原版选择器求值，然后把 UUID 映射回客户端实体。
+     * 结果按 selector 缓存 1 秒；pending 期间不会重复发请求。
+     */
+    private Entity resolveServerSelector(String selector, Vec3 origin) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.level == null || mc.getConnection() == null) {
+            return null;
+        }
+
+        long now = System.currentTimeMillis();
+        ClientEntitySelectorCache.Entry entry = ClientEntitySelectorCache.get(selector);
+        if (entry == null || (!entry.pending && now - entry.resolvedAt >= ClientEntitySelectorCache.TTL_MS)) {
+            ClientEntitySelectorCache.request(selector, origin.x, origin.y, origin.z);
+            entry = ClientEntitySelectorCache.get(selector);
+        }
+        if (entry == null) {
+            return null;
+        }
+
+        List<UUID> uuids;
+        synchronized (entry) {
+            uuids = entry.uuids;
+        }
+        if (uuids == null || uuids.isEmpty()) {
+            return null;
+        }
+
+        for (UUID uuid : uuids) {
+            Entity entity = findEntityByUuid(mc, uuid);
+            if (entity != null && entity.isAlive()) {
+                return entity;
+            }
+        }
+
+        // 目标全部死亡/未加载：等下一次 TTL 到期后重新解析（避免每帧刷请求）。
+        return null;
+    }
+
+    private static Entity findEntityByUuid(net.minecraft.client.Minecraft mc, UUID uuid) {
+        if (mc.level == null || uuid == null) {
+            return null;
+        }
+        for (Entity entity : mc.level.entitiesForRendering()) {
+            if (uuid.equals(entity.getUUID())) {
+                return entity;
+            }
+        }
+        return null;
     }
 
     /** 实体渲染帧插值位置（上一 tick → 当前 tick 按渲染 partialTick 插值，消除 20Hz 步进卡顿） */

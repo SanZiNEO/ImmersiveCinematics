@@ -19,6 +19,8 @@ public final class NetworkHandler {
     public static final String SCRIPT_PAUSE_ACK = "script_pause_ack";
     public static final String SCRIPT_RELOAD = "script_reload";
     public static final String PRELOAD_RESULT = "preload_result";
+    public static final String RESOLVE_ENTITY_SELECTOR = "resolve_entity_selector";
+    public static final String RESOLVE_ENTITY_SELECTOR_RESULT = "resolve_entity_selector_result";
 
     public static final String SCRIPT_FINISHED = "script_finished";
     public static final String PLAYBACK_STARTED = "playback_started";
