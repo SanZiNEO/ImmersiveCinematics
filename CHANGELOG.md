@@ -1,346 +1,201 @@
-### 2026-09-09 追加 — WebUI 时间头唯一源、独立飞控模块接入、时间轴滚动重构与图标体系
+# 更新日志
 
-**WebUI 时间头唯一源**
-- 前端 `seek / play / pause / stop` 不再直接写 `state.time / state.playing`，只发送命令，时间头与播放状态统一由游戏端 `playback.state` 回推，消除鼠标拖动与回推互相抢时间
-- `CameraManager.setTime` 立即同步 `gameTimeSeconds`，修复 `handleSeek` 后紧接着 `pushPlaybackState` 读到旧时间导致的回跳
-- 移除 `ScriptStructure.vue`（脚本结构树）；左侧面板（脚本/轨道/预设）移入编辑区内部；`ScriptList` 增加「刷新」按钮
+> 记录玩家能感知到的功能新增、优化和修复。
+> 内部重构、代码整理、开发计划不写入本文件。
 
-**独立飞控模块**
-- 新增 `FlightModeManager`：飞控会话与 `EditorScreen` 解耦，WebUI / 游戏内编辑器 / 键盘中转统一走同一入口，为后续移除游戏内编辑器后 WebUI 飞控独立工作做准备
-- 职责内聚：进入（暂停相机 + 启用直控 + 初始化）、退出（返回最终相机数据）、取消（恢复进入前状态）、每帧 tick、键盘/鼠标事件转发、光学 reset（只恢复 FOV/Zoom/Roll，不动位置与朝向）
-- WebUI 完整接入飞控：新增 `editor.exit_flight_mode` / `editor.cancel_flight_mode` 协议；进入飞控改用当前实际相机状态作为初始值（与 Java 编辑器行为一致），前端只传保存模式
-- `WebPreviewScreen` 每帧驱动飞控并按 100ms 节流回推相机参数；新增飞控 HUD，展示鼠标/移动/升降/慢速/滚转/FOV/Zoom/模式切换/光学重置/保存退出/取消 的键位提示
-- 前端 `Preview` 增加飞控浮层：实时位置、Yaw/Pitch/Roll、FOV/Zoom，以及「退出并保存 / 取消」按钮
-- 修复 RELATIVE 模式落点：世界坐标先减去基准点（玩家位置/触发点）再写入 `dx/dy/dz`
+## [0.3.6] - 2026-09-14
 
-**时间轴**
-- 拖动会话：拖动中由前端驱动时间头并即时跟手，`seek` 改为 16ms 高频节流（原为 50ms 尾随防抖），松手后经短暂确认期再交回游戏端唯一源
-- 拖动期间忽略游戏端 `playback.state` 的时间回推，避免互相抢；播放头、标尺、画布空白区域均可拖动
-- 统一滚动容器：轨道头与画布合并进同一纵向滚动区，删除手动 `scrollTop` 同步；轨道头横向吸左（sticky），播放头改为贯穿标尺与全部轨道行的竖线
-- 时间轴默认高度 260 → 320，响应式比例 28% → 34%（最小 280，最大 520）
+### 新增
+- 实体选择器支持 NBT 条件，可以按阵营、状态等 NBT 数据锁定生物。
+- 选择器新增目标锁定控制：`selector_refresh`（重新选择间隔）、`selector_switch_while_alive`（目标存活时是否切换）、`selector_switch_smooth`（切换平滑）。
+- 选择器支持 `type=` 实体类型过滤，减少镜头误锁投掷物的情况。
 
-**音频 / 示例脚本**
-- `AudioTrackPlayer` 新增失败 clip 集合：缺失或无法加载的音频只记录一次并跳过该 clip，不再每帧重试刷异常
-- demo 脚本移除音频轨，避免依赖不存在的示例音频
+### 优化
+- 修复实体朝向插值：镜头跟随生物时，生物的转身（yaw）和抬头（pitch）动作更顺滑。
+- 修复相机听者（`meta.listener = camera`）下的空间音频：远处生物声、攻击声和更多环境音能够正常听到。
+- 相对定位的 AUDIO 轨道现在以当前听者为锚点，而不是固定跟着玩家。
 
-**图标体系**
-- 模组图标 `assets/immersive_cinematics/icon.png`（256×256）：Fabric 由 `fabric.mod.json` 的 `icon` 引用，Forge 启用 `mods.toml` 的 `logoFile` 指向同一路径
-- 编辑器应用图标：`editor/build/icon.png`（512×512）与 `icon.ico`（16/32/48/64/128/256 六尺寸），`electron-builder.yml` 增加 `win.icon`
-- `.gitignore` 放行 `editor/build/`：该目录是 electron-builder 的图标源文件而非构建产物，否则 clone 后打包会退回 Electron 默认图标
-- 编辑器标题栏 logo：原本的蓝色文字 `IC` 方块改为引用图标图片（`editor/src/assets/icon.png`）
-
-### 2026-09-01 追加 — 虚拟相机中心：完全接入原版 ChunkMap 差集
-
-**预加载核心重构**
-- 新增 `ChunkMapCameraMixin`：向 `ChunkMap` 注入玩家 UUID → 虚拟相机 `SectionPos`，把 `move` / `updatePlayerPos` 的新中心重定向到相机；复用原版 `DistanceManager` 方形加载 ticket 与 `isChunkInRange` 客户端发送/遗忘差集
-- 新增 `CameraVirtualCenterAccess`（位于 `trigger.server`，避免 Mixin 包引用限制）
-- `ChunkPreloadManager` 改为“设置虚拟中心 → 调用原版 `ChunkMap.move`”，删除自建 `desired / playerCovered / sentCamera / sentPlayer / resync / forget / sendCenter` 手工链路
-- 删除多片段预热：原版虚拟中心在片段激活时按原版规则加载，不再使用冗余 `addRegionTicket` 预热
-- 删除自建 `CameraEntitySyncManager`：原版虚拟中心自动向真实玩家发送相机区实体
-- 修复 Mixin 注入：`getBlockX / getBlockZ` 实际字节码 owner 为 `ServerPlayer`，target 改为 `ServerPlayer` 后正常
-- 修复接口放入 mixin package 导致 `IllegalClassLoadError`，移至普通业务包
-- 日志去重：仅相机模式或中心变化时才设置虚拟中心并触发 `move`；移除旧 `[preload status/diff/send/resync/prewarm]` 日志
-- 清理 `ChunkPreloadManager` / `ServerEventHandler` 中全部废弃代码与字段
-
-### 2026-08-31 追加 — 预加载状态边界统一差集、空片段处理、编辑器收尾与 WebUI 预留
-
-**预加载 / 相机区域**
-- **状态边界统一差集**：区块预加载不再使用 far/near 距离门控；客户端按“当前视口”上报（活跃镜头=相机位置，空档=玩家位置），服务端在镜头切换、空档进出、脚本结束统一执行 `desired - playerCovered - 已持有` 差集
-- **下一片段预热**：接近下一个 CAMERA 片段起点时提前加 ticket 预热，镜头切过去后直接晋级到当前相机区，不重复加票
-- **释放差集复用**：脚本结束时按 `playerNeed ∩ sentCameraChunks` 复用已持有区块，只补发玩家区缺失块；不再强制客户端 `allChanged()` 全量重建
-- **空片段/尾段空档处理**：没有活跃 CAMERA 片段时上报玩家位置，让差集自然切回玩家区；尾段有空档的脚本结束后无需强制刷新
-- **无 CAMERA 轨道脚本**：客户端/服务端双重判断，不再触发预加载/释放
-- **配置精简**：移除旧预加载配置项（`preloadWindowRadius`、`preloadMaxChunks`、`preloadMaxWorldgenChunks`、`preloadTimeoutGenerated/Worldgen`、旧 `preloadPrewarm`、`preloadFarViewCenterThreshold`、`preloadPlayerZoneRadius`、`preloadRearRadius`）
-
-**HUD / 输入 / 兼容**
-- HUD/手臂行为不再依赖相机轨道；脚本命令标识改为 `目录:文件名` 冒号格式
-- Forge/Fabric HUD 白名单工具，补齐 ActionBar/Title/保存提示
-- 键鼠屏蔽改用中继层 + 公开 API，移除对私有字段的访问
-- 修复相机实体缓存 NPE
-
-**触发器 / 测试**
-- 触发器前置条件改为“播放完成”语义，并支持自定义注册
-- 修复 `item_use_interrupt` 松手时未记录物品，导致该触发器永不匹配
-- 触发链测试脚本逐个补充“下一步提示 + 准备命令”
-
-**编辑器**
-- 字段控件按 `FieldDef` 类型驱动：`bool`→开关、`tristate`→三态、`enum≤3`→循环切换、`enum>3`→下拉
-- 缺失的 bool/enum 字段直接显示正确控件，不再“添加后控件突变”
-- 清理 `schema.json` 残留注释与编辑器 `cam_tracking_*` 特判
-- `ScriptPropertiesPanel` 暴露 `hud_layers`、`camera_mob_spawn`、`camera_mob_radius`、`camera_mob_ai`
-- 新增 `SchemaExporter` 与 `FieldControl`，为 WebUI 迁移预留 schema 导出与控件决策
-
-**文档 / 归档**
-- 0.3.5 计划文档归档到 `plans/complete/0.3.5/`
-- 0.3.6 文档整理：删除被 WebUI 迁移取代的 UI 缩放布局方案；无假人相机区域方案归档到 0.3.5 并标记已实施
-
-### 2026-08-22 追加 — 渲染优化模组兼容与 Forge 打包修复
-
-**Fixed**
-- 修复与 Sodium / Rubidium / Embeddium 的 `LevelRendererMixin` 注入冲突：检测到这三类渲染优化模组时跳过 `LevelRendererMixin`，由它们的 Camera/Frustum 管线接管渲染中心；`CameraMixin` 仍驱动虚拟相机，远端画面渲染功能保留
-- 修复 Forge 普通 jar 因缺少 MixinExtras 无法启动的问题：Forge `SoundEngineMixin` 拆分为平台专属实现（Forge 用原版 `@Redirect`，Fabric 保留 `@WrapOperation`），Forge 不再依赖/内置 MixinExtras，普通 jar 可直接运行
-- 新增跨平台 Mixin 配置插件 `ImmersiveCinematicsMixinPlugin`，用于按平台/环境条件跳过冲突 mixin
-- 新增脚本 meta 开关 `suppress_distortion`：独立控制是否屏蔽屏幕扭曲（反胃/传送门旋转）；未设置时兼容旧行为（跟随 `suppress_bob` → `hide_hud`）
-- 移除 `GameRendererMixin` 对 `Mth.lerp` 的 `@Redirect`：扭曲屏蔽改为播放期间临时设置原版 `screenEffectScale` 为 0，播放结束恢复；同时解决与 SecurityCraft `GameRendererMixin` 的注入冲突
-- 安全化三处 `@Redirect`：`SoundManagerMixin` → `@ModifyArg`、`LevelRendererMixin` → `@ModifyVariable`、`BubbleColumnAmbientSoundHandlerMixin` → `@ModifyArg`，功能不变且降低与其他模组注入冲突的概率
-- Mixin 配置插件去反射：`ImmersiveCinematicsMixinPlugin` 拆分为 Forge / Fabric 平台专属实现，分别直接使用 `FMLLoader` / `ModList` 与 `FabricLoader` API，不再使用 Java 反射
+### 修复
+- 修复相机听者模式下部分声音听不到、听不全的问题。
 
 ## [0.3.5] - 2026-08-20
 
-0.3.5：世界预加载与运镜体系、音频听者重构、编辑器/预设/GIF 增强、去除 Architectury 第三方依赖。
+世界预加载与运镜体系、音频听者重构、编辑器和预设增强，并移除了 Architectury 前置依赖。
 
-### Added
-- **脚本文件夹组织**：`scripts/` 支持子文件夹递归加载（深度 ≤ 5），编辑器/命令显示相对路径；`id` 仍全局唯一，子目录仅文件组织
-- **触发器前置依赖**：`triggers[].requires: string[]`（AND），全部前置脚本触发过才允许本触发器触发；validator 提示失效引用
-- **呼吸扰动 v2**：`cam_breath_type`（`perlin` / `perlin_axis` / `sine` / `trauma`）、`cam_breath_speed`，trauma 新增 `cam_breath_trauma` / `cam_breath_decay`
-- **look_at 相对目标**：`look_at_target` 对象（绝对/触发点偏移/实体偏移/坐标偏移），兼容旧字段
-- **动态 yaw 基准**：`yaw_base`（world/entity/line）与 `pitch_base`，`yaw` 变为相对偏移，与 look_at 互斥；基准空间系 `fwd/up/right`
-- **区块预加载统一**：`preload-camera-region-unified` 设计落地——far-view 由隐藏假人驱动原版区块/实体追踪，退出时玩家区对账补发，实体中继与区块同源时序；脚本级 `meta.preload` 开关
-- **预加载预热与释放复用**：下一 CAMERA 片段按 `prewarmLeadSeconds` 提前加 ticket 预热；脚本结束用 `playerNeed ∩ sentCameraChunks` 差集复用，只需补发玩家区缺失块，近距离结束不再全量重发
-- **预加载配置平台持久化**：ForgeConfigSpec / Fabric JSON 接入全部预加载字段（cap/force/prewarm/playerZone 等），配置修改后跨重启生效
-- **音频体系重构**：`meta.listener`（player/camera）听者模式；AUDIO 轨道回归原版 SoundEngine，相对/绝对位置语义 + 默认衰减；环境音（群系/水下/气泡柱/animateTick）在 camera 模式采样到相机；编辑器音频联动重写
-- **编辑器飞行取景**：F6 + WASD/鼠标操控相机取景，可记录/取消；编辑器模块化 + 面板重构
-- **Schema Java 元数据化**：`schema.json` 迁移为 Java `FieldDef` / `TrackSchemas` / `SchemaRegistry`，编辑器/解析器/默认值共用
-- **GIF Overlay**：stbi_load_gif 拆帧 + 单帧 DynamicTexture 轮播，带内存上限与释放
-- **预设系统**：参数 schema + 生成函数注册，初版预设库（环绕轨道等），生成结果可编辑
-- **去除 Architectury**：MultiLoader 重构，common/forge/fabric 三模块，无第三方前置依赖
+### 新增
+- **脚本文件夹组织**：`scripts/` 支持子文件夹递归加载，编辑器与命令按相对路径显示。
+- **触发器前置依赖**：`triggers[].requires` 可以要求指定脚本先触发，满足条件后才会触发。
+- **呼吸扰动 v2**：新增 `cam_breath_type`（perlin / perlin_axis / sine / trauma）与速度、强度、衰减控制。
+- **注视目标扩展**：`look_at_target` 支持绝对坐标、相对触发点、相对实体、相对结构中心等。
+- **动态朝向基准**：`yaw_base` / `pitch_base` 支持世界、实体视线、两点连线基准。
+- **区块预加载统一**：镜头播放时自动加载镜头周围区块，退出时把玩家周围缺失区块补回。
+- **预加载预热与释放复用**：接近下一个 CAMERA 片段时提前加载；脚本结束时只补玩家区缺失区块。
+- **预加载配置持久化**：预加载相关配置可以在 Forge / Fabric 配置中保存并跨重启生效。
+- **音频听者模式**：`meta.listener` 支持 player / camera；环境音在 camera 模式下按镜头位置采样。
+- **音频系统重构**：AUDIO 轨道回归原版 SoundEngine，支持相对 / 绝对位置、音量、淡入淡出、循环和衰减。
+- **编辑器飞行取景**：编辑器中可以自由飞行操控相机取景，并记录或取消当前机位。
+- **GIF Overlay**：支持在画面上叠加 GIF 动图。
+- **预设系统**：内置环绕等运镜预设，生成后仍可继续编辑。
+- **WebUI 编辑器增强**：时间头统一由游戏端驱动；新增独立飞控模式、时间轴滚动重构、图标体系。
+- **虚拟相机中心**：预加载改用原版 ChunkMap 差集机制，镜头区域与实体发送更稳定。
+- **渲染优化模组兼容**：与 Sodium / Rubidium / Embeddium 等渲染优化模组兼容。
+- **画面扭曲屏蔽**：新增 `suppress_distortion` 开关，可以单独控制是否屏蔽反胃、传送门等画面扭曲。
 
-### Changed
-- README/README_CN 版本更新为 0.3.5；文档补充 `meta.preload`、目录组织、触发器前置依赖
-- 预加载日志节流：高频包按秒聚合，关键包（AddEntity/chunk/center/remove）保留逐条
-- Forge 假人就位时序：先 `moveTo` 相机坐标再 bootstrap，初始实体与区块按原版 `addNewPlayer` 顺序送达
+### 优化
+- 预加载状态边界统一：镜头切换、空档进出、脚本结束时自动计算需要加载和释放的区块。
+- 尾段空档和无 CAMERA 轨道脚本不再触发多余的预加载或释放。
+- 预加载日志节流，减少刷屏。
+- 音频文件缺失或加载失败时只提示一次，不再反复报错。
+- HUD 和手臂显示不再依赖 CAMERA 轨道，纯 LETTERBOX 等脚本也能正常控制。
+- 键鼠屏蔽改用中继层和公开 API，减少与其他模组的冲突。
+- 触发器前置条件改为“播放完成”语义，并支持自定义注册。
+- 编辑器字段控件按 `FieldDef` 类型自动显示开关、下拉等控件，不再出现添加后控件突变。
+- WebUI 时间轴拖动更跟手，播放头、标尺、空白区域都可以拖动。
+- 编辑器飞行模式下，相机初始状态与当前实际画面一致，退出时可保存或取消。
+- 多人游戏中 `skip_vote_ratio` 可以由单个脚本单独设置。
+- Forge 打包不再需要额外前置；普通 jar 可以直接运行。
+- 移除 Architectury 前置依赖，安装更简单。
 
-### Fixed
-- Forge 远距离实体数量偏少：同一村庄位置下客户端 radius=64 实体数从 ~20 提升到 ~60~66，与 Fabric 同区间
-- 修复 Forge 实体中继中 `ClientboundBundlePacket` 解包转发时序
-- 清理 `ChunkPreloadManager` 死代码（requestTickets/sendReady/desired/ticketed/sent 残留）
+### 修复
+- 修复 `item_use_interrupt` 触发器在松手时未记录物品、导致无法匹配的问题。
+- 修复相机实体缓存可能导致的空指针问题。
+- 修复 Forge 远距离实体数量偏少的问题。
+- 修复部分情况下预加载区块释放不干净的问题。
+- 修复渲染优化模组环境下画面中心与相机不一致的问题。
+- 修复部分脚本在空档或没有 CAMERA 轨道时的加载 / 释放异常。
 
 ## [0.3.4] - 2026-08-06
 
-音乐配乐 + 覆盖层 + 事件重构 + 镜头追踪与呼吸扰动 + 翻滚角修复。
+音乐配乐、覆盖层、事件轨道重构、镜头追踪与呼吸扰动、翻滚角修复。
 
-### 2026-08-17 追加 — 多人跳过投票混合配置
+### 新增
+- **AUDIO 轨道**：支持 OGG / WAV 音频播放，关键帧控制音量、空间位置、淡入淡出、循环与衰减。
+- **OVERLAY 轨道**：支持 fade / image / subtitle / pip 覆盖层，多层可以叠加显示。
+- **EVENT 轨道重构**：事件改为按关键帧多点触发，支持命令链和权限执行。
+- **镜头追踪**：CAMERA 支持 `look_at`（注视坐标 / 实体）与 `follow`（跟随玩家）。
+- **呼吸扰动**：支持 `cam_breath_*` 随机微晃、强度、速度、种子等控制。
+- **翻滚角修复**：roll 改为绕相机视线轴旋转，不同朝向下表现一致。
+- **多人跳过投票比例**：`skip_vote_ratio` 可以按脚本单独指定跳过所需投票比例。
+- **字幕字号缩放**：`font_scale` 支持字号倍数与百分比缩放两级控制。
+- **覆盖层中心锚点**：OVERLAY 坐标改为以元素中心为基准，屏幕居中更直观。
+- **循环模式增强**：`loop_mode` 支持 repeat / pingpong；无限循环脚本会持续播放，直到手动退出。
+- **结构中心定位**：`look_at_target_structure` 和相对结构位置使用结构包围盒中心。
+- **相对位置基准扩展**：`relative_origin` 支持相对玩家、固定坐标、结构中心等基准。
+- **触发器扩展**：补充 `item_use` / `item_release` / `item_consume` / `item_instant_use` / `xp` / `dimension` / `item_pickup` / `item_drop` / `observation` 等触发器。
+- **播放队列**：不可打断的脚本播放时，新脚本可以按优先级排队，结束后自动接播。
+- **网络加固**：玩家退出或断线时，客户端发包不再导致闪退。
+- **AI 脚本指南**：新增面向 AI 的脚本编写指南和完整示例脚本。
 
-- 脚本 `meta` 新增可选字段 `skip_vote_ratio`（10~100）：单个脚本独立指定跳过投票所需比例；缺省/非法值回落到全局配置 `skipVoteRatio`（默认 100 = 全票，原版睡眠跳夜同款语义）
-- 实现：`ScriptMeta` 增加可空字段；`ScriptParser` 解析并校验（越界记 ErrorLog 并忽略）；`ScriptPlayback` 创建时解析一次生效值（脚本覆盖 ?? 全局配置），投票判定与 HUD 广播均使用该值
-- schema.json 补 `skip_vote_ratio`（无默认值，编辑器不强制写入，避免覆盖全局配置）；编辑器 meta 面板新增"可选 int 字段"渲染：未写入 JSON 时显示"未设置（跟随全局配置）"下拉（10~100 每 10 一档），选中具体值才写入，选"未设置"删除键
+### 优化
+- 编辑器事件树点击、滚动和区域裁剪更准确。
+- 编辑器播放 / 暂停、终止按钮行为更符合直觉。
+- 预览器在不同轨道布局之间切换时，轨道索引不再错位。
+- 音频资源统一为英文命名，避免部分系统下无法解码。
+- Fabric Loader 最低版本调整，兼容更多整合包。
+- 字幕透明度、覆盖层渲染等表现更稳定。
 
-### 2026-08-10 追加 — 字幕两级缩放、OVERLAY 中心锚点、循环增强、结构中心定位、相对基准扩展、透明度补全修复
+### 修复
+- 修复字幕在极低透明度时反而显示为完全不透明的问题。
+- 修复 roll 在不同朝向下方向错误的问题。
+- 修复 EVENT 轨道保存后缺少必填字段、播放器无法解析的问题。
+- 修复部分触发器在特定条件下无法触发或误触发的问题。
+- 修复编辑器部分操作没有撤销、无法回退的问题。
 
-**OVERLAY 字幕缩放（用户需求：字号与固定字号缩放分离）**
-- `font_scale` 关键帧：字号倍数（`1` = 原版 9px），矩阵缩放实现，与 MC `/title` 大字同一机制；`scale_x/scale_y` 在固定字号基础上做百分比缩放（与图片 scale 语义一致），两级叠加（最终 = `font_scale × scale_x/y`）
-- schema 补 `font_scale` 字段，编辑器属性面板/默认值自动对齐（schema 驱动）
-
-**OVERLAY 锚点统一为元素中心**
-- `x/y` = 0.5 即屏幕居中（不再手算左上角偏移）；ImageLayer/SubtitleLayer 按渲染尺寸/2 偏移；旧脚本按"中心 = 左上角 + 尺寸/2"迁移（仓库脚本与文档同步）
-
-**循环功能增强**
-- `loop_mode` 支持 `"repeat"`（默认）与 `"pingpong"`（往复折返，监控视角来回摇，关键帧只写半程）
-- 无限循环（`loop: true` + `loop_count: -1`）已开始的片段使脚本永不自然结束（唯一退出 = skippable/interruptible 手动退出）
-- `loop_count: 0` 解析报错并按 1 处理；Clip 新增窗口语义（`getWindowEnd`/`getAnimPeriod`/`isEffectivelyInfinite`）
-
-**结构目标改为真中心**
-- 新增 `StructureLocator`：`findNearestMapStructure` 锚点（/locate 同源，结构起点）→ STRUCTURE_STARTS → `getBoundingBox().getCenter()`，返回结构**几何中心**（含 +0.5 块中心偏移）
-- `look_at_target_structure` 与 `position.relative_origin`（结构 id）均按结构中心解析，服务端推送前替换为坐标（多人生效），编辑器预览（单人）客户端直连兜底；就近搜索 100 区块，不做无限查找
-
-**position 相对基准扩展（relative_origin）**
-- 相对模式基准可选：缺省 = 玩家激活位置；`"coordinate"` = 相对固定坐标（`relative_origin_x/y/z`）；结构 id = 相对结构中心
-
-**编辑器**
-- look_at 坐标/结构互斥：`coordinate` 模式下指定结构后坐标输入隐藏，结构下拉选"（空）"自动恢复
-- 脚本重组：`showcase_welcome` 拆分为 `showcase_01_welcome` / `showcase_02_kill_sheep` / `showcase_03_village`
-
-**修复**
-- **字幕低透明度被补全为不透明**（根因：opacity 量化为 alpha 0~3 时颜色 alpha 高 6 位为 0，触发 MC `Font.adjustColor()` 的"未指定 alpha"补全 → `0x00FFFFFF` → `0xFFFFFFFF`，透明度 <1.6% 的文字反而满透明度渲染；表现为渐出/渐入段末尾闪现全亮文本）。修复：`alpha < 4` 直接跳过渲染；代码注释与文档记录该坑，未来走 Font 的 fade 需避开（ImageLayer 走 shader 颜色不受影响）
-
-### 2026-08-09 追加 — 触发器完成、播放队列、编辑器事件树重构、预览与网络加固
-
-**触发器（23 种，custom 删除）**
-- 接线 `item_on_interact`（物品+目标+target_type，支持空手 `""`）与 `advancement`（PLAYER_ADVANCEMENT 事件携带 id 匹配，不再误判历史进度）
-- 新增 `ItemUseMixin` 覆盖使用状态机：`item_consume`（用完，completeUsingItem）/ `item_release`（弓/弩/三叉戟/望远镜松手，UseAnim 判定）/ `item_use_interrupt`（吃一半松手等）
-- 新增 `item_instant_use`（投掷物实体判定：雪球/鸡蛋/珍珠/药水/经验瓶）、`xp`（等级/累计经验轮询）、`dimension`（维度驻留轮询）、`item_pickup`/`item_drop`（拾取/丢弃事件）
-- 新增 `observation`（服务端射线注视，block/entity/缺省近者优先，reach 可配）
-- `entity_kill` 场景条件：dimension/biome/position/corner1+corner2（按击杀时刻记录，非玩家当前位置）
-- 删除 `custom` 触发器（注册/求值/编辑器/文档/示例脚本全清）
-- B5 触发器状态同步：触发/完成/JOIN 补发 `S2CTriggerStateSyncPacket`
-
-**播放队列（C1，用户确认规则）**
-- `ScriptQueue` 容量 8：不可打断脚本播放时新请求一律排队（priority 降序 + FIFO），结束自动接播；可打断脚本被请求立即替换（无渐出）
-- 优先级不能大于打断：priority 仅用于队列内排序；移除 queueable 参数与高优先级强制抢占
-- 客户端 `/icinematics queue` 查询命令不实施（与服务端命令根冲突）
-
-**编辑器**
-- 事件树命中统一绝对屏幕坐标（修复面板/预览区点击错位：absX/absY 双加父偏移）；滚动容器语义化（getScrollOffset 沿父链），移除 pushScroll 改 mouseY 的坐标补偿
-- 鼠标事件模板加容器裁剪（滚动区外不再命中不可见内容）；tab 栏固定不随内容滚动；切模式滚动归零（修复面板"全白"）
-- 顶部状态栏移除脚本列表按钮（面板 tab 已覆盖）；播放/暂停合并 toggle 按钮；终止按钮改为重置播放头到第一帧（保持预览激活，不再退出到玩家视角；玩家视角由脚本时间空隙自然产生）
-- 预览器修复：编辑器加载不同轨道布局脚本后轨道索引错位（OVERLAY 层不创建/音频误读）→ replaceScript 按布局重建 TrackPlayer；捕获前 flush GUI 缓冲（覆盖层落盘）
-- E1 布局常量提取、E3 letterbox smoothstep、E4 删除无用 MathUtil 方法
-
-**网络加固**
-- 新增 `NetworkGuard`：所有 C2S 发包统一防护，玩家随时退出/断线不再因 `sendToServer` 抛异常闪退（覆盖脚本结束通知/暂停握手/ACK 重发/回执）
-
-**其它**
-- `ScriptValidator` position 检查限定 CAMERA 轨道（消除非 CAMERA 轨道误报）；新增 9 个触发器冒烟测试脚本
-- **统一关键帧级调控（用户决定）**：删除 letterbox clip 级 `aspect_ratio` 简写兼容与 EVENT clip 级 `command` 向后兼容——所有轨道一律以 keyframes 调控，旧格式脚本需改写（校验会报缺 keyframes）；补建 inventory change 冒烟脚本（共 10 个）
-
-
-
-### Added
-- **AUDIO 轨道**：OGG/WAV 音频播放（LWJGL OpenAL 直驱），关键帧控制音量与空间位置，淡入淡出、循环、衰减
-- **OVERLAY 轨道**：fade 全屏遮罩 / image 图片 / subtitle 字幕 / pip 画中画四类覆盖层，多层叠加按 zIndex 渲染
-- **EVENT 轨道重构**：从 clip 段改为 keyframe 驱动多点触发，`&&` 命令链、权限 4 执行
-- **镜头追踪**：CAMERA clip 级 `cam_tracking_look_at`（注视坐标/实体）+ `cam_tracking_follow`（跟随玩家）
-- **镜头呼吸扰动**：`cam_breath_enabled` / `cam_breath_intensity` / `cam_breath_seed` 运行时叠加随机微晃
-- **翻滚角（roll）修复**：改为绕相机视线轴旋转，任何朝向下 roll>0 均为屏幕顺时针（画面向右倒）
-- **删除景深（dof）字段**：原版 MC 无景深能力，全链路移除（代码/schema/文档/测试脚本）
-- **Fabric Loader 要求降至 0.14.0**：兼容主流整合包（原 0.19.3 为开发版本误写）
-- **新增 docs/AI_SCRIPTING_GUIDE.md**：面向 AI 的脚本编写指南（空间方向体系/速度档位/运镜配方/常见错误）
-- **参考脚本**：`cinematics/example_orbit.json` 重写为《第二圆舞曲》配乐脚本，18 段运镜覆盖全部可控字段（静态/直摇/慢推/摇入/环绕/推变焦/微摆/甩镜头/升降/航拍/俯拍/降落/希区柯克变焦/快环绕/荷兰角/拉远/离场/定格）
-- 音频文件非 ASCII 命名时输出警告（Windows 下 stb_vorbis fopen 无法解码中文路径）
-
-### Changed
-- 音频资源统一英文命名规范（写入指南与格式文档）
+### 移除
+- 移除景深（dof）字段：原版游戏没有景深能力。
+- 移除 `custom` 触发器：统一使用内置触发器体系。
 
 ## [0.3.3] - 2026-07-26
 
-Architectury 多平台迁移 + 编辑器交互大优化 + 播放器数据对齐。
+多平台构建、编辑器交互大幅优化、播放器数据对齐。
 
-### Added — 编辑器交互
-- **缩放系统**：Ctrl+滚轮以鼠标位置为中心缩放（每步25%），滚轮=水平滚动，Ctrl+0 重置为 1:1
-- **播放头与标尺**：纵贯全轨道的红色竖线 + 三角形指示器，标尺主/次刻度线，点击空白处跳转播放头
-- **多轨道渲染**：5 种轨道（CAMERA/LETTERBOX/AUDIO/EVENT/MOD_EVENT）全部独立显示，左侧标签列 + 颜色标记 + 分隔线 + 空轨道提示
-- **视觉设计**：clip 按轨道类型着色（蓝/绿/黄/红/紫），3D 凸起边框，选中态金色左侧条，clip 名称标签
-- **拖拽吸附**：半透明 ghost 拖拽预览，8px 阈值吸附到播放头/clip 边缘，金色闪烁吸附指示器
-- **框选与多选**：矩形框选（蓝色半透明）选中范围内所有 clip，Ctrl+click 多选切换，`sel.selectClips()` 全量选择
-- **右键菜单**：新建通用 ContextMenu 组件，支持 clip（复制/删除/添加关键帧）、空白（添加clip/新增轨道/吸附排列）、标尺（跳转）三种右键菜单
-- **标签栏**：LeftPanel 顶部 5 标签（Scripts/Properties/Clip/Keyframe/Tracks），TRACK_LIST 模式下可点击轨道行选中轨道
-- **轨道选中**：`selectedTrackIndex` 持久化轨道选中态，时间轴轨道高亮 + 标签列点击选轨
-- **关键帧空支持**：EVENT/AUDIO/MOD_EVENT 关键帧默认为空时间标记（仅 `{"time": x}`），不强制填充数据；`copyKeyframeProperties` 空安全
-- **剪贴板**：Ctrl+C 复制携带 `_trackType` 元数据，Ctrl+V 按轨道类型匹配自动粘贴，无匹配时自动 `addTrack`
-- **跨轨道操作**：Ctrl+↑/↓ 移动 clip 到上/下轨道，`moveClipToTrack`/`findTrackIndex`
-- **clip 分割（Razor）**：右键菜单"分割（在播放头位置）"，`EditorOperations.splitClip()` 拆分 keyframes
+### 新增
+- **编辑器缩放**：Ctrl + 滚轮以鼠标位置缩放，滚轮水平滚动，Ctrl+0 重置。
+- **播放头与标尺**：贯穿全轨道的播放头、标尺刻度，点击空白处跳转时间。
+- **多轨道显示**：CAMERA / LETTERBOX / AUDIO / EVENT / MOD_EVENT 全部独立显示。
+- **轨道配色与选中态**：不同轨道类型使用不同颜色，选中 clip 有高亮显示。
+- **拖拽吸附**：拖动 clip 时会吸附到播放头和其他 clip 边缘。
+- **框选与多选**：可以框选多个 clip，也可以按住 Ctrl 逐个多选。
+- **右键菜单**：对 clip、空白区域、标尺提供不同操作菜单。
+- **标签栏**：脚本、属性、clip、关键帧、轨道等面板可以快速切换。
+- **剪贴板**：支持复制、粘贴、剪切，粘贴时按轨道类型自动匹配。
+- **跨轨道操作**：可以把 clip 移动到上 / 下一条轨道。
+- **分割功能**：可以在播放头位置把 clip 拆成两段。
+- **快捷键**：Space 播放 / 暂停、Ctrl+C / V / X 复制粘贴剪切、Ctrl+Z / Y 撤销重做、方向键移动播放头、F 缩放至全部、Delete 删除等。
+- **保存前校验**：保存脚本前检查必填字段、时间顺序、轨道重叠等问题。
 
-### Added — 快捷键
-- `Space` 播放/暂停（300ms 防重复）、`Enter` 播放选中 clip
-- `Ctrl+A` 全选、`Ctrl+C` 复制、`Ctrl+V` 粘贴、`Ctrl+X` 剪切
-- `Ctrl+Z` 撤销、`Ctrl+Y`/`Ctrl+Shift+Z` 重做（50 步快照栈）
-- `←/→` 移动播放头 0.5s、`Shift+←/→` 5s
-- `Ctrl+←/→` 跳转 prev/next clip、`Ctrl+Shift+←/→` 时间线起点/终点
-- `Delete` 删除选中、`Ctrl+D` 复制偏移 0.5s
-- `F` 缩放至全部可见、`Ctrl+0` 重置缩放
-- `Home`/`End` 时间线起点/终点、`PageUp`/`PageDown` 上/下轨道
-- `[`/`]` 跳转 clip 起点/终点
+### 优化
+- 编辑器布局在不同 GUI 缩放下保持一致。
+- 脚本数据模型统一，新建关键帧自带默认值。
+- 撤销重做覆盖拖拽、裁剪、关键帧微调、属性编辑等操作。
+- 编辑器和播放器的数据结构对齐，减少“编辑器能看、播放器不能播”的情况。
+- 时间轴缩放、标尺刻度、播放头显示更稳定。
 
-### Added — 播放器数据对齐
-- 新增 `EditorOperations.validateScript()` 保存前全量校验：version/duration/关键帧单调性/必填字段/同轨道重叠检测
-- 新增 `EditorOperations.sortTrackClips()` 保证 clips 数组按 start_time 升序，addClip/splitClip 后自动调用
-- `sortKeyframes()` 添加去重，相邻重复时间的关键帧自动合并
-- `EditorScreen.saveScript()` 调用 validateScript，有错误时阻断保存
-- EVENT clip 补齐必填字段 `command`，AUDIO 补齐 `sound`，`addClip()` 零时长保护
-- `transition`/`transition_duration` 从通用字段改为 CAMERA 专属，不再写入 AUDIO/EVENT/MOD_EVENT
-
-### Changed
-- **Architectury 多平台迁移**：Forge + Fabric 统一构建（API 声明式配置、Mixin 模块化、事件总线抽象、网络层 AbstractPacket）
-- **运行时数据模型统一**：5 个 Clip 类 + 2 个 Keyframe 类 → schema 驱动通用 `Clip`/`Keyframe` + `Map<String,Object> data`
-- 新增 `schema.json` 定义所有轨道类型字段结构和默认值，`SchemaLoader` 运行时加载
-- `ScriptParser` 从独立解析方法重构为 schema 驱动统一解析
-- `TimelineTrack` 统一为 `getClips()`，删除 5 个类型安全访问器
-- `+C` 工具栏按钮改为按当前选中 clip 所在轨道添加，而非硬编码 CAMERA
-- `fillKeyframeDefaults()` 只对 CAMERA/LETTERBOX 填充默认值，AUDIO/EVENT/MOD_EVENT 保持空关键帧
-- `UITextInput` 从实时提交改为失焦提交（Enter 确认）
-- `MenuBarArea`/`PreviewArea` 的 `mouseClicked` 提取共享静态方法
-- LeftPanel 编辑触发 `scheduleBuild()` 防抖（150ms 内跳过重复重建）
-
-### Fixed
-- **致命**：EVENT clip 缺失 schema 必填字段 `command`，保存后播放器无法解析
-- **致命**：拖拽移动/裁剪/关键帧微调/属性编辑无撤销，操作后 Ctrl+Z 无效
-- `boxEndTime` 未初始化 → 点击空白处误触发从 t=0 开始的框选
-- 框选只选中第一个命中 clip，改为选中范围内所有 clip
-- Space 键码误绑为 57（数字 9），改为 32（Space）
-- Space 按住时重复触发播放/暂停，300ms 冷却防护
-- `fmt()` 无小时位 → `fmt(3661)` = `"61:01"`，改为 `"1:01:01"`
-- 标尺刻度极限缩放下异常（≤5s 时 interval=10s 零刻度），改为 0.5s/1s/5s/10s 自适应
-- 时间轴 render() 缺少 `drawTracks()`/`drawPlayhead()` 调用，导致时间轴空白
-- 点击末帧关键帧预览错位（边界时间在半开区间外），微减 0.001s 保持在活跃区间内
-- `copyKeyframeProperties()` 空指针风险，改为空安全访问
-- `sortKeyframes()` 不防重复时间，添加去重
-- 硬编码 `transition`/`transition_duration` 写入非 CAMERA clip
-- `ensureBoundaryKeyframes()` 仅非空源才复制属性
-
-### Removed
-- `CameraClip.java`、`CameraKeyframe.java`、`LetterboxClip.java`、`LetterboxKeyframe.java`
-- `AudioClip.java`、`EventClip.java`、`ModEventClip.java`
-- `onClickEmpty` 回调（已合并到点击空白跳转播放头）
-- `architectury` 分支（已合并到 main）
-# Changelog
+### 修复
+- 修复新建关键帧顺序错乱、脚本无法载入的问题。
+- 修复新建关键帧缺少 position / yaw / pitch 等属性、预览相机跳回原点的问题。
+- 修复编辑器保存后覆盖旧脚本、脚本目录不一致的问题。
+- 修复框选只选中第一个 clip、Space 键重复触发等问题。
+- 修复时间轴空白、末帧预览错位、标尺缩放到极限时无刻度等问题。
 
 ## [0.3.2] - 2026-06-16
 
-编辑器和运行时的深度优化版本，重构脚本系统、UI 架构、布局系统，新增物品交互触发器，修复多项长期 bug。
+编辑器与运行时深度优化，重构脚本系统、界面架构和布局系统，新增物品交互触发器。
 
-### Added
-- 新增 `item_on_interact` 触发器，同时检查手持物品和交互目标（方块/实体），例如 `carrot on iron_block` 触发 boss 出场
-- 新增 `LetterboxKeyframe` 类，letterbox 轨道支持完整关键帧（`start_time`/`duration`/`target_aspect_ratio`/`easing`）
+### 新增
+- **物品交互触发器**：新增 `item_on_interact`，同时检查手持物品和交互目标，可以实现“拿特定物品点击特定方块 / 实体触发镜头”。
+- **黑边轨道完整关键帧**：LETTERBOX 支持完整关键帧控制。
+- **播放命令玩家选择器**：`/icinematics play` 支持 `@a` / `@p` 等目标选择器。
 
-### Fixed
-- 相机 Mixin 注入条件从 `isActive()` 改为 `isActive() && hasActiveCameraClip()`，CAMERA gap 和纯 letterbox 脚本不再锁死视角
-- `/icinematics play` 改为 `EntityArgument.players()` + `S2CPlayScriptPacket` 分发，修复纯客户端类导致的服务端崩溃，同时支持 `@a`/`@p` 玩家选择器
-- 编辑器布局从百分比改为参考分辨率 960×540 等比缩放，不同 MC GUI Scale 下保持一致
-- 编辑器新建关键帧后画面空白（缺失 position/yaw/pitch 等默认属性）
-- B 键关闭编辑器逻辑修复
+### 优化
+- 相机控制只在真正有 CAMERA 片段时接管视角，空档和纯 LETTERBOX 脚本不会锁死视角。
+- 编辑器布局在不同 GUI 缩放下保持一致。
+- 编辑器新建关键帧自动补齐默认属性。
+- 编辑器交互和脚本编辑流程更统一。
 
-### Refactored
-- `EditorScreen` 删除对 `EditorBridgeImpl` 和 `CinematicKeyBindings` 的直接引用，消除跨包依赖泄漏
-- 新增 `IFocusable` 接口，`UITextInput`/`UIFloatInput`/`UIAutoCompleteInput` 统一实现，4 处 instanceof 分发点合并为 1 行
-- `LetterboxClip` 结构对齐 `CameraClip`：删除 `fade_in`/`fade_out`/`enabled`，`aspect_ratio` 移入关键帧属性，`LetterboxTrackPlayer` 重写为关键帧插值
-- Transition morph 从独立行为改为前段 clip 的退场阶段（`exit_behavior`），修改 `CameraTrackPlayer`/`EditorOperations`/`TimelineArea`
-- 编辑器 UI 树重构：统一父元素相对偏移坐标（`absX()`/`absY()`），事件分发改为 `root.mouseClicked(ctx)` 替代 4 个手动调用，新增 Overlay 层解决跨区组件事件截断
-- 编辑器 LETTERBOX 特殊分支删除，合并到通用 clip 编辑流程
-
-### Cleanup
-- 清理死代码和重复触发器注册
+### 修复
+- 修复纯客户端类导致服务端崩溃的问题。
+- 修复部分情况下相机视角被锁死、编辑器新建关键帧画面空白等问题。
+- 修复关闭编辑器按键失效的问题。
 
 ## [0.3.1] - 2026-05-31
 
-0.3.0 发布后的修复版本，集中修复编辑器关键帧和脚本管理问题，新增 `on_enter` 和 `exit_buffer` 触发器字段。
+集中修复编辑器关键帧和脚本管理问题，新增触发器进出区域控制。
 
-### Fixed
-1. 编辑器新增关键帧导致关键帧数组乱序，ScriptParser 单调递增校验失败，脚本无法载入
-2. 新建关键帧缺少 position/yaw/pitch/roll/fov/zoom/dof 属性值，预览时相机跳回原点
-3. 所有关键帧修改路径添加排序保护
-4. 编辑器新建脚本后保存时仍写回旧文件，覆盖已有脚本
-5. 编辑器脚本目录与服务端加载目录不一致，保存后世界内无法生效
+### 新增
+- `/icinematics reload` 命令：同步脚本到世界并立即重载。
+- `/icinematics play` 增加 Tab 自动补全。
+- 触发器新增 `on_enter`：只在进入区域时触发，已经在区域内不会重复触发。
+- 触发器新增 `exit_buffer`：离开区域一段距离后才算离开，避免边界抖动反复触发。
 
-### Added
-- `/icinematics reload` 命令（op 2 级）：同步全局脚本到世界存档并重载，使编辑内容立即生效
-- `/icinematics play` 命令增加 Tab 自动补全
-- 触发器新增 `on_enter` 字段。在 `repeatable: true` 基础上设置 `on_enter: true`，位置/群系/结构等触发器只在进入时触发，已在区域内不重复
-- 触发器新增 `exit_buffer` 字段。配合 `on_enter: true` 使用，指定玩家离开原区域多少格后才标记为"已离开"，防止区域边界抖动导致反复触发
+### 修复
+- 修复编辑器新增关键帧导致数组乱序、脚本无法载入的问题。
+- 修复新建关键帧缺少 position / yaw / pitch 等属性、预览相机跳回原点的问题。
+- 修复编辑器保存后覆盖旧脚本、脚本目录不一致的问题。
 
 ## [0.3.0] - 2026-05-22
 
-从 0.2.0 完全重构。主要变化：
+从 0.2.0 完全重构。
 
-### Added
-- 编辑器完整 UI：时间轴、左侧属性面板、预览区、菜单栏
-- 触发器系统（24 种类型 + 条件编辑器 + C2S 网络同步）
-- 运行时行为控制系统（CinematicController）
-- 管理界面（配置界面、脚本管理、HUD 拦截）
-- 多轨道架构（CAMERA / LETTERBOX / AUDIO / EVENT / MOD_EVENT）
+### 新增
+- 完整编辑器界面：时间轴、属性面板、预览区、菜单栏。
+- 触发器系统：多种条件触发镜头，支持条件编辑和网络同步。
+- 运行时行为控制：播放中控制输入、HUD、跳过等行为。
+- 管理界面：配置、脚本管理、HUD 拦截。
+- 多轨道架构：CAMERA / LETTERBOX / AUDIO / EVENT / MOD_EVENT。
 
 ## [0.2.0] - 2026-04-16
 
-已发布的旧版本。基于 entity 实现相机，主要包结构：
+已发布的旧版本，基于实体实现相机。
 
-- **entity-based 相机**：`camera/` 使用 Minecraft Entity 实现，利用原生 tick/同步/插值
-- **导演编排**：`director/` 负责镜头序列编排
-- **脚本播放**：`script/` 解析文本脚本驱动相机路径
-- **触发器**：`trigger/` 独立条件引擎，基于位置/物品/交互触发运镜
-- **网络层**：`network/` 服务端控制触发和权限
-- **其他**：handler / item / mixin / util
+- 相机使用 Minecraft 实体实现，利用原版同步和插值。
+- 独立的导演系统负责镜头序列编排。
+- 文本脚本驱动相机路径。
+- 独立触发器条件引擎。
+- 服务端网络层控制触发和权限。
 
-因设计存在根本性问题，后续完全重构。
+该版本架构存在根本性问题，后续完全重构。
 
 ## [0.0.1] - 2026-01-24
 
-项目初创（`f48792a`），实现基础的摄像机控制。
+项目初创，实现基础摄像机控制。
