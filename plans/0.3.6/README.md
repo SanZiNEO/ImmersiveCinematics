@@ -8,6 +8,7 @@
 
 | 文档 | 说明 |
 |---|---|
+| `script-loop.md` | 脚本循环：宏观（整条时间轴）与微观（片段）两级折叠；宏观末端取“最后一个片段最后一次播完”，永不结束的片段即终点 |
 | `editor-webui-migration.md` | 编辑器 / WebUI 迁移计划 |
 | `multi-camera-rendering.md` | 多相机渲染计划 |
 | `overlay-color-mask.md` | Overlay 颜色遮罩计划 |
@@ -23,6 +24,7 @@
 
 | 文档 | 说明 |
 |---|---|
+| `selector-model.md` | 选择器：运行时目标来源；解决“策略被多个调用点共用、无法单独控制”的问题 |
 | `math-models.md` | 通用数学函数模型：一个定义多处调用、定义/实例分离、分类与扩展方向 |
 | `temporal-interpolation.md` | 时间插值：逻辑 tick 与渲染帧之间的防卡顿 / 防抽帧平滑 |
 
