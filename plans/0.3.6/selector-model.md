@@ -7,6 +7,7 @@
 >
 > 相关文档：
 > - [相机状态与覆盖链](./camera-state-plan.md)
+> - [基准坐标系](./coordinate-frame.md)
 > - [数学函数模型](./math-models.md)
 > - [时间插值](./temporal-interpolation.md)
 > - [过渡](./transition.md)
@@ -33,14 +34,18 @@
 
 ### 现状挂点
 
-| 调用点 | 字段 | 服务的属性 |
+| 调用点（角色） | 字段 | 服务的属性 |
 |---|---|---|
-| follow | `follow_selector` | 位置基准（基准空间坐标系的原点） |
+| follow | `follow_selector` | 位置基准 |
 | look_at | `look_at_selector` | 朝向目标（注视点） |
 | look_at_target | `look_at_target.relative_to` | 坐标注视的相对基准 |
-| yaw_base / pitch_base | `yaw_base_selector` | 朝向基准（yaw 与 pitch 共用一个字段） |
+| yaw_base | `yaw_base_selector` | 朝向基准（yaw 与 pitch 共用） |
+| yaw_base_from | `yaw_base_from` | 连线基准的 A 点 |
+| yaw_base_to | `yaw_base_to` | 连线基准的 B 点 |
 
 解析走两条路径：本地（`@p` / `@s` / `uuid:` / 简单 `@e[type,…]`）与服务端（NBT / tag 等原版扩展选项）。
+
+选择器只是**点源 / 方向源**的一种来源，坐标系本身的构建与通道相对化见[基准坐标系](./coordinate-frame.md)。
 
 ---
 
@@ -49,9 +54,10 @@
 **一个功能被 N 个地方共用，却只有一份控制。**
 
 - 选择器的策略三件套（刷新频率 / 存活期是否换目标 / 切换平滑）目前是**关键帧级**的，注释与实现都是“作用于该关键帧所有 selector 字段”。
-- 后果：同一关键帧里的 follow / look_at / yaw_base 被迫共用同一份策略。
+- 后果：同一关键帧里的 **6 个调用点**（follow / look_at / look_at_target / yaw_base / yaw_base_from / yaw_base_to）被迫共用同一份策略。
   - 例：想给 look_at 开“自动切换 + 切换平滑”，follow 会被一起改掉；1vN 时镜头会在同阵营单位之间乱跳。
   - 例：follow 想“目标活着就锁死不放”，look_at 想“跟着离得最近的敌人走”——现在无法同时成立。
+  - 例：连线基准的两个端点（`yaw_base_from` / `yaw_base_to`）也被同一份策略管着，想给它们单独的刷新节奏做不到。
 - 同类问题：解析结果缓存以 **selector 字符串**为键，不含调用点与锚点；而 `sort=nearest` 的结果依赖锚点，follow 与 look_at 传的锚点并不相同。
 - 一般化的结论：**策略 / 状态类字段必须按“谁在用”隔离；共用字段只能作为默认回落。**
 
@@ -134,6 +140,7 @@
 ## 8. 相关文档
 
 - [相机状态与覆盖链](./camera-state-plan.md)
+- [基准坐标系](./coordinate-frame.md)
 - [数学函数模型](./math-models.md)
 - [时间插值](./temporal-interpolation.md)
 - [过渡](./transition.md)
