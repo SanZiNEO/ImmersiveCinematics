@@ -19,7 +19,7 @@
 | 文档 | 说明 |
 |---|---|
 | `camera-state-plan.md` | 6 参数模型 + Base Chain / Modifier Chain 覆盖链；staged 删除；内部优先，API 顺带 |
-| `coordinate-frame.md` | 基准坐标系：点源 + 方向源 → 坐标系；位置 / yaw / pitch 通道相对化；连线 = A 为原点 + A→B 为基础朝向 |
+| `coordinate-frame.md` | 基准坐标系：点源（来源 + 偏移）+ 方向源 → 坐标系；位置 / yaw / pitch / 注视点通道相对化；连线 = A 为原点 + A→B 为基础朝向 |
 
 ## 三、底层通用能力
 
