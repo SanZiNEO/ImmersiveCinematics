@@ -403,7 +403,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     /**
      * 统一点源解析：把"点源（来源 + 偏移）"求值成世界坐标。
      * <p>
-     * 支持来源：实体选择器（位置 + 眼睛高度）、固定坐标、结构中心、玩家附近搜索到的方块中心。
+     * 支持来源：实体选择器（位置 = 实体脚底，与三代一致）、固定坐标、结构中心、玩家附近搜索到的方块中心。
      * 这是「点源清单统一」的落点——位置基准 / 注视点 / 连线端点共用同一种求值。
      *
      * @return 世界坐标；来源不可解析返回 null
@@ -418,16 +418,14 @@ public class CameraTrackPlayer implements TrackPlayer {
         if (pd.isOriginBlock()) {
             return resolveBlockPos(pd.getOriginBlockId(), pd.getOriginBlockRadius());
         }
-        // 实体来源：位置 + 眼睛高度（非生物退化 +2）；稳定性由调用点的策略与平滑管
+        // 实体来源：基准点 = 实体位置（脚底），与三代行为一致；
+        // fwd/up/right 的 up 从脚底往上算（不要再叠眼睛高度，否则整台相机抬高一个眼高）
         net.minecraft.world.entity.Entity base = evalFacingBase(kf, pd);
         if (base == null) return null;
         String role = pd.isOriginSelector() ? "facing_origin" : "follow";
         Vec3 basePos = smoothTargetPoint(role, frameHandle(kf, pd), "base",
                 entityPosInterp(base), selectorPolicy(kf, role).switchSmooth());
-        double eyeY = base instanceof net.minecraft.world.entity.LivingEntity le
-                ? basePos.y + le.getEyeHeight()
-                : basePos.y + 2.0;
-        return new Vec3(basePos.x, eyeY, basePos.z);
+        return basePos;
     }
 
     /** 点源的锁定/平滑句柄（基准点用哪个 selector 作为锁的键） */
