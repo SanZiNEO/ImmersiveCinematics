@@ -1,0 +1,81 @@
+{
+  "meta": {
+    "id": "test_camera_facing_origin",
+    "name": "相机测试-基准坐标系(连线)",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "基准点=猪(A), 基准朝向=A→牛(B) 连线, 位置用 fwd/up/right, 注视=B 并在世界 Y 上偏移 0.5",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_trigger_login"] } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: test_camera_facing_origin | 基准点=猪 | 基准朝向=猪→牛 | 位置=基准系 | 注视=牛 + 世界Y 0.5",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "id": "camera_1",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "transition_duration": 0.0,
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position_mode": "relative",
+                "position": {
+                  "facing_origin": "@e[type=minecraft:pig,limit=1]",
+                  "facing_target": "@e[type=minecraft:cow,limit=1]",
+                  "fwd": -6.0,
+                  "up": 2.0,
+                  "right": 2.0,
+                  "up_axis": "world"
+                },
+                "look_at": "coordinate",
+                "look_at_target": { "relative_to": "@e[type=minecraft:cow,limit=1]", "dy": 0.5 },
+                "selector_refresh": 1.0,
+                "selector_switch_while_alive": true,
+                "selector_switch_smooth": 0.4,
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

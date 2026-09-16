@@ -35,6 +35,17 @@ public class CameraTrackPlayer implements TrackPlayer {
     private Vec3 lastWorldPos;
 
     /**
+     * 本帧基准坐标系（由基准点 + 基准朝向建立），供其它通道复用：
+     * 注视点偏移可以按基准坐标系表达（{@code look_at_target.space = "facing"}）。
+     * 基准坐标系是"这一帧的基准"，只建一套，不按通道各建一套。
+     */
+    private Vec3 frameOrigin;
+    private Vec3 frameFwd;
+    private Vec3 frameRight;
+    private Vec3 frameUp;
+    private boolean frameValid;
+
+    /**
      * 目标锁定状态：按 {@code role + selector} 维护。
      * <ul>
      *   <li>{@code uuid/entity/resolvedAt}：当前锁定的目标与刷新时间；</li>
@@ -62,8 +73,22 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     private final Map<String, TargetLock> targetLocks = new java.util.HashMap<>();
 
-    /** 选择器策略（keyframe 级，作用于该帧所有 selector 字段） */
-    private record SelectorPolicy(float refreshSeconds, boolean switchWhileAlive, float switchSmooth) {}
+    /**
+     * 选择器策略（调用点级）。
+     *
+     * @param scanSeconds      扫描间隔：多久重新扫一遍候选（影响准确性）
+     * @param switchWhileAlive 目标存活时是否允许切换
+     * @param switchSeconds    切换间隔：扫到新目标后，也要等这么久才真的换过去（影响稳定性）
+     * @param switchSmooth     切换平滑：真的换过去时，用多少秒过渡
+     */
+    private record SelectorPolicy(float scanSeconds, boolean switchWhileAlive, float switchSeconds, float switchSmooth) {}
+
+    /**
+     * 选择器调用点（角色）：每个调用点拥有自己的策略，可单独配置，互不影响。
+     * 通用字段（{@code selector_refresh} 等）只作**默认回落**——不写角色专属字段时行为与旧版完全一致。
+     */
+    private static final List<String> SELECTOR_CALLPOINTS = List.of(
+            "follow", "look_at", "look_at_target", "yaw_base", "facing_origin", "facing_target");
 
     public CameraTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos, CameraManager cameraManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
@@ -184,6 +209,16 @@ public class CameraTrackPlayer implements TrackPlayer {
             }
             PositionData pd = kf.getPosition();
             if (pd != null && pd.isRelative()) {
+                // 基准坐标系偏移：显式指定的基准点实体不可解析 → 该段无基准，按空片段处理
+                if (pd.isOriginSelector()
+                        && resolveEntity(pd.getOriginSelector(), lastWorldPos, "facing_origin", kf) == null) {
+                    return false;
+                }
+                // 基准朝向目标不可解析 → 基准朝向不存在，同样按空片段处理
+                if (pd.getFacingTarget() != null && !pd.getFacingTarget().isEmpty()
+                        && resolveEntity(pd.getFacingTarget(), lastWorldPos, "facing_target", kf) == null) {
+                    return false;
+                }
                 String sid = pd.getOriginStructure();
                 if (sid != null && !sid.isEmpty() && resolveStructurePos(sid) == null) return false;
                 if (pd.isOriginBlock()) {
@@ -291,7 +326,7 @@ public class CameraTrackPlayer implements TrackPlayer {
             Entity target = resolveEntity(selector, lastWorldPos, "follow", kf);
             if (target != null) {
                 Vec3 off = pd != null ? pd.toVec3() : Vec3.ZERO;
-                return smoothTargetPoint("follow", selector, "pos", entityPosInterp(target).add(off), selectorPolicy(kf).switchSmooth());
+                return smoothTargetPoint("follow", selector, "pos", entityPosInterp(target).add(off), selectorPolicy(kf, "follow").switchSmooth());
             }
             return lastWorldPos;
         }
@@ -302,56 +337,166 @@ public class CameraTrackPlayer implements TrackPlayer {
     }
 
     /**
-     * 基准空间坐标系求值：基准点 = 玩家/实体眼睛高度；三轴按基准实时朝向（yaw+pitch）旋转。
+     * 基准空间坐标系求值：基准点 = 点源（facing_origin 指定的实体/坐标/结构/方块；
+     * 未指定时回落 follow 实体 / 玩家）；三轴由基准朝向建立。
      * - fwd/right 始终随朝向水平旋转（前/后 & 左/右）
      * - up 轴由 up_axis 控制："view"=随俯仰全三维（默认）；"world"=保持世界竖直
-     * 基准 = follow 实体（其实时视线）或 玩家（实时视线；鼠标未锁则能转着跟，被锁则静止）。
      */
     private Vec3 evalFacingOffset(Keyframe kf, PositionData pd) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        Entity base = null;
-        String followSelector = kf.getString("follow_selector", "@p");
-        if ("entity".equals(kf.getString("follow", "none"))) {
-            base = resolveEntity(followSelector, lastWorldPos, "follow", kf);
-        } else if (mc.player != null) {
-            base = mc.player;
-        }
-        if (base == null) {
-            LOGGER.warn("基准空间偏移：基准实体/玩家不可用（防御路径，按当前视点处理）");
+        Vec3[] frame = evalFacingFrame(kf, pd);
+        if (frame == null) {
+            LOGGER.warn("基准空间偏移：基准点/基准朝向不可用（防御路径，按当前视点处理）");
             return lastWorldPos;
         }
-        Vec3 basePos = smoothTargetPoint("follow", followSelector, "base", entityPosInterp(base), selectorPolicy(kf).switchSmooth());
+        // 记录本帧基准坐标系，供注视点等其它通道按基准系表达偏移
+        frameOrigin = frame[0];
+        frameFwd = frame[1];
+        frameRight = frame[2];
+        frameUp = frame[3];
+        frameValid = true;
+        return frameOrigin
+                .add(frameFwd.scale(pd.getFwd()))
+                .add(frameRight.scale(pd.getRight()))
+                .add(frameUp.scale(pd.getUp()));
+    }
+
+    /**
+     * 建立本关键帧的基准坐标系 = 基准点 + 基准朝向。
+     *
+     * @return {@code [原点, fwd, right, up]}；不可用或方向退化时返回 null
+     */
+    private Vec3[] evalFacingFrame(Keyframe kf, PositionData pd) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        // 调用点名：显式实体基准 → facing_origin；旧写法 → follow（策略按调用点隔离，回落通用字段）
+        String role = pd.isOriginSelector() ? "facing_origin" : "follow";
+        // 基准点来源（统一点源解析）：实体选择器 / 固定坐标 / 结构中心 / 搜索到的方块
+        Vec3 baseVec = resolvePointSource(kf, pd);
+        if (baseVec == null) return null;
+        // 朝向所属实体：显式实体基准 → 该实体；坐标/结构/方块基准或旧写法 → follow 实体 / 玩家
+        net.minecraft.world.entity.Entity orient = pd.isOriginSelector()
+                ? evalFacingBase(kf, pd)
+                : evalFacingOrient(kf, mc);
+        if (pd.isOriginSelector() && orient == null) return null;
+
+        // 基准朝向：facing_target 非空 → 基准点 → 该目标的连线方向（含俯仰的完整三维方向）
+        String facingTarget = pd.getFacingTarget();
+        if (facingTarget != null && !facingTarget.isEmpty()) {
+            net.minecraft.world.entity.Entity to =
+                    resolveEntity(facingTarget, lastWorldPos, "facing_target", kf);
+            if (to == null) return null;
+            Vec3 dir = entityPosInterp(to).add(0, to.getBbHeight() / 2.0, 0).subtract(baseVec);
+            return buildFrame(baseVec, dir, pd);
+        }
+
+        if (orient == null) return null;
+
+        // 实体朝向必须按渲染 partialTick 插值：raw getYRot()/getXRot() 会在 20Hz tick 间跳变。
+        float yawRad = (float) Math.toRadians(entityBodyYawInterp(orient));
+        float pitchRad = (float) Math.toRadians(entityPitchInterp(orient));
+        float sinY = (float) Math.sin(yawRad);
+        float cosY = (float) Math.cos(yawRad);
+        float sinP = (float) Math.sin(pitchRad);
+        float cosP = (float) Math.cos(pitchRad);
+        return buildFrame(baseVec, new Vec3(-sinY * cosP, -sinP, cosY * cosP), pd);
+    }
+
+    /**
+     * 统一点源解析：把"点源（来源 + 偏移）"求值成世界坐标。
+     * <p>
+     * 支持来源：实体选择器（位置 + 眼睛高度）、固定坐标、结构中心、玩家附近搜索到的方块中心。
+     * 这是「点源清单统一」的落点——位置基准 / 注视点 / 连线端点共用同一种求值。
+     *
+     * @return 世界坐标；来源不可解析返回 null
+     */
+    private Vec3 resolvePointSource(Keyframe kf, PositionData pd) {
+        if (pd.isOriginCoordinate()) {
+            return new Vec3(pd.getOriginX(), pd.getOriginY(), pd.getOriginZ());
+        }
+        if (pd.getOriginStructure() != null && !pd.getOriginStructure().isEmpty()) {
+            return resolveStructurePos(pd.getOriginStructure());
+        }
+        if (pd.isOriginBlock()) {
+            return resolveBlockPos(pd.getOriginBlockId(), pd.getOriginBlockRadius());
+        }
+        // 实体来源：位置 + 眼睛高度（非生物退化 +2）；稳定性由调用点的策略与平滑管
+        net.minecraft.world.entity.Entity base = evalFacingBase(kf, pd);
+        if (base == null) return null;
+        String role = pd.isOriginSelector() ? "facing_origin" : "follow";
+        Vec3 basePos = smoothTargetPoint(role, frameHandle(kf, pd), "base",
+                entityPosInterp(base), selectorPolicy(kf, role).switchSmooth());
         double eyeY = base instanceof net.minecraft.world.entity.LivingEntity le
                 ? basePos.y + le.getEyeHeight()
                 : basePos.y + 2.0;
-        Vec3 origin = new Vec3(basePos.x, eyeY, basePos.z);
+        return new Vec3(basePos.x, eyeY, basePos.z);
+    }
 
-        // 跟随实体朝向必须按渲染 partialTick 插值：raw getYRot()/getXRot() 会在 20Hz tick 间跳变。
-        float yawRad = (float) Math.toRadians(entityBodyYawInterp(base));
-        float pitchRad = (float) Math.toRadians(entityPitchInterp(base));
-        boolean viewUp = "view".equals(pd.getUpAxis());
-        // 正交基（对齐 MC Entity.calculateViewVector / Camera up-left-look；参考 ShoulderSurfing 本地偏移→世界）：
-        //   look  = ( -sinY·cosP, -sinP, cosY·cosP )   ← pitch 的 Y 分量带负号（俯视时 look 向下）
-        //   right = ( -cosY, 0, -sinY )                 ← 与 look 恒正交
-        //   up    = right × look（view 模式；pitch=0 时恒 (0,1,0)，稳定不翻转）
+    /** 点源的锁定/平滑句柄（基准点用哪个 selector 作为锁的键） */
+    private static String frameHandle(Keyframe kf, PositionData pd) {
+        return pd.isOriginSelector() ? pd.getOriginSelector() : kf.getString("follow_selector", "@p");
+    }
+
+    /**
+     * 由基准点 + 前轴方向（任意三维向量）构造基准坐标系。
+     * <p>
+     * 前轴由方向决定（实体朝向 / 两点连线），因此 up 是否跟随俯仰用方向向量本身判断：
+     * 非水平方向 + up_axis=view → 跟随俯仰（全三维）；否则 up 保持世界竖直。
+     * 与旧实现等价：水平朝向 + up_axis=world → up 世界竖直；带俯仰 + up_axis=view → up 与 fwd/right 正交。
+     */
+    private Vec3[] buildFrame(Vec3 base, Vec3 dir, PositionData pd) {
+        double dx = dir.x, dy = dir.y, dz = dir.z;
+        double horizontal = Math.sqrt(dx * dx + dz * dz);
+        if (horizontal < 1.0E-4 && Math.abs(dy) < 1.0E-4) {
+            LOGGER.warn("基准朝向退化（零长度或纯垂直），无法建立基准坐标系");
+            return null;
+        }
+        float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
+        float sinY = (float) Math.sin(Math.toRadians(yaw));
+        float cosY = (float) Math.cos(Math.toRadians(yaw));
+        Vec3 rightVec = new Vec3(-cosY, 0, -sinY);
         Vec3 fwdVec;
         Vec3 upVec;
-        Vec3 rightVec = new Vec3(-Math.cos(yawRad), 0, -Math.sin(yawRad));
-        if (viewUp) {
-            fwdVec = new Vec3(
-                    -Math.sin(yawRad) * Math.cos(pitchRad),
-                    -Math.sin(pitchRad),
-                    Math.cos(yawRad) * Math.cos(pitchRad));
-            upVec = rightVec.cross(fwdVec).normalize();
+        boolean followPitch = "view".equals(pd.getUpAxis()) && Math.abs(dy) > 1.0E-4;
+        if (followPitch) {
+            float pitch = (float) -Math.toDegrees(Math.atan2(dy, horizontal));
+            float sinP = (float) Math.sin(Math.toRadians(pitch));
+            float cosP = (float) Math.cos(Math.toRadians(pitch));
+            fwdVec = new Vec3(-sinY * cosP, -sinP, cosY * cosP);
+            upVec = new Vec3(-sinY * sinP, cosP, cosY * sinP);
         } else {
-            // up 保持世界竖直：只水平转（fwd 不带俯仰）
-            fwdVec = new Vec3(-Math.sin(yawRad), 0, Math.cos(yawRad));
+            // up 保持世界竖直：fwd/right 只水平转
+            fwdVec = new Vec3(-sinY, 0, cosY);
             upVec = new Vec3(0, 1, 0);
         }
-        return origin
-                .add(fwdVec.scale(pd.getFwd()))
-                .add(rightVec.scale(pd.getRight()))
-                .add(upVec.scale(pd.getUp()));
+        return new Vec3[]{base, fwdVec, rightVec, upVec};
+    }
+
+    /**
+     * 把基准坐标系里的偏移（fwd/up/right）转成世界偏移。
+     * 本帧没有建立基准坐标系（未用 fwd/up/right 摆位）时返回 null，调用方按世界轴处理。
+     */
+    private Vec3 frameOffsetToWorld(float fwd, float up, float right) {
+        if (!frameValid) return null;
+        return frameFwd.scale(fwd).add(frameRight.scale(right)).add(frameUp.scale(up));
+    }
+
+    /** 基准点来源：显式 facing_origin 实体 → 该实体；否则 follow 实体（follow=entity）或玩家 */
+    private net.minecraft.world.entity.Entity evalFacingBase(Keyframe kf, PositionData pd) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (pd.isOriginSelector()) {
+            return resolveEntity(pd.getOriginSelector(), lastWorldPos, "facing_origin", kf);
+        }
+        if ("entity".equals(kf.getString("follow", "none"))) {
+            return resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf);
+        }
+        return mc.player;
+    }
+
+    /** 基准朝向所属实体（旧行为）：follow 实体（follow=entity 时）或玩家 */
+    private net.minecraft.world.entity.Entity evalFacingOrient(Keyframe kf, net.minecraft.client.Minecraft mc) {
+        if ("entity".equals(kf.getString("follow", "none"))) {
+            return resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf);
+        }
+        return mc.player;
     }
 
     /**
@@ -494,7 +639,7 @@ public class CameraTrackPlayer implements TrackPlayer {
             Entity target = resolveEntity(selector, pos, "look_at", kf);
             if (target == null) return null;
             Vec3 raw = entityPosInterp(target).add(0, target.getBbHeight() / 2.0, 0);
-            return smoothTargetPoint("look_at", selector, "point", raw, selectorPolicy(kf).switchSmooth());
+            return smoothTargetPoint("look_at", selector, "point", raw, selectorPolicy(kf, "look_at").switchSmooth());
         }
         if ("coordinate".equals(lookAt)) {
             String structureId = kf.getString("look_at_target_structure", "");
@@ -552,22 +697,35 @@ public class CameraTrackPlayer implements TrackPlayer {
         float dx = numOrDefault(m.get("dx"));
         float dy = numOrDefault(m.get("dy"));
         float dz = numOrDefault(m.get("dz"));
+        // 偏移表达空间：缺省 = 世界轴；space = "facing" 时按本帧基准坐标系表达（fwd/up/right）
+        boolean facingSpace = "facing".equals(String.valueOf(m.get("space")));
+        Vec3 offset = null;
+        if (facingSpace) {
+            offset = frameOffsetToWorld(numOrDefault(m.get("fwd")), numOrDefault(m.get("up")), numOrDefault(m.get("right")));
+            // 本帧没有基准坐标系 → 退回世界轴偏移（有什么放什么）
+            if (offset == null) offset = new Vec3(dx, dy, dz);
+        }
         Object relTo = m.get("relative_to");
         if (relTo == null) {
             // 相对触发点偏移
-            return originPos.add(dx, dy, dz);
+            return offset != null ? originPos.add(offset) : originPos.add(dx, dy, dz);
         }
         if ("coordinate".equals(relTo)) {
             double rx = numOrDefault(m.get("relative_x"));
             double ry = numOrDefault(m.get("relative_y"));
             double rz = numOrDefault(m.get("relative_z"));
-            return new Vec3(rx + dx, ry + dy, rz + dz);
+            return offset != null
+                    ? new Vec3(rx, ry, rz).add(offset)
+                    : new Vec3(rx + dx, ry + dy, rz + dz);
         }
         // 相对实体 selector（每帧求实体位置 + 偏移）
         String selector = String.valueOf(relTo);
         Entity target = resolveEntity(selector, pos, "look_at_target", kf);
         if (target == null) return null;
-        return smoothTargetPoint("look_at_target", selector, "point", entityPosInterp(target).add(dx, dy, dz), selectorPolicy(kf).switchSmooth());
+        Vec3 raw = offset != null
+                ? entityPosInterp(target).add(offset)
+                : entityPosInterp(target).add(dx, dy, dz);
+        return smoothTargetPoint("look_at_target", selector, "point", raw, selectorPolicy(kf, "look_at_target").switchSmooth());
     }
 
     private static Float numOrNull(Object o) {
@@ -867,10 +1025,13 @@ public class CameraTrackPlayer implements TrackPlayer {
         }
         if (mc.level == null) return null;
 
-        SelectorPolicy policy = selectorPolicy(kf);
+        SelectorPolicy policy = selectorPolicy(kf, role);
         String key = targetKey(role, selector);
         TargetLock lock = targetLocks.computeIfAbsent(key, k -> new TargetLock());
         long now = System.currentTimeMillis();
+
+        // 解析间隔（= 扫描指标）：与切换决策完全独立
+        long refreshMs = (long) Math.max(50.0f, policy.scanSeconds() * 1000.0f);
 
         Entity current = lockEntity(lock);
         // 本地 selector 无匹配时做 200ms 重试节流；服务端 selector 交给 pending 去重，避免拖慢回包首帧
@@ -879,45 +1040,91 @@ public class CameraTrackPlayer implements TrackPlayer {
                 && now - lock.resolvedAt < MISS_RETRY_MS) {
             return null;
         }
-        if (current != null) {
-            // 存活期不切换：当前目标还活着就直接复用，死亡/卸载后才重新选
-            if (!policy.switchWhileAlive()) {
-                return current;
-            }
-            // 允许存活期切换：按刷新频率重新求值
-            if (now - lock.resolvedAt < (long) (policy.refreshSeconds() * 1000.0f)) {
-                return current;
-            }
+
+        // 解析：到扫描间隔才重新求值；旧目标已失效（死亡/卸载）时强制立即重选
+        Entity found = null;
+        if (current == null && lock.uuid != null) {
+            found = resolveEntityInternal(selector, origin, refreshMs, true);
+        } else if (current == null || now - lock.resolvedAt >= refreshMs) {
+            found = resolveEntityInternal(selector, origin, refreshMs, false);
         }
 
-        long refreshMs = (long) Math.max(50.0f, policy.refreshSeconds() * 1000.0f);
-        // 旧目标已失效（死亡/卸载）：强制立即重新求值一次；首次解析/无匹配则遵守 refresh 缓存
-        boolean force = current == null && lock.uuid != null;
-        Entity found = resolveEntityInternal(selector, origin, refreshMs, force);
         if (found == null) {
-            // 瞬时无结果（服务端回包未到等）：还活着就继续用旧目标
+            // 本次没扫到 / 未到扫描时间：继续用当前目标；确实没有就保持空
             if (current != null) return current;
-            lock.uuid = null;
-            lock.entity = null;
+            if (lock.uuid != null) {
+                lock.uuid = null;
+                lock.entity = null;
+            }
             lock.resolvedAt = now;
             return null;
         }
 
         UUID newUuid = found.getUUID();
-        if (lock.uuid != null && !lock.uuid.equals(newUuid)) {
-            lock.switchGeneration++;
+        if (lock.uuid == null) {
+            lock.uuid = newUuid;
+            lock.entity = found;
+            lock.resolvedAt = now;
+            return found;
         }
+        if (lock.uuid.equals(newUuid)) {
+            lock.entity = found;
+            lock.resolvedAt = now;
+            return found;
+        }
+
+        // 扫到了不同的目标——是否真的切换由「切换指标」决定，与扫描频率无关
+        if (!policy.switchWhileAlive()) {
+            // 存活期不换：保留旧目标（旧目标已失效时锁已为空，上面会走首次绑定分支）
+            lock.entity = current;
+            return current;
+        }
+        // 扫描每 N 秒一次，但切换最快 M 秒一次：到点才换
+        long switchGateMs = (long) Math.max(0f, policy.switchSeconds() * 1000.0f);
+        if (switchGateMs <= 0L || now - lock.resolvedAt < switchGateMs) {
+            // 还在切换冷却里：继续用旧目标，但记录本次已扫过（否则会每帧重扫）
+            lock.entity = current;
+            lock.resolvedAt = now;
+            return current;
+        }
+
+        lock.switchGeneration++;
         lock.uuid = newUuid;
         lock.entity = found;
         lock.resolvedAt = now;
         return found;
     }
 
-    private SelectorPolicy selectorPolicy(Keyframe kf) {
-        float refresh = kf != null ? kf.getFloat("selector_refresh", 1.0f) : 1.0f;
-        boolean switchWhileAlive = kf == null || kf.getBool("selector_switch_while_alive", true);
-        float smooth = kf != null ? Math.max(0f, kf.getFloat("selector_switch_smooth", 0f)) : 0f;
-        return new SelectorPolicy(Math.max(0.05f, refresh), switchWhileAlive, smooth);
+    /**
+     * 选择器策略（调用点级）：先读 {@code <字段>_<调用点>}（如 {@code selector_refresh_look_at}），
+     * 缺失回落到通用字段——通用字段只作默认回落，不写角色专属字段时行为与旧版一致。
+     */
+    private SelectorPolicy selectorPolicy(Keyframe kf, String role) {
+        if (kf == null) return new SelectorPolicy(1.0f, true, 1.0f, 0f);
+        String callpoint = SELECTOR_CALLPOINTS.contains(role) ? role : null;
+        float scan = floatForCallpoint(kf, "selector_refresh", callpoint, 1.0f);
+        boolean switchWhileAlive = boolForCallpoint(kf, "selector_switch_while_alive", callpoint, true);
+        // 切换间隔缺省 = 扫描间隔（保持旧行为：扫描到点就允许切换）
+        float switchInterval = floatForCallpoint(kf, "selector_switch_interval", callpoint, scan);
+        float smooth = Math.max(0f, floatForCallpoint(kf, "selector_switch_smooth", callpoint, 0f));
+        return new SelectorPolicy(Math.max(0.05f, scan), switchWhileAlive, Math.max(0f, switchInterval), smooth);
+    }
+
+    /** 读"调用点专属字段 → 通用字段 → 缺省值" */
+    private static float floatForCallpoint(Keyframe kf, String field, String callpoint, float fallback) {
+        if (callpoint != null) {
+            String key = field + "_" + callpoint;
+            if (kf.getData().containsKey(key)) return kf.getFloat(key, fallback);
+        }
+        return kf.getFloat(field, fallback);
+    }
+
+    private static boolean boolForCallpoint(Keyframe kf, String field, String callpoint, boolean fallback) {
+        if (callpoint != null) {
+            String key = field + "_" + callpoint;
+            if (kf.getData().containsKey(key)) return kf.getBool(key, fallback);
+        }
+        return kf.getBool(field, fallback);
     }
 
     private static String targetKey(String role, String selector) {

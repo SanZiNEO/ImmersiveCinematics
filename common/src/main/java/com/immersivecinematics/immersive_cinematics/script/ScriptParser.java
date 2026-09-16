@@ -404,13 +404,22 @@ public class ScriptParser {
     }
 
     /**
-     * 基准空间坐标系偏移：fwd/up/right 相对基准（玩家/实体）朝向的三维偏移。
-     * 仅玩家/实体基准有效——禁止与 relative_origin（坐标/结构/方块基准）混用。
+     * 基准空间坐标系偏移：fwd/up/right 相对"基准点 + 基准朝向"的偏移。
+     * <p>
+     * 基准点来源（可选，按优先级）：
+     * <ol>
+     *   <li>{@code facing_origin} = 实体选择器 → 基准点 = 该实体（每帧求值）</li>
+     *   <li>{@code facing_origin: "coordinate"} + {@code facing_origin_x/y/z} → 固定世界坐标</li>
+     *   <li>不写 → 回落旧行为：follow 实体（follow=entity 时）或玩家</li>
+     * </ol>
+     * 基准朝向 = 基准点自身朝向（实体 = 身体 yaw + 视线 pitch；玩家 = 实时视线）。
+     * <p>
+     * 与 {@code dx/dy/dz}（世界轴偏移）互斥：一个 position 只能选一套偏移轴。
      */
     private static PositionData parseFacingRelative(JsonObject obj, String p) throws ScriptParseException {
-        if (obj.has("dx") || obj.has("dy") || obj.has("dz") || obj.has("relative_origin")) {
+        if (obj.has("dx") || obj.has("dy") || obj.has("dz")) {
             throw new ScriptParseException(p,
-                    "fwd/up/right（基准空间偏移）不能与 dx/dy/dz 或 relative_origin 混用（仅实体/玩家基准）");
+                    "fwd/up/right（基准空间偏移）不能与 dx/dy/dz（世界轴偏移）混用");
         }
         float fwd = optFloat(obj, "fwd", 0f);
         float up = optFloat(obj, "up", 0f);
@@ -419,11 +428,95 @@ public class ScriptParser {
         if (!"view".equals(upAxis) && !"world".equals(upAxis)) {
             throw new ScriptParseException(p + ".up_axis", "仅支持 view（up随俯仰）/ world（up保持竖直），实际: " + upAxis);
         }
-        return PositionData.facing(fwd, up, right, upAxis);
+
+        // 显式指定的基准点（新能力）；不写则回落旧行为（follow 实体 / 玩家）
+        String facingTarget = optString(obj, "facing_target", "");
+        if (obj.has("facing_origin")) {
+            OriginSpec spec = parseOriginSpec(obj, "facing_origin", p);
+            if (spec.isCoordinate()) {
+                return PositionData.facingToCoordinate(fwd, up, right, upAxis,
+                        requireFloat(obj, p, "facing_origin_x"),
+                        requireFloat(obj, p, "facing_origin_y"),
+                        requireFloat(obj, p, "facing_origin_z"))
+                        .withFacingTarget(facingTarget);
+            }
+            if (spec.isPlayer()) {
+                return PositionData.facingToEntity("@p", fwd, up, right, upAxis)
+                        .withFacingTarget(facingTarget);
+            }
+            String origin = spec.selector;
+            if (origin != null && origin.startsWith("block:")) {
+                // block:id 或 block:id:radius
+                String[] parsed = PositionData.parseBlockOriginString(origin);
+                return PositionData.facingToBlock(fwd, up, right, upAxis, parsed[0], Integer.parseInt(parsed[1]))
+                        .withFacingTarget(facingTarget);
+            }
+            if (origin != null && (origin.startsWith("#") || origin.contains(":")) && !origin.startsWith("@")) {
+                // 形如 minecraft:village 的结构 id（结构中心）
+                return PositionData.facingToStructure(fwd, up, right, upAxis, origin)
+                        .withFacingTarget(facingTarget);
+            }
+            if (origin != null) {
+                return PositionData.facingToEntity(origin, fwd, up, right, upAxis)
+                        .withFacingTarget(facingTarget);
+            }
+            throw new ScriptParseException(p + ".facing_origin",
+                    "暂不支持该基准点类型（支持实体选择器 / \"coordinate\" / block:id[:radius] / 结构 id）");
+        }
+
+        // 兼容旧写法：relative_origin 显式写成 "player" 时明确走玩家基准
+        if (obj.has("relative_origin")) {
+            OriginSpec spec = parseOriginSpec(obj, "relative_origin", p);
+            if (spec.isPlayer()) {
+                return PositionData.facingToEntity("@p", fwd, up, right, upAxis);
+            }
+            throw new ScriptParseException(p + ".relative_origin",
+                    "fwd/up/right 的基准点请用 facing_origin（relative_origin 仅用于 dx/dy/dz 世界轴偏移）");
+        }
+        return PositionData.facingToEntity("@p", fwd, up, right, upAxis);
+    }
+
+    /** 基准点描述（点源清单的统一解析结果） */
+    private static final class OriginSpec {
+        static final int PLAYER = 0;
+        static final int COORDINATE = 1;
+        static final int SELECTOR = 2;
+
+        int kind = PLAYER;
+        String selector;
+
+        boolean isPlayer() { return kind == PLAYER; }
+        boolean isCoordinate() { return kind == COORDINATE; }
     }
 
     /**
-     * 相对 position 的基准解析：relative_origin 字段可选——
+     * 解析基准点字段（relative_origin / facing_origin 共用）：
+     * {@code "coordinate"} = 固定坐标（配 {@code <field>_x/y/z}）；
+     * {@code "player"} / {@code "@p"} / {@code "@s"} = 玩家；
+     * 其他字符串 = 实体选择器。
+     *
+     * @param fieldName 原始字段名，用于拼出 {@code <fieldName>_x} 这类配套字段
+     */
+    private static OriginSpec parseOriginSpec(JsonObject posObj, String fieldName, String p) throws ScriptParseException {
+        OriginSpec spec = new OriginSpec();
+        JsonElement el = posObj.get(fieldName);
+        if (!el.isJsonPrimitive()) {
+            throw new ScriptParseException(p + "." + fieldName, fieldName + " 只支持字符串写法");
+        }
+        String value = el.getAsString();
+        if ("coordinate".equals(value)) {
+            spec.kind = OriginSpec.COORDINATE;
+        } else if ("player".equals(value) || "@p".equals(value) || "@s".equals(value)) {
+            spec.kind = OriginSpec.PLAYER;
+        } else {
+            spec.kind = OriginSpec.SELECTOR;
+            spec.selector = value;
+        }
+        return spec;
+    }
+
+    /**
+     * 世界轴相对偏移（dx/dy/dz）的基准点解析：relative_origin 字段可选——
      * 缺省 = 玩家激活位置；"coordinate" = 相对固定坐标（relative_origin_x/y/z）；
      * "block:id[:radius]" 或 {type:"block",block,radius} = 玩家附近搜索的方块；其他字符串 = 结构 id（相对结构中心）。
      */
@@ -446,13 +539,17 @@ public class ScriptParser {
             }
             return PositionData.relativeToBlock(dx, dy, dz, blockId, radius);
         }
-        String origin = originEl.getAsString();
-        if ("coordinate".equals(origin)) {
+        OriginSpec spec = parseOriginSpec(posObj, "relative_origin", p);
+        if (spec.isCoordinate()) {
             return PositionData.relativeToCoordinate(dx, dy, dz,
                     requireFloat(posObj, p, "relative_origin_x"),
                     requireFloat(posObj, p, "relative_origin_y"),
                     requireFloat(posObj, p, "relative_origin_z"));
         }
+        if (spec.isPlayer()) {
+            return PositionData.relative(dx, dy, dz);
+        }
+        String origin = spec.selector;
         if (origin.startsWith("block:")) {
             // block:id 或 block:id:radius
             String[] parsed = PositionData.parseBlockOriginString(origin);

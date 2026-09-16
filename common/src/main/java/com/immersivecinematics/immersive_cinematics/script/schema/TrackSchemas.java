@@ -50,6 +50,13 @@ public final class TrackSchemas {
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
         kfs.put("position", new FieldDef("position", null, true));
         kfs.put("position_mode", new FieldDef("enum", "relative", false, List.of("relative", "absolute")));
+        // 基准坐标系偏移的基准点来源（fwd/up/right 用）：留空 = follow 实体 / 玩家
+        kfs.put("facing_origin", new FieldDef("string", ""));
+        kfs.put("facing_origin_x", new FieldDef("float", 0f));
+        kfs.put("facing_origin_y", new FieldDef("float", 0f));
+        kfs.put("facing_origin_z", new FieldDef("float", 0f));
+        // 基准朝向来源：留空 = 基准点自身朝向；填选择器 = 基准点 → 该目标的连线方向
+        kfs.put("facing_target", new FieldDef("string", ""));
         kfs.put("follow", new FieldDef("enum", "none", false, List.of("none", "entity")));
         kfs.put("follow_selector", new FieldDef("string", "@p"));
         kfs.put("look_at", new FieldDef("enum", "none", false, List.of("none", "coordinate", "entity")));
@@ -62,6 +69,8 @@ public final class TrackSchemas {
         // 选择器目标锁定策略（作用于该关键帧所有 selector 字段）
         kfs.put("selector_refresh", new FieldDef("float", 1.0f));
         kfs.put("selector_switch_while_alive", new FieldDef("bool", true));
+        // 切换间隔：扫描到新目标后最快多久才允许真的换过去（与扫描频率无关）；缺省 = selector_refresh
+        kfs.put("selector_switch_interval", new FieldDef("float", 1.0f));
         kfs.put("selector_switch_smooth", new FieldDef("float", 0.0f));
         kfs.put("yaw_base", new FieldDef("enum", "world", false, List.of("world", "entity", "line")));
         kfs.put("pitch_base", new FieldDef("enum", "world", false, List.of("world", "entity", "line")));
