@@ -12,6 +12,7 @@
 | `editor-webui-migration.md` | 编辑器 / WebUI 迁移计划 |
 | `multi-camera-rendering.md` | 多相机渲染计划 |
 | `overlay-color-mask.md` | Overlay 颜色遮罩计划 |
+| `hud-hard-hide.md` | HUD 强硬隐藏模式：拦截 `RenderGuiEvent.Pre` + 按现有 overlay 白名单重画，覆盖不走注册表的第三方自绘 HUD |
 | `pause-point-track.md` | 暂停点轨道计划 |
 
 ## 二、相机底层架构
