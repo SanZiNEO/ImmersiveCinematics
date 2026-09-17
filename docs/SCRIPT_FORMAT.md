@@ -247,9 +247,10 @@ immersive_cinematics/
 | `look_at_target_x/y/z` | float | 否 | `0/64/0` | 注视固定坐标（`coordinate` 模式）。**与 `look_at_target_structure` 互斥**（编辑器：填结构后坐标输入隐藏） |
 | `look_at_target_structure` | string | 否 | `""` | 注视结构中心（`coordinate` 模式）：填结构 id（如 `minecraft:village`）。播放时服务端自动定位**结构 bounding box 中心**（就近搜索，原版 /locate 同范围）并替换为坐标后推送；编辑器里为注册表下拉补全；多人服务器播放同样生效。**与 `look_at_target_x/y/z` 互斥**：指定结构后定位失败也不回退坐标，该端无注视目标（回退角度插值） |
 | `look_at_target` | object | 否 | `null` | `look_at=coordinate` 时的相对目标对象，优先级高于散字段绝对坐标。支持：`{x,y,z}` 绝对点、`{dx,dy,dz}` 相对触发点、`{relative_to:<selector>,dx,dy,dz}` 相对实体、`{relative_to:"coordinate",relative_x/y/z,dx,dy,dz}` 相对固定坐标 |
-| `selector_refresh` | float | 否 | `1.0` | 选择器重新求值间隔（秒）。仅 `selector_switch_while_alive=true` 时生效；目标死亡/卸载时仍立即重选。作用于本关键帧所有 selector 字段 |
-| `selector_switch_while_alive` | bool | 否 | `true` | `true`=目标存活时也按 `selector_refresh` 重新求值并切到新的最近目标；`false`=当前目标活着就不换，只有死亡/移除/未加载才重选 |
-| `selector_switch_smooth` | float | 否 | `0.0` | 目标真的切换时，注视点/跟随位置在 N 秒内以 smoothstep 过渡；`0`=硬切。作用于本关键帧所有目标点 |
+| `selector_refresh` | float | 否 | `1.0` | 目标存活时的重新扫描间隔（秒）。**目标丢失**（死亡/移除/未加载）后不受此值限制：锁进入搜索态并保持最后画面，按固定节奏（0.2 秒）持续重找，找到即恢复。作用于本关键帧所有 selector 字段 |
+| `selector_switch_while_alive` | bool | 否 | `true` | `true`=目标存活时也按 `selector_refresh` 扫描并切到新的最近目标；`false`=当前目标活着就不换。**目标丢失后不受此项限制**：进入搜索态持续重找，解析到任意符合规则的目标就立即恢复 |
+| `selector_switch_interval` | float | 否 | = `selector_refresh` | 两次真实切换之间的最小间隔（秒），与扫描频率无关：扫描到新目标但距上次切换不足 N 秒 → 继续用旧目标。`0`=不限制。缺省 = `selector_refresh` |
+| `selector_switch_smooth` | float | 否 | `0.0` | 目标真的切换时（含丢失后恢复到新目标），注视点/跟随位置在 N 秒内以 smoothstep 过渡；`0`=硬切。作用于本关键帧所有目标点 |
 | `yaw_base` | string | 否 | `"world"` | `yaw` 的基准方向：`"world"`=0 世界角（`yaw` 即世界朝向）；`"entity"`=实体视线水平角（用 `yaw_base_selector`）；`"line"`=从 `yaw_base_from` 到 `yaw_base_to` 的连线水平角。此时 `yaw` 为相对基准的偏移 |
 | `pitch_base` | string | 否 | `"world"` | `pitch` 的基准俯仰：同上，`entity` 取实体视线俯仰、`line` 取连线垂直角 |
 | `yaw_base_selector` | string | 否 | `"@p"` | `yaw_base/pitch_base=entity` 时的实体选择器 |

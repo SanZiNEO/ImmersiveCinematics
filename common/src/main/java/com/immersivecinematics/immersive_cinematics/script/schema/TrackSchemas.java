@@ -69,7 +69,7 @@ public final class TrackSchemas {
         // 选择器目标锁定策略（作用于该关键帧所有 selector 字段）
         kfs.put("selector_refresh", new FieldDef("float", 1.0f));
         kfs.put("selector_switch_while_alive", new FieldDef("bool", true));
-        // 切换间隔：扫描到新目标后最快多久才允许真的换过去（与扫描频率无关）；缺省 = selector_refresh
+        // 切换间隔：两次真实切换之间的最小间隔（与扫描频率无关）；缺省 = selector_refresh
         kfs.put("selector_switch_interval", new FieldDef("float", 1.0f));
         kfs.put("selector_switch_smooth", new FieldDef("float", 0.0f));
         kfs.put("yaw_base", new FieldDef("enum", "world", false, List.of("world", "entity", "line")));

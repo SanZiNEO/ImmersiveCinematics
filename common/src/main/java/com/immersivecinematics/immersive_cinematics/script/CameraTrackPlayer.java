@@ -58,6 +58,12 @@ public class CameraTrackPlayer implements TrackPlayer {
         Entity entity;
         long resolvedAt;
         long switchGeneration;
+        /** 搜索态：目标已丢失 / 尚未找到（由 resolveEntity 维护） */
+        boolean searching;
+        /** 搜索态：下一次允许重试（重发请求 / 重扫）的时间戳；与 resolvedAt（扫描节流）分离 */
+        long nextRetryAt;
+        /** 上一次真实切换的时间：切换间隔闸门的基准（与扫描时间戳分离，快扫描 + 慢切换可用） */
+        long lastSwitchAt;
 
         final Map<String, PointState> points = new java.util.HashMap<>();
     }
@@ -1011,9 +1017,29 @@ public class CameraTrackPlayer implements TrackPlayer {
      * 含 nbt= / tag= 等原版扩展选项的 @e[...] selector 会转到服务端解析；
      * 服务端回传 UUID 列表，这里再映射成客户端实体。
      * <p>
-     * 解析失败或无匹配返回 null：follow 停在上一帧位置、look_at 不生效。
+     * 目标丢失（死亡 / 移除 / 未加载）不是"片段结束"：锁进入搜索态——保持最后画面（由调用方
+     * 按空片段语义兜底），后台按固定节奏持续重找；一旦解析到任意符合规则的目标就立即恢复，
+     * 不受 selector_switch_while_alive / 切换间隔限制。
+     * <p>
+     * 解析失败或无匹配返回 null。
      */
     private static final long MISS_RETRY_MS = 200L;
+
+    /** 诊断用：把长选择器压成短标签，避免刷屏 */
+    private static String describeSelector(String selector) {
+        if (selector == null) return "null";
+        String faction = "?";
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("FactionID':\\\\?'?([a-zA-Z]+)").matcher(selector);
+        if (m.find()) faction = m.group(1);
+        boolean noPlayer = selector.contains("type=!minecraft:player");
+        boolean noProjectile = selector.contains("type=!#minecraft:impact_projectiles");
+        boolean noSummon = selector.contains("BetterEvE:Summoned");
+        return "len=" + selector.length() + " faction=" + faction
+                + (noPlayer ? " +noPlayer" : " !noPlayer")
+                + (noProjectile ? " +noProjectile" : " !noProjectile")
+                + (noSummon ? " +noSummon" : " !noSummon");
+    }
 
     private net.minecraft.world.entity.Entity resolveEntity(String selector, Vec3 origin, String role, Keyframe kf) {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
@@ -1032,40 +1058,54 @@ public class CameraTrackPlayer implements TrackPlayer {
         long refreshMs = (long) Math.max(50.0f, policy.scanSeconds() * 1000.0f);
 
         Entity current = lockEntity(lock);
-        // 本地 selector 无匹配时做 200ms 重试节流；服务端 selector 交给 pending 去重，避免拖慢回包首帧
-        if (current == null && lock.uuid == null
-                && !requiresServerSelector(selector)
-                && now - lock.resolvedAt < MISS_RETRY_MS) {
-            return null;
-        }
 
-        // 解析：到扫描间隔才重新求值；旧目标已失效（死亡/卸载）时强制立即重选
-        Entity found = null;
-        if (current == null && lock.uuid != null) {
-            found = resolveEntityInternal(selector, origin, refreshMs, true);
-        } else if (current == null || now - lock.resolvedAt >= refreshMs) {
-            found = resolveEntityInternal(selector, origin, refreshMs, false);
-        }
-
-        if (found == null) {
-            // 本次没扫到 / 未到扫描时间：继续用当前目标；确实没有就保持空
-            if (current != null) return current;
-            if (lock.uuid != null) {
-                lock.uuid = null;
-                lock.entity = null;
+        // ===== 搜索态（目标丢失 / 尚未找到）=====
+        // 丢失 ≠ 片段结束：保持最后画面（调用方按空片段兜底），后台持续重找；
+        // 解析到任意符合规则的目标就立即恢复——不受存活期切换策略（switch_while_alive / 切换间隔）限制。
+        if (current == null) {
+            if (!lock.searching) {
+                lock.searching = true;
+                lock.nextRetryAt = 0L;   // 丢失当帧立刻重试一次（不等节流）
+                if (lock.uuid != null) {
+                    LOGGER.info("[selector] 目标丢失 role={} sel={} uuid={} → 进入搜索（保持最后画面，持续重找）",
+                            role, describeSelector(selector), lock.uuid);
+                } else {
+                    LOGGER.info("[selector] 等待目标 role={} sel={}", role, describeSelector(selector));
+                }
             }
+            Entity found = resolveEntityInternal(selector, origin, refreshMs, true, lock);
+            if (found == null) {
+                return null;
+            }
+            boolean recovered = lock.uuid != null;
+            lock.searching = false;
+            lock.uuid = found.getUUID();
+            lock.entity = found;
             lock.resolvedAt = now;
-            return null;
+            lock.lastSwitchAt = now;
+            if (recovered) {
+                // 从"保持的最后画面"平滑过渡到新目标（复用 selector_switch_smooth）
+                lock.switchGeneration++;
+                LOGGER.info("[selector] 搜索恢复 role={} → {} uuid={}", role, found.getType(), found.getUUID());
+            } else {
+                LOGGER.info("[selector] 锁定 role={} → {} uuid={}", role, found.getType(), found.getUUID());
+            }
+            return found;
+        }
+
+        // ===== 跟踪态（目标存活）=====
+        lock.searching = false;   // 目标在手上（含重新加载回来）→ 退出搜索态
+        Entity found = null;
+        if (now - lock.resolvedAt >= refreshMs) {
+            found = resolveEntityInternal(selector, origin, refreshMs, false, lock);
+        }
+        if (found == null) {
+            // 未到扫描时间 / 本次没扫到：继续用当前目标
+            return current;
         }
 
         UUID newUuid = found.getUUID();
-        if (lock.uuid == null) {
-            lock.uuid = newUuid;
-            lock.entity = found;
-            lock.resolvedAt = now;
-            return found;
-        }
-        if (lock.uuid.equals(newUuid)) {
+        if (lock.uuid != null && lock.uuid.equals(newUuid)) {
             lock.entity = found;
             lock.resolvedAt = now;
             return found;
@@ -1073,16 +1113,19 @@ public class CameraTrackPlayer implements TrackPlayer {
 
         // 扫到了不同的目标——是否真的切换由「切换指标」决定，与扫描频率无关
         if (!policy.switchWhileAlive()) {
-            // 存活期不换：保留旧目标（旧目标已失效时锁已为空，上面会走首次绑定分支）
+            // 存活期不换：保留旧目标（旧目标失效时锁进入搜索态，上面会走恢复分支）
             lock.entity = current;
+            lock.resolvedAt = now;
             return current;
         }
-        // 扫描每 N 秒一次，但切换最快 M 秒一次：到点才换
+        // 两次真实切换之间的最小间隔：到点才换（基准是上次切换时间，与扫描频率解耦）
         long switchGateMs = (long) Math.max(0f, policy.switchSeconds() * 1000.0f);
-        if (switchGateMs <= 0L || now - lock.resolvedAt < switchGateMs) {
+        if (switchGateMs > 0L && now - lock.lastSwitchAt < switchGateMs) {
             // 还在切换冷却里：继续用旧目标，但记录本次已扫过（否则会每帧重扫）
             lock.entity = current;
             lock.resolvedAt = now;
+            LOGGER.info("[selector](冷却中) role={} 扫到新目标 {} 但被切换间隔挡住，继续用旧目标 {}",
+                    role, newUuid, lock.uuid);
             return current;
         }
 
@@ -1090,6 +1133,8 @@ public class CameraTrackPlayer implements TrackPlayer {
         lock.uuid = newUuid;
         lock.entity = found;
         lock.resolvedAt = now;
+        lock.lastSwitchAt = now;
+        LOGGER.info("[selector] 切换 role={} → {} uuid={}", role, found.getType(), found.getUUID());
         return found;
     }
 
@@ -1198,9 +1243,21 @@ public class CameraTrackPlayer implements TrackPlayer {
         return blended;
     }
 
-    private net.minecraft.world.entity.Entity resolveEntityInternal(String selector, Vec3 origin, long refreshMs, boolean force) {
+    /**
+     * 解析分发：服务端 selector 走请求 + 缓存，本地 selector 同步求值。
+     * {@code searching=true}（搜索态）时本地 selector 按 {@link #MISS_RETRY_MS} 节流重扫；
+     * 服务端 selector 的请求节流在 {@link #resolveServerSelector} 内（读缓存不受节流）。
+     */
+    private net.minecraft.world.entity.Entity resolveEntityInternal(String selector, Vec3 origin, long refreshMs, boolean searching, TargetLock lock) {
         if (requiresServerSelector(selector)) {
-            return resolveServerSelector(selector, origin, refreshMs, force);
+            return resolveServerSelector(selector, origin, refreshMs, searching, lock);
+        }
+        if (searching) {
+            long now = System.currentTimeMillis();
+            if (now < lock.nextRetryAt) {
+                return null;
+            }
+            lock.nextRetryAt = now + MISS_RETRY_MS;
         }
         return resolveLocalSelector(selector, origin);
     }
@@ -1306,9 +1363,12 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     /**
      * 服务端解析路径：请求服务端用原版选择器求值，然后把 UUID 映射回客户端实体。
-     * {@code refreshMs} 由 keyframe 的 selector_refresh 驱动；pending 期间不会重复发请求。
+     * <p>
+     * 跟踪态：按 {@code selector_refresh} 刷新（pending 期间不会重复发请求）。<br>
+     * 搜索态：每帧都读缓存（回包下一帧即可绑定）；只要上一份结果已消费且仍无可用目标就重发，
+     * 按 {@link #MISS_RETRY_MS} 节流——不等 selector_refresh。
      */
-    private Entity resolveServerSelector(String selector, Vec3 origin, long refreshMs, boolean force) {
+    private Entity resolveServerSelector(String selector, Vec3 origin, long refreshMs, boolean searching, TargetLock lock) {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
         if (mc.level == null || mc.getConnection() == null) {
             return null;
@@ -1316,29 +1376,34 @@ public class CameraTrackPlayer implements TrackPlayer {
 
         long now = System.currentTimeMillis();
         ClientEntitySelectorCache.Entry entry = ClientEntitySelectorCache.get(selector);
-        if (force || entry == null || (!entry.pending && now - entry.resolvedAt >= refreshMs)) {
-            ClientEntitySelectorCache.request(selector, origin.x, origin.y, origin.z);
-            entry = ClientEntitySelectorCache.get(selector);
-        }
         if (entry == null) {
+            // 首次请求：本帧无结果
+            lock.nextRetryAt = now + MISS_RETRY_MS;
+            ClientEntitySelectorCache.request(selector, origin.x, origin.y, origin.z);
             return null;
         }
 
+        // 先消费已有结果：每帧都读，回包下一帧就能绑定（不受重试节流影响）
         List<UUID> uuids;
         synchronized (entry) {
             uuids = entry.uuids;
         }
-        if (uuids == null || uuids.isEmpty()) {
-            return null;
-        }
-
-        for (UUID uuid : uuids) {
-            Entity entity = findEntityByUuid(mc, uuid);
-            if (entity != null && entity.isAlive()) {
-                return entity;
+        if (uuids != null) {
+            for (UUID uuid : uuids) {
+                Entity entity = findEntityByUuid(mc, uuid);
+                if (entity != null && entity.isAlive()) {
+                    return entity;
+                }
             }
         }
 
+        // 没有可用结果 → 判断是否（重新）请求
+        boolean needRequest = !entry.pending
+                && (searching ? now >= lock.nextRetryAt : now - entry.resolvedAt >= refreshMs);
+        if (needRequest) {
+            lock.nextRetryAt = now + MISS_RETRY_MS;
+            ClientEntitySelectorCache.request(selector, origin.x, origin.y, origin.z);
+        }
         return null;
     }
 
