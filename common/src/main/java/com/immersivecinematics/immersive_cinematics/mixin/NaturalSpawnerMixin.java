@@ -10,8 +10,10 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
- * 让 {@code NaturalSpawner} 在“附近没有真实玩家”时，用相机锚点的虚拟玩家引用来算距离。
+ * 让 {@code NaturalSpawner} 的"最近玩家"取更近者（真实玩家与相机锚点谁近用谁）。
  * <p>
+ * 原版这次查询传 {@code distance = -1.0}（不设上限），只判断"有没有玩家"没有意义：
+ * 只要服务器里有玩家就永远返回真实玩家，相机离玩家 128 格外时生物不会在相机附近刷出。
  * 不创建世界实体：虚拟玩家只是一个纯坐标引用，只用于 distanceToSqr。
  */
 @Mixin(NaturalSpawner.class)
@@ -28,13 +30,13 @@ public abstract class NaturalSpawnerMixin {
             ServerLevel serverLevel, double x, double y, double z, double distance, boolean creative
     ) {
         Player real = serverLevel.getNearestPlayer(x, y, z, distance, creative);
-        if (real != null) {
+        Player camera = CameraAnchorManager.INSTANCE.getVirtualPlayer(serverLevel, BlockPos.containing(x, y, z));
+        if (camera == null) {
             return real;
         }
-        Player virtual = CameraAnchorManager.INSTANCE.getVirtualPlayer(serverLevel, BlockPos.containing(x, y, z));
-        if (virtual != null) {
-            return virtual;
+        if (real == null) {
+            return camera;
         }
-        return null;
+        return real.distanceToSqr(x, y, z) <= camera.distanceToSqr(x, y, z) ? real : camera;
     }
 }

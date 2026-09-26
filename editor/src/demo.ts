@@ -39,9 +39,6 @@ export const DEMO_SCHEMA: Schema = {
     hud_layers: { type: 'object', default: null, required: false, enumValues: [], section: 'runtime' },
     priority: { type: 'int', default: 0, required: false, enumValues: [], section: 'runtime' },
     skip_vote_ratio: { type: 'int', default: null, required: false, enumValues: [], section: 'runtime' },
-    camera_mob_spawn: { type: 'bool', default: false, required: false, enumValues: [], section: 'camera' },
-    camera_mob_radius: { type: 'int', default: 2, required: false, enumValues: [], section: 'camera' },
-    camera_mob_ai: { type: 'bool', default: false, required: false, enumValues: [], section: 'camera' },
   },
   tracks: {
     CAMERA: {
@@ -253,9 +250,6 @@ export const DEMO_SCRIPT: ScriptDoc = {
     hold_at_end: false,
     priority: 0,
     skip_vote_ratio: null,
-    camera_mob_spawn: false,
-    camera_mob_radius: 2,
-    camera_mob_ai: false,
     triggers: [
       {
         id: 'trigger_1',

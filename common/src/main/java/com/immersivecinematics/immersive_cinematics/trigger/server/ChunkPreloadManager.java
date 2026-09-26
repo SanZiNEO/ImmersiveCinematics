@@ -6,8 +6,6 @@ import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPreloadRequestPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPreloadResultPacket;
-import net.minecraft.core.SectionPos;
-import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -41,8 +39,7 @@ public final class ChunkPreloadManager {
     private ChunkPreloadManager() {}
 
     public void handleRequest(ServerPlayer player, int mode, String scriptId, int x, int z, int radius, float yaw, int renderDistance,
-                              boolean cameraMode,
-                              boolean cameraMobSpawn, int cameraMobRadius, boolean cameraMobAi) {
+                              boolean cameraMode) {
         if (!Config.preloadEnabled) {
             S2CPreloadResultPacket.send(player, scriptId, "预加载全局已关闭");
             return;
@@ -71,15 +68,12 @@ public final class ChunkPreloadManager {
         PlayerState st = states.computeIfAbsent(uuid, k -> new PlayerState());
         st.player = player;
         st.scriptId = scriptId;
-        st.cameraMobSpawn = cameraMobSpawn;
-        st.cameraMobRadius = Math.max(1, Math.min(16, cameraMobRadius));
-        st.cameraMobAi = cameraMobAi;
 
         ChunkPos cam = new ChunkPos(x >> 4, z >> 4);
         if (player.level() instanceof ServerLevel serverLevel) {
-            updateAnchors(uuid, serverLevel, cam, st);
+            updateAnchors(uuid, serverLevel, cam);
         }
-        applyVirtualCamera(player, st, cam, cameraMode);
+        applyVirtualCamera(player, st, x, z, cameraMode);
     }
 
     /** 只有非空 CAMERA 轨道才允许预加载；纯 OVERLAY/EVENT 脚本由服务端兜底拒绝 */
@@ -101,9 +95,9 @@ public final class ChunkPreloadManager {
                     player.getName().getString(), cam.x, cam.z, cameraMode);
         }
         if (player.level() instanceof ServerLevel serverLevel) {
-            updateAnchors(player.getUUID(), serverLevel, cam, st);
+            updateAnchors(player.getUUID(), serverLevel, cam);
         }
-        applyVirtualCamera(player, st, cam, cameraMode);
+        applyVirtualCamera(player, st, x, z, cameraMode);
     }
 
     /** 玩家断线清理 */
@@ -133,27 +127,25 @@ public final class ChunkPreloadManager {
     // ===== 虚拟相机中心 =====
 
     /** 设置/清除虚拟相机中心，并让原版 ChunkMap.move 执行一次 old/new 差集。 */
-    private void applyVirtualCamera(ServerPlayer player, PlayerState st, ChunkPos cam, boolean cameraMode) {
+    private void applyVirtualCamera(ServerPlayer player, PlayerState st, int x, int z, boolean cameraMode) {
         if (!(player.level() instanceof ServerLevel serverLevel)) return;
         ServerChunkCache cache = serverLevel.getChunkSource();
-        ChunkMap chunkMap = cache.chunkMap;
-        if (!(chunkMap instanceof CameraVirtualCenterAccess access)) return;
+        ChunkPos cam = new ChunkPos(x >> 4, z >> 4);
 
-        // 状态没变就不重复设置/触发 move，避免每次 POS 都刷日志和做一次原版差集
+        // 相机坐标每次上报都写入（只换一个 Entry）；原版差集只在中心块变化时才跑
+        if (cameraMode) {
+            CameraVirtualCenterState.setCamera(player.getUUID(), serverLevel, x, z);
+        } else {
+            CameraVirtualCenterState.clearCamera(player.getUUID());
+        }
+
         boolean sameState = st.virtualCenterActive == cameraMode
                 && (!cameraMode || cam.equals(st.lastVirtualCenter));
         if (sameState) return;
 
-        if (cameraMode) {
-            access.immersiveCinematics$setCameraSection(player.getUUID(), SectionPos.of(cam, 0));
-            if (Config.debugLogging) {
-                LOGGER.info("[preload virtual] 玩家={} 设置虚拟相机中心 {}，切到相机差集", player.getName().getString(), fmt(cam));
-            }
-        } else {
-            access.immersiveCinematics$clearCameraSection(player.getUUID());
-            if (Config.debugLogging) {
-                LOGGER.info("[preload virtual] 玩家={} 清除虚拟相机中心，切回玩家差集", player.getName().getString());
-            }
+        if (Config.debugLogging) {
+            LOGGER.info("[preload virtual] 玩家={} {}相机中心{}", player.getName().getString(),
+                    cameraMode ? "设置" : "清除", cameraMode ? " " + fmt(cam) : "");
         }
         st.virtualCenterActive = cameraMode;
         st.lastVirtualCenter = cameraMode ? cam : null;
@@ -166,10 +158,7 @@ public final class ChunkPreloadManager {
     private void clearVirtualCamera(ServerPlayer player) {
         if (!(player.level() instanceof ServerLevel serverLevel)) return;
         ServerChunkCache cache = serverLevel.getChunkSource();
-        ChunkMap chunkMap = cache.chunkMap;
-        if (chunkMap instanceof CameraVirtualCenterAccess access) {
-            access.immersiveCinematics$clearCameraSection(player.getUUID());
-        }
+        CameraVirtualCenterState.clearCamera(player.getUUID());
         if (!player.isRemoved()) {
             cache.move(player);
         }
@@ -178,9 +167,8 @@ public final class ChunkPreloadManager {
     // ===== 锚点 =====
 
     /** 更新相机锚点；实体同步交给原版 ChunkMap 虚拟中心，不再走自建实体同步器。 */
-    private void updateAnchors(UUID player, ServerLevel level, ChunkPos cam, PlayerState st) {
-        CameraAnchorManager.INSTANCE.setAnchor(player, level, cam,
-                st.cameraMobRadius, st.cameraMobSpawn, st.cameraMobAi);
+    private void updateAnchors(UUID player, ServerLevel level, ChunkPos cam) {
+        CameraAnchorManager.INSTANCE.setAnchor(player, level, cam);
     }
 
     private static String fmt(ChunkPos c) {
@@ -191,9 +179,6 @@ public final class ChunkPreloadManager {
     private static final class PlayerState {
         ServerPlayer player;
         String scriptId = "";
-        boolean cameraMobSpawn = false;
-        int cameraMobRadius = 2;
-        boolean cameraMobAi = false;
         /** 上次实际应用到原版 ChunkMap 的虚拟相机中心状态，避免重复设置/移动 */
         ChunkPos lastVirtualCenter = null;
         boolean virtualCenterActive = false;

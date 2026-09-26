@@ -95,10 +95,6 @@ export interface ScriptMeta {
   hold_at_end: boolean
   priority?: number
   skip_vote_ratio?: number | null
-  // 相机区域刷怪
-  camera_mob_spawn?: boolean
-  camera_mob_radius?: number
-  camera_mob_ai?: boolean
   // 触发器
   triggers?: TriggerDefinition[]
   [key: string]: unknown

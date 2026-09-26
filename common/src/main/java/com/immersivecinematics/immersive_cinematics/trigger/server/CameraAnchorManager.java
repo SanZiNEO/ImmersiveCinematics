@@ -26,7 +26,7 @@ public final class CameraAnchorManager {
 
     private CameraAnchorManager() {}
 
-    public void setAnchor(UUID player, ServerLevel level, ChunkPos center, int radius, boolean spawn, boolean ai) {
+    public void setAnchor(UUID player, ServerLevel level, ChunkPos center) {
         Anchor a = anchors.get(player);
         if (a != null && a.level != level) {
             removeAnchor(player);
@@ -37,9 +37,6 @@ public final class CameraAnchorManager {
             anchors.put(player, a);
         }
         a.center = center;
-        a.radius = Math.max(1, Math.min(16, radius));
-        a.spawn = spawn;
-        a.ai = ai;
         a.virtual = new CameraAnchorVirtualPlayer(level, centerBlockX(center), groundY(level, center), centerBlockZ(center));
         LOGGER.info("[camera-anchor] 锚点更新 玩家={} 中心={}", player, center);
     }
@@ -104,9 +101,6 @@ public final class CameraAnchorManager {
         final UUID player;
         final ServerLevel level;
         ChunkPos center;
-        int radius;
-        boolean spawn;
-        boolean ai;
         CameraAnchorVirtualPlayer virtual;
 
         Anchor(UUID player, ServerLevel level) {

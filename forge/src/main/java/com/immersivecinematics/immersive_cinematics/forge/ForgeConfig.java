@@ -56,7 +56,7 @@ public class ForgeConfig implements Config.ConfigProvider {
     // ===== 区块预加载配置 =====
 
     private static final ForgeConfigSpec.BooleanValue PRELOAD_ENABLED = BUILDER
-            .comment("全局总闸：区块预加载（服务端强制；脚本可 meta.preload:false 单独关闭）")
+            .comment("全局总闸：区块预加载（服务端强制；脚本层没有开关）")
             .define("preloadEnabled", true);
 
     private static final ForgeConfigSpec.IntValue PRELOAD_REPORT_INTERVAL = BUILDER

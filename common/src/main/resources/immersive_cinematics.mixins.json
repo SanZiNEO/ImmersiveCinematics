@@ -29,7 +29,9 @@
   "mixins": [
     "ChunkMapCameraMixin",
     "ChunkMapMixin",
+    "ChunkMapTrackedEntityCameraMixin",
     "ItemUseMixin",
+    "MobDespawnCameraMixin",
     "NaturalSpawnerMixin",
     "PlayerListAudioBroadcastMixin"
   ],

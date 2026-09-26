@@ -54,7 +54,7 @@ public class Config {
 
     // ===== 区块预加载配置（0.3.5 第3轮；静态默认值，平台配置文件持久化随第5轮配置/编辑器接入） =====
 
-    /** 全局总闸：区块预加载（服务端强制；脚本可 meta.preload:false 单独关闭） */
+    /** 全局总闸：区块预加载（服务端强制；脚本层没有开关） */
     public static boolean preloadEnabled = true;
     /** 相机位置上报间隔（tick） */
     public static int preloadReportInterval = 20;

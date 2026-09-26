@@ -1,7 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.trigger.client;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
@@ -67,10 +65,6 @@ public final class PreloadRequester {
                 releaseIfNeeded();
                 return;
             }
-            if (!isScriptPreloadEnabled(script)) {
-                releaseIfNeeded();
-                return;
-            }
             if (!hasCameraTrack(script)) {
                 releaseIfNeeded();
                 return;
@@ -102,9 +96,7 @@ public final class PreloadRequester {
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                         new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, 0,
                                 cam.getCameraYaw(), mc.options.renderDistance().get(),
-                                activeCamera,
-                                script.getMeta().isCameraMobSpawn(), script.getMeta().getCameraMobRadius(),
-                                script.getMeta().isCameraMobAi()));
+                                activeCamera));
                 return;
             }
             tickCounter++;
@@ -140,10 +132,7 @@ public final class PreloadRequester {
         }
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                 new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_RELEASE, lastScript, 0, 0, 0, 0f, 0,
-                        C2SPreloadRequestPacket.DEFAULT_CAMERA_MODE,
-                        C2SPreloadRequestPacket.DEFAULT_CAMERA_MOB_SPAWN,
-                        C2SPreloadRequestPacket.DEFAULT_CAMERA_MOB_RADIUS,
-                        C2SPreloadRequestPacket.DEFAULT_CAMERA_MOB_AI));
+                        C2SPreloadRequestPacket.DEFAULT_CAMERA_MODE));
         lastScript = "";
         preloadActive = false;
         prewarmTargetKey = "";
@@ -183,9 +172,7 @@ public final class PreloadRequester {
                 new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PREWARM, sid, bx, bz,
                         Config.preloadPrewarmRadius,
                         CameraManager.INSTANCE.getCameraYaw(), mc.options.renderDistance().get(),
-                        CameraManager.INSTANCE.hasActiveCameraClip(),
-                        script.getMeta().isCameraMobSpawn(), script.getMeta().getCameraMobRadius(),
-                        script.getMeta().isCameraMobAi()));
+                        CameraManager.INSTANCE.hasActiveCameraClip()));
         prewarmTargetKey = key;
     }
 
@@ -219,21 +206,5 @@ public final class PreloadRequester {
         if (script == null || script.getTimeline() == null) return false;
         Optional<TimelineTrack> track = script.getTimeline().getCameraTrack();
         return track.isPresent() && !track.get().getClips().isEmpty();
-    }
-
-    /** 脚本级开关：meta.preload 缺省/true = 启用；false = 本脚本关闭预加载（不发任何预载请求） */
-    private static boolean isScriptPreloadEnabled(CinematicScript script) {
-        if (script == null) return true;
-        Object raw = script.getRawJson();
-        if (raw instanceof String s && !s.isEmpty()) {
-            JsonObject root = JsonParser.parseString(s).getAsJsonObject();
-            if (root.has("meta") && root.get("meta").isJsonObject()) {
-                JsonObject meta = root.getAsJsonObject("meta");
-                if (meta.has("preload")) {
-                    return meta.get("preload").getAsBoolean();
-                }
-            }
-        }
-        return true;
     }
 }
