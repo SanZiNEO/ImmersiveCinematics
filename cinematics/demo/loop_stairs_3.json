@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "id": "loop_stairs_3",
+    "name": "循环楼梯3",
+    "author": "",
+    "version": 3,
+    "description": "循环楼梯：从三号楼梯触发 → 传送到二号楼梯（相对传送 ~+14）",
+    "dimension": "",
+    "listener": "player",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "block_mob_ai": false,
+    "hide_hud": false,
+    "hide_skip_hud": true,
+    "render_player_model": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "priority": 0,
+    "triggers": [
+      {
+        "id": "region_1",
+        "type": "location",
+        "conditions": {
+          "corner1": { "x": 19, "y": -46, "z": -50 },
+          "corner2": { "x": 23, "y": -44, "z": -46 }
+        },
+        "repeatable": true
+      }
+    ]
+  },
+  "timeline": {
+    "total_duration": 1.0,
+    "tracks": [
+      {
+        "type": "EVENT",
+        "id": "event_1",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 1.0,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0.0, "event_type": "command", "command": "tp @s ~14 ~ ~" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
