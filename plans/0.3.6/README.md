@@ -14,6 +14,7 @@
 | `overlay-color-mask.md` | Overlay 颜色遮罩计划 |
 | `hud-hard-hide.md` | HUD 强硬隐藏模式：拦截 `RenderGuiEvent.Pre` + 按现有 overlay 白名单重画，覆盖不走注册表的第三方自绘 HUD |
 | `pause-point-track.md` | 暂停点轨道计划 |
+| `region-sync.md` | 区域同步 / 镜像传送：两张对应区域之间按坐标映射传送玩家（循环楼梯、镜像空间）；平移可脚本实现，镜像 / 旋转需特性 |
 
 ## 二、相机底层架构
 
