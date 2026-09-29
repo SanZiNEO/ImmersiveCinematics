@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "id": "corridor_1",
+    "name": "通道1",
+    "author": "",
+    "version": 3.0,
+    "description": "通道卡视角：进入区域后延迟 3 秒触发 → 相对传送 ~-30 ~ ~3",
+    "dimension": "",
+    "listener": "player",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "block_mob_ai": false,
+    "hide_hud": false,
+    "hide_skip_hud": true,
+    "render_player_model": true,
+    "pause_when_game_paused": true,
+    "interruptible": false,
+    "skippable": true,
+    "hold_at_end": false,
+    "priority": 0.0,
+    "triggers": [
+      {
+        "id": "region_1",
+        "type": "location",
+        "conditions": {
+          "corner1": { "x": 47, "y": -61, "z": -37 },
+          "corner2": { "x": 56, "y": -59, "z": -35 }
+        },
+        "repeatable": true,
+        "delay": 3.0
+      }
+    ]
+  },
+  "timeline": {
+    "total_duration": 1.0,
+    "tracks": [
+      {
+        "type": "EVENT",
+        "id": "event_1",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 1.0,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0.0, "event_type": "command", "command": "tp @s ~-30 ~ ~3" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

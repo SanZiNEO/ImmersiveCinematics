@@ -1,0 +1,89 @@
+{
+  "meta": {
+    "id": "corridor_3",
+    "name": "通道3",
+    "author": "",
+    "version": 3.0,
+    "description": "通道卡视角：区域 + 朝向(yaw80~100)触发 → 播放 bingbingbing.ogg + 相对传送 ~-5 ~ ~",
+    "dimension": "",
+    "listener": "player",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "block_mob_ai": false,
+    "hide_hud": false,
+    "hide_skip_hud": true,
+    "render_player_model": true,
+    "pause_when_game_paused": true,
+    "interruptible": false,
+    "skippable": true,
+    "hold_at_end": false,
+    "priority": 0.0,
+    "triggers": [
+      {
+        "id": "region_1",
+        "type": "all_of",
+        "repeatable": true,
+        "conditions": {
+          "list": [
+            {
+              "type": "location",
+              "conditions": {
+                "corner1": { "x": 38.5, "y": -61, "z": -36 },
+                "corner2": { "x": 40.5, "y": -59, "z": -34 }
+              }
+            },
+            {
+              "type": "facing",
+              "conditions": {
+                "yaw1": 80, "pitch1": -20,
+                "yaw2": 100, "pitch2": 20
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "timeline": {
+    "total_duration": 1.0,
+    "tracks": [
+      {
+        "type": "AUDIO",
+        "id": "audio_1",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 1.0,
+            "sound": "bingbingbing.ogg",
+            "source": "file",
+            "category": "ambient",
+            "volume": 0.5,
+            "pitch": 1.0,
+            "loop": false,
+            "fade_in": 0.0,
+            "fade_out": 0.0,
+            "attenuation": "none",
+            "position_mode": "relative",
+            "keyframes": [
+              { "time": 0.0, "volume": 0.5, "x": 0.0, "y": 0.0, "z": 0.0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "id": "event_1",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 1.0,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0.0, "event_type": "command", "command": "tp @s ~-5 ~ ~" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

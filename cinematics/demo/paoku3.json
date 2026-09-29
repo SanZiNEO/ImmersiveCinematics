@@ -1,0 +1,168 @@
+{
+  "meta": {
+    "id": "paoku3",
+    "name": "Untitled",
+    "author": "",
+    "version": 3.0,
+    "description": "",
+    "dimension": "",
+    "listener": "player",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "block_mob_ai": false,
+    "hide_hud": true,
+    "render_player_model": true,
+    "pause_when_game_paused": true,
+    "interruptible": false,
+    "skippable": true,
+    "hold_at_end": false,
+    "priority": 0.0,
+    "triggers": [
+      {
+        "id": "region_1",
+        "type": "location",
+        "conditions": {
+          "corner1": {
+            "x": 41,
+            "y": -60,
+            "z": -21
+          },
+          "corner2": {
+            "x": 60,
+            "y": -50,
+            "z": -10
+          }
+        },
+        "repeatable": true,
+        "on_enter": true,
+        "exit_buffer": 2.0
+      }
+    ]
+  },
+  "timeline": {
+    "total_duration": 10.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "id": "camera_1",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 10.0,
+            "transition": "cut",
+            "transition_duration": 0.5,
+            "interpolation": "linear",
+            "dimension": "",
+            "loop": true,
+            "loop_count": -1.0,
+            "loop_mode": "repeat",
+            "cam_breath_enabled": false,
+            "cam_breath_intensity": 0.05,
+            "cam_breath_seed": 0.0,
+            "cam_breath_type": "perlin",
+            "cam_breath_speed": 1.0,
+            "cam_breath_trauma": 1.0,
+            "cam_breath_decay": 0.5,
+            "orient": "manual",
+            "yaw_offset": 0.0,
+            "pitch_offset": 0.0,
+            "keyframes": [
+              {
+                "time": 0.0,
+                "position": {
+                  "x": 40.0,
+                  "y": -50.0,
+                  "z": -10.0
+                },
+                "position_mode": "absolute",
+                "facing_origin": "",
+                "facing_origin_x": 0.0,
+                "facing_origin_y": 0.0,
+                "facing_origin_z": 0.0,
+                "facing_target": "",
+                "follow": "none",
+                "follow_selector": "@p",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_target_structure": "",
+                "selector_refresh": 1.0,
+                "selector_switch_while_alive": true,
+                "selector_switch_interval": 1.0,
+                "selector_switch_smooth": 0.0,
+                "yaw_base": "world",
+                "pitch_base": "world",
+                "yaw_base_selector": "@p",
+                "yaw_base_from": "",
+                "yaw_base_to": "",
+                "yaw": -121.49855,
+                "pitch": 27.477093,
+                "roll": 0.0,
+                "fov": 70.0,
+                "zoom": 1.0
+              },
+              {
+                "time": 10.0,
+                "position": {
+                  "x": 40.0,
+                  "y": -50.0,
+                  "z": -10.0
+                },
+                "position_mode": "absolute",
+                "facing_origin": "",
+                "facing_origin_x": 0.0,
+                "facing_origin_y": 0.0,
+                "facing_origin_z": 0.0,
+                "facing_target": "",
+                "follow": "none",
+                "follow_selector": "@p",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_target_structure": "",
+                "selector_refresh": 1.0,
+                "selector_switch_while_alive": true,
+                "selector_switch_interval": 1.0,
+                "selector_switch_smooth": 0.0,
+                "yaw_base": "world",
+                "pitch_base": "world",
+                "yaw_base_selector": "@p",
+                "yaw_base_from": "",
+                "yaw_base_to": "",
+                "yaw": 180.0,
+                "pitch": 0.0,
+                "roll": 0.0,
+                "fov": 70.0,
+                "zoom": 1.0
+              }
+            ],
+            "position_mode": "relative"
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "id": "letterbox_1",
+        "clips": []
+      },
+      {
+        "type": "AUDIO",
+        "id": "audio_1",
+        "clips": []
+      },
+      {
+        "type": "EVENT",
+        "id": "event_1",
+        "clips": []
+      },
+      {
+        "type": "MOD_EVENT",
+        "id": "mod_event_1",
+        "clips": []
+      },
+      {
+        "type": "OVERLAY",
+        "id": "overlay_1",
+        "clips": []
+      }
+    ]
+  }
+}
