@@ -212,8 +212,14 @@ public class TriggerEngine {
         int delayMs = reg.getDelayMs();
         if (delayMs > 0) {
             int delayTicks = Math.max(1, delayMs / 50);
-            delayedFires.computeIfAbsent(player.getUUID(), k -> new ArrayList<>())
-                    .add(new DelayedFire(reg, player.server.getTickCount() + delayTicks));
+            List<DelayedFire> pending = delayedFires.computeIfAbsent(player.getUUID(), k -> new ArrayList<>());
+            // 同一触发器的延迟触发已在队列中 → 不重复排队：
+            // repeatable + delay 时玩家停留在/走过区域内会每轮（0.1~1 秒）入队一次，
+            // 到点后一次性全部执行，导致脚本播完被排队连播多次（传送类脚本表现为连续传送）。
+            for (DelayedFire df : pending) {
+                if (df.reg() == reg) return;
+            }
+            pending.add(new DelayedFire(reg, player.server.getTickCount() + delayTicks));
             LOGGER.info("  delayed by {} ticks ({}ms)", delayTicks, delayMs);
             return;
         }
