@@ -41,7 +41,9 @@ public final class TriggerSchemas {
                 "observation",
                 "inventory",
                 "structure",
-                "gamestage"
+                "gamestage",
+                "facing",
+                "all_of"
         );
     }
 
@@ -71,6 +73,8 @@ public final class TriggerSchemas {
         map.put("inventory", inventory());
         map.put("structure", structure());
         map.put("gamestage", gamestage());
+        map.put("facing", facing());
+        map.put("all_of", allOf());
         return map;
     }
 
@@ -230,5 +234,19 @@ public final class TriggerSchemas {
         Map<String, FieldDef> m = new LinkedHashMap<>();
         m.put("stage", new FieldDef("string", null, true));
         return m;
+    }
+
+    private static Map<String, FieldDef> facing() {
+        Map<String, FieldDef> m = new LinkedHashMap<>();
+        m.put("yaw1", new FieldDef("float", 0f));
+        m.put("pitch1", new FieldDef("float", 0f));
+        m.put("yaw2", new FieldDef("float", 0f));
+        m.put("pitch2", new FieldDef("float", 0f));
+        return m;
+    }
+
+    /** all_of：list 为 { type, conditions } 数组；暂不提供专用控件（手写 JSON），schema 只登记类型 */
+    private static Map<String, FieldDef> allOf() {
+        return new LinkedHashMap<>();
     }
 }

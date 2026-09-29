@@ -1,5 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server.evaluator;
 
+import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
+import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
+import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.core.BlockPos;
@@ -8,6 +11,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.ItemStack;
@@ -492,6 +496,69 @@ public class Evaluators {
             return actual.contains(pattern);
         }
         return false;
+    }
+
+    // ===== 0.3.6：朝向范围 + 多重条件（AND 组合） =====
+
+    /** 数字字段检查（存在且是数字） */
+    private static boolean isNumber(JsonObject c, String key) {
+        return c != null && c.has(key) && c.get(key).isJsonPrimitive()
+                && c.get(key).getAsJsonPrimitive().isNumber();
+    }
+
+    /**
+     * 朝向范围条件：玩家视线（原版 yaw / pitch，服务端同步的玩家实体值）是否落在
+     * (yaw1, pitch1) → (yaw2, pitch2) 内。
+     * <ul>
+     *   <li>yaw：从 yaw1 顺时针扫到 yaw2（跨越 ±180° 自然环绕）；起止相同 = 整圈（不限制）</li>
+     *   <li>pitch：取 min / max（顺序无关；正 = 向下看）</li>
+     * </ul>
+     * 只读玩家实体自身的朝向，与相机脚本 / 模组相机无关。
+     */
+    public static boolean evaluateFacing(ServerPlayer player, JsonObject c) {
+        if (!isNumber(c, "yaw1") || !isNumber(c, "pitch1")
+                || !isNumber(c, "yaw2") || !isNumber(c, "pitch2")) {
+            return false;
+        }
+        float pitch = player.getXRot();
+        float pitch1 = c.get("pitch1").getAsFloat();
+        float pitch2 = c.get("pitch2").getAsFloat();
+        if (pitch < Math.min(pitch1, pitch2) || pitch > Math.max(pitch1, pitch2)) return false;
+
+        float yaw = Mth.wrapDegrees(player.getYRot());
+        float yaw1 = Mth.wrapDegrees(c.get("yaw1").getAsFloat());
+        float yaw2 = Mth.wrapDegrees(c.get("yaw2").getAsFloat());
+        float span = Mth.wrapDegrees(yaw2 - yaw1);
+        if (span == 0f) return true;                 // 起止相同：整圈，不限制朝向
+        float delta = Mth.wrapDegrees(yaw - yaw1);   // 从起点顺时针走过的角度
+        if (span > 0f) return delta >= 0f && delta <= span;
+        // span < 0：顺时针弧 > 180°（= span + 360），delta 落在补弧 (span, 0) 之外即为真
+        return delta >= 0f || delta <= span;
+    }
+
+    /**
+     * 多重条件（AND）：conditions.list 内每个子条件（{ type, conditions }）全部满足才为真。
+     * <p>
+     * 每轮求值都用同一时刻的玩家状态把所有子条件重新算一遍（无记忆、无等待、短路）——
+     * 不会出现“先在 A 处满足条件 1、再到 B 处满足条件 2 也判定成功”。
+     * 子条件只允许轮询类触发器类型（事件类会带来“很久以前发生过也算”的误判）。
+     */
+    public static boolean evaluateAllOf(ServerPlayer player, JsonObject c) {
+        if (c == null || !c.has("list") || !c.get("list").isJsonArray()) return false;
+        var list = c.getAsJsonArray("list");
+        if (list.isEmpty()) return false;
+        for (JsonElement el : list) {
+            if (!el.isJsonObject()) return false;
+            JsonObject sub = el.getAsJsonObject();
+            if (!sub.has("type") || !sub.get("type").isJsonPrimitive()) return false;
+            TriggerType tt = TriggerRegistry.get(sub.get("type").getAsString());
+            if (tt == null || tt.getStrategy() != ListenStrategy.POLLING) return false;
+            JsonObject subConditions = sub.has("conditions") && sub.get("conditions").isJsonObject()
+                    ? sub.getAsJsonObject("conditions")
+                    : new JsonObject();
+            if (!tt.evaluate(player, subConditions)) return false;
+        }
+        return true;
     }
 
     public static class KillTracker {

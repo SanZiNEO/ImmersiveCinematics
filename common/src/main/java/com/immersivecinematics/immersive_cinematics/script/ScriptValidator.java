@@ -4,6 +4,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
+import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
+import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -72,9 +75,10 @@ public final class ScriptValidator {
             }
         }
 
-        // ===== meta.triggers：前置依赖（requires）校验 =====
+        // ===== meta.triggers：前置依赖（requires）+ 类型/条件结构校验 =====
         if (root.has("meta") && root.get("meta").isJsonObject()) {
             validateTriggerRequires(root.getAsJsonObject("meta"), "meta", knownScriptIds, issues);
+            validateTriggerConditions(root.getAsJsonObject("meta"), "meta", issues);
         }
 
         // ===== timeline =====
@@ -419,6 +423,115 @@ public final class ScriptValidator {
                 }
             }
         }
+    }
+
+    /**
+     * 校验 meta.triggers 的 type / conditions 结构（0.3.6：facing / all_of 两个新类型）：
+     * - 未知触发器类型；conditions 不是对象；
+     * - facing：yaw1/pitch1/yaw2/pitch2 必须是数字；pitch 端点必须在 -90~90；
+     * - all_of：list 必须是非空数组，元素为 { type, conditions }；子类型必须是已注册的轮询类触发器
+     *   （事件类不可用——会带来“很久以前发生过也算”的误判），且不允许嵌套 all_of；
+     * - facing / all_of 上的 exit_buffer 不会生效（无空间外扩），给出提示。
+     */
+    private static void validateTriggerConditions(JsonObject meta, String path, List<String> issues) {
+        if (!meta.has("triggers") || !meta.get("triggers").isJsonArray()) return;
+        JsonArray triggers = meta.getAsJsonArray("triggers");
+        for (int i = 0; i < triggers.size(); i++) {
+            JsonElement te = triggers.get(i);
+            if (!te.isJsonObject()) continue;
+            JsonObject t = te.getAsJsonObject();
+            String tp = path + ".triggers[" + i + "]";
+            String type = t.has("type") && t.get("type").isJsonPrimitive() ? t.get("type").getAsString() : "";
+            JsonObject conditions = null;
+            if (t.has("conditions")) {
+                if (t.get("conditions").isJsonObject()) {
+                    conditions = t.getAsJsonObject("conditions");
+                } else {
+                    issues.add(tp + ".conditions 必须是对象");
+                }
+            }
+            if (type.isEmpty()) continue;
+            TriggerType tt = TriggerRegistry.get(type);
+            if (tt == null) {
+                issues.add(tp + ".type 未知触发器类型: " + type);
+                continue;
+            }
+            if (conditions != null) {
+                if ("facing".equals(type)) {
+                    validateFacingConditions(conditions, tp + ".conditions", issues);
+                } else if ("all_of".equals(type)) {
+                    validateAllOfConditions(conditions, tp + ".conditions", issues);
+                }
+            }
+            if (("facing".equals(type) || "all_of".equals(type))
+                    && isPositiveNumber(t.get("exit_buffer"))) {
+                issues.add(tp + ".exit_buffer 对 " + type + " 无效（没有可外扩的空间条件），将被忽略");
+            }
+        }
+    }
+
+    private static void validateFacingConditions(JsonObject c, String p, List<String> issues) {
+        for (String key : new String[]{"yaw1", "pitch1", "yaw2", "pitch2"}) {
+            if (!c.has(key) || !c.get(key).isJsonPrimitive() || !c.get(key).getAsJsonPrimitive().isNumber()) {
+                issues.add(p + "." + key + " 缺失或不是数字（facing 需要 yaw1/pitch1/yaw2/pitch2）");
+            }
+        }
+        if (c.has("pitch1") && c.has("pitch2")
+                && c.get("pitch1").isJsonPrimitive() && c.get("pitch2").isJsonPrimitive()
+                && c.get("pitch1").getAsJsonPrimitive().isNumber()
+                && c.get("pitch2").getAsJsonPrimitive().isNumber()) {
+            float p1 = c.get("pitch1").getAsFloat();
+            float p2 = c.get("pitch2").getAsFloat();
+            if (p1 < -90f || p1 > 90f || p2 < -90f || p2 > 90f) {
+                issues.add(p + " pitch 端点超出 -90~90（原版 pitch 范围），该条件将永不满足");
+            }
+        }
+    }
+
+    private static void validateAllOfConditions(JsonObject c, String p, List<String> issues) {
+        if (!c.has("list") || !c.get("list").isJsonArray()) {
+            issues.add(p + ".list 缺失或不是数组（all_of 需要 \"list\": [ { \"type\": ..., \"conditions\": { ... } }, ... ]）");
+            return;
+        }
+        JsonArray list = c.getAsJsonArray("list");
+        if (list.isEmpty()) {
+            issues.add(p + ".list 不能为空");
+            return;
+        }
+        for (int i = 0; i < list.size(); i++) {
+            JsonElement e = list.get(i);
+            String sp = p + ".list[" + i + "]";
+            if (!e.isJsonObject()) {
+                issues.add(sp + " 不是对象（应为 { type, conditions }）");
+                continue;
+            }
+            JsonObject sub = e.getAsJsonObject();
+            if (!sub.has("type") || !sub.get("type").isJsonPrimitive()) {
+                issues.add(sp + ".type 缺失或不是字符串");
+                continue;
+            }
+            String subType = sub.get("type").getAsString();
+            if ("all_of".equals(subType)) {
+                issues.add(sp + " 不允许嵌套 all_of（最小版本只支持一层）");
+                continue;
+            }
+            TriggerType tt = TriggerRegistry.get(subType);
+            if (tt == null) {
+                issues.add(sp + ".type 未知触发器类型: " + subType);
+                continue;
+            }
+            if (tt.getStrategy() != ListenStrategy.POLLING) {
+                issues.add(sp + " 事件类触发器不能放进 all_of（会带来“很久以前发生过也算”的误判）: " + subType);
+                continue;
+            }
+            if (sub.has("conditions") && !sub.get("conditions").isJsonObject()) {
+                issues.add(sp + ".conditions 必须是对象");
+            }
+        }
+    }
+
+    private static boolean isPositiveNumber(JsonElement e) {
+        return e != null && e.isJsonPrimitive() && e.getAsJsonPrimitive().isNumber() && e.getAsFloat() > 0f;
     }
 
     private static boolean isKnownType(String type) {

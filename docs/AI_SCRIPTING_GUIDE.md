@@ -265,8 +265,10 @@
 | `xp` | 经验达标（轮询） | `level` / `total` |
 | `dimension` | 驻留维度（轮询） | `dimension` |
 | `observation` | 准星注视目标（轮询） | `target` + `target_type` + `reach` |
+| `facing` | 视线朝向落在区间（轮询） | `yaw1` / `pitch1` / `yaw2` / `pitch2` |
+| `all_of` | 多重条件 AND（轮询） | `list`（子条件数组） |
 
-通用字段：`repeatable`（可重复触发）、`delay`（延迟秒）、`on_enter`（仅进入时触发，位置类用）。完整 23 种见 `docs/TRIGGER_TYPES.md`。
+通用字段：`repeatable`（可重复触发）、`delay`（延迟秒）、`on_enter`（仅进入时触发，位置类用）。完整 25 种见 `docs/TRIGGER_TYPES.md`。
 
 ---
 

@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "id": "test_trigger_all_of",
+    "name": "触发器测试-all_of",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "多重条件（AND）：站在区域内 且 看向南方 ±30° 才触发",
+    "triggers": [ {"id":"trg_all_of","type":"all_of","repeatable":true,"conditions":{"list":[
+      {"type":"location","conditions":{"corner1":{"x":-20,"y":-64,"z":-20},"corner2":{"x":20,"y":320,"z":20}}},
+      {"type":"facing","conditions":{"yaw1":-30,"pitch1":-20,"yaw2":30,"pitch2":20}}
+    ]}} ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 6,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "测试: test_trigger_all_of | 功能: 多重条件 AND | 触发: 区域内 + 看向南方 ±30°",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
