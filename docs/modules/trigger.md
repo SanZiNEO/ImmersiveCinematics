@@ -14,7 +14,7 @@
   - ✅ 轮询入口 `onServerTick()` 按 tick 间隔分桶遍历所有在线玩家并求值（`TriggerEngine`）
   - ✅ 支持延迟触发：`delay`（秒）转换为 tick 数，到期后执行动作（`TriggerEngine`）
   - ✅ 去重与防重：播放同一脚本的玩家跳过触发；非 repeatable 触发器已触发过则不再触发（`TriggerEngine`、`TriggerStateStore`）
-  - ✅ 支持 `on_enter` 进入检测：只在玩家从区域外进入时触发，配合 `exit_buffer` 扩展离开判定，防止区域边界抖动反复触发（`TriggerEngine`、`Evaluators.expandConditions`）
+  - ✅ 支持 `on_enter` 进入检测：只在玩家从区域外进入时触发，配合 `exit_buffer` 扩展离开判定，防止区域边界抖动反复触发；状态机**每次轮询都更新**（含区域外复位），离开后再次进入可再触发；播放期间 `shouldSkip` 跳过、状态机不更新（跳过镜头不会立刻重播）（`TriggerEngine`、`Evaluators.expandConditions`）
   - ✅ 支持**前置依赖 `requires`**：旧写法为前置脚本 id 字符串数组，AND 语义，要求前置脚本**播放完成**（开始播放且结束播放，跳过/打断/自然播完都算）；也支持对象型 `{ "type": "script_played"/"script_started"/"script_completed", "script": "id" }` 与自定义前置类型。依赖检查在 shouldSkip 之前（未解锁时连去重都不碰）；解锁后 repeatable 语义照旧（`TriggerEngine.prerequisitesMet`、`PrerequisiteRegistry`、`BuiltinPrerequisites`、`TriggerStateStore`）
   - ✅ 触发后标记状态并依次执行注册的动作列表（`TriggerEngine`）
 - **触发器注册模型**

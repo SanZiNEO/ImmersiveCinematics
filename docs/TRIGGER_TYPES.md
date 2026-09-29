@@ -10,8 +10,8 @@
 | `repeatable` | boolean | 否 | 是否可重复触发，默认 `false` |
 | `delay` | number | 否 | 触发后延迟执行（秒），默认 `0` |
 | `conditions` | object | 否 | 各类型特有的条件，见下方 |
-| `on_enter` | boolean | 否 | 仅位置类触发器有效：设为 `true` 后只在首次进入区域时触发，已在区域内不重复。默认 `false` |
-| `exit_buffer` | number | 否 | 配合 `on_enter` 使用：玩家离开触发区域多少格后才标记为"已离开"，防止区域边界抖动导致反复触发。默认 `0` |
+| `on_enter` | boolean | 否 | 仅位置类触发器有效：设为 `true` 后只在首次进入区域时触发，已在区域内不重复；离开区域后复位，可再次进入触发（0.3.6 修复）。播放期间不更新状态机，跳过镜头不会立刻重播。默认 `false` |
+| `exit_buffer` | number | 否 | 配合 `on_enter` 使用：玩家离开触发区域多少格后才标记为"已离开"，防止区域边界抖动导致反复触发。外扩按 `corner1` 为最小角、`corner2` 为最大角计算，角落点写反会让该轴外扩变缩小（见 `plans/0.3.6/feedback-0.3.5/03-exit-buffer-corner-order.md`）。默认 `0` |
 | `requires` | array | 否 | **前置依赖（解锁条件）**：AND 语义——全部满足才允许触发。旧写法为前置脚本 id 字符串数组（如 `"requires": ["script_a"]`），等价于要求脚本 A **播放完成**（开始播放且结束播放，跳过/打断/自然播完都算）；也支持对象型：`{ "type": "script_played", "script": "A" }`、`{ "type": "script_started", "script": "A" }`、`{ "type": "script_completed", "script": "A" }` 以及其它模组注册的自定义前置类型。缺省 = 无前置（立即待命） |
 
 所有匹配 ID 的字段均支持三种匹配模式：

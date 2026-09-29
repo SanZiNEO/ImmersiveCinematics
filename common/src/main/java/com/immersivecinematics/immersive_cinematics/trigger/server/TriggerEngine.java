@@ -89,8 +89,9 @@ public class TriggerEngine {
         for (TriggerRegistration reg : triggers) {
             if (!prerequisitesMet(player, reg)) continue;
             if (shouldSkip(player, reg)) continue;
-            if (evaluateSafely(reg, player)) {
-                if (reg.isOnEnter() && !checkEnterState(player, reg)) continue;
+            boolean inRegion = evaluateSafely(reg, player);
+            if (inRegion) {
+                if (reg.isOnEnter() && !checkEnterState(player, reg, inRegion)) continue;
                 fireTrigger(player, reg);
             }
         }
@@ -110,10 +111,15 @@ public class TriggerEngine {
                 for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                     if (!prerequisitesMet(player, reg)) continue;
                     if (shouldSkip(player, reg)) continue;
-                    if (evaluateSafely(reg, player)) {
-                        if (reg.isOnEnter() && !checkEnterState(player, reg)) continue;
-                        fireTrigger(player, reg);
+                    boolean inRegion = evaluateSafely(reg, player);
+                    if (reg.isOnEnter()) {
+                        // 状态机每次轮询都要更新（含“区域外复位”），否则 on_enter 只会触发一次
+                        if (!checkEnterState(player, reg, inRegion)) continue;
+                        if (!inRegion) continue;
+                    } else if (!inRegion) {
+                        continue;
                     }
+                    fireTrigger(player, reg);
                 }
             }
         }
@@ -235,7 +241,16 @@ public class TriggerEngine {
 
     private record DelayedFire(TriggerRegistration reg, int fireTick) {}
 
-    private boolean checkEnterState(ServerPlayer player, TriggerRegistration reg) {
+    /**
+     * “进入触发 + 离开复位”状态机。
+     * <p>
+     * 调用方每次轮询都必须调用（即使玩家在区域外），否则“离开复位”分支不可达、
+     * 触发器每局只能触发一次。详见 plans/0.3.6/feedback-0.3.5/05-on-enter-not-repeatable.md。
+     *
+     * @param inOriginal 玩家当前是否在原始触发区域内（由调用方求值，避免重复求值）
+     * @return 是否应视为“新进入”而触发
+     */
+    private boolean checkEnterState(ServerPlayer player, TriggerRegistration reg, boolean inOriginal) {
         UUID uuid = player.getUUID();
         String key = reg.getScriptId() + ":" + reg.getTriggerId();
         Map<String, Boolean> playerStates = enterStates.computeIfAbsent(uuid, k -> new HashMap<>());
@@ -243,22 +258,19 @@ public class TriggerEngine {
 
         JsonObject exitCond = reg.getExitConditions();
         if (exitCond != null) {
-            boolean inExpanded = evaluateSafely(reg, player, exitCond);
-            boolean inOriginal = evaluateSafely(reg, player);
-
             if (inOriginal) {
                 playerStates.put(key, true);
                 return !wasInside;
             }
-            if (!inExpanded) {
+            // 已在区域内且仍在离开缓冲（外扩区域）内：保持“已进入”状态，等待完全离开后复位
+            if (!evaluateSafely(reg, player, exitCond)) {
                 playerStates.put(key, false);
             }
             return false;
         }
 
-        boolean isInside = evaluateSafely(reg, player);
-        playerStates.put(key, isInside);
-        return isInside && !wasInside;
+        playerStates.put(key, inOriginal);
+        return inOriginal && !wasInside;
     }
 
     /**

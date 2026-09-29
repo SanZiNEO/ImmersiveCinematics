@@ -9,4 +9,4 @@
 | [02](02-editor-coverage-gaps.md) | 游戏内编辑器 vs 脚本格式：能力覆盖缺口 | 能力缺口 | 代码排查 | 待处理 |
 | [03](03-exit-buffer-corner-order.md) | `exit_buffer` 方体外扩对角落点顺序敏感（写反则缓冲失效） | 运行时 bug | 代码排查 | 待处理 |
 | [04](04-trigger-latency.md) | 触发器 → 命令的延迟构成（轮询 + 播放链路）；可配项与待改进 | 特性/待改进 | 代码排查 | 部分已调（config） |
-| [05](05-on-enter-not-repeatable.md) | `on_enter`（进入时触发）触发器每局只能触发一次（复位分支不可达） | 运行时 bug | 用户实测 + 代码排查 | 待处理 |
+| [05](05-on-enter-not-repeatable.md) | `on_enter`（进入时触发）触发器每局只能触发一次（复位分支不可达） | 运行时 bug | 用户实测 + 代码排查 | ✅ 已修复（0.3.6） |

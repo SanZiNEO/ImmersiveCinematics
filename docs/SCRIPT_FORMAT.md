@@ -112,8 +112,8 @@ immersive_cinematics/
 | `conditions` | object | 否 | `{}` | 类型对应的条件参数 |
 | `repeatable` | boolean | 否 | `false` | 是否可重复触发 |
 | `delay` | number | 否 | `0` | 触发后延迟执行秒数 |
-| `on_enter` | boolean | 否 | `false` | 仅位置类触发器有效：仅在首次进入区域时触发，已在区域内不重复 |
-| `exit_buffer` | number | 否 | `0` | 配合 `on_enter`：玩家离开触发区域多少格后才标记为"已离开"，防止边界抖动 |
+| `on_enter` | boolean | 否 | `false` | 仅位置类触发器有效：仅在首次进入区域时触发，已在区域内不重复；离开区域后复位，可再次进入触发（0.3.6 修复）。播放期间不更新状态机，跳过镜头不会立刻重播 |
+| `exit_buffer` | number | 否 | `0` | 配合 `on_enter`：玩家离开触发区域多少格后才标记为"已离开"，防止边界抖动。外扩按 `corner1` 为最小角、`corner2` 为最大角计算，角落点写反会让该轴外扩变缩小（见 `plans/0.3.6/feedback-0.3.5/03-exit-buffer-corner-order.md`） |
 | `requires` | array | 否 | `[]` | **前置依赖**：AND 语义，全部满足才允许触发。旧写法为前置脚本 id 字符串数组，等价于“脚本**播放完成**”（开始播放且结束播放，跳过/打断/自然播完都算）；也支持对象型前置条件 `{ "type": "script_played"/"script_started"/"script_completed", "script": "xxx" }` 或其他模组注册的自定义类型。示例：`"requires": ["script_a"]` |
 
 全部触发类型及条件参数见 `TRIGGER_TYPES.md`。
