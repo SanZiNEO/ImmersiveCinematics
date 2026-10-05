@@ -27,12 +27,15 @@ flowchart LR
         ABS["绝对位置"]
         REL["相对位置"]
     end
+    subgraph COORDSRC["坐标源"]
+        ENT["实体"]
+        COORD["坐标"]
+        STRUCT["结构"]
+        BLOCK["方块"]
+    end
     POS --> FP
     ORI --> FO
     W --> WPOS
     SELF --> SELFPOS["自建位置"]
-    REL --> ENT["实体"]
-    REL --> COORD["坐标"]
-    REL --> STRUCT["结构"]
-    REL --> BLOCK["方块"]
+    REL --> COORDSRC
 ```
