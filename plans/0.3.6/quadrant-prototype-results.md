@@ -22,6 +22,7 @@
 | 发光（Glowing）描边逐象限绑定、跟着一起缩放 | ✅ |
 | 云/天空跟随各自象限相机（不歪斜） | ✅ |
 | 稳定：无死循环、半程出图成功 | ✅ |
+| 相机穿进实心方块：稳定透视（不闪、光照正常，见 §3.5） | ✅ |
 
 ---
 
@@ -35,7 +36,7 @@
 
 ---
 
-## 3. 四个坑与结论（0.3.6 必读）
+## 3. 五个坑与结论（0.3.6 必读）
 
 ### 3.1 viewport 会被原版内部重置 —— 不能"直接设象限 viewport"
 
@@ -72,6 +73,42 @@
 - 之前的死循环来自"视锥与相机不一致"（方块永远进不去），**不是这条路径本身必然死锁**。
 - **结论**：不需要绕过原版可见性刷新（不需要改 `prevCamRotX/Y` / `needsFrustumUpdate`），也就保住了原版的 8 格膨胀剔除行为。
 
+### 3.5 相机穿进实心方块 → 可见区块塌缩/闪烁（遮挡剔除）
+
+**现象**：相机自由穿墙、进到实心方块里之后，地形/空腔"一会儿有一会儿没有"（原型里表现为同一象限在"只剩天空"和"整条隧道都在"两张图之间来回切）。
+
+**原版逻辑**（`LevelRenderer.setupRender`）：
+
+```java
+boolean bl3 = this.minecraft.smartCull;
+if (player.isSpectator() && level.getBlockState(camera.getBlockPosition()).isSolidRender(level, pos)) {
+    bl3 = false;   // 旁观者在实心方块里 → 关掉遮挡剔除
+}
+```
+
+- 判定用的是 **`camera.getBlockPosition()`**（原版相机就是玩家眼睛），但**只有旁观者**才允许走这条；
+- 旁观者另有 `noPhysics = true` → `ScreenEffectRenderer` 的"方块内遮罩"被跳过 → 得到"**稳定透视 + 正常光照**"的观感；
+- 我们的相机自由飞行、可穿墙，语义上等价于旁观者，所以套用同一条件。
+- **反面教材**：`ScreenEffectRenderer.renderScreenEffect` 里那条 `getViewBlockingState(player)` + `renderTex(..., 0.1 亮度)` 是"**玩家被方块掩埋**"的黑效果（整屏压暗），不要拿它做"相机在方块里"。
+
+**为什么逐 pass 判定会闪（本原型踩的坑）**：可见区块集合（`renderChunkStorage`）是 `LevelRenderer` 上的**共享状态**，一帧里原型要渲染 5 个 pass（主 pass + 4 lane）。各 pass 用不同的 `smartCull` 值时会互相打架：
+
+- 整帧重建（`needsFullRenderChunkUpdate`，通常由本帧第一个 pass 消费）用 `true` → 集合**塌缩**；
+- lane pass 用 `false` → 局部更新（区块编译完成触发）不做遮挡过滤 → 集合**一圈圈涨回来**；
+- 两者交替 → 画面在"塌缩 / 完整"之间来回闪。
+
+**修复（本次，按帧统一）**：
+
+| 文件 | 做法 |
+|---|---|
+| `camera/CinematicOcclusion.java`（新） | `beginFrame()`：**每帧只决定一次**"我们的相机（原型＝任一 lane 相机）是否在实心方块里"；状态切换时 `levelRenderer.needsUpdate()` 强制一次重建 |
+| `GameRendererMixin` | 挂 `render(float,long,boolean)` 的 HEAD → 每帧调一次 `beginFrame()` |
+| `LevelRendererMixin` | `setupRender` HEAD/RETURN 包夹：本帧决定"关"时，这次调用里 `smartCull = false`（**整帧所有 pass 同一个值**） |
+
+**长期方向（0.3.6）**：真正的多相机应当**每个 lane/相机独立管理自己的可见集合与剔除状态**（各自的 `renderChunkStorage` + BFS + frustum），互不干扰——那时各 lane 才允许有自己的遮挡行为；本原型是"整帧统一"的过渡方案（因为共享状态必须帧内一致）。
+
+**简单验证方法**：让相机穿进地形里来回飞，看画面是否**稳定停在"完整透视"**（不再在"只剩天空 / 整条隧道都在"之间切）；F3 调试屏里 `C: x/y (s)` 的 `(s)` 表示 `smartCull` 处于开启状态，可用来确认本帧的开关。
+
 ---
 
 ## 4. 运行方式
@@ -98,6 +135,7 @@ ICINEMATICS_QUADRANT=1 sh gradlew :fabric:runClient --args='--quickPlaySinglepla
 
 - **渲染底层路线已验证**：每 lane 一个 RenderTarget + 缩放合成可行（`render-routes.md` §1–2）。
 - **正式实现必须带上的三条**：lane 自包含（§3.2）、lane 内全局状态还原（§3.3）、lane 期间主画面指向（§3.1）。
+- **多相机需要每 lane 独立的状态（长期方向）**：可见集合 / 遮挡剔除（`renderChunkStorage` + BFS + frustum）目前是 `LevelRenderer` 上的共享状态；原型用"整帧统一决定"过渡（§3.5），真正的多相机要按 lane 各自维护，才允许各 lane 有自己的遮挡行为。
 - **仍未覆盖**：Sodium/Embeddium/Iris 兼容（本原型纯原版管线）；`postEffect` 等其他"renderLevel 之后"的整屏步骤（同类风险）；性能（4 遍整尺寸渲染 + 4 次 blit 未测）。
 - **0.3.6 排查清单（"这一步属于哪个 lane？"）**：`doEntityOutline` / `postEffect` / `tryTakeScreenshotIfNeeded` / `Minecraft` 最后的 `blitToScreen`。
 

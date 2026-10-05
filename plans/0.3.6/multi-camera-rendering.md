@@ -91,6 +91,7 @@
 | 渲染顺序 | 第二遍在主世界渲染之后、GUI 之前，还是先渲染第二遍再合成，需要定 |
 | 光影/模组兼容 | 很多模组假设每帧只调一次 `renderLevel`，二次调用可能冲突 |
 | 剔除 / 视锥 | 旋转视图矩阵后重建视锥会触发原版 `Frustum.offsetToFullyIncludeCameraCube` 病态膨胀（jstack 实证挂死，60 帧窗口 4 分钟跑不完）——第二遍不能用主视锥重建，必须用自己的剔除方案 |
+| 剔除状态是**共享**的 | 可见集合 / 遮挡剔除（`renderChunkStorage` + BFS）在 `LevelRenderer` 上是单份共享状态；多 lane 若各自用不同 `smartCull` 会互相重建 → 画面来回闪。原型用"整帧统一决定"过渡；正式实现要**每 lane 独立维护**（见 `quadrant-prototype-results.md` §3.5） |
 | 性能 | 两次世界渲染 ≈ 成本翻倍；**正式合成不降分辨率**（低分辨率只用于编辑器预览传输） |
 
 ---

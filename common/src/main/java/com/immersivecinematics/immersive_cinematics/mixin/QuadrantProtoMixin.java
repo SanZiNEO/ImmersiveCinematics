@@ -106,6 +106,8 @@ public abstract class QuadrantProtoMixin {
 
             // 渲染期间让所有 getMainRenderTarget() 引用都指向本象限的离屏缓冲
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(fbo);
+            // 整个 lane 期间置位：① setupRender 的"相机在实心方块里"判定要用；② 描边上屏分流要用
+            QuadrantProto.setLaneRendering(true);
             try {
                 fbo.bindWrite(true);   // 绑定 FBO + 视口 = FBO 全尺寸（按正常整屏尺寸渲染）
 
@@ -137,16 +139,12 @@ public abstract class QuadrantProtoMixin {
 
                 // 描边（发光/Glowing）：renderLevel 里的后处理链已把描边合成进共享 entityTarget；
                 // 此刻 FBO 还绑着 → 立刻把它贴进"本象限这张画面"（原版是等渲染完再整屏 1:1 贴，那样就跑到象限外面了）。
-                QuadrantProto.setLaneRendering(true);
-                try {
-                    mc.levelRenderer.doEntityOutline();
-                } finally {
-                    QuadrantProto.setLaneRendering(false);
-                    // doEntityOutline → blitToScreen 会把全局投影改成正交矩阵，必须还原：
-                    // 否则下一个象限里走全局矩阵的绘制（实体/粒子/方块实体）会坏。
-                    RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
-                }
+                mc.levelRenderer.doEntityOutline();
+                // doEntityOutline → blitToScreen 会把全局投影改成正交矩阵，必须还原：
+                // 否则下一个象限里走全局矩阵的绘制（实体/粒子/方块实体）会坏。
+                RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
             } finally {
+                QuadrantProto.setLaneRendering(false);
                 ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
             }
 

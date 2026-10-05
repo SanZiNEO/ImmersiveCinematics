@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import com.immersivecinematics.immersive_cinematics.proto.QuadrantProto;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -17,6 +18,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(GameRenderer.class)
 public abstract class GameRendererMixin {
+
+    /**
+     * 每帧开始：按帧统一决定"相机在实心方块里 → 关掉遮挡剔除"（原版旁观者语义）。
+     * 见 {@link CinematicOcclusion}——可见区块集合是共享状态，必须整帧一致，否则画面会来回闪。
+     */
+    @Inject(method = "render", at = @At("HEAD"))
+    private void onRenderFrameStart(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
+        CinematicOcclusion.beginFrame(Minecraft.getInstance());
+    }
 
     @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
     private void onGetFov(Camera camera, float partialTick, boolean useFOVSetting,
