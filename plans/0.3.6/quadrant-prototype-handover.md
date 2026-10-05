@@ -2,7 +2,7 @@
 
 > 状态：**已完成，验收通过**（结论与多相机落地要点见 [`quadrant-prototype-results.md`](./quadrant-prototype-results.md)）。
 > 本文保留为当时的交接记录：下面的现象与疑点均已在后续排查中解释（viewport 被原版重置 / 发光描边是离屏+后处理+整屏 blit / 视锥一致即收敛）。
-> 分支：`proto/four-quadrant`（从 main `25d806a` 切出，**未提交**；main 干净）。
+> 分支：`proto/four-quadrant`（从 main `25d806a` 切出；**已提交**：原型 → 结论文档 → 方块内遮挡修复 → 压力测试+数据归档 → 文档按实测更新）。
 
 ## 1. 目标（用户口径）
 
@@ -10,7 +10,7 @@
 - 验收：让四个相机**朝玩家走、始终看向玩家**；**玩家实体在四个象限里都正常出现**即通过。
 - 出图：走到一半时——**每象限一张 + 游戏主图一张**。
 
-## 2. 代码（都在 `proto/four-quadrant` 分支上，未提交）
+## 2. 代码（当时状态；后续演进见本节末）
 
 | 文件 | 说明 |
 |---|---|
@@ -20,6 +20,8 @@
 | `common/.../mixin/LevelRendererAccessor.java`（新） | `@Accessor` `prevCamRotX/prevCamRotY/needsFrustumUpdate` + `@Invoker applyFrustum(Frustum)`。 |
 | `common/src/main/resources/immersive_cinematics.mixins.json` | 登记以上三个（client 列表）。 |
 | `fabric/.../fabric/FabricNetwork.java`（改） | S2C 的 `ClientPlayNetworking` 注册包进 `EnvType.CLIENT` 判断——否则**专用服务端启动即崩**（Cannot load class ClientPlayNetworking in environment type SERVER）。 |
+
+> **后续变更（本文写完之后）**：`CameraInvoker` / `LevelRendererAccessor` **已删除**；`QuadrantProto` / `QuadrantProtoMixin` **已重写**——每画面一个独立"我们模组的相机"实例、整尺寸渲染进离屏缓冲再缩放合成、描边逐画面在 lane 内合成、模式改为 `ICINEMATICS_QUADRANT=1|4|9|16|25|…`（1=只采样原版基线；≥4 取最近平方数，**不设上限**）、每次跑 30 秒出逐秒性能数据。详见 `quadrant-prototype-results.md` 与 `quadrant-perf/`。
 
 ## 3. 已确认的 MC 源码事实（1.20.1，fabric 官方名反编译源）
 
@@ -79,7 +81,7 @@ ICINEMATICS_QUADRANT=1 sh gradlew :fabric:runClient --args='--quickPlaySinglepla
 
 ## 8. 残留物清单
 
-- 分支 `proto/four-quadrant`（未提交）；main 干净（`25d806a`）。
+- 分支 `proto/four-quadrant`（**已提交 5 个提交**）；main 干净（`25d806a`）。
 - `fabric/run/`：`saves/QuadrantTest`（新世界）、`saves/新的世界*`（旧，超平坦）、`immersive_cinematics/scripts.quadrant-bak`、`options.txt`（pauseOnLostFocus=false）、`eula.txt`、`world/`（服务端生成的源世界）、`quadrant-captures/`、`screenshots/quadrant-main.png`。
 - 客户端如仍在运行：按窗口标题 `Minecraft*` 结束。
-- 探针分支 `perf/second-pass-probe`（2 提交，另一个任务，未合并）。
+- 探针分支 `perf/second-pass-probe`（2 提交，另一个任务）——**已按"测完即删"删除**，数字留档在 `render-second-pass-cost.md` §4.2。
