@@ -12,7 +12,7 @@
 | `conditions` | object | 否 | 各类型特有的条件，见下方 |
 | `on_enter` | boolean | 否 | 仅位置类触发器有效：设为 `true` 后只在首次进入区域时触发，已在区域内不重复；离开区域后复位，可再次进入触发（0.3.6 修复）。播放期间不更新状态机，跳过镜头不会立刻重播。默认 `false` |
 | `exit_buffer` | number | 否 | 配合 `on_enter` 使用：玩家离开触发区域多少格后才标记为"已离开"，防止区域边界抖动导致反复触发。外扩按 `corner1` 为最小角、`corner2` 为最大角计算，角落点写反会让该轴外扩变缩小（见 `plans/0.3.6/feedback-0.3.5/03-exit-buffer-corner-order.md`）。默认 `0` |
-| `requires` | array | 否 | **前置依赖（解锁条件）**：AND 语义——全部满足才允许触发。旧写法为前置脚本 id 字符串数组（如 `"requires": ["script_a"]`），等价于要求脚本 A **播放完成**（开始播放且结束播放，跳过/打断/自然播完都算）；也支持对象型：`{ "type": "script_played", "script": "A" }`、`{ "type": "script_started", "script": "A" }`、`{ "type": "script_completed", "script": "A" }` 以及其它模组注册的自定义前置类型。缺省 = 无前置（立即待命） |
+| `requires` | array | 否 | **前置依赖（解锁条件）**：全部满足才允许触发。旧写法为前置脚本 id 字符串数组（如 `"requires": ["script_a"]`），等价于要求脚本 A **播放完成**（开始播放且结束播放，跳过/打断/自然播完都算）；也支持对象型：`{ "type": "script_played", "script": "A" }`、`{ "type": "script_started", "script": "A" }`、`{ "type": "script_completed", "script": "A" }` 以及其它模组注册的自定义前置类型。缺省 = 无前置（立即待命） |
 
 所有匹配 ID 的字段均支持三种匹配模式：
 
@@ -629,9 +629,9 @@
 
 ---
 
-## 25. `all_of`
+## 25. `all_of`（组合器）
 
-**多重条件（AND）**：`conditions.list` 内每个子条件**全部满足**才触发（轮询，每 5 ticks ≈ 0.25 秒）。
+**组合器：全部满足**——`conditions.list` 内每个子条件**全部满足**才触发（轮询，每 5 ticks ≈ 0.25 秒）。`all_of` 与 `any` 同属组合器，不是世界条件类型（实现上与普通类型一样注册，便于复用求值通道）。
 
 | 条件字段 | 类型 | 必需 | 说明 |
 |---------|------|------|------|
@@ -640,7 +640,7 @@
 规则：
 
 - **每轮求值都用同一时刻的玩家状态把所有子条件重新算一遍**（无记忆、无等待、任一不满足立即短路）——不会出现“先在 A 处满足条件 1、再到 B 处满足条件 2 也判定成功”；
-- 子条件**只允许轮询类**触发器类型：`location` / `facing` / `observation` / `structure` / `biome` / `xp` / `inventory` / `gamestage` / `dimension`；事件类（`advancement` / `entity_kill` / `item_*` 等）不可用——它们带“最近发生过”语义，放进 AND 会变成“很久以前发生过也算”的误判；
+- 子条件**只允许轮询类**触发器类型：`location` / `facing` / `observation` / `structure` / `biome` / `xp` / `inventory` / `gamestage` / `dimension`；事件类（`advancement` / `entity_kill` / `item_*` 等）不可用——它们带“最近发生过”语义，放进组合会变成“很久以前发生过也算”的误判；
 - 不允许嵌套 `all_of`（最小版本只支持一层）。
 
 ```json
