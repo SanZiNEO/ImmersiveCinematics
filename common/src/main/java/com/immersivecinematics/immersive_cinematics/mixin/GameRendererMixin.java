@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
@@ -17,19 +18,30 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(GameRenderer.class)
 public abstract class GameRendererMixin {
 
+    /**
+     * 每帧开始：按帧统一决定"相机在实心方块里 → 关掉遮挡剔除"（原版旁观者语义）。
+     * 见 {@link CinematicOcclusion}——可见区块集合是共享状态，必须整帧一致，否则画面会来回闪。
+     */
+    @Inject(method = "render", at = @At("HEAD"))
+    private void onRenderFrameStart(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
+        CinematicOcclusion.beginFrame(Minecraft.getInstance());
+    }
+
     @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
     private void onGetFov(Camera camera, float partialTick, boolean useFOVSetting,
                           CallbackInfoReturnable<Double> cir) {
         CameraManager mgr = CameraManager.INSTANCE;
         if (mgr.isActive() && mgr.hasActiveCameraClip()) {
-            float fov = mgr.getProperties().getFov();
-            float zoom = mgr.getProperties().getZoom();
-            double effective = fov / zoom;
-            // 投影矩阵安全保护：FOV 超过约 170° 会导致画面翻转/畸变
-            if (effective > 170.0) effective = 170.0;
-            if (effective < 0.1) effective = 0.1;
-            cir.setReturnValue(effective);
+            cir.setReturnValue(ic$effectiveFov(mgr.getProperties().getFov(), mgr.getProperties().getZoom()));
         }
+    }
+
+    /** fov/zoom → 生效 FOV。投影矩阵安全保护：FOV 超过约 170° 会导致画面翻转/畸变。 */
+    private static double ic$effectiveFov(float fov, float zoom) {
+        double effective = fov / zoom;
+        if (effective > 170.0) effective = 170.0;
+        if (effective < 0.1) effective = 0.1;
+        return effective;
     }
 
     /**
