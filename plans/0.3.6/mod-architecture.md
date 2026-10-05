@@ -16,7 +16,6 @@ flowchart LR
         SRC --> CORE
         CORE --> DEST
     end
-    POS --> FRAMES
     subgraph FRAMES["参考系"]
         W["世界参考系<br/>游戏 x/y/z"]
         SELF["自建参考系<br/>点源 + 朝向"]
@@ -25,6 +24,8 @@ flowchart LR
         ABS["绝对位置"]
         REL["相对位置"]
     end
+    POS --> FRAMES
+    ORI --> FRAMES
     W --> WPOS
     SELF --> SELFPOS["自建位置"]
 ```
