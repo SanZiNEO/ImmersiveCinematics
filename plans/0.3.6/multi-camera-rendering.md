@@ -2,10 +2,13 @@
 
 **状态**: 📋 方案，未实现
 **目标版本**: 0.3.6
-**最后更新**: 2026-08-21
 
 > 本文讨论“同一时刻渲染多个相机画面”以及“叠化（dissolve）”功能。
 > 0.3.5 不做此功能；0.3.6 专门攻克。
+>
+> **分工**：本文只负责**渲染底层**——怎么把多个相机画面渲染成纹理（渲染管线、FBO、性能、模组兼容）。
+> - 多张画面怎么铺到屏幕（取材 / 目标区域 / 不透明度的关键帧化）→ [画面合成](./camera-composition.md)
+> - 相机从哪来（多脚本实例并行、lane 概念）→ [并行播放](./parallel-playback.md)
 
 ---
 
@@ -91,50 +94,11 @@
 
 ---
 
-## 5. 脚本 / 数据模型草案（待定）
+## 5. 脚本 / 数据模型
 
-### 5.1 多相机
-
-```json
-{
-  "type": "CAMERA",
-  "clips": [
-    { "camera_id": "cam_a", "start_time": 0, "duration": 10, "keyframes": [...] },
-    { "camera_id": "cam_b", "start_time": 0, "duration": 10, "keyframes": [...] }
-  ]
-}
-```
-
-- 同一时间多条 CAMERA 轨道/多 camera_id 同时存在
-- 由“合成布局”决定怎么显示
-
-### 5.2 合成布局
-
-```json
-{
-  "layout": {
-    "mode": "split",
-    "split": "left_right",
-    "cameras": ["cam_a", "cam_b"]
-  }
-}
-```
-
-或叠化：
-
-```json
-{
-  "layout": {
-    "mode": "dissolve",
-    "from": "cam_a",
-    "to": "cam_b",
-    "duration": 1.0,
-    "prewarm": 0.2
-  }
-}
-```
-
-> 具体数据模型 0.3.6 再定，本文只记录方向。
+> **已被取代**：相机来源（多脚本实例 × 每实例多 lane）见[并行播放](./parallel-playback.md)；
+> 上屏布局（分屏 / 叠化 / PIP 统一为“取材区域 / 目标区域 / 不透明度”的关键帧参数）见[画面合成](./camera-composition.md)。
+> 本文不再维护数据模型草案，只保留渲染底层。
 
 ---
 
@@ -144,6 +108,20 @@
 - 叠化只在过渡期开双渲染，平时单渲染
 - 分屏模式长期双渲染，必须做分辨率/性能档位
 - 可选项：副画面跳过实体渲染 / 降低视距 / 关闭粒子
+
+### 6.1 降耗设计（借鉴 Iris `ShadowRenderer` 第二视角渲染模式，自 0.4.0 G2 并入）
+
+| 机制 | 说明 |
+|------|------|
+| 独立视锥 | 副相机矩阵 → 独立 frustum setup——窄视锥天然剔除 |
+| 只渲染区块层 | 只走 chunk layer（solid / cutout / cutoutMipped / translucent），不整段 renderLevel |
+| 内容开关 | 副画面实体渲染可选（默认关）——跳实体 / 粒子 / 天空 / 天气 |
+| 低分辨率 FBO | 分辨率比例可配（默认 0.5x） |
+| 独立渲染缓冲 | 独立 RenderBuffers + 结束后恢复——不污染主渲染 |
+| 状态保存/恢复 | 剔除缓存与云纹理状态 save / restore |
+
+Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画面渲染可行。
+框架不设相机数上限（见[并行播放](./parallel-playback.md)）；以上档位是给作者控制渲染压力的手段。
 
 ---
 
@@ -156,27 +134,33 @@
 - 性能模组（Sodium）：
   - 渲染状态管理更严格，二次调用前必须确认状态保存/恢复方式
 
+### 7.1 渲染优化模组兼容策略（自 0.4.0 G2 并入）
+
+- **事实**：Sodium `@Overwrite` 原版区块渲染（`renderLayer` → `SodiumWorldRenderer.drawChunkLayer`；`setupTerrain` 要求 Frustum 实现其 `ViewportProvider` 接口）；Oculus = Iris 的 Forge 移植（同构），Forge 端对应物为 Embeddium。副画面第二遍裸调原版区块 API 在 Sodium 下**不可靠**（视锥接口不匹配 / 缺渲染上下文）；Iris 为此维护了约 610 行的管线适配。
+- **策略（推荐）**：副画面渲染走原版 API + **运行时检测 Sodium / Embeddium / Oculus** → 存在时副画面自动禁用 + warn 日志（提示关闭对应模组以使用多相机画面）；无优化模组时正常。不做 Iris 级完整适配（成本高）；需求提升后再评估升级。
+- 另见 §11：Sodium / Embeddium 的渲染中心来自 `Camera` / `Frustum`，`CameraMixin` 路线已验证，可作为适配时的另一条参考路径。
+
 ---
 
 ## 8. 实施步骤（0.3.6）
 
 1. 调研：原版 `GameRenderer.renderLevel` 可重入性、状态保存/恢复
 2. 原型：单机双 RenderTarget + 二次渲染，先不做光影兼容
-3. 合成：分屏布局
-4. 叠化：预热 + alpha 混合
-5. 数据模型：多 camera_id + layout
-6. 兼容：Iris/Oculus/Sodium 实测
-7. 性能：低分辨率副画面 + 帧耗时统计
-8. 文档：SCRIPT_FORMAT / AI_SCRIPTING_GUIDE
+3. 多 lane 渲染：N 个相机各渲染到独立 RenderTarget（上屏布局见[画面合成](./camera-composition.md)）
+4. 叠化预热：叠化前提前渲染下一 lane，保证首帧有效（预热调度见[画面合成](./camera-composition.md)）
+5. 兼容：Iris/Oculus/Sodium 实测
+6. 性能：低分辨率副画面 + 帧耗时统计
+7. 文档：SCRIPT_FORMAT / AI_SCRIPTING_GUIDE
 
 ---
 
 ## 9. 开放问题
 
-- 多相机是否走“多条 CAMERA 轨道”还是“单轨道多 camera_id”？
-- 叠化是否只支持两相机，还是 N 相机？
+- ~~多相机是否走“多条 CAMERA 轨道”还是“单轨道多 camera_id”？~~
+  **已回答**：多脚本实例 × 每实例多 lane，不设上限——见[并行播放](./parallel-playback.md)。
+- ~~叠化是否只支持两相机，还是 N 相机？~~ / ~~分屏是否要支持任意布局？~~
+  **已回答**：分屏 / 叠化 / PIP 统一为合成参数（取材区域 / 目标区域 / 不透明度）的特例，lane 数不设限——见[画面合成](./camera-composition.md)。
 - 副画面是否需要支持 look_at / tangent 朝向？
-- 分屏是否要支持任意布局（左/右/上/下/画中画小窗）？
 - 是否允许叠化期间主相机继续移动？
 - 预热时长是固定值还是脚本可配？
 
@@ -186,7 +170,7 @@
 
 - 0.3.5 不做
 - 0.3.6 作为核心功能攻克
-- 先做原型验证二次渲染，再谈数据模型和 UI
+- 先做原型验证二次渲染，再谈上屏合成与编辑器 UI
 
 ---
 

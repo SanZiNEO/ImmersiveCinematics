@@ -1,6 +1,6 @@
 # 03 exit_buffer 的方体外扩对角落点顺序敏感（写反会变成"缩小"）
 
-- **来源**：代码排查（2026-09-28，写 paoku1/paoku2 区域触发器时发现）
+- **来源**：代码排查（写 paoku1/paoku2 区域触发器时发现）
 - **状态**：待处理（脚本侧已用"最小角在前"规避）
 - **相关**：`Evaluators.expandConditions`（退出缓冲）、`Evaluators.inBox`
 
