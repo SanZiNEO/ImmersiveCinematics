@@ -18,8 +18,8 @@
 | 文档 | 说明 | 状态 | 依赖 |
 |---|---|---|---|
 | `parallel-playback.md` | 并行播放：多脚本实例 × 每实例多画面 lane，不设上限 | 🔵 方向已确认 | — |
-| `camera-composition.md` | 画面合成：取材区域 / 目标区域 / 不透明度的关键帧化；主相机 / PIP / 分屏 / 叠化都是特例 | 🔵 方向已确认 | parallel-playback；多相机渲染原型（步骤 3 起） |
-| `multi-camera-rendering.md` | 多相机渲染底层：第二遍渲染、FBO、性能档位、模组兼容 | 🟡 需渲染原型验证 | — |
+| `camera-composition.md` | 画面合成：取材区域 / 目标区域 / 不透明度的关键帧化；主相机 / PIP / 分屏 / 叠化都是特例 | 🔵 方向已确认 | parallel-playback；多相机渲染原型 ✅（已验证，见 `quadrant-prototype-results.md`） |
+| `multi-camera-rendering.md` | 多相机渲染底层：第二遍渲染、FBO、性能档位、模组兼容 | 🟢 渲染底层已验证（原型：4/16/25 画面，见 `quadrant-prototype-results.md`） | — |
 | `script-loop.md` | 脚本循环：宏观（整条时间轴）与微观（片段）两级折叠 | 🔵 方向已确认（落地顺序完整） | 相机底层七篇（轻度引用） |
 
 ## 二、编辑器

@@ -90,9 +90,12 @@
 | 副画面内容 | 通常只要世界，不要第一人称手/HUD |
 | 渲染顺序 | 第二遍在主世界渲染之后、GUI 之前，还是先渲染第二遍再合成，需要定 |
 | 光影/模组兼容 | 很多模组假设每帧只调一次 `renderLevel`，二次调用可能冲突 |
-| 剔除 / 视锥 | 旋转视图矩阵后重建视锥会触发原版 `Frustum.offsetToFullyIncludeCameraCube` 病态膨胀（jstack 实证挂死，60 帧窗口 4 分钟跑不完）——第二遍不能用主视锥重建，必须用自己的剔除方案 |
+| 剔除 / 视锥 | 曾经遇到的 `Frustum.offsetToFullyIncludeCameraCube` 病态膨胀（jstack 实证挂死）来自**视锥与相机姿态不一致**（方块永远进不去）；实测只要 `prepareCullFrustum` 用**该 lane 自己的 pose + 相机位置**，四象限全部机位 3~5 步收敛——**不需要自建剔除方案**（JOML 语义离线模拟 + 实机验证，见 `quadrant-prototype-results.md` §3.4） |
 | 剔除状态是**共享**的 | 可见集合 / 遮挡剔除（`renderChunkStorage` + BFS）在 `LevelRenderer` 上是单份共享状态；多 lane 若各自用不同 `smartCull` 会互相重建 → 画面来回闪。原型用"整帧统一决定"过渡；正式实现要**每 lane 独立维护**（见 `quadrant-prototype-results.md` §3.5） |
-| 性能 | 两次世界渲染 ≈ 成本翻倍；**正式合成不降分辨率**（低分辨率只用于编辑器预览传输） |
+| lane 自包含 | lane 的 `renderLevel` **加上所有 lane 级后处理**都必须在 lane 的 FBO 内完成：发光描边（`entityTarget` + `entity_outline` 链 + `doEntityOutline()` 整屏 1:1 贴）必须在每 lane 渲染后立刻贴进该 lane 的画面，并屏蔽原版在 `renderLevel` 之后那次整屏调用；同类：`postEffect`（见 `quadrant-prototype-results.md` §3.2） |
+| lane 期间的主画面指向 | 渲染期间把 `Minecraft.mainRenderTarget` 指向该 lane 的 FBO——原版 `renderLevel` 内部（实体段 `entityTarget.clear()` → `bindWrite(true)`）会把 **GL viewport 重置成整窗**，之后回绑的也是 `getMainRenderTarget()`（见 `quadrant-prototype-results.md` §3.1） |
+| 全局投影副作用 | `doEntityOutline() → RenderTarget.blitToScreen()` 会把**全局投影矩阵**改成正交，lane 内调用后必须还原该 lane 的投影，否则下一个 lane 里走全局矩阵的绘制（实体 / 粒子 / 方块实体）会坏（见 `quadrant-prototype-results.md` §3.3） |
+| 性能 | 两次世界渲染 ≈ 成本翻倍；**正式合成不降分辨率**（低分辨率只用于编辑器预览传输）。**原型实测（重场景：地表 + 20 多实体 + 发光描边，1.0x 同分辨率）**：单画面 ≈3.4–3.6 ms ≈ **1.2–1.4× 主画面**；1/4/16/25 画面稳态帧间隔 = 8 / 17 / 61 / 98 ms，**线性、主画面耗时不受影响**（见 `quadrant-perf/summary.md`） |
 
 ---
 
@@ -123,6 +126,7 @@
 | 内容开关 | 副画面实体渲染可选（默认关）——跳实体 / 粒子 / 天空 / 天气 |
 | 编辑器预览传输 | 帧推流用低分辨率（省带宽）；**正式合成不降分辨率** |
 | 独立渲染缓冲 | 独立 RenderBuffers + 结束后恢复——不污染主渲染 |
+| 缓冲复用 | 合成是**顺序**的（渲染一张 → 贴到屏幕 → 复用缓冲）→ **显存不随画面数增长**；只有叠化预热需要同时保留 2 张（原型实测：1 张共用缓冲跑完 25 个画面） |
 | 状态保存/恢复 | 剔除缓存与云纹理状态 save / restore |
 
 Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画面渲染可行。
@@ -186,6 +190,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 - Sodium / Rubidium / Embeddium 的渲染中心来自 `Camera` / `Frustum`。
 - 我们通过 `CameraMixin` 把虚拟相机写进 `Camera`，它们的 `Viewport` / `setupTerrain` 就会自动以虚拟相机为中心渲染。
 - 因此 0.3.6 做 PIP / 分屏 / 叠化时，可以优先考虑“复用它们的 Camera/Frustum 管线”，而不是自己再硬改 `LevelRenderer.setupRender`。
+  （补充：**原版 `LevelRenderer.setupRender` 路径本身也已实测可用**——原型按 lane 相机调 `setupRender` + `prepareCullFrustum`，4/16/25 画面全部正常，见 `quadrant-prototype-results.md`；上面这条是兼容优化模组时的备选路线。）
 
 参考源码位置：
 

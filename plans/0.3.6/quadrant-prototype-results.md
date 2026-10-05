@@ -136,7 +136,7 @@ ICINEMATICS_QUADRANT=1 sh gradlew :fabric:runClient --args='--quickPlaySinglepla
 - **渲染底层路线已验证**：每 lane 一个 RenderTarget + 缩放合成可行（`render-routes.md` §1–2）。
 - **正式实现必须带上的三条**：lane 自包含（§3.2）、lane 内全局状态还原（§3.3）、lane 期间主画面指向（§3.1）。
 - **多相机需要每 lane 独立的状态（长期方向）**：可见集合 / 遮挡剔除（`renderChunkStorage` + BFS + frustum）目前是 `LevelRenderer` 上的共享状态；原型用"整帧统一决定"过渡（§3.5），真正的多相机要按 lane 各自维护，才允许各 lane 有自己的遮挡行为。
-- **仍未覆盖**：Sodium/Embeddium/Iris 兼容（本原型纯原版管线）；`postEffect` 等其他"renderLevel 之后"的整屏步骤（同类风险）；性能（4 遍整尺寸渲染 + 4 次 blit 未测）。
+- **仍未覆盖**：Sodium/Embeddium/Iris 兼容（本原型纯原版管线）；`postEffect` 等其他"renderLevel 之后"的整屏步骤（同类风险）。性能**已测**：1/4/16/25 画面线性、单画面 ≈3.4–3.6 ms（见 `quadrant-perf/summary.md` 与 `quadrant-perf/curves.html`）。
 - **0.3.6 排查清单（"这一步属于哪个 lane？"）**：`doEntityOutline` / `postEffect` / `tryTakeScreenshotIfNeeded` / `Minecraft` 最后的 `blitToScreen`。
 
 ---
