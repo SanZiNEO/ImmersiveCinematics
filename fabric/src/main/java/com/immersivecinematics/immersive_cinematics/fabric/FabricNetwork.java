@@ -2,8 +2,10 @@ package com.immersivecinematics.immersive_cinematics.fabric;
 
 import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
 import com.immersivecinematics.immersive_cinematics.trigger.network.*;
+import net.fabricmc.api.EnvType;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -51,7 +53,8 @@ public final class FabricNetwork implements NetworkBridge {
             server.execute(() -> pkt.handle(player));
         });
 
-        // ===== S2C =====
+        // ===== S2C（仅客户端：专用服务端没有 ClientPlayNetworking）=====
+        if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
 
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.PLAY_SCRIPT), (client, handler, buf, responseSender) -> {
             S2CPlayScriptPacket pkt = new S2CPlayScriptPacket(buf);
@@ -85,6 +88,7 @@ public final class FabricNetwork implements NetworkBridge {
             S2CResolveEntitySelectorResultPacket pkt = new S2CResolveEntitySelectorResultPacket(buf);
             client.execute(pkt::handle);
         });
+        }
     }
 
     @Override
