@@ -15,7 +15,7 @@
 
 ## 已移交 0.3.6 的条目
 
-- **PAUSE_POINT 轨道** → `plans/0.3.6/pause-point-track.md`
+- **WAIT_POINT 等待点轨道** → `plans/0.3.6/wait-point-track.md`
 - **相机实例队列（G1）** → `plans/0.3.6/parallel-playback.md`（取代）
 - **画中画（G2）** → `plans/0.3.6/camera-composition.md` + `multi-camera-rendering.md`（取代）
 - **Bezier 曲线编辑器**（控制点可视化） → 收录为 `plans/0.3.6/README.md` 看板待定小项

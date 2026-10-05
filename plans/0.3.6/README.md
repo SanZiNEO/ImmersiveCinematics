@@ -43,7 +43,7 @@
 | `hud-hard-hide.md` | HUD 强硬隐藏：Pre 拦截 + 白名单重画 | 🔵 方向已确认（改动面已有） | — |
 | `overlay-color-mask.md` | Overlay 颜色遮罩增强（渐变 / 混合 / 局部）；调色滤镜已移交 screen-color-adjust | 🟡 范围未收敛 | — |
 | `screen-color-adjust.md` | 画面颜色调整：RGBA 通道拆分 + 完整 HSL，PS 式「各自持有 + 总体叠加」 | 🔵 方向已确认 | camera-composition（lane 级调整，步骤 4 起） |
-| `pause-point-track.md` | 暂停点轨道：暂停 → 等事件 → 决定动作 | 🟡 框架讨论 | — |
+| `wait-point-track.md` | 等待点轨道：暂停 → 等事件回报 → 决定后续（继续 / 结束 / 接播 / 分支） | 🟡 框架讨论 | — |
 
 ## 五、相机底层架构（长期，互相咬合）
 
