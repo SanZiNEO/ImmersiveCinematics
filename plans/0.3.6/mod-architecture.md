@@ -1,16 +1,20 @@
 ```mermaid
 flowchart LR
-    subgraph CAM["相机核心"]
+    subgraph CAM["相机"]
         SRC["输入源"]
-        subgraph CORE["相机属性（核心）"]
-            POS["位置"]
-            subgraph ORI["朝向"]
-                Y["yaw"]
-                PI["pitch"]
+        subgraph CORE["相机核心"]
+            subgraph MAIN["主要核心"]
+                POS["位置"]
+                subgraph ORI["朝向"]
+                    Y["yaw"]
+                    PI["pitch"]
+                end
             end
-            FOV["fov"]
-            R["roll"]
-            Z["zoom（缩放）"]
+            subgraph SECOND["次要核心"]
+                FOV["fov"]
+                R["roll"]
+                Z["zoom（缩放）"]
+            end
         end
         DEST["输出"]
         SRC --> CORE
@@ -26,7 +30,7 @@ flowchart LR
             WO["朝向<br/>yaw / pitch"]
         end
     end
-    subgraph DYN["动态系统"]
+    subgraph TRACK["追踪"]
         LOOK["看向（look_at）"]
         FOLLOW["跟随（follow）"]
     end
@@ -35,7 +39,7 @@ flowchart LR
         REL["相对位置"]
     end
     subgraph COORDSRC["坐标源"]
-        ENT["实体（含玩家）"]
+        ENT["实体（含玩家）<br/>（可通过 AABB 百分比偏移：脚 / 头 / 其他部位）"]
         COORD["坐标"]
         STRUCT["结构"]
         BLOCK["方块"]
@@ -51,6 +55,8 @@ flowchart LR
     ORI --> SO
     ORI --> LOOK
     POS --> FOLLOW
+    COORDSRC --> LOOK
+    ENT --> FOLLOW
     WP --> WPOS
     SP --> SELFPOS["自建位置"]
     COORDSRC --> SP
