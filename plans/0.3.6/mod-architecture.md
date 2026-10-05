@@ -16,26 +16,44 @@ flowchart LR
         SRC --> CORE
         CORE --> DEST
     end
-    subgraph FP["参考系（位置）"]
-        W["世界参考系<br/>游戏 x/y/z"]
-        SELF["自建参考系<br/>点源 + 朝向"]
+    subgraph FRAMES["参考系"]
+        subgraph SELFF["自建参考系"]
+            SP["位置<br/>基准点 + 三轴偏移"]
+            SO["朝向<br/>相对朝向"]
+        end
+        subgraph WORLDF["世界参考系"]
+            WP["位置<br/>游戏 x/y/z"]
+            WO["朝向<br/>yaw / pitch"]
+        end
     end
-    subgraph FO["参考系（朝向）"]
-        SELF2["自建参考系<br/>点源 + 朝向"]
+    subgraph DYN["动态系统"]
+        LOOK["看向（look_at）"]
+        FOLLOW["跟随（follow）"]
     end
     subgraph WPOS["位置（世界系）"]
         ABS["绝对位置"]
         REL["相对位置"]
     end
     subgraph COORDSRC["坐标源"]
-        ENT["实体"]
+        ENT["实体（含玩家）"]
         COORD["坐标"]
         STRUCT["结构"]
         BLOCK["方块"]
     end
-    POS --> FP
-    ORI --> FO
-    W --> WPOS
-    SELF --> SELFPOS["自建位置"]
-    REL --> COORDSRC
+    subgraph DIRSRC["方向源"]
+        AXIS["世界轴"]
+        VIEW["实体视线"]
+        LINE["连线（A→B）"]
+    end
+    POS --> WP
+    POS --> SP
+    ORI --> WO
+    ORI --> SO
+    ORI --> LOOK
+    POS --> FOLLOW
+    WP --> WPOS
+    SP --> SELFPOS["自建位置"]
+    COORDSRC --> SP
+    DIRSRC --> SO
+    COORDSRC --> REL
 ```
