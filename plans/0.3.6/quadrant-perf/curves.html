@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuadrantProto 压力测试 · 对比曲线</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --line:#e3e6ea; --text:#1f2430; --muted:#6b7280;
+    --m1:#2563eb; --m4:#d97706; --m16:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:24px 20px 60px; background:var(--bg); color:var(--text);
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+    font-size:14px; line-height:1.6;
+  }
+  .page{max-width:1040px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 6px}
+  h2{font-size:16px;margin:0 0 12px;font-weight:600}
+  .lead{color:var(--muted);margin:0 0 14px}
+  .notes{background:#eef2ff;border:1px solid #dbe2ff;border-radius:10px;padding:12px 16px;margin-bottom:20px}
+  .notes ul{margin:6px 0 0;padding-left:20px}
+  .notes li{margin:2px 0}
+  .toolbar{margin:0 0 18px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;
+    background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 16px}
+  .toolbar label{display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--muted)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:20px}
+  .chart-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .chart-title{font-weight:600;font-size:15px}
+  .chart-hint{color:var(--muted);font-size:12px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0 4px;font-size:13px;color:#374151}
+  .lg{display:inline-flex;align-items:center;gap:6px}
+  .lg i{width:14px;height:3px;border-radius:2px;display:inline-block}
+  .canvas{position:relative;width:100%}
+  .canvas svg{display:block;width:100%;height:auto}
+  .grid{stroke:#eceff3;stroke-width:1}
+  .axis{stroke:#9aa3af;stroke-width:1.2}
+  .tick{fill:#6b7280;font-size:11px}
+  .axis-label{fill:#6b7280;font-size:11px}
+  .ln{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+  .guide{stroke:#9aa3af;stroke-width:1;stroke-dasharray:3 3}
+  .ov{cursor:crosshair}
+  .tip{position:absolute;top:8px;display:none;background:#111827;color:#f9fafb;border-radius:8px;
+    padding:8px 10px;font-size:12px;pointer-events:none;white-space:nowrap;z-index:5;
+    box-shadow:0 6px 18px rgba(0,0,0,.25)}
+  .tip .tt{font-weight:600;margin-bottom:4px}
+  .tip .tr{display:flex;align-items:center;gap:6px;line-height:1.7}
+  .tip .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .tip .tn{color:#cbd5e1;min-width:52px}
+  .tip .tv{margin-left:auto;font-variant-numeric:tabular-nums}
+  .meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+  .meta-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fbfcfd}
+  .meta-card h3{margin:0 0 8px;font-size:14px;display:flex;align-items:center;gap:8px}
+  .swatch{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:13px}
+  .kv dt{color:var(--muted)}
+  .kv dd{margin:0;font-variant-numeric:tabular-nums}
+  table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+  th,td{border:1px solid var(--line);padding:6px 10px;text-align:right}
+  th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+  thead th{background:#f1f3f6;font-weight:600}
+  tbody tr:nth-child(even){background:#fafbfc}
+  .empty{color:var(--muted);font-style:normal;text-align:left}
+  .foot{color:var(--muted);font-size:12px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>QuadrantProto 压力测试 · 对比曲线</h1>
+  <p class="lead">三份原始 CSV（逐秒序列 + 每画面汇总）的内联可视化，离线单文件，无外部依赖。</p>
+
+  <div class="notes">
+    <strong>实验条件</strong>
+    <ul>
+      <li><b>mode 1 = 原版基线</b>（views=0，不做任何象限渲染）；<b>mode 4 = 2×2 四画面</b>（views=4）；<b>mode 16 = 4×4 十六画面</b>（views=16）。</li>
+      <li>每次运行 <b>30 秒</b>，<b>同位置</b>（同一场景 / 相机位姿），仅渲染模式不同。</li>
+      <li>图 A / 图 B / 图 C 均为「越小越好」；纵轴自 0 起，横轴为秒。鼠标悬停曲线可读取该秒数值。</li>
+      <li>开头 1–4 秒为加载/预热段（mode 16 直到第 4 秒仍在爬坡），默认隐藏以免压缩正常区间的纵轴；可在下方开关中改为显示全部或只隐藏 2 秒。</li>
+    </ul>
+  </div>
+
+  <div class="toolbar">
+    <label>预热段处理：
+      <select id="warmup">
+        <option value="0">显示全部</option>
+        <option value="2">隐藏前 2 秒</option>
+        <option value="4" selected>隐藏前 4 秒（默认）</option>
+      </select>
+    </label>
+    <span class="chart-hint" id="rangeInfo"></span>
+  </div>
+
+  <div id="charts"></div>
+
+  <div class="card">
+    <h2>元信息（各 CSV 注释行）</h2>
+    <div class="meta-grid" id="meta"></div>
+  </div>
+
+  <div class="card">
+    <h2>每画面汇总（CSV 表二：view, yaw, avg_us, min_us, max_us）</h2>
+    <div id="tables"></div>
+    <p class="foot">min/max 为整段运行内的单帧极值；mode 1 无象限画面，故无该表数据。</p>
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ * 原始数据（直接内联，避免 file:// 下的 fetch 跨域问题）
+ * ------------------------------------------------------------------ */
+const RAW = {
+m1: `# QuadrantProto 压力测试原始数据
+# mode=1 views=0 grid=2x2 run_ms=30000 frames=3262
+second,frames,avg_interval_ms,avg_main_ms,avg_frame_total_us
+1,9,128,97,0
+2,78,12,8,0
+3,118,8,2,0
+4,110,9,3,0
+5,81,12,10,0
+6,97,10,8,0
+7,108,9,5,0
+8,117,8,4,0
+9,116,8,3,0
+10,119,8,2,0
+11,113,8,2,0
+12,113,8,2,0
+13,116,8,2,0
+14,115,8,2,0
+15,118,8,2,0
+16,116,8,2,0
+17,118,8,2,0
+18,119,8,2,0
+19,119,8,2,0
+20,118,8,2,0
+21,116,8,2,0
+22,118,8,2,0
+23,117,8,2,0
+24,118,8,2,0
+25,117,8,2,0
+26,118,8,2,0
+27,118,8,2,0
+28,117,8,2,0
+29,116,8,2,0
+
+view,yaw,avg_us,min_us,max_us`,
+m4: `# QuadrantProto 压力测试原始数据
+# mode=4 views=4 grid=2x2 run_ms=30000 frames=1543
+second,frames,avg_interval_ms,avg_main_ms,avg_frame_total_us
+1,3,509,92,341287
+2,5,205,40,154728
+3,29,34,5,26984
+4,46,21,3,16506
+5,53,19,3,14554
+6,57,17,2,13273
+7,57,17,2,13363
+8,58,17,2,13190
+9,58,17,2,13567
+10,55,18,2,14050
+11,57,17,2,13921
+12,54,18,2,14399
+13,58,17,2,13340
+14,59,17,2,13315
+15,60,16,2,13044
+16,60,16,2,12823
+17,60,16,2,12983
+18,60,16,2,12833
+19,60,16,2,13005
+20,60,16,2,13052
+21,57,17,2,13452
+22,55,18,2,14050
+23,58,17,2,13781
+24,58,17,2,13605
+25,59,17,2,13435
+26,60,16,2,13008
+27,60,16,2,12851
+28,56,18,2,13322
+29,58,17,2,12910
+
+view,yaw,avg_us,min_us,max_us
+0,90.0,3945,2800,258541
+1,-90.0,3535,2378,144298
+2,180.0,3441,2326,134781
+3,0.0,3931,2826,176405`,
+m16: `# QuadrantProto 压力测试原始数据
+# mode=16 views=16 grid=4x4 run_ms=30000 frames=425
+second,frames,avg_interval_ms,avg_main_ms,avg_frame_total_us
+1,2,884,48,785039
+2,1,1031,52,952630
+3,5,217,10,197207
+4,6,174,23,143636
+5,15,68,3,61177
+6,18,58,3,52262
+7,18,57,3,50897
+8,18,56,3,50495
+9,18,56,3,50143
+10,18,57,3,51646
+11,17,59,2,54302
+12,17,60,2,55000
+13,16,65,3,59427
+14,13,78,3,71111
+15,14,71,3,64227
+16,16,64,3,58177
+17,17,61,3,55231
+18,17,60,3,54789
+19,16,62,3,56777
+20,18,59,3,53030
+21,18,56,3,51003
+22,17,60,2,55000
+23,16,65,3,58942
+24,16,66,3,58865
+25,18,58,2,53015
+26,18,57,2,52772
+27,18,56,2,51921
+28,19,54,2,49502
+
+view,yaw,avg_us,min_us,max_us
+0,-180.0,3799,2511,38409
+1,-157.5,3833,2177,39167
+2,-135.0,3655,2131,79476
+3,-112.5,4674,1944,344686
+4,-90.0,3967,2327,130650
+5,-67.5,3540,1961,55959
+6,-45.0,3675,1735,68134
+7,-22.5,3959,2107,52331
+8,0.0,4003,2339,50556
+9,22.5,4333,2369,109189
+10,45.0,4256,2464,113542
+11,67.5,4239,2558,45110
+12,90.0,4396,2553,192680
+13,112.5,4150,3039,31939
+14,135.0,3583,2073,32854
+15,157.5,3464,2089,38844`
+};
+
+const MODES = [
+  { key:'m1',  short:'mode 1',  label:'mode 1 · 原版基线（views=0）',      color:'#2563eb' },
+  { key:'m4',  short:'mode 4',  label:'mode 4 · 2×2 四画面（views=4）',    color:'#d97706' },
+  { key:'m16', short:'mode 16', label:'mode 16 · 4×4 十六画面（views=16）', color:'#dc2626' }
+];
+
+const CHART_DEFS = [
+  { id:'interval', title:'图 A · 帧间隔 avg_interval_ms', unit:'ms', hint:'越小越好（= 1000 / 平均帧率）' },
+  { id:'main',     title:'图 B · 主画面耗时 avg_main_ms',  unit:'ms', hint:'越小越好（主视图渲染耗时）' },
+  { id:'total',    title:'图 C · 每帧所有画面总耗时 avg_frame_total_us', unit:'us', hint:'越小越好（该帧全部象限画面合计）' }
+];
+
+/* ------------------------------------------------------------------ *
+ * 解析
+ * ------------------------------------------------------------------ */
+function parseData(text){
+  const lines = text.split(/\r?\n/);
+  const meta = {};
+  let i = 0;
+  for (; i < lines.length; i++){
+    const t = lines[i].trim();
+    if (t.startsWith('#')){
+      t.replace(/^#+\s*/, '').split(/\s+/).forEach(tok => {
+        const m = tok.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.+)$/);
+        if (m) meta[m[1]] = m[2];
+      });
+    } else if (t.startsWith('second,')){
+      i++; break;
+    }
+  }
+  const sec = [];
+  for (; i < lines.length; i++){
+    const t = lines[i].trim();
+    if (t === ''){ i++; break; }
+    const p = t.split(',');
+    sec.push({ second:+p[0], frames:+p[1], interval:+p[2], main:+p[3], total:+p[4] });
+  }
+  const views = [];
+  for (; i < lines.length; i++){
+    const t = lines[i].trim();
+    if (t === '' || t.startsWith('view,')) continue;
+    const p = t.split(',');
+    views.push({ view:+p[0], yaw:+p[1], avg:+p[2], min:+p[3], max:+p[4] });
+  }
+  return { meta, sec, views };
+}
+
+const DATA = { m1: parseData(RAW.m1), m4: parseData(RAW.m4), m16: parseData(RAW.m16) };
+
+/* ------------------------------------------------------------------ *
+ * 绘图工具
+ * ------------------------------------------------------------------ */
+const GEO = { W:960, H:352, l:84, r:26, t:28, b:46 };
+
+function niceStep(raw){
+  if (!(raw > 0)) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / p;
+  let s;
+  if (n <= 1) s = 1; else if (n <= 2) s = 2; else if (n <= 2.5) s = 2.5;
+  else if (n <= 5) s = 5; else s = 10;
+  return s * p;
+}
+
+function fmtNum(v){
+  if (!isFinite(v)) return '-';
+  if (Math.abs(v) >= 10000) return v.toLocaleString('en-US');
+  const r = Math.round(v * 100) / 100;
+  return String(r);
+}
+
+function drawChart(wrap, def, series){
+  const { W, H, l, r, t, b } = GEO;
+  const PW = W - l - r, PH = H - t - b;
+
+  const xs = [], ys = [];
+  series.forEach(s => s.data.forEach(d => { xs.push(d.second); ys.push(d.value); }));
+  const x0 = xs.length ? Math.min.apply(null, xs) : 0;
+  const x1 = xs.length ? Math.max.apply(null, xs) : 1;
+  const yRaw = Math.max.apply(null, ys.concat([1]));
+  const step = niceStep(yRaw / 6);
+  const yTop = Math.max(step, Math.ceil(yRaw / step) * step);
+
+  const X = v => l + (v - x0) / (x1 - x0) * PW;
+  const Y = v => t + (1 - v / yTop) * PH;
+
+  const parts = [];
+
+  // 横向网格 + y 轴刻度
+  const nY = Math.round(yTop / step);
+  for (let i = 0; i <= nY; i++){
+    const v = i * step;
+    const y = Y(v);
+    parts.push('<line class="grid" x1="' + l + '" y1="' + y.toFixed(1) + '" x2="' + (l + PW) + '" y2="' + y.toFixed(1) + '"/>');
+    parts.push('<text class="tick" x="' + (l - 10) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end">' + fmtNum(v) + '</text>');
+  }
+
+  // 纵向网格 + x 轴刻度
+  const xStep = (x1 - x0) > 40 ? 5 : ((x1 - x0) > 20 ? 2 : 1);
+  for (let s = x0; s <= x1; s += xStep){
+    const x = X(s);
+    parts.push('<line class="grid" x1="' + x.toFixed(1) + '" y1="' + t + '" x2="' + x.toFixed(1) + '" y2="' + (t + PH) + '"/>');
+    parts.push('<text class="tick" x="' + x.toFixed(1) + '" y="' + (t + PH + 20) + '" text-anchor="middle">' + s + '</text>');
+  }
+
+  // 坐标轴
+  parts.push('<line class="axis" x1="' + l + '" y1="' + (t + PH) + '" x2="' + (l + PW) + '" y2="' + (t + PH) + '"/>');
+  parts.push('<line class="axis" x1="' + l + '" y1="' + t + '" x2="' + l + '" y2="' + (t + PH) + '"/>');
+  parts.push('<text class="axis-label" x="' + (l + PW) + '" y="' + (t + PH + 38) + '" text-anchor="end">时间（秒）</text>');
+  parts.push('<text class="axis-label" x="' + (l - 10) + '" y="' + (t - 5) + '" text-anchor="end">' + def.unit + '</text>');
+
+  // 折线
+  series.forEach(s => {
+    if (!s.data.length) return;
+    const pts = s.data.map(d => X(d.second).toFixed(1) + ',' + Y(d.value).toFixed(1)).join(' ');
+    parts.push('<polyline class="ln" points="' + pts + '" stroke="' + s.color + '"/>');
+  });
+
+  // 悬停标记点 + 参考线 + 捕获层
+  series.forEach(s => {
+    parts.push('<circle class="mk" r="4.5" fill="' + s.color + '" stroke="#fff" stroke-width="1.5" style="display:none"/>');
+  });
+  parts.push('<line class="guide" x1="0" y1="' + t + '" x2="0" y2="' + (t + PH) + '" style="display:none"/>');
+  parts.push('<rect class="ov" x="' + l + '" y="' + t + '" width="' + PW + '" height="' + PH + '" fill="transparent"/>');
+
+  const svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img">' + parts.join('') + '</svg>';
+
+  const legend = '<div class="legend">' + series.map(s =>
+    '<span class="lg"><i style="background:' + s.color + '"></i>' + s.label + '</span>').join('') + '</div>';
+
+  wrap.innerHTML =
+    '<div class="chart-head"><span class="chart-title">' + def.title + '</span>' +
+    '<span class="chart-hint">' + def.hint + '</span></div>' +
+    legend +
+    '<div class="canvas">' + svg + '<div class="tip"></div></div>';
+
+  // ---- 交互 ----
+  const svgEl = wrap.querySelector('svg');
+  const tip = wrap.querySelector('.tip');
+  const guide = wrap.querySelector('.guide');
+  const mks = Array.prototype.slice.call(wrap.querySelectorAll('.mk'));
+  const secs = Array.from(new Set(series.flatMap(s => s.data.map(d => d.second)))).sort((a, b) => a - b);
+
+  svgEl.addEventListener('mousemove', function(ev){
+    const rect = svgEl.getBoundingClientRect();
+    if (!rect.width) return;
+    const scale = W / rect.width;
+    const mx = (ev.clientX - rect.left) * scale;
+    const secF = x0 + (mx - l) / PW * (x1 - x0);
+
+    let best = secs[0];
+    for (const s of secs) if (Math.abs(s - secF) < Math.abs(best - secF)) best = s;
+    const px = X(best);
+
+    guide.style.display = '';
+    guide.setAttribute('x1', px.toFixed(1));
+    guide.setAttribute('x2', px.toFixed(1));
+
+    let rows = '';
+    series.forEach((s, si) => {
+      const d = s.data.find(p => p.second === best);
+      const mk = mks[si];
+      if (d){
+        mk.style.display = '';
+        mk.setAttribute('cx', px.toFixed(1));
+        mk.setAttribute('cy', Y(d.value).toFixed(1));
+        rows += '<div class="tr"><span class="dot" style="background:' + s.color + '"></span>' +
+                '<span class="tn">' + s.short + '</span><span class="tv">' + fmtNum(d.value) + ' ' + def.unit + '</span></div>';
+      } else {
+        mk.style.display = 'none';
+      }
+    });
+
+    tip.innerHTML = '<div class="tt">第 ' + best + ' 秒</div>' + rows;
+    tip.style.display = 'block';
+    const pxCss = px / scale;
+    tip.style.left = pxCss + 'px';
+    tip.style.transform = pxCss > rect.width * 0.55 ? 'translateX(calc(-100% - 14px))' : 'translateX(14px)';
+  });
+
+  svgEl.addEventListener('mouseleave', function(){
+    tip.style.display = 'none';
+    guide.style.display = 'none';
+    mks.forEach(m => { m.style.display = 'none'; });
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * 渲染
+ * ------------------------------------------------------------------ */
+function renderCharts(){
+  const host = document.getElementById('charts');
+  const skip = +document.getElementById('warmup').value;
+  host.innerHTML = '';
+
+  CHART_DEFS.forEach(def => {
+    const wrap = document.createElement('div');
+    wrap.className = 'card';
+    host.appendChild(wrap);
+
+    const series = MODES.map(m => ({
+      short: m.short,
+      label: m.label,
+      color: m.color,
+      data: DATA[m.key].sec
+        .filter(row => row.second > skip)
+        .map(row => ({ second: row.second, value: row[def.id] }))
+    }));
+
+    drawChart(wrap, def, series);
+  });
+
+  const info = document.getElementById('rangeInfo');
+  const first = Math.min.apply(null, MODES.map(m => DATA[m.key].sec[0].second));
+  const last  = Math.max.apply(null, MODES.map(m => DATA[m.key].sec[DATA[m.key].sec.length - 1].second));
+  info.textContent = '数据范围：第 ' + first + ' – ' + last + ' 秒' +
+    (skip ? '（当前隐藏第 1–' + skip + ' 秒）' : '（含全部预热段）');
+}
+
+function renderMeta(){
+  const host = document.getElementById('meta');
+  host.innerHTML = MODES.map(m => {
+    const d = DATA[m.key], meta = d.meta;
+    const frames = +meta.frames, runMs = +meta.run_ms;
+    const fps = (frames && runMs) ? (frames / (runMs / 1000)) : NaN;
+    const totalFrames = d.sec.reduce((a, r) => a + r.frames, 0);
+    return '<div class="meta-card">' +
+      '<h3><span class="swatch" style="background:' + m.color + '"></span>' + m.label + '</h3>' +
+      '<dl class="kv">' +
+        '<dt>mode</dt><dd>' + (meta.mode || '-') + '</dd>' +
+        '<dt>views</dt><dd>' + (meta.views || '-') + '</dd>' +
+        '<dt>grid</dt><dd>' + (meta.grid || '-') + '</dd>' +
+        '<dt>run_ms</dt><dd>' + (meta.run_ms || '-') + '</dd>' +
+        '<dt>frames</dt><dd>' + (meta.frames || '-') + '</dd>' +
+        '<dt>平均帧率</dt><dd>' + (isFinite(fps) ? fps.toFixed(2) + ' fps' : '-') + '</dd>' +
+        '<dt>逐秒 frames 合计</dt><dd>' + totalFrames + '</dd>' +
+        '<dt>逐秒行数</dt><dd>' + d.sec.length + '</dd>' +
+        '<dt>画面数（表二）</dt><dd>' + d.views.length + '</dd>' +
+      '</dl></div>';
+  }).join('');
+}
+
+function renderTables(){
+  const host = document.getElementById('tables');
+  host.innerHTML = MODES.map(m => {
+    const d = DATA[m.key];
+    let body;
+    if (!d.views.length){
+      body = '<tbody><tr><td class="empty" colspan="5">该模式无画面级汇总数据（mode 1 不渲染象限画面）。</td></tr></tbody>';
+    } else {
+      body = '<tbody>' + d.views.map(v =>
+        '<tr><td>' + v.view + '</td><td>' + v.yaw.toFixed(1) + '</td><td>' + v.avg +
+        '</td><td>' + v.min + '</td><td>' + v.max + '</td></tr>').join('') + '</tbody>';
+    }
+    return '<div class="meta-card" style="margin-bottom:16px">' +
+      '<h3><span class="swatch" style="background:' + m.color + '"></span>' + m.label + '</h3>' +
+      '<table><thead><tr><th>view</th><th>yaw</th><th>avg_us</th><th>min_us</th><th>max_us</th></tr></thead>' +
+      body + '</table></div>';
+  }).join('');
+}
+
+document.getElementById('warmup').addEventListener('change', renderCharts);
+
+renderCharts();
+renderMeta();
+renderTables();
+</script>
+</body>
+</html>

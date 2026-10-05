@@ -19,6 +19,7 @@ import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.gen.Invoker;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -28,30 +29,26 @@ import java.io.File;
 import java.io.IOException;
 
 /**
- * 四象限同屏原型（一次性，测完即删；默认关，关闭时零差异）。
+ * 多画面压力测试原型（一次性，测完即删；默认关，关闭时零差异）。
  *
- * <p>挂在 {@code GameRenderer.renderLevel} 的 RETURN：原版单画面渲染完之后，对四个象限各做一遍
- * ——<b>整尺寸渲染到该象限自己的离屏缓冲，再按 50% 缩放贴进屏幕象限</b>：</p>
+ * <p>挂在 {@code GameRenderer.renderLevel}：</p>
+ * <ul>
+ *   <li>HEAD：记本帧开始时间（用于"主画面耗时"与帧间隔）；</li>
+ *   <li>RETURN：主画面渲染完之后，对每个画面各做一遍——<b>整尺寸渲染到共用离屏缓冲，再缩放贴进网格单元</b>：
+ *     <pre>
+ *     mainRenderTarget 临时指向离屏缓冲 → bindWrite(true)（视口 = 缓冲全尺寸）
+ *       → camera.setup(...)（走 CameraMixin 原型分支）
+ *       → 视图 PoseStack（XP=xRot、YP=yRot+180）→ roll → setInverseViewRotationMatrix
+ *       → getFov（GameRendererMixin 原型分支）→ 投影
+ *       → prepareCullFrustum → renderLevel → doEntityOutline（lane 内描边）→ 还原投影
+ *       → 恢复 mainRenderTarget → glBlitFramebuffer 缩放到网格单元
+ *     </pre>
+ *   </li>
+ * </ul>
  *
- * <pre>
- * 1) 渲染（整尺寸，与正常一帧同一套流程）：
- *    mainRenderTarget 临时指向该象限 FBO → fbo.bindWrite(true)（视口 = FBO 全尺寸）
- *    → camera.setup(...)（走 CameraMixin 原型分支：模组相机状态接管）
- *    → 视图 PoseStack（XP=xRot、YP=yRot+180，复刻 GameRenderer.renderLevel）
- *    → roll（复刻 GameRendererMixin，本原型恒为 0）→ setInverseViewRotationMatrix
- *    → getFov（走 GameRendererMixin 原型分支）→ 投影矩阵
- *    → LevelRenderer.prepareCullFrustum → LevelRenderer.renderLevel
- *    → 恢复 mainRenderTarget
- * 2) 上屏：glBlitFramebuffer 把 FBO 线性缩放贴到象限矩形（右上 +x / 左上 −x / 左下 +z / 右下 −z）
- * </pre>
- *
- * <p>之所以整尺寸渲染再缩放（而不是直接把 viewport 设成象限）：原版 {@code renderLevel} 内部
- * （实体段 entityTarget.clear()、粒子/云/天气 target 切换）会把 GL viewport 重置成整窗尺寸——
- * 直接设象限 viewport 会被它冲掉，导致实体层按整屏尺寸绘制。渲染进 FBO 后这些重置只会落在
- * FBO 自己的尺寸上，各层天然一致。</p>
- *
- * <p>四遍画完后按 {@link QuadrantProto#shouldCapture()} 出图：游戏主图一张 + 每象限裁一张
- * （写 {@code <gameDir>/quadrant-captures/}）。</p>
+ * <p>模式（{@code -Dicinematics.quadrant} / {@code ICINEMATICS_QUADRANT}）：{@code 1}=只采样（原版画面基线）、
+ * {@code 4}=2×2 四画面、{@code 16}=4×4 十六画面；不设=关闭。每次测试跑 30 秒后打印统计并出图，
+ * 原始数据表写到 {@code <gameDir>/quadrant-perf/}。</p>
  */
 @Mixin(GameRenderer.class)
 public abstract class QuadrantProtoMixin {
@@ -67,11 +64,23 @@ public abstract class QuadrantProtoMixin {
     @Shadow
     private boolean renderHand;
 
+    @Unique
+    private long ic$mainPassStartNs;
+
     @Invoker("getProjectionMatrix")
     abstract Matrix4f ic$getProjectionMatrix(double d);
 
     @Invoker("getFov")
     abstract double ic$getFov(Camera camera, float partialTick, boolean useFOVSetting);
+
+    @Inject(method = "renderLevel", at = @At("HEAD"))
+    private void ic$quadrantFrameStart(float partialTick, long nanoTime, PoseStack poseStack, CallbackInfo ci) {
+        if (!QuadrantProto.isEnabled()) {
+            return;
+        }
+        this.ic$mainPassStartNs = System.nanoTime();
+        QuadrantProto.onFrameStart();
+    }
 
     @Inject(method = "renderLevel", at = @At("RETURN"))
     private void ic$quadrant(float partialTick, long nanoTime, PoseStack poseStack, CallbackInfo ci) {
@@ -83,28 +92,29 @@ public abstract class QuadrantProtoMixin {
             return;
         }
 
-        // 原型期间：不画手、不画 HUD（出图要干净的四象限）
+        // 原型期间：不画手、不画 HUD（出图要干净）
         this.renderHand = false;
         mc.options.hideGui = true;
 
-        // 每帧刷新四个相机的模组相机状态（位置 + yaw/pitch/roll/fov/zoom）
+        QuadrantProto.onMainPass(System.nanoTime() - this.ic$mainPassStartNs);
         QuadrantProto.update(mc.player, partialTick);
-
-        // 临时测试准备：创造模式 + 玩家周围召唤各种实体（一次性，随原型一起删）
-        QuadrantProto.setupTestEntities(mc);
 
         RenderTarget main = mc.getMainRenderTarget();
         int w = main.width;
         int h = main.height;
-        int halfW = w / 2;
-        int halfH = h / 2;
+        int views = QuadrantProto.views();
+        int grid = QuadrantProto.grid();
+        int cellW = views > 0 ? w / grid : w;
+        int cellH = views > 0 ? h / grid : h;
 
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < views; ++i) {
             QuadrantProto.ProtoCamera proto = QuadrantProto.camera(i);
             Camera camera = proto.camera();
-            RenderTarget fbo = QuadrantProto.target(i, w, h);
+            RenderTarget fbo = QuadrantProto.target(w, h);
 
-            // 渲染期间让所有 getMainRenderTarget() 引用都指向本象限的离屏缓冲
+            long laneStartNs = System.nanoTime();
+
+            // 渲染期间让所有 getMainRenderTarget() 引用都指向离屏缓冲
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(fbo);
             // 整个 lane 期间置位：① setupRender 的"相机在实心方块里"判定要用；② 描边上屏分流要用
             QuadrantProto.setLaneRendering(true);
@@ -117,7 +127,7 @@ public abstract class QuadrantProtoMixin {
                         mc.options.getCameraType().isMirrored(),
                         partialTick);
 
-                // 视图矩阵：复刻 GameRenderer.renderLevel（poseStack.mulPose(XP, xRot) + mulPose(YP, yRot + 180)）
+                // 视图矩阵：复刻 GameRenderer.renderLevel
                 PoseStack ps = new PoseStack();
                 ps.mulPose(Axis.XP.rotationDegrees(camera.getXRot()));
                 ps.mulPose(Axis.YP.rotationDegrees(camera.getYRot() + 180.0F));
@@ -137,51 +147,52 @@ public abstract class QuadrantProtoMixin {
                 mc.levelRenderer.renderLevel(ps, partialTick, nanoTime, false, camera, mc.gameRenderer,
                         this.lightTexture, projection);
 
-                // 描边（发光/Glowing）：renderLevel 里的后处理链已把描边合成进共享 entityTarget；
-                // 此刻 FBO 还绑着 → 立刻把它贴进"本象限这张画面"（原版是等渲染完再整屏 1:1 贴，那样就跑到象限外面了）。
+                // 描边（发光）：renderLevel 里的后处理链已把描边合成进共享 entityTarget；
+                // 此刻 FBO 还绑着 → 立刻贴进"本画面"（原版是等渲染完再整屏 1:1 贴，那样会跑到画面外面）。
                 mc.levelRenderer.doEntityOutline();
-                // doEntityOutline → blitToScreen 会把全局投影改成正交矩阵，必须还原：
-                // 否则下一个象限里走全局矩阵的绘制（实体/粒子/方块实体）会坏。
+                // doEntityOutline → blitToScreen 会把全局投影改成正交矩阵，必须还原
                 RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
             } finally {
                 QuadrantProto.setLaneRendering(false);
                 ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
             }
 
-            // 上屏：把整尺寸画面按 50% 缩放贴进象限
-            // 象限布局（用户口径）：右上 = 第一象限(+x)，左上 = 第二象限(−x)，左下 = 第三象限(+z)，右下 = 第四象限(−z)
-            int vx = (i % 2 == 0) ? halfW : 0;
-            int vy = (i < 2) ? halfH : 0;
-            int dstW = (i % 2 == 0) ? (w - halfW) : halfW;
-            int dstH = (i < 2) ? (h - halfH) : halfH;
+            // 上屏：把整尺寸画面缩放贴进网格单元（第 0 行在顶部；GL 原点在左下）
+            int col = i % grid;
+            int row = i / grid;
+            int vx = col * cellW;
+            int vy = (grid - 1 - row) * cellH;
+            int dstW = (col == grid - 1) ? (w - vx) : cellW;
+            int dstH = (row == 0) ? (h - (grid - 1) * cellH) : cellH;
             ic$blitScaled(fbo, main, vx, vy, dstW, dstH);
+
+            QuadrantProto.onLaneRendered(i, System.nanoTime() - laneStartNs);
         }
 
         RenderSystem.viewport(0, 0, w, h);
 
-        if (QuadrantProto.shouldCapture()) {
-            // 游戏主图（整屏四象限）
+        if (QuadrantProto.runFinished()) {
+            QuadrantProto.logSummary();
+            // 出图：整屏一张 + 每画面裁一张
             Screenshot.grab(mc.gameDirectory, "quadrant-main.png", main, component -> {
             });
-            // 每象限各裁一张（takeScreenshot 已 flipY：图像第 0 行 = 屏幕顶部）
             NativeImage full = Screenshot.takeScreenshot(main);
             Util.ioPool().execute(() -> {
                 try {
                     File dir = new File(mc.gameDirectory, "quadrant-captures");
                     dir.mkdirs();
-                    for (int i = 0; i < 4; ++i) {
-                        int sx = (i % 2 == 0) ? halfW : 0;
-                        int sy = (i < 2) ? 0 : halfH;
-                        NativeImage sub = new NativeImage(halfW, halfH, false);
-                        for (int y = 0; y < halfH; ++y) {
-                            for (int x = 0; x < halfW; ++x) {
+                    for (int i = 0; i < views; ++i) {
+                        int sx = (i % grid) * cellW;
+                        int sy = (i / grid) * cellH;
+                        NativeImage sub = new NativeImage(cellW, cellH, false);
+                        for (int y = 0; y < cellH; ++y) {
+                            for (int x = 0; x < cellW; ++x) {
                                 sub.setPixelRGBA(x, y, full.getPixelRGBA(sx + x, sy + y));
                             }
                         }
-                        sub.writeToFile(new File(dir, "quadrant-" + QuadrantProto.NAMES[i] + ".png"));
+                        sub.writeToFile(new File(dir, "quadrant-" + QuadrantProto.name(i) + ".png"));
                         sub.close();
                     }
-                    QuadrantProto.logCaptured();
                 } catch (IOException e) {
                     e.printStackTrace();
                 } finally {
