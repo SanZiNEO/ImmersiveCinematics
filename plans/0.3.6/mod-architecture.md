@@ -136,4 +136,7 @@ flowchart LR
     TYPES --> COND
     ACT -->|控制脚本| PLAY["播放实例"]
     ACT -->|回报等待点| WAITPT["等待点"]
+    DEST --> RENDER["渲染"]
+    RENDER --> TEX["纹理"]
+    TEX --> FRAME["画面"]
 ```
