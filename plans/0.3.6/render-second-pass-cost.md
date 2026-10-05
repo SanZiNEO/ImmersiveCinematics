@@ -214,7 +214,7 @@ this.lastCameraX = pos.x; ... this.currentViewport = viewport;
 
 ### 4.2 实测（探针）
 
-> 来源：探针分支 `perf/second-pass-probe`（一次性代码，非模组本体）。数字均为 **实测**，与 §4.1 的定性推导区分。
+> 来源：探针分支 `perf/second-pass-probe`（一次性代码，非模组本体；**该分支已按"测完即删"删除，本节数字为留档**）。数字均为 **实测**，与 §4.1 的定性推导区分。
 
 **口径**：1.0x 原分辨率、**上限口径**（完整 `renderLevel` 递归，实体 / 粒子 / 天气全在内）、`quickPlay` 进《新的世界》、视距 12、脚本目录已清空、每档 20–60s 稳态、后台未锁帧。N = 副画面遍数。
 
@@ -279,7 +279,7 @@ this.lastCameraX = pos.x; ... this.currentViewport = viewport;
 
 ### 6.2 模组本体为何仍无法直接测（探针如何绕过）
 
-> 探针（`perf/second-pass-probe`）已用**一次性分支**绕过下列障碍，产出 §4.2 数字；模组本体在正式实现前仍无法直接测量。
+> 探针（`perf/second-pass-probe`，**分支已删**）已用**一次性分支**绕过下列障碍，产出 §4.2 数字；模组本体在正式实现前仍无法直接测量。
 
 | 障碍（针对模组本体） | 说明 / 探针如何绕过 |
 |---|---|
@@ -291,7 +291,7 @@ this.lastCameraX = pos.x; ... this.currentViewport = viewport;
 
 ### 6.3 测量方案（探针已执行；正式实现后按此复测）
 
-> 探针（`perf/second-pass-probe`）已按此思路执行并产出 §4.2；下列方案保留给**正式 lane 实现**后的复测。
+> 探针（`perf/second-pass-probe`，**分支已删**）已按此思路执行并产出 §4.2；下列方案保留给**正式 lane 实现**后的复测。
 
 1. **埋点**（实现原型时）：在第二遍代码路径用 `ProfilerFiller.push("second_pass")` 包住；另用 `System.nanoTime()` 累计「整帧 ms」与「second_pass ms」，每 N 帧输出 p50/p95；提供**运行期开关**（第二遍 on/off、内容开关、视距档）以做 A/B。
 2. **控制变量**：固定相机位姿（静态脚本）、固定世界与视距、`enableVsync:false`、固定 `maxFps`；每档采样 ≥ 600 帧，丢弃前 ~2s 预热。
@@ -327,6 +327,6 @@ this.lastCameraX = pos.x; ... this.currentViewport = viewport;
 | Sodium/Embeddium 接管原版 setup/render 层 | `example/embeddium-20.1-forge/.../mixin/core/render/world/WorldRendererMixin.java:128,148,224` |
 | Sodium `setupTerrain` 的相机缓存 / graph dirty | `example/embeddium-20.1-forge/.../client/render/SodiumWorldRenderer.java:167` |
 | 第二遍可行、成本量级 | shaderLABS Shadow-Tutorial；DeepWiki Iris 4.4；Simply Shaded；FISM（链接见 §2.5） |
-| **第二遍实测数字**（+0.56 ms/遍，线性；`total ≈ 0.555·N − 0.030 ms`, R²=0.98） | 探针分支 `perf/second-pass-probe`（§4.2；1.0x 原分辨率、上限口径、轻场景） |
+| **第二遍实测数字**（+0.56 ms/遍，线性；`total ≈ 0.555·N − 0.030 ms`, R²=0.98） | 探针分支 `perf/second-pass-probe`（§4.2；1.0x 原分辨率、上限口径、轻场景；**分支已删，数字留档**） |
 | 视锥重建病态循环 | 探针 jstack（`Frustum.offsetToFullyIncludeCameraCube`，见 §4.2） |
 | 本机可跑客户端 | `fabric/run/{options.txt,logs/latest.log,hs_err_pid49904.log}`；`fabric/build.gradle`、`forge/build.gradle` 的 `runs.client` |
