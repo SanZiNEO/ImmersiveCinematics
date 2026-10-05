@@ -109,6 +109,8 @@ Base Chain 产出基础状态
 
 Mixin 不再直接依赖 `CameraPath` / `CameraProperties`。
 
+> **补充（原型实测）**：多相机（多 lane）时，除了这 6 个参数，**渲染状态**（可见区块集合 / 遮挡剔除 / frustum）也要按 lane 独立——目前它们在 `LevelRenderer` 上是单份共享状态，多 lane 会互相重建（表现为画面来回闪）；原型用"整帧统一决定"过渡，正式实现要每 lane 各自维护。见 `quadrant-prototype-results.md` §3.5。
+
 ---
 
 ## 7. 迁移方向（不锁步骤）

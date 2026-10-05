@@ -13,8 +13,8 @@
 ## 2. 副画面内部的分支
 
 - **内容**：只走区块层（solid / cutout / cutoutMipped / translucent）；实体 / 粒子 / 天空 / 天气可选（默认关）；不带第一人称手 / HUD；
-- **视锥**：独立（副相机自己的 Frustum → 窄视锥天然剔除）；
-- **状态**：保存 / 恢复（framebuffer、Camera、投影 / 视图矩阵、视口、雾、着色器、深度缓冲、frustum）。
+- **视锥**：独立（副相机自己的 Frustum → 窄视锥天然剔除）；只要视锥与该 lane 的相机姿态一致（`prepareCullFrustum(同一 pose, 相机位置, 投影)`），原版 `offsetToFullyIncludeCameraCube` 3~5 步收敛，**不需要自建剔除方案**（实机验证，见 `quadrant-prototype-results.md` §3.4）；
+- **状态**：保存 / 恢复（framebuffer、Camera、投影 / 视图矩阵、视口、雾、着色器、深度缓冲、frustum）。原型实测另补三条：① 渲染期间把 `Minecraft.mainRenderTarget` 指向该 lane 的 FBO（原版内部会把 GL viewport 重置成整窗）；② **lane 自包含**——lane 级后处理（发光描边等）必须在 lane 的 FBO 内完成；③ `doEntityOutline() → blitToScreen()` 会改全局投影矩阵，调用后要还原（见 `quadrant-prototype-results.md` §3.1–3.3）。
 
 ## 3. 性能档位
 
@@ -29,4 +29,4 @@
 
 ## 5. 待定
 
-- 渲染顺序：第二遍在主渲染之后 / GUI 之前？
+- ~~渲染顺序：第二遍在主渲染之后 / GUI 之前？~~ **已实测可定**：挂在 `GameRenderer.renderLevel` 的 RETURN（主渲染之后、GUI 之前），原型 4 / 16 / 25 画面均正常（见 `quadrant-prototype-results.md`）。

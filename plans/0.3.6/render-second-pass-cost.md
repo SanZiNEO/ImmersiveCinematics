@@ -15,9 +15,9 @@
 |---|---|---|
 | 本项目现在有第二遍吗？ | **没有**。当前是「单相机替换」：把虚拟相机写进唯一的 `Camera`，整帧仍只渲染一次。 | 强（源码） |
 | 第二遍成本结构 | 与主渲染**同构**：一遍完整 `LevelRenderer.renderLevel`。可省掉天空 / 云 / 天气 / 粒子 / 调试 / 破坏进度等；**区块层（terrain）和地形剔除（terrain_setup）省不掉**，是主要成本。 | 强（原版字节码 + Iris 实现） |
-| 量级 | **正式播放的 lane 必须与主画面同分辨率**（低分辨率 FBO 只用于编辑器预览推流）。**实测（探针）**：每多一遍完整世界渲染 ≈ **+0.56 ms**（≈ **0.85×** 主 `renderLevel`），N 遍基本线性（`total ≈ 0.555·N − 0.030 ms`，R²=0.98；见 §4.2）。定性上限仍是「接近成本翻倍」（`multi-camera-rendering.md:93`）。降耗只能靠**内容开关 / 视距·视锥 / 状态复用**等，**不能靠降分辨率**；CPU 的 `terrain_setup` 与 draw call 提交本来就与分辨率无关。 | 实测（探针，轻场景，绝对值偏小、斜率随场景放大） |
+| 量级 | **正式播放的 lane 必须与主画面同分辨率**（低分辨率 FBO 只用于编辑器预览推流）。**实测（探针）**：每多一遍完整世界渲染 ≈ **+0.56 ms**（≈ **0.85×** 主 `renderLevel`），N 遍基本线性（`total ≈ 0.555·N − 0.030 ms`，R²=0.98；见 §4.2）。定性上限仍是「接近成本翻倍」（`multi-camera-rendering.md:93`）。降耗只能靠**内容开关 / 视距·视锥 / 状态复用**等，**不能靠降分辨率**；CPU 的 `terrain_setup` 与 draw call 提交本来就与分辨率无关。**原型实测（重场景：地表 + 20 多实体 + 发光描边，1.0x 同分辨率）**：单画面 ≈ **3.4–3.6 ms ≈ 1.2–1.4× 主画面**；1/4/16/25 画面稳态帧间隔 = **8 / 17 / 61 / 98 ms**（125 / 59 / 16 / 10 fps），**线性、主画面耗时不受影响**（见 `quadrant-perf/summary.md`）。 | 实测（探针轻场景 + 原型重场景，斜率随场景放大） |
 | 可行性 | 每帧第二遍**是可行的**：Iris 阴影 pass 就是每帧一次完整第二遍世界渲染，且被公认为「着色器包里最贵的一环」——同量级证明。 | 强（Iris 源码 + 公开资料） |
-| 实测可行性 | **本机可跑客户端**（有历史运行证据、JDK、gradle 缓存、`runClient` 任务）。模组本体仍无法直接测（第二遍未实现），但**探针分支 `perf/second-pass-probe` 已用一次性手段测得 §4.2 数字**。 | 强（证据见 §6） |
+| 实测可行性 | **本机可跑客户端**（有历史运行证据、JDK、gradle 缓存、`runClient` 任务）。模组本体当时无法直接测（第二遍未实现），但**探针分支 `perf/second-pass-probe` 已用一次性手段测得 §4.2 数字**（该分支已按"测完即删"删除，数字留档）；后续**多相机渲染原型**已直接实测（见 §0 量级行与 `quadrant-perf/summary.md`）。 | 强（证据见 §6） |
 
 ---
 
@@ -51,7 +51,7 @@
 | `clear` | `RenderSystem.clear` | 不可省（副 FBO 要清） |
 | `sky` | `renderSky`（太阳 / 月亮 / 星空 / 天空盒 / 日出日落） | 可省（Iris 阴影 pass 就不渲染天空） |
 | `fog` | `FogRenderer.setupFog` / `setupColor` / `levelFogColor` | 可省，但需正确 setup/restore，否则主画面雾错乱 |
-| `terrain_setup` | `setupRender(camera, frustum, hasForcedFrustum, spectator)`：ViewArea 重定位、`applyFrustum`、可见区块 BFS、遮挡剔除（`Minecraft.smartCull`） | **不可省**，是 CPU 大头之一 |
+| `terrain_setup` | `setupRender(camera, frustum, hasForcedFrustum, spectator)`：ViewArea 重定位、`applyFrustum`、可见区块 BFS、遮挡剔除（`Minecraft.smartCull`） | **不可省**，是 CPU 大头之一。**注意（原型实测）**：相机在实心方块里时，原版对旁观者会关掉遮挡剔除（`smartCull=false`）以获得"稳定透视"；我们的相机等价旁观者、需套同一条件，且多 lane 下必须**按帧统一**（可见集合是共享状态），长期要**每 lane 独立**（见 `quadrant-prototype-results.md` §3.5） |
 | `compilechunks` | `compileChunks`：上传已重建的区块网格 | 可省（同帧内主 pass 已做） |
 | `terrain` | `renderChunkLayer(solid)` / `(cutoutMipped)` / `(cutout)` | **不可省**，是 GPU 大头 |
 | `entities` | 遍历 `level.entitiesForRendering()` → `shouldRender(frustum)` → `renderEntity` + 多种 `endBatch` | 可省（默认关） |
@@ -78,7 +78,7 @@
 | 深度 / 混合 / 面剔除 | `RenderSystem.depthMask` / `enableBlend` / `disableCull` | Iris 副 pass 里 `disableCull()`，结束 `enableCull()` |
 | 光照纹理矩阵 | `Lighting.setupLevel` / `setupNetherLevel` | |
 | `RenderBuffers` | `LevelRenderer.renderBuffers` | Iris 用**独立** `new RenderBuffers()` 并在副 pass 期间 `setRenderBuffers` 换掉、结束换回（注释：否则「very weird things will happen」） |
-| 区块剔除状态 / 遮挡图 | `CullingDataCache.saveState()` / `restoreState()` | Iris 用接口对 `LevelRenderer` 存取（`example/Iris-1.20.1/.../shadows/CullingDataCache.java`） |
+| 区块剔除状态 / 遮挡图 | `CullingDataCache.saveState()` / `restoreState()` | Iris 用接口对 `LevelRenderer` 存取（`example/Iris-1.20.1/.../shadows/CullingDataCache.java`）；我们的过渡做法：整帧统一 `smartCull`（`CinematicOcclusion.beginFrame`），长期方向：每 lane 独立可见集合 / 剔除状态（见 `quadrant-prototype-results.md` §3.5） |
 | 云纹理 / 重建标志 | `shouldRegenerateClouds()` / `needsUpdate()` | Iris 专门保存并恢复，见 §3.2 |
 | 独立 Frustum | `new Frustum(proj, modelview)` + `prepare(x,y,z)` | 每帧新建 / 复用 |
 
@@ -130,6 +130,7 @@ private void iris$renderTerrainShadows(...) {
 - **遮挡剔除被关掉**（`ShadowRenderer.java:413-414`，恢复于 `:432`）：
   > "Disable chunk occlusion culling - it's a bit complex to get this properly working with shadow rendering as-is, however in the future it will be good to work on restoring it for a nice performance boost."
   → 原版的遮挡剔除图（section occlusion graph）**与单一 frustum 绑定**；第二遍换个相机后不能直接复用，Iris 的选择是**关掉**（代价：多画可见区块）。
+  → 与我们实测的动机一致：换相机后遮挡剔除图不能直接复用；原型还遇到"相机在实心方块里 → 可见集合塌缩 / 闪烁"（见 `quadrant-prototype-results.md` §3.5）。
 - **区块重建队列**（`MixinPreventRebuildNearInShadowPass.java`）：Iris 还专门阻止在 shadow pass 里做近处区块重建，避免第二遍拖慢重建。
 
 ### 2.4 Iris 阴影贴图：与窗口无关的固定低分辨率
@@ -209,7 +210,7 @@ this.lastCameraX = pos.x; ... this.currentViewport = viewport;
   - **CPU `terrain_setup` 与分辨率无关**，且（Sodium 下）缓存失效 → 近似按遍数线性增长。[推断，有 §3.2 代码支撑]
 - **结论**：降分辨率省不到东西；省成本只能从三处来——**内容（画什么）+ 视距 / 视锥（画多少区块）+ 状态复用（省 CPU 抖动）**。[推断]
 - **Iris 对照的意义**：Iris 的 shadow pass 用**更窄的视锥 + 固定低分辨率**（阴影贴图允许低分辨率），仍被公认为最贵一环 → 说明「每帧第二遍」本身在工程上可接受，但**不能低估**；本项目的副相机若用普通广角 + 全视距 + **原分辨率**，单遍成本会**高于** shadow pass。[推断]
-- **不设上限的 N lane**：成本近似按 lane 数线性叠加（每 lane 一遍），这与 `parallel-playback.md`「不设相机数上限、由作者自控 + 档位」的定位一致。
+- **不设上限的 N lane**：成本近似按 lane 数线性叠加（每 lane 一遍），这与 `parallel-playback.md`「不设相机数上限、由作者自控 + 档位」的定位一致。 **原型实测（重场景）**：每 lane ≈ 3.4–3.6 ms ≈ 1.2–1.4× 主画面，1 / 4 / 16 / 25 画面线性、无拐点；另有一次性**预热**（区块按视角编译，前 1–4 秒明显更重、画面越多越长）——见 `quadrant-perf/summary.md`。
 
 ### 4.2 实测（探针）
 

@@ -140,3 +140,5 @@ flowchart LR
     RENDER --> TEX["纹理"]
     TEX --> FRAME["画面"]
 ```
+
+> **渲染链补充（原型实测）**：每个 lane 的 `renderLevel` **加上 lane 级后处理（发光描边等）**都要在该 lane 自己的离屏缓冲内完成，再缩放合成上屏（**lane 自包含**）；渲染期间 `Minecraft.mainRenderTarget` 指向该 lane 的缓冲。见 `quadrant-prototype-results.md` §3.1–3.2。
