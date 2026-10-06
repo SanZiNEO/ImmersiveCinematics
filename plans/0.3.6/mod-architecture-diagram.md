@@ -275,7 +275,7 @@ flowchart LR
     ACT -->|回报等待点| WAITPT
     INST -->|注册| CAMS
     INST -->|持有| NONCAM
-    INST -->|分发脚本时间| CAMPLAY
+    INST -->|每渲染帧驱动| CAMPLAY
     INST -->|按实例计算| LIFE
     INST -->|逐位取并集| UNION
     USABLE -->|门控| INST
@@ -309,7 +309,6 @@ flowchart LR
     FLY -->|Base Provider| BASE
     DIRECT -->|Base Provider| BASE
     INST -->|脚本导演| BASE
-    TRANS -->|A→B 状态| CSTATE
     BASE --> MODI
     MODI --> CSTATE
     CSTATE -->|只读| CORE
@@ -393,7 +392,7 @@ flowchart LR
     TRKLB --> LB
     LAYERS --> OVM
     RES --> IMG
-    INST -->|每帧 update| OVM
+    CMGR -->|每帧 update| OVM
     CAM -->|激活 / 暂停 / 结束| OVM
     OVM -->|HUD 渲染回调| FRAME
     META -->|apply / revert| WL
