@@ -1,6 +1,6 @@
 # 渲染子路线（临时草稿）
 
-> **临时文档**：内容来自 `mod-architecture.md` 的讨论（渲染节点往外连的路线）。
+> **临时文档**：内容来自 `mod-architecture-diagram.md` 的讨论（渲染节点往外连的路线）。
 > 稳定后并入 `multi-camera-rendering.md`。
 
 ---
