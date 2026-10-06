@@ -6,20 +6,33 @@ flowchart LR
             CAMS["相机画面 lane × N<br/>（每条 CAMERA 轨 / 每个相机一条）"]
             NONCAM["非画面轨<br/>（音频 / 事件 / 覆盖层 / 黑边 / 模组事件）"]
         end
+        CAMPLAY["相机轨道播放<br/>（关键帧插值：linear / bezier / tangent / morph）"]
         LIFE["实例生命周期<br/>（可跳过 / 可打断 / 末尾保持 / 随游戏暂停）"]
-        UNION["运行时控制并集<br/>（隐藏 HUD / 屏蔽输入 / 抑制摆动）"]
+        UNION["运行时控制并集<br/>（隐藏 HUD / 屏蔽输入 / 抑制摆动 / 可跳过 / 暂停联动 …）"]
         subgraph LOOP["脚本循环（两级折叠）"]
             LMAC["宏观循环<br/>（整条时间轴折回；末端 = 最后片段最后一次播完）"]
             LMIC["微观循环<br/>（片段局部时间：repeat / pingpong）"]
         end
         WAITPT["等待点轨道（WAIT_POINT）<br/>（停表 → 等回报 → 继续 / 结束 / 接播 / 分支）"]
         REENTRY["重入规则<br/>（同玩家 + 同脚本 = 单实例）"]
-        QUEUE["接播 / 排队<br/>（现状：不可打断才排队）"]
+        QUEUE["接播 / 排队"]
+        USABLE["片段可用性门<br/>（来源不可解析 → 整片段按空处理）"]
+        SKIPHUD["跳过提示<br/>（进度 / 提示）"]
+        CMGR["相机管理器<br/>（生命周期 / 编排 / 门面）"]
+        EXIT["退出原因<br/>（自然结束 / 跳过 / 打断 / 强退 / 系统停止）"]
+    end
+    subgraph COVER["覆盖链"]
+        BASE["Base 层<br/>（脚本导演 / 编辑器直控 / 飞行 / 外部接管）"]
+        MODI["Modifier 层<br/>（震屏 / 后坐力 / Dolly Zoom / 呼吸扰动 …）"]
+        TRANS["过渡<br/>（cut / blend / 分参数 / 曲线）"]
+        CSTATE["统一相机状态<br/>（只读）"]
     end
     subgraph SRV["服务端账本"]
         SRVKEY["触发状态机 + 前置<br/>（键：玩家 + 脚本）"]
         SRVVOTE["跳过投票"]
         SRVTIME["事件时间线<br/>（EVENT 命令按实例推进）"]
+        SRVSEL["服务端选择器求值<br/>（原版选择器解析 · 服务端权威）"]
+        ACK["网络可靠性<br/>（请求 / 回执关联 + 超时保护）"]
     end
     subgraph INPUT["输入与直控"]
         RAW["玩家输入<br/>（键盘 / 鼠标 / 滚轮 / 视角）"]
@@ -28,6 +41,7 @@ flowchart LR
         BEHAV["行为开关<br/>（键鼠屏蔽 / 可跳过 / 可打断 / 暂停联动）"]
         FLY["飞行直控<br/>（编辑器取景）"]
         DIRECT["编辑器直控<br/>（拖拽 / 摆位）"]
+        HANDOFF["输入状态交接<br/>（退出时释放按键 / 同步状态）"]
         PAUSE["游戏暂停 / 窗口失焦"]
     end
     subgraph CAM["相机（lane）"]
@@ -63,12 +77,15 @@ flowchart LR
     subgraph TRACK["追踪"]
         LOOK["看向（look_at）"]
         FOLLOW["跟随（follow）"]
+        TGT["目标锁定与切换<br/>（存活期锁定 / 刷新频率 / 切换平滑 / 丢失后搜索）"]
+        LOCK["方向锁（yaw / pitch 分轴）<br/>（没锁跟来源 / 锁了用固定值）"]
     end
     subgraph WPOS["位置（世界系）"]
         ABS["绝对位置"]
         REL["相对位置"]
     end
     subgraph COORDSRC["坐标源"]
+        POINTSRC["点源（统一清单）<br/>（来源 + 偏移；连线端点 / 位置基准 / 注视点共用）"]
         ENT["实体（含玩家）<br/>（可通过 AABB 百分比偏移：脚 / 头 / 其他部位）"]
         COORD["坐标"]
         STRUCT["结构"]
@@ -80,6 +97,10 @@ flowchart LR
         LINE["连线（A→B）"]
     end
     subgraph TRIGGER["触发器核心"]
+        subgraph SRCTYPE["触发源"]
+            EV["原版事件<br/>（进度 / 击杀 / 交互 / 合成 / 物品使用 / 维度切换 / 登录）"]
+            POLL["轮询<br/>（按间隔分桶：20 / 40 / 5 tick）"]
+        end
         subgraph COND["条件（含状态）"]
             C_SINGLE["单一"]
             subgraph C_COMB["组合器"]
@@ -151,11 +172,13 @@ flowchart LR
         end
         subgraph G7["会话（2）"]
             T24["login"]
-            T25["death<br/>（未实现）"]
+            T25["death"]
             T24 ~~~ T25
         end
     end
     subgraph WORLD["世界交互"]
+        PREQ["预加载请求器<br/>（客户端上报 / 释放）"]
+        PNET["预加载网络通道<br/>（C2S / S2C）"]
         subgraph CAMZONE["区块与实体（相机中心）"]
             PRELOAD["区块预加载<br/>（加载 / 下发 / 客户端缓存中心换成相机）"]
             PAIR["实体配对<br/>（相机附近实体按原版规则配对 / 下发）"]
@@ -163,12 +186,14 @@ flowchart LR
         end
         subgraph VIEWC["渲染视图"]
             VIEWCENTER["渲染视图中心<br/>（区块构建 / 可见集中心改用相机）"]
+            CENTER["客户端缓存中心"]
         end
         subgraph MOB["生成与消失"]
             SPAWN["自然生成<br/>（中心取真实玩家与锚点更近者）"]
             DESPAWN["生物消失<br/>（最近玩家改用锚点）"]
         end
-        REGION["区域同步 / 镜像传送<br/>（对应区域坐标映射，计划）"]
+        PLAYERMOVE["玩家移动<br/>（脚本驱动的假输入朝目标走）"]
+        REGION["区域同步 / 镜像传送<br/>（对应区域坐标映射）"]
     end
     subgraph MULTI["多相机"]
         MMAIN["主画面<br/>（原版一遍，直接进主缓冲）"]
@@ -182,7 +207,7 @@ flowchart LR
         RVIEW["视图矩阵<br/>（含 roll：绕视线轴）"]
         RPROJ["投影<br/>（生效 FOV = fov / zoom）"]
         RFRUSTUM["视锥<br/>（每相机独立）"]
-        RCULL["遮挡剔除<br/>（可见集合，帧内共享）"]
+        RCULL["遮挡剔除<br/>（可见集合，每 lane 独立）"]
         RLEVEL["世界渲染<br/>（区块层 / 实体层）"]
         ROUTLINE["描边上屏<br/>（lane 自包含）"]
         RPOST["后处理 / 最终上屏"]
@@ -196,19 +221,20 @@ flowchart LR
             FADE["颜色遮罩 / 淡入淡出<br/>（fade，z=10）"]
             IMG["图片 / GIF<br/>（image，z=20）"]
             SUB["字幕<br/>（subtitle，z=30）"]
-            PIP["画中画<br/>（pip，z=40 · 占位）"]
+            PIP["画中画<br/>（pip，z=40）"]
         end
         RES["资源加载<br/>（resource/ 目录 · PNG / GIF）"]
         TRKOV["覆盖层轨道（OVERLAY）"]
         TRKLB["黑边轨道（LETTERBOX）"]
     end
     subgraph HUD["HUD 显隐"]
+        HUDENTRY["HUD 渲染入口<br/>（平台事件回调）"]
         WL["显隐白名单<br/>（hide_hud + 各单项开关 + hud_layers）"]
         META["脚本 meta<br/>（hide_* / hud_layers）"]
         MIXGUI["原版 HUD 逐元素拦截<br/>（Gui / 聊天 / Boss 条 / 玩家列表 / 字幕）"]
         REGOV["注册表 overlay 拦截<br/>（Forge · RenderGuiOverlayEvent.Pre）"]
         FABQ["Fabric 主动查询 API<br/>（isHidden(layerId)）"]
-        HARD["强硬隐藏模式<br/>（Pre 接管 + 白名单重画，计划）"]
+        HARD["强硬隐藏模式<br/>（Pre 接管 + 白名单重画）"]
     end
     subgraph AUDIO["音频"]
         subgraph LISTEN["听者（meta.listener）"]
@@ -235,23 +261,27 @@ flowchart LR
     end
     subgraph EDITOR["编辑器（WebUI）"]
         EXT["外部编辑器<br/>（Vue3 + Electron 独立应用）"]
-        WSS["本地 WebSocket 服务<br/>（127.0.0.1:8765）"]
+        WSS["本地 WebSocket 服务<br/>（127.0.0.1:8765 · 会话层主线程调度）"]
         MSGROUTE["消息路由<br/>（文本协议 / 回执）"]
-        SCRIPTFS["脚本文件服务<br/>（immersive_cinematics/scripts）"]
+        SCRIPTFS["脚本文件服务 + 校验<br/>（immersive_cinematics/scripts）"]
         REGISTRY["注册表与补全<br/>（物品 / 方块 / 实体 / 群系 / 维度 / 结构 / 进度…）"]
         SCHEMA["字段元数据<br/>（schema.get，Java 唯一权威）"]
         PREVIEW["预览屏（F9）<br/>（取帧 + 播放控制 + 飞控 HUD）"]
         FCAP["帧捕获<br/>（720p 小 FBO）"]
         FSTREAM["帧推流<br/>（RGBA ~60fps，丢旧帧）"]
-        GRAPH["脚本架构图<br/>（无限画布，计划）"]
-        OLDED["旧游戏内编辑器<br/>（F6，退役中）"]
+        GRAPH["脚本架构图<br/>（无限画布）"]
     end
     ACT -->|控制脚本| INST
     ACT -->|回报等待点| WAITPT
     INST -->|注册| CAMS
     INST -->|持有| NONCAM
+    INST -->|分发脚本时间| CAMPLAY
+    CAMPLAY -->|关键帧求值| POS
+    CAMPLAY -->|关键帧求值| ORI
     INST -->|按实例计算| LIFE
     INST -->|逐位取并集| UNION
+    USABLE -->|门控| INST
+    INST -->|跳过进度| SKIPHUD
     INST -->|分发脚本时间| LMAC
     LMAC -->|"f(g(t))"| LMIC
     INST -->|到达等待点：冻结实例时钟| WAITPT
@@ -265,6 +295,7 @@ flowchart LR
     INST -->|跳过记账| SRVVOTE
     SRVVOTE -->|投票达标 → 停止实例| INST
     SRVTIME -->|EVENT 命令| INST
+    INST -->|请求 / 回执| ACK
     CAMS -->|画面| RLEVEL
     UNION -->|隐藏 HUD| WL
     UNION -->|屏蔽输入| BEHAV
@@ -276,8 +307,14 @@ flowchart LR
     ROUTE -->|自用：跳过 / 强制退出| INST
     ROUTE -->|飞控| FLY
     PAUSE -->|放行输入 + 冻结时钟| ROUTE
-    FLY -->|整帧 6 参数| SRC
-    DIRECT -->|整帧 6 参数| SRC
+    EXIT -->|退出时交接| HANDOFF
+    FLY -->|Base Provider| BASE
+    DIRECT -->|Base Provider| BASE
+    INST -->|脚本导演| BASE
+    TRANS -->|A→B 状态| CSTATE
+    BASE --> CSTATE
+    MODI --> CSTATE
+    CSTATE -->|只读| CORE
     PREVIEW -->|F7 进入 / 前端指令退出| FLY
     CAM -->|× N| MULTI
     POS --> WP
@@ -288,12 +325,21 @@ flowchart LR
     POS --> FOLLOW
     COORDSRC --> LOOK
     ENT --> FOLLOW
+    TGT --> LOOK
+    TGT --> FOLLOW
     WP --> WPOS
     SP --> SELFPOS["自建位置"]
     COORDSRC --> SP
     DIRSRC --> SO
+    LOCK -->|锁定后| SO
+    POINTSRC -->|× 5 种来源| ENT
     COORDSRC --> REL
+    ENT -->|服务端解析| SRVSEL
+    CMGR -->|onRenderFrame| INST
+    INST -->|退出原因| EXIT
     TYPES --> COND
+    EV -->|事件驱动| COND
+    POLL -->|每 N tick| COND
     POS -->|听者位置| LP
     LC ~~~ POS
     LP --> APLAY
@@ -305,16 +351,23 @@ flowchart LR
     LISTEN -->|采样点重定向| AMB
     APLAY -->|上报听者位置| BC
     BC -->|放宽半径下发| ENG
-    POS -->|相机位置（周期上报）| PRELOAD
+    PAUSE -->|暂停同步| APLAY
+    POS -->|相机位置 / 无镜头时报玩家| PREQ
+    PREQ -->|上报 / 释放| PNET
+    PNET --> PRELOAD
     PRELOAD -->|虚拟中心| PAIR
     PRELOAD -->|锚点（纯坐标）| ANCHOR
     PRELOAD -->|区块已加载 / 已下发| VIEWCENTER
+    PRELOAD --> CENTER
     VIEWCENTER --> RLEVEL
+    POS -->|相机坐标| PAIR
     ANCHOR -->|更近者| SPAWN
     ANCHOR -->|更近者| DESPAWN
     SPAWN -->|相机区实体| PAIR
-    MULTI -->|预加载取并集（计划）| PRELOAD
-    ACT -->|区域规则（计划）| REGION
+    INST -->|玩家移动驱动| PLAYERMOVE
+    PLAYERMOVE -->|玩家移动| PAIR
+    MULTI -->|预加载取并集| PRELOAD
+    ACT -->|区域规则| REGION
     REGION -->|坐标映射（站哪传哪）| ENT
     DEST -->|相机姿态| RPOSE
     RPOSE --> RVIEW
@@ -340,14 +393,18 @@ flowchart LR
     TRKLB --> LB
     LAYERS --> OVM
     RES --> IMG
+    INST -->|每帧 update| OVM
+    CAM -->|激活 / 暂停 / 结束| OVM
     OVM -->|HUD 渲染回调| FRAME
     META -->|apply / revert| WL
     WL -->|分类判定| MIXGUI
     WL -->|分类判定| REGOV
     WL -->|分类判定| FABQ
+    HUDENTRY --> MIXGUI
+    HUDENTRY --> REGOV
     MIXGUI -->|cancel| FRAME
     REGOV -->|cancel| FRAME
-    HARD -.->|计划| REGOV
+    HARD -->|接管| REGOV
     HARD -->|补画| OVM
     EXT -->|"连接 ws://127.0.0.1:8765"| WSS
     EXT -->|脚本 CRUD / 校验 / 推送| MSGROUTE
@@ -360,6 +417,5 @@ flowchart LR
     FCAP --> FSTREAM
     FSTREAM -->|二进制 RGBA 帧| EXT
     SCRIPTFS -->|保存成功通知| SRVTIME
-    OLDED -->|退役迁移| EXT
     GRAPH -->|requires 依赖网| SCRIPTFS
 ```
