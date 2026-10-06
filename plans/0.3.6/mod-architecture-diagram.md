@@ -276,8 +276,6 @@ flowchart LR
     INST -->|注册| CAMS
     INST -->|持有| NONCAM
     INST -->|分发脚本时间| CAMPLAY
-    CAMPLAY -->|关键帧求值| POS
-    CAMPLAY -->|关键帧求值| ORI
     INST -->|按实例计算| LIFE
     INST -->|逐位取并集| UNION
     USABLE -->|门控| INST
@@ -312,7 +310,7 @@ flowchart LR
     DIRECT -->|Base Provider| BASE
     INST -->|脚本导演| BASE
     TRANS -->|A→B 状态| CSTATE
-    BASE --> CSTATE
+    BASE --> MODI
     MODI --> CSTATE
     CSTATE -->|只读| CORE
     PREVIEW -->|F7 进入 / 前端指令退出| FLY
@@ -332,7 +330,10 @@ flowchart LR
     COORDSRC --> SP
     DIRSRC --> SO
     LOCK -->|锁定后| SO
-    POINTSRC -->|× 5 种来源| ENT
+    POINTSRC --> ENT
+    POINTSRC --> COORD
+    POINTSRC --> STRUCT
+    POINTSRC --> BLOCK
     COORDSRC --> REL
     ENT -->|服务端解析| SRVSEL
     CMGR -->|onRenderFrame| INST
@@ -365,7 +366,6 @@ flowchart LR
     ANCHOR -->|更近者| DESPAWN
     SPAWN -->|相机区实体| PAIR
     INST -->|玩家移动驱动| PLAYERMOVE
-    PLAYERMOVE -->|玩家移动| PAIR
     MULTI -->|预加载取并集| PRELOAD
     ACT -->|区域规则| REGION
     REGION -->|坐标映射（站哪传哪）| ENT
