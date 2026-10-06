@@ -1,6 +1,6 @@
 # 0.3.6 多相机渲染（PIP / 分屏 / 叠化）方案
 
-**状态**: 📋 方案，未实现（**渲染底层已由原型验证**：每 lane 一个 RenderTarget + 缩放合成、4/16/25 画面线性，见 `quadrant-prototype-results.md`；系统本体待开工）
+**状态**: 📋 方案，未实现（**渲染底层已由原型验证**：每 lane 一个 RenderTarget + 缩放合成、4/16/25 画面线性，见 `quadrant-prototype-results.md`；系统本体待开工。**原型代码已并入 main**，默认关 `ICINEMATICS_QUADRANT`）
 **目标版本**: 0.3.6
 
 > 本文讨论“同一时刻渲染多个相机画面”以及“叠化（dissolve）”功能。

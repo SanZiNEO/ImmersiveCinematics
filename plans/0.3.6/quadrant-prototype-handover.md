@@ -81,7 +81,7 @@ ICINEMATICS_QUADRANT=1 sh gradlew :fabric:runClient --args='--quickPlaySinglepla
 
 ## 8. 残留物清单
 
-- 分支 `proto/four-quadrant`（**已提交 5 个提交**）；main 干净（`25d806a`）。
+- 分支 `proto/four-quadrant`（6 个提交）——**已整体并入 main（`e41ccb1`），可安全删除**。
 - `fabric/run/`：`saves/QuadrantTest`（新世界）、`saves/新的世界*`（旧，超平坦）、`immersive_cinematics/scripts.quadrant-bak`、`options.txt`（pauseOnLostFocus=false）、`eula.txt`、`world/`（服务端生成的源世界）、`quadrant-captures/`、`screenshots/quadrant-main.png`。
 - 客户端如仍在运行：按窗口标题 `Minecraft*` 结束。
 - 探针分支 `perf/second-pass-probe`（2 提交，另一个任务）——**已按"测完即删"删除**，数字留档在 `render-second-pass-cost.md` §4.2。
