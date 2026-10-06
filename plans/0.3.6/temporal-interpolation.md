@@ -130,3 +130,11 @@
 - [数学函数模型](./math-models.md)
 - [过渡](./transition.md)
 - [迟滞](./hysteresis.md)
+
+---
+
+## 已知缺陷（2026-10-06 代码复查）
+
+> 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
+
+- **路径策略两条路径不一致**：`script/PathStrategies` 注册表实际只 `register("linear")`；`bezier` 由 `CameraTrackPlayer` 直接 `new`，动态查表入口对 `bezier` 会回落 `linear`。

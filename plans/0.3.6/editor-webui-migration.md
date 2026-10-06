@@ -58,3 +58,11 @@
 - **远期 / 可选**：H.264 / WebRTC；飞控远程面板；动效。
 
 > 原始迁移方案（研究参考、阶段划分、协议草案）与 0.3.5 的独立 Editor 计划见 git 历史与 `plans/complete/0.3.5/webui-editor-standalone-plan.md`、`webui-logic-completion.md`。
+
+---
+
+## 已知缺陷（2026-10-06 代码复查）
+
+> 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
+
+- **飞控入口忽略传入坐标**：`WebPreviewScreen.enterFlightMode` 忽略传入的 `x/y/z`。

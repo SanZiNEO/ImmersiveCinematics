@@ -200,3 +200,11 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 - `example/embeddium-20.1-forge/src/main/java/me/jellysquid/mods/sodium/client/render/SodiumWorldRenderer.java`
 
 后续做副相机 / 多 RenderTarget / 光影兼容调研时，这些实现可以作为重要参考。
+
+---
+
+## 已知缺陷（2026-10-06 代码复查）
+
+> 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
+
+- **MODE=1 数组越界**：`CinematicOcclusion.beginFrame` 固定按 `i<4` 遍历，而 mode=1 时 `CAMERAS` 长度只有 1 → `CAMERAS[1]` 越界（`proto/QuadrantProto.camera(int)` 无边界检查）。仅影响设了 `ICINEMATICS_QUADRANT` 的调试场景；循环上限改 `CAMERAS.length` 即可。

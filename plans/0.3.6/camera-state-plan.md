@@ -172,3 +172,11 @@ Mixin 不再直接依赖 `CameraPath` / `CameraProperties`。
 - [时间插值](./temporal-interpolation.md)
 - [过渡](./transition.md)
 - [迟滞](./hysteresis.md)
+
+---
+
+## 已知缺陷（2026-10-06 代码复查）
+
+> 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
+
+- **退出过场首帧视角跳变**：非飞行屏蔽期 `MouseHandlerMixin.onMove` 不拦截 → vanilla 累积 `accumulatedDX/DY`，而 `turnPlayer` 被 BLOCK cancel 时不清零、`CinematicController.syncInputStateAfterExit` 也未清理（现有注释只覆盖飞行态）。

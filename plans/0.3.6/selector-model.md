@@ -145,3 +145,11 @@
 - [时间插值](./temporal-interpolation.md)
 - [过渡](./transition.md)
 - [迟滞](./hysteresis.md)
+
+---
+
+## 已知缺陷（2026-10-06 代码复查）
+
+> 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
+
+- **部分选择器既不支持也不转服务端**：`@a` / `@r` / `@n` / `@p[team=…]` 等既不走本地解析、也不发服务端请求（warn + null）——`requiresServerSelector` 只认 `@e[...]`。
