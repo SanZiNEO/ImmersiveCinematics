@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
+import com.immersivecinematics.immersive_cinematics.proto.QuadrantProto;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.Camera;
@@ -30,6 +31,12 @@ public abstract class GameRendererMixin {
     @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
     private void onGetFov(Camera camera, float partialTick, boolean useFOVSetting,
                           CallbackInfoReturnable<Double> cir) {
+        // 🧪 四象限原型：原型相机用自己的 fov/zoom（与下方生产分支同一套光学逻辑）
+        QuadrantProto.ProtoCamera proto = QuadrantProto.isEnabled() ? QuadrantProto.cameraOf(camera) : null;
+        if (proto != null) {
+            cir.setReturnValue(ic$effectiveFov(proto.props().getFov(), proto.props().getZoom()));
+            return;
+        }
         CameraManager mgr = CameraManager.INSTANCE;
         if (mgr.isActive() && mgr.hasActiveCameraClip()) {
             cir.setReturnValue(ic$effectiveFov(mgr.getProperties().getFov(), mgr.getProperties().getZoom()));

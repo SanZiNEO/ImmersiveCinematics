@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
+import com.immersivecinematics.immersive_cinematics.proto.QuadrantProto;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
@@ -93,6 +94,18 @@ public class LevelRendererMixin {
         if (this.immersivecinematics$occlusionToggled) {
             this.minecraft.smartCull = this.immersivecinematics$occlusionRestore;
             this.immersivecinematics$occlusionToggled = false;
+        }
+    }
+
+    /**
+     * 四象限原型：原版在 {@code GameRenderer.renderLevel} 返回之后会整屏贴一次描边
+     * （{@code doEntityOutline()}，1:1 整屏）——那一步会盖在四象限合成图外面。
+     * 原型期间屏蔽它；原型自己在每个象限内部调用（用 {@link QuadrantProto#isLaneRendering()} 区分）。
+     */
+    @Inject(method = "doEntityOutline", at = @At("HEAD"), cancellable = true)
+    private void immersivecinematics_protoOutlineGuard(CallbackInfo ci) {
+        if (QuadrantProto.isEnabled() && !QuadrantProto.isLaneRendering()) {
+            ci.cancel();
         }
     }
 }

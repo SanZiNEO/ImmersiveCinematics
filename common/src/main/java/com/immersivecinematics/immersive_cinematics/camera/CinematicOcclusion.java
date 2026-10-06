@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
+import com.immersivecinematics.immersive_cinematics.proto.QuadrantProto;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
@@ -14,8 +15,8 @@ import net.minecraft.core.BlockPos;
  * if (player.isSpectator() && level.getBlockState(camera.getBlockPosition()).isSolidRender(...)) bl3 = false;
  * </pre>
  * 我们的相机自由穿墙，等价于旁观者，所以套用同一条件。但有一个坑：可见区块集合
- * （{@code renderChunkStorage}）是 <b>LevelRenderer 上的共享状态</b>，一帧里可能渲染多个 pass
- * （多相机 / 多 lane）。如果各 pass 用不同的 {@code smartCull} 值，它们会互相把共享集合
+ * （{@code renderChunkStorage}）是 <b>LevelRenderer 上的共享状态</b>，而一帧里可能渲染多个 pass
+ * （原型：主 pass + 4 个 lane）。如果各 pass 用不同的 {@code smartCull} 值，它们会互相把共享集合
  * 重建/扩展成不同结果 → 画面在"塌缩 / 完整"之间来回闪。</p>
  *
  * <p>所以这里**每帧只决定一次**（{@code GameRenderer.render} 开头），整帧所有 pass 共用同一个值；
@@ -31,9 +32,15 @@ public final class CinematicOcclusion {
     /** 每帧开始调用一次（挂在 {@code GameRenderer.render} 的 HEAD）。 */
     public static void beginFrame(Minecraft mc) {
         boolean inside = false;
-        if (mc.level != null
-                && CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip()) {
-            inside = isInsideSolidBlock(mc, mc.gameRenderer.getMainCamera());
+        if (mc.level != null) {
+            if (QuadrantProto.isEnabled()) {
+                // 原型：任一 lane 相机在实心方块里 → 本帧整体关掉遮挡剔除（各 pass 共用同一个值）
+                for (int i = 0; i < 4 && !inside; i++) {
+                    inside = isInsideSolidBlock(mc, QuadrantProto.camera(i).camera());
+                }
+            } else if (CameraManager.INSTANCE.isActive() && CameraManager.INSTANCE.hasActiveCameraClip()) {
+                inside = isInsideSolidBlock(mc, mc.gameRenderer.getMainCamera());
+            }
         }
         if (inside != occlusionOffThisFrame) {
             occlusionOffThisFrame = inside;

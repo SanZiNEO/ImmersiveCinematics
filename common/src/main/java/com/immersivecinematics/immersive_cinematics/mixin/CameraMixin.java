@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
+import com.immersivecinematics.immersive_cinematics.proto.QuadrantProto;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -74,6 +75,21 @@ public abstract class CameraMixin {
     @Inject(method = "setup", at = @At("HEAD"), cancellable = true)
     private void onSetup(BlockGetter level, Entity entity, boolean detached,
                          boolean mirror, float partialTick, CallbackInfo ci) {
+        // 🧪 四象限原型：每个原型相机实例由自己的模组相机状态驱动（与下方生产分支同一套接管逻辑）
+        QuadrantProto.ProtoCamera proto = QuadrantProto.isEnabled()
+                ? QuadrantProto.cameraOf((Camera) (Object) this) : null;
+        if (proto != null) {
+            this.initialized = true;
+            this.level = level;
+            this.entity = entity;
+            this.detached = detached;
+            Vec3 protoPos = proto.path().getPosition();
+            setPosition(protoPos.x, protoPos.y, protoPos.z);
+            setRotation(proto.props().getYaw(), proto.props().getPitch());
+            ci.cancel();
+            return;
+        }
+
         CameraManager mgr = CameraManager.INSTANCE;
         if (!mgr.isActive()) return;
 
@@ -131,6 +147,11 @@ public abstract class CameraMixin {
      */
     @Inject(method = "getEntity", at = @At("HEAD"), cancellable = true)
     private void onGetEntity(CallbackInfoReturnable<Entity> cir) {
+        // 🧪 四象限原型：原型相机返回玩家，避免实体层把玩家当作相机本体跳过
+        if (QuadrantProto.isEnabled() && QuadrantProto.cameraOf((Camera) (Object) this) != null) {
+            cir.setReturnValue(Minecraft.getInstance().player);
+            return;
+        }
         CameraManager mgr = CameraManager.INSTANCE;
         if (mgr.isActive() && mgr.hasActiveCameraClip()) {
             cir.setReturnValue(Minecraft.getInstance().player);
@@ -149,6 +170,11 @@ public abstract class CameraMixin {
      */
     @Inject(method = "isDetached", at = @At("HEAD"), cancellable = true)
     private void onIsDetached(CallbackInfoReturnable<Boolean> cir) {
+        // 🧪 四象限原型：与生产分支同义（isRenderPlayerModel）——玩家实体要在四象限里都渲染出来
+        if (QuadrantProto.isEnabled() && QuadrantProto.cameraOf((Camera) (Object) this) != null) {
+            cir.setReturnValue(CinematicController.INSTANCE.isRenderPlayerModel());
+            return;
+        }
         CameraManager mgr = CameraManager.INSTANCE;
         if (mgr.isActive() && mgr.hasActiveCameraClip()) {
             cir.setReturnValue(CinematicController.INSTANCE.isRenderPlayerModel());
