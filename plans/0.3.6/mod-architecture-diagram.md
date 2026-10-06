@@ -253,7 +253,7 @@ flowchart LR
     INST -->|按实例计算| LIFE
     INST -->|逐位取并集| UNION
     INST -->|分发脚本时间| LMAC
-    LMAC -->|f(g(t))| LMIC
+    LMAC -->|"f(g(t))"| LMIC
     INST -->|到达等待点：冻结实例时钟| WAITPT
     WAITPT -->|继续 / 结束 / 分支| INST
     WAITPT -->|接播下一个| QUEUE
@@ -349,7 +349,7 @@ flowchart LR
     REGOV -->|cancel| FRAME
     HARD -.->|计划| REGOV
     HARD -->|补画| OVM
-    EXT -->|连接 ws://127.0.0.1:8765| WSS
+    EXT -->|"连接 ws://127.0.0.1:8765"| WSS
     EXT -->|脚本 CRUD / 校验 / 推送| MSGROUTE
     EXT -->|registry.query / registry.get| REGISTRY
     EXT -->|schema.get| SCHEMA
