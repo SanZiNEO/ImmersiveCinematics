@@ -10,6 +10,12 @@
 ### 1.1 产品形态
 
 - **独立 Windows 小工具**：Vue 3 + TypeScript + Vite + Electron，源码在 `editor/`，已打出安装包（0.1.0，测试中），**不打包进 mod**。
+- **定位（已确认）**：编辑器**不是视频剪辑器、也不是构图编辑器**，它是**固定格式脚本的生成器**——最终产物就是那份脚本。推论：
+  - 时间轴 / 预览 / 参数面板都是**为产出脚本服务的辅助**，不是通用剪辑能力；
+  - **不需要**：媒体导入、成片导出、转码、特效库；
+  - **需要**：字段编辑、校验（`script.validate`）、读写脚本，以及“能看到效果”的预览通道；
+  - 对它的要求是“**一副好用的脚手架 + 改功能**”：骨架省事，业务只做脚本的字段与校验。
+  - **权威在 mod 侧**：脚本的解析与播放是 mod 的 `script/` 模块，**只有它能读**——编辑器不直接读文件、不自己解析，一切经协议由那边确认（`schema.get` / `script.validate`）。
 - **mod 是服务端，Editor 是客户端**：游戏内按 **F9** 打开 WebUI 预览屏（同时启动本地服务），Editor 连接 `ws://127.0.0.1:8765/ws`。
 - **游戏内 Java 编辑器仍在**（F6）：两个编辑器并存，共用同一套脚本格式与字段 schema。
 - Editor 带离线演示模式（未连接游戏时可浏览界面与示例数据）。
@@ -101,13 +107,37 @@
 
 lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑器已是同一套栈（Vue 3 + Vite + Electron），fork 它是降级。
 
+### 5.1 GitHub 上的 MIT 剪辑软件（2026-10-06 检索）
+
+| 项目 | ★ | 许可 | 形态 | 说明 |
+|---|---|---|---|---|
+| `mifi/editly` | 5,516 | MIT | CLI / API（TS） | 声明式命令行剪辑，非 GUI |
+| `Augani/openreel-video` | 5,280 | MIT | 浏览器（TS） | 开源 CapCut 替代 |
+| `AIEraDev/Clypra` | 3,305 | MIT | 桌面（Rust + Tauri + React） | GPU 渲染、帧精确时间轴 |
+| `walterlow/freecut` | 2,231 | MIT | 浏览器（TS） | 多轨 + 关键帧动画 + 导出 |
+| `tharunbirla/LibreCuts` | 917 | MIT | Android（Kotlin） | 手机端 |
+| `MartinDelophy/ai-video-editor` | 890 | MIT | 浏览器 / PWA（JS） | local-first |
+| `mohyware/clip-js` | 769 | MIT（已核对 LICENSE 原文） | 浏览器（TS） | Next.js + Remotion + ffmpeg.wasm |
+
+**结论（已确认）**：这些都是**视频剪辑器**（素材 = 媒体文件，核心 = 切片段 / 排顺序），与本文定位的**脚本生成器**不同构——**整体结构不采用**。
+
+参考的是它们的**外形**：这类工具“该有的功能长什么样”（时间轴怎么摆、关键帧怎么编辑、属性面板怎么组织），再**翻译成我们的**（脚本生成器该有的样子）。**不是抄功能，也不是复制实现**。
+
+### 5.2 脚手架（已确认）
+
+编辑器要的是**一副好用的脚手架 + 改功能**，不是一套完整剪辑器：
+
+- **骨架**（窗口 / 状态 / 撤销 / i18n / 打包）要省事——这部分**我们已有**：Vue 3 + Vite + Electron，MIT，已打包 0.1.0。
+- **业务层要薄**：字段定义在 mod 侧的 `script/`（解析与播放模块，唯一权威），编辑器通过 `schema.get` 把它渲染成表单——**加一个脚本字段 = 改 schema + 加一个控件**。
+- 若要内部整理骨架约定，唯一有意义的参照是 **`electron-vite`**（MIT，main / preload / renderer 三层）——这是整理，不是换项目。
+
 ---
 
 ## 6. 数据模型保留（已确认）
 
 删除 `editor/` 包时，**脚本数据模型不随之删除**：
 
-- `script/schema/`（`TrackSchemas` / `FieldDef` / `SchemaExporter` / `SchemaRegistry`）是脚本格式的**单一权威**，独立于任何编辑器存在。
+- **脚本格式的权威在 mod 的解析与播放模块（`script/`）**：只有它能读脚本。`script/schema/`（`TrackSchemas` / `FieldDef` / `SchemaExporter` / `SchemaRegistry`）是其中的字段元数据，独立于任何编辑器存在。
 - 编辑器只是这份模型的消费者：外部编辑器通过 `schema.get` 取；游戏内编辑器当年直接调用。
 - 删包后的归属：schema 留在 `script/schema/`，升级方向见[脚本模型](./script-model.md)（参数声明、keyframable、关键帧到分量）。
 
