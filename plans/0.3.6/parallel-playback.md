@@ -79,9 +79,9 @@
 
 ### 3.5 触发器与重入（方向）
 
-- 触发器命中 = **新建实例**，不再因“有脚本在播”被阻塞。
+- 触发器命中 = **新建实例**，不再因“有脚本在播”被阻塞。✅ 已落地（2026-10-07）：`shouldSkip` 的“正在播放”门控是同脚本口径，跨脚本不阻塞。
 - 同脚本重入：当前触发状态机以“脚本 + 玩家”为键，同脚本第二实例会撞键。
-  - 倾向：**同脚本同玩家默认单实例**（保持现状语义），跨脚本无限制；
+  - ✅ 已定稿（2026-10-07）：**同脚本同玩家默认单实例**（保持现状语义），跨脚本无限制；
   - 放开同脚本多实例需要先改状态机键（待定）。
 
 ### 3.6 与播放队列的关系（已确认·2026-10-07：不做互斥组）
@@ -90,16 +90,17 @@
 
 ### 3.7 服务端（方向）
 
-- 事件时间线、触发状态机按实例维护；
-- 网络包带实例 id；
-- 跳过投票按实例记账。
+- 事件时间线、跳过投票按实例维护；✅ 已落地（2026-10-07）：`ScriptEventManager.scriptPlaybacks` 以 `(scriptId, instanceId)` 两级键，观看者 / 跳过投票 / 事件时间线按实例记账。
+- 触发状态机按实例维护：**未采用**——状态机键保持（玩家 + 脚本 + 触发器），与“同脚本同玩家单实例”一致（§3.5）。
+- 网络包带实例 id；✅ 已落地（2026-10-07）：`S2CPlayScriptPacket` / `C2SPlaybackStartedPacket` / `C2SScriptFinishedPacket` / `C2SScriptPausePacket` / `S2CStopScriptPacket` 均带实例 id。
+- 跳过投票按实例记账。✅ 已落地（同上）。
 
 ---
 
 ## 4. 现状差距（方向）
 
 - `CameraManager` 单实例 + 单 `pendingScript` 槽 → 改**实例列表**。
-- 触发器的 `shouldSkip`（播放期间跳过）语义要按实例重述。
+- 触发器的 `shouldSkip`（播放期间跳过）语义按实例重述 —— ✅ 已落地（2026-10-07，见 §7 步骤 6 落地记录）：同脚本同玩家跳过（单实例），跨脚本不阻塞。
 - 编辑器预览通道与游戏播放通道要隔离：预览是一个特殊实例，不挤掉游戏内播放。
 
 ---
@@ -183,7 +184,22 @@
 
 - **跨脚本并行已放开**：`playScript` 并行决策树——同脚本冲突实例走原单实例语义（可打断替换该实例 / 不可打断排队或拒绝），跨脚本直接新建实例并行（不排队不打断不阻塞，§3.5/§3.6）；`activeInstance()` 改为顶层（后来者居上）；每帧按启动顺序驱动所有实例；任一实例结束只退该实例，全局复位只在最后一个实例退出时执行；`cameraState` 快照 = 顶层实例状态；暂停握手按实例各发一条（账本按实例）。
 - 审查修订①②③ 全部落地（实例 id 挂实例 / 暂停联动并集+跳过提示顶层 / finish·stop·pause 包带 id）。
-- 尚未落地（后续步骤）：听者后来者居上（AudioListenerController 已按顶层但 hasActiveCameraClip 为并集，口径待对齐）、编辑器预览独立实例、服务端 shouldSkip 按实例、队列按脚本匹配接播（ScriptQueue 无匹配 API，待定）。跨实例 lane 收集已落地（ScriptLaneDriver 按启动顺序平铺所有实例 lane，后启动实例整体在上）。
+- 尚未落地（后续步骤）：听者后来者居上（AudioListenerController 已按顶层但 hasActiveCameraClip 为并集，口径待对齐）、编辑器预览独立实例、队列按脚本匹配接播（ScriptQueue 无匹配 API，待定）。跨实例 lane 收集已落地（ScriptLaneDriver 按启动顺序平铺所有实例 lane，后启动实例整体在上）。
+
+### 步骤 6 落地记录（2026-10-07）
+
+**范围**：服务端触发器 `shouldSkip` 的语义重述（§3.5 / §3.7）。
+
+**核实结论（无需改逻辑，现状即目标口径）**：`TriggerEngine.shouldSkip(ServerPlayer, TriggerRegistration)` 的“正在播放”门控调用 `ScriptEventManager.isPlayerPlayingScript(player.getUUID(), reg.getScriptId())`——该方法只按 **scriptId** 取实例集合并判断玩家是否为其中任一实例的观看者，**已是同脚本口径**：
+
+- **同脚本在播 → 跳过**（同脚本同玩家单实例，与实例化前逐点等价）；
+- **跨脚本不阻塞**：播放脚本 A 时，指向脚本 B 的触发器 `isPlayerPlayingScript(uuid, "B") == false` → 照常命中并新建 B 实例（客户端多实例已就绪，步骤 4/5 已放开）。
+
+全仓 grep `isPlayerPlayingScript` 仅 `TriggerEngine.shouldSkip` 一处调用；无“任意脚本在播即阻塞”的残留（`isScriptActive` / `isFullyComplete` / `getRemainingViewers` 在 Java 侧无调用点）。触发器状态机键（玩家 + 脚本 + 触发器，`TriggerStateStore` / `enterStates`）不变。
+
+**账本按实例的消费点复核**（§3.7）：`scriptPlaybacks` 以 `scriptId → instanceId → ScriptPlayback` 两级键；开始 / 结束 / 暂停 / 跳过投票 / 事件时间线 / 超时重发全部经 `playback(scriptId, instanceId)` 精确解析实例，`onServerTick` 逐实例驱动，`broadcastSkipVote` 与强制停止均以单实例 `pb` 为单位——无单实例假设残留。
+
+**改动**：仅为语义显式化——`TriggerEngine.shouldSkip` 与 `ScriptEventManager.isPlayerPlayingScript` 补 javadoc 说明同脚本口径；逻辑零变更。
 
 ---
 

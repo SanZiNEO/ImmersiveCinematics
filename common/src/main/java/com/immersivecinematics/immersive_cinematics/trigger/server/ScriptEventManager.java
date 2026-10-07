@@ -140,6 +140,13 @@ public class ScriptEventManager {
         return byInstance != null && !byInstance.isEmpty();
     }
 
+    /**
+     * 该玩家是否正在播放<b>指定脚本</b>（同脚本口径，§3.5）。
+     * <p>
+     * 只查 {@code scriptId} 名下的全部实例，任一实例把该玩家记为观看者即为真；
+     * 因此它表达的是“同脚本同玩家单实例”的占用，<b>不</b>因“有别的脚本在播”而返回真。
+     * 触发器门控（{@code TriggerEngine.shouldSkip}）据此实现跨脚本不阻塞。
+     */
     public boolean isPlayerPlayingScript(UUID playerUuid, String scriptId) {
         Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
         if (byInstance == null) return false;

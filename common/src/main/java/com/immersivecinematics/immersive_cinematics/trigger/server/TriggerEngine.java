@@ -171,7 +171,7 @@ public class TriggerEngine {
 
     public void onPlaybackStarted(ServerPlayer player, String scriptId, String instanceId) {
         // 记录“开始播放”信号：配合结束信号构成“播放过”语义。
-        // 触发器状态机的键 (玩家, 脚本) 不变（按实例维护是 §7 步骤 6 的事）；
+        // 触发器状态机的键 (玩家, 脚本, 触发器) 不变（同脚本同玩家单实例，§3.5）；
         // 播放账本（观看者 / 跳过投票 / 事件时间线）按实例记账（§3.7）。
         TriggerStateStore.INSTANCE.markScriptStarted(player.getUUID(), scriptId);
         ScriptEventManager.INSTANCE.startPlayback(player, scriptId, instanceId);
@@ -195,6 +195,16 @@ public class TriggerEngine {
         return true;
     }
 
+    /**
+     * 触发器命中前的跳过判定（§3.5 重述后语义）。
+     * <p>
+     * “正在播放”门控是<b>同脚本</b>口径：只有该玩家正在播放<b>本触发器所指向的脚本</b>
+     * （{@code reg.getScriptId()}）时才跳过，即同脚本同玩家保持单实例；
+     * <b>跨脚本不阻塞</b>——播放脚本 A 期间，指向脚本 B 的触发器照常命中并新建实例
+     * （客户端多实例已就绪，§3.5/§3.6）。
+     * <p>
+     * 随后才是 non-repeatable 触发器的“已触发过”去重。
+     */
     private boolean shouldSkip(ServerPlayer player, TriggerRegistration reg) {
         if (ScriptEventManager.INSTANCE.isPlayerPlayingScript(player.getUUID(), reg.getScriptId())) {
             return true;
