@@ -179,6 +179,12 @@
 | 2 | **暂停联动 = 并集、跳过提示 = 顶层实例** | `InputRouter` 的暂停联动消费改为任一实例声明 `pause_when_game_paused` 即放行（并集）；`SkipHudRenderer` 的跳过提示只由顶层实例（后来者居上）的 `skippable` 决定；随之删除全局生命周期开关与实例快照的"两套真相" |
 | 3 | **finish / stop / pause 包补 instanceId** | 服务端删除"观看者成员→唯一实例"启发式，账本按实例 id 精确解析（started 包已带 id） |
 
+### 步骤 4/5/6 落地记录（2026-10-07）
+
+- **跨脚本并行已放开**：`playScript` 并行决策树——同脚本冲突实例走原单实例语义（可打断替换该实例 / 不可打断排队或拒绝），跨脚本直接新建实例并行（不排队不打断不阻塞，§3.5/§3.6）；`activeInstance()` 改为顶层（后来者居上）；每帧按启动顺序驱动所有实例；任一实例结束只退该实例，全局复位只在最后一个实例退出时执行；`cameraState` 快照 = 顶层实例状态；暂停握手按实例各发一条（账本按实例）。
+- 审查修订①②③ 全部落地（实例 id 挂实例 / 暂停联动并集+跳过提示顶层 / finish·stop·pause 包带 id）。
+- 尚未落地（后续步骤）：跨实例 lane 收集（ScriptLaneDriver 仍只收顶层）、听者后来者居上（AudioListenerController 已按顶层但 hasActiveCameraClip 为并集，口径待对齐）、编辑器预览独立实例、服务端 shouldSkip 按实例、队列按脚本匹配接播（ScriptQueue 无匹配 API，待定）。
+
 ---
 
 ## 8. 与 0.4.0 旧稿的关系

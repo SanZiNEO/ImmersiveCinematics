@@ -28,9 +28,10 @@ public class CameraManager {
     private final CameraPath activePath = new CameraPath();
 
     /**
-     * 播放实例列表（并行播放模型第一步：播放 = 实例）。
-     * 本版本不变量：至多一个活跃实例——列表化让播放器与生命周期状态随实例走，
-     * 真正的并行放开见 plans/0.3.6/parallel-playback.md §7 步骤 2+。
+     * 播放实例列表（并行播放模型：播放 = 实例，数量不设上限，见 plans/0.3.6/parallel-playback.md §1）。
+     * <p>列表顺序 = 启动顺序：帧驱动按顺序遍历（后写入者覆盖先写入者 → 后来者居上，§3.4），
+     * 顶层实例 = 列表最后一个（{@link #topInstance()}）。同脚本同玩家保持单实例（§3.5）：
+     * 同脚本的第二个请求走拒绝/排队；跨脚本请求一律新建实例并行播放（§3.6）。
      */
     private final List<PlaybackInstance> instances = new ArrayList<>();
 
@@ -72,9 +73,14 @@ public class CameraManager {
     /** 组 7：编辑器拖拽直控标志 — 直控期间 CameraTrackPlayer 跳过轨道写入，相机由编辑器直驱 */
     private boolean previewDirectControl = false;
 
-    /** 活跃播放实例（本版本至多 1 个；无播放时为 null）。 */
+    /**
+     * 活跃播放实例 —— 返回<b>顶层实例</b>（启动最晚者，§3.4 后来者居上）；无播放时为 null。
+     * <p>跨脚本并行放开后可能同时存在多个实例：需要“当前代表”的消费方（画面 lane 收集、听者、
+     * 玩家移动、预加载、服务端账本上报）都取顶层；按实例逐个处理的路径见 {@link #onRenderFrame()}、
+     * {@link #instanceBehaviors()}、{@link #requestExit(ExitReason)}。
+     */
     public PlaybackInstance activeInstance() {
-        return instances.isEmpty() ? null : instances.get(0);
+        return topInstance();
     }
 
     /**
@@ -118,8 +124,26 @@ public class CameraManager {
         return instances.isEmpty() ? null : instances.get(instances.size() - 1);
     }
 
+    /**
+     * 同脚本冲突实例（§3.5 同脚本单实例）：正在播放 {@code scriptId} 的活跃实例；无则 null。
+     * <p>跨脚本请求不查这里——它们一律新建实例并行播放（§3.6）；只有命中本方法的请求才走
+     * “可打断 = 立即替换 / 不可打断 = 排队或拒绝”的原有单实例语义。
+     */
+    private PlaybackInstance instancePlaying(String scriptId) {
+        if (scriptId == null) return null;
+        for (PlaybackInstance instance : instances) {
+            if (instance.player().isPlaying() && scriptId.equals(instance.scriptId())) return instance;
+        }
+        return null;
+    }
+
+    /** 请求退场渐出（顶层实例）：无活跃实例或已在渐出时为 no-op。 */
     public void deactivate() {
-        PlaybackInstance instance = activeInstance();
+        deactivate(topInstance());
+    }
+
+    /** 请求指定实例退场渐出（渐出完成后由 {@link #onRenderFrame()} 的结束判定真正停用）。 */
+    private void deactivate(PlaybackInstance instance) {
         if (instance == null) return;
         if (instance.isStopping()) return;
         OverlayManager.INSTANCE.startFadeOut();
@@ -128,18 +152,30 @@ public class CameraManager {
 
     // ========== 统一退出入口 ==========
 
+    /**
+     * 统一退出入口 —— 作用于<b>顶层实例</b>（后来者居上，§3.4）：跳过键 / 强制退出键等玩家交互
+     * 面向的就是顶层实例（跳过提示也只由它决定，见 {@link #isTopInstanceSkippable()}）。
+     */
     public boolean requestExit(ExitReason reason) {
-        PlaybackInstance instance = activeInstance();
+        return requestExit(topInstance(), reason);
+    }
 
+    /**
+     * 统一退出入口（指定实例）：跨脚本并行下，帧内自然结束等路径必须精确作用于某个实例——
+     * 退出一个实例不影响其他实例（§3.1 生命周期按实例独立）。
+     *
+     * @param instance 目标实例；null = 无播放可结束
+     */
+    private boolean requestExit(PlaybackInstance instance, ExitReason reason) {
         switch (reason) {
             case FORCE_QUIT:
                 setExitReason(instance, CompletionReason.FORCE_QUIT);
-                deactivateNow();
+                deactivateNow(instance);
                 return true;
 
             case SYSTEM_STOP:
                 setExitReason(instance, CompletionReason.STOPPED);
-                deactivate();
+                deactivate(instance);
                 return true;
 
             case INTERRUPTED:
@@ -148,7 +184,7 @@ public class CameraManager {
                     return false;
                 }
                 setExitReason(instance, CompletionReason.INTERRUPTED);
-                deactivate();
+                deactivate(instance);
                 return true;
 
             case USER_SKIP:
@@ -157,7 +193,7 @@ public class CameraManager {
                     return false;
                 }
                 setExitReason(instance, CompletionReason.SKIPPED);
-                deactivate();
+                deactivate(instance);
                 return true;
 
             case NATURAL_END:
@@ -165,7 +201,7 @@ public class CameraManager {
                     return false;
                 }
                 setExitReason(instance, CompletionReason.FINISHED);
-                deactivate();
+                deactivate(instance);
                 return true;
         }
         return false;
@@ -179,11 +215,12 @@ public class CameraManager {
     // ========== 脚本播放模式 ==========
 
     /**
-     * 播放或排队脚本（C1 决策树，规则固定：优先级不能大于打断）
+     * 播放脚本（并行播放模型，§3.5/§3.6）：
      * <ul>
-     *   <li>无播放 → 直接开始（1）</li>
-     *   <li>当前脚本可打断 → 立即替换（无渐出，新脚本马上播）（1）</li>
-     *   <li>当前脚本不可打断 → 一律排队（容量 8，满则拒绝），priority 只用于队列内排序（2 / 0）</li>
+     *   <li><b>跨脚本</b>（无同脚本活跃实例）→ 一律<b>新建实例并行播放</b>（1）：不排队、不打断、不阻塞——
+     *       有什么就放什么；已有实例继续播放（§3.6 不做互斥组）。</li>
+     *   <li><b>同脚本</b>已有活跃实例 → 维持单实例语义（§3.5）：可打断 → 立即替换该实例（1）；
+     *       不可打断 → 一律排队（容量 8，满则拒绝），priority 只用于队列内排序（2 / 0）。</li>
      * </ul>
      *
      * @return 0=被拒绝, 1=已开始播放, 2=已排队等待
@@ -203,19 +240,20 @@ public class CameraManager {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return 0;
 
-        PlaybackInstance instance = activeInstance();
-        if (instance == null || !instance.player().isPlaying()) {
-            startScriptInternal(script, instanceId);
-            reportPlaybackStarted(script);
+        // 同脚本单实例（§3.5）：只有“同一脚本已在播”才走原有决策树；跨脚本请求不受在播实例影响
+        PlaybackInstance sameScript = instancePlaying(script.getId());
+        if (sameScript == null) {
+            PlaybackInstance started = startScriptInternal(script, instanceId);
+            reportPlaybackStarted(script, started);
             return 1;
         }
 
-        if (instance.isInterruptible()) {
-            // 可打断 → 立即替换：置原因 + deactivateNow 直接切换（deactivateNow 末尾接播 pendingScript）
+        if (sameScript.isInterruptible()) {
+            // 可打断 → 立即替换该实例：置原因 + 精确退场（deactivateNow 末尾接播 pendingScript）
             pendingScript = script;
             pendingInstanceId = instanceId;
-            instance.setExitReason(CompletionReason.INTERRUPTED);
-            deactivateNow();
+            sameScript.setExitReason(CompletionReason.INTERRUPTED);
+            deactivateNow(sameScript);
             return 1;
         }
 
@@ -247,13 +285,28 @@ public class CameraManager {
         return playScript(script, instanceId);
     }
 
+    /** 顶层实例的脚本 id（无活跃实例时 {@code "<none>"}）。 */
     public String getActiveScriptId() {
         PlaybackInstance instance = activeInstance();
         return instance != null ? instance.scriptId() : "<none>";
     }
 
+    /**
+     * 强制立即停用<b>全部</b>活跃实例（服务端 stop 命令 / 调试强制退出）：不渐出、不接播。
+     * <p>跨脚本并行下“停止”是整体动作——停一个留一个会让服务端账本与客户端画面不一致。
+     */
     public void forceDeactivate() {
-        deactivateNow();
+        deactivateAllNow();
+    }
+
+    /** 立即停用全部实例：清空待接播与队列后逐个精确退出（每个实例各自通知结束、各自清理）。 */
+    private void deactivateAllNow() {
+        pendingScript = null;
+        pendingInstanceId = "";
+        scriptQueue.clear();
+        while (!instances.isEmpty()) {
+            deactivateNow(topInstance());
+        }
     }
 
     public boolean isScriptMode() {
@@ -373,7 +426,7 @@ public class CameraManager {
             pendingScript = null;
             pendingInstanceId = "";
             scriptQueue.clear();
-            deactivateNow();
+            deactivateNow(topInstance());
         } else {
             stopScript();
         }
@@ -383,14 +436,21 @@ public class CameraManager {
     public void emergencyStop() {
         previewMode = false;
         previewPaused = true;
-        // 世界已退出，不可能接播（pendingScript 会经 deactivateNow 自动启动，必须先清掉）
-        pendingScript = null;
-        pendingInstanceId = "";
-        setExitReason(activeInstance(), CompletionReason.STOPPED);
-        deactivateNow();
+        // 世界已退出：全部实例一起清理（跨脚本并行下逐个清，音频/覆盖层都不能残留）
+        for (PlaybackInstance instance : instances) {
+            instance.setExitReason(CompletionReason.STOPPED);
+        }
+        deactivateAllNow();
     }
 
-    private void startScriptInternal(CinematicScript script, String instanceId) {
+    /**
+     * 新建并启动一个播放实例（并行播放模型：每次真正开始播放 = 一个新实例，§3.5）。
+     * <p>调用点只负责决定“是否该开始”——同脚本单实例的判定在 {@link #playScript}，
+     * 接播判定在 {@link #deactivateNow}；本方法不做任何互斥检查。
+     *
+     * @return 新启动的实例（调用方据此上报服务端账本，§3.7）
+     */
+    private PlaybackInstance startScriptInternal(CinematicScript script, String instanceId) {
         Minecraft mc = Minecraft.getInstance();
         if (!previewMode) {
             mc.setScreen(null);
@@ -411,8 +471,7 @@ public class CameraManager {
         }
         previewInitialized = true;
 
-        // 本版本不变量：至多一个活跃实例——调用点保证此刻没有活跃实例
-        // （playScript/pushScript/setTime/resume 的空闲分支进入；deactivateNow 已先移除旧实例）
+        // 追加到列表末尾 = 顶层（后来者居上，§3.4）：帧驱动按顺序遍历，后写入者覆盖先写入者
         PlaybackInstance instance = new PlaybackInstance();
         instances.add(instance);
 
@@ -432,26 +491,26 @@ public class CameraManager {
         // 写侧收口：instance.start 已预执行脚本首帧、直写内部状态；这里立即刷新统一快照，
         // 使同一 tick 内后续读取（如 PreloadRequester）看到接播后的最新值，而非过期/空快照。
         refreshCameraState();
+        return instance;
     }
 
     /**
      * 服务端账本上报：脚本**真正开始播放**时发 C2SPlaybackStarted（{@code started=true}）。
      * <p>
-     * 只在“实际开始播放”的入口调用——直接开始（{@link #playScript} 无播放分支）与
-     * 结束接播（{@link #deactivateNow} 的 pendingScript / scriptQueue 分支）。排队等待、被拒绝、
+     * 只在“实际开始播放”的入口调用——直接开始（{@link #playScript}）与结束接播
+     * （{@link #deactivateNow} 的 pendingScript / scriptQueue 分支）。排队等待、被拒绝、
      * 编辑器预览都不上报，否则服务端 {@code ScriptEventManager} 的观看者账本与触发去重
      * （{@code TriggerEngine.shouldSkip}）会与实际播放状态错位。
      * <p>
      * refId 留空：play 命令的传输层 ACK 由 {@code ClientScriptReceiver} 单独回执（ACK 与“已开始”
-     * 两件事解耦，见 {@code C2SPlaybackStartedPacket}）；{@code instanceId} 取本次刚启动的活跃实例
-     * 自带的播放实例 id（§3.7，start 时传入；预览/本地来源为空串，无实例时也为空串）。
+     * 两件事解耦，见 {@code C2SPlaybackStartedPacket}）；{@code instanceId} 取<b>本次刚启动的那个实例</b>
+     * 自带的播放实例 id（§3.7；跨脚本并行下可能同时有多个实例，不能按“顶层”推断，故由调用方传入）。
      */
-    private void reportPlaybackStarted(CinematicScript script) {
+    private void reportPlaybackStarted(CinematicScript script, PlaybackInstance started) {
         if (script == null) return;
         String id = script.getId();
         if (id == null || id.isEmpty()) return;
-        PlaybackInstance instance = activeInstance();
-        final String instanceId = instance != null && instance.instanceId() != null ? instance.instanceId() : "";
+        final String instanceId = started != null && started.instanceId() != null ? started.instanceId() : "";
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SPlaybackStarted",
                 () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                         new com.immersivecinematics.immersive_cinematics.trigger.network.C2SPlaybackStartedPacket(id, instanceId, true)));
@@ -473,49 +532,34 @@ public class CameraManager {
 
     // ========== 帧回调驱动 ==========
 
+    /**
+     * 每渲染帧驱动<b>全部</b>活跃实例（并行播放模型，§3.1/§3.4）：
+     * <ol>
+     *   <li>帧级时钟与暂停判定只做一次（共享虚拟时钟；暂停联动取并集，§3.1）；</li>
+     *   <li>按列表顺序（= 启动顺序）逐个驱动实例的播放器：后驱动的实例后写入共享相机状态 →
+     *       顶层实例（启动最晚）的画面与状态胜出（§3.4 后来者居上）；</li>
+     *   <li>某个实例结束（渐出完成 / 自然结束）→ 只退出该实例（{@link #deactivateNow}），
+     *       其余实例继续播放；</li>
+     *   <li>最后一个实例退出后由 {@code deactivateNow} 复位全局状态（相机、时钟、覆盖层、行为开关）。</li>
+     * </ol>
+     */
     public void onRenderFrame() {
-        PlaybackInstance instance = activeInstance();
-        if (instance == null) {
+        if (instances.isEmpty()) {
             cachedHasActiveCameraClip = false;
             refreshCameraState();
             return;
         }
-        ScriptPlayer player = instance.player();
 
-        boolean gamePaused = Minecraft.getInstance().isPaused() && instance.isPauseWhenGamePaused();
+        // 暂停联动取并集（§3.1）：任一实例声明 pause_when_game_paused 即按游戏暂停处理；
+        // 单实例下与改造前逐点等价（并集 of 一个 = 该实例自己的值）。
+        boolean gamePaused = Minecraft.getInstance().isPaused() && isAnyPauseWhenGamePaused();
         // 编辑器预览暂停也算暂停
         boolean effectivelyPaused = gamePaused || (previewMode && previewPaused);
 
-        // 组 1：每帧同步音频暂停状态（幂等；对齐 MC SoundEngine：暂停时无新声音、已有实例幂等 pause）。
-        // 必须位于 player.onRenderFrame 之前并每帧执行——修复「暂停检测在实例创建前」的时序缺陷。
         // 诊断：打印暂停判定组成——若游戏内播放被误判为暂停（gamePaused/previewMode 异常）即可见。
         if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("camera pauseSync: eff={} gamePaused={} previewMode={} previewPaused={}",
-                    effectivelyPaused, gamePaused, previewMode, previewPaused);
-        }
-        if (effectivelyPaused) {
-            player.pauseAudio();
-        } else {
-            player.resumeAudio();
-        }
-
-        // 检测暂停↔恢复转换，通知服务端（握手仅转换时发送）
-        if (effectivelyPaused != lastFramePaused) {
-            lastFramePaused = effectivelyPaused;
-            if (player.isPlaying()) {
-                String scriptId = player.getScriptId();
-                if (!"<none>".equals(scriptId)) {
-                    // N1：暂停/恢复握手 — 登记 ACK，超时重发（handlePause 幂等）；发包经 NetworkGuard 防断线崩溃
-                    String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
-                    com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId,
-                            () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptPause",
-                                    () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                                            new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, instance.instanceId(), effectivelyPaused, refId))));
-                    com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptPause",
-                            () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                                    new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, instance.instanceId(), effectivelyPaused, refId)));
-                }
-            }
+            LOGGER.debug("camera pauseSync: eff={} gamePaused={} previewMode={} previewPaused={} instances={}",
+                    effectivelyPaused, gamePaused, previewMode, previewPaused, instances.size());
         }
 
         // 暂停：不退出相机画面——冻结时钟但继续应用相机/轨道（修复"暂停切回玩家视角"）
@@ -536,42 +580,87 @@ public class CameraManager {
         float deltaTime = 1f / 20f;
         OverlayManager.INSTANCE.update(deltaTime);
 
+        // 暂停↔恢复转换是帧级事件：转换发生的那一帧为每个在播实例各发一条握手（§3.7 账本按实例解析）
+        boolean pauseTransition = effectivelyPaused != lastFramePaused;
+        if (pauseTransition) {
+            lastFramePaused = effectivelyPaused;
+        }
+
         float effectiveTime = (float) getGameTimeSeconds();
-        if (player.isPlaying()) {
-            // holdAtEnd=true：时间耗尽后把渲染时间钳到总时长末尾，让最后一帧保持住
-            if (player.isFinished() && instance.isHoldAtEnd()) {
-                CinematicScript s = player.getScript();
-                if (s != null) {
-                    float total = s.getTotalDuration();
-                    if (total > 0f) effectiveTime = Math.max(0f, total - 0.001f);
+        boolean anyActiveCameraClip = false;
+
+        // 遍历副本：帧内可能有实例退出（deactivateNow 出列）或接播（追加新实例），避免并发修改
+        for (PlaybackInstance instance : new ArrayList<>(instances)) {
+            if (!instances.contains(instance)) continue; // 本帧更早的退出已移除该实例
+            ScriptPlayer player = instance.player();
+
+            // 组 1：每帧同步音频暂停状态（幂等；对齐 MC SoundEngine：暂停时无新声音、已有实例幂等 pause）。
+            // 必须位于 player.onRenderFrame 之前并每帧执行——修复「暂停检测在实例创建前」的时序缺陷。
+            if (effectivelyPaused) {
+                player.pauseAudio();
+            } else {
+                player.resumeAudio();
+            }
+
+            if (pauseTransition && player.isPlaying()) {
+                String scriptId = player.getScriptId();
+                if (!"<none>".equals(scriptId)) {
+                    sendPausePacket(scriptId, instance.instanceId(), effectivelyPaused);
                 }
             }
-            player.onRenderFrame(effectiveTime);
-        }
 
-        // 帧级缓存：用与实际渲染相同的 effectiveTime 判断活跃 Camera 轨道
-        cachedHasActiveCameraClip = player.hasActiveCameraTrack(effectiveTime);
+            if (player.isPlaying()) {
+                float instanceTime = effectiveTime;
+                // holdAtEnd=true：时间耗尽后把渲染时间钳到总时长末尾，让最后一帧保持住
+                if (player.isFinished() && instance.isHoldAtEnd()) {
+                    CinematicScript s = player.getScript();
+                    if (s != null) {
+                        float total = s.getTotalDuration();
+                        if (total > 0f) instanceTime = Math.max(0f, total - 0.001f);
+                    }
+                }
+                player.onRenderFrame(instanceTime);
+                // 帧级缓存取并集：任一实例本帧有活跃 Camera 轨道即算有（§3.6 有什么就放什么）
+                anyActiveCameraClip |= player.hasActiveCameraTrack(instanceTime);
+            }
 
-        if (instance.isStopping() && !OverlayManager.INSTANCE.isAnimating()) {
-            deactivateNow();
-            return;
-        }
+            if (instance.isStopping() && !OverlayManager.INSTANCE.isAnimating()) {
+                deactivateNow(instance);
+                continue;
+            }
 
-        if (!instance.isStopping() && player.isPlaying() && player.isFinished()) {
-            boolean holdAtEnd = instance.isHoldAtEnd();
-            // 诊断：退出链路（脚本自然结束检查）
-            LOGGER.info("NATURAL_END check: playing={} finished=true stopping={} holdAtEnd={} elapsed={}",
-                    player.isPlaying(), instance.isStopping(), holdAtEnd,
-                    String.format("%.2f", (float)(getGameTimeSeconds() - 0)));
-            if (!holdAtEnd) {
-                LOGGER.info("NATURAL_END -> requestExit");
-                requestExit(ExitReason.NATURAL_END);
+            if (!instance.isStopping() && player.isPlaying() && player.isFinished()) {
+                boolean holdAtEnd = instance.isHoldAtEnd();
+                // 诊断：退出链路（脚本自然结束检查）
+                LOGGER.info("NATURAL_END check: playing={} finished=true stopping={} holdAtEnd={} elapsed={}",
+                        player.isPlaying(), instance.isStopping(), holdAtEnd,
+                        String.format("%.2f", (float)(getGameTimeSeconds() - 0)));
+                if (!holdAtEnd) {
+                    LOGGER.info("NATURAL_END -> requestExit");
+                    // 精确作用于本实例：其他并行实例不受影响（§3.1）
+                    requestExit(instance, ExitReason.NATURAL_END);
+                }
             }
         }
+
+        cachedHasActiveCameraClip = anyActiveCameraClip;
 
         // 帧末统一生成/替换快照：本帧所有渲染侧读取（含 onRenderFrame 之后调用的
         // CameraMixin 读取、roll、setupRender）都拿到这一份，且同帧内多次读取一致。
         refreshCameraState();
+    }
+
+    /** N1：暂停/恢复握手（按实例，§3.7）——立即发一条 + 登记 ACK 超时重发（handlePause 幂等）。 */
+    private static void sendPausePacket(String scriptId, String instanceId, boolean paused) {
+        // 发包经 NetworkGuard 防断线崩溃
+        String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
+        com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId,
+                () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptPause",
+                        () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                                new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, instanceId, paused, refId))));
+        com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptPause",
+                () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                        new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, instanceId, paused, refId)));
     }
 
     public double getGameTimeSeconds() {
@@ -583,8 +672,14 @@ public class CameraManager {
         return previewPaused;
     }
 
-    private void deactivateNow() {
-        PlaybackInstance instance = activeInstance();
+    /**
+     * 立即停用<b>指定</b>实例（不渐出）：出列 → 通知结束 → 清理该实例 → 全局复位或按剩余实例重算 → 接播。
+     * <p>跨脚本并行下本方法只影响传入实例（§3.1 生命周期按实例独立）：只要还有实例在播，
+     * 共享虚拟时钟、相机状态、覆盖层、输入交接都不能复位——它们属于剩余实例。
+     *
+     * @param instance 目标实例；null = 无播放可结束（仅做一次全局复位检查）
+     */
+    private void deactivateNow(PlaybackInstance instance) {
         CompletionReason reason = instance != null ? instance.exitReason() : CompletionReason.FINISHED;
         // 诊断：退出链路（deactivateNow 执行）
         LOGGER.info("deactivateNow: reason={}", reason);
@@ -593,11 +688,6 @@ public class CameraManager {
         if (instance != null) {
             instances.remove(instance);
         }
-        gameTimeSeconds = 0;
-        lastRealNanos = 0;
-        // 组 6/7：停止后复位直控与初始化标志（下次预览重新从玩家位置起步）
-        previewDirectControl = false;
-        previewInitialized = false;
 
         String finishedScriptId = instance != null ? instance.scriptId() : null;
         if (finishedScriptId != null) {
@@ -610,29 +700,40 @@ public class CameraManager {
         if (instance != null) {
             instance.stop(reason);
         }
-        // 退出输入优雅交接：键盘按当前物理状态重同步 + 鼠标按钮同步 + 清鼠标累积量
-        // （不再 releaseAll 全量释放——避免玩家仍按着键时退出导致按键失效直到松开重按）
-        CinematicController.INSTANCE.syncInputStateAfterExit();
+
         if (instances.isEmpty()) {
+            // 最后一个实例退出：全局复位（虚拟时钟 / 相机状态 / 预览标志 / 输入交接 / 行为开关 / 覆盖层）
+            gameTimeSeconds = 0;
+            lastRealNanos = 0;
+            // 组 6/7：停止后复位直控与初始化标志（下次预览重新从玩家位置起步）
+            previewDirectControl = false;
+            previewInitialized = false;
+            // 退出输入优雅交接：键盘按当前物理状态重同步 + 鼠标按钮同步 + 清鼠标累积量
+            // （不再 releaseAll 全量释放——避免玩家仍按着键时退出导致按键失效直到松开重按）
+            CinematicController.INSTANCE.syncInputStateAfterExit();
             CinematicController.INSTANCE.revert();
+            reset();
+            OverlayManager.INSTANCE.reset();
         } else {
-            // §3.2：该实例结束后按剩余实例重新求并集（本版本至多 1 个实例，此分支是并行放开的落点）
+            // 仍有实例在播（跨脚本并行）：全局时钟与相机状态属于剩余实例，不能复位；
+            // 只按剩余实例重算行为开关并集（§3.2）。队列与现状一致地随实例结束清空
+            // （队列语义待 plans/0.3.6/parallel-playback.md §6 定稿）。
+            scriptQueue.clear();
             CinematicController.INSTANCE.recomputeUnion(instanceBehaviors());
         }
-        reset();
-        OverlayManager.INSTANCE.reset();
 
         if (pendingScript != null) {
+            // 同脚本替换（可打断路径）的接播：与剩余实例无关，替换目标已被本方法出列
             CinematicScript next = pendingScript;
             String nextInstanceId = pendingInstanceId;
             pendingScript = null;
             pendingInstanceId = "";
-            startScriptInternal(next, nextInstanceId);
-            reportPlaybackStarted(next);
+            reportPlaybackStarted(next, startScriptInternal(next, nextInstanceId));
         } else if (!scriptQueue.isEmpty()) {
+            // 队列接播（同脚本单实例的排队请求）：当前不可达——队列在上面的实例结束路径已清空，
+            // 语义待 §6 定稿后一并实现（需要“按脚本匹配取队头”的队列 API）。
             ScriptQueue.Entry next = scriptQueue.poll();
-            startScriptInternal(next.script(), next.instanceId());
-            reportPlaybackStarted(next.script());
+            reportPlaybackStarted(next.script(), startScriptInternal(next.script(), next.instanceId()));
         } else {
             // 真正回到正常游戏：不再无条件/按尾段空档强制 allChanged；
             // 释放时由服务端差集补发自动决定需要重发的玩家区区块。

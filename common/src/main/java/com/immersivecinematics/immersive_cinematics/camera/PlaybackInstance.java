@@ -21,9 +21,10 @@ import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
  *       原先分散在 {@code CameraManager} 的 {@code stopping} / {@code pendingCompletionReason} 字段，随实例走。</li>
  * </ul>
  *
- * <h2>本版本的约束</h2>
- * {@code CameraManager} 仍只允许一个活跃实例（{@code pendingScript} / 播放队列语义不变）；
- * 实例列表化是并行放开（§7 步骤 2+）的落点，本步只做载体切换、行为与现状一致。
+ * <h2>并行播放（多实例）</h2>
+ * {@code CameraManager} 的实例列表可同时持有多个实例（数量不设上限）：跨脚本请求一律新建实例并行播放
+ * （§3.6），同脚本同玩家保持单实例（第二个请求拒绝/排队，§3.5）。帧驱动按列表顺序遍历全部实例
+ * （后来者居上，§3.4），实例结束只影响它自己；只要还有实例在播，共享虚拟时钟 / 相机状态 / 覆盖层都不复位。
  *
  * <p>生命周期驱动方法（{@code start} / {@code replaceScript} / {@code stop} / {@code markStopping} /
  * {@code setExitReason}）为包内可见：实例只能由 {@code CameraManager} 创建与驱动。
