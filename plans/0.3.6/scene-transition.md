@@ -65,6 +65,7 @@ RGBA 的 A 通道**不属于调色**（[画面颜色调整](./screen-color-adjus
 - **预热自然解决**：重叠窗口内 B 从自己 clip 的开头（opacity 0）就在渲染（hold 区渲染的就是被复制的首帧），无需独立预热调度（`camera-composition.md` §4）。
 - **追踪方式只有一种**：调这两个 clip 的关键帧参数（编辑器里能看见、能拖、能打点）。**没有**独立转场轨 / 转场字段 / 转场代码——否则就是系统追踪不了的东西。
 - **唯一机制性支持**：多相机渲染本身（重叠窗口内两个 lane 同时渲染，见 `multi-camera-rendering.md`）。这是**渲染层**的支持，不是转场机制。
+- **数据链路已验证（2026-10-07）**：`cinematics/tests/transition/test_dissolve.json`（A[0,6] 末尾 hold 段 opacity 1→0、B[4,10] 开头 hold 段 0→1，重叠窗口 [4,6)）经 `ScriptValidator`（与 `/icinematics validate` 同源）校验通过；离线冒烟（真实 `Clip` / `KeyframeInterpolator` 驱动，逐点核对）确认：重叠窗口 [4,6) 双 lane 且 opacity 互补（A+B≈1）、其余时段单 lane opacity=1、全程无空隙（不露原版画面）、重叠区两 clip 关键帧等值（hold 成立）。附带修复：`ScriptValidator` 原「同轨道重叠」拒绝项与 lane 模型冲突（旧单相机约束），已删除。**游戏内上屏视觉未验证（属后续任务）。**
 
 ### 3.3 黑场 / 白场（Fade to black / white）——OVERLAY 轨的预配置 clip（已确认·2026-10-07）
 

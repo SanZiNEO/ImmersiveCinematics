@@ -111,8 +111,18 @@ OVERLAY 现有 `pip` 层是静态占位（半透明黑填充 + 2px 白边，不�
 | 5 | source rect 裁剪 | 同一相机画面取局部铺满全屏（数字变焦 / 局部取景） |
 | 6 | 编辑器：合成参数属性面板 + 多 lane 预览 | WebUI 内可编排并预览分屏 / 叠化 |
 
-> **落地状态（2026-10-07）**：步骤 1（数据层）与步骤 3–5 的**渲染侧合成层**已落地（见本节末）；
-> 步骤 2 / 3 / 4 / 5 的**脚本侧接线**（关键帧 → lane 注册 → 合成参数）尚未落地。
+> **落地状态（2026-10-07）**：步骤 1（数据层）、步骤 3–5 的**渲染侧合成层**与**脚本侧接线**
+> （关键帧 → lane 注册 → 合成参数 → 上屏）均已落地（见本节末）；
+> 步骤 6（编辑器预览面板）与主相机替换链退役未落地。
+>
+> **叠化（步骤 4）数据链路已验证（2026-10-07）**：叠化 = 两条**时间重叠**的 CAMERA clip 各自
+> opacity 关键帧交叉（A 末尾 hold 段 1→0、B 开头 hold 段 0→1，hold = 复制等值关键帧冻结画面）。
+> `cinematics/tests/transition/test_dissolve.json`（A[0,6] / B[4,10]，重叠窗口 [4,6)）经
+> `ScriptValidator`（与 `/icinematics validate` 同源）校验通过；离线冒烟（真实 `Clip` /
+> `KeyframeInterpolator` 驱动，逐点核对）确认：重叠窗口 [4,6) 双 lane 且 opacity 互补（A+B≈1）、
+> 其余时段单 lane opacity=1、全程无空隙（不露原版画面）、重叠区两 clip 关键帧等值（hold 成立）。
+> 附带修复：`ScriptValidator` 原「同轨道重叠」拒绝项与 lane 模型冲突（旧单相机约束），已删除。
+> **游戏内上屏视觉未验证（属后续任务）。**
 >
 > 步骤 1–2 不依赖多相机渲染，可先行验证关键帧链路；步骤 3 起依赖渲染原型。
 
@@ -152,7 +162,25 @@ OVERLAY 现有 `pip` 层是静态占位（半透明黑填充 + 2px 白边，不�
 - **绘制路径**：复刻原版 `RenderTarget._blitToScreen` 的屏幕空间画法（屏幕正交投影 + 模型视图 z=−2000 + 4 顶点 quad），shader 用原版 `position_tex`（其自带 `srcalpha / 1-srcalpha` 混合，正是 opacity 需要的），不新建 shader 资产。
 - **状态纪律**：一次合成会改动绑定的 framebuffer / 视口、全局投影与 VertexSorting、全局模型视图、shader 颜色与 0 号 shader 纹理、深度测试 / 深度写 / 颜色写 / 混合——合成器入口保存、出口还原（与 lane 渲染同一纪律）；alpha 通道不写（同 `blitToScreen`：主画面 alpha 不归合成层管）。
 - **验证入口**：`-Dicinematics.quadrant=4`（或环境变量 `ICINEMATICS_QUADRANT=4`）的调试驱动已改走合成器上屏（dest = 网格格、source = 全幅、opacity = 1），替换掉临时的 `glBlitFrameBuffer`。
-- **尚未落地**：脚本关键帧 → 合成参数的接线（分屏 / 叠化 / 局部取景的**编排**）属 lane 注册任务；本步骤只交付渲染消费侧，合成器接口已就位。
+
+### 步骤 2–5 脚本侧接线：lane 注册与上屏（已落地·2026-10-07）
+
+数据流（全部在渲染线程、每帧一次）：
+
+```text
+CameraTrackPlayer.onRenderFrame   本帧活跃 clip 各产一份 lane 快照（CameraLane = 相机六参数 + clip + clip 内本地时间）
+  → ScriptPlayer.collectCameraLanes()   按绘制顺序扁平化：轨道层级 → 轨道内 clip 顺序（末位 = 主相机）
+  → ScriptLaneDriver.tick()             注册 lane：LaneRenderer.setLane(i, 状态, 内容档) + setSink
+  → LaneRenderer.render()               逐 lane 整尺寸渲染进共用离屏缓冲
+  → LaneCompositor.compose()            该 lane 自己的 opacity / dest / source 贴到屏幕
+```
+
+- **合成参数来源**：每条 lane 的参数取自它所属 clip 的关键帧，在**该 clip 的本地时间**处插值——与相机六参数用同一个 `KeyframeInterpolator`，所以 hold（末尾复制延长）、`loop` / `pingpong` 的时间语义与相机完全一致；矩形按分量整体插值（同 `position` 的复合值口径），缺省 = `1` / 全屏 / 全幅。morph（旧转场模型）只有一份 lane，参数取**进入的片段**。
+- **叠放顺序**：lane 序号 = 提交顺序 = 绘制顺序，末位（主相机所属 clip）最后画、盖在最上面。
+- **内容档 = `FULL`（与主画面一致）**：单条全屏 lane（opacity=1、dest 全屏）会盖住主画面，且叠化要求两条 lane 观感一致 → 实体 / 粒子 / 天空 / 天气必须全开；`WORLD_ONLY` 只画地形，全屏 lane 下会看不到生物 / 掉落物 / 天空 / 雨雪。
+- **调试驱动共存**：脚本 lane 优先——本帧有脚本 lane 时 `-Dicinematics.quadrant` 的调试驱动整体让位（不注册 lane、不装合成回调）；无脚本 lane 时调试驱动照常（网格冒烟手段保留）。
+- **过渡期（双渲染）**：主相机替换链（`CameraMixin` 等）仍在驱动原版视角（退役是队列最后一个任务），lane 是**叠加层**——单条全屏、opacity=1 的 lane 视觉与主画面一致（盖住即可）；但 `dest` 非全屏时，下面那张全屏主画面仍会露出来，且主画面里在 lane 之前画进主 framebuffer 的内容（`renderLevel` 内的第一人称手臂——仅当脚本显式 `hide_arm: false` 时可见）会被不透明的全屏 lane 盖住。「合成层输出 = 玩家看到的画面」要等主链退役才完全成立。
+- **验证**：编译通过；离线冒烟（真实测试脚本 JSON → 关键帧 → 参数取值逐点核对：缺省 / 插值 / 矩形缺分量 / 末尾钳制）；游戏内冒烟 = 播一个带 CAMERA clip 的脚本（如 `cinematics/tests/camera/test_compositing_params.json`）肉眼核对 `dest` 缩角 / `source` 裁剪 / `opacity` 淡入淡出。
 
 ---
 

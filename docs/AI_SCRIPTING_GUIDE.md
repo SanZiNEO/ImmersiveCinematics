@@ -139,7 +139,7 @@
 | 字段 | 说明 |
 |---|---|
 | `total_duration` | 总时长秒。正数 = 定长；负数 = 无限时长（脚本永不宣布结束，但**不会**回卷循环） |
-| `tracks` | 轨道数组。CAMERA 最多 1 条，LETTERBOX/EVENT 建议 1 条，AUDIO/OVERLAY/MOD_EVENT 不限 |
+| `tracks` | 轨道数组。CAMERA 可多条（每条 = 一个画面 lane，轨道层级后面的在上；最后一轨的顶层 clip 决定主相机）；LETTERBOX/EVENT 建议 1 条，AUDIO/OVERLAY/MOD_EVENT 不限 |
 
 ### 3.4 CAMERA 轨道（核心）
 

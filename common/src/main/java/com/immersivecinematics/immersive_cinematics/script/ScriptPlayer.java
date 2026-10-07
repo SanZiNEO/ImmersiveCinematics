@@ -333,6 +333,32 @@ public class ScriptPlayer {
         return Math.max(0f, totalDuration - getElapsedSeconds());
     }
 
+    /**
+     * 画面 lane 快照收集：按绘制顺序扁平化列出各 CAMERA 轨本帧的<b>全部活跃 clip</b>快照
+     * ——先按轨道层级（时间轴中先出现的轨在前），再按轨道内 clip 顺序（<b>后面的在上</b>）。
+     * <p>
+     * 时间重叠窗口内一条轨可能贡献多份（如叠化：上一个 clip 的 hold 尾帧 + 下一个 clip 的 hold 首帧）；
+     * 无重叠时每条轨一份。列表顺序即 lane 合成的绘制顺序：先画的在下，后画的盖在上面
+     * （见 {@code LaneCompositor}）。
+     * <p>
+     * <b>主相机 = 列表最后一个元素</b>（轨道层级最后的活跃轨的顶层活跃 clip，即写入全局
+     * {@link CameraManager} 的那一份状态）。本方法只读快照，不改变主相机行为。
+     * <p>
+     * 每份快照携带产出它的片段与该片段内的本地时间（{@link CameraLane}）——渲染侧据此取
+     * 该时刻的合成参数（opacity / dest / source）。
+     *
+     * @return 扁平化的快照列表；无 CAMERA 轨 / 未播放 / 各轨本帧均无画面时为空列表
+     */
+    public List<CameraLane> collectCameraLanes() {
+        List<CameraLane> lanes = new ArrayList<>();
+        for (TrackPlayer tp : trackPlayers) {
+            if (tp instanceof CameraTrackPlayer ctp) {
+                lanes.addAll(ctp.getLaneSnapshots());
+            }
+        }
+        return lanes;
+    }
+
     public boolean hasActiveCameraTrack(float elapsed) {
         // 宏观循环：渲染门控（相机/FOV/roll/遮挡/玩家模型）必须与实际分发给轨道的时间一致，
         // 否则第二圈起 hasActiveCameraClip() 变 false → 相机不渲染

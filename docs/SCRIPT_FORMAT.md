@@ -348,7 +348,8 @@ immersive_cinematics/
 | 叠化 | 两个全屏 clip 的 `opacity` 交叉关键帧（A 末 1→0、B 首 0→1） |
 | 数字变焦 / 局部取景 | `source` 取局部矩形、`dest` 全屏 |
 
-> 渲染消费（把参数应用到上屏）由后续任务落地；本节只定义数据形态。
+> 渲染消费已落地（2026-10-07）：脚本 lane 的合成参数由 `client/lane/ScriptLaneDriver` 按本节字段
+> 逐帧从 clip 关键帧插值取出，交给 `LaneCompositor` 上屏（缺省 = `1` / 全屏 / 全幅）。
 
 ---
 

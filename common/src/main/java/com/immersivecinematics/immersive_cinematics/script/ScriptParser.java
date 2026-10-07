@@ -619,11 +619,6 @@ public class ScriptParser {
     // ========== 验证方法 ==========
 
     private static void validateTracks(List<TimelineTrack> tracks, String p) throws ScriptParseException {
-        long cameraCount = tracks.stream().filter(t -> t.getType() == TrackType.CAMERA).count();
-        if (cameraCount > 1) {
-            com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Parse",
-                    "检测到 " + cameraCount + " 条 CAMERA 轨道，当前仅支持第1条");
-        }
         long letterboxCount = tracks.stream().filter(t -> t.getType() == TrackType.LETTERBOX).count();
         if (letterboxCount > 1) {
             com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Parse",

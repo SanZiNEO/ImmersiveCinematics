@@ -12,7 +12,7 @@
   - ✅ 校验必填字段（来自 schema 元数据），缺失时报错（`ScriptParser`、`SchemaLoader`）
   - ✅ 提供向后兼容：LETTERBOX 缺 keyframes 时从 clip 级 `aspect_ratio` 自动生成两个关键帧；EVENT 旧式 clip 级 `command` 自动迁移到 keyframe（`ScriptParser`）
   - ✅ 支持未知字段自动解析（向前兼容），触发器定义解析支持 `on_enter`/`exit_buffer`（`ScriptParser`）
-  - ✅ 解析轨道级合法性：超过 1 条 CAMERA 轨道仅使用第 1 条、LETTERBOX/EVENT 建议最多 1 条、morph 相邻 clip position_mode 不一致时告警（`ScriptParser`）
+  - ✅ 解析轨道级合法性：CAMERA 轨道可多条（每条 = 一个画面 lane，不再限 1 条）、LETTERBOX/EVENT 建议最多 1 条、morph 相邻 clip position_mode 不一致时告警（`ScriptParser`）
 - **脚本加载与触发器注册**
   - ✅ 提供单例 `ScriptManager.INSTANCE`，从游戏根目录 `immersive_cinematics/scripts` 递归加载子文件夹全部 .json 脚本并缓存原始 JSON（深度 ≤ 5）（`ScriptManager`）
   - ✅ 服务端统一从游戏根目录加载脚本，通过 S2C 包下发完整 JSON，**不再复制到世界存档**（`ScriptManager`）
@@ -33,7 +33,7 @@
   - ✅ `TriggerDefinition` 描述脚本内嵌触发器：类型/条件/repeatable/delay/on_enter/exit_buffer（`TriggerDefinition`）
 - **轨道种类**
   - ✅ 共 6 种轨道类型：CAMERA、LETTERBOX、AUDIO、EVENT、MOD_EVENT、OVERLAY（`TrackType`）
-  - ✅ 轨道数量限制：CAMERA 最多 1 条，LETTERBOX/EVENT 建议最多 1 条，AUDIO/MOD_EVENT/OVERLAY 不限（`TrackType`）
+  - ✅ 轨道数量限制：CAMERA 不限（每条 = 一个画面 lane，轨道层级后面的在上；最后一轨的顶层 clip 决定主相机），LETTERBOX/EVENT 建议最多 1 条，AUDIO/MOD_EVENT/OVERLAY 不限（`TrackType`）
 - **关键帧插值与路径**
   - ✅ `KeyframeInterpolator` 提供无状态静态插值：段定位、匀速时间进度、循环（`loop`/`loop_count` 取模，`loop_mode` 支持 `repeat` 重复与 `pingpong` 往复折返）、范围外钳制到首/末关键帧（`KeyframeInterpolator`）
   - ✅ 位置/偏航/滚转插值使用角度环绕插值，俯仰/FOV/缩放使用线性插值（`KeyframeInterpolator`）
@@ -51,7 +51,10 @@
   - ✅ 启动时若 `block_mob_ai` 开启，清空 128 格范围内以玩家为目标的生物（`ScriptPlayer`）
   - ✅ 支持结束判定（时间耗尽/无限循环）、剩余时间查询、`hasActiveCameraTrack()` 供 Mixin 缓存（`ScriptPlayer`）
   - ✅ 支持时间对齐 `alignTime()`（编辑器预览拖动播放头）、音频暂停/恢复/重定位（`ScriptPlayer`）
+  - ✅ 画面 lane 快照收集：`collectCameraLanes()` 按绘制顺序（轨道层级 → 轨道内 clip 顺序，后面的在上）扁平化列出各 CAMERA 轨本帧**全部活跃 clip** 的 `CameraLane`（相机六参数 + 所属 clip + clip 内本地时间；重叠窗口内一轨可贡献多份）；主相机 = 列表最后一个元素（`ScriptPlayer`、`CameraTrackPlayer`、`CameraLane`）
 - **CAMERA 轨道播放器**
+  - ✅ 支持多条 CAMERA 轨同时播放：每条轨一个独立 `CameraTrackPlayer`（各自的 clip 选择与选择器缓存状态），逐轨求值活跃 clip；轨道层级最后的活跃轨写入全局相机状态 = 主相机（零回归），每条轨同时暴露本帧 lane 快照列表 `getLaneSnapshots()`（轨道内 clip 顺序，后面的在上）（`ScriptPlayer`、`CameraTrackPlayer`）
+  - ✅ 时间重叠窗口内每个活跃 clip 各产一个 lane 快照（叠化数据前提）：顶层 clip 走正常求值路径（写全局相机 = 主相机），层级在下的活跃 clip 用同一条求值链**只捕获不写**（不写全局相机、不推进跨帧求值状态、目标锁状态整体保存/还原）→ 重叠区取到各 clip 自己的 hold 值（延长区等值关键帧 / 范围外钳到端点）（`CameraTrackPlayer`）
   - ✅ 每渲染帧定位活跃 clip（含循环/无限片段）并写入精确相机状态，无 partialTick 插值（`CameraTrackPlayer`）
   - ✅ morph 过渡窗口内混合上一片段末帧与下一片段首帧（位置线性混合、角度最短路径混合）（`CameraTrackPlayer`）
   - ✅ 关键帧级 `follow`（位置跟随实体，position 即相对实体偏移）与 `look_at`（注视实体/坐标/结构）：两端关键帧各自求值为世界坐标再插值 → follow↔普通、换目标、look_at 开关全部平滑过渡；look_at 目标点插值模型（none 端=该关键帧 yaw/pitch 方向远点）（`CameraTrackPlayer`）

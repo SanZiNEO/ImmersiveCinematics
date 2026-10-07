@@ -180,8 +180,11 @@ public final class LaneRenderer {
         }
     }
 
-    /** 停用全部 lane（保留槽位与相机实例）。生产者本帧没有 lane 时调用。 */
+    /** 停用全部 lane（保留槽位与相机实例）。生产者本帧没有 lane 时调用；无活跃 lane 时零开销。 */
     public void clear() {
+        if (activeCount == 0) {
+            return;
+        }
         for (Lane lane : lanes) {
             deactivate(lane);
         }

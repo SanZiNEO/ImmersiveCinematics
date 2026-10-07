@@ -161,7 +161,6 @@ public final class ScriptValidator {
 
             JsonArray clips = track.getAsJsonArray("clips");
             float prevContentEnd = -Float.MAX_VALUE;
-            float prevEnd = -Float.MAX_VALUE;
             for (int ci = 0; ci < clips.size(); ci++) {
                 JsonElement ce = clips.get(ci);
                 if (!ce.isJsonObject()) {
@@ -331,25 +330,12 @@ public final class ScriptValidator {
                     }
                 }
 
-                // 同轨道重叠（morph 重叠除外：prev 有 transition_duration 时允许 next 起点 = prevEnd − t/2）
+                // 片段时间允许重叠（0.3.6 lane 模型）：叠化 = 上一个 clip 末尾帧复制延长（hold 等值关键帧）
+                // + 下一个 clip 首帧复制延长，两冻结区时间交叉、opacity 关键帧交叉（scene-transition §3.2）；
+                // 重叠区按「轨道层级 → 轨道内 clip 顺序」分层（后者在上，camera-composition §1）。
+                // 故此处不再拒绝同轨道重叠——旧「一个时间点只能有一个相机状态」的单相机约束已随 lane 模型作废。
                 float end = start + dur;
-                float prevTransition = 0f;
-                if (ci > 0 && clips.get(ci - 1).isJsonObject()) {
-                    JsonObject prevClip = clips.get(ci - 1).getAsJsonObject();
-                    if ("morph".equals(prevClip.has("transition") ? prevClip.get("transition").getAsString() : "")) {
-                        try { prevTransition = prevClip.has("transition_duration") ? prevClip.get("transition_duration").getAsFloat() : 0f; }
-                        catch (Exception ignored) {
-                            // 校验期防御读取：transition_duration 异常按 0 处理（该问题经 duration/字段校验项单独报出）
-                        }
-                    }
-                    float minStart = prevEnd - prevTransition / 2f;
-                    if (start < minStart - 0.001f) {
-                        issues.add(cp + " 与上一 clip 重叠（start " + start + " < 上一 clip 末尾 "
-                                + (prevEnd - prevTransition / 2f) + "）");
-                    }
-                }
                 prevContentEnd = Math.max(prevContentEnd, end);
-                prevEnd = Math.max(prevEnd, end);
             }
             if (prevContentEnd > 0f) {
                 // 预留：可在此处对比 total_duration 与内容末尾

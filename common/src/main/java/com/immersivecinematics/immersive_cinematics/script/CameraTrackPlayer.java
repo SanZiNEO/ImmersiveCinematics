@@ -1,11 +1,13 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientEntitySelectorCache;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -24,6 +26,22 @@ public class CameraTrackPlayer implements TrackPlayer {
     private final PathStrategy bezierStrategy = new BezierPathStrategy();
 
     private int lastClipIndex = 0;
+
+    /**
+     * 本轨本帧各活跃 clip 的画面 lane 快照，按轨道内 clip 顺序排列——<b>后面的在上</b>
+     * （与 lane 合成的绘制顺序一致：先画的在下，后画的盖在上面）。
+     * <p>
+     * 时间重叠窗口内每个活跃 clip 各产一份（如叠化：上一个 clip 的 hold 尾帧 + 下一个 clip 的 hold 首帧）；
+     * 无重叠时只有顶层一份。空列表 = 本轨本帧不产出画面（片段间隙 / 目标不可用 / 编辑器直控）。
+     * <p>
+     * <b>主相机 = 列表最后一个元素</b>（顶层活跃 clip，即写入全局 {@link CameraManager} 的那一份状态，零回归）。
+     * morph 过渡窗口是旧模型（两 clip 混合成一份相机状态），本轨本帧仍只产出一份 lane
+     * （合成参数取进入的片段 {@code next}，见 {@link #onRenderFrame(float)}）。
+     */
+    private final List<CameraLane> laneSnapshots = new ArrayList<>(2);
+
+    /** {@link #laneSnapshots} 的只读视图（避免每次取用时包装） */
+    private final List<CameraLane> laneSnapshotsView = Collections.unmodifiableList(laneSnapshots);
 
     /** 诊断：look_at 目标位置一次性日志（播放期间只打印 1 次） */
     private boolean lookAtLoggedOnce;
@@ -111,6 +129,16 @@ public class CameraTrackPlayer implements TrackPlayer {
         return scriptPlayer.clipsForTrack(trackIndex);
     }
 
+    /**
+     * 本轨本帧的画面 lane 快照列表。
+     *
+     * @return 按轨道内 clip 顺序排列的快照（后面的在上，最后一个是主相机）；
+     *         空列表 = 本轨本帧不产出画面（片段间隙 / 目标不可用 / 编辑器直控）
+     */
+    public List<CameraLane> getLaneSnapshots() {
+        return laneSnapshotsView;
+    }
+
 
     @Override
     public boolean isActiveAt(float globalTime) {
@@ -131,6 +159,8 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     @Override
     public void onRenderFrame(float globalTime) {
+        // 本帧无写入 → lane 快照为空；有写入时由顶层路径与逐 clip 捕获填值
+        laneSnapshots.clear();
         List<Clip> clips = clips();
         if (clips.isEmpty()) return;
 
@@ -153,23 +183,34 @@ public class CameraTrackPlayer implements TrackPlayer {
                         return;
                     }
                     float weight = (globalTime - morphStart) / prev.getTransitionDuration();
-                    renderMorph(prev, next, weight, globalTime);
+                    // morph = 旧模型：两 clip 混合成一份相机状态 → 本轨本帧只产出一份 lane
+                    // 合成参数取进入的片段（转场结束后留在屏上的是它），不做参数混合
+                    CameraState morphState = renderMorph(prev, next, weight, globalTime);
+                    if (morphState != null) {
+                        laneSnapshots.add(new CameraLane(morphState, next, globalTime - next.getStartTime()));
+                    }
                     return;
                 }
             }
         }
 
         // 顶层活跃片段（轨道顺序最后者；后面的 clip 覆盖前面）驱动相机
-        Clip topClip = findActiveClip(globalTime);
-        if (topClip == null) return;
+        List<Clip> active = findActiveClips(globalTime);
+        if (active.isEmpty()) return;
+        Clip topClip = active.get(active.size() - 1);
+        // 保留"上次驱动片段索引"状态（收集查询每帧全表扫描，不再用起点剪枝）
+        lastClipIndex = clips.indexOf(topClip);
         // 目标不可用（结构/实体找不到）= 该片段按空处理（不写相机 → 玩家视角，与片段间隙同语义）
         if (!isClipUsable(topClip)) {
             warnClipUnusableOnce();
             return;
         }
 
-        float clipLocalTime = globalTime - topClip.getStartTime();
-        renderSingle(globalTime, topClip, clipLocalTime);
+        // 顶层 clip：正常求值（写全局相机状态 = 主相机，零回归）
+        CameraLane topLane = renderSingle(globalTime, topClip, globalTime - topClip.getStartTime(), false);
+        // 重叠窗口内层级在下的活跃 clip：先捕获（列表顺序 = 绘制顺序，后面的在上）
+        captureLowerLanes(globalTime, active, topClip);
+        if (topLane != null) laneSnapshots.add(topLane);
     }
 
     /** 片段目标不可用提示只打一次（debug 级：作者排查可见，不打扰玩家） */
@@ -237,16 +278,29 @@ public class CameraTrackPlayer implements TrackPlayer {
         return true;
     }
 
-    private void renderSingle(float globalTime, Clip clip, float clipLocalTime) {
+    /**
+     * 单 clip 求值。
+     *
+     * @param capture {@code true} = 只产快照、不写全局相机状态（非顶层活跃 clip 的捕获求值）
+     * @return 该 clip 本帧的 lane 快照（六参数 + 片段 + 片段内本地时间）；
+     *         无插值结果（关键帧为空）时 {@code null}
+     */
+    private CameraLane renderSingle(float globalTime, Clip clip, float clipLocalTime, boolean capture) {
         KeyframeInterpolator.InterpolationResult result =
                 KeyframeInterpolator.computeInterpolation(clipLocalTime, clip);
-        if (result == null) return;
+        if (result == null) return null;
 
         float s = result.adjustedT;
-        writeAttributes(result.from, result.to, s, clip, globalTime);
+        CameraState state = writeAttributes(result.from, result.to, s, clip, globalTime, capture);
+        return state != null ? new CameraLane(state, clip, clipLocalTime) : null;
     }
 
-    private void renderMorph(Clip prevClip, Clip nextClip, float weight, float globalTime) {
+    /**
+     * B 模型 morph 交叉求值（两 clip 混合成一份相机状态）。
+     *
+     * @return 混合后的六参数快照；两端都无插值结果时 {@code null}
+     */
+    private CameraState renderMorph(Clip prevClip, Clip nextClip, float weight, float globalTime) {
         // B 模型：双轨各自按自身时间插值（prev 走 [dur−t/2, dur)，next 走 [0, t)），再按 weight 交叉
         float prevLocal = globalTime - prevClip.getStartTime();
         float nextLocal = globalTime - nextClip.getStartTime();
@@ -255,7 +309,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         KeyframeInterpolator.InterpolationResult nextResult =
                 KeyframeInterpolator.computeInterpolation(nextLocal, nextClip);
 
-        if (prevResult == null && nextResult == null) return;
+        if (prevResult == null && nextResult == null) return null;
 
         float prevS = prevResult != null ? prevResult.adjustedT : 0f;
         float nextS = nextResult != null ? nextResult.adjustedT : 0f;
@@ -314,6 +368,94 @@ public class CameraTrackPlayer implements TrackPlayer {
         cameraManager.getPath().setPositionDirect(pos);
         cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom);
         lastWorldPos = pos;
+        // 画面 lane 快照：本轨刚写入全局相机状态的那一份值（六参数）
+        return new CameraState(pos, yaw, pitch, roll, fov, zoom);
+    }
+
+    /**
+     * 重叠窗口内层级在下的活跃 clip 的 lane 快照：顺序求值、逐 clip 捕获。
+     * <p>
+     * 与顶层 clip 走<b>同一条求值链</b>（位置 / 朝向 / 注视 / 呼吸），只是"只捕获不写"：
+     * <ul>
+     *   <li>不写全局 {@link CameraManager}（主相机仍由顶层 clip 决定）；</li>
+     *   <li>不写 {@link #lastWorldPos}（跨 clip 的求值状态不被污染）；</li>
+     *   <li>本帧基准坐标系（{@link #frameValid} / frameFwd / frameRight / frameUp）事后还原；</li>
+     *   <li>目标锁状态（{@link #targetLocks}）在捕获前后整体还原——每个 clip 都从同一份锁状态出发
+     *       （等价"单独求值"），捕获求值对扫描 / 切换 / 平滑的任何改动一律丢弃。</li>
+     * </ul>
+     * 于是重叠窗口内每个 clip 拿到的都是"它自己那一刻该渲染的画面"——hold 语义自然成立
+     * （延长区是等值关键帧，插值器在关键帧范围外本就钳到端点值，两者同值）。
+     * <p>
+     * 本方法在渲染线程上顺序求值，无并发共享问题。
+     *
+     * @param active  本帧全部活跃 clip（按轨道顺序，最后一个 = 顶层）
+     * @param topClip 顶层活跃 clip（已由正常路径求值，这里跳过）
+     */
+    private void captureLowerLanes(float globalTime, List<Clip> active, Clip topClip) {
+        if (active.size() < 2) return;  // 无重叠：本轨本帧只有顶层一份快照（单 clip 行为不变）
+
+        // 捕获求值的"隔离基线"：目标锁状态深拷贝（捕获求值只在这份基线之上进行，事后丢弃）
+        Map<String, TargetLock> lockBaseline = new java.util.HashMap<>();
+        copyTargetLocksInto(lockBaseline, targetLocks);
+        Vec3 savedOrigin = frameOrigin;
+        Vec3 savedFwd = frameFwd;
+        Vec3 savedRight = frameRight;
+        Vec3 savedUp = frameUp;
+        boolean savedValid = frameValid;
+        try {
+            for (int i = 0; i < active.size() - 1; i++) {
+                Clip clip = active.get(i);
+                if (clip == topClip) continue;  // 防御：顶层只走正常路径
+                // 每个 clip 都从同一份目标锁状态出发（不受兄弟 clip 捕获求值影响）
+                copyTargetLocksInto(targetLocks, lockBaseline);
+                // 目标不可用 = 该 clip 本帧无画面（与顶层 clip 同语义：不产出 lane）
+                if (!isClipUsable(clip)) {
+                    warnClipUnusableOnce();
+                    continue;
+                }
+                CameraLane snapshot = renderSingle(globalTime, clip, globalTime - clip.getStartTime(), true);
+                if (snapshot != null) laneSnapshots.add(snapshot);
+            }
+        } finally {
+            copyTargetLocksInto(targetLocks, lockBaseline);
+            frameOrigin = savedOrigin;
+            frameFwd = savedFwd;
+            frameRight = savedRight;
+            frameUp = savedUp;
+            frameValid = savedValid;
+        }
+    }
+
+    /**
+     * 目标锁状态深拷贝（{@code src} → {@code dest}，dest 先清空）。
+     * <p>
+     * 用于捕获非顶层 clip 快照时保存 / 还原锁状态：捕获求值按只读语义处理，对锁的任何改动
+     * （扫描时间戳 / 目标切换 / 平滑过渡状态）都不得泄漏到顶层 clip 与后续帧。
+     */
+    private static void copyTargetLocksInto(Map<String, TargetLock> dest, Map<String, TargetLock> src) {
+        dest.clear();
+        for (Map.Entry<String, TargetLock> entry : src.entrySet()) {
+            TargetLock s = entry.getValue();
+            TargetLock d = new TargetLock();
+            d.uuid = s.uuid;
+            d.entity = s.entity;
+            d.resolvedAt = s.resolvedAt;
+            d.switchGeneration = s.switchGeneration;
+            d.searching = s.searching;
+            d.nextRetryAt = s.nextRetryAt;
+            d.lastSwitchAt = s.lastSwitchAt;
+            for (Map.Entry<String, PointState> point : s.points.entrySet()) {
+                PointState ps = point.getValue();
+                PointState pd = new PointState();
+                pd.last = ps.last;
+                pd.generation = ps.generation;
+                pd.from = ps.from;
+                pd.startNanos = ps.startNanos;
+                pd.smooth = ps.smooth;
+                d.points.put(point.getKey(), pd);
+            }
+            dest.put(entry.getKey(), d);
+        }
     }
 
     /**
@@ -883,7 +1025,14 @@ public class CameraTrackPlayer implements TrackPlayer {
         return new float[]{yaw, pitch};
     }
 
-    private void writeAttributes(Keyframe from, Keyframe to, float s, Clip clip, float globalTime) {
+    /**
+     * 单段求值并写出相机六参数。
+     *
+     * @param capture {@code true} = 只产快照、不写全局相机状态、不推进 {@link #lastWorldPos}
+     *                （非顶层活跃 clip 的捕获求值；本方法不做任何跨 clip 副作用）
+     * @return 本段求值出的六参数快照
+     */
+    private CameraState writeAttributes(Keyframe from, Keyframe to, float s, Clip clip, float globalTime, boolean capture) {
         Vec3 pos = interpolateWorldPosition(from, to, s, clip);
         float yawBase = KeyframeInterpolator.interpolateYaw(from, to, s);
         float pitchBase = KeyframeInterpolator.interpolatePitch(from, to, s);
@@ -907,14 +1056,19 @@ public class CameraTrackPlayer implements TrackPlayer {
         }
         // ====== End breath ======
 
-        cameraManager.getPath().setPositionDirect(pos);
-        cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom);
-        lastWorldPos = pos;
+        if (!capture) {
+            cameraManager.getPath().setPositionDirect(pos);
+            cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom);
+            lastWorldPos = pos;
+        }
+        // 画面 lane 快照：本 clip 本帧求值出的六参数（capture=true 时不写全局相机状态）
+        return new CameraState(pos, yaw, pitch, roll, fov, zoom);
     }
 
     @Override
     public void onStop() {
         lastClipIndex = 0;
+        laneSnapshots.clear();
         targetLocks.clear();
         ClientEntitySelectorCache.clear();
         // bezierStrategy 随 TrackPlayer 实例一起被 GC，其 LUT 缓存自动释放
@@ -924,6 +1078,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     @Override
     public void onScriptReplaced() {
         lastClipIndex = 0;
+        laneSnapshots.clear();
         targetLocks.clear();
         ClientEntitySelectorCache.clear();
     }

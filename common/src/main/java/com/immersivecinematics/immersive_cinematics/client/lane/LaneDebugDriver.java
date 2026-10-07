@@ -28,7 +28,8 @@ import org.slf4j.Logger;
  * <p><b>上屏</b>：本驱动通过 {@link LaneRenderer#setSink} 注册合成回调，把每条 lane 的离屏画面按
  * n×n 网格铺到屏幕（走 {@link LaneCompositor}：dest = 网格格、source = 全幅、opacity = 1），
  * 让冒烟测试能肉眼验证渲染 + 合成链路。网格是调试期的固定合成参数；
- * 脚本关键帧 → 合成参数的接线属 lane 注册任务（合成器接口已就位）。
+ * 脚本 lane 的合成参数（opacity/dest/source 关键帧）由 {@link ScriptLaneDriver} 提供，
+ * 且脚本 lane 存在时本驱动整体让位（见该类注释的「与调试驱动共存」）。
  */
 public final class LaneDebugDriver {
 
@@ -54,7 +55,13 @@ public final class LaneDebugDriver {
     private LaneDebugDriver() {
     }
 
-    /** 每帧调用一次（{@code GameRenderer.renderLevel} 的 RETURN，渲染 lane 之前）。未开启时零差异。 */
+    /**
+     * 每帧调用一次（{@code GameRenderer.renderLevel} 的 RETURN，渲染 lane 之前）。未开启时零差异。
+     * <p>
+     * 本驱动只在<b>没有脚本 lane</b>时被调用（共存规则见 {@link ScriptLaneDriver}）：脚本 lane 存在时
+     * 调用方直接跳过本方法，两者不会同时写 lane。合成回调每帧重装——脚本播放期间上屏被
+     * {@link ScriptLaneDriver} 接管，脚本结束后本驱动要能重新拿回上屏（否则 lane 渲染了却贴不上屏）。
+     */
     public static void tick(Minecraft mc, float partialTick) {
         if (!ENABLED) {
             return;
@@ -65,9 +72,9 @@ public final class LaneDebugDriver {
         }
         if (!started) {
             started = true;
-            LaneRenderer.INSTANCE.setSink(LaneDebugDriver::peek);
             LOGGER.info("[lane] 调试驱动启用：mode={} lanes={} grid={}x{}", MODE, VIEWS, GRID, GRID);
         }
+        LaneRenderer.INSTANCE.setSink(LaneDebugDriver::peek);
         update(mc.player, partialTick);
     }
 

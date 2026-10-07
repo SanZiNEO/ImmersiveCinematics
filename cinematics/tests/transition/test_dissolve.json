@@ -1,0 +1,72 @@
+{
+  "meta": {
+    "id": "test_dissolve",
+    "name": "转场测试-叠化",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "叠化：两条时间重叠的 CAMERA clip，opacity 关键帧交叉——A 末尾 hold 段 1→0、B 开头 hold 段 0→1。重叠窗口 [4,6) 双 lane 交叉，其余时段单 lane，全程无空隙（不露原版画面）",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_fade_white"] } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 10,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "layer_type": "subtitle",
+            "text": "测试: test_dissolve | 转场: 叠化 | A[0,6] 末尾 1→0 · B[4,10] 开头 0→1 | 重叠窗口 4-6s",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 10, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 },
+              { "time": 4, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 },
+              { "time": 6, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 4,
+            "duration": 6,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 0 },
+              { "time": 2, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 },
+              { "time": 6, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
