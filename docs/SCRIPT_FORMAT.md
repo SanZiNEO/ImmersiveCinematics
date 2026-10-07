@@ -86,7 +86,8 @@ immersive_cinematics/
 | `interruptible` | boolean | `true` | 是否允许被其他脚本打断 |
 | `skippable` | boolean | `true` | 是否允许玩家长按跳过 |
 | `hold_at_end` | boolean | `false` | 播放完毕后是否停留在最后一帧 |
-| `macro_loop` | boolean | `false` | 宏观循环开关：整条时间轴走到**宏观末端**后折回起点、无限重复。宏观末端 = 各片段展开结束时刻的最大值（含片段自身循环展开），**不是** `total_duration`；存在永不结束片段时末端不存在 → 不折叠（时间照直走）。开启后脚本**不再自然结束**（退出走跳过/打断路径），与 `hold_at_end` **互斥**。服务端 EVENT 不参与折叠（仅客户端表现层循环） |
+| `macro_loop` | boolean | `false` | 宏观循环开关：**从 `a` 到 `b` 重复执行**（循环 = 播放控制层的重复执行，不是时间折叠）。区间 `[a,b]` = `timeline.loop_start` / `loop_end`（缺省 `a=0`、`b=宏观末端`）；宏观末端 = 各片段展开结束时刻的最大值（含片段自身循环展开），**不是** `total_duration`。缺省 `loop_end` 时若存在永不结束片段 → 末端不存在 → 不循环（时间照直走）。圈数见 `macro_loop_count`。与 `hold_at_end` **互斥**（无限圈数下 `hold_at_end` 不会生效；校验器告警）。服务端 EVENT 不参与循环（仅客户端表现层） |
+| `macro_loop_count` | int | `-1` | 宏观循环次数：`-1`（缺省）= 无限重复，脚本不再自然结束（退出走跳过/打断路径）；正整数 N = 从 `a` 到 `b` 重复 N 圈后自然结束（总播放时长 = `a + N × (b − a)`）。`0` 非法（运行时按 1 处理） |
 | `macro_loop_mode` | enum | `repeat` | 宏观循环模式：`repeat`=折回起点重复 / `pingpong`=往复折返。**第一版只实现 `repeat`**，`pingpong` 按 `repeat` 播放（校验器会告警） |
 | `priority` | int | `0` | 播放优先级，数值越大越优先；**仅用于队列内排序**（优先级不能大于打断——不可打断脚本永不被打断，新请求一律排队） |
 | `skip_vote_ratio` | int | 无（用全局配置） | **可选**。多人跳过投票所需比例（10~100，百分比），仅当所有看过此脚本的观众投票后才生效。缺省/非法值 → 回落到全局配置 `skipVoteRatio`（默认 100 = 全票）。例：`50` = 半数观众投跳过即强制停止 |
@@ -140,6 +141,8 @@ immersive_cinematics/
 |------|------|------|------|
 | `total_duration` | float | 是 | 总时长（秒），正数=定长，负数=无限 |
 | `tracks` | array | 是 | 轨道数组 |
+| `loop_start` | float | 否 | **宏观循环区间起点 `a`**（秒，缺省 `0`），仅在 `meta.macro_loop=true` 时被读取 |
+| `loop_end` | float | 否 | **宏观循环区间终点 `b`**（秒，缺省 = 宏观末端）。声明后即按 `[loop_start, loop_end]` 重复（可用于子区间循环）；`≤ loop_start` 或 `a` 之后区间为空时不循环 |
 
 ---
 
@@ -221,6 +224,22 @@ immersive_cinematics/
 - `loop_count: 0` 非法，解析时记录错误并按 1 处理。
 - **永不结束的片段 = 时间轴终点**：其后的其他片段不播放（0.3.6 起，替代旧"特写覆盖"语义）。
 - **片段允许时间重叠**（0.3.6 起）：重叠区按轨道层级 → 轨道内 clip 顺序分层，后面的 clip 覆盖前面 clip 的上层；叠化 = 上一个 clip 末尾帧复制延长（hold）+ 下一个 clip 首帧复制延长，交叉窗口内 opacity 关键帧。
+
+### 宏观循环（`meta.macro_loop`）
+
+**循环 = 播放控制层的重复执行，不是时间折叠**：`macro_loop: true` 表示"从 `a` 到 `b` 这一段重复执行 N 圈"。
+
+- **区间 `[a,b]`**：`a` = `timeline.loop_start`（缺省 `0`），`b` = `timeline.loop_end`（缺省 = 宏观末端）。`b` 未声明时，存在永不结束片段（`duration<0` 或 `loop_count=-1`）→ 宏观末端不存在 → **不循环**（时间照直走）；显式声明 `loop_end` 则区间由作者给定，按声明值重复。
+- **圈内局部时间**：`t < a` 直通；`t ≥ a` → `a + (t − a) mod (b − a)`。圈边界（局部时间回绕）即折返点，EVENT 轨的玩家行走目标索引按圈复位。
+- **圈数 `macro_loop_count`**：`-1`（缺省）= 无限重复（脚本不再自然结束，退出走跳过/打断）；正整数 N = 重复 N 圈后自然结束，总播放时长 = `a + N × (b − a)`。
+- 相机 / overlay / 音频等执行侧只看到"圈内局部时间"，不感知循环；服务端 EVENT 不参与循环。
+- **编辑器预览不做循环展开**：预览按真实时间线播放（既不展开也不折叠）。
+
+```json
+"meta": { "macro_loop": true, "macro_loop_count": 3 },
+"timeline": { "total_duration": 20, "loop_start": 4, "loop_end": 12, "tracks": [ ... ] }
+```
+上例 = 播放到 `t=4` 后，在 `[4,12)` 之间重复 3 圈（`t=28` 结束）。
 
 ### curve（贝塞尔曲线）
 

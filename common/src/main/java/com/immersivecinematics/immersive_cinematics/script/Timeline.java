@@ -18,13 +18,33 @@ public class Timeline {
     /** 并行轨道数组 */
     private final List<TimelineTrack> tracks;
 
-    public Timeline(float totalDuration, List<TimelineTrack> tracks) {
+    /** 宏观循环区间起点 a（秒）：{@code loop_start}，缺省 0（负值按 0 处理） */
+    private final float loopStart;
+
+    /** 宏观循环区间终点 b（秒）：{@code loop_end}；负数 = 未声明（运行时取宏观末端） */
+    private final float loopEnd;
+
+    public Timeline(float totalDuration, List<TimelineTrack> tracks, float loopStart, float loopEnd) {
         this.totalDuration = totalDuration;
         this.tracks = tracks != null ? tracks : Collections.emptyList();
+        this.loopStart = loopStart;
+        this.loopEnd = loopEnd;
     }
 
     public float getTotalDuration() { return totalDuration; }
     public List<TimelineTrack> getTracks() { return tracks; }
+
+    /**
+     * 宏观循环区间起点 a（秒）。作为 {@code meta.macro_loop} 的区间参数；
+     * 缺省 0，负值按 0 处理。仅在 {@code macro_loop=true} 时被读取。
+     */
+    public float getLoopStart() { return loopStart; }
+
+    /**
+     * 宏观循环区间终点 b（秒）。作为 {@code meta.macro_loop} 的区间参数；
+     * 负数 = 未声明 → 运行时取宏观末端（各片段展开结束时刻的最大值）。
+     */
+    public float getLoopEnd() { return loopEnd; }
 
     /** 是否为无限时长时间轴 */
     public boolean isInfinite() { return totalDuration < 0f; }

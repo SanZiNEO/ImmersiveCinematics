@@ -120,7 +120,7 @@
 
 常用行为开关（默认值合理，不写也行）：`block_keyboard: true`、`block_mouse: true`、`hide_hud: true`、`skippable: true`、`interruptible: true`、`hold_at_end: false`、`pause_when_game_paused: true`。`hide_arm`/`suppress_bob` 等隐藏类字段缺省为三态 `null`（跟随 `hide_hud`），需要显式覆盖时才写 `true`/`false`。
 
-> **宏观循环 `macro_loop`**：`true` = 整条时间轴走到**宏观末端**（各片段展开结束时刻的最大值，含片段自身循环展开）后折回起点、无限重复；脚本不再自然结束（靠跳过/打断退出）。存在永不结束片段时末端不存在 → 不折叠。与 `hold_at_end` **互斥**（同时开会告警）。模式 `macro_loop_mode`（`repeat` 默认 / `pingpong`）**第一版只实现 `repeat`**，写 `pingpong` 会告警并按 `repeat` 播放。服务端 EVENT 不参与折叠。
+> **宏观循环 `macro_loop`**：`true` = **从 `a` 到 `b` 重复执行**——循环是播放控制层的重复执行，不是时间折叠。区间 `[a,b]` 取 `timeline.loop_start` / `loop_end`（不写则 `a=0`、`b=宏观末端` = 各片段展开结束时刻的最大值，含片段自身循环展开；**不是** `total_duration`）。圈数 `macro_loop_count`：`-1`（缺省）= 无限重复（脚本不再自然结束，靠跳过/打断退出）；正整数 N = 重复 N 圈后自然结束（总时长 = `a + N × (b − a)`）。不写 `loop_end` 且存在永不结束片段时末端不存在 → 不循环。与 `hold_at_end` **互斥**（同时开会告警）。模式 `macro_loop_mode`（`repeat` 默认 / `pingpong`）**第一版只实现 `repeat`**，写 `pingpong` 会告警并按 `repeat` 播放。服务端 EVENT 不参与循环；编辑器预览按真实时间线播放（不循环、不展开）。
 
 > **远距离场景记得保留预加载**：`meta.preload` 默认 `true`，但只有存在**非空 CAMERA 轨道**的脚本才会实际触发预加载（纯 HUD/字幕/事件脚本不会）。如果镜头要飞到玩家视距外（跨区块/跨维度），**不要写 `"preload": false`**；只有确认该脚本不需要预加载（例如纯 HUD/字幕/本地小范围）时才关掉，避免不必要开销。
 
@@ -140,6 +140,7 @@
 |---|---|
 | `total_duration` | 总时长秒。正数 = 定长；负数 = 无限时长（脚本永不宣布结束，但**不会**回卷循环） |
 | `tracks` | 轨道数组。CAMERA 可多条（每条 = 一个画面 lane，轨道层级后面的在上；最后一轨的顶层 clip 决定主相机）；LETTERBOX/EVENT 建议 1 条，AUDIO/OVERLAY/MOD_EVENT 不限 |
+| `loop_start` / `loop_end` | **宏观循环区间 `[a,b]`**（秒），仅在 `meta.macro_loop=true` 时被读取：`a` 缺省 `0`，`b` 缺省 = 宏观末端。写 `loop_end` 即按 `[loop_start, loop_end]` 重复（子区间循环）。编辑器 A-B 快捷键（I / O）写的就是这两个字段 |
 
 ### 3.4 CAMERA 轨道（核心）
 

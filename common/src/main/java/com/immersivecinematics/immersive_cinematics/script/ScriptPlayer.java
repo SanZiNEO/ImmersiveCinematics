@@ -65,14 +65,29 @@ public class ScriptPlayer {
     private ScriptMeta.RuntimeBehavior currentBehavior = null;
 
     /**
-     * 宏观循环末端（秒）：脚本内所有有限片段展开结束时刻的最大值。
-     * null = 不折叠（macro_loop 未开启，或存在永不结束片段 → 末端不存在）。
+     * 宏观循环区间起点 a（秒）：timeline {@code loop_start}，缺省 0（负值按 0 处理）。
+     * 语义 = "从 a 到 b 这一段重复执行"——循环是播放控制（执行层的重复），不是时间折叠。
+     */
+    private float macroLoopStart = 0f;
+
+    /**
+     * 宏观循环区间终点 b（秒）；NaN = 未启用宏观循环（时间照直走）。
+     * b 优先取 timeline 显式声明的 {@code loop_end}（作者声明的子区间），缺省取宏观末端。
      * 脚本开始时推导一次并缓存。
      */
-    private Float macroEnd = null;
+    private float macroLoopEnd = Float.NaN;
 
-    /** 上一帧折叠后的脚本时间（用于检测折返回卷）；NaN = 无上一帧 */
-    private float lastFoldedElapsed = Float.NaN;
+    /** 圈长度（b − a，秒）；macroLoopEnd 有效时恒 &gt; 0 */
+    private float macroLoopSpan = 0f;
+
+    /** 宏观循环次数：-1 = 无限重复（脚本不再自然结束）；正整数 N = 重复 N 圈后自然结束 */
+    private int macroLoopCount = -1;
+
+    /** 是否允许宏观循环（编辑器预览实例关闭：预览按真实时间线播放，循环不展开也不折叠） */
+    private boolean macroLoopAllowed = true;
+
+    /** 上一帧分发给轨道的圈内局部时间（检测圈边界折返）；NaN = 无上一帧 */
+    private float lastLocalElapsed = Float.NaN;
 
     private boolean stopping = false;
 
@@ -101,8 +116,7 @@ public class ScriptPlayer {
 
         this.script = newScript;
         this.currentBehavior = newScript.getMeta() != null ? newScript.getMeta().getBehavior() : null;
-        this.macroEnd = computeMacroEnd();
-        this.lastFoldedElapsed = Float.NaN;
+        this.computeMacroLoop();
 
         if (layoutChanged) {
             // 轨道布局变化(轨道数/类型顺序不同):旧 TrackPlayer 绑定的轨道索引对新脚本失效,
@@ -217,9 +231,8 @@ public class ScriptPlayer {
         ScriptMeta meta = script.getMeta();
         this.currentBehavior = meta.getBehavior();
 
-        // 宏观循环：推导宏观末端并缓存（null = 不折叠）
-        this.macroEnd = computeMacroEnd();
-        this.lastFoldedElapsed = Float.NaN;
+        // 宏观循环：推导区间 [a, b] 与圈数并缓存（NaN = 不循环）
+        computeMacroLoop();
 
         // block_mob_ai：清空已锁定玩家的生物目标
         if (currentBehavior.blockMobAi() && mc.level != null) {
@@ -280,8 +293,7 @@ public class ScriptPlayer {
         this.stopping = false;
         this.script = null;
         this.currentBehavior = null;
-        this.macroEnd = null;
-        this.lastFoldedElapsed = Float.NaN;
+        resetMacroLoop();
     }
 
     public boolean isPlaying() {
@@ -300,8 +312,12 @@ public class ScriptPlayer {
      */
     public boolean isFinished() {
         if (!playing || script == null) return false;
-        // 宏观循环开启且末端存在 → 脚本不再自然结束（退出走 skippable / interruptible 路径）
-        if (macroEnd != null) return false;
+        if (isMacroLoopActive()) {
+            // 无限重复 → 脚本不再自然结束（退出走 skippable / interruptible 路径）
+            if (macroLoopCount < 0) return false;
+            // 有限次数 → 播完第 N 圈后自然结束
+            return getElapsedSeconds() >= macroLoopTotalEnd();
+        }
         float totalDuration = script.getTotalDuration();
         if (totalDuration < 0) return false; // 无限循环脚本
         float elapsed = getElapsedSeconds();
@@ -326,7 +342,10 @@ public class ScriptPlayer {
      */
     public float getRemainingTime() {
         if (!playing || script == null) return 0f;
-        if (macroEnd != null) return Float.MAX_VALUE; // 宏观循环：不自然结束
+        if (isMacroLoopActive()) {
+            if (macroLoopCount < 0) return Float.MAX_VALUE; // 无限重复：不自然结束
+            return Math.max(0f, macroLoopTotalEnd() - getElapsedSeconds());
+        }
         float totalDuration = script.getTotalDuration();
         if (totalDuration < 0) return Float.MAX_VALUE; // 无限循环
         if (hasActiveInfiniteLoopClip(getElapsedSeconds())) return Float.MAX_VALUE; // 无限循环片段已开始
@@ -362,7 +381,8 @@ public class ScriptPlayer {
     public boolean hasActiveCameraTrack(float elapsed) {
         // 宏观循环：渲染门控（相机/FOV/roll/遮挡/玩家模型）必须与实际分发给轨道的时间一致，
         // 否则第二圈起 hasActiveCameraClip() 变 false → 相机不渲染
-        float t = foldScriptTime(elapsed);
+        float t = localTimeFor(elapsed);
+        if (Float.isNaN(t)) return false; // 有限次数已播完：不渲染，等自然结束
         for (TrackPlayer tp : trackPlayers) {
             if (tp instanceof CameraTrackPlayer && tp.isActiveAt(t)) {
                 return true;
@@ -397,16 +417,20 @@ public class ScriptPlayer {
         float elapsedSeconds = getElapsedSeconds();
         float totalDuration = script.getTotalDuration();
 
-        if (macroEnd != null) {
-            // 宏观循环（repeat）：对外分发的时间折叠回 [0, macroEnd)。
-            // 作用点唯一——TrackPlayer / PlayerMoveController 拿到的一律是折叠后的脚本时间。
-            // 折返瞬间（本次 folded < 上次 folded）重置玩家移动目标推进状态（其余状态每帧按时间重查，天然自愈）。
-            float folded = foldScriptTime(elapsedSeconds);
-            if (!Float.isNaN(lastFoldedElapsed) && folded < lastFoldedElapsed) {
+        if (isMacroLoopActive()) {
+            // 宏观循环（repeat）：从 a 到 b 重复执行；对外分发的一律是圈内局部时间。
+            // 作用点唯一——TrackPlayer / PlayerMoveController 拿到的是圈内局部时间，不感知循环。
+            float local = localTimeFor(elapsedSeconds);
+            if (Float.isNaN(local)) {
+                // 有限次数已播完：isFinished() 为 true，由 CameraManager 走自然结束
+                return;
+            }
+            // 圈边界（本帧局部时间 < 上帧）→ 折返重置（其余状态每帧按时间重查，天然自愈）
+            if (!Float.isNaN(lastLocalElapsed) && local < lastLocalElapsed) {
                 playerMovement.onScriptLoop();
             }
-            lastFoldedElapsed = folded;
-            elapsedSeconds = folded;
+            lastLocalElapsed = local;
+            elapsedSeconds = local;
         } else if (totalDuration > 0 && elapsedSeconds >= totalDuration) {
             // 检查脚本是否结束（宏观循环与 hold 钳制互斥：开启循环时不走本分支）
             if (hasActiveInfiniteLoopClip(elapsedSeconds)) {
@@ -478,25 +502,99 @@ public class ScriptPlayer {
     // ========== 内部方法 ==========
 
     /**
-     * 宏观循环时间折叠：把脚本时间折回 [0, macroEnd)。
-     * 未开启宏观循环（macroEnd == null）→ 原值返回。
+     * 开关宏观循环。编辑器预览实例必须关闭——预览按真实时间线播放：
+     * 循环是运行时播放控制，编辑器时间轴既不展开也不折叠。
      */
-    private float foldScriptTime(float elapsed) {
-        return macroEnd != null ? (float) (elapsed % macroEnd) : elapsed;
+    public void setMacroLoopAllowed(boolean allowed) {
+        if (this.macroLoopAllowed == allowed) return;
+        this.macroLoopAllowed = allowed;
+        computeMacroLoop();
+    }
+
+    /** 清空宏观循环参数（不循环） */
+    private void resetMacroLoop() {
+        macroLoopStart = 0f;
+        macroLoopEnd = Float.NaN;
+        macroLoopSpan = 0f;
+        macroLoopCount = -1;
+        lastLocalElapsed = Float.NaN;
+    }
+
+    /** 宏观循环是否生效（区间 [a, b] 已推导出来） */
+    private boolean isMacroLoopActive() {
+        return !Float.isNaN(macroLoopEnd);
+    }
+
+    /** 有限次数宏观循环的总播放时长（秒）：a + N × (b − a)；仅在 macroLoopCount &gt; 0 时有意义 */
+    private float macroLoopTotalEnd() {
+        return macroLoopStart + macroLoopSpan * macroLoopCount;
     }
 
     /**
-     * 推导宏观循环末端（秒），不折叠时返回 null。
+     * 推导宏观循环参数（区间 [a, b] 与圈数）；不满足条件 → 不循环（macroLoopEnd = NaN）。
      * <p>
-     * 末端 = 脚本内所有片段展开结束时刻（{@link Clip#getWindowEnd()}，含片段自身循环展开）的最大值。
-     * 存在永不结束的片段（{@link Clip#isEffectivelyInfinite()}）→ 末端不存在 → 不折叠（时间照直走）。
+     * 条件：{@code meta.macro_loop=true} + 宏观循环被允许（预览实例关闭）+ 区间非空。
+     * a = {@code timeline.loop_start}（缺省 0，负值按 0）；b 优先取 {@code timeline.loop_end}
+     * （作者声明的子区间），缺省取宏观末端——此时存在永不结束片段 → 末端不存在 → 不循环。
+     * 脚本开始时调用一次并缓存。
+     */
+    private void computeMacroLoop() {
+        resetMacroLoop();
+        if (script == null || script.getMeta() == null || !macroLoopAllowed) return;
+        if (!script.getMeta().isMacroLoop()) return;
+        Timeline timeline = script.getTimeline();
+        if (timeline == null) return;
+
+        float a = Math.max(0f, timeline.getLoopStart());
+        float b;
+        if (timeline.getLoopEnd() > a) {
+            b = timeline.getLoopEnd(); // 作者声明的子区间末端
+        } else {
+            Float macroEnd = computeMacroEnd();
+            if (macroEnd == null) return; // 末端不存在（存在永不结束片段）→ 不循环
+            b = macroEnd;
+        }
+        if (!(b > a)) return; // 空区间 → 不循环（避免对 0 取模）
+
+        macroLoopStart = a;
+        macroLoopEnd = b;
+        macroLoopSpan = b - a;
+        int count = script.getMeta().getMacroLoopCount();
+        macroLoopCount = count > 0 ? count : -1;
+    }
+
+    /**
+     * 圈内局部时间（repeat 语义）：t &lt; a 直通；t ≥ a → a + (t − a) mod (b − a)。
+     * 圈边界（本帧局部时间 &lt; 上帧）即折返重置点。
+     */
+    private float toLocalTime(float elapsed) {
+        if (elapsed < macroLoopStart) return elapsed;
+        double rel = (double) elapsed - macroLoopStart;
+        return macroLoopStart + (float) (rel % macroLoopSpan);
+    }
+
+    /**
+     * 分发给轨道的圈内局部时间；有限次数已播完 → NaN（不渲染，脚本已结束）。
+     * {@code hold_at_end} 时停在区间末端最后一帧。未开启循环 → 原值返回。
+     */
+    private float localTimeFor(float elapsed) {
+        if (!isMacroLoopActive()) return elapsed;
+        if (macroLoopCount > 0 && elapsed >= macroLoopTotalEnd()) {
+            return script != null && script.getMeta().isHoldAtEnd()
+                    ? Math.max(macroLoopStart, macroLoopEnd - HOLD_END_EPSILON)
+                    : Float.NaN;
+        }
+        return toLocalTime(elapsed);
+    }
+
+    /**
+     * 宏观末端（秒）= 脚本内所有片段展开结束时刻（{@link Clip#getWindowEnd()}，含片段自身循环展开）的最大值。
+     * <p>
+     * 存在永不结束的片段（{@link Clip#isEffectivelyInfinite()}）→ 末端不存在 → 返回 null（不循环）。
      * 不用作者声明的 total_duration 当末端。
-     * <p>
-     * 仅在 {@code meta.macro_loop=true} 时推导；脚本开始时调用一次并缓存。
      */
     private Float computeMacroEnd() {
-        if (script == null || script.getMeta() == null || !script.getMeta().isMacroLoop()) return null;
-        if (script.getTimeline() == null) return null;
+        if (script == null || script.getTimeline() == null) return null;
         float end = 0f;
         for (TimelineTrack track : script.getTimeline().getTracks()) {
             for (Clip clip : track.getClips()) {
@@ -504,7 +602,7 @@ public class ScriptPlayer {
                 end = Math.max(end, clip.getWindowEnd());
             }
         }
-        return end > 0f ? end : null; // 空时间轴 / 零长度：不折叠，避免对 0 取模
+        return end > 0f ? end : null; // 空时间轴 / 零长度：不循环，避免对 0 取模
     }
 
     /**

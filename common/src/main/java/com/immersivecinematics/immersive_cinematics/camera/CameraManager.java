@@ -250,6 +250,14 @@ public class CameraManager {
 
     // ========== 编辑器预览 ==========
 
+    /**
+     * 预览通道不做宏观循环：循环是运行时播放控制，编辑器预览按真实时间线播放（不展开也不折叠）。
+     * 覆盖“预览接管一个已在播放的实例”的路径（{@link #setTime} / {@link #resume} / {@link #pushScript}）。
+     */
+    private static void disableMacroLoop(PlaybackInstance instance) {
+        if (instance != null) instance.player().setMacroLoopAllowed(false);
+    }
+
     public void pushScript(String jsonContent) {
         try {
             previewScript = com.immersivecinematics.immersive_cinematics.script.ScriptParser.parse(jsonContent);
@@ -264,6 +272,7 @@ public class CameraManager {
                     // TrackPlayer 数据源动态化，音频实例按 sound+startTime+duration 重映射复用）
                     instance.replaceScript(previewScript);
                 }
+                disableMacroLoop(instance);
                 instance.player().alignTime(previewTime, previewTime);
                 // 组 1/2：数据替换后同步暂停态并把实例定位到播放头
                 if (previewPaused) {
@@ -291,6 +300,7 @@ public class CameraManager {
             instance = activeInstance();
         }
         if (instance == null) return; // 预览脚本尚未传入：没有实例可定位
+        disableMacroLoop(instance);
         // Align so that elapsed = previewTime when onRenderFrame sets gameTimeSeconds = previewTime
         instance.player().alignTime(previewTime, previewTime);
         // 组 1：定位即同步暂停态——先于 repositionAudio（其 paused 分支依赖此标志），
@@ -309,6 +319,7 @@ public class CameraManager {
                 startScriptInternal(previewScript);
                 instance = activeInstance();
             }
+            disableMacroLoop(instance);
             instance.player().alignTime(previewTime, previewTime);
         }
         previewPaused = false;
@@ -387,6 +398,8 @@ public class CameraManager {
         instances.add(instance);
 
         // 组 A：预执行首帧用播放头时间（预览模式），避免首帧写 t=0 造成画面跳变；游戏内播放传 0 保持原语义
+        // 预览通道不做宏观循环：循环是运行时播放控制，编辑器预览按真实时间线播放（不展开也不折叠）
+        instance.player().setMacroLoopAllowed(!previewMode);
         instance.start(script, previewMode ? previewTime : 0f);
         if (previewMode) {
             // 预览通道不套用脚本行为（既有语义）：只放行键鼠，行为开关不动

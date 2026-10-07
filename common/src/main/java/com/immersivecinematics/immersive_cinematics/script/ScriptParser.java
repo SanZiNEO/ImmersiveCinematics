@@ -121,6 +121,16 @@ public class ScriptParser {
         boolean skippable = optBoolMeta(metaObj, "skippable");
         boolean holdAtEnd = optBoolMeta(metaObj, "hold_at_end");
         boolean macroLoop = optBoolMeta(metaObj, "macro_loop");
+        // 宏观循环次数：-1 = 无限重复；正整数 N = 从 a 到 b 重复 N 圈后自然结束；0 无意义 → 按 1（与 clip.loop_count 同口径）
+        int macroLoopCount = optInt(metaObj, "macro_loop_count", -1);
+        if (macroLoopCount == 0) {
+            ErrorLog.log("Parse", p + ".macro_loop_count 不允许为 0（1 = 只播一遍），按 1 处理");
+            macroLoopCount = 1;
+        } else if (macroLoopCount < -1) {
+            ErrorLog.log("Parse", p + ".macro_loop_count 只能为 -1（无限重复）或正整数，实际: "
+                    + macroLoopCount + "，按 -1 处理");
+            macroLoopCount = -1;
+        }
         // 宏观循环模式：枚举 repeat / pingpong，默认 repeat；非法值 → 告警并按 repeat
         String macroLoopMode = optString(metaObj, "macro_loop_mode", "repeat");
         if (!"repeat".equals(macroLoopMode) && !"pingpong".equals(macroLoopMode)) {
@@ -138,7 +148,7 @@ public class ScriptParser {
                 hardHideHud,
                 renderPlayerModel,
                 pauseWhenGamePaused, interruptible, skippable,
-                holdAtEnd, macroLoop, macroLoopMode, hudLayers);
+                holdAtEnd, macroLoop, macroLoopMode, macroLoopCount, hudLayers);
 
         // 播放优先级（默认值来自 SchemaRegistry.getMetaFields()；仅用于队列内排序）
         int priority = optInt(metaObj, "priority", 0);
@@ -185,8 +195,12 @@ public class ScriptParser {
             tracks.add(parseTrack(tracksArr.get(i).getAsJsonObject(), p + ".tracks[" + i + "]"));
         }
 
+        // 宏观循环区间 [a, b]（meta.macro_loop 的参数）：loop_start 缺省 0；loop_end 缺省 -1 = 未声明（用宏观末端）
+        float loopStart = optFloat(timelineObj, "loop_start", 0f);
+        float loopEnd = optFloat(timelineObj, "loop_end", -1f);
+
         validateTracks(tracks, p);
-        return new Timeline(totalDuration, tracks);
+        return new Timeline(totalDuration, tracks, loopStart, loopEnd);
     }
 
     // ========== Track 解析（统一 schema 驱动）==========

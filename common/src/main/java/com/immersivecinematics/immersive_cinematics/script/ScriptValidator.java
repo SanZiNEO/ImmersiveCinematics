@@ -79,6 +79,20 @@ public final class ScriptValidator {
         // ===== meta 宏观循环（macro_loop）=====
         if (root.has("meta") && root.get("meta").isJsonObject()) {
             JsonObject meta = root.getAsJsonObject("meta");
+            // macro_loop_count：-1 = 无限重复；正整数 N = 从 a 到 b 重复 N 圈后自然结束
+            if (meta.has("macro_loop_count")) {
+                try {
+                    int count = meta.get("macro_loop_count").getAsInt();
+                    if (count == 0) {
+                        issues.add("meta.macro_loop_count 不允许为 0（1 = 只播一遍，不重复），运行时按 1 处理");
+                    } else if (count < -1) {
+                        issues.add("meta.macro_loop_count 只能为 -1（无限重复）或正整数，实际: " + count
+                                + "，运行时按 -1 处理");
+                    }
+                } catch (Exception e) {
+                    issues.add("meta.macro_loop_count 不是整数");
+                }
+            }
             boolean macroLoop = meta.has("macro_loop") && meta.get("macro_loop").isJsonPrimitive()
                     && meta.get("macro_loop").getAsJsonPrimitive().isBoolean()
                     && meta.get("macro_loop").getAsBoolean();
@@ -87,8 +101,8 @@ public final class ScriptValidator {
                         && meta.get("hold_at_end").getAsJsonPrimitive().isBoolean()
                         && meta.get("hold_at_end").getAsBoolean();
                 if (holdAtEnd) {
-                    issues.add("meta.macro_loop 与 meta.hold_at_end 同时开启（互斥）：宏观循环下脚本不自然结束，"
-                            + "hold_at_end 不会生效，请二选一");
+                    issues.add("meta.macro_loop 与 meta.hold_at_end 同时开启（互斥）：无限次数"
+                            + "（macro_loop_count=-1，缺省）下脚本不自然结束，hold_at_end 不会生效，请二选一");
                 }
                 String mode = meta.has("macro_loop_mode") && meta.get("macro_loop_mode").isJsonPrimitive()
                         ? meta.get("macro_loop_mode").getAsString() : "repeat";

@@ -63,8 +63,10 @@ public class ScriptMeta {
     public boolean isInterruptible() { return behavior.interruptible(); }
     public boolean isSkippable() { return behavior.skippable(); }
     public boolean isHoldAtEnd() { return behavior.holdAtEnd(); }
-    /** 宏观循环开关：整条时间轴走到宏观末端后折回起点（第一版只实现 repeat） */
+    /** 宏观循环开关：整条时间轴（或 loop_start/loop_end 区间）从 a 到 b 重复执行（第一版只实现 repeat） */
     public boolean isMacroLoop() { return behavior.macroLoop(); }
+    /** 宏观循环次数：-1 = 无限重复；正整数 N = 重复 N 圈后自然结束 */
+    public int getMacroLoopCount() { return behavior.macroLoopCount(); }
     /** 宏观循环模式：repeat（默认）/ pingpong（第一版未实现，按 repeat 播放） */
     public String getMacroLoopMode() { return behavior.macroLoopMode(); }
 
@@ -98,6 +100,7 @@ public class ScriptMeta {
             boolean holdAtEnd,
             boolean macroLoop,
             String macroLoopMode,
+            int macroLoopCount,
             java.util.Map<String, Boolean> hudLayers
     ) {
         public static final RuntimeBehavior DEFAULT = new RuntimeBehavior(
@@ -106,7 +109,7 @@ public class ScriptMeta {
                 null, null, null, null, null, null, null, null, null, null,
                 true,
                 true, true, true, false,
-                false, "repeat",
+                false, "repeat", -1,
                 java.util.Collections.emptyMap()
         );
 
@@ -136,6 +139,7 @@ public class ScriptMeta {
             private boolean holdAtEnd = DEFAULT.holdAtEnd();
             private boolean macroLoop = DEFAULT.macroLoop();
             private String macroLoopMode = DEFAULT.macroLoopMode();
+            private int macroLoopCount = DEFAULT.macroLoopCount();
             private java.util.Map<String, Boolean> hudLayers = new java.util.LinkedHashMap<>();
 
             public Builder blockKeyboard(boolean v) { this.blockKeyboard = v; return this; }
@@ -162,6 +166,7 @@ public class ScriptMeta {
             public Builder holdAtEnd(boolean v) { this.holdAtEnd = v; return this; }
             public Builder macroLoop(boolean v) { this.macroLoop = v; return this; }
             public Builder macroLoopMode(String v) { this.macroLoopMode = v; return this; }
+            public Builder macroLoopCount(int v) { this.macroLoopCount = v; return this; }
             public Builder hudLayers(java.util.Map<String, Boolean> v) { this.hudLayers = v; return this; }
 
             public RuntimeBehavior build() {
@@ -174,7 +179,7 @@ public class ScriptMeta {
                         hardHideHud,
                         renderPlayerModel,
                         pauseWhenGamePaused, interruptible, skippable, holdAtEnd,
-                        macroLoop, macroLoopMode,
+                        macroLoop, macroLoopMode, macroLoopCount,
                         hudLayers
                 );
             }
