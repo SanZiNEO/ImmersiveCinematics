@@ -46,6 +46,7 @@ public final class MetaSchemas {
         map.put("macro_loop", new FieldDef("bool", false, false, java.util.Collections.emptyList(), "runtime"));
         map.put("macro_loop_mode", new FieldDef("enum", "repeat", false, java.util.List.of("repeat", "pingpong"), "runtime"));
         map.put("hud_layers", new FieldDef("object", null, false, java.util.Collections.emptyList(), "runtime"));
+        map.put("hard_hide_hud", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
         map.put("priority", new FieldDef("int", 0, false, java.util.Collections.emptyList(), "runtime"));
         map.put("skip_vote_ratio", new FieldDef("int", null, false, java.util.Collections.emptyList(), "runtime"));
 

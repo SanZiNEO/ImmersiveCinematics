@@ -9,6 +9,72 @@
 > - [脚本格式](../../docs/SCRIPT_FORMAT.md)
 > - [Overlay 颜色遮罩](./overlay-color-mask.md)
 > - [相机状态与覆盖链](./camera-state-plan.md)
+>
+> **状态：已实现（仅 Forge）。执行时定下的取舍见下方「落地标注」，§8 待定项已全部结清。**
+
+---
+
+## 落地标注（2026-10-07 实现）
+
+### 模式开关（§5 / §8-1）
+
+- 脚本级**三态**字段 `meta.hard_hide_hud`（`boolean` / `null`），与 `hide_*` 同款三态风格：`true` = hard，`null`（缺省）/ `false` = normal。
+- **null 不回落 `hide_hud`**：该字段是"模式"而非"显隐"，缺省必须等于 normal，否则所有默认脚本凭空获得强硬行为（`CinematicController.effectiveHardHide`）。
+- **不新增全局配置键**：F5 已核实 `ForgeConfig` / `FabricConfig` 没有任何 `hide_*` / `hud_layers` 键（"全局默认值"是新增项）——本版本最简做法 = 缺省即 normal；将来要加全局键，只需在 `effectiveHardHide` 里读配置。
+- 并集：`CinematicController.recomputeUnion` 按**任一活跃实例显式 `true` 即生效**（OR，与 `plans/0.3.6/parallel-playback.md` §3.2 同口径）；`revert()` / 无实例时复位为 null。
+- 粒度：整段播放级（不做逐帧切换）。
+- 改动面：`ScriptMeta.RuntimeBehavior.hardHideHud`（+ `Builder` + `DEFAULT`）、`ScriptParser`（`optNullableBool`）、`MetaSchemas`（`bool` 默认 null → WebUI 动态表单按三态渲染）、`CinematicController`（字段 + `isHardHideHud()`）。
+
+### 接管与重画（§3 / §4）
+
+**接管条件**（`ForgeClientEvents.Forge.isHardHideActive`）：`CameraManager.isActive()` ∧ `isHardHideHud()` ∧ `isHideHud()`。
+第三条必需：`hide_hud=false` 时无物可藏，若仍接管会把"白名单判为显示"的第三方自绘 HUD 一并砍掉，违背脚本作者的显式意图。
+
+**`ForgeClientEvents.Forge.onRenderGuiPre`**（`@SubscribeEvent(priority = EventPriority.HIGHEST)`）：
+
+1. `event.setCanceled(true)` → Forge 跳过原版 HUD、全部注册表 overlay、`RenderGuiEvent.Post`，以及**排在本监听器之后**的其他订阅者（C3：同为 HIGHEST 且注册更早的仍会执行，它们已经画上去的内容也不会被清除——取消只影响其后的订阅者）；
+2. `renderHardHide`：复位 `gui.leftHeight / rightHeight = 39` → 遍历 `GuiOverlayManager.getOverlays()`，**`isWorldOverlay(id)` 豁免（F3）或 `!isLayerHidden(categoryOf(id))` 才重画**（逐层异常隔离，与 ForgeGui 同款）→ `RenderSystem.setShaderColor(1,1,1,1)`（对齐 ForgeGui 循环后的复位）→ `ClientEventHandler.onRenderHud`（黑边 / 字幕 / GIF / 跳过提示）；
+3. 我们自己的 overlay **绘制点按模式分流**：normal 仍走 `RenderGuiEvent.Post`；hard 在接管处补画，且 `onRenderGui(Post)` 在 hard 生效时早退（Pre 被取消后 Forge 不会再发 Post，此早退只是把"每帧只画一次"写成显式不变式）。
+
+**与 `ForgeGui.render` 的有意差异**：不设 `screenWidth / screenHeight`（ForgeGui 在 Pre **之前**已设）、不重新播种 `Gui.random`（protected，跨包不可访问 → 影响仅限食物图标抖动）、不刷新 `ForgeGui.font`（正常渲染路径早已赋值；hard 只在有活跃播放实例时接管，故非空）。
+
+> **C4（本次补正）**：§3 把"复位 leftHeight/rightHeight"列为接管后的第 2 步，但 `ForgeGui.render` 实际在**发 Pre 之前**就复位（ForgeGui.java:109-110 → :112-115）。接管处的复位因此是**防御性**的（更早的 HIGHEST 订阅者可能改过这两个公开字段），非必需但无害。
+
+### 不补发 RenderGuiOverlayEvent（§7 / §8-2）
+
+**不补发**。理由：
+
+1. `RenderGuiOverlayEvent.Pre/Post` 构造器标注 `@ApiStatus.Internal`（F2）——补发等于把内部 API 当稳定契约依赖，且 `NamedGuiOverlay` 只能复用 `entry` 本身、无法自建；
+2. 仓库内该事件**唯一**消费者就是我们自己的 `onRenderGuiOverlayPre`，其效果（隐藏白名单判为隐藏的层）已由重画过滤逐层复现；
+3. 补发会逐帧额外派发两轮事件、让第三方 Pre 处理器参与"接管"过程，与强硬接管的语义相悖。
+
+**代价**（接受并写明）：依赖 `RenderGuiOverlayEvent` 的第三方逻辑在 hard 模式下收不到事件——`receiveCanceled = true` 的监听器（如 TACZ）与其自身的条件取消/改写（如 `colorful-hearts` 读 `isCanceled()`）一律不生效。对这类模组，脚本作者可选择不用 hard 模式。
+
+### Fabric（§4 / §8-4）
+
+**不做**。Fabric 走 `HudRenderCallback`（不可取消、无 ID、无注册表），hard 无对应语义 → 字段在 Fabric 上被正常解析但没有消费者，行为等价 normal。
+
+### 本版本明确不做
+
+- 针对性 mixin 兜底（§7 末条 / §8-5）：留作将来的最后手段。
+- `hud_layers` 键规范（§8-3）：维持现状（分类名 + 未注册 overlay 完整 ID 混用）。
+
+### 验证（2026-10-07）
+
+- `sh gradlew compileJava`（common / fabric / forge 三模块）**BUILD SUCCESSFUL**；
+- 一次性冒烟 harness（未入库）13 项全过 → `SMOKE OK`：默认骨架不写该字段、`true` / `false` / 缺省三种解析结果、并集 OR（null+true / true+false / null+false）、空实例复位、`hide_hud` 与 `hide_skip_hud` 旧语义未变；
+- `javap` 核对编译产物：`onRenderGuiPre` 带 `@SubscribeEvent(priority = EventPriority.HIGHEST)`；接管字节码含 `setCanceled(true)` → `leftHeight / rightHeight = 39` → `isWorldOverlay` 豁免 + `isLayerHidden` 过滤 → `IGuiOverlay.render` → 逐层 catch；
+- **未在真实客户端跑过**（需图形环境）：§9 第 2/3/4 条只有静态可核性，实测需要真实客户端 + 对应模组。
+
+### §9 验收对照
+
+| 验收条 | 状态 |
+|---|---|
+| 默认（normal）行为与现状完全一致 | 静态可核：`isHardHideActive()` 要求显式 `hard_hide_hud: true`，缺省路径不进接管；`onRenderGui(Post)` 在 normal 下与改造前逐字相同 |
+| hard 下 `RenderGuiEvent.Pre` 自绘的第三方 HUD 被隐藏 | 由 `setCanceled(true)` 保证（边界见 C3：同优先级且更早注册的监听器仍执行）；**未实测** |
+| hard 下白名单判为"显示"的层仍显示 | 重画过滤 = `isWorldOverlay` 豁免 + `!isLayerHidden(categoryOf(id))`，与 normal 判定同源；**未实测**（U2 的例子不可用，需 TACZ / SecurityCraft 一类注册表 overlay） |
+| hard 下本模组 overlay 正常显示 | `renderHardHide` 末尾补画 `ClientEventHandler.onRenderHud`；**未实测** |
+| 切换模式不需要重启 | 字段来自脚本 meta，逐帧读 `CinematicController.INSTANCE`，无缓存 |
 
 ---
 
@@ -124,6 +190,8 @@ if (!MinecraftForge.EVENT_BUS.post(new RenderGuiEvent.Pre(window, guiGraphics, p
 - Fabric 是否做等价能力（或明确不做）
 - 是否保留针对性 mixin 兜底
 - hard 模式与 `hide_skip_hud`、letterbox、字幕层的叠放细节
+
+> 以上 6 项已于 2026-10-07 结清，结论见文首「落地标注」。
 
 ---
 

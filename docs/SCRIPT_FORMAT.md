@@ -80,6 +80,7 @@ immersive_cinematics/
 | `hide_bossbar` | boolean/null | `null` | 同上 |
 | `hide_skip_hud` | boolean/null | `null` | 同上；控制长按跳过提示（右下角图标+进度环） |
 | `hud_layers` | object | `{}` | 模组/自定义 HUD 层的显隐覆盖：`{ "modid:layer": true/false }`，`true`=隐藏、`false`=显示 |
+| `hard_hide_hud` | boolean/null | `null` | **三态·仅 Forge**：强硬隐藏模式。`true`=除原版 HUD 与注册表 overlay 外，**连"不走 overlay 注册表、直接在 `RenderGuiEvent.Pre` 里自绘"的第三方 HUD 也一起隐藏**（接管整段 HUD 渲染，再按白名单重画）；`null`（缺省）/`false`=normal，行为与不带此字段完全一致。仅当 `hide_hud` 生效时才接管（`hide_hud=false` 时不接管）。**与 `hide_*` 的区别**：null 不回落 `hide_hud`——缺省即 normal。Fabric 无对应语义（字段被解析但不生效） |
 | `render_player_model` | boolean | `true` | 是否渲染玩家模型（第三人称时） |
 | `pause_when_game_paused` | boolean | `true` | 游戏暂停时是否暂停过场动画 |
 | `interruptible` | boolean | `true` | 是否允许被其他脚本打断 |
@@ -91,6 +92,10 @@ immersive_cinematics/
 | `skip_vote_ratio` | int | 无（用全局配置） | **可选**。多人跳过投票所需比例（10~100，百分比），仅当所有看过此脚本的观众投票后才生效。缺省/非法值 → 回落到全局配置 `skipVoteRatio`（默认 100 = 全票）。例：`50` = 半数观众投跳过即强制停止 |
 
 > 运行时行为在脚本播放激活期间生效，**不要求存在活跃 CAMERA clip**；纯 HUD/字幕/手臂等行为的显隐只判断当前是否处于电影播放状态。
+>
+> `hard_hide_hud` 是**整段播放级**的模式开关（不做逐帧切换），并集口径与其它行为开关一致：任一活跃实例显式声明 `true` 即生效。
+> 开启后其他模组在 `RenderGuiEvent.Pre` 里的**非绘制副作用**（状态准备、缓存刷新等）也会一并被跳过——这是"接管整段渲染"的固有代价。
+> 细节与取舍见 `plans/0.3.6/hud-hard-hide.md`（§落地标注）。
 
 
 ### 1c. Triggers（触发条件）

@@ -90,6 +90,7 @@ public class ScriptMeta {
             Boolean hideCrosshair,
             Boolean hideBossbar,
             Boolean hideSkipHud,
+            Boolean hardHideHud,
             boolean renderPlayerModel,
             boolean pauseWhenGamePaused,
             boolean interruptible,
@@ -102,7 +103,7 @@ public class ScriptMeta {
         public static final RuntimeBehavior DEFAULT = new RuntimeBehavior(
                 true, true, false, true,
                 null, null, null,
-                null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null,
                 true,
                 true, true, true, false,
                 false, "repeat",
@@ -127,6 +128,7 @@ public class ScriptMeta {
             private Boolean hideCrosshair = null;
             private Boolean hideBossbar = null;
             private Boolean hideSkipHud = null;
+            private Boolean hardHideHud = DEFAULT.hardHideHud();
             private boolean renderPlayerModel = DEFAULT.renderPlayerModel();
             private boolean pauseWhenGamePaused = DEFAULT.pauseWhenGamePaused();
             private boolean interruptible = DEFAULT.interruptible();
@@ -152,6 +154,7 @@ public class ScriptMeta {
             public Builder hideCrosshair(Boolean v) { this.hideCrosshair = v; return this; }
             public Builder hideBossbar(Boolean v) { this.hideBossbar = v; return this; }
             public Builder hideSkipHud(Boolean v) { this.hideSkipHud = v; return this; }
+            public Builder hardHideHud(Boolean v) { this.hardHideHud = v; return this; }
             public Builder renderPlayerModel(boolean v) { this.renderPlayerModel = v; return this; }
             public Builder pauseWhenGamePaused(boolean v) { this.pauseWhenGamePaused = v; return this; }
             public Builder interruptible(boolean v) { this.interruptible = v; return this; }
@@ -168,6 +171,7 @@ public class ScriptMeta {
                         hideChat, hideScoreboard, hideActionBar,
                         hideTitle, hideSubtitles, hideHotbar, hideCrosshair,
                         hideBossbar, hideSkipHud,
+                        hardHideHud,
                         renderPlayerModel,
                         pauseWhenGamePaused, interruptible, skippable, holdAtEnd,
                         macroLoop, macroLoopMode,

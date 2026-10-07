@@ -29,6 +29,12 @@ public class CinematicController {
     private Boolean hideCrosshair = null;
     private Boolean hideBossbar = null;
     private Boolean hideSkipHud = null;
+    /**
+     * 强硬隐藏模式（脚本字段 {@code hard_hide_hud}）：三态，null = 未声明 → normal。
+     * <p>见 {@code plans/0.3.6/hud-hard-hide.md}：hard 模式在 Forge 侧接管 {@code RenderGuiEvent.Pre}，
+     * 连"不走 overlay 注册表、直接在 Pre 里自绘"的第三方 HUD 一起隐藏，再按白名单重画。
+     */
+    private Boolean hardHideHud = null;
 
     private Boolean hideArm = null;
     private Boolean suppressBob = null;
@@ -128,6 +134,7 @@ public class CinematicController {
         this.hideCrosshair = union(active, b -> effective(b.hideCrosshair(), b));
         this.hideBossbar = union(active, b -> effective(b.hideBossbar(), b));
         this.hideSkipHud = union(active, b -> effective(b.hideSkipHud(), b));
+        this.hardHideHud = union(active, CinematicController::effectiveHardHide);
         this.hideArm = union(active, b -> effective(b.hideArm(), b));
         this.suppressBob = union(active, b -> effective(b.suppressBob(), b));
         this.suppressDistortion = union(active, CinematicController::effectiveDistortion);
@@ -146,6 +153,15 @@ public class CinematicController {
     private static boolean effectiveDistortion(ScriptMeta.RuntimeBehavior b) {
         if (b.suppressDistortion() != null) return b.suppressDistortion();
         return effective(b.suppressBob(), b);
+    }
+
+    /**
+     * {@code hard_hide_hud} 在单个实例上的有效值：显式 {@code true} 才开启强硬模式。
+     * <p>与 {@code hide_*} 的区别：null **不**回落 {@code hide_hud}——该开关是"模式"而非"显隐"，
+     * 缺省即 normal（全局默认），否则默认脚本会凭空获得强硬行为。
+     */
+    private static boolean effectiveHardHide(ScriptMeta.RuntimeBehavior b) {
+        return Boolean.TRUE.equals(b.hardHideHud());
     }
 
     /** 单实例开关取值函数（局部函数式接口，避免引入额外依赖）。 */
@@ -176,6 +192,7 @@ public class CinematicController {
         this.hideCrosshair = null;
         this.hideBossbar = null;
         this.hideSkipHud = null;
+        this.hardHideHud = null;
         this.hideArm = null;
         this.suppressBob = null;
         this.suppressDistortion = null;
@@ -282,6 +299,15 @@ public class CinematicController {
     public Boolean isHideCrosshair() { return hideCrosshair; }
     public Boolean isHideBossbar() { return hideBossbar; }
     public Boolean isHideSkipHud() { return hideSkipHud; }
+
+    /**
+     * 强硬隐藏模式是否生效（脚本字段 {@code hard_hide_hud}，任一活跃实例显式声明 {@code true} 即生效）。
+     * <p>该开关**不**参与「三态回落 {@code hide_hud}」：null = 未声明 = normal（全局默认值，本版本无配置键）。
+     * 接管条件还需 {@code CameraManager.isActive()} 与 {@link #isHideHud()} 同时为真——{@code hide_hud=false}
+     * 时无物可藏，不接管（见 {@code plans/0.3.6/hud-hard-hide.md} §3/§5）。
+     */
+    public boolean isHardHideHud() { return Boolean.TRUE.equals(hardHideHud); }
+
     public Boolean isHideArm() { return hideArm; }
     public Boolean isSuppressBob() { return suppressBob; }
     public Boolean isSuppressDistortion() { return suppressDistortion; }

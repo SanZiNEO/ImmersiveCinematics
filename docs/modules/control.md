@@ -8,6 +8,7 @@
   - ✅ `CinematicController` 单例持有脚本运行时行为标志（与 `ScriptMeta.RuntimeBehavior` 一一对应）：可跳过/可打断/结尾保持、屏蔽键盘/鼠标、隐藏 HUD/手臂/聊天/记分板/动作栏/标题/字幕/快捷栏/准星/Boss 条/跳过 HUD、`hud_layers` 自定义 HUD 覆盖、抑制视角摆动/画面扭曲、渲染玩家模型、屏蔽生物 AI、游戏暂停时暂停（`CinematicController`）
   - ✅ `applyLifecycle()` 在脚本开始时按活跃实例写入生命周期开关（可跳过/可打断/结尾保持/暂停联动——**不**参与并集）；`recomputeUnion(实例行为列表)` 把行为开关在所有活跃实例之间逐位取并集（任一实例要求隐藏/屏蔽即生效；三态开关先按各实例自己的 `hide_hud` 解析再 OR，故单实例结果与改造前逐位一致），实例增删后由 `CameraManager` 重算（`CinematicController`，见 `plans/0.3.6/parallel-playback.md` §3.2）
   - ✅ `revert()` 在无活跃实例时恢复默认值（三态字段恢复为 null = 未设置）；`suppress_distortion` 通过临时修改原版 `screenEffectScale` 实现并在退出时恢复（`CinematicController`）
+  - ✅ 强硬隐藏模式（脚本字段 `hard_hide_hud`，三态：`true` = hard、`null`/`false` = normal，**不回落** `hide_hud`）：与其它开关同口径取并集（任一活跃实例显式 `true` 即生效），`isHardHideHud()` 供 Forge 侧接管 `RenderGuiEvent.Pre` 时判断（`CinematicController`，见 `plans/0.3.6/hud-hard-hide.md`）
   - ✅ 提供 `setBlockKeyboard/setBlockMouse` 供编辑器预览模式临时放行输入（`CinematicController`）
 - **退出原因与完成原因**
   - ✅ `ExitReason` 枚举 5 种退出请求：FORCE_QUIT（Ctrl+P 强退）、SYSTEM_STOP（系统停止）、INTERRUPTED（被新脚本打断）、USER_SKIP（用户长按跳过）、NATURAL_END（自然播完）（`ExitReason`）

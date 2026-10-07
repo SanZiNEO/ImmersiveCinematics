@@ -113,6 +113,8 @@ public class ScriptParser {
         Boolean hideCrosshair = optNullableBool(metaObj, "hide_crosshair");
         Boolean hideBossbar = optNullableBool(metaObj, "hide_bossbar");
         Boolean hideSkipHud = optNullableBool(metaObj, "hide_skip_hud");
+        // 强硬隐藏模式：三态，null = 未声明 → normal（不回落 hide_hud，见 CinematicController.effectiveHardHide）
+        Boolean hardHideHud = optNullableBool(metaObj, "hard_hide_hud");
         boolean renderPlayerModel = optBoolMeta(metaObj, "render_player_model");
         boolean pauseWhenGamePaused = optBoolMeta(metaObj, "pause_when_game_paused");
         boolean interruptible = optBoolMeta(metaObj, "interruptible");
@@ -133,6 +135,7 @@ public class ScriptParser {
                 hideChat, hideScoreboard, hideActionBar,
                 hideTitle, hideSubtitles, hideHotbar, hideCrosshair,
                 hideBossbar, hideSkipHud,
+                hardHideHud,
                 renderPlayerModel,
                 pauseWhenGamePaused, interruptible, skippable,
                 holdAtEnd, macroLoop, macroLoopMode, hudLayers);
