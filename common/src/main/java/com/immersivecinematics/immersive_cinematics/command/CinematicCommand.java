@@ -6,6 +6,13 @@ import com.immersivecinematics.immersive_cinematics.script.ScriptParser;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.immersivecinematics.immersive_cinematics.script.ScriptValidator;
+import com.immersivecinematics.immersive_cinematics.script.template.ClipTemplate;
+import com.immersivecinematics.immersive_cinematics.script.template.TemplateArgs;
+import com.immersivecinematics.immersive_cinematics.script.template.TemplateParam;
+import com.immersivecinematics.immersive_cinematics.script.template.TemplateRegistry;
+import com.immersivecinematics.immersive_cinematics.script.template.TemplateScriptAssembler;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.ResourceLocationArgument;
@@ -25,7 +32,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -33,6 +42,9 @@ public class CinematicCommand {
 
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/Command");
     private static final String GLOBAL_SCRIPT_DIR = "immersive_cinematics/scripts";
+
+    /** 模板生成脚本的落地子目录（与手写脚本分开，便于整体清理/重生成）。 */
+    private static final String GENERATED_SUBDIR = "generated";
 
     /** Tab 补全递归深度（与 ScriptManager 保持一致：子文件夹组织） */
     private static final int MAX_SCRIPT_DEPTH = 5;
@@ -53,6 +65,10 @@ public class CinematicCommand {
         }
         return SharedSuggestionProvider.suggest(new String[0], builder);
     };
+
+    /** 模板 id 补全（片段级模板注册表的内置库）。 */
+    private static final SuggestionProvider<CommandSourceStack> TEMPLATE_SUGGESTIONS =
+            (ctx, builder) -> SharedSuggestionProvider.suggest(TemplateRegistry.ids(), builder);
 
     /** 把 globalDir 下的文件转为命令 ID：目录中的 / 用 _ 代替，目录与文件名用 : 分隔 */
     private static String toCommandId(Path globalDir, Path p) {
@@ -88,6 +104,15 @@ public class CinematicCommand {
                         .then(Commands.argument("file", ResourceLocationArgument.id())
                                 .suggests(SCRIPT_SUGGESTIONS)
                                 .executes(CinematicCommand::validateScriptFile)))
+                .then(Commands.literal("template")
+                        .requires(s -> s.hasPermission(2))
+                        .then(Commands.literal("list")
+                                .executes(CinematicCommand::listTemplates))
+                        .then(Commands.argument("id", StringArgumentType.word())
+                                .suggests(TEMPLATE_SUGGESTIONS)
+                                .executes(CinematicCommand::generateFromTemplate)
+                                .then(Commands.argument("params", StringArgumentType.greedyString())
+                                        .executes(CinematicCommand::generateFromTemplate))))
         );
     }
 
@@ -244,6 +269,140 @@ public class CinematicCommand {
             msg.append("§7  - ").append(issue).append("\n");
         }
         source.sendSuccess(() -> Component.literal(msg.toString()), false);
+        return 1;
+    }
+
+    /**
+     * /icinematics template list — 列出内置片段模板与其参数（填参说明）。
+     */
+    private static int listTemplates(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        List<ClipTemplate> templates = TemplateRegistry.all();
+        if (templates.isEmpty()) {
+            source.sendFailure(Component.literal("§c模板库为空"));
+            return 0;
+        }
+        StringBuilder msg = new StringBuilder("§6内置片段模板 " + templates.size() + " 个：\n");
+        for (ClipTemplate t : templates) {
+            msg.append("§e/icinematics template ").append(t.id())
+                    .append(" §8[").append(t.trackType().name()).append("] §f").append(t.name()).append("\n");
+            msg.append("§7    ").append(t.description()).append("\n");
+            for (TemplateParam p : t.params()) {
+                msg.append("§8      ").append(p.key()).append("=§f").append(p.defaultValue())
+                        .append(" §7").append(p.label());
+                if (!p.enumValues().isEmpty()) {
+                    msg.append(" §8[").append(String.join("|", p.enumValues())).append("]");
+                }
+                msg.append("\n");
+            }
+        }
+        msg.append("§7保留 key：§fname§7=<文件名，默认模板 id>、§fstart§7=<起始秒，默认 0>\n");
+        msg.append("§7生成到 scripts/generated/ 并当场校验；播放：§f/icinematics play generated:<name>");
+        source.sendSuccess(() -> Component.literal(msg.toString()), false);
+        return 1;
+    }
+
+    /**
+     * /icinematics template &lt;id&gt; [key=value ...] — 展开片段模板为**标准脚本 JSON**：
+     * 写入 {@code scripts/generated/<name>.json}，并当场走 {@link ScriptValidator}
+     * （与 {@code /icinematics validate} 同源）。产物与手写脚本同构，可继续编辑 / 播放。
+     */
+    private static int generateFromTemplate(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        String id = StringArgumentType.getString(context, "id");
+        ClipTemplate template = TemplateRegistry.get(id);
+        if (template == null) {
+            source.sendFailure(Component.literal("§c未知模板: " + id
+                    + "\n§7可用: " + String.join(", ", TemplateRegistry.ids())
+                    + "\n§7查看参数: /icinematics template list"));
+            return 0;
+        }
+
+        Map<String, String> raw = new LinkedHashMap<>();
+        String scriptId = id;
+        float startTime = 0f;
+        String paramsText;
+        try {
+            paramsText = StringArgumentType.getString(context, "params");
+        } catch (IllegalArgumentException absent) {
+            paramsText = "";   // 未给参数 → 全部走默认值
+        }
+        for (String token : paramsText.trim().split("\\s+")) {
+            if (token.isEmpty()) continue;
+            int eq = token.indexOf('=');
+            if (eq <= 0) {
+                source.sendFailure(Component.literal("§c参数格式应为 key=value，收到: " + token));
+                return 0;
+            }
+            String key = token.substring(0, eq);
+            String value = token.substring(eq + 1);
+            if ("name".equals(key)) {
+                scriptId = value;
+            } else if ("start".equals(key)) {
+                try {
+                    startTime = Float.parseFloat(value);
+                } catch (NumberFormatException e) {
+                    source.sendFailure(Component.literal("§cstart 不是数字: " + value));
+                    return 0;
+                }
+            } else if (TemplateRegistry.isDeclaredParam(template, key)) {
+                raw.put(key, value);
+            } else {
+                source.sendFailure(Component.literal("§c模板 " + id + " 没有参数: " + key
+                        + "（保留 key: name / start；参数表见 /icinematics template list）"));
+                return 0;
+            }
+        }
+        if (!scriptId.matches("[a-z0-9_]+")) {
+            source.sendFailure(Component.literal("§c文件名非法: " + scriptId
+                    + "（只允许小写字母 / 数字 / 下划线——生成物要能直接用作脚本 id）"));
+            return 0;
+        }
+
+        String json;
+        try {
+            TemplateArgs args = TemplateArgs.parse(template.params(), raw, startTime);
+            json = TemplateScriptAssembler.assembleJson(template, args, scriptId);
+        } catch (IllegalArgumentException e) {
+            source.sendFailure(Component.literal("§c模板展开失败: " + e.getMessage()));
+            return 0;
+        }
+
+        // 生成即校验：产物必须与手写脚本一样过 validator，不过就不落地
+        java.util.Set<String> knownIds = ScriptManager.INSTANCE.getAllScripts().stream()
+                .map(CinematicScript::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<String> issues = ScriptValidator.validate(json, knownIds);
+        if (!issues.isEmpty()) {
+            StringBuilder msg = new StringBuilder("§c模板 " + id + " 的产物未通过校验（未写入文件）：\n");
+            for (String issue : issues) {
+                msg.append("§7  - ").append(issue).append("\n");
+            }
+            source.sendSuccess(() -> Component.literal(msg.toString()), false);
+            return 0;
+        }
+
+        MinecraftServer server = source.getServer();
+        Path outDir = server.getServerDirectory().toPath().toAbsolutePath()
+                .resolve(GLOBAL_SCRIPT_DIR).resolve(GENERATED_SUBDIR);
+        Path outFile = outDir.resolve(scriptId + ".json");
+        boolean existed = Files.exists(outFile);
+        try {
+            Files.createDirectories(outDir);
+            Files.writeString(outFile, json);
+        } catch (IOException e) {
+            source.sendFailure(Component.literal("§c写入脚本失败: " + e.getMessage()));
+            return 0;
+        }
+
+        final String cmdId = GENERATED_SUBDIR + ":" + scriptId;
+        final String out = outFile.toString();
+        final String overwritten = existed ? "§7(覆盖已存在文件) " : "";
+        source.sendSuccess(() -> Component.literal("§a已生成脚本 " + overwritten + out
+                + "\n§7模板: " + id + " §7| 轨道: " + template.trackType().name() + " §7| 校验通过"
+                + "\n§7播放: §f/icinematics play " + cmdId
+                + "§7 | 再校验: §f/icinematics validate " + cmdId), false);
+        LOGGER.info("模板 {} 生成脚本 {}（参数 {}）", id, out, raw);
         return 1;
     }
 

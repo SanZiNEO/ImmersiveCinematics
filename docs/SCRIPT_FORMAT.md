@@ -684,6 +684,53 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 
 ---
 
+## 11. 模板（参数化生成片段）
+
+模板 = **参数化生成器**：填几个目标参数 → 生成标准脚本 JSON。生成物与手写脚本完全等价（走同一套解析 / 校验），可继续编辑。
+
+当前版本（0.3.6 第一版）只有**片段级模板**（生成一段 clip）；轨道级（如"环绕整圈 = 三段 120° 拼圆"）与脚本级模板是后续步骤。
+
+命令入口（需要权限 2）：
+
+| 命令 | 作用 |
+|------|------|
+| `/icinematics template list` | 列出内置模板与参数（含默认值 / 枚举候选） |
+| `/icinematics template <id> [key=value ...]` | 展开为完整脚本 → 写入 `scripts/generated/<name>.json` → 当场校验 |
+
+- 保留参数：`name=<文件名>`（默认 = 模板 id，只允许小写字母 / 数字 / 下划线）、`start=<起始秒>`（默认 0）。
+- 生成物放在 `scripts/generated/` 子目录：`/icinematics play generated:<name>` 直接播放，`/icinematics validate generated:<name>` 再校验。
+
+### 内置模板
+
+| id | 产物轨道 | 说明 |
+|----|---------|------|
+| `fade` | OVERLAY | 黑场 / 白场：`color`（black / white）、`duration`、`fade_in`（压场）、`fade_out`（亮起）；两个 fade 都为 0 就是纯色场（"黑场 1s"） |
+| `static_breath` | CAMERA | 固定机位 + 呼吸：位置 / 朝向 / fov 钉死，晃动由 `cam_breath_*` 程序化扰动产生 |
+| `dolly` | CAMERA | 推近 / 拉远：`direction`（in / out）；`fov_start ≠ fov_end` 即希区柯克变焦 |
+| `orbit_arc` | CAMERA | 环绕弧线（一段三次贝塞尔，`sweep` 绝对值 ≤ 120°）：`center_mode`（trigger / entity）决定圆心是触发点还是选择器目标 |
+
+> **环绕的数学**：控制点到端点的距离 = `R × 4/3 × tan(θ/4)`（θ=90° → 0.5523R，θ=120° → 0.7698R）。
+> 位置与控制点都写**相对**形式（位置相对基准点，控制点相对段起点）——"以玩家触发点为圆心绕圆"这类运行时才知道坐标的场景可直接生成。整圈 = 三段 120° 拼圆（轨道级模板，后续步骤）。
+
+**示例**：
+
+```
+/icinematics template fade color=black duration=1
+/icinematics template orbit_arc radius=10 height=2.5 sweep=90 duration=6 name=orbit_player
+```
+
+### 代码侧（模板是什么）
+
+| 类 | 职责 |
+|----|------|
+| `script/template/ClipTemplate` | 片段级模板接口：`id` / `name` / `trackType` / `params` / `expand(args)` |
+| `script/template/TemplateParam` | 参数声明——**复用 `script/schema` 的 `FieldDef`**（类型 / 默认值 / 枚举候选 / 分组），不是第二套参数体系 |
+| `script/template/TemplateArgs` | 一次展开的实参：按声明类型归一 + 兜默认值，展开器直接读 |
+| `script/template/TemplateRegistry` | 内置库注册表 |
+| `script/template/TemplateScriptAssembler` | 把展开出的 clip 装进新建脚本骨架（`ScriptTemplate`）→ 可播放脚本 |
+
+---
+
 ## 完整示例
 
 ```json

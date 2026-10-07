@@ -28,6 +28,19 @@
 
 **目标（已确认·2026-10-07）**：从"一个贝塞尔预设"发展为**脚本-轨道-片段 三层模板体系**——复杂效果 = 分层模板的组合，用户只需要填几个目标参数。
 
+### 落地记录（2026-10-07 · 第一版 = 步骤 1-2）
+
+代码：`common/src/main/java/.../script/template/`。
+
+- **参数声明与 schema 合并（步骤 1）**：模板参数 = `TemplateParam`（key + 显示名 + **复用 `script/schema` 的 `FieldDef`**），不是第二套 `PresetParam`——类型 / 默认值 / 枚举候选 / `section` 分组全部走 FieldDef，将来直接吃 `schema.get` 驱动的表单。
+- **展开器（步骤 1）**：`ClipTemplate.expand(TemplateArgs) → clip JSON`（Java 函数）；`TemplateArgs` 按声明归一实参并兜默认值（展开器不用自己判空）；`TemplateRegistry` = 注册表（当前即内置库，id 空间为片段级）。
+- **嵌套引用**：本版**未实现**——片段级是三层的最底层，没有可引用的下层；`id` 引用留给步骤 3（轨道级引用片段级）落地时定（倾向：轨道模板按 id 引用片段模板并逐层传参）。
+- **产物与校验**：`TemplateScriptAssembler` 把展开出的 clip 装进 `ScriptTemplate` 骨架 → 标准脚本 JSON，走 `ScriptValidator`。冒烟：4 个模板 × 默认 / 非默认参数共 13 组展开 → 装配 → 校验，问题数 0；环绕弧线另做几何核对（贝塞尔采样点相对圆的半径误差 < 0.2%，θ=120°）。
+- **接入点**：`/icinematics template list` 与 `/icinematics template <id> [key=value ...]`——后者展开 → 写 `scripts/generated/<name>.json` → 当场 `ScriptValidator` 校验（不过则不落盘）。**选命令而非 WebUI**：纯 common 侧、与既有 `/icinematics validate` 同一条"生成→自查→播放"闭环、无需改 TS 前端。
+
+**第一批片段模板（4 个）**：`fade`（黑场/白场，OVERLAY 轨）、`static_breath`（固定 + 呼吸）、`dolly`（推近/拉远）、`orbit_arc`（环绕弧线，单段 ≤120°）。
+取舍：**希区柯克不单列模板**（= `dolly` 的两个 fov 两端不同，同一条位置路径）；**"环绕整圈"不做片段模板**（三段 120° 拼圆 = 轨道级，属步骤 3）——`orbit_arc` 只负责其中一段，超限直接拒绝并提示。
+
 ---
 
 ## 2. 三层模板模型（已确认方向）
@@ -95,9 +108,11 @@
 
 | # | 步骤 | 交付物 |
 |---|---|---|
-| 1 | 模板模型定稿：三层定义 + 参数声明合并 schema + 展开器接口 + 嵌套引用 | 三层模板的字段表 / 接口方向 |
-| 2 | 片段级模板落地：新建"环绕 90°/120°"片段模板 + 推近 / 固定+呼吸（0.3.5 的 `OrbitCirclePreset` 已随编辑器删除，按留档算法重写） | 手写参数即可生成单段镜头 |
+| 1 ◐ | 模板模型定稿：三层定义 + 参数声明合并 schema + 展开器接口 + 嵌套引用 | **片段级部分已落地**（参数合并 FieldDef + 展开器接口 + 注册表 + 装配器）；轨道级 / 脚本级定义与嵌套引用待步骤 3 / 4 |
+| 2 ✅ | 片段级模板落地：新建"环绕 90°/120°"片段模板 + 推近 / 固定+呼吸（0.3.5 的 `OrbitCirclePreset` 已随编辑器删除，按留档算法重写） | **已落地**：`fade` / `static_breath` / `dolly` / `orbit_arc` 四个片段模板 + `/icinematics template` 接入点 |
 | 3 | 轨道级模板：环绕整圈（三片段拼）、双机位切 | 一条轨道一键生成 |
 | 4 | 脚本级模板：meta / 触发器 / requires 骨架 + 默认转场（引用 scene-transition） | "跟随+看向+黑场退出"整份脚本一键生成 |
 | 5 | 编辑器模板面板：schema 表单 + 预览 + 插入 | WebUI 内选模板 → 填参 → 生成 |
 | 6 | （远期）纯数据模板 / 用户自定义模板 | 依赖 math-models 的 JSON 模型化 |
+
+> 状态：✅ = 已落地；◐ = 部分落地；无标记 = 未开始。第一版见 §1 落地记录。

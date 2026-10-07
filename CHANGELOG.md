@@ -10,6 +10,7 @@
 - 实体选择器支持 NBT 条件，可以按阵营、状态等 NBT 数据锁定生物。
 - 选择器新增目标锁定控制：`selector_refresh`（重新选择间隔）、`selector_switch_while_alive`（目标存活时是否切换）、`selector_switch_smooth`（切换平滑）。
 - 选择器支持 `type=` 实体类型过滤，减少镜头误锁投掷物的情况。
+- **模板命令 `/icinematics template`**：填几个参数即可生成一段标准镜头脚本，与手写脚本等价、可继续编辑——内置 4 个片段模板：黑场 / 白场（`fade`）、固定机位 + 呼吸（`static_breath`）、推近 / 拉远（`dolly`，两端 fov 不同即希区柯克变焦）、环绕弧线（`orbit_arc`，绕触发点或指定实体环绕，单段 ≤120°）。`/icinematics template list` 查看模板与参数；生成物写入 `scripts/generated/` 并自动校验。
 
 ### 优化
 - 修复实体朝向插值：镜头跟随生物时，生物的转身（yaw）和抬头（pitch）动作更顺滑。
