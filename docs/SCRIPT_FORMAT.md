@@ -180,7 +180,6 @@ immersive_cinematics/
 | `duration` | float | 是 | — | 持续时间，正数=定长，负数=无限 |
 | `transition` | string | 否 | `"cut"` | `"cut"`=硬切，`"morph"`=线性过渡 |
 | `transition_duration` | float | 否 | `0.5` | morph 过渡时长（秒） |
-| `interpolation` | string | 否 | `"linear"` | `"linear"` 或 `"smooth"`（预留） |
 | `dimension` | string | 否 | `""` | CAMERA clip 声明的维度；与玩家当前维度不同时仅日志提示（0.4.0 预留，不自动切换） |
 | `orient` | string | 否 | `"manual"` | 朝向模式：`"manual"`=用关键帧角度；`"tangent"`=沿路径切线方向看，可配合 `yaw_offset`/`pitch_offset` |
 | `yaw_offset` | float | 否 | `0` | `orient=tangent` 时的水平偏移角（度） |
@@ -199,6 +198,8 @@ immersive_cinematics/
 | `keyframes` | array | 是 | — | 关键帧数组，至少 1 个 |
 
 > **v3 迁移**：`position_mode` 已迁移到**关键帧级**；旧 `cam_tracking_follow*`/`cam_tracking_look_at*` 字段已由关键帧级 `follow`/`look_at` 系列字段取代。clip 级不再支持这些旧字段（保留会被 validate 报废弃提示）。
+
+> **0.3.6 起：插值 = 匀速线性 + 编辑器烘焙缓动**。clip 级 `interpolation` 字段（旧 `"linear"` / `"smooth"`）已**移除**——旧 `"smooth"`（Centripetal Catmull-Rom 样条，会改变运动轨迹）一并退役，不留双轨；保留该字段会被 validate 报出。运行时关键帧之间一律**匀速线性插值**（两点定一段匀速直线），没有隐式数学。想要"缓动 / 速度曲线"：在编辑器里选速度曲线，由**编辑器按曲线采样、把补出的关键帧写进脚本**（脚本里存的是显式关键帧），运行时照常线性求值——运动与脚本内容完全一致。
 
 ### 循环（loop）语义
 
@@ -374,6 +375,7 @@ immersive_cinematics/
 
 > 渲染消费已落地（2026-10-07）：脚本 lane 的合成参数由 `client/lane/ScriptLaneDriver` 按本节字段
 > 逐帧从 clip 关键帧插值取出，交给 `LaneCompositor` 上屏（缺省 = `1` / 全屏 / 全幅）。
+> 插值为**匀速线性**（0.3.6 起运行时统一线性；缓动 = 编辑器烘焙成显式关键帧）。
 
 ---
 
@@ -518,7 +520,6 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 | `text` | string | subtitle 必需 | — | 字幕文本，`\n` 换行 |
 | `color` | string | fade 必需 | — | 淡化颜色，如 `"#000000"` |
 | `z_index` | int | 否 | `20` | 层级，越大越靠上（subtitle 建议 30+） |
-| `interpolation` | string | 否 | `"linear"` | `"linear"` 线性 / `"smooth"` 平滑样条（Centripetal Catmull-Rom，非均匀关键帧下速度均匀、无折线拐弯） |
 | `keyframes` | array | 是 | — | 关键帧数组 |
 
 ### Keyframe 字段（坐标 = 屏幕百分比）
@@ -536,6 +537,8 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 | `opacity` | float | `0` | 透明度（`0` = 完全透明，`1` = 不透明）。**淡入/淡出完全由该字段的关键帧表达**，代码层不叠加其他淡化 |
 
 > 字幕缩放是两级语义：`font_scale` 调整基准字号（1.0 = 原版 9px），`scale_x/scale_y` 在固定字号基础上做百分比缩放（与图片的 scale 语义一致），两者可叠加。`fade`/`pip` 的字段见各自文档。**x/y = 0.5 即屏幕居中**；贴边需按元素尺寸/2 折算（如贴左缘 = 元素半宽），避免元素移出屏幕。
+>
+> **插值**（0.3.6 起）：关键帧之间**匀速线性**（每两个相邻关键帧定一段匀速运动），clip 级 `interpolation` 字段已移除。想要缓动/速度曲线：编辑器按曲线采样、把补出的关键帧写进脚本（脚本里存显式关键帧），运行时照常线性求值。
 
 ### 示例：图片 + 字幕双 OVERLAY 轨道同时渲染
 
@@ -550,7 +553,6 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
       "layer_type": "image",
       "path": "test_image.png",
       "z_index": 20,
-      "interpolation": "smooth",
       "keyframes": [
         { "time": 0,  "x": 0.5, "y": 0.5, "scale_x": 0.5, "scale_y": 0.5, "opacity": 0 },
         { "time": 1,  "x": 0.5, "y": 0.5, "scale_x": 0.55, "scale_y": 0.55, "opacity": 1 },
@@ -570,7 +572,6 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
       "layer_type": "subtitle",
       "text": "副标题文字",
       "z_index": 30,
-      "interpolation": "smooth",
       "keyframes": [
         { "time": 0,  "x": 0.5, "y": 0.5, "font_scale": 2.0, "opacity": 0 },
         { "time": 1,  "x": 0.5, "y": 0.5, "font_scale": 2.0, "opacity": 1 },
@@ -622,7 +623,6 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
             "start_time": 0.0,
             "duration": 10.0,
             "transition": "cut",
-            "interpolation": "linear",
             "keyframes": [
               {
                 "time": 0.0,

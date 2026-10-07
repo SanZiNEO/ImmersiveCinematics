@@ -39,7 +39,7 @@
   - ✅ 位置/偏航/滚转插值使用角度环绕插值，俯仰/FOV/缩放使用线性插值（`KeyframeInterpolator`）
   - ✅ 支持 clip 级 `loop` 循环与 `loop_count` 次数限制（`KeyframeInterpolator`、`Clip`）
   - ✅ 片段过渡：`TransitionType.CUT` 硬切换（staged 原子提交）、`TransitionType.MORPH` 在 transition_duration 内从上一片段末帧飞向下一片段首帧（`TransitionType`、`CameraTrackPlayer`）
-  - ✅ 插值类型枚举 `InterpolationType.LINEAR` 用于 JSON 校验白名单（`InterpolationType`）
+  - ✅ 0.3.6 起：运行时关键帧插值统一**匀速线性**（两点定一段）；clip 级 `interpolation` 字段与 `InterpolationType` 枚举（旧 `smooth` = Centripetal Catmull-Rom 样条，改轨迹）一并退役——缓动/速度曲线由编辑器烘焙成显式关键帧写入脚本，运行时不求值
   - ✅ 三次贝塞尔路径：`BezierCurve` 携带 2 个控制点，`BezierPathStrategy` 通过 `ArcLengthLUT` 弧长参数化实现匀速曲线运动（`BezierCurve`、`BezierPathStrategy`、`ArcLengthLUT`）
   - ✅ `ArcLengthLUT` 用德卡斯特里奥自适应细分建表（平坦度容差 0.001、最大深度 8），查询时二分查找（`ArcLengthLUT`）
   - ✅ `PathStrategies` 注册表按 curve.type 名称提供策略工厂，默认 `linear`，未知类型回退线性（`PathStrategies`、`PathStrategy`）
@@ -76,7 +76,7 @@
   - ✅ 关键帧插值驱动画幅比黑边（`aspect_ratio`），无活跃 clip 时归零，停止时重置（`LetterboxTrackPlayer`）
 - **OVERLAY 轨道播放器**
   - ✅ 按 clip 的 `layer_type` 创建对应覆盖层（fade/image/subtitle/pip）并注册到 `OverlayManager`，支持 z_index 分层（`OverlayTrackPlayer`）
-  - ✅ 首帧套用初始值，随后按关键帧插值驱动：`x/y`（屏幕百分比 0~1，中心锚点）、`scale_x/scale_y`（原图百分比乘数，image / 固定字号后缩放，subtitle）、`font_scale`（字号倍数，subtitle）、`opacity`（透明度，淡入淡出完全由关键帧表达）；`interpolation: "smooth"` 走 Centripetal Catmull-Rom 样条（范围外钳制到边界关键帧）（`OverlayTrackPlayer`）
+  - ✅ 首帧套用初始值，随后按关键帧插值驱动：`x/y`（屏幕百分比 0~1，中心锚点）、`scale_x/scale_y`（原图百分比乘数，image / 固定字号后缩放，subtitle）、`font_scale`（字号倍数，subtitle）、`opacity`（透明度，淡入淡出完全由关键帧表达）；关键帧之间**匀速线性**插值（0.3.6 起运行时统一线性，范围外钳制到边界关键帧）（`OverlayTrackPlayer`）
   - ✅ 支持多条同类型 OVERLAY 轨道同时渲染：TrackPlayer 数据源按轨道索引定位（`clipsForTrack(trackIndex)`），轨道 JSON 以 `id` 区分管理（`ScriptPlayer`、`TrackPlayer`）
   - ✅ clip 切换或停止时移除并清理覆盖层（`OverlayTrackPlayer`）
 - **EVENT 轨道（服务端执行）**

@@ -29,7 +29,6 @@ public final class TrackSchemas {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
         clips.put("transition", new FieldDef("enum", "cut", false, List.of("cut", "morph")));
         clips.put("transition_duration", new FieldDef("float", 0.5f));
-        clips.put("interpolation", new FieldDef("enum", "linear", false, List.of("linear", "smooth")));
         clips.put("curve", new FieldDef("bezier_curve", null));
         clips.put("dimension", new FieldDef("string", ""));
         clips.put("loop", new FieldDef("bool", false));
@@ -82,8 +81,8 @@ public final class TrackSchemas {
         kfs.put("roll", new FieldDef("float", 0));
         kfs.put("fov", new FieldDef("float", 70));
         kfs.put("zoom", new FieldDef("float", 1.0f));
-        // 合成参数（0.3.6 camera-composition）：挂在本 CAMERA clip 的关键帧上，随关键帧插值。
-        // 渲染侧消费由后续任务落地；此处仅登记字段，供编辑器表单与校验使用。
+        // 合成参数（0.3.6 camera-composition）：挂在本 CAMERA clip 的关键帧上，随关键帧插值
+        // （渲染侧由 client/lane/ScriptLaneDriver 逐帧消费）；此处登记字段，供编辑器表单与校验使用。
         kfs.put("opacity", new FieldDef("float", 1.0f));
         kfs.put("dest", new FieldDef("map", null));
         kfs.put("source", new FieldDef("map", null));
@@ -151,7 +150,6 @@ public final class TrackSchemas {
         clips.put("path", new FieldDef("string", ""));
         clips.put("text", new FieldDef("string", ""));
         clips.put("z_index", new FieldDef("int", 20));
-        clips.put("interpolation", new FieldDef("enum", "linear", false, List.of("linear", "smooth")));
 
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
         kfs.put("opacity", new FieldDef("float", 0.0f));

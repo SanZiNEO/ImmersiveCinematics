@@ -200,7 +200,10 @@ public final class ScriptValidator {
                     } catch (Exception e) { issues.add(cp + ".duration 不是数字"); }
                 }
 
-                checkEnum(clip, cp, "interpolation", issues, "linear", "smooth");
+                if (clip.has("interpolation")) {
+                    issues.add(cp + ".interpolation 已移除（0.3.6 起）：运行时统一匀速线性插值——删掉该字段；"
+                            + "缓动由编辑器把速度曲线烘焙成显式关键帧（脚本里存的是补出的关键帧），运行时不求值");
+                }
                 checkEnum(clip, cp, "transition", issues, "cut", "morph");
                 checkEnum(clip, cp, "orient", issues, "manual", "tangent");
                 if ("CAMERA".equalsIgnoreCase(type)) {

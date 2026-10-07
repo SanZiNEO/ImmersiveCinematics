@@ -30,7 +30,8 @@ import java.util.Map;
  * <h2>合成参数的来源</h2>
  * 每 lane 的 {@code opacity} / {@code dest} / {@code source} 取自该 lane 所属 clip 的关键帧，
  * 在<b>该 clip 的本地时间</b>处插值（{@link CameraLane#clipLocalTime()}）——与相机六参数用同一个插值器，
- * 所以 hold（片段末尾复制延长）、loop / pingpong 的时间语义与相机完全一致。缺省 = {@code 1} / 全屏 / 全幅
+ * 所以 hold（片段末尾复制延长）、loop / pingpong 的时间语义与相机完全一致。段内进度为<b>匀速线性</b>
+ * （0.3.6 起运行时统一线性：缓动由编辑器烘焙成显式关键帧，运行时不求值）。缺省 = {@code 1} / 全屏 / 全幅
  * （字段与校验见 docs/SCRIPT_FORMAT.md §4「合成参数」）。矩形按分量整体插值（同 {@code position} 的复合值口径）。
  *
  * <h2>内容档 = 与主画面一致（{@link LaneRenderer.LaneContent#FULL}）</h2>
@@ -95,6 +96,8 @@ public final class ScriptLaneDriver {
 
     /**
      * 一条 lane 的合成参数：从它所属 clip 的关键帧在其本地时间处插值（缺省 = 1 / 全屏 / 全幅）。
+     * <p>
+     * 段内进度为匀速线性（0.3.6 起运行时统一线性；缓动由编辑器烘焙成显式关键帧，运行时不求值）。
      */
     private static void resolve(CameraLane lane, Slot slot) {
         KeyframeInterpolator.InterpolationResult result =
