@@ -12,10 +12,6 @@ public class CinematicController {
 
     public static final CinematicController INSTANCE = new CinematicController();
 
-    private boolean skippable = true;
-    private boolean interruptible = true;
-    private boolean holdAtEnd = false;
-
     private boolean blockKeyboard = true;
     private boolean blockMouse = true;
 
@@ -47,25 +43,6 @@ public class CinematicController {
     private double savedScreenEffectScale = 1.0;
     private boolean distortionOverridden = false;
 
-    private boolean pauseWhenGamePaused = true;
-
-    /**
-     * 生命周期开关：按活跃实例写入（{@code skippable} / {@code interruptible} / {@code hold_at_end} /
-     * {@code pause_when_game_paused}）。
-     *
-     * <p>这四个开关**不**参与运行时控制并集（{@code plans/0.3.6/parallel-playback.md} §3.1/§3.2）：
-     * 跳过 / 打断 / 末尾保持 / 暂停联动的播放门控一律读实例本身（{@code PlaybackInstance}），
-     * 这里的全局字段只服务 HUD 与输入路由的即时查询。
-     *
-     * @param behavior 活跃实例的行为快照；null = 无行为快照，回落默认值（与 {@link #revert()} 一致）
-     */
-    public void applyLifecycle(ScriptMeta.RuntimeBehavior behavior) {
-        this.skippable = behavior == null || behavior.skippable();
-        this.interruptible = behavior == null || behavior.interruptible();
-        this.holdAtEnd = behavior != null && behavior.holdAtEnd();
-        this.pauseWhenGamePaused = behavior == null || behavior.pauseWhenGamePaused();
-    }
-
     /**
      * 运行时控制取并集（{@code plans/0.3.6/parallel-playback.md} §3.2）：行为开关在**所有活跃实例**之间
      * 逐位 OR —— 任一实例要求隐藏 / 屏蔽即生效；实例增删后由 {@code CameraManager} 重算，
@@ -75,7 +52,10 @@ public class CinematicController {
      * 与消费方「null 则回落 {@code hide_hud}」的既有语义一致；因此**单实例**的并集结果与直接读该实例的行为
      * 逐位相同（零回归），多实例时取并集。
      *
-     * <p>生命周期开关不参与并集（见 {@link #applyLifecycle}）。
+     * <p>生命周期开关（{@code skippable} / {@code interruptible} / {@code hold_at_end} / {@code pause_when_game_paused}）
+     * 不参与并集：播放门控一律读活跃实例本身（{@code PlaybackInstance}），HUD 与输入路由的即时查询走
+     * {@code CameraManager} 的并集（暂停联动）/ 顶层实例（跳过提示）接口（{@code plans/0.3.6/parallel-playback.md}
+     * §3.1 与审查修订②）。
      *
      * @param behaviors 活跃实例的行为快照（顺序无关；null 元素忽略；null / 空 = 无实例要求 → 恢复默认值）
      */
@@ -202,17 +182,10 @@ public class CinematicController {
     }
 
     public void revert() {
-        this.skippable = true;
-        this.interruptible = true;
-        this.holdAtEnd = false;
-        this.pauseWhenGamePaused = true;
         resetBehaviorToggles();
         restoreScreenEffectScale();
     }
 
-    public boolean isSkippable() { return skippable; }
-    public boolean isInterruptible() { return interruptible; }
-    public boolean isHoldAtEnd() { return holdAtEnd; }
     public boolean isBlockKeyboard() { return blockKeyboard; }
     public boolean isBlockMouse() { return blockMouse; }
 
@@ -313,7 +286,6 @@ public class CinematicController {
     public Boolean isSuppressDistortion() { return suppressDistortion; }
     public boolean isRenderPlayerModel() { return renderPlayerModel; }
     public boolean isBlockMobAi() { return blockMobAi; }
-    public boolean isPauseWhenGamePaused() { return pauseWhenGamePaused; }
 
     /**
      * 是否屏蔽屏幕扭曲（反胃/传送门旋转）。

@@ -89,6 +89,35 @@ public class CameraManager {
         return behaviors;
     }
 
+    /**
+     * 暂停联动取并集（{@code plans/0.3.6/parallel-playback.md} §3.1 与审查修订②）：
+     * 任一活跃实例声明 {@code pause_when_game_paused} 即返回 true（游戏暂停时放行输入）；
+     * 无活跃实例时为 false（无播放可联动，与调用点的 {@code isActive()} 前置判断一致）。
+     *
+     * <p>单实例下等价于该实例自己的 {@code isPauseWhenGamePaused()}（并集 of 一个 = 该值），零回归。
+     */
+    public boolean isAnyPauseWhenGamePaused() {
+        for (PlaybackInstance instance : instances) {
+            if (instance.isPauseWhenGamePaused()) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 顶层实例（后来者居上，§3.4）是否可跳过 —— 跳过提示只由它决定；无活跃实例时 false（不显示提示）。
+     *
+     * <p>实例按启动顺序追加（见 {@link #startScriptInternal}），故顶层 = 最后启动的活跃实例。
+     */
+    public boolean isTopInstanceSkippable() {
+        PlaybackInstance top = topInstance();
+        return top != null && top.isSkippable();
+    }
+
+    /** 顶层实例 = 启动最晚的活跃实例（后来者居上，§3.4）；无活跃实例时为 null。 */
+    private PlaybackInstance topInstance() {
+        return instances.isEmpty() ? null : instances.get(instances.size() - 1);
+    }
+
     public void deactivate() {
         PlaybackInstance instance = activeInstance();
         if (instance == null) return;
@@ -396,8 +425,7 @@ public class CameraManager {
             CinematicController.INSTANCE.setBlockKeyboard(false);
             CinematicController.INSTANCE.setBlockMouse(false);
         } else {
-            // 生命周期开关按活跃实例写入（§3.1）；行为开关按全部活跃实例取并集（§3.2）
-            CinematicController.INSTANCE.applyLifecycle(instance.behavior());
+            // 行为开关按全部活跃实例取并集（§3.2）；生命周期判定一律读活跃实例（§3.1），无全局副本
             CinematicController.INSTANCE.recomputeUnion(instanceBehaviors());
         }
 
@@ -588,8 +616,6 @@ public class CameraManager {
             CinematicController.INSTANCE.revert();
         } else {
             // §3.2：该实例结束后按剩余实例重新求并集（本版本至多 1 个实例，此分支是并行放开的落点）
-            PlaybackInstance remaining = activeInstance();
-            CinematicController.INSTANCE.applyLifecycle(remaining != null ? remaining.behavior() : null);
             CinematicController.INSTANCE.recomputeUnion(instanceBehaviors());
         }
         reset();

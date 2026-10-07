@@ -5,8 +5,9 @@
 功能树：
 
 - **运行时行为控制**
-  - ✅ `CinematicController` 单例持有脚本运行时行为标志（与 `ScriptMeta.RuntimeBehavior` 一一对应）：可跳过/可打断/结尾保持、屏蔽键盘/鼠标、隐藏 HUD/手臂/聊天/记分板/动作栏/标题/字幕/快捷栏/准星/Boss 条/跳过 HUD、`hud_layers` 自定义 HUD 覆盖、抑制视角摆动/画面扭曲、渲染玩家模型、屏蔽生物 AI、游戏暂停时暂停（`CinematicController`）
-  - ✅ `applyLifecycle()` 在脚本开始时按活跃实例写入生命周期开关（可跳过/可打断/结尾保持/暂停联动——**不**参与并集）；`recomputeUnion(实例行为列表)` 把行为开关在所有活跃实例之间逐位取并集（任一实例要求隐藏/屏蔽即生效；三态开关先按各实例自己的 `hide_hud` 解析再 OR，故单实例结果与改造前逐位一致），实例增删后由 `CameraManager` 重算（`CinematicController`，见 `plans/0.3.6/parallel-playback.md` §3.2）
+  - ✅ `CinematicController` 单例持有脚本**运行时行为开关**（`ScriptMeta.RuntimeBehavior` 中参与并集的部分）：屏蔽键盘/鼠标、隐藏 HUD/手臂/聊天/记分板/动作栏/标题/字幕/快捷栏/准星/Boss 条/跳过 HUD、`hud_layers` 自定义 HUD 覆盖、抑制视角摆动/画面扭曲、渲染玩家模型、屏蔽生物 AI（`CinematicController`）
+  - ✅ `recomputeUnion(实例行为列表)` 把行为开关在所有活跃实例之间逐位取并集（任一实例要求隐藏/屏蔽即生效；三态开关先按各实例自己的 `hide_hud` 解析再 OR，故单实例结果与改造前逐位一致），实例增删后由 `CameraManager` 重算（`CinematicController`，见 `plans/0.3.6/parallel-playback.md` §3.2）
+  - ✅ 生命周期开关（可跳过/可打断/结尾保持/暂停联动）**无全局副本**：播放门控读活跃实例本身（`PlaybackInstance`）；即时查询由 `CameraManager` 提供——暂停联动取**并集**（`isAnyPauseWhenGamePaused()`，任一活跃实例声明即放行输入）、跳过提示取**顶层实例**（`isTopInstanceSkippable()`，后来者居上）（`CameraManager`，见 `plans/0.3.6/parallel-playback.md` §3.1 与审查修订②）
   - ✅ `revert()` 在无活跃实例时恢复默认值（三态字段恢复为 null = 未设置）；`suppress_distortion` 通过临时修改原版 `screenEffectScale` 实现并在退出时恢复（`CinematicController`）
   - ✅ 强硬隐藏模式（脚本字段 `hard_hide_hud`，三态：`true` = hard、`null`/`false` = normal，**不回落** `hide_hud`）：与其它开关同口径取并集（任一活跃实例显式 `true` 即生效），`isHardHideHud()` 供 Forge 侧接管 `RenderGuiEvent.Pre` 时判断（`CinematicController`，见 `plans/0.3.6/hud-hard-hide.md`）
   - ✅ 提供 `setBlockKeyboard/setBlockMouse` 供编辑器预览模式临时放行输入（`CinematicController`）
@@ -17,7 +18,7 @@
   - ✅ `CinematicKeyBindings.SKIP_KEY`（默认 C 键）长按跳过：达到 `Config.skipHoldThresholdMs` 阈值后触发 `requestExit(USER_SKIP)`，跳过键不受键盘屏蔽影响（`CinematicKeyBindings`）
   - ✅ `CinematicKeyBindings.EDITOR_WEBUI_OPEN`（默认 F9）打开 WebUI 预览屏，关闭后 500ms 防重开冷却（游戏内 Java 编辑器与 F6 键已随 0.3.6 退役删除）（`CinematicKeyBindings`）
   - ✅ 强制退出：Ctrl+P 组合键直接 `FORCE_QUIT`（`CinematicKeyBindings`）
-  - ✅ `SkipHudRenderer` 渲染跳过提示：跳过键图标 + 按键名 + 长按进度环（分段三角填充的圆弧），仅在脚本模式、可跳过且未隐藏时显示（`SkipHudRenderer`）
+  - ✅ `SkipHudRenderer` 渲染跳过提示：跳过键图标 + 按键名 + 长按进度环（分段三角填充的圆弧），仅在脚本模式、**顶层实例**可跳过且未隐藏时显示（`SkipHudRenderer`）
   - ✅ 多人服务器（非本地）时在屏幕底部居中显示跳过投票进度（投票数/观看者总数，数据来自 `ClientScriptReceiver` 缓存）（`SkipHudRenderer`、`ClientScriptReceiver`）
   - ✅ 跳过 HUD 受 `Config.showSkipHud` 总开关控制（`SkipHudRenderer`）
 - **输入屏蔽与路由**

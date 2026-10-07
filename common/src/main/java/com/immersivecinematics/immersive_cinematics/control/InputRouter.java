@@ -51,7 +51,7 @@ public interface InputRouter {
 
                 CinematicController ctrl = CinematicController.INSTANCE;
                 if (!ctrl.isBlockKeyboard()) return InputTarget.GAME;
-                if (mc.isPaused() && ctrl.isPauseWhenGamePaused()) return InputTarget.GAME;
+                if (mc.isPaused() && CameraManager.INSTANCE.isAnyPauseWhenGamePaused()) return InputTarget.GAME;
 
                 if (key == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
                     return InputTarget.GAME;
@@ -82,7 +82,7 @@ public interface InputRouter {
                 if (mc.level == null) return false;
                 if (!CameraManager.INSTANCE.isActive()) return false;
                 if (!CinematicController.INSTANCE.isBlockMouse()) return false;
-                if (mc.isPaused() && CinematicController.INSTANCE.isPauseWhenGamePaused()) return false;
+                if (mc.isPaused() && CameraManager.INSTANCE.isAnyPauseWhenGamePaused()) return false;
                 return true;
             }
         };
