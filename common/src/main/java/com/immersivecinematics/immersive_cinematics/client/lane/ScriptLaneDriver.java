@@ -19,11 +19,11 @@ import java.util.Map;
  *
  * <h2>链路</h2>
  * <pre>
- * CameraManager.onRenderFrame（CameraMixin.setup，本帧 renderLevel 之前）
- *   → ScriptPlayer.onRenderFrame → 各 CameraTrackPlayer 填 lane 快照（CameraLane）
- * LaneRendererMixin（renderLevel RETURN）→ 本类 tick
- *   → LaneRenderer.setLane(i, 相机状态, 内容档) + setSink
- *   → LaneRenderer.render → 逐 lane 渲染 → Sink → LaneCompositor.compose（贴到屏幕）
+ * GameRendererMixin（{@code GameRenderer.render} 的 HEAD，本帧世界渲染之前）
+ *   → CameraManager.onRenderFrame → ScriptPlayer.onRenderFrame → 各 CameraTrackPlayer 填 lane 快照（CameraLane）
+ *   → 本类 tick → LaneRenderer.setLane(i, 相机状态, 内容档) + setSink
+ * LaneRendererMixin（{@code GameRenderer.renderLevel} 的 RETURN）→ LaneRenderer.render
+ *   → 逐 lane 渲染 → Sink → LaneCompositor.compose（贴到屏幕）
  * </pre>
  * 合成是即时进行的（lane 共用一张离屏缓冲），所以<b>叠放顺序 = 调用顺序 = lane 序号递增</b>：
  * {@code collectCameraLanes()} 已按「轨道层级 → 轨道内 clip 顺序」排好，序号小的先贴、被后贴的盖住。
@@ -56,7 +56,7 @@ import java.util.Map;
  *
  * <h2>与调试驱动共存</h2>
  * 脚本 lane 与 {@link LaneDebugDriver}（{@code -Dicinematics.quadrant}）互斥：本类每帧先清空 lane，
- * 本帧有脚本 lane 时返回 {@code true}，调用方（{@link com.immersivecinematics.immersive_cinematics.mixin.LaneRendererMixin}）
+ * 本帧有脚本 lane 时返回 {@code true}，调用方（{@link com.immersivecinematics.immersive_cinematics.mixin.GameRendererMixin}）
  * 据此跳过调试驱动——<b>脚本 lane 存在时调试驱动不写 lane、不装合成回调</b>。
  * 无脚本 lane 时本类返回 {@code false}，调试驱动照常工作（游戏内冒烟手段保留）。
  *

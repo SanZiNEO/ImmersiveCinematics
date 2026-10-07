@@ -5,7 +5,7 @@
 功能树：
 
 - **相机接管与渲染**
-  - ✅ `CameraMixin`（注入 `Camera`）：HEAD 拦截 `setup()` 并以帧回调驱动模式接管相机——先驱动 `CameraManager.onRenderFrame()` 计算精确位置/朝向，再直接写入（无 partialTick 插值）；手动设置 initialized/level/entity/detached 字段保证声音系统与渲染管线正常（`CameraMixin`）
+  - ✅ `CameraMixin`（注入 `Camera`）：HEAD 拦截 lane 相机的 `setup()`，把该 lane 的 `CameraState` 直接写入（无 partialTick 插值；帧驱动 `CameraManager.onRenderFrame()` 自 2026-10-07 挂在 `GameRendererMixin` 的 `GameRenderer.render` HEAD，见 `multi-camera-rendering.md` §12.8-B③）；手动设置 initialized/level/entity/detached 字段保证声音系统与渲染管线正常（`CameraMixin`）
   - ✅ `CameraMixin`：`getEntity()` 返回玩家实体防止渲染管线 NPE；`isDetached()` 按 `render_player_model` 标志返回，控制玩家身体模型是否渲染（`CameraMixin`）
   - ✅ `CameraMixin` 仅在相机激活且存在活跃 CAMERA clip 时接管，退场动画结束的当帧放弃接管避免白模闪烁（`CameraMixin`）
   - ✅ `GameRendererMixin`（注入 `GameRenderer`）：`getFov()` RETURN 时按关键帧 FOV/zoom 覆盖视场角；`renderItemInHand()` 按 hide_arm 隐藏手臂与手持物品；`bobHurt()`/`bobView()` 按 suppress_bob 抑制视角摆动（`GameRendererMixin`）

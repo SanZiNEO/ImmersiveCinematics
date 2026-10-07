@@ -18,6 +18,7 @@
     "GuiMixin",
     "KeyboardHandlerMixin",
     "LaneRendererMixin",
+    "LevelRendererAccessor",
     "LevelRendererMixin",
     "LivingEntityMixin",
     "LocalPlayerMixin",

@@ -56,7 +56,7 @@ public final class LaneDebugDriver {
     }
 
     /**
-     * 每帧调用一次（{@code GameRenderer.renderLevel} 的 RETURN，渲染 lane 之前）。未开启时零差异。
+     * 每帧调用一次（{@code GameRenderer.render} 的 HEAD，本帧世界渲染与 lane 渲染之前）。未开启时零差异。
      * <p>
      * 本驱动只在<b>没有脚本 lane</b>时被调用（共存规则见 {@link ScriptLaneDriver}）：脚本 lane 存在时
      * 调用方直接跳过本方法，两者不会同时写 lane。合成回调每帧重装——脚本播放期间上屏被

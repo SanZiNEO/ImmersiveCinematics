@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.client.lane;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.mixin.GameRendererAccessor;
+import com.immersivecinematics.immersive_cinematics.mixin.LevelRendererAccessor;
 import com.immersivecinematics.immersive_cinematics.mixin.MinecraftAccessor;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
@@ -13,7 +14,8 @@ import com.mojang.math.Axis;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.core.BlockPos;
+import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
@@ -39,6 +41,7 @@ import java.util.Map;
  *   → 视图 PoseStack（XP=xRot、YP=yRot+180）→ roll → setInverseViewRotationMatrix
  *   → 该 lane 自己的 fov → 投影 → setProjectionMatrix（全局投影 = 该 lane 的投影）
  *   → prepareCullFrustum（该 lane 的 pose + 相机位置）
+ *   → applyFrustum（该 lane 的视锥，绕开原版朝向门闩强制重刷：可见集合必须由本 lane 姿态算出）
  *   → renderLevel → doEntityOutline（lane 内描边）→ 还原全局投影
  *   → 恢复 mainRenderTarget → 交给 {@link Sink}（合成层）
  * </pre>
@@ -321,7 +324,18 @@ public final class LaneRenderer {
             RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
             Matrix4f cullProjection = gameRendererAccessor.ic$getProjectionMatrix(
                     Math.max(fov, (double) mc.options.fov().get()));
-            mc.levelRenderer.prepareCullFrustum(poseStack, camera.getPosition(), cullProjection);
+            Vec3 cameraPos = camera.getPosition();
+            mc.levelRenderer.prepareCullFrustum(poseStack, cameraPos, cullProjection);
+            // 可见集合按本 lane 的视锥强制刷一次：原版 applyFrustum 有朝向门闩（needsFrustumUpdate 或
+            // floor(xRot/2)/floor(yRot/2) 变化才触发），同朝向桶的 lane 会沿用上一 pass 的可见集合
+            // （= 别条 lane 的视锥过滤结果）→ 该 lane 画面缺块。这里在 renderLevel（→ setupRender）之前
+            // 按原版口径刷一次：视锥与 prepareCullFrustum 同源（同 pose + 同剔除投影），再向外扩 8 格
+            // 以包含相机所在区块（与 setupRender 里 new Frustum(frustum).offsetToFullyIncludeCameraCube(8)
+            // 完全一致）。setupRender 若因门闩打开自己再刷一次，用的是同一份视锥，结果相同。
+            Frustum laneFrustum = new Frustum(poseStack.last().pose(), cullProjection);
+            laneFrustum.prepare(cameraPos.x, cameraPos.y, cameraPos.z);
+            ((LevelRendererAccessor) mc.levelRenderer)
+                    .ic$applyFrustum(laneFrustum.offsetToFullyIncludeCameraCube(8));
 
             // 该 lane 自己的视锥 + 相机姿态 → 原版 8 格膨胀剔除 3~5 步收敛，不需要自建剔除方案
             mc.levelRenderer.renderLevel(poseStack, partialTick, nanoTime, false, camera, gameRenderer,
@@ -395,8 +409,9 @@ public final class LaneRenderer {
      * （{@code RenderChunk.setOrigin} → {@code reset()} → 区块全部置脏重建），一帧内主 pass + N 个 lane
      * 反复来回搬 = 持续重建、画面缺块。所以取「玩家看到的最上层画面」的那台相机做整帧中心
      * （与退役前"以顶层实例相机为中心"逐点等价）。
-     * <p>主 pass（lane 注册之前）读到的是<b>上一帧</b>的 lane 表（{@code ScriptLaneDriver.tick} 在
-     * 主 pass 之后才清空重填），即中心最多滞后一帧——与退役前读上一帧快照同源同滞后。
+     * <p>主 pass 读到的是<b>本帧</b>的 lane 表：帧驱动 + lane 注册（{@code CameraManager.onRenderFrame()} /
+     * {@code ScriptLaneDriver.tick}）挂在 {@code GameRenderer.render} 的 HEAD（世界渲染之前，见
+     * {@code GameRendererMixin.onRenderFrameStart}），中心与画面同帧，无滞后。</p>
      */
     public Lane topLane() {
         for (int i = lanes.size() - 1; i >= 0; i--) {
@@ -424,21 +439,6 @@ public final class LaneRenderer {
     /** 本帧是否有活跃 lane（原版整屏描边是否要让位给 lane 内描边）。 */
     public boolean hasActiveLanes() {
         return activeCount > 0;
-    }
-
-    /** 本帧是否有任一 lane 相机处在实心方块里（遮挡剔除的整帧统一决策用，见 {@code CinematicOcclusion}）。 */
-    public boolean isAnyCameraInsideSolidBlock(Minecraft mc) {
-        for (int i = 0; i < lanes.size(); i++) {
-            Lane lane = lanes.get(i);
-            if (lane.state == null) {
-                continue;
-            }
-            BlockPos pos = lane.camera.getBlockPosition();
-            if (mc.level.getBlockState(pos).isSolidRender(mc.level, pos)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** 当前 pass 是否要画天空：非 lane pass 恒真（主画面不受内容开关影响）。 */

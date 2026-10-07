@@ -130,8 +130,9 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 
 **快照缓存点**（依据实测调用时序定稿）：
 
-单帧 `GameRenderer.renderLevel` 内的实际顺序为
-`getFov`（:1286）→ `camera.setup`（:1308）→ `prepareCullFrustum`（roll，:1324）→ `LevelRenderer.renderLevel`（`setupRender` 视图中心，:1325）→ **RETURN：`CameraManager.onRenderFrame()`**（帧驱动，2026-10-07 主相机替换链退役后挂点从 `CameraMixin.onSetup` 迁到 `LaneRendererMixin`，每帧一次）。
+单帧 `GameRenderer.render` 内的实际顺序为
+**HEAD：`CameraManager.onRenderFrame()`**（帧驱动 + lane 注册；2026-10-07 主相机替换链退役后挂点从 `CameraMixin.onSetup` 迁到 `LaneRendererMixin`（`renderLevel` RETURN），同日为消除「视图中心 / 遮挡决策滞后一帧」再前移到 `GameRendererMixin` 的 `render` HEAD，每帧一次）
+→ `renderLevel` 内：`getFov`（:1286）→ `camera.setup`（:1308）→ `prepareCullFrustum`（roll，:1324）→ `LevelRenderer.renderLevel`（`setupRender` 视图中心，:1325）→ RETURN：`LaneRenderer.render()`（lane 渲染 + 合成）。
 
 因此刷新点为：
 

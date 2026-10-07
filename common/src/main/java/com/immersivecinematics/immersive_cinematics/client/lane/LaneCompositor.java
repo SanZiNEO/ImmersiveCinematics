@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.client.lane;
 
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -11,7 +12,11 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexSorting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.server.packs.resources.ResourceManager;
 import org.joml.Matrix4f;
+
+import java.io.IOException;
 
 /**
  * 合成层：把一条 lane 的画面纹理按合成参数铺到屏幕（主 framebuffer）。
@@ -42,9 +47,25 @@ import org.joml.Matrix4f;
  * <h2>绘制路径</h2>
  * 复刻原版 {@code RenderTarget._blitToScreen} 的屏幕空间画法：屏幕正交投影
  * （{@code setOrtho(0, w, h, 0, 1000, 3000)}）+ 模型视图平移到 z=−2000，用 4 顶点 quad 覆盖
- * {@code dest}；差别只在 ① 走 {@code position_tex}（其 shader JSON 自带
- * {@code srcalpha / 1-srcalpha} 混合，正是 opacity 需要的），② UV 取 {@code source} 子区域，
+ * {@code dest}；差别只在 ① 走本模组自建的 {@code ic_lane_blit}（见下「alpha 契约」；其 shader JSON
+ * 自带 {@code srcalpha / 1-srcalpha} 混合，正是 opacity 需要的），② UV 取 {@code source} 子区域，
  * ③ 顶点按 {@code dest} 缩放。alpha 通道不写（与 {@code blitToScreen} 同：主画面 alpha 不归合成层管）。
+ *
+ * <h2>alpha 契约（lane 纹理的 alpha 不参与合成）</h2>
+ * 合成只读 lane 画面的 <b>RGB</b>：专用着色器 {@code ic_lane_blit}
+ * （{@code fragColor = vec4(texture(Sampler0, uv).rgb, 1.0) * ColorModulator}）把写出的 alpha 恒定为 1，
+ * 不透明度<b>只</b>由 {@code ColorModulator.a}（{@code opacity}）承担，混合结果 =
+ * {@code lane.rgb × opacity + main.rgb × (1 − opacity)}，与 lane 纹理里写下的 a 值无关。
+ * <p>为什么不能沿用原版 {@code position_tex}：lane FBO 里写下的 alpha 不干净、也没人清理——原版从不
+ * 显示它（{@code RenderTarget._colorMask(true,true,true,false)}），于是星星（a=127）、方块图集 mipmap
+ * 边缘的 1px 暗缝（a=146~254）、cutout 植被等都留着 a&lt;255；而 {@code position_tex} 是
+ * {@code color * ColorModulator} + srcalpha 混合，这些像素的混合权重被乘成 {@code a × opacity}
+ * ⇒ 主画面（玩家视角）从 lane 的 a&lt;255 处透出来（隐约透底；实测这类像素占 0.15%~1.77%）。
+ * <p>lane 侧配套：{@code LevelRendererMixin} 的 {@code laneClearAlpha} 仍把清屏 alpha 抬到 1
+ * （未覆盖区 = 实心雾色），但它只影响 FBO 数据本身（调试读回 / 未来可能的 alpha 消费方），
+ * <b>不再承担合成的正确性</b>。
+ * <p>兜底：{@code ic_lane_blit} 加载失败（资源包覆盖 / 编译失败；只记一次错误）时退回原版
+ * {@code position_tex}——画面仍可见，代价是重新引入上面那条 alpha 透底。
  *
  * <h2>状态保存 / 还原</h2>
  * 一次 {@link #compose} 会改动：绑定的 framebuffer 与视口、全局投影矩阵与 VertexSorting、
@@ -57,6 +78,15 @@ import org.joml.Matrix4f;
  * 因此不装本模组与装了但不放 lane 都是零差异。
  */
 public final class LaneCompositor {
+
+    /** 合成 blit 着色器名：{@code assets/minecraft/shaders/core/ic_lane_blit.{json,vsh,fsh}}。 */
+    private static final String SHADER_NAME = "ic_lane_blit";
+
+    /** 当前 blit 着色器实例；{@code null} = 尚未加载或该资源周期内加载失败（退回原版 {@code position_tex}）。 */
+    private static ShaderInstance blitShader;
+
+    /** {@link #blitShader} 的来源资源管理器：换对象 = 资源重载 → 重建（旧实例连同 GL program 一起释放）。 */
+    private static ResourceManager blitShaderSource;
 
     private LaneCompositor() {
     }
@@ -104,6 +134,9 @@ public final class LaneCompositor {
         float vTop = 1.0F - source.y();
         float vBottom = vTop - source.h();
 
+        // 专用不透明 blit（忽略 lane 纹理 alpha，见类注释「alpha 契约」）；加载失败时退回原版 position_tex
+        ShaderInstance blit = blitShader(mc);
+
         Matrix4f prevProjection = RenderSystem.getProjectionMatrix();
         VertexSorting prevSorting = RenderSystem.getVertexSorting();
         float[] prevColor = RenderSystem.getShaderColor().clone();
@@ -128,7 +161,13 @@ public final class LaneCompositor {
                 modelView.translate(0.0F, 0.0F, -2000.0F);   // 落在正交投影的 z 范围内
                 RenderSystem.applyModelViewMatrix();
 
-                RenderSystem.setShader(GameRenderer::getPositionTexShader);
+                if (blit != null) {
+                    RenderSystem.setShader(() -> blit);
+                } else {
+                    // 兜底：ic_lane_blit 不可用（加载失败已记一次错误）→ 退回原版 position_tex。
+                    // 画面仍可见（取材 / 目标区域 / opacity 照旧），代价是重新引入 lane 纹理 alpha 的透底。
+                    RenderSystem.setShader(GameRenderer::getPositionTexShader);
+                }
                 RenderSystem.setShaderTexture(0, texture.getColorTextureId());
                 RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, opacity);   // ColorModulator.a = 不透明度
 
@@ -153,5 +192,35 @@ public final class LaneCompositor {
             RenderSystem.enableDepthTest();
             RenderSystem.colorMask(true, true, true, true);
         }
+    }
+
+    /**
+     * 取（必要时创建）合成 blit 着色器实例（{@code ic_lane_blit}）。
+     *
+     * <p>资源重载（换资源包 / F3+T）后重建：旧实例 {@code close()} 释放它持有的 GL program
+     * （原版 Program 缓存按名字复用，不释放就会拿到旧编译结果），随后按新资源重新编译。
+     * 加载失败只记一次（同一资源周期内不重试、不刷屏），{@link #compose} 退回原版 {@code position_tex}。</p>
+     *
+     * <p>资产走 {@code minecraft} 命名空间（{@code assets/minecraft/shaders/core/}）：原版
+     * {@link ShaderInstance} 的构造只认 {@code shaders/core/<name>.json}（默认命名空间），
+     * 与 {@code ColorAdjustPass} 的 {@code ic_color_adjust} 同源同约束。</p>
+     */
+    private static ShaderInstance blitShader(Minecraft mc) {
+        ResourceManager resources = mc.getResourceManager();
+        if (blitShaderSource != resources) {
+            if (blitShader != null) {
+                blitShader.close();
+                blitShader = null;
+            }
+            blitShaderSource = resources;
+            try {
+                blitShader = new ShaderInstance(resources, SHADER_NAME, DefaultVertexFormat.POSITION_TEX);
+            } catch (IOException e) {
+                ErrorLog.log("Render", "lane 合成着色器加载失败（" + SHADER_NAME + "）："
+                        + "本资源周期内退回原版 position_tex（lane 纹理 alpha 会透底），"
+                        + "检查 assets/minecraft/shaders/core/" + SHADER_NAME + ".*", e);
+            }
+        }
+        return blitShader;
     }
 }

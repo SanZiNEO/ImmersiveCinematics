@@ -62,7 +62,13 @@ public class LevelRendererMixin {
         return v != null ? v.z : coord;
     }
 
-    /** 本帧最上层 lane 的相机位置；无活跃 lane（= 原版视角）时为 {@code null} = 用原版玩家坐标。 */
+    /**
+     * 本帧最上层 lane 的相机位置；无活跃 lane（= 原版视角）时为 {@code null} = 用原版玩家坐标。
+     *
+     * <p>lane 表在本帧<b>世界渲染之前</b>就已注册（帧驱动 + lane 注册挂在 {@code GameRenderer.render}
+     * 的 HEAD，见 {@code GameRendererMixin.onRenderFrameStart}），所以这里读到的是<b>本帧</b>的相机位置，
+     * 不存在"上一帧 lane 表"的滞后。</p>
+     */
     private static Vec3 cinematicViewCenter() {
         LaneRenderer.Lane lane = LaneRenderer.INSTANCE.topLane();
         return lane != null ? lane.state().position() : null;
@@ -80,17 +86,19 @@ public class LevelRendererMixin {
     private boolean immersivecinematics$occlusionRestore;
 
     /**
-     * 原版 {@code setupRender}：
+     * 原版 {@code setupRender} 里的遮挡剔除开关：
      * <pre>
      * boolean bl3 = this.minecraft.smartCull;
      * if (player.isSpectator() && level.getBlockState(camera.getBlockPosition()).isSolidRender(...)) {
      *     bl3 = false;   // 旁观者在实心方块里 → 关掉遮挡剔除
      * }
      * </pre>
-     * lane 相机自由穿墙、等价于旁观者，所以套用同一条件——但**按帧统一决定**
-     * （见 {@link CinematicOcclusion}）：可见区块集合是共享状态，逐 pass 用不同的值会互相重建，
-     * 表现为画面在"塌缩 / 完整"之间来回闪。原版主画面由原版自己的旁观者判定处理（相机即玩家相机），
-     * 不再由本模组改写。
+     * 本模组在<b>有活跃 lane 的帧整帧把它压成 false</b>（判定见 {@link CinematicOcclusion}）：
+     * 可见区块集合是共享状态、且由某个 pass 的相机经 BFS 遮挡剪枝重建，剪枝只对<b>播种相机</b>成立 ⇒
+     * 其它机位（各 lane）会整块缺 16 格区块（副画面里的倾斜裁切矩形）。关掉遮挡剪枝后 BFS 退化为
+     * "视距内全部区块"，各 pass 仍各自 {@code applyFrustum} 视锥过滤。
+     * <p>必须**整帧统一**（各 pass 用不同的值会互相重建，表现为画面在"塌缩 / 完整"之间来回闪）。
+     * 原版对玩家相机自己的旁观者判定不受影响：本模组只在 lane 活跃的帧改写这个字段，非 lane 帧原样放行。</p>
      */
     @Inject(method = "setupRender", at = @At("HEAD"))
     private void immersivecinematics_applyCameraOcclusion(Camera camera, Frustum frustum,
@@ -138,14 +146,19 @@ public class LevelRendererMixin {
     // ===== lane pass 清屏不透明（未覆盖区 = 实心雾色）=====
 
     /**
-     * lane pass 的清屏 alpha 抬到 1：{@code LevelRenderer.renderLevel} 开头那次
-     * {@code RenderSystem.clear(16640)} 用的是雾色清屏，而 {@code FogRenderer.setupColor} 末尾是
-     * {@code clearColor(fogR, fogG, fogB, 0.0f)}（alpha=0）。主画面里 alpha 无所谓（整屏 blit 不看
-     * alpha），但 lane 的离屏画面要经合成层的 {@code position_tex}（{@code color.a == 0.0 → discard}
-     * + srcalpha 混合）：未覆盖区 alpha=0 会整片透出主画面（雾与地形交接的过渡带被"抠掉"）。
+     * lane pass 的清屏 alpha 抬到 1（<b>性能 / 数据整洁，不承担合成正确性</b>）：
+     * {@code LevelRenderer.renderLevel} 开头那次 {@code RenderSystem.clear(16640)} 用的是雾色清屏，而
+     * {@code FogRenderer.setupColor} 末尾是 {@code clearColor(fogR, fogG, fogB, 0.0f)}（alpha=0）。
      *
-     * <p>RGB 取刚由 {@code FogRenderer.levelFogColor()} 设好的雾色（与清屏色同源，就在本调用前一行），
-     * 只把 alpha 抬到 1 → 未覆盖区 = 实心雾色。非 lane pass 原样放行（零差异）。</p>
+     * <p>合成层的 alpha 契约：lane FBO 的 alpha <b>不参与合成</b>——{@code LaneCompositor} 用专用
+     * {@code ic_lane_blit}（{@code vec4(rgb, 1.0) * ColorModulator}）上屏，只读 RGB，不透明度只由合成层
+     * 的 opacity 决定。所以这里抬 alpha 不再是正确性要求（旧实现走原版 {@code position_tex} 时才是：
+     * {@code color.a == 0.0 → discard} + srcalpha 混合，未覆盖区 alpha=0 会整片透出主画面）。</p>
+     *
+     * <p>保留的理由：让"未覆盖区 = 实心雾色"这一语义在 FBO 数据里也成立（调试读回的 lane RGBA、
+     * 以及将来任何读 lane 纹理 alpha 的消费方），且清屏颜色本来就要设、成本为零。
+     * RGB 取刚由 {@code FogRenderer.levelFogColor()} 设好的雾色（与清屏色同源，就在本调用前一行）。
+     * 非 lane pass 原样放行（零差异）。</p>
      */
     @Inject(method = "renderLevel", at = @At(value = "INVOKE",
             target = "Lcom/mojang/blaze3d/systems/RenderSystem;clear(IZ)V",

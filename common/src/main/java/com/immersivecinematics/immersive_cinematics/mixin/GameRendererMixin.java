@@ -3,7 +3,9 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
+import com.immersivecinematics.immersive_cinematics.client.lane.LaneDebugDriver;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
+import com.immersivecinematics.immersive_cinematics.client.lane.ScriptLaneDriver;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Camera;
@@ -19,13 +21,36 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class GameRendererMixin {
 
     /**
-     * 每帧开始：按帧统一决定"lane 相机在实心方块里 → 关掉遮挡剔除"（原版旁观者语义）。
-     * 见 {@link CinematicOcclusion}——可见区块集合是共享状态，必须整帧一致，否则画面会来回闪。
-     * 主画面（原版玩家相机）不在判定输入内：原版 {@code player.isSpectator()} 那条判定对它本就正确。
+     * 每帧开始（帧首，世界渲染之前）两件事，顺序固定：
+     * <ol>
+     *   <li><b>帧驱动 + lane 注册</b>（{@code renderLevel} 参数为真且已有世界时）：
+     *       {@link CameraManager#onRenderFrame()} 推进时钟 / 轨道 / lane 快照，随后注册本帧 lane
+     *       （脚本 lane 优先，无脚本时调试驱动照常）。必须排在<b>世界渲染之前</b>：视图中心
+     *       （{@code LevelRendererMixin} 改写 {@code setupRender} 的玩家坐标）与遮挡剔除的整帧决策
+     *       （{@link CinematicOcclusion}）都读 lane 表，挂在世界渲染之后会让两者都滞后一帧
+     *       （主 pass 读到上一帧的 lane 相机位置）。</li>
+     *   <li><b>遮挡剔除整帧决策</b>：{@link CinematicOcclusion#beginFrame(Minecraft)}——必须排在 lane
+     *       注册之后，读的才是本帧 lane 表。</li>
+     * </ol>
+     *
+     * <p>与原挂点（{@code LaneRendererMixin} 的 {@code GameRenderer.renderLevel} RETURN）等价性：两者都只在
+     * "世界渲染这一次调用"里跑，故此处用 {@code renderLevel} 参数 + {@code level != null} 守卫（原版调用点
+     * 的条件就是 {@code p_109096_ && this.minecraft.level != null}）——世界未渲染（加载中 / 主菜单）时不驱动、
+     * 不注册，时钟不空转（与原挂点一致）。</p>
      */
     @Inject(method = "render", at = @At("HEAD"))
     private void onRenderFrameStart(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
-        CinematicOcclusion.beginFrame(Minecraft.getInstance());
+        Minecraft mc = Minecraft.getInstance();
+        if (renderLevel && mc.level != null) {
+            CameraManager mgr = CameraManager.INSTANCE;
+            if (mgr.isActive()) {
+                mgr.onRenderFrame();
+            }
+            if (!ScriptLaneDriver.tick(mc)) {
+                LaneDebugDriver.tick(mc, partialTick);   // 未开 ICINEMATICS_QUADRANT 时直接返回
+            }
+        }
+        CinematicOcclusion.beginFrame(mc);
     }
 
     @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)

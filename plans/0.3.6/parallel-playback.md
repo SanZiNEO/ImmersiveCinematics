@@ -82,8 +82,8 @@
 | `GameRendererMixin.onGetFov` 主分支 | **删除**（lane 分支保留：lane 自己的 fov/zoom → 生效 FOV） |
 | `GameRendererMixin` roll 主相机钩子（`onBeforePrepareCullFrustum`） | **删除**（lane 的 roll 本就在 `LaneRenderer.renderLane` 内施加到该 lane 的 PoseStack） |
 | `LevelRendererMixin` 视图中心改写（`ModifyVariable` ×3） | **改为 lane 驱动（整帧单一中心）**：中心 = 本帧**最上层 lane** 的相机位置（`LaneRenderer.topLane()`），无活跃 lane 时回落原版玩家坐标。**不是逐 lane 各自中心**——可见区块网格（`ViewArea` + `renderChunkStorage`）是单份共享状态，逐 pass 换中心会让每个 pass 把整张网格搬走并把区块全部置脏重建（`ViewArea.repositionCamera` → `RenderChunk.setOrigin` → `reset()` → `dirty`），一帧内主 pass + N lane 反复来回搬 = 持续重建、画面缺块。整帧单中心 = 退役前行为（原为顶层实例相机），相机飞出玩家渲染距离仍照常构建区块 |
-| `CinematicOcclusion` 整帧遮挡决策 | **保留但输入改为 lane 相机**：去掉主相机输入（原版 `player.isSpectator()` 判定对原版玩家相机本就正确）。可见区块集合仍是单份共享状态，故整帧统一必须保留（per-lane 独立可见性是长期方向） |
-| 帧驱动 `CameraManager.onRenderFrame()` | **挂点迁移**：原唯一调用点 `CameraMixin.onSetup`（主相机）→ `LaneRendererMixin`（`GameRenderer.renderLevel` RETURN）开头，保证「先驱动（填 lane 快照）→ 再注册与渲染 lane」 |
+| `CinematicOcclusion` 整帧遮挡决策 | **保留但输入改为 lane 相机 → 2026-10-07 口径定为「有活跃 lane 即整帧 `smartCull=false`」**（原版 `player.isSpectator()` 判定对原版玩家相机本就正确，不再由本模组改写）：可见区块集合仍是单份共享状态，故整帧统一必须保留；判定见 `multi-camera-rendering.md` §12.8-B（per-lane 独立可见性是长期方向） |
+| 帧驱动 `CameraManager.onRenderFrame()` | **挂点迁移**：原唯一调用点 `CameraMixin.onSetup`（主相机）→ `LaneRendererMixin`（`GameRenderer.renderLevel` RETURN）→ **2026-10-07 再前移到 `GameRendererMixin`（`GameRenderer.render` HEAD，世界渲染之前）**：视图中心（`setupRender` 改写）与遮挡剔除决策都读 lane 表，原挂点会让两者滞后一帧。顺序仍是「先驱动（填 lane 快照）→ 再注册 lane → 再渲染 lane」，调用条件与原挂点等价（`renderLevel && level != null`） |
 | 听者相机（`SoundManagerMixin`） | **消费方迁移**：原版 `Minecraft.tick` 传的是主相机，退役后主相机 = 玩家相机 → `listener=camera` 改由 `AudioListenerController.cameraListener()` 显式提供镜头代理（`CameraAccessor` 写位置/朝向/initialized） |
 | `getCameraState()` 快照 | **保留**（仍有消费方：听者位置/听者相机代理、区块预加载中心、预览 HUD）；值 = 顶层实例顶层活跃 clip 六参数，与最上层 lane 同源同值 |
 
