@@ -513,17 +513,26 @@ export function enterFlightMode(): void {
 
   // 飞行前的 undo 快照：退出后可用 Ctrl+Z 回到进入前状态
   pushUndo()
-  log('enterFlightMode', JSON.stringify(kf))
 
   flightMode.value = true
-  const k = kf as any
-  const pos = k.position || {}
-  const isAbsolute = k.position_mode === 'absolute'
-    || (k.position_mode !== 'relative' && pos.x !== undefined && pos.dx === undefined)
-  send('editor.enter_flight_mode', {
-    // 初始相机参数由游戏端当前相机决定（与 Java 编辑器一致），前端只传保存模式
-    absolute: isAbsolute,
-  })
+  const pos = kf.position ?? {}
+  const isAbsolute = kf.position_mode === 'absolute'
+    || (kf.position_mode !== 'relative' && pos.x !== undefined && pos.dx === undefined)
+
+  // 飞控绑定选中片段：把该片段在播放头处的相机参数作为初始姿态发给游戏端
+  // （时间越界 clamp 到片段边界）。未选片段 / 片段无关键帧 / 前端算不出的字段
+  // （相对位置基准、look_at、呼吸抖动等）留空，游戏端回落当前相机状态。
+  const clip = getSelectedClip()
+  const pose = clip ? ops.sampleCameraPose(clip, state.time) : null
+  const payload: Record<string, number | boolean> = { absolute: pose ? pose.absolute : isAbsolute }
+  if (pose) {
+    for (const field of ['x', 'y', 'z', 'yaw', 'pitch', 'roll', 'fov', 'zoom'] as const) {
+      const value = pose[field]
+      if (typeof value === 'number' && Number.isFinite(value)) payload[field] = value
+    }
+  }
+  log('enterFlightMode', JSON.stringify(payload))
+  send('editor.enter_flight_mode', payload)
 }
 
 /** 用飞控模式的实时数据更新当前选中关键帧（不记录 undo，退出时统一记录） */

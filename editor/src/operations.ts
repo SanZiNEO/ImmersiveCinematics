@@ -210,6 +210,84 @@ export function interpolateNewKeyframe(
   }
 }
 
+/**
+ * 相机姿态采样结果（{@link sampleCameraPose}）：飞控进入时的初始相机参数。
+ * 未出现的字段 = 前端无法忠实计算，由游戏端回落到当前相机状态。
+ */
+export interface CameraPoseSample {
+  /** 位置模式：true = 世界绝对坐标（x/y/z 已采样），false = 相对（基准点在游戏端） */
+  absolute: boolean
+  x?: number
+  y?: number
+  z?: number
+  yaw?: number
+  pitch?: number
+  roll?: number
+  fov?: number
+  zoom?: number
+}
+
+/**
+ * 采样相机片段在全局时间 {@code globalTime} 处的相机姿态（飞控初始姿态用）。
+ *
+ * <p>与运行时同一口径：时间越界 clamp 到片段边界；循环片段按周期折算回单次动画
+ * （{@code loop_count} 用尽后停在末段）；段内线性插值，yaw / roll 走最短路径角度插值。
+ *
+ * <p>只输出前端能忠实计算的字段：相对位置（基准点/基准朝向）、{@code follow=entity}
+ * 偏移、贝塞尔路径、{@code look_at} 目标点、片段级 tangent 朝向、{@code cam_breath} 抖动
+ * 都在游戏端求值，这些情况下对应字段留空，由接收端回落当前相机状态。
+ * 片段无关键帧时返回 null（全部回落）。
+ */
+export function sampleCameraPose(clip: Clip, globalTime: number): CameraPoseSample | null {
+  const kfs = keyframes(clip)
+  if (kfs.length === 0) return null
+
+  const localTime = Math.max(0, Math.min(getDuration(clip), globalTime - getStart(clip)))
+  const { from, to, ratio } = resolveSegment(clip, kfs, localTime)
+  const values = interpolateSegment(from, to, ratio)
+
+  const pos = (from.position ?? {}) as Record<string, unknown>
+  const absolute = from.position_mode === 'absolute'
+    || (from.position_mode !== 'relative' && pos.x !== undefined && pos.dx === undefined)
+  const out: CameraPoseSample = { absolute }
+
+  // 位置：只有世界绝对坐标可直接发送。相对模式的基准点在游戏端；follow=entity 与
+  // fwd/up/right 基准系下 x/y/z 是相对偏移；贝塞尔路径走弧长参数化 → 这些一律留空回落
+  const worldPos = (kf: Keyframe): boolean => {
+    const p = (kf.position ?? {}) as Record<string, unknown>
+    return kf.follow !== 'entity'
+      && p.fwd === undefined && p.up === undefined && p.right === undefined
+  }
+  const bezierPath = clip.curve?.control_points?.length === 2
+  if (absolute && !bezierPath && worldPos(from) && worldPos(to)) {
+    const p = (values.position ?? {}) as Record<string, unknown>
+    if (isFiniteNumber(p.x)) out.x = p.x
+    if (isFiniteNumber(p.y)) out.y = p.y
+    if (isFiniteNumber(p.z)) out.z = p.z
+  }
+
+  // 朝向：look_at 目标点 / tangent 切线 / 非 world 基准 / 呼吸抖动都在游戏端求值 → 留空回落
+  const manual = (kf: Keyframe): boolean => (kf.look_at ?? 'none') === 'none'
+  const breath = clip.cam_breath_enabled === true
+  const manualAngles = manual(from) && manual(to) && clip.orient !== 'tangent'
+  const baseIsWorld = (kf: Keyframe, key: 'yaw_base' | 'pitch_base'): boolean =>
+    (kf[key] ?? 'world') === 'world'
+  if (manualAngles && !breath
+    && baseIsWorld(from, 'yaw_base') && baseIsWorld(to, 'yaw_base')
+    && isFiniteNumber(values.yaw)) {
+    out.yaw = values.yaw
+  }
+  if (manualAngles && !breath
+    && baseIsWorld(from, 'pitch_base') && baseIsWorld(to, 'pitch_base')
+    && isFiniteNumber(values.pitch)) {
+    out.pitch = values.pitch
+  }
+  if (!breath && isFiniteNumber(values.roll)) out.roll = values.roll
+  if (isFiniteNumber(values.fov)) out.fov = values.fov
+  if (isFiniteNumber(values.zoom)) out.zoom = values.zoom
+  return out
+}
+
 // ── 轨道操作 ──────────────────────────────────────────────────
 
 export function addTrack(tracks: Track[], type: TrackType): Track {
@@ -556,4 +634,66 @@ function lerp(a: number, b: number, t: number): number {
 function lerpZoom(a: number, b: number, t: number): number {
   if (a <= 0 || b <= 0) return lerp(a, b, t)
   return Math.exp(Math.log(a) + (Math.log(b) - Math.log(a)) * t)
+}
+
+/** 定位采样段：越界 clamp 到边界，循环片段折算回单次动画，loop_count 用尽后停在末段 */
+function resolveSegment(
+  clip: Clip,
+  kfs: Keyframe[],
+  localTime: number,
+): { from: Keyframe; to: Keyframe; ratio: number } {
+  const first = kfs[0]
+  const last = kfs[kfs.length - 1]
+  const period = last.time - first.time
+
+  let time = localTime
+  if (clip.loop === true && period > EPSILON) {
+    const loopCount = clip.loop_count ?? -1
+    if (loopCount > 0 && localTime >= period * loopCount) {
+      return { from: kfs[kfs.length - 2], to: last, ratio: 1 }
+    }
+    const elapsed = localTime - first.time
+    if (clip.loop_mode === 'pingpong') {
+      const cycle = ((elapsed % (2 * period)) + 2 * period) % (2 * period)
+      time = first.time + (cycle <= period ? cycle : 2 * period - cycle)
+    } else {
+      time = first.time + ((elapsed % period) + period) % period
+    }
+  }
+
+  let from = first
+  let to = last
+  for (const kf of kfs) {
+    if (kf.time <= time) from = kf
+    if (kf.time >= time) {
+      to = kf
+      break
+    }
+  }
+  const span = to.time - from.time
+  return { from, to, ratio: span > EPSILON ? (time - from.time) / span : 0 }
+}
+
+/** 段内插值：生成一个位于段内比率的临时关键帧（不写回片段），角度通道走环绕插值 */
+function interpolateSegment(prev: Keyframe, next: Keyframe, ratio: number): Keyframe {
+  const out: Keyframe = { time: prev.time + (next.time - prev.time) * ratio }
+  interpolateKeyframe(out, prev, next, ratio)
+  // 与运行时同口径：yaw / roll 最短路径环绕，pitch / fov 线性，zoom 对数（见 interpolateKeyframe）
+  if (typeof prev.yaw === 'number' && typeof next.yaw === 'number') {
+    out.yaw = lerpAngle(prev.yaw, next.yaw, ratio)
+  }
+  if (typeof prev.roll === 'number' && typeof next.roll === 'number') {
+    out.roll = lerpAngle(prev.roll, next.roll, ratio)
+  }
+  return out
+}
+
+/** 最短路径角度插值（同 CameraTrackPlayer.blendAngle / MathUtil.lerpAngle） */
+function lerpAngle(a: number, b: number, t: number): number {
+  const diff = (((b - a) % 360) + 540) % 360 - 180
+  return a + diff * t
+}
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v)
 }

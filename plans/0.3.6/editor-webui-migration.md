@@ -64,6 +64,7 @@
 
 - **旧游戏内编辑器退役**：**已落地（2026-10-07）**——`editor/` 包、桥接、F6 键与 `EDITOR_ENABLED` 开关全部删除（删除清单见 §4）。
 - **安全加固**：**已落地（2026-10-07）**——握手身份校验（Origin 白名单 + 每次启动随机 token），方案与两端改动点见 §3.2。
+- **飞控按选中片段开"单独镜头"**：**绑定入口已落地（2026-10-07）**——前端把选中片段在播放头处的相机参数随 `editor.enter_flight_mode` 发出（见 §3.1 落地）；选中片段画面的**全屏 lane 渲染**依赖多相机渲染 + [并行播放](./parallel-playback.md)步骤 5，未实现。
 - **预览与游戏内播放的通道隔离**：编辑器预览目前走 `CameraManager` 直控；隔离属[并行播放](./parallel-playback.md)步骤 5 的范围。
 - **远期 / 可选**：H.264 / WebRTC；飞控远程面板；动效。
 
@@ -74,6 +75,14 @@
 **明确不做**：把选中片段的相机画面当 PIP 小窗叠在原画上、或通过某种模式退回原画再操作——预览里处理的就是这个镜头本身。
 
 **依赖**：① [多相机渲染](./multi-camera-rendering.md)的 lane 渲染（选中片段相机 → 离屏 FBO → 全屏上屏）；② [并行播放](./parallel-playback.md)步骤 5（预览为独立实例，不挤掉游戏内播放）——飞控即"预览实例的单 lane 全屏"形态。多 lane 合成本身在编辑器预览中的表现见[画面合成](./camera-composition.md) §5 待定项。
+
+**落地（2026-10-07）：绑定选中片段的相机参数**
+
+- **前端发送**：`store.ts` 的 `enterFlightMode()` 用新增的 `operations.sampleCameraPose(clip, state.time)` 采样**选中 CAMERA 片段在播放头处**的姿态，把 `x/y/z/yaw/pitch/roll/fov/zoom` 填进 `editor.enter_flight_mode`（无选中片段 / 片段无关键帧时只发 `absolute`，即改造前的语义）。采样口径与运行时一致：时间越界 clamp 到片段边界；循环片段按周期折算回单次动画（`loop_count` 用尽后停在末段）；段内线性插值，yaw / roll 走最短路径环绕（`blendAngle`），zoom 对数。
+- **只发前端能忠实计算的字段**：相对位置的基准点（玩家/实体/结构）与基准朝向、`follow=entity` 的 x/y/z 偏移、贝塞尔路径（弧长参数化）、`look_at` 目标点、片段级 `orient=tangent`、`yaw_base/pitch_base ≠ world`、`cam_breath` 抖动都在游戏端求值——这些字段留空，由接收端逐字段回落当前相机状态（= 预览正在渲染的那一帧姿态）。因此相对位置片段只发送朝向/光学，不发送位置。
+- **游戏端无需改动**：`WebEditorApi.handleEnterFlightMode` 已逐字段解析（缺省 = null），`WebPreviewScreen.enterFlightMode` 按提供值覆盖、未提供回落 `CameraManager` 当前状态，再交 `FlightModeManager.enter`（D5 链路）。
+- **退出写回**：仍写回选中关键帧（属选中片段），未按"整段"重写。
+- **仍缺**：选中片段画面的**全屏 lane 渲染**（"单独开了一个镜头"的画面表现）——依赖 ①②，未实现；本批次只解决"进入飞控时取哪个片段的哪个姿态"。
 
 ### 3.2 安全加固：握手身份校验（已落地 · 2026-10-07）
 
@@ -211,7 +220,7 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
 
-- **飞控入口忽略传入坐标**：`WebPreviewScreen.enterFlightMode` 忽略传入的 `x/y/z`。
+- **飞控入口忽略传入坐标**：`WebPreviewScreen.enterFlightMode` 忽略传入的 `x/y/z`。—— **已修（2026-10-07，D5）**：接收端逐字段解析并按字段回落当前相机状态；前端自本批次起发送选中片段在播放头处的参数（见 §3.1 落地）。
 
 ---
 
