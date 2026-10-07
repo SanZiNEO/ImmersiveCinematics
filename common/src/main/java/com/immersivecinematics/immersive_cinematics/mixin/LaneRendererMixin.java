@@ -1,6 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
-import com.immersivecinematics.immersive_cinematics.client.lane.LaneDebugDriver;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.immersivecinematics.immersive_cinematics.client.lane.ScriptLaneDriver;
 import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustPass;
@@ -21,9 +20,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * 同一 RETURN 上多个 Mixin 的注入先后不由我们控制）：</p>
  * <ol>
  *   <li><b>MCOMP 合成</b>：{@link LaneRenderer#render} 逐 lane 渲染并把画面贴到主 framebuffer；
- *       lane 来源在本帧<b>世界渲染之前</b>就已注册（脚本 lane {@link ScriptLaneDriver} 优先，本帧没有
- *       脚本 lane 时调试驱动 {@link LaneDebugDriver} 照常工作——两者不会同时写 lane；注册点见
- *       {@code GameRendererMixin.onRenderFrameStart}）。</li>
+ *       lane 来源在本帧<b>世界渲染之前</b>就已注册（脚本 lane，唯一来源 {@link ScriptLaneDriver}；
+ *       注册点见 {@code GameRendererMixin.onRenderFrameStart}）。</li>
  *   <li><b>RADJ 颜色调整</b>：{@link ColorAdjustPass#render} 在<b>合成输出</b>上开一次全屏 pass
  *       （master 标量组），即 MCOMP 之后、原版 RPOST 与 GUI 之前
  *       （见 plans/0.3.6/screen-color-adjust.md §4）。</li>

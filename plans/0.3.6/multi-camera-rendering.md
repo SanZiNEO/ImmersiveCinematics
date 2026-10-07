@@ -297,9 +297,10 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 | 文件 | 职责 |
 |---|---|
 | `common/.../client/lane/LaneRenderer.java` | 生产渲染器：lane 注册表 + 每帧驱动 + 每 lane 整尺寸渲染进共用离屏 FBO + 状态保存/恢复 + Sodium/Embeddium 检测 |
-| `common/.../client/lane/LaneDebugDriver.java` | 调试驱动（冒烟入口）：`ICINEMATICS_QUADRANT=1|4|16|25…` → N 个方位相机注册成 N 条 lane；含**临时上屏**（n×n 网格缩放贴屏，合成层落地后删） |
+| `common/.../client/lane/ScriptLaneDriver.java` | 脚本 lane 驱动：每帧把脚本播放实例的 lane 注册进 `LaneRenderer`（相机 id = `<scriptId>_cam<相机轨序号>`）并按 clip 关键帧提供合成参数 |
+| `common/.../client/lane/LaneDebugCapture.java` | 调试捕获（`ICINEMATICS_CAPTURE` 门控，默认关、零差异）：按相机 id 产出每相机 raw（保真 alpha）/ 每相机 composited（按 dest 裁剪、保真 alpha）/ 窗口终帧三类 PNG，目录 `<gameDir>/lane-captures/` |
 | `mixin/LaneRendererMixin.java` | 挂点：`GameRenderer.renderLevel` RETURN → `LaneRenderer.render(...)`（逐 lane 渲染 + 合成）+ `ColorAdjustPass.render`（RADJ）。帧驱动 / lane 注册 2026-10-07 迁到 `GameRendererMixin`（见 §12.8-B） |
-| `mixin/GameRendererMixin.java` | 帧首（`GameRenderer.render` HEAD，世界渲染之前）：`CameraManager.onRenderFrame()` + lane 注册（`ScriptLaneDriver` / `LaneDebugDriver`）+ `CinematicOcclusion.beginFrame`（顺序固定，见 §12.8-B③）+ lane 的 getFov / roll 分支 |
+| `mixin/GameRendererMixin.java` | 帧首（`GameRenderer.render` HEAD，世界渲染之前）：`CameraManager.onRenderFrame()` + 脚本 lane 注册（`ScriptLaneDriver`）+ `CinematicOcclusion.beginFrame`（顺序固定，见 §12.8-B③）+ lane 的 getFov 分支；帧尾（`render` RETURN）：调试捕获的窗口终帧读回 |
 | `mixin/GameRendererAccessor.java` | `@Invoker`：`getProjectionMatrix(double)` / `getFov(Camera,float,boolean)`（复刻原版投影与光学参数） |
 | `mixin/LevelRendererAccessor.java` | `@Invoker applyFrustum(Frustum)`：lane pass 绕开门闩强制重刷可见集合（§12.8-B②） |
 | `mixin/MinecraftAccessor.java` | `@Accessor @Mutable mainRenderTarget`（lane 期间指向 lane FBO） |
@@ -314,10 +315,10 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 - **lane 状态 = `CameraState`（六参数快照）+ `LaneContent`（内容开关）**；
   `LaneContent.WORLD_ONLY`（默认，全关）/ `LaneContent.FULL`（调试、压测）。
 - 接入点（后续任务用）：
-  - `LaneRenderer.INSTANCE.setLane(index, state, content)` —— 激活 / 更新一条 lane（`state == null` 停用）；
+  - `LaneRenderer.INSTANCE.setLane(index, state, content, adjust, captureId)` —— 激活 / 更新一条 lane（`state == null` 停用；`captureId` = 调试捕获用的相机 id，可为 null）；
   - `LaneRenderer.INSTANCE.clear()` —— 生产者本帧没有 lane 时调用；
   - `LaneRenderer.INSTANCE.setSink((index, target) -> …)` —— **合成接缝**：每条 lane 渲染完、离屏缓冲还热时回调（共用缓冲 → 必须当帧消费）。
-- **默认零差异**：没有活跃 lane 时 `render(...)` 第一行即返回（不渲染、不分配、不切状态）；调试入口未开时 `LaneDebugDriver.tick` 也只是一次静态判断。
+- **默认零差异**：没有活跃 lane 时 `render(...)` 第一行即返回（不渲染、不分配、不切状态）；调试捕获未开（`ICINEMATICS_CAPTURE`）时 `LaneDebugCapture` 的每个钩子第一行即返回。
 
 ### 12.3 每条 lane 的渲染流程
 
@@ -345,20 +346,32 @@ mainRenderTarget 临时指向 lane FBO → fbo.bindWrite(true)（视口 = FBO �
 
 ### 12.5 兼容
 
-- **Sodium / Embeddium（Rubidium）**：`LaneRenderer.isUnavailable()` 按标记类存在性运行时检测（`net.caffeinemc.mods.sodium.client.SodiumClientMod` / `me.jellysquid.mods.sodium.client.SodiumClientMod`）→ 命中即**不渲染 + warn 一次**，不引入硬依赖。检测结果缓存；调试入口照常注册 lane，但渲染被禁用。
+- **Sodium / Embeddium（Rubidium）**：`LaneRenderer.isUnavailable()` 按标记类存在性运行时检测（`net.caffeinemc.mods.sodium.client.SodiumClientMod` / `me.jellysquid.mods.sodium.client.SodiumClientMod`）→ 命中即**不渲染 + warn 一次**，不引入硬依赖。检测结果缓存；脚本 lane 照常注册，但渲染被禁用（此时调试捕获也拿不到 lane 画面）。
 - 光影（Iris / Oculus）：未做适配（§7 第 3 点仍待调研）。
 
 ### 12.6 调试入口
 
+**四象限演示 = 脚本，不是代码级驱动**：`cinematics/release/quadrant.json`（脚本 id `quadrant_demo`，单脚本 4 条 CAMERA 轨 + 3 条 lane 级 ADJUST 轨，`dest` 各占半屏）。把该文件放进 `<游戏目录>/immersive_cinematics/scripts/`，进世界由 login 触发器自动播一次：
+
 ```sh
-ICINEMATICS_QUADRANT=1  sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
-ICINEMATICS_QUADRANT=16 sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
+sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 ```
 
-- `1` = 单 lane（整尺寸离屏渲染 1 遍，铺满屏幕）；`true` = 4；`≥4` = 最近的平方数（4 / 9 / 16 / 25 / 36…），n×n 网格；
-- 相机：从各自方位朝玩家推进（12→36→12 格往返）、始终看向玩家，内容开关 `FULL`；
-- 启动时日志打印 `[lane] 调试驱动启用：mode=… lanes=… grid=…`；命中优化模组时打印 warn；
-- **上屏是临时的**（网格缩放贴屏）——正式合成属于[画面合成](./camera-composition.md)。
+> 旧的代码级调试驱动 `LaneDebugDriver`（四方向来回运镜、n×n 网格临时上屏、开关 `ICINEMATICS_QUADRANT=1|4|16|25…`）**已删除**——四象限演示改由上面的脚本承担，上屏走正式合成层。
+
+**调试捕获（看画面用）**：开关 = 环境变量 `ICINEMATICS_CAPTURE` / 系统属性 `-Dicinematics.capture`（`1` / `true` 即开，默认关、零差异）。产出目录 `<gameDir>/lane-captures/`，每轮三类：
+
+| 文件 | 内容 | 读回口径 |
+|---|---|---|
+| `<id>-raw[-r{k}].png` + `-alpha.png` | 该相机的 lane 离屏 FBO 原始画面（lane 级调色之前） | `downloadTexture(0, false)`：**保真 alpha**；`-alpha.png` = alpha 灰度可视化 |
+| `<id>-composited[-r{k}].png` + `-alpha.png` | 该相机合成进主画面之后、按它的 `dest` 矩形裁出的那块 | `downloadTexture(0, false)`：**保真 alpha** |
+| `frame[-r{k}].png` | 窗口终帧（世界 → 合成 → master 调色 → GUI 之后的整帧，= 玩家看到的窗口画面） | `downloadTexture(0, true)`：alpha 强制 255（与 F2 截图同口径） |
+
+- `<id>` = `<scriptId>_cam<相机轨序号>`（如 `quadrant_demo_cam0`）；无 id 的 lane 回退 `lane<序号>`；文件名安全化：`[A-Za-z0-9_.-]` 之外的字符换成 `_`。
+- 节奏：首帧抓一轮，此后每 200 帧一轮，最多 5 轮；第 2 轮起文件名带 `-r{k}`（k≥2）。一轮 = 每条 lane 2 个 raw + 2 个 composited，加 1 张 `frame`。
+- 日志：每次读回一行 `[lane-capture] ...`，含文件名与 alpha 统计（整体 0/255/中间值占比 + 自上而下 10 条横带的 alpha=0 占比）。
+- 位置：raw 读回在 `LaneRenderer.renderLane` 内（lane 级调色之前），composited 读回在 `ScriptLaneDriver.compose` 里（紧随 `LaneCompositor.compose`），窗口终帧在 `GameRendererMixin` 的 `GameRenderer.render` RETURN（原版 `blitToScreen` 在 `Minecraft.runTick` 里、`render` 返回之后才调用，内容与窗口一致）。
+- 命中优化模组（`LaneRenderer.isUnavailable()`）时 lane 不渲染 → raw / composited 没有产出，`frame` 仍会出（那是原版画面）。
 
 ### 12.7 原型处置（版本原则：不留旧代码）
 
@@ -369,6 +382,7 @@ ICINEMATICS_QUADRANT=16 sh gradlew :fabric:runClient --args='--quickPlaySinglepl
 ### 12.8 实机缺陷与缓解（2026-10-07 多相机 lane 实机验证）
 
 > 现象 / 根因 / 处置都是**实机 + 代码**口径（探针：`ICINEMATICS_QUADRANT=4`，逐帧读回 lane 帧与合成帧做像素级对比）。
+> **注（2026-10-07 清理）**：当时的探针走已删的 `LaneDebugDriver`；现在的捕获入口是 `ICINEMATICS_CAPTURE`（见 §12.6），本节只作历史记录。
 
 **A. 隐约透底（lane 纹理 alpha 漏进合成）**
 
@@ -404,6 +418,7 @@ ICINEMATICS_QUADRANT=16 sh gradlew :fabric:runClient --args='--quickPlaySinglepl
      （`GameRenderer.render` HEAD，`renderLevel` 参数为真且已有世界时）——视图中心
      （`setupRender` 改写玩家坐标）与遮挡决策都读 lane 表，原挂点会让两者都滞后一帧。
      调用条件与原来等价（原版调用 `renderLevel` 的条件就是 `renderLevel && level != null`）。
+     （当时并存的调试驱动已删，现在这条路径上只有脚本 lane 注册——见 §12.6。）
 - **代价**：lane 活跃期间没有遮挡剪枝，视距内全部区块都进可见集合 → 绘制 / 区块编译量上升
   （`smartCull=false` 也是 Iris 阴影 pass 的做法，见 `render-second-pass-cost.md` §2.3）。
   **只在 lane 活跃的帧生效**；停播后下一帧起 `smartCull` 交回原版判定（原版对玩家相机的

@@ -23,7 +23,7 @@ import java.util.Map;
  * GameRendererMixin（{@code GameRenderer.render} 的 HEAD，本帧世界渲染之前）
  *   → CameraManager.onRenderFrame → ScriptPlayer.onRenderFrame → 各 CameraTrackPlayer 填 lane 快照（CameraLane）
  *     + 各 ADJUST 轨道（scope=lane）填本帧的 lane 级调色参数
- *   → 本类 tick → LaneRenderer.setLane(i, 相机状态, 内容档, lane 级调色) + setSink
+ *   → 本类 tick → LaneRenderer.setLane(i, 相机状态, 内容档, lane 级调色, 相机 id) + setSink
  * LaneRendererMixin（{@code GameRenderer.renderLevel} 的 RETURN）→ LaneRenderer.render
  *   → 逐 lane 渲染 → （lane 级调色 pass）→ Sink → LaneCompositor.compose（贴到屏幕）
  * </pre>
@@ -62,15 +62,21 @@ import java.util.Map;
  * lane 经合成层铺屏的结果——「dest 全屏、opacity=1」的 lane 就是主画面特例，零 lane 时回落原版视角。
  * 视图中心与遮挡剔除的整帧决策改为 <b>lane 驱动</b>（读正在渲染的 lane 自己的相机）。
  *
- * <h2>与调试驱动共存</h2>
- * 脚本 lane 与 {@link LaneDebugDriver}（{@code -Dicinematics.quadrant}）互斥：本类每帧先清空 lane，
- * 本帧有脚本 lane 时返回 {@code true}，调用方（{@link com.immersivecinematics.immersive_cinematics.mixin.GameRendererMixin}）
- * 据此跳过调试驱动——<b>脚本 lane 存在时调试驱动不写 lane、不装合成回调</b>。
- * 无脚本 lane 时本类返回 {@code false}，调试驱动照常工作（游戏内冒烟手段保留）。
+ * <h2>lane 来源与相机 id</h2>
+ * 本类是 lane 的<b>唯一来源</b>（代码级调试驱动已删，四象限演示改为脚本 {@code cinematics/release/quadrant.json}）：
+ * 每帧先清空 lane，再按脚本播放实例注册。每条 lane 带相机 id
+ * {@code <scriptId>_cam<相机轨序号>}（序号见 {@link LaneFrame#cameraTrackIndex()}）——调试捕获
+ * （{@link LaneDebugCapture}）按它命名产出文件；同一相机轨本帧产出的多条 lane（重叠窗口下
+ * {@code captureLowerLanes}）共用同一 id，与 lane 级调色的定位口径一致。
+ *
+ * <h2>调试捕获（{@code ICINEMATICS_CAPTURE}）</h2>
+ * 本类只把相机 id 与 {@code dest} 传下去：每相机 raw 读回在 {@code LaneRenderer.renderLane} 内，
+ * 每相机 composited 读回在本类 {@link #compose} 里（该相机贴到主画面之后、按 {@code dest} 裁剪）。
+ * 开关关闭时两处都第一行即返回——不读回、不分配、不切 GL 状态，零差异。
  *
  * <h2>默认零差异</h2>
  * 无脚本播放时：{@link LaneRenderer#clear()} 因无活跃 lane 立即返回，本类返回 {@code false}，
- * 调试驱动未开启时也直接返回，{@link LaneRenderer#render} 第一行即返回——不渲染、不分配、不切换状态。
+ * {@link LaneRenderer#render} 第一行即返回——不渲染、不分配、不切换状态。
  */
 public final class ScriptLaneDriver {
 
@@ -86,11 +92,11 @@ public final class ScriptLaneDriver {
     /**
      * 注册本帧的脚本 lane（渲染线程，{@code LaneRenderer.render} 之前调用一次）。
      *
-     * @return 本帧是否有脚本 lane（{@code true} = 调试驱动本帧必须让位）
+     * @return 本帧是否有脚本 lane
      */
     public static boolean tick(Minecraft mc) {
         LaneRenderer renderer = LaneRenderer.INSTANCE;
-        // 脚本 lane 是 lane 的唯一来源：先清空（调试驱动让位时不残留它上一帧的 lane）
+        // lane 的唯一来源：先清空（本帧没有脚本 lane 时不残留上一帧的 lane）
         renderer.clear();
         // 无脚本播放 → 一定没有 lane（不进收集路径：零分配、零差异）
         if (mc.level == null || mc.player == null || !CameraManager.INSTANCE.isActive()) {
@@ -110,8 +116,12 @@ public final class ScriptLaneDriver {
             for (int i = 0; i < lanes.size(); i++) {
                 LaneFrame frame = lanes.get(i);
                 CameraLane lane = frame.lane();
-                resolve(lane, slot(index));
-                renderer.setLane(index, lane.state(), CONTENT, frame.laneAdjust());
+                Slot slot = slot(index);
+                resolve(lane, slot);
+                // 相机 id（调试捕获用文件名口径）：<scriptId>_cam<相机轨序号>。同一相机轨本帧的多条 lane
+                // 共用同一 id（与 lane 级调色的定位口径一致）；文件名安全化在 LaneDebugCapture 内做。
+                slot.captureId = instance.scriptId() + "_cam" + frame.cameraTrackIndex();
+                renderer.setLane(index, lane.state(), CONTENT, frame.laneAdjust(), slot.captureId);
                 index++;
             }
         }
@@ -170,10 +180,15 @@ public final class ScriptLaneDriver {
         return a + (b - a) * s;
     }
 
-    /** 合成回调：把该 lane 当帧的画面按本帧参数贴到屏幕。 */
+    /** 合成回调：把该 lane 当帧的画面按本帧参数贴到屏幕，随后按相机 id 读回该相机的合成结果（调试捕获）。 */
     private static void compose(int index, RenderTarget texture) {
         Slot slot = SLOTS.get(index);
         LaneCompositor.compose(texture, slot.source, slot.dest, slot.opacity);
+        // 调试捕获 b（每相机 composited）：该相机贴到主画面之后立刻读回主 framebuffer 的该相机区域
+        // （保真 alpha，按 dest 裁剪）。ICINEMATICS_CAPTURE 门控；关闭 / opacity≤0 时零差异。
+        if (slot.opacity > 0.0F) {
+            LaneDebugCapture.onLaneComposited(slot.captureId != null ? slot.captureId : "lane" + index, slot.dest);
+        }
     }
 
     /** 第 {@code index} 条 lane 的参数槽位（跨帧复用）。 */
@@ -184,10 +199,11 @@ public final class ScriptLaneDriver {
         return SLOTS.get(index);
     }
 
-    /** 一条 lane 的合成参数（可变槽位）。 */
+    /** 一条 lane 的合成参数（可变槽位）+ 调试捕获用的相机 id。 */
     private static final class Slot {
         private float opacity = 1.0F;
         private LaneCompositor.Rect source = LaneCompositor.Rect.FULL;
         private LaneCompositor.Rect dest = LaneCompositor.Rect.FULL;
+        private String captureId;
     }
 }

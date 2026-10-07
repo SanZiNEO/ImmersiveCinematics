@@ -162,7 +162,7 @@ OVERLAY 现有 `pip` 层是静态占位（半透明黑填充 + 2px 白边，不�
 - **矩形口径**：`source` / `dest` 都是 0~1 归一化、**原点在左上角**（x 向右、y 向下）；`source` 相对 lane 画面，`dest` 相对屏幕。纹理 v 轴在合成器内部翻转（FBO 纹理 v=0 在画面底部，与原版 `RenderTarget.blitToScreen` 的 UV 口径一致）。
 - **绘制路径**：复刻原版 `RenderTarget._blitToScreen` 的屏幕空间画法（屏幕正交投影 + 模型视图 z=−2000 + 4 顶点 quad），shader 用原版 `position_tex`（其自带 `srcalpha / 1-srcalpha` 混合，正是 opacity 需要的），不新建 shader 资产。
 - **状态纪律**：一次合成会改动绑定的 framebuffer / 视口、全局投影与 VertexSorting、全局模型视图、shader 颜色与 0 号 shader 纹理、深度测试 / 深度写 / 颜色写 / 混合——合成器入口保存、出口还原（与 lane 渲染同一纪律）；alpha 通道不写（同 `blitToScreen`：主画面 alpha 不归合成层管）。
-- **验证入口**：`-Dicinematics.quadrant=4`（或环境变量 `ICINEMATICS_QUADRANT=4`）的调试驱动已改走合成器上屏（dest = 网格格、source = 全幅、opacity = 1），替换掉临时的 `glBlitFrameBuffer`。
+- **验证入口（已更新·2026-10-07 清理）**：当时用调试驱动（`-Dicinematics.quadrant=4`）改走合成器上屏（dest = 网格格、source = 全幅、opacity = 1）替换临时的 `glBlitFrameBuffer`；该驱动与 `ICINEMATICS_QUADRANT` 开关**已删除**。现在的画面验证入口 = 脚本 lane（四象限 `cinematics/release/quadrant.json`）+ 调试捕获 `ICINEMATICS_CAPTURE`（见[多相机渲染](./multi-camera-rendering.md) §12.6）。
 
 ### 步骤 2–5 脚本侧接线：lane 注册与上屏（已落地·2026-10-07）
 
@@ -179,7 +179,7 @@ CameraTrackPlayer.onRenderFrame   本帧活跃 clip 各产一份 lane 快照（C
 - **合成参数来源**：每条 lane 的参数取自它所属 clip 的关键帧，在**该 clip 的本地时间**处插值——与相机六参数用同一个 `KeyframeInterpolator`，所以 hold（末尾复制延长）、`loop` / `pingpong` 的时间语义与相机完全一致；矩形按分量整体插值（同 `position` 的复合值口径），缺省 = `1` / 全屏 / 全幅。morph（旧转场模型）只有一份 lane，参数取**进入的片段**。
 - **叠放顺序**：lane 序号 = 提交顺序 = 绘制顺序，末位（主相机所属 clip）最后画、盖在最上面。
 - **内容档 = `FULL`（与主画面一致）**：单条全屏 lane（opacity=1、dest 全屏）会盖住主画面，且叠化要求两条 lane 观感一致 → 实体 / 粒子 / 天空 / 天气必须全开；`WORLD_ONLY` 只画地形，全屏 lane 下会看不到生物 / 掉落物 / 天空 / 雨雪。
-- **调试驱动共存**：脚本 lane 优先——本帧有脚本 lane 时 `-Dicinematics.quadrant` 的调试驱动整体让位（不注册 lane、不装合成回调）；无脚本 lane 时调试驱动照常（网格冒烟手段保留）。
+- **lane 来源（已更新·2026-10-07 清理）**：脚本 lane 是**唯一来源**——当时的调试驱动共存机制（`-Dicinematics.quadrant` 让位规则）随驱动一起删除；无脚本播放时没有 lane，画面回落原版玩家视角。
 - **画面 = 合成层输出（主相机替换链已退役·2026-10-07）**：原版主相机照常走玩家视角，lane 是**唯一画面来源**——单条全屏、opacity=1 的 lane 就是主画面特例；零 lane 时回落原版视角。`dest` 非全屏时露出的就是**原版玩家视角**（不再是旧主链的相机画面）；主画面里在 lane 之前画进主 framebuffer 的内容（`renderLevel` 内的第一人称手臂——仅当脚本显式 `hide_arm: false` 时可见）会被不透明的全屏 lane 盖住。见 [并行播放](./parallel-playback.md) §3.3 落地记录。
 - **验证**：编译通过；离线冒烟（真实测试脚本 JSON → 关键帧 → 参数取值逐点核对：缺省 / 插值 / 矩形缺分量 / 末尾钳制）；游戏内冒烟 = 播一个带 CAMERA clip 的脚本（如 `cinematics/tests/camera/test_compositing_params.json`）肉眼核对 `dest` 缩角 / `source` 裁剪 / `opacity` 淡入淡出。
 

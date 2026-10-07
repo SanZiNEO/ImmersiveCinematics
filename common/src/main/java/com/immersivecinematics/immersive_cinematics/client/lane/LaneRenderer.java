@@ -132,13 +132,14 @@ public final class LaneRenderer {
         void laneRendered(int index, RenderTarget target);
     }
 
-    /** 一个 lane 槽位：独立原版 {@link Camera} 实例 + 本帧相机状态 + 内容开关 + lane 级调色。 */
+    /** 一个 lane 槽位：独立原版 {@link Camera} 实例 + 本帧相机状态 + 内容开关 + lane 级调色 + 调试用相机 id。 */
     public static final class Lane {
 
         private final Camera camera = new Camera();
         private CameraState state;
         private LaneContent content = LaneContent.WORLD_ONLY;
         private ColorAdjustParams adjust;
+        private String captureId;
 
         /** 该 lane 的独立原版相机实例（生命周期 = 槽位，跨帧复用）。 */
         public Camera camera() {
@@ -153,6 +154,14 @@ public final class LaneRenderer {
         /** 本帧内容开关。 */
         public LaneContent content() {
             return content;
+        }
+
+        /**
+         * 本帧该 lane 的相机 id（调试捕获用文件名口径，见 {@link LaneDebugCapture}）；
+         * {@code null} = 生产者没给 id —— 捕获侧回退 {@code lane<序号>}。
+         */
+        public String captureId() {
+            return captureId;
         }
 
         /**
@@ -187,7 +196,7 @@ public final class LaneRenderer {
     private LaneRenderer() {
     }
 
-    // ===== lane 注册（由并行播放 / 调试驱动调用）=====
+    // ===== lane 注册（由脚本 lane 驱动调用）=====
 
     /**
      * 取（必要时创建）第 {@code index} 个 lane 槽位。
@@ -203,11 +212,14 @@ public final class LaneRenderer {
     /**
      * 激活 / 更新一条 lane。
      *
-     * @param state   lane 的相机状态；{@code null} = 停用该槽位
-     * @param content 内容开关（{@code null} 视为 {@link LaneContent#WORLD_ONLY}）
-     * @param adjust  lane 级调色参数（{@code null} = 无：渲染完直接进合成，不跑调色 pass）
+     * @param state     lane 的相机状态；{@code null} = 停用该槽位
+     * @param content   内容开关（{@code null} 视为 {@link LaneContent#WORLD_ONLY}）
+     * @param adjust    lane 级调色参数（{@code null} = 无：渲染完直接进合成，不跑调色 pass）
+     * @param captureId 该 lane 的相机 id（调试捕获用文件名口径，见 {@link LaneDebugCapture}；
+     *                  {@code null} = 无 id，捕获侧回退 {@code lane<序号>}）
      */
-    public void setLane(int index, CameraState state, LaneContent content, ColorAdjustParams adjust) {
+    public void setLane(int index, CameraState state, LaneContent content, ColorAdjustParams adjust,
+                        String captureId) {
         Lane lane = lane(index);
         if (state == null) {
             deactivate(lane);
@@ -216,6 +228,7 @@ public final class LaneRenderer {
         lane.state = state;
         lane.content = content != null ? content : LaneContent.WORLD_ONLY;
         lane.adjust = adjust;
+        lane.captureId = captureId;
         if (byCamera.put(lane.camera, lane) == null) {
             activeCount++;
         }
@@ -235,6 +248,7 @@ public final class LaneRenderer {
         if (lane.state != null) {
             lane.state = null;
             lane.adjust = null;
+            lane.captureId = null;
             byCamera.remove(lane.camera);
             activeCount--;
         }
@@ -284,24 +298,22 @@ public final class LaneRenderer {
                 mainOutlinePass = false;
             }
 
+            // 调试捕获：推进帧计数、决定本帧是否读回（ICINEMATICS_CAPTURE 门控；关闭时零差异）
+            LaneDebugCapture.beginFrame();
+
             Sink laneSink = this.sink;
             for (int i = 0; i < lanes.size(); i++) {
                 Lane lane = lanes.get(i);
                 if (lane.state == null) {
                     continue;
                 }
-                RenderTarget laneOutput = renderLane(mc, lane, fbo, main, partialTick, nanoTime);
-                // 调试钩子：合成之前把该 lane 的离屏纹理原始 RGBA 读回写盘（ICINEMATICS_QUADRANT 门控；
-                // 开关外第一行即返回——不读回、不分配、不切 GL 状态，零差异）。见 LaneDebugCapture。
-                // 读回的是 lane 的原始渲染结果（不含 lane 级调色）——调试口径不变。
-                LaneDebugCapture.onLaneRendered(i, fbo);
+                // 调试捕获用的相机 id：生产者没给时回退 lane<序号>（文件名安全化在 LaneDebugCapture 内做）
+                String captureId = lane.captureId != null ? lane.captureId : "lane" + i;
+                RenderTarget laneOutput = renderLane(mc, lane, captureId, fbo, main, partialTick, nanoTime);
                 if (laneSink != null) {
                     laneSink.laneRendered(i, laneOutput);
                 }
             }
-            // 调试钩子：本帧全部 lane 合成完之后，把最终屏幕画面读回写盘（ICINEMATICS_QUADRANT 门控；
-            // 开关外第一行即返回——零差异）。见 LaneDebugCapture.onFrameComposed。
-            LaneDebugCapture.onFrameComposed(main);
         } finally {
             activeContent = null;
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
@@ -315,10 +327,11 @@ public final class LaneRenderer {
     /**
      * 一条 lane 的完整渲染（整尺寸进离屏缓冲）。
      *
+     * @param captureId 该 lane 的相机 id（只用于调试捕获的文件名口径）
      * @return 交给合成层的画面纹理：无 lane 级调色 = lane 自己的 FBO（{@code fbo}）；
      *         有 = 调色后的共享 {@link #adjustTarget(int, int)}
      */
-    private RenderTarget renderLane(Minecraft mc, Lane lane, RenderTarget fbo, RenderTarget main,
+    private RenderTarget renderLane(Minecraft mc, Lane lane, String captureId, RenderTarget fbo, RenderTarget main,
                                     float partialTick, long nanoTime) {
         Camera camera = lane.camera;
         CameraState state = lane.state;
@@ -385,6 +398,11 @@ public final class LaneRenderer {
             activeContent = null;
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
         }
+
+        // 调试捕获 a（每相机 raw）：lane 渲染完成、lane 级调色之前，把该 lane 的离屏纹理原始 RGBA 读回写盘
+        // （ICINEMATICS_CAPTURE 门控；关闭时第一行即返回——不读回、不分配、不切 GL 状态，零差异）。
+        // 读的是 lane 的原始渲染结果（不含 lane 级调色、不含合成）。见 LaneDebugCapture。
+        LaneDebugCapture.onLaneRendered(captureId, fbo);
 
         // lane 级调色（ADJUST 轨道 scope=lane）：lane 渲染完成之后、合成之前，把该 lane 的画面
         // 过一次调色 pass（只动 RGB、alpha 直通；着色器与 uniform 上传与 master 共用同一份实现）。

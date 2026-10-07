@@ -3,7 +3,7 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
-import com.immersivecinematics.immersive_cinematics.client.lane.LaneDebugDriver;
+import com.immersivecinematics.immersive_cinematics.client.lane.LaneDebugCapture;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.immersivecinematics.immersive_cinematics.client.lane.ScriptLaneDriver;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
@@ -25,7 +25,7 @@ public abstract class GameRendererMixin {
      * <ol>
      *   <li><b>帧驱动 + lane 注册</b>（{@code renderLevel} 参数为真且已有世界时）：
      *       {@link CameraManager#onRenderFrame()} 推进时钟 / 轨道 / lane 快照，随后注册本帧 lane
-     *       （脚本 lane 优先，无脚本时调试驱动照常）。必须排在<b>世界渲染之前</b>：视图中心
+     *       （脚本 lane 是 lane 的唯一来源，见 {@link ScriptLaneDriver}）。必须排在<b>世界渲染之前</b>：视图中心
      *       （{@code LevelRendererMixin} 改写 {@code setupRender} 的玩家坐标）与遮挡剔除的整帧决策
      *       （{@link CinematicOcclusion}）都读 lane 表，挂在世界渲染之后会让两者都滞后一帧
      *       （主 pass 读到上一帧的 lane 相机位置）。</li>
@@ -46,11 +46,25 @@ public abstract class GameRendererMixin {
             if (mgr.isActive()) {
                 mgr.onRenderFrame();
             }
-            if (!ScriptLaneDriver.tick(mc)) {
-                LaneDebugDriver.tick(mc, partialTick);   // 未开 ICINEMATICS_QUADRANT 时直接返回
-            }
+            ScriptLaneDriver.tick(mc);
         }
         CinematicOcclusion.beginFrame(mc);
+    }
+
+    /**
+     * 每帧结束（{@code GameRenderer.render} 的 RETURN，覆盖全部返回路径）：调试捕获的<b>窗口终帧</b>读回
+     * （{@link LaneDebugCapture#onFrameEnd}）。
+     *
+     * <p>此刻本帧画面已全部画完（世界 → lane 渲染与合成 → master 调色 → GUI / 屏幕 / 提示），主 framebuffer
+     * 还留着最终图像：原版 {@code blitToScreen} 在 {@code Minecraft.runTick} 里、本方法返回<b>之后</b>才调用
+     * （1.20.1 {@code Minecraft.java:1044-1045}），只是把主画面整幅拷到窗口、不改变主画面内容——所以这里读回的
+     * 内容 = 玩家看到的窗口画面。</p>
+     *
+     * <p>关闭 {@code ICINEMATICS_CAPTURE} / 本帧未捕获 / 未进世界时零差异（内部第一行返回）。</p>
+     */
+    @Inject(method = "render", at = @At("RETURN"))
+    private void onRenderFrameEnd(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
+        LaneDebugCapture.onFrameEnd(Minecraft.getInstance());
     }
 
     @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
