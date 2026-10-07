@@ -1,0 +1,114 @@
+{
+  "meta": {
+    "id": "quadrant_entry",
+    "name": "四象限合成 · 入口（导演实例）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "0.3.6 四象限展示的入口/导演实例：本身没有 CAMERA 轨（不产生画面 lane），只做两件事——① EVENT 轨拉起 4 个象限脚本（quadrant:quadrant_tl / tr / bl / br，需要权限 2，命令失败静默）；② ADJUST 轨演示 master 调色的关键帧动画。四个象限脚本各自带 any + script_started 前置链，作为免权限的备用启动路径（前置链是解锁门槛，事件/轮询触发器才是点火器）：EVENT 路径失败（非 op / 目录结构不同）时它照常把四格拉起来。macro_loop 3 圈 × 24s，播完自动结束。触发用 login + repeatable=false：每次启动游戏后第一次进世界自动演示一遍（象限脚本的前置链同为一次性，两者同进退，不会出现只有导演实例在播的半场演示）；重放用 /icinematics play quadrant:quadrant_entry（脚本放在 <游戏目录>/immersive_cinematics/scripts/quadrant/ 下时命令 id 才是 quadrant:xxx；平铺复制则用 /icinematics play quadrant_entry）。注意口径：ADJUST 是 master 层（作用于合成输出 = 整屏，含四个象限），本版本没有 lane 级调色——调色不是逐象限的。",
+    "triggers": [
+      {
+        "id": "demo_on_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 1.0,
+        "conditions": {}
+      }
+    ],
+    "dimension": "",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "block_mob_ai": false,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "hide_skip_hud": false,
+    "render_player_model": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "macro_loop": true,
+    "macro_loop_count": 3,
+    "macro_loop_mode": "repeat",
+    "priority": 0
+  },
+  "timeline": {
+    "total_duration": 24.0,
+    "loop_start": 0.0,
+    "loop_end": 24.0,
+    "tracks": [
+      {
+        "type": "EVENT",
+        "id": "event_launch_quadrants",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 0.5,
+            "event_type": "command",
+            "keyframes": [
+              {
+                "time": 0.0,
+                "event_type": "command",
+                "command": "icinematics play quadrant:quadrant_tl && icinematics play quadrant:quadrant_tr && icinematics play quadrant:quadrant_bl && icinematics play quadrant:quadrant_br"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "id": "adjust_master_cycle",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 24.0,
+            "keyframes": [
+              { "time": 0.0,  "exposure": 0.0,  "contrast": 0.0, "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.0,  "vibrance": 0.0,  "temperature": 0.0,  "tint": -1.0, "grayscale": 0.0, "invert": 0.0 },
+              { "time": 3.0,  "exposure": 0.2,  "contrast": 0.0, "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.4,  "vibrance": 0.3,  "temperature": 1.0,  "tint": 0.0,  "grayscale": 0.0, "invert": 0.0 },
+              { "time": 6.0,  "exposure": 0.0,  "contrast": 0.2, "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.0,  "vibrance": 0.0,  "temperature": 0.0,  "tint": 1.0,  "grayscale": 0.0, "invert": 0.0 },
+              { "time": 9.0,  "exposure": -0.2, "contrast": 0.0, "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": -0.4, "vibrance": 0.0,  "temperature": -1.0, "tint": 0.0,  "grayscale": 0.3, "invert": 0.0 },
+              { "time": 12.0, "exposure": 0.0,  "contrast": 0.0, "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.0,  "vibrance": 0.0,  "temperature": 0.0,  "tint": -1.0, "grayscale": 0.5, "invert": 0.0 },
+              { "time": 15.0, "exposure": 0.2,  "contrast": 0.0, "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.4,  "vibrance": 0.3,  "temperature": 1.0,  "tint": 0.0,  "grayscale": 0.3, "invert": 0.0 },
+              { "time": 18.0, "exposure": 0.0,  "contrast": 0.2, "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.0,  "vibrance": 0.0,  "temperature": 0.0,  "tint": 1.0,  "grayscale": 0.0, "invert": 0.0 },
+              { "time": 21.0, "exposure": -0.2, "contrast": 0.0, "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": -0.4, "vibrance": 0.0,  "temperature": -1.0, "tint": 0.0,  "grayscale": 0.0, "invert": 0.0 },
+              { "time": 22.5, "exposure": -0.1, "contrast": 0.0, "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": -0.2, "vibrance": 0.0,  "temperature": -0.5, "tint": -0.5, "grayscale": 0.0, "invert": 1.0 },
+              { "time": 24.0, "exposure": 0.0,  "contrast": 0.0, "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.0,  "vibrance": 0.0,  "temperature": 0.0,  "tint": -1.0, "grayscale": 0.0, "invert": 0.0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "id": "overlay_captions",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 6.0,
+            "layer_type": "subtitle",
+            "text": "四象限合成 · 0.3.6\n4 个脚本实例并行 · 每格一条相机 lane（dest 关键帧铺屏）",
+            "z_index": 30,
+            "keyframes": [
+              { "time": 0.0, "x": 0.5, "y": 0.42, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.0, "opacity": 0.0 },
+              { "time": 0.6, "x": 0.5, "y": 0.42, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.0, "opacity": 1.0 },
+              { "time": 5.2, "x": 0.5, "y": 0.42, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.0, "opacity": 1.0 },
+              { "time": 6.0, "x": 0.5, "y": 0.42, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.0, "opacity": 0.0 }
+            ]
+          },
+          {
+            "start_time": 12.0,
+            "duration": 6.0,
+            "layer_type": "subtitle",
+            "text": "整屏调色（ADJUST master）随关键帧循环：绿 → 暖 → 品红 → 冷 → 反相脉冲\n右下象限 opacity = 0.5（CAMERA 关键帧），透出原版画面",
+            "z_index": 30,
+            "keyframes": [
+              { "time": 0.0, "x": 0.5, "y": 0.88, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.5, "opacity": 0.0 },
+              { "time": 0.6, "x": 0.5, "y": 0.88, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.5, "opacity": 1.0 },
+              { "time": 5.2, "x": 0.5, "y": 0.88, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.5, "opacity": 1.0 },
+              { "time": 6.0, "x": 0.5, "y": 0.88, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.5, "opacity": 0.0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

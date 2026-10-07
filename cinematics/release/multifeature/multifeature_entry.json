@@ -1,0 +1,213 @@
+{
+  "meta": {
+    "id": "multifeature_entry",
+    "name": "多功能并行展示 · 入口（导演实例）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "0.3.6 多功能一次性展示的入口/导演实例：本身没有 CAMERA 轨（不产生画面 lane），一次性把 0.3.6 的多种能力放在同一条时间线上——① EVENT 轨拉起 3 个画面实例（multifeature:multifeature_left / _right / _pip，需权限 2，命令失败静默）；② LETTERBOX 轨开场拉开 / 收尾合上 2.35 宽银幕；③ OVERLAY 字幕轨三段说明；④ AUDIO 轨三段原版音效（无外部资源依赖）；⑤ ADJUST 轨 master 调色关键帧动画（暖 → 绿 → 灰 → 冷 → 品红，作用于整屏）。macro_loop 2 圈 × 30s，播完自动结束。触发：入口默认由 quadrant_entry 播放完成后自动接续（any + script_completed 前置链，无需权限）；单独安装本组时用 /icinematics play multifeature:multifeature_entry 手动播放（脚本放在 <游戏目录>/immersive_cinematics/scripts/multifeature/ 下时命令 id 才是 multifeature:xxx；平铺复制则用 /icinematics play multifeature_entry）。",
+    "triggers": [
+      {
+        "id": "after_quadrant_demo",
+        "type": "any",
+        "repeatable": false,
+        "delay": 0.0,
+        "conditions": {
+          "list": [
+            { "type": "script_completed", "conditions": { "script": "quadrant_entry" } }
+          ]
+        }
+      }
+    ],
+    "dimension": "",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "block_mob_ai": false,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "hide_skip_hud": false,
+    "render_player_model": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "macro_loop": true,
+    "macro_loop_count": 2,
+    "macro_loop_mode": "repeat",
+    "priority": 0
+  },
+  "timeline": {
+    "total_duration": 30.0,
+    "loop_start": 0.0,
+    "loop_end": 30.0,
+    "tracks": [
+      {
+        "type": "EVENT",
+        "id": "event_launch_screens",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 0.5,
+            "event_type": "command",
+            "keyframes": [
+              {
+                "time": 0.0,
+                "event_type": "command",
+                "command": "icinematics play multifeature:multifeature_left && icinematics play multifeature:multifeature_right"
+              }
+            ]
+          },
+          {
+            "start_time": 2.0,
+            "duration": 0.5,
+            "event_type": "command",
+            "keyframes": [
+              {
+                "time": 0.0,
+                "event_type": "command",
+                "command": "icinematics play multifeature:multifeature_pip"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "id": "letterbox_cinema",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 30.0,
+            "keyframes": [
+              { "time": 0.0,  "aspect_ratio": 0.0 },
+              { "time": 1.5,  "aspect_ratio": 2.35 },
+              { "time": 28.5, "aspect_ratio": 2.35 },
+              { "time": 30.0, "aspect_ratio": 0.0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "id": "adjust_master_sweep",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 30.0,
+            "keyframes": [
+              { "time": 0.0,  "exposure": 0.0,  "contrast": 0.0,  "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.0,  "vibrance": 0.0,  "temperature": 0.0,  "tint": 0.0,  "grayscale": 0.0, "invert": 0.0 },
+              { "time": 5.0,  "exposure": 0.3,  "contrast": 0.0,  "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.4,  "vibrance": 0.0,  "temperature": 0.9,  "tint": 0.0,  "grayscale": 0.0, "invert": 0.0 },
+              { "time": 10.0, "exposure": 0.0,  "contrast": 0.3,  "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.0,  "vibrance": 0.5,  "temperature": 0.3,  "tint": -0.8, "grayscale": 0.0, "invert": 0.0 },
+              { "time": 15.0, "exposure": -0.3, "contrast": 0.0,  "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": -1.0, "vibrance": 0.0,  "temperature": 0.0,  "tint": 0.0,  "grayscale": 0.0, "invert": 0.0 },
+              { "time": 20.0, "exposure": 0.0,  "contrast": -0.3, "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.0,  "vibrance": -0.5, "temperature": -0.9, "tint": 0.0,  "grayscale": 0.0, "invert": 0.0 },
+              { "time": 25.0, "exposure": 0.3,  "contrast": 0.0,  "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.4,  "vibrance": 0.0,  "temperature": -0.3, "tint": 0.8,  "grayscale": 0.0, "invert": 0.0 },
+              { "time": 30.0, "exposure": 0.0,  "contrast": 0.0,  "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.0,  "vibrance": 0.0,  "temperature": 0.0,  "tint": 0.0,  "grayscale": 0.0, "invert": 0.0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "id": "overlay_captions",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 5.5,
+            "layer_type": "subtitle",
+            "text": "多功能并行展示 · 0.3.6\n分屏 + PIP + 字幕 + 宽银幕 + 调色 + 音频 + 循环",
+            "z_index": 30,
+            "keyframes": [
+              { "time": 0.0, "x": 0.5, "y": 0.40, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.0, "opacity": 0.0 },
+              { "time": 0.6, "x": 0.5, "y": 0.40, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.0, "opacity": 1.0 },
+              { "time": 4.7, "x": 0.5, "y": 0.40, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.0, "opacity": 1.0 },
+              { "time": 5.5, "x": 0.5, "y": 0.40, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.0, "opacity": 0.0 }
+            ]
+          },
+          {
+            "start_time": 7.0,
+            "duration": 5.5,
+            "layer_type": "subtitle",
+            "text": "同一时刻 3 个画面实例：左半屏 / 右半屏 / 右上 PIP（PIP 晚 2s 起，叠在右半屏之上）",
+            "z_index": 30,
+            "keyframes": [
+              { "time": 0.0, "x": 0.5, "y": 0.84, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 0.0 },
+              { "time": 0.6, "x": 0.5, "y": 0.84, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 1.0 },
+              { "time": 4.7, "x": 0.5, "y": 0.84, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 1.0 },
+              { "time": 5.5, "x": 0.5, "y": 0.84, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 0.0 }
+            ]
+          },
+          {
+            "start_time": 13.0,
+            "duration": 6.5,
+            "layer_type": "subtitle",
+            "text": "左半屏此刻：两段 CAMERA clip 时间重叠 + opacity 交叉 = 叠化（hold 冻结帧）\nADJUST master 关键帧：暖 → 绿 → 灰 → 冷 → 品红",
+            "z_index": 30,
+            "keyframes": [
+              { "time": 0.0, "x": 0.5, "y": 0.16, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 0.0 },
+              { "time": 0.6, "x": 0.5, "y": 0.16, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 1.0 },
+              { "time": 5.7, "x": 0.5, "y": 0.16, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 1.0 },
+              { "time": 6.5, "x": 0.5, "y": 0.16, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 0.0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "AUDIO",
+        "id": "audio_cues",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 5.0,
+            "sound": "minecraft:block.beacon.activate",
+            "source": "minecraft",
+            "category": "ambient",
+            "volume": 0.8,
+            "pitch": 1.0,
+            "loop": false,
+            "fade_in": 0.3,
+            "fade_out": 1.5,
+            "position_mode": "relative",
+            "attenuation": "none",
+            "keyframes": [
+              { "time": 0.0, "volume": 0.8, "x": 0.0, "y": 0.0, "z": 0.0 }
+            ]
+          },
+          {
+            "start_time": 14.0,
+            "duration": 6.0,
+            "sound": "minecraft:item.trident.thunder",
+            "source": "minecraft",
+            "category": "ambient",
+            "volume": 0.5,
+            "pitch": 1.0,
+            "loop": false,
+            "fade_in": 0.1,
+            "fade_out": 2.5,
+            "position_mode": "relative",
+            "attenuation": "none",
+            "keyframes": [
+              { "time": 0.0, "volume": 0.5, "x": 0.0, "y": 0.0, "z": 0.0 }
+            ]
+          },
+          {
+            "start_time": 26.0,
+            "duration": 4.0,
+            "sound": "minecraft:entity.player.levelup",
+            "source": "minecraft",
+            "category": "ambient",
+            "volume": 0.6,
+            "pitch": 1.0,
+            "loop": false,
+            "fade_in": 0.0,
+            "fade_out": 1.5,
+            "position_mode": "relative",
+            "attenuation": "none",
+            "keyframes": [
+              { "time": 0.0, "volume": 0.6, "x": 0.0, "y": 0.0, "z": 0.0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

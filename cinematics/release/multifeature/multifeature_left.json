@@ -1,0 +1,186 @@
+{
+  "meta": {
+    "id": "multifeature_left",
+    "name": "多功能展示 · 左半屏（叠化机位）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "多功能并行展示 · 左半屏实例。dest = {x:0,y:0,w:0.5,h:1}（屏幕左半）。本实例同一条 CAMERA 轨里有两条时间重叠的 clip：A[0,15] 与 B[13,30] 在 [13,15] 交叉——A 末帧复制延长（t=13 与 t=15 姿势完全相同）且 opacity 1→0，B 首帧复制延长（本地 t=0 与 t=2 姿势相同）且 opacity 0→1，重叠区两 lane 各占左半屏、透明度互补（A+B≈1，不露原版画面）= 0.3.6 的叠化（dissolve）。相机绕触发点缓慢横移，look_at=entity @p 始终注视玩家；30s 一圈回到起点姿势（macro_loop 2 圈无缝循环）。由 multifeature_entry 拉起（EVENT 命令或 any + script_started 前置链）。单独手动播放：/icinematics play multifeature:multifeature_left。",
+    "triggers": [
+      {
+        "id": "start_with_entry",
+        "type": "any",
+        "repeatable": false,
+        "delay": 0.0,
+        "conditions": {
+          "list": [
+            { "type": "script_started", "conditions": { "script": "multifeature_entry" } }
+          ]
+        }
+      }
+    ],
+    "dimension": "",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "block_mob_ai": false,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "hide_skip_hud": false,
+    "render_player_model": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "macro_loop": true,
+    "macro_loop_count": 2,
+    "macro_loop_mode": "repeat",
+    "priority": 0
+  },
+  "timeline": {
+    "total_duration": 30.0,
+    "loop_start": 0.0,
+    "loop_end": 30.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "id": "camera_left",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 15.0,
+            "transition": "cut",
+            "transition_duration": 0.0,
+            "orient": "manual",
+            "loop": false,
+            "dimension": "",
+            "keyframes": [
+              {
+                "time": 0.0,
+                "position": { "dx": 6.0, "dy": 2.6, "dz": 6.0 },
+                "position_mode": "relative",
+                "follow": "none",
+                "follow_selector": "@p",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "selector_refresh": 1.0,
+                "yaw": 135.0, "pitch": 12.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0,
+                "opacity": 1.0,
+                "dest": { "x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0 },
+                "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 }
+              },
+              {
+                "time": 8.0,
+                "position": { "dx": 5.4, "dy": 3.0, "dz": 6.6 },
+                "position_mode": "relative",
+                "follow": "none",
+                "follow_selector": "@p",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "selector_refresh": 1.0,
+                "yaw": 130.0, "pitch": 14.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0,
+                "opacity": 1.0,
+                "dest": { "x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0 },
+                "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 }
+              },
+              {
+                "time": 13.0,
+                "position": { "dx": 5.0, "dy": 3.2, "dz": 7.0 },
+                "position_mode": "relative",
+                "follow": "none",
+                "follow_selector": "@p",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "selector_refresh": 1.0,
+                "yaw": 128.0, "pitch": 15.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0,
+                "opacity": 1.0,
+                "dest": { "x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0 },
+                "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 }
+              },
+              {
+                "time": 15.0,
+                "position": { "dx": 5.0, "dy": 3.2, "dz": 7.0 },
+                "position_mode": "relative",
+                "follow": "none",
+                "follow_selector": "@p",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "selector_refresh": 1.0,
+                "yaw": 128.0, "pitch": 15.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0,
+                "opacity": 0.0,
+                "dest": { "x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0 },
+                "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 }
+              }
+            ]
+          },
+          {
+            "start_time": 13.0,
+            "duration": 17.0,
+            "transition": "cut",
+            "transition_duration": 0.0,
+            "orient": "manual",
+            "loop": false,
+            "dimension": "",
+            "keyframes": [
+              {
+                "time": 0.0,
+                "position": { "dx": 5.0, "dy": 3.2, "dz": 7.0 },
+                "position_mode": "relative",
+                "follow": "none",
+                "follow_selector": "@p",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "selector_refresh": 1.0,
+                "yaw": 128.0, "pitch": 15.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0,
+                "opacity": 0.0,
+                "dest": { "x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0 },
+                "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 }
+              },
+              {
+                "time": 2.0,
+                "position": { "dx": 5.0, "dy": 3.2, "dz": 7.0 },
+                "position_mode": "relative",
+                "follow": "none",
+                "follow_selector": "@p",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "selector_refresh": 1.0,
+                "yaw": 128.0, "pitch": 15.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0,
+                "opacity": 1.0,
+                "dest": { "x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0 },
+                "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 }
+              },
+              {
+                "time": 9.0,
+                "position": { "dx": 7.6, "dy": 4.0, "dz": 3.4 },
+                "position_mode": "relative",
+                "follow": "none",
+                "follow_selector": "@p",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "selector_refresh": 1.0,
+                "yaw": 156.0, "pitch": 16.0, "roll": 0.0, "fov": 74.0, "zoom": 1.0,
+                "opacity": 1.0,
+                "dest": { "x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0 },
+                "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 }
+              },
+              {
+                "time": 17.0,
+                "position": { "dx": 6.0, "dy": 2.6, "dz": 6.0 },
+                "position_mode": "relative",
+                "follow": "none",
+                "follow_selector": "@p",
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "selector_refresh": 1.0,
+                "yaw": 135.0, "pitch": 12.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0,
+                "opacity": 1.0,
+                "dest": { "x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0 },
+                "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
