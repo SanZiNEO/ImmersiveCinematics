@@ -32,6 +32,12 @@ public final class PlaybackInstance {
 
     private final ScriptPlayer player = new ScriptPlayer();
 
+    /**
+     * 本实例的播放实例 id（§3.7）：服务端播放请求携带的账本键，{@link #start} 时传入；
+     * 本地来源（编辑器预览/重载等）为空串。实例身份不随 {@link #replaceScript}（编辑器增量替换）改变。
+     */
+    private String instanceId = "";
+
     /** 启动时快照的运行时行为（脚本 meta 的那一份；与 {@link ScriptPlayer} 持有的为同一对象） */
     private ScriptMeta.RuntimeBehavior behavior;
 
@@ -56,6 +62,11 @@ public final class PlaybackInstance {
         return player.getScriptId();
     }
 
+    /** 本实例的播放实例 id（§3.7）；本地来源为空串，{@link #replaceScript} 不改变它。 */
+    public String instanceId() {
+        return instanceId;
+    }
+
     /** 启动时快照的运行时行为；未开始或已停止时为 null（判定方法自带默认值）。 */
     public ScriptMeta.RuntimeBehavior behavior() {
         return behavior;
@@ -67,9 +78,11 @@ public final class PlaybackInstance {
      * 开始播放：启动本实例的播放器，并快照脚本的运行时行为。
      *
      * @param script       已解析的脚本对象
+     * @param instanceId   服务端播放请求的播放实例 id（§3.7）；本地来源传空串
      * @param preExecuteAt 预执行首帧的期望 elapsed 时间（预览模式 = 播放头，游戏内 = 0）
      */
-    void start(CinematicScript script, float preExecuteAt) {
+    void start(CinematicScript script, String instanceId, float preExecuteAt) {
+        this.instanceId = instanceId != null ? instanceId : "";
         this.player.start(script, preExecuteAt);
         ScriptMeta meta = script.getMeta();
         this.behavior = meta != null ? meta.getBehavior() : null;

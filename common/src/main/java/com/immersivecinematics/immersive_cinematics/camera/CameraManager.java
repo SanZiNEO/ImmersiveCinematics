@@ -16,9 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class CameraManager {
 
@@ -48,10 +46,11 @@ public class CameraManager {
     private CinematicScript pendingScript = null;
 
     /**
-     * 服务端播放请求携带的播放实例 id（§3.7），按 scriptId 暂存，供 {@link #reportPlaybackStarted}
-     * 回执时取用（客户端仍是单实例：同一脚本的请求按到达顺序消费，上报后即移除）。
+     * 待接播请求（{@link #pendingScript}）携带的播放实例 id（§3.7）：可打断路径把请求暂存在
+     * {@code pendingScript} 时一并记下，{@link #deactivateNow} 接播时随 {@code C2SPlaybackStarted} 上报。
+     * 本地来源为空串；{@code pendingScript} 为 null 时该值无意义。
      */
-    private final Map<String, String> instanceIdsByScriptId = new HashMap<>();
+    private String pendingInstanceId = "";
 
     /** C1：播放队列（容量 8，当前脚本不可打断时新脚本一律入队，结束后自动接播） */
     private final ScriptQueue scriptQueue = new ScriptQueue();
@@ -174,11 +173,10 @@ public class CameraManager {
     public int playScript(CinematicScript script, String instanceId) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return 0;
-        rememberInstanceId(script, instanceId);
 
         PlaybackInstance instance = activeInstance();
         if (instance == null || !instance.player().isPlaying()) {
-            startScriptInternal(script);
+            startScriptInternal(script, instanceId);
             reportPlaybackStarted(script);
             return 1;
         }
@@ -186,25 +184,15 @@ public class CameraManager {
         if (instance.isInterruptible()) {
             // 可打断 → 立即替换：置原因 + deactivateNow 直接切换（deactivateNow 末尾接播 pendingScript）
             pendingScript = script;
+            pendingInstanceId = instanceId;
             instance.setExitReason(CompletionReason.INTERRUPTED);
             deactivateNow();
             return 1;
         }
 
         // 不可打断 → 一律排队（容量满则拒绝）
-        if (scriptQueue.offer(script)) return 2;
+        if (scriptQueue.offer(script, instanceId)) return 2;
         return 0;
-    }
-
-    /**
-     * 暂存本次播放请求的实例 id，等脚本真正开始播放时由 {@link #reportPlaybackStarted} 取走。
-     * 空 id（本地来源）不记录——回执时按空串上报，服务端账本退化为 {@code (scriptId, "")} 单实例键。
-     */
-    private void rememberInstanceId(CinematicScript script, String instanceId) {
-        if (script == null || instanceId == null || instanceId.isEmpty()) return;
-        String id = script.getId();
-        if (id == null || id.isEmpty()) return;
-        instanceIdsByScriptId.put(id, instanceId);
     }
 
     /** 是否有脚本在排队等待播放 */
@@ -265,7 +253,7 @@ public class CameraManager {
             if (previewMode && previewScript != null) {
                 PlaybackInstance instance = activeInstance();
                 if (instance == null) {
-                    startScriptInternal(previewScript);
+                    startScriptInternal(previewScript, "");
                     instance = activeInstance();
                 } else {
                     // 组 A：编辑模式常驻播放器 — 增量替换数据（零重建零重启；
@@ -296,7 +284,7 @@ public class CameraManager {
         previewPaused = true;
         PlaybackInstance instance = activeInstance();
         if (instance == null && previewScript != null) {
-            startScriptInternal(previewScript);
+            startScriptInternal(previewScript, "");
             instance = activeInstance();
         }
         if (instance == null) return; // 预览脚本尚未传入：没有实例可定位
@@ -316,7 +304,7 @@ public class CameraManager {
             previewMode = true;
             PlaybackInstance instance = activeInstance();
             if (instance == null) {
-                startScriptInternal(previewScript);
+                startScriptInternal(previewScript, "");
                 instance = activeInstance();
             }
             disableMacroLoop(instance);
@@ -354,6 +342,7 @@ public class CameraManager {
             previewMode = false;
             previewPaused = true;
             pendingScript = null;
+            pendingInstanceId = "";
             scriptQueue.clear();
             deactivateNow();
         } else {
@@ -367,11 +356,12 @@ public class CameraManager {
         previewPaused = true;
         // 世界已退出，不可能接播（pendingScript 会经 deactivateNow 自动启动，必须先清掉）
         pendingScript = null;
+        pendingInstanceId = "";
         setExitReason(activeInstance(), CompletionReason.STOPPED);
         deactivateNow();
     }
 
-    private void startScriptInternal(CinematicScript script) {
+    private void startScriptInternal(CinematicScript script, String instanceId) {
         Minecraft mc = Minecraft.getInstance();
         if (!previewMode) {
             mc.setScreen(null);
@@ -400,7 +390,7 @@ public class CameraManager {
         // 组 A：预执行首帧用播放头时间（预览模式），避免首帧写 t=0 造成画面跳变；游戏内播放传 0 保持原语义
         // 预览通道不做宏观循环：循环是运行时播放控制，编辑器预览按真实时间线播放（不展开也不折叠）
         instance.player().setMacroLoopAllowed(!previewMode);
-        instance.start(script, previewMode ? previewTime : 0f);
+        instance.start(script, instanceId, previewMode ? previewTime : 0f);
         if (previewMode) {
             // 预览通道不套用脚本行为（既有语义）：只放行键鼠，行为开关不动
             CinematicController.INSTANCE.setBlockKeyboard(false);
@@ -425,15 +415,15 @@ public class CameraManager {
      * （{@code TriggerEngine.shouldSkip}）会与实际播放状态错位。
      * <p>
      * refId 留空：play 命令的传输层 ACK 由 {@code ClientScriptReceiver} 单独回执（ACK 与“已开始”
-     * 两件事解耦，见 {@code C2SPlaybackStartedPacket}）；{@code instanceId} 取本次播放请求暂存的实例 id
-     * （§3.7，无实例 id 的来源为空串）。
+     * 两件事解耦，见 {@code C2SPlaybackStartedPacket}）；{@code instanceId} 取本次刚启动的活跃实例
+     * 自带的播放实例 id（§3.7，start 时传入；预览/本地来源为空串，无实例时也为空串）。
      */
     private void reportPlaybackStarted(CinematicScript script) {
         if (script == null) return;
         String id = script.getId();
         if (id == null || id.isEmpty()) return;
-        String remembered = instanceIdsByScriptId.remove(id);
-        final String instanceId = remembered != null ? remembered : "";
+        PlaybackInstance instance = activeInstance();
+        final String instanceId = instance != null && instance.instanceId() != null ? instance.instanceId() : "";
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SPlaybackStarted",
                 () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                         new com.immersivecinematics.immersive_cinematics.trigger.network.C2SPlaybackStartedPacket(id, instanceId, true)));
@@ -607,13 +597,15 @@ public class CameraManager {
 
         if (pendingScript != null) {
             CinematicScript next = pendingScript;
+            String nextInstanceId = pendingInstanceId;
             pendingScript = null;
-            startScriptInternal(next);
+            pendingInstanceId = "";
+            startScriptInternal(next, nextInstanceId);
             reportPlaybackStarted(next);
         } else if (!scriptQueue.isEmpty()) {
-            CinematicScript next = scriptQueue.poll();
-            startScriptInternal(next);
-            reportPlaybackStarted(next);
+            ScriptQueue.Entry next = scriptQueue.poll();
+            startScriptInternal(next.script(), next.instanceId());
+            reportPlaybackStarted(next.script());
         } else {
             // 真正回到正常游戏：不再无条件/按尾段空档强制 allChanged；
             // 释放时由服务端差集补发自动决定需要重发的玩家区区块。
