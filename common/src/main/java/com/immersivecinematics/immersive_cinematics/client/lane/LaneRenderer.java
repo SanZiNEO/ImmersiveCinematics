@@ -149,9 +149,6 @@ public final class LaneRenderer {
     /** 当前正在渲染的 lane 的内容开关；lane pass 之外为 {@code null}（主画面不受内容开关影响）。 */
     private static LaneContent activeContent;
 
-    /** 当前正在渲染的 lane 槽位；lane pass 之外为 {@code null}（主画面 pass）。 */
-    private static Lane activeLane;
-
     /**
      * 是否正处在"主画面自己的描边"那一次 {@code doEntityOutline} 调用内（{@link #render} 在 lane 块
      * 开头发起）。lane pass 内外的区分用 {@link #activeContent}，主画面那次与渲染之后原版那次都在
@@ -275,7 +272,6 @@ public final class LaneRenderer {
             LaneDebugCapture.onFrameComposed(main);
         } finally {
             activeContent = null;
-            activeLane = null;
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
             RenderSystem.setProjectionMatrix(prevProjection, prevSorting);
             RenderSystem.setInverseViewRotationMatrix(prevInverseViewRotation);
@@ -295,7 +291,6 @@ public final class LaneRenderer {
         // 渲染期间让原版所有 getMainRenderTarget() 引用都落在该 lane 的 FBO 上（落地要点 ①）
         ((MinecraftAccessor) mc).ic$setMainRenderTarget(fbo);
         activeContent = lane.content;
-        activeLane = lane;
         try {
             fbo.bindWrite(true);   // 绑定 FBO + 视口 = FBO 全尺寸
 
@@ -340,7 +335,6 @@ public final class LaneRenderer {
             RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
         } finally {
             activeContent = null;
-            activeLane = null;
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
         }
     }
@@ -394,12 +388,24 @@ public final class LaneRenderer {
     }
 
     /**
-     * 正在渲染的 lane 槽位；lane pass 之外为 {@code null}（= 主画面 pass）。
-     * <p>视图中心改写（{@code LevelRendererMixin}）据此取<b>该 lane 自己</b>的相机位置：
-     * 每个 lane 的区块构建/可见集中心 = 它自己的相机（主画面回落原版玩家坐标）。
+     * 本帧<b>最上层</b> lane（lane 表里序号最大且有状态的槽位）；无活跃 lane 时为 {@code null}。
+     * <p>视图中心（{@code LevelRendererMixin}）取它的相机位置——可见区块网格（{@code ViewArea} +
+     * {@code renderChunkStorage}）是<b>单份共享状态</b>，<b>整帧只能有一个中心</b>：
+     * 逐 pass 用不同中心会让 {@code ViewArea.repositionCamera} 在每个 pass 把整张网格搬到新位置
+     * （{@code RenderChunk.setOrigin} → {@code reset()} → 区块全部置脏重建），一帧内主 pass + N 个 lane
+     * 反复来回搬 = 持续重建、画面缺块。所以取「玩家看到的最上层画面」的那台相机做整帧中心
+     * （与退役前"以顶层实例相机为中心"逐点等价）。
+     * <p>主 pass（lane 注册之前）读到的是<b>上一帧</b>的 lane 表（{@code ScriptLaneDriver.tick} 在
+     * 主 pass 之后才清空重填），即中心最多滞后一帧——与退役前读上一帧快照同源同滞后。
      */
-    public static Lane currentLane() {
-        return activeLane;
+    public Lane topLane() {
+        for (int i = lanes.size() - 1; i >= 0; i--) {
+            Lane lane = lanes.get(i);
+            if (lane.state != null) {
+                return lane;
+            }
+        }
+        return null;
     }
 
     /** 是否正在某个 lane 的 pass 内（lane 自包含分流 + 内容开关判定用）。 */

@@ -24,15 +24,19 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 渲染视图中心跟随相机（0.3.5 第3轮-B v5；0.3.6 主相机替换链退役后收窄为 <b>lane 专用</b>）：
+ * 渲染视图中心跟随相机（0.3.5 第3轮-B v5；0.3.6 主相机替换链退役后改为 <b>lane 驱动</b>）：
  * 1.20.1 的 {@code LevelRenderer.setupRender} 用 {@code minecraft.player} 坐标计算 ViewArea
  * （可见/待建渲染区块）中心——相机飞出玩家渲染距离后，区块即使已加载到客户端缓存也不被构建/渲染。
  * <p>
- * 本 Mixin 把 {@code setupRender} 里的玩家坐标局部变量 {@code d0/d1/d2} 替换为<b>正在渲染的
- * lane 自己的</b>相机坐标（{@link LaneRenderer#currentLane()}）；后续
- * {@code SectionPos.posToSectionCoord} 与 {@code ViewArea.repositionCamera} 都会自然使用该坐标。
- * 非 lane pass（原版主画面）返回 {@code null}，保持原版玩家坐标——主相机替换链已退役
- * （见 plans/0.3.6/parallel-playback.md §3.3）。
+ * 本 Mixin 把 {@code setupRender} 里的玩家坐标局部变量 {@code d0/d1/d2} 替换为<b>本帧最上层 lane</b>
+ * 的相机坐标（{@link LaneRenderer#topLane()}）；后续 {@code SectionPos.posToSectionCoord} 与
+ * {@code ViewArea.repositionCamera} 都会自然使用该坐标。无活跃 lane 时返回 {@code null} =
+ * 原版玩家坐标（主画面替换链已退役：原版主相机就是玩家相机，见 plans/0.3.6/parallel-playback.md §3.3）。
+ * <p>
+ * <b>为什么是"最上层 lane"而不是"每条 lane 各自的相机"</b>：可见区块网格是单份共享状态，整帧只能有一个
+ * 中心——逐 pass 换中心会让 {@code ViewArea.repositionCamera} 在每个 pass 把整张网格搬走并让区块全部
+ * 置脏重建（{@code RenderChunk.setOrigin → reset() → dirty}），一帧内反复来回搬 = 持续重建、画面缺块。
+ * 逐 lane 独立可见集合是长期方向（见 {@code multi-camera-rendering.md}）。
  */
 @Mixin(LevelRenderer.class)
 public class LevelRendererMixin {
@@ -58,9 +62,9 @@ public class LevelRendererMixin {
         return v != null ? v.z : coord;
     }
 
-    /** 正在渲染的 lane 的相机位置；lane pass 之外（主画面）为 {@code null} = 用原版玩家坐标。 */
+    /** 本帧最上层 lane 的相机位置；无活跃 lane（= 原版视角）时为 {@code null} = 用原版玩家坐标。 */
     private static Vec3 cinematicViewCenter() {
-        LaneRenderer.Lane lane = LaneRenderer.currentLane();
+        LaneRenderer.Lane lane = LaneRenderer.INSTANCE.topLane();
         return lane != null ? lane.state().position() : null;
     }
 

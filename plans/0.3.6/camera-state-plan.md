@@ -147,7 +147,7 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 | 阶段 | 文件 | 改动 |
 |---|---|---|
 | 统一状态（已落地） | `mixin/CameraMixin.java` / `GameRendererMixin.java` / `LevelRendererMixin.java` | 改读 `mgr.getCameraState()`（`state.position()/yaw()/pitch()/roll()/fov()/zoom()`），保留各自 guard |
-| **主相机替换链退役（2026-10-07）** | `mixin/CameraMixin.java` / `GameRendererMixin.java` / `LevelRendererMixin.java` | **渲染侧读点全部删除**：lane 相机读自己的 `CameraLane` 快照（`LaneRenderer` 逐 lane 渲染）；主相机不再被接管。`LevelRendererMixin` 的视图中心改写收窄为 lane 专用 |
+| **主相机替换链退役（2026-10-07）** | `mixin/CameraMixin.java` / `GameRendererMixin.java` / `LevelRendererMixin.java` | **渲染侧读点全部删除**：lane 相机读自己的 `CameraLane` 快照（`LaneRenderer` 逐 lane 渲染）；主相机不再被接管。`LevelRendererMixin` 的视图中心改写改为 lane 驱动（本帧最上层 lane 的相机位置，整帧单一中心；无 lane = 原版玩家坐标） |
 | 同上 | `AudioListenerController` / `PreloadRequester` / `WebPreviewScreen` | 保留 `getCameraState()`（值 = 顶层实例顶层活跃 clip 六参数，与最上层 lane 同源同值）；听者相机另加 `cameraListener()` 代理（原版听者相机随主链退役变成玩家相机） |
 
 验证：`sh gradlew compileJava` 通过；`grep -r "CameraPath\|CameraProperties" mixin/` 零命中（渲染 Mixin 不再接触内部可变对象）。

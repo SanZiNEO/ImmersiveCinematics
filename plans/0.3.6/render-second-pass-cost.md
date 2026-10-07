@@ -31,7 +31,7 @@
 
 - `mixin/CameraMixin.java`：~~`@Inject(method = "setup", ...)` 直接把虚拟相机的位置 / yaw / pitch 写进原版 `Camera`~~ **已删除**（现仅 lane 相机写自己的 `Camera` 实例）。**这是「让主渲染用另一个相机」，不是「再渲染一遍」。**
 - `mixin/GameRendererMixin.java`：~~`getFov` 覆写（虚拟相机 FOV）、`renderLevel` 内在 `prepareCullFrustum` 之前施加 roll~~ **主相机分支已删除**（仅保留 lane 分支的 FOV）。
-- `mixin/LevelRendererMixin.java`：`setupRender` 内把 ViewArea 中心从玩家坐标改成相机坐标（`ModifyVariable` ×3）——**现为 lane 专用**：读正在渲染的 lane 自己的相机位置，非 lane pass（原版主画面）保持玩家坐标。
+- `mixin/LevelRendererMixin.java`：`setupRender` 内把 ViewArea 中心从玩家坐标改成相机坐标（`ModifyVariable` ×3）——**现为 lane 驱动、整帧单一中心**：本帧最上层 lane 的相机位置，无 lane 时用玩家坐标（单份网格逐 pass 换中心会把整张网格搬来搬去并全部置脏，见该文件 javadoc）。
 - `webui/WebFrameCapture.java`：只做「主 framebuffer → 小 FBO → `glReadPixels` 读回」，是**读回**，不是世界再渲染（0.3.6 前 `editor/PreviewCapture.java` 同法，已随游戏内编辑器退役删除）。
 
 → 结论：仓库里**不存在**第二遍世界渲染的实现。`multi-camera-rendering.md` 也自标「📋 方案，未实现」。
