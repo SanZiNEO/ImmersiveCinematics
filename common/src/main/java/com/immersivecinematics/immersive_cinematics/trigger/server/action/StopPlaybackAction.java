@@ -19,6 +19,6 @@ public class StopPlaybackAction implements TriggerAction {
 
     @Override
     public void execute(ServerPlayer player) {
-        S2CStopScriptPacket.send(player, scriptId);
+        S2CStopScriptPacket.send(player, scriptId, "", "");
     }
 }

@@ -61,18 +61,15 @@ public class ScriptEventManager {
     }
 
     /**
-     * 该玩家在某脚本下的播放实例。
+     * 账本精确解析：按 {@code (scriptId, instanceId)} 直取实例。
      * <p>
-     * 优先取“观看者含该玩家”的实例；脚本下只有一个实例时直接取它——后者正是实例化之前的
-     * {@code scriptPlaybacks.get(scriptId)} 语义（结束 / 暂停信号尚未携带实例 id，见 §3.7 后续步骤）。
+     * §3.7：结束 / 暂停信号随包携带实例 id（{@code C2SScriptFinishedPacket} /
+     * {@code C2SScriptPausePacket}），与开始信号同一 id；无该实例时返回 {@code null}
+     * （不再按“观看者成员”回退猜测）。
      */
-    private ScriptPlayback playbackOfPlayer(UUID playerUuid, String scriptId) {
+    private ScriptPlayback playback(String scriptId, String instanceId) {
         Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
-        if (byInstance == null || byInstance.isEmpty()) return null;
-        for (ScriptPlayback pb : byInstance.values()) {
-            if (pb.viewers.contains(playerUuid)) return pb;
-        }
-        return byInstance.size() == 1 ? byInstance.values().iterator().next() : null;
+        return byInstance == null ? null : byInstance.get(instanceId == null ? "" : instanceId);
     }
 
     /** 摘除单个实例；脚本下不再有实例时移除脚本条目。 */
@@ -83,8 +80,8 @@ public class ScriptEventManager {
         if (byInstance.isEmpty()) scriptPlaybacks.remove(pb.scriptId);
     }
 
-    public void onPlayerFinished(ServerPlayer player, String scriptId, CompletionReason reason) {
-        ScriptPlayback pb = playbackOfPlayer(player.getUUID(), scriptId);
+    public void onPlayerFinished(ServerPlayer player, String scriptId, String instanceId, CompletionReason reason) {
+        ScriptPlayback pb = playback(scriptId, instanceId);
         if (pb == null) return;
 
         UUID uuid = player.getUUID();
@@ -112,7 +109,7 @@ public class ScriptEventManager {
                 LOGGER.info("Script '{}' force-stopped by skip vote ({} / {} needed)", scriptId, pb.skipVoters.size(), needed);
                 for (UUID remaining : pb.viewers) {
                     ServerPlayer p = player.server.getPlayerList().getPlayer(remaining);
-                    if (p != null) S2CStopScriptPacket.send(p, scriptId);
+                    if (p != null) S2CStopScriptPacket.send(p, scriptId, pb.instanceId, "");
                 }
                 removePlayback(pb);
             }
@@ -134,20 +131,8 @@ public class ScriptEventManager {
         }
     }
 
-    public void stopPlayback(UUID playerUuid, String scriptId) {
-        Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
-        if (byInstance == null) return;
-        byInstance.entrySet().removeIf(entry -> {
-            ScriptPlayback pb = entry.getValue();
-            pb.viewers.remove(playerUuid);
-            pb.skipVoters.remove(playerUuid);
-            return pb.viewers.isEmpty();
-        });
-        if (byInstance.isEmpty()) scriptPlaybacks.remove(scriptId);
-    }
-
-    public void onScriptFinished(ServerPlayer player, String scriptId, CompletionReason reason) {
-        onPlayerFinished(player, scriptId, reason);
+    public void onScriptFinished(ServerPlayer player, String scriptId, String instanceId, CompletionReason reason) {
+        onPlayerFinished(player, scriptId, instanceId, reason);
     }
 
     public boolean isScriptActive(String scriptId) {
@@ -247,8 +232,8 @@ public class ScriptEventManager {
      * 暂停时记录暂停起始 tick，恢复时累计暂停时长，
      * 使 onServerTick 中的 elapsed 计算跳过暂停时段。
      */
-    public void handlePause(ServerPlayer player, String scriptId, boolean paused) {
-        ScriptPlayback pb = playbackOfPlayer(player.getUUID(), scriptId);
+    public void handlePause(ServerPlayer player, String scriptId, String instanceId, boolean paused) {
+        ScriptPlayback pb = playback(scriptId, instanceId);
         if (pb == null) return;
 
         if (paused && !pb.paused) {

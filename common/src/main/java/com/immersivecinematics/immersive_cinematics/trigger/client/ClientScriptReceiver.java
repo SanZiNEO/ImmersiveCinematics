@@ -88,7 +88,8 @@ public class ClientScriptReceiver {
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptFinished(stop ack)",
                         () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                                 new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptFinishedPacket(
-                                        scriptId, com.immersivecinematics.immersive_cinematics.control.CompletionReason.STOPPED,
+                                        scriptId, packet.getInstanceId(),
+                                        com.immersivecinematics.immersive_cinematics.control.CompletionReason.STOPPED,
                                         packet.getRefId())));
             }
         });

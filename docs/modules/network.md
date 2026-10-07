@@ -11,14 +11,14 @@
   - ✅ `init()` 为兼容入口；平台注册由 Fabric/Forge 侧在 common init 后注入 `NetworkBridge` 完成（`NetworkHandler`）
 - **S2C 播放/停止链路**
   - ✅ `S2CPlayScriptPacket`（服务端→客户端，`play_script`）：携带脚本原始 JSON，客户端解析为 `CinematicScript` 并交给 `CameraManager.playCinematic()` 开始播放（`S2CPlayScriptPacket`、`ClientScriptReceiver`）
-  - ✅ `S2CStopScriptPacket`（服务端→客户端，`stop_script`）：指定 scriptId 停止；scriptId 为空时强制停止全部脚本（`S2CStopScriptPacket`、`ClientScriptReceiver`）
+  - ✅ `S2CStopScriptPacket`（服务端→客户端，`stop_script`）：指定 scriptId（+ 播放实例 id）停止；scriptId 为空时强制停止全部脚本（`S2CStopScriptPacket`、`ClientScriptReceiver`）
   - ✅ 播放链路的发送方：触发器动作 `StartPlaybackAction`（服务端）；停止链路的发送方：触发器动作 `StopPlaybackAction`、跳过投票达标广播（`StartPlaybackAction`、`StopPlaybackAction`、`ScriptEventManager`）
 - **C2S 播放状态回执链路**
   - ✅ `C2SPlaybackStartedPacket`（客户端→服务端，`playback_started`）：一个包承载两件可分离的事——① **传输层 ACK**（`AckTracker.ack(refId)`，只要包被处理就回执，**排队等待 / 被拒绝也回**，否则发送方 play 包超时重发会导致重复入队）；② **播放账本**（`TriggerEngine.onPlaybackStarted`，仅当 `started=true` 时记账）。发送方：`ClientScriptReceiver` 收到 play 包后一律回 ACK（`started=false`，不谎报已开始）；`CameraManager.reportPlaybackStarted()` 在脚本**真正开始播放**时单独上报 `started=true`（直接开始 / 结束接播两处；排队等待、被拒绝、编辑器预览都不上报）（`C2SPlaybackStartedPacket`、`ClientScriptReceiver`、`CameraManager`、`TriggerEngine`）
-  - ✅ `C2SScriptFinishedPacket`（客户端→服务端，`script_finished`）：播放结束（含完成原因枚举）时回执，服务端移除观看者并参与跳过投票统计（`C2SScriptFinishedPacket`、`TriggerEngine`、`ScriptEventManager`）
+  - ✅ `C2SScriptFinishedPacket`（客户端→服务端，`script_finished`）：播放结束（含完成原因枚举 + 播放实例 id）时回执，服务端按 `(scriptId, instanceId)` 精确解析所属实例并移除观看者、参与跳过投票统计（`C2SScriptFinishedPacket`、`TriggerEngine`、`ScriptEventManager`）
   - ✅ 回执发送方：客户端 `ClientScriptNotifier.notifyScriptFinished()` 在相机管理器结束播放时调用（`ClientScriptNotifier`）
 - **暂停链路（N1 双向握手）**
-  - ✅ `C2SScriptPausePacket`（客户端→服务端，`script_pause`）：客户端游戏暂停/恢复时发送（脚本 id + 暂停标志 + refId），服务端据此暂停 EVENT 关键帧推进（暂停 tick 累计，恢复后跳过暂停时段）（`C2SScriptPausePacket`、`ScriptEventManager.handlePause`）
+  - ✅ `C2SScriptPausePacket`（客户端→服务端，`script_pause`）：客户端游戏暂停/恢复时发送（脚本 id + 播放实例 id + 暂停标志 + refId），服务端据此按实例精确解析并暂停 EVENT 关键帧推进（暂停 tick 累计，恢复后跳过暂停时段）（`C2SScriptPausePacket`、`ScriptEventManager.handlePause`）
   - ✅ `S2CScriptPauseAckPacket`（服务端→客户端，`script_pause_ack`）：服务端处理成功后的回执，客户端 `AckTracker` 超时 2s 重发、最多 3 次后放弃（`S2CScriptPauseAckPacket`、`AckTracker`）
   - ✅ 发送方：`CameraManager.onRenderFrame()` 检测到暂停状态转换时发送（`CameraManager`）
 - **脚本保存/重载链路**

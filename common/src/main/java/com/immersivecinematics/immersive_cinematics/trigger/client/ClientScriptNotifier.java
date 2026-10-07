@@ -9,7 +9,7 @@ public class ClientScriptNotifier {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    public static void notifyScriptFinished(String scriptId, CompletionReason reason) {
+    public static void notifyScriptFinished(String scriptId, String instanceId, CompletionReason reason) {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
         // 世界退出/断线时(如 emergencyStop 路径)连接已断开,发 C2S 包会抛
         // "Unable to send packet to the server while not in game!" 导致崩溃——断线时跳过,
@@ -21,7 +21,7 @@ public class ClientScriptNotifier {
         }
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer(
                 "C2SScriptFinished", () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                        new C2SScriptFinishedPacket(scriptId, reason)));
-        LOGGER.debug("Sent script finished notification: {} reason={}", scriptId, reason);
+                        new C2SScriptFinishedPacket(scriptId, instanceId, reason, "")));
+        LOGGER.debug("Sent script finished notification: {} instance={} reason={}", scriptId, instanceId, reason);
     }
 }

@@ -510,10 +510,10 @@ public class CameraManager {
                     com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId,
                             () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptPause",
                                     () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                                            new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, effectivelyPaused, refId))));
+                                            new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, instance.instanceId(), effectivelyPaused, refId))));
                     com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptPause",
                             () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                                    new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, effectivelyPaused, refId)));
+                                    new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptPausePacket(scriptId, instance.instanceId(), effectivelyPaused, refId)));
                 }
             }
         }
@@ -601,8 +601,9 @@ public class CameraManager {
 
         String finishedScriptId = instance != null ? instance.scriptId() : null;
         if (finishedScriptId != null) {
+            String finishedInstanceId = instance.instanceId() != null ? instance.instanceId() : "";
             com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptNotifier
-                    .notifyScriptFinished(finishedScriptId, reason);
+                    .notifyScriptFinished(finishedScriptId, finishedInstanceId, reason);
         }
         com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver.resetSkipVote();
 

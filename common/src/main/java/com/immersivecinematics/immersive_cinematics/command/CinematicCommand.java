@@ -198,11 +198,11 @@ public class CinematicCommand {
         String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
         com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId, () -> {
             for (ServerPlayer p : ackTargets) {
-                S2CStopScriptPacket.send(p, "", refId);
+                S2CStopScriptPacket.send(p, "", "", refId);
             }
         });
         for (ServerPlayer player : targets) {
-            S2CStopScriptPacket.send(player, "", refId);
+            S2CStopScriptPacket.send(player, "", "", refId);
         }
 
         final int count = targets.size();

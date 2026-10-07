@@ -158,15 +158,15 @@ public class TriggerEngine {
 
     // ===== Script completion callback =====
 
-    public void onScriptFinished(ServerPlayer player, String scriptId,
+    public void onScriptFinished(ServerPlayer player, String scriptId, String instanceId,
                                  com.immersivecinematics.immersive_cinematics.control.CompletionReason reason) {
         // 完成状态落库 + 同步到客户端（C2SScriptFinishedPacket 的必经链路）
         TriggerStateStore.INSTANCE.markScriptCompleted(player.getUUID(), scriptId);
         PlayerTriggerState state = TriggerStateStore.INSTANCE.getOrCreate(player.getUUID());
         S2CTriggerStateSyncPacket.send(player, state.getTriggeredScripts(), state.getCompletedScripts());
-        ScriptEventManager.INSTANCE.onScriptFinished(player, scriptId, reason);
-        LOGGER.debug("Script finished: player={}, script={}, reason={}",
-                player.getName().getString(), scriptId, reason);
+        ScriptEventManager.INSTANCE.onScriptFinished(player, scriptId, instanceId, reason);
+        LOGGER.debug("Script finished: player={}, script={}, instance={}, reason={}",
+                player.getName().getString(), scriptId, instanceId, reason);
     }
 
     public void onPlaybackStarted(ServerPlayer player, String scriptId, String instanceId) {
