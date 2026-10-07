@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.script;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientEntitySelectorCache;
+import com.immersivecinematics.immersive_cinematics.util.TimeInterpolation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
@@ -476,7 +477,7 @@ public class CameraTrackPlayer implements TrackPlayer {
             Entity target = resolveEntity(selector, lastWorldPos, "follow", kf);
             if (target != null) {
                 Vec3 off = pd != null ? pd.toVec3() : Vec3.ZERO;
-                return smoothTargetPoint("follow", selector, "pos", entityPosInterp(target).add(off), selectorPolicy(kf, "follow").switchSmooth());
+                return smoothTargetPoint("follow", selector, "pos", TimeInterpolation.entityPosition(target).add(off), selectorPolicy(kf, "follow").switchSmooth());
             }
             return lastWorldPos;
         }
@@ -534,15 +535,15 @@ public class CameraTrackPlayer implements TrackPlayer {
             net.minecraft.world.entity.Entity to =
                     resolveEntity(facingTarget, lastWorldPos, "facing_target", kf);
             if (to == null) return null;
-            Vec3 dir = entityPosInterp(to).add(0, to.getBbHeight() / 2.0, 0).subtract(baseVec);
+            Vec3 dir = TimeInterpolation.entityPosition(to).add(0, to.getBbHeight() / 2.0, 0).subtract(baseVec);
             return buildFrame(baseVec, dir, pd);
         }
 
         if (orient == null) return null;
 
         // 实体朝向必须按渲染 partialTick 插值：raw getYRot()/getXRot() 会在 20Hz tick 间跳变。
-        float yawRad = (float) Math.toRadians(entityBodyYawInterp(orient));
-        float pitchRad = (float) Math.toRadians(entityPitchInterp(orient));
+        float yawRad = (float) Math.toRadians(TimeInterpolation.entityBodyYaw(orient));
+        float pitchRad = (float) Math.toRadians(TimeInterpolation.entityPitch(orient));
         float sinY = (float) Math.sin(yawRad);
         float cosY = (float) Math.cos(yawRad);
         float sinP = (float) Math.sin(pitchRad);
@@ -574,7 +575,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         if (base == null) return null;
         String role = pd.isOriginSelector() ? "facing_origin" : "follow";
         Vec3 basePos = smoothTargetPoint(role, frameHandle(kf, pd), "base",
-                entityPosInterp(base), selectorPolicy(kf, role).switchSmooth());
+                TimeInterpolation.entityPosition(base), selectorPolicy(kf, role).switchSmooth());
         return basePos;
     }
 
@@ -786,7 +787,7 @@ public class CameraTrackPlayer implements TrackPlayer {
             String selector = kf.getString("look_at_selector", "@p");
             Entity target = resolveEntity(selector, pos, "look_at", kf);
             if (target == null) return null;
-            Vec3 raw = entityPosInterp(target).add(0, target.getBbHeight() / 2.0, 0);
+            Vec3 raw = TimeInterpolation.entityPosition(target).add(0, target.getBbHeight() / 2.0, 0);
             return smoothTargetPoint("look_at", selector, "point", raw, selectorPolicy(kf, "look_at").switchSmooth());
         }
         if ("coordinate".equals(lookAt)) {
@@ -871,8 +872,8 @@ public class CameraTrackPlayer implements TrackPlayer {
         Entity target = resolveEntity(selector, pos, "look_at_target", kf);
         if (target == null) return null;
         Vec3 raw = offset != null
-                ? entityPosInterp(target).add(offset)
-                : entityPosInterp(target).add(dx, dy, dz);
+                ? TimeInterpolation.entityPosition(target).add(offset)
+                : TimeInterpolation.entityPosition(target).add(dx, dy, dz);
         return smoothTargetPoint("look_at_target", selector, "point", raw, selectorPolicy(kf, "look_at_target").switchSmooth());
     }
 
@@ -982,7 +983,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         String base = kf.getString("yaw_base", "world");
         if ("entity".equals(base)) {
             Entity e = resolveEntity(kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf);
-            return e != null ? entityBodyYawInterp(e) : 0f;
+            return e != null ? TimeInterpolation.entityBodyYaw(e) : 0f;
         }
         if ("line".equals(base)) {
             float[] dir = lineDir(kf);
@@ -996,7 +997,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         String base = kf.getString("pitch_base", "world");
         if ("entity".equals(base)) {
             Entity e = resolveEntity(kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf);
-            return e != null ? entityPitchInterp(e) : 0f;
+            return e != null ? TimeInterpolation.entityPitch(e) : 0f;
         }
         if ("line".equals(base)) {
             float[] dir = lineDir(kf);
@@ -1013,8 +1014,8 @@ public class CameraTrackPlayer implements TrackPlayer {
         Entity a = resolveEntity(kf.getString("yaw_base_from", ""), lastWorldPos, "yaw_base_from", kf);
         Entity b = resolveEntity(kf.getString("yaw_base_to", ""), lastWorldPos, "yaw_base_to", kf);
         if (a == null || b == null) return null;
-        Vec3 from = entityPosInterp(a);
-        Vec3 to = entityPosInterp(b);
+        Vec3 from = TimeInterpolation.entityPosition(a);
+        Vec3 to = TimeInterpolation.entityPosition(b);
         double dx = to.x - from.x;
         double dy = to.y - from.y;
         double dz = to.z - from.z;
@@ -1566,33 +1567,4 @@ public class CameraTrackPlayer implements TrackPlayer {
         return null;
     }
 
-    /**
-     * 实体身体 yaw 的渲染帧插值。
-     * <p>
-     * 原版 {@code LivingEntityRenderer} 使用 {@code Mth.rotLerp(partialTick, yBodyRotO, yBodyRot)}；
-     * 非 LivingEntity 退化为 {@code Entity.yRotO → getYRot()}。
-     */
-    private static float entityBodyYawInterp(net.minecraft.world.entity.Entity e) {
-        float pt = net.minecraft.client.Minecraft.getInstance().getFrameTime();
-        if (e instanceof net.minecraft.world.entity.LivingEntity le) {
-            return net.minecraft.util.Mth.rotLerp(pt, le.yBodyRotO, le.yBodyRot);
-        }
-        return net.minecraft.util.Mth.rotLerp(pt, e.yRotO, e.getYRot());
-    }
-
-    /** 实体 pitch 的渲染帧插值：原版使用 {@code Mth.lerp(partialTick, xRotO, getXRot())}。 */
-    private static float entityPitchInterp(net.minecraft.world.entity.Entity e) {
-        float pt = net.minecraft.client.Minecraft.getInstance().getFrameTime();
-        return net.minecraft.util.Mth.lerp(pt, e.xRotO, e.getXRot());
-    }
-
-    /** 实体渲染帧插值位置（上一 tick → 当前 tick 按渲染 partialTick 插值，消除 20Hz 步进卡顿） */
-    private static Vec3 entityPosInterp(net.minecraft.world.entity.Entity e) {
-        float pt = net.minecraft.client.Minecraft.getInstance().getFrameTime();
-        return new Vec3(
-                net.minecraft.util.Mth.lerp(pt, e.xo, e.getX()),
-                net.minecraft.util.Mth.lerp(pt, e.yo, e.getY()),
-                net.minecraft.util.Mth.lerp(pt, e.zo, e.getZ())
-        );
-    }
 }
