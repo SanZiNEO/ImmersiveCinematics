@@ -4,9 +4,11 @@ import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -107,15 +109,50 @@ public class LevelRendererMixin {
     /**
      * 多相机渲染底层：原版在 {@code GameRenderer.renderLevel} 返回之后会整屏贴一次描边
      * （{@code doEntityOutline()}，1:1 整屏）——那一步会盖在 lane 合成图外面（共享的 {@code entityTarget}
-     * 已被最后一条 lane 覆盖）。有活跃 lane 时屏蔽它；lane 自己在各自的 FBO 内调用
-     * （用 {@link LaneRenderer#isRenderingLane()} 区分；主画面的那份由
-     * {@link LaneRenderer#render} 在 lane 块开头先落地）。
+     * 已被最后一条 lane 覆盖）。有活跃 lane 时屏蔽它。
+     *
+     * <p>一帧里三次调用要分开对待：</p>
+     * <ol>
+     *   <li><b>主画面自己那次</b>（{@link LaneRenderer#render} 在 lane 块开头发起，此时
+     *       {@code entityTarget} 里还是主画面的描边数据）——<b>放行</b>，否则主画面的发光描边整帧丢失
+     *       （判定见 {@link LaneRenderer#isMainOutlinePass()}）。</li>
+     *   <li><b>lane 自己那次</b>（各 lane 在<b>自己的</b> FBO 内贴描边）——放行，
+     *       用 {@link LaneRenderer#isRenderingLane()} 区分。</li>
+     *   <li><b>渲染之后原版那次</b>（{@code GameRenderer.render} 里的整屏调用）——屏蔽，
+     *       它面对的 {@code entityTarget} 已被最后一条 lane 覆盖。</li>
+     * </ol>
      */
     @Inject(method = "doEntityOutline", at = @At("HEAD"), cancellable = true)
     private void immersivecinematics_laneOutlineGuard(CallbackInfo ci) {
         LaneRenderer renderer = LaneRenderer.INSTANCE;
-        if (renderer.hasActiveLanes() && !LaneRenderer.isRenderingLane()) {
+        if (renderer.hasActiveLanes() && !LaneRenderer.isRenderingLane()
+                && !LaneRenderer.isMainOutlinePass()) {
             ci.cancel();
+        }
+    }
+
+    // ===== lane pass 清屏不透明（未覆盖区 = 实心雾色）=====
+
+    /**
+     * lane pass 的清屏 alpha 抬到 1：{@code LevelRenderer.renderLevel} 开头那次
+     * {@code RenderSystem.clear(16640)} 用的是雾色清屏，而 {@code FogRenderer.setupColor} 末尾是
+     * {@code clearColor(fogR, fogG, fogB, 0.0f)}（alpha=0）。主画面里 alpha 无所谓（整屏 blit 不看
+     * alpha），但 lane 的离屏画面要经合成层的 {@code position_tex}（{@code color.a == 0.0 → discard}
+     * + srcalpha 混合）：未覆盖区 alpha=0 会整片透出主画面（雾与地形交接的过渡带被"抠掉"）。
+     *
+     * <p>RGB 取刚由 {@code FogRenderer.levelFogColor()} 设好的雾色（与清屏色同源，就在本调用前一行），
+     * 只把 alpha 抬到 1 → 未覆盖区 = 实心雾色。非 lane pass 原样放行（零差异）。</p>
+     */
+    @Inject(method = "renderLevel", at = @At(value = "INVOKE",
+            target = "Lcom/mojang/blaze3d/systems/RenderSystem;clear(IZ)V",
+            shift = At.Shift.BEFORE))
+    private void immersivecinematics_laneClearAlpha(PoseStack poseStack, float partialTick, long nanoTime,
+                                                    boolean renderBlockOutline, Camera camera,
+                                                    GameRenderer gameRenderer, LightTexture lightTexture,
+                                                    Matrix4f projectionMatrix, CallbackInfo ci) {
+        if (LaneRenderer.isRenderingLane()) {
+            float[] fog = RenderSystem.getShaderFogColor();
+            RenderSystem.clearColor(fog[0], fog[1], fog[2], 1.0F);
         }
     }
 

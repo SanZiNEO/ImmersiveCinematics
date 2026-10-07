@@ -135,6 +135,8 @@
 
 ## 8. 落地顺序（方向）
 
+（落地记录：步骤 1-2 已完成（2026-10-07）——统一时间插值工具 `util/TimeInterpolation`（lerp/rotLerp/position/实体级采样，复用原版 prev/current 快照），CameraTrackPlayer 三个散落插值方法收拢迁移（60 万次逐位对照零差异）；相机自身 prev/current 快照（步骤 3）与历史缓冲/外推（步骤 4）仍待后续。）
+
 1. 定义统一时间插值概念
 2. 统一实体位置 / 角度插值
 3. 评估相机状态 prev/current 快照

@@ -37,7 +37,8 @@ import java.util.Map;
  * mainRenderTarget 临时指向 lane FBO → bindWrite(true)（视口 = FBO 全尺寸）
  *   → camera.setup(...)（走 CameraMixin 的 lane 分支，读该 lane 的 CameraState）
  *   → 视图 PoseStack（XP=xRot、YP=yRot+180）→ roll → setInverseViewRotationMatrix
- *   → 该 lane 自己的 fov → 投影 → prepareCullFrustum（该 lane 的 pose + 相机位置）
+ *   → 该 lane 自己的 fov → 投影 → setProjectionMatrix（全局投影 = 该 lane 的投影）
+ *   → prepareCullFrustum（该 lane 的 pose + 相机位置）
  *   → renderLevel → doEntityOutline（lane 内描边）→ 还原全局投影
  *   → 恢复 mainRenderTarget → 交给 {@link Sink}（合成层）
  * </pre>
@@ -50,9 +51,12 @@ import java.util.Map;
  *   <li><b>lane 自包含</b>：lane 的 {@code renderLevel} <b>加上所有 lane 级后处理</b>（发光描边
  *       {@code doEntityOutline()}）都必须在 lane 的 FBO 内完成；原版在 {@code renderLevel} 之后那次
  *       整屏调用被 {@code LevelRendererMixin} 屏蔽（用 {@link #isRenderingLane()} 区分）。</li>
- *   <li><b>全局投影还原</b>：{@code doEntityOutline() → blitToScreen()} 会把全局投影矩阵改成正交
- *       （且不还原），lane 内调用后必须还原，否则下一个 lane 里走全局矩阵的绘制（实体 / 粒子 /
- *       方块实体）会坏。</li>
+ *   <li><b>全局投影（进 / 出各一次）</b>：{@code LevelRenderer.renderLevel} <b>自己不设</b>全局投影矩阵
+ *       （原版由 {@code GameRenderer.renderLevel} 的 {@code resetProjectionMatrix} 设好），而 lane 里走
+ *       全局矩阵的绘制（实体 / 粒子 / 方块实体 / 太阳月亮 / 雨雪 / 世界边界）都要吃它——所以进
+ *       {@code renderLevel} 之前必须把全局投影设成该 lane 的投影，否则会吃到上一层 pass 遗留的投影
+ *       （lane 块开头那次 {@code doEntityOutline → blitToScreen} 留下的是正交矩阵）而被裁掉；
+ *       出 lane 前那次 {@code doEntityOutline()} 又会把全局投影改成正交（且不还原），所以之后还要还原。</li>
  * </ol>
  *
  * <h2>状态保存 / 恢复</h2>
@@ -145,6 +149,13 @@ public final class LaneRenderer {
     /** 当前正在渲染的 lane 的内容开关；lane pass 之外为 {@code null}（主画面不受内容开关影响）。 */
     private static LaneContent activeContent;
 
+    /**
+     * 是否正处在"主画面自己的描边"那一次 {@code doEntityOutline} 调用内（{@link #render} 在 lane 块
+     * 开头发起）。lane pass 内外的区分用 {@link #activeContent}，主画面那次与渲染之后原版那次都在
+     * lane pass 之外，只能靠这个标记区分——见 {@code LevelRendererMixin} 的描边屏蔽判定。
+     */
+    private static boolean mainOutlinePass;
+
     private LaneRenderer() {
     }
 
@@ -231,9 +242,16 @@ public final class LaneRenderer {
         Matrix3f prevInverseViewRotation = RenderSystem.getInverseViewRotationMatrix();
 
         try {
-            // 主画面自己的发光描边先落地：lane 会覆盖共享的 entityTarget，原版那次整屏调用已被屏蔽
+            // 主画面自己的发光描边先落地：lane 会覆盖共享的 entityTarget，原版那次整屏调用已被屏蔽。
+            // 这次调用必须放行（否则主画面的发光描边整帧丢失）——用标记把它和"渲染之后原版那次"分开
+            // （两次都在 lane pass 之外，isRenderingLane() 区分不了），见 LevelRendererMixin 的判定。
             main.bindWrite(false);
-            mc.levelRenderer.doEntityOutline();
+            mainOutlinePass = true;
+            try {
+                mc.levelRenderer.doEntityOutline();
+            } finally {
+                mainOutlinePass = false;
+            }
 
             Sink laneSink = this.sink;
             for (int i = 0; i < lanes.size(); i++) {
@@ -242,10 +260,16 @@ public final class LaneRenderer {
                     continue;
                 }
                 renderLane(mc, lane, fbo, main, partialTick, nanoTime);
+                // 调试钩子：合成之前把该 lane 的离屏纹理原始 RGBA 读回写盘（ICINEMATICS_QUADRANT 门控；
+                // 开关外第一行即返回——不读回、不分配、不切 GL 状态，零差异）。见 LaneDebugCapture。
+                LaneDebugCapture.onLaneRendered(i, fbo);
                 if (laneSink != null) {
                     laneSink.laneRendered(i, fbo);
                 }
             }
+            // 调试钩子：本帧全部 lane 合成完之后，把最终屏幕画面读回写盘（ICINEMATICS_QUADRANT 门控；
+            // 开关外第一行即返回——零差异）。见 LaneDebugCapture.onFrameComposed。
+            LaneDebugCapture.onFrameComposed(main);
         } finally {
             activeContent = null;
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
@@ -290,6 +314,11 @@ public final class LaneRenderer {
             // 该 lane 自己的光学参数：走 GameRendererMixin 的 lane 分支（与主相机同一套 fov/zoom 逻辑）
             double fov = gameRendererAccessor.ic$getFov(camera, partialTick, true);
             Matrix4f projection = gameRendererAccessor.ic$getProjectionMatrix(fov);
+            // 全局投影 = 该 lane 的投影（镜像原版 GameRenderer.resetProjectionMatrix 的语义与时机）：
+            // LevelRenderer.renderLevel 自己不设全局投影矩阵（原版靠调用方设），而 lane 里所有走全局矩阵的
+            // 绘制（实体 / 方块实体 / 粒子 / 太阳月亮 / 雨雪 / 世界边界）都吃它——不设就会吃到上一层 pass
+            // 遗留的投影（lane 块开头那次 doEntityOutline → blitToScreen 留下的是正交矩阵），被裁掉。
+            RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
             Matrix4f cullProjection = gameRendererAccessor.ic$getProjectionMatrix(
                     Math.max(fov, (double) mc.options.fov().get()));
             mc.levelRenderer.prepareCullFrustum(poseStack, camera.getPosition(), cullProjection);
@@ -301,7 +330,8 @@ public final class LaneRenderer {
             // lane 自包含（落地要点 ②）：renderLevel 里的后处理链已把描边合成进共享 entityTarget，
             // 此刻 lane 的 FBO 还绑着 → 立刻贴进本 lane 的画面
             mc.levelRenderer.doEntityOutline();
-            // 落地要点 ③：doEntityOutline → blitToScreen 会把全局投影改成正交矩阵，必须还原
+            // 落地要点 ③（出）：doEntityOutline → blitToScreen 会把全局投影改成正交矩阵，必须还原
+            // （与进 renderLevel 之前那次 setProjectionMatrix 成对；这里还原成 lane 自己的投影）
             RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
         } finally {
             activeContent = null;
@@ -360,6 +390,14 @@ public final class LaneRenderer {
     /** 是否正在某个 lane 的 pass 内（lane 自包含分流 + 内容开关判定用）。 */
     public static boolean isRenderingLane() {
         return activeContent != null;
+    }
+
+    /**
+     * 是否正在"主画面自己的描边"那一次 {@code doEntityOutline} 调用内（{@link #render} 在 lane 块开头
+     * 发起）。原版渲染之后那次整屏描边要被屏蔽，这一次必须放行——见 {@code LevelRendererMixin}。
+     */
+    public static boolean isMainOutlinePass() {
+        return mainOutlinePass;
     }
 
     /** 本帧是否有活跃 lane（原版整屏描边是否要让位给 lane 内描边）。 */
