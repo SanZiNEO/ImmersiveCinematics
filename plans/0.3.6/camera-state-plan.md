@@ -131,29 +131,26 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 **快照缓存点**（依据实测调用时序定稿）：
 
 单帧 `GameRenderer.renderLevel` 内的实际顺序为
-`getFov`（:1286，早于 camera.setup）→ `camera.setup`（:1308，触发 `CameraMixin.onSetup` → `CameraManager.onRenderFrame`）→ `prepareCullFrustum`（roll，:1324）→ `LevelRenderer.renderLevel`（`setupRender` 视图中心，:1325）。
-`onRenderFrame()` 全仓唯一调用点是 `CameraMixin:97`，即每帧一次。
+`getFov`（:1286）→ `camera.setup`（:1308）→ `prepareCullFrustum`（roll，:1324）→ `LevelRenderer.renderLevel`（`setupRender` 视图中心，:1325）→ **RETURN：`CameraManager.onRenderFrame()`**（帧驱动，2026-10-07 主相机替换链退役后挂点从 `CameraMixin.onSetup` 迁到 `LaneRendererMixin`，每帧一次）。
 
 因此刷新点为：
 
 | 刷新点 | 作用 |
 |---|---|
-| `onRenderFrame()` 帧末 | 本帧最新值；覆盖 onRenderFrame 之后调用的全部读侧（CameraMixin 读取、roll、setupRender） |
+| `onRenderFrame()` 帧末 | 本帧最新值；覆盖 onRenderFrame 之后调用的全部读侧（lane 收集、听者、预加载、预览 HUD） |
 | `onRenderFrame()` 开头 `!active` 分支 | 置 null（`refreshCameraState()` 在 `!active` 时即置 null） |
-| `deactivateNow()` 末尾 | 停用即失效；且该处末尾可能接播 `pendingScript`/队列（`active` 又为 true），须重建为接播后的最新值——否则本帧 Mixin 读到 null 而原实现读到接播脚本首帧值 |
-| `previewSetCamera()` / `setCameraDirect()` | **直写穿透**：`getFov` 在 `onRenderFrame` 之前调用，直控直写必须立即可见，否则本帧投影 FOV 滞后一帧（与改造前不一致） |
+| `deactivateNow()` 末尾 | 停用即失效；且该处末尾可能接播 `pendingScript`/队列（`active` 又为 true），须重建为接播后的最新值——否则本帧读侧读到 null 而原实现读到接播脚本首帧值 |
+| `previewSetCamera()` / `setCameraDirect()` | **直写穿透**：直控直写必须立即对读侧可见，否则预览 HUD / 飞控读数滞后一帧 |
 
-`getFov` 早于本帧 `onRenderFrame`：它读到的快照 = 上一帧 `onRenderFrame` 的值，与改造前读"上一帧写入的 live 值"完全等价（脚本写入只发生在 `onRenderFrame` 内）。同帧内多次读取同一份快照，天然一致。
+**读侧切换清单（0.3.6 两次落地）**：
 
-**Mixin 切换清单**（本任务已落地）：
+| 阶段 | 文件 | 改动 |
+|---|---|---|
+| 统一状态（已落地） | `mixin/CameraMixin.java` / `GameRendererMixin.java` / `LevelRendererMixin.java` | 改读 `mgr.getCameraState()`（`state.position()/yaw()/pitch()/roll()/fov()/zoom()`），保留各自 guard |
+| **主相机替换链退役（2026-10-07）** | `mixin/CameraMixin.java` / `GameRendererMixin.java` / `LevelRendererMixin.java` | **渲染侧读点全部删除**：lane 相机读自己的 `CameraLane` 快照（`LaneRenderer` 逐 lane 渲染）；主相机不再被接管。`LevelRendererMixin` 的视图中心改写收窄为 lane 专用 |
+| 同上 | `AudioListenerController` / `PreloadRequester` / `WebPreviewScreen` | 保留 `getCameraState()`（值 = 顶层实例顶层活跃 clip 六参数，与最上层 lane 同源同值）；听者相机另加 `cameraListener()` 代理（原版听者相机随主链退役变成玩家相机） |
 
-| 文件 | 改动 |
-|---|---|
-| `mixin/CameraMixin.java` | 删除 `getPath().getPosition()` / `getProperties().getYaw()/getPitch()`；改读 `mgr.getCameraState()`（`state.position()/yaw()/pitch()`）；`isActive` / `hasActiveCameraClip` guard 原样保留，新增 `state == null` 防御回落 |
-| `mixin/GameRendererMixin.java` | `onGetFov`：`state.fov()/state.zoom()`；roll 钩子：`state.roll()`；`isActive && hasActiveCameraClip` guard 原样保留 |
-| `mixin/LevelRendererMixin.java` | `cinematicViewCenter()`：改读 `state.position()`；`isActive` / `isPreviewMode` guard 原样保留 |
-
-验证：`sh gradlew compileJava` 通过；`grep -r "CameraPath\|CameraProperties" mixin/` 零命中。`proto/QuadrantProto` 原型分支仍用其自有的 per-camera `CameraPath`/`CameraProperties`（不在本任务范围）。
+验证：`sh gradlew compileJava` 通过；`grep -r "CameraPath\|CameraProperties" mixin/` 零命中（渲染 Mixin 不再接触内部可变对象）。
 
 > **补充（原型实测）**：多相机（多 lane）时，除了这 6 个参数，**渲染状态**（可见区块集合 / 遮挡剔除 / frustum）也要按 lane 独立——目前它们在 `LevelRenderer` 上是单份共享状态，多 lane 会互相重建（表现为画面来回闪）；原型用"整帧统一决定"过渡，正式实现要每 lane 各自维护。见 `quadrant-prototype-results.md` §3.5。
 
@@ -166,6 +163,8 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 - 编辑器直控 / 飞行：变成 Base Provider
 - Mixin / 渲染层：只读统一状态
 - **多相机落地后（2026-10-07 架构推论）**：主画面也是全屏 lane（见[并行播放](./parallel-playback.md) §3.3）——现有"单相机替换"链（`CameraMixin` 主相机分支、`GameRendererMixin` getFov / roll、`LevelRendererMixin` 视图中心、`CinematicOcclusion` 整帧决策）成为过渡实现，最终不再被调用 / 删除；相机状态（`CameraPath` / `CameraProperties` 六参数）转为**每个 lane 一份**，渲染钩子改为按 lane 应用
+  - **✅ 已落地（2026-10-07）**：主相机分支 / 主相机 getFov / roll 钩子已删除；视图中心改写收窄为 lane 专用（读正在渲染的 lane 自己的相机位置）；`CinematicOcclusion` 保留但输入改为 lane 相机（整帧统一仍必需——可见集合共享单份）；帧驱动挂点迁到 `LaneRendererMixin`；听者相机改由 `AudioListenerController.cameraListener()` 提供。逐点清单见[并行播放](./parallel-playback.md) §3.3 落地记录。
+  - **未做**：每 lane 一份 `CameraPath` / `CameraProperties`（lane 相机状态来自 `CameraLane` 快照，但全局 `activePath` / `activeProperties` 仍由顶层 clip 写入、供统一快照的 3 个非渲染消费方读取）；每 lane 独立可见集合 / 遮挡剔除状态。
 - `CameraPath` / `CameraProperties`：可能保留为内部实现，也可能被状态 buffer 取代
 - 外部 API：Phase 2/3，内部稳定后再评估
 

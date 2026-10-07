@@ -9,6 +9,7 @@
     "BiomeAmbientSoundsHandlerMixin",
     "BossHealthOverlayMixin",
     "BubbleColumnAmbientSoundHandlerMixin",
+    "CameraAccessor",
     "CameraMixin",
     "ChatComponentMixin",
     "ClientChunkCacheMixin",

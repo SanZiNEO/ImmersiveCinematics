@@ -13,15 +13,17 @@ import net.minecraft.world.phys.Vec3;
  * <ul>
  *   <li>不可变快照 — record 的六个分量在构造后不可更改；</li>
  *   <li>由 {@link CameraManager} 在每帧更新末尾从内部状态（{@code activePath} /
- *       {@code activeProperties} 的 current 值）生成并缓存，Mixin 只读该缓存；</li>
+ *       {@code activeProperties} 的 current 值）生成并缓存；主相机替换链退役后读侧为
+ *       {@code AudioListenerController}（听者位置/听者相机代理）、{@code PreloadRequester}
+ *       （预加载中心）、{@code WebPreviewScreen}（预览 HUD）；</li>
  *   <li><b>不活跃的表示是 {@code null} 快照</b>（{@code CameraManager.getCameraState()}
  *       在无活跃相机时返回 {@code null}），而不是“零值 CameraState”——
  *       这样读侧可原样保留各自的 isActive / 回落 guard，边界行为不变；</li>
  *   <li>因此 {@link #position()} 在实例存在时恒非 {@code null}。</li>
  * </ul>
  * <p>
- * 应用点（与设计文档 §6 一致）：position/yaw/pitch → {@code CameraMixin}；
- * roll → {@code GameRendererMixin}（PoseStack）；fov/zoom → {@code GameRendererMixin.getFov}。
+ * 应用点：lane 相机（{@code LaneRenderer} 逐 lane 渲染）用自己的 {@code CameraLane} 快照
+ * （同源同值），不再经本快照；主相机不再被接管（主画面 = 全屏 lane 特例）。
  */
 public record CameraState(Vec3 position, float yaw, float pitch, float roll, float fov, float zoom) {
 }

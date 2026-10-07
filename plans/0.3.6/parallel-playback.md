@@ -73,6 +73,23 @@
 > 随之而来：现有"把虚拟相机写进唯一主 `Camera`"的替换链路——`CameraMixin` 主相机分支、`GameRendererMixin` 的 getFov / roll 分支、`LevelRendererMixin` 视图中心改写、`CinematicOcclusion` 整帧遮挡决策——在理想态下是**过渡实现**，最终随 lane 化收敛（不再被调用 / 删除）。
 > 两点保留：① 每个 lane 的相机仍复用"把模组相机状态写进一个 `Camera` 实例 + 独立投影"的机制（四象限原型已验证）；② 单 lane 全屏（dest=全屏、opacity=1）可作为优化走旧路径省一遍渲染（每 lane ≈3.4–3.6 ms），是否保留执行时定。
 
+**✅ 落地（2026-10-07，主相机替换链退役）**：主画面不再走单相机替换路径，画面完全由 lane 合成层承担；零 lane 时 = 原版视角（回归 vanilla）。逐点处置：
+
+| 项 | 处置 |
+|---|---|
+| `CameraMixin.onSetup` 主相机分支 | **删除**（lane 分支保留：lane 相机仍写自己的 `Camera` 实例 = 保留点 ①） |
+| `CameraMixin.onGetEntity` / `onIsDetached` 主分支 | **删除**（lane 分支保留） |
+| `GameRendererMixin.onGetFov` 主分支 | **删除**（lane 分支保留：lane 自己的 fov/zoom → 生效 FOV） |
+| `GameRendererMixin` roll 主相机钩子（`onBeforePrepareCullFrustum`） | **删除**（lane 的 roll 本就在 `LaneRenderer.renderLane` 内施加到该 lane 的 PoseStack） |
+| `LevelRendererMixin` 视图中心改写（`ModifyVariable` ×3） | **收窄为 lane 专用**：读**正在渲染的 lane 自己**的相机位置（`LaneRenderer.currentLane()`），非 lane pass 回落原版玩家坐标——直接删会让相机飞出玩家渲染距离后 lane 画面空洞 |
+| `CinematicOcclusion` 整帧遮挡决策 | **保留但输入改为 lane 相机**：去掉主相机输入（原版 `player.isSpectator()` 判定对原版玩家相机本就正确）。可见区块集合仍是单份共享状态，故整帧统一必须保留（per-lane 独立可见性是长期方向） |
+| 帧驱动 `CameraManager.onRenderFrame()` | **挂点迁移**：原唯一调用点 `CameraMixin.onSetup`（主相机）→ `LaneRendererMixin`（`GameRenderer.renderLevel` RETURN）开头，保证「先驱动（填 lane 快照）→ 再注册与渲染 lane」 |
+| 听者相机（`SoundManagerMixin`） | **消费方迁移**：原版 `Minecraft.tick` 传的是主相机，退役后主相机 = 玩家相机 → `listener=camera` 改由 `AudioListenerController.cameraListener()` 显式提供镜头代理（`CameraAccessor` 写位置/朝向/initialized） |
+| `getCameraState()` 快照 | **保留**（仍有消费方：听者位置/听者相机代理、区块预加载中心、预览 HUD）；值 = 顶层实例顶层活跃 clip 六参数，与最上层 lane 同源同值 |
+
+> 未保留点 ②：单 lane 全屏优化未做——一律走全 lane 渲染（每 lane ≈3.4–3.6 ms）。
+> 已知后果：渲染优化模组（Sodium / Embeddium）下 lane 渲染被禁用 → 退役后主画面不再被接管，过场看不到相机画面（退役前旧链在 Sodium 下仍生效）。
+
 ### 3.4 叠加秩序（已确认·2026-10-07）
 
 **后来者居上（整体分层）**：实例**整体**按启动顺序叠放——后启动实例的**全部输出**（其所有 lane 与 OVERLAY/LETTERBOX）整体在上，前者的整体在下；**实例内部各自保持自己的顺序**（轨道层级 → 轨道内 clip 顺序（后面的在上）→ 层内 `z_index`）。**不做跨实例的逐 lane 混排**。多相机就是"相机有什么覆盖就放什么"。

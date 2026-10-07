@@ -1,7 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
-import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
-import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -26,14 +24,15 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 渲染视图中心跟随相机（0.3.5 第3轮-B v5）：
+ * 渲染视图中心跟随相机（0.3.5 第3轮-B v5；0.3.6 主相机替换链退役后收窄为 <b>lane 专用</b>）：
  * 1.20.1 的 {@code LevelRenderer.setupRender} 用 {@code minecraft.player} 坐标计算 ViewArea
  * （可见/待建渲染区块）中心——相机飞出玩家渲染距离后，区块即使已加载到客户端缓存也不被构建/渲染。
  * <p>
- * 本 Mixin 在过场激活且非预览时，把 {@code setupRender} 里的玩家坐标局部变量
- * {@code d0/d1/d2} 替换为相机坐标；后续 {@code SectionPos.posToSectionCoord}
- * 与 {@code ViewArea.repositionCamera} 都会自然使用相机坐标。
- * 非过场/预览保持原样（用玩家）。
+ * 本 Mixin 把 {@code setupRender} 里的玩家坐标局部变量 {@code d0/d1/d2} 替换为<b>正在渲染的
+ * lane 自己的</b>相机坐标（{@link LaneRenderer#currentLane()}）；后续
+ * {@code SectionPos.posToSectionCoord} 与 {@code ViewArea.repositionCamera} 都会自然使用该坐标。
+ * 非 lane pass（原版主画面）返回 {@code null}，保持原版玩家坐标——主相机替换链已退役
+ * （见 plans/0.3.6/parallel-playback.md §3.3）。
  */
 @Mixin(LevelRenderer.class)
 public class LevelRendererMixin {
@@ -59,10 +58,10 @@ public class LevelRendererMixin {
         return v != null ? v.z : coord;
     }
 
+    /** 正在渲染的 lane 的相机位置；lane pass 之外（主画面）为 {@code null} = 用原版玩家坐标。 */
     private static Vec3 cinematicViewCenter() {
-        if (!CameraManager.INSTANCE.isActive() || CameraManager.INSTANCE.isPreviewMode()) return null;
-        CameraState state = CameraManager.INSTANCE.getCameraState();
-        return state != null ? state.position() : null;
+        LaneRenderer.Lane lane = LaneRenderer.currentLane();
+        return lane != null ? lane.state().position() : null;
     }
 
     // ===== 相机在实心方块里：照搬原版旁观者那条逻辑（按帧统一决定）=====
@@ -84,9 +83,10 @@ public class LevelRendererMixin {
      *     bl3 = false;   // 旁观者在实心方块里 → 关掉遮挡剔除
      * }
      * </pre>
-     * 我们的相机自由穿墙、等价于旁观者，所以套用同一条件——但**按帧统一决定**
+     * lane 相机自由穿墙、等价于旁观者，所以套用同一条件——但**按帧统一决定**
      * （见 {@link CinematicOcclusion}）：可见区块集合是共享状态，逐 pass 用不同的值会互相重建，
-     * 表现为画面在"塌缩 / 完整"之间来回闪。
+     * 表现为画面在"塌缩 / 完整"之间来回闪。原版主画面由原版自己的旁观者判定处理（相机即玩家相机），
+     * 不再由本模组改写。
      */
     @Inject(method = "setupRender", at = @At("HEAD"))
     private void immersivecinematics_applyCameraOcclusion(Camera camera, Frustum frustum,

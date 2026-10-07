@@ -149,6 +149,9 @@ public final class LaneRenderer {
     /** 当前正在渲染的 lane 的内容开关；lane pass 之外为 {@code null}（主画面不受内容开关影响）。 */
     private static LaneContent activeContent;
 
+    /** 当前正在渲染的 lane 槽位；lane pass 之外为 {@code null}（主画面 pass）。 */
+    private static Lane activeLane;
+
     /**
      * 是否正处在"主画面自己的描边"那一次 {@code doEntityOutline} 调用内（{@link #render} 在 lane 块
      * 开头发起）。lane pass 内外的区分用 {@link #activeContent}，主画面那次与渲染之后原版那次都在
@@ -272,6 +275,7 @@ public final class LaneRenderer {
             LaneDebugCapture.onFrameComposed(main);
         } finally {
             activeContent = null;
+            activeLane = null;
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
             RenderSystem.setProjectionMatrix(prevProjection, prevSorting);
             RenderSystem.setInverseViewRotationMatrix(prevInverseViewRotation);
@@ -291,6 +295,7 @@ public final class LaneRenderer {
         // 渲染期间让原版所有 getMainRenderTarget() 引用都落在该 lane 的 FBO 上（落地要点 ①）
         ((MinecraftAccessor) mc).ic$setMainRenderTarget(fbo);
         activeContent = lane.content;
+        activeLane = lane;
         try {
             fbo.bindWrite(true);   // 绑定 FBO + 视口 = FBO 全尺寸
 
@@ -311,7 +316,7 @@ public final class LaneRenderer {
             }
             RenderSystem.setInverseViewRotationMatrix(new Matrix3f(poseStack.last().normal()).invert());
 
-            // 该 lane 自己的光学参数：走 GameRendererMixin 的 lane 分支（与主相机同一套 fov/zoom 逻辑）
+            // 该 lane 自己的光学参数：走 GameRendererMixin 的 lane 分支（fov/zoom → 生效 FOV，含畸变保护）
             double fov = gameRendererAccessor.ic$getFov(camera, partialTick, true);
             Matrix4f projection = gameRendererAccessor.ic$getProjectionMatrix(fov);
             // 全局投影 = 该 lane 的投影（镜像原版 GameRenderer.resetProjectionMatrix 的语义与时机）：
@@ -335,6 +340,7 @@ public final class LaneRenderer {
             RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
         } finally {
             activeContent = null;
+            activeLane = null;
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
         }
     }
@@ -385,6 +391,15 @@ public final class LaneRenderer {
     public static Lane laneOf(Camera camera) {
         LaneRenderer renderer = INSTANCE;
         return renderer.activeCount == 0 ? null : renderer.byCamera.get(camera);
+    }
+
+    /**
+     * 正在渲染的 lane 槽位；lane pass 之外为 {@code null}（= 主画面 pass）。
+     * <p>视图中心改写（{@code LevelRendererMixin}）据此取<b>该 lane 自己</b>的相机位置：
+     * 每个 lane 的区块构建/可见集中心 = 它自己的相机（主画面回落原版玩家坐标）。
+     */
+    public static Lane currentLane() {
+        return activeLane;
     }
 
     /** 是否正在某个 lane 的 pass 内（lane 自包含分流 + 内容开关判定用）。 */

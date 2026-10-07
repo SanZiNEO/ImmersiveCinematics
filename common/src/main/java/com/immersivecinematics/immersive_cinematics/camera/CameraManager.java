@@ -75,7 +75,7 @@ public class CameraManager {
      * <p>
      * 预览状态本身收敛在 {@link #previewInstance} 上（时钟 = {@link #previewTime}、暂停态 =
      * {@link #previewPaused}）；本标志只表示"编辑器预览通道已接管"，供 {@link #isPreviewMode()} 的
-     * 消费方（玩家移动 / 视图中心 / 区块预加载 / 编辑器状态回传）判读。
+     * 消费方（玩家移动 / 区块预加载 / 编辑器状态回传）判读。
      */
     private boolean previewMode = false;
     private boolean previewPaused = true;
@@ -661,6 +661,10 @@ public class CameraManager {
      *       其余实例继续播放；</li>
      *   <li>最后一个实例退出后由 {@code deactivateNow} 复位全局状态（相机、时钟、覆盖层、行为开关）。</li>
      * </ol>
+     *
+     * <p>调用点：{@code LaneRendererMixin}（{@code GameRenderer.renderLevel} 的 RETURN）开头，
+     * 每个渲染帧一次；主相机替换链退役前挂点在 {@code CameraMixin.onSetup}（主相机 setup）。
+     * 顺序要求：必须早于 {@code ScriptLaneDriver.tick} —— 后者读的就是本方法填好的 lane 快照。</p>
      */
     public void onRenderFrame() {
         if (instances.isEmpty()) {
@@ -786,8 +790,8 @@ public class CameraManager {
         cachedHasActiveCameraClip = anyActiveCameraClip;
         cachedTopInstanceHasActiveCameraClip = topActiveCameraClip;
 
-        // 帧末统一生成/替换快照：本帧所有渲染侧读取（含 onRenderFrame 之后调用的
-        // CameraMixin 读取、roll、setupRender）都拿到这一份，且同帧内多次读取一致。
+        // 帧末统一生成/替换快照：本帧所有渲染侧读取（lane 收集、听者、预加载、预览 HUD）
+        // 都拿到这一份，且同帧内多次读取一致。
         refreshCameraState();
     }
 
@@ -929,7 +933,9 @@ public class CameraManager {
         }
     }
 
-    // ========== Mixin 读取接口 ==========
+    // ========== 全局相机状态（写侧 = 轨道播放器，读侧 = 统一快照）==========
+    // 主相机替换链退役后，这两个内部对象不再被渲染 Mixin 读取：唯一写入者是轨道播放器
+    // （CameraTrackPlayer 每帧把顶层 clip 的六参数写进来），唯一读侧是下面的统一快照。
 
     public CameraProperties getProperties() {
         return activeProperties;
@@ -942,10 +948,17 @@ public class CameraManager {
     /**
      * 统一只读相机状态快照（本帧最新值）；无活跃相机时为 {@code null}。
      * <p>
+     * 值 = 本帧最后写入全局相机状态的实例（= 顶层实例）的顶层活跃 clip 六参数，与画面 lane 里
+     * 最上层那条 lane 的 {@link CameraState} 同源同值（{@code CameraTrackPlayer.writeAttributes}
+     * 写全局状态并返回同一份快照）。
+     * <p>
      * 由 {@link #refreshCameraState()} 在每帧更新末尾（{@code onRenderFrame}）、
      * 停用/重启（{@code deactivateNow} / {@code startScriptInternal}）与所有直写入口
      * （{@code previewSetCamera} / {@code setCameraDirect}）处刷新，
      * 保证任何写入后立即反映新值、同一帧内多次读取结果一致。
+     * <p>
+     * 消费方（主相机替换链退役后）：{@code AudioListenerController}（听者位置）、
+     * {@code PreloadRequester}（区块预加载中心）、{@code WebPreviewScreen}（预览 HUD 显示）。
      */
     public CameraState getCameraState() {
         return cameraState;

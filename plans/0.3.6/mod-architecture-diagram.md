@@ -1,7 +1,7 @@
 ```mermaid
 flowchart LR
     %% 图注（2026-10-07）：
-    %% - 主画面 = 全屏 lane 特例；单相机替换链（CameraMixin 主相机分支 / GameRendererMixin getFov·roll / LevelRendererMixin 视图中心 / CinematicOcclusion）为过渡实现，lane 化后收敛
+    %% - 主画面 = 全屏 lane 特例；单相机替换链（CameraMixin 主相机分支 / GameRendererMixin getFov·roll / LevelRendererMixin 视图中心 / CinematicOcclusion）已于 2026-10-07 退役（视图中心改写收窄为 lane 专用、遮挡决策改为 lane 相机驱动；见 parallel-playback.md §3.3 落地记录）
     %% - 转场 / 模板 / 调色是应用层：全部由关键帧数据驱动（轨道 → clip → 关键帧），不写死代码
     %% - 片段时间允许重叠（hold 复制延长），叠化 = 重叠窗口 + opacity 关键帧；黑场 / 白场 = OVERLAY 轨预配置 clip
     %% - 叠放层级：实例**整体**按启动顺序（后来者居上；实例内各自顺序 = 轨道层级 → 轨道内 clip 顺序（后面在上）→ z_index）

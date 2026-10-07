@@ -300,10 +300,11 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 | `mixin/LaneRendererMixin.java` | 挂点：`GameRenderer.renderLevel` RETURN → 驱动调试入口 + `LaneRenderer.render(...)` |
 | `mixin/GameRendererAccessor.java` | `@Invoker`：`getProjectionMatrix(double)` / `getFov(Camera,float,boolean)`（复刻原版投影与光学参数） |
 | `mixin/MinecraftAccessor.java` | `@Accessor @Mutable mainRenderTarget`（lane 期间指向 lane FBO） |
-| `mixin/CameraMixin.java` / `GameRendererMixin.java` | lane 分支：把 lane 的 `CameraState`（position/yaw/pitch、fov/zoom）写进该 lane 的独立 `Camera` 实例；`getEntity` / `isDetached` 与主相机分支同义 |
-| `mixin/LevelRendererMixin.java` | 原版整屏描边屏蔽（有活跃 lane 时）+ 内容开关（`renderSky` / `renderClouds` / `renderSnowAndRain` / `renderEntity`） |
+| `mixin/CameraAccessor.java` | `@Invoker setPosition/setRotation` + `@Accessor initialized`（听者相机代理：listener=camera 时把原版听者搬到镜头位置） |
+| `mixin/CameraMixin.java` / `GameRendererMixin.java` | lane 分支：把 lane 的 `CameraState`（position/yaw/pitch、fov/zoom）写进该 lane 的独立 `Camera` 实例（`getEntity` / `isDetached` 同样按 lane 判定）。主相机分支已于 2026-10-07 退役删除 |
+| `mixin/LevelRendererMixin.java` | lane 视图中心（`setupRender` 的 `ModifyVariable` ×3 读正在渲染的 lane 自己的相机位置；非 lane pass 用玩家坐标）+ 遮挡剔除整帧包夹（`CinematicOcclusion`）+ 原版整屏描边屏蔽（有活跃 lane 时）+ 内容开关（`renderSky` / `renderClouds` / `renderSnowAndRain` / `renderEntity`） |
 | `mixin/ParticleEngineMixin.java` | 内容开关：粒子 |
-| `camera/CinematicOcclusion.java` | 遮挡剔除整帧统一决策，判定输入改为"任一 lane 相机 **或** 主画面模组相机在实心方块里" |
+| `camera/CinematicOcclusion.java` | 遮挡剔除整帧统一决策，判定输入 = 任一 **lane** 相机在实心方块里（2026-10-07 主相机替换链退役后去掉主相机输入） |
 
 ### 12.2 lane 状态与接入点
 

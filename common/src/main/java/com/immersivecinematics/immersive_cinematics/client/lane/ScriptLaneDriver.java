@@ -47,10 +47,12 @@ import java.util.Map;
  * 主画面同内容：实体 / 粒子 / 天空 / 天气全开。{@code WORLD_ONLY} 只画地形——全屏 lane 下玩家会看不到
  * 生物 / 掉落物 / 天空 / 雨雪，叠化的两帧也不一致。
  *
- * <h2>过渡期（双渲染）</h2>
- * 主相机替换链（{@code CameraMixin} 等）仍在驱动原版视角（退役在队列最后一个任务），lane 是叠加层：
- * 全屏、opacity=1 的 lane 视觉与主画面一致（盖住即可）；但 {@code dest} 非全屏时，下面那张全屏主画面
- * 仍会露出来——「合成层输出 = 玩家看到的画面」要等主链退役才完全成立。
+ * <h2>画面 = 合成层输出（主相机替换链已退役）</h2>
+ * 主相机替换链（{@code CameraMixin} 主相机分支 / {@code GameRendererMixin} getFov·roll /
+ * {@code LevelRendererMixin} 视图中心 / {@code CinematicOcclusion} 整帧遮挡决策）已退役
+ * （plans/0.3.6/parallel-playback.md §3.3）：原版主相机照常走玩家视角，玩家看到的画面 = 本类收集的
+ * lane 经合成层铺屏的结果——「dest 全屏、opacity=1」的 lane 就是主画面特例，零 lane 时回落原版视角。
+ * 视图中心与遮挡剔除的整帧决策改为 <b>lane 驱动</b>（读正在渲染的 lane 自己的相机）。
  *
  * <h2>与调试驱动共存</h2>
  * 脚本 lane 与 {@link LaneDebugDriver}（{@code -Dicinematics.quadrant}）互斥：本类每帧先清空 lane，

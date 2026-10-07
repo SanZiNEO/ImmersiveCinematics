@@ -6,11 +6,9 @@ import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
-import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -21,8 +19,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class GameRendererMixin {
 
     /**
-     * 每帧开始：按帧统一决定"相机在实心方块里 → 关掉遮挡剔除"（原版旁观者语义）。
+     * 每帧开始：按帧统一决定"lane 相机在实心方块里 → 关掉遮挡剔除"（原版旁观者语义）。
      * 见 {@link CinematicOcclusion}——可见区块集合是共享状态，必须整帧一致，否则画面会来回闪。
+     * 主画面（原版玩家相机）不在判定输入内：原版 {@code player.isSpectator()} 那条判定对它本就正确。
      */
     @Inject(method = "render", at = @At("HEAD"))
     private void onRenderFrameStart(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
@@ -32,19 +31,12 @@ public abstract class GameRendererMixin {
     @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
     private void onGetFov(Camera camera, float partialTick, boolean useFOVSetting,
                           CallbackInfoReturnable<Double> cir) {
-        // lane 相机（多相机渲染底层）：用自己的 fov/zoom，与下方生产分支同一套光学逻辑
+        // lane 相机（多相机渲染底层）：用自己的 fov/zoom。
+        // 非 lane 相机（原版主相机）放行原版结果——主相机替换链已退役。
         LaneRenderer.Lane lane = LaneRenderer.laneOf(camera);
         if (lane != null) {
             CameraState laneState = lane.state();
             cir.setReturnValue(ic$effectiveFov(laneState.fov(), laneState.zoom()));
-            return;
-        }
-        CameraManager mgr = CameraManager.INSTANCE;
-        if (mgr.isActive() && mgr.hasActiveCameraClip()) {
-            CameraState state = mgr.getCameraState();
-            if (state != null) {
-                cir.setReturnValue(ic$effectiveFov(state.fov(), state.zoom()));
-            }
         }
     }
 
@@ -90,33 +82,6 @@ public abstract class GameRendererMixin {
     }
 
     // ===== 相机 Roll（翻滚角）=====
-
-    /**
-     * 在相机朝向（yaw/pitch）应用到 PoseStack 之后、世界渲染之前，施加 Roll 旋转。
-     * <p>
-     * 原版 1.20.1 的视图矩阵由 getXRot()/getYRot() 标量绕世界轴构造，
-     * 没有 roll 通道（Camera.rotation() 四元数不参与视图矩阵）。
-     * 因此必须绕<b>相机视线轴</b>（getLookVector()，含 yaw/pitch 的世界前向）
-     * 旋转 roll——绕世界 Z 轴会在不同朝向下漂移（朝东变俯仰、朝北变逆时针）。
-     * 此写法在任何朝向下 roll>0 均为屏幕空间顺时针（画面向右倒）。
-     */
-    @Inject(method = "renderLevel",
-            at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/client/renderer/LevelRenderer;prepareCullFrustum(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/world/phys/Vec3;Lorg/joml/Matrix4f;)V",
-                    shift = At.Shift.BEFORE))
-    private void onBeforePrepareCullFrustum(float partialTick, long nanoTime, PoseStack poseStack, CallbackInfo ci) {
-        CameraManager mgr = CameraManager.INSTANCE;
-        if (mgr.isActive() && mgr.hasActiveCameraClip()) {
-            CameraState state = mgr.getCameraState();
-            if (state == null) {
-                return;
-            }
-            float rollDeg = state.roll();
-            if (rollDeg != 0.0F) {
-                Vector3f look = Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
-                // 绕视线轴正角度 = 从观众视角逆时针，取反使 roll>0 为屏幕顺时针（画面向右倒）
-                poseStack.mulPose(Axis.of(look).rotationDegrees(-rollDeg));
-            }
-        }
-    }
+    // 主相机的 roll 钩子已随主相机替换链退役删除（lane 的 roll 在 LaneRenderer.renderLane 内
+    // 施加到该 lane 自己的 PoseStack 上：绕相机视线轴旋转，roll>0 = 屏幕空间顺时针）。
 }

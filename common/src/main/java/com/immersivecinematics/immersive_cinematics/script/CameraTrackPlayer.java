@@ -35,7 +35,7 @@ public class CameraTrackPlayer implements TrackPlayer {
      * 时间重叠窗口内每个活跃 clip 各产一份（如叠化：上一个 clip 的 hold 尾帧 + 下一个 clip 的 hold 首帧）；
      * 无重叠时只有顶层一份。空列表 = 本轨本帧不产出画面（片段间隙 / 目标不可用 / 编辑器直控）。
      * <p>
-     * <b>主相机 = 列表最后一个元素</b>（顶层活跃 clip，即写入全局 {@link CameraManager} 的那一份状态，零回归）。
+     * <b>顶层相机 = 列表最后一个元素</b>（顶层活跃 clip，即写入全局 {@link CameraManager} 的那一份状态）。
      * morph 过渡窗口是旧模型（两 clip 混合成一份相机状态），本轨本帧仍只产出一份 lane
      * （合成参数取进入的片段 {@code next}，见 {@link #onRenderFrame(float)}）。
      */
@@ -133,7 +133,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     /**
      * 本轨本帧的画面 lane 快照列表。
      *
-     * @return 按轨道内 clip 顺序排列的快照（后面的在上，最后一个是主相机）；
+     * @return 按轨道内 clip 顺序排列的快照（后面的在上，最后一个是顶层相机）；
      *         空列表 = 本轨本帧不产出画面（片段间隙 / 目标不可用 / 编辑器直控）
      */
     public List<CameraLane> getLaneSnapshots() {
@@ -207,7 +207,7 @@ public class CameraTrackPlayer implements TrackPlayer {
             return;
         }
 
-        // 顶层 clip：正常求值（写全局相机状态 = 主相机，零回归）
+        // 顶层 clip：正常求值（写全局相机状态，与顶层 lane 同源同值）
         CameraLane topLane = renderSingle(globalTime, topClip, globalTime - topClip.getStartTime(), false);
         // 重叠窗口内层级在下的活跃 clip：先捕获（列表顺序 = 绘制顺序，后面的在上）
         captureLowerLanes(globalTime, active, topClip);
@@ -378,7 +378,7 @@ public class CameraTrackPlayer implements TrackPlayer {
      * <p>
      * 与顶层 clip 走<b>同一条求值链</b>（位置 / 朝向 / 注视 / 呼吸），只是"只捕获不写"：
      * <ul>
-     *   <li>不写全局 {@link CameraManager}（主相机仍由顶层 clip 决定）；</li>
+     *   <li>不写全局 {@link CameraManager}（全局相机状态仍由顶层 clip 决定）；</li>
      *   <li>不写 {@link #lastWorldPos}（跨 clip 的求值状态不被污染）；</li>
      *   <li>本帧基准坐标系（{@link #frameValid} / frameFwd / frameRight / frameUp）事后还原；</li>
      *   <li>目标锁状态（{@link #targetLocks}）在捕获前后整体还原——每个 clip 都从同一份锁状态出发

@@ -5,13 +5,15 @@ import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
+import com.immersivecinematics.immersive_cinematics.mixin.CameraAccessor;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 
 /**
- * 音频听者控制（0.3.5 第4轮 A）：
- * 脚本 meta.listener == "camera" → 由 CameraMixin 让原版用电影相机（天然成立）；
- * == "player"（默认）→ 由 {@code SoundManagerMixin} 每帧把 listener 设为玩家视角代理。
+ * 音频听者控制（0.3.5 第4轮 A；0.3.6 主相机替换链退役后听者相机全部由代理提供）：
+ * 脚本 meta.listener == "camera" → 听者相机 = 镜头代理（{@link #cameraListener()}，位置/朝向取自
+ * 统一相机状态快照）；== "player"（默认）→ 听者相机 = 玩家代理（{@link #playerCamera()}）。
+ * 两者都经 {@code SoundManagerMixin} 交给原版 {@code SoundEngine.updateSource}。
  */
 public final class AudioListenerController {
 
@@ -23,7 +25,7 @@ public final class AudioListenerController {
     /** 是否需要在 SoundManager.updateSource 时把听者覆盖为玩家（仅过场激活且有效听者不是相机） */
     public static boolean shouldOverride() {
         // 与 isCameraListener() 同一口径（顶层实例，§3.3），二者恒互补：
-        // 有效听者不是相机 → 覆盖为玩家；是相机 → 不动（CameraMixin 已让原版用电影相机）。
+        // 有效听者不是相机 → 覆盖为玩家；是相机 → 覆盖为镜头代理（cameraListener）。
         return CameraManager.INSTANCE.isActive() && !isCameraListener();
     }
 
@@ -36,8 +38,7 @@ public final class AudioListenerController {
      * 并集会让下层实例的 CAMERA clip 把顶层自身没有 CAMERA clip 时的听者误判为 camera。
      * <p>
      * 必须同时有活跃 CAMERA clip：顶层实例没有 CAMERA clip 时其 {@code meta.listener=camera}
-     * 也回落 player——与 {@code CameraMixin} 释放相机后原版听者实际回落玩家一致
-     * （单实例下与改造前逐点等价）。
+     * 也回落 player——与画面没有 lane 覆盖（= 原版玩家视角）时听者落在玩家一致。
      */
     public static boolean isCameraListener() {
         return CameraManager.INSTANCE.isActive()
@@ -62,6 +63,29 @@ public final class AudioListenerController {
         if (mc.level != null && mc.player != null) {
             proxy.setup(mc.level, mc.player, false, false, 0.0F);
         }
+        return proxy;
+    }
+
+    /**
+     * 构造镜头视角代理 Camera（位置/朝向 = 统一快照 = 顶层实例顶层活跃 clip 的相机状态）。
+     * <p>
+     * 主相机替换链退役后，原版主相机就是玩家相机（{@code Minecraft.tick} 把
+     * {@code gameRenderer.getMainCamera()} 交给 {@code SoundEngine.updateSource}），
+     * listener=camera 不再"天然成立"，必须显式把听者相机搬到镜头位置。
+     * 无快照（本帧无活跃相机）时回落玩家代理，与 {@link #getListenerPosition()} 的回落一致。
+     */
+    public static Camera cameraListener() {
+        CameraState state = CameraManager.INSTANCE.getCameraState();
+        if (state == null) {
+            return playerCamera();
+        }
+        Camera proxy = new Camera();
+        CameraAccessor accessor = (CameraAccessor) (Object) proxy;
+        net.minecraft.world.phys.Vec3 pos = state.position();
+        accessor.ic$setPosition(pos.x, pos.y, pos.z);
+        accessor.ic$setRotation(state.yaw(), state.pitch());
+        // 原版 SoundEngine.updateSource 要求 isInitialized()（原由 Camera.setup 置位）
+        accessor.ic$setInitialized(true);
         return proxy;
     }
 

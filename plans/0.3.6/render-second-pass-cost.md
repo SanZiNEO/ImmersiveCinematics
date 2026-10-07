@@ -25,9 +25,13 @@
 
 ### 1.1 现状：单遍 + 相机替换（不是第二遍）
 
-- `mixin/CameraMixin.java`：`@Inject(method = "setup", at = @At("HEAD"), cancellable = true)`，直接把虚拟相机的位置 / yaw / pitch 写进原版 `Camera`，并置 `initialized = true`。**这是「让主渲染用另一个相机」，不是「再渲染一遍」。**
-- `mixin/GameRendererMixin.java`：`getFov` 覆写（虚拟相机 FOV）、`renderLevel` 内在 `prepareCullFrustum` 之前施加 roll。
-- `mixin/LevelRendererMixin.java`：`setupRender` 内把 ViewArea 中心从玩家坐标改成相机坐标（`ModifyVariable` ×3）。
+> 历史快照（多相机 lane 渲染落地**前**的现状）：主相机替换链已于 2026-10-07 退役
+> （见 `parallel-playback.md` §3.3 落地记录），下面是当时的实现；lane 渲染落地后本模组确实
+> 每帧有多遍世界渲染（每 lane 一遍），本节标题仅描述退役前的主渲染路径。
+
+- `mixin/CameraMixin.java`：~~`@Inject(method = "setup", ...)` 直接把虚拟相机的位置 / yaw / pitch 写进原版 `Camera`~~ **已删除**（现仅 lane 相机写自己的 `Camera` 实例）。**这是「让主渲染用另一个相机」，不是「再渲染一遍」。**
+- `mixin/GameRendererMixin.java`：~~`getFov` 覆写（虚拟相机 FOV）、`renderLevel` 内在 `prepareCullFrustum` 之前施加 roll~~ **主相机分支已删除**（仅保留 lane 分支的 FOV）。
+- `mixin/LevelRendererMixin.java`：`setupRender` 内把 ViewArea 中心从玩家坐标改成相机坐标（`ModifyVariable` ×3）——**现为 lane 专用**：读正在渲染的 lane 自己的相机位置，非 lane pass（原版主画面）保持玩家坐标。
 - `webui/WebFrameCapture.java`：只做「主 framebuffer → 小 FBO → `glReadPixels` 读回」，是**读回**，不是世界再渲染（0.3.6 前 `editor/PreviewCapture.java` 同法，已随游戏内编辑器退役删除）。
 
 → 结论：仓库里**不存在**第二遍世界渲染的实现。`multi-camera-rendering.md` 也自标「📋 方案，未实现」。

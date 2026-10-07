@@ -26,7 +26,7 @@ public interface GameRendererAccessor {
     @Invoker("getProjectionMatrix")
     Matrix4f ic$getProjectionMatrix(double fov);
 
-    /** 复刻原版：{@code GameRenderer.getFov(Camera, float, boolean)}（走 {@code GameRendererMixin} 的 lane / 主相机分支）。 */
+    /** 复刻原版：{@code GameRenderer.getFov(Camera, float, boolean)}（走 {@code GameRendererMixin} 的 lane 分支）。 */
     @Invoker("getFov")
     double ic$getFov(Camera camera, float partialTick, boolean useFovSetting);
 }
