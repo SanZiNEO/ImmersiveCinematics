@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustParams;
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
@@ -14,7 +15,9 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,6 +104,12 @@ public class ScriptPlayer {
 
     // TrackPlayer 调度列表
     private List<TrackPlayer> trackPlayers = Collections.emptyList();
+
+    /**
+     * lane 级调色归集表（目标 CAMERA 轨序号 → 参数），{@link #collectCameraLanes()} 每帧重填：
+     * 跨帧复用同一张 map（无 lane 级 ADJUST 时只清空、零分配）。
+     */
+    private final Map<Integer, ColorAdjustParams> laneAdjustByCameraTrack = new HashMap<>();
 
     /** 组 A：按轨道索引取 clips（动态数据源；支持同类型多条轨道——OVERLAY 多轨道） */
     public List<Clip> clipsForTrack(int trackIndex) {
@@ -371,19 +380,36 @@ public class ScriptPlayer {
      * <b>顶层相机 = 列表最后一个元素</b>（轨道层级最后的活跃轨的顶层活跃 clip，即写入全局
      * {@link CameraManager} 的那一份状态）。本方法只读快照，不改变相机行为。
      * <p>
-     * 每份快照携带产出它的片段与该片段内的本地时间（{@link CameraLane}）——渲染侧据此取
-     * 该时刻的合成参数（opacity / dest / source）。
+     * 每份 {@link LaneFrame} 携带产出它的片段与该片段内的本地时间（渲染侧据此取该时刻的合成参数
+     * opacity / dest / source）、产出它的 CAMERA 轨序号、以及该轨的 lane 级调色参数
+     * （{@code scope=lane} 的 ADJUST 轨按轨道顺序归集：同一相机轨被多条指向时<b>后者生效</b>，
+     * 与 master 同口径；同轨本帧的所有 lane 共用同一份参数）。
+     * <p>
+     * <b>相机轨序号口径</b> = 时间轴里第几条 CAMERA 轨（0 起，按出现顺序）——与 ADJUST clip 的
+     * {@code lane} 字段同一编号（不是时间轴中的绝对轨道索引；OVERLAY / AUDIO 等其它轨不占号）。
      *
-     * @return 扁平化的快照列表；无 CAMERA 轨 / 未播放 / 各轨本帧均无画面时为空列表
+     * @return 扁平化的 lane 列表；无 CAMERA 轨 / 未播放 / 各轨本帧均无画面时为空列表
      */
-    public List<CameraLane> collectCameraLanes() {
-        List<CameraLane> lanes = new ArrayList<>();
+    public List<LaneFrame> collectCameraLanes() {
+        List<LaneFrame> frames = new ArrayList<>();
+        // lane 级调色归集：目标相机轨序号 → 参数（跨帧复用，避免每帧分配）
+        laneAdjustByCameraTrack.clear();
         for (TrackPlayer tp : trackPlayers) {
-            if (tp instanceof CameraTrackPlayer ctp) {
-                lanes.addAll(ctp.getLaneSnapshots());
+            if (tp instanceof AdjustTrackPlayer atp && atp.laneParams() != null) {
+                laneAdjustByCameraTrack.put(atp.laneTarget(), atp.laneParams());   // 后一条覆盖前一条
             }
         }
-        return lanes;
+        int cameraLaneIndex = -1;
+        for (TrackPlayer tp : trackPlayers) {
+            if (tp instanceof CameraTrackPlayer ctp) {
+                cameraLaneIndex++;
+                ColorAdjustParams laneAdjust = laneAdjustByCameraTrack.get(cameraLaneIndex);
+                for (CameraLane lane : ctp.getLaneSnapshots()) {
+                    frames.add(new LaneFrame(lane, cameraLaneIndex, laneAdjust));
+                }
+            }
+        }
+        return frames;
     }
 
     public boolean hasActiveCameraTrack(float elapsed) {

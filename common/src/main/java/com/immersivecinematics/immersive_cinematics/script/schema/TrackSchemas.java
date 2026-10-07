@@ -177,10 +177,15 @@ public final class TrackSchemas {
     }
 
     /**
-     * ADJUST 轨道（画面颜色调整，master，0.3.6 第一批标量组）。
+     * ADJUST 轨道（画面颜色调整，0.3.6：master 标量组 + lane 级调整）。
      *
-     * <p><b>没有 clip 级字段</b>——15 个标量通道全部是关键帧字段，缺省全 0 = 无效果
+     * <p>15 个标量通道全部是<b>关键帧字段</b>，缺省全 0 = 无效果
      * （关键帧把通道写回 0 就是该项淡出，不需要 enabled 开关）。</p>
+     *
+     * <p><b>clip 级字段 = 作用域</b>（不随时间变，故挂 clip）：{@code scope}（{@code master} 缺省 /
+     * {@code lane}）与 {@code lane}（{@code scope=lane} 时的目标相机轨序号：0 起、按 timeline 中
+     * CAMERA 轨出现顺序）。master = 作用于合成输出（最终显示画面）；lane = 作用于该相机轨的画面，
+     * 在该 lane 渲染完成之后、合成之前（见 {@code plans/0.3.6/screen-color-adjust.md} 步骤 5）。</p>
      *
      * <p>顺序 = 着色器操作栈顺序（{@code assets/minecraft/shaders/core/ic_color_adjust.fsh}）
      * = {@code ColorAdjustParams} 的分量顺序；区间由 {@code ScriptValidator} 校验。
@@ -188,6 +193,8 @@ public final class TrackSchemas {
      */
     private static TrackTypeSchema adjust() {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
+        clips.put("scope", new FieldDef("enum", "master", false, List.of("master", "lane")));
+        clips.put("lane", new FieldDef("int", 0));
 
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
         // 基础校色（复合 RGB）

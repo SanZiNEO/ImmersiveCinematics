@@ -171,7 +171,7 @@ immersive_cinematics/
 | `"event"` | 服务端命令事件 |
 | `"mod_event"` | 第三方模组扩展事件 |
 | `"overlay"` | 覆盖层（fade 全屏颜色 / image 图片 / subtitle 字幕 / pip 画中画），**支持多条同类型轨道同时渲染** |
-| `"adjust"` | 画面颜色调整（master，作用于合成输出）：曝光 / 对比度 / 高光 / 阴影 / 白 / 黑 / 饱和度 / 自然饱和度 / 色温 / 色调 / R/G/B 通道系数 / 灰度 / 反相，全部参数可关键帧 |
+| `"adjust"` | 画面颜色调整（`scope` = `master` 作用于合成输出 / `lane` 作用于指定相机轨的画面）：曝光 / 对比度 / 高光 / 阴影 / 白 / 黑 / 饱和度 / 自然饱和度 / 色温 / 色调 / R/G/B 通道系数 / 灰度 / 反相，全部参数可关键帧 |
 
 ---
 
@@ -603,11 +603,27 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 
 ## 10. Adjust 轨道（画面颜色调整）
 
-对**合成后的最终画面**做颜色调整（master 层，架构图 RADJ 节点）：在 lane 合成之后、GUI 之前作用于整屏画面。
+对画面做颜色调整，两个**作用域**（clip 级字段 `scope`，见下表）：
+
+- `master`（缺省）：作用于**合成后的最终画面**（master 层，架构图 RADJ 节点）——在 lane 合成之后、GUI 之前作用于整屏画面。
+- `lane`：作用于**指定相机轨的画面**（lane 级）——在该 lane 渲染完成之后、合成之前，只影响那一条相机轨的输出（分屏 / 画中画里可以各格独立调色）。
 
 - **不影响 GUI**：字幕 / 黑边 / 跳过提示由 GUI 阶段绘制，调色不作用于它们（挂点在世界渲染阶段，早于 GUI）。
-- **本版本 = 标量组 15 通道**（第一批：12 标量 + R/G/B 每通道系数）。RGB 复合曲线 / 每通道曲线（第二批方向）、色轮 / 通道混合器 / LUT、以及 lane 级调整与「调整层」是后续批次（见 `plans/0.3.6/screen-color-adjust.md` §3 / §7）。
-- **支持多条 ADJUST 轨道**：同一时刻以**后面的轨道**为准（轨道层级靠后的覆盖靠前的）。
+- **本版本 = 标量组 15 通道**（第一批：12 标量 + R/G/B 每通道系数）。RGB 复合曲线 / 每通道曲线（第二批方向）、色轮 / 通道混合器 / LUT、以及「调整层」（作用于其下所有层）是后续批次（见 `plans/0.3.6/screen-color-adjust.md` §3 / §7）。
+- **支持多条 ADJUST 轨道**：同一时刻以**后面的轨道**为准（轨道层级靠后的覆盖靠前的）——master 与 lane 级各自适用（多条 lane 级指向同一相机轨时，也是后面的轨道生效）。
+
+### 执行顺序与 alpha 契约（两条作用域共用）
+
+```
+lane 渲染（含 lane 内发光描边）
+  → lane 级调整（scope=lane：只动 RGB，alpha 直通）
+  → 合成（opacity / dest / source）
+  → 全部 lane 完成后
+  → master 调整（scope=master：作用于合成输出，只动 RGB，alpha 直通）
+```
+
+- **调色只动 RGB**：`alpha` 逐位直通（着色器 `fragColor.a = src.a`）——透明度只在合成层由 `opacity` 调控（`LaneCompositor` / OVERLAY 层 opacity），调色不承担任何透明度语义。
+- **lane 级参数按相机轨走**：同一条相机轨本帧产出的所有 lane 共用该轨的 lane 级参数（叠化重叠窗口下一条轨可能同时产出多条 lane）。
 
 ### Clip 字段
 
@@ -616,8 +632,10 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 | `start_time` | float | 是 | — | 起始时间 |
 | `duration` | float | 是 | — | 持续时间 |
 | `keyframes` | array | 是 | — | 关键帧数组 |
+| `scope` | enum | 否 | `master` | 作用域：`master`（合成输出 = 最终显示画面）/ `lane`（指定相机轨的画面，合成前） |
+| `lane` | int | `scope=lane` 时必填 | — | 目标相机轨序号：**0 起，按 timeline 中 CAMERA 轨出现顺序**（其它类型轨道不占号）。必须满足 `0 ≤ lane < 本脚本 CAMERA 轨数量` |
 
-> 没有 clip 级字段：15 个通道全部写在关键帧上（与 letterbox/EVENT/AUDIO/OVERLAY 同一套「统一关键帧级调控」规则）。
+> 作用域是 clip 级字段（不随时间变，故不挂关键帧）；15 个通道全部写在关键帧上（与 letterbox/EVENT/AUDIO/OVERLAY 同一套「统一关键帧级调控」规则）。`scope=master` 时写 `lane` 是多余字段（校验会提示）。
 
 ### Keyframe 字段（15 个标量通道）
 
@@ -688,6 +706,31 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
   ]
 }
 ```
+
+### 示例：四象限各自调色（lane 级）
+
+4 条 CAMERA 轨各占一格（`dest` 半屏）→ 4 条 lane 级 ADJUST 轨分别指向它们（`lane` = CAMERA 轨出现顺序 0~3）+ 1 条 master 轨做整体风格化：
+
+```json
+{
+  "timeline": {
+    "tracks": [
+      { "type": "CAMERA", "clips": [ { "start_time": 0, "duration": 10,
+        "keyframes": [ { "time": 0, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "position": { "dx": 0, "dy": 0, "dz": 0 } } ] } ] },
+      { "type": "CAMERA", "clips": [ { "start_time": 0, "duration": 10,
+        "keyframes": [ { "time": 0, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "position": { "dx": 0, "dy": 0, "dz": 0 } } ] } ] },
+      { "type": "ADJUST", "clips": [ { "start_time": 0, "duration": 10, "scope": "lane", "lane": 0,
+        "keyframes": [ { "time": 0, "grayscale": 0 }, { "time": 5, "grayscale": 1 } ] } ] },
+      { "type": "ADJUST", "clips": [ { "start_time": 0, "duration": 10, "scope": "lane", "lane": 1,
+        "keyframes": [ { "time": 0, "temperature": 0 }, { "time": 5, "temperature": 0.6 } ] } ] },
+      { "type": "ADJUST", "clips": [ { "start_time": 0, "duration": 10,
+        "keyframes": [ { "time": 0, "saturation": 0 }, { "time": 5, "saturation": -0.5 } ] } ] }
+    ]
+  }
+}
+```
+
+> 上面第 3 条轨（无 `scope`）就是 master：它作用于**合成后**的整屏画面，所以「lane 0 黑白 + 整体降饱和」会叠加（lane 级先算、master 后算）。
 
 ---
 

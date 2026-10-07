@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
 import com.immersivecinematics.immersive_cinematics.script.CameraLane;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
+import com.immersivecinematics.immersive_cinematics.script.LaneFrame;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
@@ -21,12 +22,19 @@ import java.util.Map;
  * <pre>
  * GameRendererMixin（{@code GameRenderer.render} 的 HEAD，本帧世界渲染之前）
  *   → CameraManager.onRenderFrame → ScriptPlayer.onRenderFrame → 各 CameraTrackPlayer 填 lane 快照（CameraLane）
- *   → 本类 tick → LaneRenderer.setLane(i, 相机状态, 内容档) + setSink
+ *     + 各 ADJUST 轨道（scope=lane）填本帧的 lane 级调色参数
+ *   → 本类 tick → LaneRenderer.setLane(i, 相机状态, 内容档, lane 级调色) + setSink
  * LaneRendererMixin（{@code GameRenderer.renderLevel} 的 RETURN）→ LaneRenderer.render
- *   → 逐 lane 渲染 → Sink → LaneCompositor.compose（贴到屏幕）
+ *   → 逐 lane 渲染 → （lane 级调色 pass）→ Sink → LaneCompositor.compose（贴到屏幕）
  * </pre>
  * 合成是即时进行的（lane 共用一张离屏缓冲），所以<b>叠放顺序 = 调用顺序 = lane 序号递增</b>：
  * {@code collectCameraLanes()} 已按「轨道层级 → 轨道内 clip 顺序」排好，序号小的先贴、被后贴的盖住。
+ *
+ * <h2>lane 级调色（{@code scope=lane} 的 ADJUST 轨道）</h2>
+ * 每份 {@link LaneFrame} 携带它所属 CAMERA 轨的 lane 级调色参数（由 {@code ScriptPlayer} 归集，
+ * 同轨本帧的所有 lane 共用一份）；本类把它原样交给 {@link LaneRenderer#setLane}。真正跑 pass 的位置在
+ * {@code LaneRenderer.renderLane}（lane 渲染完成、合成之前），本类只做数据传递。
+ * 参数为 {@code null}（无 lane 级 ADJUST / 参数恒等）时该 lane 走原路径（lane FBO 直接进合成），零差异。
  *
  * <h2>跨实例平铺（§3.3 / §3.4）</h2>
  * 本类每帧遍历<b>全部</b>活跃实例（{@link CameraManager#instances()}，按启动顺序）并收集各自的 lane，
@@ -98,11 +106,12 @@ public final class ScriptLaneDriver {
             if (!player.isPlaying()) {
                 continue;
             }
-            List<CameraLane> lanes = player.collectCameraLanes();
+            List<LaneFrame> lanes = player.collectCameraLanes();
             for (int i = 0; i < lanes.size(); i++) {
-                CameraLane lane = lanes.get(i);
+                LaneFrame frame = lanes.get(i);
+                CameraLane lane = frame.lane();
                 resolve(lane, slot(index));
-                renderer.setLane(index, lane.state(), CONTENT);
+                renderer.setLane(index, lane.state(), CONTENT, frame.laneAdjust());
                 index++;
             }
         }

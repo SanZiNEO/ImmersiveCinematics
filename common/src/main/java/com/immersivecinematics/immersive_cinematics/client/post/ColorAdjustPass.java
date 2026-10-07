@@ -20,22 +20,36 @@ import org.joml.Matrix4f;
 import java.io.IOException;
 
 /**
- * master 画面颜色调整的渲染 pass（架构图 RADJ 节点）：把 {@link MasterColorAdjust} 里的标量组
- * 一次全屏 pass 应用到<b>合成输出</b>上。
+ * 画面颜色调整的渲染 pass：把 {@link ColorAdjustParams} 的标量组一次全屏 pass 应用到画面纹理上。
+ * 两条使用路径共用本类（同一份着色器 + 同一份 uniform 上传 + 同一个 {@link #applyTo}）：
+ * <ul>
+ *   <li><b>master</b>（{@link MasterColorAdjust} 发布）：作用于<b>合成输出</b>（架构图 RADJ 节点）——
+ *       {@link #render} 在 lane 合成（MCOMP）之后、原版后处理链（RPOST）与 GUI 之前调一次。</li>
+ *   <li><b>lane 级</b>（ADJUST 轨道 {@code scope=lane}）：作用于<b>该 lane 的画面</b>，在 lane 渲染完成
+ *       之后、合成之前（{@code client.lane.LaneRenderer#renderLane} 调 {@link #applyTo}，
+ *       写进共享 adjustTarget 再交给合成层）。</li>
+ * </ul>
  *
  * <h2>挂点</h2>
- * {@code GameRenderer.renderLevel} 返回之后、lane 合成（MCOMP，{@code LaneRenderer.render}）之后，
+ * master：{@code GameRenderer.renderLevel} 返回之后、lane 合成（MCOMP，{@code LaneRenderer.render}）之后，
  * 原版后处理链（RPOST）与 GUI 之前 —— 即 {@code mixin/LaneRendererMixin} 的同一次注入里、
  * {@code LaneRenderer.render} 的下一行（顺序必须在同一次注入里保证：调色要作用在 lane 合成结果上）。
  * 后果（有意）：F2 截图带上调色（截图在原版那一步取）；GUI（字幕 / 黑边 / 跳过提示）不受调色影响。
+ * <p>lane 级：{@code LaneRenderer.renderLane} 内，lane 的 {@code renderLevel} + {@code doEntityOutline}
+ * 之后、{@link LaneCompositor#compose} 之前。</p>
  *
- * <h2>两个 pass</h2>
+ * <h2>两个 pass（master 路径）</h2>
  * 不能同时读写主画面纹理，所以与「一个效果 = 效果 pass + blit 回 main」的原版链同构：
  * <ol>
  *   <li>主画面 → 中转缓冲（{@code ic_color_adjust}，全屏 quad，应用全部标量调整）；</li>
  *   <li>中转缓冲 → 主画面（整屏 blit，复用合成层的 {@link LaneCompositor#compose}）。</li>
  * </ol>
- * 成本 = 两次全屏 quad，与画面内容无关。
+ * 成本 = 两次全屏 quad，与画面内容无关。lane 路径只有一次 pass（lane FBO → adjustTarget），
+ * 随后的合成由 {@code LaneRenderer} 照常走 {@link LaneCompositor#compose}。
+ *
+ * <h2>alpha 契约（两条路径一致）</h2>
+ * 调色只动 RGB：着色器 {@code fragColor.a = src.a} 逐位直通（见 {@code ic_color_adjust.fsh}），
+ * 透明度只在合成层由 {@code opacity}（{@code ColorModulator.a}）调控。
  *
  * <h2>着色器资产（自建，非复用原版）</h2>
  * {@code assets/minecraft/shaders/core/ic_color_adjust.{json,vsh,fsh}}：程序 JSON 与 GLSL 走
@@ -45,7 +59,8 @@ import java.io.IOException;
  * 顶点格式 = {@code DefaultVertexFormat.POSITION_TEX}，与合成层 / 原版 blit 同一套。
  *
  * <h2>默认零差异</h2>
- * 无调整时 {@link #render} 第一行返回：不取着色器、不建中转缓冲、不切任何 GL 状态、不画任何东西。
+ * 无调整时 {@link #render} 第一行返回；{@link #applyTo} 参数为空 / 恒等时第一行返回：
+ * 不取着色器、不建中转缓冲、不切任何 GL 状态、不画任何东西。
  * 着色器是首次真正需要时才编译的（不用不编译），资源重载后重建。
  */
 public final class ColorAdjustPass {
@@ -66,7 +81,7 @@ public final class ColorAdjustPass {
     }
 
     /**
-     * 在合成输出上应用本帧的颜色调整。
+     * 在<b>合成输出</b>上应用本帧的 master 颜色调整（架构图 RADJ 节点）。
      *
      * <p>无调整（本帧没人发布 / 参数恒等）时不做任何事。</p>
      */
@@ -81,12 +96,48 @@ public final class ColorAdjustPass {
         if (width <= 0 || height <= 0) {
             return;
         }
-        ShaderInstance shaderInstance = shader(mc);
-        if (shaderInstance == null) {
+        RenderTarget swap = swapTarget(width, height);
+        // pass 1：主画面 → 中转缓冲（全屏 quad 铺满，无需 clear）
+        if (!applyTo(main, swap, params, mc)) {
             return;   // 着色器不可用：宁可不调色，也不动画面
         }
+        // pass 2：中转缓冲 → 主画面（整屏 blit，复用合成层的状态保存 / 还原与 UV 口径）
+        LaneCompositor.compose(swap, LaneCompositor.Rect.FULL, LaneCompositor.Rect.FULL, 1.0F);
+    }
 
-        RenderTarget swap = swapTarget(width, height);
+    /**
+     * 一次调色 pass：把 {@code src} 的颜色纹理经调色着色器写进 {@code dst}（全屏 quad，1:1）。
+     *
+     * <p><b>master 与 lane 级共用这一份实现</b>（着色器获取 + uniform 上传 + pass 执行都不分叉）：
+     * master 路径是「主画面 → 中转缓冲」（{@link #render}），lane 路径是「lane FBO → adjustTarget」
+     * （{@code client.lane.LaneRenderer#renderLane}）——两条路径的唯一差别是源 / 目标缓冲。</p>
+     *
+     * <p><b>alpha 契约</b>：只动 RGB，{@code fragColor.a = src.a} 逐位直通；透明度由合成层的
+     * {@code opacity}（{@code ColorModulator.a}）单独调控，调色不承担任何透明度语义。</p>
+     *
+     * <p>状态保存 / 还原：进入时保存、退出时还原全局投影 + VertexSorting、shader 颜色与 0 号纹理、
+     * 深度测试 / 深度写 / 颜色写 / 混合；退出时目标缓冲保持绑定态（调用方接着画）。</p>
+     *
+     * @param src    源画面（取颜色纹理作采样源；不得与 {@code dst} 同一张纹理）
+     * @param dst    目标缓冲（视口会被设成全尺寸）
+     * @param params 调色参数（{@code null} 或恒等 → 直接返回 {@code false}，不动任何 GL 状态）
+     * @param mc     客户端实例（取资源管理器加载 / 重建着色器）
+     * @return 是否真的跑了 pass（{@code false} = 参数为空/恒等、尺寸非法或着色器不可用）
+     */
+    public static boolean applyTo(RenderTarget src, RenderTarget dst, ColorAdjustParams params, Minecraft mc) {
+        if (src == null || dst == null || params == null || params.isIdentity()) {
+            return false;
+        }
+        int width = dst.width;
+        int height = dst.height;
+        if (width <= 0 || height <= 0) {
+            return false;
+        }
+        ShaderInstance shaderInstance = shader(mc);
+        if (shaderInstance == null) {
+            return false;   // 着色器不可用：宁可不调色，也不动画面
+        }
+
         upload(shaderInstance, params);
 
         Matrix4f prevProjection = RenderSystem.getProjectionMatrix();
@@ -100,8 +151,8 @@ public final class ColorAdjustPass {
             RenderSystem.disableBlend();
             RenderSystem.colorMask(true, true, true, true);
 
-            // pass 1：主画面 → 中转缓冲（全屏 quad 铺满，无需 clear）
-            swap.bindWrite(true);   // 绑 FBO + 视口 = FBO 全尺寸
+            // 全屏 quad 铺满目标缓冲，无需 clear
+            dst.bindWrite(true);   // 绑 FBO + 视口 = FBO 全尺寸
             RenderSystem.setProjectionMatrix(
                     new Matrix4f().setOrtho(0.0F, width, height, 0.0F, 1000.0F, 3000.0F),
                     VertexSorting.ORTHOGRAPHIC_Z);
@@ -113,7 +164,7 @@ public final class ColorAdjustPass {
                 RenderSystem.applyModelViewMatrix();
 
                 RenderSystem.setShader(() -> shaderInstance);
-                RenderSystem.setShaderTexture(0, main.getColorTextureId());
+                RenderSystem.setShaderTexture(0, src.getColorTextureId());
                 RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
                 // 屏幕正交投影下 y 向下增长；纹理 v 轴向上 → 底边取 v=0（与合成层同一口径，1:1 不翻转）
@@ -132,10 +183,6 @@ public final class ColorAdjustPass {
                 modelView.popPose();
                 RenderSystem.applyModelViewMatrix();
             }
-            RenderSystem.setProjectionMatrix(prevProjection, prevSorting);
-
-            // pass 2：中转缓冲 → 主画面（整屏 blit，复用合成层的状态保存 / 还原与 UV 口径）
-            LaneCompositor.compose(swap, LaneCompositor.Rect.FULL, LaneCompositor.Rect.FULL, 1.0F);
         } finally {
             RenderSystem.setShaderColor(prevColor[0], prevColor[1], prevColor[2], prevColor[3]);
             RenderSystem.setShaderTexture(0, prevTexture);
@@ -145,8 +192,8 @@ public final class ColorAdjustPass {
             RenderSystem.depthMask(true);
             RenderSystem.enableDepthTest();
             RenderSystem.colorMask(true, true, true, true);
-            main.bindWrite(true);   // 收尾把主画面留在绑定态（与合成层一致）
         }
+        return true;
     }
 
     /**

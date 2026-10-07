@@ -1,6 +1,7 @@
 #version 150
 
-// 画面颜色调整（master，第一批标量组）——一次全屏 pass 合并全部标量调整。
+// 画面颜色调整 —— 一次全屏 pass 合并全部标量调整；master 与 lane 级共用同一份着色器与操作栈
+// （master：合成输出 → 中转缓冲；lane 级：lane FBO → adjustTarget，见 plans/0.3.6/screen-color-adjust.md 步骤 5）。
 //
 // 操作栈顺序固定（与 plans/0.3.6/screen-color-adjust.md §3 一致，非破坏、不可调）：
 //   1. 曝光      2. 对比度     3. 高光 / 阴影   4. 白场 / 黑场
@@ -29,6 +30,8 @@
 // （不乘、不混、不钳制）。画面先合成成完整、不透明的画面；透明度（alpha / opacity）只在
 // 合成层（LaneCompositor 的 opacity / Overlay 层 opacity）于合成之后调控——
 // 禁止把透明「烤」进画面，也禁止在画面处理阶段动 alpha。
+// 两条路径同一契约，执行顺序：lane 渲染 → lane 级调整（只动 RGB）→ 合成（opacity / dest / source）
+// → 全部 lane 完成后 → master 调整（本 pass 作用于合成输出）。
 // 依据：plans/0.3.6/README.md「画面完整性原则」、plans/0.3.6/multi-camera-rendering.md §12.8-A。
 
 uniform sampler2D Sampler0;

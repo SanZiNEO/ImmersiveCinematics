@@ -1,6 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.client.lane;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraState;
+import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustParams;
+import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustPass;
 import com.immersivecinematics.immersive_cinematics.mixin.GameRendererAccessor;
 import com.immersivecinematics.immersive_cinematics.mixin.LevelRendererAccessor;
 import com.immersivecinematics.immersive_cinematics.mixin.MinecraftAccessor;
@@ -43,8 +45,20 @@ import java.util.Map;
  *   → prepareCullFrustum（该 lane 的 pose + 相机位置）
  *   → applyFrustum（该 lane 的视锥，绕开原版朝向门闩强制重刷：可见集合必须由本 lane 姿态算出）
  *   → renderLevel → doEntityOutline（lane 内描边）→ 还原全局投影
- *   → 恢复 mainRenderTarget → 交给 {@link Sink}（合成层）
+ *   → 恢复 mainRenderTarget → （lane 级调色 pass：lane 画面 → adjustTarget）
+ *   → 交给 {@link Sink}（合成层；有 lane 级调色时给的是 adjustTarget，否则是 lane FBO）
  * </pre>
+ *
+ * <h2>lane 级调色（{@code scope=lane} 的 ADJUST 轨道）</h2>
+ * 该 lane 的调色参数由脚本侧经 {@link ScriptLaneDriver} 传进 {@link Lane#adjust()}。参数非空且非恒等时，
+ * 本类在 lane 渲染完成（含描边）、<b>合成之前</b>调 {@link ColorAdjustPass#applyTo} 跑一次调色 pass，
+ * 结果写进共享的 {@link #adjustTarget(int, int)}，并把该缓冲交给合成层（而不是 lane FBO）——
+ * 顺序因此固定为 <b>lane 渲染 → lane 级调色 → 合成（opacity/dest/source）→ 全部 lane 完成后 → master 调色</b>。
+ * <p><b>alpha 契约</b>：lane 级调色只动 RGB（着色器 {@code fragColor.a = src.a}），alpha 逐位直通；
+ * 透明度只在合成层由 {@code opacity}（{@code ColorModulator.a}）调控——与 master 调色同一契约
+ * （见 {@code ColorAdjustPass} / {@code ic_color_adjust.fsh}）。</p>
+ * <p>参数为空（无 lane 级 ADJUST / 参数恒等 / 着色器不可用）时<b>不建缓冲、不跑 pass</b>，
+ * 交给合成的仍是 lane FBO —— 与不带该功能的路径完全一致（默认零差异）。</p>
  *
  * <h2>三条落地要点（原型实证，见 plans/0.3.6/quadrant-prototype-results.md §3.1–3.3）</h2>
  * <ol>
@@ -118,12 +132,13 @@ public final class LaneRenderer {
         void laneRendered(int index, RenderTarget target);
     }
 
-    /** 一个 lane 槽位：独立原版 {@link Camera} 实例 + 本帧相机状态 + 内容开关。 */
+    /** 一个 lane 槽位：独立原版 {@link Camera} 实例 + 本帧相机状态 + 内容开关 + lane 级调色。 */
     public static final class Lane {
 
         private final Camera camera = new Camera();
         private CameraState state;
         private LaneContent content = LaneContent.WORLD_ONLY;
+        private ColorAdjustParams adjust;
 
         /** 该 lane 的独立原版相机实例（生命周期 = 槽位，跨帧复用）。 */
         public Camera camera() {
@@ -139,6 +154,14 @@ public final class LaneRenderer {
         public LaneContent content() {
             return content;
         }
+
+        /**
+         * 本帧的 lane 级调色参数（{@code scope=lane} 的 ADJUST 轨道经 {@code ScriptPlayer} 归集而来）；
+         * {@code null} = 无 —— 该 lane 渲染完直接进合成，不跑调色 pass（默认零差异路径）。
+         */
+        public ColorAdjustParams adjust() {
+            return adjust;
+        }
     }
 
     private final List<Lane> lanes = new ArrayList<>();
@@ -146,6 +169,8 @@ public final class LaneRenderer {
     private int activeCount;
     private Sink sink;
     private RenderTarget target;
+    /** lane 级调色的输出缓冲（有 lane 级调色时才创建；与 {@link #target} 同尺寸 / 同重建口径）。 */
+    private RenderTarget adjustTarget;
     /** 渲染优化模组检测结果；{@code null} = 尚未检测。 */
     private Boolean renderOptimizerPresent;
 
@@ -180,8 +205,9 @@ public final class LaneRenderer {
      *
      * @param state   lane 的相机状态；{@code null} = 停用该槽位
      * @param content 内容开关（{@code null} 视为 {@link LaneContent#WORLD_ONLY}）
+     * @param adjust  lane 级调色参数（{@code null} = 无：渲染完直接进合成，不跑调色 pass）
      */
-    public void setLane(int index, CameraState state, LaneContent content) {
+    public void setLane(int index, CameraState state, LaneContent content, ColorAdjustParams adjust) {
         Lane lane = lane(index);
         if (state == null) {
             deactivate(lane);
@@ -189,6 +215,7 @@ public final class LaneRenderer {
         }
         lane.state = state;
         lane.content = content != null ? content : LaneContent.WORLD_ONLY;
+        lane.adjust = adjust;
         if (byCamera.put(lane.camera, lane) == null) {
             activeCount++;
         }
@@ -207,6 +234,7 @@ public final class LaneRenderer {
     private void deactivate(Lane lane) {
         if (lane.state != null) {
             lane.state = null;
+            lane.adjust = null;
             byCamera.remove(lane.camera);
             activeCount--;
         }
@@ -262,12 +290,13 @@ public final class LaneRenderer {
                 if (lane.state == null) {
                     continue;
                 }
-                renderLane(mc, lane, fbo, main, partialTick, nanoTime);
+                RenderTarget laneOutput = renderLane(mc, lane, fbo, main, partialTick, nanoTime);
                 // 调试钩子：合成之前把该 lane 的离屏纹理原始 RGBA 读回写盘（ICINEMATICS_QUADRANT 门控；
                 // 开关外第一行即返回——不读回、不分配、不切 GL 状态，零差异）。见 LaneDebugCapture。
+                // 读回的是 lane 的原始渲染结果（不含 lane 级调色）——调试口径不变。
                 LaneDebugCapture.onLaneRendered(i, fbo);
                 if (laneSink != null) {
-                    laneSink.laneRendered(i, fbo);
+                    laneSink.laneRendered(i, laneOutput);
                 }
             }
             // 调试钩子：本帧全部 lane 合成完之后，把最终屏幕画面读回写盘（ICINEMATICS_QUADRANT 门控；
@@ -283,9 +312,14 @@ public final class LaneRenderer {
         }
     }
 
-    /** 一条 lane 的完整渲染（整尺寸进离屏缓冲）。 */
-    private void renderLane(Minecraft mc, Lane lane, RenderTarget fbo, RenderTarget main,
-                            float partialTick, long nanoTime) {
+    /**
+     * 一条 lane 的完整渲染（整尺寸进离屏缓冲）。
+     *
+     * @return 交给合成层的画面纹理：无 lane 级调色 = lane 自己的 FBO（{@code fbo}）；
+     *         有 = 调色后的共享 {@link #adjustTarget(int, int)}
+     */
+    private RenderTarget renderLane(Minecraft mc, Lane lane, RenderTarget fbo, RenderTarget main,
+                                    float partialTick, long nanoTime) {
         Camera camera = lane.camera;
         CameraState state = lane.state;
         GameRenderer gameRenderer = mc.gameRenderer;
@@ -351,6 +385,35 @@ public final class LaneRenderer {
             activeContent = null;
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
         }
+
+        // lane 级调色（ADJUST 轨道 scope=lane）：lane 渲染完成之后、合成之前，把该 lane 的画面
+        // 过一次调色 pass（只动 RGB、alpha 直通；着色器与 uniform 上传与 master 共用同一份实现）。
+        // 结果写进共享 adjustTarget（尺寸跟随窗口，与 offscreenTarget 同处理），合成读它而不是 lane FBO。
+        // 无需调整（无 lane 级 ADJUST / 参数恒等 / 着色器不可用）→ 原样返回 lane FBO，行为与不带该功能完全一致。
+        ColorAdjustParams adjust = lane.adjust;
+        if (adjust != null && !adjust.isIdentity()) {
+            RenderTarget adjusted = adjustTarget(fbo.width, fbo.height);
+            if (ColorAdjustPass.applyTo(fbo, adjusted, adjust, mc)) {
+                return adjusted;
+            }
+        }
+        return fbo;
+    }
+
+    /**
+     * lane 级调色的输出缓冲（按主画面尺寸创建 / 重建；只在渲染线程调用）。
+     * <p>不需要深度附件（只画一个全屏 quad、且深度测试关闭）；过滤 LINEAR——合成层会缩放 / 取局部，
+     * 与 {@link #offscreenTarget} 同口径。</p>
+     */
+    private RenderTarget adjustTarget(int width, int height) {
+        if (adjustTarget == null) {
+            adjustTarget = new TextureTarget(width, height, false, Minecraft.ON_OSX);
+            adjustTarget.setFilterMode(GL11.GL_LINEAR);
+        } else if (adjustTarget.width != width || adjustTarget.height != height) {
+            adjustTarget.resize(width, height, Minecraft.ON_OSX);
+            adjustTarget.setFilterMode(GL11.GL_LINEAR);   // resize 重建缓冲会把过滤重置回 NEAREST
+        }
+        return adjustTarget;
     }
 
     /** 共用的离屏缓冲（按主画面尺寸创建 / 重建；只在渲染线程调用）。 */

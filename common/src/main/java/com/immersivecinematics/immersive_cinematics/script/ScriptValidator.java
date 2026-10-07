@@ -168,6 +168,17 @@ public final class ScriptValidator {
 
         // ===== 逐轨道 =====
         JsonArray tracks = timeline.getAsJsonArray("tracks");
+        // CAMERA 轨数量（ADJUST 轨 scope=lane 的目标序号上界：lane 序号 = 第几条 CAMERA 轨，0 起）
+        int cameraTrackCount = 0;
+        for (int ti = 0; ti < tracks.size(); ti++) {
+            JsonElement te = tracks.get(ti);
+            if (!te.isJsonObject()) continue;
+            JsonElement typeElement = te.getAsJsonObject().get("type");
+            if (typeElement != null && typeElement.isJsonPrimitive()
+                    && "CAMERA".equalsIgnoreCase(typeElement.getAsString())) {
+                cameraTrackCount++;
+            }
+        }
         int clipCount = 0;
         int keyframeCount = 0;
         for (int ti = 0; ti < tracks.size(); ti++) {
@@ -253,6 +264,44 @@ public final class ScriptValidator {
                     }
                     if ("fade".equals(layerType)) {
                         checkHexColor(clip, cp, "color", issues);
+                    }
+                }
+                if ("ADJUST".equalsIgnoreCase(type)) {
+                    // 作用域（clip 级字段，不随时间变）：master = 作用于合成输出（缺省）；
+                    // lane = 作用于指定相机轨的画面（lane 渲染完、合成前）
+                    String scope = "master";
+                    if (clip.has("scope")) {
+                        JsonElement se = clip.get("scope");
+                        if (!se.isJsonPrimitive() || !se.getAsJsonPrimitive().isString()) {
+                            issues.add(cp + ".scope 应为字符串（可选: master / lane）");
+                        } else {
+                            scope = se.getAsString();
+                            if (!"master".equals(scope) && !"lane".equals(scope)) {
+                                issues.add(cp + ".scope 未知值: " + scope + "（可选: master / lane），运行时按 master 处理");
+                                scope = "master";
+                            }
+                        }
+                    }
+                    if ("lane".equals(scope)) {
+                        if (!clip.has("lane")) {
+                            issues.add(cp + ".lane 缺失（scope=lane 时必须指定目标相机轨序号：0 起、"
+                                    + "按 timeline 中 CAMERA 轨出现顺序）");
+                        } else {
+                            JsonElement le = clip.get("lane");
+                            if (!le.isJsonPrimitive() || !le.getAsJsonPrimitive().isNumber()) {
+                                issues.add(cp + ".lane 不是整数（0 起、按 timeline 中 CAMERA 轨出现顺序）");
+                            } else {
+                                float laneValue = le.getAsFloat();
+                                if (laneValue != Math.floor(laneValue)) {
+                                    issues.add(cp + ".lane 不是整数: " + laneValue);
+                                } else if (laneValue < 0f || laneValue >= cameraTrackCount) {
+                                    issues.add(cp + ".lane 越界: " + (int) laneValue + "（本脚本 CAMERA 轨数量 = "
+                                            + cameraTrackCount + "，合法范围 0 ~ " + (cameraTrackCount - 1) + "）");
+                                }
+                            }
+                        }
+                    } else if (clip.has("lane")) {
+                        issues.add(cp + ".lane 是多余字段（scope=master 时无效）——只有 scope=lane 才需要目标相机轨序号");
                     }
                 }
                 // ===== 循环参数校验（CAMERA）=====

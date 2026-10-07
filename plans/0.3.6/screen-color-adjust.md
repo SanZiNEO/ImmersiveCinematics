@@ -10,7 +10,7 @@
 > - [画面合成](./camera-composition.md)
 > - [并行播放](./parallel-playback.md)
 >
-> **状态：第一批「标量组」（master，15 通道 = 12 标量 + R/G/B 每通道系数）已落地（2026-10-07）。曲线组（RGB 复合曲线 + 每通道曲线）与第二 / 三批、lane 级、调整层、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
+> **状态：第一批「标量组」（15 通道 = 12 标量 + R/G/B 每通道系数）已落地（2026-10-07）；lane 级调整（§7 步骤 5）已落地（2026-10-07）。曲线组（RGB 复合曲线 + 每通道曲线）与第二 / 三批、调整层（步骤 6）、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
 
 ---
 
@@ -116,7 +116,7 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 
 - **RGB 复合曲线 + 每通道曲线**（§3 第一批的另一半；§3.1 的形态 b 倾向仍留待执行时定）。
 - 第二批（RGB 通道混合器 / 六条 hue 曲线 / Lift-Gamma-Gain 色轮）、第三批（LUT / 六色带 / 混合模式）。
-- lane 级调整与调整层（§7 步骤 5-6，依赖画面合成与分层模型）。
+- 调整层（§7 步骤 6，依赖分层模型）——lane 级调整（步骤 5）已在本版本落地，见下一节「落地标注（lane 级调整）」。
 - 编辑器 UI（§7 步骤 3）：`editor/src/types.ts` 的 `TrackType` 联合类型、`TrackListPanel.vue` / `Timeline.vue` 的轨道列表与配色、i18n 键、`demo.ts` 的 schema 快照都需跟着加 `ADJUST`（Java 侧 schema 已随 `SchemaExporter` 导出，前端接上即可）。
 - 多实例各写 master 的合并语义（§5-4）：仍开放；本版本至多 1 个活跃实例，行为 = 该实例的最后一个 ADJUST 轨道。
 
@@ -126,6 +126,60 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 - **数据层冒烟**（throwaway 脚本，用真实类 + 桩 `ScriptPlayer`；31 项全过）：`ScriptParser` 解析含 `"type": "adjust"` 的两片段脚本 → `AdjustTrackPlayer.onRenderFrame` 逐时刻发布 → `MasterColorAdjust.consume()` 取值：线性插值（中点 0.5）、缺字段按缺省 0（首帧未写 `saturation` → 向末帧 -0.5 取 -0.25）、范围外取边界值、无活跃 clip 不发布、`onStop` 清空、恒等参数归一化为「无调整」、`ScriptValidator` 拦下超范围（`exposure: 99` / `grayscale: -2`）与未知轨道类型。
 - **着色器冒烟**（throwaway 脚本，真实 GL 3.2 core / NVIDIA 驱动：GLFW 隐藏窗口 + 直接编译仓库里的 `.vsh` / `.fsh`；36 项全过）：编译 + 链接通过；缺省全 0 对 4 种输入颜色**恒等**；12 通道逐项核对本文档口径（曝光、对比度、高光/阴影权重、白/黑场端点、灰度 Rec.709、反相、饱和度 HSL、自然饱和度、色温/色调与亮度保持、组合顺序、alpha 直通）。
 - **未验证**：游戏内实际画面（需启动客户端跑一次）；光影下的执行顺序（§5-1）；性能定量（§5-6，仍是「与内容无关」的定性判断：两个全屏 quad）。
+
+---
+
+## 落地标注（2026-10-07 实现：lane 级调整 / §7 步骤 5）
+
+### 数据落点（定稿）
+
+**作用域挂 clip 级字段**（不随时间变，故不挂关键帧）：
+
+| 字段 | 类型 | 默认 | 口径 |
+|---|---|---|---|
+| `scope` | enum | `master` | `master` = 作用于合成输出（缺省，与第一批完全一致）；`lane` = 作用于指定相机轨的画面 |
+| `lane` | int | — | `scope=lane` 时必填：目标相机轨序号，**0 起、按 timeline 中 CAMERA 轨出现顺序**（其它类型轨道不占号）；必须 `0 ≤ lane < 本脚本 CAMERA 轨数量` |
+
+- 15 个标量通道仍是关键帧字段，与作用域无关（两条路径共用同一份通道口径与同一个着色器）。
+- 校验（`ScriptValidator`）：`scope` 枚举；`scope=lane` 时 `lane` 必填、必须为整数、必须在范围内（越界 / 缺字段 → issue）；`scope=master`（含缺省）时出现 `lane` → 「多余字段」issue；`scope` 未知值 / 非字符串 → issue（未知值按 master 处理）。
+
+### 数据流
+
+```
+AdjustTrackPlayer.onRenderFrame（每帧）
+  ├─ scope=master → MasterColorAdjust.publish(params)          （第一批路径，行为不变）
+  └─ scope=lane   → 不发布 master；把本帧采样结果存进 laneParams() + laneTarget()
+ScriptPlayer.collectCameraLanes()（每帧，按绘制顺序）
+  → 先归集 lane 级参数：目标相机轨序号 → 参数（多条指向同一轨时后者生效，与 master 同口径）
+  → 再逐 CAMERA 轨产出 LaneFrame(CameraLane, cameraTrackIndex, laneAdjust)
+    （同一条相机轨本帧产出的所有 lane 共用同一份参数——重叠窗口 captureLowerLanes 会产出多条）
+ScriptLaneDriver.tick → LaneRenderer.setLane(index, state, content, laneAdjust)
+LaneRenderer.renderLane（lane 渲染 + 描边之后、合成之前）
+  → 参数非空且非恒等 → ColorAdjustPass.applyTo(laneFbo, adjustTarget, params, mc)
+  → sink 传 adjustTarget（否则传 laneFbo）→ LaneCompositor.compose
+```
+
+- **共用 shader / 上传逻辑**：`ColorAdjustPass.applyTo(src, dst, params, mc)` 是 master 与 lane 级唯一的 pass 实现（着色器获取 + 15 个 uniform 上传 + 全屏 quad 绘制只有一份）；master 路径 = `applyTo(主画面 → 中转缓冲)` + `LaneCompositor.compose` 回主画面；lane 路径 = `applyTo(lane FBO → adjustTarget)`，之后由 `LaneRenderer` 照常交给合成层。
+- **共享缓冲**：lane 级输出缓冲 `LaneRenderer.adjustTarget`（无深度附件、LINEAR 过滤），按主画面尺寸创建 / 跟随窗口 resize，与 lane 的共用离屏缓冲 `offscreenTarget` 同处理方式——显存不随 lane 数增长。
+
+### 顺序与 alpha 契约（定稿）
+
+```
+lane 渲染（含 lane 内描边）→ lane 级调整（只动 RGB）→ 合成（opacity / dest / source）
+→ 全部 lane 完成后 → master 调整（合成输出）
+```
+
+- 调色只动 RGB：着色器 `fragColor.a = src.a` 逐位直通（lane 纹理里那些 a<255 的像素——星星 127、图集 mipmap 边缘 146~254——在 lane 级调整后保持原样）；透明度只在合成层由 `opacity`（`ColorModulator.a`）承担。该契约写在 `ic_color_adjust.fsh` 文件头与 `ColorAdjustPass` / `LaneRenderer` 的类注释里。
+- **默认零差异**：无 lane 级 ADJUST / 参数恒等 / 着色器不可用 → 不建 `adjustTarget`、不跑 pass、sink 收到的仍是 lane FBO——与不带该功能的路径逐位一致。
+
+### 验证（2026-10-07）
+
+- `sh gradlew compileJava`（`:common` / `:fabric` / `:forge` 三模块）**通过**。
+- 无头 validator（`E:/tmp/icv` 的 `Validate`，真实 `ScriptValidator`）扫 `cinematics/tests`（109 个）：新增 `test_adjust_lane_scope.json` **0 issue**；仍只有既有的 3 个已知 FAIL，无新增。
+- **数据层冒烟**（throwaway：真实 `ScriptParser` / `AdjustTrackPlayer` / `CameraTrackPlayer` / `ScriptPlayer` + 桩 `clipsForTrack`；**52 项全过**）：lane 级按 CAMERA 轨序号归集（跳过 OVERLAY 等非相机轨）、同轨多 lane 共用同一份参数（含真实重叠窗口 `captureLowerLanes` 产出 2 条）、多条 lane 级指向同一轨时后者生效、恒等参数归一化为 null、缺 `lane` 字段不参与、窗口外不参与且不抹掉别的发布、`scope=lane` 不发布 master、缺省 `scope` = master（发布路径不变）、validator 拦下缺 `lane` / 越界（含负数、无 CAMERA 轨）/ 非整数 / `scope=master` 带 `lane` / 未知 `scope` / 非字符串 `scope`，且合法边界（`lane = 0` 与 `lane = CAMERA 轨数 − 1`）0 issue。
+- **着色器冒烟**（throwaway GL harness，真实 GL 3.2 core；**57 项全过**）：`ic_color_adjust` 与 `ic_lane_blit` 编译 + 链接 + JSON↔fsh uniform 双向一致；lane 路径方向（lane FBO → adjustTarget）恒等逐字节不变（含 alpha）、`Red=-1` / `Blue=-1` 只改目标通道、15 通道全开时 alpha 逐位直通；随后 `ic_lane_blit` 合成读取调色后的 RGB、写出 a=255（源 alpha 不透底），且源 alpha 全 0 的 lane 画面在恒等 + opacity 1 下合成结果不受影响。
+- 既有 master harness（`GlShaderSmoke`，45 项）复跑仍全过（着色器只改了注释）。
+- **未验证**：游戏内实际画面（需启动客户端；lane 级调整的观感 / 性能未实测）；Java 侧 `applyTo` 的 GL 调用序列（需要 Minecraft 实例，无法无头跑——harness 覆盖的是它依赖的两段 GLSL 与「源 → 目标」方向）。
 
 ---
 
@@ -279,7 +333,7 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 - ~~数据落点（层类型 / 轨道）~~ → **已定：独立 ADJUST 轨道**（`TrackType.ADJUST`，JSON `"type": "adjust"`；理由与字段表见文首「落地标注」）。
 - ~~调整是否影响 GUI 层~~ → **已定：不影响**（见 §5 与文首「落地标注」）。
 - LUT 的时机。
-- lane 级与调整层的排期（依赖[画面合成](./camera-composition.md)的进度）。
+- 调整层（组级：作用于其下所有层）的排期——lane 级（步骤 5）已落地（2026-10-07）。
 - 曲线关键帧形态 a / b 的选择（倾向先 b 后 a，§3.1）。
 - 编辑器曲线编辑器与色轮的实现形态（自绘 vs 复用；与脚本模型 §6 的"参数寻址到分量"共用曲线编辑能力）。
 
@@ -298,7 +352,7 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 
 > 步骤 1–4 不依赖画面合成，可先行；步骤 5 起依赖 lane 上屏；步骤 6 依赖分层模型落地。
 >
-> **进度（2026-10-07）**：步骤 1 的**标量组**已落地（12 通道 master pass）；步骤 1 的**曲线组**（RGB 复合曲线，形态 b）未做；步骤 2 未做；步骤 3 的**数据落点已定稿**、编辑器 UI 未做；步骤 4-6 未做。
+> **进度（2026-10-07）**：步骤 1 的**标量组**已落地（12 通道 master pass）；步骤 1 的**曲线组**（RGB 复合曲线，形态 b）未做；步骤 2 未做；步骤 3 的**数据落点已定稿**、编辑器 UI 未做；步骤 4 未做；**步骤 5（lane 级调整）已落地**（`scope=lane` + `lane`，lane 渲染完 / 合成前过 pass）；步骤 6 未做。
 
 ---
 

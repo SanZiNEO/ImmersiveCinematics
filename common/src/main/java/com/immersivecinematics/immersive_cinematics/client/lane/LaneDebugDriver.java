@@ -89,7 +89,7 @@ public final class LaneDebugDriver {
             double rad = Math.toRadians(yaw);
             Vec3 pos = new Vec3(eye.x + Math.sin(rad) * d, eye.y + HEIGHT_ABOVE_EYE, eye.z - Math.cos(rad) * d);
             LaneRenderer.INSTANCE.setLane(i, new CameraState(pos, yaw, pitch, 0.0F, DEFAULT_FOV, 1.0F),
-                    LaneRenderer.LaneContent.FULL);
+                    LaneRenderer.LaneContent.FULL, null);   // 调试 lane 无 lane 级调色
         }
     }
 
