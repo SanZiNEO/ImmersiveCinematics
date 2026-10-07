@@ -100,6 +100,68 @@
 | 文本层 | 基准字号下的文字块 |
 | 效果层 / 画幅层 | 铺满画布 |
 
+### 3.1 字段表定稿（已定稿·2026-10-07）
+
+**七项参数全部是覆盖层的关键帧字段**（存在通用 `Keyframe.data` 容器里，随关键帧插值；字段名沿用/收敛现有 schema，`source` 与相机侧同名同形）：
+
+| 参数 | 字段 | 类型 | 默认 | 范围 | 插值 | 基准 / 参考系 |
+|---|---|---|---|---|---|---|
+| 位置 | `x` / `y` | float | `0.5` / `0.5` | `0`~`1`（**不钳制**，可越界） | 线性 | **参考画布**归一化，元素中心 |
+| 锚点 | `anchor_x` / `anchor_y` | float | `0.5` / `0.5` | `0`~`1` | 线性 | **元素自身**归一化（`0` = 左/上缘，`1` = 右/下缘） |
+| 缩放 | `scale_x` / `scale_y` | float | `1.0` / `1.0` | `≥ 0` | 线性 | 相对**逐类基准尺寸**（见下表） |
+| 取材 | `source` = `{x,y,w,h}` | object | `{0,0,1,1}` | 各分量 `0`~`1`，且 `x+w ≤ 1`、`y+h ≤ 1` | 按分量整体线性（同 `position` 的复合值口径） | **素材**归一化（裁掉哪几条边） |
+| 适配 | `fit` | enum string | `"fit"` | `fit` / `fill` / `stretch` | **步进**（离散枚举不可插值，取上一个关键帧的值） | — |
+| 不透明度 | `opacity` | float | `1.0` | `0`~`1` | 线性 | — |
+| 顺序 | `z_index` | int | `10` | 任意整数（可负） | **步进** | — |
+
+> `fit` / `z_index` 是离散值：作为关键帧通道成立，但按**步进**语义取值（clip 级常量 = 只有一个值的步进通道，与现状 `z_index` 是 clip 字段等价）。
+
+**元素几何（定稿口径）**，全部在画布归一化单位下：
+
+```text
+B  = (Bx, By)                      基准尺寸（逐类，见下）
+s  = (scale_x, scale_y)            缩放
+TL0 = (x − Bx/2, y − By/2)         未缩放基准矩形左上角（位置 = 未缩放矩形的中心）
+A  = TL0 + (anchor_x·Bx, anchor_y·By)   锚点（缩放不动点）
+TL = A − (anchor_x·Bx·sx, anchor_y·By·sy)   缩放后左上角
+S  = (Bx·sx, By·sy)                缩放后尺寸
+屏幕像素 = CanvasTransform.canvas(屏幕宽, 屏幕高, fit) → 左上角 (offsetX + TL.x·canvasW, offsetY + TL.y·canvasH)、尺寸 (S.x·canvasW, S.y·canvasH)
+```
+
+- 位置始终指**未缩放基准矩形**的中心；锚点非中心时，缩放会改变元素的**视觉**中心（同 CSS `transform-origin`）。默认 `anchor = (0.5, 0.5)` 时绕中心缩放，元素中心恒为 `(x, y)`——与现状 `ImageLayer` 一致。
+- 取材与适配的先后：先按 `source` 裁出素材子矩形，再按 `fit` 把该子矩形铺进元素框（`CanvasTransform.map(素材子矩形尺寸, 元素框尺寸, fit)`，与 §4.1 的画布映射同一个纯函数）。
+
+**基准尺寸逐类（定稿·画布归一化单位）**：
+
+| 类别 | 基准尺寸 B |
+|---|---|
+| 画面层 | `(1, 1)` —— 铺满参考画布（素材 = lane 纹理，按 `fit` 铺进这个框） |
+| 图形层 | `(原图宽 / 1920, 原图高 / 1080)` —— 素材像素尺寸按参考分辨率折算 |
+| 文本层 | `(font_scale = 1 时文字块宽 / 1920, 文字块高 / 1080)` |
+| 效果层 | `(1, 1)` —— 铺满参考画布 |
+| 画幅层 | `(1, 1)` —— 铺满参考画布 |
+
+> 1920×1080 = 参考画布的像素锚点（§4.1）。图形层取“原图像素 ÷ 参考分辨率”：在 1920×1080 屏幕 + Fit 下 `scale = 1` 恰好是原图 1:1 像素尺寸，与现状 `ImageLayer`（`dispW = 原图宽 × scale_x`）**逐像素等价**——迁移零语义漂移。
+
+**与相机侧合成参数（已落地）的关系**：同一参数族的两端。
+
+- `source` / `opacity`：与相机侧（`camera-composition.md` §7 步骤 1，字段同名同形）语义**完全一致**。
+- `dest`：相机侧的 `dest` 是**屏幕归一化**目标矩形；在统一模型里等价于「基准尺寸 = 铺满画布」那一类的 位置 + 缩放（`dest = {dx,dy,dw,dh}` ↔ `x = dx + dw/2`、`y = dy + dh/2`、`scale = (dw, dh)`、`anchor = 0.5`），但**仅在屏幕宽高比 = 参考宽高比（16:9）时与画布归一化取值重合**；非 16:9 屏幕上 `dest` 是屏幕口径、统一模型是画布口径，换算在步骤 3–5 对齐时定。
+- `order`：两边都不是脚本字段（相机侧 = 轨道层级 → 轨道内 clip 顺序；覆盖层 = `z_index` 兜底）。
+
+**与现状的差异（步骤 4 对齐，本步骤只定模型、不动代码）**：
+
+| 项 | 现状 | 定稿 |
+|---|---|---|
+| 位置默认 | `x`/`y` 缺省 `0`/`0`（schema + `OverlayTrackPlayer` 回退） | `0.5`/`0.5`（居中，“什么都不写就是合理形态”） |
+| `opacity` 默认 | OVERLAY schema 缺省 `0`（不可见） | `1.0`（不透明，与相机侧合成参数一致） |
+| `z_index` 默认 | schema `20` / 运行时回退 `10` / 内置类常量 0·10·20·30·40 | `10`（单一取值；letterbox 的 `z = 0` 是内置常量，不在脚本口径内） |
+| 锚点 | 仅 `PipLayer` 有 `anchor_x/anchor_y`，且是**定位锚**（`x − width·anchor`）、像素坐标 | 统一为**缩放绕点**（元素自身归一化）；pip 去像素化属步骤 4 |
+| 取材 / 适配 | 无字段 | `source` / `fit` |
+| 坐标口径 | `ImageLayer`/`SubtitleLayer` = 屏幕百分比；`PipLayer` = 原始像素 | **参考画布百分比（唯一口径）** |
+
+> 本表是**模型口径**：代码尚未消费 `anchor_*` / `source` / `fit`（渲染与图层改动属步骤 3–5），`docs/SCRIPT_FORMAT.md` 的 OVERLAY 一节仍描述现行行为，待实现落地时同步。
+
 > 现状对照（可验证）：`ImageLayer` 的 `x`/`y` 已是“屏幕百分比、元素中心”（`actualX = x * screenWidth - dispW / 2`），`scaleX`/`scaleY` 是“相对原图尺寸的百分比乘数”（`dispW = 原图宽 × scaleX`，原图尺寸来自 `TextureLoader.getTextureSize`）；`SubtitleLayer` 同构（x/y 屏幕百分比 + 文字块中心、scale 百分比乘数，另多一级 `fontScale` 矩阵缩放：`pose.scale(fontScale * scaleX, fontScale * scaleY, 0)`）；`PipLayer` 有 `anchorX`/`anchorY`（默认 0.5，按 `x - width * anchorX` 定位），但坐标用的是**原始像素**。
 > → 方向与现状一致，要做的是**统一并补齐“取材 / 适配”两项**（现状 OVERLAY schema 确无取材 / 适配 / 锚点字段，见 `script/schema/TrackSchemas.java` 的 `overlay()`）。
 
@@ -114,6 +176,48 @@
 方向：**定义参考画布**（一个固定宽高比 + 归一化坐标），所有参数相对它表达；实际屏幕按适配规则映射。这样“同一套参数在任何设备上都是同一个构图”。
 
 适配规则沿用剪辑软件的三档（olive `TransformDistortNode::AutoScaleType`：`kAutoScaleFit` / `kAutoScaleFill` / `kAutoScaleStretch`，UI 下拉项 `None / Fit / Fill / Stretch`）：**Fit**（完整放得下，可能留边）/ **Fill**（铺满，裁掉溢出）/ **Stretch**（直接拉伸）。
+
+### 4.1 参考画布定稿（已定稿·2026-10-07）
+
+**取值**：宽高比 **16:9**（`CanvasTransform.REFERENCE_ASPECT_RATIO = 16/9`）；像素锚点 **1920×1080**（`REFERENCE_WIDTH` / `REFERENCE_HEIGHT`）——归一化 `(u,v)` 里 1 单位 = 1920×1080 像素。
+
+**声明位置：全局常量**（`overlay/CanvasTransform`），**不进脚本 `meta`**。理由：
+
+1. 参考画布是“同一套参数在任何设备上都是同一个构图”的**唯一基准**——若逐脚本声明，同一组 `(x, y)` 在不同脚本里构图不同，设备无关的保证就没了；
+2. **最简**：不加 meta 字段 → 不动 schema / 校验 / 编辑器 / 脚本格式；
+3. 它是框架级决定，不是作者级选择；将来若真需要（如 4:3 复古集），再加**脚本级可选覆盖**即可（缺省 = 全局常量），结构上没堵死。
+
+**为什么 16:9 / 1920×1080**：与 `LetterboxLayer` 现有 `targetAspectRatio` 的用法、以及绝大多数实际输出（16:9 窗口）一致；1920×1080 让“图形层基准尺寸 = 原图像素 ÷ 参考分辨率”在参考分辨率下退化为 1:1 像素，**与现状 `ImageLayer` 逐像素等价**（迁移零语义漂移，见 §3.1）。
+
+**映射公式**（素材 `srcW×srcH` → 目标框 `dstW×dstH`；画布 → 屏幕即 `src = 1920×1080`、`dst = 屏幕像素`，两者共用同一纯函数 `CanvasTransform.map`）：
+
+```text
+Fit:      s = min(dstW/srcW, dstH/srcH)          scaleX = scaleY = s
+Fill:     s = max(dstW/srcW, dstH/srcH)          scaleX = scaleY = s
+Stretch:  scaleX = dstW/srcW, scaleY = dstH/srcH
+
+w = srcW·scaleX,  h = srcH·scaleY
+offsetX = (dstW − w)/2,  offsetY = (dstH − h)/2      （Fit 偏移 ≥ 0 留边；Fill 偏移 ≤ 0 裁切；Stretch 偏移 = 0）
+
+画布归一化 (u, v) → 屏幕像素：
+  sx = offsetX + u·w
+  sy = offsetY + v·h
+```
+
+**宽高比不一致的边界行为**（`A_s` = 屏幕宽高比）：
+
+| 情形 | Fit | Fill | Stretch |
+|---|---|---|---|
+| `A_s > 16/9`（屏幕更宽） | **左右黑边**（pillarbox），画布高铺满 | 裁掉画布**上下** | 铺满，横向拉伸 |
+| `A_s < 16/9`（屏幕更窄） | **上下黑边**（letterbox），画布宽铺满 | 裁掉画布**左右** | 铺满，纵向拉伸 |
+| `A_s = 16/9` | 三者一致（无偏移、等比 `s = dstW/1920`） | 同左 | 同左 |
+
+- Fit 的黑边区**不属于画布**：画布归一化坐标不会落在那里（越界坐标除外）；黑边由 `LetterboxLayer`（或画幅层）绘制，参考画布只提供坐标口径。`LetterboxLayer` 现有算法（`contentHeight = screenWidth / ratio`，`contentHeight < screenHeight` 时画上下黑边）**就是 Fit**——可直接喂 `REFERENCE_ASPECT_RATIO`。
+- 归一化坐标**不钳制**：越界（`<0` / `>1`）允许表达，元素按公式落到留边区 / 屏幕外，由屏幕边界裁剪；Fill 下画布超出屏幕的部分同理被裁。
+- 参考画布**不是渲染目标**：实际渲染仍在屏幕分辨率进行（不降分辨率，见 `multi-camera-rendering.md`）；画布只是参数口径。
+- 需要贴边时按 §3.1 的几何公式（中心 + 尺寸/2）折算，与现状 `ImageLayer` 的做法一致。
+
+**代码承载**：`common/src/main/java/com/immersivecinematics/immersive_cinematics/overlay/CanvasTransform.java`（常量 + `FitMode` + `map` / `canvas` / `screenX` / `screenY` 纯函数；不引用任何 Minecraft 类、不做渲染）。冒烟验证（各宽高比 × 三档，归一化 → 像素逐点核对，含退化入参与不变量）通过。
 
 ---
 
@@ -135,30 +239,29 @@
 
 ## 7. 可能的问题
 
-- 参考画布与实际设备宽高比不一致时的裁切 / 留黑策略。
+> 已解决项不再列出：宽高比不一致的裁切 / 留黑策略 → §4.1；每类默认参数 → §3.1。
+
 - **画面层在 z 序里的基线**：它应该在 letterbox **之下**（现在 letterbox 的 z=0 已是最小，需要给画面层留更低的基线）。
 - 素材没有内在尺寸时（纯色遮罩、文本），“取材”的语义。
 - 取材超出素材边界时的行为（钳制 / 黑 / 循环）。
 - 旋转是否纳入：不纳入的话锚点的意义减半，但第一版可以只服务缩放。
-- 每类的默认参数要能“什么都不写就是合理形态”。
 - 性能：小尺寸画面是否按显示尺寸渲染（现计划写的是“正式合成不降分辨率”）。
 
 ---
 
 ## 8. 待定
 
-- 参考宽高比的取值与声明位置。
-- 参数的具体字段名与轨道归属。
 - 取材的边界语义。
 - 与 HUD / letterbox 的叠放顺序细节。
 - pip 层是被取代还是升级。
+- 相机侧 `dest`（屏幕归一化口径，已落地）与画布归一化口径的换算（步骤 3–5）。
 
 ---
 
 ## 9. 落地顺序（方向）
 
-1. 定义覆盖层统一参数与“基准尺寸”表
-2. 定义参考画布与设备适配规则
+1. ✅ 定义覆盖层统一参数与“基准尺寸”表 —— 定稿见 §3.1（2026-10-07）
+2. ✅ 定义参考画布与设备适配规则 —— 定稿见 §4.1（2026-10-07；代码承载 `overlay/CanvasTransform.java`）
 3. 画面层接入（多相机 lane 作为覆盖层的一类）
 4. 现有 overlay 层按统一参数对齐（含 pip 去像素化）
 5. 取材 / 适配补齐到所有类别
@@ -211,6 +314,12 @@
 
 ### ④ 无法核实（未验证）
 
-1. §2 分类表“画面层 = 相机 lane 的输出纹理 / 每条 CAMERA 轨或每个相机一条”、§3 参数表字段名、§5 Gizmo 与参数面板双向同步、§8 待定项、§9 落地顺序——均为**方向 / 待定**，无对应现状实现可核。
+1. §2 分类表“画面层 = 相机 lane 的输出纹理 / 每条 CAMERA 轨或每个相机一条”、§5 Gizmo 与参数面板双向同步——均为**方向**，无对应现状实现可核。（§3 字段名 / 参考画布 / §9 步骤 1–2 已于 2026-10-07 定稿，见 §3.1 / §4.1 / ⑤；§8 余下待定项与 §9 步骤 3–6 仍为方向。）
 2. §7“小尺寸画面是否按显示尺寸渲染”属取舍问题，非事实断言；其引用的“正式合成不降分辨率”已在 ①.12 核实为真。
 3. olive 侧“变换先按序列归一化”的完整语义链（`MatrixGenerator::GenerateMatrix` 生成矩阵的坐标系约定）未逐行追到基类实现，本核查只验证到 `AdjustMatrixByResolutions` 的缩放/适配与 NDC 顶点约定（见 ①.7）。
+
+### ⑤ 定稿落地（2026-10-07）
+
+- **交付物**：`common/src/main/java/com/immersivecinematics/immersive_cinematics/overlay/CanvasTransform.java`（`REFERENCE_ASPECT_RATIO = 16/9`、`REFERENCE_WIDTH/HEIGHT = 1920/1080`、`FitMode{FIT,FILL,STRETCH}`、`record Placement`、纯函数 `map` / `canvas` / `screenX` / `screenY`；**不引用任何 MC 类、不做渲染**）。定义写进本文 §3.1（字段表 + 基准尺寸逐类）与 §4.1（参考画布 + 映射公式 + 边界行为）。
+- **验证**：`javac -encoding UTF-8` 编译该文件 + 一次性冒烟程序（不入库）→ `SMOKE OK`。覆盖：1920×1080/1280×720/2560×1080/1024×768/3840×2160/800×1280 × Fit/Fill/Stretch 的归一化 → 像素逐点核对（含 `(0,0)`、`(0.5,0.5)`、`(1,1)`）、素材 → 元素框的第二处用法、退化入参（≤0 返回 `EMPTY`）、不变量（Fit 完整可见 / Fill 覆盖屏幕 / 画布中心恒在屏幕中心 / Fit 等比守恒）、以及「1920×1080 + Fit 退化为 `ImageLayer` 语义」的兼容性断言。
+- **未做**：渲染 / 图层改动（步骤 3–5）；脚本 schema 与 `docs/SCRIPT_FORMAT.md` 未动（代码尚未消费 `anchor_*` / `source` / `fit`，实现落地时同步）。
