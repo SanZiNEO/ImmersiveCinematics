@@ -1,0 +1,181 @@
+{
+  "meta": {
+    "id": "quadrant_demo",
+    "name": "四象限分屏 · 单脚本四相机轨",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "0.3.6 四象限展示（一个脚本 = 一个交付物）：本脚本只有 4 条 CAMERA 轨 + 3 条 lane 级 ADJUST 轨。① 分屏：每条相机轨的关键帧自带 dest（屏幕归一化矩形，原点左上）——左上 {0,0,0.5,0.5} / 右上 {0.5,0,0.5,0.5} / 左下 {0,0.5,0.5,0.5} / 右下 {0.5,0.5,0.5,0.5}，四格精确铺满、无重叠无缝隙；机位各不相同（触发点正北 fov 62 / 正东 fov 70 / 正南 fov 78 / 正西 fov 66，各距 9 格、高 3 格、轻微俯视，绕触发点小幅度摆动，24s 首尾姿势闭合）。② 透明度（合成层）：右下格 opacity 恒 0.5，可与原版玩家视角半透明叠加；其余三格恒 1.0。③ 裁切/数字变焦：右下格 source 从全幅 {0,0,1,1} 缓慢推进到中心 60% {0.2,0.2,0.6,0.6} 再回到全幅（同为关键帧数据，非代码写死）。④ 每格独立调色：3 条 lane 级 ADJUST 轨分别绑定 lane 0/1/2，关键帧把 red/green/blue 通道从中段压到 -1（该通道归零）再回 0（首=末=0）；调色只动 RGB，透明度只在合成层由 opacity 表达，两者互不代偿。把本文件丢进 <游戏目录>/immersive_cinematics/scripts/ 即用（平铺复制，命令 id = quadrant_demo；放进子目录则命令 id 为 目录名:quadrant_demo）；进入世界后自动播放一次（login 触发 + repeatable=false）。macro_loop 3 圈 × 24s = 72s，播完自然结束；重放：/icinematics play quadrant_demo。",
+    "triggers": [
+      {
+        "id": "demo_on_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 1.0,
+        "conditions": {}
+      }
+    ],
+    "dimension": "",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "block_mob_ai": false,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "hide_skip_hud": false,
+    "render_player_model": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "macro_loop": true,
+    "macro_loop_count": 3,
+    "macro_loop_mode": "repeat",
+    "priority": 0
+  },
+  "timeline": {
+    "total_duration": 24.0,
+    "loop_start": 0.0,
+    "loop_end": 24.0,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "id": "camera_north",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 24.0,
+            "transition": "cut",
+            "transition_duration": 0.0,
+            "orient": "manual",
+            "loop": false,
+            "dimension": "",
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 0.0, "dy": 3.0, "dz": -9.0 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 0.0, "pitch": 9.0, "roll": 0.0, "fov": 62.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.0, "y": 0.0, "w": 0.5, "h": 0.5 } },
+              { "time": 6.0, "position": { "dx": 1.6, "dy": 3.4, "dz": -8.9 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 0.0, "pitch": 11.0, "roll": 0.0, "fov": 62.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.0, "y": 0.0, "w": 0.5, "h": 0.5 } },
+              { "time": 12.0, "position": { "dx": 0.0, "dy": 3.8, "dz": -8.6 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 0.0, "pitch": 14.0, "roll": 0.0, "fov": 62.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.0, "y": 0.0, "w": 0.5, "h": 0.5 } },
+              { "time": 18.0, "position": { "dx": -1.6, "dy": 3.4, "dz": -8.9 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 0.0, "pitch": 11.0, "roll": 0.0, "fov": 62.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.0, "y": 0.0, "w": 0.5, "h": 0.5 } },
+              { "time": 24.0, "position": { "dx": 0.0, "dy": 3.0, "dz": -9.0 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 0.0, "pitch": 9.0, "roll": 0.0, "fov": 62.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.0, "y": 0.0, "w": 0.5, "h": 0.5 } }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "id": "camera_east",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 24.0,
+            "transition": "cut",
+            "transition_duration": 0.0,
+            "orient": "manual",
+            "loop": false,
+            "dimension": "",
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 9.0, "dy": 3.0, "dz": 0.0 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 90.0, "pitch": 9.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.5, "y": 0.0, "w": 0.5, "h": 0.5 } },
+              { "time": 6.0, "position": { "dx": 8.9, "dy": 3.4, "dz": 1.6 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 90.0, "pitch": 11.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.5, "y": 0.0, "w": 0.5, "h": 0.5 } },
+              { "time": 12.0, "position": { "dx": 8.6, "dy": 3.8, "dz": 0.0 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 90.0, "pitch": 14.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.5, "y": 0.0, "w": 0.5, "h": 0.5 } },
+              { "time": 18.0, "position": { "dx": 8.9, "dy": 3.4, "dz": -1.6 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 90.0, "pitch": 11.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.5, "y": 0.0, "w": 0.5, "h": 0.5 } },
+              { "time": 24.0, "position": { "dx": 9.0, "dy": 3.0, "dz": 0.0 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 90.0, "pitch": 9.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.5, "y": 0.0, "w": 0.5, "h": 0.5 } }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "id": "camera_south",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 24.0,
+            "transition": "cut",
+            "transition_duration": 0.0,
+            "orient": "manual",
+            "loop": false,
+            "dimension": "",
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": 0.0, "dy": 3.0, "dz": 9.0 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 180.0, "pitch": 9.0, "roll": 0.0, "fov": 78.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.0, "y": 0.5, "w": 0.5, "h": 0.5 } },
+              { "time": 6.0, "position": { "dx": -1.6, "dy": 3.4, "dz": 8.9 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 180.0, "pitch": 11.0, "roll": 0.0, "fov": 78.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.0, "y": 0.5, "w": 0.5, "h": 0.5 } },
+              { "time": 12.0, "position": { "dx": 0.0, "dy": 3.8, "dz": 8.6 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 180.0, "pitch": 14.0, "roll": 0.0, "fov": 78.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.0, "y": 0.5, "w": 0.5, "h": 0.5 } },
+              { "time": 18.0, "position": { "dx": 1.6, "dy": 3.4, "dz": 8.9 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 180.0, "pitch": 11.0, "roll": 0.0, "fov": 78.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.0, "y": 0.5, "w": 0.5, "h": 0.5 } },
+              { "time": 24.0, "position": { "dx": 0.0, "dy": 3.0, "dz": 9.0 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": 180.0, "pitch": 9.0, "roll": 0.0, "fov": 78.0, "zoom": 1.0, "opacity": 1.0, "dest": { "x": 0.0, "y": 0.5, "w": 0.5, "h": 0.5 } }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "id": "camera_west",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 24.0,
+            "transition": "cut",
+            "transition_duration": 0.0,
+            "orient": "manual",
+            "loop": false,
+            "dimension": "",
+            "keyframes": [
+              { "time": 0.0, "position": { "dx": -9.0, "dy": 3.0, "dz": 0.0 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": -90.0, "pitch": 9.0, "roll": 0.0, "fov": 66.0, "zoom": 1.0, "opacity": 0.5, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 } },
+              { "time": 6.0, "position": { "dx": -8.9, "dy": 3.4, "dz": -1.6 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": -90.0, "pitch": 11.0, "roll": 0.0, "fov": 66.0, "zoom": 1.0, "opacity": 0.5, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "source": { "x": 0.1, "y": 0.1, "w": 0.8, "h": 0.8 } },
+              { "time": 12.0, "position": { "dx": -8.6, "dy": 3.8, "dz": 0.0 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": -90.0, "pitch": 14.0, "roll": 0.0, "fov": 66.0, "zoom": 1.0, "opacity": 0.5, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "source": { "x": 0.2, "y": 0.2, "w": 0.6, "h": 0.6 } },
+              { "time": 18.0, "position": { "dx": -8.9, "dy": 3.4, "dz": 1.6 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": -90.0, "pitch": 11.0, "roll": 0.0, "fov": 66.0, "zoom": 1.0, "opacity": 0.5, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "source": { "x": 0.1, "y": 0.1, "w": 0.8, "h": 0.8 } },
+              { "time": 24.0, "position": { "dx": -9.0, "dy": 3.0, "dz": 0.0 }, "position_mode": "relative", "follow": "none", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "selector_refresh": 1.0, "yaw": -90.0, "pitch": 9.0, "roll": 0.0, "fov": 66.0, "zoom": 1.0, "opacity": 0.5, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 } }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "id": "adjust_lane0_red",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 24.0,
+            "scope": "lane",
+            "lane": 0,
+            "keyframes": [
+              { "time": 0.0, "red": 0.0 },
+              { "time": 12.0, "red": -1.0 },
+              { "time": 24.0, "red": 0.0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "id": "adjust_lane1_green",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 24.0,
+            "scope": "lane",
+            "lane": 1,
+            "keyframes": [
+              { "time": 0.0, "green": 0.0 },
+              { "time": 12.0, "green": -1.0 },
+              { "time": 24.0, "green": 0.0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "id": "adjust_lane2_blue",
+        "clips": [
+          {
+            "start_time": 0.0,
+            "duration": 24.0,
+            "scope": "lane",
+            "lane": 2,
+            "keyframes": [
+              { "time": 0.0, "blue": 0.0 },
+              { "time": 12.0, "blue": -1.0 },
+              { "time": 24.0, "blue": 0.0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
