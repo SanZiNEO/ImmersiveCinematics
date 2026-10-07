@@ -30,7 +30,7 @@
 
 - **每象限一套独立的"我们模组的相机"实例**：原版 `Camera` + `CameraPath`（位置）+ `CameraProperties`（yaw/pitch/roll/fov/zoom）
 - **接管走模组自己的路径**：`Camera.setup()` → `CameraMixin` 原型分支（写位置/朝向 + `initialized/level/entity/detached`，并覆写 `isDetached`/`getEntity`）；fov/zoom 走 `GameRendererMixin.getFov` 原型分支
-- **渲染**：每象限**整尺寸**渲染进自己的 `RenderTarget`（`TextureTarget`，与主画面同尺寸），渲染期间把 `Minecraft.mainRenderTarget` 临时指向该 FBO（`MinecraftAccessor`），结束后按 **50% 缩放** `glBlitFramebuffer` 贴进象限
+- **渲染**：每象限**整尺寸**顺序渲染进**同一个共用** `RenderTarget`（`TextureTarget`，与主画面同尺寸，各画面用完即贴、不必每画面一张——`QuadrantProto.java:70-71`），渲染期间把 `Minecraft.mainRenderTarget` 临时指向该 FBO（`MinecraftAccessor`），结束后按 **50% 缩放** `glBlitFramebuffer` 贴进象限
 - **出图**：`Screenshot.grab` 主图 + `takeScreenshot` 裁四张 → `fabric/run/quadrant-captures/`
 - **开关**：`-Dicinematics.quadrant=true` / `ICINEMATICS_QUADRANT=1`（默认关，零差异）
 

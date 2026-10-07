@@ -5,11 +5,16 @@
 > 接口、字段、公式、JSON、迁移步骤等执行时再查再定。
 >
 > 文档约定：一个文档一个点；不写伪代码，写实现思路与每一步的交付物。
+> 通用原则：先定义工具（底层），再考虑怎么调用、整合工具（应用层）——先底层后应用；模板、转场等应用层文档都遵循此分层。
+> 效果原则：大部分效果写成**系统可追踪的数据**（轨道 → clip → 关键帧参数），不写死代码；机制性能力最小化。转场即例子：叠化 = 末尾帧/首帧复制延长（hold 等值关键帧）+ opacity 关键帧交叉，黑场/白场 = OVERLAY 轨预配置 clip。参考项目：ReplayMod 路径系统（Timeline/Path/Keyframe 全数据化）、olive（节点参数全关键帧）。
+> 时间轴原则：**允许 clip 时间重叠**（lane 模型红利，旧单相机时代不允许——一个时间点只能有一个相机状态）；重叠解析 = 先按轨道层级，再按轨道内 clip 顺序（后面的 clip 在上）。叠化 = **末尾帧/首帧复制延长（hold 等值关键帧，工具自动补充）** + opacity 关键帧；不允许重叠会露原版画面。
 >
 > 0.4.0 不再作为独立排期桶，活跃讨论全部归本目录；
 > 0.4.0 仅保留未搬迁的远期文档（跨维度运镜、运动模型、路径形状）。
 
 **状态图例**：✅ 已落地　🟢 可立刻开工　🔵 方向已确认　🟡 框架讨论　🔒 长期讨论　⚠️ 状态滞后
+
+> **2026-10-07 事实核查**：本目录各指导性文档已完成一轮源码事实核查（MC/Forge 源码、`example/` 参考模组、仓库代码），每篇文档末尾新增「事实核查（2026-10-07）」小节，记录核实为真/已修正/补全/未验证四类结论与证据；`mod-architecture-diagram.md` 未改动。冲突按「最后修改时间晚者为准」裁决（裁决记录在各文档核查小节）。
 
 ---
 
@@ -21,6 +26,9 @@
 | `camera-composition.md` | 画面合成：取材区域 / 目标区域 / 不透明度的关键帧化；主相机 / PIP / 分屏 / 叠化都是特例 | 🔵 方向已确认 | parallel-playback；多相机渲染原型 ✅（已验证，见 `quadrant-prototype-results.md`） |
 | `multi-camera-rendering.md` | 多相机渲染底层：第二遍渲染、FBO、性能档位、模组兼容 | 🟢 渲染底层已验证（原型：4/16/25 画面，见 `quadrant-prototype-results.md`）；原型代码已并入 main，默认关 | - |
 | `script-loop.md` | 脚本循环：宏观（整条时间轴）与微观（片段）两级折叠 | 🔵 方向已确认（落地顺序完整） | 相机底层七篇（轻度引用） |
+| `variable-frame.md` | **画面系统核心**：覆盖层统一参数（位置 / 锚点 / 缩放 / 取材 / 适配 / 不透明度 / 顺序，全部关键帧）+ 参考画布 + 设备无关；复杂效果 = 参数组合 | 🔵 方向已确认 | script-model（关键帧平滑） |
+| `script-model.md` | 关键帧模型：关键帧级插值 / 贝塞尔手柄、参数寻址到分量、meta 关键帧化——画面系统"关键帧间平滑"的机制 | 🔵 方向已确认 | — |
+| `scene-transition.md` | 画面转场（应用层）：cut / 叠化 / wipe 作为底层工具的组合调用；黑场 / 白场 = OVERLAY 轨上已调好参数的 clip；alpha 总账 | 🔵 方向已确认 | camera-composition；overlay-color-mask |
 
 ## 二、编辑器
 
@@ -28,6 +36,7 @@
 |---|---|---|---|
 | `editor-webui-migration.md` | 编辑器 WebUI：独立 Editor（Vue3 + Electron）已实现并打包 0.1.0；剩余：旧编辑器退役、安全加固等 | ✅ 主体已落地 | — |
 | `editor-script-graph.md` | WebUI 无限画布：脚本架构图（文件夹分区 + requires 依赖网） | 🔵 方向已确认 | WebUI 编辑器 |
+| `templates.md` | 模板参数化：脚本-轨道-片段三层模板；用户填目标需求一键生成脚本 | 🔵 方向已确认 | script-model；editor-webui-migration |
 
 ## 三、触发器与区域
 
@@ -41,8 +50,8 @@
 | 文档 | 说明 | 状态 | 依赖 |
 |---|---|---|---|
 | `hud-hard-hide.md` | HUD 强硬隐藏：Pre 拦截 + 白名单重画 | 🔵 方向已确认（改动面已有） | — |
-| `overlay-color-mask.md` | Overlay 颜色遮罩增强（渐变 / 混合 / 局部）；调色滤镜已移交 screen-color-adjust | 🟡 范围未收敛 | — |
-| `screen-color-adjust.md` | 画面颜色调整：RGBA 通道拆分 + 完整 HSL，PS 式「各自持有 + 总体叠加」 | 🔵 方向已确认 | camera-composition（lane 级调整，步骤 4 起） |
+| `overlay-color-mask.md` | Overlay 颜色遮罩：纯色覆盖层工具（颜色 + 不透明度可关键帧）；黑场 / 白场 / 颜色遮罩 = OVERLAY 轨预配置 clip；增强：渐变 / 混合 / 局部；调色滤镜已移交 screen-color-adjust | 🟡 范围未收敛 | — |
+| `screen-color-adjust.md` | 画面颜色调整（现代调色系统）：PS 式分层（lane / 调整层 / master）+ RGBA 通道 + 完整 HSL + 曲线（RGB / 每通道 / 六条 hue）+ 色轮，全部可关键帧；三批工具清单 | 🔵 方向已确认 | camera-composition（lane 级调整，步骤 5 起） |
 | `wait-point-track.md` | 等待点轨道：暂停 → 等事件回报 → 决定后续（继续 / 结束 / 接播 / 分支） | 🟡 框架讨论 | — |
 
 ## 五、相机底层架构（长期，互相咬合）

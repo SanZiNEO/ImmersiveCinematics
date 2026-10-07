@@ -21,7 +21,7 @@
 | 取材区域（source rect） | 从 lane 画面里取哪一块（画面内归一化矩形） | 全幅 |
 | 目标区域（dest rect） | 铺到屏幕哪一块（屏幕归一化矩形） | 全屏 |
 | 不透明度（opacity） | 叠放时的透明度 | 1 |
-| 叠放顺序（order） | lane 之间的上下关系 | 后启动的在上（待定） |
+| 叠放顺序（order） | lane 之间的上下关系 | **先按轨道层级，再按轨道内 clip 顺序（后面的 clip 在上），最后按 z_index**（已确认·2026-10-07；跨实例再叠一层实例启动顺序，见并行播放 §3.4） |
 
 **四个参数全部走关键帧**（已确认）：随时间变化、可插值——这是 PIP 系统应有的能力。
 
@@ -37,6 +37,8 @@
 | 叠化（dissolve） | 两个全屏 lane，opacity 交叉：A 1→0、B 0→1 |
 | 数字变焦 / 局部取景 | source rect 取局部，dest 全屏 |
 | 监视器墙 | N 个 lane，dest 网格排布 |
+
+> **这些形态没有独立实现（已确认·2026-10-07）**：它们都是同一套合成参数关键帧的编排。以叠化为例——叠化是**对两个相机 clip 的状态（合成参数 opacity）做处理**：clip A 末尾 opacity 关键帧 1→0、clip B 开头 0→1；**追踪 = 调 clip 的关键帧参数**，没有独立转场轨 / 字段 / 代码。唯一机制性支持是叠化预热（渲染层，见 `multi-camera-rendering.md`）。详见[画面转场](./scene-transition.md) §3.2。
 
 **取材区域语义（已确认）**：对相机**输出画面**的矩形裁剪（屏幕空间 UV），不是改相机视锥的世界空间取景。
 
@@ -62,7 +64,7 @@
 
 ## 3. 与现有 pip 层的关系（方向）
 
-OVERLAY 现有 `pip` 层是静态贴图；画面 lane 是动态纹理。方向：`pip` 层升级为可绑定 lane（lane 作为一种图层来源），合成参数即层的几何属性；或 pip 层被合成层取代。执行时定。
+OVERLAY 现有 `pip` 层是静态占位（半透明黑填充 + 2px 白边，不绑定任何纹理/相机画面）；画面 lane 是动态纹理。方向：`pip` 层升级为可绑定 lane（lane 作为一种图层来源），合成参数即层的几何属性；或 pip 层被合成层取代。执行时定。
 
 ---
 
@@ -74,16 +76,18 @@ OVERLAY 现有 `pip` 层是静态贴图；画面 lane 是动态纹理。方向�
 - 不是渲染“未来的世界”（世界是动态的，未来帧不存在），是让 B 的 framebuffer 提前进入有效状态；
 - 并行实例模型下，预热 = **提前启动 B 实例**（见[并行播放](./parallel-playback.md)）。
 
+**时间轴允许重叠后的结论（已确认·2026-10-07）**：**预热 = 重叠窗口本身**。叠化 = 上一个 clip 的**末尾帧复制延长**（hold）+ 下一个 clip 的**首帧复制延长**（hold），两个冻结区时间交叉（见[脚本循环](./script-loop.md) §4）；B 从自己 clip 的开头（opacity 0 起，hold 区渲染的就是被复制的首帧）就一直在渲染，**不需要独立的预热调度机制**。"预热时长"退化为作者的编排（叠化时长 = 延长区长度），不再是一个框架参数。
+
 ---
 
 ## 5. 可能的问题
 
 - 合成参数归属（自声明 vs 导演）。
-- order 冲突的判定规则。
-- dest 矩形之外的区域谁垫底：无 lane 覆盖时露原版视角还是黑场。
+- order 冲突的判定规则（已定：轨道层级 → 轨道内 clip 顺序 → z_index，见 §1）。
+- dest 矩形之外的区域谁垫底：无 lane 覆盖时露原版视角还是黑场。（时间轴允许重叠后，作者可用重叠保证全屏总有覆盖、无空隙——露原版视角是"有空隙"的结果，靠作者编排避免；兜底策略仍待定。）
 - 编辑器预览怎么表现多 lane 合成。
 - 与 HUD / letterbox 的叠放顺序。
-- 性能：合成本身是全屏 quad 拷贝，开销小；主要开销在渲染侧（见多相机渲染文档）。原型实测：每 lane ≈3.4–3.6 ms（≈1.2–1.4× 主画面）、线性；且 **lane 级后处理（如发光描边）属于该 lane，必须在 lane 的 FBO 内完成**（见 `quadrant-prototype-results.md` §3.2）。
+- 性能：合成本身是全屏 quad 拷贝，开销小；主要开销在渲染侧（见多相机渲染文档）。原型实测：每 lane ≈3.4–3.6 ms（主画面稳态 2–3 ms）、线性；且 **lane 级后处理（如发光描边）属于该 lane，必须在 lane 的 FBO 内完成**（见 `quadrant-prototype-results.md` §3.2）。
 
 ---
 
@@ -122,3 +126,44 @@ OVERLAY 现有 `pip` 层是静态贴图；画面 lane 是动态纹理。方向�
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
 
 - **pip 的 opacity 不生效**：`overlay/PipLayer` 算出的 `fillArgb` / `borderArgb` 从未使用（直接用了常量）→ `opacity` 对 pip 填充与边框完全不起作用；且 pip 的 `x/y/width/height` 是原始像素而非屏幕百分比。
+
+---
+
+## 事实核查（2026-10-07）
+
+> 依据文件：`common/src/main/java/com/immersivecinematics/immersive_cinematics/overlay/{PipLayer,ImageLayer,FadeLayer,SubtitleLayer,LetterboxLayer,OverlayManager}.java`、`.../proto/QuadrantProto.java`、`.../mixin/QuadrantProtoMixin.java`、`.../script/OverlayTrackPlayer.java`、`plans/0.3.6/quadrant-perf/summary.md`、`plans/0.3.6/quadrant-prototype-results.md`。核查针对本文事实性断言，不改设计方向。
+
+### ① 核实为真
+
+1. **pip 的 opacity 不生效**（已知缺陷条）：`PipLayer.render()` 里算出 `fillArgb`/`borderArgb` 后**均未使用**——填充写死 `FILL_COLOR`（`0x40000000`）、边框写死 `BORDER_COLOR`（`0xFFFFFFFF`）。证据：`overlay/PipLayer.java:14-15,40-45`。
+2. **pip 的 x/y/width/height 是原始像素**：`render()` 里 `actualX = x - width*anchorX` 后直接 `(int)` 使用，**无** `* screenWidth/screenHeight`；对比 `ImageLayer.render()` 的 `x*screenWidth`。证据：`overlay/PipLayer.java:31-36`、`overlay/ImageLayer.java:55-56`。
+3. **pip 层只画填充 + 边框（无纹理）**：`PipLayer.render()` 只有 5 次 `guiGraphics.fill(...)`（1 填充 + 4 边框），不绑定纹理/相机画面；类注释「Phase 1：仅渲染白色边框和半透明黑色填充，不包含实际摄像头画面」。证据：`overlay/PipLayer.java:5-9,41-53`。
+4. **§5 性能数字**：`quadrant-perf/summary.md` 结论表「单画面」4/16/25 画面分别为 3.4 / 3.5 / 3.6 ms、主画面各档 2–3 ms、线性——绝对数值与本文一致；summary 原「≈1.2–1.4 × 主画面」比值经 2026-10-07 跨文档核查与 CSV 明细不符（CSV 推算 ≈1.6–2.0×），已按「晚修改者为准」（multi-camera-rendering.md 同日修正）在各引用文档删除该比值。
+5. **§5 「lane 级后处理必须在 lane 的 FBO 内完成」**：`quadrant-prototype-results.md §3.2` 结论原文「lane 的 `renderLevel` 加上所有 lane 级后处理都必须在 lane 的 FBO 内完成，再缩放上屏」，与本文一致。
+6. **§1「1 张共用缓冲跑完 25 个画面」**：`proto/QuadrantProto.java` 只持有一个静态 `RenderTarget target`，注释「共用的离屏缓冲（各画面顺序渲染、用完即贴，不必每画面一张）」；`QuadrantProtoMixin` 在每个 view 循环里都调 `QuadrantProto.target(w, h)` 复用同一缓冲。证据：`proto/QuadrantProto.java:70-71,221-227`、`mixin/QuadrantProtoMixin.java:113`。
+7. **§1「合成顺序进行、显存不随 lane 数增长、缓冲复用」**：与 `summary.md`「成本线性、显存不随画面数增长（合成顺序进行，缓冲复用）」一致，且有上述单缓冲源码支撑。
+
+### ② 已修正的断言
+
+1. **§3「OVERLAY 现有 `pip` 层是静态贴图」→「静态占位（半透明黑填充 + 2px 白边，不绑定任何纹理/相机画面）」**：`PipLayer` 不绘制任何纹理（见①.3），「贴图」不准确。已就地改为精确描述，方向句未动。
+
+### ③ 补全的信息（源码核对，原文未列出/未明确）
+
+1. **overlay 五个内置层类的默认 z 常量**（0/10/20/30/40 的说法与源码一致）：
+   - `LetterboxLayer.Z_INDEX = 0`（`LetterboxLayer.java:7`）
+   - `FadeLayer.DEFAULT_Z_INDEX = 10`（`FadeLayer.java:13`）
+   - `ImageLayer.DEFAULT_Z_INDEX = 20`（`ImageLayer.java:25`）
+   - `SubtitleLayer.DEFAULT_Z_INDEX = 30`（`SubtitleLayer.java:18`）
+   - `PipLayer.DEFAULT_Z_INDEX = 40`（`PipLayer.java:13`）
+   - ⚠ 注意区分：这是**类默认常量**；脚本创建的层 z 值实际来自 clip 的 `z_index` 字段（`OverlayTrackPlayer.createLayer`：`int zIndex = clip.getInt("z_index", 10)`，默认 10），会 `setZIndex(...)` 覆盖类常量。即运行时 z 由脚本指定、缺省 10，而非直接用 0/10/20/30/40。
+2. **`OverlayManager` 行为**：单例 `INSTANCE`（`OverlayManager.java:31`）；构造时只注册 `LetterboxLayer`；`addLayer()` 后按 `OverlayLayer::getZIndex` 升序排序（`OverlayManager.java:72-74`）；`render()` 顺序遍历可见层（`isVisible()` 过滤，`OverlayManager.java:55-58`）；`update()/reset()/isAnimating()/startFadeOut()` 均遍历所有注册层（`reset()` 见 `OverlayManager.java:163-165`）。
+3. **`ImageLayer` 百分比坐标断言**：`x/y` 为屏幕百分比、元素中心（`actualX = x*screenWidth - dispW/2`），`scaleX/scaleY` 为相对原图尺寸的乘数。与 `variable-frame.md`（「现状对照」行：`ImageLayer` 的 x/y 已是屏幕百分比、元素中心）**一致，两文档无冲突**。证据：`ImageLayer.java:14-24,55-56`。
+4. **pip 的合成参数入口**：`PipLayer` 已有 `setPosition/setSize/setAnchor/setOpacity/setZIndex`（`PipLayer.java:73-95`），`OverlayTrackPlayer.applyInitialClipValues` 从关键帧读 `x/y/width/height/anchor_x/anchor_y`（均按原始像素/浮点直传）。证据：`OverlayTrackPlayer.java`（`applyInitialClipValues` 的 `PipLayer` 分支）。
+
+### ④ 无法核实的断言
+
+- §1「只有叠化预热需要同时保留 2 张」：属设计推论（方向），无现状源码可证，**未验证**。
+
+### ⑤ 跨文档冲突备注（未改他人文档）
+
+- `quadrant-prototype-results.md §2` 写「每象限整尺寸渲染进**自己的** `RenderTarget`」，而原型源码 `QuadrantProto.java` 实际是**单个共享** `RenderTarget`（各 view 顺序复用）。本文 §1「1 张共用缓冲」与源码一致；差异仅在原型文档 §2 的措辞，未修改该文档，仅在此备注。

@@ -93,12 +93,12 @@ up    = right × fwd
 | 概念 | 现状 |
 |---|---|
 | 点源 | 位置侧已有：玩家 / 固定坐标 / 结构 / 方块；连线端点**只有实体选择器** ← 不统一 |
-| 方向源 | 已有 `world` / `entity` / `line` 三种，但**只作用于朝向** |
-| 坐标系 | 位置用“follow 实体 / 玩家”一套、朝向用 `yaw_base` / `pitch_base` 一套，**两套 base 未合并** |
-| 每通道开关 | 朝向已按轴独立；位置只有“绝对 or 相对”，且相对基准**不能选 line** |
-| 连线当原点 | 未实现（A 只参与算方向） |
+| 方向源 | 朝向侧已有 `world` / `entity` / `line` 三种（`yaw_base` / `pitch_base` 各自取值）；位置侧另有一套“基准朝向”（`facing_origin` 自身朝向 / `facing_target` 连线），两处来源未合并 |
+| 坐标系 | 位置用“follow 实体 / 玩家”一套（`follow` / `follow_selector`）、朝向用 `yaw_base` / `pitch_base` 一套，**两套 base 未合并**；位置另有基准空间偏移（`fwd` / `up` / `right` + `facing_origin` / `facing_target`），是“原点 + 基础朝向”的早期落点 |
+| 每通道开关 | 朝向已按轴独立（`yaw_base` / `pitch_base` 分开）；位置只有 `position_mode` = `absolute` / `relative`，相对又分世界轴 `dx/dy/dz` 与基准空间 `fwd` / `up` / `right` 两种，且相对基准**不能选 line** |
+| 连线当原点 | `yaw_base = line` 的端点 A 只参与算方向；但 `facing_origin`(A) + `facing_target`(B) + `fwd` / `up` / `right` 已实现“A 为原点 + A→B 为基础朝向”摆位（仅位置基准空间偏移，端点仍限实体选择器） |
 | 注视点 | `look_at: entity` 的注视点写死为“实体位置 + 包围盒高度 / 2”，**只能看中心，没有偏移** |
-| 注视点偏移 | `look_at_target` 对象形式的偏移（`dx/dy/dz`）可选 `space: facing` 按基准坐标系表达（缺省世界轴）；不是点源的通用属性 |
+| 注视点偏移 | `look_at_target` 对象形式可选 `space: facing` 按基准坐标系表达：此时偏移取自 `fwd` / `up` / `right`（本帧没有基准系才回落 `dx/dy/dz`）；缺省世界轴；不是点源的通用属性 |
 | `look_at` 模式 | 枚举只有 `none` / `coordinate` / `entity`；结构 / 坐标 / 相对点都塞在 `coordinate` 里；**没有方块来源**（位置侧有 `block:id[:radius]`） |
 | `look_at = none` | 是角度模式，实现上表现为“沿关键帧角度方向 100 格远的假目标点”，用于复用两端目标点插值 |
 | 垂直线边界 | 纯垂直线（两端水平位置相同、只有高度差）未拦截，会算出无意义的水平角 |
@@ -106,11 +106,11 @@ up    = right × fwd
 
 ### 4.1 由此产生的问题
 
-- 想做“沿连线摆机位”做不到——最有价值的一半（位置）没接上。
+- “沿连线摆机位”只能走 `facing_origin` + `facing_target` + `fwd` / `up` / `right` 一条路（端点限实体选择器）；`yaw_base = line` 那条连线不参与位置——两条连线来源不统一。
 - 位置与朝向可以来自两套不同的基准，组合不自洽。
 - `yaw_base = line` 只在 `look_at = none` 时生效（朝向被 `look_at` 覆盖）。
 - 注视点无法微调：想看向头 / 脸做不到，只能对着包围盒中心。
-- 偏移不通用：只有 `coordinate` + `relative_to` 一条路能吃偏移，且不能选表达空间。
+- 偏移不通用：注视点偏移只存在于 `look_at = coordinate` 的 `look_at_target` 对象里；表达空间只有世界轴 / `facing` 两种，且 `facing` 依赖本帧位置侧已建立基准系。
 
 ---
 
@@ -245,3 +245,85 @@ up    = right × fwd
 - [数学函数模型](./math-models.md)
 - [过渡](./transition.md)
 - [迟滞](./hysteresis.md)
+
+---
+
+## 事实核查（2026-10-07）
+
+核查依据：本仓库工作树源码（HEAD，`git status` 除 `plans/` 外无改动）+ MC 1.20.1 sources.jar。以下行号均为核查当日工作树行号。
+
+路径缩写：
+- `CTP` = `common/src/main/java/com/immersivecinematics/immersive_cinematics/script/CameraTrackPlayer.java`
+- `PD` = `.../script/PositionData.java`；`SP` = `.../script/ScriptParser.java`；`SV` = `.../script/ScriptValidator.java`；`TS` = `.../script/schema/TrackSchemas.java`
+- `Entity.java` = `build/mc-sources/net/minecraft/world/entity/Entity.java`（已解出）
+- `SRCJAR!<成员>` = `.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-d95c7b3016/1.20.1-loom.mappings.1_20_1.layered+hash.2198-v2/minecraft-merged-d95c7b3016-1.20.1-loom.mappings.1_20_1.layered+hash.2198-v2-sources.jar!<成员>`
+
+### ① 核实为真
+
+| 断言 | 证据 |
+|---|---|
+| 位置侧点源已有 玩家 / 固定坐标 / 结构 / 方块 | `PD:22-34`（`ORIGIN_PLAYER=0` / `ORIGIN_COORDINATE=1` / `ORIGIN_STRUCTURE=2` / `ORIGIN_BLOCK=3` / `ORIGIN_SELECTOR=4`）；解析在 `SP.parseRelativeWithOrigin`（`SP:512-547`）：缺省玩家激活位置 / `relative_origin:"coordinate"`+`relative_origin_x/y/z` / `block:id[:radius]`（或 `{type:"block",block,radius}`）/ 其它字符串=结构 id |
+| 连线端点**只有实体选择器** | `CTP.lineDir`（`CTP:868-871`）对 `yaw_base_from` / `yaw_base_to` 只调 `resolveEntity`；`facing_target` 同（`CTP:390-391`）。`resolveEntity` 只认选择器（`CTP:1044-1139`） |
+| 朝向侧方向源 `world` / `entity` / `line` | `TS:75-79`（枚举 + `yaw_base_selector` / `yaw_base_from` / `yaw_base_to`）；求值 `yawBaseOf`（`CTP:837-848`）/ `pitchBaseOf`（`CTP:851-862`） |
+| 两套 base 未合并 | 位置：`follow` / `follow_selector`（`CTP.evalKeyframeWorldPos:330-336`）；朝向：`yaw_base` / `pitch_base`（`CTP:837` / `:851`）。两组互不引用 |
+| 朝向已按轴独立 | `yaw_base` 与 `pitch_base` 是独立字段、独立求值（`TS:75-76`，`CTP:837` / `:851`） |
+| 位置 `position_mode` = relative / absolute | `TS:52`；`SP.parsePositionData`（`SP:371-397`） |
+| 相对基准不能选 line | `CTP.resolveRelativeBase`（`CTP:510-524`）只处理 coordinate / 结构 / block / 玩家；`OriginSpec`（`SP:469-474`）只有 `PLAYER` / `COORDINATE` / `SELECTOR` |
+| `look_at: entity` 注视点写死“实体位置 + 包围盒高度 / 2” | `CTP.evalLookTarget:645`：`entityPosInterp(target).add(0, target.getBbHeight() / 2.0, 0)` |
+| `look_at` 枚举只有 `none` / `coordinate` / `entity` | `TS:62`；`SV:279`（`checkEnum`）；求值 `CTP.evalLookTarget:639-683` |
+| 结构 / 坐标 / 相对点都塞在 `coordinate` 里 | `CTP.evalLookTarget` coordinate 分支：`look_at_target_structure`（`:649-661`）→ `look_at_target` 对象（`:663-668`）→ 散字段 `look_at_target_x/y/z`（`:670-673`） |
+| **没有方块来源**（位置侧有 `block:id[:radius]`） | `evalLookTarget` 全分支无 block 解析；`PD.parseBlockOriginString`（`PD:337`）只被位置侧调用（`SP:439`、`SP:544`） |
+| `look_at = none` = 100 格假目标点 | `CTP.evalLookTarget:675-682`：`yaw`/`pitch` → MC 视线公式 `(-sin y·cos p, -sin p, cos y·cos p)` × 100 |
+| 纯垂直线未拦截 | `CTP.lineDir:872-880` 只在 `horizontal < 1e-4 && \|dy\| < 1e-4`（零长度）返回 null；纯垂直线 `horizontal≈0`、`\|dy\|>0` 通过，`yaw = atan2(0,0) - 90 = -90` 恒定。`CTP.buildFrame:452-455` 同样只拦零长度（warn 后 null） |
+| “实体视线”方向源实现取的是身体 yaw + `xRot` | `CTP.yawBaseOf:840-841` → `entityBodyYawInterp`（`CTP:1428-1434`，LivingEntity 分支 `Mth.rotLerp(pt, le.yBodyRotO, le.yBodyRot)` = **身体 yaw**）；`CTP.pitchBaseOf:854-855` → `entityPitchInterp`（`CTP:1437-1440`，`Mth.lerp(pt, e.xRotO, e.getXRot())`）。位置基准系朝向（`CTP:400-401`）用同一对 |
+| `up_axis` = `view` / `world` | `PD.getUpAxis`（`PD:328-330`，缺省 `"view"`）；`SP:416-419` 仅接受 view/world，否则抛 `ScriptParseException`；生效点 `CTP.buildFrame:462-473`（`"view".equals(upAxis) && \|dy\|>1e-4` 才跟随俯仰） |
+| §5.5“50% = 中心（= 现在写死的值）” | 现在写死的点 = `entityPosInterp + getBbHeight()/2`（`CTP:645`）= AABB 中心：`EntityDimensions.makeBoundingBox`（`SRCJAR!net/minecraft/world/entity/EntityDimensions.java:24-28`）生成 `[x-w/2, y, z-w/2] → [x+w/2, y+h, z+w/2]`，`AABB.getCenter()` = min/max 中点（`SRCJAR!net/minecraft/world/phys/AABB.java:351-353`） |
+
+### ② MC 源码核实（§4 表格两条断言的依据）
+
+**“实体视线方向源取身体 yaw + xRot，与视线字面不一致”** —— 成立。
+
+- 原版视线：`Entity.getViewVector(pt)` = `calculateViewVector(getViewXRot(pt), getViewYRot(pt))`（`Entity.java:1483-1485`）；`getViewXRot` = `Mth.lerp(pt, xRotO, getXRot())`（`:1487-1489`）、`getViewYRot` = `Mth.lerp(pt, yRotO, getYRot())`（`:1491-1493`）。即原版视线 = **同一个实体的 `yRot` + `xRot` 对**，`LivingEntity` 不覆写该方法。
+- 身体朝向是另一对字段：`LivingEntity.yBodyRot` / `yBodyRotO` / `yHeadRot` / `yHeadRotO`（`SRCJAR!net/minecraft/world/entity/LivingEntity.java:202-205`）；`getVisualRotationYInDegrees()` 被覆写为返回 `yBodyRot`（`:3098-3100`）；`tickHeadTurn` 让 `yBodyRot` 以 0.3 系数追赶 `yRot`、偏差超 ±50° 才钳（`:2257-2264`）。
+- 渲染分工：`LivingEntityRenderer` 身体用 `Mth.rotLerp(pt, yBodyRotO, yBodyRot)`、头用 `Mth.rotLerp(pt, yHeadRotO, yHeadRot)`（`SRCJAR!net/minecraft/client/renderer/entity/LivingEntityRenderer.java:70-71`）。
+- 结论：本仓取 **`yBodyRot`（身体水平）+ `xRot`（头部俯仰）**，与原版 `getViewVector`（`yRot`+`xRot`，同源一对）不同，且自身混用了两套来源 —— 与字面“视线”不一致的断言成立。
+
+**注视点写死“实体位置 + 包围盒高度 / 2”对应哪段代码** —— 对应本仓 `CTP.evalLookTarget:645`（`look_at=entity`）与 `CTP.evalFacingFrame:393`（`facing_target` 目标点，同一表达式）。该式在几何上等于原版 `entity.getBoundingBox().getCenter()`（`AABB.java:351-353` + `EntityDimensions.java:24-28`），即 AABB 几何中心，**不是**原版眼睛位置（`getEyeHeight` = `height * 0.85F`，`Entity.java:2785-2787`；`getEyeY()` = `position.y + eyeHeight`，`:3244-3246`）。
+
+### ③ 已修正（旧说法 → 新事实 + 证据）
+
+| # | 旧说法（原文） | 新事实 | 证据 |
+|---|---|---|---|
+| 1 | 方向源“已有 `world` / `entity` / `line` 三种，但**只作用于朝向**” | 该枚举确实只作用于朝向（`yaw_base`/`pitch_base`）；但**位置侧另有一套基准朝向来源**：`facing_origin` 自身朝向 / `facing_target` 连线 | `CTP.evalFacingFrame:387-394`、`CTP:400-401`；`PD.facingTarget`（`PD:71-72`） |
+| 2 | 位置只有“绝对 or 相对” | `position_mode` 只有 absolute/relative，但 relative 内部再分两种：世界轴 `dx/dy/dz` 与基准空间 `fwd/up/right`（二者互斥，混用报错） | `SP.parsePositionData:371-397`、`SP.parseFacingRelative:408-412` |
+| 3 | 连线当原点“未实现（A 只参与算方向）” | `yaw_base = line` 的 A 确实只算方向；但 `facing_origin`(A) + `facing_target`(B) + `fwd/up/right` **已实现**“A 为原点 + A→B 为基础朝向”（仅位置基准空间偏移；端点仍限实体选择器） | `SP.parseFacingRelative:423-454`；`PD.facingToEntity`/`withFacingTarget`（`PD:168-172`、`:211-214`）；`CTP.evalFacingFrame:379-394`；`CTP.buildFrame:449-476` |
+| 4 | §4.1“想做‘沿连线摆机位’做不到——最有价值的一半（位置）没接上” | 位置侧已能沿连线摆：基准点 = A（`resolvePointSource:417-436`，实体来源 = `entityPosInterp` 脚底），前轴 = A→B；限制是端点限实体选择器、且只在 `fwd/up/right` 模式 | 同 #3；提交 `a3b29b2`（2026-09-16T22:03） |
+| 5 | 注视点偏移“（`dx/dy/dz`）可选 `space: facing`” | `space: facing` 时偏移取自 **`fwd` / `up` / `right`**（`frameOffsetToWorld:481-484`）；`dx/dy/dz` 仅在本帧无基准系时兜底 | `CTP.evalLookTargetObject:704-710` |
+| 6 | §4.1“只有 `coordinate` + `relative_to` 一条路能吃偏移，且不能选表达空间” | 偏移现在有 `space` 字段（缺省世界轴 / `facing`）；但只存在于 `look_at = coordinate` 的 `look_at_target` 对象里，且 `facing` 依赖本帧位置侧已建立基准系 | `CTP:704-711`；`CTP:357-362`（`frameOrigin`/`frameFwd`/`frameRight`/`frameUp` 仅由 `evalFacingOffset` 写入） |
+
+**时间裁决**（仓库根 `git log -1 --format=%cI -- <路径>`）：
+
+- `plans/0.3.6/coordinate-frame.md` = **2026-10-05T16:40:17+08:00**；`CTP` = **2026-09-17T13:38:01+08:00**；`PD` = **2026-09-16T22:03:11+08:00**；`SP` = **2026-09-26T16:27:29+08:00**；`TS` = **2026-09-17T13:38:01+08:00**。
+- 但 §4 表格**文字**自 `ccdb37c`（2026-09-16T20:35）起未再改动（`git show ccdb37c:plans/0.3.6/coordinate-frame.md` 的 §4 与当前逐字相同），后续提交只改了 §5.5 / §5.8 等小节；`facing_origin` / `facing_target` 于 `a3b29b2`（2026-09-16T22:03，`feat(camera): 基准坐标系支持指定基准点与 A→B 连线朝向`）落地，**晚于 §4 文字**。故对 #1–#4 这几条，按内容时间裁决：**代码更晚，以代码为准**。
+- #5 属 §4 表格文字，同样早于 `space: facing` 的落地代码（`CTP` 该分支在 `evalLookTargetObject` 内），以代码为准。
+
+### ④ 补全（源码定位）
+
+- **统一点源函数**：`CTP.resolvePointSource`（`CTP:417-436`）——坐标 / 结构中心 / 方块中心 / 实体（实体来源 = `entityPosInterp` 脚底，注释 `CTP:430-431`）。其 javadoc 声称“位置基准 / 注视点 / 连线端点共用同一种求值”（`CTP:412-413`），但**实际只有位置基准调用它**：注视点走 `evalLookTarget`（`CTP:639-683`）、连线端点走 `lineDir`→`resolveEntity`（`CTP:868-871`）——文档“不统一”的判断在这一点上成立。
+- **位置基准点来源清单**：`facing_origin` 支持 实体选择器 / `"coordinate"`+`facing_origin_x/y/z` / `block:id[:radius]` / 结构 id（`SP:423-454`）；不写则回落 `follow` 实体 / 玩家（`SP:456-465`）。
+- **方块语法**：`block:id[:radius]`，`PD.parseBlockOriginString`（`PD:337-349`）；默认半径 `DEFAULT_BLOCK_RADIUS = 16`（`PD:37`）；另有结构化写法 `{type:"block", block, radius}`（`SP:517-529`）。
+- **结构基准**：`relative_origin` / `facing_origin` 填 `#...` 或含 `:` 的字符串（`SP:443-447`、`SP:541-546`）；解析 `CTP.resolveStructurePos:555-582`（原版 `StructureLocator.locateCenter`，3 区块内，成功永久缓存）。
+- **基准朝向**：`facing_target` 非空 → 基准点 → 目标（目标点 = `entityPosInterp + getBbHeight()/2`，`CTP:393`）；为空 → 基准点自身朝向（实体 = `entityBodyYawInterp` + `entityPitchInterp`，`CTP:400-401`）。
+- **`up_axis` 作用域**：只对 `fwd/up/right`（基准空间）生效；`dx/dy/dz` 世界轴偏移无此字段（`PD:74-75`、`SP:416`）。
+- **片段前置拦截**：`CTP.isClipUsable:186-230`——`look_at` 实体 / 结构 / `look_at_target.relative_to` 实体 / `follow` 实体 / `yaw_base`|`pitch_base` 的实体与 line 端点 / `facing_origin` / `facing_target` / `relative_origin` 结构·方块任一不可解析 → 片段按空处理（不写相机）。
+- **选择器调用点**：`SELECTOR_CALLPOINTS` = `follow` / `look_at` / `look_at_target` / `yaw_base` / `facing_origin` / `facing_target`（`CTP:96-97`）；策略字段名 `<字段>_<调用点>`，回落通用字段（`CTP.selectorPolicy:1145-1147`）。
+- **`look_at_target` 对象四种模式**：`{x,y,z}` / `{dx,dy,dz}`（基准 = 触发点 `originPos`）/ `{relative_to:<selector>}` / `{relative_to:"coordinate", relative_x/y/z}`，均可叠 `space: facing`（`CTP.evalLookTargetObject:694-733`，`relative_to` 缺省分支 `:712-716`）。
+- **`pitch_base = entity` 复用 `yaw_base_selector`**：没有独立的 `pitch_base_selector` 字段（`CTP:840` 与 `CTP:854` 读同一字段；`TS:77`）。
+- **`lineDir` 同时供 yaw 与 pitch**：`yaw_base = line` 取 `dir[0]`、`pitch_base = line` 取 `dir[1]`（`CTP:843-846`、`:857-860`）；两端点缺一即 null。
+- **`look_at` 目标点带切换平滑**：`look_at=entity`（`CTP:646`）与 `look_at_target.relative_to`（`CTP:732`）都走 `smoothTargetPoint`。
+- **服务端推送前替换**：`look_at_target_structure` 与 block `relative_origin` 在 `/icinematics play` 推送前被替换为坐标，客户端解析路径主要为编辑器预览兜底（`CTP:552-553`、`:592-593`）。
+
+### ⑤ 未验证
+
+- 编辑器前端（`editor/src`）是否已暴露 `facing_origin` / `facing_target` / `up_axis` 字段：本次未核查（超出本文 §4 现状表的范围）。
+- 跨文档冲突：未处理（按要求不改他人文档）。

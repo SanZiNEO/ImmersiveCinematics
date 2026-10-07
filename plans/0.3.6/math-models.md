@@ -156,3 +156,24 @@
 - [时间插值](./temporal-interpolation.md)
 - [过渡](./transition.md)
 - [迟滞](./hysteresis.md)
+
+---
+
+## 事实核查（2026-10-07）
+
+> 核查依据：本仓库源码。§1–§8 设计内容未改动。
+
+### ① 核实为真（§2 与现状相关的挂点）
+- **2.3 无状态 / 有状态分离**：`KeyframeInterpolator` 为无状态工具类（全静态、不持状态，类注释明确）；`BezierPathStrategy` 为有状态（`lutCache: HashMap`）；`PathStrategies` 用 `Supplier` 注册、`get()` 每次返回新实例（`script/PathStrategies.java`）——"定义 / 实例分离 + 无状态 / 有状态并存" 已是现状。
+- **2.5 可序列化 JSON**：`Keyframe` / `Clip` 以 `Map<String,Object> data` 承载、由 JSON 解析构造（`script/Keyframe.java`、`script/Clip.java`）；贝塞尔曲线 `BezierCurve` 由 JSON（`{"type":"bezier","control_points":[...]}`）反序列化（`script/BezierCurve.java`）；路径策略按字符串 `curve.type` 选择（`PathStrategies.get`）。数据驱动已有基础。
+- **2.6 确定性**：`BreathDisturbance` 明确 "同 seed + 同 globalTime → 同抖动"（`script/BreathDisturbance.java` 类注释），确定性噪声已有实现。
+
+### ② 已修正
+- 无（§2 为已确认方向，未发现与代码冲突的现状断言）。
+
+### ③ 补全
+- **Registry 现状**：`PathStrategies` 静态块**仅注册 `"linear"`**（默认策略 `DEFAULT_TYPE = "linear"`）；`"bezier"` 未注册进 `REGISTRY`。`CameraTrackPlayer` 直接 `new BezierPathStrategy()` 持有实例（`CameraTrackPlayer.java:23`）绕开注册表；而 `KeyframeInterpolator.interpolatePosition(from,to,s,clip)` 经 `PathStrategies.get(curve.type)` 解析时，`"bezier"` 会命中 "未知策略 → 回退 linear" 分支（`PathStrategies.java` 的 warn 逻辑）。此为现状挂点，非设计结论。
+- **现有"组合"**：`CameraProperties` 五属性各持独立 `AnimValue`（每属性独立过渡，`camera/CameraProperties.java:29-63`），可视为 §3.5 "并联" 的雏形。
+
+### ④ 未验证
+- §2.4 "支持串联 / 并联 / 混合 / 映射"、§2.8 "低开销 / 可回退 / 版本化" 在代码中无对应统一实现——**未验证**（方向项）。

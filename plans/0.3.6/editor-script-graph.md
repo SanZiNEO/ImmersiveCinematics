@@ -29,8 +29,8 @@ WebUI 编辑器新增一个**脚本架构图**视图：把包内所有脚本铺�
 
 图数据由 Java 侧扫描提供，走迁移文档的 `{ type, data, id }` 信封，新增一类图数据消息：
 
-- **节点 = 脚本**：相对路径、所在文件夹、meta（时长 / 轨道构成）、触发器清单、`requires` 列表；
-- **边 = `requires` 前置依赖**：A requires B → B → A 一条有向边；
+- **节点 = 脚本**：相对路径、所在文件夹、meta、时长 / 轨道构成（在 `Timeline` 上，非 `ScriptMeta`）、触发器清单（`requires` 挂在每个触发器上，见文末核查）；
+- **边 = 触发器的 `requires` 前置依赖**：A 的某触发器 requires B → B → A 一条有向边（数组元素为字符串时即脚本 id；对象型取 `data.script`，自定义类型无脚本 id）；
 - **分区 = 文件夹**：`scripts/` 的子文件夹递归映射。
 
 ---
@@ -85,3 +85,35 @@ WebUI 编辑器新增一个**脚本架构图**视图：把包内所有脚本铺�
 | 5 | 手动布局与持久化（后置） | 作者调整过的布局重开不丢 |
 
 > 步骤 1–3 是核心价值（看懂故事线）；4–5 是体验增强。
+
+---
+
+## 事实核查（2026-10-07）
+
+依据：本仓库 `common/src/main/java/com/immersivecinematics/immersive_cinematics/` 源码。
+
+### ① 核实为真
+
+- **`{ type, data, id }` 信封**：`webui/WebEditorApi.java` 类注释 `协议：{ "type": "...", "data": {...}, "id": "..." }`（:19）；入站解析 :28–32；出站组装 :271–275。传输层 `webui/WebSocketSession.java` 只做 WebSocket 帧收发（`sendText`/`sendFrame`），不涉及信封。
+- **现有消息类型中无图数据消息**：`WebEditorApi.java` 的 `switch (type)`（:35–71）仅含 `hello`、`script.list/load/save/delete/new/validate`、`registry.query/get`、`schema.get`、`editor.seek/play/pause/stop/setCamera/pushScript/enter_flight_mode/exit_flight_mode`；全仓库 grep `graph` 在 `webui/` 与 `editor/src` 均无命中。§2“新增一类图数据消息”属实。
+- **`scripts/` 递归扫描 + 子文件夹**：`webui/ScriptFileService.listScripts()`（:25）用 `Files.walk(SCRIPTS_DIR, 5)`（:28），过滤 `.json`，返回正斜杠相对路径（:34）。`script/ScriptManager.loadFromDir`（:51）用 `Files.walk(dir, MAX_SCRIPT_DEPTH)`，`MAX_SCRIPT_DEPTH = 5`（:27）。两处递归深度均为 5，§2“子文件夹递归映射”属实。
+- **触发器清单可读**：`ScriptMeta.getTriggers()` 返回 `List<TriggerDefinition>`。
+- **轨道构成可读**：`Timeline.getTracks()`（`Timeline.java`，`List<TimelineTrack> tracks`）。
+- **步骤 1 接入点可复用**：`ScriptFileService.listScripts()` / `loadScript(String relativePath)`（:40）已提供扫描与读取；`ScriptManager.getScript(id)` / `getAllScripts()` 提供解析后的脚本对象。
+
+### ② 已修正
+
+- **`requires` 不是脚本级字段**：旧表述（§2 节点含“`requires` 列表”、边为脚本级“A requires B”）→ 实际 `requires` 是**触发器级**数组，位于 `meta.triggers[].requires`，解析于 `ScriptParser.parseTriggerRequires`（`ScriptParser.java`:573–609），存于 `TriggerDefinition.requires`（`TriggerDefinition.java`:16，`getRequires()` :50），注册进 `TriggerRegistration`。已改 §2 表述。
+- **时长 / 轨道构成不在 `meta`**：`ScriptMeta` 字段为 id/name/author/version/description/behavior/priority/dimension/triggers/skipVoteRatio，**无时长、无轨道**；时长来自 `Timeline.getTotalDuration()`（`CinematicScript.getTotalDuration()` 转发），轨道来自 `Timeline.getTracks()`。已改 §2。
+- **边的元素形态不止字符串**：`requires` 元素可为字符串（= 脚本 id，等价 `{"type":"script_played","script":"id"}`）或对象 `{"type":"...", ...}`；内置 `script_played`/`script_started`/`script_completed` 的脚本 id 在 `data.script`（`TriggerRequirement.scriptPlayed/scriptStarted/scriptCompleted`），自定义类型无脚本 id。已改 §2。
+- **方法名**：任务描述中的 `readScript` 实为 `ScriptFileService.loadScript`（:40）；`listScripts` 属实。
+
+### ③ 补全的信息
+
+- `ScriptFileService.SCRIPTS_DIR = Paths.get("immersive_cinematics", "scripts")`（相对进程 CWD）；`ScriptManager.GLOBAL_SCRIPT_DIR = "immersive_cinematics/scripts"`，但基于 `server.getServerDirectory()`（`ScriptManager.loadAll` :44）。二者目录字符串一致、基准不同——WebUI 走 `ScriptFileService`（客户端进程侧），图数据扫描应复用后者。
+- `ScriptManager.loadFromDir` 在加载期已做 `requires` 引用校验（指向不存在脚本 / 自引用 → 写 `ErrorLog`，`ScriptManager.java`:115–127），可复用于图中悬空边的提示。
+- `resolveSafe`（`ScriptFileService`:52）做路径越界防护，图数据读取路径应沿用。
+
+### ④ 无法核实（未验证）
+
+- 无。§3–§7 的布局算法、交互分期、落地顺序属方向稿，无代码断言需核实。

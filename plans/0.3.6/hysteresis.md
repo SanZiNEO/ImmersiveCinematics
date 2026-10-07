@@ -159,3 +159,27 @@ Modifier Chain 修改状态
 - [数学函数模型](./math-models.md)
 - [时间插值](./temporal-interpolation.md)
 - [过渡](./transition.md)
+
+---
+
+## 事实核查（2026-10-07）
+
+> 核查依据：本仓库源码（唯一事实依据）。§1–§9 设计内容未改动。
+
+### ① 核实为真
+- **目标切换 `selector_switch_smooth`**：确为关键帧字段 `selector_switch_smooth`（float，默认 0.0）——`script/schema/TrackSchemas.java:74`；被 `CameraTrackPlayer.selectorPolicy(Keyframe,String)` 读入 `SelectorPolicy.switchSmooth`（`script/CameraTrackPlayer.java:1152`，record 定义 :90），在 `smoothTargetPoint(...)`（:1197）按秒做目标点平滑过渡。调用角色含 follow / look_at / look_at_target / facing_origin（:335/:432/:646/:732）。
+- **"其他：直接写值"路径**：`CameraPath.setPositionDirect(Vec3)`（`camera/CameraPath.java:37`）、`CameraProperties.setAllDirect(yaw,pitch,roll,fov,zoom)` / `setYawDirect`…（`camera/CameraProperties.java:77-99`，内部 `AnimValue.setDirect` 瞬移无过渡）。调用点：`CameraTrackPlayer.java:312-313`、:908-909；`CameraManager.java:72-74`、:319-321、:602；`FlightController.java:294-297`。
+
+### ② 已修正 / 需澄清
+- **"关键帧插值：linear / smooth / bezier"** → 实为两类不同字段，原表述把 `bezier` 混入 interpolation：
+  - `interpolation` 枚举仅 `{linear, smooth}`（`TrackSchemas.java:32`、`ScriptValidator.java:165`），且**仅 `OverlayTrackPlayer` 真正读取**（`script/OverlayTrackPlayer.java:84,180`，`smooth` = Catmull-Rom 样条，作用于 overlay 浮点通道）；CAMERA 片段的 `interpolation` 被声明与校验，但 `CameraTrackPlayer` 不读。
+  - `bezier` 不是 interpolation 取值，而是相机**位置路径**字段 `curve`（`bezier_curve` 类型，`TrackSchemas.java:33`），经 `PathStrategy`（`linear`/`bezier`）求值；朝向按匀速线性插值（`KeyframeInterpolator`）。
+  - 冲突裁决：`hysteresis.md` 最后修改 **2026-09-15T00:34:21+08:00**；`TrackSchemas.java` 最后修改 **2026-09-17T13:38:01+08:00** → 代码更晚，以代码为准（枚举 `{linear, smooth}`）。
+- **"呼吸：perlin / sine / trauma"** → 实为 4 种：`perlin` / `perlin_axis` / `sine` / `trauma`（`script/BreathDisturbance.java` 常量 `TYPE_PERLIN`/`TYPE_PERLIN_AXIS`/`TYPE_SINE`/`TYPE_TRAUMA`），由 clip 字段 `cam_breath_type` 选择；参数 `cam_breath_intensity`/`seed`/`speed`/`trauma`/`decay`。（`BreathDisturbance.java` 最后修改 2026-08-18T22:41:19+08:00，早于本文；属枚举补全，非行为冲突。）
+
+### ③ 补全
+- 现有"分参数过渡"原语：`CameraProperties.AnimValue.setTarget(v, dur)` 每参数独立时长/进度（`CameraProperties.java:29-63`）；`CameraManager.stageTargetPosition/Yaw/Pitch/Roll/Fov/Zoom(...)` + `commitStagedState()`（`CameraManager.java:353-…`），当前仅编辑器预览（staged）使用。
+- `BezierPathStrategy` 为有状态（`lutCache`），与无状态 `KeyframeInterpolator` 并存——对应 §3 无状态/有状态分离方向的现状挂点。
+
+### ④ 未验证
+- 无。

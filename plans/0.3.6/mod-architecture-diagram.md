@@ -1,5 +1,10 @@
 ```mermaid
 flowchart LR
+    %% 图注（2026-10-07）：
+    %% - 主画面 = 全屏 lane 特例；单相机替换链（CameraMixin 主相机分支 / GameRendererMixin getFov·roll / LevelRendererMixin 视图中心 / CinematicOcclusion）为过渡实现，lane 化后收敛
+    %% - 转场 / 模板 / 调色是应用层：全部由关键帧数据驱动（轨道 → clip → 关键帧），不写死代码
+    %% - 片段时间允许重叠（hold 复制延长），叠化 = 重叠窗口 + opacity 关键帧；黑场 / 白场 = OVERLAY 轨预配置 clip
+    %% - 叠放层级：实例启动顺序 → 轨道层级 → 轨道内 clip 顺序（后面的在上）→ z_index
     subgraph PB["播放（实例）"]
         INST["播放实例<br/>（一个正在播放的脚本；数量不设上限）"]
         subgraph LANE["实例内容"]
@@ -14,6 +19,7 @@ flowchart LR
             LMIC["微观循环<br/>（片段局部时间：repeat / pingpong）"]
         end
         WAITPT["等待点轨道（WAIT_POINT）<br/>（停表 → 等回报 → 继续 / 结束 / 接播 / 分支）"]
+        OVERLAP["片段时间重叠<br/>（hold 复制延长 · 叠化 = opacity 关键帧交叉）"]
         REENTRY["重入规则<br/>（同玩家 + 同脚本 = 单实例）"]
         QUEUE["接播 / 排队"]
         USABLE["片段可用性门<br/>（来源不可解析 → 整片段按空处理）"]
@@ -33,13 +39,14 @@ flowchart LR
         SRVTIME["事件时间线<br/>（EVENT 命令按实例推进）"]
         SRVSEL["服务端选择器求值<br/>（原版选择器解析 · 服务端权威）"]
         ACK["网络可靠性<br/>（请求 / 回执关联 + 超时保护）"]
+        CMD["/icinematics 命令<br/>（validate / play / reload）"]
     end
     subgraph INPUT["输入与直控"]
         RAW["玩家输入<br/>（键盘 / 鼠标 / 滚轮 / 视角）"]
         ROUTE["输入路由<br/>（放行 / 自用 / 屏蔽 / 飞控）"]
         KEYS["键位绑定<br/>（跳过 / 编辑器 / 飞控）"]
         BEHAV["行为开关<br/>（键鼠屏蔽 / 可跳过 / 可打断 / 暂停联动）"]
-        FLY["飞行直控<br/>（编辑器取景）"]
+        FLY["飞行直控<br/>（选中片段相机全屏取景）"]
         DIRECT["编辑器直控<br/>（拖拽 / 摆位）"]
         HANDOFF["输入状态交接<br/>（退出时释放按键 / 同步状态）"]
         PAUSE["游戏暂停 / 窗口失焦"]
@@ -170,11 +177,12 @@ flowchart LR
             T21 ~~~ T22
             T22 ~~~ T23
         end
-        subgraph G7["会话（2）"]
+        subgraph G7["会话 / 组合（2）"]
             T24["login"]
-            T25["death"]
+            T25["all_of"]
             T24 ~~~ T25
         end
+        %% T25 = all_of；death（玩家死亡）为后续批次，未实现
     end
     subgraph WORLD["世界交互"]
         PREQ["预加载请求器<br/>（客户端上报 / 释放）"]
@@ -196,11 +204,11 @@ flowchart LR
         REGION["区域同步 / 镜像传送<br/>（对应区域坐标映射）"]
     end
     subgraph MULTI["多相机"]
-        MMAIN["主画面<br/>（原版一遍，直接进主缓冲）"]
+        MMAIN["主画面<br/>（理想态 = dest 全屏、opacity 1 的 lane 特例；无 lane 时 = 原版视角）"]
         MLANE["副画面 × N（lane）<br/>（第二及以后的相机各渲一遍；不设上限）"]
         MFBO["离屏缓冲<br/>（每 lane 一张，与主画面同分辨率；顺序复用）"]
         MCOMP["合成<br/>（取材区域 / 目标区域 / 不透明度 / 叠放顺序）"]
-        MWARM["叠化预热<br/>（过渡前提前渲染下一 lane）"]
+        MWARM["叠化预热<br/>（= 重叠窗口：B 从 clip 开头就渲染）"]
     end
     subgraph RENDER["渲染"]
         RPOSE["相机姿态<br/>（位置 + yaw / pitch）"]
@@ -210,15 +218,17 @@ flowchart LR
         RCULL["遮挡剔除<br/>（可见集合，每 lane 独立）"]
         RLEVEL["世界渲染<br/>（区块层 / 实体层）"]
         ROUTLINE["描边上屏<br/>（lane 自包含）"]
+        RADJ["颜色调整<br/>（RGBA 通道 / HSL / 曲线 / 色轮）"]
         RPOST["后处理 / 最终上屏"]
     end
     TEX["纹理"]
     FRAME["画面"]
     subgraph OVERLAY["覆盖层"]
         OVM["覆盖层管理器<br/>（按 z 排序 · 统一渲染 / 重置）"]
+        VPARAM["覆盖层统一参数<br/>（位置 / 缩放 / 取材 / 适配 / 锚点 / 不透明度 · 全关键帧）"]
         subgraph LAYERS["图层（z_index 升序）"]
             LB["画幅黑边<br/>（letterbox，z=0）"]
-            FADE["颜色遮罩 / 淡入淡出<br/>（fade，z=10）"]
+            FADE["纯色覆盖 / 淡入淡出<br/>（fade，z=10 · 黑场白场 = 预配置 clip）"]
             IMG["图片 / GIF<br/>（image，z=20）"]
             SUB["字幕<br/>（subtitle，z=30）"]
             PIP["画中画<br/>（pip，z=40）"]
@@ -270,6 +280,7 @@ flowchart LR
         FCAP["帧捕获<br/>（720p 小 FBO）"]
         FSTREAM["帧推流<br/>（RGBA ~60fps，丢旧帧）"]
         GRAPH["脚本架构图<br/>（无限画布）"]
+        TPL["模板<br/>（脚本 / 轨道 / 片段三层 · 参数化生成）"]
     end
     ACT -->|控制脚本| INST
     ACT -->|回报等待点| WAITPT
@@ -283,6 +294,8 @@ flowchart LR
     INST -->|分发脚本时间| LMAC
     LMAC -->|"f(g(t))"| LMIC
     INST -->|到达等待点：冻结实例时钟| WAITPT
+    INST -->|允许重叠（hold 复制延长）| OVERLAP
+    OVERLAP -->|叠化 = opacity 关键帧交叉| MCOMP
     WAITPT -->|继续 / 结束 / 分支| INST
     WAITPT -->|接播下一个| QUEUE
     INST -->|结束（原因）| QUEUE
@@ -381,7 +394,8 @@ flowchart LR
     MLANE --> MFBO
     MFBO --> ROUTLINE
     ROUTLINE --> MCOMP
-    MCOMP --> RPOST
+    MCOMP -->|master（lane 级在 lane FBO 内 · 合成前）| RADJ
+    RADJ --> RPOST
     RPOST --> TEX
     TEX --> FRAME
     MWARM -->|提前渲染| MLANE
@@ -391,6 +405,7 @@ flowchart LR
     TRKOV -->|创建 / 移除层| OVM
     TRKLB --> LB
     LAYERS --> OVM
+    VPARAM -->|驱动所有图层| OVM
     RES --> IMG
     CMGR -->|每帧 update| OVM
     CAM -->|激活 / 暂停 / 结束| OVM
@@ -417,4 +432,7 @@ flowchart LR
     FSTREAM -->|二进制 RGBA 帧| EXT
     SCRIPTFS -->|保存成功通知| SRVTIME
     GRAPH -->|requires 依赖网| SCRIPTFS
+    TPL -->|生成脚本 JSON| SCRIPTFS
+    CMD -->|播放（经 S2CPlayScript）| INST
+    CMD -->|校验 / 读写脚本| SCRIPTFS
 ```

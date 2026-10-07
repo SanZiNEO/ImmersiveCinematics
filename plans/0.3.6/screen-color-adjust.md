@@ -1,4 +1,4 @@
-# 0.3.6 画面颜色调整：RGBA 通道拆分与 HSL（长期计划·方向稿）
+# 0.3.6 画面颜色调整：现代调色系统（RGBA 通道 / HSL / 曲线 / 色轮）（长期计划·方向稿）
 
 > 本文是 0.3.6 的长期计划方向稿。
 > - 已确认的写“已确认”
@@ -31,6 +31,25 @@
 | 例子 | fade 黑场、渐变遮罩、混合模式 | 黑白化、偏色、降饱和、只留红色通道 |
 
 - 两篇互补，不合并；mask 文档 §2.2 的“颜色调色 / 滤镜（LUT、亮度对比度）”归本文。
+- **alpha 不归本文**：RGBA 的 A 通道属于覆盖层合成的「不透明度」（`variable-frame.md` 统一参数 + `camera-composition.md` 合成参数），调色只动 RGB / HSL；透明度控制与转场（叠化 / 黑场 / 白场）见[画面转场](./scene-transition.md)。
+
+### 1.1 目标形态：现代调色系统（已确认·2026-10-07）
+
+调研 DaVinci Resolve / Photoshop / After Effects 三套调色体系的组织方式与工具面：
+
+| 系统 | 组织方式 | 核心工具 | 关键帧 |
+|---|---|---|---|
+| DaVinci Resolve | 节点图（串行 / 并行 / 图层节点），每个 corrector 节点一套完整工具 | Lift/Gamma/Gain 色轮、主色条、LOG 色轮、自定义曲线（RGB + **六条 hue 曲线**：HvH / HvS / HvL、LvS / SvS / SvL）、HSL 限定器、RGB 混合器、通道互换、LUT、窗口 / 跟踪 | 每个参数可打关键帧（动态调色） |
+| Photoshop | **调整图层**（非破坏，各持一种调整）+ 图层混合模式 + 蒙版 | 曲线（复合 + 每通道）、色相 / 饱和度（主 + 六色带）、色阶、色彩平衡、通道混合器、可选颜色、LUT、黑白、反相 | 图层不透明度 / 蒙版可动（工具本身静态） |
+| After Effects | 效果栈 + **调整层**（作用于其下所有层） | Lumetri：基本校正 / 创意 / 曲线（RGB + 每通道）/ 色轮（阴影 / 中间调 / 高光）/ 色相饱和度曲线（六条）/ HSL 二级 / 暗角 | **全参数关键帧（含曲线本身）** |
+
+**共性模型（本文采用）**：
+
+1. **非破坏操作栈**：调整按固定顺序串成一条链，每项操作独立可开关——不是"一份参数一次算完"。
+2. **三重视角**：复合 RGB（亮度对比度类）+ 每通道 R/G/B + HSL（色相曲线）——同一像素的三种换算，在 shader 内统一表达。
+3. **曲线是最高表达力工具**：RGB 曲线 + 六条 hue 曲线覆盖绝大多数风格化调色；且**曲线本身可关键帧**（用户点名需求）。
+4. **分层**：对象级（lane）→ 组级（调整层，作用于其下）→ 全局（master 最终显示画面）——即 §2 的 PS 式模型。
+5. **画面是 RGBA**：所有调整都是逐像素 shader 运算，无素材依赖，实现成本低——"调整不难写"成立。
 
 ---
 
@@ -41,7 +60,7 @@
 **形态**：一份参数作用于合成后的最终画面（只有一个 master）。
 
 - 优：
-  - 实现简单——恒定一个全屏 pass，开销与内容无关；
+  - 实现简单——恒定一个全屏 pass（全屏 quad，开销与内容无关；注意源码事实：原版单效果链实际是「效果 pass + blit 回 main」两个 pass，见 §4）；
   - 参数只有一份，作者零学习成本；
   - 与现有 fade 遮罩的“一份参数管全屏”心智一致。
 - 劣：
@@ -69,18 +88,32 @@
 - **目标模型 = PS 式**（各自持有 + 总体叠加）。
 - **落地分期**：第一步只做 master（整体单一正好是 PS 模型的最小子集）；lane 级调整与调整层作为后续批次，数据模型第一步就留好位置。
 
+**补充（2026-10-07，与 §1.1 一致）**：
+
+- 分层三级定名：**lane 级**（每个画面 lane 的 FBO 内、合成前）→ **调整层**（作用于其下所有图层）→ **master**（合成输出上——**最终显示画面也要调**）。
+- 操作栈顺序固定（非破坏）；同一层内多个调整合并为一次 pass（§4）。
+
 ---
 
-## 3. 调整参数（方向，第一版范围执行时定）
+## 3. 调整参数（方向，分批清单）
 
-| 组 | 参数方向 |
-|---|---|
-| RGBA 通道 | 通道拆分：每通道独立的增益 / 偏移 / 开关（通道混合器的简化形态） |
-| HSL（完整） | 色相旋转、饱和度、明度 |
-| 基础 | 亮度、对比度、曝光、伽马 |
-| 单色化 | 灰度 / 黑白（带强度，可半黑白） |
-| 反相 | 反色（带强度） |
-| LUT（远期） | 查找表调色；与遮罩文档的关系执行时定 |
+| 批次 | 工具 | 说明 |
+|---|---|---|
+| **第一批（master 基础）** | 曝光 / 对比度 / 高光 / 阴影 / 白 / 黑、饱和度、自然饱和度（vibrance）、色温 / 色调、灰度（带强度）、反相（带强度）、**RGB 复合曲线（点 + 贝塞尔手柄）**、**每通道曲线（R / G / B）** | 覆盖基础校色 + 最常见风格化；全部可关键帧 |
+| **第二批（通道与 HSL 完整）** | RGB 通道混合器（Channel Mixer）、色相旋转、**六条 hue 曲线**（HvH / HvS / HvL、LvS / SvS / SvL）、Lift / Gamma / Gain 色轮（或 LOG 色轮） | 对标 DaVinci 曲线页与色轮；副画面独立调色的主力 |
+| **第三批（进阶）** | LUT（Color Lookup）、PS 式六色带微调（Hue / Sat 分色带）、混合模式作用于调整层 | 预烘焙风格 / 精细分区；排期最晚 |
+
+- 各批内部**顺序固定**（操作栈，非破坏）；加批是"加工具"，不是"改模型"。
+- **不做**：限定器（qualifier）/ 窗口 / 跟踪器——属合成与选区问题，超出画面调色范围，远期另议。
+
+### 3.1 关键帧语义：标量与曲线（已确认方向·2026-10-07）
+
+- **标量参数**：普通关键帧通道（沿用现有 `Keyframe { time, data }` 体系），逐参数可打点、可插值。
+- **曲线参数（用户点名：关键帧调控 HSL 曲线）**：两种形态，执行时定——
+  - 形态 a（曲线点集关键帧）：每个关键帧存整条曲线的控制点 + 手柄，关键帧间逐点插值；表达力最强、数据量大；
+  - 形态 b（曲线 + 强度关键帧）：曲线定义一次（静态），关键帧只控 `strength`（0~1 混合量）——AE 常用做法，开销小、语义清晰。
+  - 倾向：**先 b 后 a**（b 零成本起步；a 作为曲线编辑器的后续增强）。
+- 每个调整项有 `enabled` 可关键帧（整个操作淡入 / 淡出）。
 
 ---
 
@@ -89,18 +122,37 @@
 - **全屏后处理 pass**：master 在合成输出上做；lane 级在 lane 纹理合成前做。
 - 数学在 shader 内完成：RGBA 通道运算 + RGB↔HSL 转换。
 - **同一层的多个调整参数合并为一次 pass**——不为每个参数单独开 pass。
-- 数据落点（待定）：OVERLAY 轨新层类型 vs 独立调整轨——与遮罩文档 §4 开放问题 4 一起定。
+- 数据落点（待定）：OVERLAY 轨新层类型 vs 独立调整轨——与遮罩文档 §4 开放问题 4 一起定。（现状事实：OVERLAY 的 `layer_type` 白名单只有 `fade` / `image` / `subtitle` / `pip`，`TrackType` 枚举里没有调整类轨道，见事实核查小节。）
+- **shader 数学（方向）**：RGB↔HSL 标准换算（复用 / 参照原版 `color_convolve.fsh` 的 Luma / Chroma 写法）；Lift / Gamma / Gain = 按色调分段的多项式 / 幂次映射；**曲线 = 预烘焙查找纹理**（如 256×1 LUT，由控制点 + 手柄在 CPU 侧采样生成）或 shader 内贝塞尔求值——执行时定；六条 hue 曲线 = 以 hue 为键的 1D LUT（HvH / HvS / HvL）+ 以 sat / lum 为键的 1D LUT。
+- **一次 pass 合并**：同一层所有操作按栈顺序合成为一个 shader（或少量固定 pass），不为每个工具单独开 pass。
+- **分层挂点**：lane 级 = lane FBO 内、合成上屏前（`quadrant-prototype-results.md` §3.2「lane 自包含」）；master = 合成输出上、最终上屏前（MCOMP 之后、RPOST 之前——`mod-architecture-diagram.md` 已补 RADJ 节点）。
+
+**源码事实：原版后处理链（1.20.1，供落地时参照）**
+
+> 依据：`minecraft-merged-…-sources.jar`（`.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-d95c7b3016/1.20.1-loom.mappings.1_20_1.layered+hash.2198-v2/`）内同名类；行号为该 jar 内行号。以下只描述原版机制，不代表已定方案。
+
+- **三件套**：`net.minecraft.client.renderer.PostChain`（一条链）→ `PostPass`（链里一个 pass）→ `EffectInstance`（编译后的 program）。`GameRenderer` 持有 `@Nullable PostChain postEffect`（`GameRenderer.java:134`）；`GameRenderer.loadEffect(ResourceLocation)` 以 `new PostChain(textureManager, resourceManager, minecraft.getMainRenderTarget(), loc)` + `postEffect.resize(...)` 建立（`:345-346`），另有 `currentEffect()`（`:674`）、`shutdownEffect()`（`:299`）。
+- **确切调用位置（世界之后、GUI 之前）**：`GameRenderer.render(float,long,boolean)`（`:870`）内依次为 `renderLevel(...)`（`:884`）→ `tryTakeScreenshotIfNeeded()`（`:885`）→ `levelRenderer.doEntityOutline()`（`:886`）→ `if (postEffect != null && effectActive) { RenderSystem.disableBlend(); disableDepthTest(); resetTextureMatrix(); postEffect.process(f); }`（`:887-892`）→ `minecraft.getMainRenderTarget().bindWrite(true)`（`:893`）→ GUI 正交投影（`:897-898`）→ `gui.render(...)`（`:917`）→ overlay / screen / toasts。整帧最后一步在 `Minecraft.runTick(boolean)`（`Minecraft.java:980`）：`mainRenderTarget.unbindWrite()`（`:1044`）→ `mainRenderTarget.blitToScreen(window.getWidth(), window.getHeight())`（`:1045`）。
+  - 与[多相机渲染](./multi-camera-rendering.md) / `quadrant-prototype-results.md` §3.2、§140 的「`renderLevel` 之后还有哪些整屏步骤」清单一致：`doEntityOutline` / `postEffect` / `tryTakeScreenshotIfNeeded` / `Minecraft` 最后的 `blitToScreen`。
+- **一个 pass 画什么**：`PostPass.process(float)`（`PostPass.java:62`）解绑 `inTarget`、把 viewport 设成 out target 尺寸、`setSampler("DiffuseSampler", inTarget::getColorTextureId)`、写 `ProjMat` / `InSize` / `OutSize` / `Time` / `ScreenSize`，然后 `outTarget.clear(...)` + `outTarget.bindWrite(false)`，画 **QUADS / POSITION 的 4 顶点全屏四边形**（覆盖 out target 全幅，z=500）→ 一个 pass 的成本 = 一次全屏 quad 绘制，与场景内容无关。
+- **链的驱动与尺寸**：`PostChain.process(float)`（`PostChain.java:288`）推进内部时间（以 `time/20` 传给每个 pass）后顺序调用 `passes` 中每个 `PostPass.process`；`PostChain.resize(int,int)`（`:276`）重算正交矩阵并 resize 全尺寸临时 target。
+- **链的 JSON 结构**：`PostChain.load`（`:62-102`）解析 `targets` / `passes`；`parsePassNode`（`:119-198`）要求每个 pass 有 `name` / `intarget` / `outtarget`，可选 `auxtargets` / `uniforms`；`"minecraft:main"` 是 `screenTarget` 的别名（`getRenderTarget`，`:309-316`）；`addTempTarget`（`:246`）用 `TextureTarget` 建临时缓冲。
+- **命名空间约束**：`EffectInstance` 的程序 JSON 路径硬编码为 `shaders/program/<name>.json`（`EffectInstance.java:43,65`），而 `new ResourceLocation(String)` 默认命名空间是 `minecraft`（`ResourceLocation.java:31,49,76`）→ 沿用原版 `PostChain` 机制时，post / program JSON 需落在 `assets/minecraft/shaders/{post,program}/` 下。仓库当前**没有任何 shader 资源**（`resources/**/shaders/**` 无匹配）。
+- **原版已有先例**：`GameRenderer.EFFECTS` 数组含 `shaders/post/color_convolve.json`、`shaders/post/invert.json`（`GameRenderer.java:135`）。`assets/minecraft/shaders/post/color_convolve.json` 是「main → swap（`color_convolve`）→ main（`blit`）」两个 pass；其 `program/color_convolve.json` 的 uniform 有 `Gray`(0.3, 0.59, 0.11) / `RedMatrix` / `GreenMatrix` / `BlueMatrix` / `Offset` / `ColorScale` / `Saturation`，fsh 里 `OutColor = (Chroma * Saturation) + Luma`（未钳制）→ 「通道矩阵 + 增益/偏移 + 饱和度」在原版就有可参照实现。
+- **全局状态语义**：`RenderSystem.setProjectionMatrix(Matrix4f, VertexSorting)` 写的是 `RenderSystem` 的静态字段（`RenderSystem.java:814-825`，配套 `_backupProjectionMatrix` / `_restoreProjectionMatrix`，`:876-892`）；`RenderTarget._blitToScreen` 也会改全局投影（`RenderTarget.java:221`）——与 `quadrant-prototype-results.md` §3.3 结论一致，pass 前后需保存/还原投影。`RenderTarget.bindWrite(true)` 会顺带把 viewport 重置为目标全尺寸，`bindWrite(false)` 只绑 FBO（`RenderTarget.java:177-191`）。
+- **lane 级**：lane 的 pass 必须在 lane 自己的 FBO 内完成——与[多相机渲染](./multi-camera-rendering.md)「lane 自包含」、`quadrant-prototype-results.md` §3.2 的结论一致。
+- **光影（Iris / Oculus）挂点**：Iris / Oculus 在 `GameRenderer.renderLevel` 的 `TAIL` 调 `finalizeGameRendering()`（`example/Iris-1.20.1/.../mixin/MixinGameRenderer.java:461-464`、`example/Oculus-1.20.1-new/.../mixin/MixinGameRenderer.java:462-464`）；Iris 的最终合成在 `LevelRenderer.renderLevel` 尾部 `finalizeLevelRendering()` → `compositeRenderer.renderAll()` + `finalPassRenderer.renderFinalPass()`（`IrisRenderingPipeline.java:1083-1087`；`finalizeGameRendering()` 做色彩空间转换，`:1090-1092`）→ 都**早于**原版 `postEffect` 那一步（无光影包时 `VanillaRenderingPipeline` 两个方法都是空实现，`:106-114`）。取舍仍待定（见 §5）。
 
 ---
 
 ## 5. 可能的问题
 
-- 后处理与光影（Iris / Oculus）的顺序：我们的 pass 在谁之后执行。
-- RGB↔HSL 转换的边界：灰点色相未定、饱和度溢出钳制。
-- 调整是否影响 GUI 层（字幕 / letterbox / 跳过提示）：倾向不影响，待定。
-- 多实例各写 master 的冲突规则（与并行播放的并集规则对齐：后写覆盖？按实例层级？）。
+- 后处理与光影（Iris / Oculus）的顺序：我们的 pass 在谁之后执行。（源码事实：原版 `postEffect` 在 `renderLevel` 返回后、GUI 之前；Iris / Oculus 的 `finalizeGameRendering()` 挂在 `GameRenderer.renderLevel` 的 `TAIL`，Iris 的最终合成在 `LevelRenderer.renderLevel` 尾部——都早于原版那一步。见 §4。）
+- RGB↔HSL 转换的边界：灰点色相未定、饱和度溢出钳制。（可参照原版 `program/color_convolve.fsh`：`Luma = dot(OutColor, Gray)`（Gray = 0.3 / 0.59 / 0.11）、`OutColor = (Chroma * Saturation) + Luma`，**未做钳制**。见 §4。）
+- 调整是否影响 GUI 层（字幕 / letterbox / 跳过提示）：倾向不影响，待定。（源码事实：原版 `postEffect` 位于 GUI 之前，而 FadeLayer / letterbox / subtitle / 跳过提示都在 GUI 阶段绘制——Forge `RenderGuiEvent.Post` → `ClientEventHandler.onRenderHud` → `OverlayManager.render` → `FadeLayer.render`（`guiGraphics.fill`）；整帧最后的 `Minecraft.blitToScreen` 在 GUI 之后。挂前者天然不影响 GUI，挂后者会影响。）
+- 多实例各写 master 的冲突规则（与并行播放的并集规则对齐：后写覆盖？按实例层级？）。（并行播放 §3.2 的「取并集」只覆盖行为开关（`hide_hud` / 键鼠屏蔽 / `suppress_bob`），不含「单一 master 参数集」的合并语义，所以此处仍是开放问题。）
 - 编辑器：滑杆 / 通道 UI 与实时预览。
-- 性能：master 一次全屏 pass 可忽略；lane 级随 lane 数增长。
+- 性能：master 一次全屏 pass 可忽略；lane 级随 lane 数增长。（源码事实：「与内容无关」有依据——一个 pass = 一次全屏 quad（`PostPass.process`）；「可忽略」是定量判断，本次**未实测**。）
 
 ---
 
@@ -111,6 +163,8 @@
 - 调整是否影响 GUI 层。
 - LUT 的时机。
 - lane 级与调整层的排期（依赖[画面合成](./camera-composition.md)的进度）。
+- 曲线关键帧形态 a / b 的选择（倾向先 b 后 a，§3.1）。
+- 编辑器曲线编辑器与色轮的实现形态（自绘 vs 复用；与脚本模型 §6 的"参数寻址到分量"共用曲线编辑能力）。
 
 ---
 
@@ -118,10 +172,60 @@
 
 | # | 步骤 | 交付物（完成后我们要什么） |
 |---|---|---|
-| 1 | master 整体调整：亮度 / 对比度 / 饱和度 / 色相 + 灰度，可关键帧 | 脚本可让整画面黑白化 / 偏色，并随时间淡入淡出 |
-| 2 | RGBA 通道拆分 + 完整 HSL | 通道级调整可用（如只留红色通道、单通道增益） |
-| 3 | 数据落点定稿 + 编辑器 UI（滑杆 + 实时预览） | WebUI 内可调参数并实时看到效果 |
-| 4 | lane 级调整（依赖画面合成） | PIP 副画面单独调色：老电影 PIP、主画面不变 |
-| 5 | 调整层（作用于其下所有层） | PS 式完整模型：层叠顺序 + 各自持有 + 总体叠加 |
+| 1 | master 第一批工具 + RGB 复合曲线（形态 b：曲线 + 强度关键帧）：曝光 / 对比度 / 高光阴影 / 饱和度 / 灰度等，全部可关键帧 | 脚本可让整画面黑白化 / 偏色 / 曲线风格化，并随时间淡入淡出 |
+| 2 | RGBA 通道拆分 + 完整 HSL + 每通道曲线（R / G / B） | 通道级调整可用（只留红通道、单通道曲线） |
+| 3 | 数据落点定稿 + 编辑器 UI（滑杆 + 曲线编辑器 + 实时预览 + 关键帧打点） | WebUI 内可调参数、打关键帧并实时看到效果 |
+| 4 | 第二批：六条 hue 曲线 + RGB 通道混合器 + Lift / Gamma / Gain 色轮 | 达芬奇式曲线 / 色轮调色可用 |
+| 5 | lane 级调整（依赖画面合成） | PIP 副画面单独调色：老电影 PIP、主画面不变 |
+| 6 | 调整层 + 第三批（LUT / 六色带 / 混合模式） | PS 式完整模型：各自持有 + 调整层 + master |
 
-> 步骤 1–3 不依赖画面合成，可先行；步骤 4 起依赖 lane 上屏。
+> 步骤 1–4 不依赖画面合成，可先行；步骤 5 起依赖 lane 上屏；步骤 6 依赖分层模型落地。
+
+---
+
+## 事实核查（2026-10-07）
+
+核查依据：
+
+- 本仓库：`overlay/FadeLayer.java`、`overlay/PipLayer.java`、`overlay/OverlayManager.java`、`script/OverlayTrackPlayer.java`、`script/TrackType.java`、`script/ScriptValidator.java`、`script/schema/TrackSchemas.java`、`handler/ClientEventHandler.java`、`forge/.../ForgeClientEvents.java`、`proto/QuadrantProto.java`、`mixin/MinecraftAccessor.java`、`resources/**`。
+- MC 1.20.1 源码：`.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-d95c7b3016/1.20.1-loom.mappings.1_20_1.layered+hash.2198-v2/…-sources.jar` 内 `GameRenderer` / `PostChain` / `PostPass` / `EffectInstance` / `RenderTarget` / `RenderSystem` / `Minecraft` / `ResourceLocation`（**行号即该 jar 内行号**）；同目录合并 jar 内 `assets/minecraft/shaders/post|program/*.json|*.fsh|*.vsh`。
+- example 参考模组：`example/Iris-1.20.1`、`example/Oculus-1.20.1-new`。
+- 当前 `gradle.properties`：`version=0.3.5`。
+
+### ① 核实为真的断言
+
+1. **§1「颜色遮罩 = 往上盖一层颜色（新增像素层）」**：`overlay/FadeLayer.java` `render(GuiGraphics, int, int)` 计算 `int argb = (alpha << 24) | (color & 0x00FFFFFF)` 后 `guiGraphics.fill(0, 0, screenWidth, screenHeight, argb)` —— 全屏纯色填充，**没有任何通道运算**；`script/OverlayTrackPlayer.java` 对 fade 只 `fl.setColor(...)`（`createLayer` 的 fade 分支 `:119-124`）与 `fl.setOpacity(opacity)`（`updateLayer`，`:181-182`）。✅
+2. **§1「两篇互补，不合并；mask 文档 §2.2 的调色/滤镜归本文」**：`plans/0.3.6/overlay-color-mask.md` §2.2 已写成「~~颜色调色/滤镜~~ → **已移交 `screen-color-adjust.md`**：RGBA 通道拆分、完整 HSL、亮度/对比度等」。两文档无冲突。✅
+3. **§2.1「恒定一个全屏 pass，开销与内容无关」**：`PostPass.process(float)`（`PostPass.java:62`）画 4 顶点 QUADS/POSITION 全屏四边形（覆盖 out target 全幅、z=500），采样 `DiffuseSampler`；`PostChain.process(float)`（`:288`）顺序驱动 passes → 「与内容无关」成立。✅（「恒定一个 pass」的措辞见 ②-1）
+4. **§2.1「与现有 fade 遮罩的『一份参数管全屏』心智一致」**：FadeLayer 只有单一 `color` + 单一 `opacity` 通道，作用于全屏。✅
+5. **§2.3 / §4「OVERLAY 轨现有层类型只有 fade/image/subtitle/pip」**：`OverlayTrackPlayer.createLayer`（`:113-157`）switch 四类 + `default` 打 warn；`ScriptValidator.java:180` `checkEnum(..., "layer_type", ..., "fade", "image", "subtitle", "pip")`；`schema/TrackSchemas.java:144` enum 四值。三处一致。✅
+6. **§4「数据落点（待定）：OVERLAY 轨新层类型 vs 独立调整轨」的现状前提**：`script/TrackType.java` 枚举只有 CAMERA / LETTERBOX / AUDIO / EVENT / MOD_EVENT / OVERLAY，**没有调整类轨道**。✅（"待定"状态保留，未改成已决定）
+7. **§2.2「与画面合成的 lane 模型天然对齐」**：`camera-composition.md`「每个画面 lane 的输出是**一张纹理**」；`parallel-playback.md` §2「原则（已确认）：造好用的底层，而不是造限制多的工具」（本文 §1 的「先立模型、不设限制」是该句的转述）。✅
+8. **§4「lane 级在 lane 纹理合成前做」**：`quadrant-prototype-results.md` §3.2「lane 的 `renderLevel` **加上所有 lane 级后处理**都必须在 lane 的 FBO 内完成」；`multi-camera-rendering.md` 表「lane 自包含」行同结论。✅
+9. **§5「与并行播放的并集规则对齐」**：`parallel-playback.md` §3.2「运行时控制取并集（已确认）」范围是行为开关（`hide_hud` / 键鼠屏蔽 / `suppress_bob`），不涉及「单一 master 参数集」的合并语义 → 本文该开放问题成立。✅
+10. **§4「master 在合成输出上做」**：合成输出即 `Minecraft.mainRenderTarget`；原版 `postEffect` 链的 screenTarget 就是 `minecraft.getMainRenderTarget()`（`GameRenderer.loadEffect`，`:345`），lane 原型也靠 `MinecraftAccessor.ic$setMainRenderTarget` 把渲染导向 lane FBO。✅
+
+### ② 已修正的断言
+
+1. **§2.1 优「恒定一个全屏 pass」→ 已修正为**「恒定一个全屏 pass（全屏 quad，开销与内容无关；注意源码事实：原版单效果链实际是「效果 pass + blit 回 main」两个 pass）」。依据：`assets/minecraft/shaders/post/color_convolve.json` 是 `color_convolve`（`minecraft:main` → `swap`）+ `blit`（`swap` → `minecraft:main`）两个 pass，`post/invert.json` 同构 → 「与内容无关」成立，但「恒定一个 pass」在原版 swap 模式下不成立（除非自建单 pass 链）。
+2. **未发现与源码矛盾的现状断言。** 一处措辞澄清（未改文档结论）：`overlay/FadeLayer.java:3` 的类 javadoc 写「用于淡入淡出和**色彩滤镜**」，而实现只有纯色填充、无任何颜色运算。**冲突裁决**：`git log -1 --format=%cI` → `overlay/FadeLayer.java` = **2026-08-18T22:58:38+08:00**；`plans/0.3.6/screen-color-adjust.md` = **2026-10-05T11:48:34+08:00** → **文档较晚，且文档的「盖一层颜色」与实现一致，以文档为准**；javadoc 的「色彩滤镜」不代表现有能力（本文档不改该 javadoc，仅记录）。
+3. **跨文档无冲突**：mask 文档（`2026-10-05T11:48:34+08:00`）已自行把调色/滤镜条目标记为移交本文，与本文 §1 引用一致（未改他人文档）。
+
+### ③ 补全的信息（已写入 §4「源码事实」与 §5）
+
+1. 原版后处理链的类 / 方法 / 字段：`PostChain`、`PostPass`、`EffectInstance`；`GameRenderer.postEffect`（`:134`）、`loadEffect`（`:345-346`）、`currentEffect`（`:674`）、`shutdownEffect`（`:299`）、`EFFECTS`（`:135`）。
+2. **调用位置**：`GameRenderer.render(float,long,boolean)`（`:870`）→ `renderLevel`（`:884`）→ `tryTakeScreenshotIfNeeded`（`:885`）→ `levelRenderer.doEntityOutline()`（`:886`）→ `postEffect.process(f)`（`:887-892`）→ `getMainRenderTarget().bindWrite(true)`（`:893`）→ GUI 正交投影（`:897-898`）→ `gui.render`（`:917`）；帧末 `Minecraft.runTick(boolean)`（`Minecraft.java:980`）→ `unbindWrite()`（`:1044`）→ `blitToScreen(...)`（`:1045`）→ **后处理 pass 位于「世界渲染之后、GUI 之前」**，与 multi-camera-rendering / `quadrant-prototype-results.md` §3.2、§140 的整屏步骤清单一致。
+3. pass 绘制语义（全屏 quad、`DiffuseSampler`、`ProjMat`/`InSize`/`OutSize`/`Time`/`ScreenSize`、`outTarget.clear` + `bindWrite(false)`）与链驱动（`PostChain.process` `:288`、`PostChain.resize` `:276`）。
+4. 链 JSON 结构：`targets` / `passes`；每个 pass 必填 `name` / `intarget` / `outtarget`，可选 `auxtargets` / `uniforms`；`"minecraft:main"` 是 screenTarget 别名（`getRenderTarget` `:309-316`）；`addTempTarget`（`:246`）建 `TextureTarget`。
+5. **命名空间约束**：`EffectInstance` 程序路径硬编码 `shaders/program/<name>.json`（`:43,65`），`new ResourceLocation(String)` 默认命名空间 `minecraft`（`ResourceLocation.java:31,49,76`）→ 沿用原版 `PostChain` 时 shader 资产需放 `assets/minecraft/shaders/{post,program}/`。**仓库现状：没有任何 shader 资源**（`resources/**/shaders/**` 无匹配；`common/src/main/resources/assets/immersive_cinematics/` 下只有 `lang` / `textures` / `icon.png`）。
+6. 全局状态语义：`RenderSystem.setProjectionMatrix` 写静态字段（`:814-825`，配套 `_backupProjectionMatrix` / `_restoreProjectionMatrix` `:876-892`）；`RenderTarget._blitToScreen` 改全局投影（`:221`）；`bindWrite(true)` 顺带重置 viewport 为目标全尺寸、`bindWrite(false)` 只绑 FBO（`:177-191`）。
+7. 原版先例：`assets/minecraft/shaders/post/color_convolve.json`（main→swap→main 两 pass）与 `program/color_convolve.json` + `.fsh`（uniform：`Gray`(0.3, 0.59, 0.11) / `RedMatrix` / `GreenMatrix` / `BlueMatrix` / `Offset` / `ColorScale` / `Saturation`；`OutColor = (Chroma * Saturation) + Luma`，未钳制）；`post/invert.json` + `program/invert.json`（`InverseAmount`）。
+8. 光影挂点：Iris / Oculus 在 `GameRenderer.renderLevel` `TAIL` 调 `finalizeGameRendering()`（`example/Iris-1.20.1/.../mixin/MixinGameRenderer.java:461-464`、`example/Oculus-1.20.1-new/.../mixin/MixinGameRenderer.java:462-464`）；Iris 最终合成在 `LevelRenderer.renderLevel` 尾部 `finalizeLevelRendering()` → `compositeRenderer.renderAll()` + `finalPassRenderer.renderFinalPass()`（`IrisRenderingPipeline.java:1083-1087`；`finalizeGameRendering()` 做色彩空间转换 `:1090-1092`）；无光影包时 `VanillaRenderingPipeline` 两个方法为空实现（`:106-114`）。
+9. `overlay/PipLayer.java` 现状（与 §7 步骤 4 相关）：仅半透明黑填充 + 2px 白边，不绑定任何纹理（`FILL_COLOR = 0x40000000`、`BORDER_COLOR = 0xFFFFFFFF`、`BORDER_WIDTH = 2`）——与 `camera-composition.md`「OVERLAY 现有 `pip` 层是静态占位」一致。另：`render(...)` 里算出的 `fillArgb` / `borderArgb` **从未被使用**（`guiGraphics.fill` 传的是常量 `FILL_COLOR` / `BORDER_COLOR`），即 `opacity` 对 pip 的填充/边框不生效（与 `camera-composition.md` 第 124 行的同一断言相符）。
+
+### ④ 无法核实的断言（未验证）
+
+1. **§5「性能：master 一次全屏 pass 可忽略」的定量部分**：未实测，仓库与 `quadrant-perf/` 内没有该 pass 的实测数据（"与内容无关"有源码依据，见 ①-3）。
+2. **§7 步骤 3「WebUI 内可调参数并实时看到效果」的现状支撑**：本次未核查 `editor/src` 与 `webui/` 的预览链路（现有 `webui/WebFrameCapture` 只做缩略帧回读，能否承载实时调色未核实）。
+3. **§3 的 LUT / 曝光 / 伽马等参数方向**：纯方向，无现状可核，保持「执行时定」。
+4. **光影下「我们的 pass 具体挂哪一步」的最终取舍**：只核实了双方挂点位置，结论待定（设计问题，未替文档决定）。

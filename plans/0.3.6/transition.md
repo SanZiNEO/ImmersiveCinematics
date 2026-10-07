@@ -129,3 +129,27 @@
 - [数学函数模型](./math-models.md)
 - [时间插值](./temporal-interpolation.md)
 - [迟滞](./hysteresis.md)
+
+---
+
+## 事实核查（2026-10-07）
+
+> 核查依据：本仓库源码。§1–§10 设计/方向内容未改动。
+
+### ① 核实为真（§3 过渡来源 / §5 六参数语义的现状挂点）
+- **morph 过渡已存在**：`transition` 枚举 `{cut, morph}`（`script/schema/TrackSchemas.java:30`、`script/ScriptValidator.java:166`）、`TransitionType.CUT/MORPH`（`script/TransitionType.java`）、`Clip.isMorph()` / `getTransitionDuration()`（默认 0.5，`script/Clip.java:71-77`）。实现：`CameraTrackPlayer.renderMorph(...)`（`script/CameraTrackPlayer.java:247`）——B 模型重叠区 `[prevEnd−t/2, prevEnd+t/2)`（:139-157），按 weight 对 **position + yaw/pitch/roll/fov/zoom 全 6 参数**交叉混合（角度用 `blendAngle`）。即 §4 的 "Cut + Blend + 双状态混合" 已有原型。
+- **切线朝向已存在**：`orient` 枚举 `{manual, tangent}`（`ScriptValidator.java:167`）；`TangentOrientation.compute(...)`（`script/TangentOrientation.java`）由路径切线求 yaw/pitch，叠加 `yaw_offset`/`pitch_offset`；入口 `CameraTrackPlayer.isTangentOrientation`（:820）/ :791-800。
+- **look_at / follow 目标切换**：`CameraTrackPlayer.selectorPolicy` + `smoothTargetPoint` + `TargetLock`（:1052-1054、:1197），角色 follow / look_at / look_at_target / facing_origin。
+- **编辑器 seek = 硬定位（无过渡）**：`WebEditorApi.handleSeek`（`webui/WebEditorApi.java:211`）→ `CameraManager.pause()` + `setTime(t)`（`camera/CameraManager.java:229`）→ `scriptPlayer.alignTime(...)`，下一帧 `CameraTrackPlayer` 经 `setPositionDirect`/`setAllDirect` 直写（`CameraTrackPlayer.java:312-313`）。
+- **六参数各自独立**：`CameraProperties` 五属性各持独立 `AnimValue`（`camera/CameraProperties.java:29-63`），`CameraPath` 单独管位置——与 §5 "每参数可独立时长/模式" 方向对应。
+
+### ② 已修正
+- 无（§3/§5 均为方向性表述，未发现与代码冲突的现状断言）。
+
+### ③ 补全
+- §3 所列 "Base Provider 切换（脚本 / 编辑器 / 飞行 / 外部）" 现状：脚本 = `CameraTrackPlayer`；编辑器预览 = `CameraManager` preview（`pushScript` / `setTime` / `previewSetCamera`，`CameraManager.java:207-…`）；飞行 = `control/FlightController`（直写 :294-297）；"外部" 暂无公开输入入口（脚本 JSON 为唯一外部输入）。
+- §5 的 "分参数过渡" 已有原语：`CameraProperties.AnimValue.setTarget(v, dur)` 每参数独立时长；`CameraManager.stageTargetPosition/Yaw/...` + `commitStagedState()`，仅用于编辑器 staged 预览。
+- 位置路径现状：`PathStrategies` 注册表静态仅注册 `"linear"`；`"bezier"`（`BezierPathStrategy`，含 ArcLengthLUT 匀速参数化）由 `CameraTrackPlayer` 直接持有实例（`CameraTrackPlayer.java:23`），未进注册表。样条（CatmullRom）仅 `script/PathStrategy.java` javadoc 列为未来项。
+
+### ④ 未验证
+- §3 的 "外部 Override 的 push / release"、"脚本打断 / 排队接播" 作为过渡来源列出，未在代码中找到对应的公开实现入口——**未验证**（可能为规划项）。

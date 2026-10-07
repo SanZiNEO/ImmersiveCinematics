@@ -158,3 +158,55 @@
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
 
 - **多人服下触发器播放的结构 / 方块来源不可解析**：推送前的结构 / 方块替换只覆盖 `look_at_target_structure` 与 `position.relative_origin`；触发器路径（`StartPlaybackAction`）直接发 rawJson、零替换 → 触发器播放时结构 / 方块来源全部不可解析（单人服不受影响）。
+
+---
+
+## 事实核查（2026-10-07）
+
+> 依据：本仓库工作区源码（`common/src/main/java/...`、`forge/src/...`、`fabric/src/...`）、MC 1.20.1 源码（`build/mc-sources/net/minecraft/...` 与 loom `*-sources.jar`）。本次核查以工作区文件内容为准；未发现需按 `git log` 时间裁决的文档/代码冲突（文末另附相关文件最后提交时间备查）。
+
+### ① 核实为真的断言
+
+| 断言 | 证据 |
+|---|---|
+| §7#1 `Evaluators` 新增 `evaluateFacing` + `evaluateAllOf` | `trigger/server/evaluator/Evaluators.java:518`（`evaluateFacing`）、`:546`（`evaluateAllOf`） |
+| §7#2 `registerTriggerTypes` 注册 `facing`、`all_of`，间隔 5 tick | `ImmersiveCinematics.java:50` `new TriggerType("facing", POLLING, 5, Evaluators::evaluateFacing)`、`:51` `("all_of", POLLING, 5, Evaluators::evaluateAllOf)` |
+| §7#3 `ScriptValidator` 加结构校验 | `script/ScriptValidator.java:436` `validateTriggerConditions` → `:474` `validateFacingConditions`（yaw1/pitch1/yaw2/pitch2 必填为数字；pitch 端点限 -90~90）、`:491` `validateAllOfConditions`（list 必须非空数组、元素为 `{type,conditions}`、子类型必须已注册且 `ListenStrategy.POLLING`、禁止嵌套 `all_of`）；`:466` 对 facing/all_of 上无效的 `exit_buffer` 给出告警 |
+| §7#4 解析层不改（conditions 已是通用嵌套结构） | `script/ScriptParser.parseTriggerDefinition`（:554 起）对 conditions 走通用 `parseDataMap`，无类型分支 |
+| §7#5 `TRIGGER_TYPES.md` 加两节 + `AI_SCRIPTING_GUIDE.md` 同批 | `docs/TRIGGER_TYPES.md:604`（第 24 节 `facing`）、`:632`（第 25 节 `all_of`）；`docs/AI_SCRIPTING_GUIDE.md:268-269` 表格含 `facing` / `all_of` |
+| §7#6 测试脚本存在 | `cinematics/tests/trigger/test_trigger_facing.json`（facing 单条件）、`cinematics/tests/trigger/test_trigger_all_of.json`（all_of[location,facing]）均存在 |
+| §7 实现约定：facing 字段 `yaw1/pitch1/yaw2/pitch2` | `Evaluators.java:519-530` |
+| §7 实现约定：all_of = `list`，元素 `{type, conditions}` | `Evaluators.java:547-559` |
+| §7 实现约定：all_of 子条件限轮询类 | 校验器 `ScriptValidator.java:523` 判 `strategy == POLLING`；允许集恰为 location/facing/observation/structure/biome/xp/inventory/gamestage/dimension（与注册表 POLLING 类型一致） |
+| §7 实现约定：yaw 从 yaw1 顺时针扫到 yaw2；起止相同 = 整圈 | `Evaluators.java:531-536`（`span = wrapDegrees(yaw2-yaw1)`；`span==0 → true`；`span>0` 取 `0 ≤ delta ≤ span`） |
+| §4.2 端点包含 + pitch 限 ±90 | 端点包含：`Evaluators.java:526`（pitch 用 `< min` / `> max` 排除）、`:534`（`delta >= 0 && delta <= span`）；pitch 限值由 `ScriptValidator.java:483-486` 校验 |
+| §4.4 当前实现仍为固定 5 tick，单列可配未做 | facing/all_of 在 `ImmersiveCinematics.java:50-51` 硬编码 5；`Config` 无 facing/all_of 专用间隔字段 |
+| §2 "25 种触发器" | `registerTriggerTypes` 共注册 25 个类型（`ImmersiveCinematics.java:24-51`） |
+| §2 `requires` = 全部满足，内置 script_played/script_started/script_completed | `TriggerEngine.prerequisitesMet`（:185-189）逐条 `PrerequisiteRegistry.evaluate`，任一 false 即 false；`prereq/BuiltinPrerequisites.java:17/23/29` 注册三者 |
+| §2 同一触发器内部多字段判定目前写死 AND（如 entity_kill 场景条件） | `Evaluators.matchesScene`（:141）逐字段 `return false`；`evaluateXp`（:256-259）level/total 全判 |
+| §2 on_enter / exit_buffer / repeatable 状态机现状 | `TriggerEngine.checkEnterState`（:253-274）+ `enterStates`（:30）；字段定义见 `ScriptParser.java:558-561`、`TriggerRegistration.java:71-75`；fb-05 状态标 ✅ 已修复（`feedback-0.3.5/05-on-enter-not-repeatable.md` 头部） |
+| 已知缺陷：触发器路径零替换 | `StartPlaybackAction.sendTo`（:64）`S2CPlayScriptPacket.send(p, script.getRawJson())`；rawJson 由 `ScriptManager.java:75` `script.setRawJson(content)` 原样存入，无替换 |
+
+### ② 已修正的断言
+
+- 无。本次核查未发现与工作区源码不一致的事实性断言，未改动原文事实描述。
+
+### ③ 补全的信息
+
+- **`triggerPollInterval_location` 的来源**：它是 **Forge 配置文件键**（`forge/.../ForgeConfig.java:102` `.defineInRange("triggerPollInterval_location", 20, 1, 600)`）；Fabric 侧键为 camelCase `triggerPollIntervalLocation`（`fabric/.../FabricConfig.java:57`、`:120`）；Java 静态字段为 `Config.triggerPollIntervalLocation`（`Config.java:45`，默认 20）。且该间隔**不止 location 使用**：`xp`、`dimension` 两类型也复用 `Config.triggerPollIntervalLocation`（`ImmersiveCinematics.java:42`、`:44`）。其余：`triggerPollIntervalBiome`（默认 40）、`...Inventory`/`...Structure`/`...Gamestage`（默认 20）；**无** xp/dimension/observation/facing/all_of 的专用间隔字段。
+- **facing 判定的角度获取方式**：直接读**玩家实体自身** `player.getXRot()` / `player.getYRot()`（`Evaluators.java:523`、`:528`），**不是**用 `getViewVector()` 反算；yaw 经 `Mth.wrapDegrees` 归一。
+- **MC 原版朝向语义**（`build/mc-sources/net/minecraft/world/entity/Entity.java`）：`getYRot()`（:3321）/`getXRot()`（:3337）返回字段原值；`getViewVector`（:1483）→ `calculateViewVector(xRot,yRot)`（:1495）返回 `(sin(-yaw)·cos(pitch), -sin(pitch), cos(-yaw)·cos(pitch))` ⇒ yaw 0 指向 +Z（南），yaw 增大转向 -X（西），俯视顺时针；pitch 正指向 -Y（向下）。yaw 存值经 `% 360`（`setRot` :385、`absMoveTo` :1356），可能超出 [-180,180]；pitch 经 `Mth.clamp(..., -90, 90)`（`absMoveTo` :1357、`turn` :411），服务端移动包经 `ServerGamePacketListenerImpl` → `player.absMoveTo(...)`（:849），故服务端 `getXRot()` ∈ [-90,90]。`Mth.wrapDegrees`（`util/Mth.java:198`）把角度归一到 [-180,180)。⇒ §1/§4 的 "yaw ∈ [-180,180]（0=南，正=顺时针）、pitch ∈ [-90,90]（正=向下）" 与原版一致（yaw 区间为求值器 wrap 后的有效区间）。
+- **schema 侧**：`script/schema/TriggerSchemas.java` 的 `typeList()`（:25-47）已含 `facing`/`all_of`；`facing()`（:239）登记 yaw1/pitch1/yaw2/pitch2 四个 float 字段；`allOf()`（:249）返回空 map（只登记类型、无专用控件）——与 §7 "schema" 约定一致。
+- **单人服不受影响的机制**：客户端兜底 `CameraTrackPlayer.resolveStructurePos`（:555）/`resolveBlockPos`（:595）通过 `mc.getSingleplayerServer()` 定位；多人（返回 null）无法解析。`/icinematics play` 路径的服务端替换在 `CinematicCommand.resolveStructureTargets`（:165），覆盖 `look_at_target_structure`（:183）与 `position.relative_origin`（:189，含 `block:` 写法 :241）。
+
+### ④ 无法核实的断言
+
+- 无。本文所有事实性断言均已在工作区源码 / MC 源码中核实。
+
+### 附：相关文件最后提交时间（冲突裁决用；本次无冲突）
+
+| 文件 | `git log -1 --format=%cI` |
+|---|---|
+| `plans/0.3.6/trigger-conditions.md` | 2026-10-06T21:16:28+08:00 |
+| `.../trigger/server/evaluator/Evaluators.java` | 2026-09-29T14:12:03+08:00（注：facing/all_of 相关改动在工作区中已存在） |
+| `docs/TRIGGER_TYPES.md` | 2026-10-05T17:42:24+08:00 |

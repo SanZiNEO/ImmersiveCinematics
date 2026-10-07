@@ -26,7 +26,8 @@
 
 **原则（已确认）**：造好用的底层，而不是造限制多的工具。
 
-- 框架不设实例数 / 相机数阈值；渲染压力由作者按场景自控，框架提供性能档位（见[多相机渲染](./multi-camera-rendering.md)）。**原型实测支持这条**：1 / 4 / 16 / 25 画面成本线性、无拐点（单画面 ≈3.4–3.6 ms ≈1.2–1.4× 主画面，见 `quadrant-perf/summary.md`）。
+- 框架不设实例数 / 相机数阈值；渲染压力由作者按场景自控，框架提供性能档位（见[多相机渲染](./multi-camera-rendering.md)）。**原型实测支持这条**：1 / 4 / 16 / 25 画面成本线性、无拐点（单画面 ≈3.4–3.6 ms，主画面稳态 2–3 ms，见 `quadrant-perf/summary.md`）。
+- **lane 模型的红利（已确认·2026-10-07）**：以前不允许 clip 时间重叠，是因为只有一个相机（同一时刻只能有一个相机状态）；lane 之后每个活跃 clip 各自渲染自己的画面，于是**时间重叠、叠化、无空隙全屏覆盖（不露原版画面）、分层调色、多机位合成**等都自然成立——这些提升全部来自"多实例 × 多 lane"这一个底层能力。
 - 优化模组与光影模组普遍在做二次渲染，说明多画面的渲染压力本身在可控范围内。
 
 **“单线程”澄清**：这里说的是播放模型的单实例，不是 Java 线程；渲染仍在渲染线程，逻辑仍在 tick。
@@ -66,9 +67,14 @@
 - 玩家最终看到的画面 = **合成层输出**（所有 lane 按合成参数铺屏的结果）；没有任何 lane 时 = 原版视角。
 - 音频听者唯一：由**主 lane 所属实例**的 `meta.listener` 决定；无 lane 的实例不影响听者。主 lane 的判定规则与[画面合成](./camera-composition.md)一起定。
 
+> **架构推论（2026-10-07，与[画面合成](./camera-composition.md) / [可变画面](./variable-frame.md) §2 的「主画面也是覆盖层之一」一致）**：多相机渲染落地后，**主画面不再走"单相机替换"路径**——它只是「dest=全屏、opacity=1」的全屏 lane 特例。相机画面与图片 / 字幕 / 黑边同类：lane 输出纹理进覆盖层体系，位置 / 大小 / 取材 / 不透明度 / 叠放顺序全部走关键帧（完全关键帧控制）。
+>
+> 随之而来：现有"把虚拟相机写进唯一主 `Camera`"的替换链路——`CameraMixin` 主相机分支、`GameRendererMixin` 的 getFov / roll 分支、`LevelRendererMixin` 视图中心改写、`CinematicOcclusion` 整帧遮挡决策——在理想态下是**过渡实现**，最终随 lane 化收敛（不再被调用 / 删除）。
+> 两点保留：① 每个 lane 的相机仍复用"把模组相机状态写进一个 `Camera` 实例 + 独立投影"的机制（四象限原型已验证）；② 单 lane 全屏（dest=全屏、opacity=1）可作为优化走旧路径省一遍渲染（每 lane ≈3.4–3.6 ms），是否保留执行时定。
+
 ### 3.4 叠加秩序（方向）
 
-多实例的 OVERLAY / LETTERBOX 叠放顺序：先按实例（启动顺序），再按层内 `z_index`。
+多实例的 OVERLAY / LETTERBOX 叠放顺序：先按实例（启动顺序），再按**轨道层级 → 轨道内 clip 顺序（后面的在上）→ 层内 `z_index`**（轨道层级与 clip 顺序规则见[画面合成](./camera-composition.md) §1）。
 
 ### 3.5 触发器与重入（方向）
 
@@ -142,5 +148,43 @@
 
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
 
-- **`emergencyStop()` 不清队列**：只清 `pendingScript`，不清 `scriptQueue`；`deactivateNow` 会从队列接播 → 世界退出时可能误启下一脚本。
+- **`emergencyStop()` 不清队列**：只清 `pendingScript`，不清 `scriptQueue`（字面属实）；但 `deactivateNow` 会先调用 `reset()` 清空 `scriptQueue`，故“从队列接播”的分支实际不可达，世界退出不会误启下一脚本。（原文“会从队列接播”结论有误，见事实核查）
 - **`C2SPlaybackStarted` 无条件回报**：`ClientScriptReceiver.handlePlayScript` 不检查 `playScript` 返回值（0 拒绝 / 2 排队也回报“已开始”）→ 并行化后服务端账本会错位（需按实例 id + 实际结果回报）。
+
+---
+
+## 事实核查（2026-10-07）
+
+> 以仓库代码为准逐条核对。路径均为仓库根相对路径。
+
+### ① 核实为真的断言
+
+1. **§1 “单实例：一个 `ScriptPlayer`、一个 `pendingScript` 槽、同一时刻一套虚拟相机状态”** —— 属实。`common/.../camera/CameraManager.java`：`private final ScriptPlayer scriptPlayer = new ScriptPlayer();`、`private CinematicScript pendingScript = null;`、单一 `private final CameraProperties activeProperties` / `activePath`。
+2. **§4 “`CameraManager` 单实例 + 单 `pendingScript` 槽”** —— 属实（同上）；另持有 `private final ScriptQueue scriptQueue = new ScriptQueue();`（`camera/ScriptQueue.java`，容量 `CAPACITY = 8`，`PriorityQueue` 按 `meta.priority` 降序、同优先级 FIFO）。
+3. **§4 “触发器的 `shouldSkip`（播放期间跳过）语义”** —— 属实。`trigger/server/TriggerEngine.java:196` `shouldSkip(...)`：若 `ScriptEventManager.INSTANCE.isPlayerPlayingScript(player.getUUID(), reg.getScriptId())` 返回 true 则跳过；两处轮询入口（`TriggerEngine.java:91`、`:113`）均调用。播放期间跳过且状态机不更新。
+4. **§4 “编辑器预览与游戏播放共用 `CameraManager`”** —— 属实。`webui/WebPreviewScreen.java`（`enterFlightMode` 用 `CameraManager.INSTANCE.getPath()`）、`webui/WebEditorApi.java`（`pushPlaybackState` 读 `CameraManager.INSTANCE.getGameTimeSeconds()`）、`editor/EditorScreen.java:1722`（`CameraManager.INSTANCE.exitPreview()`）+ `PreviewCapture.capture(minecraft)`（`:1251`）。预览走 `CameraManager` 的 `previewMode` 分支，与游戏播放同一 `scriptPlayer`。
+5. **已知缺陷 2 “`C2SPlaybackStarted` 无条件回报”** —— 属实。`trigger/client/ClientScriptReceiver.handlePlayScript`：`CameraManager.INSTANCE.playCinematic(script);` 后无条件 `NetworkHandler.sendToServer(new C2SPlaybackStartedPacket(script.getId(), packet.getRefId()))`，未检查返回值。`CameraManager.playScript` 的 javadoc 明确 `@return 0=被拒绝, 1=已开始播放, 2=已排队等待`（`CameraManager.java:145`）；`playCinematic` 直接丢弃返回值（`:177-179`）。
+6. **§3.7 “网络包带实例 id（方向）/ 触发状态机按实例维护（方向）”** —— 现状确实无实例 id：`S2CPlayScriptPacket` 仅 `scriptJson` + `refId`；`C2SPlaybackStartedPacket` 仅 `scriptId` + `refId`；`ScriptEventManager` 的 `Map<String, ScriptPlayback> scriptPlaybacks` 以 **scriptId** 为键，`ScriptPlayback` 只含 `Set<UUID> viewers` / `Set<UUID> skipVoters`；`ScriptSyncState` 只做脚本文件指纹登记（`Map<String,String> fingerprints`），与实例无关。故“带实例 id”确为尚未实现的方向。
+7. **§1 原型数据（引用 `quadrant-perf/summary.md`）** —— 绝对数值属实：结论表列 1/4/16/25 画面帧间隔 8/17/61/98 ms、单画面 3.4/3.5/3.6 ms、主画面各档 2–3 ms、线性。原「≈1.2–1.4 × 主画面」比值经 2026-10-07 跨文档核查与 CSV 明细不符，已在本文与引用处删除（裁决见 multi-camera-rendering.md 核查小节）。
+8. **§8 “G1 原文已从 0.4.0 抹除”** —— 属实。`plans/0.4.0/README.md:12` 注明“G1/G2 已抹除”，`:19` 注“相机实例队列（G1）→ `plans/0.3.6/parallel-playback.md`（取代）”；`plans/0.4.0/camera-queue-pip-dimension.md` 开头声明 G1/G2 已被 0.3.6 三篇取代并抹除，仅保留 F 类跨维度运镜。全 0.4.0 目录 grep `G1` 仅剩这些“已抹除”说明。
+
+### ② 已修正的断言
+
+1. **已知缺陷 1（`emergencyStop()` 不清队列）** —— 旧说法：“只清 `pendingScript`，不清 `scriptQueue`；`deactivateNow` 会从队列接播 → 世界退出时可能误启下一脚本。”
+   - 新事实：`emergencyStop()` 确实未直接调用 `scriptQueue.clear()`（只置 `pendingScript = null`），**但** `deactivateNow()` 在接播判断前调用了 `reset()`，而 `CameraManager.reset()` 内含 `scriptQueue.clear()`；随后 `else if (!scriptQueue.isEmpty()) startScriptInternal(scriptQueue.poll())` 恒为 false（队列已被清空）。故“从队列接播”分支不可达，世界退出**不会**误启下一脚本。
+   - 证据：`camera/CameraManager.java` 的 `deactivateNow()`（`reset();` 位于 `pendingScript`/`scriptQueue` 判断之前）与 `reset()`（`scriptQueue.clear();`）。
+   - **冲突裁决**：`git log -1 --format=%cI` —— 文档 `2026-10-06T21:16:28+08:00`；`camera/CameraManager.java` `2026-09-09T10:42:54+08:00`；`scriptQueue.clear()` 于 `2026-08-10T17:24:47+08:00`（b3c8724）已在 `reset()` 中（`git log -S`）。文档时间更晚，但其“会从队列接播”属对代码的观察性结论，且所涉代码在复查时点即已存在 → 按代码事实修正。（如需保留“未复现”存疑，可在游戏内断线场景再验一次。）
+
+### ③ 补全的信息（原文只给方向、此处补类/方法名）
+
+- §1/§4 单实例载体：`CameraManager`（`scriptPlayer`、`pendingScript`、`scriptQueue`、`activeProperties`/`activePath`）。
+- §3.5 “同脚本重入：当前触发状态机以‘脚本 + 玩家’为键” —— 精确为：`TriggerStateStore` 以 `Map<UUID, PlayerTriggerState>`（玩家）为一级键，二级键为 `scriptId` + `triggerId`（`TriggerStateStore.isTriggered(UUID, String scriptId, String triggerId)`）；播放态去重另在 `ScriptEventManager.isPlayerPlayingScript(UUID, String scriptId)`（玩家 + 脚本）。即键实为“玩家 + 脚本 + 触发器”，非仅“脚本 + 玩家”。
+- §4 触发器跳过语义所在方法：`TriggerEngine.shouldSkip(ServerPlayer, TriggerRegistration)`（`TriggerEngine.java:196`），调用点 `:91`、`:113`。
+- §3.7 服务端现状承载类：`ScriptEventManager`（`scriptPlaybacks` 以 scriptId 为键、`ScriptPlayback` 含 `viewers`/`skipVoters`/`skipVoteRatio`/`triggeredKeyframes`）、`ScriptSyncState`（脚本文件指纹，非实例）、网络包 `S2CPlayScriptPacket`/`C2SPlaybackStartedPacket`（字段 `scriptJson`/`scriptId` + `refId`）。
+- 已知缺陷 2 涉及方法：`ClientScriptReceiver.handlePlayScript`、`CameraManager.playCinematic` / `playScript`、`C2SPlaybackStartedPacket`。
+
+### ④ 无法核实的断言（未验证）
+
+- §1“优化模组与光影模组普遍在做二次渲染，说明多画面的渲染压力本身在可控范围内”—— 属论据性陈述，未指定具体模组/文件，未验证（`render-second-pass-cost.md` 另有“仓库内不存在第二遍世界渲染”的相反限定）。
+- §3.7“事件时间线、触发状态机按实例维护”“跳过投票按实例记账”—— 为**方向**（当前均为按 scriptId 记账），非现状断言；作为方向保留，不判对错。
+- §3.2 行为开关“逐位取并集”（`hide_hud`/键鼠屏蔽/`suppress_bob`）—— 为**目标**语义；当前 `CinematicController` 为单一全局开关，未按实例求并集，未逐字段核实（方向稿保留）。
