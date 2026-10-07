@@ -5,7 +5,7 @@ import net.minecraft.world.phys.Vec3;
 /**
  * 轨道播放器接口 — 解耦 ScriptPlayer 与具体轨道类型的处理逻辑
  * <p>
- * 每种轨道类型（CAMERA/LETTERBOX/AUDIO/MOD_EVENT）有对应的 TrackPlayer 实现，
+ * 每种轨道类型（CAMERA/LETTERBOX/AUDIO/MOD_EVENT/OVERLAY/ADJUST）有对应的 TrackPlayer 实现，
  * ScriptPlayer 只负责调度（遍历 trackPlayers，调用 onRenderFrame），
  * 不再直接访问 CameraManager/OverlayManager 的写入方法。
  * <p>
@@ -72,6 +72,7 @@ public interface TrackPlayer {
             case AUDIO -> new AudioTrackPlayer(scriptPlayer, type, originPos, trackIndex);
             case MOD_EVENT -> new ModEventTrackPlayer(scriptPlayer, type, trackIndex);
             case OVERLAY -> new OverlayTrackPlayer(scriptPlayer, type, overlayManager, trackIndex);
+            case ADJUST -> new AdjustTrackPlayer(scriptPlayer, trackIndex);
             default -> throw new IllegalArgumentException("未知轨道类型: " + type);
         };
     }

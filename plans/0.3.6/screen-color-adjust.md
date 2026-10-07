@@ -9,6 +9,96 @@
 > - [Overlay 颜色遮罩](./overlay-color-mask.md)
 > - [画面合成](./camera-composition.md)
 > - [并行播放](./parallel-playback.md)
+>
+> **状态：第一批「标量组」（master，12 通道）已落地（2026-10-07）。曲线组（RGB 复合曲线 + 每通道曲线）与第二 / 三批、lane 级、调整层、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
+
+---
+
+## 落地标注（2026-10-07 实现：master 第一批标量组）
+
+### 数据落点（§4 / §6-2：定稿）
+
+**独立 ADJUST 轨道**（`TrackType.ADJUST`，JSON `"type": "adjust"`），**不是** OVERLAY 的新层类型。理由：
+
+1. **时机不同**：调色是作用在**合成输出**上的后处理 pass（MCOMP 之后、RPOST/GUI 之前）；OVERLAY 的层是 **GUI 阶段**的视觉元素（`OverlayManager.render` → `FadeLayer.render` 的 `guiGraphics.fill`）。走 OVERLAY 只能得到「在 GUI 阶段画出来的东西」，做不到「改已有画面的颜色」——要么另开旁路（层不画、只当数据容器，那 `z_index` / `opacity` / 位置 / 缩放字段全是噪音），要么时机错位（GUI 之后再调色会连字幕 / 黑边一起调，与 §5-3 的倾向相反）。
+2. **字段形状不同**：OVERLAY 层 = 一个元素 + 一套统一参数（x/y/anchor/scale/source/fit/opacity/z_index，四类层共享）；调色 = 一组彼此独立、各带公式的标量通道，两者无一处重合。
+3. **成本**：独立轨道 = 枚举 +1、schema +1、校验分支 +1、`TrackPlayer` 工厂 +1、播放器 +1；OVERLAY 路线要在 `OverlayTrackPlayer.createLayer/updateLayer` 里加特例分支 + 一个只存数据的 `OverlayLayer` 子类，渲染侧状态与 pass 一样要新建 —— 代码更多、语义更歪。
+
+**字段表（定稿）：12 个标量通道，全部是关键帧字段，缺省全 0 = 无效果**
+
+| 通道 | 默认 | 范围 | 口径 |
+|---|---|---|---|
+| `exposure` | 0 | -5 ~ 5 | 曝光，EV 档（×2^EV） |
+| `contrast` | 0 | -1 ~ 1 | 对比度，以中灰 0.5 为轴（±1 → ×0 / ×2） |
+| `highlights` | 0 | -1 ~ 1 | 高光，亮度权重 l²（正 = 向白抬、负 = 向黑压） |
+| `shadows` | 0 | -1 ~ 1 | 阴影，亮度权重 (1-l)² |
+| `whites` | 0 | -1 ~ 1 | 白场端点（白点 = 1 + 0.5×值） |
+| `blacks` | 0 | -1 ~ 1 | 黑场端点（黑点 = 0.5×值） |
+| `saturation` | 0 | -1 ~ 1 | HSL 的 S 通道（-1 = 全灰、1 = 双倍） |
+| `vibrance` | 0 | -1 ~ 1 | 自然饱和度（正 = 低饱和优先，负 = 整体降饱和） |
+| `temperature` | 0 | -1 ~ 1 | 色温（正 = 暖 / 偏红，负 = 冷 / 偏蓝） |
+| `tint` | 0 | -1 ~ 1 | 色调（正 = 品红，负 = 绿） |
+| `grayscale` | 0 | 0 ~ 1 | 灰度混合强度（Rec.709 亮度） |
+| `invert` | 0 | 0 ~ 1 | 反相混合强度 |
+
+- **没有 clip 级字段**（letterbox 先例）；**不设 `enabled`**：缺省 0 即无效果，关键帧把通道写回 0 就是「该项淡出」——§3.1 的「enabled 可关键帧」由「通道值本身可关键帧」覆盖，少一个字段少一套语义。
+- 插值：**匀速线性**（§3.1 的标量形态），走新加的 `KeyframeInterpolator.interpolateChannel`（与 `OverlayTrackPlayer` 的逐通道取值同口径：关键帧缺该字段 → 用缺省值；时间在首 / 末帧之外 → 取边界值，不外推）。
+- 曲线（§3.1 形态 a / b）未做，属曲线组任务。
+
+### 渲染挂点（§4 / §5-1 / §5-3 / §6-3：定稿）
+
+- **挂点**：`GameRenderer.renderLevel` 的 RETURN —— 与 lane 合成写在**同一次注入**里（`mixin/LaneRendererMixin`，紧接 `LaneRenderer.render` 的下一行）：即 **MCOMP 之后、原版 RPOST 与 GUI 之前**，与架构图 RADJ 一致。
+  - **为什么同一注入**：同一 RETURN 上多个 Mixin 的注入先后不由我们控制，而调色必须作用在 lane 合成结果之上 —— 顺序只有写在同一个注入点里才是显式保证（该类 javadoc 已写明）。
+  - **为什么不用原版 `PostChain`**：`EffectInstance` 的程序 JSON 路径硬编码 `shaders/program/<name>.json`（默认命名空间），且 `PostChain` 需要自己处理尺寸跟随、资源重载重建与用不上的 `Time` 等 uniform。自建 `ShaderInstance` + 自管中转缓冲更短更可控；**代价**：程序 JSON 与 GLSL 仍必须落在 `assets/minecraft/shaders/core/`（`ShaderInstance` 的 String 构造只认默认命名空间）—— 这是沿用原版机制的硬约束，非选择。
+  - **两个 pass**：主画面 → 中转缓冲（应用全部标量调整）→ 主画面（整屏 blit，复用 `LaneCompositor.compose`）。不能同时读写同一张纹理，故与「效果 pass + blit 回 main」的原版链同构（与 §2.1 的措辞修正同源）。
+  - **GUI 不受影响**（§5-3）：挂点在世界渲染阶段、GUI 之前 —— 字幕 / 黑边 / 跳过提示不被调色（与文档倾向一致）。有意的副作用：F2 截图**带**调色（截图取在挂点之后）。
+  - **描边**：原版 `doEntityOutline()` 在挂点之后整屏贴一次（仅在有发光实体时动作），那一次贴图不经过调色 —— 可接受的边角（有活跃 lane 时该步本就被 `LevelRendererMixin` 屏蔽）。
+- **数据 → 渲染的唯一交接**：`client/post/MasterColorAdjust`（帧内**发布 / 取走**，取走即清空）。播放器每渲染帧发布一次（`AdjustTrackPlayer.onRenderFrame`），pass 每渲染帧取一次 —— 「本帧没人发布」自然等于「本帧不调色」，不依赖结束时的清理时序。同帧多个 ADJUST 轨道 = **后发布者生效**（轨道层级靠后的覆盖靠前的，与 lane 叠放同一口径）。
+- **光影（§5-1）**：Iris / Oculus 的 `finalizeGameRendering()` 挂在 `renderLevel` 的 TAIL，与本挂点同处「renderLevel 尾部」——**先后顺序未实测**，该开放问题保留。
+
+### shader 数学（§4 方向 → 定稿）
+
+资产（**自建**，非复用原版 shader）：`assets/minecraft/shaders/core/ic_color_adjust.{json,vsh,fsh}`；顶点格式 `POSITION_TEX`（与合成层 / 原版 blit 同一套）。
+
+固定操作栈（与 §3「各批内部顺序固定」一致，不可调）：
+
+| # | 步骤 | 公式（逐通道，`c` = 输入色，`l` = Rec.709 亮度） |
+|---|---|---|
+| 1 | 曝光 | `c *= exp2(Exposure)` |
+| 2 | 对比度 | `c = (c - 0.5) * (1 + Contrast) + 0.5` |
+| 3 | 高光 / 阴影 | `m_hi = l²`、`m_lo = (1-l)²`；`c += v * m * (v ≥ 0 ? (1-c) : c)` |
+| 4 | 白 / 黑场 | `black = 0.5*Blacks`、`white = 1 + 0.5*Whites`；`c = black + c * (white - black)` |
+| 5 | 色温 / 色调 | `gain = vec3(1+0.5*T, 1-0.5*Tint, 1-0.5*T)`，`gain /= dot(gain, LUMA)`，`c *= gain` |
+| 6 | 饱和度 | HSL：`S' = clamp(S * (1 + Saturation), 0, 1)` |
+| 7 | 自然饱和度 | HSL：`S' = clamp(Vibrance ≥ 0 ? S + Vibrance*S*(1-S) : S*(1+Vibrance), 0, 1)` |
+| 8 | 灰度 | `c = mix(c, vec3(luma(c)), clamp(Grayscale, 0, 1))` |
+| 9 | 反相 | `c = mix(c, 1 - c, clamp(Invert, 0, 1))` |
+
+- **RGB↔HSL 标准换算**（§4 的方向）只用于饱和度 / 自然饱和度（HSL 的 S 通道）；亮度一律 **Rec.709**（0.2126 / 0.7152 / 0.0722，比原版 `color_convolve.fsh` 的 0.3/0.59/0.11 更接近现代口径）。
+- 第 3 步之后、第 6 步之前**钳制到 [0,1]**（HSL 换算与亮度混合要求有界输入）。
+- **无 HSL 调整时跳过换算**（uniform 分支）→ 「只调曝光 / 对比度」这类场景逐位恒等。
+- 灰点边界（§5-2）：`max-min ≈ 0` 时 `S = 0`、色相无意义 → `hsl2rgb` 的 `S ≤ 0` 分支直接返回灰度，不会产生 NaN 或跳色。
+- 色温 / 色调的增益**按亮度归一化** → 调白平衡不改变整体明暗。
+
+### 默认零差异（§2.1 的「零差异」要求）
+
+- 无 ADJUST 轨道 / 无活跃 clip / 12 通道全为缺省 → 播放器不发布 → pass **第一行返回**：不取着色器、不建中转缓冲、不切 GL 状态、不画任何东西。
+- 着色器**首次真正需要时才编译**（不用不编译）；资源重载后重建（旧实例 `close()` 释放 GL program，避免复用旧编译结果）；加载失败只记一次日志，画面保持未调色。
+
+### 本版本明确不做
+
+- **RGB 复合曲线 + 每通道曲线**（§3 第一批的另一半；§3.1 的形态 b 倾向仍留待执行时定）。
+- 第二批（RGB 通道混合器 / 六条 hue 曲线 / Lift-Gamma-Gain 色轮）、第三批（LUT / 六色带 / 混合模式）。
+- lane 级调整与调整层（§7 步骤 5-6，依赖画面合成与分层模型）。
+- 编辑器 UI（§7 步骤 3）：`editor/src/types.ts` 的 `TrackType` 联合类型、`TrackListPanel.vue` / `Timeline.vue` 的轨道列表与配色、i18n 键、`demo.ts` 的 schema 快照都需跟着加 `ADJUST`（Java 侧 schema 已随 `SchemaExporter` 导出，前端接上即可）。
+- 多实例各写 master 的合并语义（§5-4）：仍开放；本版本至多 1 个活跃实例，行为 = 该实例的最后一个 ADJUST 轨道。
+
+### 验证（2026-10-07）
+
+- `sh gradlew compileJava`（`:common` / `:fabric` / `:forge` 三模块）**通过**。
+- **数据层冒烟**（throwaway 脚本，用真实类 + 桩 `ScriptPlayer`；31 项全过）：`ScriptParser` 解析含 `"type": "adjust"` 的两片段脚本 → `AdjustTrackPlayer.onRenderFrame` 逐时刻发布 → `MasterColorAdjust.consume()` 取值：线性插值（中点 0.5）、缺字段按缺省 0（首帧未写 `saturation` → 向末帧 -0.5 取 -0.25）、范围外取边界值、无活跃 clip 不发布、`onStop` 清空、恒等参数归一化为「无调整」、`ScriptValidator` 拦下超范围（`exposure: 99` / `grayscale: -2`）与未知轨道类型。
+- **着色器冒烟**（throwaway 脚本，真实 GL 3.2 core / NVIDIA 驱动：GLFW 隐藏窗口 + 直接编译仓库里的 `.vsh` / `.fsh`；36 项全过）：编译 + 链接通过；缺省全 0 对 4 种输入颜色**恒等**；12 通道逐项核对本文档口径（曝光、对比度、高光/阴影权重、白/黑场端点、灰度 Rec.709、反相、饱和度 HSL、自然饱和度、色温/色调与亮度保持、组合顺序、alpha 直通）。
+- **未验证**：游戏内实际画面（需启动客户端跑一次）；光影下的执行顺序（§5-1）；性能定量（§5-6，仍是「与内容无关」的定性判断：两个全屏 quad）。
 
 ---
 
@@ -122,7 +212,7 @@
 - **全屏后处理 pass**：master 在合成输出上做；lane 级在 lane 纹理合成前做。
 - 数学在 shader 内完成：RGBA 通道运算 + RGB↔HSL 转换。
 - **同一层的多个调整参数合并为一次 pass**——不为每个参数单独开 pass。
-- 数据落点（待定）：OVERLAY 轨新层类型 vs 独立调整轨——与遮罩文档 §4 开放问题 4 一起定。（现状事实：OVERLAY 的 `layer_type` 白名单只有 `fade` / `image` / `subtitle` / `pip`，`TrackType` 枚举里没有调整类轨道，见事实核查小节。）
+- 数据落点（**已定稿：独立 ADJUST 轨道**，见文首「落地标注」）：~~OVERLAY 轨新层类型 vs 独立调整轨——与遮罩文档 §4 开放问题 4 一起定。~~（现状事实：OVERLAY 的 `layer_type` 白名单只有 `fade` / `image` / `subtitle` / `pip`，`TrackType` 枚举里没有调整类轨道，见事实核查小节。）
 - **shader 数学（方向）**：RGB↔HSL 标准换算（复用 / 参照原版 `color_convolve.fsh` 的 Luma / Chroma 写法）；Lift / Gamma / Gain = 按色调分段的多项式 / 幂次映射；**曲线 = 预烘焙查找纹理**（如 256×1 LUT，由控制点 + 手柄在 CPU 侧采样生成）或 shader 内贝塞尔求值——执行时定；六条 hue 曲线 = 以 hue 为键的 1D LUT（HvH / HvS / HvL）+ 以 sat / lum 为键的 1D LUT。
 - **一次 pass 合并**：同一层所有操作按栈顺序合成为一个 shader（或少量固定 pass），不为每个工具单独开 pass。
 - **分层挂点**：lane 级 = lane FBO 内、合成上屏前（`quadrant-prototype-results.md` §3.2「lane 自包含」）；master = 合成输出上、最终上屏前（MCOMP 之后、RPOST 之前——`mod-architecture-diagram.md` 已补 RADJ 节点）。
@@ -148,8 +238,8 @@
 ## 5. 可能的问题
 
 - 后处理与光影（Iris / Oculus）的顺序：我们的 pass 在谁之后执行。（源码事实：原版 `postEffect` 在 `renderLevel` 返回后、GUI 之前；Iris / Oculus 的 `finalizeGameRendering()` 挂在 `GameRenderer.renderLevel` 的 `TAIL`，Iris 的最终合成在 `LevelRenderer.renderLevel` 尾部——都早于原版那一步。见 §4。）
-- RGB↔HSL 转换的边界：灰点色相未定、饱和度溢出钳制。（可参照原版 `program/color_convolve.fsh`：`Luma = dot(OutColor, Gray)`（Gray = 0.3 / 0.59 / 0.11）、`OutColor = (Chroma * Saturation) + Luma`，**未做钳制**。见 §4。）
-- 调整是否影响 GUI 层（字幕 / letterbox / 跳过提示）：倾向不影响，待定。（源码事实：原版 `postEffect` 位于 GUI 之前，而 FadeLayer / letterbox / subtitle / 跳过提示都在 GUI 阶段绘制——Forge `RenderGuiEvent.Post` → `ClientEventHandler.onRenderHud` → `OverlayManager.render` → `FadeLayer.render`（`guiGraphics.fill`）；整帧最后的 `Minecraft.blitToScreen` 在 GUI 之后。挂前者天然不影响 GUI，挂后者会影响。）
+- RGB↔HSL 转换的边界：灰点色相未定、饱和度溢出钳制。（可参照原版 `program/color_convolve.fsh`：`Luma = dot(OutColor, Gray)`（Gray = 0.3 / 0.59 / 0.11）、`OutColor = (Chroma * Saturation) + Luma`，**未做钳制**。见 §4。）→ **已结清**：灰点走 `S ≤ 0` 分支直接返回灰度；S 钳制 0~1；亮度用 Rec.709（见文首「落地标注」的 shader 数学）。
+- 调整是否影响 GUI 层（字幕 / letterbox / 跳过提示）：倾向不影响，待定。（源码事实：原版 `postEffect` 位于 GUI 之前，而 FadeLayer / letterbox / subtitle / 跳过提示都在 GUI 阶段绘制——Forge `RenderGuiEvent.Post` → `ClientEventHandler.onRenderHud` → `OverlayManager.render` → `FadeLayer.render`（`guiGraphics.fill`）；整帧最后的 `Minecraft.blitToScreen` 在 GUI 之后。挂前者天然不影响 GUI，挂后者会影响。）→ **已结清：不影响**（挂点在世界渲染阶段、GUI 之前，见文首「落地标注」；副作用是 F2 截图带调色）。
 - 多实例各写 master 的冲突规则（与并行播放的并集规则对齐：后写覆盖？按实例层级？）。（并行播放 §3.2 的「取并集」只覆盖行为开关（`hide_hud` / 键鼠屏蔽 / `suppress_bob`），不含「单一 master 参数集」的合并语义，所以此处仍是开放问题。）
 - 编辑器：滑杆 / 通道 UI 与实时预览。
 - 性能：master 一次全屏 pass 可忽略；lane 级随 lane 数增长。（源码事实：「与内容无关」有依据——一个 pass = 一次全屏 quad（`PostPass.process`）；「可忽略」是定量判断，本次**未实测**。）
@@ -158,9 +248,9 @@
 
 ## 6. 待定
 
-- 第一版参数清单（§3 表里选哪些）。
-- 数据落点（层类型 / 轨道）。
-- 调整是否影响 GUI 层。
+- ~~第一版参数清单（§3 表里选哪些）~~ → **已定：第一批标量组 12 通道**（见文首「落地标注」的字段表；曲线组另计）。
+- ~~数据落点（层类型 / 轨道）~~ → **已定：独立 ADJUST 轨道**（`TrackType.ADJUST`，JSON `"type": "adjust"`；理由与字段表见文首「落地标注」）。
+- ~~调整是否影响 GUI 层~~ → **已定：不影响**（见 §5 与文首「落地标注」）。
 - LUT 的时机。
 - lane 级与调整层的排期（依赖[画面合成](./camera-composition.md)的进度）。
 - 曲线关键帧形态 a / b 的选择（倾向先 b 后 a，§3.1）。
@@ -180,6 +270,8 @@
 | 6 | 调整层 + 第三批（LUT / 六色带 / 混合模式） | PS 式完整模型：各自持有 + 调整层 + master |
 
 > 步骤 1–4 不依赖画面合成，可先行；步骤 5 起依赖 lane 上屏；步骤 6 依赖分层模型落地。
+>
+> **进度（2026-10-07）**：步骤 1 的**标量组**已落地（12 通道 master pass）；步骤 1 的**曲线组**（RGB 复合曲线，形态 b）未做；步骤 2 未做；步骤 3 的**数据落点已定稿**、编辑器 UI 未做；步骤 4-6 未做。
 
 ---
 

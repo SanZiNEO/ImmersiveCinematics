@@ -22,6 +22,7 @@ public final class TrackSchemas {
         map.put(TrackType.EVENT, event());
         map.put(TrackType.MOD_EVENT, modEvent());
         map.put(TrackType.OVERLAY, overlay());
+        map.put(TrackType.ADJUST, adjust());
         return map;
     }
 
@@ -171,6 +172,39 @@ public final class TrackSchemas {
         kfs.put("opacity", new FieldDef("float", 1.0f));
         // 字幕专用：字号倍数（1 = 原版 9px），改变文字块基准尺寸，与 scale_x/y 叠加
         kfs.put("font_scale", new FieldDef("float", 1));
+
+        return new TrackTypeSchema(clips, kfs);
+    }
+
+    /**
+     * ADJUST 轨道（画面颜色调整，master，0.3.6 第一批标量组）。
+     *
+     * <p><b>没有 clip 级字段</b>——12 个标量通道全部是关键帧字段，缺省全 0 = 无效果
+     * （关键帧把通道写回 0 就是该项淡出，不需要 enabled 开关）。</p>
+     *
+     * <p>顺序 = 着色器操作栈顺序（{@code assets/minecraft/shaders/core/ic_color_adjust.fsh}）
+     * = {@code ColorAdjustParams} 的分量顺序；区间由 {@code ScriptValidator} 校验。</p>
+     */
+    private static TrackTypeSchema adjust() {
+        Map<String, FieldDef> clips = new LinkedHashMap<>();
+
+        Map<String, FieldDef> kfs = new LinkedHashMap<>();
+        // 基础校色（复合 RGB）
+        kfs.put("exposure", new FieldDef("float", 0f));       // -5 ~ 5（EV 档，×2^EV）
+        kfs.put("contrast", new FieldDef("float", 0f));       // -1 ~ 1（以中灰 0.5 为轴）
+        kfs.put("highlights", new FieldDef("float", 0f));     // -1 ~ 1（亮部）
+        kfs.put("shadows", new FieldDef("float", 0f));        // -1 ~ 1（暗部）
+        kfs.put("whites", new FieldDef("float", 0f));         // -1 ~ 1（白场端点）
+        kfs.put("blacks", new FieldDef("float", 0f));         // -1 ~ 1（黑场端点）
+        // 饱和度类（HSL 的 S 通道）
+        kfs.put("saturation", new FieldDef("float", 0f));     // -1 ~ 1（-1 = 全灰、1 = 双倍）
+        kfs.put("vibrance", new FieldDef("float", 0f));       // -1 ~ 1（自然饱和度）
+        // 白平衡
+        kfs.put("temperature", new FieldDef("float", 0f));    // -1 ~ 1（正 = 暖 / 偏红）
+        kfs.put("tint", new FieldDef("float", 0f));           // -1 ~ 1（正 = 品红、负 = 绿）
+        // 风格化（本身即强度）
+        kfs.put("grayscale", new FieldDef("float", 0f));      // 0 ~ 1（灰度混合量）
+        kfs.put("invert", new FieldDef("float", 0f));         // 0 ~ 1（反相混合量）
 
         return new TrackTypeSchema(clips, kfs);
     }

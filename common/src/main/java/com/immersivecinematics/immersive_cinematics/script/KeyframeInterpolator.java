@@ -106,6 +106,52 @@ public final class KeyframeInterpolator {
         return new InterpolationResult(from, to, s);
     }
 
+    // ========== 标量通道插值 ==========
+
+    /**
+     * 标量通道插值（匀速线性；0.3.6 起运行时统一线性，缓动由编辑器烘焙成显式关键帧）。
+     *
+     * <p>取值语义与各轨道播放器里的逐通道取值同一口径（{@code OverlayTrackPlayer} 的
+     * {@code opacity} / {@code x} / {@code y} / {@code scale_*} 就是这么取的）：</p>
+     * <ul>
+     *   <li>关键帧列表为空 → {@code defaultValue}；</li>
+     *   <li>只有一个关键帧 → 该关键帧的值；</li>
+     *   <li>时间在首帧之前 / 末帧之后 → 取边界关键帧的值（不外推）；</li>
+     *   <li>段内 → 两端关键帧线性插值（零长段取 0 进度）。</li>
+     * </ul>
+     *
+     * @param keyframes    片段的关键帧列表（时间递增）
+     * @param localTime    片段内本地时间（秒）
+     * @param key          通道名（关键帧 {@code data} 里的字段名）
+     * @param defaultValue 关键帧没写该字段时的缺省值
+     * @return 插值结果
+     */
+    public static float interpolateChannel(List<Keyframe> keyframes, float localTime, String key,
+                                           float defaultValue) {
+        if (keyframes == null || keyframes.isEmpty()) return defaultValue;
+        if (keyframes.size() < 2) return keyframes.get(0).getFloat(key, defaultValue);
+
+        int i = -1;
+        for (int j = 0; j < keyframes.size() - 1; j++) {
+            if (localTime >= keyframes.get(j).getTime() && localTime <= keyframes.get(j + 1).getTime()) {
+                i = j;
+                break;
+            }
+        }
+        if (i < 0) {
+            return localTime < keyframes.get(0).getTime()
+                    ? keyframes.get(0).getFloat(key, defaultValue)
+                    : keyframes.get(keyframes.size() - 1).getFloat(key, defaultValue);
+        }
+
+        Keyframe from = keyframes.get(i);
+        Keyframe to = keyframes.get(i + 1);
+        float span = to.getTime() - from.getTime();
+        float t = (span > 0.001f) ? (localTime - from.getTime()) / span : 0f;
+        t = Math.max(0f, Math.min(1f, t));
+        return MathUtil.lerp(from.getFloat(key, defaultValue), to.getFloat(key, defaultValue), t);
+    }
+
     // ========== 位置插值 ==========
 
     /**

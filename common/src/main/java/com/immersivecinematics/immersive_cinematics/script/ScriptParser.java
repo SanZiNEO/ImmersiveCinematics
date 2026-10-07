@@ -672,7 +672,8 @@ public class ScriptParser {
         try {
             return TrackType.valueOf(value.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new ScriptParseException(p, "未知的轨道类型: " + value + "，支持: camera/letterbox/audio/event/mod_event");
+            throw new ScriptParseException(p, "未知的轨道类型: " + value
+                    + "，支持: camera/letterbox/audio/event/mod_event/overlay/adjust");
         }
     }
 

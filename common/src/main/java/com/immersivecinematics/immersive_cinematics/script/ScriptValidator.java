@@ -23,7 +23,29 @@ import java.util.List;
 public final class ScriptValidator {
 
     private static final String[] CAMERA_KF_FIELDS = {"yaw", "pitch", "roll", "fov", "zoom"};
-    private static final String[] KNOWN_TYPES = {"CAMERA", "LETTERBOX", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY"};
+    private static final String[] KNOWN_TYPES =
+            {"CAMERA", "LETTERBOX", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY", "ADJUST"};
+
+    /**
+     * ADJUST 轨道关键帧标量通道 → 合法区间（缺省 0 = 无效果；顺序与
+     * {@code TrackSchemas.adjust()} / {@code ColorAdjustParams} / {@code ic_color_adjust.fsh} 一致）。
+     */
+    private static final List<ChannelRange> ADJUST_CHANNELS = List.of(
+            new ChannelRange("exposure", -5f, 5f),
+            new ChannelRange("contrast", -1f, 1f),
+            new ChannelRange("highlights", -1f, 1f),
+            new ChannelRange("shadows", -1f, 1f),
+            new ChannelRange("whites", -1f, 1f),
+            new ChannelRange("blacks", -1f, 1f),
+            new ChannelRange("saturation", -1f, 1f),
+            new ChannelRange("vibrance", -1f, 1f),
+            new ChannelRange("temperature", -1f, 1f),
+            new ChannelRange("tint", -1f, 1f),
+            new ChannelRange("grayscale", 0f, 1f),
+            new ChannelRange("invert", 0f, 1f));
+
+    /** 一个 ADJUST 通道的合法取值区间（{@code min} ~ {@code max}，闭区间）。 */
+    private record ChannelRange(String field, float min, float max) {}
 
     private ScriptValidator() {}
 
@@ -159,7 +181,8 @@ public final class ScriptValidator {
             } else {
                 type = track.get("type").getAsString();
                 if (!isKnownType(type)) {
-                    issues.add(tp + ".type 未知类型: " + type + "（可选: CAMERA / LETTERBOX / AUDIO / EVENT / MOD_EVENT / OVERLAY）");
+                    issues.add(tp + ".type 未知类型: " + type
+                            + "（可选: CAMERA / LETTERBOX / AUDIO / EVENT / MOD_EVENT / OVERLAY / ADJUST）");
                 }
             }
 
@@ -345,6 +368,13 @@ public final class ScriptValidator {
                             checkRect(kf, kp, "dest", issues);
                             checkRect(kf, kp, "source", issues);
                         }
+
+                        // ADJUST 关键帧：12 个标量通道的取值区间（不写 = 缺省 0 = 无效果；写回 0 = 该项淡出）
+                        if ("ADJUST".equalsIgnoreCase(type)) {
+                            for (ChannelRange range : ADJUST_CHANNELS) {
+                                checkRange(kf, kp, range.field(), issues, range.min(), range.max());
+                            }
+                        }
                     }
                 }
 
@@ -360,6 +390,24 @@ public final class ScriptValidator {
             }
         }
         return issues;
+    }
+
+    /**
+     * 校验数值字段的取值区间（闭区间）；字段缺省时跳过（缺省值生效）。
+     * <p>与 {@link #checkUnitFloat} 同族，只是区间由调用方给定（ADJUST 轨道的各通道区间不同）。</p>
+     */
+    private static void checkRange(JsonObject obj, String path, String key, List<String> issues,
+                                   float min, float max) {
+        if (!obj.has(key)) return;
+        JsonElement e = obj.get(key);
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) {
+            issues.add(path + "." + key + " 不是数字（范围 " + min + " ~ " + max + "）");
+            return;
+        }
+        float v = e.getAsFloat();
+        if (v < min || v > max) {
+            issues.add(path + "." + key + " 超出范围 " + min + " ~ " + max + "：" + v);
+        }
     }
 
     /**
