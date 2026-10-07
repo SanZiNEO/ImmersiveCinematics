@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { SchemaField } from '../../types'
 import StringField from './StringField.vue'
 import RegistryStringField from './RegistryStringField.vue'
+import ResourceStringField from './ResourceStringField.vue'
 import NumberField from './NumberField.vue'
 import BoolField from './BoolField.vue'
 import TristateField from './TristateField.vue'
@@ -24,8 +25,15 @@ const REGISTRY_KEYS = new Set([
   'advancement', 'structure', 'look_at_target_structure', 'stage', 'sound',
 ])
 
+/** 资源字段（0.3.6 文本资源）：text / description = @lang:<key> 引用选择，path = resource/ 文件选择 */
+const RESOURCE_KEYS = new Set(['text', 'path', 'description'])
+
 const useRegistry = computed(() =>
   props.field.type === 'string' && props.fieldKey != null && REGISTRY_KEYS.has(props.fieldKey)
+)
+
+const useResource = computed(() =>
+  props.field.type === 'string' && props.fieldKey != null && RESOURCE_KEYS.has(props.fieldKey)
 )
 
 const emit = defineEmits<{
@@ -34,7 +42,9 @@ const emit = defineEmits<{
 
 const component = computed(() => {
   switch (props.field.type) {
-    case 'string': return useRegistry.value ? RegistryStringField : StringField
+    case 'string':
+      if (useResource.value) return ResourceStringField
+      return useRegistry.value ? RegistryStringField : StringField
     case 'int':
     case 'float': return NumberField
     case 'bool': return BoolField

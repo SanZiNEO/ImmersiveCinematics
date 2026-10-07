@@ -13,6 +13,8 @@
   - ✅ NaN/Infinity 防护：`sanitizeFloat`/`sanitizeVec3` 防止异常脚本数据污染相机状态（`MathUtil`）
 - **资源路径**
   - ✅ `ResourcePath` 统一管理外部资源（音频/图片）路径：根目录 `<游戏目录>/immersive_cinematics/resource/`，提供解析/存在性检查/目录创建（`ResourcePath`）
+- **文本资源（脚本 i18n，0.3.6）**
+  - ✅ `LangResources` 把 `@lang:<key>` 解析成客户端当前语言的译文：字典 = `<resource>/lang/<语言>.json`（扁平 `key → 译文`），回退链 = 当前语言 → `en_us` → 原样显示引用串；`@@lang:` 转义为字面 `@lang:`；key 语法 = 一段或多段 `[a-zA-Z0-9_]{1,32}` 用 `.` 连接，语言代码严格小写（不合格回落 `en_us`）；进程内缓存（改译文重启生效）、缺失只记日志不阻塞播放；`readDictionary(Path)` 供编辑器列举复用同一口径（`LangResources`、消费点 `OverlayTrackPlayer` 字幕分支与 `ScriptGraphService` 的 `description`）
 - **纹理/GIF 加载**
   - ✅ `TextureLoader` 从资源目录加载 PNG/GIF：静态图注册为 `DynamicTexture`，GIF 拆帧后由 `GifAnimation` 轮播；以 `immersive_cinematics:<文件名>` 注册，带缓存与清空缓存接口（`TextureLoader`）
   - ✅ `GifAnimation` 持有拆帧后的全部帧与延迟，按全局时间推进帧索引，只显存占一帧（`GifAnimation`）

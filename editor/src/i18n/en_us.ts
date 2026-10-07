@@ -172,6 +172,14 @@ export default {
   'preset.select': 'Select Preset',
   'preset.generate': 'Generate',
   'preset.orbit_circle': 'Orbit Circle',
+  // Resource fields (0.3.6 text resource i18n)
+  'resource.loading': 'Loading…',
+  'resource.required': 'Required',
+  'resource.lang_placeholder': 'Plain text, or @lang:key reference',
+  'resource.path_placeholder': 'File name under resource/ (e.g. overlay.png)',
+  'resource.lang_missing': 'Key not found: the reference is shown as-is at runtime',
+  'resource.file_missing': 'File not found under resource/',
+
   'status.playing': 'Playing',
   'status.paused': 'Paused',
   'status.editing': 'Editing',

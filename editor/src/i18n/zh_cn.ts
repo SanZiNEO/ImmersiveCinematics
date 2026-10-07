@@ -198,6 +198,14 @@ export default {
   'preset.generate': '生成',
   'preset.orbit_circle': '环绕圆',
 
+  // 资源字段（0.3.6 文本资源 i18n）
+  'resource.loading': '查询中…',
+  'resource.required': '必填',
+  'resource.lang_placeholder': '普通文案，或 @lang:key 引用',
+  'resource.path_placeholder': 'resource/ 下的文件名（如 overlay.png）',
+  'resource.lang_missing': '未找到该 key：运行时原样显示引用串',
+  'resource.file_missing': 'resource/ 下未找到该文件',
+
   // 状态
   'status.playing': '播放中',
   'status.paused': '已暂停',

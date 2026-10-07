@@ -46,6 +46,7 @@
 - 作者可只提供自己需要的语言；缺哪个语言走回退链（§3.2）。
 - 作用域：**全局一份**，不按脚本分文件。理由：key 自带命名空间（如 `chapter1.boss.intro`），集中一份便于翻译者一次翻完、便于多脚本复用同一句文案，且脚本改名 / 搬家不动译文。
   - 备选（待定，§6-7）：按脚本分文件 `resource/lang/<脚本id>/<语言>.json`——便于按脚本整体拷贝，但跨脚本复用文案会重复。
+    → **落地：不采用**，仍是全局一份 `resource/lang/<语言>.json`（跨脚本复用同一句文案是常态）。
 
 ### 2.2 引用语法（倾向 `@lang:<key>`）
 
@@ -63,6 +64,7 @@
 **`@lang:` 的理由**：① 一个前缀让解析规则一句话说清——`text` 以 `@lang:` 开头才查表，否则原样渲染，**与普通字符串零歧义**；② 现有 `text` 没有任何前缀约定（§8-2），`@` 开头不与任何既有语义冲突；③ 与 `@` 家族（如命令里的 `@a`）视觉一致，作者一看就知道“这是引用不是文案”。
 
 **待定**：以 `@lang:` 开头的**字面**文案怎么写（转义 `@@lang:`？）——见 §6-6。
+→ **落地（已实现）**：`@@lang:<key>` 表示字面量 `@lang:<key>`（多写一个 `@`），在查表之前处理，见 §6-6。
 
 ### 2.3 key 命名
 
@@ -134,22 +136,35 @@
 
 ## 6. 可能的问题 / 待定
 
+> **0.3.6 已落地**：以下逐条标注实现结果，代码位置与验证见 §9。
+
 1. **回退链细节**：是否要做语言族回退（`zh_cn` → 任意 `zh_*`）？**倾向不做**——MC 自己也不做（`ClientLanguage` 只按精确代码加载，§8-5），保持一致比“更聪明”重要。
+   → **落地（已实现）**：只做精确匹配 + `en_us` 兜底，无语言族回退。
 2. **语言代码命名**：与 MC 一致（`zh_cn` / `en_us`），零映射。文件名大小写：Windows 不敏感 / Linux 敏感，**倾向严格小写**（与 MC 资源包约定一致），否则同一份资源在两端表现不同。
+   → **落地（已实现）**：语言代码按 `^[a-z0-9_]{2,16}$` 约束（严格小写），不合格一律按 `en_us` 处理（同时天然挡住 `../` 之类的路径穿越）；编辑器列举 `resource/lang/*.json` 时同样只认小写文件名。
 3. **缺 key 提示**：运行时 debug 日志（与图片 / 音频“缺失只记日志、不阻塞播放”同款，§8-1）；**编辑器校验期**是否把缺 key 报为问题 → 待定（倾向警告不阻塞——资源目录本来就可以后补）。
+   → **落地（已实现）**：运行时 = debug 日志 + **原样显示引用串**；编辑器 = 字幕字段下方的黄色提示（缺 key / 缺文件），**不进校验问题列表、不阻塞保存与播放**。
 4. **编辑器预览的翻译切换**：预览器是否跟随编辑器 UI 语言 / 能否手动切语言预览 → 待定。
+   → **未做（保留待定）**：预览走游戏内渲染路径（`editor.pushScript` → 客户端播放），因此按**客户端语言**解析；编辑器没有“手动切语言预览”的开关。将来要做需要给预览通道单独传语言。
 5. **模板生成文本**：模板参数产出的字幕文案要不要直接产 key（而不是产文案）→ 待定，依赖 `templates.md` 的模板体系重建。
+   → **未做（保留待定）**：模板仍产文案，不产 key。
 6. **`@lang:` 转义**：以 `@lang:` 开头的字面文案的写法 → 待定。
+   → **落地（已实现）**：`@@lang:<key>` → 字面量 `@lang:<key>`（多写一个 `@`），在查表之前处理，不需要客户端状态。
 7. **key 命名规范与撞键检查**：多脚本共用一份字典 → 执行时定；可选做“编辑器校验期列出重复 key”。
+   → **落地（部分实现）**：key 语法定死为“一段或多段 `[a-zA-Z0-9_]{1,32}` 用 `.` 连接、总长 ≤ 256”（`LangResources.KEY_PATTERN`），非法 key 按“未找到”处理（原样显示引用串）。**撞键检查不做**：字典是扁平 `key → 译文`，同一文件内重复 key 由 JSON 语义天然合并（取后值）；跨脚本复用同一 key 是设计意图（集中一份字典），不是冲突。
 8. **占位符**：MC lang 支持 `%s` 参数替换（`TranslatableContents.decomposeTemplate`，§8-5），但字幕目前没有参数来源（脚本没有变量系统）→ **本期不做参数化**，译文里的 `%` 按字面处理。
+   → **落地（已实现）**：不做参数化——解析不经过 `TranslatableContents`，译文里的 `%` 按字面渲染。
 
 ---
 
 ## 7. 落地顺序（方向）
 
 1. **lang 资源加载 + `@lang:` 解析 + 回退链**：读 `resource/lang/<code>.json`、缓存、按 §3.2 回退；覆盖字幕 `text` 与 `meta.description`。交付物 = 一个“文本资源解析器”（底层工具，先底层后应用）。
+   → ✅ **已实现**：`util/LangResources`（解析器）+ 两个落点（`OverlayTrackPlayer` 字幕分支、`ScriptGraphService` 的 `description` 读取处）。
 2. **编辑器 key 输入 / 浏览**：后端列举接口 + 前端 key 选择控件（`path` 顺带受益）。
+   → ✅ **已实现**：后端 `resource.list`（`ResourceFileService`）+ 前端 `ResourceStringField.vue`（`text` = key 选择，`path` = 文件选择）。
 3. **（可选）lang 文件编辑面板**：key × 语言矩阵。
+   → ❌ **未做（本期可选，后置）**：编辑器只读列举，不写语言文件。
 
 **排期**：0.3.6 最后一期。
 
@@ -231,3 +246,48 @@ MC 侧证据取自 1.20.1 loom 源码包
 - **图片侧是否有非 ASCII 文件名检查**：**未发现**（`TextureLoader` 无对应检查，只有文档告诫）——这是 grep 结论，未逐一核对 stb / NativeImage 的内部行为。
 - **编辑器预览链路对字幕的显示是否与游戏内渲染完全同路**：**未核实**（本文只依赖“字幕在客户端本地渲染”这一点，该点由 `SubtitleLayer` 处在 common 的客户端渲染路径直接成立）。
 - **MC 版本差异**：本文 MC 侧证据全部取自 1.20.1 源码包；跨 MC 版本的 `LanguageManager` / `ClientLanguage` API 形态未核对（模组多版本支持是目标，执行时再查）。
+
+---
+
+## 9. 实现记录（0.3.6 落地）
+
+### 9-1 代码清单
+
+| 文件 | 变更 |
+|------|------|
+| `common/.../util/LangResources.java` | **新增**：文本资源解析器。`PREFIX="@lang:"` / `ESCAPED_PREFIX="@@lang:"` / `LANG_DIR="lang"` / `FALLBACK_LANGUAGE="en_us"`；`resolve(raw)`（客户端绑定：`LanguageManager.getSelected()` + `ResourcePath.getBasePath()/lang`）与 `resolve(raw, language, langDir)`（纯函数，自检/复用）；`readDictionary(Path)`（扁平字典读取，编辑器列举复用同一口径）；`isReference` / `clearCache`。缓存 = 静态 map，键 = `语言目录绝对路径|语言`，缺失/失败缓存空 map |
+| `common/.../script/OverlayTrackPlayer.java` | 字幕分支 `sl.setText(...)` 前接 `LangResources.resolve(...)`（`text` 是 clip 级字段，层创建时解析一次） |
+| `common/.../webui/ScriptGraphService.java` | 节点 `description` 接 `LangResources.resolve(...)` |
+| `common/.../webui/ResourceFileService.java` | **新增**：`resource.list` 的列举实现。`list(kind, dir)`（客户端绑定）/ `list(Path root, kind, dir)`（纯函数）；`kind = lang/image/audio/all`；`resolveSafe` / `normalizeRelative` 路径安全 |
+| `common/.../webui/WebEditorApi.java` | 新增命令 `resource.list` → `resource.list.result`（`{kind, dir, languages[], entries[]}` 或 `{kind, dir, files[]}`） |
+| `editor/src/components/fields/ResourceStringField.vue` | **新增**：资源字段控件（datalist 候选 + 译文预览 + 缺失警告） |
+| `editor/src/components/fields/resourceHint.ts` | **新增**：字段提示的纯逻辑（`langHint` / `fileHint` / `translationOf`），与 SFC 分离便于自检 |
+| `editor/src/components/fields/FieldRenderer.vue` | `text` / `description` / `path` 三个 string 字段改走 `ResourceStringField` |
+| `editor/src/store.ts` / `types.ts` | `resourceList(kind, dir)` + `ResourceListResult` / `ResourceLangEntry` 类型 |
+| `editor/src/i18n/{zh_cn,en_us}.ts` | `resource.*` 文案 |
+| `docs/SCRIPT_FORMAT.md` | §0 资源树加 `lang/`；§1a `description`、§9 `text` 标注支持引用；新增 §12（语法 / 回退链 / 适用范围 / 编辑器支持 / 示例） |
+| `docs/AI_SCRIPTING_GUIDE.md` | OVERLAY 字段表补 `text` 行（`@lang:` 一句话说明） |
+| `docs/modules/editor.md` | 命令表加 `resource.list`；新增 `ResourceFileService` 与前端资源控件条目；删除已过时的「本地服务无 token / Origin 校验」已知问题 |
+| `docs/modules/util.md` | 新增「文本资源（脚本 i18n）」条目（`LangResources`） |
+| `docs/modules/overlay.md` | 字幕层补「创建层时经 `LangResources.resolve` 解析」说明 |
+| `CHANGELOG.md` | 0.3.6 新增：字幕/描述多语言 + 编辑器资源字段 |
+
+### 9-2 与方向稿的偏差 / 补充
+
+1. **`meta.description` 的解析落点** = `ScriptGraphService` 的节点读取处（唯一 Java 显示点），**不是** `ScriptMeta.getDescription()`。理由：该方法目前没有任何消费方，而 `ScriptParser` 在服务端也会跑——在 getter 里解析会把客户端语言依赖带进服务端路径（`ResourcePath` / `LanguageManager` 都是客户端状态）。
+2. **编辑器列举接口比方向稿多一个可选 `dir`**（资源根下的子目录，缺省整棵树、`lang` 缺省 `lang/`）：方向稿只要求「列举 lang 或整棵树」，加 `dir` 是为了让 `path` 字段在子目录多时可用，并给路径安全校验一个真实入口（`../` 一律拒绝）。
+3. **前端控件按字段 key 分派**（`text` / `description` → lang key，`path` → 图片文件），不是新的字段类型：schema（`TrackSchemas` / `MetaSchemas`）零改动，`FieldRenderer` 里多一张 `RESOURCE_KEYS` 表。`description` 一并纳入是因为它在 §4 范围表里就是“顺手支持”的字段，运行时能解析、编辑器也该能选 key。
+4. **编辑器不做语言文件写入**（§7-3 的矩阵面板仍未做）：本期编辑器只读列举。
+5. **`LangResources.resolve(String)` 在无客户端状态时原样返回**（`Minecraft.getInstance()` 为 null / 抛错，如无头自检）：不解析、不崩溃，游戏内始终有客户端状态。
+
+### 9-3 验证（0.3.6 落地时）
+
+- `sh gradlew compileJava`：通过（仅既有 deprecation 警告）。
+- 无头自检（临时 harness，未进仓库；`common` 主源集 classpath + 回环 socket 伪造 WS 会话）：
+  - 解析 / 回退链 / 转义 / 非法 key / 语言代码归一 / 缓存 / 脚本 JSON → `clip.text` → 解析 / `meta.name|id|author` 保持字面 —— 全绿；
+  - `OverlayTrackPlayer` 字幕分支确实经过 `LangResources`（用 `@@lang:` 转义在无客户端状态下也能观察到处理结果）；
+  - `resource.list` 的四种 kind、语言清单严格小写过滤、key 并集与各语言译文；
+  - 路径安全：`../..` / `..` / `intro/../../..` / `..\..\windows` / `/etc` / `C:/Windows` / 未知 kind 全部拒绝，根内 `intro/../overlay.png` 允许；
+  - `resource.list` 命令分发（非 `unknown type`、id 回显；无头环境下按预期落到错误帧，游戏内走 `ResourceFileService`）。
+- 编辑器：`npx vite build` 通过（新组件进包），改动过的 `.ts` 通过 `tsc --noEmit`；临时 SSR 冒烟（未进仓库）渲染 `ResourceStringField` 的 text / description / path 三种字段，并断言 14 条提示逻辑（译文回落 en_us、缺 key / 缺文件警告、字典为空不误报、换行显示为 ⏎）——21 条全绿。
+- **未覆盖**：游戏内实际渲染（需要启动客户端）；`ScriptGraphService` 的 description 解析在真实客户端语言下的取值（无头环境无 `LanguageManager`，仅验证了接线）。

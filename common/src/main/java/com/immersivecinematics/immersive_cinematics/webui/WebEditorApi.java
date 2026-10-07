@@ -44,6 +44,7 @@ public final class WebEditorApi {
                 case "registry.get" -> handleRegistryGet(session, data, id);
                 case "schema.get" -> handleSchemaGet(session, id);
                 case "script.graph" -> handleScriptGraph(session, id);
+                case "resource.list" -> handleResourceList(session, data, id);
                 case "editor.seek" -> {
                     System.out.println("[IC-WebUI-Backend] seek " + data);
                     handleSeek(data);
@@ -218,6 +219,22 @@ public final class WebEditorApi {
         System.out.println("[IC-WebUI-Backend] script.graph nodes=" + data.getAsJsonArray("nodes").size()
                 + " edges=" + data.getAsJsonArray("edges").size());
         session.sendText(wrap("script.graph.result", data, id));
+    }
+
+    /**
+     * 资源列举（0.3.6）：返回 {@code resource/} 下的文本 key 清单 / 图片 / 音频文件，
+     * 供编辑器 {@code @lang:<key>} 与 {@code path} 字段的浏览控件使用。
+     * 只读；路径经 {@link ResourceFileService#resolveSafe} 校验（拒绝 {@code ../} 越界）。
+     */
+    private static void handleResourceList(WebSocketSession session, JsonObject data, String id) {
+        try {
+            String kind = data.has("kind") ? data.get("kind").getAsString() : "";
+            String dir = data.has("dir") ? data.get("dir").getAsString() : "";
+            JsonObject out = ResourceFileService.list(kind, dir);
+            session.sendText(wrap("resource.list.result", out, id));
+        } catch (Exception e) {
+            sendError(session, id, "resource.list failed: " + e.getMessage());
+        }
     }
 
     private static void handleSeek(JsonObject data) {

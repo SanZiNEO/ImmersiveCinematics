@@ -31,12 +31,16 @@ immersive_cinematics/
 └── resource/
     ├── intro/            # 音频/图片按同样结构组织
     │   └── bgm.ogg
+    ├── lang/             # 文本资源（字幕 / 描述的 @lang: 引用，见 §12）
+    │   ├── zh_cn.json
+    │   └── en_us.json
     └── overlay.png       # 根目录平铺也可以
 ```
 
 - 脚本 `id` 仍是 `meta.id`（全局唯一），子目录**只是文件组织**，不参与 id 语义；同 `id` 冲突时按相对路径提示。
 - 命令用“目录:文件名”标识定位文件：`/icinematics play chapter1:boss_fight`（Tab 补全会给出建议；根目录脚本直接写 `showcase_01`）。
 - 音频/图片已有子路径支持（`resource/` 下 `path` 写 `"sub/bgm.ogg"` 即可）。
+- 文本资源（`resource/lang/<语言>.json`）见 [§12](#12-文本资源与多语言langkey)——字幕 `text` 与 `meta.description` 支持 `@lang:<key>` 引用。
 
 ---
 
@@ -50,7 +54,7 @@ immersive_cinematics/
 | `name` | string | 是 | — | 脚本显示名称，最长 50 字符 |
 | `author` | string | 是 | — | 作者名，最长 30 字符 |
 | `version` | int | 是 | — | 固定为 `3`（仅支持版本 3） |
-| `description` | string | 否 | `""` | 脚本描述文本 |
+| `description` | string | 否 | `""` | 脚本描述文本；支持 `@lang:<key>` 引用（见 [§12](#12-文本资源与多语言langkey)） |
 | `dimension` | string | 否 | `""` | 限制脚本只在指定维度可用；空 = 不限制 |
 | `preload` | boolean | 否 | `true` | 脚本级区块预加载开关：`false` 关闭本脚本的预加载（不发任何预载请求）；`true`/缺省 = 跟随全局配置启用。仅当脚本存在**非空 CAMERA 轨道**时才实际触发预加载，无 CAMERA 轨道（纯 HUD/字幕/事件等）不发送预载请求 |
 | `listener` | string | 否 | `"player"` | 音频听者：`"player"`=默认，电影相机下仍以玩家视角听音；`"camera"`=听者切换到镜头位置，环境音/方块音/水声等按相机采样 |
@@ -518,7 +522,7 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 | `duration` | float | 是 | — | 持续时间 |
 | `layer_type` | string | 是 | — | `"fade"` 全屏颜色 / `"image"` 图片 / `"subtitle"` 字幕 / `"pip"` 画中画 |
 | `path` | string | image 必需 | — | 图片文件名（如 `"my_image.png"` 或 `"flame.gif"`）。支持 **PNG / GIF**（GIF 自动拆帧按帧延迟轮播），文件放 `<游戏目录>/immersive_cinematics/resource/` 下，用英文命名 |
-| `text` | string | subtitle 必需 | — | 字幕文本，`\n` 换行 |
+| `text` | string | subtitle 必需 | — | 字幕文本，`\n` 换行；支持 `@lang:<key>` 文本资源引用（见 [§12](#12-文本资源与多语言langkey)） |
 | `color` | string | fade 必需 | — | 淡化颜色，如 `"#000000"` |
 | `z_index` | int | 否 | `10` | 层级，越大越靠上。**0.3.6 起默认统一 10**（旧文档写 20）；想让字幕压在 fade 之上，给字幕写更大的值（如 30） |
 | `keyframes` | array | 是 | — | 关键帧数组 |
@@ -728,6 +732,111 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 | `script/template/TemplateArgs` | 一次展开的实参：按声明类型归一 + 兜默认值，展开器直接读 |
 | `script/template/TemplateRegistry` | 内置库注册表 |
 | `script/template/TemplateScriptAssembler` | 把展开出的 clip 装进新建脚本骨架（`ScriptTemplate`）→ 可播放脚本 |
+
+---
+
+## 12. 文本资源与多语言（`@lang:<key>`）
+
+字幕 `text` 与 `meta.description` 可以**只写引用 key**，译文集中放在资源目录——改译文不动脚本，同一份脚本在不同语言的客户端显示各自语言。
+
+### 12a. 目录与文件
+
+```text
+<游戏目录>/immersive_cinematics/resource/lang/
+├── zh_cn.json
+└── en_us.json
+```
+
+一个语言一个文件，内容是**扁平字典**（`key → 译文`，与 MC 自己的 lang 文件同构）：
+
+```json
+{
+  "boss_fight.intro": "欢迎，勇者",
+  "boss_fight.outro": "再会"
+}
+```
+
+- 语言代码与 MC 一致（`zh_cn` / `en_us` / `ja_jp`…），**文件名严格小写**（Windows 大小写不敏感、Linux 敏感，统一小写两端表现一致）。
+- 只需提供自己需要的语言，缺的语言走回退链（见 12c）。
+- 资源目录与图片/音频同待遇：**本地读取、不进脚本、不进存档、不走服务器流量**——多人服下每个客户端按自己的语言显示，服务端不需要知道任何语言信息。
+
+### 12b. 引用语法
+
+| 写法 | 结果 |
+|------|------|
+| `"欢迎，勇者"` | 普通文案，原样渲染（**不查表**） |
+| `"@lang:boss_fight.intro"` | 查表 → 当前语言译文 |
+| `"@@lang:boss_fight.intro"` | 转义：渲染为字面量 `@lang:boss_fight.intro` |
+
+- **`@lang:` 前缀是必需的**：字幕本来就是任意文案，裸 key 与正常文字无法区分，加前缀让规则一句话说清——以 `@lang:` 开头才查表。
+- 译文里允许 `\n` 换行（与 `text` 一样，先查表后分行）。
+- key 语法：一段或多段 `[a-zA-Z0-9_]`（每段 ≤ 32 字符）用 `.` 连接，总长 ≤ 256，例如 `boss_fight.intro`。建议 `<脚本id>.<用途>`——字典是全局一份，命名空间是唯一的防撞手段。不合法的 key 按“未找到”处理（原样显示引用串）。
+- **不支持占位符参数**（`%s` 之类按字面处理）：脚本目前没有变量系统。
+
+### 12c. 回退链与生效时机
+
+```text
+当前语言（如 zh_cn） → en_us → 原样显示引用串（@lang:<key>）
+```
+
+- 与 MC 自己的做法一致（`en_us` 兜底、当前语言覆盖），**不做语言族回退**（`zh_cn` 不会回落到任意 `zh_*`）。
+- 第三段刻意“不静默”：缺 key 时玩家看到 `@lang:boss_fight.intro`，一眼看出作者漏了 key，而不是一片空白。
+- 资源缺失 / 缺 key 只记调试日志，**不阻塞播放**。
+- 语言文件在客户端进程内缓存：**改译文后重启客户端生效**（与图片/音频一致，不参与 MC 资源重载）。
+
+### 12d. 适用范围
+
+| 字段 | 是否支持 | 说明 |
+|------|---------|------|
+| OVERLAY `subtitle` 的 `text` | ✅ | 唯一的“文本内容”字段 |
+| `meta.description` | ✅ | 给人读的说明（架构图节点 tooltip / 属性面板） |
+| `meta.name` / `meta.id` / `meta.author` | ❌ | 可读标识 / 依赖键 / 人名，必须稳定不翻译 |
+| EVENT 的 `command` | ❌ | 命令走服务端执行，属另一条链路 |
+
+### 12e. 示例
+
+```json
+{
+  "meta": {
+    "id": "boss_fight",
+    "name": "Boss Fight",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "@lang:boss_fight.desc"
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      { "type": "overlay", "id": "overlay_sub", "clips": [
+        { "start_time": 0, "duration": 12, "layer_type": "subtitle",
+          "text": "@lang:boss_fight.intro",
+          "keyframes": [
+            { "time": 0,  "opacity": 0 },
+            { "time": 1,  "opacity": 1 },
+            { "time": 11, "opacity": 1 },
+            { "time": 12, "opacity": 0 }
+          ] }
+      ] }
+    ]
+  }
+}
+```
+
+`resource/lang/zh_cn.json` / `en_us.json` 里写：
+
+```json
+{ "boss_fight.intro": "欢迎，勇者", "boss_fight.desc": "第一章 BOSS 战过场" }
+```
+
+```json
+{ "boss_fight.intro": "Welcome, hero", "boss_fight.desc": "Chapter 1 boss cutscene" }
+```
+
+### 12f. 编辑器支持
+
+- 字幕 `text` 与脚本 `description` 字段是**引用选择器**：候选项来自 `resource/lang/*.json` 的 key 并集，选项上显示当前编辑器语言下的译文；图片 `path` 字段同样有 `resource/` 文件选择。
+- 当前值缺 key / 缺文件时字段下方给出黄色提示（**只警告不阻塞**——资源目录本来就可以后补）。
+- 编辑器**不写**语言文件：译文请直接编辑 `resource/lang/*.json`（key × 语言的矩阵编辑面板后置）。
 
 ---
 

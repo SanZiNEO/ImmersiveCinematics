@@ -11,6 +11,8 @@
 - 选择器新增目标锁定控制：`selector_refresh`（重新选择间隔）、`selector_switch_while_alive`（目标存活时是否切换）、`selector_switch_smooth`（切换平滑）。
 - 选择器支持 `type=` 实体类型过滤，减少镜头误锁投掷物的情况。
 - **模板命令 `/icinematics template`**：填几个参数即可生成一段标准镜头脚本，与手写脚本等价、可继续编辑——内置 4 个片段模板：黑场 / 白场（`fade`）、固定机位 + 呼吸（`static_breath`）、推近 / 拉远（`dolly`，两端 fov 不同即希区柯克变焦）、环绕弧线（`orbit_arc`，绕触发点或指定实体环绕，单段 ≤120°）。`/icinematics template list` 查看模板与参数；生成物写入 `scripts/generated/` 并自动校验。
+- **字幕与描述多语言（文本资源 `@lang:`）**：字幕 `text` 与脚本 `meta.description` 可以只写 `@lang:<key>` 引用，译文集中放在 `<游戏目录>/immersive_cinematics/resource/lang/<语言>.json`（如 `zh_cn.json` / `en_us.json`）——**改译文不动脚本**。同一场放映，中文客户端看中文、英文客户端看英文（服务端不需要知道语言）。回退链 = 当前语言 → `en_us` → 原样显示引用串（不静默，缺 key 一眼可见）；缺语言文件 / 缺 key 只记日志，不影响播放；译文改动重启客户端生效。`name` / `id` / `author` 保持字面不翻译。
+- **编辑器资源字段**：字幕 `text` 与脚本描述字段支持从 `resource/lang/` 的 key 里选（候选项带译文预览），图片 `path` 字段可以浏览 `resource/` 下的文件；当前值缺 key / 缺文件时字段下方给出黄色提示（只警告、不阻塞）。
 
 ### 优化
 - 修复实体朝向插值：镜头跟随生物时，生物的转身（yaw）和抬头（pitch）动作更顺滑。

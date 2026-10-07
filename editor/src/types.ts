@@ -245,6 +245,25 @@ export interface Schema {
 }
 
 // ─────────────────────────────────────────────────────────────
+// 资源列举（resource.list，0.3.6 文本资源 i18n）
+// ─────────────────────────────────────────────────────────────
+
+/** 一个文本 key 在各语言下的译文（values 只含提供了该 key 的语言） */
+export interface ResourceLangEntry {
+  key: string
+  values: Record<string, string>
+}
+
+/** resource.list 响应：lang 返回 languages + entries，image/audio/all 返回 files（相对 resource/） */
+export interface ResourceListResult {
+  kind: string
+  dir: string
+  languages?: string[]
+  entries?: ResourceLangEntry[]
+  files?: string[]
+}
+
+// ─────────────────────────────────────────────────────────────
 // 编辑器状态类型
 // ─────────────────────────────────────────────────────────────
 

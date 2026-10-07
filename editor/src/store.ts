@@ -5,7 +5,7 @@
 
 import { reactive, ref } from 'vue'
 import type {
-  ScriptDoc, Schema, Selection, TrackViewState, TimelineTool, Track, Clip, Keyframe,
+  ScriptDoc, Schema, Selection, TrackViewState, TimelineTool, Track, Clip, Keyframe, ResourceListResult,
 } from './types'
 import * as ops from './operations'
 import { fillClipDefaults, fillKeyframeDefaults, stripScriptDefaults } from './schema'
@@ -320,6 +320,15 @@ export function registryQuery(kind: string, query: string, limit = 50): Promise<
 /** 小表全量获取 */
 export function registryGet(kind: string): Promise<string[]> {
   return request<{ kind: string; values: string[] }>('registry.get', { kind }).then(r => r.values || [])
+}
+
+/**
+ * 资源列举（0.3.6 文本资源）：kind = 'lang' 返回 key 清单 + 各语言译文，
+ * 'image' / 'audio' / 'all' 返回相对 resource/ 的文件路径。
+ * dir 可选（资源根下的子目录），服务端做路径安全校验。
+ */
+export function resourceList(kind: string, dir = ''): Promise<ResourceListResult> {
+  return request<ResourceListResult>('resource.list', { kind, dir })
 }
 
 /** 服务端完整校验；离线时用前端简化校验兜底 */

@@ -146,7 +146,10 @@ public class OverlayTrackPlayer implements TrackPlayer {
             }
             case "subtitle" -> {
                 SubtitleLayer sl = new SubtitleLayer();
-                sl.setText(clip.getString("text", ""));
+                // 文本资源：@lang:<key> → 客户端当前语言译文（回退 en_us → 原样串，§3.2）；
+                // 非引用串原样透传。解析在分行之前（SubtitleLayer 渲染时才 split("\n")，§3.5）。
+                sl.setText(com.immersivecinematics.immersive_cinematics.util.LangResources
+                        .resolve(clip.getString("text", "")));
                 sl.setZIndex(zIndex);
                 layer = sl;
             }

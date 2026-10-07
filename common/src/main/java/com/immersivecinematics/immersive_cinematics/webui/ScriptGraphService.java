@@ -166,7 +166,9 @@ public final class ScriptGraphService {
             }
             node.name = orEmpty(str(meta, "name"));
             node.author = orEmpty(str(meta, "author"));
-            node.description = orEmpty(str(meta, "description"));
+            // 文本资源：description 顺手支持 @lang:<key>（§4 范围表）；节点 tooltip / 属性面板可见
+            node.description = com.immersivecinematics.immersive_cinematics.util.LangResources
+                    .resolve(orEmpty(str(meta, "description")));
             node.dimension = orEmpty(str(meta, "dimension"));
             node.priority = intOf(meta, "priority");
             readTriggers(node, meta);

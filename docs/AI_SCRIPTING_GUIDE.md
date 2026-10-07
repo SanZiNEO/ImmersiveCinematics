@@ -219,6 +219,7 @@
 | `fit` | **适配**（image）：`"fit"` 完整放下 / `"fill"` 铺满裁切 / `"stretch"` 拉伸填满（默认 `"fit"`）。离散值，步进取值 |
 | `opacity` | 透明度（0~1，**默认 1**）。**淡入淡出 = 关键帧里写 opacity 0→1→0**，代码层不叠加其他淡化 |
 | `path` | 图片文件名，支持 **PNG / GIF**（GIF 自动拆帧轮播），放 `<游戏目录>/immersive_cinematics/resource/`，英文命名 |
+| `text` | 字幕文本（`\n` 换行）。可以写 `"@lang:<key>"` 引用文本资源：译文放 `resource/lang/<语言>.json`，回退链 = 当前语言 → `en_us` → 原样显示引用串。字幕/描述支持，`name`/`id`/`author` 不翻译 |
 | `z_index` | 层级，大者在上（**默认 10**，0.3.6 起；要让字幕/图片压在 fade 之上就写更大的值，如字幕 30） |
 
 > `fade` 是效果层（铺满画布），`x/y/anchor/scale` 对它不生效，只读 `opacity`；`pip` 无纹理，`source`/`fit` 对它不生效。`fade` 的颜色在 clip 级 `color`（如 `"#000000"`）。
