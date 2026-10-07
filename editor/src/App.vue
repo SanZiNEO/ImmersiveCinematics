@@ -4,7 +4,7 @@ import { connect, undo, redo, state, loadDemo, play, pause, seek, stop,
   copySelectedClips, cutSelectedClips, pasteClips, deleteSelectedClips,
   selectAllClips, duplicateSelectedClips, setLoopIn, setLoopOut, clearLoop,
   addMarker, clearSelectedClips, enterFlightMode, flightMode,
-  saveScript, getSelectedClip, getSelectedTrack } from './store'
+  saveScript, getSelectedClip, getSelectedTrack, viewMode } from './store'
 import TitleBar from './components/TitleBar.vue'
 import ScriptDock from './components/ScriptDock.vue'
 import ScriptList from './components/ScriptList.vue'
@@ -17,6 +17,7 @@ import ClipPanel from './components/ClipPanel.vue'
 import KeyframePanel from './components/KeyframePanel.vue'
 import TriggerPanel from './components/TriggerPanel.vue'
 import Timeline from './components/Timeline.vue'
+import ScriptGraph from './components/ScriptGraph.vue'
 
 // 各区域宽度（可拖拽调整，有最小/最大限制）
 const jsonColWidth = ref(280)       // 最左 JSON 实时预览列
@@ -319,13 +320,13 @@ function markUserDragged() {
   <div class="app">
     <TitleBar />
 
-    <div v-if="state.validationIssues.length" class="validation-banner">
+    <div v-if="viewMode === 'editor' && state.validationIssues.length" class="validation-banner">
       <span class="validation-title">校验问题 ({{ state.validationIssues.length }})</span>
       <span class="validation-item">{{ state.validationIssues[0] }}</span>
       <button class="validation-clear" @click="state.validationIssues = []">×</button>
     </div>
 
-    <div class="body-row">
+    <div v-if="viewMode === 'editor'" class="body-row">
       <!-- 最左：当前脚本 JSON 文本 -->
       <aside class="json-column" :style="{ width: jsonColWidth + 'px' }">
         <ScriptDock />
@@ -384,6 +385,9 @@ function markUserDragged() {
         </footer>
       </div>
     </div>
+
+    <!-- 脚本架构图视图（0.3.6）：节点=脚本 / 边=requires / 分区=文件夹 -->
+    <ScriptGraph v-else />
   </div>
 </template>
 

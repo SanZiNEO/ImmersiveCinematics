@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { state, newScript, saveScript, undo, redo, loadScript, refreshScripts } from '../store'
+import { state, newScript, saveScript, undo, redo, loadScript, refreshScripts, viewMode } from '../store'
 
 const emit = defineEmits<{
   (e: 'toggle-left'): void
@@ -33,6 +33,12 @@ async function openScriptByPrompt() {
 function windowAction(kind: 'minimize' | 'maximize' | 'close') {
   const w = (window as any).electronWindow
   if (w?.[kind]) w[kind]()
+}
+
+/** 切换顶层视图：编辑器 / 脚本架构图 */
+function setView(view: 'editor' | 'graph') {
+  viewMode.value = view
+  openMenu.value = ''
 }
 </script>
 
@@ -73,9 +79,14 @@ function windowAction(kind: 'minimize' | 'maximize' | 'close') {
       <div class="menu-item" @click.stop="toggle('view')">
         <span>视图</span>
         <div v-if="openMenu === 'view'" class="dropdown">
+          <button @click="setView('editor')" :disabled="viewMode === 'editor'">编辑器</button>
+          <button @click="setView('graph')" :disabled="viewMode === 'graph'">脚本架构图</button>
           <button @click="emit('toggle-left')">左侧面板</button>
           <button @click="emit('toggle-right')">右侧面板</button>
         </div>
+      </div>
+      <div class="menu-item" @click="setView(viewMode === 'graph' ? 'editor' : 'graph')">
+        <span>{{ viewMode === 'graph' ? '← 返回编辑器' : '脚本架构图' }}</span>
       </div>
     </div>
   </div>

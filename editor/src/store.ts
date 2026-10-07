@@ -81,6 +81,10 @@ export const state = reactive({
   trackView: {} as Record<string, TrackViewState>,
 })
 
+// ── 顶层视图切换：编辑器 / 脚本架构图 ────────────────────────
+/** 脚本架构图视图（0.3.6）：无限画布展示 节点=脚本 / 边=requires / 分区=文件夹 */
+export const viewMode = ref<'editor' | 'graph'>('editor')
+
 // ── 飞控模式状态 ──────────────────────────────────────────────
 export const flightMode = ref(false)
 export const flightState = ref<{

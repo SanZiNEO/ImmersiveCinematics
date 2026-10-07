@@ -76,13 +76,13 @@ WebUI 编辑器新增一个**脚本架构图**视图：把包内所有脚本铺�
 
 ## 7. 落地顺序（方向）
 
-| # | 步骤 | 交付物（完成后我们要什么） |
-|---|---|---|
-| 1 | 数据协议：Java 侧脚本扫描 + 图数据消息 | WebUI 能拿到全量图数据（节点 / 边 / 分区） |
-| 2 | 只读全景图：文件夹分区 + 拓扑分层自动布局 + 平移缩放 | 打开视图就能看到整个包的故事线全貌 |
-| 3 | 阅读交互：悬停摘要、上下游高亮、双击打开脚本 | 从图跳进编辑器编辑任意脚本 |
-| 4 | 搜索过滤 | 按名称 / 触发器类型 / 文件夹过滤定位 |
-| 5 | 手动布局与持久化（后置） | 作者调整过的布局重开不丢 |
+| # | 步骤 | 交付物（完成后我们要什么） | 状态 |
+|---|---|---|---|
+| 1 | 数据协议：Java 侧脚本扫描 + 图数据消息 | WebUI 能拿到全量图数据（节点 / 边 / 分区） | ✅ 已落地（见下） |
+| 2 | 只读全景图：文件夹分区 + 拓扑分层自动布局 + 平移缩放 | 打开视图就能看到整个包的故事线全貌 | ✅ 已落地 |
+| 3 | 阅读交互：悬停摘要、上下游高亮、双击打开脚本 | 从图跳进编辑器编辑任意脚本 | ✅ 已落地 |
+| 4 | 搜索过滤 | 按名称 / 触发器类型 / 文件夹过滤定位 | ✅ 已落地（成本低，随 2–3 一起做） |
+| 5 | 手动布局与持久化（后置） | 作者调整过的布局重开不丢 | ⬜ 未做 |
 
 > 步骤 1–3 是核心价值（看懂故事线）；4–5 是体验增强。
 
@@ -117,3 +117,33 @@ WebUI 编辑器新增一个**脚本架构图**视图：把包内所有脚本铺�
 ### ④ 无法核实（未验证）
 
 - 无。§3–§7 的布局算法、交互分期、落地顺序属方向稿，无代码断言需核实。
+
+---
+
+## 落地记录（2026-10-07，步骤 1–4）
+
+### 数据侧（Java）
+
+- 新增 `webui/ScriptGraphService.java`：复用 `ScriptFileService.listScripts()/loadScript()`（含 `resolveSafe` 越界防护）扫描 `immersive_cinematics/scripts`，容错读取（不依赖 `ScriptParser`——解析失败即停是运行时口径，写坏的脚本也要出现在图上）。
+- 新增消息：请求 `script.graph`（无 data）→ 回执 `script.graph.result`（`id` 原样回传），走既有 `{type,data,id}` 信封（`WebEditorApi.handle` 的 switch 分支）。
+- 数据形态：
+  - `nodes[]`：`id`（= 相对路径，唯一）/ `path` / `folder`（"" = 根）/ `scriptId`（meta.id）/ `name` / `author` / `description` / `dimension` / `priority` / `duration`（`timeline.total_duration`，负数 = 无限）/ `infinite` / `tracks[{type,clips}]` / `triggers[{type,repeatable,requires[{type,script,resolved}]}]` / `requires[]`（去重脚本 id）/ `valid` / `error?`；
+  - `edges[]`：`from`（被依赖脚本的节点 id）→ `to`（依赖方节点 id）+ `fromScript`/`toScript`/`trigger`/`requirement`；同一 (from,to,trigger,requirement) 只留一条；
+  - `folders[{path,count}]`：分区（= 文件夹，根在前）；
+  - `warnings[{kind,path,message}]`：`dangling`（指向不存在脚本，与 `ScriptManager.loadFromDir` 的加载期校验同口径）/ `self_reference` / `duplicate_id` / `invalid`（读失败 / JSON 坏 / meta.id 或 timeline 缺失），上限 200 条。
+- 边方向：被依赖 → 依赖方（B 被 A requires 则 B → A），与 §2 一致。
+- 版本口径：只做 `requires` 边；触发器 → 脚本、EVENT 调用链仍为后续（§6 待定）。
+
+### 视图侧（前端）
+
+- 新增 `editor/src/graphLayout.ts`（纯函数布局，无第三方图库）+ `editor/src/components/ScriptGraph.vue`（无限画布）+ `store.viewMode`（`'editor' | 'graph'`）；入口：标题栏「视图 → 脚本架构图」与菜单栏一键切换按钮，双击节点跳回编辑器并 `loadScript(path)`。
+- 布局：泳道 = 文件夹（根在前），**列跨泳道对齐**（跨文件夹依赖仍是左→右流向）；分区内按拓扑分层（被依赖在左）；孤立脚本在分层区右侧按 3 行网格收拢；`requires` 成环用 Tarjan SCC 缩点后再分层——环内节点同层、标橙虚线（不算错误，§5）。
+- 交互：拖拽平移（左键空白 / 中键任意处）+ 滚轮指针锚定缩放（15%–250%）+ 适配视图；悬停摘要（时长 / 轨道构成 / 触发器与 requires / 说明 / 维度 / 作者 / 脚本问题）；单击高亮上下游链（上游绿、下游蓝、其余压暗，Esc 取消）；按名称 / 触发器类型 / 文件夹过滤（AND 组合，可「只看匹配」隐藏其余）；顶部横幅列出图数据提示。
+- 渲染方式：HTML 节点 + SVG 连线（同一条 transform 世界层）。§5 的「上百节点用 canvas 还是 svg」未定论——本次实测规模仅 11 节点，量级压测与 canvas 迁移留到有真实大包时再定。
+
+### 未做（与 §5/§6 对应）
+
+- 手动拖拽布局与持久化（步骤 5）；
+- 脚本增删改后的增量刷新（每次打开视图 / 手动刷新全量重扫）；
+- 反向编辑（拖拽连线改 `requires`）、触发器 / EVENT 边；
+- 布局持久化形态。

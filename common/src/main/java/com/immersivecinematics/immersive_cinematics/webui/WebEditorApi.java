@@ -43,6 +43,7 @@ public final class WebEditorApi {
                 case "registry.query" -> handleRegistryQuery(session, data, id);
                 case "registry.get" -> handleRegistryGet(session, data, id);
                 case "schema.get" -> handleSchemaGet(session, id);
+                case "script.graph" -> handleScriptGraph(session, id);
                 case "editor.seek" -> {
                     System.out.println("[IC-WebUI-Backend] seek " + data);
                     handleSeek(data);
@@ -206,6 +207,17 @@ public final class WebEditorApi {
         JsonObject data = new JsonObject();
         data.add("schema", schema);
         session.sendText(wrap("schema.data", data, id));
+    }
+
+    /**
+     * 脚本架构图数据（0.3.6）：扫描 scripts 目录返回 节点 / 边 / 分区 / 提示。
+     * 全量重扫（无增量），前端每次打开视图或手动刷新时请求一次。
+     */
+    private static void handleScriptGraph(WebSocketSession session, String id) {
+        JsonObject data = ScriptGraphService.buildGraph();
+        System.out.println("[IC-WebUI-Backend] script.graph nodes=" + data.getAsJsonArray("nodes").size()
+                + " edges=" + data.getAsJsonArray("edges").size());
+        session.sendText(wrap("script.graph.result", data, id));
     }
 
     private static void handleSeek(JsonObject data) {
