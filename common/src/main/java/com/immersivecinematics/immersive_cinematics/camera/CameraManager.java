@@ -42,6 +42,15 @@ public class CameraManager {
     /** hasActiveCameraClip 的帧级缓存，避免 9 个 Mixin 调用点每帧重复扫描 */
     private boolean cachedHasActiveCameraClip = false;
 
+    /**
+     * 顶层实例（后来者居上）本帧自身是否有活跃 CAMERA clip —— 帧级缓存，与
+     * {@link #cachedHasActiveCameraClip}（全实例并集）同帧同点计算。
+     * <p>听者判定（{@code AudioListenerController}，§3.3）必须取顶层实例这一份，而不是并集：
+     * 听者由启动最晚的活跃实例决定，门控取同一实例才能口径一致（并集会让下层实例的 CAMERA clip
+     * 把顶层自身没有 CAMERA clip 时的听者误判为 camera）。
+     */
+    private boolean cachedTopInstanceHasActiveCameraClip = false;
+
     /** 统一只读相机状态快照（每帧更新末尾刷新；无活跃状态时为 null） */
     private CameraState cameraState = null;
 
@@ -334,6 +343,16 @@ public class CameraManager {
         return cachedHasActiveCameraClip;
     }
 
+    /**
+     * 顶层实例（启动最晚的活跃实例，§3.4 后来者居上）本帧自身是否有活跃 CAMERA clip。
+     * <p>听者判定的门控口径（§3.3）：听者由顶层实例的 {@code meta.listener} 决定，门控也取同一实例。
+     * 与 {@link #hasActiveCameraClip()} 的差别仅在多实例：顶层自身无 CAMERA clip、而下层实例有时，
+     * 并集为 true，本方法为 false（听者回落 player）。单实例下两者恒等。
+     */
+    public boolean topInstanceHasActiveCameraClip() {
+        return cachedTopInstanceHasActiveCameraClip;
+    }
+
     // ========== 编辑器预览 ==========
 
     /**
@@ -562,6 +581,7 @@ public class CameraManager {
     public void onRenderFrame() {
         if (instances.isEmpty()) {
             cachedHasActiveCameraClip = false;
+            cachedTopInstanceHasActiveCameraClip = false;
             refreshCameraState();
             return;
         }
@@ -604,6 +624,9 @@ public class CameraManager {
 
         float effectiveTime = (float) getGameTimeSeconds();
         boolean anyActiveCameraClip = false;
+        // 顶层实例（启动最晚的活跃实例）——听者门控口径（§3.3）只认它自己的 CAMERA clip
+        PlaybackInstance top = topInstance();
+        boolean topActiveCameraClip = false;
 
         // 遍历副本：帧内可能有实例退出（deactivateNow 出列）或接播（追加新实例），避免并发修改
         for (PlaybackInstance instance : new ArrayList<>(instances)) {
@@ -637,7 +660,10 @@ public class CameraManager {
                 }
                 player.onRenderFrame(instanceTime);
                 // 帧级缓存取并集：任一实例本帧有活跃 Camera 轨道即算有（§3.6 有什么就放什么）
-                anyActiveCameraClip |= player.hasActiveCameraTrack(instanceTime);
+                boolean instanceCameraClip = player.hasActiveCameraTrack(instanceTime);
+                anyActiveCameraClip |= instanceCameraClip;
+                // 顶层实例单独记一份（同一钳制时间口径）——听者门控只认它（§3.3）
+                if (instance == top) topActiveCameraClip = instanceCameraClip;
             }
 
             if (instance.isStopping() && !OverlayManager.INSTANCE.isAnimating()) {
@@ -660,6 +686,7 @@ public class CameraManager {
         }
 
         cachedHasActiveCameraClip = anyActiveCameraClip;
+        cachedTopInstanceHasActiveCameraClip = topActiveCameraClip;
 
         // 帧末统一生成/替换快照：本帧所有渲染侧读取（含 onRenderFrame 之后调用的
         // CameraMixin 读取、roll、setupRender）都拿到这一份，且同帧内多次读取一致。

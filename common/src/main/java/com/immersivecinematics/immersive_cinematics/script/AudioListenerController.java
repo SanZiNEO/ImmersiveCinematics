@@ -20,21 +20,28 @@ public final class AudioListenerController {
 
     private AudioListenerController() {}
 
-    /** 是否需要在 SoundManager.updateSource 时把听者覆盖为玩家（仅过场激活且脚本声明 player） */
+    /** 是否需要在 SoundManager.updateSource 时把听者覆盖为玩家（仅过场激活且有效听者不是相机） */
     public static boolean shouldOverride() {
-        if (!CameraManager.INSTANCE.isActive()) return false;
-        return !"camera".equals(listenerMode());
+        // 与 isCameraListener() 同一口径（顶层实例，§3.3），二者恒互补：
+        // 有效听者不是相机 → 覆盖为玩家；是相机 → 不动（CameraMixin 已让原版用电影相机）。
+        return CameraManager.INSTANCE.isActive() && !isCameraListener();
     }
 
     /**
      * 是否听者=相机（用于环境音采样点重定向）。
      * <p>
-     * 必须同时有活跃 CAMERA clip：没有 CAMERA clip 时 {@code CameraMixin} 不会覆盖相机，
-     * 原版听者实际回落到玩家，这里也必须回落，否则采样点/上报位置和真实听者不一致。
+     * 口径（§3.3 后来者居上）：听者由<b>顶层实例</b>（启动最晚的活跃实例）决定——既读它的
+     * {@code meta.listener}，也只看它自身本帧是否有活跃 CAMERA clip
+     * （{@link CameraManager#topInstanceHasActiveCameraClip()}），而不是全实例并集：
+     * 并集会让下层实例的 CAMERA clip 把顶层自身没有 CAMERA clip 时的听者误判为 camera。
+     * <p>
+     * 必须同时有活跃 CAMERA clip：顶层实例没有 CAMERA clip 时其 {@code meta.listener=camera}
+     * 也回落 player——与 {@code CameraMixin} 释放相机后原版听者实际回落玩家一致
+     * （单实例下与改造前逐点等价）。
      */
     public static boolean isCameraListener() {
         return CameraManager.INSTANCE.isActive()
-                && CameraManager.INSTANCE.hasActiveCameraClip()
+                && CameraManager.INSTANCE.topInstanceHasActiveCameraClip()
                 && "camera".equals(listenerMode());
     }
 
