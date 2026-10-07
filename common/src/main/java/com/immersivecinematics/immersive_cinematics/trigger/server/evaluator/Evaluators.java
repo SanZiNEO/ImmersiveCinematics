@@ -49,13 +49,29 @@ public class Evaluators {
         JsonObject result = c.deepCopy();
         JsonObject c1 = result.getAsJsonObject("corner1");
         JsonObject c2 = result.getAsJsonObject("corner2");
-        if (c1.has("x")) c1.addProperty("x", c1.get("x").getAsDouble() - buffer);
-        if (c1.has("y")) c1.addProperty("y", c1.get("y").getAsDouble() - buffer);
-        if (c1.has("z")) c1.addProperty("z", c1.get("z").getAsDouble() - buffer);
-        if (c2.has("x")) c2.addProperty("x", c2.get("x").getAsDouble() + buffer);
-        if (c2.has("y")) c2.addProperty("y", c2.get("y").getAsDouble() + buffer);
-        if (c2.has("z")) c2.addProperty("z", c2.get("z").getAsDouble() + buffer);
+        expandAxis(c1, c2, "x", buffer);
+        expandAxis(c1, c2, "y", buffer);
+        expandAxis(c1, c2, "z", buffer);
         return result;
+    }
+
+    /**
+     * 沿单个轴把方体向外扩 buffer：先对 corner1/corner2 在该轴的分量做 min/max 归一化，
+     * 保证无论角落点写入顺序如何，该轴都是向外扩大（与 {@link #inBox} 的顺序无关语义一致）。
+     */
+    private static void expandAxis(JsonObject c1, JsonObject c2, String axis, float buffer) {
+        boolean has1 = c1.has(axis);
+        boolean has2 = c2.has(axis);
+        if (has1 && has2) {
+            double a = c1.get(axis).getAsDouble();
+            double b = c2.get(axis).getAsDouble();
+            c1.addProperty(axis, Math.min(a, b) - buffer);
+            c2.addProperty(axis, Math.max(a, b) + buffer);
+        } else if (has1) {
+            c1.addProperty(axis, c1.get(axis).getAsDouble() - buffer);
+        } else if (has2) {
+            c2.addProperty(axis, c2.get(axis).getAsDouble() + buffer);
+        }
     }
 
     public static boolean evaluateLocation(ServerPlayer player, JsonObject c) {

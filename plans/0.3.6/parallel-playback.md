@@ -149,7 +149,7 @@
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
 
 - **`emergencyStop()` 不清队列**：只清 `pendingScript`，不清 `scriptQueue`（字面属实）；但 `deactivateNow` 会先调用 `reset()` 清空 `scriptQueue`，故“从队列接播”的分支实际不可达，世界退出不会误启下一脚本。（原文“会从队列接播”结论有误，见事实核查）
-- **`C2SPlaybackStarted` 无条件回报**：`ClientScriptReceiver.handlePlayScript` 不检查 `playScript` 返回值（0 拒绝 / 2 排队也回报“已开始”）→ 并行化后服务端账本会错位（需按实例 id + 实际结果回报）。
+- **`C2SPlaybackStarted` 无条件回报**：`ClientScriptReceiver.handlePlayScript` 不检查 `playScript` 返回值（0 拒绝 / 2 排队也回报“已开始”）→ 并行化后服务端账本会错位（需按实例 id + 实际结果回报）。**✅ 已修复（2026-10-07）**：回执拆成两件事——传输层 ACK（无条件回，抑制超时重发）与播放账本（仅真正开始播放时由 `CameraManager.reportPlaybackStarted` 上报，3 个调用点：直接开始 / pendingScript 接播 / 队列接播）；`C2SPlaybackStartedPacket` 增加 `started` 字段。实例 id 仍留待并行化。
 
 ---
 

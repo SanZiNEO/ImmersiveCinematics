@@ -75,6 +75,30 @@ public final class ScriptValidator {
             }
         }
 
+        // ===== meta 宏观循环（macro_loop）=====
+        if (root.has("meta") && root.get("meta").isJsonObject()) {
+            JsonObject meta = root.getAsJsonObject("meta");
+            boolean macroLoop = meta.has("macro_loop") && meta.get("macro_loop").isJsonPrimitive()
+                    && meta.get("macro_loop").getAsJsonPrimitive().isBoolean()
+                    && meta.get("macro_loop").getAsBoolean();
+            if (macroLoop) {
+                boolean holdAtEnd = meta.has("hold_at_end") && meta.get("hold_at_end").isJsonPrimitive()
+                        && meta.get("hold_at_end").getAsJsonPrimitive().isBoolean()
+                        && meta.get("hold_at_end").getAsBoolean();
+                if (holdAtEnd) {
+                    issues.add("meta.macro_loop 与 meta.hold_at_end 同时开启（互斥）：宏观循环下脚本不自然结束，"
+                            + "hold_at_end 不会生效，请二选一");
+                }
+                String mode = meta.has("macro_loop_mode") && meta.get("macro_loop_mode").isJsonPrimitive()
+                        ? meta.get("macro_loop_mode").getAsString() : "repeat";
+                if ("pingpong".equals(mode)) {
+                    issues.add("meta.macro_loop_mode=pingpong 第一版未实现：按 repeat 播放");
+                } else if (!"repeat".equals(mode)) {
+                    issues.add("meta.macro_loop_mode 未知值: " + mode + "（可选: repeat / pingpong）");
+                }
+            }
+        }
+
         // ===== meta.triggers：前置依赖（requires）+ 类型/条件结构校验 =====
         if (root.has("meta") && root.get("meta").isJsonObject()) {
             validateTriggerRequires(root.getAsJsonObject("meta"), "meta", knownScriptIds, issues);
@@ -178,8 +202,14 @@ public final class ScriptValidator {
                 }
                 if ("OVERLAY".equalsIgnoreCase(type)) {
                     checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle", "pip");
-                    if ("image".equals(clip.has("layer_type") ? clip.get("layer_type").getAsString() : "") && !clip.has("path")) {
+                    // layer_type 缺省时运行期按 "fade" 处理（OverlayTrackPlayer.createLayer）
+                    String layerType = clip.has("layer_type") && clip.get("layer_type").isJsonPrimitive()
+                            ? clip.get("layer_type").getAsString() : "fade";
+                    if ("image".equals(layerType) && !clip.has("path")) {
                         issues.add(cp + ".path 缺失（layer_type=image 需要图片文件名，只支持 PNG）");
+                    }
+                    if ("fade".equals(layerType)) {
+                        checkHexColor(clip, cp, "color", issues);
                     }
                 }
                 // ===== 循环参数校验（CAMERA）=====
@@ -199,7 +229,7 @@ public final class ScriptValidator {
                     if (loop) {
                         boolean infinite = !clip.has("loop_count") || clip.get("loop_count").getAsInt() < 0;
                         if (infinite && ci < clips.size() - 1) {
-                            issues.add(cp + " 无限循环（loop=true + loop_count=-1）后仍有其他片段：后续片段作为特写覆盖播放，播完回落该循环视角");
+                            issues.add(cp + " 无限循环（loop=true + loop_count=-1）后仍有其他片段：永不结束的片段 = 时间轴终点，其后的片段不会播放");
                         }
                         if (clip.has("keyframes") && clip.get("keyframes").isJsonArray()) {
                             JsonArray kfs = clip.getAsJsonArray("keyframes");
@@ -293,6 +323,10 @@ public final class ScriptValidator {
                                     && (!kf.has("look_at_target_x") || !kf.has("look_at_target_y") || !kf.has("look_at_target_z"))) {
                                 issues.add(kp + ".look_at_target 缺失（look_at=coordinate 时指定 look_at_target_x/y/z 坐标，或 look_at_target_structure 结构名）");
                             }
+                            // ===== 合成参数（0.3.6 camera-composition）：opacity / dest / source =====
+                            checkUnitFloat(kf, kp, "opacity", issues);
+                            checkRect(kf, kp, "dest", issues);
+                            checkRect(kf, kp, "source", issues);
                         }
                     }
                 }
@@ -324,6 +358,47 @@ public final class ScriptValidator {
         return issues;
     }
 
+    /**
+     * 校验归一化浮点字段（如合成参数 opacity）：必须是数字且在 0~1；字段缺省时跳过（默认值生效）。
+     */
+    private static void checkUnitFloat(JsonObject obj, String path, String key, List<String> issues) {
+        if (!obj.has(key)) return;
+        JsonElement e = obj.get(key);
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) {
+            issues.add(path + "." + key + " 不是数字（范围 0~1）");
+            return;
+        }
+        float v = e.getAsFloat();
+        if (v < 0f || v > 1f) {
+            issues.add(path + "." + key + " 超出范围 0~1: " + v);
+        }
+    }
+
+    /**
+     * 校验归一化矩形对象 {x,y,w,h}（各分量 0~1，如合成参数 dest/source）；
+     * 字段缺省时跳过（默认全屏/全幅）。
+     */
+    private static void checkRect(JsonObject obj, String path, String key, List<String> issues) {
+        if (!obj.has(key)) return;
+        String rp = path + "." + key;
+        JsonElement e = obj.get(key);
+        if (!e.isJsonObject()) {
+            issues.add(rp + " 应为对象 {x,y,w,h}（归一化矩形，各分量 0~1）");
+            return;
+        }
+        JsonObject rect = e.getAsJsonObject();
+        for (String c : new String[]{"x", "y", "w", "h"}) {
+            if (!rect.has(c) || !rect.get(c).isJsonPrimitive() || !rect.get(c).getAsJsonPrimitive().isNumber()) {
+                issues.add(rp + "." + c + " 缺失或不是数字（矩形需要 x/y/w/h）");
+                continue;
+            }
+            float v = rect.get(c).getAsFloat();
+            if (v < 0f || v > 1f) {
+                issues.add(rp + "." + c + " 超出范围 0~1: " + v);
+            }
+        }
+    }
+
     /** 校验枚举字段，未知值时报错并列出合法值 */
     private static void checkEnum(JsonObject obj, String path, String key, List<String> issues, String... allowed) {
         if (!obj.has(key)) return;
@@ -338,6 +413,27 @@ public final class ScriptValidator {
         }
         sb.append("）");
         issues.add(sb.toString());
+    }
+
+    /**
+     * 校验 fade 覆盖层的 color 十六进制格式。
+     * <p>
+     * 规则与运行期 {@code FadeLayer.setColor} 的文档契约一致：#RRGGBB 六位十六进制，
+     * 前缀 {@code #} 可省，大小写均可（{@code Integer.parseInt(_, 16)} 接受 a-f）。
+     * 字段缺省时跳过——运行期默认回退黑色（不告警），仅在作者显式写了非法色时提示。
+     */
+    private static void checkHexColor(JsonObject obj, String path, String key, List<String> issues) {
+        if (!obj.has(key)) return;
+        JsonElement e = obj.get(key);
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
+            issues.add(path + "." + key + " 应为字符串颜色（#RRGGBB 六位十六进制，如 \"#000000\"）");
+            return;
+        }
+        String v = e.getAsString();
+        String hex = v.startsWith("#") ? v.substring(1) : v;
+        if (!hex.matches("[0-9a-fA-F]{6}")) {
+            issues.add(path + "." + key + " 颜色格式非法: \"" + v + "\"（需 #RRGGBB 六位十六进制，如 \"#000000\"）");
+        }
     }
 
     /**

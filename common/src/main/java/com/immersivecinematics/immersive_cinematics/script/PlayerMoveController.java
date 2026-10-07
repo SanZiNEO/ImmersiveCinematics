@@ -124,6 +124,18 @@ public class PlayerMoveController {
         return current != null;
     }
 
+    /**
+     * 宏观循环折返瞬间：目标索引单调推进（{@link #destIndex}），回到起点需复位，
+     * 否则第二圈起不再驱动玩家移动。不清目标表（与脚本启动时同一份）。
+     */
+    public void onScriptLoop() {
+        current = null;
+        if (targets.size() >= 2) {
+            destIndex = 1; // 与 onScriptStart 一致：从 targets[0] 走向 targets[1]
+            moving = true;
+        }
+    }
+
     /** 脚本停止/打断/结束 → 清状态（下一帧不再驱动输入） */
     public void onStop() {
         targets.clear();

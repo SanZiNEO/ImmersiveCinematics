@@ -1,8 +1,9 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.CameraState;
+import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
-import com.immersivecinematics.immersive_cinematics.proto.QuadrantProto;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -75,17 +76,17 @@ public abstract class CameraMixin {
     @Inject(method = "setup", at = @At("HEAD"), cancellable = true)
     private void onSetup(BlockGetter level, Entity entity, boolean detached,
                          boolean mirror, float partialTick, CallbackInfo ci) {
-        // 🧪 四象限原型：每个原型相机实例由自己的模组相机状态驱动（与下方生产分支同一套接管逻辑）
-        QuadrantProto.ProtoCamera proto = QuadrantProto.isEnabled()
-                ? QuadrantProto.cameraOf((Camera) (Object) this) : null;
-        if (proto != null) {
+        // lane 相机（多相机渲染底层）：由 LaneRenderer 的 lane 状态驱动，与下方生产分支同一套接管逻辑
+        LaneRenderer.Lane lane = LaneRenderer.laneOf((Camera) (Object) this);
+        if (lane != null) {
+            CameraState laneState = lane.state();
             this.initialized = true;
             this.level = level;
             this.entity = entity;
             this.detached = detached;
-            Vec3 protoPos = proto.path().getPosition();
-            setPosition(protoPos.x, protoPos.y, protoPos.z);
-            setRotation(proto.props().getYaw(), proto.props().getPitch());
+            Vec3 lanePos = laneState.position();
+            setPosition(lanePos.x, lanePos.y, lanePos.z);
+            setRotation(laneState.yaw(), laneState.pitch());
             ci.cancel();
             return;
         }
@@ -109,6 +110,12 @@ public abstract class CameraMixin {
             return;
         }
 
+        // 读取统一只读状态快照（由 onRenderFrame 帧末生成；无活跃状态时为 null，防御性回落到原版）
+        CameraState state = mgr.getCameraState();
+        if (state == null) {
+            return;
+        }
+
         // 手动设置原版 setup() 中的关键字段（因为 ci.cancel() 跳过了原版逻辑）
         this.initialized = true;
         this.level = level;
@@ -116,10 +123,10 @@ public abstract class CameraMixin {
         this.detached = detached;
 
         // 直接读取精确值（每帧已由 onRenderFrame 精确重算，不需要 partialTick 插值）
-        Vec3 pos = mgr.getPath().getPosition();
+        Vec3 pos = state.position();
         setPosition(pos.x, pos.y, pos.z);
-        float yaw = mgr.getProperties().getYaw();
-        float pitch = mgr.getProperties().getPitch();
+        float yaw = state.yaw();
+        float pitch = state.pitch();
         setRotation(yaw, pitch);
 
         long now = System.currentTimeMillis();
@@ -147,8 +154,8 @@ public abstract class CameraMixin {
      */
     @Inject(method = "getEntity", at = @At("HEAD"), cancellable = true)
     private void onGetEntity(CallbackInfoReturnable<Entity> cir) {
-        // 🧪 四象限原型：原型相机返回玩家，避免实体层把玩家当作相机本体跳过
-        if (QuadrantProto.isEnabled() && QuadrantProto.cameraOf((Camera) (Object) this) != null) {
+        // lane 相机返回玩家，避免实体层把玩家当作相机本体跳过
+        if (LaneRenderer.laneOf((Camera) (Object) this) != null) {
             cir.setReturnValue(Minecraft.getInstance().player);
             return;
         }
@@ -170,8 +177,8 @@ public abstract class CameraMixin {
      */
     @Inject(method = "isDetached", at = @At("HEAD"), cancellable = true)
     private void onIsDetached(CallbackInfoReturnable<Boolean> cir) {
-        // 🧪 四象限原型：与生产分支同义（isRenderPlayerModel）——玩家实体要在四象限里都渲染出来
-        if (QuadrantProto.isEnabled() && QuadrantProto.cameraOf((Camera) (Object) this) != null) {
+        // lane 相机与生产分支同义（isRenderPlayerModel）——玩家实体要在每条 lane 里都渲染出来
+        if (LaneRenderer.laneOf((Camera) (Object) this) != null) {
             cir.setReturnValue(CinematicController.INSTANCE.isRenderPlayerModel());
             return;
         }

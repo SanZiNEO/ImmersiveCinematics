@@ -1,9 +1,10 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
+import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
-import com.immersivecinematics.immersive_cinematics.proto.QuadrantProto;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.Camera;
@@ -31,15 +32,19 @@ public abstract class GameRendererMixin {
     @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
     private void onGetFov(Camera camera, float partialTick, boolean useFOVSetting,
                           CallbackInfoReturnable<Double> cir) {
-        // 🧪 四象限原型：原型相机用自己的 fov/zoom（与下方生产分支同一套光学逻辑）
-        QuadrantProto.ProtoCamera proto = QuadrantProto.isEnabled() ? QuadrantProto.cameraOf(camera) : null;
-        if (proto != null) {
-            cir.setReturnValue(ic$effectiveFov(proto.props().getFov(), proto.props().getZoom()));
+        // lane 相机（多相机渲染底层）：用自己的 fov/zoom，与下方生产分支同一套光学逻辑
+        LaneRenderer.Lane lane = LaneRenderer.laneOf(camera);
+        if (lane != null) {
+            CameraState laneState = lane.state();
+            cir.setReturnValue(ic$effectiveFov(laneState.fov(), laneState.zoom()));
             return;
         }
         CameraManager mgr = CameraManager.INSTANCE;
         if (mgr.isActive() && mgr.hasActiveCameraClip()) {
-            cir.setReturnValue(ic$effectiveFov(mgr.getProperties().getFov(), mgr.getProperties().getZoom()));
+            CameraState state = mgr.getCameraState();
+            if (state != null) {
+                cir.setReturnValue(ic$effectiveFov(state.fov(), state.zoom()));
+            }
         }
     }
 
@@ -102,7 +107,11 @@ public abstract class GameRendererMixin {
     private void onBeforePrepareCullFrustum(float partialTick, long nanoTime, PoseStack poseStack, CallbackInfo ci) {
         CameraManager mgr = CameraManager.INSTANCE;
         if (mgr.isActive() && mgr.hasActiveCameraClip()) {
-            float rollDeg = mgr.getProperties().getRoll();
+            CameraState state = mgr.getCameraState();
+            if (state == null) {
+                return;
+            }
+            float rollDeg = state.roll();
             if (rollDeg != 0.0F) {
                 Vector3f look = Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
                 // 绕视线轴正角度 = 从观众视角逆时针，取反使 roll>0 为屏幕顺时针（画面向右倒）

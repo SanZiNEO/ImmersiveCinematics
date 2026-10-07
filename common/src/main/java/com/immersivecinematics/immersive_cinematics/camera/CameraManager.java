@@ -24,16 +24,15 @@ public class CameraManager {
     private final CameraProperties activeProperties = new CameraProperties();
     private final CameraPath activePath = new CameraPath();
 
-    private final CameraProperties stagedProperties = new CameraProperties();
-    private final CameraPath stagedPath = new CameraPath();
-    private boolean stagedReady = false;
-
     private final ScriptPlayer scriptPlayer = new ScriptPlayer();
     private boolean active = false;
     private boolean stopping = false;
 
     /** hasActiveCameraClip 的帧级缓存，避免 9 个 Mixin 调用点每帧重复扫描 */
     private boolean cachedHasActiveCameraClip = false;
+
+    /** 统一只读相机状态快照（每帧更新末尾刷新；无活跃状态时为 null） */
+    private CameraState cameraState = null;
 
     private double gameTimeSeconds = 0;
     private long lastRealNanos = 0;
@@ -73,7 +72,6 @@ public class CameraManager {
         activeProperties.setYawDirect(playerYaw);
         activeProperties.setPitchDirect(playerPitch);
 
-        stagedReady = false;
         active = true;
         stopping = false;
     }
@@ -148,6 +146,7 @@ public class CameraManager {
 
         if (!(active && scriptPlayer.isPlaying())) {
             startScriptInternal(script);
+            reportPlaybackStarted(script);
             return 1;
         }
 
@@ -174,8 +173,13 @@ public class CameraManager {
         requestExit(ExitReason.SYSTEM_STOP);
     }
 
-    public void playCinematic(CinematicScript script) {
-        playScript(script);
+    /**
+     * {@link #playScript} 的别名（语义相同，返回值透传）。
+     *
+     * @return 0=被拒绝, 1=已开始播放, 2=已排队等待
+     */
+    public int playCinematic(CinematicScript script) {
+        return playScript(script);
     }
 
     public String getActiveScriptId() {
@@ -322,7 +326,6 @@ public class CameraManager {
         }
         previewInitialized = true;
 
-        stagedReady = false;
         active = true;
         stopping = false;
 
@@ -334,9 +337,31 @@ public class CameraManager {
         } else {
             CinematicController.INSTANCE.apply(scriptPlayer.getCurrentProperties());
         }
+
+        // 写侧收口：scriptPlayer.start 已预执行脚本首帧、直写内部状态；这里立即刷新统一快照，
+        // 使同一 tick 内后续读取（如 PreloadRequester）看到接播后的最新值，而非过期/空快照。
+        refreshCameraState();
     }
 
-    // ========== 预置状态写入（staged）— 仅供编辑器预览 ==========
+    /**
+     * 服务端账本上报：脚本**真正开始播放**时发 C2SPlaybackStarted（{@code started=true}）。
+     * <p>
+     * 只在“实际开始播放”的入口调用——直接开始（{@link #playScript} 无播放分支）与
+     * 结束接播（{@link #deactivateNow} 的 pendingScript / scriptQueue 分支）。排队等待、被拒绝、
+     * 编辑器预览都不上报，否则服务端 {@code ScriptEventManager} 的观看者账本与触发去重
+     * （{@code TriggerEngine.shouldSkip}）会与实际播放状态错位。
+     * <p>
+     * refId 留空：play 命令的传输层 ACK 由 {@code ClientScriptReceiver} 单独回执（ACK 与“已开始”
+     * 两件事解耦，见 {@code C2SPlaybackStartedPacket}）。
+     */
+    private void reportPlaybackStarted(CinematicScript script) {
+        if (script == null) return;
+        String id = script.getId();
+        if (id == null || id.isEmpty()) return;
+        com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SPlaybackStarted",
+                () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                        new com.immersivecinematics.immersive_cinematics.trigger.network.C2SPlaybackStartedPacket(id)));
+    }
 
     // ========== 组 7：编辑器拖拽直控（bbs 式"编辑即生效"，零解析零重启） ==========
 
@@ -348,49 +373,8 @@ public class CameraManager {
     /** 编辑器拖拽直控：直接设置当前相机值（立即生效，零解析零重启） */
     public void previewSetCamera(float yaw, float pitch, float roll, float fov, float zoom) {
         activeProperties.setAllDirect(yaw, pitch, roll, fov, zoom);
-    }
-
-    public void stageTargetPosition(Vec3 pos, float duration) {
-        stagedPath.setTargetPosition(pos, duration);
-        stagedReady = true;
-    }
-
-    public void stageTargetYaw(float yaw, float duration) {
-        stagedProperties.setTargetYaw(yaw, duration);
-        stagedReady = true;
-    }
-
-    public void stageTargetPitch(float pitch, float duration) {
-        stagedProperties.setTargetPitch(pitch, duration);
-        stagedReady = true;
-    }
-
-    public void stageTargetRoll(float roll, float duration) {
-        stagedProperties.setTargetRoll(roll, duration);
-        stagedReady = true;
-    }
-
-    public void stageTargetFov(float fov, float duration) {
-        stagedProperties.setTargetFov(fov, duration);
-        stagedReady = true;
-    }
-
-    public void stageTargetZoom(float zoom, float duration) {
-        stagedProperties.setTargetZoom(zoom, duration);
-        stagedReady = true;
-    }
-
-    public void commitStagedState() {
-        if (!stagedReady) return;
-
-        activePath.overrideFrom(stagedPath);
-        activeProperties.overrideFrom(stagedProperties);
-
-        stagedReady = false;
-    }
-
-    public boolean isStagedReady() {
-        return stagedReady;
+        // 直写穿透：本帧 getFov（在 onRenderFrame 之前调用）必须立即读到直控值，与改造前一致
+        refreshCameraState();
     }
 
     // ========== 帧回调驱动 ==========
@@ -398,6 +382,7 @@ public class CameraManager {
     public void onRenderFrame() {
         if (!active) {
             cachedHasActiveCameraClip = false;
+            refreshCameraState();
             return;
         }
 
@@ -488,6 +473,10 @@ public class CameraManager {
                 requestExit(ExitReason.NATURAL_END);
             }
         }
+
+        // 帧末统一生成/替换快照：本帧所有渲染侧读取（含 onRenderFrame 之后调用的
+        // CameraMixin 读取、roll、setupRender）都拿到这一份，且同帧内多次读取一致。
+        refreshCameraState();
     }
 
     public double getGameTimeSeconds() {
@@ -532,15 +521,22 @@ public class CameraManager {
             CinematicScript next = pendingScript;
             pendingScript = null;
             startScriptInternal(next);
+            reportPlaybackStarted(next);
         } else if (!scriptQueue.isEmpty()) {
-            startScriptInternal(scriptQueue.poll());
+            CinematicScript next = scriptQueue.poll();
+            startScriptInternal(next);
+            reportPlaybackStarted(next);
         } else {
             // 真正回到正常游戏：不再无条件/按尾段空档强制 allChanged；
             // 释放时由服务端差集补发自动决定需要重发的玩家区区块。
         }
+
+        // 停用即失效快照；若 deactivateNow 末尾接播了 pendingScript/queue（active 又为 true），
+        // 这里重建为接播后的最新值——否则本帧 Mixin 会读到 null 而原实现读到接播脚本的首帧值。
+        refreshCameraState();
     }
 
-    // ========== tick 驱动（staged 缓冲区过渡插值） ==========
+    // ========== tick 驱动 ==========
 
     public void tick() {
         if (!active) return;
@@ -559,11 +555,6 @@ public class CameraManager {
                         String.format("%.1f", pos.x), String.format("%.1f", pos.y), String.format("%.1f", pos.z));
             }
         }
-        if (stagedReady) {
-            float deltaTime = 1f / 20f;
-            stagedProperties.tick(deltaTime);
-            stagedPath.tick(deltaTime);
-        }
     }
 
     // ========== Mixin 读取接口 ==========
@@ -574,6 +565,27 @@ public class CameraManager {
 
     public CameraPath getPath() {
         return activePath;
+    }
+
+    /**
+     * 统一只读相机状态快照（本帧最新值）；无活跃相机时为 {@code null}。
+     * <p>
+     * 由 {@link #refreshCameraState()} 在每帧更新末尾（{@code onRenderFrame}）、
+     * 停用/重启（{@code deactivateNow} / {@code startScriptInternal}）与所有直写入口
+     * （{@code previewSetCamera} / {@code setCameraDirect}）处刷新，
+     * 保证任何写入后立即反映新值、同一帧内多次读取结果一致。
+     */
+    public CameraState getCameraState() {
+        return cameraState;
+    }
+
+    /** 从内部状态（activePath / activeProperties 的 current 值）重建统一快照；无活跃相机时置 null。 */
+    private void refreshCameraState() {
+        cameraState = active
+                ? new CameraState(activePath.getPosition(),
+                        activeProperties.getYaw(), activeProperties.getPitch(),
+                        activeProperties.getRoll(), activeProperties.getFov(), activeProperties.getZoom())
+                : null;
     }
 
     public boolean isActive() {
@@ -600,13 +612,23 @@ public class CameraManager {
     public void setCameraDirect(float yaw, float pitch, float roll, float fov, float zoom) {
         if (!active) return;
         activeProperties.setAllDirect(yaw, pitch, roll, fov, zoom);
+        // 直写穿透：同 previewSetCamera，保证本帧 getFov 立即读到新值
+        refreshCameraState();
+    }
+
+    /**
+     * 直控写入（含位置）：飞行取景等需要同时写位置与光学的直写路径。
+     * <p>写侧收口——调用方不再直写内部 {@code activePath}/{@code activeProperties}；
+     * 写完立即刷新统一快照，保证任何写入后 {@link #getCameraState()} 立即反映新值。
+     */
+    public void setCameraDirect(Vec3 position, float yaw, float pitch, float roll, float fov, float zoom) {
+        activePath.setPositionDirect(position);
+        activeProperties.setAllDirect(yaw, pitch, roll, fov, zoom);
+        refreshCameraState();
     }
     public void reset() {
         activeProperties.reset();
         activePath.reset();
-        stagedProperties.reset();
-        stagedPath.reset();
-        stagedReady = false;
         scriptQueue.clear();
     }
 }

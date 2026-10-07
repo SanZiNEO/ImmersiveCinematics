@@ -11,8 +11,6 @@ import net.minecraft.client.gui.GuiGraphics;
 public class PipLayer implements OverlayLayer {
 
     private static final int DEFAULT_Z_INDEX = 40;
-    private static final int BORDER_COLOR = 0xFFFFFFFF;
-    private static final int FILL_COLOR = 0x40000000;
     private static final int BORDER_WIDTH = 2;
 
     private float opacity = 0f;
@@ -38,19 +36,19 @@ public class PipLayer implements OverlayLayer {
         // Semi-transparent fill
         int fillAlpha = (int) (opacity * 64); // 25% of full opacity
         int fillArgb = (fillAlpha << 24) | 0x00000000;
-        guiGraphics.fill(ix, iy, ix + iw, iy + ih, FILL_COLOR);
+        guiGraphics.fill(ix, iy, ix + iw, iy + ih, fillArgb);
 
         // White border (2px)
         int borderAlpha = (int) (opacity * 255);
         int borderArgb = (borderAlpha << 24) | 0x00FFFFFF;
         // Top
-        guiGraphics.fill(ix, iy, ix + iw, iy + BORDER_WIDTH, BORDER_COLOR);
+        guiGraphics.fill(ix, iy, ix + iw, iy + BORDER_WIDTH, borderArgb);
         // Bottom
-        guiGraphics.fill(ix, iy + ih - BORDER_WIDTH, ix + iw, iy + ih, BORDER_COLOR);
+        guiGraphics.fill(ix, iy + ih - BORDER_WIDTH, ix + iw, iy + ih, borderArgb);
         // Left
-        guiGraphics.fill(ix, iy + BORDER_WIDTH, ix + BORDER_WIDTH, iy + ih - BORDER_WIDTH, BORDER_COLOR);
+        guiGraphics.fill(ix, iy + BORDER_WIDTH, ix + BORDER_WIDTH, iy + ih - BORDER_WIDTH, borderArgb);
         // Right
-        guiGraphics.fill(ix + iw - BORDER_WIDTH, iy + BORDER_WIDTH, ix + iw, iy + ih - BORDER_WIDTH, BORDER_COLOR);
+        guiGraphics.fill(ix + iw - BORDER_WIDTH, iy + BORDER_WIDTH, ix + iw, iy + ih - BORDER_WIDTH, borderArgb);
     }
 
     @Override

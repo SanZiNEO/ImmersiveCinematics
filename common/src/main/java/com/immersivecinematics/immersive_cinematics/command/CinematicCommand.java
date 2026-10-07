@@ -20,7 +20,6 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.phys.Vec3;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -137,9 +136,10 @@ public class CinematicCommand {
         // N1：握手 — 登记 ACK，超时重发（幂等：playCinematic 有打断/排队逻辑）
         final Collection<ServerPlayer> ackTargets = targets;
         String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
-        // 结构坐标解析：脚本关键帧中的 look_at_target_structure 字段 → 服务端定位结构中心 → 替换为 look_at_target_x/y/z
-        // （坐标按执行者所在维度/位置定位最近结构，随脚本 JSON 推送；脚本文件本身不被修改）
-        final String resolvedJson = resolveStructureTargets(json, source);
+        // 结构/方块来源解析：脚本关键帧中的 look_at_target_structure、position.relative_origin 等
+        // → 服务端定位最近结构/方块 → 替换为坐标（坐标按执行者所在维度/位置定位；脚本文件本身不被修改）
+        final String resolvedJson = com.immersivecinematics.immersive_cinematics.util.ScriptStructureResolver
+                .resolveTargets(json, source.getLevel(), source.getPosition());
         com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId, () -> {
             for (ServerPlayer p : ackTargets) {
                 S2CPlayScriptPacket.send(p, resolvedJson, refId);
@@ -154,141 +154,6 @@ public class CinematicCommand {
                 count, script.getMeta().getName(),
                 String.format("%.1f", script.getTimeline().getTotalDuration()));
         return 1;
-    }
-
-    /**
-     * 服务端结构坐标解析：遍历脚本关键帧，把结构目标替换为结构中心坐标——
-     * look_at_target_structure → look_at_target_x/y/z；position.relative_origin（结构 id）→
-     * "coordinate" + relative_origin_x/y/z。脚本文件本身不被修改，只替换推送内容。
-     * 定位失败保留原字段（客户端该端无目标，片段按空处理）。
-     */
-    private static String resolveStructureTargets(String json, CommandSourceStack source) {
-        try {
-            com.google.gson.JsonObject root = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
-            com.google.gson.JsonArray tracks = root.getAsJsonObject("timeline").getAsJsonArray("tracks");
-            if (tracks == null) return json;
-            java.util.Map<String, Vec3> posCache = new java.util.HashMap<>();
-            boolean changed = false;
-            for (com.google.gson.JsonElement te : tracks) {
-                if (!te.isJsonObject()) continue;
-                com.google.gson.JsonArray clips = te.getAsJsonObject().getAsJsonArray("clips");
-                if (clips == null) continue;
-                for (com.google.gson.JsonElement ce : clips) {
-                    if (!ce.isJsonObject()) continue;
-                    com.google.gson.JsonArray kfs = ce.getAsJsonObject().getAsJsonArray("keyframes");
-                    if (kfs == null) continue;
-                    for (com.google.gson.JsonElement ke : kfs) {
-                        if (!ke.isJsonObject()) continue;
-                        com.google.gson.JsonObject kf = ke.getAsJsonObject();
-                        if (kf.has("look_at_target_structure")) {
-                            changed |= replaceStructureTarget(kf, "look_at_target_structure",
-                                    "look_at_target_x", "look_at_target_y", "look_at_target_z", posCache, source);
-                        }
-                        if (kf.has("position") && kf.get("position").isJsonObject()) {
-                            com.google.gson.JsonObject pos = kf.getAsJsonObject("position");
-                            if (pos.has("relative_origin")) {
-                                com.google.gson.JsonElement ro = pos.get("relative_origin");
-                                if (ro.isJsonObject() || (ro.isJsonPrimitive() && ro.getAsString().startsWith("block:"))) {
-                                    // 方块基准：服务端定位 → 替换为 coordinate + 方块中心坐标
-                                    changed |= replaceRelativeOriginBlock(pos, source);
-                                } else if (ro.isJsonPrimitive()) {
-                                    // 结构 id / coordinate：走原结构替换路径
-                                    changed |= replaceStructureTarget(pos, "relative_origin",
-                                            "relative_origin_x", "relative_origin_y", "relative_origin_z", posCache, source);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return changed ? new com.google.gson.Gson().toJson(root) : json;
-        } catch (Exception e) {
-            LOGGER.warn("结构坐标替换失败（原脚本照常推送）: {}", e.getMessage());
-            return json;
-        }
-    }
-
-    /**
-     * 把对象内的结构字段替换为结构中心坐标：
-     * sourceField（结构 id）→ 解析成功：写入 targetX/Y/Z 并移除 sourceField；
-     * 解析失败（或 sourceField 非结构 id，如 "coordinate"）：保留原字段。
-     *
-     * @return 是否发生了替换
-     */
-    private static boolean replaceStructureTarget(com.google.gson.JsonObject obj, String sourceField,
-                                                  String targetX, String targetY, String targetZ,
-                                                  java.util.Map<String, Vec3> posCache, CommandSourceStack source) {
-        String structureId = obj.get(sourceField).getAsString();
-        if ("coordinate".equals(structureId) || structureId.isEmpty()) return false;
-        Vec3 pos = posCache.containsKey(structureId) ? posCache.get(structureId) : locateStructure(source, structureId);
-        posCache.put(structureId, pos);
-        if (pos != null) {
-            obj.addProperty(targetX, (float) pos.x);
-            obj.addProperty(targetY, (float) pos.y);
-            obj.addProperty(targetZ, (float) pos.z);
-            obj.remove(sourceField);
-            return true;
-        }
-        LOGGER.debug("结构 '{}' 定位失败，脚本保留 structure 字段（客户端该端无目标，片段按空处理）", structureId);
-        return false;
-    }
-
-    /**
-     * 服务端方块基准替换：relative_origin 的 block 写法（字符串 "block:id[:radius]" 或结构化对象
-     * {type:"block",block,radius}）→ 定位服务端最近匹配方块，替换为 "coordinate" + 方块中心坐标。
-     * 定位失败保留原字段（客户端该端无目标，片段按空处理）。
-     */
-    private static boolean replaceRelativeOriginBlock(com.google.gson.JsonObject pos, CommandSourceStack source) {
-        com.google.gson.JsonElement ro = pos.get("relative_origin");
-        String blockId;
-        int radius;
-        if (ro.isJsonPrimitive()) {
-            String[] parsed = com.immersivecinematics.immersive_cinematics.script.PositionData.parseBlockOriginString(ro.getAsString());
-            blockId = parsed[0];
-            radius = Integer.parseInt(parsed[1]);
-        } else {
-            com.google.gson.JsonObject o = ro.getAsJsonObject();
-            String type = o.has("type") ? o.get("type").getAsString() : "";
-            if (!"block".equals(type)) return false;
-            blockId = o.get("block").getAsString();
-            radius = o.has("radius") ? o.get("radius").getAsInt()
-                    : com.immersivecinematics.immersive_cinematics.script.PositionData.DEFAULT_BLOCK_RADIUS;
-        }
-        Vec3 p = locateBlock(source, blockId, radius);
-        if (p != null) {
-            pos.addProperty("relative_origin_x", (float) p.x);
-            pos.addProperty("relative_origin_y", (float) p.y);
-            pos.addProperty("relative_origin_z", (float) p.z);
-            pos.addProperty("relative_origin", "coordinate");
-            return true;
-        }
-        LOGGER.debug("方块基准 '{}' 定位失败，脚本保留 block 字段（客户端该端无目标，片段按空处理）", blockId);
-        return false;
-    }
-
-    /** 服务端方块定位：以执行者位置为中心搜索最近匹配方块，返回方块中心坐标 */
-    private static Vec3 locateBlock(CommandSourceStack source, String blockId, int radius) {
-        if (source.getLevel() instanceof net.minecraft.server.level.ServerLevel) {
-            net.minecraft.server.level.ServerLevel serverLevel =
-                    (net.minecraft.server.level.ServerLevel) source.getLevel();
-            net.minecraft.core.BlockPos found = com.immersivecinematics.immersive_cinematics.util.BlockLocator.findNearest(
-                    serverLevel, blockId, net.minecraft.core.BlockPos.containing(source.getPosition()), radius);
-            if (found != null) {
-                return new Vec3(found.getX() + 0.5, found.getY() + 0.5, found.getZ() + 0.5);
-            }
-        }
-        return null;
-    }
-
-    /** 服务端结构定位：以执行者位置为中心做附近搜寻（3 区块），返回结构 bounding box 中心 */
-    private static Vec3 locateStructure(CommandSourceStack source, String structureId) {
-        if (source.getLevel() instanceof net.minecraft.server.level.ServerLevel) {
-            net.minecraft.server.level.ServerLevel serverLevel =
-                    (net.minecraft.server.level.ServerLevel) source.getLevel();
-            return com.immersivecinematics.immersive_cinematics.util.StructureLocator.locateCenter(
-                    serverLevel, structureId, net.minecraft.core.BlockPos.containing(source.getPosition()), 3);
-        }
-        return null;
     }
 
     private static int stopScript(CommandContext<CommandSourceStack> context) {

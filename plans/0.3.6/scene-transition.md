@@ -73,6 +73,8 @@ RGBA 的 A 通道**不属于调色**（[画面颜色调整](./screen-color-adjus
 - **与模板的关系**：这类 clip 是[模板](./templates.md)片段级模板的天然素材（"黑场 1s" = 一个片段模板，一键插入）。
 - **底层已具备**：纯色覆盖层（FadeLayer）+ opacity 关键帧（0.3.5）；黑场与白场之间没有任何实现差异（同一个工具换 `color`）。
 - 与 `hold_at_end` / 末尾保持的组合（压场停在末尾等触发）属脚本编排，不属本文。
+- **已验证可用（手写 JSON，2026-10-07）**：`cinematics/tests/transition/test_fade_black.json` / `test_fade_white.json`（CAMERA 轨两段 + OVERLAY 轨两个 fade clip）经 `ScriptValidator`（与 `/icinematics validate` 同源）校验通过。链路逐环节核实：`OverlayTrackPlayer.createLayer` 读 `layer_type` / `color` → `FadeLayer.setColor`（解析 `#RRGGBB`，白场 `#FFFFFF` 成立）→ 关键帧 `opacity` 线性插值 → 两 clip 先后衔接时按 `findActiveClip` 切换层，衔接点两侧 opacity 均为 1（压场末尾 1 → 亮起开头 1）故黑场/白场不闪。**游戏内视觉效果未验证。**
+- **z 序事实（只记录不实现）**：`FadeLayer` 默认 `z_index=10`、`SubtitleLayer` 默认 `z_index=30`，`OverlayManager` 按 z 升序绘制（大者在上）→ fade 在字幕之下，**转场遮罩压不住字幕**（与 §6 待定项一致）。注意 `OverlayTrackPlayer.createLayer` 对所有层类型统一取 clip 的 `z_index`（缺省 10），故要真正让字幕压在 fade 之上，字幕 clip 需显式写 `z_index`（现有测试用 100）。要压住字幕需更高 z 或转场专用层——待定。
 
 ### 3.5 Wipe / 划像（后续候选）
 

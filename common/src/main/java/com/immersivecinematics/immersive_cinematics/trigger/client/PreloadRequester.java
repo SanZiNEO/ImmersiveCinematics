@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.trigger.client;
 
 import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
@@ -70,9 +71,10 @@ public final class PreloadRequester {
                 return;
             }
             boolean activeCamera = cam.hasActiveCameraClip();
+            CameraState camState = cam.getCameraState();
             Vec3 pos;
-            if (activeCamera) {
-                pos = cam.getPath().getPosition();
+            if (activeCamera && camState != null) {
+                pos = camState.position();
             } else {
                 // 空档/无镜头片段：相机不覆盖，实际是玩家视角，报玩家位置让服务端差集切回玩家区
                 if (mc.player == null) {

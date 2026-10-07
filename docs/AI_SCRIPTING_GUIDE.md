@@ -120,6 +120,8 @@
 
 常用行为开关（默认值合理，不写也行）：`block_keyboard: true`、`block_mouse: true`、`hide_hud: true`、`skippable: true`、`interruptible: true`、`hold_at_end: false`、`pause_when_game_paused: true`。`hide_arm`/`suppress_bob` 等隐藏类字段缺省为三态 `null`（跟随 `hide_hud`），需要显式覆盖时才写 `true`/`false`。
 
+> **宏观循环 `macro_loop`**：`true` = 整条时间轴走到**宏观末端**（各片段展开结束时刻的最大值，含片段自身循环展开）后折回起点、无限重复；脚本不再自然结束（靠跳过/打断退出）。存在永不结束片段时末端不存在 → 不折叠。与 `hold_at_end` **互斥**（同时开会告警）。模式 `macro_loop_mode`（`repeat` 默认 / `pingpong`）**第一版只实现 `repeat`**，写 `pingpong` 会告警并按 `repeat` 播放。服务端 EVENT 不参与折叠。
+
 > **远距离场景记得保留预加载**：`meta.preload` 默认 `true`，但只有存在**非空 CAMERA 轨道**的脚本才会实际触发预加载（纯 HUD/字幕/事件脚本不会）。如果镜头要飞到玩家视距外（跨区块/跨维度），**不要写 `"preload": false`**；只有确认该脚本不需要预加载（例如纯 HUD/字幕/本地小范围）时才关掉，避免不必要开销。
 
 > **`interruptible` 与 `priority` 必读（播放队列规则）**：
@@ -136,7 +138,7 @@
 
 | 字段 | 说明 |
 |---|---|
-| `total_duration` | 总时长秒。正数 = 定长；负数 = 无限循环 |
+| `total_duration` | 总时长秒。正数 = 定长；负数 = 无限时长（脚本永不宣布结束，但**不会**回卷循环） |
 | `tracks` | 轨道数组。CAMERA 最多 1 条，LETTERBOX/EVENT 建议 1 条，AUDIO/OVERLAY/MOD_EVENT 不限 |
 
 ### 3.4 CAMERA 轨道（核心）
@@ -285,12 +287,43 @@
 | **荷兰角** | roll 0→15（紧张、不安感），配 zoom 1.2~1.5，慎用 |
 | **注视追踪** | `look_at: "entity"` + `look_at_selector`，位置走关键帧，镜头自动锁定目标（也可 `look_at: "coordinate"` 锁定固定点/结构） |
 | **手持感** | `cam_breath_enabled: true` + `cam_breath_intensity: 0.05`，让固定机位"活"起来 |
+| **黑场/白场转场** | OVERLAY 轨放两个 `fade` clip（压场 `opacity 0→1`、亮起 `1→0`），黑场 `color: "#000000"`、白场 `"#FFFFFF"`；两段 CAMERA 的硬切藏在黑/白里（见 §4.1） |
 
 **精细化的关键**：
 1. 一段 motion 至少 3 个关键帧（起→中→止），中间帧做缓急变化，比两点直线"有呼吸"
 2. 段落之间用 `morph` 过渡衔接，避免硬切跳变——**morph 是交叉淡化：过渡时长 t 秒 = 前一段尾部 t/2 与后一段头部 t/2 重叠**。`transition` 写在前一段 clip 上（表示"本 clip 尾部与下一 clip 的过渡"），**后一段的 `start_time` 必须 = 前一段末尾 − t/2**（编辑器会自动对齐；手写脚本要自己算）
 3. 特写/情绪段落用变焦 + 微俯 + 慢速（1 格/秒），全景段落用快一点（2~3 格/秒）
 4. 长脚本分段设计：开场全景 → 中段叙事特写 → 结尾收回
+
+### 4.1 黑场 / 白场转场（OVERLAY 轨预配置 clip）
+
+黑场 / 白场不是独立机制，就是 **OVERLAY 轨上两个"预配置好的 fade clip"**——`layer_type: "fade"`，黑场 `color: "#000000"`、白场 `color: "#FFFFFF"`，只差一个颜色。作者只决定"放哪、多长"：
+
+- **压场 clip**：`opacity` 关键帧 `0 → 1`（画面渐黑 / 渐白）
+- **亮起 clip**：`opacity` 关键帧 `1 → 0`（画面渐亮）
+- 两个 clip **接在同一个 OVERLAY 轨道**上（`亮起.start_time = 压场.start_time + 压场.duration`），衔接点两侧都是 `opacity 1` → 中间整段全黑/全白，把两段 CAMERA 之间的硬切藏在里面。
+
+```json
+{ "type": "OVERLAY",
+  "clips": [
+    { "start_time": 0, "duration": 4, "layer_type": "fade", "color": "#000000", "z_index": 10,
+      "keyframes": [
+        { "time": 0, "opacity": 0 },
+        { "time": 2, "opacity": 1 },
+        { "time": 4, "opacity": 1 } ] },
+    { "start_time": 4, "duration": 4, "layer_type": "fade", "color": "#000000", "z_index": 10,
+      "keyframes": [
+        { "time": 0, "opacity": 1 },
+        { "time": 2, "opacity": 0 },
+        { "time": 4, "opacity": 0 } ] }
+  ] }
+```
+
+**要点**：
+1. **关键帧 `time` 是 clip 内偏移**（每个 clip 都从 0 开始），不是全局时间——第二段 `start_time: 4`，其关键帧仍是 `0 / 2 / 4`。
+2. 想"黑场多停一会"：压场 clip 末尾多写一个 `opacity 1` 的关键帧（如上 `2 → 4` 保持全黑），或把 `duration` 拉长。
+3. **压不住字幕**：fade 的默认 `z_index` 是 10，比字幕（按 §3.5b 惯例写 30 或更高）低，`z_index` 大者在上 → 黑场期间字幕仍然可见。要让遮罩盖住字幕，得给 fade clip 写更高的 `z_index`（如 200）——转场遮罩是否该压住字幕设计上仍待定。
+4. 黑场与白场**没有任何实现差异**，只换 `color`；两个脚本实例见 `cinematics/tests/transition/test_fade_black.json` / `test_fade_white.json`。
 
 ---
 

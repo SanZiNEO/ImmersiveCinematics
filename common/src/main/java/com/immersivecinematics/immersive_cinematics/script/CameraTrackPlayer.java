@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.trigger.client.ClientEntityS
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -158,16 +159,17 @@ public class CameraTrackPlayer implements TrackPlayer {
             }
         }
 
-        Clip primaryClip = findActiveClip(globalTime);
-        if (primaryClip == null) return;
+        // 顶层活跃片段（轨道顺序最后者；后面的 clip 覆盖前面）驱动相机
+        Clip topClip = findActiveClip(globalTime);
+        if (topClip == null) return;
         // 目标不可用（结构/实体找不到）= 该片段按空处理（不写相机 → 玩家视角，与片段间隙同语义）
-        if (!isClipUsable(primaryClip)) {
+        if (!isClipUsable(topClip)) {
             warnClipUnusableOnce();
             return;
         }
 
-        float clipLocalTime = globalTime - primaryClip.getStartTime();
-        renderSingle(globalTime, primaryClip, clipLocalTime);
+        float clipLocalTime = globalTime - topClip.getStartTime();
+        renderSingle(globalTime, topClip, clipLocalTime);
     }
 
     /** 片段目标不可用提示只打一次（debug 级：作者排查可见，不打扰玩家） */
@@ -926,55 +928,45 @@ public class CameraTrackPlayer implements TrackPlayer {
         ClientEntitySelectorCache.clear();
     }
 
-    private Clip findActiveClip(float globalTime) {
+    /**
+     * 收集 globalTime 时刻的全部活跃片段（按轨道顺序；轨道内后面的 clip 在上层）。
+     * <p>
+     * 活跃窗口 = {@code [startTime, windowEnd)}；永不结束的片段
+     * （{@link Clip#isEffectivelyInfinite()}）自 {@code startTime} 起活跃，并按"终点"语义处理：
+     * 收集到它即停止，其后的内容不播放。
+     * <p>
+     * 相机驱动取集合中最后一个（{@link #findActiveClip(float)}）；完整集合留给将来的 lane 合成。
+     */
+    private List<Clip> findActiveClips(float globalTime) {
         List<Clip> clips = clips();
-        if (clips.isEmpty()) return null;
-
-        Clip result = null;
-        int resultIndex = -1;
-        int startIdx = Math.max(0, Math.min(lastClipIndex, clips.size() - 1));
-
-        for (int i = startIdx; i < clips.size(); i++) {
+        List<Clip> active = new ArrayList<>(2);
+        for (int i = 0; i < clips.size(); i++) {
             Clip clip = clips.get(i);
-            float clipEnd = clip.getWindowEnd();
-
             if (clip.isEffectivelyInfinite()) {
                 if (globalTime >= clip.getStartTime()) {
-                    result = clip;
-                    resultIndex = i;
+                    active.add(clip);
+                    break; // 终点：永不结束的片段之后的内容不播放
                 }
                 continue;
             }
-
-            if (globalTime >= clip.getStartTime() && globalTime < clipEnd) {
-                lastClipIndex = i;
-                return clip;
+            if (globalTime >= clip.getStartTime() && globalTime < clip.getWindowEnd()) {
+                active.add(clip);
             }
         }
+        return active;
+    }
 
-        for (int i = 0; i < startIdx; i++) {
-            Clip clip = clips.get(i);
-            float clipEnd = clip.getWindowEnd();
-
-            if (clip.isEffectivelyInfinite()) {
-                if (globalTime >= clip.getStartTime()) {
-                    result = clip;
-                    resultIndex = i;
-                }
-                continue;
-            }
-
-            if (globalTime >= clip.getStartTime() && globalTime < clipEnd) {
-                lastClipIndex = i;
-                return clip;
-            }
-        }
-
-        if (result != null) {
-            lastClipIndex = resultIndex;
-            return result;
-        }
-        return null;
+    /**
+     * 驱动相机的片段 = 顶层活跃片段 = 轨道顺序最后的活跃片段（后面的 clip 覆盖前面）。
+     * 无活跃片段返回 null（不写相机 → 玩家视角）。
+     */
+    private Clip findActiveClip(float globalTime) {
+        List<Clip> active = findActiveClips(globalTime);
+        if (active.isEmpty()) return null;
+        Clip top = active.get(active.size() - 1);
+        // 保留"上次驱动片段索引"状态（收集查询每帧全表扫描，不再用起点剪枝）
+        lastClipIndex = clips().indexOf(top);
+        return top;
     }
 
     private static float blendFloat(float a, float b, float weight) {

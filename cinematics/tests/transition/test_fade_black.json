@@ -1,0 +1,99 @@
+{
+  "meta": {
+    "id": "test_fade_black",
+    "name": "转场测试-黑场",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "黑场转场：OVERLAY 轨两个预配置 fade clip（color=#000000）——压场 0→1 + 亮起 1→0；两段 CAMERA 之间的硬切被黑场遮住",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_overlay_fade"] } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: test_fade_black | 转场: 黑场 | 压场 0-4s → 亮起 4-8s",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 4,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 4, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 4,
+            "duration": 4,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 4, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 4,
+            "layer_type": "fade",
+            "color": "#000000",
+            "z_index": 10,
+            "keyframes": [
+              { "time": 0, "opacity": 0 },
+              { "time": 2, "opacity": 1 },
+              { "time": 4, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 4,
+            "duration": 4,
+            "layer_type": "fade",
+            "color": "#000000",
+            "z_index": 10,
+            "keyframes": [
+              { "time": 0, "opacity": 1 },
+              { "time": 2, "opacity": 0 },
+              { "time": 4, "opacity": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

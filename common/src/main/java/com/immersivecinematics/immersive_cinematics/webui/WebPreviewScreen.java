@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.webui;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.immersivecinematics.immersive_cinematics.control.FlightModeManager;
 import com.google.gson.JsonObject;
@@ -135,18 +136,48 @@ public class WebPreviewScreen extends Screen {
         return super.keyReleased(keyCode, scanCode, modifiers);
     }
 
-    /** 前端请求进入飞控模式：与 Java 编辑器一致，用当前实际相机作为初始状态 */
-    public static void enterFlightMode(double x, double y, double z, float yaw, float pitch,
-                                       float roll, float fov, float zoom, boolean absolute) {
+    /**
+     * 前端请求进入飞控模式。
+     *
+     * <p>默认以当前实际相机为取景起点（与 Java 编辑器一致）；前端显式提供的字段
+     * （{@code x/y/z/yaw/pitch/roll/fov/zoom}，null 表示未提供）覆盖对应默认值，
+     * 未提供的字段才回落到当前相机状态。{@code absolute} 只作为飞控会话的坐标模式标记
+     * 转发给 {@link FlightModeManager}，不参与坐标解释。
+     */
+    public static void enterFlightMode(Double x, Double y, Double z, Float yaw, Float pitch,
+                                       Float roll, Float fov, Float zoom, boolean absolute) {
         CameraManager cam = CameraManager.INSTANCE;
-        Vec3 pos = cam.getPath().getPosition();
+        CameraState state = cam.getCameraState();
+        Vec3 pos;
+        float curYaw, curPitch, curRoll, curFov, curZoom;
+        if (state != null) {
+            pos = state.position();
+            curYaw = state.yaw();
+            curPitch = state.pitch();
+            curRoll = state.roll();
+            curFov = state.fov();
+            curZoom = state.zoom();
+        } else {
+            // 相机未激活：沿用内部状态的复位默认值，与改造前直读一致
+            pos = Vec3.ZERO;
+            curYaw = 0f;
+            curPitch = 0f;
+            curRoll = 0f;
+            curFov = 70f;
+            curZoom = 1f;
+        }
+        // 前端显式提供的字段优先，其余回落当前相机状态
+        Vec3 startPos = new Vec3(
+                x != null ? x : pos.x,
+                y != null ? y : pos.y,
+                z != null ? z : pos.z);
         FlightModeManager.INSTANCE.enter(
-                pos,
-                cam.getProperties().getYaw(),
-                cam.getProperties().getPitch(),
-                cam.getProperties().getRoll(),
-                cam.getProperties().getFov(),
-                cam.getProperties().getZoom(),
+                startPos,
+                yaw != null ? yaw : curYaw,
+                pitch != null ? pitch : curPitch,
+                roll != null ? roll : curRoll,
+                fov != null ? fov : curFov,
+                zoom != null ? zoom : curZoom,
                 absolute
         );
     }

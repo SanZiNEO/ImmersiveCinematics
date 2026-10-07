@@ -1,9 +1,11 @@
 package com.immersivecinematics.immersive_cinematics.control;
 
+import com.immersivecinematics.immersive_cinematics.mixin.MouseHandlerAccessor;
 import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.MouseHandler;
 import org.lwjgl.glfw.GLFW;
 
 public class CinematicController {
@@ -111,27 +113,37 @@ public class CinematicController {
      * 退出改用本方法按实际物理按键状态重建，避免玩家持续按住 W 时退出导致"按键被强制松开，
      * 直到松开重按才恢复"的卡键现象。
      * <ol>
+     *   <li>鼠标视角累积量：清空 {@code accumulatedDX/DY}，避免退出后第一次 {@code turnPlayer} 消费播放期间
+     *       积压位移；</li>
      *   <li>键盘：{@code KeyMapping.setAll()} 把全部 KEYSYM 绑定按当前物理按键状态 setDown；</li>
-     *   <li>鼠标按钮：{@code KeyMapping.setAll()} 只处理键盘，鼠标按键单独按 GLFW 物理状态同步；</li>
-     *   <li>鼠标视角累积量：清空 accumulatedDX/DY，避免退出后第一次 turnPlayer 消费播放期间积压位移。</li>
+     *   <li>鼠标按钮：{@code KeyMapping.setAll()} 只处理键盘，鼠标按键单独按 GLFW 物理状态同步。</li>
      * </ol>
      */
     public void syncInputStateAfterExit() {
         Minecraft mc = Minecraft.getInstance();
+
+        // 1) 鼠标视角累积量清零——放在 level 判空之前，保证任何退出路径（含退出世界回标题界面）都清零。
+        //    屏蔽期 MouseHandlerMixin.onMove 未被拦截，vanilla 仍在累积 accumulatedDX/DY；而本模组在
+        //    turnPlayer HEAD ci.cancel()，vanilla 的“消费即清零”被整段跳过，累积量只增不减。不清零则退出后
+        //    第一次 turnPlayer 会按积压位移转动视角（首帧跳变）。直写字段用 Accessor，不使用反射。
+        MouseHandler mouseHandler = mc.mouseHandler;
+        if (mouseHandler != null) {
+            MouseHandlerAccessor accessor = (MouseHandlerAccessor) mouseHandler;
+            accessor.ic$setAccumulatedDX(0.0D);
+            accessor.ic$setAccumulatedDY(0.0D);
+        }
+
         if (mc.level == null) return;
 
-        // 1) 键盘状态重同步（替代 releaseAll 的"全量释放"）
+        // 2) 键盘状态重同步（替代 releaseAll 的"全量释放"）
         KeyMapping.setAll();
 
-        // 2) 鼠标按键状态重同步（KeyMapping.setAll() 只处理键盘；set() 内部按 Key 的类型/值匹配所有绑定该键的映射）
+        // 3) 鼠标按键状态重同步（KeyMapping.setAll() 只处理键盘；set() 内部按 Key 的类型/值匹配所有绑定该键的映射）
         long window = mc.getWindow().getWindow();
         for (int button = 0; button < 8; button++) { // 常用鼠标按钮 0..7（左/右/中/侧键等）
             boolean down = GLFW.glfwGetMouseButton(window, button) == GLFW.GLFW_PRESS;
             KeyMapping.set(InputConstants.Type.MOUSE.getOrCreate(button), down);
         }
-
-        // 3) 鼠标视角累积量不再需要清理：飞行时 onMove 在 vanilla 累积前已被中继层拦截，
-        //    accumulatedDX/DY 不会在播放期间增长；退出时保持原样即可。
     }
 
     /**

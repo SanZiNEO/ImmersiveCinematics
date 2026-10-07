@@ -228,14 +228,15 @@ public final class WebEditorApi {
     }
 
     private static void handleEnterFlightMode(JsonObject data) {
-        double x = data.has("x") ? data.get("x").getAsDouble() : 0;
-        double y = data.has("y") ? data.get("y").getAsDouble() : 0;
-        double z = data.has("z") ? data.get("z").getAsDouble() : 0;
-        float yaw = data.has("yaw") ? data.get("yaw").getAsFloat() : 0f;
-        float pitch = data.has("pitch") ? data.get("pitch").getAsFloat() : 0f;
-        float roll = data.has("roll") ? data.get("roll").getAsFloat() : 0f;
-        float fov = data.has("fov") ? data.get("fov").getAsFloat() : 70f;
-        float zoom = data.has("zoom") ? data.get("zoom").getAsFloat() : 1f;
+        // null = 前端未提供该字段；由接收端回落到当前相机状态
+        Double x = data.has("x") ? data.get("x").getAsDouble() : null;
+        Double y = data.has("y") ? data.get("y").getAsDouble() : null;
+        Double z = data.has("z") ? data.get("z").getAsDouble() : null;
+        Float yaw = data.has("yaw") ? data.get("yaw").getAsFloat() : null;
+        Float pitch = data.has("pitch") ? data.get("pitch").getAsFloat() : null;
+        Float roll = data.has("roll") ? data.get("roll").getAsFloat() : null;
+        Float fov = data.has("fov") ? data.get("fov").getAsFloat() : null;
+        Float zoom = data.has("zoom") ? data.get("zoom").getAsFloat() : null;
         boolean absolute = data.has("absolute") && data.get("absolute").getAsBoolean();
         // 进入飞控由独立 FlightModeManager 统一处理：暂停+直控+初始化
         WebPreviewScreen.enterFlightMode(x, y, z, yaw, pitch, roll, fov, zoom, absolute);

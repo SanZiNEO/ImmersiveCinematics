@@ -48,11 +48,19 @@ public class ClientScriptReceiver {
         Minecraft.getInstance().execute(() -> {
             try {
                 CinematicScript script = ScriptParser.parse(packet.getScriptJson());
-                CameraManager.INSTANCE.playCinematic(script);
-                LOGGER.info("Playing script from server: {}", script.getId());
-                // N1：play 回执（refId 随包回填）
-                com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                        new C2SPlaybackStartedPacket(script.getId(), packet.getRefId()));
+                int result = CameraManager.INSTANCE.playCinematic(script);
+                LOGGER.info("Playing script from server: {} (result={})", script.getId(), result);
+                if (result == 0) {
+                    LOGGER.warn("Play request rejected (queue full or not in world): {}", script.getId());
+                }
+                // N1：play 回执（仅传输层 ACK —— 排队/被拒绝也必须回，否则服务端 AckTracker 超时重发 play 包导致重复入队）。
+                // 服务端“已开始播放”账本由 CameraManager 在脚本真正开始时单独上报（reportPlaybackStarted），
+                // 因此这里一律 started=false，绝不谎报已开始。
+                if (packet.getRefId() != null && !packet.getRefId().isEmpty()) {
+                    com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SPlaybackStarted(ack)",
+                            () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                                    new C2SPlaybackStartedPacket(script.getId(), packet.getRefId(), false)));
+                }
             } catch (Exception e) {
                 LOGGER.error("Failed to parse script from server", e);
             }

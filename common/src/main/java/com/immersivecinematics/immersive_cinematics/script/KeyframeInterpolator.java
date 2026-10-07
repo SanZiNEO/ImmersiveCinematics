@@ -109,23 +109,6 @@ public final class KeyframeInterpolator {
     // ========== 位置插值 ==========
 
     /**
-     * 在两个关键帧之间插值位置（动态策略查找）
-     * <p>
-     * 通过 PathStrategies 注册表获取策略。保留作为后备入口。
-     *
-     * @param from 起始关键帧
-     * @param to   目标关键帧
-     * @param s    弧长进度 [0, 1]
-     * @param clip 所属片段（用于获取贝塞尔曲线和位置模式）
-     * @return 插值后的位置
-     */
-    public static Vec3 interpolatePosition(Keyframe from, Keyframe to, float s, Clip clip) {
-        String curveType = (clip.getCurve() != null) ? clip.getCurve().getType() : null;
-        PathStrategy strategy = PathStrategies.get(curveType);
-        return interpolatePosition(from, to, s, clip, strategy);
-    }
-
-    /**
      * 在两个关键帧之间插值位置（显式策略，用于 TrackPlayer 持有独立策略实例）
      * <p>
      * 允许调用者传入已创建的 PathStrategy 实例，避免静态单例。

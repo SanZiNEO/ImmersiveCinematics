@@ -64,6 +64,13 @@
 
 **0.3.6 方向：删除 staged 体系**，避免 direct 与 staged 两套状态模型并存。具体删除范围执行时再核对。
 
+**已落地（2026-10-07）：staged 体系已删除**，编译通过，全仓无残留引用。删除清单：
+
+- `CameraManager`：字段 `stagedProperties` / `stagedPath` / `stagedReady`；方法 `stageTargetPosition` / `stageTargetYaw` / `stageTargetPitch` / `stageTargetRoll` / `stageTargetFov` / `stageTargetZoom` / `commitStagedState` / `isStagedReady`；`tick()` 内的 staged 分支；`activate()` / `startScriptInternal()` / `reset()` 中的 staged 赋值；过时注释 `// ========== 预置状态写入（staged）— 仅供编辑器预览 ==========`。
+- `CameraPath`：字段 `targetPosition` / `startPosition` / `transitionDuration` / `transitionProgress`；方法 `setTargetPosition` / `tick` / `overrideFrom`；`setPositionDirect()` / `reset()` 中相关赋值；类 javadoc 中的 staged 说明。
+- `CameraProperties`：内部类 `AnimValue` 的 `target` / `start` / `duration` / `progress` 字段及 `setTarget` / `isAnimating`；方法 `setTargetYaw` / `setTargetPitch` / `setTargetRoll` / `setTargetFov` / `setTargetZoom` / `tick`（含 `tickAngle` / `tickScalar`）/ `overrideFrom`；未用的 `MathUtil` 导入；相关 staged 注释。
+- `script/TransitionType.java`：整类删除（仅自身引用）。
+
 ---
 
 ## 5. 覆盖链方向（已确认）
@@ -109,6 +116,45 @@ Base Chain 产出基础状态
 
 Mixin 不再直接依赖 `CameraPath` / `CameraProperties`。
 
+### 接口定稿（2026-10-07）
+
+**形态**：`camera/CameraState.java` 为不可变快照，采用 Java `record`（与本仓 `ScriptMeta.RuntimeBehavior`、`PresetParam` 等一致）：
+
+```java
+public record CameraState(Vec3 position, float yaw, float pitch, float roll, float fov, float zoom) {}
+```
+
+- 六参数平铺只读；无 getter 前缀（record 访问器 `position()/yaw()/pitch()/roll()/fov()/zoom()`）。
+- **不活跃的表示 = `null` 快照**（`CameraManager.getCameraState()` 无活跃相机时返回 `null`），不是"零值 CameraState"；因此实例存在时 `position()` 恒非 null。这样读侧原样保留各自的 `isActive` / `hasActiveCameraClip` / `isPreviewMode` 回落 guard，边界行为不变。
+- 生成点：`CameraManager.refreshCameraState()`（`cameraState = active ? new CameraState(activePath.getPosition(), activeProperties.getYaw()/getPitch()/getRoll()/getFov()/getZoom()) : null`）。
+
+**快照缓存点**（依据实测调用时序定稿）：
+
+单帧 `GameRenderer.renderLevel` 内的实际顺序为
+`getFov`（:1286，早于 camera.setup）→ `camera.setup`（:1308，触发 `CameraMixin.onSetup` → `CameraManager.onRenderFrame`）→ `prepareCullFrustum`（roll，:1324）→ `LevelRenderer.renderLevel`（`setupRender` 视图中心，:1325）。
+`onRenderFrame()` 全仓唯一调用点是 `CameraMixin:97`，即每帧一次。
+
+因此刷新点为：
+
+| 刷新点 | 作用 |
+|---|---|
+| `onRenderFrame()` 帧末 | 本帧最新值；覆盖 onRenderFrame 之后调用的全部读侧（CameraMixin 读取、roll、setupRender） |
+| `onRenderFrame()` 开头 `!active` 分支 | 置 null（`refreshCameraState()` 在 `!active` 时即置 null） |
+| `deactivateNow()` 末尾 | 停用即失效；且该处末尾可能接播 `pendingScript`/队列（`active` 又为 true），须重建为接播后的最新值——否则本帧 Mixin 读到 null 而原实现读到接播脚本首帧值 |
+| `previewSetCamera()` / `setCameraDirect()` | **直写穿透**：`getFov` 在 `onRenderFrame` 之前调用，直控直写必须立即可见，否则本帧投影 FOV 滞后一帧（与改造前不一致） |
+
+`getFov` 早于本帧 `onRenderFrame`：它读到的快照 = 上一帧 `onRenderFrame` 的值，与改造前读"上一帧写入的 live 值"完全等价（脚本写入只发生在 `onRenderFrame` 内）。同帧内多次读取同一份快照，天然一致。
+
+**Mixin 切换清单**（本任务已落地）：
+
+| 文件 | 改动 |
+|---|---|
+| `mixin/CameraMixin.java` | 删除 `getPath().getPosition()` / `getProperties().getYaw()/getPitch()`；改读 `mgr.getCameraState()`（`state.position()/yaw()/pitch()`）；`isActive` / `hasActiveCameraClip` guard 原样保留，新增 `state == null` 防御回落 |
+| `mixin/GameRendererMixin.java` | `onGetFov`：`state.fov()/state.zoom()`；roll 钩子：`state.roll()`；`isActive && hasActiveCameraClip` guard 原样保留 |
+| `mixin/LevelRendererMixin.java` | `cinematicViewCenter()`：改读 `state.position()`；`isActive` / `isPreviewMode` guard 原样保留 |
+
+验证：`sh gradlew compileJava` 通过；`grep -r "CameraPath\|CameraProperties" mixin/` 零命中。`proto/QuadrantProto` 原型分支仍用其自有的 per-camera `CameraPath`/`CameraProperties`（不在本任务范围）。
+
 > **补充（原型实测）**：多相机（多 lane）时，除了这 6 个参数，**渲染状态**（可见区块集合 / 遮挡剔除 / frustum）也要按 lane 独立——目前它们在 `LevelRenderer` 上是单份共享状态，多 lane 会互相重建（表现为画面来回闪）；原型用"整帧统一决定"过渡，正式实现要每 lane 各自维护。见 `quadrant-prototype-results.md` §3.5。
 
 ---
@@ -122,6 +168,8 @@ Mixin 不再直接依赖 `CameraPath` / `CameraProperties`。
 - **多相机落地后（2026-10-07 架构推论）**：主画面也是全屏 lane（见[并行播放](./parallel-playback.md) §3.3）——现有"单相机替换"链（`CameraMixin` 主相机分支、`GameRendererMixin` getFov / roll、`LevelRendererMixin` 视图中心、`CinematicOcclusion` 整帧决策）成为过渡实现，最终不再被调用 / 删除；相机状态（`CameraPath` / `CameraProperties` 六参数）转为**每个 lane 一份**，渲染钩子改为按 lane 应用
 - `CameraPath` / `CameraProperties`：可能保留为内部实现，也可能被状态 buffer 取代
 - 外部 API：Phase 2/3，内部稳定后再评估
+
+**已落地（2026-10-07）：读侧全切统一状态、写侧收口**。所有"读相机状态"的调用点一律经 `CameraManager.getCameraState()`（不可变快照；`null` = 不活跃，各读点保留原有 guard/回落语义）；所有"写相机状态"的路径写完即刷新快照——写侧收口到 `CameraManager` 门面（`onRenderFrame` 帧末、`deactivateNow` / `startScriptInternal`、`previewSetCamera` / `setCameraDirect`（含位置重载）），`FlightController` 不再直写内部对象。`getPath()` / `getProperties()` 存活引用仅剩 `CameraManager` 内部（生产者）+ `CameraTrackPlayer`（玩家写入，经门面取内部对象）+ `proto/QuadrantProto`（原型，排除）。**Base Provider 优先级链与完整封装（`CameraPath`/`CameraProperties` 包可见性收紧）留给并行播放实例模型任务**。
 
 ---
 
@@ -141,11 +189,11 @@ Mixin 不再直接依赖 `CameraPath` / `CameraProperties`。
 
 ## 9. 待定
 
-- 统一状态接口的最终形态
+- ~~统一状态接口的最终形态~~ → **已定（2026-10-07）**：`camera/CameraState.java` 不可变 record（六参数平铺），不活跃用 `null` 快照；详见 §6「接口定稿」。
 - Base / Modifier 接口的最终形态
 - 优先级数值
 - 状态 buffer 设计
-- staged 删除的具体范围
+- ~~staged 删除的具体范围~~ → **已定（2026-10-07，已落地）**：见 §4。
 - 外部 API 开放时机
 - `zoom` 是否保留独立参数，还是只暴露 effectiveFov
 
@@ -180,7 +228,7 @@ Mixin 不再直接依赖 `CameraPath` / `CameraProperties`。
 
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
 
-- **退出过场首帧视角跳变**：非飞行屏蔽期 `MouseHandlerMixin.onMove` 不拦截 → vanilla 累积 `accumulatedDX/DY`，而 `turnPlayer` 被 BLOCK cancel 时不清零、`CinematicController.syncInputStateAfterExit` 也未清理（现有注释只覆盖飞行态）。
+- **退出过场首帧视角跳变**：非飞行屏蔽期 `MouseHandlerMixin.onMove` 不拦截 → vanilla 累积 `accumulatedDX/DY`，而 `turnPlayer` 被 BLOCK cancel 时不清零、`CinematicController.syncInputStateAfterExit` 也未清理（现有注释只覆盖飞行态）。**✅ 已修复（2026-10-07）**：新增 `MouseHandlerAccessor`（`@Accessor` 直写 accumulatedDX/DY，无反射），`syncInputStateAfterExit` 开头无条件清零。
 
 ---
 

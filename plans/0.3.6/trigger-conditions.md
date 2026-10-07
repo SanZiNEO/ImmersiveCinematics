@@ -157,7 +157,7 @@
 
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
 
-- **多人服下触发器播放的结构 / 方块来源不可解析**：推送前的结构 / 方块替换只覆盖 `look_at_target_structure` 与 `position.relative_origin`；触发器路径（`StartPlaybackAction`）直接发 rawJson、零替换 → 触发器播放时结构 / 方块来源全部不可解析（单人服不受影响）。
+- **多人服下触发器播放的结构 / 方块来源不可解析**：推送前的结构 / 方块替换只覆盖 `look_at_target_structure` 与 `position.relative_origin`；触发器路径（`StartPlaybackAction`）直接发 rawJson、零替换 → 触发器播放时结构 / 方块来源全部不可解析（单人服不受影响）。**✅ 已修复（2026-10-07）**：替换逻辑提取为共享 `util/ScriptStructureResolver.resolveTargets(json, level, origin)`，`StartPlaybackAction.execute` 在发送前按触发者位置应用同一套替换（`/icinematics play` 路径同步切换到该 helper，行为不变）。
 
 ---
 

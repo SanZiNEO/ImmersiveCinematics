@@ -143,6 +143,9 @@ ICINEMATICS_QUADRANT=1 sh gradlew :fabric:runClient --args='--quickPlaySinglepla
 
 ## 7. 原型文件清单（删除原型时按此清理）
 
+> **✅ 已执行（2026-10-07）**：渲染底层正式化为 `client/lane/LaneRenderer`（+ `LaneDebugDriver` 保留 `ICINEMATICS_QUADRANT` 冒烟入口），原型渲染逻辑与压测统计整体删除。落地要点、状态保存/恢复清单、内容开关与调试入口见 `multi-camera-rendering.md` §12。
+> 与本节清单的差异：`mixin/MinecraftAccessor.java` 与 `camera/CinematicOcclusion.java` **保留并适配**（前者是"lane 期间主画面指向"的落地手段，后者是共享可见集合下的整帧统一遮挡决策，正式实现仍需要）。
+
 - `common/.../proto/QuadrantProto.java`（含临时 summon 逻辑）
 - `common/.../mixin/QuadrantProtoMixin.java`
 - `common/.../mixin/MinecraftAccessor.java`

@@ -82,6 +82,11 @@ public final class TrackSchemas {
         kfs.put("roll", new FieldDef("float", 0));
         kfs.put("fov", new FieldDef("float", 70));
         kfs.put("zoom", new FieldDef("float", 1.0f));
+        // 合成参数（0.3.6 camera-composition）：挂在本 CAMERA clip 的关键帧上，随关键帧插值。
+        // 渲染侧消费由后续任务落地；此处仅登记字段，供编辑器表单与校验使用。
+        kfs.put("opacity", new FieldDef("float", 1.0f));
+        kfs.put("dest", new FieldDef("map", null));
+        kfs.put("source", new FieldDef("map", null));
 
         return new TrackTypeSchema(clips, kfs);
     }

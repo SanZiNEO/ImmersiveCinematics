@@ -111,7 +111,48 @@ OVERLAY 现有 `pip` 层是静态占位（半透明黑填充 + 2px 白边，不�
 | 5 | source rect 裁剪 | 同一相机画面取局部铺满全屏（数字变焦 / 局部取景） |
 | 6 | 编辑器：合成参数属性面板 + 多 lane 预览 | WebUI 内可编排并预览分屏 / 叠化 |
 
+> **落地状态（2026-10-07）**：步骤 1（数据层）与步骤 3–5 的**渲染侧合成层**已落地（见本节末）；
+> 步骤 2 / 3 / 4 / 5 的**脚本侧接线**（关键帧 → lane 注册 → 合成参数）尚未落地。
+>
 > 步骤 1–2 不依赖多相机渲染，可先行验证关键帧链路；步骤 3 起依赖渲染原型。
+
+### 步骤 1 定稿：合成参数字段表（已定稿·2026-10-07）
+
+合成参数**全部挂在 CAMERA clip 的关键帧上**（`Keyframe.data` 通用容器，无需改类），随关键帧插值。字段形态与默认值：
+
+| 字段 | 类型 | 默认 | 校验 | 说明 |
+|---|---|---|---|---|
+| `opacity` | float | `1.0` | `0`~`1` | 叠放不透明度 |
+| `dest` | object `{x,y,w,h}` | `{0,0,1,1}`（全屏） | 各分量 `0`~`1` | 目标区域：画面铺到屏幕的归一化矩形 |
+| `source` | object `{x,y,w,h}` | `{0,0,1,1}`（全幅） | 各分量 `0`~`1` | 取材区域：画面内归一化矩形 |
+
+**`order` 不进字段表**：叠放层级由**轨道层级 → 轨道内 clip 顺序**决定（后面的 clip 在上，§1 默认规则），作者不写。
+
+**为什么 `dest` / `source` 用对象而非平铺字段**：矩形是一个整体语义（四个分量同属一个参数），与既有 `position` / `look_at_target` 的复合对象写法一致；关键帧按"复合值整体插值"（`KeyframeInterpolator` 对 `position` 即如此），对象形态让矩形随时间整体插值更自然，字段表也更小。
+
+**落地位置**：字段登记在 `script/schema/TrackSchemas.camera()` 的 `kfFields`；校验在 `ScriptValidator`（`checkUnitFloat` / `checkRect`）；文档见 `docs/SCRIPT_FORMAT.md` §4"合成参数"；测试脚本 `cinematics/tests/camera/test_compositing_params.json`。
+
+**归属裁决**：本定稿取 §2 **候选 A（自声明）**——参数写在本 clip 自己的关键帧上，不引入独立合成轨/导演；候选 B 的结构空间未被堵死（将来可加寻址层）。
+
+**范围**：本步骤只落数据层（能解析、能校验、能存进通用 Keyframe 容器）；渲染侧消费（把参数应用到上屏）属步骤 2 及以后。
+
+### 步骤 3–5 渲染侧落地：合成层（已落地·2026-10-07）
+
+合成层 = `client/lane/LaneCompositor.java`：`compose(RenderTarget texture, Rect source, Rect dest, float opacity)`
+把一条 lane 的画面纹理铺到屏幕（主 framebuffer），**四个参数在同一次 quad 绘制里完成**（不拆两次绘制）：
+
+| 参数 | 落点 |
+|---|---|
+| `source` | UV 子区域（只采样画面的一块） |
+| `dest` | quad 顶点（屏幕归一化矩形 → 像素） |
+| `opacity` | 混合 alpha（`ColorModulator.a` + `srcalpha / 1-srcalpha` 混合） |
+| `order` | **绘制顺序**：合成即时进行、不缓存纹理（§1「渲染一张 → 贴到屏幕 → 复用缓冲」，lane 共用一张离屏缓冲），所以叠放顺序就是**调用顺序**——调用方按「轨道层级 → 轨道内 clip 顺序 → z_index」升序逐层调用，后调用者盖在先调用者之上 |
+
+- **矩形口径**：`source` / `dest` 都是 0~1 归一化、**原点在左上角**（x 向右、y 向下）；`source` 相对 lane 画面，`dest` 相对屏幕。纹理 v 轴在合成器内部翻转（FBO 纹理 v=0 在画面底部，与原版 `RenderTarget.blitToScreen` 的 UV 口径一致）。
+- **绘制路径**：复刻原版 `RenderTarget._blitToScreen` 的屏幕空间画法（屏幕正交投影 + 模型视图 z=−2000 + 4 顶点 quad），shader 用原版 `position_tex`（其自带 `srcalpha / 1-srcalpha` 混合，正是 opacity 需要的），不新建 shader 资产。
+- **状态纪律**：一次合成会改动绑定的 framebuffer / 视口、全局投影与 VertexSorting、全局模型视图、shader 颜色与 0 号 shader 纹理、深度测试 / 深度写 / 颜色写 / 混合——合成器入口保存、出口还原（与 lane 渲染同一纪律）；alpha 通道不写（同 `blitToScreen`：主画面 alpha 不归合成层管）。
+- **验证入口**：`-Dicinematics.quadrant=4`（或环境变量 `ICINEMATICS_QUADRANT=4`）的调试驱动已改走合成器上屏（dest = 网格格、source = 全幅、opacity = 1），替换掉临时的 `glBlitFrameBuffer`。
+- **尚未落地**：脚本关键帧 → 合成参数的接线（分屏 / 叠化 / 局部取景的**编排**）属 lane 注册任务；本步骤只交付渲染消费侧，合成器接口已就位。
 
 ---
 

@@ -1,6 +1,6 @@
 # 0.3.6 多相机渲染（PIP / 分屏 / 叠化）方案
 
-**状态**: 📋 方案，未实现（**渲染底层已由原型验证**：每 lane 一个 RenderTarget + 缩放合成、4/16/25 画面线性，见 `quadrant-prototype-results.md`；系统本体待开工。**原型代码已并入 main**，默认关 `ICINEMATICS_QUADRANT`）
+**状态**: 🚧 进行中 —— **渲染底层已正式化**（2026-10-07：`client/lane/LaneRenderer`，每 lane 独立相机姿态 → 整尺寸渲染进共用离屏 FBO、顺序复用、默认零差异，见 §12）。**待开工**：上屏合成（取材 / 目标区域 / 不透明度 → [画面合成](./camera-composition.md)）、脚本 / lane 注册表接入（→ [并行播放](./parallel-playback.md)）。原型代码（`proto/QuadrantProto` + `QuadrantProtoMixin`）已按版本原则删除，只保留调试入口 `ICINEMATICS_QUADRANT=1|4|16|25…`
 **目标版本**: 0.3.6
 
 > 本文讨论“同一时刻渲染多个相机画面”以及“叠化（dissolve）”功能。
@@ -148,7 +148,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 ### 7.1 渲染优化模组兼容策略（自 0.4.0 G2 并入）
 
 - **事实**：Sodium `@Overwrite` 原版区块渲染（Fabric Sodium：`renderLayer` → `SodiumWorldRenderer.drawChunkLayer`，`WorldRendererMixin.java:100-108`；Embeddium 端方法名是 `renderChunkLayer`，`WorldRendererMixin.java:128-142`）与 `setupRender`（`((ViewportProvider) frustum).sodium$createViewport()` 是**硬转换**——副相机的 Frustum 必须实现该接口，否则 CCE：Fabric `:115-124`、Embeddium `:148-164`，接口实现见 `mixin/core/render/frustum/FrustumMixin.java`；整段调用还必须用 `RenderDevice.enterManagedCode()` / `exitManagedCode()` 包住 = 文档里说的"渲染上下文"）；Oculus = Iris 的 Forge 移植（同构，包名同样是 `net.irisshaders.iris`），Forge 端对应物为 Embeddium。副画面第二遍裸调原版区块 API 在 Sodium 下**不可靠**（视锥接口不匹配 / 缺渲染上下文 / 可见性图被两遍打散）；Iris 为此维护了**一整套** Sodium 兼容层——`example/Iris-1.20.1/src/sodiumCompatibility` 共 **83 个 Java 文件 / 4788 行**，其中阴影 pass 专属的 `mixin/shadow_map/*` + `impl/shadow_map/*` 是 **10 个文件 / 321 行**（例：`MixinRenderSectionManager` 为 shadow pass 另存一份 `shadowRenderLists` 并重定向 `renderLists` 字段；`MixinSodiumWorldRenderer` 在 shadow pass 里强制 `RenderSectionManager.needsUpdate() == true`），第二遍本体 `shadows/ShadowRenderer.java` **730 行**（Oculus 版 729 行）。
-- **策略（推荐）**：副画面渲染走原版 API + **运行时检测 Sodium / Embeddium / Oculus** → 存在时副画面自动禁用 + warn 日志（提示关闭对应模组以使用多相机画面）；无优化模组时正常。不做 Iris 级完整适配（成本高）；需求提升后再评估升级。
+- **策略（推荐）**：副画面渲染走原版 API + **运行时检测 Sodium / Embeddium / Oculus** → 存在时副画面自动禁用 + warn 日志（提示关闭对应模组以使用多相机画面）；无优化模组时正常。不做 Iris 级完整适配（成本高）；需求提升后再评估升级。**✅ 已落地（2026-10-07）**：`LaneRenderer.isUnavailable()` 按标记类存在性运行时检测（`net.caffeinemc.mods.sodium.client.SodiumClientMod` / `me.jellysquid.mods.sodium.client.SodiumClientMod`，不引入硬依赖），命中即不渲染 + warn 一次；Oculus / Iris 的"取已处理画面"仍未验证（§7 第 3 点）。
 - 另见 §11：Sodium / Embeddium 的渲染中心来自 `Camera` / `Frustum`，`CameraMixin` 路线已验证，可作为适配时的另一条参考路径。
 
 ---
@@ -213,7 +213,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
 
-- **MODE=1 数组越界**：`CinematicOcclusion.beginFrame` 固定按 `i<4` 遍历，而 mode=1 时 `CAMERAS` 长度只有 1 → `CAMERAS[1]` 越界（`proto/QuadrantProto.camera(int)` 无边界检查）。仅影响设了 `ICINEMATICS_QUADRANT` 的调试场景；循环上限改 `CAMERAS.length` 即可。
+- ~~**MODE=1 数组越界**：`CinematicOcclusion.beginFrame` 固定按 `i<4` 遍历，而 mode=1 时 `CAMERAS` 长度只有 1 → `CAMERAS[1]` 越界（`proto/QuadrantProto.camera(int)` 无边界检查）。~~ **✅ 已消除（2026-10-07）**：原型代码整体删除；正式实现里 `CinematicOcclusion.beginFrame` 改走 `LaneRenderer.isAnyCameraInsideSolidBlock`（只遍历**活跃** lane），不存在越界路径。
 
 ---
 
@@ -283,3 +283,81 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 - **"光影环境下能否拿到已处理后的画面"**（§7 第三点）：只核实了 Iris 第二遍的存在与状态处理，未验证第三方能否安全取用 Iris 合成后的画面——保持"需要专门调研"。
 - **Sodium 下两遍/帧的 `frame++` 语义变化是否引发错误行为**：`render-second-pass-cost.md` §3.2 已标"未验证"，本次亦无实机验证（该形参在 Embeddium 里标了 `@Deprecated(forRemoval = true)`，仅传给 `renderSectionManager.update`）。
 - **叠化预热时长 / 叠化期主相机是否可动**（§9）：设计类开放问题，源码无法回答，**保持待定**。
+
+---
+
+## 12. 渲染底层实现（2026-10-07 落地）
+
+> 本节是**已实现**的渲染底层（代码为准）；§3 技术路线 / §4 关键难点 的结论全部体现在这里。
+> 上屏合成（取材 / 目标区域 / 不透明度 / 叠放顺序）与脚本 / lane 注册表接入**不在本节**。
+
+### 12.1 组件
+
+| 文件 | 职责 |
+|---|---|
+| `common/.../client/lane/LaneRenderer.java` | 生产渲染器：lane 注册表 + 每帧驱动 + 每 lane 整尺寸渲染进共用离屏 FBO + 状态保存/恢复 + Sodium/Embeddium 检测 |
+| `common/.../client/lane/LaneDebugDriver.java` | 调试驱动（冒烟入口）：`ICINEMATICS_QUADRANT=1|4|16|25…` → N 个方位相机注册成 N 条 lane；含**临时上屏**（n×n 网格缩放贴屏，合成层落地后删） |
+| `mixin/LaneRendererMixin.java` | 挂点：`GameRenderer.renderLevel` RETURN → 驱动调试入口 + `LaneRenderer.render(...)` |
+| `mixin/GameRendererAccessor.java` | `@Invoker`：`getProjectionMatrix(double)` / `getFov(Camera,float,boolean)`（复刻原版投影与光学参数） |
+| `mixin/MinecraftAccessor.java` | `@Accessor @Mutable mainRenderTarget`（lane 期间指向 lane FBO） |
+| `mixin/CameraMixin.java` / `GameRendererMixin.java` | lane 分支：把 lane 的 `CameraState`（position/yaw/pitch、fov/zoom）写进该 lane 的独立 `Camera` 实例；`getEntity` / `isDetached` 与主相机分支同义 |
+| `mixin/LevelRendererMixin.java` | 原版整屏描边屏蔽（有活跃 lane 时）+ 内容开关（`renderSky` / `renderClouds` / `renderSnowAndRain` / `renderEntity`） |
+| `mixin/ParticleEngineMixin.java` | 内容开关：粒子 |
+| `camera/CinematicOcclusion.java` | 遮挡剔除整帧统一决策，判定输入改为"任一 lane 相机 **或** 主画面模组相机在实心方块里" |
+
+### 12.2 lane 状态与接入点
+
+- **lane 状态 = `CameraState`（六参数快照）+ `LaneContent`（内容开关）**；
+  `LaneContent.WORLD_ONLY`（默认，全关）/ `LaneContent.FULL`（调试、压测）。
+- 接入点（后续任务用）：
+  - `LaneRenderer.INSTANCE.setLane(index, state, content)` —— 激活 / 更新一条 lane（`state == null` 停用）；
+  - `LaneRenderer.INSTANCE.clear()` —— 生产者本帧没有 lane 时调用；
+  - `LaneRenderer.INSTANCE.setSink((index, target) -> …)` —— **合成接缝**：每条 lane 渲染完、离屏缓冲还热时回调（共用缓冲 → 必须当帧消费）。
+- **默认零差异**：没有活跃 lane 时 `render(...)` 第一行即返回（不渲染、不分配、不切状态）；调试入口未开时 `LaneDebugDriver.tick` 也只是一次静态判断。
+
+### 12.3 每条 lane 的渲染流程
+
+```text
+mainRenderTarget 临时指向 lane FBO → fbo.bindWrite(true)（视口 = FBO 全尺寸）
+  → camera.setup(...)（CameraMixin lane 分支写该 lane 的 CameraState）
+  → 视图 PoseStack（XP=xRot、YP=yRot+180）→ roll（绕视线轴）→ setInverseViewRotationMatrix
+  → getFov（GameRendererMixin lane 分支）→ 投影 / 剔除投影
+  → prepareCullFrustum(该 lane 的 pose + 相机位置)      ← 视锥与姿态一致，原版膨胀剔除 3~5 步收敛
+  → renderLevel(..., bl=false /* 不画选中框 */, camera, …)
+  → doEntityOutline()（lane 自包含：描边贴进本 lane 的画面）
+  → 还原全局投影为该 lane 的投影（DISTANCE_TO_ORIGIN）
+  → 恢复 mainRenderTarget → sink(index, fbo)
+```
+
+- 离屏缓冲**共用一张**（按主画面尺寸创建 / 跟随窗口重建）→ 显存不随 lane 数增长；顺序复用即 §6.1 的"缓冲复用"。
+- 副画面天然不含第一人称手 / HUD（它们在 `LevelRenderer.renderLevel` 之外），不额外处理。
+
+### 12.4 状态保存 / 恢复
+
+- lane 块入口保存、出口还原：**全局投影矩阵 + VertexSorting**、**全局逆视图旋转矩阵**、**mainRenderTarget**、**当前 framebuffer + 视口**；
+- 雾 / 深度 / 混合状态由 `renderLevel` 自己收敛到"渲染结束"态（与原版主画面同态，末尾 `setupNoFog` / `depthMask(true)` / `disableBlend`）；
+- 视锥每帧由各 pass 重建（`GameRenderer.renderLevel` 每帧调 `prepareCullFrustum`），无需还原；
+- **主画面的发光描边**：有活跃 lane 时原版那次整屏 `doEntityOutline()` 被屏蔽（否则会把最后一条 lane 的描边 1:1 盖满全屏），改为在 lane 块开头先为**主画面**贴一次（主画面描边不丢）。
+
+### 12.5 兼容
+
+- **Sodium / Embeddium（Rubidium）**：`LaneRenderer.isUnavailable()` 按标记类存在性运行时检测（`net.caffeinemc.mods.sodium.client.SodiumClientMod` / `me.jellysquid.mods.sodium.client.SodiumClientMod`）→ 命中即**不渲染 + warn 一次**，不引入硬依赖。检测结果缓存；调试入口照常注册 lane，但渲染被禁用。
+- 光影（Iris / Oculus）：未做适配（§7 第 3 点仍待调研）。
+
+### 12.6 调试入口
+
+```sh
+ICINEMATICS_QUADRANT=1  sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
+ICINEMATICS_QUADRANT=16 sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
+```
+
+- `1` = 单 lane（整尺寸离屏渲染 1 遍，铺满屏幕）；`true` = 4；`≥4` = 最近的平方数（4 / 9 / 16 / 25 / 36…），n×n 网格；
+- 相机：从各自方位朝玩家推进（12→36→12 格往返）、始终看向玩家，内容开关 `FULL`；
+- 启动时日志打印 `[lane] 调试驱动启用：mode=… lanes=… grid=…`；命中优化模组时打印 warn；
+- **上屏是临时的**（网格缩放贴屏）——正式合成属于[画面合成](./camera-composition.md)。
+
+### 12.7 原型处置（版本原则：不留旧代码）
+
+- 删除：`proto/QuadrantProto.java`（渲染逻辑 + 压测统计 / CSV / 出图）、`mixin/QuadrantProtoMixin.java`、`proto` 包；
+- 保留并适配：`mixin/MinecraftAccessor.java`（lane 期间主画面指向）、`camera/CinematicOcclusion.java`（整帧统一遮挡决策）、`CameraMixin` / `GameRendererMixin` / `LevelRendererMixin` 的接管分支（原型分支 → lane 分支）；
+- 压测数据留在 `quadrant-perf/`（存档），压测/统计代码随原型删除——渲染底层再次需要成本曲线时按新结构重测。

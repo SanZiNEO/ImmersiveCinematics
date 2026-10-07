@@ -1,7 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
-import com.immersivecinematics.immersive_cinematics.util.MathUtil;
-
 /**
  * 相机属性控制器 — 管理相机的所有自身属性
  * 包含：朝向（yaw, pitch, roll）和 光学特征（FOV, Zoom）
@@ -11,7 +9,6 @@ import com.immersivecinematics.immersive_cinematics.util.MathUtil;
  * - 不再使用 partialTick 插值
  * - 每渲染帧由 CameraTrackPlayer.onRenderFrame() 直接设置精确值
  * - getXxx() 直接返回 currentXxx，无插值层
- * - 保留 setTargetXxx() + tick() 供 staged 缓冲区的过渡插值使用
  * <p>
  * 注意：画幅比（aspectRatio）不在此处管理，因为它属于覆盖层系统，
  * 独立于镜头跳转逻辑，由 CameraManager 直接管理。
@@ -24,41 +21,18 @@ public class CameraProperties {
     private static final float DEFAULT_ZOOM = 1.0f;
 
     /**
-     * 单个动画属性的过渡状态跟踪
-     * <p>
-     * 每个属性（yaw/pitch/roll/fov/zoom）拥有独立的过渡进度，
-     * 不再共享一个 transitionProgress，避免设置一个属性时错误地重置其他属性的过渡。
+     * 单个动画属性的当前值
      */
     private static class AnimValue {
-        float current, target, start;
-        float duration;
-        float progress = 1f; // 0~1, 1 = 已完成
+        float current;
 
         /** 直接设置值（瞬移，无过渡） */
         void setDirect(float v) {
-            current = target = start = v;
-            progress = 1f;
-        }
-
-        /** 设置目标值并启动过渡 */
-        void setTarget(float v, float dur) {
-            start = current;
-            target = v;
-            if (dur <= 0f) {
-                current = v;
-                progress = 1f;
-            } else {
-                duration = dur;
-                progress = 0f;
-            }
-        }
-
-        boolean isAnimating() {
-            return progress < 1f;
+            current = v;
         }
     }
 
-    // --- 五个动画属性，各自独立跟踪过渡状态 ---
+    // --- 五个动画属性 ---
     private final AnimValue yaw = new AnimValue();
     private final AnimValue pitch = new AnimValue();
     private final AnimValue roll = new AnimValue();
@@ -98,54 +72,6 @@ public class CameraProperties {
     /** 🎬 直接设置缩放 */
     public void setZoomDirect(float v) { zoom.setDirect(v); }
 
-    // ========== 设置目标值（供 staged 缓冲区使用） ==========
-
-    /** 设置目标偏航角与过渡时长 */
-    public void setTargetYaw(float v, float duration) { yaw.setTarget(v, duration); }
-
-    /** 设置目标俯仰角与过渡时长 */
-    public void setTargetPitch(float v, float duration) { pitch.setTarget(v, duration); }
-
-    /** 设置目标翻滚角与过渡时长 */
-    public void setTargetRoll(float v, float duration) { roll.setTarget(v, duration); }
-
-    /** 设置目标视场角与过渡时长 */
-    public void setTargetFov(float v, float duration) { fov.setTarget(v, duration); }
-
-
-    /** 设置目标缩放与过渡时长 */
-    public void setTargetZoom(float v, float duration) { zoom.setTarget(v, duration); }
-
-    // ========== tick 驱动（供 staged 缓冲区使用） ==========
-
-    /**
-     * 每tick驱动过渡插值
-     * <p>
-     * 每个属性独立推进过渡进度，互不影响。
-     * 角度属性使用角度环绕插值（lerpAngle），标量属性使用线性插值（lerp）。
-     *
-     * @param deltaTime 距离上一tick的时间（秒）
-     */
-    public void tick(float deltaTime) {
-        tickAngle(yaw, deltaTime);
-        tickAngle(pitch, deltaTime);
-        tickAngle(roll, deltaTime);
-        tickScalar(fov, deltaTime);
-        tickScalar(zoom, deltaTime);
-    }
-
-    private static void tickAngle(AnimValue v, float dt) {
-        if (v.progress >= 1f) return;
-        v.progress = Math.min(1f, v.progress + dt / v.duration);
-        v.current = MathUtil.lerpAngle(v.start, v.target, v.progress);
-    }
-
-    private static void tickScalar(AnimValue v, float dt) {
-        if (v.progress >= 1f) return;
-        v.progress = Math.min(1f, v.progress + dt / v.duration);
-        v.current = MathUtil.lerp(v.start, v.target, v.progress);
-    }
-
     // ========== 获取当前值（直接返回，无 partialTick 插值） ==========
 
     /** 🎬 获取当前偏航角 */
@@ -163,23 +89,6 @@ public class CameraProperties {
 
     /** 🎬 获取当前缩放 */
     public float getZoom() { return zoom.current; }
-
-    // ========== 硬切换覆盖 ==========
-
-    /**
-     * 从另一个 CameraProperties 实例覆盖当前状态（用于硬切换 commitStagedState）
-     * <p>
-     * 将 staged 缓冲区的状态原子替换到 active 缓冲区。
-     *
-     * @param source 源实例（通常是 staged 缓冲区）
-     */
-    public void overrideFrom(CameraProperties source) {
-        yaw.setDirect(source.yaw.current);
-        pitch.setDirect(source.pitch.current);
-        roll.setDirect(source.roll.current);
-        fov.setDirect(source.fov.current);
-        zoom.setDirect(source.zoom.current);
-    }
 
     // ========== 重置 ==========
 

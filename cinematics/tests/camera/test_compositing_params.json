@@ -1,0 +1,89 @@
+{
+  "meta": {
+    "id": "test_compositing_params",
+    "name": "相机测试-合成参数",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "只测试合成参数关键帧：opacity 淡入淡出 + dest 目标区域（PIP 缩到右下角）+ source 取材区域（画面内局部裁剪）",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_zoom"] } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: test_compositing_params | 功能: opacity/dest/source 关键帧 | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "interpolation": "linear",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 0, "dy": 0, "dz": 0 },
+                "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 0,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 1,
+                "position": { "dx": 0, "dy": 0, "dz": 0 },
+                "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "dest": { "x": 0.6, "y": 0.05, "w": 0.35, "h": 0.35 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 5,
+                "position": { "dx": 0, "dy": 0, "dz": 0 },
+                "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "dest": { "x": 0.6, "y": 0.05, "w": 0.35, "h": 0.35 },
+                "source": { "x": 0.25, "y": 0.25, "w": 0.5, "h": 0.5 }
+              },
+              {
+                "time": 8,
+                "position": { "dx": 0, "dy": 0, "dz": 0 },
+                "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 0,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

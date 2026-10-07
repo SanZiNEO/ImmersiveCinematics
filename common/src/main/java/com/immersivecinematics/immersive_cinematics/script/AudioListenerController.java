@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.script;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 
@@ -38,8 +39,9 @@ public final class AudioListenerController {
 
     /** 当前听者世界坐标：camera → 镜头位置；player → 玩家位置 */
     public static net.minecraft.world.phys.Vec3 getListenerPosition() {
-        if (isCameraListener() && CameraManager.INSTANCE.getPath() != null) {
-            return CameraManager.INSTANCE.getPath().getPosition();
+        CameraState state = CameraManager.INSTANCE.getCameraState();
+        if (isCameraListener() && state != null) {
+            return state.position();
         }
         net.minecraft.client.Minecraft mc = Minecraft.getInstance();
         return mc.player != null ? mc.player.position() : net.minecraft.world.phys.Vec3.ZERO;

@@ -118,6 +118,13 @@ public class ScriptParser {
         boolean interruptible = optBoolMeta(metaObj, "interruptible");
         boolean skippable = optBoolMeta(metaObj, "skippable");
         boolean holdAtEnd = optBoolMeta(metaObj, "hold_at_end");
+        boolean macroLoop = optBoolMeta(metaObj, "macro_loop");
+        // 宏观循环模式：枚举 repeat / pingpong，默认 repeat；非法值 → 告警并按 repeat
+        String macroLoopMode = optString(metaObj, "macro_loop_mode", "repeat");
+        if (!"repeat".equals(macroLoopMode) && !"pingpong".equals(macroLoopMode)) {
+            ErrorLog.log("Parse", p + ".macro_loop_mode 非法值: " + macroLoopMode + "，按 repeat 处理");
+            macroLoopMode = "repeat";
+        }
         java.util.Map<String, Boolean> hudLayers = parseHudLayers(metaObj);
 
         ScriptMeta.RuntimeBehavior behavior = new ScriptMeta.RuntimeBehavior(
@@ -128,7 +135,7 @@ public class ScriptParser {
                 hideBossbar, hideSkipHud,
                 renderPlayerModel,
                 pauseWhenGamePaused, interruptible, skippable,
-                holdAtEnd, hudLayers);
+                holdAtEnd, macroLoop, macroLoopMode, hudLayers);
 
         // 播放优先级（默认值来自 SchemaRegistry.getMetaFields()；仅用于队列内排序）
         int priority = optInt(metaObj, "priority", 0);

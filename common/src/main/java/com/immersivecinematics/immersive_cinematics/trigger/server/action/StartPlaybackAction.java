@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPlayScriptPacket;
+import com.immersivecinematics.immersive_cinematics.util.ScriptStructureResolver;
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
@@ -44,23 +45,27 @@ public class StartPlaybackAction implements TriggerAction {
             LOGGER.warn("Cannot play script '{}': script={} rawJson={}", scriptId, script, script != null ? "present" : "null");
             return;
         }
+        // 结构/方块来源替换：与 /icinematics play 一致，推送前在服务端按触发者位置定位并替换为坐标
+        // （多人服客户端无兜底解析；单人服不受影响，客户端仍保留兜底）
+        final String json = ScriptStructureResolver.resolveTargets(
+                script.getRawJson(), player.serverLevel(), player.position());
         switch (target) {
             case "all" -> {
                 for (ServerPlayer p : player.server.getPlayerList().getPlayers()) {
-                    sendTo(p, script);
+                    sendTo(p, json);
                 }
             }
             case "all_except_trigger" -> {
                 for (ServerPlayer p : player.server.getPlayerList().getPlayers()) {
-                    if (p != player) sendTo(p, script);
+                    if (p != player) sendTo(p, json);
                 }
             }
-            default -> sendTo(player, script);
+            default -> sendTo(player, json);
         }
     }
 
-    private void sendTo(ServerPlayer p, CinematicScript script) {
+    private void sendTo(ServerPlayer p, String json) {
         LOGGER.info("Sending play packet for script '{}' to player {}", scriptId, p.getName().getString());
-        S2CPlayScriptPacket.send(p, script.getRawJson());
+        S2CPlayScriptPacket.send(p, json);
     }
 }

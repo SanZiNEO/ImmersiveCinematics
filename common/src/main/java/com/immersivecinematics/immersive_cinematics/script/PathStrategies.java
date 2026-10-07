@@ -36,6 +36,8 @@ public final class PathStrategies {
     static {
         // 注册默认策略（linear 无状态，可复用同一实例）
         register("linear", () -> (from, to, t, curve) -> from.lerp(to, t));
+        // bezier 有状态（内部缓存 ArcLengthLUT），每次获取新实例
+        register("bezier", BezierPathStrategy::new);
     }
 
     private PathStrategies() {}  // 工具类，禁止实例化

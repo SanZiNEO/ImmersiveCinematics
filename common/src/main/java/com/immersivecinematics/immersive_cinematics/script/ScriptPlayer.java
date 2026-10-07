@@ -64,6 +64,16 @@ public class ScriptPlayer {
     // 当前活跃的脚本运行时行为（从 ScriptMeta.RuntimeBehavior 直接持有）
     private ScriptMeta.RuntimeBehavior currentBehavior = null;
 
+    /**
+     * 宏观循环末端（秒）：脚本内所有有限片段展开结束时刻的最大值。
+     * null = 不折叠（macro_loop 未开启，或存在永不结束片段 → 末端不存在）。
+     * 脚本开始时推导一次并缓存。
+     */
+    private Float macroEnd = null;
+
+    /** 上一帧折叠后的脚本时间（用于检测折返回卷）；NaN = 无上一帧 */
+    private float lastFoldedElapsed = Float.NaN;
+
     private boolean stopping = false;
 
     // TrackPlayer 调度列表
@@ -91,6 +101,8 @@ public class ScriptPlayer {
 
         this.script = newScript;
         this.currentBehavior = newScript.getMeta() != null ? newScript.getMeta().getBehavior() : null;
+        this.macroEnd = computeMacroEnd();
+        this.lastFoldedElapsed = Float.NaN;
 
         if (layoutChanged) {
             // 轨道布局变化(轨道数/类型顺序不同):旧 TrackPlayer 绑定的轨道索引对新脚本失效,
@@ -205,6 +217,10 @@ public class ScriptPlayer {
         ScriptMeta meta = script.getMeta();
         this.currentBehavior = meta.getBehavior();
 
+        // 宏观循环：推导宏观末端并缓存（null = 不折叠）
+        this.macroEnd = computeMacroEnd();
+        this.lastFoldedElapsed = Float.NaN;
+
         // block_mob_ai：清空已锁定玩家的生物目标
         if (currentBehavior.blockMobAi() && mc.level != null) {
             Player player = mc.player;
@@ -264,6 +280,8 @@ public class ScriptPlayer {
         this.stopping = false;
         this.script = null;
         this.currentBehavior = null;
+        this.macroEnd = null;
+        this.lastFoldedElapsed = Float.NaN;
     }
 
     public boolean isPlaying() {
@@ -282,6 +300,8 @@ public class ScriptPlayer {
      */
     public boolean isFinished() {
         if (!playing || script == null) return false;
+        // 宏观循环开启且末端存在 → 脚本不再自然结束（退出走 skippable / interruptible 路径）
+        if (macroEnd != null) return false;
         float totalDuration = script.getTotalDuration();
         if (totalDuration < 0) return false; // 无限循环脚本
         float elapsed = getElapsedSeconds();
@@ -306,6 +326,7 @@ public class ScriptPlayer {
      */
     public float getRemainingTime() {
         if (!playing || script == null) return 0f;
+        if (macroEnd != null) return Float.MAX_VALUE; // 宏观循环：不自然结束
         float totalDuration = script.getTotalDuration();
         if (totalDuration < 0) return Float.MAX_VALUE; // 无限循环
         if (hasActiveInfiniteLoopClip(getElapsedSeconds())) return Float.MAX_VALUE; // 无限循环片段已开始
@@ -313,8 +334,11 @@ public class ScriptPlayer {
     }
 
     public boolean hasActiveCameraTrack(float elapsed) {
+        // 宏观循环：渲染门控（相机/FOV/roll/遮挡/玩家模型）必须与实际分发给轨道的时间一致，
+        // 否则第二圈起 hasActiveCameraClip() 变 false → 相机不渲染
+        float t = foldScriptTime(elapsed);
         for (TrackPlayer tp : trackPlayers) {
-            if (tp instanceof CameraTrackPlayer && tp.isActiveAt(elapsed)) {
+            if (tp instanceof CameraTrackPlayer && tp.isActiveAt(t)) {
                 return true;
             }
         }
@@ -347,8 +371,18 @@ public class ScriptPlayer {
         float elapsedSeconds = getElapsedSeconds();
         float totalDuration = script.getTotalDuration();
 
-        // 检查脚本是否结束
-        if (totalDuration > 0 && elapsedSeconds >= totalDuration) {
+        if (macroEnd != null) {
+            // 宏观循环（repeat）：对外分发的时间折叠回 [0, macroEnd)。
+            // 作用点唯一——TrackPlayer / PlayerMoveController 拿到的一律是折叠后的脚本时间。
+            // 折返瞬间（本次 folded < 上次 folded）重置玩家移动目标推进状态（其余状态每帧按时间重查，天然自愈）。
+            float folded = foldScriptTime(elapsedSeconds);
+            if (!Float.isNaN(lastFoldedElapsed) && folded < lastFoldedElapsed) {
+                playerMovement.onScriptLoop();
+            }
+            lastFoldedElapsed = folded;
+            elapsedSeconds = folded;
+        } else if (totalDuration > 0 && elapsedSeconds >= totalDuration) {
+            // 检查脚本是否结束（宏观循环与 hold 钳制互斥：开启循环时不走本分支）
             if (hasActiveInfiniteLoopClip(elapsedSeconds)) {
                 // 无限循环片段（loop=true + loop_count=-1）已开始：脚本持续播放，不退出
             } else if (script.getMeta().isHoldAtEnd()) {
@@ -416,6 +450,36 @@ public class ScriptPlayer {
     }
 
     // ========== 内部方法 ==========
+
+    /**
+     * 宏观循环时间折叠：把脚本时间折回 [0, macroEnd)。
+     * 未开启宏观循环（macroEnd == null）→ 原值返回。
+     */
+    private float foldScriptTime(float elapsed) {
+        return macroEnd != null ? (float) (elapsed % macroEnd) : elapsed;
+    }
+
+    /**
+     * 推导宏观循环末端（秒），不折叠时返回 null。
+     * <p>
+     * 末端 = 脚本内所有片段展开结束时刻（{@link Clip#getWindowEnd()}，含片段自身循环展开）的最大值。
+     * 存在永不结束的片段（{@link Clip#isEffectivelyInfinite()}）→ 末端不存在 → 不折叠（时间照直走）。
+     * 不用作者声明的 total_duration 当末端。
+     * <p>
+     * 仅在 {@code meta.macro_loop=true} 时推导；脚本开始时调用一次并缓存。
+     */
+    private Float computeMacroEnd() {
+        if (script == null || script.getMeta() == null || !script.getMeta().isMacroLoop()) return null;
+        if (script.getTimeline() == null) return null;
+        float end = 0f;
+        for (TimelineTrack track : script.getTimeline().getTracks()) {
+            for (Clip clip : track.getClips()) {
+                if (clip.isEffectivelyInfinite()) return null; // 永不结束片段 → 末端不存在
+                end = Math.max(end, clip.getWindowEnd());
+            }
+        }
+        return end > 0f ? end : null; // 空时间轴 / 零长度：不折叠，避免对 0 取模
+    }
 
     /**
      * 是否存在已开始（elapsed >= clip.startTime）且永不结束（无限时长或无限循环）的片段。

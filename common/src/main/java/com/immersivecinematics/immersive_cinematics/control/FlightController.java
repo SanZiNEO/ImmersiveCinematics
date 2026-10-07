@@ -291,11 +291,7 @@ public class FlightController {
 
     private void applyToCamera() {
         if (!active) return;
-        CameraManager.INSTANCE.getPath().setPositionDirect(pos);
-        CameraManager.INSTANCE.getProperties().setYawDirect(yaw);
-        CameraManager.INSTANCE.getProperties().setPitchDirect(pitch);
-        CameraManager.INSTANCE.getProperties().setRollDirect(roll);
-        CameraManager.INSTANCE.getProperties().setFovDirect(fov);
-        CameraManager.INSTANCE.getProperties().setZoomDirect(zoom);
+        // 写侧收口：经 CameraManager 门面写六参数（写完立即刷新统一快照），不再直写内部对象
+        CameraManager.INSTANCE.setCameraDirect(pos, yaw, pitch, roll, fov, zoom);
     }
 }

@@ -12,6 +12,7 @@ import com.immersivecinematics.immersive_cinematics.editor.widget.FlightOverlay;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.immersivecinematics.immersive_cinematics.control.FlightModeManager;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.language.I18n;
@@ -919,12 +920,23 @@ public class EditorScreen extends Screen {
         playback.pause();
         output.pause();
         cam.setPreviewDirectControl(true);
-        flightPos = cam.getPath().getPosition();
-        flightYaw = cam.getProperties().getYaw();
-        flightPitch = cam.getProperties().getPitch();
-        flightRoll = cam.getProperties().getRoll();
-        flightFov = cam.getProperties().getFov();
-        flightZoom = cam.getProperties().getZoom();
+        CameraState state = cam.getCameraState();
+        if (state != null) {
+            flightPos = state.position();
+            flightYaw = state.yaw();
+            flightPitch = state.pitch();
+            flightRoll = state.roll();
+            flightFov = state.fov();
+            flightZoom = state.zoom();
+        } else {
+            // 相机未激活（未打开/播放脚本）：沿用内部状态的复位默认值，与改造前直读一致
+            flightPos = Vec3.ZERO;
+            flightYaw = 0f;
+            flightPitch = 0f;
+            flightRoll = 0f;
+            flightFov = 70f;
+            flightZoom = 1f;
+        }
         flightStartPos = flightPos;
         flightStartYaw = flightYaw;
         flightStartPitch = flightPitch;

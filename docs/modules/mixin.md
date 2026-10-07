@@ -22,7 +22,7 @@
   - ✅ `SubtitleOverlayMixin`（注入 `SubtitleOverlay`）：按 hide_subtitles 取消字幕渲染（`SubtitleOverlayMixin`）
 - **输入拦截与播放控制**
   - ✅ `KeyboardHandlerMixin`（注入 `KeyboardHandler`）：HEAD 拦截 `keyPress()`，经 `InputRouter` 路由——GAME 放行、SELF 仅更新跳过键状态、BLOCK 取消事件（`KeyboardHandlerMixin`）
-  - ✅ `MouseHandlerMixin`（注入 `MouseHandler`）：HEAD 拦截 `onPress()`/`onScroll()`/`turnPlayer()`，按路由结果取消鼠标按键、滚轮与视角移动；暴露 `resetAccumulated()` 清空 `accumulatedDX/DY`（播放退出时清除视角累积量）（`MouseHandlerMixin`）
+  - ✅ `MouseHandlerMixin`（注入 `MouseHandler`）：HEAD 拦截 `onPress()`/`onScroll()`/`turnPlayer()`，按路由结果取消鼠标按键、滚轮与视角移动（`MouseHandlerMixin`）；`MouseHandlerAccessor`（接口型 Accessor）暴露 `accumulatedDX/DY` 直写，播放退出时由 `syncInputStateAfterExit()` 清零视角累积量（`MouseHandlerAccessor`）
   - ✅ `LocalPlayerMixin`（注入 `LocalPlayer`）：脚本激活且 `PlayerMoveController` 有目标时，在 `serverAiStep` HEAD 注入假移动冲量，走原版 `travel()` 完整链路（`LocalPlayerMixin`、`PlayerMoveController`）
   - ✅ `LivingEntityMixin`（注入 `LivingEntity`）：`canAttack()` 在 block_mob_ai 开启且目标为玩家时返回 false，阻止生物攻击玩家（`LivingEntityMixin`）
   - ✅ `ItemUseMixin`（注入 `LivingEntity`）：`completeUsingItem`→item_consume；`releaseUsingItem` 按 UseAnim 分流 item_release（BOW/SPEAR/CROSSBOW/SPYGLASS）与 item_use_interrupt（其余，松手时记录当前手持物品）（`ItemUseMixin`、`Evaluators`）

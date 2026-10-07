@@ -1,13 +1,19 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
-import com.immersivecinematics.immersive_cinematics.proto.QuadrantProto;
+import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -53,7 +59,8 @@ public class LevelRendererMixin {
 
     private static Vec3 cinematicViewCenter() {
         if (!CameraManager.INSTANCE.isActive() || CameraManager.INSTANCE.isPreviewMode()) return null;
-        return CameraManager.INSTANCE.getPath() != null ? CameraManager.INSTANCE.getPath().getPosition() : null;
+        CameraState state = CameraManager.INSTANCE.getCameraState();
+        return state != null ? state.position() : null;
     }
 
     // ===== 相机在实心方块里：照搬原版旁观者那条逻辑（按帧统一决定）=====
@@ -98,13 +105,54 @@ public class LevelRendererMixin {
     }
 
     /**
-     * 四象限原型：原版在 {@code GameRenderer.renderLevel} 返回之后会整屏贴一次描边
-     * （{@code doEntityOutline()}，1:1 整屏）——那一步会盖在四象限合成图外面。
-     * 原型期间屏蔽它；原型自己在每个象限内部调用（用 {@link QuadrantProto#isLaneRendering()} 区分）。
+     * 多相机渲染底层：原版在 {@code GameRenderer.renderLevel} 返回之后会整屏贴一次描边
+     * （{@code doEntityOutline()}，1:1 整屏）——那一步会盖在 lane 合成图外面（共享的 {@code entityTarget}
+     * 已被最后一条 lane 覆盖）。有活跃 lane 时屏蔽它；lane 自己在各自的 FBO 内调用
+     * （用 {@link LaneRenderer#isRenderingLane()} 区分；主画面的那份由
+     * {@link LaneRenderer#render} 在 lane 块开头先落地）。
      */
     @Inject(method = "doEntityOutline", at = @At("HEAD"), cancellable = true)
-    private void immersivecinematics_protoOutlineGuard(CallbackInfo ci) {
-        if (QuadrantProto.isEnabled() && !QuadrantProto.isLaneRendering()) {
+    private void immersivecinematics_laneOutlineGuard(CallbackInfo ci) {
+        LaneRenderer renderer = LaneRenderer.INSTANCE;
+        if (renderer.hasActiveLanes() && !LaneRenderer.isRenderingLane()) {
+            ci.cancel();
+        }
+    }
+
+    // ===== lane 内容开关（见 plans/0.3.6/render-routes.md §2）=====
+    // 非 lane pass 恒放行（主画面不受影响）；Sodium / Embeddium 下本 Mixin 被插件跳过，
+    // 而那时 lane 渲染本身也被 LaneRenderer 禁用，故这些开关不会缺位造成影响。
+
+    @Inject(method = "renderSky", at = @At("HEAD"), cancellable = true)
+    private void immersivecinematics_laneSkySwitch(PoseStack poseStack, Matrix4f matrix4f, float partialTick,
+                                                   Camera camera, boolean bl, Runnable runnable, CallbackInfo ci) {
+        if (!LaneRenderer.shouldRenderSky()) {
+            ci.cancel();
+        }
+    }
+
+    /** 云跟随"天空"开关（同属天空内容）。 */
+    @Inject(method = "renderClouds", at = @At("HEAD"), cancellable = true)
+    private void immersivecinematics_laneCloudsSwitch(PoseStack poseStack, Matrix4f matrix4f, float partialTick,
+                                                      double d, double e, double f, CallbackInfo ci) {
+        if (!LaneRenderer.shouldRenderSky()) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method = "renderSnowAndRain", at = @At("HEAD"), cancellable = true)
+    private void immersivecinematics_laneWeatherSwitch(LightTexture lightTexture, float partialTick,
+                                                       double d, double e, double f, CallbackInfo ci) {
+        if (!LaneRenderer.shouldRenderWeather()) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method = "renderEntity", at = @At("HEAD"), cancellable = true)
+    private void immersivecinematics_laneEntitySwitch(Entity entity, double d, double e, double f, float partialTick,
+                                                      PoseStack poseStack, MultiBufferSource multiBufferSource,
+                                                      CallbackInfo ci) {
+        if (!LaneRenderer.shouldRenderEntities()) {
             ci.cancel();
         }
     }
