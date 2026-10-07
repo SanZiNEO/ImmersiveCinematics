@@ -162,6 +162,14 @@
 
 **已知语义差异（仅预览通道，1 处）**：预览实例的生命周期判定现在读**预览脚本自己的** `skippable` / `interruptible` / `pause_when_game_paused`，而改造前预览路径从不 `apply` 脚本行为，这三个开关在预览里恒为全局默认值（`true` / `true` / `true`）。`hold_at_end` 无差异（改造前该门控本就先读脚本自己的行为）。方向与 §3.1 一致（判定按实例独立）；若日后要恢复"预览不理会脚本这些声明"，应在预览实例上单独处理，而不是退回全局开关。
 
+### 步骤 3 落地记录（2026-10-07）
+
+**范围**：运行时控制取并集（§3.2）落地——`CinematicController.apply(RuntimeBehavior)` 拆成两条职责：`applyLifecycle(behavior)`（只写生命周期开关 skippable / interruptible / holdAtEnd / pauseWhenGamePaused）与 `recomputeUnion(List<RuntimeBehavior>)`（行为开关逐位并集）。消费方一行未改（仍读同一组全局 getter，值 = 并集）；实例增删时 `CameraManager` 重算（`startScriptInternal` 非预览分支、`deactivateNow` 出列后按剩余实例）。
+
+**并集口径**：5 个非三态开关（blockKeyboard / blockMouse / blockMobAi / hideHud / renderPlayerModel）逐位 OR；11 个三态开关 + suppressDistortion 先按**各实例自己的 hide_hud** 解析有效值再 OR；`hud_layers` 键集 = 各实例声明键并集，每个键的值 = **全部实例**有效值 OR（未声明该键的实例按自身 hide_hud 参与投票）。空/全 null = 无实例要求 → 复位默认。
+
+**验证**：单实例与改造前逐位一致；两实例并存逐位 OR + 顺序无关；实例结束后按剩余实例重算；10057 项冒烟（含 400 组随机多实例与独立参考实现比对）。注意：本版本 CameraManager 仍至多 1 个活跃实例，多实例并集只在离线性质测试验证，未在真实客户端跑过双实例。
+
 ---
 
 ## 8. 与 0.4.0 旧稿的关系

@@ -43,36 +43,127 @@ public class CinematicController {
 
     private boolean pauseWhenGamePaused = true;
 
-    public void apply(ScriptMeta.RuntimeBehavior behavior) {
-        this.skippable = behavior.skippable();
-        this.interruptible = behavior.interruptible();
-        this.holdAtEnd = behavior.holdAtEnd();
-        this.blockKeyboard = behavior.blockKeyboard();
-        this.blockMouse = behavior.blockMouse();
-        this.hideHud = behavior.hideHud();
-        this.hideChat = behavior.hideChat();
-        this.hideScoreboard = behavior.hideScoreboard();
-        this.hideActionBar = behavior.hideActionBar();
-        this.hideTitle = behavior.hideTitle();
-        this.hideSubtitles = behavior.hideSubtitles();
-        this.hideHotbar = behavior.hideHotbar();
-        this.hideCrosshair = behavior.hideCrosshair();
-        this.hideBossbar = behavior.hideBossbar();
-        this.hideSkipHud = behavior.hideSkipHud();
-        this.hideArm = behavior.hideArm();
-        this.suppressBob = behavior.suppressBob();
-        this.suppressDistortion = behavior.suppressDistortion();
-        this.renderPlayerModel = behavior.renderPlayerModel();
-        this.blockMobAi = behavior.blockMobAi();
-        this.pauseWhenGamePaused = behavior.pauseWhenGamePaused();
-        this.hudLayers = new java.util.LinkedHashMap<>(behavior.hudLayers());
+    /**
+     * 生命周期开关：按活跃实例写入（{@code skippable} / {@code interruptible} / {@code hold_at_end} /
+     * {@code pause_when_game_paused}）。
+     *
+     * <p>这四个开关**不**参与运行时控制并集（{@code plans/0.3.6/parallel-playback.md} §3.1/§3.2）：
+     * 跳过 / 打断 / 末尾保持 / 暂停联动的播放门控一律读实例本身（{@code PlaybackInstance}），
+     * 这里的全局字段只服务 HUD 与输入路由的即时查询。
+     *
+     * @param behavior 活跃实例的行为快照；null = 无行为快照，回落默认值（与 {@link #revert()} 一致）
+     */
+    public void applyLifecycle(ScriptMeta.RuntimeBehavior behavior) {
+        this.skippable = behavior == null || behavior.skippable();
+        this.interruptible = behavior == null || behavior.interruptible();
+        this.holdAtEnd = behavior != null && behavior.holdAtEnd();
+        this.pauseWhenGamePaused = behavior == null || behavior.pauseWhenGamePaused();
+    }
+
+    /**
+     * 运行时控制取并集（{@code plans/0.3.6/parallel-playback.md} §3.2）：行为开关在**所有活跃实例**之间
+     * 逐位 OR —— 任一实例要求隐藏 / 屏蔽即生效；实例增删后由 {@code CameraManager} 重算，
+     * 消费方（HUD 白名单 / 输入路由 / 各 Mixin）读到的仍是这里的全局开关，只是其值 = 并集。
+     *
+     * <p>三态开关（{@code hide_chat} 等，null = 未声明）先按**各实例自己的** {@code hide_hud} 解析成有效值再 OR，
+     * 与消费方「null 则回落 {@code hide_hud}」的既有语义一致；因此**单实例**的并集结果与直接读该实例的行为
+     * 逐位相同（零回归），多实例时取并集。
+     *
+     * <p>生命周期开关不参与并集（见 {@link #applyLifecycle}）。
+     *
+     * @param behaviors 活跃实例的行为快照（顺序无关；null 元素忽略；null / 空 = 无实例要求 → 恢复默认值）
+     */
+    public void recomputeUnion(java.util.List<ScriptMeta.RuntimeBehavior> behaviors) {
+        java.util.List<ScriptMeta.RuntimeBehavior> active = new java.util.ArrayList<>();
+        if (behaviors != null) {
+            for (ScriptMeta.RuntimeBehavior b : behaviors) {
+                if (b != null) active.add(b);
+            }
+        }
+        if (active.isEmpty()) {
+            // 无实例要求 → 行为开关回默认值；注意此处必须**恢复** screenEffectScale 而不是按默认值重新求值
+            // （默认值 hide_hud=true 会让 shouldSuppressDistortion() 为真 → 反而全局压制扭曲）
+            resetBehaviorToggles();
+            restoreScreenEffectScale();
+            return;
+        }
+
+        boolean uBlockKeyboard = false;
+        boolean uBlockMouse = false;
+        boolean uHideHud = false;
+        boolean uRenderPlayerModel = false;
+        boolean uBlockMobAi = false;
+        for (ScriptMeta.RuntimeBehavior b : active) {
+            uBlockKeyboard |= b.blockKeyboard();
+            uBlockMouse |= b.blockMouse();
+            uHideHud |= b.hideHud();
+            uRenderPlayerModel |= b.renderPlayerModel();
+            uBlockMobAi |= b.blockMobAi();
+        }
+
+        // hud_layers：并集必须在**全部实例**上求值——未声明该键的实例按自身的 hide_hud 参与
+        // （否则该键会失去「其他实例 hide_hud=true」这一票），与消费方「未声明则回落 hide_hud」一致。
+        java.util.Set<String> layerKeys = new java.util.LinkedHashSet<>();
+        for (ScriptMeta.RuntimeBehavior b : active) {
+            layerKeys.addAll(b.hudLayers().keySet());
+        }
+        java.util.Map<String, Boolean> uLayers = new java.util.LinkedHashMap<>();
+        for (String key : layerKeys) {
+            boolean hidden = false;
+            for (ScriptMeta.RuntimeBehavior b : active) {
+                hidden |= effective(b.hudLayers().get(key), b);
+            }
+            uLayers.put(key, hidden);
+        }
+
+        this.blockKeyboard = uBlockKeyboard;
+        this.blockMouse = uBlockMouse;
+        this.hideHud = uHideHud;
+        this.hideChat = union(active, b -> effective(b.hideChat(), b));
+        this.hideScoreboard = union(active, b -> effective(b.hideScoreboard(), b));
+        this.hideActionBar = union(active, b -> effective(b.hideActionBar(), b));
+        this.hideTitle = union(active, b -> effective(b.hideTitle(), b));
+        this.hideSubtitles = union(active, b -> effective(b.hideSubtitles(), b));
+        this.hideHotbar = union(active, b -> effective(b.hideHotbar(), b));
+        this.hideCrosshair = union(active, b -> effective(b.hideCrosshair(), b));
+        this.hideBossbar = union(active, b -> effective(b.hideBossbar(), b));
+        this.hideSkipHud = union(active, b -> effective(b.hideSkipHud(), b));
+        this.hideArm = union(active, b -> effective(b.hideArm(), b));
+        this.suppressBob = union(active, b -> effective(b.suppressBob(), b));
+        this.suppressDistortion = union(active, CinematicController::effectiveDistortion);
+        this.renderPlayerModel = uRenderPlayerModel;
+        this.blockMobAi = uBlockMobAi;
+        this.hudLayers = uLayers;
         updateScreenEffectScale();
     }
 
-    public void revert() {
-        this.skippable = true;
-        this.interruptible = true;
-        this.holdAtEnd = false;
+    /** 三态开关在**单个实例**上的有效值：显式声明以声明为准，null = 未声明 → 回落该实例自己的 {@code hide_hud}。 */
+    private static boolean effective(Boolean setting, ScriptMeta.RuntimeBehavior b) {
+        return setting != null ? setting : b.hideHud();
+    }
+
+    /** {@code suppress_distortion} 在单个实例上的有效值：显式声明 → 回落 {@code suppress_bob} → 回落 {@code hide_hud}。 */
+    private static boolean effectiveDistortion(ScriptMeta.RuntimeBehavior b) {
+        if (b.suppressDistortion() != null) return b.suppressDistortion();
+        return effective(b.suppressBob(), b);
+    }
+
+    /** 单实例开关取值函数（局部函数式接口，避免引入额外依赖）。 */
+    private interface FlagOf {
+        boolean get(ScriptMeta.RuntimeBehavior behavior);
+    }
+
+    /** 三态开关的并集：逐实例解析成有效值后 OR（{@code behaviors} 已剔除 null 且非空）。 */
+    private static boolean union(java.util.List<ScriptMeta.RuntimeBehavior> behaviors, FlagOf effectiveValue) {
+        boolean any = false;
+        for (ScriptMeta.RuntimeBehavior b : behaviors) {
+            any |= effectiveValue.get(b);
+        }
+        return any;
+    }
+
+    /** 行为开关恢复默认值（= {@link #revert()} 中与行为开关有关的部分）。 */
+    private void resetBehaviorToggles() {
         this.blockKeyboard = false;
         this.blockMouse = false;
         this.hideHud = true;
@@ -90,8 +181,15 @@ public class CinematicController {
         this.suppressDistortion = null;
         this.renderPlayerModel = true;
         this.blockMobAi = false;
-        this.pauseWhenGamePaused = true;
         this.hudLayers.clear();
+    }
+
+    public void revert() {
+        this.skippable = true;
+        this.interruptible = true;
+        this.holdAtEnd = false;
+        this.pauseWhenGamePaused = true;
+        resetBehaviorToggles();
         restoreScreenEffectScale();
     }
 

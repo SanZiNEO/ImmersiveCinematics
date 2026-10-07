@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
+import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptNotifier;
 import net.minecraft.client.Minecraft;
@@ -67,6 +68,18 @@ public class CameraManager {
     /** 活跃播放实例（本版本至多 1 个；无播放时为 null）。 */
     public PlaybackInstance activeInstance() {
         return instances.isEmpty() ? null : instances.get(0);
+    }
+
+    /**
+     * 活跃实例的行为快照列表 —— 运行时控制并集（{@code CinematicController.recomputeUnion}）的输入。
+     * 实例增删后调用，见 {@code plans/0.3.6/parallel-playback.md} §3.2。
+     */
+    private List<ScriptMeta.RuntimeBehavior> instanceBehaviors() {
+        List<ScriptMeta.RuntimeBehavior> behaviors = new ArrayList<>(instances.size());
+        for (PlaybackInstance instance : instances) {
+            behaviors.add(instance.behavior());
+        }
+        return behaviors;
     }
 
     public void deactivate() {
@@ -340,10 +353,13 @@ public class CameraManager {
         // 组 A：预执行首帧用播放头时间（预览模式），避免首帧写 t=0 造成画面跳变；游戏内播放传 0 保持原语义
         instance.start(script, previewMode ? previewTime : 0f);
         if (previewMode) {
+            // 预览通道不套用脚本行为（既有语义）：只放行键鼠，行为开关不动
             CinematicController.INSTANCE.setBlockKeyboard(false);
             CinematicController.INSTANCE.setBlockMouse(false);
         } else {
-            CinematicController.INSTANCE.apply(instance.behavior());
+            // 生命周期开关按活跃实例写入（§3.1）；行为开关按全部活跃实例取并集（§3.2）
+            CinematicController.INSTANCE.applyLifecycle(instance.behavior());
+            CinematicController.INSTANCE.recomputeUnion(instanceBehaviors());
         }
 
         // 写侧收口：instance.start 已预执行脚本首帧、直写内部状态；这里立即刷新统一快照，
@@ -526,7 +542,14 @@ public class CameraManager {
         // 退出输入优雅交接：键盘按当前物理状态重同步 + 鼠标按钮同步 + 清鼠标累积量
         // （不再 releaseAll 全量释放——避免玩家仍按着键时退出导致按键失效直到松开重按）
         CinematicController.INSTANCE.syncInputStateAfterExit();
-        CinematicController.INSTANCE.revert();
+        if (instances.isEmpty()) {
+            CinematicController.INSTANCE.revert();
+        } else {
+            // §3.2：该实例结束后按剩余实例重新求并集（本版本至多 1 个实例，此分支是并行放开的落点）
+            PlaybackInstance remaining = activeInstance();
+            CinematicController.INSTANCE.applyLifecycle(remaining != null ? remaining.behavior() : null);
+            CinematicController.INSTANCE.recomputeUnion(instanceBehaviors());
+        }
         reset();
         OverlayManager.INSTANCE.reset();
 
