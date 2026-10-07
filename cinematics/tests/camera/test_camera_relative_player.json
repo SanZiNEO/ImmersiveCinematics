@@ -45,7 +45,6 @@
       "start_time": 0,
       "duration": 8,
       "transition": "cut",
-      "interpolation": "linear",
       "loop": false,
       "keyframes": [
         { "time": 0, "position": { "dx": 0, "dy": 2, "dz": -4 }, "yaw_base": "entity", "yaw_base_selector": "@p", "yaw": 0, "pitch": -5, "roll": 0, "fov": 70, "zoom": 1 },

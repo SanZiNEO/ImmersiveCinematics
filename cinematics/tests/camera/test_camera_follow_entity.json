@@ -58,7 +58,6 @@
       "start_time": 1,
       "duration": 11,
       "transition": "cut",
-      "interpolation": "linear",
       "loop": false,
       "keyframes": [
         { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@e[type=minecraft:ocelot,limit=1]", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 },

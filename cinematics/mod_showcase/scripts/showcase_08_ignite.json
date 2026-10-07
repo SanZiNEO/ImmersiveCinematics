@@ -43,7 +43,6 @@
             "start_time": 0,
             "duration": 10,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -99,7 +98,6 @@
             "layer_type": "subtitle",
             "text": "传送门已点燃",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -115,7 +113,6 @@
             "layer_type": "subtitle",
             "text": "回到主世界，继续你的冒险",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [

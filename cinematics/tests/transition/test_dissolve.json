@@ -45,7 +45,6 @@
             "start_time": 0,
             "duration": 6,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               { "time": 0, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 },
@@ -57,7 +56,6 @@
             "start_time": 4,
             "duration": 6,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               { "time": 0, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 0 },

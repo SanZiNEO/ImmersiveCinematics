@@ -60,7 +60,6 @@
             "start_time": 0,
             "duration": 10,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               { "time": 0, "position": { "dx": 300, "dy": 20, "dz": 0 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },

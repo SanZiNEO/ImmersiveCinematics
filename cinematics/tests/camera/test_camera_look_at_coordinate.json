@@ -45,7 +45,6 @@
       "start_time": 0,
       "duration": 12,
       "transition": "cut",
-      "interpolation": "linear",
       "loop": false,
       "keyframes": [
         { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "coordinate", "look_at_target_x": 0, "look_at_target_y": 64, "look_at_target_z": 0, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },

@@ -62,7 +62,6 @@
             "start_time": 0,
             "duration": 6,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -98,7 +97,6 @@
             "duration": 6,
             "transition": "morph",
             "transition_duration": 1,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -134,7 +132,6 @@
             "duration": 8,
             "transition": "morph",
             "transition_duration": 1,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -170,7 +167,6 @@
             "duration": 12,
             "transition": "morph",
             "transition_duration": 1.5,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -219,7 +215,6 @@
             "duration": 23,
             "transition": "morph",
             "transition_duration": 1.5,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -294,7 +289,6 @@
             "duration": 15,
             "transition": "morph",
             "transition_duration": 1.5,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -343,7 +337,6 @@
             "duration": 10,
             "transition": "morph",
             "transition_duration": 1,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -392,7 +385,6 @@
             "duration": 10,
             "transition": "morph",
             "transition_duration": 0.8,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -441,7 +433,6 @@
             "duration": 13,
             "transition": "morph",
             "transition_duration": 1.5,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -490,7 +481,6 @@
             "duration": 14,
             "transition": "morph",
             "transition_duration": 1.5,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -539,7 +529,6 @@
             "duration": 13,
             "transition": "morph",
             "transition_duration": 1.5,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -588,7 +577,6 @@
             "duration": 12,
             "transition": "morph",
             "transition_duration": 1.5,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -637,7 +625,6 @@
             "duration": 10,
             "transition": "morph",
             "transition_duration": 1,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -673,7 +660,6 @@
             "duration": 12,
             "transition": "morph",
             "transition_duration": 1.5,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -722,7 +708,6 @@
             "duration": 12,
             "transition": "morph",
             "transition_duration": 1,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -771,7 +756,6 @@
             "duration": 12,
             "transition": "morph",
             "transition_duration": 1.5,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -820,7 +804,6 @@
             "duration": 12,
             "transition": "morph",
             "transition_duration": 1.5,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -869,7 +852,6 @@
             "duration": 5,
             "transition": "morph",
             "transition_duration": 1,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {

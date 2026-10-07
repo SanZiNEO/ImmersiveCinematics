@@ -44,7 +44,6 @@
             "start_time": 0,
             "duration": 15,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -87,7 +86,6 @@
             "layer_type": "subtitle",
             "text": "你击败了一只羊，恭喜你",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -103,7 +101,6 @@
             "layer_type": "subtitle",
             "text": "但是，要下雨了！",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -119,7 +116,6 @@
             "layer_type": "subtitle",
             "text": "注意！小心被雷电击中！",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -135,7 +131,6 @@
             "layer_type": "subtitle",
             "text": "雨过天晴，继续冒险吧。",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -151,7 +146,6 @@
             "layer_type": "subtitle",
             "text": "我已给你发送村庄的位置。",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [

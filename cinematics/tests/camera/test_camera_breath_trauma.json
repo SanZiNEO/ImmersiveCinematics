@@ -45,7 +45,6 @@
       "start_time": 0,
       "duration": 12,
       "transition": "cut",
-      "interpolation": "linear",
       "loop": false,
       "cam_breath_enabled": true,
       "cam_breath_type": "trauma",

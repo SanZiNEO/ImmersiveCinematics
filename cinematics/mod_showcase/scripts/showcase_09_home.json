@@ -42,7 +42,6 @@
             "start_time": 0,
             "duration": 8,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               { "time": 0,   "position": { "dx": -2, "dy": 2.5, "dz": -8 },   "yaw": 15,  "pitch": 3,   "roll": 0, "fov": 70, "zoom": 1.0 },
@@ -58,7 +57,6 @@
             "duration": 8.5,
             "transition": "morph",
             "transition_duration": 1.0,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               { "time": 0,   "position": { "dx": -2, "dy": 2.7, "dz": -6.5 }, "yaw": 10,  "pitch": 2.5, "roll": 0, "fov": 70, "zoom": 1.0 },
@@ -73,7 +71,6 @@
             "duration": 8.5,
             "transition": "morph",
             "transition_duration": 1.0,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               { "time": 0,   "position": { "dx": 4,   "dy": 2.5, "dz": 4 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0 },
@@ -88,7 +85,6 @@
             "duration": 10.5,
             "transition": "morph",
             "transition_duration": 1.0,
-            "interpolation": "linear",
             "loop": false,
             "curve": {
               "type": "bezier",
@@ -107,7 +103,6 @@
             "duration": 8.5,
             "transition": "morph",
             "transition_duration": 1.0,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               { "time": 0,   "position": { "dx": 0, "dy": 14, "dz": -10 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 80, "zoom": 1.0 },
@@ -122,7 +117,6 @@
             "duration": 8.5,
             "transition": "morph",
             "transition_duration": 1.0,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               { "time": 0,   "position": { "dx": 4,   "dy": 4,   "dz": 2 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0 },
@@ -137,7 +131,6 @@
             "duration": 12.5,
             "transition": "morph",
             "transition_duration": 1.0,
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               { "time": 0,   "position": { "dx": 8,   "dy": 4,   "dz": 4 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 48, "zoom": 1.0 },
@@ -192,7 +185,6 @@
             "layer_type": "subtitle",
             "text": "欢迎回到主世界",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -208,7 +200,6 @@
             "layer_type": "subtitle",
             "text": "主世界，一切冒险开始的地方",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -224,7 +215,6 @@
             "layer_type": "subtitle",
             "text": "你的冒险仍在继续",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -240,7 +230,6 @@
             "layer_type": "subtitle",
             "text": "你探索了这么久，应该饿了，吃个面包吧",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [

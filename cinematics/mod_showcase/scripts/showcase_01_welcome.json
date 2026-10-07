@@ -42,7 +42,6 @@
             "layer_type": "subtitle",
             "text": "欢迎使用Immersive Cinematics模组",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -58,7 +57,6 @@
             "layer_type": "subtitle",
             "text": "Immersive Cinematics 是一款 Minecraft 过场动画模组",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -74,7 +72,6 @@
             "layer_type": "subtitle",
             "text": "编写脚本，即可操控相机运镜、播放音频、添加字幕",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -90,7 +87,6 @@
             "layer_type": "subtitle",
             "text": "脚本由触发器触发，满足条件即自动播放",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -106,7 +102,6 @@
             "layer_type": "subtitle",
             "text": "接下来击败一只羊试试",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [

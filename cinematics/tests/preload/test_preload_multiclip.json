@@ -47,7 +47,6 @@
             "start_time": 0,
             "duration": 10,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               { "time": 0, "position": { "dx": -288, "dy": 40, "dz": 0 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 },
@@ -58,7 +57,6 @@
             "start_time": 10,
             "duration": 10,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               { "time": 10, "position": { "dx": 288, "dy": 40, "dz": 0 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 },
@@ -69,7 +67,6 @@
             "start_time": 20,
             "duration": 10,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               { "time": 20, "position": { "dx": 0, "dy": 40, "dz": 288 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 },

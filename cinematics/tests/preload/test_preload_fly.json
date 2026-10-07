@@ -50,7 +50,6 @@
             "start_time": 0,
             "duration": 30,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {

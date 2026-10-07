@@ -42,7 +42,6 @@
             "start_time": 0,
             "duration": 12,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               { "time": 0, "position": { "dx": 300, "dy": 20, "dz": 0 }, "yaw": 90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },

@@ -43,7 +43,6 @@
             "start_time": 0,
             "duration": 4.5,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -78,7 +77,6 @@
             "start_time": 4.5,
             "duration": 7.5,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -171,7 +169,6 @@
             "layer_type": "subtitle",
             "text": "铁傀儡接受了你的花",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -187,7 +184,6 @@
             "layer_type": "subtitle",
             "text": "走进传送门，前往新的世界",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [

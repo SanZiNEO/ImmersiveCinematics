@@ -45,7 +45,6 @@
       "start_time": 0,
       "duration": 12,
       "transition": "cut",
-      "interpolation": "linear",
       "loop": false,
       "keyframes": [
         { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@p", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 },

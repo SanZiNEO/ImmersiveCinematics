@@ -41,7 +41,6 @@
             "start_time": 0,
             "duration": 8,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "curve": {
               "type": "bezier",
@@ -123,7 +122,6 @@
             "layer_type": "subtitle",
             "text": "欢迎来到下界",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -139,7 +137,6 @@
             "layer_type": "subtitle",
             "text": "猪灵喜爱金锭，把金锭丢给它，它会回赠你物品",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [

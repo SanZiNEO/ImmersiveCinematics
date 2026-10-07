@@ -58,7 +58,6 @@
             "start_time": 0,
             "duration": 10,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -136,7 +135,6 @@
             "layer_type": "subtitle",
             "text": "交易成功，猪灵给了你一件物品",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -152,7 +150,6 @@
             "layer_type": "subtitle",
             "text": "搭一座传送门，用打火石点燃回去吧",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [

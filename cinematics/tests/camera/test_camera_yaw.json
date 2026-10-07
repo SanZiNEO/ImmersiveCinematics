@@ -45,7 +45,6 @@
       "start_time": 0,
       "duration": 8,
       "transition": "cut",
-      "interpolation": "linear",
       "loop": false,
       
       "keyframes": [

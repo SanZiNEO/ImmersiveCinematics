@@ -46,7 +46,6 @@
       "duration": 4,
       "transition": "morph",
       "transition_duration": 1,
-      "interpolation": "linear",
       "loop": false,
       "keyframes": [
         { "time": 0, "position": { "dx": 3, "dy": 2, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
@@ -57,7 +56,6 @@
       "start_time": 4,
       "duration": 8,
       "transition": "cut",
-      "interpolation": "linear",
       "loop": false,
       "keyframes": [
         { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -3 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1 },

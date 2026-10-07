@@ -151,7 +151,6 @@
             ],
             "transition": "cut",
             "transition_duration": 0.0,
-            "interpolation": "linear",
             "dimension": "",
             "loop": true,
             "loop_count": -1,

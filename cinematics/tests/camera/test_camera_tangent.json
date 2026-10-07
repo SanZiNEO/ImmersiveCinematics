@@ -45,7 +45,6 @@
       "start_time": 0,
       "duration": 12,
       "transition": "cut",
-      "interpolation": "linear",
       "loop": false,
       "orient": "tangent",
       "yaw_offset": 0,

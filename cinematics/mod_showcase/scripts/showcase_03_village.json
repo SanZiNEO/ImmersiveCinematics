@@ -42,7 +42,6 @@
             "start_time": 0,
             "duration": 15,
             "transition": "cut",
-            "interpolation": "linear",
             "loop": false,
             "keyframes": [
               {
@@ -115,7 +114,6 @@
             "layer_type": "subtitle",
             "text": "前方发现一座村庄",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [
@@ -131,7 +129,6 @@
             "layer_type": "subtitle",
             "text": "去和村民打个招呼吧",
             "z_index": 30,
-            "interpolation": "linear",
             "color": "#000000",
             "path": "",
             "keyframes": [

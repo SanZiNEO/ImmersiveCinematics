@@ -51,7 +51,6 @@
             "duration": 10.0,
             "transition": "cut",
             "transition_duration": 0.5,
-            "interpolation": "linear",
             "dimension": "",
             "loop": true,
             "loop_count": -1.0,
