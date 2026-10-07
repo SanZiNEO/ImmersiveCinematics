@@ -18,6 +18,20 @@ function log(...args: any[]): void {
 
 const SERVER_URL = 'ws://127.0.0.1:8765/ws'
 
+/**
+ * 握手 token：mod 侧每次启动随机生成，写入 <user.home>/.immersivecinematics/webui-token
+ * （可用环境变量 IC_WEBUI_TOKEN_FILE 覆盖路径）；服务端在 /ws 升级前校验 Origin 白名单 + token，
+ * 见 WebEditorServer。取法按优先级：
+ *   1. Electron：主进程读文件后经 preload 同步 IPC 交给渲染进程（打包态页面是 file://，读不了文件）；
+ *   2. 浏览器 dev（vite）：从地址栏 ?token=xxx 取。
+ * 每次 connect() 重新取一次，游戏重启换 token 后重连能自动跟上。
+ */
+function authToken(): string | null {
+  const fromMain = window.electronWindow?.getWebuiToken()
+  if (typeof fromMain === 'string' && fromMain) return fromMain
+  return new URLSearchParams(location.search).get('token') || null
+}
+
 // ── 响应式状态 ────────────────────────────────────────────────
 
 export const state = reactive({
@@ -164,7 +178,13 @@ export function connect(): void {
     clearTimeout(reconnectTimer)
     reconnectTimer = null
   }
-  ws = new WebSocket(SERVER_URL)
+  const token = authToken()
+  if (!token) {
+    // 服务端（游戏内按 F9 才启动）没写 token 文件时连不上；1.5s 后重连会自动重试。
+    log('WS token not found — start the WebUI server in game (F9) first')
+    state.error = 'webui token not found'
+  }
+  ws = new WebSocket(token ? `${SERVER_URL}?token=${encodeURIComponent(token)}` : SERVER_URL)
   ws.binaryType = 'arraybuffer'
 
   ws.onopen = () => {

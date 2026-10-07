@@ -56,14 +56,14 @@
 - 已实现消息：`hello`；`script.list` / `script.load` / `script.save` / `script.delete` / `script.new` / `script.validate`；`registry.query` / `registry.get`；`schema.get`；`editor.seek` / `editor.play` / `editor.pause` / `editor.stop` / `editor.setCamera` / `editor.pushScript`；`editor.enter_flight_mode` / `editor.exit_flight_mode` / `editor.cancel_flight_mode`。
 - 服务端主动推送（事件）：`hello_ack`；`playback.state`（预览屏每 50ms 推一次，约 20Hz）；`flight.state`（飞控中每 100ms，约 10Hz）；`flight.exit`；`error`。
 - 二进制帧（预览）：`[1 byte type = 0x01][2 bytes frameId][2 bytes width][2 bytes height][RGBA payload]`（宽度 / 高度 / frameId 均为大端 2 字节；像素为 1280×720 RGBA，发送前已做上下翻转）。
-- 安全：仅绑定 127.0.0.1；无 token / Origin 校验（见 §3）。
+- 安全：仅绑定 127.0.0.1；**握手身份校验已落地**——Origin 白名单 + 每次启动随机 token（见 §3.2）。
 
 ---
 
 ## 3. 剩余工作
 
 - **旧游戏内编辑器退役**：**已落地（2026-10-07）**——`editor/` 包、桥接、F6 键与 `EDITOR_ENABLED` 开关全部删除（删除清单见 §4）。
-- **安全加固**：本地 token / Origin 校验未做。
+- **安全加固**：**已落地（2026-10-07）**——握手身份校验（Origin 白名单 + 每次启动随机 token），方案与两端改动点见 §3.2。
 - **预览与游戏内播放的通道隔离**：编辑器预览目前走 `CameraManager` 直控；隔离属[并行播放](./parallel-playback.md)步骤 5 的范围。
 - **远期 / 可选**：H.264 / WebRTC；飞控远程面板；动效。
 
@@ -74,6 +74,35 @@
 **明确不做**：把选中片段的相机画面当 PIP 小窗叠在原画上、或通过某种模式退回原画再操作——预览里处理的就是这个镜头本身。
 
 **依赖**：① [多相机渲染](./multi-camera-rendering.md)的 lane 渲染（选中片段相机 → 离屏 FBO → 全屏上屏）；② [并行播放](./parallel-playback.md)步骤 5（预览为独立实例，不挤掉游戏内播放）——飞控即"预览实例的单 lane 全屏"形态。多 lane 合成本身在编辑器预览中的表现见[画面合成](./camera-composition.md) §5 待定项。
+
+### 3.2 安全加固：握手身份校验（已落地 · 2026-10-07）
+
+**威胁模型**：`WebEditorServer` 只绑 `127.0.0.1` 挡不住"用户浏览器里的任意网页"——浏览器会替网页连回环地址。恶意页面或本地程序可连 `ws://127.0.0.1:8765/ws` 冒充编辑器读写脚本、控制预览。加固 = **握手阶段的身份校验**。
+
+**方案（两道校验，任一不过 → 403 + 关连接 + `[IC-WebUI] rejected <addr>: <原因>` 日志；不进入会话）**：
+
+| 道 | 校验 | 拦住谁 |
+|---|---|---|
+| 1 | **Origin 白名单**：浏览器在 WebSocket 握手里强制附带 `Origin` 且网页无法伪造。放行 `file://` / `null`（Electron 打包态页面）、`http(s)://localhost\|127.0.0.1\|::1[:port]`（vite dev server）；无 `Origin` 的非浏览器客户端放行到第二道 | 用户浏览器里的任意网页（`https://evil.com` 直接拒） |
+| 2 | **每次启动随机 token**：`start()` 用 `SecureRandom` 生成 32 字节（64 位十六进制）写入 `<user.home>/.immersivecinematics/webui-token`（路径可用环境变量 `IC_WEBUI_TOKEN_FILE` 覆盖），客户端以 `ws://127.0.0.1:8765/ws?token=...` 携带，服务端用 `MessageDigest.isEqual` 常量时间比对；`stop()` 删除该文件 | 本地程序、本地文件型页面（读不到 token 文件）；token 每次开服轮换，旧值立刻失效 |
+
+**为什么两道都要**：只做 Origin——`file://` / `null` 必须在白名单里（Electron 打包态就是 `file://` 页面），"用户本地打开的一个 HTML 文件"也落在这一档，Origin 挡不住，token 挡得住；只做 token——Origin 是浏览器强制、不可伪造的，能第一时间把网页挡在门外，不给 token 留爆破面。两者互补，都不是可选项。
+
+**不改协议**：token 只出现在握手 URL 的 query 里，`{type,data,id}` 信封、全部消息类型与二进制帧格式不变。
+
+**两端改动点**：
+
+| 端 | 文件 | 改动 |
+|---|---|---|
+| Java | `webui/WebEditorServer.java` | 新增 `token` 字段与 `tokenFilePath()` / `generateToken()` / `writeTokenFile()` / `deleteTokenFile()` / `tokenMatches()` / `isAllowedOrigin()` / `reject()`；`start()` 绑端口成功后生成并写 token 文件，`stop()` 置空并删文件；`handleSocket()` 的 `/ws` 分支在 `upgradeWebSocket()` **之前**跑两道校验；`parsePath()` 改为剥离 query，新增 `parseQueryParam()` 取 token |
+| 前端 | `editor/src/store.ts` | 新增 `authToken()`；`connect()` 每次重连重新取 token 并拼进 URL（`ws://127.0.0.1:8765/ws?token=...`）；取不到时打日志 + 置 `state.error`，仍按 1.5s 重连（游戏开服写出 token 后自动接上） |
+| 前端 | `editor/electron/main.cjs` | 新增 `webuiTokenFile()` / `readWebuiToken()` 与 `webui:token` 同步 IPC handler：主进程读 token 文件，路径算法与 Java 侧一致（同样认 `IC_WEBUI_TOKEN_FILE`） |
+| 前端 | `editor/electron/preload.cjs` | 暴露 `electronWindow.getWebuiToken()`（`ipcRenderer.sendSync('webui:token')`）给渲染进程 |
+| 前端 | `editor/src/electron-bridge.d.ts`（新增） | `window.electronWindow` 的类型声明（浏览器 dev 下不存在，声明为可选） |
+
+**渲染进程为什么绕主进程**：打包态页面是 `file://`，渲染进程读不了磁盘文件；主进程读、preload 同步 IPC 递过来是最短通路。每次 `connect()` 调一次，因此游戏重启轮换 token 后重连自动取到新值；token 文件不存在时（游戏未按 F9 开服）编辑器不假装连上，日志与 `state.error` 明说原因。
+
+**验证（2026-10-07，非游戏内）**：`sh gradlew compileJava` 通过；`cd editor && npm run build` 通过；一次性冒烟脚本对真实 `WebEditorServer` 打 11 组握手——坏 Origin（`https://evil.com`）、缺 token、空 token、错 token、无 Origin 无 token 全部 403，`file://` + 正确 token、`http://localhost:5173` + 正确 token、无 Origin + 正确 token 全部 101，`stop()` 后 token 文件确实被删除；再用**真实 Electron 客户端**跑通端到端：token 文件在位时服务端日志出现 `editor client connected`（该客户端要么不带 `Origin`、要么落在白名单内，否则会被 `origin not allowed` 拒掉），把 token 文件移走后同一客户端 10 次重连全部 `rejected ... invalid or missing token`。**游戏内实际连接未验证**（本机无 MC 运行环境）。
 
 > 原始迁移方案（研究参考、阶段划分、协议草案）与 0.3.5 的独立 Editor 计划见 git 历史与 `plans/complete/0.3.5/webui-editor-standalone-plan.md`、`webui-logic-completion.md`。
 

@@ -1,5 +1,23 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
+const fs = require('fs')
+const os = require('os')
 const path = require('path')
+
+// WebUI 握手 token 文件：由 mod（WebEditorServer.start()）写入，路径与 Java 侧一致。
+// IC_WEBUI_TOKEN_FILE 可覆盖（多实例 / 测试）。
+function webuiTokenFile() {
+  const override = process.env.IC_WEBUI_TOKEN_FILE
+  if (override && override.trim()) return override.trim()
+  return path.join(os.homedir(), '.immersivecinematics', 'webui-token')
+}
+
+function readWebuiToken() {
+  try {
+    return fs.readFileSync(webuiTokenFile(), 'utf8').trim()
+  } catch {
+    return ''
+  }
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -17,6 +35,11 @@ function createWindow() {
   })
   win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
 }
+
+// WebUI 握手 token 查询（渲染进程每次重连都会问一次）
+ipcMain.on('webui:token', (event) => {
+  event.returnValue = readWebuiToken()
+})
 
 // 自绘窗口控制按钮
 ipcMain.on('window:minimize', (event) => {
