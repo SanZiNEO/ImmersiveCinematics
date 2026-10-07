@@ -7,6 +7,7 @@ import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
+import com.immersivecinematics.immersive_cinematics.trigger.server.prereq.PrerequisiteRegistry;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -102,7 +103,7 @@ public final class ScriptValidator {
         // ===== meta.triggers：前置依赖（requires）+ 类型/条件结构校验 =====
         if (root.has("meta") && root.get("meta").isJsonObject()) {
             validateTriggerRequires(root.getAsJsonObject("meta"), "meta", knownScriptIds, issues);
-            validateTriggerConditions(root.getAsJsonObject("meta"), "meta", issues);
+            validateTriggerConditions(root.getAsJsonObject("meta"), "meta", knownScriptIds, issues);
         }
 
         // ===== timeline =====
@@ -468,38 +469,9 @@ public final class ScriptValidator {
                         issues.add(rp + " 指向不存在的脚本 '" + reqId + "'（该触发器将永不触发）");
                     }
                 } else if (re.isJsonObject()) {
+                    // 对象型前置条件：type / script 字段与跨脚本引用校验（与组合器子条件共用同一套规则）
                     JsonObject reqObj = re.getAsJsonObject();
-                    if (!reqObj.has("type") || !reqObj.get("type").isJsonPrimitive() || !reqObj.get("type").getAsJsonPrimitive().isString()) {
-                        issues.add(rp + " 对象型前置条件必须包含字符串 type");
-                        continue;
-                    }
-                    String type = reqObj.get("type").getAsString();
-                    if (type.isEmpty()) {
-                        issues.add(rp + " 前置条件 type 不能为空");
-                        continue;
-                    }
-                    // 内置脚本类前置条件：必须带 script 字段，并做跨脚本/自引用校验
-                    boolean needsScript = type.equals("script_played")
-                            || type.equals("script_started")
-                            || type.equals("script_completed");
-                    if (needsScript) {
-                        if (!reqObj.has("script") || !reqObj.get("script").isJsonPrimitive() || !reqObj.get("script").getAsJsonPrimitive().isString()) {
-                            issues.add(rp + " script_* 前置条件必须提供字符串 script 字段");
-                            continue;
-                        }
-                        String reqId = reqObj.get("script").getAsString();
-                        if (reqId.isEmpty()) {
-                            issues.add(rp + " script 不能为空");
-                            continue;
-                        }
-                        if (selfId != null && reqId.equals(selfId)) {
-                            issues.add(rp + " 自引用自身脚本 '" + reqId + "'（可能永不解锁）");
-                        }
-                        if (knownScriptIds != null && !knownScriptIds.contains(reqId)) {
-                            issues.add(rp + " 指向不存在的脚本 '" + reqId + "'（该触发器将永不触发）");
-                        }
-                    }
-                    // 未知/自定义类型不在这里硬报错：允许其他模组注册后使用
+                    validatePrerequisiteRef(reqObj, reqObj, rp, selfId, knownScriptIds, issues);
                 } else {
                     issues.add(rp + " 必须是字符串脚本 id 或对象型前置条件");
                 }
@@ -508,15 +480,19 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 meta.triggers 的 type / conditions 结构（0.3.6：facing / all_of 两个新类型）：
+     * 校验 meta.triggers 的 type / conditions 结构（0.3.6：facing / all_of / any 三个新类型）：
      * - 未知触发器类型；conditions 不是对象；
      * - facing：yaw1/pitch1/yaw2/pitch2 必须是数字；pitch 端点必须在 -90~90；
-     * - all_of：list 必须是非空数组，元素为 { type, conditions }；子类型必须是已注册的轮询类触发器
-     *   （事件类不可用——会带来“很久以前发生过也算”的误判），且不允许嵌套 all_of；
-     * - facing / all_of 上的 exit_buffer 不会生效（无空间外扩），给出提示。
+     * - all_of / any：list 必须是非空数组，元素为 { type, conditions }；子类型必须是已注册的轮询类
+     *   触发器或已注册的前置条件（script_played / script_started / script_completed，锁存语义）；
+     *   事件类不可用——会带来“很久以前发生过也算”的误判；两者都不允许嵌套组合器；
+     * - facing / all_of / any 上的 exit_buffer 不会生效（无空间外扩），给出提示。
      */
-    private static void validateTriggerConditions(JsonObject meta, String path, List<String> issues) {
+    private static void validateTriggerConditions(JsonObject meta, String path,
+                                                  Collection<String> knownScriptIds, List<String> issues) {
         if (!meta.has("triggers") || !meta.get("triggers").isJsonArray()) return;
+        String selfId = meta.has("id") && meta.get("id").isJsonPrimitive()
+                ? meta.get("id").getAsString() : null;
         JsonArray triggers = meta.getAsJsonArray("triggers");
         for (int i = 0; i < triggers.size(); i++) {
             JsonElement te = triggers.get(i);
@@ -541,11 +517,12 @@ public final class ScriptValidator {
             if (conditions != null) {
                 if ("facing".equals(type)) {
                     validateFacingConditions(conditions, tp + ".conditions", issues);
-                } else if ("all_of".equals(type)) {
-                    validateAllOfConditions(conditions, tp + ".conditions", issues);
+                } else if ("all_of".equals(type) || "any".equals(type)) {
+                    validateCombinationConditions(conditions, tp + ".conditions", type,
+                            selfId, knownScriptIds, issues);
                 }
             }
-            if (("facing".equals(type) || "all_of".equals(type))
+            if (("facing".equals(type) || "all_of".equals(type) || "any".equals(type))
                     && isPositiveNumber(t.get("exit_buffer"))) {
                 issues.add(tp + ".exit_buffer 对 " + type + " 无效（没有可外扩的空间条件），将被忽略");
             }
@@ -570,9 +547,20 @@ public final class ScriptValidator {
         }
     }
 
-    private static void validateAllOfConditions(JsonObject c, String p, List<String> issues) {
+    /**
+     * 校验组合器（all_of / any）的 conditions.list：
+     * - list 必须是非空数组，元素必须是对象且带非空字符串 type；
+     * - 子类型可以是**已注册的轮询类触发器**（瞬时语义），也可以是**已注册的前置条件**
+     *   （script_played / script_started / script_completed，锁存语义）；
+     * - 事件类触发器（“最近发生过”语义）与嵌套组合器（all_of / any）一律拒绝；
+     * - 前置条件子项复用 requires 的同一套字段 / 跨脚本引用校验。
+     */
+    private static void validateCombinationConditions(JsonObject c, String p, String combinator,
+                                                      String selfId, Collection<String> knownScriptIds,
+                                                      List<String> issues) {
         if (!c.has("list") || !c.get("list").isJsonArray()) {
-            issues.add(p + ".list 缺失或不是数组（all_of 需要 \"list\": [ { \"type\": ..., \"conditions\": { ... } }, ... ]）");
+            issues.add(p + ".list 缺失或不是数组（" + combinator
+                    + " 需要 \"list\": [ { \"type\": ..., \"conditions\": { ... } }, ... ]）");
             return;
         }
         JsonArray list = c.getAsJsonArray("list");
@@ -588,27 +576,81 @@ public final class ScriptValidator {
                 continue;
             }
             JsonObject sub = e.getAsJsonObject();
-            if (!sub.has("type") || !sub.get("type").isJsonPrimitive()) {
-                issues.add(sp + ".type 缺失或不是字符串");
+            String subType = sub.has("type") && sub.get("type").isJsonPrimitive()
+                    && sub.get("type").getAsJsonPrimitive().isString()
+                    ? sub.get("type").getAsString() : null;
+            if (subType == null || subType.isEmpty()) {
+                issues.add(sp + ".type 缺失或不是非空字符串");
                 continue;
             }
-            String subType = sub.get("type").getAsString();
-            if ("all_of".equals(subType)) {
-                issues.add(sp + " 不允许嵌套 all_of（最小版本只支持一层）");
-                continue;
-            }
-            TriggerType tt = TriggerRegistry.get(subType);
-            if (tt == null) {
-                issues.add(sp + ".type 未知触发器类型: " + subType);
-                continue;
-            }
-            if (tt.getStrategy() != ListenStrategy.POLLING) {
-                issues.add(sp + " 事件类触发器不能放进 all_of（会带来“很久以前发生过也算”的误判）: " + subType);
+            if ("all_of".equals(subType) || "any".equals(subType)) {
+                issues.add(sp + " 不允许嵌套组合器（" + subType + "，最小版本只支持一层）");
                 continue;
             }
             if (sub.has("conditions") && !sub.get("conditions").isJsonObject()) {
                 issues.add(sp + ".conditions 必须是对象");
             }
+            if (PrerequisiteRegistry.has(subType)) {
+                // 前置条件子项（锁存语义）：数据与触发器一致地放在 conditions 里，复用 requires 的同一套字段检查
+                JsonObject data = sub.has("conditions") && sub.get("conditions").isJsonObject()
+                        ? sub.getAsJsonObject("conditions") : new JsonObject();
+                validatePrerequisiteRef(sub, data, sp + ".conditions", selfId, knownScriptIds, issues);
+                continue;
+            }
+            TriggerType tt = TriggerRegistry.get(subType);
+            if (tt == null) {
+                issues.add(sp + ".type 未知触发器类型，也不是已注册的前置条件: " + subType);
+                continue;
+            }
+            if (tt.getStrategy() != ListenStrategy.POLLING) {
+                issues.add(sp + " 事件类触发器不能放进 " + combinator
+                        + "（会带来“很久以前发生过也算”的误判）: " + subType);
+            }
+        }
+    }
+
+    /**
+     * 前置条件的公共校验（{@code requires} 的对象型写法与组合器子条件共用同一套规则）：
+     * type 必需且非空；内置 {@code script_played} / {@code script_started} / {@code script_completed}
+     * 的数据对象必须提供 script 字段，并做自引用与跨脚本存在性检查。未知 / 自定义类型不在这里硬报错——
+     * 是否允许由调用方决定（requires 允许其他模组注册后使用；组合器子条件只允许已注册类型）。
+     *
+     * @param typeHolder 带 {@code type} 的对象（requires 元素 / 组合器子条件）
+     * @param data       该前置条件的数据对象（requires 元素自身；组合器子条件为 {@code conditions}）
+     * @param dataPath   {@code data} 的路径前缀（报错定位用）
+     */
+    private static void validatePrerequisiteRef(JsonObject typeHolder, JsonObject data, String dataPath,
+                                                String selfId, Collection<String> knownScriptIds,
+                                                List<String> issues) {
+        if (!typeHolder.has("type") || !typeHolder.get("type").isJsonPrimitive()
+                || !typeHolder.get("type").getAsJsonPrimitive().isString()) {
+            issues.add(dataPath + " 对象型前置条件必须包含字符串 type");
+            return;
+        }
+        String type = typeHolder.get("type").getAsString();
+        if (type.isEmpty()) {
+            issues.add(dataPath + " 前置条件 type 不能为空");
+            return;
+        }
+        boolean needsScript = type.equals("script_played")
+                || type.equals("script_started")
+                || type.equals("script_completed");
+        if (!needsScript) return;
+        if (!data.has("script") || !data.get("script").isJsonPrimitive()
+                || !data.get("script").getAsJsonPrimitive().isString()) {
+            issues.add(dataPath + ".script 缺失或不是字符串（script_* 前置条件需要 script 字段）");
+            return;
+        }
+        String reqId = data.get("script").getAsString();
+        if (reqId.isEmpty()) {
+            issues.add(dataPath + ".script 不能为空");
+            return;
+        }
+        if (selfId != null && reqId.equals(selfId)) {
+            issues.add(dataPath + ".script 自引用自身脚本 '" + reqId + "'（可能永不解锁或自我循环）");
+        }
+        if (knownScriptIds != null && !knownScriptIds.contains(reqId)) {
+            issues.add(dataPath + ".script 指向不存在的脚本 '" + reqId + "'（该前置条件永不满足）");
         }
     }
 

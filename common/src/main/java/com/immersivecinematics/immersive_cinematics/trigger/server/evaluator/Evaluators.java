@@ -3,6 +3,8 @@ package com.immersivecinematics.immersive_cinematics.trigger.server.evaluator;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
+import com.immersivecinematics.immersive_cinematics.trigger.server.prereq.PrerequisiteRegistry;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.core.BlockPos;
@@ -557,24 +559,69 @@ public class Evaluators {
      * <p>
      * 每轮求值都用同一时刻的玩家状态把所有子条件重新算一遍（无记忆、无等待、短路）——
      * 不会出现“先在 A 处满足条件 1、再到 B 处满足条件 2 也判定成功”。
-     * 子条件只允许轮询类触发器类型（事件类会带来“很久以前发生过也算”的误判）。
+     * 子条件可以是轮询类触发器类型，也可以是前置条件（锁存语义），见
+     * {@link #evaluateCombinationChild}。
      */
     public static boolean evaluateAllOf(ServerPlayer player, JsonObject c) {
-        if (c == null || !c.has("list") || !c.get("list").isJsonArray()) return false;
-        var list = c.getAsJsonArray("list");
-        if (list.isEmpty()) return false;
+        JsonArray list = combinationList(c);
+        if (list == null) return false;
         for (JsonElement el : list) {
-            if (!el.isJsonObject()) return false;
-            JsonObject sub = el.getAsJsonObject();
-            if (!sub.has("type") || !sub.get("type").isJsonPrimitive()) return false;
-            TriggerType tt = TriggerRegistry.get(sub.get("type").getAsString());
-            if (tt == null || tt.getStrategy() != ListenStrategy.POLLING) return false;
-            JsonObject subConditions = sub.has("conditions") && sub.get("conditions").isJsonObject()
-                    ? sub.getAsJsonObject("conditions")
-                    : new JsonObject();
-            if (!tt.evaluate(player, subConditions)) return false;
+            if (!el.isJsonObject() || !evaluateCombinationChild(player, el.getAsJsonObject())) return false;
         }
         return true;
+    }
+
+    /**
+     * 任一条件（OR）：conditions.list 内**任一**子条件满足即为真，命中即短路。
+     * <p>
+     * 与 {@link #evaluateAllOf} 同构——同一份 list 结构、同一份子条件求值
+     * （{@link #evaluateCombinationChild}），只有判定从“全真”改为“任一真”。
+     * 前置条件是锁存语义，一旦解锁该子条件持续为真，因此 any 列表里含已解锁前置条件时
+     * 会在下一轮轮询立即触发（这正是“发生过即真”的预期语义）。
+     */
+    public static boolean evaluateAny(ServerPlayer player, JsonObject c) {
+        JsonArray list = combinationList(c);
+        if (list == null) return false;
+        for (JsonElement el : list) {
+            if (el.isJsonObject() && evaluateCombinationChild(player, el.getAsJsonObject())) return true;
+        }
+        return false;
+    }
+
+    /** 组合器（any / all_of）的 list 提取：缺失 / 非数组 / 空数组 → null（视为不满足） */
+    private static JsonArray combinationList(JsonObject c) {
+        if (c == null || !c.has("list") || !c.get("list").isJsonArray()) return null;
+        JsonArray list = c.getAsJsonArray("list");
+        return list.isEmpty() ? null : list;
+    }
+
+    /**
+     * 组合器子条件求值（any / all_of 共用）。两类语义在同一轮求值中分清：
+     * <ul>
+     *   <li><b>前置条件</b>（已注册的前置类型，如 {@code script_played} / {@code script_started} /
+     *       {@code script_completed}）：<b>锁存语义</b>——发生过即真，之后一直为真；</li>
+     *   <li><b>轮询类触发器</b>：<b>瞬时语义</b>——只看“此刻”是否满足。同一轮里所有轮询子条件都用
+     *       同一时刻的玩家状态求值，所以“先在 A 满足条件 1、再到 B 满足条件 2”不会误判；</li>
+     *   <li>事件类触发器（带“最近发生过”语义）、未知类型、嵌套组合器（{@code all_of} / {@code any}）
+     *       一律视为不满足。</li>
+     * </ul>
+     * 类型解析顺序：**已注册的前置条件优先**，其次才是触发器类型——前置类型名与触发器类型名撞名时，
+     * 组合里按前置条件求值（前置类型建议用 {@code modid:name} 命名以避免歧义）。
+     */
+    private static boolean evaluateCombinationChild(ServerPlayer player, JsonObject sub) {
+        if (sub == null || !sub.has("type") || !sub.get("type").isJsonPrimitive()) return false;
+        String type = sub.get("type").getAsString();
+        // 最小版本只支持一层组合：校验层拒绝嵌套，运行时同样拒绝（否则可绕过校验递归求值）
+        if ("all_of".equals(type) || "any".equals(type)) return false;
+        JsonObject subConditions = sub.has("conditions") && sub.get("conditions").isJsonObject()
+                ? sub.getAsJsonObject("conditions")
+                : new JsonObject();
+        if (PrerequisiteRegistry.has(type)) {
+            return PrerequisiteRegistry.evaluate(type, player, subConditions);
+        }
+        TriggerType tt = TriggerRegistry.get(type);
+        if (tt == null || tt.getStrategy() != ListenStrategy.POLLING) return false;
+        return tt.evaluate(player, subConditions);
     }
 
     public static class KillTracker {

@@ -43,7 +43,8 @@ public final class TriggerSchemas {
                 "structure",
                 "gamestage",
                 "facing",
-                "all_of"
+                "all_of",
+                "any"
         );
     }
 
@@ -74,7 +75,8 @@ public final class TriggerSchemas {
         map.put("structure", structure());
         map.put("gamestage", gamestage());
         map.put("facing", facing());
-        map.put("all_of", allOf());
+        map.put("all_of", combinator());
+        map.put("any", combinator());
         return map;
     }
 
@@ -245,8 +247,8 @@ public final class TriggerSchemas {
         return m;
     }
 
-    /** all_of：list 为 { type, conditions } 数组；暂不提供专用控件（手写 JSON），schema 只登记类型 */
-    private static Map<String, FieldDef> allOf() {
+    /** 组合器（all_of / any）：list 为 { type, conditions } 数组；暂不提供专用控件（手写 JSON），schema 只登记类型 */
+    private static Map<String, FieldDef> combinator() {
         return new LinkedHashMap<>();
     }
 }

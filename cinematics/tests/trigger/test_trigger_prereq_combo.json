@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "id": "test_trigger_prereq_combo",
+    "name": "触发器测试-前置条件入组合",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "前置条件（锁存语义）作为条件类型参与组合：any[script_played, facing] 与 all_of[script_started, location]",
+    "triggers": [
+      {"id":"trg_any_prereq","type":"any","repeatable":true,"conditions":{"list":[
+        {"type":"script_played","conditions":{"script":"test_prereq_a"}},
+        {"type":"facing","conditions":{"yaw1":160,"pitch1":-30,"yaw2":-160,"pitch2":30}}
+      ]}},
+      {"id":"trg_all_of_prereq","type":"all_of","repeatable":true,"conditions":{"list":[
+        {"type":"script_started","conditions":{"script":"test_prereq_b"}},
+        {"type":"location","conditions":{"corner1":{"x":-20,"y":-64,"z":-20},"corner2":{"x":20,"y":320,"z":20}}}
+      ]}}
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 6,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "测试: test_trigger_prereq_combo | 前置条件锁存入组合 | any: 播放过 test_prereq_a 或 朝北 ±20° / all_of: 开始过 test_prereq_b 且 在区域内",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

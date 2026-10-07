@@ -269,8 +269,11 @@
 | `observation` | 准星注视目标（轮询） | `target` + `target_type` + `reach` |
 | `facing` | 视线朝向落在区间（轮询） | `yaw1` / `pitch1` / `yaw2` / `pitch2` |
 | `all_of` | 多重条件 AND（轮询） | `list`（子条件数组） |
+| `any` | 多重条件 OR（轮询） | `list`（子条件数组） |
 
-通用字段：`repeatable`（可重复触发）、`delay`（延迟秒）、`on_enter`（仅进入时触发，位置类用）。完整 25 种见 `docs/TRIGGER_TYPES.md`。
+组合器（`all_of` / `any`）的 `list` 子条件可以是**轮询类**触发器（`location` / `facing` / `observation` / `structure` / `biome` / `xp` / `inventory` / `gamestage` / `dimension`），也可以是**前置条件**（`{"type":"script_played","conditions":{"script":"脚本 id"}}`，锁存语义：发生过即真）；事件类与嵌套组合器不可用。
+
+通用字段：`repeatable`（可重复触发）、`delay`（延迟秒）、`on_enter`（仅进入时触发，位置类用）。完整 26 种见 `docs/TRIGGER_TYPES.md`。
 
 ---
 

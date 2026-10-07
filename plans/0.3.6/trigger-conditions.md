@@ -37,10 +37,10 @@
 | 单个触发器 = 单一条件类型 | 25 种触发器各有一套条件字段；同一触发器内部的多字段判定目前写死为 AND（如 entity_kill 的场景条件）——方向：纳入统一组合器（`any` / `all_of`）；跨类型组合由 `all_of` 承担（一层） |
 | 同一脚本多个触发器 = **任一** | 任意一个满足就触发该脚本（任一语义）；没有“都满足才触发” |
 | `requires` = **全部满足**，但只支持脚本状态类前置 | 内置 `script_played` / `script_started` / `script_completed`；不能把两个触发器的条件组合起来 |
-| `facing` / `all_of`（最小版本，已实现） | `facing`：视线角度区间（纯角度判定，不需目标）；`all_of`：一层组合（组合器），子条件限轮询类 |
+| `facing` / `all_of` / `any`（已实现） | `facing`：视线角度区间（纯角度判定，不需目标）；`all_of` / `any`：一层组合（组合器），子条件可为轮询类或前置条件 |
 | `observation` | 看向某个**具体目标**（实体 / 方块，带 reach）；与 `facing` 互补，两者都保留 |
 
-**缺口（当前）**：① `all_of` 只支持一层、子条件只收轮询类；any / 嵌套 / 前置条件入组合未做；② 检测频率仍按类型全局，未按触发器 / 脚本可配；③ 编辑器 UI 未跟进（游戏内编辑器类型清单不含 `facing` / `all_of`）。
+**缺口（当前）**：① 组合器只支持一层（`any` / `all_of` 均已实现，子条件收轮询类 + 前置条件；嵌套未做）；② 检测频率仍按类型全局，未按触发器 / 脚本可配；③ 编辑器 UI 未跟进（游戏内编辑器类型清单不含 `facing` / `all_of` / `any`）。
 
 ---
 
@@ -51,13 +51,13 @@
 - 引入“**条件列表**”的写法，对应条件模型（见 §1）：
   - 单一条件 = 现有写法（不动）；
   - `all_of`（全部满足）= 列表内**全部满足**才触发（已实现为一层）；
-  - `any`（任一满足）= 列表内**任一满足**即触发（未做）；
-  - 前置条件（requires 类：script_played / script_started / script_completed）= 作为条件类型参与列表（未做）。
+  - `any`（任一满足）= 列表内**任一满足**即触发（已实现，与 `all_of` 同构：同一份 list 结构、同一套子条件求值）；
+  - 前置条件（requires 类：script_played / script_started / script_completed）= 作为条件类型参与列表（已实现：与触发器一致写在子条件的 `conditions` 里，锁存语义）。
 - **组合器统一**：同一套 `any` / `all_of` 也用于**触发器内部的判定**——不再另造一套 AND / OR。
 - 列表元素**复用现有条件类型**（location / observation / entity_kill / …）+ 新增“朝向”条件 + 前置条件；**数量不设上限**。
 - 语义区分：轮询条件是瞬时语义（现在是否满足）；前置条件是**锁存语义**（发生过即真）——组合求值时两类分清，避免“先 A 后 B”的误判。
 - 现有“单条件触发器”写法**保持不动**（旧脚本零迁移）；新写法是可选的；
-- 最小版本已做一层 all；any、嵌套、前置入组合为后续批次（见 §7）。
+- 最小版本已做一层 all；`any` 与前置条件入组合已落地；嵌套为后续批次（见 §7）。
 
 ### 3.2 朝向条件：视线角度范围
 
@@ -90,7 +90,7 @@
 4. **轮询频率**：已定单列（按触发器 / 按脚本可配）；当前实现仍为固定 5 tick，单列可配未做。
 5. **求值顺序与短路**：已实现按列表顺序求值、任一不满足立即短路；按代价排序（先便宜后贵）未做。
 6. **与 `observation` 的分工**：`observation` = “看向某个具体目标（实体 / 方块，带距离）”；朝向条件 = “视线落在某角度范围”；两者都保留，互不替代。
-7. **校验与报错**：已实现结构校验（条件列表非空、子类型已知且为轮询类、朝向端点合法、`all_of` 不许嵌套）；旧脚本零回归。
+7. **校验与报错**：已实现结构校验（条件列表非空、子类型已知且为轮询类或已注册前置条件、朝向端点合法、组合器不许嵌套、组合内前置条件的 `script` 字段与跨脚本引用）；旧脚本零回归。
 8. **编辑器与文档**：`TRIGGER_TYPES.md` / `AI_SCRIPTING_GUIDE.md` 已同步；游戏内编辑器与 WebUI 的触发器编辑（组合条件增删、朝向范围编辑）未跟进。
 
 ---
@@ -137,19 +137,48 @@
 | 4 | 解析层不改（`conditions` 已是通用嵌套结构） | 已落地 |
 | 5 | 文档 `TRIGGER_TYPES.md` 加两节 | 已落地（`AI_SCRIPTING_GUIDE.md` 同批） |
 | 6 | 测试脚本 `cinematics/tests/trigger/test_trigger_facing.json`、`test_trigger_all_of.json` | 已落地 |
-| 7 | 编辑器 UI、schema 控件；any、嵌套、前置入组合 | 未做（后续批次） |
+| 7 | 编辑器 UI、schema 控件；any、嵌套、前置入组合 | 部分落地：`any` + 前置入组合已落地（见 §8）；编辑器 UI / schema 控件 / 组合器嵌套未做 |
 
 **实现约定（已落地）**
 
-- 条件字段：`facing` = `yaw1 / pitch1 / yaw2 / pitch2`；`all_of` = `list`（数组，元素 = `{ type, conditions }`）；
+- 条件字段：`facing` = `yaw1 / pitch1 / yaw2 / pitch2`；组合器（`all_of` / `any`）= `list`（数组，元素 = `{ type, conditions }`）；
 - yaw 区间语义：**从 yaw1 顺时针扫到 yaw2**（跨越 ±180° 自然环绕；起止相同 = 整圈 / 不限制）；pitch 区间取 min / max；
-- `all_of` 子条件**只允许轮询类**触发器类型（location / facing / observation / structure / biome / xp / inventory / gamestage / dimension）——事件类（advancement / entity_kill / item_* 等）会带来"很久以前发生过也算"的误判，最小版本拒绝；不允许 `all_of` 嵌套；
-- 前置条件（requires 类）是**锁存语义**（发生过即真），纳入组合的写法属后续批次；`requires` 现有字段不动；
-- schema：`facing` 已登记字段（yaw1 / pitch1 / yaw2 / pitch2）；`all_of` 只登记类型，无专用控件（手写 JSON）。
+- 组合器子条件**允许两类**：轮询类触发器类型（location / facing / observation / structure / biome / xp / inventory / gamestage / dimension，瞬时语义）与已注册前置条件（script_played / script_started / script_completed，锁存语义）；事件类（advancement / entity_kill / item_* 等）会带来"很久以前发生过也算"的误判，拒绝；**不允许嵌套组合器**；
+- 前置条件（requires 类）是**锁存语义**（发生过即真），已可纳入组合（见 §8）；`requires` 现有字段不动；
+- schema：`facing` 已登记字段（yaw1 / pitch1 / yaw2 / pitch2）；`all_of` / `any` 只登记类型，无专用控件（手写 JSON）。
 
-**后续批次**：any / 嵌套 / 前置条件入组合；新增类型 `death`（玩家死亡）；检测频率可配（按触发器 / 按脚本）；编辑器 UI（游戏内 + WebUI）。
+**后续批次**：组合器嵌套（多层）；新增类型 `death`（玩家死亡）；检测频率可配（按触发器 / 按脚本）；编辑器 UI（游戏内 + WebUI）。
 
-**验收标准**：validate 通过；facing 可单独用；all_of 只在全真时触发（"先 A 后 B"不误判）；旧脚本零回归。
+**验收标准**：validate 通过；facing 可单独用；all_of 只在全真时触发（"先 A 后 B"不误判）；any 任一满足即触发；旧脚本零回归。
+
+---
+
+## 8. any + 前置条件入组合（2026-10-07 落地）
+
+对应本文档 §1 / §3.1 的剩余批次前两项（`death` 类型与检测频率可配不在本批）。
+
+**条件模型**
+
+- `any`：与 `all_of` **同构**——同一份 `list` 结构（元素 = `{ type, conditions }`）、同一套子条件求值（`Evaluators.evaluateCombinationChild`），只有判定从"全真"改为"任一真"，命中即短路；
+- 前置条件作为**条件类型**进列表：与触发器一致写在子条件的 `conditions` 里（`{ "type": "script_played", "conditions": { "script": "id" } }`），`any` / `all_of` 均可引用；**锁存语义**（发生过即真）与轮询条件的瞬时语义在同一轮求值中分清：
+  - 同一轮里所有轮询子条件都用**同一时刻**的玩家状态求值 → "先 A 后 B"不误判；
+  - 前置条件解锁后持续为真：放进 `all_of` 时其余轮询项仍需此刻满足；放进 `any` 时该子条件独立为真、下一轮轮询即命中；
+- **禁嵌套**：`any` / `all_of` 都不允许出现在对方（或自身）的 list 里——校验层拒绝，运行时同样拒绝（`evaluateCombinationChild` 直接判 false，防止绕过校验递归求值）。
+
+**落地清单**
+
+| # | 改动 | 位置 |
+|---|---|---|
+| 1 | `Evaluators.evaluateAny` + 共用子条件求值 `evaluateCombinationChild` / `combinationList`（`evaluateAllOf` 同步改为共用） | `trigger/server/evaluator/Evaluators.java` |
+| 2 | 注册 `any`（POLLING，5 tick） | `ImmersiveCinematics.registerTriggerTypes()` |
+| 3 | 校验：`validateCombinationConditions`（any/all_of 共用，含嵌套拒绝、前置条件子项校验）+ `validatePrerequisiteRef`（requires 与组合子条件共用） | `script/ScriptValidator.java` |
+| 4 | schema：`typeList()` 与 `all()` 登记 `any`（与 `all_of` 共用空字段表） | `script/schema/TriggerSchemas.java` |
+| 5 | 文档：`TRIGGER_TYPES.md` §25 更新 + 新增 §26 `any` / §27 组合器里的前置条件；`AI_SCRIPTING_GUIDE.md` 表格加 `any` 行 + 组合器子条件说明 | `docs/` |
+| 6 | 测试脚本：`test_trigger_any.json`（any[location, facing]）、`test_trigger_prereq_combo.json`（any[script_played, facing] + all_of[script_started, location]） | `cinematics/tests/trigger/` |
+
+**本节取代的事实核查条目（见文末事实核查 ① 表）**：`registerTriggerTypes` 现注册 **26** 个类型（原记 25）；组合器子条件不再"只允许轮询类"（现含前置条件）；`ScriptValidator` 的 `validateAllOfConditions` 已泛化为 `validateCombinationConditions`。
+
+**验收**：validate 通过；`any` 任一满足即触发；`all_of` 仍只在全真时触发（"先 A 后 B"不误判）；组合内前置条件锁存不误判；旧脚本零回归。
 
 ---
 
