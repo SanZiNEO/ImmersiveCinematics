@@ -69,10 +69,34 @@ public class CameraManager {
     /** C1：播放队列（容量 8，当前脚本不可打断时新脚本一律入队，结束后自动接播） */
     private final ScriptQueue scriptQueue = new ScriptQueue();
 
+    /**
+     * 编辑器预览通道是否激活（{@link #pushScript} / {@link #setTime} / {@link #resume} 置位，
+     * {@link #exitPreview} / {@link #emergencyStop} 清位）。
+     * <p>
+     * 预览状态本身收敛在 {@link #previewInstance} 上（时钟 = {@link #previewTime}、暂停态 =
+     * {@link #previewPaused}）；本标志只表示"编辑器预览通道已接管"，供 {@link #isPreviewMode()} 的
+     * 消费方（玩家移动 / 视图中心 / 区块预加载 / 编辑器状态回传）判读。
+     */
     private boolean previewMode = false;
     private boolean previewPaused = true;
+
+    /** 预览播放头（秒）＝ 预览实例的时钟：暂停 = 冻结在此处；播放 = 按真实时间推进（见 {@link #onRenderFrame()}） */
     private float previewTime;
     private CinematicScript previewScript;
+
+    /**
+     * 预览实例（{@code plans/0.3.6/parallel-playback.md} §7 步骤 5）：编辑器预览的<b>独立</b>播放实例。
+     * <p>
+     * 预览不再复用 / 替换游戏实例——{@link #pushScript} / {@link #setTime} / {@link #resume} /
+     * {@link #stop} 只作用于本实例，游戏实例照常播放；{@link #exitPreview()} 只退本实例。
+     * 它恒为 {@link #instances} 的<b>末位</b>（顶层：预览画面与相机是编辑器正在编辑的那一份，
+     * §3.4 后来者居上），用<b>独立时钟</b>（{@link #previewTime}），且不参与暂停联动 / 行为并集，
+     * 不上报网络账本与跳过投票（本地预览无账本）。非预览态为 {@code null}。
+     */
+    private PlaybackInstance previewInstance = null;
+
+    /** 预览时钟的上一帧真实纳秒（0 = 本帧重新起算）；与游戏时钟 {@link #lastRealNanos} 相互独立 */
+    private long lastPreviewRealNanos = 0;
 
     /** 上一帧的暂停状态，用于检测暂停↔恢复的转换 */
     private boolean lastFramePaused = false;
@@ -91,6 +115,8 @@ public class CameraManager {
      * <p>跨脚本并行放开后可能同时存在多个实例：需要“当前代表”的消费方（画面 lane 收集、听者、
      * 玩家移动、预加载、服务端账本上报）都取顶层；按实例逐个处理的路径见 {@link #onRenderFrame()}、
      * {@link #instanceBehaviors()}、{@link #requestExit(ExitReason)}。
+     * <p>预览激活时顶层 = <b>预览实例</b>（恒排列表末位，见 {@link #previewInstance}）：编辑器正在编辑的
+     * 那份画面/相机就是当前代表。
      */
     public PlaybackInstance activeInstance() {
         return topInstance();
@@ -115,6 +141,8 @@ public class CameraManager {
     private List<ScriptMeta.RuntimeBehavior> instanceBehaviors() {
         List<ScriptMeta.RuntimeBehavior> behaviors = new ArrayList<>(instances.size());
         for (PlaybackInstance instance : instances) {
+            // 预览实例不参与行为并集：预览通道不套用脚本行为（既有语义，见 startScriptInternal 预览分支）
+            if (instance.isPreview()) continue;
             behaviors.add(instance.behavior());
         }
         return behaviors;
@@ -129,7 +157,8 @@ public class CameraManager {
      */
     public boolean isAnyPauseWhenGamePaused() {
         for (PlaybackInstance instance : instances) {
-            if (instance.isPauseWhenGamePaused()) return true;
+            // 预览实例不参与：预览的暂停/播放由编辑器驱动（previewPaused），与游戏暂停无关（§7 步骤 5）
+            if (!instance.isPreview() && instance.isPauseWhenGamePaused()) return true;
         }
         return false;
     }
@@ -144,7 +173,11 @@ public class CameraManager {
         return top != null && top.isSkippable();
     }
 
-    /** 顶层实例 = 启动最晚的活跃实例（后来者居上，§3.4）；无活跃实例时为 null。 */
+    /**
+     * 顶层实例 = 启动最晚的活跃实例（后来者居上，§3.4）；无活跃实例时为 null。
+     * <p>列表不变量：预览实例恒为末位（{@link #startScriptInternal} 创建游戏实例时插在它之前），
+     * 因此预览激活时顶层 = 预览实例。
+     */
     private PlaybackInstance topInstance() {
         return instances.isEmpty() ? null : instances.get(instances.size() - 1);
     }
@@ -357,26 +390,32 @@ public class CameraManager {
 
     /**
      * 预览通道不做宏观循环：循环是运行时播放控制，编辑器预览按真实时间线播放（不展开也不折叠）。
-     * 覆盖“预览接管一个已在播放的实例”的路径（{@link #setTime} / {@link #resume} / {@link #pushScript}）。
+     * 作用于预览实例（{@link #previewInstance}）——预览通道只动自己那一个实例。
      */
     private static void disableMacroLoop(PlaybackInstance instance) {
         if (instance != null) instance.player().setMacroLoopAllowed(false);
     }
 
+    /**
+     * 编辑器推送脚本（编辑即预览）：解析并缓存，预览通道激活时同步到<b>预览实例</b>。
+     * <p>
+     * 预览实例不存在则新建（仍是预览实例，不动游戏实例）；存在则增量替换数据（零重建零重启）。
+     * 预览通道未激活时只缓存脚本，等 {@link #setTime} / {@link #resume} 建实例。
+     */
     public void pushScript(String jsonContent) {
         try {
             previewScript = com.immersivecinematics.immersive_cinematics.script.ScriptParser.parse(jsonContent);
             // 编辑内容照常缓存;预览模式且已有脚本时保持激活(编辑即预览)
             if (previewMode && previewScript != null) {
-                PlaybackInstance instance = activeInstance();
+                PlaybackInstance instance = previewInstance;
                 if (instance == null) {
-                    startScriptInternal(previewScript, "");
-                    instance = activeInstance();
+                    instance = startScriptInternal(previewScript, "", true);
                 } else {
                     // 组 A：编辑模式常驻播放器 — 增量替换数据（零重建零重启；
                     // TrackPlayer 数据源动态化，音频实例按 sound+startTime+duration 重映射复用）
                     instance.replaceScript(previewScript);
                 }
+                if (instance == null) return;
                 disableMacroLoop(instance);
                 instance.player().alignTime(previewTime, previewTime);
                 // 组 1/2：数据替换后同步暂停态并把实例定位到播放头
@@ -392,21 +431,24 @@ public class CameraManager {
         }
     }
 
+    /**
+     * 编辑器定位（seek）：预览播放头跳到 {@code seconds} 并保持预览激活、暂停。
+     * <p>
+     * 只作用于预览实例——游戏共享虚拟时钟不再被播放头改写（两实例各自计时，§7 步骤 5）；
+     * 编辑器读到的播放头见 {@link #getPreviewTimeSeconds()}。
+     */
     public void setTime(float seconds) {
         // 预览模式定位:始终激活并显示对应帧的相机视角(终止后点关键帧/拖播放头即时可见)
         previewTime = seconds;
-        // 根因修复：立即同步实际游戏时间，避免 handleSeek 后立刻 pushPlaybackState 读到旧时间
-        gameTimeSeconds = seconds;
         previewMode = true;
         previewPaused = true;
-        PlaybackInstance instance = activeInstance();
+        PlaybackInstance instance = previewInstance;
         if (instance == null && previewScript != null) {
-            startScriptInternal(previewScript, "");
-            instance = activeInstance();
+            instance = startScriptInternal(previewScript, "", true);
         }
         if (instance == null) return; // 预览脚本尚未传入：没有实例可定位
         disableMacroLoop(instance);
-        // Align so that elapsed = previewTime when onRenderFrame sets gameTimeSeconds = previewTime
+        // Align so that elapsed = previewTime（预览实例的时钟源就是 previewTime，故当前时钟读数同值）
         instance.player().alignTime(previewTime, previewTime);
         // 组 1：定位即同步暂停态——先于 repositionAudio（其 paused 分支依赖此标志），
         // 并覆盖 startScriptInternal 预执行首帧已创建/播放的实例。
@@ -414,31 +456,31 @@ public class CameraManager {
         instance.player().repositionAudio(previewTime);
     }
 
+    /** 编辑器播放：预览实例从播放头 {@link #previewTime} 续播（预览通道未激活时先激活并建实例）。 */
     public void resume() {
         // 点播放 → 用最新 previewScript 重新激活并从 previewTime 续播
         if (!previewMode) {
             if (previewScript == null) return;
             previewMode = true;
-            PlaybackInstance instance = activeInstance();
-            if (instance == null) {
-                startScriptInternal(previewScript, "");
-                instance = activeInstance();
-            }
-            disableMacroLoop(instance);
-            instance.player().alignTime(previewTime, previewTime);
         }
+        if (previewInstance == null) {
+            if (previewScript == null) return;
+            startScriptInternal(previewScript, "", true);
+        }
+        disableMacroLoop(previewInstance);
+        previewInstance.player().alignTime(previewTime, previewTime);
         previewPaused = false;
-        lastRealNanos = 0;
+        lastPreviewRealNanos = 0;
     }
 
+    /** 编辑器暂停：预览时钟冻结在当前播放头（游戏实例的时钟不受影响）。 */
     public void pause() {
-        // 暂停必须记住当前播放进度，否则冻结时钟时会回退到上一次 setTime 的旧位置（表现为“暂停回到开头”）
-        if (previewMode && !previewPaused) {
-            previewTime = (float) getGameTimeSeconds();
-        }
+        // 暂停必须记住当前播放进度，否则冻结时钟时会回退到上一次 setTime 的旧位置（表现为“暂停回到开头”）。
+        // 预览播放头即预览时钟：播放中它已在推进，暂停只置标志（onRenderFrame 随即冻结它）。
         previewPaused = true;
     }
 
+    /** 编辑器停止：预览播放头归零并保持预览激活（游戏实例照常播放）。 */
     public void stop() {
         if (previewMode) {
             // 终止 = 重置播放头到第一帧并保持预览激活(相机回到脚本第一帧视角,而非玩家视角;
@@ -451,17 +493,18 @@ public class CameraManager {
     }
 
     /**
-     * 编辑器完全退出(关闭编辑器时调用):停止预览播放并释放相机,回到玩家视角。
-     * 与 {@link #stop()}("终止=归零保持激活")语义不同——关闭编辑器必须真正退出。
+     * 编辑器完全退出(关闭编辑器时调用):只退<b>预览实例</b>,游戏实例继续播放(§7 步骤 5)。
+     * 与 {@link #stop()}("终止=归零保持激活")语义不同——关闭编辑器必须真正退出预览通道。
      */
     public void exitPreview() {
         if (previewMode) {
             previewMode = false;
             previewPaused = true;
-            pendingScript = null;
-            pendingInstanceId = "";
-            scriptQueue.clear();
-            deactivateNow(topInstance());
+            lastPreviewRealNanos = 0;
+            // 只退预览实例：待接播/队列与游戏实例一概不动（它们是游戏播放侧的状态）
+            if (previewInstance != null) {
+                deactivateNow(previewInstance);
+            }
         } else {
             stopScript();
         }
@@ -471,7 +514,8 @@ public class CameraManager {
     public void emergencyStop() {
         previewMode = false;
         previewPaused = true;
-        // 世界已退出：全部实例一起清理（跨脚本并行下逐个清，音频/覆盖层都不能残留）
+        lastPreviewRealNanos = 0;
+        // 世界已退出：全部实例一起清理（跨脚本并行下逐个清，预览实例也在内，音频/覆盖层都不能残留）
         for (PlaybackInstance instance : instances) {
             instance.setExitReason(CompletionReason.STOPPED);
         }
@@ -479,13 +523,27 @@ public class CameraManager {
     }
 
     /**
-     * 新建并启动一个播放实例（并行播放模型：每次真正开始播放 = 一个新实例，§3.5）。
+     * 新建并启动一个播放实例（并行播放模型：每次真正开始播放 = 一个新实例，§3.5）——游戏实例路径。
      * <p>调用点只负责决定“是否该开始”——同脚本单实例的判定在 {@link #playScript}，
      * 接播判定在 {@link #deactivateNow}；本方法不做任何互斥检查。
      *
      * @return 新启动的实例（调用方据此上报服务端账本，§3.7）
      */
     private PlaybackInstance startScriptInternal(CinematicScript script, String instanceId) {
+        return startScriptInternal(script, instanceId, false);
+    }
+
+    /**
+     * 新建并启动一个播放实例（并行播放模型：每次真正开始播放 = 一个新实例，§3.5）。
+     * <p>调用点只负责决定“是否该开始”——同脚本单实例的判定在 {@link #playScript}，
+     * 接播判定在 {@link #deactivateNow}；本方法不做任何互斥检查。
+     *
+     * @param preview {@code true} = 编辑器预览实例（§7 步骤 5）：用独立时钟（预览播放头）、
+     *                恒排实例列表末位（顶层）、不参与行为并集与网络账本上报。
+     *                游戏实例传 {@code false}（与改造前逐点等价）
+     * @return 新启动的实例（调用方据此上报服务端账本，§3.7）
+     */
+    private PlaybackInstance startScriptInternal(CinematicScript script, String instanceId, boolean preview) {
         Minecraft mc = Minecraft.getInstance();
         if (!previewMode) {
             mc.setScreen(null);
@@ -496,9 +554,10 @@ public class CameraManager {
             CinematicController.INSTANCE.releaseAllKeys();
         }
 
-        // 组 6：预览模式重启不再重置相机到玩家位置（否则每次 pushScript 节流重启都闪回 → 拖拽卡顿）。
+        // 组 6：预览实例重启不再重置相机到玩家位置（否则每次 pushScript 节流重启都闪回 → 拖拽卡顿）；
         // 首次进入预览（previewInitialized=false）仍初始化一次，保证预览首帧从玩家位置起步不闪白。
-        if (!previewMode || !previewInitialized) {
+        // 游戏实例保持原语义：每次开播都从玩家位置起步。
+        if (!preview || !previewInitialized) {
             Vec3 playerPos = mc.player.position();
             activePath.setPositionDirect(playerPos);
             activeProperties.setYawDirect(mc.player.getYRot());
@@ -506,18 +565,37 @@ public class CameraManager {
         }
         previewInitialized = true;
 
-        // 追加到列表末尾 = 顶层（后来者居上，§3.4）：帧驱动按顺序遍历，后写入者覆盖先写入者
-        PlaybackInstance instance = new PlaybackInstance();
-        instances.add(instance);
+        // 列表顺序 = 叠放顺序（后来者居上，§3.4）：帧驱动按顺序遍历，后写入者覆盖先写入者。
+        // 不变量：预览实例恒为末位（顶层）——游戏实例插在它之前，预览实例本身追加到末尾。
+        PlaybackInstance instance = new PlaybackInstance(preview);
+        if (preview) {
+            instances.add(instance);
+            previewInstance = instance;
+        } else if (previewInstance != null) {
+            int at = instances.indexOf(previewInstance);
+            instances.add(at >= 0 ? at : instances.size(), instance);
+        } else {
+            instances.add(instance);
+        }
 
-        // 组 A：预执行首帧用播放头时间（预览模式），避免首帧写 t=0 造成画面跳变；游戏内播放传 0 保持原语义
+        // 组 A：预执行首帧用播放头时间（预览实例），避免首帧写 t=0 造成画面跳变；游戏内播放传 0 保持原语义
         // 预览通道不做宏观循环：循环是运行时播放控制，编辑器预览按真实时间线播放（不展开也不折叠）
-        instance.player().setMacroLoopAllowed(!previewMode);
-        instance.start(script, instanceId, previewMode ? previewTime : 0f);
-        if (previewMode) {
-            // 预览通道不套用脚本行为（既有语义）：只放行键鼠，行为开关不动
-            CinematicController.INSTANCE.setBlockKeyboard(false);
-            CinematicController.INSTANCE.setBlockMouse(false);
+        instance.player().setMacroLoopAllowed(!preview);
+        if (preview) {
+            // 预览实例的时钟 = 预览播放头：与游戏共享虚拟时钟分离（两实例各自计时，§7 步骤 5）
+            instance.player().setClockSource(this::previewClockSeconds);
+        }
+        instance.start(script, instanceId, preview ? previewTime : 0f);
+        if (preview) {
+            // 预览通道不套用脚本行为（既有语义）：允许键鼠。有游戏实例并行时改按游戏实例重算并集——
+            // 预览不解除游戏实例的键鼠屏蔽（游戏实例零回归）。
+            List<ScriptMeta.RuntimeBehavior> gameBehaviors = instanceBehaviors();
+            if (gameBehaviors.isEmpty()) {
+                CinematicController.INSTANCE.setBlockKeyboard(false);
+                CinematicController.INSTANCE.setBlockMouse(false);
+            } else {
+                CinematicController.INSTANCE.recomputeUnion(gameBehaviors);
+            }
         } else {
             // 行为开关按全部活跃实例取并集（§3.2）；生命周期判定一律读活跃实例（§3.1），无全局副本
             CinematicController.INSTANCE.recomputeUnion(instanceBehaviors());
@@ -527,6 +605,11 @@ public class CameraManager {
         // 使同一 tick 内后续读取（如 PreloadRequester）看到接播后的最新值，而非过期/空快照。
         refreshCameraState();
         return instance;
+    }
+
+    /** 预览实例的时钟读数（秒）＝ 预览播放头：暂停时冻结在播放头，播放时由 {@link #onRenderFrame()} 推进。 */
+    private double previewClockSeconds() {
+        return previewTime;
     }
 
     /**
@@ -570,9 +653,10 @@ public class CameraManager {
     /**
      * 每渲染帧驱动<b>全部</b>活跃实例（并行播放模型，§3.1/§3.4）：
      * <ol>
-     *   <li>帧级时钟与暂停判定只做一次（共享虚拟时钟；暂停联动取并集，§3.1）；</li>
+     *   <li>帧级时钟与暂停判定只做一次：<b>游戏共享虚拟时钟</b>（游戏暂停时冻结）与
+     *       <b>预览播放头</b>（预览实例专用：暂停冻结、播放推进）各自独立推进（§7 步骤 5）；</li>
      *   <li>按列表顺序（= 启动顺序）逐个驱动实例的播放器：后驱动的实例后写入共享相机状态 →
-     *       顶层实例（启动最晚）的画面与状态胜出（§3.4 后来者居上）；</li>
+     *       顶层实例（预览激活时 = 预览实例）的画面与状态胜出（§3.4 后来者居上）；</li>
      *   <li>某个实例结束（渐出完成 / 自然结束）→ 只退出该实例（{@link #deactivateNow}），
      *       其余实例继续播放；</li>
      *   <li>最后一个实例退出后由 {@code deactivateNow} 复位全局状态（相机、时钟、覆盖层、行为开关）。</li>
@@ -586,25 +670,21 @@ public class CameraManager {
             return;
         }
 
-        // 暂停联动取并集（§3.1）：任一实例声明 pause_when_game_paused 即按游戏暂停处理；
-        // 单实例下与改造前逐点等价（并集 of 一个 = 该实例自己的值）。
+        // 暂停联动取并集（§3.1）：任一<b>游戏</b>实例声明 pause_when_game_paused 即按游戏暂停处理；
+        // 单实例下与改造前逐点等价（并集 of 一个 = 该实例自己的值）。预览实例不参与——
+        // 预览的暂停/播放由编辑器驱动（previewPaused），与游戏暂停无关（§7 步骤 5）。
         boolean gamePaused = Minecraft.getInstance().isPaused() && isAnyPauseWhenGamePaused();
-        // 编辑器预览暂停也算暂停
-        boolean effectivelyPaused = gamePaused || (previewMode && previewPaused);
 
         // 诊断：打印暂停判定组成——若游戏内播放被误判为暂停（gamePaused/previewMode 异常）即可见。
         if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("camera pauseSync: eff={} gamePaused={} previewMode={} previewPaused={} instances={}",
-                    effectivelyPaused, gamePaused, previewMode, previewPaused, instances.size());
+            LOGGER.debug("camera pauseSync: gamePaused={} previewMode={} previewPaused={} instances={}",
+                    gamePaused, previewMode, previewPaused, instances.size());
         }
 
-        // 暂停：不退出相机画面——冻结时钟但继续应用相机/轨道（修复"暂停切回玩家视角"）
-        boolean freezeTime = gamePaused || (previewMode && previewPaused);
-        if (freezeTime) {
+        // 时钟一：游戏共享虚拟时钟——游戏暂停时冻结（不退出相机画面，继续应用相机/轨道）。
+        // 预览的暂停/播放不再冻结它（预览实例有自己的时钟，§7 步骤 5）。
+        if (gamePaused) {
             lastRealNanos = 0;
-            if (previewMode && previewPaused) {
-                gameTimeSeconds = previewTime;
-            }
         } else {
             long now = System.nanoTime();
             if (lastRealNanos != 0) {
@@ -613,16 +693,30 @@ public class CameraManager {
             lastRealNanos = now;
         }
 
+        // 时钟二：预览播放头（预览实例专用）——暂停 = 冻结在播放头；播放 = 按真实时间推进。
+        // 两时钟互不影响：编辑器拖播放头/暂停只动预览实例，游戏实例照常按共享虚拟时钟走。
+        if (previewMode && !previewPaused && previewInstance != null) {
+            long now = System.nanoTime();
+            if (lastPreviewRealNanos != 0) {
+                previewTime += (float)((now - lastPreviewRealNanos) / 1_000_000_000.0);
+            }
+            lastPreviewRealNanos = now;
+        } else {
+            lastPreviewRealNanos = 0;
+        }
+
         float deltaTime = 1f / 20f;
         OverlayManager.INSTANCE.update(deltaTime);
 
-        // 暂停↔恢复转换是帧级事件：转换发生的那一帧为每个在播实例各发一条握手（§3.7 账本按实例解析）
-        boolean pauseTransition = effectivelyPaused != lastFramePaused;
+        // 暂停↔恢复转换是帧级事件：转换发生的那一帧为每个在播实例各发一条握手（§3.7 账本按实例解析）。
+        // 只跟游戏暂停：预览实例不上报网络账本（本地预览，§7 步骤 5）。
+        boolean pauseTransition = gamePaused != lastFramePaused;
         if (pauseTransition) {
-            lastFramePaused = effectivelyPaused;
+            lastFramePaused = gamePaused;
         }
 
-        float effectiveTime = (float) getGameTimeSeconds();
+        float gameTime = (float) gameTimeSeconds;
+        float previewClock = previewTime;
         boolean anyActiveCameraClip = false;
         // 顶层实例（启动最晚的活跃实例）——听者门控口径（§3.3）只认它自己的 CAMERA clip
         PlaybackInstance top = topInstance();
@@ -632,24 +726,28 @@ public class CameraManager {
         for (PlaybackInstance instance : new ArrayList<>(instances)) {
             if (!instances.contains(instance)) continue; // 本帧更早的退出已移除该实例
             ScriptPlayer player = instance.player();
+            // 本实例的暂停态：游戏实例 = 游戏暂停联动（并集）；预览实例 = 编辑器暂停态（§7 步骤 5）
+            boolean instancePaused = instance.isPreview() ? previewPaused : gamePaused;
+            // 本实例的时钟读数：游戏实例 = 共享虚拟时钟；预览实例 = 预览播放头（各自计时）
+            float instanceClock = instance.isPreview() ? previewClock : gameTime;
 
             // 组 1：每帧同步音频暂停状态（幂等；对齐 MC SoundEngine：暂停时无新声音、已有实例幂等 pause）。
             // 必须位于 player.onRenderFrame 之前并每帧执行——修复「暂停检测在实例创建前」的时序缺陷。
-            if (effectivelyPaused) {
+            if (instancePaused) {
                 player.pauseAudio();
             } else {
                 player.resumeAudio();
             }
 
-            if (pauseTransition && player.isPlaying()) {
+            if (pauseTransition && !instance.isPreview() && player.isPlaying()) {
                 String scriptId = player.getScriptId();
                 if (!"<none>".equals(scriptId)) {
-                    sendPausePacket(scriptId, instance.instanceId(), effectivelyPaused);
+                    sendPausePacket(scriptId, instance.instanceId(), gamePaused);
                 }
             }
 
             if (player.isPlaying()) {
-                float instanceTime = effectiveTime;
+                float instanceTime = instanceClock;
                 // holdAtEnd=true：时间耗尽后把渲染时间钳到总时长末尾，让最后一帧保持住
                 if (player.isFinished() && instance.isHoldAtEnd()) {
                     CinematicScript s = player.getScript();
@@ -676,7 +774,7 @@ public class CameraManager {
                 // 诊断：退出链路（脚本自然结束检查）
                 LOGGER.info("NATURAL_END check: playing={} finished=true stopping={} holdAtEnd={} elapsed={}",
                         player.isPlaying(), instance.isStopping(), holdAtEnd,
-                        String.format("%.2f", (float)(getGameTimeSeconds() - 0)));
+                        String.format("%.2f", instanceClock));
                 if (!holdAtEnd) {
                     LOGGER.info("NATURAL_END -> requestExit");
                     // 精确作用于本实例：其他并行实例不受影响（§3.1）
@@ -710,6 +808,17 @@ public class CameraManager {
         return gameTimeSeconds;
     }
 
+    /**
+     * 编辑器预览播放头（秒）——预览通道激活时 = 预览实例的时钟（暂停 = 播放头位置；播放 = 已播到的时间），
+     * 未激活时回落全局虚拟时钟（与改造前 {@code WebEditorApi} 读 {@link #getGameTimeSeconds()} 的读数一致）。
+     * <p>
+     * 编辑器（{@code playback.state.time}）读这个，而不是全局虚拟时钟：预览实例与游戏实例各自计时，
+     * 游戏实例的时钟不再代表预览播放头（§7 步骤 5）。
+     */
+    public double getPreviewTimeSeconds() {
+        return previewMode ? previewTime : gameTimeSeconds;
+    }
+
     /** 编辑器预览是否处于暂停（WebUI 预览屏的播放控制状态）。 */
     public boolean isPreviewPaused() {
         return previewPaused;
@@ -719,6 +828,8 @@ public class CameraManager {
      * 立即停用<b>指定</b>实例（不渐出）：出列 → 通知结束 → 清理该实例 → 全局复位或按剩余实例重算 → 接播。
      * <p>跨脚本并行下本方法只影响传入实例（§3.1 生命周期按实例独立）：只要还有实例在播，
      * 共享虚拟时钟、相机状态、覆盖层、输入交接都不能复位——它们属于剩余实例。
+     * <p>预览实例（{@link PlaybackInstance#isPreview()}）另有两条例外：不上报网络账本
+     * （结束通知 / 跳过投票都是游戏播放侧的账本），退出它也不触发待接播（§7 步骤 5）。
      *
      * @param instance 目标实例；null = 无播放可结束（仅做一次全局复位检查）
      */
@@ -727,18 +838,28 @@ public class CameraManager {
         // 诊断：退出链路（deactivateNow 执行）
         LOGGER.info("deactivateNow: reason={}", reason);
 
+        boolean preview = instance != null && instance.isPreview();
+
         // 实例先出列（等价改造前 active=false 的位置）：后续读取不再看到本实例
         if (instance != null) {
             instances.remove(instance);
+            // 预览实例出列 → 预览字段同步失效（下次 pushScript / setTime / resume 重建）
+            if (instance == previewInstance) {
+                previewInstance = null;
+            }
         }
 
         String finishedScriptId = instance != null ? instance.scriptId() : null;
-        if (finishedScriptId != null) {
+        if (finishedScriptId != null && !preview) {
+            // 预览实例不上报账本：本地预览没有服务端观看者/触发器去重可言（§7 步骤 5）
             String finishedInstanceId = instance.instanceId() != null ? instance.instanceId() : "";
             com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptNotifier
                     .notifyScriptFinished(finishedScriptId, finishedInstanceId, reason);
         }
-        com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver.resetSkipVote();
+        if (!preview) {
+            // 跳过投票账本同理：预览实例不参与投票，退出它不该清游戏播放的投票进度
+            com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver.resetSkipVote();
+        }
 
         if (instance != null) {
             instance.stop(reason);
@@ -765,14 +886,14 @@ public class CameraManager {
             CinematicController.INSTANCE.recomputeUnion(instanceBehaviors());
         }
 
-        if (pendingScript != null) {
+        if (!preview && pendingScript != null) {
             // 同脚本替换（可打断路径）的接播：与剩余实例无关，替换目标已被本方法出列
             CinematicScript next = pendingScript;
             String nextInstanceId = pendingInstanceId;
             pendingScript = null;
             pendingInstanceId = "";
             reportPlaybackStarted(next, startScriptInternal(next, nextInstanceId));
-        } else if (!scriptQueue.isEmpty()) {
+        } else if (!preview && !scriptQueue.isEmpty()) {
             // 队列接播（同脚本单实例的排队请求）：当前不可达——队列在上面的实例结束路径已清空，
             // 语义待 §6 定稿后一并实现（需要“按脚本匹配取队头”的队列 API）。
             ScriptQueue.Entry next = scriptQueue.poll();

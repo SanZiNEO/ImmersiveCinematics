@@ -266,7 +266,9 @@ public final class WebEditorApi {
     /** 广播当前播放器状态（供 WebPreviewScreen 每帧调用，形成实时双向通信）。 */
     public static void pushPlaybackState() {
         JsonObject data = new JsonObject();
-        data.addProperty("time", (float) CameraManager.INSTANCE.getGameTimeSeconds());
+        // 预览播放头（预览实例的时钟；预览未激活时回落全局虚拟时钟）——游戏实例与预览实例各自计时，
+        // 全局虚拟时钟不再代表预览播放头（plans/0.3.6/parallel-playback.md §7 步骤 5）
+        data.addProperty("time", (float) CameraManager.INSTANCE.getPreviewTimeSeconds());
         // playing = 用户正在播放（未暂停），不是“脚本已加载”
         boolean playing = CameraManager.INSTANCE.isPreviewMode()
                 && !CameraManager.INSTANCE.isPreviewPaused();

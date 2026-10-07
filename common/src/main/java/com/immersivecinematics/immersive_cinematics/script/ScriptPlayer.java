@@ -52,6 +52,14 @@ public class ScriptPlayer {
     // 虚拟时间驱动（单位：秒，double 精度）
     private double startGameTimeSeconds = 0;
 
+    /**
+     * 本实例的时钟源（秒）——默认 = 全局虚拟时钟（{@code CameraManager.getGameTimeSeconds()}，游戏实例）。
+     * <p>
+     * 预览实例由 {@code CameraManager} 注入<b>预览播放头</b>（{@code plans/0.3.6/parallel-playback.md}
+     * §7 步骤 5）：预览与游戏各自独立计时——预览的暂停/播放不再冻结游戏实例的时间轴，反之亦然。
+     */
+    private java.util.function.DoubleSupplier clockSource = CameraManager.INSTANCE::getGameTimeSeconds;
+
     // 相对模式基准位置（玩家激活时的位置）
     private Vec3 originPos = Vec3.ZERO;
 
@@ -225,7 +233,7 @@ public class ScriptPlayer {
         this.originPos = mc.player.position();
         this.playing = true;
         this.stopping = false;
-        this.startGameTimeSeconds = CameraManager.INSTANCE.getGameTimeSeconds();
+        this.startGameTimeSeconds = clockSeconds();
 
         // 持有当前脚本的运行时行为
         ScriptMeta meta = script.getMeta();
@@ -621,7 +629,27 @@ public class ScriptPlayer {
         return false;
     }
 
+    /**
+     * 本实例已播放时间（秒）= 本实例时钟读数 − 起始读数。
+     * <p>
+     * 时钟源随实例走（{@link #setClockSource}）：游戏实例 = 全局虚拟时钟；预览实例 = 预览播放头。
+     */
     public float getElapsedSeconds() {
-        return (float)(CameraManager.INSTANCE.getGameTimeSeconds() - startGameTimeSeconds);
+        return (float)(clockSeconds() - startGameTimeSeconds);
+    }
+
+    /**
+     * 设置本实例的时钟源（秒）；{@code null} = 保持当前（默认全局虚拟时钟）。
+     * <p>
+     * 由 {@code CameraManager} 在创建预览实例时注入预览播放头（§7 步骤 5）；必须在
+     * {@link #start(CinematicScript, float)} 之前设置，起始读数在 start 时取。
+     */
+    public void setClockSource(java.util.function.DoubleSupplier source) {
+        if (source != null) this.clockSource = source;
+    }
+
+    /** 本实例当前时钟读数（秒）。 */
+    private double clockSeconds() {
+        return clockSource.getAsDouble();
     }
 }

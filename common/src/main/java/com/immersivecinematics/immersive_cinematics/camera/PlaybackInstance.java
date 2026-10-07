@@ -26,12 +26,36 @@ import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
  * （§3.6），同脚本同玩家保持单实例（第二个请求拒绝/排队，§3.5）。帧驱动按列表顺序遍历全部实例
  * （后来者居上，§3.4），实例结束只影响它自己；只要还有实例在播，共享虚拟时钟 / 相机状态 / 覆盖层都不复位。
  *
+ * <h2>预览实例（§7 步骤 5）</h2>
+ * 编辑器预览也是一个实例，但它是<b>独立</b>的一份（{@link #isPreview()}）：编辑器预览的
+ * pushScript / setTime / resume / stop 只作用于它，游戏实例照常播放、互不替换；退出预览只退它。
+ * 它与游戏实例的差别只有三处：时钟源 = 预览播放头（不是游戏共享虚拟时钟）、恒为实例列表末位（顶层）、
+ * 不参与暂停联动 / 行为并集与网络账本上报。
+ *
  * <p>生命周期驱动方法（{@code start} / {@code replaceScript} / {@code stop} / {@code markStopping} /
  * {@code setExitReason}）为包内可见：实例只能由 {@code CameraManager} 创建与驱动。
  */
 public final class PlaybackInstance {
 
     private final ScriptPlayer player = new ScriptPlayer();
+
+    /**
+     * 是否为编辑器预览实例（{@code plans/0.3.6/parallel-playback.md} §7 步骤 5）。
+     * <p>
+     * 预览 = 一个<b>独立</b>实例：与游戏实例并行共存、互不替换（预览不再挤掉游戏内播放）；
+     * 预览实例有自己的时钟（预览播放头）、不参与暂停联动 / 行为并集，也不上报网络账本
+     * （{@code C2SPlaybackStarted} / 结束通知 / 暂停握手）与跳过投票——本地预览无账本可言。
+     */
+    private final boolean preview;
+
+    PlaybackInstance(boolean preview) {
+        this.preview = preview;
+    }
+
+    /** 是否为编辑器预览实例（§7 步骤 5：独立实例，与游戏实例并行共存）。 */
+    public boolean isPreview() {
+        return preview;
+    }
 
     /**
      * 本实例的播放实例 id（§3.7）：服务端播放请求携带的账本键，{@link #start} 时传入；
