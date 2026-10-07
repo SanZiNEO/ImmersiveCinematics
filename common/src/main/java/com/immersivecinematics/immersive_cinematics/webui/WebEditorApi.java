@@ -79,7 +79,7 @@ public final class WebEditorApi {
 
     private static void handleHello(WebSocketSession session) {
         JsonObject data = new JsonObject();
-        data.addProperty("version", "0.3.5");
+        data.addProperty("version", "0.3.6");
         data.addProperty("name", "ImmersiveCinematics");
         session.sendText(wrap("hello_ack", data, ""));
     }
