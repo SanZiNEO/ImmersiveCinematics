@@ -16,7 +16,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class CameraManager {
 
@@ -44,6 +46,12 @@ public class CameraManager {
     private long lastRealNanos = 0;
 
     private CinematicScript pendingScript = null;
+
+    /**
+     * 服务端播放请求携带的播放实例 id（§3.7），按 scriptId 暂存，供 {@link #reportPlaybackStarted}
+     * 回执时取用（客户端仍是单实例：同一脚本的请求按到达顺序消费，上报后即移除）。
+     */
+    private final Map<String, String> instanceIdsByScriptId = new HashMap<>();
 
     /** C1：播放队列（容量 8，当前脚本不可打断时新脚本一律入队，结束后自动接播） */
     private final ScriptQueue scriptQueue = new ScriptQueue();
@@ -153,8 +161,20 @@ public class CameraManager {
      * @return 0=被拒绝, 1=已开始播放, 2=已排队等待
      */
     public int playScript(CinematicScript script) {
+        return playScript(script, "");
+    }
+
+    /**
+     * 同 {@link #playScript(CinematicScript)}，另携带服务端播放请求的<b>播放实例 id</b>（§3.7）：
+     * 该 id 会随 {@link #reportPlaybackStarted} 回传服务端，作为播放账本的实例键。
+     *
+     * @param instanceId {@code S2CPlayScriptPacket.getInstanceId()}；本地来源（编辑器重载等）传空串
+     * @return 0=被拒绝, 1=已开始播放, 2=已排队等待
+     */
+    public int playScript(CinematicScript script, String instanceId) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return 0;
+        rememberInstanceId(script, instanceId);
 
         PlaybackInstance instance = activeInstance();
         if (instance == null || !instance.player().isPlaying()) {
@@ -176,6 +196,17 @@ public class CameraManager {
         return 0;
     }
 
+    /**
+     * 暂存本次播放请求的实例 id，等脚本真正开始播放时由 {@link #reportPlaybackStarted} 取走。
+     * 空 id（本地来源）不记录——回执时按空串上报，服务端账本退化为 {@code (scriptId, "")} 单实例键。
+     */
+    private void rememberInstanceId(CinematicScript script, String instanceId) {
+        if (script == null || instanceId == null || instanceId.isEmpty()) return;
+        String id = script.getId();
+        if (id == null || id.isEmpty()) return;
+        instanceIdsByScriptId.put(id, instanceId);
+    }
+
     /** 是否有脚本在排队等待播放 */
     public boolean hasPendingScript() {
         return pendingScript != null;
@@ -192,6 +223,11 @@ public class CameraManager {
      */
     public int playCinematic(CinematicScript script) {
         return playScript(script);
+    }
+
+    /** 同 {@link #playCinematic(CinematicScript)}，另携带服务端播放请求的播放实例 id（§3.7）。 */
+    public int playCinematic(CinematicScript script, String instanceId) {
+        return playScript(script, instanceId);
     }
 
     public String getActiveScriptId() {
@@ -376,15 +412,18 @@ public class CameraManager {
      * （{@code TriggerEngine.shouldSkip}）会与实际播放状态错位。
      * <p>
      * refId 留空：play 命令的传输层 ACK 由 {@code ClientScriptReceiver} 单独回执（ACK 与“已开始”
-     * 两件事解耦，见 {@code C2SPlaybackStartedPacket}）。
+     * 两件事解耦，见 {@code C2SPlaybackStartedPacket}）；{@code instanceId} 取本次播放请求暂存的实例 id
+     * （§3.7，无实例 id 的来源为空串）。
      */
     private void reportPlaybackStarted(CinematicScript script) {
         if (script == null) return;
         String id = script.getId();
         if (id == null || id.isEmpty()) return;
+        String remembered = instanceIdsByScriptId.remove(id);
+        final String instanceId = remembered != null ? remembered : "";
         com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SPlaybackStarted",
                 () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                        new com.immersivecinematics.immersive_cinematics.trigger.network.C2SPlaybackStartedPacket(id)));
+                        new com.immersivecinematics.immersive_cinematics.trigger.network.C2SPlaybackStartedPacket(id, instanceId, true)));
     }
 
     // ========== 组 7：编辑器拖拽直控（bbs 式"编辑即生效"，零解析零重启） ==========

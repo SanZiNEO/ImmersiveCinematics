@@ -48,8 +48,9 @@ public class ClientScriptReceiver {
         Minecraft.getInstance().execute(() -> {
             try {
                 CinematicScript script = ScriptParser.parse(packet.getScriptJson());
-                int result = CameraManager.INSTANCE.playCinematic(script);
-                LOGGER.info("Playing script from server: {} (result={})", script.getId(), result);
+                int result = CameraManager.INSTANCE.playCinematic(script, packet.getInstanceId());
+                LOGGER.info("Playing script from server: {} (result={}, instance={})",
+                        script.getId(), result, packet.getInstanceId());
                 if (result == 0) {
                     LOGGER.warn("Play request rejected (queue full or not in world): {}", script.getId());
                 }
@@ -59,7 +60,7 @@ public class ClientScriptReceiver {
                 if (packet.getRefId() != null && !packet.getRefId().isEmpty()) {
                     com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SPlaybackStarted(ack)",
                             () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                                    new C2SPlaybackStartedPacket(script.getId(), packet.getRefId(), false)));
+                                    new C2SPlaybackStartedPacket(script.getId(), packet.getInstanceId(), packet.getRefId(), false)));
                 }
             } catch (Exception e) {
                 LOGGER.error("Failed to parse script from server", e);

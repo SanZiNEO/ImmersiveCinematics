@@ -29,12 +29,20 @@ public class ScriptEventManager {
     private static final Logger LOGGER = LogUtils.getLogger();
     public static final ScriptEventManager INSTANCE = new ScriptEventManager();
 
-    private final Map<String, ScriptPlayback> scriptPlaybacks = new HashMap<>();
+    /**
+     * 播放账本：scriptId → 实例 id → 该实例的播放状态。
+     * <p>
+     * §3.7：观看者、跳过投票、事件时间线全部按<b>实例</b>维护。单实例语义下每个脚本至多一条
+     * （实例 id 为空串时即“该脚本的唯一实例”），行为与实例化之前逐点一致；同一脚本的不同播放请求
+     * （实例 id 不同）各记一条，互不干扰。
+     */
+    private final Map<String, Map<String, ScriptPlayback>> scriptPlaybacks = new HashMap<>();
 
     private ScriptEventManager() {}
 
-    public void addViewer(ServerPlayer player, String scriptId) {
-        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
+    public void addViewer(ServerPlayer player, String scriptId, String instanceId) {
+        Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
+        ScriptPlayback pb = byInstance != null ? byInstance.get(instanceId) : null;
         if (pb == null) {
             CinematicScript script = ScriptManager.INSTANCE.getScript(scriptId);
             if (script == null) return;
@@ -42,18 +50,41 @@ public class ScriptEventManager {
             List<Clip> clips = extractEventClips(script);
             Integer scriptRatio = script.getMeta().getSkipVoteRatio();
             int voteRatio = scriptRatio != null ? scriptRatio : Config.skipVoteRatio;
-            pb = new ScriptPlayback(scriptId, clips, player.server.getTickCount(), voteRatio);
-            scriptPlaybacks.put(scriptId, pb);
+            pb = new ScriptPlayback(scriptId, instanceId, clips, player.server.getTickCount(), voteRatio);
+            scriptPlaybacks.computeIfAbsent(scriptId, k -> new HashMap<>()).put(instanceId, pb);
         }
         pb.viewers.add(player.getUUID());
     }
 
-    public void startPlayback(ServerPlayer player, String scriptId) {
-        addViewer(player, scriptId);
+    public void startPlayback(ServerPlayer player, String scriptId, String instanceId) {
+        addViewer(player, scriptId, instanceId);
+    }
+
+    /**
+     * 该玩家在某脚本下的播放实例。
+     * <p>
+     * 优先取“观看者含该玩家”的实例；脚本下只有一个实例时直接取它——后者正是实例化之前的
+     * {@code scriptPlaybacks.get(scriptId)} 语义（结束 / 暂停信号尚未携带实例 id，见 §3.7 后续步骤）。
+     */
+    private ScriptPlayback playbackOfPlayer(UUID playerUuid, String scriptId) {
+        Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
+        if (byInstance == null || byInstance.isEmpty()) return null;
+        for (ScriptPlayback pb : byInstance.values()) {
+            if (pb.viewers.contains(playerUuid)) return pb;
+        }
+        return byInstance.size() == 1 ? byInstance.values().iterator().next() : null;
+    }
+
+    /** 摘除单个实例；脚本下不再有实例时移除脚本条目。 */
+    private void removePlayback(ScriptPlayback pb) {
+        Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(pb.scriptId);
+        if (byInstance == null) return;
+        byInstance.remove(pb.instanceId);
+        if (byInstance.isEmpty()) scriptPlaybacks.remove(pb.scriptId);
     }
 
     public void onPlayerFinished(ServerPlayer player, String scriptId, CompletionReason reason) {
-        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
+        ScriptPlayback pb = playbackOfPlayer(player.getUUID(), scriptId);
         if (pb == null) return;
 
         UUID uuid = player.getUUID();
@@ -63,11 +94,11 @@ public class ScriptEventManager {
             pb.skipVoters.add(uuid);
         }
 
-        LOGGER.debug("Player {} finished script '{}' (viewers left: {})",
-                player.getName().getString(), scriptId, pb.viewers.size());
+        LOGGER.debug("Player {} finished script '{}' (instance '{}', viewers left: {})",
+                player.getName().getString(), scriptId, pb.instanceId, pb.viewers.size());
 
         if (pb.viewers.isEmpty()) {
-            scriptPlaybacks.remove(scriptId);
+            removePlayback(pb);
             LOGGER.info("Script '{}' fully complete — all viewers finished", scriptId);
             return;
         }
@@ -83,7 +114,7 @@ public class ScriptEventManager {
                     ServerPlayer p = player.server.getPlayerList().getPlayer(remaining);
                     if (p != null) S2CStopScriptPacket.send(p, scriptId);
                 }
-                scriptPlaybacks.remove(scriptId);
+                removePlayback(pb);
             }
         }
     }
@@ -104,13 +135,15 @@ public class ScriptEventManager {
     }
 
     public void stopPlayback(UUID playerUuid, String scriptId) {
-        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
-        if (pb == null) return;
-        pb.viewers.remove(playerUuid);
-        pb.skipVoters.remove(playerUuid);
-        if (pb.viewers.isEmpty()) {
-            scriptPlaybacks.remove(scriptId);
-        }
+        Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
+        if (byInstance == null) return;
+        byInstance.entrySet().removeIf(entry -> {
+            ScriptPlayback pb = entry.getValue();
+            pb.viewers.remove(playerUuid);
+            pb.skipVoters.remove(playerUuid);
+            return pb.viewers.isEmpty();
+        });
+        if (byInstance.isEmpty()) scriptPlaybacks.remove(scriptId);
     }
 
     public void onScriptFinished(ServerPlayer player, String scriptId, CompletionReason reason) {
@@ -118,22 +151,36 @@ public class ScriptEventManager {
     }
 
     public boolean isScriptActive(String scriptId) {
-        return scriptPlaybacks.containsKey(scriptId);
+        Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
+        return byInstance != null && !byInstance.isEmpty();
     }
 
     public boolean isPlayerPlayingScript(UUID playerUuid, String scriptId) {
-        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
-        return pb != null && pb.viewers.contains(playerUuid);
+        Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
+        if (byInstance == null) return false;
+        for (ScriptPlayback pb : byInstance.values()) {
+            if (pb.viewers.contains(playerUuid)) return true;
+        }
+        return false;
     }
 
     public boolean isFullyComplete(String scriptId) {
-        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
-        return pb == null || pb.viewers.isEmpty();
+        Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
+        if (byInstance == null) return true;
+        for (ScriptPlayback pb : byInstance.values()) {
+            if (!pb.viewers.isEmpty()) return false;
+        }
+        return true;
     }
 
     public int getRemainingViewers(String scriptId) {
-        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
-        return pb == null ? 0 : pb.viewers.size();
+        Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
+        if (byInstance == null) return 0;
+        int total = 0;
+        for (ScriptPlayback pb : byInstance.values()) {
+            total += pb.viewers.size();
+        }
+        return total;
     }
 
     public void onServerTick(MinecraftServer server) {
@@ -142,53 +189,56 @@ public class ScriptEventManager {
         if (scriptPlaybacks.isEmpty()) return;
         int currentTick = server.getTickCount();
 
-        scriptPlaybacks.entrySet().removeIf(entry -> {
-            ScriptPlayback pb = entry.getValue();
-            if (pb.viewers.isEmpty()) return true;
+        for (Map<String, ScriptPlayback> byInstance : scriptPlaybacks.values()) {
+            byInstance.entrySet().removeIf(entry -> {
+                ScriptPlayback pb = entry.getValue();
+                if (pb.viewers.isEmpty()) return true;
 
-            pb.viewers.removeIf(uuid -> server.getPlayerList().getPlayer(uuid) == null);
+                pb.viewers.removeIf(uuid -> server.getPlayerList().getPlayer(uuid) == null);
 
-            // 暂停态：不处理 keyframe，仅累计暂停 tick
-            if (pb.paused) {
-                return false;
-            }
-
-            // 有效 elapsed = (当前tick - 开始tick - 总暂停tick) / 20
-            float elapsed = (currentTick - pb.startTick - pb.totalPausedTicks) / 20f;
-
-            int clipIndex = 0;
-            for (Clip clip : pb.eventClips) {
-                float clipStart = clip.getStartTime();
-                float clipDuration = clip.getDuration();
-                float clipEnd = clipDuration < 0 ? Float.POSITIVE_INFINITY : clipStart + clipDuration;
-
-                if (elapsed < clipStart || elapsed > clipEnd) {
-                    clipIndex++;
-                    continue;
+                // 暂停态：不处理 keyframe，仅累计暂停 tick
+                if (pb.paused) {
+                    return false;
                 }
 
-                int kfIndex = 0;
-                for (Keyframe keyframe : clip.getKeyframes()) {
-                    float globalTime = clipStart + keyframe.getTime();
-                    int triggerKey = (clipIndex << 16) | kfIndex;
+                // 有效 elapsed = (当前tick - 开始tick - 总暂停tick) / 20
+                float elapsed = (currentTick - pb.startTick - pb.totalPausedTicks) / 20f;
 
-                    if (elapsed >= globalTime && !pb.triggeredKeyframes.contains(triggerKey)) {
-                        String cmd = keyframe.getString("command", "");
-                        if (!cmd.isEmpty()) {
-                            for (UUID uuid : pb.viewers) {
-                                ServerPlayer p = server.getPlayerList().getPlayer(uuid);
-                                if (p != null) executeCommand(p, cmd);
-                            }
-                        }
-                        pb.triggeredKeyframes.add(triggerKey);
+                int clipIndex = 0;
+                for (Clip clip : pb.eventClips) {
+                    float clipStart = clip.getStartTime();
+                    float clipDuration = clip.getDuration();
+                    float clipEnd = clipDuration < 0 ? Float.POSITIVE_INFINITY : clipStart + clipDuration;
+
+                    if (elapsed < clipStart || elapsed > clipEnd) {
+                        clipIndex++;
+                        continue;
                     }
-                    kfIndex++;
-                }
-                clipIndex++;
-            }
 
-            return false;
-        });
+                    int kfIndex = 0;
+                    for (Keyframe keyframe : clip.getKeyframes()) {
+                        float globalTime = clipStart + keyframe.getTime();
+                        int triggerKey = (clipIndex << 16) | kfIndex;
+
+                        if (elapsed >= globalTime && !pb.triggeredKeyframes.contains(triggerKey)) {
+                            String cmd = keyframe.getString("command", "");
+                            if (!cmd.isEmpty()) {
+                                for (UUID uuid : pb.viewers) {
+                                    ServerPlayer p = server.getPlayerList().getPlayer(uuid);
+                                    if (p != null) executeCommand(p, cmd);
+                                }
+                            }
+                            pb.triggeredKeyframes.add(triggerKey);
+                        }
+                        kfIndex++;
+                    }
+                    clipIndex++;
+                }
+
+                return false;
+            });
+        }
+        scriptPlaybacks.entrySet().removeIf(entry -> entry.getValue().isEmpty());
     }
 
     /**
@@ -198,7 +248,7 @@ public class ScriptEventManager {
      * 使 onServerTick 中的 elapsed 计算跳过暂停时段。
      */
     public void handlePause(ServerPlayer player, String scriptId, boolean paused) {
-        ScriptPlayback pb = scriptPlaybacks.get(scriptId);
+        ScriptPlayback pb = playbackOfPlayer(player.getUUID(), scriptId);
         if (pb == null) return;
 
         if (paused && !pb.paused) {
@@ -241,6 +291,8 @@ public class ScriptEventManager {
 
     public static class ScriptPlayback {
         final String scriptId;
+        /** 播放实例 id（§3.7）；空串=无实例 id 的来源（该脚本的全部观看者共用一条退化账本） */
+        final String instanceId;
         final Set<UUID> viewers;
         final Set<UUID> skipVoters;
         /** 本场播放实际生效的跳过投票比例（脚本覆盖 ?? 全局配置），创建时解析一次 */
@@ -255,8 +307,9 @@ public class ScriptEventManager {
         int pauseStartTick = -1;
         int totalPausedTicks = 0;
 
-        ScriptPlayback(String scriptId, List<Clip> eventClips, int startTick, int skipVoteRatio) {
+        ScriptPlayback(String scriptId, String instanceId, List<Clip> eventClips, int startTick, int skipVoteRatio) {
             this.scriptId = scriptId;
+            this.instanceId = instanceId;
             this.viewers = new HashSet<>();
             this.skipVoters = new HashSet<>();
             this.skipVoteRatio = skipVoteRatio;

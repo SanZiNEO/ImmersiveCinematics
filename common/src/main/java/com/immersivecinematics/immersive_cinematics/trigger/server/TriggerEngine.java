@@ -169,10 +169,12 @@ public class TriggerEngine {
                 player.getName().getString(), scriptId, reason);
     }
 
-    public void onPlaybackStarted(ServerPlayer player, String scriptId) {
-        // 记录“开始播放”信号：配合结束信号构成“播放过”语义
+    public void onPlaybackStarted(ServerPlayer player, String scriptId, String instanceId) {
+        // 记录“开始播放”信号：配合结束信号构成“播放过”语义。
+        // 触发器状态机的键 (玩家, 脚本) 不变（按实例维护是 §7 步骤 6 的事）；
+        // 播放账本（观看者 / 跳过投票 / 事件时间线）按实例记账（§3.7）。
         TriggerStateStore.INSTANCE.markScriptStarted(player.getUUID(), scriptId);
-        ScriptEventManager.INSTANCE.startPlayback(player, scriptId);
+        ScriptEventManager.INSTANCE.startPlayback(player, scriptId, instanceId);
     }
 
     // ===== Internal =====
