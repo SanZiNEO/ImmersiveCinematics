@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
 import com.immersivecinematics.immersive_cinematics.script.CameraLane;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
+import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
 
@@ -26,6 +27,13 @@ import java.util.Map;
  * </pre>
  * 合成是即时进行的（lane 共用一张离屏缓冲），所以<b>叠放顺序 = 调用顺序 = lane 序号递增</b>：
  * {@code collectCameraLanes()} 已按「轨道层级 → 轨道内 clip 顺序」排好，序号小的先贴、被后贴的盖住。
+ *
+ * <h2>跨实例平铺（§3.3 / §3.4）</h2>
+ * 本类每帧遍历<b>全部</b>活跃实例（{@link CameraManager#instances()}，按启动顺序）并收集各自的 lane，
+ * 平铺成一张总 lane 表：先启动实例的全部 lane 在前，后启动实例的全部 lane 在后。于是<b>实例整体按启动
+ * 顺序叠放</b>——后启动实例的所有输出整体在上（后来者居上），而每个实例<b>内部</b>保持它自己的顺序
+ * （轨道层级 → 轨道内 clip 顺序 → 层内 {@code z_index}）；不做跨实例的逐 lane 混排。
+ * 实例之间不共享 lane 序号：总表序号从 0 连续递增，某实例本帧无 lane（纯音频 / 事件 / overlay）时不占位。
  *
  * <h2>合成参数的来源</h2>
  * 每 lane 的 {@code opacity} / {@code dest} / {@code source} 取自该 lane 所属 clip 的关键帧，
@@ -75,20 +83,29 @@ public final class ScriptLaneDriver {
         // 脚本 lane 是 lane 的唯一来源：先清空（调试驱动让位时不残留它上一帧的 lane）
         renderer.clear();
         // 无脚本播放 → 一定没有 lane（不进收集路径：零分配、零差异）
-        PlaybackInstance instance = CameraManager.INSTANCE.activeInstance();
-        if (mc.level == null || mc.player == null || instance == null || !instance.player().isPlaying()) {
+        if (mc.level == null || mc.player == null || !CameraManager.INSTANCE.isActive()) {
             return false;
         }
 
-        List<CameraLane> lanes = instance.player().collectCameraLanes();
-        if (lanes.isEmpty()) {
-            return false;
+        // 跨实例平铺（§3.3/§3.4）：实例按启动顺序（先启动在前），实例内部保持 collectCameraLanes 的顺序
+        //（轨道层级 → 轨道内 clip 顺序 → z_index）。总表序号 = 合成顺序 = 叠放顺序：先启动的实例整体在下、
+        // 后启动的整体在上（后来者居上），实例内部顺序不变。
+        int index = 0;
+        for (PlaybackInstance instance : CameraManager.INSTANCE.instances()) {
+            ScriptPlayer player = instance.player();
+            if (!player.isPlaying()) {
+                continue;
+            }
+            List<CameraLane> lanes = player.collectCameraLanes();
+            for (int i = 0; i < lanes.size(); i++) {
+                CameraLane lane = lanes.get(i);
+                resolve(lane, slot(index));
+                renderer.setLane(index, lane.state(), CONTENT);
+                index++;
+            }
         }
-
-        for (int i = 0; i < lanes.size(); i++) {
-            CameraLane lane = lanes.get(i);
-            resolve(lane, slot(i));
-            renderer.setLane(i, lane.state(), CONTENT);
+        if (index == 0) {
+            return false;
         }
         renderer.setSink(ScriptLaneDriver::compose);
         return true;

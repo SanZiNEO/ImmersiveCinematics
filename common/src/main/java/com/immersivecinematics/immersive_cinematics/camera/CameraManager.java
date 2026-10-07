@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class CameraManager {
@@ -34,6 +35,9 @@ public class CameraManager {
      * 同脚本的第二个请求走拒绝/排队；跨脚本请求一律新建实例并行播放（§3.6）。
      */
     private final List<PlaybackInstance> instances = new ArrayList<>();
+
+    /** {@link #instances} 的只读视图（避免每次取用都包装一遍；与底层列表同步反映增删） */
+    private final List<PlaybackInstance> instancesView = Collections.unmodifiableList(instances);
 
     /** hasActiveCameraClip 的帧级缓存，避免 9 个 Mixin 调用点每帧重复扫描 */
     private boolean cachedHasActiveCameraClip = false;
@@ -81,6 +85,18 @@ public class CameraManager {
      */
     public PlaybackInstance activeInstance() {
         return topInstance();
+    }
+
+    /**
+     * 全部活跃播放实例，按<b>启动顺序</b>排列（先启动在前，顶层 = 最后一个）——只读视图。
+     * <p>需要「按实例逐个处理」的消费方遍历本方法，而不是只看 {@link #activeInstance()} 的顶层：
+     * 画面 lane 收集（{@code ScriptLaneDriver}）要把<b>所有</b>实例的 lane 平铺成一张总表
+     * （§3.3 有什么就放什么），平铺顺序 = 本列表顺序 → 实例内部各自顺序，先启动的实例整体在下、
+     * 后启动的整体在上（§3.4 后来者居上）。
+     * <p>返回的列表不可修改；内容随实例增删实时变化（帧内遍历需自行防并发修改，同 {@link #onRenderFrame()}）。
+     */
+    public List<PlaybackInstance> instances() {
+        return instancesView;
     }
 
     /**
