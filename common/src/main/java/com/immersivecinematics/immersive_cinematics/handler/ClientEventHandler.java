@@ -1,6 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.handler;
 
-import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.immersivecinematics.immersive_cinematics.control.SkipHudRenderer;
@@ -36,36 +35,17 @@ public final class ClientEventHandler {
 
     public static void registerKeyMappings(KeyMappingRegistrar registrar) {
         registrar.register(CinematicKeyBindings.SKIP_KEY);
-        if (ImmersiveCinematics.EDITOR_ENABLED && CinematicKeyBindings.EDITOR_KEY != null) {
-            registrar.register(CinematicKeyBindings.EDITOR_KEY);
-            registrar.register(CinematicKeyBindings.EDITOR_PLAY_PAUSE);
-            registrar.register(CinematicKeyBindings.EDITOR_ADD_MARKER);
-            registrar.register(CinematicKeyBindings.EDITOR_SET_LOOP_IN);
-            registrar.register(CinematicKeyBindings.EDITOR_SET_LOOP_OUT);
-            registrar.register(CinematicKeyBindings.EDITOR_PLAYHEAD_LEFT);
-            registrar.register(CinematicKeyBindings.EDITOR_PLAYHEAD_RIGHT);
-            registrar.register(CinematicKeyBindings.EDITOR_NUDGE_UP);
-            registrar.register(CinematicKeyBindings.EDITOR_NUDGE_DOWN);
-            registrar.register(CinematicKeyBindings.EDITOR_HOME);
-            registrar.register(CinematicKeyBindings.EDITOR_END);
-            registrar.register(CinematicKeyBindings.EDITOR_PAGE_UP);
-            registrar.register(CinematicKeyBindings.EDITOR_PAGE_DOWN);
-            registrar.register(CinematicKeyBindings.EDITOR_CLIP_START);
-            registrar.register(CinematicKeyBindings.EDITOR_CLIP_END);
-            registrar.register(CinematicKeyBindings.EDITOR_PLAY_CLIP);
-            registrar.register(CinematicKeyBindings.EDITOR_DELETE);
-            registrar.register(CinematicKeyBindings.EDITOR_FRAME_ALL);
-            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT);
-            registrar.register(CinematicKeyBindings.EDITOR_WEBUI_OPEN);
-            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_FOV_IN);
-            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_FOV_OUT);
-            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_ZOOM_IN);
-            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_ZOOM_OUT);
-            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_ROLL_LEFT);
-            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_ROLL_RIGHT);
-            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_MODE);
-            registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_RESET_OPTICS);
-        }
+        // WebUI 预览屏与飞控相关按键（游戏内 Java 编辑器退役后仅剩这些）
+        registrar.register(CinematicKeyBindings.EDITOR_FLIGHT);
+        registrar.register(CinematicKeyBindings.EDITOR_WEBUI_OPEN);
+        registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_FOV_IN);
+        registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_FOV_OUT);
+        registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_ZOOM_IN);
+        registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_ZOOM_OUT);
+        registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_ROLL_LEFT);
+        registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_ROLL_RIGHT);
+        registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_MODE);
+        registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_RESET_OPTICS);
     }
 
     public static void onClientTick(Minecraft mc) {

@@ -222,7 +222,7 @@
 
 **锚点机制**：`EntitySelector` 的 `position` 函数把命令源位置逐分量替换为 `x`/`y`/`z` 选项值，`distance` / `dx,dy,dz`(AABB) / `sort=nearest` 全部相对这个点求值。项目侧不暴露 `x/y/z` 给脚本，而是由调用点把相机坐标经 `withPosition` 注入 —— 即「锚点 = 相机位置」是项目约定，不是原版限制。
 
-**编辑器现状**：`editor/panel/KeyframePropertiesPanel.CAMERA_GROUPS` 只列了 `yaw_base_selector` / `yaw_base_from` / `yaw_base_to` / `look_at_selector` / `look_at_target*` / `follow_selector`，未列 `selector_refresh` 等策略字段；Web 编辑器（`editor/src/demo.ts`、`types.ts`、`DynamicForm.vue`）同样只有这 6 个字段。调用点专属字段（如 `selector_refresh_look_at`）运行时可用（`kf.getData().containsKey`），但 schema 与两个编辑器都未声明/呈现。
+**编辑器现状（删包前快照）**：`editor/panel/KeyframePropertiesPanel.CAMERA_GROUPS`（该类已随 0.3.6 游戏内编辑器退役删除）只列了 `yaw_base_selector` / `yaw_base_from` / `yaw_base_to` / `look_at_selector` / `look_at_target*` / `follow_selector`，未列 `selector_refresh` 等策略字段；Web 编辑器（`editor/src/demo.ts`、`types.ts`、`DynamicForm.vue`）同样只有这 6 个字段。调用点专属字段（如 `selector_refresh_look_at`）运行时可用（`kf.getData().containsKey`），但 schema 与编辑器都未声明/呈现。
 
 ### ④ 无法核实的断言
 

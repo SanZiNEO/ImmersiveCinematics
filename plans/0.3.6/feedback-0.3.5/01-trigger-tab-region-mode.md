@@ -1,7 +1,7 @@
 # 01 游戏内编辑器「触发器」：区域模式（A→B 方体）用不了
 
 - **来源**：0.3.5 实际使用反馈
-- **状态**：待处理（未修）
+- **状态**：⛔ 不修——随游戏内编辑器退役作废（0.3.6 删除 `editor/` 包，见 `../editor-webui-migration.md` §4）；WebUI 编辑器的触发器编辑已按 schema 重做
 - **相关**：`docs/TRIGGER_TYPES.md`（location 的三种检测方式）、运行时 `Evaluators.evaluateLocation`
 
 ## 使用反馈（原文）

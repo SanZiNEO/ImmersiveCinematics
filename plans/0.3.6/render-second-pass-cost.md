@@ -28,7 +28,7 @@
 - `mixin/CameraMixin.java`：`@Inject(method = "setup", at = @At("HEAD"), cancellable = true)`，直接把虚拟相机的位置 / yaw / pitch 写进原版 `Camera`，并置 `initialized = true`。**这是「让主渲染用另一个相机」，不是「再渲染一遍」。**
 - `mixin/GameRendererMixin.java`：`getFov` 覆写（虚拟相机 FOV）、`renderLevel` 内在 `prepareCullFrustum` 之前施加 roll。
 - `mixin/LevelRendererMixin.java`：`setupRender` 内把 ViewArea 中心从玩家坐标改成相机坐标（`ModifyVariable` ×3）。
-- `editor/PreviewCapture.java`、`webui/WebFrameCapture.java`：只做「主 framebuffer → 小 FBO → `glReadPixels` 读回」，是**读回**，不是世界再渲染。
+- `webui/WebFrameCapture.java`：只做「主 framebuffer → 小 FBO → `glReadPixels` 读回」，是**读回**，不是世界再渲染（0.3.6 前 `editor/PreviewCapture.java` 同法，已随游戏内编辑器退役删除）。
 
 → 结论：仓库里**不存在**第二遍世界渲染的实现。`multi-camera-rendering.md` 也自标「📋 方案，未实现」。
 

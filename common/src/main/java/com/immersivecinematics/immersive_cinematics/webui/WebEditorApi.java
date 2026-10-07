@@ -255,7 +255,7 @@ public final class WebEditorApi {
     public static void pushPlaybackState() {
         JsonObject data = new JsonObject();
         data.addProperty("time", (float) CameraManager.INSTANCE.getGameTimeSeconds());
-        // 旧 Java 编辑器语义：playing = 用户正在播放（未暂停），不是“脚本已加载”
+        // playing = 用户正在播放（未暂停），不是“脚本已加载”
         boolean playing = CameraManager.INSTANCE.isPreviewMode()
                 && !CameraManager.INSTANCE.isPreviewPaused();
         data.addProperty("playing", playing);

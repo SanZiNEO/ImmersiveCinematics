@@ -1,6 +1,6 @@
 # ImmersiveCinematics
 
-**Add cutscenes to your modpack — no command blocks required.** A single mod for all your storytelling needs. Write JSON scripts or use the in-game editor.
+**Add cutscenes to your modpack — no command blocks required.** A single mod for all your storytelling needs. Write JSON scripts or use the desktop editor.
 
 [中文文档](README_CN.md)
 
@@ -10,7 +10,7 @@
 
 ## What Is This?
 
-ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server-side trigger system coordinates with client-side playback: script authors define cutscenes in JSON (or via the in-game editor), and the trigger system plays them automatically when conditions are met — 23 trigger types covering login, location, advancement, biome, entity kill, entity/block/item-on-interact, dimension change/residency, item craft/use/consume/release/instant-use/use-interrupt, item pickup/drop, xp, observation, inventory, structure, and gamestage.
+ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server-side trigger system coordinates with client-side playback: script authors define cutscenes in JSON (or via the desktop editor), and the trigger system plays them automatically when conditions are met — 23 trigger types covering login, location, advancement, biome, entity kill, entity/block/item-on-interact, dimension change/residency, item craft/use/consume/release/instant-use/use-interrupt, item pickup/drop, xp, observation, inventory, structure, and gamestage.
 
 **Use cases:**
 - Play an intro cutscene when entering a new area
@@ -70,16 +70,11 @@ ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server
 | `/icinematics reload` | Sync global scripts to the world save and reload triggers |
 | `/icinematics validate <file>` | Static-validate a script file (authoring self-check) |
 
-### Editors
+### Editor
 
-This version ships **two editors**, both in testing — feel free to compare:
+Cutscenes are edited with the **Standalone Editor (WebUI)** — a separate desktop app that drives the game over a local connection; press **F9** in game to start the local service and open the preview screen. It needs a separate download.
 
-| Editor | Notes |
-|------|------|
-| **In-Game Editor** | Built into the mod, opened with F6, edit visually without leaving the game. Multi-track timeline, keyframe editing, playback control (play/pause toggle + reset-to-first-frame), camera gizmo, trigger condition editors |
-| **Standalone Editor (WebUI)** | Separate desktop app that drives the game over a local connection, with more screen space; requires a separate download |
-
-Both share the same script format (v3) and field schema, so scripts work in either. A single build already includes the playback runtime and the in-game editor — all users download the same jar.
+The mod jar ships the playback runtime plus the local WebSocket server, frame streaming and preview screen the editor talks to. Script format (v3) and field schema live in the mod, so the editor always renders the current schema. The old in-game Java editor (F6) was removed in 0.3.6.
 
 ---
 

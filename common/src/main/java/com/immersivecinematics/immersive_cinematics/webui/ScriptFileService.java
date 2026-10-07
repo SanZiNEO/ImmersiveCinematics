@@ -1,7 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.webui;
 
-import com.google.gson.JsonObject;
-import com.immersivecinematics.immersive_cinematics.editor.EditorDocument;
+import com.immersivecinematics.immersive_cinematics.script.ScriptTemplate;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -13,7 +12,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * 独立的脚本文件服务，替代原来散落在 EditorScreen 里的文件 IO。
+ * 脚本文件服务：WebUI 的 {@code script.list/load/save/delete/new} 共用同一套文件 IO。
  */
 public final class ScriptFileService {
 
@@ -56,8 +55,7 @@ public final class ScriptFileService {
     }
 
     public static String newScriptJson() {
-        EditorDocument doc = new EditorDocument();
-        return doc.toJson();
+        return ScriptTemplate.newScriptJson();
     }
 
     private static Path resolveSafe(String relativePath) throws IOException {

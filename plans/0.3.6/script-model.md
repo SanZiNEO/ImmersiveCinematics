@@ -175,7 +175,7 @@
 - **olive 侧符号/路径**：`Node::Input`（`node.h:1147`）、`AddInput`/`PrependInput`/`InsertInput`/`SetInputProperty`/`SetInputFlag`/`IsInputKeyframable`（`node.h`/`node.cpp`）、`InputFlag` 枚举全值（`param.h`）、`NodeKeyframe` 全成员 + `kDefaultType`（`keyframe.h`/`keyframe.cpp`）、`NodeInputImmediate::keyframe_tracks_` 与 `get_keyframe_at_time*`（`inputimmediate.h/.cpp`）、`NodeValue::split_normal_value_into_track_values` / `combine_track_values_into_normal_value` / `get_number_of_keyframe_tracks`（`value.cpp`）、`NodeKeyframeTrackReference`（`param.h:318`）。
 - **本仓符号/路径**：`script/Keyframe.java`、`script/Clip.java`（`isLoop/getLoopCount/getLoopMode/getCurve`）、`script/PositionData.java`、`script/KeyframeInterpolator.java`（`computeInterpolation` / `interpolatePosition` / `InterpolationResult`）、`script/CameraTrackPlayer.java`、`script/OverlayTrackPlayer.java`、`script/ScriptMeta.java`、`script/schema/TrackSchemas.java`、`script/schema/MetaSchemas.java`、`script/schema/FieldDef.java`（record 字段名 `defaultValue` / `enumValues`）、`script/ScriptParser.java`。
 - **新增事实（对 §4 有约束）**：本仓同一 clip 内关键帧时间**必须严格单调递增**（`ScriptParser`：`keyframes.get(i).getTime() <= keyframes.get(i-1).getTime()` → 抛 `ScriptParseException`）；而 olive 允许同一时刻多帧（不同 track/element）。按分量分轨落地时必须一并处理这条约束。
-- **§6 `FieldDef`**：实际 record 为 `FieldDef(String type, Object defaultValue, boolean required, List<String> enumValues, String section)`，`section` 默认 `"info"` 且“当前游戏内编辑器使用 `FieldGroup`，不直接消费 section”。
+- **§6 `FieldDef`**：实际 record 为 `FieldDef(String type, Object defaultValue, boolean required, List<String> enumValues, String section)`，`section` 默认 `"info"`；javadoc 现为「`section` 为 WebUI 自动分组预留；Java 侧只做元数据声明，不消费该字段」（0.3.6 前写的是「游戏内编辑器使用 `FieldGroup`，不直接消费 section」，该编辑器与 `FieldGroup` 已随退役删除）。
 
 ### ⑤ 未验证
 

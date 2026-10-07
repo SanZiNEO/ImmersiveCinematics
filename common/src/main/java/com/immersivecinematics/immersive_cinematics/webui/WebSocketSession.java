@@ -38,7 +38,7 @@ class WebSocketSession {
                 switch (frame.opcode) {
                     case 0x1 -> {
                         String text = new String(frame.payload, StandardCharsets.UTF_8);
-                        // 对齐旧 Java 编辑器：所有 CameraManager/播放器操作必须在 Minecraft 主线程执行。
+                        // 所有 CameraManager/播放器操作必须在 Minecraft 主线程执行。
                         Minecraft.getInstance().execute(() -> WebEditorApi.handle(text, this));
                     }
                     case 0x9 -> sendFrame(0xA, frame.payload); // pong

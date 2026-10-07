@@ -14,7 +14,7 @@
   - ✅ `CompletionReason` 枚举 5 种完成原因：FORCE_QUIT/STOPPED/INTERRUPTED/SKIPPED/FINISHED，随 `C2SScriptFinishedPacket` 回执服务端（`CompletionReason`）
 - **跳过与投票**
   - ✅ `CinematicKeyBindings.SKIP_KEY`（默认 C 键）长按跳过：达到 `Config.skipHoldThresholdMs` 阈值后触发 `requestExit(USER_SKIP)`，跳过键不受键盘屏蔽影响（`CinematicKeyBindings`）
-  - ✅ `CinematicKeyBindings.EDITOR_KEY`（默认 F6）打开/关闭编辑器，关闭后 500ms 防重开冷却（`CinematicKeyBindings`）
+  - ✅ `CinematicKeyBindings.EDITOR_WEBUI_OPEN`（默认 F9）打开 WebUI 预览屏，关闭后 500ms 防重开冷却（游戏内 Java 编辑器与 F6 键已随 0.3.6 退役删除）（`CinematicKeyBindings`）
   - ✅ 强制退出：Ctrl+P 组合键直接 `FORCE_QUIT`（`CinematicKeyBindings`）
   - ✅ `SkipHudRenderer` 渲染跳过提示：跳过键图标 + 按键名 + 长按进度环（分段三角填充的圆弧），仅在脚本模式、可跳过且未隐藏时显示（`SkipHudRenderer`）
   - ✅ 多人服务器（非本地）时在屏幕底部居中显示跳过投票进度（投票数/观看者总数，数据来自 `ClientScriptReceiver` 缓存）（`SkipHudRenderer`、`ClientScriptReceiver`）
@@ -23,6 +23,6 @@
   - ✅ `InputRouter` 接口定义输入路由决策（键盘/鼠标按钮/滚轮/视角转动），两层设计：Mixin 在 HEAD 捕获原始事件，本接口决定目标（`InputRouter`）
   - ✅ `InputTarget` 枚举四种路由结果：GAME（放行）、SELF（拦截但更新自身按键状态，如跳过键）、BLOCK（完全拦截）、FLIGHT（交给编辑器飞行取景控制器）（`InputTarget`）
   - ✅ 默认路由实现：非激活/无世界时放行；跳过键始终 SELF；block_keyboard 开启且游戏未暂停（或暂停不随游戏）时拦截键盘，Esc 放行；block_mouse 开启时拦截鼠标按钮/滚轮/视角转动；编辑器飞行取景时路由到 FLIGHT（`InputRouter`）
-  - ✅ `FlightModeManager` 统一飞控会话入口：进入（暂停相机 + 启用直控 + 初始化 `FlightController`）、退出（返回最终相机数据）、取消（恢复进入前状态）、每帧 tick、键盘/鼠标事件转发、光学 reset（只恢复 FOV/Zoom/Roll）；与 `EditorScreen` 解耦，WebUI / 游戏内编辑器 / 键盘中转共用，为后续移除游戏内编辑器后 WebUI 飞控独立工作做准备（`FlightModeManager`）
+  - ✅ `FlightModeManager` 统一飞控会话入口：进入（暂停相机 + 启用直控 + 初始化 `FlightController`）、退出（返回最终相机数据）、取消（恢复进入前状态）、每帧 tick、键盘/鼠标事件转发、光学 reset（只恢复 FOV/Zoom/Roll）；不依赖具体界面，WebUI 预览屏与键盘中转共用（游戏内编辑器已随 0.3.6 删除）（`FlightModeManager`）
   - ✅ 飞行取景：`FlightController` 读取原版键位与鼠标增量，直接驱动 `CameraManager` 的相机 POJO 状态，支持相对/绝对模式、FOV/变焦/翻滚微调；会话进出统一经 `FlightModeManager`（`FlightController`、`FlightModeManager`）
   - ✅ `CinematicController.releaseAllKeys()` 在**播放开始**释放全部按键，清旧状态；**播放退出**改用 `syncInputStateAfterExit()` 优雅交接：先经 `MouseHandlerAccessor` 清空原版鼠标累积量（accumulatedDX/DY），再 `KeyMapping.setAll()` 按当前物理按键状态重同步键盘 + 鼠标按钮单独按 GLFW 状态同步——避免玩家持续按键时退出导致"按键失效直到松开重按"与视角跳变（`CinematicController`、`MouseHandlerAccessor`）

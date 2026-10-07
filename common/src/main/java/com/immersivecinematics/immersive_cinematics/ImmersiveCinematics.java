@@ -10,8 +10,6 @@ import com.immersivecinematics.immersive_cinematics.trigger.server.prereq.Builti
 public final class ImmersiveCinematics {
     public static final String MOD_ID = "immersive_cinematics";
 
-    public static final boolean EDITOR_ENABLED = true;
-
     public static void init(Config.ConfigProvider configProvider) {
         Config.init(configProvider);
         NetworkHandler.init();

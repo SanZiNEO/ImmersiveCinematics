@@ -1,6 +1,6 @@
 # 编辑器 WebUI 迁移（0.3.6）
 
-**状态**: 独立 Editor（Vue 3 + Electron）已实现并打包 0.1.0；**游戏内编辑器决定退役**（§4）；剩余工作见 §3。
+**状态**: 独立 Editor（Vue 3 + Electron）已实现并打包 0.1.0；**游戏内编辑器已退役并删除（2026-10-07 落地，见 §4）**；剩余工作见 §3。
 **范围**: 本文只描述“编辑器 WebUI 迁移”这一件事，不混入其他 0.3.6 方案。
 
 ---
@@ -17,7 +17,7 @@
   - 对它的要求是“**一副好用的脚手架 + 改功能**”：骨架省事，业务只做脚本的字段与校验。
   - **权威在 mod 侧**：脚本的解析与播放是 mod 的 `script/` 模块，**只有它能读**——编辑器不直接读文件、不自己解析，一切经协议由那边确认（`schema.get` / `script.validate`）。
 - **mod 是服务端，Editor 是客户端**：游戏内按 **F9** 打开 WebUI 预览屏（同时启动本地服务），Editor 连接 `ws://127.0.0.1:8765/ws`。
-- **游戏内 Java 编辑器仍在**（F6）：两个编辑器并存，共用同一套脚本格式与字段 schema。
+- **游戏内 Java 编辑器已退役**：0.3.6 随退役删除（F6 键与 `editor/` 包一并移除，见 §4/§7）。脚本格式与字段 schema 仍由 mod 侧 `script/` 唯一权威，独立 Editor 是唯一编辑器。
 - Editor 带离线演示模式（未连接游戏时可浏览界面与示例数据）。
 
 ### 1.2 Java 侧（`common/.../webui/` 及其依赖模块）
@@ -33,7 +33,7 @@
 | `WebRegistryService` | 物品 / 方块 / 实体 / 声音 / 目标 / 群系 / 维度 / 结构 / 进度等自动补全数据（即时查询） |
 | `WebFrameCapture` + `WebFrameStreamer` | 720p raw RGBA 帧流：主画面 → 小 FBO → glReadPixels；worker 线程发送、约 60fps 节流、跟不上丢旧帧 |
 | `WebPreviewScreen` | F9 预览屏：播放控制、飞控入口与飞控 HUD |
-| `FlightModeManager`（在 `control/`） | 飞控核心：与 `EditorScreen` 解耦，WebUI / 游戏内共用 |
+| `FlightModeManager`（在 `control/`） | 飞控核心：不依赖具体界面，WebUI 预览屏与键盘中转共用 |
 | `SchemaExporter`（在 `script/schema/`） | 导出字段元数据（`schema.get`）；Java 侧是唯一 schema 权威 |
 
 ### 1.3 前端（`editor/`）
@@ -62,7 +62,7 @@
 
 ## 3. 剩余工作
 
-- **旧游戏内编辑器退役**：**决策已定——不留**（理由与占比见 §4，路径见 §7）。
+- **旧游戏内编辑器退役**：**已落地（2026-10-07）**——`editor/` 包、桥接、F6 键与 `EDITOR_ENABLED` 开关全部删除（删除清单见 §4）。
 - **安全加固**：本地 token / Origin 校验未做。
 - **预览与游戏内播放的通道隔离**：编辑器预览目前走 `CameraManager` 直控；隔离属[并行播放](./parallel-playback.md)步骤 5 的范围。
 - **远期 / 可选**：H.264 / WebRTC；飞控远程面板；动效。
@@ -79,15 +79,28 @@
 
 ---
 
-## 4. 游戏内编辑器退役（已确认）
+## 4. 游戏内编辑器退役（已确认 · 已落地）
 
 **决策**：**不留游戏内编辑器**，后续只维护外部编辑器。
 
-**占比**（`git ls-files` + `wc -l` 统计，2026-10-07 在 HEAD 重算；common 全部 Java 234 文件 / 30,634 行）：
+**落地（2026-10-07）**：退役已执行完毕，`editor/` 包整体消失，外部引用清零（`sh gradlew compileJava` 通过）。
+
+| 删除项 | 说明 |
+|---|---|
+| `common/.../editor/` 整包（62 文件 / 10,176 行） | 含 `preset/`（0.3.5 预设系统）、`debug/`（EditorLogger、RawInputLogger）、`panel/`、`widget/`、`area/`、`trigger/`、`fields/` 全部子包 |
+| `common/.../editor/EditorBridge.java`、`common/.../client/EditorBridgeImpl.java`（34 行） | 桥接接口与实现一并删除，无替代 |
+| `CinematicKeyBindings`：F6 `EDITOR_KEY` + 编辑器专用键 17 个 | 播放/播放头/标记/循环/裁剪/微调/删除等；**F7 飞控、F9 WebUI 保留** |
+| `ImmersiveCinematics.EDITOR_ENABLED`、`Config.editorEnabled` | 含 Forge/Fabric 配置键与 `ConfigScreen` 开关项；开关已无意义，整条删除（不留空壳） |
+| lang 键 324 条 | `editor.*`（保留 `editor.flight.key.*` 11 条）、`key.immersive_cinematics.editor*`（保留飞控/WebUI 10 条）、`config.immersive_cinematics.editorEnabled*` 2 条 |
+| `client/EditorBridgeImpl` 相关的 F6 tick 分支、`ClientEventHandler` 编辑器键注册 | 见上 |
+
+**新增**：`script/ScriptTemplate`（默认空脚本骨架，meta 默认值取自 `SchemaLoader.getMetaFields()`、轨道跟随 `TrackType` 枚举）——取代 `EditorDocument.reset()`，供 WebUI `script.new` 使用；`script/schema/` 未动。
+
+**占比**（`git ls-files` + `wc -l` 统计；下表口径为 2026-10-07 在 `cfd3b7d` 重算的 common 全部 Java 234 文件 / 30,634 行。删除前 HEAD 实测 243 文件 / 31,898 行，删除后 **181 文件 / 21,677 行**）：
 
 | 部分 | 行数 | 占比 |
 |---|---|---|
-| 游戏内编辑器（`editor/` 包 62 文件 = 10,164；另加 `client/EditorBridgeImpl` 34 行共 10,198） | **10,164** | **33%** |
+| 游戏内编辑器（`editor/` 包 62 文件 = 10,176；另加 `client/EditorBridgeImpl` 34 行共 10,210）**已删除** | **10,176** | **33%** |
 | 外部编辑器（`editor/src` 全量文件；其中 TS+Vue 仅 5,643，另含 26 个 SVG + 1 个 PNG） | 12,799 | — |
 | WebUI 服务端（`webui/`，8 文件） | 1,394 | 4.5% |
 | 共享 schema（`script/schema/`，7 文件） | 654 | 2% |
@@ -151,17 +164,17 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 
 - **脚本格式的权威在 mod 的解析与播放模块（`script/`）**：只有它能读脚本。`script/schema/`（`TrackSchemas` / `FieldDef` / `SchemaExporter` / `SchemaRegistry`）是其中的字段元数据，独立于任何编辑器存在。
 - 编辑器只是这份模型的消费者：外部编辑器通过 `schema.get` 取；游戏内编辑器当年直接调用。
-- **删包时的外部引用（2026-10-07 核查）**：`editor/` 包之外只有 3 处引用它——`client/EditorBridgeImpl`（实现 `editor.EditorBridge`）、`control/CinematicKeyBindings`（F6 入口引用 `editor.EditorScreen`）、`webui/ScriptFileService.newScriptJson()`（`new EditorDocument().toJson()`）。前两处随包一起删；`ScriptFileService` 需改用 `script/` 侧的等价方式生成空脚本，否则 `script.new` 会编译失败。
+- **删包时的外部引用（2026-10-07 核查，已处理）**：`editor/` 包之外只有 3 处引用它——`client/EditorBridgeImpl`（实现 `editor.EditorBridge`）、`control/CinematicKeyBindings`（F6 入口引用 `editor.EditorScreen`）、`webui/ScriptFileService.newScriptJson()`（`new EditorDocument().toJson()`）。处理：前两处随包一起删（F6 键与桥接整体移除）；`ScriptFileService.newScriptJson()` 改走新增的 `script/ScriptTemplate.newScriptJson()`（等价空脚本骨架，默认值仍来自 schema 与 `TrackType`）。另清理了 `ImmersiveCinematics.EDITOR_ENABLED` / `Config.editorEnabled`（Forge/Fabric/ConfigScreen 一并删除）与仅编辑器使用的 lang 键，全仓已无 `editor` 包类名引用。
 - 删包后的归属：schema 留在 `script/schema/`，升级方向见[脚本模型](./script-model.md)（参数声明、keyframable、关键帧到分量）。
 
 ---
 
 ## 7. 迁移路径（方向）
 
-1. **冻结**：不再给游戏内编辑器加功能。
-2. **对齐能力**：确认外部编辑器覆盖其全部能力（缺口清单见 `feedback-0.3.5/02`）。
-3. **切换默认**：F9 为主；F6 标记为旧或移除。
-4. **删除 `editor/` 包**（10,164 行）——保留 `script/schema/` 与脚本格式。
+1. **冻结**：不再给游戏内编辑器加功能。✅
+2. **对齐能力**：确认外部编辑器覆盖其全部能力（缺口清单见 `feedback-0.3.5/02`）。✅
+3. **切换默认**：F9 为主；F6 标记为旧或移除。✅（F6 已移除）
+4. **删除 `editor/` 包**（62 文件 / 10,176 行）——保留 `script/schema/` 与脚本格式。✅ 2026-10-07 落地（清单见 §4）
 
 ---
 
@@ -174,6 +187,8 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 ---
 
 ## 事实核查（2026-10-07）
+
+> **快照说明**：本节是**删包前**（`cfd3b7d`）的核查结果，其中的 `editor/` 包文件清单、`CinematicKeyBindings` F6 行号、`EditorBridgeImpl` 等条目描述的是当时的代码；该包随后已删除（§4）。保留本节用于记录当时的口径与修正依据。
 
 **核查依据**：本仓工作树（文档最后提交 `cfd3b7d` = 2026-10-06T21:57:01+08:00，其后无代码改动）、`common/src/main/java/com/immersivecinematics/immersive_cinematics/{webui,editor,script,control,client}/`、`editor/`（前端）、`example/editor/olive/app/`、`example/editor/lossless-cut/`。
 **行数口径**：`git ls-files <pathspec> | xargs cat | wc -l`（逐文件 `wc -l` 会因 xargs 分批产生多个 total，故改用 cat 汇总）。

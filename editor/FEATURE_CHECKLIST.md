@@ -1,6 +1,6 @@
 # ImmersiveCinematics Editor 功能清单
 
-> 来源：模组 Java 编辑器代码（EditorScreen / panel / trigger / preset / schema / CameraManager）。
+> 来源：模组 Java 编辑器代码（EditorScreen / panel / trigger / preset / schema / CameraManager）——该游戏内编辑器已于 0.3.6 退役删除，本清单作为功能对账留档。
 > 飞行控制按计划在游戏侧实现，Editor 只负责脚本编辑，不负责飞控面板。
 
 ---

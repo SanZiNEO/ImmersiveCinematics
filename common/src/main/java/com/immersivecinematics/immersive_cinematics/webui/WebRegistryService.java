@@ -17,7 +17,6 @@ import java.util.stream.Collectors;
  * WebUI 注册表/自动补全数据源。
  *
  * <p>第一版采用“即时查询”：前端请求时从 MC 注册表读取并过滤。
- * 数据源与旧 Java 编辑器 {@code SingleIdEditor} / {@code LocationEditor} 等保持一致，
  * 走 Mojang official mapping 的公共 API，Forge / Fabric 通用。</p>
  */
 public final class WebRegistryService {

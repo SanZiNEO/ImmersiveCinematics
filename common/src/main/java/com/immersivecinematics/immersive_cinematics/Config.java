@@ -34,11 +34,6 @@ public class Config {
     /** 启用调试日志输出 */
     public static boolean debugLogging = false;
 
-    // ===== 编辑器配置 =====
-
-    /** 是否启用编辑器（F6 键绑定与编辑器界面；关闭即"无编辑器版本"，需重启生效） */
-    public static boolean editorEnabled = true;
-
     // ===== 触发器轮询间隔配置 =====
 
     /** location 触发器的轮询间隔（tick） */
@@ -110,7 +105,6 @@ public class Config {
             int triggerPollIntervalInventory,
             int triggerPollIntervalStructure,
             int triggerPollIntervalGamestage,
-            boolean editorEnabled,
             boolean preloadEnabled,
             int preloadReportInterval,
             int preloadMaxBurstPerTick,
@@ -125,7 +119,7 @@ public class Config {
         /** 使用默认值构造 */
         public static ConfigValues defaults() {
             return new ConfigValues(3000, true, 100, false, 20, 40, 20, 20, 20, true,
-                    true, 20, 20, 8, 32, false, 8, 2.0f, 8, 6);
+                    20, 20, 8, 32, false, 8, 2.0f, 8, 6);
         }
     }
 
@@ -152,7 +146,6 @@ public class Config {
         triggerPollIntervalInventory = values.triggerPollIntervalInventory();
         triggerPollIntervalStructure = values.triggerPollIntervalStructure();
         triggerPollIntervalGamestage = values.triggerPollIntervalGamestage();
-        editorEnabled = values.editorEnabled();
         preloadEnabled = values.preloadEnabled();
         preloadReportInterval = values.preloadReportInterval();
         preloadMaxBurstPerTick = values.preloadMaxBurstPerTick();
@@ -180,11 +173,6 @@ public class Config {
     public static void setDebugLogging(boolean value) {
         debugLogging = value;
         if (provider != null) provider.setBoolean("debugLogging", value);
-    }
-
-    public static void setEditorEnabled(boolean value) {
-        editorEnabled = value;
-        if (provider != null) provider.setBoolean("editorEnabled", value);
     }
 
     // ===== 区块预加载配置写入接口 =====

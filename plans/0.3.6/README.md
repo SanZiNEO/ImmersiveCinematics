@@ -35,9 +35,9 @@
 
 | 文档 | 说明 | 状态 | 依赖 |
 |---|---|---|---|
-| `editor-webui-migration.md` | 编辑器 WebUI：独立 Editor（Vue3 + Electron）已实现并打包 0.1.0；剩余：旧编辑器退役、安全加固等 | ✅ 主体已落地 | — |
+| `editor-webui-migration.md` | 编辑器 WebUI：独立 Editor（Vue3 + Electron）已实现并打包 0.1.0；**游戏内编辑器已退役删除（2026-10-07）**；剩余：安全加固等 | ✅ 主体已落地（退役完成） | — |
 | `editor-script-graph.md` | WebUI 无限画布：脚本架构图（文件夹分区 + requires 依赖网） | 🔵 方向已确认 | WebUI 编辑器 |
-| `templates.md` | 模板参数化：脚本-轨道-片段三层模板；用户填目标需求一键生成脚本 | 🔵 方向已确认 | script-model；editor-webui-migration |
+| `templates.md` | 模板参数化：脚本-轨道-片段三层模板；用户填目标需求一键生成脚本（0.3.5 预设已随编辑器删除，模板体系从零新建） | 🔵 方向已确认 | script-model；editor-webui-migration |
 
 ## 三、触发器与区域
 
@@ -74,8 +74,8 @@
 
 | # | 问题 | 状态 |
 |---|---|---|
-| 01 | 游戏内编辑器区域模式（A→B 方体）用不了 | 🟢 修法明确（4 条），可开工 |
-| 02 | 游戏内编辑器 vs 脚本格式能力缺口 | 随编辑器线处理 |
+| 01 | 游戏内编辑器区域模式（A→B 方体）用不了 | ⛔ 不修——随游戏内编辑器退役作废（0.3.6 删除，见 `editor-webui-migration.md` §4） |
+| 02 | 游戏内编辑器 vs 脚本格式能力缺口 | ⛔ 随编辑器退役作废；缺口对照已由 WebUI 编辑器（schema 驱动表单）覆盖，检查单留档 |
 | 03 | `exit_buffer` 外扩对角落点顺序敏感 | 🟢 修法明确（归一化），可开工 |
 | 04 | 触发器 → 命令延迟构成 | 部分已调（config）；频率项已并入 `trigger-conditions.md` |
 | 05 | `on_enter` 每局只触发一次 | ✅ 已修复（0.3.6） |

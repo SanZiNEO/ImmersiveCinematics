@@ -13,8 +13,8 @@
   - ✅ 命令注册：集成/专用服务器环境下注册 `/icinematics` 命令树（`ServerEventHandler`、`CinematicCommand`）
   - ✅ 事件驱动触发器接线：`LIVING_DEATH`→entity_kill（记录击杀含场景数据）、`PLAYER_ADVANCEMENT`→advancement、`RIGHT_CLICK_BLOCK`→block_interact+item_on_interact、`INTERACT_ENTITY`→entity_interact+item_on_interact、`CRAFT_ITEM`→item_craft、`RIGHT_CLICK_ITEM`→item_use、`PICKUP_ITEM_POST`→item_pickup、`DROP_ITEM`→item_drop、`CHANGE_DIMENSION`→dimension_change、`EntityEvent.ADD`(投掷物)→item_instant_use；`item_consume`/`item_release`/`item_use_interrupt` 由 `ItemUseMixin`（LivingEntity 使用状态机）注入（`ServerEventHandler`、`ItemUseMixin`、`Evaluators`）
 - **客户端事件注册（`ClientEventHandler`）**
-  - ✅ 按键注册：跳过键（默认 C）与编辑器键（默认 F6，EDITOR_ENABLED 时），以及编辑器播放/播放头/飞行/光学等快捷键注册进 KeyMappingRegistry（`ClientEventHandler`、`CinematicKeyBindings`）
-  - ✅ 客户端 tick（CLIENT_POST）：驱动 `CameraManager.tick()`（staged 缓冲插值）、`CinematicKeyBindings.onClientTick()`（跳过/强退/编辑器键）、`PreloadRequester.tick()`（区块预加载上报/释放）、`AckTracker.tick()`（N1 握手 ACK 重发）（`ClientEventHandler`）
+  - ✅ 按键注册：跳过键（默认 C）、WebUI 预览屏键（默认 F9）与飞控相关快捷键（F7、光学/缩放/滚转/保存模式等）注册进 KeyMappingRegistry（游戏内 Java 编辑器的 F6 与编辑器专用键已随 0.3.6 退役删除）（`ClientEventHandler`、`CinematicKeyBindings`）
+  - ✅ 客户端 tick（CLIENT_POST）：驱动 `CameraManager.tick()`（staged 缓冲插值）、`CinematicKeyBindings.onClientTick()`（跳过/强退/F9 打开预览屏/WebUI 连接提示）、`PreloadRequester.tick()`（区块预加载上报/释放）、`AckTracker.tick()`（N1 握手 ACK 重发）（`ClientEventHandler`）
   - ✅ HUD 渲染（RENDER_HUD）：追加绘制跳过提示 HUD 与电影覆盖层（黑边等）（`ClientEventHandler`、`SkipHudRenderer`、`CinematicOverlay`）
 
 ## 已知问题

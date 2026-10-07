@@ -1,7 +1,7 @@
 # 02 游戏内编辑器 vs 脚本格式：能力覆盖缺口
 
 - **来源**：代码排查，非用户实测
-- **状态**：待处理
+- **状态**：⛔ 随编辑器退役作废（0.3.6 删除 `editor/` 包，见 `../editor-webui-migration.md` §4）；本文件作为「游戏内编辑器缺口 → WebUI 是否覆盖」的对账检查单留档
 - **结论**：游戏内编辑器**不能表达脚本格式的全部能力**。缺口集中在"手写 UI"的部分（触发器条件编辑器、时间轴菜单）；属性面板（脚本/Clip/关键帧）是 schema 驱动（`SchemaLoader` / `FieldControl` / `SchemaExporter`），覆盖度 = schema 覆盖度，个别 schema 字段没进编辑器分组。
 
 ## 一、触发器（`editor/panel/TriggerPanel.java` + `editor/trigger/*`）

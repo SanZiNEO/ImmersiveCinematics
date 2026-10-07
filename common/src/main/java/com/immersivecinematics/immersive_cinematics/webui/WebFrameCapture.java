@@ -14,8 +14,7 @@ import java.util.Arrays;
 /**
  * WebUI 专用低分辨率帧捕获。
  *
- * <p>把主 RenderTarget 缩放到固定 16:9 小 FBO，再 glReadPixels 读回 CPU。
- * 与旧 EditorScreen 的 PreviewCapture 分离，避免影响游戏内 Java 编辑器预览。</p>
+ * <p>把主 RenderTarget 缩放到固定 16:9 小 FBO，再 glReadPixels 读回 CPU。</p>
  */
 public class WebFrameCapture {
 

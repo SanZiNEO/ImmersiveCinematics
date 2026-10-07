@@ -44,10 +44,10 @@
 ## 2. 现状（已确认）
 
 - **运行时只有 clip 级循环**：`Clip` 的 `loop` / `loop_count` / `loop_mode`；`ScriptPlayer` 的结束判定（`isFinished()`）以 `total_duration` 为基准，并叠加一条：一旦有已开始的永不结束片段（`hasActiveInfiniteLoopClip()`，判据 `clip.isEffectivelyInfinite() && elapsed >= clip.getStartTime()`），脚本即永不结束。
-- **编辑器有 A-B 循环，但只在编辑器预览里生效**：
-  - 快捷键 I / O 设置 in / out 点（`EditorScreen.setLoopPoint()`，键位 `CinematicKeyBindings.EDITOR_SET_LOOP_IN/OUT`，Shift+I/O 清除），写进 **timeline 对象**（`loop_start` / `loop_end`）。
-  - 只有编辑器预览播放读它（`EditorScreen` 预览循环，播到 out 点把时间打回 in 点）；`ScriptPlayer` / `CameraManager` **完全不读**这两个字段。
-  - 结果是一个**断层**：编辑器里能循环预览、字段也存进了脚本 JSON，游戏内实际播放却不循环。作者会误以为有这个功能。
+- **编辑器有 A-B 循环设置，但没有任何一方据此循环**（2026-10-07 更新，游戏内编辑器退役后）：
+  - 快捷键 I / O 设置 in / out 点（WebUI 前端 `store.ts setLoopIn/setLoopOut/clearLoop`，Shift+I/O 清除），写进 **timeline 对象**（`loop_start` / `loop_end`）；0.3.6 前由游戏内编辑器 `EditorScreen.setLoopPoint()` 写入，该编辑器已随退役删除。
+  - **无人读它**：`ScriptPlayer` / `CameraManager` **完全不读**这两个字段（全仓 grep `loop_start|loop_end` 现在只命中前端 `editor/src`）；0.3.6 前唯一读它的是已删除的游戏内编辑器预览回卷。前端目前只把范围画在时间轴上，不据此回卷。
+  - 结果是一个**断层**：字段能存进脚本 JSON、时间轴上也画得出来，游戏内实际播放却不循环。作者会误以为有这个功能。
 - **`total_duration < 0` 是“无限时长”，不是循环**：脚本永不宣布结束，但不会回到开头（`Timeline.isInfinite()`；`ScriptPlayer.isFinished()` 对 `total_duration<0` 直接返回 false）。文档中“无限循环”的措辞要与之分开（`docs/AI_SCRIPTING_GUIDE.md` 中的表述需修正）。
 - **无限循环片段 + 后续片段**：当前代码与文档是“特写覆盖”语义（后续片段在自己窗口内优先渲染，播完回落到循环视角）。本计划**改为“终点”**，见第 4 节。
 
@@ -202,6 +202,8 @@
 ## 事实核查（2026-10-07）
 
 核查依据：本仓库 HEAD 源码（`common/src/main/java/com/immersivecinematics/immersive_cinematics/`）、`editor/src/`、`docs/`。冲突裁决用 `git log -1 --format=%cI -- <路径>`。
+
+> **快照说明（2026-10-07 之后）**：游戏内编辑器（`editor/` 包）已于 0.3.6 删除（见[编辑器 WebUI 迁移](./editor-webui-migration.md) §4），本节涉及 `EditorScreen` / `EDITOR_SET_LOOP_IN/OUT` / `PreviewCapture` 的条目描述的是删除前的状态；A-B 循环的落点变化见 §2。
 
 ### ① 核实为真（附证据）
 

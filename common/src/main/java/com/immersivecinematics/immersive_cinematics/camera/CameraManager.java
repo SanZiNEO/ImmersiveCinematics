@@ -547,7 +547,7 @@ public class CameraManager {
         return gameTimeSeconds;
     }
 
-    /** 编辑器预览是否处于暂停（对应旧 Java EditorPlayback.isPlaying 的反义）。 */
+    /** 编辑器预览是否处于暂停（WebUI 预览屏的播放控制状态）。 */
     public boolean isPreviewPaused() {
         return previewPaused;
     }

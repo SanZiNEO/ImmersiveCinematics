@@ -34,7 +34,7 @@ public interface InputRouter {
                 Minecraft mc = Minecraft.getInstance();
                 if (mc.level == null) return InputTarget.GAME;
 
-                // 飞行取景：F7/Esc 放行给 EditorScreen 退出/取消，其余按键全部交给飞控
+                // 飞行取景：F7/Esc 放行给预览屏退出/取消，其余按键全部交给飞控
                 if (FlightModeManager.INSTANCE.isActive()) {
                     if (CinematicKeyBindings.EDITOR_FLIGHT.matches(key, scanCode) || key == GLFW.GLFW_KEY_ESCAPE) {
                         return InputTarget.GAME;

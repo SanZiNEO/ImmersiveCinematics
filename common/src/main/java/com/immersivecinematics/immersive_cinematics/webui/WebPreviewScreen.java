@@ -42,7 +42,7 @@ public class WebPreviewScreen extends Screen {
 
     /** 飞控状态广播节流：100ms 一次，避免每帧 JSON 刷屏导致 CPU 高负载 */
     private long lastFlightStateBroadcast;
-    /** 播放状态广播节流：50ms 一次（约 20Hz），对齐旧 EditorOutput 节流 */
+    /** 播放状态广播节流：50ms 一次（约 20Hz） */
     private long lastPlaybackStateBroadcast;
 
     public WebPreviewScreen() {

@@ -59,7 +59,6 @@ public class FabricConfig implements Config.ConfigProvider {
                 getInt("triggerPollIntervalInventory", 20),
                 getInt("triggerPollIntervalStructure", 20),
                 getInt("triggerPollIntervalGamestage", 20),
-                getBoolean("editorEnabled", true),
                 getBoolean("preloadEnabled", true),
                 getInt("preloadReportInterval", 20),
                 getInt("preloadMaxBurstPerTick", 20),
@@ -122,7 +121,6 @@ public class FabricConfig implements Config.ConfigProvider {
         root.addProperty("triggerPollIntervalInventory", 20);
         root.addProperty("triggerPollIntervalStructure", 20);
         root.addProperty("triggerPollIntervalGamestage", 20);
-        root.addProperty("editorEnabled", true);
         root.addProperty("preloadEnabled", true);
         root.addProperty("preloadReportInterval", 20);
         root.addProperty("preloadMaxBurstPerTick", 20);

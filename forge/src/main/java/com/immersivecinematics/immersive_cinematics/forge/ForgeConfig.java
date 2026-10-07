@@ -47,12 +47,6 @@ public class ForgeConfig implements Config.ConfigProvider {
             .comment("启用调试日志输出")
             .define("debugLogging", false);
 
-    // ===== 编辑器配置 =====
-
-    private static final ForgeConfigSpec.BooleanValue EDITOR_ENABLED = BUILDER
-            .comment("是否启用编辑器（F6 键绑定与编辑器界面；关闭即无编辑器版本，需重启生效）")
-            .define("editorEnabled", true);
-
     // ===== 区块预加载配置 =====
 
     private static final ForgeConfigSpec.BooleanValue PRELOAD_ENABLED = BUILDER
@@ -137,7 +131,6 @@ public class ForgeConfig implements Config.ConfigProvider {
                 TRIGGER_POLL_INVENTORY.get(),
                 TRIGGER_POLL_STRUCTURE.get(),
                 TRIGGER_POLL_GAMESTAGE.get(),
-                EDITOR_ENABLED.get(),
                 PRELOAD_ENABLED.get(),
                 PRELOAD_REPORT_INTERVAL.get(),
                 PRELOAD_MAX_BURST_PER_TICK.get(),
@@ -223,10 +216,6 @@ public class ForgeConfig implements Config.ConfigProvider {
             case "debugLogging" -> {
                 DEBUG_LOGGING.set(value);
                 DEBUG_LOGGING.save();
-            }
-            case "editorEnabled" -> {
-                EDITOR_ENABLED.set(value);
-                EDITOR_ENABLED.save();
             }
             case "preloadEnabled" -> {
                 PRELOAD_ENABLED.set(value);

@@ -22,7 +22,7 @@
   - ✅ 字段元数据位于 Java 侧：`FieldDef` / `TrackSchemas` / `MetaSchemas` / `SchemaRegistry` 提供类型、默认值、必填、枚举、分组，无外部 `schema.json` 文件（`SchemaRegistry`、`TrackSchemas`、`MetaSchemas`、`FieldDef`）
   - ✅ `SchemaLoader` 保持对外查询接口：`getDefaultValue()`/`isRequired()`/`hasField()`/`getClipFields()`/`getKeyframeFields()`/`getMetaFields()`，内部读取 Java 注册表（`SchemaLoader`、`SchemaRegistry`）
   - ✅ 新增 `SchemaExporter`：把 Java 元数据导出为标准 JSON schema，供未来 WebUI 动态表单使用；Java 侧始终是唯一 schema 权威（`SchemaExporter`）
-  - ✅ 新增 `FieldControl`：按 `FieldDef.type` 决定编辑器控件类型（bool→开关、tristate→三态、enum≤3→循环、enum>3→下拉、数值/文本/映射等），游戏内编辑器与未来 WebUI 共用同一套决策（`FieldControl`）
+  - ✅ 控件决策在 WebUI 前端：`DynamicForm.vue` + `fields/*.vue` 按 `FieldDef.type` 渲染控件（bool→开关、tristate→三态、enum→下拉/循环、数值/文本/映射等），`schema.ts` 负责按 schema 填默认值与保存前精简；Java 侧只导出 schema（`SchemaExporter`、`editor/src/DynamicForm.vue`、`editor/src/schema.ts`）。0.3.6 前这份决策由游戏内编辑器的 `editor/fields/FieldControl` 承担，已随退役删除
 - **数据模型**
   - ✅ `CinematicScript` 为顶层容器：meta + timeline + 原始 JSON（供网络同步）（`CinematicScript`）
   - ✅ `ScriptMeta` 持有 id/name/author/version/description/dimension/triggers、priority、skip_vote_ratio、camera_mob_* 及完整运行时行为（`ScriptMeta`）

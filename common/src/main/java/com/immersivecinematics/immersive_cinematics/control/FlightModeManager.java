@@ -8,8 +8,8 @@ import org.lwjgl.glfw.GLFW;
 /**
  * 独立飞控模式管理器。
  *
- * <p>飞控核心会话与 {@link EditorScreen} 解耦，WebUI / 游戏内编辑器 / 键盘中转都统一走这里。
- * 以后移除游戏内 EditorScreen 后，WebUI 飞控仍可独立工作。
+ * <p>飞控核心会话与任何界面解耦：WebUI 预览屏与键盘中转统一走这里。
+ * 飞控会话不依赖具体 Screen，可独立工作。
  *
  * <p>职责：
  * <ul>
