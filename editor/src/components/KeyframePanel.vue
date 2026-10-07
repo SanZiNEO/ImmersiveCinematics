@@ -34,6 +34,41 @@ const kfData = computed(() => {
   return selectedKf.value as Record<string, unknown>
 })
 
+// ── 速度曲线（0.3.6 方案 E：编辑器烘焙）──────────────────────
+// 曲线作用于「选中关键帧 → 下一关键帧」区段，标记挂在区段起点关键帧上（编辑器私有字段，
+// 保存 / 预览推送时烘焙成显式关键帧并删除，见 operations.bakeClipEasing）。
+
+const easingPresets = ops.EASING_PRESETS
+
+/** 区段终点：选中关键帧的下一个关键帧（末帧没有后继区段） */
+const nextKf = computed(() => {
+  const clip = selectedClip.value
+  const kf = selectedKf.value
+  if (!clip || !kf) return null
+  const i = clip.keyframes.indexOf(kf)
+  return i >= 0 && i + 1 < clip.keyframes.length ? clip.keyframes[i + 1] : null
+})
+
+const easingSupport = computed(() => {
+  const track = selectedTrack.value
+  const clip = selectedClip.value
+  if (!track || !clip) return { ok: false, reason: '' }
+  return ops.easingSupport(track.type, clip)
+})
+
+const easing = computed(() => (selectedKf.value ? ops.getEasing(selectedKf.value) : 'linear'))
+
+const easingNote = computed(() =>
+  nextKf.value ? easingSupport.value.reason : '末帧没有后继区段（速度曲线作用于两帧之间）')
+
+function onEasingChange(e: Event) {
+  const kf = selectedKf.value
+  if (!kf) return
+  const preset = easingPresets.find(p => p.value === (e.target as HTMLSelectElement).value)
+  if (!preset) return
+  commit(() => ops.setEasing(kf, preset.value))
+}
+
 function onUpdate(key: string, value: unknown) {
   const kf = selectedKf.value
   if (!kf) return
@@ -112,6 +147,25 @@ function formatTime(t: number): string {
           <span v-if="kf.yaw !== undefined" class="kf-preview">yaw={{ kf.yaw?.toFixed(0) }}</span>
         </div>
       </div>
+    </div>
+
+    <div v-if="selectedKf" class="kf-easing">
+      <div class="ease-row">
+        <span class="ease-label">速度曲线</span>
+        <select
+          v-if="nextKf && easingSupport.ok"
+          class="ease-select"
+          :value="easing"
+          @change="onEasingChange"
+        >
+          <option v-for="p in easingPresets" :key="p.value" :value="p.value">{{ p.label }}</option>
+        </select>
+        <span v-else class="ease-note">{{ easingNote }}</span>
+      </div>
+      <p v-if="nextKf && easingSupport.ok" class="ease-hint">
+        作用于本帧 → 下一帧（{{ formatTime(selectedKf.time) }}s → {{ formatTime(nextKf.time) }}s）；
+        保存时按曲线采样补出中间关键帧（时长守恒），运行时匀速线性。
+      </p>
     </div>
 
     <div v-if="selectedKf && state.schema" class="kf-props">
@@ -206,6 +260,44 @@ function formatTime(t: number): string {
   color: #666;
   font-size: 11px;
   margin-left: auto;
+}
+.kf-easing {
+  padding: 6px 10px;
+  border-bottom: 1px solid #2a2a30;
+  background: #1c1c22;
+}
+.ease-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ease-label {
+  font-size: 12px;
+  color: #aaa;
+  flex-shrink: 0;
+}
+.ease-select {
+  flex: 1;
+  background: #111;
+  color: #ddd;
+  border: 1px solid #333;
+  padding: 3px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.ease-select:focus {
+  outline: none;
+  border-color: #4e7bd3;
+}
+.ease-note {
+  font-size: 11px;
+  color: #777;
+}
+.ease-hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #666;
+  line-height: 1.4;
 }
 .kf-props {
   flex: 1;

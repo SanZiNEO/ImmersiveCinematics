@@ -45,7 +45,6 @@ export const DEMO_SCHEMA: Schema = {
       clips: {
         transition: { type: 'enum', default: 'cut', required: false, enumValues: ['cut', 'morph'], section: 'info' },
         transition_duration: { type: 'float', default: 0.5, required: false, enumValues: [], section: 'info' },
-        interpolation: { type: 'enum', default: 'linear', required: false, enumValues: ['linear', 'smooth'], section: 'info' },
         curve: { type: 'bezier_curve', default: null, required: false, enumValues: [], section: 'info' },
         dimension: { type: 'string', default: '', required: false, enumValues: [], section: 'info' },
         loop: { type: 'bool', default: false, required: false, enumValues: [], section: 'info' },
@@ -139,7 +138,6 @@ export const DEMO_SCHEMA: Schema = {
         path: { type: 'string', default: '', required: false, enumValues: [], section: 'info' },
         text: { type: 'string', default: '', required: false, enumValues: [], section: 'info' },
         z_index: { type: 'int', default: 20, required: false, enumValues: [], section: 'info' },
-        interpolation: { type: 'enum', default: 'linear', required: false, enumValues: ['linear', 'smooth'], section: 'info' },
       },
       keyframes: {
         opacity: { type: 'float', default: 0.0, required: false, enumValues: [], section: 'info' },
@@ -276,9 +274,10 @@ export const DEMO_SCRIPT: ScriptDoc = {
             duration: 5,
             transition: 'cut',
             transition_duration: 0.5,
-            interpolation: 'smooth',
             keyframes: [
-              { time: 0, position: { dx: 0, dy: 2, dz: 0 }, position_mode: 'relative', yaw: 0, pitch: 0, roll: 0, fov: 70, zoom: 1.0 },
+              // `easing` = 编辑器私有速度曲线标记（0.3.6 方案 E）：保存 / 预览推送时按曲线
+              // 采样烘焙成显式关键帧并删除该字段，脚本里只留纯线性关键帧
+              { time: 0, easing: 'ease_in_out', position: { dx: 0, dy: 2, dz: 0 }, position_mode: 'relative', yaw: 0, pitch: 0, roll: 0, fov: 70, zoom: 1.0 },
               { time: 2.5, position: { dx: 3, dy: 3, dz: -5 }, position_mode: 'relative', yaw: 45, pitch: -10, roll: 0, fov: 70, zoom: 1.0 },
               { time: 5, position: { dx: 5, dy: 2, dz: -10 }, position_mode: 'relative', yaw: 90, pitch: 0, roll: 0, fov: 60, zoom: 1.2 },
             ],
@@ -288,7 +287,6 @@ export const DEMO_SCRIPT: ScriptDoc = {
             duration: 5,
             transition: 'morph',
             transition_duration: 1.0,
-            interpolation: 'linear',
             keyframes: [
               { time: 0, position: { dx: 5, dy: 2, dz: -10 }, position_mode: 'relative', yaw: 90, pitch: 0, roll: 0, fov: 60, zoom: 1.2 },
               { time: 5, position: { dx: 10, dy: 5, dz: -15 }, position_mode: 'relative', yaw: 180, pitch: 15, roll: 5, fov: 70, zoom: 1.0 },
@@ -299,7 +297,6 @@ export const DEMO_SCRIPT: ScriptDoc = {
             duration: 5,
             transition: 'cut',
             transition_duration: 0.5,
-            interpolation: 'smooth',
             cam_breath_enabled: true,
             cam_breath_type: 'perlin',
             cam_breath_intensity: 0.08,

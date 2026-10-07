@@ -64,6 +64,7 @@
 ## 4. 升级方向
 
 1. **缓动 = 编辑器烘焙，运行时保持线性（已确认·2026-10-07，方案 E）**：编辑时用剪辑软件标准的**贝塞尔手柄**（第一版先做缓动预设：linear / ease_in / ease_out / ease_in_out，手柄曲线编辑器后置）；**落盘时把曲线采样烘焙成显式关键帧**（每段变速 ≈8–20 个采样关键帧），脚本 = 纯线性 + 显式关键帧；**运行时零新增**（只做线性插值），实际运动与脚本完全一致（所见即所得，无隐式数学）。**时长守恒**：烘焙不改变区间总时长，只把速度分布"显示化"为更多关键帧。clip 级 `interpolation` 字段删除（旧 smooth=Catmull-Rom 退役，不留双轨）。编辑器侧曲线 UI + 烘焙属编辑器线任务。
+   > **落地记录·2026-10-07（编辑器侧，第一版预设曲线）**：`editor/src/operations.ts` 新增「缓动烘焙」段——`EASING_PRESETS`（linear / ease_in / ease_out / ease_in_out，公式沿用旧 `InterpolationType`：`t` / `t²` / `1−(1−t)²` / 两段二次）、`easingProgress(easing, u)`、`bakeSampleCount(duration) = clamp(round(duration×4)+2, 8, 20)`（含首尾的帧数）、`easingSupport(trackType, clip)`、`bakeClipEasing` / `bakeDocEasing`；UI 在关键帧面板（`editor/src/components/KeyframePanel.vue`，作用于「本帧 → 下一帧」区段）。**标记 `easing` 是编辑器私有字段**（挂在区段起点关键帧上），保存（`store.saveScript`）/ 预览推送（`store.pushScript`）/ 校验前在深拷贝上烘焙后删除，脚本 JSON 里只有显式关键帧。采样：时间等距（首尾时间与值不变），值按缓动进度逐通道采样，口径与运行时逐通道取值一致（yaw/roll 最短路径环绕、pitch/fov/位置分量/其余标量线性、zoom 对数、`source`/`dest` 矩形逐分量），区段起点的离散字段（`position_mode` / `follow` / `look_at` / `yaw_base` / `fit` …）原样复制进补帧（运行时这些字段只读区段起点）。**不参与烘焙**：LETTERBOX（运行时自带 smoothstep）、EVENT / MOD_EVENT（离散事件，补帧会重复触发）、带贝塞尔 `curve` 的 CAMERA 片段（路径由运行时按弧长求值）。
 2. **参数寻址到分量**：关键帧的归属从“轨道类型”细化为“**哪个实例的哪条轨道、哪个参数、哪个分量**”——这是“所有东西进关键帧”的前提（否则没法给“第 2 条 lane 的目标矩形 x”打关键帧）。
 3. **参数声明加 keyframable**：能不能打关键帧变成声明，编辑器据此决定是否显示关键帧按钮。
 4. **meta 纳入关键帧**：`listener` / `hide_hud` / 循环 / 可跳过……凡满足 §1 判定规则的一律进关键帧；做不到的要单独说明为什么。

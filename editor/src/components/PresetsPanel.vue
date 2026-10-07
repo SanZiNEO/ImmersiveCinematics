@@ -38,7 +38,6 @@ function generateOrbitCircle(): ScriptDoc {
       start_time: i * segDur,
       duration: segDur,
       transition: 'cut',
-      interpolation: 'linear',
       loop: false,
       curve: {
         type: 'bezier',

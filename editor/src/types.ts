@@ -149,7 +149,6 @@ export interface Clip {
   // CAMERA clip 字段
   transition?: 'cut' | 'morph'
   transition_duration?: number
-  interpolation?: 'linear' | 'smooth'
   curve?: BezierCurve
   orient?: 'manual' | 'tangent'
   yaw_offset?: number

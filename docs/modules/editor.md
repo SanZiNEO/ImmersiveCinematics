@@ -21,6 +21,7 @@
   - ✅ `WebFrameCapture` + `WebFrameStreamer` 帧推流：主 RenderTarget 缩放到固定 16:9 小 FBO 后 `glReadPixels` 读回（720p raw RGBA），读帧在渲染线程、翻转/发送在独立 worker 线程，约 60fps 节流、落后时只保留最新帧；帧格式 `[type][frameId][w][h][RGBA]`（`WebFrameCapture`、`WebFrameStreamer`）
   - ✅ 飞控：`FlightModeManager`（`control/`）持有会话，`FlightController` 接管相机；WebUI 只做进入/退出/取消与状态显示，退出时返回最终相机参数供前端写回片段（`FlightModeManager`、`WebPreviewScreen`）
   - ✅ 前端 `editor/`：Electron + Vue 3 桌面程序，多轨道时间轴、属性/关键帧/触发器面板、schema 动态表单、预览、飞控叠层、撤销重做、A-B 循环、marker、快捷键、中英 i18n（`editor/src`）
+  - ✅ 速度曲线（缓动）= 编辑器烘焙（0.3.6 方案 E，运行时纯线性不求值曲线）：关键帧面板选预设曲线（linear / ease_in / ease_out / ease_in_out，作用于「本帧 → 下一帧」区段），保存 / 预览推送前在深拷贝上按曲线等距采样补出显式关键帧（含首尾 `clamp(round(duration×4)+2, 8, 20)` 帧、时长守恒），曲线标记 `easing` 是编辑器私有字段、不落盘；LETTERBOX（运行时自带 smoothstep）/ EVENT / MOD_EVENT（离散事件）/ 贝塞尔路径片段不参与（`editor/src/operations.ts` 的 `easingProgress` / `bakeSampleCount` / `easingSupport` / `bakeClipEasing` / `bakeDocEasing`、`KeyframePanel.vue`、`store.ts` 的 `saveScript` / `pushScript`）
 
 - **共享层（不随编辑器存亡）**
   - ✅ `script/schema/`：`TrackSchemas` / `MetaSchemas` / `TriggerSchemas` / `FieldDef` / `SchemaRegistry` / `SchemaExporter` 是脚本字段元数据的 Java 侧唯一权威，经 `schema.get` 提供给前端渲染表单（`SchemaExporter`）

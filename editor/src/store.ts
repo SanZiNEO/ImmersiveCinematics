@@ -388,6 +388,9 @@ export async function saveScript(): Promise<{ path: string }> {
   if (!state.currentPath || !state.doc) return Promise.reject(new Error('no current script'))
   // 保存前精简默认字段（深拷贝，不修改编辑中的 doc）
   const docToSave = JSON.parse(JSON.stringify(state.doc))
+  // 0.3.6 方案 E：先把速度曲线烘焙成显式关键帧（运行时纯线性），再精简 / 校验 / 写盘
+  const baked = ops.bakeDocEasing(docToSave)
+  if (baked > 0) log('saveScript bakeEasing', state.currentPath, 'keyframes+=' + baked)
   if (state.schema) {
     stripScriptDefaults(docToSave, state.schema)
   }
@@ -403,8 +406,9 @@ export async function saveScript(): Promise<{ path: string }> {
   })
 }
 
-export function deleteScript(path: string): Promise<void> {
-  return request('script.delete', { path }).then(() => refreshScripts())
+export async function deleteScript(path: string): Promise<void> {
+  await request('script.delete', { path })
+  await refreshScripts()
 }
 
 // ── 播放控制 ──────────────────────────────────────────────────
@@ -475,6 +479,8 @@ function scheduleScriptPush(): void {
 export function pushScript(): void {
   if (!state.doc || !wsOpen()) return
   const docToPush = JSON.parse(JSON.stringify(state.doc))
+  // 预览与落盘同一口径：先烘焙速度曲线——游戏端是纯线性求值，预览看到的就是保存后的运动
+  ops.bakeDocEasing(docToPush)
   const tracks = (docToPush as any).timeline?.tracks
   if (Array.isArray(tracks)) {
     for (const track of tracks) {
@@ -722,7 +728,6 @@ function bootstrapScript(doc: ScriptDoc): void {
       fillKeyframeDefaults(kf as any, state.schema, 'CAMERA')
     }
     clip.transition = 'cut'
-    clip.interpolation = 'linear'
     const first = clip.keyframes[0]
     const last = clip.keyframes[1]
     for (const kf of [first, last]) {

@@ -87,7 +87,6 @@ export default {
   'field.hold_at_end': 'Hold at End',
   'field.transition': 'Transition',
   'field.transition_duration': 'Transition Duration',
-  'field.interpolation': 'Interpolation',
   'field.curve': 'Bezier Curve',
   'field.orient': 'Orient',
   'field.yaw_offset': 'Yaw Offset',

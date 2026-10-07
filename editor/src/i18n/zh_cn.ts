@@ -102,7 +102,6 @@ export default {
   'field.hold_at_end': '结束后停留',
   'field.transition': '转场方式',
   'field.transition_duration': '转场时长',
-  'field.interpolation': '插值方式',
   'field.curve': '贝塞尔曲线',
   'field.orient': '朝向模式',
   'field.yaw_offset': '水平偏移',

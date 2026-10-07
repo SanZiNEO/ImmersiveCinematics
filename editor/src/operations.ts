@@ -288,6 +288,145 @@ export function sampleCameraPose(clip: Clip, globalTime: number): CameraPoseSamp
   return out
 }
 
+// ── 缓动烘焙（0.3.6 方案 E：编辑器烘焙，运行时保持线性）──────────
+//
+// 见 plans/0.3.6/script-model.md §4.1：编辑时只选速度曲线（第一版 = 预设曲线，手柄后置），
+// 落盘时把曲线按**等距时间**采样成显式关键帧（每段变速 ≈8–20 帧）——脚本 = 纯线性 + 显式
+// 关键帧，运行时零新增（KeyframeInterpolator 只做匀速线性，不求值任何曲线）。
+// 曲线标记 `easing` 是编辑器私有字段：烘焙时删除，绝不写进脚本（保存 / 预览推送前烘焙）。
+//
+// 采样口径与运行时逐通道取值一致（KeyframeInterpolator / OverlayTrackPlayer /
+// AudioTrackPlayer / AdjustTrackPlayer / ScriptLaneDriver）：
+//   · yaw / roll → 最短路径环绕；pitch / fov / 位置分量 / 其余标量 → 线性
+//   · zoom → 对数（倍率变化视觉均匀）
+//   · source / dest（{x,y,w,h}）→ 逐分量线性（缺省 = 全幅 / 全屏）
+// 区段起点的**离散字段**（position_mode / follow / look_at / yaw_base / fit / z_index …）
+// 原样复制进补帧：运行时这些字段只读区段起点，复制才不改变语义。
+
+/** 速度曲线预设（第一版 = 4 条预设；贝塞尔手柄后置） */
+export type EasingType = 'linear' | 'ease_in' | 'ease_out' | 'ease_in_out'
+
+/** 预设曲线清单（顺序 = UI 下拉顺序） */
+export const EASING_PRESETS: { value: EasingType; label: string }[] = [
+  { value: 'linear', label: '线性（匀速）' },
+  { value: 'ease_in', label: '缓入（慢起）' },
+  { value: 'ease_out', label: '缓出（慢停）' },
+  { value: 'ease_in_out', label: '缓入缓出' },
+]
+
+/** 编辑器私有的速度曲线标记字段名（挂在区段起点关键帧上；烘焙时删除，不落盘） */
+export const EASING_KEY = 'easing'
+
+/** 烘焙采样密度：≈4 帧/秒，含首尾钳到 [8, 20]（plans/0.3.6/script-model.md §4.1「每段变速 ≈8–20 个采样关键帧」） */
+export const BAKE_KEYFRAMES_PER_SECOND = 4
+export const BAKE_MIN_KEYFRAMES = 8
+export const BAKE_MAX_KEYFRAMES = 20
+
+/**
+ * 缓动求值：区段内归一化进度 u ∈ [0,1] → 缓动后进度 e ∈ [0,1]。
+ * 公式沿用本仓旧 `InterpolationType`（git cb8dedb^）：linear = t、ease_in = t²、
+ * ease_out = 1−(1−t)²、ease_in_out = 两段二次曲线。
+ */
+export function easingProgress(easing: EasingType, u: number): number {
+  const t = Math.max(0, Math.min(1, u))
+  switch (easing) {
+    case 'ease_in':
+      return t * t
+    case 'ease_out':
+      return 1 - (1 - t) * (1 - t)
+    case 'ease_in_out':
+      return t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t)
+    default:
+      return t
+  }
+}
+
+/** 区段烘焙后含首尾的关键帧总数（中间补帧数 = 该值 − 2） */
+export function bakeSampleCount(duration: number): number {
+  const total = Math.round(Math.max(0, duration) * BAKE_KEYFRAMES_PER_SECOND) + 2
+  return Math.max(BAKE_MIN_KEYFRAMES, Math.min(BAKE_MAX_KEYFRAMES, total))
+}
+
+/**
+ * 该轨道类型能否用编辑器烘焙曲线（不能则 UI 不给选、烘焙时只清除标记）：
+ * · LETTERBOX：运行时自带 smoothstep（`LetterboxTrackPlayer`，非纯线性）→ 再叠曲线与所见不符；
+ * · EVENT / MOD_EVENT：离散事件（命令 / 模组事件按关键帧触发）→ 补帧会重复触发；
+ * · CAMERA + 贝塞尔 `curve`：路径由运行时按弧长参数化求值 → 线性补帧会把路径拉直。
+ */
+export function easingSupport(trackType: string, clip: Clip): { ok: boolean; reason: string } {
+  if (trackType === 'LETTERBOX') {
+    return { ok: false, reason: '黑边轨道由运行时内置缓入缓出（smoothstep），不参与编辑器烘焙' }
+  }
+  if (trackType === 'EVENT' || trackType === 'MOD_EVENT') {
+    return { ok: false, reason: '事件轨道是离散事件（按关键帧触发），补帧会重复触发' }
+  }
+  if (trackType === 'CAMERA' && (clip.curve?.control_points?.length ?? 0) === 2) {
+    return { ok: false, reason: '该片段用贝塞尔路径（curve），路径由运行时按弧长求值，无法烘焙成线性补帧' }
+  }
+  return { ok: true, reason: '' }
+}
+
+/** 读取关键帧上的曲线标记（未标记 / 未知值 = linear） */
+export function getEasing(kf: Keyframe): EasingType {
+  const v = (kf as Record<string, unknown>)[EASING_KEY]
+  return v === 'ease_in' || v === 'ease_out' || v === 'ease_in_out' ? v : 'linear'
+}
+
+/** 写入曲线标记（linear = 清除标记） */
+export function setEasing(kf: Keyframe, easing: EasingType): void {
+  if (easing === 'linear') delete (kf as Record<string, unknown>)[EASING_KEY]
+  else (kf as Record<string, unknown>)[EASING_KEY] = easing
+}
+
+/**
+ * 把 clip 内带曲线标记的区段烘焙成显式关键帧（时长守恒：首尾关键帧时间与值不变，区间内等距采样）。
+ * 返回补出的关键帧数；不可烘焙的轨道 / 无后继关键帧 / 零长区段只清除标记、不补帧。
+ */
+export function bakeClipEasing(clip: Clip, trackType: string): number {
+  const kfs = keyframes(clip)
+  if (kfs.length < 2) {
+    for (const kf of kfs) delete (kf as Record<string, unknown>)[EASING_KEY]
+    return 0
+  }
+  const supported = easingSupport(trackType, clip).ok
+  const channels = supported ? continuousChannels(trackType, clip) : []
+  let added = 0
+  // 倒序处理：补帧插在区段之后，不影响更靠前区段的索引
+  for (let i = kfs.length - 2; i >= 0; i--) {
+    const from = kfs[i]
+    const easing = getEasing(from)
+    if (easing === 'linear') continue
+    delete (from as Record<string, unknown>)[EASING_KEY]
+    if (!supported) continue
+    const to = kfs[i + 1]
+    const span = to.time - from.time
+    const total = bakeSampleCount(span)
+    // 采样间距必须 > EPSILON：否则补帧时间会与相邻帧重合（运行时要求严格递增）
+    if (span <= EPSILON || span / (total - 1) <= EPSILON) continue
+    const samples: Keyframe[] = []
+    for (let k = 1; k < total - 1; k++) {
+      const u = k / (total - 1)
+      samples.push(sampleBakedKeyframe(from, to, from.time + span * u, easingProgress(easing, u), channels))
+    }
+    kfs.splice(i + 1, 0, ...samples)
+    added += samples.length
+  }
+  return added
+}
+
+/** 烘焙整个 doc（保存 / 预览推送前的深拷贝上调用）；返回补出的关键帧总数 */
+export function bakeDocEasing(doc: ScriptDoc): number {
+  const tracks = doc?.timeline?.tracks
+  if (!Array.isArray(tracks)) return 0
+  let added = 0
+  for (const track of tracks) {
+    for (const clip of track.clips ?? []) {
+      added += bakeClipEasing(clip, track.type)
+    }
+  }
+  return added
+}
+
 // ── 轨道操作 ──────────────────────────────────────────────────
 
 export function addTrack(tracks: Track[], type: TrackType): Track {
@@ -696,4 +835,120 @@ function lerpAngle(a: number, b: number, t: number): number {
 
 function isFiniteNumber(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v)
+}
+
+// ── 烘焙内部工具 ──────────────────────────────────────────────
+
+/** 轨道连续通道：key = 关键帧字段名，kind = 采样方式（缺省线性），default = 运行时缺省值 */
+interface ContinuousChannel {
+  key: string
+  kind?: 'angle' | 'zoom' | 'rect'
+  default?: number
+}
+
+/**
+ * 轨道类型的连续通道表 + 运行时缺省值。
+ * 逐条对应运行时消费点：CAMERA = KeyframeInterpolator + ScriptLaneDriver（合成参数），
+ * AUDIO = AudioTrackPlayer，OVERLAY = OverlayTrackPlayer，ADJUST = AdjustTrackPlayer。
+ */
+function continuousChannels(trackType: string, clip: Clip): ContinuousChannel[] {
+  switch (trackType) {
+    case 'CAMERA':
+      return [
+        { key: 'yaw', kind: 'angle', default: 0 },
+        { key: 'pitch', default: 0 },
+        { key: 'roll', kind: 'angle', default: 0 },
+        { key: 'fov', default: 70 },
+        { key: 'zoom', kind: 'zoom', default: 1 },
+        { key: 'opacity', default: 1 },
+        { key: 'source', kind: 'rect' },
+        { key: 'dest', kind: 'rect' },
+      ]
+    case 'AUDIO': {
+      // 音量 / 位置缺省 = clip 级字段（AudioTrackPlayer.interpolateFloat 的 defaultValue）
+      const c = clip as Record<string, unknown>
+      return [
+        { key: 'volume', default: isFiniteNumber(c.volume) ? c.volume : 1 },
+        { key: 'x', default: isFiniteNumber(c.x) ? c.x : 0 },
+        { key: 'y', default: isFiniteNumber(c.y) ? c.y : 0 },
+        { key: 'z', default: isFiniteNumber(c.z) ? c.z : 0 },
+      ]
+    }
+    case 'OVERLAY':
+      return [
+        { key: 'x', default: 0.5 },
+        { key: 'y', default: 0.5 },
+        { key: 'anchor_x', default: 0.5 },
+        { key: 'anchor_y', default: 0.5 },
+        { key: 'scale_x', default: 1 },
+        { key: 'scale_y', default: 1 },
+        { key: 'font_scale', default: 1 },
+        { key: 'opacity', default: 1 },
+        { key: 'source', kind: 'rect' },
+      ]
+    case 'ADJUST':
+      return ['exposure', 'contrast', 'highlights', 'shadows', 'whites', 'blacks',
+        'saturation', 'vibrance', 'temperature', 'tint', 'grayscale', 'invert']
+        .map(key => ({ key, default: 0 }))
+    default:
+      return []
+  }
+}
+
+/**
+ * 生成一个补帧：区段起点的字段全量复制（离散字段随起点 = 运行时语义），时间 = 等距采样时间，
+ * 连续通道按缓动进度在两端取值之间采样（两端都缺的通道不写，保持运行时缺省）。
+ */
+function sampleBakedKeyframe(
+  from: Keyframe,
+  to: Keyframe,
+  time: number,
+  e: number,
+  channels: ContinuousChannel[],
+): Keyframe {
+  const out = JSON.parse(JSON.stringify(from)) as Keyframe
+  out.time = time
+  // 位置：逐分量线性（同编辑器 interpolateKeyframe 口径：只取两端都有的分量；
+  // 相对基准 / fwd-up-right 等离散分量随起点复制）
+  if (from.position && to.position && out.position) {
+    const a = from.position as Record<string, unknown>
+    const b = to.position as Record<string, unknown>
+    const outPos = out.position as Record<string, unknown>
+    for (const k of ['dx', 'dy', 'dz', 'x', 'y', 'z']) {
+      if (isFiniteNumber(a[k]) && isFiniteNumber(b[k])) outPos[k] = lerp(a[k], b[k], e)
+    }
+  }
+  for (const ch of channels) {
+    const a = (from as Record<string, unknown>)[ch.key]
+    const b = (to as Record<string, unknown>)[ch.key]
+    if (ch.kind === 'rect') {
+      if (a == null && b == null) continue
+      const rect: Record<string, number> = {}
+      for (const comp of ['x', 'y', 'w', 'h']) {
+        const def = comp === 'w' || comp === 'h' ? 1 : 0
+        rect[comp] = lerp(rectComponent(a, comp, def), rectComponent(b, comp, def), e)
+      }
+      ;(out as Record<string, unknown>)[ch.key] = rect
+      continue
+    }
+    if (a == null && b == null) continue
+    const av = isFiniteNumber(a) ? a : ch.default
+    const bv = isFiniteNumber(b) ? b : ch.default
+    if (av === undefined || bv === undefined) continue
+    let v: number
+    if (ch.kind === 'angle') v = lerpAngle(av, bv, e)
+    else if (ch.kind === 'zoom') v = lerpZoom(av, bv, e)
+    else v = lerp(av, bv, e)
+    ;(out as Record<string, unknown>)[ch.key] = v
+  }
+  return out
+}
+
+/** 读取矩形字段（{x,y,w,h}）的一个分量：字段 / 分量缺失 → 默认值（全幅） */
+function rectComponent(rect: unknown, component: string, defaultValue: number): number {
+  if (rect && typeof rect === 'object') {
+    const v = (rect as Record<string, unknown>)[component]
+    if (isFiniteNumber(v)) return v
+  }
+  return defaultValue
 }
