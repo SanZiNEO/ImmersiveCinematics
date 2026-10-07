@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "id": "test_adjust_rgb_channels",
+    "name": "调色测试-RGB通道",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "R/G/B 每通道系数（red 0→-1 红通道压没、green 恒 -0.5 绿通道减半、blue 0→1 蓝通道双倍）；全部关键帧字段，缺省 0 = 无效果",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: test_adjust_rgb_channels | 调色: R/G/B 通道 | red 0→-1, green -0.5, blue 0→1",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 8, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "keyframes": [
+              { "time": 0, "red": 0,     "green": -0.5, "blue": 0 },
+              { "time": 2, "red": -0.25, "green": -0.5, "blue": 0.25 },
+              { "time": 4, "red": -1,    "green": -0.5, "blue": 1 },
+              { "time": 6, "red": -1,    "green": -0.5, "blue": 1 },
+              { "time": 8, "red": 0,     "green": -0.5, "blue": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

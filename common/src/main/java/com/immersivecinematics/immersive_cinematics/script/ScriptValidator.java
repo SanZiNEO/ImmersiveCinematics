@@ -41,6 +41,9 @@ public final class ScriptValidator {
             new ChannelRange("vibrance", -1f, 1f),
             new ChannelRange("temperature", -1f, 1f),
             new ChannelRange("tint", -1f, 1f),
+            new ChannelRange("red", -1f, 1f),
+            new ChannelRange("green", -1f, 1f),
+            new ChannelRange("blue", -1f, 1f),
             new ChannelRange("grayscale", 0f, 1f),
             new ChannelRange("invert", 0f, 1f));
 

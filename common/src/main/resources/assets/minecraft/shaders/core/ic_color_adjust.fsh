@@ -4,7 +4,7 @@
 //
 // 操作栈顺序固定（与 plans/0.3.6/screen-color-adjust.md §3 一致，非破坏、不可调）：
 //   1. 曝光      2. 对比度     3. 高光 / 阴影   4. 白场 / 黑场
-//   5. 色温 / 色调  6. 饱和度   7. 自然饱和度   8. 灰度       9. 反相
+//   5. 色温 / 色调  6. RGB 通道系数  7. 饱和度   8. 自然饱和度   9. 灰度   10. 反相
 //
 // 参数口径（全部为「0 = 无效果」的增量；缺省全 0 = 恒等，运行时也不会下发这个 pass）：
 //   Exposure     -5 ~ 5   EV 档（×2^EV）
@@ -17,10 +17,19 @@
 //   Vibrance     -1 ~ 1   自然饱和度（正 = 低饱和像素优先，负 = 整体降饱和）
 //   Temperature  -1 ~ 1   色温（正 = 暖 / 偏红，负 = 冷 / 偏蓝）
 //   Tint         -1 ~ 1   色调（正 = 品红，负 = 绿）
+//   Red          -1 ~ 1   R 通道乘性系数（增益 = 1 + 值：-1 = 归零、-0.5 = 减半、+1 = 双倍）
+//   Green        -1 ~ 1   G 通道，同上
+//   Blue         -1 ~ 1   B 通道，同上
 //   Grayscale     0 ~ 1   灰度混合强度（1 = 完全黑白）
 //   Invert        0 ~ 1   反相混合强度（1 = 完全反相）
 //
 // 亮度口径：Rec.709 权重（0.2126 / 0.7152 / 0.0722）。
+//
+// alpha 直通（画面完整性原则）：本 pass 只对 rgb 运算，输出 alpha 始终 = 输入 alpha
+// （不乘、不混、不钳制）。画面先合成成完整、不透明的画面；透明度（alpha / opacity）只在
+// 合成层（LaneCompositor 的 opacity / Overlay 层 opacity）于合成之后调控——
+// 禁止把透明「烤」进画面，也禁止在画面处理阶段动 alpha。
+// 依据：plans/0.3.6/README.md「画面完整性原则」、plans/0.3.6/multi-camera-rendering.md §12.8-A。
 
 uniform sampler2D Sampler0;
 
@@ -34,6 +43,9 @@ uniform float Saturation;
 uniform float Vibrance;
 uniform float Temperature;
 uniform float Tint;
+uniform float Red;
+uniform float Green;
+uniform float Blue;
 uniform float Grayscale;
 uniform float Invert;
 
@@ -122,10 +134,16 @@ void main() {
     gain /= max(dot(gain, LUMA), 1e-4);
     c *= gain;
 
+    // 6. RGB 通道系数：逐通道乘性调整（增益 = 1 + 值；-1 = 该通道归零、-0.5 = 减半、+1 = 双倍）
+    //    三个值全 0 时跳过乘法（保持逐位恒等）
+    if (Red != 0.0 || Green != 0.0 || Blue != 0.0) {
+        c *= vec3(1.0 + Red, 1.0 + Green, 1.0 + Blue);
+    }
+
     // 后续按 HSL / 亮度混合，先收敛到 [0,1]
     c = clamp(c, 0.0, 1.0);
 
-    // 6 / 7. 饱和度、自然饱和度：HSL 的 S 通道（无 HSL 调整时跳过换算，保持逐位恒等）
+    // 7 / 8. 饱和度、自然饱和度：HSL 的 S 通道（无 HSL 调整时跳过换算，保持逐位恒等）
     if (Saturation != 0.0 || Vibrance != 0.0) {
         vec3 hsl = rgb2hsl(c);
         float s = hsl.y;
@@ -134,15 +152,16 @@ void main() {
         c = hsl2rgb(vec3(hsl.x, s, hsl.z));
     }
 
-    // 8. 灰度：按亮度混合
+    // 9. 灰度：按亮度混合
     if (Grayscale != 0.0) {
         c = mix(c, vec3(luma(c)), clamp(Grayscale, 0.0, 1.0));
     }
 
-    // 9. 反相：按强度混合
+    // 10. 反相：按强度混合
     if (Invert != 0.0) {
         c = mix(c, 1.0 - c, clamp(Invert, 0.0, 1.0));
     }
 
+    // alpha 直通：透明度归合成层（LaneCompositor / Overlay 层 opacity），此处只输出 rgb 的运算结果
     fragColor = vec4(clamp(c, 0.0, 1.0), src.a);
 }

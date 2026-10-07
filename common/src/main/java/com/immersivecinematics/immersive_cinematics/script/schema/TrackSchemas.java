@@ -179,11 +179,12 @@ public final class TrackSchemas {
     /**
      * ADJUST 轨道（画面颜色调整，master，0.3.6 第一批标量组）。
      *
-     * <p><b>没有 clip 级字段</b>——12 个标量通道全部是关键帧字段，缺省全 0 = 无效果
+     * <p><b>没有 clip 级字段</b>——15 个标量通道全部是关键帧字段，缺省全 0 = 无效果
      * （关键帧把通道写回 0 就是该项淡出，不需要 enabled 开关）。</p>
      *
      * <p>顺序 = 着色器操作栈顺序（{@code assets/minecraft/shaders/core/ic_color_adjust.fsh}）
-     * = {@code ColorAdjustParams} 的分量顺序；区间由 {@code ScriptValidator} 校验。</p>
+     * = {@code ColorAdjustParams} 的分量顺序；区间由 {@code ScriptValidator} 校验。
+     * <b>本表顺序是硬约定</b>：三处（schema / params / shader）逐项对应，增删通道必须同步。</p>
      */
     private static TrackTypeSchema adjust() {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
@@ -202,6 +203,10 @@ public final class TrackSchemas {
         // 白平衡
         kfs.put("temperature", new FieldDef("float", 0f));    // -1 ~ 1（正 = 暖 / 偏红）
         kfs.put("tint", new FieldDef("float", 0f));           // -1 ~ 1（正 = 品红、负 = 绿）
+        // RGBA 通道拆分（R/G/B 每通道系数；操作栈位置：色温/色调之后、钳制 [0,1] 之前）
+        kfs.put("red", new FieldDef("float", 0f));            // -1 ~ 1（红通道乘性系数：-1 = 归零、-0.5 = 减半、+1 = 双倍）
+        kfs.put("green", new FieldDef("float", 0f));          // -1 ~ 1（绿通道，同上）
+        kfs.put("blue", new FieldDef("float", 0f));           // -1 ~ 1（蓝通道，同上）
         // 风格化（本身即强度）
         kfs.put("grayscale", new FieldDef("float", 0f));      // 0 ~ 1（灰度混合量）
         kfs.put("invert", new FieldDef("float", 0f));         // 0 ~ 1（反相混合量）

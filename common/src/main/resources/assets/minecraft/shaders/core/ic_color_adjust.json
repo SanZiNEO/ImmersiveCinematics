@@ -26,6 +26,9 @@
         { "name": "Vibrance", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "Temperature", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "Tint", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "Red", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "Green", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "Blue", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "Grayscale", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "Invert", "type": "float", "count": 1, "values": [ 0.0 ] }
     ]

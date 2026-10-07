@@ -10,7 +10,7 @@
 > - [画面合成](./camera-composition.md)
 > - [并行播放](./parallel-playback.md)
 >
-> **状态：第一批「标量组」（master，12 通道）已落地（2026-10-07）。曲线组（RGB 复合曲线 + 每通道曲线）与第二 / 三批、lane 级、调整层、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
+> **状态：第一批「标量组」（master，15 通道 = 12 标量 + R/G/B 每通道系数）已落地（2026-10-07）。曲线组（RGB 复合曲线 + 每通道曲线）与第二 / 三批、lane 级、调整层、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
 
 ---
 
@@ -24,7 +24,7 @@
 2. **字段形状不同**：OVERLAY 层 = 一个元素 + 一套统一参数（x/y/anchor/scale/source/fit/opacity/z_index，四类层共享）；调色 = 一组彼此独立、各带公式的标量通道，两者无一处重合。
 3. **成本**：独立轨道 = 枚举 +1、schema +1、校验分支 +1、`TrackPlayer` 工厂 +1、播放器 +1；OVERLAY 路线要在 `OverlayTrackPlayer.createLayer/updateLayer` 里加特例分支 + 一个只存数据的 `OverlayLayer` 子类，渲染侧状态与 pass 一样要新建 —— 代码更多、语义更歪。
 
-**字段表（定稿）：12 个标量通道，全部是关键帧字段，缺省全 0 = 无效果**
+**字段表（定稿）：12 个标量通道 + R/G/B 三通道（2026-10-07 增量 → 共 15），全部是关键帧字段，缺省全 0 = 无效果**
 
 | 通道 | 默认 | 范围 | 口径 |
 |---|---|---|---|
@@ -38,6 +38,9 @@
 | `vibrance` | 0 | -1 ~ 1 | 自然饱和度（正 = 低饱和优先，负 = 整体降饱和） |
 | `temperature` | 0 | -1 ~ 1 | 色温（正 = 暖 / 偏红，负 = 冷 / 偏蓝） |
 | `tint` | 0 | -1 ~ 1 | 色调（正 = 品红，负 = 绿） |
+| `red` | 0 | -1 ~ 1 | R 通道系数（乘性，增益 = 1 + 值：-1 = 归零、-0.5 = 减半、+1 = 双倍） |
+| `green` | 0 | -1 ~ 1 | G 通道系数（同上） |
+| `blue` | 0 | -1 ~ 1 | B 通道系数（同上） |
 | `grayscale` | 0 | 0 ~ 1 | 灰度混合强度（Rec.709 亮度） |
 | `invert` | 0 | 0 ~ 1 | 反相混合强度 |
 
@@ -69,20 +72,44 @@
 | 3 | 高光 / 阴影 | `m_hi = l²`、`m_lo = (1-l)²`；`c += v * m * (v ≥ 0 ? (1-c) : c)` |
 | 4 | 白 / 黑场 | `black = 0.5*Blacks`、`white = 1 + 0.5*Whites`；`c = black + c * (white - black)` |
 | 5 | 色温 / 色调 | `gain = vec3(1+0.5*T, 1-0.5*Tint, 1-0.5*T)`，`gain /= dot(gain, LUMA)`，`c *= gain` |
-| 6 | 饱和度 | HSL：`S' = clamp(S * (1 + Saturation), 0, 1)` |
-| 7 | 自然饱和度 | HSL：`S' = clamp(Vibrance ≥ 0 ? S + Vibrance*S*(1-S) : S*(1+Vibrance), 0, 1)` |
-| 8 | 灰度 | `c = mix(c, vec3(luma(c)), clamp(Grayscale, 0, 1))` |
-| 9 | 反相 | `c = mix(c, 1 - c, clamp(Invert, 0, 1))` |
+| 6 | RGB 通道系数 | `c *= vec3(1+Red, 1+Green, 1+Blue)`（三值全 0 跳过乘法，保持逐位恒等） |
+| 7 | 饱和度 | HSL：`S' = clamp(S * (1 + Saturation), 0, 1)` |
+| 8 | 自然饱和度 | HSL：`S' = clamp(Vibrance ≥ 0 ? S + Vibrance*S*(1-S) : S*(1+Vibrance), 0, 1)` |
+| 9 | 灰度 | `c = mix(c, vec3(luma(c)), clamp(Grayscale, 0, 1))` |
+| 10 | 反相 | `c = mix(c, 1 - c, clamp(Invert, 0, 1))` |
 
 - **RGB↔HSL 标准换算**（§4 的方向）只用于饱和度 / 自然饱和度（HSL 的 S 通道）；亮度一律 **Rec.709**（0.2126 / 0.7152 / 0.0722，比原版 `color_convolve.fsh` 的 0.3/0.59/0.11 更接近现代口径）。
-- 第 3 步之后、第 6 步之前**钳制到 [0,1]**（HSL 换算与亮度混合要求有界输入）。
+- 第 3 步之后、第 7 步之前**钳制到 [0,1]**（HSL 换算与亮度混合要求有界输入）。
 - **无 HSL 调整时跳过换算**（uniform 分支）→ 「只调曝光 / 对比度」这类场景逐位恒等。
 - 灰点边界（§5-2）：`max-min ≈ 0` 时 `S = 0`、色相无意义 → `hsl2rgb` 的 `S ≤ 0` 分支直接返回灰度，不会产生 NaN 或跳色。
 - 色温 / 色调的增益**按亮度归一化** → 调白平衡不改变整体明暗。
 
+### 增量：R/G/B 通道（2026-10-07）
+
+PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数**（第二批「通道与 HSL 完整」的第一块；通道混合器 / 色相曲线仍未做）。
+
+- **字段名 / 范围 / 缺省**：`red` / `green` / `blue`，全部 `-1 ~ 1`，缺省 `0` = 无效果（`-1` = 该通道归零、`-0.5` = 减半、`+1` = 双倍）。
+- **公式**：`c.r *= (1 + Red)`、`c.g *= (1 + Green)`、`c.b *= (1 + Blue)`；三值全 `0` 时**跳过乘法**（保持逐位恒等）。
+- **alpha 直通**：本步骤只乘 rgb、不碰 a——输出 alpha 始终 = 输入 alpha（透明度只在合成层调控：`LaneCompositor` 的 opacity / Overlay 层 opacity；依据 README「画面完整性原则」、multi-camera-rendering §12.8-A）。
+- **操作栈位置**：第 5 步（色温 / 色调）之后、钳制 `[0,1]` 之前（= 上表第 6 步）——HSL 输入有界的保证不变，色温增益与通道系数按固定顺序复合。
+- **五处同步点**（顺序是硬约定，逐项对应）：
+  1. `script/schema/TrackSchemas.adjust()`：`tint` 之后、`grayscale` 之前加三个 `FieldDef("float", 0f)`；
+  2. `script/ScriptValidator.ADJUST_CHANNELS`：三个 `-1 ~ 1` 区间；
+  3. `client/post/ColorAdjustParams`：record 分量（`tint` 与 `grayscale` 之间）+ `IDENTITY` + `isIdentity()`；
+  4. `client/post/ColorAdjustPass.upload()`：`Red` / `Green` / `Blue` 三个 uniform；
+  5. shader 两文件：`ic_color_adjust.json` uniforms + `ic_color_adjust.fsh`（uniform 声明区 + `main()` 操作栈第 6 步 + 文件头通道表）。
+- 另：`script/AdjustTrackPlayer.sample()` 的通道名列表同步加三项（否则新通道不被采样）。
+- **测试脚本**：`cinematics/tests/adjust/test_adjust_rgb_channels.json`（red 0→-1、green 恒 -0.5、blue 0→1，5 个关键帧）。
+- **验证（2026-10-07）**：
+  - `sh gradlew compileJava`（`:common` / `:fabric` / `:forge` 三模块）**通过**；
+  - 无头 validator（`E:/tmp/icv` 的 `Validate`，真实 `ScriptValidator`）扫 `cinematics/tests/adjust`：1 脚本 **0 issue**；全量 `cinematics/tests`（108 个）仍只有既有的 3 个已知 FAIL，无新增；
+  - **数据层冒烟**（throwaway：`ScriptParser.parse` → 反射调 `AdjustTrackPlayer.sample` → `ColorAdjustParams`；**33 项全过**）：线性插值（t=2.5 → red -0.5 / blue 0.5）、缺字段按缺省 0（`green` 全程未写）、时间越界取边界值（t=-2 / t=20，不外推）、其余 12 通道未串位、`isIdentity()` 全 0 为 true / 单通道（red=-1、green=0.25、blue=-1）为 false、validator 拦下 `red: 2` / `green: -1.5` / `blue: 1.5` 且 ±1 边界合法；
+  - **着色器冒烟**（throwaway GL harness，真实 GL 3.2 core / NVIDIA RTX 4060；**45 项全过**）：编译 + 链接通过；JSON ↔ fsh uniform **双向一致**（含新增 `Red` / `Green` / `Blue`）；全 0 对 256 个 byte 值**逐字节恒等**（含 alpha）；`Red=-1` 红通道归零、`Green=-0.5` 减半、`Blue=+1` 双倍封顶、三通道组合正确；全 15 通道生效时 **alpha 逐位直通**（256 texel 无一处变化）。
+  - 未验证：游戏内实际画面（需启动客户端）；光影下的执行顺序（§5-1，既有开放问题）。
+
 ### 默认零差异（§2.1 的「零差异」要求）
 
-- 无 ADJUST 轨道 / 无活跃 clip / 12 通道全为缺省 → 播放器不发布 → pass **第一行返回**：不取着色器、不建中转缓冲、不切 GL 状态、不画任何东西。
+- 无 ADJUST 轨道 / 无活跃 clip / 15 通道全为缺省 → 播放器不发布 → pass **第一行返回**：不取着色器、不建中转缓冲、不切 GL 状态、不画任何东西。
 - 着色器**首次真正需要时才编译**（不用不编译）；资源重载后重建（旧实例 `close()` 释放 GL program，避免复用旧编译结果）；加载失败只记一次日志，画面保持未调色。
 
 ### 本版本明确不做
