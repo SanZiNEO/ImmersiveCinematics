@@ -4,8 +4,12 @@ package com.immersivecinematics.immersive_cinematics.overlay;
  * 参考画布与设备适配 —— 覆盖层统一参数的坐标基准（<b>定义层</b>，不做任何渲染）。
  *
  * <p>见 {@code plans/0.3.6/variable-frame.md} §3（统一参数字段表）/ §4（参考画布与设备适配）。
- * 本类只承载三样东西：参考画布的常量、适配模式枚举、以及「素材 → 目标框」的纯映射函数；
+ * 本类承载四样东西：参考画布的常量、统一参数的默认值、适配模式枚举与「素材 → 目标框」的纯映射函数、
+ * 以及「位置 / 锚点 / 缩放 → 元素框」的纯几何解算（{@link #element}）；
  * 不引用任何 Minecraft 类，可独立验证。</p>
+ *
+ * <p><b>全程比例域</b>：几何计算（画布归一化 → 元素框 → 屏幕像素）都在浮点比例域完成，
+ * 只在最终绘制那一步落到像素，中间不做取整 —— 600×800 到 2K 按同一套比例缩放。</p>
  *
  * <h2>参考画布</h2>
  * 所有覆盖层参数（位置 / 锚点 / 缩放 / 取材 / 适配）都以一个<b>固定宽高比</b>的参考画布为口径：
@@ -42,6 +46,23 @@ public final class CanvasTransform {
 
     /** 参考画布高（像素锚点）= {@link #REFERENCE_WIDTH} / {@link #REFERENCE_ASPECT_RATIO} = 1080。 */
     public static final float REFERENCE_HEIGHT = REFERENCE_WIDTH / REFERENCE_ASPECT_RATIO;
+
+    // ========== 统一参数默认值（§3.1 字段表；脚本未写该字段时的取值）==========
+
+    /** 位置默认（画布归一化，元素中心）：0.5 = 画布正中。 */
+    public static final float DEFAULT_POSITION = 0.5F;
+
+    /** 锚点默认（元素自身归一化）：0.5 = 绕元素中心缩放。 */
+    public static final float DEFAULT_ANCHOR = 0.5F;
+
+    /** 缩放默认（相对逐类基准尺寸）：1.0 = 基准尺寸。 */
+    public static final float DEFAULT_SCALE = 1.0F;
+
+    /** 不透明度默认：1.0 = 不透明（与相机侧合成参数一致）。 */
+    public static final float DEFAULT_OPACITY = 1.0F;
+
+    /** 覆盖层顺序默认（z_index）：单一取值 10，越小越先绘制。 */
+    public static final int DEFAULT_Z_INDEX = 10;
 
     private CanvasTransform() {
     }
@@ -141,5 +162,72 @@ public final class CanvasTransform {
      */
     public static float screenY(float normalizedY, Placement canvas) {
         return canvas.offsetY() + normalizedY * canvas.height();
+    }
+
+    // ========== 元素几何（§3.1「元素几何」定稿口径）==========
+
+    /**
+     * 元素框（屏幕像素）：左上角 + 尺寸。全部浮点 —— 只在最终绘制那一步落到像素。
+     */
+    public record Rect(float x, float y, float width, float height) {
+    }
+
+    /**
+     * 按统一参数模型解算一个覆盖层元素的屏幕矩形（§3.1「元素几何」）：
+     *
+     * <pre>
+     * TL0 = (x − Bx/2, y − By/2)              未缩放基准矩形左上角（位置 = 该矩形的中心）
+     * A   = TL0 + (anchorX·Bx, anchorY·By)    锚点（缩放不动点）
+     * TL  = A − (anchorX·Bx·sx, anchorY·By·sy) 缩放后左上角
+     * S   = (Bx·sx, By·sy)                    缩放后尺寸
+     * 屏幕像素 = canvas 适配结果 → (offsetX + TL.x·canvasW, offsetY + TL.y·canvasH)、尺寸 (S.x·canvasW, S.y·canvasH)
+     * </pre>
+     *
+     * <p>全程浮点比例域：基准尺寸以<b>参考像素</b>给出（{@code 1920×1080} 下的像素数，
+     * 即归一化基准 {@code B = 参考像素 / 参考分辨率}），乘上当前画布的每参考像素像素数
+     * （{@code canvasW / REFERENCE_WIDTH}）得到屏幕尺寸 —— 中间不做任何取整，
+     * 只在最终绘制时落到像素。默认 {@code anchor = 0.5} 时元素中心恒为 {@code (x, y)}
+     * （绕中心缩放，且退化为「中心 − 尺寸/2」，与旧实现同一表达式）；锚点非中心时
+     * 缩放会改变元素的视觉中心（同 CSS {@code transform-origin}）。
+     * 归一化坐标不钳制：越界元素按公式落到留边区 / 屏幕外，由屏幕边界裁剪。</p>
+     *
+     * @param x                位置 x（画布归一化，未缩放基准矩形中心）
+     * @param y                位置 y（画布归一化）
+     * @param anchorX          锚点 x（元素自身归一化，0 = 左缘、1 = 右缘）
+     * @param anchorY          锚点 y（元素自身归一化，0 = 上缘、1 = 下缘）
+     * @param baselineRefWidth  基准尺寸宽（参考像素，逐类定义）
+     * @param baselineRefHeight 基准尺寸高（参考像素，逐类定义）
+     * @param scaleX           横向缩放（相对基准尺寸，≥ 0）
+     * @param scaleY           纵向缩放（相对基准尺寸，≥ 0）
+     * @param canvas           {@link #canvas} 的适配结果
+     * @return 元素在屏幕上的矩形（浮点；尺寸 ≤ 0 表示不可见）
+     */
+    public static Rect element(float x, float y, float anchorX, float anchorY,
+                               float baselineRefWidth, float baselineRefHeight,
+                               float scaleX, float scaleY, Placement canvas) {
+        // 每参考像素对应的画布像素数（1920×1080 屏幕 = 1.0）；比例域换算，无取整
+        float unitX = canvas.width() / REFERENCE_WIDTH;
+        float unitY = canvas.height() / REFERENCE_HEIGHT;
+        float baseWidth = baselineRefWidth * unitX;
+        float baseHeight = baselineRefHeight * unitY;
+        float boxWidth = baseWidth * scaleX;
+        float boxHeight = baseHeight * scaleY;
+        float centerX = canvas.offsetX() + x * canvas.width();
+        float centerY = canvas.offsetY() + y * canvas.height();
+        // 锚点相对元素中心的偏移：默认 0.5（绕中心缩放）时该项为 0 → 左上角 = 中心 − 尺寸/2
+        float left = centerX - boxWidth / 2.0F + (anchorX - 0.5F) * (baseWidth - boxWidth);
+        float top = centerY - boxHeight / 2.0F + (anchorY - 0.5F) * (baseHeight - boxHeight);
+        return new Rect(left, top, boxWidth, boxHeight);
+    }
+
+    /**
+     * 解析脚本里的 {@code fit} 枚举值（大小写不敏感）；未知 / 缺省 → {@code fallback}。
+     */
+    public static FitMode fitMode(String name, FitMode fallback) {
+        if (name == null) return fallback;
+        if (name.equalsIgnoreCase("fit")) return FitMode.FIT;
+        if (name.equalsIgnoreCase("fill")) return FitMode.FILL;
+        if (name.equalsIgnoreCase("stretch")) return FitMode.STRETCH;
+        return fallback;
     }
 }

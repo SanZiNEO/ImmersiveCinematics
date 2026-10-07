@@ -5,25 +5,34 @@ import net.minecraft.client.gui.GuiGraphics;
 /**
  * 全屏颜色覆盖层 — 用于淡入淡出和色彩滤镜
  * <p>
- * 渲染一个全屏的 ARGB 矩形，颜色由 clip 的 color 字段定义，
+ * 渲染一个铺满<b>参考画布</b>的 ARGB 矩形，颜色由 clip 的 color 字段定义，
  * 透明度由关键帧的 opacity 插值控制。
+ * <p>
+ * 统一参数（0.3.6 起，定稿见 {@code plans/0.3.6/variable-frame.md} §3.1）：效果层基准尺寸 = (1, 1)
+ * 铺满画布，故 <b>x/y/anchor/scale 对它不生效</b>（脚本写了也不读取）；只有 opacity 有效。
+ * 16:9 屏幕（画布 = 屏幕）下与旧「全屏填充」行为一致；非 16:9 屏幕铺满画布，
+ * 画布外的留边区由画幅层（{@link LetterboxLayer}）绘制黑边。
  */
 public class FadeLayer implements OverlayLayer {
 
-    private static final int DEFAULT_Z_INDEX = 10;
+    private int zIndex = CanvasTransform.DEFAULT_Z_INDEX;
 
     /** ARGB 颜色值（不含 alpha — alpha 由 targetOpacity 决定） */
     private int color = 0x000000;
     private float targetOpacity = 0f;
-    private int zIndex = DEFAULT_Z_INDEX;
 
     @Override
     public void render(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {
         int alpha = (int) (targetOpacity * 255);
         if (alpha <= 0) return;
 
+        // 效果层铺满画布：只在最终绘制那一步映射到屏幕像素
+        CanvasTransform.Placement canvas = CanvasTransform.canvas(
+                screenWidth, screenHeight, CanvasTransform.FitMode.FIT);
         int argb = (alpha << 24) | (color & 0x00FFFFFF);
-        guiGraphics.fill(0, 0, screenWidth, screenHeight, argb);
+        guiGraphics.fill(Math.round(canvas.offsetX()), Math.round(canvas.offsetY()),
+                Math.round(canvas.offsetX() + canvas.width()),
+                Math.round(canvas.offsetY() + canvas.height()), argb);
     }
 
     @Override

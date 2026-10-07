@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * OVERLAY 轨道播放器 — 驱动 fade/image/subtitle/pip 覆盖层
@@ -18,6 +19,11 @@ import java.util.List;
  *   <li>Clip 持续时通过关键帧插值驱动 layer 属性</li>
  *   <li>onStop 时清理所有层</li>
  * </ol>
+ * 字段口径 = 统一参数字段表（{@code plans/0.3.6/variable-frame.md} §3.1，0.3.6 起）：
+ * 位置 x/y（画布归一化，元素中心，缺省 0.5）、锚点 anchor_x/anchor_y（元素自身归一化，缺省 0.5）、
+ * 缩放 scale_x/scale_y（相对逐类基准尺寸，缺省 1）、取材 source（素材归一化，缺省全幅）、
+ * 适配 fit（fit/fill/stretch，缺省 fit，步进取值）、不透明度 opacity（缺省 1.0）、
+ * 顺序 z_index（clip 级，缺省 10）。位置/缩放对 fade 不生效（效果层铺满画布）。
  */
 public class OverlayTrackPlayer implements TrackPlayer {
 
@@ -68,7 +74,6 @@ public class OverlayTrackPlayer implements TrackPlayer {
                 currentLayer = createLayer(clip);
                 if (currentLayer != null) {
                     overlayManager.addLayer(currentLayer);
-                    applyInitialClipValues(clip);
                 }
                 activeClip = clip;
             }
@@ -80,8 +85,9 @@ public class OverlayTrackPlayer implements TrackPlayer {
         float localTime = clipTime(clip, globalTime);
         List<Keyframe> kfs = clip.getKeyframes();
 
-        // 透明度完全由关键帧 opacity 控制（fade_in/fade_out 由关键帧表达，代码层不叠加）
-        float opacity = interpolateFloat(kfs, localTime, "opacity", 0f);
+        // 透明度完全由关键帧 opacity 控制（fade_in/fade_out 由关键帧表达，代码层不叠加）；
+        // 缺省 1.0 = 不透明（§3.1 字段表）
+        float opacity = interpolateFloat(kfs, localTime, "opacity", CanvasTransform.DEFAULT_OPACITY);
 
         updateLayer(opacity, kfs, localTime);
         if (currentLayer instanceof ImageLayer) {
@@ -112,7 +118,8 @@ public class OverlayTrackPlayer implements TrackPlayer {
 
     private OverlayLayer createLayer(Clip clip) {
         String layerType = clip.getString("layer_type", "fade");
-        int zIndex = clip.getInt("z_index", 10);
+        // z_index 是 clip 级字段（= 只有一个值的步进通道，§3.1 字段表）；默认统一 10
+        int zIndex = clip.getInt("z_index", CanvasTransform.DEFAULT_Z_INDEX);
 
         OverlayLayer layer;
         switch (layerType) {
@@ -156,70 +163,67 @@ public class OverlayTrackPlayer implements TrackPlayer {
         return layer;
     }
 
-    private void applyInitialClipValues(Clip clip) {
-        // On first activation, set initial position/size from first keyframe if available
-        List<Keyframe> kfs = clip.getKeyframes();
-        if (kfs == null || kfs.isEmpty()) return;
-
-        Keyframe first = kfs.get(0);
-        if (currentLayer instanceof ImageLayer il) {
-            il.setPosition(first.getFloat("x", 0f), first.getFloat("y", 0f));
-            il.setScale(first.getFloat("scale_x", 1f), first.getFloat("scale_y", 1f));
-        } else if (currentLayer instanceof SubtitleLayer sl) {
-            sl.setPosition(first.getFloat("x", 0f), first.getFloat("y", 0f));
-            sl.setFontScale(first.getFloat("font_scale", 1f));
-            sl.setScale(first.getFloat("scale_x", 1f), first.getFloat("scale_y", 1f));
-        } else if (currentLayer instanceof PipLayer pl) {
-            pl.setPosition(first.getFloat("x", 0f), first.getFloat("y", 0f));
-            pl.setSize(first.getFloat("width", 0f), first.getFloat("height", 0f));
-            pl.setAnchor(first.getFloat("anchor_x", 0.5f), first.getFloat("anchor_y", 0.5f));
-        }
-    }
-
     private void updateLayer(float opacity, List<Keyframe> kfs, float localTime) {
         if (currentLayer instanceof FadeLayer fl) {
+            // 效果层铺满画布：位置 / 锚点 / 缩放不生效，只有 opacity
             fl.setOpacity(opacity);
         } else if (currentLayer instanceof ImageLayer il) {
             il.setOpacity(opacity);
-            // 屏幕百分比位置 + 原图百分比乘数（scale_x/scale_y，默认 1 = 原尺寸）
             il.setPosition(
-                    interpolateFloat(kfs, localTime, "x", 0f),
-                    interpolateFloat(kfs, localTime, "y", 0f)
+                    interpolateFloat(kfs, localTime, "x", CanvasTransform.DEFAULT_POSITION),
+                    interpolateFloat(kfs, localTime, "y", CanvasTransform.DEFAULT_POSITION)
+            );
+            il.setAnchor(
+                    interpolateFloat(kfs, localTime, "anchor_x", CanvasTransform.DEFAULT_ANCHOR),
+                    interpolateFloat(kfs, localTime, "anchor_y", CanvasTransform.DEFAULT_ANCHOR)
             );
             il.setScale(
-                    interpolateFloat(kfs, localTime, "scale_x", 1f),
-                    interpolateFloat(kfs, localTime, "scale_y", 1f)
+                    interpolateFloat(kfs, localTime, "scale_x", CanvasTransform.DEFAULT_SCALE),
+                    interpolateFloat(kfs, localTime, "scale_y", CanvasTransform.DEFAULT_SCALE)
             );
+            // 取材：source = {x,y,w,h}，按分量整体线性（缺省全幅 {0,0,1,1}）
+            il.setSource(
+                    interpolateSourceComponent(kfs, localTime, "x", 0f),
+                    interpolateSourceComponent(kfs, localTime, "y", 0f),
+                    interpolateSourceComponent(kfs, localTime, "w", 1f),
+                    interpolateSourceComponent(kfs, localTime, "h", 1f)
+            );
+            il.setFit(stepFit(kfs, localTime));
         } else if (currentLayer instanceof SubtitleLayer sl) {
             sl.setOpacity(opacity);
             sl.setPosition(
-                    interpolateFloat(kfs, localTime, "x", 0f),
-                    interpolateFloat(kfs, localTime, "y", 0f)
+                    interpolateFloat(kfs, localTime, "x", CanvasTransform.DEFAULT_POSITION),
+                    interpolateFloat(kfs, localTime, "y", CanvasTransform.DEFAULT_POSITION)
             );
-            // 两级缩放：font_scale（原版 title 同款矩阵缩放）+ scale_x/y（图片同款百分比缩放）
+            sl.setAnchor(
+                    interpolateFloat(kfs, localTime, "anchor_x", CanvasTransform.DEFAULT_ANCHOR),
+                    interpolateFloat(kfs, localTime, "anchor_y", CanvasTransform.DEFAULT_ANCHOR)
+            );
+            // 两级缩放：font_scale（原版 title 同款矩阵缩放，改变文字块基准尺寸）+ scale_x/y（百分比缩放）
             sl.setFontScale(interpolateFloat(kfs, localTime, "font_scale", 1f));
             sl.setScale(
-                    interpolateFloat(kfs, localTime, "scale_x", 1f),
-                    interpolateFloat(kfs, localTime, "scale_y", 1f)
+                    interpolateFloat(kfs, localTime, "scale_x", CanvasTransform.DEFAULT_SCALE),
+                    interpolateFloat(kfs, localTime, "scale_y", CanvasTransform.DEFAULT_SCALE)
             );
         } else if (currentLayer instanceof PipLayer pl) {
             pl.setOpacity(opacity);
             pl.setPosition(
-                    interpolateFloat(kfs, localTime, "x", 0f),
-                    interpolateFloat(kfs, localTime, "y", 0f)
-            );
-            pl.setSize(
-                    interpolateFloat(kfs, localTime, "width", 0f),
-                    interpolateFloat(kfs, localTime, "height", 0f)
+                    interpolateFloat(kfs, localTime, "x", CanvasTransform.DEFAULT_POSITION),
+                    interpolateFloat(kfs, localTime, "y", CanvasTransform.DEFAULT_POSITION)
             );
             pl.setAnchor(
-                    interpolateFloat(kfs, localTime, "anchor_x", 0.5f),
-                    interpolateFloat(kfs, localTime, "anchor_y", 0.5f)
+                    interpolateFloat(kfs, localTime, "anchor_x", CanvasTransform.DEFAULT_ANCHOR),
+                    interpolateFloat(kfs, localTime, "anchor_y", CanvasTransform.DEFAULT_ANCHOR)
+            );
+            // 画面层基准尺寸 = (1,1) 铺满画布：scale_x/scale_y 即占画布的比例（0.5 = 半个画布）
+            pl.setScale(
+                    interpolateFloat(kfs, localTime, "scale_x", CanvasTransform.DEFAULT_SCALE),
+                    interpolateFloat(kfs, localTime, "scale_y", CanvasTransform.DEFAULT_SCALE)
             );
         }
     }
 
-    // ========== 关键帧插值（匀速线性）==========
+    // ========== 关键帧插值（匀速线性 / 步进）==========
 
     /**
      * 关键帧浮点通道插值：匀速线性。
@@ -232,31 +236,76 @@ public class OverlayTrackPlayer implements TrackPlayer {
         if (kfs == null || kfs.isEmpty()) return defaultValue;
         if (kfs.size() < 2) return kfs.get(0).getFloat(key, defaultValue);
 
-        Keyframe from = kfs.get(0);
-        Keyframe to = kfs.get(kfs.size() - 1);
-        boolean found = false;
-
-        for (int i = 0; i < kfs.size() - 1; i++) {
-            if (localTime >= kfs.get(i).getTime() && localTime <= kfs.get(i + 1).getTime()) {
-                from = kfs.get(i);
-                to = kfs.get(i + 1);
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
+        int i = segmentIndex(kfs, localTime);
+        if (i < 0) {
             // 范围外：返回边界关键帧的值
             return localTime < kfs.get(0).getTime()
                     ? kfs.get(0).getFloat(key, defaultValue)
                     : kfs.get(kfs.size() - 1).getFloat(key, defaultValue);
         }
+        return MathUtil.lerp(kfs.get(i).getFloat(key, defaultValue),
+                kfs.get(i + 1).getFloat(key, defaultValue), segmentT(kfs, i, localTime));
+    }
 
-        float t = (to.getTime() - from.getTime() > 0.001f)
-                ? (localTime - from.getTime()) / (to.getTime() - from.getTime()) : 0f;
-        t = Math.max(0f, Math.min(1f, t));
+    /**
+     * 取材 {@code source = {x,y,w,h}} 的分量插值：按分量整体线性（§3.1 字段表）。
+     * 关键帧没写 {@code source} 时按 {@code defaultValue}（缺省 = 全幅）处理。
+     */
+    private float interpolateSourceComponent(List<Keyframe> kfs, float localTime, String component,
+                                             float defaultValue) {
+        if (kfs == null || kfs.isEmpty()) return defaultValue;
+        if (kfs.size() < 2) return sourceComponent(kfs.get(0), component, defaultValue);
 
-        return MathUtil.lerp(from.getFloat(key, defaultValue), to.getFloat(key, defaultValue), t);
+        int i = segmentIndex(kfs, localTime);
+        if (i < 0) {
+            return localTime < kfs.get(0).getTime()
+                    ? sourceComponent(kfs.get(0), component, defaultValue)
+                    : sourceComponent(kfs.get(kfs.size() - 1), component, defaultValue);
+        }
+        return MathUtil.lerp(sourceComponent(kfs.get(i), component, defaultValue),
+                sourceComponent(kfs.get(i + 1), component, defaultValue), segmentT(kfs, i, localTime));
+    }
+
+    /** 读一个关键帧的 {@code source} 分量；缺字段 → {@code defaultValue} */
+    private static float sourceComponent(Keyframe kf, String component, float defaultValue) {
+        if (kf.getData().get("source") instanceof Map<?, ?> source) {
+            Object value = source.get(component);
+            if (value instanceof Number number) return number.floatValue();
+        }
+        return defaultValue;
+    }
+
+    /**
+     * {@code fit} 是离散枚举：按<b>步进</b>取值 —— 取 localTime 处（或之前最近）关键帧的值（§3.1 字段表）。
+     */
+    private static CanvasTransform.FitMode stepFit(List<Keyframe> kfs, float localTime) {
+        if (kfs == null || kfs.isEmpty()) return CanvasTransform.FitMode.FIT;
+        Keyframe chosen = kfs.get(0);
+        for (Keyframe kf : kfs) {
+            if (kf.getTime() <= localTime) {
+                chosen = kf;
+            } else {
+                break;
+            }
+        }
+        return CanvasTransform.fitMode(chosen.getString("fit", "fit"), CanvasTransform.FitMode.FIT);
+    }
+
+    /** 定位 localTime 落在哪个关键帧区间：返回左端点索引；范围外返回 -1 */
+    private static int segmentIndex(List<Keyframe> kfs, float localTime) {
+        for (int i = 0; i < kfs.size() - 1; i++) {
+            if (localTime >= kfs.get(i).getTime() && localTime <= kfs.get(i + 1).getTime()) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** 区间 [i, i+1] 内的插值系数（钳制到 0~1；零长区间取 0） */
+    private static float segmentT(List<Keyframe> kfs, int i, float localTime) {
+        float span = kfs.get(i + 1).getTime() - kfs.get(i).getTime();
+        float t = (span > 0.001f) ? (localTime - kfs.get(i).getTime()) / span : 0f;
+        return Math.max(0f, Math.min(1f, t));
     }
 
     // ========== Helpers ==========

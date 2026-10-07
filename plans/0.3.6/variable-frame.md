@@ -149,9 +149,9 @@ S  = (Bx·sx, By·sy)                缩放后尺寸
 - `dest`：相机侧的 `dest` 是**屏幕归一化**目标矩形；在统一模型里等价于「基准尺寸 = 铺满画布」那一类的 位置 + 缩放（`dest = {dx,dy,dw,dh}` ↔ `x = dx + dw/2`、`y = dy + dh/2`、`scale = (dw, dh)`、`anchor = 0.5`），但**仅在屏幕宽高比 = 参考宽高比（16:9）时与画布归一化取值重合**；非 16:9 屏幕上 `dest` 是屏幕口径、统一模型是画布口径，换算在步骤 3–5 对齐时定。
 - `order`：两边都不是脚本字段（相机侧 = 轨道层级 → 轨道内 clip 顺序；覆盖层 = `z_index` 兜底）。
 
-**与现状的差异（步骤 4 对齐，本步骤只定模型、不动代码）**：
+**与现状的差异（步骤 4 对齐）**：
 
-| 项 | 现状 | 定稿 |
+| 项 | 现状（0.3.6 之前） | 定稿 |
 |---|---|---|
 | 位置默认 | `x`/`y` 缺省 `0`/`0`（schema + `OverlayTrackPlayer` 回退） | `0.5`/`0.5`（居中，“什么都不写就是合理形态”） |
 | `opacity` 默认 | OVERLAY schema 缺省 `0`（不可见） | `1.0`（不透明，与相机侧合成参数一致） |
@@ -160,7 +160,11 @@ S  = (Bx·sx, By·sy)                缩放后尺寸
 | 取材 / 适配 | 无字段 | `source` / `fit` |
 | 坐标口径 | `ImageLayer`/`SubtitleLayer` = 屏幕百分比；`PipLayer` = 原始像素 | **参考画布百分比（唯一口径）** |
 
-> 本表是**模型口径**：代码尚未消费 `anchor_*` / `source` / `fit`（渲染与图层改动属步骤 3–5），`docs/SCRIPT_FORMAT.md` 的 OVERLAY 一节仍描述现行行为，待实现落地时同步。
+> **落地状态（0.3.6 步骤 4，已完成）**：上表六项已全部落到代码 —— `overlay/CanvasTransform` 增加统一默认值常量与 `element(...)` 几何解算（浮点比例域，只在最终绘制落到像素）；`ImageLayer` / `SubtitleLayer` / `PipLayer` / `LetterboxLayer` / `FadeLayer` 按字段表读取；`OverlayTrackPlayer` 按新字段表取值（含 `source` 分量线性、`fit` 步进）；`TrackSchemas.overlay()` 字段表对齐；`docs/SCRIPT_FORMAT.md` §9 与 `docs/AI_SCRIPTING_GUIDE.md` §3.5b 已同步。
+>
+> 逐项对照：位置默认 → `CanvasTransform.DEFAULT_POSITION`；`opacity` 默认 → `DEFAULT_OPACITY`（1.0）；`z_index` 默认 → `DEFAULT_Z_INDEX`（10，schema 与运行时同一常量）；锚点 → 五层统一为缩放绕点（pip 的定位锚语义并入统一几何公式）；取材/适配 → `source` / `fit` 在图形层（图片）落地，pip 无纹理不消费并已注明；坐标口径 → 全部经 `CanvasTransform.canvas(...)` 映射。
+>
+> 落地时确认的两点边界：① `fit` 默认 `fit` 意味着 `scale_x ≠ scale_y` 的非等比缩放**不再拉伸素材**（等比放进元素框）——要旧的非等比拉伸需显式写 `"stretch"`；② 非 16:9 屏幕的画布留边（Fit 黑边区）由 `LetterboxLayer` 绘制，且仅在该层可见（LETTERBOX 轨有活跃 clip）时绘制。
 
 > 现状对照（可验证）：`ImageLayer` 的 `x`/`y` 已是“屏幕百分比、元素中心”（`actualX = x * screenWidth - dispW / 2`），`scaleX`/`scaleY` 是“相对原图尺寸的百分比乘数”（`dispW = 原图宽 × scaleX`，原图尺寸来自 `TextureLoader.getTextureSize`）；`SubtitleLayer` 同构（x/y 屏幕百分比 + 文字块中心、scale 百分比乘数，另多一级 `fontScale` 矩阵缩放：`pose.scale(fontScale * scaleX, fontScale * scaleY, 0)`）；`PipLayer` 有 `anchorX`/`anchorY`（默认 0.5，按 `x - width * anchorX` 定位），但坐标用的是**原始像素**。
 > → 方向与现状一致，要做的是**统一并补齐“取材 / 适配”两项**（现状 OVERLAY schema 确无取材 / 适配 / 锚点字段，见 `script/schema/TrackSchemas.java` 的 `overlay()`）。
@@ -235,6 +239,8 @@ offsetX = (dstW − w)/2,  offsetY = (dstH − h)/2      （Fit 偏移 ≥ 0 留
 
 现有 `pip` 层是“静态占位框（2px 白框 + 半透明黑填充，无纹理）+ 原始像素坐标”。方向：**并入本文模型**（百分比 + 锚点 + 取材 + 适配），或者由画面层取代——画面层本身就可以放在任意位置，天然是画中画。
 
+> **步骤 4 已做（0.3.6）**：pip 已并入统一模型 —— 位置 / 锚点改为画布归一化（`anchor_*` 从「定位锚」改为「缩放绕点」），尺寸改由 `scale_x/scale_y` 表达（画面层基准尺寸 = 铺满画布，`0.5` = 半个画布），旧的像素 `width`/`height` 字段移除；边框粗细也从写死 2px 改为按画布高比例（`2/1080`，参考分辨率下即 2px）。仍无纹理，故不消费 `source` / `fit`。是否由画面层取代（多相机 lane 作为覆盖层）属步骤 3。
+
 ---
 
 ## 7. 可能的问题
@@ -263,8 +269,8 @@ offsetX = (dstW − w)/2,  offsetY = (dstH − h)/2      （Fit 偏移 ≥ 0 留
 1. ✅ 定义覆盖层统一参数与“基准尺寸”表 —— 定稿见 §3.1（2026-10-07）
 2. ✅ 定义参考画布与设备适配规则 —— 定稿见 §4.1（2026-10-07；代码承载 `overlay/CanvasTransform.java`）
 3. 画面层接入（多相机 lane 作为覆盖层的一类）
-4. 现有 overlay 层按统一参数对齐（含 pip 去像素化）
-5. 取材 / 适配补齐到所有类别
+4. ✅ 现有 overlay 层按统一参数对齐（含 pip 去像素化）—— 已落地（2026-10-07）：五层 + `OverlayTrackPlayer` + `TrackSchemas.overlay()` + 文档；`source`/`fit` 在图形层（图片）落地，pip 无纹理不消费（见 §3.1 落地状态、§6）
+5. 取材 / 适配补齐到所有类别（图形层已完成；画面层 / 文本层待接入）
 6. 编辑器 Gizmo
 
 ---
@@ -322,4 +328,18 @@ offsetX = (dstW − w)/2,  offsetY = (dstH − h)/2      （Fit 偏移 ≥ 0 留
 
 - **交付物**：`common/src/main/java/com/immersivecinematics/immersive_cinematics/overlay/CanvasTransform.java`（`REFERENCE_ASPECT_RATIO = 16/9`、`REFERENCE_WIDTH/HEIGHT = 1920/1080`、`FitMode{FIT,FILL,STRETCH}`、`record Placement`、纯函数 `map` / `canvas` / `screenX` / `screenY`；**不引用任何 MC 类、不做渲染**）。定义写进本文 §3.1（字段表 + 基准尺寸逐类）与 §4.1（参考画布 + 映射公式 + 边界行为）。
 - **验证**：`javac -encoding UTF-8` 编译该文件 + 一次性冒烟程序（不入库）→ `SMOKE OK`。覆盖：1920×1080/1280×720/2560×1080/1024×768/3840×2160/800×1280 × Fit/Fill/Stretch 的归一化 → 像素逐点核对（含 `(0,0)`、`(0.5,0.5)`、`(1,1)`）、素材 → 元素框的第二处用法、退化入参（≤0 返回 `EMPTY`）、不变量（Fit 完整可见 / Fill 覆盖屏幕 / 画布中心恒在屏幕中心 / Fit 等比守恒）、以及「1920×1080 + Fit 退化为 `ImageLayer` 语义」的兼容性断言。
-- **未做**：渲染 / 图层改动（步骤 3–5）；脚本 schema 与 `docs/SCRIPT_FORMAT.md` 未动（代码尚未消费 `anchor_*` / `source` / `fit`，实现落地时同步）。
+- **当时未做**（步骤 3–5 属后续）：渲染 / 图层改动、脚本 schema 与 `docs/SCRIPT_FORMAT.md`。→ 步骤 4 已补齐，见 ⑥。
+
+### ⑥ 步骤 4 落地：现有 overlay 层对齐（2026-10-07）
+
+- **代码**：`CanvasTransform` 增补统一默认值常量（`DEFAULT_POSITION` / `DEFAULT_ANCHOR` / `DEFAULT_SCALE` / `DEFAULT_OPACITY` / `DEFAULT_Z_INDEX`）、`record Rect`、`element(...)`（§3.1 元素几何解算：基准尺寸以参考像素给出，`unit = canvasW / 1920` 换算到当前画布，全程浮点比例域，只在最终绘制落到像素）、`fitMode(String, FitMode)`（`fit` 枚举解析）。
+  - `ImageLayer`：位置/锚点/缩放按新口径；新增 `source`（素材归一化取材，越界钳制）与 `fit`（`CanvasTransform.map(素材子矩形, 元素框)`）消费，`fill` 的溢出用 scissor 裁到元素框（`fit`/`stretch` 不溢出，不裁剪）。
+  - `SubtitleLayer`：位置/锚点/缩放按新口径；`font_scale` 决定文字块基准尺寸。
+  - `PipLayer`：去像素化 —— 位置/锚点画布归一化、尺寸由 `scale_x/scale_y`（基准 = 铺满画布）表达、`width`/`height` 字段移除、边框粗细按画布高比例（`2/1080`）；无纹理故不消费 `source`/`fit`。
+  - `LetterboxLayer`：补 `opacity`（alpha）；黑边在画布范围内绘制，并绘制画布 Fit 留边（非 16:9 屏幕）。
+  - `FadeLayer`：铺满画布（效果层基准尺寸 = (1,1)），位置/缩放不生效；opacity 为唯一参数。
+  - `OverlayTrackPlayer`：按字段表取值（缺省 0.5/0.5、锚点 0.5、缩放 1、opacity 1、`z_index` 10；`source` 按分量线性、`fit` 步进）；删除被 `updateLayer` 同帧覆盖的 `applyInitialClipValues`。
+  - `TrackSchemas.overlay()`：字段表对齐（clip `z_index` 默认 10；关键帧补 `anchor_x/anchor_y/source/fit`，`opacity` 默认 1，`x/y` 默认 0.5）。
+- **文档**：`docs/SCRIPT_FORMAT.md` §9、`docs/AI_SCRIPTING_GUIDE.md` §3.5b、`docs/modules/overlay.md`、`docs/modules/script.md`。
+- **验证**：`sh gradlew compileJava` 通过；一次性冒烟（不入库，`javac -encoding UTF-8` + 真实 `CanvasTransform`）→ 1920×1080 下图片几何 1470/1470 组合与旧口径**逐位一致**（最大位置偏差 0.0 px），字幕块位置/尺寸一致，锚点不动点、非 16:9 Fit 映射、`source`+`fit` 三档、`fit` 枚举解析全通过；schema 冒烟（`ScriptParser` + `ScriptRegistry`）确认新字段解析进关键帧数据、默认值对齐、校验器不报错。
+- **遗留**：letterbox 的 `opacity` 已具备渲染能力（`setOpacity` + alpha），但 LETTERBOX 轨的脚本字段（`LetterboxTrackPlayer` / `TrackSchemas.letterbox()`）不在本次改动范围，未接线 —— 目前恒为 1（纯黑边，与旧行为一致）。

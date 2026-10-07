@@ -39,13 +39,13 @@ public interface OverlayLayer {
      * 获取层级索引（z-index）
      * <p>
      * 数值越小越在底层（先绘制），数值越大越在顶层（后绘制）。
-     * 建议值：
+     * 建议值（0.3.6 起）：
      * <ul>
-     *   <li>0 — 黑边 (Letterbox)</li>
-     *   <li>100+ — 文字字幕 (Text)，支持多个文字层：100, 101, 102...</li>
-     *   <li>200+ — 视频播放 (Video)</li>
+     *   <li>0 — 画幅层（{@link LetterboxLayer}，内置常量、不在脚本口径内）</li>
+     *   <li>10 — 脚本层的统一默认值（{@link CanvasTransform#DEFAULT_Z_INDEX}）：不写 {@code z_index}
+     *       的 fade / image / subtitle / pip 都在这一层</li>
+     *   <li>10+ — 需要压住其他覆盖层时显式写更大的值（如字幕 30、转场遮罩 200）</li>
      * </ul>
-     * 间隔 100 方便后续插入新层
      */
     int getZIndex();
 
