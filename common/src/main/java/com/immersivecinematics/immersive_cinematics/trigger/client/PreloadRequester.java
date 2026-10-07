@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.trigger.client;
 import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.CameraState;
+import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
@@ -58,8 +59,9 @@ public final class PreloadRequester {
             releaseIfNeeded();
             return;
         }
-        ScriptPlayer sp = cam.getScriptPlayer();
-        if (cam.isActive() && sp.isPlaying() && !cam.isPreviewMode()) {
+        PlaybackInstance instance = cam.activeInstance();
+        ScriptPlayer sp = instance != null ? instance.player() : null;
+        if (sp != null && sp.isPlaying() && !cam.isPreviewMode()) {
             CinematicScript script = sp.getScript();
             String sid = script != null ? script.getId() : "";
             if (sid.isEmpty()) {

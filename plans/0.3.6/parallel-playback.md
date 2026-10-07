@@ -136,6 +136,32 @@
 
 > 步骤 1–4 是地基，行为与现状兼容；步骤 5–6 放开并行能力。多 lane 上屏属于[画面合成](./camera-composition.md)的落地范围。
 
+### 步骤 1 落地记录（2026-10-07）
+
+**范围**：先落**载体部分**——播放器与生命周期状态改由实例承载、`CameraManager` 实例列表化；**仍只允许一个活跃实例**（`pendingScript` / 播放队列语义不变，对外行为与改造前一致）。"同一脚本可先后 / 同时起两个实例"是步骤 1 的后半，随步骤 2+ 一起放开。步骤 2 的"生命周期判定按实例读"在同一次改造中顺带完成（判定点与实例载体是同一批代码，分不开）。
+
+**实例形态**（`common/src/main/java/com/immersivecinematics/immersive_cinematics/camera/PlaybackInstance.java`）：
+
+| 组成 | 说明 |
+|---|---|
+| `ScriptPlayer player` | 一个实例 = 一个播放器：时间轴、轨道状态、音频实例、`PlayerMoveController` 全随实例走，实例之间不共享可变状态 |
+| `ScriptMeta.RuntimeBehavior behavior` | **启动时快照**（`start` 取自 `script.getMeta().getBehavior()`，编辑器增量替换时随新脚本刷新）；生命周期判定只读它，不读全局 `CinematicController` |
+| `boolean stopping` | 退场渐出中（原 `CameraManager.stopping`） |
+| `CompletionReason exitReason` | 退出原因（原 `CameraManager.pendingCompletionReason`）：`requestExit` 置入、`deactivateNow` 消费 |
+| 判定方法 | `isSkippable()` / `isInterruptible()` / `isHoldAtEnd()` / `isPauseWhenGamePaused()`；无行为快照时取 `CinematicController.revert()` 的默认值 |
+| 驱动方法（包内可见） | `start(script, preExecuteAt)` / `replaceScript(newScript)` / `stop(reason)` / `markStopping()` / `setExitReason(reason)` —— 实例只由 `CameraManager` 创建与驱动 |
+
+**迁移点**（`camera/CameraManager.java`）：
+
+- `private final ScriptPlayer scriptPlayer` + `active` / `stopping` / `pendingCompletionReason` → `private final List<PlaybackInstance> instances`（本版本至多 1 个）；`active` 改由实例列表推导（`isActive()` = 有活跃实例），`isScriptMode()` / `getActiveScriptId()` 同样从活跃实例读。
+- 新增 `activeInstance()`（无播放时 `null`）作为实例入口；**删除** `getScriptPlayer()`、`getCurrentProperties()` 与无调用方的 `activate()`（死代码，全仓 grep 无调用点）。
+- 生命周期判定全部改读活跃实例：`requestExit` 的 `skippable` / `interruptible` / `hold_at_end` 门控、`playScript` 的 `interruptible` 分支、`onRenderFrame` 的 hold 钳制与自然结束门控、暂停联动的 `pause_when_game_paused`。单实例游戏内播放与改造前**逐点等价**——改造前这些点读 `CinematicController`，而它的值正是 `startScriptInternal` 用同一份 `RuntimeBehavior` 应用进去的。
+- 预览通道：`pushScript` / `setTime` / `resume` 改走活跃实例的播放器（`instance.player()`；`pushScript` 的增量替换走 `instance.replaceScript`，行为快照同步刷新）。
+
+**消费方迁移**（`getScriptPlayer()` 的 4 个调用点）：`client/lane/ScriptLaneDriver`（lane 快照收集）、`mixin/LocalPlayerMixin`（假输入驱动）、`script/AudioListenerController`（listener 模式）、`trigger/client/PreloadRequester`（区块预加载）；统一改为 `activeInstance()` + 判空。
+
+**已知语义差异（仅预览通道，1 处）**：预览实例的生命周期判定现在读**预览脚本自己的** `skippable` / `interruptible` / `pause_when_game_paused`，而改造前预览路径从不 `apply` 脚本行为，这三个开关在预览里恒为全局默认值（`true` / `true` / `true`）。`hold_at_end` 无差异（改造前该门控本就先读脚本自己的行为）。方向与 §3.1 一致（判定按实例独立）；若日后要恢复"预览不理会脚本这些声明"，应在预览实例上单独处理，而不是退回全局开关。
+
 ---
 
 ## 8. 与 0.4.0 旧稿的关系

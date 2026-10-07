@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.client.lane;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
 import com.immersivecinematics.immersive_cinematics.script.CameraLane;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
@@ -73,11 +74,12 @@ public final class ScriptLaneDriver {
         // 脚本 lane 是 lane 的唯一来源：先清空（调试驱动让位时不残留它上一帧的 lane）
         renderer.clear();
         // 无脚本播放 → 一定没有 lane（不进收集路径：零分配、零差异）
-        if (mc.level == null || mc.player == null || !CameraManager.INSTANCE.isScriptMode()) {
+        PlaybackInstance instance = CameraManager.INSTANCE.activeInstance();
+        if (mc.level == null || mc.player == null || instance == null || !instance.player().isPlaying()) {
             return false;
         }
 
-        List<CameraLane> lanes = CameraManager.INSTANCE.getScriptPlayer().collectCameraLanes();
+        List<CameraLane> lanes = instance.player().collectCameraLanes();
         if (lanes.isEmpty()) {
             return false;
         }

@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.CameraState;
+import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 
@@ -58,7 +59,8 @@ public final class AudioListenerController {
     }
 
     private static String listenerMode() {
-        CinematicScript script = CameraManager.INSTANCE.getScriptPlayer().getScript();
+        PlaybackInstance instance = CameraManager.INSTANCE.activeInstance();
+        CinematicScript script = instance != null ? instance.script() : null;
         if (script == null) return "player";
         // 按脚本对象刷新：同一 id 的脚本被编辑器增量替换后，listener 变化也能生效
         if (script != cachedScript) {

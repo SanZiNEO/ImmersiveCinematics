@@ -7,13 +7,15 @@ import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptNotifier;
-import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class CameraManager {
 
@@ -24,9 +26,12 @@ public class CameraManager {
     private final CameraProperties activeProperties = new CameraProperties();
     private final CameraPath activePath = new CameraPath();
 
-    private final ScriptPlayer scriptPlayer = new ScriptPlayer();
-    private boolean active = false;
-    private boolean stopping = false;
+    /**
+     * 播放实例列表（并行播放模型第一步：播放 = 实例）。
+     * 本版本不变量：至多一个活跃实例——列表化让播放器与生命周期状态随实例走，
+     * 真正的并行放开见 plans/0.3.6/parallel-playback.md §7 步骤 2+。
+     */
+    private final List<PlaybackInstance> instances = new ArrayList<>();
 
     /** hasActiveCameraClip 的帧级缓存，避免 9 个 Mixin 调用点每帧重复扫描 */
     private boolean cachedHasActiveCameraClip = false;
@@ -38,7 +43,6 @@ public class CameraManager {
     private long lastRealNanos = 0;
 
     private CinematicScript pendingScript = null;
-    private CompletionReason pendingCompletionReason = CompletionReason.FINISHED;
 
     /** C1：播放队列（容量 8，当前脚本不可打断时新脚本一律入队，结束后自动接播） */
     private final ScriptQueue scriptQueue = new ScriptQueue();
@@ -60,72 +64,67 @@ public class CameraManager {
     /** 组 7：编辑器拖拽直控标志 — 直控期间 CameraTrackPlayer 跳过轨道写入，相机由编辑器直驱 */
     private boolean previewDirectControl = false;
 
-    public void activate() {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || mc.player == null) return;
-
-        Vec3 playerPos = mc.player.position();
-        float playerYaw = mc.player.getYRot();
-        float playerPitch = mc.player.getXRot();
-
-        activePath.setPositionDirect(playerPos);
-        activeProperties.setYawDirect(playerYaw);
-        activeProperties.setPitchDirect(playerPitch);
-
-        active = true;
-        stopping = false;
+    /** 活跃播放实例（本版本至多 1 个；无播放时为 null）。 */
+    public PlaybackInstance activeInstance() {
+        return instances.isEmpty() ? null : instances.get(0);
     }
 
     public void deactivate() {
-        if (!active) return;
-        if (stopping) return;
+        PlaybackInstance instance = activeInstance();
+        if (instance == null) return;
+        if (instance.isStopping()) return;
         OverlayManager.INSTANCE.startFadeOut();
-        stopping = true;
+        instance.markStopping();
     }
 
     // ========== 统一退出入口 ==========
 
     public boolean requestExit(ExitReason reason) {
-        CinematicController ctrl = CinematicController.INSTANCE;
+        PlaybackInstance instance = activeInstance();
 
         switch (reason) {
             case FORCE_QUIT:
-                pendingCompletionReason = CompletionReason.FORCE_QUIT;
+                setExitReason(instance, CompletionReason.FORCE_QUIT);
                 deactivateNow();
                 return true;
 
             case SYSTEM_STOP:
-                pendingCompletionReason = CompletionReason.STOPPED;
+                setExitReason(instance, CompletionReason.STOPPED);
                 deactivate();
                 return true;
 
             case INTERRUPTED:
-                if (!ctrl.isInterruptible()) {
+                if (instance != null && !instance.isInterruptible()) {
                     LOGGER.debug("脚本不可打断(interruptible=false)，拒绝抢占");
                     return false;
                 }
-                pendingCompletionReason = CompletionReason.INTERRUPTED;
+                setExitReason(instance, CompletionReason.INTERRUPTED);
                 deactivate();
                 return true;
 
             case USER_SKIP:
-                if (!ctrl.isSkippable()) {
+                if (instance != null && !instance.isSkippable()) {
                     LOGGER.debug("脚本不可跳过(skippable=false)，拒绝用户退出");
                     return false;
                 }
-                pendingCompletionReason = CompletionReason.SKIPPED;
+                setExitReason(instance, CompletionReason.SKIPPED);
                 deactivate();
                 return true;
 
             case NATURAL_END:
-                if (ctrl.isHoldAtEnd()) {
+                if (instance != null && instance.isHoldAtEnd()) {
                     return false;
                 }
-                pendingCompletionReason = CompletionReason.FINISHED;
+                setExitReason(instance, CompletionReason.FINISHED);
                 deactivate();
                 return true;
         }
         return false;
+    }
+
+    /** 置入实例的退出原因；无活跃实例时没有播放可结束，无需记录。 */
+    private static void setExitReason(PlaybackInstance instance, CompletionReason reason) {
+        if (instance != null) instance.setExitReason(reason);
     }
 
     // ========== 脚本播放模式 ==========
@@ -144,17 +143,17 @@ public class CameraManager {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return 0;
 
-        if (!(active && scriptPlayer.isPlaying())) {
+        PlaybackInstance instance = activeInstance();
+        if (instance == null || !instance.player().isPlaying()) {
             startScriptInternal(script);
             reportPlaybackStarted(script);
             return 1;
         }
 
-        CinematicController ctrl = CinematicController.INSTANCE;
-        if (ctrl.isInterruptible()) {
+        if (instance.isInterruptible()) {
             // 可打断 → 立即替换：置原因 + deactivateNow 直接切换（deactivateNow 末尾接播 pendingScript）
             pendingScript = script;
-            pendingCompletionReason = CompletionReason.INTERRUPTED;
+            instance.setExitReason(CompletionReason.INTERRUPTED);
             deactivateNow();
             return 1;
         }
@@ -183,19 +182,17 @@ public class CameraManager {
     }
 
     public String getActiveScriptId() {
-        return scriptPlayer.getScriptId();
+        PlaybackInstance instance = activeInstance();
+        return instance != null ? instance.scriptId() : "<none>";
     }
 
     public void forceDeactivate() {
         deactivateNow();
     }
 
-    public ScriptPlayer getScriptPlayer() {
-        return scriptPlayer;
-    }
-
     public boolean isScriptMode() {
-        return scriptPlayer.isPlaying();
+        PlaybackInstance instance = activeInstance();
+        return instance != null && instance.player().isPlaying();
     }
 
     public boolean hasActiveCameraClip() {
@@ -209,21 +206,23 @@ public class CameraManager {
             previewScript = com.immersivecinematics.immersive_cinematics.script.ScriptParser.parse(jsonContent);
             // 编辑内容照常缓存;预览模式且已有脚本时保持激活(编辑即预览)
             if (previewMode && previewScript != null) {
-                if (!active) {
+                PlaybackInstance instance = activeInstance();
+                if (instance == null) {
                     startScriptInternal(previewScript);
+                    instance = activeInstance();
                 } else {
                     // 组 A：编辑模式常驻播放器 — 增量替换数据（零重建零重启；
                     // TrackPlayer 数据源动态化，音频实例按 sound+startTime+duration 重映射复用）
-                    scriptPlayer.replaceScript(previewScript);
+                    instance.replaceScript(previewScript);
                 }
-                scriptPlayer.alignTime(previewTime, previewTime);
+                instance.player().alignTime(previewTime, previewTime);
                 // 组 1/2：数据替换后同步暂停态并把实例定位到播放头
                 if (previewPaused) {
-                    scriptPlayer.pauseAudio();
+                    instance.player().pauseAudio();
                 } else {
-                    scriptPlayer.resumeAudio();
+                    instance.player().resumeAudio();
                 }
-                scriptPlayer.repositionAudio(previewTime);
+                instance.player().repositionAudio(previewTime);
             }
         } catch (com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException e) {
             LOGGER.error("编辑器传入的脚本 JSON 解析失败", e);
@@ -237,15 +236,18 @@ public class CameraManager {
         gameTimeSeconds = seconds;
         previewMode = true;
         previewPaused = true;
-        if (!active && previewScript != null) {
+        PlaybackInstance instance = activeInstance();
+        if (instance == null && previewScript != null) {
             startScriptInternal(previewScript);
+            instance = activeInstance();
         }
+        if (instance == null) return; // 预览脚本尚未传入：没有实例可定位
         // Align so that elapsed = previewTime when onRenderFrame sets gameTimeSeconds = previewTime
-        scriptPlayer.alignTime(previewTime, previewTime);
+        instance.player().alignTime(previewTime, previewTime);
         // 组 1：定位即同步暂停态——先于 repositionAudio（其 paused 分支依赖此标志），
         // 并覆盖 startScriptInternal 预执行首帧已创建/播放的实例。
-        scriptPlayer.pauseAudio();
-        scriptPlayer.repositionAudio(previewTime);
+        instance.player().pauseAudio();
+        instance.player().repositionAudio(previewTime);
     }
 
     public void resume() {
@@ -253,8 +255,12 @@ public class CameraManager {
         if (!previewMode) {
             if (previewScript == null) return;
             previewMode = true;
-            if (!active) startScriptInternal(previewScript);
-            scriptPlayer.alignTime(previewTime, previewTime);
+            PlaybackInstance instance = activeInstance();
+            if (instance == null) {
+                startScriptInternal(previewScript);
+                instance = activeInstance();
+            }
+            instance.player().alignTime(previewTime, previewTime);
         }
         previewPaused = false;
         lastRealNanos = 0;
@@ -301,7 +307,7 @@ public class CameraManager {
         previewPaused = true;
         // 世界已退出，不可能接播（pendingScript 会经 deactivateNow 自动启动，必须先清掉）
         pendingScript = null;
-        pendingCompletionReason = CompletionReason.STOPPED;
+        setExitReason(activeInstance(), CompletionReason.STOPPED);
         deactivateNow();
     }
 
@@ -326,19 +332,21 @@ public class CameraManager {
         }
         previewInitialized = true;
 
-        active = true;
-        stopping = false;
+        // 本版本不变量：至多一个活跃实例——调用点保证此刻没有活跃实例
+        // （playScript/pushScript/setTime/resume 的空闲分支进入；deactivateNow 已先移除旧实例）
+        PlaybackInstance instance = new PlaybackInstance();
+        instances.add(instance);
 
         // 组 A：预执行首帧用播放头时间（预览模式），避免首帧写 t=0 造成画面跳变；游戏内播放传 0 保持原语义
-        scriptPlayer.start(script, previewMode ? previewTime : 0f);
+        instance.start(script, previewMode ? previewTime : 0f);
         if (previewMode) {
             CinematicController.INSTANCE.setBlockKeyboard(false);
             CinematicController.INSTANCE.setBlockMouse(false);
         } else {
-            CinematicController.INSTANCE.apply(scriptPlayer.getCurrentProperties());
+            CinematicController.INSTANCE.apply(instance.behavior());
         }
 
-        // 写侧收口：scriptPlayer.start 已预执行脚本首帧、直写内部状态；这里立即刷新统一快照，
+        // 写侧收口：instance.start 已预执行脚本首帧、直写内部状态；这里立即刷新统一快照，
         // 使同一 tick 内后续读取（如 PreloadRequester）看到接播后的最新值，而非过期/空快照。
         refreshCameraState();
     }
@@ -380,34 +388,36 @@ public class CameraManager {
     // ========== 帧回调驱动 ==========
 
     public void onRenderFrame() {
-        if (!active) {
+        PlaybackInstance instance = activeInstance();
+        if (instance == null) {
             cachedHasActiveCameraClip = false;
             refreshCameraState();
             return;
         }
+        ScriptPlayer player = instance.player();
 
-        boolean gamePaused = Minecraft.getInstance().isPaused() && CinematicController.INSTANCE.isPauseWhenGamePaused();
+        boolean gamePaused = Minecraft.getInstance().isPaused() && instance.isPauseWhenGamePaused();
         // 编辑器预览暂停也算暂停
         boolean effectivelyPaused = gamePaused || (previewMode && previewPaused);
 
         // 组 1：每帧同步音频暂停状态（幂等；对齐 MC SoundEngine：暂停时无新声音、已有实例幂等 pause）。
-        // 必须位于 scriptPlayer.onRenderFrame 之前并每帧执行——修复「暂停检测在实例创建前」的时序缺陷。
+        // 必须位于 player.onRenderFrame 之前并每帧执行——修复「暂停检测在实例创建前」的时序缺陷。
         // 诊断：打印暂停判定组成——若游戏内播放被误判为暂停（gamePaused/previewMode 异常）即可见。
         if (LOGGER.isDebugEnabled()) {
             LOGGER.debug("camera pauseSync: eff={} gamePaused={} previewMode={} previewPaused={}",
                     effectivelyPaused, gamePaused, previewMode, previewPaused);
         }
         if (effectivelyPaused) {
-            scriptPlayer.pauseAudio();
+            player.pauseAudio();
         } else {
-            scriptPlayer.resumeAudio();
+            player.resumeAudio();
         }
 
         // 检测暂停↔恢复转换，通知服务端（握手仅转换时发送）
         if (effectivelyPaused != lastFramePaused) {
             lastFramePaused = effectivelyPaused;
-            if (scriptPlayer.isPlaying()) {
-                String scriptId = scriptPlayer.getScriptId();
+            if (player.isPlaying()) {
+                String scriptId = player.getScriptId();
                 if (!"<none>".equals(scriptId)) {
                     // N1：暂停/恢复握手 — 登记 ACK，超时重发（handlePause 幂等）；发包经 NetworkGuard 防断线崩溃
                     String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
@@ -441,32 +451,31 @@ public class CameraManager {
         OverlayManager.INSTANCE.update(deltaTime);
 
         float effectiveTime = (float) getGameTimeSeconds();
-        if (scriptPlayer.isPlaying()) {
+        if (player.isPlaying()) {
             // holdAtEnd=true：时间耗尽后把渲染时间钳到总时长末尾，让最后一帧保持住
-            if (scriptPlayer.isFinished() && CinematicController.INSTANCE.isHoldAtEnd()) {
-                CinematicScript s = scriptPlayer.getScript();
+            if (player.isFinished() && instance.isHoldAtEnd()) {
+                CinematicScript s = player.getScript();
                 if (s != null) {
                     float total = s.getTotalDuration();
                     if (total > 0f) effectiveTime = Math.max(0f, total - 0.001f);
                 }
             }
-            scriptPlayer.onRenderFrame(effectiveTime);
+            player.onRenderFrame(effectiveTime);
         }
 
         // 帧级缓存：用与实际渲染相同的 effectiveTime 判断活跃 Camera 轨道
-        cachedHasActiveCameraClip = scriptPlayer.hasActiveCameraTrack(effectiveTime);
+        cachedHasActiveCameraClip = player.hasActiveCameraTrack(effectiveTime);
 
-        if (stopping && !OverlayManager.INSTANCE.isAnimating()) {
+        if (instance.isStopping() && !OverlayManager.INSTANCE.isAnimating()) {
             deactivateNow();
             return;
         }
 
-        if (!stopping && scriptPlayer.isPlaying() && scriptPlayer.isFinished()) {
-            ScriptMeta.RuntimeBehavior behavior = scriptPlayer.getCurrentProperties();
-            boolean holdAtEnd = behavior != null && behavior.holdAtEnd();
+        if (!instance.isStopping() && player.isPlaying() && player.isFinished()) {
+            boolean holdAtEnd = instance.isHoldAtEnd();
             // 诊断：退出链路（脚本自然结束检查）
             LOGGER.info("NATURAL_END check: playing={} finished=true stopping={} holdAtEnd={} elapsed={}",
-                    scriptPlayer.isPlaying(), stopping, holdAtEnd,
+                    player.isPlaying(), instance.isStopping(), holdAtEnd,
                     String.format("%.2f", (float)(getGameTimeSeconds() - 0)));
             if (!holdAtEnd) {
                 LOGGER.info("NATURAL_END -> requestExit");
@@ -489,27 +498,31 @@ public class CameraManager {
     }
 
     private void deactivateNow() {
+        PlaybackInstance instance = activeInstance();
+        CompletionReason reason = instance != null ? instance.exitReason() : CompletionReason.FINISHED;
         // 诊断：退出链路（deactivateNow 执行）
-        LOGGER.info("deactivateNow: reason={}", pendingCompletionReason);
-        active = false;
-        stopping = false;
+        LOGGER.info("deactivateNow: reason={}", reason);
+
+        // 实例先出列（等价改造前 active=false 的位置）：后续读取不再看到本实例
+        if (instance != null) {
+            instances.remove(instance);
+        }
         gameTimeSeconds = 0;
         lastRealNanos = 0;
         // 组 6/7：停止后复位直控与初始化标志（下次预览重新从玩家位置起步）
         previewDirectControl = false;
         previewInitialized = false;
 
-        CompletionReason reason = pendingCompletionReason;
-        pendingCompletionReason = CompletionReason.FINISHED;
-
-        String finishedScriptId = scriptPlayer.getScriptId();
+        String finishedScriptId = instance != null ? instance.scriptId() : null;
         if (finishedScriptId != null) {
             com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptNotifier
                     .notifyScriptFinished(finishedScriptId, reason);
         }
         com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver.resetSkipVote();
 
-        scriptPlayer.stop(reason);
+        if (instance != null) {
+            instance.stop(reason);
+        }
         // 退出输入优雅交接：键盘按当前物理状态重同步 + 鼠标按钮同步 + 清鼠标累积量
         // （不再 releaseAll 全量释放——避免玩家仍按着键时退出导致按键失效直到松开重按）
         CinematicController.INSTANCE.syncInputStateAfterExit();
@@ -531,7 +544,7 @@ public class CameraManager {
             // 释放时由服务端差集补发自动决定需要重发的玩家区区块。
         }
 
-        // 停用即失效快照；若 deactivateNow 末尾接播了 pendingScript/queue（active 又为 true），
+        // 停用即失效快照；若 deactivateNow 末尾接播了 pendingScript/queue（已有新实例），
         // 这里重建为接播后的最新值——否则本帧 Mixin 会读到 null 而原实现读到接播脚本的首帧值。
         refreshCameraState();
     }
@@ -539,7 +552,7 @@ public class CameraManager {
     // ========== tick 驱动 ==========
 
     public void tick() {
-        if (!active) return;
+        if (!isActive()) return;
         clientEntityLogCounter++;
         if (clientEntityLogCounter % 100 == 0) {
             Minecraft mc = Minecraft.getInstance();
@@ -581,15 +594,16 @@ public class CameraManager {
 
     /** 从内部状态（activePath / activeProperties 的 current 值）重建统一快照；无活跃相机时置 null。 */
     private void refreshCameraState() {
-        cameraState = active
+        cameraState = isActive()
                 ? new CameraState(activePath.getPosition(),
                         activeProperties.getYaw(), activeProperties.getPitch(),
                         activeProperties.getRoll(), activeProperties.getFov(), activeProperties.getZoom())
                 : null;
     }
 
+    /** 相机是否被播放实例接管（本版本 = 有活跃实例）。 */
     public boolean isActive() {
-        return active;
+        return !instances.isEmpty();
     }
 
     /** 是否处于编辑器预览模式（预览时 PlayerMoveController 不驱动真实玩家） */
@@ -604,13 +618,9 @@ public class CameraManager {
         return mc.player != null ? mc.player.getYRot() : 0;
     }
 
-    public ScriptMeta.RuntimeBehavior getCurrentProperties() {
-        return scriptPlayer.getCurrentProperties();
-    }
-
     /** WebUI 编辑器直接设置预览相机参数（yaw/pitch/roll/fov/zoom） */
     public void setCameraDirect(float yaw, float pitch, float roll, float fov, float zoom) {
-        if (!active) return;
+        if (!isActive()) return;
         activeProperties.setAllDirect(yaw, pitch, roll, fov, zoom);
         // 直写穿透：同 previewSetCamera，保证本帧 getFov 立即读到新值
         refreshCameraState();

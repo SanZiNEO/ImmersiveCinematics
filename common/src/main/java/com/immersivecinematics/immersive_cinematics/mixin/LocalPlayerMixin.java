@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
 import com.immersivecinematics.immersive_cinematics.script.PlayerMoveController;
 import net.minecraft.client.player.LocalPlayer;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,8 +21,9 @@ public class LocalPlayerMixin {
 
     @Inject(method = "serverAiStep", at = @At("HEAD"))
     private void cinematicPlayerMove(CallbackInfo ci) {
-        if (!CameraManager.INSTANCE.isActive()) return;
-        PlayerMoveController ctrl = CameraManager.INSTANCE.getScriptPlayer().getPlayerMovement();
+        PlaybackInstance instance = CameraManager.INSTANCE.activeInstance();
+        if (instance == null) return;
+        PlayerMoveController ctrl = instance.player().getPlayerMovement();
         if (ctrl != null && ctrl.isMoving()) {
             ctrl.applyFakeInput((LocalPlayer) (Object) this);
         }
