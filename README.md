@@ -27,7 +27,7 @@ ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server
 - 6-DOF camera: position, yaw, pitch, roll, FOV, zoom
 - Keyframe animation + Bézier curve paths for smooth camera movement
 - Relative/absolute positioning, looping, infinite duration, camera follow/look-at tracking
-- Multi-track timeline: camera, letterbox, audio, event, mod event, overlay (fade / image / subtitle / pip)
+- Multi-track timeline: camera, letterbox, audio, event, mod event, overlay (fade / image / subtitle)
 - Widescreen letterbox bars with keyframe-driven aspect ratio animation
 - Morph transitions between shots (crossfade model)
 

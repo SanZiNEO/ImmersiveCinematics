@@ -42,7 +42,7 @@ public enum TrackType {
     /** 第三方模组扩展事件 */
     MOD_EVENT,
 
-    /** 覆盖层轨道（fade/image/subtitle/pip），不限数量 */
+    /** 覆盖层轨道（fade/image/subtitle），不限数量 */
     OVERLAY,
 
     /**

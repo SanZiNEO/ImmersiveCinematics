@@ -146,7 +146,7 @@ public final class TrackSchemas {
 
     private static TrackTypeSchema overlay() {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
-        clips.put("layer_type", new FieldDef("enum", "fade", true, List.of("fade", "image", "subtitle", "pip")));
+        clips.put("layer_type", new FieldDef("enum", "fade", true, List.of("fade", "image", "subtitle")));
         clips.put("color", new FieldDef("string", "#000000"));
         clips.put("path", new FieldDef("string", ""));
         clips.put("text", new FieldDef("string", ""));
@@ -161,10 +161,10 @@ public final class TrackSchemas {
         // 锚点：元素自身归一化（0 = 左/上缘，1 = 右/下缘），缩放绕点
         kfs.put("anchor_x", new FieldDef("float", 0.5f));
         kfs.put("anchor_y", new FieldDef("float", 0.5f));
-        // 缩放：相对逐类基准尺寸（image = 原图像素 ÷ 参考分辨率；subtitle = 当前字号下文字块；pip = 铺满画布）
+        // 缩放：相对逐类基准尺寸（image = 原图像素 ÷ 参考分辨率；subtitle = 当前字号下文字块）
         kfs.put("scale_x", new FieldDef("float", 1.0f));
         kfs.put("scale_y", new FieldDef("float", 1.0f));
-        // 取材：素材归一化 {x,y,w,h}，缺省整幅（仅图形/画面类层消费；pip 无纹理，写了不生效）
+        // 取材：素材归一化 {x,y,w,h}，缺省整幅（仅 image 消费）
         kfs.put("source", new FieldDef("map", null));
         // 适配：fit / fill / stretch，缺省 fit（离散枚举 → 步进取值）
         kfs.put("fit", new FieldDef("enum", "fit", false, List.of("fit", "fill", "stretch")));

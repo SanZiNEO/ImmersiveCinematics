@@ -29,7 +29,6 @@
 - **相机底层七篇缺统摄 roadmap**：先做哪篇、谁依赖谁未定。影响：camera-state-plan / coordinate-frame / selector-model / math-models / temporal-interpolation / transition / hysteresis 的排期。（`README.md` §五）
 
 ### camera-composition.md（画面合成）
-- **`pip` 层的去留**：升级为可绑定 lane（lane 作为图层来源）/ 被合成层取代 / 保留。影响：variable-frame 步骤 3、Overlay 体系。（§3 L67、§6 L98；`variable-frame.md` §6/§8 同）
 - **dest 矩形之外无 lane 覆盖时的兜底**：露原版视角还是黑场（作者可用重叠避免空隙，但框架兜底策略未定）。影响：合成层缺省行为。（§5 L87）
 - **编辑器预览怎么表现多 lane 合成**：步骤 6 未落地。（§5 L88、§7 L117）
 - **与 HUD / letterbox 的叠放顺序**：未定。（§5 L89）
@@ -142,7 +141,7 @@
 - **script-loop 回卷衔接**：repeat 硬切 or 可选叠化——与 `script-loop.md` §11 挂钩。（§5 L106）
 
 ### variable-frame.md（画面系统核心）
-- **§7 可能的问题（7 条）+ §8 待定（4 条）**：画面层在 z 序里的基线（应在 letterbox 之下，现 letterbox z=0 已最小，需更低基线）/ 素材无内在尺寸（纯色遮罩·文本）时「取材」的语义 / 取材超出素材边界的行为（钳制/黑/循环）/ 旋转是否纳入（不纳入则锚点意义减半）/ 小尺寸画面是否按显示尺寸渲染（取舍问题）/ 与 HUD·letterbox 的叠放顺序细节 / `pip` 层是被取代还是升级 / 相机侧 `dest`（屏幕归一化口径）与画布归一化口径的换算（步骤 3-5 对齐时定）。（§7 L250-254、§8 L260-263、§3.1 L149）
+- **§7 可能的问题（7 条）+ §8 待定（3 条）**：画面层在 z 序里的基线（应在 letterbox 之下，现 letterbox z=0 已最小，需更低基线）/ 素材无内在尺寸（纯色遮罩·文本）时「取材」的语义 / 取材超出素材边界的行为（钳制/黑/循环）/ 旋转是否纳入（不纳入则锚点意义减半）/ 小尺寸画面是否按显示尺寸渲染（取舍问题）/ 与 HUD·letterbox 的叠放顺序细节 / 相机侧 `dest`（屏幕归一化口径）与画布归一化口径的换算（步骤 3-5 对齐时定）。（§7 L250-254、§8 L260-263、§3.1 L149）
 - **预览画布的具体形态**（现有 `WebPreviewScreen` 帧推流通道可作基础）。（§5 L234）
 
 ### script-model.md（关键帧模型）
@@ -196,6 +195,7 @@
 > 这些条目曾以「待定/开放问题/可能的问题」出现，现已有裁决。给出「在哪儿定的」。
 
 ### camera-composition.md
+- **`pip` 层的去留** → 已定（2026-10-08，CLEANUP-2）：**`pip` 层已删除**，被 lane 取代——画中画 = 一条 CAMERA lane 的合成参数（`dest` / `source` / `opacity`），即 §3 方向里的「pip 层被合成层取代」。`PipLayer` 为占位实现（仅白框 + 半透明黑底，从未接入真实相机画面），运行时 `OverlayTrackPlayer` 的 `pip` 分支、`layer_type` 枚举与校验一并移除（现为 `fade` / `image` / `subtitle` 三值）。**WebUI 里对脚本片段的便捷操作留编辑器阶段**。（§3、§6；`variable-frame.md` §6/§8）
 - **合成参数归属（自声明 vs 导演）**：取候选 A（自声明），B 结构空间不堵死。定于本文 §7 步骤 1 定稿（L130-148）。（§2 L52/L59、§5 L85、§6 L96）
 - **关键帧通道落点**：合成参数（opacity/dest/source）全部挂在 CAMERA 轨 clip 的关键帧（`Keyframe.data` 通用容器），order 不进字段表。定于 §7 步骤 1（L130）。（§2 L61、§6 L96）
 - **order 冲突判定规则**：轨道层级 → 轨道内 clip 顺序 → z_index。定于 §1。（§5 L86）

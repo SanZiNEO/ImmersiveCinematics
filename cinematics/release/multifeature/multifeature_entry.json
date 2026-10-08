@@ -114,7 +114,7 @@
             "start_time": 0.0,
             "duration": 5.5,
             "layer_type": "subtitle",
-            "text": "多功能并行展示 · 0.3.6\n分屏 + PIP + 字幕 + 宽银幕 + 调色 + 音频 + 循环",
+            "text": "多功能并行展示 · 0.3.6\n分屏 + 小窗 + 字幕 + 宽银幕 + 调色 + 音频 + 循环",
             "z_index": 30,
             "keyframes": [
               { "time": 0.0, "x": 0.5, "y": 0.40, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.0, "opacity": 0.0 },
@@ -127,7 +127,7 @@
             "start_time": 7.0,
             "duration": 5.5,
             "layer_type": "subtitle",
-            "text": "同一时刻 3 个画面实例：左半屏 / 右半屏 / 右上 PIP（PIP 晚 2s 起，叠在右半屏之上）",
+            "text": "同一时刻 3 个画面实例：左半屏 / 右半屏 / 右上小窗（小窗晚 2s 起，叠在右半屏之上）",
             "z_index": 30,
             "keyframes": [
               { "time": 0.0, "x": 0.5, "y": 0.84, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 0.0 },

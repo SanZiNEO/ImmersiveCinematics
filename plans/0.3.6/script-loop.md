@@ -98,7 +98,7 @@
 
 | 分类 | 轨道 | 回卷时的行为 |
 |---|---|---|
-| **吃折叠**（可正可倒） | CAMERA、LETTERBOX、OVERLAY（`layer_type` = fade / image / subtitle / pip，即淡入淡出、图片、字幕、画中画） | 共用同一个脚本时间，天然同步——一起正放、一起倒放 |
+| **吃折叠**（可正可倒） | CAMERA、LETTERBOX、OVERLAY（`layer_type` = fade / image / subtitle，即淡入淡出、图片、字幕） | 共用同一个脚本时间，天然同步——一起正放、一起倒放 |
 | **单向** | AUDIO | 按新的时间重新求活跃片段，天然正向重播（自动重起实例） |
 | **单向** | EVENT | 服务端播放，不参与折叠 |
 | **单向** | MOD_EVENT | 占位未实现（`ModEventTrackPlayer` 为空实现） |

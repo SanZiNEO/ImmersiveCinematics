@@ -75,7 +75,7 @@
 - **LETTERBOX 轨道播放器**
   - ✅ 关键帧插值驱动画幅比黑边（`aspect_ratio`），无活跃 clip 时归零，停止时重置（`LetterboxTrackPlayer`）
 - **OVERLAY 轨道播放器**
-  - ✅ 按 clip 的 `layer_type` 创建对应覆盖层（fade/image/subtitle/pip）并注册到 `OverlayManager`，支持 z_index 分层（默认 10，0.3.6 起统一）（`OverlayTrackPlayer`）
+  - ✅ 按 clip 的 `layer_type` 创建对应覆盖层（fade/image/subtitle）并注册到 `OverlayManager`，支持 z_index 分层（默认 10，0.3.6 起统一）（`OverlayTrackPlayer`）
   - ✅ 按统一参数字段表取值（0.3.6 步骤 4）：`x/y`（参考画布归一化，元素中心，缺省 0.5）、`anchor_x/anchor_y`（缩放绕点，缺省 0.5）、`scale_x/scale_y`（相对逐类基准尺寸，缺省 1）、`source`（素材归一化取材，按分量线性，缺省全幅）、`fit`（fit/fill/stretch，步进取值）、`font_scale`（字号倍数，subtitle）、`opacity`（透明度，缺省 1，淡入淡出完全由关键帧表达）；关键帧之间**匀速线性**插值（0.3.6 起运行时统一线性，范围外钳制到边界关键帧）（`OverlayTrackPlayer`）
   - ✅ 支持多条同类型 OVERLAY 轨道同时渲染：TrackPlayer 数据源按轨道索引定位（`clipsForTrack(trackIndex)`），轨道 JSON 以 `id` 区分管理（`ScriptPlayer`、`TrackPlayer`）
   - ✅ clip 切换或停止时移除并清理覆盖层（`OverlayTrackPlayer`）

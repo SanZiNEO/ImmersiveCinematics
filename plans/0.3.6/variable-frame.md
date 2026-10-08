@@ -71,7 +71,7 @@
 
 **主画面也是覆盖层之一**（全屏那一层）——“100% 原画面”就是它的默认形态。
 
-> 现状对照（可验证）：`overlay/` 下已有 Letterbox / Fade / Image / Subtitle / Pip 五类实现（均 `implements OverlayLayer`）；其中 Pip 是“静态占位框”形态（只画 2px 白框 + 半透明黑填充，无纹理、无相机画面），去留见 §6。
+> 现状对照（可验证）：`overlay/` 下现有 Letterbox / Fade / Image / Subtitle 四类实现（均 `implements OverlayLayer`）；画中画由**画面 lane 的合成参数**（`dest` / `source` / `opacity`）实现，原 `pip` 层（占位框，无纹理、无相机画面）已于 0.3.6 删除，见 §6。
 
 ---
 
@@ -241,6 +241,8 @@ offsetX = (dstW − w)/2,  offsetY = (dstH − h)/2      （Fit 偏移 ≥ 0 留
 
 > **步骤 4 已做（0.3.6）**：pip 已并入统一模型 —— 位置 / 锚点改为画布归一化（`anchor_*` 从「定位锚」改为「缩放绕点」），尺寸改由 `scale_x/scale_y` 表达（画面层基准尺寸 = 铺满画布，`0.5` = 半个画布），旧的像素 `width`/`height` 字段移除；边框粗细也从写死 2px 改为按画布高比例（`2/1080`，参考分辨率下即 2px）。仍无纹理，故不消费 `source` / `fit`。是否由画面层取代（多相机 lane 作为覆盖层）属步骤 3。
 
+> **裁决（2026-10-08，CLEANUP-2）**：走「由画面层取代」——`pip` 层**已删除**（0.3.6 起，被 lane 取代）。画中画 = 一条 CAMERA lane 的合成参数（`dest` / `source` / `opacity`），即 [画面合成](./camera-composition.md) 的特例；`OverlayTrackPlayer` 的 `pip` 分支与 `layer_type` 枚举 / 校验同步移除（现为 `fade` / `image` / `subtitle`）。**WebUI 里对脚本片段的便捷操作留编辑器阶段。**
+
 ---
 
 ## 7. 可能的问题
@@ -259,7 +261,7 @@ offsetX = (dstW − w)/2,  offsetY = (dstH − h)/2      （Fit 偏移 ≥ 0 留
 
 - 取材的边界语义。
 - 与 HUD / letterbox 的叠放顺序细节。
-- pip 层是被取代还是升级。
+- ~~pip 层是被取代还是升级。~~ **已定（2026-10-08，CLEANUP-2）**：pip 层已删除，被 lane 取代（画中画 = lane 合成参数 `dest`/`source`/`opacity`）；WebUI 便捷操作留编辑器阶段。
 - 相机侧 `dest`（屏幕归一化口径，已落地）与画布归一化口径的换算（步骤 3–5）。
 
 ---

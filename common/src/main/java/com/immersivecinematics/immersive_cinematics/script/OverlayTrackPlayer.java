@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * OVERLAY 轨道播放器 — 驱动 fade/image/subtitle/pip 覆盖层
+ * OVERLAY 轨道播放器 — 驱动 fade/image/subtitle 覆盖层
  * <p>
  * 生命周期：
  * <ol>
@@ -153,11 +153,6 @@ public class OverlayTrackPlayer implements TrackPlayer {
                 sl.setZIndex(zIndex);
                 layer = sl;
             }
-            case "pip" -> {
-                PipLayer pl = new PipLayer();
-                pl.setZIndex(zIndex);
-                layer = pl;
-            }
             default -> {
                 LOGGER.warn("未知 OVERLAY layer_type: {}", layerType);
                 return null;
@@ -205,21 +200,6 @@ public class OverlayTrackPlayer implements TrackPlayer {
             // 两级缩放：font_scale（原版 title 同款矩阵缩放，改变文字块基准尺寸）+ scale_x/y（百分比缩放）
             sl.setFontScale(interpolateFloat(kfs, localTime, "font_scale", 1f));
             sl.setScale(
-                    interpolateFloat(kfs, localTime, "scale_x", CanvasTransform.DEFAULT_SCALE),
-                    interpolateFloat(kfs, localTime, "scale_y", CanvasTransform.DEFAULT_SCALE)
-            );
-        } else if (currentLayer instanceof PipLayer pl) {
-            pl.setOpacity(opacity);
-            pl.setPosition(
-                    interpolateFloat(kfs, localTime, "x", CanvasTransform.DEFAULT_POSITION),
-                    interpolateFloat(kfs, localTime, "y", CanvasTransform.DEFAULT_POSITION)
-            );
-            pl.setAnchor(
-                    interpolateFloat(kfs, localTime, "anchor_x", CanvasTransform.DEFAULT_ANCHOR),
-                    interpolateFloat(kfs, localTime, "anchor_y", CanvasTransform.DEFAULT_ANCHOR)
-            );
-            // 画面层基准尺寸 = (1,1) 铺满画布：scale_x/scale_y 即占画布的比例（0.5 = 半个画布）
-            pl.setScale(
                     interpolateFloat(kfs, localTime, "scale_x", CanvasTransform.DEFAULT_SCALE),
                     interpolateFloat(kfs, localTime, "scale_y", CanvasTransform.DEFAULT_SCALE)
             );

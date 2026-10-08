@@ -259,7 +259,7 @@ public final class ScriptValidator {
                     }
                 }
                 if ("OVERLAY".equalsIgnoreCase(type)) {
-                    checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle", "pip");
+                    checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle");
                     // layer_type 缺省时运行期按 "fade" 处理（OverlayTrackPlayer.createLayer）
                     String layerType = clip.has("layer_type") && clip.get("layer_type").isJsonPrimitive()
                             ? clip.get("layer_type").getAsString() : "fade";

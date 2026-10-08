@@ -27,7 +27,7 @@
   - ✅ `SubtitleLayer`（默认 zIndex=10）：渲染文字，支持多行（`\n` 分隔），**坐标 = 参考画布归一化（0~1，文字块中心）**，缩放绕 `anchor_x/anchor_y`，字号两级缩放（`font_scale` 矩阵缩放决定文字块基准尺寸 + `scale_x/y` 百分比缩放），透明度由 opacity 控制，pose 浮点平移亚像素平滑（`SubtitleLayer`）
   - ✅ 文本资源（0.3.6）：字幕文本在**创建层时**由 `OverlayTrackPlayer` 经 `LangResources.resolve` 解析——`text` 写 `@lang:<key>` 时按客户端当前语言查 `resource/lang/<语言>.json`（回退 `en_us` → 原样显示引用串），普通文案原样透传；解析发生在分行之前，见 [SCRIPT_FORMAT §12](../../SCRIPT_FORMAT.md)
   - ⚠️ **MC 透明度补全坑**：`Font.adjustColor()` 会把 alpha 高 6 位为 0 的颜色（alpha 0~3，透明度 <1.6%）补成完全不透明——低透明度文字反而满透明度渲染。渲染层已用 `alpha < 4` 跳过规避；**未来任何走 Font.drawString 的 fade/文字动画都必须避开该区间**（ImageLayer 走 shader 颜色不受影响）
-- **内置层：画中画（pip）**
-  - ⚠️ `PipLayer`（默认 zIndex=10）：仅渲染白色边框 + 半透明黑色填充的占位框，Phase 1 不包含实际摄像头画面，计划 Phase 2（0.3.5+）接入第二相机帧缓冲。**0.3.6 起已去像素化**：位置/锚点 = 画布归一化，尺寸由 `scale_x/scale_y` 表达（基准 = 铺满画布），边框粗细按画布高比例（`2/1080`）；无纹理故不消费 `source`/`fit`（`PipLayer`）
+- **画中画：由画面 lane 实现（0.3.6 起）**
+  - ✅ 覆盖层不再提供 `pip` 层：`PipLayer` 已删除（原为仅画白框 + 半透明黑底的占位实现，从未接入真实相机画面）。画中画 = 一条 CAMERA lane 用合成参数 `dest`（目标小矩形）+ `source`（取材）+ `opacity`（淡入淡出）实现，见 [画面合成](../../plans/0.3.6/camera-composition.md) 与 [SCRIPT_FORMAT §4](../../SCRIPT_FORMAT.md)；WebUI 里对脚本片段的便捷操作留编辑器阶段
 - **扩展接口**
   - ✅ `OverlayLayer` 接口定义统一契约：render/isVisible/getZIndex/reset，动画相关提供默认实现（tick/startFadeOut/isAnimating），新层类型只需实现接口并注册（`OverlayLayer`）

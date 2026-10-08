@@ -43,7 +43,7 @@ public interface OverlayLayer {
      * <ul>
      *   <li>0 — 画幅层（{@link LetterboxLayer}，内置常量、不在脚本口径内）</li>
      *   <li>10 — 脚本层的统一默认值（{@link CanvasTransform#DEFAULT_Z_INDEX}）：不写 {@code z_index}
-     *       的 fade / image / subtitle / pip 都在这一层</li>
+     *       的 fade / image / subtitle 都在这一层</li>
      *   <li>10+ — 需要压住其他覆盖层时显式写更大的值（如字幕 30、转场遮罩 200）</li>
      * </ul>
      */

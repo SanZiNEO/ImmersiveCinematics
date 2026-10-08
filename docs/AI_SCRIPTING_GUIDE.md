@@ -200,7 +200,7 @@
 | `LETTERBOX` | 宽银幕黑边。keyframe 的 `aspect_ratio`：0 = 无黑边，2.35 = 电影宽银幕 |
 | `AUDIO` | 播放音频（`sound` + `source: "file"`），keyframe 控制 `volume` 和空间 `x/y/z`。**音频文件必须用英文命名**（中文名在 Windows 下会解码失败） |
 | `EVENT` | 时间点执行服务端命令（keyframe 的 `command`），如 `"say 开始！"` |
-| `OVERLAY` | 覆盖层：`fade`（全屏颜色）/ `image`（图片）/ `subtitle`（字幕）/ `pip`（画中画）。**支持多条 OVERLAY 轨道同时渲染**（图片一条轨道、字幕一条轨道，靠轨道 `id` 区分） |
+| `OVERLAY` | 覆盖层：`fade`（全屏颜色）/ `image`（图片）/ `subtitle`（字幕）。**支持多条 OVERLAY 轨道同时渲染**（图片一条轨道、字幕一条轨道，靠轨道 `id` 区分） |
 | `MOD_EVENT` | 第三方模组自定义事件 |
 
 > **统一关键帧级调控（必读）**：**所有轨道一律用 `keyframes` 表达调控**——letterbox 的 `aspect_ratio`、EVENT 的 `command`、AUDIO 的 `volume`、OVERLAY 的 `opacity/x/y/scale` 全部写在关键帧上，**没有 clip 级简写**（旧写法如 letterbox clip 直接写 `aspect_ratio`、EVENT clip 直接写 `command` 已移除，写了会被校验拦下）。EVENT 片段的首尾关键帧允许 `command` 为空（仅时间占位，供编辑器绘制片段图形）。
@@ -211,10 +211,10 @@
 
 | 字段 | 说明 |
 |---|---|
-| `layer_type` | `"image"` 图片 / `"subtitle"` 字幕 / `"fade"` 全屏色 / `"pip"` 画中画 |
+| `layer_type` | `"image"` 图片 / `"subtitle"` 字幕 / `"fade"` 全屏色 |
 | `x` / `y` | 元素**中心**的画布位置：`0.5` = 画布正中（**默认 0.5**，0.3.6 起；旧默认 0），`1` = 元素中心到画布右/下缘。可越界 |
 | `anchor_x` / `anchor_y` | **锚点**（缩放绕点），元素自身归一化，默认 `0.5` = 绕元素中心缩放（同 CSS `transform-origin`） |
-| `scale_x` / `scale_y` | 相对**基准尺寸**的倍数：图片 = **原图分辨率 × 乘数**（`1` = 原尺寸，`0.5` = 半尺寸）；pip = 占画布宽/高的比例。**图片按原图分辨率载入，不要写死像素尺寸** |
+| `scale_x` / `scale_y` | 相对**基准尺寸**的倍数：图片 = **原图分辨率 × 乘数**（`1` = 原尺寸，`0.5` = 半尺寸）。**图片按原图分辨率载入，不要写死像素尺寸** |
 | `source` | **取材**（image）：`{"x":0,"y":0,"w":1,"h":1}` = 素材归一化子矩形，裁掉不要的部分（只要左半 = `{"x":0,"y":0,"w":0.5,"h":1}`） |
 | `fit` | **适配**（image）：`"fit"` 完整放下 / `"fill"` 铺满裁切 / `"stretch"` 拉伸填满（默认 `"fit"`）。离散值，步进取值 |
 | `opacity` | 透明度（0~1，**默认 1**）。**淡入淡出 = 关键帧里写 opacity 0→1→0**，代码层不叠加其他淡化 |
@@ -222,7 +222,7 @@
 | `text` | 字幕文本（`\n` 换行）。可以写 `"@lang:<key>"` 引用文本资源：译文放 `resource/lang/<语言>.json`，回退链 = 当前语言 → `en_us` → 原样显示引用串。字幕/描述支持，`name`/`id`/`author` 不翻译 |
 | `z_index` | 层级，大者在上（**默认 10**，0.3.6 起；要让字幕/图片压在 fade 之上就写更大的值，如字幕 30） |
 
-> `fade` 是效果层（铺满画布），`x/y/anchor/scale` 对它不生效，只读 `opacity`；`pip` 无纹理，`source`/`fit` 对它不生效。`fade` 的颜色在 clip 级 `color`（如 `"#000000"`）。
+> `fade` 是效果层（铺满画布），`x/y/anchor/scale` 对它不生效，只读 `opacity`。`fade` 的颜色在 clip 级 `color`（如 `"#000000"`）。
 
 **多轨道写法**（图片 + 字幕同时显示，各自一条 OVERLAY 轨道）：
 

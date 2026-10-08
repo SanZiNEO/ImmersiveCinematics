@@ -354,7 +354,7 @@ lane 渲染（含 lane 内描边）→ lane 级调整（只动 RGB）→ 合成�
 - **全屏后处理 pass**：master 在合成输出上做；lane 级在 lane 纹理合成前做。
 - 数学在 shader 内完成：RGBA 通道运算 + RGB↔HSL 转换。
 - **同一层的多个调整参数合并为一次 pass**——不为每个参数单独开 pass。
-- 数据落点（**已定稿：独立 ADJUST 轨道**，见文首「落地标注」）：~~OVERLAY 轨新层类型 vs 独立调整轨——与遮罩文档 §4 开放问题 4 一起定。~~（现状事实：OVERLAY 的 `layer_type` 白名单只有 `fade` / `image` / `subtitle` / `pip`，`TrackType` 枚举里没有调整类轨道，见事实核查小节。）
+- 数据落点（**已定稿：独立 ADJUST 轨道**，见文首「落地标注」）：~~OVERLAY 轨新层类型 vs 独立调整轨——与遮罩文档 §4 开放问题 4 一起定。~~（现状事实：OVERLAY 的 `layer_type` 白名单只有 `fade` / `image` / `subtitle`，`TrackType` 枚举里没有调整类轨道，见事实核查小节。）
 - **shader 数学（方向）**：RGB↔HSL 标准换算（复用 / 参照原版 `color_convolve.fsh` 的 Luma / Chroma 写法）；Lift / Gamma / Gain = 按色调分段的多项式 / 幂次映射；**曲线 = 预烘焙查找纹理**（如 256×1 LUT，由控制点 + 手柄在 CPU 侧采样生成）或 shader 内贝塞尔求值——执行时定；六条 hue 曲线 = 以 hue 为键的 1D LUT（HvH / HvS / HvL）+ 以 sat / lum 为键的 1D LUT。
 - **一次 pass 合并**：同一层所有操作按栈顺序合成为一个 shader（或少量固定 pass），不为每个工具单独开 pass。
 - **分层挂点**：lane 级 = lane FBO 内、合成上屏前（`quadrant-prototype-results.md` §3.2「lane 自包含」）；master = 合成输出上、最终上屏前（MCOMP 之后、RPOST 之前——`mod-architecture-diagram.md` 已补 RADJ 节点）。

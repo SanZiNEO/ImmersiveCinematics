@@ -231,7 +231,6 @@ flowchart LR
             FADE["纯色覆盖 / 淡入淡出<br/>（fade，z=10 · 黑场白场 = 预配置 clip）"]
             IMG["图片 / GIF<br/>（image，z=20）"]
             SUB["字幕<br/>（subtitle，z=30）"]
-            PIP["画中画<br/>（pip，z=40）"]
         end
         RES["资源加载<br/>（resource/ 目录 · PNG / GIF）"]
         TRKOV["覆盖层轨道（OVERLAY）"]
