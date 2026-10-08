@@ -22,7 +22,6 @@
         { "name": "LvSLut" },
         { "name": "SvSLut" },
         { "name": "SvLLut" },
-        { "name": "Lut1D" },
         { "name": "Lut3D" }
     ],
     "uniforms": [
@@ -66,12 +65,7 @@
         { "name": "GainG", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "GainB", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "LutStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
-        { "name": "Lut1DSize", "type": "float", "count": 1, "values": [ 0.0 ] },
-        { "name": "Lut1DMin", "type": "float", "count": 3, "values": [ 0.0, 0.0, 0.0 ] },
-        { "name": "Lut1DMax", "type": "float", "count": 3, "values": [ 1.0, 1.0, 1.0 ] },
         { "name": "Lut3DSize", "type": "float", "count": 1, "values": [ 0.0 ] },
-        { "name": "Lut3DMin", "type": "float", "count": 3, "values": [ 0.0, 0.0, 0.0 ] },
-        { "name": "Lut3DMax", "type": "float", "count": 3, "values": [ 1.0, 1.0, 1.0 ] },
         { "name": "HvHStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "HvSStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "HvLStrength", "type": "float", "count": 1, "values": [ 0.0 ] },

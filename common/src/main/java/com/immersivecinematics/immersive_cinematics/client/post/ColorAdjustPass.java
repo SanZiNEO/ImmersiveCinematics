@@ -82,14 +82,22 @@ import java.nio.FloatBuffer;
  * {@code shaders/core/<name>.json}（默认命名空间），这是沿用原版机制的前提
  * （与 {@code EffectInstance} 对 {@code shaders/program/<name>.json} 的约束同源）。
  * 顶点格式 = {@code DefaultVertexFormat.POSITION_TEX}，与合成层 / 原版 blit 同一套。
- * <p>十三个采样器：{@code Sampler0} = 画面（第一纹理单元）、{@code CurveLut} = RGB 复合曲线的 256×1 LUT、
+ * <p>十二个采样器（顶格 = MC 1.20.1 {@code GlStateManager} 的 12 个纹理单元 0~11，
+ * 见 {@code GlStateManager.TEXTURE_COUNT}）：{@code Sampler0} = 画面（第一纹理单元）、
+ * {@code CurveLut} = RGB 复合曲线的 256×1 LUT、
  * {@code RCurveLut} / {@code GCurveLut} / {@code BCurveLut} = 每通道曲线的 256×1 LUT、
  * {@code HvHLut} / {@code HvSLut} / {@code HvLLut} / {@code LvSLut} / {@code SvSLut} / {@code SvLLut}
  * = 六条 hue 曲线的 256×1 LUT（第二 ~ 第十一纹理单元，见 {@link LutTexture}）、
- * {@code Lut1D} = .cube 的 1D shaper 部分（N×1，见 {@link Lut1DTexture}）、
- * {@code Lut3D} = .cube 的 3D LUT 部分（N×N×N，见 {@link Lut3DTexture}）——
- * 后两个只在本帧参数带 LUT（ADJUST 轨写了 {@code lut} 且 {@code lut_strength} 非 0）时才被采样；
+ * {@code Lut3D} = .cube 的<b>合成</b> 3D 表（S×S×S，{@link CubeLut#composed3D()}，
+ * 见 {@link Lut3DTexture}；第十二 = 最后一个纹理单元，单元 11）——
+ * 只在本帧参数带 LUT（ADJUST 轨写了 {@code lut} 且 {@code lut_strength} 非 0）时才被采样；
  * lane 路径恒为 {@code null}（LUT 只作用于整体画面）。</p>
+ *
+ * <p><b>为什么 LUT 只有一张表</b>：1D shaper 与 3D 曾各占一个采样器（13 个采样器 → 单元 0~12），
+ * 而 {@code ShaderInstance.apply()} 按 JSON {@code samplers} 下标逐单元
+ * {@code GlStateManager._bindTexture(unit)}，单元 12 越界（数组长度 12）→
+ * {@code ArrayIndexOutOfBoundsException}。现在 1D 段与两段 DOMAIN 都在加载期烘焙进
+ * {@link CubeLut#composed3D()} 的单张表，采样器回到 12 个顶格。</p>
  *
  * <h2>默认零差异</h2>
  * 无调整时 {@link #render} 第一行返回；{@link #applyTo} 参数为空 / 恒等时第一行返回：
@@ -131,14 +139,11 @@ public final class ColorAdjustPass {
 
     /**
      * {@code Lut3D} 采样器的纹理单元 = 它在着色器 JSON {@code samplers} 数组里的下标
-     * （{@code Sampler0} + 10 个曲线 LUT + {@code Lut1D} 之后）。
+     * （{@code Sampler0} + 10 个曲线 LUT 之后的<b>最后</b>一个 = 单元 11，总数 12 顶格）。
      * <p>3D 纹理不能走 {@link ShaderInstance#setSampler}（那条路一律按 {@code GL_TEXTURE_2D} 目标绑定），
      * 所以在绘制前直接按 {@code GL_TEXTURE_3D} 目标手动绑到这个单元（见 {@link Lut3DTexture#bind}）。</p>
      */
-    private static final int LUT_3D_UNIT = 12;
-
-    /** 1D shaper 的纹理槽（{@code Lut1D} 采样器）。 */
-    private static final Lut1DTexture LUT_1D = new Lut1DTexture();
+    private static final int LUT_3D_UNIT = 11;
 
     /** 3D LUT 的纹理槽（{@code Lut3D} 采样器）。 */
     private static final Lut3DTexture LUT_3D = new Lut3DTexture();
@@ -217,9 +222,9 @@ public final class ColorAdjustPass {
         shaderInstance.setSampler("SvLLut", SV_L_LUT.bind(activeLut(params.svLLut(), params.svLStrength())));
 
         // LUT（第 11 步）：无 LUT 或强度 0 → 强度置 0、整步跳过（逐位恒等）；
-        // 1D shaper 走 2D 纹理槽（常绑，不采样时维持上一张）；3D 走 GL_TEXTURE_3D 手动绑定（见 LUT_3D_UNIT）
+        // 只有一张合成表（1D shaper 与两段 DOMAIN 已在加载期烘焙进 CubeLut#composed3D），
+        // 走 GL_TEXTURE_3D 手动绑定（见 LUT_3D_UNIT）
         CubeLut lut = params.lut() != null && params.lutStrength() != 0.0F ? params.lut() : null;
-        shaderInstance.setSampler("Lut1D", LUT_1D.id(lut));
         shaderInstance.setSampler("Lut3D", 0);   // 占位：让 apply() 上传该采样器的纹理单元号（0 号 2D 纹理 = 不绑任何东西）
         LUT_3D.upload(lut);
 
@@ -326,19 +331,11 @@ public final class ColorAdjustPass {
         set(shader, "GainR", p.gainR());
         set(shader, "GainG", p.gainG());
         set(shader, "GainB", p.gainB());
-        // LUT（第 11 步）：无 LUT 或强度 0 → 强度置 0（着色器整步跳过）；两段的尺寸置 0 = 该段不生效
+        // LUT（第 11 步）：无 LUT 或强度 0 → 强度置 0（着色器整步跳过）；
+        // 表尺寸 = 合成表边长（CubeLut#composed3D，1D 段与 DOMAIN 已烘焙进表）
         CubeLut lut = p.lut() != null && p.lutStrength() != 0.0F ? p.lut() : null;
         set(shader, "LutStrength", lut == null ? 0.0F : p.lutStrength());
-        set(shader, "Lut1DSize", lut != null && lut.has1D() ? lut.size1D() : 0.0F);
-        set(shader, "Lut3DSize", lut != null && lut.has3D() ? lut.size3D() : 0.0F);
-        if (lut != null && lut.has1D()) {
-            set(shader, "Lut1DMin", lut.domainMin1D());
-            set(shader, "Lut1DMax", lut.domainMax1D());
-        }
-        if (lut != null && lut.has3D()) {
-            set(shader, "Lut3DMin", lut.domainMin3D());
-            set(shader, "Lut3DMax", lut.domainMax3D());
-        }
+        set(shader, "Lut3DSize", lut == null ? 0.0F : lut.composed3D().size());
         set(shader, "HvHStrength", p.hvHLut() == null ? 0.0F : p.hvHStrength());
         set(shader, "HvSStrength", p.hvSLut() == null ? 0.0F : p.hvSStrength());
         set(shader, "HvLStrength", p.hvLLut() == null ? 0.0F : p.hvLStrength());
@@ -398,55 +395,12 @@ public final class ColorAdjustPass {
     }
 
     /**
-     * 1D shaper 的纹理槽（{@code Lut1D} 采样器）：N×1、RGBA16F、LINEAR + CLAMP_TO_EDGE 的 2D 纹理
-     * （GLSL 150 没有 {@code sampler1D}，按曲线 LUT 的既有口径用 2D 承载：第 1 行 = 全部 N 个采样点）。
+     * 3D LUT 的纹理槽（{@code Lut3D} 采样器）：S×S×S、RGBA16F、NEAREST + CLAMP_TO_EDGE。
+     * 表 = {@link CubeLut#composed3D()}（1D shaper 与两段 DOMAIN 已在加载期烘焙，
+     * 采样坐标 {@code x ∈ [0,1]³} 直接对应网格）。
      *
-     * <p>按 {@link CubeLut} 实例<b>引用</b>比较（同一文件在 {@link CubeLutLoader} 里共享同一实例）：
-     * 同一 LUT 每帧拿到同一引用 → 只上传一次像素，换 LUT 才重传。
-     * 无 LUT / 无 1D 部分 → 不重传（纹理保持上一张，着色器按 {@code Lut1DSize = 0} 跳过该段、不采样）。</p>
-     */
-    private static final class Lut1DTexture {
-
-        private int textureId = -1;
-        private CubeLut uploaded;
-
-        /** 本 LUT 的 1D 部分对应的纹理名（必要时创建 / 重传）；返回 {@code -1} 不可能（未创建也会建一张空的）。 */
-        int id(CubeLut lut) {
-            if (textureId == -1) {
-                textureId = GL11.glGenTextures();
-            }
-            if (lut == null || !lut.has1D() || lut == uploaded) {
-                return textureId;
-            }
-            int size = lut.size1D();
-            // 1D 尺寸上限 65536 可能超过纹理尺寸上限（GL_MAX_TEXTURE_SIZE）：超了就当没有 1D 部分
-            // （不采样、不报 GL 错；shaper LUT 实际都在 4096 以内）
-            if (size > GL11.glGetInteger(GL11.GL_MAX_TEXTURE_SIZE)) {
-                return textureId;
-            }
-            float[] data = lut.data1D();
-            FloatBuffer pixels = BufferUtils.createFloatBuffer(size * 4);
-            for (int i = 0; i < size; i++) {
-                pixels.put(data[i * 3]).put(data[i * 3 + 1]).put(data[i * 3 + 2]).put(1.0F);
-            }
-            pixels.flip();
-            GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
-            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_RGBA16F, size, 1, 0,
-                    GL11.GL_RGBA, GL11.GL_FLOAT, pixels);
-            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
-            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
-            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
-            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
-            GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
-            uploaded = lut;
-            return textureId;
-        }
-    }
-
-    /**
-     * 3D LUT 的纹理槽（{@code Lut3D} 采样器）：N×N×N、RGBA16F、NEAREST + CLAMP_TO_EDGE。
-     *
-     * <p>按 {@link CubeLut} 实例<b>引用</b>比较，同 {@link Lut1DTexture}：换 LUT（或换尺寸）才重传。
+     * <p>按 {@link CubeLut} 实例<b>引用</b>比较：同一 LUT 每帧拿到同一引用（{@link CubeLutLoader}
+     * 按路径共享实例、{@code composed3D()} 自身缓存）→ 只上传一次像素，换 LUT 才重传。
      * 用 16 位浮点而不是 8 位：{@code .cube} 的数据是浮点、可超出 {@code [0,1]}（见 {@link CubeLut} 文档），
      * 8 位量化会把超出部分截掉、并在中性灰附近留下台阶。</p>
      *
@@ -463,13 +417,14 @@ public final class ColorAdjustPass {
         private int textureId = -1;
         private CubeLut uploaded;
 
-        /** 上传本 LUT 的 3D 部分（同一实例只传一次）；无 3D 部分 / 已上传 → 不动。 */
+        /** 上传本 LUT 的合成表（同一实例只传一次）；无 LUT / 已上传 → 不动。 */
         void upload(CubeLut lut) {
-            if (lut == null || !lut.has3D() || lut == uploaded) {
+            if (lut == null || lut == uploaded) {
                 return;
             }
-            int size = lut.size3D();
-            float[] data = lut.data3D();
+            CubeLut.Composed3D composed = lut.composed3D();
+            int size = composed.size();
+            float[] data = composed.data();
             int entries = size * size * size;
             FloatBuffer pixels = BufferUtils.createFloatBuffer(entries * 4);
             for (int i = 0; i < entries; i++) {

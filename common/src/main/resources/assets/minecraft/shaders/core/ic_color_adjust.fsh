@@ -9,7 +9,7 @@
 //   8. RGB 复合曲线（CurveLut 查表）
 //   9. 每通道曲线（RCurveLut / GCurveLut / BCurveLut 查表）
 //  10. Lift / Gamma / Gain 色轮（三组逐通道；每通道曲线之后、钳制之前）
-//  11. LUT（.cube：1D shaper → 3D；LGG 之后、HSL 块之前）
+//  11. LUT（.cube：单张合成 3D 表，CPU 预合成 1D shaper + 两段 DOMAIN；LGG 之后、HSL 块之前）
 //  12. 色相旋转   13. 饱和度   14. 自然饱和度   15. 亮度
 //  16. 六条 hue 曲线（HvH → HvS → HvL → LvS → SvS → SvL；HSL 块内，见下）
 //  17. 灰度      18. 反相
@@ -54,12 +54,12 @@
 //   GainR / GainG / GainB        -1 ~ 1  Gain 色轮（高光）：c' = c·(1+gain)
 //                                        （正 = 乘性提亮、负 = 压暗）
 //                                        三组都是逐通道；九个全 0 = 整步跳过（逐位恒等）
-//   LutStrength   0 ~ 1   LUT 混合强度（c = mix(c, lut(c), 强度)）；LUT 本身在 Lut1D / Lut3D
-//                         （无 LUT / 强度 0 = 整步跳过；.cube 的 1D shaper + 3D 组合时 1D 先、输出喂 3D）
-//   Lut1DSize / Lut3DSize   该段的采样点数（0 = 该段不生效，只出现 1D 或只出现 3D 的文件都支持）
-//   Lut1DMin / Lut1DMax / Lut3DMin / Lut3DMax   该段的 DOMAIN（逐通道；缺省 0 / 1）
-//   插值：3D 段 = 四面体（tetrahedral；texelFetch 取 8 个角点后自己加权，不用纹理过滤），
-//         1D 段 = 相邻采样点之间的线性插值（纹理 LINEAR）
+//   LutStrength   0 ~ 1   LUT 混合强度（c = mix(c, lut(c), 强度)）；LUT 本身在 Lut3D
+//                         （无 LUT / 强度 0 = 整步跳过）
+//   Lut3DSize     合成表的网格边长 S（0 = 无 LUT）。表由 CPU 在加载期预合成：
+//                 .cube 的 1D shaper 与 1D / 3D 两段 DOMAIN 输入域归一化全部烘焙进这一张表
+//                 （CubeLut#composed3D），采样坐标 x ∈ [0,1]³ 直接对应网格 —— 着色器不做任何归一化。
+//   插值：四面体（tetrahedral；texelFetch 取 8 个角点后自己加权，不用纹理过滤）
 //   Grayscale     0 ~ 1   灰度混合强度（1 = 完全黑白）
 //   Invert        0 ~ 1   反相混合强度（1 = 完全反相）
 //
@@ -87,10 +87,9 @@ uniform sampler2D LvSLut;      // LvS：亮度 → 饱和度
 uniform sampler2D SvSLut;      // SvS：饱和度 → 饱和度
 uniform sampler2D SvLLut;      // SvL：饱和度 → 亮度
 
-// LUT（.cube）：1D shaper 走 2D 纹理（N×1，GLSL 150 无 sampler1D）、3D LUT 走 sampler3D；
-// 无 LUT / 无对应部分时尺寸 = 0（该段不生效），强度 = 0 时整步跳过
-uniform sampler2D Lut1D;       // 1D shaper 部分（N×1；第 1 行 = 全部采样点）
-uniform sampler3D Lut3D;       // 3D LUT 部分（N×N×N；texelFetch 取角点 + 四面体插值）
+// LUT（.cube）：单张合成 3D 表（S×S×S，CPU 加载期预合成，见 Lut3DSize 注释）；
+// 无 LUT 时尺寸 = 0（不生效），强度 = 0 时整步跳过
+uniform sampler3D Lut3D;       // 合成表（S×S×S；texelFetch 取角点 + 四面体插值）
 
 uniform float Exposure;
 uniform float Contrast;
@@ -130,12 +129,7 @@ uniform float GainR;
 uniform float GainG;
 uniform float GainB;
 uniform float LutStrength;
-uniform float Lut1DSize;
-uniform vec3 Lut1DMin;
-uniform vec3 Lut1DMax;
 uniform float Lut3DSize;
-uniform vec3 Lut3DMin;
-uniform vec3 Lut3DMax;
 uniform float HvHStrength;
 uniform float HvSStrength;
 uniform float HvLStrength;
@@ -162,31 +156,13 @@ float lutLookup(sampler2D lut, float x) {
     return texture(lut, vec2(clamp(x, 0.0, 1.0) * (255.0 / 256.0) + (0.5 / 256.0), 0.5)).r;
 }
 
-// LUT（.cube）查表坐标：DOMAIN 归一化 (v - min) / (max - min) * (size - 1)、钳到 [0, size-1]。
-// 1D 段用它折算成纹理坐标（+ 0.5 对到 texel 中心，相邻采样点之间交给纹理 LINEAR 插值）；
-// 3D 段只用它取整数索引 + 小数部分，插值由 lut3dLookup 自己按四面体做（texelFetch 不受过滤影响）。
-vec3 lutCoord(vec3 c, vec3 domainMin, vec3 domainMax, float size) {
-    vec3 t = clamp((c - domainMin) / max(domainMax - domainMin, vec3(1e-6)), 0.0, 1.0) * (size - 1.0);
-    return (t + 0.5) / size;
-}
-
-// 1D 段的缩放坐标（不带 + 0.5 / size 折算，供 3D 段取整数索引与小数部分用）
-vec3 lutScaled(vec3 c, vec3 domainMin, vec3 domainMax, float size) {
-    return clamp((c - domainMin) / max(domainMax - domainMin, vec3(1e-6)), 0.0, 1.0) * (size - 1.0);
-}
-
-// 1D shaper 部分：逐通道各自的曲线（同一坐标、取各自分量）
-vec3 lut1dLookup(vec3 c) {
-    vec3 t = lutCoord(c, Lut1DMin, Lut1DMax, Lut1DSize);
-    return vec3(texture(Lut1D, vec2(t.r, 0.5)).r,
-                texture(Lut1D, vec2(t.g, 0.5)).g,
-                texture(Lut1D, vec2(t.b, 0.5)).b);
-}
-
-// 3D LUT 部分：四面体插值（tetrahedral，业界默认；三线性在中性灰附近会偏色，见 example/lut-reference/README.md）
-// 8 个角点用 texelFetch 精确取（不走纹理过滤），按 d.r / d.g / d.b 的大小关系选四面体、四点加权
+// LUT（.cube）查表：四面体插值（tetrahedral，业界默认；三线性在中性灰附近会偏色，
+// 见 example/lut-reference/README.md）—— 8 个角点用 texelFetch 精确取（不走纹理过滤），
+// 按 d.r / d.g / d.b 的大小关系选四面体、四点加权。
+// 合成表的输入域已经是 [0,1]³（CPU 加载期把 1D shaper 与两段 DOMAIN 归一化全部烘焙进表，
+// 见 CubeLut#composed3D），所以这里只做 [0,1] 钳制 + 乘 (size-1) 取网格坐标，不做任何归一化。
 vec3 lut3dLookup(vec3 c) {
-    vec3 t = lutScaled(c, Lut3DMin, Lut3DMax, Lut3DSize);
+    vec3 t = clamp(c, 0.0, 1.0) * (Lut3DSize - 1.0);
     ivec3 p = ivec3(floor(t));
     ivec3 n = min(p + ivec3(1), ivec3(int(Lut3DSize) - 1));
     vec3 d = t - vec3(p);
@@ -367,18 +343,11 @@ void main() {
     // 此处一并兜底）
     c = clamp(c, 0.0, 1.0);
 
-    // 11. LUT（.cube；LGG 之后、HSL 块之前）：1D shaper 先（输出喂 3D）、3D 紧随其后，
-    //     两段各按自己的 DOMAIN 归一化；1D 按纹理 LINEAR 插值、3D 走四面体（tetrahedral，见 lut3dLookup）；
+    // 11. LUT（.cube；LGG 之后、HSL 块之前）：单张合成表（CPU 加载期把 1D shaper 与两段 DOMAIN
+    //     归一化烘焙进表，见 Lut3DSize 注释），查表 = 四面体（tetrahedral，见 lut3dLookup）；
     //     无 LUT / 强度 0 → 整步跳过（逐位恒等）；LUT 数据可超出 [0,1]，由下一步前的钳制兜底
-    if (LutStrength > 0.0) {
-        vec3 lut = c;
-        if (Lut1DSize > 0.0) {
-            lut = lut1dLookup(lut);
-        }
-        if (Lut3DSize > 0.0) {
-            lut = lut3dLookup(lut);
-        }
-        c = mix(c, lut, clamp(LutStrength, 0.0, 1.0));
+    if (LutStrength > 0.0 && Lut3DSize > 0.0) {
+        c = mix(c, lut3dLookup(c), clamp(LutStrength, 0.0, 1.0));
     }
 
     // 12 ~ 16. 完整 HSL：色相旋转 → 饱和度 / 自然饱和度 → 亮度 → 六条 hue 曲线
