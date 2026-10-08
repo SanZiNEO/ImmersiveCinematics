@@ -10,7 +10,7 @@
 > - [画面合成](./camera-composition.md)
 > - [并行播放](./parallel-playback.md)
 >
-> **状态：第一批「标量组」（15 通道 = 12 标量 + R/G/B 每通道系数）已落地（2026-10-07）；lane 级调整（§7 步骤 5）已落地（2026-10-07）；完整 HSL（`hue` / `lightness`）已落地（2026-10-07）→ 共 17 通道；曲线组（形态 b）已落地（2026-10-08）——RGB 复合曲线（clip 级 `curve` + 关键帧 `curve_strength`）、每通道曲线（clip 级 `r_curve` / `g_curve` / `b_curve` + 三个强度关键帧）与六条 hue 曲线（clip 级 `hv_h_curve` ~ `sv_l_curve` + 六个强度关键帧，DaVinci 曲线页口径）；RGB 通道混合器（`mix_rr` ~ `mix_bb` 九个 3×3 矩阵系数）已落地（2026-10-08）→ 共 26 个标量通道；Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个逐通道色轮参数）已落地（2026-10-08）→ 共 35 个标量通道**。**第二批（通道与 HSL 完整）全部落地**；第三批、调整层（步骤 6）、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
+> **状态：第一批「标量组」（15 通道 = 12 标量 + R/G/B 每通道系数）已落地（2026-10-07）；lane 级调色（§7 步骤 5）已落地——调色直接写在 CAMERA 片段上（相机片段自带调色，作用于该相机轨产出的 lane；ADJUST 轨只作用于整体画面）；完整 HSL（`hue` / `lightness`）已落地（2026-10-07）→ 共 17 通道；曲线组（形态 b）已落地（2026-10-08）——RGB 复合曲线（clip 级 `rgb_curve` + 关键帧 `curve_strength`）、每通道曲线（clip 级 `r_curve` / `g_curve` / `b_curve` + 三个强度关键帧）与六条 hue 曲线（clip 级 `hv_h_curve` ~ `sv_l_curve` + 六个强度关键帧，DaVinci 曲线页口径）；RGB 通道混合器（`mix_rr` ~ `mix_bb` 九个 3×3 矩阵系数）已落地（2026-10-08）→ 共 26 个标量通道；Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个逐通道色轮参数）已落地（2026-10-08）→ 共 35 个标量通道**。**第二批（通道与 HSL 完整）全部落地**；第三批、调整层（步骤 6）、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
 
 ---
 
@@ -24,7 +24,7 @@
 2. **字段形状不同**：OVERLAY 层 = 一个元素 + 一套统一参数（x/y/anchor/scale/source/fit/opacity/z_index，四类层共享）；调色 = 一组彼此独立、各带公式的标量通道，两者无一处重合。
 3. **成本**：独立轨道 = 枚举 +1、schema +1、校验分支 +1、`TrackPlayer` 工厂 +1、播放器 +1；OVERLAY 路线要在 `OverlayTrackPlayer.createLayer/updateLayer` 里加特例分支 + 一个只存数据的 `OverlayLayer` 子类，渲染侧状态与 pass 一样要新建 —— 代码更多、语义更歪。
 
-**字段表（定稿）：12 个标量通道 + R/G/B 三通道 + 完整 HSL（`hue` / `lightness`）（2026-10-07 增量 → 共 17），全部是关键帧字段，缺省全 0 = 无效果**；**曲线组（形态 b）= clip 级 `curve` / `r_curve` / `g_curve` / `b_curve` + 关键帧 `curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength`（缺省 1）**，见下文「增量：RGB 复合曲线（形态 b）」与「增量：每通道曲线（R / G / B）」；**六条 hue 曲线 = clip 级 `hv_h_curve` / `hv_s_curve` / `hv_l_curve` / `lv_s_curve` / `sv_s_curve` / `sv_l_curve` + 关键帧 `hv_h_strength` ~ `sv_l_strength`（缺省 1）**，见下文「增量：六条 hue 曲线」；**RGB 通道混合器 = 关键帧 `mix_rr` ~ `mix_bb` 九个（3×3 矩阵系数，-1 ~ 1）**，见下文「增量：RGB 通道混合器（Channel Mixer，3×3 矩阵）」；**Lift / Gamma / Gain 色轮 = 关键帧 `lift_r` ~ `gain_b` 九个（三组逐通道色轮，-1 ~ 1）**，见下文「增量：Lift / Gamma / Gain 色轮」——以上合计 **35 个标量通道 + 10 条曲线**。
+**字段表（定稿）：12 个标量通道 + R/G/B 三通道 + 完整 HSL（`hue` / `lightness`）（2026-10-07 增量 → 共 17），全部是关键帧字段，缺省全 0 = 无效果**；**曲线组（形态 b）= clip 级 `rgb_curve` / `r_curve` / `g_curve` / `b_curve` + 关键帧 `curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength`（缺省 1）**，见下文「增量：RGB 复合曲线（形态 b）」与「增量：每通道曲线（R / G / B）」；**六条 hue 曲线 = clip 级 `hv_h_curve` / `hv_s_curve` / `hv_l_curve` / `lv_s_curve` / `sv_s_curve` / `sv_l_curve` + 关键帧 `hv_h_strength` ~ `sv_l_strength`（缺省 1）**，见下文「增量：六条 hue 曲线」；**RGB 通道混合器 = 关键帧 `mix_rr` ~ `mix_bb` 九个（3×3 矩阵系数，-1 ~ 1）**，见下文「增量：RGB 通道混合器（Channel Mixer，3×3 矩阵）」；**Lift / Gamma / Gain 色轮 = 关键帧 `lift_r` ~ `gain_b` 九个（三组逐通道色轮，-1 ~ 1）**，见下文「增量：Lift / Gamma / Gain 色轮」——以上合计 **35 个标量通道 + 10 条曲线**。
 
 | 通道 | 默认 | 范围 | 口径 |
 |---|---|---|---|
@@ -76,7 +76,7 @@
 | 5 | 色温 / 色调 | `gain = vec3(1+0.5*T, 1-0.5*Tint, 1-0.5*T)`，`gain /= dot(gain, LUMA)`，`c *= gain` |
 | 6 | RGB 通道系数 | `c *= vec3(1+Red, 1+Green, 1+Blue)`（三值全 0 跳过乘法，保持逐位恒等） |
 | 7 | RGB 通道混合器 | 3×3 矩阵（实际矩阵 = 单位阵 + 参数矩阵）：`out.r = (1+MixRR)·r + MixRG·g + MixRB·b`，g / b 行同式；九个全 0 跳过乘法（逐位恒等；2026-10-08 增量） |
-| 8 | RGB 复合曲线 | `c = mix(c, vec3(lut(c.r), lut(c.g), lut(c.b)), clamp(CurveStrength, 0, 1))`（`lut` = clip 级 `curve` 采样的 256×1 LUT；`CurveStrength = 0` 跳过整步；2026-10-08 增量） |
+| 8 | RGB 复合曲线 | `c = mix(c, vec3(lut(c.r), lut(c.g), lut(c.b)), clamp(CurveStrength, 0, 1))`（`lut` = clip 级 `rgb_curve` 采样的 256×1 LUT；`CurveStrength = 0` 跳过整步；2026-10-08 增量） |
 | 9 | 每通道曲线 | `if (RCurveStrength > 0) c.r = mix(c.r, rLut(c.r), clamp(RCurveStrength, 0, 1))`（g / b 同式，各用自己的 LUT 与强度；该通道无曲线 / 强度 0 → 跳过，逐位恒等；2026-10-08 增量） |
 | 10 | Lift / Gamma / Gain 色轮 | 逐通道三组：`c = c + lift·(1-c)`、`c = pow(max(c,0), exp2(-gamma))`、`c = c·(1+gain)`（`lift` / `gamma` / `gain` 各 = `vec3(LiftR, LiftG, LiftB)` …）；九个全 0 跳过整步（逐位恒等；2026-10-08 增量） |
 | 11 | 色相旋转 | HSL：`H' = fract(H + Hue * 0.5)`（`±1` = ±180°；2026-10-07 增量） |
@@ -150,21 +150,21 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 
 - **形态选择（§3.1）**：取**形态 b**（曲线静态 + `curve_strength` 关键帧控混合量）——零成本起步、语义清晰；形态 a（曲线点集本身打关键帧）留作曲线编辑器落地后的增强。
 - **字段**：
-  - **clip 级** `curve` = 控制点数组 `[[x, y], ...]`（结构字段，非标量）：`x` **严格递增**、`x` / `y` 各 `0~1`、**≥2 点**；缺省 = 无曲线。与 CAMERA 轨同名的 `curve`（`bezier_curve`）**按轨道类型分派**，互不影响。
+  - **clip 级** `rgb_curve` = 控制点数组 `[[x, y], ...]`（结构字段，非标量）：`x` **严格递增**、`x` / `y` 各 `0~1`、**≥2 点**；缺省 = 无曲线。0.3.6 起改名为 `rgb_curve`（不再与 CAMERA 轨的路径贝塞尔 `curve` 同名，无需按轨道类型分派）。
   - **关键帧** `curve_strength`：`0 ~ 1`，**缺省 1**——曲线字段存在即默认全量生效；关键帧把它写回 `0` = 曲线淡出；**无曲线时忽略**。
 - **采样（CPU → LUT）**：控制点采样成 **256 点 LUT**（`lut[i]` = 曲线在 `x = i/255` 处），用 **Fritsch–Carlson 单调三次插值**（PCHIP）：单调控制点 ⇒ 单调 LUT、段内**无过冲**（提亮黑场不会把暗部压暗）；端点外**钳制**到端点值。LUT 由解析出的曲线对象（`script/ColorCurve`）在构造时算好并持有 —— **按 clip 缓存**：一个 clip 一个对象，播放器逐帧拿到同一个数组，渲染侧按引用比较、只在换曲线时重传纹理（与 `BezierPathStrategy` 的 `lutCache` 同思路，键 = 曲线对象自身，不必再建 Map）。
 - **渲染**：`ic_color_adjust.fsh` 第 8 步（**RGB 通道系数 / 通道混合器之后、HSL 之前**，后续步骤重编号为 9 ~ 14）：`curved = vec3(lut(c.r), lut(c.g), lut(c.b))`、`c = mix(c, curved, clamp(CurveStrength, 0, 1))`；**仅 `CurveStrength > 0` 时走曲线分支**（无曲线 / 淡出 = 逐位恒等）。查表走**第二纹理单元**的新采样器 `CurveLut`（256×1、LINEAR：半 texel 偏移取到 texel 中心，相邻 LUT 项之间线性插值），新 uniform `CurveStrength`（float）。**恒等 LUT 常绑**（无曲线 / 强度 0 时绑 `y = x` 的恒等 LUT，避免未绑定采样器；恒等 LUT + 强度 1 也逐字节恒等）。alpha 直通契约不变。
-- **数据贯通**：`ColorAdjustParams` 增加 `curveLut`（nullable `float[256]`）+ `curveStrength` 两个成员，位置在 `blue` 与 `grayscale` 之间（= 操作栈顺序）；`isIdentity()` = 17 标量全 0 **且**（`curveLut == null || curveStrength == 0`）。`AdjustTrackPlayer.sample()` 读 clip 的 `curve`（LUT 随 clip 缓存）+ 关键帧 `curve_strength`（缺省 1）；**lane 级与 master 两条路径自动生效**（参数随 `ColorAdjustParams` 走，两条路径共用同一个 `ColorAdjustPass`）。
+- **数据贯通**：`ColorAdjustParams` 增加 `curveLut`（nullable `float[256]`）+ `curveStrength` 两个成员，位置在 `blue` 与 `grayscale` 之间（= 操作栈顺序）；`isIdentity()` = 17 标量全 0 **且**（`curveLut == null || curveStrength == 0`）。`AdjustTrackPlayer.sample()` 读 clip 的 `rgb_curve`（LUT 随 clip 缓存）+ 关键帧 `curve_strength`（缺省 1）；**lane 级与 master 两条路径自动生效**（参数随 `ColorAdjustParams` 走，两条路径共用同一个 `ColorAdjustPass`）。
 - **同步点**（顺序是硬约定，逐项对应）：
-  1. `script/schema/TrackSchemas.adjust()`：clip 级 `curve`（新 `FieldDef` 类型 `color_curve`，结构字段、缺省 null）+ 关键帧 `curve_strength`（`FieldDef("float", 1f)`，插在 `blue` 与 `grayscale` 之间）；
-  2. `script/ScriptParser`：`parseFieldBySchema` 新增 `case "color_curve"` → `parseColorCurve`（数组 / 每点 `[x,y]` 两个数字 / `x` 严格递增 / 各 0~1 / ≥2 点，违规**直接抛 `ScriptParseException`**——不静默忽略）；`parseClip` 里原有的 `curve` 校验加 `instanceof BezierCurve` 守卫（同名键按轨道类型分派）；
-  3. `script/ScriptValidator`：`curve` 结构校验（`checkColorCurve`）+ `curve_strength` 进 `ADJUST_CHANNELS`（`0 ~ 1`）；
+  1. `script/schema/TrackSchemas.adjust()`：clip 级 `rgb_curve`（新 `FieldDef` 类型 `color_curve`，结构字段、缺省 null）+ 关键帧 `curve_strength`（`FieldDef("float", 1f)`，插在 `blue` 与 `grayscale` 之间）；
+  2. `script/ScriptParser`：`parseFieldBySchema` 新增 `case "color_curve"` → `parseColorCurve`（数组 / 每点 `[x,y]` 两个数字 / `x` 严格递增 / 各 0~1 / ≥2 点，违规**直接抛 `ScriptParseException`**——不静默忽略）；`parseClip` 里原有的路径贝塞尔 `curve` 校验加 `instanceof BezierCurve` 守卫（与调色字段名不再相同）；
+  3. `script/ScriptValidator`：`rgb_curve` 结构校验（`checkColorCurve`）+ `curve_strength` 进 `ADJUST_CHANNELS`（`0 ~ 1`）；
   4. `script/ColorCurve`（新类）：控制点 + Fritsch–Carlson 采样 + 恒等 LUT 常量 + `Clip.getColorCurve()` 访问器；
   5. `client/post/ColorAdjustParams`：record 分量 + `IDENTITY` + `isIdentity()` + javadoc；
   6. `client/post/ColorAdjustPass`：`CurveStrength` uniform + LUT 纹理（`DynamicTexture` 256×1、LINEAR、按引用比较只在换曲线时重传）+ `setSampler("CurveLut", …)`（恒等 LUT 常绑）；
   7. shader 两文件：`ic_color_adjust.json`（`samplers` + `CurveLut`、`uniforms` + `CurveStrength`）+ `ic_color_adjust.fsh`（uniform / 采样器声明 + `curveLut()` 查表函数 + `main()` 第 8 步 + 文件头操作栈表与通道表）；
   8. `script/AdjustTrackPlayer.sample()`：读 clip 曲线（缓存 LUT）+ `curve_strength`（缺省 1）；javadoc 同步。
-- **测试脚本**：`cinematics/tests/adjust/test_adjust_curve.json`（1 条 ADJUST 轨：`curve = [[0,0],[0.5,0.8],[1,1]]` + `curve_strength` 关键帧 `0 → 1 → 0.5 → 1`）。
+- **测试脚本**：`cinematics/tests/adjust/test_adjust_curve.json`（1 条 ADJUST 轨：`rgb_curve = [[0,0],[0.5,0.8],[1,1]]` + `curve_strength` 关键帧 `0 → 1 → 0.5 → 1`）。
 - **验证（2026-10-08）**：
   - `sh gradlew compileJava`（`:common` / `:fabric` / `:forge` 三模块）**通过**；
   - 无头 validator（`E:/tmp/icv` 的 `Validate`，真实 `ScriptValidator`）扫 `cinematics/tests/adjust`：4 脚本 **0 issue**；全量 `cinematics/tests`（111 个）仍只有既有的 3 个已知 FAIL，无新增；
@@ -177,7 +177,7 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 曲线组的第二块（§3 第一批的另一半）：**每通道曲线** —— R / G / B 各一条，PS 式「每通道曲线」。是上一节「RGB 复合曲线（形态 b）」的 **×3 扩展**：结构、采样、缓存、混合口径完全同款，只是每条曲线只作用于自己的通道。
 
 - **字段**：
-  - **clip 级** `r_curve` / `g_curve` / `b_curve` = 控制点数组 `[[x, y], ...]`（结构字段，非标量）：`x` **严格递增**、`x` / `y` 各 `0~1`、**≥2 点**；缺省 = 该通道无曲线。与复合曲线 `curve`、以及 CAMERA 轨同名的 `curve`（`bezier_curve`）都互不影响（按轨道类型 + 字段名分派）。
+  - **clip 级** `r_curve` / `g_curve` / `b_curve` = 控制点数组 `[[x, y], ...]`（结构字段，非标量）：`x` **严格递增**、`x` / `y` 各 `0~1`、**≥2 点**；缺省 = 该通道无曲线。与复合曲线 `rgb_curve`、以及 CAMERA 轨的路径贝塞尔 `curve` 都互不影响（字段名不同）。
   - **关键帧** `r_curve_strength` / `g_curve_strength` / `b_curve_strength`：各 `0 ~ 1`、**缺省 1** —— 写了对应曲线就是全量生效，关键帧把它写回 `0` = 该曲线淡出；**无对应曲线时忽略**。
 - **采样（CPU → LUT）**：复用 `script/ColorCurve`（Fritsch–Carlson 单调三次插值 + 端点外钳制 + 按 clip 缓存）——四条曲线各有自己的对象与 256 点 LUT，`lut()` 逐帧返回同一个数组，渲染侧按引用比较、只在换曲线时重传纹理。
 - **渲染**：`ic_color_adjust.fsh` 在**复合曲线（第 8 步）之后**插入第 9 步「每通道曲线」（后续步骤重编号为 10 ~ 15）：
@@ -203,7 +203,7 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 
 ### 增量：六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）（2026-10-08）
 
-第二批的第三块（§3 第二批「六条 hue 曲线」，对标 DaVinci 曲线页）：**六条曲线各 = 一条曲线（clip 级，结构同 `curve`）+ 一个强度（关键帧，0~1 缺省 1）**，全部在 **HSL 空间**、**HSL 块内**生效。
+第二批的第三块（§3 第二批「六条 hue 曲线」，对标 DaVinci 曲线页）：**六条曲线各 = 一条曲线（clip 级，结构同 `rgb_curve`）+ 一个强度（关键帧，0~1 缺省 1）**，全部在 **HSL 空间**、**HSL 块内**生效。
 
 - **语义表（键 = 进入该块时的 `h0` / `s0` / `l0`；每条各自按强度 mix 混合；顺序即下表顺序，同一目标分量的多条按表序依次叠加）**：
 
@@ -307,7 +307,7 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 
 - **曲线编辑器与形态 a**（曲线点集本身打关键帧）：十条曲线（复合 + 每通道 + 六条 hue）已随「增量：RGB 复合曲线（形态 b）」「增量：每通道曲线（R / G / B）」与「增量：六条 hue 曲线」落地（2026-10-08），编辑器内的曲线编辑与形态 a 留待编辑器落地后。
 - **第二批（通道与 HSL 完整）全部落地（2026-10-08）**：色相旋转（「增量：完整 HSL」）、六条 hue 曲线、RGB 通道混合器与 Lift / Gamma / Gain 色轮（本轮）都已实现；本版本**只剩第三批（LUT / 六色带 / 混合模式）与调整层**。
-- 调整层（§7 步骤 6，依赖分层模型）——lane 级调整（步骤 5）已在本版本落地，见下一节「落地标注（lane 级调整）」。
+- 调整层（§7 步骤 6，依赖分层模型）——lane 级调色（步骤 5）已在本版本落地（相机片段自带调色），见下一节「落地标注（相机片段调色）」。
 - 编辑器 UI（§7 步骤 3）：`editor/src/types.ts` 的 `TrackType` 联合类型、`TrackListPanel.vue` / `Timeline.vue` 的轨道列表与配色、i18n 键、`demo.ts` 的 schema 快照都需跟着加 `ADJUST`（Java 侧 schema 已随 `SchemaExporter` 导出，前端接上即可）。
 - 多实例各写 master 的合并语义（§5-4）：仍开放；本版本至多 1 个活跃实例，行为 = 该实例的最后一个 ADJUST 轨道。
 
@@ -320,57 +320,51 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 
 ---
 
-## 落地标注（2026-10-07 实现：lane 级调整 / §7 步骤 5）
+## 落地标注（2026-10-08 形态修正：相机片段调色 / §7 步骤 5）
 
 ### 数据落点（定稿）
 
-**作用域挂 clip 级字段**（不随时间变，故不挂关键帧）：
+**调色字段挂在 CAMERA clip 上**（与 `dest` / `source` / `opacity` 同层，见 [SCRIPT_FORMAT §4](../docs/SCRIPT_FORMAT.md)）——§2.2「每个 lane / 图层各自持有调整」的落地形态：每个相机片段直接携带自己的调色，作用于**该相机轨产出的每条 lane**（lane 渲染完成、合成之前）。ADJUST 轨只作用于整体画面（master）。
 
-| 字段 | 类型 | 默认 | 口径 |
-|---|---|---|---|
-| `scope` | enum | `master` | `master` = 作用于合成输出（缺省，与第一批完全一致）；`lane` = 作用于指定相机轨的画面 |
-| `lane` | int | — | `scope=lane` 时必填：目标相机轨序号，**0 起、按 timeline 中 CAMERA 轨出现顺序**（其它类型轨道不占号）；必须 `0 ≤ lane < 本脚本 CAMERA 轨数量` |
-
-- 15 个标量通道仍是关键帧字段，与作用域无关（两条路径共用同一份通道口径与同一个着色器）。
-- 校验（`ScriptValidator`）：`scope` 枚举；`scope=lane` 时 `lane` 必填、必须为整数、必须在范围内（越界 / 缺字段 → issue）；`scope=master`（含缺省）时出现 `lane` → 「多余字段」issue；`scope` 未知值 / 非字符串 → issue（未知值按 master 处理）。
+- **clip 级 10 条曲线**（不随时间变，故挂 clip）：`rgb_curve`（RGB 复合曲线）+ `r_curve` / `g_curve` / `b_curve`（每通道曲线）+ 六条 hue 曲线（`hv_h_curve` ~ `sv_l_curve`）。
+- **关键帧级 45 个通道**（与 ADJUST 轨**同名同缺省**，两条路径共用同一份通道口径与同一个着色器）：35 个标量通道（缺省 `0`）+ 10 个曲线强度（缺省 `1`）。
+- **按片段本地时间采样**：每条 lane 用它自己相机片段的本地时间求值（重叠窗口下同轨的多条 lane 各自独立采样）；参数恒等归一化为「不调色」，走原路径（lane 渲染完直接进合成）。
+- **每个关键帧都要写**：关键帧缺字段按缺省解（标量 `0` / 强度 `1`），只写一端会在中间挖出折点。
+- 校验（`ScriptValidator`）：ADJUST 与 CAMERA 两种 clip 共用同一套调色字段校验（35 标量区间 + 10 强度 `0~1` + 10 条曲线结构）；`scope` / `lane` 字段已移除——出现在任一 clip 上都会报 issue。
 
 ### 数据流
 
 ```
-AdjustTrackPlayer.onRenderFrame（每帧）
-  ├─ scope=master → MasterColorAdjust.publish(params)          （第一批路径，行为不变）
-  └─ scope=lane   → 不发布 master；把本帧采样结果存进 laneParams() + laneTarget()
-ScriptPlayer.collectCameraLanes()（每帧，按绘制顺序）
-  → 先归集 lane 级参数：目标相机轨序号 → 参数（多条指向同一轨时后者生效，与 master 同口径）
-  → 再逐 CAMERA 轨产出 LaneFrame(CameraLane, cameraTrackIndex, laneAdjust)
-    （同一条相机轨本帧产出的所有 lane 共用同一份参数——重叠窗口 captureLowerLanes 会产出多条）
+ColorAdjustSampler.sample(clip, localTime)（共用采样器：35 通道 + 10 曲线强度插值，曲线 LUT 随 clip 缓存）
+  ├─ master：AdjustTrackPlayer.onRenderFrame（ADJUST 轨活跃 clip 的本地时间）→ MasterColorAdjust.publish(params)
+  └─ lane 级：ScriptPlayer.collectCameraLanes()（每帧，按绘制顺序）对每条 lane 用
+       lane.clip() + lane.clipLocalTime() 采样（恒等归一化为 null）
+       → LaneFrame(CameraLane, cameraTrackIndex, laneAdjust)
 ScriptLaneDriver.tick → LaneRenderer.setLane(index, state, content, laneAdjust)
 LaneRenderer.renderLane（lane 渲染 + 描边之后、合成之前）
   → 参数非空且非恒等 → ColorAdjustPass.applyTo(laneFbo, adjustTarget, params, mc)
   → sink 传 adjustTarget（否则传 laneFbo）→ LaneCompositor.compose
 ```
 
-- **共用 shader / 上传逻辑**：`ColorAdjustPass.applyTo(src, dst, params, mc)` 是 master 与 lane 级唯一的 pass 实现（着色器获取 + 15 个 uniform 上传 + 全屏 quad 绘制只有一份）；master 路径 = `applyTo(主画面 → 中转缓冲)` + `LaneCompositor.compose` 回主画面；lane 路径 = `applyTo(lane FBO → adjustTarget)`，之后由 `LaneRenderer` 照常交给合成层。
+- **共用 shader / 上传逻辑**：`ColorAdjustPass.applyTo(src, dst, params, mc)` 是 master 与 lane 级唯一的 pass 实现（着色器获取 + 全部通道 uniform 上传 + 全屏 quad 绘制只有一份）；master 路径 = `applyTo(主画面 → 中转缓冲)` + `LaneCompositor.compose` 回主画面；lane 路径 = `applyTo(lane FBO → adjustTarget)`，之后由 `LaneRenderer` 照常交给合成层。
 - **共享缓冲**：lane 级输出缓冲 `LaneRenderer.adjustTarget`（无深度附件、LINEAR 过滤），按主画面尺寸创建 / 跟随窗口 resize，与 lane 的共用离屏缓冲 `offscreenTarget` 同处理方式——显存不随 lane 数增长。
 
 ### 顺序与 alpha 契约（定稿）
 
 ```
-lane 渲染（含 lane 内描边）→ lane 级调整（只动 RGB）→ 合成（opacity / dest / source）
-→ 全部 lane 完成后 → master 调整（合成输出）
+lane 渲染（含 lane 内描边）→ 相机片段调色（只动 RGB）→ 合成（opacity / dest / source）
+→ 全部 lane 完成后 → master 调整（ADJUST 轨，合成输出）
 ```
 
-- 调色只动 RGB：着色器 `fragColor.a = src.a` 逐位直通（lane 纹理里那些 a<255 的像素——星星 127、图集 mipmap 边缘 146~254——在 lane 级调整后保持原样）；透明度只在合成层由 `opacity`（`ColorModulator.a`）承担。该契约写在 `ic_color_adjust.fsh` 文件头与 `ColorAdjustPass` / `LaneRenderer` 的类注释里。
-- **默认零差异**：无 lane 级 ADJUST / 参数恒等 / 着色器不可用 → 不建 `adjustTarget`、不跑 pass、sink 收到的仍是 lane FBO——与不带该功能的路径逐位一致。
+- 调色只动 RGB：着色器 `fragColor.a = src.a` 逐位直通（lane 纹理里那些 a<255 的像素——星星 127、图集 mipmap 边缘 146~254——在相机片段调色后保持原样）；**透明度（opacity / alpha）一律在画面合成完成之后、由合成层调控**（`opacity` / `ColorModulator.a`），绝不烤进画面、也不在调色里先处理 alpha。该契约写在 `ic_color_adjust.fsh` 文件头与 `ColorAdjustPass` / `LaneRenderer` / `ColorAdjustSampler` 的类注释里。
+- **默认零差异**：无相机片段调色 / 参数恒等 / 着色器不可用 → 不建 `adjustTarget`、不跑 pass、sink 收到的仍是 lane FBO——与不带该功能的路径逐位一致。
 
-### 验证（2026-10-07）
+### 验证
 
 - `sh gradlew compileJava`（`:common` / `:fabric` / `:forge` 三模块）**通过**。
-- 无头 validator（`E:/tmp/icv` 的 `Validate`，真实 `ScriptValidator`）扫 `cinematics/tests`（109 个）：新增 `test_adjust_lane_scope.json` **0 issue**；仍只有既有的 3 个已知 FAIL，无新增。
-- **数据层冒烟**（throwaway：真实 `ScriptParser` / `AdjustTrackPlayer` / `CameraTrackPlayer` / `ScriptPlayer` + 桩 `clipsForTrack`；**52 项全过**）：lane 级按 CAMERA 轨序号归集（跳过 OVERLAY 等非相机轨）、同轨多 lane 共用同一份参数（含真实重叠窗口 `captureLowerLanes` 产出 2 条）、多条 lane 级指向同一轨时后者生效、恒等参数归一化为 null、缺 `lane` 字段不参与、窗口外不参与且不抹掉别的发布、`scope=lane` 不发布 master、缺省 `scope` = master（发布路径不变）、validator 拦下缺 `lane` / 越界（含负数、无 CAMERA 轨）/ 非整数 / `scope=master` 带 `lane` / 未知 `scope` / 非字符串 `scope`，且合法边界（`lane = 0` 与 `lane = CAMERA 轨数 − 1`）0 issue。
-- **着色器冒烟**（throwaway GL harness，真实 GL 3.2 core；**57 项全过**）：`ic_color_adjust` 与 `ic_lane_blit` 编译 + 链接 + JSON↔fsh uniform 双向一致；lane 路径方向（lane FBO → adjustTarget）恒等逐字节不变（含 alpha）、`Red=-1` / `Blue=-1` 只改目标通道、15 通道全开时 alpha 逐位直通；随后 `ic_lane_blit` 合成读取调色后的 RGB、写出 a=255（源 alpha 不透底），且源 alpha 全 0 的 lane 画面在恒等 + opacity 1 下合成结果不受影响。
-- 既有 master harness（`GlShaderSmoke`，45 项）复跑仍全过（着色器只改了注释）。
-- **未验证**：游戏内实际画面（需启动客户端；lane 级调整的观感 / 性能未实测）；Java 侧 `applyTo` 的 GL 调用序列（需要 Minecraft 实例，无法无头跑——harness 覆盖的是它依赖的两段 GLSL 与「源 → 目标」方向）。
+- 无头 validator（`E:/tmp/icv` 的 `Validate`，真实 `ScriptValidator`）扫 `cinematics/tests/adjust`（8 个，含新增 `test_adjust_camera_clip.json`；`test_adjust_lane_scope.json` 已删除）与 `cinematics/release/quadrant.json`：13 脚本 **0 issue**。
+- 本轮验收项（数据层冒烟：相机片段采样——每关键帧都写的插值、恒等归一化为 null、重叠窗口多 lane 各自按片段本地时间采样、ADJUST master 路径不变、`scope` 字段被 validator 拒；GL harness 复跑 = shader 未改的回归）：随任务 1 验收执行。
+- **未验证**：游戏内实际画面（需启动客户端；相机片段调色的观感 / 性能未实测）；Java 侧 `applyTo` 的 GL 调用序列（需要 Minecraft 实例，无法无头跑——harness 覆盖的是它依赖的 GLSL 与「源 → 目标」方向）。
 
 ---
 
@@ -538,12 +532,12 @@ lane 渲染（含 lane 内描边）→ lane 级调整（只动 RGB）→ 合成�
 | 2 | RGBA 通道拆分 + 完整 HSL + 每通道曲线（R / G / B） | 通道级调整可用（只留红通道、单通道曲线） |
 | 3 | 数据落点定稿 + 编辑器 UI（滑杆 + 曲线编辑器 + 实时预览 + 关键帧打点） | WebUI 内可调参数、打关键帧并实时看到效果 |
 | 4 | 第二批：六条 hue 曲线 + RGB 通道混合器 + Lift / Gamma / Gain 色轮 | 达芬奇式曲线 / 色轮调色可用 |
-| 5 | lane 级调整（依赖画面合成） | PIP 副画面单独调色：老电影 PIP、主画面不变 |
+| 5 | 相机片段调色（依赖画面合成） | PIP 副画面单独调色：老电影 PIP、主画面不变（调色写在 CAMERA 片段上，作用于该轨产出的 lane） |
 | 6 | 调整层 + 第三批（LUT / 六色带 / 混合模式） | PS 式完整模型：各自持有 + 调整层 + master |
 
 > 步骤 1–4 不依赖画面合成，可先行；步骤 5 起依赖 lane 上屏；步骤 6 依赖分层模型落地。
 >
-> **进度（2026-10-08）**：步骤 1 的**标量组**（12 通道 master pass）与**曲线组**（RGB 复合曲线 + 每通道曲线，形态 b）已落地；步骤 2 的**曲线部分（每通道曲线 R / G / B）已落地（2026-10-08）**，同步骤的「RGBA 通道拆分」（`red` / `green` / `blue` 通道系数，2026-10-07）与「完整 HSL」（`hue` / `lightness` + 既有 `saturation` / `vibrance`，2026-10-07）也已落地 → **步骤 2 的三块全部落地**；步骤 3 的**数据落点已定稿**、编辑器 UI 未做；**步骤 4 全部落地（2026-10-08）——六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）、RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）与 Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个逐通道色轮）都已实现 → 第二批（通道与 HSL 完整）全部落地，标量通道共 35 个 + 10 条曲线**；**步骤 5（lane 级调整）已落地**（`scope=lane` + `lane`，lane 渲染完 / 合成前过 pass）；步骤 6 未做。
+> **进度（2026-10-08）**：步骤 1 的**标量组**（12 通道 master pass）与**曲线组**（RGB 复合曲线 + 每通道曲线，形态 b）已落地；步骤 2 的**曲线部分（每通道曲线 R / G / B）已落地（2026-10-08）**，同步骤的「RGBA 通道拆分」（`red` / `green` / `blue` 通道系数，2026-10-07）与「完整 HSL」（`hue` / `lightness` + 既有 `saturation` / `vibrance`，2026-10-07）也已落地 → **步骤 2 的三块全部落地**；步骤 3 的**数据落点已定稿**、编辑器 UI 未做；**步骤 4 全部落地（2026-10-08）——六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）、RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）与 Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个逐通道色轮）都已实现 → 第二批（通道与 HSL 完整）全部落地，标量通道共 35 个 + 10 条曲线**；**步骤 5（lane 级调色）已落地**（调色写在 CAMERA 片段上——相机片段自带调色，作用于该相机轨产出的每条 lane，lane 渲染完 / 合成前过 pass；ADJUST 轨只作用于整体画面）；步骤 6 未做。
 
 ---
 

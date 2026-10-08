@@ -27,8 +27,18 @@ public final class ScriptValidator {
             {"CAMERA", "LETTERBOX", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY", "ADJUST"};
 
     /**
-     * ADJUST 轨道关键帧标量通道 → 合法区间（顺序与
+     * 调色曲线字段（clip 级结构字段，0.3.6 起 ADJUST 轨与 CAMERA 片段共用同一套）：
+     * {@code rgb_curve} = RGB 复合曲线；{@code r_curve} / {@code g_curve} / {@code b_curve} = 每通道曲线；
+     * 后六条 = DaVinci 曲线页口径的 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）。
+     */
+    private static final String[] COLOR_CURVE_FIELDS = {
+            "rgb_curve", "r_curve", "g_curve", "b_curve",
+            "hv_h_curve", "hv_s_curve", "hv_l_curve", "lv_s_curve", "sv_s_curve", "sv_l_curve"};
+
+    /**
+     * 调色关键帧标量通道 → 合法区间（顺序与
      * {@code TrackSchemas.adjust()} / {@code ColorAdjustParams} / {@code ic_color_adjust.fsh} 一致）。
+     * <p>0.3.6 起 ADJUST 轨与 CAMERA 片段共用同一套通道（见 {@link #checkAdjustFields}）。</p>
      * <p>标量通道缺省 0 = 无效果（{@code curve_strength} / {@code r_curve_strength} / {@code g_curve_strength} /
      * {@code b_curve_strength} 与六条 hue 曲线的强度 {@code hv_h_strength} ~ {@code sv_l_strength}
      * 例外：缺省 1 = 曲线全量生效）。</p>
@@ -201,17 +211,6 @@ public final class ScriptValidator {
 
         // ===== 逐轨道 =====
         JsonArray tracks = timeline.getAsJsonArray("tracks");
-        // CAMERA 轨数量（ADJUST 轨 scope=lane 的目标序号上界：lane 序号 = 第几条 CAMERA 轨，0 起）
-        int cameraTrackCount = 0;
-        for (int ti = 0; ti < tracks.size(); ti++) {
-            JsonElement te = tracks.get(ti);
-            if (!te.isJsonObject()) continue;
-            JsonElement typeElement = te.getAsJsonObject().get("type");
-            if (typeElement != null && typeElement.isJsonPrimitive()
-                    && "CAMERA".equalsIgnoreCase(typeElement.getAsString())) {
-                cameraTrackCount++;
-            }
-        }
         int clipCount = 0;
         int keyframeCount = 0;
         for (int ti = 0; ti < tracks.size(); ti++) {
@@ -286,6 +285,9 @@ public final class ScriptValidator {
                         issues.add(cp + " 使用了已废弃的 clip 级字段（position_mode / cam_tracking_*）——已迁移到关键帧级："
                                 + "position_mode、follow、follow_selector、look_at、look_at_selector、look_at_target_x/y/z 写在关键帧对象里");
                     }
+                    // 调色（0.3.6）：本相机片段自带调色，作用于该相机轨的 lane——字段集与 ADJUST 轨完全一致
+                    checkRemovedScopeLane(clip, cp, issues);
+                    checkAdjustFields(clip, cp, null, null, issues);
                 }
                 if ("OVERLAY".equalsIgnoreCase(type)) {
                     checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle");
@@ -300,74 +302,9 @@ public final class ScriptValidator {
                     }
                 }
                 if ("ADJUST".equalsIgnoreCase(type)) {
-                    // 作用域（clip 级字段，不随时间变）：master = 作用于合成输出（缺省）；
-                    // lane = 作用于指定相机轨的画面（lane 渲染完、合成前）
-                    String scope = "master";
-                    if (clip.has("scope")) {
-                        JsonElement se = clip.get("scope");
-                        if (!se.isJsonPrimitive() || !se.getAsJsonPrimitive().isString()) {
-                            issues.add(cp + ".scope 应为字符串（可选: master / lane）");
-                        } else {
-                            scope = se.getAsString();
-                            if (!"master".equals(scope) && !"lane".equals(scope)) {
-                                issues.add(cp + ".scope 未知值: " + scope + "（可选: master / lane），运行时按 master 处理");
-                                scope = "master";
-                            }
-                        }
-                    }
-                    if ("lane".equals(scope)) {
-                        if (!clip.has("lane")) {
-                            issues.add(cp + ".lane 缺失（scope=lane 时必须指定目标相机轨序号：0 起、"
-                                    + "按 timeline 中 CAMERA 轨出现顺序）");
-                        } else {
-                            JsonElement le = clip.get("lane");
-                            if (!le.isJsonPrimitive() || !le.getAsJsonPrimitive().isNumber()) {
-                                issues.add(cp + ".lane 不是整数（0 起、按 timeline 中 CAMERA 轨出现顺序）");
-                            } else {
-                                float laneValue = le.getAsFloat();
-                                if (laneValue != Math.floor(laneValue)) {
-                                    issues.add(cp + ".lane 不是整数: " + laneValue);
-                                } else if (laneValue < 0f || laneValue >= cameraTrackCount) {
-                                    issues.add(cp + ".lane 越界: " + (int) laneValue + "（本脚本 CAMERA 轨数量 = "
-                                            + cameraTrackCount + "，合法范围 0 ~ " + (cameraTrackCount - 1) + "）");
-                                }
-                            }
-                        }
-                    } else if (clip.has("lane")) {
-                        issues.add(cp + ".lane 是多余字段（scope=master 时无效）——只有 scope=lane 才需要目标相机轨序号");
-                    }
-                    // 曲线组（形态 b）：曲线定义一次（clip 级结构字段），关键帧只控各自强度
-                    if (clip.has("curve")) {
-                        checkColorCurve(clip.get("curve"), cp + ".curve", issues);
-                    }
-                    if (clip.has("r_curve")) {
-                        checkColorCurve(clip.get("r_curve"), cp + ".r_curve", issues);
-                    }
-                    if (clip.has("g_curve")) {
-                        checkColorCurve(clip.get("g_curve"), cp + ".g_curve", issues);
-                    }
-                    if (clip.has("b_curve")) {
-                        checkColorCurve(clip.get("b_curve"), cp + ".b_curve", issues);
-                    }
-                    // 六条 hue 曲线（DaVinci 曲线页口径：键 = hue / 亮度 / 饱和度，在 HSL 块内生效）
-                    if (clip.has("hv_h_curve")) {
-                        checkColorCurve(clip.get("hv_h_curve"), cp + ".hv_h_curve", issues);
-                    }
-                    if (clip.has("hv_s_curve")) {
-                        checkColorCurve(clip.get("hv_s_curve"), cp + ".hv_s_curve", issues);
-                    }
-                    if (clip.has("hv_l_curve")) {
-                        checkColorCurve(clip.get("hv_l_curve"), cp + ".hv_l_curve", issues);
-                    }
-                    if (clip.has("lv_s_curve")) {
-                        checkColorCurve(clip.get("lv_s_curve"), cp + ".lv_s_curve", issues);
-                    }
-                    if (clip.has("sv_s_curve")) {
-                        checkColorCurve(clip.get("sv_s_curve"), cp + ".sv_s_curve", issues);
-                    }
-                    if (clip.has("sv_l_curve")) {
-                        checkColorCurve(clip.get("sv_l_curve"), cp + ".sv_l_curve", issues);
-                    }
+                    // ADJUST 轨只作用于整体画面（master）：lane 级调色已改为 CAMERA 片段字段
+                    checkRemovedScopeLane(clip, cp, issues);
+                    checkAdjustFields(clip, cp, null, null, issues);
                 }
                 // ===== 循环参数校验（CAMERA）=====
                 if ("CAMERA".equalsIgnoreCase(type)) {
@@ -484,13 +421,13 @@ public final class ScriptValidator {
                             checkUnitFloat(kf, kp, "opacity", issues);
                             checkRect(kf, kp, "dest", issues);
                             checkRect(kf, kp, "source", issues);
+                            // 调色（0.3.6）：本相机片段关键帧的 45 个调色通道区间
+                            checkAdjustFields(null, null, kf, kp, issues);
                         }
 
-                        // ADJUST 关键帧：36 个标量通道的取值区间（不写 = 缺省 0 = 无效果——十条曲线强度缺省 1；写回 0 = 该项淡出）
+                        // ADJUST 关键帧：45 个标量通道的取值区间（不写 = 缺省 0 = 无效果——十条曲线强度缺省 1；写回 0 = 该项淡出）
                         if ("ADJUST".equalsIgnoreCase(type)) {
-                            for (ChannelRange range : ADJUST_CHANNELS) {
-                                checkRange(kf, kp, range.field(), issues, range.min(), range.max());
-                            }
+                            checkAdjustFields(null, null, kf, kp, issues);
                         }
                     }
                 }
@@ -528,7 +465,49 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 ADJUST 轨的曲线（clip 级结构字段 {@code curve} / {@code r_curve} / {@code g_curve} / {@code b_curve}）：
+     * 校验调色字段（0.3.6 起 ADJUST 轨与 CAMERA 片段的调色字段集完全一致；ADJUST 作用于整体画面，
+     * CAMERA 片段作用于该相机轨的 lane）：
+     * <ul>
+     *   <li>clip 级：10 条调色曲线的结构（{@link #COLOR_CURVE_FIELDS}，控制点数组）；</li>
+     *   <li>关键帧级：45 个标量通道的取值区间（{@link #ADJUST_CHANNELS}）。</li>
+     * </ul>
+     * <p>{@code clip} 与 {@code kf} 分别对应两种上下文，调用方按当前层级传非空值、另一侧传 {@code null}
+     * （路径前缀 {@code cp} / {@code kp} 随之，缺省字段一律跳过、由缺省值生效）。</p>
+     */
+    private static void checkAdjustFields(JsonObject clip, String cp, JsonObject kf, String kp,
+                                          List<String> issues) {
+        if (clip != null) {
+            for (String field : COLOR_CURVE_FIELDS) {
+                if (clip.has(field)) {
+                    checkColorCurve(clip.get(field), cp + "." + field, issues);
+                }
+            }
+        }
+        if (kf != null) {
+            for (ChannelRange range : ADJUST_CHANNELS) {
+                checkRange(kf, kp, range.field(), issues, range.min(), range.max());
+            }
+        }
+    }
+
+    /**
+     * 拒绝已移除的 {@code scope} / {@code lane} 字段（ADJUST 与 CAMERA 两种轨道的 clip 都拦）：
+     * 0.3.6 起 lane 级调色改为相机片段字段——调色直接写在 CAMERA 片段上，ADJUST 轨只管整体画面（master）。
+     */
+    private static void checkRemovedScopeLane(JsonObject clip, String cp, List<String> issues) {
+        if (clip.has("scope")) {
+            issues.add(cp + ".scope 已移除（0.3.6 起 lane 级调色改为相机片段字段）："
+                    + "调色直接写在 CAMERA 片段上；ADJUST 轨只管整体画面（master）");
+        }
+        if (clip.has("lane")) {
+            issues.add(cp + ".lane 已移除（0.3.6 起 lane 级调色改为相机片段字段）："
+                    + "调色直接写在 CAMERA 片段上；ADJUST 轨只管整体画面（master）");
+        }
+    }
+
+    /**
+     * 校验调色曲线（clip 级结构字段 {@link #COLOR_CURVE_FIELDS}，如 {@code rgb_curve} / {@code r_curve} /
+     * {@code g_curve} / {@code b_curve} / 六条 hue 曲线）：
      * 控制点数组 {@code [[x,y], ...]}——至少 2 点、每点 2 个数字、{@code x} 严格递增、{@code x} / {@code y} 各 0~1
      * （与 {@code ScriptParser#parseColorCurve} 同一口径：校验拦下的写法解析期也会拒绝）。
      */

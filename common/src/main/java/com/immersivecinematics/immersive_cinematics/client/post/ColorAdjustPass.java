@@ -28,7 +28,7 @@ import java.io.IOException;
  * <ul>
  *   <li><b>master</b>（{@link MasterColorAdjust} 发布）：作用于<b>合成输出</b>（架构图 RADJ 节点）——
  *       {@link #render} 在 lane 合成（MCOMP）之后、原版后处理链（RPOST）与 GUI 之前调一次。</li>
- *   <li><b>lane 级</b>（ADJUST 轨道 {@code scope=lane}）：作用于<b>该 lane 的画面</b>，在 lane 渲染完成
+ *   <li><b>lane 级</b>（来自该 lane 的相机片段）：作用于<b>该 lane 的画面</b>，在 lane 渲染完成
  *       之后、合成之前（{@code client.lane.LaneRenderer#renderLane} 调 {@link #applyTo}，
  *       写进共享 adjustTarget 再交给合成层）。</li>
  * </ul>

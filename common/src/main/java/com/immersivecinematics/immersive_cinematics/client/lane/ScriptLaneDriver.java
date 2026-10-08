@@ -22,7 +22,7 @@ import java.util.Map;
  * <pre>
  * GameRendererMixin（{@code GameRenderer.render} 的 HEAD，本帧世界渲染之前）
  *   → CameraManager.onRenderFrame → ScriptPlayer.onRenderFrame → 各 CameraTrackPlayer 填 lane 快照（CameraLane）
- *     + 各 ADJUST 轨道（scope=lane）填本帧的 lane 级调色参数
+ *     + 各相机片段携带自己的调色（collectCameraLanes 按片段本地时间采样）
  *   → 本类 tick → LaneRenderer.setLane(i, 相机状态, 内容档, lane 级调色, 相机 id) + setSink
  * LaneRendererMixin（{@code GameRenderer.renderLevel} 的 RETURN）→ LaneRenderer.render
  *   → 逐 lane 渲染 → （lane 级调色 pass）→ Sink → LaneCompositor.compose（贴到屏幕）
@@ -30,11 +30,13 @@ import java.util.Map;
  * 合成是即时进行的（lane 共用一张离屏缓冲），所以<b>叠放顺序 = 调用顺序 = lane 序号递增</b>：
  * {@code collectCameraLanes()} 已按「轨道层级 → 轨道内 clip 顺序」排好，序号小的先贴、被后贴的盖住。
  *
- * <h2>lane 级调色（{@code scope=lane} 的 ADJUST 轨道）</h2>
- * 每份 {@link LaneFrame} 携带它所属 CAMERA 轨的 lane 级调色参数（由 {@code ScriptPlayer} 归集，
- * 同轨本帧的所有 lane 共用一份）；本类把它原样交给 {@link LaneRenderer#setLane}。真正跑 pass 的位置在
- * {@code LaneRenderer.renderLane}（lane 渲染完成、合成之前），本类只做数据传递。
- * 参数为 {@code null}（无 lane 级 ADJUST / 参数恒等）时该 lane 走原路径（lane FBO 直接进合成），零差异。
+ * <h2>lane 级调色（来自该 lane 的相机片段）</h2>
+ * 每份 {@link LaneFrame} 携带该 lane 的调色参数（来自该 lane 的相机片段，由 {@code ScriptPlayer}
+ * 在片段本地时间处采样，每条 lane 各自一份）；本类把它原样交给 {@link LaneRenderer#setLane}。
+ * 真正跑 pass 的位置在 {@code LaneRenderer.renderLane}（lane 渲染完成、合成之前），本类只做数据传递。
+ * 参数为 {@code null}（片段没写调色 / 参数恒等）时该 lane 走原路径（lane FBO 直接进合成），零差异。
+ * <p>该参数<b>只承载 RGB</b>（不含 alpha / opacity）：lane 级调色 pass 只动 RGB、alpha 逐位直通；
+ * 透明度在<b>合成之后</b>由合成层（{@code opacity} / {@code ColorModulator.a}）调控，绝不烤进画面。</p>
  *
  * <h2>跨实例平铺（§3.3 / §3.4）</h2>
  * 本类每帧遍历<b>全部</b>活跃实例（{@link CameraManager#instances()}，按启动顺序）并收集各自的 lane，

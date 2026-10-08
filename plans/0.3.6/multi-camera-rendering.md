@@ -351,7 +351,7 @@ mainRenderTarget 临时指向 lane FBO → fbo.bindWrite(true)（视口 = FBO �
 
 ### 12.6 调试入口
 
-**四象限演示 = 脚本，不是代码级驱动**：`cinematics/release/quadrant.json`（脚本 id `quadrant_demo`，单脚本 4 条 CAMERA 轨 + 3 条 lane 级 ADJUST 轨，`dest` 各占半屏）。把该文件放进 `<游戏目录>/immersive_cinematics/scripts/`，进世界由 login 触发器自动播一次：
+**四象限演示 = 脚本，不是代码级驱动**：`cinematics/release/quadrant.json`（脚本 id `quadrant_demo`，单脚本 4 条 CAMERA 轨、`dest` 各占半屏；每格调色直接写在各自相机片段的关键帧上）。把该文件放进 `<游戏目录>/immersive_cinematics/scripts/`，进世界由 login 触发器自动播一次：
 
 ```sh
 sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'

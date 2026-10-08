@@ -26,6 +26,18 @@ public final class TrackSchemas {
         return map;
     }
 
+    /**
+     * CAMERA 轨道（相机运动 + 合成 + 自带调色）。
+     * <p>
+     * <b>相机片段自带调色</b>（0.3.6：每个 lane / 图层各自持有调整）：clip 级 10 条曲线
+     * （{@code rgb_curve} 复合 + {@code r_curve} / {@code g_curve} / {@code b_curve} 每通道 +
+     * {@code hv_h_curve} / {@code hv_s_curve} / {@code hv_l_curve} / {@code lv_s_curve} /
+     * {@code sv_s_curve} / {@code sv_l_curve} 六条 hue 曲线）+ 关键帧 45 个调色通道
+     * （与 ADJUST 轨同名同缺省）。调色作用于该相机轨产出的 lane，在该 lane
+     * <b>渲染完成之后、合成之前</b>生效（与 {@code dest} / {@code source} / {@code opacity} 同层，
+     * 见 {@code plans/0.3.6/screen-color-adjust.md} 步骤 1、{@code plans/0.3.6/camera-composition.md}）。
+     * 整体画面的调色走 ADJUST 轨（master）。</p>
+     */
     private static TrackTypeSchema camera() {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
         clips.put("transition", new FieldDef("enum", "cut", false, List.of("cut", "morph")));
@@ -46,6 +58,19 @@ public final class TrackSchemas {
         clips.put("orient", new FieldDef("enum", "manual", false, List.of("manual", "tangent")));
         clips.put("yaw_offset", new FieldDef("float", 0f));
         clips.put("pitch_offset", new FieldDef("float", 0f));
+        // 调色：每个相机片段直接携带自己的调色（clip 级 10 条曲线；关键帧 45 通道控强度 / 标量）
+        // 曲线组（形态 b）：曲线定义一次（clip 级结构字段），关键帧只控各自强度
+        clips.put("rgb_curve", new FieldDef("color_curve", null));
+        clips.put("r_curve", new FieldDef("color_curve", null));
+        clips.put("g_curve", new FieldDef("color_curve", null));
+        clips.put("b_curve", new FieldDef("color_curve", null));
+        // 六条 hue 曲线（DaVinci 曲线页；键 = hue 或 sat / lum，在 HSL 块内生效）
+        clips.put("hv_h_curve", new FieldDef("color_curve", null));   // hue → hue
+        clips.put("hv_s_curve", new FieldDef("color_curve", null));   // hue → saturation
+        clips.put("hv_l_curve", new FieldDef("color_curve", null));   // hue → luminance
+        clips.put("lv_s_curve", new FieldDef("color_curve", null));   // luminance → saturation
+        clips.put("sv_s_curve", new FieldDef("color_curve", null));   // saturation → saturation
+        clips.put("sv_l_curve", new FieldDef("color_curve", null));   // saturation → luminance
 
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
         kfs.put("position", new FieldDef("position", null, true));
@@ -87,6 +112,63 @@ public final class TrackSchemas {
         kfs.put("opacity", new FieldDef("float", 1.0f));
         kfs.put("dest", new FieldDef("map", null));
         kfs.put("source", new FieldDef("map", null));
+
+        // 调色：每个相机片段直接携带自己的调色；作用于该相机轨的 lane（渲染完、合成前）
+        // 下列 45 个字段与 ADJUST 轨同名同缺省（35 个标量通道缺省 0 + 10 个曲线强度缺省 1）。
+        // 基础校色（复合 RGB）
+        kfs.put("exposure", new FieldDef("float", 0f));       // -5 ~ 5（EV 档，×2^EV）
+        kfs.put("contrast", new FieldDef("float", 0f));       // -1 ~ 1（以中灰 0.5 为轴）
+        kfs.put("highlights", new FieldDef("float", 0f));     // -1 ~ 1（亮部）
+        kfs.put("shadows", new FieldDef("float", 0f));        // -1 ~ 1（暗部）
+        kfs.put("whites", new FieldDef("float", 0f));         // -1 ~ 1（白场端点）
+        kfs.put("blacks", new FieldDef("float", 0f));         // -1 ~ 1（黑场端点）
+        // 完整 HSL（H / S / L 三通道；操作栈顺序 = hue 旋转 → 饱和度 / 自然饱和度 → lightness）
+        kfs.put("hue", new FieldDef("float", 0f));            // -1 ~ 1（色相旋转：±1 = ±180°）
+        kfs.put("saturation", new FieldDef("float", 0f));     // -1 ~ 1（-1 = 全灰、1 = 双倍）
+        kfs.put("vibrance", new FieldDef("float", 0f));       // -1 ~ 1（自然饱和度）
+        kfs.put("lightness", new FieldDef("float", 0f));      // -1 ~ 1（HSL 的 L：正 = 向白推、负 = 向黑压）
+        // 白平衡
+        kfs.put("temperature", new FieldDef("float", 0f));    // -1 ~ 1（正 = 暖 / 偏红）
+        kfs.put("tint", new FieldDef("float", 0f));           // -1 ~ 1（正 = 品红、负 = 绿）
+        // RGBA 通道拆分（R/G/B 每通道系数；操作栈位置：色温/色调之后、钳制 [0,1] 之前）
+        kfs.put("red", new FieldDef("float", 0f));            // -1 ~ 1（红通道乘性系数：-1 = 归零、-0.5 = 减半、+1 = 双倍）
+        kfs.put("green", new FieldDef("float", 0f));          // -1 ~ 1（绿通道，同上）
+        kfs.put("blue", new FieldDef("float", 0f));           // -1 ~ 1（蓝通道，同上）
+        // RGB 通道混合器（PS 式 3×3 矩阵；矩阵 = 单位阵 + 参数矩阵，缺省全 0 = 单位阵 = 无效果）
+        kfs.put("mix_rr", new FieldDef("float", 0f));         // -1 ~ 1（输出 R ← 输入 R 的额外系数，叠加在单位阵上）
+        kfs.put("mix_rg", new FieldDef("float", 0f));         // -1 ~ 1（输出 R ← 输入 G）
+        kfs.put("mix_rb", new FieldDef("float", 0f));         // -1 ~ 1（输出 R ← 输入 B）
+        kfs.put("mix_gr", new FieldDef("float", 0f));         // -1 ~ 1（输出 G ← 输入 R）
+        kfs.put("mix_gg", new FieldDef("float", 0f));         // -1 ~ 1（输出 G ← 输入 G）
+        kfs.put("mix_gb", new FieldDef("float", 0f));         // -1 ~ 1（输出 G ← 输入 B）
+        kfs.put("mix_br", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 R）
+        kfs.put("mix_bg", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 G）
+        kfs.put("mix_bb", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 B）
+        // 曲线组（形态 b）：曲线混合强度（曲线本身是 clip 级字段 rgb_curve / r_curve / g_curve / b_curve）
+        kfs.put("curve_strength", new FieldDef("float", 1f));   // 0 ~ 1（缺省 1 = 曲线全量生效；无曲线时忽略）
+        kfs.put("r_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（R 每通道曲线，同上）
+        kfs.put("g_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（G 每通道曲线，同上）
+        kfs.put("b_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（B 每通道曲线，同上）
+        // Lift / Gamma / Gain 色轮（三组逐通道色轮；九个全 0 = 整步跳过）
+        kfs.put("lift_r", new FieldDef("float", 0f));         // -1 ~ 1（R 阴影：正 = 抬阴影、负 = 压黑）
+        kfs.put("lift_g", new FieldDef("float", 0f));         // -1 ~ 1（G 阴影，同上）
+        kfs.put("lift_b", new FieldDef("float", 0f));         // -1 ~ 1（B 阴影，同上）
+        kfs.put("gamma_r", new FieldDef("float", 0f));        // -1 ~ 1（R 中间调：正 = 提亮、负 = 压暗）
+        kfs.put("gamma_g", new FieldDef("float", 0f));        // -1 ~ 1（G 中间调，同上）
+        kfs.put("gamma_b", new FieldDef("float", 0f));        // -1 ~ 1（B 中间调，同上）
+        kfs.put("gain_r", new FieldDef("float", 0f));         // -1 ~ 1（R 高光：乘性增益 = 1 + 值）
+        kfs.put("gain_g", new FieldDef("float", 0f));         // -1 ~ 1（G 高光，同上）
+        kfs.put("gain_b", new FieldDef("float", 0f));         // -1 ~ 1（B 高光，同上）
+        // 六条 hue 曲线的混合强度（曲线本身是 clip 级字段 hv_h_curve / hv_s_curve / ... / sv_l_curve）
+        kfs.put("hv_h_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvH：hue → hue，缺省 1；无曲线时忽略）
+        kfs.put("hv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvS：hue → 饱和度）
+        kfs.put("hv_l_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvL：hue → 亮度）
+        kfs.put("lv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（LvS：亮度 → 饱和度）
+        kfs.put("sv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（SvS：饱和度 → 饱和度）
+        kfs.put("sv_l_strength", new FieldDef("float", 1f));    // 0 ~ 1（SvL：饱和度 → 亮度）
+        // 风格化（本身即强度）
+        kfs.put("grayscale", new FieldDef("float", 0f));      // 0 ~ 1（灰度混合量）
+        kfs.put("invert", new FieldDef("float", 0f));         // 0 ~ 1（反相混合量）
 
         return new TrackTypeSchema(clips, kfs);
     }
@@ -189,15 +271,15 @@ public final class TrackSchemas {
      * {@code c' = pow(max(c,0), exp2(-gamma))}、{@code c' = c·(1+gain)}，
      * 九个全 0 = 整步跳过（逐位恒等）。</p>
      *
-     * <p><b>clip 级字段 = 作用域 + 曲线</b>（不随时间变，故挂 clip）：
-     * {@code scope}（{@code master} 缺省 / {@code lane}）与 {@code lane}（{@code scope=lane} 时的目标相机轨序号：
-     * 0 起、按 timeline 中 CAMERA 轨出现顺序）；{@code curve} = RGB 复合曲线、{@code r_curve} / {@code g_curve} /
-     * {@code b_curve} = 每通道曲线（R / G / B 各一条）、{@code hv_h_curve} / {@code hv_s_curve} /
-     * {@code hv_l_curve} / {@code lv_s_curve} / {@code sv_s_curve} / {@code sv_l_curve} = 六条 hue 曲线
-     * （DaVinci 曲线页口径：HvH / HvS / HvL、LvS / SvS / SvL），都是控制点数组
+     * <p><b>ADJUST 轨 = 整体画面（master）；lane 级调色 = 相机片段字段</b>：
+     * 本轨只作用于合成输出（最终显示画面），没有 scope / lane 字段；作用于某条相机轨产出的 lane
+     * （渲染完成之后、合成之前）的调色，直接写在该 CAMERA 片段上（见 {@code camera()}）。
+     * clip 级字段仅剩曲线（不随时间变，故挂 clip）：{@code rgb_curve} = RGB 复合曲线、{@code r_curve} /
+     * {@code g_curve} / {@code b_curve} = 每通道曲线（R / G / B 各一条）、{@code hv_h_curve} /
+     * {@code hv_s_curve} / {@code hv_l_curve} / {@code lv_s_curve} / {@code sv_s_curve} / {@code sv_l_curve} =
+     * 六条 hue 曲线（DaVinci 曲线页口径：HvH / HvS / HvL、LvS / SvS / SvL），都是控制点数组
      * {@code [[x,y], ...]}（x 严格递增、各 0~1、≥2 点；结构字段，缺省 = 无曲线——与 CAMERA 轨同名的
-     * {@code curve}（{@code bezier_curve}）按轨道类型分派，互不影响）。master = 作用于合成输出（最终显示画面）；
-     * lane = 作用于该相机轨的画面，在该 lane 渲染完成之后、合成之前
+     * {@code curve}（{@code bezier_curve}）按轨道类型分派，互不影响）。master = 作用于合成输出（最终显示画面）
      * （见 {@code plans/0.3.6/screen-color-adjust.md} 步骤 5、「增量：RGB 通道混合器」、
      * 「增量：RGB 复合曲线（形态 b）」、「增量：每通道曲线（R / G / B）」、「增量：六条 hue 曲线」
      * 与「增量：Lift / Gamma / Gain 色轮」）。</p>
@@ -208,10 +290,8 @@ public final class TrackSchemas {
      */
     private static TrackTypeSchema adjust() {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
-        clips.put("scope", new FieldDef("enum", "master", false, List.of("master", "lane")));
-        clips.put("lane", new FieldDef("int", 0));
         // 曲线组（形态 b）：曲线定义一次（clip 级结构字段），关键帧只控各自强度
-        clips.put("curve", new FieldDef("color_curve", null));
+        clips.put("rgb_curve", new FieldDef("color_curve", null));
         clips.put("r_curve", new FieldDef("color_curve", null));
         clips.put("g_curve", new FieldDef("color_curve", null));
         clips.put("b_curve", new FieldDef("color_curve", null));
@@ -255,7 +335,7 @@ public final class TrackSchemas {
         kfs.put("mix_br", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 R）
         kfs.put("mix_bg", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 G）
         kfs.put("mix_bb", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 B）
-        // 曲线组（形态 b）：曲线混合强度（曲线本身是 clip 级字段 curve / r_curve / g_curve / b_curve）
+        // 曲线组（形态 b）：曲线混合强度（曲线本身是 clip 级字段 rgb_curve / r_curve / g_curve / b_curve）
         kfs.put("curve_strength", new FieldDef("float", 1f));   // 0 ~ 1（缺省 1 = 曲线全量生效；无曲线时忽略）
         kfs.put("r_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（R 每通道曲线，同上）
         kfs.put("g_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（G 每通道曲线，同上）

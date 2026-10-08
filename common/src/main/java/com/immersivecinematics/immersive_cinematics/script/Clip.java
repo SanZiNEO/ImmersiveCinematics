@@ -146,7 +146,7 @@ public class Clip {
      * {@code null} = 本片段无曲线（字段缺省），曲线值见 {@link ColorCurve}。
      */
     public ColorCurve getColorCurve() {
-        return getObject("curve");
+        return getObject("rgb_curve");
     }
 
     /**

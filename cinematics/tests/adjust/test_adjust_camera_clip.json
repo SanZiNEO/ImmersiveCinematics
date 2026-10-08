@@ -1,0 +1,90 @@
+{
+  "meta": {
+    "id": "test_adjust_camera_clip",
+    "name": "调色测试-相机片段级调色",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "相机片段级调色：3 条 CAMERA 轨（左半屏 red 0→-1→0、右半屏 blue 0→-1→0、中央对照轨不写任何调色字段），调色直接写在相机片段的关键帧上，与 dest/opacity 同层；缺省 0 = 无效果",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: test_adjust_camera_clip | 左半屏 red 0→-1 | 右半屏 blue 0→-1 | 中央轨无调色字段",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 1 }, "red": 0 },
+              { "time": 4, "position": { "dx": 2, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 1 }, "red": -1 },
+              { "time": 8, "position": { "dx": 4, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 1 }, "red": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 180, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 1 }, "blue": 0 },
+              { "time": 4, "position": { "dx": -2, "dy": 3, "dz": 8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 180, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 1 }, "blue": -1 },
+              { "time": 8, "position": { "dx": 0, "dy": 3, "dz": 8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 180, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 1 }, "blue": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 8, "dy": 3, "dz": 0 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.25, "y": 0.25, "w": 0.5, "h": 0.5 } },
+              { "time": 8, "position": { "dx": 8, "dy": 3, "dz": -4 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.25, "y": 0.25, "w": 0.5, "h": 0.5 } }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

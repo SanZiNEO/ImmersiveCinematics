@@ -59,7 +59,7 @@
           {
             "start_time": 0,
             "duration": 8,
-            "curve": [ [0, 0], [0.5, 0.8], [1, 1] ],
+            "rgb_curve": [ [0, 0], [0.5, 0.8], [1, 1] ],
             "keyframes": [
               { "time": 0, "curve_strength": 0 },
               { "time": 2, "curve_strength": 1 },

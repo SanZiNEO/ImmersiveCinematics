@@ -49,15 +49,16 @@ import java.util.Map;
  *   → 交给 {@link Sink}（合成层；有 lane 级调色时给的是 adjustTarget，否则是 lane FBO）
  * </pre>
  *
- * <h2>lane 级调色（{@code scope=lane} 的 ADJUST 轨道）</h2>
- * 该 lane 的调色参数由脚本侧经 {@link ScriptLaneDriver} 传进 {@link Lane#adjust()}。参数非空且非恒等时，
- * 本类在 lane 渲染完成（含描边）、<b>合成之前</b>调 {@link ColorAdjustPass#applyTo} 跑一次调色 pass，
+ * <h2>lane 级调色（来自该 lane 的相机片段）</h2>
+ * 该 lane 的调色参数由脚本侧（该 lane 的相机片段采样）经 {@link ScriptLaneDriver} 传进
+ * {@link Lane#adjust()}。参数非空且非恒等时，本类在 lane 渲染完成（含描边）、<b>合成之前</b>调
+ * {@link ColorAdjustPass#applyTo} 跑一次调色 pass，
  * 结果写进共享的 {@link #adjustTarget(int, int)}，并把该缓冲交给合成层（而不是 lane FBO）——
  * 顺序因此固定为 <b>lane 渲染 → lane 级调色 → 合成（opacity/dest/source）→ 全部 lane 完成后 → master 调色</b>。
  * <p><b>alpha 契约</b>：lane 级调色只动 RGB（着色器 {@code fragColor.a = src.a}），alpha 逐位直通；
  * 透明度只在合成层由 {@code opacity}（{@code ColorModulator.a}）调控——与 master 调色同一契约
  * （见 {@code ColorAdjustPass} / {@code ic_color_adjust.fsh}）。</p>
- * <p>参数为空（无 lane 级 ADJUST / 参数恒等 / 着色器不可用）时<b>不建缓冲、不跑 pass</b>，
+ * <p>参数为空（相机片段没写调色 / 参数恒等 / 着色器不可用）时<b>不建缓冲、不跑 pass</b>，
  * 交给合成的仍是 lane FBO —— 与不带该功能的路径完全一致（默认零差异）。</p>
  *
  * <h2>三条落地要点（原型实证，见 plans/0.3.6/quadrant-prototype-results.md §3.1–3.3）</h2>
@@ -165,7 +166,7 @@ public final class LaneRenderer {
         }
 
         /**
-         * 本帧的 lane 级调色参数（{@code scope=lane} 的 ADJUST 轨道经 {@code ScriptPlayer} 归集而来）；
+         * 本帧的 lane 级调色参数（来自该 lane 的相机片段，由 {@code ScriptPlayer} 采样而来）；
          * {@code null} = 无 —— 该 lane 渲染完直接进合成，不跑调色 pass（默认零差异路径）。
          */
         public ColorAdjustParams adjust() {
@@ -404,10 +405,10 @@ public final class LaneRenderer {
         // 读的是 lane 的原始渲染结果（不含 lane 级调色、不含合成）。见 LaneDebugCapture。
         LaneDebugCapture.onLaneRendered(captureId, fbo);
 
-        // lane 级调色（ADJUST 轨道 scope=lane）：lane 渲染完成之后、合成之前，把该 lane 的画面
+        // lane 级调色（来自该 lane 的相机片段）：lane 渲染完成之后、合成之前，把该 lane 的画面
         // 过一次调色 pass（只动 RGB、alpha 直通；着色器与 uniform 上传与 master 共用同一份实现）。
         // 结果写进共享 adjustTarget（尺寸跟随窗口，与 offscreenTarget 同处理），合成读它而不是 lane FBO。
-        // 无需调整（无 lane 级 ADJUST / 参数恒等 / 着色器不可用）→ 原样返回 lane FBO，行为与不带该功能完全一致。
+        // 无需调整（片段没写调色 / 参数恒等 / 着色器不可用）→ 原样返回 lane FBO，行为与不带该功能完全一致。
         ColorAdjustParams adjust = lane.adjust;
         if (adjust != null && !adjust.isIdentity()) {
             RenderTarget adjusted = adjustTarget(fbo.width, fbo.height);

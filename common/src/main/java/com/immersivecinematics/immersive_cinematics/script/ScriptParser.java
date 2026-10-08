@@ -392,7 +392,7 @@ public class ScriptParser {
 
     /**
      * 解析 {@code color_curve} 字段 = 控制点数组 {@code [[x,y], ...]}
-     * （ADJUST 轨的 RGB 复合曲线 {@code curve} 与每通道曲线 {@code r_curve} / {@code g_curve} / {@code b_curve}
+     * （ADJUST 轨 / CAMERA 片段的 RGB 复合曲线 {@code rgb_curve} 与每通道曲线 {@code r_curve} / {@code g_curve} / {@code b_curve}
      * 共用本解析；字段名由 {@code p} 带出）。
      * <p>结构在此严格校验（与 {@code ScriptValidator} 同一口径）：数组、每点 2 个数字、x 严格递增、
      * x / y 各 0~1、至少 2 点——不合法直接抛 {@link ScriptParseException}（不是静默忽略：

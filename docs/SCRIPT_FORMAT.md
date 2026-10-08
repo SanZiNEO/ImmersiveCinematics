@@ -171,7 +171,7 @@ immersive_cinematics/
 | `"event"` | 服务端命令事件 |
 | `"mod_event"` | 第三方模组扩展事件 |
 | `"overlay"` | 覆盖层（fade 全屏颜色 / image 图片 / subtitle 字幕），**支持多条同类型轨道同时渲染** |
-| `"adjust"` | 画面颜色调整（`scope` = `master` 作用于合成输出 / `lane` 作用于指定相机轨的画面）：曝光 / 对比度 / 高光 / 阴影 / 白 / 黑 / 色相 / 饱和度 / 自然饱和度 / 亮度 / 色温 / 色调 / R/G/B 通道系数 / 灰度 / 反相，全部参数可关键帧 |
+| `"adjust"` | 画面颜色调整（**整体画面 = master**：作用于合成输出）：曝光 / 对比度 / 高光 / 阴影 / 白 / 黑 / 色相 / 饱和度 / 自然饱和度 / 亮度 / 色温 / 色调 / R/G/B 通道系数 / 灰度 / 反相，全部参数可关键帧；**单条相机轨画面的调色写在 CAMERA 片段上**（见 §4「相机片段调色」） |
 
 ---
 
@@ -201,6 +201,8 @@ immersive_cinematics/
 | `cam_breath_trauma` | float | 否 | `1.0` | 仅 `cam_breath_type=trauma`：初始冲击强度 0~1 |
 | `cam_breath_decay` | float | 否 | `0.5` | 仅 `cam_breath_type=trauma`：强度每秒衰减速率 |
 | `keyframes` | array | 是 | — | 关键帧数组，至少 1 个 |
+
+> **相机片段自带调色**：CAMERA clip 还可写调色字段（clip 级 10 条曲线 + 关键帧级 45 个调色通道），作用于该相机轨产出的 lane——见下方「相机片段调色」。
 
 > **v3 迁移**：`position_mode` 已迁移到**关键帧级**；旧 `cam_tracking_follow*`/`cam_tracking_look_at*` 字段已由关键帧级 `follow`/`look_at` 系列字段取代。clip 级不再支持这些旧字段（保留会被 validate 报废弃提示）。
 
@@ -381,6 +383,39 @@ immersive_cinematics/
 > 渲染消费已落地（2026-10-07）：脚本 lane 的合成参数由 `client/lane/ScriptLaneDriver` 按本节字段
 > 逐帧从 clip 关键帧插值取出，交给 `LaneCompositor` 上屏（缺省 = `1` / 全屏 / 全幅）。
 > 插值为**匀速线性**（0.3.6 起运行时统一线性；缓动 = 编辑器烘焙成显式关键帧）。
+
+### 相机片段调色
+
+**每个相机片段直接携带自己的调色**（与 `dest` / `source` / `opacity` 同层，都写在 clip 的关键帧上）：该调色作用于**该相机轨产出的每条 lane**——在该 lane 渲染完成之后、合成之前生效（分屏 / 画中画里每一格可以各自调色）。ADJUST 轨只作用于整体画面（master），不参与 lane 级调色（见 §10）。
+
+- **字段与 §10 完全同一套**（通道口径、缺省值、操作栈顺序、曲线写法全部相同，见 §10 Adjust 轨道）：
+  - **clip 级 10 条曲线**（不随时间变，故挂 clip）：`rgb_curve`（RGB 复合曲线）+ `r_curve` / `g_curve` / `b_curve`（每通道曲线）+ `hv_h_curve` / `hv_s_curve` / `hv_l_curve` / `lv_s_curve` / `sv_s_curve` / `sv_l_curve`（六条 hue 曲线）。
+  - **关键帧级 45 个通道**：35 个标量通道（缺省 `0` = 无效果）+ 10 个曲线强度（`curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength` / `hv_h_strength` ~ `sv_l_strength`，缺省 `1`）。
+- **按片段本地时间采样**：每条 lane 用它自己相机片段的本地时间求值（叠化重叠窗口下一条轨可能同时产出多条 lane，各自独立采样）。参数全为缺省 = 不调色，走原路径（lane 渲染完直接进合成）。
+- **每个关键帧都应写上所需通道**：关键帧缺某字段按缺省值解（标量 `0`、强度 `1`），只在一个关键帧里写、另一个不写，会在中间挖出折点——要让某项整段生效，就在该片段每个关键帧都写上它。
+- **只承载 RGB（硬性口径）**：调色只动 RGB，`alpha` 逐位直通（着色器 `fragColor.a = src.a`）；**透明度（opacity / alpha）一律在画面合成完成之后、由合成层调控**（`LaneCompositor` / OVERLAY 层 `opacity`），绝不烤进画面、也不在调色里先处理 alpha。
+- `scope` / `lane` 字段已移除（0.3.6 起 lane 级调色 = 相机片段字段）；写在 CAMERA 或 ADJUST clip 上都会被 validate 报出。
+
+```json
+{
+  "type": "CAMERA",
+  "clips": [
+    {
+      "start_time": 0,
+      "duration": 8,
+      "rgb_curve": [ [0, 0], [0.5, 0.8], [1, 1] ],
+      "keyframes": [
+        { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1,
+          "dest": { "x": 0, "y": 0, "w": 0.5, "h": 1 }, "opacity": 1, "grayscale": 0, "curve_strength": 0 },
+        { "time": 8, "position": { "dx": 0, "dy": 3, "dz": -8 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1,
+          "dest": { "x": 0, "y": 0, "w": 0.5, "h": 1 }, "opacity": 1, "grayscale": 1, "curve_strength": 1 }
+      ]
+    }
+  ]
+}
+```
+
+> 上例这条左半屏相机片段：画面在 8 秒内从彩色渐变为黑白、同时把 `rgb_curve` 的强度淡入——两项都只作用于这一格的 lane；`opacity`（合成参数）照旧在合成阶段控透明度。
 
 ---
 
@@ -601,29 +636,26 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 
 ---
 
-## 10. Adjust 轨道（画面颜色调整）
+## 10. Adjust 轨道（整体画面调色 = master）
 
-对画面做颜色调整，两个**作用域**（clip 级字段 `scope`，见下表）：
-
-- `master`（缺省）：作用于**合成后的最终画面**（master 层，架构图 RADJ 节点）——在 lane 合成之后、GUI 之前作用于整屏画面。
-- `lane`：作用于**指定相机轨的画面**（lane 级）——在该 lane 渲染完成之后、合成之前，只影响那一条相机轨的输出（分屏 / 画中画里可以各格独立调色）。
+对**合成后的最终画面**（master 层，架构图 RADJ 节点）做颜色调整——在 lane 合成之后、GUI 之前作用于整屏画面。**单条相机轨画面的调色不写在这里**：调色直接写在 CAMERA 片段上（见 §4「相机片段调色」），作用于该相机轨产出的 lane（lane 渲染完成、合成之前）。
 
 - **不影响 GUI**：字幕 / 黑边 / 跳过提示由 GUI 阶段绘制，调色不作用于它们（挂点在世界渲染阶段，早于 GUI）。
 - **本版本 = 35 个标量通道**（12 标量 + R/G/B 每通道系数 + **RGB 通道混合器（`mix_rr` ~ `mix_bb` 九个）** + 完整 HSL 的 `hue` / `lightness` + **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个）**）**+ RGB 复合曲线 + 每通道曲线（R / G / B 各一条）+ 六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）**（曲线组形态 b：曲线定义一次 + 各自的强度关键帧控混合强度）。LUT、以及「调整层」（作用于其下所有层）是后续批次（见 `plans/0.3.6/screen-color-adjust.md` §3 / §7）。
-- **支持多条 ADJUST 轨道**：同一时刻以**后面的轨道**为准（轨道层级靠后的覆盖靠前的）——master 与 lane 级各自适用（多条 lane 级指向同一相机轨时，也是后面的轨道生效）。
+- **支持多条 ADJUST 轨道**：同一时刻以**后面的轨道**为准（轨道层级靠后的覆盖靠前的）。
 
-### 执行顺序与 alpha 契约（两条作用域共用）
+### 执行顺序与 alpha 契约
 
 ```
 lane 渲染（含 lane 内发光描边）
-  → lane 级调整（scope=lane：只动 RGB，alpha 直通）
+  → 相机片段调色（写在该 lane 相机片段上的调色：只动 RGB，alpha 直通）
   → 合成（opacity / dest / source）
   → 全部 lane 完成后
-  → master 调整（scope=master：作用于合成输出，只动 RGB，alpha 直通）
+  → master 调整（ADJUST 轨：作用于合成输出，只动 RGB，alpha 直通）
 ```
 
 - **调色只动 RGB**：`alpha` 逐位直通（着色器 `fragColor.a = src.a`）——透明度只在合成层由 `opacity` 调控（`LaneCompositor` / OVERLAY 层 opacity），调色不承担任何透明度语义。
-- **lane 级参数按相机轨走**：同一条相机轨本帧产出的所有 lane 共用该轨的 lane 级参数（叠化重叠窗口下一条轨可能同时产出多条 lane）。
+- **相机片段调色按片段本地时间采样**：每条 lane 用它自己相机片段的本地时间求值（叠化重叠窗口下一条轨可能同时产出多条 lane，各自独立采样）。
 
 ### Clip 字段
 
@@ -632,36 +664,34 @@ lane 渲染（含 lane 内发光描边）
 | `start_time` | float | 是 | — | 起始时间 |
 | `duration` | float | 是 | — | 持续时间 |
 | `keyframes` | array | 是 | — | 关键帧数组 |
-| `scope` | enum | 否 | `master` | 作用域：`master`（合成输出 = 最终显示画面）/ `lane`（指定相机轨的画面，合成前） |
-| `lane` | int | `scope=lane` 时必填 | — | 目标相机轨序号：**0 起，按 timeline 中 CAMERA 轨出现顺序**（其它类型轨道不占号）。必须满足 `0 ≤ lane < 本脚本 CAMERA 轨数量` |
-| `curve` | array | 否 | — | **RGB 复合曲线**（曲线组形态 b）：控制点数组 `[[x, y], ...]`，至少 2 点、`x` 严格递增、`x` / `y` 各 0~1；不写 = 无曲线。见下方「曲线（`curve` / `r_curve` / `g_curve` / `b_curve`）」 |
-| `r_curve` | array | 否 | — | **R 每通道曲线**：结构同 `curve`，只作用于红通道；不写 = 该通道无曲线 |
-| `g_curve` | array | 否 | — | **G 每通道曲线**：结构同 `curve`，只作用于绿通道 |
-| `b_curve` | array | 否 | — | **B 每通道曲线**：结构同 `curve`，只作用于蓝通道 |
-| `hv_h_curve` | array | 否 | — | **HvH 曲线**：以 **hue** 为键、输出 **hue**（色相 → 色相，按色相分区旋转）；结构同 `curve` |
+| `rgb_curve` | array | 否 | — | **RGB 复合曲线**（曲线组形态 b）：控制点数组 `[[x, y], ...]`，至少 2 点、`x` 严格递增、`x` / `y` 各 0~1；不写 = 无曲线。见下方「曲线（`rgb_curve` / `r_curve` / `g_curve` / `b_curve`）」 |
+| `r_curve` | array | 否 | — | **R 每通道曲线**：结构同 `rgb_curve`，只作用于红通道；不写 = 该通道无曲线 |
+| `g_curve` | array | 否 | — | **G 每通道曲线**：结构同 `rgb_curve`，只作用于绿通道 |
+| `b_curve` | array | 否 | — | **B 每通道曲线**：结构同 `rgb_curve`，只作用于蓝通道 |
+| `hv_h_curve` | array | 否 | — | **HvH 曲线**：以 **hue** 为键、输出 **hue**（色相 → 色相，按色相分区旋转）；结构同 `rgb_curve` |
 | `hv_s_curve` | array | 否 | — | **HvS 曲线**：以 **hue** 为键、输出 **饱和度**（按色相分区调饱和） |
 | `hv_l_curve` | array | 否 | — | **HvL 曲线**：以 **hue** 为键、输出 **亮度**（按色相分区调明暗） |
 | `lv_s_curve` | array | 否 | — | **LvS 曲线**：以 **亮度** 为键、输出 **饱和度**（暗部 / 亮部分区调饱和） |
 | `sv_s_curve` | array | 否 | — | **SvS 曲线**：以 **饱和度** 为键、输出 **饱和度**（低饱和 / 高饱和分区调饱和） |
 | `sv_l_curve` | array | 否 | — | **SvL 曲线**：以 **饱和度** 为键、输出 **亮度**（低饱和 / 高饱和分区调明暗） |
 
-> 作用域与十条曲线都是 clip 级字段（不随时间变，故不挂关键帧）；35 个标量通道与十条曲线强度（`curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength` / `hv_h_strength` ~ `sv_l_strength`）全部写在关键帧上（与 letterbox/EVENT/AUDIO/OVERLAY 同一套「统一关键帧级调控」规则）。`scope=master` 时写 `lane` 是多余字段（校验会提示）。
+> 十条曲线都是 clip 级字段（不随时间变，故不挂关键帧）；35 个标量通道与十条曲线强度（`curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength` / `hv_h_strength` ~ `sv_l_strength`）全部写在关键帧上（与 letterbox/EVENT/AUDIO/OVERLAY 同一套「统一关键帧级调控」规则）。
 
-### 曲线（`curve` / `r_curve` / `g_curve` / `b_curve` / `hv_h_curve` ~ `sv_l_curve`）— 复合曲线 + 每通道曲线 + 六条 hue 曲线（形态 b）
+### 曲线（`rgb_curve` / `r_curve` / `g_curve` / `b_curve` / `hv_h_curve` ~ `sv_l_curve`）— 复合曲线 + 每通道曲线 + 六条 hue 曲线（形态 b）
 
 **曲线定义一次（clip 级），关键帧只控各自的混合强度**：每条曲线的作用量都可以随时间淡入淡出，但曲线形状本身不随时间变（形态 a「曲线点集也打关键帧」留作后续增强）。
 
 ```json
-"curve":   [ [0, 0], [0.5, 0.8], [1, 1] ]
+"rgb_curve":   [ [0, 0], [0.5, 0.8], [1, 1] ]
 "r_curve": [ [0, 0], [0.5, 0.65], [1, 1] ]
 "g_curve": [ [0, 0], [0.5, 0.35], [1, 1] ]
 "b_curve": [ [0, 0], [0.5, 0.8], [1, 1] ]
 ```
 
-- **四条曲线**：`curve` = RGB 复合曲线（三个通道共用一条，按各通道自己的输入查表）；`r_curve` / `g_curve` / `b_curve` = 每通道曲线（各只作用于自己的通道，PS 式「每通道曲线」）。四条各自独立，可以只写其中任意几条。
+- **四条曲线**：`rgb_curve` = RGB 复合曲线（三个通道共用一条，按各通道自己的输入查表）；`r_curve` / `g_curve` / `b_curve` = 每通道曲线（各只作用于自己的通道，PS 式「每通道曲线」）。四条各自独立，可以只写其中任意几条。
 - **控制点**：`[x, y]`，`x` = 输入（0~1）、`y` = 输出（0~1）；**至少 2 点**、`x` **严格递增**（不递增 / 越界 / 点数不足会被校验与解析拦下）。
 - **插值**：CPU 侧把控制点采样成 **256 点 LUT**（**Fritsch–Carlson 单调三次插值**：单调控制点 ⇒ 单调曲线、段内**无过冲**），渲染侧逐通道查表；`x` 小于首点 / 大于末点时**钳制到端点值**（不外推）。
-- **混合**：`c = mix(c, curve(c), 强度)`，逐通道；每通道曲线只写自己的那个分量（`r_curve` 不改 g / b）。
+- **混合**：`c = mix(c, rgb_curve(c), 强度)`，逐通道；每通道曲线只写自己的那个分量（`r_curve` 不改 g / b）。
 - **强度**：`curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength`，各自 0~1、**缺省 1**——写了对应曲线就是全量生效；关键帧把它写回 `0` = 该曲线淡出（不需要额外的开关字段）。**没有对应曲线时该强度被忽略**。
 - **操作栈位置**：**R/G/B 通道系数 + RGB 通道混合器之后、HSL 之前**——复合曲线在前（第 8 步）、每通道曲线紧随其后（第 9 步）。所以每通道曲线看到的是「复合曲线处理之后」的值（先整体风格化、再按通道微调），且曲线作用在「色温 / 色调 + 通道系数 + 通道混合器」之后：曲线拉回的黑场 / 白场不会再被通道系数 / 混合矩阵放大。
 - **六条 hue 曲线**（`hv_h_curve` / `hv_s_curve` / `hv_l_curve` / `lv_s_curve` / `sv_s_curve` / `sv_l_curve`，DaVinci 曲线页口径）：控制点写法与上面四条完全相同，**但键（`x` 输入）与目标（`y` 输出）不一定是同一个量**——键是「进入 HSL 块时」的 hue / 亮度 / 饱和度，目标是 hue / 亮度 / 饱和度之一（见下表）。它们在 **HSL 块内**（标量 HSL 之后、灰度之前）生效，与标量 HSL **共用同一次换算**。
@@ -724,7 +754,7 @@ lane 渲染（含 lane 内发光描边）
 | `mix_br` | float | `0` | -1 ~ 1 | **输出 B ← 输入 R** |
 | `mix_bg` | float | `0` | -1 ~ 1 | **输出 B ← 输入 G** |
 | `mix_bb` | float | `0` | -1 ~ 1 | **输出 B ← 输入 B**（`-1` = 蓝通道归零） |
-| `curve_strength` | float | `1` | 0 ~ 1 | **RGB 复合曲线的混合强度**（`curve` 存在时生效）：`1` = 曲线全量、`0.5` = 一半、`0` = 曲线淡出；**没有 `curve` 时忽略** |
+| `curve_strength` | float | `1` | 0 ~ 1 | **RGB 复合曲线的混合强度**（`rgb_curve` 存在时生效）：`1` = 曲线全量、`0.5` = 一半、`0` = 曲线淡出；**没有 `rgb_curve` 时忽略** |
 | `r_curve_strength` | float | `1` | 0 ~ 1 | **R 每通道曲线的混合强度**（`r_curve` 存在时生效），口径同 `curve_strength` |
 | `g_curve_strength` | float | `1` | 0 ~ 1 | **G 每通道曲线的混合强度**（`g_curve` 存在时生效），口径同 `curve_strength` |
 | `b_curve_strength` | float | `1` | 0 ~ 1 | **B 每通道曲线的混合强度**（`b_curve` 存在时生效），口径同 `curve_strength` |
@@ -747,7 +777,7 @@ lane 渲染（含 lane 内发光描边）
 | `invert` | float | `0` | 0 ~ 1 | 反相强度：`1` = 完全反相，`0.5` = 半反相 |
 
 **操作顺序固定**（同一关键帧里多个通道同时生效时按此顺序计算，不可调）：
-曝光 → 对比度 → 高光/阴影 → 白场/黑场 → 色温/色调 → R/G/B 通道系数 → **RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）** → **RGB 复合曲线（`curve`）** → **每通道曲线（`r_curve` / `g_curve` / `b_curve`）** → **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b`）** → 色相旋转 → 饱和度 → 自然饱和度 → 亮度 → **六条 hue 曲线（`hv_h_curve` → `hv_s_curve` → `hv_l_curve` → `lv_s_curve` → `sv_s_curve` → `sv_l_curve`）** → 灰度 → 反相。
+曝光 → 对比度 → 高光/阴影 → 白场/黑场 → 色温/色调 → R/G/B 通道系数 → **RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）** → **RGB 复合曲线（`rgb_curve`）** → **每通道曲线（`r_curve` / `g_curve` / `b_curve`）** → **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b`）** → 色相旋转 → 饱和度 → 自然饱和度 → 亮度 → **六条 hue 曲线（`hv_h_curve` → `hv_s_curve` → `hv_l_curve` → `lv_s_curve` → `sv_s_curve` → `sv_l_curve`）** → 灰度 → 反相。
 
 > **通道混合器是 3×3 矩阵**：实际矩阵 = **单位阵 + 参数矩阵**（所以九个全 0 = 单位阵 = 无效果）。
 > 行 = 输出通道、列 = 输入通道：`out.r = (1+mix_rr)·r + mix_rg·g + mix_rb·b`，g / b 行同式
@@ -871,7 +901,7 @@ Gain（高光）    c' = c·(1 + gain)                  正 = 乘性提亮、负
     {
       "start_time": 0,
       "duration": 8,
-      "curve": [ [0, 0], [0.5, 0.8], [1, 1] ],
+      "rgb_curve": [ [0, 0], [0.5, 0.8], [1, 1] ],
       "keyframes": [
         { "time": 0, "curve_strength": 0 },
         { "time": 2, "curve_strength": 1 },
@@ -966,22 +996,22 @@ Gain（高光）    c' = c·(1 + gain)                  正 = 乘性提亮、负
 }
 ```
 
-### 示例：四象限各自调色（lane 级）
+### 示例：四象限各自调色（相机片段调色 + master）
 
-4 条 CAMERA 轨各占一格（`dest` 半屏）→ 4 条 lane 级 ADJUST 轨分别指向它们（`lane` = CAMERA 轨出现顺序 0~3）+ 1 条 master 轨做整体风格化：
+4 条 CAMERA 轨各占一格（`dest` 半屏）→ 调色直接写在各自相机片段的关键帧上（每条轨的画面独立调色）；再加 1 条 ADJUST 轨做整体风格化：
 
 ```json
 {
   "timeline": {
     "tracks": [
       { "type": "CAMERA", "clips": [ { "start_time": 0, "duration": 10,
-        "keyframes": [ { "time": 0, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "position": { "dx": 0, "dy": 0, "dz": 0 } } ] } ] },
+        "keyframes": [
+          { "time": 0, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "position": { "dx": 0, "dy": 0, "dz": 0 }, "grayscale": 0 },
+          { "time": 5, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "position": { "dx": 0, "dy": 0, "dz": 0 }, "grayscale": 1 } ] } ] },
       { "type": "CAMERA", "clips": [ { "start_time": 0, "duration": 10,
-        "keyframes": [ { "time": 0, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "position": { "dx": 0, "dy": 0, "dz": 0 } } ] } ] },
-      { "type": "ADJUST", "clips": [ { "start_time": 0, "duration": 10, "scope": "lane", "lane": 0,
-        "keyframes": [ { "time": 0, "grayscale": 0 }, { "time": 5, "grayscale": 1 } ] } ] },
-      { "type": "ADJUST", "clips": [ { "start_time": 0, "duration": 10, "scope": "lane", "lane": 1,
-        "keyframes": [ { "time": 0, "temperature": 0 }, { "time": 5, "temperature": 0.6 } ] } ] },
+        "keyframes": [
+          { "time": 0, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "position": { "dx": 0, "dy": 0, "dz": 0 }, "temperature": 0 },
+          { "time": 5, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "position": { "dx": 0, "dy": 0, "dz": 0 }, "temperature": 0.6 } ] } ] },
       { "type": "ADJUST", "clips": [ { "start_time": 0, "duration": 10,
         "keyframes": [ { "time": 0, "saturation": 0 }, { "time": 5, "saturation": -0.5 } ] } ] }
     ]
@@ -989,7 +1019,8 @@ Gain（高光）    c' = c·(1 + gain)                  正 = 乘性提亮、负
 }
 ```
 
-> 上面第 3 条轨（无 `scope`）就是 master：它作用于**合成后**的整屏画面，所以「lane 0 黑白 + 整体降饱和」会叠加（lane 级先算、master 后算）。
+> 前两条 CAMERA 轨各自调色：第 1 格黑白化、第 2 格偏暖，只影响各自那一格的画面（在该 lane 渲染完成、合成之前生效）。最后一条 ADJUST 轨（master）作用于**合成后**的整屏画面，所以「第 1 格黑白 + 整体降饱和」会叠加（相机片段调色先算、master 后算）。
+> 每个关键帧都要写上所需通道——缺字段按缺省 `0` 解，会在中间挖出折点（上面两格的关键帧各自都写了 `grayscale` / `temperature`）。
 
 ---
 
