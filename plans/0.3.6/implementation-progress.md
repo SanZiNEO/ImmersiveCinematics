@@ -26,7 +26,7 @@
 | A13 | 多实例 master 合并 → 按层级叠加（见「用户裁决新增」A13'） | A8 | ☐ | |
 | A5 | 六条 hue 曲线（HvH/HvS/HvL、LvS/SvS/SvL） | A3 | ✅ | `a1408fe` |
 | A6 | RGB 通道混合器（3×3 矩阵 9 参数） | A1 | ✅ | `0a74539` |
-| A7 | Lift/Gamma/Gain 色轮（或 LOG 色轮） | A2 | ☐ | |
+| A7 | Lift/Gamma/Gain 色轮（或 LOG 色轮） | A2 | ✅ | `c4f0901` |
 | A9 | 调整层（作用于其下所有图层） | A8 | ☐ | |
 | A10 | LUT（Color Lookup + 强度） | A9 | ☐ | |
 | A11 | PS 式六色带微调（Hue/Sat 分色带） | A5 | ☐ | |
