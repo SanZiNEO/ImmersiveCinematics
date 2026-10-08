@@ -6,11 +6,11 @@ import com.immersivecinematics.immersive_cinematics.client.post.MasterColorAdjus
 import java.util.List;
 
 /**
- * ADJUST 轨道播放器 — 画面颜色调整（0.3.6：master 26 通道 + lane 级调整 + RGB 通道混合器
- * + RGB 复合曲线 + 每通道曲线 + 六条 hue 曲线）。
+ * ADJUST 轨道播放器 — 画面颜色调整（0.3.6：master 35 通道 + lane 级调整 + RGB 通道混合器
+ * + RGB 复合曲线 + 每通道曲线 + 六条 hue 曲线 + Lift / Gamma / Gain 色轮）。
  *
  * <h2>职责</h2>
- * 每渲染帧找到本轨道当前活跃的 clip，把 26 个标量通道 + 十条曲线强度在<b>片段本地时间</b>处插值，按 clip 的
+ * 每渲染帧找到本轨道当前活跃的 clip，把 35 个标量通道 + 十条曲线强度在<b>片段本地时间</b>处插值，按 clip 的
  * {@code scope} 分流（见下）。无活跃 clip 时<b>本帧不参与</b> —— 渲染侧拿不到参数就不动画面。
  * <p>同帧多条 ADJUST 轨道：后发布者生效（轨道层级靠后的覆盖靠前的）；没活跃 clip 的轨道不参与
  * （不会把别的轨道的发布抹掉）。参数全为缺省（0）时被规整为「无调整」，同样不影响画面。</p>
@@ -29,12 +29,19 @@ import java.util.List;
  * 目标序号越界在 {@code ScriptValidator} 里就被拦下。
  *
  * <h2>数据口径</h2>
- * 17 个通道全部是<b>关键帧字段</b>：{@code exposure / contrast / highlights / shadows / whites /
+ * 35 个标量通道全部是<b>关键帧字段</b>：{@code exposure / contrast / highlights / shadows / whites /
  * blacks / hue / saturation / vibrance / lightness / temperature / tint / red / green / blue /
- * grayscale / invert}，
+ * mix_rr ~ mix_bb（九个）/ lift_r ~ gain_b（九个）/ grayscale / invert}，
  * 缺省全 0 = 无效果（字段名 / 范围 / 公式见 {@code docs/SCRIPT_FORMAT.md} §10 与
  * {@code TrackSchemas.adjust()}）。插值走 {@link KeyframeInterpolator#interpolateChannel}（匀速线性），
  * 与其它轨道的标量通道同一口径。作用域（{@code scope} / {@code lane}）是 clip 级字段，不随时间变。
+ *
+ * <h2>Lift / Gamma / Gain 色轮</h2>
+ * {@code lift_r} / {@code lift_g} / {@code lift_b}（阴影）、{@code gamma_r} / {@code gamma_g} / {@code gamma_b}
+ * （中间调）、{@code gain_r} / {@code gain_g} / {@code gain_b}（高光）九个同样是关键帧字段，
+ * 各 {@code -1 ~ 1}、缺省 {@code 0} = 无效果；逐通道公式
+ * {@code c' = c + lift·(1-c)}、{@code c' = pow(max(c,0), exp2(-gamma))}、{@code c' = c·(1+gain)}，
+ * 在着色器里位于<b>每通道曲线之后、钳制 {@code [0,1]} 之前</b>（九个全 0 时整步跳过）。
  *
  * <h2>曲线组（形态 b）：复合曲线 + 每通道曲线</h2>
  * clip 级字段 {@code curve}（RGB 复合曲线）与 {@code r_curve} / {@code g_curve} / {@code b_curve}（每通道曲线）
@@ -126,7 +133,7 @@ public class AdjustTrackPlayer implements TrackPlayer {
     /**
      * 本片段在<b>片段本地时间</b>处的全部取值（顺序 = {@link ColorAdjustParams} 分量顺序 = shader 操作栈顺序）。
      *
-     * <p>26 个标量通道走 {@link KeyframeInterpolator#interpolateChannel}（缺省 0 = 无效果）；
+     * <p>35 个标量通道走 {@link KeyframeInterpolator#interpolateChannel}（缺省 0 = 无效果）；
      * 曲线组（形态 b）的十条曲线都是 clip 级字段（{@code curve} / {@code r_curve} / {@code g_curve} /
      * {@code b_curve} 与六条 hue 曲线 {@code hv_h_curve} ~ {@code sv_l_curve}，不随时间变）：
      * LUT 由 {@link ColorCurve} 对象持有（按 clip 缓存，逐帧拿到同一个数组），
@@ -175,6 +182,15 @@ public class AdjustTrackPlayer implements TrackPlayer {
                 strength(keyframes, localTime, "r_curve_strength", rCurveLut),
                 strength(keyframes, localTime, "g_curve_strength", gCurveLut),
                 strength(keyframes, localTime, "b_curve_strength", bCurveLut),
+                channel(keyframes, localTime, "lift_r"),
+                channel(keyframes, localTime, "lift_g"),
+                channel(keyframes, localTime, "lift_b"),
+                channel(keyframes, localTime, "gamma_r"),
+                channel(keyframes, localTime, "gamma_g"),
+                channel(keyframes, localTime, "gamma_b"),
+                channel(keyframes, localTime, "gain_r"),
+                channel(keyframes, localTime, "gain_g"),
+                channel(keyframes, localTime, "gain_b"),
                 hvHLut, hvSLut, hvLLut, lvSLut, svSLut, svLLut,
                 strength(keyframes, localTime, "hv_h_strength", hvHLut),
                 strength(keyframes, localTime, "hv_s_strength", hvSLut),

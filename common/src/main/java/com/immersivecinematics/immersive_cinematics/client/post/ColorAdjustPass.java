@@ -268,6 +268,15 @@ public final class ColorAdjustPass {
         set(shader, "RCurveStrength", p.rCurveLut() == null ? 0.0F : p.rCurveStrength());
         set(shader, "GCurveStrength", p.gCurveLut() == null ? 0.0F : p.gCurveStrength());
         set(shader, "BCurveStrength", p.bCurveLut() == null ? 0.0F : p.bCurveStrength());
+        set(shader, "LiftR", p.liftR());
+        set(shader, "LiftG", p.liftG());
+        set(shader, "LiftB", p.liftB());
+        set(shader, "GammaR", p.gammaR());
+        set(shader, "GammaG", p.gammaG());
+        set(shader, "GammaB", p.gammaB());
+        set(shader, "GainR", p.gainR());
+        set(shader, "GainG", p.gainG());
+        set(shader, "GainB", p.gainB());
         set(shader, "HvHStrength", p.hvHLut() == null ? 0.0F : p.hvHStrength());
         set(shader, "HvSStrength", p.hvSLut() == null ? 0.0F : p.hvSStrength());
         set(shader, "HvLStrength", p.hvLLut() == null ? 0.0F : p.hvLStrength());

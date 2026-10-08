@@ -178,13 +178,16 @@ public final class TrackSchemas {
 
     /**
      * ADJUST 轨道（画面颜色调整，0.3.6：master 标量组 + lane 级调整 + RGB 通道混合器 + RGB 复合曲线
-     * + 每通道曲线 + 六条 hue 曲线）。
+     * + 每通道曲线 + 六条 hue 曲线 + Lift / Gamma / Gain 色轮）。
      *
-     * <p>26 个标量通道全部是<b>关键帧字段</b>，缺省全 0 = 无效果
+     * <p>35 个标量通道全部是<b>关键帧字段</b>，缺省全 0 = 无效果
      * （关键帧把通道写回 0 就是该项淡出，不需要 enabled 开关）。其中
      * {@code mix_rr} ~ {@code mix_bb} 九个构成 <b>RGB 通道混合器</b>（PS 式 3×3 矩阵）：
      * 实际矩阵 = 单位阵 + 参数矩阵（{@code out.r = (1+mix_rr)·r + mix_rg·g + mix_rb·b}，g / b 行同式），
-     * 九个全 0 = 单位阵 = 逐位恒等。</p>
+     * 九个全 0 = 单位阵 = 逐位恒等；{@code lift_*} / {@code gamma_*} / {@code gain_*} 九个构成
+     * <b>Lift / Gamma / Gain 色轮</b>（三组逐通道）：{@code c' = c + lift·(1-c)}、
+     * {@code c' = pow(max(c,0), exp2(-gamma))}、{@code c' = c·(1+gain)}，
+     * 九个全 0 = 整步跳过（逐位恒等）。</p>
      *
      * <p><b>clip 级字段 = 作用域 + 曲线</b>（不随时间变，故挂 clip）：
      * {@code scope}（{@code master} 缺省 / {@code lane}）与 {@code lane}（{@code scope=lane} 时的目标相机轨序号：
@@ -196,7 +199,8 @@ public final class TrackSchemas {
      * {@code curve}（{@code bezier_curve}）按轨道类型分派，互不影响）。master = 作用于合成输出（最终显示画面）；
      * lane = 作用于该相机轨的画面，在该 lane 渲染完成之后、合成之前
      * （见 {@code plans/0.3.6/screen-color-adjust.md} 步骤 5、「增量：RGB 通道混合器」、
-     * 「增量：RGB 复合曲线（形态 b）」、「增量：每通道曲线（R / G / B）」与「增量：六条 hue 曲线」）。</p>
+     * 「增量：RGB 复合曲线（形态 b）」、「增量：每通道曲线（R / G / B）」、「增量：六条 hue 曲线」
+     * 与「增量：Lift / Gamma / Gain 色轮」）。</p>
      *
      * <p>顺序 = 着色器操作栈顺序（{@code assets/minecraft/shaders/core/ic_color_adjust.fsh}）
      * = {@code ColorAdjustParams} 的分量顺序；区间由 {@code ScriptValidator} 校验。
@@ -256,6 +260,21 @@ public final class TrackSchemas {
         kfs.put("r_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（R 每通道曲线，同上）
         kfs.put("g_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（G 每通道曲线，同上）
         kfs.put("b_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（B 每通道曲线，同上）
+        // Lift / Gamma / Gain 色轮（三组逐通道色轮；操作栈位置 = 每通道曲线之后、钳制 [0,1] 之前 → 第 10 步，
+        // 故排在这里，与 fsh 栈顺序一致）：
+        //   Lift（阴影） c' = c + lift·(1-c)（正 = 抬阴影、负 = 压黑；c = 1 不动）
+        //   Gamma（中间调）c' = pow(max(c,0), exp2(-gamma))（0 = 指数 1 恒等；正 = 中间调提亮、负 = 压暗）
+        //   Gain（高光）  c' = c·(1+gain)（正 = 乘性提亮、负 = 压暗）
+        // 九个全 0 = 整步跳过（逐位恒等）。
+        kfs.put("lift_r", new FieldDef("float", 0f));         // -1 ~ 1（R 阴影：正 = 抬阴影、负 = 压黑）
+        kfs.put("lift_g", new FieldDef("float", 0f));         // -1 ~ 1（G 阴影，同上）
+        kfs.put("lift_b", new FieldDef("float", 0f));         // -1 ~ 1（B 阴影，同上）
+        kfs.put("gamma_r", new FieldDef("float", 0f));        // -1 ~ 1（R 中间调：正 = 提亮、负 = 压暗）
+        kfs.put("gamma_g", new FieldDef("float", 0f));        // -1 ~ 1（G 中间调，同上）
+        kfs.put("gamma_b", new FieldDef("float", 0f));        // -1 ~ 1（B 中间调，同上）
+        kfs.put("gain_r", new FieldDef("float", 0f));         // -1 ~ 1（R 高光：乘性增益 = 1 + 值）
+        kfs.put("gain_g", new FieldDef("float", 0f));         // -1 ~ 1（G 高光，同上）
+        kfs.put("gain_b", new FieldDef("float", 0f));         // -1 ~ 1（B 高光，同上）
         // 六条 hue 曲线的混合强度（曲线本身是 clip 级字段 hv_h_curve / hv_s_curve / ... / sv_l_curve）
         kfs.put("hv_h_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvH：hue → hue，缺省 1；无曲线时忽略）
         kfs.put("hv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvS：hue → 饱和度）

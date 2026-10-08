@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "id": "test_adjust_lgg",
+    "name": "调色测试-Lift/Gamma/Gain色轮",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "Lift / Gamma / Gain 色轮（三组逐通道）：lift_r 0→0.5→0、lift_g 恒 0.25、gamma_b 恒 -1（压暗中间调）、gamma_r 0→1、gain_g 恒 0.5（绿乘性提亮）、gain_r 0→-1 等；缺省 0 = 无效果",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: test_adjust_lgg | 调色: Lift / Gamma / Gain 色轮（三组逐通道）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 8, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "keyframes": [
+              { "time": 0, "lift_r": 0, "lift_g": 0.25, "lift_b": 0, "gamma_r": 0, "gamma_g": 0, "gamma_b": -1, "gain_r": 0, "gain_g": 0.5, "gain_b": 0 },
+              { "time": 2, "lift_r": 0.25, "lift_g": 0.25, "lift_b": 0.1, "gamma_r": 0.5, "gamma_g": 0.25, "gamma_b": -1, "gain_r": -0.5, "gain_g": 0.5, "gain_b": 0.2 },
+              { "time": 4, "lift_r": 0.5, "lift_g": 0.25, "lift_b": 0.2, "gamma_r": 1, "gamma_g": 0.5, "gamma_b": -1, "gain_r": -1, "gain_g": 0.5, "gain_b": 0.4 },
+              { "time": 6, "lift_r": 0.5, "lift_g": 0.25, "lift_b": 0.2, "gamma_r": 1, "gamma_g": 0.5, "gamma_b": -1, "gain_r": -1, "gain_g": 0.5, "gain_b": 0.4 },
+              { "time": 8, "lift_r": 0, "lift_g": 0.25, "lift_b": 0, "gamma_r": 0, "gamma_g": 0, "gamma_b": -1, "gain_r": 0, "gain_g": 0.5, "gain_b": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

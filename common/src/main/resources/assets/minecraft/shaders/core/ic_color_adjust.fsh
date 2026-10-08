@@ -8,11 +8,12 @@
 //   5. 色温 / 色调  6. RGB 通道系数  7. RGB 通道混合器（3×3 矩阵，单位阵 + 参数矩阵）
 //   8. RGB 复合曲线（CurveLut 查表）
 //   9. 每通道曲线（RCurveLut / GCurveLut / BCurveLut 查表）
-//  10. 色相旋转   11. 饱和度   12. 自然饱和度   13. 亮度
-//  14. 六条 hue 曲线（HvH → HvS → HvL → LvS → SvS → SvL；HSL 块内，见下）
-//  15. 灰度      16. 反相
+//  10. Lift / Gamma / Gain 色轮（三组逐通道；每通道曲线之后、钳制之前）
+//  11. 色相旋转   12. 饱和度   13. 自然饱和度   14. 亮度
+//  15. 六条 hue 曲线（HvH → HvS → HvL → LvS → SvS → SvL；HSL 块内，见下）
+//  16. 灰度      17. 反相
 //
-// 六条 hue 曲线（DaVinci 曲线页口径；步骤 10 ~ 14 共用一个 HSL 块、一次 rgb2hsl 换算）：
+// 六条 hue 曲线（DaVinci 曲线页口径；步骤 11 ~ 15 共用一个 HSL 块、一次 rgb2hsl 换算）：
 //   键取「进入该块时」的 h0 / s0 / l0（不受标量 HSL 改动影响），每条各自按强度 mix 混合：
 //     HvH  h = mix(h, HvH(h0), st)   HvS  s = mix(s, HvS(h0), st)   HvL  l = mix(l, HvL(h0), st)
 //     LvS  s = mix(s, LvS(l0), st)   SvS  s = mix(s, SvS(s0), st)   SvL  l = mix(l, SvL(s0), st)
@@ -45,6 +46,13 @@
 //   HvHStrength / HvSStrength / HvLStrength / LvSStrength / SvSStrength / SvLStrength
 //                 0 ~ 1   六条 hue 曲线的混合强度（键 / 目标见上表；曲线在 HvHLut / HvSLut / HvLLut /
 //                         LvSLut / SvSLut / SvLLut；各自无曲线时绑恒等 LUT，强度置 0 = 该条跳过）
+//   LiftR / LiftG / LiftB        -1 ~ 1  Lift 色轮（阴影）：c' = c + lift·(1-c)
+//                                        （正 = 抬阴影、负 = 压黑；c = 1 的通道不动）
+//   GammaR / GammaG / GammaB     -1 ~ 1  Gamma 色轮（中间调）：c' = pow(max(c,0), exp2(-gamma))
+//                                        （0 = 指数 1 恒等；正 = 中间调提亮、负 = 压暗）
+//   GainR / GainG / GainB        -1 ~ 1  Gain 色轮（高光）：c' = c·(1+gain)
+//                                        （正 = 乘性提亮、负 = 压暗）
+//                                        三组都是逐通道；九个全 0 = 整步跳过（逐位恒等）
 //   Grayscale     0 ~ 1   灰度混合强度（1 = 完全黑白）
 //   Invert        0 ~ 1   反相混合强度（1 = 完全反相）
 //
@@ -100,6 +108,15 @@ uniform float CurveStrength;
 uniform float RCurveStrength;
 uniform float GCurveStrength;
 uniform float BCurveStrength;
+uniform float LiftR;
+uniform float LiftG;
+uniform float LiftB;
+uniform float GammaR;
+uniform float GammaG;
+uniform float GammaB;
+uniform float GainR;
+uniform float GainG;
+uniform float GainB;
 uniform float HvHStrength;
 uniform float HvSStrength;
 uniform float HvLStrength;
@@ -238,11 +255,33 @@ void main() {
         c.b = mix(c.b, lutLookup(BCurveLut, c.b), clamp(BCurveStrength, 0.0, 1.0));
     }
 
-    // 后续按 HSL / 亮度混合，先收敛到 [0,1]（覆盖步骤 1 ~ 9：曝光 / 对比度 / 高光阴影 / 白黑场 /
-    // 色温色调 / 通道系数 / 通道混合器 / 四条曲线；曲线输出由控制点限定在 [0,1] 内，此处一并兜底）
+    // 10. Lift / Gamma / Gain 色轮（三组逐通道色轮；每组公式见下）
+    //     Lift（阴影）    c' = c + lift·(1-c)       正 = 抬阴影、负 = 压黑（c = 1 的通道不动）
+    //     Gamma（中间调） c' = pow(max(c,0), exp2(-gamma))  0 = 指数 1 恒等；正 = 中间调提亮、负 = 压暗
+    //     Gain（高光）    c' = c·(1+gain)           正 = 乘性提亮、负 = 压暗
+    //     九个通道全 0 时整步跳过（逐位恒等）；结果仍受下方 [0,1] 钳制管辖
+    if (LiftR != 0.0 || LiftG != 0.0 || LiftB != 0.0
+            || GammaR != 0.0 || GammaG != 0.0 || GammaB != 0.0
+            || GainR != 0.0 || GainG != 0.0 || GainB != 0.0) {
+        vec3 lift = vec3(LiftR, LiftG, LiftB);
+        vec3 gamma = vec3(GammaR, GammaG, GammaB);
+        vec3 gain = vec3(GainR, GainG, GainB);
+        // Lift：向白端（1）混合，lift = 0 的通道逐位不变
+        c = c + lift * (1.0 - c);
+        // Gamma：指数 = exp2(-gamma)；指数恰为 1（该通道 gamma = 0）时直接用原值（逐位恒等），
+        // 其余通道走幂次（负输入先夹到 0，避免 pow 的 NaN）
+        vec3 gammaExp = exp2(-gamma);
+        c = mix(pow(max(c, 0.0), gammaExp), c, equal(gammaExp, vec3(1.0)));
+        // Gain：乘性增益（1 + 值），gain = 0 的通道逐位不变
+        c = c * (1.0 + gain);
+    }
+
+    // 后续按 HSL / 亮度混合，先收敛到 [0,1]（覆盖步骤 1 ~ 10：曝光 / 对比度 / 高光阴影 / 白黑场 /
+    // 色温色调 / 通道系数 / 通道混合器 / 四条曲线 / Lift-Gamma-Gain；曲线输出由控制点限定在 [0,1] 内，
+    // 此处一并兜底）
     c = clamp(c, 0.0, 1.0);
 
-    // 10 ~ 14. 完整 HSL：色相旋转 → 饱和度 / 自然饱和度 → 亮度 → 六条 hue 曲线
+    // 11 ~ 15. 完整 HSL：色相旋转 → 饱和度 / 自然饱和度 → 亮度 → 六条 hue 曲线
     //    四个 HSL 通道全 0 且六条曲线都不生效时跳过换算（保持逐位恒等）
     if (Hue != 0.0 || Saturation != 0.0 || Vibrance != 0.0 || Lightness != 0.0
             || HvHStrength > 0.0 || HvSStrength > 0.0 || HvLStrength > 0.0
@@ -283,12 +322,12 @@ void main() {
         c = hsl2rgb(vec3(h, s, l));
     }
 
-    // 15. 灰度：按亮度混合
+    // 16. 灰度：按亮度混合
     if (Grayscale != 0.0) {
         c = mix(c, vec3(luma(c)), clamp(Grayscale, 0.0, 1.0));
     }
 
-    // 16. 反相：按强度混合
+    // 17. 反相：按强度混合
     if (Invert != 0.0) {
         c = mix(c, 1.0 - c, clamp(Invert, 0.0, 1.0));
     }
