@@ -8,7 +8,7 @@ import java.util.List;
  * 调色采样器 —— 在<b>片段本地时间</b>处把一段 clip 的调色字段插值成一份 {@link ColorAdjustParams}。
  *
  * <h2>职责</h2>
- * 纯粹的关键帧求值：35 个标量通道 + 十条曲线强度在本地时间处插值，曲线 LUT 随 clip 缓存复用。
+ * 纯粹的关键帧求值：35 个标量通道 + 十条曲线强度 + LUT 强度在本地时间处插值，曲线 LUT 与 .cube LUT 随 clip 缓存复用。
  * 无状态、无副作用——ADJUST 轨（master）与每条相机片段（lane 级）都从这里取同一份口径的采样结果。
  *
  * <h2>两个使用方</h2>
@@ -31,7 +31,10 @@ import java.util.List;
  * 各自的 256 点 LUT 由 {@link ColorCurve} 对象持有（逐帧拿到同一个数组），此处只把各自的混合强度
  * 在本地时间处插值——<b>强度缺省 1</b>：写了曲线就是全量生效，关键帧把强度写回 0 即曲线淡出；
  * 无曲线时该强度置 0（那一步不生效）。插值走 {@link KeyframeInterpolator#interpolateChannel}（匀速线性），
- * 与其它轨道的标量通道同一口径。
+ * 与其它轨道的标量通道同一口径。<b>LUT</b>（clip 级 {@code lut} 文件名 + 关键帧 {@code lut_strength}）
+ * 同款：文件名在这里换成缓存实例（{@link CubeLutLoader#forClip}，失败 = {@code null} = 无 LUT），
+ * 强度缺省 1、无 LUT 时置 0（那一步不生效）。LUT 是<b>整体画面（master）</b>处理——
+ * {@link Clip#getLut()} 只在 ADJUST 轨给值，故 lane 路径采样到的 {@code lut} 恒为 {@code null}。
  */
 public final class ColorAdjustSampler {
 
@@ -60,6 +63,9 @@ public final class ColorAdjustSampler {
         float[] lvSLut = lut(clip.getLvSCurve());
         float[] svSLut = lut(clip.getSvSCurve());
         float[] svLLut = lut(clip.getSvLCurve());
+        // LUT（clip 级文件名 + 关键帧强度）：解析结果按路径缓存、按 clip 记引用（失败 = null = 无 LUT）；
+        // 无 LUT 时强度置 0（那一步不生效），有 LUT 时强度缺省 1 = 全量生效
+        CubeLut lut = CubeLutLoader.forClip(clip.getClipId(), clip.getLut());
         return new ColorAdjustParams(
                 channel(keyframes, localTime, "exposure"),
                 channel(keyframes, localTime, "contrast"),
@@ -99,6 +105,10 @@ public final class ColorAdjustSampler {
                 channel(keyframes, localTime, "gain_r"),
                 channel(keyframes, localTime, "gain_g"),
                 channel(keyframes, localTime, "gain_b"),
+                // LUT：无 LUT → 0（整步跳过）；有 LUT → lut_strength 插值（缺省 1 = 全量生效）
+                lut,
+                lut == null ? 0.0F
+                        : KeyframeInterpolator.interpolateChannel(keyframes, localTime, "lut_strength", 1.0F),
                 hvHLut, hvSLut, hvLLut, lvSLut, svSLut, svLLut,
                 strength(keyframes, localTime, "hv_h_strength", hvHLut),
                 strength(keyframes, localTime, "hv_s_strength", hvSLut),

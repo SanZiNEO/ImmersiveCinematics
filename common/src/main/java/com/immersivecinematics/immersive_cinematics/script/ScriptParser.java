@@ -318,6 +318,12 @@ public class ScriptParser {
                 ? SchemaLoader.getKeyframeFields(type).get(fieldName)
                 : SchemaLoader.getClipFields(type).get(fieldName);
 
+        // LUT 文件名（clip 级 lut；只有声明该字段的轨道 = ADJUST 轨）：schema 里是 string，
+        // 但额外拦路径分隔符（见 parseLutFile）——其余轨道上同名字段走下方「未知字段」的向前兼容路径
+        if (!isKeyframe && "lut".equals(fieldName) && def != null) {
+            return parseLutFile(value, p + "." + fieldName);
+        }
+
         if (def == null) {
             // 不在 schema 中的字段 — 简单类型自动解析（向前兼容）
             if (value.isJsonPrimitive()) {
@@ -358,6 +364,31 @@ public class ScriptParser {
             }
             default -> null;
         };
+    }
+
+    /**
+     * 解析 clip 级 {@code lut}（LUT 文件名，如 {@code "Teal and Orange.cube"}；<b>ADJUST 轨专用</b>——
+     * LUT 是对<b>整体画面</b>（master）的烘焙，逐 lane / 相机片段不参与）。
+     * <p>LUT 只从 {@code resource/} 目录取（{@link com.immersivecinematics.immersive_cinematics.util.ResourcePath}），
+     * 故文件名必须是<b>非空</b>且<b>不含路径分隔符</b>（{@code /} / {@code \}）或盘符分隔符（{@code :}）的
+     * 单个文件名——{@code ../} 之类穿越、绝对路径、Windows 盘符相对路径（{@code C:foo}）一律拒绝
+     * （与 {@code ScriptValidator#checkLutFile} 同一口径：校验拦下的写法解析期也会拒绝）。</p>
+     */
+    private static String parseLutFile(JsonElement value, String p) throws ScriptParseException {
+        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
+            throw new ScriptParseException(p, "需要字符串（resource/ 目录下的 .cube 文件名）");
+        }
+        String name = value.getAsString();
+        if (name.isBlank()) {
+            throw new ScriptParseException(p, "文件名不能为空");
+        }
+        if (name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 || name.indexOf(':') >= 0) {
+            throw new ScriptParseException(p, "文件名不能包含路径分隔符（LUT 只取 resource/ 目录下的文件）：" + name);
+        }
+        if (".".equals(name) || "..".equals(name)) {
+            throw new ScriptParseException(p, "文件名非法：" + name);
+        }
+        return name;
     }
 
     // ========== BezierCurve 解析 ==========

@@ -274,7 +274,9 @@ public final class TrackSchemas {
      * <p><b>ADJUST 轨 = 整体画面（master）；lane 级调色 = 相机片段字段</b>：
      * 本轨只作用于合成输出（最终显示画面），没有 scope / lane 字段；作用于某条相机轨产出的 lane
      * （渲染完成之后、合成之前）的调色，直接写在该 CAMERA 片段上（见 {@code camera()}）。
-     * clip 级字段仅剩曲线（不随时间变，故挂 clip）：{@code rgb_curve} = RGB 复合曲线、{@code r_curve} /
+     * clip 级字段 = 曲线 + LUT 文件名（都不随时间变，故挂 clip）：{@code lut} = LUT 文件名
+     * （{@code resource/} 目录下的 {@code .cube}，关键帧只控 {@code lut_strength} 混合强度，
+     * 栈位 = LGG 之后、HSL 块之前）、{@code rgb_curve} = RGB 复合曲线、{@code r_curve} /
      * {@code g_curve} / {@code b_curve} = 每通道曲线（R / G / B 各一条）、{@code hv_h_curve} /
      * {@code hv_s_curve} / {@code hv_l_curve} / {@code lv_s_curve} / {@code sv_s_curve} / {@code sv_l_curve} =
      * 六条 hue 曲线（DaVinci 曲线页口径：HvH / HvS / HvL、LvS / SvS / SvL），都是控制点数组
@@ -302,6 +304,9 @@ public final class TrackSchemas {
         clips.put("lv_s_curve", new FieldDef("color_curve", null));   // luminance → saturation
         clips.put("sv_s_curve", new FieldDef("color_curve", null));   // saturation → saturation
         clips.put("sv_l_curve", new FieldDef("color_curve", null));   // saturation → luminance
+        // LUT（clip 级文件名，resource/ 目录下的 .cube；缺省 null = 本片段不做 LUT）；
+        // 关键帧只控 lut_strength，栈位 = LGG 之后、HSL 块之前
+        clips.put("lut", new FieldDef("string", null));
 
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
         // 基础校色（复合 RGB）
@@ -355,6 +360,8 @@ public final class TrackSchemas {
         kfs.put("gain_r", new FieldDef("float", 0f));         // -1 ~ 1（R 高光：乘性增益 = 1 + 值）
         kfs.put("gain_g", new FieldDef("float", 0f));         // -1 ~ 1（G 高光，同上）
         kfs.put("gain_b", new FieldDef("float", 0f));         // -1 ~ 1（B 高光，同上）
+        // LUT 混合强度（LUT 本身是 clip 级字段 lut，第 11 步；缺省 1 = 全量生效、写回 0 = 淡出）
+        kfs.put("lut_strength", new FieldDef("float", 1f));   // 0 ~ 1（无 LUT 时忽略）
         // 六条 hue 曲线的混合强度（曲线本身是 clip 级字段 hv_h_curve / hv_s_curve / ... / sv_l_curve）
         kfs.put("hv_h_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvH：hue → hue，缺省 1；无曲线时忽略）
         kfs.put("hv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvS：hue → 饱和度）

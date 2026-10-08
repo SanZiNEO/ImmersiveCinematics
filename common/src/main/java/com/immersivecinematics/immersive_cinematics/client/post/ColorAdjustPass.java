@@ -2,9 +2,12 @@ package com.immersivecinematics.immersive_cinematics.client.post;
 
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneCompositor;
 import com.immersivecinematics.immersive_cinematics.script.ColorCurve;
+import com.immersivecinematics.immersive_cinematics.script.CubeLut;
+import com.immersivecinematics.immersive_cinematics.script.CubeLutLoader;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
+import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -19,8 +22,14 @@ import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.server.packs.resources.ResourceManager;
 import org.joml.Matrix4f;
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL30;
 
 import java.io.IOException;
+import java.nio.FloatBuffer;
 
 /**
  * 画面颜色调整的渲染 pass：把 {@link ColorAdjustParams} 的标量组一次全屏 pass 应用到画面纹理上。
@@ -73,10 +82,14 @@ import java.io.IOException;
  * {@code shaders/core/<name>.json}（默认命名空间），这是沿用原版机制的前提
  * （与 {@code EffectInstance} 对 {@code shaders/program/<name>.json} 的约束同源）。
  * 顶点格式 = {@code DefaultVertexFormat.POSITION_TEX}，与合成层 / 原版 blit 同一套。
- * <p>十一个采样器：{@code Sampler0} = 画面（第一纹理单元）、{@code CurveLut} = RGB 复合曲线的 256×1 LUT、
+ * <p>十三个采样器：{@code Sampler0} = 画面（第一纹理单元）、{@code CurveLut} = RGB 复合曲线的 256×1 LUT、
  * {@code RCurveLut} / {@code GCurveLut} / {@code BCurveLut} = 每通道曲线的 256×1 LUT、
  * {@code HvHLut} / {@code HvSLut} / {@code HvLLut} / {@code LvSLut} / {@code SvSLut} / {@code SvLLut}
- * = 六条 hue 曲线的 256×1 LUT（第二 ~ 第十一纹理单元，见 {@link LutTexture}）。</p>
+ * = 六条 hue 曲线的 256×1 LUT（第二 ~ 第十一纹理单元，见 {@link LutTexture}）、
+ * {@code Lut1D} = .cube 的 1D shaper 部分（N×1，见 {@link Lut1DTexture}）、
+ * {@code Lut3D} = .cube 的 3D LUT 部分（N×N×N，见 {@link Lut3DTexture}）——
+ * 后两个只在本帧参数带 LUT（ADJUST 轨写了 {@code lut} 且 {@code lut_strength} 非 0）时才被采样；
+ * lane 路径恒为 {@code null}（LUT 只作用于整体画面）。</p>
  *
  * <h2>默认零差异</h2>
  * 无调整时 {@link #render} 第一行返回；{@link #applyTo} 参数为空 / 恒等时第一行返回：
@@ -115,6 +128,20 @@ public final class ColorAdjustPass {
     private static final LutTexture LV_S_LUT = new LutTexture();
     private static final LutTexture SV_S_LUT = new LutTexture();
     private static final LutTexture SV_L_LUT = new LutTexture();
+
+    /**
+     * {@code Lut3D} 采样器的纹理单元 = 它在着色器 JSON {@code samplers} 数组里的下标
+     * （{@code Sampler0} + 10 个曲线 LUT + {@code Lut1D} 之后）。
+     * <p>3D 纹理不能走 {@link ShaderInstance#setSampler}（那条路一律按 {@code GL_TEXTURE_2D} 目标绑定），
+     * 所以在绘制前直接按 {@code GL_TEXTURE_3D} 目标手动绑到这个单元（见 {@link Lut3DTexture#bind}）。</p>
+     */
+    private static final int LUT_3D_UNIT = 12;
+
+    /** 1D shaper 的纹理槽（{@code Lut1D} 采样器）。 */
+    private static final Lut1DTexture LUT_1D = new Lut1DTexture();
+
+    /** 3D LUT 的纹理槽（{@code Lut3D} 采样器）。 */
+    private static final Lut3DTexture LUT_3D = new Lut3DTexture();
 
     private ColorAdjustPass() {
     }
@@ -189,6 +216,13 @@ public final class ColorAdjustPass {
         shaderInstance.setSampler("SvSLut", SV_S_LUT.bind(activeLut(params.svSLut(), params.svSStrength())));
         shaderInstance.setSampler("SvLLut", SV_L_LUT.bind(activeLut(params.svLLut(), params.svLStrength())));
 
+        // LUT（第 11 步）：无 LUT 或强度 0 → 强度置 0、整步跳过（逐位恒等）；
+        // 1D shaper 走 2D 纹理槽（常绑，不采样时维持上一张）；3D 走 GL_TEXTURE_3D 手动绑定（见 LUT_3D_UNIT）
+        CubeLut lut = params.lut() != null && params.lutStrength() != 0.0F ? params.lut() : null;
+        shaderInstance.setSampler("Lut1D", LUT_1D.id(lut));
+        shaderInstance.setSampler("Lut3D", 0);   // 占位：让 apply() 上传该采样器的纹理单元号（0 号 2D 纹理 = 不绑任何东西）
+        LUT_3D.upload(lut);
+
         upload(shaderInstance, params);
 
         Matrix4f prevProjection = RenderSystem.getProjectionMatrix();
@@ -217,6 +251,7 @@ public final class ColorAdjustPass {
                 RenderSystem.setShader(() -> shaderInstance);
                 RenderSystem.setShaderTexture(0, src.getColorTextureId());
                 RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+                LUT_3D.bind();   // 3D LUT 只能在绘制前按 GL_TEXTURE_3D 目标手动绑（见 LUT_3D_UNIT）
 
                 // 屏幕正交投影下 y 向下增长；纹理 v 轴向上 → 底边取 v=0（与合成层同一口径，1:1 不翻转）
                 float x0 = 0.0F;
@@ -235,6 +270,7 @@ public final class ColorAdjustPass {
                 RenderSystem.applyModelViewMatrix();
             }
         } finally {
+            LUT_3D.unbind();
             RenderSystem.setShaderColor(prevColor[0], prevColor[1], prevColor[2], prevColor[3]);
             RenderSystem.setShaderTexture(0, prevTexture);
             RenderSystem.setProjectionMatrix(prevProjection, prevSorting);
@@ -290,6 +326,19 @@ public final class ColorAdjustPass {
         set(shader, "GainR", p.gainR());
         set(shader, "GainG", p.gainG());
         set(shader, "GainB", p.gainB());
+        // LUT（第 11 步）：无 LUT 或强度 0 → 强度置 0（着色器整步跳过）；两段的尺寸置 0 = 该段不生效
+        CubeLut lut = p.lut() != null && p.lutStrength() != 0.0F ? p.lut() : null;
+        set(shader, "LutStrength", lut == null ? 0.0F : p.lutStrength());
+        set(shader, "Lut1DSize", lut != null && lut.has1D() ? lut.size1D() : 0.0F);
+        set(shader, "Lut3DSize", lut != null && lut.has3D() ? lut.size3D() : 0.0F);
+        if (lut != null && lut.has1D()) {
+            set(shader, "Lut1DMin", lut.domainMin1D());
+            set(shader, "Lut1DMax", lut.domainMax1D());
+        }
+        if (lut != null && lut.has3D()) {
+            set(shader, "Lut3DMin", lut.domainMin3D());
+            set(shader, "Lut3DMax", lut.domainMax3D());
+        }
         set(shader, "HvHStrength", p.hvHLut() == null ? 0.0F : p.hvHStrength());
         set(shader, "HvSStrength", p.hvSLut() == null ? 0.0F : p.hvSStrength());
         set(shader, "HvLStrength", p.hvLLut() == null ? 0.0F : p.hvLStrength());
@@ -348,11 +397,133 @@ public final class ColorAdjustPass {
         }
     }
 
+    /**
+     * 1D shaper 的纹理槽（{@code Lut1D} 采样器）：N×1、RGBA16F、LINEAR + CLAMP_TO_EDGE 的 2D 纹理
+     * （GLSL 150 没有 {@code sampler1D}，按曲线 LUT 的既有口径用 2D 承载：第 1 行 = 全部 N 个采样点）。
+     *
+     * <p>按 {@link CubeLut} 实例<b>引用</b>比较（同一文件在 {@link CubeLutLoader} 里共享同一实例）：
+     * 同一 LUT 每帧拿到同一引用 → 只上传一次像素，换 LUT 才重传。
+     * 无 LUT / 无 1D 部分 → 不重传（纹理保持上一张，着色器按 {@code Lut1DSize = 0} 跳过该段、不采样）。</p>
+     */
+    private static final class Lut1DTexture {
+
+        private int textureId = -1;
+        private CubeLut uploaded;
+
+        /** 本 LUT 的 1D 部分对应的纹理名（必要时创建 / 重传）；返回 {@code -1} 不可能（未创建也会建一张空的）。 */
+        int id(CubeLut lut) {
+            if (textureId == -1) {
+                textureId = GL11.glGenTextures();
+            }
+            if (lut == null || !lut.has1D() || lut == uploaded) {
+                return textureId;
+            }
+            int size = lut.size1D();
+            // 1D 尺寸上限 65536 可能超过纹理尺寸上限（GL_MAX_TEXTURE_SIZE）：超了就当没有 1D 部分
+            // （不采样、不报 GL 错；shaper LUT 实际都在 4096 以内）
+            if (size > GL11.glGetInteger(GL11.GL_MAX_TEXTURE_SIZE)) {
+                return textureId;
+            }
+            float[] data = lut.data1D();
+            FloatBuffer pixels = BufferUtils.createFloatBuffer(size * 4);
+            for (int i = 0; i < size; i++) {
+                pixels.put(data[i * 3]).put(data[i * 3 + 1]).put(data[i * 3 + 2]).put(1.0F);
+            }
+            pixels.flip();
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
+            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_RGBA16F, size, 1, 0,
+                    GL11.GL_RGBA, GL11.GL_FLOAT, pixels);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
+            uploaded = lut;
+            return textureId;
+        }
+    }
+
+    /**
+     * 3D LUT 的纹理槽（{@code Lut3D} 采样器）：N×N×N、RGBA16F、NEAREST + CLAMP_TO_EDGE。
+     *
+     * <p>按 {@link CubeLut} 实例<b>引用</b>比较，同 {@link Lut1DTexture}：换 LUT（或换尺寸）才重传。
+     * 用 16 位浮点而不是 8 位：{@code .cube} 的数据是浮点、可超出 {@code [0,1]}（见 {@link CubeLut} 文档），
+     * 8 位量化会把超出部分截掉、并在中性灰附近留下台阶。</p>
+     *
+     * <p><b>过滤 = NEAREST</b>：插值不交给硬件三线性，而是着色器用 {@code texelFetch} 取 8 个角点后按
+     * <b>四面体</b>（tetrahedral）加权（业界默认口径，三线性在中性灰附近会偏色）。</p>
+     *
+     * <p><b>绑定</b>：3D 纹理不能走 {@link ShaderInstance#setSampler}（那条路一律按 {@code GL_TEXTURE_2D}
+     * 目标绑定），所以这里按 {@code GL_TEXTURE_3D} 目标手动绑到 {@link #LUT_3D_UNIT}——
+     * 采样器的纹理单元号仍由 {@code ShaderInstance.apply()} 按 JSON {@code samplers} 次序上传
+     * （samplerMap 里放占位值即可，见 {@code applyTo}）。</p>
+     */
+    private static final class Lut3DTexture {
+
+        private int textureId = -1;
+        private CubeLut uploaded;
+
+        /** 上传本 LUT 的 3D 部分（同一实例只传一次）；无 3D 部分 / 已上传 → 不动。 */
+        void upload(CubeLut lut) {
+            if (lut == null || !lut.has3D() || lut == uploaded) {
+                return;
+            }
+            int size = lut.size3D();
+            float[] data = lut.data3D();
+            int entries = size * size * size;
+            FloatBuffer pixels = BufferUtils.createFloatBuffer(entries * 4);
+            for (int i = 0; i < entries; i++) {
+                pixels.put(data[i * 3]).put(data[i * 3 + 1]).put(data[i * 3 + 2]).put(1.0F);
+            }
+            pixels.flip();
+            if (textureId == -1) {
+                textureId = GL11.glGenTextures();
+            }
+            GL11.glBindTexture(GL12.GL_TEXTURE_3D, textureId);
+            GL12.glTexImage3D(GL12.GL_TEXTURE_3D, 0, GL30.GL_RGBA16F, size, size, size, 0,
+                    GL11.GL_RGBA, GL11.GL_FLOAT, pixels);
+            // NEAREST：插值由着色器按四面体自己算（texelFetch 逐角点取，不依赖纹理过滤）
+            GL11.glTexParameteri(GL12.GL_TEXTURE_3D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
+            GL11.glTexParameteri(GL12.GL_TEXTURE_3D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
+            GL11.glTexParameteri(GL12.GL_TEXTURE_3D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
+            GL11.glTexParameteri(GL12.GL_TEXTURE_3D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
+            GL11.glTexParameteri(GL12.GL_TEXTURE_3D, GL12.GL_TEXTURE_WRAP_R, GL12.GL_CLAMP_TO_EDGE);
+            GL11.glBindTexture(GL12.GL_TEXTURE_3D, 0);
+            uploaded = lut;
+        }
+
+        /** 把当前纹理绑到 {@link #LUT_3D_UNIT} 单元（绘制前调用；不改变其它单元与 2D 绑定）。 */
+        void bind() {
+            bindLut3D(textureId);
+        }
+
+        /** 解绑（绘制后恢复：该单元不留悬挂绑定）。 */
+        void unbind() {
+            bindLut3D(0);
+        }
+    }
+
+    /** 在 {@link #LUT_3D_UNIT} 单元上按 {@code GL_TEXTURE_3D} 目标绑定一个纹理名（0 = 解绑）。 */
+    private static void bindLut3D(int textureId) {
+        int prevUnit = GlStateManager._getActiveTexture();
+        RenderSystem.activeTexture(GL13.GL_TEXTURE0 + LUT_3D_UNIT);
+        GL11.glBindTexture(GL12.GL_TEXTURE_3D, Math.max(textureId, 0));
+        GlStateManager._activeTexture(prevUnit);
+    }
+
     /** 写一个 float uniform；着色器里没有该 uniform 时跳过（{@code getUniform} 返回 {@code null}）。 */
     private static void set(ShaderInstance shader, String name, float value) {
         Uniform uniform = shader.getUniform(name);
         if (uniform != null) {
             uniform.set(value);
+        }
+    }
+
+    /** 写一个 vec3 uniform（JSON 里声明为 {@code type: "float", count: 3}）；着色器里没有该 uniform 时跳过。 */
+    private static void set(ShaderInstance shader, String name, float[] xyz) {
+        Uniform uniform = shader.getUniform(name);
+        if (uniform != null) {
+            uniform.set(xyz[0], xyz[1], xyz[2]);
         }
     }
 

@@ -37,7 +37,7 @@ public final class CubeLutLoader {
     /** 解析失败负缓存：绝对路径（避免同一坏文件每帧重解析 + 重复刷日志）。 */
     private static final Set<String> FAILED = ConcurrentHashMap.newKeySet();
 
-    /** 按 clip 的引用表（接线面，下一子任务接 Clip）：clipId → LUT（与路径缓存共享实例）。 */
+    /** 按 clip 的引用表（{@code Clip#getClipId()} → LUT，与路径缓存共享实例）：记录哪些片段引用了 LUT。 */
     private static final Map<String, CubeLut> CLIP_CACHE = new ConcurrentHashMap<>();
 
     private CubeLutLoader() {}
@@ -96,7 +96,8 @@ public final class CubeLutLoader {
 
     /**
      * 接线面：按 clip 取 LUT（同一文件仍共享同一实例）。
-     * <p>下一子任务把 {@code Clip} 的 {@code lut} 字段接到这里；{@code clipId} 由调用方给（如 clip 的稳定标识）。
+     * <p>调用方 = {@code ColorAdjustSampler}：把 ADJUST 轨片段的 {@code lut} 文件名在这里换成缓存实例，
+     * {@code clipId} = {@code Clip#getClipId()}（同一 clip 反复调用传同一值）。
      * 解析失败时该 clip 记录被清掉、返回 {@code null}。</p>
      *
      * @param clipId   该 clip 的标识（同一 clip 反复调用应传同一值）

@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.client.post;
 
+import com.immersivecinematics.immersive_cinematics.script.CubeLut;
+
 /**
  * master / lane 画面颜色调整的参数快照（第一批标量组 + R/G/B 通道系数 + RGB 通道混合器 + 完整 HSL
  * + RGB 复合曲线 + 每通道曲线 + 六条 hue 曲线 + Lift / Gamma / Gain 色轮）。
@@ -31,6 +33,10 @@ package com.immersivecinematics.immersive_cinematics.client.post;
  *       正 = 中间调提亮、负 = 压暗；
  *       Gain（高光）{@code c' = c·(1+gain)}——正 = 乘性提亮、负 = 压暗；
  *       九个全 0 = 整步跳过（逐位恒等），结果与前面的步骤同受那一次钳制管辖；</li>
+ *   <li>{@link #lut} / {@link #lutStrength} 是 <b>LUT</b>（clip 级 {@code lut} 文件名 + 关键帧
+ *       {@code lut_strength}）：位置 = LGG 之后、HSL 块之前，{@code c = mix(c, lut(c), strength)}
+ *       （{@code lut_strength} 缺省 1 = 全量生效，写回 0 = 淡出）；LUT 为空（{@code null}）或强度 0 =
+ *       整步跳过（逐位恒等）；</li>
  *   <li>{@code grayscale / invert} 本身就是 0~1 的混合强度；</li>
  *   <li>关键帧把某通道写回 0 即「该工具淡出」，不需要额外的 enabled 开关。</li>
  * </ul>
@@ -49,6 +55,24 @@ package com.immersivecinematics.immersive_cinematics.client.post;
  *   <li>没有对应曲线（LUT 为 {@code null}）时该强度被忽略、那一步不生效；</li>
  *   <li>操作栈位置：复合曲线在前（RGB 通道系数 / 通道混合器之后），每通道曲线紧随其后（HSL 块之前）——
  *       每通道曲线看到的是复合曲线处理后的值。</li>
+ * </ul>
+ *
+ * <h2>LUT（clip 级 {@code lut} + 关键帧 {@code lut_strength}）</h2>
+ * {@link #lut} = clip 级文件名（{@code resource/} 目录下的 {@code .cube}，由 {@code CubeLutLoader}
+ * 解析成不可变 {@link CubeLut} 实例、按路径缓存），{@link #lutStrength} = 关键帧插值的混合强度
+ * （<b>缺省 1</b>，0 = 淡出）。LUT 是<b>整体画面（master）</b>处理：只写在 <b>ADJUST 轨</b>的片段上
+ * （相机片段不带 {@code lut}，lane 级采样拿到的 {@link #lut} 恒为 {@code null}）。
+ * 采样口径（与 {@link CubeLut} 的文档一致）：
+ * <ul>
+ *   <li><b>1D + 3D 组合</b>（Resolve shaper 形态）：<b>1D 先、输出喂 3D</b>；只有 1D 或只有 3D 时走单段；</li>
+ *   <li>查表坐标 = {@code (v - min) / (max - min) * (size - 1)} 后钳制到 {@code [0, size-1]}，
+ *       边界钳到端点（clamp-to-edge）；{@code min} / {@code max} 取该 LUT 的 DOMAIN（逐通道）；</li>
+ *   <li>插值：3D 段 = <b>四面体</b>（tetrahedral；着色器 {@code texelFetch} 取 8 个角点后自己加权，
+ *       不用硬件三线性——三线性在中性灰附近会偏色，见 {@code example/lut-reference/README.md}）；
+ *       1D 段 = 相邻采样点之间的线性插值；</li>
+ *   <li>混合：{@code c = mix(c, lut(c), clamp(lutStrength, 0, 1))}——在 LUT 采样之后做；</li>
+ *   <li>输出<b>不额外钳制</b>（LUT 数据本身可超出 {@code [0,1]}，与曲线同段、由 HSL 块前那一次
+ *       {@code clamp(c, 0, 1)} 兜底）。</li>
  * </ul>
  *
  * <h2>六条 hue 曲线（DaVinci 曲线页口径）</h2>
@@ -118,6 +142,8 @@ public record ColorAdjustParams(
         float gainR,
         float gainG,
         float gainB,
+        CubeLut lut,
+        float lutStrength,
         float[] hvHLut,
         float[] hvSLut,
         float[] hvLLut,
@@ -141,11 +167,13 @@ public record ColorAdjustParams(
                     null, null, null, null,
                     0.0F, 0.0F, 0.0F, 0.0F,
                     0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
+                    null, 0.0F,
                     null, null, null, null, null, null,
                     0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F);
 
     /**
-     * 是否恒等：35 个标量通道全为缺省 0 <b>且</b>十条曲线都「不存在或强度为 0」。
+     * 是否恒等：35 个标量通道全为缺省 0、<b>且</b>十条曲线都「不存在或强度为 0」、
+     * <b>且</b>无 LUT（{@link #lut} 为 {@code null}）或 LUT 强度为 0。
      * <p>恒等 = 不产生任何画面差异（渲染侧第一行就返回）。</p>
      */
     public boolean isIdentity() {
@@ -164,6 +192,7 @@ public record ColorAdjustParams(
                 && liftR == 0.0F && liftG == 0.0F && liftB == 0.0F
                 && gammaR == 0.0F && gammaG == 0.0F && gammaB == 0.0F
                 && gainR == 0.0F && gainG == 0.0F && gainB == 0.0F
+                && (lut == null || lutStrength == 0.0F)
                 && (hvHLut == null || hvHStrength == 0.0F)
                 && (hvSLut == null || hvSStrength == 0.0F)
                 && (hvLLut == null || hvLStrength == 0.0F)

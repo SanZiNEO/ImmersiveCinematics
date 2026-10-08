@@ -168,6 +168,26 @@ public class Clip {
     }
 
     /**
+     * clip 级 LUT 文件名（{@code resource/} 目录下的 {@code .cube}；{@code null} = 本片段不做 LUT）。
+     * <p><b>只有 ADJUST 轨（整体画面 / master）</b>带 LUT：逐 lane 的相机片段上即使写了 {@code lut}
+     * 也不生效（{@code ScriptValidator} 会直接拦下），此处按轨道类型挡一道，保证 lane 永远不会被套 LUT。</p>
+     * <p>只存文件名，不解析：解析结果由 {@link CubeLutLoader#forClip} 按路径缓存、按 clip 记引用
+     * （键 = {@link #getClipId()}），同一文件在多个片段间共享同一不可变实例。</p>
+     */
+    public String getLut() {
+        return trackType == TrackType.ADJUST ? getString("lut", null) : null;
+    }
+
+    /**
+     * 本片段的稳定标识（{@link CubeLutLoader#forClip} 的 clip 键）：同一实例反复调用恒定。
+     * <p>片段对象在解析期一次建成、整个播放期存活，故用对象身份即可；不同实例理论上可能撞值，
+     * 但该表只用于记录「哪些片段引用了 LUT」，撞值不影响取到的 LUT（实例本身按文件路径共享）。</p>
+     */
+    public String getClipId() {
+        return "clip@" + Integer.toHexString(System.identityHashCode(this));
+    }
+
+    /**
      * HvH 曲线（六条 hue 曲线，DaVinci 曲线页口径）：以 <b>hue</b> 为键、输出 <b>hue</b>。
      * {@code null} = 本片段无该曲线；关键帧控 {@code hv_h_strength}。
      */

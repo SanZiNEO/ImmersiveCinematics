@@ -288,6 +288,11 @@ public final class ScriptValidator {
                     // 调色（0.3.6）：本相机片段自带调色，作用于该相机轨的 lane——字段集与 ADJUST 轨完全一致
                     checkRemovedScopeLane(clip, cp, issues);
                     checkAdjustFields(clip, cp, null, null, issues);
+                    // LUT 是整体画面（master）处理，只挂在 ADJUST 轨：相机片段上写 lut 不会生效，直接拦下
+                    if (clip.has("lut")) {
+                        issues.add(cp + ".lut 不支持（LUT 是对整体画面的处理，只写在 ADJUST 轨的片段上）："
+                                + "相机片段请改用逐 lane 调色字段，或把 lut 移到 ADJUST 轨");
+                    }
                 }
                 if ("OVERLAY".equalsIgnoreCase(type)) {
                     checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle");
@@ -305,6 +310,8 @@ public final class ScriptValidator {
                     // ADJUST 轨只作用于整体画面（master）：lane 级调色已改为 CAMERA 片段字段
                     checkRemovedScopeLane(clip, cp, issues);
                     checkAdjustFields(clip, cp, null, null, issues);
+                    // LUT（整体画面烘焙）：clip 级 lut 文件名 + 关键帧级 lut_strength——只在 ADJUST 轨
+                    checkLutFields(clip, cp, null, null, issues);
                 }
                 // ===== 循环参数校验（CAMERA）=====
                 if ("CAMERA".equalsIgnoreCase(type)) {
@@ -426,8 +433,10 @@ public final class ScriptValidator {
                         }
 
                         // ADJUST 关键帧：45 个标量通道的取值区间（不写 = 缺省 0 = 无效果——十条曲线强度缺省 1；写回 0 = 该项淡出）
+                        // + LUT 混合强度 lut_strength（0~1，缺省 1）
                         if ("ADJUST".equalsIgnoreCase(type)) {
                             checkAdjustFields(null, null, kf, kp, issues);
+                            checkLutFields(null, null, kf, kp, issues);
                         }
                     }
                 }
@@ -487,6 +496,42 @@ public final class ScriptValidator {
             for (ChannelRange range : ADJUST_CHANNELS) {
                 checkRange(kf, kp, range.field(), issues, range.min(), range.max());
             }
+        }
+    }
+
+    /**
+     * 校验 LUT 字段（<b>ADJUST 轨专用</b>：LUT 是对整体画面（master）的烘焙，逐 lane / 相机片段不参与）：
+     * <ul>
+     *   <li>clip 级 {@code lut}：LUT 文件名（字符串、非空、不含路径分隔符，见 {@link #checkLutFile}）；</li>
+     *   <li>关键帧级 {@code lut_strength}：混合强度 0 ~ 1（缺省 1 = 全量生效，写回 0 = 淡出）。</li>
+     * </ul>
+     * <p>{@code clip} / {@code kf} 的用法同 {@link #checkAdjustFields}（另一侧传 {@code null}）。</p>
+     */
+    private static void checkLutFields(JsonObject clip, String cp, JsonObject kf, String kp,
+                                       List<String> issues) {
+        if (clip != null && clip.has("lut")) {
+            checkLutFile(clip.get("lut"), cp + ".lut", issues);
+        }
+        if (kf != null) {
+            checkRange(kf, kp, "lut_strength", issues, 0f, 1f);
+        }
+    }
+
+    /**
+     * 校验 clip 级 {@code lut}（LUT 文件名）：字符串、非空、不含路径分隔符（{@code /} / {@code \} / {@code :}）。
+     * <p>与 {@code ScriptParser#parseLutFile} 同一口径——校验拦下的写法解析期也会拒绝。
+     * 文件是否存在此处不查（校验器无游戏目录上下文；缺失由 {@code CubeLutLoader} 记日志、按「无 LUT」继续）。</p>
+     */
+    private static void checkLutFile(JsonElement e, String path, List<String> issues) {
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
+            issues.add(path + " 需要字符串（resource/ 目录下的 .cube 文件名）");
+            return;
+        }
+        String name = e.getAsString();
+        if (name.isBlank()) {
+            issues.add(path + " 文件名不能为空");
+        } else if (name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 || name.indexOf(':') >= 0) {
+            issues.add(path + " 文件名不能包含路径分隔符（LUT 只取 resource/ 目录下的文件）：" + name);
         }
     }
 
