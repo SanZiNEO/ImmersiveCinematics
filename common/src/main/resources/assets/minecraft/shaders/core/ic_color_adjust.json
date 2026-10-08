@@ -15,7 +15,13 @@
         { "name": "CurveLut" },
         { "name": "RCurveLut" },
         { "name": "GCurveLut" },
-        { "name": "BCurveLut" }
+        { "name": "BCurveLut" },
+        { "name": "HvHLut" },
+        { "name": "HvSLut" },
+        { "name": "HvLLut" },
+        { "name": "LvSLut" },
+        { "name": "SvSLut" },
+        { "name": "SvLLut" }
     ],
     "uniforms": [
         { "name": "ModelViewMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
@@ -39,6 +45,12 @@
         { "name": "RCurveStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "GCurveStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "BCurveStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "HvHStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "HvSStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "HvLStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "LvSStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "SvSStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "SvLStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "Grayscale", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "Invert", "type": "float", "count": 1, "values": [ 0.0 ] }
     ]

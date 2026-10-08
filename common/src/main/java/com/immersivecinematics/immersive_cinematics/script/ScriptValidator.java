@@ -30,7 +30,8 @@ public final class ScriptValidator {
      * ADJUST 轨道关键帧标量通道 → 合法区间（顺序与
      * {@code TrackSchemas.adjust()} / {@code ColorAdjustParams} / {@code ic_color_adjust.fsh} 一致）。
      * <p>标量通道缺省 0 = 无效果（{@code curve_strength} / {@code r_curve_strength} / {@code g_curve_strength} /
-     * {@code b_curve_strength} 例外：缺省 1 = 曲线全量生效）。</p>
+     * {@code b_curve_strength} 与六条 hue 曲线的强度 {@code hv_h_strength} ~ {@code sv_l_strength}
+     * 例外：缺省 1 = 曲线全量生效）。</p>
      */
     private static final List<ChannelRange> ADJUST_CHANNELS = List.of(
             new ChannelRange("exposure", -5f, 5f),
@@ -52,6 +53,12 @@ public final class ScriptValidator {
             new ChannelRange("r_curve_strength", 0f, 1f),
             new ChannelRange("g_curve_strength", 0f, 1f),
             new ChannelRange("b_curve_strength", 0f, 1f),
+            new ChannelRange("hv_h_strength", 0f, 1f),
+            new ChannelRange("hv_s_strength", 0f, 1f),
+            new ChannelRange("hv_l_strength", 0f, 1f),
+            new ChannelRange("lv_s_strength", 0f, 1f),
+            new ChannelRange("sv_s_strength", 0f, 1f),
+            new ChannelRange("sv_l_strength", 0f, 1f),
             new ChannelRange("grayscale", 0f, 1f),
             new ChannelRange("invert", 0f, 1f));
 
@@ -324,6 +331,25 @@ public final class ScriptValidator {
                     if (clip.has("b_curve")) {
                         checkColorCurve(clip.get("b_curve"), cp + ".b_curve", issues);
                     }
+                    // 六条 hue 曲线（DaVinci 曲线页口径：键 = hue / 亮度 / 饱和度，在 HSL 块内生效）
+                    if (clip.has("hv_h_curve")) {
+                        checkColorCurve(clip.get("hv_h_curve"), cp + ".hv_h_curve", issues);
+                    }
+                    if (clip.has("hv_s_curve")) {
+                        checkColorCurve(clip.get("hv_s_curve"), cp + ".hv_s_curve", issues);
+                    }
+                    if (clip.has("hv_l_curve")) {
+                        checkColorCurve(clip.get("hv_l_curve"), cp + ".hv_l_curve", issues);
+                    }
+                    if (clip.has("lv_s_curve")) {
+                        checkColorCurve(clip.get("lv_s_curve"), cp + ".lv_s_curve", issues);
+                    }
+                    if (clip.has("sv_s_curve")) {
+                        checkColorCurve(clip.get("sv_s_curve"), cp + ".sv_s_curve", issues);
+                    }
+                    if (clip.has("sv_l_curve")) {
+                        checkColorCurve(clip.get("sv_l_curve"), cp + ".sv_l_curve", issues);
+                    }
                 }
                 // ===== 循环参数校验（CAMERA）=====
                 if ("CAMERA".equalsIgnoreCase(type)) {
@@ -442,7 +468,7 @@ public final class ScriptValidator {
                             checkRect(kf, kp, "source", issues);
                         }
 
-                        // ADJUST 关键帧：21 个标量通道的取值区间（不写 = 缺省 0 = 无效果——四个曲线强度缺省 1；写回 0 = 该项淡出）
+                        // ADJUST 关键帧：27 个标量通道的取值区间（不写 = 缺省 0 = 无效果——十条曲线强度缺省 1；写回 0 = 该项淡出）
                         if ("ADJUST".equalsIgnoreCase(type)) {
                             for (ChannelRange range : ADJUST_CHANNELS) {
                                 checkRange(kf, kp, range.field(), issues, range.min(), range.max());

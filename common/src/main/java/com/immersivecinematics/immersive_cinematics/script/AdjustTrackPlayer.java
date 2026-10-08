@@ -6,10 +6,11 @@ import com.immersivecinematics.immersive_cinematics.client.post.MasterColorAdjus
 import java.util.List;
 
 /**
- * ADJUST 轨道播放器 — 画面颜色调整（0.3.6：master 17 通道 + lane 级调整 + RGB 复合曲线 + 每通道曲线）。
+ * ADJUST 轨道播放器 — 画面颜色调整（0.3.6：master 17 通道 + lane 级调整 + RGB 复合曲线 + 每通道曲线
+ * + 六条 hue 曲线）。
  *
  * <h2>职责</h2>
- * 每渲染帧找到本轨道当前活跃的 clip，把 17 个标量通道 + 四个曲线强度在<b>片段本地时间</b>处插值，按 clip 的
+ * 每渲染帧找到本轨道当前活跃的 clip，把 17 个标量通道 + 十条曲线强度在<b>片段本地时间</b>处插值，按 clip 的
  * {@code scope} 分流（见下）。无活跃 clip 时<b>本帧不参与</b> —— 渲染侧拿不到参数就不动画面。
  * <p>同帧多条 ADJUST 轨道：后发布者生效（轨道层级靠后的覆盖靠前的）；没活跃 clip 的轨道不参与
  * （不会把别的轨道的发布抹掉）。参数全为缺省（0）时被规整为「无调整」，同样不影响画面。</p>
@@ -42,6 +43,13 @@ import java.util.List;
  * 关键帧只控各自的混合强度 {@code curve_strength} / {@code r_curve_strength} / {@code g_curve_strength} /
  * {@code b_curve_strength}（0~1，<b>缺省 1</b> = 曲线全量生效，写回 0 = 曲线淡出）。
  * 无对应曲线时该强度恒为 0、渲染侧那一步跳过。
+ *
+ * <h2>六条 hue 曲线（DaVinci 曲线页口径）</h2>
+ * clip 级字段 {@code hv_h_curve} / {@code hv_s_curve} / {@code hv_l_curve} / {@code lv_s_curve} /
+ * {@code sv_s_curve} / {@code sv_l_curve}（HvH / HvS / HvL、LvS / SvS / SvL）同样是控制点数组，
+ * 与上面四条走同一套采样 / 缓存 / 强度口径（强度缺省 1，无曲线时忽略）；差别只在键与目标：
+ * 键 = 进入 HSL 块时的 hue / 亮度 / 饱和度，目标 = hue / 饱和度 / 亮度，在 HSL 块内按固定顺序生效
+ * （详见 {@code ColorAdjustParams} 与 {@code docs/SCRIPT_FORMAT.md} §10）。
  *
  * <h2>默认零差异</h2>
  * 没有 ADJUST 轨道 / 没有活跃 clip / 参数全为缺省 → 不发布、不归集 → 渲染侧一次 GL 调用都不做
@@ -119,8 +127,9 @@ public class AdjustTrackPlayer implements TrackPlayer {
      * 本片段在<b>片段本地时间</b>处的全部取值（顺序 = {@link ColorAdjustParams} 分量顺序 = shader 操作栈顺序）。
      *
      * <p>17 个标量通道走 {@link KeyframeInterpolator#interpolateChannel}（缺省 0 = 无效果）；
-     * 曲线组（形态 b）的四条曲线是 clip 级字段（{@code curve} / {@code r_curve} / {@code g_curve} / {@code b_curve}，
-     * 不随时间变）：LUT 由 {@link ColorCurve} 对象持有（按 clip 缓存，逐帧拿到同一个数组），
+     * 曲线组（形态 b）的十条曲线都是 clip 级字段（{@code curve} / {@code r_curve} / {@code g_curve} /
+     * {@code b_curve} 与六条 hue 曲线 {@code hv_h_curve} ~ {@code sv_l_curve}，不随时间变）：
+     * LUT 由 {@link ColorCurve} 对象持有（按 clip 缓存，逐帧拿到同一个数组），
      * 此处只把各自的强度在本地时间处插值——<b>强度缺省 1</b>：写了曲线就是全量生效，
      * 关键帧把强度写回 0 即曲线淡出；无曲线时该强度置 0（那一步不生效）。</p>
      */
@@ -130,6 +139,12 @@ public class AdjustTrackPlayer implements TrackPlayer {
         float[] rCurveLut = lut(clip.getRCurve());
         float[] gCurveLut = lut(clip.getGCurve());
         float[] bCurveLut = lut(clip.getBCurve());
+        float[] hvHLut = lut(clip.getHvHCurve());
+        float[] hvSLut = lut(clip.getHvSCurve());
+        float[] hvLLut = lut(clip.getHvLCurve());
+        float[] lvSLut = lut(clip.getLvSCurve());
+        float[] svSLut = lut(clip.getSvSCurve());
+        float[] svLLut = lut(clip.getSvLCurve());
         return new ColorAdjustParams(
                 channel(keyframes, localTime, "exposure"),
                 channel(keyframes, localTime, "contrast"),
@@ -151,6 +166,13 @@ public class AdjustTrackPlayer implements TrackPlayer {
                 strength(keyframes, localTime, "r_curve_strength", rCurveLut),
                 strength(keyframes, localTime, "g_curve_strength", gCurveLut),
                 strength(keyframes, localTime, "b_curve_strength", bCurveLut),
+                hvHLut, hvSLut, hvLLut, lvSLut, svSLut, svLLut,
+                strength(keyframes, localTime, "hv_h_strength", hvHLut),
+                strength(keyframes, localTime, "hv_s_strength", hvSLut),
+                strength(keyframes, localTime, "hv_l_strength", hvLLut),
+                strength(keyframes, localTime, "lv_s_strength", lvSLut),
+                strength(keyframes, localTime, "sv_s_strength", svSLut),
+                strength(keyframes, localTime, "sv_l_strength", svLLut),
                 channel(keyframes, localTime, "grayscale"),
                 channel(keyframes, localTime, "invert"));
     }

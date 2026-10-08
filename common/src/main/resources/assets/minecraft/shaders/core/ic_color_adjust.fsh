@@ -7,9 +7,17 @@
 //   1. 曝光      2. 对比度     3. 高光 / 阴影   4. 白场 / 黑场
 //   5. 色温 / 色调  6. RGB 通道系数  7. RGB 复合曲线（CurveLut 查表）
 //   8. 每通道曲线（RCurveLut / GCurveLut / BCurveLut 查表）
-//   9. 色相旋转   10. 饱和度   11. 自然饱和度   12. 亮度   13. 灰度   14. 反相
+//   9. 色相旋转   10. 饱和度   11. 自然饱和度   12. 亮度
+//  13. 六条 hue 曲线（HvH → HvS → HvL → LvS → SvS → SvL；HSL 块内，见下）
+//  14. 灰度      15. 反相
 //
-// 参数口径（除四个曲线强度外全部为「0 = 无效果」的增量；缺省全 0 = 恒等，运行时也不会下发这个 pass）：
+// 六条 hue 曲线（DaVinci 曲线页口径；步骤 9 ~ 13 共用一个 HSL 块、一次 rgb2hsl 换算）：
+//   键取「进入该块时」的 h0 / s0 / l0（不受标量 HSL 改动影响），每条各自按强度 mix 混合：
+//     HvH  h = mix(h, HvH(h0), st)   HvS  s = mix(s, HvS(h0), st)   HvL  l = mix(l, HvL(h0), st)
+//     LvS  s = mix(s, LvS(l0), st)   SvS  s = mix(s, SvS(s0), st)   SvL  l = mix(l, SvL(s0), st)
+//   顺序即上表顺序；同一目标分量（s / l）的多条按此序依次叠加。
+//
+// 参数口径（除十条曲线强度外全部为「0 = 无效果」的增量；缺省全 0 = 恒等，运行时也不会下发这个 pass）：
 //   Exposure     -5 ~ 5   EV 档（×2^EV）
 //   Contrast     -1 ~ 1   以中灰 0.5 为轴
 //   Highlights   -1 ~ 1   亮部（亮度权重 l²；正 = 提亮、负 = 压暗）
@@ -30,6 +38,9 @@
 //   RCurveStrength / GCurveStrength / BCurveStrength
 //                 0 ~ 1   每通道曲线的混合强度（口径同上，各自只作用于对应通道，逐通道混合、互不干扰）；
 //                         曲线在 RCurveLut / GCurveLut / BCurveLut（各自无曲线时绑恒等 LUT，强度置 0 = 该通道跳过）
+//   HvHStrength / HvSStrength / HvLStrength / LvSStrength / SvSStrength / SvLStrength
+//                 0 ~ 1   六条 hue 曲线的混合强度（键 / 目标见上表；曲线在 HvHLut / HvSLut / HvLLut /
+//                         LvSLut / SvSLut / SvLLut；各自无曲线时绑恒等 LUT，强度置 0 = 该条跳过）
 //   Grayscale     0 ~ 1   灰度混合强度（1 = 完全黑白）
 //   Invert        0 ~ 1   反相混合强度（1 = 完全反相）
 //
@@ -50,6 +61,12 @@ uniform sampler2D CurveLut;    // RGB 复合曲线（四个通道共用一条）
 uniform sampler2D RCurveLut;   // R 每通道曲线
 uniform sampler2D GCurveLut;   // G 每通道曲线
 uniform sampler2D BCurveLut;   // B 每通道曲线
+uniform sampler2D HvHLut;      // HvH：hue → hue
+uniform sampler2D HvSLut;      // HvS：hue → 饱和度
+uniform sampler2D HvLLut;      // HvL：hue → 亮度
+uniform sampler2D LvSLut;      // LvS：亮度 → 饱和度
+uniform sampler2D SvSLut;      // SvS：饱和度 → 饱和度
+uniform sampler2D SvLLut;      // SvL：饱和度 → 亮度
 
 uniform float Exposure;
 uniform float Contrast;
@@ -70,6 +87,12 @@ uniform float CurveStrength;
 uniform float RCurveStrength;
 uniform float GCurveStrength;
 uniform float BCurveStrength;
+uniform float HvHStrength;
+uniform float HvSStrength;
+uniform float HvLStrength;
+uniform float LvSStrength;
+uniform float SvSStrength;
+uniform float SvLStrength;
 uniform float Grayscale;
 uniform float Invert;
 
@@ -194,26 +217,53 @@ void main() {
     // 后续按 HSL / 亮度混合，先收敛到 [0,1]（曲线输出由控制点限定在 [0,1] 内，此处一并兜底）
     c = clamp(c, 0.0, 1.0);
 
-    // 9 ~ 12. 完整 HSL：色相旋转 → 饱和度 / 自然饱和度 → 亮度
-    //    四个 HSL 通道全 0 时跳过换算（保持逐位恒等）
-    if (Hue != 0.0 || Saturation != 0.0 || Vibrance != 0.0 || Lightness != 0.0) {
+    // 9 ~ 13. 完整 HSL：色相旋转 → 饱和度 / 自然饱和度 → 亮度 → 六条 hue 曲线
+    //    四个 HSL 通道全 0 且六条曲线都不生效时跳过换算（保持逐位恒等）
+    if (Hue != 0.0 || Saturation != 0.0 || Vibrance != 0.0 || Lightness != 0.0
+            || HvHStrength > 0.0 || HvSStrength > 0.0 || HvLStrength > 0.0
+            || LvSStrength > 0.0 || SvSStrength > 0.0 || SvLStrength > 0.0) {
         vec3 hsl = rgb2hsl(c);
+        // 六条 hue 曲线的键 = 进入本块时的 h0 / s0 / l0（rgb2hsl 的原始输出，不受标量 HSL 改动影响）
+        float h0 = hsl.x;
+        float s0 = hsl.y;
+        float l0 = hsl.z;
         // 色相旋转：Hue = ±1 → ±180°（±0.5 圈）；fract 对负值同样回绕到 [0,1)
-        float h = fract(hsl.x + Hue * 0.5);
-        float s = hsl.y;
+        float h = fract(h0 + Hue * 0.5);
+        float s = s0;
         s = clamp(s * (1.0 + Saturation), 0.0, 1.0);
         s = clamp((Vibrance >= 0.0) ? (s + Vibrance * s * (1.0 - s)) : (s * (1.0 + Vibrance)), 0.0, 1.0);
         // 亮度：正 = 向白推（L → 1）、负 = 向黑压（L → 0）；双向混合，两端为满量程
-        float l = clamp(hsl.z + Lightness * ((Lightness >= 0.0) ? (1.0 - hsl.z) : hsl.z), 0.0, 1.0);
+        float l = clamp(l0 + Lightness * ((Lightness >= 0.0) ? (1.0 - l0) : l0), 0.0, 1.0);
+        // 六条 hue 曲线（DaVinci 曲线页口径）：各自查表 → 按强度混合，顺序固定
+        //   键（输入）= h0 / s0 / l0；目标（输出）= hue / 饱和度 / 亮度，同一目标的多条按此序叠加
+        //   无对应曲线 / 强度 0 → 跳过该条（逐位恒等）
+        if (HvHStrength > 0.0) {
+            h = mix(h, lutLookup(HvHLut, h0), clamp(HvHStrength, 0.0, 1.0));   // hue → hue
+        }
+        if (HvSStrength > 0.0) {
+            s = mix(s, lutLookup(HvSLut, h0), clamp(HvSStrength, 0.0, 1.0));   // hue → 饱和度
+        }
+        if (HvLStrength > 0.0) {
+            l = mix(l, lutLookup(HvLLut, h0), clamp(HvLStrength, 0.0, 1.0));   // hue → 亮度
+        }
+        if (LvSStrength > 0.0) {
+            s = mix(s, lutLookup(LvSLut, l0), clamp(LvSStrength, 0.0, 1.0));   // 亮度 → 饱和度
+        }
+        if (SvSStrength > 0.0) {
+            s = mix(s, lutLookup(SvSLut, s0), clamp(SvSStrength, 0.0, 1.0));   // 饱和度 → 饱和度
+        }
+        if (SvLStrength > 0.0) {
+            l = mix(l, lutLookup(SvLLut, s0), clamp(SvLStrength, 0.0, 1.0));   // 饱和度 → 亮度
+        }
         c = hsl2rgb(vec3(h, s, l));
     }
 
-    // 13. 灰度：按亮度混合
+    // 14. 灰度：按亮度混合
     if (Grayscale != 0.0) {
         c = mix(c, vec3(luma(c)), clamp(Grayscale, 0.0, 1.0));
     }
 
-    // 14. 反相：按强度混合
+    // 15. 反相：按强度混合
     if (Invert != 0.0) {
         c = mix(c, 1.0 - c, clamp(Invert, 0.0, 1.0));
     }

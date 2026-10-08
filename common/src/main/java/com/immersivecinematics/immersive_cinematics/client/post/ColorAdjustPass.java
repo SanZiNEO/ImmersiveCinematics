@@ -60,9 +60,10 @@ import java.io.IOException;
  * {@code shaders/core/<name>.json}（默认命名空间），这是沿用原版机制的前提
  * （与 {@code EffectInstance} 对 {@code shaders/program/<name>.json} 的约束同源）。
  * 顶点格式 = {@code DefaultVertexFormat.POSITION_TEX}，与合成层 / 原版 blit 同一套。
- * <p>五个采样器：{@code Sampler0} = 画面（第一纹理单元）、{@code CurveLut} = RGB 复合曲线的 256×1 LUT、
- * {@code RCurveLut} / {@code GCurveLut} / {@code BCurveLut} = 每通道曲线的 256×1 LUT
- * （第二 ~ 第五纹理单元，见 {@link LutTexture}）。</p>
+ * <p>十一个采样器：{@code Sampler0} = 画面（第一纹理单元）、{@code CurveLut} = RGB 复合曲线的 256×1 LUT、
+ * {@code RCurveLut} / {@code GCurveLut} / {@code BCurveLut} = 每通道曲线的 256×1 LUT、
+ * {@code HvHLut} / {@code HvSLut} / {@code HvLLut} / {@code LvSLut} / {@code SvSLut} / {@code SvLLut}
+ * = 六条 hue 曲线的 256×1 LUT（第二 ~ 第十一纹理单元，见 {@link LutTexture}）。</p>
  *
  * <h2>默认零差异</h2>
  * 无调整时 {@link #render} 第一行返回；{@link #applyTo} 参数为空 / 恒等时第一行返回：
@@ -90,6 +91,17 @@ public final class ColorAdjustPass {
     private static final LutTexture R_CURVE_LUT = new LutTexture();
     private static final LutTexture G_CURVE_LUT = new LutTexture();
     private static final LutTexture B_CURVE_LUT = new LutTexture();
+
+    /**
+     * 六条 hue 曲线的 LUT 纹理槽（{@code HvHLut} / {@code HvSLut} / {@code HvLLut} /
+     * {@code LvSLut} / {@code SvSLut} / {@code SvLLut} 采样器，顺序同上表）。
+     */
+    private static final LutTexture HV_H_LUT = new LutTexture();
+    private static final LutTexture HV_S_LUT = new LutTexture();
+    private static final LutTexture HV_L_LUT = new LutTexture();
+    private static final LutTexture LV_S_LUT = new LutTexture();
+    private static final LutTexture SV_S_LUT = new LutTexture();
+    private static final LutTexture SV_L_LUT = new LutTexture();
 
     private ColorAdjustPass() {
     }
@@ -157,6 +169,12 @@ public final class ColorAdjustPass {
         shaderInstance.setSampler("RCurveLut", R_CURVE_LUT.bind(activeLut(params.rCurveLut(), params.rCurveStrength())));
         shaderInstance.setSampler("GCurveLut", G_CURVE_LUT.bind(activeLut(params.gCurveLut(), params.gCurveStrength())));
         shaderInstance.setSampler("BCurveLut", B_CURVE_LUT.bind(activeLut(params.bCurveLut(), params.bCurveStrength())));
+        shaderInstance.setSampler("HvHLut", HV_H_LUT.bind(activeLut(params.hvHLut(), params.hvHStrength())));
+        shaderInstance.setSampler("HvSLut", HV_S_LUT.bind(activeLut(params.hvSLut(), params.hvSStrength())));
+        shaderInstance.setSampler("HvLLut", HV_L_LUT.bind(activeLut(params.hvLLut(), params.hvLStrength())));
+        shaderInstance.setSampler("LvSLut", LV_S_LUT.bind(activeLut(params.lvSLut(), params.lvSStrength())));
+        shaderInstance.setSampler("SvSLut", SV_S_LUT.bind(activeLut(params.svSLut(), params.svSStrength())));
+        shaderInstance.setSampler("SvLLut", SV_L_LUT.bind(activeLut(params.svLLut(), params.svLStrength())));
 
         upload(shaderInstance, params);
 
@@ -241,6 +259,12 @@ public final class ColorAdjustPass {
         set(shader, "RCurveStrength", p.rCurveLut() == null ? 0.0F : p.rCurveStrength());
         set(shader, "GCurveStrength", p.gCurveLut() == null ? 0.0F : p.gCurveStrength());
         set(shader, "BCurveStrength", p.bCurveLut() == null ? 0.0F : p.bCurveStrength());
+        set(shader, "HvHStrength", p.hvHLut() == null ? 0.0F : p.hvHStrength());
+        set(shader, "HvSStrength", p.hvSLut() == null ? 0.0F : p.hvSStrength());
+        set(shader, "HvLStrength", p.hvLLut() == null ? 0.0F : p.hvLStrength());
+        set(shader, "LvSStrength", p.lvSLut() == null ? 0.0F : p.lvSStrength());
+        set(shader, "SvSStrength", p.svSLut() == null ? 0.0F : p.svSStrength());
+        set(shader, "SvLStrength", p.svLLut() == null ? 0.0F : p.svLStrength());
         set(shader, "Grayscale", p.grayscale());
         set(shader, "Invert", p.invert());
     }
@@ -257,7 +281,8 @@ public final class ColorAdjustPass {
      * 同一片段每帧拿到的是同一个数组，所以每换一次曲线才重传一次像素。</p>
      *
      * <p>绑定走 {@link ShaderInstance#setSampler}（着色器 JSON 的 {@code samplers} 次序 = 纹理单元：
-     * {@code Sampler0} / {@code CurveLut} / {@code RCurveLut} / {@code GCurveLut} / {@code BCurveLut}），
+     * {@code Sampler0} / {@code CurveLut} / {@code RCurveLut} / {@code GCurveLut} / {@code BCurveLut} /
+     * {@code HvHLut} / {@code HvSLut} / {@code HvLLut} / {@code LvSLut} / {@code SvSLut} / {@code SvLLut}），
      * 由 {@code ShaderInstance.apply()} 在绘制前落实——不占 {@code RenderSystem} 的
      * {@code shaderTextures} 槽位（那是 {@code Sampler0..Sampler11} 与叠加色用的），
      * 因此没有额外的全局状态需要保存 / 还原。</p>

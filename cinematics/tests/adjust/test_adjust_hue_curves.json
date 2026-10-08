@@ -1,0 +1,79 @@
+{
+  "meta": {
+    "id": "test_adjust_hue_curves",
+    "name": "调色测试-六条 hue 曲线",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL，DaVinci 曲线页口径）：键 = 进入 HSL 块时的 hue / 亮度 / 饱和度，各自强度关键帧 0 → 1 → 0.5 → 1（缺省 1 = 全量生效）",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: test_adjust_hue_curves | 六条 hue 曲线 HvH/HvS/HvL/LvS/SvS/SvL",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 8, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "hv_h_curve": [ [0, 0.1], [0.5, 0.5], [1, 1] ],
+            "hv_s_curve": [ [0, 1], [0.5, 0.5], [0.65, 1], [1, 1] ],
+            "hv_l_curve": [ [0, 0.6], [0.5, 0.5], [1, 0.5] ],
+            "lv_s_curve": [ [0, 0.25], [0.5, 0.5], [1, 1] ],
+            "sv_s_curve": [ [0, 0], [0.5, 0.7], [1, 1] ],
+            "sv_l_curve": [ [0, 0.5], [0.5, 0.5], [1, 0.35] ],
+            "keyframes": [
+              { "time": 0, "hv_h_strength": 0, "hv_s_strength": 1, "hv_l_strength": 0.5, "lv_s_strength": 1, "sv_s_strength": 0.5, "sv_l_strength": 0 },
+              { "time": 2, "hv_h_strength": 1, "hv_s_strength": 0.5, "hv_l_strength": 1, "lv_s_strength": 0.5, "sv_s_strength": 1, "sv_l_strength": 0.5 },
+              { "time": 4, "hv_h_strength": 0.5, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 1 },
+              { "time": 6, "hv_h_strength": 1, "hv_s_strength": 1, "hv_l_strength": 1, "lv_s_strength": 1, "sv_s_strength": 1, "sv_l_strength": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -167,6 +167,39 @@ public class Clip {
         return getObject("b_curve");
     }
 
+    /**
+     * HvH 曲线（六条 hue 曲线，DaVinci 曲线页口径）：以 <b>hue</b> 为键、输出 <b>hue</b>。
+     * {@code null} = 本片段无该曲线；关键帧控 {@code hv_h_strength}。
+     */
+    public ColorCurve getHvHCurve() {
+        return getObject("hv_h_curve");
+    }
+
+    /** HvS 曲线：以 hue 为键、输出饱和度（关键帧控 {@code hv_s_strength}）。 */
+    public ColorCurve getHvSCurve() {
+        return getObject("hv_s_curve");
+    }
+
+    /** HvL 曲线：以 hue 为键、输出亮度（关键帧控 {@code hv_l_strength}）。 */
+    public ColorCurve getHvLCurve() {
+        return getObject("hv_l_curve");
+    }
+
+    /** LvS 曲线：以亮度为键、输出饱和度（关键帧控 {@code lv_s_strength}）。 */
+    public ColorCurve getLvSCurve() {
+        return getObject("lv_s_curve");
+    }
+
+    /** SvS 曲线：以饱和度为键、输出饱和度（关键帧控 {@code sv_s_strength}）。 */
+    public ColorCurve getSvSCurve() {
+        return getObject("sv_s_curve");
+    }
+
+    /** SvL 曲线：以饱和度为键、输出亮度（关键帧控 {@code sv_l_strength}）。 */
+    public ColorCurve getSvLCurve() {
+        return getObject("sv_l_curve");
+    }
+
     // ── Convenience: AUDIO ──
 
     public String getSound() {

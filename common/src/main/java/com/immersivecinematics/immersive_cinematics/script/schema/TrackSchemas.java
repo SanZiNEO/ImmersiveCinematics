@@ -177,7 +177,8 @@ public final class TrackSchemas {
     }
 
     /**
-     * ADJUST 轨道（画面颜色调整，0.3.6：master 标量组 + lane 级调整 + RGB 复合曲线 + 每通道曲线）。
+     * ADJUST 轨道（画面颜色调整，0.3.6：master 标量组 + lane 级调整 + RGB 复合曲线 + 每通道曲线
+     * + 六条 hue 曲线）。
      *
      * <p>17 个标量通道全部是<b>关键帧字段</b>，缺省全 0 = 无效果
      * （关键帧把通道写回 0 就是该项淡出，不需要 enabled 开关）。</p>
@@ -185,12 +186,14 @@ public final class TrackSchemas {
      * <p><b>clip 级字段 = 作用域 + 曲线</b>（不随时间变，故挂 clip）：
      * {@code scope}（{@code master} 缺省 / {@code lane}）与 {@code lane}（{@code scope=lane} 时的目标相机轨序号：
      * 0 起、按 timeline 中 CAMERA 轨出现顺序）；{@code curve} = RGB 复合曲线、{@code r_curve} / {@code g_curve} /
-     * {@code b_curve} = 每通道曲线（R / G / B 各一条），都是控制点数组
+     * {@code b_curve} = 每通道曲线（R / G / B 各一条）、{@code hv_h_curve} / {@code hv_s_curve} /
+     * {@code hv_l_curve} / {@code lv_s_curve} / {@code sv_s_curve} / {@code sv_l_curve} = 六条 hue 曲线
+     * （DaVinci 曲线页口径：HvH / HvS / HvL、LvS / SvS / SvL），都是控制点数组
      * {@code [[x,y], ...]}（x 严格递增、各 0~1、≥2 点；结构字段，缺省 = 无曲线——与 CAMERA 轨同名的
      * {@code curve}（{@code bezier_curve}）按轨道类型分派，互不影响）。master = 作用于合成输出（最终显示画面）；
      * lane = 作用于该相机轨的画面，在该 lane 渲染完成之后、合成之前
-     * （见 {@code plans/0.3.6/screen-color-adjust.md} 步骤 5、「增量：RGB 复合曲线（形态 b）」与
-     * 「增量：每通道曲线（R / G / B）」）。</p>
+     * （见 {@code plans/0.3.6/screen-color-adjust.md} 步骤 5、「增量：RGB 复合曲线（形态 b）」、
+     * 「增量：每通道曲线（R / G / B）」与「增量：六条 hue 曲线」）。</p>
      *
      * <p>顺序 = 着色器操作栈顺序（{@code assets/minecraft/shaders/core/ic_color_adjust.fsh}）
      * = {@code ColorAdjustParams} 的分量顺序；区间由 {@code ScriptValidator} 校验。
@@ -205,6 +208,13 @@ public final class TrackSchemas {
         clips.put("r_curve", new FieldDef("color_curve", null));
         clips.put("g_curve", new FieldDef("color_curve", null));
         clips.put("b_curve", new FieldDef("color_curve", null));
+        // 六条 hue 曲线（DaVinci 曲线页；键 = hue 或 sat / lum，在 HSL 块内生效）
+        clips.put("hv_h_curve", new FieldDef("color_curve", null));   // hue → hue
+        clips.put("hv_s_curve", new FieldDef("color_curve", null));   // hue → saturation
+        clips.put("hv_l_curve", new FieldDef("color_curve", null));   // hue → luminance
+        clips.put("lv_s_curve", new FieldDef("color_curve", null));   // luminance → saturation
+        clips.put("sv_s_curve", new FieldDef("color_curve", null));   // saturation → saturation
+        clips.put("sv_l_curve", new FieldDef("color_curve", null));   // saturation → luminance
 
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
         // 基础校色（复合 RGB）
@@ -231,6 +241,13 @@ public final class TrackSchemas {
         kfs.put("r_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（R 每通道曲线，同上）
         kfs.put("g_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（G 每通道曲线，同上）
         kfs.put("b_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（B 每通道曲线，同上）
+        // 六条 hue 曲线的混合强度（曲线本身是 clip 级字段 hv_h_curve / hv_s_curve / ... / sv_l_curve）
+        kfs.put("hv_h_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvH：hue → hue，缺省 1；无曲线时忽略）
+        kfs.put("hv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvS：hue → 饱和度）
+        kfs.put("hv_l_strength", new FieldDef("float", 1f));    // 0 ~ 1（HvL：hue → 亮度）
+        kfs.put("lv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（LvS：亮度 → 饱和度）
+        kfs.put("sv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（SvS：饱和度 → 饱和度）
+        kfs.put("sv_l_strength", new FieldDef("float", 1f));    // 0 ~ 1（SvL：饱和度 → 亮度）
         // 风格化（本身即强度）
         kfs.put("grayscale", new FieldDef("float", 0f));      // 0 ~ 1（灰度混合量）
         kfs.put("invert", new FieldDef("float", 0f));         // 0 ~ 1（反相混合量）
