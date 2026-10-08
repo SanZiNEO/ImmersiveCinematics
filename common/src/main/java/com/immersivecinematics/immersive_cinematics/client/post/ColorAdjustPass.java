@@ -197,7 +197,7 @@ public final class ColorAdjustPass {
     }
 
     /**
-     * 参数 → uniform（逐帧覆盖；着色器 JSON 里已声明全部 15 个通道，缺省 0 = 无效果）。
+     * 参数 → uniform（逐帧覆盖；着色器 JSON 里已声明全部 17 个通道，缺省 0 = 无效果）。
      * <p>顺序与 {@link ColorAdjustParams} 的分量顺序、shader 的操作栈顺序一致。</p>
      */
     private static void upload(ShaderInstance shader, ColorAdjustParams p) {
@@ -207,8 +207,10 @@ public final class ColorAdjustPass {
         set(shader, "Shadows", p.shadows());
         set(shader, "Whites", p.whites());
         set(shader, "Blacks", p.blacks());
+        set(shader, "Hue", p.hue());
         set(shader, "Saturation", p.saturation());
         set(shader, "Vibrance", p.vibrance());
+        set(shader, "Lightness", p.lightness());
         set(shader, "Temperature", p.temperature());
         set(shader, "Tint", p.tint());
         set(shader, "Red", p.red());

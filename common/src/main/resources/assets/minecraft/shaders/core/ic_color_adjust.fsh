@@ -5,7 +5,8 @@
 //
 // 操作栈顺序固定（与 plans/0.3.6/screen-color-adjust.md §3 一致，非破坏、不可调）：
 //   1. 曝光      2. 对比度     3. 高光 / 阴影   4. 白场 / 黑场
-//   5. 色温 / 色调  6. RGB 通道系数  7. 饱和度   8. 自然饱和度   9. 灰度   10. 反相
+//   5. 色温 / 色调  6. RGB 通道系数  7. 色相旋转   8. 饱和度   9. 自然饱和度   10. 亮度
+//   11. 灰度     12. 反相
 //
 // 参数口径（全部为「0 = 无效果」的增量；缺省全 0 = 恒等，运行时也不会下发这个 pass）：
 //   Exposure     -5 ~ 5   EV 档（×2^EV）
@@ -14,8 +15,10 @@
 //   Shadows      -1 ~ 1   暗部（亮度权重 (1-l)²）
 //   Whites       -1 ~ 1   白场端点（黑点 / 白点的 levels 式线性映射，±1 = 端点位移 ±0.5）
 //   Blacks       -1 ~ 1   黑场端点（同上：正 = 抬黑场、负 = 压黑）
+//   Hue          -1 ~ 1   HSL 的 H 通道：色相旋转（±1 = ±180°；HSL 块内顺序 = hue → sat → lightness）
 //   Saturation   -1 ~ 1   HSL 的 S 通道（-1 = 全灰、1 = 双倍）
 //   Vibrance     -1 ~ 1   自然饱和度（正 = 低饱和像素优先，负 = 整体降饱和）
+//   Lightness    -1 ~ 1   HSL 的 L 通道：正 = 向白推、负 = 向黑压
 //   Temperature  -1 ~ 1   色温（正 = 暖 / 偏红，负 = 冷 / 偏蓝）
 //   Tint         -1 ~ 1   色调（正 = 品红，负 = 绿）
 //   Red          -1 ~ 1   R 通道乘性系数（增益 = 1 + 值：-1 = 归零、-0.5 = 减半、+1 = 双倍）
@@ -42,8 +45,10 @@ uniform float Highlights;
 uniform float Shadows;
 uniform float Whites;
 uniform float Blacks;
+uniform float Hue;
 uniform float Saturation;
 uniform float Vibrance;
+uniform float Lightness;
 uniform float Temperature;
 uniform float Tint;
 uniform float Red;
@@ -146,21 +151,26 @@ void main() {
     // 后续按 HSL / 亮度混合，先收敛到 [0,1]
     c = clamp(c, 0.0, 1.0);
 
-    // 7 / 8. 饱和度、自然饱和度：HSL 的 S 通道（无 HSL 调整时跳过换算，保持逐位恒等）
-    if (Saturation != 0.0 || Vibrance != 0.0) {
+    // 7 ~ 10. 完整 HSL：色相旋转 → 饱和度 / 自然饱和度 → 亮度
+    //    四个 HSL 通道全 0 时跳过换算（保持逐位恒等）
+    if (Hue != 0.0 || Saturation != 0.0 || Vibrance != 0.0 || Lightness != 0.0) {
         vec3 hsl = rgb2hsl(c);
+        // 色相旋转：Hue = ±1 → ±180°（±0.5 圈）；fract 对负值同样回绕到 [0,1)
+        float h = fract(hsl.x + Hue * 0.5);
         float s = hsl.y;
         s = clamp(s * (1.0 + Saturation), 0.0, 1.0);
         s = clamp((Vibrance >= 0.0) ? (s + Vibrance * s * (1.0 - s)) : (s * (1.0 + Vibrance)), 0.0, 1.0);
-        c = hsl2rgb(vec3(hsl.x, s, hsl.z));
+        // 亮度：正 = 向白推（L → 1）、负 = 向黑压（L → 0）；双向混合，两端为满量程
+        float l = clamp(hsl.z + Lightness * ((Lightness >= 0.0) ? (1.0 - hsl.z) : hsl.z), 0.0, 1.0);
+        c = hsl2rgb(vec3(h, s, l));
     }
 
-    // 9. 灰度：按亮度混合
+    // 11. 灰度：按亮度混合
     if (Grayscale != 0.0) {
         c = mix(c, vec3(luma(c)), clamp(Grayscale, 0.0, 1.0));
     }
 
-    // 10. 反相：按强度混合
+    // 12. 反相：按强度混合
     if (Invert != 0.0) {
         c = mix(c, 1.0 - c, clamp(Invert, 0.0, 1.0));
     }

@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "id": "test_adjust_hsl",
+    "name": "调色测试-完整HSL",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "完整 HSL：hue 色相旋转（0→0.5→-0.5→0，±1 = ±180°）+ lightness 亮度（0→-1→1→0，正 = 向白推、负 = 向黑压）；全部关键帧字段，缺省 0 = 无效果",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: test_adjust_hsl | 完整 HSL | hue 0→0.5→-0.5→0, lightness 0→-1→1→0",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 8, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "keyframes": [
+              { "time": 0, "hue": 0,     "lightness": 0 },
+              { "time": 2, "hue": 0.5,   "lightness": -1 },
+              { "time": 4, "hue": -0.5,  "lightness": 1 },
+              { "time": 6, "hue": 0.25,  "lightness": -0.5 },
+              { "time": 8, "hue": 0,     "lightness": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

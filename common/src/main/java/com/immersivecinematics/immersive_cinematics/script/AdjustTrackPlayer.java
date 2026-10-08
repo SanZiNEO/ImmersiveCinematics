@@ -6,10 +6,10 @@ import com.immersivecinematics.immersive_cinematics.client.post.MasterColorAdjus
 import java.util.List;
 
 /**
- * ADJUST 轨道播放器 — 画面颜色调整（0.3.6：master 标量组 15 通道 + lane 级调整）。
+ * ADJUST 轨道播放器 — 画面颜色调整（0.3.6：master 17 通道 + lane 级调整）。
  *
  * <h2>职责</h2>
- * 每渲染帧找到本轨道当前活跃的 clip，把 15 个标量通道在<b>片段本地时间</b>处插值，按 clip 的
+ * 每渲染帧找到本轨道当前活跃的 clip，把 17 个标量通道在<b>片段本地时间</b>处插值，按 clip 的
  * {@code scope} 分流（见下）。无活跃 clip 时<b>本帧不参与</b> —— 渲染侧拿不到参数就不动画面。
  * <p>同帧多条 ADJUST 轨道：后发布者生效（轨道层级靠后的覆盖靠前的）；没活跃 clip 的轨道不参与
  * （不会把别的轨道的发布抹掉）。参数全为缺省（0）时被规整为「无调整」，同样不影响画面。</p>
@@ -28,8 +28,9 @@ import java.util.List;
  * 目标序号越界在 {@code ScriptValidator} 里就被拦下。
  *
  * <h2>数据口径</h2>
- * 15 个通道全部是<b>关键帧字段</b>：{@code exposure / contrast / highlights / shadows / whites /
- * blacks / saturation / vibrance / temperature / tint / red / green / blue / grayscale / invert}，
+ * 17 个通道全部是<b>关键帧字段</b>：{@code exposure / contrast / highlights / shadows / whites /
+ * blacks / hue / saturation / vibrance / lightness / temperature / tint / red / green / blue /
+ * grayscale / invert}，
  * 缺省全 0 = 无效果（字段名 / 范围 / 公式见 {@code docs/SCRIPT_FORMAT.md} §10 与
  * {@code TrackSchemas.adjust()}）。插值走 {@link KeyframeInterpolator#interpolateChannel}（匀速线性），
  * 与其它轨道的标量通道同一口径。作用域（{@code scope} / {@code lane}）是 clip 级字段，不随时间变。
@@ -106,7 +107,7 @@ public class AdjustTrackPlayer implements TrackPlayer {
         MasterColorAdjust.INSTANCE.clear();
     }
 
-    /** 15 个标量通道在片段本地时间处的取值（顺序 = {@link ColorAdjustParams} 分量顺序 = shader 操作栈顺序）。 */
+    /** 17 个标量通道在片段本地时间处的取值（顺序 = {@link ColorAdjustParams} 分量顺序 = shader 操作栈顺序）。 */
     private static ColorAdjustParams sample(List<Keyframe> keyframes, float localTime) {
         return new ColorAdjustParams(
                 channel(keyframes, localTime, "exposure"),
@@ -115,8 +116,10 @@ public class AdjustTrackPlayer implements TrackPlayer {
                 channel(keyframes, localTime, "shadows"),
                 channel(keyframes, localTime, "whites"),
                 channel(keyframes, localTime, "blacks"),
+                channel(keyframes, localTime, "hue"),
                 channel(keyframes, localTime, "saturation"),
                 channel(keyframes, localTime, "vibrance"),
+                channel(keyframes, localTime, "lightness"),
                 channel(keyframes, localTime, "temperature"),
                 channel(keyframes, localTime, "tint"),
                 channel(keyframes, localTime, "red"),

@@ -10,7 +10,7 @@
 > - [画面合成](./camera-composition.md)
 > - [并行播放](./parallel-playback.md)
 >
-> **状态：第一批「标量组」（15 通道 = 12 标量 + R/G/B 每通道系数）已落地（2026-10-07）；lane 级调整（§7 步骤 5）已落地（2026-10-07）。曲线组（RGB 复合曲线 + 每通道曲线）与第二 / 三批、调整层（步骤 6）、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
+> **状态：第一批「标量组」（15 通道 = 12 标量 + R/G/B 每通道系数）已落地（2026-10-07）；lane 级调整（§7 步骤 5）已落地（2026-10-07）；完整 HSL（`hue` / `lightness`）已落地（2026-10-07）→ 共 17 通道。曲线组（RGB 复合曲线 + 每通道曲线）与第二 / 三批其余、调整层（步骤 6）、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
 
 ---
 
@@ -24,7 +24,7 @@
 2. **字段形状不同**：OVERLAY 层 = 一个元素 + 一套统一参数（x/y/anchor/scale/source/fit/opacity/z_index，四类层共享）；调色 = 一组彼此独立、各带公式的标量通道，两者无一处重合。
 3. **成本**：独立轨道 = 枚举 +1、schema +1、校验分支 +1、`TrackPlayer` 工厂 +1、播放器 +1；OVERLAY 路线要在 `OverlayTrackPlayer.createLayer/updateLayer` 里加特例分支 + 一个只存数据的 `OverlayLayer` 子类，渲染侧状态与 pass 一样要新建 —— 代码更多、语义更歪。
 
-**字段表（定稿）：12 个标量通道 + R/G/B 三通道（2026-10-07 增量 → 共 15），全部是关键帧字段，缺省全 0 = 无效果**
+**字段表（定稿）：12 个标量通道 + R/G/B 三通道 + 完整 HSL（`hue` / `lightness`）（2026-10-07 增量 → 共 17），全部是关键帧字段，缺省全 0 = 无效果**
 
 | 通道 | 默认 | 范围 | 口径 |
 |---|---|---|---|
@@ -34,8 +34,10 @@
 | `shadows` | 0 | -1 ~ 1 | 阴影，亮度权重 (1-l)² |
 | `whites` | 0 | -1 ~ 1 | 白场端点（白点 = 1 + 0.5×值） |
 | `blacks` | 0 | -1 ~ 1 | 黑场端点（黑点 = 0.5×值） |
+| `hue` | 0 | -1 ~ 1 | HSL 的 H 通道：色相旋转（`H' = fract(H + Hue*0.5)`：±1 = ±180°） |
 | `saturation` | 0 | -1 ~ 1 | HSL 的 S 通道（-1 = 全灰、1 = 双倍） |
 | `vibrance` | 0 | -1 ~ 1 | 自然饱和度（正 = 低饱和优先，负 = 整体降饱和） |
+| `lightness` | 0 | -1 ~ 1 | HSL 的 L 通道（正 = 向白推、负 = 向黑压；±1 = 全白 / 全黑） |
 | `temperature` | 0 | -1 ~ 1 | 色温（正 = 暖 / 偏红，负 = 冷 / 偏蓝） |
 | `tint` | 0 | -1 ~ 1 | 色调（正 = 品红，负 = 绿） |
 | `red` | 0 | -1 ~ 1 | R 通道系数（乘性，增益 = 1 + 值：-1 = 归零、-0.5 = 减半、+1 = 双倍） |
@@ -73,14 +75,16 @@
 | 4 | 白 / 黑场 | `black = 0.5*Blacks`、`white = 1 + 0.5*Whites`；`c = black + c * (white - black)` |
 | 5 | 色温 / 色调 | `gain = vec3(1+0.5*T, 1-0.5*Tint, 1-0.5*T)`，`gain /= dot(gain, LUMA)`，`c *= gain` |
 | 6 | RGB 通道系数 | `c *= vec3(1+Red, 1+Green, 1+Blue)`（三值全 0 跳过乘法，保持逐位恒等） |
-| 7 | 饱和度 | HSL：`S' = clamp(S * (1 + Saturation), 0, 1)` |
-| 8 | 自然饱和度 | HSL：`S' = clamp(Vibrance ≥ 0 ? S + Vibrance*S*(1-S) : S*(1+Vibrance), 0, 1)` |
-| 9 | 灰度 | `c = mix(c, vec3(luma(c)), clamp(Grayscale, 0, 1))` |
-| 10 | 反相 | `c = mix(c, 1 - c, clamp(Invert, 0, 1))` |
+| 7 | 色相旋转 | HSL：`H' = fract(H + Hue * 0.5)`（`±1` = ±180°；2026-10-07 增量） |
+| 8 | 饱和度 | HSL：`S' = clamp(S * (1 + Saturation), 0, 1)` |
+| 9 | 自然饱和度 | HSL：`S' = clamp(Vibrance ≥ 0 ? S + Vibrance*S*(1-S) : S*(1+Vibrance), 0, 1)` |
+| 10 | 亮度 | HSL：`L' = clamp(L + Lightness * (Lightness ≥ 0 ? (1-L) : L), 0, 1)`（`±1` = 全白 / 全黑；2026-10-07 增量） |
+| 11 | 灰度 | `c = mix(c, vec3(luma(c)), clamp(Grayscale, 0, 1))` |
+| 12 | 反相 | `c = mix(c, 1 - c, clamp(Invert, 0, 1))` |
 
-- **RGB↔HSL 标准换算**（§4 的方向）只用于饱和度 / 自然饱和度（HSL 的 S 通道）；亮度一律 **Rec.709**（0.2126 / 0.7152 / 0.0722，比原版 `color_convolve.fsh` 的 0.3/0.59/0.11 更接近现代口径）。
+- **RGB↔HSL 标准换算**（§4 的方向）用于完整 HSL 块（步骤 7 ~ 10：色相 / 饱和度 / 自然饱和度 / 亮度，即 H / S / L 三通道）；画面**亮度**一律 **Rec.709**（0.2126 / 0.7152 / 0.0722，比原版 `color_convolve.fsh` 的 0.3/0.59/0.11 更接近现代口径）。
 - 第 3 步之后、第 7 步之前**钳制到 [0,1]**（HSL 换算与亮度混合要求有界输入）。
-- **无 HSL 调整时跳过换算**（uniform 分支）→ 「只调曝光 / 对比度」这类场景逐位恒等。
+- **无 HSL 调整时跳过换算**（四个 HSL 通道全 0 的 uniform 分支）→ 「只调曝光 / 对比度」这类场景逐位恒等。
 - 灰点边界（§5-2）：`max-min ≈ 0` 时 `S = 0`、色相无意义 → `hsl2rgb` 的 `S ≤ 0` 分支直接返回灰度，不会产生 NaN 或跳色。
 - 色温 / 色调的增益**按亮度归一化** → 调白平衡不改变整体明暗。
 
@@ -107,6 +111,34 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
   - **着色器冒烟**（throwaway GL harness，真实 GL 3.2 core / NVIDIA RTX 4060；**45 项全过**）：编译 + 链接通过；JSON ↔ fsh uniform **双向一致**（含新增 `Red` / `Green` / `Blue`）；全 0 对 256 个 byte 值**逐字节恒等**（含 alpha）；`Red=-1` 红通道归零、`Green=-0.5` 减半、`Blue=+1` 双倍封顶、三通道组合正确；全 15 通道生效时 **alpha 逐位直通**（256 texel 无一处变化）。
   - 未验证：游戏内实际画面（需启动客户端）；光影下的执行顺序（§5-1，既有开放问题）。
 
+### 增量：完整 HSL（hue / lightness）（2026-10-07）
+
+把现有「饱和度 / 自然饱和度」的 HSL 块升级为**完整 HSL**（第二批「通道与 HSL 完整」的第二块；色相曲线 / 通道混合器仍未做）。
+
+- **字段名 / 范围 / 缺省**：
+  - `hue`：色相旋转，`-1 ~ 1`，缺省 `0` = 无效果；
+  - `lightness`：HSL 的 L 通道，`-1 ~ 1`，缺省 `0` = 无效果。
+- **公式**：
+  - `hue`：`H' = fract(H + Hue * 0.5)`（`H` = 归一化色相 `[0,1)`）—— `±1` = 旋转 **±180°**（`±0.5` = ±90°、`±0.25` = ±45°）；`fract` 对负值同样回绕到 `[0,1)`，所以 `+1` 与 `-1` 对纯红都得到青（只是绕行方向不同）。灰点（`S = 0`）不受影响：走 `hsl2rgb` 的 `s <= 0` 分支，不跳色、不 NaN。
+  - `lightness`：`L' = clamp(L + Lightness * (Lightness >= 0 ? (1 - L) : L), 0, 1)` —— 正 = 向白推（`+1` = 全白）、负 = 向黑压（`-1` = 全黑），两端都是**满量程**；与高光 / 阴影通道的「双向混合」同一风格。
+- **操作栈位置**：**HSL 块内**（§4 操作栈表的第 7 ~ 10 步），块内顺序 = **hue 旋转 → 饱和度 / 自然饱和度（现有）→ lightness**；块条件扩为「`Hue` / `Saturation` / `Vibrance` / `Lightness` 任一非 0 才做 `rgb2hsl` 换算」，四值全 `0` 时**逐位恒等**（保持「无调整零差异」）。三者只动各自的 H / S / L 分量，互相不干扰，所以块内先后只影响语义表述、不影响数值。
+- **alpha 直通契约不变**：本块只动 rgb，`fragColor.a = src.a`（透明度只在合成层由 `opacity` 调控）。
+- **七处同步点**（顺序是硬约定，逐项对应）：
+  1. `script/schema/TrackSchemas.adjust()`：`hue` 插在 `saturation` **之前**、`lightness` 插在 `vibrance` **之后**（HSL 组 = `hue, saturation, vibrance, lightness` 连续）；javadoc 15 → 17；
+  2. `script/ScriptValidator.ADJUST_CHANNELS`：两个 `-1 ~ 1` 区间（同位置）；
+  3. `client/post/ColorAdjustParams`：record 分量（同位置）+ `IDENTITY` + `isIdentity()` + javadoc 15 → 17；
+  4. `client/post/ColorAdjustPass.upload()`：`Hue` / `Lightness` 两个 uniform（顺序一致）；
+  5. shader `ic_color_adjust.json`：uniforms +2（`float`）；
+  6. shader `ic_color_adjust.fsh`：uniform 声明 +2、HSL 块改造（块条件 + `fract` 旋转 + 亮度混合）、文件头操作栈表（12 步）与通道清单表（17 通道）；
+  7. `script/AdjustTrackPlayer.sample()`：通道名列表 +2（否则新通道不被采样）；javadoc 15 → 17。
+- **测试脚本**：`cinematics/tests/adjust/test_adjust_hsl.json`（1 条 ADJUST 轨、5 个关键帧：hue `0 → 0.5 → -0.5 → 0.25 → 0`，lightness `0 → -1 → 1 → -0.5 → 0`）。
+- **验证**：
+  - `sh gradlew compileJava`（`:common` / `:fabric` / `:forge` 三模块）**通过**；
+  - 无头 validator（`E:/tmp/icv` 的 `Validate`，真实 `ScriptValidator`）扫 `cinematics/tests/adjust`：3 脚本 **0 issue**（含既有 2 个无回归）；全量 `cinematics/tests`（110 个）仍只有既有的 3 个已知 FAIL，无新增；
+  - **数据层冒烟**（throwaway：`ScriptParser.parse` → 反射调 `AdjustTrackPlayer.sample` → `ColorAdjustParams`；**34 项全过**）：线性插值（t=2.5 → hue 0.25；t=7.5 → hue 0 / lightness 0.5）、缺字段按缺省 0（kf[1] 未写 `lightness`）、时间越界取边界值（t=-2 / t=20，不外推）、其余 15 通道未串位、`isIdentity()` 全 0 为 true / 单通道（hue=0.5、hue=-1、lightness=±1）为 false、validator 拦下 `hue: 2` / `hue: -1.5` / `lightness: 1.5` 且 ±1 边界合法；
+  - **着色器冒烟**（throwaway GL harness `E:/tmp/icgl`，真实 GL 3.2 core；新增 `GlHslSmoke` **79 项全过**）：编译 + 链接通过；JSON ↔ fsh uniform **双向一致**（含新增 `Hue` / `Lightness`）；全 0 对灰度梯度与 16 个测试色**逐字节恒等**（含 alpha）；**`hue = ±1` 对纯红 → 青（180°）**、绿 → 品红、蓝 → 黄、黄 → 蓝、青 → 红、品红 → 绿（精确到 byte）；`hue = ±0.5` → ±90°（红 → 青绿 `(128,255,0)` / 红 → 紫 `(128,0,255)`）；`hue = ±0.25` → ±45°（红 → 橙 / 红 → 品红方向）；`hue = 1` 对灰度输入**逐字节恒等**（`s = 0` 分支）；`lightness = +1` → 全白、`-1` → 全黑（alpha 均直通）；`lightness = ±0.5` 对灰度梯度**逐级核对公式**（`L' = (1+L)/2` / `L' = L/2`）；组合用例（`hue + lightness` 对纯红 → 暗青 `(0,128,128)`；`hue + saturation=-1` → 中灰）；全 17 通道生效时 **alpha 逐位直通**（256 texel 无一处变化）。既有 master harness（`GlShaderSmoke`，**49 项**）与 lane harness（`GlLaneAdjustSmoke`，**61 项**）复跑仍全过。
+  - 未验证：游戏内实际画面（需启动客户端）；光影下的执行顺序（§5-1，既有开放问题）。
+
 ### 默认零差异（§2.1 的「零差异」要求）
 
 - 无 ADJUST 轨道 / 无活跃 clip / 15 通道全为缺省 → 播放器不发布 → pass **第一行返回**：不取着色器、不建中转缓冲、不切 GL 状态、不画任何东西。
@@ -115,7 +147,7 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 ### 本版本明确不做
 
 - **RGB 复合曲线 + 每通道曲线**（§3 第一批的另一半；§3.1 的形态 b 倾向仍留待执行时定）。
-- 第二批（RGB 通道混合器 / 六条 hue 曲线 / Lift-Gamma-Gain 色轮）、第三批（LUT / 六色带 / 混合模式）。
+- 第二批**其余**（RGB 通道混合器 / 六条 hue 曲线 / Lift-Gamma-Gain 色轮）——**色相旋转已随本次「完整 HSL」增量落地**；第三批（LUT / 六色带 / 混合模式）。
 - 调整层（§7 步骤 6，依赖分层模型）——lane 级调整（步骤 5）已在本版本落地，见下一节「落地标注（lane 级调整）」。
 - 编辑器 UI（§7 步骤 3）：`editor/src/types.ts` 的 `TrackType` 联合类型、`TrackListPanel.vue` / `Timeline.vue` 的轨道列表与配色、i18n 键、`demo.ts` 的 schema 快照都需跟着加 `ADJUST`（Java 侧 schema 已随 `SchemaExporter` 导出，前端接上即可）。
 - 多实例各写 master 的合并语义（§5-4）：仍开放；本版本至多 1 个活跃实例，行为 = 该实例的最后一个 ADJUST 轨道。
