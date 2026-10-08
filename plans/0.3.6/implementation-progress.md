@@ -24,7 +24,7 @@
 | A3 | RGB 复合曲线（形态 b：曲线点集 + curve_strength 关键帧，CPU 采样 LUT） | A2 | ✅ | `6f91150` |
 | A4 | 每通道曲线（R/G/B 三条 + 各自 strength） | A3 | ✅ | `45f03ed` |
 | A13 | 多实例 master 合并 → 按层级叠加（见「用户裁决新增」A13'） | A8 | ☐ | |
-| A5 | 六条 hue 曲线（HvH/HvS/HvL、LvS/SvS/SvL） | A3 | ☐ | |
+| A5 | 六条 hue 曲线（HvH/HvS/HvL、LvS/SvS/SvL） | A3 | ✅ | `a1408fe` |
 | A6 | RGB 通道混合器（3×3 矩阵 9 参数） | A1 | ☐ | |
 | A7 | Lift/Gamma/Gain 色轮（或 LOG 色轮） | A2 | ☐ | |
 | A9 | 调整层（作用于其下所有图层） | A8 | ☐ | |
