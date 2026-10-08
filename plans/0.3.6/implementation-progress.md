@@ -20,9 +20,9 @@
 | A8 | lane 级调色（ADJUST 轨 scope/lane + 每 lane 合成前 pass + 单脚本多 lane 级绑定相机轨） | — | ✅ | `8114a85` |
 | A14 | 四象限交付物重写：单脚本四相机轨（4 机位 + dest 象限 + 每格 RGB 关键帧 + BR opacity 0.5 + BR 裁切动画） | A1,A8 | ✅ | `d0fc80b` |
 | A2 | 完整 HSL 通道（hue 色相旋转 ±180° + lightness 亮度） | — | ✅ | `d03626a` |
-| **A3** | **RGB 复合曲线（形态 b：曲线点集 + curve_strength 关键帧，CPU 采样 LUT）** | A2 | **⬅ 下一个** | |
+| A3 | RGB 复合曲线（形态 b：曲线点集 + curve_strength 关键帧，CPU 采样 LUT） | A2 | ✅ | `6f91150` |
 | A4 | 每通道曲线（R/G/B 三条 + 各自 strength） | A3 | ☐ | |
-| A13 | 多实例 master 合并语义定稿 + 实现 | A8 | ☐ | |
+| A13 | 多实例 master 合并 → 按层级叠加（见「用户裁决新增」A13'） | A8 | ☐ | |
 | A5 | 六条 hue 曲线（HvH/HvS/HvL、LvS/SvS/SvL） | A3 | ☐ | |
 | A6 | RGB 通道混合器（3×3 矩阵 9 参数） | A1 | ☐ | |
 | A7 | Lift/Gamma/Gain 色轮（或 LOG 色轮） | A2 | ☐ | |
