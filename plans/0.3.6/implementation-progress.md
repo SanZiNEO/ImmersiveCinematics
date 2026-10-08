@@ -3,7 +3,7 @@
 > 生成：2026-10-07 晚。**明天从这里接着做。**
 > 目标：**0.3.6 计划全部实现**（不允许"差一点"）；**编辑器（游戏外 WebUI）放到最后**（需严密规划：参考 `example/editor/{olive,lossless-cut}`，核心 = 只产出游戏可解析的固定格式脚本）。
 > 执行方式：一个子代理只做一个小任务（任务书写全需求）→ 主代理验收（编译 + 冒烟/读码）→ 中文 commit → 更新本表。
-> 依据：`plans/0.3.6/implementation-audit-2026-10-07.md`（缺口总清单）；工作笔记 `.planning/036-impl/state-brief-{arch,flow}.md`（现状/工具）。
+> 依据：`plans/0.3.6/implementation-audit-2026-10-07.md`（缺口总清单）；`plans/0.3.6/pending-discussions.md`（未定项清查：多数属执行时再定型、任务落地时定稿；少数需拍板）；工作笔记 `.planning/036-impl/state-brief-{arch,flow}.md`（现状/工具）。
 
 ## 两条通用原则（每个任务都必须遵守）
 
@@ -19,8 +19,8 @@
 | A1 | R/G/B 通道（master，-1~1 乘性、操作栈第 6 步） | — | ✅ | `d1ae22e` |
 | A8 | lane 级调色（ADJUST 轨 scope/lane + 每 lane 合成前 pass + 单脚本多 lane 级绑定相机轨） | — | ✅ | `8114a85` |
 | A14 | 四象限交付物重写：单脚本四相机轨（4 机位 + dest 象限 + 每格 RGB 关键帧 + BR opacity 0.5 + BR 裁切动画） | A1,A8 | ✅ | `d0fc80b` |
-| **A2** | **完整 HSL 通道（hue 色相旋转 + lightness）** | — | **⬅ 下一个** | |
-| A3 | RGB 复合曲线（形态 b：曲线点集 + curve_strength 关键帧，CPU 采样 LUT 或 shader 求值） | A2 | ☐ | |
+| A2 | 完整 HSL 通道（hue 色相旋转 ±180° + lightness 亮度） | — | ✅ | `d03626a` |
+| **A3** | **RGB 复合曲线（形态 b：曲线点集 + curve_strength 关键帧，CPU 采样 LUT）** | A2 | **⬅ 下一个** | |
 | A4 | 每通道曲线（R/G/B 三条 + 各自 strength） | A3 | ☐ | |
 | A13 | 多实例 master 合并语义定稿 + 实现 | A8 | ☐ | |
 | A5 | 六条 hue 曲线（HvH/HvS/HvL、LvS/SvS/SvL） | A3 | ☐ | |
@@ -142,3 +142,4 @@
 | 日期 | 事件 |
 |---|---|
 | 2026-10-07 | 总表建立；版本号升 0.3.6（`04b9380`）；A1（`d1ae22e`）、A8（`8114a85`）、A14（`d0fc80b`）、CLEANUP-1 捕获工具通用化 + 删旧驱动（`384bd84`）完成；四象限交付物实机验证（每格 RGB 关键帧调色 + opacity 0.5 用户确认）；测试世界固定白天。**下一步 = A2（完整 HSL 通道）**。 |
+| 2026-10-08 | A2 完整 HSL（hue/lightness）完成（`d03626a`，GL 冒烟 79/79）；「未定项」清查报告入库（`e3fb024`，plans/0.3.6/pending-discussions.md）。**下一步 = A3（RGB 复合曲线，形态 b）**。 |
