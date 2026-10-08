@@ -27,17 +27,30 @@ import java.io.IOException;
  * 两条使用路径共用本类（同一份着色器 + 同一份 uniform 上传 + 同一个 {@link #applyTo}）：
  * <ul>
  *   <li><b>master</b>（{@link MasterColorAdjust} 发布）：作用于<b>合成输出</b>（架构图 RADJ 节点）——
- *       {@link #render} 在 lane 合成（MCOMP）之后、原版后处理链（RPOST）与 GUI 之前调一次。</li>
+ *       {@link #render} 在 lane 合成（MCOMP）与原版后处理链（RPOST）之后、GUI 之前调一次。</li>
  *   <li><b>lane 级</b>（来自该 lane 的相机片段）：作用于<b>该 lane 的画面</b>，在 lane 渲染完成
  *       之后、合成之前（{@code client.lane.LaneRenderer#renderLane} 调 {@link #applyTo}，
  *       写进共享 adjustTarget 再交给合成层）。</li>
  * </ul>
  *
  * <h2>挂点</h2>
- * master：{@code GameRenderer.renderLevel} 返回之后、lane 合成（MCOMP，{@code LaneRenderer.render}）之后，
- * 原版后处理链（RPOST）与 GUI 之前 —— 即 {@code mixin/LaneRendererMixin} 的同一次注入里、
- * {@code LaneRenderer.render} 的下一行（顺序必须在同一次注入里保证：调色要作用在 lane 合成结果上）。
- * 后果（有意）：F2 截图带上调色（截图在原版那一步取）；GUI（字幕 / 黑边 / 跳过提示）不受调色影响。
+ * master：lane 合成（MCOMP，{@code LaneRenderer.render}，挂在 {@code GameRenderer.renderLevel} 的 RETURN）
+ * 与原版后处理链（RPOST）之后、GUI 之前 —— 即 {@code mixin/GameRendererMixin.onWorldPostProcessed}：
+ * {@code GameRenderer.render} 内 {@code postEffect.process(f)} 之后那一句
+ * {@code getMainRenderTarget().bindWrite(true)} 的调用点上（2026-10-08 后移；此前在
+ * {@code LaneRendererMixin} 里、紧接 lane 合成之后）。
+ * <h3>截图（两条路径，行为不同）</h3>
+ * 原版有两条截图路径，本挂点后移后二者行为不同（依 1.20.1 反编译源码）：
+ * <ul>
+ *   <li><b>F2 直抓</b>（{@code KeyboardHandler.keyPress} → {@code Screenshot.grab(gameDirectory,
+ *       getMainRenderTarget(), ...)}）：在输入处理阶段读<b>上一帧</b>已画完的主画面（含 GUI 与调色），
+ *       与挂点位置无关 —— 新旧挂点下<b>都含</b>调色。</li>
+ *   <li><b>自动世界截图</b>（{@code GameRenderer.render} 内的 {@code tryTakeScreenshotIfNeeded()} →
+ *       {@code takeAutoScreenshot} → {@code Screenshot.takeScreenshot(getMainRenderTarget())}）：
+ *       调用点在 {@code renderLevel} 之后、本挂点<b>之前</b>（新挂点）—— 该路径截图<b>不含</b>调色；
+ *       旧挂点（{@code renderLevel} 的 RETURN）下该调用点在本挂点之后，则含调色。</li>
+ * </ul>
+ * GUI（字幕 / 黑边 / 黑白场 / 跳过提示）不受调色影响。
  * <p>lane 级：{@code LaneRenderer.renderLane} 内，lane 的 {@code renderLevel} + {@code doEntityOutline}
  * 之后、{@link LaneCompositor#compose} 之前。</p>
  *

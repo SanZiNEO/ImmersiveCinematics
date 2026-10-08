@@ -50,16 +50,18 @@
 - 插值：**匀速线性**（§3.1 的标量形态），走新加的 `KeyframeInterpolator.interpolateChannel`（与 `OverlayTrackPlayer` 的逐通道取值同口径：关键帧缺该字段 → 用缺省值；时间在首 / 末帧之外 → 取边界值，不外推）。
 - 曲线（§3.1 形态 a / b）未做，属曲线组任务。
 
-### 渲染挂点（§4 / §5-1 / §5-3 / §6-3：定稿）
+### 渲染挂点（§4 / §5-1 / §5-3 / §6-3：定稿；2026-10-08 用户裁决后移）
 
-- **挂点**：`GameRenderer.renderLevel` 的 RETURN —— 与 lane 合成写在**同一次注入**里（`mixin/LaneRendererMixin`，紧接 `LaneRenderer.render` 的下一行）：即 **MCOMP 之后、原版 RPOST 与 GUI 之前**，与架构图 RADJ 一致。
-  - **为什么同一注入**：同一 RETURN 上多个 Mixin 的注入先后不由我们控制，而调色必须作用在 lane 合成结果之上 —— 顺序只有写在同一个注入点里才是显式保证（该类 javadoc 已写明）。
+- **挂点**：`GameRenderer.render` 内、**原版后处理链（RPOST）之后、GUI 之前** —— `mixin/GameRendererMixin.onWorldPostProcessed`，注入目标 = 对 `RenderTarget.bindWrite(Z)V` 的调用（原版 `postEffect.process(f)` 之后那一句 `getMainRenderTarget().bindWrite(true)`）：即 **MCOMP → RPOST → RADJ → GUI**，与架构图 RADJ 一致。
+  - **口径（2026-10-08 用户裁决）**：master 调色（含未来的整体 LUT 烘焙）是世界画面的**最终字**。黑边 / 字幕 / 黑白场转场走 OVERLAY 层、在 GUI 阶段绘制且需要精确色值，不得被调色 / LUT 污染（GUI 不参与调色）；受伤红晕 / 水幕等原版屏幕特效属世界画面，应一并风格化。旧挂点（`renderLevel` 的 RETURN、紧接 lane 合成）已被本挂点取代。
+  - **为什么不再与 lane 合成同一注入**：lane 合成（MCOMP）仍留在 `renderLevel` 的 RETURN（`mixin/LaneRendererMixin`）——它必须早于 `doEntityOutline` / RPOST；master 调色读的是 RPOST 的输出，两者天然分处不同阶段，先后由原版语句顺序显式保证，不再需要「同一注入」这一约定。
+  - **为什么锚 `bindWrite(true)` 而不是 `Gui.render`**：`gui.render` 被原版 `if (!options.hideGui || screen != null)` 包着——按 F1 隐藏 HUD 时整段 GUI 不渲染，锚在那里会让调色随 HUD 显隐而消失；锚 `bindWrite(true)` 位于同一 `if (renderLevel && level != null)` 分支内、不受 HUD 显隐影响，生效条件与旧挂点逐帧等价。
   - **为什么不用原版 `PostChain`**：`EffectInstance` 的程序 JSON 路径硬编码 `shaders/program/<name>.json`（默认命名空间），且 `PostChain` 需要自己处理尺寸跟随、资源重载重建与用不上的 `Time` 等 uniform。自建 `ShaderInstance` + 自管中转缓冲更短更可控；**代价**：程序 JSON 与 GLSL 仍必须落在 `assets/minecraft/shaders/core/`（`ShaderInstance` 的 String 构造只认默认命名空间）—— 这是沿用原版机制的硬约束，非选择。
   - **两个 pass**：主画面 → 中转缓冲（应用全部调整）→ 主画面（整屏 blit，复用 `LaneCompositor.compose`）。不能同时读写同一张纹理，故与「效果 pass + blit 回 main」的原版链同构（与 §2.1 的措辞修正同源）。
-  - **GUI 不受影响**（§5-3）：挂点在世界渲染阶段、GUI 之前 —— 字幕 / 黑边 / 跳过提示不被调色（与文档倾向一致）。有意的副作用：F2 截图**带**调色（截图取在挂点之后）。
-  - **描边**：原版 `doEntityOutline()` 在挂点之后整屏贴一次（仅在有发光实体时动作），那一次贴图不经过调色 —— 可接受的边角（有活跃 lane 时该步本就被 `LevelRendererMixin` 屏蔽）。
+  - **GUI 不受影响**（§5-3）：挂点在 GUI 之前 —— 字幕 / 黑边 / 黑白场 / 跳过提示不被调色（与文档倾向一致）。有意的副作用：F2 截图**不带**调色（`tryTakeScreenshotIfNeeded()` 在原版 `renderLevel` 之后、本挂点之前取图）。
+  - **描边**：原版 `doEntityOutline()` 在本挂点**之前**（`renderLevel` 之后、`postEffect` 之前）整屏贴一次（仅在有发光实体时动作）——那一次贴图现在**会**经过调色（属世界画面，符合「最终字」口径；有活跃 lane 时该步本就被 `LevelRendererMixin` 屏蔽）。
 - **数据 → 渲染的唯一交接**：`client/post/MasterColorAdjust`（帧内**发布 / 取走**，取走即清空）。播放器每渲染帧发布一次（`AdjustTrackPlayer.onRenderFrame`），pass 每渲染帧取一次 —— 「本帧没人发布」自然等于「本帧不调色」，不依赖结束时的清理时序。同帧多个 ADJUST 轨道 = **后发布者生效**（轨道层级靠后的覆盖靠前的，与 lane 叠放同一口径）。
-- **光影（§5-1）**：Iris / Oculus 的 `finalizeGameRendering()` 挂在 `renderLevel` 的 TAIL，与本挂点同处「renderLevel 尾部」——**先后顺序未实测**，该开放问题保留。
+- **光影（§5-1）**：Iris / Oculus 的 `finalizeGameRendering()` 挂在 `renderLevel` 的 TAIL，Iris 的最终合成在 `LevelRenderer.renderLevel` 尾部 `finalizeLevelRendering()`（更内层）——两者都**早于**本挂点，读到的已是光影处理后的画面；本次后移与 Iris 的色彩空间转换完全解耦、顺序可控。见 [iris-oculus-compat.md](./iris-oculus-compat.md)「主画面挂点兼容性结论（2026-10-08）」。
 
 ### shader 数学（§4 方向 → 定稿）
 
@@ -481,7 +483,7 @@ lane 渲染（含 lane 内描边）→ 相机片段调色（只动 RGB）→ 合
 - 数据落点（**已定稿：独立 ADJUST 轨道**，见文首「落地标注」）：~~OVERLAY 轨新层类型 vs 独立调整轨——与遮罩文档 §4 开放问题 4 一起定。~~（现状事实：OVERLAY 的 `layer_type` 白名单只有 `fade` / `image` / `subtitle`，`TrackType` 枚举里没有调整类轨道，见事实核查小节。）
 - **shader 数学（方向）**：RGB↔HSL 标准换算（复用 / 参照原版 `color_convolve.fsh` 的 Luma / Chroma 写法）；Lift / Gamma / Gain = 按色调分段的多项式 / 幂次映射；**曲线 = 预烘焙查找纹理**（如 256×1 LUT，由控制点 + 手柄在 CPU 侧采样生成）或 shader 内贝塞尔求值——执行时定；六条 hue 曲线 = 以 hue 为键的 1D LUT（HvH / HvS / HvL）+ 以 sat / lum 为键的 1D LUT。
 - **一次 pass 合并**：同一层所有操作按栈顺序合成为一个 shader（或少量固定 pass），不为每个工具单独开 pass。
-- **分层挂点**：lane 级 = lane FBO 内、合成上屏前（`quadrant-prototype-results.md` §3.2「lane 自包含」）；master = 合成输出上、最终上屏前（MCOMP 之后、RPOST 之前——`mod-architecture-diagram.md` 已补 RADJ 节点）。
+- **分层挂点**：lane 级 = lane FBO 内、合成上屏前（`quadrant-prototype-results.md` §3.2「lane 自包含」）；master = 合成输出上、**原版 RPOST 之后、GUI 之前**（2026-10-08 用户裁决后移——GUI 层含黑边 / 字幕 / 黑白场，需精确色值、不参与调色；`mod-architecture-diagram.md` 已补 RADJ 节点）。
 
 **源码事实：原版后处理链（1.20.1，供落地时参照）**
 
@@ -503,9 +505,9 @@ lane 渲染（含 lane 内描边）→ 相机片段调色（只动 RGB）→ 合
 
 ## 5. 可能的问题
 
-- 后处理与光影（Iris / Oculus）的顺序：我们的 pass 在谁之后执行。（源码事实：原版 `postEffect` 在 `renderLevel` 返回后、GUI 之前；Iris / Oculus 的 `finalizeGameRendering()` 挂在 `GameRenderer.renderLevel` 的 `TAIL`，Iris 的最终合成在 `LevelRenderer.renderLevel` 尾部——都早于原版那一步。见 §4。）
+- 后处理与光影（Iris / Oculus）的顺序：我们的 pass 在谁之后执行。→ **已结清（2026-10-08）**：本 pass 在原版 RPOST **之后**、GUI 之前；Iris / Oculus 的 `finalizeGameRendering()`（`GameRenderer.renderLevel` 的 TAIL）与 Iris 的最终合成（`LevelRenderer.renderLevel` 尾部的 `finalizeLevelRendering()`）都**早于**本 pass——读到的是光影处理后的画面，不被跳过、不双重应用。见 [iris-oculus-compat.md](./iris-oculus-compat.md)「主画面挂点兼容性结论（2026-10-08）」。
 - RGB↔HSL 转换的边界：灰点色相未定、饱和度溢出钳制。（可参照原版 `program/color_convolve.fsh`：`Luma = dot(OutColor, Gray)`（Gray = 0.3 / 0.59 / 0.11）、`OutColor = (Chroma * Saturation) + Luma`，**未做钳制**。见 §4。）→ **已结清**：灰点走 `S ≤ 0` 分支直接返回灰度；S 钳制 0~1；亮度用 Rec.709（见文首「落地标注」的 shader 数学）。
-- 调整是否影响 GUI 层（字幕 / letterbox / 跳过提示）：倾向不影响，待定。（源码事实：原版 `postEffect` 位于 GUI 之前，而 FadeLayer / letterbox / subtitle / 跳过提示都在 GUI 阶段绘制——Forge `RenderGuiEvent.Post` → `ClientEventHandler.onRenderHud` → `OverlayManager.render` → `FadeLayer.render`（`guiGraphics.fill`）；整帧最后的 `Minecraft.blitToScreen` 在 GUI 之后。挂前者天然不影响 GUI，挂后者会影响。）→ **已结清：不影响**（挂点在世界渲染阶段、GUI 之前，见文首「落地标注」；副作用是 F2 截图带调色）。
+- 调整是否影响 GUI 层（字幕 / letterbox / 跳过提示）：倾向不影响，待定。（源码事实：原版 `postEffect` 位于 GUI 之前，而 FadeLayer / letterbox / subtitle / 跳过提示都在 GUI 阶段绘制——Forge `RenderGuiEvent.Post` → `ClientEventHandler.onRenderHud` → `OverlayManager.render` → `FadeLayer.render`（`guiGraphics.fill`）；整帧最后的 `Minecraft.blitToScreen` 在 GUI 之后。挂前者天然不影响 GUI，挂后者会影响。）→ **已结清：不影响**（挂点在 GUI 之前、原版 RPOST 之后，见 §4「渲染挂点」；副作用：F2 截图**不带**调色——截图取在挂点之前）。
 - 多实例各写 master 的冲突规则（与并行播放的并集规则对齐：后写覆盖？按实例层级？）。（并行播放 §3.2 的「取并集」只覆盖行为开关（`hide_hud` / 键鼠屏蔽 / `suppress_bob`），不含「单一 master 参数集」的合并语义，所以此处仍是开放问题。）
 - 编辑器：滑杆 / 通道 UI 与实时预览。
 - 性能：master 一次全屏 pass 可忽略；lane 级随 lane 数增长。（源码事实：「与内容无关」有依据——一个 pass = 一次全屏 quad（`PostPass.process`）；「可忽略」是定量判断，本次**未实测**。）
@@ -586,4 +588,4 @@ lane 渲染（含 lane 内描边）→ 相机片段调色（只动 RGB）→ 合
 1. **§5「性能：master 一次全屏 pass 可忽略」的定量部分**：未实测，仓库与 `quadrant-perf/` 内没有该 pass 的实测数据（"与内容无关"有源码依据，见 ①-3）。
 2. **§7 步骤 3「WebUI 内可调参数并实时看到效果」的现状支撑**：本次未核查 `editor/src` 与 `webui/` 的预览链路（现有 `webui/WebFrameCapture` 只做缩略帧回读，能否承载实时调色未核实）。
 3. **§3 的 LUT / 曝光 / 伽马等参数方向**：纯方向，无现状可核，保持「执行时定」。
-4. **光影下「我们的 pass 具体挂哪一步」的最终取舍**：只核实了双方挂点位置，结论待定（设计问题，未替文档决定）。
+4. ~~**光影下「我们的 pass 具体挂哪一步」的最终取舍**~~ → **已定（2026-10-08）**：挂点后移到原版 RPOST 之后、GUI 之前，与 Iris 的 `finalizeGameRendering()` 完全解耦；见 §4「渲染挂点」与 [iris-oculus-compat.md](./iris-oculus-compat.md)「主画面挂点兼容性结论（2026-10-08）」。

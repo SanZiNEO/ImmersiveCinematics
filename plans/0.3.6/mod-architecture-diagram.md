@@ -219,7 +219,7 @@ flowchart LR
         RLEVEL["世界渲染<br/>（区块层 / 实体层）"]
         ROUTLINE["描边上屏<br/>（lane 自包含）"]
         RADJ["颜色调整<br/>（RGBA 通道 / HSL / 曲线 / 色轮）"]
-        RPOST["后处理 / 最终上屏"]
+        RPOST["后处理<br/>（原版 postEffect 链）"]
     end
     TEX["纹理"]
     FRAME["画面"]
@@ -393,9 +393,9 @@ flowchart LR
     MLANE --> MFBO
     MFBO --> ROUTLINE
     ROUTLINE --> MCOMP
-    MCOMP -->|master（lane 级在 lane FBO 内 · 合成前）| RADJ
-    RADJ --> RPOST
-    RPOST --> TEX
+    MCOMP --> RPOST
+    RPOST -->|master（lane 级在 lane FBO 内 · 合成前）| RADJ
+    RADJ --> TEX
     TEX --> FRAME
     MWARM -->|提前渲染| MLANE
     MCOMP -->|无 lane 覆盖时| MMAIN

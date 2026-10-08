@@ -1,6 +1,6 @@
 # 0.3.6 光影（Iris / Oculus）兼容调研计划
 
-**状态**: 📋 **调研计划**——只定义「已经知道什么、还要查什么、怎么查、结论怎么用」；**本文不含结论**（用户点名：光影兼容「现在还不知道有什么问题，而且没有调查，这个写个计划」）
+**状态**: 📋 **调研计划**——只定义「已经知道什么、还要查什么、怎么查、结论怎么用」；**本文不含结论**（用户点名：光影兼容「现在还不知道有什么问题，而且没有调查，这个写个计划」）。**例外**：§2.7 是 2026-10-08 用户裁决后的**已定结论**（只覆盖主画面 master 调色挂点），其余仍为待调查项。
 **目标版本**: 0.3.6
 **关联**: [multi-camera-rendering](./multi-camera-rendering.md)（§7 / §7.1 / §12.5）、[render-routes](./render-routes.md)（§4）、[render-second-pass-cost](./render-second-pass-cost.md)（§7）、[screen-color-adjust](./screen-color-adjust.md)（§4 光影挂点段 / §5-1）
 
@@ -14,7 +14,7 @@
 
 ### 1.1 议题
 
-多相机 lane 渲染（`client/lane/LaneRenderer`，0.3.6 已落地）走的是**原版渲染 API 的第二遍世界渲染**：每 lane 一次 `LevelRenderer.renderLevel` + `doEntityOutline`，渲染进共用离屏 FBO，再由合成层贴回主画面；master 调色（`ColorAdjustPass`）紧跟合成之后。
+多相机 lane 渲染（`client/lane/LaneRenderer`，0.3.6 已落地）走的是**原版渲染 API 的第二遍世界渲染**：每 lane 一次 `LevelRenderer.renderLevel` + `doEntityOutline`，渲染进共用离屏 FBO，再由合成层贴回主画面；master 调色（`ColorAdjustPass`）在主画面合成之后、原版后处理链之后（2026-10-08 后移，见 §2.7）。
 
 光影模组把「一遍世界渲染」整体改写成自己的管线（gbuffer → composite 链 → final pass → 色彩空间转换），并且**每帧自己还会额外渲染一遍**（阴影 pass）。两者都改同一批入口（`LevelRenderer.renderLevel` / `GameRenderer.renderLevel`），因此「我们的第二遍在光影下是什么语义、能不能跑对、跑起来多贵」完全未知。
 
@@ -32,7 +32,7 @@
 | 同文档 §7.1 / §12.5 | 策略「副画面走原版 API + 运行时检测 Sodium / Embeddium / Oculus → 存在时副画面自动禁用 + warn」；✅ 已落地（`LaneRenderer.isUnavailable()`）；明确写「**不做 Iris 级完整适配**」；「Oculus / Iris 的『取已处理画面』仍未验证」；§12.5「光影（Iris / Oculus）：未做适配（§7 第 3 点仍待调研）」 | 本文就是那条「待调研」的**计划**；检测口径与策略选项在 §3-⑦ / §4 展开 |
 | `render-routes.md` §4 | 兼容分支两条：光影 =「能否拿『已处理后的画面』」；优化模组 =「检测到 → 禁用 + warn；或走它们的 Camera / Frustum 管线（`CameraMixin` 路线）」 | 沿用该二分；本文只做光影一侧 |
 | `render-second-pass-cost.md` §7 | 未决问题清单里三条与本文直接相关：「副画面在 **Iris/Oculus** 光影环境下的可用性」；「两遍/帧在 **Sodium/Embeddium** 下 `frame++` 语义是否会导致区块渲染错误」；「副画面是否需要**独立光照**」；§6.3 步骤 5 已写了一个可选佐证方案（装 Iris + 带阴影的光影包，用阴影开 / 关的 FPS 差估「每帧一遍世界渲染」的占比，**只作量级参照**） | ④⑥ 直接继承；§6.3 步骤 5 升级为本文 §5 的正式步骤（并明确它只回答量级，不回答正确性） |
-| `screen-color-adjust.md` §4（光影挂点段）/ §5-1 | 「Iris / Oculus 在 `GameRenderer.renderLevel` 的 `TAIL` 调 `finalizeGameRendering()`；Iris 的最终合成在 `LevelRenderer.renderLevel` 尾部 `finalizeLevelRendering()` → `compositeRenderer.renderAll()` + `finalPassRenderer.renderFinalPass()`；`finalizeGameRendering()` 做色彩空间转换 → **都早于原版 `postEffect` 那一步**；无光影包时 `VanillaRenderingPipeline` 两个方法都是空实现；**取舍仍待定**」 | §2.3 / §2.5 逐条核实；**§2.6 给出两处口径澄清**（「都早于原版那一步」对合成成立，对色彩空间转换不成立——它与我们的挂点同点）；取舍归入 §4 |
+| `screen-color-adjust.md` §4（光影挂点段）/ §5-1 | 「Iris / Oculus 在 `GameRenderer.renderLevel` 的 `TAIL` 调 `finalizeGameRendering()`；Iris 的最终合成在 `LevelRenderer.renderLevel` 尾部 `finalizeLevelRendering()` → `compositeRenderer.renderAll()` + `finalPassRenderer.renderFinalPass()`；`finalizeGameRendering()` 做色彩空间转换 → **都早于原版 `postEffect` 那一步**；无光影包时 `VanillaRenderingPipeline` 两个方法都是空实现；**取舍仍待定**」 | §2.3 / §2.5 逐条核实；**§2.6 给出两处口径澄清**（「都早于原版那一步」对合成成立，对色彩空间转换不成立——它与我们的**旧**挂点同点）；**挂点取舍已于 2026-10-08 由用户裁决落定：调色挂点后移到原版 RPOST 之后、GUI 之前，与色彩空间转换解耦（§2.7）** |
 
 ---
 
@@ -57,7 +57,8 @@
 | 环节 | 挂点 / 行为 | 证据 |
 |---|---|---|
 | 帧首（世界渲染之前） | `GameRenderer.render` 的 **HEAD**：`CameraManager.onRenderFrame()` + 脚本 lane 注册（`ScriptLaneDriver`）+ `CinematicOcclusion.beginFrame`（顺序固定） | `mixin/GameRendererMixin.java` `onRenderFrameStart`（`@Inject(method = "render", at = @At("HEAD"))`） |
-| **lane 渲染 + 合成 + master 调色** | `GameRenderer.renderLevel` 的 **RETURN**：`LaneRenderer.INSTANCE.render(...)` → 紧接着 `ColorAdjustPass.render(mc)`（同一次注入里保证顺序：合成 → 调色） | `mixin/LaneRendererMixin.java` `ic$worldRendered`（`@Inject(method = "renderLevel", at = @At("RETURN"))`）；类 javadoc 明确写「MCOMP 之后、原版 RPOST 与 GUI 之前」 |
+| **lane 渲染 + 合成** | `GameRenderer.renderLevel` 的 **RETURN**：`LaneRenderer.INSTANCE.render(...)`（MCOMP；master 调色已不在本注入，见下一行） | `mixin/LaneRendererMixin.java` `ic$worldRendered`（`@Inject(method = "renderLevel", at = @At("RETURN"))`）；类 javadoc 写明「只做 MCOMP」 |
+| **master 调色** | `GameRenderer.render` 内、原版后处理链（RPOST）之后、GUI 之前：`ColorAdjustPass.render(mc)`（注入目标 = `RenderTarget.bindWrite(Z)V` 的调用，即 `postEffect.process(f)` 之后那一句 `getMainRenderTarget().bindWrite(true)`） | `mixin/GameRendererMixin.java` `onWorldPostProcessed`（`@Inject(method = "render", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/pipeline/RenderTarget;bindWrite(Z)V"))`）；2026-10-08 后移，见 §2.7 |
 | 每 lane 一遍 | `mainRenderTarget` 临时指向 lane FBO → `fbo.bindWrite(true)` → 该 lane 的相机 / 投影 / `prepareCullFrustum` → `mc.levelRenderer.renderLevel(...)` → `doEntityOutline()` → 还原投影；lane 块结束回绑主画面 | `client/lane/LaneRenderer.java` `render(...)`（:269-331）与 `renderLane(...)`（:334-400）；主画面指向用 `MinecraftAccessor` 的 `ic$setMainRenderTarget` |
 | 主画面描边 | lane 块开头先为主画面贴一次 `doEntityOutline()`（原版那次整屏调用在有活跃 lane 时被屏蔽） | 同文件 `render(...)` 的 `mainOutlinePass` 分支；屏蔽判定在 `mixin/LevelRendererMixin.java` |
 | 遮挡剔除 | 有活跃 lane 的帧**整帧 `smartCull=false`**：`LevelRendererMixin` 在 `setupRender` 的 HEAD / RETURN 包夹；判定输入 = `LaneRenderer.hasActiveLanes()`；起 / 停播强制 `LevelRenderer.needsUpdate()` | `camera/CinematicOcclusion.java`（`isOcclusionOffThisFrame`）、`mixin/LevelRendererMixin.java`（:106-119） |
@@ -102,8 +103,21 @@
 
 1. `screen-color-adjust.md` §4 写「Iris / Oculus 的 `finalizeGameRendering()` 挂在 `GameRenderer.renderLevel` 的 `TAIL`；Iris 的最终合成在 `LevelRenderer.renderLevel` 尾部 —— **都早于原版那一步**」。
    - **对「最终合成」成立**（`LevelRenderer.renderLevel` 尾部早于 `GameRenderer.renderLevel` 的返回点，也早于原版 `postEffect`）；
-   - **对「色彩空间转换」不成立**：它与我们的挂点（`GameRenderer.renderLevel` 的 RETURN）**在同一处返回指令**，先后未定（§3-①）。这一点直接影响「我们的调色作用在哪个色彩空间」（§3-③）。
+   - **对「色彩空间转换」不成立**：它与我们**旧**的挂点（`GameRenderer.renderLevel` 的 RETURN）**在同一处返回指令**，先后未定（§3-①）。→ **已解决（2026-10-08）**：调色挂点已后移出 `renderLevel`（原版 RPOST 之后、GUI 之前），与色彩空间转换分处不同阶段、顺序可控；见 §2.7。
 2. `multi-camera-rendering.md` §7.1 把 Iris / Oculus 与 Sodium / Embeddium 并列在「检测到就禁用」的策略里，但**已落地的检测列表只有 Sodium 家族**（§2.1）——即「策略」与「实现」目前不一致：光影下副画面**没有**被禁用。本文 §4 的选项 A/C 正是要在这条线上做决定。
+
+### 2.7 主画面挂点兼容性结论（2026-10-08）
+
+> 本节只结清**主画面 master 调色挂点**这一件事（它此前是 §2.6-1 / §3-① / §3-③ 的未决项）。本文其余部分（光影下**副画面**能否渲染、成本、§4 策略选项）仍是待调查项，本节结论不覆盖它们。
+
+2026-10-08 用户裁决把 master 调色挂点从「`GameRenderer.renderLevel` 的 RETURN（合成后立即）」后移到「**原版后处理链之后、GUI 之前**」（`mixin/GameRendererMixin.onWorldPostProcessed`，注入目标 = `RenderTarget.bindWrite(Z)V`；见 [screen-color-adjust](./screen-color-adjust.md) §4「渲染挂点」）。后移后与光影的关系是确定的：
+
+| 结论 | 依据 |
+|---|---|
+| **读到的是光影处理后的画面，不被跳过** | Iris 的最终合成 `finalizeLevelRendering()`（`compositeRenderer.renderAll()` + `finalPassRenderer.renderFinalPass()`）挂在 `LevelRenderer.renderLevel` 的 **RETURN**（§2.3）——比本挂点（`GameRenderer.render` 内、`GameRenderer.renderLevel` 返回**之后**）更内层、更早；本 pass 的输入已是光影管线输出的画面。 |
+| **不双重应用、顺序可控** | 本挂点每帧只跑一次，且**已与 Iris 的色彩空间转换完全解耦**：`finalizeGameRendering()` 挂在 `GameRenderer.renderLevel` 的 TAIL（§2.3）——旧挂点与它在**同一处返回指令**上、先后未定（§2.6-1）；后移后两者分处不同阶段（`GameRenderer.renderLevel` 内 vs `GameRenderer.render` 内），先后由原版语句顺序显式保证。默认 `ColorSpace.SRGB` 下该转换器直接 return（no-op，§2.3），更不构成影响。 |
+| **优化模组无干涉** | Sodium / Embeddium / Starlight / Lithium 都不改 `GameRenderer.render` 的「后处理链 → GUI」这一段（Sodium 家族改的是区块渲染与 `setupRender`，见 §2.1 的 Mixin 插件跳过规则）——本挂点不受它们影响。 |
+| **检测口径** | `IrisApi.getInstance().isShaderPackInUse()`（`net.irisshaders.iris.api.v0.IrisApi`，API v0.0；Oculus 同 API，`provides=["iris"]`）。它已覆盖「装了光影但未启用包 / 包编译失败」这一档（无管线 → `false`）→ 无光影包时走原版路径，无需额外分支。**接入方式**（软依赖：标记类存在性检测 + 反射，避免硬依赖）见 §5.2；当前仓库尚未接这条检测（§2.1）。 |
 
 ---
 
@@ -111,10 +125,10 @@
 
 > 每条：**问题** → **为什么重要** → **调查方法** → **预期产出**。方法里的「挂点实测」= 加日志 / 用现成的 `ICINEMATICS_CAPTURE` 调试捕获（`LaneDebugCapture`，输出到 `<gameDir>/lane-captures/`，见 [multi-camera-rendering](./multi-camera-rendering.md) §12.6）出图对比，**不是**改设计。
 
-### ① 我们的挂点（lane 渲染、调色 pass）与光影各阶段的精确先后
+### ① 我们的挂点（lane 渲染）与光影各阶段的精确先后
 
-- **问题**：在同一帧里，光影的 `finalizeLevelRendering()`（合成）、`finalizeGameRendering()`（色彩空间）、我们 `GameRenderer.renderLevel` RETURN 上的「lane 渲染 + 合成 + master 调色」，实际执行顺序是什么？特别是**同一返回点上的两个注入**（我们 `@At("RETURN")`、光影 `@At("TAIL")`）谁先。
-- **为什么重要**：顺序决定 lane 渲染看到的是「光影处理后的主画面」还是「原版主画面」，也决定 master 调色的输出会不会被光影的色彩空间转换再处理一遍。顺序不定，「兼容」就无从定义。
+- **问题**：在同一帧里，光影的 `finalizeLevelRendering()`（合成）、`finalizeGameRendering()`（色彩空间）、我们 `GameRenderer.renderLevel` RETURN 上的「lane 渲染 + 合成」，实际执行顺序是什么？特别是**同一返回点上的两个注入**（我们 `@At("RETURN")`、光影 `@At("TAIL")`）谁先。**（master 调色已不在这个返回点上——2026-10-08 后移到 RPOST 之后、GUI 之前，与色彩空间转换的顺序已确定、可控，见 §2.7；本节余下的问题只剩 lane 渲染与光影各阶段的先后。）**
+- **为什么重要**：顺序决定 lane 渲染看到的是「光影处理后的主画面」还是「原版主画面」。顺序不定，「兼容」就无从定义。（master 调色与色彩空间转换的先后已确定，见 §2.7。）
 - **调查方法**：① 读码已给出候选顺序（§2.3，合成早于我们、色彩空间同点）；② 挂点实测——在 `LaneRendererMixin.ic$worldRendered` 与 Iris/Oculus 的注入各打一行带帧号 / 时间戳的日志（光影侧可用一个临时附属模组或 `Mixin` 覆盖，不改光影本体），跑同一帧比对顺序；③ 直接看注入后的字节码（`javap -c` 反汇编 `GameRenderer.renderLevel`）确认两个回调的调用次序。
 - **预期产出**：「挂点先后实测报告」——一张表：{光影阶段 × 我们的阶段} 的确定顺序，含「同一返回点谁先」的结论与证据（日志 + 反汇编）。
 
@@ -216,7 +230,7 @@
 ### 5.2 待定项
 
 - **策略选择**（A / B / C / D 及其组合）——步骤 6 定；本文件现在不选。
-- **检测口径**：按「光影模组存在」还是按「光影包已启用」？（§2.5-1 表明后者的一档天然等价无光影；但「装了但没启用」的判定要读光影 API，可能引入硬依赖——`IrisApi` / `net.irisshaders.iris.Iris` 的存在性检测 vs 反射调用。）
+- **检测口径**：按「光影模组存在」还是按「光影包已启用」？（§2.5-1 表明后者的一档天然等价无光影；但「装了但没启用」的判定要读光影 API，可能引入硬依赖——`IrisApi` / `net.irisshaders.iris.Iris` 的存在性检测 vs 反射调用。）**→ 主画面挂点一侧已定（2026-10-08）：用 `IrisApi.getInstance().isShaderPackInUse()`，见 §2.7；本条剩下的只是「副画面策略」是否复用同一口径。**
 - **是否给用户配置开关**（例如「光影下强制启用副画面（自担风险）」）——与「不设硬上限、只给推荐」的既有口径是否一致，待定。
 - **lane 画面在光影下的目标形态**：要「与主画面一致的光影画面」（贵、语义复杂）还是「原版画面」（便宜、但副画面与主画面美术不一致）？这是产品问题，调研结论只提供可行性边界。
 - **Rubidium 结论来源**：本仓无源码，只能靠 jar 核对 + 实机（§3-⑤）；是否需要专门环境。
@@ -232,7 +246,7 @@
 | 检测只列 Sodium 家族两个标记类；命中即不渲染 + warn 一次（缓存） | `common/.../client/lane/LaneRenderer.java`：`RENDER_OPTIMIZER_MARKERS`（:107-110）、`findRenderOptimizer()`（:464-473）、`isUnavailable()`（:452-461）、`render(...)` 早退（:276-278） |
 | 全树无 Iris / Oculus / shaderpack 检测 | `common/src/main/java` 全树检索（`iris\|oculus\|shaderpack\|Iris`，不分大小写）零命中 |
 | 加载器侧跳过 `LevelRendererMixin`（Sodium / Rubidium / Embeddium） | `fabric/.../mixin/ImmersiveCinematicsMixinPlugin.java`、`forge/.../mixin/ImmersiveCinematicsMixinPlugin.java`（`shouldApplyMixin` + `RENDER_OPTIMIZER_MOD_IDS`）；`common/src/main/resources/immersive_cinematics.mixins.json`（`plugin`、`injectors.defaultRequire`） |
-| 我们的挂点：帧首 / lane 渲染 + 合成 + master 调色 / 每 lane 一遍 / 主画面描边 | `mixin/GameRendererMixin.java`（`onRenderFrameStart`）、`mixin/LaneRendererMixin.java`（`ic$worldRendered`）、`client/lane/LaneRenderer.java`（`render` :269-331、`renderLane` :334-400、`offscreenTarget`）、`client/post/ColorAdjustPass.java`（类 javadoc） |
+| 我们的挂点：帧首 / lane 渲染 + 合成（MCOMP）/ master 调色（RADJ，2026-10-08 后移）/ 每 lane 一遍 / 主画面描边 | `mixin/GameRendererMixin.java`（`onRenderFrameStart`、`onWorldPostProcessed`）、`mixin/LaneRendererMixin.java`（`ic$worldRendered`）、`client/lane/LaneRenderer.java`（`render` :269-331、`renderLane` :334-400、`offscreenTarget`）、`client/post/ColorAdjustPass.java`（类 javadoc） |
 | 遮挡剔除整帧包夹 | `camera/CinematicOcclusion.java`、`mixin/LevelRendererMixin.java`（:106-119） |
 | 光影挂点：管线准备 / 世界开始 / 阴影 pass / 最终合成 / 色彩空间 | Iris `mixin/MixinLevelRenderer.java`（HEAD :75-96、CLEAR 后 :107-113、RETURN :118-123、renderSky 前 :140-143）、`mixin/MixinGameRenderer.java:461-464`；Oculus 对应 `:66-87`、`:98-104`、`:109-114`、`:125-128`、`:462-464` |
 | 合成链 / final pass 无早退、取 main 的多个点、复用主深度、色彩空间原地回写 | `pipeline/CompositeRenderer.java`（:230 起、:289）、`pipeline/FinalPassRenderer.java`（:119-122、:198-218、:243-270、:296）、`pipeline/IrisRenderingPipeline.java`（:524-543、:1083-1087、:1090-1092）、`pathways/colorspace/ColorSpaceFragmentConverter.java`（`process`） |

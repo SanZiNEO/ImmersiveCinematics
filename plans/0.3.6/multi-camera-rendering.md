@@ -299,8 +299,8 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 | `common/.../client/lane/LaneRenderer.java` | 生产渲染器：lane 注册表 + 每帧驱动 + 每 lane 整尺寸渲染进共用离屏 FBO + 状态保存/恢复 + Sodium/Embeddium 检测 |
 | `common/.../client/lane/ScriptLaneDriver.java` | 脚本 lane 驱动：每帧把脚本播放实例的 lane 注册进 `LaneRenderer`（相机 id = `<scriptId>_cam<相机轨序号>`）并按 clip 关键帧提供合成参数 |
 | `common/.../client/lane/LaneDebugCapture.java` | 调试捕获（`ICINEMATICS_CAPTURE` 门控，默认关、零差异）：按相机 id 产出每相机 raw（保真 alpha）/ 每相机 composited（按 dest 裁剪、保真 alpha）/ 窗口终帧三类 PNG，目录 `<gameDir>/lane-captures/` |
-| `mixin/LaneRendererMixin.java` | 挂点：`GameRenderer.renderLevel` RETURN → `LaneRenderer.render(...)`（逐 lane 渲染 + 合成）+ `ColorAdjustPass.render`（RADJ）。帧驱动 / lane 注册 2026-10-07 迁到 `GameRendererMixin`（见 §12.8-B） |
-| `mixin/GameRendererMixin.java` | 帧首（`GameRenderer.render` HEAD，世界渲染之前）：`CameraManager.onRenderFrame()` + 脚本 lane 注册（`ScriptLaneDriver`）+ `CinematicOcclusion.beginFrame`（顺序固定，见 §12.8-B③）+ lane 的 getFov 分支；帧尾（`render` RETURN）：调试捕获的窗口终帧读回 |
+| `mixin/LaneRendererMixin.java` | 挂点：`GameRenderer.renderLevel` RETURN → `LaneRenderer.render(...)`（逐 lane 渲染 + 合成 / MCOMP）。帧驱动 / lane 注册 2026-10-07 迁到 `GameRendererMixin`（见 §12.8-B）；`ColorAdjustPass.render`（RADJ）2026-10-08 后移到 `GameRendererMixin.onWorldPostProcessed`（原版 RPOST 之后、GUI 之前） |
+| `mixin/GameRendererMixin.java` | 帧首（`GameRenderer.render` HEAD，世界渲染之前）：`CameraManager.onRenderFrame()` + 脚本 lane 注册（`ScriptLaneDriver`）+ `CinematicOcclusion.beginFrame`（顺序固定，见 §12.8-B③）+ lane 的 getFov 分支；原版 RPOST 之后 / GUI 之前（`RenderTarget.bindWrite(Z)V` 调用点）：`ColorAdjustPass.render`（RADJ，2026-10-08 后移）；帧尾（`render` RETURN）：调试捕获的窗口终帧读回 |
 | `mixin/GameRendererAccessor.java` | `@Invoker`：`getProjectionMatrix(double)` / `getFov(Camera,float,boolean)`（复刻原版投影与光学参数） |
 | `mixin/LevelRendererAccessor.java` | `@Invoker applyFrustum(Frustum)`：lane pass 绕开门闩强制重刷可见集合（§12.8-B②） |
 | `mixin/MinecraftAccessor.java` | `@Accessor @Mutable mainRenderTarget`（lane 期间指向 lane FBO） |
