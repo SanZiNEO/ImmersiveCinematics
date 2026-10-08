@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "id": "test_adjust_lut_demo",
+    "name": "调色测试-LUT 前后对比演示",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "LUT 前后对比演示（纯脚本数据驱动，效果全部来自脚本数据，无写死代码）：左右分屏 A/B——左半屏相机片段完全不写 lut（对照），右半屏同机位同动势写 lut，两屏画面除 LUT 外完全一致。0~6s：右屏 lut=Teal and Orange.cube、lut_strength 恒 1（青橙风，前后差异一眼可见）；6~12s：右屏换 lut=SK 1 Desaturated greens.cube，lut_strength 关键帧 0→1（6~9s 渐显、9~12s 满强度），演示强度动画。字段口径（A10c 接线用）：clip 级 lut=resource/ 下的文件名；关键帧级 lut_strength=0~1（缺省 1，可关键帧）；LUT 在调色操作栈中位于 LGG 色轮之后、HSL 块之前；master（ADJUST 轨）与相机片段两级共用同一套字段。注意：本演示需运行时管线（A10c）接线后才在游戏内可见；LUT 文件须放在 <游戏目录>/immersive_cinematics/resource/ 下（本次已就位 Teal and Orange.cube、SK 1 Desaturated greens.cube）。",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "LUT 演示 0~6s | 左半屏：无 LUT（对照） | 右半屏：Teal and Orange.cube（强度恒 1）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "LUT 演示 6~12s | 左半屏：无 LUT（对照） | 右半屏：SK 1 Desaturated greens.cube（强度 0→1 渐显）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 6, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 1 } },
+              { "time": 6, "position": { "dx": 3, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 1 } }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 6,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 6, "position": { "dx": 3, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 1 } },
+              { "time": 12, "position": { "dx": 6, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 1 } }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "transition": "cut",
+            "loop": false,
+            "lut": "Teal and Orange.cube",
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 1 }, "lut_strength": 1 },
+              { "time": 6, "position": { "dx": 3, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 1 }, "lut_strength": 1 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 6,
+            "transition": "cut",
+            "loop": false,
+            "lut": "SK 1 Desaturated greens.cube",
+            "keyframes": [
+              { "time": 6, "position": { "dx": 3, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 1 }, "lut_strength": 0 },
+              { "time": 9, "position": { "dx": 4.5, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 1 }, "lut_strength": 1 },
+              { "time": 12, "position": { "dx": 6, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 1 }, "lut_strength": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
