@@ -72,6 +72,7 @@
 | `hysteresis.md` | 迟滞：相机参数运动响应 | 🔒 长期讨论 |
 
 > 七篇互相引用，缺一个统摄 roadmap（先做哪篇、谁依赖谁）。
+> 拆分落地：[`camera-core-split.md`](./camera-core-split.md)（2026-10-08，B4 扩容——核心居中、外围围绕核心转；CameraManager / CameraTrackPlayer 拆分 + 死代码清理 + api 包，功能不变）。
 > 关联：`../0.4.0/camera-motion-model.md`（运动模型与速度控制，长期讨论，未搬迁）。
 
 ## 六、0.3.5 反馈处理（`feedback-0.3.5/`）

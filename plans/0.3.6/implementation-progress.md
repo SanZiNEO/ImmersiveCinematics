@@ -40,7 +40,7 @@
 | B1 | Base/Modifier 覆盖链（优先级、通道掩码、REPLACE/ADD/MULTIPLY + 示例） | — | ☐ |
 | B2 | 每 lane 独立 CameraPath/CameraProperties 核对（可能已被 lane 快照模型取代 → 结案回写文档） | — | ☐ |
 | B3 | 每 lane 独立可见集合/遮挡剔除（长期解，消除 smartCull=false 缓解的代价） | B1 | ☐ |
-| B4 | 外部 API（common api 包） | B1,B3 | ☐ |
+| B4 | 外部 API（common api 包）+ 相机核心拆分与死代码清理（方案已定稿：`camera-core-split.md`，2026-10-08 用户扩容） | B1,B3 | ☐ | |
 | B5 | 统一点源清单（yaw_base_from/to、facing_target 接受完整点源） | — | ☐ |
 | B6 | look_at 方块来源 + 部位百分比微调 | — | ☐ |
 | B7 | 偏移下放到点源 / 通道相对化 | B5 | ☐ |
@@ -160,4 +160,6 @@
 |---|---|
 | 2026-10-07 | 总表建立；版本号升 0.3.6（`04b9380`）；A1（`d1ae22e`）、A8（`8114a85`）、A14（`d0fc80b`）、CLEANUP-1 捕获工具通用化 + 删旧驱动（`384bd84`）完成；四象限交付物实机验证（每格 RGB 关键帧调色 + opacity 0.5 用户确认）；测试世界固定白天。**下一步 = A2（完整 HSL 通道）**。 |
 | 2026-10-08 | A2 完整 HSL（hue/lightness）完成（`d03626a`，GL 冒烟 79/79）；「未定项」清查报告入库（`e3fb024`，plans/0.3.6/pending-discussions.md）。**下一步 = A3（RGB 复合曲线，形态 b）**。 |
-| 2026-10-08（续） | A3 复合曲线（`6f91150`）、CLEANUP-2 pip 层删除（`5b3265d`）、P1 状态追踪计划（`6c1097f`）、P2 光影调研计划（`2ff77b6`）、P3 触发器连续性计划（`8d6fc61`）、A4 每通道曲线（`45f03ed`）完成。H2（wait-point）依赖修正为 C2+P1-impl+P3-impl。**下一步 = A5（六条 hue 曲线）**。 |
+| 2026-10-08（续） | A3 复合曲线（`6f91150`）、CLEANUP-2 pip 层删除（`5b3265d`）、P1 状态追踪计划（`6c1097f`）、P2 光影调研计划（`2ff77b6`）、P3 触发器连续性计划（`8d6fc61`）、A4 每通道曲线（`45f03ed`）完成。H2（wait-point）依赖修正为 C2+P1-impl+P3-impl（事件/事实层先行）。**下一步 = A5（六条 hue 曲线）**。 |
+| 2026-10-08（续2） | **调色数据形态修正（《调色数据形态修正_PLAN.md》任务 1）完成**（`b529757`）：lane 级调色改为**相机片段自带**（删 scope/lane 机制、复合曲线改名 `rgb_curve`、ColorAdjustSampler 共用采样、ADJUST 轨回归 master、四象限交付物改写为相机关键帧调色、文档同步）。验收：compileJava + validator 120 脚本仅 3 个既有 FAIL + icv2 数据冒烟 527 断言 + icgl GL 回归 8 套件 + 实机四象限像素分析（三台调色相机目标通道系数同表压至 0.08~0.18、非目标通道恒 1.00，Q4 对照无调色、opacity 0.5/裁切动画保持）。**下一步 = 任务 2（曲线贝塞尔手柄）→ 任务 3（文档口径修正）**。 |
+| 2026-10-08（续3） | **B4 扩容：相机核心拆分与外部 API 方案定稿**（`camera-core-split.md`，用户裁决「核心是核心、外围围绕核心转」）：目标形态按架构图 SRC→CORE→DEST 分层；CameraManager 拆 6 类 + 薄门面、CameraTrackPlayer 拆 4 类、死代码 7 处清理、api 包与可见性收紧；功能不变（camera-state-plan §10 覆盖目标逐项回归）。 |
