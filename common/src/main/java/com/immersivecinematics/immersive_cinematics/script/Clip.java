@@ -149,6 +149,24 @@ public class Clip {
         return getObject("curve");
     }
 
+    /**
+     * R 每通道曲线（曲线组形态 b，与 {@link #getColorCurve()} 同构；关键帧控 {@code r_curve_strength}）。
+     * {@code null} = 本片段无该曲线。
+     */
+    public ColorCurve getRCurve() {
+        return getObject("r_curve");
+    }
+
+    /** G 每通道曲线（同 {@link #getRCurve()}，关键帧控 {@code g_curve_strength}）。 */
+    public ColorCurve getGCurve() {
+        return getObject("g_curve");
+    }
+
+    /** B 每通道曲线（同 {@link #getRCurve()}，关键帧控 {@code b_curve_strength}）。 */
+    public ColorCurve getBCurve() {
+        return getObject("b_curve");
+    }
+
     // ── Convenience: AUDIO ──
 
     public String getSound() {

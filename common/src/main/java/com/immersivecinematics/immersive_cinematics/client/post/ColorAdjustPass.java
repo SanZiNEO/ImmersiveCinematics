@@ -60,8 +60,9 @@ import java.io.IOException;
  * {@code shaders/core/<name>.json}（默认命名空间），这是沿用原版机制的前提
  * （与 {@code EffectInstance} 对 {@code shaders/program/<name>.json} 的约束同源）。
  * 顶点格式 = {@code DefaultVertexFormat.POSITION_TEX}，与合成层 / 原版 blit 同一套。
- * <p>两个采样器：{@code Sampler0} = 画面（第一纹理单元）、{@code CurveLut} = RGB 复合曲线的
- * 256×1 LUT（第二纹理单元，见 {@link #curveLutTexture}）。</p>
+ * <p>五个采样器：{@code Sampler0} = 画面（第一纹理单元）、{@code CurveLut} = RGB 复合曲线的 256×1 LUT、
+ * {@code RCurveLut} / {@code GCurveLut} / {@code BCurveLut} = 每通道曲线的 256×1 LUT
+ * （第二 ~ 第五纹理单元，见 {@link LutTexture}）。</p>
  *
  * <h2>默认零差异</h2>
  * 无调整时 {@link #render} 第一行返回；{@link #applyTo} 参数为空 / 恒等时第一行返回：
@@ -82,15 +83,13 @@ public final class ColorAdjustPass {
     /** 中转缓冲（按主画面尺寸创建 / 重建；只在渲染线程访问）。 */
     private static RenderTarget swapTarget;
 
-    /**
-     * 曲线 LUT 纹理（256×1，LINEAR 过滤）：{@code ic_color_adjust.fsh} 的 {@code CurveLut} 采样器。
-     * 无曲线 / 曲线强度为 0 时承载恒等 LUT（{@code y = x}）——<b>采样器常绑</b>，不会出现未绑定的
-     * 采样器（着色器里 {@code CurveStrength > 0} 才走曲线分支，恒等 LUT 不会改变画面）。
-     */
-    private static DynamicTexture curveLutTexture;
+    /** RGB 复合曲线的 LUT 纹理槽（{@code CurveLut} 采样器）。 */
+    private static final LutTexture CURVE_LUT = new LutTexture();
 
-    /** {@link #curveLutTexture} 当前承载的 LUT 数组（按引用比较：同一个 clip 的 LUT 只上传一次）。 */
-    private static float[] uploadedLut;
+    /** R / G / B 每通道曲线的 LUT 纹理槽（{@code RCurveLut} / {@code GCurveLut} / {@code BCurveLut} 采样器）。 */
+    private static final LutTexture R_CURVE_LUT = new LutTexture();
+    private static final LutTexture G_CURVE_LUT = new LutTexture();
+    private static final LutTexture B_CURVE_LUT = new LutTexture();
 
     private ColorAdjustPass() {
     }
@@ -153,11 +152,11 @@ public final class ColorAdjustPass {
             return false;   // 着色器不可用：宁可不调色，也不动画面
         }
 
-        // 曲线 LUT：有曲线且强度非 0 → 该曲线的 LUT；否则恒等 LUT（采样器常绑，见 curveLutTexture）
-        shaderInstance.setSampler("CurveLut", curveLutTexture(
-                params.curveLut() != null && params.curveStrength() != 0.0F
-                        ? params.curveLut()
-                        : ColorCurve.identityLut()));
+        // 曲线 LUT：有曲线且强度非 0 → 该曲线的 LUT；否则恒等 LUT（采样器常绑，见 LutTexture）
+        shaderInstance.setSampler("CurveLut", CURVE_LUT.bind(activeLut(params.curveLut(), params.curveStrength())));
+        shaderInstance.setSampler("RCurveLut", R_CURVE_LUT.bind(activeLut(params.rCurveLut(), params.rCurveStrength())));
+        shaderInstance.setSampler("GCurveLut", G_CURVE_LUT.bind(activeLut(params.gCurveLut(), params.gCurveStrength())));
+        shaderInstance.setSampler("BCurveLut", B_CURVE_LUT.bind(activeLut(params.bCurveLut(), params.bCurveStrength())));
 
         upload(shaderInstance, params);
 
@@ -239,39 +238,58 @@ public final class ColorAdjustPass {
         set(shader, "Green", p.green());
         set(shader, "Blue", p.blue());
         set(shader, "CurveStrength", p.curveLut() == null ? 0.0F : p.curveStrength());
+        set(shader, "RCurveStrength", p.rCurveLut() == null ? 0.0F : p.rCurveStrength());
+        set(shader, "GCurveStrength", p.gCurveLut() == null ? 0.0F : p.gCurveStrength());
+        set(shader, "BCurveStrength", p.bCurveLut() == null ? 0.0F : p.bCurveStrength());
         set(shader, "Grayscale", p.grayscale());
         set(shader, "Invert", p.invert());
     }
 
+    /** 某一步实际要绑的 LUT：有曲线且强度非 0 → 曲线自己的 LUT，否则恒等 LUT（{@code y = x}）。 */
+    private static float[] activeLut(float[] lut, float strength) {
+        return lut != null && strength != 0.0F ? lut : ColorCurve.identityLut();
+    }
+
     /**
-     * 取（必要时创建 / 重传）曲线 LUT 纹理。
+     * 一个曲线 LUT 纹理槽：256×1、LINEAR 过滤（LUT 相邻项之间线性插值，等价于曲线上的细分采样）。
      *
-     * <p>纹理只建一次（256×1、LINEAR 过滤：LUT 相邻项之间线性插值，等价于曲线上的细分采样）；
-     * 数组按<b>引用</b>比较——LUT 随 clip 缓存（{@code ColorCurve} 对象内持有），同一片段每帧拿到的是
-     * 同一个数组，所以每换一次曲线才重传一次像素。</p>
+     * <p>纹理只建一次；数组按<b>引用</b>比较——LUT 随 clip 缓存（{@code ColorCurve} 对象内持有），
+     * 同一片段每帧拿到的是同一个数组，所以每换一次曲线才重传一次像素。</p>
      *
-     * <p>绑定走 {@link ShaderInstance#setSampler}（着色器 JSON 的 {@code samplers} 里排在
-     * {@code Sampler0} 之后 = 第二纹理单元），由 {@code ShaderInstance.apply()} 在绘制前落实——
-     * 不占 {@code RenderSystem} 的 {@code shaderTextures} 槽位（那是 {@code Sampler0..Sampler11}
-     * 与叠加色用的），因此没有额外的全局状态需要保存 / 还原。</p>
+     * <p>绑定走 {@link ShaderInstance#setSampler}（着色器 JSON 的 {@code samplers} 次序 = 纹理单元：
+     * {@code Sampler0} / {@code CurveLut} / {@code RCurveLut} / {@code GCurveLut} / {@code BCurveLut}），
+     * 由 {@code ShaderInstance.apply()} 在绘制前落实——不占 {@code RenderSystem} 的
+     * {@code shaderTextures} 槽位（那是 {@code Sampler0..Sampler11} 与叠加色用的），
+     * 因此没有额外的全局状态需要保存 / 还原。</p>
+     *
+     * <p>无曲线 / 强度为 0 时承载恒等 LUT——<b>采样器常绑</b>，不会出现未绑定的采样器
+     * （着色器里强度 &gt; 0 才走该分支，恒等 LUT 不改变画面）。</p>
      */
-    private static DynamicTexture curveLutTexture(float[] lut) {
-        if (curveLutTexture == null) {
-            curveLutTexture = new DynamicTexture(ColorCurve.LUT_SIZE, 1, false);
-            curveLutTexture.setFilter(true, false);   // LINEAR、无 mipmap
-        }
-        if (lut != uploadedLut) {
-            NativeImage pixels = curveLutTexture.getPixels();
-            if (pixels != null) {
-                for (int i = 0; i < ColorCurve.LUT_SIZE; i++) {
-                    int v = Math.round(Math.max(0.0F, Math.min(1.0F, lut[i])) * 255.0F);
-                    pixels.setPixelRGBA(i, 0, 0xFF000000 | (v << 16) | (v << 8) | v);
-                }
-                curveLutTexture.upload();
-                uploadedLut = lut;
+    private static final class LutTexture {
+
+        private DynamicTexture texture;
+
+        /** {@link #texture} 当前承载的 LUT 数组（按引用比较：同一个 clip 的 LUT 只上传一次）。 */
+        private float[] uploaded;
+
+        DynamicTexture bind(float[] lut) {
+            if (texture == null) {
+                texture = new DynamicTexture(ColorCurve.LUT_SIZE, 1, false);
+                texture.setFilter(true, false);   // LINEAR、无 mipmap
             }
+            if (lut != uploaded) {
+                NativeImage pixels = texture.getPixels();
+                if (pixels != null) {
+                    for (int i = 0; i < ColorCurve.LUT_SIZE; i++) {
+                        int v = Math.round(Math.max(0.0F, Math.min(1.0F, lut[i])) * 255.0F);
+                        pixels.setPixelRGBA(i, 0, 0xFF000000 | (v << 16) | (v << 8) | v);
+                    }
+                    texture.upload();
+                    uploaded = lut;
+                }
+            }
+            return texture;
         }
-        return curveLutTexture;
     }
 
     /** 写一个 float uniform；着色器里没有该 uniform 时跳过（{@code getUniform} 返回 {@code null}）。 */

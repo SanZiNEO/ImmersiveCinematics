@@ -10,7 +10,7 @@
 > - [画面合成](./camera-composition.md)
 > - [并行播放](./parallel-playback.md)
 >
-> **状态：第一批「标量组」（15 通道 = 12 标量 + R/G/B 每通道系数）已落地（2026-10-07）；lane 级调整（§7 步骤 5）已落地（2026-10-07）；完整 HSL（`hue` / `lightness`）已落地（2026-10-07）→ 共 17 通道；RGB 复合曲线（曲线组形态 b：clip 级 `curve` + 关键帧 `curve_strength`）已落地（2026-10-08）。每通道曲线（R / G / B）与第二 / 三批其余、调整层（步骤 6）、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
+> **状态：第一批「标量组」（15 通道 = 12 标量 + R/G/B 每通道系数）已落地（2026-10-07）；lane 级调整（§7 步骤 5）已落地（2026-10-07）；完整 HSL（`hue` / `lightness`）已落地（2026-10-07）→ 共 17 通道；曲线组（形态 b）已落地（2026-10-08）——RGB 复合曲线（clip 级 `curve` + 关键帧 `curve_strength`）与每通道曲线（clip 级 `r_curve` / `g_curve` / `b_curve` + 三个强度关键帧）。第二 / 三批其余、调整层（步骤 6）、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
 
 ---
 
@@ -24,7 +24,7 @@
 2. **字段形状不同**：OVERLAY 层 = 一个元素 + 一套统一参数（x/y/anchor/scale/source/fit/opacity/z_index，四类层共享）；调色 = 一组彼此独立、各带公式的标量通道，两者无一处重合。
 3. **成本**：独立轨道 = 枚举 +1、schema +1、校验分支 +1、`TrackPlayer` 工厂 +1、播放器 +1；OVERLAY 路线要在 `OverlayTrackPlayer.createLayer/updateLayer` 里加特例分支 + 一个只存数据的 `OverlayLayer` 子类，渲染侧状态与 pass 一样要新建 —— 代码更多、语义更歪。
 
-**字段表（定稿）：12 个标量通道 + R/G/B 三通道 + 完整 HSL（`hue` / `lightness`）（2026-10-07 增量 → 共 17），全部是关键帧字段，缺省全 0 = 无效果**；**曲线组（2026-10-08 增量）= clip 级 `curve` + 关键帧 `curve_strength`（缺省 1）**，见下文「增量：RGB 复合曲线（形态 b）」。
+**字段表（定稿）：12 个标量通道 + R/G/B 三通道 + 完整 HSL（`hue` / `lightness`）（2026-10-07 增量 → 共 17），全部是关键帧字段，缺省全 0 = 无效果**；**曲线组（形态 b）= clip 级 `curve` / `r_curve` / `g_curve` / `b_curve` + 关键帧 `curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength`（缺省 1）**，见下文「增量：RGB 复合曲线（形态 b）」与「增量：每通道曲线（R / G / B）」。
 
 | 通道 | 默认 | 范围 | 口径 |
 |---|---|---|---|
@@ -76,15 +76,16 @@
 | 5 | 色温 / 色调 | `gain = vec3(1+0.5*T, 1-0.5*Tint, 1-0.5*T)`，`gain /= dot(gain, LUMA)`，`c *= gain` |
 | 6 | RGB 通道系数 | `c *= vec3(1+Red, 1+Green, 1+Blue)`（三值全 0 跳过乘法，保持逐位恒等） |
 | 7 | RGB 复合曲线 | `c = mix(c, vec3(lut(c.r), lut(c.g), lut(c.b)), clamp(CurveStrength, 0, 1))`（`lut` = clip 级 `curve` 采样的 256×1 LUT；`CurveStrength = 0` 跳过整步；2026-10-08 增量） |
-| 8 | 色相旋转 | HSL：`H' = fract(H + Hue * 0.5)`（`±1` = ±180°；2026-10-07 增量） |
-| 9 | 饱和度 | HSL：`S' = clamp(S * (1 + Saturation), 0, 1)` |
-| 10 | 自然饱和度 | HSL：`S' = clamp(Vibrance ≥ 0 ? S + Vibrance*S*(1-S) : S*(1+Vibrance), 0, 1)` |
-| 11 | 亮度 | HSL：`L' = clamp(L + Lightness * (Lightness ≥ 0 ? (1-L) : L), 0, 1)`（`±1` = 全白 / 全黑；2026-10-07 增量） |
-| 12 | 灰度 | `c = mix(c, vec3(luma(c)), clamp(Grayscale, 0, 1))` |
-| 13 | 反相 | `c = mix(c, 1 - c, clamp(Invert, 0, 1))` |
+| 8 | 每通道曲线 | `if (RCurveStrength > 0) c.r = mix(c.r, rLut(c.r), clamp(RCurveStrength, 0, 1))`（g / b 同式，各用自己的 LUT 与强度；该通道无曲线 / 强度 0 → 跳过，逐位恒等；2026-10-08 增量） |
+| 9 | 色相旋转 | HSL：`H' = fract(H + Hue * 0.5)`（`±1` = ±180°；2026-10-07 增量） |
+| 10 | 饱和度 | HSL：`S' = clamp(S * (1 + Saturation), 0, 1)` |
+| 11 | 自然饱和度 | HSL：`S' = clamp(Vibrance ≥ 0 ? S + Vibrance*S*(1-S) : S*(1+Vibrance), 0, 1)` |
+| 12 | 亮度 | HSL：`L' = clamp(L + Lightness * (Lightness ≥ 0 ? (1-L) : L), 0, 1)`（`±1` = 全白 / 全黑；2026-10-07 增量） |
+| 13 | 灰度 | `c = mix(c, vec3(luma(c)), clamp(Grayscale, 0, 1))` |
+| 14 | 反相 | `c = mix(c, 1 - c, clamp(Invert, 0, 1))` |
 
-- **RGB↔HSL 标准换算**（§4 的方向）用于完整 HSL 块（步骤 8 ~ 11：色相 / 饱和度 / 自然饱和度 / 亮度，即 H / S / L 三通道）；画面**亮度**一律 **Rec.709**（0.2126 / 0.7152 / 0.0722，比原版 `color_convolve.fsh` 的 0.3/0.59/0.11 更接近现代口径）。
-- 第 3 步之后、HSL 块之前**钳制到 [0,1]**（HSL 换算与亮度混合要求有界输入；曲线步骤（第 7 步）输出由控制点限定在 [0,1] 内，该钳制同时兜底）。
+- **RGB↔HSL 标准换算**（§4 的方向）用于完整 HSL 块（步骤 9 ~ 12：色相 / 饱和度 / 自然饱和度 / 亮度，即 H / S / L 三通道）；画面**亮度**一律 **Rec.709**（0.2126 / 0.7152 / 0.0722，比原版 `color_convolve.fsh` 的 0.3/0.59/0.11 更接近现代口径）。
+- 第 3 步之后、HSL 块之前**钳制到 [0,1]**（HSL 换算与亮度混合要求有界输入；曲线步骤（第 7 / 8 步）输出由控制点限定在 [0,1] 内，该钳制同时兜底）。
 - **无 HSL 调整时跳过换算**（四个 HSL 通道全 0 的 uniform 分支）→ 「只调曝光 / 对比度」这类场景逐位恒等。
 - 灰点边界（§5-2）：`max-min ≈ 0` 时 `S = 0`、色相无意义 → `hsl2rgb` 的 `S ≤ 0` 分支直接返回灰度，不会产生 NaN 或跳色。
 - 色温 / 色调的增益**按亮度归一化** → 调白平衡不改变整体明暗。
@@ -142,7 +143,7 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 
 ### 增量：RGB 复合曲线（形态 b）（2026-10-08）
 
-曲线组的第一块：**RGB 复合曲线**（§3 第一批的另一半，形态 b —— 曲线定义一次 + 强度关键帧）。每通道曲线（R / G / B 各一条）仍未做。
+曲线组的第一块：**RGB 复合曲线**（§3 第一批的另一半，形态 b —— 曲线定义一次 + 强度关键帧）。每通道曲线（R / G / B 各一条）是它的 ×3 扩展，见下一节「增量：每通道曲线（R / G / B）」。
 
 - **形态选择（§3.1）**：取**形态 b**（曲线静态 + `curve_strength` 关键帧控混合量）——零成本起步、语义清晰；形态 a（曲线点集本身打关键帧）留作曲线编辑器落地后的增强。
 - **字段**：
@@ -168,6 +169,35 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
   - **着色器冒烟**（throwaway GL harness `E:/tmp/icgl`，真实 GL 3.2 core；新增 `GlCurveSmoke` **71 项全过**）：编译 + 链接通过；JSON ↔ fsh uniform / sampler **双向一致**（含 `CurveStrength` / `CurveLut`，并断言 `samplers` 顺序 = `[Sampler0, CurveLut]`）；恒等 LUT + 强度 0 对灰度梯度与 16 测试色**逐字节恒等**；**恒等 LUT + 强度 1 也逐字节恒等**（恒等 LUT 常绑路径不改变输出）；**曲线生效**：强度 1 时输入 0.5 → 输出 204/255 ≈ 0.8（逐字节 = CPU LUT，全部 256 texel 逐通道核对，含 16 测试色）；反向曲线（中点 0.2）同样逐字节核对；**强度 0.5** → `mix(输入, 曲线, 0.5)`（±1）；**强度 0 → 逐字节恒等**；**栈位置**：`Red = -0.5` 时输出 = 「系数 → 曲线」顺序（与「曲线 → 系数」的 160 个 texel 期望值明显不同）、`Exposure = 1` 时 = 「×2 → 曲线」；**全 17 通道 + 曲线生效时 alpha 逐位直通**（256 texel 无一处变化）。既有 `GlShaderSmoke`（53 项）/ `GlHslSmoke`（83 项）/ `GlLaneAdjustSmoke`（65 项）复跑全过。
   - 未验证：游戏内实际画面（需启动客户端；曲线 LUT 纹理的 `DynamicTexture` 上传路径与 `setSampler` 绑定序列同样只在 harness 层验证，Java 侧 GL 调用序列无头跑不了）；光影下的执行顺序（§5-1，既有开放问题）。
 
+### 增量：每通道曲线（R / G / B）（2026-10-08）
+
+曲线组的第二块（§3 第一批的另一半）：**每通道曲线** —— R / G / B 各一条，PS 式「每通道曲线」。是上一节「RGB 复合曲线（形态 b）」的 **×3 扩展**：结构、采样、缓存、混合口径完全同款，只是每条曲线只作用于自己的通道。
+
+- **字段**：
+  - **clip 级** `r_curve` / `g_curve` / `b_curve` = 控制点数组 `[[x, y], ...]`（结构字段，非标量）：`x` **严格递增**、`x` / `y` 各 `0~1`、**≥2 点**；缺省 = 该通道无曲线。与复合曲线 `curve`、以及 CAMERA 轨同名的 `curve`（`bezier_curve`）都互不影响（按轨道类型 + 字段名分派）。
+  - **关键帧** `r_curve_strength` / `g_curve_strength` / `b_curve_strength`：各 `0 ~ 1`、**缺省 1** —— 写了对应曲线就是全量生效，关键帧把它写回 `0` = 该曲线淡出；**无对应曲线时忽略**。
+- **采样（CPU → LUT）**：复用 `script/ColorCurve`（Fritsch–Carlson 单调三次插值 + 端点外钳制 + 按 clip 缓存）——四条曲线各有自己的对象与 256 点 LUT，`lut()` 逐帧返回同一个数组，渲染侧按引用比较、只在换曲线时重传纹理。
+- **渲染**：`ic_color_adjust.fsh` 在**复合曲线（第 7 步）之后**插入第 8 步「每通道曲线」（后续步骤重编号为 9 ~ 14）：
+  `if (RCurveStrength > 0) c.r = mix(c.r, rLut(c.r), clamp(RCurveStrength, 0, 1));`（g / b 同式，各用自己的 LUT 与强度）。
+  三条各自只写自己的分量 → **逐通道独立**（`r_curve` 不改 g / b）；该通道无曲线 / 强度 0 → 跳过（逐位恒等）。LUT 查表函数泛化为 `lutLookup(sampler2D lut, float x)`（复合曲线与每通道曲线共用一份实现），新增三个采样器 `RCurveLut` / `GCurveLut` / `BCurveLut`（纹理单元 2 ~ 4，排在 `CurveLut` 之后）与三个 uniform `RCurveStrength` / `GCurveStrength` / `BCurveStrength`；**四个 LUT 都常绑**（无曲线 / 强度 0 时绑恒等 LUT，不会出现未绑定采样器）。alpha 直通契约不变（仍只动 RGB）。
+- **数据贯通**：`ColorAdjustParams` 增加 `rCurveLut` / `gCurveLut` / `bCurveLut`（nullable `float[256]`，紧邻 `curveLut`）与 `rCurveStrength` / `gCurveStrength` / `bCurveStrength`（紧邻 `curveStrength`，都在 `grayscale` 之前）；`isIdentity()` = 17 标量全 0 **且**四条曲线都「不存在或强度为 0」。`AdjustTrackPlayer.sample()` 读 clip 的四条曲线（LUT 随 clip 缓存）+ 四个强度（缺省 1）；**lane 级与 master 两条路径自动生效**（参数随 `ColorAdjustParams` 走，两条路径共用同一个 `ColorAdjustPass`）。
+- **同步点**（顺序是硬约定，逐项对应）：
+  1. `script/schema/TrackSchemas.adjust()`：clip 级 `r_curve` / `g_curve` / `b_curve`（`color_curve`）+ 关键帧三个强度（`FieldDef("float", 1f)`，插在 `curve_strength` 与 `grayscale` 之间）；
+  2. `script/ScriptParser`：`color_curve` 分派自动覆盖新字段（`parseColorCurve` 的消息泛化为不带字段名前缀 —— 字段名由路径 `p` 带出）；
+  3. `script/ScriptValidator`：三个曲线结构校验（复用 `checkColorCurve`）+ 三个强度进 `ADJUST_CHANNELS`（`0 ~ 1`）；
+  4. `script/Clip`：`getRCurve()` / `getGCurve()` / `getBCurve()` 访问器（与 `getColorCurve()` 同构）；
+  5. `client/post/ColorAdjustParams`：三个 LUT + 三个强度 + `IDENTITY` + `isIdentity()` + javadoc；
+  6. `client/post/ColorAdjustPass`：LUT 纹理机制泛化为 `LutTexture` 槽（4 个实例，各自「引用比较 + 只在换曲线时重传」）+ 三个 `setSampler` + 三个 uniform；
+  7. shader 两文件：`ic_color_adjust.json`（`samplers` + 3、`uniforms` + 3）+ `ic_color_adjust.fsh`（uniform / 采样器声明 + `lutLookup` 泛化 + `main()` 第 8 步 + 文件头操作栈表与通道清单）；
+  8. `script/AdjustTrackPlayer.sample()`：四条曲线（缓存 LUT）+ 四个强度（缺省 1）；javadoc 同步。
+- **测试脚本**：`cinematics/tests/adjust/test_adjust_channel_curves.json`（1 条 ADJUST 轨：`r_curve` 提亮中间调 / `g_curve` 压暗中间调 / `b_curve` S 形提亮 + 三个强度关键帧各 `0 → 1 → 0.5 → 1`）。
+- **验证（2026-10-08）**：
+  - `sh gradlew compileJava`（`:common` / `:fabric` / `:forge` 三模块）**通过**；
+  - 无头 validator（`E:/tmp/icv` 的 `Validate`，真实 `ScriptValidator`）扫 `cinematics/tests/adjust`：5 脚本 **0 issue**；全量 `cinematics/tests`（112 个）仍只有既有的 3 个已知 FAIL，无新增；
+  - **数据层冒烟**（throwaway `E:/tmp/icv2` 的 `AdjustChannelCurveSmoke`，真实 `ScriptParser` / `ColorCurve` / `AdjustTrackPlayer` + 桩 `ScriptPlayer`；**92 项全过**）：三条曲线解析（控制点、结构对象、LUT 长度）；三条 LUT 各自正确（中点 0.65 / 0.35 / 0.8，实测 0.65196 / 0.35197 / 0.80195）、单调不减 + 全在 [0,1]、三条是三个独立数组；端点外钳制；**与复合曲线共存**（四条 LUT 都是各自那条、四个强度各自独立、17 标量通道未串位）；三个强度线性插值（各关键帧 + 中点）、时间越界取边界值（不外推）、缺字段的关键帧 → 缺省 1、无曲线 → 强度 0；`isIdentity()`（无曲线 true / 仅 r 曲线 + 强度 > 0 false / 曲线 + 强度 0 true / LUT null 但强度非 0 仍 true / 单通道 g / b 也算）；**master 与 lane 两条发布路径**（只有 r 曲线生效也参与归集、携带同一个 LUT 数组）；validator 拦下 5 种结构反例 + 三个强度越界，parser 直接拒 3 种结构错误；仓库测试脚本 0 issue + 各时刻强度正确；既有 `AdjustRgbSmoke`（33 项）/ `AdjustHslSmoke`（34 项）/ `AdjustCurveSmoke`（67 项）复跑全过（`ColorAdjustParams` 构造器加分量后同步更新）；
+  - **着色器冒烟**（throwaway GL harness `E:/tmp/icgl`，真实 GL 3.2 core / NVIDIA RTX 4060；新增 `GlChannelCurveSmoke` **93 项全过**）：编译 + 链接通过；JSON ↔ fsh uniform / sampler **双向一致**（含三个新 sampler / 三个新 uniform，并断言 `samplers` 顺序 = `[Sampler0, CurveLut, RCurveLut, GCurveLut, BCurveLut]`）；全 0 + 恒等 LUT 对灰度梯度与 16 测试色**逐字节恒等**（含 alpha）、**四个恒等 LUT + 强度全 1 也逐字节恒等**（常绑路径）；**逐通道独立**：只开 r 曲线时 g / b 逐字节不变（bad=0）且 r 逐 texel = CPU LUT，只开 g / b 同理；**三条同时生效**逐通道 = 各自曲线 CPU LUT（256 texel 逐字节，含「r/g/b 不串位」）；**强度混合**（r 0.5 / g 0.25 / b 0.75）逐 texel = `mix(输入, 曲线, 强度)`；强度 0 → 逐字节恒等；**栈位置**：复合曲线 + r 曲线时红通道 = 「复合 → 每通道」（bad=0），与「每通道 → 复合」不符（64 texel 期望值不同、bad=64），g / b 只走复合曲线；**全 17 通道 + 四条曲线生效时 alpha 逐位直通**（256 texel 无一处变化）。既有 `GlShaderSmoke`（65 项）/ `GlHslSmoke`（95 项）/ `GlCurveSmoke`（83 项，含同步更新后的 sampler 顺序断言）/ `GlLaneAdjustSmoke`（77 项）复跑全过。
+  - 未验证：游戏内实际画面（需启动客户端；四个 LUT 纹理的 `DynamicTexture` 上传路径与 `setSampler` 绑定序列同样只在 harness 层验证，Java 侧 GL 调用序列无头跑不了）；光影下的执行顺序（§5-1，既有开放问题）。
+
 ### 默认零差异（§2.1 的「零差异」要求）
 
 - 无 ADJUST 轨道 / 无活跃 clip / 17 标量通道全为缺省（且无曲线或曲线强度 0）→ 播放器不发布 → pass **第一行返回**：不取着色器、不建中转缓冲、不切 GL 状态、不画任何东西。
@@ -175,7 +205,7 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 
 ### 本版本明确不做
 
-- **每通道曲线（R / G / B 各一条）**（§3 第一批的另一半；RGB 复合曲线已随本次「增量：RGB 复合曲线（形态 b）」落地，曲线编辑器与形态 a 留待编辑器落地后）。
+- **曲线编辑器与形态 a**（曲线点集本身打关键帧）：四条曲线（复合 + 每通道）已随「增量：RGB 复合曲线（形态 b）」与「增量：每通道曲线（R / G / B）」落地（2026-10-08），编辑器内的曲线编辑与形态 a 留待编辑器落地后。
 - 第二批**其余**（RGB 通道混合器 / 六条 hue 曲线 / Lift-Gamma-Gain 色轮）——**色相旋转已随本次「完整 HSL」增量落地**；第三批（LUT / 六色带 / 混合模式）。
 - 调整层（§7 步骤 6，依赖分层模型）——lane 级调整（步骤 5）已在本版本落地，见下一节「落地标注（lane 级调整）」。
 - 编辑器 UI（§7 步骤 3）：`editor/src/types.ts` 的 `TrackType` 联合类型、`TrackListPanel.vue` / `Timeline.vue` 的轨道列表与配色、i18n 键、`demo.ts` 的 schema 快照都需跟着加 `ADJUST`（Java 侧 schema 已随 `SchemaExporter` 导出，前端接上即可）。
@@ -413,7 +443,7 @@ lane 渲染（含 lane 内描边）→ lane 级调整（只动 RGB）→ 合成�
 
 > 步骤 1–4 不依赖画面合成，可先行；步骤 5 起依赖 lane 上屏；步骤 6 依赖分层模型落地。
 >
-> **进度（2026-10-08）**：步骤 1 的**标量组**（12 通道 master pass）与**曲线组**（RGB 复合曲线，形态 b）已落地；步骤 2 未做（R/G/B 每通道曲线仍未做）；步骤 3 的**数据落点已定稿**、编辑器 UI 未做；步骤 4 未做；**步骤 5（lane 级调整）已落地**（`scope=lane` + `lane`，lane 渲染完 / 合成前过 pass）；步骤 6 未做。
+> **进度（2026-10-08）**：步骤 1 的**标量组**（12 通道 master pass）与**曲线组**（RGB 复合曲线 + 每通道曲线，形态 b）已落地；步骤 2 的**曲线部分（每通道曲线 R / G / B）已落地（2026-10-08）**，同步骤的「RGBA 通道拆分」（`red` / `green` / `blue` 通道系数，2026-10-07）与「完整 HSL」（`hue` / `lightness` + 既有 `saturation` / `vibrance`，2026-10-07）也已落地 → **步骤 2 的三块全部落地**；步骤 3 的**数据落点已定稿**、编辑器 UI 未做；步骤 4 未做；**步骤 5（lane 级调整）已落地**（`scope=lane` + `lane`，lane 渲染完 / 合成前过 pass）；步骤 6 未做。
 
 ---
 

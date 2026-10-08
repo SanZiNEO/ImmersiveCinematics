@@ -29,7 +29,8 @@ public final class ScriptValidator {
     /**
      * ADJUST 轨道关键帧标量通道 → 合法区间（顺序与
      * {@code TrackSchemas.adjust()} / {@code ColorAdjustParams} / {@code ic_color_adjust.fsh} 一致）。
-     * <p>标量通道缺省 0 = 无效果（{@code curve_strength} 例外：缺省 1 = 曲线全量生效）。</p>
+     * <p>标量通道缺省 0 = 无效果（{@code curve_strength} / {@code r_curve_strength} / {@code g_curve_strength} /
+     * {@code b_curve_strength} 例外：缺省 1 = 曲线全量生效）。</p>
      */
     private static final List<ChannelRange> ADJUST_CHANNELS = List.of(
             new ChannelRange("exposure", -5f, 5f),
@@ -48,6 +49,9 @@ public final class ScriptValidator {
             new ChannelRange("green", -1f, 1f),
             new ChannelRange("blue", -1f, 1f),
             new ChannelRange("curve_strength", 0f, 1f),
+            new ChannelRange("r_curve_strength", 0f, 1f),
+            new ChannelRange("g_curve_strength", 0f, 1f),
+            new ChannelRange("b_curve_strength", 0f, 1f),
             new ChannelRange("grayscale", 0f, 1f),
             new ChannelRange("invert", 0f, 1f));
 
@@ -307,9 +311,18 @@ public final class ScriptValidator {
                     } else if (clip.has("lane")) {
                         issues.add(cp + ".lane 是多余字段（scope=master 时无效）——只有 scope=lane 才需要目标相机轨序号");
                     }
-                    // RGB 复合曲线（形态 b）：曲线定义一次（clip 级结构字段），关键帧只控 curve_strength
+                    // 曲线组（形态 b）：曲线定义一次（clip 级结构字段），关键帧只控各自强度
                     if (clip.has("curve")) {
                         checkColorCurve(clip.get("curve"), cp + ".curve", issues);
+                    }
+                    if (clip.has("r_curve")) {
+                        checkColorCurve(clip.get("r_curve"), cp + ".r_curve", issues);
+                    }
+                    if (clip.has("g_curve")) {
+                        checkColorCurve(clip.get("g_curve"), cp + ".g_curve", issues);
+                    }
+                    if (clip.has("b_curve")) {
+                        checkColorCurve(clip.get("b_curve"), cp + ".b_curve", issues);
                     }
                 }
                 // ===== 循环参数校验（CAMERA）=====
@@ -429,7 +442,7 @@ public final class ScriptValidator {
                             checkRect(kf, kp, "source", issues);
                         }
 
-                        // ADJUST 关键帧：18 个标量通道的取值区间（不写 = 缺省 0 = 无效果——curve_strength 缺省 1；写回 0 = 该项淡出）
+                        // ADJUST 关键帧：21 个标量通道的取值区间（不写 = 缺省 0 = 无效果——四个曲线强度缺省 1；写回 0 = 该项淡出）
                         if ("ADJUST".equalsIgnoreCase(type)) {
                             for (ChannelRange range : ADJUST_CHANNELS) {
                                 checkRange(kf, kp, range.field(), issues, range.min(), range.max());
@@ -471,8 +484,8 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 ADJUST 轨的 RGB 复合曲线（clip 级结构字段 {@code curve}）：控制点数组
-     * {@code [[x,y], ...]}——至少 2 点、每点 2 个数字、{@code x} 严格递增、{@code x} / {@code y} 各 0~1
+     * 校验 ADJUST 轨的曲线（clip 级结构字段 {@code curve} / {@code r_curve} / {@code g_curve} / {@code b_curve}）：
+     * 控制点数组 {@code [[x,y], ...]}——至少 2 点、每点 2 个数字、{@code x} 严格递增、{@code x} / {@code y} 各 0~1
      * （与 {@code ScriptParser#parseColorCurve} 同一口径：校验拦下的写法解析期也会拒绝）。
      */
     private static void checkColorCurve(JsonElement e, String path, List<String> issues) {

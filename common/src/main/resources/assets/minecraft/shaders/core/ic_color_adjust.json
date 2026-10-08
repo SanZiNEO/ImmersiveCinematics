@@ -12,7 +12,10 @@
     ],
     "samplers": [
         { "name": "Sampler0" },
-        { "name": "CurveLut" }
+        { "name": "CurveLut" },
+        { "name": "RCurveLut" },
+        { "name": "GCurveLut" },
+        { "name": "BCurveLut" }
     ],
     "uniforms": [
         { "name": "ModelViewMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
@@ -33,6 +36,9 @@
         { "name": "Green", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "Blue", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "CurveStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "RCurveStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "GCurveStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "BCurveStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "Grayscale", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "Invert", "type": "float", "count": 1, "values": [ 0.0 ] }
     ]

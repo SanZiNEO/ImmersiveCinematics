@@ -1,0 +1,76 @@
+{
+  "meta": {
+    "id": "test_adjust_channel_curves",
+    "name": "调色测试-每通道曲线",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "每通道曲线（R / G / B 各一条，曲线组形态 b）：r_curve 提亮中间调、g_curve 压暗中间调、b_curve S 形提亮；三个强度关键帧各自 0 → 1 → 0.5 → 1（缺省 1 = 全量生效）",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: test_adjust_channel_curves | 每通道曲线 R/G/B | 强度 0→1→0.5→1",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 8, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "r_curve": [ [0, 0], [0.5, 0.65], [1, 1] ],
+            "g_curve": [ [0, 0], [0.5, 0.35], [1, 1] ],
+            "b_curve": [ [0, 0], [0.5, 0.8], [1, 1] ],
+            "keyframes": [
+              { "time": 0, "r_curve_strength": 0, "g_curve_strength": 1, "b_curve_strength": 0.5 },
+              { "time": 2, "r_curve_strength": 1, "g_curve_strength": 0.5, "b_curve_strength": 1 },
+              { "time": 4, "r_curve_strength": 0.5, "g_curve_strength": 0, "b_curve_strength": 0 },
+              { "time": 6, "r_curve_strength": 1, "g_curve_strength": 1, "b_curve_strength": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

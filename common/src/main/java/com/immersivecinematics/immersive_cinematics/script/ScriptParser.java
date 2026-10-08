@@ -388,21 +388,23 @@ public class ScriptParser {
         return new BezierCurve(type, controlPoints);
     }
 
-    // ========== ColorCurve 解析（ADJUST 轨 RGB 复合曲线，形态 b）==========
+    // ========== ColorCurve 解析（ADJUST 轨曲线组，形态 b）==========
 
     /**
-     * 解析 {@code curve} = 控制点数组 {@code [[x,y], ...]}（ADJUST 轨的 RGB 复合曲线）。
+     * 解析 {@code color_curve} 字段 = 控制点数组 {@code [[x,y], ...]}
+     * （ADJUST 轨的 RGB 复合曲线 {@code curve} 与每通道曲线 {@code r_curve} / {@code g_curve} / {@code b_curve}
+     * 共用本解析；字段名由 {@code p} 带出）。
      * <p>结构在此严格校验（与 {@code ScriptValidator} 同一口径）：数组、每点 2 个数字、x 严格递增、
      * x / y 各 0~1、至少 2 点——不合法直接抛 {@link ScriptParseException}（不是静默忽略：
      * 曲线是作者显式写下的意图，悄悄丢掉会得到「脚本没错但画面不对」）。</p>
      */
     private static ColorCurve parseColorCurve(JsonElement value, String p) throws ScriptParseException {
         if (!value.isJsonArray()) {
-            throw new ScriptParseException(p, "curve 需要控制点数组 [[x,y], ...]");
+            throw new ScriptParseException(p, "需要控制点数组 [[x,y], ...]");
         }
         JsonArray arr = value.getAsJsonArray();
         if (arr.size() < 2) {
-            throw new ScriptParseException(p, "curve 至少需要 2 个控制点，实际: " + arr.size());
+            throw new ScriptParseException(p, "至少需要 2 个控制点，实际: " + arr.size());
         }
         List<ColorCurve.Point> points = new ArrayList<>();
         float prevX = Float.NEGATIVE_INFINITY;

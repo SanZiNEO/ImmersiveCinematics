@@ -6,10 +6,10 @@ import com.immersivecinematics.immersive_cinematics.client.post.MasterColorAdjus
 import java.util.List;
 
 /**
- * ADJUST 轨道播放器 — 画面颜色调整（0.3.6：master 17 通道 + lane 级调整 + RGB 复合曲线）。
+ * ADJUST 轨道播放器 — 画面颜色调整（0.3.6：master 17 通道 + lane 级调整 + RGB 复合曲线 + 每通道曲线）。
  *
  * <h2>职责</h2>
- * 每渲染帧找到本轨道当前活跃的 clip，把 17 个标量通道 + 曲线强度在<b>片段本地时间</b>处插值，按 clip 的
+ * 每渲染帧找到本轨道当前活跃的 clip，把 17 个标量通道 + 四个曲线强度在<b>片段本地时间</b>处插值，按 clip 的
  * {@code scope} 分流（见下）。无活跃 clip 时<b>本帧不参与</b> —— 渲染侧拿不到参数就不动画面。
  * <p>同帧多条 ADJUST 轨道：后发布者生效（轨道层级靠后的覆盖靠前的）；没活跃 clip 的轨道不参与
  * （不会把别的轨道的发布抹掉）。参数全为缺省（0）时被规整为「无调整」，同样不影响画面。</p>
@@ -35,11 +35,13 @@ import java.util.List;
  * {@code TrackSchemas.adjust()}）。插值走 {@link KeyframeInterpolator#interpolateChannel}（匀速线性），
  * 与其它轨道的标量通道同一口径。作用域（{@code scope} / {@code lane}）是 clip 级字段，不随时间变。
  *
- * <h2>RGB 复合曲线（曲线组形态 b）</h2>
- * clip 级字段 {@code curve}（控制点数组，结构字段、缺省 = 无曲线）解析成 {@link ColorCurve}，
- * 其 256 点 LUT 在 CPU 侧采样好、随 clip 缓存（逐帧拿到同一个数组，渲染侧只在换曲线时重传纹理）；
- * 关键帧只控混合强度 {@code curve_strength}（0~1，<b>缺省 1</b> = 曲线全量生效，写回 0 = 曲线淡出）。
- * 无曲线时强度恒为 0、渲染侧整步跳过。
+ * <h2>曲线组（形态 b）：复合曲线 + 每通道曲线</h2>
+ * clip 级字段 {@code curve}（RGB 复合曲线）与 {@code r_curve} / {@code g_curve} / {@code b_curve}（每通道曲线）
+ * 都是控制点数组（结构字段、缺省 = 无曲线），解析成 {@link ColorCurve}，
+ * 各自的 256 点 LUT 在 CPU 侧采样好、随 clip 缓存（逐帧拿到同一个数组，渲染侧只在换曲线时重传纹理）；
+ * 关键帧只控各自的混合强度 {@code curve_strength} / {@code r_curve_strength} / {@code g_curve_strength} /
+ * {@code b_curve_strength}（0~1，<b>缺省 1</b> = 曲线全量生效，写回 0 = 曲线淡出）。
+ * 无对应曲线时该强度恒为 0、渲染侧那一步跳过。
  *
  * <h2>默认零差异</h2>
  * 没有 ADJUST 轨道 / 没有活跃 clip / 参数全为缺省 → 不发布、不归集 → 渲染侧一次 GL 调用都不做
@@ -117,14 +119,17 @@ public class AdjustTrackPlayer implements TrackPlayer {
      * 本片段在<b>片段本地时间</b>处的全部取值（顺序 = {@link ColorAdjustParams} 分量顺序 = shader 操作栈顺序）。
      *
      * <p>17 个标量通道走 {@link KeyframeInterpolator#interpolateChannel}（缺省 0 = 无效果）；
-     * RGB 复合曲线是 clip 级字段（{@code curve}，不随时间变）：LUT 由 {@link ColorCurve} 对象持有
-     * （按 clip 缓存，逐帧拿到同一个数组），此处只把强度在本地时间处插值——
-     * <b>强度缺省 1</b>：写了曲线就是全量生效，关键帧把强度写回 0 即曲线淡出；无曲线时强度置 0。</p>
+     * 曲线组（形态 b）的四条曲线是 clip 级字段（{@code curve} / {@code r_curve} / {@code g_curve} / {@code b_curve}，
+     * 不随时间变）：LUT 由 {@link ColorCurve} 对象持有（按 clip 缓存，逐帧拿到同一个数组），
+     * 此处只把各自的强度在本地时间处插值——<b>强度缺省 1</b>：写了曲线就是全量生效，
+     * 关键帧把强度写回 0 即曲线淡出；无曲线时该强度置 0（那一步不生效）。</p>
      */
     private static ColorAdjustParams sample(Clip clip, float localTime) {
         List<Keyframe> keyframes = clip.getKeyframes();
-        ColorCurve curve = clip.getColorCurve();
-        float[] lut = curve != null ? curve.lut() : null;
+        float[] curveLut = lut(clip.getColorCurve());
+        float[] rCurveLut = lut(clip.getRCurve());
+        float[] gCurveLut = lut(clip.getGCurve());
+        float[] bCurveLut = lut(clip.getBCurve());
         return new ColorAdjustParams(
                 channel(keyframes, localTime, "exposure"),
                 channel(keyframes, localTime, "contrast"),
@@ -141,11 +146,23 @@ public class AdjustTrackPlayer implements TrackPlayer {
                 channel(keyframes, localTime, "red"),
                 channel(keyframes, localTime, "green"),
                 channel(keyframes, localTime, "blue"),
-                lut,
-                lut == null ? 0.0F
-                        : KeyframeInterpolator.interpolateChannel(keyframes, localTime, "curve_strength", 1.0F),
+                curveLut, rCurveLut, gCurveLut, bCurveLut,
+                strength(keyframes, localTime, "curve_strength", curveLut),
+                strength(keyframes, localTime, "r_curve_strength", rCurveLut),
+                strength(keyframes, localTime, "g_curve_strength", gCurveLut),
+                strength(keyframes, localTime, "b_curve_strength", bCurveLut),
                 channel(keyframes, localTime, "grayscale"),
                 channel(keyframes, localTime, "invert"));
+    }
+
+    /** clip 级曲线 → 它的 256 点 LUT（{@code null} = 本片段没有那条曲线）；LUT 随曲线对象按 clip 缓存。 */
+    private static float[] lut(ColorCurve curve) {
+        return curve != null ? curve.lut() : null;
+    }
+
+    /** 曲线强度：没有对应曲线 → 0（该步不生效）；有曲线 → 关键帧插值，缺省 1 = 全量生效。 */
+    private static float strength(List<Keyframe> keyframes, float localTime, String key, float[] lut) {
+        return lut == null ? 0.0F : KeyframeInterpolator.interpolateChannel(keyframes, localTime, key, 1.0F);
     }
 
     /** 单通道取值：缺省 0 = 无效果（关键帧没写该字段就是不做这项调整）。 */
