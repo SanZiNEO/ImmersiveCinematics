@@ -27,8 +27,9 @@ public final class ScriptValidator {
             {"CAMERA", "LETTERBOX", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY", "ADJUST"};
 
     /**
-     * ADJUST 轨道关键帧标量通道 → 合法区间（缺省 0 = 无效果；顺序与
+     * ADJUST 轨道关键帧标量通道 → 合法区间（顺序与
      * {@code TrackSchemas.adjust()} / {@code ColorAdjustParams} / {@code ic_color_adjust.fsh} 一致）。
+     * <p>标量通道缺省 0 = 无效果（{@code curve_strength} 例外：缺省 1 = 曲线全量生效）。</p>
      */
     private static final List<ChannelRange> ADJUST_CHANNELS = List.of(
             new ChannelRange("exposure", -5f, 5f),
@@ -46,6 +47,7 @@ public final class ScriptValidator {
             new ChannelRange("red", -1f, 1f),
             new ChannelRange("green", -1f, 1f),
             new ChannelRange("blue", -1f, 1f),
+            new ChannelRange("curve_strength", 0f, 1f),
             new ChannelRange("grayscale", 0f, 1f),
             new ChannelRange("invert", 0f, 1f));
 
@@ -305,6 +307,10 @@ public final class ScriptValidator {
                     } else if (clip.has("lane")) {
                         issues.add(cp + ".lane 是多余字段（scope=master 时无效）——只有 scope=lane 才需要目标相机轨序号");
                     }
+                    // RGB 复合曲线（形态 b）：曲线定义一次（clip 级结构字段），关键帧只控 curve_strength
+                    if (clip.has("curve")) {
+                        checkColorCurve(clip.get("curve"), cp + ".curve", issues);
+                    }
                 }
                 // ===== 循环参数校验（CAMERA）=====
                 if ("CAMERA".equalsIgnoreCase(type)) {
@@ -423,7 +429,7 @@ public final class ScriptValidator {
                             checkRect(kf, kp, "source", issues);
                         }
 
-                        // ADJUST 关键帧：12 个标量通道的取值区间（不写 = 缺省 0 = 无效果；写回 0 = 该项淡出）
+                        // ADJUST 关键帧：18 个标量通道的取值区间（不写 = 缺省 0 = 无效果——curve_strength 缺省 1；写回 0 = 该项淡出）
                         if ("ADJUST".equalsIgnoreCase(type)) {
                             for (ChannelRange range : ADJUST_CHANNELS) {
                                 checkRange(kf, kp, range.field(), issues, range.min(), range.max());
@@ -462,6 +468,46 @@ public final class ScriptValidator {
         if (v < min || v > max) {
             issues.add(path + "." + key + " 超出范围 " + min + " ~ " + max + "：" + v);
         }
+    }
+
+    /**
+     * 校验 ADJUST 轨的 RGB 复合曲线（clip 级结构字段 {@code curve}）：控制点数组
+     * {@code [[x,y], ...]}——至少 2 点、每点 2 个数字、{@code x} 严格递增、{@code x} / {@code y} 各 0~1
+     * （与 {@code ScriptParser#parseColorCurve} 同一口径：校验拦下的写法解析期也会拒绝）。
+     */
+    private static void checkColorCurve(JsonElement e, String path, List<String> issues) {
+        if (!e.isJsonArray()) {
+            issues.add(path + " 需要控制点数组 [[x,y], ...]");
+            return;
+        }
+        JsonArray arr = e.getAsJsonArray();
+        if (arr.size() < 2) {
+            issues.add(path + " 至少需要 2 个控制点，实际: " + arr.size());
+            return;
+        }
+        float prevX = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < arr.size(); i++) {
+            String pp = path + "[" + i + "]";
+            JsonElement pe = arr.get(i);
+            if (!pe.isJsonArray() || pe.getAsJsonArray().size() != 2
+                    || !isNumber(pe.getAsJsonArray().get(0)) || !isNumber(pe.getAsJsonArray().get(1))) {
+                issues.add(pp + " 需要 [x, y] 两个数字");
+                continue;
+            }
+            float x = pe.getAsJsonArray().get(0).getAsFloat();
+            float y = pe.getAsJsonArray().get(1).getAsFloat();
+            if (x < 0f || x > 1f || y < 0f || y > 1f) {
+                issues.add(pp + " 超出 0~1：" + x + ", " + y);
+            }
+            if (x <= prevX) {
+                issues.add(pp + " 控制点 x 必须严格递增（前一个 x = " + prevX + "，当前 = " + x + "）");
+            }
+            prevX = x;
+        }
+    }
+
+    private static boolean isNumber(JsonElement e) {
+        return e.isJsonPrimitive() && e.getAsJsonPrimitive().isNumber();
     }
 
     /**

@@ -139,6 +139,16 @@ public class Clip {
         return getObject("curve");
     }
 
+    // ── Convenience: ADJUST ──
+
+    /**
+     * RGB 复合曲线（曲线组形态 b：曲线定义一次、关键帧只控 {@code curve_strength}）。
+     * {@code null} = 本片段无曲线（字段缺省），曲线值见 {@link ColorCurve}。
+     */
+    public ColorCurve getColorCurve() {
+        return getObject("curve");
+    }
+
     // ── Convenience: AUDIO ──
 
     public String getSound() {

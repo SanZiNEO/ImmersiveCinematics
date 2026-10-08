@@ -177,15 +177,18 @@ public final class TrackSchemas {
     }
 
     /**
-     * ADJUST 轨道（画面颜色调整，0.3.6：master 标量组 + lane 级调整）。
+     * ADJUST 轨道（画面颜色调整，0.3.6：master 标量组 + lane 级调整 + RGB 复合曲线）。
      *
      * <p>17 个标量通道全部是<b>关键帧字段</b>，缺省全 0 = 无效果
      * （关键帧把通道写回 0 就是该项淡出，不需要 enabled 开关）。</p>
      *
-     * <p><b>clip 级字段 = 作用域</b>（不随时间变，故挂 clip）：{@code scope}（{@code master} 缺省 /
-     * {@code lane}）与 {@code lane}（{@code scope=lane} 时的目标相机轨序号：0 起、按 timeline 中
-     * CAMERA 轨出现顺序）。master = 作用于合成输出（最终显示画面）；lane = 作用于该相机轨的画面，
-     * 在该 lane 渲染完成之后、合成之前（见 {@code plans/0.3.6/screen-color-adjust.md} 步骤 5）。</p>
+     * <p><b>clip 级字段 = 作用域 + 曲线</b>（不随时间变，故挂 clip）：
+     * {@code scope}（{@code master} 缺省 / {@code lane}）与 {@code lane}（{@code scope=lane} 时的目标相机轨序号：
+     * 0 起、按 timeline 中 CAMERA 轨出现顺序）；{@code curve} = RGB 复合曲线的控制点数组
+     * {@code [[x,y], ...]}（x 严格递增、各 0~1、≥2 点；结构字段，缺省 = 无曲线——与 CAMERA 轨同名的
+     * {@code curve}（{@code bezier_curve}）按轨道类型分派，互不影响）。master = 作用于合成输出（最终显示画面）；
+     * lane = 作用于该相机轨的画面，在该 lane 渲染完成之后、合成之前
+     * （见 {@code plans/0.3.6/screen-color-adjust.md} 步骤 5 与「增量：RGB 复合曲线（形态 b）」）。</p>
      *
      * <p>顺序 = 着色器操作栈顺序（{@code assets/minecraft/shaders/core/ic_color_adjust.fsh}）
      * = {@code ColorAdjustParams} 的分量顺序；区间由 {@code ScriptValidator} 校验。
@@ -195,6 +198,8 @@ public final class TrackSchemas {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
         clips.put("scope", new FieldDef("enum", "master", false, List.of("master", "lane")));
         clips.put("lane", new FieldDef("int", 0));
+        // 曲线组（形态 b）：曲线定义一次（clip 级结构字段），关键帧只控 curve_strength
+        clips.put("curve", new FieldDef("color_curve", null));
 
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
         // 基础校色（复合 RGB）
@@ -216,6 +221,8 @@ public final class TrackSchemas {
         kfs.put("red", new FieldDef("float", 0f));            // -1 ~ 1（红通道乘性系数：-1 = 归零、-0.5 = 减半、+1 = 双倍）
         kfs.put("green", new FieldDef("float", 0f));          // -1 ~ 1（绿通道，同上）
         kfs.put("blue", new FieldDef("float", 0f));           // -1 ~ 1（蓝通道，同上）
+        // 曲线组（形态 b）：RGB 复合曲线的混合强度（曲线本身是 clip 级字段 curve）
+        kfs.put("curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（缺省 1 = 曲线全量生效；无曲线时忽略）
         // 风格化（本身即强度）
         kfs.put("grayscale", new FieldDef("float", 0f));      // 0 ~ 1（灰度混合量）
         kfs.put("invert", new FieldDef("float", 0f));         // 0 ~ 1（反相混合量）

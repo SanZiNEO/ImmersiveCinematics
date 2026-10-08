@@ -5,10 +5,10 @@
 //
 // 操作栈顺序固定（与 plans/0.3.6/screen-color-adjust.md §3 一致，非破坏、不可调）：
 //   1. 曝光      2. 对比度     3. 高光 / 阴影   4. 白场 / 黑场
-//   5. 色温 / 色调  6. RGB 通道系数  7. 色相旋转   8. 饱和度   9. 自然饱和度   10. 亮度
-//   11. 灰度     12. 反相
+//   5. 色温 / 色调  6. RGB 通道系数  7. RGB 复合曲线（CurveLut 查表）  8. 色相旋转
+//   9. 饱和度   10. 自然饱和度   11. 亮度   12. 灰度   13. 反相
 //
-// 参数口径（全部为「0 = 无效果」的增量；缺省全 0 = 恒等，运行时也不会下发这个 pass）：
+// 参数口径（除 CurveStrength 外全部为「0 = 无效果」的增量；缺省全 0 = 恒等，运行时也不会下发这个 pass）：
 //   Exposure     -5 ~ 5   EV 档（×2^EV）
 //   Contrast     -1 ~ 1   以中灰 0.5 为轴
 //   Highlights   -1 ~ 1   亮部（亮度权重 l²；正 = 提亮、负 = 压暗）
@@ -24,6 +24,8 @@
 //   Red          -1 ~ 1   R 通道乘性系数（增益 = 1 + 值：-1 = 归零、-0.5 = 减半、+1 = 双倍）
 //   Green        -1 ~ 1   G 通道，同上
 //   Blue         -1 ~ 1   B 通道，同上
+//   CurveStrength 0 ~ 1   RGB 复合曲线的混合强度（c = mix(c, lut(c), 强度)）；曲线本身在 CurveLut
+//                         （256×1，CPU 侧 Fritsch–Carlson 采样；无曲线时绑恒等 LUT，强度置 0 = 整步跳过）
 //   Grayscale     0 ~ 1   灰度混合强度（1 = 完全黑白）
 //   Invert        0 ~ 1   反相混合强度（1 = 完全反相）
 //
@@ -38,6 +40,9 @@
 // 依据：plans/0.3.6/README.md「画面完整性原则」、plans/0.3.6/multi-camera-rendering.md §12.8-A。
 
 uniform sampler2D Sampler0;
+
+// RGB 复合曲线 LUT（256×1；无曲线时绑恒等 LUT，配合 CurveStrength = 0 整步跳过）
+uniform sampler2D CurveLut;
 
 uniform float Exposure;
 uniform float Contrast;
@@ -54,6 +59,7 @@ uniform float Tint;
 uniform float Red;
 uniform float Green;
 uniform float Blue;
+uniform float CurveStrength;
 uniform float Grayscale;
 uniform float Invert;
 
@@ -65,6 +71,13 @@ const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 
 float luma(vec3 c) {
     return dot(c, LUMA);
+}
+
+// RGB 复合曲线的 LUT 查表：256×1 纹理，lut[i] 对应 x = i / 255。
+// 半 texel 偏移（+ 0.5/256）把 x 对到 texel 中心，再由纹理的 LINEAR 过滤在相邻 LUT 项之间插值
+// （等价于在曲线采样点之间线性插值；x 在 0~1 外先钳制，与 CPU 侧的端点外钳制一致）。
+float curveLut(float x) {
+    return texture(CurveLut, vec2(clamp(x, 0.0, 1.0) * (255.0 / 256.0) + (0.5 / 256.0), 0.5)).r;
 }
 
 // RGB → HSL（标准换算；d ≈ 0 即灰点：s = 0、h 无意义）
@@ -148,10 +161,16 @@ void main() {
         c *= vec3(1.0 + Red, 1.0 + Green, 1.0 + Blue);
     }
 
-    // 后续按 HSL / 亮度混合，先收敛到 [0,1]
+    // 7. RGB 复合曲线（曲线组形态 b：曲线定义一次 = CurveLut，关键帧只控 CurveStrength 混合强度）
+    //    逐通道查表 → 按强度混合；无曲线 / 曲线淡出（CurveStrength = 0）时整步跳过（逐位恒等）
+    if (CurveStrength > 0.0) {
+        c = mix(c, vec3(curveLut(c.r), curveLut(c.g), curveLut(c.b)), clamp(CurveStrength, 0.0, 1.0));
+    }
+
+    // 后续按 HSL / 亮度混合，先收敛到 [0,1]（曲线输出由控制点限定在 [0,1] 内，此处一并兜底）
     c = clamp(c, 0.0, 1.0);
 
-    // 7 ~ 10. 完整 HSL：色相旋转 → 饱和度 / 自然饱和度 → 亮度
+    // 8 ~ 11. 完整 HSL：色相旋转 → 饱和度 / 自然饱和度 → 亮度
     //    四个 HSL 通道全 0 时跳过换算（保持逐位恒等）
     if (Hue != 0.0 || Saturation != 0.0 || Vibrance != 0.0 || Lightness != 0.0) {
         vec3 hsl = rgb2hsl(c);
@@ -165,12 +184,12 @@ void main() {
         c = hsl2rgb(vec3(h, s, l));
     }
 
-    // 11. 灰度：按亮度混合
+    // 12. 灰度：按亮度混合
     if (Grayscale != 0.0) {
         c = mix(c, vec3(luma(c)), clamp(Grayscale, 0.0, 1.0));
     }
 
-    // 12. 反相：按强度混合
+    // 13. 反相：按强度混合
     if (Invert != 0.0) {
         c = mix(c, 1.0 - c, clamp(Invert, 0.0, 1.0));
     }

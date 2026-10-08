@@ -272,11 +272,8 @@ public class ScriptParser {
                     p + ".loop_count 不允许为 0（-1=无限循环，正整数=循环次数），已按 1 处理");
             data.put("loop_count", 1);
         }
-        if (data.containsKey("curve")) {
-            BezierCurve curve = (BezierCurve) data.get("curve");
-            if (curve != null && !curve.isValid()) {
-                throw new ScriptParseException(p + ".curve", "control_points 必须恰好2个点");
-            }
+        if (data.get("curve") instanceof BezierCurve curve && !curve.isValid()) {
+            throw new ScriptParseException(p + ".curve", "control_points 必须恰好2个点");
         }
 
         // 验证关键帧时间单调递增
@@ -352,6 +349,7 @@ public class ScriptParser {
                 yield parsePositionData(posObj, p + "." + fieldName, relative);
             }
             case "bezier_curve" -> parseBezierCurve(value.getAsJsonObject(), p + "." + fieldName);
+            case "color_curve" -> parseColorCurve(value, p + "." + fieldName);
             case "map" -> {
                 if (value.isJsonObject()) {
                     yield parseDataMap(value.getAsJsonObject(), p + "." + fieldName);
@@ -388,6 +386,49 @@ public class ScriptParser {
             }
         }
         return new BezierCurve(type, controlPoints);
+    }
+
+    // ========== ColorCurve 解析（ADJUST 轨 RGB 复合曲线，形态 b）==========
+
+    /**
+     * 解析 {@code curve} = 控制点数组 {@code [[x,y], ...]}（ADJUST 轨的 RGB 复合曲线）。
+     * <p>结构在此严格校验（与 {@code ScriptValidator} 同一口径）：数组、每点 2 个数字、x 严格递增、
+     * x / y 各 0~1、至少 2 点——不合法直接抛 {@link ScriptParseException}（不是静默忽略：
+     * 曲线是作者显式写下的意图，悄悄丢掉会得到「脚本没错但画面不对」）。</p>
+     */
+    private static ColorCurve parseColorCurve(JsonElement value, String p) throws ScriptParseException {
+        if (!value.isJsonArray()) {
+            throw new ScriptParseException(p, "curve 需要控制点数组 [[x,y], ...]");
+        }
+        JsonArray arr = value.getAsJsonArray();
+        if (arr.size() < 2) {
+            throw new ScriptParseException(p, "curve 至少需要 2 个控制点，实际: " + arr.size());
+        }
+        List<ColorCurve.Point> points = new ArrayList<>();
+        float prevX = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < arr.size(); i++) {
+            String pp = p + "[" + i + "]";
+            JsonElement e = arr.get(i);
+            if (!e.isJsonArray() || e.getAsJsonArray().size() != 2) {
+                throw new ScriptParseException(pp, "控制点需要 [x, y] 两个数字");
+            }
+            JsonArray pt = e.getAsJsonArray();
+            if (!pt.get(0).isJsonPrimitive() || !pt.get(0).getAsJsonPrimitive().isNumber()
+                    || !pt.get(1).isJsonPrimitive() || !pt.get(1).getAsJsonPrimitive().isNumber()) {
+                throw new ScriptParseException(pp, "控制点需要 [x, y] 两个数字");
+            }
+            float x = pt.get(0).getAsFloat();
+            float y = pt.get(1).getAsFloat();
+            if (x < 0f || x > 1f || y < 0f || y > 1f) {
+                throw new ScriptParseException(pp, "控制点超出 0~1：" + x + ", " + y);
+            }
+            if (x <= prevX) {
+                throw new ScriptParseException(pp, "控制点 x 必须严格递增（前一个 x = " + prevX + "，当前 = " + x + "）");
+            }
+            prevX = x;
+            points.add(new ColorCurve.Point(x, y));
+        }
+        return new ColorCurve(points);
     }
 
     // ========== PositionData 解析 ==========

@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "id": "test_adjust_curve",
+    "name": "调色测试-RGB复合曲线",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "RGB 复合曲线（形态 b）：曲线定义一次（clip 级 curve = [[0,0],[0.5,0.8],[1,1]]，S 形提亮中间调）+ curve_strength 关键帧控混合强度（0→1→0.5→1，缺省 1 = 全量生效）",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: test_adjust_curve | RGB 复合曲线 | curve_strength 0→1→0.5→1",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 8, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "curve": [ [0, 0], [0.5, 0.8], [1, 1] ],
+            "keyframes": [
+              { "time": 0, "curve_strength": 0 },
+              { "time": 2, "curve_strength": 1 },
+              { "time": 4, "curve_strength": 0.5 },
+              { "time": 6, "curve_strength": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
