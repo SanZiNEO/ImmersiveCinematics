@@ -22,7 +22,7 @@
 | A14 | 四象限交付物重写：单脚本四相机轨（4 机位 + dest 象限 + 每格 RGB 关键帧 + BR opacity 0.5 + BR 裁切动画） | A1,A8 | ✅ | `d0fc80b` |
 | A2 | 完整 HSL 通道（hue 色相旋转 ±180° + lightness 亮度） | — | ✅ | `d03626a` |
 | A3 | RGB 复合曲线（形态 b：曲线点集 + curve_strength 关键帧，CPU 采样 LUT） | A2 | ✅ | `6f91150` |
-| A4 | 每通道曲线（R/G/B 三条 + 各自 strength） | A3 | ☐ | |
+| A4 | 每通道曲线（R/G/B 三条 + 各自 strength） | A3 | ✅ | `45f03ed` |
 | A13 | 多实例 master 合并 → 按层级叠加（见「用户裁决新增」A13'） | A8 | ☐ | |
 | A5 | 六条 hue 曲线（HvH/HvS/HvL、LvS/SvS/SvL） | A3 | ☐ | |
 | A6 | RGB 通道混合器（3×3 矩阵 9 参数） | A1 | ☐ | |
@@ -114,7 +114,7 @@
 | ID | 任务 | 依赖 | 状态 |
 |---|---|---|---|
 | H1 | region-sync 全部实现（平移映射/镜像旋转/多区域链/传送/防乒乓/朝向策略） | — | ☐ |
-| H2 | wait-point-track 全部实现（WAIT_POINT 轨 + 事件源 + pause_managed + player_death + 分支） | C2 | ☐ |
+| H2 | wait-point-track 全部实现（WAIT_POINT 轨 + 事件源 + pause_managed + player_death + 分支） | C2 + **P1-impl + P3-impl**（事件/事实层先行——等待点等的事件正是这一层；H2 需在二者之后） | ☐ |
 | H4 | feedback-04 #1 结案（按"命令归 EVENT 轨"新方向标注） | — | ☐ |
 | H5 | 文档滞后清理（审计 §三 12 条） | — | ☐ |
 | H6 | 实机验证批次（审计 §四 7 条：调色/叠化/hard-hide/模板命令/release 脚本游戏内跑） | A,B,D | ☐ |
@@ -159,3 +159,4 @@
 |---|---|
 | 2026-10-07 | 总表建立；版本号升 0.3.6（`04b9380`）；A1（`d1ae22e`）、A8（`8114a85`）、A14（`d0fc80b`）、CLEANUP-1 捕获工具通用化 + 删旧驱动（`384bd84`）完成；四象限交付物实机验证（每格 RGB 关键帧调色 + opacity 0.5 用户确认）；测试世界固定白天。**下一步 = A2（完整 HSL 通道）**。 |
 | 2026-10-08 | A2 完整 HSL（hue/lightness）完成（`d03626a`，GL 冒烟 79/79）；「未定项」清查报告入库（`e3fb024`，plans/0.3.6/pending-discussions.md）。**下一步 = A3（RGB 复合曲线，形态 b）**。 |
+| 2026-10-08（续） | A3 复合曲线（`6f91150`）、CLEANUP-2 pip 层删除（`5b3265d`）、P1 状态追踪计划（`6c1097f`）、P2 光影调研计划（`2ff77b6`）、P3 触发器连续性计划（`8d6fc61`）、A4 每通道曲线（`45f03ed`）完成。H2（wait-point）依赖修正为 C2+P1-impl+P3-impl。**下一步 = A5（六条 hue 曲线）**。 |
