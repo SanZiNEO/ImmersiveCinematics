@@ -1,6 +1,6 @@
 # 编辑器退役残留资源清点（0.3.6）
 
-**状态**: 只清点，不删除。本文件是清单，不是清理动作记录。
+**状态**: ✅ 已清理（2026-10-08）—— 本文原为只清点清单；2026-10-08 已按 §3.1 执行删除，删除记录见 §3.1 末。
 **范围**: 0.3.6 游戏内编辑器（Java `editor/` 包）退役后，`resources/` 下遗留的、已无 live 代码引用的纹理等资源。
 **判定口径**: 「残留」= 该资源文件在当前 live 代码（common/fabric/forge 的 Java + mixin + webui 后端 + `editor/` 前端 + 资源 json/lang）中**零引用**；文档提及（`docs/`、`plans/`）**不算引用**。
 
@@ -138,7 +138,7 @@
 
 ## 3. 分组小节
 
-### 3.1 确定残留（零引用，建议删）
+### 3.1 确定残留（零引用，已删除）
 
 共 **74 文件**，合计 **60,032 B**（约 58.6 KB）：
 
@@ -149,7 +149,35 @@
 
 **附带的空目录**：`assets/immersive_cinematics/textures/gui/editor/svg/` 是**空目录**（0 文件，git 未跟踪），是 `0590fa1` 把 SVG 移出 resources 后遗留的壳。删除 `editor/` 图标时一并清掉即可（空目录不进 jar，无功能影响）。
 
-### 3.2 仍被使用（不能删）
+---
+
+### 3.1.1 清理记录（2026-10-08 执行）
+
+**动作**：删除上述 74 个 PNG，并移除两个随之变空的目录。
+
+| 项 | 数量 | 字节 |
+|---|---|---|
+| `textures/gui/editor/*.png` | 72 | 57,170 |
+| `textures/gui/flight/{keycap,mouse}.png` | 2 | 2,862 |
+| **文件合计** | **74** | **60,032**（约 58.6 KB） |
+| 空目录 `textures/gui/editor/svg/` | 0 | 0 |
+| 清空后删除的目录 | `textures/gui/editor/`、`textures/gui/flight/` | — |
+
+**复核证据（删除前）**：
+
+- `grep -r "gui/editor"`、`grep -r "gui/flight"` 于 `common/src`、`fabric/src`、`forge/src`、`editor/src`、`editor/electron`、`editor/index.html`（含 webui Java 后端）—— **零命中**。
+- 全仓 grep `textures/gui/(editor|flight)` —— **仅命中本清单文件自身**（`plans/`，按口径不算引用），无任何 live 代码 / 资源 json / 前端引用。
+- 唯一加载方 `editor/widget/EditorIcons.java`、`editor/widget/FlightKeyHints.java` 已随 `6d0544c` 删除。
+- 删除后 `textures/gui/` 仅余 `skip_key.png`（`SkipHudRenderer` 在用）。
+
+**保留**：仓库根 `svg/editor/`（72 `.svg`）+ `svg/flight/`（2 `.svg`）源文件完整未动，可随时重导出 PNG；「仍被使用」组（§3.2）未触碰。
+
+**验证**：
+
+- `sh gradlew compileJava` —— **绿**（exit 0；仅 11 条既有 deprecation 警告，与本次删除无关）。
+- 脚本 validator（`E:/tmp/icv`，`cinematics/tests` + `cinematics/release`，121 脚本）—— 运行正常；3 个既有 test 脚本告警（`test_camera_facing_origin*.json` 缺 `look_at_target`、`test_camera_relative_axis.json` 缺 `yaw`）为**删除前既存**的数据问题，与资源删除无关。
+
+### 3.2 仍被使用（保留）
 
 见 §2.3。要点：
 
@@ -175,7 +203,7 @@
 - **唯一风险点**：若将来 WebUI 编辑器想复用这套图标（例如把 `play/pause/stop/undo/redo` 等搬到 Electron 端），需要从根 `svg/`（源在，74 个 `.svg` 齐全）重新导出 PNG，而不是从 resources 拿。因此**删除 PNG 不丢源**——SVG 源完整保留在 `svg/editor/` 与 `svg/flight/`。
 - 若担心「图标集可能用于未来功能」，**可只删 `flight/`（2 个，明确无承接方）**，`editor/` 图标暂留；但这只是心理缓冲，`editor/` 图标同样零引用。
 
-**不做的事**：本文件只清点，不执行删除、不移动、不 commit。
+**不做的事**：本文只清点、不 commit（提交由主代理统一进行）。删除动作已于 2026-10-08 按 §3.1.1 执行。
 
 ---
 
@@ -223,4 +251,4 @@
 
 ### 5.3 文档落盘
 
-本文件即产物：`plans/0.3.6/editor-leftover-resources.md`。未删除、移动任何资源文件，未 commit。
+本文件即产物：`plans/0.3.6/editor-leftover-resources.md`。原清点阶段未删除、移动任何资源文件；2026-10-08 已按 §3.1.1 执行删除（未 commit，提交由主代理统一进行）。
