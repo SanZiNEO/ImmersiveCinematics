@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "id": "test_adjust_channel_mixer",
+    "name": "调色测试-RGB通道混合器",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "RGB 通道混合器（PS 式 3×3 矩阵 = 单位阵 + 参数矩阵）：九个系数各不同（mix_rg 0.3、mix_gr -0.2、mix_bb -1 蓝归零、mix_rr 0→0.5 关键帧等），缺省 0 = 无效果",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: test_adjust_channel_mixer | 调色: RGB 通道混合器（3×3 矩阵）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 8, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "keyframes": [
+              { "time": 0, "mix_rr": 0, "mix_rg": 0.3, "mix_rb": 0, "mix_gr": -0.2, "mix_gg": 0, "mix_gb": 0, "mix_br": 0, "mix_bg": 0, "mix_bb": -1 },
+              { "time": 2, "mix_rr": 0.25, "mix_rg": 0.3, "mix_rb": 0.1, "mix_gr": -0.2, "mix_gg": 0.1, "mix_gb": 0, "mix_br": 0, "mix_bg": 0.2, "mix_bb": -1 },
+              { "time": 4, "mix_rr": 0.5, "mix_rg": 0.3, "mix_rb": 0.2, "mix_gr": -0.2, "mix_gg": 0.2, "mix_gb": -0.1, "mix_br": 0.3, "mix_bg": 0.4, "mix_bb": -1 },
+              { "time": 6, "mix_rr": 0.5, "mix_rg": 0.3, "mix_rb": 0.2, "mix_gr": -0.2, "mix_gg": 0.2, "mix_gb": -0.1, "mix_br": 0.3, "mix_bg": 0.4, "mix_bb": -1 },
+              { "time": 8, "mix_rr": 0, "mix_rg": 0.3, "mix_rb": 0, "mix_gr": -0.2, "mix_gg": 0, "mix_gb": 0, "mix_br": 0, "mix_bg": 0, "mix_bb": -1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -49,6 +49,15 @@ public final class ScriptValidator {
             new ChannelRange("red", -1f, 1f),
             new ChannelRange("green", -1f, 1f),
             new ChannelRange("blue", -1f, 1f),
+            new ChannelRange("mix_rr", -1f, 1f),
+            new ChannelRange("mix_rg", -1f, 1f),
+            new ChannelRange("mix_rb", -1f, 1f),
+            new ChannelRange("mix_gr", -1f, 1f),
+            new ChannelRange("mix_gg", -1f, 1f),
+            new ChannelRange("mix_gb", -1f, 1f),
+            new ChannelRange("mix_br", -1f, 1f),
+            new ChannelRange("mix_bg", -1f, 1f),
+            new ChannelRange("mix_bb", -1f, 1f),
             new ChannelRange("curve_strength", 0f, 1f),
             new ChannelRange("r_curve_strength", 0f, 1f),
             new ChannelRange("g_curve_strength", 0f, 1f),
@@ -468,7 +477,7 @@ public final class ScriptValidator {
                             checkRect(kf, kp, "source", issues);
                         }
 
-                        // ADJUST 关键帧：27 个标量通道的取值区间（不写 = 缺省 0 = 无效果——十条曲线强度缺省 1；写回 0 = 该项淡出）
+                        // ADJUST 关键帧：36 个标量通道的取值区间（不写 = 缺省 0 = 无效果——十条曲线强度缺省 1；写回 0 = 该项淡出）
                         if ("ADJUST".equalsIgnoreCase(type)) {
                             for (ChannelRange range : ADJUST_CHANNELS) {
                                 checkRange(kf, kp, range.field(), issues, range.min(), range.max());

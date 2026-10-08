@@ -177,11 +177,14 @@ public final class TrackSchemas {
     }
 
     /**
-     * ADJUST 轨道（画面颜色调整，0.3.6：master 标量组 + lane 级调整 + RGB 复合曲线 + 每通道曲线
-     * + 六条 hue 曲线）。
+     * ADJUST 轨道（画面颜色调整，0.3.6：master 标量组 + lane 级调整 + RGB 通道混合器 + RGB 复合曲线
+     * + 每通道曲线 + 六条 hue 曲线）。
      *
-     * <p>17 个标量通道全部是<b>关键帧字段</b>，缺省全 0 = 无效果
-     * （关键帧把通道写回 0 就是该项淡出，不需要 enabled 开关）。</p>
+     * <p>26 个标量通道全部是<b>关键帧字段</b>，缺省全 0 = 无效果
+     * （关键帧把通道写回 0 就是该项淡出，不需要 enabled 开关）。其中
+     * {@code mix_rr} ~ {@code mix_bb} 九个构成 <b>RGB 通道混合器</b>（PS 式 3×3 矩阵）：
+     * 实际矩阵 = 单位阵 + 参数矩阵（{@code out.r = (1+mix_rr)·r + mix_rg·g + mix_rb·b}，g / b 行同式），
+     * 九个全 0 = 单位阵 = 逐位恒等。</p>
      *
      * <p><b>clip 级字段 = 作用域 + 曲线</b>（不随时间变，故挂 clip）：
      * {@code scope}（{@code master} 缺省 / {@code lane}）与 {@code lane}（{@code scope=lane} 时的目标相机轨序号：
@@ -192,8 +195,8 @@ public final class TrackSchemas {
      * {@code [[x,y], ...]}（x 严格递增、各 0~1、≥2 点；结构字段，缺省 = 无曲线——与 CAMERA 轨同名的
      * {@code curve}（{@code bezier_curve}）按轨道类型分派，互不影响）。master = 作用于合成输出（最终显示画面）；
      * lane = 作用于该相机轨的画面，在该 lane 渲染完成之后、合成之前
-     * （见 {@code plans/0.3.6/screen-color-adjust.md} 步骤 5、「增量：RGB 复合曲线（形态 b）」、
-     * 「增量：每通道曲线（R / G / B）」与「增量：六条 hue 曲线」）。</p>
+     * （见 {@code plans/0.3.6/screen-color-adjust.md} 步骤 5、「增量：RGB 通道混合器」、
+     * 「增量：RGB 复合曲线（形态 b）」、「增量：每通道曲线（R / G / B）」与「增量：六条 hue 曲线」）。</p>
      *
      * <p>顺序 = 着色器操作栈顺序（{@code assets/minecraft/shaders/core/ic_color_adjust.fsh}）
      * = {@code ColorAdjustParams} 的分量顺序；区间由 {@code ScriptValidator} 校验。
@@ -236,6 +239,18 @@ public final class TrackSchemas {
         kfs.put("red", new FieldDef("float", 0f));            // -1 ~ 1（红通道乘性系数：-1 = 归零、-0.5 = 减半、+1 = 双倍）
         kfs.put("green", new FieldDef("float", 0f));          // -1 ~ 1（绿通道，同上）
         kfs.put("blue", new FieldDef("float", 0f));           // -1 ~ 1（蓝通道，同上）
+        // RGB 通道混合器（PS 式 3×3 矩阵；矩阵 = 单位阵 + 参数矩阵，缺省全 0 = 单位阵 = 无效果）
+        // 行 = 输出通道、列 = 输入通道：out.r = (1+mix_rr)·r + mix_rg·g + mix_rb·b，g / b 行同式。
+        // 操作栈位置：R/G/B 通道系数之后、复合曲线之前（故排在这里，与 fsh 栈顺序一致）
+        kfs.put("mix_rr", new FieldDef("float", 0f));         // -1 ~ 1（输出 R ← 输入 R 的额外系数，叠加在单位阵上）
+        kfs.put("mix_rg", new FieldDef("float", 0f));         // -1 ~ 1（输出 R ← 输入 G）
+        kfs.put("mix_rb", new FieldDef("float", 0f));         // -1 ~ 1（输出 R ← 输入 B）
+        kfs.put("mix_gr", new FieldDef("float", 0f));         // -1 ~ 1（输出 G ← 输入 R）
+        kfs.put("mix_gg", new FieldDef("float", 0f));         // -1 ~ 1（输出 G ← 输入 G）
+        kfs.put("mix_gb", new FieldDef("float", 0f));         // -1 ~ 1（输出 G ← 输入 B）
+        kfs.put("mix_br", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 R）
+        kfs.put("mix_bg", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 G）
+        kfs.put("mix_bb", new FieldDef("float", 0f));         // -1 ~ 1（输出 B ← 输入 B）
         // 曲线组（形态 b）：曲线混合强度（曲线本身是 clip 级字段 curve / r_curve / g_curve / b_curve）
         kfs.put("curve_strength", new FieldDef("float", 1f));   // 0 ~ 1（缺省 1 = 曲线全量生效；无曲线时忽略）
         kfs.put("r_curve_strength", new FieldDef("float", 1f)); // 0 ~ 1（R 每通道曲线，同上）

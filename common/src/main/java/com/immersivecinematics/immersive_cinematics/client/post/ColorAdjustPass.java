@@ -255,6 +255,15 @@ public final class ColorAdjustPass {
         set(shader, "Red", p.red());
         set(shader, "Green", p.green());
         set(shader, "Blue", p.blue());
+        set(shader, "MixRR", p.mixRR());
+        set(shader, "MixRG", p.mixRG());
+        set(shader, "MixRB", p.mixRB());
+        set(shader, "MixGR", p.mixGR());
+        set(shader, "MixGG", p.mixGG());
+        set(shader, "MixGB", p.mixGB());
+        set(shader, "MixBR", p.mixBR());
+        set(shader, "MixBG", p.mixBG());
+        set(shader, "MixBB", p.mixBB());
         set(shader, "CurveStrength", p.curveLut() == null ? 0.0F : p.curveStrength());
         set(shader, "RCurveStrength", p.rCurveLut() == null ? 0.0F : p.rCurveStrength());
         set(shader, "GCurveStrength", p.gCurveLut() == null ? 0.0F : p.gCurveStrength());

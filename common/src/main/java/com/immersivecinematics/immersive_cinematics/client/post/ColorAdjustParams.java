@@ -1,8 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.client.post;
 
 /**
- * master / lane 画面颜色调整的参数快照（第一批标量组 + R/G/B 通道系数 + 完整 HSL + RGB 复合曲线
- * + 每通道曲线 + 六条 hue 曲线）。
+ * master / lane 画面颜色调整的参数快照（第一批标量组 + R/G/B 通道系数 + RGB 通道混合器 + 完整 HSL
+ * + RGB 复合曲线 + 每通道曲线 + 六条 hue 曲线）。
  *
  * <p>分量顺序 = 着色器里的操作栈顺序（{@code assets/minecraft/shaders/core/ic_color_adjust.fsh}），
  * 也是 {@code AdjustTrackPlayer} 逐通道插值的顺序；除十条曲线 LUT 外的通道都是<b>关键帧字段</b>
@@ -10,7 +10,7 @@ package com.immersivecinematics.immersive_cinematics.client.post;
  * {@code script/schema/TrackSchemas.adjust()}）。</p>
  *
  * <h2>口径：全部为「0 = 无效果」的增量（曲线强度除外）</h2>
- * 17 个标量通道的缺省值都是 {@code 0}，{@link #IDENTITY} = 全部缺省 = 画面不变
+ * 26 个标量通道的缺省值都是 {@code 0}，{@link #IDENTITY} = 全部缺省 = 画面不变
  * （渲染侧连 pass 都不开，见 {@link ColorAdjustPass}）。所以：
  * <ul>
  *   <li>HSL 组（{@code hue / saturation / vibrance / lightness}）在同一块里换算，顺序
@@ -19,6 +19,11 @@ package com.immersivecinematics.immersive_cinematics.client.post;
  *       {@code = -1} 全黑（四个值全 0 且六条 hue 曲线都不生效时整块跳过，逐位恒等）；</li>
  *   <li>{@code red / green / blue} 是逐通道乘性系数（实际增益 = {@code 1 + 值}：
  *       {@code -1} = 该通道归零、{@code -0.5} = 减半、{@code +1} = 双倍）；</li>
+ *   <li>{@code mixRR} ~ {@code mixBB} 是 <b>RGB 通道混合器</b>（PS 式 3×3 矩阵）：实际矩阵 =
+ *       单位阵 + 参数矩阵，行 = 输出通道、列 = 输入通道 ——
+ *       {@code out.r = (1+mixRR)·r + mixRG·g + mixRB·b}，g / b 行同式
+ *       （例：{@code mixRR = -1} 把红通道归零、{@code mixRG = 1} 把绿并进红）；
+ *       九个全 0 = 单位阵 = 逐位恒等（跳过整个矩阵乘法）；</li>
  *   <li>{@code grayscale / invert} 本身就是 0~1 的混合强度；</li>
  *   <li>关键帧把某通道写回 0 即「该工具淡出」，不需要额外的 enabled 开关。</li>
  * </ul>
@@ -35,7 +40,7 @@ package com.immersivecinematics.immersive_cinematics.client.post;
  *       = 各自曲线的混合强度（{@code c = mix(c, lut(c), strength)}，0~1），<b>缺省 1</b>——写了曲线就是
  *       全量生效，关键帧把强度写回 0 即「曲线淡出」；</li>
  *   <li>没有对应曲线（LUT 为 {@code null}）时该强度被忽略、那一步不生效；</li>
- *   <li>操作栈位置：复合曲线在前（RGB 通道系数之后），每通道曲线紧随其后（HSL 块之前）——
+ *   <li>操作栈位置：复合曲线在前（RGB 通道系数 / 通道混合器之后），每通道曲线紧随其后（HSL 块之前）——
  *       每通道曲线看到的是复合曲线处理后的值。</li>
  * </ul>
  *
@@ -80,6 +85,15 @@ public record ColorAdjustParams(
         float red,
         float green,
         float blue,
+        float mixRR,
+        float mixRG,
+        float mixRB,
+        float mixGR,
+        float mixGG,
+        float mixGB,
+        float mixBR,
+        float mixBG,
+        float mixBB,
         float[] curveLut,
         float[] rCurveLut,
         float[] gCurveLut,
@@ -106,13 +120,15 @@ public record ColorAdjustParams(
     /** 恒等参数（全部缺省）：画面逐位不变。 */
     public static final ColorAdjustParams IDENTITY =
             new ColorAdjustParams(0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
-                    0.0F, 0.0F, 0.0F, 0.0F, 0.0F, null, null, null, null,
+                    0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
+                    0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
+                    null, null, null, null,
                     0.0F, 0.0F, 0.0F, 0.0F,
                     null, null, null, null, null, null,
                     0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F);
 
     /**
-     * 是否恒等：17 个标量通道全为缺省 0 <b>且</b>十条曲线都「不存在或强度为 0」。
+     * 是否恒等：26 个标量通道全为缺省 0 <b>且</b>十条曲线都「不存在或强度为 0」。
      * <p>恒等 = 不产生任何画面差异（渲染侧第一行就返回）。</p>
      */
     public boolean isIdentity() {
@@ -121,6 +137,9 @@ public record ColorAdjustParams(
                 && vibrance == 0.0F && lightness == 0.0F
                 && temperature == 0.0F && tint == 0.0F
                 && red == 0.0F && green == 0.0F && blue == 0.0F
+                && mixRR == 0.0F && mixRG == 0.0F && mixRB == 0.0F
+                && mixGR == 0.0F && mixGG == 0.0F && mixGB == 0.0F
+                && mixBR == 0.0F && mixBG == 0.0F && mixBB == 0.0F
                 && (curveLut == null || curveStrength == 0.0F)
                 && (rCurveLut == null || rCurveStrength == 0.0F)
                 && (gCurveLut == null || gCurveStrength == 0.0F)

@@ -5,13 +5,14 @@
 //
 // 操作栈顺序固定（与 plans/0.3.6/screen-color-adjust.md §3 一致，非破坏、不可调）：
 //   1. 曝光      2. 对比度     3. 高光 / 阴影   4. 白场 / 黑场
-//   5. 色温 / 色调  6. RGB 通道系数  7. RGB 复合曲线（CurveLut 查表）
-//   8. 每通道曲线（RCurveLut / GCurveLut / BCurveLut 查表）
-//   9. 色相旋转   10. 饱和度   11. 自然饱和度   12. 亮度
-//  13. 六条 hue 曲线（HvH → HvS → HvL → LvS → SvS → SvL；HSL 块内，见下）
-//  14. 灰度      15. 反相
+//   5. 色温 / 色调  6. RGB 通道系数  7. RGB 通道混合器（3×3 矩阵，单位阵 + 参数矩阵）
+//   8. RGB 复合曲线（CurveLut 查表）
+//   9. 每通道曲线（RCurveLut / GCurveLut / BCurveLut 查表）
+//  10. 色相旋转   11. 饱和度   12. 自然饱和度   13. 亮度
+//  14. 六条 hue 曲线（HvH → HvS → HvL → LvS → SvS → SvL；HSL 块内，见下）
+//  15. 灰度      16. 反相
 //
-// 六条 hue 曲线（DaVinci 曲线页口径；步骤 9 ~ 13 共用一个 HSL 块、一次 rgb2hsl 换算）：
+// 六条 hue 曲线（DaVinci 曲线页口径；步骤 10 ~ 14 共用一个 HSL 块、一次 rgb2hsl 换算）：
 //   键取「进入该块时」的 h0 / s0 / l0（不受标量 HSL 改动影响），每条各自按强度 mix 混合：
 //     HvH  h = mix(h, HvH(h0), st)   HvS  s = mix(s, HvS(h0), st)   HvL  l = mix(l, HvL(h0), st)
 //     LvS  s = mix(s, LvS(l0), st)   SvS  s = mix(s, SvS(s0), st)   SvL  l = mix(l, SvL(s0), st)
@@ -33,6 +34,9 @@
 //   Red          -1 ~ 1   R 通道乘性系数（增益 = 1 + 值：-1 = 归零、-0.5 = 减半、+1 = 双倍）
 //   Green        -1 ~ 1   G 通道，同上
 //   Blue         -1 ~ 1   B 通道，同上
+//   MixRR ~ MixBB  -1 ~ 1  RGB 通道混合器（PS 式 3×3 矩阵；行 = 输出通道、列 = 输入通道）：
+//                         实际矩阵 = 单位阵 + 参数矩阵，out.r = (1+MixRR)·r + MixRG·g + MixRB·b
+//                         （g / b 行同式）；九个全 0 = 单位阵 = 跳过乘法（逐位恒等）
 //   CurveStrength 0 ~ 1   RGB 复合曲线的混合强度（c = mix(c, lut(c), 强度)）；曲线本身在 CurveLut
 //                         （256×1，CPU 侧 Fritsch–Carlson 采样；无曲线时绑恒等 LUT，强度置 0 = 整步跳过）
 //   RCurveStrength / GCurveStrength / BCurveStrength
@@ -83,6 +87,15 @@ uniform float Tint;
 uniform float Red;
 uniform float Green;
 uniform float Blue;
+uniform float MixRR;
+uniform float MixRG;
+uniform float MixRB;
+uniform float MixGR;
+uniform float MixGG;
+uniform float MixGB;
+uniform float MixBR;
+uniform float MixBG;
+uniform float MixBB;
 uniform float CurveStrength;
 uniform float RCurveStrength;
 uniform float GCurveStrength;
@@ -194,14 +207,25 @@ void main() {
         c *= vec3(1.0 + Red, 1.0 + Green, 1.0 + Blue);
     }
 
-    // 7. RGB 复合曲线（曲线组形态 b：曲线定义一次 = CurveLut，关键帧只控 CurveStrength 混合强度）
+    // 7. RGB 通道混合器：PS 式 3×3 矩阵（实际矩阵 = 单位阵 + 参数矩阵；行 = 输出通道、列 = 输入通道）
+    //    out.r = (1+MixRR)·r + MixRG·g + MixRB·b，g / b 行同式；九个参数全 0 = 单位阵，跳过乘法（逐位恒等）
+    //    结果仍受下方 [0,1] 钳制管辖（与通道系数 / 曲线同段，HSL 输入有界）
+    if (MixRR != 0.0 || MixRG != 0.0 || MixRB != 0.0
+            || MixGR != 0.0 || MixGG != 0.0 || MixGB != 0.0
+            || MixBR != 0.0 || MixBG != 0.0 || MixBB != 0.0) {
+        c = vec3((1.0 + MixRR) * c.r + MixRG * c.g + MixRB * c.b,
+                 MixGR * c.r + (1.0 + MixGG) * c.g + MixGB * c.b,
+                 MixBR * c.r + MixBG * c.g + (1.0 + MixBB) * c.b);
+    }
+
+    // 8. RGB 复合曲线（曲线组形态 b：曲线定义一次 = CurveLut，关键帧只控 CurveStrength 混合强度）
     //    逐通道查表 → 按强度混合；无曲线 / 曲线淡出（CurveStrength = 0）时整步跳过（逐位恒等）
     if (CurveStrength > 0.0) {
         c = mix(c, vec3(lutLookup(CurveLut, c.r), lutLookup(CurveLut, c.g), lutLookup(CurveLut, c.b)),
                 clamp(CurveStrength, 0.0, 1.0));
     }
 
-    // 8. 每通道曲线（曲线组形态 b：R / G / B 各一条 = RCurveLut / GCurveLut / BCurveLut，关键帧只控各自强度）
+    // 9. 每通道曲线（曲线组形态 b：R / G / B 各一条 = RCurveLut / GCurveLut / BCurveLut，关键帧只控各自强度）
     //    逐通道查表 → 按强度混合；该通道没有曲线 / 淡出（强度 = 0）时跳过（逐位恒等）；
     //    三条各自只写自己的分量，互不干扰（r 曲线不改 g / b）
     if (RCurveStrength > 0.0) {
@@ -214,10 +238,11 @@ void main() {
         c.b = mix(c.b, lutLookup(BCurveLut, c.b), clamp(BCurveStrength, 0.0, 1.0));
     }
 
-    // 后续按 HSL / 亮度混合，先收敛到 [0,1]（曲线输出由控制点限定在 [0,1] 内，此处一并兜底）
+    // 后续按 HSL / 亮度混合，先收敛到 [0,1]（覆盖步骤 1 ~ 9：曝光 / 对比度 / 高光阴影 / 白黑场 /
+    // 色温色调 / 通道系数 / 通道混合器 / 四条曲线；曲线输出由控制点限定在 [0,1] 内，此处一并兜底）
     c = clamp(c, 0.0, 1.0);
 
-    // 9 ~ 13. 完整 HSL：色相旋转 → 饱和度 / 自然饱和度 → 亮度 → 六条 hue 曲线
+    // 10 ~ 14. 完整 HSL：色相旋转 → 饱和度 / 自然饱和度 → 亮度 → 六条 hue 曲线
     //    四个 HSL 通道全 0 且六条曲线都不生效时跳过换算（保持逐位恒等）
     if (Hue != 0.0 || Saturation != 0.0 || Vibrance != 0.0 || Lightness != 0.0
             || HvHStrength > 0.0 || HvSStrength > 0.0 || HvLStrength > 0.0
@@ -258,12 +283,12 @@ void main() {
         c = hsl2rgb(vec3(h, s, l));
     }
 
-    // 14. 灰度：按亮度混合
+    // 15. 灰度：按亮度混合
     if (Grayscale != 0.0) {
         c = mix(c, vec3(luma(c)), clamp(Grayscale, 0.0, 1.0));
     }
 
-    // 15. 反相：按强度混合
+    // 16. 反相：按强度混合
     if (Invert != 0.0) {
         c = mix(c, 1.0 - c, clamp(Invert, 0.0, 1.0));
     }
