@@ -103,6 +103,14 @@ import java.nio.FloatBuffer;
  * 无调整时 {@link #render} 第一行返回；{@link #applyTo} 参数为空 / 恒等时第一行返回：
  * 不取着色器、不建中转缓冲、不切任何 GL 状态、不画任何东西。
  * 着色器是首次真正需要时才编译的（不用不编译），资源重载后重建。
+ *
+ * <h2>层级混合（混合模式作用于调整层）</h2>
+ * 操作栈全部步骤（曝光 ~ 反相）之后、输出之前，着色器再做一步<b>层级混合</b>：把调整层输出
+ * （{@code c_adj}）与基画面（{@code Sampler0} 原图 {@code c_base}）按 {@code BlendMode}
+ * （枚举编码 0 ~ 4）与 {@code BlendAmount}（0 ~ 1）混合——
+ * {@code c = mix(c_base, blend(c_base, c_adj, mode), clamp(BlendAmount, 0, 1))}。
+ * 缺省 {@code normal} + {@code 1} = 直替换 = 与混合功能落地前逐位一致（渲染侧该步整段跳过）；
+ * 两个 uniform 只由 <b>ADJUST 轨（master）</b>取值，lane 路径恒为缺省。
  */
 public final class ColorAdjustPass {
 
@@ -359,6 +367,11 @@ public final class ColorAdjustPass {
         set(shader, "SatMagenta", p.satMagenta());
         set(shader, "Grayscale", p.grayscale());
         set(shader, "Invert", p.invert());
+        // 层级混合（第 20 步 = 全部操作栈步骤之后整体施加；只属 ADJUST 轨，lane 路径恒为 normal + 1）：
+        // BlendMode = 枚举编码 0 ~ 4（normal / multiply / screen / soft_light / overlay），
+        // BlendAmount = 混合强度 0 ~ 1（缺省 1 = 全量生效；着色器内 clamp）
+        set(shader, "BlendMode", p.blendMode());
+        set(shader, "BlendAmount", p.blendAmount());
     }
 
     /** 某一步实际要绑的 LUT：有曲线且强度非 0 → 曲线自己的 LUT，否则恒等 LUT（{@code y = x}）。 */

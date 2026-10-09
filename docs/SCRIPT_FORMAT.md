@@ -641,7 +641,7 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 对**合成后的最终画面**（master 层，架构图 RADJ 节点）做颜色调整——在 lane 合成之后、GUI 之前作用于整屏画面。**单条相机轨画面的调色不写在这里**：调色直接写在 CAMERA 片段上（见 §4「相机片段调色」），作用于该相机轨产出的 lane（lane 渲染完成、合成之前）。
 
 - **不影响 GUI**：字幕 / 黑边 / 跳过提示由 GUI 阶段绘制，调色不作用于它们（挂点在世界渲染阶段，早于 GUI）。
-- **本版本 = 47 个标量通道**（12 标量 + R/G/B 每通道系数 + **RGB 通道混合器（`mix_rr` ~ `mix_bb` 九个）** + 完整 HSL 的 `hue` / `lightness` + **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个）** + **PS 式六色带微调（`hue_red` / `sat_red` ~ `hue_magenta` / `sat_magenta` 十二个）**）**+ RGB 复合曲线 + 每通道曲线（R / G / B 各一条）+ 六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）**（曲线组形态 b：曲线定义一次 + 各自的强度关键帧控混合强度）**+ 整体画面 LUT（clip 级 `lut` / `lut_input_gamma` + 关键帧 `lut_strength`，作用于整个世界画面；相机片段上写 `lut` / `lut_strength` 会被 validator 拦下）**。「调整层」（作用于其下所有层）是后续批次（见 `plans/0.3.6/screen-color-adjust.md` §3 / §7）。
+- **本版本 = 47 个标量通道**（12 标量 + R/G/B 每通道系数 + **RGB 通道混合器（`mix_rr` ~ `mix_bb` 九个）** + 完整 HSL 的 `hue` / `lightness` + **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个）** + **PS 式六色带微调（`hue_red` / `sat_red` ~ `hue_magenta` / `sat_magenta` 十二个）**）**+ RGB 复合曲线 + 每通道曲线（R / G / B 各一条）+ 六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）**（曲线组形态 b：曲线定义一次 + 各自的强度关键帧控混合强度）**+ 整体画面 LUT（clip 级 `lut` / `lut_input_gamma` + 关键帧 `lut_strength`，作用于整个世界画面；相机片段上写 `lut` / `lut_strength` 会被 validator 拦下）+ 层级混合（clip 级 `blend_mode` + 关键帧 `blend_amount`：调整层输出与基画面按混合模式整体混合，见下方「层级混合」）**。「调整层」（作用于其下所有层）由本轨承担——**调整层 = ADJUST 轨**（管整幅画面），无独立新层。
 - **支持多条 ADJUST 轨道**：同一时刻以**后面的轨道**为准（轨道层级靠后的覆盖靠前的）。
 
 ### 执行顺序与 alpha 契约
@@ -676,8 +676,9 @@ lane 渲染（含 lane 内发光描边）
 | `sv_l_curve` | array | 否 | — | **SvL 曲线**：以 **饱和度** 为键、输出 **亮度**（低饱和 / 高饱和分区调明暗） |
 | `lut` | string | 否 | — | **整体画面 LUT**（master 级）：`resource/` 目录下的 `.cube` **文件名**（非空、不含路径分隔符 / 盘符，如 `"Teal and Orange.cube"`）；不写 = 无 LUT。**只写在 ADJUST 轨**——相机片段上写 `lut` 会被 validator 拦下（LUT 作用于整个世界画面，见下方「LUT（`lut` / `lut_input_gamma` / `lut_strength`）」） |
 | `lut_input_gamma` | float | 否 | `1.0` | **LUT 输入域适配**：查表前 `v = pow(clamp(c, 0, 1), gamma)`（**必须 > 0**）；给现成 LUT（为别的素材调的）套上后整体偏亮 / 偏色时用来纠偏，自制（从游戏帧调的）LUT 保持缺省 `1.0`；**`lut` 为空时忽略** |
+| `blend_mode` | string | 否 | `"normal"` | **层级混合的混合模式**（混合模式作用于调整层）：`normal`（直替换，= 不写）/ `multiply` / `screen` / `soft_light` / `overlay`——把**调整层输出**（调色操作栈全部步骤算出的颜色）与**基画面**（原图）按该模式整体混合，强度由关键帧 `blend_amount` 控制。**只写在 ADJUST 轨**——相机片段上写 `blend_mode` 会被 validator 拦下（见下方「层级混合（`blend_mode` / `blend_amount`）」） |
 
-> 十条曲线与 `lut` / `lut_input_gamma` 都是 clip 级字段（不随时间变，故不挂关键帧）；47 个标量通道、十条曲线强度（`curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength` / `hv_h_strength` ~ `sv_l_strength`）与 LUT 混合强度 `lut_strength` 全部写在关键帧上（与 letterbox/EVENT/AUDIO/OVERLAY 同一套「统一关键帧级调控」规则）。
+> 十条曲线、`lut` / `lut_input_gamma` 与 `blend_mode` 都是 clip 级字段（不随时间变，故不挂关键帧）；47 个标量通道、十条曲线强度（`curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength` / `hv_h_strength` ~ `sv_l_strength`）、LUT 混合强度 `lut_strength` 与层级混合强度 `blend_amount` 全部写在关键帧上（与 letterbox/EVENT/AUDIO/OVERLAY 同一套「统一关键帧级调控」规则）。
 
 ### 曲线（`rgb_curve` / `r_curve` / `g_curve` / `b_curve` / `hv_h_curve` ~ `sv_l_curve`）— 复合曲线 + 每通道曲线 + 六条 hue 曲线（形态 b）
 
@@ -809,9 +810,10 @@ PS「色相 / 饱和度」的六色带形态：色相环固定分成六条带，
 | `sat_magenta` | float | `0` | -1 ~ 1 | **六色带：品红带饱和度增量**，口径同 `sat_red` |
 | `grayscale` | float | `0` | 0 ~ 1 | 灰度强度：`1` = 完全黑白（按 Rec.709 亮度），`0.5` = 半黑白 |
 | `invert` | float | `0` | 0 ~ 1 | 反相强度：`1` = 完全反相，`0.5` = 半反相 |
+| `blend_amount` | float | `1` | 0 ~ 1 | **层级混合强度**（clip 级 `blend_mode` 存在时生效）：`1` = 调整层全量（缺省）、`0.5` = 一半、`0` = **调整层整体透明**（输出 = 基画面 = 画面逐位不变）；可随时间淡入淡出。**只写在 ADJUST 轨**——相机片段关键帧上写 `blend_amount` 会被 validator 拦下 |
 
 **操作顺序固定**（同一关键帧里多个通道同时生效时按此顺序计算，不可调）：
-曝光 → 对比度 → 高光/阴影 → 白场/黑场 → 色温/色调 → R/G/B 通道系数 → **RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）** → **RGB 复合曲线（`rgb_curve`）** → **每通道曲线（`r_curve` / `g_curve` / `b_curve`）** → **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b`）** → **整体画面 LUT（`lut` + `lut_strength`）** → 色相旋转 → 饱和度 → 自然饱和度 → 亮度 → **六条 hue 曲线（`hv_h_curve` → `hv_s_curve` → `hv_l_curve` → `lv_s_curve` → `sv_s_curve` → `sv_l_curve`）** → **PS 式六色带微调（`hue_red` / `sat_red` → … → `hue_magenta` / `sat_magenta`）** → 灰度 → 反相。
+曝光 → 对比度 → 高光/阴影 → 白场/黑场 → 色温/色调 → R/G/B 通道系数 → **RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）** → **RGB 复合曲线（`rgb_curve`）** → **每通道曲线（`r_curve` / `g_curve` / `b_curve`）** → **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b`）** → **整体画面 LUT（`lut` + `lut_strength`）** → 色相旋转 → 饱和度 → 自然饱和度 → 亮度 → **六条 hue 曲线（`hv_h_curve` → `hv_s_curve` → `hv_l_curve` → `lv_s_curve` → `sv_s_curve` → `sv_l_curve`）** → **PS 式六色带微调（`hue_red` / `sat_red` → … → `hue_magenta` / `sat_magenta`）** → 灰度 → 反相 → **层级混合（`blend_mode` + `blend_amount`：调整层输出 vs 基画面，全部步骤之后整体施加）**。
 
 > **通道混合器是 3×3 矩阵**：实际矩阵 = **单位阵 + 参数矩阵**（所以九个全 0 = 单位阵 = 无效果）。
 > 行 = 输出通道、列 = 输入通道：`out.r = (1+mix_rr)·r + mix_rg·g + mix_rb·b`，g / b 行同式
@@ -936,6 +938,47 @@ Gain（高光）    c' = c·(1 + gain)                  正 = 乘性提亮、负
 ```
 
 > 上面这条：整幅画面从无到有套上 Teal and Orange（2 秒淡入），保持 4 秒后淡出——`lut_strength` 全程线性插值，写回 `0` 即 LUT 淡出。
+
+### 层级混合（`blend_mode` / `blend_amount`）— 混合模式作用于调整层
+
+PS「调整图层 + 图层混合模式」的运行时形态：把**调整层的输出**（调色操作栈全部步骤算出的颜色）与**基画面**（处理前的原图）按**混合模式**整体混合。**不是操作栈步骤**，而是层级语义（调整层 vs 底下的画面）——所以它排在全部步骤之后（第 20 步），看到的是「处理后的整幅画面」与「处理前的整幅画面」。
+
+- **字段**：clip 级 `blend_mode`（string，缺省 `"normal"`）+ 关键帧 `blend_amount`（0 ~ 1，缺省 `1`，可随时间淡入淡出）。
+- **口径（逐通道 RGB、均 0~1）**：`c = mix(基画面, blend(基画面, 调整层输出, 模式), blend_amount)`：
+
+  | `blend_mode` | 公式（`a` = 基画面、`b` = 调整层输出） |
+  |---|---|
+  | `normal` | `b`（直替换 = 现状；不写 `blend_mode` 就是这个） |
+  | `multiply` | `a·b`（相乘 → 压暗） |
+  | `screen` | `1 - (1-a)·(1-b)`（反相相乘 → 提亮） |
+  | `soft_light` | `a ≤ 0.5 ? b - (1-2a)·b·(1-b) : b + (2a-1)·(d(b)-b)`，`d(b) = b ≤ 0.25 ? ((16b-12)·b+4)·b : sqrt(b)`（柔光） |
+  | `overlay` | `a ≤ 0.5 ? 2ab : 1 - 2(1-a)(1-b)`（叠加：基画面暗处走 multiply、亮处走 screen） |
+
+- **`blend_amount`**：`1` = 调整层全量（缺省）、`0.5` = 一半（调整层半透明）、`0` = **调整层整体透明**（输出 = 基画面，画面逐位不变）。做「风格渐入 / 渐出」就把它打关键帧。
+- **零差异**：不写 `blend_mode`（= `normal`）+ `blend_amount` 缺省 `1` → 混合步骤整段跳过，画面与不带混合功能时**逐字节一致**。
+- **只写在 ADJUST 轨**：混合模式作用于调整层（= ADJUST 轨）；相机片段上写 `blend_mode` / `blend_amount` 不生效，会被 validator 直接拦下。
+- **只动 RGB**：`alpha` 逐位直通，透明度仍只在合成层由 `opacity` 调控。
+
+```json
+{
+  "type": "ADJUST",
+  "clips": [
+    {
+      "start_time": 0,
+      "duration": 8,
+      "blend_mode": "multiply",
+      "keyframes": [
+        { "time": 0, "saturation": 0.4, "blend_amount": 0 },
+        { "time": 2, "saturation": 0.4, "blend_amount": 1 },
+        { "time": 6, "saturation": 0.4, "blend_amount": 1 },
+        { "time": 8, "saturation": 0.4, "blend_amount": 0 }
+      ]
+    }
+  ]
+}
+```
+
+> 上面这条：提饱和后的画面以 `multiply` 压在原画上（整体压暗、颜色更浓），2 秒渐入、保持 4 秒、2 秒渐出——`blend_amount` 全程线性插值，写回 `0` 即调整层整体淡出（画面回到原样）。
 
 ### 示例：从正常画面逐步偏暖、黑白化
 

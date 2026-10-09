@@ -86,6 +86,8 @@
         { "name": "HueMagenta", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "SatMagenta", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "Grayscale", "type": "float", "count": 1, "values": [ 0.0 ] },
-        { "name": "Invert", "type": "float", "count": 1, "values": [ 0.0 ] }
+        { "name": "Invert", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "BlendMode", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "BlendAmount", "type": "float", "count": 1, "values": [ 1.0 ] }
     ]
 }

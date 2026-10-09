@@ -36,12 +36,22 @@ public final class ScriptValidator {
             "hv_h_curve", "hv_s_curve", "hv_l_curve", "lv_s_curve", "sv_s_curve", "sv_l_curve"};
 
     /**
+     * 层级混合模式（clip 级 {@code blend_mode} 的合法值；顺序 = shader 的 {@code BlendMode} uniform
+     * 编码 {@code 0 ~ 4}，与 {@code client/post/ColorAdjustParams} 的 {@code BLEND_*} 常量一一对应）。
+     * <p>缺省 {@code normal} = 直替换 = 现状；混合模式作用于调整层（= ADJUST 轨）的输出与基画面，
+     * 只写在 ADJUST 轨（master）的片段上——相机片段上写会被拦下（同 {@code lut} 口径）。</p>
+     */
+    private static final String[] BLEND_MODES =
+            {"normal", "multiply", "screen", "soft_light", "overlay"};
+
+    /**
      * 调色关键帧标量通道 → 合法区间（顺序与
      * {@code TrackSchemas.adjust()} / {@code ColorAdjustParams} / {@code ic_color_adjust.fsh} 一致）。
      * <p>0.3.6 起 ADJUST 轨与 CAMERA 片段共用同一套通道（见 {@link #checkAdjustFields}）。</p>
      * <p>标量通道缺省 0 = 无效果（{@code curve_strength} / {@code r_curve_strength} / {@code g_curve_strength} /
      * {@code b_curve_strength} 与六条 hue 曲线的强度 {@code hv_h_strength} ~ {@code sv_l_strength}
-     * 例外：缺省 1 = 曲线全量生效）。</p>
+     * 例外：缺省 1 = 曲线全量生效）。层级混合的 {@code blend_amount}（0 ~ 1，缺省 1）不在这里——
+     * 它与 clip 级 {@code blend_mode} 一起由 {@link #checkBlendFields} 校验（ADJUST 轨专用）。</p>
      */
     private static final List<ChannelRange> ADJUST_CHANNELS = List.of(
             new ChannelRange("exposure", -5f, 5f),
@@ -313,6 +323,11 @@ public final class ScriptValidator {
                         issues.add(cp + ".lut_input_gamma 不支持（LUT 输入域适配只随 ADJUST 轨的 lut 一起写在片段上）："
                                 + "相机片段请删掉该字段，或把 lut / lut_input_gamma 移到 ADJUST 轨");
                     }
+                    // 混合模式作用于调整层（= ADJUST 轨）的输出与基画面：相机片段（lane 级）不参与，直接拦下
+                    if (clip.has("blend_mode")) {
+                        issues.add(cp + ".blend_mode 不支持（混合模式作用于调整层 = ADJUST 轨的输出与基画面，"
+                                + "只写在 ADJUST 轨的片段上）：相机片段请删掉该字段，或把 blend_mode 移到 ADJUST 轨");
+                    }
                 }
                 if ("OVERLAY".equalsIgnoreCase(type)) {
                     checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle");
@@ -332,6 +347,8 @@ public final class ScriptValidator {
                     checkAdjustFields(clip, cp, null, null, issues);
                     // LUT（整体画面烘焙）：clip 级 lut 文件名 + 关键帧级 lut_strength——只在 ADJUST 轨
                     checkLutFields(clip, cp, null, null, issues);
+                    // 层级混合（混合模式作用于调整层）：clip 级 blend_mode 枚举——只在 ADJUST 轨
+                    checkBlendFields(clip, cp, null, null, issues);
                 }
                 // ===== 循环参数校验（CAMERA）=====
                 if ("CAMERA".equalsIgnoreCase(type)) {
@@ -459,13 +476,19 @@ public final class ScriptValidator {
                                 issues.add(kp + ".lut_input_gamma 不支持（LUT 输入域适配只随 ADJUST 轨的 lut 一起写在片段上）："
                                         + "相机片段请删掉该字段，或把 lut / lut_input_gamma 移到 ADJUST 轨");
                             }
+                            // 混合模式 / 强度是调整层（= ADJUST 轨）的层级混合参数：相机片段关键帧同样拦下
+                            if (kf.has("blend_amount")) {
+                                issues.add(kp + ".blend_amount 不支持（混合强度只随 ADJUST 轨的 blend_mode 一起写在关键帧上）："
+                                        + "相机片段请删掉该字段，或把 blend_mode / blend_amount 移到 ADJUST 轨");
+                            }
                         }
 
                         // ADJUST 关键帧：47 个标量通道的取值区间（不写 = 缺省 0 = 无效果——十条曲线强度缺省 1；写回 0 = 该项淡出）
-                        // + LUT 混合强度 lut_strength（0~1，缺省 1）
+                        // + LUT 混合强度 lut_strength（0~1，缺省 1）+ 层级混合强度 blend_amount（0~1，缺省 1）
                         if ("ADJUST".equalsIgnoreCase(type)) {
                             checkAdjustFields(null, null, kf, kp, issues);
                             checkLutFields(null, null, kf, kp, issues);
+                            checkBlendFields(null, null, kf, kp, issues);
                         }
                     }
                 }
@@ -551,6 +574,48 @@ public final class ScriptValidator {
         if (kf != null) {
             checkRange(kf, kp, "lut_strength", issues, 0f, 1f);
         }
+    }
+
+    /**
+     * 校验层级混合字段（<b>ADJUST 轨专用</b>：混合模式作用于<b>调整层</b>（= ADJUST 轨）的输出与
+     * 基画面（{@code Sampler0} 原图）的层级混合，逐 lane / 相机片段不参与）：
+     * <ul>
+     *   <li>clip 级 {@code blend_mode}：枚举 {@code normal} / {@code multiply} / {@code screen} /
+     *       {@code soft_light} / {@code overlay}（缺省 {@code normal} = 直替换 = 现状，
+     *       见 {@link #checkBlendMode}）；</li>
+     *   <li>关键帧级 {@code blend_amount}：混合强度 0 ~ 1（缺省 1 = 全量生效，写回 0 = 调整层整体透明）。</li>
+     * </ul>
+     * <p>{@code clip} / {@code kf} 的用法同 {@link #checkAdjustFields}（另一侧传 {@code null}）。</p>
+     */
+    private static void checkBlendFields(JsonObject clip, String cp, JsonObject kf, String kp,
+                                         List<String> issues) {
+        if (clip != null && clip.has("blend_mode")) {
+            checkBlendMode(clip.get("blend_mode"), cp + ".blend_mode", issues);
+        }
+        if (kf != null) {
+            checkRange(kf, kp, "blend_amount", issues, 0f, 1f);
+        }
+    }
+
+    /**
+     * 校验 clip 级 {@code blend_mode}（混合模式）：字符串、合法值 = {@code normal} / {@code multiply} /
+     * {@code screen} / {@code soft_light} / {@code overlay}（缺省 {@code normal} = 直替换 = 现状）。
+     * <p>与 {@code ScriptParser#parseBlendMode} 同一口径——校验拦下的写法解析期也会拒绝。
+     * 字段缺省时跳过（缺省 {@code normal} 生效）。</p>
+     */
+    private static void checkBlendMode(JsonElement e, String path, List<String> issues) {
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
+            issues.add(path + " 需要字符串（normal / multiply / screen / soft_light / overlay；缺省 normal）");
+            return;
+        }
+        String mode = e.getAsString();
+        for (String allowed : BLEND_MODES) {
+            if (allowed.equals(mode)) {
+                return;
+            }
+        }
+        issues.add(path + " 未知值: " + mode + "（可选: "
+                + String.join(" / ", BLEND_MODES) + "）");
     }
 
     /**

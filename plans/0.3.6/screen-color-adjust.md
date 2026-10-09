@@ -11,7 +11,7 @@
 > - [并行播放](./parallel-playback.md)
 > - [LUT 工作流（创作者向）](../docs/LUT_WORKFLOW.md)
 >
-> **状态：第一批「标量组」（15 通道 = 12 标量 + R/G/B 每通道系数）已落地（2026-10-07）；lane 级调色（§7 步骤 5）已落地——调色直接写在 CAMERA 片段上（相机片段自带调色，作用于该相机轨产出的 lane；ADJUST 轨只作用于整体画面）；完整 HSL（`hue` / `lightness`）已落地（2026-10-07）→ 共 17 通道；曲线组（形态 b）已落地（2026-10-08）——RGB 复合曲线（clip 级 `rgb_curve` + 关键帧 `curve_strength`）、每通道曲线（clip 级 `r_curve` / `g_curve` / `b_curve` + 三个强度关键帧）与六条 hue 曲线（clip 级 `hv_h_curve` ~ `sv_l_curve` + 六个强度关键帧，DaVinci 曲线页口径）；RGB 通道混合器（`mix_rr` ~ `mix_bb` 九个 3×3 矩阵系数）已落地（2026-10-08）→ 共 26 个标量通道；Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个逐通道色轮参数）已落地（2026-10-08）→ 共 35 个标量通道**。**第二批（通道与 HSL 完整）全部落地**；**第三批的 LUT 已落地（2026-10-08）**——clip 级 `lut` / `lut_input_gamma` + 关键帧 `lut_strength`（整体画面烘焙，见「增量：LUT」）；**第三批的 PS 式六色带微调也已落地（2026-10-09）**——关键帧 `hue_red` / `sat_red` ~ `hue_magenta` / `sat_magenta` 十二个分色带通道（见「增量：PS 式六色带微调」）→ 共 47 个标量通道；第三批只剩混合模式；调整层（步骤 6）、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
+> **状态：第一批「标量组」（15 通道 = 12 标量 + R/G/B 每通道系数）已落地（2026-10-07）；lane 级调色（§7 步骤 5）已落地——调色直接写在 CAMERA 片段上（相机片段自带调色，作用于该相机轨产出的 lane；ADJUST 轨只作用于整体画面）；完整 HSL（`hue` / `lightness`）已落地（2026-10-07）→ 共 17 通道；曲线组（形态 b）已落地（2026-10-08）——RGB 复合曲线（clip 级 `rgb_curve` + 关键帧 `curve_strength`）、每通道曲线（clip 级 `r_curve` / `g_curve` / `b_curve` + 三个强度关键帧）与六条 hue 曲线（clip 级 `hv_h_curve` ~ `sv_l_curve` + 六个强度关键帧，DaVinci 曲线页口径）；RGB 通道混合器（`mix_rr` ~ `mix_bb` 九个 3×3 矩阵系数）已落地（2026-10-08）→ 共 26 个标量通道；Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个逐通道色轮参数）已落地（2026-10-08）→ 共 35 个标量通道**。**第二批（通道与 HSL 完整）全部落地**；**第三批的 LUT 已落地（2026-10-08）**——clip 级 `lut` / `lut_input_gamma` + 关键帧 `lut_strength`（整体画面烘焙，见「增量：LUT」）；**第三批的 PS 式六色带微调也已落地（2026-10-09）**——关键帧 `hue_red` / `sat_red` ~ `hue_magenta` / `sat_magenta` 十二个分色带通道（见「增量：PS 式六色带微调」）→ 共 47 个标量通道；**第三批的混合模式（混合模式作用于调整层）也已落地（2026-10-09）**——clip 级 `blend_mode`（枚举 `normal` / `multiply` / `screen` / `soft_light` / `overlay`，缺省 `normal` = 直替换）+ 关键帧 `blend_amount`（`0 ~ 1`，缺省 1，见「增量：混合模式作用于调整层」）→ **第三批三块（LUT / 六色带 / 混合模式）全部落地**；调整层（步骤 6）、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
 
 ---
 
@@ -362,6 +362,45 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
   - **着色器冒烟**（throwaway GL harness `E:/tmp/icgl`，真实 GL 3.2 core / NVIDIA RTX 4060；新增 `GlSixBandSmoke` **198 项全过**）：编译 + 链接通过；JSON ↔ fsh uniform **双向一致**（含十二个新 uniform；`samplers` 顺序仍 12 个、`Lut3D` 仍是最后一个 = 纹理单元 11）；全 0 对灰度梯度 / 16 测试色 / 色相扫描**逐字节恒等**（含 alpha）；**hue 旋转探针落预期带**（六条带各一个：纯红 + `HueRed=1` → 青、黄 → 蓝、绿 → 品红、青 → 红、蓝 → 黄、品红 → 绿；`HueRed=0.5` → **+90° → (128,255,0)**；`HueRed=-1` 与 `+1` 同落点）；**相邻带平滑过渡**（色相扫描 + `HueRed=1`：带内 41 个 texel 被旋转、带外 **0** 个逐字节变化、29°~31° 边界带 **0** 个变化（含 30° = 权重 0）；逐 texel = CPU 复刻）；**sat 探针**（纯红 + `SatRed=-1` → 全灰 128、`SatRed=0.5` 仍全饱和、低饱和红 + `SatRed=1` 被提饱和且逐 texel = CPU 复刻、蓝 / 黄带 `Sat*=-1` → 全灰）；**透明像素不变量**（`(0,0,0,0)` 纹理 + 十二通道 ±1 混搭 / 品红青带全开 / 六色带 + 灰度 → RGB 恒 0、alpha 恒 0）；**alpha 逐位直通**（十二通道 + 曝光 / 对比度 / HSL / 灰度全开，测试色与 alpha 梯度纹理逐位不变）；**栈位置**（`Hue=0.5` + `HueRed=1` → 结果 = 黄绿（先 HSL 后六色带）且与「六色带在 HSL 块之前」的错误顺序 **differ=256**；`Grayscale=1` / `Invert=1` 与「灰度 / 反相在六色带之前」的错误顺序各 **differ=256**）；**十二通道全非 0 + 共存（曝光 / 对比度 / 色温 / 系数 / 矩阵 / 复合曲线 / HSL）逐 texel = CPU 整套操作栈（步骤 1 ~ 19）复刻**；既有 `GlShaderSmoke`（157 项）/ `GlHslSmoke`（187 项）/ `GlCurveSmoke`（175 项）/ `GlChannelCurveSmoke`（185 项）/ `GlHueCurveSmoke`（205 项）/ `GlLaneAdjustSmoke`（169 项）/ `GlChannelMixerSmoke`（181 项）/ `GlLggSmoke`（192 项）/ `GlLutSmoke`（253 项）复跑全过。
   - 未验证：游戏内实际画面（需启动客户端）；光影下的执行顺序（§5-1，既有开放问题，与其它调色步骤共用同一挂点）。
 
+### 增量：混合模式作用于调整层（2026-10-09）
+
+第三批的第三块（§3 第三批「混合模式作用于调整层（= ADJUST 轨）」、§4 层级语义「调整层 = ADJUST 轨，管整幅画面」）：把**调整层的输出**（调色操作栈全部 19 步算出的颜色 `c_adj`）与**基画面**（`Sampler0` 原图 `c_base`）按**图层混合模式**整体混合——PS「调整图层 + 图层混合模式」的运行时形态。**不是操作栈步骤**，而是层级语义（调整层 vs 底下的画面）。
+
+- **字段**（ADJUST 轨专用；lane 级调色没有混合语义）：
+  - clip 级 `blend_mode`（string 枚举，缺省 `normal`）：`normal` = 直替换（= 现状）/ `multiply` / `screen` / `soft_light` / `overlay`；非法值解析期与校验期都拒。
+  - 关键帧级 `blend_amount`（float `0 ~ 1`，缺省 `1`）：混合强度，可随时间淡入淡出；写回 `0` = **调整层整体透明**（输出 = 基画面 = 恒等）。
+- **语义（像素级，逐通道 RGB、均 0~1）**：`c = mix(c_base, blend(c_base, c_adj, mode), clamp(blend_amount, 0, 1))`；混合公式（`a` = `c_base`、`b` = `c_adj`，W3C compositing 口径）：
+
+  | 模式 | 公式 |
+  |---|---|
+  | `normal` | `b`（直替换 = 现状） |
+  | `multiply` | `a·b` |
+  | `screen` | `1 - (1-a)·(1-b)` |
+  | `soft_light` | `a ≤ 0.5 ? b - (1-2a)·b·(1-b) : b + (2a-1)·(d(b)-b)`，其中 `d(b) = b ≤ 0.25 ? ((16b-12)·b+4)·b : sqrt(b)` |
+  | `overlay` | `a ≤ 0.5 ? 2ab : 1 - 2(1-a)(1-b)`（`a = 0.5` 处两式相等，边界无跳变） |
+
+- **栈位（第 20 步）**：全部操作栈步骤（曝光 ~ 反相）**之后**整体施加——混合看到的是「调色处理后的整幅画面」与「处理前的整幅画面」；缺省 `normal` + `1` = 直替换（渲染侧该步整段跳过，行为与混合功能落地前**逐字节一致**）。
+- **恒等口径**：`blend_amount = 0` → 调整层整体透明，**无论操作栈算出什么**（输出 = 基画面）→ 恒等；`blend_mode ≠ normal` → 混合结果 ≠ 基画面（即使操作栈本身恒等，如 `multiply` 的 `a·a`）→ 一定非恒等；只有 `normal` 才把判定交回操作栈本身（`ColorAdjustParams.isIdentity()`）。
+- **alpha 直通契约不变**：只动 rgb；`fragColor.a = src.a` 逐位直通，透明度仍只在合成层调控。
+- **只有 ADJUST 轨（master）带这两个字段**（同 `lut` 口径）：相机片段 clip 级写 `blend_mode` / 关键帧级写 `blend_amount` 会被 validator 直接拦下；数据层也按轨道类型挡一道（`Clip.getBlendMode()` 非 ADJUST 恒 `normal`、采样器非 ADJUST 恒 `1`），lane 路径行为与混合功能落地前逐位一致。
+- **同步点**（顺序是硬约定，逐项对应）：
+  1. `script/schema/TrackSchemas.adjust()`：clips + `blend_mode`（enum 五值、缺省 `normal`）、kfs + `blend_amount`（`FieldDef("float", 1f)`）+ javadoc（`camera()` 不登记这两个字段）；
+  2. `script/ScriptParser`：clip 级 `blend_mode` 走专用解析（非法枚举值 = 解析错误，`parseBlendMode`；其余轨道上的同名字段走「未知字段」向前兼容路径）；
+  3. `script/ScriptValidator`：`BLEND_MODES` 枚举校验 + `blend_amount` `0 ~ 1` 区间（`checkBlendFields`）+ 相机片段两级拦截（clip 级 / 关键帧级）；
+  4. `script/Clip.getBlendMode()`：按轨道类型挡一道（非 ADJUST 恒 `normal`）；
+  5. `client/post/ColorAdjustParams`：+2 分量（`blendMode` 编码 0 ~ 4、`blendAmount`）+ `BLEND_NORMAL` ~ `BLEND_OVERLAY` 常量 + `blendModeCode()` + `IDENTITY` + `isIdentity()`；
+  6. `script/ColorAdjustSampler.sample()`：`blendModeCode(clip.getBlendMode())` + `blend_amount` 关键帧插值（缺省 1；非 ADJUST 恒 1）；
+  7. `client/post/ColorAdjustPass.upload()`：`BlendMode` / `BlendAmount` 两个 uniform；
+  8. shader 两文件：`ic_color_adjust.json`（uniforms +2，缺省 values `[0.0]` / `[1.0]`）+ `ic_color_adjust.fsh`（uniform 声明 +2、`softLightChannel()` / `blendChannel()` 两个函数、`main()` 新第 20 步、文件头操作栈表 20 步与参数表）；
+  9. `docs/SCRIPT_FORMAT.md` §10：clip 字段表 +1 行、关键帧字段表 +1 行、固定操作顺序行与「层级混合」小节。
+- **测试脚本**：`cinematics/tests/adjust/test_adjust_blend.json`（1 条 OVERLAY 轨 3 段字幕 + 1 条 CAMERA 轨 + 1 条 ADJUST 轨 3 段：0~4s `multiply`（amount `0 → 1`）、4~8s `screen`（amount `1 → 0`）、8~12s `soft_light`（amount `0 → 1 → 0.5`）；关键帧时间按片段本地时间写）。
+- **验证（2026-10-09）**：
+  - `sh gradlew compileJava`（`:common` / `:fabric` / `:forge` 三模块）**通过**；
+  - 无头 validator（`E:/tmp/icv` 的 `Validate`，真实 `ScriptValidator`）扫 `cinematics/tests/adjust`：**11 脚本 0 issue**；全量 `cinematics/tests` + `cinematics/release` 仍只有既有的 3 个已知 FAIL，无新增；
+  - **数据层冒烟**（throwaway `E:/tmp/icv2` 的 `AdjustBlendSmoke`，真实 `ScriptParser` / `AdjustTrackPlayer` + 桩 `ScriptPlayer`；**113 项全过**）：解析（clip 级枚举 + 关键帧强度）、五个枚举值编码 0 ~ 4、`blend_amount` 线性插值（关键帧 + 区间中点 + 平台段 + 越界取边界不外推）、缺省（不写 = `normal` + `1`；只写一个 = 另一个取缺省）、`isIdentity()`（全缺省恒等；`amount 0` 恒等（含操作栈非恒等）；非 `normal` 短路非恒等；`normal` + `amount ≠ 1` + 通道非 0 非恒等）、与既有 47 标量 + 十条曲线 + LUT 强度共存不串位、相机片段数据层门禁（`getBlendMode()` 恒 `normal`、采样恒 `normal` + `1`）、validator 拦非法枚举值 / 越界强度 / 非数字 + 相机片段两级拦截、解析器拦非法枚举值、master 发布路径（含 `amount 0` 帧被规整为「无调整」不发布）、仓库测试脚本三段各自正确；既有 10 套冒烟复跑全过（`ColorAdjustParams` 加 2 个分量后 17 处位置参数直构调用点同步补参）；
+  - **着色器冒烟**（throwaway GL harness `E:/tmp/icgl`，真实 GL 3.2 core / NVIDIA RTX 4060；新增 `GlBlendSmoke` **239 项全过**）：编译 + 链接通过；JSON ↔ fsh uniform 双向一致（含两个新 uniform 与缺省 values）；**与「混合功能落地前」的着色器（`git show HEAD:...ic_color_adjust.fsh`）逐字节对照**——全 0 栈 / `Invert=1` 栈 / 复杂栈（曝光 + 对比度 + HSL + 六色带 + 灰度 + 反相）/ 16 测试色 / alpha 梯度纹理 / 另一组非平凡栈，`normal` + `amount 1` 下**逐字节一致（bad = 0）**；`amount 0` 逐字节 = 输入（灰度梯度 / 16 测试色 / alpha 梯度 / 透明黑）；**四模式对固定 a / b 探针的权威值**（基色 64 / 191 / 223 + `Invert=1` 造 b；独立实现算好的 8bit 值：P1 `multiply 48 / screen 207 / soft_light 167 / overlay 96`、P2 `48 / 207 / 96 / 159`、P3 `28 / 227 / 74 / 199`——覆盖 `soft_light` 的 sqrt 与多项式两个分支、`overlay` 的 `a ≤ 0.5` 两个分支）；**半量混合探针**（`multiply` 0.5 → 56、`overlay` 0.25 → 72、`screen` 0.75 → 171）；五模式 × 三纹理逐 texel = CPU 整套操作栈（步骤 1 ~ 20）复刻；alpha 逐位直通；**栈位置**（混合在全部步骤之后；「混合在反相之前」的错误顺序可判别）；透明像素不变量（保持黑栈 × 五模式 → RGB 恒 0；`Invert=1` + `multiply` → 0；`screen` → 白，alpha 恒 0）；既有 10 套 GL 冒烟复跑全过（各 harness 的 `setAll` 同步补 `BlendMode = 0` / `BlendAmount = 1` 缺省——原始 GL 下未设 uniform 的缺省是 0 = 调整层透明，harness 必须显式给缺省；产品路径由 `ColorAdjustPass.upload()` 与 JSON 缺省 values 保证）。
+  - 未验证：游戏内实际画面（需启动客户端）；光影下的执行顺序（§5-1，既有开放问题，与其它调色步骤共用同一挂点）。
+
 ### 默认零差异（§2.1 的「零差异」要求）
 
 - 无 ADJUST 轨道 / 无活跃 clip / 47 标量通道全为缺省（且无曲线或曲线强度 0）→ 播放器不发布 → pass **第一行返回**：不取着色器、不建中转缓冲、不切 GL 状态、不画任何东西。
@@ -370,7 +409,7 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 ### 本版本明确不做
 
 - **曲线编辑器、贝塞尔手柄与形态 a**（曲线点集本身打关键帧）：十条曲线（复合 + 每通道 + 六条 hue）已随「增量：RGB 复合曲线（形态 b）」「增量：每通道曲线（R / G / B）」与「增量：六条 hue 曲线」落地（2026-10-08），控制点现为 `[x, y]` 二元组（Fritsch–Carlson 单调三次插值）；**曲线手柄（贝塞尔手柄）留编辑器阶段**（2026-10-08 用户裁决）——手柄属**编辑器侧运算**：手柄的效果计算与曲线编辑在编辑器里完成，产出运行时可直接执行的曲线数据；**运行时不含手柄逻辑**（代码只读只执行，修改 / 生成 / 调配一律在编辑器侧，见 `implementation-progress.md` 通用原则），产物数据形态随编辑器阶段定稿。形态 a（曲线点集打关键帧）同随编辑器落地。
-- **第二批（通道与 HSL 完整）全部落地（2026-10-08）**：色相旋转（「增量：完整 HSL」）、六条 hue 曲线、RGB 通道混合器与 Lift / Gamma / Gain 色轮（本轮）都已实现；**第三批的 LUT（2026-10-08，见「增量：LUT」）与 PS 式六色带微调（2026-10-09，见「增量：PS 式六色带微调」）已落地**，本版本**只剩混合模式**。
+- **第二批（通道与 HSL 完整）全部落地（2026-10-08）**：色相旋转（「增量：完整 HSL」）、六条 hue 曲线、RGB 通道混合器与 Lift / Gamma / Gain 色轮（本轮）都已实现；**第三批的 LUT（2026-10-08，见「增量：LUT」）、PS 式六色带微调（2026-10-09，见「增量：PS 式六色带微调」）与混合模式作用于调整层（2026-10-09，见「增量：混合模式作用于调整层」）已全部落地**——**第三批三块全部落地**。
 - lane 级调色（§7 步骤 5）已在本版本落地（相机片段自带调色），见下一节「落地标注（相机片段调色）」；~~调整层（§7 步骤 6，依赖分层模型）~~ 已由 **ADJUST 轨**承担——**调整层 = ADJUST 轨**（顶层、不参与排序、默认比其他层级高一个，管整幅画面），无独立新层、无新机制。
 - 编辑器 UI（§7 步骤 3）：`editor/src/types.ts` 的 `TrackType` 联合类型、`TrackListPanel.vue` / `Timeline.vue` 的轨道列表与配色、i18n 键、`demo.ts` 的 schema 快照都需跟着加 `ADJUST`（Java 侧 schema 已随 `SchemaExporter` 导出，前端接上即可）。
 - 多实例各写 master 的合并语义（§5-4）：仍开放；本版本至多 1 个活跃实例，行为 = 该实例的最后一个 ADJUST 轨道。
@@ -601,7 +640,7 @@ lane 渲染（含 lane 内描边）→ 相机片段调色（只动 RGB）→ 合
 
 > 步骤 1–4 不依赖画面合成，可先行；步骤 5 起依赖 lane 上屏；步骤 6 只剩第三批工具（调整层已由 ADJUST 轨承担，无新机制，不依赖新分层模型落地）。
 >
-> **进度（2026-10-08）**：步骤 1 的**标量组**（12 通道 master pass）与**曲线组**（RGB 复合曲线 + 每通道曲线，形态 b）已落地；步骤 2 的**曲线部分（每通道曲线 R / G / B）已落地（2026-10-08）**，同步骤的「RGBA 通道拆分」（`red` / `green` / `blue` 通道系数，2026-10-07）与「完整 HSL」（`hue` / `lightness` + 既有 `saturation` / `vibrance`，2026-10-07）也已落地 → **步骤 2 的三块全部落地**；步骤 3 的**数据落点已定稿**、编辑器 UI 未做；**步骤 4 全部落地（2026-10-08）——六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）、RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）与 Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个逐通道色轮）都已实现 → 第二批（通道与 HSL 完整）全部落地，标量通道共 35 个 + 10 条曲线**；**步骤 5（lane 级调色）已落地**（调色写在 CAMERA 片段上——相机片段自带调色，作用于该相机轨产出的每条 lane，lane 渲染完 / 合成前过 pass；ADJUST 轨只作用于整体画面）；步骤 6 的 **LUT 已落地（2026-10-08）**（见「增量：LUT」）、**PS 式六色带微调已落地（2026-10-09）**（见「增量：PS 式六色带微调」），只剩混合模式。
+> **进度（2026-10-08）**：步骤 1 的**标量组**（12 通道 master pass）与**曲线组**（RGB 复合曲线 + 每通道曲线，形态 b）已落地；步骤 2 的**曲线部分（每通道曲线 R / G / B）已落地（2026-10-08）**，同步骤的「RGBA 通道拆分」（`red` / `green` / `blue` 通道系数，2026-10-07）与「完整 HSL」（`hue` / `lightness` + 既有 `saturation` / `vibrance`，2026-10-07）也已落地 → **步骤 2 的三块全部落地**；步骤 3 的**数据落点已定稿**、编辑器 UI 未做；**步骤 4 全部落地（2026-10-08）——六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）、RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）与 Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个逐通道色轮）都已实现 → 第二批（通道与 HSL 完整）全部落地，标量通道共 35 个 + 10 条曲线**；**步骤 5（lane 级调色）已落地**（调色写在 CAMERA 片段上——相机片段自带调色，作用于该相机轨产出的每条 lane，lane 渲染完 / 合成前过 pass；ADJUST 轨只作用于整体画面）；步骤 6 的 **LUT 已落地（2026-10-08）**（见「增量：LUT」）、**PS 式六色带微调已落地（2026-10-09）**（见「增量：PS 式六色带微调」）、**混合模式作用于调整层已落地（2026-10-09）**（见「增量：混合模式作用于调整层」）→ **第三批（LUT / 六色带 / 混合模式）全部落地**。
 
 ---
 

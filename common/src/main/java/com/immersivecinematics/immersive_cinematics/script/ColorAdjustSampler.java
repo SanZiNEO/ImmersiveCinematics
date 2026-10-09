@@ -37,6 +37,13 @@ import java.util.List;
  * 是 clip 级查表输入域适配的幂指数，同样不随时间变、无 LUT 时被忽略。
  * LUT 是<b>整体画面（master）</b>处理——
  * {@link Clip#getLut()} 只在 ADJUST 轨给值，故 lane 路径采样到的 {@code lut} 恒为 {@code null}。
+ *
+ * <h2>层级混合（混合模式作用于调整层）</h2>
+ * clip 级 {@code blend_mode}（枚举名 → 编码 0 ~ 4，见 {@link ColorAdjustParams#blendModeCode(String)}）
+ * + 关键帧 {@code blend_amount}（0 ~ 1，<b>缺省 1</b> = 全量生效）同样只属 <b>ADJUST 轨（master）</b>：
+ * {@link Clip#getBlendMode()} 只在 ADJUST 轨给值、{@code blend_amount} 只在该轨插值，
+ * lane 路径恒得缺省（{@code normal} + {@code 1} = 混合步骤恒等）。两者一起描述
+ * 「调整层输出 vs 基画面」的层级混合（在全部操作栈步骤之后整体施加，见 {@link ColorAdjustParams}）。
  */
 public final class ColorAdjustSampler {
 
@@ -135,7 +142,14 @@ public final class ColorAdjustSampler {
                 channel(keyframes, localTime, "hue_magenta"),
                 channel(keyframes, localTime, "sat_magenta"),
                 channel(keyframes, localTime, "grayscale"),
-                channel(keyframes, localTime, "invert"));
+                channel(keyframes, localTime, "invert"),
+                // 层级混合（第 20 步 = 全部操作栈步骤之后整体施加）：clip 级 blend_mode 编码
+                // + 关键帧 blend_amount（缺省 1 = 全量生效）；只有 ADJUST 轨（master）带混合字段——
+                // lane 路径恒得缺省（normal + 1 = 混合步骤恒等，行为与混合功能落地前逐位一致）
+                ColorAdjustParams.blendModeCode(clip.getBlendMode()),
+                clip.getTrackType() == TrackType.ADJUST
+                        ? KeyframeInterpolator.interpolateChannel(keyframes, localTime, "blend_amount", 1.0F)
+                        : 1.0F);
     }
 
     /** clip 级曲线 → 它的 256 点 LUT（{@code null} = 本片段没有那条曲线）；LUT 随曲线对象按 clip 缓存。 */

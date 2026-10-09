@@ -33,7 +33,8 @@ public final class TrackSchemas {
      * （{@code rgb_curve} 复合 + {@code r_curve} / {@code g_curve} / {@code b_curve} 每通道 +
      * {@code hv_h_curve} / {@code hv_s_curve} / {@code hv_l_curve} / {@code lv_s_curve} /
      * {@code sv_s_curve} / {@code sv_l_curve} 六条 hue 曲线）+ 关键帧 57 个调色通道
-     * （与 ADJUST 轨同名同缺省）。调色作用于该相机轨产出的 lane，在该 lane
+     * （与 ADJUST 轨同名同缺省；ADJUST 轨另有 {@code blend_mode} / {@code blend_amount}
+     * 两个层级混合字段，属 master 专用，相机片段上写会被 validator 拦下）。调色作用于该相机轨产出的 lane，在该 lane
      * <b>渲染完成之后、合成之前</b>生效（与 {@code dest} / {@code source} / {@code opacity} 同层，
      * 见 {@code plans/0.3.6/screen-color-adjust.md} 步骤 1、{@code plans/0.3.6/camera-composition.md}）。
      * 整体画面的调色走 ADJUST 轨（master）。</p>
@@ -275,7 +276,7 @@ public final class TrackSchemas {
 
     /**
      * ADJUST 轨道（画面颜色调整，0.3.6：master 标量组 + lane 级调整 + RGB 通道混合器 + RGB 复合曲线
-     * + 每通道曲线 + 六条 hue 曲线 + Lift / Gamma / Gain 色轮 + PS 式六色带微调）。
+     * + 每通道曲线 + 六条 hue 曲线 + Lift / Gamma / Gain 色轮 + PS 式六色带微调 + 层级混合模式）。
      *
      * <p>47 个标量通道全部是<b>关键帧字段</b>，缺省全 0 = 无效果
      * （关键帧把通道写回 0 就是该项淡出，不需要 enabled 开关）。其中
@@ -302,7 +303,18 @@ public final class TrackSchemas {
      * {@code curve}（{@code bezier_curve}）按轨道类型分派，互不影响）。master = 作用于合成输出（最终显示画面）
      * （见 {@code plans/0.3.6/screen-color-adjust.md} 步骤 5、「增量：RGB 通道混合器」、
      * 「增量：RGB 复合曲线（形态 b）」、「增量：每通道曲线（R / G / B）」、「增量：六条 hue 曲线」
-     * 与「增量：Lift / Gamma / Gain 色轮」）。</p>
+     * 「增量：Lift / Gamma / Gain 色轮」、「增量：LUT」、「增量：PS 式六色带微调」
+     * 与「增量：混合模式」）。</p>
+     *
+     * <p><b>层级混合（第 20 步：混合模式作用于调整层）</b>：clip 级 {@code blend_mode}
+     * （枚举 {@code normal} / {@code multiply} / {@code screen} / {@code soft_light} / {@code overlay}，
+     * 缺省 {@code normal} = 直替换 = 现状）+ 关键帧 {@code blend_amount}（0 ~ 1，缺省 1 = 全量生效）
+     * 把<b>调整层的输出</b>（上面 19 步算出的 {@code c_adj}）与<b>基画面</b>（{@code Sampler0} 原图
+     * {@code c_base}）按混合模式整体混合：{@code c = mix(c_base, blend(c_base, c_adj, mode),
+     * clamp(blend_amount, 0, 1))}——<b>不是操作栈步骤</b>，而是全部步骤之后对整幅画面的层级混合
+     * （调整层 vs 底下的画面）；{@code blend_amount} 写回 0 = 调整层整体透明（输出 = 基画面）。
+     * 只动 RGB、alpha 逐位直通。只有 <b>ADJUST 轨（master）</b>带这两个字段（相机片段上写会被
+     * validator 直接拦下，同 {@code lut} 口径）。</p>
      *
      * <p>顺序 = 着色器操作栈顺序（{@code assets/minecraft/shaders/core/ic_color_adjust.fsh}）
      * = {@code ColorAdjustParams} 的分量顺序；区间由 {@code ScriptValidator} 校验。
@@ -329,6 +341,12 @@ public final class TrackSchemas {
         // v = pow(clamp(c, 0, 1), lut_input_gamma)，以 v 为四面体查表坐标——现成 .cube 按特定素材 /
         // 色彩空间调成时，用它把游戏画面（sRGB）映射回表假设的输入域；无 LUT 时忽略
         clips.put("lut_input_gamma", new FieldDef("float", 1f));
+        // 混合模式（clip 级枚举，缺省 "normal" = 直替换 = 现状）：调整层输出与基画面（Sampler0 原图）
+        // 的层级混合口径——不是操作栈步骤，而是在全部 19 步算完之后整体施加
+        // （c = mix(c_base, blend(c_base, c_adj, mode), blend_amount)）；只有 ADJUST 轨（master）
+        // 带该字段（相机片段上写会被 validator 直接拦下，同 lut 口径）
+        clips.put("blend_mode", new FieldDef("enum", "normal", false,
+                List.of("normal", "multiply", "screen", "soft_light", "overlay")));
 
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
         // 基础校色（复合 RGB）
@@ -409,6 +427,9 @@ public final class TrackSchemas {
         // 风格化（本身即强度）
         kfs.put("grayscale", new FieldDef("float", 0f));      // 0 ~ 1（灰度混合量）
         kfs.put("invert", new FieldDef("float", 0f));         // 0 ~ 1（反相混合量）
+        // 层级混合强度（第 20 步 = 全部操作栈步骤之后整体施加）：0 ~ 1，缺省 1 = 全量生效；
+        // 写回 0 = 调整层整体透明（输出 = 基画面 = 恒等）；只有 ADJUST 轨（master）带该字段
+        kfs.put("blend_amount", new FieldDef("float", 1f));
 
         return new TrackTypeSchema(clips, kfs);
     }

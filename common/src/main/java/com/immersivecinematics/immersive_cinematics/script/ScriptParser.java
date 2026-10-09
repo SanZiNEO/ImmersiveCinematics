@@ -330,6 +330,12 @@ public class ScriptParser {
             return parseLutInputGamma(value, p + "." + fieldName);
         }
 
+        // 混合模式（clip 级 blend_mode；同样只有声明该字段的轨道 = ADJUST 轨）：schema 里是 enum，
+        // 但额外拦非法枚举值（见 parseBlendMode）——其余轨道上同名字段走下方「未知字段」路径
+        if (!isKeyframe && "blend_mode".equals(fieldName) && def != null) {
+            return parseBlendMode(value, p + "." + fieldName);
+        }
+
         if (def == null) {
             // 不在 schema 中的字段 — 简单类型自动解析（向前兼容）
             if (value.isJsonPrimitive()) {
@@ -414,6 +420,28 @@ public class ScriptParser {
             throw new ScriptParseException(p, "必须大于 0（缺省 1 = 不变换）：" + gamma);
         }
         return gamma;
+    }
+
+    /**
+     * 解析 clip 级 {@code blend_mode}（混合模式；<b>ADJUST 轨专用</b>——混合模式作用于<b>调整层</b>
+     * （= ADJUST 轨）的输出与基画面（{@code Sampler0} 原图）的层级混合，逐 lane / 相机片段不参与）。
+     * <p>合法值 = {@code normal} / {@code multiply} / {@code screen} / {@code soft_light} /
+     * {@code overlay}（缺省 {@code normal} = 直替换 = 现状）；其余值解析期直接拒绝
+     * （与 {@code ScriptValidator} 的枚举校验同一口径：校验拦下的写法解析期也会拒绝）。</p>
+     */
+    private static String parseBlendMode(JsonElement value, String p) throws ScriptParseException {
+        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
+            throw new ScriptParseException(p,
+                    "需要字符串（normal / multiply / screen / soft_light / overlay；缺省 normal）");
+        }
+        String mode = value.getAsString();
+        switch (mode) {
+            case "normal", "multiply", "screen", "soft_light", "overlay" -> {
+                return mode;
+            }
+            default -> throw new ScriptParseException(p, "未知混合模式：" + mode
+                    + "（合法值：normal / multiply / screen / soft_light / overlay）");
+        }
     }
 
     // ========== BezierCurve 解析 ==========

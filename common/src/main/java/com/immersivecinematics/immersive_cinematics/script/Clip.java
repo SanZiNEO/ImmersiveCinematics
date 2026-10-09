@@ -191,6 +191,21 @@ public class Clip {
     }
 
     /**
+     * clip 级混合模式（{@code blend_mode}；{@code normal} / {@code multiply} / {@code screen} /
+     * {@code soft_light} / {@code overlay}，缺省 {@code "normal"} = 直替换 = 现状）。
+     * <p>语义 = <b>层级混合</b>（混合模式作用于调整层）：把调整层输出（操作栈全部步骤算出的
+     * {@code c_adj}）与基画面（{@code Sampler0} 原图 {@code c_base}）按该模式整体混合，强度由关键帧
+     * {@code blend_amount} 控制（{@code c = mix(c_base, blend(c_base, c_adj, mode), amount)}）；
+     * 见 {@code client/post/ColorAdjustParams} 与 {@code ic_color_adjust.fsh} 第 20 步。</p>
+     * <p><b>只有 ADJUST 轨（整体画面 / master）</b>带该字段：与 {@link #getLut()} 同款按轨道类型挡一道，
+     * lane 路径恒得缺省 {@code "normal"}（相机片段上即使写了该字段也不生效——{@code ScriptValidator}
+     * 会直接拦下；{@code "normal"} 下混合步骤恒等，故 lane 行为与混合功能落地前逐位一致）。</p>
+     */
+    public String getBlendMode() {
+        return trackType == TrackType.ADJUST ? getString("blend_mode", "normal") : "normal";
+    }
+
+    /**
      * 本片段的稳定标识（{@link CubeLutLoader#forClip} 的 clip 键）：同一实例反复调用恒定。
      * <p>片段对象在解析期一次建成、整个播放期存活，故用对象身份即可；不同实例理论上可能撞值，
      * 但该表只用于记录「哪些片段引用了 LUT」，撞值不影响取到的 LUT（实例本身按文件路径共享）。</p>

@@ -4,7 +4,8 @@ import com.immersivecinematics.immersive_cinematics.script.CubeLut;
 
 /**
  * master / lane 画面颜色调整的参数快照（第一批标量组 + R/G/B 通道系数 + RGB 通道混合器 + 完整 HSL
- * + RGB 复合曲线 + 每通道曲线 + 六条 hue 曲线 + Lift / Gamma / Gain 色轮 + PS 式六色带微调）。
+ * + RGB 复合曲线 + 每通道曲线 + 六条 hue 曲线 + Lift / Gamma / Gain 色轮 + PS 式六色带微调
+ * + 层级混合（混合模式作用于调整层））。
  *
  * <p>分量顺序 = 着色器里的操作栈顺序（{@code assets/minecraft/shaders/core/ic_color_adjust.fsh}），
  * 也是 {@code AdjustTrackPlayer} 逐通道插值的顺序；除十条曲线 LUT 外的通道都是<b>关键帧字段</b>
@@ -115,6 +116,23 @@ import com.immersivecinematics.immersive_cinematics.script.CubeLut;
  * <p>透明像素不变量：{@code alpha = 0} 的像素（RGB = 黑）经本步任意参数后 RGB 仍为 {@code (0,0,0)}
  * ——{@code s = 0} / {@code l = 0} 走 {@code hsl2rgb} 的灰度分支，色相旋转不产生新值、不复活透明像素。</p>
  *
+ * <h2>层级混合（clip 级 {@code blend_mode} + 关键帧 {@code blend_amount}）</h2>
+ * 混合模式作用于<b>调整层</b>：在全部 19 个操作栈步骤算出调整后颜色 {@code c_adj} 之后，把它与
+ * <b>基画面</b>（{@code Sampler0} 原图 {@code c_base}）按混合模式整体混合——
+ * {@code c = mix(c_base, blend(c_base, c_adj, mode), clamp(blend_amount, 0, 1))}（逐通道 RGB、均 0~1；
+ * 公式 = W3C compositing 口径，见 {@code ic_color_adjust.fsh} 第 20 步）。<b>不是操作栈步骤</b>，
+ * 而是层级语义（调整层输出 vs 底下的画面）；alpha 逐位直通。
+ * <ul>
+ *   <li>{@link #blendMode} = clip 级 {@code blend_mode} 的编码（{@link #BLEND_NORMAL} 0 = 直替换 = 现状、
+ *       {@link #BLEND_MULTIPLY} 1、{@link #BLEND_SCREEN} 2、{@link #BLEND_SOFT_LIGHT} 3、
+ *       {@link #BLEND_OVERLAY} 4；字符串 → 编码走 {@link #blendModeCode(String)}），
+ *       缺省 {@code normal} = 现状；</li>
+ *   <li>{@link #blendAmount} = 关键帧插值的混合强度（<b>缺省 1</b> = 全量生效；写回 0 = 调整层整体透明
+ *       ——输出 = 基画面 = 画面逐位不变）；</li>
+ *   <li>两个字段都只属 <b>ADJUST 轨（master）</b>：lane 路径采样恒得缺省（{@code normal} / {@code 1}），
+ *       故 lane 行为与混合功能落地前逐位一致（相机片段上写这两个字段由 validator 拦下）。</li>
+ * </ul>
+ *
  * <p>不可变值对象：每帧由 {@code script.AdjustTrackPlayer} 重新采样一份，
  * 渲染侧只读，不做原地修改（十条 LUT 指向的数组同样只读）。</p>
  */
@@ -188,7 +206,39 @@ public record ColorAdjustParams(
         float hueMagenta,
         float satMagenta,
         float grayscale,
-        float invert) {
+        float invert,
+        float blendMode,
+        float blendAmount) {
+
+    /**
+     * 混合模式编码（= shader 的 {@code BlendMode} uniform；顺序与 {@code TrackSchemas.adjust()} 的
+     * {@code blend_mode} 枚举、{@code ScriptValidator.BLEND_MODES} 一一对应）。
+     * <p>0 = {@code normal}（直替换 = 现状，缺省）、1 = {@code multiply}、2 = {@code screen}、
+     * 3 = {@code soft_light}、4 = {@code overlay}。</p>
+     */
+    public static final float BLEND_NORMAL = 0.0F;
+    public static final float BLEND_MULTIPLY = 1.0F;
+    public static final float BLEND_SCREEN = 2.0F;
+    public static final float BLEND_SOFT_LIGHT = 3.0F;
+    public static final float BLEND_OVERLAY = 4.0F;
+
+    /**
+     * {@code blend_mode} 枚举名 → 编码（{@link #BLEND_NORMAL} ~ {@link #BLEND_OVERLAY}）。
+     * <p>未知 / {@code null} 归 {@code normal}（解析期与校验期已把非法值拒掉，此处只是数据层兜底；
+     * {@code normal} 下混合步骤恒等，故兜底不会造成意外画面差异）。</p>
+     */
+    public static float blendModeCode(String mode) {
+        if (mode == null) {
+            return BLEND_NORMAL;
+        }
+        return switch (mode) {
+            case "multiply" -> BLEND_MULTIPLY;
+            case "screen" -> BLEND_SCREEN;
+            case "soft_light" -> BLEND_SOFT_LIGHT;
+            case "overlay" -> BLEND_OVERLAY;
+            default -> BLEND_NORMAL;
+        };
+    }
 
     /** 恒等参数（全部缺省）：画面逐位不变。 */
     public static final ColorAdjustParams IDENTITY =
@@ -203,14 +253,26 @@ public record ColorAdjustParams(
                     0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
                     0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
                     0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
-                    0.0F, 0.0F);
+                    0.0F, 0.0F, BLEND_NORMAL, 1.0F);
 
     /**
      * 是否恒等：47 个标量通道全为缺省 0、<b>且</b>十条曲线都「不存在或强度为 0」、
-     * <b>且</b>无 LUT（{@link #lut} 为 {@code null}）或 LUT 强度为 0。
-     * <p>恒等 = 不产生任何画面差异（渲染侧第一行就返回）。</p>
+     * <b>且</b>无 LUT（{@link #lut} 为 {@code null}）或 LUT 强度为 0、
+     * <b>且</b>层级混合不改变画面（{@link #blendMode} = {@link #BLEND_NORMAL} 或
+     * {@link #blendAmount} = 0）。
+     * <p>恒等 = 不产生任何画面差异（渲染侧第一行就返回）。层级混合的两条短路：
+     * {@link #blendAmount} = 0 时调整层整体透明——输出 = 基画面 = pass 输入（<b>无论操作栈算出什么</b>），
+     * 故直接恒等；{@link #blendMode} 非 {@code normal} 时混合结果 ≠ 基画面（即使操作栈本身恒等，
+     * 如 {@code multiply} 的 {@code a·a}）→ 一定非恒等；只有 {@code normal}（直替换 = 现状）
+     * 才把判定交回操作栈本身。</p>
      */
     public boolean isIdentity() {
+        if (blendAmount == 0.0F) {
+            return true;    // 调整层整体透明：输出 = 基画面 = pass 输入（不产生任何画面差异）
+        }
+        if (blendMode != BLEND_NORMAL) {
+            return false;   // 非 normal：混合结果 ≠ 基画面（即使操作栈恒等）→ 一定非恒等
+        }
         return exposure == 0.0F && contrast == 0.0F && highlights == 0.0F && shadows == 0.0F
                 && whites == 0.0F && blacks == 0.0F && hue == 0.0F && saturation == 0.0F
                 && vibrance == 0.0F && lightness == 0.0F

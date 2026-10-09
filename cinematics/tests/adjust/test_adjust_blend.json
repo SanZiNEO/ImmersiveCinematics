@@ -1,0 +1,119 @@
+{
+  "meta": {
+    "id": "test_adjust_blend",
+    "name": "调色测试-混合模式作用于调整层",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "混合模式作用于调整层（= ADJUST 轨）：clip 级 blend_mode（normal / multiply / screen / soft_light / overlay，缺省 normal = 直替换 = 现状）+ 关键帧 blend_amount（0~1，缺省 1）把「调整层输出」（调色操作栈全部步骤算出的颜色）与「基画面」（原图）整体混合：c = mix(基画面, blend(基画面, 调整层输出, 模式), blend_amount)；blend_amount 写回 0 = 调整层整体透明（输出 = 基画面）。三段各演示一个模式：0~4s multiply（压暗、渐入）、4~8s screen（提亮、渐出）、8~12s soft_light（柔光、脉冲）。只动 RGB、alpha 逐位直通；只写在 ADJUST 轨（相机片段上写会被 validator 拦下）。",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "0~4s：blend_mode = multiply（压暗：调整层输出 × 基画面，blend_amount 0 → 1 渐入）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 4,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "4~8s：blend_mode = screen（提亮：1-(1-a)(1-b)，blend_amount 1 → 0 渐出）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 8,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "8~12s：blend_mode = soft_light（柔光：W3C 公式，blend_amount 0 → 1 → 0.5）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 },
+              { "time": 6, "position": { "dx": 3, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 },
+              { "time": 12, "position": { "dx": 6, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 4,
+            "blend_mode": "multiply",
+            "keyframes": [
+              { "time": 0, "exposure": 0.5, "saturation": 0.25, "blend_amount": 0 },
+              { "time": 2, "exposure": 0.5, "saturation": 0.25, "blend_amount": 1 },
+              { "time": 4, "exposure": 0.5, "saturation": 0.25, "blend_amount": 1 }
+            ]
+          },
+          {
+            "start_time": 4,
+            "duration": 4,
+            "blend_mode": "screen",
+            "keyframes": [
+              { "time": 0, "exposure": -0.5, "temperature": 0.3, "blend_amount": 1 },
+              { "time": 4, "exposure": -0.5, "temperature": 0.3, "blend_amount": 0 }
+            ]
+          },
+          {
+            "start_time": 8,
+            "duration": 4,
+            "blend_mode": "soft_light",
+            "keyframes": [
+              { "time": 0, "contrast": 0.5, "vibrance": 0.4, "blend_amount": 0 },
+              { "time": 2, "contrast": 0.5, "vibrance": 0.4, "blend_amount": 1 },
+              { "time": 4, "contrast": 0.5, "vibrance": 0.4, "blend_amount": 0.5 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

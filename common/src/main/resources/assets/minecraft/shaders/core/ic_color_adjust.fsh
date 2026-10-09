@@ -14,6 +14,7 @@
 //  16. 六条 hue 曲线（HvH → HvS → HvL → LvS → SvS → SvL；HSL 块内，见下）
 //  17. PS 式六色带微调（Hue / Sat 分色带；六条固定色带 + 升余弦权重；HSL 块之后、灰度之前）
 //  18. 灰度      19. 反相
+//  20. 层级混合（混合模式作用于调整层：调整层输出 vs 基画面；不是操作栈步骤，在全部步骤之后整体施加）
 //
 // 六条 hue 曲线（DaVinci 曲线页口径；步骤 12 ~ 16 共用一个 HSL 块、一次 rgb2hsl 换算）：
 //   键取「进入该块时」的 h0 / s0 / l0（不受标量 HSL 改动影响），每条各自按强度 mix 混合：
@@ -82,6 +83,25 @@
 //                 六带各撑 ±30°、恰铺满色相环）；十二个全 0 = 整步跳过（逐位恒等）
 //   Grayscale     0 ~ 1   灰度混合强度（1 = 完全黑白）
 //   Invert        0 ~ 1   反相混合强度（1 = 完全反相）
+//   BlendMode     0 ~ 4   层级混合的混合模式编码（0 = normal 直替换 = 缺省 / 1 = multiply / 2 = screen /
+//                         3 = soft_light / 4 = overlay）：作用于调整层输出（上面 19 步算出的颜色）
+//                         与基画面（Sampler0 原图）的整体混合；只由 ADJUST 轨（master）取值
+//   BlendAmount   0 ~ 1   层级混合强度（缺省 1 = 全量生效；写回 0 = 调整层整体透明 = 输出基画面）；
+//                         可随时间淡入淡出
+//
+// 层级混合（第 20 步；混合模式作用于调整层 = ADJUST 轨）：
+//   全部 19 步算出调整后颜色 c_adj 后，把它与基画面（Sampler0 原图）c_base 按混合模式整体混合：
+//     c = mix(c_base, blend(c_base, c_adj, BlendMode), clamp(BlendAmount, 0, 1))   （逐通道 RGB、均 0~1）
+//   混合公式（a = c_base、b = c_adj；W3C compositing 口径）：
+//     normal(0)     = b（直替换 = 现状）
+//     multiply(1)   = a·b
+//     screen(2)     = 1 - (1-a)·(1-b)
+//     soft_light(3) = a ≤ 0.5 ? b - (1-2a)·b·(1-b) : b + (2a-1)·(d(b)-b)，
+//                     其中 d(b) = b ≤ 0.25 ? ((16b-12)·b+4)·b : sqrt(b)
+//     overlay(4)    = a ≤ 0.5 ? 2ab : 1 - 2(1-a)(1-b)（a = 0.5 处两式相等，边界无跳变）
+//   缺省 normal + 1 = 直替换（与混合功能落地前逐位一致，故该步整段跳过）；BlendAmount = 0 =
+//   调整层整体透明（输出 = 基画面 = 恒等）。<b>不是操作栈步骤</b>，而是层级语义
+//   （调整层输出 vs 底下的画面）；只动 rgb，alpha 逐位直通。
 //
 // 亮度口径：Rec.709 权重（0.2126 / 0.7152 / 0.0722）。
 //
@@ -171,6 +191,8 @@ uniform float HueMagenta;
 uniform float SatMagenta;
 uniform float Grayscale;
 uniform float Invert;
+uniform float BlendMode;     // 层级混合模式编码（0 = normal … 4 = overlay；见文件头第 20 步）
+uniform float BlendAmount;   // 层级混合强度（0 ~ 1，缺省 1 = 全量生效）
 
 in vec2 texCoord;
 
@@ -313,6 +335,34 @@ vec2 sixBandShift(float theta) {
                     + sixBandWeight(theta, 180.0) * SatCyan
                     + sixBandWeight(theta, 240.0) * SatBlue
                     + sixBandWeight(theta, 300.0) * SatMagenta);
+}
+
+// 层级混合（第 20 步）：调整层输出（b = 全部 19 步算出的颜色）与基画面（a = Sampler0 原图）的混合。
+// 公式 = W3C compositing 口径（逐通道、输入均 0~1）；mode = 0 ~ 4 编码（见文件头）。
+float softLightChannel(float a, float b) {
+    float d = (b <= 0.25) ? ((16.0 * b - 12.0) * b + 4.0) * b : sqrt(b);
+    return (a <= 0.5) ? (b - (1.0 - 2.0 * a) * b * (1.0 - b))
+                      : (b + (2.0 * a - 1.0) * (d - b));
+}
+
+// 混合模式（a = 基画面、b = 调整层输出；逐通道 RGB、均 0~1）
+vec3 blendChannel(vec3 a, vec3 b, float mode) {
+    if (mode < 0.5) {
+        return b;                                        // normal：直替换（缺省 = 现状）
+    }
+    if (mode < 1.5) {
+        return a * b;                                    // multiply
+    }
+    if (mode < 2.5) {
+        return 1.0 - (1.0 - a) * (1.0 - b);              // screen
+    }
+    if (mode < 3.5) {
+        return vec3(softLightChannel(a.r, b.r),          // soft_light
+                    softLightChannel(a.g, b.g),
+                    softLightChannel(a.b, b.b));
+    }
+    // overlay：a ≤ 0.5 → 2ab，否则 1 - 2(1-a)(1-b)（a = 0.5 处两式相等，边界无跳变）
+    return mix(2.0 * a * b, 1.0 - 2.0 * (1.0 - a) * (1.0 - b), step(vec3(0.5), a));
 }
 
 void main() {
@@ -485,6 +535,17 @@ void main() {
     // 19. 反相：按强度混合
     if (Invert != 0.0) {
         c = mix(c, 1.0 - c, clamp(Invert, 0.0, 1.0));
+    }
+
+    // 20. 层级混合（混合模式作用于调整层 = ADJUST 轨）：把调整层输出（上面 19 步的 c = c_adj）
+    //     与基画面（Sampler0 原图 src.rgb = c_base）按混合模式整体混合——
+    //     c = mix(c_base, blend(c_base, c_adj, BlendMode), clamp(BlendAmount, 0, 1))（逐通道 RGB）；
+    //     不是操作栈步骤，而是层级语义（调整层输出 vs 底下的画面）；alpha 逐位直通（不受本步影响）。
+    //     缺省 normal + 1 = 直替换（与混合功能落地前逐位一致，故该步整段跳过）；
+    //     BlendAmount = 0 → 调整层整体透明（输出 = 基画面 = 恒等）
+    if (BlendMode != 0.0 || BlendAmount != 1.0) {
+        vec3 base = src.rgb;
+        c = mix(base, blendChannel(base, c, BlendMode), clamp(BlendAmount, 0.0, 1.0));
     }
 
     // alpha 直通：透明度归合成层（LaneCompositor / Overlay 层 opacity），此处只输出 rgb 的运算结果

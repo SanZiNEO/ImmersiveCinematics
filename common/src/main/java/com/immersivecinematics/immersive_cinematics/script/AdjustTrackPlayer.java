@@ -62,6 +62,13 @@ import java.util.List;
  * 键 = 进入 HSL 块时的 hue / 亮度 / 饱和度，目标 = hue / 饱和度 / 亮度，在 HSL 块内按固定顺序生效
  * （详见 {@code ColorAdjustParams} 与 {@code docs/SCRIPT_FORMAT.md} §10）。
  *
+ * <h2>层级混合（混合模式作用于调整层）</h2>
+ * clip 级 {@code blend_mode}（{@code normal} / {@code multiply} / {@code screen} / {@code soft_light} /
+ * {@code overlay}，缺省 {@code normal} = 直替换 = 现状）+ 关键帧 {@code blend_amount}（0 ~ 1，缺省 1）
+ * 把<b>调整层输出</b>（上面全部操作栈步骤算出的颜色）与<b>基画面</b>（{@code Sampler0} 原图）整体混合
+ * ——不是操作栈步骤，而是在全部步骤之后施加（见 {@link ColorAdjustParams} 的「层级混合」小节）；
+ * {@code blend_amount} 写回 0 = 调整层整体透明（输出 = 基画面），此时参数被规整为「无调整」、不发布。
+ *
  * <h2>默认零差异</h2>
  * 没有 ADJUST 轨道 / 没有活跃 clip / 参数全为缺省 → 不发布 → 渲染侧一次 GL 调用都不做。
  */
