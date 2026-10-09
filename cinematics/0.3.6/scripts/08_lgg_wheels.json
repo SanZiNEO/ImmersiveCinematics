@@ -1,0 +1,133 @@
+{
+  "meta": {
+    "id": "08_lgg_wheels",
+    "name": "调色展示-Lift / Gamma / Gain 色轮（九通道）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "Lift / Gamma / Gain 色轮展示（阴影 / 中间调 / 高光三组逐通道，共九通道）：0~8s Lift 阴影段——lift_r=lift_g=lift_b=+0.5（三通道同抬，纯黑抬到中灰、画面发灰）；8~16s Lift 阴影段——lift_r=-0.5、lift_b=+0.6（阴影偏冷蓝、暗部更实）；16~24s Gamma 中间调段——gamma_r=-1、gamma_b=+1（中调压红提蓝 → 偏青蓝，黑白两端不动）；24~32s Gain 高光段——gain_r=+1、gain_g=+0.5、gain_b=-1（亮部偏暖泛黄，蓝高光归零）；32~40s 九通道归零 = 原画（全 0 恒等）。字段口径：九通道各 -1~1、缺省 0 = 无效果——Lift c'=c+值·(1-c)、Gamma c'=pow(max(c,0), exp2(-值))、Gain c'=c·(1+值)；关键帧匀速线性插值 → 每段 2 秒渐入、2 秒渐出；只写在 ADJUST 轨（作用于整体画面 master，相机片段上写会被 validator 拦下）；只动 RGB，alpha 逐位直通。",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 320, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 40,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "① 0~8s Lift 阴影：三通道同抬 +0.5（c'=c+0.5·(1-c)，纯黑抬到中灰、画面发灰）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 7.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 8,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "② 8~16s Lift 阴影：只抬蓝 +0.6、红压 -0.5（阴影偏冷蓝、暗部更实，高光不动）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 7.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 16,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "③ 16~24s Gamma 中间调：红 -1（平方压暗）、蓝 +1（开方提亮）→ 中调偏青蓝，黑白两端不动",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 7.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 24,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "④ 24~32s Gain 高光：红 +1、绿 +0.5、蓝 -1（c'=c·(1+值) → 亮部偏暖泛黄）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 7.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 32,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "⑤ 32~40s 九通道归零 = 原画（三组色轮全 0 恒等，画面逐位不变）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 7.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 40,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 20, "position": { "dx": 3, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 40, "position": { "dx": 6, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 40,
+            "keyframes": [
+              { "time": 0, "lift_r": 0, "lift_g": 0, "lift_b": 0, "gamma_r": 0, "gamma_g": 0, "gamma_b": 0, "gain_r": 0, "gain_g": 0, "gain_b": 0 },
+              { "time": 2, "lift_r": 0.5, "lift_g": 0.5, "lift_b": 0.5, "gamma_r": 0, "gamma_g": 0, "gamma_b": 0, "gain_r": 0, "gain_g": 0, "gain_b": 0 },
+              { "time": 8, "lift_r": 0.5, "lift_g": 0.5, "lift_b": 0.5, "gamma_r": 0, "gamma_g": 0, "gamma_b": 0, "gain_r": 0, "gain_g": 0, "gain_b": 0 },
+              { "time": 10, "lift_r": -0.5, "lift_g": 0, "lift_b": 0.6, "gamma_r": 0, "gamma_g": 0, "gamma_b": 0, "gain_r": 0, "gain_g": 0, "gain_b": 0 },
+              { "time": 16, "lift_r": -0.5, "lift_g": 0, "lift_b": 0.6, "gamma_r": 0, "gamma_g": 0, "gamma_b": 0, "gain_r": 0, "gain_g": 0, "gain_b": 0 },
+              { "time": 18, "lift_r": 0, "lift_g": 0, "lift_b": 0, "gamma_r": -1, "gamma_g": 0, "gamma_b": 1, "gain_r": 0, "gain_g": 0, "gain_b": 0 },
+              { "time": 24, "lift_r": 0, "lift_g": 0, "lift_b": 0, "gamma_r": -1, "gamma_g": 0, "gamma_b": 1, "gain_r": 0, "gain_g": 0, "gain_b": 0 },
+              { "time": 26, "lift_r": 0, "lift_g": 0, "lift_b": 0, "gamma_r": 0, "gamma_g": 0, "gamma_b": 0, "gain_r": 1, "gain_g": 0.5, "gain_b": -1 },
+              { "time": 32, "lift_r": 0, "lift_g": 0, "lift_b": 0, "gamma_r": 0, "gamma_g": 0, "gamma_b": 0, "gain_r": 1, "gain_g": 0.5, "gain_b": -1 },
+              { "time": 34, "lift_r": 0, "lift_g": 0, "lift_b": 0, "gamma_r": 0, "gamma_g": 0, "gamma_b": 0, "gain_r": 0, "gain_g": 0, "gain_b": 0 },
+              { "time": 40, "lift_r": 0, "lift_g": 0, "lift_b": 0, "gamma_r": 0, "gamma_g": 0, "gamma_b": 0, "gain_r": 0, "gain_g": 0, "gain_b": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

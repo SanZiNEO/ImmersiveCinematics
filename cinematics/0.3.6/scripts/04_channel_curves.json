@@ -1,0 +1,144 @@
+{
+  "meta": {
+    "id": "showcase_channel_curves",
+    "name": "调色展示 04 · 每通道曲线 R/G/B",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "一个功能一个脚本：每通道曲线（r_curve / g_curve / b_curve 各一条，曲线组形态 b —— 三条都是 clip 级控制点数组 [[x,y],...]，x 严格递增、x/y 各 0~1；关键帧只控各自的混合强度 r_curve_strength / g_curve_strength / b_curve_strength，0~1、缺省 1、写回 0 = 该曲线淡出；没有对应曲线时该强度被忽略）。三条形状各不同：r_curve 提亮中间调、g_curve 压暗中间调、b_curve S 形提对比。① 只开 R（绿/蓝强度恒 0）② 只开 G ③ 只开 B ④ 三条同时（画面整体偏暖）⑤ 三条强度全部归零还原。每通道曲线只改自己那个分量（r_curve 不动 g/b），操作栈位置在 RGB 复合曲线之后、LGG 色轮之前。登录自动播放一次。",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 130, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 38,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "id": "overlay_caption",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "④ 每通道曲线｜只开 r_curve（提亮中间调）\nr_curve = [[0,0],[0.35,0.58],[0.7,0.86],[1,1]]｜r_curve_strength 0→1→0（g/b 恒 0）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 8,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "④ 每通道曲线｜只开 g_curve（压暗中间调）\ng_curve = [[0,0],[0.35,0.2],[0.7,0.5],[1,1]]｜g_curve_strength 0→1→0",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 16,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "④ 每通道曲线｜只开 b_curve（S 形提对比）\nb_curve = [[0,0],[0.25,0.1],[0.5,0.5],[0.75,0.9],[1,1]]｜b_curve_strength 0→1→0",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 24,
+            "duration": 10,
+            "layer_type": "subtitle",
+            "text": "④ 每通道曲线｜三条同时全量（强度 1）：R 提亮 + G 压暗 + B 提对比\n三条各只改自己的分量 → 画面整体偏暖",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 10, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 34,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "④ 每通道曲线｜三条强度全部归零：r/g/b_curve_strength = 0 → 画面逐位还原",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "id": "camera_showcase",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 38,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 9.5, "position": { "dx": 3, "dy": 3.6, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 19, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 4, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 28.5, "position": { "dx": -3, "dy": 3.6, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 38, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "id": "adjust_channel_curves",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 38,
+            "r_curve": [ [0, 0], [0.35, 0.58], [0.7, 0.86], [1, 1] ],
+            "g_curve": [ [0, 0], [0.35, 0.2], [0.7, 0.5], [1, 1] ],
+            "b_curve": [ [0, 0], [0.25, 0.1], [0.5, 0.5], [0.75, 0.9], [1, 1] ],
+            "keyframes": [
+              { "time": 0,    "r_curve_strength": 0, "g_curve_strength": 0, "b_curve_strength": 0 },
+              { "time": 1.5,  "r_curve_strength": 1, "g_curve_strength": 0, "b_curve_strength": 0 },
+              { "time": 6.5,  "r_curve_strength": 1, "g_curve_strength": 0, "b_curve_strength": 0 },
+              { "time": 8,    "r_curve_strength": 0, "g_curve_strength": 0, "b_curve_strength": 0 },
+              { "time": 9.5,  "r_curve_strength": 0, "g_curve_strength": 1, "b_curve_strength": 0 },
+              { "time": 14.5, "r_curve_strength": 0, "g_curve_strength": 1, "b_curve_strength": 0 },
+              { "time": 16,   "r_curve_strength": 0, "g_curve_strength": 0, "b_curve_strength": 0 },
+              { "time": 17.5, "r_curve_strength": 0, "g_curve_strength": 0, "b_curve_strength": 1 },
+              { "time": 22.5, "r_curve_strength": 0, "g_curve_strength": 0, "b_curve_strength": 1 },
+              { "time": 24,   "r_curve_strength": 0, "g_curve_strength": 0, "b_curve_strength": 0 },
+              { "time": 25.5, "r_curve_strength": 1, "g_curve_strength": 1, "b_curve_strength": 1 },
+              { "time": 32,   "r_curve_strength": 1, "g_curve_strength": 1, "b_curve_strength": 1 },
+              { "time": 34,   "r_curve_strength": 0, "g_curve_strength": 0, "b_curve_strength": 0 },
+              { "time": 38,   "r_curve_strength": 0, "g_curve_strength": 0, "b_curve_strength": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

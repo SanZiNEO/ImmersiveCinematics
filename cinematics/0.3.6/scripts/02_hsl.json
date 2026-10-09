@@ -1,0 +1,205 @@
+{
+  "meta": {
+    "id": "showcase_hsl",
+    "name": "调色展示 02 · 完整 HSL",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "一个功能一个脚本：完整 HSL（hue 旋转 ±180 / saturation / vibrance / lightness，全部关键帧字段，缺省 0 = 无效果；范围 -1~1）。① hue=+0.5（+90°）；② hue=-0.5（-90°）；③ hue=+1（+180°，色相环对面）；④ saturation=-1（S 归零 = 全灰）；⑤ saturation=+1（饱和度双倍）；⑥ vibrance=+1（自然饱和度：低饱和区优先加强，已经很艳的地方少动）；⑦ lightness=-0.5（向黑压）；⑧ lightness=+0.5（向白推）；⑨ 四个通道全部写回 0 → 画面逐位还原。每段内 0 → 目标 → 0 渐入渐出，段间自然回到无调整；四个标量通道同属 HSL 块（一次 rgb2hsl / hsl2rgb），只动 H/S/L、alpha 直通，灰度由 grayscale 通道另行表达。登录自动播放一次。",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 38, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 44,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "id": "overlay_caption",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "② 完整 HSL | hue = +0.5：色相旋转 +90°（±1 = ±180°）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 5,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "② 完整 HSL | hue = -0.5：色相旋转 -90°",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 10,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "② 完整 HSL | hue = +1：色相旋转 +180°（色相环对面）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 15,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "② 完整 HSL | saturation = -1：S 通道归零 = 全灰（HSL 口径）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 20,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "② 完整 HSL | saturation = +1：饱和度双倍",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 25,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "② 完整 HSL | vibrance = +1：自然饱和度（低饱和区优先加强，已很艳的地方少动）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 30,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "② 完整 HSL | lightness = -0.5：向黑压（整体压暗）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 35,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "② 完整 HSL | lightness = +0.5：向白推（整体提亮）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 40,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "② 完整 HSL | 全部归零：hue / saturation / vibrance / lightness = 0 → 画面逐位还原（全 0 = 恒等）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "id": "camera_showcase",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 44,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 11, "position": { "dx": 3, "dy": 3.6, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 22, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 4, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 33, "position": { "dx": -3, "dy": 3.6, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 44, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "id": "adjust_hsl",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 44,
+            "keyframes": [
+              { "time": 0,    "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 1.2,  "hue": 0.5,  "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 3.8,  "hue": 0.5,  "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 5,    "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 6.2,  "hue": -0.5, "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 8.8,  "hue": -0.5, "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 10,   "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 11.2, "hue": 1,    "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 13.8, "hue": 1,    "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 15,   "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 16.2, "hue": 0,    "saturation": -1, "vibrance": 0,  "lightness": 0 },
+              { "time": 18.8, "hue": 0,    "saturation": -1, "vibrance": 0,  "lightness": 0 },
+              { "time": 20,   "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 21.2, "hue": 0,    "saturation": 1,  "vibrance": 0,  "lightness": 0 },
+              { "time": 23.8, "hue": 0,    "saturation": 1,  "vibrance": 0,  "lightness": 0 },
+              { "time": 25,   "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 26.2, "hue": 0,    "saturation": 0,  "vibrance": 1,  "lightness": 0 },
+              { "time": 28.8, "hue": 0,    "saturation": 0,  "vibrance": 1,  "lightness": 0 },
+              { "time": 30,   "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 31.2, "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": -0.5 },
+              { "time": 33.8, "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": -0.5 },
+              { "time": 35,   "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 36.2, "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": 0.5 },
+              { "time": 38.8, "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": 0.5 },
+              { "time": 40,   "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": 0 },
+              { "time": 44,   "hue": 0,    "saturation": 0,  "vibrance": 0,  "lightness": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

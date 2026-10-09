@@ -1,0 +1,177 @@
+{
+  "meta": {
+    "id": "showcase_rgb_curve",
+    "name": "调色展示 03 · RGB 复合曲线",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "一个功能一个脚本：RGB 复合曲线（曲线组形态 b —— rgb_curve 是 clip 级控制点数组 [[x,y],...]，x/y 各 0~1、x 严格递增、至少 2 点，CPU 侧按 Fritsch–Carlson 单调三次插值采样成 256 点 LUT，端点外钳制；关键帧只控混合强度 curve_strength 0~1，缺省 1 = 全量生效、写回 0 = 曲线淡出）。同一 ADJUST 轨四个片段各给一条不同形状的复合曲线：① S 形（提对比）② 提亮中间调 ③ 压暗中间调 ④ 反 S（抬黑场 + 压白场 = 褪色）；⑤ 第五段不写 rgb_curve——此时 curve_strength 被忽略，画面逐位还原（证明「曲线是 clip 级、强度是关键帧级」）。每段内 curve_strength 0 → 1 → 0.5 → 1 → 0 渐显渐隐，操作栈位置在通道混合器之后、每通道曲线之前。登录自动播放一次。",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 84, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 44,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "id": "overlay_caption",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "layer_type": "subtitle",
+            "text": "③ RGB 复合曲线（S 形，提对比）\nrgb_curve = [[0,0],[0.25,0.13],[0.5,0.5],[0.75,0.87],[1,1]]｜curve_strength 0→1→0.5→1→0",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 10, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 10,
+            "duration": 10,
+            "layer_type": "subtitle",
+            "text": "③ RGB 复合曲线（提亮中间调）\nrgb_curve = [[0,0],[0.33,0.55],[0.66,0.82],[1,1]]｜curve_strength 渐入渐出",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 10, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 20,
+            "duration": 10,
+            "layer_type": "subtitle",
+            "text": "③ RGB 复合曲线（压暗中间调）\nrgb_curve = [[0,0],[0.33,0.16],[0.66,0.42],[1,1]]｜curve_strength 渐入渐出",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 10, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 30,
+            "duration": 10,
+            "layer_type": "subtitle",
+            "text": "③ RGB 复合曲线（反 S，抬黑场 + 压白场 = 褪色）\nrgb_curve = [[0,0.14],[0.5,0.5],[1,0.86]]｜curve_strength 渐入渐出",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 10, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 40,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "③ RGB 复合曲线｜本段不写 rgb_curve：curve_strength 被忽略 → 画面逐位还原\n（曲线定义一次在 clip 级，强度才是关键帧字段）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "id": "camera_showcase",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 44,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 11, "position": { "dx": 3, "dy": 3.6, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 22, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 4, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 33, "position": { "dx": -3, "dy": 3.6, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 44, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "id": "adjust_rgb_curve",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "rgb_curve": [ [0, 0], [0.25, 0.13], [0.5, 0.5], [0.75, 0.87], [1, 1] ],
+            "keyframes": [
+              { "time": 0,   "curve_strength": 0 },
+              { "time": 1.8, "curve_strength": 1 },
+              { "time": 5,   "curve_strength": 0.5 },
+              { "time": 8,   "curve_strength": 1 },
+              { "time": 10,  "curve_strength": 0 }
+            ]
+          },
+          {
+            "start_time": 10,
+            "duration": 10,
+            "rgb_curve": [ [0, 0], [0.33, 0.55], [0.66, 0.82], [1, 1] ],
+            "keyframes": [
+              { "time": 0,   "curve_strength": 0 },
+              { "time": 1.8, "curve_strength": 1 },
+              { "time": 5,   "curve_strength": 0.5 },
+              { "time": 8,   "curve_strength": 1 },
+              { "time": 10,  "curve_strength": 0 }
+            ]
+          },
+          {
+            "start_time": 20,
+            "duration": 10,
+            "rgb_curve": [ [0, 0], [0.33, 0.16], [0.66, 0.42], [1, 1] ],
+            "keyframes": [
+              { "time": 0,   "curve_strength": 0 },
+              { "time": 1.8, "curve_strength": 1 },
+              { "time": 5,   "curve_strength": 0.5 },
+              { "time": 8,   "curve_strength": 1 },
+              { "time": 10,  "curve_strength": 0 }
+            ]
+          },
+          {
+            "start_time": 30,
+            "duration": 10,
+            "rgb_curve": [ [0, 0.14], [0.5, 0.5], [1, 0.86] ],
+            "keyframes": [
+              { "time": 0,   "curve_strength": 0 },
+              { "time": 1.8, "curve_strength": 1 },
+              { "time": 5,   "curve_strength": 0.5 },
+              { "time": 8,   "curve_strength": 1 },
+              { "time": 10,  "curve_strength": 0 }
+            ]
+          },
+          {
+            "start_time": 40,
+            "duration": 4,
+            "keyframes": [
+              { "time": 0, "curve_strength": 0 },
+              { "time": 4, "curve_strength": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

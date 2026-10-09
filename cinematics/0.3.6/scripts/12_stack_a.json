@@ -1,0 +1,94 @@
+{
+  "meta": {
+    "id": "12_stack_a",
+    "name": "叠加展示-A 暖色 LGG + soft_light 柔光（下层）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "多实例 master 叠加演示 · 下层脚本（与 12_stack_b 配对，两个脚本同时登录自动播放）：本脚本只含 ADJUST 轨（整体画面 = master）与 OVERLAY 字幕轨，没有 CAMERA 轨 = 没有画面 lane，所以画面仍是原版玩家视角，master 调色直接作用在合成输出上——这样能干净地看清「两套调色按启动顺序叠加」。A 的调色是温和暖色：clip 级 blend_mode=soft_light（层级混合：调整层输出与基画面按柔光模式整体混合）+ 小量暖色 LGG 色轮（temperature 0.15、lift_r 0.06 / lift_b -0.05、gain_r 0.12 / gain_b -0.10）。节奏：0~3s blend_amount 0→1（渐入）→ 保持 → 33~35.5s blend_amount 1→0（渐出）→ 36s 全部通道回 0（结尾归零 = 无效果，画面还原）。叠加口径（plans/0.3.6/parallel-playback.md §3.4 + client/post/MasterColorAdjust）：实例整体按启动顺序叠放，先启动的在下层、后启动的在上层；渲染侧对每帧的实例列表逐套顺序施加，前一套的输出就是后一套的基画面。A 用 login 触发 delay=0 先启动（下层），B（12_stack_b）delay=1.5 后启动（上层），两脚本都在 36s 结束。字段口径：blend_mode 只写在 ADJUST 轨的片段上（normal / multiply / screen / soft_light / overlay）；blend_amount 是关键帧字段（0~1，缺省 1，0 = 调整层整体透明 = 画面逐位不变）；47 个标量通道缺省 0 = 无效果。调色只动 RGB，透明度只在合成层由 opacity 调控。重放：/icinematics play 12_stack_a（两个脚本一起看：再 /icinematics play 12_stack_b）。",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 493, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 36,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "id": "overlay_1",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "layer_type": "subtitle",
+            "text": "脚本 A 的 master（下层）\n暖色 LGG（temperature / lift / gain 小量）+ soft_light 柔光，0~3s 渐入",
+            "x": 0.5,
+            "y": 0.1,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "font_scale": 1.5, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.1, "font_scale": 1.5, "opacity": 1 },
+              { "time": 11.7, "x": 0.5, "y": 0.1, "font_scale": 1.5, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.1, "font_scale": 1.5, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 12,
+            "duration": 21,
+            "layer_type": "subtitle",
+            "text": "脚本 A 的 master（下层）· 保持\n与 B 按实例启动顺序叠加：A 在下层、B 在上层",
+            "x": 0.5,
+            "y": 0.1,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "font_scale": 1.5, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.1, "font_scale": 1.5, "opacity": 1 },
+              { "time": 20.7, "x": 0.5, "y": 0.1, "font_scale": 1.5, "opacity": 1 },
+              { "time": 21, "x": 0.5, "y": 0.1, "font_scale": 1.5, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 33,
+            "duration": 3,
+            "layer_type": "subtitle",
+            "text": "脚本 A 的 master（下层）· 33~35.5s 渐出（blend_amount→0）→ 36s 参数全 0",
+            "x": 0.5,
+            "y": 0.1,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "font_scale": 1.5, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.1, "font_scale": 1.5, "opacity": 1 },
+              { "time": 2.7, "x": 0.5, "y": 0.1, "font_scale": 1.5, "opacity": 1 },
+              { "time": 3, "x": 0.5, "y": 0.1, "font_scale": 1.5, "opacity": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "id": "adjust_1",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 36,
+            "blend_mode": "soft_light",
+            "keyframes": [
+              { "time": 0, "temperature": 0, "lift_r": 0, "lift_b": 0, "gain_r": 0, "gain_b": 0, "blend_amount": 0 },
+              { "time": 3, "temperature": 0.15, "lift_r": 0.06, "lift_b": -0.05, "gain_r": 0.12, "gain_b": -0.1, "blend_amount": 1 },
+              { "time": 33, "temperature": 0.15, "lift_r": 0.06, "lift_b": -0.05, "gain_r": 0.12, "gain_b": -0.1, "blend_amount": 1 },
+              { "time": 35.5, "temperature": 0.15, "lift_r": 0.06, "lift_b": -0.05, "gain_r": 0.12, "gain_b": -0.1, "blend_amount": 0 },
+              { "time": 36, "temperature": 0, "lift_r": 0, "lift_b": 0, "gain_r": 0, "gain_b": 0, "blend_amount": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

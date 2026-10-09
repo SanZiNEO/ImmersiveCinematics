@@ -1,0 +1,195 @@
+{
+  "meta": {
+    "id": "showcase_hue_curves",
+    "name": "调色展示 05 · 六条 hue 曲线",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "一个功能一个脚本：六条 hue 曲线（DaVinci 曲线页口径，曲线组形态 b —— 六条都是 clip 级控制点数组，关键帧只控各自的混合强度 hv_h_strength / hv_s_strength / hv_l_strength / lv_s_strength / sv_s_strength / sv_l_strength，0~1、缺省 1、写回 0 = 该曲线淡出）。键是「进入 HSL 块时」的 hue / 亮度 / 饱和度（不受同帧标量 HSL 改动影响），目标是 hue / 饱和度 / 亮度之一：① HvH（hue→hue，色相分区旋转）② HvS（hue→饱和度）③ HvL（hue→亮度）④ LvS（亮度→饱和度，阴影褪色）⑤ SvS（饱和度→饱和度，只加强不太艳的部分）⑥ SvL（饱和度→亮度，只压暗已经很艳的部分）⑦ 六条同时全量，按固定顺序 HvH→HvS→HvL→LvS→SvS→SvL 叠加 ⑧ 六个强度全部归零还原。六条都在 HSL 块内、标量 HSL 之后、灰度之前生效。登录自动播放一次。",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 170, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 44,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "id": "overlay_caption",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "⑤ 六条 hue 曲线｜HvH（hue→hue，色相分区旋转）\nhv_h_curve = [[0,0.12],[0.5,0.5],[1,0.12]]：红/品红两端抬到 0.12（红区往橙偏）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 5,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "⑤ 六条 hue 曲线｜HvS（hue→饱和度，按色相分区调饱和）\nhv_s_curve = [[0,1],[0.25,0.75],[0.5,0.3],[0.75,0.75],[1,1]]：红/品红提饱和、青区降饱和",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 10,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "⑤ 六条 hue 曲线｜HvL（hue→亮度，按色相分区调明暗）\nhv_l_curve = [[0,0.65],[0.25,0.5],[0.5,0.35],[0.75,0.5],[1,0.65]]：暖色区提亮、青区压暗",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 15,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "⑤ 六条 hue 曲线｜LvS（亮度→饱和度，按明暗分区调饱和）\nlv_s_curve = [[0,0.18],[0.4,0.5],[0.75,0.85],[1,1]]：暗部降到 0.18（阴影褪色），亮部保持",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 20,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "⑤ 六条 hue 曲线｜SvS（饱和度→饱和度，按饱和分区调饱和）\nsv_s_curve = [[0,0],[0.35,0.75],[0.7,1],[1,0.85]]：只加强「不太艳」的部分",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 25,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "⑤ 六条 hue 曲线｜SvL（饱和度→亮度，按饱和分区调明暗）\nsv_l_curve = [[0,0.5],[0.5,0.5],[1,0.28]]：只压暗已经很艳的部分",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 30,
+            "duration": 10,
+            "layer_type": "subtitle",
+            "text": "⑤ 六条 hue 曲线｜六条同时全量（六个强度都 = 1）\n按固定顺序叠加：HvH → HvS → HvL → LvS → SvS → SvL",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 10, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 40,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "⑤ 六条 hue 曲线｜六个强度全部归零 → 画面逐位还原（无曲线时强度被忽略）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "id": "camera_showcase",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 44,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 11, "position": { "dx": 3, "dy": 3.6, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 22, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 4, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 33, "position": { "dx": -3, "dy": 3.6, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 44, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "id": "adjust_hue_curves",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 44,
+            "hv_h_curve": [ [0, 0.12], [0.5, 0.5], [1, 0.12] ],
+            "hv_s_curve": [ [0, 1], [0.25, 0.75], [0.5, 0.3], [0.75, 0.75], [1, 1] ],
+            "hv_l_curve": [ [0, 0.65], [0.25, 0.5], [0.5, 0.35], [0.75, 0.5], [1, 0.65] ],
+            "lv_s_curve": [ [0, 0.18], [0.4, 0.5], [0.75, 0.85], [1, 1] ],
+            "sv_s_curve": [ [0, 0], [0.35, 0.75], [0.7, 1], [1, 0.85] ],
+            "sv_l_curve": [ [0, 0.5], [0.5, 0.5], [1, 0.28] ],
+            "keyframes": [
+              { "time": 0,    "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 1.2,  "hv_h_strength": 1, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 3.8,  "hv_h_strength": 1, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 5,    "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 6.2,  "hv_h_strength": 0, "hv_s_strength": 1, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 8.8,  "hv_h_strength": 0, "hv_s_strength": 1, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 10,   "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 11.2, "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 1, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 13.8, "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 1, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 15,   "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 16.2, "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 1, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 18.8, "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 1, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 20,   "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 21.2, "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 1, "sv_l_strength": 0 },
+              { "time": 23.8, "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 1, "sv_l_strength": 0 },
+              { "time": 25,   "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 26.2, "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 1 },
+              { "time": 28.8, "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 1 },
+              { "time": 30,   "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 31.5, "hv_h_strength": 1, "hv_s_strength": 1, "hv_l_strength": 1, "lv_s_strength": 1, "sv_s_strength": 1, "sv_l_strength": 1 },
+              { "time": 38.5, "hv_h_strength": 1, "hv_s_strength": 1, "hv_l_strength": 1, "lv_s_strength": 1, "sv_s_strength": 1, "sv_l_strength": 1 },
+              { "time": 40,   "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 },
+              { "time": 44,   "hv_h_strength": 0, "hv_s_strength": 0, "hv_l_strength": 0, "lv_s_strength": 0, "sv_s_strength": 0, "sv_l_strength": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

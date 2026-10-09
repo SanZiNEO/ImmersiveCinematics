@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "id": "12_stack_b",
+    "name": "叠加展示-B 通道混合器 + 六色带（上层）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "多实例 master 叠加演示 · 上层脚本（与 12_stack_a 配对，两个脚本同时登录自动播放）：本脚本只含 ADJUST 轨（整体画面 = master）与 OVERLAY 字幕轨，没有 CAMERA 轨 = 没有画面 lane，画面仍是原版玩家视角。B 的调色明显不同于 A：clip 级不写 blend_mode（= normal 直替换），走操作栈重组——RGB 通道混合器（3×3 矩阵：mix_rg 0.30 把绿并入红、mix_gr -0.20、mix_gb 0.10、mix_br 0.20、mix_bg 0.10、mix_bb -0.35 压蓝）+ 六色带微调（sat_cyan 0.45 青更艳、sat_red -0.35 红更淡、hue_cyan 0.06 轻微旋色）。节奏：0~3s blend_amount 0→1（渐入）→ 保持 → 26~28.5s blend_amount 1→0（渐出）→ 34.5s 全部通道回 0（结尾归零 = 无效果，画面还原）。叠加口径（plans/0.3.6/parallel-playback.md §3.4 + client/post/MasterColorAdjust）：实例整体按启动顺序叠放，先启动的在下层、后启动的在上层；渲染侧对每帧的实例列表逐套顺序施加，前一套的输出就是后一套的基画面——所以 B 的基画面 = A（12_stack_a）处理后的画面，本脚本的 master 按启动顺序叠在 A 之上；B 渐出后画面露出 A 的暖色，A 也渐出后回到原版画面。本脚本 login 触发 delay=1.5（比 A 晚 1.5s 启动 = 上层），总长 34.5s，与 A（36s，delay=0）在墙钟 36s 同时结束。字段口径：blend_mode 只写在 ADJUST 轨片段上（本脚本缺省 normal = 直替换）；blend_amount 关键帧字段 0~1（缺省 1，0 = 调整层整体透明）；mix_rr~mix_bb 与 hue_*/sat_* 各 -1~1、缺省 0 = 无效果。调色只动 RGB，透明度只在合成层由 opacity 调控。重放：/icinematics play 12_stack_b（两个脚本一起看：再 /icinematics play 12_stack_a）。",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 494.5, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 34.5,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "id": "overlay_1",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "layer_type": "subtitle",
+            "text": "脚本 B 的 master（按启动顺序叠在上层）\n通道混合器（mix_*）+ 六色带（sat_cyan / sat_red），比 A 晚 1.5s 启动",
+            "x": 0.5,
+            "y": 0.24,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.24, "font_scale": 1.5, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.24, "font_scale": 1.5, "opacity": 1 },
+              { "time": 11.7, "x": 0.5, "y": 0.24, "font_scale": 1.5, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.24, "font_scale": 1.5, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 12,
+            "duration": 14,
+            "layer_type": "subtitle",
+            "text": "脚本 B 的 master（按启动顺序叠在上层）· 保持\n两层顺序施加：B 的基画面 = A 处理后的画面",
+            "x": 0.5,
+            "y": 0.24,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.24, "font_scale": 1.5, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.24, "font_scale": 1.5, "opacity": 1 },
+              { "time": 13.7, "x": 0.5, "y": 0.24, "font_scale": 1.5, "opacity": 1 },
+              { "time": 14, "x": 0.5, "y": 0.24, "font_scale": 1.5, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 26,
+            "duration": 8.5,
+            "layer_type": "subtitle",
+            "text": "脚本 B 的 master（按启动顺序叠在上层）· 渐出\n26~28.5s blend_amount→0 → 露出下层 A 的调色",
+            "x": 0.5,
+            "y": 0.24,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.24, "font_scale": 1.5, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.24, "font_scale": 1.5, "opacity": 1 },
+              { "time": 8.2, "x": 0.5, "y": 0.24, "font_scale": 1.5, "opacity": 1 },
+              { "time": 8.5, "x": 0.5, "y": 0.24, "font_scale": 1.5, "opacity": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "id": "adjust_1",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 34.5,
+            "keyframes": [
+              { "time": 0, "mix_rg": 0, "mix_gr": 0, "mix_gb": 0, "mix_br": 0, "mix_bg": 0, "mix_bb": 0, "hue_cyan": 0, "sat_red": 0, "sat_cyan": 0, "blend_amount": 0 },
+              { "time": 3, "mix_rg": 0.3, "mix_gr": -0.2, "mix_gb": 0.1, "mix_br": 0.2, "mix_bg": 0.1, "mix_bb": -0.35, "hue_cyan": 0.06, "sat_red": -0.35, "sat_cyan": 0.45, "blend_amount": 1 },
+              { "time": 26, "mix_rg": 0.3, "mix_gr": -0.2, "mix_gb": 0.1, "mix_br": 0.2, "mix_bg": 0.1, "mix_bb": -0.35, "hue_cyan": 0.06, "sat_red": -0.35, "sat_cyan": 0.45, "blend_amount": 1 },
+              { "time": 28.5, "mix_rg": 0.3, "mix_gr": -0.2, "mix_gb": 0.1, "mix_br": 0.2, "mix_bg": 0.1, "mix_bb": -0.35, "hue_cyan": 0.06, "sat_red": -0.35, "sat_cyan": 0.45, "blend_amount": 0 },
+              { "time": 34.5, "mix_rg": 0, "mix_gr": 0, "mix_gb": 0, "mix_br": 0, "mix_bg": 0, "mix_bb": 0, "hue_cyan": 0, "sat_red": 0, "sat_cyan": 0, "blend_amount": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

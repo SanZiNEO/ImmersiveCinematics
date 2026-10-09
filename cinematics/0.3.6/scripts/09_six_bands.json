@@ -1,0 +1,192 @@
+{
+  "meta": {
+    "id": "09_six_bands",
+    "name": "调色展示-PS 式六色带（绿→黄 重点 + 逐带微调）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "PS 式六色带微调展示（红 0°/黄 60°/绿 120°/青 180°/蓝 240°/品红 300°，每带一对 hue/sat，共十二通道）：0~4s 基线全 0（原画对照）；4~12s 重点段「绿→黄」——hue_green = -0.33（绿带整体 -60°，120°→60°，草叶/树叶转黄，用户真实诉求）；12~18s 绿→黄 + sat_green = -0.4（绿带降饱和 → 枯叶/秋色）；18~23s 红带 hue_red = +0.15（红→橙）+ sat_red = +0.5（提饱和）；23~28s 黄带 hue_yellow = -0.15（黄→橙）+ sat_yellow = -0.5（降饱和）；28~33s 青带 hue_cyan = +0.2（青→蓝）+ sat_cyan = +0.5（提饱和）；33~38s 蓝带 hue_blue = -0.2（蓝→青）+ sat_blue = +0.5（提饱和）；38~42s 品红带 hue_magenta = +0.2（品红→红紫）+ sat_magenta = -0.5（降饱和）；42~45s 十二通道归零 = 原画（全 0 恒等）。字段口径：十二通道各 -1~1、缺省 0 = 无效果；hue_* 只作用于该带内像素（带权重 = 升余弦锥形、±30° 支撑），±1 = ±180°，先旋色相再改饱和（sat *= 1+Δsat）；关键帧匀速线性插值 → 每段 1.5 秒渐入渐出；只写在 ADJUST 轨（作用于整体画面 master，相机片段上写会被 validator 拦下）；只动 H/S，alpha 逐位直通。",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 362, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 45,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "基线：六色带十二通道全 0 = 无效果（原画对照）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 3.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 4,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "重点·绿→黄：hue_green = -0.33（绿带 120°→60°，草叶/树叶整体转黄）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 7.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 12,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "绿→黄 + 降饱和：hue_green = -0.33、sat_green = -0.4（枯叶 / 秋色感）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 18,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "红带：hue_red = +0.15（红→橙）、sat_red = +0.5（提饱和）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 23,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "黄带：hue_yellow = -0.15（黄→橙）、sat_yellow = -0.5（降饱和）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 28,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "青带：hue_cyan = +0.2（青→蓝）、sat_cyan = +0.5（提饱和）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 33,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "蓝带：hue_blue = -0.2（蓝→青）、sat_blue = +0.5（提饱和）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 38,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "品红带：hue_magenta = +0.2（品红→红紫）、sat_magenta = -0.5（降饱和）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 3.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 42,
+            "duration": 3,
+            "layer_type": "subtitle",
+            "text": "十二通道归零 = 原画（全 0 恒等，画面逐位不变）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
+              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 2.7, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 3, "x": 0.5, "y": 0.88, "opacity": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 45,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 22.5, "position": { "dx": 3, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 45, "position": { "dx": 6, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 45,
+            "keyframes": [
+              { "time": 0, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 4, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 5.5, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": -0.33, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 12, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": -0.33, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 13.5, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": -0.33, "sat_green": -0.4, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 18, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": -0.33, "sat_green": -0.4, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 19.5, "hue_red": 0.15, "sat_red": 0.5, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 23, "hue_red": 0.15, "sat_red": 0.5, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 24.5, "hue_red": 0, "sat_red": 0, "hue_yellow": -0.15, "sat_yellow": -0.5, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 28, "hue_red": 0, "sat_red": 0, "hue_yellow": -0.15, "sat_yellow": -0.5, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 29.5, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0.2, "sat_cyan": 0.5, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 33, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0.2, "sat_cyan": 0.5, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 34.5, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": -0.2, "sat_blue": 0.5, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 38, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": -0.2, "sat_blue": 0.5, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 39.5, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0.2, "sat_magenta": -0.5 },
+              { "time": 42, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0.2, "sat_magenta": -0.5 },
+              { "time": 43.5, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 45, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

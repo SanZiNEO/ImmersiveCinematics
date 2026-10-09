@@ -1,0 +1,261 @@
+{
+  "meta": {
+    "id": "lut_showcase_60s",
+    "name": "LUT 展示（60 秒 · 6 个 cube 顺序对比）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "60 秒 LUT 展示（纯脚本数据驱动，效果全部来自脚本数据）：单相机全屏、同一机位同一动势，单条 ADJUST 轨顺序加载 6 个风格差异明显的现成 .cube——0~6s 不写 lut（原画对照，后 54 秒的基准），6~51s 每 9 秒换一个新 cube（Teal and Orange.cube 青橙 → VERDE.cube 绿 → AZUL.cube 蓝 → Naranga.cube 橙 → CINE LUT SUMMER 19.cube 暖夏），51~60s 用 CMG RETROGOD.cube 专门演示输入域纠偏旋钮（同一 cube、同一强度，lut_input_gamma 1.0 vs 2.2 硬切对比）。字段口径：lut 是 clip 级字段（resource/ 目录下的 .cube 文件名，不含路径分隔符）——换风格只换这个文件名；lut_input_gamma 是 clip 级字段（float，必须 > 0，缺省 1.0 = 不变换），查表前先做 v = pow(clamp(c,0,1), gamma) 把画面映射回 cube 假设的输入域（现成 cube 为别的素材/游戏调的，套上后整体偏亮偏色时用它纠偏）；lut_strength 是关键帧级字段（0~1，缺省 1），每段 0→1 渐显、段尾渐出（写回 0 = LUT 淡出）。LUT 是对整体画面（master）的处理，只写在 ADJUST 轨的片段上——相机片段写 lut / lut_strength / lut_input_gamma 会被 validator 拦下。结尾 lut_strength 归零：全 0 = 恒等，画面逐位回到原画（证明不写 lut / 强度 0 整步跳过）。字幕（OVERLAY 文本层）逐段标注当前 cube 文件名与参数，GUI 层不被 LUT 套色。资源前置：6 个 .cube 须放在 <游戏目录>/immersive_cinematics/resource/ 下（本仓库侧副本在 cinematics/0.3.6/resource/，商业版权不入库）。登录即自动播放（login 触发器）。",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 216, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 60,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "原画对照：不写 lut = 无 LUT\n0~6s 基准画面（后 54 秒的每一段都与它对比）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 9,
+            "layer_type": "subtitle",
+            "text": "LUT 1/6：Teal and Orange.cube\n青橙电影感 · lut_strength 0→1→0（渐显 / 段尾渐出）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 9, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 15,
+            "duration": 9,
+            "layer_type": "subtitle",
+            "text": "LUT 2/6：VERDE.cube\n青绿偏冷（阴影提蓝，中间调抬亮）· 换风格只换 clip 级 lut 文件名",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 9, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 24,
+            "duration": 9,
+            "layer_type": "subtitle",
+            "text": "LUT 3/6：AZUL.cube\n蓝调（冷，压暗阴影）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 9, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 33,
+            "duration": 9,
+            "layer_type": "subtitle",
+            "text": "LUT 4/6：Naranga.cube\n橙调（暖，高光提亮）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 9, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 42,
+            "duration": 9,
+            "layer_type": "subtitle",
+            "text": "LUT 5/6：CINE LUT SUMMER 19.cube\n暖夏（标准素材向，中间调压暗）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 9, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 51,
+            "duration": 4.5,
+            "layer_type": "subtitle",
+            "text": "LUT 6/6：CMG RETROGOD.cube\nlut_input_gamma = 1.0（直查：偏亮、饱和冲）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 4.5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 55.5,
+            "duration": 3,
+            "layer_type": "subtitle",
+            "text": "输入域纠偏旋钮：CMG RETROGOD.cube · lut_input_gamma = 2.2\n同一 cube 同强度，只换 gamma：查表前先压暗输入 → 整体压暗、暗部塌",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 3, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 58.5,
+            "duration": 1.5,
+            "layer_type": "subtitle",
+            "text": "lut_strength → 0：LUT 淡出，画面回到原画\n（全 0 = 恒等，整步跳过、逐位不变）",
+            "x": 0.5,
+            "y": 0.88,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
+              { "time": 1.5, "x": 0.5, "y": 0.88, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 60,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": -6.0, "dy": 3.0, "dz": -8.0 }, "follow": "entity", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 72, "zoom": 1, "opacity": 1 },
+              { "time": 12, "position": { "dx": -3.6, "dy": 3.4, "dz": -7.6 }, "follow": "entity", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70.4, "zoom": 1, "opacity": 1 },
+              { "time": 24, "position": { "dx": -1.2, "dy": 3.8, "dz": -7.2 }, "follow": "entity", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 68.8, "zoom": 1, "opacity": 1 },
+              { "time": 36, "position": { "dx": 1.2, "dy": 4.2, "dz": -6.8 }, "follow": "entity", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 67.2, "zoom": 1, "opacity": 1 },
+              { "time": 48, "position": { "dx": 3.6, "dy": 4.6, "dz": -6.4 }, "follow": "entity", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 65.6, "zoom": 1, "opacity": 1 },
+              { "time": 60, "position": { "dx": 6.0, "dy": 5.0, "dz": -6.0 }, "follow": "entity", "follow_selector": "@p", "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 64, "zoom": 1, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "keyframes": [
+              { "time": 0 },
+              { "time": 6 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 9,
+            "lut": "Teal and Orange.cube",
+            "lut_input_gamma": 1.0,
+            "keyframes": [
+              { "time": 0, "lut_strength": 0 },
+              { "time": 1.5, "lut_strength": 1 },
+              { "time": 7.5, "lut_strength": 1 },
+              { "time": 9, "lut_strength": 0 }
+            ]
+          },
+          {
+            "start_time": 15,
+            "duration": 9,
+            "lut": "VERDE.cube",
+            "lut_input_gamma": 1.0,
+            "keyframes": [
+              { "time": 0, "lut_strength": 0 },
+              { "time": 1.5, "lut_strength": 1 },
+              { "time": 7.5, "lut_strength": 1 },
+              { "time": 9, "lut_strength": 0 }
+            ]
+          },
+          {
+            "start_time": 24,
+            "duration": 9,
+            "lut": "AZUL.cube",
+            "lut_input_gamma": 1.0,
+            "keyframes": [
+              { "time": 0, "lut_strength": 0 },
+              { "time": 1.5, "lut_strength": 1 },
+              { "time": 7.5, "lut_strength": 1 },
+              { "time": 9, "lut_strength": 0 }
+            ]
+          },
+          {
+            "start_time": 33,
+            "duration": 9,
+            "lut": "Naranga.cube",
+            "lut_input_gamma": 1.0,
+            "keyframes": [
+              { "time": 0, "lut_strength": 0 },
+              { "time": 1.5, "lut_strength": 1 },
+              { "time": 7.5, "lut_strength": 1 },
+              { "time": 9, "lut_strength": 0 }
+            ]
+          },
+          {
+            "start_time": 42,
+            "duration": 9,
+            "lut": "CINE LUT SUMMER 19.cube",
+            "lut_input_gamma": 1.0,
+            "keyframes": [
+              { "time": 0, "lut_strength": 0 },
+              { "time": 1.5, "lut_strength": 1 },
+              { "time": 7.5, "lut_strength": 1 },
+              { "time": 9, "lut_strength": 0 }
+            ]
+          },
+          {
+            "start_time": 51,
+            "duration": 4.5,
+            "lut": "CMG RETROGOD.cube",
+            "lut_input_gamma": 1.0,
+            "keyframes": [
+              { "time": 0, "lut_strength": 0 },
+              { "time": 1.5, "lut_strength": 1 },
+              { "time": 4.5, "lut_strength": 1 }
+            ]
+          },
+          {
+            "start_time": 55.5,
+            "duration": 4.5,
+            "lut": "CMG RETROGOD.cube",
+            "lut_input_gamma": 2.2,
+            "keyframes": [
+              { "time": 0, "lut_strength": 1 },
+              { "time": 3, "lut_strength": 1 },
+              { "time": 4.5, "lut_strength": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
