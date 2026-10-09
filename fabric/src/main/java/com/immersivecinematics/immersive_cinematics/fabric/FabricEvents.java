@@ -1,7 +1,9 @@
 package com.immersivecinematics.immersive_cinematics.fabric;
 
+import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
 import com.immersivecinematics.immersive_cinematics.handler.ClientEventHandler;
 import com.immersivecinematics.immersive_cinematics.handler.ServerEventHandler;
+import com.immersivecinematics.immersive_cinematics.script.CubeLutLoader;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
@@ -13,7 +15,12 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.*;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.resources.ResourceManager;
 
 /**
  * Fabric 事件注册（0.3.5 第7轮去 Arch）。
@@ -70,5 +77,19 @@ public final class FabricEvents {
 
         ClientTickEvents.END_CLIENT_TICK.register(ClientEventHandler::onClientTick);
         HudRenderCallback.EVENT.register((graphics, tickDelta) -> ClientEventHandler.onRenderHud(graphics));
+
+        // F3+T 资源重载：清空 LUT 解析缓存（解析缓存 + 负缓存 + clip 引用表），下次取用按新文件重新解析
+        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(
+                new SimpleSynchronousResourceReloadListener() {
+                    @Override
+                    public ResourceLocation getFabricId() {
+                        return new ResourceLocation(ImmersiveCinematics.MOD_ID, "lut_cache");
+                    }
+
+                    @Override
+                    public void onResourceManagerReload(ResourceManager resourceManager) {
+                        CubeLutLoader.clearCache();
+                    }
+                });
     }
 }

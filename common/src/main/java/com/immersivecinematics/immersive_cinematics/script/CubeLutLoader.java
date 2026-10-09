@@ -19,9 +19,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * <ul>
  *   <li><b>按文件路径</b>缓存解析结果（同一文件只解析一次，多个 clip 共享同一不可变实例）；
  *       解析失败也会被记住（负缓存），保证「失败只记一次日志」、不每帧重试；</li>
- *   <li><b>按 clip</b>（{@link #forClip(String, String)} / {@link #releaseClip(String)}）是给下一子任务接
- *       {@code Clip} 的接线面：clip 只持有引用，底层实例仍按路径共享；</li>
- *   <li>{@link #clearCache()} 清空全部（资源重载时调用）。</li>
+ *   <li><b>按 clip</b>（{@link #forClip(String, String)} / {@link #releaseClip(String)}）：clip 只持有引用、
+ *       底层实例仍按路径共享；播放结束 / 换脚本时由 {@code ScriptPlayer} 释放该脚本片段的引用；</li>
+ *   <li>{@link #clearCache()} 清空全部（F3+T 资源重载时由 fabric / forge 的客户端重载监听器调用）。</li>
  * </ul>
  *
  * <h2>失败口径（与着色器加载失败一致）</h2>

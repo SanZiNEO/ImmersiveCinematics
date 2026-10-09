@@ -119,6 +119,8 @@ public class ScriptPlayer {
      */
     public void replaceScript(CinematicScript newScript) {
         if (newScript == null) return;
+        // LUT：旧脚本的 clip 引用释放（新脚本的片段在下一帧采样时按新 clipId 重新登记）
+        releaseLutClipRefs(this.script);
         List<TimelineTrack> oldTracks = script != null ? script.getTimeline().getTracks() : null;
         List<TimelineTrack> newTracks = newScript.getTimeline().getTracks();
         boolean layoutChanged = !sameTrackLayout(oldTracks, newTracks);
@@ -205,6 +207,22 @@ public class ScriptPlayer {
     }
 
     /**
+     * 释放脚本里带 {@code lut} 的片段在 {@link CubeLutLoader} 的 clip 引用（播放结束 / 换脚本时）。
+     * <p>只摘「哪些 clip 引用了 LUT」的引用表，按路径共享的解析缓存不动——同一 LUT 的其它脚本 / 后续播放
+     * 仍复用同一不可变实例；资源重载走 {@link CubeLutLoader#clearCache()}。</p>
+     */
+    private static void releaseLutClipRefs(CinematicScript script) {
+        if (script == null || script.getTimeline() == null) return;
+        for (TimelineTrack track : script.getTimeline().getTracks()) {
+            for (Clip clip : track.getClips()) {
+                if (clip.getLut() != null) {
+                    CubeLutLoader.releaseClip(clip.getClipId());
+                }
+            }
+        }
+    }
+
+    /**
      * 启动脚本播放（预执行首帧从脚本开头开始——游戏内播放路径）
      *
      * @param script 已解析的脚本对象
@@ -223,6 +241,8 @@ public class ScriptPlayer {
     public void start(CinematicScript script, float preExecuteAt) {
         // D1：替换 trackPlayers 前先清理旧实例（否则 AudioTrackPlayer 的 OpenAL source 泄漏 → 重复播放/无法停止）
         cleanupTrackPlayers();
+        // LUT：被本次 start 顶掉的旧脚本的 clip 引用一并释放（this.script 尚未指向新脚本）
+        releaseLutClipRefs(this.script);
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) {
@@ -295,6 +315,8 @@ public class ScriptPlayer {
 
         // 通知所有 TrackPlayer 停止并清空
         cleanupTrackPlayers();
+        // LUT：本脚本的 clip 引用释放（按路径共享的解析缓存不动；资源重载走 CubeLutLoader#clearCache）
+        releaseLutClipRefs(this.script);
         // 玩家移动控制：停止驱动
         playerMovement.onStop();
 

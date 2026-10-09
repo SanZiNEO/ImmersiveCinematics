@@ -6,11 +6,14 @@ import com.immersivecinematics.immersive_cinematics.client.ConfigScreen;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import com.immersivecinematics.immersive_cinematics.forge.hud.ForgeHudLayerRegistry;
 import com.immersivecinematics.immersive_cinematics.handler.ClientEventHandler;
+import com.immersivecinematics.immersive_cinematics.script.CubeLutLoader;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.ConfigScreenHandler;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
@@ -47,6 +50,16 @@ public final class ForgeClientEvents {
     @SubscribeEvent
     public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
         ClientEventHandler.registerKeyMappings(event::register);
+    }
+
+    /**
+     * F3+T 资源重载：清空 LUT 解析缓存（解析缓存 + 负缓存 + clip 引用表），下次取用按新文件重新解析。
+     * <p>用 {@link RegisterClientReloadListenersEvent}（MOD 总线，Minecraft 构造期触发）而不是
+     * {@code FMLClientSetupEvent}——前者注册进客户端资源管理器、此后每次资源重载都会回调。</p>
+     */
+    @SubscribeEvent
+    public static void onRegisterClientReloadListeners(RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener((ResourceManagerReloadListener) resourceManager -> CubeLutLoader.clearCache());
     }
 
     @Mod.EventBusSubscriber(modid = ImmersiveCinematics.MOD_ID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)

@@ -414,6 +414,9 @@ public final class ColorAdjustPass {
      */
     private static final class Lut3DTexture {
 
+        /** {@code GL_MAX_3D_TEXTURE_SIZE}（首次查询后缓存；{@code -1} = 尚未查询）。 */
+        private static int maxTextureSize = -1;
+
         private int textureId = -1;
         private CubeLut uploaded;
 
@@ -424,6 +427,12 @@ public final class ColorAdjustPass {
             }
             CubeLut.Composed3D composed = lut.composed3D();
             int size = composed.size();
+            // 尺寸守卫：合成表理论上 ≤ COMPOSED_MAX_SIZE，仍按驱动上限核一道——超出只告警、不阻断
+            int maxSize = maxTextureSize();
+            if (maxSize > 0 && size > maxSize) {
+                ErrorLog.log("LUT", "合成表边长 " + size + " 超出 GL_MAX_3D_TEXTURE_SIZE（" + maxSize
+                        + "）：本次仍按原尺寸上传，纹理将不完整（LUT 不生效）；检查 LUT 尺寸与 CubeLut 合成上限");
+            }
             float[] data = composed.data();
             int entries = size * size * size;
             FloatBuffer pixels = BufferUtils.createFloatBuffer(entries * 4);
@@ -445,6 +454,16 @@ public final class ColorAdjustPass {
             GL11.glTexParameteri(GL12.GL_TEXTURE_3D, GL12.GL_TEXTURE_WRAP_R, GL12.GL_CLAMP_TO_EDGE);
             GL11.glBindTexture(GL12.GL_TEXTURE_3D, 0);
             uploaded = lut;
+        }
+
+        /** {@code GL_MAX_3D_TEXTURE_SIZE}（首次查询后缓存；{@code 0} = 未知 = 不检查）。 */
+        private static int maxTextureSize() {
+            int cached = maxTextureSize;
+            if (cached < 0) {
+                cached = GL11.glGetInteger(GL12.GL_MAX_3D_TEXTURE_SIZE);
+                maxTextureSize = cached;
+            }
+            return cached;
         }
 
         /** 把当前纹理绑到 {@link #LUT_3D_UNIT} 单元（绘制前调用；不改变其它单元与 2D 绑定）。 */

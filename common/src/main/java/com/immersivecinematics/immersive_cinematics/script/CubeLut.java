@@ -12,8 +12,12 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
- * Adobe / IRIDAS Cube LUT（{@code .cube}）解析器与解析结果 —— 纯 Java、零外部依赖、无 Minecraft 依赖。
+ * Adobe / IRIDAS Cube LUT（{@code .cube}）解析器与解析结果 —— 纯 Java、无 Minecraft 依赖
+ * （唯一外部依赖 = slf4j，仅用于合成表降级时的一条 WARN）。
  *
  * <h2>格式基线</h2>
  * 以 Adobe/IRIDAS Cube LUT Specification 1.0 为基线，并兼容 <b>DaVinci Resolve</b> 导出的变体
@@ -59,11 +63,19 @@ import java.util.regex.Pattern;
  *       输入域 {@code [0,1]³} 的 3D 表（渲染侧只吃这一张表，见该方法的等价性说明）。</li>
  * </ul>
  *
+ * <h2>尺寸策略</h2>
+ * 真实 LUT 以 ≤65³ 居多（Resolve 33³ / 65³ 导出、通用 64³），解析上限 {@value #MAX_SIZE_3D} / {@value #MAX_SIZE_1D}
+ * 远宽于实际用量；需要重采样的合成表（{@link #composed3D()}：带 1D shaper 或非单位域）边长上限
+ * {@value #COMPOSED_MAX_SIZE}——1D 段超出上限按 {@value #COMPOSED_MAX_SIZE} 点重采样并记一条 WARN
+ * （误差有上界、不阻断；纯 3D 单位域走复用路径、不受此上限影响）。
+ *
  * <h2>不可变</h2>
  * 解析结果不可变；{@link #data1D()} / {@link #data3D()} 与 {@link Composed3D#data()} 返回内部数组
  * （只读契约），调用方不得修改。
  */
 public final class CubeLut {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CubeLut");
 
     /** 1D / 3D LUT 的最小尺寸（至少 2 个采样点）。 */
     public static final int MIN_SIZE = 2;
@@ -599,6 +611,11 @@ public final class CubeLut {
             }
         }
         if (size1D > 0) {
+            if (size1D > COMPOSED_MAX_SIZE) {
+                // 1D 段被上限截断（如 1024 / 4096 点 shaper 只按 64 点重采样）：精度损失有上界，不阻断
+                LOGGER.warn("1D LUT 尺寸 {} 超过合成表上限 {}：1D 段按 {} 点重采样（有精度损失），"
+                        + "见 CubeLut#composed3D 的尺寸规则", size1D, COMPOSED_MAX_SIZE, COMPOSED_MAX_SIZE);
+            }
             m = Math.max(m, Math.min(size1D - 1, COMPOSED_MAX_SIZE - 1));
         }
         return m;

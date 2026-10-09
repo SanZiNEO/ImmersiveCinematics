@@ -293,6 +293,10 @@ public final class ScriptValidator {
                         issues.add(cp + ".lut 不支持（LUT 是对整体画面的处理，只写在 ADJUST 轨的片段上）："
                                 + "相机片段请改用逐 lane 调色字段，或把 lut 移到 ADJUST 轨");
                     }
+                    if (clip.has("lut_strength")) {
+                        issues.add(cp + ".lut_strength 不支持（LUT 强度只随 ADJUST 轨的 lut 一起写在关键帧上）："
+                                + "相机片段请删掉该字段，或把 lut / lut_strength 移到 ADJUST 轨");
+                    }
                 }
                 if ("OVERLAY".equalsIgnoreCase(type)) {
                     checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle");
@@ -430,6 +434,11 @@ public final class ScriptValidator {
                             checkRect(kf, kp, "source", issues);
                             // 调色（0.3.6）：本相机片段关键帧的 45 个调色通道区间
                             checkAdjustFields(null, null, kf, kp, issues);
+                            // LUT 是整体画面（master）处理：相机片段关键帧写 lut_strength 同样不生效，直接拦下
+                            if (kf.has("lut_strength")) {
+                                issues.add(kp + ".lut_strength 不支持（LUT 强度只随 ADJUST 轨的 lut 一起写在关键帧上）："
+                                        + "相机片段请删掉该字段，或把 lut / lut_strength 移到 ADJUST 轨");
+                            }
                         }
 
                         // ADJUST 关键帧：45 个标量通道的取值区间（不写 = 缺省 0 = 无效果——十条曲线强度缺省 1；写回 0 = 该项淡出）
