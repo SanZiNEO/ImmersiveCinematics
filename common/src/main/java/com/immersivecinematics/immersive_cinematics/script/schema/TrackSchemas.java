@@ -32,7 +32,7 @@ public final class TrackSchemas {
      * <b>相机片段自带调色</b>（0.3.6：每个 lane / 图层各自持有调整）：clip 级 10 条曲线
      * （{@code rgb_curve} 复合 + {@code r_curve} / {@code g_curve} / {@code b_curve} 每通道 +
      * {@code hv_h_curve} / {@code hv_s_curve} / {@code hv_l_curve} / {@code lv_s_curve} /
-     * {@code sv_s_curve} / {@code sv_l_curve} 六条 hue 曲线）+ 关键帧 45 个调色通道
+     * {@code sv_s_curve} / {@code sv_l_curve} 六条 hue 曲线）+ 关键帧 57 个调色通道
      * （与 ADJUST 轨同名同缺省）。调色作用于该相机轨产出的 lane，在该 lane
      * <b>渲染完成之后、合成之前</b>生效（与 {@code dest} / {@code source} / {@code opacity} 同层，
      * 见 {@code plans/0.3.6/screen-color-adjust.md} 步骤 1、{@code plans/0.3.6/camera-composition.md}）。
@@ -114,7 +114,7 @@ public final class TrackSchemas {
         kfs.put("source", new FieldDef("map", null));
 
         // 调色：每个相机片段直接携带自己的调色；作用于该相机轨的 lane（渲染完、合成前）
-        // 下列 45 个字段与 ADJUST 轨同名同缺省（35 个标量通道缺省 0 + 10 个曲线强度缺省 1）。
+        // 下列 57 个字段与 ADJUST 轨同名同缺省（47 个标量通道缺省 0 + 10 个曲线强度缺省 1）。
         // 基础校色（复合 RGB）
         kfs.put("exposure", new FieldDef("float", 0f));       // -5 ~ 5（EV 档，×2^EV）
         kfs.put("contrast", new FieldDef("float", 0f));       // -1 ~ 1（以中灰 0.5 为轴）
@@ -166,6 +166,21 @@ public final class TrackSchemas {
         kfs.put("lv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（LvS：亮度 → 饱和度）
         kfs.put("sv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（SvS：饱和度 → 饱和度）
         kfs.put("sv_l_strength", new FieldDef("float", 1f));    // 0 ~ 1（SvL：饱和度 → 亮度）
+        // PS 式六色带微调（Hue / Sat 分色带；第 17 步 = HSL 块之后、灰度之前）：
+        // 六条固定色带（红 0° / 黄 60° / 绿 120° / 青 180° / 蓝 240° / 品红 300°）各一对
+        // hue（±1 = ±180° 旋转）/ sat（乘性 (1 + Δsat)）；带权重 = 升余弦锥形（±30° 支撑）
+        kfs.put("hue_red", new FieldDef("float", 0f));        // -1 ~ 1（红带色相旋转，缺省 0 = 无效果）
+        kfs.put("sat_red", new FieldDef("float", 0f));        // -1 ~ 1（红带饱和度增量：sat *= (1 + 值)）
+        kfs.put("hue_yellow", new FieldDef("float", 0f));     // -1 ~ 1（黄带色相旋转）
+        kfs.put("sat_yellow", new FieldDef("float", 0f));     // -1 ~ 1（黄带饱和度增量）
+        kfs.put("hue_green", new FieldDef("float", 0f));      // -1 ~ 1（绿带色相旋转）
+        kfs.put("sat_green", new FieldDef("float", 0f));      // -1 ~ 1（绿带饱和度增量）
+        kfs.put("hue_cyan", new FieldDef("float", 0f));       // -1 ~ 1（青带色相旋转）
+        kfs.put("sat_cyan", new FieldDef("float", 0f));       // -1 ~ 1（青带饱和度增量）
+        kfs.put("hue_blue", new FieldDef("float", 0f));       // -1 ~ 1（蓝带色相旋转）
+        kfs.put("sat_blue", new FieldDef("float", 0f));       // -1 ~ 1（蓝带饱和度增量）
+        kfs.put("hue_magenta", new FieldDef("float", 0f));    // -1 ~ 1（品红带色相旋转）
+        kfs.put("sat_magenta", new FieldDef("float", 0f));    // -1 ~ 1（品红带饱和度增量）
         // 风格化（本身即强度）
         kfs.put("grayscale", new FieldDef("float", 0f));      // 0 ~ 1（灰度混合量）
         kfs.put("invert", new FieldDef("float", 0f));         // 0 ~ 1（反相混合量）
@@ -260,16 +275,18 @@ public final class TrackSchemas {
 
     /**
      * ADJUST 轨道（画面颜色调整，0.3.6：master 标量组 + lane 级调整 + RGB 通道混合器 + RGB 复合曲线
-     * + 每通道曲线 + 六条 hue 曲线 + Lift / Gamma / Gain 色轮）。
+     * + 每通道曲线 + 六条 hue 曲线 + Lift / Gamma / Gain 色轮 + PS 式六色带微调）。
      *
-     * <p>35 个标量通道全部是<b>关键帧字段</b>，缺省全 0 = 无效果
+     * <p>47 个标量通道全部是<b>关键帧字段</b>，缺省全 0 = 无效果
      * （关键帧把通道写回 0 就是该项淡出，不需要 enabled 开关）。其中
      * {@code mix_rr} ~ {@code mix_bb} 九个构成 <b>RGB 通道混合器</b>（PS 式 3×3 矩阵）：
      * 实际矩阵 = 单位阵 + 参数矩阵（{@code out.r = (1+mix_rr)·r + mix_rg·g + mix_rb·b}，g / b 行同式），
      * 九个全 0 = 单位阵 = 逐位恒等；{@code lift_*} / {@code gamma_*} / {@code gain_*} 九个构成
      * <b>Lift / Gamma / Gain 色轮</b>（三组逐通道）：{@code c' = c + lift·(1-c)}、
      * {@code c' = pow(max(c,0), exp2(-gamma))}、{@code c' = c·(1+gain)}，
-     * 九个全 0 = 整步跳过（逐位恒等）。</p>
+     * 九个全 0 = 整步跳过（逐位恒等）。{@code hue_red} / {@code sat_red} ~ {@code hue_magenta} /
+     * {@code sat_magenta} 十二个构成 <b>PS 式六色带微调</b>（Hue / Sat 分色带；六条固定色带各撑 ±30°、
+     * 升余弦权重，先旋色相再改饱和，十二个全 0 = 整步跳过；第 17 步 = HSL 块之后、灰度之前）。</p>
      *
      * <p><b>ADJUST 轨 = 整体画面（master）；lane 级调色 = 相机片段字段</b>：
      * 本轨只作用于合成输出（最终显示画面），没有 scope / lane 字段；作用于某条相机轨产出的 lane
@@ -374,6 +391,21 @@ public final class TrackSchemas {
         kfs.put("lv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（LvS：亮度 → 饱和度）
         kfs.put("sv_s_strength", new FieldDef("float", 1f));    // 0 ~ 1（SvS：饱和度 → 饱和度）
         kfs.put("sv_l_strength", new FieldDef("float", 1f));    // 0 ~ 1（SvL：饱和度 → 亮度）
+        // PS 式六色带微调（Hue / Sat 分色带；第 17 步 = HSL 块之后、灰度之前）：
+        // 六条固定色带（红 0° / 黄 60° / 绿 120° / 青 180° / 蓝 240° / 品红 300°）各一对
+        // hue（±1 = ±180° 旋转）/ sat（乘性 (1 + Δsat)）；带权重 = 升余弦锥形（±30° 支撑）
+        kfs.put("hue_red", new FieldDef("float", 0f));        // -1 ~ 1（红带色相旋转，缺省 0 = 无效果）
+        kfs.put("sat_red", new FieldDef("float", 0f));        // -1 ~ 1（红带饱和度增量：sat *= (1 + 值)）
+        kfs.put("hue_yellow", new FieldDef("float", 0f));     // -1 ~ 1（黄带色相旋转）
+        kfs.put("sat_yellow", new FieldDef("float", 0f));     // -1 ~ 1（黄带饱和度增量）
+        kfs.put("hue_green", new FieldDef("float", 0f));      // -1 ~ 1（绿带色相旋转）
+        kfs.put("sat_green", new FieldDef("float", 0f));      // -1 ~ 1（绿带饱和度增量）
+        kfs.put("hue_cyan", new FieldDef("float", 0f));       // -1 ~ 1（青带色相旋转）
+        kfs.put("sat_cyan", new FieldDef("float", 0f));       // -1 ~ 1（青带饱和度增量）
+        kfs.put("hue_blue", new FieldDef("float", 0f));       // -1 ~ 1（蓝带色相旋转）
+        kfs.put("sat_blue", new FieldDef("float", 0f));       // -1 ~ 1（蓝带饱和度增量）
+        kfs.put("hue_magenta", new FieldDef("float", 0f));    // -1 ~ 1（品红带色相旋转）
+        kfs.put("sat_magenta", new FieldDef("float", 0f));    // -1 ~ 1（品红带饱和度增量）
         // 风格化（本身即强度）
         kfs.put("grayscale", new FieldDef("float", 0f));      // 0 ~ 1（灰度混合量）
         kfs.put("invert", new FieldDef("float", 0f));         // 0 ~ 1（反相混合量）

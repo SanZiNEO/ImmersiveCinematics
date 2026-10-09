@@ -4,7 +4,7 @@ import com.immersivecinematics.immersive_cinematics.script.CubeLut;
 
 /**
  * master / lane 画面颜色调整的参数快照（第一批标量组 + R/G/B 通道系数 + RGB 通道混合器 + 完整 HSL
- * + RGB 复合曲线 + 每通道曲线 + 六条 hue 曲线 + Lift / Gamma / Gain 色轮）。
+ * + RGB 复合曲线 + 每通道曲线 + 六条 hue 曲线 + Lift / Gamma / Gain 色轮 + PS 式六色带微调）。
  *
  * <p>分量顺序 = 着色器里的操作栈顺序（{@code assets/minecraft/shaders/core/ic_color_adjust.fsh}），
  * 也是 {@code AdjustTrackPlayer} 逐通道插值的顺序；除十条曲线 LUT 外的通道都是<b>关键帧字段</b>
@@ -12,7 +12,7 @@ import com.immersivecinematics.immersive_cinematics.script.CubeLut;
  * {@code script/schema/TrackSchemas.adjust()}）。</p>
  *
  * <h2>口径：全部为「0 = 无效果」的增量（曲线强度除外）</h2>
- * 35 个标量通道的缺省值都是 {@code 0}，{@link #IDENTITY} = 全部缺省 = 画面不变
+ * 47 个标量通道的缺省值都是 {@code 0}，{@link #IDENTITY} = 全部缺省 = 画面不变
  * （渲染侧连 pass 都不开，见 {@link ColorAdjustPass}）。所以：
  * <ul>
  *   <li>HSL 组（{@code hue / saturation / vibrance / lightness}）在同一块里换算，顺序
@@ -102,6 +102,19 @@ import com.immersivecinematics.immersive_cinematics.script.CubeLut;
  * </table>
  * 同一目标分量的多条按表序依次叠加；{@code null} = 本片段没有那条曲线（该强度被忽略、那一步不生效）。
  *
+ * <h2>PS 式六色带微调（Hue / Sat 分色带）</h2>
+ * 12 个关键帧通道 = 六条固定色带（红 / 黄 / 绿 / 青 / 蓝 / 品红，中心角 0° / 60° / 120° / 180° /
+ * 240° / 300°）各一对：{@code hue_*} = 该带内的色相旋转（{@code ±1} = ±180°）、
+ * {@code sat_*} = 该带内的饱和度乘性增量（{@code sat *= 1 + Δsat}，钳制 0~1）；各 {@code -1 ~ 1}、
+ * 缺省 {@code 0} = 无效果。带权重 = 升余弦锥形
+ * {@code w = 0.5·(1 + cos(π·|Δ| / 30°))}（{@code |Δ|} = 像素色相与中心的最短角距、单位度；
+ * {@code |Δ| ≥ 30° → 0}）——六带各撑 ±30°、恰铺满色相环，相邻带在边界平滑交叠。
+ * 像素级结果：{@code Δhue = Σ wᵢ·hueᵢ}、{@code Δsat = Σ wᵢ·satᵢ}，<b>先旋色相、再改饱和</b>
+ * （{@code h' = fract(h + 0.5·Δhue)}、{@code s' = clamp(s·(1 + Δsat), 0, 1)}）；
+ * 十二通道全 0 = 整步跳过（逐位恒等）。栈位 = HSL 块（步骤 12 ~ 16）之后、灰度之前（第 17 步）。
+ * <p>透明像素不变量：{@code alpha = 0} 的像素（RGB = 黑）经本步任意参数后 RGB 仍为 {@code (0,0,0)}
+ * ——{@code s = 0} / {@code l = 0} 走 {@code hsl2rgb} 的灰度分支，色相旋转不产生新值、不复活透明像素。</p>
+ *
  * <p>不可变值对象：每帧由 {@code script.AdjustTrackPlayer} 重新采样一份，
  * 渲染侧只读，不做原地修改（十条 LUT 指向的数组同样只读）。</p>
  */
@@ -162,6 +175,18 @@ public record ColorAdjustParams(
         float lvSStrength,
         float svSStrength,
         float svLStrength,
+        float hueRed,
+        float satRed,
+        float hueYellow,
+        float satYellow,
+        float hueGreen,
+        float satGreen,
+        float hueCyan,
+        float satCyan,
+        float hueBlue,
+        float satBlue,
+        float hueMagenta,
+        float satMagenta,
         float grayscale,
         float invert) {
 
@@ -175,10 +200,13 @@ public record ColorAdjustParams(
                     0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
                     null, 0.0F, 1.0F,
                     null, null, null, null, null, null,
-                    0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F);
+                    0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
+                    0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
+                    0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
+                    0.0F, 0.0F);
 
     /**
-     * 是否恒等：35 个标量通道全为缺省 0、<b>且</b>十条曲线都「不存在或强度为 0」、
+     * 是否恒等：47 个标量通道全为缺省 0、<b>且</b>十条曲线都「不存在或强度为 0」、
      * <b>且</b>无 LUT（{@link #lut} 为 {@code null}）或 LUT 强度为 0。
      * <p>恒等 = 不产生任何画面差异（渲染侧第一行就返回）。</p>
      */
@@ -205,6 +233,12 @@ public record ColorAdjustParams(
                 && (lvSLut == null || lvSStrength == 0.0F)
                 && (svSLut == null || svSStrength == 0.0F)
                 && (svLLut == null || svLStrength == 0.0F)
+                && hueRed == 0.0F && satRed == 0.0F
+                && hueYellow == 0.0F && satYellow == 0.0F
+                && hueGreen == 0.0F && satGreen == 0.0F
+                && hueCyan == 0.0F && satCyan == 0.0F
+                && hueBlue == 0.0F && satBlue == 0.0F
+                && hueMagenta == 0.0F && satMagenta == 0.0F
                 && grayscale == 0.0F && invert == 0.0F;
     }
 }

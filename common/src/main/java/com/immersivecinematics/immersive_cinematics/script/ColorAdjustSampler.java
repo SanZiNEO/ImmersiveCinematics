@@ -8,7 +8,7 @@ import java.util.List;
  * 调色采样器 —— 在<b>片段本地时间</b>处把一段 clip 的调色字段插值成一份 {@link ColorAdjustParams}。
  *
  * <h2>职责</h2>
- * 纯粹的关键帧求值：35 个标量通道 + 十条曲线强度 + LUT 强度在本地时间处插值，曲线 LUT 与 .cube LUT 随 clip 缓存复用。
+ * 纯粹的关键帧求值：47 个标量通道 + 十条曲线强度 + LUT 强度在本地时间处插值，曲线 LUT 与 .cube LUT 随 clip 缓存复用。
  * 无状态、无副作用——ADJUST 轨（master）与每条相机片段（lane 级）都从这里取同一份口径的采样结果。
  *
  * <h2>两个使用方</h2>
@@ -21,13 +21,13 @@ import java.util.List;
  * </ul>
  *
  * <h2>只承载 RGB</h2>
- * 采样结果（{@link ColorAdjustParams}）只描述 <b>RGB</b> 调整——45 个通道 + 10 个强度 + 10 个 LUT 里
+ * 采样结果（{@link ColorAdjustParams}）只描述 <b>RGB</b> 调整——57 个通道 + 10 个强度 + 10 个 LUT 里
  * <b>没有任何 alpha / opacity 参数</b>。调色 pass 只动 RGB、alpha 逐位直通；
  * 透明度一律在<b>合成之后</b>由合成层（{@code opacity} / {@code ColorModulator.a}）调控，
  * 既不烤进画面、也不在调色 pass 里先处理。
  *
  * <h2>数据口径</h2>
- * 35 个标量通道全部是<b>关键帧字段</b>（缺省全 0 = 无效果）；曲线组是 clip 级字段（不随时间变），
+ * 47 个标量通道全部是<b>关键帧字段</b>（缺省全 0 = 无效果）；曲线组是 clip 级字段（不随时间变），
  * 各自的 256 点 LUT 由 {@link ColorCurve} 对象持有（逐帧拿到同一个数组），此处只把各自的混合强度
  * 在本地时间处插值——<b>强度缺省 1</b>：写了曲线就是全量生效，关键帧把强度写回 0 即曲线淡出；
  * 无曲线时该强度置 0（那一步不生效）。插值走 {@link KeyframeInterpolator#interpolateChannel}（匀速线性），
@@ -120,6 +120,20 @@ public final class ColorAdjustSampler {
                 strength(keyframes, localTime, "lv_s_strength", lvSLut),
                 strength(keyframes, localTime, "sv_s_strength", svSLut),
                 strength(keyframes, localTime, "sv_l_strength", svLLut),
+                // PS 式六色带微调（第 17 步）：六条固定色带（红 / 黄 / 绿 / 青 / 蓝 / 品红）各一对
+                // hue（±1 = ±180° 旋转）/ sat（乘性 (1 + Δsat)）通道，缺省 0 = 无效果
+                channel(keyframes, localTime, "hue_red"),
+                channel(keyframes, localTime, "sat_red"),
+                channel(keyframes, localTime, "hue_yellow"),
+                channel(keyframes, localTime, "sat_yellow"),
+                channel(keyframes, localTime, "hue_green"),
+                channel(keyframes, localTime, "sat_green"),
+                channel(keyframes, localTime, "hue_cyan"),
+                channel(keyframes, localTime, "sat_cyan"),
+                channel(keyframes, localTime, "hue_blue"),
+                channel(keyframes, localTime, "sat_blue"),
+                channel(keyframes, localTime, "hue_magenta"),
+                channel(keyframes, localTime, "sat_magenta"),
                 channel(keyframes, localTime, "grayscale"),
                 channel(keyframes, localTime, "invert"));
     }

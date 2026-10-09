@@ -13,7 +13,7 @@ package com.immersivecinematics.immersive_cinematics.client.post;
  *       （发布每帧都发生，取走也每帧都发生，二者同帧配对）。</li>
  * </ul>
  *
- * <p>{@link #publish} 把恒等参数（35 个标量通道全 0、10 条曲线强度全 1、无 LUT 或 LUT 强度 0）
+ * <p>{@link #publish} 把恒等参数（47 个标量通道全 0、10 条曲线强度全 1、无 LUT 或 LUT 强度 0）
  * 规整为「无调整」，因此<b>活跃但无效果</b>的 ADJUST 片段同样不产生任何 pass、任何状态改动。</p>
  *
  * <h2>多轨道 / 多实例</h2>

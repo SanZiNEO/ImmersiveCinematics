@@ -73,6 +73,18 @@
         { "name": "LvSStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "SvSStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "SvLStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "HueRed", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "SatRed", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "HueYellow", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "SatYellow", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "HueGreen", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "SatGreen", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "HueCyan", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "SatCyan", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "HueBlue", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "SatBlue", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "HueMagenta", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "SatMagenta", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "Grayscale", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "Invert", "type": "float", "count": 1, "values": [ 0.0 ] }
     ]

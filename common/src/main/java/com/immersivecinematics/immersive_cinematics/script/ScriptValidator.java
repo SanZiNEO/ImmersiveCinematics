@@ -87,6 +87,18 @@ public final class ScriptValidator {
             new ChannelRange("lv_s_strength", 0f, 1f),
             new ChannelRange("sv_s_strength", 0f, 1f),
             new ChannelRange("sv_l_strength", 0f, 1f),
+            new ChannelRange("hue_red", -1f, 1f),
+            new ChannelRange("sat_red", -1f, 1f),
+            new ChannelRange("hue_yellow", -1f, 1f),
+            new ChannelRange("sat_yellow", -1f, 1f),
+            new ChannelRange("hue_green", -1f, 1f),
+            new ChannelRange("sat_green", -1f, 1f),
+            new ChannelRange("hue_cyan", -1f, 1f),
+            new ChannelRange("sat_cyan", -1f, 1f),
+            new ChannelRange("hue_blue", -1f, 1f),
+            new ChannelRange("sat_blue", -1f, 1f),
+            new ChannelRange("hue_magenta", -1f, 1f),
+            new ChannelRange("sat_magenta", -1f, 1f),
             new ChannelRange("grayscale", 0f, 1f),
             new ChannelRange("invert", 0f, 1f));
 
@@ -436,7 +448,7 @@ public final class ScriptValidator {
                             checkUnitFloat(kf, kp, "opacity", issues);
                             checkRect(kf, kp, "dest", issues);
                             checkRect(kf, kp, "source", issues);
-                            // 调色（0.3.6）：本相机片段关键帧的 45 个调色通道区间
+                            // 调色（0.3.6）：本相机片段关键帧的 57 个调色通道区间
                             checkAdjustFields(null, null, kf, kp, issues);
                             // LUT 是整体画面（master）处理：相机片段关键帧写 lut_strength 同样不生效，直接拦下
                             if (kf.has("lut_strength")) {
@@ -449,7 +461,7 @@ public final class ScriptValidator {
                             }
                         }
 
-                        // ADJUST 关键帧：45 个标量通道的取值区间（不写 = 缺省 0 = 无效果——十条曲线强度缺省 1；写回 0 = 该项淡出）
+                        // ADJUST 关键帧：47 个标量通道的取值区间（不写 = 缺省 0 = 无效果——十条曲线强度缺省 1；写回 0 = 该项淡出）
                         // + LUT 混合强度 lut_strength（0~1，缺省 1）
                         if ("ADJUST".equalsIgnoreCase(type)) {
                             checkAdjustFields(null, null, kf, kp, issues);
@@ -495,7 +507,7 @@ public final class ScriptValidator {
      * CAMERA 片段作用于该相机轨的 lane）：
      * <ul>
      *   <li>clip 级：10 条调色曲线的结构（{@link #COLOR_CURVE_FIELDS}，控制点数组）；</li>
-     *   <li>关键帧级：45 个标量通道的取值区间（{@link #ADJUST_CHANNELS}）。</li>
+     *   <li>关键帧级：47 个标量通道的取值区间（{@link #ADJUST_CHANNELS}）。</li>
      * </ul>
      * <p>{@code clip} 与 {@code kf} 分别对应两种上下文，调用方按当前层级传非空值、另一侧传 {@code null}
      * （路径前缀 {@code cp} / {@code kp} 随之，缺省字段一律跳过、由缺省值生效）。</p>

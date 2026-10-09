@@ -12,13 +12,23 @@
 //  11. LUT（.cube：单张合成 3D 表，CPU 预合成 1D shaper + 两段 DOMAIN；LGG 之后、HSL 块之前）
 //  12. 色相旋转   13. 饱和度   14. 自然饱和度   15. 亮度
 //  16. 六条 hue 曲线（HvH → HvS → HvL → LvS → SvS → SvL；HSL 块内，见下）
-//  17. 灰度      18. 反相
+//  17. PS 式六色带微调（Hue / Sat 分色带；六条固定色带 + 升余弦权重；HSL 块之后、灰度之前）
+//  18. 灰度      19. 反相
 //
 // 六条 hue 曲线（DaVinci 曲线页口径；步骤 12 ~ 16 共用一个 HSL 块、一次 rgb2hsl 换算）：
 //   键取「进入该块时」的 h0 / s0 / l0（不受标量 HSL 改动影响），每条各自按强度 mix 混合：
 //     HvH  h = mix(h, HvH(h0), st)   HvS  s = mix(s, HvS(h0), st)   HvL  l = mix(l, HvL(h0), st)
 //     LvS  s = mix(s, LvS(l0), st)   SvS  s = mix(s, SvS(s0), st)   SvL  l = mix(l, SvL(s0), st)
 //   顺序即上表顺序；同一目标分量（s / l）的多条按此序依次叠加。
+//
+// PS 式六色带微调（第 17 步；PS「色相 / 饱和度」的六色带形态）：
+//   六条固定色带，中心角 = 红 0° / 黄 60° / 绿 120° / 青 180° / 蓝 240° / 品红 300°；
+//   带权重 = 升余弦锥形 w = 0.5·(1 + cos(π·|Δ| / 30°))（|Δ| = 像素色相与中心的最短角距、单位度；
+//   |Δ| ≥ 30° → 0）—— 六带各撑 ±30°、恰铺满色相环、相邻带在边界平滑交叠。
+//   像素级：Δhue = Σ wᵢ·Hueᵢ（±1 = ±180°）、Δsat = Σ wᵢ·Satᵢ；先旋色相、再改饱和：
+//     h' = fract(h + 0.5·Δhue)      s' = clamp(s·(1 + Δsat), 0, 1)
+//   十二通道全 0 → 整步跳过（逐位恒等）；透明像素（RGB = 黑）经本步后仍是 (0,0,0)
+//   （s = 0 / l = 0 走 hsl2rgb 的灰度分支，色相旋转不产生新值、不复活透明像素）。
 //
 // 参数口径（除十条曲线强度外全部为「0 = 无效果」的增量；缺省全 0 = 恒等，运行时也不会下发这个 pass）：
 //   Exposure     -5 ~ 5   EV 档（×2^EV）
@@ -64,6 +74,12 @@
 //                 .cube 的 1D shaper 与 1D / 3D 两段 DOMAIN 输入域归一化全部烘焙进这一张表
 //                 （CubeLut#composed3D），采样坐标 x ∈ [0,1]³ 直接对应网格 —— 着色器不做任何归一化。
 //   插值：四面体（tetrahedral；texelFetch 取 8 个角点后自己加权，不用纹理过滤）
+//   HueRed / SatRed ~ HueMagenta / SatMagenta   -1 ~ 1
+//                 PS 式六色带微调（六条固定色带各一对，顺序 = 红 / 黄 / 绿 / 青 / 蓝 / 品红）：
+//                 Hue* = 该带内的色相旋转（±1 = ±180°）、Sat* = 该带内的饱和度增量
+//                 （sat *= 1 + Δsat，钳制 0~1）；带权重 = 升余弦锥形
+//                 w = 0.5·(1 + cos(π·|Δ| / 30°))（|Δ| = 与中心的最短角距；|Δ| ≥ 30° → 0，
+//                 六带各撑 ±30°、恰铺满色相环）；十二个全 0 = 整步跳过（逐位恒等）
 //   Grayscale     0 ~ 1   灰度混合强度（1 = 完全黑白）
 //   Invert        0 ~ 1   反相混合强度（1 = 完全反相）
 //
@@ -141,6 +157,18 @@ uniform float HvLStrength;
 uniform float LvSStrength;
 uniform float SvSStrength;
 uniform float SvLStrength;
+uniform float HueRed;
+uniform float SatRed;
+uniform float HueYellow;
+uniform float SatYellow;
+uniform float HueGreen;
+uniform float SatGreen;
+uniform float HueCyan;
+uniform float SatCyan;
+uniform float HueBlue;
+uniform float SatBlue;
+uniform float HueMagenta;
+uniform float SatMagenta;
 uniform float Grayscale;
 uniform float Invert;
 
@@ -254,6 +282,37 @@ vec3 hsl2rgb(vec3 hsl) {
     return vec3(hue2rgb(p, q, h + 1.0 / 3.0),
                 hue2rgb(p, q, h),
                 hue2rgb(p, q, h - 1.0 / 3.0));
+}
+
+// PS 式六色带的单条带权重（升余弦锥形）：|Δ| = 像素色相与带中心的最短角距（度）
+//   w = 0.5·(1 + cos(π·|Δ| / 30°))（|Δ| = 0 → 1、|Δ| = 30° → 0）；|Δ| ≥ 30° → 0（带外无贡献）
+// 六条带（中心 0° / 60° / … / 300°）各撑 ±30°，恰铺满色相环、相邻带在边界平滑交叠。
+float sixBandWeight(float hueDegrees, float centerDegrees) {
+    float d = hueDegrees - centerDegrees;
+    d = d - 360.0 * floor(d / 360.0 + 0.5);   // 最短角距，归一到 (-180, 180]
+    float ad = abs(d);
+    if (ad >= 30.0) {
+        return 0.0;
+    }
+    return 0.5 * (1.0 + cos(radians(ad * 6.0)));   // π/30 rad/° = radians(|Δ| · 6)
+}
+
+// 六色带在像素色相 theta（度）处的合成增量：x = Δhue（±1 = ±180°）、y = Δsat（饱和度乘性增量）
+//   中心角 = 红 0° / 黄 60° / 绿 120° / 青 180° / 蓝 240° / 品红 300°（顺序即通道顺序）
+vec2 sixBandShift(float theta) {
+    return vec2(
+            sixBandWeight(theta, 0.0) * HueRed
+                    + sixBandWeight(theta, 60.0) * HueYellow
+                    + sixBandWeight(theta, 120.0) * HueGreen
+                    + sixBandWeight(theta, 180.0) * HueCyan
+                    + sixBandWeight(theta, 240.0) * HueBlue
+                    + sixBandWeight(theta, 300.0) * HueMagenta,
+            sixBandWeight(theta, 0.0) * SatRed
+                    + sixBandWeight(theta, 60.0) * SatYellow
+                    + sixBandWeight(theta, 120.0) * SatGreen
+                    + sixBandWeight(theta, 180.0) * SatCyan
+                    + sixBandWeight(theta, 240.0) * SatBlue
+                    + sixBandWeight(theta, 300.0) * SatMagenta);
 }
 
 void main() {
@@ -402,12 +461,28 @@ void main() {
         c = hsl2rgb(vec3(h, s, l));
     }
 
-    // 17. 灰度：按亮度混合
+    // 17. PS 式六色带微调（Hue / Sat 分色带）：HSL 块之后、灰度之前
+    //     六条固定色带（红 0° / 黄 60° / 绿 120° / 青 180° / 蓝 240° / 品红 300°）各一对 hue / sat 通道；
+    //     带权重 = 升余弦锥形（|Δ| ≥ 30° → 0，六带各撑 ±30°、恰铺满色相环、边界平滑交叠）；
+    //     Δhue = Σ wᵢ·Hueᵢ（±1 = ±180°）、Δsat = Σ wᵢ·Satᵢ；先旋色相、再改饱和（sat *= 1 + Δsat，钳制 0~1）；
+    //     十二通道全 0 → 整步跳过（逐位恒等）；s = 0 / l = 0（透明像素的黑）走 hsl2rgb 灰度分支
+    //     → RGB 仍是 (0,0,0)，色相旋转不产生新值、不复活透明像素
+    if (HueRed != 0.0 || SatRed != 0.0 || HueYellow != 0.0 || SatYellow != 0.0
+            || HueGreen != 0.0 || SatGreen != 0.0 || HueCyan != 0.0 || SatCyan != 0.0
+            || HueBlue != 0.0 || SatBlue != 0.0 || HueMagenta != 0.0 || SatMagenta != 0.0) {
+        vec3 hsl = rgb2hsl(c);
+        vec2 shift = sixBandShift(hsl.x * 360.0);
+        float h = fract(hsl.x + shift.x * 0.5);              // Δhue：±1 = ±180°（归一化色相 × 0.5）
+        float s = clamp(hsl.y * (1.0 + shift.y), 0.0, 1.0);  // 饱和度乘性增量，钳制 0~1
+        c = hsl2rgb(vec3(h, s, hsl.z));
+    }
+
+    // 18. 灰度：按亮度混合
     if (Grayscale != 0.0) {
         c = mix(c, vec3(luma(c)), clamp(Grayscale, 0.0, 1.0));
     }
 
-    // 18. 反相：按强度混合
+    // 19. 反相：按强度混合
     if (Invert != 0.0) {
         c = mix(c, 1.0 - c, clamp(Invert, 0.0, 1.0));
     }

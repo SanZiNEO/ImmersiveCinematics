@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "id": "test_adjust_six_bands",
+    "name": "调色测试-PS式六色带微调",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "PS 式六色带微调（Hue / Sat 分色带）：六条固定色带（红 0° / 黄 60° / 绿 120° / 青 180° / 蓝 240° / 品红 300°）各一对 hue（±1 = ±180°）/ sat（乘性 1+值）通道，带权重 = 升余弦锥形（±30° 支撑）；各 -1~1、缺省 0 = 无效果",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: test_adjust_six_bands | 调色: PS 式六色带微调（Hue / Sat 分色带）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 8, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "keyframes": [
+              { "time": 0, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
+              { "time": 2, "hue_red": 0.5, "sat_red": 0.3, "hue_yellow": -0.2, "sat_yellow": 0.1, "hue_green": 0, "sat_green": -0.5, "hue_cyan": 0.25, "sat_cyan": 0, "hue_blue": -1, "sat_blue": 0.4, "hue_magenta": 0, "sat_magenta": -0.25 },
+              { "time": 4, "hue_red": 1, "sat_red": 0.5, "hue_yellow": 0.5, "sat_yellow": -0.5, "hue_green": -1, "sat_green": 1, "hue_cyan": -0.5, "sat_cyan": -1, "hue_blue": 1, "sat_blue": -0.5, "hue_magenta": 0.5, "sat_magenta": 0.5 },
+              { "time": 6, "hue_red": 0.25, "sat_red": -0.5, "hue_yellow": 0.75, "sat_yellow": 0.5, "hue_green": 0.5, "sat_green": 0.25, "hue_cyan": -0.75, "sat_cyan": 0.75, "hue_blue": 0.5, "sat_blue": 0.25, "hue_magenta": -0.5, "sat_magenta": 0.75 },
+              { "time": 8, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

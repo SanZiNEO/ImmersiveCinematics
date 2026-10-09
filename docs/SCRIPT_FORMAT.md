@@ -202,7 +202,7 @@ immersive_cinematics/
 | `cam_breath_decay` | float | 否 | `0.5` | 仅 `cam_breath_type=trauma`：强度每秒衰减速率 |
 | `keyframes` | array | 是 | — | 关键帧数组，至少 1 个 |
 
-> **相机片段自带调色**：CAMERA clip 还可写调色字段（clip 级 10 条曲线 + 关键帧级 45 个调色通道），作用于该相机轨产出的 lane——见下方「相机片段调色」。
+> **相机片段自带调色**：CAMERA clip 还可写调色字段（clip 级 10 条曲线 + 关键帧级 57 个调色通道），作用于该相机轨产出的 lane——见下方「相机片段调色」。
 
 > **v3 迁移**：`position_mode` 已迁移到**关键帧级**；旧 `cam_tracking_follow*`/`cam_tracking_look_at*` 字段已由关键帧级 `follow`/`look_at` 系列字段取代。clip 级不再支持这些旧字段（保留会被 validate 报废弃提示）。
 
@@ -390,7 +390,7 @@ immersive_cinematics/
 
 - **字段与 §10 完全同一套**（通道口径、缺省值、操作栈顺序、曲线写法全部相同，见 §10 Adjust 轨道）：
   - **clip 级 10 条曲线**（不随时间变，故挂 clip）：`rgb_curve`（RGB 复合曲线）+ `r_curve` / `g_curve` / `b_curve`（每通道曲线）+ `hv_h_curve` / `hv_s_curve` / `hv_l_curve` / `lv_s_curve` / `sv_s_curve` / `sv_l_curve`（六条 hue 曲线）。
-  - **关键帧级 45 个通道**：35 个标量通道（缺省 `0` = 无效果）+ 10 个曲线强度（`curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength` / `hv_h_strength` ~ `sv_l_strength`，缺省 `1`）。
+  - **关键帧级 57 个通道**：47 个标量通道（缺省 `0` = 无效果）+ 10 个曲线强度（`curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength` / `hv_h_strength` ~ `sv_l_strength`，缺省 `1`）。
 - **按片段本地时间采样**：每条 lane 用它自己相机片段的本地时间求值（叠化重叠窗口下一条轨可能同时产出多条 lane，各自独立采样）。参数全为缺省 = 不调色，走原路径（lane 渲染完直接进合成）。
 - **每个关键帧都应写上所需通道**：关键帧缺某字段按缺省值解（标量 `0`、强度 `1`），只在一个关键帧里写、另一个不写，会在中间挖出折点——要让某项整段生效，就在该片段每个关键帧都写上它。
 - **只承载 RGB（硬性口径）**：调色只动 RGB，`alpha` 逐位直通（着色器 `fragColor.a = src.a`）；**透明度（opacity / alpha）一律在画面合成完成之后、由合成层调控**（`LaneCompositor` / OVERLAY 层 `opacity`），绝不烤进画面、也不在调色里先处理 alpha。
@@ -641,7 +641,7 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 对**合成后的最终画面**（master 层，架构图 RADJ 节点）做颜色调整——在 lane 合成之后、GUI 之前作用于整屏画面。**单条相机轨画面的调色不写在这里**：调色直接写在 CAMERA 片段上（见 §4「相机片段调色」），作用于该相机轨产出的 lane（lane 渲染完成、合成之前）。
 
 - **不影响 GUI**：字幕 / 黑边 / 跳过提示由 GUI 阶段绘制，调色不作用于它们（挂点在世界渲染阶段，早于 GUI）。
-- **本版本 = 35 个标量通道**（12 标量 + R/G/B 每通道系数 + **RGB 通道混合器（`mix_rr` ~ `mix_bb` 九个）** + 完整 HSL 的 `hue` / `lightness` + **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个）**）**+ RGB 复合曲线 + 每通道曲线（R / G / B 各一条）+ 六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）**（曲线组形态 b：曲线定义一次 + 各自的强度关键帧控混合强度）**+ 整体画面 LUT（clip 级 `lut` / `lut_input_gamma` + 关键帧 `lut_strength`，作用于整个世界画面；相机片段上写 `lut` / `lut_strength` 会被 validator 拦下）**。「调整层」（作用于其下所有层）是后续批次（见 `plans/0.3.6/screen-color-adjust.md` §3 / §7）。
+- **本版本 = 47 个标量通道**（12 标量 + R/G/B 每通道系数 + **RGB 通道混合器（`mix_rr` ~ `mix_bb` 九个）** + 完整 HSL 的 `hue` / `lightness` + **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个）** + **PS 式六色带微调（`hue_red` / `sat_red` ~ `hue_magenta` / `sat_magenta` 十二个）**）**+ RGB 复合曲线 + 每通道曲线（R / G / B 各一条）+ 六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）**（曲线组形态 b：曲线定义一次 + 各自的强度关键帧控混合强度）**+ 整体画面 LUT（clip 级 `lut` / `lut_input_gamma` + 关键帧 `lut_strength`，作用于整个世界画面；相机片段上写 `lut` / `lut_strength` 会被 validator 拦下）**。「调整层」（作用于其下所有层）是后续批次（见 `plans/0.3.6/screen-color-adjust.md` §3 / §7）。
 - **支持多条 ADJUST 轨道**：同一时刻以**后面的轨道**为准（轨道层级靠后的覆盖靠前的）。
 
 ### 执行顺序与 alpha 契约
@@ -677,7 +677,7 @@ lane 渲染（含 lane 内发光描边）
 | `lut` | string | 否 | — | **整体画面 LUT**（master 级）：`resource/` 目录下的 `.cube` **文件名**（非空、不含路径分隔符 / 盘符，如 `"Teal and Orange.cube"`）；不写 = 无 LUT。**只写在 ADJUST 轨**——相机片段上写 `lut` 会被 validator 拦下（LUT 作用于整个世界画面，见下方「LUT（`lut` / `lut_input_gamma` / `lut_strength`）」） |
 | `lut_input_gamma` | float | 否 | `1.0` | **LUT 输入域适配**：查表前 `v = pow(clamp(c, 0, 1), gamma)`（**必须 > 0**）；给现成 LUT（为别的素材调的）套上后整体偏亮 / 偏色时用来纠偏，自制（从游戏帧调的）LUT 保持缺省 `1.0`；**`lut` 为空时忽略** |
 
-> 十条曲线与 `lut` / `lut_input_gamma` 都是 clip 级字段（不随时间变，故不挂关键帧）；35 个标量通道、十条曲线强度（`curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength` / `hv_h_strength` ~ `sv_l_strength`）与 LUT 混合强度 `lut_strength` 全部写在关键帧上（与 letterbox/EVENT/AUDIO/OVERLAY 同一套「统一关键帧级调控」规则）。
+> 十条曲线与 `lut` / `lut_input_gamma` 都是 clip 级字段（不随时间变，故不挂关键帧）；47 个标量通道、十条曲线强度（`curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength` / `hv_h_strength` ~ `sv_l_strength`）与 LUT 混合强度 `lut_strength` 全部写在关键帧上（与 letterbox/EVENT/AUDIO/OVERLAY 同一套「统一关键帧级调控」规则）。
 
 ### 曲线（`rgb_curve` / `r_curve` / `g_curve` / `b_curve` / `hv_h_curve` ~ `sv_l_curve`）— 复合曲线 + 每通道曲线 + 六条 hue 曲线（形态 b）
 
@@ -725,9 +725,28 @@ lane 渲染（含 lane 内发光描边）
 - **灰点安全**：饱和度为 0 的像素（灰阶）`h` 无意义，但 `hsl2rgb` 在 `s <= 0` 时直接返回灰度——HvH / HvS / HvL 的键取到 0 也不会跳色或产生 NaN。
 - **操作栈位置**：HSL 块内、四个标量 HSL 通道之后、灰度之前（第 16 步）；只动 H / S / L，**alpha 逐位直通**不变。
 
-### Keyframe 字段（35 个标量通道 + 十条曲线强度 + LUT 强度）
+### PS 式六色带微调（`hue_red` / `sat_red` ~ `hue_magenta` / `sat_magenta`）— 分色带 Hue / Sat
 
-**35 个标量通道缺省 0 = 无效果**（十条曲线强度与 LUT 强度例外：缺省 1）：不写 = 不做这项调整；把通道写回 0 = 这项调整淡出（不需要额外的开关字段）。
+PS「色相 / 饱和度」的六色带形态：色相环固定分成六条带，每条带各一对 `hue` / `sat`，**只动落在该带内的像素**（带内从中心到边界平滑衰减、带外完全不受影响）。
+
+| 色带 | 中心角 | 色相通道 | 饱和度通道 |
+|------|--------|----------|------------|
+| 红 | 0° | `hue_red` | `sat_red` |
+| 黄 | 60° | `hue_yellow` | `sat_yellow` |
+| 绿 | 120° | `hue_green` | `sat_green` |
+| 青 | 180° | `hue_cyan` | `sat_cyan` |
+| 蓝 | 240° | `hue_blue` | `sat_blue` |
+| 品红 | 300° | `hue_magenta` | `sat_magenta` |
+
+- **带权重** = 升余弦锥形 `w = 0.5·(1 + cos(π·|Δ| / 30°))`（`|Δ|` = 像素色相与带中心的最短角距，单位度；`|Δ| ≥ 30° → w = 0`）：中心 `w = 1`、`±15°` 处 `w = 0.5`、`±30°`（带边界）`w = 0`。六条带各撑 ±30°、恰好铺满色相环——**边界上的像素（如 30° 的橙）两条相邻带都是 0，等于不受影响**（连续、不跳变、不产生负权重）。
+- **像素级语义**：`Δhue = Σ wᵢ·hueᵢ`（再 ×180°）、`Δsat = Σ wᵢ·satᵢ`；**先旋色相、再改饱和**：`h' = fract(h + 0.5·Δhue)`、`s' = clamp(s·(1 + Δsat), 0, 1)`；亮度不动。
+- **典型用法**：`hue_red = 0.1` = 红色系整体往橙偏（+18°）；`sat_red = 0.5` = 只给红色系提 50% 饱和；`sat_green = -1` = 绿色系全灰；`hue_cyan` / `sat_magenta` 等同理。十二个通道全 0 = 无效果（缺省即无效果，不需要开关字段）。
+- **灰点安全**：饱和度为 0 的像素色相无意义，但 `s = 0` 时 `hsl2rgb` 直接返回灰度——`hue_*` 对灰阶 / 黑白像素没有影响（**透明像素的 RGB = 黑也保持为黑**，不会被「复活」）。
+- **操作栈位置**：HSL 块（含六条 hue 曲线）之后、灰度之前（第 17 步）；只动 H / S，**alpha 逐位直通**。
+
+### Keyframe 字段（47 个标量通道 + 十条曲线强度 + LUT 强度）
+
+**47 个标量通道缺省 0 = 无效果**（十条曲线强度与 LUT 强度例外：缺省 1）：不写 = 不做这项调整；把通道写回 0 = 这项调整淡出（不需要额外的开关字段）。
 所有通道**匀速线性插值**，所以任何一项都能随时间淡入淡出。
 
 | 字段 | 类型 | 默认 | 范围 | 说明 |
@@ -776,11 +795,23 @@ lane 渲染（含 lane 内发光描边）
 | `lv_s_strength` | float | `1` | 0 ~ 1 | **LvS 曲线的混合强度**（`lv_s_curve` 存在时生效），同上 |
 | `sv_s_strength` | float | `1` | 0 ~ 1 | **SvS 曲线的混合强度**（`sv_s_curve` 存在时生效），同上 |
 | `sv_l_strength` | float | `1` | 0 ~ 1 | **SvL 曲线的混合强度**（`sv_l_curve` 存在时生效），同上 |
+| `hue_red` | float | `0` | -1 ~ 1 | **PS 式六色带：红带（中心 0°）色相旋转**：`±1` = ±180°；只作用于落在红带内的像素（带权重 = 升余弦锥形，`±30°` 支撑） |
+| `sat_red` | float | `0` | -1 ~ 1 | **六色带：红带饱和度增量**：`sat *= (1 + Δsat)`、钳制 0~1；`-1` = 该带内全灰、`+1` = 双倍 |
+| `hue_yellow` | float | `0` | -1 ~ 1 | **六色带：黄带（中心 60°）色相旋转**，口径同 `hue_red` |
+| `sat_yellow` | float | `0` | -1 ~ 1 | **六色带：黄带饱和度增量**，口径同 `sat_red` |
+| `hue_green` | float | `0` | -1 ~ 1 | **六色带：绿带（中心 120°）色相旋转**，口径同 `hue_red` |
+| `sat_green` | float | `0` | -1 ~ 1 | **六色带：绿带饱和度增量**，口径同 `sat_red` |
+| `hue_cyan` | float | `0` | -1 ~ 1 | **六色带：青带（中心 180°）色相旋转**，口径同 `hue_red` |
+| `sat_cyan` | float | `0` | -1 ~ 1 | **六色带：青带饱和度增量**，口径同 `sat_red` |
+| `hue_blue` | float | `0` | -1 ~ 1 | **六色带：蓝带（中心 240°）色相旋转**，口径同 `hue_red` |
+| `sat_blue` | float | `0` | -1 ~ 1 | **六色带：蓝带饱和度增量**，口径同 `sat_red` |
+| `hue_magenta` | float | `0` | -1 ~ 1 | **六色带：品红带（中心 300°）色相旋转**，口径同 `hue_red` |
+| `sat_magenta` | float | `0` | -1 ~ 1 | **六色带：品红带饱和度增量**，口径同 `sat_red` |
 | `grayscale` | float | `0` | 0 ~ 1 | 灰度强度：`1` = 完全黑白（按 Rec.709 亮度），`0.5` = 半黑白 |
 | `invert` | float | `0` | 0 ~ 1 | 反相强度：`1` = 完全反相，`0.5` = 半反相 |
 
 **操作顺序固定**（同一关键帧里多个通道同时生效时按此顺序计算，不可调）：
-曝光 → 对比度 → 高光/阴影 → 白场/黑场 → 色温/色调 → R/G/B 通道系数 → **RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）** → **RGB 复合曲线（`rgb_curve`）** → **每通道曲线（`r_curve` / `g_curve` / `b_curve`）** → **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b`）** → **整体画面 LUT（`lut` + `lut_strength`）** → 色相旋转 → 饱和度 → 自然饱和度 → 亮度 → **六条 hue 曲线（`hv_h_curve` → `hv_s_curve` → `hv_l_curve` → `lv_s_curve` → `sv_s_curve` → `sv_l_curve`）** → 灰度 → 反相。
+曝光 → 对比度 → 高光/阴影 → 白场/黑场 → 色温/色调 → R/G/B 通道系数 → **RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）** → **RGB 复合曲线（`rgb_curve`）** → **每通道曲线（`r_curve` / `g_curve` / `b_curve`）** → **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b`）** → **整体画面 LUT（`lut` + `lut_strength`）** → 色相旋转 → 饱和度 → 自然饱和度 → 亮度 → **六条 hue 曲线（`hv_h_curve` → `hv_s_curve` → `hv_l_curve` → `lv_s_curve` → `sv_s_curve` → `sv_l_curve`）** → **PS 式六色带微调（`hue_red` / `sat_red` → … → `hue_magenta` / `sat_magenta`）** → 灰度 → 反相。
 
 > **通道混合器是 3×3 矩阵**：实际矩阵 = **单位阵 + 参数矩阵**（所以九个全 0 = 单位阵 = 无效果）。
 > 行 = 输出通道、列 = 输入通道：`out.r = (1+mix_rr)·r + mix_rg·g + mix_rb·b`，g / b 行同式

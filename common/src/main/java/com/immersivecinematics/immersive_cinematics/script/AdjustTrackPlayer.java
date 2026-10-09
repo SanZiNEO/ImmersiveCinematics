@@ -5,11 +5,11 @@ import com.immersivecinematics.immersive_cinematics.client.post.MasterColorAdjus
 import java.util.List;
 
 /**
- * ADJUST 轨道播放器 — 画面颜色调整（0.3.6：master 35 通道 + RGB 通道混合器
- * + RGB 复合曲线 + 每通道曲线 + 六条 hue 曲线 + Lift / Gamma / Gain 色轮）。
+ * ADJUST 轨道播放器 — 画面颜色调整（0.3.6：master 47 通道 + RGB 通道混合器
+ * + RGB 复合曲线 + 每通道曲线 + 六条 hue 曲线 + Lift / Gamma / Gain 色轮 + PS 式六色带微调）。
  *
  * <h2>职责</h2>
- * 每渲染帧找到本轨道当前活跃的 clip，把 35 个标量通道 + 十条曲线强度在<b>片段本地时间</b>处插值
+ * 每渲染帧找到本轨道当前活跃的 clip，把 47 个标量通道 + 十条曲线强度在<b>片段本地时间</b>处插值
  * （采样见 {@link ColorAdjustSampler}），发布给 {@link MasterColorAdjust}，作用于<b>整体画面</b>。
  * 无活跃 clip 时<b>本帧不参与</b> —— 渲染侧拿不到参数就不动画面。
  * <p>同帧多条 ADJUST 轨道：后发布者生效（轨道层级靠后的覆盖靠前的）；没活跃 clip 的轨道不参与
@@ -26,12 +26,19 @@ import java.util.List;
  * 调色只动 RGB、alpha 逐位直通；透明度一律在<b>合成之后</b>由合成层调控。</p>
  *
  * <h2>数据口径</h2>
- * 35 个标量通道全部是<b>关键帧字段</b>：{@code exposure / contrast / highlights / shadows / whites /
+ * 47 个标量通道全部是<b>关键帧字段</b>：{@code exposure / contrast / highlights / shadows / whites /
  * blacks / hue / saturation / vibrance / lightness / temperature / tint / red / green / blue /
- * mix_rr ~ mix_bb（九个）/ lift_r ~ gain_b（九个）/ grayscale / invert}，
+ * mix_rr ~ mix_bb（九个）/ lift_r ~ gain_b（九个）/ hue_red / sat_red ~ hue_magenta / sat_magenta（十二个）/
+ * grayscale / invert}，
  * 缺省全 0 = 无效果（字段名 / 范围 / 公式见 {@code docs/SCRIPT_FORMAT.md} §10 与
  * {@code TrackSchemas.adjust()}）。插值走 {@link KeyframeInterpolator#interpolateChannel}（匀速线性），
  * 与其它轨道的标量通道同一口径。
+ *
+ * <h2>PS 式六色带微调（Hue / Sat 分色带）</h2>
+ * {@code hue_red} / {@code sat_red} ~ {@code hue_magenta} / {@code sat_magenta} 十二个同样是关键帧字段，
+ * 各 {@code -1 ~ 1}、缺省 {@code 0} = 无效果；六条固定色带（红 0° / 黄 60° / 绿 120° / 青 180° /
+ * 蓝 240° / 品红 300°）各一对「色相旋转（±1 = ±180°）/ 饱和度乘性增量（{@code sat *= 1 + Δsat}）」，
+ * 带权重 = 升余弦锥形（±30° 支撑）；在着色器里位于 <b>HSL 块之后、灰度之前</b>（十二个全 0 时整步跳过）。
  *
  * <h2>Lift / Gamma / Gain 色轮</h2>
  * {@code lift_r} / {@code lift_g} / {@code lift_b}（阴影）、{@code gamma_r} / {@code gamma_g} / {@code gamma_b}

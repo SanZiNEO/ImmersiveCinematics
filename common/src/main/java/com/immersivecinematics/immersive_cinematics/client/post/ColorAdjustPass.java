@@ -344,6 +344,19 @@ public final class ColorAdjustPass {
         set(shader, "LvSStrength", p.lvSLut() == null ? 0.0F : p.lvSStrength());
         set(shader, "SvSStrength", p.svSLut() == null ? 0.0F : p.svSStrength());
         set(shader, "SvLStrength", p.svLLut() == null ? 0.0F : p.svLStrength());
+        // PS 式六色带微调（第 17 步）：六条色带（红 / 黄 / 绿 / 青 / 蓝 / 品红）各一对 hue / sat 通道
+        set(shader, "HueRed", p.hueRed());
+        set(shader, "SatRed", p.satRed());
+        set(shader, "HueYellow", p.hueYellow());
+        set(shader, "SatYellow", p.satYellow());
+        set(shader, "HueGreen", p.hueGreen());
+        set(shader, "SatGreen", p.satGreen());
+        set(shader, "HueCyan", p.hueCyan());
+        set(shader, "SatCyan", p.satCyan());
+        set(shader, "HueBlue", p.hueBlue());
+        set(shader, "SatBlue", p.satBlue());
+        set(shader, "HueMagenta", p.hueMagenta());
+        set(shader, "SatMagenta", p.satMagenta());
         set(shader, "Grayscale", p.grayscale());
         set(shader, "Invert", p.invert());
     }
