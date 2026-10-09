@@ -268,7 +268,9 @@ public final class ColorAdjustPass {
             // 绝不把未写 / 未定义的缓冲铺上屏。blit 自身失败是安全的——它在主画面上混合覆盖，
             // 失败时主画面保持原内容（有效画面），不会变黑。
             if (swapWrittenThisFrame) {
-                LaneCompositor.compose(current, LaneCompositor.Rect.FULL, LaneCompositor.Rect.FULL, 1.0F);
+                // written = swapWrittenThisFrame：本分支已确认中转缓冲本帧被写满（守门据此放行）
+                LaneCompositor.compose(current, LaneCompositor.Rect.FULL, LaneCompositor.Rect.FULL, 1.0F,
+                        swapWrittenThisFrame);
             } else {
                 main.bindWrite(true);   // 不 blit：把主画面绑回来（调用方接着画）
                 reportFailure("链末尾校验未通过：中转缓冲本帧未被写入，跳过回写（画面保持原样）", null);

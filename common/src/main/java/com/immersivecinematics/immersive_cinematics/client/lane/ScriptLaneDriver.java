@@ -7,6 +7,7 @@ import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
 import com.immersivecinematics.immersive_cinematics.script.LaneFrame;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
+import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
 
@@ -175,7 +176,13 @@ public final class ScriptLaneDriver {
             return defaultValue;
         }
         Object componentValue = rect.get(component);
-        return componentValue instanceof Number number ? number.floatValue() : defaultValue;
+        if (!(componentValue instanceof Number number)) {
+            return defaultValue;
+        }
+        // 数据入口守卫（与 Keyframe.getFloat 同口径）：矩形分量直达合成层（quad 顶点 / UV），
+        // 脚本 JSON 的 NaN / Infinity 字面量或溢出数字（1e999）不得直通 GL——NaN 坐标会画飞 / 不写 = 黑
+        return MathUtil.sanitizeFloatLogged(number.floatValue(), defaultValue,
+                "keyframe." + key + "." + component);
     }
 
     private static float lerp(float a, float b, float s) {
@@ -183,12 +190,13 @@ public final class ScriptLaneDriver {
     }
 
     /** 合成回调：把该 lane 当帧的画面按本帧参数贴到屏幕，随后按相机 id 读回该相机的合成结果（调试捕获）。 */
-    private static void compose(int index, RenderTarget texture) {
+    private static void compose(int index, RenderTarget texture, boolean written) {
         Slot slot = SLOTS.get(index);
-        LaneCompositor.compose(texture, slot.source, slot.dest, slot.opacity);
-        // 调试捕获 b（每相机 composited）：该相机贴到主画面之后立刻读回主 framebuffer 的该相机区域
-        // （保真 alpha，按 dest 裁剪）。ICINEMATICS_CAPTURE 门控；关闭 / opacity≤0 时零差异。
-        if (slot.opacity > 0.0F) {
+        // 失败 / 未写的 lane 由合成层守门跳过（判定与限频告警在 LaneCompositor.compose 内）
+        boolean composited = LaneCompositor.compose(texture, slot.source, slot.dest, slot.opacity, written);
+        // 调试捕获 b（每相机 composited）：该相机确实贴到主画面之后立刻读回主 framebuffer 的该相机区域
+        // （保真 alpha，按 dest 裁剪）。ICINEMATICS_CAPTURE 门控；关闭 / 未上屏（守门跳过）时零差异。
+        if (composited) {
             LaneDebugCapture.onLaneComposited(slot.captureId != null ? slot.captureId : "lane" + index, slot.dest);
         }
     }

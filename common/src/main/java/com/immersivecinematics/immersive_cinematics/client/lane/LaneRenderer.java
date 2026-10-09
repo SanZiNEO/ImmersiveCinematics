@@ -6,8 +6,10 @@ import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustPass;
 import com.immersivecinematics.immersive_cinematics.mixin.GameRendererAccessor;
 import com.immersivecinematics.immersive_cinematics.mixin.LevelRendererAccessor;
 import com.immersivecinematics.immersive_cinematics.mixin.MinecraftAccessor;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
+import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexSorting;
@@ -21,6 +23,7 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL30;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -101,6 +104,12 @@ public final class LaneRenderer {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
+    /** 一次失败判定的 GL 错误排空上限（防病态驱动下死循环；超过就按「有错误」处理）。 */
+    private static final int MAX_DRAINED_ERRORS = 16;
+
+    /** lane 渲染失败的限频间隔（毫秒）：失败逐帧复现，不限频会刷屏。 */
+    private static final long FAILURE_LOG_INTERVAL_MS = 5000L;
+
     /** 全局单例接入点（渲染线程访问）。 */
     public static final LaneRenderer INSTANCE = new LaneRenderer();
 
@@ -130,7 +139,13 @@ public final class LaneRenderer {
      */
     @FunctionalInterface
     public interface Sink {
-        void laneRendered(int index, RenderTarget target);
+        /**
+         * @param index   该 lane 的序号（合成顺序）
+         * @param target  该 lane 本帧的画面（合成层取其颜色纹理上屏）
+         * @param written 该画面本帧是否被写满；{@code false} = 渲染失败 / 未写（失败原因已由
+         *                {@link #renderLane} 限频告警）——合成层必须跳过该 lane，主画面保持基画面
+         */
+        void laneRendered(int index, RenderTarget target, boolean written);
     }
 
     /** 一个 lane 槽位：独立原版 {@link Camera} 实例 + 本帧相机状态 + 内容开关 + lane 级调色 + 调试用相机 id。 */
@@ -310,9 +325,10 @@ public final class LaneRenderer {
                 }
                 // 调试捕获用的相机 id：生产者没给时回退 lane<序号>（文件名安全化在 LaneDebugCapture 内做）
                 String captureId = lane.captureId != null ? lane.captureId : "lane" + i;
-                RenderTarget laneOutput = renderLane(mc, lane, captureId, fbo, main, partialTick, nanoTime);
+                LaneOutput output = renderLane(mc, lane, captureId, fbo, main, partialTick, nanoTime);
                 if (laneSink != null) {
-                    laneSink.laneRendered(i, laneOutput);
+                    // written = false（渲染失败 / 未写）：合成层守门会跳过该 lane，主画面保持基画面
+                    laneSink.laneRendered(i, output.target(), output.written());
                 }
             }
         } finally {
@@ -328,22 +344,42 @@ public final class LaneRenderer {
     /**
      * 一条 lane 的完整渲染（整尺寸进离屏缓冲）。
      *
+     * <p><b>失败判定（fail-safe 直通）</b>：只在「lane 缓冲有颜色纹理 + FBO 完整 + 本次渲染全程无 GL 错误
+     * （含异常）」时返回 {@code written = true}；否则 {@code written = false}（{@code target} 的内容不可用）
+     * 并限频告警——合成层据此跳过该 lane，主画面保持基画面，绝不把未写 / 半写的画面铺上屏。
+     * 检查全是状态查询（{@code glCheckFramebufferStatus} / {@code glGetError}），无读回 / 无同步等待。</p>
+     *
      * @param captureId 该 lane 的相机 id（只用于调试捕获的文件名口径）
-     * @return 交给合成层的画面纹理：无 lane 级调色 = lane 自己的 FBO（{@code fbo}）；
+     * @return 交给合成层的画面纹理 + 是否可用：无 lane 级调色 = lane 自己的 FBO（{@code fbo}）；
      *         有 = 调色后的共享 {@link #adjustTarget(int, int)}
      */
-    private RenderTarget renderLane(Minecraft mc, Lane lane, String captureId, RenderTarget fbo, RenderTarget main,
-                                    float partialTick, long nanoTime) {
+    private LaneOutput renderLane(Minecraft mc, Lane lane, String captureId, RenderTarget fbo, RenderTarget main,
+                                  float partialTick, long nanoTime) {
         Camera camera = lane.camera;
         CameraState state = lane.state;
         GameRenderer gameRenderer = mc.gameRenderer;
         GameRendererAccessor gameRendererAccessor = (GameRendererAccessor) gameRenderer;
+
+        // 缓冲没有颜色纹理：采样只会得到黑（GL 不报错），渲染与合成都没有意义
+        if (fbo.getColorTextureId() <= 0) {
+            reportLaneFailure(captureId, "lane 缓冲没有颜色纹理（纹理名 = 0）", null);
+            return new LaneOutput(fbo, false);
+        }
+        // 本 lane 的 GL 错误从零开始计：先清掉进入前的积压（别的模块 / 上一条 lane 留下的），
+        // 之后产生的错误才算本 lane 的
+        drainGlErrors();
 
         // 渲染期间让原版所有 getMainRenderTarget() 引用都落在该 lane 的 FBO 上（落地要点 ①）
         ((MinecraftAccessor) mc).ic$setMainRenderTarget(fbo);
         activeContent = lane.content;
         try {
             fbo.bindWrite(true);   // 绑定 FBO + 视口 = FBO 全尺寸
+            // 目标不可写（附件丢失 / 重建失败 / 尺寸非法）→ 驱动会丢掉这次绘制、只留下未写内容：
+            // 连画都不画，本 lane 直接判失败（合成层跳过，主画面保持基画面）
+            if (GlStateManager.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER) != GL30.GL_FRAMEBUFFER_COMPLETE) {
+                reportLaneFailure(captureId, "lane FBO 不完整（GL_FRAMEBUFFER_COMPLETE 校验未过）", null);
+                return new LaneOutput(fbo, false);
+            }
 
             // 我们的相机接管：Camera.setup → CameraMixin 的 lane 分支读该实例的 CameraState
             camera.setup(mc.level, mc.player,
@@ -395,28 +431,77 @@ public final class LaneRenderer {
             // 落地要点 ③（出）：doEntityOutline → blitToScreen 会把全局投影改成正交矩阵，必须还原
             // （与进 renderLevel 之前那次 setProjectionMatrix 成对；这里还原成 lane 自己的投影）
             RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
+        } catch (RuntimeException e) {
+            // 渲染中途抛异常 = 本 lane 的画面未写 / 半写：判失败（合成层跳过），别把半截画面铺上屏
+            reportLaneFailure(captureId, "lane 渲染异常（画面未写 / 半写）", e);
+            return new LaneOutput(fbo, false);
         } finally {
             activeContent = null;
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
         }
 
+        // 施加全程无 GL 错误 = 本 lane 的画面确实被这次渲染写满（绘制报错时驱动会丢掉这次绘制，
+        // 缓冲留下的内容不可信）；这里只查状态、不读回、不同步等待
+        if (drainGlErrors()) {
+            reportLaneFailure(captureId, "lane 渲染产生 GL 错误（绘制可能被驱动丢弃，画面不可信）", null);
+            return new LaneOutput(fbo, false);
+        }
+
         // 调试捕获 a（每相机 raw）：lane 渲染完成、lane 级调色之前，把该 lane 的离屏纹理原始 RGBA 读回写盘
         // （ICINEMATICS_CAPTURE 门控；关闭时第一行即返回——不读回、不分配、不切 GL 状态，零差异）。
         // 读的是 lane 的原始渲染结果（不含 lane 级调色、不含合成）。见 LaneDebugCapture。
+        // 只捕获判失败之前的画面：失败的 lane 在上一行已经返回（未写的内容没有捕获价值）。
         LaneDebugCapture.onLaneRendered(captureId, fbo);
 
         // lane 级调色（来自该 lane 的相机片段）：lane 渲染完成之后、合成之前，把该 lane 的画面
         // 过一次调色 pass（只动 RGB、alpha 直通；着色器与 uniform 上传与 master 共用同一份实现）。
         // 结果写进共享 adjustTarget（尺寸跟随窗口，与 offscreenTarget 同处理），合成读它而不是 lane FBO。
         // 无需调整（片段没写调色 / 参数恒等 / 着色器不可用）→ 原样返回 lane FBO，行为与不带该功能完全一致。
+        // 调色自身失败（applyTo 返回 false）→ 原样返回 lane FBO：lane 画面有效，只是没调色，仍可上屏。
         ColorAdjustParams adjust = lane.adjust;
         if (adjust != null && !adjust.isIdentity()) {
             RenderTarget adjusted = adjustTarget(fbo.width, fbo.height);
             if (ColorAdjustPass.applyTo(fbo, adjusted, adjust, mc)) {
-                return adjusted;
+                return new LaneOutput(adjusted, true);
             }
         }
-        return fbo;
+        return new LaneOutput(fbo, true);
+    }
+
+    /** 一条 lane 本帧的渲染结果：{@code written = false} = 渲染失败 / 未写（{@code target} 不可用）。 */
+    private record LaneOutput(RenderTarget target, boolean written) {
+    }
+
+    /**
+     * 清空 / 读取 GL 错误队列（至多 {@link #MAX_DRAINED_ERRORS} 条，防病态驱动下死循环）。
+     *
+     * <p>用法固定成对：{@link #renderLane} 进入时先调一次「清积压」（此前别的模块 / 上一条 lane 留下的
+     * 错误不归本 lane），渲染后再调一次——这次读到错误 = 本 lane 渲染失败。</p>
+     *
+     * @return 是否读到过错误
+     */
+    private static boolean drainGlErrors() {
+        boolean any = false;
+        for (int i = 0; i < MAX_DRAINED_ERRORS; i++) {
+            if (GL11.glGetError() == GL11.GL_NO_ERROR) {
+                break;
+            }
+            any = true;
+        }
+        return any;
+    }
+
+    /**
+     * lane 渲染失败的限频告警（失败逐帧复现，同一失败点 {@link #FAILURE_LOG_INTERVAL_MS} 一条，
+     * 窗口内的次数合并到下一次输出里——不刷屏，也不丢「一直在失败」这个事实）。
+     *
+     * @param captureId 该 lane 的相机 id（合成层定位用；{@code null} 原样打印）
+     * @param what      失败描述
+     * @param t         异常（无异常传 {@code null}）
+     */
+    private static void reportLaneFailure(String captureId, String what, Throwable t) {
+        String message = "lane 渲染失败（该 lane 本帧不上屏，主画面保持基画面）：相机 " + captureId + " — " + what;
+        ErrorLog.logRateLimited("Render", "lane-render-failure", FAILURE_LOG_INTERVAL_MS, message, t);
     }
 
     /**

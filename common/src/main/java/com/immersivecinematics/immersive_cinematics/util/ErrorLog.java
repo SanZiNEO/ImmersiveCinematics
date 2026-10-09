@@ -7,6 +7,8 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 脚本错误日志 — 写游戏目录 {@code logs/immersive_cinematics/script-errors.log}。
@@ -23,6 +25,58 @@ public final class ErrorLog {
     private static PrintWriter writer;
 
     private ErrorLog() {}
+
+    /** 限频表：位置标识 → {上次输出时刻 ms, 窗口内被抑制的次数}。 */
+    private static final Map<String, long[]> RATE_LIMIT = new ConcurrentHashMap<>();
+
+    /**
+     * 限频记录一条错误：同一 {@code key} 两次输出至少间隔 {@code intervalMs}。
+     * <p>用于逐帧复现的渲染失败（不限频就会每帧刷屏）；窗口内被抑制的次数合并到下一次输出里，
+     * 不丢「一直在失败」这个事实。</p>
+     *
+     * @param category   分类（控制台 / 文件里的 {@code [category]}）
+     * @param key        限频位置标识（不同的失败点用不同 key，互不影响）
+     * @param intervalMs 同一 key 的最小输出间隔（毫秒）
+     * @param message    失败描述
+     */
+    public static void logRateLimited(String category, String key, long intervalMs, String message) {
+        String merged = rateLimit(key, intervalMs, message);
+        if (merged != null) {
+            log(category, merged);
+        }
+    }
+
+    /**
+     * 同 {@link #logRateLimited(String, String, long, String)}，另带异常（堆栈写入文件，控制台只打摘要）。
+     *
+     * @param t 异常（可传 {@code null}）
+     */
+    public static void logRateLimited(String category, String key, long intervalMs, String message, Throwable t) {
+        String merged = rateLimit(key, intervalMs, message);
+        if (merged != null) {
+            log(category, merged, t);
+        }
+    }
+
+    /**
+     * 限频记账：未到间隔 → 计数抑制并返回 {@code null}；否则返回待输出的文案
+     * （带窗口内被抑制的次数）。
+     */
+    private static String rateLimit(String key, long intervalMs, String message) {
+        long now = System.currentTimeMillis();
+        long[] state = RATE_LIMIT.computeIfAbsent(key, k -> new long[2]);
+        synchronized (state) {
+            if (now - state[0] < intervalMs) {
+                state[1]++;
+                return null;
+            }
+            long suppressed = state[1];
+            state[0] = now;
+            state[1] = 0L;
+            return suppressed == 0L ? message
+                    : message + "（另有 " + suppressed + " 次同类失败未逐条记录）";
+        }
+    }
 
     /** 记录一条脚本错误：控制台 ERROR + 日志文件追加（线程安全） */
     public static void log(String category, String message) {

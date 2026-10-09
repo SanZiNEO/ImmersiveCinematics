@@ -67,6 +67,11 @@ import java.io.IOException;
  * <p>兜底：{@code ic_lane_blit} 加载失败（资源包覆盖 / 编译失败；只记一次错误）时退回原版
  * {@code position_tex}——画面仍可见，代价是重新引入上面那条 alpha 透底。
  *
+ * <h2>失败直通（守门）</h2>
+ * {@link #compose} 画之前先过 {@link LaneComposeGate}：画面未写 / 没有颜色纹理 / 矩形非有限或退化
+ * ⇒ <b>整个跳过这次绘制</b>，主画面保持基画面（失败直通），绝不用未写 / 不可采样的画面覆盖它——
+ * 否则「dest 全屏」时就是整屏黑。跳过原因限频告警（{@code opacity ≤ 0} 的叠化到 0 除外，那是正常路径）。
+ *
  * <h2>状态保存 / 还原</h2>
  * 一次 {@link #compose} 会改动：绑定的 framebuffer 与视口、全局投影矩阵与 VertexSorting、
  * 全局模型视图矩阵、shader 颜色（{@code ColorModulator}）与 0 号 shader 纹理、深度测试 / 深度写 /
@@ -109,14 +114,37 @@ public final class LaneCompositor {
      * <p><b>必须当帧调用</b>：lane 的离屏缓冲是共用的，调用返回后随时会被下一条 lane 覆盖
      * （见 {@link LaneRenderer.Sink}）。</p>
      *
+     * <p><b>失败直通（守门）</b>：画之前先过 {@link LaneComposeGate} 的两道判定——任何一条不过就
+     * <b>整个跳过这次绘制</b>，主画面保持此前的内容（基画面 / 更下层 lane），绝不用未写 / 不可采样的
+     * 画面覆盖它（否则 dest 全屏时整屏变黑）。{@code opacity ≤ 0} 是正常语义（叠化到 0），静默跳过；
+     * 其余原因限频告警（逐帧复现的失败不刷屏）。</p>
+     *
      * @param texture lane 的离屏画面（取其颜色纹理作采样源）
      * @param source  取材区域（画面内归一化矩形，{@link Rect#FULL} = 全幅）
      * @param dest    目标区域（屏幕归一化矩形，{@link Rect#FULL} = 全屏）
      * @param opacity 叠放不透明度 0~1；{@code ≤0} 视为不可见，直接跳过
+     * @param written 该画面本帧是否被写满（{@code false} = 渲染失败 / 未写，内容不可用 → 跳过）
+     * @return 是否真的把画面铺上了屏（{@code false} = 被守门跳过，主画面保持原样）
      */
-    public static void compose(RenderTarget texture, Rect source, Rect dest, float opacity) {
-        if (opacity <= 0.0F) {
-            return;
+    public static boolean compose(RenderTarget texture, Rect source, Rect dest, float opacity, boolean written) {
+        // 守门：画面层（未写 / 无颜色纹理 / 不可见）+ 矩形层（非有限 / 退化）——判定见 LaneComposeGate
+        if (texture == null || source == null || dest == null) {
+            reportSkipped("画面 / 矩形为空（texture=" + texture + "）");
+            return false;
+        }
+        LaneComposeGate.Skip skip = LaneComposeGate.checkBuffer(written, texture.getColorTextureId(), opacity);
+        if (skip == LaneComposeGate.Skip.NONE) {
+            skip = LaneComposeGate.checkRect(source.x(), source.y(), source.w(), source.h());
+        }
+        if (skip == LaneComposeGate.Skip.NONE) {
+            skip = LaneComposeGate.checkRect(dest.x(), dest.y(), dest.w(), dest.h());
+        }
+        if (skip.skip()) {
+            if (skip != LaneComposeGate.Skip.INVISIBLE) {   // opacity ≤ 0 = 正常叠化路径，静默
+                reportSkipped(skip.reason() + "（纹理 = " + texture.getColorTextureId()
+                        + ", source = " + source + ", dest = " + dest + ", opacity = " + opacity + "）");
+            }
+            return false;
         }
         Minecraft mc = Minecraft.getInstance();
         RenderTarget main = mc.getMainRenderTarget();
@@ -192,6 +220,16 @@ public final class LaneCompositor {
             RenderSystem.enableDepthTest();
             RenderSystem.colorMask(true, true, true, true);
         }
+        return true;
+    }
+
+    /**
+     * 守门跳过的限频告警（逐帧复现的失败不刷屏；同一失败点 5 秒一条，抑制次数合并到下一次输出）。
+     * <p>只报告「不该画」的失败；{@code opacity ≤ 0} 的叠化到 0 是正常路径，静默跳过。</p>
+     */
+    private static void reportSkipped(String what) {
+        ErrorLog.logRateLimited("Render", "lane-compose-skip", 5000L,
+                "lane 合成跳过（主画面保持基画面）：" + what);
     }
 
     /**
