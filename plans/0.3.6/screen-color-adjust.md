@@ -9,8 +9,9 @@
 > - [Overlay 颜色遮罩](./overlay-color-mask.md)
 > - [画面合成](./camera-composition.md)
 > - [并行播放](./parallel-playback.md)
+> - [LUT 工作流（创作者向）](../docs/LUT_WORKFLOW.md)
 >
-> **状态：第一批「标量组」（15 通道 = 12 标量 + R/G/B 每通道系数）已落地（2026-10-07）；lane 级调色（§7 步骤 5）已落地——调色直接写在 CAMERA 片段上（相机片段自带调色，作用于该相机轨产出的 lane；ADJUST 轨只作用于整体画面）；完整 HSL（`hue` / `lightness`）已落地（2026-10-07）→ 共 17 通道；曲线组（形态 b）已落地（2026-10-08）——RGB 复合曲线（clip 级 `rgb_curve` + 关键帧 `curve_strength`）、每通道曲线（clip 级 `r_curve` / `g_curve` / `b_curve` + 三个强度关键帧）与六条 hue 曲线（clip 级 `hv_h_curve` ~ `sv_l_curve` + 六个强度关键帧，DaVinci 曲线页口径）；RGB 通道混合器（`mix_rr` ~ `mix_bb` 九个 3×3 矩阵系数）已落地（2026-10-08）→ 共 26 个标量通道；Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个逐通道色轮参数）已落地（2026-10-08）→ 共 35 个标量通道**。**第二批（通道与 HSL 完整）全部落地**；第三批、调整层（步骤 6）、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
+> **状态：第一批「标量组」（15 通道 = 12 标量 + R/G/B 每通道系数）已落地（2026-10-07）；lane 级调色（§7 步骤 5）已落地——调色直接写在 CAMERA 片段上（相机片段自带调色，作用于该相机轨产出的 lane；ADJUST 轨只作用于整体画面）；完整 HSL（`hue` / `lightness`）已落地（2026-10-07）→ 共 17 通道；曲线组（形态 b）已落地（2026-10-08）——RGB 复合曲线（clip 级 `rgb_curve` + 关键帧 `curve_strength`）、每通道曲线（clip 级 `r_curve` / `g_curve` / `b_curve` + 三个强度关键帧）与六条 hue 曲线（clip 级 `hv_h_curve` ~ `sv_l_curve` + 六个强度关键帧，DaVinci 曲线页口径）；RGB 通道混合器（`mix_rr` ~ `mix_bb` 九个 3×3 矩阵系数）已落地（2026-10-08）→ 共 26 个标量通道；Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个逐通道色轮参数）已落地（2026-10-08）→ 共 35 个标量通道**。**第二批（通道与 HSL 完整）全部落地**；**第三批的 LUT 已落地（2026-10-08）**——clip 级 `lut` / `lut_input_gamma` + 关键帧 `lut_strength`（整体画面烘焙，见「增量：LUT」），第三批只剩六色带 / 混合模式；调整层（步骤 6）、编辑器 UI 未做。执行时定下的取舍见下方「落地标注」；§6 的「数据落点」已定稿。**
 
 ---
 
@@ -53,7 +54,7 @@
 ### 渲染挂点（§4 / §5-1 / §5-3 / §6-3：定稿；2026-10-08 用户裁决后移）
 
 - **挂点**：`GameRenderer.render` 内、**原版后处理链（RPOST）之后、GUI 之前** —— `mixin/GameRendererMixin.onWorldPostProcessed`，注入目标 = 对 `RenderTarget.bindWrite(Z)V` 的调用（原版 `postEffect.process(f)` 之后那一句 `getMainRenderTarget().bindWrite(true)`）：即 **MCOMP → RPOST → RADJ → GUI**，与架构图 RADJ 一致。
-  - **口径（2026-10-08 用户裁决）**：master 调色（含未来的整体 LUT 烘焙）是世界画面的**最终字**。黑边 / 字幕 / 黑白场转场走 OVERLAY 层、在 GUI 阶段绘制且需要精确色值，不得被调色 / LUT 污染（GUI 不参与调色）；受伤红晕 / 水幕等原版屏幕特效属世界画面，应一并风格化。旧挂点（`renderLevel` 的 RETURN、紧接 lane 合成）已被本挂点取代。
+  - **口径（2026-10-08 用户裁决）**：master 调色（含整体 LUT 烘焙）是世界画面的**最终字**。黑边 / 字幕 / 黑白场转场走 OVERLAY 层、在 GUI 阶段绘制且需要精确色值，不得被调色 / LUT 污染（GUI 不参与调色）；受伤红晕 / 水幕等原版屏幕特效属世界画面，应一并风格化。旧挂点（`renderLevel` 的 RETURN、紧接 lane 合成）已被本挂点取代。
   - **为什么不再与 lane 合成同一注入**：lane 合成（MCOMP）仍留在 `renderLevel` 的 RETURN（`mixin/LaneRendererMixin`）——它必须早于 `doEntityOutline` / RPOST；master 调色读的是 RPOST 的输出，两者天然分处不同阶段，先后由原版语句顺序显式保证，不再需要「同一注入」这一约定。
   - **为什么锚 `bindWrite(true)` 而不是 `Gui.render`**：`gui.render` 被原版 `if (!options.hideGui || screen != null)` 包着——按 F1 隐藏 HUD 时整段 GUI 不渲染，锚在那里会让调色随 HUD 显隐而消失；锚 `bindWrite(true)` 位于同一 `if (renderLevel && level != null)` 分支内、不受 HUD 显隐影响，生效条件与旧挂点逐帧等价。
   - **为什么不用原版 `PostChain`**：`EffectInstance` 的程序 JSON 路径硬编码 `shaders/program/<name>.json`（默认命名空间），且 `PostChain` 需要自己处理尺寸跟随、资源重载重建与用不上的 `Time` 等 uniform。自建 `ShaderInstance` + 自管中转缓冲更短更可控；**代价**：程序 JSON 与 GLSL 仍必须落在 `assets/minecraft/shaders/core/`（`ShaderInstance` 的 String 构造只认默认命名空间）—— 这是沿用原版机制的硬约束，非选择。
@@ -81,16 +82,17 @@
 | 8 | RGB 复合曲线 | `c = mix(c, vec3(lut(c.r), lut(c.g), lut(c.b)), clamp(CurveStrength, 0, 1))`（`lut` = clip 级 `rgb_curve` 采样的 256×1 LUT；`CurveStrength = 0` 跳过整步；2026-10-08 增量） |
 | 9 | 每通道曲线 | `if (RCurveStrength > 0) c.r = mix(c.r, rLut(c.r), clamp(RCurveStrength, 0, 1))`（g / b 同式，各用自己的 LUT 与强度；该通道无曲线 / 强度 0 → 跳过，逐位恒等；2026-10-08 增量） |
 | 10 | Lift / Gamma / Gain 色轮 | 逐通道三组：`c = c + lift·(1-c)`、`c = pow(max(c,0), exp2(-gamma))`、`c = c·(1+gain)`（`lift` / `gamma` / `gain` 各 = `vec3(LiftR, LiftG, LiftB)` …）；九个全 0 跳过整步（逐位恒等；2026-10-08 增量） |
-| 11 | 色相旋转 | HSL：`H' = fract(H + Hue * 0.5)`（`±1` = ±180°；2026-10-07 增量） |
-| 12 | 饱和度 | HSL：`S' = clamp(S * (1 + Saturation), 0, 1)` |
-| 13 | 自然饱和度 | HSL：`S' = clamp(Vibrance ≥ 0 ? S + Vibrance*S*(1-S) : S*(1+Vibrance), 0, 1)` |
-| 14 | 亮度 | HSL：`L' = clamp(L + Lightness * (Lightness ≥ 0 ? (1-L) : L), 0, 1)`（`±1` = 全白 / 全黑；2026-10-07 增量） |
-| 15 | 六条 hue 曲线 | HSL 块内、标量 HSL 之后：`HvH: h = mix(h, HvH(h0), st)`、`HvS: s = mix(s, HvS(h0), st)`、`HvL: l = mix(l, HvL(h0), st)`、`LvS: s = mix(s, LvS(l0), st)`、`SvS: s = mix(s, SvS(s0), st)`、`SvL: l = mix(l, SvL(s0), st)`（键 = 进入块时的 `h0` / `s0` / `l0`；每条各用自己的 LUT 与强度，无曲线 / 强度 0 → 跳过；2026-10-08 增量） |
-| 16 | 灰度 | `c = mix(c, vec3(luma(c)), clamp(Grayscale, 0, 1))` |
-| 17 | 反相 | `c = mix(c, 1 - c, clamp(Invert, 0, 1))` |
+| 11 | 整体画面 LUT | `v = pow(clamp(c, 0, 1), LutInputGamma)`；`c = mix(c, lut3D(v), clamp(LutStrength, 0, 1))`（`lut` = clip 级 `lut` 文件名在加载期烘焙的单张 ≤64³ 合成 3D 表，四面体插值；无 LUT / 强度 0 → 跳过整步，逐位恒等；2026-10-08 增量） |
+| 12 | 色相旋转 | HSL：`H' = fract(H + Hue * 0.5)`（`±1` = ±180°；2026-10-07 增量） |
+| 13 | 饱和度 | HSL：`S' = clamp(S * (1 + Saturation), 0, 1)` |
+| 14 | 自然饱和度 | HSL：`S' = clamp(Vibrance ≥ 0 ? S + Vibrance*S*(1-S) : S*(1+Vibrance), 0, 1)` |
+| 15 | 亮度 | HSL：`L' = clamp(L + Lightness * (Lightness ≥ 0 ? (1-L) : L), 0, 1)`（`±1` = 全白 / 全黑；2026-10-07 增量） |
+| 16 | 六条 hue 曲线 | HSL 块内、标量 HSL 之后：`HvH: h = mix(h, HvH(h0), st)`、`HvS: s = mix(s, HvS(h0), st)`、`HvL: l = mix(l, HvL(h0), st)`、`LvS: s = mix(s, LvS(l0), st)`、`SvS: s = mix(s, SvS(s0), st)`、`SvL: l = mix(l, SvL(s0), st)`（键 = 进入块时的 `h0` / `s0` / `l0`；每条各用自己的 LUT 与强度，无曲线 / 强度 0 → 跳过；2026-10-08 增量） |
+| 17 | 灰度 | `c = mix(c, vec3(luma(c)), clamp(Grayscale, 0, 1))` |
+| 18 | 反相 | `c = mix(c, 1 - c, clamp(Invert, 0, 1))` |
 
-- **RGB↔HSL 标准换算**（§4 的方向）用于完整 HSL 块（步骤 11 ~ 15：色相 / 饱和度 / 自然饱和度 / 亮度 + 六条 hue 曲线，即 H / S / L 三通道）；画面**亮度**一律 **Rec.709**（0.2126 / 0.7152 / 0.0722，比原版 `color_convolve.fsh` 的 0.3/0.59/0.11 更接近现代口径）。
-- 第 3 步之后、HSL 块之前**钳制到 [0,1]**（HSL 换算与亮度混合要求有界输入；通道混合器（第 7 步）的矩阵结果、曲线步骤（第 8 / 9 步）与 Lift / Gamma / Gain（第 10 步）的输出都由这一次钳制管辖——曲线输出本身由控制点限定在 [0,1] 内，色轮的 lift / gain 会越界，此处一并兜底）。
+- **RGB↔HSL 标准换算**（§4 的方向）用于完整 HSL 块（步骤 12 ~ 16：色相 / 饱和度 / 自然饱和度 / 亮度 + 六条 hue 曲线，即 H / S / L 三通道）；画面**亮度**一律 **Rec.709**（0.2126 / 0.7152 / 0.0722，比原版 `color_convolve.fsh` 的 0.3/0.59/0.11 更接近现代口径）。
+- 第 3 步之后、HSL 块之前**钳制到 [0,1]**（HSL 换算与亮度混合要求有界输入；通道混合器（第 7 步）的矩阵结果、曲线步骤（第 8 / 9 步）、Lift / Gamma / Gain（第 10 步）与整体画面 LUT（第 11 步）的输出都由这一次钳制管辖——曲线输出本身由控制点限定在 [0,1] 内，色轮的 lift / gain 与 LUT 数据会越界，此处一并兜底）。
 - **无 HSL 调整时跳过换算**（四个 HSL 通道全 0 **且六条 hue 曲线都不生效**的 uniform 分支）→ 「只调曝光 / 对比度」这类场景逐位恒等；只有标量 HSL 生效时与不带六条曲线前逐位一致。
 - 灰点边界（§5-2）：`max-min ≈ 0` 时 `S = 0`、色相无意义 → `hsl2rgb` 的 `S ≤ 0` 分支直接返回灰度，不会产生 NaN 或跳色。
 - 色温 / 色调的增益**按亮度归一化** → 调白平衡不改变整体明暗。
@@ -300,6 +302,32 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
   - 注：本机 NVIDIA 驱动的 float → unorm8 转换**平局向零取整**（实测 `0.5 → 127`、`0.25 → 64`、`0.75 → 191`，独立探针确认），故 harness 里的硬编码期望值都避开 `x.5` 这类平局；harness 与文档里的公式口径不受影响。
   - 未验证：游戏内实际画面（需启动客户端）；光影下的执行顺序（§5-1，既有开放问题）。
 
+### 增量：LUT（整体画面 3D 查找表）（2026-10-08）
+
+第三批的第一块（§3 第三批「LUT（Color Lookup）」）：把在专业调色工具里调好、导出的 **`.cube` LUT** 套在**整个世界画面**上（「整体画面烘焙」，Teal and Orange 这类电影感套色一次到位）。创作者工作流（捕获游戏帧 → 调色 → 导出 → 引用）见 [LUT 工作流](../docs/LUT_WORKFLOW.md)。
+
+- **字段**：
+  - clip 级 `lut`（string，缺省不写 = 无 LUT）：`resource/` 目录下的 `.cube` **文件名**（非空、不含路径分隔符 / 盘符，如 `"Teal and Orange.cube"`）。
+  - clip 级 `lut_input_gamma`（float，缺省 `1.0`、**必须 > 0**）：查表前 `v = pow(clamp(c, 0, 1), gamma)`；给**现成 LUT**（为别的素材 / 别的游戏调的）做输入域适配（套上后整体偏亮 / 偏色时纠偏），`lut` 为空时忽略。
+  - 关键帧级 `lut_strength`（float `0 ~ 1`，缺省 `1`）：`c = mix(c, lut(v), clamp(lut_strength, 0, 1))`，写回 `0` = 该 LUT 淡出；可随时间淡入淡出。
+- **解析（加载期）**：`CubeLut` / `CubeLutLoader` **纯 Java 零外部库**解析 `.cube`，兼容达芬奇等主流工具的导出——1D shaper 与 `DOMAIN_MIN` / `DOMAIN_MAX` 在加载期就烘焙进**单张 ≤ 64³ 的合成 3D 表**；运行时只做一次 3D 查表（**四面体插值**），采样器只占 1 个（第 12 个采样器 = 纹理单元 11）。
+  - **为什么是单张合成表**：MC 的 `GlStateManager.TEXTURE_COUNT = 12` 是硬上限；1D shaper + 3D 各占一个采样器会到 13 个（超限）。自 `d1cbf7f` 起改为**加载期合成**（shaper 与 DOMAIN 都烘进 3D 表），LUT 只占一个采样器。
+- **操作栈位置**：**Lift / Gamma / Gain 色轮（第 10 步）之后、HSL 块之前** → **新第 11 步**（后续步骤顺延为 12 ~ 18：HSL 12 ~ 16、灰度 17、反相 18）——LUT 看到的是「基础校色 + 通道 + 曲线 + 色轮」处理后的值；输出不额外钳制（LUT 数据本身可超出 `[0,1]`），由 HSL 块前那一次 `[0,1]` 钳制兜底。无 LUT / 强度 0 → **跳过整步**（逐位恒等）。
+- **挂点 / master 级语义**：LUT 是世界画面的**最终字**——挂点 = 原版后处理链之后、GUI 之前（`mixin/GameRendererMixin.onWorldPostProcessed`，见「渲染挂点」）；GUI 层的黑边 / 字幕 / 跳过提示**不被套色**。因此 LUT **只写在 ADJUST 轨**（作用于整个世界的合成输出）：相机片段上写 `lut` / `lut_strength` 不生效，会被 validator 直接拦下。
+- **alpha 直通契约不变**：只动 rgb，`fragColor.a = src.a`。
+- **同步点**（顺序是硬约定，逐项对应）：
+  1. `script/schema/TrackSchemas.adjust()`：clip 级 `FieldDef("string", null)` + 关键帧 `FieldDef("float", 1f)`（插在 `gain_b` 与 `hv_h_strength` 之间 = fsh 栈顺序）+ javadoc；
+  2. `script/ScriptValidator`：`checkLutFields`（clip 级 `lut` 文件名规则、关键帧 `lut_strength` `0 ~ 1`）与相机片段的 `lut` / `lut_strength` 拦截；
+  3. `script/ScriptParser.parseLutFile()`：文件名解析（拦路径分隔符 / 盘符）；
+  4. `script/ColorAdjustSampler`：clip 级 `lut` 经 `CubeLutLoader.forClip` 换成缓存实例、`lut_strength` 走 `KeyframeInterpolator.interpolateChannel`（缺省 1；无 LUT 时置 0）——lane 路径恒 `null`；
+  5. `client/post/ColorAdjustParams`：`lut` / `lutStrength` 分量 + `IDENTITY` / `isIdentity()`；
+  6. `client/post/ColorAdjustPass`：`Lut3D` 采样器（纹理单元 11，`GL_TEXTURE_3D` 手动绑定）+ `LutStrength` / `Lut3DSize` uniform；
+  7. shader `ic_color_adjust.{json,fsh}`：uniform + `main()` 第 11 步（输入 gamma → 3D 查表 → 强度混合）。
+- **测试脚本**：`cinematics/tests/adjust/test_adjust_lut_demo.json`（1 条 ADJUST 轨两个片段：0~6s 不写 `lut` = 原画对照、6~12s `lut = "Teal and Orange.cube"` + `lut_strength` 恒 1，配字幕做前后对比）。
+- **验证（2026-10-08）**：
+  - **实机（游戏内）**：套 `Teal and Orange.cube` → **整幅世界画面被烘焙**（天空转青、地表转橙），GUI 层（字幕 / 黑边）不受影响；不写 `lut` 的片段画面与原来一致。
+  - 未验证：光影下的执行顺序（§5-1，既有开放问题，与其它调色步骤共用同一挂点）。
+
 ### 默认零差异（§2.1 的「零差异」要求）
 
 - 无 ADJUST 轨道 / 无活跃 clip / 26 标量通道全为缺省（且无曲线或曲线强度 0）→ 播放器不发布 → pass **第一行返回**：不取着色器、不建中转缓冲、不切 GL 状态、不画任何东西。
@@ -308,7 +336,7 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 ### 本版本明确不做
 
 - **曲线编辑器、贝塞尔手柄与形态 a**（曲线点集本身打关键帧）：十条曲线（复合 + 每通道 + 六条 hue）已随「增量：RGB 复合曲线（形态 b）」「增量：每通道曲线（R / G / B）」与「增量：六条 hue 曲线」落地（2026-10-08），控制点现为 `[x, y]` 二元组（Fritsch–Carlson 单调三次插值）；**曲线手柄（贝塞尔手柄）留编辑器阶段**（2026-10-08 用户裁决）——手柄属**编辑器侧运算**：手柄的效果计算与曲线编辑在编辑器里完成，产出运行时可直接执行的曲线数据；**运行时不含手柄逻辑**（代码只读只执行，修改 / 生成 / 调配一律在编辑器侧，见 `implementation-progress.md` 通用原则），产物数据形态随编辑器阶段定稿。形态 a（曲线点集打关键帧）同随编辑器落地。
-- **第二批（通道与 HSL 完整）全部落地（2026-10-08）**：色相旋转（「增量：完整 HSL」）、六条 hue 曲线、RGB 通道混合器与 Lift / Gamma / Gain 色轮（本轮）都已实现；本版本**只剩第三批（LUT / 六色带 / 混合模式）**。
+- **第二批（通道与 HSL 完整）全部落地（2026-10-08）**：色相旋转（「增量：完整 HSL」）、六条 hue 曲线、RGB 通道混合器与 Lift / Gamma / Gain 色轮（本轮）都已实现；**第三批的 LUT 已落地（2026-10-08，见「增量：LUT」）**，本版本**只剩六色带 / 混合模式**。
 - lane 级调色（§7 步骤 5）已在本版本落地（相机片段自带调色），见下一节「落地标注（相机片段调色）」；~~调整层（§7 步骤 6，依赖分层模型）~~ 已由 **ADJUST 轨**承担——**调整层 = ADJUST 轨**（顶层、不参与排序、默认比其他层级高一个，管整幅画面），无独立新层、无新机制。
 - 编辑器 UI（§7 步骤 3）：`editor/src/types.ts` 的 `TrackType` 联合类型、`TrackListPanel.vue` / `Timeline.vue` 的轨道列表与配色、i18n 键、`demo.ts` 的 schema 快照都需跟着加 `ADJUST`（Java 侧 schema 已随 `SchemaExporter` 导出，前端接上即可）。
 - 多实例各写 master 的合并语义（§5-4）：仍开放；本版本至多 1 个活跃实例，行为 = 该实例的最后一个 ADJUST 轨道。
@@ -337,7 +365,7 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 ### 数据流
 
 ```
-ColorAdjustSampler.sample(clip, localTime)（共用采样器：35 通道 + 10 曲线强度插值，曲线 LUT 随 clip 缓存）
+ColorAdjustSampler.sample(clip, localTime)（共用采样器：35 通道 + 10 曲线强度 + LUT 强度插值，曲线 LUT 与 CubeLut 随 clip 缓存）
   ├─ master：AdjustTrackPlayer.onRenderFrame（ADJUST 轨活跃 clip 的本地时间）→ MasterColorAdjust.publish(params)
   └─ lane 级：ScriptPlayer.collectCameraLanes()（每帧，按绘制顺序）对每条 lane 用
        lane.clip() + lane.clipLocalTime() 采样（恒等归一化为 null）
@@ -519,7 +547,7 @@ lane 渲染（含 lane 内描边）→ 相机片段调色（只动 RGB）→ 合
 - ~~第一版参数清单（§3 表里选哪些）~~ → **已定：第一批标量组 12 通道**（见文首「落地标注」的字段表；曲线组另计）。
 - ~~数据落点（层类型 / 轨道）~~ → **已定：独立 ADJUST 轨道**（`TrackType.ADJUST`，JSON `"type": "adjust"`；理由与字段表见文首「落地标注」）。
 - ~~调整是否影响 GUI 层~~ → **已定：不影响**（见 §5 与文首「落地标注」）。
-- LUT 的时机。
+- ~~LUT 的时机~~ → **已结清（2026-10-08）**：整体画面烘焙——栈位 = LGG 之后、HSL 块之前（第 11 步），挂点 = 世界画面最终字（RPOST 之后、GUI 之前），只写 ADJUST 轨（见「增量：LUT」）。
 - ~~调整层的排期~~ → **已结清：调整层 = ADJUST 轨**（顶层、不参与排序、默认比其他层级高一个，管整幅画面），无新机制；lane 级（步骤 5）已落地（2026-10-07）。
 - 曲线关键帧形态 a / b 的选择（倾向先 b 后 a，§3.1）。
 - 编辑器曲线编辑器与色轮的实现形态（自绘 vs 复用；与脚本模型 §6 的"参数寻址到分量"共用曲线编辑能力）。
@@ -539,7 +567,7 @@ lane 渲染（含 lane 内描边）→ 相机片段调色（只动 RGB）→ 合
 
 > 步骤 1–4 不依赖画面合成，可先行；步骤 5 起依赖 lane 上屏；步骤 6 只剩第三批工具（调整层已由 ADJUST 轨承担，无新机制，不依赖新分层模型落地）。
 >
-> **进度（2026-10-08）**：步骤 1 的**标量组**（12 通道 master pass）与**曲线组**（RGB 复合曲线 + 每通道曲线，形态 b）已落地；步骤 2 的**曲线部分（每通道曲线 R / G / B）已落地（2026-10-08）**，同步骤的「RGBA 通道拆分」（`red` / `green` / `blue` 通道系数，2026-10-07）与「完整 HSL」（`hue` / `lightness` + 既有 `saturation` / `vibrance`，2026-10-07）也已落地 → **步骤 2 的三块全部落地**；步骤 3 的**数据落点已定稿**、编辑器 UI 未做；**步骤 4 全部落地（2026-10-08）——六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）、RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）与 Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个逐通道色轮）都已实现 → 第二批（通道与 HSL 完整）全部落地，标量通道共 35 个 + 10 条曲线**；**步骤 5（lane 级调色）已落地**（调色写在 CAMERA 片段上——相机片段自带调色，作用于该相机轨产出的每条 lane，lane 渲染完 / 合成前过 pass；ADJUST 轨只作用于整体画面）；步骤 6 未做。
+> **进度（2026-10-08）**：步骤 1 的**标量组**（12 通道 master pass）与**曲线组**（RGB 复合曲线 + 每通道曲线，形态 b）已落地；步骤 2 的**曲线部分（每通道曲线 R / G / B）已落地（2026-10-08）**，同步骤的「RGBA 通道拆分」（`red` / `green` / `blue` 通道系数，2026-10-07）与「完整 HSL」（`hue` / `lightness` + 既有 `saturation` / `vibrance`，2026-10-07）也已落地 → **步骤 2 的三块全部落地**；步骤 3 的**数据落点已定稿**、编辑器 UI 未做；**步骤 4 全部落地（2026-10-08）——六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）、RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）与 Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个逐通道色轮）都已实现 → 第二批（通道与 HSL 完整）全部落地，标量通道共 35 个 + 10 条曲线**；**步骤 5（lane 级调色）已落地**（调色写在 CAMERA 片段上——相机片段自带调色，作用于该相机轨产出的每条 lane，lane 渲染完 / 合成前过 pass；ADJUST 轨只作用于整体画面）；步骤 6 的 **LUT 已落地（2026-10-08）**（见「增量：LUT」），只剩六色带 / 混合模式。
 
 ---
 

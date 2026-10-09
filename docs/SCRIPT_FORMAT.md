@@ -641,7 +641,7 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 对**合成后的最终画面**（master 层，架构图 RADJ 节点）做颜色调整——在 lane 合成之后、GUI 之前作用于整屏画面。**单条相机轨画面的调色不写在这里**：调色直接写在 CAMERA 片段上（见 §4「相机片段调色」），作用于该相机轨产出的 lane（lane 渲染完成、合成之前）。
 
 - **不影响 GUI**：字幕 / 黑边 / 跳过提示由 GUI 阶段绘制，调色不作用于它们（挂点在世界渲染阶段，早于 GUI）。
-- **本版本 = 35 个标量通道**（12 标量 + R/G/B 每通道系数 + **RGB 通道混合器（`mix_rr` ~ `mix_bb` 九个）** + 完整 HSL 的 `hue` / `lightness` + **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个）**）**+ RGB 复合曲线 + 每通道曲线（R / G / B 各一条）+ 六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）**（曲线组形态 b：曲线定义一次 + 各自的强度关键帧控混合强度）。LUT、以及「调整层」（作用于其下所有层）是后续批次（见 `plans/0.3.6/screen-color-adjust.md` §3 / §7）。
+- **本版本 = 35 个标量通道**（12 标量 + R/G/B 每通道系数 + **RGB 通道混合器（`mix_rr` ~ `mix_bb` 九个）** + 完整 HSL 的 `hue` / `lightness` + **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b` 九个）**）**+ RGB 复合曲线 + 每通道曲线（R / G / B 各一条）+ 六条 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）**（曲线组形态 b：曲线定义一次 + 各自的强度关键帧控混合强度）**+ 整体画面 LUT（clip 级 `lut` / `lut_input_gamma` + 关键帧 `lut_strength`，作用于整个世界画面；相机片段上写 `lut` / `lut_strength` 会被 validator 拦下）**。「调整层」（作用于其下所有层）是后续批次（见 `plans/0.3.6/screen-color-adjust.md` §3 / §7）。
 - **支持多条 ADJUST 轨道**：同一时刻以**后面的轨道**为准（轨道层级靠后的覆盖靠前的）。
 
 ### 执行顺序与 alpha 契约
@@ -674,8 +674,10 @@ lane 渲染（含 lane 内发光描边）
 | `lv_s_curve` | array | 否 | — | **LvS 曲线**：以 **亮度** 为键、输出 **饱和度**（暗部 / 亮部分区调饱和） |
 | `sv_s_curve` | array | 否 | — | **SvS 曲线**：以 **饱和度** 为键、输出 **饱和度**（低饱和 / 高饱和分区调饱和） |
 | `sv_l_curve` | array | 否 | — | **SvL 曲线**：以 **饱和度** 为键、输出 **亮度**（低饱和 / 高饱和分区调明暗） |
+| `lut` | string | 否 | — | **整体画面 LUT**（master 级）：`resource/` 目录下的 `.cube` **文件名**（非空、不含路径分隔符 / 盘符，如 `"Teal and Orange.cube"`）；不写 = 无 LUT。**只写在 ADJUST 轨**——相机片段上写 `lut` 会被 validator 拦下（LUT 作用于整个世界画面，见下方「LUT（`lut` / `lut_input_gamma` / `lut_strength`）」） |
+| `lut_input_gamma` | float | 否 | `1.0` | **LUT 输入域适配**：查表前 `v = pow(clamp(c, 0, 1), gamma)`（**必须 > 0**）；给现成 LUT（为别的素材调的）套上后整体偏亮 / 偏色时用来纠偏，自制（从游戏帧调的）LUT 保持缺省 `1.0`；**`lut` 为空时忽略** |
 
-> 十条曲线都是 clip 级字段（不随时间变，故不挂关键帧）；35 个标量通道与十条曲线强度（`curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength` / `hv_h_strength` ~ `sv_l_strength`）全部写在关键帧上（与 letterbox/EVENT/AUDIO/OVERLAY 同一套「统一关键帧级调控」规则）。
+> 十条曲线与 `lut` / `lut_input_gamma` 都是 clip 级字段（不随时间变，故不挂关键帧）；35 个标量通道、十条曲线强度（`curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength` / `hv_h_strength` ~ `sv_l_strength`）与 LUT 混合强度 `lut_strength` 全部写在关键帧上（与 letterbox/EVENT/AUDIO/OVERLAY 同一套「统一关键帧级调控」规则）。
 
 ### 曲线（`rgb_curve` / `r_curve` / `g_curve` / `b_curve` / `hv_h_curve` ~ `sv_l_curve`）— 复合曲线 + 每通道曲线 + 六条 hue 曲线（形态 b）
 
@@ -721,11 +723,11 @@ lane 渲染（含 lane 内发光描边）
 - **强度**：`hv_h_strength` / `hv_s_strength` / `hv_l_strength` / `lv_s_strength` / `sv_s_strength` / `sv_l_strength`，各自 0~1、**缺省 1**；混合口径与上面四条一致（`值 = mix(原值, 曲线值, 强度)`）。
 - **顺序固定**：HvH → HvS → HvL → LvS → SvS → SvL；**同一目标分量的多条按此序依次叠加**（比如 HvS 与 SvS 都写饱和度：先按色相调、再按饱和调，后者看到的是前者处理后的饱和度）。
 - **灰点安全**：饱和度为 0 的像素（灰阶）`h` 无意义，但 `hsl2rgb` 在 `s <= 0` 时直接返回灰度——HvH / HvS / HvL 的键取到 0 也不会跳色或产生 NaN。
-- **操作栈位置**：HSL 块内、四个标量 HSL 通道之后、灰度之前（第 15 步）；只动 H / S / L，**alpha 逐位直通**不变。
+- **操作栈位置**：HSL 块内、四个标量 HSL 通道之后、灰度之前（第 16 步）；只动 H / S / L，**alpha 逐位直通**不变。
 
-### Keyframe 字段（35 个标量通道 + 十条曲线强度）
+### Keyframe 字段（35 个标量通道 + 十条曲线强度 + LUT 强度）
 
-**35 个标量通道缺省 0 = 无效果**（十条曲线强度例外：缺省 1）：不写 = 不做这项调整；把通道写回 0 = 这项调整淡出（不需要额外的开关字段）。
+**35 个标量通道缺省 0 = 无效果**（十条曲线强度与 LUT 强度例外：缺省 1）：不写 = 不做这项调整；把通道写回 0 = 这项调整淡出（不需要额外的开关字段）。
 所有通道**匀速线性插值**，所以任何一项都能随时间淡入淡出。
 
 | 字段 | 类型 | 默认 | 范围 | 说明 |
@@ -767,6 +769,7 @@ lane 渲染（含 lane 内发光描边）
 | `gain_r` | float | `0` | -1 ~ 1 | **Gain 色轮（高光，R）**：`c' = c·(1+值)`——`-1` = 该通道归零、`+0.5` = ×1.5、`+1` = ×2（可能被钳到白） |
 | `gain_g` | float | `0` | -1 ~ 1 | **Gain 色轮（高光，G）**，口径同 `gain_r` |
 | `gain_b` | float | `0` | -1 ~ 1 | **Gain 色轮（高光，B）**，口径同 `gain_r` |
+| `lut_strength` | float | `1` | 0 ~ 1 | **整体画面 LUT 的混合强度**（clip 级 `lut` 存在时生效）：`1` = LUT 全量、`0.5` = 一半、`0` = LUT 淡出；**没有 `lut` 时忽略** |
 | `hv_h_strength` | float | `1` | 0 ~ 1 | **HvH 曲线的混合强度**（`hv_h_curve` 存在时生效），口径同 `curve_strength` |
 | `hv_s_strength` | float | `1` | 0 ~ 1 | **HvS 曲线的混合强度**（`hv_s_curve` 存在时生效），同上 |
 | `hv_l_strength` | float | `1` | 0 ~ 1 | **HvL 曲线的混合强度**（`hv_l_curve` 存在时生效），同上 |
@@ -777,7 +780,7 @@ lane 渲染（含 lane 内发光描边）
 | `invert` | float | `0` | 0 ~ 1 | 反相强度：`1` = 完全反相，`0.5` = 半反相 |
 
 **操作顺序固定**（同一关键帧里多个通道同时生效时按此顺序计算，不可调）：
-曝光 → 对比度 → 高光/阴影 → 白场/黑场 → 色温/色调 → R/G/B 通道系数 → **RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）** → **RGB 复合曲线（`rgb_curve`）** → **每通道曲线（`r_curve` / `g_curve` / `b_curve`）** → **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b`）** → 色相旋转 → 饱和度 → 自然饱和度 → 亮度 → **六条 hue 曲线（`hv_h_curve` → `hv_s_curve` → `hv_l_curve` → `lv_s_curve` → `sv_s_curve` → `sv_l_curve`）** → 灰度 → 反相。
+曝光 → 对比度 → 高光/阴影 → 白场/黑场 → 色温/色调 → R/G/B 通道系数 → **RGB 通道混合器（`mix_rr` ~ `mix_bb` 3×3 矩阵）** → **RGB 复合曲线（`rgb_curve`）** → **每通道曲线（`r_curve` / `g_curve` / `b_curve`）** → **Lift / Gamma / Gain 色轮（`lift_r` ~ `gain_b`）** → **整体画面 LUT（`lut` + `lut_strength`）** → 色相旋转 → 饱和度 → 自然饱和度 → 亮度 → **六条 hue 曲线（`hv_h_curve` → `hv_s_curve` → `hv_l_curve` → `lv_s_curve` → `sv_s_curve` → `sv_l_curve`）** → 灰度 → 反相。
 
 > **通道混合器是 3×3 矩阵**：实际矩阵 = **单位阵 + 参数矩阵**（所以九个全 0 = 单位阵 = 无效果）。
 > 行 = 输出通道、列 = 输入通道：`out.r = (1+mix_rr)·r + mix_rg·g + mix_rb·b`，g / b 行同式
@@ -867,6 +870,41 @@ Gain（高光）    c' = c·(1 + gain)                  正 = 乘性提亮、负
 ```
 
 > 上面这条：常量部分 = 「绿阴影抬 0.25 + 蓝中间调压暗 + 绿高光 ×1.5」，`t=4` 时额外把红阴影抬 0.5、红中间调提亮、红高光压到 0——九个通道全程线性插值，写回 0 即该项淡出。
+
+### LUT（`lut` / `lut_input_gamma` / `lut_strength`）— 整体画面 3D 查找表
+
+达芬奇 / Lumetri 式的 **`.cube` LUT**：在专业调色工具里调好色、导出 `.cube` 放进资源目录，脚本里引用文件名即可把整幅世界画面烘焙成该风格（如 Teal and Orange 这类电影感套色）。
+
+- **文件与兼容**：`.cube` 放在 `resource/` 目录下（与图片 / 语言文件同一个资源目录），`lut` 写**文件名**（如 `"Teal and Orange.cube"`）——非空、不含路径分隔符 / 盘符，扩展名大小写不敏感。解析为纯 Java 实现（零外部库），兼容达芬奇等主流工具的导出：**1D shaper 与 `DOMAIN_MIN` / `DOMAIN_MAX` 在加载期就烘焙进一张 ≤ 64³ 的合成 3D 表**，运行时只做一次 3D 查表（**四面体插值**）。创作者工作流（捕获游戏帧 → 调色 → 导出 → 引用）见 [LUT 工作流](./LUT_WORKFLOW.md)。
+- **字段**：clip 级 `lut`（string，缺省不写 = 无 LUT）与 `lut_input_gamma`（float，缺省 `1.0`、必须 `> 0`）；关键帧级 `lut_strength`（0 ~ 1，缺省 `1`，可随时间淡入淡出）。
+- **查表口径**：`v = pow(clamp(c, 0, 1), lut_input_gamma)` → 查 3D 表 → `c = mix(c, lut(v), clamp(lut_strength, 0, 1))`。`lut_input_gamma` 是给**现成 LUT**（为别的素材 / 别的游戏调的）准备的输入域适配：套上后整体偏亮 / 偏色时用它纠偏，自制（从游戏帧调的）LUT 保持缺省 `1.0`；`lut` 为空时忽略。
+- **操作栈位置**：**Lift / Gamma / Gain 色轮之后、HSL 块之前**（第 11 步，后续步骤顺延为 12 ~ 18）——LUT 看到的是「基础校色 + 通道 + 曲线 + 色轮」处理后的值；输出不额外钳制（LUT 数据本身可超出 `[0,1]`），与前面各步同由 HSL 块前那一次 `[0,1]` 钳制兜底。
+- **master 级语义**：LUT 作用于**整个世界画面**（合成之后、GUI 之前），只写在 **ADJUST 轨**的片段上；相机片段上写 `lut` / `lut_strength` 不生效，会被 validator 直接拦下。
+- **不影响 GUI**：黑边 / 字幕 / 跳过提示在 GUI 阶段绘制，不被 LUT 套色。
+- **零差异**：不写 `lut`（或 `lut_strength` 写回 `0`）→ 整步跳过，画面逐位不变；只动 RGB，**alpha 逐位直通**。
+
+```json
+{
+  "type": "adjust",
+  "id": "film_look",
+  "clips": [
+    {
+      "start_time": 0,
+      "duration": 8,
+      "lut": "Teal and Orange.cube",
+      "lut_input_gamma": 1.0,
+      "keyframes": [
+        { "time": 0, "lut_strength": 0 },
+        { "time": 2, "lut_strength": 1 },
+        { "time": 6, "lut_strength": 1 },
+        { "time": 8, "lut_strength": 0 }
+      ]
+    }
+  ]
+}
+```
+
+> 上面这条：整幅画面从无到有套上 Teal and Orange（2 秒淡入），保持 4 秒后淡出——`lut_strength` 全程线性插值，写回 `0` 即 LUT 淡出。
 
 ### 示例：从正常画面逐步偏暖、黑白化
 
