@@ -297,6 +297,10 @@ public final class ScriptValidator {
                         issues.add(cp + ".lut_strength 不支持（LUT 强度只随 ADJUST 轨的 lut 一起写在关键帧上）："
                                 + "相机片段请删掉该字段，或把 lut / lut_strength 移到 ADJUST 轨");
                     }
+                    if (clip.has("lut_input_gamma")) {
+                        issues.add(cp + ".lut_input_gamma 不支持（LUT 输入域适配只随 ADJUST 轨的 lut 一起写在片段上）："
+                                + "相机片段请删掉该字段，或把 lut / lut_input_gamma 移到 ADJUST 轨");
+                    }
                 }
                 if ("OVERLAY".equalsIgnoreCase(type)) {
                     checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle");
@@ -439,6 +443,10 @@ public final class ScriptValidator {
                                 issues.add(kp + ".lut_strength 不支持（LUT 强度只随 ADJUST 轨的 lut 一起写在关键帧上）："
                                         + "相机片段请删掉该字段，或把 lut / lut_strength 移到 ADJUST 轨");
                             }
+                            if (kf.has("lut_input_gamma")) {
+                                issues.add(kp + ".lut_input_gamma 不支持（LUT 输入域适配只随 ADJUST 轨的 lut 一起写在片段上）："
+                                        + "相机片段请删掉该字段，或把 lut / lut_input_gamma 移到 ADJUST 轨");
+                            }
                         }
 
                         // ADJUST 关键帧：45 个标量通道的取值区间（不写 = 缺省 0 = 无效果——十条曲线强度缺省 1；写回 0 = 该项淡出）
@@ -512,17 +520,41 @@ public final class ScriptValidator {
      * 校验 LUT 字段（<b>ADJUST 轨专用</b>：LUT 是对整体画面（master）的烘焙，逐 lane / 相机片段不参与）：
      * <ul>
      *   <li>clip 级 {@code lut}：LUT 文件名（字符串、非空、不含路径分隔符，见 {@link #checkLutFile}）；</li>
+     *   <li>clip 级 {@code lut_input_gamma}：输入域适配的幂指数（数字、{@code > 0}，缺省 1 = 不变换，
+     *       见 {@link #checkLutInputGamma}）；</li>
      *   <li>关键帧级 {@code lut_strength}：混合强度 0 ~ 1（缺省 1 = 全量生效，写回 0 = 淡出）。</li>
      * </ul>
      * <p>{@code clip} / {@code kf} 的用法同 {@link #checkAdjustFields}（另一侧传 {@code null}）。</p>
      */
     private static void checkLutFields(JsonObject clip, String cp, JsonObject kf, String kp,
                                        List<String> issues) {
-        if (clip != null && clip.has("lut")) {
-            checkLutFile(clip.get("lut"), cp + ".lut", issues);
+        if (clip != null) {
+            if (clip.has("lut")) {
+                checkLutFile(clip.get("lut"), cp + ".lut", issues);
+            }
+            if (clip.has("lut_input_gamma")) {
+                checkLutInputGamma(clip.get("lut_input_gamma"), cp + ".lut_input_gamma", issues);
+            }
         }
         if (kf != null) {
             checkRange(kf, kp, "lut_strength", issues, 0f, 1f);
+        }
+    }
+
+    /**
+     * 校验 clip 级 {@code lut_input_gamma}（LUT 输入域适配的幂指数）：数字、必须 {@code > 0}
+     * （缺省 1 = 不变换，恒合法；{@code NaN} 也落在这里被拒）。
+     * <p>与 {@code ScriptParser#parseLutInputGamma} 同一口径——校验拦下的写法解析期也会拒绝。
+     * 字段缺省时跳过（缺省 1 生效）；{@code lut} 缺省时不额外报错（{@code lut == null} 时本字段被忽略）。</p>
+     */
+    private static void checkLutInputGamma(JsonElement e, String path, List<String> issues) {
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) {
+            issues.add(path + " 需要数字（必须大于 0；缺省 1 = 不变换）");
+            return;
+        }
+        float gamma = e.getAsFloat();
+        if (gamma != 1.0F && !(gamma > 0.0F)) {
+            issues.add(path + " 必须大于 0（缺省 1 = 不变换）：" + gamma);
         }
     }
 

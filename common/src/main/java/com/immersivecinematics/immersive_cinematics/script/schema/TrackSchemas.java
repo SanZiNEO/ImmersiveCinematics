@@ -276,7 +276,8 @@ public final class TrackSchemas {
      * （渲染完成之后、合成之前）的调色，直接写在该 CAMERA 片段上（见 {@code camera()}）。
      * clip 级字段 = 曲线 + LUT 文件名（都不随时间变，故挂 clip）：{@code lut} = LUT 文件名
      * （{@code resource/} 目录下的 {@code .cube}，关键帧只控 {@code lut_strength} 混合强度，
-     * 栈位 = LGG 之后、HSL 块之前）、{@code rgb_curve} = RGB 复合曲线、{@code r_curve} /
+     * 栈位 = LGG 之后、HSL 块之前）、{@code lut_input_gamma} = LUT 输入域适配的幂指数
+     * （缺省 1 = 不变换，必须 > 0；无 LUT 时忽略）、{@code rgb_curve} = RGB 复合曲线、{@code r_curve} /
      * {@code g_curve} / {@code b_curve} = 每通道曲线（R / G / B 各一条）、{@code hv_h_curve} /
      * {@code hv_s_curve} / {@code hv_l_curve} / {@code lv_s_curve} / {@code sv_s_curve} / {@code sv_l_curve} =
      * 六条 hue 曲线（DaVinci 曲线页口径：HvH / HvS / HvL、LvS / SvS / SvL），都是控制点数组
@@ -307,6 +308,10 @@ public final class TrackSchemas {
         // LUT（clip 级文件名，resource/ 目录下的 .cube；缺省 null = 本片段不做 LUT）；
         // 关键帧只控 lut_strength，栈位 = LGG 之后、HSL 块之前
         clips.put("lut", new FieldDef("string", null));
+        // LUT 输入域适配（clip 级幂指数，缺省 1 = 不变换，必须 > 0）：查表前
+        // v = pow(clamp(c, 0, 1), lut_input_gamma)，以 v 为四面体查表坐标——现成 .cube 按特定素材 /
+        // 色彩空间调成时，用它把游戏画面（sRGB）映射回表假设的输入域；无 LUT 时忽略
+        clips.put("lut_input_gamma", new FieldDef("float", 1f));
 
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
         // 基础校色（复合 RGB）

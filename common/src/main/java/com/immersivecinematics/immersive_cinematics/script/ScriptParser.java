@@ -324,6 +324,12 @@ public class ScriptParser {
             return parseLutFile(value, p + "." + fieldName);
         }
 
+        // LUT 输入域适配（clip 级 lut_input_gamma；同样只有声明该字段的轨道 = ADJUST 轨）：
+        // schema 里是 float，但额外拦 ≤ 0（见 parseLutInputGamma）——其余轨道上同名字段走下方「未知字段」路径
+        if (!isKeyframe && "lut_input_gamma".equals(fieldName) && def != null) {
+            return parseLutInputGamma(value, p + "." + fieldName);
+        }
+
         if (def == null) {
             // 不在 schema 中的字段 — 简单类型自动解析（向前兼容）
             if (value.isJsonPrimitive()) {
@@ -389,6 +395,25 @@ public class ScriptParser {
             throw new ScriptParseException(p, "文件名非法：" + name);
         }
         return name;
+    }
+
+    /**
+     * 解析 clip 级 {@code lut_input_gamma}（LUT 输入域适配的幂指数；<b>ADJUST 轨专用</b>——
+     * LUT 是对<b>整体画面</b>（master）的烘焙，逐 lane / 相机片段不参与）。
+     * <p>语义：查表前对输入 RGB 逐通道 {@code v = pow(clamp(c, 0, 1), lut_input_gamma)}，
+     * 以 {@code v} 为四面体查表坐标；缺省 1 = 不变换。必须 {@code > 0}（0 会让整个输入域塌到 1、
+     * 负数在 {@code c = 0} 处发散——解析期直接拒绝，与 {@code ScriptValidator#checkLutInputGamma}
+     * 同一口径：校验拦下的写法解析期也会拒绝）。{@code NaN} 同样落在这里被拒（{@code !(v > 0)}）。</p>
+     */
+    private static Float parseLutInputGamma(JsonElement value, String p) throws ScriptParseException {
+        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) {
+            throw new ScriptParseException(p, "需要数字（必须大于 0；缺省 1 = 不变换）");
+        }
+        float gamma = value.getAsFloat();
+        if (!(gamma > 0.0F)) {
+            throw new ScriptParseException(p, "必须大于 0（缺省 1 = 不变换）：" + gamma);
+        }
+        return gamma;
     }
 
     // ========== BezierCurve 解析 ==========

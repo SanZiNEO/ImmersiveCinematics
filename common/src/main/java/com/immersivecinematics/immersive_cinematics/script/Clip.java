@@ -179,6 +179,18 @@ public class Clip {
     }
 
     /**
+     * clip 级 LUT 输入域适配的幂指数（缺省 {@code 1.0} = 不变换；语义见 {@link #getLut()} 与
+     * {@code TrackSchemas.adjust()}）：查表前对输入 RGB 逐通道
+     * {@code v = pow(clamp(c, 0, 1), gamma)}，以 {@code v} 为四面体查表坐标。
+     * <p><b>只有 ADJUST 轨（整体画面 / master）</b>参与 LUT，故与 {@link #getLut()} 同款按轨道类型挡一道：
+     * lane 路径恒得缺省 1.0（相机片段上即使写了该字段也不生效——{@code ScriptValidator} 会直接拦下）。</p>
+     * <p>与 {@link #getLut()} 同款：无 LUT（{@code lut} 缺省 / 解析失败）时该值被忽略——查表整步不生效。</p>
+     */
+    public float getLutInputGamma() {
+        return trackType == TrackType.ADJUST ? getFloat("lut_input_gamma", 1.0F) : 1.0F;
+    }
+
+    /**
      * 本片段的稳定标识（{@link CubeLutLoader#forClip} 的 clip 键）：同一实例反复调用恒定。
      * <p>片段对象在解析期一次建成、整个播放期存活，故用对象身份即可；不同实例理论上可能撞值，
      * 但该表只用于记录「哪些片段引用了 LUT」，撞值不影响取到的 LUT（实例本身按文件路径共享）。</p>

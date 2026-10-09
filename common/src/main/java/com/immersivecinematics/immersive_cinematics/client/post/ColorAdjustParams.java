@@ -57,20 +57,25 @@ import com.immersivecinematics.immersive_cinematics.script.CubeLut;
  *       每通道曲线看到的是复合曲线处理后的值。</li>
  * </ul>
  *
- * <h2>LUT（clip 级 {@code lut} + 关键帧 {@code lut_strength}）</h2>
+ * <h2>LUT（clip 级 {@code lut} / {@code lut_input_gamma} + 关键帧 {@code lut_strength}）</h2>
  * {@link #lut} = clip 级文件名（{@code resource/} 目录下的 {@code .cube}，由 {@code CubeLutLoader}
  * 解析成不可变 {@link CubeLut} 实例、按路径缓存），{@link #lutStrength} = 关键帧插值的混合强度
- * （<b>缺省 1</b>，0 = 淡出）。LUT 是<b>整体画面（master）</b>处理：只写在 <b>ADJUST 轨</b>的片段上
+ * （<b>缺省 1</b>，0 = 淡出），{@link #lutInputGamma} = clip 级输入域适配的幂指数
+ * （<b>缺省 1 = 不变换</b>，必须 &gt; 0）。LUT 是<b>整体画面（master）</b>处理：只写在 <b>ADJUST 轨</b>的片段上
  * （相机片段不带 {@code lut}，lane 级采样拿到的 {@link #lut} 恒为 {@code null}）。
  * 采样口径（与 {@link CubeLut} 的文档一致）：
  * <ul>
+ *   <li><b>查表输入</b> = {@code v = pow(clamp(c, 0, 1), lutInputGamma)}（逐通道；缺省 1 = 不变换，
+ *       渲染侧不执行 {@code pow}、逐位恒等）——现成 .cube 按特定素材 / 色彩空间调成时，
+ *       用它把游戏画面映射回表假设的输入域；{@code lut == null} 时该值被忽略（整步不生效）；</li>
  *   <li><b>1D + 3D 组合</b>（Resolve shaper 形态）：<b>1D 先、输出喂 3D</b>；只有 1D 或只有 3D 时走单段；</li>
  *   <li>查表坐标 = {@code (v - min) / (max - min) * (size - 1)} 后钳制到 {@code [0, size-1]}，
  *       边界钳到端点（clamp-to-edge）；{@code min} / {@code max} 取该 LUT 的 DOMAIN（逐通道）；</li>
  *   <li>插值：3D 段 = <b>四面体</b>（tetrahedral；着色器 {@code texelFetch} 取 8 个角点后自己加权，
  *       不用硬件三线性——三线性在中性灰附近会偏色，见 {@code example/lut-reference/README.md}）；
  *       1D 段 = 相邻采样点之间的线性插值；</li>
- *   <li>混合：{@code c = mix(c, lut(c), clamp(lutStrength, 0, 1))}——在 LUT 采样之后做；</li>
+ *   <li>混合：{@code c = mix(c, lut(pow(c, lutInputGamma)), clamp(lutStrength, 0, 1))}——混合的是
+ *       <b>原值</b>与查表结果，在 LUT 采样之后做；</li>
  *   <li>输出<b>不额外钳制</b>（LUT 数据本身可超出 {@code [0,1]}，与曲线同段、由 HSL 块前那一次
  *       {@code clamp(c, 0, 1)} 兜底）。</li>
  * </ul>
@@ -144,6 +149,7 @@ public record ColorAdjustParams(
         float gainB,
         CubeLut lut,
         float lutStrength,
+        float lutInputGamma,
         float[] hvHLut,
         float[] hvSLut,
         float[] hvLLut,
@@ -167,7 +173,7 @@ public record ColorAdjustParams(
                     null, null, null, null,
                     0.0F, 0.0F, 0.0F, 0.0F,
                     0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
-                    null, 0.0F,
+                    null, 0.0F, 1.0F,
                     null, null, null, null, null, null,
                     0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F);
 

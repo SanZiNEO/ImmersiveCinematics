@@ -332,9 +332,11 @@ public final class ColorAdjustPass {
         set(shader, "GainG", p.gainG());
         set(shader, "GainB", p.gainB());
         // LUT（第 11 步）：无 LUT 或强度 0 → 强度置 0（着色器整步跳过）；
-        // 表尺寸 = 合成表边长（CubeLut#composed3D，1D 段与 DOMAIN 已烘焙进表）
+        // 表尺寸 = 合成表边长（CubeLut#composed3D，1D 段与 DOMAIN 已烘焙进表）；
+        // 输入域适配 = clip 级幂指数（无 LUT 时归 1 = 不变换，与「整步跳过」同口径）
         CubeLut lut = p.lut() != null && p.lutStrength() != 0.0F ? p.lut() : null;
         set(shader, "LutStrength", lut == null ? 0.0F : p.lutStrength());
+        set(shader, "LutInputGamma", lut == null ? 1.0F : p.lutInputGamma());
         set(shader, "Lut3DSize", lut == null ? 0.0F : lut.composed3D().size());
         set(shader, "HvHStrength", p.hvHLut() == null ? 0.0F : p.hvHStrength());
         set(shader, "HvSStrength", p.hvSLut() == null ? 0.0F : p.hvSStrength());

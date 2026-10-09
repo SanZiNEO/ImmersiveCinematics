@@ -65,6 +65,7 @@
         { "name": "GainG", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "GainB", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "LutStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "LutInputGamma", "type": "float", "count": 1, "values": [ 1.0 ] },
         { "name": "Lut3DSize", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "HvHStrength", "type": "float", "count": 1, "values": [ 0.0 ] },
         { "name": "HvSStrength", "type": "float", "count": 1, "values": [ 0.0 ] },

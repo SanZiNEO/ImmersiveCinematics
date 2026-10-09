@@ -56,6 +56,10 @@
 //                                        三组都是逐通道；九个全 0 = 整步跳过（逐位恒等）
 //   LutStrength   0 ~ 1   LUT 混合强度（c = mix(c, lut(c), 强度)）；LUT 本身在 Lut3D
 //                         （无 LUT / 强度 0 = 整步跳过）
+//   LutInputGamma > 0     LUT 输入域适配（缺省 1 = 不变换）：查表前逐通道
+//                         v = pow(clamp(c, 0, 1), LutInputGamma)，以 v 为四面体查表坐标
+//                         （现成 .cube 按特定素材 / 色彩空间调成时，把画面映射回表假设的输入域）；
+//                         LutInputGamma = 1 时不执行 pow（逐位恒等）；无 LUT 时忽略
 //   Lut3DSize     合成表的网格边长 S（0 = 无 LUT）。表由 CPU 在加载期预合成：
 //                 .cube 的 1D shaper 与 1D / 3D 两段 DOMAIN 输入域归一化全部烘焙进这一张表
 //                 （CubeLut#composed3D），采样坐标 x ∈ [0,1]³ 直接对应网格 —— 着色器不做任何归一化。
@@ -129,6 +133,7 @@ uniform float GainR;
 uniform float GainG;
 uniform float GainB;
 uniform float LutStrength;
+uniform float LutInputGamma;
 uniform float Lut3DSize;
 uniform float HvHStrength;
 uniform float HvSStrength;
@@ -345,9 +350,15 @@ void main() {
 
     // 11. LUT（.cube；LGG 之后、HSL 块之前）：单张合成表（CPU 加载期把 1D shaper 与两段 DOMAIN
     //     归一化烘焙进表，见 Lut3DSize 注释），查表 = 四面体（tetrahedral，见 lut3dLookup）；
+    //     查表输入 = pow(clamp(c,0,1), LutInputGamma)（输入域适配：现成 .cube 按特定素材 / 色彩空间
+    //     调成时把画面映射回表假设的输入域；LutInputGamma = 1 时不执行 pow，逐位恒等）；
     //     无 LUT / 强度 0 → 整步跳过（逐位恒等）；LUT 数据可超出 [0,1]，由下一步前的钳制兜底
     if (LutStrength > 0.0 && Lut3DSize > 0.0) {
-        c = mix(c, lut3dLookup(c), clamp(LutStrength, 0.0, 1.0));
+        vec3 lutIn = c;
+        if (LutInputGamma != 1.0) {
+            lutIn = pow(clamp(c, 0.0, 1.0), vec3(LutInputGamma));
+        }
+        c = mix(c, lut3dLookup(lutIn), clamp(LutStrength, 0.0, 1.0));
     }
 
     // 12 ~ 16. 完整 HSL：色相旋转 → 饱和度 / 自然饱和度 → 亮度 → 六条 hue 曲线

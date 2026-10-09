@@ -31,9 +31,11 @@ import java.util.List;
  * 各自的 256 点 LUT 由 {@link ColorCurve} 对象持有（逐帧拿到同一个数组），此处只把各自的混合强度
  * 在本地时间处插值——<b>强度缺省 1</b>：写了曲线就是全量生效，关键帧把强度写回 0 即曲线淡出；
  * 无曲线时该强度置 0（那一步不生效）。插值走 {@link KeyframeInterpolator#interpolateChannel}（匀速线性），
- * 与其它轨道的标量通道同一口径。<b>LUT</b>（clip 级 {@code lut} 文件名 + 关键帧 {@code lut_strength}）
+ * 与其它轨道的标量通道同一口径。<b>LUT</b>（clip 级 {@code lut} 文件名 / {@code lut_input_gamma} + 关键帧 {@code lut_strength}）
  * 同款：文件名在这里换成缓存实例（{@link CubeLutLoader#forClip}，失败 = {@code null} = 无 LUT），
- * 强度缺省 1、无 LUT 时置 0（那一步不生效）。LUT 是<b>整体画面（master）</b>处理——
+ * 强度缺省 1、无 LUT 时置 0（那一步不生效）；{@code lut_input_gamma}（缺省 1 = 不变换，必须 &gt; 0）
+ * 是 clip 级查表输入域适配的幂指数，同样不随时间变、无 LUT 时被忽略。
+ * LUT 是<b>整体画面（master）</b>处理——
  * {@link Clip#getLut()} 只在 ADJUST 轨给值，故 lane 路径采样到的 {@code lut} 恒为 {@code null}。
  */
 public final class ColorAdjustSampler {
@@ -109,6 +111,8 @@ public final class ColorAdjustSampler {
                 lut,
                 lut == null ? 0.0F
                         : KeyframeInterpolator.interpolateChannel(keyframes, localTime, "lut_strength", 1.0F),
+                // LUT 输入域适配：clip 级幂指数（缺省 1 = 不变换）；无 LUT 时被忽略（整步不生效）
+                clip.getLutInputGamma(),
                 hvHLut, hvSLut, hvLLut, lvSLut, svSLut, svLLut,
                 strength(keyframes, localTime, "hv_h_strength", hvHLut),
                 strength(keyframes, localTime, "hv_s_strength", hvSLut),
