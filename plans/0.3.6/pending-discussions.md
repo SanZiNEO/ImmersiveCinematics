@@ -180,7 +180,7 @@
 - **§7 遗留（4 条，hard 模式实现后仍未就地把结论落定）**：其他模组在 `RenderGuiEvent.Pre` 的非绘制副作用会被一并跳过（hard 固有代价，需写明）/ 重画原版 overlay 的记账（每个原版 overlay 在「非 ForgeGui 循环内」调用时行为是否一致）/ 编辑器预览·暂停·退场动画无副作用需确认 / Sodium·Embeddium 兼容「执行时确认」（只做点状注入，风险低结论未实测）。（§7 L175-180）
 
 ### feedback-0.3.5/
-- **03 `exit_buffer` 外扩对角落点顺序敏感**：修法明确（`expandConditions` 先做 min/max 归一化再外扩，或按轴分别处理），**未改代码**；脚本侧已用「最小角在前」规避。影响：触发器 `exit_buffer`。（`03-exit-buffer-corner-order.md` L25、L4；`README.md` §六-03）
+- **03 `exit_buffer` 外扩对角落点顺序敏感**：✅ 已实现（2026-10-09 回写）——`Evaluators.expandAxis`（:64-77）先做 min/max 归一化再外扩（`Math.min(a, b) − buffer` / `Math.max(a, b) + buffer`，:70-71），与 `inBox`（:189-202）的顺序无关语义一致；脚本侧「最小角在前」规避已非必需。影响：触发器 `exit_buffer`。（`03-exit-buffer-corner-order.md` L4、L25；`README.md` §六-03）
 - **04 轮询间隔按触发器/脚本可配**：已并入 `trigger-conditions.md` 需求 3「检测频率可配」，**实现未做**（现为类型级硬编码 5 tick）。（`04-trigger-latency.md` L19/L22）
 - **02 文档与代码不同步（非编辑器问题）**：`docs/SCRIPT_FORMAT.md`、`docs/AI_SCRIPTING_GUIDE.md`、`docs/modules/editor.md`、`docs/modules/script.md` 仍写已从代码移除的 `preload` / `camera_mob_spawn` / `camera_mob_radius` / `camera_mob_ai`，需同步。（`02-editor-coverage-gaps.md` §六 L42）
 
@@ -301,8 +301,8 @@
 
 1. `multi-camera-rendering.md` 文首 L3 状态行仍标「待开工」，与 §12 已落地不符。
 2. `camera-state-plan.md`：`CameraManager.onRenderFrame` javadoc 挂点仍写 `LaneRendererMixin`（实际 `GameRendererMixin`）。
-3. `plans/0.3.6/README.md` 索引：`editor-script-graph` 仍标 🔵（自身步骤 1-4 已 ✅）；`feedback 03` 仍「🟢 可开工」（实际未改，见第一节）。
-4. `feedback-0.3.5/README.md` 状态列：03 实际未修仍写待处理（一致）；04 #2 未实现未反映（已列入第一节）。
+3. `plans/0.3.6/README.md` 索引：`editor-script-graph` 仍标 🔵（自身步骤 1-4 已 ✅）；`feedback 03` 已于 2026-10-09 回写为 ✅ 已实现（证据见第一节 03 条）。
+4. `feedback-0.3.5/README.md` 状态列：03 已于 2026-10-09 回写为 ✅ 已实现（证据见第一节 03 条）；04 #2 未实现未反映（已列入第一节）。
 5. `temporal-interpolation.md`：「统一接口形态」在 §8 落地记录（已完成）与事实核查 L168（仍待定）之间口径冲突。
 6. `multi-camera-rendering.md` 事实核查 L268 称 `quadrant-perf/summary.md` 比值句「未改动」，实际该句已在 summary.md L17 删除。
 7. `docs/SCRIPT_FORMAT.md:59-63`、`docs/AI_SCRIPTING_GUIDE.md:125` 等仍写已删字段（见第一节 feedback 02）。

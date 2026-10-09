@@ -45,7 +45,7 @@
 1. 6 个参数分散在 `CameraPath` / `CameraProperties` 两个对象里，没有统一状态边界。
 2. `CameraManager` 同时承担生命周期、脚本、预览、时钟、状态读写等多重职责。
 3. 多个写入者直接写内部对象，谁最后写谁生效，没有优先级和所有权。
-4. `CameraPath` / `CameraProperties` 同时有“当前值”和 staged 过渡值两套职责。
+4. ~~`CameraPath` / `CameraProperties` 同时有“当前值”和 staged 过渡值两套职责~~ → **已被 §4 取代（staged 已删除，2026-10-07 落地；2026-10-09 回写）**：两对象现只剩“当前值”一套——`CameraPath.java:14-15` 仅 `currentPosition`，`CameraProperties.AnimValue`（:26-33）仅 `current`；全 camera 包 `targetPosition/startPosition/transitionDuration/transitionProgress/overrideFrom/staged` 零命中。
 5. Mixin / 渲染层直接依赖具体类，未来扩展会继续扩散。
 6. 外部 API 没有稳定入口。
 
@@ -193,7 +193,7 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 - Base / Modifier 接口的最终形态
 - 优先级数值
 - 状态 buffer 设计
-- ~~staged 删除的具体范围~~ → **已定（2026-10-07，已落地）**：见 §4。
+- ~~staged 删除的具体范围~~ → **已定（2026-10-07，已落地）**：见 §4；§3 第 4 条的“当前值 + staged 两套”旧口径随之作废（2026-10-09 回写）。
 - 外部 API 开放时机
 - `zoom` 是否保留独立参数，还是只暴露 effectiveFov
 
@@ -241,7 +241,7 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 - **§3.1 六参数分散在两个对象** — 真。`CameraPath.java` 持有位置 `Vec3 currentPosition`（x,y,z）；`CameraProperties.java` 持有 `yaw/pitch/roll/fov/zoom` 五个 `AnimValue`。证据：`camera/CameraPath.java:18`、`camera/CameraProperties.java:60-64`。
 - **§3.2 CameraManager 承担多重职责** — 真。`CameraManager.java` 同时含：生命周期（`activate/deactivate/requestExit/deactivateNow`）、脚本（`playScript/startScriptInternal`）、预览（`previewMode/previewPaused/previewSetCamera/setPreviewDirectControl`）、时钟（`gameTimeSeconds/lastRealNanos/getGameTimeSeconds`）、状态读写（`getProperties/getPath/setCameraDirect/reset`）、帧回调（`onRenderFrame/tick`）。
 - **§3.3 多个写入者直写内部对象** — 真。`CameraTrackPlayer.java:312-313,908-909` 直写 `cameraManager.getPath().setPositionDirect(...)` / `getProperties().setAllDirect(...)`；`CameraManager.previewSetCamera`（:349）与 `setCameraDirect`（:600）直写 `activeProperties.setAllDirect`；`proto/QuadrantProto.java:243-244` 直写 `pc.path()/pc.props()`。无优先级/所有权机制。
-- **§3.4 两个对象同时承载“当前值 + staged 过渡值”** — 真。`CameraPath` 有 `currentPosition` 与 `targetPosition/startPosition/transitionDuration/transitionProgress`；`CameraProperties.AnimValue` 有 `current/target/start/duration/progress`（`CameraProperties.java:33-40`）。
+- **§3.4 两个对象同时承载“当前值 + staged 过渡值”** — 核查当时为真；**2026-10-09 回写：已过时（staged 已删除，见 §4）**。当时 `CameraPath` 有 `currentPosition` 与 `targetPosition/startPosition/transitionDuration/transitionProgress`、`CameraProperties.AnimValue` 有 `current/target/start/duration/progress`（`CameraProperties.java:33-40`）；删除后 `CameraPath.java:14-15` 仅剩 `currentPosition`、`CameraProperties.AnimValue`（:26-33）仅剩 `current`，全 camera 包 `targetPosition/startPosition/transitionDuration/transitionProgress/overrideFrom/staged` 零命中。
 - **§3.5 Mixin / 渲染层直接依赖具体类** — 真。`mixin/CameraMixin.java:119-122` 调 `mgr.getPath().getPosition()` / `mgr.getProperties().getYaw()/getPitch()`；`GameRendererMixin.java:42,105` 调 `getProperties().getFov()/getZoom()/getRoll()`；`LevelRendererMixin.java:56` 调 `getPath().getPosition()`。均经 `CameraManager.getPath()/getProperties()` 返回的具体 `CameraPath`/`CameraProperties` 实例。
 - **§4 staged 死代码（4 条全部为真）**
   - `stageTarget*` / `commitStagedState` / `isStagedReady` 无调用者 — 真。全仓 grep 仅命中 `camera/CameraManager.java:353-394` 的定义处；无任何 java 调用点。

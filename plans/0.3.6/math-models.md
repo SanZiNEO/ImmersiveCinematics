@@ -172,7 +172,7 @@
 - 无（§2 为已确认方向，未发现与代码冲突的现状断言）。
 
 ### ③ 补全
-- **Registry 现状**：`PathStrategies` 静态块**仅注册 `"linear"`**（默认策略 `DEFAULT_TYPE = "linear"`）；`"bezier"` 未注册进 `REGISTRY`。`CameraTrackPlayer` 直接 `new BezierPathStrategy()` 持有实例（`CameraTrackPlayer.java:23`）绕开注册表；而 `KeyframeInterpolator.interpolatePosition(from,to,s,clip)` 经 `PathStrategies.get(curve.type)` 解析时，`"bezier"` 会命中 "未知策略 → 回退 linear" 分支（`PathStrategies.java` 的 warn 逻辑）。此为现状挂点，非设计结论。
+- **Registry 现状（2026-10-09 回写）**：`PathStrategies` 静态块现注册 `linear` + `bezier` 两条（`PathStrategies.java:36-41`，默认策略 `DEFAULT_TYPE = "linear"`）；`PathStrategies.get(type)`（:69-79）仅在该 type 未注册时 `LOGGER.warn` 并回落 `linear`，`bezier` 经动态查表不再回落。`CameraTrackPlayer` 仍直接 `new BezierPathStrategy()` 持有独立实例（`CameraTrackPlayer.java:27`，实例自带 LUT 缓存），在 :898、:942 按需选用（`follow` 时改用 `PathStrategies.get("linear")`）。原记录"仅注册 `linear`、`KeyframeInterpolator.interpolatePosition(from,to,s,clip)` 经 `get(curve.type)` 对 `bezier` 回退 linear"已随注册补齐而过时——该 4 参入口已不存在（现仅 5 参重载 `KeyframeInterpolator.java:170`，仓内无调用者）。
 - **现有"组合"**：`CameraProperties` 五属性各持独立 `AnimValue`（每属性独立过渡，`camera/CameraProperties.java:29-63`），可视为 §3.5 "并联" 的雏形。
 
 ### ④ 未验证

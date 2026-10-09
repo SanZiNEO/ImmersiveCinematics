@@ -22,7 +22,7 @@
 
 ### 1.2 Java 侧（`common/.../webui/` 及其依赖模块）
 
-`webui/` 包共 8 个文件：`WebEditorServer` / `WebSocketSession` / `WebEditorApi` / `ScriptFileService` / `WebRegistryService` / `WebFrameCapture` / `WebFrameStreamer` / `WebPreviewScreen`。
+`webui/` 包共 10 个文件：`WebEditorServer` / `WebSocketSession` / `WebEditorApi` / `ScriptFileService` / `WebRegistryService` / `WebFrameCapture` / `WebFrameStreamer` / `WebPreviewScreen` / `ScriptGraphService` / `ResourceFileService`（2026-10-09 回写：后两个为 0.3.6 新增）。
 
 | 组件 | 职责 |
 |---|---|
@@ -33,6 +33,8 @@
 | `WebRegistryService` | 物品 / 方块 / 实体 / 声音 / 目标 / 群系 / 维度 / 结构 / 进度等自动补全数据（即时查询） |
 | `WebFrameCapture` + `WebFrameStreamer` | 720p raw RGBA 帧流：主画面 → 小 FBO → glReadPixels；worker 线程发送、约 60fps 节流、跟不上丢旧帧 |
 | `WebPreviewScreen` | F9 预览屏：播放控制、飞控入口与飞控 HUD |
+| `ScriptGraphService` | 脚本架构图数据（`script.graph`）：扫描 scripts 目录 → 节点（脚本）/ 边（`requires` 依赖）/ 分区（文件夹）/ 提示；全量重扫，容错（坏脚本也上图，标记 `valid=false`） |
+| `ResourceFileService` | 资源列举（`resource.list`）：`resource/` 下文本 key / 图片 / 音频清单，只读；相对路径经 `resolveSafe` 越界校验 |
 | `FlightModeManager`（在 `control/`） | 飞控核心：不依赖具体界面，WebUI 预览屏与键盘中转共用 |
 | `SchemaExporter`（在 `script/schema/`） | 导出字段元数据（`schema.get`）；Java 侧是唯一 schema 权威 |
 
@@ -53,7 +55,7 @@
 ## 2. 通信协议（现状）
 
 - 文本帧：`{ "type": "...", "data": {...}, "id": "..." }` 信封；请求带回执，事件主动推送。
-- 已实现消息：`hello`；`script.list` / `script.load` / `script.save` / `script.delete` / `script.new` / `script.validate`；`registry.query` / `registry.get`；`schema.get`；`editor.seek` / `editor.play` / `editor.pause` / `editor.stop` / `editor.setCamera` / `editor.pushScript`；`editor.enter_flight_mode` / `editor.exit_flight_mode` / `editor.cancel_flight_mode`。
+- 已实现消息：`hello`；`script.list` / `script.load` / `script.save` / `script.delete` / `script.new` / `script.validate`；`registry.query` / `registry.get`；`schema.get`；`script.graph` / `resource.list`；`editor.seek` / `editor.play` / `editor.pause` / `editor.stop` / `editor.setCamera` / `editor.pushScript`；`editor.enter_flight_mode` / `editor.exit_flight_mode` / `editor.cancel_flight_mode`。（2026-10-09 回写：`script.graph` / `resource.list` 为 0.3.6 新增，`WebEditorApi.handle()` :46-47 分派，结果消息 `script.graph.result` :221 / `resource.list.result` :234。）
 - 服务端主动推送（事件）：`hello_ack`；`playback.state`（预览屏每 50ms 推一次，约 20Hz）；`flight.state`（飞控中每 100ms，约 10Hz）；`flight.exit`；`error`。
 - 二进制帧（预览）：`[1 byte type = 0x01][2 bytes frameId][2 bytes width][2 bytes height][RGBA payload]`（宽度 / 高度 / frameId 均为大端 2 字节；像素为 1280×720 RGBA，发送前已做上下翻转）。
 - 安全：仅绑定 127.0.0.1；**握手身份校验已落地**——Origin 白名单 + 每次启动随机 token（见 §3.2）。
@@ -140,8 +142,10 @@
 |---|---|---|
 | 游戏内编辑器（`editor/` 包 62 文件 = 10,176；另加 `client/EditorBridgeImpl` 34 行共 10,210）**已删除** | **10,176** | **33%** |
 | 外部编辑器（`editor/src` 全量文件；其中 TS+Vue 仅 5,643，另含 26 个 SVG + 1 个 PNG） | 12,799 | — |
-| WebUI 服务端（`webui/`，8 文件） | 1,394 | 4.5% |
+| WebUI 服务端（`webui/`，10 文件） | 2,144 | 7.0% |
 | 共享 schema（`script/schema/`，7 文件） | 654 | 2% |
+
+> 2026-10-09 回写：`webui/` 一行按 10 文件口径重算（新增 `ScriptGraphService` / `ResourceFileService`，见 §1.2）；其余各行数字仍为 2026-10-07 口径。
 
 理由：
 
@@ -226,7 +230,7 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 
 ## 事实核查（2026-10-07）
 
-> **快照说明**：本节是**删包前**（`cfd3b7d`）的核查结果，其中的 `editor/` 包文件清单、`CinematicKeyBindings` F6 行号、`EditorBridgeImpl` 等条目描述的是当时的代码；该包随后已删除（§4）。保留本节用于记录当时的口径与修正依据。
+> **快照说明**：本节是**删包前**（`cfd3b7d`）的核查结果，其中的 `editor/` 包文件清单、`CinematicKeyBindings` F6 行号、`EditorBridgeImpl` 等条目描述的是当时的代码；该包随后已删除（§4）。保留本节用于记录当时的口径与修正依据。**2026-10-09 回写**：`webui/` 包现为 10 文件（新增 `ScriptGraphService` / `ResourceFileService`），协议消息新增 `script.graph` / `resource.list`（`WebEditorApi.handle()` :46-47 分派，结果 `script.graph.result` :221 / `resource.list.result` :234）；下方 ①-3 / ①-9 / ②-2 与 ③ 的相关条目已就地标注当前口径。
 
 **核查依据**：本仓工作树（文档最后提交 `cfd3b7d` = 2026-10-06T21:57:01+08:00，其后无代码改动）、`common/src/main/java/com/immersivecinematics/immersive_cinematics/{webui,editor,script,control,client}/`、`editor/`（前端）、`example/editor/olive/app/`、`example/editor/lossless-cut/`。
 **行数口径**：`git ls-files <pathspec> | xargs cat | wc -l`（逐文件 `wc -l` 会因 xargs 分批产生多个 total，故改用 cat 汇总）。
@@ -237,13 +241,13 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 |---|---|---|
 | 1 | `editor/` 包 10,164 行 | 62 文件；顶层 12 个类 + `area`(6) / `debug`(2) / `fields`(2) / `panel`(10) / `preset`(4) / `trigger`(10) / `widget`(16) |
 | 2 | `script/` 7,929 行 | 42 文件（含 `script/schema/` 的 7 文件 654 行） |
-| 3 | `camera/` 1,036 行 / `webui/` 1,394 行 / `script/schema/` 654 行 | `webui/` 8 文件：`WebEditorServer` 213 / `WebSocketSession` 150 / `WebEditorApi` 279 / `ScriptFileService` 71 / `WebRegistryService` 120 / `WebFrameCapture` 148 / `WebFrameStreamer` 108 / `WebPreviewScreen` 305 |
+| 3 | `camera/` 1,036 行 / `webui/` 1,394 行 / `script/schema/` 654 行 | `webui/` 8 文件：`WebEditorServer` 213 / `WebSocketSession` 150 / `WebEditorApi` 279 / `ScriptFileService` 71 / `WebRegistryService` 120 / `WebFrameCapture` 148 / `WebFrameStreamer` 108 / `WebPreviewScreen` 305（2026-10-09 回写：现共 10 文件——新增 `ScriptGraphService` 348 / `ResourceFileService` 195，见 §1.2） |
 | 4 | common 全部 Java 30,634 行 | 234 文件 |
 | 5 | 占比 33% / 4.5% / 2% | 10,164÷30,634 = 33.2%；1,394÷30,634 = 4.6%；654÷30,634 = 2.1% |
 | 6 | `WebEditorServer` 仅绑 127.0.0.1、端口 8765、自实现无第三方库 | `WebEditorServer.java:63` `new ServerSocket(8765, 4, InetAddress.getByName("127.0.0.1"))`；仅用 JDK `ServerSocket` + `MessageDigest`/`WS_MAGIC` 自实现握手 |
 | 7 | `WebFrameCapture` + `WebFrameStreamer`：主画面 → 小 FBO → glReadPixels；720p；worker 线程；约 60fps 节流；跟不上丢旧帧 | `WebFrameCapture.java:22-23` `TARGET_W/H = 1280/720`；`WebFrameStreamer.java` `SEND_INTERVAL_MS = 16`、单线程 `SENDER`、`AtomicReference<byte[]> PENDING` 只保留最新帧 |
 | 8 | 二进制帧 `[1B type=0x01][2B frameId][2B width][2B height][RGBA]` | `WebFrameStreamer.sendRaw()`：`headerSize = 7`、`FRAME_TYPE_RAW_RGBA = 0x01`、`ByteBuffer` 默认大端；发送前按行翻转（OpenGL 自底向上） |
-| 9 | §2 消息清单（hello / script.* / registry.* / schema.get / editor.* / enter·exit·cancel_flight_mode） | `WebEditorApi.handle()` 的 switch 分支逐一对应，无遗漏、无多余 |
+| 9 | §2 消息清单（hello / script.* / registry.* / schema.get / editor.* / enter·exit·cancel_flight_mode） | `WebEditorApi.handle()` 的 switch 分支逐一对应，无遗漏、无多余（2026-10-09 回写：清单另含 `script.graph` / `resource.list`，见 §2；分派见 `WebEditorApi.handle()` :46-47） |
 | 10 | 文本帧信封 `{type,data,id}`；请求带回执 | `WebEditorApi.handle()` 解析 + `wrap(type,data,id)` 回包（`id` 为空时省略） |
 | 11 | `WebRegistryService` 即时查询 | `query()` 直接读 `BuiltInRegistries.*` / `Registries.*`，无缓存 |
 | 12 | `FlightModeManager` 与 `EditorScreen` 解耦、WebUI / 游戏内共用 | 位于 `control/FlightModeManager.java`；`WebPreviewScreen` 与 `editor/EditorScreen` 均只调用其 `INSTANCE` |
@@ -263,13 +267,13 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 | # | 旧说法 | 新事实 | 证据 / 裁决 |
 |---|---|---|---|
 | 1 | §4 理由：「触发器 2,889」 | **触发器 4,263** | 当前 HEAD 实测 `trigger/**` = 4,263。时间对比：`git log -1 --format=%cI -- .../trigger/` = **2026-09-29T14:52:45+08:00**，`... -- plans/0.3.6/editor-webui-migration.md` = **2026-10-06T21:57:01+08:00**——代码早于文档，故不是"代码变了"，而是旧值统计口径漏算：2,889 = `trigger/client`(592) + `trigger/network`(1,029) + `trigger/server` 顶层(1,268)，漏掉 `trigger/server/` 下 4 个子目录（action 173 + evaluator 745 + prereq 129 + store 327 = 1,374）。按当前 HEAD 值更新。 |
-| 2 | §1.2 标题：「Java 侧（`common/.../webui/`）」 | 改为「`common/.../webui/` 及其依赖模块」；`FlightModeManager` 标注在 `control/`，`SchemaExporter` 标注在 `script/schema/`；补上遗漏的 `WebSocketSession` | 两文件实际路径：`control/FlightModeManager.java`、`script/schema/SchemaExporter.java`；`webui/` 包共 8 个文件，原表只列了 6 个 |
+| 2 | §1.2 标题：「Java 侧（`common/.../webui/`）」 | 改为「`common/.../webui/` 及其依赖模块」；`FlightModeManager` 标注在 `control/`，`SchemaExporter` 标注在 `script/schema/`；补上遗漏的 `WebSocketSession` | 两文件实际路径：`control/FlightModeManager.java`、`script/schema/SchemaExporter.java`；`webui/` 包核查时为 8 个文件（2026-10-09 回写：现共 10 个——新增 `ScriptGraphService` / `ResourceFileService`），原表只列了 6 个 |
 | 3 | §4 表：「游戏内编辑器（`editor/` 包 + `client/EditorBridgeImpl`）10,164」 | 10,164 只是 `editor/` 包；`EditorBridgeImpl` 34 行，合计 10,198（占比仍 33%） | `git ls-files .../editor/*` = 10,164；`client/EditorBridgeImpl.java` = 34 |
 | 4 | §4 表：「外部编辑器（`editor/src`，Vue 3 + TS）12,799」 | 12,799 是 `editor/src` 全量文件（含 26 个 SVG 4,168 行 + 1 个 PNG）；TS+Vue 实为 5,643（.ts 439 + .vue 5,204） | `git ls-files 'editor/src/**'` 按扩展名分组统计 |
 
 ### ③ 补全的信息
 
-- **`webui/` 包文件清单与行数**（原表缺 `WebSocketSession`，且未给路径/行数）：见 ①-3。
+- **`webui/` 包文件清单与行数**（原表缺 `WebSocketSession`，且未给路径/行数）：见 ①-3（2026-10-09 回写：现共 10 文件，清单见 §1.2）。
 - **`WebRegistryService` 支持的 kind**：`item` / `block` / `entity`(别名 `entity_type`) / `sound` / `target` / `biome` / `dimension`(别名 `from_dimension`) / `structure` / `advancement`；`stage`(`gamestage`) 返回空列表（`WebRegistryService.java:39-51`）。
 - **事件推送清单**：`hello_ack`（携带 `version = "0.3.5"`，0.3.6 开发期仍是该值）；`playback.state`（`WebPreviewScreen.render` 每 50ms 一次）；`flight.state`（飞控中每 100ms 一次）；`flight.exit`（带最终相机参数与 RELATIVE 基准点）；`error`。
 - **`ScriptFileService` 细节**：脚本根目录 `immersive_cinematics/scripts/`，`Files.walk(..., 5)` 递归列 `.json`，写盘前做 `normalize()` + `startsWith(base)` 越界校验。
