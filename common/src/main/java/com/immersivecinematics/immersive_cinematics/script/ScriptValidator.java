@@ -153,6 +153,15 @@ public final class ScriptValidator {
             requireString(meta, "meta", "id", issues);
             requireString(meta, "meta", "name", issues);
             requireString(meta, "meta", "author", issues);
+            // 长度 / 格式硬限制（与 ScriptParser#parseMeta 同一口径——校验器放过的写法解析期会直接拒载脚本）
+            if (meta.has("id") && meta.get("id").isJsonPrimitive() && meta.get("id").getAsJsonPrimitive().isString()) {
+                String id = meta.get("id").getAsString();
+                if (!id.isEmpty() && !id.matches("^[a-zA-Z0-9_]{1,32}$")) {
+                    issues.add("meta.id 必须匹配 ^[a-zA-Z0-9_]{1,32}$（1~32 位字母 / 数字 / 下划线），实际: " + id);
+                }
+            }
+            checkMaxLength(meta, "meta", "name", 50, issues);
+            checkMaxLength(meta, "meta", "author", 30, issues);
             if (!meta.has("version")) {
                 issues.add("meta.version 缺失（当前仅支持版本 3）");
             } else {
@@ -221,7 +230,9 @@ public final class ScriptValidator {
         } else {
             try {
                 float td = timeline.get("total_duration").getAsFloat();
-                if (td == 0f) issues.add("timeline.total_duration 不允许为 0");
+                if (!Float.isFinite(td)) {
+                    issues.add("timeline.total_duration 不是有限数字（NaN / Infinity）");
+                } else if (td == 0f) issues.add("timeline.total_duration 不允许为 0");
             } catch (Exception e) {
                 issues.add("timeline.total_duration 不是数字");
             }
@@ -280,14 +291,22 @@ public final class ScriptValidator {
                 float start = 0f, dur = 0f;
                 if (!clip.has("start_time")) issues.add(cp + ".start_time 缺失");
                 else {
-                    try { start = clip.get("start_time").getAsFloat(); }
+                    try {
+                        start = clip.get("start_time").getAsFloat();
+                        if (!Float.isFinite(start)) issues.add(cp + ".start_time 不是有限数字（NaN / Infinity）");
+                    }
                     catch (Exception e) { issues.add(cp + ".start_time 不是数字"); }
                 }
                 if (!clip.has("duration")) issues.add(cp + ".duration 缺失");
                 else {
                     try {
-                        dur = clip.get("duration").getAsFloat();
-                        if (dur == 0f) issues.add(cp + ".duration 不允许为 0（正数=定长，负数=无限）");
+                        float d = clip.get("duration").getAsFloat();
+                        if (!Float.isFinite(d)) {
+                            issues.add(cp + ".duration 不是有限数字（NaN / Infinity）");
+                        } else if (d == 0f) {
+                            issues.add(cp + ".duration 不允许为 0（正数=定长，负数=无限）");
+                        }
+                        dur = d;
                     } catch (Exception e) { issues.add(cp + ".duration 不是数字"); }
                 }
 
@@ -417,9 +436,14 @@ public final class ScriptValidator {
                         } else {
                             try {
                                 float t = kf.get("time").getAsFloat();
-                                if (t < 0f) issues.add(kp + ".time 不能为负数: " + t);
-                                if (t < prevT) issues.add(kp + ".time 不单调（" + t + " < 前一个 " + prevT + "），关键帧时间必须递增");
-                                prevT = t;
+                                if (!Float.isFinite(t)) {
+                                    // 非有限时间：与 0 / 前帧的比较全为 false，必须单独拦下
+                                    issues.add(kp + ".time 不是有限数字（NaN / Infinity）");
+                                } else {
+                                    if (t < 0f) issues.add(kp + ".time 不能为负数: " + t);
+                                    if (t < prevT) issues.add(kp + ".time 不单调（" + t + " < 前一个 " + prevT + "），关键帧时间必须递增");
+                                    prevT = t;
+                                }
                             } catch (Exception e) { issues.add(kp + ".time 不是数字"); }
                         }
 
@@ -520,6 +544,11 @@ public final class ScriptValidator {
             return;
         }
         float v = e.getAsFloat();
+        if (!Float.isFinite(v)) {
+            // NaN / ±Infinity：与任何区间比较都为 false，必须单独拦下（否则校验器放过、运行期直达 shader）
+            issues.add(path + "." + key + " 不是有限数字（NaN / Infinity；范围 " + min + " ~ " + max + "）：" + v);
+            return;
+        }
         if (v < min || v > max) {
             issues.add(path + "." + key + " 超出范围 " + min + " ~ " + max + "：" + v);
         }
@@ -630,7 +659,10 @@ public final class ScriptValidator {
             return;
         }
         float gamma = e.getAsFloat();
-        if (gamma != 1.0F && !(gamma > 0.0F)) {
+        if (!Float.isFinite(gamma)) {
+            // +Infinity 也落在这里：`Inf > 0` 为 true，只靠「大于 0」拦不住
+            issues.add(path + " 必须大于 0 的有限数字（NaN / Infinity；缺省 1 = 不变换）：" + gamma);
+        } else if (gamma != 1.0F && !(gamma > 0.0F)) {
             issues.add(path + " 必须大于 0（缺省 1 = 不变换）：" + gamma);
         }
     }
@@ -650,6 +682,8 @@ public final class ScriptValidator {
             issues.add(path + " 文件名不能为空");
         } else if (name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 || name.indexOf(':') >= 0) {
             issues.add(path + " 文件名不能包含路径分隔符（LUT 只取 resource/ 目录下的文件）：" + name);
+        } else if (".".equals(name) || "..".equals(name)) {
+            issues.add(path + " 文件名非法：" + name);
         }
     }
 
@@ -695,6 +729,11 @@ public final class ScriptValidator {
             }
             float x = pe.getAsJsonArray().get(0).getAsFloat();
             float y = pe.getAsJsonArray().get(1).getAsFloat();
+            if (!Float.isFinite(x) || !Float.isFinite(y)) {
+                // 非有限控制点：与 0~1 及「严格递增」的比较全为 false，必须单独拦下
+                issues.add(pp + " 不是有限数字（NaN / Infinity）：" + x + ", " + y);
+                continue;
+            }
             if (x < 0f || x > 1f || y < 0f || y > 1f) {
                 issues.add(pp + " 超出 0~1：" + x + ", " + y);
             }
@@ -720,6 +759,10 @@ public final class ScriptValidator {
             return;
         }
         float v = e.getAsFloat();
+        if (!Float.isFinite(v)) {
+            issues.add(path + "." + key + " 不是有限数字（NaN / Infinity；范围 0~1）：" + v);
+            return;
+        }
         if (v < 0f || v > 1f) {
             issues.add(path + "." + key + " 超出范围 0~1: " + v);
         }
@@ -744,6 +787,10 @@ public final class ScriptValidator {
                 continue;
             }
             float v = rect.get(c).getAsFloat();
+            if (!Float.isFinite(v)) {
+                issues.add(rp + "." + c + " 不是有限数字（NaN / Infinity；范围 0~1）：" + v);
+                continue;
+            }
             if (v < 0f || v > 1f) {
                 issues.add(rp + "." + c + " 超出范围 0~1: " + v);
             }
@@ -905,7 +952,9 @@ public final class ScriptValidator {
                 && c.get("pitch2").getAsJsonPrimitive().isNumber()) {
             float p1 = c.get("pitch1").getAsFloat();
             float p2 = c.get("pitch2").getAsFloat();
-            if (p1 < -90f || p1 > 90f || p2 < -90f || p2 > 90f) {
+            if (!Float.isFinite(p1) || !Float.isFinite(p2)) {
+                issues.add(p + " pitch 端点不是有限数字（NaN / Infinity），该条件将永不满足");
+            } else if (p1 < -90f || p1 > 90f || p2 < -90f || p2 > 90f) {
                 issues.add(p + " pitch 端点超出 -90~90（原版 pitch 范围），该条件将永不满足");
             }
         }
@@ -1032,6 +1081,18 @@ public final class ScriptValidator {
     private static void requireString(JsonObject obj, String path, String key, List<String> issues) {
         if (!obj.has(key) || obj.get(key).getAsString().isEmpty()) {
             issues.add(path + "." + key + " 缺失");
+        }
+    }
+
+    /**
+     * 校验字符串字段的最大长度（按 UTF-16 码元数，与 {@code ScriptParser#parseMeta} 同一口径：
+     * {@code meta.name} ≤ 50、{@code meta.author} ≤ 30）；字段缺省 / 非字符串时跳过。
+     */
+    private static void checkMaxLength(JsonObject obj, String path, String key, int max, List<String> issues) {
+        if (!obj.has(key) || !obj.get(key).isJsonPrimitive() || !obj.get(key).getAsJsonPrimitive().isString()) return;
+        int len = obj.get(key).getAsString().length();
+        if (len > max) {
+            issues.add(path + "." + key + " 最长 " + max + " 字符，实际: " + len);
         }
     }
 

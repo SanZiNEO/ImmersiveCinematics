@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import com.immersivecinematics.immersive_cinematics.util.MathUtil;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +50,10 @@ public class Clip {
 
     public float getFloat(String key, float defaultValue) {
         Object v = data.get(key);
-        return v instanceof Number ? ((Number) v).floatValue() : defaultValue;
+        if (!(v instanceof Number)) return defaultValue;
+        // 数据入口守卫：非有限值（NaN / ±Infinity）回落缺省——片段级字段（lut_input_gamma / volume /
+        // pitch / fade_* 等）同样不得直达采样器 / shader（clamp(NaN) 在主流驱动上取 0 = 整屏变黑）
+        return MathUtil.sanitizeFloatLogged(((Number) v).floatValue(), defaultValue, "clip." + key);
     }
 
     public int getInt(String key, int defaultValue) {

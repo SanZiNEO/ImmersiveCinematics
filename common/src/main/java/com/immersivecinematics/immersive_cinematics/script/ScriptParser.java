@@ -416,8 +416,8 @@ public class ScriptParser {
             throw new ScriptParseException(p, "需要数字（必须大于 0；缺省 1 = 不变换）");
         }
         float gamma = value.getAsFloat();
-        if (!(gamma > 0.0F)) {
-            throw new ScriptParseException(p, "必须大于 0（缺省 1 = 不变换）：" + gamma);
+        if (!Float.isFinite(gamma) || !(gamma > 0.0F)) {
+            throw new ScriptParseException(p, "必须大于 0 的有限数字（缺省 1 = 不变换）：" + gamma);
         }
         return gamma;
     }

@@ -1,6 +1,11 @@
 package com.immersivecinematics.immersive_cinematics.util;
 
 import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 数学工具类 — 相机系统共用插值函数
@@ -195,6 +200,34 @@ public final class MathUtil {
      */
     public static float sanitizeFloat(float value, float fallback) {
         return Float.isFinite(value) ? value : fallback;
+    }
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/MathUtil");
+
+    /** 已告警过的字段位置（同一位置只告警一次，避免逐帧采样路径刷屏）；上限防异常脚本撑爆内存。 */
+    private static final Set<String> WARNED = ConcurrentHashMap.newKeySet();
+    private static final int WARN_LIMIT = 256;
+
+    /**
+     * 浮点数 NaN/Infinity 防护 + 限频告警：非法值 → 回落 {@code fallback}（调用方的字段缺省值 =
+     * 该项的恒等取值），同一 {@code what} 只告警一次。
+     * <p>用于<b>脚本数据入口</b>（关键帧 / 片段字段的读取点）：JSON 里的 {@code NaN} / {@code Infinity}
+     * 字面量或溢出数字（如 {@code 1e999}）会解析成非有限 float——若不拦截，会经采样直达 shader，
+     * 而 {@code clamp(NaN, 0, 1)} 在主流驱动上取 0 = 整屏变黑。</p>
+     *
+     * @param value    待检查的值
+     * @param fallback 备用值（该字段的缺省值；标量通道缺省 0 = 无效果）
+     * @param what     告警用的位置标识（如 {@code keyframe.gamma_r}）
+     * @return value（如果有限），否则 fallback
+     */
+    public static float sanitizeFloatLogged(float value, float fallback, String what) {
+        if (Float.isFinite(value)) {
+            return value;
+        }
+        if (WARNED.size() < WARN_LIMIT && WARNED.add(what)) {
+            LOGGER.warn("[脚本参数] {} 非有限值（{}）→ 回落缺省 {}（同一位置只告警一次）", what, value, fallback);
+        }
+        return fallback;
     }
 
     /**

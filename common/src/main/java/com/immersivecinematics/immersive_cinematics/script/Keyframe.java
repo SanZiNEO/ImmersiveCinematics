@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import com.immersivecinematics.immersive_cinematics.util.MathUtil;
+
 import java.util.Collections;
 import java.util.Map;
 
@@ -36,7 +38,10 @@ public class Keyframe {
 
     public float getFloat(String key, float defaultValue) {
         Object v = data.get(key);
-        return v instanceof Number ? ((Number) v).floatValue() : defaultValue;
+        if (!(v instanceof Number)) return defaultValue;
+        // 数据入口守卫：非有限值（NaN / ±Infinity）回落缺省（标量通道缺省 0 = 无效果）——
+        // 脚本 JSON 的 NaN / Infinity 字面量或溢出数字（1e999）不得直达采样器 / shader
+        return MathUtil.sanitizeFloatLogged(((Number) v).floatValue(), defaultValue, "keyframe." + key);
     }
 
     public int getInt(String key, int defaultValue) {
