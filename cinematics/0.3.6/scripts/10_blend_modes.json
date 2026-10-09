@@ -1,7 +1,7 @@
 {
   "meta": {
     "id": "10_blend_modes",
-    "name": "调色展示-混合模式（multiply / screen / soft_light / overlay）",
+    "name": "调色展示-混合模式（multiply/screen/soft_light/overlay）",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "层级混合（混合模式作用于调整层 = ADJUST 轨）展示：clip 级 blend_mode + 关键帧 blend_amount（0~1，缺省 1）。口径 c = mix(基画面, blend(基画面, 调整层输出, 模式), blend_amount)。0~8s multiply（调整层 exposure +0.3 / saturation +0.5 → 压暗增浓，blend_amount 0→1→0）；8~16s screen（exposure +0.5 / temperature +0.3 → 1-(1-a)(1-b) 提亮泛白暖）；16~24s soft_light（lightness +0.25 / vibrance +0.5 → W3C 柔光，柔和提亮增艳）；24~32s overlay（contrast +0.7 / saturation +0.5 → 基画面暗处走 multiply、亮处走 screen，高对比增艳）；32~40s 归零还原（blend_mode=normal + 全通道 0 + blend_amount=0，输出 = 基画面、画面逐位不变）。四段各自 blend_amount 0→1 渐入、1→0 渐出（2 秒），每段都是「调整层淡入 → 全量 → 淡出」。字段口径：blend_mode 枚举 normal / multiply / screen / soft_light / overlay（缺省 normal = 直替换）；blend_amount 0~1、缺省 1；两者只写在 ADJUST 轨（作用于整体画面 master，相机片段上写会被 validator 拦下）；只动 RGB，alpha 逐位直通，透明度只走合成参数 opacity。",
