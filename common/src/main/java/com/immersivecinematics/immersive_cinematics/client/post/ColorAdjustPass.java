@@ -115,6 +115,22 @@ import java.util.List;
  * {@code c = mix(c_base, blend(c_base, c_adj, mode), clamp(BlendAmount, 0, 1))}。
  * 缺省 {@code normal} + {@code 1} = 直替换 = 与混合功能落地前逐位一致（渲染侧该步整段跳过）；
  * 两个 uniform 只由 <b>ADJUST 轨（master）</b>取值，lane 路径恒为缺省。
+ *
+ * <h2>失败语义（fail-safe 直通）</h2>
+ * 渲染错误一律<b>直通</b>：宁可不调色，也绝不把未写 / 未定义的缓冲铺上屏
+ * （用户裁决 2026-10-09，见 {@code plans/0.3.6/multi-instance-black-screen.md} §五）。三层守卫：
+ * <ol>
+ *   <li><b>每层施加可失败</b>：{@link #applyTo} 绘制前查目标 FBO 完整、绘制后清查 GL 错误
+ *       （进入前先清积压，只算本 pass 的错误；<b>无读回、无 {@code glFinish} 之类同步等待</b>），
+ *       任一步不过 → 返回 {@code false} = 本层未施加；异常同样吞成失败。</li>
+ *   <li><b>失败即停</b>：{@link #render} 的链式施加遇到失败立刻停下，当前有效内容（上一层输出或
+ *       原始画面）保持不动——失败层的目标可能是半写 / 未写的，绝不再当输入或输出用。</li>
+ *   <li><b>回写前验证「本帧已写」</b>：末尾整屏 blit 只在本帧确实写过中转缓冲时执行
+ *       （{@link #swapWrittenThisFrame}）；没写过就不 blit，主画面自然保持原样
+ *       （首层失败 = 整链直通原始画面）。</li>
+ * </ol>
+ * 失败按 {@link #FAILURE_LOG_INTERVAL_MS} 限频告警（{@link ErrorLog}，类别 {@code Render}）。
+ * 正常路径零差异：这些检查只是状态查询，不改绘制语义 / 参数 / 纹理内容。
  */
 public final class ColorAdjustPass {
 
@@ -129,6 +145,25 @@ public final class ColorAdjustPass {
 
     /** 中转缓冲（按主画面尺寸创建 / 重建；只在渲染线程访问）。 */
     private static RenderTarget swapTarget;
+
+    /**
+     * 「本帧中转缓冲已写」标记：{@link #render} 每次进入链式施加时清空，只有本帧<b>已验证</b>的写入
+     * （{@link #applyTo} 返回 {@code true} 且目标 = 中转缓冲）才置位。末尾整屏 blit 以它为准——
+     * 没写过就不回写，主画面自然保持原样（见类注释「失败语义」）。
+     */
+    private static boolean swapWrittenThisFrame;
+
+    /** 失败告警的最小间隔（ms）：渲染路径逐帧复现，失败要限频，不刷屏。 */
+    private static final long FAILURE_LOG_INTERVAL_MS = 5000L;
+
+    /** 一次清 GL 错误队列的上限（防病态驱动下死循环）。 */
+    private static final int MAX_DRAINED_ERRORS = 32;
+
+    /** 上一次失败告警的时间（{@code 0} = 从未告警）。 */
+    private static long lastFailureLogMs;
+
+    /** 限频窗口内被合并的失败次数（随下一条告警一起输出）。 */
+    private static int suppressedFailures;
 
     /** RGB 复合曲线的 LUT 纹理槽（{@code CurveLut} 采样器）。 */
     private static final LutTexture CURVE_LUT = new LutTexture();
@@ -172,8 +207,12 @@ public final class ColorAdjustPass {
      * 末尾再整屏 blit 回主画面。单实例（= 一套参数）的调用序列与叠加落地前逐字节一致：
      * 主画面 → 中转缓冲 →（整屏 blit）→ 主画面。</p>
      *
-     * <p>无调整（本帧没人发布 / 参数恒等）时不做任何事；着色器不可用时停在该层之前已施加的输出上
-     * （宁可不调色，也不动画面）。</p>
+     * <p>无调整（本帧没人发布 / 参数恒等）时不做任何事；某层不可用 / 施加失败时停在该层之前已施加的
+     * 输出上（宁可不调色，也不动画面）——失败层的目标缓冲可能是半写 / 未写的，绝不再当输入或输出用。</p>
+     *
+     * <p><b>fail-safe</b>：末尾整屏 blit 只在「本帧确实写过中转缓冲」时执行（{@link #swapWrittenThisFrame}）；
+     * 没写过就不 blit，主画面保持原样——首层失败 = 整链直通原始画面，任何情况下都不会把未写 /
+     * 未定义的缓冲铺上屏（见类注释「失败语义」）。</p>
      */
     public static void render(Minecraft mc) {
         List<ColorAdjustParams> layers = MasterColorAdjust.INSTANCE.consume();
@@ -189,17 +228,31 @@ public final class ColorAdjustPass {
         RenderTarget swap = swapTarget(width, height);
         // 逐层链式施加：本层输入 = 上一层输出（current），输出写进另一个缓冲
         // （不能同时读写同一张纹理；每层自带混合模式 / 强度，混合的基画面 = 上一层输出）
+        // fail-safe：applyTo 只在「目标 FBO 完整 + 本次施加无 GL 错误」时返回 true——失败即停，
+        // current 停在最后一个已验证的写入上（可能是主画面 = 原始画面），半写 / 未写的缓冲不再当输入或输出用
+        swapWrittenThisFrame = false;   // 「本帧已写」标记：只由本帧已验证的写入置位
         RenderTarget current = main;
         for (int i = 0; i < layers.size(); i++) {
             RenderTarget next = current == main ? swap : main;
             if (!applyTo(current, next, layers.get(i), mc)) {
-                break;   // 着色器不可用：停在这一层之前（已施加的层保持）
+                break;   // 未施加 / 施加失败：停在这一层之前（已施加的层保持）
+            }
+            if (next == swap) {
+                swapWrittenThisFrame = true;
             }
             current = next;
         }
         if (current != main) {
-            // pass 2：中转缓冲 → 主画面（整屏 blit，复用合成层的状态保存 / 还原与 UV 口径）
-            LaneCompositor.compose(current, LaneCompositor.Rect.FULL, LaneCompositor.Rect.FULL, 1.0F);
+            // pass 2：中转缓冲 → 主画面（整屏 blit，复用合成层的状态保存 / 还原与 UV 口径）。
+            // 只有本帧确实写过中转缓冲才 blit：没写过就不回写（主画面保持原样），
+            // 绝不把未写 / 未定义的缓冲铺上屏。blit 自身失败是安全的——它在主画面上混合覆盖，
+            // 失败时主画面保持原内容（有效画面），不会变黑。
+            if (swapWrittenThisFrame) {
+                LaneCompositor.compose(current, LaneCompositor.Rect.FULL, LaneCompositor.Rect.FULL, 1.0F);
+            } else {
+                main.bindWrite(true);   // 不 blit：把主画面绑回来（调用方接着画）
+                reportFailure("链末尾校验未通过：中转缓冲本帧未被写入，跳过回写（画面保持原样）", null);
+            }
         }
     }
 
@@ -216,25 +269,59 @@ public final class ColorAdjustPass {
      * <p>状态保存 / 还原：进入时保存、退出时还原全局投影 + VertexSorting、shader 颜色与 0 号纹理、
      * 深度测试 / 深度写 / 颜色写 / 混合；退出时目标缓冲保持绑定态（调用方接着画）。</p>
      *
+     * <p><b>失败语义（fail-safe 直通）</b>：本方法只在「目标 FBO 完整 + 本次施加全程无 GL 错误」时返回
+     * {@code true}；任何失败（含异常）都返回 {@code false} = 本层未施加——调用方必须丢弃 {@code dst}
+     * 的内容（它可能是未写 / 半写的），保持此前已确认有效的画面。检查全是状态查询，无读回 / 无同步等待。</p>
+     *
      * @param src    源画面（取颜色纹理作采样源；不得与 {@code dst} 同一张纹理）
      * @param dst    目标缓冲（视口会被设成全尺寸）
      * @param params 调色参数（{@code null} 或恒等 → 直接返回 {@code false}，不动任何 GL 状态）
      * @param mc     客户端实例（取资源管理器加载 / 重建着色器）
-     * @return 是否真的跑了 pass（{@code false} = 参数为空/恒等、尺寸非法或着色器不可用）
+     * @return 是否真的跑了 pass 并写满了 {@code dst}（{@code false} = 参数为空/恒等、尺寸非法、纹理无效、
+     *         着色器不可用或施加失败——除前三种「未施加」外，{@code dst} 的内容都不可使用）
      */
     public static boolean applyTo(RenderTarget src, RenderTarget dst, ColorAdjustParams params, Minecraft mc) {
         if (src == null || dst == null || params == null || params.isIdentity()) {
             return false;
         }
-        int width = dst.width;
-        int height = dst.height;
-        if (width <= 0 || height <= 0) {
+        if (dst.width <= 0 || dst.height <= 0) {
+            return false;
+        }
+        // 纹理名为 0 = 该缓冲没有颜色纹理：采样只会得到黑（且 GL 不报错），先于绘制拦下
+        int srcTexture = src.getColorTextureId();
+        int dstTexture = dst.getColorTextureId();
+        if (srcTexture <= 0 || dstTexture <= 0) {
+            reportFailure("源 / 目标缓冲没有颜色纹理（src=" + srcTexture + ", dst=" + dstTexture
+                    + "）：本层跳过，画面保持上一层 / 原始输出", null);
             return false;
         }
         ShaderInstance shaderInstance = shader(mc);
         if (shaderInstance == null) {
             return false;   // 着色器不可用：宁可不调色，也不动画面
         }
+        // 本 pass 的 GL 错误从零开始计：先清掉进入前的积压（别的模块 / 上一帧留下的），
+        // 之后产生的错误才算本 pass 的（含采样器绑定 / LUT 上传 / uniform 上传 / 绘制）
+        drainGlErrors();
+        try {
+            return pass(shaderInstance, src, dst, params);
+        } catch (RuntimeException e) {
+            reportFailure("调色 pass 执行异常（本层跳过，画面保持上一层 / 原始输出）", e);
+            return false;
+        }
+    }
+
+    /**
+     * 一次调色 pass 的执行体：上传参数 → 绘制 → 校验「目标确实被本次施加写满」。
+     *
+     * <p><b>校验口径</b>（无读回、无 {@code glFinish} 之类同步等待）：目标 FBO 状态必须是
+     * {@code GL_FRAMEBUFFER_COMPLETE}（不完整就连画都不画），且本次施加全程没有产生 GL 错误。</p>
+     *
+     * @return 目标缓冲是否被本次施加写满（{@code false} = 未写 / 半写 / 报错，调用方必须丢弃这个输出）
+     */
+    private static boolean pass(ShaderInstance shaderInstance, RenderTarget src, RenderTarget dst,
+                               ColorAdjustParams params) {
+        int width = dst.width;
+        int height = dst.height;
 
         // 曲线 LUT：有曲线且强度非 0 → 该曲线的 LUT；否则恒等 LUT（采样器常绑，见 LutTexture）
         shaderInstance.setSampler("CurveLut", CURVE_LUT.bind(activeLut(params.curveLut(), params.curveStrength())));
@@ -262,6 +349,7 @@ public final class ColorAdjustPass {
         int prevTexture = RenderSystem.getShaderTexture(0);
         float[] prevColor = RenderSystem.getShaderColor().clone();
 
+        boolean written = false;
         try {
             RenderSystem.disableDepthTest();
             RenderSystem.depthMask(false);
@@ -270,36 +358,47 @@ public final class ColorAdjustPass {
 
             // 全屏 quad 铺满目标缓冲，无需 clear
             dst.bindWrite(true);   // 绑 FBO + 视口 = FBO 全尺寸
-            RenderSystem.setProjectionMatrix(
-                    new Matrix4f().setOrtho(0.0F, width, height, 0.0F, 1000.0F, 3000.0F),
-                    VertexSorting.ORTHOGRAPHIC_Z);
-            PoseStack modelView = RenderSystem.getModelViewStack();
-            modelView.pushPose();
-            try {
-                modelView.setIdentity();
-                modelView.translate(0.0F, 0.0F, -2000.0F);   // 落在正交投影的 z 范围内
-                RenderSystem.applyModelViewMatrix();
+            // 目标不可写（附件丢失 / 重建失败 / 尺寸非法）→ 连画都不画：驱动会丢弃这次绘制、只留下
+            // 半写内容，而这次施加必须被当成失败（调用方据此跳过本层，见 render）
+            if (GlStateManager.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER) == GL30.GL_FRAMEBUFFER_COMPLETE) {
+                RenderSystem.setProjectionMatrix(
+                        new Matrix4f().setOrtho(0.0F, width, height, 0.0F, 1000.0F, 3000.0F),
+                        VertexSorting.ORTHOGRAPHIC_Z);
+                PoseStack modelView = RenderSystem.getModelViewStack();
+                modelView.pushPose();
+                try {
+                    modelView.setIdentity();
+                    modelView.translate(0.0F, 0.0F, -2000.0F);   // 落在正交投影的 z 范围内
+                    RenderSystem.applyModelViewMatrix();
 
-                RenderSystem.setShader(() -> shaderInstance);
-                RenderSystem.setShaderTexture(0, src.getColorTextureId());
-                RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-                LUT_3D.bind();   // 3D LUT 只能在绘制前按 GL_TEXTURE_3D 目标手动绑（见 LUT_3D_UNIT）
+                    RenderSystem.setShader(() -> shaderInstance);
+                    RenderSystem.setShaderTexture(0, src.getColorTextureId());
+                    RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+                    LUT_3D.bind();   // 3D LUT 只能在绘制前按 GL_TEXTURE_3D 目标手动绑（见 LUT_3D_UNIT）
 
-                // 屏幕正交投影下 y 向下增长；纹理 v 轴向上 → 底边取 v=0（与合成层同一口径，1:1 不翻转）
-                float x0 = 0.0F;
-                float x1 = (float) width;
-                float y0 = 0.0F;
-                float y1 = (float) height;
-                BufferBuilder builder = new BufferBuilder(256);
-                builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-                builder.vertex(x0, y1, 0.0).uv(0.0F, 0.0F).endVertex();   // 左下
-                builder.vertex(x1, y1, 0.0).uv(1.0F, 0.0F).endVertex();   // 右下
-                builder.vertex(x1, y0, 0.0).uv(1.0F, 1.0F).endVertex();   // 右上
-                builder.vertex(x0, y0, 0.0).uv(0.0F, 1.0F).endVertex();   // 左上
-                BufferUploader.drawWithShader(builder.end());
-            } finally {
-                modelView.popPose();
-                RenderSystem.applyModelViewMatrix();
+                    // 屏幕正交投影下 y 向下增长；纹理 v 轴向上 → 底边取 v=0（与合成层同一口径，1:1 不翻转）
+                    float x0 = 0.0F;
+                    float x1 = (float) width;
+                    float y0 = 0.0F;
+                    float y1 = (float) height;
+                    BufferBuilder builder = new BufferBuilder(256);
+                    builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+                    builder.vertex(x0, y1, 0.0).uv(0.0F, 0.0F).endVertex();   // 左下
+                    builder.vertex(x1, y1, 0.0).uv(1.0F, 0.0F).endVertex();   // 右下
+                    builder.vertex(x1, y0, 0.0).uv(1.0F, 1.0F).endVertex();   // 右上
+                    builder.vertex(x0, y0, 0.0).uv(0.0F, 1.0F).endVertex();   // 左上
+                    BufferUploader.drawWithShader(builder.end());
+                } finally {
+                    modelView.popPose();
+                    RenderSystem.applyModelViewMatrix();
+                }
+                // 施加全程无 GL 错误 = 目标确实被这次绘制写满（绘制报错时驱动会丢掉这次绘制，
+                // 目标留下的内容不可信）；这里只查状态、不读回、不同步等待
+                written = !drainGlErrors();
+            }
+            if (!written) {
+                reportFailure("调色 pass 未能写满目标缓冲（FBO 不完整或绘制报错）：本层跳过，"
+                        + "画面保持上一层 / 原始输出", null);
             }
         } finally {
             LUT_3D.unbind();
@@ -312,7 +411,50 @@ public final class ColorAdjustPass {
             RenderSystem.enableDepthTest();
             RenderSystem.colorMask(true, true, true, true);
         }
-        return true;
+        return written;
+    }
+
+    /**
+     * 清空 / 读取 GL 错误队列（至多 {@link #MAX_DRAINED_ERRORS} 条，防病态驱动下死循环）。
+     *
+     * <p>用法固定成对：{@link #applyTo} 进入时先调一次「清积压」（此前别的模块 / 上一帧留下的错误
+     * 不归本次施加），绘制后再调一次——这次读到错误 = 本次施加失败。</p>
+     *
+     * @return 是否读到过错误
+     */
+    private static boolean drainGlErrors() {
+        boolean any = false;
+        for (int i = 0; i < MAX_DRAINED_ERRORS; i++) {
+            if (GL11.glGetError() == GL11.GL_NO_ERROR) {
+                break;
+            }
+            any = true;
+        }
+        return any;
+    }
+
+    /**
+     * 失败告警（限频）：失败会逐帧复现，所以两次告警至少间隔 {@link #FAILURE_LOG_INTERVAL_MS}，
+     * 窗口内的次数合并到下一次输出里（不刷屏，也不丢「一直在失败」这个事实）。
+     *
+     * @param what 失败描述（不含「画面颜色调整失败：」前缀）
+     * @param t    异常（无异常传 {@code null}）
+     */
+    private static void reportFailure(String what, Throwable t) {
+        long now = System.currentTimeMillis();
+        if (now - lastFailureLogMs < FAILURE_LOG_INTERVAL_MS) {
+            suppressedFailures++;
+            return;
+        }
+        String merged = suppressedFailures == 0 ? "" : "（另有 " + suppressedFailures + " 次同类失败未逐条记录）";
+        suppressedFailures = 0;
+        lastFailureLogMs = now;
+        String message = "画面颜色调整失败：" + what + merged;
+        if (t == null) {
+            ErrorLog.log("Render", message);
+        } else {
+            ErrorLog.log("Render", message, t);
+        }
     }
 
     /**
