@@ -115,7 +115,7 @@
 | G1 | 参数寻址到分量（"只让 X 动"） | — | ☐ |
 | G2 | FieldDef keyframable 标记 | — | ☐ |
 | G3 | meta 关键帧化（listener/hide_hud/可跳过等） | G1 | ☐ |
-| G4 | 时间精度（float → 高精度） | — | ☐ |
+| G4 | 时间精度（float → 高精度）→ **时钟抽象**（任务书已定稿：`plans/0.3.6/clock-abstraction.md`，2026-10-09 用户裁决五步——① Clock 抽象 + 单调秒（GameClock/PreviewClock）② elapsed 链路 double 化（消 float 截断）③ elapsed 唯一分发语义 + 去死参数 ④ overlay delta 真实化 ⑤ float 存储边界契约；顺带修跨脚本并行 hasActiveCameraTrack 算错） | — | ☐ |
 | G5 | 叠化 hold 自动补帧工具/模板 | — | ☐ |
 | G6 | 关键帧结构升级（自带插值/手柄）——按方案 E 结案（文档标注） | — | ⊘ 待标注 |
 
