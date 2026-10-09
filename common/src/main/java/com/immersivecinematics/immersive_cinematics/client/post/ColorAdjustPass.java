@@ -93,7 +93,7 @@ import java.util.List;
  * {@code HvHLut} / {@code HvSLut} / {@code HvLLut} / {@code LvSLut} / {@code SvSLut} / {@code SvLLut}
  * = 六条 hue 曲线的 256×1 LUT（第二 ~ 第十一纹理单元，见 {@link LutTexture}）、
  * {@code Lut3D} = .cube 的<b>合成</b> 3D 表（S×S×S，{@link CubeLut#composed3D()}，
- * 见 {@link Lut3DTexture}；第十二 = 最后一个纹理单元，单元 11）——
+ * 见 {@link Lut3DTexture}；第十二 = 最后一个纹理单元，单元 {@link LutBindGuard#LUT_3D_UNIT}）——
  * 只在本帧参数带 LUT（ADJUST 轨写了 {@code lut} 且 {@code lut_strength} 非 0）时才被采样；
  * lane 路径恒为 {@code null}（LUT 只作用于整体画面）。</p>
  *
@@ -102,6 +102,23 @@ import java.util.List;
  * {@code GlStateManager._bindTexture(unit)}，单元 12 越界（数组长度 12）→
  * {@code ArrayIndexOutOfBoundsException}。现在 1D 段与两段 DOMAIN 都在加载期烘焙进
  * {@link CubeLut#composed3D()} 的单张表，采样器回到 12 个顶格。</p>
+ *
+ * <h2>LUT 绑定自检（绑定前，失败 = 只跳过 LUT 步）</h2>
+ * 3D 表按 {@code GL_TEXTURE_3D} 目标<b>手动</b>绑到单元 {@link LutBindGuard#LUT_3D_UNIT}
+ * （{@code setSampler} 那条路一律按 {@code GL_TEXTURE_2D} 目标绑），而着色器读的是哪个单元
+ * 由 {@code ShaderInstance} 按<b>压缩后</b>的采样器下标决定（见 {@link LutBindGuard}）——
+ * 驱动 / GLSL 优化掉任一靠前的采样器就会让两者错位，此时着色器会去采另一个单元上的 2D 曲线 LUT
+ * （{@code sampler3D} 采到不完整纹理 = GL 语义未定义，常见实现返回 {@code (0,0,0,1)} → 画面变黑），
+ * <b>而且 GL 一个错都不报</b>。所以绑之前先自检两道，任一不过就把本帧当「没有 LUT」处理
+ * （{@code LutStrength} / {@code Lut3DSize} 归 0、3D 单元绑 0），<b>只跳过 LUT 步</b>——
+ * 本层其余步骤照常，输出仍是有效画面（绝不输出黑）：
+ * <ol>
+ *   <li><b>采样器单元</b>：{@link LutBindGuard#resolveUnit} 算出的实际单元必须等于
+ *       {@link LutBindGuard#LUT_3D_UNIT}（随着色器实例缓存，不逐帧查 GL）；</li>
+ *   <li><b>纹理完整性</b>：纹理已创建、level 0 边长与 {@code Lut3DSize} 一致
+ *       （上传后回读 {@code glGetTexLevelParameteri} 校验，见 {@link LutBindGuard#textureReady}）。</li>
+ * </ol>
+ * 两者都按 {@link #FAILURE_LOG_INTERVAL_MS} 限频告警（{@link ErrorLog}，类别 {@code Render}）。
  *
  * <h2>默认零差异</h2>
  * 无调整时 {@link #render} 第一行返回；{@link #applyTo} 参数为空 / 恒等时第一行返回：
@@ -131,6 +148,8 @@ import java.util.List;
  * </ol>
  * 失败按 {@link #FAILURE_LOG_INTERVAL_MS} 限频告警（{@link ErrorLog}，类别 {@code Render}）。
  * 正常路径零差异：这些检查只是状态查询，不改绘制语义 / 参数 / 纹理内容。
+ * <p>LUT 步的绑定自检不在此列：它是<b>步骤级</b>降级（见上「LUT 绑定自检」），
+ * 只让 LUT 一步不生效，本层照常施加、照常算成功。</p>
  */
 public final class ColorAdjustPass {
 
@@ -185,12 +204,13 @@ public final class ColorAdjustPass {
     private static final LutTexture SV_L_LUT = new LutTexture();
 
     /**
-     * {@code Lut3D} 采样器的纹理单元 = 它在着色器 JSON {@code samplers} 数组里的下标
-     * （{@code Sampler0} + 10 个曲线 LUT 之后的<b>最后</b>一个 = 单元 11，总数 12 顶格）。
-     * <p>3D 纹理不能走 {@link ShaderInstance#setSampler}（那条路一律按 {@code GL_TEXTURE_2D} 目标绑定），
-     * 所以在绘制前直接按 {@code GL_TEXTURE_3D} 目标手动绑到这个单元（见 {@link Lut3DTexture#bind}）。</p>
+     * 已解析过 {@code Lut3D} 实际单元的着色器实例（单元号在链接后固定，随实例缓存一次即可；
+     * 换实例 = 资源重载后重新解析）。
      */
-    private static final int LUT_3D_UNIT = 11;
+    private static ShaderInstance lut3DUnitResolvedFor;
+
+    /** 缓存的 {@code Lut3D} 实际单元（{@link LutBindGuard#resolveUnit} 的结果；{@code -1} = 被优化掉）。 */
+    private static int lut3DUnit = -1;
 
     /** 3D LUT 的纹理槽（{@code Lut3D} 采样器）。 */
     private static final Lut3DTexture LUT_3D = new Lut3DTexture();
@@ -337,12 +357,16 @@ public final class ColorAdjustPass {
 
         // LUT（第 11 步）：无 LUT 或强度 0 → 强度置 0、整步跳过（逐位恒等）；
         // 只有一张合成表（1D shaper 与两段 DOMAIN 已在加载期烘焙进 CubeLut#composed3D），
-        // 走 GL_TEXTURE_3D 手动绑定（见 LUT_3D_UNIT）
+        // 走 GL_TEXTURE_3D 手动绑定（见 LutBindGuard#LUT_3D_UNIT）
         CubeLut lut = params.lut() != null && params.lutStrength() != 0.0F ? params.lut() : null;
+        // 绑定自检（见类注释「LUT 绑定自检」）：采样器单元错位 / 3D 表不完整 → 绝不上传 / 不绑，
+        // 直接当「本帧没有 LUT」处理（下面的 uniform 上传会把 LutStrength / Lut3DSize 归 0）；
+        // 只跳过 LUT 步，本层其余步骤照常
+        if (lut != null && !lutStepReady(shaderInstance, lut)) {
+            lut = null;
+        }
         shaderInstance.setSampler("Lut3D", 0);   // 占位：让 apply() 上传该采样器的纹理单元号（0 号 2D 纹理 = 不绑任何东西）
-        LUT_3D.upload(lut);
-
-        upload(shaderInstance, params);
+        upload(shaderInstance, params, lut);
 
         Matrix4f prevProjection = RenderSystem.getProjectionMatrix();
         VertexSorting prevSorting = RenderSystem.getVertexSorting();
@@ -374,7 +398,11 @@ public final class ColorAdjustPass {
                     RenderSystem.setShader(() -> shaderInstance);
                     RenderSystem.setShaderTexture(0, src.getColorTextureId());
                     RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-                    LUT_3D.bind();   // 3D LUT 只能在绘制前按 GL_TEXTURE_3D 目标手动绑（见 LUT_3D_UNIT）
+                    if (lut != null) {
+                        // 3D LUT 只能在绘制前按 GL_TEXTURE_3D 目标手动绑（见 LutBindGuard#LUT_3D_UNIT）；
+                        // lut == null = 本帧没有 LUT 或自检没过（LutStrength 已归 0，着色器不采样它）
+                        LUT_3D.bind();
+                    }
 
                     // 屏幕正交投影下 y 向下增长；纹理 v 轴向上 → 底边取 v=0（与合成层同一口径，1:1 不翻转）
                     float x0 = 0.0F;
@@ -458,11 +486,55 @@ public final class ColorAdjustPass {
     }
 
     /**
+     * LUT 步绑定自检（见类注释「LUT 绑定自检」）：两道都过才允许上传 / 绑定 3D 表。
+     * <ol>
+     *   <li><b>采样器单元</b>：{@link LutBindGuard#resolveUnit} 按 MC {@code ShaderInstance.updateLocations()}
+     *       的压缩口径算出 {@code Lut3D} 的<b>实际</b>单元，必须等于 Java 侧绑定的
+     *       {@link LutBindGuard#LUT_3D_UNIT}——不等说明驱动 / GLSL 优化掉了靠前的某个采样器，
+     *       声明下标已经前移，再按声明下标绑 3D 表只会让着色器去采另一个单元上的 2D 纹理
+     *       （未定义 / 黑）。结果随着色器实例缓存（链接后固定，不逐帧查 12 次 GL）。</li>
+     *   <li><b>纹理完整性</b>：上传后回读纹理 level 0 边长，必须与本次要采样的表边长一致
+     *       （{@link LutBindGuard#textureReady}；纹理没建出来 / 超驱动上限 / 上传被截断都会在这里被拦）。</li>
+     * </ol>
+     * 任一不过 → 限频告警 + 返回 {@code false}：调用方把本帧当「没有 LUT」处理，
+     * <b>只跳过 LUT 步</b>（本层其余步骤照常，输出仍是有效画面）。
+     */
+    private static boolean lutStepReady(ShaderInstance shader, CubeLut lut) {
+        if (shader != lut3DUnitResolvedFor) {
+            lut3DUnitResolvedFor = shader;
+            lut3DUnit = LutBindGuard.resolveUnit(LutBindGuard.LUT_3D,
+                    name -> Uniform.glGetUniformLocation(shader.getId(), name) >= 0);
+            if (lut3DUnit != LutBindGuard.LUT_3D_UNIT) {
+                reportFailure("LUT 步骤跳过（本层其余步骤照常，画面不受影响）：Lut3D 采样器单元错位——"
+                        + "着色器实际单元 = " + lut3DUnit + "，Java 侧绑定 = " + LutBindGuard.LUT_3D_UNIT
+                        + "；驱动 / GLSL 优化掉了声明次序里靠前的采样器", null);
+                return false;
+            }
+        }
+        if (lut3DUnit != LutBindGuard.LUT_3D_UNIT) {
+            return false;   // 已告警过：只按缓存的结论跳过，不刷屏
+        }
+        // 纹理完整性：先上传（同一 LUT 实例只传一次），再按回读到的实际边长核尺寸
+        LUT_3D.upload(lut);
+        if (!LUT_3D.readyFor(lut.composed3D().size())) {
+            reportFailure("LUT 步骤跳过（本层其余步骤照常，画面不受影响）：3D LUT 纹理不可用——纹理 = "
+                    + LUT_3D.textureId + "，level 0 边长 = " + LUT_3D.textureSize
+                    + "，期望 " + lut.composed3D().size(), null);
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * 参数 → uniform（逐帧覆盖；着色器 JSON 里已声明全部通道，缺省 0 = 无效果）。
      * <p>顺序与 {@link ColorAdjustParams} 的分量顺序、shader 的操作栈顺序一致
      * （曲线 LUT 走采样器 {@code CurveLut}，在 {@link #applyTo} 里绑定）。</p>
+     *
+     * @param lut 本帧 LUT 步实际要用的表（{@code null} = 没有 LUT / 强度 0 / 绑定自检没过）——
+     *            由 {@link #pass} 判定一次，这里只照它把 {@code LutStrength} / {@code LutInputGamma} /
+     *            {@code Lut3DSize} 归零或置真值（归零 = 着色器整步跳过 = 逐位恒等）
      */
-    private static void upload(ShaderInstance shader, ColorAdjustParams p) {
+    private static void upload(ShaderInstance shader, ColorAdjustParams p, CubeLut lut) {
         set(shader, "Exposure", p.exposure());
         set(shader, "Contrast", p.contrast());
         set(shader, "Highlights", p.highlights());
@@ -500,10 +572,9 @@ public final class ColorAdjustPass {
         set(shader, "GainR", p.gainR());
         set(shader, "GainG", p.gainG());
         set(shader, "GainB", p.gainB());
-        // LUT（第 11 步）：无 LUT 或强度 0 → 强度置 0（着色器整步跳过）；
+        // LUT（第 11 步）：lut == null（无 LUT / 强度 0 / 绑定自检没过）→ 强度置 0（着色器整步跳过）；
         // 表尺寸 = 合成表边长（CubeLut#composed3D，1D 段与 DOMAIN 已烘焙进表）；
         // 输入域适配 = clip 级幂指数（无 LUT 时归 1 = 不变换，与「整步跳过」同口径）
-        CubeLut lut = p.lut() != null && p.lutStrength() != 0.0F ? p.lut() : null;
         set(shader, "LutStrength", lut == null ? 0.0F : p.lutStrength());
         set(shader, "LutInputGamma", lut == null ? 1.0F : p.lutInputGamma());
         set(shader, "Lut3DSize", lut == null ? 0.0F : lut.composed3D().size());
@@ -597,9 +668,15 @@ public final class ColorAdjustPass {
      * <b>四面体</b>（tetrahedral）加权（业界默认口径，三线性在中性灰附近会偏色）。</p>
      *
      * <p><b>绑定</b>：3D 纹理不能走 {@link ShaderInstance#setSampler}（那条路一律按 {@code GL_TEXTURE_2D}
-     * 目标绑定），所以这里按 {@code GL_TEXTURE_3D} 目标手动绑到 {@link #LUT_3D_UNIT}——
+     * 目标绑定），所以这里按 {@code GL_TEXTURE_3D} 目标手动绑到 {@link LutBindGuard#LUT_3D_UNIT}——
      * 采样器的纹理单元号仍由 {@code ShaderInstance.apply()} 按 JSON {@code samplers} 次序上传
      * （samplerMap 里放占位值即可，见 {@code applyTo}）。</p>
+     *
+     * <p><b>完整性守卫</b>：上传后回读 level 0 的三个维度（{@code glGetTexLevelParameteri}），
+     * 只有与表边长逐维一致才记 {@link #textureSize}（= 可用）；纹理没建出来 / 超驱动上限 /
+     * 上传被截断都留 0，{@link #readyFor} 随即判不可用 → 调用方跳过 LUT 步
+     * （见 {@link LutBindGuard#textureReady}）。回读只在上传时做一次（同一 LUT 实例不重传），
+     * 不进逐帧路径。</p>
      */
     private static final class Lut3DTexture {
 
@@ -607,20 +684,29 @@ public final class ColorAdjustPass {
         private static int maxTextureSize = -1;
 
         private int textureId = -1;
+
+        /** 已处理过的 LUT（引用比较：同一个 LUT 实例只传一次；上传失败也记，避免逐帧重试）。 */
         private CubeLut uploaded;
 
-        /** 上传本 LUT 的合成表（同一实例只传一次）；无 LUT / 已上传 → 不动。 */
+        /** 纹理 level 0 的<b>实际</b>边长（上传后回读校验通过才置位；{@code 0} = 没有可用纹理）。 */
+        private int textureSize;
+
+        /** 上传本 LUT 的合成表（同一实例只传一次）；无 LUT / 已处理 → 不动。 */
         void upload(CubeLut lut) {
             if (lut == null || lut == uploaded) {
                 return;
             }
             CubeLut.Composed3D composed = lut.composed3D();
             int size = composed.size();
-            // 尺寸守卫：合成表理论上 ≤ COMPOSED_MAX_SIZE，仍按驱动上限核一道——超出只告警、不阻断
+            // 尺寸守卫：合成表理论上 ≤ COMPOSED_MAX_SIZE，仍按驱动上限核一道——超上限的上传必然不完整
+            // （texelFetch 采到未定义值），所以直接不上传、标记不可用，让调用方跳过 LUT 步
             int maxSize = maxTextureSize();
             if (maxSize > 0 && size > maxSize) {
+                uploaded = lut;
+                textureSize = 0;
                 ErrorLog.log("LUT", "合成表边长 " + size + " 超出 GL_MAX_3D_TEXTURE_SIZE（" + maxSize
-                        + "）：本次仍按原尺寸上传，纹理将不完整（LUT 不生效）；检查 LUT 尺寸与 CubeLut 合成上限");
+                        + "）：不上传（纹理必然不完整），LUT 步骤跳过；检查 LUT 尺寸与 CubeLut 合成上限");
+                return;
             }
             float[] data = composed.data();
             int entries = size * size * size;
@@ -641,8 +727,23 @@ public final class ColorAdjustPass {
             GL11.glTexParameteri(GL12.GL_TEXTURE_3D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
             GL11.glTexParameteri(GL12.GL_TEXTURE_3D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
             GL11.glTexParameteri(GL12.GL_TEXTURE_3D, GL12.GL_TEXTURE_WRAP_R, GL12.GL_CLAMP_TO_EDGE);
+            // 完整性守卫：回读 level 0 三个维度（必须趁纹理还绑着），与表边长逐维比
+            int width = GL11.glGetTexLevelParameteri(GL12.GL_TEXTURE_3D, 0, GL11.GL_TEXTURE_WIDTH);
+            int height = GL11.glGetTexLevelParameteri(GL12.GL_TEXTURE_3D, 0, GL11.GL_TEXTURE_HEIGHT);
+            int depth = GL11.glGetTexLevelParameteri(GL12.GL_TEXTURE_3D, 0, GL12.GL_TEXTURE_DEPTH);
             GL11.glBindTexture(GL12.GL_TEXTURE_3D, 0);
             uploaded = lut;
+            textureSize = width == size && height == size && depth == size ? size : 0;
+            if (textureSize == 0) {
+                ErrorLog.log("LUT", "3D LUT 纹理不完整（回读 " + width + "x" + height + "x" + depth
+                        + "，期望 " + size + "³，纹理名 " + textureId
+                        + "）：LUT 步骤跳过；检查驱动上限与纹理上传");
+            }
+        }
+
+        /** 纹理完整性守卫：纹理已创建且 level 0 边长与本次要采样的表边长一致。 */
+        boolean readyFor(int expectedSize) {
+            return LutBindGuard.textureReady(textureId, textureSize, expectedSize);
         }
 
         /** {@code GL_MAX_3D_TEXTURE_SIZE}（首次查询后缓存；{@code 0} = 未知 = 不检查）。 */
@@ -655,7 +756,7 @@ public final class ColorAdjustPass {
             return cached;
         }
 
-        /** 把当前纹理绑到 {@link #LUT_3D_UNIT} 单元（绘制前调用；不改变其它单元与 2D 绑定）。 */
+        /** 把当前纹理绑到 {@link LutBindGuard#LUT_3D_UNIT} 单元（绘制前调用；不改变其它单元与 2D 绑定）。 */
         void bind() {
             bindLut3D(textureId);
         }
@@ -666,10 +767,10 @@ public final class ColorAdjustPass {
         }
     }
 
-    /** 在 {@link #LUT_3D_UNIT} 单元上按 {@code GL_TEXTURE_3D} 目标绑定一个纹理名（0 = 解绑）。 */
+    /** 在 {@link LutBindGuard#LUT_3D_UNIT} 单元上按 {@code GL_TEXTURE_3D} 目标绑定一个纹理名（0 = 解绑）。 */
     private static void bindLut3D(int textureId) {
         int prevUnit = GlStateManager._getActiveTexture();
-        RenderSystem.activeTexture(GL13.GL_TEXTURE0 + LUT_3D_UNIT);
+        RenderSystem.activeTexture(GL13.GL_TEXTURE0 + LutBindGuard.LUT_3D_UNIT);
         GL11.glBindTexture(GL12.GL_TEXTURE_3D, Math.max(textureId, 0));
         GlStateManager._activeTexture(prevUnit);
     }
@@ -703,6 +804,7 @@ public final class ColorAdjustPass {
                 shader.close();
                 shader = null;
             }
+            lut3DUnitResolvedFor = null;   // 旧实例的单元结论作废（新实例按新程序重新解析）
             shaderSource = resources;
             try {
                 shader = new ShaderInstance(resources, SHADER_NAME, DefaultVertexFormat.POSITION_TEX);
