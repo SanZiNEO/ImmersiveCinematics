@@ -7,6 +7,7 @@ import com.immersivecinematics.immersive_cinematics.client.lane.LaneDebugCapture
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.immersivecinematics.immersive_cinematics.client.lane.ScriptLaneDriver;
 import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustPass;
+import com.immersivecinematics.immersive_cinematics.client.post.MasterColorAdjust;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Camera;
@@ -45,6 +46,9 @@ public abstract class GameRendererMixin {
         if (renderLevel && mc.level != null) {
             CameraManager mgr = CameraManager.INSTANCE;
             if (mgr.isActive()) {
+                // master 调色的实例集合生命周期 = 本帧的实例循环：先复位（预执行首帧等帧间发布不能决定本帧顺序），
+                // 再按列表顺序逐实例发布（插入序 = 实例启动顺序 = 叠加顺序，见 MasterColorAdjust）
+                MasterColorAdjust.INSTANCE.beginFrame();
                 mgr.onRenderFrame();
             }
             ScriptLaneDriver.tick(mc);

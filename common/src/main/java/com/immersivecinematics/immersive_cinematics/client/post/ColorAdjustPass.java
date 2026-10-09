@@ -30,6 +30,7 @@ import org.lwjgl.opengl.GL30;
 
 import java.io.IOException;
 import java.nio.FloatBuffer;
+import java.util.List;
 
 /**
  * 画面颜色调整的渲染 pass：把 {@link ColorAdjustParams} 的标量组一次全屏 pass 应用到画面纹理上。
@@ -71,6 +72,9 @@ import java.nio.FloatBuffer;
  * </ol>
  * 成本 = 两次全屏 quad，与画面内容无关。lane 路径只有一次 pass（lane FBO → adjustTarget），
  * 随后的合成由 {@code LaneRenderer} 照常走 {@link LaneCompositor#compose}。
+ * <p><b>多实例叠加（A13'）</b>：每个实例一套参数，逐套重复第 1 步（目标缓冲在「主画面 / 中转缓冲」
+ * 之间交替，前一套输出 = 后一套的基画面）；偶数套直接落在主画面上、奇数套末尾补第 2 步。
+ * 成本 = 层数次全屏 quad（+ 至多一次 blit），单实例时与上面两条逐点一致。</p>
  *
  * <h2>alpha 契约（两条路径一致）</h2>
  * 调色只动 RGB：着色器 {@code fragColor.a = src.a} 逐位直通（见 {@code ic_color_adjust.fsh}），
@@ -162,11 +166,18 @@ public final class ColorAdjustPass {
     /**
      * 在<b>合成输出</b>上应用本帧的 master 颜色调整（架构图 RADJ 节点）。
      *
-     * <p>无调整（本帧没人发布 / 参数恒等）时不做任何事。</p>
+     * <p>多实例按层级叠加（A13'）：{@link MasterColorAdjust#consume} 给出按实例启动顺序排好的参数套
+     * （先启动的在前 = 下层），逐套<b>顺序施加</b>——前一套的输出就是后一套的基画面（层级混合读的
+     * {@code Sampler0}），目标缓冲在「主画面 / 中转缓冲」之间交替；结果停在中转缓冲时（层数为奇数）
+     * 末尾再整屏 blit 回主画面。单实例（= 一套参数）的调用序列与叠加落地前逐字节一致：
+     * 主画面 → 中转缓冲 →（整屏 blit）→ 主画面。</p>
+     *
+     * <p>无调整（本帧没人发布 / 参数恒等）时不做任何事；着色器不可用时停在该层之前已施加的输出上
+     * （宁可不调色，也不动画面）。</p>
      */
     public static void render(Minecraft mc) {
-        ColorAdjustParams params = MasterColorAdjust.INSTANCE.consume();
-        if (params == null) {
+        List<ColorAdjustParams> layers = MasterColorAdjust.INSTANCE.consume();
+        if (layers.isEmpty()) {
             return;
         }
         RenderTarget main = mc.getMainRenderTarget();
@@ -176,12 +187,20 @@ public final class ColorAdjustPass {
             return;
         }
         RenderTarget swap = swapTarget(width, height);
-        // pass 1：主画面 → 中转缓冲（全屏 quad 铺满，无需 clear）
-        if (!applyTo(main, swap, params, mc)) {
-            return;   // 着色器不可用：宁可不调色，也不动画面
+        // 逐层链式施加：本层输入 = 上一层输出（current），输出写进另一个缓冲
+        // （不能同时读写同一张纹理；每层自带混合模式 / 强度，混合的基画面 = 上一层输出）
+        RenderTarget current = main;
+        for (int i = 0; i < layers.size(); i++) {
+            RenderTarget next = current == main ? swap : main;
+            if (!applyTo(current, next, layers.get(i), mc)) {
+                break;   // 着色器不可用：停在这一层之前（已施加的层保持）
+            }
+            current = next;
         }
-        // pass 2：中转缓冲 → 主画面（整屏 blit，复用合成层的状态保存 / 还原与 UV 口径）
-        LaneCompositor.compose(swap, LaneCompositor.Rect.FULL, LaneCompositor.Rect.FULL, 1.0F);
+        if (current != main) {
+            // pass 2：中转缓冲 → 主画面（整屏 blit，复用合成层的状态保存 / 还原与 UV 口径）
+            LaneCompositor.compose(current, LaneCompositor.Rect.FULL, LaneCompositor.Rect.FULL, 1.0F);
+        }
     }
 
     /**

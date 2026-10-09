@@ -401,6 +401,30 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
   - **着色器冒烟**（throwaway GL harness `E:/tmp/icgl`，真实 GL 3.2 core / NVIDIA RTX 4060；新增 `GlBlendSmoke` **239 项全过**）：编译 + 链接通过；JSON ↔ fsh uniform 双向一致（含两个新 uniform 与缺省 values）；**与「混合功能落地前」的着色器（`git show HEAD:...ic_color_adjust.fsh`）逐字节对照**——全 0 栈 / `Invert=1` 栈 / 复杂栈（曝光 + 对比度 + HSL + 六色带 + 灰度 + 反相）/ 16 测试色 / alpha 梯度纹理 / 另一组非平凡栈，`normal` + `amount 1` 下**逐字节一致（bad = 0）**；`amount 0` 逐字节 = 输入（灰度梯度 / 16 测试色 / alpha 梯度 / 透明黑）；**四模式对固定 a / b 探针的权威值**（基色 64 / 191 / 223 + `Invert=1` 造 b；独立实现算好的 8bit 值：P1 `multiply 48 / screen 207 / soft_light 167 / overlay 96`、P2 `48 / 207 / 96 / 159`、P3 `28 / 227 / 74 / 199`——覆盖 `soft_light` 的 sqrt 与多项式两个分支、`overlay` 的 `a ≤ 0.5` 两个分支）；**半量混合探针**（`multiply` 0.5 → 56、`overlay` 0.25 → 72、`screen` 0.75 → 171）；五模式 × 三纹理逐 texel = CPU 整套操作栈（步骤 1 ~ 20）复刻；alpha 逐位直通；**栈位置**（混合在全部步骤之后；「混合在反相之前」的错误顺序可判别）；透明像素不变量（保持黑栈 × 五模式 → RGB 恒 0；`Invert=1` + `multiply` → 0；`screen` → 白，alpha 恒 0）；既有 10 套 GL 冒烟复跑全过（各 harness 的 `setAll` 同步补 `BlendMode = 0` / `BlendAmount = 1` 缺省——原始 GL 下未设 uniform 的缺省是 0 = 调整层透明，harness 必须显式给缺省；产品路径由 `ColorAdjustPass.upload()` 与 JSON 缺省 values 保证）。
   - 未验证：游戏内实际画面（需启动客户端）；光影下的执行顺序（§5-1，既有开放问题，与其它调色步骤共用同一挂点）。
 
+### 增量：多实例 master 叠加（A13'）（2026-10-09）
+
+批次 A 的最后一项（`implementation-progress.md`「用户裁决新增」A13'「多实例 master 合并 → **按层级叠加**」）：跨脚本并行播放时**每个实例各持一套 master 参数**，渲染侧**按实例启动顺序逐套顺序施加**——先启动的在**下层**、后启动的盖在上面（与 `ScriptLaneDriver` 平铺 lane 同一口径）；叠加 = **链式**，前一套的输出就是后一套的基画面（PS「调整层各自持有 + 总体叠加」同语义）。
+
+- **口径（用户裁决，勿改）**：
+  - **实例内不变**：同一实例多条 ADJUST 轨 = 仍取「有活跃 clip 的**最后一个** ADJUST 轨道」（后发布者覆盖；覆盖只换值、不改变该实例在集合里的位置）；同轨多 clip = 仍取当前活跃 clip。
+  - **跨实例 = 按启动顺序叠加**：每层自带 `blend_mode` / `blend_amount`（该层内部生效），层级混合的基画面 = **上一层输出**（不是原始画面）；层与层之间没有其它合并运算。
+  - **恒等跳过保留**：`isIdentity()` 的参数套不产生任何 pass（该实例本帧不占层）；`blend_amount` 写回 0 的帧同此口径（既有规整语义不变）。
+  - 顺序来源 = `CameraManager.instances()` 的列表顺序 = 实例启动顺序（预览实例恒为末位 = 顶层）。
+- **实现**：
+  1. `client/post/MasterColorAdjust`：单槽 → **按实例 key 的有序集合**（`LinkedHashMap<Object, ColorAdjustParams>`，键 = 实例标识 = 该实例的 `ScriptPlayer` 身份；插入序 = 本帧发布顺序 = 实例启动顺序）。`publish(instanceKey, params)`（恒等 / `null` = 移除该实例条目）、`consume()` 返回**有序列表**并清空、`clear(instanceKey)` 只清一层（`AdjustTrackPlayer.onStop` 用）、`beginFrame()` 帧首复位（见下）；集合用 `synchronized` 保护（编辑器预览旁路可能从其它线程发布）。
+  2. `mixin/GameRendererMixin.onRenderFrameStart`：实例循环之前 `beginFrame()`——**集合生命周期 = 本帧的实例循环**。实例循环按 `instances()` 列表顺序逐实例发布（插入序 = 启动顺序），但预执行首帧（`ScriptPlayer.start`）等帧间发布可能先于循环插入、让顺序失真一帧；帧首清掉即可（被清掉的实例在循环里会重新发布，循环覆盖全部在播实例）。
+  3. `script/AdjustTrackPlayer`：发布 / 清理都带实例标识（`scriptPlayer`）——「无活跃 clip 不发布」「恒等归一化」语义不变。
+  4. `client/post/ColorAdjustPass.render`：对列表逐套施加，目标缓冲在「主画面 / 中转缓冲」之间**交替**（不能同时读写同一张纹理），结果停在中转缓冲时（层数为奇数）末尾整屏 blit 回主画面。**单实例（一套参数）的调用序列与叠加落地前逐字节一致**：主画面 → 中转缓冲 → blit → 主画面；着色器不可用时停在该层之前已施加的输出上。
+  - lane 级路径（`LaneRenderer.renderLane` 内的 `applyTo`）**不受影响**：每 lane 各自一套相机片段参数，不进 master 集合。
+- **成本**：层数次全屏 quad（+ 至多一次 blit），与画面内容无关；单实例与改动前相同（两次）。
+- **验证（2026-10-09）**：
+  - `sh gradlew compileJava`（`:common` / `:fabric` / `:forge` 三模块）**通过**；
+  - 无头 validator（`E:/tmp/icv`）扫 `cinematics/tests` + `cinematics/release`：**123 脚本，仅既有的 3 个已知 FAIL**（`test_camera_facing_origin` / `test_camera_facing_origin_coordinate` / `test_camera_relative_axis`，与基线一致；release 脚本全 OK）；
+  - **数据层冒烟**（throwaway `E:/tmp/icv2`，新增 `MasterStackSmoke` **34 项全过**）：有序集合语义（空集合 → 空列表；同实例后写覆盖 = 只一条且值 = 后写；覆盖不改变位置；跨实例插入序 = 发布序、发布序反转则列表随之反转；恒等 / `null` 移除该项且不影响其它实例；`clear(实例)` 只清一层、`clear(null)` 无害、幂等；取走即清空；`beginFrame()` 帧首复位——帧间残留被清、帧间发布不决定本帧顺序）；真实链路（两 / 三个实例各一条 ADJUST 轨：逐层顺序与值落位、每层自带 blend 字段不串位；无活跃 clip 的实例不占层；同实例两轨 = 后轨覆盖、后轨未开始 = 前轨、后轨恒等 = 该实例整体无调整；`onStop` 只清自己；结束后重新活跃按当帧顺序插入）；既有 11 套冒烟（`AdjustRgbSmoke` ~ `AdjustLutSmoke`）复跑全过；
+  - **着色器冒烟**（throwaway GL harness `E:/tmp/icgl`，真实 GL 3.2 core / NVIDIA RTX 4060；新增 `GlMasterStackSmoke` **34 项全过**）：复刻 `render` 的链式结构（主画面 / 中转缓冲交替 + 奇数层末尾 blit）；**空列表逐字节 = 输入**；**单层 = 现状单 pass 逐字节**（含 `multiply` + 0.75 非平凡混合；`normal` + 1 时与「混合落地前」的着色器单 pass 逐字节一致）；**多层链式 = 逐层顺序应用等价**（readback → 重上传的独立路径，逐字节容差 0；两层 / 三层 / 四层）；逐 texel = CPU 整套操作栈复刻（每层自带混合，容差 2——每层输出落 8bit 再进下一层，GPU float→unorm8 取整与 CPU double 模型偶差 1 ~ 2，见既有 harness 的「平局向零取整」注记）；**顺序可判别**（`[exposure, invert×multiply]` ≠ `[invert×multiply, exposure]`，differ 255/256）；**混合的基画面 = 上一层输出**（`grayscale → multiply`：`luma²` 逐 texel = CPU 复刻；与「基画面 = 原始输入」（`a·luma`）明显不同，differ 254/256）；中间恒等层不改画面；alpha 逐位直通（单层 / 两层 / 三层 / 四层）。语义断言（顺序 / 基画面 / 逐层顺序应用 / alpha）一律**逐字节容差 0**；
+  - 注：`GlBlendSmoke` 的「现状对照」两组断言本轮修正了 harness 自身的两处绑定缺陷（uniform 写在非当前 program 上、`apply` 在 `glUseProgram` 之前调用）——修正后其对照项**真实通过**（239 项仍全过），此前是「同一个 FBO 上一次绘制的残留」造成的恒等通过；
+  - 未验证：游戏内实际画面（需启动客户端）；光影下的执行顺序（§5-1，既有开放问题，与其它调色步骤共用同一挂点）。
+
 ### 默认零差异（§2.1 的「零差异」要求）
 
 - 无 ADJUST 轨道 / 无活跃 clip / 47 标量通道全为缺省（且无曲线或曲线强度 0）→ 播放器不发布 → pass **第一行返回**：不取着色器、不建中转缓冲、不切 GL 状态、不画任何东西。
@@ -412,7 +436,7 @@ PS 式「RGBA 通道拆分」的最小形态：**R / G / B 三个每通道系数
 - **第二批（通道与 HSL 完整）全部落地（2026-10-08）**：色相旋转（「增量：完整 HSL」）、六条 hue 曲线、RGB 通道混合器与 Lift / Gamma / Gain 色轮（本轮）都已实现；**第三批的 LUT（2026-10-08，见「增量：LUT」）、PS 式六色带微调（2026-10-09，见「增量：PS 式六色带微调」）与混合模式作用于调整层（2026-10-09，见「增量：混合模式作用于调整层」）已全部落地**——**第三批三块全部落地**。
 - lane 级调色（§7 步骤 5）已在本版本落地（相机片段自带调色），见下一节「落地标注（相机片段调色）」；~~调整层（§7 步骤 6，依赖分层模型）~~ 已由 **ADJUST 轨**承担——**调整层 = ADJUST 轨**（顶层、不参与排序、默认比其他层级高一个，管整幅画面），无独立新层、无新机制。
 - 编辑器 UI（§7 步骤 3）：`editor/src/types.ts` 的 `TrackType` 联合类型、`TrackListPanel.vue` / `Timeline.vue` 的轨道列表与配色、i18n 键、`demo.ts` 的 schema 快照都需跟着加 `ADJUST`（Java 侧 schema 已随 `SchemaExporter` 导出，前端接上即可）。
-- 多实例各写 master 的合并语义（§5-4）：仍开放；本版本至多 1 个活跃实例，行为 = 该实例的最后一个 ADJUST 轨道。
+- ~~多实例各写 master 的合并语义（§5-4）~~ → **已结案（A13'，2026-10-09）：多实例按启动顺序叠加**——每个实例各持一套 master 参数（实例内 = 该实例最后一个 ADJUST 轨道），渲染侧逐套顺序施加，先启动的在下层、后启动的盖在上面，每层的混合基画面 = 上一层输出（见「增量：多实例 master 叠加」）。
 
 ### 验证（2026-10-07）
 
@@ -609,7 +633,7 @@ lane 渲染（含 lane 内描边）→ 相机片段调色（只动 RGB）→ 合
 - 后处理与光影（Iris / Oculus）的顺序：我们的 pass 在谁之后执行。→ **已结清（2026-10-08）**：本 pass 在原版 RPOST **之后**、GUI 之前；Iris / Oculus 的 `finalizeGameRendering()`（`GameRenderer.renderLevel` 的 TAIL）与 Iris 的最终合成（`LevelRenderer.renderLevel` 尾部的 `finalizeLevelRendering()`）都**早于**本 pass——读到的是光影处理后的画面，不被跳过、不双重应用。见 [iris-oculus-compat.md](./iris-oculus-compat.md)「主画面挂点兼容性结论（2026-10-08）」。
 - RGB↔HSL 转换的边界：灰点色相未定、饱和度溢出钳制。（可参照原版 `program/color_convolve.fsh`：`Luma = dot(OutColor, Gray)`（Gray = 0.3 / 0.59 / 0.11）、`OutColor = (Chroma * Saturation) + Luma`，**未做钳制**。见 §4。）→ **已结清**：灰点走 `S ≤ 0` 分支直接返回灰度；S 钳制 0~1；亮度用 Rec.709（见文首「落地标注」的 shader 数学）。
 - 调整是否影响 GUI 层（字幕 / letterbox / 跳过提示）：倾向不影响，待定。（源码事实：原版 `postEffect` 位于 GUI 之前，而 FadeLayer / letterbox / subtitle / 跳过提示都在 GUI 阶段绘制——Forge `RenderGuiEvent.Post` → `ClientEventHandler.onRenderHud` → `OverlayManager.render` → `FadeLayer.render`（`guiGraphics.fill`）；整帧最后的 `Minecraft.blitToScreen` 在 GUI 之后。挂前者天然不影响 GUI，挂后者会影响。）→ **已结清：不影响**（挂点在 GUI 之前、原版 RPOST 之后，见 §4「渲染挂点」；副作用：F2 截图**不带**调色——截图取在挂点之前）。
-- 多实例各写 master 的冲突规则（与并行播放的并集规则对齐：后写覆盖？按实例层级？）。（并行播放 §3.2 的「取并集」只覆盖行为开关（`hide_hud` / 键鼠屏蔽 / `suppress_bob`），不含「单一 master 参数集」的合并语义，所以此处仍是开放问题。）
+- 多实例各写 master 的冲突规则（与并行播放的并集规则对齐：后写覆盖？按实例层级？）。（并行播放 §3.2 的「取并集」只覆盖行为开关（`hide_hud` / 键鼠屏蔽 / `suppress_bob`），不含「单一 master 参数集」的合并语义，所以此处仍是开放问题。）→ **已结案（A13'，2026-10-09 用户裁决）：按实例层级叠加**——多实例 master 按实例启动顺序逐套顺序施加（后启动的盖在上面），实例内仍取最后一个 ADJUST 轨道；叠加 = 链式（前一套输出 = 后一套基画面）。见「增量：多实例 master 叠加」。
 - 编辑器：滑杆 / 通道 UI 与实时预览。
 - 性能：master 一次全屏 pass 可忽略；lane 级随 lane 数增长。（源码事实：「与内容无关」有依据——一个 pass = 一次全屏 quad（`PostPass.process`）；「可忽略」是定量判断，本次**未实测**。）
 

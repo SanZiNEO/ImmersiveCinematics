@@ -10,10 +10,13 @@ import java.util.List;
  *
  * <h2>职责</h2>
  * 每渲染帧找到本轨道当前活跃的 clip，把 47 个标量通道 + 十条曲线强度在<b>片段本地时间</b>处插值
- * （采样见 {@link ColorAdjustSampler}），发布给 {@link MasterColorAdjust}，作用于<b>整体画面</b>。
+ * （采样见 {@link ColorAdjustSampler}），按<b>所属实例</b>发布给 {@link MasterColorAdjust}，作用于<b>整体画面</b>。
  * 无活跃 clip 时<b>本帧不参与</b> —— 渲染侧拿不到参数就不动画面。
- * <p>同帧多条 ADJUST 轨道：后发布者生效（轨道层级靠后的覆盖靠前的）；没活跃 clip 的轨道不参与
- * （不会把别的轨道的发布抹掉）。参数全为缺省（0）时被规整为「无调整」，同样不影响画面。</p>
+ * <p>同实例多条 ADJUST 轨道：后发布者生效（轨道层级靠后的覆盖靠前的，= 该实例的最后一个 ADJUST 轨道）；
+ * 没活跃 clip 的轨道不参与（不会把别的轨道的发布抹掉）。<b>多个播放实例</b>各占一层：
+ * 渲染侧按实例启动顺序逐套叠加（先启动的在下层、后启动的盖在上面），实例内口径不变
+ * （见 {@link MasterColorAdjust} 的「多轨道 / 多实例」）。参数全为缺省（0）时被规整为「无调整」，
+ * 同样不影响画面。</p>
  *
  * <h2>作用范围（ADJUST 轨 = 整体画面 master）</h2>
  * ADJUST 轨只作用于<b>整体画面</b>：渲染侧在<b>合成输出</b>上开一次全屏 pass
@@ -102,12 +105,16 @@ public class AdjustTrackPlayer implements TrackPlayer {
             return;
         }
         // 恒等参数由 publish 归一化为「无调整」（渲染侧因此一次 GL 调用都不做）。
-        MasterColorAdjust.INSTANCE.publish(ColorAdjustSampler.sample(clip, clipTime(clip, globalTime)));
+        // 实例标识 = 本轨道所属的 ScriptPlayer（一个播放实例 = 一个 ScriptPlayer）：
+        // 同实例多条 ADJUST 轨互相覆盖，不同实例各占一层（渲染侧按启动顺序叠加）。
+        MasterColorAdjust.INSTANCE.publish(scriptPlayer,
+                ColorAdjustSampler.sample(clip, clipTime(clip, globalTime)));
     }
 
     @Override
     public void onStop() {
-        MasterColorAdjust.INSTANCE.clear();
+        // 只清本实例的一层：同帧别的实例的发布不受影响（多实例并行播放）
+        MasterColorAdjust.INSTANCE.clear(scriptPlayer);
     }
 
     private float clipTime(Clip clip, float globalTime) {
