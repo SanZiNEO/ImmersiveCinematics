@@ -60,7 +60,7 @@
 | B12 | selector 锚点可配置 | B10 | ✅ 2026-10-10（selector_anchor 四值 camera/player/target/origin + 回落链；实机判别冒烟实证） |
 | B13 | selector 多候选与择一策略 | B10 | ✅ 2026-10-10（selector_pick first/nearest/alive + 8 调用点变体；A/B 零回归 + 实机判别冒烟） |
 | B14 | selector 解析缺陷（@a/@r/@n/@p[team]） | — | ✅ 2026-10-10（@a/@r/@p[…] 进服务端解析；@n=原版不存在按未知形式 warn 不崩；实机实证） |
-| B15 | selector 通用化 | B10-B13 | ☐ |
+| B15 | selector 通用化 | B10-B13 | ✅ 2026-10-10（selector/ 包通用服务 + SelectorSchema 定义单源 + 相机适配层；A/B 逐字节零回归 + 实机双冒烟复跑一致） |
 | B16 | 数学函数模型库（spring/damper/… + 非线性变换 + 组合 + Registry） | — | ☐ |
 | B17 | 时间插值 步骤 3-6（相机快照插值/历史缓冲/模型接入/API） | B16 | ☐ |
 | B18 | 过渡 步骤 3-8（分参数过渡/曲线/覆盖链接入/打断链式/API） | B1,B16 | ☐ |
@@ -74,6 +74,8 @@
 | C2 | death 触发器类型 | — | ☐ |
 | C3 | 检测频率可配（按触发器/按脚本） | — | ☐ |
 | C4 | 动作面收敛（3 个死代码动作：注册或按"命令归 EVENT 轨"删除） | — | ☐ |
+| C5 | 播放关系与队列（三态 play_mode@meta + 队列可达性修复 + 控制原语） | — | ☐（设计 ✅ 2026-10-10 playback-relations.md；用户拍板三态@meta） |
+| C6 | 判定规则系统（clip.rules：if→do 持续 / until→do 阻塞；判定点/等待点收编） | — | ☐（设计 ✅ 2026-10-10 condition-system.md；用户拍板条件=片段元数据、不新开轨道） |
 
 ## 批次 D：转场 / 遮罩 / 覆盖层
 
@@ -206,3 +208,5 @@
 | 2026-10-10（续10） | **Q10 B11 ✅**——selector 缓存键含调用点/锚点（`fix` 提交）：`ClientEntitySelectorCache` 键 = `Key(callpoint, anchorId, selector)` 单处定义（record），PENDING 同键分桶；`EntityTargetResolver` 在建锁时构键一次存 `TargetLock.cacheKey`（零每帧分配）、`resolveServerSelector` 逐帧只读；服务端零改动（C2S 仍传 selector 原文）。失效契约（javadoc 单处定义）：键三分量任一变化 = 旧键自然不命中；死亡/卸载/维度切换 = 时效兜底（resolvedAt + selector_refresh + 重试节流）；显式清理仅 clear()。等值证据：真实编译产物 Key 类 7/7 键语义实证（同三分量同键、异调用点/异锚点异键、HashMap 三键共存、旧键对照互串）。验收：compile + icv tests 3 既有 FAIL 不变 + release 5/5 + icv2/icgl 全绿 + **实机双锁抽验**（同一 selector len=37 服务 follow 与 look_at：各自等待→锁定同一铁傀儡、look_at 即时生效、零异常）。**登记**：同 selector 多调用点的服务端请求 1→N（隔离必然代价，MAX_PENDING 全局上限不变）；TargetLock 锁键暂不含锚点分量（锚点恒 "camera" 一一对应，B12 锚点可配置时决断锁键是否同扩）。 |
 | 2026-10-10（续11） | **Q11 B12 ✅**——selector 锚点可配置（`feat` 提交）：`EntityTargetResolver` 锚点四值 `selector_anchor` = camera（缺省=现状）/player/target/origin，取值回落链 = `<字段>_<调用点>` → 通用 `selector_anchor` → camera，四值集外按 camera；`anchorPosition` 单处定义（camera 分支原样回传相机位置、player=玩家脚底、target=锁实体脚底、origin=点源坐标，不可解析一律回落相机位置）；点源解析窄化到五点源类型（坐标/世界/实体/方块/结构，消除递归锚点循环风险）+ `resolveEntity` 拆分公共入口（锚点已算）/私有重载（锚点给定），点源实体分支固定传 camera 防自递归。schema/校验/文档同口径（TrackSchemas 声明 ×8 调用点、ScriptValidator 四值集校验、SCRIPT_FORMAT/AI_SCRIPTING_GUIDE 字段表）。等值/实证：scoped javac 探针 18/18（四值 + 回落 + 点源全形态）、validator 8/8、语料 A/B 字节级一致；实机判别冒烟（暖机片段先送相机到 B 侧再 look_at，双脚本仅锚点不同）：camera 锚点锁 B 侧傀儡 target=(12.18,64.35,-144.71) ✓ 与设计一致，player 锚点解析到玩家脚边傀儡（客户端无实体可绑→按空片段兜底）——锚点确实决定服务端 sort 参考点。**随带发现（非 B12 缺陷，记限制）**：相机模式下 ChunkMap 实体配对/区块差集以相机为中心（ChunkMapTrackedEntityCameraMixin/ChunkMapCameraMixin 设计如此），锚点选出的、相机跟踪半径外的目标只能服务端解析、客户端绑不上——anchor=player/target 选远目标时 look_at 按「目标不可用」兜底，作者侧需知悉；跟踪范围并集属批次 B3/预加载域，不在本项动。 |
 | 2026-10-10（续12） | **Q12 B13 ✅**——selector 多候选与择一策略（`feat` 提交）：`selector_pick` 三值 first（缺省=现状）/nearest/alive + `selector_pick_<调用点>` × 8，回落链 = `<字段>_<调用点>` → 通用 → first，三值集外按 first。择一点 = 服务端 UUID 循环（resolveServerSelector）+ 本地 @e 分支（resolveLocalSelector），锁定/切换逻辑零改动。语义定稿：first = 现状逐点收编（本地=距锚点最近的可用候选、服务端=回传序首个可用，「现状」原样写进文档）；nearest = 客户端可用候选内距锚点最近（B12 anchorPosition 为距离基准，平方距离比较）；alive = 返回序首个存活；服务端路径 first≡alive（可用==存活）属定义使然、文档写明。等值/实证：A/B 对拍 13 场景逐字节一致（REGRESSION byte-identical）；scoped javac 探针 21/21（回落链 9 + 本地 6 + 服务端 6）；validator 新规则差分（pick 非法值报错、旧语料 stdout 逐字节一致含 tests 3 既有 FAIL 不变）；实机判别冒烟（6 候选两簇 + sort=furthest 制造回序≠距离序）：first 与缺省锁定同一 uuid（远簇 target=(42.18,64.35,-144.71)）=「缺省=first=现状」同 uuid 级实证，nearest 锁近簇（target=(14.18,64.35,-142.71)）✓。 |
+| 2026-10-10（续13） | **Q13 B15 ✅**——selector 通用化（`refactor` 提交）：新包 `selector/`（`EntitySelectorService` 通用机制全套：解析双路/目标锁切换/择一/锚点取位/平滑/捕获留底 + `SelectorSchema` 定义单源（8 调用点名/锚点四值/pick 三值/`<字段>_<调用点>` 模式）+ `SelectorPolicy`）；`camera/source/EntityTargetResolver` 783→214 行收为相机消费适配层（Keyframe/PositionData 读取 + 回落链 + 点源五形态），公开方法签名不变，Evaluator/Collector/CameraTrackPlayer 零改动；TrackSchemas/ScriptValidator 改引单源、删「改一处须同步另一处」注释（三处名单合一）。等值/实证：A/B 行为对拍 73 行 sha256 一致（13 场景 + pick 21 + 锚点 23 探针）；validator 五套语料 274 行 sha256 一致（tests 3 既有 FAIL 不变）；边界 grep 零命中（selector/ 不 import script./camera.）；icv2/icgl 28/28 全绿；实机双冒烟复跑与 B12/B13 记录逐位一致（择一同 uuid 双锁远簇 42.18,64.35,-144.71 + 近簇 14.18,64.35,-142.71；锚点单锁 12.18,64.35,-144.71）。 |
+| 2026-10-10（续14） | **批次 C 设计立项（用户新增需求，设计归当日、实现归 C 批）**：两轮侦查穷举（播放关系 30 行语义空间 + 条件系统四轴设计空间）→ 用户四裁决：①播放关系 = 三态枚举 `meta.play_mode`（parallel/exclusive/interruptible）@脚本 meta ②条件系统 = **片段元数据**（clip.rules）、不新开轨道、复用触发器条件词汇（all_of/any）③等待点融合 = 一套词汇两种规则形态（`if→do` 持续 / `until→do` 阻塞挂起），判定点/等待点收编为特例 ④命名主代理提案「判定规则 / rules[{if\|until, do}]」。产出 `playback-relations.md`（含队列形同虚设/INTERRUPTED 不可达/全局 fadeOut 三个 bug 级发现与修复清单）+ `condition-system.md`（挂起语义/判定源/动作集/JSON 形态）；`wait-point-track.md` 标记被吸收；「脚本退出机制」预留登记 pending-discussions 〇-2。 |

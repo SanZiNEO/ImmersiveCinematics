@@ -1,0 +1,121 @@
+# 判定规则系统（0.3.6 · 定稿 2026-10-10）
+
+> 状态：核心模型已由用户拍板（条件 = **片段元数据**、不新开轨道、等待点/判定点收编、复用触发器条件词汇）；命名为主代理提案（§1，可否决）；§9 待拍板处需复核。
+> 实现批次 = **C 批**（用户 2026-10-10 指定）。关系文档：`wait-point-track.md`（**被本篇吸收**，见 §6）；`trigger-continuity.md`/`trigger-conditions.md`/`state-tracking.md`（判定源与连续语义的方向稿，本篇是落点）；`playback-relations.md`（跨脚本关系，正交）。
+
+## 1. 概念与命名（主代理提案）
+
+**定义**：挂在片段上的**条件判定 + 动作**规则——片段执行期间持续判定，条件成立则执行动作（改播放 / 分支 / 发声 / 控制…）。语义等价代码里的 `if` / `while` / `when`：判定成立 → 做事。
+
+| 概念 | 命名（提案） | JSON | 备选（可否决） |
+|---|---|---|---|
+| 系统 | **判定规则**（judgment rules） | clip 上的 `rules` | 应变规则 / 条件规则 |
+| 单条规则 | 规则（rule） | `rules[]` 一元素 | — |
+| 条件部分 | 判定（if / until） | `if` / `until` | `when` / `condition` |
+| 动作部分 | 动作（do） | `do: [...]` | `actions` / `then` |
+
+选名理由：承接「判定点」血统（判定一词既有）；「规则」= 条件 + 动作成对，与 if/while 心智一致；JSON `rules[{if|until, do}]` 读作自然语句；与 `meta.triggers[].conditions`（纯谓词、无动作）**零撞名**。
+
+## 2. 两种规则形态（定稿：一套词汇、两种形态）
+
+| 形态 | 结构 | 语义 | 判定节奏 |
+|---|---|---|---|
+| **持续规则** | `{ if, do, ... }` | 片段执行期内持续判定；条件**成立瞬间**（边沿）触发 `do` | 每帧（客户端） |
+| **阻塞规则** | `{ until, do, timeout?, on_timeout? }` | 触发后**挂起播放时钟**，直到 `until` 成立才执行 `do` 并恢复；超时执行 `on_timeout` | 挂起期间持续判定 |
+
+公共修饰字段（两条形态共用）：`once`（只触发一次，默认 true）、`cooldown`（触发后 N 秒内不再触发）、`mode`（`enter` 瞬时边沿（缺省）/ `dwell` 驻留成立才触发）。
+
+**特例收编**：
+- **判定点**（到时间点停下来判定 → 分支/继续）= 阻塞规则的时间条件：`{ until: {type:"time", at: T}, do: [分支/继续] }`；不停表的版本 = 持续规则 `{ if: {type:"time", at: T}, do: [...] }`。
+- **等待点**（等到事件再走）= 阻塞规则：`{ until: <事件/状态条件>, do: [...] }`。
+- 原 `wait-point-track.md` 的 WAIT_POINT **轨道**方案废弃（用户拍板：不新开轨道），其用例（死亡重生等）全部由阻塞规则表达；该文档标记被本篇吸收。
+
+## 3. 挂起（suspend）语义（阻塞规则运行期）
+
+1. 挂起 = **本脚本实例的播放时钟冻结**（全部轨一起停，含 EVENT 轨时间线）；游戏世界、触发器、其它脚本实例照常。
+2. 挂起期间：本片段的规则**继续判定**（这正是 `until` 的语义）；持续规则照常。
+3. 解除顺序：`until` 成立 → 恢复时钟并执行 `do`；`timeout` 先到 → 恢复时钟并执行 `on_timeout`（两者都没有 = 无限等待）。
+4. 挂起中的打断/跳过/退出：走既有生命周期（interruptible/skippable/forceDeactivate 门控不变）。
+5. 多条阻塞规则同片段 = 顺序声明、逐条生效（同一时刻只挂起一次；嵌套挂起不做）。
+
+## 4. 判定源（词汇复用触发器条件 + 播放侧新增）
+
+判定语法与取值**复用** `meta.triggers[].conditions` 一族（含 `all_of` / `any` 组合器与 `requires` 前置锁存思路）；实现上把求值器核下沉为共享库（触发器服务端与规则客户端共用同一 schema/语义）。
+
+| 判定源 | 现状（触发器侧） | 规则侧 | 归属 |
+|---|---|---|---|
+| 时间点/区间 `time` | 无（仅 EVENT 到点） | **新增**（相对片段时钟；挂起期间不走） | 客户端 |
+| 区域 `location`（AABB/球） | ✅ Evaluators | 直接复用 | 客户端取本地玩家 |
+| 结构/群系/维度 | ✅ | 复用 | 客户端可判（已加载）/服务端兜底 |
+| 朝向/注视 `facing`/`observation` | ✅（只读玩家） | 复用 + 扩相机朝向 | 客户端 |
+| 实体/背包/经验 `entity_*`/`inventory`/`xp` | ✅ | 复用 | 客户端 |
+| 世界事件（击杀/交互/拾取…8 类 tracker） | ✅（单槽） | 复用 | 服务端 tracker → 报文 |
+| 相机状态（位置/朝向/look_at 目标/FOV） | 无 | **新增** | 客户端 |
+| 玩家输入（按键/点击） | 无 | **新增**（v1 可缓） | 客户端 |
+| 变量 | 无变量系统 | **不做 v1**（§9） | — |
+| 其它脚本/实例状态（在播/已完成） | ✅ requires 族 | 复用 | 服务端账本 |
+
+判定归属 = **播放同端**（客户端逐实例求值；多人广播脚本各看各的本地玩家 = 个人化运镜的自然语义）。命令类动作仍走服务端 EVENT 口径。
+
+## 5. 动作集（系统能执行的都可挂；分期落地）
+
+| 族 | 动作 | 现状入口 | 期 |
+|---|---|---|---|
+| 参数调整 | `camera_set`（六参数/look_at/follow 偏移叠加）、`overlay_set`、`adjust_set`（调色） | 各 TrackPlayer / CameraState | v1 |
+| 分支/内容 | `goto_clip`（跳片段/时间点）、`switch_variant`（同片段内容变体，如相机 A 的另一套关键帧——§9） | 无（新增） | v1 的 goto；variant 待拍板 |
+| 播放控制 | `pause`/`resume`/`exit`（含 §8 退出机制预留）、`hold` | CameraManager/PlaybackLifecycle | v1 |
+| 媒体 | `play_sound`、`emit_command`（命令归 EVENT 口径不变） | AudioTrackPlayer / ScriptEventManager | v1 |
+| 跨脚本 | `start_script`、`queue_script`、`stop_script`（playback-relations §5 的原语） | StartPlaybackAction/ScriptQueue | v2 |
+| 规则自控 | `enable_rule`/`disable_rule`（规则互斥/接力）、设标记（轻量变量，§9） | 无 | v2 |
+
+动作作用对象 = **本实例**（触发它的那个播放实例）；跨实例作用只经「跨脚本」族显式表达。
+
+## 6. 与既有概念的关系（定稿图）
+
+```
+判定规则（clip.rules：if→do 持续 / until→do 阻塞）
+ ├─ 判定点    = until/if 的 time 条件特例（停表或不停表两版）
+ ├─ 等待点    = 阻塞规则（挂起直到条件）——wait-point-track.md 被本篇吸收
+ ├─ 触发器    = 脚本「启动」侧的条件（外部事件→起播；词汇同源、动作面不同）
+ ├─ 循环体    = 时间条件的周期化（每圈重判；clip.loop 与规则正交）
+ └─ 前置条件 requires = 起播前锁存判定（不变）
+```
+
+## 7. JSON 形态（示例 = 用户两例）
+
+```json
+{
+  "start_time": 0, "duration": 30, "loop": true,
+  "rules": [
+    { "if":   { "type": "location", "corner1": [100, 60, -200], "corner2": [120, 80, -180] },
+      "do":   [ { "type": "camera_set", "position": [110, 75, -190], "blend": 1.5 } ],
+      "mode": "enter" },
+    { "if":   { "type": "location", "position": [130, 64, -170], "radius": 4 },
+      "do":   [ { "type": "play_sound", "sound": "minecraft:ambient.cave" } ],
+      "cooldown": 5 },
+    { "until": { "type": "time", "at": 12.0 },
+      "do":    [ { "type": "goto_clip", "clip": "clip_b" } ],
+      "timeout": 20, "on_timeout": [ { "type": "exit" } ] }
+  ]
+}
+```
+
+字段归属：`rules` = **clip 级**（片段的定义数据，与 keyframes 平级）；不进轨道、不进 meta（脚本级规则/退出条件见 §8）。
+
+## 8. 边界与预留
+
+1. **脚本退出机制（用户预留「一会儿再说」）**：「时间到即结束」应改为脚本**声明式退出条件**（时间只是统计概念、不做定时概念）——已登记 `pending-discussions.md`；本篇的 `exit` 动作与 `until: time` 组合可表达大部分诉求，脚本级退出条件待专项讨论后并入。
+2. 与「运行时只读只执行」原则的边界：规则动作改的是**实例运行时状态**（参数叠加/播放位置），不改脚本定义（keyframes 只读）；`switch_variant` 若引入内容变体，变体集仍是定义数据、只读。
+3. 编辑器呈现（规则的可视化编辑/预览）归编辑器阶段，不在 C 批实现范围。
+4. 外部模组注册自定义判定源/动作（`modid:name` 式）留 v2（与 PrerequisiteRegistry 同族思路）。
+
+## 9. 待拍板清单
+
+| # | 问题 | 候选 / 提案 |
+|---|---|---|
+| 1 | 命名（§1 表） | 主提案「判定规则 / rules[{if\|until, do}]」 |
+| 2 | `switch_variant`（同一片段按条件换内容）要不要 | 用户「相机 a 变位置」例子的直接支撑；备选 = 用 goto_clip 指向同轨备用片段 |
+| 3 | 边沿默认 `enter` 还是 `dwell` | 提案 enter（瞬时触发一次，配合 once/cooldown） |
+| 4 | 判定频率 | 提案每渲染帧（客户端）；世界事件类沿触发器 tracker 节奏 |
+| 5 | 轻量变量/标记（规则间接力） | v1 不做，v2 随「规则自控」动作 |
+| 6 | 规则与 `meta.triggers` 的字段是否统一到同一 schema 文件 | 提案：同一词汇表（TriggerSchemas 抽共享），JSON 层不合并 |
