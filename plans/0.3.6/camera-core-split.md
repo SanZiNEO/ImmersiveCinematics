@@ -47,8 +47,8 @@
 
 | 新类 | 吸收（盘点职责组） | 说明 |
 |---|---|---|
-| `PlaybackClock` | G3 双时钟 | 游戏共享虚拟时钟 + 预览播放头；纯状态，**首拆（最低风险）**。**命名已合并（2026-10-10）**：以 `clock-abstraction.md` §3.1 的 `Clock` + `GameClock` / `PreviewClock` 为准，不单独建 `PlaybackClock` 类（见 `camera-state-plan.md`「覆盖链定稿」§15） |
-| `CameraStateHolder` | G5 统一快照 | activePath/activeProperties/cameraState + refreshCameraState；核心写入缓冲，**首拆** |
+| `PlaybackClock` | G3 双时钟 | 游戏共享虚拟时钟 + 预览播放头；纯状态，**首拆（最低风险）**。**命名已合并（2026-10-10）**：以 `clock-abstraction.md` §3.1 的 `Clock` + `GameClock` / `PreviewClock` 为准，不单独建 `PlaybackClock` 类（见 `camera-state-plan.md`「覆盖链定稿」§15）。**已落地（2026-10-10，Q4）**：`CameraManager` 持有两实例并做注入切换（游戏实例 = 游戏时钟、预览实例 = 预览播放头；委托读数 `getGameTimeSeconds()` / `getPreviewTimeSeconds()` 调用方零改动） |
+| `CameraStateHolder` | G5 统一快照 | activePath/activeProperties/cameraState + refreshCameraState；核心写入缓冲，**首拆**。**已落地（2026-10-10，Q4）**：字段与 `refresh` 迁入，写入口（`path()` / `properties()` / `setDirect`）收为包内；快照刷新时机逐点不变（帧末 / `!active` 置 null / `deactivateNow` 末尾含接播重建 / 直写穿透） |
 | `PlaybackRegistry` | G1 实例列表与查询 | instances/topInstance/instancePlaying/行为并集/帧缓存 |
 | `PreviewChannel` | G4 预览通道 | pushScript/setTime/resume/pause/stop/exitPreview/直控标志 |
 | `PlaybackLedger` | G6 网络账本 | C2S 回执、暂停握手（含 pauseTransition 检测） |
@@ -86,7 +86,7 @@
 | 步 | 内容 | 验收 |
 |---|---|---|
 | P0 | 删死代码（§2.3 七条） | compile + validator + icv2/icgl 复跑 |
-| P1 | `PlaybackClock` + `CameraStateHolder` | 同上 + quadrant 实机回归 |
+| P1 | `PlaybackClock` + `CameraStateHolder` ✅ **已落地（2026-10-10，Q4）**：时钟按 `clock-abstraction.md` §4 步骤 1 落为 `util/Clock` + `util/GameClock` / `util/PreviewClock`（`PlaybackClock` 命名合并，见 `camera-state-plan.md`「覆盖链定稿」§15；`CameraManager` 持有两实例并做注入切换）；`CameraStateHolder`（`camera/`，包内可见）= 写入缓冲 `CameraPath` / `CameraProperties` + 统一快照 `refresh(boolean active)`，`CameraManager.getPath()` / `getProperties()` / `getCameraState()` 保留为委托门面（可见性收紧仍归 P5） | 同上 + quadrant 实机回归 |
 | P2 | `PlaybackRegistry` / `PreviewChannel` / `PlaybackLedger` / `PlaybackLifecycle` | 同上 + 预览/接播路径实机 |
 | P3 | `EntityTargetResolver` | 同上 + 选择器脚本回归（tests/trigger + camera follow） |
 | P4 | `CameraKeyframeEvaluator` / `LaneSnapshotCollector` / `WorldPointLocator` | 同上 + quadrant 实机回归 |

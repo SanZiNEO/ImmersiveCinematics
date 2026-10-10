@@ -1100,7 +1100,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         // bezierStrategy 随 TrackPlayer 实例一起被 GC，其 LUT 缓存自动释放
     }
 
-    /** 组 A：数据替换后复位 clip 索引状态 */
+    /** 组 A：数据替换后复位派生状态——lane 快照 / 目标锁 / 选择器缓存（三者都按脚本数据重建）。 */
     @Override
     public void onScriptReplaced() {
         laneSnapshots.clear();

@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustParam
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
+import com.immersivecinematics.immersive_cinematics.util.Clock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -54,12 +55,12 @@ public class ScriptPlayer {
     private double startGameTimeSeconds = 0;
 
     /**
-     * 本实例的时钟源（秒）——默认 = 全局虚拟时钟（{@code CameraManager.getGameTimeSeconds()}，游戏实例）。
+     * 本实例的时钟源（{@link Clock}，秒）——默认 = 游戏共享虚拟时钟（{@code CameraManager.getGameTimeSeconds()}，游戏实例）。
      * <p>
      * 预览实例由 {@code CameraManager} 注入<b>预览播放头</b>（{@code plans/0.3.6/parallel-playback.md}
      * §7 步骤 5）：预览与游戏各自独立计时——预览的暂停/播放不再冻结游戏实例的时间轴，反之亦然。
      */
-    private java.util.function.DoubleSupplier clockSource = CameraManager.INSTANCE::getGameTimeSeconds;
+    private Clock clockSource = CameraManager.INSTANCE::getGameTimeSeconds;
 
     // 相对模式基准位置（玩家激活时的位置）
     private Vec3 originPos = Vec3.ZERO;
@@ -675,17 +676,17 @@ public class ScriptPlayer {
     }
 
     /**
-     * 设置本实例的时钟源（秒）；{@code null} = 保持当前（默认全局虚拟时钟）。
+     * 设置本实例的时钟源（秒）；{@code null} = 保持当前（默认游戏共享虚拟时钟）。
      * <p>
      * 由 {@code CameraManager} 在创建预览实例时注入预览播放头（§7 步骤 5）；必须在
      * {@link #start(CinematicScript, float)} 之前设置，起始读数在 start 时取。
      */
-    public void setClockSource(java.util.function.DoubleSupplier source) {
+    public void setClockSource(Clock source) {
         if (source != null) this.clockSource = source;
     }
 
     /** 本实例当前时钟读数（秒）。 */
     private double clockSeconds() {
-        return clockSource.getAsDouble();
+        return clockSource.seconds();
     }
 }

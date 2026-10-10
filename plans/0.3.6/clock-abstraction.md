@@ -1,6 +1,6 @@
 # clock-abstraction.md — 时钟抽象（单调秒 + double 运行时）
 
-> 状态：🔵 方向已确认（2026-10-09 用户决策）。本文档为「time」重构的实现计划，尚未执行。
+> 状态：🟢 步骤 1 已落地（2026-10-10，Q4 = B4-P1 ∪ 本步骤 1，记录见 §4）；步骤 2–5 未执行。方向已确认（2026-10-09 用户决策）。
 > 关联：`script-model.md` G4「时间精度」、`parallel-playback.md` §7 步骤 5（预览独立时钟）、`temporal-interpolation.md`（tick/渲染帧解耦）、`state-tracking.md`（账本与时钟边界）。
 > 约定：本文档不写伪代码，写实现思路与每一步的交付物；先定义时钟底层，再谈调用整合（先底层后应用）。
 
@@ -106,10 +106,18 @@ float 截断点（`CameraManager.onRenderFrame`，`:722-765`）：
 
 ## 4. 落地步骤与交付物（先底层后应用）
 
-**步骤 1｜Clock 抽象落地（底层）**
+**步骤 1｜Clock 抽象落地（底层）** ✅ 已落地（2026-10-10，Q4 = B4-P1 ∪ 本步骤 1）
 - 新增 `Clock` 接口；新增 `GameClock` / `PreviewClock` 两个实现（预览从 float 改 double 累加）。
 - `CameraManager` 内联时钟字段收敛到两个 `Clock`；`getGameTimeSeconds()` / `getPreviewTimeSeconds()` 改为委托。
 - 交付物：`Clock` 接口 + 两实现 + `CameraManager` 委托接线；`compileJava` 通过、无调用方编译错误。
+
+落地记录（2026-10-10，与 B4-P1 合并执行，见 `camera-core-split.md` §三 P1）：
+- 新增 `util/Clock.java`（`@FunctionalInterface`，`double seconds()`）、`util/GameClock.java`（`advance(boolean frozen, long nowNanos)` / `reset()`；`lastRealNanos = 0` 的冻结技巧收进类内）、`util/PreviewClock.java`（`advance` / `freeze()` / `seek(double)`；读数 double 累加）。包位置按 §6 待定项取 `util/`（与 `TimeInterpolation` 同包）。
+- `CameraManager`：内联字段 → 两个时钟实例（`gameClock` / `previewClock`）；`onRenderFrame` 两处内联累加 → `advance(...)`（游戏时钟冻结口径不变）；`deactivateNow` 末实例退出的 `gameTimeSeconds = 0; lastRealNanos = 0;` → `gameClock.reset()`；`exitPreview` / `emergencyStop` / `resume` 的 `lastPreviewRealNanos = 0` → `previewClock.freeze()`；`previewClockSeconds()` 删除（预览实例直接 `setClockSource(previewClock)`）；`getGameTimeSeconds()` / `getPreviewTimeSeconds()` 保留为委托读数（调用方零改动）。
+- `ScriptPlayer.clockSource`：`DoubleSupplier` → `Clock`（默认 `CameraManager.INSTANCE::getGameTimeSeconds` 不变；`setClockSource(Clock)`）。
+- 边界：`previewTime` 变 double 后，`alignTime` / `repositionAudio` / `start(preExecuteAt)` 三个仍收 float 的入参处显式窄化——窄化值与原 float 读数一致（Sterbenz：`previewHead - (float)previewHead` 精确），double 化归步骤 2。
+- 验证（Q4 报告详列）：compileJava 通过；harness `E:/tmp/ic-b4p1`（38 项全过）——游戏时钟与旧内联公式 200k 帧逐位一致、冻结 / 复位等值；预览时钟 1 小时 float 版累计误差 2.793 s vs double 版 1.7e-8 s；注入切换实测（默认 = 游戏时钟、预览 = 播放头、两时钟独立）；validator / icv2 / icgl / quadrant 实机捕获回归全绿。
+- 未做：步骤 2–5（elapsed double 化 / 去死参数 / overlay delta / float 存储边界契约）与 §6 的 `ManualClock` 测试桩。
 
 **步骤 2｜elapsed 链路 double 化**
 - `ScriptPlayer.getElapsedSeconds()` 返回 double（或新增 `double` 版本并逐步替换调用点）。

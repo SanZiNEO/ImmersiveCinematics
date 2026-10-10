@@ -8,6 +8,8 @@ import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptNotifier;
+import com.immersivecinematics.immersive_cinematics.util.GameClock;
+import com.immersivecinematics.immersive_cinematics.util.PreviewClock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
@@ -25,8 +27,14 @@ public class CameraManager {
 
     public static final CameraManager INSTANCE = new CameraManager();
 
-    private final CameraProperties activeProperties = new CameraProperties();
-    private final CameraPath activePath = new CameraPath();
+    /** 全局相机状态（写入缓冲 + 统一快照）——门面读数与轨道播放器写入都经它。 */
+    private final CameraStateHolder stateHolder = new CameraStateHolder();
+
+    /** 游戏共享虚拟时钟：游戏实例的时钟源（暂停冻结、末实例退出归零）。 */
+    private final GameClock gameClock = new GameClock();
+
+    /** 预览播放头：预览实例的时钟源（与游戏时钟互不影响）。 */
+    private final PreviewClock previewClock = new PreviewClock();
 
     /**
      * 播放实例列表（并行播放模型：播放 = 实例，数量不设上限，见 plans/0.3.6/parallel-playback.md §1）。
@@ -51,12 +59,6 @@ public class CameraManager {
      */
     private boolean cachedTopInstanceHasActiveCameraClip = false;
 
-    /** 统一只读相机状态快照（每帧更新末尾刷新；无活跃状态时为 null） */
-    private CameraState cameraState = null;
-
-    private double gameTimeSeconds = 0;
-    private long lastRealNanos = 0;
-
     private CinematicScript pendingScript = null;
 
     /**
@@ -73,15 +75,13 @@ public class CameraManager {
      * 编辑器预览通道是否激活（{@link #pushScript} / {@link #setTime} / {@link #resume} 置位，
      * {@link #exitPreview} / {@link #emergencyStop} 清位）。
      * <p>
-     * 预览状态本身收敛在 {@link #previewInstance} 上（时钟 = {@link #previewTime}、暂停态 =
+     * 预览状态本身收敛在 {@link #previewInstance} 上（时钟 = {@link #previewClock}、暂停态 =
      * {@link #previewPaused}）；本标志只表示"编辑器预览通道已接管"，供 {@link #isPreviewMode()} 的
      * 消费方（玩家移动 / 区块预加载 / 编辑器状态回传）判读。
      */
     private boolean previewMode = false;
     private boolean previewPaused = true;
 
-    /** 预览播放头（秒）＝ 预览实例的时钟：暂停 = 冻结在此处；播放 = 按真实时间推进（见 {@link #onRenderFrame()}） */
-    private float previewTime;
     private CinematicScript previewScript;
 
     /**
@@ -90,13 +90,10 @@ public class CameraManager {
      * 预览不再复用 / 替换游戏实例——{@link #pushScript} / {@link #setTime} / {@link #resume} /
      * {@link #stop} 只作用于本实例，游戏实例照常播放；{@link #exitPreview()} 只退本实例。
      * 它恒为 {@link #instances} 的<b>末位</b>（顶层：预览画面与相机是编辑器正在编辑的那一份，
-     * §3.4 后来者居上），用<b>独立时钟</b>（{@link #previewTime}），且不参与暂停联动 / 行为并集，
+     * §3.4 后来者居上），用<b>独立时钟</b>（{@link #previewClock}），且不参与暂停联动 / 行为并集，
      * 不上报网络账本与跳过投票（本地预览无账本）。非预览态为 {@code null}。
      */
     private PlaybackInstance previewInstance = null;
-
-    /** 预览时钟的上一帧真实纳秒（0 = 本帧重新起算）；与游戏时钟 {@link #lastRealNanos} 相互独立 */
-    private long lastPreviewRealNanos = 0;
 
     /** 上一帧的暂停状态，用于检测暂停↔恢复的转换 */
     private boolean lastFramePaused = false;
@@ -407,14 +404,15 @@ public class CameraManager {
                 }
                 if (instance == null) return;
                 disableMacroLoop(instance);
-                instance.player().alignTime(previewTime, previewTime);
+                double previewHead = previewClock.seconds();
+                instance.player().alignTime((float) previewHead, previewHead);
                 // 组 1/2：数据替换后同步暂停态并把实例定位到播放头
                 if (previewPaused) {
                     instance.player().pauseAudio();
                 } else {
                     instance.player().resumeAudio();
                 }
-                instance.player().repositionAudio(previewTime);
+                instance.player().repositionAudio((float) previewHead);
             }
         } catch (com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException e) {
             LOGGER.error("编辑器传入的脚本 JSON 解析失败", e);
@@ -429,7 +427,7 @@ public class CameraManager {
      */
     public void setTime(float seconds) {
         // 预览模式定位:始终激活并显示对应帧的相机视角(终止后点关键帧/拖播放头即时可见)
-        previewTime = seconds;
+        previewClock.seek(seconds);
         previewMode = true;
         previewPaused = true;
         PlaybackInstance instance = previewInstance;
@@ -438,17 +436,19 @@ public class CameraManager {
         }
         if (instance == null) return; // 预览脚本尚未传入：没有实例可定位
         disableMacroLoop(instance);
-        // Align so that elapsed = previewTime（预览实例的时钟源就是 previewTime，故当前时钟读数同值）
-        instance.player().alignTime(previewTime, previewTime);
+        // Align so that elapsed = 播放头（预览实例的时钟源就是预览时钟，故当前时钟读数同值）。
+        // 窄化到 float 的入参（alignTime / repositionAudio）待运行时链路 double 化（clock-abstraction 步骤 2）后消失。
+        double previewHead = previewClock.seconds();
+        instance.player().alignTime((float) previewHead, previewHead);
         // 组 1：定位即同步暂停态——先于 repositionAudio（其 paused 分支依赖此标志），
         // 并覆盖 startScriptInternal 预执行首帧已创建/播放的实例。
         instance.player().pauseAudio();
-        instance.player().repositionAudio(previewTime);
+        instance.player().repositionAudio((float) previewHead);
     }
 
-    /** 编辑器播放：预览实例从播放头 {@link #previewTime} 续播（预览通道未激活时先激活并建实例）。 */
+    /** 编辑器播放：预览实例从播放头 {@link #previewClock} 续播（预览通道未激活时先激活并建实例）。 */
     public void resume() {
-        // 点播放 → 用最新 previewScript 重新激活并从 previewTime 续播
+        // 点播放 → 用最新 previewScript 重新激活并从播放头续播
         if (!previewMode) {
             if (previewScript == null) return;
             previewMode = true;
@@ -458,9 +458,10 @@ public class CameraManager {
             startScriptInternal(previewScript, "", true);
         }
         disableMacroLoop(previewInstance);
-        previewInstance.player().alignTime(previewTime, previewTime);
+        double previewHead = previewClock.seconds();
+        previewInstance.player().alignTime((float) previewHead, previewHead);
         previewPaused = false;
-        lastPreviewRealNanos = 0;
+        previewClock.freeze();
     }
 
     /** 编辑器暂停：预览时钟冻结在当前播放头（游戏实例的时钟不受影响）。 */
@@ -490,7 +491,7 @@ public class CameraManager {
         if (previewMode) {
             previewMode = false;
             previewPaused = true;
-            lastPreviewRealNanos = 0;
+            previewClock.freeze();
             // 只退预览实例：待接播/队列与游戏实例一概不动（它们是游戏播放侧的状态）
             if (previewInstance != null) {
                 deactivateNow(previewInstance);
@@ -504,7 +505,7 @@ public class CameraManager {
     public void emergencyStop() {
         previewMode = false;
         previewPaused = true;
-        lastPreviewRealNanos = 0;
+        previewClock.freeze();
         // 世界已退出：全部实例一起清理（跨脚本并行下逐个清，预览实例也在内，音频/覆盖层都不能残留）
         for (PlaybackInstance instance : instances) {
             instance.setExitReason(CompletionReason.STOPPED);
@@ -549,9 +550,9 @@ public class CameraManager {
         // 游戏实例保持原语义：每次开播都从玩家位置起步。
         if (!preview || !previewInitialized) {
             Vec3 playerPos = mc.player.position();
-            activePath.setPositionDirect(playerPos);
-            activeProperties.setYawDirect(mc.player.getYRot());
-            activeProperties.setPitchDirect(mc.player.getXRot());
+            stateHolder.path().setPositionDirect(playerPos);
+            stateHolder.properties().setYawDirect(mc.player.getYRot());
+            stateHolder.properties().setPitchDirect(mc.player.getXRot());
         }
         previewInitialized = true;
 
@@ -573,9 +574,9 @@ public class CameraManager {
         instance.player().setMacroLoopAllowed(!preview);
         if (preview) {
             // 预览实例的时钟 = 预览播放头：与游戏共享虚拟时钟分离（两实例各自计时，§7 步骤 5）
-            instance.player().setClockSource(this::previewClockSeconds);
+            instance.player().setClockSource(previewClock);
         }
-        instance.start(script, instanceId, preview ? previewTime : 0f);
+        instance.start(script, instanceId, preview ? (float) previewClock.seconds() : 0f);
         if (preview) {
             // 预览通道不套用脚本行为（既有语义）：允许键鼠。有游戏实例并行时改按游戏实例重算并集——
             // 预览不解除游戏实例的键鼠屏蔽（游戏实例零回归）。
@@ -595,11 +596,6 @@ public class CameraManager {
         // 使同一 tick 内后续读取（如 PreloadRequester）看到接播后的最新值，而非过期/空快照。
         refreshCameraState();
         return instance;
-    }
-
-    /** 预览实例的时钟读数（秒）＝ 预览播放头：暂停时冻结在播放头，播放时由 {@link #onRenderFrame()} 推进。 */
-    private double previewClockSeconds() {
-        return previewTime;
     }
 
     /**
@@ -645,8 +641,8 @@ public class CameraManager {
      *   <li>最后一个实例退出后由 {@code deactivateNow} 复位全局状态（相机、时钟、覆盖层、行为开关）。</li>
      * </ol>
      *
-     * <p>调用点：{@code LaneRendererMixin}（{@code GameRenderer.renderLevel} 的 RETURN）开头，
-     * 每个渲染帧一次；主相机替换链退役前挂点在 {@code CameraMixin.onSetup}（主相机 setup）。
+     * <p>调用点：{@code GameRendererMixin}（{@code GameRenderer.render} 的 HEAD，世界渲染之前），
+     * 每个渲染帧一次。
      * 顺序要求：必须早于 {@code ScriptLaneDriver.tick} —— 后者读的就是本方法填好的 lane 快照。</p>
      */
     public void onRenderFrame() {
@@ -670,27 +666,11 @@ public class CameraManager {
 
         // 时钟一：游戏共享虚拟时钟——游戏暂停时冻结（不退出相机画面，继续应用相机/轨道）。
         // 预览的暂停/播放不再冻结它（预览实例有自己的时钟，§7 步骤 5）。
-        if (gamePaused) {
-            lastRealNanos = 0;
-        } else {
-            long now = System.nanoTime();
-            if (lastRealNanos != 0) {
-                gameTimeSeconds += (double)(now - lastRealNanos) / 1_000_000_000.0;
-            }
-            lastRealNanos = now;
-        }
+        gameClock.advance(gamePaused, System.nanoTime());
 
         // 时钟二：预览播放头（预览实例专用）——暂停 = 冻结在播放头；播放 = 按真实时间推进。
         // 两时钟互不影响：编辑器拖播放头/暂停只动预览实例，游戏实例照常按共享虚拟时钟走。
-        if (previewMode && !previewPaused && previewInstance != null) {
-            long now = System.nanoTime();
-            if (lastPreviewRealNanos != 0) {
-                previewTime += (float)((now - lastPreviewRealNanos) / 1_000_000_000.0);
-            }
-            lastPreviewRealNanos = now;
-        } else {
-            lastPreviewRealNanos = 0;
-        }
+        previewClock.advance(!(previewMode && !previewPaused && previewInstance != null), System.nanoTime());
 
         float deltaTime = 1f / 20f;
         OverlayManager.INSTANCE.update(deltaTime);
@@ -702,8 +682,8 @@ public class CameraManager {
             lastFramePaused = gamePaused;
         }
 
-        float gameTime = (float) gameTimeSeconds;
-        float previewClock = previewTime;
+        float gameTime = (float) gameClock.seconds();
+        float previewTime = (float) previewClock.seconds();
         boolean anyActiveCameraClip = false;
         // 顶层实例（启动最晚的活跃实例）——听者门控口径（§3.3）只认它自己的 CAMERA clip
         PlaybackInstance top = topInstance();
@@ -716,7 +696,7 @@ public class CameraManager {
             // 本实例的暂停态：游戏实例 = 游戏暂停联动（并集）；预览实例 = 编辑器暂停态（§7 步骤 5）
             boolean instancePaused = instance.isPreview() ? previewPaused : gamePaused;
             // 本实例的时钟读数：游戏实例 = 共享虚拟时钟；预览实例 = 预览播放头（各自计时）
-            float instanceClock = instance.isPreview() ? previewClock : gameTime;
+            float instanceClock = instance.isPreview() ? previewTime : gameTime;
 
             // 组 1：每帧同步音频暂停状态（幂等；对齐 MC SoundEngine：暂停时无新声音、已有实例幂等 pause）。
             // 必须位于 player.onRenderFrame 之前并每帧执行——修复「暂停检测在实例创建前」的时序缺陷。
@@ -792,7 +772,7 @@ public class CameraManager {
     }
 
     public double getGameTimeSeconds() {
-        return gameTimeSeconds;
+        return gameClock.seconds();
     }
 
     /**
@@ -803,7 +783,7 @@ public class CameraManager {
      * 游戏实例的时钟不再代表预览播放头（§7 步骤 5）。
      */
     public double getPreviewTimeSeconds() {
-        return previewMode ? previewTime : gameTimeSeconds;
+        return previewMode ? previewClock.seconds() : gameClock.seconds();
     }
 
     /** 编辑器预览是否处于暂停（WebUI 预览屏的播放控制状态）。 */
@@ -854,8 +834,7 @@ public class CameraManager {
 
         if (instances.isEmpty()) {
             // 最后一个实例退出：全局复位（虚拟时钟 / 相机状态 / 预览标志 / 输入交接 / 行为开关 / 覆盖层）
-            gameTimeSeconds = 0;
-            lastRealNanos = 0;
+            gameClock.reset();
             // 组 6/7：停止后复位直控与初始化标志（下次预览重新从玩家位置起步）
             previewDirectControl = false;
             previewInitialized = false;
@@ -903,7 +882,7 @@ public class CameraManager {
         if (clientEntityLogCounter % 100 == 0) {
             Minecraft mc = Minecraft.getInstance();
             if (mc.level != null) {
-                Vec3 pos = activePath.getPosition();
+                Vec3 pos = stateHolder.path().getPosition();
                 int radius = 64;
                 AABB box = new AABB(
                         pos.x - radius, pos.y - radius, pos.z - radius,
@@ -917,15 +896,15 @@ public class CameraManager {
     }
 
     // ========== 全局相机状态（写侧 = 轨道播放器，读侧 = 统一快照）==========
-    // 主相机替换链退役后，这两个内部对象不再被渲染 Mixin 读取：唯一写入者是轨道播放器
-    // （CameraTrackPlayer 每帧把顶层 clip 的六参数写进来），唯一读侧是下面的统一快照。
+    // 状态收敛在 CameraStateHolder：唯一写入者是轨道播放器（CameraTrackPlayer 每帧把顶层 clip
+    // 的六参数写进写入缓冲），唯一读侧是下面的统一快照；getPath / getProperties 是写入方的门面入口。
 
     public CameraProperties getProperties() {
-        return activeProperties;
+        return stateHolder.properties();
     }
 
     public CameraPath getPath() {
-        return activePath;
+        return stateHolder.path();
     }
 
     /**
@@ -944,16 +923,12 @@ public class CameraManager {
      * {@code PreloadRequester}（区块预加载中心）、{@code WebPreviewScreen}（预览 HUD 显示）。
      */
     public CameraState getCameraState() {
-        return cameraState;
+        return stateHolder.snapshot();
     }
 
-    /** 从内部状态（activePath / activeProperties 的 current 值）重建统一快照；无活跃相机时置 null。 */
+    /** 从写入缓冲（顶层 clip 当前值）重建统一快照；无活跃实例时置 null。 */
     private void refreshCameraState() {
-        cameraState = isActive()
-                ? new CameraState(activePath.getPosition(),
-                        activeProperties.getYaw(), activeProperties.getPitch(),
-                        activeProperties.getRoll(), activeProperties.getFov(), activeProperties.getZoom())
-                : null;
+        stateHolder.refresh(isActive());
     }
 
     /** 相机是否被播放实例接管（本版本 = 有活跃实例）。 */
@@ -966,34 +941,30 @@ public class CameraManager {
         return previewMode;
     }
 
-    /** 当前镜头 yaw（方向性预加载用）；无活跃属性时回退玩家朝向 */
+    /** 当前镜头 yaw（方向性预加载用）。 */
     public float getCameraYaw() {
-        if (activeProperties != null) return activeProperties.getYaw();
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        return mc.player != null ? mc.player.getYRot() : 0;
+        return stateHolder.properties().getYaw();
     }
 
     /** WebUI 编辑器直接设置预览相机参数（yaw/pitch/roll/fov/zoom） */
     public void setCameraDirect(float yaw, float pitch, float roll, float fov, float zoom) {
         if (!isActive()) return;
-        activeProperties.setAllDirect(yaw, pitch, roll, fov, zoom);
+        stateHolder.setDirect(yaw, pitch, roll, fov, zoom);
         // 直写穿透：保证本帧 getFov 立即读到新值
         refreshCameraState();
     }
 
     /**
      * 直控写入（含位置）：飞行取景等需要同时写位置与光学的直写路径。
-     * <p>写侧收口——调用方不再直写内部 {@code activePath}/{@code activeProperties}；
+     * <p>写侧收口——调用方不再直写内部 {@code CameraStateHolder} 的写入缓冲；
      * 写完立即刷新统一快照，保证任何写入后 {@link #getCameraState()} 立即反映新值。
      */
     public void setCameraDirect(Vec3 position, float yaw, float pitch, float roll, float fov, float zoom) {
-        activePath.setPositionDirect(position);
-        activeProperties.setAllDirect(yaw, pitch, roll, fov, zoom);
+        stateHolder.setDirect(position, yaw, pitch, roll, fov, zoom);
         refreshCameraState();
     }
     public void reset() {
-        activeProperties.reset();
-        activePath.reset();
+        stateHolder.reset();
         scriptQueue.clear();
     }
 }
