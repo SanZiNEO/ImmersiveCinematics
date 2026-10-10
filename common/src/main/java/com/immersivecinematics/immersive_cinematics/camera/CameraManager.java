@@ -195,11 +195,6 @@ public class CameraManager {
         return null;
     }
 
-    /** 请求退场渐出（顶层实例）：无活跃实例或已在渐出时为 no-op。 */
-    public void deactivate() {
-        deactivate(topInstance());
-    }
-
     /** 请求指定实例退场渐出（渐出完成后由 {@link #onRenderFrame()} 的结束判定真正停用）。 */
     private void deactivate(PlaybackInstance instance) {
         if (instance == null) return;
@@ -318,11 +313,6 @@ public class CameraManager {
         // 不可打断 → 一律排队（容量满则拒绝）
         if (scriptQueue.offer(script, instanceId)) return 2;
         return 0;
-    }
-
-    /** 是否有脚本在排队等待播放 */
-    public boolean hasPendingScript() {
-        return pendingScript != null;
     }
 
     public void stopScript() {
@@ -641,13 +631,6 @@ public class CameraManager {
 
     public boolean isPreviewDirectControl() { return previewDirectControl; }
 
-    /** 编辑器拖拽直控：直接设置当前相机值（立即生效，零解析零重启） */
-    public void previewSetCamera(float yaw, float pitch, float roll, float fov, float zoom) {
-        activeProperties.setAllDirect(yaw, pitch, roll, fov, zoom);
-        // 直写穿透：本帧 getFov（在 onRenderFrame 之前调用）必须立即读到直控值，与改造前一致
-        refreshCameraState();
-    }
-
     // ========== 帧回调驱动 ==========
 
     /**
@@ -953,8 +936,8 @@ public class CameraManager {
      * 写全局状态并返回同一份快照）。
      * <p>
      * 由 {@link #refreshCameraState()} 在每帧更新末尾（{@code onRenderFrame}）、
-     * 停用/重启（{@code deactivateNow} / {@code startScriptInternal}）与所有直写入口
-     * （{@code previewSetCamera} / {@code setCameraDirect}）处刷新，
+     * 停用/重启（{@code deactivateNow} / {@code startScriptInternal}）与直写入口
+     * （{@code setCameraDirect}）处刷新，
      * 保证任何写入后立即反映新值、同一帧内多次读取结果一致。
      * <p>
      * 消费方（主相机替换链退役后）：{@code AudioListenerController}（听者位置）、
@@ -994,7 +977,7 @@ public class CameraManager {
     public void setCameraDirect(float yaw, float pitch, float roll, float fov, float zoom) {
         if (!isActive()) return;
         activeProperties.setAllDirect(yaw, pitch, roll, fov, zoom);
-        // 直写穿透：同 previewSetCamera，保证本帧 getFov 立即读到新值
+        // 直写穿透：保证本帧 getFov 立即读到新值
         refreshCameraState();
     }
 

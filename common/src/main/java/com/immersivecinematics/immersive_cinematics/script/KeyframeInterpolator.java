@@ -1,7 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 
@@ -150,28 +149,6 @@ public final class KeyframeInterpolator {
         float t = (span > 0.001f) ? (localTime - from.getTime()) / span : 0f;
         t = Math.max(0f, Math.min(1f, t));
         return MathUtil.lerp(from.getFloat(key, defaultValue), to.getFloat(key, defaultValue), t);
-    }
-
-    // ========== 位置插值 ==========
-
-    /**
-     * 在两个关键帧之间插值位置（显式策略，用于 TrackPlayer 持有独立策略实例）
-     * <p>
-     * 允许调用者传入已创建的 PathStrategy 实例，避免静态单例。
-     * 贝塞尔路径策略内部使用 ArcLengthLUT 确保匀速运动。
-     *
-     * @param from    起始关键帧
-     * @param to      目标关键帧
-     * @param s       弧长进度 [0, 1]
-     * @param clip    所属片段（用于获取贝塞尔曲线）
-     * @param strategy 路径策略实例（允许调用者传入独立实例而非全局单例）
-     * @return 插值后的位置
-     */
-    public static Vec3 interpolatePosition(Keyframe from, Keyframe to, float s, Clip clip, PathStrategy strategy) {
-        Vec3 p0 = from.getPosition().toVec3();
-        Vec3 p3 = to.getPosition().toVec3();
-        Vec3 result = strategy.interpolate(p0, p3, s, clip.getCurve());
-        return MathUtil.sanitizeVec3(result, p0);
     }
 
     // ========== 朝向插值 ==========

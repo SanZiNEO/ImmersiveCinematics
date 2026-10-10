@@ -26,8 +26,6 @@ public class CameraTrackPlayer implements TrackPlayer {
     /** 独立 Bezier 路径策略实例，脚本结束时随 TrackPlayer 一起 GC，LUT 缓存自动释放 */
     private final PathStrategy bezierStrategy = new BezierPathStrategy();
 
-    private int lastClipIndex = 0;
-
     /**
      * 本轨本帧各活跃 clip 的画面 lane 快照，按轨道内 clip 顺序排列——<b>后面的在上</b>
      * （与 lane 合成的绘制顺序一致：先画的在下，后画的盖在上面）。
@@ -165,7 +163,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         List<Clip> clips = clips();
         if (clips.isEmpty()) return;
 
-        // 组 7：编辑器拖拽直控期间，相机由编辑器直驱（previewSetCamera），跳过轨道写入
+        // 组 7：编辑器拖拽直控期间，相机由编辑器直驱（setCameraDirect），跳过轨道写入
         if (cameraManager.isPreviewDirectControl()) return;
 
         // B 模型 morph：转场区 [A_end−t/2, A_end+t/2) 内双轨各自插值交叉（A 尾部真实走完、B 头部真实进入）
@@ -199,8 +197,6 @@ public class CameraTrackPlayer implements TrackPlayer {
         List<Clip> active = findActiveClips(globalTime);
         if (active.isEmpty()) return;
         Clip topClip = active.get(active.size() - 1);
-        // 保留"上次驱动片段索引"状态（收集查询每帧全表扫描，不再用起点剪枝）
-        lastClipIndex = clips.indexOf(topClip);
         // 目标不可用（结构/实体找不到）= 该片段按空处理（不写相机 → 玩家视角，与片段间隙同语义）
         if (!isClipUsable(topClip)) {
             warnClipUnusableOnce();
@@ -1068,7 +1064,6 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     @Override
     public void onStop() {
-        lastClipIndex = 0;
         laneSnapshots.clear();
         targetLocks.clear();
         ClientEntitySelectorCache.clear();
@@ -1078,7 +1073,6 @@ public class CameraTrackPlayer implements TrackPlayer {
     /** 组 A：数据替换后复位 clip 索引状态 */
     @Override
     public void onScriptReplaced() {
-        lastClipIndex = 0;
         laneSnapshots.clear();
         targetLocks.clear();
         ClientEntitySelectorCache.clear();
@@ -1120,8 +1114,6 @@ public class CameraTrackPlayer implements TrackPlayer {
         List<Clip> active = findActiveClips(globalTime);
         if (active.isEmpty()) return null;
         Clip top = active.get(active.size() - 1);
-        // 保留"上次驱动片段索引"状态（收集查询每帧全表扫描，不再用起点剪枝）
-        lastClipIndex = clips().indexOf(top);
         return top;
     }
 
@@ -1138,19 +1130,6 @@ public class CameraTrackPlayer implements TrackPlayer {
         float diff = ((b - a) % 360f + 540f) % 360f - 180f;
         return a + diff * weight;
     }
-
-    private static Vec3 blendVec3(Vec3 a, Vec3 b, float weight) {
-        float inv = 1f - weight;
-        return new Vec3(
-                a.x * inv + b.x * weight,
-                a.y * inv + b.y * weight,
-                a.z * inv + b.z * weight
-        );
-    }
-
-    /** 非玩家目标缓存（范围内唯一目标不会频繁切换，避免每帧全量遍历实体列表） */
-    private Entity cachedTarget;
-    private long cachedTargetResolvedAt;
 
     /**
      * 解析目标实体。
