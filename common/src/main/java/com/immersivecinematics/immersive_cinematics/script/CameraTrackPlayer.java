@@ -2,7 +2,7 @@ package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.CameraState;
-import com.immersivecinematics.immersive_cinematics.trigger.client.ClientEntitySelectorCache;
+import com.immersivecinematics.immersive_cinematics.camera.source.EntityTargetResolver;
 import com.immersivecinematics.immersive_cinematics.util.TimeInterpolation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 public class CameraTrackPlayer implements TrackPlayer {
 
@@ -75,56 +74,8 @@ public class CameraTrackPlayer implements TrackPlayer {
     private Vec3 frameUp;
     private boolean frameValid;
 
-    /**
-     * 目标锁定状态：按 {@code role + selector} 维护。
-     * <ul>
-     *   <li>{@code uuid/entity/resolvedAt}：当前锁定的目标与刷新时间；</li>
-     *   <li>{@code switchGeneration}：目标 UUID 每次变化 +1，供各通道检测“是否刚切换”；</li>
-     *   <li>{@code points}：按通道（look_at/follow 位置/朝向基准）各自维护平滑状态。</li>
-     * </ul>
-     */
-    private static final class TargetLock {
-        UUID uuid;
-        Entity entity;
-        long resolvedAt;
-        long switchGeneration;
-        /** 搜索态：目标已丢失 / 尚未找到（由 resolveEntity 维护） */
-        boolean searching;
-        /** 搜索态：下一次允许重试（重发请求 / 重扫）的时间戳；与 resolvedAt（扫描节流）分离 */
-        long nextRetryAt;
-        /** 上一次真实切换的时间：切换间隔闸门的基准（与扫描时间戳分离，快扫描 + 慢切换可用） */
-        long lastSwitchAt;
-
-        final Map<String, PointState> points = new java.util.HashMap<>();
-    }
-
-    /** 单个目标点在切换窗口内的平滑状态。 */
-    private static final class PointState {
-        Vec3 last;
-        long generation = -1L;
-        Vec3 from;
-        long startNanos;
-        float smooth;
-    }
-
-    private final Map<String, TargetLock> targetLocks = new java.util.HashMap<>();
-
-    /**
-     * 选择器策略（调用点级）。
-     *
-     * @param scanSeconds      扫描间隔：多久重新扫一遍候选（影响准确性）
-     * @param switchWhileAlive 目标存活时是否允许切换
-     * @param switchSeconds    切换间隔：扫到新目标后，也要等这么久才真的换过去（影响稳定性）
-     * @param switchSmooth     切换平滑：真的换过去时，用多少秒过渡
-     */
-    private record SelectorPolicy(float scanSeconds, boolean switchWhileAlive, float switchSeconds, float switchSmooth) {}
-
-    /**
-     * 选择器调用点（角色）：每个调用点拥有自己的策略，可单独配置，互不影响。
-     * 通用字段（{@code selector_refresh} 等）只作**默认回落**——不写角色专属字段时行为与旧版完全一致。
-     */
-    private static final List<String> SELECTOR_CALLPOINTS = List.of(
-            "follow", "look_at", "look_at_target", "yaw_base", "facing_origin", "facing_target");
+    /** 目标解析与锁定：selector → 实体 + 按 {@code role + selector} 维护的锁与切换平滑状态 */
+    private final EntityTargetResolver entityResolver = new EntityTargetResolver();
 
     public CameraTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos, CameraManager cameraManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
@@ -251,7 +202,8 @@ public class CameraTrackPlayer implements TrackPlayer {
         for (Keyframe kf : clip.getKeyframes()) {
             String lookAt = kf.getString("look_at", "none");
             if ("entity".equals(lookAt)) {
-                if (resolveEntity(kf.getString("look_at_selector", "@p"), lastWorldPos, "look_at", kf) == null) return false;
+                if (entityResolver.resolveEntity(
+                        kf.getString("look_at_selector", "@p"), lastWorldPos, "look_at", kf) == null) return false;
             } else if ("coordinate".equals(lookAt)) {
                 String sid = kf.getString("look_at_target_structure", "");
                 if (!sid.isEmpty() && resolveStructurePos(sid) == null) return false;
@@ -260,33 +212,40 @@ public class CameraTrackPlayer implements TrackPlayer {
                 if (targetObj instanceof Map<?, ?> m) {
                     Object relTo = m.get("relative_to");
                     if (relTo != null && !"coordinate".equals(relTo)
-                            && resolveEntity(String.valueOf(relTo), lastWorldPos, "look_at_target", kf) == null) {
+                            && entityResolver.resolveEntity(
+                                    String.valueOf(relTo), lastWorldPos, "look_at_target", kf) == null) {
                         return false;
                     }
                 }
             }
             if ("entity".equals(kf.getString("follow", "none"))) {
-                if (resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf) == null) return false;
+                if (entityResolver.resolveEntity(
+                        kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf) == null) return false;
             }
             // 朝向基准（yaw_base/pitch_base）：entity 实体缺失 / line 端点缺失 → 空片段
             String yawBase = kf.getString("yaw_base", "world");
             String pitchBase = kf.getString("pitch_base", "world");
             if ("entity".equals(yawBase) || "entity".equals(pitchBase)) {
-                if (resolveEntity(kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf) == null) return false;
+                if (entityResolver.resolveEntity(
+                        kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf) == null) return false;
             } else if ("line".equals(yawBase) || "line".equals(pitchBase)) {
-                if (resolveEntity(kf.getString("yaw_base_from", ""), lastWorldPos, "yaw_base_from", kf) == null
-                        || resolveEntity(kf.getString("yaw_base_to", ""), lastWorldPos, "yaw_base_to", kf) == null) return false;
+                if (entityResolver.resolveEntity(
+                        kf.getString("yaw_base_from", ""), lastWorldPos, "yaw_base_from", kf) == null
+                        || entityResolver.resolveEntity(
+                                kf.getString("yaw_base_to", ""), lastWorldPos, "yaw_base_to", kf) == null) return false;
             }
             PositionData pd = kf.getPosition();
             if (pd != null && pd.isRelative()) {
                 // 基准坐标系偏移：显式指定的基准点实体不可解析 → 该段无基准，按空片段处理
                 if (pd.isOriginSelector()
-                        && resolveEntity(pd.getOriginSelector(), lastWorldPos, "facing_origin", kf) == null) {
+                        && entityResolver.resolveEntity(
+                                pd.getOriginSelector(), lastWorldPos, "facing_origin", kf) == null) {
                     return false;
                 }
                 // 基准朝向目标不可解析 → 基准朝向不存在，同样按空片段处理
                 if (pd.getFacingTarget() != null && !pd.getFacingTarget().isEmpty()
-                        && resolveEntity(pd.getFacingTarget(), lastWorldPos, "facing_target", kf) == null) {
+                        && entityResolver.resolveEntity(
+                                pd.getFacingTarget(), lastWorldPos, "facing_target", kf) == null) {
                     return false;
                 }
                 String sid = pd.getOriginStructure();
@@ -401,7 +360,7 @@ public class CameraTrackPlayer implements TrackPlayer {
      *   <li>不写全局 {@link CameraManager}（全局相机状态仍由顶层 clip 决定）；</li>
      *   <li>不写 {@link #lastWorldPos}（跨 clip 的求值状态不被污染）；</li>
      *   <li>本帧基准坐标系（{@link #frameValid} / frameFwd / frameRight / frameUp）事后还原；</li>
-     *   <li>目标锁状态（{@link #targetLocks}）在捕获前后整体还原——每个 clip 都从同一份锁状态出发
+     *   <li>目标锁状态（{@link EntityTargetResolver}）在捕获前后整体还原——每个 clip 都从同一份锁状态出发
      *       （等价"单独求值"），捕获求值对扫描 / 切换 / 平滑的任何改动一律丢弃。</li>
      * </ul>
      * 于是重叠窗口内每个 clip 拿到的都是"它自己那一刻该渲染的画面"——hold 语义自然成立
@@ -415,9 +374,8 @@ public class CameraTrackPlayer implements TrackPlayer {
     private void captureLowerLanes(float globalTime, List<Clip> active, Clip topClip) {
         if (active.size() < 2) return;  // 无重叠：本轨本帧只有顶层一份快照（单 clip 行为不变）
 
-        // 捕获求值的"隔离基线"：目标锁状态深拷贝（捕获求值只在这份基线之上进行，事后丢弃）
-        Map<String, TargetLock> lockBaseline = new java.util.HashMap<>();
-        copyTargetLocksInto(lockBaseline, targetLocks);
+        // 捕获求值的"隔离基线"：目标锁状态深拷贝留底（捕获求值只在这份基线之上进行，事后丢弃）
+        entityResolver.snapshotLockState();
         Vec3 savedOrigin = frameOrigin;
         Vec3 savedFwd = frameFwd;
         Vec3 savedRight = frameRight;
@@ -428,7 +386,7 @@ public class CameraTrackPlayer implements TrackPlayer {
                 Clip clip = active.get(i);
                 if (clip == topClip) continue;  // 防御：顶层只走正常路径
                 // 每个 clip 都从同一份目标锁状态出发（不受兄弟 clip 捕获求值影响）
-                copyTargetLocksInto(targetLocks, lockBaseline);
+                entityResolver.restoreLockState();
                 // 目标不可用 = 该 clip 本帧无画面（与顶层 clip 同语义：不产出 lane）
                 if (!isClipUsable(clip)) {
                     warnClipUnusableOnce();
@@ -438,44 +396,12 @@ public class CameraTrackPlayer implements TrackPlayer {
                 if (snapshot != null) laneSnapshots.add(snapshot);
             }
         } finally {
-            copyTargetLocksInto(targetLocks, lockBaseline);
+            entityResolver.restoreLockState();
             frameOrigin = savedOrigin;
             frameFwd = savedFwd;
             frameRight = savedRight;
             frameUp = savedUp;
             frameValid = savedValid;
-        }
-    }
-
-    /**
-     * 目标锁状态深拷贝（{@code src} → {@code dest}，dest 先清空）。
-     * <p>
-     * 用于捕获非顶层 clip 快照时保存 / 还原锁状态：捕获求值按只读语义处理，对锁的任何改动
-     * （扫描时间戳 / 目标切换 / 平滑过渡状态）都不得泄漏到顶层 clip 与后续帧。
-     */
-    private static void copyTargetLocksInto(Map<String, TargetLock> dest, Map<String, TargetLock> src) {
-        dest.clear();
-        for (Map.Entry<String, TargetLock> entry : src.entrySet()) {
-            TargetLock s = entry.getValue();
-            TargetLock d = new TargetLock();
-            d.uuid = s.uuid;
-            d.entity = s.entity;
-            d.resolvedAt = s.resolvedAt;
-            d.switchGeneration = s.switchGeneration;
-            d.searching = s.searching;
-            d.nextRetryAt = s.nextRetryAt;
-            d.lastSwitchAt = s.lastSwitchAt;
-            for (Map.Entry<String, PointState> point : s.points.entrySet()) {
-                PointState ps = point.getValue();
-                PointState pd = new PointState();
-                pd.last = ps.last;
-                pd.generation = ps.generation;
-                pd.from = ps.from;
-                pd.startNanos = ps.startNanos;
-                pd.smooth = ps.smooth;
-                d.points.put(point.getKey(), pd);
-            }
-            dest.put(entry.getKey(), d);
         }
     }
 
@@ -494,10 +420,12 @@ public class CameraTrackPlayer implements TrackPlayer {
         }
         if ("entity".equals(kf.getString("follow", "none"))) {
             String selector = kf.getString("follow_selector", "@p");
-            Entity target = resolveEntity(selector, lastWorldPos, "follow", kf);
+            Entity target = entityResolver.resolveEntity(selector, lastWorldPos, "follow", kf);
             if (target != null) {
                 Vec3 off = pd != null ? pd.toVec3() : Vec3.ZERO;
-                return smoothTargetPoint("follow", selector, "pos", TimeInterpolation.entityPosition(target).add(off), selectorPolicy(kf, "follow").switchSmooth());
+                return entityResolver.smoothTargetPoint("follow", selector, "pos",
+                        TimeInterpolation.entityPosition(target).add(off),
+                        entityResolver.selectorPolicy(kf, "follow").switchSmooth());
             }
             return lastWorldPos;
         }
@@ -553,7 +481,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         String facingTarget = pd.getFacingTarget();
         if (facingTarget != null && !facingTarget.isEmpty()) {
             net.minecraft.world.entity.Entity to =
-                    resolveEntity(facingTarget, lastWorldPos, "facing_target", kf);
+                    entityResolver.resolveEntity(facingTarget, lastWorldPos, "facing_target", kf);
             if (to == null) return null;
             Vec3 dir = TimeInterpolation.entityPosition(to).add(0, to.getBbHeight() / 2.0, 0).subtract(baseVec);
             return buildFrame(baseVec, dir, pd);
@@ -594,8 +522,8 @@ public class CameraTrackPlayer implements TrackPlayer {
         net.minecraft.world.entity.Entity base = evalFacingBase(kf, pd);
         if (base == null) return null;
         String role = pd.isOriginSelector() ? "facing_origin" : "follow";
-        Vec3 basePos = smoothTargetPoint(role, frameHandle(kf, pd), "base",
-                TimeInterpolation.entityPosition(base), selectorPolicy(kf, role).switchSmooth());
+        Vec3 basePos = entityResolver.smoothTargetPoint(role, frameHandle(kf, pd), "base",
+                TimeInterpolation.entityPosition(base), entityResolver.selectorPolicy(kf, role).switchSmooth());
         return basePos;
     }
 
@@ -652,10 +580,10 @@ public class CameraTrackPlayer implements TrackPlayer {
     private net.minecraft.world.entity.Entity evalFacingBase(Keyframe kf, PositionData pd) {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
         if (pd.isOriginSelector()) {
-            return resolveEntity(pd.getOriginSelector(), lastWorldPos, "facing_origin", kf);
+            return entityResolver.resolveEntity(pd.getOriginSelector(), lastWorldPos, "facing_origin", kf);
         }
         if ("entity".equals(kf.getString("follow", "none"))) {
-            return resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf);
+            return entityResolver.resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf);
         }
         return mc.player;
     }
@@ -663,7 +591,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     /** 基准朝向所属实体（旧行为）：follow 实体（follow=entity 时）或玩家 */
     private net.minecraft.world.entity.Entity evalFacingOrient(Keyframe kf, net.minecraft.client.Minecraft mc) {
         if ("entity".equals(kf.getString("follow", "none"))) {
-            return resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf);
+            return entityResolver.resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf);
         }
         return mc.player;
     }
@@ -805,10 +733,11 @@ public class CameraTrackPlayer implements TrackPlayer {
         String lookAt = kf.getString("look_at", "none");
         if ("entity".equals(lookAt)) {
             String selector = kf.getString("look_at_selector", "@p");
-            Entity target = resolveEntity(selector, pos, "look_at", kf);
+            Entity target = entityResolver.resolveEntity(selector, pos, "look_at", kf);
             if (target == null) return null;
             Vec3 raw = TimeInterpolation.entityPosition(target).add(0, target.getBbHeight() / 2.0, 0);
-            return smoothTargetPoint("look_at", selector, "point", raw, selectorPolicy(kf, "look_at").switchSmooth());
+            return entityResolver.smoothTargetPoint("look_at", selector, "point", raw,
+                    entityResolver.selectorPolicy(kf, "look_at").switchSmooth());
         }
         if ("coordinate".equals(lookAt)) {
             String structureId = kf.getString("look_at_target_structure", "");
@@ -889,12 +818,13 @@ public class CameraTrackPlayer implements TrackPlayer {
         }
         // 相对实体 selector（每帧求实体位置 + 偏移）
         String selector = String.valueOf(relTo);
-        Entity target = resolveEntity(selector, pos, "look_at_target", kf);
+        Entity target = entityResolver.resolveEntity(selector, pos, "look_at_target", kf);
         if (target == null) return null;
         Vec3 raw = offset != null
                 ? TimeInterpolation.entityPosition(target).add(offset)
                 : TimeInterpolation.entityPosition(target).add(dx, dy, dz);
-        return smoothTargetPoint("look_at_target", selector, "point", raw, selectorPolicy(kf, "look_at_target").switchSmooth());
+        return entityResolver.smoothTargetPoint("look_at_target", selector, "point", raw,
+                entityResolver.selectorPolicy(kf, "look_at_target").switchSmooth());
     }
 
     private static Float numOrNull(Object o) {
@@ -1002,7 +932,8 @@ public class CameraTrackPlayer implements TrackPlayer {
     private float yawBaseOf(Keyframe kf) {
         String base = kf.getString("yaw_base", "world");
         if ("entity".equals(base)) {
-            Entity e = resolveEntity(kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf);
+            Entity e = entityResolver.resolveEntity(
+                    kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf);
             return e != null ? TimeInterpolation.entityBodyYaw(e) : 0f;
         }
         if ("line".equals(base)) {
@@ -1016,7 +947,8 @@ public class CameraTrackPlayer implements TrackPlayer {
     private float pitchBaseOf(Keyframe kf) {
         String base = kf.getString("pitch_base", "world");
         if ("entity".equals(base)) {
-            Entity e = resolveEntity(kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf);
+            Entity e = entityResolver.resolveEntity(
+                    kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf);
             return e != null ? TimeInterpolation.entityPitch(e) : 0f;
         }
         if ("line".equals(base)) {
@@ -1034,8 +966,8 @@ public class CameraTrackPlayer implements TrackPlayer {
      * 两端点至少一个缺失（实体找不到）返回 null。
      */
     private float[] lineDir(Keyframe kf) {
-        Entity a = resolveEntity(kf.getString("yaw_base_from", ""), lastWorldPos, "yaw_base_from", kf);
-        Entity b = resolveEntity(kf.getString("yaw_base_to", ""), lastWorldPos, "yaw_base_to", kf);
+        Entity a = entityResolver.resolveEntity(kf.getString("yaw_base_from", ""), lastWorldPos, "yaw_base_from", kf);
+        Entity b = entityResolver.resolveEntity(kf.getString("yaw_base_to", ""), lastWorldPos, "yaw_base_to", kf);
         if (a == null || b == null) return null;
         Vec3 from = TimeInterpolation.entityPosition(a);
         Vec3 to = TimeInterpolation.entityPosition(b);
@@ -1095,8 +1027,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     @Override
     public void onStop() {
         laneSnapshots.clear();
-        targetLocks.clear();
-        ClientEntitySelectorCache.clear();
+        entityResolver.clear();
         // bezierStrategy 随 TrackPlayer 实例一起被 GC，其 LUT 缓存自动释放
     }
 
@@ -1104,8 +1035,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     @Override
     public void onScriptReplaced() {
         laneSnapshots.clear();
-        targetLocks.clear();
-        ClientEntitySelectorCache.clear();
+        entityResolver.clear();
     }
 
     /**
@@ -1159,421 +1089,6 @@ public class CameraTrackPlayer implements TrackPlayer {
     private static float blendAngle(float a, float b, float weight) {
         float diff = ((b - a) % 360f + 540f) % 360f - 180f;
         return a + diff * weight;
-    }
-
-    /**
-     * 解析目标实体。
-     * <p>
-     * 客户端本地快速路径（原版语义子集，就近优先）：
-     * @p / @s        = 玩家（原版 @p ORDER_NEAREST limit 1 的等价简化）
-     * @e             = 范围内按离 origin 最近取 1 个活实体
-     * @e[type=…]     = 按实体类型过滤后就近取 1（如 minecraft:sheep / 模组 boss id）
-     * @e[name=…]     = 按自定义名过滤后就近取 1
-     * uuid:xxxxxxxx  = UUID 直绑（唯一确定，不排序）
-     * <p>
-     * 含 nbt= / tag= 等原版扩展选项的 @e[...] selector 会转到服务端解析；
-     * 服务端回传 UUID 列表，这里再映射成客户端实体。
-     * <p>
-     * 目标丢失（死亡 / 移除 / 未加载）不是"片段结束"：锁进入搜索态——保持最后画面（由调用方
-     * 按空片段语义兜底），后台按固定节奏持续重找；一旦解析到任意符合规则的目标就立即恢复，
-     * 不受 selector_switch_while_alive / 切换间隔限制。
-     * <p>
-     * 解析失败或无匹配返回 null。
-     */
-    private static final long MISS_RETRY_MS = 200L;
-
-    /** 诊断用：把长选择器压成短标签，避免刷屏 */
-    private static String describeSelector(String selector) {
-        if (selector == null) return "null";
-        String faction = "?";
-        java.util.regex.Matcher m = java.util.regex.Pattern
-                .compile("FactionID':\\\\?'?([a-zA-Z]+)").matcher(selector);
-        if (m.find()) faction = m.group(1);
-        boolean noPlayer = selector.contains("type=!minecraft:player");
-        boolean noProjectile = selector.contains("type=!#minecraft:impact_projectiles");
-        boolean noSummon = selector.contains("BetterEvE:Summoned");
-        return "len=" + selector.length() + " faction=" + faction
-                + (noPlayer ? " +noPlayer" : " !noPlayer")
-                + (noProjectile ? " +noProjectile" : " !noProjectile")
-                + (noSummon ? " +noSummon" : " !noSummon");
-    }
-
-    private net.minecraft.world.entity.Entity resolveEntity(String selector, Vec3 origin, String role, Keyframe kf) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        if (selector == null || selector.isEmpty()) return null;
-        if ("@p".equals(selector) || "@s".equals(selector)) {
-            return mc.player;
-        }
-        if (mc.level == null) return null;
-
-        SelectorPolicy policy = selectorPolicy(kf, role);
-        String key = targetKey(role, selector);
-        TargetLock lock = targetLocks.computeIfAbsent(key, k -> new TargetLock());
-        long now = System.currentTimeMillis();
-
-        // 解析间隔（= 扫描指标）：与切换决策完全独立
-        long refreshMs = (long) Math.max(50.0f, policy.scanSeconds() * 1000.0f);
-
-        Entity current = lockEntity(lock);
-
-        // ===== 搜索态（目标丢失 / 尚未找到）=====
-        // 丢失 ≠ 片段结束：保持最后画面（调用方按空片段兜底），后台持续重找；
-        // 解析到任意符合规则的目标就立即恢复——不受存活期切换策略（switch_while_alive / 切换间隔）限制。
-        if (current == null) {
-            if (!lock.searching) {
-                lock.searching = true;
-                lock.nextRetryAt = 0L;   // 丢失当帧立刻重试一次（不等节流）
-                if (lock.uuid != null) {
-                    LOGGER.info("[selector] 目标丢失 role={} sel={} uuid={} → 进入搜索（保持最后画面，持续重找）",
-                            role, describeSelector(selector), lock.uuid);
-                } else {
-                    LOGGER.info("[selector] 等待目标 role={} sel={}", role, describeSelector(selector));
-                }
-            }
-            Entity found = resolveEntityInternal(selector, origin, refreshMs, true, lock);
-            if (found == null) {
-                return null;
-            }
-            boolean recovered = lock.uuid != null;
-            lock.searching = false;
-            lock.uuid = found.getUUID();
-            lock.entity = found;
-            lock.resolvedAt = now;
-            lock.lastSwitchAt = now;
-            if (recovered) {
-                // 从"保持的最后画面"平滑过渡到新目标（复用 selector_switch_smooth）
-                lock.switchGeneration++;
-                LOGGER.info("[selector] 搜索恢复 role={} → {} uuid={}", role, found.getType(), found.getUUID());
-            } else {
-                LOGGER.info("[selector] 锁定 role={} → {} uuid={}", role, found.getType(), found.getUUID());
-            }
-            return found;
-        }
-
-        // ===== 跟踪态（目标存活）=====
-        lock.searching = false;   // 目标在手上（含重新加载回来）→ 退出搜索态
-        Entity found = null;
-        if (now - lock.resolvedAt >= refreshMs) {
-            found = resolveEntityInternal(selector, origin, refreshMs, false, lock);
-        }
-        if (found == null) {
-            // 未到扫描时间 / 本次没扫到：继续用当前目标
-            return current;
-        }
-
-        UUID newUuid = found.getUUID();
-        if (lock.uuid != null && lock.uuid.equals(newUuid)) {
-            lock.entity = found;
-            lock.resolvedAt = now;
-            return found;
-        }
-
-        // 扫到了不同的目标——是否真的切换由「切换指标」决定，与扫描频率无关
-        if (!policy.switchWhileAlive()) {
-            // 存活期不换：保留旧目标（旧目标失效时锁进入搜索态，上面会走恢复分支）
-            lock.entity = current;
-            lock.resolvedAt = now;
-            return current;
-        }
-        // 两次真实切换之间的最小间隔：到点才换（基准是上次切换时间，与扫描频率解耦）
-        long switchGateMs = (long) Math.max(0f, policy.switchSeconds() * 1000.0f);
-        if (switchGateMs > 0L && now - lock.lastSwitchAt < switchGateMs) {
-            // 还在切换冷却里：继续用旧目标，但记录本次已扫过（否则会每帧重扫）
-            lock.entity = current;
-            lock.resolvedAt = now;
-            LOGGER.info("[selector](冷却中) role={} 扫到新目标 {} 但被切换间隔挡住，继续用旧目标 {}",
-                    role, newUuid, lock.uuid);
-            return current;
-        }
-
-        lock.switchGeneration++;
-        lock.uuid = newUuid;
-        lock.entity = found;
-        lock.resolvedAt = now;
-        lock.lastSwitchAt = now;
-        LOGGER.info("[selector] 切换 role={} → {} uuid={}", role, found.getType(), found.getUUID());
-        return found;
-    }
-
-    /**
-     * 选择器策略（调用点级）：先读 {@code <字段>_<调用点>}（如 {@code selector_refresh_look_at}），
-     * 缺失回落到通用字段——通用字段只作默认回落，不写角色专属字段时行为与旧版一致。
-     */
-    private SelectorPolicy selectorPolicy(Keyframe kf, String role) {
-        if (kf == null) return new SelectorPolicy(1.0f, true, 1.0f, 0f);
-        String callpoint = SELECTOR_CALLPOINTS.contains(role) ? role : null;
-        float scan = floatForCallpoint(kf, "selector_refresh", callpoint, 1.0f);
-        boolean switchWhileAlive = boolForCallpoint(kf, "selector_switch_while_alive", callpoint, true);
-        // 切换间隔缺省 = 扫描间隔（保持旧行为：扫描到点就允许切换）
-        float switchInterval = floatForCallpoint(kf, "selector_switch_interval", callpoint, scan);
-        float smooth = Math.max(0f, floatForCallpoint(kf, "selector_switch_smooth", callpoint, 0f));
-        return new SelectorPolicy(Math.max(0.05f, scan), switchWhileAlive, Math.max(0f, switchInterval), smooth);
-    }
-
-    /** 读"调用点专属字段 → 通用字段 → 缺省值" */
-    private static float floatForCallpoint(Keyframe kf, String field, String callpoint, float fallback) {
-        if (callpoint != null) {
-            String key = field + "_" + callpoint;
-            if (kf.getData().containsKey(key)) return kf.getFloat(key, fallback);
-        }
-        return kf.getFloat(field, fallback);
-    }
-
-    private static boolean boolForCallpoint(Keyframe kf, String field, String callpoint, boolean fallback) {
-        if (callpoint != null) {
-            String key = field + "_" + callpoint;
-            if (kf.getData().containsKey(key)) return kf.getBool(key, fallback);
-        }
-        return kf.getBool(field, fallback);
-    }
-
-    private static String targetKey(String role, String selector) {
-        return role + "\u0000" + selector;
-    }
-
-    /** 把锁定的 UUID 映射回客户端实体；已卸载/死亡返回 null。 */
-    private Entity lockEntity(TargetLock lock) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        if (lock.entity != null && lock.entity.isAlive()) {
-            return lock.entity;
-        }
-        if (lock.uuid != null) {
-            Entity e = findEntityByUuid(mc, lock.uuid);
-            if (e != null && e.isAlive()) {
-                lock.entity = e;
-                return e;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 目标点/位置切换平滑：按通道（look_at / follow 位置 / follow 朝向基准）分别维护。
-     * 只有目标 UUID 变化时才启动过渡，稳定跟踪同一目标不额外延迟。
-     */
-    private Vec3 smoothTargetPoint(String role, String selector, String channel, Vec3 raw, float smoothSeconds) {
-        if (raw == null) return null;
-        TargetLock lock = targetLocks.get(targetKey(role, selector));
-        if (lock == null) return raw;
-
-        PointState state = lock.points.computeIfAbsent(channel, k -> new PointState());
-        long now = System.nanoTime();
-
-        if (state.last == null) {
-            state.last = raw;
-            state.generation = lock.switchGeneration;
-            return raw;
-        }
-
-        if (state.generation != lock.switchGeneration) {
-            state.generation = lock.switchGeneration;
-            if (smoothSeconds > 0f) {
-                state.from = state.last;
-                state.startNanos = now;
-                state.smooth = smoothSeconds;
-            } else {
-                state.startNanos = 0L;
-                state.smooth = 0f;
-                state.last = raw;
-                return raw;
-            }
-        }
-
-        if (state.startNanos == 0L || state.smooth <= 0f) {
-            state.last = raw;
-            return raw;
-        }
-
-        float t = (now - state.startNanos) / 1.0e9f / state.smooth;
-        if (t >= 1f) {
-            state.startNanos = 0L;
-            state.last = raw;
-            return raw;
-        }
-
-        float k = t * t * (3f - 2f * t);
-        Vec3 blended = new Vec3(
-                state.from.x + (raw.x - state.from.x) * k,
-                state.from.y + (raw.y - state.from.y) * k,
-                state.from.z + (raw.z - state.from.z) * k);
-        state.last = blended;
-        return blended;
-    }
-
-    /**
-     * 解析分发：服务端 selector 走请求 + 缓存，本地 selector 同步求值。
-     * {@code searching=true}（搜索态）时本地 selector 按 {@link #MISS_RETRY_MS} 节流重扫；
-     * 服务端 selector 的请求节流在 {@link #resolveServerSelector} 内（读缓存不受节流）。
-     */
-    private net.minecraft.world.entity.Entity resolveEntityInternal(String selector, Vec3 origin, long refreshMs, boolean searching, TargetLock lock) {
-        if (requiresServerSelector(selector)) {
-            return resolveServerSelector(selector, origin, refreshMs, searching, lock);
-        }
-        if (searching) {
-            long now = System.currentTimeMillis();
-            if (now < lock.nextRetryAt) {
-                return null;
-            }
-            lock.nextRetryAt = now + MISS_RETRY_MS;
-        }
-        return resolveLocalSelector(selector, origin);
-    }
-
-    /** 客户端本地解析：只处理 @e / @e[type=…,name=…] / uuid:xxx；复杂选项走服务端。 */
-    private net.minecraft.world.entity.Entity resolveLocalSelector(String selector, Vec3 origin) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc.level == null) return null;
-        net.minecraft.world.entity.Entity found = null;
-        if (selector.startsWith("uuid:")) {
-            try {
-                java.util.UUID uuid = java.util.UUID.fromString(selector.substring(5));
-                for (net.minecraft.world.entity.Entity e : mc.level.entitiesForRendering()) {
-                    if (uuid.equals(e.getUUID())) {
-                        found = e;
-                        break;
-                    }
-                }
-            } catch (IllegalArgumentException ex) {
-                LOGGER.warn("无效的实体 UUID selector '{}': {}", selector, ex.getMessage());
-            }
-        } else if ("@e".equals(selector) || selector.startsWith("@e[")) {
-            String typeId = null;
-            String name = null;
-            if (selector.startsWith("@e[")) {
-                String inner = selector.substring(3, selector.length() - 1);
-                for (String kv : inner.split(",")) {
-                    int eq = kv.indexOf('=');
-                    if (eq <= 0) continue;
-                    String key = kv.substring(0, eq).trim();
-                    String val = kv.substring(eq + 1).trim();
-                    if ("type".equals(key)) typeId = val;
-                    else if ("name".equals(key)) name = val;
-                    // 未知选项忽略（容错，不崩溃）
-                }
-            }
-            final String fType = typeId;
-            final String fName = name;
-            double bestDist = Double.MAX_VALUE;
-            for (net.minecraft.world.entity.Entity e : mc.level.entitiesForRendering()) {
-                if (!e.isAlive()) continue;
-                if (fType != null && !fType.equals(net.minecraft.world.entity.EntityType.getKey(e.getType()).toString())) continue;
-                if (fName != null && (e.getCustomName() == null || !fName.equals(e.getCustomName().getString()))) continue;
-                double dist = e.distanceToSqr(origin);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    found = e;
-                }
-            }
-        } else {
-            LOGGER.warn("不支持的实体 selector: {}（支持 @p/@s/@e/@e[type=…,name=…]/uuid:xxx）", selector);
-        }
-        return found;
-    }
-
-    /**
-     * 是否需要交给服务端解析。
-     * <p>
-     * 客户端本地只支持普通 {@code type=xxx} / {@code name=xxx}；以下情况交给服务端原版选择器：
-     * {@code nbt} / {@code tag} / {@code distance} / {@code sort} / {@code limit} 等其他选项、
-     * 实体类型 tag（{@code type=#tag}）、反向 type（{@code type=!xxx} / {@code type=!#tag}）、
-     * 多个 type 选项、反向 name。
-     */
-    private static boolean requiresServerSelector(String selector) {
-        if (selector == null || !selector.startsWith("@e[") || !selector.endsWith("]")) {
-            return false;
-        }
-        String inner = selector.substring(3, selector.length() - 1);
-        int depth = 0;
-        int start = 0;
-        int typeCount = 0;
-        for (int i = 0; i <= inner.length(); i++) {
-            char c = i < inner.length() ? inner.charAt(i) : ',';
-            if (c == '{' || c == '[') {
-                depth++;
-            } else if (c == '}' || c == ']') {
-                depth--;
-            } else if (c == ',' && depth == 0) {
-                String kv = inner.substring(start, i).trim();
-                start = i + 1;
-                int eq = kv.indexOf('=');
-                if (eq <= 0) {
-                    continue;
-                }
-                String key = kv.substring(0, eq).trim();
-                String val = kv.substring(eq + 1).trim();
-                if ("type".equals(key)) {
-                    typeCount++;
-                    if (val.startsWith("!") || val.startsWith("#") || typeCount > 1) {
-                        return true;
-                    }
-                } else if ("name".equals(key)) {
-                    if (val.startsWith("!")) {
-                        return true;
-                    }
-                } else {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 服务端解析路径：请求服务端用原版选择器求值，然后把 UUID 映射回客户端实体。
-     * <p>
-     * 跟踪态：按 {@code selector_refresh} 刷新（pending 期间不会重复发请求）。<br>
-     * 搜索态：每帧都读缓存（回包下一帧即可绑定）；只要上一份结果已消费且仍无可用目标就重发，
-     * 按 {@link #MISS_RETRY_MS} 节流——不等 selector_refresh。
-     */
-    private Entity resolveServerSelector(String selector, Vec3 origin, long refreshMs, boolean searching, TargetLock lock) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc.level == null || mc.getConnection() == null) {
-            return null;
-        }
-
-        long now = System.currentTimeMillis();
-        ClientEntitySelectorCache.Entry entry = ClientEntitySelectorCache.get(selector);
-        if (entry == null) {
-            // 首次请求：本帧无结果
-            lock.nextRetryAt = now + MISS_RETRY_MS;
-            ClientEntitySelectorCache.request(selector, origin.x, origin.y, origin.z);
-            return null;
-        }
-
-        // 先消费已有结果：每帧都读，回包下一帧就能绑定（不受重试节流影响）
-        List<UUID> uuids;
-        synchronized (entry) {
-            uuids = entry.uuids;
-        }
-        if (uuids != null) {
-            for (UUID uuid : uuids) {
-                Entity entity = findEntityByUuid(mc, uuid);
-                if (entity != null && entity.isAlive()) {
-                    return entity;
-                }
-            }
-        }
-
-        // 没有可用结果 → 判断是否（重新）请求
-        boolean needRequest = !entry.pending
-                && (searching ? now >= lock.nextRetryAt : now - entry.resolvedAt >= refreshMs);
-        if (needRequest) {
-            lock.nextRetryAt = now + MISS_RETRY_MS;
-            ClientEntitySelectorCache.request(selector, origin.x, origin.y, origin.z);
-        }
-        return null;
-    }
-
-    private static Entity findEntityByUuid(net.minecraft.client.Minecraft mc, UUID uuid) {
-        if (mc.level == null || uuid == null) {
-            return null;
-        }
-        for (Entity entity : mc.level.entitiesForRendering()) {
-            if (uuid.equals(entity.getUUID())) {
-                return entity;
-            }
-        }
-        return null;
     }
 
 }
