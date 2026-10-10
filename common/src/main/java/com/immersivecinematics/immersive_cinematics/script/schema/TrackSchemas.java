@@ -82,8 +82,12 @@ public final class TrackSchemas {
         kfs.put("facing_origin_x", new FieldDef("float", 0f));
         kfs.put("facing_origin_y", new FieldDef("float", 0f));
         kfs.put("facing_origin_z", new FieldDef("float", 0f));
-        // 基准朝向来源：留空 = 基准点自身朝向；填选择器 = 基准点 → 该目标的连线方向
+        // 基准朝向来源：留空 = 基准点自身朝向；否则 = 基准点 → 该目标的连线方向（点源，见 camera/source/PointSource；
+        // "coordinate" 形态的坐标取 facing_target_x/y/z）
         kfs.put("facing_target", new FieldDef("string", ""));
+        kfs.put("facing_target_x", new FieldDef("float", null));
+        kfs.put("facing_target_y", new FieldDef("float", null));
+        kfs.put("facing_target_z", new FieldDef("float", null));
         kfs.put("follow", new FieldDef("enum", "none", false, List.of("none", "entity")));
         kfs.put("follow_selector", new FieldDef("string", "@p"));
         kfs.put("look_at", new FieldDef("enum", "none", false, List.of("none", "coordinate", "entity")));
@@ -103,9 +107,8 @@ public final class TrackSchemas {
         kfs.put("selector_switch_smooth", new FieldDef("float", 0.0f));
         // 选择器锚点：就近排序（sort=nearest）的参考点，也是服务端解析请求的原点。
         // camera（缺省）= 相机位置（旧行为）；player = 玩家脚底；target = 该调用点已解析锁的实体脚底
-        // （未解析到目标时回落 camera）；origin = position.relative_origin 点源坐标（固定坐标 / 结构中心 /
-        // 方块中心 / 玩家激活位置 / 实体选择器，与位置基准同一解析；position 缺失或点源解析失败回落 camera）。
-        // 取值与回落链见 EntityTargetResolver.selectorAnchor。
+        // （未解析到目标时回落 camera）；origin = position 的位置侧点源坐标（形态见 camera/source/PointSource；
+        // position 缺失或点源解析失败回落 camera）。取值与回落链见 EntityTargetResolver.selectorAnchor。
         kfs.put("selector_anchor", new FieldDef("string", "camera"));
         // 候选择一策略：first（缺省）= 现状行为（本地 @e 就近取首个可用，服务端按回传序取首个可用）；
         // nearest = 客户端可用候选内取距锚点最近；alive = 按候选返回序取首个存活。
@@ -129,9 +132,16 @@ public final class TrackSchemas {
         kfs.put("pitch_base", new FieldDef("enum", "world", false, List.of("world", "entity", "line")));
         // yaw_base/pitch_base = entity 时的实体选择器（yaw 取身体朝向水平角、pitch 取视线俯仰）
         kfs.put("yaw_base_selector", new FieldDef("string", "@p"));
-        // line 基准的两个端点；退化连线（零长度 / 纯垂直）水平角未定义，运行时被拒（回退基准 0 = world）
+        // line 基准的两个端点：各是完整点源（见 camera/source/PointSource；"coordinate" 形态的坐标取 <字段>_x/_y/_z）；
+        // 退化连线（零长度 / 纯垂直）水平角未定义，运行时被拒（回退基准 0 = world）
         kfs.put("yaw_base_from", new FieldDef("string", ""));
+        kfs.put("yaw_base_from_x", new FieldDef("float", null));
+        kfs.put("yaw_base_from_y", new FieldDef("float", null));
+        kfs.put("yaw_base_from_z", new FieldDef("float", null));
         kfs.put("yaw_base_to", new FieldDef("string", ""));
+        kfs.put("yaw_base_to_x", new FieldDef("float", null));
+        kfs.put("yaw_base_to_y", new FieldDef("float", null));
+        kfs.put("yaw_base_to_z", new FieldDef("float", null));
         kfs.put("yaw", new FieldDef("float", 0));
         kfs.put("pitch", new FieldDef("float", 0));
         kfs.put("roll", new FieldDef("float", 0));

@@ -500,6 +500,10 @@ public final class ScriptValidator {
                             checkSelectorAnchor(kf, kp, issues);
                             // 选择器择一字段（通用 + 调用点专属）：取值枚举校验
                             checkSelectorPick(kf, kp, issues);
+                            // 点源字段（连线端点 / 基准朝向目标）：字符串形态 + coordinate 配套坐标（都写在关键帧上）
+                            checkPointSourceField(kf, kp, "yaw_base_from", issues);
+                            checkPointSourceField(kf, kp, "yaw_base_to", issues);
+                            checkPointSourceField(kf, kp, "facing_target", issues);
                             // ===== 合成参数（0.3.6 camera-composition）：opacity / dest / source =====
                             checkUnitFloat(kf, kp, "opacity", issues);
                             checkRect(kf, kp, "dest", issues);
@@ -912,6 +916,29 @@ public final class ScriptValidator {
             if (p.equals(v)) return;
         }
         issues.add(path + "." + key + " 未知值: " + v + "（可选: " + allowed + "）");
+    }
+
+    /**
+     * 校验点源字段（CAMERA 关键帧的连线端点 / 基准朝向目标）：取值须为字符串，形态与判据见
+     * {@code camera/source/PointSource}（{@code player} / {@code coordinate} / {@code block:id[:radius]} /
+     * {@code @选择器} / {@code uuid:…} / 结构 id）。{@code "coordinate"} 形态必须带 {@code <字段>_x/_y/_z}
+     * 三个数字——缺省会被当作 (0,0,0)，静默把点源钉在世界原点。字段缺省 / 空串 = 无点源（不报错）。
+     */
+    private static void checkPointSourceField(JsonObject kf, String path, String field, List<String> issues) {
+        if (!kf.has(field)) return;
+        JsonElement e = kf.get(field);
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
+            issues.add(path + "." + field
+                    + " 不是字符串（点源写法：player / coordinate / block:id[:radius] / @选择器 / uuid:… / 结构 id）");
+            return;
+        }
+        if (!"coordinate".equals(e.getAsString())) return;
+        for (String axis : new String[]{"x", "y", "z"}) {
+            String key = field + "_" + axis;
+            if (!kf.has(key) || !isNumber(kf.get(key))) {
+                issues.add(path + "." + key + " 缺失或不是数字（" + field + " = \"coordinate\" 时必须给出点源坐标）");
+            }
+        }
     }
 
     /** 非负有限秒数；字段缺省时跳过（回落通用字段 / 缺省策略）。 */

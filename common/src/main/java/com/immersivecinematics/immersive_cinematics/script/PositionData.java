@@ -36,6 +36,27 @@ public class PositionData {
     /** block 基准的默认搜索半径（格） */
     public static final int DEFAULT_BLOCK_RADIUS = 16;
 
+    /** 点源形态判据的「无点源」结果（空串 / {@code null}） */
+    public static final int NO_ORIGIN = -1;
+
+    /**
+     * 点源形态判据（唯一一份，五形态）：形态字符串 → {@link #ORIGIN_PLAYER} / {@link #ORIGIN_COORDINATE} /
+     * {@link #ORIGIN_STRUCTURE} / {@link #ORIGIN_BLOCK} / {@link #ORIGIN_SELECTOR}。
+     * {@code "@…"} / {@code "uuid:…"} = 实体选择器；{@code "block:…"} = 方块；{@code "player"} = 玩家激活位置；
+     * {@code "coordinate"} = 固定坐标；其余非空字符串 = 结构 id；空串 / {@code null} = {@link #NO_ORIGIN}（无点源）。
+     *
+     * @param value 形态字符串（脚本字段值 / 位置侧携带的来源字符串）
+     * @return {@link #ORIGIN_*} 之一，或 {@link #NO_ORIGIN}
+     */
+    public static int originKindOf(String value) {
+        if (value == null || value.isEmpty()) return NO_ORIGIN;
+        if (value.startsWith("@") || value.startsWith("uuid:")) return ORIGIN_SELECTOR;
+        if (value.startsWith("block:")) return ORIGIN_BLOCK;
+        if ("player".equals(value)) return ORIGIN_PLAYER;
+        if ("coordinate".equals(value)) return ORIGIN_COORDINATE;
+        return ORIGIN_STRUCTURE;
+    }
+
     /** 坐标模式：true=相对偏移(dx/dy/dz)，false=绝对坐标(x/y/z) */
     private final boolean relative;
 
@@ -142,19 +163,6 @@ public class PositionData {
     }
 
     /**
-     * 基准空间坐标系偏移（fwd/up/right 相对基准朝向）——基准点 = follow 实体 / 玩家（旧行为）。
-     *
-     * @param fwd    沿基准朝向 前后（正=前 负=后）
-     * @param up     沿基准朝向 上下（正=上 负=下）
-     * @param right  沿基准朝向 左右（正=右 负=左）
-     * @param upAxis y 轴开关："view"=up 随俯仰全三维（默认）；"world"=up 保持世界竖直
-     */
-    public static PositionData facing(float fwd, float up, float right, String upAxis) {
-        return new PositionData(true, 0f, 0f, 0f, ORIGIN_PLAYER, 0f, 0f, 0f, null, null, 0, null,
-                true, fwd, up, right, upAxis != null ? upAxis : "view", null);
-    }
-
-    /**
      * 基准空间坐标系偏移，基准点 = 指定实体选择器（{@code facing_origin}）。
      * <p>
      * 让基准点不再写死为"玩家 / follow 实体"：例如以 A 为基准点、A→B 为基准朝向来摆机位。
@@ -247,6 +255,11 @@ public class PositionData {
         this.up = up;
         this.right = right;
         this.upAxis = upAxis;
+    }
+
+    /** 相对基准类型（{@link #ORIGIN_PLAYER} / {@link #ORIGIN_COORDINATE} / {@link #ORIGIN_STRUCTURE} / {@link #ORIGIN_BLOCK} / {@link #ORIGIN_SELECTOR}） */
+    public int getOriginType() {
+        return originType;
     }
 
     /** 相对基准是否为固定坐标 */

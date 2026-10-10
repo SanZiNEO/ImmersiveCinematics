@@ -185,8 +185,21 @@
 | `look_at_selector` | 注视目标选择器（`entity` 模式），默认 `@p` |
 | `look_at_target_x/y/z` | 注视固定坐标（`coordinate` 模式）。**与 `look_at_target_structure` 互斥** |
 | `look_at_target_structure` | 注视结构中心（`coordinate` 模式）：填结构 id 如 `minecraft:village`。播放时服务端自动定位**结构 bounding box 中心**并替换为坐标（就近搜索，原版 /locate 同范围，多人服务器也生效）；编辑器里是注册表下拉补全。**与坐标互斥**：指定结构后定位失败不回退坐标，该端无注视目标（回退角度插值） |
+| `yaw_base` / `pitch_base` | 朝向基准：`"world"`（默认，`yaw`/`pitch` 即世界角）/ `"entity"`（实体**身体朝向**水平角 + **视线**俯仰，用 `yaw_base_selector`）/ `"line"`（`yaw_base_from` → `yaw_base_to` 的连线方向）。用基准时 `yaw`/`pitch` 是相对基准的偏移 |
+| `yaw_base_from` / `yaw_base_to` | `line` 基准的两个端点，**各是一个点源**（见下方"点源写法"）。退化连线（零长度 / 纯垂直）被拒 → 回退 `world` 基准 |
+| `facing_origin` / `facing_target` | `fwd`/`up`/`right`（基准空间偏移）的**基准点**与**基准朝向目标**，**都是点源**（见下方"点源写法"）。`facing_origin` 不写 = follow 实体 / 玩家；`facing_target` 不写 = 基准点自身朝向 |
 
-**目标选择器**（`follow_selector` / `look_at_selector`）：`@p`/`@s`（玩家）、`@e`（离锚点最近实体）、`@e[type=minecraft:sheep]`（类型过滤后就近，模组 boss 用其注册 id）、`@e[name=自定义名]`（命名牌名字过滤后就近）、`uuid:xxxxxxxx-…`（UUID 直绑）——就近基准（锚点）缺省为相机当前位置，可用 `selector_anchor` 改为 `player`（玩家脚底）/ `target`（该调用点当前锁定目标脚底，未解析到目标时回落相机）/ `origin`（`position.relative_origin` 点源坐标，与位置基准同一解析：固定坐标 / 结构中心 / 方块中心 / 玩家激活位置 / 实体选择器；`position` 缺失或点源解析失败时回落相机）。
+**点源写法**（`yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target` 通用；位置侧的 `relative_origin` 同一套）：
+`"player"`（玩家激活位置）；`"coordinate"` + `<字段>_x/_y/_z`（固定坐标，三个都要写）；`"block:minecraft:obsidian:32"`
+（玩家附近最近匹配方块中心，半径缺省 16 格）；`@e[type=…]` / `uuid:…`（实体选择器——连线端点与 `facing_origin` 取脚底，
+`facing_target` 取包围盒中心）；其余非空字符串 = 结构 id（结构 bounding box 中心）。空串 / 不写 = 无点源。
+不可解析 = 该端无目标，片段按空处理（不写相机）。结构 / 方块在单人 / 集成服务器直接定位；多人服务器上只有
+`look_at_target_structure` 与 `relative_origin` 由服务端推送前替换为坐标，其余字段的结构 / 方块形态在多人服不可解析。
+
+点源字段与坐标形态的配套字段（`<字段>_x/_y/_z`）都写在**关键帧**上；`position` 对象只承载偏移量
+（`dx/dy/dz` 世界轴 / `x/y/z` 绝对 / `fwd`/`up`/`right`+`up_axis` 基准空间）。
+
+**目标选择器**（`follow_selector` / `look_at_selector`）：`@p`/`@s`（玩家）、`@e`（离锚点最近实体）、`@e[type=minecraft:sheep]`（类型过滤后就近，模组 boss 用其注册 id）、`@e[name=自定义名]`（命名牌名字过滤后就近）、`uuid:xxxxxxxx-…`（UUID 直绑）——就近基准（锚点）缺省为相机当前位置，可用 `selector_anchor` 改为 `player`（玩家脚底）/ `target`（该调用点当前锁定目标脚底，未解析到目标时回落相机）/ `origin`（`position` 的位置侧点源坐标，形态见上方"点源写法"；`position` 缺失或点源解析失败时回落相机）。
 
 每个选择器调用点（`follow` / `look_at` / `look_at_target` / `yaw_base` / `yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target`）的锁定策略、锚点与择一规则可单独覆盖：写 `selector_refresh_<调用点>` / `selector_anchor_<调用点>` / `selector_pick_<调用点>` 等（4 个策略字段 + 锚点 + 择一都有调用点变体），缺省回落通用 `selector_*`（详见 `docs/SCRIPT_FORMAT.md` §4「调用点级策略覆盖」）。
 

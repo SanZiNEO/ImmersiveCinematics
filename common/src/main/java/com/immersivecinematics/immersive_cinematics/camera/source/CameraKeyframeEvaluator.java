@@ -54,8 +54,6 @@ public final class CameraKeyframeEvaluator {
     private final Vec3 originPos;
     /** 目标解析与锁定：selector → 实体 + 按 {@code role + selector} 维护的锁与切换平滑状态 */
     private final EntityTargetResolver entityResolver;
-    /** 结构 / 方块静态目标定位（IO） */
-    private final WorldPointLocator pointLocator;
     /** 独立 Bezier 路径策略实例（弧长 LUT 缓存随本实例 GC） */
     private final PathStrategy bezierStrategy = new BezierPathStrategy();
 
@@ -90,10 +88,9 @@ public final class CameraKeyframeEvaluator {
     public CameraKeyframeEvaluator(EntityTargetResolver entityResolver, WorldPointLocator pointLocator,
                                    Vec3 originPos) {
         this.entityResolver = entityResolver;
-        this.pointLocator = pointLocator;
         this.originPos = originPos;
         this.lastWorldPos = originPos;
-        // 世界上下文共用同一实例：锚点 origin 的点源（结构 / 方块 / 玩家激活位置）由 EntityTargetResolver 解析
+        // 世界上下文共用同一实例：位置侧点源（结构 / 方块 / 玩家激活位置）由 EntityTargetResolver 解析
         entityResolver.attachWorldContext(pointLocator, originPos);
     }
 
@@ -121,17 +118,21 @@ public final class CameraKeyframeEvaluator {
     /**
      * 片段目标可用性：look_at/follow 的实体、结构目标、position.relative_origin 结构/方块基准
      * 任一不可解析 → 片段不可用，按空片段处理（不写相机，玩家视角）。
+     * 点源（位置基准 / 注视点 / 连线端点 / 基准朝向目标）与求值路径走同一解析，判据不分叉。
      * 找不到就找不到——不引入任何替代值/回退逻辑。
      */
     public boolean isClipUsable(Clip clip) {
         for (Keyframe kf : clip.getKeyframes()) {
             String lookAt = kf.getString("look_at", "none");
             if ("entity".equals(lookAt)) {
-                if (entityResolver.resolveEntity(
-                        kf.getString("look_at_selector", "@p"), lastWorldPos, "look_at", kf) == null) return false;
+                if (evalPointSource(PointSource.selector(kf.getString("look_at_selector", "@p"),
+                        PointSource.EntityPoint.CENTER), lastWorldPos, "look_at", kf) == null) return false;
             } else if ("coordinate".equals(lookAt)) {
                 String sid = kf.getString("look_at_target_structure", "");
-                if (!sid.isEmpty() && pointLocator.resolveStructurePos(sid) == null) return false;
+                if (!sid.isEmpty()
+                        && evalPointSource(PointSource.structure(sid), lastWorldPos, "look_at", kf) == null) {
+                    return false;
+                }
                 // 相对目标对象的实体基准不存在 → 该端无目标，片段按空处理
                 Object targetObj = kf.getObject("look_at_target");
                 if (targetObj instanceof Map<?, ?> m) {
@@ -154,30 +155,33 @@ public final class CameraKeyframeEvaluator {
                 if (entityResolver.resolveEntity(
                         kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf) == null) return false;
             } else if ("line".equals(yawBase) || "line".equals(pitchBase)) {
-                if (entityResolver.resolveEntity(
-                        kf.getString("yaw_base_from", ""), lastWorldPos, "yaw_base_from", kf) == null
-                        || entityResolver.resolveEntity(
-                                kf.getString("yaw_base_to", ""), lastWorldPos, "yaw_base_to", kf) == null) return false;
+                if (evalPointField(kf, "yaw_base_from", PointSource.EntityPoint.FOOT) == null
+                        || evalPointField(kf, "yaw_base_to", PointSource.EntityPoint.FOOT) == null) return false;
             }
             PositionData pd = kf.getPosition();
             if (pd != null && pd.isRelative()) {
-                // 基准坐标系偏移：显式指定的基准点实体不可解析 → 该段无基准，按空片段处理
+                // 基准坐标系偏移：显式指定的基准点不可解析 → 该段无基准，按空片段处理
                 if (pd.isOriginSelector()
-                        && entityResolver.resolveEntity(
-                                pd.getOriginSelector(), lastWorldPos, "facing_origin", kf) == null) {
+                        && evalPointSource(PointSource.of(pd, PointSource.EntityPoint.FOOT),
+                                lastWorldPos, "facing_origin", kf) == null) {
                     return false;
                 }
                 // 基准朝向目标不可解析 → 基准朝向不存在，同样按空片段处理
-                if (pd.getFacingTarget() != null && !pd.getFacingTarget().isEmpty()
-                        && entityResolver.resolveEntity(
-                                pd.getFacingTarget(), lastWorldPos, "facing_target", kf) == null) {
+                PointSource facingTarget = PointSource.parse(kf, "facing_target", pd.getFacingTarget(),
+                        PointSource.EntityPoint.CENTER);
+                if (facingTarget != null
+                        && evalPointSource(facingTarget, lastWorldPos, "facing_target", kf) == null) {
                     return false;
                 }
                 String sid = pd.getOriginStructure();
-                if (sid != null && !sid.isEmpty() && pointLocator.resolveStructurePos(sid) == null) return false;
-                if (pd.isOriginBlock()) {
-                    if (pointLocator.resolveBlockPos(pd.getOriginBlockId(), pd.getOriginBlockRadius())
-                            == null) return false;
+                if (sid != null && !sid.isEmpty()
+                        && evalPointSource(PointSource.structure(sid), lastWorldPos, "facing_origin", kf) == null) {
+                    return false;
+                }
+                if (pd.isOriginBlock()
+                        && evalPointSource(PointSource.of(pd, PointSource.EntityPoint.FOOT),
+                                lastWorldPos, "facing_origin", kf) == null) {
+                    return false;
                 }
             }
         }
@@ -331,7 +335,7 @@ public final class CameraKeyframeEvaluator {
         Vec3 p = pd != null ? pd.toVec3() : Vec3.ZERO;
         if (pd == null || !pd.isRelative()) return p;
         // 相对基准：relative_origin = "coordinate"（固定坐标）/ 结构 id（结构中心）/ 默认玩家激活位置
-        return resolveRelativeBase(pd).add(p);
+        return resolveRelativeBase(kf, pd).add(p);
     }
 
     /**
@@ -365,24 +369,22 @@ public final class CameraKeyframeEvaluator {
      */
     private Vec3[] evalFacingFrame(Keyframe kf, PositionData pd) {
         Minecraft mc = Minecraft.getInstance();
-        // 调用点名：显式实体基准 → facing_origin；旧写法 → follow（策略按调用点隔离，回落通用字段）
-        String role = pd.isOriginSelector() ? "facing_origin" : "follow";
-        // 基准点来源（统一点源解析）：实体选择器 / 固定坐标 / 结构中心 / 搜索到的方块
-        Vec3 baseVec = resolvePointSource(kf, pd);
+        // 基准点来源（统一点源解析）：形态见 camera/source/PointSource
+        Vec3 baseVec = evalFacingBasePoint(kf, pd);
         if (baseVec == null) return null;
-        // 朝向所属实体：显式实体基准 → 该实体；坐标/结构/方块基准或旧写法 → follow 实体 / 玩家
+        // 朝向所属实体：显式实体基准 → 该实体；坐标 / 结构 / 方块 / 玩家激活位置基准 → follow 实体 / 玩家
         Entity orient = pd.isOriginSelector()
-                ? evalFacingBase(kf, pd)
+                ? entityResolver.resolveEntity(pd.getOriginSelector(), lastWorldPos, "facing_origin", kf)
                 : evalFacingOrient(kf, mc);
         if (pd.isOriginSelector() && orient == null) return null;
 
         // 基准朝向：facing_target 非空 → 基准点 → 该目标的连线方向（含俯仰的完整三维方向）
-        String facingTarget = pd.getFacingTarget();
-        if (facingTarget != null && !facingTarget.isEmpty()) {
-            Entity to = entityResolver.resolveEntity(facingTarget, lastWorldPos, "facing_target", kf);
-            if (to == null) return null;
-            Vec3 dir = TimeInterpolation.entityPosition(to).add(0, to.getBbHeight() / 2.0, 0).subtract(baseVec);
-            return buildFrame(baseVec, dir, pd);
+        // 取值来源 = position 的基准朝向字段（与解析侧同一份；配套坐标读关键帧 facing_target_x/y/z）
+        PointSource facingTarget = PointSource.parse(kf, "facing_target", pd.getFacingTarget(),
+                PointSource.EntityPoint.CENTER);
+        if (facingTarget != null) {
+            Vec3 to = evalPointSource(facingTarget, lastWorldPos, "facing_target", kf);
+            return to != null ? buildFrame(baseVec, to.subtract(baseVec), pd) : null;
         }
 
         if (orient == null) return null;
@@ -398,31 +400,37 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 统一点源解析：把"点源（来源 + 偏移）"求值成世界坐标。
+     * 点源求值（相机侧口径）：锚点取该调用点的 {@code selector_anchor}（回落通用字段 → 缺省 {@code camera}）。
      *
-     * 支持来源：实体选择器（位置 = 实体脚底，与三代一致）、固定坐标、结构中心、玩家附近搜索到的方块中心。
-     * 这是「点源清单统一」的落点——位置基准 / 注视点 / 连线端点共用同一种求值。
-     *
-     * @return 世界坐标；来源不可解析返回 null
+     * @param source    点源规格（{@link PointSource}）；{@code null} = 无点源
+     * @param cameraPos 实体形态的解析原点
+     * @param role      调用点名（策略 / 锚点 / 锁键，见 {@code selector/SelectorSchema}）
      */
-    private Vec3 resolvePointSource(Keyframe kf, PositionData pd) {
-        if (pd.isOriginCoordinate()) {
-            return new Vec3(pd.getOriginX(), pd.getOriginY(), pd.getOriginZ());
-        }
-        if (pd.getOriginStructure() != null && !pd.getOriginStructure().isEmpty()) {
-            return pointLocator.resolveStructurePos(pd.getOriginStructure());
-        }
-        if (pd.isOriginBlock()) {
-            return pointLocator.resolveBlockPos(pd.getOriginBlockId(), pd.getOriginBlockRadius());
-        }
-        // 实体来源：基准点 = 实体位置（脚底），与三代行为一致；
-        // fwd/up/right 的 up 从脚底往上算（不要再叠眼睛高度，否则整台相机抬高一个眼高）
-        Entity base = evalFacingBase(kf, pd);
-        if (base == null) return null;
-        String role = pd.isOriginSelector() ? "facing_origin" : "follow";
-        Vec3 basePos = entityResolver.smoothTargetPoint(role, frameHandle(kf, pd), "base",
-                TimeInterpolation.entityPosition(base), entityResolver.selectorPolicy(kf, role).switchSmooth(), kf);
-        return basePos;
+    private Vec3 evalPointSource(PointSource source, Vec3 cameraPos, String role, Keyframe kf) {
+        return entityResolver.resolvePointSource(source, cameraPos, role, kf,
+                entityResolver.selectorAnchor(kf, role));
+    }
+
+    /** 点源字段求值：字段名 = 调用点名（{@code yaw_base_from} / {@code yaw_base_to}），解析原点 = 当前视点。 */
+    private Vec3 evalPointField(Keyframe kf, String field, PointSource.EntityPoint point) {
+        return evalPointSource(PointSource.parse(kf, field, kf.getString(field, ""), point), lastWorldPos,
+                field, kf);
+    }
+
+    /**
+     * 基准坐标系的基准点：{@code facing_origin} 点源（坐标 / 结构 / 方块 / 实体选择器 / 玩家激活位置）。
+     * 实体形态的基准点按 {@code base} 通道平滑；坐标 / 结构 / 方块 / 玩家激活位置不平滑（静态点）。
+     */
+    private Vec3 evalFacingBasePoint(Keyframe kf, PositionData pd) {
+        PointSource source = PointSource.of(pd, PointSource.EntityPoint.FOOT);
+        Vec3 raw = evalPointSource(source, lastWorldPos, "facing_origin", kf);
+        return raw == null || source.kind() != PointSource.Kind.SELECTOR ? raw : smoothFacingBase(kf, pd, raw);
+    }
+
+    /** 基准点实体形态的 {@code base} 通道平滑（锁句柄 = 点源选择器 / follow 选择器）。 */
+    private Vec3 smoothFacingBase(Keyframe kf, PositionData pd, Vec3 raw) {
+        return entityResolver.smoothTargetPoint("facing_origin", frameHandle(kf, pd), "base", raw,
+                entityResolver.selectorPolicy(kf, "facing_origin").switchSmooth(), kf);
     }
 
     /** 点源的锁定/平滑句柄（基准点用哪个 selector 作为锁的键） */
@@ -474,19 +482,7 @@ public final class CameraKeyframeEvaluator {
         return frameFwd.scale(fwd).add(frameRight.scale(right)).add(frameUp.scale(up));
     }
 
-    /** 基准点来源：显式 facing_origin 实体 → 该实体；否则 follow 实体（follow=entity）或玩家 */
-    private Entity evalFacingBase(Keyframe kf, PositionData pd) {
-        Minecraft mc = Minecraft.getInstance();
-        if (pd.isOriginSelector()) {
-            return entityResolver.resolveEntity(pd.getOriginSelector(), lastWorldPos, "facing_origin", kf);
-        }
-        if ("entity".equals(kf.getString("follow", "none"))) {
-            return entityResolver.resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf);
-        }
-        return mc.player;
-    }
-
-    /** 基准朝向所属实体（旧行为）：follow 实体（follow=entity 时）或玩家 */
+    /** 基准朝向所属实体（坐标 / 结构 / 方块 / 玩家激活位置基准点）：follow 实体（{@code follow=entity} 时）/ 玩家。 */
     private Entity evalFacingOrient(Keyframe kf, Minecraft mc) {
         if ("entity".equals(kf.getString("follow", "none"))) {
             return entityResolver.resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf);
@@ -495,26 +491,26 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 相对基准求值：coordinate → 固定坐标；结构 id → 结构中心；默认玩家激活位置。
-     * 结构基准不可用已在 isClipUsable 前置拦截（该片段按空处理），此处为防御。
+     * 相对基准求值（dx/dy/dz）：位置侧点源（坐标 / 结构 / 方块 / 玩家激活位置，见 {@link PointSource}）；
+     * 点源不可解析 → 回落玩家激活位置。结构 / 方块不可用已在 isClipUsable 前置拦截（该片段按空处理），此处为防御。
      */
-    private Vec3 resolveRelativeBase(PositionData pd) {
-        if (pd.isOriginCoordinate()) {
-            return new Vec3(pd.getOriginX(), pd.getOriginY(), pd.getOriginZ());
-        }
+    private Vec3 resolveRelativeBase(Keyframe kf, PositionData pd) {
+        Vec3 base = evalPointSource(PointSource.of(pd, PointSource.EntityPoint.FOOT), lastWorldPos,
+                "facing_origin", kf);
+        if (base != null) return base;
+        warnRelativeBaseMiss(pd);
+        return originPos;
+    }
+
+    /** 相对基准点源不可解析提示（防御路径）：结构 / 方块各自一句，与前置拦截同口径。 */
+    private void warnRelativeBaseMiss(PositionData pd) {
         String structureId = pd.getOriginStructure();
         if (structureId != null && !structureId.isEmpty()) {
-            Vec3 structurePos = pointLocator.resolveStructurePos(structureId);
-            if (structurePos != null) return structurePos;
             LOGGER.debug("相对基准结构 '{}' 未找到（防御路径）", structureId);
-        }
-        if (pd.isOriginBlock()) {
-            Vec3 blockPos = pointLocator.resolveBlockPos(pd.getOriginBlockId(), pd.getOriginBlockRadius());
-            if (blockPos != null) return blockPos;
+        } else if (pd.isOriginBlock()) {
             LOGGER.warn("相对基准方块 '{}' 未找到（半径 {}，防御路径，片段按空处理）",
                     pd.getOriginBlockId(), pd.getOriginBlockRadius());
         }
-        return originPos;
     }
 
     /**
@@ -528,9 +524,9 @@ public final class CameraKeyframeEvaluator {
         String lookAt = kf.getString("look_at", "none");
         if ("entity".equals(lookAt)) {
             String selector = kf.getString("look_at_selector", "@p");
-            Entity target = entityResolver.resolveEntity(selector, pos, "look_at", kf);
-            if (target == null) return null;
-            Vec3 raw = TimeInterpolation.entityPosition(target).add(0, target.getBbHeight() / 2.0, 0);
+            Vec3 raw = evalPointSource(PointSource.selector(selector, PointSource.EntityPoint.CENTER),
+                    pos, "look_at", kf);
+            if (raw == null) return null;
             return entityResolver.smoothTargetPoint("look_at", selector, "point", raw,
                     entityResolver.selectorPolicy(kf, "look_at").switchSmooth(), kf);
         }
@@ -539,7 +535,7 @@ public final class CameraKeyframeEvaluator {
             if (!structureId.isEmpty()) {
                 // 结构目标与坐标互斥：指定了结构就只用结构。定位失败返回 null（该端无注视目标），
                 // 整个片段已被 isClipUsable 拦截按空处理，此处为防御。
-                Vec3 structurePos = pointLocator.resolveStructurePos(structureId);
+                Vec3 structurePos = evalPointSource(PointSource.structure(structureId), pos, "look_at", kf);
                 if (structurePos != null) return structurePos;
                 // 定位失败只提示一次（debug 级：作者排查可见，不打扰玩家）
                 if (!lookAtWarnOnce) {
@@ -556,10 +552,9 @@ public final class CameraKeyframeEvaluator {
                 // 对象解析失败（相对实体找不到/基准缺失）→ 该端无注视目标（isClipUsable 已前置拦截，此处防御）
                 return null;
             }
-            return new Vec3(
-                    kf.getFloat("look_at_target_x", 0),
-                    kf.getFloat("look_at_target_y", 64),
-                    kf.getFloat("look_at_target_z", 0));
+            return evalPointSource(PointSource.coordinate(
+                    kf.getFloat("look_at_target_x", 0), kf.getFloat("look_at_target_y", 64),
+                    kf.getFloat("look_at_target_z", 0)), pos, "look_at", kf);
         }
         // none：关键帧朝向的 100 格远点（MC 视线方向 forwards =
         // (-sin yaw·cos pitch, -sin pitch, cos yaw·cos pitch)）
@@ -583,7 +578,7 @@ public final class CameraKeyframeEvaluator {
         Float y = numOrNull(m.get("y"));
         Float z = numOrNull(m.get("z"));
         if (x != null && y != null && z != null) {
-            return new Vec3(x, y, z);
+            return evalPointSource(PointSource.coordinate(x, y, z), pos, "look_at", kf);
         }
         float dx = numOrDefault(m.get("dx"));
         float dy = numOrDefault(m.get("dy"));
@@ -756,18 +751,16 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * line 基准方向：yaw_base_from → yaw_base_to 两点连线方向（水平 yaw + 垂直 pitch）。
+     * line 基准方向：{@code yaw_base_from} → {@code yaw_base_to} 两点连线方向（水平 yaw + 垂直 pitch）。
+     * 两端点各是点源（见 {@link PointSource}），取点 = 实体脚底；任一端无点源或不可解析返回 null。
      * 水平分量小于 {@link #LINE_HORIZONTAL_EPSILON}（零长度线 / 纯垂直线）时水平角未定义，
      * 拒绝该朝向输入：返回 null，调用方（{@link #yawBaseOf} / {@link #pitchBaseOf}）回退基准 0 = world。
      * 纯水平线（水平分量达标、|dy| ≈ 0）合法：水平角有定义、pitch = 0。
-     * 两端点至少一个缺失（实体找不到）返回 null。
      */
     private float[] lineDir(Keyframe kf) {
-        Entity a = entityResolver.resolveEntity(kf.getString("yaw_base_from", ""), lastWorldPos, "yaw_base_from", kf);
-        Entity b = entityResolver.resolveEntity(kf.getString("yaw_base_to", ""), lastWorldPos, "yaw_base_to", kf);
-        if (a == null || b == null) return null;
-        Vec3 from = TimeInterpolation.entityPosition(a);
-        Vec3 to = TimeInterpolation.entityPosition(b);
+        Vec3 from = evalPointField(kf, "yaw_base_from", PointSource.EntityPoint.FOOT);
+        Vec3 to = evalPointField(kf, "yaw_base_to", PointSource.EntityPoint.FOOT);
+        if (from == null || to == null) return null;
         double dx = to.x - from.x;
         double dy = to.y - from.y;
         double dz = to.z - from.z;

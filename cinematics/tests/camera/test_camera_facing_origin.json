@@ -53,13 +53,13 @@
                 "time": 0,
                 "position_mode": "relative",
                 "position": {
-                  "facing_origin": "@e[type=minecraft:pig,limit=1]",
-                  "facing_target": "@e[type=minecraft:cow,limit=1]",
                   "fwd": -6.0,
                   "up": 2.0,
                   "right": 2.0,
                   "up_axis": "world"
                 },
+                "facing_origin": "@e[type=minecraft:pig,limit=1]",
+                "facing_target": "@e[type=minecraft:cow,limit=1]",
                 "look_at": "coordinate",
                 "look_at_target": { "relative_to": "@e[type=minecraft:cow,limit=1]", "dy": 0.5 },
                 "selector_refresh": 1.0,

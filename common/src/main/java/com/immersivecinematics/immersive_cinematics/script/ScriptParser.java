@@ -234,7 +234,7 @@ public class ScriptParser {
             if ("start_time".equals(fieldName) || "duration".equals(fieldName) || "keyframes".equals(fieldName)) {
                 continue; // 通用字段跳过
             }
-            Object value = parseFieldBySchema(fieldName, entry.getValue(), p, type, false);
+            Object value = parseFieldBySchema(fieldName, entry.getValue(), p, type, false, null);
             if (value != null) {
                 data.put(fieldName, value);
             }
@@ -300,7 +300,7 @@ public class ScriptParser {
         for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
             String fieldName = entry.getKey();
             if ("time".equals(fieldName)) continue;
-            Object value = parseFieldBySchema(fieldName, entry.getValue(), p, type, true);
+            Object value = parseFieldBySchema(fieldName, entry.getValue(), p, type, true, obj);
             if (value != null) data.put(fieldName, value);
         }
         // 校验必填字段（来自 schema）
@@ -316,7 +316,8 @@ public class ScriptParser {
      * 根据 schema 字段类型解析一个 JSON 值
      */
     private static Object parseFieldBySchema(String fieldName, JsonElement value, String p,
-                                              TrackType type, boolean isKeyframe) throws ScriptParseException {
+                                              TrackType type, boolean isKeyframe, JsonObject kfObj)
+            throws ScriptParseException {
         FieldDef def = isKeyframe
                 ? SchemaLoader.getKeyframeFields(type).get(fieldName)
                 : SchemaLoader.getClipFields(type).get(fieldName);
@@ -367,7 +368,7 @@ public class ScriptParser {
                 // 有 dx（世界轴相对）或有 fwd/up/right（基准空间相对）= 相对；有 x/y/z = 绝对
                 JsonObject posObj = value.getAsJsonObject();
                 boolean relative = posObj.has("dx") || posObj.has("fwd") || posObj.has("up") || posObj.has("right");
-                yield parsePositionData(posObj, p + "." + fieldName, relative);
+                yield parsePositionData(posObj, p + "." + fieldName, relative, kfObj);
             }
             case "bezier_curve" -> parseBezierCurve(value.getAsJsonObject(), p + "." + fieldName);
             case "color_curve" -> parseColorCurve(value, p + "." + fieldName);
@@ -522,11 +523,12 @@ public class ScriptParser {
 
     // ========== PositionData 解析 ==========
 
-    private static PositionData parsePositionData(JsonObject obj, String p, boolean positionModeRelative) throws ScriptParseException {
+    private static PositionData parsePositionData(JsonObject obj, String p, boolean positionModeRelative,
+                                                 JsonObject kfObj) throws ScriptParseException {
         if (positionModeRelative) {
-            // 基准空间坐标系偏移（fwd/up/right 相对基准朝向，仅实体/玩家基准）
+            // 基准空间坐标系偏移（fwd/up/right 相对基准朝向）
             if (obj.has("fwd") || obj.has("up") || obj.has("right")) {
-                return parseFacingRelative(obj, p);
+                return parseFacingRelative(kfObj, obj, p);
             }
             if (!obj.has("dx")) {
                 throw new ScriptParseException(p, "relative 模式需要 dx/dy/dz（世界轴偏移）或 fwd/up/right（基准空间偏移）字段");
@@ -547,121 +549,74 @@ public class ScriptParser {
     }
 
     /**
-     * 基准空间坐标系偏移：fwd/up/right 相对"基准点 + 基准朝向"的偏移。
+     * 基准空间坐标系偏移：fwd/up/right 相对"基准点 + 基准朝向"的偏移（与 dx/dy/dz 世界轴偏移互斥）。
      * <p>
-     * 基准点来源（可选，按优先级）：
-     * <ol>
-     *   <li>{@code facing_origin} = 实体选择器 → 基准点 = 该实体（每帧求值）</li>
-     *   <li>{@code facing_origin: "coordinate"} + {@code facing_origin_x/y/z} → 固定世界坐标</li>
-     *   <li>不写 → 回落旧行为：follow 实体（follow=entity 时）或玩家</li>
-     * </ol>
-     * 基准朝向 = 基准点自身朝向（实体 = 身体 yaw + 视线 pitch；玩家 = 实时视线）。
-     * <p>
-     * 与 {@code dx/dy/dz}（世界轴偏移）互斥：一个 position 只能选一套偏移轴。
+     * 基准点 = 关键帧字段 {@code facing_origin}：实体选择器（每帧求值）/ {@code "player"} 玩家激活位置 /
+     * {@code "coordinate"} + {@code facing_origin_x/y/z} / {@code block:id[:radius]} / 结构 id；
+     * 不写 = follow 实体（{@code follow=entity} 时）/ 玩家。
+     * 基准朝向 = 关键帧字段 {@code facing_target}（点源，写法见 {@code docs/SCRIPT_FORMAT.md} §「点源」）：
+     * 基准点 → 该目标的方向；不写 = 基准点自身朝向（实体 = 身体 yaw + 视线 pitch；玩家 = 实时视线）。
      */
-    private static PositionData parseFacingRelative(JsonObject obj, String p) throws ScriptParseException {
-        if (obj.has("dx") || obj.has("dy") || obj.has("dz")) {
+    private static PositionData parseFacingRelative(JsonObject kfObj, JsonObject posObj, String p)
+            throws ScriptParseException {
+        if (posObj.has("dx") || posObj.has("dy") || posObj.has("dz")) {
             throw new ScriptParseException(p,
                     "fwd/up/right（基准空间偏移）不能与 dx/dy/dz（世界轴偏移）混用");
         }
-        float fwd = optFloat(obj, "fwd", 0f);
-        float up = optFloat(obj, "up", 0f);
-        float right = optFloat(obj, "right", 0f);
-        String upAxis = optString(obj, "up_axis", "view");
+        float fwd = optFloat(posObj, "fwd", 0f);
+        float up = optFloat(posObj, "up", 0f);
+        float right = optFloat(posObj, "right", 0f);
+        String upAxis = optString(posObj, "up_axis", "view");
         if (!"view".equals(upAxis) && !"world".equals(upAxis)) {
             throw new ScriptParseException(p + ".up_axis", "仅支持 view（up随俯仰）/ world（up保持竖直），实际: " + upAxis);
         }
-
-        // 显式指定的基准点（新能力）；不写则回落旧行为（follow 实体 / 玩家）
-        String facingTarget = optString(obj, "facing_target", "");
-        if (obj.has("facing_origin")) {
-            OriginSpec spec = parseOriginSpec(obj, "facing_origin", p);
-            if (spec.isCoordinate()) {
-                return PositionData.facingToCoordinate(fwd, up, right, upAxis,
-                        requireFloat(obj, p, "facing_origin_x"),
-                        requireFloat(obj, p, "facing_origin_y"),
-                        requireFloat(obj, p, "facing_origin_z"))
-                        .withFacingTarget(facingTarget);
-            }
-            if (spec.isPlayer()) {
-                return PositionData.facingToEntity("@p", fwd, up, right, upAxis)
-                        .withFacingTarget(facingTarget);
-            }
-            String origin = spec.selector;
-            if (origin != null && origin.startsWith("block:")) {
-                // block:id 或 block:id:radius
-                String[] parsed = PositionData.parseBlockOriginString(origin);
-                return PositionData.facingToBlock(fwd, up, right, upAxis, parsed[0], Integer.parseInt(parsed[1]))
-                        .withFacingTarget(facingTarget);
-            }
-            if (origin != null && (origin.startsWith("#") || origin.contains(":")) && !origin.startsWith("@")) {
-                // 形如 minecraft:village 的结构 id（结构中心）
-                return PositionData.facingToStructure(fwd, up, right, upAxis, origin)
-                        .withFacingTarget(facingTarget);
-            }
-            if (origin != null) {
-                return PositionData.facingToEntity(origin, fwd, up, right, upAxis)
-                        .withFacingTarget(facingTarget);
-            }
-            throw new ScriptParseException(p + ".facing_origin",
-                    "暂不支持该基准点类型（支持实体选择器 / \"coordinate\" / block:id[:radius] / 结构 id）");
-        }
-
-        // 兼容旧写法：relative_origin 显式写成 "player" 时明确走玩家基准
-        if (obj.has("relative_origin")) {
-            OriginSpec spec = parseOriginSpec(obj, "relative_origin", p);
-            if (spec.isPlayer()) {
-                return PositionData.facingToEntity("@p", fwd, up, right, upAxis);
-            }
+        if (posObj.has("relative_origin")) {
             throw new ScriptParseException(p + ".relative_origin",
-                    "fwd/up/right 的基准点请用 facing_origin（relative_origin 仅用于 dx/dy/dz 世界轴偏移）");
+                    "fwd/up/right 的基准点用 facing_origin（relative_origin 只用于 dx/dy/dz 世界轴偏移）");
         }
-        return PositionData.facingToEntity("@p", fwd, up, right, upAxis);
-    }
-
-    /** 基准点描述（点源清单的统一解析结果） */
-    private static final class OriginSpec {
-        static final int PLAYER = 0;
-        static final int COORDINATE = 1;
-        static final int SELECTOR = 2;
-
-        int kind = PLAYER;
-        String selector;
-
-        boolean isPlayer() { return kind == PLAYER; }
-        boolean isCoordinate() { return kind == COORDINATE; }
-    }
-
-    /**
-     * 解析基准点字段（relative_origin / facing_origin 共用）：
-     * {@code "coordinate"} = 固定坐标（配 {@code <field>_x/y/z}）；
-     * {@code "player"} / {@code "@p"} / {@code "@s"} = 玩家；
-     * 其他字符串 = 实体选择器。
-     *
-     * @param fieldName 原始字段名，用于拼出 {@code <fieldName>_x} 这类配套字段
-     */
-    private static OriginSpec parseOriginSpec(JsonObject posObj, String fieldName, String p) throws ScriptParseException {
-        OriginSpec spec = new OriginSpec();
-        JsonElement el = posObj.get(fieldName);
-        if (!el.isJsonPrimitive()) {
-            throw new ScriptParseException(p + "." + fieldName, fieldName + " 只支持字符串写法");
+        if (posObj.has("facing_origin") || posObj.has("facing_target")) {
+            throw new ScriptParseException(p + ".facing_origin",
+                    "facing_origin / facing_target 是关键帧字段（与 yaw_base_from 同级），不写在 position 内");
         }
-        String value = el.getAsString();
-        if ("coordinate".equals(value)) {
-            spec.kind = OriginSpec.COORDINATE;
-        } else if ("player".equals(value) || "@p".equals(value) || "@s".equals(value)) {
-            spec.kind = OriginSpec.PLAYER;
-        } else {
-            spec.kind = OriginSpec.SELECTOR;
-            spec.selector = value;
+
+        String facingTarget = optString(kfObj, "facing_target", "");
+        JsonElement originEl = kfObj.get("facing_origin");
+        if (originEl == null) {
+            return PositionData.facingToEntity("@p", fwd, up, right, upAxis).withFacingTarget(facingTarget);
         }
-        return spec;
+        if (!originEl.isJsonPrimitive() || !originEl.getAsJsonPrimitive().isString()) {
+            throw new ScriptParseException(p + ".facing_origin", "facing_origin 只支持字符串写法");
+        }
+        String origin = originEl.getAsString();
+        int kind = PositionData.originKindOf(origin);
+        if (kind == PositionData.ORIGIN_COORDINATE) {
+            return PositionData.facingToCoordinate(fwd, up, right, upAxis,
+                    requireFloat(kfObj, p, "facing_origin_x"),
+                    requireFloat(kfObj, p, "facing_origin_y"),
+                    requireFloat(kfObj, p, "facing_origin_z"))
+                    .withFacingTarget(facingTarget);
+        }
+        if (kind == PositionData.ORIGIN_PLAYER) {
+            return PositionData.facingToEntity("@p", fwd, up, right, upAxis).withFacingTarget(facingTarget);
+        }
+        if (kind == PositionData.ORIGIN_BLOCK) {
+            String[] parsed = PositionData.parseBlockOriginString(origin);
+            return PositionData.facingToBlock(fwd, up, right, upAxis, parsed[0], Integer.parseInt(parsed[1]))
+                    .withFacingTarget(facingTarget);
+        }
+        if (kind == PositionData.ORIGIN_STRUCTURE) {
+            return PositionData.facingToStructure(fwd, up, right, upAxis, origin).withFacingTarget(facingTarget);
+        }
+        return PositionData.facingToEntity(origin, fwd, up, right, upAxis).withFacingTarget(facingTarget);
     }
 
     /**
-     * 世界轴相对偏移（dx/dy/dz）的基准点解析：relative_origin 字段可选——
-     * 缺省 = 玩家激活位置；"coordinate" = 相对固定坐标（relative_origin_x/y/z）；
-     * "block:id[:radius]" 或 {type:"block",block,radius} = 玩家附近搜索的方块；其他字符串 = 结构 id（相对结构中心）。
+     * 世界轴相对偏移（dx/dy/dz）的基准点解析：{@code relative_origin} 字段可选，形态判据见
+     * {@code camera/source/PointSource.kindOf}（与连线端点 / 基准朝向目标同一份）：
+     * 缺省 = 玩家激活位置；{@code "coordinate"} = 相对固定坐标（配 {@code relative_origin_x/y/z}）；
+     * {@code "block:id[:radius]"} 或 {@code {type:"block",block,radius}} = 玩家附近搜索的方块；
+     * 其余非空字符串 = 结构 id（相对结构中心）。世界轴偏移的基准点不含实体选择器形态——基准点要跟随实体用
+     * {@code fwd/up/right} 的 {@code facing_origin}。
      */
     private static PositionData parseRelativeWithOrigin(JsonObject posObj, String p, float dx, float dy, float dz) throws ScriptParseException {
         if (!posObj.has("relative_origin")) {
@@ -682,23 +637,26 @@ public class ScriptParser {
             }
             return PositionData.relativeToBlock(dx, dy, dz, blockId, radius);
         }
-        OriginSpec spec = parseOriginSpec(posObj, "relative_origin", p);
-        if (spec.isCoordinate()) {
+        String origin = requireString(posObj, p, "relative_origin");
+        int kind = PositionData.originKindOf(origin);
+        if (kind == PositionData.ORIGIN_COORDINATE) {
             return PositionData.relativeToCoordinate(dx, dy, dz,
                     requireFloat(posObj, p, "relative_origin_x"),
                     requireFloat(posObj, p, "relative_origin_y"),
                     requireFloat(posObj, p, "relative_origin_z"));
         }
-        if (spec.isPlayer()) {
+        if (kind == PositionData.ORIGIN_PLAYER) {
             return PositionData.relative(dx, dy, dz);
         }
-        String origin = spec.selector;
-        if (origin.startsWith("block:")) {
-            // block:id 或 block:id:radius
+        if (kind == PositionData.ORIGIN_BLOCK) {
             String[] parsed = PositionData.parseBlockOriginString(origin);
             return PositionData.relativeToBlock(dx, dy, dz, parsed[0], Integer.parseInt(parsed[1]));
         }
-        // 其他字符串视为结构 id（相对结构中心；服务端推送前会解析为坐标，客户端预览自行定位）
+        if (kind == PositionData.ORIGIN_SELECTOR) {
+            throw new ScriptParseException(p + ".relative_origin",
+                    "relative_origin 不支持实体选择器形态（基准点要跟随实体请用 fwd/up/right 的 facing_origin）");
+        }
+        // 其余非空字符串 = 结构 id（相对结构中心）
         return PositionData.relativeToStructure(dx, dy, dz, origin);
     }
 

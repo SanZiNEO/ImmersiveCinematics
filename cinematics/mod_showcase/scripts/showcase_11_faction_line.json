@@ -35,13 +35,13 @@
               {
                 "time": 0,
                 "position": {
-                  "facing_origin": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
-                  "facing_target": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
                   "fwd": -6.0,
                   "up": 3.0,
                   "right": 2.0,
                   "up_axis": "world"
                 },
+                "facing_origin": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
+                "facing_target": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
                 "yaw": 0.0,
                 "pitch": 0.0,
                 "position_mode": "relative",
@@ -64,13 +64,13 @@
               {
                 "time": 15,
                 "position": {
-                  "facing_origin": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
-                  "facing_target": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
                   "fwd": -6.0,
                   "up": 3.0,
                   "right": 2.0,
                   "up_axis": "world"
                 },
+                "facing_origin": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
+                "facing_target": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
                 "yaw": 0.0,
                 "pitch": 0.0,
                 "position_mode": "relative",
@@ -93,13 +93,13 @@
               {
                 "time": 15.2,
                 "position": {
-                  "facing_origin": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
-                  "facing_target": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
                   "fwd": -6.0,
                   "up": 3.0,
                   "right": 2.0,
                   "up_axis": "world"
                 },
+                "facing_origin": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
+                "facing_target": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
                 "yaw": 0.0,
                 "pitch": 0.0,
                 "position_mode": "relative",
@@ -122,13 +122,13 @@
               {
                 "time": 30,
                 "position": {
-                  "facing_origin": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
-                  "facing_target": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
                   "fwd": -6.0,
                   "up": 3.0,
                   "right": 2.0,
                   "up_axis": "world"
                 },
+                "facing_origin": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
+                "facing_target": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
                 "yaw": 0.0,
                 "pitch": 0.0,
                 "position_mode": "relative",

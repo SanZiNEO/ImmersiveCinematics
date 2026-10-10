@@ -21,9 +21,9 @@ import net.minecraft.world.phys.Vec3;
  * 锚点 {@code selector_anchor}（缺省 {@code camera}）、择一 {@code selector_pick}（缺省
  * {@code first}）；调用点名与取值集见 {@link SelectorSchema}。
  *
- * 点源解析（锚点 {@code origin}，与位置基准同一口径）：固定坐标 / 结构中心 / 方块中心 / 玩家激活位置
- * （字段缺省或 {@code "player"} / {@code "@p"} / {@code "@s"}）/ 实体选择器（{@code facing_origin} 写法，
- * 按锚点 {@code camera} 解析以免绕回自身锚点）；返回世界空间方块坐标，不可解析 = {@code null}。
+ * 点源解析（{@link #resolvePointSource}，五形态见 {@link PointSource}）：位置基准 / 注视点 / 连线端点三个调用点共用；
+ * 锚点 {@code origin} 取 {@code position} 的位置侧点源（实体形态按锚点 {@code camera} 解析，以免绕回自身锚点）。
+ * 返回世界空间方块坐标，不可解析 = {@code null}。
  *
  * 线程与频率：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱。
  * 状态所有权：目标锁与平滑状态由内部服务实例持有，生命周期 = 所属轨道播放器（停止 / 替换经 {@link #clear()}）。
@@ -76,7 +76,7 @@ public final class EntityTargetResolver {
         }
         if (mc.level == null) return null;
         // origin 锚点坐标由本层解析（读关键帧点源字段）；其余锚点取值不触碰关键帧
-        Vec3 originPoint = SelectorSchema.ANCHOR_ORIGIN.equals(anchor) ? pointSourcePos(kf, cameraPos) : null;
+        Vec3 originPoint = SelectorSchema.ANCHOR_ORIGIN.equals(anchor) ? originPointSource(kf, cameraPos) : null;
         return service.resolveEntity(selector, cameraPos, role, anchor,
                 selectorPolicy(kf, role), selectorPick(kf, role), originPoint);
     }
@@ -133,38 +133,51 @@ public final class EntityTargetResolver {
     }
 
     /**
-     * {@code origin} 锚点坐标 = {@code position.relative_origin} 点源（与位置基准同一解析）：
-     * 固定坐标 / 结构中心 / 方块中心 / 玩家激活位置（字段缺省或 {@code "player"} / {@code "@p"} / {@code "@s"}）/
-     * 实体选择器（{@code facing_origin} 写法）。{@code position} 字段缺失或点源解析失败返回 {@code null}，
-     * 由调用方回落相机位置；实体点源按锚点 {@code camera} 解析（点源自引用会绕回本锚点）。
+     * 统一点源求值（五形态唯一定义处，见 {@link PointSource}）：位置基准 / 注视点 / 连线端点三个调用点共用。
+     * 实体形态的解析原点 = {@code cameraPos}，锚点取 {@code anchor}（调用方按该调用点的 {@code selector_anchor} 取值）。
      *
-     * @param kf        点源字段来源关键帧；{@code null} = 无点源
-     * @param cameraPos 实体点源的解析原点（锚点 {@code camera} 的取值）
-     * @return 世界空间点源坐标；无点源 / 不可解析 = {@code null}
+     * @param source    点源规格；{@code null} = 无点源
+     * @param cameraPos 实体形态的解析原点（锚点 {@code camera} 的取值）
+     * @param role      实体形态的调用点名（策略 / 锚点 / 锁键，见 {@link SelectorSchema#CALLPOINTS}）
+     * @param kf        策略 / 锚点字段来源关键帧
+     * @param anchor    实体形态的锚点取值（{@link SelectorSchema#ANCHORS}）
+     * @return 世界空间坐标；无点源 / 不可解析 = {@code null}
      */
-    private Vec3 pointSourcePos(Keyframe kf, Vec3 cameraPos) {
-        if (kf == null) return null;
-        PositionData pd = kf.getPosition();
-        if (pd == null) return null;
-        if (pd.isOriginCoordinate()) {
-            return new Vec3(pd.getOriginX(), pd.getOriginY(), pd.getOriginZ());
-        }
-        if (pd.isOriginBlock()) {
-            return pointLocator != null
-                    ? pointLocator.resolveBlockPos(pd.getOriginBlockId(), pd.getOriginBlockRadius())
+    public Vec3 resolvePointSource(PointSource source, Vec3 cameraPos, String role, Keyframe kf, String anchor) {
+        if (source == null) return null;
+        return switch (source.kind()) {
+            case WORLD -> originPos;
+            case COORDINATE -> source.coordinate();
+            case BLOCK -> pointLocator != null
+                    ? pointLocator.resolveBlockPos(source.blockId(), source.blockRadius())
                     : null;
-        }
-        if (pd.isOriginSelector()) {
-            Entity base = resolveEntity(pd.getOriginSelector(), cameraPos, "facing_origin", kf,
-                    SelectorSchema.ANCHOR_CAMERA);
-            return base != null ? TimeInterpolation.entityPosition(base) : null;
-        }
-        String structureId = pd.getOriginStructure();
-        if (structureId != null && !structureId.isEmpty()) {
-            return pointLocator != null ? pointLocator.resolveStructurePos(structureId) : null;
-        }
-        // 剩余形态 = 玩家基准（relative_origin 缺省 / "player" / "@p" / "@s"）：取值 = 玩家激活位置
-        return originPos;
+            case STRUCTURE -> pointLocator != null
+                    ? pointLocator.resolveStructurePos(source.structureId())
+                    : null;
+            case SELECTOR -> selectorPoint(source, cameraPos, role, kf, anchor);
+        };
+    }
+
+    /** 实体形态：解析目标实体 → 取点（脚底 / 包围盒中心，见 {@link PointSource.EntityPoint}）。 */
+    private Vec3 selectorPoint(PointSource source, Vec3 cameraPos, String role, Keyframe kf, String anchor) {
+        Entity entity = resolveEntity(source.selector(), cameraPos, role, kf, anchor);
+        if (entity == null) return null;
+        Vec3 pos = TimeInterpolation.entityPosition(entity);
+        return source.entityPoint() == PointSource.EntityPoint.CENTER
+                ? pos.add(0, entity.getBbHeight() / 2.0, 0)
+                : pos;
+    }
+
+    /**
+     * {@code origin} 锚点的点源坐标 = {@code position} 的位置侧点源（与位置基准同一解析，见 {@link PointSource}）。
+     * 实体形态固定按 {@link SelectorSchema#ANCHOR_CAMERA} 解析：锚点 {@code origin} 会绕回本锚点。
+     */
+    private Vec3 originPointSource(Keyframe kf, Vec3 cameraPos) {
+        PositionData pd = kf != null ? kf.getPosition() : null;
+        return pd != null
+                ? resolvePointSource(PointSource.of(pd, PointSource.EntityPoint.FOOT),
+                        cameraPos, "facing_origin", kf, SelectorSchema.ANCHOR_CAMERA)
+                : null;
     }
 
     /**
