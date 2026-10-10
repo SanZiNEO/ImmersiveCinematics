@@ -1,0 +1,121 @@
+{
+  "meta": {
+    "id": "smoke_part_head",
+    "name": "部位/方块注视冒烟",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "清场+召唤单只铁傀儡；look_at_part y=100 看头",
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {}
+      }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "event_type": "command",
+            "keyframes": [
+              {
+                "time": 0,
+                "event_type": "command",
+                "command": "kill @e[type=minecraft:iron_golem]"
+              },
+              {
+                "time": 0.1,
+                "event_type": "command",
+                "command": "kill @e[type=minecraft:armor_stand]"
+              },
+              {
+                "time": 0.2,
+                "event_type": "command",
+                "command": "fill ~-4 ~ ~-4 ~8 ~ ~8 minecraft:air replace minecraft:obsidian"
+              },
+              {
+                "time": 0.4,
+                "event_type": "command",
+                "command": "summon minecraft:iron_golem ~4 ~ ~2"
+              },
+              {
+                "time": 0.6,
+                "event_type": "command",
+                "command": "setblock ~6 ~ ~6 minecraft:obsidian"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position_mode": "relative",
+                "position": {
+                  "dx": 0,
+                  "dy": 3,
+                  "dz": 5
+                },
+                "yaw": 0,
+                "pitch": -10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "look_at": "entity",
+                "look_at_selector": "@e[type=minecraft:iron_golem,limit=1]",
+                "look_at_part": {
+                  "y": 100
+                }
+              },
+              {
+                "time": 8,
+                "position_mode": "relative",
+                "position": {
+                  "dx": 0,
+                  "dy": 3,
+                  "dz": 5
+                },
+                "yaw": 0,
+                "pitch": -10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "look_at": "entity",
+                "look_at_selector": "@e[type=minecraft:iron_golem,limit=1]",
+                "look_at_part": {
+                  "y": 100
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

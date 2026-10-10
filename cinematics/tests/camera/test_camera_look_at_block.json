@@ -1,0 +1,78 @@
+{
+  "meta": {
+    "id": "smoke_look_block",
+    "name": "部位/方块注视冒烟",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "look_at=block 方块中心（radius 12）",
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {}
+      }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position_mode": "relative",
+                "position": {
+                  "dx": 0,
+                  "dy": 3,
+                  "dz": 5
+                },
+                "yaw": 0,
+                "pitch": -10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "look_at": "block",
+                "look_at_target_block": "block:minecraft:obsidian:12"
+              },
+              {
+                "time": 8,
+                "position_mode": "relative",
+                "position": {
+                  "dx": 0,
+                  "dy": 3,
+                  "dz": 5
+                },
+                "yaw": 0,
+                "pitch": -10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "look_at": "block",
+                "look_at_target_block": "block:minecraft:obsidian:12"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
