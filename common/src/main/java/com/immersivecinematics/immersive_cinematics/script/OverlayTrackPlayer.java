@@ -121,6 +121,10 @@ public class OverlayTrackPlayer implements TrackPlayer {
         String layerType = clip.getString("layer_type", "fade");
         // z_index 是 clip 级字段（= 只有一个值的步进通道，§3.1 字段表）；默认统一 10
         int zIndex = clip.getInt("z_index", CanvasTransform.DEFAULT_Z_INDEX);
+        // 编辑基准分辨率（k 的分母）取自脚本 meta；无脚本 / 未声明 → 缺省 1920×1080
+        ScriptMeta meta = scriptPlayer.getScript() != null ? scriptPlayer.getScript().getMeta() : null;
+        int baseWidth = meta != null ? meta.getBaseWidth() : ScriptMeta.DEFAULT_BASE_WIDTH;
+        int baseHeight = meta != null ? meta.getBaseHeight() : ScriptMeta.DEFAULT_BASE_HEIGHT;
 
         OverlayLayer layer;
         switch (layerType) {
@@ -143,8 +147,8 @@ public class OverlayTrackPlayer implements TrackPlayer {
                     }
                 }
                 il.setZIndex(zIndex);
-                // 编辑基准分辨率送层（k 的分母）；缺省 1920×1080 —— 取值来源归 meta 字段
-                il.setBaseResolution(CanvasTransform.DEFAULT_BASE_WIDTH, CanvasTransform.DEFAULT_BASE_HEIGHT);
+                // 编辑基准分辨率送层（k 的分母）
+                il.setBaseResolution(baseWidth, baseHeight);
                 layer = il;
             }
             case "subtitle" -> {
@@ -154,8 +158,8 @@ public class OverlayTrackPlayer implements TrackPlayer {
                 sl.setText(com.immersivecinematics.immersive_cinematics.util.LangResources
                         .resolve(clip.getString("text", "")));
                 sl.setZIndex(zIndex);
-                // 编辑基准分辨率送层（k 的分母）；缺省 1920×1080 —— 取值来源归 meta 字段
-                sl.setBaseResolution(CanvasTransform.DEFAULT_BASE_WIDTH, CanvasTransform.DEFAULT_BASE_HEIGHT);
+                // 编辑基准分辨率送层（k 的分母）
+                sl.setBaseResolution(baseWidth, baseHeight);
                 layer = sl;
             }
             default -> {

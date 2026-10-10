@@ -25,7 +25,7 @@
   - ✅ 控件决策在 WebUI 前端：`DynamicForm.vue` + `fields/*.vue` 按 `FieldDef.type` 渲染控件（bool→开关、tristate→三态、enum→下拉/循环、数值/文本/映射等），`schema.ts` 负责按 schema 填默认值与保存前精简；Java 侧只导出 schema（`SchemaExporter`、`editor/src/DynamicForm.vue`、`editor/src/schema.ts`）。0.3.6 前这份决策由游戏内编辑器的 `editor/fields/FieldControl` 承担，已随退役删除
 - **数据模型**
   - ✅ `CinematicScript` 为顶层容器：meta + timeline + 原始 JSON（供网络同步）（`CinematicScript`）
-  - ✅ `ScriptMeta` 持有 id/name/author/version/description/dimension/triggers、priority、skip_vote_ratio、camera_mob_* 及完整运行时行为（`ScriptMeta`）
+  - ✅ `ScriptMeta` 持有 id/name/author/version/description/dimension/triggers、priority、skip_vote_ratio、`base_resolution`（编辑基准分辨率 `{w,h}`，缺省 1920×1080，供分辨率转义系数 `k` 作分母）、camera_mob_* 及完整运行时行为（`ScriptMeta`）
   - ✅ 运行时行为：屏蔽键盘/鼠标、屏蔽生物 AI、隐藏 HUD/手臂/聊天/记分板/动作栏/标题/字幕/快捷栏/准星/Boss 条/跳过 HUD、`hud_layers` 自定义 HUD 覆盖、抑制视角摆动/画面扭曲、渲染玩家模型、游戏暂停时暂停、可打断、可跳过、结尾保持（`ScriptMeta`）
   - ✅ `Timeline` 管理总时长与并行轨道，提供按类型查询轨道的便捷方法（`Timeline`）
   - ✅ `TimelineTrack` 为同类型通用片段数组，`Clip` 为通用片段容器（start_time/duration + data map + keyframes）（`TimelineTrack`、`Clip`）
@@ -76,7 +76,7 @@
   - ✅ 关键帧插值驱动画幅比黑边（`aspect_ratio`），无活跃 clip 时归零，停止时重置（`LetterboxTrackPlayer`）
 - **OVERLAY 轨道播放器**
   - ✅ 按 clip 的 `layer_type` 创建对应覆盖层（fade/image/subtitle）并注册到 `OverlayManager`，支持 z_index 分层（默认 10，0.3.6 起统一）（`OverlayTrackPlayer`）
-  - ✅ 按统一参数字段表取值（0.3.6 步骤 4）：`x/y`（参考画布归一化，元素中心，缺省 0.5）、`anchor_x/anchor_y`（缩放绕点，缺省 0.5）、`scale_x/scale_y`（相对逐类基准尺寸，缺省 1）、`source`（素材归一化取材，按分量线性，缺省全幅）、`fit`（fit/fill/stretch，步进取值）、`font_scale`（字号倍数，subtitle）、`opacity`（透明度，缺省 1，淡入淡出完全由关键帧表达）；关键帧之间**匀速线性**插值（0.3.6 起运行时统一线性，范围外钳制到边界关键帧）（`OverlayTrackPlayer`）
+  - ✅ 按统一参数字段表取值（0.3.6 步骤 4）：`x/y`（播放窗口归一化，元素中心，缺省 0.5）、`anchor_x/anchor_y`（缩放绕点，缺省 0.5）、`scale_x/scale_y`（相对素材原始像素尺寸的倍数，缺省 1）、`source`（素材归一化取材，按分量线性，缺省全幅）、`font_scale`（字号倍数，subtitle）、`opacity`（透明度，缺省 1，淡入淡出完全由关键帧表达）；创建层时把脚本 `meta.base_resolution`（缺省 1920×1080）送入层作 `k` 的分母；关键帧之间**匀速线性**插值（0.3.6 起运行时统一线性，范围外钳制到边界关键帧）（`OverlayTrackPlayer`）
   - ✅ 支持多条同类型 OVERLAY 轨道同时渲染：TrackPlayer 数据源按轨道索引定位（`clipsForTrack(trackIndex)`），轨道 JSON 以 `id` 区分管理（`ScriptPlayer`、`TrackPlayer`）
   - ✅ clip 切换或停止时移除并清理覆盖层（`OverlayTrackPlayer`）
 - **EVENT 轨道（服务端执行）**

@@ -14,9 +14,20 @@ public class ScriptMeta {
     private final List<TriggerDefinition> triggers;
     /** 跳过投票比例（百分比，10~100）；null = 未指定，运行时回落到全局配置 Config.skipVoteRatio */
     private final Integer skipVoteRatio;
+    /** 编辑基准分辨率宽（像素）：分辨率转义系数 k 的分母，脚本未声明 meta.base_resolution 时为缺省值 */
+    private final int baseWidth;
+    /** 编辑基准分辨率高（像素）：分辨率转义系数 k 的分母，脚本未声明 meta.base_resolution 时为缺省值 */
+    private final int baseHeight;
+
+    /** 编辑基准分辨率缺省宽（像素）：脚本未声明 {@code meta.base_resolution} 时的 W基。 */
+    public static final int DEFAULT_BASE_WIDTH = 1920;
+    /** 编辑基准分辨率缺省高（像素）：脚本未声明 {@code meta.base_resolution} 时的 H基。 */
+    public static final int DEFAULT_BASE_HEIGHT = 1080;
+
     public ScriptMeta(String id, String name, String author, int version, String description,
                       RuntimeBehavior behavior, int priority, String dimension,
-                      List<TriggerDefinition> triggers, Integer skipVoteRatio) {
+                      List<TriggerDefinition> triggers, Integer skipVoteRatio,
+                      int baseWidth, int baseHeight) {
         this.id = id;
         this.name = name;
         this.author = author;
@@ -27,6 +38,8 @@ public class ScriptMeta {
         this.dimension = dimension;
         this.triggers = triggers != null ? triggers : Collections.emptyList();
         this.skipVoteRatio = skipVoteRatio;
+        this.baseWidth = baseWidth;
+        this.baseHeight = baseHeight;
     }
 
     public String getId() { return id; }
@@ -41,6 +54,10 @@ public class ScriptMeta {
     public List<TriggerDefinition> getTriggers() { return triggers; }
     /** 跳过投票比例（10~100）；null = 未指定，运行时使用全局配置 Config.skipVoteRatio */
     public Integer getSkipVoteRatio() { return skipVoteRatio; }
+    /** 编辑基准分辨率宽（像素）：分辨率转义系数 k 的分母（缺省 {@link #DEFAULT_BASE_WIDTH}） */
+    public int getBaseWidth() { return baseWidth; }
+    /** 编辑基准分辨率高（像素）：分辨率转义系数 k 的分母（缺省 {@link #DEFAULT_BASE_HEIGHT}） */
+    public int getBaseHeight() { return baseHeight; }
     public boolean isBlockKeyboard() { return behavior.blockKeyboard(); }
     public boolean isBlockMouse() { return behavior.blockMouse(); }
     @Deprecated

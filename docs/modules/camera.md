@@ -40,3 +40,5 @@
   - ✅ 目标点/实体/开关之间按两端世界坐标插值平滑过渡（`CameraTrackPlayer`）
 - **镜头呼吸扰动（cam_breath_*）**
   - ✅ v2：`cam_breath_type` 多类型（`perlin` 默认 / `perlin_axis` / `sine` / `trauma`）+ `cam_breath_speed`，旧 `enabled/intensity/seed` 兼容（缺省 type 按 perlin 处理）；`trauma` 专属 `cam_breath_trauma/decay`；确定性（同 seed + 同时间 → 同抖动），叠加在最终 yaw/pitch/roll 上（`BreathDisturbance`、`CameraTrackPlayer`）
+- **合成参数 `dest` / `source` 的口径（0.3.6）**
+  - ✅ CAMERA 关键帧的 `dest` = **窗口（屏幕）归一化**目标矩形（放置参照窗口）、`source` = **lane 画面归一化**取材矩形（取材参照素材自身，原点 = 左上角）；缩放隐含在 `dest` 尺寸 / `source` 尺寸之比，**不乘分辨率转义系数 `k`**（lane 画面每帧按播放窗口尺寸渲染，`k = 1`）。两族（lane / 素材）放置统一为窗口参照、无画布换算 —— 完整模型见 `plans/0.3.6/variable-frame.md` §4.2；字段表见 `docs/SCRIPT_FORMAT.md` §4「合成参数」。消费方在 `client/lane/ScriptLaneDriver` 逐帧取值、`client/lane/LaneCompositor` 上屏

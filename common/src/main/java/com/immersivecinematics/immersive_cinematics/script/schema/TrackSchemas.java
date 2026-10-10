@@ -251,21 +251,19 @@ public final class TrackSchemas {
         // 顺序：统一默认 10（0.3.6 起单一取值；letterbox 的 z = 0 是内置常量，不在脚本口径内）
         clips.put("z_index", new FieldDef("int", 10));
 
-        // 统一参数字段表（0.3.6，定稿见 plans/0.3.6/variable-frame.md §3.1）——全部是关键帧字段
+        // 统一参数字段表（0.3.6，定稿见 plans/0.3.6/variable-frame.md §4.2）——全部是关键帧字段
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
-        // 位置：参考画布归一化（0~1，元素中心；不钳制，可越界）
+        // 位置：窗口归一化（0~1，元素中心；不钳制，可越界）
         kfs.put("x", new FieldDef("float", 0.5f));
         kfs.put("y", new FieldDef("float", 0.5f));
         // 锚点：元素自身归一化（0 = 左/上缘，1 = 右/下缘），缩放绕点
         kfs.put("anchor_x", new FieldDef("float", 0.5f));
         kfs.put("anchor_y", new FieldDef("float", 0.5f));
-        // 缩放：相对逐类基准尺寸（image = 原图像素 ÷ 参考分辨率；subtitle = 当前字号下文字块）
+        // 缩放：相对素材原始像素尺寸的倍数（1 = 素材 1:1 像素）
         kfs.put("scale_x", new FieldDef("float", 1.0f));
         kfs.put("scale_y", new FieldDef("float", 1.0f));
-        // 取材：素材归一化 {x,y,w,h}，缺省整幅（仅 image 消费）
+        // 取材：素材归一化 {x,y,w,h}（原点 = 素材左上角），缺省整幅（仅 image 消费）
         kfs.put("source", new FieldDef("map", null));
-        // 适配：fit / fill / stretch，缺省 fit（离散枚举 → 步进取值）
-        kfs.put("fit", new FieldDef("enum", "fit", false, List.of("fit", "fill", "stretch")));
         // 不透明度：缺省 1.0 = 不透明（fade/letterbox 也有效）
         kfs.put("opacity", new FieldDef("float", 1.0f));
         // 字幕专用：字号倍数（1 = 原版 9px），改变文字块基准尺寸，与 scale_x/y 叠加

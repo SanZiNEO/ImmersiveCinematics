@@ -26,6 +26,9 @@ public final class ScriptValidator {
     private static final String[] KNOWN_TYPES =
             {"CAMERA", "LETTERBOX", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY", "ADJUST"};
 
+    /** {@code meta.base_resolution} 的 w / h 上限（像素）：覆盖 8K 宽，超出视为笔误。 */
+    private static final int BASE_RESOLUTION_MAX = 16384;
+
     /**
      * 调色曲线字段（clip 级结构字段，0.3.6 起 ADJUST 轨与 CAMERA 片段共用同一套）：
      * {@code rgb_curve} = RGB 复合曲线；{@code r_curve} / {@code g_curve} / {@code b_curve} = 每通道曲线；
@@ -211,6 +214,11 @@ public final class ScriptValidator {
                     issues.add("meta.macro_loop_mode 未知值: " + mode + "（可选: repeat / pingpong）");
                 }
             }
+        }
+
+        // ===== meta.base_resolution：编辑基准分辨率（分辨率转义系数 k 的分母）=====
+        if (root.has("meta") && root.get("meta").isJsonObject()) {
+            checkBaseResolution(root.getAsJsonObject("meta"), issues);
         }
 
         // ===== meta.triggers：前置依赖（requires）+ 类型/条件结构校验 =====
@@ -514,6 +522,11 @@ public final class ScriptValidator {
                             checkLutFields(null, null, kf, kp, issues);
                             checkBlendFields(null, null, kf, kp, issues);
                         }
+
+                        // OVERLAY 关键帧：fit 已移除（元素框由素材派生，形状由 scale_x/scale_y 表达）
+                        if ("OVERLAY".equalsIgnoreCase(type)) {
+                            checkRemovedFit(kf, kp, issues);
+                        }
                     }
                 }
 
@@ -688,6 +701,45 @@ public final class ScriptValidator {
     }
 
     /**
+     * 校验 {@code meta.base_resolution}（编辑基准分辨率，分辨率转义系数 k 的分母）：
+     * 必须是对象且含正整数 {@code w} / {@code h}（{@code > 0}、整数、上限 {@link #BASE_RESOLUTION_MAX}），
+     * 违规 → 脚本被拒。字段缺省 / JSON null（= 1920×1080）时跳过。
+     */
+    private static void checkBaseResolution(JsonObject meta, List<String> issues) {
+        if (!meta.has("base_resolution") || meta.get("base_resolution").isJsonNull()) return;
+        JsonElement e = meta.get("base_resolution");
+        if (!e.isJsonObject()) {
+            issues.add("meta.base_resolution 需要对象 {w, h}（像素，正整数；缺省 1920×1080）");
+            return;
+        }
+        JsonObject obj = e.getAsJsonObject();
+        checkBaseResolutionComponent(obj, "w", issues);
+        checkBaseResolutionComponent(obj, "h", issues);
+    }
+
+    /** 校验 {@code meta.base_resolution} 的一个分量：正整数且 ≤ {@link #BASE_RESOLUTION_MAX}。 */
+    private static void checkBaseResolutionComponent(JsonObject obj, String key, List<String> issues) {
+        String path = "meta.base_resolution." + key;
+        if (!obj.has(key)) {
+            issues.add(path + " 缺失（base_resolution 需要正整数 w 与 h；缺省 1920×1080）");
+            return;
+        }
+        JsonElement e = obj.get(key);
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) {
+            issues.add(path + " 不是数字（需要正整数，缺省 1920×1080）");
+            return;
+        }
+        double d = e.getAsDouble();
+        if (!Double.isFinite(d) || d != Math.floor(d)) {
+            issues.add(path + " 不是整数：" + e);
+            return;
+        }
+        if (d <= 0 || d > BASE_RESOLUTION_MAX) {
+            issues.add(path + " 超出范围 1 ~ " + BASE_RESOLUTION_MAX + "：" + e);
+        }
+    }
+
+    /**
      * 拒绝已移除的 {@code scope} / {@code lane} 字段（ADJUST 与 CAMERA 两种轨道的 clip 都拦）：
      * 0.3.6 起 lane 级调色改为相机片段字段——调色直接写在 CAMERA 片段上，ADJUST 轨只管整体画面（master）。
      */
@@ -699,6 +751,16 @@ public final class ScriptValidator {
         if (clip.has("lane")) {
             issues.add(cp + ".lane 已移除（0.3.6 起 lane 级调色改为相机片段字段）："
                     + "调色直接写在 CAMERA 片段上；ADJUST 轨只管整体画面（master）");
+        }
+    }
+
+    /**
+     * 拒绝已移除的 {@code fit} 关键帧字段（OVERLAY 轨）：元素框由素材派生，形状由
+     * {@code scale_x} / {@code scale_y} 表达，没有独立的框可适配。
+     */
+    private static void checkRemovedFit(JsonObject kf, String kp, List<String> issues) {
+        if (kf.has("fit")) {
+            issues.add(kp + ".fit 已移除（0.3.6 起）：形状由 scale_x/scale_y 表达");
         }
     }
 

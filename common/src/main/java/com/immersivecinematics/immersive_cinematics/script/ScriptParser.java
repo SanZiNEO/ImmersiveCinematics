@@ -138,6 +138,8 @@ public class ScriptParser {
             macroLoopMode = "repeat";
         }
         java.util.Map<String, Boolean> hudLayers = parseHudLayers(metaObj);
+        // 编辑基准分辨率（可选）：{w, h} 正整数；缺省 1920×1080，非法 → 告警 + 回落缺省（防御式）
+        int[] baseResolution = parseBaseResolution(metaObj);
 
         ScriptMeta.RuntimeBehavior behavior = new ScriptMeta.RuntimeBehavior(
                 blockKeyboard, blockMouse, blockMobAi,
@@ -173,7 +175,8 @@ public class ScriptParser {
             }
         }
 
-        return new ScriptMeta(id, name, author, version, description, behavior, priority, dimension, triggers, skipVoteRatio);
+        return new ScriptMeta(id, name, author, version, description, behavior, priority, dimension, triggers, skipVoteRatio,
+                baseResolution[0], baseResolution[1]);
     }
 
     // ========== Timeline 解析 ==========
@@ -956,6 +959,46 @@ public class ScriptParser {
         JsonElement el = obj.get(key);
         if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isNumber()) return null;
         return el.getAsInt();
+    }
+
+    /**
+     * 解析 {@code meta.base_resolution}（可选）：编辑基准分辨率 {@code {w, h}}（像素，正整数），
+     * 缺省 {@link ScriptMeta#DEFAULT_BASE_WIDTH}×{@link ScriptMeta#DEFAULT_BASE_HEIGHT}；
+     * 非对象 / 缺分量 / 非正整数 → 告警 + 回落缺省（防御式，与 {@code macro_loop_count} 同口径）。
+     *
+     * @return {@code {宽, 高}}（始终是正整数）
+     */
+    private static int[] parseBaseResolution(JsonObject metaObj) {
+        int w = ScriptMeta.DEFAULT_BASE_WIDTH;
+        int h = ScriptMeta.DEFAULT_BASE_HEIGHT;
+        if (!metaObj.has("base_resolution") || metaObj.get("base_resolution").isJsonNull()) {
+            return new int[] {w, h};
+        }
+        JsonElement el = metaObj.get("base_resolution");
+        if (!el.isJsonObject()) {
+            ErrorLog.log("Parse", "meta.base_resolution 需要对象 {w, h}（像素，正整数），实际: " + el
+                    + "，按缺省 " + w + "×" + h + " 处理");
+            return new int[] {w, h};
+        }
+        JsonObject obj = el.getAsJsonObject();
+        Integer pw = positiveIntComponent(obj, "w");
+        Integer ph = positiveIntComponent(obj, "h");
+        if (pw == null || ph == null) {
+            ErrorLog.log("Parse", "meta.base_resolution 需要正整数 w / h，实际: " + obj
+                    + "，按缺省 " + w + "×" + h + " 处理");
+            return new int[] {w, h};
+        }
+        return new int[] {pw, ph};
+    }
+
+    /** 读正整数分量：字段缺失 / 非数字 / 非整数 / ≤ 0 / 超出 int 范围 → null */
+    private static Integer positiveIntComponent(JsonObject obj, String key) {
+        if (!obj.has(key)) return null;
+        JsonElement e = obj.get(key);
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) return null;
+        double d = e.getAsDouble();
+        if (!Double.isFinite(d) || d != Math.floor(d) || d <= 0 || d > Integer.MAX_VALUE) return null;
+        return (int) d;
     }
 
     /** 解析 meta.hud_layers：模组/自定义 HUD 层的显隐覆盖（true=隐藏，false=显示） */
