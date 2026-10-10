@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.immersivecinematics.immersive_cinematics.selector.SelectorSchema;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
@@ -46,21 +47,6 @@ public final class ScriptValidator {
      */
     private static final String[] BLEND_MODES =
             {"normal", "multiply", "screen", "soft_light", "overlay"};
-
-    /**
-     * 选择器调用点名单（策略字段 / 锚点字段 / 择一字段的调用点专属后缀）：与
-     * {@code camera/source/EntityTargetResolver.SELECTOR_CALLPOINTS} 一致（改一处须同步另一处）。
-     * <p>未知后缀不在名单内 = 不校验（保持宽松）。</p>
-     */
-    private static final String[] SELECTOR_CALLPOINTS = {
-            "follow", "look_at", "look_at_target", "yaw_base",
-            "yaw_base_from", "yaw_base_to", "facing_origin", "facing_target"};
-
-    /** 选择器锚点合法取值（语义见 {@code TrackSchemas.camera()} 的 {@code selector_anchor}）。 */
-    private static final String[] SELECTOR_ANCHORS = {"camera", "player", "target", "origin"};
-
-    /** 选择器择一策略合法取值（语义见 {@code TrackSchemas.camera()} 的 {@code selector_pick}）。 */
-    private static final String[] SELECTOR_PICKS = {"first", "nearest", "alive"};
 
     /**
      * 调色关键帧标量通道 → 合法区间（顺序与
@@ -861,23 +847,26 @@ public final class ScriptValidator {
         checkSelectorBool(kf, path, "selector_switch_while_alive", issues);
         checkSelectorSeconds(kf, path, "selector_switch_interval", issues);
         checkSelectorSeconds(kf, path, "selector_switch_smooth", issues);
-        for (String callpoint : SELECTOR_CALLPOINTS) {
-            checkSelectorSeconds(kf, path, "selector_refresh_" + callpoint, issues);
-            checkSelectorBool(kf, path, "selector_switch_while_alive_" + callpoint, issues);
-            checkSelectorSeconds(kf, path, "selector_switch_interval_" + callpoint, issues);
-            checkSelectorSeconds(kf, path, "selector_switch_smooth_" + callpoint, issues);
+        for (String callpoint : SelectorSchema.CALLPOINTS) {
+            checkSelectorSeconds(kf, path, SelectorSchema.callpointField("selector_refresh", callpoint), issues);
+            checkSelectorBool(kf, path,
+                    SelectorSchema.callpointField("selector_switch_while_alive", callpoint), issues);
+            checkSelectorSeconds(kf, path,
+                    SelectorSchema.callpointField("selector_switch_interval", callpoint), issues);
+            checkSelectorSeconds(kf, path,
+                    SelectorSchema.callpointField("selector_switch_smooth", callpoint), issues);
         }
     }
 
     /**
      * 校验选择器锚点字段（CAMERA 关键帧）：通用 {@code selector_anchor} 与调用点专属
-     * {@code selector_anchor_<调用点>} 同口径——取值须为 {@link #SELECTOR_ANCHORS} 之一。
+     * {@code selector_anchor_<调用点>} 同口径——取值须为 {@link SelectorSchema#ANCHORS} 之一。
      * 字段缺省 = 回落（不报错）；未知调用点后缀不在名单内 = 不校验。
      */
     private static void checkSelectorAnchor(JsonObject kf, String path, List<String> issues) {
         checkSelectorAnchorValue(kf, path, "selector_anchor", issues);
-        for (String callpoint : SELECTOR_CALLPOINTS) {
-            checkSelectorAnchorValue(kf, path, "selector_anchor_" + callpoint, issues);
+        for (String callpoint : SelectorSchema.CALLPOINTS) {
+            checkSelectorAnchorValue(kf, path, SelectorSchema.callpointField("selector_anchor", callpoint), issues);
         }
     }
 
@@ -885,13 +874,13 @@ public final class ScriptValidator {
     private static void checkSelectorAnchorValue(JsonObject obj, String path, String key, List<String> issues) {
         if (!obj.has(key)) return;
         JsonElement e = obj.get(key);
-        String allowed = String.join(" / ", SELECTOR_ANCHORS);
+        String allowed = String.join(" / ", SelectorSchema.ANCHORS);
         if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
             issues.add(path + "." + key + " 不是字符串（可选: " + allowed + "）");
             return;
         }
         String v = e.getAsString();
-        for (String a : SELECTOR_ANCHORS) {
+        for (String a : SelectorSchema.ANCHORS) {
             if (a.equals(v)) return;
         }
         issues.add(path + "." + key + " 未知值: " + v + "（可选: " + allowed + "）");
@@ -899,13 +888,13 @@ public final class ScriptValidator {
 
     /**
      * 校验选择器择一字段（CAMERA 关键帧）：通用 {@code selector_pick} 与调用点专属
-     * {@code selector_pick_<调用点>} 同口径——取值须为 {@link #SELECTOR_PICKS} 之一。
+     * {@code selector_pick_<调用点>} 同口径——取值须为 {@link SelectorSchema#PICKS} 之一。
      * 字段缺省 = 回落（不报错）；未知调用点后缀不在名单内 = 不校验。
      */
     private static void checkSelectorPick(JsonObject kf, String path, List<String> issues) {
         checkSelectorPickValue(kf, path, "selector_pick", issues);
-        for (String callpoint : SELECTOR_CALLPOINTS) {
-            checkSelectorPickValue(kf, path, "selector_pick_" + callpoint, issues);
+        for (String callpoint : SelectorSchema.CALLPOINTS) {
+            checkSelectorPickValue(kf, path, SelectorSchema.callpointField("selector_pick", callpoint), issues);
         }
     }
 
@@ -913,13 +902,13 @@ public final class ScriptValidator {
     private static void checkSelectorPickValue(JsonObject obj, String path, String key, List<String> issues) {
         if (!obj.has(key)) return;
         JsonElement e = obj.get(key);
-        String allowed = String.join(" / ", SELECTOR_PICKS);
+        String allowed = String.join(" / ", SelectorSchema.PICKS);
         if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
             issues.add(path + "." + key + " 不是字符串（可选: " + allowed + "）");
             return;
         }
         String v = e.getAsString();
-        for (String p : SELECTOR_PICKS) {
+        for (String p : SelectorSchema.PICKS) {
             if (p.equals(v)) return;
         }
         issues.add(path + "." + key + " 未知值: " + v + "（可选: " + allowed + "）");

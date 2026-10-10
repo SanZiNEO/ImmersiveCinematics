@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script.schema;
 
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.selector.SelectorSchema;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,8 +93,8 @@ public final class TrackSchemas {
         kfs.put("look_at_target_z", new FieldDef("float", null));
         kfs.put("look_at_target_structure", new FieldDef("string", ""));
         kfs.put("look_at_target", new FieldDef("map", null));
-        // 选择器目标锁定策略：通用字段 = 该关键帧所有调用点的缺省回落（语义见 EntityTargetResolver.SelectorPolicy）。
-        // 调用点专属字段名 = <字段>_<调用点>（调用点名见 EntityTargetResolver.SELECTOR_CALLPOINTS），
+        // 选择器目标锁定策略：通用字段 = 该关键帧所有调用点的缺省回落（语义见 selector/SelectorPolicy）。
+        // 调用点专属字段名 = <字段>_<调用点>（调用点名见 SelectorSchema.CALLPOINTS），
         // 缺省 null = 回落通用字段；不写任何调用点字段 = 旧行为（只用通用字段）。
         kfs.put("selector_refresh", new FieldDef("float", 1.0f));
         kfs.put("selector_switch_while_alive", new FieldDef("bool", true));
@@ -110,15 +111,17 @@ public final class TrackSchemas {
         // nearest = 客户端可用候选内取距锚点最近；alive = 按候选返回序取首个存活。
         // 取值与回落链见 EntityTargetResolver.selectorPick。
         kfs.put("selector_pick", new FieldDef("string", "first"));
-        // 调用点专属覆盖（8 个调用点 × 6 个选择器字段）；名单须与 EntityTargetResolver.SELECTOR_CALLPOINTS 一致
-        for (String callpoint : new String[]{"follow", "look_at", "look_at_target", "yaw_base",
-                "yaw_base_from", "yaw_base_to", "facing_origin", "facing_target"}) {
-            kfs.put("selector_refresh_" + callpoint, new FieldDef("float", null));
-            kfs.put("selector_switch_while_alive_" + callpoint, new FieldDef("bool", null));
-            kfs.put("selector_switch_interval_" + callpoint, new FieldDef("float", null));
-            kfs.put("selector_switch_smooth_" + callpoint, new FieldDef("float", null));
-            kfs.put("selector_anchor_" + callpoint, new FieldDef("string", null));
-            kfs.put("selector_pick_" + callpoint, new FieldDef("string", null));
+        // 调用点专属覆盖（8 个调用点 × 6 个选择器字段）；名单与字段名模式见 SelectorSchema
+        for (String callpoint : SelectorSchema.CALLPOINTS) {
+            kfs.put(SelectorSchema.callpointField("selector_refresh", callpoint), new FieldDef("float", null));
+            kfs.put(SelectorSchema.callpointField("selector_switch_while_alive", callpoint),
+                    new FieldDef("bool", null));
+            kfs.put(SelectorSchema.callpointField("selector_switch_interval", callpoint),
+                    new FieldDef("float", null));
+            kfs.put(SelectorSchema.callpointField("selector_switch_smooth", callpoint),
+                    new FieldDef("float", null));
+            kfs.put(SelectorSchema.callpointField("selector_anchor", callpoint), new FieldDef("string", null));
+            kfs.put(SelectorSchema.callpointField("selector_pick", callpoint), new FieldDef("string", null));
         }
         // 朝向基准来源（措辞口径：身体朝向 = 实体身体水平角 yBodyRot；视线 = 实体 yRot + xRot）。
         // yaw_base = entity 取「实体身体朝向」水平角；pitch_base = entity 取「实体视线」俯仰。

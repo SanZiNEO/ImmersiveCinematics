@@ -59,7 +59,7 @@
 
 | 新类 | 吸收 | 说明 |
 |---|---|---|
-| `EntityTargetResolver` | D 组（:1192-1565）+ TargetLock/PointState/SelectorPolicy/SELECTOR_CALLPOINTS/MISS_RETRY_MS/describeSelector | selector-model 的落点；与插值零耦合（仅 `resolveEntity` 一个入口）。**只搬不改行为**——已知缺口（CALLPOINTS 缺 yaw_base_from/to、缓存键不含调用点、@a/@r/@n 不解析）留 B10-B15 |
+| `EntityTargetResolver` | D 组（:1192-1565）+ TargetLock/PointState/SelectorPolicy/SELECTOR_CALLPOINTS/MISS_RETRY_MS/describeSelector | selector-model 的落点；与插值零耦合（仅 `resolveEntity` 一个入口）。**只搬不改行为**——已知缺口（CALLPOINTS 缺 yaw_base_from/to、缓存键不含调用点、@a/@r/@n 不解析）留 B10-B15（B10–B14 已全部补齐）。**B15 后（2026-10-10）**：通用机制（解析双路 / 目标锁与切换 / 择一 / 锚点取位 / 平滑 / 捕获留底）迁 `selector/` 包的 `EntitySelectorService` + `SelectorPolicy` + `SelectorSchema`（定义单源 = 调用点名单 / 锚点四值集 / 择一三值集 / `<字段>_<调用点>` 模式）；本类收为相机侧消费适配（关键帧字段读取 + 回落链 + 点源五形态 + 世界上下文注入），公开方法签名不变，消费方零改动（见 `selector-model.md` §4.6 落地形态） |
 | `CameraKeyframeEvaluator` | C 组 | 六参数求值/插值/混合（纯计算） |
 | `LaneSnapshotCollector` | B 组 lane 捕获 | captureLowerLanes/copyTargetLocksInto/laneSnapshots |
 | `WorldPointLocator` | E 组 | 结构/方块定位 + 两级缓存（IO） |

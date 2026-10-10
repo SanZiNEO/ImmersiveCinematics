@@ -113,6 +113,17 @@
 
 其它属性、其它轨道、外部模组共用同一套选择器定义；编辑器的呈现方式。
 
+**落地形态（2026-10-10，B15）**
+
+- **包与职责切分**：通用选择器服务落在 `common/src/main/java/com/immersivecinematics/immersive_cinematics/selector/`（api 包与可见性收紧归 B4-P5，本轮不建）。
+  - `EntitySelectorService` = 通用机制：解析双路（本地 `@p`/`@s`/`@e`/`uuid:` + 服务端 UUID 与 `ClientEntitySelectorCache`）、目标锁与切换（`TargetLock` / `switchGeneration` / `lastSwitchAt` / `switch_while_alive` / `switch_interval`）、择一（`PICK_*` 三分派）、锚点取位（四值）、平滑（`smoothTargetPoint` / `PointState`）、捕获留底（`snapshotLockState` / `restoreLockState`）。输入 = 显式值（selector、相机坐标、调用点名、`SelectorPolicy`、锚点取值、择一取值、锚点 `origin` 的点源坐标）；**不 import `script.*` 与 `camera.*`**。
+  - `SelectorPolicy` = 调用点级策略 record（扫描间隔 / 存活期是否切换 / 切换间隔 / 切换平滑，单位秒）。
+  - `SelectorSchema` = **定义单源**：调用点名单 8 名（`CALLPOINTS`）、锚点四值集（`ANCHORS` 与 `ANCHOR_*`）、择一三值集（`PICKS` 与 `PICK_*`）、调用点专属字段名模式（`callpointField(field, callpoint)` = `<字段>_<调用点>`）。
+  - 相机侧 `camera/source/EntityTargetResolver` 收为**消费适配层**：关键帧字段读取 + `<字段>_<调用点>` 回落链 + 点源五形态解析（锚点 `origin`）+ 世界上下文注入。公开方法签名与 B14 一致（`resolveEntity` / `selectorPolicy` / `selectorAnchor` / `selectorPick` / `smoothTargetPoint` / `snapshotLockState` / `restoreLockState` / `attachWorldContext` / `clear`），`CameraKeyframeEvaluator` / `LaneSnapshotCollector` / `CameraTrackPlayer` 零改动。
+- **定义单源**：`TrackSchemas.camera()` 的 8 调用点 × 6 字段循环、`ScriptValidator` 的调用点名单与取值集校验、`EntityTargetResolver` 的回落链读法三方共用 `SelectorSchema`；`ScriptValidator` 里「改一处须同步另一处」的注释已删（结构上已不可能不同步）。
+- **调用方形态**：`trigger/**`（`ClientEntitySelectorCache` / 网络包 / `EntitySelectorResolver`）为既有通用底座，不动；服务组合它们。其它轨道 / 外部模组复用同一服务时，只需给出 selector 字符串、原点与调用点名。
+- **验收（B15 自证）**：`:common:compileJava` 过；A/B 对拍（B13 的 13 场景 + 21 项 pick + 22 项锚点，HEAD 版与 B15 版两个 classpath 各跑一次）stdout 逐字节一致；validator 五套语料 stdout 逐字节一致（`cinematics/tests` 3 个既有 FAIL 不变）；`selector/` 反向 import grep 零命中；`icv2` / `icgl` 各 14 套 harness 全绿。
+
 ---
 
 ## 5. 可能的问题
