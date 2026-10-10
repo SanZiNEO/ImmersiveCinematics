@@ -56,11 +56,9 @@ immersive_cinematics/
 | `version` | int | 是 | — | 固定为 `3`（仅支持版本 3） |
 | `description` | string | 否 | `""` | 脚本描述文本；支持 `@lang:<key>` 引用（见 [§12](#12-文本资源与多语言langkey)） |
 | `dimension` | string | 否 | `""` | 限制脚本只在指定维度可用；空 = 不限制 |
-| `preload` | boolean | 否 | `true` | 脚本级区块预加载开关：`false` 关闭本脚本的预加载（不发任何预载请求）；`true`/缺省 = 跟随全局配置启用。仅当脚本存在**非空 CAMERA 轨道**时才实际触发预加载，无 CAMERA 轨道（纯 HUD/字幕/事件等）不发送预载请求 |
 | `listener` | string | 否 | `"player"` | 音频听者：`"player"`=默认，电影相机下仍以玩家视角听音；`"camera"`=听者切换到镜头位置，环境音/方块音/水声等按相机采样 |
-| `camera_mob_spawn` | boolean | 否 | `false` | 脚本级相机区域刷怪开关：是否允许相机锚点附近按原版规则自然刷怪 |
-| `camera_mob_radius` | int | 否 | `2` | 脚本级相机刷怪半径（区块），范围 1~16 |
-| `camera_mob_ai` | boolean | 否 | `false` | 脚本级相机区实体 AI 开关：`true`=实体正常 tick/AI，`false`=仅静态布景 |
+
+> **0.3.6 起移除的脚本级开关**：`meta.preload` 与 `meta.camera_mob_spawn` / `meta.camera_mob_radius` / `meta.camera_mob_ai` 已删除（解析器只读已声明字段，未知 meta 键被忽略、写了不生效）。区块预加载由全局配置 `preloadEnabled` + 脚本是否存在**非空 CAMERA 轨道**自动决定；相机区域刷怪由相机锚点按原版规则自动处理——均无脚本级开关。
 
 
 ### 1b. 运行时行为 (RuntimeBehavior)

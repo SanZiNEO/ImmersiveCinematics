@@ -201,7 +201,7 @@
 
 - **跨脚本并行已放开**：`playScript` 并行决策树——同脚本冲突实例走原单实例语义（可打断替换该实例 / 不可打断排队或拒绝），跨脚本直接新建实例并行（不排队不打断不阻塞，§3.5/§3.6）；`activeInstance()` 改为顶层（后来者居上）；每帧按启动顺序驱动所有实例；任一实例结束只退该实例，全局复位只在最后一个实例退出时执行；`cameraState` 快照 = 顶层实例状态；暂停握手按实例各发一条（账本按实例）。
 - 审查修订①②③ 全部落地（实例 id 挂实例 / 暂停联动并集+跳过提示顶层 / finish·stop·pause 包带 id）。
-- 尚未落地（后续步骤）：听者后来者居上（AudioListenerController 已按顶层但 hasActiveCameraClip 为并集，口径待对齐）、编辑器预览独立实例、队列按脚本匹配接播（ScriptQueue 无匹配 API，待定）。跨实例 lane 收集已落地（ScriptLaneDriver 按启动顺序平铺所有实例 lane，后启动实例整体在上）。
+- 尚未落地（后续步骤）：听者后来者居上（AudioListenerController 已按顶层但 hasActiveCameraClip 为并集，口径待对齐——仍开放）、队列按脚本匹配接播（ScriptQueue 无匹配 API，= F2，未做）。已落地：编辑器预览独立实例（`CameraManager.previewInstance`，§7 步骤 5）。跨实例 lane 收集已落地（ScriptLaneDriver 按启动顺序平铺所有实例 lane，后启动实例整体在上）。
 
 ### 步骤 6 落地记录（2026-10-07）
 

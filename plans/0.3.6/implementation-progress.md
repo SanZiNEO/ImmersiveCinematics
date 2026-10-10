@@ -47,9 +47,9 @@
 | ID | 任务 | 依赖 | 状态 |
 |---|---|---|---|
 | B1 | Base/Modifier 覆盖链（优先级、通道掩码、REPLACE/ADD/MULTIPLY + 示例） | — | ☐ |
-| B2 | 每 lane 独立 CameraPath/CameraProperties 核对（可能已被 lane 快照模型取代 → 结案回写文档） | — | ☐ |
+| B2 | 每 lane 独立 CameraPath/CameraProperties 核对（可能已被 lane 快照模型取代 → 结案回写文档） | — | ✅ 2026-10-10 结案（已被 lane 快照模型取代，回写 camera-state-plan §7 + camera-core-split §五） |
 | B3 | 每 lane 独立可见集合/遮挡剔除（长期解，消除 smartCull=false 缓解的代价） | B1 | ☐ |
-| B4 | 外部 API（common api 包）+ 相机核心拆分与死代码清理（方案已定稿：`camera-core-split.md`，2026-10-08 用户扩容） | B1,B3 | ☐ | |
+| B4 | 外部 API（common api 包）+ 相机核心拆分与死代码清理（方案已定稿：`camera-core-split.md`，2026-10-08 用户扩容） | B1,B3 | ☐（P0 删死代码 ✅ 2026-10-10；P1–P5 未做） | |
 | B5 | 统一点源清单（yaw_base_from/to、facing_target 接受完整点源） | — | ☐ |
 | B6 | look_at 方块来源 + 部位百分比微调 | — | ☐ |
 | B7 | 偏移下放到点源 / 通道相对化 | B5 | ☐ |
@@ -94,10 +94,10 @@
 
 | ID | 任务 | 依赖 | 状态 |
 |---|---|---|---|
-| E1 | 嵌套引用（片段级 ← 轨道级 id） | — | ☐ |
-| E2 | 轨道级模板 | E1 | ☐ |
-| E3 | 脚本级模板（meta/触发器/requires 骨架） | E2 | ☐ |
-| E4 | 纯数据/用户自定义模板 | E3 | ☐ |
+| E1 | 嵌套引用（片段级 ← 轨道级 id） | — | ⊘ 归编辑器阶段（2026-10-10 E0 重审，templates.md §0） |
+| E2 | 轨道级模板 | E1 | ⊘ 归编辑器阶段（2026-10-10 E0 重审） |
+| E3 | 脚本级模板（meta/触发器/requires 骨架） | E2 | ⊘ 归编辑器阶段（2026-10-10 E0 重审） |
+| E4 | 纯数据/用户自定义模板 | E3 | ⊘ 归编辑器阶段（2026-10-10 E0 重审；B16 前置已解除） |
 
 ## 批次 F：播放/渲染主线
 
@@ -116,8 +116,8 @@
 | G2 | FieldDef keyframable 标记 | — | ☐ |
 | G3 | meta 关键帧化（listener/hide_hud/可跳过等） | G1 | ☐ |
 | G4 | 时间精度（float → 高精度）→ **时钟抽象**（任务书已定稿：`plans/0.3.6/clock-abstraction.md`，2026-10-09 用户裁决五步——① Clock 抽象 + 单调秒（GameClock/PreviewClock）② elapsed 链路 double 化（消 float 截断）③ elapsed 唯一分发语义 + 去死参数 ④ overlay delta 真实化 ⑤ float 存储边界契约；顺带修跨脚本并行 hasActiveCameraTrack 算错） | — | ☐ |
-| G5 | 叠化 hold 自动补帧工具/模板 | — | ☐ |
-| G6 | 关键帧结构升级（自带插值/手柄）——按方案 E 结案（文档标注） | — | ⊘ 待标注 |
+| G5 | 叠化 hold 自动补帧工具/模板 | — | ⊘ 归编辑器工具（2026-10-10 归置，templates.md §7） |
+| G6 | 关键帧结构升级（自带插值/手柄）——按方案 E 结案（文档标注） | — | ✅ 2026-10-10 标注完成（script-model §4-1/§8 步骤 2） |
 
 ## 批次 H：其它
 
@@ -133,7 +133,7 @@
 
 | ID | 任务 | 依赖 | 状态 |
 |---|---|---|---|
-| CLEANUP-2 | 删除运行时 pip 层（被 lane 取代；PipLayer 是占位实现从未接入真实画面）；WebUI 便捷操作留编辑器阶段 | — | ☐ |
+| CLEANUP-2 | 删除运行时 pip 层（被 lane 取代；PipLayer 是占位实现从未接入真实画面）；WebUI 便捷操作留编辑器阶段 | — | ✅ 2026-10-08 代码完成（`5b3265d`）；2026-10-10 表状态回写 |
 | P1 | **计划文档《脚本状态机与状态追踪》**：布尔值点状事件判定 → **事实追踪**（用户点名；后续优化基于它） | — | ✅ `6c1097f`（plans/0.3.6/state-tracking.md） |
 | P1-impl | 按 P1 计划实现状态机/状态追踪优化 | P1 | ☐ |
 | P2 | **计划文档《Iris/Oculus 兼容调研计划》**：挂点/可行性/风险/工作量（用户点名：先写计划，结论定策略） | — | ✅ `2ff77b6`（plans/0.3.6/iris-oculus-compat.md） |
@@ -187,3 +187,4 @@
 | 2026-10-09（续2） | **多脚本同屏偶发黑屏调查完成（只调查未修）**：压力实验（13 脚本同时播）实证 1 次黑屏事件（世界层纯黑/GUI 完好，截图+日志存证 `E:/tmp/icblack/out/`）；三路排查收敛——主嫌疑 = **fail-open 链式 blit**（applyTo 无条件 return true、整屏 blit 无条件信任中转缓冲、全链 0 处 glGetError/checkFramebufferStatus）+ NaN 级联（validator 不在加载/播放路径）+ LUT 单元错位；时序/并发已排除。**用户裁决（修复验收标准）：渲染错误 fail-safe = 返回原始画面直通，绝不能输出 0/黑**。报告：`plans/0.3.6/multi-instance-black-screen.md`；诊断工具 `E:/tmp/icblack/`（黑屏检测器 + 压力脚本 + RUNBOOK，可复用回归）。 |
 | 2026-10-09（续3） | **黑屏修复落地 + 结案**：四方向全修（`adfa008` fail-safe 直通 / `5bbc598` NaN 守卫 / `6deb2d7` LUT 绑定自检 / `c579f5f` lane 守门），负对照逐条证明四类机制可整屏黑、修复后正常路径逐字节不变。回归残余「黑」定性 = **极端叠加的合法数学结果**（13 套 master 连乘叠压算到全 0，同场可见全屏红/全屏绿佐证；用户裁定非 bug、作者侧解决，符合全模组调度口径）；gamma 奇异点假设被 shader 公式否决；拆锅实验取消。收尾：删交接文档、`plans/0.3.6/re/` 入 .gitignore 不提交、run 目录还原。**待讨论（先不动）**：F1「失败时返回前有效结果」语义去留。 |
 | 2026-10-09（续4） | **明日开工材料就绪**：批次 B~H 开工计划定稿（`plans/0.3.6/next-phase-batches.md`：B 逐项 19 条 + C~H 汇总 + 遗留清点 + Q1–Q32 串行队列 + 明天首批 1 编码 + 5 并行）；注释规范定稿（`plans/0.3.6/code-comment-style.md`，实测基线 0.33 → 目标 ≤25%，CLEANUP-3 分片方案）；时钟抽象计划入库并排入 G4（`d419f93`）；F3/F4 新增类补交（`06b4d3d`，教训：`git add -u` 会漏新建文件，此后新文件显式 add）。F1 失败语义经讨论**保留**（与极端叠加无关、只拦真渲染故障）。 |
+| 2026-10-10 | **今日首批 T1–T6 关单**（编排交接开局）：**T1 B4-P0 删死代码七处**（3 文件 −65/+4；负对照 = 删前 grep 全仓零调用者；主代理亲跑 compile + icv tests 3 既有 FAIL 不变 + release 5/5 + icv2/icgl 全绿）。**T2 B1-a 覆盖链定稿 ∪ B2 结案**（camera-state-plan〈覆盖链定稿〉§0–§15：§8 九条 + §9 逐条定、B2 = 已被 lane 快照模型取代结案、供 B4-P1/P2 接口形状与字段搬迁清单；**待拍板 4 项**＝§14）。**T3 B16-a 数学模型定稿**（math-models〈定稿〉1–12：接口/角度语义/实例粒度/dt/生命周期/回退/Registry+JSON/首批 10 类型/B16-c 接入面/零分配口径；**待拍板 2 项**＝定稿 12）。**T4 F3 Iris 调研 ①/② 源码级回写**（实机缺 Iris/光影包、未实测：光影合成必然早于 lane、同 RETURN 点顺序随 mixin 注册序非契约、每 lane 会重跑整条光影链 + 8 条缺陷/风险；§5 步骤 1/2 标 🟡，附缺件与实测清单）。**T5 E0 模板口径重审**（templates.md §0：模板语义运行时保留零、/icinematics template 命令倾向删、E1–E4 与 G5 全归编辑器、E 批运行时只剩删除任务（须与编辑器骨架本地化同批）；**待拍板 2 项**（命令去留阻塞删除任务））。**T6 H5 滞后清理 8 条 + G6 结案标注**。表状态回写：B2/B4-P0/G6/CLEANUP-2、E1–E4/G5 移入编辑器阶段。**新增欠账**：docs/modules/script.md:28 仍写 ScriptMeta 持有 camera_mob_*（H5 新增条目）；CameraTrackPlayer.onScriptReplaced javadoc 略过时（随 Q4/Q5 顺带，倾向按 code-comment-style §2.7 改）。**另**：用户新派「example 编辑器裁切/缩放语义调查」完成（CropScaleSurvey：Olive = Crop 节点四边 0~1 + Transform 节点 pos/scale/anchor、lossless-cut 无目标点模型；我们 CAMERA dest/source = 归一化矩形、覆盖层 = 画布七参数；缺口 = 相机侧 dest 屏幕口径 vs 画布口径不统一等，详见调查汇报）。 |

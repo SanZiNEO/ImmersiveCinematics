@@ -132,6 +132,47 @@
 - **调查方法**：① 读码已给出候选顺序（§2.3，合成早于我们、色彩空间同点）；② 挂点实测——在 `LaneRendererMixin.ic$worldRendered` 与 Iris/Oculus 的注入各打一行带帧号 / 时间戳的日志（光影侧可用一个临时附属模组或 `Mixin` 覆盖，不改光影本体），跑同一帧比对顺序；③ 直接看注入后的字节码（`javap -c` 反汇编 `GameRenderer.renderLevel`）确认两个回调的调用次序。
 - **预期产出**：「挂点先后实测报告」——一张表：{光影阶段 × 我们的阶段} 的确定顺序，含「同一返回点谁先」的结论与证据（日志 + 反汇编）。
 
+#### 调研记录（2026-10-10）——① 挂点先后
+
+> **性质：源码级定序，不是实测**。实机环境不具备（run 目录无 Iris / Oculus、无光影包，见本节末「环境限制与实测清单」）。证据链 = `example/` 光影源码 + 本仓注入点 + Mixin 0.8.7 注入顺序规则（源码）+ 1.20.1 原版字节码（`javap -c`）。
+
+**结论 1（结构性、确定）——光影的「最终合成」必然早于我们的 lane 渲染。**
+
+`finalizeLevelRendering()`（composite 链 + final pass）挂在 `LevelRenderer.renderLevel` 的 RETURN；我们的 lane 渲染挂在 `GameRenderer.renderLevel` 的 RETURN；而 `GameRenderer.renderLevel` 在字节码偏移 **585** 处调用 `LevelRenderer.renderLevel`、偏移 **640** 处才 RETURN（单返回）——内层方法先返回。
+
+| 事实 | 证据 |
+|---|---|
+| 光影最终合成在 `LevelRenderer.renderLevel` 尾部 | Iris `mixin/MixinLevelRenderer.java:118-123`（`@Inject(method = RENDER, at = @At(value = "RETURN", shift = At.Shift.BEFORE))`）；Oculus 同构 `:109-114` |
+| 我们的 lane 渲染在 `GameRenderer.renderLevel` 的 RETURN | 本仓 `mixin/LaneRendererMixin.java`（`@Inject(method = "renderLevel", at = @At("RETURN"))` → `LaneRenderer.INSTANCE.render(...)`） |
+| `GameRenderer.renderLevel` 只有一个 RETURN，且在 `LevelRenderer.renderLevel` 调用之后 | `javap -p -c` `net.minecraft.client.renderer.GameRenderer`：`renderLevel(FJLcom/mojang/blaze3d/vertex/PoseStack;)V` 偏移 585 = `invokevirtual LevelRenderer.renderLevel`，偏移 640 = `return` |
+
+⇒ 我们每次 lane 渲染时，主画面的光影合成**已经完成**：lane 是「在光影合成后的主画面之上，再开 N 次世界渲染」，不存在「lane 看不到光影画面」这一档。
+
+**结论 2（同一返回点，但默认恒为空操作）——色彩空间转换 `finalizeGameRendering()` 与我们同一条 RETURN 指令；默认配置下它不做事。**
+
+- **同点**已核实：`GameRenderer.renderLevel` **只有一个 RETURN**（上表），我们的 `@At("RETURN")`（全部 RETURN 指令）与光影的 `@At("TAIL")`（Mixin 定义 = 最后一个 RETURN 指令，`InjectionPoint.java:87`「Selects the last RETURN insn」）落在**同一注入节点**。
+- **空操作**已核实：`finalizeGameRendering()` = `colorSpaceConverter.process(getMainRenderTarget().getColorTextureId())`（`pipeline/IrisRenderingPipeline.java:1090-1092`）；该转换器**只在 pack 声明 `supportsColorCorrection()` 时才会创建**（同文件 `:524-543`），且 `pathways/colorspace/ColorSpaceFragmentConverter.process` 首行即 `if (colorSpace == ColorSpace.SRGB) return;`；Iris 的 `colorSpace` **默认值就是 `SRGB`**（`config/IrisConfig.java:138`：`getProperty("colorSpace", "SRGB")`）。
+- ⇒ 只有「pack 声明 color correction **且** 用户在 Iris 配置里把 `colorSpace` 改成非 `SRGB`（`DCI_P3` / `DISPLAY_P3` / `REC2020` / `ADOBE_RGB`，见 `pathways/colorspace/ColorSpace.java`）」时，这条同点顺序才影响画面。默认口径下 §2.6-1 的「先后未定」**是空的未定项**。
+
+**结论 3（真要定序时的规则与当前预测）——同一注入点上，回调按「应用顺序」执行；应用顺序由加载顺序决定，不是契约。**
+
+Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`）：
+
+1. **先应用者先执行**：`CallbackInjector.Callback.inject()` → `Target.insertBefore(node, this)`（`CallbackInjector.java:304`）→ `this.insns.insertBefore(location.getCurrentTarget(), insns)`（`Target.java:734-736`）= ASM `InsnList.insertBefore`；两个注入依次 `insertBefore` 同一节点 ⇒ 先应用者插在前 ⇒ **先执行**。
+2. **应用顺序 = 注入器 order 分趟 → mixin priority → 全局 MixinInfo 创建序号**：`MixinApplicatorStandard.apply(SortedSet<MixinInfo>)` 对 `INJECT_APPLY` 按 `TreeSet<Integer> orders` 分趟遍历（`InjectorOrder`：`EARLY=0 / DEFAULT=1000 / LATE=2000 / REDIRECT=10000`；`@Inject` 默认 `DEFAULT`，两边相同），趟内按 mixin 排序 —— `MixinInfo.compareTo`：`priority` 相等则比**全局创建序号**，否则 `priority` **小的排前**（两边都没写 `priority` = 默认 1000 → 平）。`InjectionInfo` 的 `@InjectorOrder` javadoc 原文：「Injectors in the same order are sorted by mixin priority and declaration order within the mixin as always.」
+3. **创建序号 = mixin 配置的注册顺序**：`MixinInfo.java:789` `private final transient int order = MixinInfo.mixinOrder++;`；`MixinInfo` 在 `MixinConfig.prepare()` → `prepareMixins(...)` 里 `new MixinInfo(...)` 创建，而 `MixinProcessor.prepareConfigs()` 是按 `pendingConfigs` 的顺序调 `config.prepare()`（`Collections.sort(this.configs)` 在 prepare **之后**，不影响创建序号）。
+4. **Fabric 侧注册顺序 = mod 加载顺序**：`FabricMixinBootstrap.init` 遍历 `loader.getModsInternal()`，逐个 `Mixins.addConfiguration(config)`（`fabric-loader-0.16.10` 源码）；mod 顺序由 `ModPrioSorter.compare` 定：root 优先 → **mod id 字典序升序** → 版本降序 → 嵌套层数（`ModResolver.java:59` 调用，`FabricLoaderImpl.addMod` 按该列表建 `mods`）。
+
+⇒ **当前两模组配置下的预测**（`immersive_cinematics` < `iris`，同为 root）：我们的 mixin 配置先注册 → 我们的 `MixinInfo` 创建序号更小 → 我们的回调先插入 → **lane 渲染先执行，光影的色彩空间转换后执行**。
+
+**但这不是契约**：它是「mod id 字典序 + 两边都没写 mixin `priority`」凑出来的——任何新增模组改变排序、或光影侧给 `MixinGameRenderer` 加一个 `priority`，顺序就翻。⇒ §2.3 的「先后不由我们控制（两边都没写显式 priority）」成立，结论 3 只是补上「当前会怎样」。要**钉死**只能显式二选一：给 `@Inject` 写 `order`（`InjectorOrder.LATE`——它是全局分趟，比 mixin `priority` 更硬），或给我们的 `LaneRendererMixin` 写 `@Mixin(value = GameRenderer.class, priority = ...)`。**（本仓未做任何这类改动；本次只调研。）**
+
+**对 §4 的影响（只标注，不选策略）**：
+
+- 关掉选项 B 的一个未决项：lane 渲染看到的**是**光影处理后的主画面（结论 1，结构性确定）——B 不必再为「顺序」设计适配。
+- 「色彩空间先后」在默认口径下不需要处理（结论 2）；只有 **D1（按 pack 特性分档）** 想引入 color-correction 档时才需要把它变成显式顺序——那时用 `@Inject(order = ...)` 钉死即可，**不需要换挂点**。
+- 不改变 A / C / D 的相对代价与风险（① 不产生「确实坏」的证据）。
+
 ### ② 光影下 `renderLevel` 内做第二遍渲染是否可行（帧缓冲绑定、管线状态、深度 / 模板）
 
 - **问题**：在光影启用的帧里，我们每 lane 再调一次 `LevelRenderer.renderLevel`，会发生什么？具体怀疑点（均已核实为「光影的注入会随每一次 `LevelRenderer.renderLevel` 触发」）：
@@ -141,6 +182,62 @@
 - **为什么重要**：这是「能跑对 / 画面错 / 崩」的判定题，也是 §4 选项 A 与 B 的分水岭。
 - **调查方法**：① 实机（`sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'` + Iris + 一个轻量光影包），跑四象限脚本（`cinematics/release/quadrant.json`）并开 `ICINEMATICS_CAPTURE` 出图：看 lane raw / composited / 窗口终帧是否合理（是否缺块、是否黑、是否重复特效、是否只有一条 lane 正常）；② 观察日志与崩溃报告（光影对状态有断言 / 抛异常时会在日志里出现）；③ 分档定位：先关阴影（换无阴影 pack）、再关 composite、最后全开，确定哪一段开始出错；④ 若「每 lane 一次光影全链」成立，用 profiler 段名（`iris_final` 等）确认它确实被调用了 N 次。
 - **预期产出**：「可行性结论」——在 {光影开 / 关 × pack 特性档} 下，lane 渲染是「可用 / 有条件可用 / 不可用」的结论 + 出错时的最小复现与根因定位（哪一段光影代码）。
+
+#### 调研记录（2026-10-10）——② 第二遍 `renderLevel` 可行性
+
+> **性质：源码级可行性推演 + 待实测项清单，不是实测**（环境不具备，见本节末）。方法 = 逐调用点推演「每 lane 一次 `LevelRenderer.renderLevel` 会走到光影的哪些代码」，全部引 `example/` 行号；**画面到底对不对必须实测**。
+
+**前置事实（决定整条推演）**：光影的全部注入都挂在 `LevelRenderer.renderLevel` **本体**上（§2.3 表；`MixinLevelRenderer.java` 的 20+ 处 `@Inject` / `@ModifyArg` / `@WrapWithCondition` 全部 `method = "renderLevel"`），所以**任何调用方**再调一次都会把整条光影链再跑一遍。我们的 lane pass 正是直接调 `mc.levelRenderer.renderLevel(...)`（`LaneRenderer.renderLane`），**不是**调 `GameRenderer.renderLevel`。
+
+**结论（源码级）：每 lane 会跑完一整条光影链；且因为我们在 lane pass 期间把 `Minecraft.getMainRenderTarget()` 指向 lane FBO，光影的「主画面」会解析成 lane FBO ⇒ 从绑定关系看，lane 拿到的是一张「完整的光影帧」，不是原版画面、也不是黑屏 / 崩溃。**
+
+| 环节 | 每 lane 会发生什么 | 证据 |
+|---|---|---|
+| 管线准备 | 重取同一管线；`CapturedRenderingState` 的 gbuffer 视图 / 投影 / tickDelta 被改写为 **lane 相机**；`Minecraft.smartCull = !pipeline.shouldDisableOcclusionCulling()`；pack 关视锥剔除时把 `LevelRenderer.cullingFrustum` 换成 `NonCullingFrustum` | Iris `mixin/MixinLevelRenderer.java:75-96`（Oculus `:66-87`） |
+| 世界渲染开始 | `beginLevelRendering()`：`isRenderingWorld = true`；`RenderTarget main = Minecraft.getInstance().getMainRenderTarget()` ⇒ **= lane FBO**；按 lane FBO 的深度纹理 / 尺寸 `resizeIfNeeded`；清空全部光影 RT；`main.bindWrite(true)` + `isMainBound = true` | `pipeline/IrisRenderingPipeline.java:850-851`、`:899-922`、`:975-976` |
+| 阴影 pass | `pipeline.renderShadows(...)` **每 lane 完整跑一遍**（pack 的 `shadowDistance` 为 0 时首行 return）；结尾 `getMainRenderTarget().bindWrite(false)` + 按 `getMainRenderTarget()` 尺寸恢复视口 ⇒ 回到 lane FBO | `MixinLevelRenderer.java:140-143`；`shadows/ShadowRenderer.java:355-356`（early-out）、`:559-562` |
+| 着色器接管 | `shouldOverrideShaders() = isRenderingWorld && isMainBound`；lane pass 期间**两者都为真**——`MixinRenderTarget` 的判定是 `this == Minecraft.getInstance().getMainRenderTarget()`，而此刻 lane FBO 就是它 ⇒ **光影接管 lane 的区块 / 实体着色器**（这正是 §3-⑨ 的源码级答案：会接管） | `IrisRenderingPipeline.java:1237-1239`、`:1266-1268`；`mixin/state_tracking/MixinRenderTarget.java:41-48` |
+| 最终合成 | `finalizeLevelRendering()`：`compositeRenderer.renderAll()`（结尾 `getMainRenderTarget().bindWrite(true)` = lane FBO）+ `finalPassRenderer.renderFinalPass()`（有 final pass 就写着色器全屏 quad，没有就把 `colortex0` `copyTexSubImage2D` 进**当前 `getMainRenderTarget()` 的颜色纹理** = lane FBO 的颜色纹理） | `IrisRenderingPipeline.java:1083-1087`；`pipeline/CompositeRenderer.java:230`（局部 `main`）、`:289`；`pipeline/FinalPassRenderer.java:198-201`、`:216-220`（颜色纹理变化由版本号检测后重挂 attachment）、`:243-270` |
+| 深度 | final pass 复用「主 framebuffer 的深度」= 此刻 lane FBO 的深度；gbuffer FBO 的深度附件会因**深度缓冲版本号不同**被重挂到 lane FBO 的深度纹理（回主 pass 时再挂回去） | `FinalPassRenderer.java:204-218`（注释）；`targets/RenderTargets.java:147-171`；版本号来源 `compat/blaze3d/MixinRenderTarget.java:17-40` |
+
+**由推演直接得出的缺陷 / 风险**（标「源码确定」= 代码路径无条件走到；标「待实测」= 影响幅度或画面结果只能实测）：
+
+1. **帧计数与时间 uniform 每帧多推 N 次（源码确定）**：`iris$setupPipeline` 每次都调 `SystemTimeUniforms.COUNTER.beginFrame()`（`count = (count + 1) % 720720`）与 `TIMER.beginFrame(startTime)`（`diffNs = startTime - lastStartTime`）。N 条 lane ⇒ 每帧 `frameCounter` **+（N+1）**；`frameTime` 在本帧最后一次调用时因 `startTime` 与上次相同而算成 **0**（最后写者胜）。⇒ 依赖 `frameCounter` / `frameTime` 的动画与 TAA / 时域效果会跑快或抖动。依据：`MixinLevelRenderer.java:75-96`；`uniforms/SystemTimeUniforms.java:49-51`、`:74-89`。
+2. **每 lane 一次阴影 pass + 一次 composite 全链 + 一次 final pass（源码确定）**：成本量级从「+0.56 ms/lane（无光影）」跳到「**一 lane ≈ 一个光影帧**」——与 §3-⑥ 的怀疑一致；具体倍数**待实测**。
+3. **`smartCull` 覆盖关系（源码确定，顺带回答 §3-⑧ 的一半）**：光影在 `LevelRenderer.renderLevel` HEAD 赋 `smartCull`，我们的包夹在 `setupRender` HEAD / RETURN——而 `setupRender` 是在 `LevelRenderer.renderLevel` **内部**偏移 **484** 处被调用的（`javap -c` 核实），**晚于**光影的赋值 ⇒ **我们的 `smartCull = false` 仍然生效**（主 pass 与 lane pass 都是），光影下「倾斜裁切矩形」不因这条回归。**⑧ 本身仍待收尾**（还有 `NonCullingFrustum` / `cullingFrustum` 改写那条线）。
+4. **`HandRenderer` 每 lane 跑一次（源码确定，画面影响待实测）**：`iris$endLevelRender` 调 `HandRenderer.INSTANCE.renderTranslucent(...)`，`iris$beginTranslucents` 调 `beginHand()` + `renderSolid(...)` ⇒ lane 画面里可能各带一只第一人称手。依据：`MixinLevelRenderer.java:118-123`、`:275-278`。
+5. **profiler 调用次数（待核实）**：`popPush("iris_final")` 每 pass 一次（一帧 N+1 次）。`popPush` = pop + push，是否会与 vanilla profiler 栈失衡需看调用点当时的栈深——**未核实，列为实测项**。依据：`MixinLevelRenderer.java:118-123`。
+6. **`CapturedRenderingState` 遗留（影响面小）**：一帧结束时留下最后一次 lane 的相机矩阵；下一帧 HEAD 会重设，`finalizeGameRendering` 不读这些值。
+7. **深度附件重挂（源码确定，有界）**：lane FBO 与主 RT 的深度版本号不同 ⇒ 每帧 2 次「重挂全部 owned framebuffer 的深度附件」（进 lane 时一次、回主画面时一次），**不是每 lane 一次**（同一条 lane 之间版本号已一致）。lane FBO 就是按主画面尺寸建的（`LaneRenderer.offscreenTarget` = `new TextureTarget(width, height, true, ...)`，尺寸取 `main.width/height`）⇒ **不触发光影 RT 的尺寸重分配**。
+8. **只能实测才能定的**：lane FBO 的深度纹理在光影 `TextureInfoCache` 里的记录是否与主 RT 一致（影响 `depthFormatChanged` 分支与 `noTranslucents` / `noHand` 的拷贝策略）；`skipAllRendering()` 分支；以及**画面到底对不对**（缺块 / 黑 / 重复特效 / 手 / 时间动画异常）。
+
+**对 §4 的影响（只标注，不选策略）**：
+
+- **选项 A 的判据「光影下确实是坏的」目前仍无证据**：源码级看不是崩 / 黑，而是「能出画面，但语义被改」（时间 uniform 多推、每 lane 一次阴影 + composite + final、可能带手）。⇒ A 若要成立，得先实测到「画面 / 语义确实不可接受」。
+- **选项 B 的工作量要上调**：不是「补状态保存 / 恢复」那么简单——核心是**阻止每条 lane 触发整套光影链**（阴影 + composite + final），否则每 lane ≈ 一个光影帧；这不是加几个 save/restore 能解决的。
+- **D1（按 pack 特性分档）多两个可分档位**：`shadowDistance == 0` 的 pack 每 lane 不跑阴影 pass（`ShadowRenderer.java:355-356`）；只有声明 `supportsColorCorrection()` 的 pack 才碰色彩空间那条（`IrisRenderingPipeline.java:524`）。
+- **D3（让 lane 走光影管线）在源码级是可行的**：绑定关系自洽（「主画面」处处解析为 lane FBO），剩下的只是成本问题（§3-⑥）。
+
+#### 环境限制与实测清单（①/② 共用）
+
+**环境核查结果（2026-10-10）**：`fabric/run/mods/` **空**、`fabric/run/shaderpacks/` **不存在**、`forge/run/mods/` 无 Oculus、gradle 缓存与 `~/Downloads` 里**没有任何 iris / oculus jar**、`fabric/run/logs/` 历史日志里也没有装过光影的痕迹。⇒ **本机当前无法做「光影启用帧」的实测**；上文全部为源码级结论，未在游戏内验证过任何一条。
+
+**缺件清单**：
+
+| # | 缺什么 | 备注 |
+|---|---|---|
+| 1 | Iris（Fabric 1.20.1）jar → `fabric/run/mods/` | 网络可达（`api.modrinth.com` 200），可下载；**但 dev 环境（Loom `runClient`，named 命名空间）能否加载 production jar 需先验证**——Fabric Loader 在 dev 期会装 `MixinIntermediaryDevRemapper` 做 intermediary→named 重映射（`FabricMixinBootstrap.init`），但复杂 mixin 包在 dev 下翻车的例子不少 |
+| 2 | 一个光影包 → `fabric/run/shaderpacks/`（目录需新建） | 要能分档：**无阴影 / 无 composite / 全开** 三档（对应 §3-② 的「分档定位」） |
+| 3 | Fabric API jar（若 Iris 的依赖需要） | 先看 Iris `fabric.mod.json` 的 `depends` |
+| 4 | （定序实测用）两边各打一行带帧号 / 时间戳的日志；或直接用 `-Dmixin.debug.export=true` 导出**变换后**的类 | 后者**不需要装 Iris 也能验证一半**（我们的回调确实插在 RETURN 之前）；光影侧不能改本体 ⇒ 临时附属 mixin |
+| 5 | Forge 侧（Oculus）同上 | `example/Oculus-1.20.1-new` 只有源码；本仓无 Oculus jar |
+
+**实测步骤清单（环境就绪后照做）**：
+
+1. **定序实测（§3-① / §5 步骤 1）**：`-Dmixin.debug.export=true` 跑一次 `ICINEMATICS_CAPTURE=1 sh gradlew :fabric:runClient --args='--quickPlaySingleplayer QuadrantTest'`，`javap -c run/.mixin.out/class/net/minecraft/client/renderer/GameRenderer.class` 看偏移 640 之前两个回调（`ic$worldRendered` 与 `iris$runColorSpace`）的**先后**；再用两边各一行帧号日志对照。同时读 `IrisApi.getInstance().isShaderPackInUse()` 与 `shouldOverrideShaders()` 的等效状态，确认 lane pass 内是否接管（§3-⑨）。
+2. **可行性分档实测（§3-② / §5 步骤 2）**：`{光影关 / 光影开} × {无阴影 pack / 无 composite pack / 全开 pack}`，跑 `cinematics/release/quadrant.json` + `ICINEMATICS_CAPTURE`，比对 `fabric/run/lane-captures/` 里的 lane raw / composited / 窗口终帧：是否缺块 / 黑 / 重复特效 / 只有一条 lane 正常 / lane 里出现第一人称手。
+3. **时间 uniform 实测（本记录缺陷 1/2 的验证）**：全开 pack 下看依赖 `frameCounter` / `frameTime` 的动画（云 / 水波 / TAA）在 lane 数 0 / 1 / 4 时是否跑快；profiler 里 `iris_final` 与阴影段是否随 lane 数线性增长（同时是 §3-⑥ 的入口）。
+4. **日志与崩溃面**：`fabric/run/logs/latest.log` 里搜光影的断言 / GL 错误 / 我们的 `lane 渲染失败` 限频告警（`LaneRenderer.reportLaneFailure`）。
 
 ### ③ 色彩空间（光影的色彩空间转换与我们的调色 pass 的相互影响）
 
@@ -208,8 +305,8 @@
 
 | # | 步骤 | 交付物 | 依赖 |
 |---|---|---|---|
-| 1 | **挂点先后实测**：日志 / 反汇编确认「光影各阶段 × 我们的挂点」顺序（§3-①），并顺带确认 lane pass 内光影是否接管着色器（§3-⑨） | 「挂点先后实测报告」（表 + 证据：日志片段、`javap` 反汇编） | — |
-| 2 | **可行性实测**：光影开 / 关 × pack 特性档（无阴影 / 无 composite / 全开），跑四象限脚本 + `ICINEMATICS_CAPTURE` 出图，分档定位出错点（§3-②） | 「可行性结论」（可用 / 有条件可用 / 不可用 + 最小复现 + 根因定位） | 步骤 1 |
+| 1 | **挂点先后实测**：日志 / 反汇编确认「光影各阶段 × 我们的挂点」顺序（§3-①），并顺带确认 lane pass 内光影是否接管着色器（§3-⑨） | 「挂点先后实测报告」（表 + 证据：日志片段、`javap` 反汇编）。**状态（2026-10-10）：🟡 源码级定序已完成**（§3-① 调研记录：结构性先后 + 同点顺序规则 + 当前预测 + 显式钉死手段）；**实机实测未做**（环境缺 Iris / 光影包，见 §3-② 末「环境限制与实测清单」）。⑨ 的源码级答案 = **会接管**（`shouldOverrideShaders` 两条件在 lane pass 内都成立），画面结果待实测。 | — |
+| 2 | **可行性实测**：光影开 / 关 × pack 特性档（无阴影 / 无 composite / 全开），跑四象限脚本 + `ICINEMATICS_CAPTURE` 出图，分档定位出错点（§3-②） | 「可行性结论」（可用 / 有条件可用 / 不可用 + 最小复现 + 根因定位）。**状态（2026-10-10）：🟡 源码级可行性推演已完成**（§3-② 调研记录：逐环节推演 + 8 条缺陷/风险 + 待实测清单）；**分档实测未做**（同上，缺 Iris + 光影包）。 | 步骤 1 |
 | 3 | **色彩空间与调色语义**：确定 master 调色在光影下的作用空间与顺序（§3-③），必要时定「光影下的调色挂点修正」 | 「调色在光影下的语义定义」（含顺序要求与验证出图） | 步骤 1 |
 | 4 | **性能测量**：{光影开 / 关} × {lane 0/1/4} × {内容档} 的成本表（§3-⑥），并确认 `iris_final` / 阴影段是否随 lane 数增长 | 「光影下成本数据表 + 推荐值修订建议」 | 步骤 2 |
 | 5 | **交叉项收尾**：优化模组的 `frame` 语义（§3-④）、Rubidium 检测（§3-⑤）、Iris/Oculus 差异清单（§3-⑦）、遮挡剔除归属（§3-⑧）、注入点风险（§3-⑩） | 「组合矩阵结论 + 检测规则修订草案」（含 Rubidium 标记类名核对结果） | 步骤 2（可并行） |

@@ -44,7 +44,7 @@ RGBA 的 A 通道**不属于调色**（[画面颜色调整](./screen-color-adjus
 | 画面 lane（相机画面） | 合成参数 `opacity`（0~1，关键帧）——**尚未实现**（合成层未落地） | camera-composition |
 | 图片层 / 字幕层 | `setOpacity`（关键帧驱动，已实现） | variable-frame / overlay-color-mask |
 | fade 遮罩层（= 纯色覆盖层） | `setOpacity`（关键帧驱动，已实现）；`setColor`（任意色——白场就是 `#FFFFFF`） | overlay-color-mask / scene-transition |
-| 黑边层（letterbox） | **无 alpha 字段**（纯黑 0xFF000000 写死）——如需淡入淡出要补 | variable-frame |
+| 黑边层（letterbox） | 实现层已有 `setOpacity`（黑边整体 alpha，默认 1）；但 **LETTERBOX 轨与 schema 未接线**（`LetterboxTrackPlayer` 只写 `aspect_ratio`、`TrackSchemas.letterbox()` 只声明 `aspect_ratio`，opacity 恒为 1；D10 未做）——脚本字段尚无 alpha | variable-frame |
 | ~~pip 层~~ | 已删除（0.3.6，被 lane 取代）；画中画 = lane 合成参数 `dest`/`source`/`opacity` | camera-composition |
 
 **统一方向（已确认）**：alpha 在覆盖层统一参数里是同一个「不透明度 0~1」关键帧通道（`variable-frame.md` §3 已定义）；本文只负责回答"怎么用 alpha 做转场"，不重复定义 alpha 本身。

@@ -8,5 +8,5 @@
 | [01](01-trigger-tab-region-mode.md) | 游戏内编辑器「触发器」：区域模式（A→B 方体）用不了（无标签 + 原始 key + 切换不重建） | UX / 显示 bug / 重建 bug | 用户实测 | ⛔ 不修——随游戏内编辑器退役作废（0.3.6） |
 | [02](02-editor-coverage-gaps.md) | 游戏内编辑器 vs 脚本格式：能力覆盖缺口 | 能力缺口 | 代码排查 | ⛔ 随编辑器退役作废（0.3.6）；检查单留档 |
 | [03](03-exit-buffer-corner-order.md) | `exit_buffer` 方体外扩对角落点顺序敏感（写反则缓冲失效） | 运行时 bug | 代码排查 | ✅ 已实现（2026-10-09 回写；`Evaluators.expandAxis` 逐轴 min/max 归一化） |
-| [04](04-trigger-latency.md) | 触发器 → 命令的延迟构成（轮询 + 播放链路）；可配项与待改进 | 特性/待改进 | 代码排查 | 部分已调（config） |
+| [04](04-trigger-latency.md) | 触发器 → 命令的延迟构成（轮询 + 播放链路）；可配项与待改进 | 特性/待改进 | 代码排查 | 🟠 部分已调（config：轮询间隔可调，用户侧已改 20→2）；#1 触发器直接执行命令未做（归 H4「命令归 EVENT 轨」）；#2 检测频率按触发器/脚本可配未实现（归 `trigger-conditions.md` 需求 3 / C3） |
 | [05](05-on-enter-not-repeatable.md) | `on_enter`（进入时触发）触发器每局只能触发一次（复位分支不可达） | 运行时 bug | 用户实测 + 代码排查 | ✅ 已修复（0.3.6） |

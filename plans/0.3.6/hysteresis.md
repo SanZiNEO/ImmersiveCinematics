@@ -172,9 +172,9 @@ Modifier Chain 修改状态
 
 ### ② 已修正 / 需澄清
 - **"关键帧插值：linear / smooth / bezier"** → 实为两类不同字段，原表述把 `bezier` 混入 interpolation：
-  - `interpolation` 枚举仅 `{linear, smooth}`（`TrackSchemas.java:32`、`ScriptValidator.java:165`），且**仅 `OverlayTrackPlayer` 真正读取**（`script/OverlayTrackPlayer.java:84,180`，`smooth` = Catmull-Rom 样条，作用于 overlay 浮点通道）；CAMERA 片段的 `interpolation` 被声明与校验，但 `CameraTrackPlayer` 不读。
-  - `bezier` 不是 interpolation 取值，而是相机**位置路径**字段 `curve`（`bezier_curve` 类型，`TrackSchemas.java:33`），经 `PathStrategy`（`linear`/`bezier`）求值；朝向按匀速线性插值（`KeyframeInterpolator`）。
-  - 冲突裁决：`hysteresis.md` 最后修改 **2026-09-15T00:34:21+08:00**；`TrackSchemas.java` 最后修改 **2026-09-17T13:38:01+08:00** → 代码更晚，以代码为准（枚举 `{linear, smooth}`）。
+  - **0.3.6 起：clip 级 `interpolation` 字段已整体移除**——`ScriptValidator` 对 `clip.has("interpolation")` 报错拦截（提示删除该字段），运行时关键帧之间统一**匀速线性**，缓动由编辑器烘焙成显式关键帧写入脚本（见 `script-model.md` §4-1）。因此「`interpolation` 枚举 `{linear, smooth}`」这一表述已不适用（0.3.6 前该枚举仅被 `OverlayTrackPlayer` 读取，`smooth` = Catmull-Rom 样条，作用于 overlay 浮点通道；CAMERA 片段声明但不读）。
+  - `bezier` 从来不是 interpolation 取值，而是相机**位置路径**字段 `curve`（`bezier_curve` 类型，`TrackSchemas.java`），经 `PathStrategy`（`linear`/`bezier`）求值；朝向按匀速线性插值（`KeyframeInterpolator`）。
+  - 冲突裁决：`hysteresis.md` 最后修改 **2026-09-15T00:34:21+08:00**；`TrackSchemas.java` 最后修改 **2026-09-17T13:38:01+08:00** → 代码更晚，以代码为准（当时枚举 `{linear, smooth}`）；**该字段 0.3.6 已整体移除，本条仅存历史意义**。
 - **"呼吸：perlin / sine / trauma"** → 实为 4 种：`perlin` / `perlin_axis` / `sine` / `trauma`（`script/BreathDisturbance.java` 常量 `TYPE_PERLIN`/`TYPE_PERLIN_AXIS`/`TYPE_SINE`/`TYPE_TRAUMA`），由 clip 字段 `cam_breath_type` 选择；参数 `cam_breath_intensity`/`seed`/`speed`/`trauma`/`decay`。（`BreathDisturbance.java` 最后修改 2026-08-18T22:41:19+08:00，早于本文；属枚举补全，非行为冲突。）
 
 ### ③ 补全

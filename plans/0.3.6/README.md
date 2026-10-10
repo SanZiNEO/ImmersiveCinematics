@@ -38,7 +38,7 @@
 | 文档 | 说明 | 状态 | 依赖 |
 |---|---|---|---|
 | `editor-webui-migration.md` | 编辑器 WebUI：独立 Editor（Vue3 + Electron）已实现并打包 0.1.0；**游戏内编辑器已退役删除（2026-10-07）**；剩余：安全加固等 | ✅ 主体已落地（退役完成） | — |
-| `editor-script-graph.md` | WebUI 无限画布：脚本架构图（文件夹分区 + requires 依赖网） | 🔵 方向已确认 | WebUI 编辑器 |
+| `editor-script-graph.md` | WebUI 无限画布：脚本架构图（文件夹分区 + requires 依赖网） | ✅ 步骤 1–4 已落地（步骤 5 拖拽布局持久化 + 增量刷新未做） | WebUI 编辑器 |
 | `templates.md` | 模板参数化：脚本-轨道-片段三层模板；用户填目标需求一键生成脚本（0.3.5 预设已随编辑器删除，模板体系从零新建） | 🔵 方向已确认 | script-model；editor-webui-migration |
 
 ## 三、触发器与区域

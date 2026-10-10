@@ -31,4 +31,6 @@
 
 ## 已知问题
 
-- `WebPreviewScreen.enterFlightMode` 忽略传入的 `x/y/z`：前端 `editor.enter_flight_mode` 解析并传入了位置与光学参数，但游戏端只使用 `absolute` 标志，其余取自 `CameraManager` 当前路径与属性（来源：`WebPreviewScreen`、`WebEditorApi`）
+- 无。
+
+> 历史项（已修复）：`WebPreviewScreen.enterFlightMode` 曾忽略传入的 `x/y/z`。现前端显式提供的 `x/y/z/yaw/pitch/roll/fov/zoom` 覆盖对应默认值，未提供的字段才回落到当前相机状态；`absolute` 只作飞控会话的坐标模式标记转发（`WebPreviewScreen.enterFlightMode`、`WebEditorApi.handleEnterFlightMode`）。

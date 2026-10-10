@@ -23,7 +23,7 @@
 |---|---|---|---|
 | CORE 相机核心 | 六参数 + 统一快照 + 写入缓冲 | `camera/core/`：`CameraState`（迁 `api/` 或核心包，执行时定）、`CameraPath`/`CameraProperties` 降为包内写入缓冲 | 现 `camera/` |
 | SRC 输入源（COORDSRC / DIRSRC / FRAMES / TRACK） | 坐标源、方向源、参考系、追踪 → 目标位姿 | `camera/source/`：`EntityTargetResolver`、`WorldPointLocator`、位姿求值 | `CameraTrackPlayer` C/D/E 组 |
-| COVER 覆盖链（Base → Modifier → CSTATE） | Base Provider（脚本导演/编辑器直控/飞行/外部接管）→ Modifier → 统一状态 | **本轮只立接口留位**，接链归 B1 | 未来 B1 |
+| COVER 覆盖链（Base → Modifier → CSTATE） | Base Provider（脚本导演/编辑器直控/飞行/外部接管）→ Modifier → 统一状态 | **本轮只立接口留位**，接链归 B1（**接口形状已定稿 2026-10-10**：`camera-state-plan.md`「覆盖链定稿」§2 名单档位 + §12 接口草案） | 未来 B1 |
 | 门面/编排（PB.CMGR） | 生命周期 / 编排 / 门面 | `CameraManager`（收缩后薄门面） | `CameraManager` G2/G7 |
 | DEST 输出（RENDER / MULTI / 消费方） | 渲染钩子、lane 快照、听者/预加载/预览 HUD | 现状不动（已零接触内部可变对象），只读核心 | `mixin/`、`client/lane/` |
 | api 包 | 对外稳定面 | `common/.../api/`（B4 本体） | 新建 |
@@ -47,7 +47,7 @@
 
 | 新类 | 吸收（盘点职责组） | 说明 |
 |---|---|---|
-| `PlaybackClock` | G3 双时钟 | 游戏共享虚拟时钟 + 预览播放头；纯状态，**首拆（最低风险）** |
+| `PlaybackClock` | G3 双时钟 | 游戏共享虚拟时钟 + 预览播放头；纯状态，**首拆（最低风险）**。**命名已合并（2026-10-10）**：以 `clock-abstraction.md` §3.1 的 `Clock` + `GameClock` / `PreviewClock` 为准，不单独建 `PlaybackClock` 类（见 `camera-state-plan.md`「覆盖链定稿」§15） |
 | `CameraStateHolder` | G5 统一快照 | activePath/activeProperties/cameraState + refreshCameraState；核心写入缓冲，**首拆** |
 | `PlaybackRegistry` | G1 实例列表与查询 | instances/topInstance/instancePlaying/行为并集/帧缓存 |
 | `PreviewChannel` | G4 预览通道 | pushScript/setTime/resume/pause/stop/exitPreview/直控标志 |
@@ -77,7 +77,7 @@
 
 ### 2.4 API 包（B4 本体）与可见性收紧
 
-- 新建 `common/src/main/java/com/immersivecinematics/immersive_cinematics/api/`：**最小稳定面** = `CameraApi`（只读查询：`isActive` / `hasActiveCameraClip` / `getCameraState`）+ `CameraState`（倾向迁入 api 包）+ **Base Provider 接口留位**（接口形状随 B1 定稿，本轮只定义不接链）。事件（实例开始/结束）暂缓——内部稳定后再评估（camera-state-plan §7）。
+- 新建 `common/src/main/java/com/immersivecinematics/immersive_cinematics/api/`：**最小稳定面** = `CameraApi`（只读查询：`isActive` / `hasActiveCameraClip` / `getCameraState`）+ `CameraState`（倾向迁入 api 包）+ **Base Provider 接口留位**（**接口形状已定稿 2026-10-10**：`camera-state-plan.md`「覆盖链定稿」§12 草案——`BaseCameraProvider`（`isBaseActive` / `basePriority` / `provideBaseState` / `suppressesModifiers`）；本轮只定义不接链）。事件（实例开始/结束）暂缓——内部稳定后再评估（camera-state-plan §7）。
 - 收紧内部实现：`CameraPath`/`CameraProperties` 降为包内可见（渲染 Mixin 已零引用，仅 CameraManager + CameraTrackPlayer 触碰）；`getPath()`/`getProperties()` 收为包内写入口（CameraTrackPlayer 写侧改经 `CameraStateHolder` 的包内接口）。
 - 外部调用方（`WebEditorApi`、`FlightController`、听者/预加载/预览 HUD）改经 api 面，行为不变。
 
@@ -106,7 +106,7 @@
 ## 五、与队列的关系
 
 - 本计划 = **B4 的实现方案**（B4 行扩记）；Base Provider 接链留给 B1（覆盖链），接口先留位。
-- B2（每 lane 独立 CameraPath/CameraProperties 核对）：在 `CameraStateHolder`/`LaneSnapshotCollector` 新结构上核对结案。
+- B2（每 lane 独立 CameraPath/CameraProperties 核对）：**已结案（2026-10-10）——不需要做**。结论 = 每 lane 的相机状态已由 `CameraLane`（`record CameraLane(CameraState, Clip, float)`，`script/CameraLane.java:20`）快照模型承载，渲染侧逐 lane 读自己的快照（`client/lane/LaneRenderer.java:359`、`client/lane/ScriptLaneDriver.java:127`），`mixin/` 零引用 `CameraPath`/`CameraProperties`；全局 `activePath`/`activeProperties` 只剩「顶层实例顶层 clip 写入缓冲 + 统一快照取值来源」一个角色（写：`CameraTrackPlayer.writeAttributes` / `renderMorph`；读：`CameraManager.refreshCameraState` → 听者/预加载/预览 HUD + `getCameraYaw`）。逐点证据与「为什么不需要 per-lane 可变对象」见 `camera-state-plan.md`「覆盖链定稿（2026-10-10）」§13。本结案不依赖 P1/P4 新结构（只依赖「谁写全局、谁读全局、lane 读什么」），P4 的 `LaneSnapshotCollector` 落地后结论不变、无需重开；`CameraStateHolder` 落地时按「保留 `CameraPath`/`CameraProperties` 为包内写入缓冲」执行（`§〇` CORE 行），不做 per-lane 复制。
 - B10-B15（selector 系列）：在 `EntityTargetResolver` 上做（含已知缺口修复）。
 - B3'（每 lane 独立可见集合）落地后删 `CinematicOcclusion`。
 - C4 接管触发器死代码（3 个 TriggerAction + 读方法），不混入本计划。
