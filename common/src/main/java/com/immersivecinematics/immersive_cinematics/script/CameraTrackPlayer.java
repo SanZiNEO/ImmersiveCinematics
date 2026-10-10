@@ -2,88 +2,45 @@ package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.CameraState;
+import com.immersivecinematics.immersive_cinematics.camera.source.CameraKeyframeEvaluator;
 import com.immersivecinematics.immersive_cinematics.camera.source.EntityTargetResolver;
-import com.immersivecinematics.immersive_cinematics.util.TimeInterpolation;
-import net.minecraft.world.entity.Entity;
+import com.immersivecinematics.immersive_cinematics.camera.source.LaneSnapshotCollector;
+import com.immersivecinematics.immersive_cinematics.camera.source.WorldPointLocator;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
+/**
+ * CAMERA 轨道播放器：TrackPlayer 接口实现 + 逐帧编排（数据源 / 时间推进 / 片段选取 / 写入分发 / 生命周期）。
+ *
+ * 职责边界：关键帧求值（六参数 / 插值 / 混合）归 {@link CameraKeyframeEvaluator}，重叠窗口的 lane 捕获归
+ * {@link LaneSnapshotCollector}，结构 / 方块静态目标定位归 {@link WorldPointLocator}。
+ * 写入契约：本轨本帧的顶层相机状态（六参数）由本类写入全局 {@link CameraManager} 写入缓冲；
+ * 重叠窗口层级在下的 clip 只产 lane 快照、不写全局。
+ * 线程契约：仅客户端主线程，逐渲染帧调用；帧内路径不新建集合。
+ */
 public class CameraTrackPlayer implements TrackPlayer {
-
-    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/CameraTrackPlayer");
 
     private final ScriptPlayer scriptPlayer;
     private final TrackType type;
     private final int trackIndex;
-    private final Vec3 originPos;
     private final CameraManager cameraManager;
-
-    /** 独立 Bezier 路径策略实例，脚本结束时随 TrackPlayer 一起 GC，LUT 缓存自动释放 */
-    private final PathStrategy bezierStrategy = new BezierPathStrategy();
-
-    /**
-     * 本轨本帧各活跃 clip 的画面 lane 快照，按轨道内 clip 顺序排列——<b>后面的在上</b>
-     * （与 lane 合成的绘制顺序一致：先画的在下，后画的盖在上面）。
-     * <p>
-     * 时间重叠窗口内每个活跃 clip 各产一份（如叠化：上一个 clip 的 hold 尾帧 + 下一个 clip 的 hold 首帧）；
-     * 无重叠时只有顶层一份。空列表 = 本轨本帧不产出画面（片段间隙 / 目标不可用 / 编辑器直控）。
-     * <p>
-     * <b>顶层相机 = 列表最后一个元素</b>（顶层活跃 clip，即写入全局 {@link CameraManager} 的那一份状态）。
-     * morph 过渡窗口是旧模型（两 clip 混合成一份相机状态），本轨本帧仍只产出一份 lane
-     * （合成参数取进入的片段 {@code next}，见 {@link #onRenderFrame(float)}）。
-     */
-    private final List<CameraLane> laneSnapshots = new ArrayList<>(2);
-
-    /** {@link #laneSnapshots} 的只读视图（避免每次取用时包装） */
-    private final List<CameraLane> laneSnapshotsView = Collections.unmodifiableList(laneSnapshots);
-
-    /** 诊断：look_at 目标位置一次性日志（播放期间只打印 1 次） */
-    private boolean lookAtLoggedOnce;
-    /** 结构定位失败提示只打一次 */
-    private boolean lookAtWarnOnce;
-    /** 片段目标不可用（按空片段处理）提示只打一次 */
-    private boolean clipUnusableWarnOnce;
-
-    /**
-     * 连线方向退化阈值：水平分量 {@code sqrt(dx² + dz²)} 小于该值即「没有水平分量」——
-     * 零长度线（水平 ≈ 0 且 |dy| ≈ 0）与纯垂直线（水平 ≈ 0、|dy| > 0）都落在这一侧，两者的水平角
-     * 都未定义，一律拒绝该朝向输入（{@link #lineDir} / {@link #buildFrame}）；纯水平线不在这一侧。
-     */
-    private static final double LINE_HORIZONTAL_EPSILON = 1.0E-4;
-
-    /** 退化连线告警限频窗口（毫秒） */
-    private static final long DEGENERATE_LINE_WARN_INTERVAL_MS = 2000L;
-    /** 上次退化连线告警时刻（毫秒） */
-    private long lastDegenerateLineWarnAt;
-
-    /** 上一帧最终世界坐标（实体目标消失时停在原地、以及作为 @e 就近基准） */
-    private Vec3 lastWorldPos;
-
-    /**
-     * 本帧基准坐标系（由基准点 + 基准朝向建立），供其它通道复用：
-     * 注视点偏移可以按基准坐标系表达（{@code look_at_target.space = "facing"}）。
-     * 基准坐标系是"这一帧的基准"，只建一套，不按通道各建一套。
-     */
-    private Vec3 frameOrigin;
-    private Vec3 frameFwd;
-    private Vec3 frameRight;
-    private Vec3 frameUp;
-    private boolean frameValid;
 
     /** 目标解析与锁定：selector → 实体 + 按 {@code role + selector} 维护的锁与切换平滑状态 */
     private final EntityTargetResolver entityResolver = new EntityTargetResolver();
+    /** 关键帧求值（六参数 / 插值 / 混合） */
+    private final CameraKeyframeEvaluator evaluator;
+    /** 本轨本帧的 lane 快照捕获与持有 */
+    private final LaneSnapshotCollector laneCollector;
 
     public CameraTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos, CameraManager cameraManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
         this.type = type;
         this.trackIndex = trackIndex;
-        this.originPos = originPos;
         this.cameraManager = cameraManager;
-        this.lastWorldPos = originPos;
+        WorldPointLocator pointLocator = new WorldPointLocator();
+        this.evaluator = new CameraKeyframeEvaluator(entityResolver, pointLocator, originPos);
+        this.laneCollector = new LaneSnapshotCollector(entityResolver, evaluator);
     }
 
     /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建） */
@@ -92,41 +49,27 @@ public class CameraTrackPlayer implements TrackPlayer {
     }
 
     /**
-     * 本轨本帧的画面 lane 快照列表。
+     * 本轨本帧的画面 lane 快照列表（按轨道内 clip 顺序，最后一个是顶层相机）。
      *
-     * @return 按轨道内 clip 顺序排列的快照（后面的在上，最后一个是顶层相机）；
-     *         空列表 = 本轨本帧不产出画面（片段间隙 / 目标不可用 / 编辑器直控）
+     * @return 空列表 = 本轨本帧不产出画面（片段间隙 / 目标不可用 / 编辑器直控）
      */
     public List<CameraLane> getLaneSnapshots() {
-        return laneSnapshotsView;
+        return laneCollector.getLaneSnapshots();
     }
-
 
     @Override
     public boolean isActiveAt(float globalTime) {
-        List<Clip> clips = clips();
-        Clip c = findActiveClip(globalTime);
-        if (c != null) return true;
-        for (int i = 0; i < clips.size() - 1; i++) {
-            Clip prev = clips.get(i);
-            if (prev.isMorph() && prev.getTransitionDuration() > 0f && !prev.isEffectivelyInfinite()) {
-                // B 模型：转场区以片段边界为中心 [end−t/2, end+t/2)
-                float prevEnd = prev.getWindowEnd();
-                float half = prev.getTransitionDuration() / 2f;
-                if (globalTime >= prevEnd - half && globalTime < prevEnd + half) return true;
-            }
-        }
-        return false;
+        return evaluator.isActiveAt(clips(), globalTime);
     }
 
     @Override
     public void onRenderFrame(float globalTime) {
         // 本帧无写入 → lane 快照为空；有写入时由顶层路径与逐 clip 捕获填值
-        laneSnapshots.clear();
+        laneCollector.clear();
         List<Clip> clips = clips();
         if (clips.isEmpty()) return;
 
-        // 组 7：编辑器拖拽直控期间，相机由编辑器直驱（setCameraDirect），跳过轨道写入
+        // 编辑器拖拽直控期间，相机由编辑器直驱（setCameraDirect），跳过轨道写入
         if (cameraManager.isPreviewDirectControl()) return;
 
         // B 模型 morph：转场区 [A_end−t/2, A_end+t/2) 内双轨各自插值交叉（A 尾部真实走完、B 头部真实进入）
@@ -140,16 +83,17 @@ public class CameraTrackPlayer implements TrackPlayer {
                 float morphEnd = prevEnd + half;
                 if (globalTime >= morphStart && globalTime < morphEnd) {
                     // 进入的片段目标不可用 → 整个转场按空处理
-                    if (!isClipUsable(next)) {
-                        warnClipUnusableOnce();
+                    if (!evaluator.isClipUsable(next)) {
+                        evaluator.warnClipUnusableOnce();
                         return;
                     }
                     float weight = (globalTime - morphStart) / prev.getTransitionDuration();
                     // morph = 旧模型：两 clip 混合成一份相机状态 → 本轨本帧只产出一份 lane
                     // 合成参数取进入的片段（转场结束后留在屏上的是它），不做参数混合
-                    CameraState morphState = renderMorph(prev, next, weight, globalTime);
+                    CameraState morphState = evaluator.renderMorph(prev, next, weight, globalTime);
                     if (morphState != null) {
-                        laneSnapshots.add(new CameraLane(morphState, next, globalTime - next.getStartTime()));
+                        writeGlobal(morphState);
+                        laneCollector.add(new CameraLane(morphState, next, globalTime - next.getStartTime()));
                     }
                     return;
                 }
@@ -157,938 +101,39 @@ public class CameraTrackPlayer implements TrackPlayer {
         }
 
         // 顶层活跃片段（轨道顺序最后者；后面的 clip 覆盖前面）驱动相机
-        List<Clip> active = findActiveClips(globalTime);
+        List<Clip> active = evaluator.findActiveClips(clips, globalTime);
         if (active.isEmpty()) return;
         Clip topClip = active.get(active.size() - 1);
         // 目标不可用（结构/实体找不到）= 该片段按空处理（不写相机 → 玩家视角，与片段间隙同语义）
-        if (!isClipUsable(topClip)) {
-            warnClipUnusableOnce();
+        if (!evaluator.isClipUsable(topClip)) {
+            evaluator.warnClipUnusableOnce();
             return;
         }
 
         // 顶层 clip：正常求值（写全局相机状态，与顶层 lane 同源同值）
-        CameraLane topLane = renderSingle(globalTime, topClip, globalTime - topClip.getStartTime(), false);
+        CameraLane topLane = evaluator.renderSingle(globalTime, topClip, globalTime - topClip.getStartTime(), false);
+        if (topLane != null) writeGlobal(topLane.state());
         // 重叠窗口内层级在下的活跃 clip：先捕获（列表顺序 = 绘制顺序，后面的在上）
-        captureLowerLanes(globalTime, active, topClip);
-        if (topLane != null) laneSnapshots.add(topLane);
+        laneCollector.captureLowerLanes(globalTime, active, topClip);
+        if (topLane != null) laneCollector.add(topLane);
     }
 
-    /** 片段目标不可用提示只打一次（debug 级：作者排查可见，不打扰玩家） */
-    private void warnClipUnusableOnce() {
-        if (!clipUnusableWarnOnce) {
-            clipUnusableWarnOnce = true;
-            LOGGER.debug("片段目标不可用（结构/实体未找到），该片段按空处理（玩家视角）");
-        }
-    }
-
-    /**
-     * 退化连线告警（限频）：零长度线与纯垂直线的水平角都未定义，该朝向输入被拒——
-     * {@code yaw_base = line} 回退基准 0 = world，基准空间偏移按当前视点处理。2 秒内只打一条。
-     */
-    private void warnDegenerateLine() {
-        long now = System.currentTimeMillis();
-        if (now - lastDegenerateLineWarnAt < DEGENERATE_LINE_WARN_INTERVAL_MS) return;
-        lastDegenerateLineWarnAt = now;
-        LOGGER.warn("基准朝向退化（零长度或纯垂直：水平分量 < {}），水平角未定义，该朝向输入被拒（回退 world / 按当前视点处理）",
-                LINE_HORIZONTAL_EPSILON);
-    }
-
-    /**
-     * 片段目标可用性：look_at/follow 的实体、结构目标、position.relative_origin 结构/方块基准
-     * 任一不可解析 → 片段不可用，按空片段处理（不写相机，玩家视角）。
-     * 找不到就找不到——不引入任何替代值/回退逻辑。
-     */
-    private boolean isClipUsable(Clip clip) {
-        for (Keyframe kf : clip.getKeyframes()) {
-            String lookAt = kf.getString("look_at", "none");
-            if ("entity".equals(lookAt)) {
-                if (entityResolver.resolveEntity(
-                        kf.getString("look_at_selector", "@p"), lastWorldPos, "look_at", kf) == null) return false;
-            } else if ("coordinate".equals(lookAt)) {
-                String sid = kf.getString("look_at_target_structure", "");
-                if (!sid.isEmpty() && resolveStructurePos(sid) == null) return false;
-                // 相对目标对象的实体基准不存在 → 该端无目标，片段按空处理
-                Object targetObj = kf.getObject("look_at_target");
-                if (targetObj instanceof Map<?, ?> m) {
-                    Object relTo = m.get("relative_to");
-                    if (relTo != null && !"coordinate".equals(relTo)
-                            && entityResolver.resolveEntity(
-                                    String.valueOf(relTo), lastWorldPos, "look_at_target", kf) == null) {
-                        return false;
-                    }
-                }
-            }
-            if ("entity".equals(kf.getString("follow", "none"))) {
-                if (entityResolver.resolveEntity(
-                        kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf) == null) return false;
-            }
-            // 朝向基准（yaw_base/pitch_base）：entity 实体缺失 / line 端点缺失 → 空片段
-            String yawBase = kf.getString("yaw_base", "world");
-            String pitchBase = kf.getString("pitch_base", "world");
-            if ("entity".equals(yawBase) || "entity".equals(pitchBase)) {
-                if (entityResolver.resolveEntity(
-                        kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf) == null) return false;
-            } else if ("line".equals(yawBase) || "line".equals(pitchBase)) {
-                if (entityResolver.resolveEntity(
-                        kf.getString("yaw_base_from", ""), lastWorldPos, "yaw_base_from", kf) == null
-                        || entityResolver.resolveEntity(
-                                kf.getString("yaw_base_to", ""), lastWorldPos, "yaw_base_to", kf) == null) return false;
-            }
-            PositionData pd = kf.getPosition();
-            if (pd != null && pd.isRelative()) {
-                // 基准坐标系偏移：显式指定的基准点实体不可解析 → 该段无基准，按空片段处理
-                if (pd.isOriginSelector()
-                        && entityResolver.resolveEntity(
-                                pd.getOriginSelector(), lastWorldPos, "facing_origin", kf) == null) {
-                    return false;
-                }
-                // 基准朝向目标不可解析 → 基准朝向不存在，同样按空片段处理
-                if (pd.getFacingTarget() != null && !pd.getFacingTarget().isEmpty()
-                        && entityResolver.resolveEntity(
-                                pd.getFacingTarget(), lastWorldPos, "facing_target", kf) == null) {
-                    return false;
-                }
-                String sid = pd.getOriginStructure();
-                if (sid != null && !sid.isEmpty() && resolveStructurePos(sid) == null) return false;
-                if (pd.isOriginBlock()) {
-                    if (resolveBlockPos(pd.getOriginBlockId(), pd.getOriginBlockRadius()) == null) return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    /**
-     * 单 clip 求值。
-     *
-     * @param capture {@code true} = 只产快照、不写全局相机状态（非顶层活跃 clip 的捕获求值）
-     * @return 该 clip 本帧的 lane 快照（六参数 + 片段 + 片段内本地时间）；
-     *         无插值结果（关键帧为空）时 {@code null}
-     */
-    private CameraLane renderSingle(float globalTime, Clip clip, float clipLocalTime, boolean capture) {
-        KeyframeInterpolator.InterpolationResult result =
-                KeyframeInterpolator.computeInterpolation(clipLocalTime, clip);
-        if (result == null) return null;
-
-        float s = result.adjustedT;
-        CameraState state = writeAttributes(result.from, result.to, s, clip, globalTime, capture);
-        return state != null ? new CameraLane(state, clip, clipLocalTime) : null;
-    }
-
-    /**
-     * B 模型 morph 交叉求值（两 clip 混合成一份相机状态）。
-     *
-     * @return 混合后的六参数快照；两端都无插值结果时 {@code null}
-     */
-    private CameraState renderMorph(Clip prevClip, Clip nextClip, float weight, float globalTime) {
-        // B 模型：双轨各自按自身时间插值（prev 走 [dur−t/2, dur)，next 走 [0, t)），再按 weight 交叉
-        float prevLocal = globalTime - prevClip.getStartTime();
-        float nextLocal = globalTime - nextClip.getStartTime();
-        KeyframeInterpolator.InterpolationResult prevResult =
-                KeyframeInterpolator.computeInterpolation(prevLocal, prevClip);
-        KeyframeInterpolator.InterpolationResult nextResult =
-                KeyframeInterpolator.computeInterpolation(nextLocal, nextClip);
-
-        if (prevResult == null && nextResult == null) return null;
-
-        float prevS = prevResult != null ? prevResult.adjustedT : 0f;
-        float nextS = nextResult != null ? nextResult.adjustedT : 0f;
-
-        Keyframe prevFrom = prevResult != null ? prevResult.from : null;
-        Keyframe prevTo = prevResult != null ? prevResult.to : null;
-        Keyframe nextFrom = nextResult != null ? nextResult.from : null;
-        Keyframe nextTo = nextResult != null ? nextResult.to : null;
-
-        float invWeight = 1f - weight;
-
-        Vec3 prevPos = prevFrom != null
-                ? interpolateWorldPosition(prevFrom, prevTo, prevS, prevClip)
-                : lastWorldPos;
-
-        Vec3 nextPos = nextFrom != null
-                ? interpolateWorldPosition(nextFrom, nextTo, nextS, nextClip)
-                : lastWorldPos;
-
-        Vec3 pos = new Vec3(
-                prevPos.x * invWeight + nextPos.x * weight,
-                prevPos.y * invWeight + nextPos.y * weight,
-                prevPos.z * invWeight + nextPos.z * weight
-        );
-
-        float prevYawBase = prevFrom != null ? KeyframeInterpolator.interpolateYaw(prevFrom, prevTo, prevS) : 0f;
-        float prevPitchBase = prevFrom != null ? KeyframeInterpolator.interpolatePitch(prevFrom, prevTo, prevS) : 0f;
-        float nextYawBase = nextFrom != null ? KeyframeInterpolator.interpolateYaw(nextFrom, nextTo, nextS) : 0f;
-        float nextPitchBase = nextFrom != null ? KeyframeInterpolator.interpolatePitch(nextFrom, nextTo, nextS) : 0f;
-        float[] prevYp = segmentYawPitch(prevFrom, prevTo, prevS, prevClip, prevPos, prevYawBase, prevPitchBase);
-        float[] nextYp = segmentYawPitch(nextFrom, nextTo, nextS, nextClip, nextPos, nextYawBase, nextPitchBase);
-        float yaw = blendAngle(prevYp[0], nextYp[0], weight);
-        float pitch = blendFloat(prevYp[1], nextYp[1], weight);
-        float roll = blendAngle(
-                prevFrom != null ? KeyframeInterpolator.interpolateRoll(prevFrom, prevTo, prevS) : 0f,
-                nextFrom != null ? KeyframeInterpolator.interpolateRoll(nextFrom, nextTo, nextS) : 0f,
-                weight);
-        float fov = blendFloat(
-                prevFrom != null ? KeyframeInterpolator.interpolateFov(prevFrom, prevTo, prevS) : 70f,
-                nextFrom != null ? KeyframeInterpolator.interpolateFov(nextFrom, nextTo, nextS) : 70f,
-                weight);
-        float zoom = blendZoom(
-                prevFrom != null ? KeyframeInterpolator.interpolateZoom(prevFrom, prevTo, prevS) : 1f,
-                nextFrom != null ? KeyframeInterpolator.interpolateZoom(nextFrom, nextTo, nextS) : 1f,
-                weight);
-
-        // ====== Breath disturbance (v2: 按 cam_breath_type 分派, 确定性) ======
-        if (prevClip.getBool("cam_breath_enabled", false)) {
-            float[] jitter = BreathDisturbance.fromClip(prevClip).compute(globalTime);
-            yaw += jitter[0];
-            pitch += jitter[1];
-            roll += jitter[2];
-        }
-        // ====== End breath ======
-
-        cameraManager.getPath().setPositionDirect(pos);
-        cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom);
-        lastWorldPos = pos;
-        // 画面 lane 快照：本轨刚写入全局相机状态的那一份值（六参数）
-        return new CameraState(pos, yaw, pitch, roll, fov, zoom);
-    }
-
-    /**
-     * 重叠窗口内层级在下的活跃 clip 的 lane 快照：顺序求值、逐 clip 捕获。
-     * <p>
-     * 与顶层 clip 走<b>同一条求值链</b>（位置 / 朝向 / 注视 / 呼吸），只是"只捕获不写"：
-     * <ul>
-     *   <li>不写全局 {@link CameraManager}（全局相机状态仍由顶层 clip 决定）；</li>
-     *   <li>不写 {@link #lastWorldPos}（跨 clip 的求值状态不被污染）；</li>
-     *   <li>本帧基准坐标系（{@link #frameValid} / frameFwd / frameRight / frameUp）事后还原；</li>
-     *   <li>目标锁状态（{@link EntityTargetResolver}）在捕获前后整体还原——每个 clip 都从同一份锁状态出发
-     *       （等价"单独求值"），捕获求值对扫描 / 切换 / 平滑的任何改动一律丢弃。</li>
-     * </ul>
-     * 于是重叠窗口内每个 clip 拿到的都是"它自己那一刻该渲染的画面"——hold 语义自然成立
-     * （延长区是等值关键帧，插值器在关键帧范围外本就钳到端点值，两者同值）。
-     * <p>
-     * 本方法在渲染线程上顺序求值，无并发共享问题。
-     *
-     * @param active  本帧全部活跃 clip（按轨道顺序，最后一个 = 顶层）
-     * @param topClip 顶层活跃 clip（已由正常路径求值，这里跳过）
-     */
-    private void captureLowerLanes(float globalTime, List<Clip> active, Clip topClip) {
-        if (active.size() < 2) return;  // 无重叠：本轨本帧只有顶层一份快照（单 clip 行为不变）
-
-        // 捕获求值的"隔离基线"：目标锁状态深拷贝留底（捕获求值只在这份基线之上进行，事后丢弃）
-        entityResolver.snapshotLockState();
-        Vec3 savedOrigin = frameOrigin;
-        Vec3 savedFwd = frameFwd;
-        Vec3 savedRight = frameRight;
-        Vec3 savedUp = frameUp;
-        boolean savedValid = frameValid;
-        try {
-            for (int i = 0; i < active.size() - 1; i++) {
-                Clip clip = active.get(i);
-                if (clip == topClip) continue;  // 防御：顶层只走正常路径
-                // 每个 clip 都从同一份目标锁状态出发（不受兄弟 clip 捕获求值影响）
-                entityResolver.restoreLockState();
-                // 目标不可用 = 该 clip 本帧无画面（与顶层 clip 同语义：不产出 lane）
-                if (!isClipUsable(clip)) {
-                    warnClipUnusableOnce();
-                    continue;
-                }
-                CameraLane snapshot = renderSingle(globalTime, clip, globalTime - clip.getStartTime(), true);
-                if (snapshot != null) laneSnapshots.add(snapshot);
-            }
-        } finally {
-            entityResolver.restoreLockState();
-            frameOrigin = savedOrigin;
-            frameFwd = savedFwd;
-            frameRight = savedRight;
-            frameUp = savedUp;
-            frameValid = savedValid;
-        }
-    }
-
-    /**
-     * 关键帧世界坐标求值：
-     * follow=entity → 实体渲染帧插值位置 + position 偏移（动态，每帧重算）
-     * 普通关键帧    → position 对象自描述：absolute = 世界坐标；relative = 相对基准 + 偏移
-     *                （基准默认玩家激活位置 originPos，可用 relative_origin 指定坐标/结构中心）
-     * 注意：实体/结构目标不可用已在 isClipUsable 前置拦截（该片段按空处理），此处分支为防御。
-     */
-    private Vec3 evalKeyframeWorldPos(Keyframe kf, Clip clip) {
-        PositionData pd = kf.getPosition();
-        // 基准空间坐标系偏移（fwd/up/right）：基准 = follow 的实体 或 玩家（实时朝向，三维旋转）
-        if (pd != null && pd.isFacingRelative()) {
-            return evalFacingOffset(kf, pd);
-        }
-        if ("entity".equals(kf.getString("follow", "none"))) {
-            String selector = kf.getString("follow_selector", "@p");
-            Entity target = entityResolver.resolveEntity(selector, lastWorldPos, "follow", kf);
-            if (target != null) {
-                Vec3 off = pd != null ? pd.toVec3() : Vec3.ZERO;
-                return entityResolver.smoothTargetPoint("follow", selector, "pos",
-                        TimeInterpolation.entityPosition(target).add(off),
-                        entityResolver.selectorPolicy(kf, "follow").switchSmooth());
-            }
-            return lastWorldPos;
-        }
-        Vec3 p = pd != null ? pd.toVec3() : Vec3.ZERO;
-        if (pd == null || !pd.isRelative()) return p;
-        // 相对基准：relative_origin = "coordinate"（固定坐标）/ 结构 id（结构中心）/ 默认玩家激活位置
-        return resolveRelativeBase(pd).add(p);
-    }
-
-    /**
-     * 基准空间坐标系求值：基准点 = 点源（facing_origin 指定的实体/坐标/结构/方块；
-     * 未指定时回落 follow 实体 / 玩家）；三轴由基准朝向建立。
-     * - fwd/right 始终随朝向水平旋转（前/后 & 左/右）
-     * - up 轴由 up_axis 控制："view"=随俯仰全三维（默认）；"world"=保持世界竖直
-     */
-    private Vec3 evalFacingOffset(Keyframe kf, PositionData pd) {
-        Vec3[] frame = evalFacingFrame(kf, pd);
-        if (frame == null) {
-            LOGGER.warn("基准空间偏移：基准点/基准朝向不可用（防御路径，按当前视点处理）");
-            return lastWorldPos;
-        }
-        // 记录本帧基准坐标系，供注视点等其它通道按基准系表达偏移
-        frameOrigin = frame[0];
-        frameFwd = frame[1];
-        frameRight = frame[2];
-        frameUp = frame[3];
-        frameValid = true;
-        return frameOrigin
-                .add(frameFwd.scale(pd.getFwd()))
-                .add(frameRight.scale(pd.getRight()))
-                .add(frameUp.scale(pd.getUp()));
-    }
-
-    /**
-     * 建立本关键帧的基准坐标系 = 基准点 + 基准朝向。
-     *
-     * @return {@code [原点, fwd, right, up]}；不可用或方向退化时返回 null
-     */
-    private Vec3[] evalFacingFrame(Keyframe kf, PositionData pd) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        // 调用点名：显式实体基准 → facing_origin；旧写法 → follow（策略按调用点隔离，回落通用字段）
-        String role = pd.isOriginSelector() ? "facing_origin" : "follow";
-        // 基准点来源（统一点源解析）：实体选择器 / 固定坐标 / 结构中心 / 搜索到的方块
-        Vec3 baseVec = resolvePointSource(kf, pd);
-        if (baseVec == null) return null;
-        // 朝向所属实体：显式实体基准 → 该实体；坐标/结构/方块基准或旧写法 → follow 实体 / 玩家
-        net.minecraft.world.entity.Entity orient = pd.isOriginSelector()
-                ? evalFacingBase(kf, pd)
-                : evalFacingOrient(kf, mc);
-        if (pd.isOriginSelector() && orient == null) return null;
-
-        // 基准朝向：facing_target 非空 → 基准点 → 该目标的连线方向（含俯仰的完整三维方向）
-        String facingTarget = pd.getFacingTarget();
-        if (facingTarget != null && !facingTarget.isEmpty()) {
-            net.minecraft.world.entity.Entity to =
-                    entityResolver.resolveEntity(facingTarget, lastWorldPos, "facing_target", kf);
-            if (to == null) return null;
-            Vec3 dir = TimeInterpolation.entityPosition(to).add(0, to.getBbHeight() / 2.0, 0).subtract(baseVec);
-            return buildFrame(baseVec, dir, pd);
-        }
-
-        if (orient == null) return null;
-
-        // 实体朝向必须按渲染 partialTick 插值：raw getYRot()/getXRot() 会在 20Hz tick 间跳变。
-        float yawRad = (float) Math.toRadians(TimeInterpolation.entityBodyYaw(orient));
-        float pitchRad = (float) Math.toRadians(TimeInterpolation.entityPitch(orient));
-        float sinY = (float) Math.sin(yawRad);
-        float cosY = (float) Math.cos(yawRad);
-        float sinP = (float) Math.sin(pitchRad);
-        float cosP = (float) Math.cos(pitchRad);
-        return buildFrame(baseVec, new Vec3(-sinY * cosP, -sinP, cosY * cosP), pd);
-    }
-
-    /**
-     * 统一点源解析：把"点源（来源 + 偏移）"求值成世界坐标。
-     * <p>
-     * 支持来源：实体选择器（位置 = 实体脚底，与三代一致）、固定坐标、结构中心、玩家附近搜索到的方块中心。
-     * 这是「点源清单统一」的落点——位置基准 / 注视点 / 连线端点共用同一种求值。
-     *
-     * @return 世界坐标；来源不可解析返回 null
-     */
-    private Vec3 resolvePointSource(Keyframe kf, PositionData pd) {
-        if (pd.isOriginCoordinate()) {
-            return new Vec3(pd.getOriginX(), pd.getOriginY(), pd.getOriginZ());
-        }
-        if (pd.getOriginStructure() != null && !pd.getOriginStructure().isEmpty()) {
-            return resolveStructurePos(pd.getOriginStructure());
-        }
-        if (pd.isOriginBlock()) {
-            return resolveBlockPos(pd.getOriginBlockId(), pd.getOriginBlockRadius());
-        }
-        // 实体来源：基准点 = 实体位置（脚底），与三代行为一致；
-        // fwd/up/right 的 up 从脚底往上算（不要再叠眼睛高度，否则整台相机抬高一个眼高）
-        net.minecraft.world.entity.Entity base = evalFacingBase(kf, pd);
-        if (base == null) return null;
-        String role = pd.isOriginSelector() ? "facing_origin" : "follow";
-        Vec3 basePos = entityResolver.smoothTargetPoint(role, frameHandle(kf, pd), "base",
-                TimeInterpolation.entityPosition(base), entityResolver.selectorPolicy(kf, role).switchSmooth());
-        return basePos;
-    }
-
-    /** 点源的锁定/平滑句柄（基准点用哪个 selector 作为锁的键） */
-    private static String frameHandle(Keyframe kf, PositionData pd) {
-        return pd.isOriginSelector() ? pd.getOriginSelector() : kf.getString("follow_selector", "@p");
-    }
-
-    /**
-     * 由基准点 + 前轴方向（任意三维向量）构造基准坐标系。
-     * 前轴由方向决定（实体朝向 / 两点连线），因此 up 是否跟随俯仰用方向向量本身判断：
-     * 非水平方向 + up_axis=view → 跟随俯仰（全三维）；否则 up 保持世界竖直。
-     * 前轴没有水平分量（零长度 / 纯垂直）时水平角未定义：拒绝该朝向输入，返回 null，并限频告警。
-     * 与旧实现等价：水平朝向 + up_axis=world → up 世界竖直；带俯仰 + up_axis=view → up 与 fwd/right 正交。
-     */
-    private Vec3[] buildFrame(Vec3 base, Vec3 dir, PositionData pd) {
-        double dx = dir.x, dy = dir.y, dz = dir.z;
-        double horizontal = Math.sqrt(dx * dx + dz * dz);
-        if (horizontal < LINE_HORIZONTAL_EPSILON) {
-            warnDegenerateLine();
-            return null;
-        }
-        float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
-        float sinY = (float) Math.sin(Math.toRadians(yaw));
-        float cosY = (float) Math.cos(Math.toRadians(yaw));
-        Vec3 rightVec = new Vec3(-cosY, 0, -sinY);
-        Vec3 fwdVec;
-        Vec3 upVec;
-        boolean followPitch = "view".equals(pd.getUpAxis()) && Math.abs(dy) > 1.0E-4;
-        if (followPitch) {
-            float pitch = (float) -Math.toDegrees(Math.atan2(dy, horizontal));
-            float sinP = (float) Math.sin(Math.toRadians(pitch));
-            float cosP = (float) Math.cos(Math.toRadians(pitch));
-            fwdVec = new Vec3(-sinY * cosP, -sinP, cosY * cosP);
-            upVec = new Vec3(-sinY * sinP, cosP, cosY * sinP);
-        } else {
-            // up 保持世界竖直：fwd/right 只水平转
-            fwdVec = new Vec3(-sinY, 0, cosY);
-            upVec = new Vec3(0, 1, 0);
-        }
-        return new Vec3[]{base, fwdVec, rightVec, upVec};
-    }
-
-    /**
-     * 把基准坐标系里的偏移（fwd/up/right）转成世界偏移。
-     * 本帧没有建立基准坐标系（未用 fwd/up/right 摆位）时返回 null，调用方按世界轴处理。
-     */
-    private Vec3 frameOffsetToWorld(float fwd, float up, float right) {
-        if (!frameValid) return null;
-        return frameFwd.scale(fwd).add(frameRight.scale(right)).add(frameUp.scale(up));
-    }
-
-    /** 基准点来源：显式 facing_origin 实体 → 该实体；否则 follow 实体（follow=entity）或玩家 */
-    private net.minecraft.world.entity.Entity evalFacingBase(Keyframe kf, PositionData pd) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        if (pd.isOriginSelector()) {
-            return entityResolver.resolveEntity(pd.getOriginSelector(), lastWorldPos, "facing_origin", kf);
-        }
-        if ("entity".equals(kf.getString("follow", "none"))) {
-            return entityResolver.resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf);
-        }
-        return mc.player;
-    }
-
-    /** 基准朝向所属实体（旧行为）：follow 实体（follow=entity 时）或玩家 */
-    private net.minecraft.world.entity.Entity evalFacingOrient(Keyframe kf, net.minecraft.client.Minecraft mc) {
-        if ("entity".equals(kf.getString("follow", "none"))) {
-            return entityResolver.resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf);
-        }
-        return mc.player;
-    }
-
-    /**
-     * 相对基准求值：coordinate → 固定坐标；结构 id → 结构中心；默认玩家激活位置。
-     * 结构基准不可用已在 isClipUsable 前置拦截（该片段按空处理），此处为防御。
-     */
-    private Vec3 resolveRelativeBase(PositionData pd) {
-        if (pd.isOriginCoordinate()) {
-            return new Vec3(pd.getOriginX(), pd.getOriginY(), pd.getOriginZ());
-        }
-        String structureId = pd.getOriginStructure();
-        if (structureId != null && !structureId.isEmpty()) {
-            Vec3 structurePos = resolveStructurePos(structureId);
-            if (structurePos != null) return structurePos;
-            LOGGER.debug("相对基准结构 '{}' 未找到（防御路径）", structureId);
-        }
-        if (pd.isOriginBlock()) {
-            Vec3 blockPos = resolveBlockPos(pd.getOriginBlockId(), pd.getOriginBlockRadius());
-            if (blockPos != null) return blockPos;
-            LOGGER.warn("相对基准方块 '{}' 未找到（半径 {}，防御路径，片段按空处理）",
-                    pd.getOriginBlockId(), pd.getOriginBlockRadius());
-        }
-        return originPos;
-    }
-
-    /** 结构坐标缓存条目 */
-    private static class StructurePosCache {
-        Vec3 pos;
-        long resolvedAt;
-    }
-
-    /** 结构坐标缓存（structure id → 解析结果，1 秒有效） */
-    private final java.util.Map<String, StructurePosCache> structureCache = new java.util.HashMap<>();
-
-    /** 方块基准缓存条目 */
-    private static class BlockPosCache {
-        Vec3 pos;
-        long resolvedAt;
-    }
-
-    /** 方块基准缓存（blockId:radius → 块中心坐标；方块静态：成功永久缓存，失败 2 秒重试） */
-    private final java.util.Map<String, BlockPosCache> blockCache = new java.util.HashMap<>();
-
-    /**
-     * 结构坐标解析（客户端）：单人/集成服务器（含编辑器预览）直接访问服务端 level，
-     * 用原版 findNearestMapStructure（/locate 同源）定位结构中心。
-     * 结构是静态目标：解析成功的结果永久缓存（整场播放直接复用，无需刷新——与实体目标不同）；
-     * 失败结果 2 秒后重试（结构可能随后被生成/加载）。
-     * 多人服务器（无服务端访问）或找不到返回 null——调用方（isClipUsable）按空片段处理，不引入替代值。
-     * 注：服务端 /icinematics play 推送前已把 look_at_target_structure 替换为坐标，此路径主要为编辑器预览兜底。
-     */
-    private Vec3 resolveStructurePos(String structureId) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        long now = System.currentTimeMillis();
-        StructurePosCache cached = structureCache.get(structureId);
-        if (cached != null && (cached.pos != null || now - cached.resolvedAt < 2000)) {
-            return cached.pos;
-        }
-        Vec3 result = null;
-        try {
-            net.minecraft.server.MinecraftServer singleplayer = mc.getSingleplayerServer();
-            if (singleplayer == null) {
-                LOGGER.debug("多人服务器无法解析结构 '{}'（服务端 play 推送会替换为坐标；编辑器预览仅限单人）", structureId);
-            } else {
-                net.minecraft.server.level.ServerLevel serverLevel = singleplayer.getLevel(mc.level.dimension());
-                if (serverLevel != null) {
-                    result = com.immersivecinematics.immersive_cinematics.util.StructureLocator.locateCenter(
-                            serverLevel, structureId,
-                            net.minecraft.core.BlockPos.containing(mc.player.getX(), mc.player.getY(), mc.player.getZ()), 3);
-                    if (result == null) {
-                        LOGGER.debug("结构 '{}' 在附近（3 区块内已加载区域）未找到", structureId);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // 结构定位失败会直接表现为"片段按空处理"，作者难察觉，升级为 WARN 可见（2 秒缓存不刷屏）
-            LOGGER.warn("结构坐标解析失败 '{}': {}", structureId, e.getMessage());
-        }
-        StructurePosCache entry = new StructurePosCache();
-        entry.pos = result;
-        entry.resolvedAt = now;
-        structureCache.put(structureId, entry);
-        return result;
-    }
-
-    /**
-     * 方块基准定位（客户端）：单人/集成服务器直接访问服务端 level，玩家附近搜索最近匹配方块，返回方块中心坐标。
-     * 方块静态：成功永久缓存，失败 2 秒后重试（与结构基准同语义）。
-     * 多人（无服务端访问）或找不到返回 null——调用方 isClipUsable 按空片段处理，不引入替代值。
-     * 注：服务端 /icinematics play 推送前已把 block relative_origin 替换为坐标，此路径主要为编辑器预览兜底。
-     */
-    private Vec3 resolveBlockPos(String blockId, int radius) {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc.level == null || mc.player == null) return null;
-        long now = System.currentTimeMillis();
-        String key = blockId + ":" + radius;
-        BlockPosCache cached = blockCache.get(key);
-        if (cached != null && (cached.pos != null || now - cached.resolvedAt < 2000)) {
-            return cached.pos;
-        }
-        net.minecraft.core.BlockPos result = null;
-        try {
-            net.minecraft.server.MinecraftServer singleplayer = mc.getSingleplayerServer();
-            if (singleplayer == null) {
-                LOGGER.debug("多人服务器无法解析方块基准 '{}'（服务端 play 推送会替换为坐标；编辑器预览仅限单人）", blockId);
-            } else {
-                net.minecraft.server.level.ServerLevel serverLevel = singleplayer.getLevel(mc.level.dimension());
-                if (serverLevel != null) {
-                    result = com.immersivecinematics.immersive_cinematics.util.BlockLocator.findNearest(
-                            serverLevel, blockId,
-                            net.minecraft.core.BlockPos.containing(mc.player.getX(), mc.player.getY(), mc.player.getZ()),
-                            Math.max(PositionData.DEFAULT_BLOCK_RADIUS, radius));
-                }
-            }
-        } catch (Exception e) {
-            // 方块定位失败会表现为"片段按空处理"，作者难察觉，升级为 WARN 可见
-            LOGGER.warn("方块基准定位失败 '{}': {}", blockId, e.getMessage());
-        }
-        Vec3 center = result != null
-                ? new Vec3(result.getX() + 0.5, result.getY() + 0.5, result.getZ() + 0.5)
-                : null;
-        BlockPosCache entry = new BlockPosCache();
-        entry.pos = center;
-        entry.resolvedAt = now;
-        blockCache.put(key, entry);
-        return center;
-    }
-
-    /**
-     * 关键帧 look_at 目标点求值：
-     * entity     → 实体正中心（渲染帧插值位置 + 半高，动态）
-     * coordinate → 固定坐标点（与结构互斥：指定结构后只解析结构）
-     * none       → 由该关键帧 yaw/pitch 决定的 100 格方向远点（看向它 = 保持该朝向）
-     * 返回 null 表示该端无注视目标（实体消失 / 结构定位失败），该段按 look_at=none 处理（关键帧角度）。
-     */
-    private Vec3 evalLookTarget(Keyframe kf, Clip clip, Vec3 pos) {
-        String lookAt = kf.getString("look_at", "none");
-        if ("entity".equals(lookAt)) {
-            String selector = kf.getString("look_at_selector", "@p");
-            Entity target = entityResolver.resolveEntity(selector, pos, "look_at", kf);
-            if (target == null) return null;
-            Vec3 raw = TimeInterpolation.entityPosition(target).add(0, target.getBbHeight() / 2.0, 0);
-            return entityResolver.smoothTargetPoint("look_at", selector, "point", raw,
-                    entityResolver.selectorPolicy(kf, "look_at").switchSmooth());
-        }
-        if ("coordinate".equals(lookAt)) {
-            String structureId = kf.getString("look_at_target_structure", "");
-            if (!structureId.isEmpty()) {
-                // 结构目标与坐标互斥：指定了结构就只用结构。定位失败返回 null（该端无注视目标），
-                // 整个片段已被 isClipUsable 拦截按空处理，此处为防御。
-                Vec3 structurePos = resolveStructurePos(structureId);
-                if (structurePos != null) return structurePos;
-                // 定位失败只提示一次（debug 级：作者排查可见，不打扰玩家）
-                if (!lookAtWarnOnce) {
-                    lookAtWarnOnce = true;
-                    LOGGER.debug("结构 '{}' 未找到（该端无注视目标）", structureId);
-                }
-                return null;
-            }
-            // 相对目标对象（优先级高于散字段绝对坐标）：绝对点 / 触发点偏移 / 相对实体偏移 / 相对坐标点+偏移
-            Object targetObj = kf.getObject("look_at_target");
-            if (targetObj instanceof Map<?, ?> m) {
-                Vec3 target = evalLookTargetObject(m, kf, pos);
-                if (target != null) return target;
-                // 对象解析失败（相对实体找不到/基准缺失）→ 该端无注视目标（isClipUsable 已前置拦截，此处防御）
-                return null;
-            }
-            return new Vec3(
-                    kf.getFloat("look_at_target_x", 0),
-                    kf.getFloat("look_at_target_y", 64),
-                    kf.getFloat("look_at_target_z", 0));
-        }
-        // none：关键帧朝向的 100 格远点（MC 视线方向 forwards = (-sin yaw·cos pitch, -sin pitch, cos yaw·cos pitch)）
-        double yawRad = Math.toRadians(kf.getYaw());
-        double pitchRad = Math.toRadians(kf.getPitch());
-        double fx = -Math.sin(yawRad) * Math.cos(pitchRad);
-        double fy = -Math.sin(pitchRad);
-        double fz = Math.cos(yawRad) * Math.cos(pitchRad);
-        return pos.add(fx * 100, fy * 100, fz * 100);
-    }
-
-    /**
-     * look_at_target 对象目标点求值（四种模式）：
-     * <ul>
-     *   <li>{x,y,z}                                → 世界绝对坐标点</li>
-     *   <li>{dx,dy,dz}                             → 相对触发点（脚本激活时玩家位置）偏移</li>
-     *   <li>{relative_to:&lt;selector&gt;, dx..}    → 相对实体位置偏移（每帧求值，动态）</li>
-     *   <li>{relative_to:"coordinate", relative_x/y/z, dx..} → 相对固定坐标点 + 偏移</li>
-     * </ul>
-     * 返回 null = 该端无注视目标（相对实体找不到等；isClipUsable 已前置拦截，此处防御）。
-     */
-    private Vec3 evalLookTargetObject(Map<?, ?> m, Keyframe kf, Vec3 pos) {
-        Float x = numOrNull(m.get("x"));
-        Float y = numOrNull(m.get("y"));
-        Float z = numOrNull(m.get("z"));
-        if (x != null && y != null && z != null) {
-            return new Vec3(x, y, z);
-        }
-        float dx = numOrDefault(m.get("dx"));
-        float dy = numOrDefault(m.get("dy"));
-        float dz = numOrDefault(m.get("dz"));
-        // 偏移表达空间：缺省 = 世界轴；space = "facing" 时按本帧基准坐标系表达（fwd/up/right）
-        boolean facingSpace = "facing".equals(String.valueOf(m.get("space")));
-        Vec3 offset = null;
-        if (facingSpace) {
-            offset = frameOffsetToWorld(numOrDefault(m.get("fwd")), numOrDefault(m.get("up")), numOrDefault(m.get("right")));
-            // 本帧没有基准坐标系 → 退回世界轴偏移（有什么放什么）
-            if (offset == null) offset = new Vec3(dx, dy, dz);
-        }
-        Object relTo = m.get("relative_to");
-        if (relTo == null) {
-            // 相对触发点偏移
-            return offset != null ? originPos.add(offset) : originPos.add(dx, dy, dz);
-        }
-        if ("coordinate".equals(relTo)) {
-            double rx = numOrDefault(m.get("relative_x"));
-            double ry = numOrDefault(m.get("relative_y"));
-            double rz = numOrDefault(m.get("relative_z"));
-            return offset != null
-                    ? new Vec3(rx, ry, rz).add(offset)
-                    : new Vec3(rx + dx, ry + dy, rz + dz);
-        }
-        // 相对实体 selector（每帧求实体位置 + 偏移）
-        String selector = String.valueOf(relTo);
-        Entity target = entityResolver.resolveEntity(selector, pos, "look_at_target", kf);
-        if (target == null) return null;
-        Vec3 raw = offset != null
-                ? TimeInterpolation.entityPosition(target).add(offset)
-                : TimeInterpolation.entityPosition(target).add(dx, dy, dz);
-        return entityResolver.smoothTargetPoint("look_at_target", selector, "point", raw,
-                entityResolver.selectorPolicy(kf, "look_at_target").switchSmooth());
-    }
-
-    private static Float numOrNull(Object o) {
-        return o instanceof Number n ? n.floatValue() : null;
-    }
-
-    private static float numOrDefault(Object o) {
-        return o instanceof Number n ? n.floatValue() : 0f;
-    }
-
-    /**
-     * 世界坐标空间插值：两端关键帧各自求值成世界坐标后按路径策略插值。
-     * 任一端为 follow（动态目标）时强制 linear（曲线控制点对动态实体无意义）。
-     * 由此 follow↔普通、换实体、换偏移的过渡天然平滑（两端都是世界坐标）。
-     */
-    private Vec3 interpolateWorldPosition(Keyframe from, Keyframe to, float s, Clip clip) {
-        Vec3 p0 = evalKeyframeWorldPos(from, clip);
-        Vec3 p3 = evalKeyframeWorldPos(to, clip);
-        boolean anyFollow = "entity".equals(from.getString("follow", "none"))
-                || "entity".equals(to.getString("follow", "none"));
-        PathStrategy strategy = anyFollow ? PathStrategies.get("linear") : bezierStrategy;
-        return strategy.interpolate(p0, p3, s, anyFollow ? null : clip.getCurve());
-    }
-
-    /**
-     * 单段朝向求值：任一端 look_at != none 时用目标点插值模型（看向插值目标点）。
-     * 两端目标齐全才用目标点；目标缺失（evalLookTarget 返回 null）时该段按 look_at=none 处理
-     * ——用两端关键帧自身的 yaw/pitch 角度插值（yawBase/pitchBase）。目标不可用已由
-     * isClipUsable 前置拦截（片段按空处理），此处为防御。返回 [yaw, pitch]。
-     */
-    private float[] segmentYawPitch(Keyframe from, Keyframe to, float s, Clip clip, Vec3 segPos,
-                                    float yawBase, float pitchBase) {
-        // 1) look_at 优先（关键帧级）：段内任一端有 look_at 就用目标点插值
-        if (from != null && to != null) {
-            boolean anyLook = !"none".equals(from.getString("look_at", "none"))
-                    || !"none".equals(to.getString("look_at", "none"));
-            if (anyLook) {
-                Vec3 t0 = evalLookTarget(from, clip, segPos);
-                Vec3 t1 = evalLookTarget(to, clip, segPos);
-                if (t0 != null && t1 != null) {
-                    Vec3 target = new Vec3(t0.x + (t1.x - t0.x) * s, t0.y + (t1.y - t0.y) * s, t0.z + (t1.z - t0.z) * s);
-                    double dx = target.x - segPos.x;
-                    double dy = target.y - segPos.y;
-                    double dz = target.z - segPos.z;
-                    float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
-                    float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
-                    // 诊断：look_at 目标位置，播放期间只打印 1 次
-                    if (!lookAtLoggedOnce) {
-                        lookAtLoggedOnce = true;
-                        LOGGER.info("LOOK_AT_ONCE: cam=({}, {}, {}) target=({}, {}, {}) yaw={} pitch={}",
-                                String.format("%.2f", segPos.x), String.format("%.2f", segPos.y), String.format("%.2f", segPos.z),
-                                String.format("%.2f", target.x), String.format("%.2f", target.y), String.format("%.2f", target.z),
-                                String.format("%.2f", yaw), String.format("%.2f", pitch));
-                    }
-                    return new float[]{yaw, pitch};
-                }
-            }
-        }
-        // 2) 片段级 tangent：仅在无 look_at 的段生效
-        if (from != null && to != null && isTangentOrientation(clip)) {
-            Vec3 p0 = evalKeyframeWorldPos(from, clip);
-            Vec3 p3 = evalKeyframeWorldPos(to, clip);
-            boolean anyFollow = "entity".equals(from.getString("follow", "none"))
-                    || "entity".equals(to.getString("follow", "none"));
-            PathStrategy strategy = anyFollow ? PathStrategies.get("linear") : bezierStrategy;
-            return TangentOrientation.compute(p0, p3, s,
-                    anyFollow ? null : clip.getCurve(), strategy,
-                    clip.getFloat("yaw_offset", 0f), clip.getFloat("pitch_offset", 0f));
-        }
-        // 3) 手写角度：两端关键帧各自算"最终世界角度 = 基准 + 偏移"，再做角度插值
-        if (from != null && to != null) {
-            float yawA = finalYaw(from);
-            float pitchA = finalPitch(from);
-            float yawB = finalYaw(to);
-            float pitchB = finalPitch(to);
-            return new float[]{
-                    blendAngle(yawA, yawB, s),
-                    blendFloat(pitchA, pitchB, s)
-            };
-        }
-        // 单端防御：退回调用方传入的插值角
-        return new float[]{yawBase, pitchBase};
-    }
-
-    // ===== 切线朝向辅助 =====
-
-    private boolean isTangentOrientation(Clip clip) {
-        return "tangent".equals(clip.getString("orient", "manual"));
-    }
-
-    /** 单关键帧最终世界 yaw = 基准方向 + 偏移（look_at=none 语义） */
-    private float finalYaw(Keyframe kf) {
-        return yawBaseOf(kf) + kf.getYaw();
-    }
-
-    /** 单关键帧最终世界 pitch = 基准俯仰 + 偏移 */
-    private float finalPitch(Keyframe kf) {
-        return pitchBaseOf(kf) + kf.getPitch();
-    }
-
-    /**
-     * 关键帧 yaw 基准方向：yaw_base = world（0，现状）| entity（实体身体朝向水平角，LivingEntity 取 yBodyRot）| line（from→to 连线水平角）。
-     * 实体缺失/line 端点缺失时 isClipUsable 已前置拦截为空片段；此处防御回退 0（=world）。
-     */
-    private float yawBaseOf(Keyframe kf) {
-        String base = kf.getString("yaw_base", "world");
-        if ("entity".equals(base)) {
-            Entity e = entityResolver.resolveEntity(
-                    kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf);
-            return e != null ? TimeInterpolation.entityBodyYaw(e) : 0f;
-        }
-        if ("line".equals(base)) {
-            float[] dir = lineDir(kf);
-            if (dir != null) return dir[0];
-        }
-        return 0f;
-    }
-
-    /** 关键帧 pitch 基准俯仰：pitch_base = world（0）| entity（实体视线俯仰，即 xRot）| line（连线垂直角） */
-    private float pitchBaseOf(Keyframe kf) {
-        String base = kf.getString("pitch_base", "world");
-        if ("entity".equals(base)) {
-            Entity e = entityResolver.resolveEntity(
-                    kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf);
-            return e != null ? TimeInterpolation.entityPitch(e) : 0f;
-        }
-        if ("line".equals(base)) {
-            float[] dir = lineDir(kf);
-            if (dir != null) return dir[1];
-        }
-        return 0f;
-    }
-
-    /**
-     * line 基准方向：yaw_base_from → yaw_base_to 两点连线方向（水平 yaw + 垂直 pitch）。
-     * 水平分量小于 {@link #LINE_HORIZONTAL_EPSILON}（零长度线 / 纯垂直线）时水平角未定义，
-     * 拒绝该朝向输入：返回 null，调用方（{@link #yawBaseOf} / {@link #pitchBaseOf}）回退基准 0 = world。
-     * 纯水平线（水平分量达标、|dy| ≈ 0）合法：水平角有定义、pitch = 0。
-     * 两端点至少一个缺失（实体找不到）返回 null。
-     */
-    private float[] lineDir(Keyframe kf) {
-        Entity a = entityResolver.resolveEntity(kf.getString("yaw_base_from", ""), lastWorldPos, "yaw_base_from", kf);
-        Entity b = entityResolver.resolveEntity(kf.getString("yaw_base_to", ""), lastWorldPos, "yaw_base_to", kf);
-        if (a == null || b == null) return null;
-        Vec3 from = TimeInterpolation.entityPosition(a);
-        Vec3 to = TimeInterpolation.entityPosition(b);
-        double dx = to.x - from.x;
-        double dy = to.y - from.y;
-        double dz = to.z - from.z;
-        double horizontal = Math.sqrt(dx * dx + dz * dz);
-        if (horizontal < LINE_HORIZONTAL_EPSILON) {
-            warnDegenerateLine();
-            return null;
-        }
-        float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
-        float pitch = (float) -Math.toDegrees(Math.atan2(dy, horizontal));
-        return new float[]{yaw, pitch};
-    }
-
-    /**
-     * 单段求值并写出相机六参数。
-     *
-     * @param capture {@code true} = 只产快照、不写全局相机状态、不推进 {@link #lastWorldPos}
-     *                （非顶层活跃 clip 的捕获求值；本方法不做任何跨 clip 副作用）
-     * @return 本段求值出的六参数快照
-     */
-    private CameraState writeAttributes(Keyframe from, Keyframe to, float s, Clip clip, float globalTime, boolean capture) {
-        Vec3 pos = interpolateWorldPosition(from, to, s, clip);
-        float yawBase = KeyframeInterpolator.interpolateYaw(from, to, s);
-        float pitchBase = KeyframeInterpolator.interpolatePitch(from, to, s);
-        float roll = KeyframeInterpolator.interpolateRoll(from, to, s);
-        float fov = KeyframeInterpolator.interpolateFov(from, to, s);
-        float zoom = KeyframeInterpolator.interpolateZoom(from, to, s);
-
-        // ====== look_at 目标点插值模型 ======
-        // 关键帧 look_at 定义"目标点"（entity=实体正中心、coordinate=固定点、none=由该关键帧 yaw/pitch 决定的方向远点）。
-        // 目标点在关键帧间插值后相机看向插值点——look_at 切换/开关天然平滑；两端都 none 时保持角度插值（零回归）。
-        float[] yp = segmentYawPitch(from, to, s, clip, pos, yawBase, pitchBase);
-        float yaw = yp[0];
-        float pitch = yp[1];
-        // ====== End look_at ======
-        // ====== Breath disturbance (v2: 按 cam_breath_type 分派, 确定性) ======
-        if (clip.getBool("cam_breath_enabled", false)) {
-            float[] jitter = BreathDisturbance.fromClip(clip).compute(globalTime);
-            yaw += jitter[0];
-            pitch += jitter[1];
-            roll += jitter[2];
-        }
-        // ====== End breath ======
-
-        if (!capture) {
-            cameraManager.getPath().setPositionDirect(pos);
-            cameraManager.getProperties().setAllDirect(yaw, pitch, roll, fov, zoom);
-            lastWorldPos = pos;
-        }
-        // 画面 lane 快照：本 clip 本帧求值出的六参数（capture=true 时不写全局相机状态）
-        return new CameraState(pos, yaw, pitch, roll, fov, zoom);
+    /** 顶层写入：本轨本帧的六参数写入全局相机状态（写入缓冲 + 统一快照来源）。 */
+    private void writeGlobal(CameraState state) {
+        cameraManager.getPath().setPositionDirect(state.position());
+        cameraManager.getProperties().setAllDirect(state.yaw(), state.pitch(), state.roll(), state.fov(), state.zoom());
     }
 
     @Override
     public void onStop() {
-        laneSnapshots.clear();
+        laneCollector.clear();
         entityResolver.clear();
-        // bezierStrategy 随 TrackPlayer 实例一起被 GC，其 LUT 缓存自动释放
     }
 
-    /** 组 A：数据替换后复位派生状态——lane 快照 / 目标锁 / 选择器缓存（三者都按脚本数据重建）。 */
+    /** 组 A：数据替换后复位派生状态——lane 快照 / 目标锁（两者都按脚本数据重建）。 */
     @Override
     public void onScriptReplaced() {
-        laneSnapshots.clear();
+        laneCollector.clear();
         entityResolver.clear();
     }
-
-    /**
-     * 收集 globalTime 时刻的全部活跃片段（按轨道顺序；轨道内后面的 clip 在上层）。
-     * <p>
-     * 活跃窗口 = {@code [startTime, windowEnd)}；永不结束的片段
-     * （{@link Clip#isEffectivelyInfinite()}）自 {@code startTime} 起活跃，并按"终点"语义处理：
-     * 收集到它即停止，其后的内容不播放。
-     * <p>
-     * 相机驱动取集合中最后一个（{@link #findActiveClip(float)}）；完整集合留给将来的 lane 合成。
-     */
-    private List<Clip> findActiveClips(float globalTime) {
-        List<Clip> clips = clips();
-        List<Clip> active = new ArrayList<>(2);
-        for (int i = 0; i < clips.size(); i++) {
-            Clip clip = clips.get(i);
-            if (clip.isEffectivelyInfinite()) {
-                if (globalTime >= clip.getStartTime()) {
-                    active.add(clip);
-                    break; // 终点：永不结束的片段之后的内容不播放
-                }
-                continue;
-            }
-            if (globalTime >= clip.getStartTime() && globalTime < clip.getWindowEnd()) {
-                active.add(clip);
-            }
-        }
-        return active;
-    }
-
-    /**
-     * 驱动相机的片段 = 顶层活跃片段 = 轨道顺序最后的活跃片段（后面的 clip 覆盖前面）。
-     * 无活跃片段返回 null（不写相机 → 玩家视角）。
-     */
-    private Clip findActiveClip(float globalTime) {
-        List<Clip> active = findActiveClips(globalTime);
-        if (active.isEmpty()) return null;
-        Clip top = active.get(active.size() - 1);
-        return top;
-    }
-
-    private static float blendFloat(float a, float b, float weight) {
-        return a * (1f - weight) + b * weight;
-    }
-
-    private static float blendZoom(float a, float b, float weight) {
-        if (a <= 0f || b <= 0f) return blendFloat(a, b, weight);
-        return (float) Math.exp(Math.log(a) * (1f - weight) + Math.log(b) * weight);
-    }
-
-    private static float blendAngle(float a, float b, float weight) {
-        float diff = ((b - a) % 360f + 540f) % 360f - 180f;
-        return a + diff * weight;
-    }
-
 }
