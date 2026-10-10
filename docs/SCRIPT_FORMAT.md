@@ -285,10 +285,10 @@ immersive_cinematics/
 | `selector_switch_while_alive` | bool | 否 | `true` | `true`=目标存活时也按 `selector_refresh` 扫描并切到新的最近目标；`false`=当前目标活着就不换。**目标丢失后不受此项限制**：进入搜索态持续重找，解析到任意符合规则的目标就立即恢复 |
 | `selector_switch_interval` | float | 否 | = `selector_refresh` | 两次真实切换之间的最小间隔（秒），与扫描频率无关：扫描到新目标但距上次切换不足 N 秒 → 继续用旧目标。`0`=不限制。缺省 = `selector_refresh` |
 | `selector_switch_smooth` | float | 否 | `0.0` | 目标真的切换时（含丢失后恢复到新目标），注视点/跟随位置在 N 秒内以 smoothstep 过渡；`0`=硬切。作用于本关键帧所有目标点 |
-| `yaw_base` | string | 否 | `"world"` | `yaw` 的基准方向：`"world"`=0 世界角（`yaw` 即世界朝向）；`"entity"`=实体视线水平角（用 `yaw_base_selector`）；`"line"`=从 `yaw_base_from` 到 `yaw_base_to` 的连线水平角。此时 `yaw` 为相对基准的偏移 |
-| `pitch_base` | string | 否 | `"world"` | `pitch` 的基准俯仰：同上，`entity` 取实体视线俯仰、`line` 取连线垂直角 |
-| `yaw_base_selector` | string | 否 | `"@p"` | `yaw_base/pitch_base=entity` 时的实体选择器 |
-| `yaw_base_from` / `yaw_base_to` | string | 否 | `""` | `yaw_base/pitch_base=line` 时的两个端点选择器 |
+| `yaw_base` | string | 否 | `"world"` | `yaw` 的基准方向：`"world"`=0 世界角（`yaw` 即世界朝向）；`"entity"`=实体**身体朝向**水平角（取身体 yaw，用 `yaw_base_selector`）；`"line"`=从 `yaw_base_from` 到 `yaw_base_to` 的连线水平角。此时 `yaw` 为相对基准的偏移 |
+| `pitch_base` | string | 否 | `"world"` | `pitch` 的基准俯仰：同上，`entity` 取实体**视线**俯仰、`line` 取连线垂直角 |
+| `yaw_base_selector` | string | 否 | `"@p"` | `yaw_base/pitch_base=entity` 时的实体选择器（`yaw` 取该实体身体朝向水平角、`pitch` 取该实体视线俯仰） |
+| `yaw_base_from` / `yaw_base_to` | string | 否 | `""` | `yaw_base/pitch_base=line` 时的两个端点选择器。连线退化（两端水平位置重合 = 纯垂直线，或两点重合 = 零长度线）时水平角未定义 → 该朝向输入被拒（回退 `"world"` 基准，运行时限频告警）；纯水平连线（只有水平分量）合法，基准俯仰 = 0 |
 | `yaw` | float | 是 | — | 偏航角（度）。0=南，90=西，±180=北。`look_at != none` 时被覆盖；使用 `yaw_base` 时表示相对基准的偏移 |
 | `pitch` | float | 是 | — | 俯仰角（度）。正=向下看。`look_at != none` 时被覆盖 |
 | `roll` | float | 是 | — | 翻滚角（度）。正=屏幕顺时针（画面向右倒），任何朝向一致 |

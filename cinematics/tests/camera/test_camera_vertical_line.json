@@ -1,0 +1,126 @@
+{
+  "meta": {
+    "id": "test_camera_vertical_line",
+    "name": "相机测试-退化连线(纯垂直/纯水平)",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "yaw_base/pitch_base=line 的边界：纯垂直连线(两端水平位置相同、只有高度差)水平角未定义 → 该朝向输入被拒(回退 world 基准 + 限频告警)；对照段为纯水平连线(合法, 基准俯仰=0)",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_trigger_login"] } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 10,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "layer_type": "subtitle",
+            "text": "测试: test_camera_vertical_line | 0-4s 纯垂直连线(同水平位置、只有高度差) → 该朝向输入被拒(回退 world, 有告警) | 5-10s 纯水平连线 → 合法, 基准俯仰 0",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 10, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 1,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "summon minecraft:armor_stand ~ ~ ~ {NoGravity:1b,Marker:1b,CustomName:'\"ic_vline_bottom\"'}" },
+              { "time": 0.01, "event_type": "command", "command": "summon minecraft:armor_stand ~ ~10 ~ {NoGravity:1b,Marker:1b,CustomName:'\"ic_vline_top\"'}" },
+              { "time": 0.02, "event_type": "command", "command": "summon minecraft:armor_stand ~ ~ ~ {NoGravity:1b,Marker:1b,CustomName:'\"ic_hline_west\"'}" },
+              { "time": 0.03, "event_type": "command", "command": "summon minecraft:armor_stand ~10 ~ ~ {NoGravity:1b,Marker:1b,CustomName:'\"ic_hline_east\"'}" }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "id": "camera_vertical_line",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "transition": "cut",
+            "transition_duration": 0.0,
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 0, "dy": 4, "dz": -10 },
+                "yaw_base": "line",
+                "pitch_base": "line",
+                "yaw_base_from": "@e[type=minecraft:armor_stand,name=ic_vline_bottom]",
+                "yaw_base_to": "@e[type=minecraft:armor_stand,name=ic_vline_top]",
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 4,
+                "position": { "dx": 0, "dy": 4, "dz": -10 },
+                "yaw_base": "line",
+                "pitch_base": "line",
+                "yaw_base_from": "@e[type=minecraft:armor_stand,name=ic_vline_bottom]",
+                "yaw_base_to": "@e[type=minecraft:armor_stand,name=ic_vline_top]",
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 5,
+                "position": { "dx": -2, "dy": 3, "dz": -14 },
+                "yaw_base": "line",
+                "pitch_base": "line",
+                "yaw_base_from": "@e[type=minecraft:armor_stand,name=ic_hline_west]",
+                "yaw_base_to": "@e[type=minecraft:armor_stand,name=ic_hline_east]",
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 10,
+                "position": { "dx": -2, "dy": 3, "dz": -14 },
+                "yaw_base": "line",
+                "pitch_base": "line",
+                "yaw_base_from": "@e[type=minecraft:armor_stand,name=ic_hline_west]",
+                "yaw_base_to": "@e[type=minecraft:armor_stand,name=ic_hline_east]",
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -49,6 +49,18 @@ public class CameraTrackPlayer implements TrackPlayer {
     /** 片段目标不可用（按空片段处理）提示只打一次 */
     private boolean clipUnusableWarnOnce;
 
+    /**
+     * 连线方向退化阈值：水平分量 {@code sqrt(dx² + dz²)} 小于该值即「没有水平分量」——
+     * 零长度线（水平 ≈ 0 且 |dy| ≈ 0）与纯垂直线（水平 ≈ 0、|dy| > 0）都落在这一侧，两者的水平角
+     * 都未定义，一律拒绝该朝向输入（{@link #lineDir} / {@link #buildFrame}）；纯水平线不在这一侧。
+     */
+    private static final double LINE_HORIZONTAL_EPSILON = 1.0E-4;
+
+    /** 退化连线告警限频窗口（毫秒） */
+    private static final long DEGENERATE_LINE_WARN_INTERVAL_MS = 2000L;
+    /** 上次退化连线告警时刻（毫秒） */
+    private long lastDegenerateLineWarnAt;
+
     /** 上一帧最终世界坐标（实体目标消失时停在原地、以及作为 @e 就近基准） */
     private Vec3 lastWorldPos;
 
@@ -216,6 +228,18 @@ public class CameraTrackPlayer implements TrackPlayer {
             clipUnusableWarnOnce = true;
             LOGGER.debug("片段目标不可用（结构/实体未找到），该片段按空处理（玩家视角）");
         }
+    }
+
+    /**
+     * 退化连线告警（限频）：零长度线与纯垂直线的水平角都未定义，该朝向输入被拒——
+     * {@code yaw_base = line} 回退基准 0 = world，基准空间偏移按当前视点处理。2 秒内只打一条。
+     */
+    private void warnDegenerateLine() {
+        long now = System.currentTimeMillis();
+        if (now - lastDegenerateLineWarnAt < DEGENERATE_LINE_WARN_INTERVAL_MS) return;
+        lastDegenerateLineWarnAt = now;
+        LOGGER.warn("基准朝向退化（零长度或纯垂直：水平分量 < {}），水平角未定义，该朝向输入被拒（回退 world / 按当前视点处理）",
+                LINE_HORIZONTAL_EPSILON);
     }
 
     /**
@@ -582,16 +606,16 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     /**
      * 由基准点 + 前轴方向（任意三维向量）构造基准坐标系。
-     * <p>
      * 前轴由方向决定（实体朝向 / 两点连线），因此 up 是否跟随俯仰用方向向量本身判断：
      * 非水平方向 + up_axis=view → 跟随俯仰（全三维）；否则 up 保持世界竖直。
+     * 前轴没有水平分量（零长度 / 纯垂直）时水平角未定义：拒绝该朝向输入，返回 null，并限频告警。
      * 与旧实现等价：水平朝向 + up_axis=world → up 世界竖直；带俯仰 + up_axis=view → up 与 fwd/right 正交。
      */
     private Vec3[] buildFrame(Vec3 base, Vec3 dir, PositionData pd) {
         double dx = dir.x, dy = dir.y, dz = dir.z;
         double horizontal = Math.sqrt(dx * dx + dz * dz);
-        if (horizontal < 1.0E-4 && Math.abs(dy) < 1.0E-4) {
-            LOGGER.warn("基准朝向退化（零长度或纯垂直），无法建立基准坐标系");
+        if (horizontal < LINE_HORIZONTAL_EPSILON) {
+            warnDegenerateLine();
             return null;
         }
         float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
@@ -972,7 +996,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     }
 
     /**
-     * 关键帧 yaw 基准方向：yaw_base = world（0，现状）| entity（实体视线水平角 getYRot）| line（from→to 连线水平角）。
+     * 关键帧 yaw 基准方向：yaw_base = world（0，现状）| entity（实体身体朝向水平角，LivingEntity 取 yBodyRot）| line（from→to 连线水平角）。
      * 实体缺失/line 端点缺失时 isClipUsable 已前置拦截为空片段；此处防御回退 0（=world）。
      */
     private float yawBaseOf(Keyframe kf) {
@@ -988,7 +1012,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         return 0f;
     }
 
-    /** 关键帧 pitch 基准俯仰：pitch_base = world（0）| entity（实体视线俯仰 getXRot）| line（连线垂直角） */
+    /** 关键帧 pitch 基准俯仰：pitch_base = world（0）| entity（实体视线俯仰，即 xRot）| line（连线垂直角） */
     private float pitchBaseOf(Keyframe kf) {
         String base = kf.getString("pitch_base", "world");
         if ("entity".equals(base)) {
@@ -1004,6 +1028,9 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     /**
      * line 基准方向：yaw_base_from → yaw_base_to 两点连线方向（水平 yaw + 垂直 pitch）。
+     * 水平分量小于 {@link #LINE_HORIZONTAL_EPSILON}（零长度线 / 纯垂直线）时水平角未定义，
+     * 拒绝该朝向输入：返回 null，调用方（{@link #yawBaseOf} / {@link #pitchBaseOf}）回退基准 0 = world。
+     * 纯水平线（水平分量达标、|dy| ≈ 0）合法：水平角有定义、pitch = 0。
      * 两端点至少一个缺失（实体找不到）返回 null。
      */
     private float[] lineDir(Keyframe kf) {
@@ -1016,7 +1043,10 @@ public class CameraTrackPlayer implements TrackPlayer {
         double dy = to.y - from.y;
         double dz = to.z - from.z;
         double horizontal = Math.sqrt(dx * dx + dz * dz);
-        if (horizontal < 1.0E-4 && Math.abs(dy) < 1.0E-4) return null;
+        if (horizontal < LINE_HORIZONTAL_EPSILON) {
+            warnDegenerateLine();
+            return null;
+        }
         float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
         float pitch = (float) -Math.toDegrees(Math.atan2(dy, horizontal));
         return new float[]{yaw, pitch};

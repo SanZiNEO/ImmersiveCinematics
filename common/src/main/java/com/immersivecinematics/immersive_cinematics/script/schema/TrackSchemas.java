@@ -98,9 +98,13 @@ public final class TrackSchemas {
         // 切换间隔：两次真实切换之间的最小间隔（与扫描频率无关）；缺省 = selector_refresh
         kfs.put("selector_switch_interval", new FieldDef("float", 1.0f));
         kfs.put("selector_switch_smooth", new FieldDef("float", 0.0f));
+        // 朝向基准来源（措辞口径：身体朝向 = 实体身体水平角 yBodyRot；视线 = 实体 yRot + xRot）。
+        // yaw_base = entity 取「实体身体朝向」水平角；pitch_base = entity 取「实体视线」俯仰。
         kfs.put("yaw_base", new FieldDef("enum", "world", false, List.of("world", "entity", "line")));
         kfs.put("pitch_base", new FieldDef("enum", "world", false, List.of("world", "entity", "line")));
+        // yaw_base/pitch_base = entity 时的实体选择器（yaw 取身体朝向水平角、pitch 取视线俯仰）
         kfs.put("yaw_base_selector", new FieldDef("string", "@p"));
+        // line 基准的两个端点；退化连线（零长度 / 纯垂直）水平角未定义，运行时被拒（回退基准 0 = world）
         kfs.put("yaw_base_from", new FieldDef("string", ""));
         kfs.put("yaw_base_to", new FieldDef("string", ""));
         kfs.put("yaw", new FieldDef("float", 0));
