@@ -60,10 +60,10 @@
   - ✅ 关键帧级 `follow`（位置跟随实体，position 即相对实体偏移）与 `look_at`（注视实体/坐标/结构）：两端关键帧各自求值为世界坐标再插值 → follow↔普通、换目标、look_at 开关全部平滑过渡；look_at 目标点插值模型（none 端=该关键帧 yaw/pitch 方向远点）（`CameraTrackPlayer`）
   - ✅ 实体选择器子集：`@p`/`@s`/`@e`/`@e[type=…,name=…]`/`uuid:…`，就近优先 + 1 秒缓存（`CameraTrackPlayer`）
   - ✅ 切线朝向：clip 级 `orient=tangent` 时沿路径切线方向看，可叠 `yaw_offset`/`pitch_offset`；关键帧级 `yaw_base`/`pitch_base` 支持 world/entity/line 三种基准，`yaw`/`pitch` 作为相对基准偏移（`TangentOrientation`、`CameraTrackPlayer`）
-  - ✅ `look_at_target` 对象目标支持绝对点 / 相对触发点 / 相对实体 / 相对固定坐标偏移（`CameraTrackPlayer`）
-  - ✅ 结构目标：服务端 `/icinematics play` 推送前把 `look_at_target_structure` / `position.relative_origin`（结构 id）替换为结构 **bounding box 中心**坐标（`StructureLocator`：触发器同款附近搜寻——getAllStructuresAt 按 chunk 步进扫描玩家附近 3 区块已加载区域 → StructureStart → getBoundingBox().getCenter()；不采用原版 findNearestMapStructure 的网格环序，避免命中远处未加载结构）；编辑器预览（单人）客户端直连集成服务端兜底（`StructureLocator`、`CinematicCommand`、`CameraTrackPlayer`）
+  - ✅ 注视点 = 点源 + 偏移：来源 `look_at=player/coordinate/entity/block`（结构 = coordinate + 结构 id），偏移 `look_at_offset`（世界轴 / 基准坐标系）（`CameraKeyframeEvaluator`）
+  - ✅ 结构目标：服务端 `/icinematics play` 推送前把 `look_at_target_structure` / `facing_origin`（结构 id）替换为结构 **bounding box 中心**坐标（`StructureLocator`：触发器同款附近搜寻——getAllStructuresAt 按 chunk 步进扫描玩家附近 3 区块已加载区域 → StructureStart → getBoundingBox().getCenter()；不采用原版 findNearestMapStructure 的网格环序，避免命中远处未加载结构）；编辑器预览（单人）客户端直连集成服务端兜底（`StructureLocator`、`CinematicCommand`、`CameraTrackPlayer`）
   - ✅ 支持 `cam_breath_*` 呼吸扰动 v2（clip 级）：`cam_breath_type` 多类型（perlin/perlin_axis/sine/trauma）+ speed，确定性叠加到最终 yaw/pitch/roll（`BreathDisturbance`、`CameraTrackPlayer`）
-  - ✅ 相对/绝对坐标模式为关键帧级（position 对象自描述：有 dx=相对、有 x=绝对），统一世界坐标空间插值；相对基准可扩展：`relative_origin` = 玩家激活位置（默认）/ `"coordinate"` 固定坐标 / 结构 id 结构中心（`CameraTrackPlayer`、`PositionData`）
+  - ✅ 相对/绝对坐标模式为关键帧级（position 对象自描述：有 dx=相对、有 x=绝对），统一世界坐标空间插值；位置点源可扩展：`facing_origin` = 玩家激活位置（缺省）/ 固定坐标 / 结构中心 / 方块 / 实体选择器（两种偏移表达空间共用）（`CameraKeyframeEvaluator`、`PositionData`）
 - **AUDIO 轨道播放器**
   - ✅ 通过 LWJGL OpenAL 多音源播放：每 clip 一个 `CinematicAudioInstance`，clip 切换时淡出并清理旧实例（`AudioTrackPlayer`）
   - ✅ 支持 OGG（stb_vorbis 文件/资源包解码）与 WAV（javax.sound，8/16 位）两种格式（`CinematicAudioInstance`）

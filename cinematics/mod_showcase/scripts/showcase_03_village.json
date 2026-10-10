@@ -63,7 +63,8 @@
               },
               {
                 "time": 15,
-                "position": { "dx": 20, "dy": 15, "dz": 20, "relative_origin": "minecraft:village_plains" },
+                "position": { "dx": 20, "dy": 15, "dz": 20 },
+                "facing_origin": "minecraft:village_plains",
                 "position_mode": "relative",
                 "follow": "none",
                 "look_at": "coordinate",

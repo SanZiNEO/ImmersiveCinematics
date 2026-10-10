@@ -21,8 +21,10 @@ import net.minecraft.world.phys.Vec3;
  * 锚点 {@code selector_anchor}（缺省 {@code camera}）、择一 {@code selector_pick}（缺省
  * {@code first}）；调用点名与取值集见 {@link SelectorSchema}。
  *
- * 点源解析（{@link #resolvePointSource}，五形态见 {@link PointSource}）：位置基准 / 注视点 / 连线端点三个调用点共用；
- * 锚点 {@code origin} 取 {@code position} 的位置侧点源（实体形态按锚点 {@code camera} 解析，以免绕回自身锚点）。
+ * 点源解析（{@link #resolvePointSource}，五形态 + 偏移见 {@link PointSource}）：位置点源 / 注视点 / 连线端点 /
+ * 基准坐标系前轴目标共用；求值结果按点源偏移展开（{@link PointSource.Offset#apply}，base 表达空间读本帧
+ * 基准坐标系，见 {@link #attachFrame}）。锚点 {@code origin} 取 {@code position} 的位置侧点源
+ * （实体形态按锚点 {@code camera} 解析，以免绕回自身锚点）。
  * 返回世界空间方块坐标，不可解析 = {@code null}。
  *
  * 线程与频率：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱。
@@ -37,12 +39,23 @@ public final class EntityTargetResolver {
     private Vec3 originPos;
 
     /**
+     * 本帧基准坐标系（表达空间 base 的参照系）：由 {@code CameraKeyframeEvaluator} 在位置通道求值后注入同一份
+     * 实例；{@code null} = 本帧没有基准坐标系（base 表达空间的偏移不生效）。
+     */
+    private PointSource.Frame frame;
+
+    /**
      * 注入世界上下文（点源定位器 + 玩家激活位置）：由 {@code CameraKeyframeEvaluator} 构造时传入同一实例，
      * 两者共用定位器缓存；一次性接线，重复注入以最后一次为准。
      */
     public void attachWorldContext(WorldPointLocator locator, Vec3 originPos) {
         this.pointLocator = locator;
         this.originPos = originPos;
+    }
+
+    /** 注入本帧基准坐标系：位置通道每帧重建后调用；{@code null} = 本帧没有基准坐标系。 */
+    public void attachFrame(PointSource.Frame frame) {
+        this.frame = frame;
     }
 
     /** 生命周期清理：清空目标锁与客户端选择器缓存（停止播放 / 脚本替换时调用）。 */
@@ -133,8 +146,9 @@ public final class EntityTargetResolver {
     }
 
     /**
-     * 统一点源求值（五形态唯一定义处，见 {@link PointSource}）：位置基准 / 注视点 / 连线端点三个调用点共用。
-     * 实体形态的解析原点 = {@code cameraPos}，锚点取 {@code anchor}（调用方按该调用点的 {@code selector_anchor} 取值）。
+     * 统一点源求值（五形态唯一定义处，见 {@link PointSource}）：位置点源 / 注视点 / 连线端点 / 基准坐标系
+     * 前轴目标共用。实体形态的解析原点 = {@code cameraPos}，锚点取 {@code anchor}；求值结果按点源偏移展开
+     * （先取点后加偏移，base 表达空间读本帧基准坐标系）。
      *
      * @param source    点源规格；{@code null} = 无点源
      * @param cameraPos 实体形态的解析原点（锚点 {@code camera} 的取值）
@@ -145,7 +159,7 @@ public final class EntityTargetResolver {
      */
     public Vec3 resolvePointSource(PointSource source, Vec3 cameraPos, String role, Keyframe kf, String anchor) {
         if (source == null) return null;
-        return switch (source.kind()) {
+        Vec3 point = switch (source.kind()) {
             case WORLD -> originPos;
             case COORDINATE -> source.coordinate();
             case BLOCK -> pointLocator != null
@@ -156,6 +170,7 @@ public final class EntityTargetResolver {
                     : null;
             case SELECTOR -> selectorPoint(source, cameraPos, role, kf, anchor);
         };
+        return point != null ? source.offset().apply(point, frame) : null;
     }
 
     /** 实体形态：解析目标实体 → 按 {@link PointSource.EntityPoint} 的每轴百分比在包围盒内取点。 */

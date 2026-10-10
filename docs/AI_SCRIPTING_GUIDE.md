@@ -178,33 +178,44 @@
 
 | 字段 | 说明 |
 |---|---|
-| `position_mode` | `"relative"`（默认）= 相对基准点（position 写 dx/dy/dz；基准默认 = 玩家激活位置，可用 `relative_origin` 指定坐标/结构中心）；`"absolute"` = 世界坐标（写 x/y/z） |
+| `position_mode` | `"relative"`（默认）= 相对位置点源（position 写 dx/dy/dz 或 fwd/up/right；点源 = `facing_origin`，缺省玩家激活位置）；`"absolute"` = 世界坐标（写 x/y/z） |
 | `follow` | `"none"`（默认）= 位置走关键帧；`"entity"` = 位置跟随实体（position 的 dx/dy/dz 变成相对实体脚底的偏移）。**follow↔普通关键帧之间是平滑过渡**（两端都是世界坐标，直接插值） |
 | `follow_selector` | 跟随目标选择器，默认 `@p`（见下方"目标选择器"） |
-| `look_at` | `"none"`（默认）= 用 yaw/pitch；`"coordinate"` = 注视固定点（xyz 或结构中心）；`"entity"` = 注视实体（包围盒内取点，部位见 `look_at_part`，缺省中心）；`"block"` = 注视就近搜索到的方块中心（见 `look_at_target_block`）。**look_at 关键帧的目标点之间插值，切换/开关平滑过渡**（如 0s 看玩家 → 15s 看铁傀儡） |
+| `look_at` | `"none"`（默认）= 用 yaw/pitch；`"player"` = 注视玩家激活位置；`"coordinate"` = 注视固定点（xyz 或结构中心）；`"entity"` = 注视实体（包围盒内取点，部位见 `look_at_part`，缺省中心）；`"block"` = 注视就近搜索到的方块中心（见 `look_at_target_block`）。**look_at 关键帧的目标点之间插值，切换/开关平滑过渡**（如 0s 看玩家 → 15s 看铁傀儡） |
 | `look_at_selector` | 注视目标选择器（`entity` 模式），默认 `@p` |
 | `look_at_part` | `look_at=entity` 的**部位百分比**：`{x,y,z}` 每轴 `0`~`100`（`50` = 包围盒中心 = 不写的现行为；`0`/`100` = 该轴最小/最大侧），缺省分量 = `50`；越界钳制在 `0`~`100`（取点恒在包围盒内）。看头 `{"y":90}`、看脚 `{"y":0}`。只对 `look_at=entity` 有效（坐标/结构/方块来源直接改坐标），写在其它模式下会被 validate 报错 |
 | `look_at_target_x/y/z` | 注视固定坐标（`coordinate` 模式）。**与 `look_at_target_structure` 互斥** |
 | `look_at_target_structure` | 注视结构中心（`coordinate` 模式）：填结构 id 如 `minecraft:village`。播放时服务端自动定位**结构 bounding box 中心**并替换为坐标（就近搜索，原版 /locate 同范围，多人服务器也生效）；编辑器里是注册表下拉补全。**与坐标互斥**：指定结构后定位失败不回退坐标，该端无注视目标（回退角度插值） |
-| `look_at_target_block` | 注视方块中心（`block` 模式）：`"block:<方块 id>[:<半径>]"`（与 `relative_origin` / `yaw_base_from` 同一套方块形态，半径缺省 16 格），取就近搜索到的方块中心。不可解析（附近没有该方块 / 多人服无服务端世界）= 该端无注视目标（回退角度插值） |
+| `look_at_target_block` | 注视方块中心（`block` 模式）：`"block:<方块 id>[:<半径>]"`（与 `facing_origin` / `yaw_base_from` 同一套方块形态，半径缺省 16 格），取就近搜索到的方块中心。不可解析（附近没有该方块 / 多人服无服务端世界）= 该端无注视目标（回退角度插值） |
+| `look_at_offset` | 注视点偏移（点源通用偏移，见下方"偏移写法"）：先取点后加偏移（`look_at=entity` 时 = 部位百分比取点之后再加偏移） |
 | `yaw_base` / `pitch_base` | 朝向基准：`"world"`（默认，`yaw`/`pitch` 即世界角）/ `"entity"`（实体**身体朝向**水平角 + **视线**俯仰，用 `yaw_base_selector`）/ `"line"`（`yaw_base_from` → `yaw_base_to` 的连线方向）。用基准时 `yaw`/`pitch` 是相对基准的偏移 |
 | `yaw_base_from` / `yaw_base_to` | `line` 基准的两个端点，**各是一个点源**（见下方"点源写法"）。退化连线（零长度 / 纯垂直）被拒 → 回退 `world` 基准 |
-| `facing_origin` / `facing_target` | `fwd`/`up`/`right`（基准空间偏移）的**基准点**与**基准朝向目标**，**都是点源**（见下方"点源写法"）。`facing_origin` 不写 = follow 实体 / 玩家；`facing_target` 不写 = 基准点自身朝向 |
+| `facing_origin` / `facing_target` | **位置点源**（= 基准坐标系原点）与**前轴目标**，**都是点源**（见下方"点源写法"）。`facing_origin` 不写 = 世界轴偏移用玩家激活位置、基准坐标系偏移用玩家实体 `@p`；`facing_target` 不写 = 位置点源自身朝向 |
 
-**点源写法**（`yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target` 通用；位置侧的 `relative_origin` 同一套）：
+**点源写法**（`facing_origin` / `facing_target` / `yaw_base_from` / `yaw_base_to` 通用；`look_at` 的坐标 / 结构 / 实体 / 方块来源同一套）：
 `"player"`（玩家激活位置）；`"coordinate"` + `<字段>_x/_y/_z`（固定坐标，三个都要写）；`"block:minecraft:obsidian:32"`
-（玩家附近最近匹配方块中心，半径缺省 16 格）；`@e[type=…]` / `uuid:…`（实体选择器——连线端点与 `facing_origin` 取脚底，
-`facing_target` 取包围盒中心）；其余非空字符串 = 结构 id（结构 bounding box 中心）。空串 / 不写 = 无点源。
+（玩家附近最近匹配方块中心，半径缺省 16 格）；`@e[type=…]` / `uuid:…`（实体选择器——`facing_origin` / 连线端点 /
+`look_at=entity` 按 `look_at_part` 取包围盒内点，`facing_target` 取包围盒中心）；其余非空字符串 = 结构 id
+（结构 bounding box 中心）。空串 / 不写 = 无点源。
 不可解析 = 该端无目标，片段按空处理（不写相机）。结构 / 方块在单人 / 集成服务器直接定位；多人服务器上只有
-`look_at_target_structure` 与 `relative_origin` 由服务端推送前替换为坐标，其余字段的结构 / 方块形态在多人服不可解析。
+`look_at_target_structure` 与 `facing_origin` 由服务端推送前替换为坐标，其余字段的结构 / 方块形态在多人服不可解析。
+
+**偏移写法**（点源通用属性）：任一来源都能叠一层偏移，写 `<字段>_offset`（如 `look_at_offset` / `facing_target_offset` /
+`yaw_base_from_offset`）；位置通道的偏移写在 `position` 对象里（`dx/dy/dz` 或 `fwd/up/right`）。
+分量名决定表达空间：`dx`/`dy`/`dz` = 世界轴（缺省），`fwd`/`up`/`right` = **基准坐标系**（原点 = `facing_origin`、
+前轴 = `facing_target`）；两类不能混写。`base` 偏移需要本关键帧有基准坐标系（写 `facing_origin` / `facing_target`，
+或位置用 `fwd`/`up`/`right`），否则不生效（校验器提示）。
+
+**通道相对化**：位置 / yaw / pitch / 注视点四项各自独立——位置跟基准不影响 yaw，yaw 跟基准不影响 pitch（水平面 /
+垂直面分开取来源）；`look_at != none` 时注视点接管 yaw 与 pitch（互斥、不叠）。
 
 点源字段与坐标形态的配套字段（`<字段>_x/_y/_z`）都写在**关键帧**上（`look_at=block` 的 `look_at_target_block`
-用同一套方块形态）；`position` 对象只承载偏移量
-（`dx/dy/dz` 世界轴 / `x/y/z` 绝对 / `fwd`/`up`/`right`+`up_axis` 基准空间）。
+用同一套方块形态）；`position` 对象只承载位置通道的偏移
+（`dx/dy/dz` 世界轴 / `x/y/z` 绝对 / `fwd`/`up`/`right`+`up_axis` 基准坐标系）。
 
 **目标选择器**（`follow_selector` / `look_at_selector`）：`@p`/`@s`（玩家）、`@e`（离锚点最近实体）、`@e[type=minecraft:sheep]`（类型过滤后就近，模组 boss 用其注册 id）、`@e[name=自定义名]`（命名牌名字过滤后就近）、`uuid:xxxxxxxx-…`（UUID 直绑）——就近基准（锚点）缺省为相机当前位置，可用 `selector_anchor` 改为 `player`（玩家脚底）/ `target`（该调用点当前锁定目标脚底，未解析到目标时回落相机）/ `origin`（`position` 的位置侧点源坐标，形态见上方"点源写法"；`position` 缺失或点源解析失败时回落相机）。
 
-每个选择器调用点（`follow` / `look_at` / `look_at_target` / `yaw_base` / `yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target`）的锁定策略、锚点与择一规则可单独覆盖：写 `selector_refresh_<调用点>` / `selector_anchor_<调用点>` / `selector_pick_<调用点>` 等（4 个策略字段 + 锚点 + 择一都有调用点变体），缺省回落通用 `selector_*`（详见 `docs/SCRIPT_FORMAT.md` §4「调用点级策略覆盖」）。
+每个选择器调用点（`follow` / `look_at` / `yaw_base` / `yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target`）的锁定策略、锚点与择一规则可单独覆盖：写 `selector_refresh_<调用点>` / `selector_anchor_<调用点>` / `selector_pick_<调用点>` 等（4 个策略字段 + 锚点 + 择一都有调用点变体），缺省回落通用 `selector_*`（详见 `docs/SCRIPT_FORMAT.md` §4「调用点级策略覆盖」）。
 
 **多候选择一**（`selector_pick`）：一个 selector 匹配到多个实体时取哪一个。`"first"`（缺省）= 0.3.6 之前的择一行为（本地 `@e` 系列取距锚点最近的活实体，服务端选择器按服务端回传顺序取首个可用）；`"nearest"` = 在客户端可用候选内取距锚点最近者（服务端选择器由此与本地同口径）；`"alive"` = 按候选返回顺序取首个存活者、不比距离。可用 = 客户端已加载且存活；距离 = 世界坐标平方距离比较。示例：`"selector_pick": "nearest"` + `"selector_anchor": "player"` = 取离玩家最近的候选。
 

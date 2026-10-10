@@ -276,28 +276,30 @@ immersive_cinematics/
 | `position_mode` | string | 否 | `"relative"` | 该关键帧的坐标模式：`"relative"`=相对触发点（position 用 dx/dy/dz），`"absolute"`=世界坐标（position 用 x/y/z）。可与前后关键帧不同，两端世界坐标平滑插值 |
 | `follow` | string | 否 | `"none"` | `"none"`=不跟随；`"entity"`=位置跟随目标实体（动态，每帧取实体插值位置 + position 偏移）。follow↔普通关键帧之间两端世界坐标插值 → 平滑过渡 |
 | `follow_selector` | string | 否 | `"@p"` | 跟随目标选择器（见下方"目标选择器"） |
-| `facing_origin` | string | 否 | `""` | `fwd`/`up`/`right`（基准空间偏移）的基准点，**一个点源**（写法见下方"点源"）：实体选择器 / `"player"` 玩家激活位置 / `"coordinate"` + `facing_origin_x/y/z` / `"block:id[:radius]"` / 结构 id。不写 = follow 实体（`follow=entity` 时）/ 玩家 |
+| `facing_origin` | string | 否 | `""` | **位置点源**（一个点源，写法见下方"点源"）：世界轴偏移（`dx`/`dy`/`dz`）与基准坐标系偏移（`fwd`/`up`/`right`）**共用同一位置点源**，同时是基准坐标系的原点。不写 = 世界轴偏移用玩家激活位置、基准坐标系偏移用玩家实体（`@p`，实时跟随） |
 | `facing_origin_x/y/z` | float | 否 | `0` | `facing_origin` 取 `"coordinate"` 形态时的世界坐标（三个都要写） |
-| `facing_target` | string | 否 | `""` | `fwd`/`up`/`right` 的基准朝向目标，**一个点源**（写法见下方"点源"）：基准朝向 = 基准点 → 该目标的连线方向（实体取包围盒中心）。不写 = 基准点自身朝向。不可解析 = 该端无目标，片段按空处理 |
+| `facing_target` | string | 否 | `""` | 基准坐标系的**前轴目标**，一个点源（写法见下方"点源"）：前轴 = 位置点源 → 该目标的连线方向（实体取包围盒中心）。不写 = 位置点源自身朝向（实体 = 身体朝向 + 视线；玩家 = 实时视线）。不可解析 = 该端无目标，片段按空处理 |
 | `facing_target_x/y/z` | float | 否 | `0` | `facing_target` 取 `"coordinate"` 形态时的世界坐标（三个都要写） |
-| `look_at` | string | 否 | `"none"` | `"none"`=用 yaw/pitch；`"coordinate"`=注视固定点（xyz 或结构中心）；`"entity"`=注视实体（包围盒内取点，部位由 `look_at_part` 定，缺省中心）；`"block"`=注视就近搜索到的方块中心（用 `look_at_target_block`）。look_at 关键帧的目标点之间插值 → 切换/开关平滑过渡 |
+| `facing_target_offset` | object | 否 | `null` | `facing_target` 的偏移（点源通用偏移，见下方"偏移"） |
+| `look_at` | string | 否 | `"none"` | `"none"`=用 yaw/pitch；`"player"`=注视玩家激活位置；`"coordinate"`=注视固定点（xyz 或结构中心）；`"entity"`=注视实体（包围盒内取点，部位由 `look_at_part` 定，缺省中心）；`"block"`=注视就近搜索到的方块中心（用 `look_at_target_block`）。look_at 关键帧的目标点之间插值 → 切换/开关平滑过渡 |
 | `look_at_selector` | string | 否 | `"@p"` | 注视目标选择器（`entity` 模式） |
 | `look_at_part` | object | 否 | `null` | `look_at=entity` 的**部位百分比**：`{x,y,z}` 每轴 `0`~`100`（`0`=该轴最小侧、`50`=包围盒中心、`100`=最大侧），缺省分量 = `50`（= 不写该字段的现行为）。取点 = 实体包围盒（宽 `getBbWidth`、高 `getBbHeight`，世界轴对齐）内按百分比定位，**越界值钳制在 `0`~`100`**（取点始终在包围盒内，不伸到体外）。只对 `look_at=entity` 有效：坐标 / 结构 / 方块来源没有部位，要微调直接改坐标——写在其它 `look_at` 模式下会被 validate 报错 |
 | `look_at_target_x/y/z` | float | 否 | `0/64/0` | 注视固定坐标（`coordinate` 模式）。**与 `look_at_target_structure` 互斥**（编辑器：填结构后坐标输入隐藏） |
 | `look_at_target_structure` | string | 否 | `""` | 注视结构中心（`coordinate` 模式）：填结构 id（如 `minecraft:village`）。播放时服务端自动定位**结构 bounding box 中心**（就近搜索，原版 /locate 同范围）并替换为坐标后推送；编辑器里为注册表下拉补全；多人服务器播放同样生效。**与 `look_at_target_x/y/z` 互斥**：指定结构后定位失败也不回退坐标，该端无注视目标（回退角度插值） |
-| `look_at_target_block` | string | 否 | `""` | 注视方块中心（`block` 模式）：**一个点源的方块形态**（写法与 `relative_origin` / `yaw_base_from` 同一套）`"block:<方块 id>[:<半径>]"`，取就近搜索到的**方块中心**（整数坐标 + 0.5，半径缺省 16 格）。不可解析（附近没有该方块 / 多人服务器无服务端世界）= 该端无注视目标（回退角度插值） |
-| `look_at_target` | object | 否 | `null` | `look_at=coordinate` 时的相对目标对象，优先级高于散字段绝对坐标。支持：`{x,y,z}` 绝对点、`{dx,dy,dz}` 相对触发点、`{relative_to:<selector>,dx,dy,dz}` 相对实体、`{relative_to:"coordinate",relative_x/y/z,dx,dy,dz}` 相对固定坐标 |
+| `look_at_target_block` | string | 否 | `""` | 注视方块中心（`block` 模式）：**一个点源的方块形态**（写法与 `facing_origin` / `yaw_base_from` 同一套）`"block:<方块 id>[:<半径>]"`，取就近搜索到的**方块中心**（整数坐标 + 0.5，半径缺省 16 格）。不可解析（附近没有该方块 / 多人服务器无服务端世界）= 该端无注视目标（回退角度插值） |
+| `look_at_offset` | object | 否 | `null` | 注视点偏移（点源通用偏移，见下方"偏移"）：叠加在来源取点之后（`look_at=entity` 时 = 部位百分比取点之后再加偏移） |
 | `selector_refresh` | float | 否 | `1.0` | 目标存活时的重新扫描间隔（秒）。**目标丢失**（死亡/移除/未加载）后不受此值限制：锁进入搜索态并保持最后画面，按固定节奏（0.2 秒）持续重找，找到即恢复。作用于本关键帧所有选择器调用点（缺省回落；调用点专属字段见下方"调用点级策略覆盖"） |
 | `selector_switch_while_alive` | bool | 否 | `true` | `true`=目标存活时也按 `selector_refresh` 扫描并切到新的最近目标；`false`=当前目标活着就不换。**目标丢失后不受此项限制**：进入搜索态持续重找，解析到任意符合规则的目标就立即恢复 |
 | `selector_switch_interval` | float | 否 | = `selector_refresh` | 两次真实切换之间的最小间隔（秒），与扫描频率无关：扫描到新目标但距上次切换不足 N 秒 → 继续用旧目标。`0`=不限制。缺省 = `selector_refresh` |
 | `selector_switch_smooth` | float | 否 | `0.0` | 目标真的切换时（含丢失后恢复到新目标），注视点/跟随位置在 N 秒内以 smoothstep 过渡；`0`=硬切。作用于本关键帧所有目标点（缺省回落；调用点专属字段见下方"调用点级策略覆盖"） |
-| `selector_anchor` | string | 否 | `"camera"` | 选择器锚点：`sort=nearest` 的**就近参考点**（本地就近排序与服务端解析请求共用）。`"camera"`=相机当前位置（缺省，旧行为）；`"player"`=玩家脚底；`"target"`=该调用点当前锁定目标的脚底（尚未解析到目标时回落相机）；`"origin"`=`position` 的位置侧点源坐标（形态见上方 §「点源」；`position` 缺失或点源解析失败时回落相机）。作用于本关键帧所有选择器调用点（缺省回落；调用点专属字段见下方"调用点级策略覆盖"） |
+| `selector_anchor` | string | 否 | `"camera"` | 选择器锚点：`sort=nearest` 的**就近参考点**（本地就近排序与服务端解析请求共用）。`"camera"`=相机当前位置（缺省，旧行为）；`"player"`=玩家脚底；`"target"`=该调用点当前锁定目标的脚底（尚未解析到目标时回落相机）；`"origin"`=`position` 的位置点源坐标（形态见上方 §「点源」；`position` 缺失或点源解析失败时回落相机）。作用于本关键帧所有选择器调用点（缺省回落；调用点专属字段见下方"调用点级策略覆盖"） |
 | `selector_pick` | string | 否 | `"first"` | 候选择一策略：选择器匹配到多个候选时取定哪一个。`"first"`=**缺省 = 0.3.6 之前的择一行为**（本地 `@e` 系列取距锚点最近的活实体，服务端选择器按服务端回传顺序取首个可用）；`"nearest"`=在客户端可用候选内取距锚点最近者（服务端选择器由此与本地同口径）；`"alive"`=按候选返回顺序取首个存活者、不比距离（本地 = 世界迭代序，服务端 = 回传序）。**可用** = 客户端已加载且存活；**距离** = 世界坐标平方距离比较。作用于本关键帧所有选择器调用点（缺省回落；调用点专属字段见下方"调用点级策略覆盖"） |
 | `yaw_base` | string | 否 | `"world"` | `yaw` 的基准方向：`"world"`=0 世界角（`yaw` 即世界朝向）；`"entity"`=实体**身体朝向**水平角（取身体 yaw，用 `yaw_base_selector`）；`"line"`=从 `yaw_base_from` 到 `yaw_base_to` 的连线水平角。此时 `yaw` 为相对基准的偏移 |
 | `pitch_base` | string | 否 | `"world"` | `pitch` 的基准俯仰：同上，`entity` 取实体**视线**俯仰、`line` 取连线垂直角 |
 | `yaw_base_selector` | string | 否 | `"@p"` | `yaw_base/pitch_base=entity` 时的实体选择器（`yaw` 取该实体身体朝向水平角、`pitch` 取该实体视线俯仰） |
 | `yaw_base_from` / `yaw_base_to` | string | 否 | `""` | `yaw_base/pitch_base=line` 时的两个端点，**各是一个点源**（写法见下方"点源"；实体选择器是其中一种形态）。连线退化（两端水平位置重合 = 纯垂直线，或两点重合 = 零长度线）时水平角未定义 → 该朝向输入被拒（回退 `"world"` 基准，运行时限频告警）；纯水平连线（只有水平分量）合法，基准俯仰 = 0。任一端无点源或不可解析 = 该端无目标，片段按空处理 |
 | `yaw_base_from_x/y/z` / `yaw_base_to_x/y/z` | float | 否 | `0` | 端点取 `"coordinate"` 形态时的世界坐标（三个都要写；缺省 `0` 会把点源钉在世界原点，校验器直接拦下） |
+| `yaw_base_from_offset` / `yaw_base_to_offset` | object | 否 | `null` | 连线端点的偏移（点源通用偏移，见下方"偏移"） |
 | `yaw` | float | 是 | — | 偏航角（度）。0=南，90=西，±180=北。`look_at != none` 时被覆盖；使用 `yaw_base` 时表示相对基准的偏移 |
 | `pitch` | float | 是 | — | 俯仰角（度）。正=向下看。`look_at != none` 时被覆盖 |
 | `roll` | float | 是 | — | 翻滚角（度）。正=屏幕顺时针（画面向右倒），任何朝向一致 |
@@ -313,12 +315,11 @@ immersive_cinematics/
 |--------|------------------------|--------------------------------------------|
 | `follow` | 位置基准（`follow_selector`） | `selector_refresh_follow` |
 | `look_at` | 注视目标（`look_at_selector`） | `selector_refresh_look_at` |
-| `look_at_target` | 坐标注视的相对基准（`look_at_target.relative_to`） | `selector_refresh_look_at_target` |
 | `yaw_base` | 朝向基准 `entity`（`yaw_base_selector`） | `selector_refresh_yaw_base` |
 | `yaw_base_from` | 连线基准 A 点（`yaw_base_from`） | `selector_refresh_yaw_base_from` |
 | `yaw_base_to` | 连线基准 B 点（`yaw_base_to`） | `selector_refresh_yaw_base_to` |
-| `facing_origin` | 基准坐标系原点（`facing_origin`） | `selector_refresh_facing_origin` |
-| `facing_target` | 基准朝向目标（`facing_target`） | `selector_refresh_facing_target` |
+| `facing_origin` | 位置点源（`facing_origin`） | `selector_refresh_facing_origin` |
+| `facing_target` | 基准坐标系前轴目标（`facing_target`） | `selector_refresh_facing_target` |
 
 4 个策略字段都有调用点变体：`selector_refresh_*` / `selector_switch_while_alive_*` / `selector_switch_interval_*` / `selector_switch_smooth_*`，类型与范围与通用字段一致。示例：`"selector_refresh_look_at": 0.2` + `"selector_switch_smooth_look_at": 0.3` = 注视目标 0.2 秒扫一次、切换用 0.3 秒过渡，而 follow 仍用通用值。
 
@@ -348,27 +349,69 @@ immersive_cinematics/
 
 ### 点源（Point Source）
 
-能产出一个**世界坐标**的来源。五个形态通用：`yaw_base_from` / `yaw_base_to` / `facing_target` 三个字段都用这套写法；
-位置侧的 `relative_origin`（`dx/dy/dz` 的基准）与 `facing_origin`（`fwd`/`up`/`right` 的基准点）是同一套形态
-（`relative_origin` 不含实体选择器形态——基准点要跟随实体就用 `facing_origin`）。
+能产出一个**世界坐标**的来源 = **来源 + 偏移**。五个形态通用：`facing_origin` / `facing_target` /
+`yaw_base_from` / `yaw_base_to` 四个关键帧字段与 `look_at` 的坐标 / 结构 / 实体 / 方块来源都用这套写法。
 
 | 写法 | 含义 | 取点 |
 |------|------|------|
 | `"player"` | 玩家激活位置（脚本激活时玩家所在位置，整场不变） | 玩家脚底 |
 | `"coordinate"` | 固定坐标：配 `<字段>_x` / `<字段>_y` / `<字段>_z`（三个都要写） | 该坐标 |
 | `"block:<方块 id>[:<半径>]"` | 玩家附近搜索最近匹配方块（半径缺省 16 格） | 方块中心（整数坐标 + 0.5） |
-| `"@…"` / `"uuid:…"` | 实体选择器（写法与 `follow_selector` 同） | 连线端点 = 实体脚底；`facing_target` = 包围盒中心（脚底 + 包围盒高度 / 2） |
+| `"@…"` / `"uuid:…"` | 实体选择器（写法与 `follow_selector` 同） | `facing_origin` / 连线端点 / `look_at=entity` 部位（`look_at_part`）= 包围盒内取点；`facing_target` = 包围盒中心 |
 | 其余非空字符串 | 结构 id（如 `minecraft:village`） | 结构 bounding box 中心（就近搜索） |
 | 空串 / 不写 | 无点源 | 该端无目标 |
 
 - 不可解析（实体未找到 / 结构未定位 / 附近没有该方块）= 该端无目标：片段按空处理（不写相机 → 玩家视角），不引入替代值。
-- 结构 / 方块定位需要服务端世界：单人 / 集成服务器直接定位；多人服务器上 `look_at_target_structure` 与 `relative_origin` 由服务端推送前替换为坐标，**其余字段的结构 / 方块形态在多人服不可解析**（该端无目标）。
+- 结构 / 方块定位需要服务端世界：单人 / 集成服务器直接定位；多人服务器上 `look_at_target_structure` 与
+  `facing_origin` 由服务端推送前替换为坐标，**其余字段的结构 / 方块形态在多人服不可解析**（该端无目标）。
 - 选择器写法先于结构 id 判定：以 `@` 开头或 `uuid:` 开头的字符串一律按实体选择器解析，不会被当作结构 id。
 - `look_at=block` 的注视目标 `look_at_target_block` 用同一套**方块形态**（`block:<方块 id>[:<半径>]`），取点 = 方块中心。
-- 字段落点：点源字段（`yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target` /
-  `look_at_target_block`）与坐标形态的配套坐标（`<字段>_x/_y/_z`）都写在**关键帧**上；`position` 对象只承载
-  偏移量本身（世界轴 `dx/dy/dz`、绝对 `x/y/z`、基准空间 `fwd`/`up`/`right`/`up_axis`，以及世界轴相对基准
-  `relative_origin`）。
+- 字段落点：点源字段（`facing_origin` / `facing_target` / `yaw_base_from` / `yaw_base_to`）与坐标形态的配套坐标
+  （`<字段>_x/_y/_z`）都写在**关键帧**上；`position` 对象只承载**位置通道的偏移**（世界轴 `dx/dy/dz`、绝对
+  `x/y/z`、基准坐标系 `fwd`/`up`/`right`/`up_axis`）。
+
+### 偏移（点源通用属性）
+
+**点源 = 来源 + 偏移**：任一来源都能叠一层偏移（`<字段>_offset` 对象）；位置通道的偏移写在 `position` 对象里
+（`dx/dy/dz` 或 `fwd/up/right`，见下方 §Position）。
+
+| 表达空间 | 分量 | 参照 |
+|---|---|---|
+| 世界轴（缺省） | `dx` / `dy` / `dz` | 世界 X / Y / Z 轴 |
+| 基准坐标系 | `fwd` / `up` / `right` | 本帧基准坐标系的 前 / 上 / 右 轴 |
+
+- 两类分量**不能混写**（校验器拦下）；缺省分量 `0`；单位 = 方块（与坐标同单位）。
+- **叠加顺序**：先取点后加偏移——实体来源 = 部位百分比（`look_at_part`）取点后再加偏移。
+- **基准坐标系**：原点 = `facing_origin` 点源（缺省玩家激活位置），前轴 = `facing_target` 点源 → 位置点源的
+  连线方向（缺省 = 位置点源实体自身朝向 / follow 实体 / 玩家），垂直面由 `position.up_axis` 决定；
+  由位置通道建立。**本关键帧没有基准坐标系**（未写 `facing_origin` / `facing_target`，位置也不用
+  `fwd`/`up`/`right`）= `base` 表达空间的偏移不生效（校验器提示）。
+
+```json
+{
+  "facing_origin": "@e[type=minecraft:iron_golem]",
+  "facing_target": "coordinate", "facing_target_x": 0, "facing_target_y": 64, "facing_target_z": 10,
+  "look_at": "entity", "look_at_selector": "@e[type=minecraft:iron_golem]",
+  "look_at_part": { "y": 100 },
+  "look_at_offset": { "fwd": 1, "up": 0.2, "right": 0 }
+}
+```
+
+上例：位置点源 = 铁傀儡脚底（基准坐标系原点），前轴 = 该点 → `(0,64,10)`；注视点 = 铁傀儡头顶（部位百分比
+`y=100`）再沿前轴前移 1 格、上移 0.2 格。
+
+### 通道相对化（位置 / yaw / pitch / 注视点各自独立）
+
+| 通道 | 绝对 | 相对 |
+|---|---|---|
+| 位置 | `position: {x,y,z}`（世界坐标） | `position: {dx,dy,dz}`（位置点源 + 世界轴偏移）/ `{fwd,up,right}`（基准坐标系偏移） |
+| yaw | `yaw_base: "world"`（`yaw` = 世界角） | `yaw_base: "entity"` / `"line"`（基准方向 + `yaw` 偏移） |
+| pitch | `pitch_base: "world"`（`pitch` = 世界俯仰） | `pitch_base: "entity"` / `"line"`（基准俯仰 + `pitch` 偏移） |
+| 注视点 | `look_at_offset: {dx,dy,dz}`（偏移按世界轴表达） | `look_at_offset: {fwd,up,right}`（偏移按基准坐标系表达） |
+
+- 四项**各自独立**：位置跟基准不影响 yaw，yaw 跟基准不影响 pitch（水平面 / 垂直面分开取来源），
+  注视点偏移的表达空间不影响位置。
+- `look_at != none` 时注视点接管 yaw 与 pitch（**互斥、不叠**）：此时 `yaw_base` / `pitch_base` 不参与。
 
 ### Position（相对模式 `relative`）
 
@@ -376,23 +419,24 @@ immersive_cinematics/
 "position": { "dx": 30, "dy": 2, "dz": 0 }
 ```
 
+位置 = **位置点源 + 偏移**：点源 = 关键帧字段 `facing_origin`（五形态，见上方 §「点源」；缺省 = 玩家激活位置），
+偏移 = 本对象。
+
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `dx` | float | 相对基准点的 X 偏移（**follow=entity 时 = 相对实体脚底的 X 偏移**） |
-| `dy` | float | 相对基准点的 Y 偏移（**follow=entity 时 = 相对实体脚底的 Y 偏移**） |
-| `dz` | float | 相对基准点的 Z 偏移（**follow=entity 时 = 相对实体脚底的 Z 偏移**） |
-| `relative_origin` | string | 可选，相对基准，**一个点源**（写法见上方 §「点源」）。缺省 = 玩家激活位置；`"coordinate"` = 相对固定坐标（配 `relative_origin_x/y/z`）；`"block:id[:radius]"` = 附近最近方块中心；其他字符串 = 结构 id，相对**结构中心**（如 `"minecraft:village"`，就近搜索） |
-| `relative_origin_x/y/z` | float | `"coordinate"` 基准时的基准坐标 |
+| `dx` | float | 相对位置点源的世界 X 偏移（**follow=entity 时 = 相对实体脚底的 X 偏移**） |
+| `dy` | float | 相对位置点源的世界 Y 偏移（**follow=entity 时 = 相对实体脚底的 Y 偏移**） |
+| `dz` | float | 相对位置点源的世界 Z 偏移（**follow=entity 时 = 相对实体脚底的 Z 偏移**） |
 
-`position` 对象里承载**基准空间偏移**（`fwd`/`up`/`right` + `up_axis`，与 `dx/dy/dz` 互斥；基准点与基准朝向由关键帧的
-`facing_origin` / `facing_target` 给出，见上方 §「点源」）：
+`position` 对象里也可承载**基准坐标系偏移**（`fwd`/`up`/`right` + `up_axis`，与 `dx/dy/dz` 互斥；
+原点 = `facing_origin`，前轴 = `facing_target`，见上方 §「偏移」）：
 
 | 字段 | 类型 | 默认 | 说明 |
 |------|------|------|------|
-| `fwd` | float | `0` | 沿基准朝向 前后（正=前 负=后） |
-| `up` | float | `0` | 沿基准朝向 上下（正=上 负=下） |
-| `right` | float | `0` | 沿基准朝向 左右（正=右 负=左） |
-| `up_axis` | string | `"view"` | 垂直面基准：`"view"`=上轴随基准朝向的俯仰（全三维）；`"world"`=上轴保持世界竖直 |
+| `fwd` | float | `0` | 沿前轴 前后（正=前 负=后） |
+| `up` | float | `0` | 沿上轴 上下（正=上 负=下） |
+| `right` | float | `0` | 沿右轴 左右（正=右 负=左） |
+| `up_axis` | string | `"view"` | 垂直面基准：`"view"`=上轴随前轴的俯仰（全三维）；`"world"`=上轴保持世界竖直 |
 
 ### Position（绝对模式 `absolute`）
 
@@ -429,7 +473,7 @@ immersive_cinematics/
 | `w` | float | 宽度（归一化） |
 | `h` | float | 高度（归一化） |
 
-> **为什么用对象而非平铺字段**：矩形是一个整体语义（四个分量同属一个参数），与既有 `position` / `look_at_target` 的复合对象写法一致；关键帧按"复合值整体插值"（`KeyframeInterpolator` 对 `position` 即是如此），对象形态让 dest/source 随时间整体插值更自然，字段表也更小。
+> **为什么用对象而非平铺字段**：矩形是一个整体语义（四个分量同属一个参数），与既有 `position` 的复合对象写法一致；关键帧按"复合值整体插值"（`KeyframeInterpolator` 对 `position` 即是如此），对象形态让 dest/source 随时间整体插值更自然，字段表也更小。
 
 **叠放顺序（`order`）不写成字段**：层级由**轨道层级 → 轨道内 clip 顺序**决定（后面的 clip 在上一层），作者无需显式书写。
 
@@ -1227,7 +1271,7 @@ PS「调整图层 + 图层混合模式」的运行时形态：把**调整层的�
 | `orbit_arc` | CAMERA | 环绕弧线（一段三次贝塞尔，`sweep` 绝对值 ≤ 120°）：`center_mode`（trigger / entity）决定圆心是触发点还是选择器目标 |
 
 > **环绕的数学**：控制点到端点的距离 = `R × 4/3 × tan(θ/4)`（θ=90° → 0.5523R，θ=120° → 0.7698R）。
-> 位置与控制点都写**相对**形式（位置相对基准点，控制点相对段起点）——"以玩家触发点为圆心绕圆"这类运行时才知道坐标的场景可直接生成。整圈 = 三段 120° 拼圆（轨道级模板，后续步骤）。
+> 位置与控制点都写**相对**形式（位置相对位置点源，控制点相对段起点）——"以玩家触发点为圆心绕圆"这类运行时才知道坐标的场景可直接生成。整圈 = 三段 120° 拼圆（轨道级模板，后续步骤）。
 
 **示例**：
 

@@ -191,7 +191,7 @@ public final class PreloadRequester {
         return active;
     }
 
-    /** 静态可解析的下一片段首帧世界坐标；结构/方块/实体/facing 等动态基准返回 null（首版跳过） */
+    /** 静态可解析的下一片段首帧世界坐标；结构/方块/实体/基准坐标系等动态基准返回 null（首版跳过） */
     private static Vec3 computeClipStartWorldPos(Clip clip, Vec3 originPos) {
         if (clip.getKeyframes().isEmpty()) return null;
         Keyframe kf = clip.getKeyframes().get(0);
@@ -201,7 +201,9 @@ public final class PreloadRequester {
         if (pd.isOriginCoordinate()) {
             return new Vec3(pd.getOriginX() + pd.getDx(), pd.getOriginY() + pd.getDy(), pd.getOriginZ() + pd.getDz());
         }
-        if (pd.getOriginStructure() != null || pd.isOriginBlock() || pd.isFacingRelative()) return null;
+        if (pd.getOriginStructure() != null || pd.isOriginBlock() || pd.isOriginSelector() || pd.isBaseSpace()) {
+            return null;
+        }
         return originPos.add(pd.toVec3());
     }
 

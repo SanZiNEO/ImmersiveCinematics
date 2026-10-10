@@ -477,7 +477,9 @@ public final class ScriptValidator {
                             }
                             checkEnum(kf, kp, "position_mode", issues, "relative", "absolute");
                             checkEnum(kf, kp, "follow", issues, "none", "entity");
-                            checkEnum(kf, kp, "look_at", issues, "none", "coordinate", "entity", "block");
+                            checkEnum(kf, kp, "look_at", issues, "none", "player", "coordinate", "entity", "block");
+                            checkRemovedRelativeOrigin(kf, kp, issues);
+                            checkRemovedLookAtTarget(kf, kp, issues);
                             String follow = kf.has("follow") ? kf.get("follow").getAsString() : "none";
                             String lookAt = kf.has("look_at") ? kf.get("look_at").getAsString() : "none";
                             if ("entity".equals(follow) && !kf.has("follow_selector")) {
@@ -492,7 +494,8 @@ public final class ScriptValidator {
                             if ("coordinate".equals(lookAt)
                                     && !kf.has("look_at_target_structure")
                                     && (!kf.has("look_at_target_x") || !kf.has("look_at_target_y") || !kf.has("look_at_target_z"))) {
-                                issues.add(kp + ".look_at_target 缺失（look_at=coordinate 时指定 look_at_target_x/y/z 坐标，或 look_at_target_structure 结构名）");
+                                issues.add(kp + ".look_at_target_x/y/z 缺失（look_at=coordinate 时指定坐标，"
+                                        + "或 look_at_target_structure 结构名）");
                             }
                             if ("block".equals(lookAt)) {
                                 if (!kf.has("look_at_target_block")) {
@@ -515,10 +518,19 @@ public final class ScriptValidator {
                             checkSelectorAnchor(kf, kp, issues);
                             // 选择器择一字段（通用 + 调用点专属）：取值枚举校验
                             checkSelectorPick(kf, kp, issues);
-                            // 点源字段（连线端点 / 基准朝向目标）：字符串形态 + coordinate 配套坐标（都写在关键帧上）
+                            // 点源字段（连线端点 / 基准坐标系前轴目标）：字符串形态 + coordinate 配套坐标（都写在关键帧上）
                             checkPointSourceField(kf, kp, "yaw_base_from", issues);
                             checkPointSourceField(kf, kp, "yaw_base_to", issues);
                             checkPointSourceField(kf, kp, "facing_target", issues);
+                            // 点源偏移（世界轴 / 基准坐标系二选一；见 camera/source/PointSource.Offset）
+                            checkPointOffset(kf, kp, "yaw_base_from_offset", issues);
+                            checkPointOffset(kf, kp, "yaw_base_to_offset", issues);
+                            checkPointOffset(kf, kp, "facing_target_offset", issues);
+                            checkPointOffset(kf, kp, "look_at_offset", issues);
+                            if (kf.has("facing_origin_offset")) {
+                                issues.add(kp + ".facing_origin_offset 不存在：位置点源的偏移写在 position 对象里"
+                                        + "（dx/dy/dz 世界轴 / fwd/up/right 基准坐标系）");
+                            }
                             // ===== 合成参数（0.3.6 camera-composition）：opacity / dest / source =====
                             checkUnitFloat(kf, kp, "opacity", issues);
                             checkRect(kf, kp, "dest", issues);
@@ -931,6 +943,81 @@ public final class ScriptValidator {
             if (p.equals(v)) return;
         }
         issues.add(path + "." + key + " 未知值: " + v + "（可选: " + allowed + "）");
+    }
+
+    /**
+     * 校验点源偏移字段 {@code <字段>_offset}（对象形态）：{@code dx/dy/dz}（世界轴，缺省表达空间）或
+     * {@code fwd/up/right}（基准坐标系）二选一（混写报错），已给出的分量须为有限数字（单位方块）。
+     * 基准坐标系偏移需要本关键帧建立基准坐标系（见 {@link #hasFrame}），否则该偏移不生效。
+     */
+    private static void checkPointOffset(JsonObject kf, String path, String field, List<String> issues) {
+        if (!kf.has(field)) return;
+        String pp = path + "." + field;
+        JsonElement e = kf.get(field);
+        if (!e.isJsonObject()) {
+            issues.add(pp + " 应为对象（世界轴 {dx,dy,dz} 或基准坐标系 {fwd,up,right}）");
+            return;
+        }
+        JsonObject o = e.getAsJsonObject();
+        boolean world = o.has("dx") || o.has("dy") || o.has("dz");
+        boolean base = o.has("fwd") || o.has("up") || o.has("right");
+        if (world && base) {
+            issues.add(pp + " 不能混用世界轴（dx/dy/dz）与基准坐标系（fwd/up/right）分量");
+            return;
+        }
+        for (String axis : base ? new String[]{"fwd", "up", "right"} : new String[]{"dx", "dy", "dz"}) {
+            if (!o.has(axis)) continue;
+            JsonElement c = o.get(axis);
+            if (!isNumber(c) || !Float.isFinite(c.getAsFloat())) {
+                issues.add(pp + "." + axis + " 不是有限数字（偏移量，单位方块）");
+            }
+        }
+        if (base && !hasFrame(kf)) {
+            issues.add(pp + " 用基准坐标系（fwd/up/right）表达，但本关键帧没有基准坐标系"
+                    + "（需写 facing_origin / facing_target，或位置用 fwd/up/right）——该偏移不生效");
+        }
+    }
+
+    /**
+     * 本关键帧是否建立基准坐标系：写了 {@code facing_origin} / {@code facing_target}，
+     * 或位置用基准坐标系偏移（{@code fwd}/{@code up}/{@code right}）。
+     */
+    private static boolean hasFrame(JsonObject kf) {
+        if (kf.has("facing_origin") || kf.has("facing_target")) return true;
+        JsonElement pos = kf.get("position");
+        if (pos == null || !pos.isJsonObject()) return false;
+        JsonObject p = pos.getAsJsonObject();
+        return p.has("fwd") || p.has("up") || p.has("right");
+    }
+
+    /**
+     * 拒绝已移除的位置基准字段（{@code position.relative_origin} 与配套坐标）：0.3.6 起位置基准统一用
+     * 关键帧字段 {@code facing_origin}（五形态），两种偏移表达空间共用同一位置点源。
+     */
+    private static void checkRemovedRelativeOrigin(JsonObject kf, String path, List<String> issues) {
+        JsonElement pos = kf.get("position");
+        if (pos == null || !pos.isJsonObject()) return;
+        JsonObject p = pos.getAsJsonObject();
+        for (String field : new String[]{"relative_origin", "relative_origin_x", "relative_origin_y",
+                "relative_origin_z"}) {
+            if (p.has(field)) {
+                issues.add(path + ".position." + field + " 已移除（0.3.6 起）：位置基准统一用关键帧字段 facing_origin"
+                        + "（写法见 docs/SCRIPT_FORMAT.md §「点源」）");
+            }
+        }
+    }
+
+    /**
+     * 拒绝已移除的注视目标对象 {@code look_at_target}（含 {@code relative_to} / 对象内偏移）：
+     * 0.3.6 起注视目标统一为点源 + 偏移。
+     */
+    private static void checkRemovedLookAtTarget(JsonObject kf, String path, List<String> issues) {
+        if (kf.has("look_at_target")) {
+            issues.add(path + ".look_at_target 已移除（0.3.6 起）：注视目标统一为点源 + 偏移——实体用"
+                    + " look_at_selector（部位百分比 look_at_part）、坐标用 look_at_target_x/y/z、结构用"
+                    + " look_at_target_structure、方块用 look_at_target_block，偏移用 look_at_offset"
+                    + "（世界轴 dx/dy/dz / 基准坐标系 fwd/up/right）");
+        }
     }
 
     /**

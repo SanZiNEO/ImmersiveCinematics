@@ -29,7 +29,10 @@ import java.util.Map;
  * MC 视线方向 = {@code (-sin yaw·cos pitch, -sin pitch, cos yaw·cos pitch)}；时间参数为秒。
  * 数值契约：连线水平分量 < {@link #LINE_HORIZONTAL_EPSILON}（零长度 / 纯垂直线）时水平角未定义 →
  * 拒绝该朝向输入（回退基准 0 = world，限频告警）；目标不可解析 → 该段按空处理（返回 null / 基准 0），不引入替代值。
- * 状态所有权：{@link #lastWorldPos} 与基准坐标系（frameOrigin 起）是跨帧求值状态，仅本实例持有；
+ * 偏移表达空间 base 的参照系 = 本帧基准坐标系：位置通道建立（原点 = {@code facing_origin} 点源，前轴 =
+ * {@code facing_target} 点源 / 位置点源实体朝向 / follow 实体 / 玩家，垂直面 = {@code position.up_axis}）；
+ * 本帧未建立 = base 表达空间的偏移不生效。
+ * 状态所有权：{@link #lastWorldPos} 与 {@link #frame} 是跨帧求值状态，仅本实例持有；
  * 重叠窗口的捕获求值经 {@link #snapshotFrameState()} / {@link #restoreFrameState()} 留底与回写，
  * 目标锁状态由 {@link EntityTargetResolver} 自行留底。
  * 分配 / 线程契约：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱。
@@ -61,27 +64,17 @@ public final class CameraKeyframeEvaluator {
     private Vec3 lastWorldPos;
 
     /**
-     * 本帧基准坐标系（由基准点 + 基准朝向建立），供其它通道复用：
-     * 注视点偏移可以按基准坐标系表达（{@code look_at_target.space = "facing"}）。
-     * 基准坐标系是"这一帧的基准"，只建一套，不按通道各建一套。
+     * 本帧基准坐标系（表达空间 base 的参照系，{@link PointSource.Frame}）：原点 = 位置点源，三轴由前轴建立。
+     * 只建一套（不按通道各建一套），建立后同步给 {@link EntityTargetResolver}（点源求值按它展开 base 偏移）；
+     * {@code null} = 本帧没有基准坐标系。
      */
-    private Vec3 frameOrigin;
-    private Vec3 frameFwd;
-    private Vec3 frameRight;
-    private Vec3 frameUp;
-    private boolean frameValid;
+    private PointSource.Frame frame;
 
     /** 捕获求值隔离基线：{@link #snapshotFrameState()} 留底，{@link #restoreFrameState()} 回写 */
-    private Vec3 baselineOrigin;
-    private Vec3 baselineFwd;
-    private Vec3 baselineRight;
-    private Vec3 baselineUp;
-    private boolean baselineValid;
+    private PointSource.Frame baselineFrame;
 
     /** 诊断：look_at 目标位置一次性日志（播放期间只打印 1 次） */
     private boolean lookAtLoggedOnce;
-    /** 结构定位失败提示只打一次 */
-    private boolean lookAtWarnOnce;
     /** 片段目标不可用（按空片段处理）提示只打一次 */
     private boolean clipUnusableWarnOnce;
 
@@ -116,35 +109,17 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 片段目标可用性：look_at/follow 的实体、结构、方块目标、position.relative_origin 结构/方块基准
+     * 片段目标可用性：注视点（{@code look_at} 点源）、follow 实体、位置点源（{@code facing_origin}）、
+     * 基准坐标系前轴目标（{@code facing_target}）、朝向基准（{@code yaw_base} / {@code pitch_base}）
      * 任一不可解析 → 片段不可用，按空片段处理（不写相机，玩家视角）。
-     * 点源（位置基准 / 注视点 / 连线端点 / 基准朝向目标）与求值路径走同一解析，判据不分叉。
+     * 点源（位置点源 / 注视点 / 连线端点 / 基准坐标系前轴目标）与求值路径走同一解析，判据不分叉。
      * 找不到就找不到——不引入任何替代值/回退逻辑。
      */
     public boolean isClipUsable(Clip clip) {
         for (Keyframe kf : clip.getKeyframes()) {
-            String lookAt = kf.getString("look_at", "none");
-            if ("entity".equals(lookAt)) {
-                if (evalPointSource(lookAtEntitySource(kf), lastWorldPos, "look_at", kf) == null) return false;
-            } else if ("block".equals(lookAt)) {
-                if (evalPointSource(lookAtBlockSource(kf), lastWorldPos, "look_at", kf) == null) return false;
-            } else if ("coordinate".equals(lookAt)) {
-                String sid = kf.getString("look_at_target_structure", "");
-                if (!sid.isEmpty()
-                        && evalPointSource(PointSource.structure(sid), lastWorldPos, "look_at", kf) == null) {
-                    return false;
-                }
-                // 相对目标对象的实体基准不存在 → 该端无目标，片段按空处理
-                Object targetObj = kf.getObject("look_at_target");
-                if (targetObj instanceof Map<?, ?> m) {
-                    Object relTo = m.get("relative_to");
-                    if (relTo != null && !"coordinate".equals(relTo)
-                            && entityResolver.resolveEntity(
-                                    String.valueOf(relTo), lastWorldPos, "look_at_target", kf) == null) {
-                        return false;
-                    }
-                }
-            }
+            // 注视点：形态判据与求值同源（look_at = none = 角度模式，无点源）
+            PointSource lookAt = lookAtSource(kf);
+            if (lookAt != null && evalPointSource(lookAt, lastWorldPos, "look_at", kf) == null) return false;
             if ("entity".equals(kf.getString("follow", "none"))) {
                 if (entityResolver.resolveEntity(
                         kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf) == null) return false;
@@ -161,27 +136,16 @@ public final class CameraKeyframeEvaluator {
             }
             PositionData pd = kf.getPosition();
             if (pd != null && pd.isRelative()) {
-                // 基准坐标系偏移：显式指定的基准点不可解析 → 该段无基准，按空片段处理
-                if (pd.isOriginSelector()
-                        && evalPointSource(PointSource.of(pd, PointSource.EntityPoint.FOOT),
-                                lastWorldPos, "facing_origin", kf) == null) {
+                // 位置点源不可解析 → 该段无基准，按空片段处理
+                if (evalPointSource(PointSource.of(pd, PointSource.EntityPoint.FOOT),
+                        lastWorldPos, "facing_origin", kf) == null) {
                     return false;
                 }
-                // 基准朝向目标不可解析 → 基准朝向不存在，同样按空片段处理
+                // 基准坐标系前轴目标不可解析 → 基准坐标系不存在，同样按空片段处理
                 PointSource facingTarget = PointSource.parse(kf, "facing_target", pd.getFacingTarget(),
                         PointSource.EntityPoint.CENTER);
                 if (facingTarget != null
                         && evalPointSource(facingTarget, lastWorldPos, "facing_target", kf) == null) {
-                    return false;
-                }
-                String sid = pd.getOriginStructure();
-                if (sid != null && !sid.isEmpty()
-                        && evalPointSource(PointSource.structure(sid), lastWorldPos, "facing_origin", kf) == null) {
-                    return false;
-                }
-                if (pd.isOriginBlock()
-                        && evalPointSource(PointSource.of(pd, PointSource.EntityPoint.FOOT),
-                                lastWorldPos, "facing_origin", kf) == null) {
                     return false;
                 }
             }
@@ -293,36 +257,47 @@ public final class CameraKeyframeEvaluator {
 
     /** 捕获求值隔离：把本帧基准坐标系留底（同一时刻只保留最近一次留底）。 */
     public void snapshotFrameState() {
-        baselineOrigin = frameOrigin;
-        baselineFwd = frameFwd;
-        baselineRight = frameRight;
-        baselineUp = frameUp;
-        baselineValid = frameValid;
+        baselineFrame = frame;
     }
 
     /** 捕获求值隔离：把本帧基准坐标系恢复为最近一次 {@link #snapshotFrameState()} 的留底。 */
     public void restoreFrameState() {
-        frameOrigin = baselineOrigin;
-        frameFwd = baselineFwd;
-        frameRight = baselineRight;
-        frameUp = baselineUp;
-        frameValid = baselineValid;
+        setFrame(baselineFrame);
+    }
+
+    /** 记录本帧基准坐标系（{@code null} = 本帧没有基准坐标系）并同步给点源求值侧。 */
+    private void setFrame(PointSource.Frame frame) {
+        this.frame = frame;
+        entityResolver.attachFrame(frame);
     }
 
     /**
      * 关键帧世界坐标求值：
      * follow=entity → 实体渲染帧插值位置 + position 偏移（动态，每帧重算）
-     * 普通关键帧    → position 对象自描述：absolute = 世界坐标；relative = 相对基准 + 偏移
-     *                （基准默认玩家激活位置 originPos，可用 relative_origin 指定坐标/结构中心）
+     * 普通关键帧    → position 对象自描述：absolute = 世界坐标；relative = 位置点源 + 偏移
+     *                （世界轴 dx/dy/dz 或基准坐标系 fwd/up/right，点源 = facing_origin）
+     * 相对模式同时更新本帧基准坐标系（建立条件见 {@link #declaresFrame}）。
      * 注意：实体/结构目标不可用已在 isClipUsable 前置拦截（该片段按空处理），此处分支为防御。
      */
     private Vec3 evalKeyframeWorldPos(Keyframe kf, Clip clip) {
         PositionData pd = kf.getPosition();
-        // 基准空间坐标系偏移（fwd/up/right）：基准 = follow 的实体 或 玩家（实时朝向，三维旋转）
-        if (pd != null && pd.isFacingRelative()) {
-            return evalFacingOffset(kf, pd);
+        boolean relative = pd != null && pd.isRelative();
+        boolean baseSpace = pd != null && pd.isBaseSpace();
+        boolean follow = "entity".equals(kf.getString("follow", "none"));
+        boolean declared = relative && declaresFrame(kf, pd);
+        // 位置点源取点：世界轴偏移的基准点 / 基准坐标系原点（follow 且未声明基准坐标系时不需要）
+        Vec3 base = relative && (declared || !follow) ? evalFacingBasePoint(kf, pd) : null;
+        setFrame(declared && base != null ? buildFacingFrame(kf, pd, base) : null);
+
+        if (baseSpace) {
+            // 基准坐标系不可用（位置点源不可解析 / 前轴退化或缺失）= 按当前视点处理（与位置基准不可用同口径）
+            if (frame == null) {
+                LOGGER.warn("基准坐标系偏移：位置点源/前轴不可用（防御路径，按当前视点处理）");
+                return lastWorldPos;
+            }
+            return PointSource.Offset.base(pd.getFwd(), pd.getUp(), pd.getRight()).apply(base, frame);
         }
-        if ("entity".equals(kf.getString("follow", "none"))) {
+        if (follow) {
             String selector = kf.getString("follow_selector", "@p");
             Entity target = entityResolver.resolveEntity(selector, lastWorldPos, "follow", kf);
             if (target != null) {
@@ -333,63 +308,44 @@ public final class CameraKeyframeEvaluator {
             }
             return lastWorldPos;
         }
-        Vec3 p = pd != null ? pd.toVec3() : Vec3.ZERO;
-        if (pd == null || !pd.isRelative()) return p;
-        // 相对基准：relative_origin = "coordinate"（固定坐标）/ 结构 id（结构中心）/ 默认玩家激活位置
-        return resolveRelativeBase(kf, pd).add(p);
-    }
-
-    /**
-     * 基准空间坐标系求值：基准点 = 点源（facing_origin 指定的实体/坐标/结构/方块；
-     * 未指定时回落 follow 实体 / 玩家）；三轴由基准朝向建立。
-     * - fwd/right 始终随朝向水平旋转（前/后 & 左/右）
-     * - up 轴由 up_axis 控制："view"=随俯仰全三维（默认）；"world"=保持世界竖直
-     */
-    private Vec3 evalFacingOffset(Keyframe kf, PositionData pd) {
-        Vec3[] frame = evalFacingFrame(kf, pd);
-        if (frame == null) {
-            LOGGER.warn("基准空间偏移：基准点/基准朝向不可用（防御路径，按当前视点处理）");
-            return lastWorldPos;
+        if (!relative) return pd != null ? pd.toVec3() : Vec3.ZERO;
+        if (base == null) {
+            // 位置点源不可解析（防御路径：isClipUsable 已前置拦截）：按玩家激活位置 + 偏移处理
+            warnRelativeBaseMiss(pd);
+            return originPos.add(pd.toVec3());
         }
-        // 记录本帧基准坐标系，供注视点等其它通道按基准系表达偏移
-        frameOrigin = frame[0];
-        frameFwd = frame[1];
-        frameRight = frame[2];
-        frameUp = frame[3];
-        frameValid = true;
-        return frameOrigin
-                .add(frameFwd.scale(pd.getFwd()))
-                .add(frameRight.scale(pd.getRight()))
-                .add(frameUp.scale(pd.getUp()));
+        return base.add(pd.toVec3());
     }
 
     /**
-     * 建立本关键帧的基准坐标系 = 基准点 + 基准朝向。
-     *
-     * @return {@code [原点, fwd, right, up]}；不可用或方向退化时返回 null
+     * 本关键帧是否声明了基准坐标系：位置用基准坐标系偏移（{@code fwd}/{@code up}/{@code right}），
+     * 或写了关键帧字段 {@code facing_origin} / {@code facing_target}。未声明 = 本帧没有基准坐标系。
      */
-    private Vec3[] evalFacingFrame(Keyframe kf, PositionData pd) {
-        Minecraft mc = Minecraft.getInstance();
-        // 基准点来源（统一点源解析）：形态见 camera/source/PointSource
-        Vec3 baseVec = evalFacingBasePoint(kf, pd);
-        if (baseVec == null) return null;
-        // 朝向所属实体：显式实体基准 → 该实体；坐标 / 结构 / 方块 / 玩家激活位置基准 → follow 实体 / 玩家
-        Entity orient = pd.isOriginSelector()
-                ? entityResolver.resolveEntity(pd.getOriginSelector(), lastWorldPos, "facing_origin", kf)
-                : evalFacingOrient(kf, mc);
-        if (pd.isOriginSelector() && orient == null) return null;
+    private static boolean declaresFrame(Keyframe kf, PositionData pd) {
+        return pd.isBaseSpace() || kf.getData().containsKey("facing_origin")
+                || kf.getData().containsKey("facing_target");
+    }
 
-        // 基准朝向：facing_target 非空 → 基准点 → 该目标的连线方向（含俯仰的完整三维方向）
-        // 取值来源 = position 的基准朝向字段（与解析侧同一份；配套坐标读关键帧 facing_target_x/y/z）
+    /**
+     * 建立基准坐标系：前轴由 {@code facing_target} 点源（位置点源 → 该目标的连线方向，含俯仰）给出，
+     * 缺省 = 位置点源实体自身朝向（身体朝向水平角 + 视线俯仰）/ follow 实体 / 玩家朝向；三轴由
+     * {@link #buildFrame} 按前轴与 {@code position.up_axis} 建立。
+     *
+     * @return 基准坐标系；前轴退化（零长度 / 纯垂直）或朝向实体缺失 = {@code null}
+     */
+    private PointSource.Frame buildFacingFrame(Keyframe kf, PositionData pd, Vec3 base) {
+        // 前轴目标：点源（配套坐标读关键帧 facing_target_x/y/z）
         PointSource facingTarget = PointSource.parse(kf, "facing_target", pd.getFacingTarget(),
                 PointSource.EntityPoint.CENTER);
         if (facingTarget != null) {
             Vec3 to = evalPointSource(facingTarget, lastWorldPos, "facing_target", kf);
-            return to != null ? buildFrame(baseVec, to.subtract(baseVec), pd) : null;
+            return to != null ? buildFrame(base, to.subtract(base), pd) : null;
         }
-
+        // 朝向所属实体：位置点源为实体选择器 → 该实体；其余 → follow 实体 / 玩家
+        Entity orient = pd.isOriginSelector()
+                ? entityResolver.resolveEntity(pd.getOriginSelector(), lastWorldPos, "facing_origin", kf)
+                : evalFacingOrient(kf, Minecraft.getInstance());
         if (orient == null) return null;
-
         // 实体朝向必须按渲染 partialTick 插值：raw getYRot()/getXRot() 会在 20Hz tick 间跳变。
         float yawRad = (float) Math.toRadians(TimeInterpolation.entityBodyYaw(orient));
         float pitchRad = (float) Math.toRadians(TimeInterpolation.entityPitch(orient));
@@ -397,7 +353,7 @@ public final class CameraKeyframeEvaluator {
         float cosY = (float) Math.cos(yawRad);
         float sinP = (float) Math.sin(pitchRad);
         float cosP = (float) Math.cos(pitchRad);
-        return buildFrame(baseVec, new Vec3(-sinY * cosP, -sinP, cosY * cosP), pd);
+        return buildFrame(base, new Vec3(-sinY * cosP, -sinP, cosY * cosP), pd);
     }
 
     /**
@@ -440,13 +396,12 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 由基准点 + 前轴方向（任意三维向量）构造基准坐标系。
+     * 由原点 + 前轴方向（任意三维向量）构造基准坐标系。
      * 前轴由方向决定（实体朝向 / 两点连线），因此 up 是否跟随俯仰用方向向量本身判断：
      * 非水平方向 + up_axis=view → 跟随俯仰（全三维）；否则 up 保持世界竖直。
      * 前轴没有水平分量（零长度 / 纯垂直）时水平角未定义：拒绝该朝向输入，返回 null，并限频告警。
-     * 与旧实现等价：水平朝向 + up_axis=world → up 世界竖直；带俯仰 + up_axis=view → up 与 fwd/right 正交。
      */
-    private Vec3[] buildFrame(Vec3 base, Vec3 dir, PositionData pd) {
+    private PointSource.Frame buildFrame(Vec3 base, Vec3 dir, PositionData pd) {
         double dx = dir.x, dy = dir.y, dz = dir.z;
         double horizontal = Math.sqrt(dx * dx + dz * dz);
         if (horizontal < LINE_HORIZONTAL_EPSILON) {
@@ -471,19 +426,10 @@ public final class CameraKeyframeEvaluator {
             fwdVec = new Vec3(-sinY, 0, cosY);
             upVec = new Vec3(0, 1, 0);
         }
-        return new Vec3[]{base, fwdVec, rightVec, upVec};
+        return new PointSource.Frame(base, fwdVec, rightVec, upVec);
     }
 
-    /**
-     * 把基准坐标系里的偏移（fwd/up/right）转成世界偏移。
-     * 本帧没有建立基准坐标系（未用 fwd/up/right 摆位）时返回 null，调用方按世界轴处理。
-     */
-    private Vec3 frameOffsetToWorld(float fwd, float up, float right) {
-        if (!frameValid) return null;
-        return frameFwd.scale(fwd).add(frameRight.scale(right)).add(frameUp.scale(up));
-    }
-
-    /** 基准朝向所属实体（坐标 / 结构 / 方块 / 玩家激活位置基准点）：follow 实体（{@code follow=entity} 时）/ 玩家。 */
+    /** 前轴所属实体（位置点源非实体选择器时）：follow 实体（{@code follow=entity} 时）/ 玩家。 */
     private Entity evalFacingOrient(Keyframe kf, Minecraft mc) {
         if ("entity".equals(kf.getString("follow", "none"))) {
             return entityResolver.resolveEntity(kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf);
@@ -491,44 +437,40 @@ public final class CameraKeyframeEvaluator {
         return mc.player;
     }
 
-    /**
-     * 相对基准求值（dx/dy/dz）：位置侧点源（坐标 / 结构 / 方块 / 玩家激活位置，见 {@link PointSource}）；
-     * 点源不可解析 → 回落玩家激活位置。结构 / 方块不可用已在 isClipUsable 前置拦截（该片段按空处理），此处为防御。
-     */
-    private Vec3 resolveRelativeBase(Keyframe kf, PositionData pd) {
-        Vec3 base = evalPointSource(PointSource.of(pd, PointSource.EntityPoint.FOOT), lastWorldPos,
-                "facing_origin", kf);
-        if (base != null) return base;
-        warnRelativeBaseMiss(pd);
-        return originPos;
-    }
-
-    /** 相对基准点源不可解析提示（防御路径）：结构 / 方块各自一句，与前置拦截同口径。 */
+    /** 位置点源不可解析提示（防御路径）：结构 / 方块各自一句，与前置拦截同口径。 */
     private void warnRelativeBaseMiss(PositionData pd) {
         String structureId = pd.getOriginStructure();
         if (structureId != null && !structureId.isEmpty()) {
-            LOGGER.debug("相对基准结构 '{}' 未找到（防御路径）", structureId);
+            LOGGER.debug("位置点源结构 '{}' 未找到（防御路径）", structureId);
         } else if (pd.isOriginBlock()) {
-            LOGGER.warn("相对基准方块 '{}' 未找到（半径 {}，防御路径，片段按空处理）",
+            LOGGER.warn("位置点源方块 '{}' 未找到（半径 {}，防御路径，片段按空处理）",
                     pd.getOriginBlockId(), pd.getOriginBlockRadius());
         }
     }
 
     /**
-     * look_at 实体点源：选择器 + 部位百分比取点（{@code look_at_part}，缺省包围盒中心）。
-     * {@link #isClipUsable} 与 {@link #evalLookTarget} 共用同一构造（判据与求值同源）。
+     * look_at 的点源（关键帧级，{@link #isClipUsable} 与 {@link #evalLookTarget} 共用同一构造）：
+     * {@code player} = 玩家激活位置；{@code coordinate} = 固定坐标（{@code look_at_target_x/y/z}；结构优先：
+     * {@code look_at_target_structure} 非空时取结构中心）；{@code entity} = 实体选择器 + 部位百分比
+     * （{@code look_at_selector} / {@code look_at_part}）；{@code block} = 方块点源（{@code look_at_target_block}）。
+     * 偏移 = {@code look_at_offset}（世界轴 dx/dy/dz / 基准坐标系 fwd/up/right）。
+     *
+     * @return 点源规格；{@code look_at = none}（角度模式）/ 形态字段缺省 = {@code null}
      */
-    private static PointSource lookAtEntitySource(Keyframe kf) {
-        return PointSource.selector(kf.getString("look_at_selector", "@p"), lookAtPart(kf));
-    }
-
-    /**
-     * look_at 方块点源：{@code look_at_target_block} 的 {@code block:<方块 id>[:<半径>]} 字符串，
-     * 解析与求值走 {@link PointSource} 统一路径（取点 = 方块中心）。
-     */
-    private static PointSource lookAtBlockSource(Keyframe kf) {
-        return PointSource.parse(kf, "look_at_target_block", kf.getString("look_at_target_block", ""),
-                PointSource.EntityPoint.CENTER);
+    private static PointSource lookAtSource(Keyframe kf) {
+        PointSource source = switch (kf.getString("look_at", "none")) {
+            case "player" -> PointSource.world();
+            case "coordinate" -> {
+                String structureId = kf.getString("look_at_target_structure", "");
+                if (!structureId.isEmpty()) yield PointSource.structure(structureId);
+                yield PointSource.coordinate(kf.getFloat("look_at_target_x", 0f),
+                        kf.getFloat("look_at_target_y", 64f), kf.getFloat("look_at_target_z", 0f));
+            }
+            case "entity" -> PointSource.selector(kf.getString("look_at_selector", "@p"), lookAtPart(kf));
+            case "block" -> PointSource.blockFromString(kf.getString("look_at_target_block", ""));
+            default -> null;
+        };
+        return source != null ? source.withOffset(PointSource.parseOffset(kf, "look_at")) : null;
     }
 
     /**
@@ -548,51 +490,21 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 关键帧 look_at 目标点求值：
-     * entity     → 实体包围盒内的取点（{@code look_at_part} 部位百分比，缺省包围盒中心）
-     * block      → 就近搜索的方块中心（{@code look_at_target_block}，点源 BLOCK 形态）
-     * coordinate → 固定坐标点（与结构互斥：指定结构后只解析结构）
-     * none       → 由该关键帧 yaw/pitch 决定的 100 格方向远点（看向它 = 保持该朝向）
+     * 关键帧 look_at 目标点求值（点源 + 偏移，形态见 {@link #lookAtSource}）：
+     * player → 玩家激活位置；entity → 实体包围盒内的取点（部位百分比，缺省包围盒中心）；
+     * block → 就近搜索的方块中心；coordinate → 固定坐标 / 结构中心（结构优先）；
+     * none → 由该关键帧 yaw/pitch 决定的 100 格方向远点（看向它 = 保持该朝向）。
      * 返回 null 表示该端无注视目标（实体消失 / 方块与结构定位失败），该段按 look_at=none 处理（关键帧角度）。
      */
     private Vec3 evalLookTarget(Keyframe kf, Clip clip, Vec3 pos) {
-        String lookAt = kf.getString("look_at", "none");
-        if ("entity".equals(lookAt)) {
-            String selector = kf.getString("look_at_selector", "@p");
-            Vec3 raw = evalPointSource(lookAtEntitySource(kf), pos, "look_at", kf);
+        PointSource source = lookAtSource(kf);
+        if (source != null) {
+            Vec3 raw = evalPointSource(source, pos, "look_at", kf);
             if (raw == null) return null;
-            return entityResolver.smoothTargetPoint("look_at", selector, "point", raw,
-                    entityResolver.selectorPolicy(kf, "look_at").switchSmooth(), kf);
-        }
-        if ("block".equals(lookAt)) {
-            // 定位失败 = 该端无注视目标（isClipUsable 已前置拦截按空处理，此处为防御）
-            return evalPointSource(lookAtBlockSource(kf), pos, "look_at", kf);
-        }
-        if ("coordinate".equals(lookAt)) {
-            String structureId = kf.getString("look_at_target_structure", "");
-            if (!structureId.isEmpty()) {
-                // 结构目标与坐标互斥：指定了结构就只用结构。定位失败返回 null（该端无注视目标），
-                // 整个片段已被 isClipUsable 拦截按空处理，此处为防御。
-                Vec3 structurePos = evalPointSource(PointSource.structure(structureId), pos, "look_at", kf);
-                if (structurePos != null) return structurePos;
-                // 定位失败只提示一次（debug 级：作者排查可见，不打扰玩家）
-                if (!lookAtWarnOnce) {
-                    lookAtWarnOnce = true;
-                    LOGGER.debug("结构 '{}' 未找到（该端无注视目标）", structureId);
-                }
-                return null;
-            }
-            // 相对目标对象（优先级高于散字段绝对坐标）：绝对点 / 触发点偏移 / 相对实体偏移 / 相对坐标点+偏移
-            Object targetObj = kf.getObject("look_at_target");
-            if (targetObj instanceof Map<?, ?> m) {
-                Vec3 target = evalLookTargetObject(m, kf, pos);
-                if (target != null) return target;
-                // 对象解析失败（相对实体找不到/基准缺失）→ 该端无注视目标（isClipUsable 已前置拦截，此处防御）
-                return null;
-            }
-            return evalPointSource(PointSource.coordinate(
-                    kf.getFloat("look_at_target_x", 0), kf.getFloat("look_at_target_y", 64),
-                    kf.getFloat("look_at_target_z", 0)), pos, "look_at", kf);
+            if (source.kind() != PointSource.Kind.SELECTOR) return raw;
+            // 实体形态按 point 通道平滑：目标切换 / 丢失后恢复时过渡
+            return entityResolver.smoothTargetPoint("look_at", kf.getString("look_at_selector", "@p"),
+                    "point", raw, entityResolver.selectorPolicy(kf, "look_at").switchSmooth(), kf);
         }
         // none：关键帧朝向的 100 格远点（MC 视线方向 forwards =
         // (-sin yaw·cos pitch, -sin pitch, cos yaw·cos pitch)）
@@ -602,64 +514,6 @@ public final class CameraKeyframeEvaluator {
         double fy = -Math.sin(pitchRad);
         double fz = Math.cos(yawRad) * Math.cos(pitchRad);
         return pos.add(fx * 100, fy * 100, fz * 100);
-    }
-
-    /**
-     * look_at_target 对象目标点求值（四种模式）：
-     * {x,y,z} → 世界绝对坐标点；{dx,dy,dz} → 相对触发点（脚本激活时玩家位置）偏移；
-     * {relative_to:selector, dx..} → 相对实体位置偏移（每帧求值，动态）；
-     * {relative_to:"coordinate", relative_x/y/z, dx..} → 相对固定坐标点 + 偏移。
-     * 返回 null = 该端无注视目标（相对实体找不到等；isClipUsable 已前置拦截，此处防御）。
-     */
-    private Vec3 evalLookTargetObject(Map<?, ?> m, Keyframe kf, Vec3 pos) {
-        Float x = numOrNull(m.get("x"));
-        Float y = numOrNull(m.get("y"));
-        Float z = numOrNull(m.get("z"));
-        if (x != null && y != null && z != null) {
-            return evalPointSource(PointSource.coordinate(x, y, z), pos, "look_at", kf);
-        }
-        float dx = numOrDefault(m.get("dx"));
-        float dy = numOrDefault(m.get("dy"));
-        float dz = numOrDefault(m.get("dz"));
-        // 偏移表达空间：缺省 = 世界轴；space = "facing" 时按本帧基准坐标系表达（fwd/up/right）
-        boolean facingSpace = "facing".equals(String.valueOf(m.get("space")));
-        Vec3 offset = null;
-        if (facingSpace) {
-            offset = frameOffsetToWorld(numOrDefault(m.get("fwd")), numOrDefault(m.get("up")),
-                    numOrDefault(m.get("right")));
-            // 本帧没有基准坐标系 → 退回世界轴偏移（有什么放什么）
-            if (offset == null) offset = new Vec3(dx, dy, dz);
-        }
-        Object relTo = m.get("relative_to");
-        if (relTo == null) {
-            // 相对触发点偏移
-            return offset != null ? originPos.add(offset) : originPos.add(dx, dy, dz);
-        }
-        if ("coordinate".equals(relTo)) {
-            double rx = numOrDefault(m.get("relative_x"));
-            double ry = numOrDefault(m.get("relative_y"));
-            double rz = numOrDefault(m.get("relative_z"));
-            return offset != null
-                    ? new Vec3(rx, ry, rz).add(offset)
-                    : new Vec3(rx + dx, ry + dy, rz + dz);
-        }
-        // 相对实体 selector（每帧求实体位置 + 偏移）
-        String selector = String.valueOf(relTo);
-        Entity target = entityResolver.resolveEntity(selector, pos, "look_at_target", kf);
-        if (target == null) return null;
-        Vec3 raw = offset != null
-                ? TimeInterpolation.entityPosition(target).add(offset)
-                : TimeInterpolation.entityPosition(target).add(dx, dy, dz);
-        return entityResolver.smoothTargetPoint("look_at_target", selector, "point", raw,
-                entityResolver.selectorPolicy(kf, "look_at_target").switchSmooth(), kf);
-    }
-
-    private static Float numOrNull(Object o) {
-        return o instanceof Number n ? n.floatValue() : null;
-    }
-
-    private static float numOrDefault(Object o) {
-        return o instanceof Number n ? n.floatValue() : 0f;
     }
 
     /**

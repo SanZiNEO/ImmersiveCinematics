@@ -35,9 +35,10 @@
   - ✅ roll 已修复为绕相机视线轴旋转：任何朝向下 roll>0 均为屏幕顺时针（画面向右倒）（CHANGELOG 0.3.4）
 - **镜头追踪（关键帧级 follow / look_at）**
   - ✅ 支持 `follow=entity` 跟随实体，position 的 dx/dy/dz 为相对实体脚底偏移（`CameraTrackPlayer`）
-  - ✅ 支持 `look_at=coordinate` 注视固定坐标/结构中心，`look_at_target` 对象支持绝对点/相对点/相对实体/相对坐标偏移（`CameraTrackPlayer`）
+  - ✅ 支持 `look_at=coordinate` 注视固定坐标/结构中心、`look_at=player` 注视玩家激活位置，注视点偏移 `look_at_offset`（世界轴 / 基准坐标系）（`CameraKeyframeEvaluator`）
   - ✅ 支持 `look_at=entity` 注视实体包围盒内取点（部位 `look_at_part` 每轴百分比，缺省中心），`look_at_selector` 选择器解析目标（`CameraKeyframeEvaluator`）
   - ✅ 支持 `look_at=block` 注视就近方块中心（`look_at_target_block`，点源方块形态 `block:id[:radius]`）（`CameraKeyframeEvaluator`）
+  - ✅ 点源 = 来源 + 偏移（`PointSource`：五形态 + 实体百分比取点 + 偏移两表达空间）；位置点源 `facing_origin` 与 `yaw_base_from/to` / `facing_target` / `look_at` 共用同一份解析（`CameraKeyframeEvaluator`、`EntityTargetResolver`）
   - ✅ 目标点/实体/开关之间按两端世界坐标插值平滑过渡（`CameraTrackPlayer`）
 - **镜头呼吸扰动（cam_breath_*）**
   - ✅ v2：`cam_breath_type` 多类型（`perlin` 默认 / `perlin_axis` / `sine` / `trauma`）+ `cam_breath_speed`，旧 `enabled/intensity/seed` 兼容（缺省 type 按 perlin 处理）；`trauma` 专属 `cam_breath_trauma/decay`；确定性（同 seed + 同时间 → 同抖动），叠加在最终 yaw/pitch/roll 上（`BreathDisturbance`、`CameraTrackPlayer`）

@@ -77,20 +77,23 @@ public final class TrackSchemas {
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
         kfs.put("position", new FieldDef("position", null, true));
         kfs.put("position_mode", new FieldDef("enum", "relative", false, List.of("relative", "absolute")));
-        // 基准坐标系偏移的基准点来源（fwd/up/right 用）：留空 = follow 实体 / 玩家
+        // 基准坐标系（base 表达空间的参照系）：原点 = 位置点源 facing_origin（留空 = 世界轴偏移用玩家激活位置、
+        // 基准坐标系偏移用玩家实体 @p）；前轴 = facing_target（点源，留空 = 位置点源自身朝向）
         kfs.put("facing_origin", new FieldDef("string", ""));
         kfs.put("facing_origin_x", new FieldDef("float", 0f));
         kfs.put("facing_origin_y", new FieldDef("float", 0f));
         kfs.put("facing_origin_z", new FieldDef("float", 0f));
-        // 基准朝向来源：留空 = 基准点自身朝向；否则 = 基准点 → 该目标的连线方向（点源，见 camera/source/PointSource；
-        // "coordinate" 形态的坐标取 facing_target_x/y/z）
+        // 基准坐标系前轴目标：留空 = 位置点源自身朝向；否则 = 位置点源 → 该目标的连线方向（点源，见
+        // camera/source/PointSource；"coordinate" 形态的坐标取 facing_target_x/y/z）；偏移 facing_target_offset
         kfs.put("facing_target", new FieldDef("string", ""));
         kfs.put("facing_target_x", new FieldDef("float", null));
         kfs.put("facing_target_y", new FieldDef("float", null));
         kfs.put("facing_target_z", new FieldDef("float", null));
+        // 点源偏移（{dx,dy,dz} 世界轴 / {fwd,up,right} 基准坐标系；见 camera/source/PointSource.Offset）
+        kfs.put("facing_target_offset", new FieldDef("map", null));
         kfs.put("follow", new FieldDef("enum", "none", false, List.of("none", "entity")));
         kfs.put("follow_selector", new FieldDef("string", "@p"));
-        kfs.put("look_at", new FieldDef("enum", "none", false, List.of("none", "coordinate", "entity", "block")));
+        kfs.put("look_at", new FieldDef("enum", "none", false, List.of("none", "player", "coordinate", "entity", "block")));
         kfs.put("look_at_selector", new FieldDef("string", "@p"));
         // 部位百分比：实体包围盒内按每轴百分比取点（0 ~ 100，缺省 50 = 中心）；只对 look_at=entity 有效
         kfs.put("look_at_part", new FieldDef("map", null));
@@ -100,7 +103,8 @@ public final class TrackSchemas {
         kfs.put("look_at_target_structure", new FieldDef("string", ""));
         // 方块点源（block:<方块 id>[:<半径>]）：look_at=block 时的注视目标，取就近搜索到的方块中心
         kfs.put("look_at_target_block", new FieldDef("string", ""));
-        kfs.put("look_at_target", new FieldDef("map", null));
+        // 注视点偏移（{dx,dy,dz} 世界轴 / {fwd,up,right} 基准坐标系）：叠加在来源取点之后
+        kfs.put("look_at_offset", new FieldDef("map", null));
         // 选择器目标锁定策略：通用字段 = 该关键帧所有调用点的缺省回落（语义见 selector/SelectorPolicy）。
         // 调用点专属字段名 = <字段>_<调用点>（调用点名见 SelectorSchema.CALLPOINTS），
         // 缺省 null = 回落通用字段；不写任何调用点字段 = 旧行为（只用通用字段）。
@@ -136,16 +140,18 @@ public final class TrackSchemas {
         kfs.put("pitch_base", new FieldDef("enum", "world", false, List.of("world", "entity", "line")));
         // yaw_base/pitch_base = entity 时的实体选择器（yaw 取身体朝向水平角、pitch 取视线俯仰）
         kfs.put("yaw_base_selector", new FieldDef("string", "@p"));
-        // line 基准的两个端点：各是完整点源（见 camera/source/PointSource；"coordinate" 形态的坐标取 <字段>_x/_y/_z）；
-        // 退化连线（零长度 / 纯垂直）水平角未定义，运行时被拒（回退基准 0 = world）
+        // line 基准的两个端点：各是完整点源（见 camera/source/PointSource；"coordinate" 形态的坐标取 <字段>_x/_y/_z，
+        // 偏移取 <字段>_offset）；退化连线（零长度 / 纯垂直）水平角未定义，运行时被拒（回退基准 0 = world）
         kfs.put("yaw_base_from", new FieldDef("string", ""));
         kfs.put("yaw_base_from_x", new FieldDef("float", null));
         kfs.put("yaw_base_from_y", new FieldDef("float", null));
         kfs.put("yaw_base_from_z", new FieldDef("float", null));
+        kfs.put("yaw_base_from_offset", new FieldDef("map", null));
         kfs.put("yaw_base_to", new FieldDef("string", ""));
         kfs.put("yaw_base_to_x", new FieldDef("float", null));
         kfs.put("yaw_base_to_y", new FieldDef("float", null));
         kfs.put("yaw_base_to_z", new FieldDef("float", null));
+        kfs.put("yaw_base_to_offset", new FieldDef("map", null));
         kfs.put("yaw", new FieldDef("float", 0));
         kfs.put("pitch", new FieldDef("float", 0));
         kfs.put("roll", new FieldDef("float", 0));

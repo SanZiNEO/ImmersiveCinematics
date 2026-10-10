@@ -3,34 +3,27 @@ package com.immersivecinematics.immersive_cinematics.script;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 位置数据 — 关键帧的坐标信息
- * <p>
- * 根据 position_mode 有两种结构：
- * <ul>
- *   <li>relative: dx/dy/dz — 相对基准点的偏移。基准默认 = 玩家激活位置，可用
- *       relative_origin 指定：{@code "coordinate"}（相对固定坐标，配合 relative_origin_x/y/z）
- *       或结构 id（相对结构中心，如 {@code "minecraft:village"}）</li>
- *   <li>absolute: x/y/z — 世界绝对坐标</li>
- * </ul>
- * <p>
- * Gson 反序列化时，根据 JSON 中是否存在 "dx" 或 "x" 字段自动映射。
- * 内部统一存储为三个 float，通过 isRelative() 区分语义。
+ * 位置数据：关键帧的位置通道 = 位置点源 + 偏移，或世界绝对坐标。
+ *
+ * 三种形态（由 position 对象的字段判据，{@code position_mode} 不参与判据）：
+ * 世界轴偏移 {@code dx/dy/dz} = 相对位置点源的世界轴偏移；基准坐标系偏移 {@code fwd/up/right}（配 {@code up_axis}）
+ * = 相对本帧基准坐标系的偏移；绝对 {@code x/y/z} = 世界坐标（无点源、无偏移）。
+ *
+ * 位置点源 = 关键帧字段 {@code facing_origin}（五形态，见 {@link #originKindOf}），载荷存 origin* 字段；
+ * 基准坐标系的前轴 = 关键帧字段 {@code facing_target}（空 = 点源自身朝向）。
+ * 单位与坐标空间：世界空间方块坐标；偏移与坐标同单位。
  */
 public class PositionData {
 
     /** 相对基准：玩家激活位置（默认） */
     public static final int ORIGIN_PLAYER = 0;
-    /** 相对基准：固定坐标（relative_origin_x/y/z） */
+    /** 相对基准：固定坐标（facing_origin_x/y/z） */
     public static final int ORIGIN_COORDINATE = 1;
-    /** 相对基准：结构中心（relative_origin 填结构 id） */
+    /** 相对基准：结构中心（facing_origin 填结构 id） */
     public static final int ORIGIN_STRUCTURE = 2;
-    /** 相对基准：玩家附近搜索的方块（relative_origin 填 block:id[:radius]） */
+    /** 相对基准：玩家附近搜索的方块（facing_origin 填 block:id[:radius]） */
     public static final int ORIGIN_BLOCK = 3;
-    /**
-     * 相对基准：实体选择器（facing_origin 填 selector）——仅"基准坐标系偏移"（fwd/up/right）使用。
-     * <p>
-     * 用于让基准点不再写死为"玩家 / follow 实体"，例如以 A 为基准点、A→B 为基准朝向摆机位。
-     */
+    /** 相对基准：实体选择器（facing_origin 填 selector）——两种偏移表达空间都可用。 */
     public static final int ORIGIN_SELECTOR = 4;
 
     /** block 基准的默认搜索半径（格） */
@@ -89,89 +82,76 @@ public class PositionData {
     /** 基准坐标系偏移的基准点实体选择器（ORIGIN_SELECTOR 时有效，如 "@e[type=…]"） */
     private final String originSelector;
 
-    /** 基准朝向目标选择器（facing_target）：基准朝向 = 基准点 → 该目标（两点连线方向）；空 = 基准点自身朝向 */
+    /** 基准坐标系前轴的目标（facing_target 点源）：前轴 = 位置点源 → 该目标（两点连线方向）；空 = 位置点源自身朝向 */
     private final String facingTarget;
 
-    /** 是否为"基准空间坐标系"偏移（fwd/up/right 相对基准朝向，仅实体/玩家基准有效） */
-    private final boolean facingRelative;
+    /** 偏移表达空间：true = 基准坐标系（fwd/up/right），false = 世界轴（dx/dy/dz） */
+    private final boolean baseSpace;
 
-    /** 基准空间系：沿基准朝向 前后 的偏移（正=前 负=后） */
+    /** 基准坐标系：沿前轴 前后 的偏移（正=前 负=后） */
     private final float fwd;
 
-    /** 基准空间系：沿基准朝向 上下 的偏移（正=上 负=下） */
+    /** 基准坐标系：沿上轴 上下 的偏移（正=上 负=下） */
     private final float up;
 
-    /** 基准空间系：沿基准朝向 左右 的偏移（正=右 负=左） */
+    /** 基准坐标系：沿右轴 左右 的偏移（正=右 负=左） */
     private final float right;
 
-    /** 基准空间系：y(上下)轴是否跟随俯仰——"view"=全三维（默认），"world"=保持世界竖直 */
+    /** 垂直面基准："view"=上轴随前轴俯仰（默认），"world"=上轴保持世界竖直 */
     private final String upAxis;
 
     /**
-     * 相对模式构造器（基准 = 玩家激活位置）
+     * 世界轴偏移（dx/dy/dz），位置点源 = 玩家激活位置（缺省形态）。
      *
-     * @param dx 相对于基准的 X 偏移
-     * @param dy 相对于基准的 Y 偏移
-     * @param dz 相对于基准的 Z 偏移
-     * @return 相对模式的 PositionData
+     * @param dx 相对位置点源的世界 X 偏移
+     * @param dy 相对位置点源的世界 Y 偏移
+     * @param dz 相对位置点源的世界 Z 偏移
      */
     public static PositionData relative(float dx, float dy, float dz) {
         return new PositionData(true, dx, dy, dz, ORIGIN_PLAYER, 0f, 0f, 0f, null, null, 0, null,
                 false, 0f, 0f, 0f, "world", null);
     }
 
-    /**
-     * 相对模式构造器（基准 = 固定坐标）
-     *
-     * @param dx 相对于基准的 X 偏移
-     * @param dy 相对于基准的 Y 偏移
-     * @param dz 相对于基准的 Z 偏移
-     * @param ox 基准 X 坐标
-     * @param oy 基准 Y 坐标
-     * @param oz 基准 Z 坐标
-     */
+    /** 世界轴偏移（dx/dy/dz），位置点源 = 固定坐标（{@code facing_origin: "coordinate"}）。 */
     public static PositionData relativeToCoordinate(float dx, float dy, float dz, float ox, float oy, float oz) {
         return new PositionData(true, dx, dy, dz, ORIGIN_COORDINATE, ox, oy, oz, null, null, 0, null,
                 false, 0f, 0f, 0f, "world", null);
     }
 
-    /**
-     * 相对模式构造器（基准 = 结构中心）
-     *
-     * @param dx           相对于基准的 X 偏移
-     * @param dy           相对于基准的 Y 偏移
-     * @param dz           相对于基准的 Z 偏移
-     * @param structureId  基准结构 id（如 {@code "minecraft:village"}）
-     */
+    /** 世界轴偏移（dx/dy/dz），位置点源 = 结构中心（{@code facing_origin} 填结构 id，如 {@code "minecraft:village"}）。 */
     public static PositionData relativeToStructure(float dx, float dy, float dz, String structureId) {
         return new PositionData(true, dx, dy, dz, ORIGIN_STRUCTURE, 0f, 0f, 0f, structureId, null, 0, null,
                 false, 0f, 0f, 0f, "world", null);
     }
 
-    /**
-     * 相对模式构造器（基准 = 玩家附近搜索到的方块）
-     *
-     * @param dx       相对于基准的 X 偏移
-     * @param dy       相对于基准的 Y 偏移
-     * @param dz       相对于基准的 Z 偏移
-     * @param blockId  基准方块 id（如 {@code "minecraft:obsidian"}）
-     * @param radius   搜索半径（格）
-     */
+    /** 世界轴偏移（dx/dy/dz），位置点源 = 玩家附近搜索到的方块中心（{@code facing_origin} 填 {@code block:id[:radius]}）。 */
     public static PositionData relativeToBlock(float dx, float dy, float dz, String blockId, int radius) {
         return new PositionData(true, dx, dy, dz, ORIGIN_BLOCK, 0f, 0f, 0f, null, blockId, radius, null,
                 false, 0f, 0f, 0f, "world", null);
     }
 
+    /** 世界轴偏移（dx/dy/dz），位置点源 = 实体选择器（每帧取实体脚底，动态）。 */
+    public static PositionData relativeToEntity(float dx, float dy, float dz, String selector) {
+        return new PositionData(true, dx, dy, dz, ORIGIN_SELECTOR, 0f, 0f, 0f, null, null, 0,
+                selector != null ? selector : "@p",
+                false, 0f, 0f, 0f, "world", null);
+    }
+
+    /** 基准坐标系偏移（fwd/up/right），位置点源 = 玩家激活位置（脚本激活时玩家所在位置，整场不变）。 */
+    public static PositionData facingToPlayer(float fwd, float up, float right, String upAxis) {
+        return new PositionData(true, 0f, 0f, 0f, ORIGIN_PLAYER, 0f, 0f, 0f, null, null, 0, null,
+                true, fwd, up, right, upAxis != null ? upAxis : "view", null);
+    }
+
     /**
-     * 基准空间坐标系偏移，基准点 = 指定实体选择器（{@code facing_origin}）。
-     * <p>
-     * 让基准点不再写死为"玩家 / follow 实体"：例如以 A 为基准点、A→B 为基准朝向来摆机位。
+     * 基准坐标系偏移（fwd/up/right），位置点源 = 指定实体选择器（{@code facing_origin}）。
+     * 例如以 A 为基准点、A→B 为基准朝向来摆机位（前轴目标见 {@link #withFacingTarget}）。
      *
-     * @param originSelector 基准点实体选择器（如 {@code "@e[type=…]"}}；空则回落到 follow 实体 / 玩家
-     * @param fwd            沿基准朝向 前后（正=前 负=后）
-     * @param up             沿基准朝向 上下（正=上 负=下）
-     * @param right          沿基准朝向 左右（正=右 负=左）
-     * @param upAxis         y 轴开关："view"=up 随俯仰全三维（默认）；"world"=up 保持世界竖直
+     * @param originSelector 位置点源实体选择器（如 {@code "@e[type=…]"}）；空 = {@code "@p"}
+     * @param fwd            沿前轴 前后（正=前 负=后）
+     * @param up             沿上轴 上下（正=上 负=下）
+     * @param right          沿右轴 左右（正=右 负=左）
+     * @param upAxis         垂直面基准："view"=上轴随前轴俯仰（默认）；"world"=上轴保持世界竖直
      */
     public static PositionData facingToEntity(String originSelector, float fwd, float up, float right, String upAxis) {
         return new PositionData(true, 0f, 0f, 0f, ORIGIN_SELECTOR, 0f, 0f, 0f, null, null, 0,
@@ -179,46 +159,35 @@ public class PositionData {
                 true, fwd, up, right, upAxis != null ? upAxis : "view", null);
     }
 
-    /**
-     * 基准空间坐标系偏移，基准点 = 固定世界坐标（{@code facing_origin: "coordinate"}）。
-     *
-     * @param ox 基准点世界 X
-     * @param oy 基准点世界 Y
-     * @param oz 基准点世界 Z
-     */
+    /** 基准坐标系偏移（fwd/up/right），位置点源 = 固定坐标（{@code facing_origin: "coordinate"}）。 */
     public static PositionData facingToCoordinate(float fwd, float up, float right, String upAxis,
                                                  float ox, float oy, float oz) {
         return new PositionData(true, 0f, 0f, 0f, ORIGIN_COORDINATE, ox, oy, oz, null, null, 0, null,
                 true, fwd, up, right, upAxis != null ? upAxis : "view", null);
     }
 
-    /**
-     * 基准空间坐标系偏移，基准点 = 结构中心（{@code facing_origin} 填结构 id）。
-     */
+    /** 基准坐标系偏移（fwd/up/right），位置点源 = 结构中心（{@code facing_origin} 填结构 id）。 */
     public static PositionData facingToStructure(float fwd, float up, float right, String upAxis, String structureId) {
         return new PositionData(true, 0f, 0f, 0f, ORIGIN_STRUCTURE, 0f, 0f, 0f, structureId, null, 0, null,
                 true, fwd, up, right, upAxis != null ? upAxis : "view", null);
     }
 
-    /**
-     * 基准空间坐标系偏移，基准点 = 玩家附近搜索到的匹配方块（{@code facing_origin} 填 {@code block:id[:radius]}）。
-     */
+    /** 基准坐标系偏移（fwd/up/right），位置点源 = 玩家附近搜索到的方块中心（{@code facing_origin} 填 {@code block:id[:radius]}）。 */
     public static PositionData facingToBlock(float fwd, float up, float right, String upAxis, String blockId, int radius) {
         return new PositionData(true, 0f, 0f, 0f, ORIGIN_BLOCK, 0f, 0f, 0f, null, blockId, radius, null,
                 true, fwd, up, right, upAxis != null ? upAxis : "view", null);
     }
 
     /**
-     * 指定基准朝向目标：基准朝向 = 基准点 → 该目标的方向（两点连线）。
-     * <p>
+     * 附上基准坐标系前轴的目标（关键帧字段 {@code facing_target}）：前轴 = 位置点源 → 该目标（两点连线方向）。
      * 用于"以 A 为基准点、A→B 为基准朝向"摆机位，避免基准随 A 自身转头抖动。
      *
-     * @param facingTarget 朝向目标实体选择器；null/空 = 用基准点自身朝向
-     * @return 同类型的新 PositionData
+     * @param facingTarget 前轴目标点源形态字符串；null / 空 = 位置点源自身朝向
+     * @return 附上目标的新 PositionData
      */
     public PositionData withFacingTarget(String facingTarget) {
         return new PositionData(relative, x, y, z, originType, ox, oy, oz, originStructure, originBlockId,
-                originBlockRadius, originSelector, facingRelative, fwd, up, right, upAxis, facingTarget);
+                originBlockRadius, originSelector, baseSpace, fwd, up, right, upAxis, facingTarget);
     }
 
     /**
@@ -236,7 +205,7 @@ public class PositionData {
 
     private PositionData(boolean relative, float x, float y, float z, int originType, float ox, float oy, float oz,
                          String originStructure, String originBlockId, int originBlockRadius, String originSelector,
-                         boolean facingRelative, float fwd, float up, float right, String upAxis, String facingTarget) {
+                         boolean baseSpace, float fwd, float up, float right, String upAxis, String facingTarget) {
         this.relative = relative;
         this.x = x;
         this.y = y;
@@ -250,7 +219,7 @@ public class PositionData {
         this.originBlockRadius = originBlockRadius;
         this.originSelector = originSelector;
         this.facingTarget = facingTarget;
-        this.facingRelative = facingRelative;
+        this.baseSpace = baseSpace;
         this.fwd = fwd;
         this.up = up;
         this.right = right;
@@ -302,37 +271,37 @@ public class PositionData {
         return originBlockRadius > 0 ? originBlockRadius : DEFAULT_BLOCK_RADIUS;
     }
 
-    /** 是否为基准空间坐标系偏移（fwd/up/right 相对基准朝向） */
-    public boolean isFacingRelative() {
-        return facingRelative;
+    /** 偏移表达空间是否为基准坐标系（true = fwd/up/right 相对基准坐标系；false = 世界轴 dx/dy/dz） */
+    public boolean isBaseSpace() {
+        return baseSpace;
     }
 
-    /** 基准点是否为显式指定的实体选择器（facing_origin） */
+    /** 位置点源是否为实体选择器形态（facing_origin） */
     public boolean isOriginSelector() {
         return originType == ORIGIN_SELECTOR;
     }
 
-    /** 基准点实体选择器（facing_origin），非 ORIGIN_SELECTOR 时返回 null */
+    /** 位置点源实体选择器（facing_origin），非 ORIGIN_SELECTOR 时返回 null */
     public String getOriginSelector() {
         return originSelector;
     }
 
-    /** 基准朝向目标选择器（facing_target）：基准朝向 = 基准点 → 该目标；空 = 基准点自身朝向 */
+    /** 基准坐标系前轴目标（facing_target 点源）：前轴 = 位置点源 → 该目标；空 = 位置点源自身朝向 */
     public String getFacingTarget() {
         return facingTarget;
     }
 
-    /** 沿基准朝向 前后 偏移（正=前 负=后） */
+    /** 沿前轴 前后 偏移（正=前 负=后） */
     public float getFwd() {
         return fwd;
     }
 
-    /** 沿基准朝向 上下 偏移（正=上 负=下） */
+    /** 沿上轴 上下 偏移（正=上 负=下） */
     public float getUp() {
         return up;
     }
 
-    /** 沿基准朝向 左右 偏移（正=右 负=左） */
+    /** 沿右轴 左右 偏移（正=右 负=左） */
     public float getRight() {
         return right;
     }
@@ -386,11 +355,7 @@ public class PositionData {
     public float getDz() { return z; }
 
     /**
-     * 转换为 Minecraft Vec3
-     * <p>
-     * 注意：相对模式下返回的是偏移量，需要由播放器加上玩家位置才是世界坐标。
-     *
-     * @return Vec3 表示
+     * 世界轴分量：绝对模式 = 世界坐标，相对模式 = 相对位置点源的世界轴偏移（dx/dy/dz）。
      */
     public Vec3 toVec3() {
         return new Vec3(x, y, z);

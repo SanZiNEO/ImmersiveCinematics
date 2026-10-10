@@ -19,7 +19,7 @@
   - ✅ `TextureLoader` 从资源目录加载 PNG/GIF：静态图注册为 `DynamicTexture`，GIF 拆帧后由 `GifAnimation` 轮播；以 `immersive_cinematics:<文件名>` 注册，带缓存与清空缓存接口（`TextureLoader`）
   - ✅ `GifAnimation` 持有拆帧后的全部帧与延迟，按全局时间推进帧索引，只显存占一帧（`GifAnimation`）
 - **定位工具**
-  - ✅ `StructureLocator`：在已加载区域内按 chunk 步进扫描结构引用，返回结构 bounding box 中心（look_at 结构 / relative_origin 结构共用，不采用 /locate 网格环序）（`StructureLocator`）
+  - ✅ `StructureLocator`：在已加载区域内按 chunk 步进扫描结构引用，返回结构 bounding box 中心（look_at 结构 / 位置点源 facing_origin 结构共用，不采用 /locate 网格环序）（`StructureLocator`）
   - ✅ `BlockLocator`：玩家附近搜索最近匹配方块（xz 半径 + y ± 12），返回方块坐标（`BlockLocator`）
 - **日志与命令源**
   - ✅ `ErrorLog` 将脚本解析/校验/运行时错误写入 `logs/immersive_cinematics/script-errors.log`，控制台 ERROR 可见（`ErrorLog`）

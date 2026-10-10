@@ -21,8 +21,8 @@ import java.util.Map;
  * 遍历脚本关键帧，把"客户端无法解析的来源"就地替换为坐标：
  * <ul>
  *   <li>{@code look_at_target_structure} → {@code look_at_target_x/y/z}</li>
- *   <li>{@code position.relative_origin}（结构 id）→ {@code "coordinate"} + {@code relative_origin_x/y/z}</li>
- *   <li>{@code position.relative_origin}（{@code block:id[:radius]} 或 {@code {type:"block",...}}）→ 同上</li>
+ *   <li>{@code facing_origin}（结构 id）→ {@code "coordinate"} + {@code facing_origin_x/y/z}</li>
+ *   <li>{@code facing_origin}（{@code block:id[:radius]}）→ 同上</li>
  * </ul>
  * 定位失败保留原字段（客户端该端无目标，片段按空处理）。脚本文件本身不被修改，只替换推送内容。
  * <p>
@@ -67,19 +67,16 @@ public final class ScriptStructureResolver {
                                     "look_at_target_x", "look_at_target_y", "look_at_target_z",
                                     posCache, level, origin);
                         }
-                        if (kf.has("position") && kf.get("position").isJsonObject()) {
-                            JsonObject pos = kf.getAsJsonObject("position");
-                            if (pos.has("relative_origin")) {
-                                JsonElement ro = pos.get("relative_origin");
-                                if (ro.isJsonObject() || (ro.isJsonPrimitive() && ro.getAsString().startsWith("block:"))) {
-                                    // 方块基准：服务端定位 → 替换为 coordinate + 方块中心坐标
-                                    changed |= replaceRelativeOriginBlock(pos, level, origin);
-                                } else if (ro.isJsonPrimitive()) {
-                                    // 结构 id / coordinate：走原结构替换路径
-                                    changed |= replaceStructureTarget(pos, "relative_origin",
-                                            "relative_origin_x", "relative_origin_y", "relative_origin_z",
-                                            posCache, level, origin);
-                                }
+                        if (kf.has("facing_origin")) {
+                            JsonElement ro = kf.get("facing_origin");
+                            if (ro.isJsonPrimitive() && ro.getAsString().startsWith("block:")) {
+                                // 方块位置点源：服务端定位 → 替换为 coordinate + 方块中心坐标
+                                changed |= replaceOriginBlock(kf, level, origin);
+                            } else if (ro.isJsonPrimitive()) {
+                                // 结构 id / coordinate：走原结构替换路径
+                                changed |= replaceStructureTarget(kf, "facing_origin",
+                                        "facing_origin_x", "facing_origin_y", "facing_origin_z",
+                                        posCache, level, origin);
                             }
                         }
                     }
@@ -118,34 +115,22 @@ public final class ScriptStructureResolver {
     }
 
     /**
-     * 服务端方块基准替换：relative_origin 的 block 写法（字符串 "block:id[:radius]" 或结构化对象
-     * {type:"block",block,radius}）→ 定位服务端最近匹配方块，替换为 "coordinate" + 方块中心坐标。
-     * 定位失败保留原字段（客户端该端无目标，片段按空处理）。
+     * 服务端方块位置点源替换：{@code facing_origin} 的 {@code block:id[:radius]} 写法 → 定位服务端最近匹配
+     * 方块，替换为 {@code "coordinate"} + 方块中心坐标。定位失败保留原字段（客户端该端无目标，片段按空处理）。
      */
-    private static boolean replaceRelativeOriginBlock(JsonObject pos, ServerLevel level, Vec3 origin) {
-        JsonElement ro = pos.get("relative_origin");
-        String blockId;
-        int radius;
-        if (ro.isJsonPrimitive()) {
-            String[] parsed = PositionData.parseBlockOriginString(ro.getAsString());
-            blockId = parsed[0];
-            radius = Integer.parseInt(parsed[1]);
-        } else {
-            JsonObject o = ro.getAsJsonObject();
-            String type = o.has("type") ? o.get("type").getAsString() : "";
-            if (!"block".equals(type)) return false;
-            blockId = o.get("block").getAsString();
-            radius = o.has("radius") ? o.get("radius").getAsInt() : PositionData.DEFAULT_BLOCK_RADIUS;
-        }
+    private static boolean replaceOriginBlock(JsonObject kf, ServerLevel level, Vec3 origin) {
+        String[] parsed = PositionData.parseBlockOriginString(kf.get("facing_origin").getAsString());
+        String blockId = parsed[0];
+        int radius = Integer.parseInt(parsed[1]);
         Vec3 p = locateBlock(level, origin, blockId, radius);
         if (p != null) {
-            pos.addProperty("relative_origin_x", (float) p.x);
-            pos.addProperty("relative_origin_y", (float) p.y);
-            pos.addProperty("relative_origin_z", (float) p.z);
-            pos.addProperty("relative_origin", "coordinate");
+            kf.addProperty("facing_origin_x", (float) p.x);
+            kf.addProperty("facing_origin_y", (float) p.y);
+            kf.addProperty("facing_origin_z", (float) p.z);
+            kf.addProperty("facing_origin", "coordinate");
             return true;
         }
-        LOGGER.debug("方块基准 '{}' 定位失败，脚本保留 block 字段（客户端该端无目标，片段按空处理）", blockId);
+        LOGGER.debug("方块位置点源 '{}' 定位失败，脚本保留 block 字段（客户端该端无目标，片段按空处理）", blockId);
         return false;
     }
 
