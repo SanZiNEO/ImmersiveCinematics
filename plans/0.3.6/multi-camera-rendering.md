@@ -427,3 +427,143 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 - **长期解（未做）**：每 lane 独立可见集合 / 剔除状态（各自的 `renderChunkStorage` + BFS + frustum）——
   那时各 lane 才允许有自己的遮挡行为，也才能拿回这部分性能
   （见 `quadrant-prototype-results.md` §3.5、`render-second-pass-cost.md` §5）。
+  **设计定稿见 §12.9（2026-10-10）。**
+
+---
+
+### 12.9 每 lane 独立可见集合设计定稿（2026-10-10）
+
+**范围**：B3-a（设计）。实现 = B3-b，性能实测 = B3-c，删 `CinematicOcclusion` = B3-d
+（`camera-core-split.md` §五 B3' 行；`implementation-progress.md` 批次 B 表 B3 行「拆 设计 → 实现 → 性能实测」）。
+**依据**：§12.8-B（现象 / 根因 / 现行缓解）、§12.1（组件现状）、`camera-core-split.md` §一（`CinematicOcclusion` 不动，B3' 落地后删）、
+`.planning/036-orch/mcculling.txt`（MC 1.20.1 剔除链全图）、`.planning/036-orch/iris-sodium.txt`（Iris/Sodium 第二遍）、`.planning/036-orch/repocameramap.txt`（本仓挂点）。
+
+**结论（一句话）**：把 `LevelRenderer` 上**单份共享**的「候选集 + 可见集合 + 剔除门闩」拆成**每 lane 一份**（lane 槽持有），
+在每条 lane pass 前换入 / 后换出；**编译产物（`CompiledChunk` / `visibilitySet`）、区块网格、渲染列表结构继续共享**。
+这样各 lane 才能各自跑遮挡剪枝——既消除 §12.8-B 的缺块根因，又拿回 `smartCull=false` 让出的性能。
+
+#### 12.9.1 状态拆分边界
+
+逐项：拆 = 每 lane 一份；不拆 = 继续共享（或每 pass scratch）。
+
+| 状态 | 原版位置 | 拆/不拆 | 理由（一行） |
+|---|---|---|---|
+| 候选集 `renderChunkStorage`（BFS 产物：`RenderInfoMap` + `LinkedHashSet<RenderChunkInfo>`） | `LevelRenderer.java:195`、`:2791-2799` | **拆** | 遮挡剪枝只对**播种相机**成立，逐 lane 播种不同（§12.8-B 根因）。 |
+| 可见集合 `renderChunksInFrustum`（视锥过滤产物） | `LevelRenderer.java:196` | **拆** | 每条 lane 的视锥不同（§12.8-B 现象）。 |
+| 剔除视锥 `cullingFrustum` | `LevelRenderer.java:254` | **不拆**（每 pass scratch） | 每 pass 由 `prepareCullFrustum` 重建（`:984-991`）、pass 内同步消费，无跨 pass 生命周期。 |
+| 全量 BFS 门闩 `needsFullRenderChunkUpdate` | `LevelRenderer.java:263` | **拆** | 共享门闩只让本帧**首个** pass 重建，其余 pass 沿用 → 「随哪个 pass 当播种相机间歇出现」（§12.8-B）。 |
+| 视锥门闩 `needsFrustumUpdate` | `LevelRenderer.java:265` | **拆** | 同上；现状靠 lane pass 强制 `applyFrustum` 绕开（§12.8-B②）。 |
+| 相机移动判定 `prevCamX/Y/Z` + 朝向分桶 `prevCamRotX/Y` | `LevelRenderer.java:238-242` | **拆** | 逐 lane 相机独立移动，共享会互相压制 / 误触发重建。 |
+| `smartCull` 判定（`Minecraft.smartCull` 读点 + 旁观者实心判定） | `LevelRenderer.java:795-798` | **拆**（按 pass 判定） | 「相机在实心方块内」逐 lane 不同；现状整帧统一（§12.8-B①）。 |
+| 视图中心 / `ViewArea` 网格中心 | `LevelRenderer.java:767-775` | **不拆** | 网格单份，逐 pass 换中心触发 `ViewArea.repositionCamera` → `RenderChunk.setOrigin→reset()→dirty` 全量置脏重建（`mcculling.txt` §5；`LevelRendererMixin` javadoc）。中心口径 = **保持现状**（§12.9.7 定①），B3 不改。 |
+| translucent 排序状态 `xTransparentOld/y/z` | `LevelRenderer.java:260-262`（写于 `renderChunkLayer` 排序段 `:1283-1285`） | **拆**（或每 pass 复位） | 共享字段跨 lane 残留 → 见 §12.9.6 深度污染行。 |
+| `CompiledChunk` / `visibilitySet`（VisGraph 编译产物） | `ChunkRenderDispatcher.java:697`、`VisibilitySet.java:14-15` | **不拆** | 相机无关的几何属性；BFS 剪枝只是读它（`facesCanSeeEachother`，`ChunkRenderDispatcher.java:713-715`），复制只增内存。 |
+| 区块网格（`ViewArea` / `ChunkRenderDispatcher` / `RenderChunk` 网格与顶点缓冲） | — | **不拆** | 槽位↔网格顶点缓冲全局绑定，逐 lane 复制 = 显存与网格编译 ×N；Iris 的 Sodium 路径同样只拆渲染列表、共享 section graph（`iris-sodium.txt` §2）。 |
+| 渲染列表结构（`ObjectArrayList<RenderChunkInfo>` 容器 + `RenderChunkInfo` 类型） | `LevelRenderer.java:196`、`:2802-2849` | **不拆**（结构复用）/ 内容归 lane | 结构每 lane 一实例即可，**内容**是各 lane 自己的（行 2）。 |
+| `lastCameraX/Y/Z` / `lastCameraChunkX/Y/Z`（网格中心跟踪） / `lastViewDistance` | `LevelRenderer.java:232-237` / `:251` | **不拆** | 网格单份、视距全局；网格中心不逐 pass 切换。 |
+| `renderedEntities` / `culledEntities` | `LevelRenderer.java:252-253` | **不拆** | `renderLevel` 每 pass 开头清零（`:1046-1047`），无跨 pass 残留。 |
+| `capturedFrustum` / `frustumPos` / `frustumPoints` | `LevelRenderer.java:255-259` | **不拆** | 全景图捕获路径，lane 不走它。 |
+
+#### 12.9.2 实现载体选型
+
+候选：
+
+| 候选 | 做法 | 判定 |
+|---|---|---|
+| a) mixin 保存/恢复 + 每 pass 强制重刷（现状手法增强版） | 每 lane pass 前把共享状态存下、强制全量重建、pass 后还原 | **否**——「每 pass 强制全量重建」= 每帧 N 次全量 BFS；`terrain_setup`（含 BFS）本就是 CPU 大头（`render-second-pass-cost.md` §1.2），且保存/还原集合内容需 O(候选) 拷贝。 |
+| b) 每 lane 一份可见性状态副本（字段级快照交换） | 每 lane 槽持有 §12.9.1 的「拆」字段；pass 前换入 / 后换出 | **定选**（见下）。 |
+| c) Iris/Sodium 式 per-pass renderLists 交换 | 交换「渲染列表」，共享几何 / section graph | **思想采纳、形态不适用**——c 交换的是 Sodium 自己的 `SortedRenderLists`（`iris-sodium.txt` §2：`MixinRenderSectionManager.java:20-21` 字段、`:24-31` 写入重定向、`:33-36` `update` 取消、`:38-45` 读取侧、`:47-53` `resetRenderLists` 重定向）；vanilla 无该抽象——vanilla 的「列表」就是 `renderChunksInFrustum` 字段本身（`LevelRenderer.java:196`）。Iris 的 **vanilla** 路径恰恰**不拆**（`CullingDataCache.swap()` 空实现，`iris-sodium.txt` §1.2：`mixin/shadows/MixinLevelRenderer.java:12-28`；`ShadowRenderer.java:387-389` / `:564-566`）——那只在原版**单** pass 下可行，多 lane 必须拆（§12.8-B 根因）。 |
+
+**定选 b**，取舍依据：
+- **正确性**：每 lane 状态在其 pass 内独占 → 帧内无交叉改写 → 无闪帧；每条 lane 自己播种、自己剪枝、自己过滤 → 画面完整。
+- **性能**：拿回遮挡剪枝（B3 的目的）；BFS 只在该 lane 门闩触发时跑（非每帧），不重复网格编译（§12.9.5）。
+- **侵入面**：新增 1 个 LevelRenderer 侧 mixin + `LaneRenderer` 调用点，不改 vanilla 逻辑。
+- **与 Sodium/Embeddium 共存**：新 mixin 与 `LevelRendererMixin` 同策略——插件检测到 sodium 系即跳过（`ImmersiveCinematicsMixinPlugin.java:47-50`）；Sodium 下 lane 渲染本就被禁用（`LaneRenderer.isUnavailable()`，§12.5），无 per-lane 剔除需求。
+
+**机制（b 的落地形状，供 B3-b 引用）**：
+
+1. 新增 LevelRenderer 侧 mixin（建议名 `LaneCullStateMixin`，或并入 `LevelRendererAccessor`）——持**每 lane 槽**的「拆」状态（§12.9.1），槽惰性创建、停播归还池复用（§12.9.5）。
+2. 暴露 `ic$pushLaneCullState(int slot)` / `ic$popLaneCullState()`：push 把当前 vanilla 槽存起、换入 lane 槽；pop 反向。异常安全（栈式，配对）。
+3. `LaneRenderer.renderLane` 在 `prepareCullFrustum`（`LaneRenderer.java:412`）**之前** push、在 lane pass 结束（`renderLevel` 返回 + `doEntityOutline`，`:425-430`）**之后** pop；`LaneRenderer.render` 的 `finally`（`:334-340`）兜底 pop 全部（异常路径）。
+4. **per-pass `smartCull`**：`LevelRendererMixin` 的 `setupRender` HEAD / RETURN 包夹（`:103-119`）判定由「整帧标志」改为「**本 pass 的 camera 是否在实心方块内**」（读 `setupRender` 的 `camera` 参数，沿用原版旁观者口径 `LevelRenderer.java:795-798` 的语义）。
+5. 槽首次进入时该槽 `needsFullRenderChunkUpdate = true`（触发一次该 lane 的 BFS）。
+
+**必须满足的正确性约束（异步 BFS 归槽）**：vanilla 全量 BFS 提交到 `Util.backgroundExecutor()`（`LevelRenderer.java:804`），完成后写 `renderChunkStorage` 字段。
+若字段在 lane pass 结束后被换出、而后台任务此时才写入，结果会落进「当时安装的槽」= **别的 lane**。
+→ 每 lane 的全量 BFS **必须写入发起它的那个槽**；两候选机制见 §12.9.7 待拍板②。
+
+#### 12.9.3 与 `CinematicOcclusion` 的替代关系
+
+- B3 落地后 `smartCull` 交回**逐 pass（逐 lane）自主判定**：lane pass 的 camera 在实心方块内 → 本 pass `smartCull=false`；否则 `true`（启用遮挡剪枝）。主 pass = 玩家相机 → 原版判定，不受影响。
+- **`CinematicOcclusion` 删除时点 = B3-d**（`camera-core-split.md` §一「B3' 落地后删」）：删 `camera/CinematicOcclusion.java` + `GameRendererMixin` 的 `CinematicOcclusion.beginFrame(mc)` 调用（`repocameramap.txt` §3：`GameRendererMixin:56`）+ `LevelRendererMixin` 的整帧包夹分支。
+- **实现期两制并存规则 = 互斥（per-lane 优先，整帧缓解短路）**：per-lane 路径生效（特性开关 on + 有活跃 lane + 非 Sodium）时，`LevelRendererMixin` 用 per-pass 判定，且 `CinematicOcclusion.beginFrame` 保持 `occlusionOffThisFrame=false`（短路，避免两制同时改写 `smartCull`）；仅当 per-lane 不可用（开关关闭）时回落到整帧缓解。B3-c 实测通过后 B3-d 删除回落分支与 `CinematicOcclusion`。
+
+#### 12.9.4 停播恢复方案
+
+最后一个 lane 停播（或异常退出）后，可见集合 / `smartCull` / 视图中心回到原版口径：
+
+1. **可见集合**：lane pass 的换入 / 换出成对（`push`/`pop` + `finally` 兜底），停播后 vanilla 槽已在位；主 pass 用 vanilla 集合 —— 无需额外动作。
+2. **`smartCull`**：per-pass 设 / 还原（`LevelRendererMixin` 包夹），停播帧无 lane pass → 无改写，主 pass 走原版判定。
+3. **视图中心**：`LevelRendererMixin.cinematicViewCenter()`（`:72-75`）无活跃 lane 时返回 `null` → 原版玩家坐标；网格由 `ViewArea.repositionCamera` 按玩家区块坐标复位（`LevelRenderer.java:767-775`）。
+4. **`needsUpdate` 强刷**：活跃 ↔ 非活跃状态切换时强制一次 `LevelRenderer.needsUpdate()`（沿用 `CinematicOcclusion.beginFrame` 现有做法，`CinematicOcclusion.java:60-62`；B3-d 迁到 lane 状态切换钩子）——否则集合 / 网格要等相机再移动 8 格才按新口径重建。
+
+- **首帧跳变规避**：停播帧由第 4 条强制重建，主画面在该帧即按玩家相机重建集合与网格中心，不残留 lane 口径的可见集合。网格中心从 topLane 移回玩家会触发一次 `ViewArea.repositionCamera`（一次性全量置脏，`mcculling.txt` §5）——属预期的一次性成本，不是持续抖动。
+- **异常路径同口径**：`LaneRenderer.render` 的 `finally`（`:334-340`）保证所有未 pop 的 lane 槽被弹出；实例强制退出 / 脚本错误 → lane 表清空（`ScriptLaneDriver.clear` / `setLane(null)`，`repocameramap.txt` §4）→ 走「最后一个 lane 停播」同一条路径（含一次 `needsUpdate()`）。
+
+#### 12.9.5 内存与编译量预算
+
+**per-lane 内存上界公式**（只算 §12.9.1「拆」出来的部分）：
+
+```text
+单 lane ≈ N_slot × 4 B                    // renderInfoMap 数组槽（按 RenderChunk.index 直接索引，LevelRenderer.java:2855-2873）
+        + C × (≈32 B + ≈36 B)             // RenderChunkInfo 对象 + LinkedHashSet 节点
+        + 10 000 × 4 B                    // renderChunksInFrustum 容量（LevelRenderer.java:196）
+N_slot = (2R+1)² × S_v   （R = 视距（区块）；S_v = 视高内 section 数）
+C ≤ N_slot               （候选 section 数；遮挡剪枝后远小于上界）
+```
+
+**样例（R=16、S_v=24，即视距 16 区块 / 世界高 384）** [估算]：
+
+- `N_slot` = 33² × 24 = 26 136 → 数组槽 ≈ 102 KB；
+- `C` 上界 = 26 136 → 26 136 × 68 B ≈ 1.70 MB；列表 ≈ 39 KB；
+- **单 lane 上界 ≈ 1.84 MB；8 lane ≈ 14.7 MB**；
+- 实际（`smartCull=true` 剪枝后；原版把列表容量定 10 000，佐证常见规模 ≈ 10⁴，`LevelRenderer.java:196`）`C ≈ 1×10⁴` → 单 lane ≈ 0.78 MB，**8 lane ≈ 6.3 MB**。
+
+**区块编译（BFS / VisGraph）是否重复**：
+
+| 项 | 是否逐 lane 重复 | 依据 |
+|---|---|---|
+| `VisGraph` / `CompiledChunk.visibilitySet` | **否**（共享编译产物） | `ChunkRenderDispatcher.java:589` / `:642` / `:562`；相机无关 |
+| 区块网格编译（`ChunkRenderDispatcher` 重建） | **否** | `dirty` 标志在共享网格上，一块只编译一次（`mcculling.txt` §1：`compileChunks` 只收 dirty 区块） |
+| BFS 遍历（`updateRenderChunks`） | **是**（每 lane 一次），但仅在各 lane 门闩触发时（相机移动 >8 格 / 首帧 / `needsUpdate()`），非每帧；规模 ≤ vanilla 单次 | `LevelRenderer.java:800-827`（全量 / 局部更新门闩） |
+| `applyFrustum`（O(候选) AABB 测试） | 是，但现状已每 pass 一次 | `LevelRenderer.java:839-850`；`LaneRenderer.java:419-422` |
+
+**lane 数量口径**：不设硬上限（§6「不设硬上限，只给推荐」）；**按需分配 + 池化复用**——lane 首次活跃时惰性建槽，停播归还池、下次复用（清空内容），内存 ∝ **并发 lane 峰值**而非历史总数；视距变化 / 换世界（`allChanged`）时整池作废重建。建议 ≤8 并发（内存 ≈ 6–15 MB，见上）。
+
+#### 12.9.6 风险清单
+
+| 风险 | 成因 | 规避动作（一行） |
+|---|---|---|
+| 闪帧（画面在「塌缩 / 完整」间来回） | 共享状态在一帧内被多个值改写（§12.8-B；`quadrant-prototype-results.md` §3.5） | 每 lane 状态在其 pass 内独占：`push`/`pop` 严格配对 + `finally` 兜底，帧内不交叉 |
+| 缺块（lane 画面缺 16 格区块） | 可见集合 / 门闩沿用上一 pass（§12.8-B） | 每 lane 独立门闩（§12.9.1 拆项 4/5/6）+ 每 pass 按本 lane 视锥强制 `applyFrustum`（保留现状手段 §12.8-B②） |
+| 异步 BFS 写错槽 | 后台 BFS 完成时字段已被换出，写入落到当前安装槽 | 每 lane BFS 归槽（§12.9.2 约束；§12.9.7 待拍板②） |
+| 深度污染 / translucent 排序错乱 | `xTransparentOld/y/z` 跨 lane 残留（`LevelRenderer.java:260-262`） | 该三字段纳入 lane 槽（或每 pass 复位） |
+| 与 Sodium / Embeddium 共存 | 插件对 sodium 系直接跳过 `LevelRendererMixin`（`ImmersiveCinematicsMixinPlugin.java:47-50`）；Sodium `@Overwrite setupTerrain`（`iris-sodium.txt` §3.1）使 vanilla 剔除字段成死路径 | 新 cull mixin 同样加入插件跳过名单；Sodium 下 lane 渲染本就被禁用（`LaneRenderer.isUnavailable()`，§12.5）；不做 Iris 级适配（§7.1） |
+| 停播恢复失败（残留 lane 集合 / 中心未复位） | 槽未弹净 / 未强刷 | 停播（含异常）时 `finally` 弹净 + 一次 `needsUpdate()` + 中心回退玩家（§12.9.4）；日志可确认 |
+| 内存随 lane 数增长 | 每 lane 一份候选集 | 池化复用 + 停播归还（§12.9.5）；内存 ∝ 并发峰值 |
+
+#### 12.9.7 定①（视图中心）与留位②（BFS 归槽）
+
+**① 视图中心口径——定：保持现状，B3 不改。** 中心 = 本帧最上层 lane 的相机位置；无 lane = 玩家坐标（§12.1 现行口径）。
+
+- 依据：`camera-composition.md`「画面 = 合成层输出」——**lane 是覆盖层不是替换层**：原版主相机照常走玩家视角，lane 合成后盖在上面（单条全屏 opacity=1 的 lane 是主画面特例）；被覆盖区域以 lane 画面为准（每 lane 一张完整画面，由 §12.9 的 per-lane 可见集合保证），未覆盖区域露原版玩家视角（`camera-composition.md` §5「dest 之外谁垫底」）。合成模型下不存在「主画面与 lane 争网格中心」的取舍。
+- 「单份网格不能逐 pass 换中心」是既有实现限制（`LevelRendererMixin` javadoc），**不属于 B3 的决策点**，本设计不改；若未来要支持「多机位远离玩家」的网格覆盖，另立任务（如多网格 / 预加载联动），不混入 B3。
+
+**② lane 全量 BFS 的归槽机制（§12.9.2 的正确性约束）——留位，B3-b 收敛：**
+
+| 候选 | 含义 | 影响面 |
+|---|---|---|
+| (i) 保异步 | 把全量 BFS 的写入目标重定向到「发起该 BFS 的 lane 槽」（拦截 vanilla 提交 / 写入点，`LevelRenderer.java:804`） | 侵入面较大；保 vanilla 时序（不卡渲染线程） |
+| (ii) 改同步 | lane 的全量 BFS 走同步路径（在字段已装好时执行），天然无错槽 | 侵入面小；渲染线程可能出现 BFS 抖动（相机移动 >8 格时） |
+
+> ② 由 B3-b 在读 vanilla `LevelRenderer` 源码后收敛。
