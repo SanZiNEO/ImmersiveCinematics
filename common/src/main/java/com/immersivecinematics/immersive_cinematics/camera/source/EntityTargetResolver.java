@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
 
 /**
  * 目标实体解析与锁定：selector → 客户端实体，并按 {@code role + selector} 维护目标锁与切换平滑状态。
+ * 服务端结果按 {@link ClientEntitySelectorCache.Key}（调用点 + 锚点来源 + selector）分桶缓存，互不覆盖。
  *
  * 解析分两条路径：本地快路径（{@code @p} / {@code @s} / {@code @e} / {@code @e[type=…,name=…]} / {@code uuid:…}）
  * 同步求值；其余形态交服务端用原版解析，再按回传 UUID 映射到客户端实体——带选项的 {@code @p} / {@code @a} /
@@ -50,6 +51,9 @@ public final class EntityTargetResolver {
             "follow", "look_at", "look_at_target", "yaw_base",
             "yaw_base_from", "yaw_base_to", "facing_origin", "facing_target");
 
+    /** 锚点来源身份：本期唯一取值 = 相机位置（即调用方传入的 {@code origin}）；来源身份进键，逐帧坐标不进键。 */
+    private static final String ANCHOR_CAMERA = "camera";
+
     /** 目标锁状态：按 {@code role + selector} 维护。 */
     private final Map<String, TargetLock> targetLocks = new HashMap<>();
 
@@ -67,6 +71,8 @@ public final class EntityTargetResolver {
         Entity entity;
         long resolvedAt;
         long switchGeneration;
+        /** 客户端选择器缓存键（调用点 + 锚点来源 + selector）；锁建立时算一次，逐帧复用 */
+        ClientEntitySelectorCache.Key cacheKey;
         /** 搜索态：目标已丢失 / 尚未找到（由 resolveEntity 维护） */
         boolean searching;
         /** 搜索态：下一次允许重试（重发请求 / 重扫）的时间戳；与 resolvedAt（扫描节流）分离 */
@@ -123,7 +129,7 @@ public final class EntityTargetResolver {
 
         SelectorPolicy policy = selectorPolicy(kf, role);
         String key = targetKey(role, selector);
-        TargetLock lock = targetLocks.computeIfAbsent(key, k -> new TargetLock());
+        TargetLock lock = targetLocks.computeIfAbsent(key, k -> newLock(role, selector));
         long now = System.currentTimeMillis();
 
         // 解析间隔（= 扫描指标）：与切换决策完全独立
@@ -310,6 +316,7 @@ public final class EntityTargetResolver {
             d.entity = s.entity;
             d.resolvedAt = s.resolvedAt;
             d.switchGeneration = s.switchGeneration;
+            d.cacheKey = s.cacheKey;
             d.searching = s.searching;
             d.nextRetryAt = s.nextRetryAt;
             d.lastSwitchAt = s.lastSwitchAt;
@@ -335,7 +342,7 @@ public final class EntityTargetResolver {
     private Entity resolveEntityInternal(String selector, Vec3 origin, long refreshMs, boolean searching,
                                         TargetLock lock) {
         if (requiresServerSelector(selector)) {
-            return resolveServerSelector(selector, origin, refreshMs, searching, lock);
+            return resolveServerSelector(origin, refreshMs, searching, lock);
         }
         if (searching) {
             long now = System.currentTimeMillis();
@@ -459,24 +466,25 @@ public final class EntityTargetResolver {
 
     /**
      * 服务端路径：请求服务端用原版选择器求值，再把回传 UUID 映射回客户端实体。
+     * 读写缓存一律用锁固化的键（调用点 + 锚点来源 + selector，见 {@link ClientEntitySelectorCache.Key}），
+     * 同一 selector 的不同调用点 / 锚点来源各占一份条目。
      * 跟踪态按 {@code refreshMs} 刷新（pending 期间不重复发请求）；搜索态每帧读缓存，上一份结果已消费且
      * 仍无可用目标时按 {@link #MISS_RETRY_MS} 节流重发——不等 {@code refreshMs}。
      *
      * @return 可用实体；无缓存条目 / 回传 UUID 均不可用 = {@code null}（调用方按无目标处理）
      */
-    private Entity resolveServerSelector(String selector, Vec3 origin, long refreshMs, boolean searching,
-                                        TargetLock lock) {
+    private Entity resolveServerSelector(Vec3 origin, long refreshMs, boolean searching, TargetLock lock) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.getConnection() == null) {
             return null;
         }
 
         long now = System.currentTimeMillis();
-        ClientEntitySelectorCache.Entry entry = ClientEntitySelectorCache.get(selector);
+        ClientEntitySelectorCache.Entry entry = ClientEntitySelectorCache.get(lock.cacheKey);
         if (entry == null) {
             // 首次请求：本帧无结果
             lock.nextRetryAt = now + MISS_RETRY_MS;
-            ClientEntitySelectorCache.request(selector, origin.x, origin.y, origin.z);
+            ClientEntitySelectorCache.request(lock.cacheKey, origin.x, origin.y, origin.z);
             return null;
         }
 
@@ -499,7 +507,7 @@ public final class EntityTargetResolver {
                 && (searching ? now >= lock.nextRetryAt : now - entry.resolvedAt >= refreshMs);
         if (needRequest) {
             lock.nextRetryAt = now + MISS_RETRY_MS;
-            ClientEntitySelectorCache.request(selector, origin.x, origin.y, origin.z);
+            ClientEntitySelectorCache.request(lock.cacheKey, origin.x, origin.y, origin.z);
         }
         return null;
     }
@@ -553,6 +561,13 @@ public final class EntityTargetResolver {
     /** 锁的键：{@code role + NUL + selector}（同一 selector 在不同调用点各持一份锁）。 */
     private static String targetKey(String role, String selector) {
         return role + "\u0000" + selector;
+    }
+
+    /** 新建目标锁，并固化其选择器缓存键（调用点 + 锚点来源 + selector），使缓存访问不再逐帧拼键。 */
+    private static TargetLock newLock(String role, String selector) {
+        TargetLock lock = new TargetLock();
+        lock.cacheKey = new ClientEntitySelectorCache.Key(role, ANCHOR_CAMERA, selector);
+        return lock;
     }
 
     /** 诊断用：把长选择器压成短标签（长度 / 派系 / 排除项），避免刷屏。 */
