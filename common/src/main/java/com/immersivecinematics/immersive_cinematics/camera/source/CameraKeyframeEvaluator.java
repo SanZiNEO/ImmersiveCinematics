@@ -116,7 +116,7 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 片段目标可用性：look_at/follow 的实体、结构目标、position.relative_origin 结构/方块基准
+     * 片段目标可用性：look_at/follow 的实体、结构、方块目标、position.relative_origin 结构/方块基准
      * 任一不可解析 → 片段不可用，按空片段处理（不写相机，玩家视角）。
      * 点源（位置基准 / 注视点 / 连线端点 / 基准朝向目标）与求值路径走同一解析，判据不分叉。
      * 找不到就找不到——不引入任何替代值/回退逻辑。
@@ -125,8 +125,9 @@ public final class CameraKeyframeEvaluator {
         for (Keyframe kf : clip.getKeyframes()) {
             String lookAt = kf.getString("look_at", "none");
             if ("entity".equals(lookAt)) {
-                if (evalPointSource(PointSource.selector(kf.getString("look_at_selector", "@p"),
-                        PointSource.EntityPoint.CENTER), lastWorldPos, "look_at", kf) == null) return false;
+                if (evalPointSource(lookAtEntitySource(kf), lastWorldPos, "look_at", kf) == null) return false;
+            } else if ("block".equals(lookAt)) {
+                if (evalPointSource(lookAtBlockSource(kf), lastWorldPos, "look_at", kf) == null) return false;
             } else if ("coordinate".equals(lookAt)) {
                 String sid = kf.getString("look_at_target_structure", "");
                 if (!sid.isEmpty()
@@ -514,21 +515,58 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
+     * look_at 实体点源：选择器 + 部位百分比取点（{@code look_at_part}，缺省包围盒中心）。
+     * {@link #isClipUsable} 与 {@link #evalLookTarget} 共用同一构造（判据与求值同源）。
+     */
+    private static PointSource lookAtEntitySource(Keyframe kf) {
+        return PointSource.selector(kf.getString("look_at_selector", "@p"), lookAtPart(kf));
+    }
+
+    /**
+     * look_at 方块点源：{@code look_at_target_block} 的 {@code block:<方块 id>[:<半径>]} 字符串，
+     * 解析与求值走 {@link PointSource} 统一路径（取点 = 方块中心）。
+     */
+    private static PointSource lookAtBlockSource(Keyframe kf) {
+        return PointSource.parse(kf, "look_at_target_block", kf.getString("look_at_target_block", ""),
+                PointSource.EntityPoint.CENTER);
+    }
+
+    /**
+     * 部位百分比取点：{@code look_at_part} 的 {@code {x,y,z}} 三元组（每轴 0 ~ 100，缺省分量 50 = 中心；
+     * 越界钳制，见 {@link PointSource.EntityPoint}）。缺字段 / 非对象 = 包围盒中心。
+     */
+    private static PointSource.EntityPoint lookAtPart(Keyframe kf) {
+        Object part = kf.getObject("look_at_part");
+        if (!(part instanceof Map<?, ?> m)) return PointSource.EntityPoint.CENTER;
+        return new PointSource.EntityPoint(percentOrDefault(m.get("x")), percentOrDefault(m.get("y")),
+                percentOrDefault(m.get("z")));
+    }
+
+    /** 部位百分比分量：非数字 = 50（中心）。 */
+    private static double percentOrDefault(Object o) {
+        return o instanceof Number n ? n.doubleValue() : 50.0;
+    }
+
+    /**
      * 关键帧 look_at 目标点求值：
-     * entity     → 实体正中心（渲染帧插值位置 + 半高，动态）
+     * entity     → 实体包围盒内的取点（{@code look_at_part} 部位百分比，缺省包围盒中心）
+     * block      → 就近搜索的方块中心（{@code look_at_target_block}，点源 BLOCK 形态）
      * coordinate → 固定坐标点（与结构互斥：指定结构后只解析结构）
      * none       → 由该关键帧 yaw/pitch 决定的 100 格方向远点（看向它 = 保持该朝向）
-     * 返回 null 表示该端无注视目标（实体消失 / 结构定位失败），该段按 look_at=none 处理（关键帧角度）。
+     * 返回 null 表示该端无注视目标（实体消失 / 方块与结构定位失败），该段按 look_at=none 处理（关键帧角度）。
      */
     private Vec3 evalLookTarget(Keyframe kf, Clip clip, Vec3 pos) {
         String lookAt = kf.getString("look_at", "none");
         if ("entity".equals(lookAt)) {
             String selector = kf.getString("look_at_selector", "@p");
-            Vec3 raw = evalPointSource(PointSource.selector(selector, PointSource.EntityPoint.CENTER),
-                    pos, "look_at", kf);
+            Vec3 raw = evalPointSource(lookAtEntitySource(kf), pos, "look_at", kf);
             if (raw == null) return null;
             return entityResolver.smoothTargetPoint("look_at", selector, "point", raw,
                     entityResolver.selectorPolicy(kf, "look_at").switchSmooth(), kf);
+        }
+        if ("block".equals(lookAt)) {
+            // 定位失败 = 该端无注视目标（isClipUsable 已前置拦截按空处理，此处为防御）
+            return evalPointSource(lookAtBlockSource(kf), pos, "look_at", kf);
         }
         if ("coordinate".equals(lookAt)) {
             String structureId = kf.getString("look_at_target_structure", "");

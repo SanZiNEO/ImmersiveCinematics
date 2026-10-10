@@ -11,7 +11,7 @@ import net.minecraft.world.phys.Vec3;
  * {@link Kind#WORLD} 玩家激活位置 / {@link Kind#COORDINATE} 固定坐标 / {@link Kind#SELECTOR} 实体选择器 /
  * {@link Kind#BLOCK} 就近搜索的方块中心 / {@link Kind#STRUCTURE} 结构中心。
  *
- * 坐标空间与单位：世界空间方块坐标；方块与结构取中心，实体取 {@link EntityPoint}。
+ * 坐标空间与单位：世界空间方块坐标；方块与结构取中心，实体取 {@link EntityPoint}（包围盒内每轴百分比）。
  * 数值契约：来源不可解析（实体未找到 / 结构未定位 / 附近没有该方块）= 求值返回 {@code null}，调用方按空片段兜底；
  * 字段缺省或空串 = 无点源（{@link #parse} 返回 {@code null}），与不可解析同语义。
  *
@@ -26,8 +26,34 @@ public record PointSource(Kind kind, String selector, String structureId, String
     /** 点源形态：{@code WORLD} / {@code COORDINATE} / {@code SELECTOR} / {@code BLOCK} / {@code STRUCTURE}。 */
     public enum Kind { WORLD, COORDINATE, SELECTOR, BLOCK, STRUCTURE }
 
-    /** 实体形态的取点：{@code FOOT} = 脚底（位置基准 / 连线端点 / 锚点）；{@code CENTER} = 包围盒中心（注视点 / 基准朝向目标）。 */
-    public enum EntityPoint { FOOT, CENTER }
+    /**
+     * 实体形态的取点：实体包围盒内的一个点，按每轴百分比定位。
+     *
+     * 单位与坐标空间：每轴百分比（0 = 该轴最小侧、100 = 最大侧），坐标空间 = 实体包围盒局部
+     * （世界轴对齐，不随实体朝向旋转；横向 / 前后按包围盒宽、纵向按包围盒高，底面中心 = 实体位置）。
+     * 数值契约：越界值钳制到 0 ~ 100，取点恒在包围盒内（不伸到体外）；NaN 按 50 处理。
+     */
+    public record EntityPoint(double xPct, double yPct, double zPct) {
+
+        /** 脚底中心（50 / 0 / 50）：位置基准 / 连线端点 / 锚点。 */
+        public static final EntityPoint FOOT = new EntityPoint(50, 0, 50);
+
+        /** 包围盒中心（50 / 50 / 50）：注视点 / 基准朝向目标。 */
+        public static final EntityPoint CENTER = new EntityPoint(50, 50, 50);
+
+        public EntityPoint {
+            xPct = clampPercent(xPct);
+            yPct = clampPercent(yPct);
+            zPct = clampPercent(zPct);
+        }
+
+        /** 钳制到 0 ~ 100；NaN = 50（中心）。 */
+        private static double clampPercent(double v) {
+            if (Double.isNaN(v)) return 50.0;
+            if (v < 0.0) return 0.0;
+            return v > 100.0 ? 100.0 : v;
+        }
+    }
 
     /** 玩家激活位置（{@code WORLD}）：脚本激活时玩家所在位置，整场不变。 */
     public static PointSource world() {

@@ -280,10 +280,12 @@ immersive_cinematics/
 | `facing_origin_x/y/z` | float | 否 | `0` | `facing_origin` 取 `"coordinate"` 形态时的世界坐标（三个都要写） |
 | `facing_target` | string | 否 | `""` | `fwd`/`up`/`right` 的基准朝向目标，**一个点源**（写法见下方"点源"）：基准朝向 = 基准点 → 该目标的连线方向（实体取包围盒中心）。不写 = 基准点自身朝向。不可解析 = 该端无目标，片段按空处理 |
 | `facing_target_x/y/z` | float | 否 | `0` | `facing_target` 取 `"coordinate"` 形态时的世界坐标（三个都要写） |
-| `look_at` | string | 否 | `"none"` | `"none"`=用 yaw/pitch；`"coordinate"`=注视固定点（xyz 或结构中心）；`"entity"`=注视实体正中心（渲染帧插值位置+半高）。look_at 关键帧的目标点之间插值 → 切换/开关平滑过渡 |
+| `look_at` | string | 否 | `"none"` | `"none"`=用 yaw/pitch；`"coordinate"`=注视固定点（xyz 或结构中心）；`"entity"`=注视实体（包围盒内取点，部位由 `look_at_part` 定，缺省中心）；`"block"`=注视就近搜索到的方块中心（用 `look_at_target_block`）。look_at 关键帧的目标点之间插值 → 切换/开关平滑过渡 |
 | `look_at_selector` | string | 否 | `"@p"` | 注视目标选择器（`entity` 模式） |
+| `look_at_part` | object | 否 | `null` | `look_at=entity` 的**部位百分比**：`{x,y,z}` 每轴 `0`~`100`（`0`=该轴最小侧、`50`=包围盒中心、`100`=最大侧），缺省分量 = `50`（= 不写该字段的现行为）。取点 = 实体包围盒（宽 `getBbWidth`、高 `getBbHeight`，世界轴对齐）内按百分比定位，**越界值钳制在 `0`~`100`**（取点始终在包围盒内，不伸到体外）。只对 `look_at=entity` 有效：坐标 / 结构 / 方块来源没有部位，要微调直接改坐标——写在其它 `look_at` 模式下会被 validate 报错 |
 | `look_at_target_x/y/z` | float | 否 | `0/64/0` | 注视固定坐标（`coordinate` 模式）。**与 `look_at_target_structure` 互斥**（编辑器：填结构后坐标输入隐藏） |
 | `look_at_target_structure` | string | 否 | `""` | 注视结构中心（`coordinate` 模式）：填结构 id（如 `minecraft:village`）。播放时服务端自动定位**结构 bounding box 中心**（就近搜索，原版 /locate 同范围）并替换为坐标后推送；编辑器里为注册表下拉补全；多人服务器播放同样生效。**与 `look_at_target_x/y/z` 互斥**：指定结构后定位失败也不回退坐标，该端无注视目标（回退角度插值） |
+| `look_at_target_block` | string | 否 | `""` | 注视方块中心（`block` 模式）：**一个点源的方块形态**（写法与 `relative_origin` / `yaw_base_from` 同一套）`"block:<方块 id>[:<半径>]"`，取就近搜索到的**方块中心**（整数坐标 + 0.5，半径缺省 16 格）。不可解析（附近没有该方块 / 多人服务器无服务端世界）= 该端无注视目标（回退角度插值） |
 | `look_at_target` | object | 否 | `null` | `look_at=coordinate` 时的相对目标对象，优先级高于散字段绝对坐标。支持：`{x,y,z}` 绝对点、`{dx,dy,dz}` 相对触发点、`{relative_to:<selector>,dx,dy,dz}` 相对实体、`{relative_to:"coordinate",relative_x/y/z,dx,dy,dz}` 相对固定坐标 |
 | `selector_refresh` | float | 否 | `1.0` | 目标存活时的重新扫描间隔（秒）。**目标丢失**（死亡/移除/未加载）后不受此值限制：锁进入搜索态并保持最后画面，按固定节奏（0.2 秒）持续重找，找到即恢复。作用于本关键帧所有选择器调用点（缺省回落；调用点专属字段见下方"调用点级策略覆盖"） |
 | `selector_switch_while_alive` | bool | 否 | `true` | `true`=目标存活时也按 `selector_refresh` 扫描并切到新的最近目标；`false`=当前目标活着就不换。**目标丢失后不受此项限制**：进入搜索态持续重找，解析到任意符合规则的目标就立即恢复 |
@@ -362,9 +364,11 @@ immersive_cinematics/
 - 不可解析（实体未找到 / 结构未定位 / 附近没有该方块）= 该端无目标：片段按空处理（不写相机 → 玩家视角），不引入替代值。
 - 结构 / 方块定位需要服务端世界：单人 / 集成服务器直接定位；多人服务器上 `look_at_target_structure` 与 `relative_origin` 由服务端推送前替换为坐标，**其余字段的结构 / 方块形态在多人服不可解析**（该端无目标）。
 - 选择器写法先于结构 id 判定：以 `@` 开头或 `uuid:` 开头的字符串一律按实体选择器解析，不会被当作结构 id。
-- 字段落点：点源字段（`yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target`）与坐标形态的配套坐标
-  （`<字段>_x/_y/_z`）都写在**关键帧**上；`position` 对象只承载偏移量本身（世界轴 `dx/dy/dz`、绝对 `x/y/z`、
-  基准空间 `fwd`/`up`/`right`/`up_axis`，以及世界轴相对基准 `relative_origin`）。
+- `look_at=block` 的注视目标 `look_at_target_block` 用同一套**方块形态**（`block:<方块 id>[:<半径>]`），取点 = 方块中心。
+- 字段落点：点源字段（`yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target` /
+  `look_at_target_block`）与坐标形态的配套坐标（`<字段>_x/_y/_z`）都写在**关键帧**上；`position` 对象只承载
+  偏移量本身（世界轴 `dx/dy/dz`、绝对 `x/y/z`、基准空间 `fwd`/`up`/`right`/`up_axis`，以及世界轴相对基准
+  `relative_origin`）。
 
 ### Position（相对模式 `relative`）
 

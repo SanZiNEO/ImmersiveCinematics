@@ -90,12 +90,16 @@ public final class TrackSchemas {
         kfs.put("facing_target_z", new FieldDef("float", null));
         kfs.put("follow", new FieldDef("enum", "none", false, List.of("none", "entity")));
         kfs.put("follow_selector", new FieldDef("string", "@p"));
-        kfs.put("look_at", new FieldDef("enum", "none", false, List.of("none", "coordinate", "entity")));
+        kfs.put("look_at", new FieldDef("enum", "none", false, List.of("none", "coordinate", "entity", "block")));
         kfs.put("look_at_selector", new FieldDef("string", "@p"));
+        // 部位百分比：实体包围盒内按每轴百分比取点（0 ~ 100，缺省 50 = 中心）；只对 look_at=entity 有效
+        kfs.put("look_at_part", new FieldDef("map", null));
         kfs.put("look_at_target_x", new FieldDef("float", null));
         kfs.put("look_at_target_y", new FieldDef("float", null));
         kfs.put("look_at_target_z", new FieldDef("float", null));
         kfs.put("look_at_target_structure", new FieldDef("string", ""));
+        // 方块点源（block:<方块 id>[:<半径>]）：look_at=block 时的注视目标，取就近搜索到的方块中心
+        kfs.put("look_at_target_block", new FieldDef("string", ""));
         kfs.put("look_at_target", new FieldDef("map", null));
         // 选择器目标锁定策略：通用字段 = 该关键帧所有调用点的缺省回落（语义见 selector/SelectorPolicy）。
         // 调用点专属字段名 = <字段>_<调用点>（调用点名见 SelectorSchema.CALLPOINTS），

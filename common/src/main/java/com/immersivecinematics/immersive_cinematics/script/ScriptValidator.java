@@ -477,7 +477,7 @@ public final class ScriptValidator {
                             }
                             checkEnum(kf, kp, "position_mode", issues, "relative", "absolute");
                             checkEnum(kf, kp, "follow", issues, "none", "entity");
-                            checkEnum(kf, kp, "look_at", issues, "none", "coordinate", "entity");
+                            checkEnum(kf, kp, "look_at", issues, "none", "coordinate", "entity", "block");
                             String follow = kf.has("follow") ? kf.get("follow").getAsString() : "none";
                             String lookAt = kf.has("look_at") ? kf.get("look_at").getAsString() : "none";
                             if ("entity".equals(follow) && !kf.has("follow_selector")) {
@@ -493,6 +493,21 @@ public final class ScriptValidator {
                                     && !kf.has("look_at_target_structure")
                                     && (!kf.has("look_at_target_x") || !kf.has("look_at_target_y") || !kf.has("look_at_target_z"))) {
                                 issues.add(kp + ".look_at_target 缺失（look_at=coordinate 时指定 look_at_target_x/y/z 坐标，或 look_at_target_structure 结构名）");
+                            }
+                            if ("block".equals(lookAt)) {
+                                if (!kf.has("look_at_target_block")) {
+                                    issues.add(kp + ".look_at_target_block 缺失（look_at=block 时指定方块点源，"
+                                            + "写法 block:<方块 id>[:<半径>]）");
+                                } else {
+                                    checkBlockPointSource(kf, kp, "look_at_target_block", issues);
+                                }
+                            }
+                            // 部位百分比只属于实体来源：实体包围盒内的取点（坐标 / 结构 / 方块没有部位）
+                            if (kf.has("look_at_part") && !"entity".equals(lookAt)) {
+                                issues.add(kp + ".look_at_part 只对 look_at=entity 有效（部位 = 实体包围盒内按每轴百分比取点）："
+                                        + "当前 look_at=" + lookAt + "，坐标 / 结构 / 方块来源直接改坐标微调");
+                            } else if ("entity".equals(lookAt)) {
+                                checkLookAtPart(kf, kp, issues);
                             }
                             // 选择器策略字段（通用 + 调用点专属）：类型 / 范围校验
                             checkSelectorPolicy(kf, kp, issues);
@@ -937,6 +952,50 @@ public final class ScriptValidator {
             String key = field + "_" + axis;
             if (!kf.has(key) || !isNumber(kf.get(key))) {
                 issues.add(path + "." + key + " 缺失或不是数字（" + field + " = \"coordinate\" 时必须给出点源坐标）");
+            }
+        }
+    }
+
+    /**
+     * 校验方块点源字段（{@code look_at_target_block}）：取值须为 {@code block:<方块 id>[:<半径>]} 字符串，
+     * 形态判据与 {@code camera/source/PointSource} 同源（{@link PositionData#originKindOf}）。
+     */
+    private static void checkBlockPointSource(JsonObject kf, String path, String field, List<String> issues) {
+        JsonElement e = kf.get(field);
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
+            issues.add(path + "." + field + " 不是字符串（方块点源写法：block:<方块 id>[:<半径>]）");
+            return;
+        }
+        if (PositionData.originKindOf(e.getAsString()) != PositionData.ORIGIN_BLOCK) {
+            issues.add(path + "." + field + " 不是方块点源: " + e.getAsString()
+                    + "（写法 block:<方块 id>[:<半径>]，半径缺省 " + PositionData.DEFAULT_BLOCK_RADIUS + " 格）");
+        }
+    }
+
+    /**
+     * 校验部位百分比对象 {@code look_at_part}：须为对象 {@code {x,y,z}}，已给出的分量须为有限数字
+     * （每轴 0 ~ 100，缺省分量 50 = 包围盒中心）。越界不报错——运行时钳制在包围盒内
+     * （见 {@code camera/source/PointSource.EntityPoint}）。
+     */
+    private static void checkLookAtPart(JsonObject kf, String path, List<String> issues) {
+        if (!kf.has("look_at_part")) return;
+        String pp = path + ".look_at_part";
+        JsonElement e = kf.get("look_at_part");
+        if (!e.isJsonObject()) {
+            issues.add(pp + " 应为对象 {x,y,z}（实体包围盒内的部位百分比，每轴 0 ~ 100，缺省 50 = 中心）");
+            return;
+        }
+        JsonObject part = e.getAsJsonObject();
+        for (String axis : new String[]{"x", "y", "z"}) {
+            if (!part.has(axis)) continue;
+            JsonElement c = part.get(axis);
+            if (!isNumber(c)) {
+                issues.add(pp + "." + axis + " 不是数字（部位百分比，每轴 0 ~ 100）");
+                continue;
+            }
+            float v = c.getAsFloat();
+            if (!Float.isFinite(v)) {
+                issues.add(pp + "." + axis + " 不是有限数字（部位百分比，每轴 0 ~ 100）: " + v);
             }
         }
     }

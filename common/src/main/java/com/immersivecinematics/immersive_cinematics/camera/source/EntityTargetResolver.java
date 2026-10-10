@@ -158,14 +158,27 @@ public final class EntityTargetResolver {
         };
     }
 
-    /** 实体形态：解析目标实体 → 取点（脚底 / 包围盒中心，见 {@link PointSource.EntityPoint}）。 */
+    /** 实体形态：解析目标实体 → 按 {@link PointSource.EntityPoint} 的每轴百分比在包围盒内取点。 */
     private Vec3 selectorPoint(PointSource source, Vec3 cameraPos, String role, Keyframe kf, String anchor) {
         Entity entity = resolveEntity(source.selector(), cameraPos, role, kf, anchor);
         if (entity == null) return null;
-        Vec3 pos = TimeInterpolation.entityPosition(entity);
-        return source.entityPoint() == PointSource.EntityPoint.CENTER
-                ? pos.add(0, entity.getBbHeight() / 2.0, 0)
-                : pos;
+        return entityPoint(TimeInterpolation.entityPosition(entity), entity.getBbWidth(), entity.getBbHeight(),
+                source.entityPoint());
+    }
+
+    /**
+     * 包围盒取点：{@code pos} = 实体渲染帧插值位置（= 包围盒底面中心），宽 / 高 = {@code getBbWidth} /
+     * {@code getBbHeight}；横向 / 前后以底面中心为 50% 基准（±宽 / 2），纵向以底面为 0% 基准（高）。
+     * 0 / 50 / 100 与包围盒最小侧 / 中心 / 最大侧逐位对应，故 {@code FOOT} / {@code CENTER} 与既有算式
+     * 逐位等值（不另设分支）。
+     *
+     * @return 世界空间方块坐标
+     */
+    private static Vec3 entityPoint(Vec3 pos, double width, double height, PointSource.EntityPoint point) {
+        return new Vec3(
+                pos.x + width * ((point.xPct() - 50.0) / 100.0),
+                pos.y + height * (point.yPct() / 100.0),
+                pos.z + width * ((point.zPct() - 50.0) / 100.0));
     }
 
     /**

@@ -181,10 +181,12 @@
 | `position_mode` | `"relative"`（默认）= 相对基准点（position 写 dx/dy/dz；基准默认 = 玩家激活位置，可用 `relative_origin` 指定坐标/结构中心）；`"absolute"` = 世界坐标（写 x/y/z） |
 | `follow` | `"none"`（默认）= 位置走关键帧；`"entity"` = 位置跟随实体（position 的 dx/dy/dz 变成相对实体脚底的偏移）。**follow↔普通关键帧之间是平滑过渡**（两端都是世界坐标，直接插值） |
 | `follow_selector` | 跟随目标选择器，默认 `@p`（见下方"目标选择器"） |
-| `look_at` | `"none"`（默认）= 用 yaw/pitch；`"coordinate"` = 注视固定点（xyz 或结构中心）；`"entity"` = 注视实体正中心。**look_at 关键帧的目标点之间插值，切换/开关平滑过渡**（如 0s 看玩家 → 15s 看铁傀儡） |
+| `look_at` | `"none"`（默认）= 用 yaw/pitch；`"coordinate"` = 注视固定点（xyz 或结构中心）；`"entity"` = 注视实体（包围盒内取点，部位见 `look_at_part`，缺省中心）；`"block"` = 注视就近搜索到的方块中心（见 `look_at_target_block`）。**look_at 关键帧的目标点之间插值，切换/开关平滑过渡**（如 0s 看玩家 → 15s 看铁傀儡） |
 | `look_at_selector` | 注视目标选择器（`entity` 模式），默认 `@p` |
+| `look_at_part` | `look_at=entity` 的**部位百分比**：`{x,y,z}` 每轴 `0`~`100`（`50` = 包围盒中心 = 不写的现行为；`0`/`100` = 该轴最小/最大侧），缺省分量 = `50`；越界钳制在 `0`~`100`（取点恒在包围盒内）。看头 `{"y":90}`、看脚 `{"y":0}`。只对 `look_at=entity` 有效（坐标/结构/方块来源直接改坐标），写在其它模式下会被 validate 报错 |
 | `look_at_target_x/y/z` | 注视固定坐标（`coordinate` 模式）。**与 `look_at_target_structure` 互斥** |
 | `look_at_target_structure` | 注视结构中心（`coordinate` 模式）：填结构 id 如 `minecraft:village`。播放时服务端自动定位**结构 bounding box 中心**并替换为坐标（就近搜索，原版 /locate 同范围，多人服务器也生效）；编辑器里是注册表下拉补全。**与坐标互斥**：指定结构后定位失败不回退坐标，该端无注视目标（回退角度插值） |
+| `look_at_target_block` | 注视方块中心（`block` 模式）：`"block:<方块 id>[:<半径>]"`（与 `relative_origin` / `yaw_base_from` 同一套方块形态，半径缺省 16 格），取就近搜索到的方块中心。不可解析（附近没有该方块 / 多人服无服务端世界）= 该端无注视目标（回退角度插值） |
 | `yaw_base` / `pitch_base` | 朝向基准：`"world"`（默认，`yaw`/`pitch` 即世界角）/ `"entity"`（实体**身体朝向**水平角 + **视线**俯仰，用 `yaw_base_selector`）/ `"line"`（`yaw_base_from` → `yaw_base_to` 的连线方向）。用基准时 `yaw`/`pitch` 是相对基准的偏移 |
 | `yaw_base_from` / `yaw_base_to` | `line` 基准的两个端点，**各是一个点源**（见下方"点源写法"）。退化连线（零长度 / 纯垂直）被拒 → 回退 `world` 基准 |
 | `facing_origin` / `facing_target` | `fwd`/`up`/`right`（基准空间偏移）的**基准点**与**基准朝向目标**，**都是点源**（见下方"点源写法"）。`facing_origin` 不写 = follow 实体 / 玩家；`facing_target` 不写 = 基准点自身朝向 |
@@ -196,7 +198,8 @@
 不可解析 = 该端无目标，片段按空处理（不写相机）。结构 / 方块在单人 / 集成服务器直接定位；多人服务器上只有
 `look_at_target_structure` 与 `relative_origin` 由服务端推送前替换为坐标，其余字段的结构 / 方块形态在多人服不可解析。
 
-点源字段与坐标形态的配套字段（`<字段>_x/_y/_z`）都写在**关键帧**上；`position` 对象只承载偏移量
+点源字段与坐标形态的配套字段（`<字段>_x/_y/_z`）都写在**关键帧**上（`look_at=block` 的 `look_at_target_block`
+用同一套方块形态）；`position` 对象只承载偏移量
 （`dx/dy/dz` 世界轴 / `x/y/z` 绝对 / `fwd`/`up`/`right`+`up_axis` 基准空间）。
 
 **目标选择器**（`follow_selector` / `look_at_selector`）：`@p`/`@s`（玩家）、`@e`（离锚点最近实体）、`@e[type=minecraft:sheep]`（类型过滤后就近，模组 boss 用其注册 id）、`@e[name=自定义名]`（命名牌名字过滤后就近）、`uuid:xxxxxxxx-…`（UUID 直绑）——就近基准（锚点）缺省为相机当前位置，可用 `selector_anchor` 改为 `player`（玩家脚底）/ `target`（该调用点当前锁定目标脚底，未解析到目标时回落相机）/ `origin`（`position` 的位置侧点源坐标，形态见上方"点源写法"；`position` 缺失或点源解析失败时回落相机）。
@@ -313,7 +316,8 @@
 | **俯拍降落** | dy 12→3，pitch 55→15（航拍收回，回到人物） |
 | **变焦特写** | 位置不动，fov 70→50（或 zoom 1→2），pitch 略压（特写情绪） |
 | **荷兰角** | roll 0→15（紧张、不安感），配 zoom 1.2~1.5，慎用 |
-| **注视追踪** | `look_at: "entity"` + `look_at_selector`，位置走关键帧，镜头自动锁定目标（也可 `look_at: "coordinate"` 锁定固定点/结构） |
+| **注视追踪** | `look_at: "entity"` + `look_at_selector`，位置走关键帧，镜头自动锁定目标（也可 `look_at: "coordinate"` 锁定固定点/结构、`look_at: "block"` 锁定就近方块中心） |
+| **看指定部位** | `look_at: "entity"` + `look_at_part: {"y": 90}`（看头）、`{"y": 0}`（看脚）：实体包围盒内按每轴百分比取点，越界钳制在体内 |
 | **手持感** | `cam_breath_enabled: true` + `cam_breath_intensity: 0.05`，让固定机位"活"起来 |
 | **黑场/白场转场** | OVERLAY 轨放两个 `fade` clip（压场 `opacity 0→1`、亮起 `1→0`），黑场 `color: "#000000"`、白场 `"#FFFFFF"`；两段 CAMERA 的硬切藏在黑/白里（见 §4.1） |
 
