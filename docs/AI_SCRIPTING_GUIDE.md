@@ -188,6 +188,8 @@
 
 **目标选择器**（`follow_selector` / `look_at_selector`）：`@p`/`@s`（玩家）、`@e`（离相机最近实体）、`@e[type=minecraft:sheep]`（类型过滤后就近，模组 boss 用其注册 id）、`@e[name=自定义名]`（命名牌名字过滤后就近）、`uuid:xxxxxxxx-…`（UUID 直绑）——就近基准为相机当前位置。
 
+每个选择器调用点（`follow` / `look_at` / `look_at_target` / `yaw_base` / `yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target`）的锁定策略可单独覆盖：写 `selector_refresh_<调用点>` 等（4 个策略字段都有调用点变体），缺省回落通用 `selector_*`（详见 `docs/SCRIPT_FORMAT.md` §4「调用点级策略覆盖」）。
+
 规则：
 - `time` 是 **clip 内**偏移（从 0 到 duration），必须严格递增
 - 关键帧之间所有值**匀速线性插值**（两点定一段运动）；0.3.6 起运行时统一线性、无 clip 级 `interpolation` 字段——缓动/速度曲线由编辑器烘焙成显式关键帧

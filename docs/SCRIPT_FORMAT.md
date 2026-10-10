@@ -281,10 +281,10 @@ immersive_cinematics/
 | `look_at_target_x/y/z` | float | 否 | `0/64/0` | 注视固定坐标（`coordinate` 模式）。**与 `look_at_target_structure` 互斥**（编辑器：填结构后坐标输入隐藏） |
 | `look_at_target_structure` | string | 否 | `""` | 注视结构中心（`coordinate` 模式）：填结构 id（如 `minecraft:village`）。播放时服务端自动定位**结构 bounding box 中心**（就近搜索，原版 /locate 同范围）并替换为坐标后推送；编辑器里为注册表下拉补全；多人服务器播放同样生效。**与 `look_at_target_x/y/z` 互斥**：指定结构后定位失败也不回退坐标，该端无注视目标（回退角度插值） |
 | `look_at_target` | object | 否 | `null` | `look_at=coordinate` 时的相对目标对象，优先级高于散字段绝对坐标。支持：`{x,y,z}` 绝对点、`{dx,dy,dz}` 相对触发点、`{relative_to:<selector>,dx,dy,dz}` 相对实体、`{relative_to:"coordinate",relative_x/y/z,dx,dy,dz}` 相对固定坐标 |
-| `selector_refresh` | float | 否 | `1.0` | 目标存活时的重新扫描间隔（秒）。**目标丢失**（死亡/移除/未加载）后不受此值限制：锁进入搜索态并保持最后画面，按固定节奏（0.2 秒）持续重找，找到即恢复。作用于本关键帧所有 selector 字段 |
+| `selector_refresh` | float | 否 | `1.0` | 目标存活时的重新扫描间隔（秒）。**目标丢失**（死亡/移除/未加载）后不受此值限制：锁进入搜索态并保持最后画面，按固定节奏（0.2 秒）持续重找，找到即恢复。作用于本关键帧所有选择器调用点（缺省回落；调用点专属字段见下方"调用点级策略覆盖"） |
 | `selector_switch_while_alive` | bool | 否 | `true` | `true`=目标存活时也按 `selector_refresh` 扫描并切到新的最近目标；`false`=当前目标活着就不换。**目标丢失后不受此项限制**：进入搜索态持续重找，解析到任意符合规则的目标就立即恢复 |
 | `selector_switch_interval` | float | 否 | = `selector_refresh` | 两次真实切换之间的最小间隔（秒），与扫描频率无关：扫描到新目标但距上次切换不足 N 秒 → 继续用旧目标。`0`=不限制。缺省 = `selector_refresh` |
-| `selector_switch_smooth` | float | 否 | `0.0` | 目标真的切换时（含丢失后恢复到新目标），注视点/跟随位置在 N 秒内以 smoothstep 过渡；`0`=硬切。作用于本关键帧所有目标点 |
+| `selector_switch_smooth` | float | 否 | `0.0` | 目标真的切换时（含丢失后恢复到新目标），注视点/跟随位置在 N 秒内以 smoothstep 过渡；`0`=硬切。作用于本关键帧所有目标点（缺省回落；调用点专属字段见下方"调用点级策略覆盖"） |
 | `yaw_base` | string | 否 | `"world"` | `yaw` 的基准方向：`"world"`=0 世界角（`yaw` 即世界朝向）；`"entity"`=实体**身体朝向**水平角（取身体 yaw，用 `yaw_base_selector`）；`"line"`=从 `yaw_base_from` 到 `yaw_base_to` 的连线水平角。此时 `yaw` 为相对基准的偏移 |
 | `pitch_base` | string | 否 | `"world"` | `pitch` 的基准俯仰：同上，`entity` 取实体**视线**俯仰、`line` 取连线垂直角 |
 | `yaw_base_selector` | string | 否 | `"@p"` | `yaw_base/pitch_base=entity` 时的实体选择器（`yaw` 取该实体身体朝向水平角、`pitch` 取该实体视线俯仰） |
@@ -297,6 +297,21 @@ immersive_cinematics/
 | `opacity` | float | 否 | `1.0` | 合成不透明度（`0`~`1`）。叠化 = 两个 clip 的 opacity 交叉关键帧 |
 | `dest` | object | 否 | 全屏 `{x:0,y:0,w:1,h:1}` | 目标区域：本 clip 画面铺到屏幕的归一化矩形，格式见下方"合成参数" |
 | `source` | object | 否 | 全幅 `{x:0,y:0,w:1,h:1}` | 取材区域：从本 clip 画面内取哪一块的归一化矩形，格式见下方"合成参数" |
+
+**调用点级策略覆盖**（0.3.6）：上面 4 个 `selector_*` 策略字段是**通用回落**——默认作用于本关键帧全部选择器调用点。想给某个调用点单独配置，写 `<字段>_<调用点>`，它优先于通用字段；不写 = 回落通用字段（旧脚本行为逐点不变）。
+
+| 调用点 | 服务的属性（对应字段） | 专属策略字段（以 `selector_refresh` 为例） |
+|--------|------------------------|--------------------------------------------|
+| `follow` | 位置基准（`follow_selector`） | `selector_refresh_follow` |
+| `look_at` | 注视目标（`look_at_selector`） | `selector_refresh_look_at` |
+| `look_at_target` | 坐标注视的相对基准（`look_at_target.relative_to`） | `selector_refresh_look_at_target` |
+| `yaw_base` | 朝向基准 `entity`（`yaw_base_selector`） | `selector_refresh_yaw_base` |
+| `yaw_base_from` | 连线基准 A 点（`yaw_base_from`） | `selector_refresh_yaw_base_from` |
+| `yaw_base_to` | 连线基准 B 点（`yaw_base_to`） | `selector_refresh_yaw_base_to` |
+| `facing_origin` | 基准坐标系原点（`facing_origin`） | `selector_refresh_facing_origin` |
+| `facing_target` | 基准朝向目标（`facing_target`） | `selector_refresh_facing_target` |
+
+4 个策略字段都有调用点变体：`selector_refresh_*` / `selector_switch_while_alive_*` / `selector_switch_interval_*` / `selector_switch_smooth_*`，类型与范围与通用字段一致。示例：`"selector_refresh_look_at": 0.2` + `"selector_switch_smooth_look_at": 0.3` = 注视目标 0.2 秒扫一次、切换用 0.3 秒过渡，而 follow 仍用通用值。
 
 **目标选择器**（`follow_selector` / `look_at_selector`）：
 

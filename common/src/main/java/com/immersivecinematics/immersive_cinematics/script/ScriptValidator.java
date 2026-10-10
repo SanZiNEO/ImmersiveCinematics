@@ -48,6 +48,15 @@ public final class ScriptValidator {
             {"normal", "multiply", "screen", "soft_light", "overlay"};
 
     /**
+     * 选择器调用点名单（策略字段的调用点专属后缀）：与
+     * {@code camera/source/EntityTargetResolver.SELECTOR_CALLPOINTS} 一致（改一处须同步另一处）。
+     * <p>未知后缀不在名单内 = 不校验（保持宽松）。</p>
+     */
+    private static final String[] SELECTOR_POLICY_CALLPOINTS = {
+            "follow", "look_at", "look_at_target", "yaw_base",
+            "yaw_base_from", "yaw_base_to", "facing_origin", "facing_target"};
+
+    /**
      * 调色关键帧标量通道 → 合法区间（顺序与
      * {@code TrackSchemas.adjust()} / {@code ColorAdjustParams} / {@code ic_color_adjust.fsh} 一致）。
      * <p>0.3.6 起 ADJUST 轨与 CAMERA 片段共用同一套通道（见 {@link #checkAdjustFields}）。</p>
@@ -493,6 +502,8 @@ public final class ScriptValidator {
                                     && (!kf.has("look_at_target_x") || !kf.has("look_at_target_y") || !kf.has("look_at_target_z"))) {
                                 issues.add(kp + ".look_at_target 缺失（look_at=coordinate 时指定 look_at_target_x/y/z 坐标，或 look_at_target_structure 结构名）");
                             }
+                            // 选择器策略字段（通用 + 调用点专属）：类型 / 范围校验
+                            checkSelectorPolicy(kf, kp, issues);
                             // ===== 合成参数（0.3.6 camera-composition）：opacity / dest / source =====
                             checkUnitFloat(kf, kp, "opacity", issues);
                             checkRect(kf, kp, "dest", issues);
@@ -827,6 +838,51 @@ public final class ScriptValidator {
         }
         if (v < 0f || v > 1f) {
             issues.add(path + "." + key + " 超出范围 0~1: " + v);
+        }
+    }
+
+    /**
+     * 校验选择器目标锁定策略字段（CAMERA 关键帧）：通用字段与调用点专属字段
+     * （{@code <字段>_<调用点>}）同口径——刷新 / 切换间隔 / 切换平滑为非负有限秒数，
+     * 存活期切换为布尔。字段缺省 = 回落（不报错）；未知调用点后缀不在名单内 = 不校验。
+     */
+    private static void checkSelectorPolicy(JsonObject kf, String path, List<String> issues) {
+        checkSelectorSeconds(kf, path, "selector_refresh", issues);
+        checkSelectorBool(kf, path, "selector_switch_while_alive", issues);
+        checkSelectorSeconds(kf, path, "selector_switch_interval", issues);
+        checkSelectorSeconds(kf, path, "selector_switch_smooth", issues);
+        for (String callpoint : SELECTOR_POLICY_CALLPOINTS) {
+            checkSelectorSeconds(kf, path, "selector_refresh_" + callpoint, issues);
+            checkSelectorBool(kf, path, "selector_switch_while_alive_" + callpoint, issues);
+            checkSelectorSeconds(kf, path, "selector_switch_interval_" + callpoint, issues);
+            checkSelectorSeconds(kf, path, "selector_switch_smooth_" + callpoint, issues);
+        }
+    }
+
+    /** 非负有限秒数；字段缺省时跳过（回落通用字段 / 缺省策略）。 */
+    private static void checkSelectorSeconds(JsonObject obj, String path, String key, List<String> issues) {
+        if (!obj.has(key)) return;
+        JsonElement e = obj.get(key);
+        if (!isNumber(e)) {
+            issues.add(path + "." + key + " 不是数字（单位秒，≥ 0）");
+            return;
+        }
+        float v = e.getAsFloat();
+        if (!Float.isFinite(v)) {
+            issues.add(path + "." + key + " 不是有限数字（NaN / Infinity）：" + v);
+            return;
+        }
+        if (v < 0f) {
+            issues.add(path + "." + key + " 不能为负数（单位秒）: " + v);
+        }
+    }
+
+    /** 布尔值；字段缺省时跳过（回落通用字段 / 缺省策略）。 */
+    private static void checkSelectorBool(JsonObject obj, String path, String key, List<String> issues) {
+        if (!obj.has(key)) return;
+        JsonElement e = obj.get(key);
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isBoolean()) {
+            issues.add(path + "." + key + " 应为布尔值（true / false）");
         }
     }
 

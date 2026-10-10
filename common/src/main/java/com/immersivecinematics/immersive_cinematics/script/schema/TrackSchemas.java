@@ -92,12 +92,22 @@ public final class TrackSchemas {
         kfs.put("look_at_target_z", new FieldDef("float", null));
         kfs.put("look_at_target_structure", new FieldDef("string", ""));
         kfs.put("look_at_target", new FieldDef("map", null));
-        // 选择器目标锁定策略（作用于该关键帧所有 selector 字段）
+        // 选择器目标锁定策略：通用字段 = 该关键帧所有调用点的缺省回落（语义见 EntityTargetResolver.SelectorPolicy）。
+        // 调用点专属字段名 = <字段>_<调用点>（调用点名见 EntityTargetResolver.SELECTOR_CALLPOINTS），
+        // 缺省 null = 回落通用字段；不写任何调用点字段 = 旧行为（只用通用字段）。
         kfs.put("selector_refresh", new FieldDef("float", 1.0f));
         kfs.put("selector_switch_while_alive", new FieldDef("bool", true));
         // 切换间隔：两次真实切换之间的最小间隔（与扫描频率无关）；缺省 = selector_refresh
         kfs.put("selector_switch_interval", new FieldDef("float", 1.0f));
         kfs.put("selector_switch_smooth", new FieldDef("float", 0.0f));
+        // 调用点专属覆盖（8 个调用点 × 4 个策略字段）；名单须与 EntityTargetResolver.SELECTOR_CALLPOINTS 一致
+        for (String callpoint : new String[]{"follow", "look_at", "look_at_target", "yaw_base",
+                "yaw_base_from", "yaw_base_to", "facing_origin", "facing_target"}) {
+            kfs.put("selector_refresh_" + callpoint, new FieldDef("float", null));
+            kfs.put("selector_switch_while_alive_" + callpoint, new FieldDef("bool", null));
+            kfs.put("selector_switch_interval_" + callpoint, new FieldDef("float", null));
+            kfs.put("selector_switch_smooth_" + callpoint, new FieldDef("float", null));
+        }
         // 朝向基准来源（措辞口径：身体朝向 = 实体身体水平角 yBodyRot；视线 = 实体 yRot + xRot）。
         // yaw_base = entity 取「实体身体朝向」水平角；pitch_base = entity 取「实体视线」俯仰。
         kfs.put("yaw_base", new FieldDef("enum", "world", false, List.of("world", "entity", "line")));

@@ -44,9 +44,11 @@ public final class EntityTargetResolver {
     /**
      * 选择器调用点（角色）：每个调用点拥有自己的策略，可单独配置，互不影响。
      * 通用字段（{@code selector_refresh} 等）只作默认回落——不写角色专属字段时行为与只用通用字段一致。
+     * 名单与 {@code script/schema/TrackSchemas.camera()} 声明的调用点专属字段一一对应（改一处须同步另一处）。
      */
     private static final List<String> SELECTOR_CALLPOINTS = List.of(
-            "follow", "look_at", "look_at_target", "yaw_base", "facing_origin", "facing_target");
+            "follow", "look_at", "look_at_target", "yaw_base",
+            "yaw_base_from", "yaw_base_to", "facing_origin", "facing_target");
 
     /** 目标锁状态：按 {@code role + selector} 维护。 */
     private final Map<String, TargetLock> targetLocks = new HashMap<>();
