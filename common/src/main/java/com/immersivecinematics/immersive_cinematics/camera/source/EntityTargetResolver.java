@@ -22,6 +22,7 @@ import java.util.regex.Pattern;
  * 目标实体解析与锁定：selector → 客户端实体，并按 {@code role + 锚点 + selector} 维护目标锁与切换平滑状态。
  * 服务端结果按 {@link ClientEntitySelectorCache.Key}（调用点 + 锚点 + selector）分桶缓存，互不覆盖。
  * 锚点 = 就近排序（{@code sort=nearest}）的参考点，也是服务端解析请求的原点；取值与回落链见 {@link #selectorAnchor}。
+ * 候选择一规则（多候选取定目标）见 {@link #selectorPick}。
  *
  * 解析分两条路径：本地快路径（{@code @p} / {@code @s} / {@code @e} / {@code @e[type=…,name=…]} / {@code uuid:…}）
  * 同步求值；其余形态交服务端用原版解析，再按回传 UUID 映射到客户端实体——带选项的 {@code @p} / {@code @a} /
@@ -68,6 +69,20 @@ public final class EntityTargetResolver {
     private static final String ANCHOR_PLAYER = "player";
     private static final String ANCHOR_TARGET = "target";
     private static final String ANCHOR_ORIGIN = "origin";
+
+    /**
+     * 选择器择一策略取值：从候选（本地扫描命中 / 服务端回传 UUID 列表）取定目标的规则。
+     *
+     * {@code first}（缺省）= 现状行为：本地 {@code @e} 系列取距锚点最近的可用候选（本地候选按就近择一），
+     * 服务端按回传 UUID 序取首个可用候选；{@code nearest} = 客户端可用候选内取距锚点最近者
+     * （服务端路径由此与本地同口径）；{@code alive} = 按候选返回序取首个存活候选、不比距离
+     * （本地 = 世界迭代序，服务端 = UUID 序）。
+     * 可用 = 客户端已加载且存活；距离口径 = 世界空间方块坐标的平方距离比较（不开平方）。
+     * 取值与回落链见 {@link #selectorPick}。
+     */
+    private static final String PICK_FIRST = "first";
+    private static final String PICK_NEAREST = "nearest";
+    private static final String PICK_ALIVE = "alive";
 
     /** 点源定位器（结构 / 方块）与玩家激活位置：与求值器共用，见 {@link #attachWorldContext}。 */
     private WorldPointLocator pointLocator;
@@ -144,7 +159,7 @@ public final class EntityTargetResolver {
      * @param selector  选择器字符串；{@code null} / 空串 = 无目标
      * @param cameraPos 相机世界坐标（调用方当前视点）：锚点缺省值与全部回落分支的取值
      * @param role      调用点名：决定策略字段、锚点字段与锁的键，见 {@link #SELECTOR_CALLPOINTS}
-     * @param kf        策略 / 锚点字段来源关键帧；{@code null} = 全缺省策略 + 锚点 {@code camera}
+     * @param kf        策略 / 锚点 / 择一字段来源关键帧；{@code null} = 三者全缺省
      * @return 解析到的客户端实体；无匹配 / 目标未加载 / 节流未到 = {@code null}
      */
     public Entity resolveEntity(String selector, Vec3 cameraPos, String role, Keyframe kf) {
@@ -154,6 +169,7 @@ public final class EntityTargetResolver {
     /**
      * 按给定锚点取值解析（锚点由调用方决定，不再读字段）：公共入口用 {@link #selectorAnchor} 的结果；
      * 点源实体分支固定传 {@link #ANCHOR_CAMERA}——anchor=origin 经点源实体解析会绕回自身锚点。
+     * 择一策略由 {@link #selectorPick} 按同一 role 读字段，不随锚点分支改写。
      */
     private Entity resolveEntity(String selector, Vec3 cameraPos, String role, Keyframe kf, String anchor) {
         Minecraft mc = Minecraft.getInstance();
@@ -167,6 +183,7 @@ public final class EntityTargetResolver {
         TargetLock lock = targetLocks.computeIfAbsent(targetKey(role, anchor, selector),
                 k -> newLock(role, anchor, selector));
         Vec3 origin = anchorPosition(anchor, cameraPos, lock, kf);
+        String pick = selectorPick(kf, role);
         long now = System.currentTimeMillis();
 
         // 解析间隔（= 扫描指标）：与切换决策完全独立
@@ -188,7 +205,7 @@ public final class EntityTargetResolver {
                     LOGGER.info("[selector] 等待目标 role={} sel={}", role, describeSelector(selector));
                 }
             }
-            Entity found = resolveEntityInternal(selector, origin, refreshMs, true, lock);
+            Entity found = resolveEntityInternal(selector, origin, refreshMs, true, lock, pick);
             if (found == null) {
                 return null;
             }
@@ -212,7 +229,7 @@ public final class EntityTargetResolver {
         lock.searching = false;   // 目标在手上（含重新加载回来）→ 退出搜索态
         Entity found = null;
         if (now - lock.resolvedAt >= refreshMs) {
-            found = resolveEntityInternal(selector, origin, refreshMs, false, lock);
+            found = resolveEntityInternal(selector, origin, refreshMs, false, lock, pick);
         }
         if (found == null) {
             // 未到扫描时间 / 本次没扫到：继续用当前目标
@@ -289,6 +306,22 @@ public final class EntityTargetResolver {
     }
 
     /**
+     * 该调用点在关键帧上的有效择一策略：先读 {@code selector_pick_<调用点>}，缺失回落通用
+     * {@code selector_pick}，再缺省 {@link #PICK_FIRST}；三值集之外的值一律按 {@code first} 处理。
+     * 取值定义见 {@link #PICK_FIRST}。
+     *
+     * @param kf   {@code null} = {@code first}
+     * @param role 调用点名；不在 {@link #SELECTOR_CALLPOINTS} 内 = 只用通用字段
+     * @return 择一取值：{@code first} / {@code nearest} / {@code alive}
+     */
+    public String selectorPick(Keyframe kf, String role) {
+        if (kf == null) return PICK_FIRST;
+        String callpoint = SELECTOR_CALLPOINTS.contains(role) ? role : null;
+        String value = stringForCallpoint(kf, "selector_pick", callpoint, PICK_FIRST);
+        return isKnownPick(value) ? value : PICK_FIRST;
+    }
+
+    /**
      * 锚点坐标（世界空间方块坐标，脚底口径）：按锚点取值取位，不可解析一律回落相机位置。
      *
      * @param anchor    锚点取值（{@link #selectorAnchor} 的结果）
@@ -352,6 +385,11 @@ public final class EntityTargetResolver {
     private static boolean isKnownAnchor(String anchor) {
         return ANCHOR_CAMERA.equals(anchor) || ANCHOR_PLAYER.equals(anchor)
                 || ANCHOR_TARGET.equals(anchor) || ANCHOR_ORIGIN.equals(anchor);
+    }
+
+    /** 取值是否属三值集；未知值（未过校验的脚本）按缺省 {@link #PICK_FIRST} 处理。 */
+    private static boolean isKnownPick(String pick) {
+        return PICK_FIRST.equals(pick) || PICK_NEAREST.equals(pick) || PICK_ALIVE.equals(pick);
     }
 
     /**
@@ -459,11 +497,12 @@ public final class EntityTargetResolver {
      * 解析分发：服务端选择器走请求 + 缓存，本地选择器同步求值。
      * 搜索态（{@code searching=true}）下本地选择器按 {@link #MISS_RETRY_MS} 节流重扫；
      * 服务端选择器的请求节流在 {@link #resolveServerSelector} 内（读缓存不受节流）。
+     * {@code pick} = 择一策略（{@link #selectorPick}），只影响从候选取定目标处。
      */
     private Entity resolveEntityInternal(String selector, Vec3 anchorPos, long refreshMs, boolean searching,
-                                        TargetLock lock) {
+                                        TargetLock lock, String pick) {
         if (requiresServerSelector(selector)) {
-            return resolveServerSelector(anchorPos, refreshMs, searching, lock);
+            return resolveServerSelector(anchorPos, refreshMs, searching, lock, pick);
         }
         if (searching) {
             long now = System.currentTimeMillis();
@@ -472,14 +511,15 @@ public final class EntityTargetResolver {
             }
             lock.nextRetryAt = now + MISS_RETRY_MS;
         }
-        return resolveLocalSelector(selector, anchorPos);
+        return resolveLocalSelector(selector, anchorPos, pick);
     }
 
     /**
      * 本地解析：只处理 {@code @e} / {@code @e[type=…,name=…]} / {@code uuid:xxx}，其余告警后按无匹配处理。
-     * {@code @e} 系列按到 {@code anchorPos} 的距离取最近。
+     * {@code @e} 系列的择一：{@code first} / {@code nearest} 按到 {@code anchorPos} 的距离取最近，
+     * {@code alive} 取世界迭代序首个存活候选（候选 = 类型 / 名字过滤后的已加载存活实体）。
      */
-    private Entity resolveLocalSelector(String selector, Vec3 anchorPos) {
+    private Entity resolveLocalSelector(String selector, Vec3 anchorPos, String pick) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return null;
         Entity found = null;
@@ -512,12 +552,18 @@ public final class EntityTargetResolver {
             }
             final String fType = typeId;
             final String fName = name;
+            boolean alivePick = PICK_ALIVE.equals(pick);
             double bestDist = Double.MAX_VALUE;
             for (Entity e : mc.level.entitiesForRendering()) {
                 if (!e.isAlive()) continue;
                 if (fType != null && !fType.equals(EntityType.getKey(e.getType()).toString())) continue;
                 if (fName != null
                         && (e.getCustomName() == null || !fName.equals(e.getCustomName().getString()))) continue;
+                if (alivePick) {
+                    // 存活优先：迭代序首个存活候选，不比距离
+                    found = e;
+                    break;
+                }
                 double dist = e.distanceToSqr(anchorPos);
                 if (dist < bestDist) {
                     bestDist = dist;
@@ -594,10 +640,13 @@ public final class EntityTargetResolver {
      * 同一 selector 的不同调用点 / 不同锚点各占一份条目；{@code anchorPos} 随请求发给服务端作为选择器原点。
      * 跟踪态按 {@code refreshMs} 刷新（pending 期间不重复发请求）；搜索态每帧读缓存，上一份结果已消费且
      * 仍无可用目标时按 {@link #MISS_RETRY_MS} 节流重发——不等 {@code refreshMs}。
+     * 回传列表的择一：{@code first} / {@code alive} 取 UUID 序首个可用，{@code nearest} 取可用中距
+     * {@code anchorPos} 最近（平方距离比较；不改变服务端排序）。
      *
      * @return 可用实体；无缓存条目 / 回传 UUID 均不可用 = {@code null}（调用方按无目标处理）
      */
-    private Entity resolveServerSelector(Vec3 anchorPos, long refreshMs, boolean searching, TargetLock lock) {
+    private Entity resolveServerSelector(Vec3 anchorPos, long refreshMs, boolean searching, TargetLock lock,
+                                         String pick) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.getConnection() == null) {
             return null;
@@ -618,11 +667,24 @@ public final class EntityTargetResolver {
             uuids = entry.uuids;
         }
         if (uuids != null) {
+            boolean nearestPick = PICK_NEAREST.equals(pick);
+            Entity nearest = null;
+            double bestDist = Double.MAX_VALUE;
             for (UUID uuid : uuids) {
                 Entity entity = findEntityByUuid(mc, uuid);
-                if (entity != null && entity.isAlive()) {
+                if (entity == null || !entity.isAlive()) continue;
+                if (!nearestPick) {
+                    // first / alive：回传 UUID 序首个可用
                     return entity;
                 }
+                double dist = entity.distanceToSqr(anchorPos);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    nearest = entity;
+                }
+            }
+            if (nearest != null) {
+                return nearest;
             }
         }
 

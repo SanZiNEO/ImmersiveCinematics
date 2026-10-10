@@ -106,7 +106,11 @@ public final class TrackSchemas {
         // 方块中心 / 玩家激活位置 / 实体选择器，与位置基准同一解析；position 缺失或点源解析失败回落 camera）。
         // 取值与回落链见 EntityTargetResolver.selectorAnchor。
         kfs.put("selector_anchor", new FieldDef("string", "camera"));
-        // 调用点专属覆盖（8 个调用点 × 5 个选择器字段）；名单须与 EntityTargetResolver.SELECTOR_CALLPOINTS 一致
+        // 候选择一策略：first（缺省）= 现状行为（本地 @e 就近取首个可用，服务端按回传序取首个可用）；
+        // nearest = 客户端可用候选内取距锚点最近；alive = 按候选返回序取首个存活。
+        // 取值与回落链见 EntityTargetResolver.selectorPick。
+        kfs.put("selector_pick", new FieldDef("string", "first"));
+        // 调用点专属覆盖（8 个调用点 × 6 个选择器字段）；名单须与 EntityTargetResolver.SELECTOR_CALLPOINTS 一致
         for (String callpoint : new String[]{"follow", "look_at", "look_at_target", "yaw_base",
                 "yaw_base_from", "yaw_base_to", "facing_origin", "facing_target"}) {
             kfs.put("selector_refresh_" + callpoint, new FieldDef("float", null));
@@ -114,6 +118,7 @@ public final class TrackSchemas {
             kfs.put("selector_switch_interval_" + callpoint, new FieldDef("float", null));
             kfs.put("selector_switch_smooth_" + callpoint, new FieldDef("float", null));
             kfs.put("selector_anchor_" + callpoint, new FieldDef("string", null));
+            kfs.put("selector_pick_" + callpoint, new FieldDef("string", null));
         }
         // 朝向基准来源（措辞口径：身体朝向 = 实体身体水平角 yBodyRot；视线 = 实体 yRot + xRot）。
         // yaw_base = entity 取「实体身体朝向」水平角；pitch_base = entity 取「实体视线」俯仰。

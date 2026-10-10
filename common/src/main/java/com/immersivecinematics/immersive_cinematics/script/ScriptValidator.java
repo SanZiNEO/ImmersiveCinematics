@@ -48,7 +48,7 @@ public final class ScriptValidator {
             {"normal", "multiply", "screen", "soft_light", "overlay"};
 
     /**
-     * 选择器调用点名单（策略字段与锚点字段的调用点专属后缀）：与
+     * 选择器调用点名单（策略字段 / 锚点字段 / 择一字段的调用点专属后缀）：与
      * {@code camera/source/EntityTargetResolver.SELECTOR_CALLPOINTS} 一致（改一处须同步另一处）。
      * <p>未知后缀不在名单内 = 不校验（保持宽松）。</p>
      */
@@ -58,6 +58,9 @@ public final class ScriptValidator {
 
     /** 选择器锚点合法取值（语义见 {@code TrackSchemas.camera()} 的 {@code selector_anchor}）。 */
     private static final String[] SELECTOR_ANCHORS = {"camera", "player", "target", "origin"};
+
+    /** 选择器择一策略合法取值（语义见 {@code TrackSchemas.camera()} 的 {@code selector_pick}）。 */
+    private static final String[] SELECTOR_PICKS = {"first", "nearest", "alive"};
 
     /**
      * 调色关键帧标量通道 → 合法区间（顺序与
@@ -509,6 +512,8 @@ public final class ScriptValidator {
                             checkSelectorPolicy(kf, kp, issues);
                             // 选择器锚点字段（通用 + 调用点专属）：取值枚举校验
                             checkSelectorAnchor(kf, kp, issues);
+                            // 选择器择一字段（通用 + 调用点专属）：取值枚举校验
+                            checkSelectorPick(kf, kp, issues);
                             // ===== 合成参数（0.3.6 camera-composition）：opacity / dest / source =====
                             checkUnitFloat(kf, kp, "opacity", issues);
                             checkRect(kf, kp, "dest", issues);
@@ -888,6 +893,34 @@ public final class ScriptValidator {
         String v = e.getAsString();
         for (String a : SELECTOR_ANCHORS) {
             if (a.equals(v)) return;
+        }
+        issues.add(path + "." + key + " 未知值: " + v + "（可选: " + allowed + "）");
+    }
+
+    /**
+     * 校验选择器择一字段（CAMERA 关键帧）：通用 {@code selector_pick} 与调用点专属
+     * {@code selector_pick_<调用点>} 同口径——取值须为 {@link #SELECTOR_PICKS} 之一。
+     * 字段缺省 = 回落（不报错）；未知调用点后缀不在名单内 = 不校验。
+     */
+    private static void checkSelectorPick(JsonObject kf, String path, List<String> issues) {
+        checkSelectorPickValue(kf, path, "selector_pick", issues);
+        for (String callpoint : SELECTOR_CALLPOINTS) {
+            checkSelectorPickValue(kf, path, "selector_pick_" + callpoint, issues);
+        }
+    }
+
+    /** 单个择一字段：非字符串 / 三值集之外的取值都报错；字段缺省时跳过（回落通用字段 / 缺省 first）。 */
+    private static void checkSelectorPickValue(JsonObject obj, String path, String key, List<String> issues) {
+        if (!obj.has(key)) return;
+        JsonElement e = obj.get(key);
+        String allowed = String.join(" / ", SELECTOR_PICKS);
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
+            issues.add(path + "." + key + " 不是字符串（可选: " + allowed + "）");
+            return;
+        }
+        String v = e.getAsString();
+        for (String p : SELECTOR_PICKS) {
+            if (p.equals(v)) return;
         }
         issues.add(path + "." + key + " 未知值: " + v + "（可选: " + allowed + "）");
     }

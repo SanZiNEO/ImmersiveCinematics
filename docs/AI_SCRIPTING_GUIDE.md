@@ -188,7 +188,9 @@
 
 **目标选择器**（`follow_selector` / `look_at_selector`）：`@p`/`@s`（玩家）、`@e`（离锚点最近实体）、`@e[type=minecraft:sheep]`（类型过滤后就近，模组 boss 用其注册 id）、`@e[name=自定义名]`（命名牌名字过滤后就近）、`uuid:xxxxxxxx-…`（UUID 直绑）——就近基准（锚点）缺省为相机当前位置，可用 `selector_anchor` 改为 `player`（玩家脚底）/ `target`（该调用点当前锁定目标脚底，未解析到目标时回落相机）/ `origin`（`position.relative_origin` 点源坐标，与位置基准同一解析：固定坐标 / 结构中心 / 方块中心 / 玩家激活位置 / 实体选择器；`position` 缺失或点源解析失败时回落相机）。
 
-每个选择器调用点（`follow` / `look_at` / `look_at_target` / `yaw_base` / `yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target`）的锁定策略与锚点可单独覆盖：写 `selector_refresh_<调用点>` / `selector_anchor_<调用点>` 等（4 个策略字段 + 锚点都有调用点变体），缺省回落通用 `selector_*`（详见 `docs/SCRIPT_FORMAT.md` §4「调用点级策略覆盖」）。
+每个选择器调用点（`follow` / `look_at` / `look_at_target` / `yaw_base` / `yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target`）的锁定策略、锚点与择一规则可单独覆盖：写 `selector_refresh_<调用点>` / `selector_anchor_<调用点>` / `selector_pick_<调用点>` 等（4 个策略字段 + 锚点 + 择一都有调用点变体），缺省回落通用 `selector_*`（详见 `docs/SCRIPT_FORMAT.md` §4「调用点级策略覆盖」）。
+
+**多候选择一**（`selector_pick`）：一个 selector 匹配到多个实体时取哪一个。`"first"`（缺省）= 0.3.6 之前的择一行为（本地 `@e` 系列取距锚点最近的活实体，服务端选择器按服务端回传顺序取首个可用）；`"nearest"` = 在客户端可用候选内取距锚点最近者（服务端选择器由此与本地同口径）；`"alive"` = 按候选返回顺序取首个存活者、不比距离。可用 = 客户端已加载且存活；距离 = 世界坐标平方距离比较。示例：`"selector_pick": "nearest"` + `"selector_anchor": "player"` = 取离玩家最近的候选。
 
 规则：
 - `time` 是 **clip 内**偏移（从 0 到 duration），必须严格递增
