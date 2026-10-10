@@ -7,7 +7,7 @@ import net.minecraft.server.level.ServerPlayer;
 /**
  * 只显示成功结果、吞掉失败反馈的命令源。
  * <p>
- * 用途：脚本 EVENT 命令（ExecuteCommandAction / ScriptEventManager）——
+ * 用途：脚本 EVENT 命令（ScriptEventManager，EVENT 轨）——
  * 命令的<b>正常结果</b>（如 {@code /locate} 返回的坐标，走 sendSuccess）要发给玩家看，
  * 而<b>命令失败</b>的红字错误（sendFailure）不打扰玩家。
  * <p>

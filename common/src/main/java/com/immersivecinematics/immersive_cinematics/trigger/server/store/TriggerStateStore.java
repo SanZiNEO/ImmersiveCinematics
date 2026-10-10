@@ -17,7 +17,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 public class TriggerStateStore {
@@ -66,17 +65,6 @@ public class TriggerStateStore {
         return state != null && state.hasPlayed(scriptId);
     }
 
-    /** 该玩家是否触发过指定脚本的任意触发器（保留给需要“触发即算”的旧用法） */
-    public boolean hasAnyTriggered(UUID player, String scriptId) {
-        PlayerTriggerState state = playerStates.get(player);
-        return state != null && state.hasAnyTriggered(scriptId);
-    }
-
-    public Set<String> getTriggeredIds(UUID player, String scriptId) {
-        PlayerTriggerState state = playerStates.get(player);
-        return state != null ? state.getTriggeredIds(scriptId) : null;
-    }
-
     public PlayerTriggerState getOrCreate(UUID player) {
         return playerStates.computeIfAbsent(player, k -> new PlayerTriggerState());
     }
@@ -96,16 +84,6 @@ public class TriggerStateStore {
     public boolean markScriptCompleted(UUID player, String scriptId) {
         PlayerTriggerState state = getOrCreate(player);
         return state.markScriptCompleted(scriptId);
-    }
-
-    public void resetScript(UUID player, String scriptId) {
-        PlayerTriggerState state = playerStates.get(player);
-        if (state != null) state.resetScript(scriptId);
-    }
-
-    public void resetAll(UUID player) {
-        PlayerTriggerState state = playerStates.get(player);
-        if (state != null) state.resetAll();
     }
 
     // ===== Persistence (SNBT text format) =====

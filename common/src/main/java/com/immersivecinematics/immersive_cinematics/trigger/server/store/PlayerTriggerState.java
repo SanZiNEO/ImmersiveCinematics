@@ -38,16 +38,6 @@ public class PlayerTriggerState {
         return startedScripts.contains(scriptId) && completedScripts.contains(scriptId);
     }
 
-    /** 该脚本是否触发过任意触发器（触发即标记，跳过/打断都算解锁） */
-    public boolean hasAnyTriggered(String scriptId) {
-        Set<String> triggers = triggeredScripts.get(scriptId);
-        return triggers != null && !triggers.isEmpty();
-    }
-
-    public Set<String> getTriggeredIds(String scriptId) {
-        return triggeredScripts.get(scriptId);
-    }
-
     public boolean markTriggered(String scriptId, String triggerId) {
         if (isTriggered(scriptId, triggerId)) return false;
         triggeredScripts.computeIfAbsent(scriptId, k -> new ObjectOpenHashSet<>()).add(triggerId);
@@ -67,20 +57,6 @@ public class PlayerTriggerState {
         completedScripts.add(scriptId);
         dirty = true;
         return true;
-    }
-
-    public void resetScript(String scriptId) {
-        triggeredScripts.remove(scriptId);
-        startedScripts.remove(scriptId);
-        completedScripts.remove(scriptId);
-        dirty = true;
-    }
-
-    public void resetAll() {
-        triggeredScripts.clear();
-        startedScripts.clear();
-        completedScripts.clear();
-        dirty = true;
     }
 
     public boolean isDirty() { return dirty; }
