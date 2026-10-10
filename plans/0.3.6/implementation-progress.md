@@ -54,12 +54,12 @@
 | B6 | look_at 方块来源 + 部位百分比微调 | — | ☐ |
 | B7 | 偏移下放到点源 / 通道相对化 | B5 | ☐ |
 | B8 | 方向锁（yaw/pitch 分轴锁值） | B7 | ☐ |
-| B9 | 垂直线边界修复 + 「视线/身体朝向」措辞 | — | ☐ |
+| B9 | 垂直线边界修复 + 「视线/身体朝向」措辞 | — | ✅ 2026-10-10（`5497265`，Q3；表状态回写） |
 | B10 | selector 调用点隔离补全（yaw_base_from/to + schema 声明） | — | ☐ |
 | B11 | selector 缓存键含调用点/锚点 | B10 | ☐ |
 | B12 | selector 锚点可配置 | B10 | ☐ |
 | B13 | selector 多候选与择一策略 | B10 | ☐ |
-| B14 | selector 解析缺陷（@a/@r/@n/@p[team]） | — | ☐ |
+| B14 | selector 解析缺陷（@a/@r/@n/@p[team]） | — | ✅ 2026-10-10（@a/@r/@p[…] 进服务端解析；@n=原版不存在按未知形式 warn 不崩；实机实证） |
 | B15 | selector 通用化 | B10-B13 | ☐ |
 | B16 | 数学函数模型库（spring/damper/… + 非线性变换 + 组合 + Registry） | — | ☐ |
 | B17 | 时间插值 步骤 3-6（相机快照插值/历史缓冲/模型接入/API） | B16 | ☐ |
@@ -201,3 +201,4 @@
 | 2026-10-10（续5） | **Q5 B4-P2 ✅**——CameraManager 拆分等值搬迁（`refactor` 提交）：新建 `PlaybackRegistry`（G1 实例表/查询/帧缓存）、`PreviewChannel`（G4 预览通道）、`PlaybackLedger`（G6 网络账本 + pauseTransition 检测）、`PlaybackLifecycle`（G2+G8 生命周期/队列）；`CameraManager` 970→362 行（门面 + 帧驱动，39 个 public 成员签名逐一等值）。验收：compile + icv tests 3 既有 FAIL 不变 + release 5/5 + icv2/icgl 全绿；**预览/接播路径实机 + 改动前后同场景日志对拍**（qs_a 不可打断二次请求 `result=2` 入队 → `NATURAL_END→FINISHED` 后无接播 = parallel-playback 事实核查②语义；qs_b 可打断替换接播 `INTERRUPTED→停→立即新实例` ×20 轮零漂移；quadrant 四相机轨多实例并存、结束 `smartCull 交回原版判定`；改动前后归一化序列逐项一致（elapsed 72.47/72.51 运行间抖动）；全程无异常）。**未验证**：预览通道（`editor.pushScript/play/pause/seek/stop`）需 F9 预览屏开着才能连 WS 驱动，本轮未驱动。教训入档：捕获跑图前先备份 `lane-captures/`（本轮曾覆盖基线）；实机验收严格按 §5 各行口径、不加戏。 |
 | 2026-10-10（续6） | **Q6 B4-P3 ✅**——`camera/source/EntityTargetResolver` 等值搬迁（556 行新类；`CameraTrackPlayer` 1580→1094 行）：D 组选择器解析全套（resolveEntity 单入口 / 本地与服务端双路 / TargetLock·PointState·SelectorPolicy·SELECTOR_CALLPOINTS·MISS_RETRY_MS）+ targetLocks 状态整体搬迁，调用点改经新类，onStop/onScriptReplaced 清理同帧同序。等值证据：常量池字面量机械比对 0 缺 0 增 + 逐行实读核对（@p/@s 快路径、@e/uuid 本地解析、服务端节流、锁定切换、平滑数学逐字保留）。验收：compile + icv tests 3 既有 FAIL 不变（tests/trigger + camera follow 全 OK）+ release 5/5 + icv2/icgl 全绿。**接缝与登记**：新增 snapshotLockState/restoreLockState 两入口（captureLowerLanes 锁状态留底/回写，P4 随 LaneSnapshotCollector 归位）；SelectorPolicy 等放宽 public（模块内，P5 收口）；疑似缺陷 8 条只登记未修（含新发现：pitchBaseOf 读 yaw_base_selector、describeSelector 日志路径 Pattern.compile、混合时钟），B10-B15 与待办清单接手。 |
 | 2026-10-10（续7） | **Q7 B4-P4 ✅**——`CameraTrackPlayer` 拆分第二步：新建 `CameraKeyframeEvaluator`（884 行，C 组六参数求值/插值/混合 + 片段选取 + 基准辅助，纯计算）、`LaneSnapshotCollector`（85 行，B 组 lane 捕获 + 经 snapshot/restore 两组锁状态留底）、`WorldPointLocator`（137 行，E 组结构/方块定位 + 两级缓存）；`CameraTrackPlayer` 1094→**140 行**（A 组 + onRenderFrame 编排，≤200 达标）；writeAttributes/renderMorph 的全局写入合并为 `writeGlobal` 唯一写入点。等值证据：747 条代码行多重集机械比对全对应（77 条残余全部归因已知变换）+ 缓存语义逐点保留（成功永久/失败 2 秒重试/不写缓存早退）。验收：compile + icv tests 3 既有 FAIL 不变 + release 5/5 + icv2/icgl 全绿 + **quadrant 实机像素回归**（备份纪律：pre-p4 参照留档；前后对照 Q1 峰值压 R ×0.042/×0.043、Q2 压 G ×0.040/×0.043、Q3 压 B ×0.040/×0.031、Q4 对照恒 ≈1、映射与 dest 几何一致；绝对均值差 = 运行间基础画面噪声 + pre 参照字幕污染，非回归）。 |
+| 2026-10-10（续8） | **Q8 B14 ✅**——selector 解析缺陷补齐（`feat` 提交）：`EntityTargetResolver.requiresServerSelector` 形态分类扩展——`@a`/`@r`/`@p[…]`/`@a[…]`/`@r[…]`（含 `[team=…]`）进服务端原版解析；`@n` = 原版 1.20.1 不存在（EntitySelectorParser 仅 p/a/r/s/e 五分支），按「未知形式 warn 不崩」保留；@p/@s 快路径、@e/uuid 本地路径、warn 口径逐点不变。等值证据：谓词方法体独立编译 36 例全绿（补齐 10 例 + 既有 @e 6 例 + 不变面 20 例）。新增测试脚本 3 支（follow = @a / @r / @e[team=ic_red]，requires 接入既有序列；`_random` 因 id 34 字符超 32 上限返修改名 `_rand`）。验收：compile + icv tests 3 既有 FAIL 不变 + release 5/5 + icv2/icgl 全绿 + **实机解析抽验**（@a 锁定玩家、@e[team] 建队/召唤/入队后锁定铁傀儡 = team 匹配端到端生效、@r 同服务端路径、@n 持续 warn 且播放 12s 正常走完、全程零异常）。**登记**：`@s[…]`（带选项 @s）仍走本地 warn 分支——不在已知缺陷清单与本任务范围，留 B15 通用化扫面；`@p[team=…]` 路由由谓词证明、实机未单测（单人局无意义）。 |

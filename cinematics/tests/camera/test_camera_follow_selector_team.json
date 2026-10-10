@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "id": "test_camera_follow_selector_team",
+    "name": "相机测试-follow选择器@e[team]",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "只测试 follow 选择器 @e[team=ic_red]（队伍过滤，服务端原版解析）",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_follow_selector_rand"] } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "layer_type": "subtitle",
+            "text": "测试: test_camera_follow_selector_team | 功能: follow @e[team=ic_red] | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+  "type": "EVENT",
+  "clips": [
+    {
+      "start_time": 0,
+      "duration": 12,
+      "event_type": "command",
+      "keyframes": [
+        { "time": 0, "event_type": "command", "command": "team add ic_red" },
+        { "time": 0.2, "event_type": "command", "command": "summon minecraft:iron_golem ~ ~2 ~" },
+        { "time": 0.5, "event_type": "command", "command": "team join ic_red @e[type=minecraft:iron_golem,limit=1]" }
+      ]
+    }
+  ]
+},
+{
+  "type": "CAMERA",
+  "clips": [
+    {
+      "start_time": 1,
+      "duration": 11,
+      "transition": "cut",
+      "loop": false,
+      "keyframes": [
+        { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@e[team=ic_red]", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 },
+        { "time": 11, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@e[team=ic_red]", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 }
+      ]
+    }
+  ]
+}
+    ]
+  }
+}

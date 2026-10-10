@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "id": "test_camera_follow_selector_rand",
+    "name": "相机测试-follow选择器@r",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "只测试 follow 选择器 @r（随机一名玩家，服务端原版解析）",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_follow_selector_all"] } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "layer_type": "subtitle",
+            "text": "测试: test_camera_follow_selector_rand | 功能: follow @r 随机玩家 | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+  "type": "CAMERA",
+  "clips": [
+    {
+      "start_time": 0,
+      "duration": 12,
+      "transition": "cut",
+      "loop": false,
+      "keyframes": [
+        { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@r", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 },
+        { "time": 12, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@r", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 }
+      ]
+    }
+  ]
+}
+    ]
+  }
+}

@@ -20,8 +20,11 @@ import java.util.regex.Pattern;
  * 目标实体解析与锁定：selector → 客户端实体，并按 {@code role + selector} 维护目标锁与切换平滑状态。
  *
  * 解析分两条路径：本地快路径（{@code @p} / {@code @s} / {@code @e} / {@code @e[type=…,name=…]} / {@code uuid:…}）
- * 同步求值；其余 {@code @e[…]}（{@code nbt} / {@code tag} / 反向 / 多值等原版扩展选项）交服务端解析，
- * 再按回传 UUID 映射到客户端实体。{@code @a} / {@code @r} / {@code @n} 不在支持范围（告警后按无匹配处理）。
+ * 同步求值；其余形态交服务端用原版解析，再按回传 UUID 映射到客户端实体——带选项的 {@code @p} / {@code @a} /
+ * {@code @r}（含 {@code [team=…]} 等选项，选项语义由原版 {@code EntitySelectorParser} 决定，客户端不裁剪）
+ * 与 {@code @e[…]} 的原版扩展选项（{@code nbt} / {@code tag} / 反向 / 多值等）；服务端上限 512 字符 / 32 条结果。
+ * 原版不存在的 {@code @n} 与未知类型 / 畸形括号告警后按无匹配处理；原版五分支与选项清单见
+ * plans/0.3.6/selector-model.md 事实核查③。
  *
  * 目标丢失（死亡 / 移除 / 未加载）不等于目标结束：锁进入搜索态，保持调用方最后画面，并按
  * {@link #MISS_RETRY_MS}（毫秒）节流重找；一旦解析到任意符合规则的目标即恢复，不受存活期切换策略限制。
@@ -395,13 +398,25 @@ public final class EntityTargetResolver {
     }
 
     /**
-     * 是否交给服务端解析：仅 {@code @e[…]}` 形态可能为真。
-     * 本地只支持普通 {@code type=xxx} / {@code name=xxx}；{@code nbt} / {@code tag} / {@code distance} /
-     * {@code sort} / {@code limit} 等其他选项、实体类型 tag（{@code type=#tag}）、反向 type
-     * （{@code type=!xxx} / {@code type=!#tag}）、多个 type 选项、反向 name 一律交服务端。
+     * 是否交给服务端解析（判定口径见类 javadoc「解析分两条路径」）：本方法只按形态分类，不校验选项语义。
+     * 带选项的 {@code @p} / {@code @a} / {@code @r}（{@code @x[…]}）与 {@code @e[…]} 的原版扩展选项为真；
+     * 无选项 {@code @p} / {@code @s}、{@code @e} / {@code @e[type=…,name=…]} / {@code uuid:…} 与未知类型 /
+     * 畸形括号为假（由本地路径告警 + 按无匹配处理）。纯判定，无副作用。
      */
     private static boolean requiresServerSelector(String selector) {
-        if (selector == null || !selector.startsWith("@e[") || !selector.endsWith("]")) {
+        if (selector == null || selector.length() < 2 || selector.charAt(0) != '@') {
+            return false;
+        }
+        char kind = selector.charAt(1);
+        // 无选项 @p 走 resolveEntity 快路径（返回本地玩家），故这里只放行无选项 @a / @r；
+        // 带选项的 @p / @a / @r 一律交服务端（选项语义由原版解析，不在此裁剪）；缺 ] 的畸形形态落回本地告警。
+        if (kind == 'p' || kind == 'a' || kind == 'r') {
+            if (selector.length() == 2) {
+                return kind != 'p';
+            }
+            return selector.charAt(2) == '[' && selector.endsWith("]");
+        }
+        if (!selector.startsWith("@e[") || !selector.endsWith("]")) {
             return false;
         }
         String inner = selector.substring(3, selector.length() - 1);
