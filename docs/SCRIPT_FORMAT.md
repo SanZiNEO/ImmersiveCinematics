@@ -285,6 +285,7 @@ immersive_cinematics/
 | `selector_switch_while_alive` | bool | 否 | `true` | `true`=目标存活时也按 `selector_refresh` 扫描并切到新的最近目标；`false`=当前目标活着就不换。**目标丢失后不受此项限制**：进入搜索态持续重找，解析到任意符合规则的目标就立即恢复 |
 | `selector_switch_interval` | float | 否 | = `selector_refresh` | 两次真实切换之间的最小间隔（秒），与扫描频率无关：扫描到新目标但距上次切换不足 N 秒 → 继续用旧目标。`0`=不限制。缺省 = `selector_refresh` |
 | `selector_switch_smooth` | float | 否 | `0.0` | 目标真的切换时（含丢失后恢复到新目标），注视点/跟随位置在 N 秒内以 smoothstep 过渡；`0`=硬切。作用于本关键帧所有目标点（缺省回落；调用点专属字段见下方"调用点级策略覆盖"） |
+| `selector_anchor` | string | 否 | `"camera"` | 选择器锚点：`sort=nearest` 的**就近参考点**（本地就近排序与服务端解析请求共用）。`"camera"`=相机当前位置（缺省，旧行为）；`"player"`=玩家脚底；`"target"`=该调用点当前锁定目标的脚底（尚未解析到目标时回落相机）；`"origin"`=`position.relative_origin` 点源坐标（与位置基准同一解析：固定坐标 / 结构中心 / 方块中心 / 玩家激活位置 / 实体选择器；`position` 字段缺失或点源解析失败时回落相机）。作用于本关键帧所有选择器调用点（缺省回落；调用点专属字段见下方"调用点级策略覆盖"） |
 | `yaw_base` | string | 否 | `"world"` | `yaw` 的基准方向：`"world"`=0 世界角（`yaw` 即世界朝向）；`"entity"`=实体**身体朝向**水平角（取身体 yaw，用 `yaw_base_selector`）；`"line"`=从 `yaw_base_from` 到 `yaw_base_to` 的连线水平角。此时 `yaw` 为相对基准的偏移 |
 | `pitch_base` | string | 否 | `"world"` | `pitch` 的基准俯仰：同上，`entity` 取实体**视线**俯仰、`line` 取连线垂直角 |
 | `yaw_base_selector` | string | 否 | `"@p"` | `yaw_base/pitch_base=entity` 时的实体选择器（`yaw` 取该实体身体朝向水平角、`pitch` 取该实体视线俯仰） |
@@ -298,7 +299,7 @@ immersive_cinematics/
 | `dest` | object | 否 | 全屏 `{x:0,y:0,w:1,h:1}` | 目标区域：本 clip 画面铺到屏幕的归一化矩形，格式见下方"合成参数" |
 | `source` | object | 否 | 全幅 `{x:0,y:0,w:1,h:1}` | 取材区域：从本 clip 画面内取哪一块的归一化矩形，格式见下方"合成参数" |
 
-**调用点级策略覆盖**（0.3.6）：上面 4 个 `selector_*` 策略字段是**通用回落**——默认作用于本关键帧全部选择器调用点。想给某个调用点单独配置，写 `<字段>_<调用点>`，它优先于通用字段；不写 = 回落通用字段（旧脚本行为逐点不变）。
+**调用点级策略覆盖**（0.3.6）：上面 4 个 `selector_*` 策略字段与 `selector_anchor` 都是**通用回落**——默认作用于本关键帧全部选择器调用点。想给某个调用点单独配置，写 `<字段>_<调用点>`，它优先于通用字段；不写 = 回落通用字段（旧脚本行为逐点不变）。
 
 | 调用点 | 服务的属性（对应字段） | 专属策略字段（以 `selector_refresh` 为例） |
 |--------|------------------------|--------------------------------------------|
@@ -313,12 +314,14 @@ immersive_cinematics/
 
 4 个策略字段都有调用点变体：`selector_refresh_*` / `selector_switch_while_alive_*` / `selector_switch_interval_*` / `selector_switch_smooth_*`，类型与范围与通用字段一致。示例：`"selector_refresh_look_at": 0.2` + `"selector_switch_smooth_look_at": 0.3` = 注视目标 0.2 秒扫一次、切换用 0.3 秒过渡，而 follow 仍用通用值。
 
+锚点字段同样有调用点变体 `selector_anchor_<调用点>`（取值与缺省规则同 `selector_anchor`）：不写 = 回落通用 `selector_anchor`（再缺省 `camera`）。示例：`"selector_anchor_follow": "target"` = follow 的就近参考点用跟随目标自身（`@e[type=…]` 这类就近 selector 因而稳定锁在同一目标上），其余调用点仍用相机位置。锚点取值（`camera` / `player` / `target` / `origin`）参与目标锁与解析缓存的键：同一 selector 在不同锚点下各持一份解析结果，互不覆盖。
+
 **目标选择器**（`follow_selector` / `look_at_selector`）：
 
 | 写法 | 行为 |
 |------|------|
 | `@p` / `@s` | 玩家 |
-| `@e` | 离相机最近的活实体 |
+| `@e` | 离锚点最近的活实体（锚点缺省 = 相机位置，见 `selector_anchor`） |
 | `@e[type=minecraft:iron_golem]` | 类型过滤后就近（模组 boss 用其注册 id） |
 | `@e[type=#your_mod:units]` | 实体类型 tag 过滤（推荐：只选单位、排除投掷物）。tag 由数据包/模组提供 |
 | `@e[type=!#minecraft:impact_projectiles]` | 反向实体类型 tag：排除投掷物等 |

@@ -186,9 +186,9 @@
 | `look_at_target_x/y/z` | 注视固定坐标（`coordinate` 模式）。**与 `look_at_target_structure` 互斥** |
 | `look_at_target_structure` | 注视结构中心（`coordinate` 模式）：填结构 id 如 `minecraft:village`。播放时服务端自动定位**结构 bounding box 中心**并替换为坐标（就近搜索，原版 /locate 同范围，多人服务器也生效）；编辑器里是注册表下拉补全。**与坐标互斥**：指定结构后定位失败不回退坐标，该端无注视目标（回退角度插值） |
 
-**目标选择器**（`follow_selector` / `look_at_selector`）：`@p`/`@s`（玩家）、`@e`（离相机最近实体）、`@e[type=minecraft:sheep]`（类型过滤后就近，模组 boss 用其注册 id）、`@e[name=自定义名]`（命名牌名字过滤后就近）、`uuid:xxxxxxxx-…`（UUID 直绑）——就近基准为相机当前位置。
+**目标选择器**（`follow_selector` / `look_at_selector`）：`@p`/`@s`（玩家）、`@e`（离锚点最近实体）、`@e[type=minecraft:sheep]`（类型过滤后就近，模组 boss 用其注册 id）、`@e[name=自定义名]`（命名牌名字过滤后就近）、`uuid:xxxxxxxx-…`（UUID 直绑）——就近基准（锚点）缺省为相机当前位置，可用 `selector_anchor` 改为 `player`（玩家脚底）/ `target`（该调用点当前锁定目标脚底，未解析到目标时回落相机）/ `origin`（`position.relative_origin` 点源坐标，与位置基准同一解析：固定坐标 / 结构中心 / 方块中心 / 玩家激活位置 / 实体选择器；`position` 缺失或点源解析失败时回落相机）。
 
-每个选择器调用点（`follow` / `look_at` / `look_at_target` / `yaw_base` / `yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target`）的锁定策略可单独覆盖：写 `selector_refresh_<调用点>` 等（4 个策略字段都有调用点变体），缺省回落通用 `selector_*`（详见 `docs/SCRIPT_FORMAT.md` §4「调用点级策略覆盖」）。
+每个选择器调用点（`follow` / `look_at` / `look_at_target` / `yaw_base` / `yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target`）的锁定策略与锚点可单独覆盖：写 `selector_refresh_<调用点>` / `selector_anchor_<调用点>` 等（4 个策略字段 + 锚点都有调用点变体），缺省回落通用 `selector_*`（详见 `docs/SCRIPT_FORMAT.md` §4「调用点级策略覆盖」）。
 
 规则：
 - `time` 是 **clip 内**偏移（从 0 到 duration），必须严格递增

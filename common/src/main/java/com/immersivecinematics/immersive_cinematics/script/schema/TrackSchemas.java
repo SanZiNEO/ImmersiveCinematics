@@ -100,13 +100,20 @@ public final class TrackSchemas {
         // 切换间隔：两次真实切换之间的最小间隔（与扫描频率无关）；缺省 = selector_refresh
         kfs.put("selector_switch_interval", new FieldDef("float", 1.0f));
         kfs.put("selector_switch_smooth", new FieldDef("float", 0.0f));
-        // 调用点专属覆盖（8 个调用点 × 4 个策略字段）；名单须与 EntityTargetResolver.SELECTOR_CALLPOINTS 一致
+        // 选择器锚点：就近排序（sort=nearest）的参考点，也是服务端解析请求的原点。
+        // camera（缺省）= 相机位置（旧行为）；player = 玩家脚底；target = 该调用点已解析锁的实体脚底
+        // （未解析到目标时回落 camera）；origin = position.relative_origin 点源坐标（固定坐标 / 结构中心 /
+        // 方块中心 / 玩家激活位置 / 实体选择器，与位置基准同一解析；position 缺失或点源解析失败回落 camera）。
+        // 取值与回落链见 EntityTargetResolver.selectorAnchor。
+        kfs.put("selector_anchor", new FieldDef("string", "camera"));
+        // 调用点专属覆盖（8 个调用点 × 5 个选择器字段）；名单须与 EntityTargetResolver.SELECTOR_CALLPOINTS 一致
         for (String callpoint : new String[]{"follow", "look_at", "look_at_target", "yaw_base",
                 "yaw_base_from", "yaw_base_to", "facing_origin", "facing_target"}) {
             kfs.put("selector_refresh_" + callpoint, new FieldDef("float", null));
             kfs.put("selector_switch_while_alive_" + callpoint, new FieldDef("bool", null));
             kfs.put("selector_switch_interval_" + callpoint, new FieldDef("float", null));
             kfs.put("selector_switch_smooth_" + callpoint, new FieldDef("float", null));
+            kfs.put("selector_anchor_" + callpoint, new FieldDef("string", null));
         }
         // 朝向基准来源（措辞口径：身体朝向 = 实体身体水平角 yBodyRot；视线 = 实体 yRot + xRot）。
         // yaw_base = entity 取「实体身体朝向」水平角；pitch_base = entity 取「实体视线」俯仰。

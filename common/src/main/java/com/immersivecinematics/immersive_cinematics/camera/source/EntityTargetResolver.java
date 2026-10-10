@@ -1,7 +1,9 @@
 package com.immersivecinematics.immersive_cinematics.camera.source;
 
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
+import com.immersivecinematics.immersive_cinematics.script.PositionData;
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientEntitySelectorCache;
+import com.immersivecinematics.immersive_cinematics.util.TimeInterpolation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -17,8 +19,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 目标实体解析与锁定：selector → 客户端实体，并按 {@code role + selector} 维护目标锁与切换平滑状态。
- * 服务端结果按 {@link ClientEntitySelectorCache.Key}（调用点 + 锚点来源 + selector）分桶缓存，互不覆盖。
+ * 目标实体解析与锁定：selector → 客户端实体，并按 {@code role + 锚点 + selector} 维护目标锁与切换平滑状态。
+ * 服务端结果按 {@link ClientEntitySelectorCache.Key}（调用点 + 锚点 + selector）分桶缓存，互不覆盖。
+ * 锚点 = 就近排序（{@code sort=nearest}）的参考点，也是服务端解析请求的原点；取值与回落链见 {@link #selectorAnchor}。
  *
  * 解析分两条路径：本地快路径（{@code @p} / {@code @s} / {@code @e} / {@code @e[type=…,name=…]} / {@code uuid:…}）
  * 同步求值；其余形态交服务端用原版解析，再按回传 UUID 映射到客户端实体——带选项的 {@code @p} / {@code @a} /
@@ -51,17 +54,33 @@ public final class EntityTargetResolver {
             "follow", "look_at", "look_at_target", "yaw_base",
             "yaw_base_from", "yaw_base_to", "facing_origin", "facing_target");
 
-    /** 锚点来源身份：本期唯一取值 = 相机位置（即调用方传入的 {@code origin}）；来源身份进键，逐帧坐标不进键。 */
+    /**
+     * 选择器锚点取值：就近排序（{@code sort=nearest}）的参考点，也是服务端解析请求的原点。
+     *
+     * {@code camera}（缺省）= 调用方传入的相机位置（旧行为）；{@code player} = 玩家脚底（渲染帧插值）；
+     * {@code target} = 本调用点已解析锁的实体脚底，尚未解析到目标时回落 {@code camera}；
+     * {@code origin} = {@code position.relative_origin} 点源坐标（固定坐标 / 结构中心 / 方块中心 /
+     * 玩家激活位置 / 实体选择器，与位置基准同一解析），{@code position} 缺失或点源解析失败回落 {@code camera}。
+     * 坐标空间 = 世界空间方块坐标，脚底口径。
+     * 锚点取值（身份）进锁键与缓存键，锚点坐标不进键——回落只改坐标不改身份，锁不因回落换键。
+     */
     private static final String ANCHOR_CAMERA = "camera";
+    private static final String ANCHOR_PLAYER = "player";
+    private static final String ANCHOR_TARGET = "target";
+    private static final String ANCHOR_ORIGIN = "origin";
 
-    /** 目标锁状态：按 {@code role + selector} 维护。 */
+    /** 点源定位器（结构 / 方块）与玩家激活位置：与求值器共用，见 {@link #attachWorldContext}。 */
+    private WorldPointLocator pointLocator;
+    private Vec3 originPos;
+
+    /** 目标锁状态：按 {@code role + 锚点 + selector} 维护。 */
     private final Map<String, TargetLock> targetLocks = new HashMap<>();
 
     /** 捕获求值隔离基线：{@link #snapshotLockState()} 留底，{@link #restoreLockState()} 回写。 */
     private final Map<String, TargetLock> lockBaseline = new HashMap<>();
 
     /**
-     * 目标锁定状态：按 {@code role + selector} 维护。
+     * 目标锁定状态：按 {@code role + 锚点 + selector} 维护。
      *
      * {@code uuid} / {@code entity} / {@code resolvedAt} = 当前锁定目标与刷新时间；{@code switchGeneration} 在
      * 目标 UUID 每次变化时 +1，供各通道检测「是否刚切换」；{@code points} = 各通道的平滑状态。
@@ -71,7 +90,7 @@ public final class EntityTargetResolver {
         Entity entity;
         long resolvedAt;
         long switchGeneration;
-        /** 客户端选择器缓存键（调用点 + 锚点来源 + selector）；锁建立时算一次，逐帧复用 */
+        /** 客户端选择器缓存键（调用点 + 锚点 + selector）；锁建立时算一次，逐帧复用 */
         ClientEntitySelectorCache.Key cacheKey;
         /** 搜索态：目标已丢失 / 尚未找到（由 resolveEntity 维护） */
         boolean searching;
@@ -103,6 +122,15 @@ public final class EntityTargetResolver {
     public record SelectorPolicy(
             float scanSeconds, boolean switchWhileAlive, float switchSeconds, float switchSmooth) {}
 
+    /**
+     * 注入世界上下文（点源定位器 + 玩家激活位置）：由 {@code CameraKeyframeEvaluator} 构造时传入同一实例，
+     * 两者共用定位器缓存；一次性接线，重复注入以最后一次为准。
+     */
+    public void attachWorldContext(WorldPointLocator locator, Vec3 originPos) {
+        this.pointLocator = locator;
+        this.originPos = originPos;
+    }
+
     /** 生命周期清理：清空目标锁与客户端选择器缓存（停止播放 / 脚本替换时调用）。 */
     public void clear() {
         targetLocks.clear();
@@ -113,13 +141,21 @@ public final class EntityTargetResolver {
     /**
      * 解析目标实体：本地快路径同步求值，服务端选择器走请求 + 缓存回映射。
      *
-     * @param selector 选择器字符串；{@code null} / 空串 = 无目标
-     * @param origin   就近排序与请求锚点的世界坐标（调用方当前相机位置）
-     * @param role     调用点名：决定策略字段与锁的键，见 {@link #SELECTOR_CALLPOINTS}
-     * @param kf       策略字段来源关键帧；{@code null} = 全缺省策略
+     * @param selector  选择器字符串；{@code null} / 空串 = 无目标
+     * @param cameraPos 相机世界坐标（调用方当前视点）：锚点缺省值与全部回落分支的取值
+     * @param role      调用点名：决定策略字段、锚点字段与锁的键，见 {@link #SELECTOR_CALLPOINTS}
+     * @param kf        策略 / 锚点字段来源关键帧；{@code null} = 全缺省策略 + 锚点 {@code camera}
      * @return 解析到的客户端实体；无匹配 / 目标未加载 / 节流未到 = {@code null}
      */
-    public Entity resolveEntity(String selector, Vec3 origin, String role, Keyframe kf) {
+    public Entity resolveEntity(String selector, Vec3 cameraPos, String role, Keyframe kf) {
+        return resolveEntity(selector, cameraPos, role, kf, selectorAnchor(kf, role));
+    }
+
+    /**
+     * 按给定锚点取值解析（锚点由调用方决定，不再读字段）：公共入口用 {@link #selectorAnchor} 的结果；
+     * 点源实体分支固定传 {@link #ANCHOR_CAMERA}——anchor=origin 经点源实体解析会绕回自身锚点。
+     */
+    private Entity resolveEntity(String selector, Vec3 cameraPos, String role, Keyframe kf, String anchor) {
         Minecraft mc = Minecraft.getInstance();
         if (selector == null || selector.isEmpty()) return null;
         if ("@p".equals(selector) || "@s".equals(selector)) {
@@ -128,8 +164,9 @@ public final class EntityTargetResolver {
         if (mc.level == null) return null;
 
         SelectorPolicy policy = selectorPolicy(kf, role);
-        String key = targetKey(role, selector);
-        TargetLock lock = targetLocks.computeIfAbsent(key, k -> newLock(role, selector));
+        TargetLock lock = targetLocks.computeIfAbsent(targetKey(role, anchor, selector),
+                k -> newLock(role, anchor, selector));
+        Vec3 origin = anchorPosition(anchor, cameraPos, lock, kf);
         long now = System.currentTimeMillis();
 
         // 解析间隔（= 扫描指标）：与切换决策完全独立
@@ -236,17 +273,101 @@ public final class EntityTargetResolver {
     }
 
     /**
-     * 目标点 / 位置切换平滑：按 {@code role + selector} 锁的通道（look_at / follow 位置 / 朝向基准）分别维护。
+     * 该调用点在关键帧上的有效锚点取值：先读 {@code selector_anchor_<调用点>}，缺失回落通用
+     * {@code selector_anchor}，再缺省 {@link #ANCHOR_CAMERA}；四值集之外的值一律按 {@code camera} 处理。
+     * 取值定义与回落链见 {@link #ANCHOR_CAMERA}。
+     *
+     * @param kf   {@code null} = 锚点 {@code camera}
+     * @param role 调用点名；不在 {@link #SELECTOR_CALLPOINTS} 内 = 只用通用字段
+     * @return 锚点取值：{@code camera} / {@code player} / {@code target} / {@code origin}
+     */
+    public String selectorAnchor(Keyframe kf, String role) {
+        if (kf == null) return ANCHOR_CAMERA;
+        String callpoint = SELECTOR_CALLPOINTS.contains(role) ? role : null;
+        String value = stringForCallpoint(kf, "selector_anchor", callpoint, ANCHOR_CAMERA);
+        return isKnownAnchor(value) ? value : ANCHOR_CAMERA;
+    }
+
+    /**
+     * 锚点坐标（世界空间方块坐标，脚底口径）：按锚点取值取位，不可解析一律回落相机位置。
+     *
+     * @param anchor    锚点取值（{@link #selectorAnchor} 的结果）
+     * @param cameraPos 调用方传入的相机位置：{@code camera} 分支与全部回落分支的取值，
+     *                  也是 {@code origin} 分支实体点源的解析原点
+     * @param lock      本调用点本锚点的目标锁（{@code target} 取锁的实体位置）
+     * @param kf        {@code origin} 分支的点源字段来源关键帧
+     * @return 锚点坐标；{@code camera} 分支原样返回 {@code cameraPos}
+     */
+    private Vec3 anchorPosition(String anchor, Vec3 cameraPos, TargetLock lock, Keyframe kf) {
+        if (ANCHOR_PLAYER.equals(anchor)) {
+            Entity player = Minecraft.getInstance().player;
+            return player != null ? TimeInterpolation.entityPosition(player) : cameraPos;
+        }
+        if (ANCHOR_TARGET.equals(anchor)) {
+            Entity target = lockEntity(lock);
+            return target != null ? TimeInterpolation.entityPosition(target) : cameraPos;
+        }
+        if (ANCHOR_ORIGIN.equals(anchor)) {
+            Vec3 point = pointSourcePos(kf, cameraPos);
+            return point != null ? point : cameraPos;
+        }
+        return cameraPos;
+    }
+
+    /**
+     * {@code origin} 锚点坐标 = {@code position.relative_origin} 点源（与位置基准同一解析）：
+     * 固定坐标 / 结构中心 / 方块中心 / 玩家激活位置（字段缺省或 {@code "player"} / {@code "@p"} / {@code "@s"}）/
+     * 实体选择器（{@code facing_origin} 写法）。{@code position} 字段缺失或点源解析失败返回 {@code null}，
+     * 由调用方回落相机位置；实体点源按锚点 {@code camera} 解析（点源自引用会绕回本锚点）。
+     *
+     * @param kf        点源字段来源关键帧；{@code null} = 无点源
+     * @param cameraPos 实体点源的解析原点（锚点 {@code camera} 的取值）
+     * @return 世界空间点源坐标；无点源 / 不可解析 = {@code null}
+     */
+    private Vec3 pointSourcePos(Keyframe kf, Vec3 cameraPos) {
+        if (kf == null) return null;
+        PositionData pd = kf.getPosition();
+        if (pd == null) return null;
+        if (pd.isOriginCoordinate()) {
+            return new Vec3(pd.getOriginX(), pd.getOriginY(), pd.getOriginZ());
+        }
+        if (pd.isOriginBlock()) {
+            return pointLocator != null
+                    ? pointLocator.resolveBlockPos(pd.getOriginBlockId(), pd.getOriginBlockRadius())
+                    : null;
+        }
+        if (pd.isOriginSelector()) {
+            Entity base = resolveEntity(pd.getOriginSelector(), cameraPos, "facing_origin", kf, ANCHOR_CAMERA);
+            return base != null ? TimeInterpolation.entityPosition(base) : null;
+        }
+        String structureId = pd.getOriginStructure();
+        if (structureId != null && !structureId.isEmpty()) {
+            return pointLocator != null ? pointLocator.resolveStructurePos(structureId) : null;
+        }
+        // 剩余形态 = 玩家基准（relative_origin 缺省 / "player" / "@p" / "@s"）：取值 = 玩家激活位置
+        return originPos;
+    }
+
+    /** 取值是否属四值集；未知值（未过校验的脚本）按缺省 {@link #ANCHOR_CAMERA} 处理。 */
+    private static boolean isKnownAnchor(String anchor) {
+        return ANCHOR_CAMERA.equals(anchor) || ANCHOR_PLAYER.equals(anchor)
+                || ANCHOR_TARGET.equals(anchor) || ANCHOR_ORIGIN.equals(anchor);
+    }
+
+    /**
+     * 目标点 / 位置切换平滑：按 {@code role + 锚点 + selector} 锁的通道（look_at / follow 位置 / 朝向基准）分别维护。
      * 只有目标 UUID 变化（{@code switchGeneration} 前进）时才启动过渡，稳定跟踪同一目标不额外延迟。
      *
      * @param channel       通道名：同一把锁下各通道互不影响
      * @param raw           本帧原始目标点（世界坐标）
      * @param smoothSeconds 过渡时长（秒）；{@code <= 0} = 立即跳到新目标
+     * @param kf            锚点字段来源关键帧（决定用哪把锁）；{@code null} = 锚点 {@code camera}
      * @return 平滑后的目标点；无对应锁（该目标未解析过）= {@code raw}
      */
-    public Vec3 smoothTargetPoint(String role, String selector, String channel, Vec3 raw, float smoothSeconds) {
+    public Vec3 smoothTargetPoint(String role, String selector, String channel, Vec3 raw, float smoothSeconds,
+                                  Keyframe kf) {
         if (raw == null) return null;
-        TargetLock lock = targetLocks.get(targetKey(role, selector));
+        TargetLock lock = targetLocks.get(targetKey(role, selectorAnchor(kf, role), selector));
         if (lock == null) return raw;
 
         PointState state = lock.points.computeIfAbsent(channel, k -> new PointState());
@@ -339,10 +460,10 @@ public final class EntityTargetResolver {
      * 搜索态（{@code searching=true}）下本地选择器按 {@link #MISS_RETRY_MS} 节流重扫；
      * 服务端选择器的请求节流在 {@link #resolveServerSelector} 内（读缓存不受节流）。
      */
-    private Entity resolveEntityInternal(String selector, Vec3 origin, long refreshMs, boolean searching,
+    private Entity resolveEntityInternal(String selector, Vec3 anchorPos, long refreshMs, boolean searching,
                                         TargetLock lock) {
         if (requiresServerSelector(selector)) {
-            return resolveServerSelector(origin, refreshMs, searching, lock);
+            return resolveServerSelector(anchorPos, refreshMs, searching, lock);
         }
         if (searching) {
             long now = System.currentTimeMillis();
@@ -351,11 +472,14 @@ public final class EntityTargetResolver {
             }
             lock.nextRetryAt = now + MISS_RETRY_MS;
         }
-        return resolveLocalSelector(selector, origin);
+        return resolveLocalSelector(selector, anchorPos);
     }
 
-    /** 本地解析：只处理 {@code @e} / {@code @e[type=…,name=…]} / {@code uuid:xxx}，其余告警后按无匹配处理。 */
-    private Entity resolveLocalSelector(String selector, Vec3 origin) {
+    /**
+     * 本地解析：只处理 {@code @e} / {@code @e[type=…,name=…]} / {@code uuid:xxx}，其余告警后按无匹配处理。
+     * {@code @e} 系列按到 {@code anchorPos} 的距离取最近。
+     */
+    private Entity resolveLocalSelector(String selector, Vec3 anchorPos) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return null;
         Entity found = null;
@@ -394,7 +518,7 @@ public final class EntityTargetResolver {
                 if (fType != null && !fType.equals(EntityType.getKey(e.getType()).toString())) continue;
                 if (fName != null
                         && (e.getCustomName() == null || !fName.equals(e.getCustomName().getString()))) continue;
-                double dist = e.distanceToSqr(origin);
+                double dist = e.distanceToSqr(anchorPos);
                 if (dist < bestDist) {
                     bestDist = dist;
                     found = e;
@@ -466,14 +590,14 @@ public final class EntityTargetResolver {
 
     /**
      * 服务端路径：请求服务端用原版选择器求值，再把回传 UUID 映射回客户端实体。
-     * 读写缓存一律用锁固化的键（调用点 + 锚点来源 + selector，见 {@link ClientEntitySelectorCache.Key}），
-     * 同一 selector 的不同调用点 / 锚点来源各占一份条目。
+     * 读写缓存一律用锁固化的键（调用点 + 锚点 + selector，见 {@link ClientEntitySelectorCache.Key}），
+     * 同一 selector 的不同调用点 / 不同锚点各占一份条目；{@code anchorPos} 随请求发给服务端作为选择器原点。
      * 跟踪态按 {@code refreshMs} 刷新（pending 期间不重复发请求）；搜索态每帧读缓存，上一份结果已消费且
      * 仍无可用目标时按 {@link #MISS_RETRY_MS} 节流重发——不等 {@code refreshMs}。
      *
      * @return 可用实体；无缓存条目 / 回传 UUID 均不可用 = {@code null}（调用方按无目标处理）
      */
-    private Entity resolveServerSelector(Vec3 origin, long refreshMs, boolean searching, TargetLock lock) {
+    private Entity resolveServerSelector(Vec3 anchorPos, long refreshMs, boolean searching, TargetLock lock) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.getConnection() == null) {
             return null;
@@ -484,7 +608,7 @@ public final class EntityTargetResolver {
         if (entry == null) {
             // 首次请求：本帧无结果
             lock.nextRetryAt = now + MISS_RETRY_MS;
-            ClientEntitySelectorCache.request(lock.cacheKey, origin.x, origin.y, origin.z);
+            ClientEntitySelectorCache.request(lock.cacheKey, anchorPos.x, anchorPos.y, anchorPos.z);
             return null;
         }
 
@@ -507,7 +631,7 @@ public final class EntityTargetResolver {
                 && (searching ? now >= lock.nextRetryAt : now - entry.resolvedAt >= refreshMs);
         if (needRequest) {
             lock.nextRetryAt = now + MISS_RETRY_MS;
-            ClientEntitySelectorCache.request(lock.cacheKey, origin.x, origin.y, origin.z);
+            ClientEntitySelectorCache.request(lock.cacheKey, anchorPos.x, anchorPos.y, anchorPos.z);
         }
         return null;
     }
@@ -550,6 +674,15 @@ public final class EntityTargetResolver {
         return kf.getFloat(field, fallback);
     }
 
+    /** 读「调用点专属字段 → 通用字段 → 缺省值」（字符串口径，与 {@link #floatForCallpoint} 同规则）。 */
+    private static String stringForCallpoint(Keyframe kf, String field, String callpoint, String fallback) {
+        if (callpoint != null) {
+            String key = field + "_" + callpoint;
+            if (kf.getData().containsKey(key)) return kf.getString(key, fallback);
+        }
+        return kf.getString(field, fallback);
+    }
+
     private static boolean boolForCallpoint(Keyframe kf, String field, String callpoint, boolean fallback) {
         if (callpoint != null) {
             String key = field + "_" + callpoint;
@@ -558,15 +691,15 @@ public final class EntityTargetResolver {
         return kf.getBool(field, fallback);
     }
 
-    /** 锁的键：{@code role + NUL + selector}（同一 selector 在不同调用点各持一份锁）。 */
-    private static String targetKey(String role, String selector) {
-        return role + "\u0000" + selector;
+    /** 锁的键：{@code role + NUL + 锚点 + NUL + selector}（同一 selector 的不同调用点 / 不同锚点各持一份锁）。 */
+    private static String targetKey(String role, String anchor, String selector) {
+        return role + "\u0000" + anchor + "\u0000" + selector;
     }
 
-    /** 新建目标锁，并固化其选择器缓存键（调用点 + 锚点来源 + selector），使缓存访问不再逐帧拼键。 */
-    private static TargetLock newLock(String role, String selector) {
+    /** 新建目标锁，并固化其选择器缓存键（调用点 + 锚点 + selector），使缓存访问不再逐帧拼键。 */
+    private static TargetLock newLock(String role, String anchor, String selector) {
         TargetLock lock = new TargetLock();
-        lock.cacheKey = new ClientEntitySelectorCache.Key(role, ANCHOR_CAMERA, selector);
+        lock.cacheKey = new ClientEntitySelectorCache.Key(role, anchor, selector);
         return lock;
     }
 

@@ -93,6 +93,8 @@ public final class CameraKeyframeEvaluator {
         this.pointLocator = pointLocator;
         this.originPos = originPos;
         this.lastWorldPos = originPos;
+        // 世界上下文共用同一实例：锚点 origin 的点源（结构 / 方块 / 玩家激活位置）由 EntityTargetResolver 解析
+        entityResolver.attachWorldContext(pointLocator, originPos);
     }
 
     /**
@@ -322,7 +324,7 @@ public final class CameraKeyframeEvaluator {
                 Vec3 off = pd != null ? pd.toVec3() : Vec3.ZERO;
                 return entityResolver.smoothTargetPoint("follow", selector, "pos",
                         TimeInterpolation.entityPosition(target).add(off),
-                        entityResolver.selectorPolicy(kf, "follow").switchSmooth());
+                        entityResolver.selectorPolicy(kf, "follow").switchSmooth(), kf);
             }
             return lastWorldPos;
         }
@@ -419,7 +421,7 @@ public final class CameraKeyframeEvaluator {
         if (base == null) return null;
         String role = pd.isOriginSelector() ? "facing_origin" : "follow";
         Vec3 basePos = entityResolver.smoothTargetPoint(role, frameHandle(kf, pd), "base",
-                TimeInterpolation.entityPosition(base), entityResolver.selectorPolicy(kf, role).switchSmooth());
+                TimeInterpolation.entityPosition(base), entityResolver.selectorPolicy(kf, role).switchSmooth(), kf);
         return basePos;
     }
 
@@ -530,7 +532,7 @@ public final class CameraKeyframeEvaluator {
             if (target == null) return null;
             Vec3 raw = TimeInterpolation.entityPosition(target).add(0, target.getBbHeight() / 2.0, 0);
             return entityResolver.smoothTargetPoint("look_at", selector, "point", raw,
-                    entityResolver.selectorPolicy(kf, "look_at").switchSmooth());
+                    entityResolver.selectorPolicy(kf, "look_at").switchSmooth(), kf);
         }
         if ("coordinate".equals(lookAt)) {
             String structureId = kf.getString("look_at_target_structure", "");
@@ -616,7 +618,7 @@ public final class CameraKeyframeEvaluator {
                 ? TimeInterpolation.entityPosition(target).add(offset)
                 : TimeInterpolation.entityPosition(target).add(dx, dy, dz);
         return entityResolver.smoothTargetPoint("look_at_target", selector, "point", raw,
-                entityResolver.selectorPolicy(kf, "look_at_target").switchSmooth());
+                entityResolver.selectorPolicy(kf, "look_at_target").switchSmooth(), kf);
     }
 
     private static Float numOrNull(Object o) {
