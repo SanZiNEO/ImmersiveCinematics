@@ -10,19 +10,17 @@ import org.slf4j.LoggerFactory;
 
 /**
  * 图片覆盖层 — 在屏幕上渲染一张纹理
- * <p>
- * 统一参数（0.3.6 起，定稿见 {@code plans/0.3.6/variable-frame.md} §3.1）：
- * <ul>
- *   <li>x/y = <b>参考画布</b>归一化位置（0~1）——未缩放基准矩形的中心，0.5 = 画布正中</li>
- *   <li>anchor_x/anchor_y = 缩放绕点（元素自身归一化；0.5 = 绕元素中心缩放）</li>
- *   <li>scale_x/scale_y = 相对<b>基准尺寸</b>的倍数（图形层基准 = 原图像素 ÷ 参考分辨率 1920×1080）；
- *       1 = 原图 1:1 像素</li>
- *   <li>source = {x,y,w,h} 取材（素材归一化）：先裁出素材子矩形</li>
- *   <li>fit = fit / fill / stretch：再把子矩形按该模式铺进元素框</li>
- *   <li>opacity = 透明度（0~1）</li>
- * </ul>
- * 几何全程在浮点比例域解算（{@link CanvasTransform#element}），只在 blit 那一步落到像素。
- * 1920×1080 屏幕（画布 = 屏幕）+ 缺省参数下，与旧「屏幕百分比 + 原图乘数」口径逐像素等价。
+ *
+ * 统一参数（口径见 {@code plans/0.3.6/variable-frame.md} §4.2）：
+ * x/y = <b>窗口</b>归一化位置（0~1，未缩放基准矩形的中心，0.5 = 窗口正中）；
+ * anchor_x/anchor_y = 缩放绕点（元素自身归一化，0.5 = 绕元素中心缩放）；
+ * scale_x/scale_y = 相对<b>素材原始像素尺寸</b>的倍数（1 = 素材 1:1 像素）；
+ * source = {x,y,w,h} 取材（素材归一化，原点 = 素材左上角，越界钳制到素材内）；
+ * opacity = 透明度（0~1）。
+ *
+ * 基准尺寸 B = 裁切后素材像素 × k（k = 分辨率转义，见 {@link CanvasTransform#resolutionEscape}）；
+ * 素材恒按元素框铺满（无独立适配参数）。几何全程在浮点比例域解算
+ * （{@link CanvasTransform#element}），只在 blit 那一步落到像素。
  */
 public class ImageLayer implements OverlayLayer {
 
@@ -30,13 +28,13 @@ public class ImageLayer implements OverlayLayer {
 
     /** 字段初值 0：未被关键帧驱动 = 不可见（脚本缺省 opacity = 1.0，由 OverlayTrackPlayer 补齐） */
     private float opacity = 0f;
-    /** 参考画布归一化位置（0~1，未缩放基准矩形中心） */
+    /** 窗口归一化位置（0~1，未缩放基准矩形中心） */
     private float x = CanvasTransform.DEFAULT_POSITION;
     private float y = CanvasTransform.DEFAULT_POSITION;
     /** 缩放绕点（元素自身归一化，0 = 左/上缘，1 = 右/下缘） */
     private float anchorX = CanvasTransform.DEFAULT_ANCHOR;
     private float anchorY = CanvasTransform.DEFAULT_ANCHOR;
-    /** 相对基准尺寸（原图像素 ÷ 参考分辨率）的缩放倍数（1 = 原图 1:1 像素） */
+    /** 相对素材原始像素尺寸的缩放倍数（1 = 素材 1:1 像素） */
     private float scaleX = CanvasTransform.DEFAULT_SCALE;
     private float scaleY = CanvasTransform.DEFAULT_SCALE;
     /** 取材（素材归一化 0~1）：裁出的子矩形，缺省整幅 */
@@ -44,8 +42,9 @@ public class ImageLayer implements OverlayLayer {
     private float sourceY = 0f;
     private float sourceW = 1f;
     private float sourceH = 1f;
-    /** 适配：素材子矩形怎么铺进元素框 */
-    private CanvasTransform.FitMode fit = CanvasTransform.FitMode.FIT;
+    /** 编辑基准分辨率（像素，k 的分子口径）：缺省 1920×1080，由 OverlayTrackPlayer 送入 */
+    private float baseWidth = CanvasTransform.DEFAULT_BASE_WIDTH;
+    private float baseHeight = CanvasTransform.DEFAULT_BASE_HEIGHT;
     private ResourceLocation texture = null;
     private String fileName = null;
     private GifAnimation gif = null;
@@ -72,38 +71,27 @@ public class ImageLayer implements OverlayLayer {
         float srcH = (clamp01(sourceY + sourceH) - v0) * texH;
         if (srcW <= 0f || srcH <= 0f) return;
 
-        // 元素框：位置 = 未缩放基准矩形中心，缩放绕 anchor；基准尺寸 = 原图像素（参考像素口径）
-        CanvasTransform.Placement canvas = CanvasTransform.canvas(
-                screenWidth, screenHeight, CanvasTransform.FitMode.FIT);
+        // 分辨率转义 k：在绘制空间（GUI 缩放空间）直接算 min(空间宽/W基, 空间高/H基)；退化 → 本帧不绘制
+        float k = CanvasTransform.resolutionEscape(baseWidth, baseHeight, screenWidth, screenHeight);
+        if (k <= 0f) return;
+
+        // 元素框：基准 B = 裁切后素材像素 × k；位置 = 窗口百分比（B 的中心），缩放绕 anchor
         CanvasTransform.Rect box = CanvasTransform.element(x, y, anchorX, anchorY,
-                texW, texH, scaleX, scaleY, canvas);
+                srcW * k, srcH * k, scaleX, scaleY, screenWidth, screenHeight);
         if (box.width() <= 0f || box.height() <= 0f) return;
 
-        // 适配：子矩形按 fit 铺进元素框（与画布映射同一个纯函数）
-        CanvasTransform.Placement content = CanvasTransform.map(srcW, srcH, box.width(), box.height(), fit);
-        if (content.width() <= 0f || content.height() <= 0f) return;
-
-        // 最终绘制：唯一一次落到像素
-        float drawX = box.x() + content.offsetX();
-        float drawY = box.y() + content.offsetY();
-        int dispW = (int) content.width();
-        int dispH = (int) content.height();
+        // 最终绘制：唯一一次落到像素；素材恒按元素框铺满
+        int dispW = Math.round(box.width());
+        int dispH = Math.round(box.height());
         if (dispW <= 0 || dispH <= 0) return;
 
-        // fill 等比铺满时长边会溢出元素框：溢出部分裁掉（fit 留边 / stretch 精确铺满都不溢出，不裁剪）
-        boolean clipped = content.width() > box.width() || content.height() > box.height();
-        if (clipped) {
-            guiGraphics.enableScissor(Math.round(box.x()), Math.round(box.y()),
-                    Math.round(box.x() + box.width()), Math.round(box.y() + box.height()));
-        }
-
-        // 诊断：屏幕尺寸 + 图片实际渲染位置（节流 1s，控制台可见）
+        // 诊断：屏幕尺寸 + 图片几何（节流 1s，控制台可见）
         long now = System.currentTimeMillis();
         if (now - lastPosLog >= 1000) {
             lastPosLog = now;
-            LOGGER.info("OVERLAY image: screen={}x{} pos=({}, {}) size={}x{} scale=({}, {}) opacity={}",
-                    screenWidth, screenHeight, Math.round(drawX), Math.round(drawY),
-                    dispW, dispH, scaleX, scaleY, opacity);
+            LOGGER.info("OVERLAY image: screen={}x{} k={} pos=({}, {}) size={}x{} scale=({}, {}) opacity={}",
+                    screenWidth, screenHeight, k, box.x(), box.y(), box.width(), box.height(),
+                    scaleX, scaleY, opacity);
         }
 
         RenderSystem.setShaderTexture(0, texture);
@@ -112,7 +100,7 @@ public class ImageLayer implements OverlayLayer {
         // 亚像素平滑：pose 浮点平移（blit 只收 int，直接传浮点坐标会量化成阶梯移动）
         var pose = guiGraphics.pose();
         pose.pushPose();
-        pose.translate(drawX, drawY, 0);
+        pose.translate(box.x(), box.y(), 0);
         guiGraphics.blit(texture,
                 0, 0,
                 dispW, dispH,
@@ -122,9 +110,6 @@ public class ImageLayer implements OverlayLayer {
         pose.popPose();
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
         RenderSystem.disableBlend();
-        if (clipped) {
-            guiGraphics.disableScissor();
-        }
     }
 
     private static float clamp01(float value) {
@@ -163,7 +148,7 @@ public class ImageLayer implements OverlayLayer {
         this.opacity = opacity;
     }
 
-    /** 设置参考画布归一化位置（0~1，未缩放基准矩形中心） */
+    /** 设置窗口归一化位置（0~1，未缩放基准矩形中心） */
     public void setPosition(float x, float y) {
         this.x = x;
         this.y = y;
@@ -175,7 +160,7 @@ public class ImageLayer implements OverlayLayer {
         this.anchorY = anchorY;
     }
 
-    /** 设置相对基准尺寸的缩放倍数（1 = 原图 1:1 像素） */
+    /** 设置相对素材原始像素尺寸的缩放倍数（1 = 素材 1:1 像素） */
     public void setScale(float scaleX, float scaleY) {
         this.scaleX = scaleX;
         this.scaleY = scaleY;
@@ -189,9 +174,10 @@ public class ImageLayer implements OverlayLayer {
         this.sourceH = height;
     }
 
-    /** 设置适配模式：素材子矩形怎么铺进元素框 */
-    public void setFit(CanvasTransform.FitMode fit) {
-        this.fit = fit != null ? fit : CanvasTransform.FitMode.FIT;
+    /** 设置编辑基准分辨率（像素）：k 的 W基/H基，≤ 0 = 退化（本层不绘制） */
+    public void setBaseResolution(float width, float height) {
+        this.baseWidth = width;
+        this.baseHeight = height;
     }
 
     public void setZIndex(int zIndex) {

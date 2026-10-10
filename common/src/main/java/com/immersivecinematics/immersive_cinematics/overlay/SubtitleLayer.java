@@ -6,25 +6,24 @@ import net.minecraft.network.chat.Component;
 
 /**
  * 字幕覆盖层 — 在屏幕上渲染文字
- * <p>
- * 统一参数（0.3.6 起，定稿见 {@code plans/0.3.6/variable-frame.md} §3.1）：
- * <ul>
- *   <li>x/y = <b>参考画布</b>归一化位置（0~1）——文字块（基准矩形）的中心，0.5 = 画布正中</li>
- *   <li>anchor_x/anchor_y = 缩放绕点（元素自身归一化；0.5 = 绕文字块中心缩放）</li>
- *   <li>scale_x/scale_y = 相对<b>基准尺寸</b>的倍数（文本层基准 = 当前字号下的文字块 ÷ 参考分辨率）</li>
- *   <li>font_scale = 字号倍数（1.0 = 原版 9px，矩阵缩放实现，同 MC title 机制）；它决定文字块本身的
- *       大小，即改变基准尺寸</li>
- *   <li>opacity = 透明度（0~1）</li>
- * </ul>
- * 几何全程在浮点比例域解算（{@link CanvasTransform#element}），只在绘制那一步落到像素。
- * 1920×1080 屏幕（画布 = 屏幕）+ 缺省参数下，与旧「屏幕百分比 + 文字块中心」口径逐像素等价。
+ *
+ * 统一参数（口径见 {@code plans/0.3.6/variable-frame.md} §4.2）：
+ * x/y = <b>窗口</b>归一化位置（0~1）——文字块（未缩放基准矩形）的中心，0.5 = 窗口正中；
+ * anchor_x/anchor_y = 缩放绕点（元素自身归一化；0.5 = 绕文字块中心缩放）；
+ * scale_x/scale_y = 相对<b>素材原始像素尺寸</b>的倍数（文本层素材 = font_scale 下的文字块像素）；
+ * font_scale = 字号倍数（1.0 = 原版 9px，矩阵缩放实现，同 MC title 机制），决定文字块本身的像素尺寸；
+ * opacity = 透明度（0~1）。
+ *
+ * 基准尺寸 B = 文字块像素（font_scale 下）× k（k = 分辨率转义，见
+ * {@link CanvasTransform#resolutionEscape}）；几何框与绘制尺寸同乘 k。几何全程在浮点比例域解算
+ * （{@link CanvasTransform#element}），只在绘制那一步落到像素。
  */
 public class SubtitleLayer implements OverlayLayer {
 
     private String text = "";
     /** 字段初值 0：未被关键帧驱动 = 不可见（脚本缺省 opacity = 1.0，由 OverlayTrackPlayer 补齐） */
     private float opacity = 0f;
-    /** 参考画布归一化位置（0~1，文字块中心） */
+    /** 窗口归一化位置（0~1，文字块中心） */
     private float x = CanvasTransform.DEFAULT_POSITION;
     private float y = CanvasTransform.DEFAULT_POSITION;
     /** 缩放绕点（元素自身归一化） */
@@ -32,9 +31,12 @@ public class SubtitleLayer implements OverlayLayer {
     private float anchorY = CanvasTransform.DEFAULT_ANCHOR;
     /** 字号倍数（1.0 = 原版 9px，矩阵缩放实现，同 MC title 机制） */
     private float fontScale = 1f;
-    /** 固定字号后的百分比缩放（1.0 = 基准字号原尺寸，与 ImageLayer scale 语义一致） */
+    /** 相对文字块像素（font_scale 下）的缩放倍数（1.0 = 基准字号原尺寸） */
     private float scaleX = CanvasTransform.DEFAULT_SCALE;
     private float scaleY = CanvasTransform.DEFAULT_SCALE;
+    /** 编辑基准分辨率（像素，k 的分子口径）：缺省 1920×1080，由 OverlayTrackPlayer 送入 */
+    private float baseWidth = CanvasTransform.DEFAULT_BASE_WIDTH;
+    private float baseHeight = CanvasTransform.DEFAULT_BASE_HEIGHT;
     private int zIndex = CanvasTransform.DEFAULT_Z_INDEX;
 
     @Override
@@ -63,18 +65,23 @@ public class SubtitleLayer implements OverlayLayer {
         }
         int totalHeight = lines.length * lineHeight;
 
-        // 元素框：基准尺寸 = 当前字号下的文字块（参考像素）；位置 = 文字块中心，缩放绕 anchor
-        CanvasTransform.Placement canvas = CanvasTransform.canvas(
-                screenWidth, screenHeight, CanvasTransform.FitMode.FIT);
+        // 分辨率转义 k：在绘制空间（GUI 缩放空间）直接算 min(空间宽/W基, 空间高/H基)；退化 → 本帧不绘制
+        float k = CanvasTransform.resolutionEscape(baseWidth, baseHeight, screenWidth, screenHeight);
+        if (k <= 0f) return;
+
+        // 元素框：基准 = 文字块像素（font_scale 下）× k；位置 = 窗口百分比（基准矩形中心），缩放绕 anchor
         CanvasTransform.Rect box = CanvasTransform.element(x, y, anchorX, anchorY,
-                maxLineWidth * fontScale, totalHeight * fontScale, scaleX, scaleY, canvas);
+                maxLineWidth * fontScale * k, totalHeight * fontScale * k,
+                scaleX, scaleY, screenWidth, screenHeight);
+        if (box.width() <= 0f || box.height() <= 0f) return;
 
         // 亚像素平滑：pose 浮点平移（drawString 只收 int，直接传浮点坐标会量化成阶梯移动）
-        // 字号缩放：两级合成一次矩阵——fontScale（原版 title 同款矩阵缩放）× scaleX/Y（百分比缩放）
+        // 字号缩放：两级合成一次矩阵——fontScale（原版 title 同款矩阵缩放）× scaleX/Y（素材倍数）× k（分辨率转义）；
+        // k 必须与元素框同乘，否则锚点 / 位置错位
         var pose = guiGraphics.pose();
         pose.pushPose();
         pose.translate(box.x(), box.y(), 0);
-        pose.scale(fontScale * scaleX, fontScale * scaleY, 0f);
+        pose.scale(fontScale * scaleX * k, fontScale * scaleY * k, 0f);
         for (int i = 0; i < lines.length; i++) {
             guiGraphics.drawString(font, Component.literal(lines[i]), 0, i * lineHeight, color, false);
         }
@@ -108,7 +115,7 @@ public class SubtitleLayer implements OverlayLayer {
         this.opacity = opacity;
     }
 
-    /** 设置参考画布归一化位置（0~1，文字块中心） */
+    /** 设置窗口归一化位置（0~1，文字块中心） */
     public void setPosition(float x, float y) {
         this.x = x;
         this.y = y;
@@ -125,10 +132,16 @@ public class SubtitleLayer implements OverlayLayer {
         this.fontScale = fontScale;
     }
 
-    /** 设置固定字号后的百分比缩放（1.0 = 基准字号原尺寸） */
+    /** 设置相对文字块像素（font_scale 下）的缩放倍数（1.0 = 基准字号原尺寸） */
     public void setScale(float scaleX, float scaleY) {
         this.scaleX = scaleX;
         this.scaleY = scaleY;
+    }
+
+    /** 设置编辑基准分辨率（像素）：k 的 W基/H基，≤ 0 = 退化（本层不绘制） */
+    public void setBaseResolution(float width, float height) {
+        this.baseWidth = width;
+        this.baseHeight = height;
     }
 
     public void setZIndex(int zIndex) {

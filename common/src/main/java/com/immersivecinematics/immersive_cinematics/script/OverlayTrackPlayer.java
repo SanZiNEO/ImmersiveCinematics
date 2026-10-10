@@ -19,11 +19,12 @@ import java.util.Map;
  *   <li>Clip 持续时通过关键帧插值驱动 layer 属性</li>
  *   <li>onStop 时清理所有层</li>
  * </ol>
- * 字段口径 = 统一参数字段表（{@code plans/0.3.6/variable-frame.md} §3.1，0.3.6 起）：
- * 位置 x/y（画布归一化，元素中心，缺省 0.5）、锚点 anchor_x/anchor_y（元素自身归一化，缺省 0.5）、
- * 缩放 scale_x/scale_y（相对逐类基准尺寸，缺省 1）、取材 source（素材归一化，缺省全幅）、
- * 适配 fit（fit/fill/stretch，缺省 fit，步进取值）、不透明度 opacity（缺省 1.0）、
- * 顺序 z_index（clip 级，缺省 10）。位置/缩放对 fade 不生效（效果层铺满画布）。
+ * 字段口径 = 统一参数字段表（{@code plans/0.3.6/variable-frame.md} §4.2）：
+ * 位置 x/y（<b>窗口</b>归一化，元素中心，缺省 0.5）、锚点 anchor_x/anchor_y（元素自身归一化，缺省 0.5）、
+ * 缩放 scale_x/scale_y（相对<b>素材原始像素尺寸</b>的倍数，缺省 1）、取材 source（素材归一化，缺省全幅）、
+ * 不透明度 opacity（缺省 1.0）、顺序 z_index（clip 级，缺省 10）。
+ * 位置 / 锚点 / 缩放对 fade 不生效（效果层铺满窗口）。
+ * 层创建时把编辑基准分辨率（W基/H基，k 的分母口径）送入层；取值来源归 meta 字段。
  */
 public class OverlayTrackPlayer implements TrackPlayer {
 
@@ -142,6 +143,8 @@ public class OverlayTrackPlayer implements TrackPlayer {
                     }
                 }
                 il.setZIndex(zIndex);
+                // 编辑基准分辨率送层（k 的分母）；缺省 1920×1080 —— 取值来源归 meta 字段
+                il.setBaseResolution(CanvasTransform.DEFAULT_BASE_WIDTH, CanvasTransform.DEFAULT_BASE_HEIGHT);
                 layer = il;
             }
             case "subtitle" -> {
@@ -151,6 +154,8 @@ public class OverlayTrackPlayer implements TrackPlayer {
                 sl.setText(com.immersivecinematics.immersive_cinematics.util.LangResources
                         .resolve(clip.getString("text", "")));
                 sl.setZIndex(zIndex);
+                // 编辑基准分辨率送层（k 的分母）；缺省 1920×1080 —— 取值来源归 meta 字段
+                sl.setBaseResolution(CanvasTransform.DEFAULT_BASE_WIDTH, CanvasTransform.DEFAULT_BASE_HEIGHT);
                 layer = sl;
             }
             default -> {
@@ -186,7 +191,6 @@ public class OverlayTrackPlayer implements TrackPlayer {
                     interpolateSourceComponent(kfs, localTime, "w", 1f),
                     interpolateSourceComponent(kfs, localTime, "h", 1f)
             );
-            il.setFit(stepFit(kfs, localTime));
         } else if (currentLayer instanceof SubtitleLayer sl) {
             sl.setOpacity(opacity);
             sl.setPosition(
@@ -197,7 +201,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
                     interpolateFloat(kfs, localTime, "anchor_x", CanvasTransform.DEFAULT_ANCHOR),
                     interpolateFloat(kfs, localTime, "anchor_y", CanvasTransform.DEFAULT_ANCHOR)
             );
-            // 两级缩放：font_scale（原版 title 同款矩阵缩放，改变文字块基准尺寸）+ scale_x/y（百分比缩放）
+            // 两级缩放：font_scale（原版 title 同款矩阵缩放，改变文字块基准尺寸）+ scale_x/y（相对素材像素的倍数）
             sl.setFontScale(interpolateFloat(kfs, localTime, "font_scale", 1f));
             sl.setScale(
                     interpolateFloat(kfs, localTime, "scale_x", CanvasTransform.DEFAULT_SCALE),
@@ -256,22 +260,6 @@ public class OverlayTrackPlayer implements TrackPlayer {
             if (value instanceof Number number) return number.floatValue();
         }
         return defaultValue;
-    }
-
-    /**
-     * {@code fit} 是离散枚举：按<b>步进</b>取值 —— 取 localTime 处（或之前最近）关键帧的值（§3.1 字段表）。
-     */
-    private static CanvasTransform.FitMode stepFit(List<Keyframe> kfs, float localTime) {
-        if (kfs == null || kfs.isEmpty()) return CanvasTransform.FitMode.FIT;
-        Keyframe chosen = kfs.get(0);
-        for (Keyframe kf : kfs) {
-            if (kf.getTime() <= localTime) {
-                chosen = kf;
-            } else {
-                break;
-            }
-        }
-        return CanvasTransform.fitMode(chosen.getString("fit", "fit"), CanvasTransform.FitMode.FIT);
     }
 
     /** 定位 localTime 落在哪个关键帧区间：返回左端点索引；范围外返回 -1 */

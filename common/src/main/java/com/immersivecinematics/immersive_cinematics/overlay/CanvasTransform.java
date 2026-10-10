@@ -1,61 +1,39 @@
 package com.immersivecinematics.immersive_cinematics.overlay;
 
 /**
- * 参考画布与设备适配 —— 覆盖层统一参数的坐标基准（<b>定义层</b>，不做任何渲染）。
+ * 覆盖层统一几何 —— 分辨率转义与元素框解算（定义层，不做任何渲染）。
  *
- * <p>见 {@code plans/0.3.6/variable-frame.md} §3（统一参数字段表）/ §4（参考画布与设备适配）。
- * 本类承载四样东西：参考画布的常量、统一参数的默认值、适配模式枚举与「素材 → 目标框」的纯映射函数、
- * 以及「位置 / 锚点 / 缩放 → 元素框」的纯几何解算（{@link #element}）；
- * 不引用任何 Minecraft 类，可独立验证。</p>
+ * 口径：取材与缩放参照<b>素材自身</b>，放置位置参照<b>窗口</b>（百分比），分辨率转义为单一系数
+ * {@code k = min(W播/W基, H播/H基)}（W播/H播 = 播放窗口、W基/H基 = 编辑基准分辨率）。
+ * 本类承载三样东西：统一参数的默认值常量、分辨率转义纯函数 {@link #resolutionEscape}、
+ * 以及「位置 / 锚点 / 缩放 → 元素框」的纯几何解算（{@link #element}）；不引用任何 Minecraft 类，
+ * 可独立验证。完整模型见 {@code plans/0.3.6/variable-frame.md} §4.2。
  *
- * <p><b>全程比例域</b>：几何计算（画布归一化 → 元素框 → 屏幕像素）都在浮点比例域完成，
- * 只在最终绘制那一步落到像素，中间不做取整 —— 600×800 到 2K 按同一套比例缩放。</p>
+ * 元素几何（像素）：
+ * {@code B = (裁切后素材宽 · k, 裁切后素材高 · k)}（未缩放基准尺寸，scale = 1 时的上屏像素）；
+ * {@code 中心 = (x · W播, y · H播)}（位置 = 未缩放基准矩形的中心）；
+ * {@code TL0 = 中心 − B/2}；{@code A = TL0 + (anchor_x·B.x, anchor_y·B.y)}（锚点 = 缩放不动点）；
+ * {@code TL = A − (anchor_x·B.x·s.x, anchor_y·B.y·s.y)}；{@code S = (B.x·s.x, B.y·s.y)}（上屏尺寸）。
  *
- * <h2>参考画布</h2>
- * 所有覆盖层参数（位置 / 锚点 / 缩放 / 取材 / 适配）都以一个<b>固定宽高比</b>的参考画布为口径：
- * 归一化坐标 {@code 0~1}、原点在左上角（x 向右、y 向下），与既有 {@code ImageLayer} 的
- * x/y 口径、{@link com.immersivecinematics.immersive_cinematics.client.lane.LaneCompositor.Rect}
- * 的矩形口径一致。实际屏幕按 {@link FitMode} 映射过去。
+ * 缺省 {@code anchor = 0.5} 时元素中心恒为 {@code (x·W播, y·H播)}（绕中心缩放，退化为「中心 − 尺寸/2」）；
+ * 锚点非中心时缩放会改变元素的视觉中心（同 CSS {@code transform-origin}）。归一化坐标不钳制：
+ * 越界元素按公式落到窗口外，由屏幕边界裁剪。
  *
- * <p>参考画布宽高比取 {@code 16:9}（{@link #REFERENCE_ASPECT_RATIO}），分辨率取
- * {@code 1920×1080}（{@link #REFERENCE_WIDTH} / {@link #REFERENCE_HEIGHT}）作为归一化坐标的像素锚点。
- * 取 1920×1080 的意义：<b>在 1920×1080 的屏幕上、Fit 模式下，本模型退化为今天的
- * {@code ImageLayer} 语义</b>（{@code screenX(x) = x * 1920}，显示尺寸 = 原图像素 × scale），
- * 因此对现有脚本零语义漂移，只是把「屏幕百分比」换成「画布百分比」。</p>
+ * 全程比例域：几何计算都在浮点比例域完成，只在最终绘制那一步落到像素，中间不做取整。
  *
- * <h2>适配（Fit / Fill / Stretch）</h2>
- * 同一个 {@link #map} 同时服务两处，二者数学同构、只是两端不同：
- * <ul>
- *   <li><b>参考画布 → 实际屏幕</b>（{@link #canvas}）：解决不同设备 / 分辨率 / 宽高比下构图一致；</li>
- *   <li><b>素材 → 元素框</b>（{@link #map} 直接调用）：实现 §3 的「适配」参数（图片 / 相机纹理
- *       怎么铺进自己的元素框）。</li>
- * </ul>
- *
- * <p>宽高比不一致时的边界行为：<b>Fit</b> 完整放下、余量留边（屏幕比画布宽 → 左右黑边，
- * 反之 → 上下黑边；与 {@link LetterboxLayer} 现有算法同源）；<b>Fill</b> 等比铺满、溢出被裁
- * （偏移为负，画布超出的部分落在屏幕外）；<b>Stretch</b> 两轴独立缩放、直接铺满（会改变宽高比）。
- * 归一化坐标允许越界（不钳制）——越界的元素自然落在留边区 / 屏幕外，由屏幕边界裁剪。</p>
+ * 绘制空间：覆盖层在 GUI 缩放空间绘制（调用方传 {@code getGuiScaledWidth/Height}）。{@code k} 的定义
+ * 口径是窗口帧缓冲（物理像素）；层内可直接在该空间用 {@code min(空间宽/W基, 空间高/H基)} 计算
+ * （= 帧缓冲 {@code k} / {@code guiScale}，两者至多差 1px 舍入）。
  */
 public final class CanvasTransform {
 
-    /** 参考画布宽高比（16:9）。全局唯一口径，所有覆盖层参数相对它表达。 */
-    public static final float REFERENCE_ASPECT_RATIO = 16.0F / 9.0F;
-
-    /** 参考画布宽（像素锚点）：归一化 x = 1 对应 1920 像素。 */
-    public static final float REFERENCE_WIDTH = 1920.0F;
-
-    /** 参考画布高（像素锚点）= {@link #REFERENCE_WIDTH} / {@link #REFERENCE_ASPECT_RATIO} = 1080。 */
-    public static final float REFERENCE_HEIGHT = REFERENCE_WIDTH / REFERENCE_ASPECT_RATIO;
-
-    // ========== 统一参数默认值（§3.1 字段表；脚本未写该字段时的取值）==========
-
-    /** 位置默认（画布归一化，元素中心）：0.5 = 画布正中。 */
+    /** 位置默认（窗口归一化，元素中心）：0.5 = 窗口正中。 */
     public static final float DEFAULT_POSITION = 0.5F;
 
     /** 锚点默认（元素自身归一化）：0.5 = 绕元素中心缩放。 */
     public static final float DEFAULT_ANCHOR = 0.5F;
 
-    /** 缩放默认（相对逐类基准尺寸）：1.0 = 基准尺寸。 */
+    /** 缩放默认（相对素材原始像素尺寸的倍数）：1.0 = 素材 1:1 像素。 */
     public static final float DEFAULT_SCALE = 1.0F;
 
     /** 不透明度默认：1.0 = 不透明（与相机侧合成参数一致）。 */
@@ -64,170 +42,67 @@ public final class CanvasTransform {
     /** 覆盖层顺序默认（z_index）：单一取值 10，越小越先绘制。 */
     public static final int DEFAULT_Z_INDEX = 10;
 
+    /** 编辑基准分辨率缺省宽（像素）：脚本未声明 {@code base_resolution} 时的 W基。 */
+    public static final float DEFAULT_BASE_WIDTH = 1920.0F;
+
+    /** 编辑基准分辨率缺省高（像素）：脚本未声明 {@code base_resolution} 时的 H基。 */
+    public static final float DEFAULT_BASE_HEIGHT = 1080.0F;
+
     private CanvasTransform() {
     }
 
-    /**
-     * 适配模式：素材怎么映射到目标框（与 olive Transform 的 {@code AutoScaleType} 三档一致）。
-     */
-    public enum FitMode {
-        /** 完整放得下：等比缩到放得下为止，余量留边，不裁切、不变形。 */
-        FIT,
-        /** 铺满目标框：等比放大到覆盖整个目标框，溢出部分被裁掉。 */
-        FILL,
-        /** 直接拉伸：两轴各自缩放到目标框尺寸，会改变素材宽高比。 */
-        STRETCH
-    }
-
-    /**
-     * 一次适配的结果：素材左上角相对目标框左上角的偏移、素材在目标框内的显示尺寸、
-     * 以及两个轴向的缩放系数（像素/像素）。
-     *
-     * <p>Fit / Fill 下 {@code scaleX == scaleY}（等比）；Stretch 下两者独立。
-     * {@code width = srcWidth * scaleX}、{@code height = srcHeight * scaleY}。</p>
-     */
-    public record Placement(float offsetX, float offsetY, float width, float height,
-                            float scaleX, float scaleY) {
-
-        /** 退化结果（任一入参 ≤ 0 时返回）：不可见。 */
-        public static final Placement EMPTY = new Placement(0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F);
-    }
-
-    /**
-     * 把尺寸为 {@code srcWidth × srcHeight} 的素材按 {@code mode} 映射进
-     * {@code dstWidth × dstHeight} 的目标框。
-     *
-     * <p>返回的偏移以目标框左上角为原点（x 向右、y 向下），目标框居中：
-     * Fit 时偏移 ≥ 0（留边），Fill 时偏移 ≤ 0（溢出被裁），Stretch 时偏移 = 0。</p>
-     *
-     * @param srcWidth  素材宽（> 0）
-     * @param srcHeight 素材高（> 0）
-     * @param dstWidth  目标框宽（> 0）
-     * @param dstHeight 目标框高（> 0）
-     * @param mode      适配模式（非 null）
-     * @return 适配结果；任一尺寸 ≤ 0 时返回 {@link Placement#EMPTY}
-     */
-    public static Placement map(float srcWidth, float srcHeight, float dstWidth, float dstHeight,
-                                FitMode mode) {
-        if (srcWidth <= 0.0F || srcHeight <= 0.0F || dstWidth <= 0.0F || dstHeight <= 0.0F) {
-            return Placement.EMPTY;
-        }
-        float scaleX;
-        float scaleY;
-        if (mode == FitMode.STRETCH) {
-            scaleX = dstWidth / srcWidth;
-            scaleY = dstHeight / srcHeight;
-        } else {
-            float byWidth = dstWidth / srcWidth;
-            float byHeight = dstHeight / srcHeight;
-            float scale = (mode == FitMode.FILL) ? Math.max(byWidth, byHeight)
-                                                 : Math.min(byWidth, byHeight);
-            scaleX = scale;
-            scaleY = scale;
-        }
-        float width = srcWidth * scaleX;
-        float height = srcHeight * scaleY;
-        return new Placement((dstWidth - width) / 2.0F, (dstHeight - height) / 2.0F,
-                width, height, scaleX, scaleY);
-    }
-
-    /**
-     * 参考画布 → 实际屏幕的适配结果（{@link #map} 的特例，源 = {@link #REFERENCE_WIDTH} ×
-     * {@link #REFERENCE_HEIGHT}，目标 = 屏幕像素尺寸）。
-     *
-     * <p>结果的 {@code offsetX/offsetY} 是画布左上角在屏幕上的像素位置，
-     * {@code width/height} 是画布在屏幕上的像素尺寸（Fit 时 ≤ 屏幕，Fill 时 ≥ 屏幕）。</p>
-     *
-     * @param screenWidth  屏幕宽（像素，> 0）
-     * @param screenHeight 屏幕高（像素，> 0）
-     * @param mode         适配模式（非 null）
-     */
-    public static Placement canvas(float screenWidth, float screenHeight, FitMode mode) {
-        return map(REFERENCE_WIDTH, REFERENCE_HEIGHT, screenWidth, screenHeight, mode);
-    }
-
-    /**
-     * 画布归一化 x（0~1，元素中心 / 锚点）→ 屏幕像素 x。
-     *
-     * <p>{@code canvas} 为 {@link #canvas} 的结果。1920×1080 + Fit 下即 {@code x * 1920}。</p>
-     */
-    public static float screenX(float normalizedX, Placement canvas) {
-        return canvas.offsetX() + normalizedX * canvas.width();
-    }
-
-    /**
-     * 画布归一化 y（0~1，元素中心 / 锚点）→ 屏幕像素 y。
-     *
-     * <p>{@code canvas} 为 {@link #canvas} 的结果。1920×1080 + Fit 下即 {@code y * 1080}。</p>
-     */
-    public static float screenY(float normalizedY, Placement canvas) {
-        return canvas.offsetY() + normalizedY * canvas.height();
-    }
-
-    // ========== 元素几何（§3.1「元素几何」定稿口径）==========
-
-    /**
-     * 元素框（屏幕像素）：左上角 + 尺寸。全部浮点 —— 只在最终绘制那一步落到像素。
-     */
+    /** 元素框（绘制空间像素）：左上角 + 尺寸。全部浮点 —— 只在最终绘制那一步落到像素。 */
     public record Rect(float x, float y, float width, float height) {
     }
 
     /**
-     * 按统一参数模型解算一个覆盖层元素的屏幕矩形（§3.1「元素几何」）：
+     * 分辨率转义系数：编辑基准分辨率 → 播放窗口的整体缩放，宽高共用单一系数。
      *
-     * <pre>
-     * TL0 = (x − Bx/2, y − By/2)              未缩放基准矩形左上角（位置 = 该矩形的中心）
-     * A   = TL0 + (anchorX·Bx, anchorY·By)    锚点（缩放不动点）
-     * TL  = A − (anchorX·Bx·sx, anchorY·By·sy) 缩放后左上角
-     * S   = (Bx·sx, By·sy)                    缩放后尺寸
-     * 屏幕像素 = canvas 适配结果 → (offsetX + TL.x·canvasW, offsetY + TL.y·canvasH)、尺寸 (S.x·canvasW, S.y·canvasH)
-     * </pre>
+     * <p>返回 {@code min(wPlay / wBase, hPlay / hBase)}（contain 式：基准构图整体完整可见、
+     * 不溢出播放窗口）。任一入参 ≤ 0 → 返回 0（调用方按退化不绘制处理）。</p>
      *
-     * <p>全程浮点比例域：基准尺寸以<b>参考像素</b>给出（{@code 1920×1080} 下的像素数，
-     * 即归一化基准 {@code B = 参考像素 / 参考分辨率}），乘上当前画布的每参考像素像素数
-     * （{@code canvasW / REFERENCE_WIDTH}）得到屏幕尺寸 —— 中间不做任何取整，
-     * 只在最终绘制时落到像素。默认 {@code anchor = 0.5} 时元素中心恒为 {@code (x, y)}
-     * （绕中心缩放，且退化为「中心 − 尺寸/2」，与旧实现同一表达式）；锚点非中心时
-     * 缩放会改变元素的视觉中心（同 CSS {@code transform-origin}）。
-     * 归一化坐标不钳制：越界元素按公式落到留边区 / 屏幕外，由屏幕边界裁剪。</p>
+     * @param wBase 编辑基准分辨率宽（像素）
+     * @param hBase 编辑基准分辨率高（像素）
+     * @param wPlay 播放窗口宽（像素）
+     * @param hPlay 播放窗口高（像素）
+     */
+    public static float resolutionEscape(float wBase, float hBase, float wPlay, float hPlay) {
+        if (wBase <= 0.0F || hBase <= 0.0F || wPlay <= 0.0F || hPlay <= 0.0F) return 0.0F;
+        return Math.min(wPlay / wBase, hPlay / hBase);
+    }
+
+    /**
+     * 解算一个覆盖层元素的绘制矩形（绘制空间像素，见类注释的几何式）。
      *
-     * @param x                位置 x（画布归一化，未缩放基准矩形中心）
-     * @param y                位置 y（画布归一化）
-     * @param anchorX          锚点 x（元素自身归一化，0 = 左缘、1 = 右缘）
-     * @param anchorY          锚点 y（元素自身归一化，0 = 上缘、1 = 下缘）
-     * @param baselineRefWidth  基准尺寸宽（参考像素，逐类定义）
-     * @param baselineRefHeight 基准尺寸高（参考像素，逐类定义）
-     * @param scaleX           横向缩放（相对基准尺寸，≥ 0）
-     * @param scaleY           纵向缩放（相对基准尺寸，≥ 0）
-     * @param canvas           {@link #canvas} 的适配结果
-     * @return 元素在屏幕上的矩形（浮点；尺寸 ≤ 0 表示不可见）
+     * <p>基准尺寸以<b>像素</b>给出（已含 {@code k}）：{@code B = 裁切后素材像素 × k}。位置 {@code x/y}
+     * 是窗口归一化坐标（未缩放基准矩形的中心），乘绘制空间尺寸得像素中心。全程浮点，不做取整。
+     * 缺省 {@code anchor = 0.5} 时元素中心恒为 {@code (x·W播, y·H播)}；锚点非中心时缩放会改变元素的
+     * 视觉中心（同 CSS {@code transform-origin}）。归一化坐标不钳制：越界元素按公式落到窗口外。</p>
+     *
+     * @param x          位置 x（窗口归一化，未缩放基准矩形中心）
+     * @param y          位置 y（窗口归一化）
+     * @param anchorX    锚点 x（元素自身归一化，0 = 左缘、1 = 右缘）
+     * @param anchorY    锚点 y（元素自身归一化，0 = 上缘、1 = 下缘）
+     * @param baseWidth  未缩放基准尺寸宽（像素 = 裁切后素材宽 × k，> 0）
+     * @param baseHeight 未缩放基准尺寸高（像素 = 裁切后素材高 × k，> 0）
+     * @param scaleX     横向缩放（相对素材原始像素尺寸的倍数，≥ 0）
+     * @param scaleY     纵向缩放（相对素材原始像素尺寸的倍数，≥ 0）
+     * @param playWidth  绘制空间宽 W播（像素，> 0）
+     * @param playHeight 绘制空间高 H播（像素，> 0）
+     * @return 元素在绘制空间中的矩形（浮点）；基准尺寸 ≤ 0 时尺寸为 0（调用方按不可见处理）
      */
     public static Rect element(float x, float y, float anchorX, float anchorY,
-                               float baselineRefWidth, float baselineRefHeight,
-                               float scaleX, float scaleY, Placement canvas) {
-        // 每参考像素对应的画布像素数（1920×1080 屏幕 = 1.0）；比例域换算，无取整
-        float unitX = canvas.width() / REFERENCE_WIDTH;
-        float unitY = canvas.height() / REFERENCE_HEIGHT;
-        float baseWidth = baselineRefWidth * unitX;
-        float baseHeight = baselineRefHeight * unitY;
+                               float baseWidth, float baseHeight,
+                               float scaleX, float scaleY,
+                               float playWidth, float playHeight) {
+        if (baseWidth <= 0.0F || baseHeight <= 0.0F) return new Rect(0.0F, 0.0F, 0.0F, 0.0F);
         float boxWidth = baseWidth * scaleX;
         float boxHeight = baseHeight * scaleY;
-        float centerX = canvas.offsetX() + x * canvas.width();
-        float centerY = canvas.offsetY() + y * canvas.height();
+        float centerX = x * playWidth;
+        float centerY = y * playHeight;
         // 锚点相对元素中心的偏移：默认 0.5（绕中心缩放）时该项为 0 → 左上角 = 中心 − 尺寸/2
         float left = centerX - boxWidth / 2.0F + (anchorX - 0.5F) * (baseWidth - boxWidth);
         float top = centerY - boxHeight / 2.0F + (anchorY - 0.5F) * (baseHeight - boxHeight);
         return new Rect(left, top, boxWidth, boxHeight);
-    }
-
-    /**
-     * 解析脚本里的 {@code fit} 枚举值（大小写不敏感）；未知 / 缺省 → {@code fallback}。
-     */
-    public static FitMode fitMode(String name, FitMode fallback) {
-        if (name == null) return fallback;
-        if (name.equalsIgnoreCase("fit")) return FitMode.FIT;
-        if (name.equalsIgnoreCase("fill")) return FitMode.FILL;
-        if (name.equalsIgnoreCase("stretch")) return FitMode.STRETCH;
-        return fallback;
     }
 }
