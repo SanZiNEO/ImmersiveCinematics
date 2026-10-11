@@ -165,9 +165,9 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 - 编辑器直控 / 飞行：变成 Base Provider
 - Mixin / 渲染层：只读统一状态
 - **多相机落地后（2026-10-07 架构推论）**：主画面也是全屏 lane（见[并行播放](./parallel-playback.md) §3.3）——现有"单相机替换"链（`CameraMixin` 主相机分支、`GameRendererMixin` getFov / roll、`LevelRendererMixin` 视图中心、`CinematicOcclusion` 整帧决策）成为过渡实现，最终不再被调用 / 删除；相机状态（`CameraPath` / `CameraProperties` 六参数）转为**每个 lane 一份**，渲染钩子改为按 lane 应用（**2026-10-10 校正**：「每 lane 一份」已由 `CameraLane` / `CameraState` 快照实现，不再需要 per-lane 的 `CameraPath` / `CameraProperties` 可变对象——见定稿 §13）
-  - **✅ 已落地（2026-10-07）**：主相机分支 / 主相机 getFov / roll 钩子已删除；视图中心改写收窄为 lane 专用（读正在渲染的 lane 自己的相机位置）；`CinematicOcclusion` 保留但输入改为 lane 相机（整帧统一仍必需——可见集合共享单份）；帧驱动挂点迁到 `LaneRendererMixin`；听者相机改由 `AudioListenerController.cameraListener()` 提供。逐点清单见[并行播放](./parallel-playback.md) §3.3 落地记录。
+  - **✅ 已落地（2026-10-07）**：主相机分支 / 主相机 getFov / roll 钩子已删除；视图中心改写收窄为 lane 专用（读正在渲染的 lane 自己的相机位置）；`CinematicOcclusion` 保留但输入改为 lane 相机（整帧统一仍必需——可见集合共享单份）**〔→ 该句为 2026-10-07 时点描述；`CinematicOcclusion` 已于 B3-d（2026-10-11，300daa3）删除——per-lane 可见集合（B3-b）落地后整帧统一不再必需〕**；帧驱动挂点迁到 `LaneRendererMixin`；听者相机改由 `AudioListenerController.cameraListener()` 提供。逐点清单见[并行播放](./parallel-playback.md) §3.3 落地记录。
   - **lane 相机状态：已结案（2026-10-10，B2 核对）——不需要每 lane 一份 `CameraPath` / `CameraProperties`**，已被 `CameraLane` / `CameraState` 快照模型取代：渲染侧逐 lane 读自己的快照，全局 `activePath` / `activeProperties` 收窄为「顶层 clip 写入缓冲 + 统一快照取值来源」（听者 / 预加载 / 预览 HUD / 方向性预加载）。证据与逐点结论见下方「覆盖链定稿」§13。
-  - **未做**：每 lane 独立可见集合 / 遮挡剔除状态（**与 B2 无关**——那是渲染状态不是相机状态；见 §6 补充与 `multi-camera-rendering.md` §12.8-B，归 B3）。
+  - **未做**：每 lane 独立可见集合 / 遮挡剔除状态（**与 B2 无关**——那是渲染状态不是相机状态；见 §6 补充与 `multi-camera-rendering.md` §12.8-B，归 B3）。**〔→ 已做：B3（2026-10-11），见 `multi-camera-rendering.md` §12.9〕**
 - `CameraPath` / `CameraProperties`：**已定（2026-10-10，见定稿 §11）**：保留为包内「当前值写入缓冲」（`camera-core-split.md` §〇 CORE 行），不被状态 buffer 取代；覆盖链的每帧工作区是独立的 `CameraStateBuffer`（定稿 §12）。
 - 外部 API：Phase 2/3，内部稳定后再评估
 
@@ -179,7 +179,7 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 
 - 优先级层级怎么分（Base 与 Modifier 是否各自独立） → **已定（2026-10-10，见定稿 §1）**
 - Base Override 是否需要 `suppressModifiers` → **已定（2026-10-10，见定稿 §3）**
-- 每个通道默认合成方式是什么 → **机制已定、通道缺省表待拍板（2026-10-10，见定稿 §4 与 §14①）**
+- 每个通道默认合成方式是什么 → **已定（2026-10-10，见定稿 §4 与 §14①）**：缺省 = 偏移类 `ADD`（position / yaw / pitch / roll）、缩放类 `MULTIPLY`（fov / zoom）、`REPLACE` 显式。
 - 是否需要 blend / transition（与过渡文档联动） → **已定（2026-10-10，见定稿 §5）**
 - Modifier 之后是否统一 clamp / normalize → **已定（2026-10-10，见定稿 §6）**
 - 无 Base 活跃时回退到玩家相机还是保持最后状态 → **已定（2026-10-10，见定稿 §7）**
@@ -206,7 +206,7 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 > 本小节结清 §8 九条与 §9 未结项，并回写 B2（每 lane 一份 `CameraPath` / `CameraProperties` 核对）结论。§8/§9 里的「见定稿 §N」均指本小节；历史原文一律保留（就地标注「已定」）。
 > 依据：本文 §5（覆盖链方向，已确认）/ §6 接口定稿 / §7 写侧收口 / §10 覆盖目标；[相机核心拆分](./camera-core-split.md) §〇 / §2.1 / §2.2 / §2.4 / §五；[过渡](./transition.md) §1 / §4 / §6 / §9 与事实核查③；[并行播放](./parallel-playback.md) §3.1 / §3.3 / §3.4；[时钟抽象](./clock-abstraction.md) §3.1 / §3.2 / §4 步骤 1。
 > 行号取 2026-10-10 工作区（**会漂移**，且 B4-P0 正在删死代码）——引用一律「文档 + 小节」+「`类:行`」双标，行号仅作定位线索。
-> 结论分三类：**定**（有依据，实现照此）｜**待拍板**（真二选一，见 §14）｜**留位**（本轮不实现，接口先留）。
+> 结论分三类：**定**（有依据，实现照此）｜**已拍板**（2026-10-10 用户裁决，见 §14）｜**留位**（本轮不实现，接口先留）。
 
 ### 0. 硬约束（不变量，B1 全链适用）
 
@@ -240,6 +240,8 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
   - 链接管后统一为一条规则：**直控态 = 该层活跃 → 脚本导演层不被选中**（取代上述两套机制）；直控态退出后回到脚本导演。
 - **部分通道接管不进 Base**：§5.1 已确认「Base 层天然整帧覆盖，不做部分覆盖」——只接管某通道的需求（如外部只改 fov）用 **Modifier + 通道掩码 + `REPLACE`** 表达（§5.2）。编辑器直控的「5 参数直写」由该层内部持有位置（进入直控态时捕获当前位置，此后位置不变）→ 对链输出仍是整帧 6 参数，与现状「位置不被 5 参数写入触碰」等价。
 
+**§2 补注（2026-10-11 审查）：直控层压制语义为名义层**——`DirectControlBase.isBaseActive()` 只在直写那一瞬为真（`FrameDriver.frame()` 帧首 `clearFrame()` 清零，活跃窗实际只覆盖「直写穿透刷新」那次求值），且三层 `provideBaseState()` 同源同一份全局写入缓冲（`stateHolder.current()`）→ 200 档压制 100 档在运行时**无可观察效果**（帧末求值因帧首已清零而恒不活跃，行为与接入前逐帧等值；`DirectControlBase` javadoc 已自陈）。因此上条统一规则「直控态 = 该层活跃 → 脚本导演层不被选中」本轮**未真正达成**，要等「各层各持自有状态快照」后才生效；该落点未安排（不在 B1 范围内）。如实记录，不找补。
+
 ### 3. `suppressModifiers`（§8-2）
 
 **定**：需要，作为 Base 层的可选字段（接口 `default false`，§12）。语义 = 该层胜出时本帧**跳过 Modifier 链**，链输出 = 该层原始 6 参数。缺省 `false`：预览 / 直控照常显示最终合成结果（所见即所得）；字段是给外部接管 / 精确直控留的逃生门，第一版无内置层置 `true`。
@@ -250,8 +252,10 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 
 - 通道掩码 = **6 位**：`position`（整体一位，不分 x / y / z）+ `yaw` + `pitch` + `roll` + `fov` + `zoom`。理由：与 §2 的分组（位置核心 = x,y,z 一组）和 §6 record 形态（`position` 是单个 `Vec3`）一致；`ADD` 语义下偏移类效果写整分量即可（只动 y 的震屏写 `(0, dy, 0)`），不需要逐轴掩码（逐轴粒度见 §14④）。
 - 合成 = 逐通道：`REPLACE` 直写该通道；`ADD` 相加（角度相加后按环绕语义交给消费侧）；`MULTIPLY` 相乘。
-- **缺省合成模式**：`REPLACE` **必须显式声明**（作缺省会让 Modifier 退化成第二个 Base，破坏 §5.1 / §5.2 分工）；`ADD` / `MULTIPLY` 的通道缺省表见 §14①（倾向：position / yaw / pitch / roll → `ADD`，fov / zoom → `MULTIPLY`）。
+- **缺省合成模式：已定（2026-10-10，见 §14①）**：`REPLACE` **必须显式声明**（作缺省会让 Modifier 退化成第二个 Base，破坏 §5.1 / §5.2 分工）；通道缺省表 = 偏移类 `position` / `yaw` / `pitch` / `roll` → `ADD`，缩放类 `fov` / `zoom` → `MULTIPLY`。
 - 单一 `mode` 作用于该 Modifier 的整个掩码（§5.2 字段口径），不做「逐通道多模式」；需要不同模式的通道 → 拆成多个 Modifier。
+
+**Modifier 生效窗（定稿补记，2026-10-11）**：片段级 Modifier 的活跃窗 = 其声明所在片段的活跃窗 `[start, windowEnd)`——永不结束的片段（`Clip.isEffectivelyInfinite()`）自 `start` 起永续；本片段是 morph 前一段时窗末延长半个过渡窗口（`TransitionSpec.windowEnd`），故 **morph 双活窗内两侧声明并存**（叠加序照旧：优先级升序 → 注册序）。该窗口与 `motion_*` / `cam_breath` / `suppress_modifiers` 同源——`camera/ClipModifierGate.java` 的 `isActiveThisFrame()` 与 `camera/source/CameraKeyframeEvaluator.isActiveAt`（`[startTime, getWindowEnd())` + `TransitionSpec.covers(...)`）取同一窗口来源。morph 双活窗内 `suppress_modifiers` 的合成规则 = **两侧 OR**（`CameraTrackPlayer`：`prev.getSuppressModifiers() || next.getSuppressModifiers()`）。此口径此前仅存于实施期 progress 日志与用户文档，本轮补记为定稿依据。
 
 ### 5. blend / transition（§8-4）
 
@@ -308,7 +312,7 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 | 外部 API 开放时机 | **定**：0.3.6 只留位不开放；开放条件 = 内部稳定 + 覆盖链落地（B1-b/c）+ 至少一个版本观察期（`plans/0.4.0` 起评估）——§1、§7「外部 API：Phase 2/3」、`camera-core-split.md` §2.4 / §五。 |
 | `zoom` 是否保留独立参数 / 只暴露 effectiveFov | **定**：**保留独立参数**。`zoom` 是既有脚本字段，且 §10 覆盖目标点名「roll / fov / zoom」必须继续可用；`CameraState` 是六参数平铺 record（§6 接口定稿），删 `zoom` = 改已定接口形态。`effectiveFov = fov / zoom` 只作**派生读数**（渲染口径 `GameRendererMixin.java:126-131`）供需要「一个数」的消费方使用，不取代两个独立参数。 |
 
-### 12. 接口形状草案（B1-b/c 实现 + B4-P5 留位）
+### 12. 接口形状草案（B1-b/c 实现 + B4-P5 留位）→ **已落地（B1-b / B1-c / B4-P5）**
 
 ```java
 // ===== api/（对外留位：camera-core-split §2.4「Base Provider 接口留位」；B4-P5 落地，B1-b 接链）=====
@@ -349,7 +353,7 @@ public interface CameraModifier {
     void writeValue(CameraStateBuffer out);
 }
 
-/** 零分配工作区（核心包内；跨帧复用）。 */
+/** 零分配工作区（跨帧复用；落点修正见本节末「落地差异」④）。 */
 public final class CameraStateBuffer {
     double px, py, pz;
     float yaw, pitch, roll, fov, zoom;
@@ -357,7 +361,7 @@ public final class CameraStateBuffer {
     public CameraState toSnapshot();   // 唯一分配点（与 §6 既有口径同频）
 }
 
-/** 覆盖链本体：每帧 select → compose；注册表按优先级预排序，evaluate 零新增分配。 */
+/** 覆盖链本体：每帧 select → compose；注册表按优先级预排序，evaluate 零新增分配（Base 选择实际实现见本节末「落地差异」⑤）。 */
 public final class CameraCoverChain {
     public void register(BaseCameraProvider provider);   // 注册顺序 = 同优先级次序
     public void unregister(BaseCameraProvider provider);
@@ -367,7 +371,7 @@ public final class CameraCoverChain {
 }
 ```
 
-**落点**（`camera-core-split.md` §〇 硬规则 1：`camera/core/` 零依赖外围）：`CameraStateBuffer` 放核心包；`CameraCoverChain` / `CameraModifier` / `ComposeMode` / `CameraChannels` 放 `camera/cover/`；`BaseCameraProvider` 放 `api/`（外部可实现，链直接消费、不复制一层）。`CameraState` 的归属（`api/` 或核心包）沿用 `camera-core-split.md` §〇「执行时定」，两种归属都不改上述签名。
+**落点**（`camera-core-split.md` §〇 硬规则 1：`camera/core/` 零依赖外围）：`CameraStateBuffer` 放核心包；`CameraCoverChain` / `CameraModifier` / `ComposeMode` / `CameraChannels` 放 `camera/cover/`；`BaseCameraProvider` 放 `api/`（外部可实现，链直接消费、不复制一层）。`CameraState` 的归属（`api/` 或核心包）沿用 `camera-core-split.md` §〇「执行时定」，两种归属都不改上述签名。→ **修正（2026-10-11，见本节末「落地差异」④）**：`CameraStateBuffer` 实落 `camera/cover/`，不在核心包。
 
 **Provider 返回值与零分配**：`provideBaseState()` 返回的 record 必须与该层**已有的**快照产出复用（脚本导演 = 它本帧的 lane 快照；直控层 = 写入时缓存的 record，只在直写时更新），链只读、不复制、不额外 new——否则每帧多一次分配，违反 §0 硬约束 2。
 
@@ -376,6 +380,14 @@ public final class CameraCoverChain {
 - 帧内：`CameraManager.onRenderFrame()` 驱动完全部实例（写完写入缓冲）之后、`refreshCameraState()`（`CameraManager.java:951-956`）之前调 `chain.evaluate(buffer)` → 快照取链输出（无活跃 Base = `null`，§6 口径不变）。
 - 直写穿透：`setCameraDirect` 两个重载（`CameraManager.java:977-980` / `:989-992`）写**直控层**后立即 `evaluate + refresh`，保持 §6「写后立即可见」（不等下一帧）。注：旧 5 参数入口 `previewSetCamera` 已随 B4-P0 删除（`camera-core-split.md` §2.3 第 3 条），§6 的历史「直写入口」清单以 `setCameraDirect` 为准。
 - 多 lane：链作用于**主相机状态**（= 顶层实例顶层活跃 clip 那份，与 §6 快照、最上层 lane 同源同值）；次级 lane 的相机状态来自各自 `CameraLane` 快照，不经过链（作用范围见 §14③）。
+
+**落地差异（2026-10-11）**：B1-b / B1-c / B4-P5 实际落地与上草案的差异（以本节为当前口径）：
+
+1. `CameraModifier` 增 `isActiveThisFrame()`（缺省 `true` = 常活跃）——B1-d 的活跃窗门（`camera/ClipModifierGate.java`）据此逐帧判定；`false` = 链跳过本条、不调用 `writeValue`。
+2. `CameraCoverChain` 增 `snapshot()`（无活跃 Base 返回 `null`，否则工作区快照产出）与 `modifiersApplied()`（本帧链上是否有 Modifier 参与合成——消费方 = 主相机那份的取用点，据此判定「链输出是否已被 Modifier 改写」）。
+3. `CameraStateBuffer` 增 `compose(int mask, ComposeMode mode, CameraStateBuffer value)`（就地按掩码合成，掩码外通道不动）与 `positionCache`（快照产出复用 `Vec3`，分量不变则不新建——分配点收窄到「位置被 Modifier 改动」时）。
+4. **落点修正**：`CameraStateBuffer` 实落 `camera/cover/`（与 `CameraModifier` 同包，以便包内直写值工作区字段），非草案所写「核心包」；`BaseCameraProvider` 迁入 `api/`（B4-P5）。
+5. Base 选择机制实现为**逆序扫描 + 严格大于**（`CameraCoverChain.selectWinner`：后注册者先问、严格大于才替换）——语义等价于草案的「预排序遍历」：高优先级胜、同优先级后注册者胜，且注册时不排序。
 
 ### 13. B2 结案：每 lane 一份 `CameraPath` / `CameraProperties`
 
@@ -411,31 +423,37 @@ public final class CameraCoverChain {
 
 **结构无关性**：本结案只依赖「谁写全局、谁读全局、lane 读什么」三件事，与 B4-P4 的 `LaneSnapshotCollector` 抽取无关（那是 B 组 lane 捕获的等值搬迁）；B4-P4 落地后结论不变，无需重开。
 
-### 14. 待用户拍板
+### 14. 已拍板（2026-10-10）
+
+> 以下四项已于 2026-10-10 由用户拍板（记录见 `implementation-progress.md`「用户裁决新增」表 B1 拍板行）。候选 A / B 历史原文保留，结论就地标注。
 
 ① **Modifier 通道缺省合成模式**（§4）
 
 - 候选 A（倾向）：`position` / `yaw` / `pitch` / `roll` 缺省 `ADD`、`fov` / `zoom` 缺省 `MULTIPLY`、`REPLACE` 必须显式——中性元（0 / 1）与两类效果的直觉一致（偏移类写 0 无效果、缩放类写 1 无效果）。
 - 候选 B：全通道缺省 `ADD`，`MULTIPLY` 与 `REPLACE` 一律显式声明——字段语义最简，但 fov / zoom 的缩放类效果每次都要写 `mode`。
 - 影响面：只影响「作者不写 `mode` 时」的默认值；两种候选都不影响已显式声明的写法，实现期改一张表即可。
+- → **已定（2026-10-10）：候选 A**——偏移类 `position` / `yaw` / `pitch` / `roll` 缺省 `ADD`、缩放类 `fov` / `zoom` 缺省 `MULTIPLY`、`REPLACE` 必须显式。B1-c 已按此落地（缺省表单源 = `CameraChannels.defaultMode(int)`）。
 
 ② **飞行 vs 编辑器直控的相对序**（§2 档位表 300 / 200）
 
 - 候选 A（倾向）：飞行 300 > 编辑器直控 200——飞行是显式「接管态」（进入即暂停播放 + 置直控标志 + 锁鼠标，`FlightModeManager.java:55-58`）。
 - 候选 B：编辑器直控 300 > 飞行 200——直控是编辑器正在进行的操作，飞行只是工具态。
 - 影响面：二者现状互斥（飞行进入即锁鼠标，编辑器拖拽不可同时发生），此相对序**无现状语义**，纯定义；无论选哪个都不改变现有可观察行为。
+- → **已定（2026-10-10）：候选 A**——飞行 300 > 编辑器直控 200（用户说明：飞控与编辑器互斥、编辑器只接收回传值，无实际语义差异）。
 
 ③ **Modifier 的作用范围**（§12 接线点）
 
 - 候选 A（倾向）：只作用于**主相机状态**（链输出 = 顶层相机那份；与 §5.1 / §5.2 / §6 的单一 Base 口径一致，实现最简）。
 - 候选 B：作用于**全部 lane**（每条 lane 的相机各自叠加同一 Modifier 集，震屏等效果同时摇所有画面）——需要链与 lane 收集耦合，超出 B1 最小面。
 - 影响面：多相机场景下「震屏是否同时摇副画面」的观感差异；候选 A 下仍可后续扩为 B（在 lane 收集处套用同一 Modifier 集），不是一次性锁死。
+- → **已定（2026-10-10）：候选 A**——Modifier 只作用于主相机状态（lane 快照不经过 Modifier）。B1-c 已落地，`CameraModifier` javadoc 同口径。
 
 ④ **通道掩码粒度**（§4）
 
 - 候选 A（倾向）：6 位（`position` 整体一位）——与 §2 分组、§6 record 形态一致；`ADD` 语义下偏移类效果不需要逐轴掩码。
 - 候选 B：8 位（`x` / `y` / `z` 分位）——支持「只 `REPLACE` 某个轴」的 Modifier；掩码与实现面更大。
 - 影响面：`channelMask` 是 Modifier 声明的一部分，落地后再改 = 破坏性变更（Modifier 是内部接口，B1-c 之前改零成本）。
+- → **已定（2026-10-10）：候选 A**——6 位（`position` 整体一位 + `yaw` / `pitch` / `roll` / `fov` / `zoom`）。B1-c 已落地（`CameraChannels`）。
 
 ### 15. 供 B4-P1 / B4-P2 的接口形状（与 `clock-abstraction.md` 步骤 1 合并）
 

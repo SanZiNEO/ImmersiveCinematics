@@ -124,6 +124,18 @@
 - **调用方形态**：`trigger/**`（`ClientEntitySelectorCache` / 网络包 / `EntitySelectorResolver`）为既有通用底座，不动；服务组合它们。其它轨道 / 外部模组复用同一服务时，只需给出 selector 字符串、原点与调用点名。
 - **验收（B15 自证）**：`:common:compileJava` 过；A/B 对拍（B13 的 13 场景 + 21 项 pick + 22 项锚点，HEAD 版与 B15 版两个 classpath 各跑一次）stdout 逐字节一致；validator 五套语料 stdout 逐字节一致（`cinematics/tests` 3 个既有 FAIL 不变）；`selector/` 反向 import grep 零命中；`icv2` / `icgl` 各 14 套 harness 全绿。
 
+**非相机调用点接入验证（2026-10-11，T16）**
+
+> 补 B15 验收缺口：B15 把通用机制抽进 `selector/` 后，`EntitySelectorService` 的消费者只有相机适配层 `EntityTargetResolver` 一个，「新增调用点不改解析层」缺第二消费者实证。
+> **方法**：仓库外无头探针 `E:/tmp/t16/probe/CallpointProbe.java`（`sh E:/tmp/t16/run_probes.sh`，输出 `E:/tmp/t16/out/callpoint.out`）。构造陌生调用点名 `trigger_test`（不在 `SelectorSchema.CALLPOINTS` 内 = 非相机调用点 / 触发器 / 未来轨道替身），走 `EntitySelectorService` / `EntityTargetResolver` / `ClientEntitySelectorCache` 的公开面 + 反射直达的纯逻辑面。**27 项断言全绿（0 FAIL）——实证（无头），非读码级。**
+>
+> - **① 登记名字即得全套策略字段回落链**：`SelectorSchema.callpointField` 对任意名字合成 `<字段>_<名字>`（A1）；适配层三个回落链 helper（`floatForCallpoint` / `stringForCallpoint` / `boolForCallpoint`）对陌生名字 `trigger_test` 三档齐全——专属命中 2.5 / 通用回落 1.75 / 缺省 1.0（B1–B5），且 helper 按名字合成键、无白名单（同一 kf 下 NEW→2.5、OLD→9.0，B6）；schema 由 `CALLPOINTS` 迭代生成，7 调用点 × 6 字段 = 42 专属字段齐备（A4）。**唯一的登记门**是适配层公开入口的一行 `SelectorSchema.isCallpoint(role) ? role : null`：未登记名字走全通用（C1）、已登记名字专属生效（C2）。
+> - **② 解析层零改动**：`EntitySelectorService.class` 常量池不含任何调用点名 / `CALLPOINTS` / `isCallpoint`（D1，0 命中）——结构上无法按调用点身份分支；`requiresServerSelector` 只有 selector 一个入参（D2），对既定语料分类稳定（D3）；调用点只作不透明数据进锁键（D4）与缓存键（D5）。新调用点直接 `new EntitySelectorService().resolveEntity(selector, cameraPos, callpoint, anchor, policy, pick, origin)` 即可，解析层零改动。
+> - **③ 缓存键按调用点隔离**：`Key(trigger_test, camera, sel)` ≠ `Key(look_at, camera, sel)`，同分量 equals、锚点不同亦不同（E1）；把条目挂到相机调用点键下后，新调用点键读不到（E2，走公开 `get()`）。新调用点与相机调用点互不污染。
+> - **锚点取位同构**（F）：陌生调用点走同一 `anchorPosition`——`camera` 原样 / `origin` 取点源 / 点源或目标不可解析一律回落 `cameraPos`（F1–F5）。
+> - **无头边界（如实标注）**：`resolveEntity` / `resolveServerSelector` 全程依赖 `Minecraft.getInstance()` / `level` / `player`，无头不可执行（`anchor=player` 分支 F6 亦然）；其「调用点 = 不透明输入」的性质由 D1/D2/D4/D5 在解析层纯逻辑面上证明。
+> - **落地含义**：非相机调用点接入 = ①在 `SelectorSchema.CALLPOINTS` 登记名字（自动获得 schema 字段与校验项）②给出 selector / 原点 / 调用点名调服务。回落链 helper 现居相机适配层 `EntityTargetResolver`（`selectorPolicy` / `selectorAnchor` / `selectorPick`）；非相机轨道可复用同一读法，或直接以显式值调服务（服务契约本就收显式值）。
+
 ---
 
 ## 5. 可能的问题

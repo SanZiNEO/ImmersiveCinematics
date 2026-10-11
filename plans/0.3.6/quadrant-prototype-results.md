@@ -105,6 +105,8 @@ if (player.isSpectator() && level.getBlockState(camera.getBlockPosition()).isSol
 | `GameRendererMixin` | 挂 `render(float,long,boolean)` 的 HEAD → 每帧调一次 `beginFrame()` |
 | `LevelRendererMixin` | `setupRender` HEAD/RETURN 包夹：本帧决定"关"时，这次调用里 `smartCull = false`（**整帧所有 pass 同一个值**） |
 
+> **〔历史清单（2026-10-07 四象限原型）〕**：上表为原型当时的文件与做法。`camera/CinematicOcclusion.java` 已随 B3-d 删除（2026-10-11，300daa3）——per-lane 可见集合（B3-b）落地后「整帧统一遮挡决策」不再需要；`LevelRendererMixin` 整帧包夹同笔拆除。
+
 **长期方向（0.3.6）**：真正的多相机应当**每个 lane/相机独立管理自己的可见集合与剔除状态**（各自的 `renderChunkStorage` + BFS + frustum），互不干扰——那时各 lane 才允许有自己的遮挡行为；本原型是"整帧统一"的过渡方案（因为共享状态必须帧内一致）。
 
 **简单验证方法**：让相机穿进地形里来回飞，看画面是否**稳定停在"完整透视"**（不再在"只剩天空 / 整条隧道都在"之间切）；F3 调试屏里 `C: x/y (s)` 的 `(s)` 表示 `smartCull` 处于开启状态，可用来确认本帧的开关。
@@ -145,7 +147,7 @@ ICINEMATICS_QUADRANT=1 sh gradlew :fabric:runClient --args='--quickPlaySinglepla
 
 > **✅ 已执行（2026-10-07）**：渲染底层正式化为 `client/lane/LaneRenderer`（+ `LaneDebugDriver` 保留 `ICINEMATICS_QUADRANT` 冒烟入口），原型渲染逻辑与压测统计整体删除。落地要点、状态保存/恢复清单、内容开关与调试入口见 `multi-camera-rendering.md` §12。
 > **后续（2026-10-07 清理）**：`LaneDebugDriver` 与 `ICINEMATICS_QUADRANT` 开关**已删除**——四象限演示改为脚本 `cinematics/release/quadrant.json`（单脚本四相机轨，上屏走正式合成层），调试捕获开关改名 `ICINEMATICS_CAPTURE`（见 `multi-camera-rendering.md` §12.6）。
-> 与本节清单的差异：`mixin/MinecraftAccessor.java` 与 `camera/CinematicOcclusion.java` **保留并适配**（前者是"lane 期间主画面指向"的落地手段，后者是共享可见集合下的整帧统一遮挡决策，正式实现仍需要）。
+> 与本节清单的差异：`mixin/MinecraftAccessor.java` 与 `camera/CinematicOcclusion.java` **保留并适配**（前者是"lane 期间主画面指向"的落地手段，后者是共享可见集合下的整帧统一遮挡决策，正式实现仍需要）。**〔→ 已删（2026-10-11，B3-d，300daa3）：per-lane 可见集合（B3-b）已落地，该「整帧统一遮挡决策」不再需要，`CinematicOcclusion` 随之删除〕**
 
 - `common/.../proto/QuadrantProto.java`（含临时 summon 逻辑）
 - `common/.../mixin/QuadrantProtoMixin.java`

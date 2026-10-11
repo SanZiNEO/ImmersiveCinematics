@@ -253,7 +253,7 @@ kfs.put("sat_red", new FieldDef("float", 0f));
 // HACK(0.3.6/B3'): 整帧 smartCull=false 补偿，待「每 lane 独立可见集合」落地后删（plans/0.3.6/multi-camera-rendering.md §12.8）
 ```
 
-- 上例为**格式示例**：HACK 例的语义对应现状 `camera/CinematicOcclusion`（该类现无标记；且其类注释里的整节「为什么 / 为什么不做逐 lane」按 §1.2 应搬 plans，只留判定口径与代价一行）——收敛时如需标记按此格式。
+- 上例为**格式示例**：HACK 例的语义对应 `camera/CinematicOcclusion`（**历史示例：该类已随 B3-d 删除（2026-10-11，300daa3）**，不再存在；原类注释里的整节「为什么 / 为什么不做逐 lane」按 §1.2 应搬 plans，只留判定口径与代价一行）——收敛时如需标记按此格式。
 - 括号内 = `implementation-progress.md` 的任务 ID（批次表 / 用户裁决新增表）；没有任务 ID 时**必须**给 plans 链接（`plans/0.3.6/<doc>.md`，尽量带 §号）。
 - 描述写「做什么」，不写「以后有空再说」；TODO 不是计划——**计划在 plans**。
 - 禁止：无主 TODO / 描述里带日期 / 把 TODO 当进度看板（进度归 `implementation-progress.md`）。
@@ -331,7 +331,7 @@ kfs.put("sat_red", new FieldDef("float", 0f));
 | `client/lane/LaneDebugCapture.java` | 231 | 114 | 0.49 |
 | `client/lane/LaneCompositor.java` | 132 | 113 | 0.86 |
 
-比 ≥ 1.0 且注释 ≥ 30 行的文件共 13 个（上表 3 个 + `OverlayManager`、`AdjustTrackPlayer`、`OverlayLayer`、`MasterColorAdjust`、`TrackPlayer`、`LutBindGuard`、`PathStrategies`、`TrackType`、`CinematicOcclusion`、`PathStrategy`）——其中接口 / 枚举类走 §2.1 豁免，其余优先减量。
+比 ≥ 1.0 且注释 ≥ 30 行的文件共 13 个（上表 3 个 + `OverlayManager`、`AdjustTrackPlayer`、`OverlayLayer`、`MasterColorAdjust`、`TrackPlayer`、`LutBindGuard`、`PathStrategies`、`TrackType`、`CinematicOcclusion`、`PathStrategy`）——其中接口 / 枚举类走 §2.1 豁免，其余优先减量。**〔注：`CinematicOcclusion` 已随 B3-d 删除（2026-10-11，300daa3）；本清单为 2026-10-09 实测基线，保留历史。〕**
 
 ---
 

@@ -46,25 +46,25 @@
 
 | ID | 任务 | 依赖 | 状态 |
 |---|---|---|---|
-| B1 | Base/Modifier 覆盖链（优先级、通道掩码、REPLACE/ADD/MULTIPLY + 示例） | — | ✅ 2026-10-11（B1-b Base Chain 4 档位+Cut / B1-c Modifier 6 位掩码+三模式+suppress / B1-d 脚本字段+示例 8 支；六参数逐帧等值对拍 2403 行逐字节 + 零分配 1e6=0 + 探针 51+141 + 实机五案像素判别） |
-| B2 | 每 lane 独立 CameraPath/CameraProperties 核对（可能已被 lane 快照模型取代 → 结案回写文档） | — | ✅ 2026-10-10 结案（已被 lane 快照模型取代，回写 camera-state-plan §7 + camera-core-split §五） |
-| B3 | 每 lane 独立可见集合/遮挡剔除（长期解，消除 smartCull=false 缓解的代价） | B1 | ✅ 2026-10-11（B3-a 设计 §12.9 + B3-b per-lane 槽/归槽/逐 pass smartCull + B3-c 实测：倾斜矩形 A/B 症状不再产生、per-lane 444.8fps vs 回落 168.2 + B3-d 删 CinematicOcclusion/回落收口） |
-| B4 | 外部 API（common api 包）+ 相机核心拆分与死代码清理（方案已定稿：`camera-core-split.md`，2026-10-08 用户扩容） | B1,B3 | ✅ 2026-10-11（P0–P4 前日收；P5 api 包+可见性收紧：CameraManager 150 行/CTP 180 硬指标、边界 grep 零命中、api 零内部泄漏、审查 0 findings） | |
+| B1 | Base/Modifier 覆盖链（优先级、通道掩码、REPLACE/ADD/MULTIPLY + 示例） | — | ✅ 2026-10-11（B1-b Base Chain 4 档位+Cut / B1-c Modifier 6 位掩码+三模式+suppress / B1-d 脚本字段+示例 8 支；六参数逐帧等值对拍 2403 行逐字节 + 零分配 1e6=0 + 探针 51+141 + 实机五案像素判别）；遗留：直控 200 档压制语义名义层（三层同源写入缓冲，无可观察差异，详见 camera-state-plan 覆盖链定稿 §2 补注） |
+| B2 | 每 lane 独立 CameraPath/CameraProperties 核对（可能已被 lane 快照模型取代 → 结案回写文档） | — | ✅ 2026-10-10 结案（已被 lane 快照模型取代，回写 camera-state-plan §7/覆盖链定稿 §13 + camera-core-split §五） |
+| B3 | 每 lane 独立可见集合/遮挡剔除（长期解，消除 smartCull=false 缓解的代价） | B1 | ✅ 2026-10-11（B3-a 设计 §12.9 + B3-b per-lane 槽/归槽/逐 pass smartCull + B3-c 实测：倾斜矩形 A/B 症状不再产生、per-lane 444.8fps vs 回落 168.2 + B3-d 删 CinematicOcclusion/回落收口）；验收第 4 款成本曲线挂账 F5（仍 ☐） |
+| B4 | 外部 API（common api 包）+ 相机核心拆分与死代码清理（方案已定稿：`camera-core-split.md`，2026-10-08 用户扩容） | B1,B3 | ✅ 2026-10-11（P0–P4 前日收；P5 api 包+可见性收紧：CameraManager 150 行/CTP 180 硬指标、边界 grep 零命中、api 零内部泄漏、审查 0 findings） |
 | B5 | 统一点源清单（yaw_base_from/to、facing_target 接受完整点源） | — | ✅ 2026-10-10（PointSource 五形态单源 + 三调用点接线 + 字段落点统一关键帧级 + 判据单源化；等值对拍 + 探针 30/30 + 实机冒烟） |
 | B6 | look_at 方块来源 + 部位百分比微调 | — | ✅ 2026-10-10（look_at:"block" + look_at_part 每轴百分比（钳制 AABB 内）+ look_at_target_block；探针 37/37 + 实机三路判别） |
 | B7 | 偏移下放到点源 / 通道相对化 | B5 | ✅ 2026-10-10（点源=来源+偏移+表达空间(dx·dy·dz 世界轴/fwd·up·right 基准系)；旧 relative_to+dx/dy/dz 与 look_at_target 对象形态整体删；探针 80/80 + 实机偏移精确命中） |
 | B8 | 方向锁（yaw/pitch 分轴锁值） | B7 | ✅ 2026-10-11（锁=世界角绝对值锁基准+偏移仍叠；look_at 开=静态侧不参与；up_axis 收编删除；对拍逐字节 + 探针 13+15 + validator A/B 等值 + icv2/icgl 全绿；实机合批补验 ✓ 锁 15° 像素实测 14.91°/look_at 覆盖锁精确命中） |
-| B9 | 垂直线边界修复 + 「视线/身体朝向」措辞 | — | ✅ 2026-10-10（`5497265`，Q3；表状态回写） |
+| B9 | 垂直线边界修复 + 「视线/身体朝向」措辞 | — | ✅ 2026-10-10（`43608c5`，Q3；表状态回写） |
 | B10 | selector 调用点隔离补全（yaw_base_from/to + schema 声明） | — | ✅ 2026-10-10（调用点 6→8 + schema 32 字段 `<字段>_<调用点>` + 校验 + 文档） |
 | B11 | selector 缓存键含调用点/锚点 | B10 | ✅ 2026-10-10（键 = Key(callpoint, anchorId, selector)；失效契约入 javadoc；实机双锁实证） |
 | B12 | selector 锚点可配置 | B10 | ✅ 2026-10-10（selector_anchor 四值 camera/player/target/origin + 回落链；实机判别冒烟实证） |
 | B13 | selector 多候选与择一策略 | B10 | ✅ 2026-10-10（selector_pick first/nearest/alive + 8 调用点变体；A/B 零回归 + 实机判别冒烟） |
 | B14 | selector 解析缺陷（@a/@r/@n/@p[team]） | — | ✅ 2026-10-10（@a/@r/@p[…] 进服务端解析；@n=原版不存在按未知形式 warn 不崩；实机实证） |
 | B15 | selector 通用化 | B10-B13 | ✅ 2026-10-10（selector/ 包通用服务 + SelectorSchema 定义单源 + 相机适配层；A/B 逐字节零回归 + 实机双冒烟复跑一致） |
-| B16 | 数学函数模型库（spring/damper/… + 非线性变换 + 组合 + Registry） | — | ✅ 2026-10-11（B16-b math 包 10 型+Registry/JSON schema+删死缓动 + B16-c 六通道接入；零分配 1e6=0、确定性五条、默认关逐位、实机瞬态逐点吻合） |
+| B16 | 数学函数模型库（spring/damper/… + 非线性变换 + 组合 + Registry） | — | ✅ 2026-10-11（B16-b math 包 10 型+Registry/JSON schema+删死缓动 + B16-c 六通道接入；零分配 1e6=0、≈1.23µs/帧（归档探针实测）、确定性五条、默认关逐位、实机瞬态逐点吻合） |
 | B17 | 时间插值 步骤 3-6（相机快照插值/历史缓冲/模型接入/API） | B16 | ✅ 2026-10-11 结案（相机快照/历史缓冲=不需要、API 留位；与覆盖链/B18 先后关系文档化，证据附录引对拍链） |
-| B18 | 过渡 步骤 3-8（分参数过渡/曲线/覆盖链接入/打断链式/API） | B1,B16 | ✅ 2026-10-11（分参数+曲线走模型层+打断 snap/blend 缺省 blend（用户拍板）+链式 A→B→C；探针 51/51 + 基线 2403 行逐字节 + 审查 major×2 整改） |
-| B19 | 迟滞 6 步 | B16,B1 | ✅ 2026-10-11（三型含 inertia 新增（稳态零滞后）+默认关+帧率无关三档实测；审查 0 findings（数学独立复算）） |
+| B18 | 过渡 步骤 3-8（分参数过渡/曲线/覆盖链接入/打断链式/API） | B1,B16 | ✅ 2026-10-11（分参数+曲线走模型层+打断 snap/blend 缺省 blend（用户拍板）+链式 A→B→C；探针 51/51 + 基线 2403 行逐字节 + 审查 major×2 整改）；**实机抽验（T17）**：① morph / ② 分参数 / ③ 曲线 实机跑通并逐帧定量（权重偏差 ≤1e-3、像素 roll/pitch 残差 ≤0.3°）；④ 打断 / ⑤ 链式 **未验**（收口时环境负载停跑，fixture 已就绪）→ 挂账 H6；详见 `transition.md`〈实机抽验〉 |
+| B19 | 迟滞 6 步 | B16,B1 | ✅ 2026-10-11（三型含 inertia 新增（稳态零滞后）+默认关+帧率无关三档实测；审查 0 findings（数学独立复算））；实机跨帧率比对以 headless 四档 dt 替代（观感量化挂账 H6） |
 
 ## 批次 C：触发器
 
@@ -73,7 +73,7 @@
 | C1 | 组合器嵌套（多层 all_of/any） | — | ☐ |
 | C2 | death 触发器类型 | — | ☐ |
 | C3 | 检测频率可配（按触发器/按脚本） | — | ☐ |
-| C4 | 动作面收敛（3 个死代码动作：注册或按"命令归 EVENT 轨"删除） | — | ☐ |
+| C4 | 动作面收敛（3 个死代码动作：注册或按"命令归 EVENT 轨"删除） | — | ✅ 2026-10-10（`476b442`，Q2/C4 动作面收敛：删 StopPlayback/PlaySound/ExecuteCommand 3 个死代码 TriggerAction + Trigger*Store 死读方法 4 对） |
 | C5 | 播放关系与队列（三态 play_mode@meta + 队列可达性修复 + 控制原语） | — | ☐（设计 ✅ 2026-10-10 playback-relations.md；用户拍板三态@meta） |
 | C6 | 判定规则系统（clip.rules：if→do 持续 / until→do 阻塞；判定点/等待点收编） | — | ☐（设计 ✅ 2026-10-10 condition-system.md；用户拍板条件=片段元数据、不新开轨道、**分支失败回退主支** §5.1） |
 
@@ -127,30 +127,30 @@
 |---|---|---|---|
 | H1 | region-sync 全部实现（平移映射/镜像旋转/多区域链/传送/防乒乓/朝向策略） | — | ☐ |
 | H2 | wait-point-track 全部实现（WAIT_POINT 轨 + 事件源 + pause_managed + player_death + 分支） | C2 + **P1-impl + P3-impl**（事件/事实层先行——等待点等的事件正是这一层；H2 需在二者之后） | ☐ |
-| H4 | feedback-04 #1 结案（按"命令归 EVENT 轨"新方向标注） | — | ☐ |
+| H4 | feedback-04 #1 结案（按"命令归 EVENT 轨"新方向标注） | — | ✅ 2026-10-10（`476b442`，按「命令归 EVENT 轨」新方向结案标注） |
 | H5 | 文档滞后清理（审计 §三 12 条） | — | ☐ |
 | H6 | 实机验证批次（审计 §四 7 条：调色/叠化/hard-hide/模板命令/release 脚本游戏内跑） | A,B,D | ☐ |
 
 ## 用户裁决新增（2026-10-08）
 
-| ID | 任务 | 依赖 | 状态 |
-|---|---|---|---|
+| ID | 任务 | 依赖 | 状态 | commit |
+|---|---|---|---|---|
 | CLEANUP-2 | 删除运行时 pip 层（被 lane 取代；PipLayer 是占位实现从未接入真实画面）；WebUI 便捷操作留编辑器阶段 | — | ✅ 2026-10-08 代码完成（`5b3265d`）；2026-10-10 表状态回写 |
 | P1 | **计划文档《脚本状态机与状态追踪》**：布尔值点状事件判定 → **事实追踪**（用户点名；后续优化基于它） | — | ✅ `6c1097f`（plans/0.3.6/state-tracking.md） |
 | P1-impl | 按 P1 计划实现状态机/状态追踪优化 | P1 | ☐ |
 | P2 | **计划文档《Iris/Oculus 兼容调研计划》**：挂点/可行性/风险/工作量（用户点名：先写计划，结论定策略） | — | ✅ `2ff77b6`（plans/0.3.6/iris-oculus-compat.md） |
 | P3 | **计划文档《触发器系统的连续性》**：现状 = 全采样但不连续（离散轮询）；目标 = 做成连续的（与状态追踪同类思路；用户点名，独立成篇） | — | ✅ `8d6fc61`（plans/0.3.6/trigger-continuity.md） |
 | P3-impl | 按 P3 计划实现触发器连续性 | P3 | ☐ |
-| B3' | 每 lane 独立可见集合 → **做**（用户裁决；工程大，拆多个子任务：设计 → 实现 → 性能实测） | — | ☐ |
+| B3' | 每 lane 独立可见集合 → **做**（用户裁决；工程大，拆多个子任务：设计 → 实现 → 性能实测） | — | ✅（= B3 已落地） |
 | A13' | 多实例 master 合并 → **按层级叠加**（lane 包内/包上调整 → 合成 → master 整体调整；多实例 master 按实例顺序叠加应用） | A8 | ✅ | `4aa03d8` |
-| 任务2改判 | **曲线贝塞尔手柄归编辑器阶段**（2026-10-08 用户裁决，替代「手柄本轮补」）：手柄属编辑器侧运算（运行时只读只执行、**不含手柄逻辑**），产物数据形态随编辑器阶段定稿；已标注 screen-color-adjust.md「本版本明确不做」 | — | ✅ 标注完成 | |
-| 创作机制口径 | **运行时只读只执行；修改/生成/调配运算归编辑器**（2026-10-08 用户裁决，已入通用原则）：曲线手柄、模板等创作性机制不进运行时代码，编辑器运算产出运行时直接执行的纯数据——**E 批次（模板）等任务书开工前按此口径重审**（模板展开归编辑器） | — | ✅ 口径记录 | |
+| 任务2改判 | **曲线贝塞尔手柄归编辑器阶段**（2026-10-08 用户裁决，替代「手柄本轮补」）：手柄属编辑器侧运算（运行时只读只执行、**不含手柄逻辑**），产物数据形态随编辑器阶段定稿；已标注 screen-color-adjust.md「本版本明确不做」 | — | ✅ 标注完成 | — |
+| 创作机制口径 | **运行时只读只执行；修改/生成/调配运算归编辑器**（2026-10-08 用户裁决，已入通用原则）：曲线手柄、模板等创作性机制不进运行时代码，编辑器运算产出运行时直接执行的纯数据——**E 批次（模板）等任务书开工前按此口径重审**（模板展开归编辑器） | — | ✅ 口径记录 | — |
 | LUT 微调组合 | **输入域适配 + 外部工作流 + 编辑器登记**（2026-10-09 用户裁决）：运行时加 `lut_input_gamma` 小参数修输入域错位（现成 cube 偏色时作者试 0.45/2.2）；「对游戏画面调 cube」工作流文档 `docs/LUT_WORKFLOW.md`（外部达芬奇路线）；LUT 微调工具登记编辑器阶段清单——三层各归其位 | — | ✅ | `76f0fe7`/`f8a6265` |
 | A11 形态 | **固定 PS 六带 × Hue/Sat = 12 通道**（2026-10-09 用户拍板）：不做每带 Lightness——加性运算会把 alpha=0 透明像素烤出非零 RGB，lane 合成前出缺失；hue/sat 对黑像素恒 0，透明像素不复活 | A5 | ✅ | `01cae9f` |
 | A12 形态 | **blend_mode 枚举（normal/multiply/screen/soft_light/overlay）+ blend_amount 关键帧**（2026-10-09 用户拍板）：层级混合在全部操作栈步骤后整体施加，非栈步骤 | A9 | ✅ | `ff1e5a5` |
 | 调度口径 | **全模组口径**（2026-10-09 用户裁决，已入通用原则）：模组按脚本解析「能放什么、怎么放、能调度什么」并管时机；执行 = 有什么放什么、脚本定了怎么放就怎么放、没有就不放；多脚本同屏各自按数据执行，模组不挑不猜；预期外效果非代码根本问题 = 作者侧解决（如多 LUT 叠加观感） | — | ✅ 口径记录 | — |
 | 本轮范围 | 2026-10-09 用户裁决：本轮只做**批次 A 关单**（A10 收尾 + A11 + A12 + A13'），批次 B 起另起 | — | ✅ 口径记录 | — |
-| CLEANUP-3 | **注释收敛**（规范已定稿：`plans/0.3.6/code-comment-style.md`，2026-10-09 用户口径「注释=定义/生效的公正说明，Why 归 plans，稳定后必须简化」）：全仓 20,569 代码行 / 6,844 注释行（比 0.33）收到 ≤25%；按包分片 S1–S6 纯注释 diff、逻辑零动、三套冒烟兜底；默认 B–H 落地后统一执行，本版不再动的包可提前 | — | ☐ | |
+| CLEANUP-3 | **注释收敛**（规范已定稿：`plans/0.3.6/code-comment-style.md`，2026-10-09 用户口径「注释=定义/生效的公正说明，Why 归 plans，稳定后必须简化」）：全仓 20,569 代码行 / 6,844 注释行（比 0.33）收到 ≤25%；按包分片 S1–S6 纯注释 diff、逻辑零动、三套冒烟兜底；默认 B–H 落地后统一执行，本版不再动的包可提前 | — | ☐ | — |
 | E0 裁决 | **`/icinematics template` 命令删除**（2026-10-10 用户拍板）：与「运行时只读只执行」一致；E 批删除任务解锁（script/template/ 10 文件 + 命令子树 + ScriptTemplate/script.new 链路 + 文档回写，须与编辑器骨架本地化同批） | — | ✅ 口径记录 |
 | B1 拍板 | **覆盖链四项（2026-10-10 用户拍板）**：① Modifier 缺省合成 = 偏移类 ADD（position/yaw/pitch/roll）、缩放类 MULTIPLY（fov/zoom）、REPLACE 显式 ② Base 优先级 飞行 300 > 直控 200（用户说明：飞控与编辑器互斥、编辑器只接收回传值，无实际语义差异）③ Modifier 只作用主相机状态 ④ 通道掩码 6 位 | — | ✅ 口径记录 |
 | B16 拍板 | **seek 后模型实例状态 = reset**（2026-10-10 用户拍板）；数学模型库包名 = `math` 包（低影响，主代理定） | — | ✅ 口径记录 |
@@ -164,7 +164,7 @@
 ## 编辑器阶段（最后做，此轮不执行）
 
 > 前置：先出编辑器规划文档（参考 `example/editor/{olive,lossless-cut}`，逐功能对照模组能力；核心 = 只产出游戏可解析的固定格式脚本）。
-> 清单：调色编辑器 UI（含 `editor/src/operations.ts` 的 `continuousChannels('ADJUST')` 同步 15 通道、`demo.ts` 补 ADJUST 轨）、组合器编辑器 UI、转场面板、模板面板、PresetsPanel 残留处置、合成参数专用面板 + 多 lane 预览、Gizmo（variable-frame 步骤 6）、脚本架构图拖拽布局持久化 + 增量刷新、Bezier 控制点可视化、选中片段全屏 lane 渲染、demo.ts 离线 schema 同步、**LUT 微调工具**（2026-10-09 用户裁决：捕获帧 → 编辑器预览 → 调输入域/分区 → 导出修正 .cube；外部工作流见 `docs/LUT_WORKFLOW.md`）、**几何编辑器四件**（2026-10-10，variable-frame §5/§11.9：一键优化（像素输入→`scale`、起始/结束点写法→`source`）、`meta.base_resolution` 表单、预览按 `k` 渲染、Gizmo 按新几何口径——产物均为标准字段脚本，与手写等价）。
+> 清单：调色编辑器 UI（含 `editor/src/operations.ts` 的 `continuousChannels('ADJUST')` 同步 15 通道、`demo.ts` 补 ADJUST 轨）、组合器编辑器 UI、转场面板、模板面板、PresetsPanel 处置（旧硬编码 `orbit_circle` 预设面板：并入模板引擎后删）、合成参数专用面板 + 多 lane 预览、Gizmo（variable-frame 步骤 6）、脚本架构图拖拽布局持久化 + 增量刷新、Bezier 控制点可视化、选中片段全屏 lane 渲染、demo.ts 离线 schema 同步、editor/src 表单与类型声明随 0.3.6 字段变更同步（`types.ts` 清已删的 `look_at_target` 对象形态 / `relative_origin` 系；`DynamicForm.vue` 可见性映射同步）、**LUT 微调工具**（2026-10-09 用户裁决：捕获帧 → 编辑器预览 → 调输入域/分区 → 导出修正 .cube；外部工作流见 `docs/LUT_WORKFLOW.md`）、**几何编辑器四件**（2026-10-10，variable-frame §5/§11.9：一键优化（像素输入→`scale`、起始/结束点写法→`source`）、`meta.base_resolution` 表单、预览按 `k` 渲染、Gizmo 按新几何口径——产物均为标准字段脚本，与手写等价）。
 
 ---
 
@@ -218,7 +218,7 @@
 | 2026-10-11 | **B8 方向锁 ✅**（`feat` 提交）：`yaw_lock`/`pitch_lock` 分轴锁值（float 缺省 null=跟方向源；锁值=世界角绝对值；锁替换该轴基准、关键帧 yaw/pitch 偏移仍叠）+ 叠加次序表文档化（look_at 开=静态侧整体不参与 > orient=tangent > 锁 > 方向源+偏移）+ **up_axis 收编删除**（schema/解析/校验/文档全清，出现即报错「已移除」；帧构建 up 固定世界竖直=复用原 world 分支，原 view 场景行为变化单列 D1-D6 清单）。证据：基线对拍逐字节 PASS（35 场景）+ 探针 13/13（四组合/锁+偏移/look_at 开关）+ schema 15/15 + validator A/B 291 行逐字节 + icv2/icgl 全绿。实机 5 与 B1-b 合批补验 ✓（2026-10-11 两会话）：第三人称锁案像素实测俯仰 14.91°（=锁 15；未锁=0）、傀儡背影居中=跟来源；look_at 切换对照 LOOK_AT_ONCE yaw=0.00/pitch=9.23 = 瞄准几何逐位吻合且非锁值 100/15。遗留：①isClipUsable 门控不对称（look_at 开+方向源不可解析仍拒片，B8 未动保基线；要否放宽待议）②editor 离线 schema（demo.ts/types.ts）本就滞后 B5–B7 字段，归编辑器阶段。 |
 | 2026-10-11（续） | **B1-b Base Chain ✅**（`feat` 提交）：`camera/cover/`（BaseCameraProvider 接口+4 档位常量 / CameraStateBuffer 零分配工作区 / CameraCoverChain 注册表+逆序严格大于选择+快照产出）+ 三层内置 Base（ScriptDirectorBase 100 / DirectControlBase 200 / FlightBase 300，400 外部留位）；`CameraTrackPlayer.writeGlobal` 收口 `CameraManager.setScriptState`（内部求值零改动），`CameraStateHolder` 删 refresh(boolean) 改不可变镜像 current()+setScriptState/setInitialView/setSnapshot，`PlaybackLifecycle` 注入刷新钩子取代显式 refresh；删死代码 getPath()/getProperties()。验收：缝对拍 2403 行逐字节一致（写入→链选择→快照全路径，含 NaN/±Inf/-0.0/MIN/MAX 直通=链上无 clamp/normalize）；零分配（chain.snapshot 1e6=40MB=1 record/帧、buffer.set=0、链本体额外分配 0、Vec3 复用成立）；icv2/icgl/validator 全绿（既有 2 条语料 FAIL 不变）；审查（reviewer）可接受无 blocker/major，两条注释整改随落（DirectControlBase 活跃窗口实况、CameraStateHolder javadoc）。实机（与 B8 合批两会话）：三案 FINISHED 零 Exception，B1-b 全参回归案 cam/target/瞄准角与手算精确一致（cam=激活点+(0,3,-8)、target=甲架中心、yaw=-36.87/pitch=11.38）。§10 执行表：脚本播放/插值/roll·fov·zoom/cam breath/预加载/选择器锁定实机覆盖；编辑器预览·直控/飞行/听者显式实测未做（三层同源镜像等价论证+探针覆盖，UI 交互类归编辑器阶段补）。遗留登记 findings：①`@e[…]` 带参选择器串疑被一处误送结构定位（StructureLocator warn「Non [a-z0-9_.-]…」，行为无损、随后选择器路径正常锁定，来源待查）②直控层「压制脚本导演层」语义待各层各持自有 record（B4-P5/覆盖链定稿 §12）才生效。 |
 | 2026-10-11（续2） | **B1-c Modifier Chain ✅**（`feat` 提交）：`camera/cover/` 新增 CameraChannels（6 位掩码位序 + 通道缺省模式表单源：position 一位盖 x/y/z、yaw/pitch/roll/fov/zoom 各一位）/ ComposeMode（REPLACE/ADD/MULTIPLY 语义单源）/ CameraModifier（modifierPriority/channelMask/composeMode/writeValue）；CameraCoverChain 双注册表（Base/Modifier 独立优先级域互不比较，Modifier 按优先级插入排序）+ composeModifiers；CameraStateBuffer.compose(mask,mode,values) 就地合成（掩码过滤→逐通道，无 clamp/环绕）；suppressModifiers 消费接线（Base 胜出且 suppress=true → 跳过整条 Modifier 链）。缺省模式按拍板①（position/yaw/pitch/roll=ADD、fov/zoom=MULTIPLY、REPLACE 显式）。验收：基线对拍 45 行逐字节（22 场景：优先级/同级后注册/注销/2^3 活跃矩阵/suppress 两态）+ ComposeProbe 51/51（三模式×6 通道逐位+掩码关断+应用序）+ 负对照 teeth 4/4 定向变异全检出 + 零分配 1e6 次合成=0 字节 + icv2/icgl 全绿。生产侧 Modifier 零内置条目（无活跃路径=基线，实机由 B8/B1-b 会话同覆盖；脚本级示例与首个 Modifier 使用者归 B1-d/B4-P5）。 |
-| 2026-10-11（续3） | **B16-b 数学模型库 ✅**（`feat` 提交）：新 `math/` 包（MathModel/MathModelInstance 定稿 1 逐字接口 + ValueDomain + ModelParams + AngleUtil + 曲线族 Curves/CubicBezierCurve/CurveModel + 有状态骨架 StatefulInstance/ExponentialSmoothModel/SpringModel（欠/临界/过阻尼解析步进）+ 组合 ChainModel/BlendModel）+ 绑定层 `script/schema/MathModelRegistry`（JSON→定义唯一入口：缺省填充/钳制/未知忽略/回落 linear/深度≤8 节点≤32/限频告警）+ clip 级 `motion_position/yaw/pitch/roll/fov/zoom` 6 字段（FieldDef "model"）+ `case "model"` 解析 + validator motion 校验 + SchemaExporter `models` 段；删 MathUtil 六个零调用方死缓动方法（smooth/smooth5/easeIn/easeOut/easeInOut/smoothstep）。验收：零分配 1e6 次 step=0 字节（六通道×8 节点 chain，≈1.13µs/帧）+ 确定性五条逐条断言（含 dt 分割不变 ≤1e-9、spring 解析步进 vs RK4 12 组一致）+ 解析/校验正负样例 + icv 2 of 133（既有 2 条不变）+ icv2/icgl 全绿；审查（reviewer）核心可接受（spring/bezier/回退表逐式复核通过），2 minor + 3 nit 整改随落（夹具关键帧局部时间+total_duration、HTML 注释标签清零、负 dt 限频门前置、示例语义（曲线挂归一化量）、util.md 同步）。附登记：既有语料 test_preload_multiclip.json 第 2/3 段关键帧 time 误用全局时间（恒取末帧）——既有问题不属本单，待清理。 |
+| 2026-10-11（续3） | **B16-b 数学模型库 ✅**（`feat` 提交）：新 `math/` 包（MathModel/MathModelInstance 定稿 1 逐字接口 + ValueDomain + ModelParams + AngleUtil + 曲线族 Curves/CubicBezierCurve/CurveModel + 有状态骨架 StatefulInstance/ExponentialSmoothModel/SpringModel（欠/临界/过阻尼解析步进）+ 组合 ChainModel/BlendModel）+ 绑定层 `script/schema/MathModelRegistry`（JSON→定义唯一入口：缺省填充/钳制/未知忽略/回落 linear/深度≤8 节点≤32/限频告警）+ clip 级 `motion_position/yaw/pitch/roll/fov/zoom` 6 字段（FieldDef "model"）+ `case "model"` 解析 + validator motion 校验 + SchemaExporter `models` 段；删 MathUtil 六个零调用方死缓动方法（smooth/smooth5/easeIn/easeOut/easeInOut/smoothstep）。验收：零分配 1e6 次 step=0 字节（六通道×8 节点 chain，≈1.23µs/帧（归档探针实测））+ 确定性五条逐条断言（含 dt 分割不变 ≤1e-9、spring 解析步进 vs RK4 12 组一致）+ 解析/校验正负样例 + icv 2 of 133（既有 2 条不变）+ icv2/icgl 全绿；审查（reviewer）核心可接受（spring/bezier/回退表逐式复核通过），2 minor + 3 nit 整改随落（夹具关键帧局部时间+total_duration、HTML 注释标签清零、负 dt 限频门前置、示例语义（曲线挂归一化量）、util.md 同步）。附登记：既有语料 test_preload_multiclip.json 第 2/3 段关键帧 time 误用全局时间（恒取末帧）——既有问题不属本单，待清理。 |
 | 2026-10-11（续4） | **B16-c 相机参数运动接入 ✅**（`feat` 提交）：新 `camera/source/LaneMotionStepper`（per-lane 6 通道实例槽 + 生命周期 + 稳态逐帧零分配）；唯一接入点 = writeAttributes/renderMorph（目标值产出后、呼吸叠加前每通道 step）；每 lane 每帧单次 step（capture/重叠窗/morph 两端共享一次求值，S4 计数器为证）；生命周期照定稿 4 表（延续/重建/销毁/seek=reset 挂 PreviewChannel.setTime→ScriptPlayer.onSeek 链/暂停 dt=0）；定义相等性 = ScriptParser 归一驻留（type+参数键值+域 → 同一定义对象）。验收：默认关逐位对拍 840 帧 raw-bits 逐字节（含重叠窗/morph/呼吸）+ validator A/B 292 行逐字节 + 开启路径探针（smoothstep/exp_smooth/blend 与手算一致、step 计数、生命周期 S5a-S7、零分配 1e5=0）+ icv2/icgl 全绿；审查（reviewer）可接受无 blocker/major（seek 挂点穷举确认完备；层槽身份=lane 粒度语义裁定为预期），3 nit + 驻留约束注整改随落。实机（会话 3）：motion_pitch=exponential_smooth(tau=10) 慢趋近 5 轮截帧反推俯仰 9.38→26.84 单调爬升、与模型瞬态曲线逐点吻合（单点标定后 ±0.5°），无模型恒 40° 假设排除；默认关全参回归案几何与历史三会话逐位一致。 |
 | 2026-10-11（续5） | **B1-d Modifier 脚本字段 + 示例 + 文档 ✅**（`feat` 提交）：clip 级 `modifier`（channels/mode?/priority?/平铺通道值；每 clip 至多一条）+ `suppress_modifiers`（bool 缺省 false）全链落地——ClipModifier 声明（double[8] 槽位直写零分配）+ ClipModifierGate 活跃窗门（[start, windowEnd)，isEffectivelyInfinite 永续、morph 前段窗末+半窗=两侧并存）+ PlaybackInstance 开播注册/停播注销 + ScriptDirectorBase.suppressesModifiers + 主相机 lane 桥接（链上有 Modifier 生效时最上层 lane 取链输出，否则逐位同值不替换）。**生效范围主代理裁定（实机五案照出）**：声明 clip 活跃窗生效（与 motion_*/cam_breath/suppress 同构），非整播放期。验收：validator 2/141（既有 2 条不变）+ 8 支示例 [OK] + 探针 141/141（跨窗不叠加/morph 两侧并存/loop 永续/门零分配）+ icv2/icgl 全绿 + 审查 correct 无 blocker（priority 小数静默截断→解析硬拒整改随落）。**实机五案像素判别（SmokeFlat 超平坦受控环境首用：正午冻结/无自然生成/不下雨/作弊开）**：ADD pitch+5 实测 21.02（期望 20）、MULT fov×1.5 实测 pitch 14.39（fov105，期望 15）、REPLACE 0 实测 -0.58（期望 0）、suppress 实测 14.39 ≡ 基线 14.39（期望 15）——三模式 + suppress 对照全部命中（±1°，轮次 5/5 落窗）。 |
 | 2026-10-11（续7） | **B3-b per-lane 可见集合 ✅**（`feat` 提交）：`LaneCullStateMixin`（lane 槽字段级快照交换 + BFS 归槽 + allChanged/needsUpdate 失效钩子）+ `LaneCullSlot`/`LaneCullSlots`（池 + 帧栈 + 16 字段槽）+ `LaneCullBridge`；LaneRenderer push/pop 接入（prepareCullFrustum 前 / renderLevel+outline 后，finally 兜底）；per-pass smartCull（读 setupRender camera 参数）；CinematicOcclusion 两制互斥 + 起停播强刷迁活跃度跳变。**BFS 归槽（留位②）收敛 = (ii) 变体**：lane pass 内同步执行 + 换入前 await 主 pass 异步落地（硬约束「写入发起槽」成立）。§12.9.1 十六项（含审查补入 nextFullUpdateMillis）+ 五步机制 + 停播恢复四条逐条落地（三表见交付）。验收：全模块编译 + icgl/icv2 全绿（14+14）+ 探针 28/28（含 needsUpdate/BFS 重试组）+ 审查两轮（P2×2 整改：resize 强刷槽、重试定时器入槽——均为 B3-c 缺块症状同类）+ 自跑 quadrant 冒烟 72s 0 失败 0 异常。实机像素回归归 B3-c 轮。 |

@@ -1,0 +1,199 @@
+{
+  "meta": {
+    "id": "test_camera_transition_b18_b",
+    "name": "相机测试-过渡B18实机B（打断/链式）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "B18 实机抽验 B 组：④ 打断——snap（t=6：0.5 处打断 → 立即硬切到新目标）与 blend（t=29：0.5 处打断 → 从当前混合中间态续接，时长重算）；⑤ 链式 A→B→C（S5→S6→S7 两段 4s 过渡首尾相接，第二段 A 侧 = 第一段的实时状态）。长时长用于制造窗口重叠（前一段过渡未走完、后一段窗口已开始）。",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0 } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 58,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "B18-B0 常态 S0 | t=6 打断 snap",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 13,
+            "layer_type": "subtitle",
+            "text": "B18-B1 打断 snap 已触发（硬切到 S2）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 13, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 19,
+            "duration": 10,
+            "layer_type": "subtitle",
+            "text": "B18-B2 常规过渡 S2→S3（4s）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 10, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 29,
+            "duration": 12,
+            "layer_type": "subtitle",
+            "text": "B18-B3 打断 blend（中间态续接 12s）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 41,
+            "duration": 17,
+            "layer_type": "subtitle",
+            "text": "B18-B4 链式 A→B→C（S5→S6→S7）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 17, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "transition": "morph",
+            "transition_duration": 8,
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 6, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 6,
+            "transition": "morph",
+            "transition_duration": 12,
+            "transition_interrupt": "snap",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 10, "dy": 3, "dz": 0 }, "yaw": 60, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 6, "position": { "dx": 10, "dy": 3, "dz": 0 }, "yaw": 60, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 12,
+            "duration": 9,
+            "transition": "morph",
+            "transition_duration": 4,
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 20, "dy": 3, "dz": 0 }, "yaw": 120, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 9, "position": { "dx": 20, "dy": 3, "dz": 0 }, "yaw": 120, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 21,
+            "duration": 8,
+            "transition": "morph",
+            "transition_duration": 8,
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 28, "dy": 3, "dz": 0 }, "yaw": 180, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 28, "dy": 3, "dz": 0 }, "yaw": 180, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 29,
+            "duration": 6,
+            "transition": "morph",
+            "transition_duration": 12,
+            "transition_interrupt": "blend",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 36, "dy": 3, "dz": 0 }, "yaw": 240, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 6, "position": { "dx": 36, "dy": 3, "dz": 0 }, "yaw": 240, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 35,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 44, "dy": 3, "dz": 0 }, "yaw": 300, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 44, "dy": 3, "dz": 0 }, "yaw": 300, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 43,
+            "duration": 5,
+            "transition": "morph",
+            "transition_duration": 4,
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 52, "dy": 3, "dz": 0 }, "yaw": 350, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 5, "position": { "dx": 52, "dy": 3, "dz": 0 }, "yaw": 350, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 48,
+            "duration": 5,
+            "transition": "morph",
+            "transition_duration": 4,
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 60, "dy": 3, "dz": 0 }, "yaw": 40, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 5, "position": { "dx": 60, "dy": 3, "dz": 0 }, "yaw": 40, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 53,
+            "duration": 5,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 68, "dy": 3, "dz": 0 }, "yaw": 100, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 5, "position": { "dx": 68, "dy": 3, "dz": 0 }, "yaw": 100, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

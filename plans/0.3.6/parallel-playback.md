@@ -70,7 +70,7 @@
 
 > **架构推论（2026-10-07，与[画面合成](./camera-composition.md) / [可变画面](./variable-frame.md) §2 的「主画面也是覆盖层之一」一致）**：多相机渲染落地后，**主画面不再走"单相机替换"路径**——它只是「dest=全屏、opacity=1」的全屏 lane 特例。相机画面与图片 / 字幕 / 黑边同类：lane 输出纹理进覆盖层体系，位置 / 大小 / 取材 / 不透明度 / 叠放顺序全部走关键帧（完全关键帧控制）。
 >
-> 随之而来：现有"把虚拟相机写进唯一主 `Camera`"的替换链路——`CameraMixin` 主相机分支、`GameRendererMixin` 的 getFov / roll 分支、`LevelRendererMixin` 视图中心改写、`CinematicOcclusion` 整帧遮挡决策——在理想态下是**过渡实现**，最终随 lane 化收敛（不再被调用 / 删除）。
+> 随之而来：现有"把虚拟相机写进唯一主 `Camera`"的替换链路——`CameraMixin` 主相机分支、`GameRendererMixin` 的 getFov / roll 分支、`LevelRendererMixin` 视图中心改写、`CinematicOcclusion` 整帧遮挡决策——在理想态下是**过渡实现**，最终随 lane 化收敛（不再被调用 / 删除）。**〔→ `CinematicOcclusion` 已删（2026-10-11，B3-d，300daa3）：per-lane 可见集合（B3-b）落地后整帧遮挡决策不再需要；其余链项见下方 §3.3 落地表〕**
 > 两点保留：① 每个 lane 的相机仍复用"把模组相机状态写进一个 `Camera` 实例 + 独立投影"的机制（四象限原型已验证）；② 单 lane 全屏（dest=全屏、opacity=1）可作为优化走旧路径省一遍渲染（每 lane ≈3.4–3.6 ms），是否保留执行时定。
 
 **✅ 落地（2026-10-07，主相机替换链退役）**：主画面不再走单相机替换路径，画面完全由 lane 合成层承担；零 lane 时 = 原版视角（回归 vanilla）。逐点处置：

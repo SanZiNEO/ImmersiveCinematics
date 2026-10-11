@@ -76,10 +76,10 @@ graph LR
 - **缺口**：per-lane `renderChunkStorage` + BFS + frustum 独立维护；各 lane 允许自己的遮挡行为；拿回性能。
 - **依赖**：B1（progress:51）；用户裁决 = 做、工程大、拆「设计 → 实现 → 性能实测」（progress:142）。
 - **子任务拆解**（4 个）：
-  1. **B3-a 设计**（计划类，可并行）：状态拆分边界（`LevelRenderer.renderChunkStorage` / `renderChunksInFrustum` / `updateRenderChunks` / `smartCull` 门闩）、与 `LevelRendererMixin` 现有包夹（L408-409）的关系、停播恢复、与 `CinematicOcclusion` 的替代关系、内存与编译量预算。
+  1. **B3-a 设计**（计划类，可并行）：状态拆分边界（`LevelRenderer.renderChunkStorage` / `renderChunksInFrustum` / `updateRenderChunks` / `smartCull` 门闩）、与 `LevelRendererMixin` 现有包夹（L408-409）的关系、停播恢复、与 `CinematicOcclusion` 的替代关系（该类已随 B3-d 删除，2026-10-11，300daa3）、内存与编译量预算。
   2. **B3-b 实现**：per-lane 可见集合 + 各 pass 自播种；复核 `LevelRendererAccessor.applyFrustum` 门闩绕过（multi-camera-rendering §12.1 L305）的去留。
   3. **B3-c 性能实测 + 视觉回归**：quadrant 实机像素回归 + 「倾斜裁切矩形」症状 B 像素实证（audit:114）+ 成本曲线（并入 F5）。
-  4. **B3-d 收尾**：删 `CinematicOcclusion`（camera-core-split §一处置行 + §五「B3' 落地后删」），`LevelRendererMixin` 包夹同步拆除。
+  4. **B3-d 收尾**：删 `CinematicOcclusion`（camera-core-split §一处置行 + §五「B3' 落地后删」），`LevelRendererMixin` 包夹同步拆除。**〔→ 已完成（2026-10-11，300daa3）〕**
 - **验收**：倾斜矩形不再产生（像素实证）；停播后 `smartCull` 交回原版（现日志口径 L425-426 保持）；性能不低于现缓解档；成本曲线更新。
 
 ### B4 外部 API（common api 包）+ 相机核心拆分与死代码清理（方案已定稿：`camera-core-split.md`）
@@ -312,7 +312,7 @@ graph LR
 | F1「失败时返回前有效结果」语义去留（progress:187） | 待讨论、**先不动** | 不派活；等 B 批渲染改动后统一决策 |
 | A10 色彩空间校准（progress:182「用户已知、后续」） | 未做 | 与 F3/P2 调研③（Iris 色彩空间顺序，iris-oculus-compat §3-③ L145-150）合并定 |
 | `clock-abstraction.md`（2026-10-09 决策、未执行） | 未执行 | = G4 的实现方案（比 G4 行更宽：含 elapsed 语义 / overlay delta）；步骤 1 建议并入 B4-P1（见 §四） |
-| `PresetsPanel.vue` 残留（audit:65；re/02:39-53） | 未处置 | 归编辑器阶段 |
+| `PresetsPanel.vue`（旧硬编码 `orbit_circle` 预设面板，未迁移到模板体系） | 归编辑器阶段 | 已登记编辑器阶段清单（随模板面板一并处置；audit:65；re/02:39-53） |
 | 多实例 master 合并语义 | **已结案**（A13'，progress:143） | pending-discussions §一 screen-color-adjust 条目已过时，随 H5 回写 |
 | 跨脚本 lane 寻址 / 主 lane 判定 / 跳过投票 UI / 实例 id 协议形态等（pending §一） | 仍未定（执行时再定型） | 涉及 B1/B3/B4 的（实例与 Base Provider 对应关系、主 lane 判定）**在 B1-a 设计里定**；其余随对应批次定 |
 
@@ -342,7 +342,7 @@ graph LR
 | Q18 | **B17** 时间插值 3-6（可拆 2 件） | 依赖 B16 |
 | Q19 | **B18** 过渡 3-8（拆 3 件） | 依赖 B1+B16 |
 | Q20 | **B19** 迟滞（拆 3 件） | 依赖 B16+B1 |
-| Q21 | **B3-b/B3-c/B3-d** 每 lane 独立可见集合 + 性能实测 + 删 CinematicOcclusion | 渲染热路径，放最后动；B1 已就位 |
+| Q21 | **B3-b/B3-c/B3-d** 每 lane 独立可见集合 + 性能实测 + 删 CinematicOcclusion**〔已完成（2026-10-11，300daa3）〕** | 渲染热路径，放最后动；B1 已就位 |
 | Q22 | **C1 / C2**（C3 见 Q24，与 P3-impl 步骤 4 合并成一件） | 小件；C2 是 H2 前置 |
 | Q23 | **P1-impl** 主链（步骤 1–3）→ 收编（4–5）→ 持久化（6） | 触发器底层；H2 前置 |
 | Q24 | **P3-impl** 步骤 2（最小版本）→ 3 → 4（含 C3）→ 5（与 P1 步骤 5 合流） | 与 P1 互相咬合；最小版本可先落 |

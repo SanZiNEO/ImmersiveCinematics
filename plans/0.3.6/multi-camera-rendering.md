@@ -453,6 +453,9 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 | `renderedEntities` / `culledEntities` | `LevelRenderer.java:252-253` | **不拆** | `renderLevel` 每 pass 开头清零（`:1046-1047`），无跨 pass 残留。 |
 | `capturedFrustum` / `frustumPos` / `frustumPoints` | `LevelRenderer.java:255-259` | **不拆** | 全景图捕获路径，lane 不走它。 |
 | `nextFullUpdateMillis`（全量 BFS 重试定时器） | `LevelRenderer.java:264`（AtomicLong） | **拆**（B3-b 审查补入） | 共享时一条 lane 的边界重试（500ms 节流）会压住其它 pass 的重建 → lane 画面缺块（与 §12.8-B 症状同类）；各槽各一份。 |
+| `recentlyCompiledChunks`（局部编译完成队列） | `LevelRenderer.addRecentlyCompiledChunk`（局部更新读点 `:815-827`） | **拆**（每 lane 队列 + 镜像投递；B3-b 实现期补入） | 非首个 pass 的局部更新依赖该队列：原版那份每帧只被首个 pass 排空，共享会漏更新（新编译区块在 lane 画面里缺块）。本行属 B3-b 实现期补入——表外字段按缺省本应共享。 |
+
+> **口径注（B3-b 实现期补入）**：上表「拆」项里真正进槽的字段实为 **14 个**——候选集 / 可见集合 / `recentlyCompiledChunks` 队列 / 两个门闩 / 重试定时器 / `prevCamX/Y/Z` / `prevCamRotX/Y` / `xTransparentOld/y/z`（与 `LaneCullStateMixin` 自注「换入 / 换出的 14 个字段」一致；`smartCull` 行不占槽，由 `LevelRendererMixin` 每 pass 包夹判定；同 mixin 另有两个不参与换入的 `@Shadow`：`minecraft`、`lastFullRenderChunkUpdate`）。progress / 提交旧称「16 字段槽」与实现口径的差异未逐项复核，**以实现口径（14）为准**。
 
 #### 12.9.2 实现载体选型
 
@@ -477,10 +480,11 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 3. `LaneRenderer.renderLane` 在 `prepareCullFrustum` **之前** push、在 lane pass 结束（`renderLevel` 返回 + `doEntityOutline`）**之后** pop；`LaneRenderer.render` 的 `finally` 兜底 pop 全部（异常路径）。
 4. **per-pass `smartCull`**：`LevelRendererMixin` 的 `setupRender` HEAD / RETURN 包夹，判定 = **本 pass 的 camera 是否在实心方块内**（读 `setupRender` 的 `camera` 参数，沿用原版旁观者口径 `LevelRenderer.java:795-798` 的语义）。
 5. 槽首次进入时该槽 `needsFullRenderChunkUpdate = true`（触发一次该 lane 的 BFS）。
+6. **compiled 队列镜像投递**（B3-b 实现期补入）：每槽一份 `recentlyCompiledChunks` 队列，局部编译完成时 `LaneCullSlots.mirrorCompiled` 逐槽投递（跳过当前换入的槽 / 未播种的槽 / 正等全量重建的槽）——否则原版那份队列每帧只被首个 pass 排空，其余 lane 槽漏局部更新（新编译区块在 lane 画面里缺块）。
 
 **必须满足的正确性约束（异步 BFS 归槽）**：vanilla 全量 BFS 提交到 `Util.backgroundExecutor()`（`LevelRenderer.java:804`），完成后写 `renderChunkStorage` 字段。
 若字段在 lane pass 结束后被换出、而后台任务此时才写入，结果会落进「当时安装的槽」= **别的 lane**。
-→ 每 lane 的全量 BFS **必须写入发起它的那个槽**；两候选机制见 §12.9.7 待拍板②。
+→ 每 lane 的全量 BFS **必须写入发起它的那个槽**；机制见 §12.9.7②（已收敛：lane pass 内同步执行 + 换入 lane 槽前 await 主 pass 异步落地）。
 
 #### 12.9.3 `smartCull` 的 per-pass 判定
 
@@ -541,24 +545,35 @@ C ≤ N_slot               （候选 section 数；遮挡剪枝后远小于上�
 |---|---|---|
 | 闪帧（画面在「塌缩 / 完整」间来回） | 共享状态在一帧内被多个值改写（§12.8-B；`quadrant-prototype-results.md` §3.5） | 每 lane 状态在其 pass 内独占：`push`/`pop` 严格配对 + `finally` 兜底，帧内不交叉 |
 | 缺块（lane 画面缺 16 格区块） | 可见集合 / 门闩沿用上一 pass（§12.8-B） | 每 lane 独立候选集 / 可见集合 / 门闩（§12.9.1 拆项 1/2/4/5/6）——各 lane 各自播种、各自过滤 |
-| 异步 BFS 写错槽 | 后台 BFS 完成时字段已被换出，写入落到当前安装槽 | 每 lane BFS 归槽（§12.9.2 约束；§12.9.7 待拍板②） |
+| 异步 BFS 写错槽 | 后台 BFS 完成时字段已被换出，写入落到当前安装槽 | 每 lane BFS 归槽（§12.9.2 约束；§12.9.7② 已收敛：lane pass 内同步执行 + 换入前 await） |
 | 深度污染 / translucent 排序错乱 | `xTransparentOld/y/z` 跨 lane 残留（`LevelRenderer.java:260-262`） | 该三字段纳入 lane 槽（或每 pass 复位） |
 | 与 Sodium / Embeddium 共存 | 插件对 sodium 系直接跳过 `LevelRendererMixin`（`ImmersiveCinematicsMixinPlugin.java:47-50`）；Sodium `@Overwrite setupTerrain`（`iris-sodium.txt` §3.1）使 vanilla 剔除字段成死路径 | 新 cull mixin 同样加入插件跳过名单；Sodium 下 lane 渲染本就被禁用（`LaneRenderer.isUnavailable()`，§12.5）；不做 Iris 级适配（§7.1） |
 | 停播恢复失败（残留 lane 集合 / 中心未复位） | 槽未弹净 / 未强刷 | 停播（含异常）时 `finally` 弹净 + 一次 `needsUpdate()` + 中心回退玩家（§12.9.4）；日志可确认 |
 | 内存随 lane 数增长 | 每 lane 一份候选集 | 池化复用 + 停播归还（§12.9.5）；内存 ∝ 并发峰值 |
 
-#### 12.9.7 定①（视图中心）与留位②（BFS 归槽）
+#### 12.9.7 定①（视图中心）与②（BFS 归槽，已收敛）
 
 **① 视图中心口径——定：保持现状，B3 不改。** 中心 = 本帧最上层 lane 的相机位置；无 lane = 玩家坐标（§12.1 现行口径）。
 
 - 依据：`camera-composition.md`「画面 = 合成层输出」——**lane 是覆盖层不是替换层**：原版主相机照常走玩家视角，lane 合成后盖在上面（单条全屏 opacity=1 的 lane 是主画面特例）；被覆盖区域以 lane 画面为准（每 lane 一张完整画面，由 §12.9 的 per-lane 可见集合保证），未覆盖区域露原版玩家视角（`camera-composition.md` §5「dest 之外谁垫底」）。合成模型下不存在「主画面与 lane 争网格中心」的取舍。
 - 「单份网格不能逐 pass 换中心」是既有实现限制（`LevelRendererMixin` javadoc），**不属于 B3 的决策点**，本设计不改；若未来要支持「多机位远离玩家」的网格覆盖，另立任务（如多网格 / 预加载联动），不混入 B3。
 
-**② lane 全量 BFS 的归槽机制（§12.9.2 的正确性约束）——留位，B3-b 收敛：**
+**② lane 全量 BFS 的归槽机制（§12.9.2 的正确性约束）——已收敛（B3-b，2026-10-11）：定选 (ii) 变体 = lane pass 内同步执行 + 换入 lane 槽前 await 主 pass 异步落地。**
+
+候选表（保留作历史，收敛后不再是待选项）：
 
 | 候选 | 含义 | 影响面 |
 |---|---|---|
 | (i) 保异步 | 把全量 BFS 的写入目标重定向到「发起该 BFS 的 lane 槽」（拦截 vanilla 提交 / 写入点，`LevelRenderer.java:804`） | 侵入面较大；保 vanilla 时序（不卡渲染线程） |
 | (ii) 改同步 | lane 的全量 BFS 走同步路径（在字段已装好时执行），天然无错槽 | 侵入面小；渲染线程可能出现 BFS 抖动（相机移动 >8 格时） |
 
-> ② 由 B3-b 在读 vanilla `LevelRenderer` 源码后收敛。
+**收敛结论（B3-b 落地口径，2026-10-11）**：
+
+- **取舍**：候选 **(ii) 的变体**——① lane pass 内的全量 BFS **同步执行**（`LaneCullStateMixin` 对 `ExecutorService.submit` 的 `@Redirect`：lane pass 且 per-lane 剔除生效时 `task.run()` 并返回完成态 future `IC$COMPLETED`，不经过线程池）；② 换入 lane 槽**之前** `await` 主 pass 那次异步全量 BFS 落地（`ic$awaitPendingFullUpdate`，仅栈深 `depth == 0` 时执行）。
+- **依据**：
+  1. **同步执行天然无错槽**——任务体写 `renderChunkStorage` / `needsFrustumUpdate` 时，字段里安装的正是发起它的那个 lane 槽（写入发生在槽已换入时），不存在「完成后字段已被换出」的窗口。
+  2. **侵入面小**——单个 `@Redirect` 只改写 lane pass 那次提交，vanilla 提交链（主 pass 异步）原样保留；不拦截写入点、不复制 vanilla 逻辑。
+  3. **主 pass 异步任务的落地有保证**——lane 槽换入前先 await（`ic$awaitPendingFullUpdate`）：异步任务写的是「写入时刻安装的槽」，不等就可能落进别的 lane 槽；await 使该次写入落在 vanilla 槽，§12.9.2 的正确性约束闭合（无 lane 时 `depth == 0` 不触发，零开销）。
+- **代价**：lane pass 内同步跑一次全量 BFS ⇒ 渲染线程可能出现 BFS 抖动（相机移动 >8 格 / 首帧 / `needsUpdate()` 触发时）。**接受**——BFS 只在该 lane 门闩触发时跑（非每帧，§12.9.5），规模 ≤ vanilla 单次，换来归槽机制的零侵入。
+
+> 实现：`LaneCullStateMixin.ic$submitFullCullUpdate` / `ic$awaitPendingFullUpdate`；该 mixin 的 javadoc 把「取舍与依据」指向 §12.9.7②，实指本小节。
