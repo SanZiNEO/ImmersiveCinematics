@@ -56,12 +56,12 @@
 
 | 环节 | 挂点 / 行为 | 证据 |
 |---|---|---|
-| 帧首（世界渲染之前） | `GameRenderer.render` 的 **HEAD**：`CameraManager.onRenderFrame()` + 脚本 lane 注册（`ScriptLaneDriver`）+ `CinematicOcclusion.beginFrame`（顺序固定） | `mixin/GameRendererMixin.java` `onRenderFrameStart`（`@Inject(method = "render", at = @At("HEAD"))`） |
+| 帧首（世界渲染之前） | `GameRenderer.render` 的 **HEAD**：`CameraManager.onRenderFrame()` + 脚本 lane 注册（`ScriptLaneDriver`） | `mixin/GameRendererMixin.java` `onRenderFrameStart`（`@Inject(method = "render", at = @At("HEAD"))`） |
 | **lane 渲染 + 合成** | `GameRenderer.renderLevel` 的 **RETURN**：`LaneRenderer.INSTANCE.render(...)`（MCOMP；master 调色已不在本注入，见下一行） | `mixin/LaneRendererMixin.java` `ic$worldRendered`（`@Inject(method = "renderLevel", at = @At("RETURN"))`）；类 javadoc 写明「只做 MCOMP」 |
 | **master 调色** | `GameRenderer.render` 内、原版后处理链（RPOST）之后、GUI 之前：`ColorAdjustPass.render(mc)`（注入目标 = `RenderTarget.bindWrite(Z)V` 的调用，即 `postEffect.process(f)` 之后那一句 `getMainRenderTarget().bindWrite(true)`） | `mixin/GameRendererMixin.java` `onWorldPostProcessed`（`@Inject(method = "render", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/pipeline/RenderTarget;bindWrite(Z)V"))`）；2026-10-08 后移，见 §2.7 |
 | 每 lane 一遍 | `mainRenderTarget` 临时指向 lane FBO → `fbo.bindWrite(true)` → 该 lane 的相机 / 投影 / `prepareCullFrustum` → `mc.levelRenderer.renderLevel(...)` → `doEntityOutline()` → 还原投影；lane 块结束回绑主画面 | `client/lane/LaneRenderer.java` `render(...)`（:269-331）与 `renderLane(...)`（:334-400）；主画面指向用 `MinecraftAccessor` 的 `ic$setMainRenderTarget` |
 | 主画面描边 | lane 块开头先为主画面贴一次 `doEntityOutline()`（原版那次整屏调用在有活跃 lane 时被屏蔽） | 同文件 `render(...)` 的 `mainOutlinePass` 分支；屏蔽判定在 `mixin/LevelRendererMixin.java` |
-| 遮挡剔除 | 有活跃 lane 的帧**整帧 `smartCull=false`**：`LevelRendererMixin` 在 `setupRender` 的 HEAD / RETURN 包夹；判定输入 = `LaneRenderer.hasActiveLanes()`；起 / 停播强制 `LevelRenderer.needsUpdate()` | `camera/CinematicOcclusion.java`（`isOcclusionOffThisFrame`）、`mixin/LevelRendererMixin.java`（:106-119） |
+| 遮挡剔除 | **逐 pass 判定**：lane pass 的相机在实心方块内 → 本 pass `smartCull=false`（`LevelRendererMixin` 在 `setupRender` 的 HEAD / RETURN 包夹）；每 lane 的候选集 / 可见集合 / 门闩各自独立（`LaneCullStateMixin` 字段级换入换出）；起 / 停播强制 `LevelRenderer.needsUpdate()` | `mixin/LevelRendererMixin.java`（`immersivecinematics_applyCameraOcclusion`）、`mixin/LaneCullStateMixin.java`、`client/lane/ScriptLaneDriver.java`（`onLaneActivityChanged`） |
 | master 调色的 pass 形态 | 两个全屏 pass：主画面 → 中转缓冲（`ic_color_adjust`）→ 主画面（整屏 blit，复用合成层着色器）；lane 级只有一次 pass | `client/post/ColorAdjustPass.java` 类 javadoc「两个 pass（master 路径）」 |
 
 **要点**：我们的 lane pass 是在 `GameRenderer.renderLevel` 的**返回点**执行的，此时主 `LevelRenderer.renderLevel` 已经返回——我们是在「一帧之外」再开 N 次 `LevelRenderer.renderLevel`。
@@ -276,7 +276,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 
 ### 读码新发现的补充项（本次核实后新增，非用户点名但会影响结论）
 
-**⑧ 遮挡剔除决策互相覆盖**：光影在 `LevelRenderer.renderLevel` HEAD 每 pass 赋 `Minecraft.smartCull = !pipeline.shouldDisableOcclusionCulling()`（`MixinLevelRenderer.java:96`），而我们在 `setupRender` HEAD / RETURN 包夹强制 `smartCull=false`（`CinematicOcclusion` + `LevelRendererMixin`）。两者作用区间重叠 → 光影下「倾斜裁切矩形」是否回归？**调查方法**：实机对比（光影开，多 lane）看副画面是否出现沿区块网格的斜切缺块；**产出**：光影下遮挡剔除归属结论（我们的包夹是否仍需保留 / 是否要与光影的赋值合并）。
+**⑧ 遮挡剔除决策互相覆盖**：光影在 `LevelRenderer.renderLevel` HEAD 每 pass 赋 `Minecraft.smartCull = !pipeline.shouldDisableOcclusionCulling()`（`MixinLevelRenderer.java:96`），而我们在 `setupRender` HEAD / RETURN 包夹按本 pass 的相机改写 `smartCull`（lane pass 的相机在实心方块内 → 本 pass `false`；`LevelRendererMixin`，可见集合按 lane 槽独立）。两者作用区间重叠 → 光影下「倾斜裁切矩形」是否回归？**调查方法**：实机对比（光影开，多 lane）看副画面是否出现沿区块网格的斜切缺块；**产出**：光影下遮挡剔除归属结论（我们的包夹是否仍需保留 / 是否要与光影的赋值合并）。
 
 **⑨ `isMainBound` 与主画面指向交换**：我们每 lane 把 `mainRenderTarget` 指向 lane FBO（`MinecraftAccessor.ic$setMainRenderTarget`），而光影的 `shouldOverrideShaders()` 依赖 `isMainBound`（由 `RenderTarget.bindWrite` 的 RETURN 判定「是不是 `getMainRenderTarget()`」）。交换期间 `fbo.bindWrite(true)` 会让光影判定「主画面已绑定」→ 可能接管着色器；而 `entityTarget.clear()` 等其它 target 绑定又会让它判定「不是主画面」→ 关闭着色器。**调查方法**：在 lane pass 内读 `shouldOverrideShaders` 的等效状态（日志），并观察 lane 画面是否被光影着色器改写（对比 raw 出图与无光影时的 raw 出图）；**产出**：lane pass 内光影接管与否的确定结论（这直接决定 lane 画面是「光影画面」还是「原版画面」）。
 
@@ -344,7 +344,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 | 全树无 Iris / Oculus / shaderpack 检测 | `common/src/main/java` 全树检索（`iris\|oculus\|shaderpack\|Iris`，不分大小写）零命中 |
 | 加载器侧跳过 `LevelRendererMixin`（Sodium / Rubidium / Embeddium） | `fabric/.../mixin/ImmersiveCinematicsMixinPlugin.java`、`forge/.../mixin/ImmersiveCinematicsMixinPlugin.java`（`shouldApplyMixin` + `RENDER_OPTIMIZER_MOD_IDS`）；`common/src/main/resources/immersive_cinematics.mixins.json`（`plugin`、`injectors.defaultRequire`） |
 | 我们的挂点：帧首 / lane 渲染 + 合成（MCOMP）/ master 调色（RADJ，2026-10-08 后移）/ 每 lane 一遍 / 主画面描边 | `mixin/GameRendererMixin.java`（`onRenderFrameStart`、`onWorldPostProcessed`）、`mixin/LaneRendererMixin.java`（`ic$worldRendered`）、`client/lane/LaneRenderer.java`（`render` :269-331、`renderLane` :334-400、`offscreenTarget`）、`client/post/ColorAdjustPass.java`（类 javadoc） |
-| 遮挡剔除整帧包夹 | `camera/CinematicOcclusion.java`、`mixin/LevelRendererMixin.java`（:106-119） |
+| 遮挡剔除逐 pass 判定（lane 槽独立） | `mixin/LevelRendererMixin.java`（`immersivecinematics_applyCameraOcclusion`）、`mixin/LaneCullStateMixin.java`、`client/lane/ScriptLaneDriver.java`（`onLaneActivityChanged`） |
 | 光影挂点：管线准备 / 世界开始 / 阴影 pass / 最终合成 / 色彩空间 | Iris `mixin/MixinLevelRenderer.java`（HEAD :75-96、CLEAR 后 :107-113、RETURN :118-123、renderSky 前 :140-143）、`mixin/MixinGameRenderer.java:461-464`；Oculus 对应 `:66-87`、`:98-104`、`:109-114`、`:125-128`、`:462-464` |
 | 合成链 / final pass 无早退、取 main 的多个点、复用主深度、色彩空间原地回写 | `pipeline/CompositeRenderer.java`（:230 起、:289）、`pipeline/FinalPassRenderer.java`（:119-122、:198-218、:243-270、:296）、`pipeline/IrisRenderingPipeline.java`（:524-543、:1083-1087、:1090-1092）、`pathways/colorspace/ColorSpaceFragmentConverter.java`（`process`） |
 | `isMainBound` 判定与 `shouldOverrideShaders` | `mixin/state_tracking/MixinRenderTarget.java:41-48`、`pipeline/IrisRenderingPipeline.java:1237-1239`、`:1266-1268` |

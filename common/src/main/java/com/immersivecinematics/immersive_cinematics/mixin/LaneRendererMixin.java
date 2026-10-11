@@ -25,7 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * 后处理链的输出上，且不得污染 GUI 层（黑边 / 字幕 / 黑白场转场走 OVERLAY，需精确色值）。</p>
  *
  * <p>帧驱动（{@code CameraManager.onRenderFrame()}）与 lane 注册原本也在这里（本挂点开头），
- * 2026-10-07 为消除"视图中心 / 遮挡剔除决策滞后一帧"迁到 {@code GameRendererMixin.onRenderFrameStart}
+ * 2026-10-07 为消除"视图中心读到上一帧 lane 表"迁到 {@code GameRendererMixin.onRenderFrameStart}
  * （{@code GameRenderer.render} 的 HEAD，世界渲染之前）。</p>
  *
  * <p>默认零差异：没有活跃 lane 时 {@link LaneRenderer#render} 第一行即返回。</p>

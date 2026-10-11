@@ -19,7 +19,6 @@
     "KeyboardHandlerMixin",
     "LaneRendererMixin",
     "LaneCullStateMixin",
-    "LevelRendererAccessor",
     "LevelRendererMixin",
     "LivingEntityMixin",
     "LocalPlayerMixin",

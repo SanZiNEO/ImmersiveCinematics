@@ -1,6 +1,5 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
-import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -76,7 +75,7 @@ public class LevelRendererMixin {
         return lane != null ? lane.state().position() : null;
     }
 
-    // ===== 遮挡剔除开关（lane pass 按本 pass 的相机判定；其余走整帧缓解标志）=====
+    // ===== 遮挡剔除开关（lane pass 按本 pass 的相机判定）=====
 
     @Shadow
     @Final
@@ -90,10 +89,9 @@ public class LevelRendererMixin {
     /**
      * 原版 {@code setupRender} 的遮挡剔除开关（{@code minecraft.smartCull}），lane pass 内按本 pass 的相机判定。
      *
-     * 两条判定：lane pass 且 per-lane 生效 → 该 lane 相机所在方块实心渲染则本 pass 关掉遮挡剪枝
+     * lane pass 且 per-lane 剔除生效 → 该 lane 相机所在方块实心渲染则本 pass 关掉遮挡剪枝
      * （沿用原版旁观者那条判定的口径，把相机换成该 lane 的；剪枝只对播种相机成立，实心方块里会看不到外面）；
-     * 其余（主 pass、无 lane 帧、回落路径）→ 整帧缓解标志 {@link CinematicOcclusion#isOcclusionOffThisFrame()}
-     * （per-lane 生效时恒 false = 主 pass 完全走原版判定）。RETURN 侧无条件还原。
+     * 主 pass 与非 lane 帧不改写，走原版判定。RETURN 侧无条件还原。
      */
     @Inject(method = "setupRender", at = @At("HEAD"))
     private void immersivecinematics_applyCameraOcclusion(Camera camera, Frustum frustum,
@@ -106,13 +104,13 @@ public class LevelRendererMixin {
 
     /** 本 pass 是否把 {@code smartCull} 压成 false（口径见 {@link #immersivecinematics_applyCameraOcclusion}）。 */
     private boolean immersivecinematics$occlusionOff(Camera camera) {
-        if (LaneRenderer.isRenderingLane() && LaneRenderer.isPerLaneCullActive(this.minecraft)) {
-            ClientLevel level = this.minecraft.level;
-            if (level == null) return false;
-            BlockPos pos = camera.getBlockPosition();
-            return level.getBlockState(pos).isSolidRender(level, pos);
+        if (!LaneRenderer.isRenderingLane() || !LaneRenderer.isPerLaneCullActive(this.minecraft)) {
+            return false;
         }
-        return CinematicOcclusion.isOcclusionOffThisFrame();
+        ClientLevel level = this.minecraft.level;
+        if (level == null) return false;
+        BlockPos pos = camera.getBlockPosition();
+        return level.getBlockState(pos).isSolidRender(level, pos);
     }
 
     @Inject(method = "setupRender", at = @At("RETURN"))

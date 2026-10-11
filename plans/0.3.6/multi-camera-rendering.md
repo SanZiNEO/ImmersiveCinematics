@@ -93,7 +93,7 @@
 | 渲染顺序 | 第二遍在主世界渲染之后、GUI 之前，还是先渲染第二遍再合成，需要定（原型实测挂点：`GameRenderer.renderLevel` 的 RETURN，即主世界渲染之后、`doEntityOutline` / `postEffect` / GUI 之前；见 `QuadrantProtoMixin`） |
 | 光影/模组兼容 | 很多模组假设每帧只调一次 `renderLevel`，二次调用可能冲突（对照：Iris 每帧插一次完整第二遍——`ShadowRenderer.renderShadows`，注入点 `mixin/MixinLevelRenderer.java:140-143`，在 `renderSky` 之前） |
 | 剔除 / 视锥 | 曾经遇到的 `Frustum.offsetToFullyIncludeCameraCube` 病态膨胀（jstack 实证挂死）来自**视锥与相机姿态不一致**（方块永远进不去）；实测只要 `prepareCullFrustum` 用**该 lane 自己的 pose + 相机位置**，四象限全部机位 3~5 步收敛——**不需要自建剔除方案**（JOML 语义离线模拟 + 实机验证，见 `quadrant-prototype-results.md` §3.4）。调用点：`LevelRenderer.setupRender` 内 `applyFrustum(new Frustum(frustum).offsetToFullyIncludeCameraCube(8))`（`LevelRenderer.java:831`） |
-| 剔除状态是**共享**的 | 可见集合 / 遮挡剔除（`LevelRenderer.renderChunkStorage` + `renderChunksInFrustum`，BFS = `updateRenderChunks` 的队列扩张）在 `LevelRenderer` 上是单份共享状态；多 lane 若各自用不同 `smartCull` 会互相重建 → 画面来回闪。原型用"整帧统一决定"过渡（`camera/CinematicOcclusion.beginFrame` + `LevelRendererMixin` 包夹 `setupRender`）；正式实现要**每 lane 独立维护**（见 `quadrant-prototype-results.md` §3.5） |
+| 剔除状态是**共享**的 | 可见集合 / 遮挡剔除（`LevelRenderer.renderChunkStorage` + `renderChunksInFrustum`，BFS = `updateRenderChunks` 的队列扩张）在 `LevelRenderer` 上是单份共享状态；多 lane 若各自用不同 `smartCull` 会互相重建 → 画面来回闪。现行做法 = **每 lane 独立维护**（候选集 / 可见集合 / 门闩按 lane 槽字段级快照交换，见 §12.9；编译产物与区块网格仍共享）。 |
 | lane 自包含 | lane 的 `renderLevel` **加上所有 lane 级后处理**都必须在 lane 的 FBO 内完成：发光描边（`OutlineBufferSource`（实体段）→ 共享 `entityTarget` → `entity_outline` 后处理链 `entityEffect.process` → `LevelRenderer.doEntityOutline()` → `entityTarget.blitToScreen(窗口宽, 窗口高, false)`）必须在每 lane 渲染后立刻贴进该 lane 的画面，并屏蔽原版在 `renderLevel` 之后那次整屏调用（原版调用点在 `GameRenderer.render`，紧跟 `renderLevel` 之后）；同类：`postEffect`（见 `quadrant-prototype-results.md` §3.2） |
 | lane 期间的主画面指向 | 渲染期间把 `Minecraft.mainRenderTarget` 指向该 lane 的 FBO——原版 `renderLevel` 内部（实体段 `entityTarget.clear()`；`RenderTarget.clear()` 内部调 `bindWrite(true)`）会把 **GL viewport 重置成该 target 的 view 尺寸**（`RenderTarget._bindWrite(bl)` → `GlStateManager._viewport(0, 0, viewWidth, viewHeight)`；`entityTarget` 是窗口尺寸），之后回绑的也是 `getMainRenderTarget()`（`bindWrite(false)`，**不回滚 viewport**）（见 `quadrant-prototype-results.md` §3.1） |
 | 全局投影副作用 | `doEntityOutline() → RenderTarget.blitToScreen()`（内部 `_blitToScreen`）会把**全局投影矩阵**改成正交（`RenderSystem.setProjectionMatrix(ortho(0, i, j, 0, 1000, 3000), VertexSorting.ORTHOGRAPHIC_Z)`），lane 内调用后必须还原该 lane 的投影（原型还原为 `VertexSorting.DISTANCE_TO_ORIGIN`），否则下一个 lane 里走全局矩阵的绘制（实体 / 粒子 / 方块实体）会坏（见 `quadrant-prototype-results.md` §3.3） |
@@ -214,7 +214,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
 
-- ~~**MODE=1 数组越界**：`CinematicOcclusion.beginFrame` 固定按 `i<4` 遍历，而 mode=1 时 `CAMERAS` 长度只有 1 → `CAMERAS[1]` 越界（`proto/QuadrantProto.camera(int)` 无边界检查）。~~ **✅ 已消除（2026-10-07）**：原型代码整体删除；正式实现里 `CinematicOcclusion.beginFrame` 改走 `LaneRenderer.isAnyCameraInsideSolidBlock`（只遍历**活跃** lane），不存在越界路径。
+- ~~**MODE=1 数组越界**：`CinematicOcclusion.beginFrame` 固定按 `i<4` 遍历，而 mode=1 时 `CAMERAS` 长度只有 1 → `CAMERAS[1]` 越界（`proto/QuadrantProto.camera(int)` 无边界检查）。~~ **✅ 已消除（2026-10-07）**：原型代码整体删除；正式实现只遍历**活跃** lane，不存在越界路径（该整帧决策类已随 B3-d 删除）。
 
 ---
 
@@ -253,11 +253,11 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 
 17. Sodium / Embeddium 渲染中心来自 `Camera` / `Frustum`：`SodiumWorldRenderer.setupTerrain` 取 `camera.getPosition()` / `getXRot()` / `getYRot()`（:167-210），`Viewport` 由 `FrustumMixin` 用 Frustum 的 `camX/camY/camZ` 构造；`LevelRenderer.prepareCullFrustum` 已按传入相机位置 `prepare(x,y,z)`（`LevelRenderer.java:984-992`）。✓
 18. §11 列的四个 embeddium 参考路径**全部存在**（行数已就地标注）。✓
-19. **"原型代码已并入 main、默认关"**：merge 提交 `e41ccb1`（2026-10-06T19:53:57+08:00，"merge: 多相机原型代码合入主线（默认关、零差异…）"）；`QuadrantProto.MODE = parseMode()` 在未设 `-Dicinematics.quadrant` / `ICINEMATICS_QUADRANT` 时返回 0（`isEnabled() = MODE > 0`）；`immersive_cinematics.mixins.json` 的 `client` 段含 `QuadrantProtoMixin` / `MinecraftAccessor`；`proto/QuadrantProto.java`、`proto/QuadrantProtoMixin.java`、`camera/CinematicOcclusion.java` 均在 main。✓
+19. **"原型代码已并入 main、默认关"**：merge 提交 `e41ccb1`（2026-10-06T19:53:57+08:00，"merge: 多相机原型代码合入主线（默认关、零差异…）"）；`QuadrantProto.MODE = parseMode()` 在未设 `-Dicinematics.quadrant` / `ICINEMATICS_QUADRANT` 时返回 0（`isEnabled() = MODE > 0`）；`immersive_cinematics.mixins.json` 的 `client` 段含 `QuadrantProtoMixin` / `MinecraftAccessor`；`proto/QuadrantProto.java`、`proto/QuadrantProtoMixin.java`、`camera/CinematicOcclusion.java` 均在 main（原型两文件已随原型清理删除，`CinematicOcclusion` 已随 B3-d 删除）。✓
 
 **已知缺陷**
 
-20. **MODE=1 数组越界 ✓**：`CAMERAS = new ProtoCamera[Math.max(VIEWS, 1)]`，mode=1 时 `VIEWS = 0` → 长度 1；`CinematicOcclusion.beginFrame` 的 `for (int i = 0; i < 4 && !inside; i++) inside = isInsideSolidBlock(mc, QuadrantProto.camera(i).camera());` 会在 `i=1` 越界（`QuadrantProto.camera(int)` 直接 `return CAMERAS[i]`，无边界检查）。触发条件：`ICINEMATICS_QUADRANT=1` + 已进世界 + `camera(0)` **不在**实心方块内（若在，`inside=true` 提前结束循环）；挂点 `GameRendererMixin` 的 `render` HEAD → `CinematicOcclusion.beginFrame(...)`。
+20. **MODE=1 数组越界 ✓**：`CAMERAS = new ProtoCamera[Math.max(VIEWS, 1)]`，mode=1 时 `VIEWS = 0` → 长度 1；`CinematicOcclusion.beginFrame` 的 `for (int i = 0; i < 4 && !inside; i++) inside = isInsideSolidBlock(mc, QuadrantProto.camera(i).camera());` 会在 `i=1` 越界（`QuadrantProto.camera(int)` 直接 `return CAMERAS[i]`，无边界检查）。触发条件：`ICINEMATICS_QUADRANT=1` + 已进世界 + `camera(0)` **不在**实心方块内（若在，`inside=true` 提前结束循环）；挂点 `GameRendererMixin` 的 `render` HEAD → `CinematicOcclusion.beginFrame(...)`（该类已随 B3-d 删除）。
 
 ### ② 已修正
 
@@ -300,15 +300,14 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 | `common/.../client/lane/ScriptLaneDriver.java` | 脚本 lane 驱动：每帧把脚本播放实例的 lane 注册进 `LaneRenderer`（相机 id = `<scriptId>_cam<相机轨序号>`）并按 clip 关键帧提供合成参数 |
 | `common/.../client/lane/LaneDebugCapture.java` | 调试捕获（`ICINEMATICS_CAPTURE` 门控，默认关、零差异）：按相机 id 产出每相机 raw（保真 alpha）/ 每相机 composited（按 dest 裁剪、保真 alpha）/ 窗口终帧三类 PNG，目录 `<gameDir>/lane-captures/` |
 | `mixin/LaneRendererMixin.java` | 挂点：`GameRenderer.renderLevel` RETURN → `LaneRenderer.render(...)`（逐 lane 渲染 + 合成 / MCOMP）。帧驱动 / lane 注册 2026-10-07 迁到 `GameRendererMixin`（见 §12.8-B）；`ColorAdjustPass.render`（RADJ）2026-10-08 后移到 `GameRendererMixin.onWorldPostProcessed`（原版 RPOST 之后、GUI 之前） |
-| `mixin/GameRendererMixin.java` | 帧首（`GameRenderer.render` HEAD，世界渲染之前）：`CameraManager.onRenderFrame()` + 脚本 lane 注册（`ScriptLaneDriver`）+ `CinematicOcclusion.beginFrame`（顺序固定，见 §12.8-B③）+ lane 的 getFov 分支；原版 RPOST 之后 / GUI 之前（`RenderTarget.bindWrite(Z)V` 调用点）：`ColorAdjustPass.render`（RADJ，2026-10-08 后移）；帧尾（`render` RETURN）：调试捕获的窗口终帧读回 |
+| `mixin/GameRendererMixin.java` | 帧首（`GameRenderer.render` HEAD，世界渲染之前）：`CameraManager.onRenderFrame()` + 脚本 lane 注册（`ScriptLaneDriver`）+ lane 的 getFov 分支；原版 RPOST 之后 / GUI 之前（`RenderTarget.bindWrite(Z)V` 调用点）：`ColorAdjustPass.render`（RADJ，2026-10-08 后移）；帧尾（`render` RETURN）：调试捕获的窗口终帧读回 |
 | `mixin/GameRendererAccessor.java` | `@Invoker`：`getProjectionMatrix(double)` / `getFov(Camera,float,boolean)`（复刻原版投影与光学参数） |
-| `mixin/LevelRendererAccessor.java` | `@Invoker applyFrustum(Frustum)`：lane pass 绕开门闩强制重刷可见集合（§12.8-B②） |
 | `mixin/MinecraftAccessor.java` | `@Accessor @Mutable mainRenderTarget`（lane 期间指向 lane FBO） |
 | `mixin/CameraAccessor.java` | `@Invoker setPosition/setRotation` + `@Accessor initialized`（听者相机代理：listener=camera 时把原版听者搬到镜头位置） |
 | `mixin/CameraMixin.java` | lane 分支：把 lane 的 `CameraState`（position/yaw/pitch）写进该 lane 的独立 `Camera` 实例（`getEntity` / `isDetached` 同样按 lane 判定）。主相机分支已于 2026-10-07 退役删除 |
-| `mixin/LevelRendererMixin.java` | lane 视图中心（`setupRender` 的 `ModifyVariable` ×3 用本帧**最上层 lane** 的相机位置做整帧单一中心；无 lane 时用玩家坐标——单份网格不能逐 pass 换中心，见该文件 javadoc）+ 遮挡剔除整帧包夹（`CinematicOcclusion`，lane 活跃时 `smartCull=false`，§12.8-B）+ lane pass 清屏 alpha（§12.8-A）+ 原版整屏描边屏蔽（有活跃 lane 时）+ 内容开关（`renderSky` / `renderClouds` / `renderSnowAndRain` / `renderEntity`） |
+| `mixin/LevelRendererMixin.java` | lane 视图中心（`setupRender` 的 `ModifyVariable` ×3 用本帧**最上层 lane** 的相机位置做整帧单一中心；无 lane 时用玩家坐标——单份网格不能逐 pass 换中心，见该文件 javadoc）+ 遮挡剔除**逐 pass 判定**（lane pass 的相机在实心方块内 → 本 pass `smartCull=false`；主 pass 走原版判定）+ lane pass 清屏 alpha（§12.8-A）+ 原版整屏描边屏蔽（有活跃 lane 时）+ 内容开关（`renderSky` / `renderClouds` / `renderSnowAndRain` / `renderEntity`） |
 | `mixin/ParticleEngineMixin.java` | 内容开关：粒子 |
-| `camera/CinematicOcclusion.java` | 遮挡剔除整帧统一决策：判定输入 = **有活跃 lane**（`LaneRenderer.hasActiveLanes()`）→ 整帧 `smartCull=false`（可见集合退化为视距内全部区块）；起 / 停播强制一次 `needsUpdate()`。代价与长期解见 §12.8-B |
+| `mixin/LaneCullStateMixin.java` + `client/lane/LaneCullSlot.java` / `LaneCullSlots.java` | 每 lane 独立可见集合：lane pass 前后把「候选集 / 可见集合 / 门闩 / 相机移动判定 / 透明排序基准」与 lane 槽字段级换入换出（槽池化复用）；§12.9 |
 
 ### 12.2 lane 状态与接入点
 
@@ -376,7 +375,7 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 ### 12.7 原型处置（版本原则：不留旧代码）
 
 - 删除：`proto/QuadrantProto.java`（渲染逻辑 + 压测统计 / CSV / 出图）、`mixin/QuadrantProtoMixin.java`、`proto` 包；
-- 保留并适配：`mixin/MinecraftAccessor.java`（lane 期间主画面指向）、`camera/CinematicOcclusion.java`（整帧统一遮挡决策）、`CameraMixin` / `GameRendererMixin` / `LevelRendererMixin` 的接管分支（原型分支 → lane 分支）；
+- 保留并适配：`mixin/MinecraftAccessor.java`（lane 期间主画面指向）、`CameraMixin` / `GameRendererMixin` / `LevelRendererMixin` 的接管分支（原型分支 → lane 分支）；
 - 压测数据留在 `quadrant-perf/`（存档），压测/统计代码随原型删除——渲染底层再次需要成本曲线时按新结构重测。
 
 ### 12.8 实机缺陷与缓解（2026-10-07 多相机 lane 实机验证）
@@ -402,40 +401,30 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 - **根因**：`renderChunkStorage` 由**某个** pass 的相机经 smartCull BFS 遮挡剪枝重建并整体替换
   （`LevelRenderer.setupRender` / `updateRenderChunks`），`renderChunksInFrustum` 每个 pass 只
   clear + 按本 pass 视锥过滤（`applyFrustum`）、从不补充 ⇒ 相对播种相机被剪掉的 16 格区块在**所有** lane 缺失。
-- **处置（✅ 已落地，低成本缓解，不引入每 lane 独立可见集合）**：
-  1. **lane 活跃时整帧 `smartCull=false`**：判定口径 = `LaneRenderer.hasActiveLanes()`
-     （`camera/CinematicOcclusion.beginFrame`，每帧一次，挂在 `GameRenderer.render` HEAD），
-     `LevelRendererMixin` 在 `setupRender` HEAD / RETURN 包夹 `smartCull` ⇒ BFS 退化为
-     "视距内全部区块、无遮挡剪枝"，各 pass 仍各自 `applyFrustum` 视锥过滤；
-     起 / 停播各强制一次 `LevelRenderer.needsUpdate()`，让集合立即按新口径重建。
-  2. **每条 lane pass 强制重刷可见集合**：原版 `applyFrustum` 有朝向门闩
-     （`needsFrustumUpdate` 或 `floor(xRot/2)` / `floor(yRot/2)` 变化才触发），**同朝向桶的 lane
-     会沿用上一 pass 的集合**；`LaneRenderer.renderLane` 在 `renderLevel` 之前按本 lane 视锥调一次
-     （`mixin/LevelRendererAccessor` 的 `@Invoker applyFrustum`；视锥 = `prepareCullFrustum` 同源
-     + `offsetToFullyIncludeCameraCube(8)`，与原版 `setupRender` 内那次逐点同口径）。
-  3. **帧驱动 / lane 注册移到世界渲染之前**：`CameraManager.onRenderFrame()` + `ScriptLaneDriver` /
-     `LaneDebugDriver` 注册从 `LaneRendererMixin`（`renderLevel` RETURN）迁到 `GameRendererMixin`
-     （`GameRenderer.render` HEAD，`renderLevel` 参数为真且已有世界时）——视图中心
-     （`setupRender` 改写玩家坐标）与遮挡决策都读 lane 表，原挂点会让两者都滞后一帧。
-     调用条件与原来等价（原版调用 `renderLevel` 的条件就是 `renderLevel && level != null`）。
-     （当时并存的调试驱动已删，现在这条路径上只有脚本 lane 注册——见 §12.6。）
-- **代价**：lane 活跃期间没有遮挡剪枝，视距内全部区块都进可见集合 → 绘制 / 区块编译量上升
-  （`smartCull=false` 也是 Iris 阴影 pass 的做法，见 `render-second-pass-cost.md` §2.3）。
-  **只在 lane 活跃的帧生效**；停播后下一帧起 `smartCull` 交回原版判定（原版对玩家相机的
-  「旁观者在实心方块里 → 关掉遮挡剔除」判定不受影响）。日志可确认：
-  `[lane] 有活跃 lane：整帧关闭遮挡剔除（smartCull=false）…` / `[lane] 无活跃 lane：遮挡剔除交回原版判定`。
-- **长期解（未做）**：每 lane 独立可见集合 / 剔除状态（各自的 `renderChunkStorage` + BFS + frustum）——
-  那时各 lane 才允许有自己的遮挡行为，也才能拿回这部分性能
-  （见 `quadrant-prototype-results.md` §3.5、`render-second-pass-cost.md` §5）。
-  **设计定稿见 §12.9（2026-10-10）。**
+- **处置（现行：每 lane 独立可见集合，§12.9）**：把「候选集 + 可见集合 + 剔除门闩 + 相机移动判定 +
+  透明排序基准」按 lane 槽字段级换入 / 换出——每条 lane pass 前换入自己的槽、结束换出（`LaneRenderer.renderLane`
+  + `mixin/LaneCullStateMixin`）⇒ 各 lane 各自播种、各自遮挡剪枝、各自视锥过滤，缺块根因消除；原版朝向门闩
+  对多 lane 的错误也随之消失（每条 lane 的槽自带门闩与可见集合，`LevelRenderer.setupRender` 内那次刷新即
+  本 pass 的口径，不再需要每 pass 强制 `applyFrustum`）。
+  1. **`smartCull` 逐 pass 判定**：lane pass 的 camera 在实心方块内 → 本 pass `smartCull=false`（沿用原版
+     旁观者口径，见 `LevelRendererMixin` 的 `setupRender` HEAD / RETURN 包夹）；否则 `true`（启用遮挡剪枝）。
+     主 pass = 玩家相机 → 原版判定，不受影响。
+  2. **帧驱动 / lane 注册在世界渲染之前**：`CameraManager.onRenderFrame()` + `ScriptLaneDriver` 注册挂在
+     `GameRendererMixin`（`GameRenderer.render` HEAD，`renderLevel` 参数为真且已有世界时）——视图中心
+     （`setupRender` 改写玩家坐标）读 lane 表，原挂点（`LaneRendererMixin` 的 `renderLevel` RETURN）
+     会让它滞后一帧。调用条件与原来等价（原版调用 `renderLevel` 的条件就是 `renderLevel && level != null`）。
+  3. **起 / 停播强刷**：活跃度跳变时强制一次 `LevelRenderer.needsUpdate()`（`ScriptLaneDriver.tick` 的
+     活跃度跳变钩子，§12.9.4 第 4 条）。
+- **代价与收益**：遮挡剪枝按各 lane 自己的相机判定 ⇒ 缺块（原「倾斜裁切矩形」）不再产生，也不再需要
+  整帧关掉遮挡剪枝；每 lane 的 BFS 只在各自门闩触发时跑（非每帧），网格编译产物仍共享。
+  实测数据见 `quadrant-perf/b3c-culling-cost.md` / `summary.md`。
 
 ---
 
 ### 12.9 每 lane 独立可见集合设计定稿（2026-10-10）
 
-**范围**：B3-a（设计）。实现 = B3-b，性能实测 = B3-c，删 `CinematicOcclusion` = B3-d
-（`camera-core-split.md` §五 B3' 行；`implementation-progress.md` 批次 B 表 B3 行「拆 设计 → 实现 → 性能实测」）。
-**依据**：§12.8-B（现象 / 根因 / 现行缓解）、§12.1（组件现状）、`camera-core-split.md` §一（`CinematicOcclusion` 不动，B3' 落地后删）、
+**范围**：每 lane 独立可见集合（候选集 / 可见集合 / 门闩 / 相机移动判定 / 透明排序基准）——已实现。
+**依据**：§12.8-B（现象 / 根因）、§12.1（组件现状）、
 `.planning/036-orch/mcculling.txt`（MC 1.20.1 剔除链全图）、`.planning/036-orch/iris-sodium.txt`（Iris/Sodium 第二遍）、`.planning/036-orch/repocameramap.txt`（本仓挂点）。
 
 **结论（一句话）**：把 `LevelRenderer` 上**单份共享**的「候选集 + 可见集合 + 剔除门闩」拆成**每 lane 一份**（lane 槽持有），
@@ -452,9 +441,9 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 | 可见集合 `renderChunksInFrustum`（视锥过滤产物） | `LevelRenderer.java:196` | **拆** | 每条 lane 的视锥不同（§12.8-B 现象）。 |
 | 剔除视锥 `cullingFrustum` | `LevelRenderer.java:254` | **不拆**（每 pass scratch） | 每 pass 由 `prepareCullFrustum` 重建（`:984-991`）、pass 内同步消费，无跨 pass 生命周期。 |
 | 全量 BFS 门闩 `needsFullRenderChunkUpdate` | `LevelRenderer.java:263` | **拆** | 共享门闩只让本帧**首个** pass 重建，其余 pass 沿用 → 「随哪个 pass 当播种相机间歇出现」（§12.8-B）。 |
-| 视锥门闩 `needsFrustumUpdate` | `LevelRenderer.java:265` | **拆** | 同上；现状靠 lane pass 强制 `applyFrustum` 绕开（§12.8-B②）。 |
+| 视锥门闩 `needsFrustumUpdate` | `LevelRenderer.java:265` | **拆** | 同上；共享时同朝向桶的 lane 会沿用上一 pass 的可见集合（§12.8-B）。 |
 | 相机移动判定 `prevCamX/Y/Z` + 朝向分桶 `prevCamRotX/Y` | `LevelRenderer.java:238-242` | **拆** | 逐 lane 相机独立移动，共享会互相压制 / 误触发重建。 |
-| `smartCull` 判定（`Minecraft.smartCull` 读点 + 旁观者实心判定） | `LevelRenderer.java:795-798` | **拆**（按 pass 判定） | 「相机在实心方块内」逐 lane 不同；现状整帧统一（§12.8-B①）。 |
+| `smartCull` 判定（`Minecraft.smartCull` 读点 + 旁观者实心判定） | `LevelRenderer.java:795-798` | **拆**（按 pass 判定） | 「相机在实心方块内」逐 lane 不同；按本 pass 的相机判定（§12.8-B①）。 |
 | 视图中心 / `ViewArea` 网格中心 | `LevelRenderer.java:767-775` | **不拆** | 网格单份，逐 pass 换中心触发 `ViewArea.repositionCamera` → `RenderChunk.setOrigin→reset()→dirty` 全量置脏重建（`mcculling.txt` §5；`LevelRendererMixin` javadoc）。中心口径 = **保持现状**（§12.9.7 定①），B3 不改。 |
 | translucent 排序状态 `xTransparentOld/y/z` | `LevelRenderer.java:260-262`（写于 `renderChunkLayer` 排序段 `:1283-1285`） | **拆**（或每 pass 复位） | 共享字段跨 lane 残留 → 见 §12.9.6 深度污染行。 |
 | `CompiledChunk` / `visibilitySet`（VisGraph 编译产物） | `ChunkRenderDispatcher.java:697`、`VisibilitySet.java:14-15` | **不拆** | 相机无关的几何属性；BFS 剪枝只是读它（`facesCanSeeEachother`，`ChunkRenderDispatcher.java:713-715`），复制只增内存。 |
@@ -481,23 +470,26 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 - **侵入面**：新增 1 个 LevelRenderer 侧 mixin + `LaneRenderer` 调用点，不改 vanilla 逻辑。
 - **与 Sodium/Embeddium 共存**：新 mixin 与 `LevelRendererMixin` 同策略——插件检测到 sodium 系即跳过（`ImmersiveCinematicsMixinPlugin.java:47-50`）；Sodium 下 lane 渲染本就被禁用（`LaneRenderer.isUnavailable()`，§12.5），无 per-lane 剔除需求。
 
-**机制（b 的落地形状，供 B3-b 引用）**：
+**机制（b 的落地形状）**：
 
-1. 新增 LevelRenderer 侧 mixin（建议名 `LaneCullStateMixin`，或并入 `LevelRendererAccessor`）——持**每 lane 槽**的「拆」状态（§12.9.1），槽惰性创建、停播归还池复用（§12.9.5）。
-2. 暴露 `ic$pushLaneCullState(int slot)` / `ic$popLaneCullState()`：push 把当前 vanilla 槽存起、换入 lane 槽；pop 反向。异常安全（栈式，配对）。
-3. `LaneRenderer.renderLane` 在 `prepareCullFrustum`（`LaneRenderer.java:412`）**之前** push、在 lane pass 结束（`renderLevel` 返回 + `doEntityOutline`，`:425-430`）**之后** pop；`LaneRenderer.render` 的 `finally`（`:334-340`）兜底 pop 全部（异常路径）。
-4. **per-pass `smartCull`**：`LevelRendererMixin` 的 `setupRender` HEAD / RETURN 包夹（`:103-119`）判定由「整帧标志」改为「**本 pass 的 camera 是否在实心方块内**」（读 `setupRender` 的 `camera` 参数，沿用原版旁观者口径 `LevelRenderer.java:795-798` 的语义）。
+1. LevelRenderer 侧 mixin `LaneCullStateMixin`——持**每 lane 槽**的「拆」状态（§12.9.1），槽惰性创建、停播归还池复用（§12.9.5）。
+2. 暴露 `ic$pushLaneCullState(LaneCullSlot slot)` / `ic$popLaneCullState()` / `ic$popAllLaneCullStates()`：push 把当前 vanilla 槽存起、换入 lane 槽；pop 反向。异常安全（栈式，配对）。
+3. `LaneRenderer.renderLane` 在 `prepareCullFrustum` **之前** push、在 lane pass 结束（`renderLevel` 返回 + `doEntityOutline`）**之后** pop；`LaneRenderer.render` 的 `finally` 兜底 pop 全部（异常路径）。
+4. **per-pass `smartCull`**：`LevelRendererMixin` 的 `setupRender` HEAD / RETURN 包夹，判定 = **本 pass 的 camera 是否在实心方块内**（读 `setupRender` 的 `camera` 参数，沿用原版旁观者口径 `LevelRenderer.java:795-798` 的语义）。
 5. 槽首次进入时该槽 `needsFullRenderChunkUpdate = true`（触发一次该 lane 的 BFS）。
 
 **必须满足的正确性约束（异步 BFS 归槽）**：vanilla 全量 BFS 提交到 `Util.backgroundExecutor()`（`LevelRenderer.java:804`），完成后写 `renderChunkStorage` 字段。
 若字段在 lane pass 结束后被换出、而后台任务此时才写入，结果会落进「当时安装的槽」= **别的 lane**。
 → 每 lane 的全量 BFS **必须写入发起它的那个槽**；两候选机制见 §12.9.7 待拍板②。
 
-#### 12.9.3 与 `CinematicOcclusion` 的替代关系
+#### 12.9.3 `smartCull` 的 per-pass 判定
 
-- B3 落地后 `smartCull` 交回**逐 pass（逐 lane）自主判定**：lane pass 的 camera 在实心方块内 → 本 pass `smartCull=false`；否则 `true`（启用遮挡剪枝）。主 pass = 玩家相机 → 原版判定，不受影响。
-- **`CinematicOcclusion` 删除时点 = B3-d**（`camera-core-split.md` §一「B3' 落地后删」）：删 `camera/CinematicOcclusion.java` + `GameRendererMixin` 的 `CinematicOcclusion.beginFrame(mc)` 调用（`repocameramap.txt` §3：`GameRendererMixin:56`）+ `LevelRendererMixin` 的整帧包夹分支。
-- **实现期两制并存规则 = 互斥（per-lane 优先，整帧缓解短路）**：per-lane 路径生效（特性开关 on + 有活跃 lane + 非 Sodium）时，`LevelRendererMixin` 用 per-pass 判定，且 `CinematicOcclusion.beginFrame` 保持 `occlusionOffThisFrame=false`（短路，避免两制同时改写 `smartCull`）；仅当 per-lane 不可用（开关关闭）时回落到整帧缓解。B3-c 实测通过后 B3-d 删除回落分支与 `CinematicOcclusion`。
+- lane pass 的 camera 在实心方块内 → 本 pass `smartCull=false`；否则 `true`（启用遮挡剪枝）。
+  判定沿用原版旁观者那条口径（`LevelRenderer.java:795-798`），把相机换成该 lane 的——剪枝只对播种相机成立，
+  相机在实心方块里会看不到外面。主 pass = 玩家相机 → 原版判定，不受影响。
+- 挂点 = `LevelRendererMixin` 的 `setupRender` HEAD / RETURN 包夹（设 / 还原 `Minecraft.smartCull`），
+  只在 lane pass 且 per-lane 剔除生效时改写（`LaneRenderer.isRenderingLane()` +
+  `LaneRenderer.isPerLaneCullActive(mc)`）。
 
 #### 12.9.4 停播恢复方案
 
@@ -506,7 +498,9 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 1. **可见集合**：lane pass 的换入 / 换出成对（`push`/`pop` + `finally` 兜底），停播后 vanilla 槽已在位；主 pass 用 vanilla 集合 —— 无需额外动作。
 2. **`smartCull`**：per-pass 设 / 还原（`LevelRendererMixin` 包夹），停播帧无 lane pass → 无改写，主 pass 走原版判定。
 3. **视图中心**：`LevelRendererMixin.cinematicViewCenter()`（`:72-75`）无活跃 lane 时返回 `null` → 原版玩家坐标；网格由 `ViewArea.repositionCamera` 按玩家区块坐标复位（`LevelRenderer.java:767-775`）。
-4. **`needsUpdate` 强刷**：活跃 ↔ 非活跃状态切换时强制一次 `LevelRenderer.needsUpdate()`（沿用 `CinematicOcclusion.beginFrame` 现有做法，`CinematicOcclusion.java:60-62`；B3-d 迁到 lane 状态切换钩子）——否则集合 / 网格要等相机再移动 8 格才按新口径重建。
+4. **`needsUpdate` 强刷**：活跃 ↔ 非活跃状态切换时强制一次 `LevelRenderer.needsUpdate()`
+   （`ScriptLaneDriver.tick` 的活跃度跳变钩子：注册前后各读一次 `LaneRenderer.hasActiveLanes()`，跳变即强刷
+   ——一帧内的「清空 → 重注册」不算跳变）——否则集合 / 网格要等相机再移动 8 格才按新口径重建。
 
 - **首帧跳变规避**：停播帧由第 4 条强制重建，主画面在该帧即按玩家相机重建集合与网格中心，不残留 lane 口径的可见集合。网格中心从 topLane 移回玩家会触发一次 `ViewArea.repositionCamera`（一次性全量置脏，`mcculling.txt` §5）——属预期的一次性成本，不是持续抖动。
 - **异常路径同口径**：`LaneRenderer.render` 的 `finally`（`:334-340`）保证所有未 pop 的 lane 槽被弹出；实例强制退出 / 脚本错误 → lane 表清空（`ScriptLaneDriver.clear` / `setLane(null)`，`repocameramap.txt` §4）→ 走「最后一个 lane 停播」同一条路径（含一次 `needsUpdate()`）。
@@ -537,7 +531,7 @@ C ≤ N_slot               （候选 section 数；遮挡剪枝后远小于上�
 | `VisGraph` / `CompiledChunk.visibilitySet` | **否**（共享编译产物） | `ChunkRenderDispatcher.java:589` / `:642` / `:562`；相机无关 |
 | 区块网格编译（`ChunkRenderDispatcher` 重建） | **否** | `dirty` 标志在共享网格上，一块只编译一次（`mcculling.txt` §1：`compileChunks` 只收 dirty 区块） |
 | BFS 遍历（`updateRenderChunks`） | **是**（每 lane 一次），但仅在各 lane 门闩触发时（相机移动 >8 格 / 首帧 / `needsUpdate()`），非每帧；规模 ≤ vanilla 单次 | `LevelRenderer.java:800-827`（全量 / 局部更新门闩） |
-| `applyFrustum`（O(候选) AABB 测试） | 是，但现状已每 pass 一次 | `LevelRenderer.java:839-850`；`LaneRenderer.java:419-422` |
+| `applyFrustum`（O(候选) AABB 测试） | **否**（每 lane 的视锥门闩触发时由原版 `setupRender` 自己刷，非每 pass） | `LevelRenderer.java:839-850` |
 
 **lane 数量口径**：不设硬上限（§6「不设硬上限，只给推荐」）；**按需分配 + 池化复用**——lane 首次活跃时惰性建槽，停播归还池、下次复用（清空内容），内存 ∝ **并发 lane 峰值**而非历史总数；视距变化 / 换世界（`allChanged`）时整池作废重建。建议 ≤8 并发（内存 ≈ 6–15 MB，见上）。
 
@@ -546,7 +540,7 @@ C ≤ N_slot               （候选 section 数；遮挡剪枝后远小于上�
 | 风险 | 成因 | 规避动作（一行） |
 |---|---|---|
 | 闪帧（画面在「塌缩 / 完整」间来回） | 共享状态在一帧内被多个值改写（§12.8-B；`quadrant-prototype-results.md` §3.5） | 每 lane 状态在其 pass 内独占：`push`/`pop` 严格配对 + `finally` 兜底，帧内不交叉 |
-| 缺块（lane 画面缺 16 格区块） | 可见集合 / 门闩沿用上一 pass（§12.8-B） | 每 lane 独立门闩（§12.9.1 拆项 4/5/6）+ 每 pass 按本 lane 视锥强制 `applyFrustum`（保留现状手段 §12.8-B②） |
+| 缺块（lane 画面缺 16 格区块） | 可见集合 / 门闩沿用上一 pass（§12.8-B） | 每 lane 独立候选集 / 可见集合 / 门闩（§12.9.1 拆项 1/2/4/5/6）——各 lane 各自播种、各自过滤 |
 | 异步 BFS 写错槽 | 后台 BFS 完成时字段已被换出，写入落到当前安装槽 | 每 lane BFS 归槽（§12.9.2 约束；§12.9.7 待拍板②） |
 | 深度污染 / translucent 排序错乱 | `xTransparentOld/y/z` 跨 lane 残留（`LevelRenderer.java:260-262`） | 该三字段纳入 lane 槽（或每 pass 复位） |
 | 与 Sodium / Embeddium 共存 | 插件对 sodium 系直接跳过 `LevelRendererMixin`（`ImmersiveCinematicsMixinPlugin.java:47-50`）；Sodium `@Overwrite setupTerrain`（`iris-sodium.txt` §3.1）使 vanilla 剔除字段成死路径 | 新 cull mixin 同样加入插件跳过名单；Sodium 下 lane 渲染本就被禁用（`LaneRenderer.isUnavailable()`，§12.5）；不做 Iris 级适配（§7.1） |

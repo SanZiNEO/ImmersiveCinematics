@@ -2,7 +2,6 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
-import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneDebugCapture;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.immersivecinematics.immersive_cinematics.client.lane.ScriptLaneDriver;
@@ -23,17 +22,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class GameRendererMixin {
 
     /**
-     * 每帧开始（帧首，世界渲染之前）两件事，顺序固定：
-     * <ol>
-     *   <li><b>帧驱动 + lane 注册</b>（{@code renderLevel} 参数为真且已有世界时）：
-     *       {@link CameraManager#onRenderFrame()} 推进时钟 / 轨道 / lane 快照，随后注册本帧 lane
-     *       （脚本 lane 是 lane 的唯一来源，见 {@link ScriptLaneDriver}）。必须排在<b>世界渲染之前</b>：视图中心
-     *       （{@code LevelRendererMixin} 改写 {@code setupRender} 的玩家坐标）与遮挡剔除的整帧决策
-     *       （{@link CinematicOcclusion}）都读 lane 表，挂在世界渲染之后会让两者都滞后一帧
-     *       （主 pass 读到上一帧的 lane 相机位置）。</li>
-     *   <li><b>遮挡剔除整帧决策</b>：{@link CinematicOcclusion#beginFrame(Minecraft)}——必须排在 lane
-     *       注册之后，读的才是本帧 lane 表。</li>
-     * </ol>
+     * 每帧开始（帧首，世界渲染之前）：帧驱动 + lane 注册（{@code renderLevel} 参数为真且已有世界时）——
+     * {@link CameraManager#onRenderFrame()} 推进时钟 / 轨道 / lane 快照，随后注册本帧 lane
+     * （脚本 lane 是 lane 的唯一来源，见 {@link ScriptLaneDriver}）。必须排在<b>世界渲染之前</b>：视图中心
+     * （{@code LevelRendererMixin} 改写 {@code setupRender} 的玩家坐标）读 lane 表，挂在世界渲染之后会让它
+     * 滞后一帧（主 pass 读到上一帧的 lane 相机位置）。
      *
      * <p>与原挂点（{@code LaneRendererMixin} 的 {@code GameRenderer.renderLevel} RETURN）等价性：两者都只在
      * "世界渲染这一次调用"里跑，故此处用 {@code renderLevel} 参数 + {@code level != null} 守卫（原版调用点
@@ -53,7 +46,6 @@ public abstract class GameRendererMixin {
             }
             ScriptLaneDriver.tick(mc);
         }
-        CinematicOcclusion.beginFrame(mc);
     }
 
     /**

@@ -141,7 +141,7 @@ public class LaneCullStateMixin implements LaneCullBridge {
      * 全量 BFS 的提交口（原版 {@code Util.backgroundExecutor().submit(...)}）。
      *
      * lane pass 内同步执行：任务体写 {@code this.renderChunkStorage} / {@code this.needsFrustumUpdate}，
-     * 同步 = 写入时刻安装的槽正是发起它的那个 lane 槽。主 pass 与回落路径照原版异步提交（写入落在 vanilla 槽），
+     * 同步 = 写入时刻安装的槽正是发起它的那个 lane 槽。主 pass 照原版异步提交（写入落在 vanilla 槽），
      * 其落地由 {@link #ic$awaitPendingFullUpdate} 在 lane 槽换入前保证。
      */
     @Redirect(method = "setupRender", at = @At(value = "INVOKE",

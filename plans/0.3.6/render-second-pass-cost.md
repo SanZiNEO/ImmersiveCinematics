@@ -55,7 +55,7 @@
 | `clear` | `RenderSystem.clear` | 不可省（副 FBO 要清） |
 | `sky` | `renderSky`（太阳 / 月亮 / 星空 / 天空盒 / 日出日落） | 可省（Iris 阴影 pass 就不渲染天空） |
 | `fog` | `FogRenderer.setupFog` / `setupColor` / `levelFogColor` | 可省，但需正确 setup/restore，否则主画面雾错乱 |
-| `terrain_setup` | `setupRender(camera, frustum, hasForcedFrustum, spectator)`：ViewArea 重定位、`applyFrustum`、可见区块 BFS、遮挡剔除（`Minecraft.smartCull`） | **不可省**，是 CPU 大头之一。**注意（原型实测）**：相机在实心方块里时，原版对旁观者会关掉遮挡剔除（`smartCull=false`）以获得"稳定透视"；我们的相机等价旁观者、需套同一条件，且多 lane 下必须**按帧统一**（可见集合是共享状态），长期要**每 lane 独立**（见 `quadrant-prototype-results.md` §3.5） |
+| `terrain_setup` | `setupRender(camera, frustum, hasForcedFrustum, spectator)`：ViewArea 重定位、`applyFrustum`、可见区块 BFS、遮挡剔除（`Minecraft.smartCull`） | **不可省**，是 CPU 大头之一。**注意（原型实测）**：相机在实心方块里时，原版对旁观者会关掉遮挡剔除（`smartCull=false`）以获得"稳定透视"；我们的相机等价旁观者、套同一条件，多 lane 下**按 pass 判定**（每条 lane 的候选集 / 可见集合 / 门闩各自独立，见 `multi-camera-rendering.md` §12.9） |
 | `compilechunks` | `compileChunks`：上传已重建的区块网格 | 可省（同帧内主 pass 已做） |
 | `terrain` | `renderChunkLayer(solid)` / `(cutoutMipped)` / `(cutout)` | **不可省**，是 GPU 大头 |
 | `entities` | 遍历 `level.entitiesForRendering()` → `shouldRender(frustum)` → `renderEntity` + 多种 `endBatch` | 可省（默认关） |
@@ -82,7 +82,7 @@
 | 深度 / 混合 / 面剔除 | `RenderSystem.depthMask` / `enableBlend` / `disableCull` | Iris 副 pass 里 `disableCull()`，结束 `enableCull()` |
 | 光照纹理矩阵 | `Lighting.setupLevel` / `setupNetherLevel` | |
 | `RenderBuffers` | `LevelRenderer.renderBuffers` | Iris 用**独立** `new RenderBuffers()` 并在副 pass 期间 `setRenderBuffers` 换掉、结束换回（注释：否则「very weird things will happen」） |
-| 区块剔除状态 / 遮挡图 | `CullingDataCache.saveState()` / `restoreState()` | Iris 用接口对 `LevelRenderer` 存取（`example/Iris-1.20.1/.../shadows/CullingDataCache.java`）；我们的过渡做法：整帧统一 `smartCull`（`CinematicOcclusion.beginFrame`），长期方向：每 lane 独立可见集合 / 剔除状态（见 `quadrant-prototype-results.md` §3.5） |
+| 区块剔除状态 / 遮挡图 | `CullingDataCache.saveState()` / `restoreState()` | Iris 用接口对 `LevelRenderer` 存取（`example/Iris-1.20.1/.../shadows/CullingDataCache.java`）；我们的做法：每 lane 独立可见集合 / 剔除状态（lane 槽字段级换入换出，见 `multi-camera-rendering.md` §12.9），编译产物与区块网格仍共享 |
 | 云纹理 / 重建标志 | `shouldRegenerateClouds()` / `needsUpdate()` | Iris 专门保存并恢复，见 §3.2 |
 | 独立 Frustum | `new Frustum(proj, modelview)` + `prepare(x,y,z)` | 每帧新建 / 复用 |
 

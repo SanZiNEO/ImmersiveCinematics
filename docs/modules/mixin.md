@@ -11,7 +11,7 @@
   - ✅ `GameRendererMixin`（注入 `GameRenderer`）：`getFov()` RETURN 时按关键帧 FOV/zoom 覆盖视场角；`renderItemInHand()` 按 hide_arm 隐藏手臂与手持物品；`bobHurt()`/`bobView()` 按 suppress_bob 抑制视角摆动（`GameRendererMixin`）
   - ✅ `GameRendererMixin`：在 `renderLevel()` 的 `prepareCullFrustum` 之前绕相机视线轴（getLookVector）施加 roll 旋转，任何朝向下 roll>0 均为屏幕顺时针（画面向右倒）（`GameRendererMixin`）
   - ✅ 画面扭曲抑制（反胃/传送门旋转）不在此包：由 `CinematicController` 在脚本 apply/revert 时临时修改原版 `screenEffectScale` 实现（`CinematicController`）
-  - ✅ `LevelRendererMixin`（注入 `LevelRenderer`）：非预览过场激活时把 `setupRender` 中玩家坐标局部变量替换为相机坐标，使可见/待建渲染区块跟随相机（`LevelRendererMixin`）
+  - ✅ `LevelRendererMixin`（注入 `LevelRenderer`）：把 `setupRender` 中玩家坐标局部变量替换为**本帧最上层 lane 的相机位置**（无活跃 lane 时用玩家坐标），使可见/待建渲染区块跟随相机；同一挂点按本 pass 的相机判定遮挡剔除——lane pass 的相机在实心方块内则本 pass 关掉遮挡剪枝（`LevelRendererMixin`）
 - **HUD 白名单隐藏（Gui 私有方法级注入）**
   - ✅ `GuiMixin`（注入 `Gui`）：按 hide_hotbar/hide_crosshair/hide_scoreboard 及 hide_hud 总开关，HEAD 取消渲染 快捷栏/准心/血量饥饿护甲/载具血量/经验栏/跳跃蓄力条/选中物品名/计分板侧栏/保存提示；action bar 与标题用帧内清零/恢复时间（`GuiMixin`）
   - ✅ 隐藏判定统一：三态标志未设置时回落到 `hide_hud`，**仅判断当前是否处于电影播放状态，不要求存在活跃 CAMERA clip**（`GuiMixin`）

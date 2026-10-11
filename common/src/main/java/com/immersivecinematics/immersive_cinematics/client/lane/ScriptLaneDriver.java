@@ -10,7 +10,9 @@ import com.immersivecinematics.immersive_cinematics.script.LaneFrame;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
+import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,10 +63,10 @@ import java.util.Map;
  *
  * <h2>画面 = 合成层输出（主相机替换链已退役）</h2>
  * 主相机替换链（{@code CameraMixin} 主相机分支 / {@code GameRendererMixin} getFov·roll /
- * {@code LevelRendererMixin} 视图中心 / {@code CinematicOcclusion} 整帧遮挡决策）已退役
- * （plans/0.3.6/parallel-playback.md §3.3）：原版主相机照常走玩家视角，玩家看到的画面 = 本类收集的
- * lane 经合成层铺屏的结果——「dest 全屏、opacity=1」的 lane 就是主画面特例，零 lane 时回落原版视角。
- * 视图中心与遮挡剔除的整帧决策改为 <b>lane 驱动</b>（读正在渲染的 lane 自己的相机）。
+ * {@code LevelRendererMixin} 视图中心）已退役（plans/0.3.6/parallel-playback.md §3.3）：原版主相机照常走
+ * 玩家视角，玩家看到的画面 = 本类收集的 lane 经合成层铺屏的结果——「dest 全屏、opacity=1」的 lane 就是
+ * 主画面特例，零 lane 时回落原版视角。视图中心与遮挡剔除都改为 <b>lane 驱动</b>（读正在渲染的 lane
+ * 自己的相机）。
  *
  * 覆盖链 Modifier 的作用面：只作用主相机那份（总表最上层 lane）——链上本帧有 Modifier 生效时该 lane
  * 的相机状态取覆盖链输出；次级 lane 保持各自片段的原始相机（覆盖链定稿 §14③）。
@@ -87,6 +89,8 @@ import java.util.Map;
  */
 public final class ScriptLaneDriver {
 
+    private static final Logger LOGGER = LogUtils.getLogger();
+
     /** lane 内容档：与主画面一致（理由见类注释）。 */
     private static final LaneRenderer.LaneContent CONTENT = LaneRenderer.LaneContent.FULL;
 
@@ -103,10 +107,13 @@ public final class ScriptLaneDriver {
      */
     public static boolean tick(Minecraft mc) {
         LaneRenderer renderer = LaneRenderer.INSTANCE;
+        // 本帧注册前的活跃度（= 上一帧的注册结果）：注册完与之比对，跳变时强刷可见集合（见 onLaneActivityChanged）
+        boolean lanesWereActive = renderer.hasActiveLanes();
         // lane 的唯一来源：先清空（本帧没有脚本 lane 时不残留上一帧的 lane）
         renderer.clear();
         // 无脚本播放 → 一定没有 lane（不进收集路径：零分配、零差异）
         if (mc.level == null || mc.player == null || !CameraManager.INSTANCE.isActive()) {
+            onLaneActivityChanged(mc, lanesWereActive, false);
             return false;
         }
 
@@ -135,11 +142,41 @@ public final class ScriptLaneDriver {
             }
         }
         if (index == 0) {
+            onLaneActivityChanged(mc, lanesWereActive, false);
             return false;
         }
         applyModifiers(renderer, index, mainFrame);
         renderer.setSink(ScriptLaneDriver::compose);
+        onLaneActivityChanged(mc, lanesWereActive, true);
         return true;
+    }
+
+    /**
+     * 活跃度跳变（本帧注册结果 vs 上一帧）的恢复动作：强制一次 {@code LevelRenderer.needsUpdate()}。
+     *
+     * <p><b>为什么必须有</b>：可见集合（共享门闩 + BFS）与网格中心（{@code LevelRendererMixin} 取本帧最上层
+     * lane 的相机位置）都是<b>惰性重建</b>的——起播时中心从玩家跳到 lane、停播时跳回玩家，不强制重建就要
+     * 等相机再移动 8 格才换口径（缺块 / 中心滞后）。起 / 停播各一次，停播恢复就靠这一条。</p>
+     *
+     * <p><b>为什么按「帧」而不是按 {@link LaneRenderer#setLane} / {@link LaneRenderer#clear} 的每次调用</b>：
+     * 注册是「先清空、再逐条写入」，一帧内有 N 次槽位增删而活跃度只跳变一次；按每次调用判定会把每帧的
+     * 「清空 → 重注册」当成一次停播 + 一次起播（每帧两次强刷 + 刷屏日志）。活跃度由 {@link LaneRenderer}
+     * 独占，注册只在本方法里发生，故「注册前 / 注册后」两次读数即帧粒度的活跃度。</p>
+     *
+     * <p>线程：本方法只在渲染线程（{@code GameRenderer.render} 的 HEAD，世界渲染之前）被调用，
+     * 故可直接读 {@code Minecraft.levelRenderer}。</p>
+     */
+    private static void onLaneActivityChanged(Minecraft mc, boolean lanesWereActive, boolean lanesAreActive) {
+        if (lanesWereActive == lanesAreActive) {
+            return;
+        }
+        if (mc.levelRenderer != null) {
+            mc.levelRenderer.needsUpdate();
+        }
+        LOGGER.info(lanesAreActive
+                ? "[lane] 有活跃 lane：per-lane 可见集合生效（逐 lane 独立候选集 / 可见集合 / 门闩，"
+                        + "遮挡剪枝按各 pass 的相机判定）"
+                : "[lane] 无活跃 lane：可见集合 / 网格中心回玩家相机口径，遮挡剔除交回原版判定");
     }
 
     /**
