@@ -26,8 +26,9 @@ import java.util.List;
  *
  * 帧驱动 {@link #onRenderFrame()} 的顺序固定：时钟推进 → 逐实例驱动 → 帧末重建快照；
  * 快照值 = 覆盖链输出（{@link CameraCoverChain} 先按优先级选出胜出 Base 层、再按注册表合成 Modifier；
- * 本版本内置脚本导演 / 编辑器直控 / 飞行三层 Base，档位见 {@code BaseCameraProvider} 的 PRIORITY 常量，
- * 无内置 Modifier）。
+ * 本版本内置脚本导演 / 编辑器直控 / 飞行三层 Base，档位见 {@code BaseCameraProvider} 的 PRIORITY 常量；
+ * 链上无内置 Modifier——Modifier 全部来自脚本：片段的 clip 级声明由播放实例在开播时注册、停播时注销，
+ * 见 {@link PlaybackInstance} 与 {@code docs/SCRIPT_FORMAT.md} §「覆盖链 Modifier」）。
  * 公开方法签名与语义在拆分前后逐点一致，调用方零改动。
  *
  * 线程：仅客户端主线程（渲染线程）。
@@ -65,7 +66,7 @@ public class CameraManager {
     /** 播放生命周期与队列。 */
     private final PlaybackLifecycle lifecycle =
             new PlaybackLifecycle(registry, ledger, previewChannel, stateHolder, gameClock, previewClock,
-                    this::refreshCameraState);
+                    coverChain, this::refreshCameraState);
 
     /** 客户端实际实体数日志计数（tick 每 100 次打印一次诊断）。 */
     private int clientEntityLogCounter = 0;
@@ -340,8 +341,14 @@ public class CameraManager {
 
     // ========== 全局相机状态（写侧 = 各 Base 层，读侧 = 统一快照）==========
 
-    /** 脚本导演写侧：顶层 clip 本帧六参数写入全局写入缓冲 + 同步链上的当前值；不刷新快照（帧末统一刷新）。 */
-    public void setScriptState(CameraState state) { stateHolder.setScriptState(state); }
+    /**
+     * 脚本导演写侧：顶层 clip 本帧六参数写入全局写入缓冲 + 同步链上的当前值；不刷新快照（帧末统一刷新）。
+     *
+     * @param suppressModifiers 该片段的 {@code suppress_modifiers}（本帧胜出时链整条跳过 Modifier）
+     */
+    public void setScriptState(CameraState state, boolean suppressModifiers) {
+        stateHolder.setScriptState(state, suppressModifiers);
+    }
 
     /**
      * 统一只读相机状态快照（本帧最新值）；无活跃相机时为 {@code null}。
@@ -358,6 +365,15 @@ public class CameraManager {
      */
     private void refreshCameraState() {
         stateHolder.setSnapshot(registry.isActive() ? coverChain.snapshot() : null);
+    }
+
+    /**
+     * 本帧链上是否有 Modifier 参与合成（{@link CameraCoverChain#modifiersApplied()}）。
+     * 消费方 = 主相机 lane（{@code client/lane/ScriptLaneDriver}）：有 Modifier 时主相机那份取链输出，
+     * 无 Modifier 时链输出与主相机 lane 自身快照逐位同值（不必替换）。
+     */
+    public boolean modifiersApplied() {
+        return coverChain.modifiersApplied();
     }
 
     /** 当前镜头 yaw（方向性预加载用）。 */

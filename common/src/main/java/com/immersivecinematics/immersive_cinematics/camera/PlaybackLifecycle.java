@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
+import com.immersivecinematics.immersive_cinematics.camera.cover.CameraCoverChain;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.control.ExitReason;
@@ -39,6 +40,9 @@ final class PlaybackLifecycle {
     private final GameClock gameClock;
     private final PreviewClock previewClock;
 
+    /** 覆盖链：新实例创建时注入实例（Modifier 注册 / 注销由实例自己的生命周期驱动）。 */
+    private final CameraCoverChain coverChain;
+
     /** 统一快照刷新钩子（由 {@code CameraManager} 注入：值 = 覆盖链输出，无活跃实例时为 {@code null}）。 */
     private final Runnable refreshSnapshot;
 
@@ -53,13 +57,14 @@ final class PlaybackLifecycle {
 
     PlaybackLifecycle(PlaybackRegistry registry, PlaybackLedger ledger, PreviewChannel previewChannel,
                       CameraStateHolder stateHolder, GameClock gameClock, PreviewClock previewClock,
-                      Runnable refreshSnapshot) {
+                      CameraCoverChain coverChain, Runnable refreshSnapshot) {
         this.registry = registry;
         this.ledger = ledger;
         this.previewChannel = previewChannel;
         this.stateHolder = stateHolder;
         this.gameClock = gameClock;
         this.previewClock = previewClock;
+        this.coverChain = coverChain;
         this.refreshSnapshot = refreshSnapshot;
     }
 
@@ -294,7 +299,7 @@ final class PlaybackLifecycle {
         previewChannel.setPreviewInitialized(true);
 
         // 列表顺序 = 叠放顺序：游戏实例插在预览实例之前，预览实例追加到末位（预览恒为顶层）。
-        PlaybackInstance instance = new PlaybackInstance(preview);
+        PlaybackInstance instance = new PlaybackInstance(coverChain, preview);
         if (preview) {
             registry.addLast(instance);
             previewChannel.setPreviewInstance(instance);

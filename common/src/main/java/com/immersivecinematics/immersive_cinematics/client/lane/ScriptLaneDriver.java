@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.client.lane;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
 import com.immersivecinematics.immersive_cinematics.script.CameraLane;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
@@ -65,6 +66,9 @@ import java.util.Map;
  * lane 经合成层铺屏的结果——「dest 全屏、opacity=1」的 lane 就是主画面特例，零 lane 时回落原版视角。
  * 视图中心与遮挡剔除的整帧决策改为 <b>lane 驱动</b>（读正在渲染的 lane 自己的相机）。
  *
+ * 覆盖链 Modifier 的作用面：只作用主相机那份（总表最上层 lane）——链上本帧有 Modifier 生效时该 lane
+ * 的相机状态取覆盖链输出；次级 lane 保持各自片段的原始相机（覆盖链定稿 §14③）。
+ *
  * <h2>lane 来源与相机 id</h2>
  * 本类是 lane 的<b>唯一来源</b>（代码级调试驱动已删，四象限演示改为脚本 {@code cinematics/release/quadrant.json}）：
  * 每帧先清空 lane，再按脚本播放实例注册。每条 lane 带相机 id
@@ -110,6 +114,7 @@ public final class ScriptLaneDriver {
         //（轨道层级 → 轨道内 clip 顺序 → z_index）。总表序号 = 合成顺序 = 叠放顺序：先启动的实例整体在下、
         // 后启动的整体在上（后来者居上），实例内部顺序不变。
         int index = 0;
+        LaneFrame mainFrame = null;
         for (PlaybackInstance instance : CameraManager.INSTANCE.instances()) {
             ScriptPlayer player = instance.player();
             if (!player.isPlaying()) {
@@ -125,14 +130,33 @@ public final class ScriptLaneDriver {
                 // 共用同一 id（与 lane 级调色的定位口径一致）；文件名安全化在 LaneDebugCapture 内做。
                 slot.captureId = instance.scriptId() + "_cam" + frame.cameraTrackIndex();
                 renderer.setLane(index, lane.state(), CONTENT, frame.laneAdjust(), slot.captureId);
+                mainFrame = frame;   // 总表最上层 lane = 主相机那份（主画面特例）
                 index++;
             }
         }
         if (index == 0) {
             return false;
         }
+        applyModifiers(renderer, index, mainFrame);
         renderer.setSink(ScriptLaneDriver::compose);
         return true;
+    }
+
+    /**
+     * 主相机那份（总表最上层 lane）取覆盖链输出：链上本帧有 Modifier 生效时，把合成后的六参数写进该 lane
+     * ——Modifier 只作用主相机，次级 lane 保持各自片段的原始相机（覆盖链定稿 §14③）。
+     *
+     * 链上无 Modifier 时链输出与主相机 lane 自身快照逐位同值，故不替换（零改动）；链输出为 {@code null}
+     * （无活跃 Base）时同样不动。
+     *
+     * @param laneCount 本帧总 lane 数（&gt; 0）：最上层 lane 序号 = {@code laneCount - 1}
+     * @param mainFrame 最上层 lane 的帧数据（取它的 lane 级调色交给替换后的同一 lane）
+     */
+    private static void applyModifiers(LaneRenderer renderer, int laneCount, LaneFrame mainFrame) {
+        if (!CameraManager.INSTANCE.modifiersApplied()) return;
+        CameraState main = CameraManager.INSTANCE.getCameraState();
+        if (main == null) return;
+        renderer.setLane(laneCount - 1, main, CONTENT, mainFrame.laneAdjust(), slot(laneCount - 1).captureId);
     }
 
     /**

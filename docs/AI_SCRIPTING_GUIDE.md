@@ -156,6 +156,8 @@
 | `loop_mode` | 循环时间映射：`"repeat"`（默认）= 从头到尾重复；`"pingpong"` = 往复折返（监控视角来回摇，关键帧只写半程即可） |
 | `curve` | 贝塞尔路径（可选，见 SCRIPT_FORMAT.md） |
 | `cam_breath_enabled` | 呼吸扰动（手持感，clip 级），配 `cam_breath_intensity`（0.05~0.1）、`cam_breath_seed`、`cam_breath_type`（`perlin` 默认 / `perlin_axis` / `sine` / `trauma`）、`cam_breath_speed`（越大晃越快）；`trauma` 额外配 `cam_breath_trauma`（初始冲击 0~1）与 `cam_breath_decay`（衰减速率）；同 seed 重放一致 |
+| `modifier` | **覆盖链 Modifier 声明**（可选，一个片段至多一条）：在关键帧求值出的六参数之上按通道做一次固定合成，如 `{"channels": ["yaw"], "mode": "add", "yaw": 30}` = yaw 再 +30°。字段形态见下方"覆盖链 Modifier" |
+| `suppress_modifiers` | `true` = 本片段活跃时**跳过全部 Modifier**（链输出 = 本片段原始六参数）；缺省 `false` |
 
 > **跟随/注视/坐标模式都在关键帧级配置**（`position_mode`、`follow`、`look_at` 系列字段写在 keyframe 对象里，见下）。
 
@@ -230,6 +232,34 @@
 - `time` 是 **clip 内**偏移（从 0 到 duration），必须严格递增
 - 关键帧之间所有值**匀速线性插值**（两点定一段运动）；0.3.6 起运行时统一线性、无 clip 级 `interpolation` 字段——缓动/速度曲线由编辑器烘焙成显式关键帧
 - 至少 1 个关键帧；想表现"静止"就用首尾两个相同值
+
+**覆盖链 Modifier（`modifier` / `suppress_modifiers`，clip 级）**
+
+相机状态每帧 = 关键帧求值出的六参数（Base），再按 `modifier` 声明做一次合成。一个片段至多一条声明；要多个效果就写在多个片段上（按 `priority` 升序逐条合成）。Modifier 只作用主相机那份（玩家看到的主画面 = 最上层 lane 的相机）；次级 lane（分屏里的其他格子）保持各自片段的原始相机。
+
+```json
+"modifier": {
+  "channels": ["yaw", "pitch"],   // 必填：生效通道（position / yaw / pitch / roll / fov / zoom 的子集；没列出的通道零改动）
+  "mode": "add",                  // 可选：add / multiply / replace；缺省 = 偏移类 add、缩放类 multiply
+  "priority": 100,                // 可选：应用序，升序（小者先）；缺省 0
+  "yaw": 30,                      // 值键 = 通道名；position 写 {"x": …, "y": …, "z": …}
+  "pitch": -15
+}
+```
+
+| 想做的效果 | 写法 |
+|---|---|
+| 关键帧角度之外再加固定偏移 | `{"channels": ["yaw", "pitch"], "mode": "add", "yaw": 30, "pitch": -15}` |
+| 整体拉近 / 推远（视野缩放） | `{"channels": ["fov"], "mode": "multiply", "fov": 0.7}`（fov 70 → 49） |
+| 强制朝向 / 强制光学参数（覆盖关键帧动画） | `{"channels": ["yaw", "fov"], "mode": "replace", "yaw": 180, "fov": 30}` |
+| 把机位钉在世界坐标 | `{"channels": ["position"], "mode": "replace", "position": {"x": 100, "y": 70, "z": 200}}` |
+| 某片段不要任何 Modifier | 该片段写 `"suppress_modifiers": true` |
+
+- `channels` 列出的通道必须给值、给了值的通道必须写进 `channels`（validate 会报）；`replace` 必须显式写（缺省是 `add` / `multiply`）。
+- 声明只在**它所在片段的活跃窗内**生效（片段播完即失效；`duration < 0` 或 `loop_count: -1` 的片段自 `start_time` 起永续）——想「这一段有、那一段没有」，分别写在各自的片段上即可。
+- morph 过渡的重叠窗内，前后两段的声明同时生效（叠加序 = `priority` 升序）。
+- 并行脚本各自活跃片段的声明都会作用到主相机；`"suppress_modifiers": true` 是逃生门：本片段活跃时跳过**全部** Modifier。
+- 不写这两个字段 = 行为与不启用覆盖链时逐位一致。
 
 ### 3.5 其他轨道（一句话速览）
 

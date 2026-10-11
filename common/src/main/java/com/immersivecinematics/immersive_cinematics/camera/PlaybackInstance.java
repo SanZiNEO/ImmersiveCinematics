@@ -1,9 +1,18 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
+import com.immersivecinematics.immersive_cinematics.camera.cover.CameraCoverChain;
+import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
+import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
+import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
+import com.immersivecinematics.immersive_cinematics.script.TrackType;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.DoubleSupplier;
 
 /**
  * 播放实例 — 一次脚本播放的独立载体（并行播放模型的第一步：播放 = 实例）。
@@ -48,7 +57,14 @@ public final class PlaybackInstance {
      */
     private final boolean preview;
 
-    PlaybackInstance(boolean preview) {
+    /** 覆盖链（Modifier 注册 / 注销的落点；链由 {@code CameraManager} 持有）。 */
+    private final CameraCoverChain coverChain;
+
+    /** 本实例已注册进链的 Modifier（= 本脚本里 clip 级静态声明的注册形态）；停止 / 脚本替换时注销。 */
+    private final List<ClipModifierGate> modifiers = new ArrayList<>();
+
+    PlaybackInstance(CameraCoverChain coverChain, boolean preview) {
+        this.coverChain = coverChain;
         this.preview = preview;
     }
 
@@ -111,6 +127,7 @@ public final class PlaybackInstance {
         this.player.start(script, preExecuteAt);
         ScriptMeta meta = script.getMeta();
         this.behavior = meta != null ? meta.getBehavior() : null;
+        syncModifiers(script);
     }
 
     /** 编辑器增量替换脚本数据（常驻实例零重启）：播放数据与行为快照一起刷新。 */
@@ -119,11 +136,13 @@ public final class PlaybackInstance {
         this.player.replaceScript(newScript);
         ScriptMeta meta = newScript.getMeta();
         this.behavior = meta != null ? meta.getBehavior() : null;
+        syncModifiers(newScript);
     }
 
-    /** 停止播放：清空轨道（音频实例、覆盖层随之释放）。 */
+    /** 停止播放：清空轨道（音频实例、覆盖层随之释放）+ 注销本实例的 Modifier。 */
     void stop(CompletionReason reason) {
         this.player.stop(reason);
+        syncModifiers(null);
     }
 
     /** 置入退场渐出态（渐出完成后 {@code CameraManager.deactivateNow} 才真正停用本实例）。 */
@@ -134,6 +153,48 @@ public final class PlaybackInstance {
     /** 置入退出原因。 */
     void setExitReason(CompletionReason reason) {
         this.exitReason = reason;
+    }
+
+    // ========== Modifier 接线（播放实例级） ==========
+
+    /**
+     * 本实例的 Modifier 集与脚本同步：先注销旧集、再注册新脚本里全部 clip 级静态声明
+     * （{@code null} = 只注销）。注册形态 = {@link ClipModifierGate}（活跃窗门 + 声明），
+     * 于是每条声明只在自己片段的活跃窗内参与合成（时间源 = 本实例的播放器）。
+     *
+     * 调用点：{@link #start}（播放开始注册）、{@link #replaceScript}（编辑器增量替换重同步）、
+     * {@link #stop}（停播注销）。不在帧内调用。
+     */
+    private void syncModifiers(CinematicScript script) {
+        for (int i = 0; i < modifiers.size(); i++) {
+            coverChain.unregister(modifiers.get(i));
+        }
+        modifiers.clear();
+        if (script == null) return;
+        for (ClipModifierGate gate : collectModifiers(script, player::timelineTime)) {
+            coverChain.register(gate);
+            modifiers.add(gate);
+        }
+    }
+
+    /**
+     * 脚本里全部片段级静态 Modifier 的注册形态（只取 CAMERA 轨道，按轨道顺序展开；无声明 → 空列表）。
+     *
+     * @param timelineTime 时间轴读数来源（每实例一份：游戏实例 = 全局虚拟时钟、预览实例 = 预览播放头）
+     */
+    static List<ClipModifierGate> collectModifiers(CinematicScript script, DoubleSupplier timelineTime) {
+        List<ClipModifierGate> collected = new ArrayList<>();
+        for (TimelineTrack track : script.getTimeline().getTracks()) {
+            if (track.getType() != TrackType.CAMERA) continue;
+            List<Clip> clips = track.getClips();
+            for (int i = 0; i < clips.size(); i++) {
+                ClipModifier declaration = clips.get(i).getModifier();
+                if (declaration == null) continue;
+                Clip next = i + 1 < clips.size() ? clips.get(i + 1) : null;
+                collected.add(new ClipModifierGate(declaration, clips.get(i), next, timelineTime));
+            }
+        }
+        return collected;
     }
 
     // ========== 生命周期判定（按实例独立） ==========

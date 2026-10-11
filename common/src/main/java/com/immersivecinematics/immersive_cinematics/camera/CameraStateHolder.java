@@ -6,8 +6,9 @@ import net.minecraft.world.phys.Vec3;
  * 全局相机状态持有者：写入缓冲（{@link CameraPath} / {@link CameraProperties}）+ 当前值镜像 + 统一只读快照。
  *
  * 写入缓冲是「顶层实例顶层活跃 clip 当前值」的唯一落点；{@link #current()} 是它的不可变镜像
- * （每次写入同步），覆盖链上各 Base 层据此取自身状态。快照 {@link CameraState} 由调用方置入
- * （覆盖链输出），无活跃相机时为 {@code null}（读侧据此回落）。
+ * （每次写入同步），覆盖链上各 Base 层据此取自身状态。脚本导演写入同时带上该片段的
+ * {@code suppress_modifiers} 标志（{@link #suppressesModifiers()}），供脚本导演 Base 层跳过 Modifier 链。
+ * 快照 {@link CameraState} 由调用方置入（覆盖链输出），无活跃相机时为 {@code null}（读侧据此回落）。
  *
  * 刷新时机由调用方（{@code CameraManager}）决定——每帧驱动末尾、停用 / 重启、直写入口；
  * 同一帧内多次读取得到同一份快照。缓冲写入不隐含刷新：写入只改缓冲与镜像，
@@ -26,6 +27,9 @@ final class CameraStateHolder {
 
     /** 统一快照；无活跃相机时为 {@code null}。 */
     private CameraState snapshot = null;
+
+    /** 当前值是否要求跳过 Modifier 链（随脚本导演写入同步；缺省 {@code false}）。 */
+    private boolean suppressModifiers = false;
 
     CameraStateHolder() {
         current = readBuffer();
@@ -60,10 +64,11 @@ final class CameraStateHolder {
     }
 
     /** 脚本导演写侧（顶层 clip 本帧六参数）：写入缓冲 + 镜像复用传入快照，不新建 record。 */
-    void setScriptState(CameraState state) {
+    void setScriptState(CameraState state, boolean suppressModifiers) {
         path.setPositionDirect(state.position());
         properties.setAllDirect(state.yaw(), state.pitch(), state.roll(), state.fov(), state.zoom());
         current = state;
+        this.suppressModifiers = suppressModifiers;
     }
 
     /** 开播起始视角：位置与 yaw/pitch 初始化到玩家；roll / fov / zoom 保持缓冲现值。 */
@@ -80,6 +85,11 @@ final class CameraStateHolder {
         return snapshot;
     }
 
+    /** 当前值是否要求跳过 Modifier 链（写入方 = 顶层片段 {@code suppress_modifiers}；缺省 {@code false}）。 */
+    boolean suppressesModifiers() {
+        return suppressModifiers;
+    }
+
     /** 置入统一快照（值 = 覆盖链输出）；{@code null} = 无活跃相机。 */
     void setSnapshot(CameraState snapshot) {
         this.snapshot = snapshot;
@@ -90,6 +100,7 @@ final class CameraStateHolder {
         path.reset();
         properties.reset();
         current = readBuffer();
+        suppressModifiers = false;
     }
 
     /** 从缓冲重建镜像（缺省值 / 复位后取值；每帧路径不走这里）。 */

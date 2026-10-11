@@ -10,7 +10,8 @@ import java.util.List;
  *
  * 组合次序固定：Base Chain → Modifier Chain → 最终状态。
  * Base 选择：按优先级从高到低取第一个活跃层；同优先级 = 后注册者胜（后来者居上）；无活跃层 = {@code null}。
- * Modifier 应用：按优先级升序逐条合成（同值 = 先注册者先应用）；胜出 Base 层
+ * Modifier 应用：按优先级升序逐条合成（同值 = 先注册者先应用），本帧不活跃者
+ * （{@link CameraModifier#isActiveThisFrame()} 为 false）跳过；胜出 Base 层
  * {@link BaseCameraProvider#suppressesModifiers()} 为 true 时整条跳过。
  * 切换语义：层间切换为 Cut——不混合、不过渡、不迟滞；链上不做 clamp / normalize。
  * 分配契约：注册表只在注册 / 注销时改动（不在帧内）；每帧零新增分配，唯一分配点 = 快照 record 的产出
@@ -30,6 +31,9 @@ public final class CameraCoverChain {
 
     /** Modifier 值工作区：每条 Modifier 写这里、随即被合成进工作区（跨条、跨帧复用）。 */
     private final CameraStateBuffer modifierValues = new CameraStateBuffer();
+
+    /** 本帧是否有 Modifier 参与合成（{@link #evaluate} 刷新；无活跃 Base 时为 {@code false}）。 */
+    private boolean modifiersApplied = false;
 
     /** 注册一层 Base；同一实例重复注册 = 多份（注销按对象逐个移除）。 */
     public void register(BaseCameraProvider provider) {
@@ -71,19 +75,39 @@ public final class CameraCoverChain {
      */
     public boolean evaluate(CameraStateBuffer out) {
         BaseCameraProvider winner = selectWinner();
-        if (winner == null) return false;
+        if (winner == null) {
+            modifiersApplied = false;
+            return false;
+        }
         out.set(winner.provideBaseState());
-        if (!winner.suppressesModifiers()) composeModifiers(out);
+        modifiersApplied = !winner.suppressesModifiers() && composeModifiers(out);
         return true;
     }
 
-    /** 按注册表次序（优先级升序）逐条合成：每条先把值写进值工作区、再按掩码与模式就地并入（零分配）。 */
-    private void composeModifiers(CameraStateBuffer out) {
+    /**
+     * 本帧链上是否有 Modifier 参与合成（胜出 Base 层未抑制且至少一条活跃）；{@link #evaluate} 每次刷新。
+     * 消费方 = 主相机那份的取用点（主相机 lane 据此判定「链输出是否已被 Modifier 改写」）。
+     */
+    public boolean modifiersApplied() {
+        return modifiersApplied;
+    }
+
+    /**
+     * 按注册表次序（优先级升序）逐条合成：每条先把值写进值工作区、再按掩码与模式就地并入（零分配）；
+     * 本帧不活跃（{@link CameraModifier#isActiveThisFrame()} 为 false）者整条跳过。
+     *
+     * @return 本帧是否至少合成了一条
+     */
+    private boolean composeModifiers(CameraStateBuffer out) {
+        boolean applied = false;
         for (int i = 0; i < modifiers.size(); i++) {
             CameraModifier modifier = modifiers.get(i);
+            if (!modifier.isActiveThisFrame()) continue;
             modifier.writeValue(modifierValues);
             out.compose(modifier.channelMask(), modifier.composeMode(), modifierValues);
+            applied = true;
         }
+        return applied;
     }
 
     /** 逆序扫描（后注册者先问）、严格大于才替换 → 高优先级胜、同优先级后注册者胜。 */

@@ -92,7 +92,8 @@ public class CameraTrackPlayer implements TrackPlayer {
                     // 合成参数取进入的片段（转场结束后留在屏上的是它），不做参数混合
                     CameraState morphState = evaluator.renderMorph(prev, next, weight, globalTime);
                     if (morphState != null) {
-                        writeGlobal(morphState);
+                        // 转场两侧任一声明 suppress = 本帧跳过 Modifier 链（两侧都活跃）
+                        writeGlobal(morphState, prev.getSuppressModifiers() || next.getSuppressModifiers());
                         laneCollector.add(new CameraLane(morphState, next, globalTime - next.getStartTime()));
                     }
                     return;
@@ -113,15 +114,15 @@ public class CameraTrackPlayer implements TrackPlayer {
         // 顶层 clip：正常求值（写全局相机状态，与顶层 lane 同源同值）
         CameraLane topLane = evaluator.renderSingle(globalTime, topClip, globalTime - topClip.getStartTime(),
                 false, CameraKeyframeEvaluator.TOP_LANE);
-        if (topLane != null) writeGlobal(topLane.state());
+        if (topLane != null) writeGlobal(topLane.state(), topClip.getSuppressModifiers());
         // 重叠窗口内层级在下的活跃 clip：先捕获（列表顺序 = 绘制顺序，后面的在上）
         laneCollector.captureLowerLanes(globalTime, active, topClip);
         if (topLane != null) laneCollector.add(topLane);
     }
 
-    /** 顶层写入：本轨本帧的六参数写入全局相机状态（写入缓冲 + 链上的当前值）。 */
-    private void writeGlobal(CameraState state) {
-        cameraManager.setScriptState(state);
+    /** 顶层写入：本轨本帧的六参数写入全局相机状态（写入缓冲 + 链上的当前值 + 该片段的 Modifier 抑制标志）。 */
+    private void writeGlobal(CameraState state, boolean suppressModifiers) {
+        cameraManager.setScriptState(state, suppressModifiers);
     }
 
     @Override

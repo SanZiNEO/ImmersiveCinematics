@@ -1,0 +1,65 @@
+{
+  "meta": {
+    "id": "test_camera_modifier_add",
+    "name": "相机测试-覆盖链ADD",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "合成模式 ADD：关键帧 yaw / pitch 恒 0 → 合成后恒 yaw 30 / pitch -15（偏移叠加）；roll 不在掩码内，照常 0→10",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_modifier_mask"] } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: 覆盖链 ADD | 关键帧 yaw 0 / pitch 0 恒定 + 偏移 → 恒 yaw 30、pitch -15 | roll 0→10 照常",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "modifier": {
+              "channels": ["yaw", "pitch"],
+              "mode": "add",
+              "priority": 100,
+              "yaw": 30,
+              "pitch": -15
+            },
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 10, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -205,6 +205,8 @@ immersive_cinematics/
 | `motion_roll` | object | 否 | `null` | roll 通道的数学模型定义（同上） |
 | `motion_fov` | object | 否 | `null` | fov 通道的数学模型定义（同上） |
 | `motion_zoom` | object | 否 | `null` | zoom 通道的数学模型定义（同上） |
+| `modifier` | object | 否 | `null` | 片段级静态 Modifier 声明（`{channels, mode?, priority?, <通道值>}`）；缺省 = 本片段不声明，见「覆盖链 Modifier」 |
+| `suppress_modifiers` | boolean | 否 | `false` | `true` = 本片段活跃时跳过 Modifier 链（链输出 = 本片段原始六参数），见「覆盖链 Modifier」 |
 | `keyframes` | array | 是 | — | 关键帧数组，至少 1 个 |
 
 > **相机片段自带调色**：CAMERA clip 还可写调色字段（clip 级 10 条曲线 + 关键帧级 57 个调色通道），作用于该相机轨产出的 lane——见下方「相机片段调色」。
@@ -319,6 +321,52 @@ immersive_cinematics/
 > **曲线族的适用面**：`smoothstep` / `ease_in` / `ease_out` / `ease_in_out` / `cubic_bezier` 按 **[0,1] 归一化量**定义（输入先钳到 [0,1]），服务**运行时**的归一化量求值（过渡权重、组合权重）——直接挂在位置 / 角度 / fov 这类原始量上通常不是想要的（原始量通道用 `spring` / `exponential_smooth` 或恒等 `linear`）。关键帧之间的缓动同样不用它们：由编辑器烘焙成显式关键帧（见上方「0.3.6 起：插值 = 匀速线性 + 编辑器烘焙缓动」）。
 
 > **`domain` 结构键**（可选，一般不用写）：显式声明值域 `scalar` / `angle` / `vector` / `color`，缺省继承所在通道（组合内继承父定义）；组合内与父定义不一致 = 校验期报「组合域不匹配」。
+
+### 覆盖链 Modifier（`modifier` / `suppress_modifiers`）
+
+相机状态每帧分两步产出：**Base 链**决定这一帧的基础六参数（脚本播放 = 脚本导演层），**Modifier 链**在它之上按通道掩码做部分修改，输出即最终状态（= 统一相机快照）。Modifier **只作用主相机那份**（最上层 lane 的相机 = 玩家看到的主画面）；次级 lane（分屏 / 画中画里下面的几格）保持各自片段的原始相机，不叠加 Modifier。
+
+**声明挂在片段上（clip 级，一个片段至多一条）**：要多个效果就写在多个片段上——链按 `priority` 升序逐条合成，多条自然叠加（合成模式 / 掩码 / 应用序都是逐条独立声明的）；每条声明只在**它所在片段的活跃窗内**生效（见下方「生效窗」）。
+
+```json
+"modifier": {
+  "channels": ["yaw", "pitch"],   // 生效通道（必填）：position / yaw / pitch / roll / fov / zoom 的子集
+  "mode": "add",                  // 合成模式（可选）：add / multiply / replace；缺省 = 逐通道缺省
+  "priority": 100,                // 应用序（可选）：升序，小者先应用；缺省 0
+  "yaw": 30,                      // 值键 = 通道名：position 写 {"x": …, "y": …, "z": …}，其余五个写数字
+  "pitch": -15
+}
+```
+
+| 字段 | 类型 | 必需 | 默认 | 说明 |
+|------|------|------|------|------|
+| `channels` | array | 是 | — | 生效通道名数组：`position` / `yaw` / `pitch` / `roll` / `fov` / `zoom` 的子集，非空、不重复。**掩码 = 这份名单**：没列出的通道逐位不受影响 |
+| `mode` | string | 否 | 逐通道缺省 | 合成模式：`add`（相加）/ `multiply`（相乘）/ `replace`（直写绝对值）。缺省 = 偏移类 `position` / `yaw` / `pitch` / `roll` 用 `add`、缩放类 `fov` / `zoom` 用 `multiply`；`replace` 必须显式写。一条声明只有一个模式，需要不同模式就拆成两条声明 |
+| `priority` | int | 否 | `0` | 应用序：升序应用（小者先、大者后——后应用者的结果落在最终值上）；同值 = 先注册者先应用（同一脚本内 = 靠前的片段先）。与 Base 层优先级是两套独立数值，互不比较 |
+| `position` | object | 条件 | — | `channels` 含 `position` 时必填：`{"x": …, "y": …, "z": …}`（世界坐标，方块；三轴都要写——`position` 是整通道一位，不分轴） |
+| `yaw` / `pitch` / `roll` | float | 条件 | — | `channels` 含该通道时必填（度）：`add` = 角度增量、`multiply` = 倍率、`replace` = 世界角绝对值 |
+| `fov` / `zoom` | float | 条件 | — | `channels` 含该通道时必填：`fov` 单位度、`zoom` 单位倍率；`add` = 增量、`multiply` = 倍率、`replace` = 绝对值 |
+| `suppress_modifiers` | boolean | 否 | `false` | 与 `modifier` 同级（同样写在片段上）：`true` = 本片段活跃时**整条跳过 Modifier 链**，链输出 = 本片段原始六参数 |
+
+**合成结果**（Base = 关键帧求值出来的那份六参数）：
+
+| 声明 | Base | 结果 |
+|---|---|---|
+| `{"channels": ["yaw"], "mode": "add", "yaw": 30}` | yaw 0 | yaw 30 |
+| `{"channels": ["fov"], "mode": "multiply", "fov": 1.5}` | fov 70 | fov 105 |
+| `{"channels": ["yaw", "fov"], "mode": "replace", "yaw": 180, "fov": 30}` | yaw 90 / fov 40 | yaw 180 / fov 30 |
+| `{"channels": ["position"], "mode": "replace", "position": {"x": 100, "y": 70, "z": 200}}` | 任意 | 机位恒在世界坐标 (100, 70, 200) |
+| `{"channels": ["yaw"], "yaw": 45}`（缺省模式 = `add`） | yaw 90 | yaw 135 |
+
+- **写法约束**（`ScriptValidator` 与 `ScriptParser` 同一口径）：`channels` 列出的通道必须给值、给了值的通道必须写进 `channels`；键名只认 `channels` / `mode` / `priority` 与六个通道名；数值必须是有限数字（`NaN` / `Infinity` 拒绝）；`channels` 为空 / 未知通道名 / 重复通道名都报错。两个字段只写在 CAMERA 片段上（写在别的轨道上会被 validate 报出——不生效）。
+- **生效窗 = 声明所在片段的活跃窗**：`[start_time, 窗口末端)`——窗口末端 = `start_time + duration`；有限循环 = `start_time + 周期 × loop_count`；永不结束的片段（`duration < 0` 或 `loop_count: -1`）自 `start_time` 起永续。片段播完声明随之失效：要「这一段抖、那一段不抖」，各自写在各自片段上即可（时间取所属播放实例的时间轴读数，与轨道分发同一口径）。
+- **morph 重叠窗内前后两侧并存**：前一段声明（`transition: "morph"` + `transition_duration`）的生效窗末端延长半个过渡时长，后一段从自己的 `start_time` 起生效——重叠窗内两条声明同时参与合成，叠加序仍是优先级升序 → 注册序（同脚本内 = 靠前的片段先）。
+- **跨实例**：Modifier 按播放实例注册进链（开播注册、停播注销），并行脚本各自活跃片段的声明都作用于主相机；同一时刻的多条链级声明按上述规则叠加。
+- **`suppress_modifiers` 是整链逃生门**：本片段活跃时跳过**全部** Modifier（含其他片段 / 其他实例的声明），链输出 = 本片段原始六参数。
+- **链上不做 clamp / 归一化**：合成结果原样交给渲染侧（`fov` 超出可视角、`zoom` 取负等都按数值直通）。
+- **无字段 = 零改动**：不写这两个字段的片段，链输出与启用覆盖链之前逐位一致（无声明 = Modifier 链为空）。
+
+> 示例脚本（`cinematics/tests/camera/`）：`test_camera_modifier_baseline`（常规相机脚本 = 基线）、`test_camera_modifier_mask`（掩码关断：只声明 `zoom`，其余通道与基线逐帧一致）、`test_camera_modifier_add` / `_multiply` / `_replace`（三种合成模式）、`test_camera_modifier_nosuppress` / `_suppress`（suppress 开 / 关对照）、`test_camera_modifier_window`（两段跨窗：第一段的声明在第二段失效）。
 
 ### Keyframe 字段
 

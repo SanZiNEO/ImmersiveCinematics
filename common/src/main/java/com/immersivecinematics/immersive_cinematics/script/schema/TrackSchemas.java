@@ -65,6 +65,11 @@ public final class TrackSchemas {
         clips.put("motion_roll", new FieldDef("model", null, false, List.of(), "motion"));
         clips.put("motion_fov", new FieldDef("model", null, false, List.of(), "motion"));
         clips.put("motion_zoom", new FieldDef("model", null, false, List.of(), "motion"));
+        // 覆盖链 Modifier（clip 级）：本片段声明一条静态 Modifier（掩码 / 合成模式 / 应用序 / 每通道值）；
+        // 字段形态与校验见 docs/SCRIPT_FORMAT.md §「覆盖链 Modifier」与 ScriptParser#parseClipModifier
+        clips.put("modifier", new FieldDef("modifier", null, false, List.of(), "modifier"));
+        // 本片段活跃时跳过 Modifier 链（缺省 false = 不跳过）
+        clips.put("suppress_modifiers", new FieldDef("bool", false, false, List.of(), "modifier"));
         clips.put("orient", new FieldDef("enum", "manual", false, List.of("manual", "tangent")));
         clips.put("yaw_offset", new FieldDef("float", 0f));
         clips.put("pitch_offset", new FieldDef("float", 0f));

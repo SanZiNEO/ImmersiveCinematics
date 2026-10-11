@@ -1,0 +1,72 @@
+{
+  "meta": {
+    "id": "test_camera_modifier_window",
+    "name": "相机测试-Modifier活跃窗",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "生效窗 = 声明所在片段的活跃窗：第一段（0-8s）声明 yaw +90 生效；第二段（8-16s）无声明 → 第一段的声明随片段失效（跨窗不叠加）。两段关键帧 yaw 均为 0，故 0-8s 看 yaw 90、8-16s 看 yaw 0",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_modifier_suppress"] } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 16,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 16,
+            "layer_type": "subtitle",
+            "text": "测试: Modifier 活跃窗 | 0-8s 第一段声明 yaw +90 → yaw 90 | 8-16s 第二段无声明 → yaw 0（第一段声明已失效）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 16, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "modifier": {
+              "channels": ["yaw"],
+              "yaw": 90
+            },
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 8,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "meta": {
+    "id": "test_camera_modifier_mask",
+    "name": "相机测试-覆盖链掩码",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "掩码关断：modifier 只声明 channels [zoom]（×2），其余通道不在掩码内 = 零改动；关键帧与 test_camera_modifier_baseline 完全相同（A/B 对照：只有 zoom 不同）",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_modifier_baseline"] } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: 覆盖链掩码 | channels 只列 zoom（×2 → 1×2=2）| yaw / pitch / fov / 位置 逐帧与基线一致",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "modifier": {
+              "channels": ["zoom"],
+              "mode": "multiply",
+              "zoom": 2
+            },
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 4, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 90, "pitch": -10, "roll": 0, "fov": 60, "zoom": 1 },
+              { "time": 8, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

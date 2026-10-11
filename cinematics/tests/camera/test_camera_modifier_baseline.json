@@ -1,0 +1,59 @@
+{
+  "meta": {
+    "id": "test_camera_modifier_baseline",
+    "name": "相机测试-覆盖链基线",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "覆盖链 Modifier 的常规相机脚本（无 modifier / suppress_modifiers 字段）：脚本导演 Base 接入 + 无字段路径行为基线；关键帧与 test_camera_modifier_mask 完全相同（A/B 对照）",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_motion_models"] } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: 覆盖链基线 | 无 modifier 字段 = 现状逐帧不变 | yaw 0→90→0、pitch 0→-10→0、fov 70→60→70",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 4, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 90, "pitch": -10, "roll": 0, "fov": 60, "zoom": 1 },
+              { "time": 8, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

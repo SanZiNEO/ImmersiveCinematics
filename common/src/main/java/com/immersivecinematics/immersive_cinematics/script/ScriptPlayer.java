@@ -99,6 +99,12 @@ public class ScriptPlayer {
     /** 上一帧分发给轨道的圈内局部时间（检测圈边界折返）；NaN = 无上一帧 */
     private float lastLocalElapsed = Float.NaN;
 
+    /**
+     * 本帧分发给轨道的时间轴读数（秒；宏观循环 = 圈内局部时间）——片段活跃窗判定的唯一读侧出口
+     * （{@code ClipModifierGate} 按它比较声明片段的窗口）。未开始播放时为 {@code start} 传入的预执行时间。
+     */
+    private float timelineTime = 0f;
+
     private boolean stopping = false;
 
     // TrackPlayer 调度列表
@@ -290,6 +296,7 @@ public class ScriptPlayer {
 
         // 预执行第一帧（避免首帧闪烁）— 用调用方期望的 elapsed（预览模式 = previewTime，避免 t=0 跳变）
         float elapsedSeconds = preExecuteAt;
+        timelineTime = elapsedSeconds;
         for (TrackPlayer tp : trackPlayers) {
             if (tp.isActiveAt(elapsedSeconds)) {
                 try {
@@ -490,6 +497,7 @@ public class ScriptPlayer {
         }
 
         // 调度所有 TrackPlayer（onRenderFrame 内部自行判断是否有活跃 clip，无需 isActiveAt() 预检查）
+        timelineTime = elapsedSeconds;
         for (TrackPlayer tp : trackPlayers) {
             try {
                 tp.onRenderFrame(elapsedSeconds);
@@ -678,6 +686,15 @@ public class ScriptPlayer {
             }
         }
         return false;
+    }
+
+    /**
+     * 本帧分发给轨道的时间轴读数（秒；宏观循环 = 圈内局部时间）——片段活跃窗判定的读侧出口：
+     * 覆盖链的 Modifier 活跃门（{@code ClipModifierGate}）按它与声明片段的窗口比较。
+     * 未开始播放时为 0（{@link #start} 传入的预执行时间）。
+     */
+    public float timelineTime() {
+        return timelineTime;
     }
 
     /**

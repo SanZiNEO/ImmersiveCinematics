@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 
 import java.util.Collections;
@@ -142,6 +143,27 @@ public class Clip {
 
     public BezierCurve getCurve() {
         return getObject("curve");
+    }
+
+    /**
+     * 片段级静态 Modifier 声明（clip 级 {@code modifier} 对象，解析期归一为
+     * {@link ClipModifier}）；{@code null} = 本片段不声明（缺省，链上零改动）。
+     *
+     * 一个片段至多一条声明；声明随本片段对象存活，注册 / 注销由播放实例驱动
+     * （{@code PlaybackInstance}）。
+     */
+    public ClipModifier getModifier() {
+        return getObject("modifier");
+    }
+
+    /**
+     * 本片段活跃时是否跳过 Modifier 链（clip 级 {@code suppress_modifiers}；缺省 {@code false}）。
+     *
+     * 读侧 = 脚本导演 Base 层（{@code ScriptDirectorBase#suppressesModifiers()}）：写入方把本片段的值
+     * 随六参数一起写进全局写入缓冲，胜出时链整条跳过 Modifier。
+     */
+    public boolean getSuppressModifiers() {
+        return getBool("suppress_modifiers", false);
     }
 
     // ── Convenience: ADJUST ──

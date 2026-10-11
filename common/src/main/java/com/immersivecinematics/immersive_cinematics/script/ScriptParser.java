@@ -4,6 +4,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.immersivecinematics.immersive_cinematics.camera.cover.CameraChannels;
+import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
+import com.immersivecinematics.immersive_cinematics.camera.cover.ComposeMode;
 import com.immersivecinematics.immersive_cinematics.math.MathModel;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
@@ -399,6 +402,7 @@ public class ScriptParser {
             case "bezier_curve" -> parseBezierCurve(value.getAsJsonObject(), p + "." + fieldName);
             case "color_curve" -> parseColorCurve(value, p + "." + fieldName);
             case "model" -> parseMathModel(value, p + "." + fieldName, fieldName);
+            case "modifier" -> parseClipModifier(value, p + "." + fieldName);
             case "map" -> {
                 if (value.isJsonObject()) {
                     yield parseDataMap(value.getAsJsonObject(), p + "." + fieldName);
@@ -573,6 +577,187 @@ public class ScriptParser {
             Object type = key.get("type");
             return MathModelRegistry.create(type instanceof String text ? text : null, key);
         });
+    }
+
+    // ========== 覆盖链 Modifier 声明解析（CAMERA clip 级 modifier 字段）==========
+
+    /**
+     * 解析 clip 级 {@code modifier}（片段级静态 Modifier 声明 → {@link ClipModifier}）：{@code {channels, mode?,
+     * priority?, <通道值>}}——结构键 {@code channels} / {@code mode} / {@code priority}，值键 = 通道名本身
+     * （{@code position} 是 {@code {x, y, z}}，其余五个是有限数字）。字段语义见
+     * {@code docs/SCRIPT_FORMAT.md} §「覆盖链 Modifier」；与 {@code ScriptValidator#checkModifier} 同一口径
+     * （校验拦下的写法解析期也会拒绝）。
+     */
+    private static ClipModifier parseClipModifier(JsonElement value, String p) throws ScriptParseException {
+        if (!value.isJsonObject()) {
+            throw new ScriptParseException(p, "需要对象 {channels, mode?, priority?, <通道值>}");
+        }
+        JsonObject obj = value.getAsJsonObject();
+        int mask = parseModifierChannels(obj, p);
+        ComposeMode mode = parseModifierMode(obj, p);
+        int priority = parseModifierPriority(obj, p);
+        double[] values = new double[ClipModifier.VALUE_COUNT];
+        for (String name : CameraChannels.NAMES) {
+            if ((mask & CameraChannels.bitOf(name)) == 0) {
+                if (obj.has(name)) {
+                    throw new ScriptParseException(p + "." + name,
+                            "未在 channels 中声明（该通道不生效——要么加进 channels，要么删掉该键）");
+                }
+                continue;
+            }
+            parseModifierValue(obj, p, name, values);
+        }
+        rejectUnknownModifierKeys(obj, p);
+        return new ClipModifier(priority, mask, mode, values);
+    }
+
+    /** 解析 {@code channels}（生效通道名数组）：非空、六通道名子集、不重复；返回掩码。 */
+    private static int parseModifierChannels(JsonObject obj, String p) throws ScriptParseException {
+        JsonElement e = obj.get("channels");
+        if (e == null) {
+            throw new ScriptParseException(p + ".channels",
+                    "缺失（需要通道名数组，至少一个: " + CameraChannels.namesHint() + "）");
+        }
+        if (!e.isJsonArray()) {
+            throw new ScriptParseException(p + ".channels",
+                    "需要数组（通道名: " + CameraChannels.namesHint() + "）");
+        }
+        JsonArray channels = e.getAsJsonArray();
+        if (channels.isEmpty()) {
+            throw new ScriptParseException(p + ".channels",
+                    "为空（至少声明一个生效通道: " + CameraChannels.namesHint() + "）");
+        }
+        int mask = 0;
+        for (int i = 0; i < channels.size(); i++) {
+            JsonElement channel = channels.get(i);
+            String cp = p + ".channels[" + i + "]";
+            if (!channel.isJsonPrimitive() || !channel.getAsJsonPrimitive().isString()) {
+                throw new ScriptParseException(cp, "需要字符串（通道名: " + CameraChannels.namesHint() + "）");
+            }
+            String name = channel.getAsString();
+            int bit = CameraChannels.bitOf(name);
+            if (bit == 0) {
+                throw new ScriptParseException(cp,
+                        "未知通道: " + name + "（可选: " + CameraChannels.namesHint() + "）");
+            }
+            if ((mask & bit) != 0) {
+                throw new ScriptParseException(cp, "重复通道: " + name);
+            }
+            mask |= bit;
+        }
+        return mask;
+    }
+
+    /** 解析 {@code mode}（缺省 {@code null} = 逐通道缺省：偏移类 add、缩放类 multiply）。 */
+    private static ComposeMode parseModifierMode(JsonObject obj, String p) throws ScriptParseException {
+        if (!obj.has("mode")) return null;
+        JsonElement e = obj.get("mode");
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
+            throw new ScriptParseException(p + ".mode",
+                    "需要字符串（add / multiply / replace；缺省 = 逐通道缺省）");
+        }
+        String mode = e.getAsString();
+        return switch (mode) {
+            case "add" -> ComposeMode.ADD;
+            case "multiply" -> ComposeMode.MULTIPLY;
+            case "replace" -> ComposeMode.REPLACE;
+            default -> throw new ScriptParseException(p + ".mode",
+                    "未知合成模式: " + mode + "（可选: add / multiply / replace；缺省 = 逐通道缺省）");
+        };
+    }
+
+    /** 解析 {@code priority}（应用序：升序，小者先应用；缺省 0）。 */
+    private static int parseModifierPriority(JsonObject obj, String p) throws ScriptParseException {
+        if (!obj.has("priority")) return 0;
+        JsonElement e = obj.get("priority");
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) {
+            throw new ScriptParseException(p + ".priority", "需要整数（应用序：升序，小者先应用；缺省 0）");
+        }
+        double value = e.getAsDouble();
+        if (!Double.isFinite(value) || value != Math.rint(value)
+                || value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+            throw new ScriptParseException(p + ".priority", "需要整数（应用序：升序，小者先应用；缺省 0）：" + value);
+        }
+        return (int) value;
+    }
+
+    /**
+     * 解析一个已声明通道的值：{@code position} = 对象 {@code {x, y, z}}（世界坐标，方块）；
+     * 其余五个 = 有限数字（REPLACE = 绝对值、ADD = 增量、MULTIPLY = 倍率）。
+     */
+    private static void parseModifierValue(JsonObject obj, String p, String name, double[] values)
+            throws ScriptParseException {
+        JsonElement e = obj.get(name);
+        if (e == null) {
+            throw new ScriptParseException(p + "." + name, "缺失（channels 已声明该通道，需要它的值）");
+        }
+        if (CameraChannels.POSITION == CameraChannels.bitOf(name)) {
+            parseModifierPosition(e, p + ".position", values);
+            return;
+        }
+        float scalar = parseModifierScalar(e, p + "." + name);
+        // 通道名 → 值槽位（CameraChannels.NAMES 增删通道时必须同步本 switch）
+        switch (name) {
+            case "yaw" -> values[ClipModifier.SLOT_YAW] = scalar;
+            case "pitch" -> values[ClipModifier.SLOT_PITCH] = scalar;
+            case "roll" -> values[ClipModifier.SLOT_ROLL] = scalar;
+            case "fov" -> values[ClipModifier.SLOT_FOV] = scalar;
+            case "zoom" -> values[ClipModifier.SLOT_ZOOM] = scalar;
+        }
+    }
+
+    /** 解析 {@code position} 通道值（整通道一位）：{@code x} / {@code y} / {@code z} 三个都要写，且都是有限数字。 */
+    private static void parseModifierPosition(JsonElement e, String p, double[] values) throws ScriptParseException {
+        if (!e.isJsonObject()) {
+            throw new ScriptParseException(p, "需要对象 {x, y, z}（position 是整通道一位，三轴都要写）");
+        }
+        JsonObject position = e.getAsJsonObject();
+        for (String axis : position.keySet()) {
+            if (!"x".equals(axis) && !"y".equals(axis) && !"z".equals(axis)) {
+                throw new ScriptParseException(p + "." + axis, "未知键（position 只认 x / y / z）");
+            }
+        }
+        values[ClipModifier.SLOT_POSITION_X] = requireModifierAxis(position, p, "x");
+        values[ClipModifier.SLOT_POSITION_Y] = requireModifierAxis(position, p, "y");
+        values[ClipModifier.SLOT_POSITION_Z] = requireModifierAxis(position, p, "z");
+    }
+
+    /** 一个位置分量：存在且为有限数字（世界坐标，方块）。 */
+    private static double requireModifierAxis(JsonObject position, String p, String axis) throws ScriptParseException {
+        JsonElement e = position.get(axis);
+        if (e == null) {
+            throw new ScriptParseException(p + "." + axis, "缺失（position 的三轴 x / y / z 都要写）");
+        }
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) {
+            throw new ScriptParseException(p + "." + axis, "需要数字（世界坐标，方块）");
+        }
+        double value = e.getAsDouble();
+        if (!Double.isFinite(value)) {
+            throw new ScriptParseException(p + "." + axis, "不是有限数字（NaN / Infinity）");
+        }
+        return value;
+    }
+
+    /** 一个标量通道值：存在且为有限数字。 */
+    private static float parseModifierScalar(JsonElement e, String p) throws ScriptParseException {
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) {
+            throw new ScriptParseException(p, "需要数字（REPLACE = 绝对值、ADD = 增量、MULTIPLY = 倍率）");
+        }
+        float value = e.getAsFloat();
+        if (!Float.isFinite(value)) {
+            throw new ScriptParseException(p, "不是有限数字（NaN / Infinity）");
+        }
+        return value;
+    }
+
+    /** 结构键之外只允许通道名（值键）：其余键一律拒绝（写错的键静默无效 = 脚本没错但画面不对）。 */
+    private static void rejectUnknownModifierKeys(JsonObject obj, String p) throws ScriptParseException {
+        for (String key : obj.keySet()) {
+            if ("channels".equals(key) || "mode".equals(key) || "priority".equals(key)) continue;
+            if (CameraChannels.bitOf(key) != 0) continue;
+            throw new ScriptParseException(p + "." + key, "未知键（结构键: channels / mode / priority；值键: 通道名 "
+                    + CameraChannels.namesHint() + "）");
+        }
     }
 
     // ========== PositionData 解析 ==========

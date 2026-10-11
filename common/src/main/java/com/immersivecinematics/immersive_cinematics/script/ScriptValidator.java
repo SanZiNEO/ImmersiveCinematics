@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.immersivecinematics.immersive_cinematics.camera.cover.CameraChannels;
 import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
@@ -348,6 +349,8 @@ public final class ScriptValidator {
                     checkAdjustFields(clip, cp, null, null, issues);
                     // 相机参数运动模型（0.3.6）：clip 级 motion_* 六字段
                     checkMotionModels(clip, cp, issues);
+                    // 覆盖链 Modifier（0.3.6）：clip 级 modifier 声明 + suppress_modifiers 标志
+                    checkModifier(clip, cp, issues);
                     // LUT 是整体画面（master）处理，只挂在 ADJUST 轨：相机片段上写 lut 不会生效，直接拦下
                     if (clip.has("lut")) {
                         issues.add(cp + ".lut 不支持（LUT 是对整体画面的处理，只写在 ADJUST 轨的片段上）："
@@ -367,6 +370,8 @@ public final class ScriptValidator {
                                 + "只写在 ADJUST 轨的片段上）：相机片段请删掉该字段，或把 blend_mode 移到 ADJUST 轨");
                     }
                 }
+                // 覆盖链 Modifier 只作用于主相机状态：只写在 CAMERA 片段上（其余轨道上写 = 不生效）
+                checkModifierTrackScope(clip, cp, type, issues);
                 if ("OVERLAY".equalsIgnoreCase(type)) {
                     checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle");
                     // layer_type 缺省时运行期按 "fade" 处理（OverlayTrackPlayer.createLayer）
@@ -768,6 +773,159 @@ public final class ScriptValidator {
                 for (JsonElement item : value.getAsJsonArray()) {
                     if (item.isJsonObject()) measureModel(item.getAsJsonObject(), depth + 1, acc);
                 }
+            }
+        }
+    }
+
+    /**
+     * 校验覆盖链 Modifier 字段（CAMERA 片段专用）：clip 级 {@code modifier} 声明与 {@code suppress_modifiers}
+     * 标志。字段语义见 {@code docs/SCRIPT_FORMAT.md} §「覆盖链 Modifier」；与 {@code ScriptParser#parseClipModifier}
+     * 同一口径（校验拦下的写法解析期也会拒绝）。
+     */
+    private static void checkModifier(JsonObject clip, String cp, List<String> issues) {
+        if (clip.has("suppress_modifiers")) {
+            JsonElement e = clip.get("suppress_modifiers");
+            if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isBoolean()) {
+                issues.add(cp + ".suppress_modifiers 需要布尔值（true = 本片段活跃时跳过 Modifier 链；缺省 false）");
+            }
+        }
+        if (!clip.has("modifier")) return;
+        String mp = cp + ".modifier";
+        JsonElement e = clip.get("modifier");
+        if (!e.isJsonObject()) {
+            issues.add(mp + " 需要对象 {channels, mode?, priority?, <通道值>}");
+            return;
+        }
+        JsonObject modifier = e.getAsJsonObject();
+        int mask = checkModifierChannels(modifier, mp, issues);
+        checkModifierMode(modifier, mp, issues);
+        checkModifierPriority(modifier, mp, issues);
+        for (String name : CameraChannels.NAMES) {
+            boolean declared = (mask & CameraChannels.bitOf(name)) != 0;
+            if (!declared) {
+                if (modifier.has(name)) {
+                    issues.add(mp + "." + name + " 未在 channels 中声明（该通道不生效——要么加进 channels，"
+                            + "要么删掉该键）");
+                }
+                continue;
+            }
+            if (!modifier.has(name)) {
+                issues.add(mp + "." + name + " 缺失（channels 已声明该通道，需要它的值）");
+                continue;
+            }
+            checkModifierValue(modifier.get(name), mp + "." + name, name, issues);
+        }
+        for (String key : modifier.keySet()) {
+            if ("channels".equals(key) || "mode".equals(key) || "priority".equals(key)) continue;
+            if (CameraChannels.bitOf(key) != 0) continue;
+            issues.add(mp + "." + key + " 未知键（结构键: channels / mode / priority；值键: 通道名 "
+                    + CameraChannels.namesHint() + "）");
+        }
+    }
+
+    /** 校验 {@code channels}（生效通道名数组）：非空、六通道名子集、不重复；返回已声明通道的掩码。 */
+    private static int checkModifierChannels(JsonObject modifier, String mp, List<String> issues) {
+        String hint = CameraChannels.namesHint();
+        JsonElement e = modifier.get("channels");
+        if (e == null) {
+            issues.add(mp + ".channels 缺失（需要通道名数组，至少一个: " + hint + "）");
+            return 0;
+        }
+        if (!e.isJsonArray()) {
+            issues.add(mp + ".channels 需要数组（通道名: " + hint + "）");
+            return 0;
+        }
+        JsonArray channels = e.getAsJsonArray();
+        if (channels.isEmpty()) {
+            issues.add(mp + ".channels 为空（至少声明一个生效通道: " + hint + "）");
+            return 0;
+        }
+        int mask = 0;
+        for (int i = 0; i < channels.size(); i++) {
+            JsonElement channel = channels.get(i);
+            String cp = mp + ".channels[" + i + "]";
+            if (!channel.isJsonPrimitive() || !channel.getAsJsonPrimitive().isString()) {
+                issues.add(cp + " 需要字符串（通道名: " + hint + "）");
+                continue;
+            }
+            String name = channel.getAsString();
+            int bit = CameraChannels.bitOf(name);
+            if (bit == 0) {
+                issues.add(cp + " 未知通道: " + name + "（可选: " + hint + "）");
+            } else if ((mask & bit) != 0) {
+                issues.add(cp + " 重复通道: " + name);
+            } else {
+                mask |= bit;
+            }
+        }
+        return mask;
+    }
+
+    /** 校验 {@code mode}：{@code add} / {@code multiply} / {@code replace}；缺省 = 逐通道缺省。 */
+    private static void checkModifierMode(JsonObject modifier, String mp, List<String> issues) {
+        if (!modifier.has("mode")) return;
+        JsonElement e = modifier.get("mode");
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
+            issues.add(mp + ".mode 需要字符串（add / multiply / replace；缺省 = 逐通道缺省）");
+            return;
+        }
+        String mode = e.getAsString();
+        if (!"add".equals(mode) && !"multiply".equals(mode) && !"replace".equals(mode)) {
+            issues.add(mp + ".mode 未知合成模式: " + mode
+                    + "（可选: add / multiply / replace；缺省 = 逐通道缺省）");
+        }
+    }
+
+    /** 校验 {@code priority}：整数（应用序升序，小者先应用；缺省 0）。 */
+    private static void checkModifierPriority(JsonObject modifier, String mp, List<String> issues) {
+        if (!modifier.has("priority")) return;
+        JsonElement e = modifier.get("priority");
+        if (!isNumber(e)) {
+            issues.add(mp + ".priority 需要整数（应用序：升序，小者先应用；缺省 0）");
+            return;
+        }
+        double value = e.getAsDouble();
+        if (!Double.isFinite(value) || value != Math.rint(value)
+                || value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+            issues.add(mp + ".priority 需要整数（应用序：升序，小者先应用；缺省 0）：" + value);
+        }
+    }
+
+    /** 校验一个已声明通道的值：{@code position} = 对象 {@code {x, y, z}}；其余五个 = 有限数字。 */
+    private static void checkModifierValue(JsonElement e, String path, String name, List<String> issues) {
+        if (CameraChannels.POSITION == CameraChannels.bitOf(name)) {
+            if (!e.isJsonObject()) {
+                issues.add(path + " 需要对象 {x, y, z}（position 是整通道一位，三轴都要写）");
+                return;
+            }
+            JsonObject position = e.getAsJsonObject();
+            for (String axis : position.keySet()) {
+                if (!"x".equals(axis) && !"y".equals(axis) && !"z".equals(axis)) {
+                    issues.add(path + "." + axis + " 未知键（position 只认 x / y / z）");
+                }
+            }
+            for (String axis : new String[]{"x", "y", "z"}) {
+                JsonElement component = position.get(axis);
+                if (component == null) {
+                    issues.add(path + "." + axis + " 缺失（position 的三轴 x / y / z 都要写）");
+                } else if (!isNumber(component) || !Double.isFinite(component.getAsDouble())) {
+                    issues.add(path + "." + axis + " 需要有限数字（世界坐标，方块）");
+                }
+            }
+            return;
+        }
+        if (!isNumber(e) || !Float.isFinite(e.getAsFloat())) {
+            issues.add(path + " 需要有限数字（REPLACE = 绝对值、ADD = 增量、MULTIPLY = 倍率）");
+        }
+    }
+
+    /** 覆盖链 Modifier 字段只写在 CAMERA 片段上：其余轨道上写 = 不生效（与 {@code lut} 的轨道口径同款）。 */
+    private static void checkModifierTrackScope(JsonObject clip, String cp, String type, List<String> issues) {
+        if ("CAMERA".equalsIgnoreCase(type)) return;
+        for (String field : new String[]{"modifier", "suppress_modifiers"}) {
+            if (clip.has(field)) {
+                issues.add(cp + "." + field + " 不支持（覆盖链 Modifier 只作用于主相机状态）："
+                        + "该字段只写在 CAMERA 轨的片段上");
             }
         }
     }

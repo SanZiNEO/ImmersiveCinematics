@@ -1,0 +1,63 @@
+{
+  "meta": {
+    "id": "test_camera_modifier_suppress",
+    "name": "相机测试-Modifier抑制",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "suppress 开（true）：本片段活跃时整条跳过 Modifier 链——关键帧 yaw 0→90 原样输出（同一 modifier 声明不生效）；与 test_camera_modifier_nosuppress 除该字段外完全相同（A/B 对照）",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_modifier_nosuppress"] } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "测试: suppress_modifiers=true | 关键帧 yaw 0→90 原样（Modifier 整条跳过）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "suppress_modifiers": true,
+            "modifier": {
+              "channels": ["yaw"],
+              "yaw": 45
+            },
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
