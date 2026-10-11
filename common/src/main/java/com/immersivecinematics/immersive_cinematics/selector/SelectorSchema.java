@@ -17,7 +17,7 @@ public final class SelectorSchema {
      * 通用字段只作默认回落——不写调用点专属字段时行为与只用通用字段一致。
      */
     public static final List<String> CALLPOINTS = List.of(
-            "follow", "look_at", "look_at_target", "yaw_base",
+            "follow", "look_at", "yaw_base",
             "yaw_base_from", "yaw_base_to", "facing_origin", "facing_target");
 
     /** 锚点取值：调用方传入的相机位置（缺省，旧行为）。 */

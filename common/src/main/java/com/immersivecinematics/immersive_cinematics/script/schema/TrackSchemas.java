@@ -140,7 +140,7 @@ public final class TrackSchemas {
         // nearest = 客户端可用候选内取距锚点最近；alive = 按候选返回序取首个存活。
         // 取值与回落链见 EntityTargetResolver.selectorPick。
         kfs.put("selector_pick", new FieldDef("string", "first"));
-        // 调用点专属覆盖（8 个调用点 × 6 个选择器字段）；名单与字段名模式见 SelectorSchema
+        // 调用点专属覆盖（7 个调用点 × 6 个选择器字段）；名单与字段名模式见 SelectorSchema
         for (String callpoint : SelectorSchema.CALLPOINTS) {
             kfs.put(SelectorSchema.callpointField("selector_refresh", callpoint), new FieldDef("float", null));
             kfs.put(SelectorSchema.callpointField("selector_switch_while_alive", callpoint),
