@@ -503,21 +503,21 @@ public final class ScriptValidator {
                             checkRemovedLookAtTarget(kf, kp, issues);
                             String follow = kf.has("follow") ? kf.get("follow").getAsString() : "none";
                             String lookAt = kf.has("look_at") ? kf.get("look_at").getAsString() : "none";
+                            checkStringField(kf, kp, "follow_selector", issues,
+                                    "选择器字符串，如 @p / @e[type=minecraft:iron_golem]");
                             if ("entity".equals(follow) && !kf.has("follow_selector")) {
                                 issues.add(kp + ".follow_selector 缺失（follow=entity 时指定目标，如 @p / @e[type=minecraft:iron_golem]），默认 @p");
                             }
                             if ("entity".equals(follow) && !kf.has("position")) {
                                 issues.add(kp + ".position 缺失（follow=entity 时 position 的 dx/dy/dz 即相对实体脚底的偏移）");
                             }
+                            checkStringField(kf, kp, "look_at_selector", issues,
+                                    "选择器字符串，如 @p / @e[type=minecraft:iron_golem]");
                             if ("entity".equals(lookAt) && !kf.has("look_at_selector")) {
                                 issues.add(kp + ".look_at_selector 缺失（look_at=entity 时指定目标），默认 @p");
                             }
-                            if ("coordinate".equals(lookAt)
-                                    && !kf.has("look_at_target_structure")
-                                    && (!kf.has("look_at_target_x") || !kf.has("look_at_target_y") || !kf.has("look_at_target_z"))) {
-                                issues.add(kp + ".look_at_target_x/y/z 缺失（look_at=coordinate 时指定坐标，"
-                                        + "或 look_at_target_structure 结构名）");
-                            }
+                            checkStringField(kf, kp, "look_at_target_structure", issues, "结构 id，如 minecraft:village");
+                            checkLookAtTargetCoords(kf, kp, lookAt, issues);
                             if ("block".equals(lookAt)) {
                                 if (!kf.has("look_at_target_block")) {
                                     issues.add(kp + ".look_at_target_block 缺失（look_at=block 时指定方块点源，"
@@ -539,7 +539,10 @@ public final class ScriptValidator {
                             checkSelectorAnchor(kf, kp, issues);
                             // 选择器择一字段（通用 + 调用点专属）：取值枚举校验
                             checkSelectorPick(kf, kp, issues);
-                            // 点源字段（连线端点 / 基准坐标系前轴目标）：字符串形态 + coordinate 配套坐标（都写在关键帧上）
+                            checkStringField(kf, kp, "yaw_base_selector", issues,
+                                    "选择器字符串（yaw_base / pitch_base = entity 时的目标）");
+                            // 点源字段（位置点源 / 连线端点 / 基准坐标系前轴目标）：字符串形态 + coordinate 配套坐标（都写在关键帧上）
+                            checkPointSourceField(kf, kp, "facing_origin", issues);
                             checkPointSourceField(kf, kp, "yaw_base_from", issues);
                             checkPointSourceField(kf, kp, "yaw_base_to", issues);
                             checkPointSourceField(kf, kp, "facing_target", issues);
@@ -574,7 +577,7 @@ public final class ScriptValidator {
                             }
                         }
 
-                        // ADJUST 关键帧：47 个标量通道的取值区间（不写 = 缺省 0 = 无效果——十条曲线强度缺省 1；写回 0 = 该项淡出）
+                        // ADJUST 关键帧：57 个通道的取值区间（47 个标量缺省 0 = 无效果、10 个曲线强度缺省 1；写回 0 = 该项淡出）
                         // + LUT 混合强度 lut_strength（0~1，缺省 1）+ 层级混合强度 blend_amount（0~1，缺省 1）
                         if ("ADJUST".equalsIgnoreCase(type)) {
                             checkAdjustFields(null, null, kf, kp, issues);
@@ -631,7 +634,7 @@ public final class ScriptValidator {
      * CAMERA 片段作用于该相机轨的 lane）：
      * <ul>
      *   <li>clip 级：10 条调色曲线的结构（{@link #COLOR_CURVE_FIELDS}，控制点数组）；</li>
-     *   <li>关键帧级：47 个标量通道的取值区间（{@link #ADJUST_CHANNELS}）。</li>
+     *   <li>关键帧级：57 个通道的取值区间（{@link #ADJUST_CHANNELS} = 47 个标量 + 10 个曲线强度）。</li>
      * </ul>
      * <p>{@code clip} 与 {@code kf} 分别对应两种上下文，调用方按当前层级传非空值、另一侧传 {@code null}
      * （路径前缀 {@code cp} / {@code kp} 随之，缺省字段一律跳过、由缺省值生效）。</p>
@@ -1464,6 +1467,38 @@ public final class ScriptValidator {
             String key = field + "_" + axis;
             if (!kf.has(key) || !isNumber(kf.get(key))) {
                 issues.add(path + "." + key + " 缺失或不是数字（" + field + " = \"coordinate\" 时必须给出点源坐标）");
+            }
+        }
+    }
+
+    /**
+     * 校验字符串字段（选择器 / 结构名等形态字段）：取值须为字符串，缺省时跳过（回落缺省值）。
+     * 非字符串会在运行期被 {@code Keyframe.getString} 静默回落缺省——在此拦下，避免静默降级。
+     */
+    private static void checkStringField(JsonObject obj, String path, String key, List<String> issues, String usage) {
+        if (!obj.has(key)) return;
+        JsonElement e = obj.get(key);
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
+            issues.add(path + "." + key + " 不是字符串（" + usage + "）");
+        }
+    }
+
+    /**
+     * 校验 {@code look_at = coordinate} 的注视坐标：{@code look_at_target_x/y/z} 三个都要给、且为有限数字
+     * （非数字会被 {@code Keyframe.getFloat} 静默回落缺省 x=0 / y=64 / z=0）。
+     * 写了 {@code look_at_target_structure} 时结构中心优先、坐标不参与，不校验。
+     */
+    private static void checkLookAtTargetCoords(JsonObject kf, String path, String lookAt, List<String> issues) {
+        if (!"coordinate".equals(lookAt) || kf.has("look_at_target_structure")) return;
+        for (String axis : new String[]{"x", "y", "z"}) {
+            String key = "look_at_target_" + axis;
+            if (!kf.has(key)) {
+                issues.add(path + ".look_at_target_x/y/z 缺失（look_at=coordinate 时指定坐标，"
+                        + "或 look_at_target_structure 结构名）");
+                return;
+            }
+            if (!isNumber(kf.get(key)) || !Float.isFinite(kf.get(key).getAsFloat())) {
+                issues.add(path + "." + key + " 不是有限数字（look_at=coordinate 的注视坐标）");
             }
         }
     }

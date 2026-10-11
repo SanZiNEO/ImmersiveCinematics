@@ -195,6 +195,7 @@ public interface MathModelInstance {
 1.3 **VECTOR / COLOR = 逐分量独立状态**（同参数），与相机位置各轴独立响应的现状一致。
 1.4 **无状态 / 有状态分离（§2.3）**：`stateful()` 为定义级声明；无状态模型忽略 dt、`reset` 为 no-op；有状态模型的初值来源在实现内声明——v1 第一批 = 「首个输入即初值」；噪声 / 衰减族（后续批次）按定义参数给初值。
 1.5 **组合的域** = 子模型域的公共域；不匹配 → 校验期拒绝（定稿 5）。
+1.6 **接口实现现状（2026-10-11）**：`type()` / `domain()` 在 v1 无生产读取点（仅 `MathModelRegistry` 的委托包装逐层转发、无读取方）——保留为冻结规格 / 诊断用途，口径同 `inputArity()` 的「预留」（`math/MathModel.java`、`math/CurveModel.java` 的 `type` 字段）。
 
 ### 定稿 2｜实例粒度与归属（§5-2、§6-5）
 

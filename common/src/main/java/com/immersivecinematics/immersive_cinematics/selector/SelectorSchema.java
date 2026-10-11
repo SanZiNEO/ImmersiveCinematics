@@ -26,7 +26,7 @@ public final class SelectorSchema {
     public static final String ANCHOR_PLAYER = "player";
     /** 锚点取值：本调用点已解析锁的实体脚底，尚未解析到目标时回落 {@link #ANCHOR_CAMERA}。 */
     public static final String ANCHOR_TARGET = "target";
-    /** 锚点取值：{@code position.relative_origin} 点源坐标，不可解析回落 {@link #ANCHOR_CAMERA}。 */
+    /** 锚点取值：{@code facing_origin} 点源坐标，不可解析回落 {@link #ANCHOR_CAMERA}。 */
     public static final String ANCHOR_ORIGIN = "origin";
 
     /**

@@ -10,7 +10,7 @@ import net.minecraft.world.phys.Vec3;
  * fov（度）、zoom（倍率）{@code float}×5。
  * 数值契约：本类不做 clamp / normalize / 角度环绕——链上原样传递（钳制只存在于渲染边界）。
  * 分配契约：{@link #set(CameraState)} 与 {@link #compose(int, ComposeMode, CameraStateBuffer)} 零分配；
- * {@link #toSnapshot()} 是覆盖链的唯一分配点（每帧 1 份全局快照；位置 {@link Vec3} 在分量不变时复用
+ * {@link #toSnapshot()} 是覆盖链的唯一分配点（每帧可多次产出：帧末快照 + 直写入口穿透刷新；位置 {@link Vec3} 在分量不变时复用
  * provider 快照里的那一个，被 Modifier 改动时随快照新建一个）。
  * 线程契约：仅客户端主线程，跨帧复用（同一时刻只由链持有者使用）。
  */

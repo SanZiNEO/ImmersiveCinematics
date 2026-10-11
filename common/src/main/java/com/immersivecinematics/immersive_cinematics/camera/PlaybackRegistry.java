@@ -14,7 +14,8 @@ import java.util.List;
  * 因此预览激活时顶层 = 预览实例。同脚本同玩家保持单实例：{@link #instancePlaying(String)}。
  *
  * 帧缓存（{@link #hasActiveCameraClip()} / {@link #topInstanceHasActiveCameraClip()}）由帧驱动
- * 每帧同一时点写入一次，供帧内多个消费方读取；无活跃实例时由帧驱动清零。两份缓存的差别只在多实例：
+ * 每帧同一时点写入一次，供帧内多个消费方读取；帧缓存只在帧驱动写入——无活跃实例时帧驱动不跑、缓存不刷新，
+ * 消费方以 {@link #isActive()} / 快照非空为准。两份缓存的差别只在多实例：
  * 前者 = 全部实例并集，后者 = 顶层实例自身（听者门控口径）。
  *
  * 线程：仅客户端主线程（渲染线程）。{@link #instances()} 的只读视图随增删实时变化，
@@ -146,11 +147,5 @@ final class PlaybackRegistry {
     void setFrameCaches(boolean anyActiveCameraClip, boolean topInstanceActiveCameraClip) {
         cachedHasActiveCameraClip = anyActiveCameraClip;
         cachedTopInstanceHasActiveCameraClip = topInstanceActiveCameraClip;
-    }
-
-    /** 清零两份帧缓存（无活跃实例时）。 */
-    void clearFrameCaches() {
-        cachedHasActiveCameraClip = false;
-        cachedTopInstanceHasActiveCameraClip = false;
     }
 }

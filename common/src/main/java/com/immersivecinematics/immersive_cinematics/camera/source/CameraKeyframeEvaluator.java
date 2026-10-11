@@ -31,17 +31,14 @@ import java.util.Map;
  *
  * 单位与坐标空间：位置为世界空间方块坐标；yaw / pitch / roll 为度——yaw = 身体朝向、pitch = 视线，
  * MC 视线方向 = {@code (-sin yaw·cos pitch, -sin pitch, cos yaw·cos pitch)}；时间参数为秒。
- * 数值契约：连线水平分量 < {@link #LINE_HORIZONTAL_EPSILON}（零长度 / 纯垂直线）时水平角未定义 →
- * 拒绝该朝向输入（回退基准 0 = world，限频告警）；目标不可解析 → 该段按空处理（返回 null / 基准 0），不引入替代值。
+ * 数值契约：连线水平分量 < {@link #LINE_HORIZONTAL_EPSILON}（零长度 / 纯垂直线）时水平角未定义 → 拒绝该朝向输入（回退基准 0 = world，限频告警）；目标不可解析 → 该段按空处理（返回 null / 基准 0），不引入替代值。
  * 偏移表达空间 base 的参照系 = 本帧基准坐标系：位置通道建立（原点 = {@code facing_origin} 点源，前轴 =
- * {@code facing_target} 点源 / 位置点源实体朝向 / follow 实体 / 玩家；上轴固定为世界竖直，前轴 / 右轴取水平面内分量）；
- * 本帧未建立 = base 表达空间的偏移不生效。
+ * {@code facing_target} 点源 / 位置点源实体朝向 / follow 实体 / 玩家；上轴固定世界竖直，前轴 / 右轴取水平面内分量）；本帧未建立 = 偏移不生效。
  * 朝向叠加次序（{@code look_at = none} 时）：最终角 = 该轴基准（{@code yaw_lock} / {@code pitch_lock} 锁值，
  * 不写 = 方向源 {@code yaw_base} / {@code pitch_base}）+ 关键帧偏移（{@code yaw} / {@code pitch}）；
  * {@code look_at} != none 时静态侧（锁 + 基准 + 偏移）整体不参与，朝向由动态目标点插值决定。
- * 状态所有权：{@link #lastWorldPos} 与 {@link #frame} 是跨帧求值状态，仅本实例持有；
- * 重叠窗口的捕获求值经 {@link #snapshotFrameState()} / {@link #restoreFrameState()} 留底与回写，
- * 目标锁状态由 {@link EntityTargetResolver} 自行留底；每 lane 的运动模型实例见 {@link LaneMotionStepper}；
+ * 状态所有权：{@link #lastWorldPos} 与 {@link #frame} 是跨帧求值状态，仅本实例持有；重叠窗口的捕获求值经 {@link #snapshotFrameState()} / {@link #restoreFrameState()} 留底与回写，
+ * 目标锁状态由 {@link EntityTargetResolver} 留底；每 lane 的运动模型实例见 {@link LaneMotionStepper}。
  * 过渡状态（进度 / 曲线 / 打断留底）由 {@link CameraTransitionLayer} 持有（本轨一份）。
  * 分配 / 线程契约：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱。
  */
@@ -874,10 +871,6 @@ public final class CameraKeyframeEvaluator {
 
     private static float blendFloat(float a, float b, float weight) {
         return TransitionBlend.linear(a, b, weight);
-    }
-
-    private static float blendZoom(float a, float b, float weight) {
-        return TransitionBlend.zoom(a, b, weight);
     }
 
     private static float blendAngle(float a, float b, float weight) {

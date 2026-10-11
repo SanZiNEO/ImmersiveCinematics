@@ -17,9 +17,10 @@ import java.util.ArrayList;
  *
  * 顺序固定：直控层活跃窗口收口 → 时钟推进 → 逐实例驱动（按启动顺序，后驱动者后写入共享相机状态）
  * → 帧缓存写入 → 快照重建。某实例结束只退它自己，最后一个实例退出才全局复位。
- * 调用点：{@code GameRendererMixin}（{@code GameRenderer.render} 的 HEAD，世界渲染之前），每帧一次；
+ * 调用点：{@code GameRendererMixin}（{@code GameRenderer.render} 的 HEAD，世界渲染之前），有活跃实例的帧各一次；
  * 必须早于 {@code ScriptLaneDriver.tick}（后者读本方法填好的 lane 快照）。
- * 线程契约：仅客户端主线程；帧内遍历用副本防并发修改，帧内路径不新建集合以外对象。
+ * 线程契约：仅客户端主线程；帧内遍历用副本防并发修改；帧内路径不新建集合以外对象——例外：诊断日志的拼串 / 装箱
+ * （自然结束帧的 {@code NATURAL_END} 日志无条件拼串；{@code pauseSync} 调试日志仅在 debug 开启时装箱）。
  */
 final class FrameDriver {
 
@@ -55,12 +56,6 @@ final class FrameDriver {
         // 直控层活跃窗口收口：一次五参数直写只在其穿透刷新那一瞬被选中，帧末求值前已清零
         // （三层同源同值，本版本无可观察差异；压制语义待各层各持自有快照后才生效）
         directControlBase.clearFrame();
-
-        if (registry.isEmpty()) {
-            registry.clearFrameCaches();
-            refreshSnapshot.run();
-            return;
-        }
 
         // 暂停联动取并集：任一游戏实例声明 pause_when_game_paused 即按游戏暂停处理；
         // 预览实例不参与——预览的暂停/播放由编辑器驱动，与游戏暂停无关。

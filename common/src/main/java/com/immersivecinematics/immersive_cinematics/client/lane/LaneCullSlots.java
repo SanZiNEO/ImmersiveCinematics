@@ -18,7 +18,8 @@ import java.util.List;
  *
  * 线程：池 / 登记表 / 帧栈由渲染线程读写；{@link #mirrorCompiled} 可能来自区块编译完成回调（线程不定），
  * 只做 volatile 快照遍历 + 队列入队，漏投一次不致命（该区块在槽的下一次全量 BFS 里补上）。
- * 分配：换入 / 换出本身零分配（保存位预分配复用）；{@link #acquire} / {@link #release} 各重建一次
+ * 分配：换入 / 换出零分配为预热后口径（保存位复用）；首次用到某层时惰性新建保存位、栈扩容时重建数组；
+ * {@link #acquire} / {@link #release} 各重建一次
  * {@link #liveSnapshot}（只在 lane 起停时发生，不随帧数增长）。
  */
 public final class LaneCullSlots {
@@ -83,7 +84,7 @@ public final class LaneCullSlots {
      * 登记一层换入并返回该层的保存位（调用方随即把当前字段值写进去）。
      *
      * @param laneSlot 本层要换入的 lane 槽
-     * @return 本层的保存位（预分配复用）
+     * @return 本层的保存位（复用；首次用到该层时惰性新建）
      */
     public static LaneCullSlot beginPush(LaneCullSlot laneSlot) {
         if (depth == savedStack.length) {

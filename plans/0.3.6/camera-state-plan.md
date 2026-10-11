@@ -211,7 +211,7 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 ### 0. 硬约束（不变量，B1 全链适用）
 
 1. **旧脚本零回归**：脚本 JSON schema 与字段语义不变（`Clip` / `Keyframe` / `Timeline` 字段、`transition` / `orient` / `interpolation` 等枚举值不动）；`CameraTrackPlayer` 以「脚本导演 Provider」接入后，单实例播放的六参数逐帧值与接入前一致；validator 0 新增 issue；**§10 覆盖目标逐项回归**（脚本播放 / 插值 / roll·fov·zoom / cam breath / 编辑器预览·直控 / 飞行 / 音频听者 / 区块预加载 / 选择器锁定——验收口径见 `camera-core-split.md` §四）。
-2. **覆盖链本体每帧零分配**：Base 选择 + Modifier 合成全程在预分配的 `CameraStateBuffer` 上就地读写（§12），不新建对象、不装箱、不用 `Stream`、不每帧建 List。**唯一分配点** = 状态快照 record 的产出，沿用 §6 既有口径（每帧 1 份全局 + 每 lane 每 clip 1 份），覆盖链**不新增**分配。
+2. **覆盖链本体每帧零分配**：Base 选择 + Modifier 合成全程在预分配的 `CameraStateBuffer` 上就地读写（§12），不新建对象、不装箱、不用 `Stream`、不每帧建 List。**唯一分配点** = 状态快照 record 的产出，沿用 §6 既有口径（全局快照每帧可多次产出——帧末 + 直写入口；每 lane 每 clip 1 份），覆盖链**不新增**分配。
 3. **写侧仍收口**：所有写入经 `CameraManager` 门面（§7「写侧收口」），覆盖链不新增直写内部对象的路径；`getPath()` / `getProperties()` 的可见性收紧归 B4（`camera-core-split.md` §2.4）。
 
 ### 1. 链形态与优先级域（§8-1）

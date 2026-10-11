@@ -9,10 +9,10 @@ package com.immersivecinematics.immersive_cinematics.math;
  */
 public interface MathModel {
 
-    /** 注册名（snake_case，与 JSON 的 {@code type} 一致）。 */
+    /** 注册名（snake_case，与 JSON 的 {@code type} 一致）；v1 无生产读取点（冻结规格 / 诊断用途）。 */
     String type();
 
-    /** 值域语义（决定通道数、ANGLE 环绕规则与组合的域匹配）。 */
+    /** 值域语义（决定通道数、ANGLE 环绕规则与组合的域匹配）；v1 无生产读取点（冻结规格 / 诊断用途）。 */
     ValueDomain domain();
 
     /** 输入通道数；v1 = {@code domain().channels()}，0 = 无输入源（预留）。 */

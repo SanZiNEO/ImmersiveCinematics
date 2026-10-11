@@ -75,11 +75,6 @@ public final class TransitionSpec {
         return durations[channel];
     }
 
-    /** 该通道权重曲线；{@code null} = 恒等（线性斜坡）。 */
-    public MathModel curve(int channel) {
-        return curves[channel];
-    }
-
     /** 打断规则。 */
     public TransitionInterrupt interrupt() {
         return interrupt;
@@ -101,8 +96,9 @@ public final class TransitionSpec {
     }
 
     /**
-     * 本帧时刻是否落在过渡窗口内（窗口口径的唯一判据：三个消费方——轨道驱动 / 活跃判定 /
-     * Modifier 活跃窗延长——都用它，避免各算一份）。
+     * 本帧时刻是否落在过渡窗口内（窗口口径的唯一判据：两个消费方——活跃判定
+     * （{@code CameraKeyframeEvaluator.isActiveAt}）/ 轨道驱动（{@code CameraTrackPlayer}）——都用它，
+     * 避免各算一份；Modifier 活跃窗延长用 {@link #windowEnd}）。
      *
      * @param now      当前时刻（秒）
      * @param boundary 交界时刻（秒）

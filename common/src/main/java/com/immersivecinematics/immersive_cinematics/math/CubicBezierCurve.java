@@ -4,7 +4,7 @@ package com.immersivecinematics.immersive_cinematics.math;
  * CSS cubic-bezier 曲线 — 控制点 P0=(0,0)、P1=(x1,y1)、P2=(x2,y2)、P3=(1,1)。
  *
  * 输入 x = 归一化进度 [0,1]（越界钳制），输出 y（可越界 = 允许过冲；y1 / y2 的范围见 {@link #clampY}）。
- * 求值 = 先解 x(t) = x 的 t（牛顿迭代 8 次，斜率过小时改用二分兜底，容差 1e-7），再取 y(t)。
+ * 求值 = 先解 x(t) = x 的 t（牛顿迭代 8 次，未收敛时二分兜底；容差 = x 残差 1e-7），再取 y(t)。
  * 参数不可变、无状态：同输入 → 同输出（不依赖迭代历史）。缺省控制点 = 恒等曲线。
  */
 public final class CubicBezierCurve implements CurveFn {
@@ -23,7 +23,6 @@ public final class CubicBezierCurve implements CurveFn {
     public static final double MAX_Y = 4.0;
 
     private static final int NEWTON_ITERATIONS = 8;
-    private static final double NEWTON_MIN_SLOPE = 1.0e-3;
     private static final double SOLVE_TOLERANCE = 1.0e-7;
     private static final int BISECTION_MAX_ITERATIONS = 32;
 
@@ -69,7 +68,7 @@ public final class CubicBezierCurve implements CurveFn {
         return sampleY(solveT(Curves.clamp01(x)));
     }
 
-    /** 解 x(t) = x：牛顿迭代（起点 t = x）；斜率过小或未收敛时二分兜底（x(t) 在 [0,1] 单调）。 */
+    /** 解 x(t) = x：起点 t = x；8 次未收敛时二分兜底（x(t) 在 [0,1] 单调、根唯一）。 */
     private double solveT(double x) {
         double t = x;
         for (int i = 0; i < NEWTON_ITERATIONS; i++) {

@@ -69,7 +69,7 @@ public final class CameraCoverChain {
     }
 
     /**
-     * 求出本帧链输出并读进 {@code out}（Base 选择 → Modifier 合成）。
+     * 求出本帧链输出并读进 {@code out}（Base 选择 → Modifier 合成）——内部组合入口（探针 / 测试直调），不进 api 面。
      *
      * @param out 输出工作区；无活跃 Base 时不改动
      * @return {@code false} = 无活跃 Base（{@code out} 未改动）
