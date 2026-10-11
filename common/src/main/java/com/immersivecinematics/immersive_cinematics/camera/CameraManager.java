@@ -25,8 +25,9 @@ import java.util.List;
  * 是六参数的唯一写入缓冲与统一快照来源。
  *
  * 帧驱动 {@link #onRenderFrame()} 的顺序固定：时钟推进 → 逐实例驱动 → 帧末重建快照；
- * 快照值 = 覆盖链输出（{@link CameraCoverChain} 按优先级选出胜出 Base 层，本版本内置
- * 脚本导演 / 编辑器直控 / 飞行三层，档位见 {@code BaseCameraProvider} 的 PRIORITY 常量）。
+ * 快照值 = 覆盖链输出（{@link CameraCoverChain} 先按优先级选出胜出 Base 层、再按注册表合成 Modifier；
+ * 本版本内置脚本导演 / 编辑器直控 / 飞行三层 Base，档位见 {@code BaseCameraProvider} 的 PRIORITY 常量，
+ * 无内置 Modifier）。
  * 公开方法签名与语义在拆分前后逐点一致，调用方零改动。
  *
  * 线程：仅客户端主线程（渲染线程）。
@@ -55,7 +56,7 @@ public class CameraManager {
     /** 编辑器预览通道。 */
     private final PreviewChannel previewChannel = new PreviewChannel(previewClock);
 
-    /** 覆盖链：Base 层注册表 + 每帧选择（链持有唯一工作区）。 */
+    /** 覆盖链：Base 层与 Modifier 注册表 + 每帧选择与合成（链持有工作区）。 */
     private final CameraCoverChain coverChain = new CameraCoverChain();
 
     /** 编辑器直控层：写入口需要上报活跃窗口，故单独持有引用。 */
@@ -352,8 +353,8 @@ public class CameraManager {
     public CameraState getCameraState() { return stateHolder.snapshot(); }
 
     /**
-     * 重建统一快照：值 = 覆盖链输出（胜出 Base 层状态）；无活跃实例 / 无活跃 Base 时置 {@code null}
-     * （读侧据此回落玩家相机）。
+     * 重建统一快照：值 = 覆盖链输出（胜出 Base 层状态 + Modifier 合成）；无活跃实例 / 无活跃 Base 时置
+     * {@code null}（读侧据此回落玩家相机）。
      */
     private void refreshCameraState() {
         stateHolder.setSnapshot(registry.isActive() ? coverChain.snapshot() : null);

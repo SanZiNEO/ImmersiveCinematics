@@ -6,31 +6,56 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 覆盖链本体（Base Chain）：Base 层注册表 + 每帧选择。
+ * 覆盖链本体：Base 选择 + Modifier 合成（每帧 {@link #snapshot()} 或 {@link #evaluate(CameraStateBuffer)}）。
  *
- * 选择规则：按优先级从高到低取第一个活跃层；同优先级 = 后注册者胜（后来者居上）。
- * 无活跃层 = 无 Base（{@link #snapshot()} 返回 {@code null}，调用方按回退玩家相机处理）。
- * 切换语义：层间切换为 Cut——不混合、不过渡、不迟滞。
- * 分配契约：注册表只在注册 / 注销时改动（不在帧内）；{@link #snapshot()} 每帧零新增分配，
- * 唯一分配点 = 快照 record 的产出（工作区 {@link CameraStateBuffer} 跨帧复用）。
+ * 组合次序固定：Base Chain → Modifier Chain → 最终状态。
+ * Base 选择：按优先级从高到低取第一个活跃层；同优先级 = 后注册者胜（后来者居上）；无活跃层 = {@code null}。
+ * Modifier 应用：按优先级升序逐条合成（同值 = 先注册者先应用）；胜出 Base 层
+ * {@link BaseCameraProvider#suppressesModifiers()} 为 true 时整条跳过。
+ * 切换语义：层间切换为 Cut——不混合、不过渡、不迟滞；链上不做 clamp / normalize。
+ * 分配契约：注册表只在注册 / 注销时改动（不在帧内）；每帧零新增分配，唯一分配点 = 快照 record 的产出
+ * （工作区 {@link CameraStateBuffer} 跨帧复用）。
  * 线程契约：仅客户端主线程；注册 / 注销与每帧求值同线程。
  */
 public final class CameraCoverChain {
 
-    /** 注册顺序 = 同优先级次序（后注册者胜）。 */
+    /** Base 注册表：注册顺序 = 同优先级次序（后注册者胜）。 */
     private final List<BaseCameraProvider> providers = new ArrayList<>(4);
 
-    /** 链的唯一工作区（跨帧复用）。 */
+    /** Modifier 注册表：优先级升序（同值 = 注册先后），注册时插入排序。 */
+    private final List<CameraModifier> modifiers = new ArrayList<>(8);
+
+    /** Base 状态 → 最终状态的工作区（跨帧复用）。 */
     private final CameraStateBuffer workspace = new CameraStateBuffer();
 
-    /** 注册一层；同一实例重复注册 = 多份（注销按对象逐个移除）。 */
+    /** Modifier 值工作区：每条 Modifier 写这里、随即被合成进工作区（跨条、跨帧复用）。 */
+    private final CameraStateBuffer modifierValues = new CameraStateBuffer();
+
+    /** 注册一层 Base；同一实例重复注册 = 多份（注销按对象逐个移除）。 */
     public void register(BaseCameraProvider provider) {
         providers.add(provider);
     }
 
-    /** 注销一层；未注册过时为无操作。 */
+    /** 注销一层 Base；未注册过时为无操作。 */
     public void unregister(BaseCameraProvider provider) {
         providers.remove(provider);
+    }
+
+    /** 注册一条 Modifier：按优先级升序插入（同值排在先注册者之后）；同一实例重复注册 = 多份。 */
+    public void register(CameraModifier modifier) {
+        int index = modifiers.size();
+        for (int i = 0; i < modifiers.size(); i++) {
+            if (modifiers.get(i).modifierPriority() > modifier.modifierPriority()) {
+                index = i;
+                break;
+            }
+        }
+        modifiers.add(index, modifier);
+    }
+
+    /** 注销一条 Modifier；未注册过时为无操作。 */
+    public void unregister(CameraModifier modifier) {
+        modifiers.remove(modifier);
     }
 
     /** 本帧链输出快照；无活跃 Base 时返回 {@code null}。 */
@@ -39,15 +64,26 @@ public final class CameraCoverChain {
     }
 
     /**
-     * 选出本帧胜出的 Base 层并把其状态读进工作区。
+     * 求出本帧链输出并读进 {@code out}（Base 选择 → Modifier 合成）。
      *
-     * @return {@code false} = 无活跃 Base（工作区未改动）
+     * @param out 输出工作区；无活跃 Base 时不改动
+     * @return {@code false} = 无活跃 Base（{@code out} 未改动）
      */
-    private boolean evaluate(CameraStateBuffer out) {
+    public boolean evaluate(CameraStateBuffer out) {
         BaseCameraProvider winner = selectWinner();
         if (winner == null) return false;
         out.set(winner.provideBaseState());
+        if (!winner.suppressesModifiers()) composeModifiers(out);
         return true;
+    }
+
+    /** 按注册表次序（优先级升序）逐条合成：每条先把值写进值工作区、再按掩码与模式就地并入（零分配）。 */
+    private void composeModifiers(CameraStateBuffer out) {
+        for (int i = 0; i < modifiers.size(); i++) {
+            CameraModifier modifier = modifiers.get(i);
+            modifier.writeValue(modifierValues);
+            out.compose(modifier.channelMask(), modifier.composeMode(), modifierValues);
+        }
     }
 
     /** 逆序扫描（后注册者先问）、严格大于才替换 → 高优先级胜、同优先级后注册者胜。 */
