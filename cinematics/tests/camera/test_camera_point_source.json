@@ -131,7 +131,7 @@
               },
               {
                 "time": 6.01,
-                "position": { "fwd": -6, "up": 2, "right": 0, "up_axis": "world" },
+                "position": { "fwd": -6, "up": 2, "right": 0 },
                 "facing_origin": "player",
                 "facing_target": "block:minecraft:obsidian:32",
                 "yaw_base": "world",
@@ -144,7 +144,7 @@
               },
               {
                 "time": 8,
-                "position": { "fwd": -6, "up": 2, "right": 0, "up_axis": "world" },
+                "position": { "fwd": -6, "up": 2, "right": 0 },
                 "facing_origin": "player",
                 "facing_target": "block:minecraft:obsidian:32",
                 "yaw_base": "world",

@@ -478,7 +478,10 @@ public final class ScriptValidator {
                             checkEnum(kf, kp, "position_mode", issues, "relative", "absolute");
                             checkEnum(kf, kp, "follow", issues, "none", "entity");
                             checkEnum(kf, kp, "look_at", issues, "none", "player", "coordinate", "entity", "block");
+                            checkAxisLock(kf, kp, "yaw_lock", issues);
+                            checkAxisLock(kf, kp, "pitch_lock", issues);
                             checkRemovedRelativeOrigin(kf, kp, issues);
+                            checkRemovedUpAxis(kf, kp, issues);
                             checkRemovedLookAtTarget(kf, kp, issues);
                             String follow = kf.has("follow") ? kf.get("follow").getAsString() : "none";
                             String lookAt = kf.has("look_at") ? kf.get("look_at").getAsString() : "none";
@@ -1004,6 +1007,31 @@ public final class ScriptValidator {
                 issues.add(path + ".position." + field + " 已移除（0.3.6 起）：位置基准统一用关键帧字段 facing_origin"
                         + "（写法见 docs/SCRIPT_FORMAT.md §「点源」）");
             }
+        }
+    }
+
+    /**
+     * 拒绝已移除的垂直面基准字段 {@code position.up_axis}：0.3.6 起基准坐标系的上轴固定为世界竖直
+     * （前轴 / 右轴取水平面内分量），方向侧每轴跟来源 / 锁值改用 {@code yaw_lock} / {@code pitch_lock}。
+     */
+    private static void checkRemovedUpAxis(JsonObject kf, String path, List<String> issues) {
+        JsonElement pos = kf.get("position");
+        if (pos == null || !pos.isJsonObject()) return;
+        if (pos.getAsJsonObject().has("up_axis")) {
+            issues.add(path + ".position.up_axis 已移除（0.3.6 起）：基准坐标系的上轴固定为世界竖直"
+                    + "（前轴 / 右轴取水平面内分量）；方向侧每轴跟来源 / 锁值改用 yaw_lock / pitch_lock");
+        }
+    }
+
+    /**
+     * 校验方向锁字段（{@code yaw_lock} / {@code pitch_lock}）：取值须为有限数字（该轴世界角锁值，单位度）；
+     * 字段缺省 = 不锁（跟方向源），不报错。
+     */
+    private static void checkAxisLock(JsonObject kf, String path, String key, List<String> issues) {
+        if (!kf.has(key)) return;
+        JsonElement e = kf.get(key);
+        if (!isNumber(e) || !Float.isFinite(e.getAsFloat())) {
+            issues.add(path + "." + key + " 不是有限数字（方向锁 = 该轴世界角锁值，单位度；不写 = 跟方向源）");
         }
     }
 

@@ -154,6 +154,11 @@ public final class TrackSchemas {
         kfs.put("yaw_base_to_offset", new FieldDef("map", null));
         kfs.put("yaw", new FieldDef("float", 0));
         kfs.put("pitch", new FieldDef("float", 0));
+        // 方向锁（每轴一把，缺省 null = 不锁，跟 yaw_base / pitch_base 的方向源）：
+        // 锁值 = 该轴世界角绝对值（度），替换该轴基准；关键帧 yaw / pitch 偏移仍叠加；
+        // look_at != none 时静态侧整体不参与（锁与偏移都不生效）
+        kfs.put("yaw_lock", new FieldDef("float", null));
+        kfs.put("pitch_lock", new FieldDef("float", null));
         kfs.put("roll", new FieldDef("float", 0));
         kfs.put("fov", new FieldDef("float", 70));
         kfs.put("zoom", new FieldDef("float", 1.0f));

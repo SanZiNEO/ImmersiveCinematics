@@ -55,8 +55,7 @@
                 "position": {
                   "fwd": 0.0,
                   "up": 0.0,
-                  "right": 0.0,
-                  "up_axis": "world"
+                  "right": 0.0
                 },
                 "facing_origin": "coordinate",
                 "facing_origin_x": 0.0,

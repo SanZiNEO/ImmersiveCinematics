@@ -39,6 +39,7 @@
   - ✅ 支持 `look_at=entity` 注视实体包围盒内取点（部位 `look_at_part` 每轴百分比，缺省中心），`look_at_selector` 选择器解析目标（`CameraKeyframeEvaluator`）
   - ✅ 支持 `look_at=block` 注视就近方块中心（`look_at_target_block`，点源方块形态 `block:id[:radius]`）（`CameraKeyframeEvaluator`）
   - ✅ 点源 = 来源 + 偏移（`PointSource`：五形态 + 实体百分比取点 + 偏移两表达空间）；位置点源 `facing_origin` 与 `yaw_base_from/to` / `facing_target` / `look_at` 共用同一份解析（`CameraKeyframeEvaluator`、`EntityTargetResolver`）
+  - ✅ 方向锁 `yaw_lock` / `pitch_lock`（每轴一把，锁值 = 世界角绝对值；锁替换该轴基准、关键帧 `yaw`/`pitch` 偏移仍叠加；`look_at != none` 时静态侧整体被覆盖）；`position.up_axis` 移除，基准坐标系上轴固定为世界竖直（`CameraKeyframeEvaluator`、`PositionData`）
   - ✅ 目标点/实体/开关之间按两端世界坐标插值平滑过渡（`CameraTrackPlayer`）
 - **镜头呼吸扰动（cam_breath_*）**
   - ✅ v2：`cam_breath_type` 多类型（`perlin` 默认 / `perlin_axis` / `sine` / `trauma`）+ `cam_breath_speed`，旧 `enabled/intensity/seed` 兼容（缺省 type 按 perlin 处理）；`trauma` 专属 `cam_breath_trauma/decay`；确定性（同 seed + 同时间 → 同抖动），叠加在最终 yaw/pitch/roll 上（`BreathDisturbance`、`CameraTrackPlayer`）

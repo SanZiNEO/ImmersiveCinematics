@@ -26,6 +26,11 @@ public class ScriptParser {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/ScriptParser");
 
+    /** {@code position.up_axis} 的移除口径（0.3.6 起基准坐标系上轴固定世界竖直，方向侧改用锁字段）。 */
+    private static final String REMOVED_UP_AXIS = "已移除（0.3.6 起）：基准坐标系的上轴固定为世界竖直"
+            + "（前轴 / 右轴取水平面内分量）；方向侧每轴跟来源或锁值改用 yaw_lock / pitch_lock"
+            + "（写法见 docs/SCRIPT_FORMAT.md §「方向锁」）";
+
     /**
      * 解析异常 — 包含字段路径信息
      */
@@ -533,7 +538,7 @@ public class ScriptParser {
 
     /**
      * 位置通道解析：绝对模式读世界坐标 {@code x/y/z}；相对模式读偏移 + 位置点源 + 基准坐标系前轴目标。
-     * 偏移两表达空间二选一：世界轴 {@code dx/dy/dz}；基准坐标系 {@code fwd/up/right}（配 {@code up_axis}）。
+     * 偏移两表达空间二选一：世界轴 {@code dx/dy/dz}；基准坐标系 {@code fwd/up/right}。
      */
     private static PositionData parsePositionData(JsonObject obj, String p, boolean positionModeRelative,
                                                  JsonObject kfObj) throws ScriptParseException {
@@ -545,26 +550,24 @@ public class ScriptParser {
                     requireFloat(obj, p, "z"));
         }
         rejectRemovedOrigin(obj, p);
+        if (obj.has("up_axis")) {
+            throw new ScriptParseException(p + ".up_axis", REMOVED_UP_AXIS);
+        }
         boolean baseSpace = obj.has("fwd") || obj.has("up") || obj.has("right");
         if (baseSpace && (obj.has("dx") || obj.has("dy") || obj.has("dz"))) {
             throw new ScriptParseException(p,
                     "fwd/up/right（基准坐标系偏移）不能与 dx/dy/dz（世界轴偏移）混用");
         }
         if (baseSpace) {
-            String upAxis = optString(obj, "up_axis", "view");
-            if (!"view".equals(upAxis) && !"world".equals(upAxis)) {
-                throw new ScriptParseException(p + ".up_axis",
-                        "仅支持 view（上轴随俯仰）/ world（上轴保持竖直），实际: " + upAxis);
-            }
             return parsePositionOrigin(kfObj, p, true, optFloat(obj, "fwd", 0f), optFloat(obj, "up", 0f),
-                    optFloat(obj, "right", 0f), upAxis);
+                    optFloat(obj, "right", 0f));
         }
         if (!obj.has("dx")) {
             throw new ScriptParseException(p,
                     "relative 模式需要 dx/dy/dz（世界轴偏移）或 fwd/up/right（基准坐标系偏移）字段");
         }
         return parsePositionOrigin(kfObj, p, false, requireFloat(obj, p, "dx"), requireFloat(obj, p, "dy"),
-                requireFloat(obj, p, "dz"), null);
+                requireFloat(obj, p, "dz"));
     }
 
     /**
@@ -591,11 +594,11 @@ public class ScriptParser {
      * 位置点源 + 偏移装配。位置点源 = 关键帧字段 {@code facing_origin}（五形态：{@code "player"} 玩家激活位置 /
      * {@code "coordinate"} + {@code facing_origin_x/y/z} / {@code block:id[:radius]} / 实体选择器 / 结构 id）；
      * 不写 = 玩家激活位置（世界轴偏移）/ 玩家实体 {@code "@p"}（基准坐标系偏移，实时跟随）。
-     * 偏移按 {@code baseSpace} 装配：true = 基准坐标系（fwd/up/right + up_axis），false = 世界轴（dx/dy/dz）。
+     * 偏移按 {@code baseSpace} 装配：true = 基准坐标系（fwd/up/right），false = 世界轴（dx/dy/dz）。
      * 前轴目标 = 关键帧字段 {@code facing_target}（点源形态字符串，空 = 位置点源自身朝向）。
      */
     private static PositionData parsePositionOrigin(JsonObject kfObj, String p, boolean baseSpace,
-                                                    float a, float b, float c, String upAxis)
+                                                    float a, float b, float c)
             throws ScriptParseException {
         JsonElement originEl = kfObj.get("facing_origin");
         if (originEl != null && (!originEl.isJsonPrimitive() || !originEl.getAsJsonPrimitive().isString())) {
@@ -608,26 +611,26 @@ public class ScriptParser {
                 float ox = requireFloat(kfObj, p, "facing_origin_x");
                 float oy = requireFloat(kfObj, p, "facing_origin_y");
                 float oz = requireFloat(kfObj, p, "facing_origin_z");
-                yield baseSpace ? PositionData.facingToCoordinate(a, b, c, upAxis, ox, oy, oz)
+                yield baseSpace ? PositionData.facingToCoordinate(a, b, c, ox, oy, oz)
                         : PositionData.relativeToCoordinate(a, b, c, ox, oy, oz);
             }
             case PositionData.ORIGIN_BLOCK -> {
                 String[] parsed = PositionData.parseBlockOriginString(origin);
                 int radius = Integer.parseInt(parsed[1]);
-                yield baseSpace ? PositionData.facingToBlock(a, b, c, upAxis, parsed[0], radius)
+                yield baseSpace ? PositionData.facingToBlock(a, b, c, parsed[0], radius)
                         : PositionData.relativeToBlock(a, b, c, parsed[0], radius);
             }
             case PositionData.ORIGIN_STRUCTURE -> baseSpace
-                    ? PositionData.facingToStructure(a, b, c, upAxis, origin)
+                    ? PositionData.facingToStructure(a, b, c, origin)
                     : PositionData.relativeToStructure(a, b, c, origin);
             case PositionData.ORIGIN_SELECTOR -> baseSpace
-                    ? PositionData.facingToEntity(origin, a, b, c, upAxis)
+                    ? PositionData.facingToEntity(origin, a, b, c)
                     : PositionData.relativeToEntity(a, b, c, origin);
             case PositionData.ORIGIN_PLAYER -> baseSpace
-                    ? PositionData.facingToPlayer(a, b, c, upAxis)
+                    ? PositionData.facingToPlayer(a, b, c)
                     : PositionData.relative(a, b, c);
             default -> baseSpace
-                    ? PositionData.facingToEntity("@p", a, b, c, upAxis)
+                    ? PositionData.facingToEntity("@p", a, b, c)
                     : PositionData.relative(a, b, c);
         };
         return pd.withFacingTarget(facingTarget);

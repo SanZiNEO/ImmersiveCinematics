@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "id": "test_camera_axis_lock",
+    "name": "相机测试-方向锁",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "第三人称：pitch 锁 15°、yaw 跟来源（实体身体朝向）；后段 look_at 开 = 动态覆盖静态侧（锁与偏移都不参与）",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_trigger_login"] } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "layer_type": "subtitle",
+            "text": "测试: test_camera_axis_lock | 0-6s pitch 锁 15 + yaw 跟身体朝向 | 6-12s look_at 开（锁被覆盖）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": { "fwd": -4, "up": 1.5, "right": 0 },
+                "yaw_base": "entity",
+                "yaw_base_selector": "@p",
+                "yaw": 0,
+                "pitch_lock": 15,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 6,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": { "fwd": -4, "up": 1.5, "right": 0 },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "yaw_lock": 100,
+                "yaw": 5,
+                "pitch_lock": -30,
+                "pitch": -3,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

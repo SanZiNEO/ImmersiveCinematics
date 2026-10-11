@@ -300,8 +300,10 @@ immersive_cinematics/
 | `yaw_base_from` / `yaw_base_to` | string | 否 | `""` | `yaw_base/pitch_base=line` 时的两个端点，**各是一个点源**（写法见下方"点源"；实体选择器是其中一种形态）。连线退化（两端水平位置重合 = 纯垂直线，或两点重合 = 零长度线）时水平角未定义 → 该朝向输入被拒（回退 `"world"` 基准，运行时限频告警）；纯水平连线（只有水平分量）合法，基准俯仰 = 0。任一端无点源或不可解析 = 该端无目标，片段按空处理 |
 | `yaw_base_from_x/y/z` / `yaw_base_to_x/y/z` | float | 否 | `0` | 端点取 `"coordinate"` 形态时的世界坐标（三个都要写；缺省 `0` 会把点源钉在世界原点，校验器直接拦下） |
 | `yaw_base_from_offset` / `yaw_base_to_offset` | object | 否 | `null` | 连线端点的偏移（点源通用偏移，见下方"偏移"） |
-| `yaw` | float | 是 | — | 偏航角（度）。0=南，90=西，±180=北。`look_at != none` 时被覆盖；使用 `yaw_base` 时表示相对基准的偏移 |
-| `pitch` | float | 是 | — | 俯仰角（度）。正=向下看。`look_at != none` 时被覆盖 |
+| `yaw` | float | 是 | — | 偏航角（度）。0=南，90=西，±180=北。`look_at != none` 时被覆盖；使用 `yaw_base` 时表示相对基准的偏移，写了 `yaw_lock` 时表示相对锁值的偏移 |
+| `pitch` | float | 是 | — | 俯仰角（度）。正=向下看。`look_at != none` 时被覆盖；写了 `pitch_lock` 时表示相对锁值的偏移 |
+| `yaw_lock` | float | 否 | `null` | 偏航轴锁值（度，世界角绝对值）：写了 = 该轴基准固定为该值（不再查 `yaw_base` 的方向源），关键帧 `yaw` 偏移仍叠加；不写 = 跟 `yaw_base` 的来源。`look_at != none` 时静态侧整体不参与（锁不生效）。两轴独立：可一轴锁、另一轴跟来源 |
+| `pitch_lock` | float | 否 | `null` | 俯仰轴锁值（度，世界角绝对值）：同上，锁 `pitch_base` 的基准。典型第三人称 = `"pitch_lock": 15` + `"yaw_base": "entity"`（pitch 锁死、yaw 跟身体朝向） |
 | `roll` | float | 是 | — | 翻滚角（度）。正=屏幕顺时针（画面向右倒），任何朝向一致 |
 | `fov` | float | 是 | — | 视场角（度），标准 70 |
 | `zoom` | float | 否 | `1.0` | 缩放倍率，`>1`=放大 |
@@ -368,7 +370,7 @@ immersive_cinematics/
 - `look_at=block` 的注视目标 `look_at_target_block` 用同一套**方块形态**（`block:<方块 id>[:<半径>]`），取点 = 方块中心。
 - 字段落点：点源字段（`facing_origin` / `facing_target` / `yaw_base_from` / `yaw_base_to`）与坐标形态的配套坐标
   （`<字段>_x/_y/_z`）都写在**关键帧**上；`position` 对象只承载**位置通道的偏移**（世界轴 `dx/dy/dz`、绝对
-  `x/y/z`、基准坐标系 `fwd`/`up`/`right`/`up_axis`）。
+  `x/y/z`、基准坐标系 `fwd`/`up`/`right`）。
 
 ### 偏移（点源通用属性）
 
@@ -383,9 +385,9 @@ immersive_cinematics/
 - 两类分量**不能混写**（校验器拦下）；缺省分量 `0`；单位 = 方块（与坐标同单位）。
 - **叠加顺序**：先取点后加偏移——实体来源 = 部位百分比（`look_at_part`）取点后再加偏移。
 - **基准坐标系**：原点 = `facing_origin` 点源（缺省玩家激活位置），前轴 = `facing_target` 点源 → 位置点源的
-  连线方向（缺省 = 位置点源实体自身朝向 / follow 实体 / 玩家），垂直面由 `position.up_axis` 决定；
-  由位置通道建立。**本关键帧没有基准坐标系**（未写 `facing_origin` / `facing_target`，位置也不用
-  `fwd`/`up`/`right`）= `base` 表达空间的偏移不生效（校验器提示）。
+  连线方向（缺省 = 位置点源实体自身朝向 / follow 实体 / 玩家），垂直面固定为世界竖直（上轴 = 世界竖直，
+  前轴 / 右轴取水平面内分量，前轴俯仰不参与）；由位置通道建立。**本关键帧没有基准坐标系**（未写
+  `facing_origin` / `facing_target`，位置也不用 `fwd`/`up`/`right`）= `base` 表达空间的偏移不生效（校验器提示）。
 
 ```json
 {
@@ -413,6 +415,39 @@ immersive_cinematics/
   注视点偏移的表达空间不影响位置。
 - `look_at != none` 时注视点接管 yaw 与 pitch（**互斥、不叠**）：此时 `yaw_base` / `pitch_base` 不参与。
 
+### 方向锁（`yaw_lock` / `pitch_lock`）
+
+每个轴各自一把锁：**不写** = 跟方向源（`yaw_base` / `pitch_base`）；**写了** = 用作者给的固定值。
+锁值 = 该轴**世界角绝对值**（度），不做「相对来源」形态；要相对就先取源再锁。
+两轴独立，可以一轴锁值、另一轴跟来源（典型第三人称 = `"pitch_lock": 15` + `"yaw_base": "entity"`）。
+
+```json
+{ "yaw_base": "entity", "yaw_base_selector": "@p", "pitch_lock": 15, "yaw": 0, "pitch": 0 }
+```
+
+上例：pitch 锁在 15°（俯视），yaw 跟玩家身体朝向；`yaw` / `pitch` 仍是叠加在基准上的偏移。
+
+**叠加次序**（同一关键帧内，yaw 与 pitch 各按本表；自上而下第一条命中的生效）：
+
+| 优先级 | 关键帧写法 | 该轴最终世界角 |
+|---|---|---|
+| 1 | `look_at != none`（开） | 由动态目标点插值决定；**锁、基准、偏移都不参与**（静态侧整体被覆盖） |
+| 2 | clip 级 `orient: "tangent"`（切线朝向，且无 `look_at`） | 由路径切线决定；**锁、基准、偏移都不参与**（与 `look_at` 同属动态侧） |
+| 3 | `look_at = none`（关）+ 写 `yaw_lock` / `pitch_lock` | **锁值** + 关键帧 `yaw` / `pitch` 偏移 |
+| 4 | `look_at = none`（关）+ 不写锁 | **方向源**（`yaw_base` / `pitch_base`）+ 关键帧偏移 |
+
+- 锁替换的是该轴**基准**（方向源给的值），不是关键帧偏移：`yaw_lock: 100` + `yaw: 5` = 105。
+- 某轴被锁 = 该轴的基准来源不参与求值：`yaw_base: "line"` 的端点缺失也不再使片段按空处理（锁不查来源）。
+- 同一关键帧可以两种写法并存（既写锁又写 `look_at`），同一时刻只有一侧生效（`look_at` 侧优先）。
+
+### `up_axis` 移除（0.3.6，不兼容）
+
+`position.up_axis` 字段整体移除（schema / 解析 / 校验 / 文档），出现即报错：
+
+- 语义去向：`"view"` ≈ 两轴都不锁（`yaw_base` / `pitch_base` 跟来源）；`"world"` ≈ `pitch_lock: 0`。
+- 基准坐标系的上轴**固定为世界竖直**（前轴 / 右轴取水平面内分量，前轴俯仰不参与）。
+- 报错文本：`position.up_axis 已移除（0.3.6 起）：基准坐标系的上轴固定为世界竖直（前轴 / 右轴取水平面内分量）；方向侧每轴跟来源 / 锁值改用 yaw_lock / pitch_lock`。
+
 ### Position（相对模式 `relative`）
 
 ```json
@@ -428,15 +463,14 @@ immersive_cinematics/
 | `dy` | float | 相对位置点源的世界 Y 偏移（**follow=entity 时 = 相对实体脚底的 Y 偏移**） |
 | `dz` | float | 相对位置点源的世界 Z 偏移（**follow=entity 时 = 相对实体脚底的 Z 偏移**） |
 
-`position` 对象里也可承载**基准坐标系偏移**（`fwd`/`up`/`right` + `up_axis`，与 `dx/dy/dz` 互斥；
-原点 = `facing_origin`，前轴 = `facing_target`，见上方 §「偏移」）：
+`position` 对象里也可承载**基准坐标系偏移**（`fwd`/`up`/`right`，与 `dx/dy/dz` 互斥；
+原点 = `facing_origin`，前轴 = `facing_target`，上轴 = 世界竖直，见上方 §「偏移」）：
 
 | 字段 | 类型 | 默认 | 说明 |
 |------|------|------|------|
 | `fwd` | float | `0` | 沿前轴 前后（正=前 负=后） |
-| `up` | float | `0` | 沿上轴 上下（正=上 负=下） |
+| `up` | float | `0` | 沿上轴 上下（正=上 负=下）；上轴固定为世界竖直 |
 | `right` | float | `0` | 沿右轴 左右（正=右 负=左） |
-| `up_axis` | string | `"view"` | 垂直面基准：`"view"`=上轴随前轴的俯仰（全三维）；`"world"`=上轴保持世界竖直 |
 
 ### Position（绝对模式 `absolute`）
 

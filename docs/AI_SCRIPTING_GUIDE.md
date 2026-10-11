@@ -189,6 +189,7 @@
 | `look_at_target_block` | 注视方块中心（`block` 模式）：`"block:<方块 id>[:<半径>]"`（与 `facing_origin` / `yaw_base_from` 同一套方块形态，半径缺省 16 格），取就近搜索到的方块中心。不可解析（附近没有该方块 / 多人服无服务端世界）= 该端无注视目标（回退角度插值） |
 | `look_at_offset` | 注视点偏移（点源通用偏移，见下方"偏移写法"）：先取点后加偏移（`look_at=entity` 时 = 部位百分比取点之后再加偏移） |
 | `yaw_base` / `pitch_base` | 朝向基准：`"world"`（默认，`yaw`/`pitch` 即世界角）/ `"entity"`（实体**身体朝向**水平角 + **视线**俯仰，用 `yaw_base_selector`）/ `"line"`（`yaw_base_from` → `yaw_base_to` 的连线方向）。用基准时 `yaw`/`pitch` 是相对基准的偏移 |
+| `yaw_lock` / `pitch_lock` | 方向锁（每轴一把，不写 = 跟 `yaw_base`/`pitch_base` 的来源）：写了 = 该轴基准固定为这个**世界角绝对值**（度），关键帧 `yaw`/`pitch` 仍叠加（`"yaw_lock": 100` + `"yaw": 5` = 105）。典型第三人称 = `"pitch_lock": 15` + `"yaw_base": "entity"`（pitch 锁死、yaw 跟身体朝向）。某轴被锁 = 该轴的基准来源不参与（`yaw_base: "line"` 端点缺失也不再按空片段处理）；`look_at != none` 时静态侧整体被覆盖（锁与偏移都不参与） |
 | `yaw_base_from` / `yaw_base_to` | `line` 基准的两个端点，**各是一个点源**（见下方"点源写法"）。退化连线（零长度 / 纯垂直）被拒 → 回退 `world` 基准 |
 | `facing_origin` / `facing_target` | **位置点源**（= 基准坐标系原点）与**前轴目标**，**都是点源**（见下方"点源写法"）。`facing_origin` 不写 = 世界轴偏移用玩家激活位置、基准坐标系偏移用玩家实体 `@p`；`facing_target` 不写 = 位置点源自身朝向 |
 
@@ -209,9 +210,15 @@
 **通道相对化**：位置 / yaw / pitch / 注视点四项各自独立——位置跟基准不影响 yaw，yaw 跟基准不影响 pitch（水平面 /
 垂直面分开取来源）；`look_at != none` 时注视点接管 yaw 与 pitch（互斥、不叠）。
 
+**朝向叠加次序**（`look_at = none` 时，yaw / pitch 各按本式）：最终角 = 该轴基准（写了 `yaw_lock` / `pitch_lock`
+= 锁值；不写 = `yaw_base` / `pitch_base` 的方向源）+ 关键帧 `yaw` / `pitch` 偏移；`look_at != none` = 动态目标点
+接管，静态侧（锁 + 基准 + 偏移）全部不参与（同一关键帧两种写法可并存，同一时刻只有一侧生效）。clip 级
+`orient: "tangent"`（切线朝向）与 `look_at` 同属动态侧：锁与偏移都不参与。
+
 点源字段与坐标形态的配套字段（`<字段>_x/_y/_z`）都写在**关键帧**上（`look_at=block` 的 `look_at_target_block`
 用同一套方块形态）；`position` 对象只承载位置通道的偏移
-（`dx/dy/dz` 世界轴 / `x/y/z` 绝对 / `fwd`/`up`/`right`+`up_axis` 基准坐标系）。
+（`dx/dy/dz` 世界轴 / `x/y/z` 绝对 / `fwd`/`up`/`right` 基准坐标系——基准坐标系的上轴固定为世界竖直，
+`position.up_axis` 已移除，写它会报错）。
 
 **目标选择器**（`follow_selector` / `look_at_selector`）：`@p`/`@s`（玩家）、`@e`（离锚点最近实体）、`@e[type=minecraft:sheep]`（类型过滤后就近，模组 boss 用其注册 id）、`@e[name=自定义名]`（命名牌名字过滤后就近）、`uuid:xxxxxxxx-…`（UUID 直绑）——就近基准（锚点）缺省为相机当前位置，可用 `selector_anchor` 改为 `player`（玩家脚底）/ `target`（该调用点当前锁定目标脚底，未解析到目标时回落相机）/ `origin`（`position` 的位置侧点源坐标，形态见上方"点源写法"；`position` 缺失或点源解析失败时回落相机）。
 

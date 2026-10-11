@@ -30,8 +30,11 @@ import java.util.Map;
  * 数值契约：连线水平分量 < {@link #LINE_HORIZONTAL_EPSILON}（零长度 / 纯垂直线）时水平角未定义 →
  * 拒绝该朝向输入（回退基准 0 = world，限频告警）；目标不可解析 → 该段按空处理（返回 null / 基准 0），不引入替代值。
  * 偏移表达空间 base 的参照系 = 本帧基准坐标系：位置通道建立（原点 = {@code facing_origin} 点源，前轴 =
- * {@code facing_target} 点源 / 位置点源实体朝向 / follow 实体 / 玩家，垂直面 = {@code position.up_axis}）；
+ * {@code facing_target} 点源 / 位置点源实体朝向 / follow 实体 / 玩家；上轴固定为世界竖直，前轴 / 右轴取水平面内分量）；
  * 本帧未建立 = base 表达空间的偏移不生效。
+ * 朝向叠加次序（{@code look_at = none} 时）：最终角 = 该轴基准（{@code yaw_lock} / {@code pitch_lock} 锁值，
+ * 不写 = 方向源 {@code yaw_base} / {@code pitch_base}）+ 关键帧偏移（{@code yaw} / {@code pitch}）；
+ * {@code look_at} != none 时静态侧（锁 + 基准 + 偏移）整体不参与，朝向由动态目标点插值决定。
  * 状态所有权：{@link #lastWorldPos} 与 {@link #frame} 是跨帧求值状态，仅本实例持有；
  * 重叠窗口的捕获求值经 {@link #snapshotFrameState()} / {@link #restoreFrameState()} 留底与回写，
  * 目标锁状态由 {@link EntityTargetResolver} 自行留底。
@@ -52,6 +55,9 @@ public final class CameraKeyframeEvaluator {
     private static final long DEGENERATE_LINE_WARN_INTERVAL_MS = 2000L;
     /** 上次退化连线告警时刻（毫秒） */
     private long lastDegenerateLineWarnAt;
+
+    /** 方向锁的「未锁」哨兵：{@code yaw_lock} / {@code pitch_lock} 缺省或非有限值即取它（跟方向源），同域于锁值故不装箱 */
+    private static final float NO_LOCK = Float.NaN;
 
     /** 脚本激活位置（触发点）：相对触发点偏移与相对基准的默认落点 */
     private final Vec3 originPos;
@@ -112,6 +118,7 @@ public final class CameraKeyframeEvaluator {
      * 片段目标可用性：注视点（{@code look_at} 点源）、follow 实体、位置点源（{@code facing_origin}）、
      * 基准坐标系前轴目标（{@code facing_target}）、朝向基准（{@code yaw_base} / {@code pitch_base}）
      * 任一不可解析 → 片段不可用，按空片段处理（不写相机，玩家视角）。
+     * 某轴写了方向锁（{@code yaw_lock} / {@code pitch_lock}）= 该轴的基准不参与求值，不要求其来源可解析。
      * 点源（位置点源 / 注视点 / 连线端点 / 基准坐标系前轴目标）与求值路径走同一解析，判据不分叉。
      * 找不到就找不到——不引入任何替代值/回退逻辑。
      */
@@ -124,13 +131,17 @@ public final class CameraKeyframeEvaluator {
                 if (entityResolver.resolveEntity(
                         kf.getString("follow_selector", "@p"), lastWorldPos, "follow", kf) == null) return false;
             }
-            // 朝向基准（yaw_base/pitch_base）：entity 实体缺失 / line 端点缺失 → 空片段
+            // 朝向基准（yaw_base/pitch_base）：entity 实体缺失 / line 端点缺失 → 空片段；
+            // 该轴写了锁（yaw_lock/pitch_lock）= 基准不参与求值，不要求来源可解析
             String yawBase = kf.getString("yaw_base", "world");
             String pitchBase = kf.getString("pitch_base", "world");
-            if ("entity".equals(yawBase) || "entity".equals(pitchBase)) {
+            boolean yawFollowsBase = Float.isNaN(axisLock(kf, "yaw_lock"));
+            boolean pitchFollowsBase = Float.isNaN(axisLock(kf, "pitch_lock"));
+            if ((yawFollowsBase && "entity".equals(yawBase)) || (pitchFollowsBase && "entity".equals(pitchBase))) {
                 if (entityResolver.resolveEntity(
                         kf.getString("yaw_base_selector", "@p"), lastWorldPos, "yaw_base", kf) == null) return false;
-            } else if ("line".equals(yawBase) || "line".equals(pitchBase)) {
+            } else if ((yawFollowsBase && "line".equals(yawBase))
+                    || (pitchFollowsBase && "line".equals(pitchBase))) {
                 if (evalPointField(kf, "yaw_base_from", PointSource.EntityPoint.FOOT) == null
                         || evalPointField(kf, "yaw_base_to", PointSource.EntityPoint.FOOT) == null) return false;
             }
@@ -329,7 +340,7 @@ public final class CameraKeyframeEvaluator {
     /**
      * 建立基准坐标系：前轴由 {@code facing_target} 点源（位置点源 → 该目标的连线方向，含俯仰）给出，
      * 缺省 = 位置点源实体自身朝向（身体朝向水平角 + 视线俯仰）/ follow 实体 / 玩家朝向；三轴由
-     * {@link #buildFrame} 按前轴与 {@code position.up_axis} 建立。
+     * {@link #buildFrame} 按前轴的水平分量与世界竖直建立（前轴俯仰不进基准坐标系）。
      *
      * @return 基准坐标系；前轴退化（零长度 / 纯垂直）或朝向实体缺失 = {@code null}
      */
@@ -339,7 +350,7 @@ public final class CameraKeyframeEvaluator {
                 PointSource.EntityPoint.CENTER);
         if (facingTarget != null) {
             Vec3 to = evalPointSource(facingTarget, lastWorldPos, "facing_target", kf);
-            return to != null ? buildFrame(base, to.subtract(base), pd) : null;
+            return to != null ? buildFrame(base, to.subtract(base)) : null;
         }
         // 朝向所属实体：位置点源为实体选择器 → 该实体；其余 → follow 实体 / 玩家
         Entity orient = pd.isOriginSelector()
@@ -353,7 +364,7 @@ public final class CameraKeyframeEvaluator {
         float cosY = (float) Math.cos(yawRad);
         float sinP = (float) Math.sin(pitchRad);
         float cosP = (float) Math.cos(pitchRad);
-        return buildFrame(base, new Vec3(-sinY * cosP, -sinP, cosY * cosP), pd);
+        return buildFrame(base, new Vec3(-sinY * cosP, -sinP, cosY * cosP));
     }
 
     /**
@@ -396,13 +407,12 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 由原点 + 前轴方向（任意三维向量）构造基准坐标系。
-     * 前轴由方向决定（实体朝向 / 两点连线），因此 up 是否跟随俯仰用方向向量本身判断：
-     * 非水平方向 + up_axis=view → 跟随俯仰（全三维）；否则 up 保持世界竖直。
+     * 由原点 + 前轴方向（任意三维向量）构造基准坐标系：上轴固定为世界竖直，前轴 / 右轴取前轴的水平面内分量
+     * （前轴俯仰不参与；坐标系的垂直面不跟随方向源俯仰）。
      * 前轴没有水平分量（零长度 / 纯垂直）时水平角未定义：拒绝该朝向输入，返回 null，并限频告警。
      */
-    private PointSource.Frame buildFrame(Vec3 base, Vec3 dir, PositionData pd) {
-        double dx = dir.x, dy = dir.y, dz = dir.z;
+    private PointSource.Frame buildFrame(Vec3 base, Vec3 dir) {
+        double dx = dir.x, dz = dir.z;
         double horizontal = Math.sqrt(dx * dx + dz * dz);
         if (horizontal < LINE_HORIZONTAL_EPSILON) {
             warnDegenerateLine();
@@ -411,22 +421,7 @@ public final class CameraKeyframeEvaluator {
         float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
         float sinY = (float) Math.sin(Math.toRadians(yaw));
         float cosY = (float) Math.cos(Math.toRadians(yaw));
-        Vec3 rightVec = new Vec3(-cosY, 0, -sinY);
-        Vec3 fwdVec;
-        Vec3 upVec;
-        boolean followPitch = "view".equals(pd.getUpAxis()) && Math.abs(dy) > 1.0E-4;
-        if (followPitch) {
-            float pitch = (float) -Math.toDegrees(Math.atan2(dy, horizontal));
-            float sinP = (float) Math.sin(Math.toRadians(pitch));
-            float cosP = (float) Math.cos(Math.toRadians(pitch));
-            fwdVec = new Vec3(-sinY * cosP, -sinP, cosY * cosP);
-            upVec = new Vec3(-sinY * sinP, cosP, cosY * sinP);
-        } else {
-            // up 保持世界竖直：fwd/right 只水平转
-            fwdVec = new Vec3(-sinY, 0, cosY);
-            upVec = new Vec3(0, 1, 0);
-        }
-        return new PointSource.Frame(base, fwdVec, rightVec, upVec);
+        return new PointSource.Frame(base, new Vec3(-sinY, 0, cosY), new Vec3(-cosY, 0, -sinY), new Vec3(0, 1, 0));
     }
 
     /** 前轴所属实体（位置点源非实体选择器时）：follow 实体（{@code follow=entity} 时）/ 玩家。 */
@@ -531,10 +526,12 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 单段朝向求值：任一端 look_at != none 时用目标点插值模型（看向插值目标点）。
-     * 两端目标齐全才用目标点；目标缺失（evalLookTarget 返回 null）时该段按 look_at=none 处理
-     * ——用两端关键帧自身的 yaw/pitch 角度插值（yawBase/pitchBase）。目标不可用已由
-     * isClipUsable 前置拦截（片段按空处理），此处为防御。返回 [yaw, pitch]。
+     * 单段朝向求值，优先级：look_at（动态目标点）> 切线朝向（clip 级 {@code orient=tangent}）> 手写角度
+     * （静态侧：该轴基准 + 关键帧偏移，见 {@link #finalYaw}）。任一端 look_at != none 时用目标点插值模型
+     * （看向插值目标点）；两端目标齐全才用目标点，目标缺失（evalLookTarget 返回 null）时该段按 look_at=none
+     * 处理——用两端关键帧自身的 yaw/pitch 角度插值（yawBase/pitchBase）。方向锁（{@code yaw_lock} /
+     * {@code pitch_lock}）属静态侧，只在手写角度这一支生效。目标不可用已由 isClipUsable 前置拦截（片段按空处理），
+     * 此处为防御。返回 [yaw, pitch]。
      */
     private float[] segmentYawPitch(Keyframe from, Keyframe to, float s, Clip clip, Vec3 segPos,
                                     float yawBase, float pitchBase) {
@@ -577,7 +574,7 @@ public final class CameraKeyframeEvaluator {
                     anyFollow ? null : clip.getCurve(), strategy,
                     clip.getFloat("yaw_offset", 0f), clip.getFloat("pitch_offset", 0f));
         }
-        // 3) 手写角度：两端关键帧各自算"最终世界角度 = 基准 + 偏移"，再做角度插值
+        // 3) 手写角度：两端关键帧各自算"最终世界角度 = 该轴基准（锁值 / 方向源）+ 偏移"，再做角度插值
         if (from != null && to != null) {
             float yawA = finalYaw(from);
             float pitchA = finalPitch(from);
@@ -598,19 +595,44 @@ public final class CameraKeyframeEvaluator {
         return "tangent".equals(clip.getString("orient", "manual"));
     }
 
-    /** 单关键帧最终世界 yaw = 基准方向 + 偏移（look_at=none 语义） */
+    /** 单关键帧最终世界 yaw = 该轴基准（锁值 / 方向源）+ 偏移（{@code look_at = none} 语义） */
     private float finalYaw(Keyframe kf) {
-        return yawBaseOf(kf) + kf.getYaw();
+        return baseYawOf(kf) + kf.getYaw();
     }
 
-    /** 单关键帧最终世界 pitch = 基准俯仰 + 偏移 */
+    /** 单关键帧最终世界 pitch = 该轴基准（锁值 / 方向源）+ 偏移 */
     private float finalPitch(Keyframe kf) {
-        return pitchBaseOf(kf) + kf.getPitch();
+        return basePitchOf(kf) + kf.getPitch();
     }
 
     /**
-     * 关键帧 yaw 基准方向：yaw_base = world（0，现状）| entity（实体身体朝向水平角，LivingEntity 取 yBodyRot）
+     * yaw 轴基准：写了 {@code yaw_lock} = 锁值（度，世界角绝对值，不查方向源）；不写 = 方向源 {@link #yawBaseOf}。
+     */
+    private float baseYawOf(Keyframe kf) {
+        float lock = axisLock(kf, "yaw_lock");
+        return Float.isNaN(lock) ? yawBaseOf(kf) : lock;
+    }
+
+    /** pitch 轴基准：写了 {@code pitch_lock} = 锁值（度，世界角绝对值）；不写 = 方向源 {@link #pitchBaseOf}。 */
+    private float basePitchOf(Keyframe kf) {
+        float lock = axisLock(kf, "pitch_lock");
+        return Float.isNaN(lock) ? pitchBaseOf(kf) : lock;
+    }
+
+    /**
+     * 方向锁值：字段缺省 / 非有限 = {@link #NO_LOCK}（不锁，跟方向源）；否则 = 锁值（度，世界角绝对值）。
+     * 两轴独立：可一轴锁值、另一轴跟来源。非有限值按不锁处理（不引入替代值），校验器会拦下类型错误。
+     */
+    private static float axisLock(Keyframe kf, String field) {
+        if (!kf.getData().containsKey(field)) return NO_LOCK;
+        float value = kf.getFloat(field, NO_LOCK);
+        return Float.isFinite(value) ? value : NO_LOCK;
+    }
+
+    /**
+     * 关键帧 yaw 基准方向（方向源）：yaw_base = world（0，现状）| entity（实体身体朝向水平角，LivingEntity 取 yBodyRot）
      * | line（from→to 连线水平角）。
+     * 本轴写了 {@code yaw_lock} 时本方法不被调用（锁替换基准，见 {@link #baseYawOf}）。
      * 实体缺失/line 端点缺失时 isClipUsable 已前置拦截为空片段；此处防御回退 0（=world）。
      */
     private float yawBaseOf(Keyframe kf) {
@@ -627,7 +649,10 @@ public final class CameraKeyframeEvaluator {
         return 0f;
     }
 
-    /** 关键帧 pitch 基准俯仰：pitch_base = world（0）| entity（实体视线俯仰，即 xRot）| line（连线垂直角） */
+    /**
+     * 关键帧 pitch 基准俯仰（方向源）：pitch_base = world（0）| entity（实体视线俯仰，即 xRot）| line（连线垂直角）。
+     * 本轴写了 {@code pitch_lock} 时本方法不被调用（锁替换基准，见 {@link #basePitchOf}）。
+     */
     private float pitchBaseOf(Keyframe kf) {
         String base = kf.getString("pitch_base", "world");
         if ("entity".equals(base)) {

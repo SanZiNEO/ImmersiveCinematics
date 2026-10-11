@@ -6,11 +6,12 @@ import net.minecraft.world.phys.Vec3;
  * 位置数据：关键帧的位置通道 = 位置点源 + 偏移，或世界绝对坐标。
  *
  * 三种形态（由 position 对象的字段判据，{@code position_mode} 不参与判据）：
- * 世界轴偏移 {@code dx/dy/dz} = 相对位置点源的世界轴偏移；基准坐标系偏移 {@code fwd/up/right}（配 {@code up_axis}）
+ * 世界轴偏移 {@code dx/dy/dz} = 相对位置点源的世界轴偏移；基准坐标系偏移 {@code fwd/up/right}
  * = 相对本帧基准坐标系的偏移；绝对 {@code x/y/z} = 世界坐标（无点源、无偏移）。
  *
  * 位置点源 = 关键帧字段 {@code facing_origin}（五形态，见 {@link #originKindOf}），载荷存 origin* 字段；
  * 基准坐标系的前轴 = 关键帧字段 {@code facing_target}（空 = 点源自身朝向）。
+ * 基准坐标系的垂直面固定为世界竖直：上轴 = 世界竖直，前轴 / 右轴取水平面内分量（前轴俯仰不参与）。
  * 单位与坐标空间：世界空间方块坐标；偏移与坐标同单位。
  */
 public class PositionData {
@@ -94,11 +95,8 @@ public class PositionData {
     /** 基准坐标系：沿上轴 上下 的偏移（正=上 负=下） */
     private final float up;
 
-    /** 基准坐标系：沿右轴 左右 的偏移（正=右 负=左） */
+    /** 沿右轴 左右 的偏移（正=右 负=左） */
     private final float right;
-
-    /** 垂直面基准："view"=上轴随前轴俯仰（默认），"world"=上轴保持世界竖直 */
-    private final String upAxis;
 
     /**
      * 世界轴偏移（dx/dy/dz），位置点源 = 玩家激活位置（缺省形态）。
@@ -109,38 +107,38 @@ public class PositionData {
      */
     public static PositionData relative(float dx, float dy, float dz) {
         return new PositionData(true, dx, dy, dz, ORIGIN_PLAYER, 0f, 0f, 0f, null, null, 0, null,
-                false, 0f, 0f, 0f, "world", null);
+                false, 0f, 0f, 0f, null);
     }
 
     /** 世界轴偏移（dx/dy/dz），位置点源 = 固定坐标（{@code facing_origin: "coordinate"}）。 */
     public static PositionData relativeToCoordinate(float dx, float dy, float dz, float ox, float oy, float oz) {
         return new PositionData(true, dx, dy, dz, ORIGIN_COORDINATE, ox, oy, oz, null, null, 0, null,
-                false, 0f, 0f, 0f, "world", null);
+                false, 0f, 0f, 0f, null);
     }
 
     /** 世界轴偏移（dx/dy/dz），位置点源 = 结构中心（{@code facing_origin} 填结构 id，如 {@code "minecraft:village"}）。 */
     public static PositionData relativeToStructure(float dx, float dy, float dz, String structureId) {
         return new PositionData(true, dx, dy, dz, ORIGIN_STRUCTURE, 0f, 0f, 0f, structureId, null, 0, null,
-                false, 0f, 0f, 0f, "world", null);
+                false, 0f, 0f, 0f, null);
     }
 
     /** 世界轴偏移（dx/dy/dz），位置点源 = 玩家附近搜索到的方块中心（{@code facing_origin} 填 {@code block:id[:radius]}）。 */
     public static PositionData relativeToBlock(float dx, float dy, float dz, String blockId, int radius) {
         return new PositionData(true, dx, dy, dz, ORIGIN_BLOCK, 0f, 0f, 0f, null, blockId, radius, null,
-                false, 0f, 0f, 0f, "world", null);
+                false, 0f, 0f, 0f, null);
     }
 
     /** 世界轴偏移（dx/dy/dz），位置点源 = 实体选择器（每帧取实体脚底，动态）。 */
     public static PositionData relativeToEntity(float dx, float dy, float dz, String selector) {
         return new PositionData(true, dx, dy, dz, ORIGIN_SELECTOR, 0f, 0f, 0f, null, null, 0,
                 selector != null ? selector : "@p",
-                false, 0f, 0f, 0f, "world", null);
+                false, 0f, 0f, 0f, null);
     }
 
     /** 基准坐标系偏移（fwd/up/right），位置点源 = 玩家激活位置（脚本激活时玩家所在位置，整场不变）。 */
-    public static PositionData facingToPlayer(float fwd, float up, float right, String upAxis) {
+    public static PositionData facingToPlayer(float fwd, float up, float right) {
         return new PositionData(true, 0f, 0f, 0f, ORIGIN_PLAYER, 0f, 0f, 0f, null, null, 0, null,
-                true, fwd, up, right, upAxis != null ? upAxis : "view", null);
+                true, fwd, up, right, null);
     }
 
     /**
@@ -151,31 +149,29 @@ public class PositionData {
      * @param fwd            沿前轴 前后（正=前 负=后）
      * @param up             沿上轴 上下（正=上 负=下）
      * @param right          沿右轴 左右（正=右 负=左）
-     * @param upAxis         垂直面基准："view"=上轴随前轴俯仰（默认）；"world"=上轴保持世界竖直
      */
-    public static PositionData facingToEntity(String originSelector, float fwd, float up, float right, String upAxis) {
+    public static PositionData facingToEntity(String originSelector, float fwd, float up, float right) {
         return new PositionData(true, 0f, 0f, 0f, ORIGIN_SELECTOR, 0f, 0f, 0f, null, null, 0,
                 originSelector != null ? originSelector : "@p",
-                true, fwd, up, right, upAxis != null ? upAxis : "view", null);
+                true, fwd, up, right, null);
     }
 
     /** 基准坐标系偏移（fwd/up/right），位置点源 = 固定坐标（{@code facing_origin: "coordinate"}）。 */
-    public static PositionData facingToCoordinate(float fwd, float up, float right, String upAxis,
-                                                 float ox, float oy, float oz) {
+    public static PositionData facingToCoordinate(float fwd, float up, float right, float ox, float oy, float oz) {
         return new PositionData(true, 0f, 0f, 0f, ORIGIN_COORDINATE, ox, oy, oz, null, null, 0, null,
-                true, fwd, up, right, upAxis != null ? upAxis : "view", null);
+                true, fwd, up, right, null);
     }
 
     /** 基准坐标系偏移（fwd/up/right），位置点源 = 结构中心（{@code facing_origin} 填结构 id）。 */
-    public static PositionData facingToStructure(float fwd, float up, float right, String upAxis, String structureId) {
+    public static PositionData facingToStructure(float fwd, float up, float right, String structureId) {
         return new PositionData(true, 0f, 0f, 0f, ORIGIN_STRUCTURE, 0f, 0f, 0f, structureId, null, 0, null,
-                true, fwd, up, right, upAxis != null ? upAxis : "view", null);
+                true, fwd, up, right, null);
     }
 
     /** 基准坐标系偏移（fwd/up/right），位置点源 = 玩家附近搜索到的方块中心（{@code facing_origin} 填 {@code block:id[:radius]}）。 */
-    public static PositionData facingToBlock(float fwd, float up, float right, String upAxis, String blockId, int radius) {
+    public static PositionData facingToBlock(float fwd, float up, float right, String blockId, int radius) {
         return new PositionData(true, 0f, 0f, 0f, ORIGIN_BLOCK, 0f, 0f, 0f, null, blockId, radius, null,
-                true, fwd, up, right, upAxis != null ? upAxis : "view", null);
+                true, fwd, up, right, null);
     }
 
     /**
@@ -187,7 +183,7 @@ public class PositionData {
      */
     public PositionData withFacingTarget(String facingTarget) {
         return new PositionData(relative, x, y, z, originType, ox, oy, oz, originStructure, originBlockId,
-                originBlockRadius, originSelector, baseSpace, fwd, up, right, upAxis, facingTarget);
+                originBlockRadius, originSelector, baseSpace, fwd, up, right, facingTarget);
     }
 
     /**
@@ -200,12 +196,12 @@ public class PositionData {
      */
     public static PositionData absolute(float x, float y, float z) {
         return new PositionData(false, x, y, z, ORIGIN_PLAYER, 0f, 0f, 0f, null, null, 0, null,
-                false, 0f, 0f, 0f, "world", null);
+                false, 0f, 0f, 0f, null);
     }
 
     private PositionData(boolean relative, float x, float y, float z, int originType, float ox, float oy, float oz,
                          String originStructure, String originBlockId, int originBlockRadius, String originSelector,
-                         boolean baseSpace, float fwd, float up, float right, String upAxis, String facingTarget) {
+                         boolean baseSpace, float fwd, float up, float right, String facingTarget) {
         this.relative = relative;
         this.x = x;
         this.y = y;
@@ -223,7 +219,6 @@ public class PositionData {
         this.fwd = fwd;
         this.up = up;
         this.right = right;
-        this.upAxis = upAxis;
     }
 
     /** 相对基准类型（{@link #ORIGIN_PLAYER} / {@link #ORIGIN_COORDINATE} / {@link #ORIGIN_STRUCTURE} / {@link #ORIGIN_BLOCK} / {@link #ORIGIN_SELECTOR}） */
@@ -304,11 +299,6 @@ public class PositionData {
     /** 沿右轴 左右 偏移（正=右 负=左） */
     public float getRight() {
         return right;
-    }
-
-    /** y 轴开关："view"=up 随俯仰全三维（默认）；"world"=up 保持世界竖直 */
-    public String getUpAxis() {
-        return upAxis != null ? upAxis : "view";
     }
 
     /**
