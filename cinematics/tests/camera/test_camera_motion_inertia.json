@@ -1,0 +1,59 @@
+{
+  "meta": {
+    "id": "test_camera_motion_inertia",
+    "name": "相机测试-参数运动模型（惯性）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "校验用：clip 级 motion_* 六字段挂 inertia（0.3.6 B19 新增模型：阻尼基准随输入运动的二阶追踪，参数同 spring）。第一段六通道全挂（含显式参数与缺省参数两种写法），第二段不写 motion_* = 默认关基线（逐位不改变现状）。语义 / 建议起点见 docs/SCRIPT_FORMAT.md「相机参数运动模型」",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0 } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 10,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "transition": "cut",
+            "loop": false,
+            "motion_position": { "type": "inertia" },
+            "motion_yaw": { "type": "inertia", "stiffness": 8.0, "damping": 0.75, "initial_velocity": 0 },
+            "motion_pitch": { "type": "inertia", "stiffness": 12.0, "damping": 1.0 },
+            "motion_roll": { "type": "spring", "stiffness": 8.0, "damping": 0.5 },
+            "motion_fov": { "type": "exponential_smooth", "tau": 0.15 },
+            "motion_zoom": { "type": "inertia", "stiffness": 20.0, "damping": 0.9 },
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 0, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 2, "position": { "dx": 16, "dy": 3, "dz": 0 }, "yaw": 90, "pitch": 12, "roll": 4, "fov": 62, "zoom": 1.15 },
+              { "time": 5, "position": { "dx": 16, "dy": 3, "dz": 0 }, "yaw": 90, "pitch": 12, "roll": 4, "fov": 62, "zoom": 1.15 },
+              { "time": 6, "position": { "dx": 18, "dy": 3, "dz": 2 }, "yaw": 96, "pitch": 10, "roll": 0, "fov": 64, "zoom": 1.1 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 4,
+            "transition": "morph",
+            "transition_duration": 1.0,
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 18, "dy": 3, "dz": 2 }, "yaw": 96, "pitch": 10, "roll": 0, "fov": 64, "zoom": 1.1 },
+              { "time": 4, "position": { "dx": 26, "dy": 1, "dz": -6 }, "yaw": 150, "pitch": 0, "roll": 0, "fov": 72, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

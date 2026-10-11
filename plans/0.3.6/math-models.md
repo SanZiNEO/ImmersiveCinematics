@@ -315,6 +315,7 @@ public final class MathModelRegistry {                    // script/schema，Fie
 - `damper` / `smooth_damp` **不独立成类型**：与 `spring` 是同一二阶系统，`damping` 参数覆盖临界 / 欠 / 过阻尼；预设归编辑器（口径：调配归编辑器）。
 - **曲线族适用边界（重要）**：曲线族服务**运行时**求值（过渡权重、组合、动态响应），**不用于关键帧段内缓动**——后者已定「编辑器烘焙、运行时线性」（`script-model.md` §4-1 方案 E；`ScriptValidator.java:313-316` 已拦 `interpolation` 字段；`OverlayTrackPlayer.java:214-216` 同口径）。
 - **第二批**（B16-b 之后、按调用方需要）：动态响应 `viscous_lag` / `directional_lag` / `inertia` / `momentum`（B19-b 前）；非线性 `clamp` / `remap` / `scale` / `offset` / `deadband` / `hysteresis_threshold` / `backlash`；组合 `add` / `multiply` / `min` / `max` / `select` / `switch`；振荡 / 噪声 `sine` / `value_noise` / `seeded_random` / `decay`（**复用 `BreathDisturbance` 的数学实现**，不迁移其调用点——`BreathDisturbance.java` 类注释的「同 seed + 同 globalTime → 同抖动」口径不变）；曲线 `smooth5` / 分段曲线（编辑器烘焙的数据化形状）。
+  - **`inertia` 已随 B19 入批**（`math/InertiaModel`，2026-10-11）：阻尼基准随输入运动的二阶追踪（参数同 `spring`；跟随移动目标稳态零滞后、起步慢、停止后过冲再回稳）。**「输入变化率驱动的动量延续 + 静止衰减」的收敛形态与 `exponential_smooth` 数学等价**（`x' = v`、`v' = (target' − v)/τ` 且播种 `x = target` ⟹ `X(s) = Target(s)/(1 + τs)`），故粘滞不另立型——见 `hysteresis.md`「定稿与落地记录（2026-10-11，B19）」。
 - **输入源族（§3.6）v1 不实现**：输入由调用方提供（§1「调用方只提供输入和上下文」）；接口以 `inputArity() = 0` 预留无输入源模型。
 
 7.2 **B16-c 接入面**（第一个调用方 = 相机参数运动，与 B19 共享）：

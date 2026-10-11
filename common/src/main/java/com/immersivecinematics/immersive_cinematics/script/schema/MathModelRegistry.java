@@ -7,6 +7,7 @@ import com.immersivecinematics.immersive_cinematics.math.CurveFn;
 import com.immersivecinematics.immersive_cinematics.math.CurveModel;
 import com.immersivecinematics.immersive_cinematics.math.Curves;
 import com.immersivecinematics.immersive_cinematics.math.ExponentialSmoothModel;
+import com.immersivecinematics.immersive_cinematics.math.InertiaModel;
 import com.immersivecinematics.immersive_cinematics.math.MathModel;
 import com.immersivecinematics.immersive_cinematics.math.MathModelInstance;
 import com.immersivecinematics.immersive_cinematics.math.ModelParams;
@@ -87,6 +88,11 @@ public final class MathModelRegistry {
             "damping", new FieldDef("float", (float) SpringModel.DEFAULT_DAMPING),
             "initial_velocity", new FieldDef("float", (float) SpringModel.DEFAULT_INITIAL_VELOCITY));
 
+    private static final Map<String, FieldDef> INERTIA_PARAMS = params(
+            "stiffness", new FieldDef("float", (float) InertiaModel.DEFAULT_STIFFNESS),
+            "damping", new FieldDef("float", (float) InertiaModel.DEFAULT_DAMPING),
+            "initial_velocity", new FieldDef("float", (float) InertiaModel.DEFAULT_INITIAL_VELOCITY));
+
     private static final Map<String, FieldDef> CHAIN_PARAMS = params(
             "models", new FieldDef("model_list", null));
 
@@ -104,6 +110,7 @@ public final class MathModelRegistry {
         register(CUBIC_BEZIER_TYPE, CUBIC_BEZIER_PARAMS, MathModelRegistry::createCubicBezier);
         register(ExponentialSmoothModel.TYPE, EXPONENTIAL_SMOOTH_PARAMS, MathModelRegistry::createExponentialSmooth);
         register(SpringModel.TYPE, SPRING_PARAMS, MathModelRegistry::createSpring);
+        register(InertiaModel.TYPE, INERTIA_PARAMS, MathModelRegistry::createInertia);
         register(ChainModel.TYPE, CHAIN_PARAMS, MathModelRegistry::createChain);
         register(BlendModel.TYPE, BLEND_PARAMS, MathModelRegistry::createBlend);
     }
@@ -308,6 +315,16 @@ public final class MathModelRegistry {
         warnIfClamped(SpringModel.TYPE, "damping", damping, SpringModel.clampDamping(damping));
         warnIfClamped(SpringModel.TYPE, "initial_velocity", velocity, SpringModel.clampInitialVelocity(velocity));
         return new SpringModel(params.domain(), stiffness, damping, velocity);
+    }
+
+    private static MathModel createInertia(ModelParams params) {
+        double stiffness = params.number("stiffness", InertiaModel.DEFAULT_STIFFNESS);
+        double damping = params.number("damping", InertiaModel.DEFAULT_DAMPING);
+        double velocity = params.number("initial_velocity", InertiaModel.DEFAULT_INITIAL_VELOCITY);
+        warnIfClamped(InertiaModel.TYPE, "stiffness", stiffness, InertiaModel.clampStiffness(stiffness));
+        warnIfClamped(InertiaModel.TYPE, "damping", damping, InertiaModel.clampDamping(damping));
+        warnIfClamped(InertiaModel.TYPE, "initial_velocity", velocity, InertiaModel.clampInitialVelocity(velocity));
+        return new InertiaModel(params.domain(), stiffness, damping, velocity);
     }
 
     private static MathModel createChain(ModelParams params) {

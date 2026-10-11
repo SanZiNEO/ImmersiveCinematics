@@ -159,6 +159,7 @@
 | `loop_mode` | 循环时间映射：`"repeat"`（默认）= 从头到尾重复；`"pingpong"` = 往复折返（监控视角来回摇，关键帧只写半程即可） |
 | `curve` | 贝塞尔路径（可选，见 SCRIPT_FORMAT.md） |
 | `cam_breath_enabled` | 呼吸扰动（手持感，clip 级），配 `cam_breath_intensity`（0.05~0.1）、`cam_breath_seed`、`cam_breath_type`（`perlin` 默认 / `perlin_axis` / `sine` / `trauma`）、`cam_breath_speed`（越大晃越快）；`trauma` 额外配 `cam_breath_trauma`（初始冲击 0~1）与 `cam_breath_decay`（衰减速率）；同 seed 重放一致 |
+| `motion_position` / `motion_yaw` / `motion_pitch` / `motion_roll` / `motion_fov` / `motion_zoom` | **迟滞（相机参数运动响应，可选）**：给该通道挂一个数学模型 `{type, …}`，把求值出来的值平滑 / 延迟 / 缓动后再写进相机状态；缺省 `null` = 不接模型（**默认关**）。常用三型：`{"type": "exponential_smooth"}`（粘滞；`tau` 省略 = 0.15 秒，无过冲）、`{"type": "spring"}`（阻尼弹簧；`damping` < 1 回弹）、`{"type": "inertia"}`（惯性：跟随移动目标不落后、起步慢、停止后过冲再回稳）。**六通道建议起点 = `exponential_smooth`**（通道差异只是建议，见 SCRIPT_FORMAT.md「相机参数运动模型」）；要启用必须写明 `type`（写 `{}` 会校验报错并回落无效果） |
 | `modifier` | **覆盖链 Modifier 声明**（可选，一个片段至多一条）：在关键帧求值出的六参数之上按通道做一次固定合成，如 `{"channels": ["yaw"], "mode": "add", "yaw": 30}` = yaw 再 +30°。字段形态见下方"覆盖链 Modifier" |
 | `suppress_modifiers` | `true` = 本片段活跃时**跳过全部 Modifier**（链输出 = 本片段原始六参数）；缺省 `false` |
 
