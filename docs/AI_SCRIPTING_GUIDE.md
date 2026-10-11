@@ -226,7 +226,7 @@
 （`dx/dy/dz` 世界轴 / `x/y/z` 绝对 / `fwd`/`up`/`right` 基准坐标系——基准坐标系的上轴固定为世界竖直，
 `position.up_axis` 已移除，写它会报错）。
 
-**目标选择器**（`follow_selector` / `look_at_selector`）：`@p`/`@s`（玩家）、`@e`（离锚点最近实体）、`@e[type=minecraft:sheep]`（类型过滤后就近，模组 boss 用其注册 id）、`@e[name=自定义名]`（命名牌名字过滤后就近）、`uuid:xxxxxxxx-…`（UUID 直绑）——就近基准（锚点）缺省为相机当前位置，可用 `selector_anchor` 改为 `player`（玩家脚底）/ `target`（该调用点当前锁定目标脚底，未解析到目标时回落相机）/ `origin`（`position` 的位置侧点源坐标，形态见上方"点源写法"；`position` 缺失或点源解析失败时回落相机）。
+**目标选择器**（`follow_selector` / `look_at_selector`）：`@p`/`@s`（玩家）、`@a`/`@a[...]`（全体玩家）、`@r`/`@r[...]`（随机玩家）——`@a`/`@r` 与带选项形态（`@p[...]` 等）交服务端用原版解析、语义同原版；`@e`（离锚点最近实体）、`@e[type=minecraft:sheep]`（类型过滤后就近，模组 boss 用其注册 id）、`@e[name=自定义名]`（命名牌名字过滤后就近）、`uuid:xxxxxxxx-…`（UUID 直绑）——就近基准（锚点）缺省为相机当前位置，可用 `selector_anchor` 改为 `player`（玩家脚底）/ `target`（该调用点当前锁定目标脚底，未解析到目标时回落相机）/ `origin`（`position` 的位置侧点源坐标，形态见上方"点源写法"；`position` 缺失或点源解析失败时回落相机）。原版 1.20.1 无 `@n`，按未知形式处理（warn 日志 + 不解析，不崩溃）。
 
 每个选择器调用点（`follow` / `look_at` / `yaw_base` / `yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target`）的锁定策略、锚点与择一规则可单独覆盖：写 `selector_refresh_<调用点>` / `selector_anchor_<调用点>` / `selector_pick_<调用点>` 等（4 个策略字段 + 锚点 + 择一都有调用点变体），缺省回落通用 `selector_*`（详见 `docs/SCRIPT_FORMAT.md` §4「调用点级策略覆盖」）。
 

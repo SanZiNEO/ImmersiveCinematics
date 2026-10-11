@@ -22,9 +22,15 @@
 - 实体选择器支持 NBT 条件，可以按阵营、状态等 NBT 数据锁定生物。
 - 选择器新增目标锁定控制：`selector_refresh`（重新选择间隔）、`selector_switch_while_alive`（目标存活时是否切换）、`selector_switch_smooth`（切换平滑）。
 - 选择器支持 `type=` 实体类型过滤，减少镜头误锁投掷物的情况。
-- **模板命令 `/icinematics template`**：填几个参数即可生成一段标准镜头脚本，与手写脚本等价、可继续编辑——内置 4 个片段模板：黑场 / 白场（`fade`）、固定机位 + 呼吸（`static_breath`）、推近 / 拉远（`dolly`，两端 fov 不同即希区柯克变焦）、环绕弧线（`orbit_arc`，绕触发点或指定实体环绕，单段 ≤120°）。`/icinematics template list` 查看模板与参数；生成物写入 `scripts/generated/` 并自动校验。
 - **字幕与描述多语言（文本资源 `@lang:`）**：字幕 `text` 与脚本 `meta.description` 可以只写 `@lang:<key>` 引用，译文集中放在 `<游戏目录>/immersive_cinematics/resource/lang/<语言>.json`（如 `zh_cn.json` / `en_us.json`）——**改译文不动脚本**。同一场放映，中文客户端看中文、英文客户端看英文（服务端不需要知道语言）。回退链 = 当前语言 → `en_us` → 原样显示引用串（不静默，缺 key 一眼可见）；缺语言文件 / 缺 key 只记日志，不影响播放；译文改动重启客户端生效。`name` / `id` / `author` 保持字面不翻译。
 - **编辑器资源字段**：字幕 `text` 与脚本描述字段支持从 `resource/lang/` 的 key 里选（候选项带译文预览），图片 `path` 字段可以浏览 `resource/` 下的文件；当前值缺 key / 缺文件时字段下方给出黄色提示（只警告、不阻塞）。
+- **相机覆盖链（`modifier` / `suppress_modifiers`）**：相机片段新增 clip 级 `modifier`（`channels` 声明生效通道——`position` / `yaw` / `pitch` / `roll` / `fov` / `zoom` 的子集；`mode` 选合成方式——`add` 增量 / `multiply` 倍率 / `replace` 绝对值；`priority` 定应用序，升序小者先应用；再加各通道值）与 clip 级 `suppress_modifiers`（`true` = 本片段活跃时整条跳过覆盖链）。脚本可在一段基础运镜之上按通道「打补丁」（只叠一次 zoom、只加一段 yaw 抖动……），不必改写原关键帧。覆盖链只作用于**主相机**那一份（最上层轨道 = 玩家看到的主画面），分屏 / 画中画里的次级格保持各自原始相机、不叠加；同一时刻多条声明按 `priority` 叠加。不写这两个字段时链为空，画面与原来逐位一致。
+- **统一点源与偏移（`facing_origin` / `facing_target` / `yaw_base_from` / `yaw_base_to`）**：位置基准、基准坐标系前轴、连线朝向端点统一为**五形态点源**——`"player"` 玩家激活位置 / `"coordinate"` 固定坐标（配 `<字段>_x` / `_y` / `_z`）/ `"block:<方块 id>[:<半径>]"` 就近方块中心（半径缺省 16 格）/ `"@…"` / `"uuid:…"` 实体选择器 / 其余非空字符串 = 结构 id（结构包围盒中心）。每个点源都能再叠一层**偏移**（写 `<字段>_offset`，位置则写在 `position` 对象里）：`dx` / `dy` / `dz` 按世界轴表达，`fwd` / `up` / `right` 按基准坐标系（原点 = `facing_origin`、前轴 = `facing_target`，上轴固定世界竖直）表达，两类分量不能混写。
+- **注视方块与实体部位（`look_at: "block"` / `look_at_target_block` / `look_at_part`）**：`look_at` 新增 `"block"` 模式——用 `look_at_target_block` 写 `"block:<方块 id>[:<半径>]"`（半径缺省 16 格），镜头注视就近搜索到的方块中心；`look_at = "entity"` 新增 `look_at_part`（`{x,y,z}` 每轴 `0` ~ `100` 的**部位百分比**，`0` = 该轴最小侧、`50` = 包围盒中心、`100` = 最大侧，缺省分量 = `50`），可稳定盯住生物的头部 / 脚部等具体部位而非整体中心。注视点同样支持 `look_at_offset` 偏移（先取点后加偏移）。
+- **方向锁（`yaw_lock` / `pitch_lock`）**：关键帧新增两个**世界角绝对值**锁（度）——`yaw_lock` / `pitch_lock` 写了 = 该轴基准固定为给定值、不再查 `yaw_base` / `pitch_base` 的方向源，关键帧 `yaw` / `pitch` 偏移仍叠加其上（`yaw_lock: 100` + `yaw: 5` = 105）；不写 = 照旧跟来源。两轴独立，可一轴锁值、另一轴跟来源（典型第三人称 = `"pitch_lock": 15` + `"yaw_base": "entity"`：pitch 锁死俯视角、yaw 跟玩家身体朝向）；`look_at` 不为 `none` 时静态侧（锁 + 基准 + 偏移）整体不参与，朝向交给注视点。
+- **选择器锚点与择一（`selector_anchor` / `selector_pick` + 调用点级覆盖）**：关键帧新增 `selector_anchor`（就近参考点：`camera` 相机位置（缺省，旧行为）/ `player` 玩家脚底 / `target` 当前锁定目标脚底 / `origin` 位置点源坐标）与 `selector_pick`（候选择一：`first` 缺省 = 0.3.6 之前的择一行为 / `nearest` 客户端可用候选内就近 / `alive` 按返回序取首个存活）；二者与已有的 4 个 `selector_*` 策略字段都支持**调用点级覆盖**——写 `<字段>_<调用点>`（如 `"selector_pick_look_at": "nearest"`）即可只给某一个调用点单独配置，其余调用点回落通用值（旧脚本逐点不变）。`@a` / `@r` / `@p[…]` 等带选项形态的实体选择器一并交给服务端用原版解析，语义同原版（含 `[team=…]` 等选项）。
+- **相机参数运动模型（`motion_position` / `motion_yaw` / `motion_pitch` / `motion_roll` / `motion_fov` / `motion_zoom`）**：相机片段可给六个参数各挂一个**数学模型**做运动响应（平滑 / 延迟 / 缓动 / 组合），缺省不接（行为与原来完全一致，由作者显式启用）。模型类型含 `linear`（恒等）/ `smoothstep` / `ease_in` / `ease_out` / `ease_in_out` / `cubic_bezier`（CSS 式控制点）/ `exponential_smooth`（一阶指数趋近，`tau` 越小越快）/ `spring`（二阶阻尼弹簧，`damping` < 1 回弹）/ `inertia`（跟随移动目标稳态零滞后、起步慢停车过冲），以及 `chain`（按序串联）/ `blend`（两子模型混合）两种组合；值域由字段决定（位置 = 向量、角度 = 角度、fov / zoom = 标量），组合嵌套 ≤ 8 层、单个定义 ≤ 32 个节点。
+- **分参数过渡（`transition_params` / `transition_curve` / `transition_interrupt`）**：片段过渡从「整体一个权重」升级为**逐参数**控制——`transition_params` 可给六个通道各自声明 `mode`（`blend` 混合 / `hold` 保持 A 侧 / `cut` 直接切）+ 各自的 `duration` 与 `curve`（如 roll 保持、fov 硬切、其余走 smoothstep）；`transition_curve` 给未单独声明的通道设统一权重曲线；`transition_interrupt` 决定过渡被打断时的行为（`blend` 从当前中间态续接（缺省）/ `snap` 硬切到新目标）。不写这些字段时全六通道同一权重、线性斜坡、时长 = `transition_duration`，与原来完全一致。
 
 ### 优化
 - 修复实体朝向插值：镜头跟随生物时，生物的转身（yaw）和抬头（pitch）动作更顺滑。
@@ -38,6 +44,13 @@
 - 修复 `selector_switch_interval` 大于 `selector_refresh` 时目标永远不切换的问题：切换间隔现在以"上次真实切换"为基准，与扫描频率无关。
 - 修复 `on_enter`（进入时触发）触发器每局只能触发一次的问题：离开区域后现在会正确复位、再次进入可再次触发，`exit_buffer` 离开缓冲同时生效。
 
+### 移除
+- 移除 `position.up_axis` 字段：基准坐标系的上轴固定为世界竖直（前轴 / 右轴取水平面内分量，前轴俯仰不参与）；方向侧每轴跟来源 / 锁值改用 `yaw_lock` / `pitch_lock`。写该字段会被校验直接拦下报错。
+- 移除 `position.relative_origin` 系（含配套坐标）：位置基准统一为**关键帧字段** `facing_origin`（五形态点源），偏移仍写在 `position` 对象里（世界轴 `dx/dy/dz` / 基准坐标系 `fwd`/`up`/`right`）。出现即报错。
+- 移除 `look_at_target` 对象形态（含对象内 `relative_to` / `relative_x/y/z` / 对象内偏移）：注视目标统一为**点源 + 偏移**的平面字段——实体用 `look_at_selector`（部位 `look_at_part`）、坐标用 `look_at_target_x/y/z`、结构用 `look_at_target_structure`、方块用 `look_at_target_block`，偏移用 `look_at_offset`。出现即报错。
+- 选择器调用点级覆盖移除死调用点 `look_at_target`：`selector_*_look_at_target` 一族字段（如 `selector_pick_look_at_target` / `selector_anchor_look_at_target` / `selector_switch_smooth_look_at_target`）此前可写可校验、但运行时不读（声明与校验都按名单生成），现已随名单整体移除——字段不再被 schema 声明、也不再校验（写入与其它未知字段同一口径，静默忽略）；其余调用点（`follow` / `look_at` / `yaw_base` / `yaw_base_from` / `yaw_base_to` / `facing_origin` / `facing_target`）不变。
+- **模板命令 `/icinematics template`（计划移除）**：该命令已裁定移除（E0 裁决 2026-10-10），将**随编辑器批次**一并执行——届时不再提供命令行模板展开（生成物目录 `scripts/generated/` 一并停用）。
+
 ## [0.3.5] - 2026-08-20
 
 世界预加载与运镜体系、音频听者重构、编辑器和预设增强，并移除了 Architectury 前置依赖。
@@ -46,8 +59,8 @@
 - **脚本文件夹组织**：`scripts/` 支持子文件夹递归加载，编辑器与命令按相对路径显示。
 - **触发器前置依赖**：`triggers[].requires` 可以要求指定脚本先触发，满足条件后才会触发。
 - **呼吸扰动 v2**：新增 `cam_breath_type`（perlin / perlin_axis / sine / trauma）与速度、强度、衰减控制。
-- **注视目标扩展**：`look_at_target` 支持绝对坐标、相对触发点、相对实体、相对结构中心等。
-- **动态朝向基准**：`yaw_base` / `pitch_base` 支持世界、实体视线、两点连线基准。
+- **注视目标扩展**：`look_at_target` 支持绝对坐标、相对触发点、相对实体、相对结构中心等（**0.3.6 起：`look_at_target` 对象形态已移除**——注视目标改用「点源 + 偏移」的平面字段：实体 `look_at_selector`（部位 `look_at_part`）、坐标 `look_at_target_x/y/z`、结构 `look_at_target_structure`、方块 `look_at_target_block`，偏移 `look_at_offset`）。
+- **动态朝向基准**：`yaw_base` / `pitch_base` 支持世界、实体视线、两点连线基准（**0.3.6 起：新增分轴锁值 `yaw_lock` / `pitch_lock`**，可把单轴钉在世界角绝对值上；旧的垂直面基准字段 `up_axis` 已移除，基准坐标系上轴固定世界竖直）。
 - **区块预加载统一**：镜头播放时自动加载镜头周围区块，退出时把玩家周围缺失区块补回。
 - **预加载预热与释放复用**：接近下一个 CAMERA 片段时提前加载；脚本结束时只补玩家区缺失区块。
 - **预加载配置持久化**：预加载相关配置可以在 Forge / Fabric 配置中保存并跨重启生效。

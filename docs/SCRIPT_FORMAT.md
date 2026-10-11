@@ -511,19 +511,27 @@ immersive_cinematics/
 
 | 写法 | 行为 |
 |------|------|
-| `@p` / `@s` | 玩家 |
+| `@p` / `@s` | 玩家（本地快路径，直接取本地玩家） |
+| `@p[...]` | 玩家 + 原版选项（交服务端用原版解析，语义同原版） |
+| `@a` / `@a[...]` | 全体玩家（可带原版选项，如 `[team=…]`）——交服务端用原版解析，语义同原版 |
+| `@r` / `@r[...]` | 随机一名玩家（可带原版选项）——交服务端用原版解析，语义同原版 |
 | `@e` | 离锚点最近的活实体（锚点缺省 = 相机位置，见 `selector_anchor`） |
 | `@e[type=minecraft:iron_golem]` | 类型过滤后就近（模组 boss 用其注册 id） |
 | `@e[type=#your_mod:units]` | 实体类型 tag 过滤（推荐：只选单位、排除投掷物）。tag 由数据包/模组提供 |
 | `@e[type=!#minecraft:impact_projectiles]` | 反向实体类型 tag：排除投掷物等 |
 | `@e[name=自定义名]` | 命名牌名字过滤后就近 |
+| `@e[...]` 其它原版选项（`nbt=` / `tag=` / `distance=` / `sort=` / `limit=` / `team=` …） | 交服务端用原版解析，语义同原版 |
 | `uuid:xxxxxxxx-…` | UUID 直绑（唯一确定，不排序） |
 
 > 上表「就近」描述的是缺省 `selector_pick: "first"` 在**本地路径**下的行为。匹配到多个候选时的取定规则由 `selector_pick` 决定：`first` = 本地就近 / 服务端按回传序取首个可用（0.3.6 之前的择一行为）；`nearest` = 客户端可用候选内就近；`alive` = 按返回序取首个存活。
 
+> **解析路径**：无选项 `@p` / `@s` 与 `@e` / `@e[type=…,name=…]` 走**本地快路径**（同步求值）；其余形态——`@a` / `@r` 的裸形态与全部带选项形态（`@p[...]` / `@a[...]` / `@r[...]`）、`@e` 的扩展选项——交**服务端**用原版 `EntitySelectorParser` 解析，再按回传 UUID 映射到客户端实体，**语义与原版一致**（含 `[team=…]` 等原版选项）。
+>
 > `type=` 可以是 `#tag` / `!#tag`，也可以在一条 selector 里组合多个 `type=!xxx`。
 > 含 `nbt=` / `type=#tag` / `type=!` / 多个 `type=` 的 selector 会交给服务端用原版
 > `EntitySelectorParser` 解析（`nbt=` 只做 NBT 子集匹配，不区分生物/投掷物；要区分种类请用 `type=`）。
+>
+> **未知形式**：原版 1.20.1 没有 `@n` 选择器 → 按未知形式处理（warn 日志 + 不解析 = 无匹配）；畸形括号（如缺 `]`）等同。都不崩溃。
 >
 > 无匹配时：follow 停在上一帧位置、look_at 回退 yaw/pitch。
 
@@ -625,6 +633,38 @@ immersive_cinematics/
 - 语义去向：`"view"` ≈ 两轴都不锁（`yaw_base` / `pitch_base` 跟来源）；`"world"` ≈ `pitch_lock: 0`。
 - 基准坐标系的上轴**固定为世界竖直**（前轴 / 右轴取水平面内分量，前轴俯仰不参与）。
 - 报错文本：`position.up_axis 已移除（0.3.6 起）：基准坐标系的上轴固定为世界竖直（前轴 / 右轴取水平面内分量）；方向侧每轴跟来源 / 锁值改用 yaw_lock / pitch_lock`。
+
+### `position.relative_origin` 系移除（0.3.6，不兼容）
+
+`position.relative_origin` 与配套坐标 `relative_origin_x/y/z` 整体移除（schema / 解析 / 校验 / 文档），出现即报错：
+
+- 语义去向：位置基准统一为**关键帧字段** `facing_origin`（五形态点源，见上方 §「点源」）；偏移仍写在 `position` 对象里（世界轴 `dx/dy/dz` / 基准坐标系 `fwd`/`up`/`right`，见上方 §「偏移」）。
+- 字段落点：`facing_origin` / `facing_target` 是**关键帧**字段（与 `yaw_base_from` 同级），不写在 `position` 内（写进 `position` 同样报错）。
+- 报错文本：`position.relative_origin 已移除（0.3.6 起）：位置基准统一用关键帧字段 facing_origin（写法见 docs/SCRIPT_FORMAT.md §「点源」）`。
+
+```json
+// 旧写法（0.3.6 前，出现即报错）
+"position": { "relative_origin": "coordinate", "relative_origin_x": 0, "relative_origin_y": 64, "relative_origin_z": 10, "dx": 3, "dy": 2, "dz": 0 }
+
+// 新写法
+"facing_origin": "coordinate", "facing_origin_x": 0, "facing_origin_y": 64, "facing_origin_z": 10,
+"position": { "dx": 3, "dy": 2, "dz": 0 }
+```
+
+### `look_at_target` 对象形态移除（0.3.6，不兼容）
+
+`look_at_target` 对象形态（含对象内 `relative_to` / `relative_x/y/z` / 对象内偏移）整体移除（schema / 解析 / 校验 / 文档），出现即报错：
+
+- 语义去向：注视目标统一为**点源 + 偏移**的平面字段——实体用 `look_at_selector`（部位百分比 `look_at_part`）、坐标用 `look_at_target_x/y/z`、结构用 `look_at_target_structure`、方块用 `look_at_target_block`，偏移用 `look_at_offset`（世界轴 `dx/dy/dz` / 基准坐标系 `fwd`/`up`/`right`，见上方 §「偏移」）。
+- 报错文本：`<路径>.look_at_target 已移除（0.3.6 起）：注视目标统一为点源 + 偏移——实体用 look_at_selector（部位百分比 look_at_part）、坐标用 look_at_target_x/y/z、结构用 look_at_target_structure、方块用 look_at_target_block，偏移用 look_at_offset（世界轴 dx/dy/dz / 基准坐标系 fwd/up/right）`。
+
+```json
+// 旧写法（0.3.6 前，出现即报错）
+"look_at": "coordinate", "look_at_target": { "relative_to": "@p", "dx": 0, "dy": 1, "dz": 0 }
+
+// 新写法
+"look_at": "entity", "look_at_selector": "@p", "look_at_offset": { "dy": 1 }
+```
 
 ### Position（相对模式 `relative`）
 
