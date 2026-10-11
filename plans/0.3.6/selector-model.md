@@ -122,7 +122,7 @@
   - 相机侧 `camera/source/EntityTargetResolver` 收为**消费适配层**：关键帧字段读取 + `<字段>_<调用点>` 回落链 + 点源五形态解析（锚点 `origin`）+ 世界上下文注入。公开方法签名与 B14 一致（`resolveEntity` / `selectorPolicy` / `selectorAnchor` / `selectorPick` / `smoothTargetPoint` / `snapshotLockState` / `restoreLockState` / `attachWorldContext` / `clear`），`CameraKeyframeEvaluator` / `LaneSnapshotCollector` / `CameraTrackPlayer` 零改动。
 - **定义单源**：`TrackSchemas.camera()` 的 8 调用点 × 6 字段循环、`ScriptValidator` 的调用点名单与取值集校验、`EntityTargetResolver` 的回落链读法三方共用 `SelectorSchema`；`ScriptValidator` 里「改一处须同步另一处」的注释已删（结构上已不可能不同步）。
 - **调用方形态**：`trigger/**`（`ClientEntitySelectorCache` / 网络包 / `EntitySelectorResolver`）为既有通用底座，不动；服务组合它们。其它轨道 / 外部模组复用同一服务时，只需给出 selector 字符串、原点与调用点名。
-- **验收（B15 自证）**：`:common:compileJava` 过；A/B 对拍（B13 的 13 场景 + 21 项 pick + 22 项锚点，HEAD 版与 B15 版两个 classpath 各跑一次）stdout 逐字节一致；validator 五套语料 stdout 逐字节一致（`cinematics/tests` 3 个既有 FAIL 不变）；`selector/` 反向 import grep 零命中；`icv2` / `icgl` 各 14 套 harness 全绿。
+- **验收（B15 自证）**：`:common:compileJava` 过；A/B 对拍（B13 的 13 场景 + 21 项 pick + 22 项锚点 = 56 用例行，HEAD 版与 B15 版两个 classpath 各跑一次）stdout 各 73 行逐字节一致（归档 `E:/tmp/b15/probe/{head.out,b15.out}`，同 sha256 `dfca3441…`）；validator 五套语料 stdout 逐字节一致（`cinematics/tests` 3 个既有 FAIL 不变）；`selector/` 反向 import grep 零命中；`icv2` / `icgl` 各 14 套 harness 全绿。
 
 **非相机调用点接入验证（2026-10-11，T16）**
 

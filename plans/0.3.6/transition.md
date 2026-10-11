@@ -200,10 +200,10 @@
 
 **验收证据**：
 - legacy morph 基线对拍：**2403 行逐字节**（`E:/tmp/b18/head.out` vs `new.out`，同 md5 `89ad5773…`；validator 输出 301 行同 md5 `96a1f432…`，`ab.diff` / `validator-ab.diff` 均 0 字节）。
-- 探针 **51/51**（分参数 / 曲线 / 打断 blend·snap·链式 / 零分配）——**探针 stdout 未归档**：`E:/tmp/b18/out/probe-out` 仅存 `.class`，源码在 `E:/tmp/b18/probe`（`FeatureProbe.java` / `AllocDiag.java` / `ParseNegProbe.java` / `AbProbe.java`）。51/51 为任务书 / 提交记录口径，当前无法从归档复核。
+- 探针 **51/51**（分参数 / 曲线 / 打断 blend·snap·链式 / 零分配）——stdout 归档 `E:/tmp/b18/out/probe.out`（**2026-10-11 收口复跑**，72 行：含 `PASS` 行 51（用例断言 48 + 组级 `ALL PASS` 3）、`FAIL` 0；复跑脚本 `sh E:/tmp/b18/run_probes.sh`，源码 `E:/tmp/b18/probe/`（`FeatureProbe.java` / `AllocDiag.java` / `ParseNegProbe.java` / `AbProbe.java` + 同包 `GateWindowProbe.java`））。复跑按当前工作树（HEAD `de3b91f`）：B4-P5 把 `CameraState` 迁 `api` 包，探针 `FeatureProbe.java` 1 行 import 随之改；B18 时点原始 stdout 未归档，51/51 的归档复核 = 本次复跑（同一 51 计数）。
 - 实机抽验：**部分已验（2026-10-11，T17）**——① morph 叠化 / ② 分参数 / ③ 曲线实机跑通并逐帧定量；④ 打断 / ⑤ 链式**未验**（原因见下「实机抽验」小节「未验项」）。详见下节。
 
-> 口径说明：本节按当前工作树复核（2026-10-11）。上述「未归档 / 未验」两项如实标注，不写成已验。
+> 口径说明：本节按当前工作树复核（2026-10-11）。「未验」项如实标注，不写成已验；探针 stdout 已于收口时补归档（复跑口径见上，与 B18 时点同一 51 计数）。
 
 ### 实机抽验（2026-10-11，T17）
 
