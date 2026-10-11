@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 脚本解析器 — 将 JSON 字符串解析为 CinematicScript POJO
@@ -32,6 +33,16 @@ public class ScriptParser {
     private static final String REMOVED_UP_AXIS = "已移除（0.3.6 起）：基准坐标系的上轴固定为世界竖直"
             + "（前轴 / 右轴取水平面内分量）；方向侧每轴跟来源或锁值改用 yaw_lock / pitch_lock"
             + "（写法见 docs/SCRIPT_FORMAT.md §「方向锁」）";
+
+    /**
+     * 模型定义驻留表：键 = 定义对象的归一形态（{@code type} + 参数键值 + 通道域，见 {@link #parseMathModel}）。
+     *
+     * 同（type + 参数键值）的 JSON 定义复用同一定义对象，于是「定义对象同一」= 「定义不变」——
+     * 调用方（{@code camera/source/LaneMotionStepper}）据此判定片段切换时模型实例延续 / 重建；
+     * 定义不可变、可被多个调用点共享（实例仍按调用点各建一份）。
+     * 键为解析期一次建成的只读 map（入库后不再变更）；条目数 = 出现过的定义形态数。
+     */
+    private static final Map<Map<String, Object>, MathModel> MODEL_DEFINITIONS = new ConcurrentHashMap<>();
 
     /**
      * 解析异常 — 包含字段路径信息
@@ -547,6 +558,8 @@ public class ScriptParser {
      * {@code motion_yaw} / {@code motion_pitch} / {@code motion_roll} = ANGLE、{@code motion_fov} /
      * {@code motion_zoom} = SCALAR），以结构键 {@code domain} 交给注册表（缺省继承 = 通道值域）。
      *
+     * 定义对象按归一形态（{@code type} + 参数键值 + 域）驻留：同形态的定义（含重新解析的同一脚本）
+     * 得到同一对象，调用方据此判定「定义不变」；数字统一为 {@code float}，故 {@code 8} 与 {@code 8.0} 同形态。
      * 未注册 / 缺失 type、未知参数、越界值按注册表口径限频告警 + 回落（{@code linear} = 无效果），不阻断解析；
      * 值不是对象才视为结构错误。
      */
@@ -556,8 +569,10 @@ public class ScriptParser {
         }
         Map<String, Object> raw = parseUnknownObject(value.getAsJsonObject(), p);
         raw.put("domain", MathModelRegistry.channelDomain(fieldName).key());
-        Object type = raw.get("type");
-        return MathModelRegistry.create(type instanceof String text ? text : null, raw);
+        return MODEL_DEFINITIONS.computeIfAbsent(raw, key -> {
+            Object type = key.get("type");
+            return MathModelRegistry.create(type instanceof String text ? text : null, key);
+        });
     }
 
     // ========== PositionData 解析 ==========

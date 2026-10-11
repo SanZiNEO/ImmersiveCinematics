@@ -39,6 +39,14 @@ public interface TrackPlayer {
     void onStop();
 
     /**
+     * 编辑器 seek（{@code editor.seek} / {@code setTime}）时调用：把按时间推进的派生状态归位
+     * （相机运动模型实例等），使之后从 seek 点重新推进；时钟基准由 {@link ScriptPlayer#alignTime} 单独调整。
+     */
+    default void onSeek() {
+        // 默认无状态
+    }
+
+    /**
      * 组 A：脚本数据被替换（编辑器编辑 → replaceScript）时调用。
      * 实现应复位依赖 clip 对象身份的状态（lastClipIndex 等）；
      * 音频轨道在此重映射实例（sound+startTime+duration 匹配复用，避免重解码）。

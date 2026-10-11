@@ -73,7 +73,9 @@ public final class LaneSnapshotCollector {
                     evaluator.warnClipUnusableOnce();
                     continue;
                 }
-                CameraLane snapshot = evaluator.renderSingle(globalTime, clip, globalTime - clip.getStartTime(), true);
+                // 层号 = 距顶层 lane 的层级（顶层 = 0）：运动模型实例按层归属，本 clip 本帧只在此处 step 一次
+                CameraLane snapshot = evaluator.renderSingle(globalTime, clip, globalTime - clip.getStartTime(),
+                        true, active.size() - 1 - i);
                 if (snapshot != null) laneSnapshots.add(snapshot);
             }
         } finally {

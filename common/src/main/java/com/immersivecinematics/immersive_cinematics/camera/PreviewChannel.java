@@ -161,6 +161,8 @@ final class PreviewChannel {
         disableMacroLoop(instance);
         double previewHead = previewClock.seconds();
         instance.player().alignTime((float) previewHead, previewHead);
+        // 定位 = 硬定位：按时间推进的派生状态（运动模型实例）一并归位，从 seek 点重新推进
+        instance.player().onSeek();
         // 定位即同步暂停态——先于 repositionAudio（其 paused 分支依赖此标志），
         // 并覆盖 startScriptInternal 预执行首帧已创建/播放的实例。
         instance.player().pauseAudio();

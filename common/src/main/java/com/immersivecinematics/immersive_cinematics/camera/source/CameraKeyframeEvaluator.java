@@ -37,7 +37,7 @@ import java.util.Map;
  * {@code look_at} != none 时静态侧（锁 + 基准 + 偏移）整体不参与，朝向由动态目标点插值决定。
  * 状态所有权：{@link #lastWorldPos} 与 {@link #frame} 是跨帧求值状态，仅本实例持有；
  * 重叠窗口的捕获求值经 {@link #snapshotFrameState()} / {@link #restoreFrameState()} 留底与回写，
- * 目标锁状态由 {@link EntityTargetResolver} 自行留底。
+ * 目标锁状态由 {@link EntityTargetResolver} 自行留底；每 lane 的运动模型实例见 {@link LaneMotionStepper}。
  * 分配 / 线程契约：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱。
  */
 public final class CameraKeyframeEvaluator {
@@ -50,6 +50,12 @@ public final class CameraKeyframeEvaluator {
      * 都未定义，一律拒绝该朝向输入（{@link #lineDir} / {@link #buildFrame}）；纯水平线不在这一侧。
      */
     private static final double LINE_HORIZONTAL_EPSILON = 1.0E-4;
+
+    /**
+     * 顶层 lane 的层号：本轨本帧写入全局相机状态的那条 lane（{@link #renderSingle} / {@link #renderMorph} 的
+     * 运动模型槽索引）；层级在下的 lane 依次为 1、2……（重叠窗口的捕获求值）。
+     */
+    public static final int TOP_LANE = 0;
 
     /** 退化连线告警限频窗口（毫秒） */
     private static final long DEGENERATE_LINE_WARN_INTERVAL_MS = 2000L;
@@ -78,6 +84,12 @@ public final class CameraKeyframeEvaluator {
 
     /** 捕获求值隔离基线：{@link #snapshotFrameState()} 留底，{@link #restoreFrameState()} 回写 */
     private PointSource.Frame baselineFrame;
+
+    /** 本轨 per-lane 运动模型实例槽（六通道；定义来自本帧生效片段，缺省 null = 该通道不接模型）。 */
+    private final LaneMotionStepper motion = new LaneMotionStepper();
+
+    /** 运动模型 step 的六参数缓冲区（0~2 = 位置 x/y/z，3~7 = yaw/pitch/roll/fov/zoom）；仅求值路径使用。 */
+    private final double[] motionValues = new double[LaneMotionStepper.VALUES];
 
     /** 诊断：look_at 目标位置一次性日志（播放期间只打印 1 次） */
     private boolean lookAtLoggedOnce;
@@ -178,21 +190,26 @@ public final class CameraKeyframeEvaluator {
     /**
      * 单 clip 求值。
      *
-     * @param capture {@code true} = 不推进跨帧求值状态（{@link #lastWorldPos} 不变；全局相机写入由编排层跳过）
+     * @param capture  {@code true} = 不推进跨帧求值状态（{@link #lastWorldPos} 不变；全局相机写入由编排层跳过）
+     * @param laneRank 该 clip 所在 lane 的层号（{@link #TOP_LANE} = 顶层；捕获路径按距顶层层级传入）
      * @return 该 clip 本帧的 lane 快照；无插值结果（关键帧为空）时 {@code null}
      */
-    public CameraLane renderSingle(float globalTime, Clip clip, float clipLocalTime, boolean capture) {
+    public CameraLane renderSingle(float globalTime, Clip clip, float clipLocalTime, boolean capture,
+                                   int laneRank) {
         KeyframeInterpolator.InterpolationResult result =
                 KeyframeInterpolator.computeInterpolation(clipLocalTime, clip);
         if (result == null) return null;
 
         float s = result.adjustedT;
-        CameraState state = writeAttributes(result.from, result.to, s, clip, globalTime, capture);
+        CameraState state = writeAttributes(result.from, result.to, s, clip, globalTime, capture, laneRank);
         return state != null ? new CameraLane(state, clip, clipLocalTime) : null;
     }
 
     /**
      * B 模型 morph 交叉求值（两 clip 混合成一份相机状态），并提交 {@link #lastWorldPos}。
+     *
+     * 混合结果 = 本帧顶层 lane 的目标值：运动模型 step 以进入的片段（{@code nextClip}）的定义跑一次
+     * （两端不各自推进，禁止同一实例一帧 step 两次）。
      *
      * @return 混合后的六参数快照；两端都无插值结果时 {@code null}
      */
@@ -252,6 +269,28 @@ public final class CameraKeyframeEvaluator {
                 nextFrom != null ? KeyframeInterpolator.interpolateZoom(nextFrom, nextTo, nextS) : 1f,
                 weight);
 
+        // ====== 运动模型 step（混合后的目标值 → 每通道 step；重叠窗内以进入片段的定义为当前定义）======
+        motionValues[0] = pos.x;
+        motionValues[1] = pos.y;
+        motionValues[2] = pos.z;
+        motionValues[3] = yaw;
+        motionValues[4] = pitch;
+        motionValues[5] = roll;
+        motionValues[6] = fov;
+        motionValues[7] = zoom;
+        int applied = motion.step(TOP_LANE, nextClip, globalTime, motionValues);
+        if ((applied & LaneMotionStepper.CH_POSITION) != 0) {
+            pos = new Vec3(motionValues[0], motionValues[1], motionValues[2]);
+        }
+        if (applied != 0) {
+            yaw = (float) motionValues[3];
+            pitch = (float) motionValues[4];
+            roll = (float) motionValues[5];
+            fov = (float) motionValues[6];
+            zoom = (float) motionValues[7];
+        }
+        // ====== End 运动模型 ======
+
         // ====== Breath disturbance (v2: 按 cam_breath_type 分派, 确定性) ======
         if (prevClip.getBool("cam_breath_enabled", false)) {
             float[] jitter = BreathDisturbance.fromClip(prevClip).compute(globalTime);
@@ -274,6 +313,14 @@ public final class CameraKeyframeEvaluator {
     /** 捕获求值隔离：把本帧基准坐标系恢复为最近一次 {@link #snapshotFrameState()} 的留底。 */
     public void restoreFrameState() {
         setFrame(baselineFrame);
+    }
+
+    /**
+     * seek（{@code editor.seek} / {@code setTime}）：全部 lane 的运动模型实例归位——下一次求值以当帧输入为
+     * 初值、dt = 0，从 seek 点重新推进；跨帧求值状态（{@link #lastWorldPos} / 目标锁）不在归位范围。
+     */
+    public void resetMotionState() {
+        motion.reset();
     }
 
     /** 记录本帧基准坐标系（{@code null} = 本帧没有基准坐标系）并同步给点源求值侧。 */
@@ -706,11 +753,15 @@ public final class CameraKeyframeEvaluator {
     /**
      * 单段求值出相机六参数，并按 {@code capture} 决定是否提交 {@link #lastWorldPos}。
      *
-     * @param capture {@code true} = 不推进 {@link #lastWorldPos}（全局相机写入由编排层按同一标志跳过）
+     * 次序：关键帧 / look_at 目标点插值出目标值 → 每通道运动模型 step（{@link LaneMotionStepper}，
+     * 定义取本段片段）→ 呼吸叠加 → 直写。
+     *
+     * @param capture  {@code true} = 不推进 {@link #lastWorldPos}（全局相机写入由编排层按同一标志跳过）
+     * @param laneRank 本段所在 lane 的层号（{@link #TOP_LANE} = 顶层）
      * @return 本段求值出的六参数快照
      */
     private CameraState writeAttributes(Keyframe from, Keyframe to, float s, Clip clip, float globalTime,
-                                        boolean capture) {
+                                        boolean capture, int laneRank) {
         Vec3 pos = interpolateWorldPosition(from, to, s, clip);
         float yawBase = KeyframeInterpolator.interpolateYaw(from, to, s);
         float pitchBase = KeyframeInterpolator.interpolatePitch(from, to, s);
@@ -725,6 +776,27 @@ public final class CameraKeyframeEvaluator {
         float yaw = yp[0];
         float pitch = yp[1];
         // ====== End look_at ======
+        // ====== 运动模型 step（六参数最终目标值 → 每通道实例 step；呼吸叠加在其后）======
+        motionValues[0] = pos.x;
+        motionValues[1] = pos.y;
+        motionValues[2] = pos.z;
+        motionValues[3] = yaw;
+        motionValues[4] = pitch;
+        motionValues[5] = roll;
+        motionValues[6] = fov;
+        motionValues[7] = zoom;
+        int applied = motion.step(laneRank, clip, globalTime, motionValues);
+        if ((applied & LaneMotionStepper.CH_POSITION) != 0) {
+            pos = new Vec3(motionValues[0], motionValues[1], motionValues[2]);
+        }
+        if (applied != 0) {
+            yaw = (float) motionValues[3];
+            pitch = (float) motionValues[4];
+            roll = (float) motionValues[5];
+            fov = (float) motionValues[6];
+            zoom = (float) motionValues[7];
+        }
+        // ====== End 运动模型 ======
         // ====== Breath disturbance (v2: 按 cam_breath_type 分派, 确定性) ======
         if (clip.getBool("cam_breath_enabled", false)) {
             float[] jitter = BreathDisturbance.fromClip(clip).compute(globalTime);

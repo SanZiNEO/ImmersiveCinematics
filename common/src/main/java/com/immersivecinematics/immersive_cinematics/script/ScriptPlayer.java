@@ -511,6 +511,20 @@ public class ScriptPlayer {
     }
 
     /**
+     * 编辑器 seek：本实例各轨道按时间推进的派生状态归位（相机运动模型实例经 {@link TrackPlayer#onSeek()}），
+     * 使之后从 seek 点重新推进；时钟基准由 {@link #alignTime} 单独调整。
+     */
+    public void onSeek() {
+        for (TrackPlayer tp : trackPlayers) {
+            try {
+                tp.onSeek();
+            } catch (Exception e) {
+                com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackPlayer onSeek 异常", e);
+            }
+        }
+    }
+
+    /**
      * 暂停所有音频轨道（游戏暂停时调用）
      */
     public void pauseAudio() {

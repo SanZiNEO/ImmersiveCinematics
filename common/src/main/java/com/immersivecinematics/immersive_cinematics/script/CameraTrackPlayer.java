@@ -111,7 +111,8 @@ public class CameraTrackPlayer implements TrackPlayer {
         }
 
         // 顶层 clip：正常求值（写全局相机状态，与顶层 lane 同源同值）
-        CameraLane topLane = evaluator.renderSingle(globalTime, topClip, globalTime - topClip.getStartTime(), false);
+        CameraLane topLane = evaluator.renderSingle(globalTime, topClip, globalTime - topClip.getStartTime(),
+                false, CameraKeyframeEvaluator.TOP_LANE);
         if (topLane != null) writeGlobal(topLane.state());
         // 重叠窗口内层级在下的活跃 clip：先捕获（列表顺序 = 绘制顺序，后面的在上）
         laneCollector.captureLowerLanes(globalTime, active, topClip);
@@ -127,6 +128,12 @@ public class CameraTrackPlayer implements TrackPlayer {
     public void onStop() {
         laneCollector.clear();
         entityResolver.clear();
+    }
+
+    /** 编辑器 seek：本轨运动模型实例归位（下一次求值以当帧输入为初值，dt = 0）。 */
+    @Override
+    public void onSeek() {
+        evaluator.resetMotionState();
     }
 
     /** 组 A：数据替换后复位派生状态——lane 快照 / 目标锁（两者都按脚本数据重建）。 */
