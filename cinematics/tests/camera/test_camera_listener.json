@@ -1,0 +1,121 @@
+{
+  "meta": {
+    "id": "test_camera_listener",
+    "name": "相机测试-音频听者（listener=camera）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "校验用：meta.listener=camera 的音频听者实机 fixture（0.3.6 B1 验收 P5，plans/0.3.6/camera-state-plan.md §10「音频听者」）。轨迹同 test_camera_smooth_motion（段 1 线性 12s + 段 2 贝塞尔 8s，六参数全程单调，不挂 motion_*）。实机判据：脚本播放期间音频听者坐标必须逐帧等于统一相机快照位置（398/398 帧实测命中），且通常不等于玩家位置（脚本起点与玩家重合，故 t=0 起两帧同坐标；其余帧相距最大 73.9 方块）；脚本结束（无活跃相机）回落玩家位置。验法 = 临时探针在 FrameDriver 帧末与 SoundManagerMixin 下发点各记一行（开关 ICINEMATICS_TRACE），跑完还原。与 cinematics/tests/audio/test_audio_listener_{camera,player}.json（听感判别）互补：本 fixture 管坐标口径。",
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 0
+      }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true,
+    "listener": "camera"
+  },
+  "timeline": {
+    "total_duration": 20,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": {
+                  "dx": 0,
+                  "dy": 0,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": -6,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 12,
+                "position": {
+                  "dx": 48,
+                  "dy": 12,
+                  "dz": -24
+                },
+                "yaw": 0,
+                "pitch": 18,
+                "roll": 6,
+                "fov": 58,
+                "zoom": 1.3
+              }
+            ]
+          },
+          {
+            "start_time": 12,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "curve": {
+              "type": "bezier",
+              "control_points": [
+                {
+                  "dx": 12,
+                  "dy": 20,
+                  "dz": -20
+                },
+                {
+                  "dx": 30,
+                  "dy": -16,
+                  "dz": 16
+                }
+              ]
+            },
+            "keyframes": [
+              {
+                "time": 0,
+                "position": {
+                  "dx": 48,
+                  "dy": 12,
+                  "dz": -24
+                },
+                "yaw": 0,
+                "pitch": 18,
+                "roll": 6,
+                "fov": 58,
+                "zoom": 1.3
+              },
+              {
+                "time": 8,
+                "position": {
+                  "dx": 72,
+                  "dy": 4,
+                  "dz": -8
+                },
+                "yaw": 90,
+                "pitch": 42,
+                "roll": 16,
+                "fov": 50,
+                "zoom": 1.5
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -131,7 +131,7 @@
 - **结论**：相机轨道求值以**渲染帧时钟**（`GameClock` / `PreviewClock`）为输入、每渲染帧精确重算，lane 渲染读精确 `CameraState`，**不存在 20Hz 台阶**——不需要相机侧 prev/current 快照，不引入 partialTick 插值层。
 - **机制**：帧驱动入口 `GameRendererMixin.onRenderFrameStart`（`GameRenderer.render` 的 HEAD，世界渲染之前）→ `CameraManager.onRenderFrame()`（时钟推进 → 逐实例 `ScriptPlayer.onRenderFrame(double)` → 帧末 `refreshCameraState()` 取覆盖链输出快照）；时间源 = `GameClock`（`System.nanoTime()` 单调秒、暂停冻结）/ `PreviewClock`，即相机轨道求值本身以渲染帧时钟为输入；lane 渲染读自己的精确快照（`CameraMixin.onSetup` 读 `lane.state().position()/yaw()/pitch()`，注释明写「不需要 partialTick 插值」）。
 - **逃生口**：若某**非渲染消费方**（听者 / 预加载 / 触发）以 tick 频率读相机并出现台阶，在该读取点按需用 `TimeInterpolation`——属该消费方边界，不在相机侧加快照层。
-- **证据**：见 §8 证据附录（B16-c 默认关 840 帧 raw-bits 逐字节 / B1-b 缝对拍 2403 行 / 实机三会话几何逐位一致）。
+- **证据**：见 §8 证据附录（B16-c 默认关 840 帧 raw-bits 逐字节 / B1-b 缝对拍 2403 行 / 实机三会话几何逐位一致 / **实机三档帧率逐帧转储无台阶**——§8.1「实机无台阶抽验」）。
 
 ### 7.2 历史缓冲 / 外推 → 第一版不做（开关留位）
 
@@ -154,7 +154,7 @@
 
 ## 8. 落地顺序（方向）
 
-（落地记录：步骤 1-2 已完成（2026-10-07）——统一时间插值工具 `util/TimeInterpolation`（lerp/rotLerp/position/实体级采样，复用原版 prev/current 快照），CameraTrackPlayer 三个散落插值方法收拢迁移（60 万次逐位对照零差异）。**步骤 3-6 已结案（B17，2026-10-11）**——步骤 3 相机快照 = 结案「不需要」（渲染帧时钟求值 + 逐帧精确重算 + lane 读精确 `CameraState`，无 20Hz 台阶，见 §7.1）；步骤 4 历史缓冲 / 外推 = 第一版不做（结案 + 再立项条件，见 §7.2）；步骤 5 模型接入 = 只做时序侧（复用 B16-c 六通道实例，每 lane 每帧单次 step，禁止一帧推进两次——`math-models.md` 定稿 7.2；不实现阻尼 / 缓动——定稿 8）；步骤 6 内部 API = 0.3.6 只留位不开放（见 §7.3）；与覆盖链 / 过渡（B18）的先后关系已文档化（见 §7.4）。）
+（落地记录：步骤 1-2 已完成（2026-10-07）——统一时间插值工具 `util/TimeInterpolation`（lerp/rotLerp/position/实体级采样，复用原版 prev/current 快照），CameraTrackPlayer 三个散落插值方法收拢迁移（60 万次逐位对照零差异）。**步骤 3-6 已结案（B17，2026-10-11）**——步骤 3 相机快照 = 结案「不需要」（渲染帧时钟求值 + 逐帧精确重算 + lane 读精确 `CameraState`，无 20Hz 台阶，见 §7.1；实机三档抽验见 §8.1）；步骤 4 历史缓冲 / 外推 = 第一版不做（结案 + 再立项条件，见 §7.2）；步骤 5 模型接入 = 只做时序侧（复用 B16-c 六通道实例，每 lane 每帧单次 step，禁止一帧推进两次——`math-models.md` 定稿 7.2；不实现阻尼 / 缓动——定稿 8）；步骤 6 内部 API = 0.3.6 只留位不开放（见 §7.3）；与覆盖链 / 过渡（B18）的先后关系已文档化（见 §7.4）。）
 
 1. 定义统一时间插值概念 —— ✅ 完成（步骤 1）
 2. 统一实体位置 / 角度插值 —— ✅ 完成（步骤 2）
@@ -185,6 +185,29 @@
 4. **实体 partialTick 采样（独立通道）**：实体三通道走 `util/TimeInterpolation`（`entityPosition` / `entityBodyYaw` / `entityPitch`，`partialTick()` = `Minecraft.getInstance().getFrameTime()`）——实体位置只在 tick 更新，渲染帧按原版 prev/current 快照（`xo/yo/zo`、`yRotO/xRotO`）采样；这是**实体**的平滑，与相机自身帧驱动精确值互不冲突。
 
 结论：相机参数在渲染帧上逐帧精确取值（非 20Hz 台阶值），故无台阶；实体侧由 `TimeInterpolation` 按 partialTick 采样，同样无台阶。
+
+---
+
+### 实机无台阶抽验（2026-10-11，T18）
+
+> 补 B17 验收 5 的实机一环：60 / 120 / 解锁三档帧率下相机参数是否平滑（无 20Hz 台阶）。口径 = **数值连续性**（逐帧转储统一快照六参数 + 脚本时间 + 客户端 tick 计数），不是像素 / 观感。
+
+**做法**：fixture `cinematics/tests/camera/test_camera_smooth_motion.json`（validator `[OK]`；六参数全程严格单调——段 1 = 12s 线性匀速、段 2 = 8s 贝塞尔路径 + 线性角度 / 光学，**不挂 `motion_*`**（默认关，避免运动模型掩盖台阶）；`block_keyboard` / `block_mouse` = true 冻结玩家输入）部署到 `fabric/run/immersive_cinematics/scripts/`；`options.txt` 临时 `maxFps` 60 / 120 / 260 + `enableVsync:false`（跑完逐字节还原）；临时探针 = `CameraManager.onRenderFrame` 帧末一行（统一快照六参数 + 脚本时间 + tick 计数 + 活跃标志；`ICINEMATICS_TRACE=<路径>` 门控，**跑完已删、不入库**）。三档均 `NATURAL_END elapsed=20.00`（60 档 20.01）自然播完、无异常、无模型告警。
+
+| 档（`maxFps`） | 实测帧率 | 转储帧数 | tick 率 | 同 tick 内参数已变的帧对 | 相邻帧全等最长平台 | 帧间 yaw Δ 中位数 |
+|---|---|---|---|---|---|---|
+| 60 | 57.6 fps | 1153 | 20.54/s | 750 / 1147 = **65.4%** | **1 帧** | 0.1382° |
+| 120 | 110.9 fps | 2218 | 20.55/s | 1815 / 2212 = **82.1%** | **1 帧** | 0.0747° |
+| 260（解锁） | 304.3 fps | 6087 | 20.55/s | 5684 / 6080 = **93.5%** | **1 帧** | 0.0255° |
+
+- **台阶判据与结论**：若相机由逻辑 tick（20Hz / 50ms）驱动，参数在 50ms 窗口内恒定 → 60 / 120 / 260fps 下分别出现「每 3 / 6 / ~15 帧一次跳变」的连续全等平台，且帧间 Δ 与帧率无关（中位数恒 = 速率 × 50ms）。实测：三档**最长全等平台 = 1 帧**，且 65.4% / 82.1% / 93.5% 的相邻帧对在**同一 tick 内**（`Δtick = 0`）参数已经变化；帧间 yaw Δ 中位数随帧率成反比（0.1382 / 0.0747 / 0.0255，比值 1.85 / 2.92 ≈ 帧率比 1.93 / 2.74）。**结论 = 无台阶**。
+- **唯一的一对相邻全等帧**：三档都落在时间轴结束处（60：e 19.991→20.008；120：19.992→20.001；260：19.999→20.001，`Δtick = 0`）——20s 时间轴播完后的**末值保持**（`NATURAL_END` → `deactivateNow`，见 `client.log`），非台阶。
+- **逐帧解析核对（每档独立）**：段 1 八参数线性 / 倍率域拟合斜率 = 解析率（偏差 ≤ 1e-8），最大残差 ≤ 8e-6（位置 ≤ 1e-6 方块；zoom 走倍率域对数插值，log 残差 ≤ 1.1e-7——与 `KeyframeInterpolator.interpolateZoom` 口径一致）；段 2 位置落在解析三次贝塞尔上（弧长参数化，点到曲线距离 ≤ 1.2e-5 方块），角度 / 光学最大残差 ≤ 8e-6。
+- **跨档同一时间轴**：公共 0.25s 网格（80 点）上最大偏差——yaw 8.0e-6°、pitch 3.3e-6°、roll 1.3e-6°、fov 1.1e-5°、zoom 1.7e-7、位置 6.4e-3 方块（三档基座逐位相同：`(-4.963488, -60.000000, 16.541797)`）——同一脚本时刻的相机参数与帧率无关（残差量级 = float 精度 / 弧长 LUT 精度）。
+- **同帧链输出**：全部 9458 个播放帧上，写入缓冲（脚本导演本帧求值）与覆盖链输出快照（渲染侧读取）**逐位相同**（`cur != snap` 帧数 = 0，`snap = null` 帧数 = 0）——链上无量化、无二次采样。
+- **产物**：`fabric/run/lane-captures-b17/{run60,run120,run260}/{trace.txt,client.log}` + harness 与分析输出 `fabric/run/lane-captures-b17/{run_client_b17.sh,analyze_b17.py,analysis-{summary,continuity,model,compare}.txt}`（`fabric/run/` 已 gitignore；harness 原件在仓库外 `E:/tmp/b17run/`，此处为归档副本）。
+- **环境还原**：三档跑前 / 跑后 `options.txt` 逐字节相同、`lane-captures/` 逐文件相同（各档 `diff -r` 无差异）、`scripts/` 目录与客户端进程已清零。
+- **未做**：像素 / 观感侧（本抽验只做数值连续性）；60 / 120 两档实测 57.6 / 110.9 fps 未满档（开发客户端开销；判据看帧率差而非档位名义值）。
 
 ---
 

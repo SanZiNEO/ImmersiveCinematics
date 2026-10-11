@@ -242,6 +242,8 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 
 **§2 补注（2026-10-11 审查）：直控层压制语义为名义层**——`DirectControlBase.isBaseActive()` 只在直写那一瞬为真（`FrameDriver.frame()` 帧首 `clearFrame()` 清零，活跃窗实际只覆盖「直写穿透刷新」那次求值），且三层 `provideBaseState()` 同源同一份全局写入缓冲（`stateHolder.current()`）→ 200 档压制 100 档在运行时**无可观察效果**（帧末求值因帧首已清零而恒不活跃，行为与接入前逐帧等值；`DirectControlBase` javadoc 已自陈）。因此上条统一规则「直控态 = 该层活跃 → 脚本导演层不被选中」本轮**未真正达成**，要等「各层各持自有状态快照」后才生效；该落点未安排（不在 B1 范围内）。如实记录，不找补。
 
+**§2 补注之二（2026-10-11 实机缺陷修复，T23）**：直控类层胜出时**渲染侧此前没有取链输出的接线**——飞控 / 编辑器直控活跃 ⇒ `CameraTrackPlayer.onRenderFrame` 跳过轨道写入（`isPreviewDirectControl()`）⇒ 本帧 lane 表为空 ⇒ 主画面 = 原版玩家视角（零 lane 回落），而 HUD / 听者读的统一快照 = 链输出（飞控值）——用户实机报告的「数值在更新、画面不动」即此分离。**实机复现**（fixture `test_camera_flight`，飞控期 277 帧）：`lanes=0` **277/277**、画面相机（原版主相机）= 玩家位置 `-4.963,-58.380,16.542` 而快照 = 飞控位置（如 `26.138,-52.225,0.991`）；同窗抓帧逐帧 PSNR 44–53 dB（画面冻结）而飞控相机已移动 40+ 方块。**修复（窄面，不动「主相机替换链已退役」的决定）**：主画面取链输出的判据从「链上有 Modifier」扩为「链上有 Modifier **或** 链胜出层非脚本导演」（`CameraCoverChain.winnerPriority() > PRIORITY_SCRIPT_DIRECTOR`；门面查询 `CameraManager.isDirectControlWinner()`）——有脚本 lane 时换进最上层 lane（与 Modifier 生效时同一换入机制），本帧没有脚本 lane 时由链输出注册一条全屏 lane（`ScriptLaneDriver.registerChainLane`；主画面特例 = dest 全屏 / opacity=1）。**实机复验**（同 fixture）：飞控期 255 帧 `lanes=1`、lane 相机 == 链输出 == 飞控位置（其中 91 帧取上一帧值 = 飞控 tick 挂点滞后一帧，见遗留②）；像素侧地平线 roll 实测 3.543° vs 飞控 roll 3.500°（修复前同一帧 0.001° = 玩家视角）、飞控移动后帧间 PSNR 18–27 dB；纯脚本窗 lane 相机 == 快照**逐位同值**（155 / 139 帧，两轮）——判据对脚本路径取与不取等价（脚本导演 100 档胜出且无 Modifier 时判据恒 false）。**遗留（未修，如实记录）**：① 无活跃实例时统一快照恒 `null`（`refreshCameraState` 的 `registry.isActive()` 门），此时直控仍无画面（实测 19 帧：脚本自然结束后飞控仍在飞，画面回落玩家视角；编辑器流程因预览实例常驻不受影响）——候选：门改「链输出非 `null` 即快照」（链自身已用「无活跃 Base = `null`」表达无相机），影响面 = 快照 `null` 语义的全部读侧；② 飞控 tick 挂在 `WebPreviewScreen.render`（GUI 阶段，晚于本帧 lane 注册）⇒ 画面比 HUD 慢一帧；候选：tick 前移到帧首（与帧驱动同点）。
+
 ### 3. `suppressModifiers`（§8-2）
 
 **定**：需要，作为 Base 层的可选字段（接口 `default false`，§12）。语义 = 该层胜出时本帧**跳过 Modifier 链**，链输出 = 该层原始 6 参数。缺省 `false`：预览 / 直控照常显示最终合成结果（所见即所得）；字段是给外部接管 / 精确直控留的逃生门，第一版无内置层置 `true`。
@@ -528,6 +530,20 @@ public final class CameraStateHolder {
 - 音频听者
 - 区块预加载
 - 选择器锁定策略
+
+> **实机验收状态（2026-10-11，B1 验收 P5 收口 ∪ B4-P2 预览通道补验）**：九项逐项标注（**九项均有实机记录**）——
+> - 脚本播放 / 插值 / roll·fov·zoom / cam breath：B17（[时间插值](./temporal-interpolation.md) §7.1/§8.1 三档帧率逐帧转储）、B18（[过渡](./transition.md)〈实机抽验〉①–③）实机跑通并逐帧定量。
+> - 区块预加载 / 选择器锁定策略：B5–B15 各轮实机冒烟与像素判别（见 [实现进度](./implementation-progress.md) 进度日志）。
+> - **飞行模式**（B1 P5 实机补验）：fixture `cinematics/tests/camera/test_camera_flight.json`（= `test_camera_smooth_motion` 轨迹 + `block_keyboard:false`，登录自动播）→ F9 实机键开 WebUI 预览屏（`[IC-WebUI] server started`）→ WS `editor.enter_flight_mode` → 按住 W → WS `editor.exit_flight_mode`。逐帧转储：飞控期 **236/236 帧统一快照 == 飞控位置**、`direct=1`（`FlightBase` 300 胜出且 `CameraTrackPlayer` 跳过轨道写入——同一 t 脚本轨迹应为 (45.9, −44.3, −11.1)（同轨迹 fixture 实测）而快照为 (30.4, −52.9, 7.8)）；脚本时间照常推进 7.19s→18.97s（实例不退出 = 共存不炸）；退出后 **1 帧**（t=19.017）快照回到脚本轨迹并沿其连续；全日志 0 Exception。
+> - **音频听者**（B1 P5 实机补验）：fixture `cinematics/tests/camera/test_camera_listener.json`（`meta.listener=camera`）。逐帧探针（`FrameDriver` 帧末 + `SoundManagerMixin` 下发点各一行）实测：活跃期 **398/398 帧听者坐标 == 相机快照 == 代理相机位置**、`initialized=1`；原版 `SoundEngine.updateSource` 实收镜头代理（398/398 `out==state`，其中 397/398 与传入的原版玩家相机位置相差 >0.01 方块、最大 73.9 方块；唯一同坐标 1 行 = 脚本起点与玩家位置重合）；脚本结束（无活跃相机）回落玩家位置。与 `cinematics/tests/audio/test_audio_listener_{camera,player}.json`（听感判别）互补。
+> - **编辑器预览 / 直控**（B4-P2 / B1 §10 实机补验，2026-10-11）：fixture `cinematics/tests/camera/test_camera_preview_push.json`（**不挂触发器**＝不自动播，只由 WS 推入；两段相机片段、六参数段内可解析、`hold_at_end:true`）→ F9 实机键开 WebUI 预览屏（`[IC-WebUI] server started`）→ **单条 WS 连接**依次 `editor.pushScript` / `seek(0)` / `play` / `pause` / `seek(5)` / `setCamera` / `seek(15)` / `play` / `pause` / `stop` → F9 关屏（`WebPreviewScreen.onClose` → `CameraManager.exitPreview()`；协议无 `editor.exitPreview` 消息，关屏即真实退出路径）。双路证据（临时探针 = `FrameDriver` 帧末 + `PreviewChannel` 六入口 + `CameraManager.setCameraDirect`，开关 `ICINEMATICS_TRACE`，跑完删；457 帧）＋ WS `playback.state`（243 条，50ms 节流）：
+>   - ① `pushScript`：脚本解析入缓存（`msg pushScript parsed=test_camera_preview_push mode=0 inst=0`）——**通道此时未激活、无实例**（与前端「`pushScript` → 显式 `seek(0)`」的流程一致）；首个 `seek(0)` 建实例：`msg setTime arg=0.000 mode=1 paused=1 inst=1 head=0.000 state=…|−90.0000,−6.0000,0.0000,70.0000,1.0000`（快照 == 首关键帧），帧侧 `prevInst 0→1`、`top=test_camera_preview_push`。
+>   - ② `play`：`msg resume mode=1 paused=0`；播放头逐帧推进 0.049→2.452s（WS `playing=true` 36/36 条），相机逐帧跟随脚本（yaw −90→−134.1437 == −90 − 180×(t/10)，最短路径环绕）。
+>   - ③ `pause`：`msg pause mode=1 paused=1 head=2.452`；31 帧快照逐位相同（唯一 state 数 = 1）、WS 22/22 条 `time=2.452`（冻结）。
+>   - ④ `seek`（`handleSeek` = `pause` + `setTime`）：单帧硬定位（帧侧 `ptime 2.452→5`、`5→15`），六参数与解析模型逐位吻合——t=5：位置 = 玩家+(20,5,−10)、yaw −180.0000、pitch 6.0000、roll 3.0000、fov 64.0000（线性）、zoom 1.1402（对数插值 √(1×1.3)）；t=15：玩家+(60,3,−8)、yaw 75.0000、pitch 10.0000、roll 2.0000、fov 70.0000、zoom 1.0000（√(2×0.5)）。
+>   - ⑤ `setCamera`（五参数直写）：`msg setCamera wrote … directFlag=0 state=15.037,−55.000,6.542|111.5000,−33.2500,7.5000,42.5000,2.5000` ——**写瞬穿透生效**（快照 == 五参数、位置不动），且 `directFlag=0`：该入口不置直控标志，**下一帧被轨道写入覆盖**（457 帧无一帧保留直写值）——与「覆盖链定稿」§2 补注 / §14② 既有口径一致（非缺陷）。
+>   - ⑥ `stop` / `exitPreview`：`stop` 播放头归零且**保持激活**（`msg stop mode=1 paused=1 inst=1 head=0.000`，帧侧 `ptime 16.953→0`、快照回首关键帧）；关屏 `exitPreview` → `msg exitPreview mode=0 paused=1 inst=0 head=0.000 active=0 state=-`（**预览实例退出、通道清位、快照 null = 相机回落玩家相机**）+ `[IC-WebUI] server stopped`；全日志 0 Exception / 0 ERROR。
+> - **像素级回归旁证**：B3-c 轮次（2026-10-11）的 quadrant 实机像素回归跑在**含 B1 覆盖链**的构建上（B1-b/c/d 已落地）——数据 `quadrant-perf/b3c-pixel-evidence.csv` / `b3c-culling-cost.md`；该轮名义归 B3，同时可作 B1 的像素回归旁证。
 
 ---
 

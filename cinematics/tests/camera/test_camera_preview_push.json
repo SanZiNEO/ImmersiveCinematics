@@ -1,0 +1,50 @@
+{
+  "meta": {
+    "id": "test_camera_preview_push",
+    "name": "相机测试-编辑器预览通道（pushScript/play/pause/seek）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "校验用（0.3.6 B4-P2 / B1 §10「编辑器预览·直控」实机）：**不挂触发器**（不自动播），只由 WS editor.pushScript 推入预览实例。两段相机片段的六参数在段内线性、可解析核对——段 1（0~10s）：yaw -90→90、pitch -6→18、roll 0→6、fov 70→58、zoom 1→1.3、位置 (0,0,0)→(40,10,-20)（相对玩家）；段 2（10~20s）：yaw 30→120、pitch -20→40、roll -8→12、fov 40→100、zoom 2→0.5、位置 (40,10,-20)→(80,-4,4)。t=5 期望（= 实机实测值）位置 = 玩家 +(20,5,-10)、yaw -180（-90→90 走最短路径 -180°）、pitch 6、roll 3、fov 64（线性）、zoom 1.1402（对数插值 √(1×1.3)）；t=15 期望 位置 = 玩家 +(60,3,-8)、yaw 75、pitch 10、roll 2、fov 70、zoom 1.0000（对数插值 √(2×0.5)）——seek 硬定位与播放推进据此定量核对。hold_at_end=true 让预览播到末端停住（不自然退出），便于 stop/exitPreview 单步验证",
+    "triggers": [],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": true,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 20,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 0, "dz": 0 }, "yaw": -90, "pitch": -6, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 10, "position": { "dx": 40, "dy": 10, "dz": -20 }, "yaw": 90, "pitch": 18, "roll": 6, "fov": 58, "zoom": 1.3 }
+            ]
+          },
+          {
+            "start_time": 10,
+            "duration": 10,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 40, "dy": 10, "dz": -20 }, "yaw": 30, "pitch": -20, "roll": -8, "fov": 40, "zoom": 2 },
+              { "time": 10, "position": { "dx": 80, "dy": -4, "dz": 4 }, "yaw": 120, "pitch": 40, "roll": 12, "fov": 100, "zoom": 0.5 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

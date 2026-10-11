@@ -94,7 +94,7 @@
 |---|---|---|
 | P0 | 删死代码（§2.3 七条） | compile + validator + icv2/icgl 复跑 |
 | P1 | `PlaybackClock` + `CameraStateHolder` ✅ **已落地（2026-10-10，Q4）**：时钟按 `clock-abstraction.md` §4 步骤 1 落为 `util/Clock` + `util/GameClock` / `util/PreviewClock`（`PlaybackClock` 命名合并，见 `camera-state-plan.md`「覆盖链定稿」§15；`CameraManager` 持有两实例并做注入切换）；`CameraStateHolder`（`camera/`，包内可见）= 写入缓冲 `CameraPath` / `CameraProperties` + 统一快照 `refresh(boolean active)`，`CameraManager.getPath()` / `getProperties()` / `getCameraState()` 保留为委托门面（可见性收紧仍归 P5） | 同上 + quadrant 实机回归 |
-| P2 | `PlaybackRegistry` / `PreviewChannel` / `PlaybackLedger` / `PlaybackLifecycle` | 同上 + 预览/接播路径实机 |
+| P2 | `PlaybackRegistry` / `PreviewChannel` / `PlaybackLedger` / `PlaybackLifecycle` | 同上 + 预览/接播路径实机——**预览路径实机 ✅（2026-10-11）**：编辑器预览通道全流程实机跑通（`editor.pushScript` / `seek` / `play` / `pause` / `setCamera` / `stop` + 关屏 `exitPreview`，六步逐项证据见 `camera-state-plan.md` §10 注）；**接播（`pendingScript` / `ScriptQueue`）路径仍无实机记录** |
 | P3 | `EntityTargetResolver` | 同上 + 选择器脚本回归（tests/trigger + camera follow） |
 | P4 | `CameraKeyframeEvaluator` / `LaneSnapshotCollector` / `WorldPointLocator` | 同上 + quadrant 实机回归 |
 | P5 | api 包 + 可见性收紧 ✅ **已落地（2026-10-11，B4-P5）**：`api/`（`CameraApi` / `CameraState` / `BaseCameraProvider`）、`CameraPath` / `CameraProperties` 降包内、外部读侧改经 `CameraApi`、`CameraManager` 拆出 `FrameDriver` + `ClientEntityProbe` 并收至 **150 行**（`CameraTrackPlayer` = 180 行） | 同上 + API 面冒烟 + `grep` 边界检查 |

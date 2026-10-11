@@ -1,0 +1,120 @@
+{
+  "meta": {
+    "id": "test_camera_flight",
+    "name": "相机测试-飞行取景（block_keyboard=false）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "校验用：飞行取景（飞控）实机 fixture（0.3.6 B1 验收 P5，plans/0.3.6/camera-state-plan.md §10「飞行模式」）。轨迹同 test_camera_smooth_motion；唯一差异 = block_keyboard=false —— F9（开 WebUI 预览屏）必须放行到原版才能触发，而 block_keyboard=true 时过场激活期间按键一律被 InputRouter 拦下。进入飞控（editor.enter_flight_mode）后 CameraTrackPlayer 跳过轨道写入、相机由 FlightController 直写（FlightBase 档位 300），WASD 经 KeyboardHandlerMixin 中转给飞控。",
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 0
+      }
+    ],
+    "block_keyboard": false,
+    "block_mouse": true,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 20,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": {
+                  "dx": 0,
+                  "dy": 0,
+                  "dz": 0
+                },
+                "yaw": -90,
+                "pitch": -6,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 12,
+                "position": {
+                  "dx": 48,
+                  "dy": 12,
+                  "dz": -24
+                },
+                "yaw": 0,
+                "pitch": 18,
+                "roll": 6,
+                "fov": 58,
+                "zoom": 1.3
+              }
+            ]
+          },
+          {
+            "start_time": 12,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "curve": {
+              "type": "bezier",
+              "control_points": [
+                {
+                  "dx": 12,
+                  "dy": 20,
+                  "dz": -20
+                },
+                {
+                  "dx": 30,
+                  "dy": -16,
+                  "dz": 16
+                }
+              ]
+            },
+            "keyframes": [
+              {
+                "time": 0,
+                "position": {
+                  "dx": 48,
+                  "dy": 12,
+                  "dz": -24
+                },
+                "yaw": 0,
+                "pitch": 18,
+                "roll": 6,
+                "fov": 58,
+                "zoom": 1.3
+              },
+              {
+                "time": 8,
+                "position": {
+                  "dx": 72,
+                  "dy": 4,
+                  "dz": -8
+                },
+                "yaw": 90,
+                "pitch": 42,
+                "roll": 16,
+                "fov": 50,
+                "zoom": 1.5
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

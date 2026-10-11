@@ -83,6 +83,8 @@
 **实施接线（2026-10-11，B18 落地回写）**：第一版取「独立过渡层」，落点 = `camera/transition/`（层本体 + 声明 + 载体 + 混合公式），由 `CameraKeyframeEvaluator` 每轨持有一份；**合成位置 = 主相机状态写入点（覆盖链的 Base 写入侧）**，即实际次序为「过渡层 → 覆盖链（Base 选择 + Modifier 合成）→ 渲染读取」，而非「覆盖链 → 过渡层」。原因两条：① 过渡的两侧（A 侧 = 前一段实时状态、B 侧 = 后一段实时状态）只存在于 Base 写入点，放到链输出之后拿不到 A 侧，legacy morph 无法逐帧复现（B18 验收硬项）；② 渲染读取的主相机 lane 目前只在链上有 Modifier 生效时取链输出（`client/lane/ScriptLaneDriver.applyModifiers`），放链输出之后需先改该条件，否则过渡窗口内主画面不生效。③ 既有 morph×Modifier 的次序是「先混合再合成」，本实现保持该次序才满足「未改路径行为基线对拍」。
 **将来迁移门槛**（满足后即可把层下移到链输出之后，A/B 口径不变）：主 lane 无条件取链输出（`ScriptLaneDriver` 条件改为「有 Modifier 或过渡进行中」）+ 层应用点移到 `CameraManager.refreshCameraState`。
 
+**迁移门槛状态（2026-10-11，T23 实机缺陷修复后回写）**：门槛①「主 lane 无条件取链输出」**未满足**——判据已从「链上有 Modifier」扩为「链上有 Modifier **或** 链胜出层非脚本导演」（`ScriptLaneDriver.chainOutputIsFrameCamera` = `CameraManager.modifiersApplied() || isDirectControlWinner()`；直控类层胜出且本帧无脚本 lane 时由链输出注册主画面那条全屏 lane），差的正是「脚本导演胜出且无 Modifier」这一档。该档在当前架构下取与不取等价（链输出与主相机 lane 自身快照逐位同值；实机两轮 155 / 139 帧逐位相等），但门槛要的是「无条件」——层一旦下移到链输出之后，该档的链输出就会带上过渡、而 lane 快照没有，故**下移前必须先无条件取链输出**（现判据可直接把这一档并进来，等价改动）。门槛②「层应用点移到 `CameraManager.refreshCameraState`」——**未做**（过渡层仍产出在 Base 写入侧）。详见 [相机状态与覆盖链](./camera-state-plan.md) §2 补注之二。
+
 ---
 
 ## 7. 可能的问题
