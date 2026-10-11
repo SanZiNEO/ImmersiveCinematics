@@ -15,8 +15,8 @@ import java.util.List;
  *
  * 职责边界：关键帧求值（六参数 / 插值 / 混合）归 {@link CameraKeyframeEvaluator}，重叠窗口的 lane 捕获归
  * {@link LaneSnapshotCollector}，结构 / 方块静态目标定位归 {@link WorldPointLocator}。
- * 写入契约：本轨本帧的顶层相机状态（六参数）由本类写入全局 {@link CameraManager} 写入缓冲；
- * 重叠窗口层级在下的 clip 只产 lane 快照、不写全局。
+ * 写入契约：本轨本帧的顶层相机状态（六参数）由本类经 {@link CameraManager#setScriptState} 写入全局写入缓冲
+ * （脚本导演 Base 层的当前值来源）；重叠窗口层级在下的 clip 只产 lane 快照、不写全局。
  * 线程契约：仅客户端主线程，逐渲染帧调用；帧内路径不新建集合。
  */
 public class CameraTrackPlayer implements TrackPlayer {
@@ -118,10 +118,9 @@ public class CameraTrackPlayer implements TrackPlayer {
         if (topLane != null) laneCollector.add(topLane);
     }
 
-    /** 顶层写入：本轨本帧的六参数写入全局相机状态（写入缓冲 + 统一快照来源）。 */
+    /** 顶层写入：本轨本帧的六参数写入全局相机状态（写入缓冲 + 链上的当前值）。 */
     private void writeGlobal(CameraState state) {
-        cameraManager.getPath().setPositionDirect(state.position());
-        cameraManager.getProperties().setAllDirect(state.yaw(), state.pitch(), state.roll(), state.fov(), state.zoom());
+        cameraManager.setScriptState(state);
     }
 
     @Override

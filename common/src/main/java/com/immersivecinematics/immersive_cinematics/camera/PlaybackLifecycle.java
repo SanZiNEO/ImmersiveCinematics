@@ -9,7 +9,6 @@ import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import com.immersivecinematics.immersive_cinematics.util.GameClock;
 import com.immersivecinematics.immersive_cinematics.util.PreviewClock;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +39,9 @@ final class PlaybackLifecycle {
     private final GameClock gameClock;
     private final PreviewClock previewClock;
 
+    /** 统一快照刷新钩子（由 {@code CameraManager} 注入：值 = 覆盖链输出，无活跃实例时为 {@code null}）。 */
+    private final Runnable refreshSnapshot;
+
     /** 待接播脚本（可打断路径暂存）；{@code null} = 无待接播。 */
     private CinematicScript pendingScript = null;
 
@@ -50,13 +52,15 @@ final class PlaybackLifecycle {
     private final ScriptQueue scriptQueue = new ScriptQueue();
 
     PlaybackLifecycle(PlaybackRegistry registry, PlaybackLedger ledger, PreviewChannel previewChannel,
-                      CameraStateHolder stateHolder, GameClock gameClock, PreviewClock previewClock) {
+                      CameraStateHolder stateHolder, GameClock gameClock, PreviewClock previewClock,
+                      Runnable refreshSnapshot) {
         this.registry = registry;
         this.ledger = ledger;
         this.previewChannel = previewChannel;
         this.stateHolder = stateHolder;
         this.gameClock = gameClock;
         this.previewClock = previewClock;
+        this.refreshSnapshot = refreshSnapshot;
     }
 
     // ========== 脚本播放 ==========
@@ -249,7 +253,7 @@ final class PlaybackLifecycle {
         }
 
         // 停用即失效快照；若上面接播了 pendingScript/队列（已有新实例），这里重建为接播后的最新值。
-        refreshState();
+        refreshSnapshot.run();
     }
 
     /** 复位全局写入缓冲与播放队列（不改快照；快照由调用方的 refresh 决定）。 */
@@ -285,10 +289,7 @@ final class PlaybackLifecycle {
         // 预览实例重启不再重置相机到玩家位置（否则每次 pushScript 节流重启都闪回 → 拖拽卡顿）；
         // 首次进入预览仍初始化一次，保证预览首帧从玩家位置起步。游戏实例每次开播都从玩家位置起步。
         if (!preview || !previewChannel.isPreviewInitialized()) {
-            Vec3 playerPos = mc.player.position();
-            stateHolder.path().setPositionDirect(playerPos);
-            stateHolder.properties().setYawDirect(mc.player.getYRot());
-            stateHolder.properties().setPitchDirect(mc.player.getXRot());
+            stateHolder.setInitialView(mc.player.position(), mc.player.getYRot(), mc.player.getXRot());
         }
         previewChannel.setPreviewInitialized(true);
 
@@ -324,12 +325,7 @@ final class PlaybackLifecycle {
 
         // 写侧收口：instance.start 已预执行脚本首帧、直写内部状态；这里立即刷新统一快照，
         // 使同一 tick 内后续读取看到接播后的最新值，而非过期/空快照。
-        refreshState();
+        refreshSnapshot.run();
         return instance;
-    }
-
-    /** 从写入缓冲重建统一快照；无活跃实例时置 {@code null}。 */
-    private void refreshState() {
-        stateHolder.refresh(registry.isActive());
     }
 }

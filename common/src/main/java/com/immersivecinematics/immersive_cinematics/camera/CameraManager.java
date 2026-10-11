@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
+import com.immersivecinematics.immersive_cinematics.camera.cover.CameraCoverChain;
 import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
@@ -23,7 +24,9 @@ import java.util.List;
  * {@link PlaybackLedger} 网络账本、{@link PlaybackLifecycle} 生命周期与队列；{@link CameraStateHolder}
  * 是六参数的唯一写入缓冲与统一快照来源。
  *
- * 帧驱动 {@link #onRenderFrame()} 的顺序固定：时钟推进 → 逐实例驱动 → 帧末重建快照。
+ * 帧驱动 {@link #onRenderFrame()} 的顺序固定：时钟推进 → 逐实例驱动 → 帧末重建快照；
+ * 快照值 = 覆盖链输出（{@link CameraCoverChain} 按优先级选出胜出 Base 层，本版本内置
+ * 脚本导演 / 编辑器直控 / 飞行三层，档位见 {@code BaseCameraProvider} 的 PRIORITY 常量）。
  * 公开方法签名与语义在拆分前后逐点一致，调用方零改动。
  *
  * 线程：仅客户端主线程（渲染线程）。
@@ -52,15 +55,26 @@ public class CameraManager {
     /** 编辑器预览通道。 */
     private final PreviewChannel previewChannel = new PreviewChannel(previewClock);
 
+    /** 覆盖链：Base 层注册表 + 每帧选择（链持有唯一工作区）。 */
+    private final CameraCoverChain coverChain = new CameraCoverChain();
+
+    /** 编辑器直控层：写入口需要上报活跃窗口，故单独持有引用。 */
+    private final DirectControlBase directControlBase = new DirectControlBase(stateHolder);
+
     /** 播放生命周期与队列。 */
     private final PlaybackLifecycle lifecycle =
-            new PlaybackLifecycle(registry, ledger, previewChannel, stateHolder, gameClock, previewClock);
+            new PlaybackLifecycle(registry, ledger, previewChannel, stateHolder, gameClock, previewClock,
+                    this::refreshCameraState);
 
     /** 客户端实际实体数日志计数（tick 每 100 次打印一次诊断）。 */
     private int clientEntityLogCounter = 0;
 
     private CameraManager() {
         previewChannel.bindLifecycle(lifecycle);
+        // 注册顺序 = 同优先级次序（本版本每层只注册一个）；档位表见 BaseCameraProvider
+        coverChain.register(new ScriptDirectorBase(registry, stateHolder));
+        coverChain.register(directControlBase);
+        coverChain.register(new FlightBase(previewChannel, stateHolder));
     }
 
     // ========== 实例查询（PlaybackRegistry）==========
@@ -194,6 +208,10 @@ public class CameraManager {
      * 必须早于 {@code ScriptLaneDriver.tick}（后者读本方法填好的 lane 快照）。
      */
     public void onRenderFrame() {
+        // 直控层活跃窗口收口：一次五参数直写只在其穿透刷新那一瞬被选中，帧末求值前已清零
+        // （三层同源同值，本版本无可观察差异；压制语义待各层各持自有快照后才生效）
+        directControlBase.clearFrame();
+
         if (registry.isEmpty()) {
             registry.clearFrameCaches();
             refreshCameraState();
@@ -319,25 +337,27 @@ public class CameraManager {
         }
     }
 
-    // ========== 全局相机状态（写侧 = 轨道播放器，读侧 = 统一快照）==========
+    // ========== 全局相机状态（写侧 = 各 Base 层，读侧 = 统一快照）==========
 
-    /** 朝向与光学写入缓冲（供轨道播放器逐帧写入当前值）。 */
-    public CameraProperties getProperties() { return stateHolder.properties(); }
-
-    /** 位置写入缓冲（供轨道播放器逐帧写入当前值）。 */
-    public CameraPath getPath() { return stateHolder.path(); }
+    /** 脚本导演写侧：顶层 clip 本帧六参数写入全局写入缓冲 + 同步链上的当前值；不刷新快照（帧末统一刷新）。 */
+    public void setScriptState(CameraState state) { stateHolder.setScriptState(state); }
 
     /**
      * 统一只读相机状态快照（本帧最新值）；无活跃相机时为 {@code null}。
      *
-     * 值 = 本帧最后写入全局相机状态的实例（= 顶层实例）的顶层活跃 clip 六参数，与画面 lane 里
-     * 最上层那条 lane 的 {@link CameraState} 同源同值。刷新点：帧末、停用/重启、直写入口——
+     * 值 = 覆盖链胜出 Base 层（本版本 = 顶层实例顶层活跃 clip 写入的全局写入缓冲当前值，与画面 lane 里
+     * 最上层那条 lane 的 {@link CameraState} 同源同值）。刷新点：帧末、停用/重启、直写入口——
      * 任何写入后立即反映新值，同一帧内多次读取结果一致。
      */
     public CameraState getCameraState() { return stateHolder.snapshot(); }
 
-    /** 从写入缓冲（顶层 clip 当前值）重建统一快照；无活跃实例时置 {@code null}。 */
-    private void refreshCameraState() { stateHolder.refresh(registry.isActive()); }
+    /**
+     * 重建统一快照：值 = 覆盖链输出（胜出 Base 层状态）；无活跃实例 / 无活跃 Base 时置 {@code null}
+     * （读侧据此回落玩家相机）。
+     */
+    private void refreshCameraState() {
+        stateHolder.setSnapshot(registry.isActive() ? coverChain.snapshot() : null);
+    }
 
     /** 当前镜头 yaw（方向性预加载用）。 */
     public float getCameraYaw() { return stateHolder.properties().getYaw(); }
@@ -346,6 +366,7 @@ public class CameraManager {
     public void setCameraDirect(float yaw, float pitch, float roll, float fov, float zoom) {
         if (!isActive()) return;
         stateHolder.setDirect(yaw, pitch, roll, fov, zoom);
+        directControlBase.markWritten();
         // 直写穿透：保证本帧 getFov 立即读到新值
         refreshCameraState();
     }
