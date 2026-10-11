@@ -87,7 +87,7 @@
 
 方向是提供统一的时间插值接口，避免每个 TrackPlayer 自己写。
 
-> 具体接口、缓冲深度、外推策略执行时再定。
+> 现行口径：接口 = `util/TimeInterpolation`（§7.3）；缓冲深度、外推策略 = 第一版不做（§7.2）。
 
 ---
 
@@ -109,40 +109,82 @@
 
 ## 6. 可能的问题
 
-- 相机自身是否需要 prev/current 快照
+- 相机自身是否需要 prev/current 快照 → **已裁：不需要（§7.1）**
 - partialTick / alpha 的来源与统一
 - 固定步长 vs 渲染帧 delta
-- 历史缓冲深度
-- 外推是否默认开启，最大外推时间
+- 历史缓冲深度 → **已裁：第一版不做（§7.2）**
+- 外推是否默认开启，最大外推时间 → **已裁：第一版不做（§7.2）**
 - 角度、数值域的插值规则
 - 与数学函数模型（阻尼 / 缓动）的边界
 - 确定性 / 重放一致性
 - 性能：每帧是否零分配
-- 与过渡、覆盖链的先后关系
+- 与过渡、覆盖链的先后关系 → **已裁（§7.4）**
 
 ---
 
-## 7. 待定
+## 7. 裁定（B17 结案，2026-10-11）
 
-- 统一接口形态
-- 快照 / 缓冲设计
-- 外推策略
-- 实体插值迁移范围
-- 相机状态快照是否进入统一状态体系
-- 外部 API 开放时机
+> 本节四项未决项已由主代理裁定并结案，结论即现行口径，实现照此。证据见 §8 证据附录。
+
+### 7.1 相机状态 prev/current 快照 → 不需要
+
+- **结论**：相机轨道求值以**渲染帧时钟**（`GameClock` / `PreviewClock`）为输入、每渲染帧精确重算，lane 渲染读精确 `CameraState`，**不存在 20Hz 台阶**——不需要相机侧 prev/current 快照，不引入 partialTick 插值层。
+- **机制**：帧驱动入口 `GameRendererMixin.onRenderFrameStart`（`GameRenderer.render` 的 HEAD，世界渲染之前）→ `CameraManager.onRenderFrame()`（时钟推进 → 逐实例 `ScriptPlayer.onRenderFrame(double)` → 帧末 `refreshCameraState()` 取覆盖链输出快照）；时间源 = `GameClock`（`System.nanoTime()` 单调秒、暂停冻结）/ `PreviewClock`，即相机轨道求值本身以渲染帧时钟为输入；lane 渲染读自己的精确快照（`CameraMixin.onSetup` 读 `lane.state().position()/yaw()/pitch()`，注释明写「不需要 partialTick 插值」）。
+- **逃生口**：若某**非渲染消费方**（听者 / 预加载 / 触发）以 tick 频率读相机并出现台阶，在该读取点按需用 `TimeInterpolation`——属该消费方边界，不在相机侧加快照层。
+- **证据**：见 §8 证据附录（B16-c 默认关 840 帧 raw-bits 逐字节 / B1-b 缝对拍 2403 行 / 实机三会话几何逐位一致）。
+
+### 7.2 历史缓冲 / 外推 → 第一版不做（开关留位）
+
+- **结论**：第一版**不做**历史缓冲与外推，保持现状——不预设缓冲深度、不预设最大外推时间、不引入外推开关。
+- **再立项条件**：出现以 tick 频率消费相机、并因此产生可见台阶的消费方，或出现网络抖动需求时再立项；届时参数（缓冲深度 / 最大外推秒）执行时定。
+- **依据**：外推会破坏「确定性 / 重放一致」（§6）与覆盖链零分配契约（`camera-state-plan.md` 覆盖链定稿 §0），故第一版不做。
+
+### 7.3 内部 API → 0.3.6 只留位不开放
+
+- **结论**：0.3.6 只做内部统一入口（`util/TimeInterpolation`），**不开放外部 API**。
+- **依据**：`math-models.md` 定稿 10（0.3.6 不开放外部注册，`MathModelRegistry.register` 保持内部可见）+ `camera-state-plan.md` 覆盖链定稿 §11（外部 API 开放时机 = 内部稳定 + 覆盖链落地 + 至少一个版本观察期，`plans/0.4.0` 起评估）。
+
+### 7.4 与覆盖链 / 过渡（B18）的先后关系
+
+- **覆盖链 → 时间插值 / 缓冲 → 渲染读取**：覆盖链先出最终 `CameraState`（`CameraCoverChain.snapshot()`），时间插值 / 缓冲（若将来有）在**链输出之后、渲染读取之前**。
+- **过渡（B18）= 独立层，包装链的输入 / 输出**（`camera-state-plan.md` 覆盖链定稿 §5 / `transition.md` §6「独立过渡层」），与本层**无重叠**。
+- **逃生口**：若将来过渡与时间插值需要**共享同一缓冲 / 快照**，先上报再定，不在本层单方面实现。
 
 ---
 
 ## 8. 落地顺序（方向）
 
-（落地记录：步骤 1-2 已完成（2026-10-07）——统一时间插值工具 `util/TimeInterpolation`（lerp/rotLerp/position/实体级采样，复用原版 prev/current 快照），CameraTrackPlayer 三个散落插值方法收拢迁移（60 万次逐位对照零差异）；相机自身 prev/current 快照（步骤 3）与历史缓冲/外推（步骤 4）仍待后续。）
+（落地记录：步骤 1-2 已完成（2026-10-07）——统一时间插值工具 `util/TimeInterpolation`（lerp/rotLerp/position/实体级采样，复用原版 prev/current 快照），CameraTrackPlayer 三个散落插值方法收拢迁移（60 万次逐位对照零差异）。**步骤 3-6 已结案（B17，2026-10-11）**——步骤 3 相机快照 = 结案「不需要」（渲染帧时钟求值 + 逐帧精确重算 + lane 读精确 `CameraState`，无 20Hz 台阶，见 §7.1）；步骤 4 历史缓冲 / 外推 = 第一版不做（结案 + 再立项条件，见 §7.2）；步骤 5 模型接入 = 只做时序侧（复用 B16-c 六通道实例，每 lane 每帧单次 step，禁止一帧推进两次——`math-models.md` 定稿 7.2；不实现阻尼 / 缓动——定稿 8）；步骤 6 内部 API = 0.3.6 只留位不开放（见 §7.3）；与覆盖链 / 过渡（B18）的先后关系已文档化（见 §7.4）。）
 
-1. 定义统一时间插值概念
-2. 统一实体位置 / 角度插值
-3. 评估相机状态 prev/current 快照
-4. 按需加入历史缓冲 / 外推
-5. 接入数学函数模型
-6. 内部稳定后考虑外部 API
+1. 定义统一时间插值概念 —— ✅ 完成（步骤 1）
+2. 统一实体位置 / 角度插值 —— ✅ 完成（步骤 2）
+3. 评估相机状态 prev/current 快照 —— ✅ 结案：不需要（步骤 3，§7.1）
+4. 按需加入历史缓冲 / 外推 —— ✅ 结案：第一版不做（步骤 4，§7.2）
+5. 接入数学函数模型 —— ✅ 只做时序侧（步骤 5，§7.4 / `math-models.md` 定稿 7.2、8）
+6. 内部稳定后考虑外部 API —— ✅ 0.3.6 只留位不开放（步骤 6，§7.3）
+
+---
+
+## 8.1 证据附录：tick / render 解耦对拍（B17）
+
+> 无生产代码改动（B17 为结案型交付）；解耦对拍沿用既有证据链，下列引用可核（提交号 / 类符号 / 行号以当前工作树为准）。
+
+**证据链（tick 20Hz 与渲染帧解耦下相机参数平滑）**：
+
+| 证据 | 内容 | 出处 |
+|---|---|---|
+| B16-c 默认关逐位对拍 | 默认关（无运动模型）下 840 帧 raw-bits **逐字节一致**（含重叠窗 / morph / 呼吸）；validator A/B 292 行逐字节 | B16-c 提交（`implementation-progress.md` 2026-10-11 续4） |
+| B1-b 缝对拍 | 写入 → 链选择 → 快照全路径 2403 行**逐字节一致**（含 NaN/±Inf/-0.0/MIN/MAX 直通 = 链上无 clamp/normalize） | B1-b 提交（`implementation-progress.md` 2026-10-11 续） |
+| 实机三会话几何 | 默认关全参回归案几何与历史三会话**逐位一致**（B16-c 会话 3） | B16-c 提交（同上） |
+
+**「无 20Hz 台阶」机制论证（各环节在哪个类）**：
+
+1. **渲染帧时钟求值**：帧驱动入口 `GameRendererMixin.onRenderFrameStart`（`GameRenderer.render` 的 HEAD，世界渲染之前）→ `CameraManager.onRenderFrame()`；时间源 = `GameClock`（`System.nanoTime()` 单调秒、暂停冻结）/ `PreviewClock`（`util/`）。相机轨道求值**输入即渲染帧时钟**，不经过 20Hz tick 累积器。
+2. **每渲染帧精确重算**：`CameraManager.onRenderFrame()` 逐实例调 `ScriptPlayer.onRenderFrame(double)` → 各 `TrackPlayer.onRenderFrame(float)`；`CameraTrackPlayer` 每帧求值后 `writeGlobal` 收口 `CameraManager.setScriptState`（`CameraStateHolder` 不可变镜像）；帧末 `refreshCameraState()` 取覆盖链输出（`CameraCoverChain.snapshot()`）。
+3. **lane 读精确 `CameraState`**：渲染侧不读 20Hz tick 值——`CameraMixin.onSetup` 读 `lane.state().position()/yaw()/pitch()` 直接 `setPosition/setRotation`（注释明写「每帧已由 onRenderFrame 精确重算，不需要 partialTick 插值」）；`GameRendererMixin.onGetFov` 用 lane 自己的 fov/zoom。
+4. **实体 partialTick 采样（独立通道）**：实体三通道走 `util/TimeInterpolation`（`entityPosition` / `entityBodyYaw` / `entityPitch`，`partialTick()` = `Minecraft.getInstance().getFrameTime()`）——实体位置只在 tick 更新，渲染帧按原版 prev/current 快照（`xo/yo/zo`、`yRotO/xRotO`）采样；这是**实体**的平滑，与相机自身帧驱动精确值互不冲突。
+
+结论：相机参数在渲染帧上逐帧精确取值（非 20Hz 台阶值），故无台阶；实体侧由 `TimeInterpolation` 按 partialTick 采样，同样无台阶。
 
 ---
 
@@ -165,7 +207,7 @@
 
 ## 事实核查（2026-10-07）
 
-> 依据：MC 1.20.1 sources.jar（`.gradle/loom-cache/.../minecraft-merged-d95c7b3016-...-sources.jar`，行号以该 jar 解出物为准）、本仓 `common/` 源码。设计方向（接口形态 / 缓冲深度 / 外推策略）**未改动**，仍为待定。
+> 依据：MC 1.20.1 sources.jar（`.gradle/loom-cache/.../minecraft-merged-d95c7b3016-...-sources.jar`，行号以该 jar 解出物为准）、本仓 `common/` 源码。设计方向（接口形态 / 缓冲深度 / 外推策略）的现行口径见 §7（B17 结案）。
 
 ### ① 核实为真
 
@@ -206,4 +248,4 @@
 
 - 帧率相关量化结论（60/120/144fps 下的台阶感程度、抽帧观感）——属运行时观感，未在游戏内实测。
 - §3"帧时间波动""不同子系统更新频率不同"未定位到具体子系统代码，**未验证**。
-- 设计项（统一接口形态、缓冲深度、外推默认开关与最大外推时间、确定性/重放一致性）仍为待定，**未验证、未改判**。
+- 设计项（统一接口形态、缓冲深度、外推默认开关与最大外推时间、确定性 / 重放一致性）：现行口径见 §7（B17 结案，2026-10-11）——接口形态已落地（`util/TimeInterpolation`，步骤 1-2）、缓冲 / 外推第一版不做（§7.2）；确定性由 `math-models.md` 定稿 9 的逐位一致口径约束。
