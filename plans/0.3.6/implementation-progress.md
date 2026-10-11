@@ -46,10 +46,10 @@
 
 | ID | 任务 | 依赖 | 状态 |
 |---|---|---|---|
-| B1 | Base/Modifier 覆盖链（优先级、通道掩码、REPLACE/ADD/MULTIPLY + 示例） | — | ☐ |
+| B1 | Base/Modifier 覆盖链（优先级、通道掩码、REPLACE/ADD/MULTIPLY + 示例） | — | ✅ 2026-10-11（B1-b Base Chain 4 档位+Cut / B1-c Modifier 6 位掩码+三模式+suppress / B1-d 脚本字段+示例 8 支；六参数逐帧等值对拍 2403 行逐字节 + 零分配 1e6=0 + 探针 51+141 + 实机五案像素判别） |
 | B2 | 每 lane 独立 CameraPath/CameraProperties 核对（可能已被 lane 快照模型取代 → 结案回写文档） | — | ✅ 2026-10-10 结案（已被 lane 快照模型取代，回写 camera-state-plan §7 + camera-core-split §五） |
-| B3 | 每 lane 独立可见集合/遮挡剔除（长期解，消除 smartCull=false 缓解的代价） | B1 | ☐（B3-a 设计定稿 ✅ 2026-10-10（multi-camera-rendering §12.9）；B3-b/c/d 未做） |
-| B4 | 外部 API（common api 包）+ 相机核心拆分与死代码清理（方案已定稿：`camera-core-split.md`，2026-10-08 用户扩容） | B1,B3 | ☐（P0–P4 ✅ 2026-10-10（P2 Playback 四件 / P3 EntityTargetResolver / P4 Evaluator+Collector+Locator）；P5 未做） | |
+| B3 | 每 lane 独立可见集合/遮挡剔除（长期解，消除 smartCull=false 缓解的代价） | B1 | ✅ 2026-10-11（B3-a 设计 §12.9 + B3-b per-lane 槽/归槽/逐 pass smartCull + B3-c 实测：倾斜矩形 A/B 症状不再产生、per-lane 444.8fps vs 回落 168.2 + B3-d 删 CinematicOcclusion/回落收口） |
+| B4 | 外部 API（common api 包）+ 相机核心拆分与死代码清理（方案已定稿：`camera-core-split.md`，2026-10-08 用户扩容） | B1,B3 | ✅ 2026-10-11（P0–P4 前日收；P5 api 包+可见性收紧：CameraManager 150 行/CTP 180 硬指标、边界 grep 零命中、api 零内部泄漏、审查 0 findings） | |
 | B5 | 统一点源清单（yaw_base_from/to、facing_target 接受完整点源） | — | ✅ 2026-10-10（PointSource 五形态单源 + 三调用点接线 + 字段落点统一关键帧级 + 判据单源化；等值对拍 + 探针 30/30 + 实机冒烟） |
 | B6 | look_at 方块来源 + 部位百分比微调 | — | ✅ 2026-10-10（look_at:"block" + look_at_part 每轴百分比（钳制 AABB 内）+ look_at_target_block；探针 37/37 + 实机三路判别） |
 | B7 | 偏移下放到点源 / 通道相对化 | B5 | ✅ 2026-10-10（点源=来源+偏移+表达空间(dx·dy·dz 世界轴/fwd·up·right 基准系)；旧 relative_to+dx/dy/dz 与 look_at_target 对象形态整体删；探针 80/80 + 实机偏移精确命中） |
@@ -61,10 +61,10 @@
 | B13 | selector 多候选与择一策略 | B10 | ✅ 2026-10-10（selector_pick first/nearest/alive + 8 调用点变体；A/B 零回归 + 实机判别冒烟） |
 | B14 | selector 解析缺陷（@a/@r/@n/@p[team]） | — | ✅ 2026-10-10（@a/@r/@p[…] 进服务端解析；@n=原版不存在按未知形式 warn 不崩；实机实证） |
 | B15 | selector 通用化 | B10-B13 | ✅ 2026-10-10（selector/ 包通用服务 + SelectorSchema 定义单源 + 相机适配层；A/B 逐字节零回归 + 实机双冒烟复跑一致） |
-| B16 | 数学函数模型库（spring/damper/… + 非线性变换 + 组合 + Registry） | — | ☐ |
-| B17 | 时间插值 步骤 3-6（相机快照插值/历史缓冲/模型接入/API） | B16 | ☐ |
-| B18 | 过渡 步骤 3-8（分参数过渡/曲线/覆盖链接入/打断链式/API） | B1,B16 | ☐ |
-| B19 | 迟滞 6 步 | B16,B1 | ☐ |
+| B16 | 数学函数模型库（spring/damper/… + 非线性变换 + 组合 + Registry） | — | ✅ 2026-10-11（B16-b math 包 10 型+Registry/JSON schema+删死缓动 + B16-c 六通道接入；零分配 1e6=0、确定性五条、默认关逐位、实机瞬态逐点吻合） |
+| B17 | 时间插值 步骤 3-6（相机快照插值/历史缓冲/模型接入/API） | B16 | ✅ 2026-10-11 结案（相机快照/历史缓冲=不需要、API 留位；与覆盖链/B18 先后关系文档化，证据附录引对拍链） |
+| B18 | 过渡 步骤 3-8（分参数过渡/曲线/覆盖链接入/打断链式/API） | B1,B16 | ✅ 2026-10-11（分参数+曲线走模型层+打断 snap/blend 缺省 blend（用户拍板）+链式 A→B→C；探针 51/51 + 基线 2403 行逐字节 + 审查 major×2 整改） |
+| B19 | 迟滞 6 步 | B16,B1 | ✅ 2026-10-11（三型含 inertia 新增（稳态零滞后）+默认关+帧率无关三档实测；审查 0 findings（数学独立复算）） |
 
 ## 批次 C：触发器
 
