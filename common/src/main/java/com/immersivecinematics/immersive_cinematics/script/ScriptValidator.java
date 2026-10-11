@@ -4,6 +4,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
+import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
+import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
 import com.immersivecinematics.immersive_cinematics.selector.SelectorSchema;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
@@ -13,6 +16,7 @@ import com.immersivecinematics.immersive_cinematics.trigger.server.prereq.Prereq
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 脚本静态校验器 — 供 /icinematics validate 命令使用。
@@ -24,6 +28,10 @@ import java.util.List;
 public final class ScriptValidator {
 
     private static final String[] CAMERA_KF_FIELDS = {"yaw", "pitch", "roll", "fov", "zoom"};
+
+    /** 相机片段运动模型字段（clip 级；缺省 null = 该通道不接模型 = 逐位不改变现状）。 */
+    private static final String[] MOTION_FIELDS = {
+            "motion_position", "motion_yaw", "motion_pitch", "motion_roll", "motion_fov", "motion_zoom"};
     private static final String[] KNOWN_TYPES =
             {"CAMERA", "LETTERBOX", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY", "ADJUST"};
 
@@ -338,6 +346,8 @@ public final class ScriptValidator {
                     // 调色（0.3.6）：本相机片段自带调色，作用于该相机轨的 lane——字段集与 ADJUST 轨完全一致
                     checkRemovedScopeLane(clip, cp, issues);
                     checkAdjustFields(clip, cp, null, null, issues);
+                    // 相机参数运动模型（0.3.6）：clip 级 motion_* 六字段
+                    checkMotionModels(clip, cp, issues);
                     // LUT 是整体画面（master）处理，只挂在 ADJUST 轨：相机片段上写 lut 不会生效，直接拦下
                     if (clip.has("lut")) {
                         issues.add(cp + ".lut 不支持（LUT 是对整体画面的处理，只写在 ADJUST 轨的片段上）："
@@ -630,6 +640,134 @@ public final class ScriptValidator {
         if (kf != null) {
             for (ChannelRange range : ADJUST_CHANNELS) {
                 checkRange(kf, kp, range.field(), issues, range.min(), range.max());
+            }
+        }
+    }
+
+    /**
+     * 校验相机片段的运动模型定义（{@code motion_*} 六字段，clip 级）：定义对象形态、{@code type} 已注册、
+     * 参数名已知、嵌套深度 / 节点数上限（与 {@code MathModelRegistry} 同源常量）、组合域一致
+     * （结构键 {@code domain} 缺省继承所在通道 / 父定义）。只记 issue 不阻断加载——运行期由
+     * {@code MathModelRegistry} 按同一口径回落 {@code linear}（= 无效果）。
+     */
+    private static void checkMotionModels(JsonObject clip, String cp, List<String> issues) {
+        for (String field : MOTION_FIELDS) {
+            if (!clip.has(field)) continue;
+            String path = cp + "." + field;
+            JsonElement e = clip.get(field);
+            if (!e.isJsonObject()) {
+                issues.add(path + " 需要对象 {type, ...}（数学模型定义；缺省 = 该通道不接模型）");
+                continue;
+            }
+            int[] measure = {0, 0};
+            measureModel(e.getAsJsonObject(), 1, measure);
+            if (measure[0] > MathModelRegistry.MODEL_MAX_NODES || measure[1] > MathModelRegistry.MODEL_MAX_DEPTH) {
+                issues.add(path + " 模型定义超限（节点 " + measure[0] + " / 上限 "
+                        + MathModelRegistry.MODEL_MAX_NODES + "，深度 " + measure[1] + " / 上限 "
+                        + MathModelRegistry.MODEL_MAX_DEPTH + "）：运行时整链回落 linear");
+            }
+            checkMathModelNode(e.getAsJsonObject(), path, MathModelRegistry.channelDomain(field).key(), issues);
+        }
+    }
+
+    /**
+     * 校验单个模型定义节点（递归下钻 {@code model} / {@code model_list} 参数）：
+     * {@code expectedDomain} = 继承域（顶层 = 通道值域）；{@code type} 缺失 / 未注册时无法确定参数表，不再下钻。
+     */
+    private static void checkMathModelNode(JsonObject def, String path, String expectedDomain,
+                                           List<String> issues) {
+        JsonElement typeElement = def.get("type");
+        if (typeElement == null || !typeElement.isJsonPrimitive() || !typeElement.getAsJsonPrimitive().isString()) {
+            issues.add(path + ".type 缺失（需要字符串注册名，可选: "
+                    + String.join(" / ", MathModelRegistry.types()) + "；运行时回落 linear）");
+            return;
+        }
+        String type = typeElement.getAsString();
+        if (!MathModelRegistry.types().contains(type)) {
+            issues.add(path + ".type 未注册: " + type + "（可选: "
+                    + String.join(" / ", MathModelRegistry.types()) + "；运行时回落 linear）");
+            return;
+        }
+        String domain = checkMathModelDomain(def, path, expectedDomain, issues);
+        Map<String, FieldDef> params = MathModelRegistry.params(type);
+        for (Map.Entry<String, JsonElement> entry : def.entrySet()) {
+            String key = entry.getKey();
+            if ("type".equals(key) || "domain".equals(key)) continue;
+            FieldDef paramDef = params.get(key);
+            if (paramDef == null) {
+                issues.add(path + "." + key + " 未知参数（type = " + type + "；可用: "
+                        + String.join(" / ", params.keySet()) + "；运行时忽略）");
+                continue;
+            }
+            checkMathModelParam(paramDef.type(), entry.getValue(), path + "." + key, domain, issues);
+        }
+    }
+
+    /** 校验 {@code domain} 结构键：未知值域 / 与继承域不一致（组合域不匹配）各记一条 issue；返回生效域。 */
+    private static String checkMathModelDomain(JsonObject def, String path, String expectedDomain,
+                                               List<String> issues) {
+        JsonElement element = def.get("domain");
+        if (element == null || element.isJsonNull()) return expectedDomain;
+        if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+            issues.add(path + ".domain 需要字符串（scalar / angle / vector / color；缺省继承所在通道 / 父定义）");
+            return expectedDomain;
+        }
+        String declared = element.getAsString();
+        if (ValueDomain.byKey(declared) == null) {
+            issues.add(path + ".domain 未知值域: " + declared + "（合法：scalar / angle / vector / color）");
+            return expectedDomain;
+        }
+        if (!declared.equals(expectedDomain)) {
+            issues.add(path + ".domain 组合域不匹配：父定义 " + expectedDomain + "，此处 " + declared
+                    + "（运行时该子模型回落 linear）");
+        }
+        return declared;
+    }
+
+    /** 校验一个参数值：{@code model} = 子定义对象、{@code model_list} = 子定义数组；其余类型由解析期把关。 */
+    private static void checkMathModelParam(String paramType, JsonElement value, String path, String domain,
+                                            List<String> issues) {
+        switch (paramType) {
+            case "model" -> {
+                if (!value.isJsonObject()) {
+                    issues.add(path + " 需要对象（子模型定义）");
+                    return;
+                }
+                checkMathModelNode(value.getAsJsonObject(), path, domain, issues);
+            }
+            case "model_list" -> {
+                if (!value.isJsonArray()) {
+                    issues.add(path + " 需要数组（子模型定义数组）");
+                    return;
+                }
+                JsonArray array = value.getAsJsonArray();
+                if (array.size() == 0) {
+                    issues.add(path + " 为空数组（空链 = 恒等，无效果）");
+                }
+                for (int i = 0; i < array.size(); i++) {
+                    if (!array.get(i).isJsonObject()) {
+                        issues.add(path + "[" + i + "] 需要对象（子模型定义）");
+                        continue;
+                    }
+                    checkMathModelNode(array.get(i).getAsJsonObject(), path + "[" + i + "]", domain, issues);
+                }
+            }
+            default -> { }
+        }
+    }
+
+    /** 统计模型定义树的节点数与最大深度（深度含根 = 1）：{@code acc[0]} = 节点数、{@code acc[1]} = 最大深度。 */
+    private static void measureModel(JsonObject def, int depth, int[] acc) {
+        acc[0]++;
+        if (depth > acc[1]) acc[1] = depth;
+        for (Map.Entry<String, JsonElement> entry : def.entrySet()) {
+            JsonElement value = entry.getValue();
+            if (value.isJsonObject()) {
+                measureModel(value.getAsJsonObject(), depth + 1, acc);
+            } else if (value.isJsonArray()) {
+                for (JsonElement item : value.getAsJsonArray()) {
+                    if (item.isJsonObject()) measureModel(item.getAsJsonObject(), depth + 1, acc);
+                }
             }
         }
     }

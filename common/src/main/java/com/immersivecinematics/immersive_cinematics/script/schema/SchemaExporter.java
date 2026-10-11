@@ -43,6 +43,13 @@ public final class SchemaExporter {
         triggers.add("conditions", conditions);
         root.add("triggers", triggers);
 
+        // 数学模型 schema：type → 参数表（类型顺序 = 注册顺序；编辑器类型下拉 + 参数表单直接消费）
+        JsonObject models = new JsonObject();
+        for (String type : MathModelRegistry.types()) {
+            models.add(type, exportFields(MathModelRegistry.params(type)));
+        }
+        root.add("models", models);
+
         return root;
     }
 

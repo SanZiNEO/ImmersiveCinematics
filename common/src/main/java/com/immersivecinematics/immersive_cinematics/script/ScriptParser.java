@@ -4,7 +4,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.immersivecinematics.immersive_cinematics.math.MathModel;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
+import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -385,6 +387,7 @@ public class ScriptParser {
             }
             case "bezier_curve" -> parseBezierCurve(value.getAsJsonObject(), p + "." + fieldName);
             case "color_curve" -> parseColorCurve(value, p + "." + fieldName);
+            case "model" -> parseMathModel(value, p + "." + fieldName, fieldName);
             case "map" -> {
                 if (value.isJsonObject()) {
                     yield parseDataMap(value.getAsJsonObject(), p + "." + fieldName);
@@ -532,6 +535,29 @@ public class ScriptParser {
             points.add(new ColorCurve.Point(x, y));
         }
         return new ColorCurve(points);
+    }
+
+    // ========== 数学模型定义解析（CAMERA clip 级 motion_* 字段）==========
+
+    /**
+     * 解析 {@code model} 字段 = 数学模型定义对象（JSON → 定义的唯一入口 = {@link MathModelRegistry#create}）。
+     *
+     * 形态：{@code {"type": "spring", "stiffness": 8.0}}；组合子定义内联（{@code chain} 的 {@code models}
+     * 数组 / {@code blend} 的 {@code a}、{@code b}）。值域由字段名决定（{@code motion_position} = VECTOR、
+     * {@code motion_yaw} / {@code motion_pitch} / {@code motion_roll} = ANGLE、{@code motion_fov} /
+     * {@code motion_zoom} = SCALAR），以结构键 {@code domain} 交给注册表（缺省继承 = 通道值域）。
+     *
+     * 未注册 / 缺失 type、未知参数、越界值按注册表口径限频告警 + 回落（{@code linear} = 无效果），不阻断解析；
+     * 值不是对象才视为结构错误。
+     */
+    private static MathModel parseMathModel(JsonElement value, String p, String fieldName) throws ScriptParseException {
+        if (!value.isJsonObject()) {
+            throw new ScriptParseException(p, "需要对象 {type, ...}（数学模型定义）");
+        }
+        Map<String, Object> raw = parseUnknownObject(value.getAsJsonObject(), p);
+        raw.put("domain", MathModelRegistry.channelDomain(fieldName).key());
+        Object type = raw.get("type");
+        return MathModelRegistry.create(type instanceof String text ? text : null, raw);
     }
 
     // ========== PositionData 解析 ==========

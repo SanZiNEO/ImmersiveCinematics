@@ -1,0 +1,84 @@
+{
+  "meta": {
+    "id": "test_camera_motion_models",
+    "name": "相机测试-参数运动模型",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "校验用：clip 级 motion_* 六字段 + 数学模型解析与校验（chain / blend / spring / exponential_smooth / linear / 恒等 cubic_bezier；0.3.6 B16-b）。曲线族（smoothstep / ease_*）按 [0,1] 归一化量定义（过渡权重等），不作用于位置 / 角度 / fov 这类原始量，故本脚本不挂",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0 } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "motion_position": {
+              "type": "chain",
+              "models": [
+                { "type": "exponential_smooth", "tau": 0.2 },
+                { "type": "spring", "stiffness": 6.0, "damping": 0.9, "initial_velocity": 0 }
+              ]
+            },
+            "motion_yaw": { "type": "spring", "stiffness": 8.0, "damping": 0.75 },
+            "motion_pitch": { "type": "exponential_smooth", "tau": 0.15 },
+            "motion_roll": {
+              "type": "blend",
+              "a": { "type": "spring", "stiffness": 8.0, "damping": 0.75 },
+              "b": { "type": "exponential_smooth", "tau": 0.15 },
+              "weight": 0.5
+            },
+            "motion_fov": { "type": "linear" },
+            "motion_zoom": { "type": "cubic_bezier" },
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 0, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 4, "position": { "dx": 10, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 60, "zoom": 1.2 },
+              { "time": 8, "position": { "dx": 20, "dy": 0, "dz": 0 }, "yaw": 180, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 8,
+            "duration": 4,
+            "transition": "morph",
+            "transition_duration": 1.0,
+            "loop": false,
+            "motion_position": {
+              "type": "chain",
+              "models": [
+                { "type": "spring", "stiffness": 8.0, "damping": 0.75 },
+                { "type": "linear" }
+              ]
+            },
+            "motion_yaw": { "type": "exponential_smooth", "tau": 0.25 },
+            "motion_pitch": {
+              "type": "blend",
+              "a": { "type": "linear" },
+              "b": { "type": "exponential_smooth", "tau": 0.15 },
+              "weight": 0.3
+            },
+            "motion_roll": { "type": "spring", "stiffness": 8.0, "damping": 1.0 },
+            "keyframes": [
+              { "time": 0, "position": { "dx": 20, "dy": 0, "dz": 0 }, "yaw": 180, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 4, "position": { "dx": 30, "dy": 4, "dz": -5 }, "yaw": -170, "pitch": -5, "roll": 5, "fov": 80, "zoom": 0.8 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

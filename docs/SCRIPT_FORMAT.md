@@ -199,6 +199,12 @@ immersive_cinematics/
 | `cam_breath_speed` | float | 否 | `1.0` | 时间推进速度，越大晃得越快 |
 | `cam_breath_trauma` | float | 否 | `1.0` | 仅 `cam_breath_type=trauma`：初始冲击强度 0~1 |
 | `cam_breath_decay` | float | 否 | `0.5` | 仅 `cam_breath_type=trauma`：强度每秒衰减速率 |
+| `motion_position` | object | 否 | `null` | 位置通道的数学模型定义（`{type, …}`）；缺省 = 不接模型，见「相机参数运动模型」 |
+| `motion_yaw` | object | 否 | `null` | yaw 通道的数学模型定义（同上） |
+| `motion_pitch` | object | 否 | `null` | pitch 通道的数学模型定义（同上） |
+| `motion_roll` | object | 否 | `null` | roll 通道的数学模型定义（同上） |
+| `motion_fov` | object | 否 | `null` | fov 通道的数学模型定义（同上） |
+| `motion_zoom` | object | 否 | `null` | zoom 通道的数学模型定义（同上） |
 | `keyframes` | array | 是 | — | 关键帧数组，至少 1 个 |
 
 > **相机片段自带调色**：CAMERA clip 还可写调色字段（clip 级 10 条曲线 + 关键帧级 57 个调色通道），作用于该相机轨产出的 lane——见下方「相机片段调色」。
@@ -266,6 +272,53 @@ immersive_cinematics/
 | `control_points` | array | 是 | — | 2 个控制点，**每个自描述**：含 `x`/`y`/`z` = 世界绝对坐标；含 `dx`/`dy`/`dz` = 相对**段起点关键帧**的偏移（与 position 同模式，可混用） |
 
 > **相对控制点**（dx/dy/dz）解决"相对模式下控制点不可写"的问题：相对场景（如以玩家触发点为出发点绕圆）玩家位置运行时才知道，绝对坐标写不了；相对控制点运行时求值为 `段起点 + 偏移`，绕圆等直接可写。绝对控制点行为与旧版一致。
+
+### 相机参数运动模型（`motion_position` / `motion_yaw` / `motion_pitch` / `motion_roll` / `motion_fov` / `motion_zoom`）
+
+**每个相机片段可给六个参数各挂一个数学模型**：模型把该通道**求值出来的值**做一次变换（平滑 / 延迟 / 缓动 / 组合）后再写进相机状态。六个字段都是 clip 级；缺省 `null` = 该通道不接模型（行为与不写该字段完全一致）。
+
+```json
+"motion_yaw": { "type": "spring", "stiffness": 8.0, "damping": 0.75 }
+```
+
+- **值域由字段决定**（作者不用写）：`motion_position` = 向量（x/y/z 逐分量独立）；`motion_yaw` / `motion_pitch` / `motion_roll` = 角度（度；差值 / 混合走最短路径，绝对输出不归一）；`motion_fov` / `motion_zoom` = 标量。
+- **组合**把子定义内联：`chain` 用 `models` 数组（按序串联，前一个的输出 = 后一个的输入）；`blend` 用 `a` / `b` + `weight`（两个子模型吃同一输入再混合）。
+- **上限**：嵌套深度 ≤ 8 层、单个定义 ≤ 32 个节点；超限 validator 报错，运行时整链按「无模型」处理。
+- **有状态模型**（`exponential_smooth` / `spring` 及含它们的组合）首个输入即初值（无起始瞬态）；`dt = 0`（暂停帧）状态与输出保持；单步 `dt` 上限 0.25 秒（超出按上限推进，防弹簧过冲）。
+- **失败回退**：未注册 / 缺失 `type`、组合域不匹配 → 该处回落 `linear`（恒等 = 无效果）；未知参数忽略；参数越界钳制到下表范围；`NaN` / `Infinity` 回落该参数缺省。以上都只记日志 / 校验提示，不阻断加载。
+
+| `type` | 参数（缺省；范围） | 有状态 | 语义 |
+|--------|-------------------|--------|------|
+| `linear` | — | 否 | 恒等（缺省类型 = 回退目标，无效果） |
+| `smoothstep` | — | 否 | 平滑插值 `3t²−2t³`；输入钳制到 [0,1] |
+| `ease_in` | — | 否 | 缓入 `t²`（起步慢、结束快）；输入钳制到 [0,1] |
+| `ease_out` | — | 否 | 缓出 `1−(1−t)²`（起步快、结束慢）；输入钳制到 [0,1] |
+| `ease_in_out` | — | 否 | 缓入缓出（两段二次，中点速度最高） |
+| `cubic_bezier` | `x1` / `y1` / `x2` / `y2`（缺省 `1/3, 1/3, 2/3, 2/3` = 恒等；`x` ∈ [0,1]、`y` ∈ [-4,4]） | 否 | CSS `cubic-bezier`：控制点 P0=(0,0)、P1=(x1,y1)、P2=(x2,y2)、P3=(1,1)；输入 x = 进度 [0,1]、输出 y（可过冲） |
+| `exponential_smooth` | `tau`（缺省 `0.15` 秒；范围 0.001 ~ 100） | 是 | 一阶指数趋近：每步按 `1 − e^(−dt/τ)` 追向输入（τ 越小越快） |
+| `spring` | `stiffness`（缺省 `8.0`；范围 0.001 ~ 1000）、`damping`（阻尼比，缺省 `0.75`；范围 0 ~ 10）、`initial_velocity`（缺省 `0`；范围 ±10000） | 是 | 二阶阻尼弹簧：`damping` < 1 欠阻尼（回弹）/ = 1 临界阻尼 / > 1 过阻尼 |
+| `chain` | `models`（子定义数组） | 任一子有状态 | 串联：按序逐个施加 |
+| `blend` | `a` / `b`（子定义；缺省 = 恒等）、`weight`（缺省 `0.5`；范围 0 ~ 1，0 = 全 `a`、1 = 全 `b`） | 任一子有状态 | 并联混合（角度域按最短路径混合） |
+
+```json
+"motion_position": {
+  "type": "chain",
+  "models": [
+    { "type": "exponential_smooth", "tau": 0.2 },
+    { "type": "spring", "stiffness": 8.0, "damping": 0.75 }
+  ]
+},
+"motion_yaw": {
+  "type": "blend",
+  "a": { "type": "spring", "stiffness": 8.0, "damping": 0.75 },
+  "b": { "type": "exponential_smooth", "tau": 0.15 },
+  "weight": 0.5
+}
+```
+
+> **曲线族的适用面**：`smoothstep` / `ease_in` / `ease_out` / `ease_in_out` / `cubic_bezier` 按 **[0,1] 归一化量**定义（输入先钳到 [0,1]），服务**运行时**的归一化量求值（过渡权重、组合权重）——直接挂在位置 / 角度 / fov 这类原始量上通常不是想要的（原始量通道用 `spring` / `exponential_smooth` 或恒等 `linear`）。关键帧之间的缓动同样不用它们：由编辑器烘焙成显式关键帧（见上方「0.3.6 起：插值 = 匀速线性 + 编辑器烘焙缓动」）。
+
+> **`domain` 结构键**（可选，一般不用写）：显式声明值域 `scalar` / `angle` / `vector` / `color`，缺省继承所在通道（组合内继承父定义）；组合内与父定义不一致 = 校验期报「组合域不匹配」。
 
 ### Keyframe 字段
 

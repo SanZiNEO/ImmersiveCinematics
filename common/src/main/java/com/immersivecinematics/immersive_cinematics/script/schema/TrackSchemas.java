@@ -57,6 +57,14 @@ public final class TrackSchemas {
         clips.put("cam_breath_speed", new FieldDef("float", 1.0f));
         clips.put("cam_breath_trauma", new FieldDef("float", 1.0f));
         clips.put("cam_breath_decay", new FieldDef("float", 0.5f));
+        // 相机参数运动模型（clip 级；缺省 null = 该通道不接模型 = 逐位不改变现状）：值 = 模型定义对象
+        // {type, ...}；类型 / 参数 schema 见 MathModelRegistry，写法见 docs/SCRIPT_FORMAT.md §「相机参数运动模型」
+        clips.put("motion_position", new FieldDef("model", null, false, List.of(), "motion"));
+        clips.put("motion_yaw", new FieldDef("model", null, false, List.of(), "motion"));
+        clips.put("motion_pitch", new FieldDef("model", null, false, List.of(), "motion"));
+        clips.put("motion_roll", new FieldDef("model", null, false, List.of(), "motion"));
+        clips.put("motion_fov", new FieldDef("model", null, false, List.of(), "motion"));
+        clips.put("motion_zoom", new FieldDef("model", null, false, List.of(), "motion"));
         clips.put("orient", new FieldDef("enum", "manual", false, List.of("manual", "tangent")));
         clips.put("yaw_offset", new FieldDef("float", 0f));
         clips.put("pitch_offset", new FieldDef("float", 0f));

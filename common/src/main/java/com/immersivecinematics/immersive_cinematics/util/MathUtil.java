@@ -10,10 +10,9 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 数学工具类 — 相机系统共用插值函数
  * <p>
- * 提供 lerp（线性插值）、lerpAngle（角度环绕插值）、
- * 多种插值曲线（smooth/easeIn/easeOut/easeInOut）、
- * 三次贝塞尔曲线、smoothstep 混合、NaN/Infinity 防护，
- * 供 CameraProperties、ScriptPlayer、KeyframeInterpolator 等组件共用。
+ * 提供 lerp（线性插值）、lerpAngle（角度环绕插值）、三次贝塞尔曲线、
+ * NaN/Infinity 防护，供 CameraProperties、ScriptPlayer、KeyframeInterpolator 等组件共用。
+ * 曲线 / 缓动 / 动态响应模型（linear / smoothstep / ease_* / spring / chain / …）见 {@code math} 包。
  */
 public final class MathUtil {
 
@@ -49,73 +48,6 @@ public final class MathUtil {
         while (diff > 180f) diff -= 360f;
         while (diff < -180f) diff += 360f;
         return from + diff * t;
-    }
-
-    // ========== 插值曲线 ==========
-
-    /**
-     * 平滑插值曲线（Hermite 插值：3t² - 2t³）
-     * <p>
-     * 缓入缓出效果，适合大多数相机运动。
-     *
-     * @param t 线性进度 [0, 1]
-     * @return 平滑后的进度 [0, 1]
-     */
-    public static float smooth(float t) {
-        return t * t * (3f - 2f * t);
-    }
-
-    /**
-     * 平滑缓入缓出（五次 Hermite：6t⁵ - 15t⁴ + 10t³）
-     * <p>
-     * 比 smooth (3t²-2t³) 的一阶/二阶导数在端点处均为零，
-     * 过渡更平缓，适合摄影机运动等对平滑度要求更高的场景。
-     */
-    public static float smooth5(float t) {
-        return t * t * t * (t * (t * 6f - 15f) + 10f);
-    }
-
-    /**
-     * 缓入曲线（二次：t²）
-     * <p>
-     * 起步慢，结束快。适合需要从静止加速的镜头运动。
-     *
-     * @param t 线性进度 [0, 1]
-     * @return 缓入后的进度 [0, 1]
-     */
-    public static float easeIn(float t) {
-        return t * t;
-    }
-
-    /**
-     * 缓出曲线（二次：1 - (1-t)²）
-     * <p>
-     * 起步快，结束慢。适合需要减速停止的镜头运动。
-     *
-     * @param t 线性进度 [0, 1]
-     * @return 缓出后的进度 [0, 1]
-     */
-    public static float easeOut(float t) {
-        return 1f - (1f - t) * (1f - t);
-    }
-
-    /**
-     * 缓入缓出曲线（两段二次曲线）
-     * <p>
-     * 两端慢，中间快。前半段使用 easeIn，后半段使用 easeOut。
-     * 与 smooth（Hermite）的区别：easeInOut 在中点处速度更高，
-     * 产生更明显的"快-慢"对比效果。
-     *
-     * @param t 线性进度 [0, 1]
-     * @return 缓入缓出后的进度 [0, 1]
-     */
-    public static float easeInOut(float t) {
-        if (t < 0.5f) {
-            return 2f * t * t;
-        } else {
-            float t2 = 2f * t - 1f;
-            return 0.5f + 0.5f * (1f - (1f - t2) * (1f - t2));
-        }
     }
 
     // ========== 贝塞尔曲线 ==========
@@ -154,36 +86,6 @@ public final class MathUtil {
         double z = uuu * p0.z + 3 * uu * t * p1.z + 3 * u * tt * p2.z + ttt * p3.z;
 
         return new Vec3(x, y, z);
-    }
-
-    // ========== Crossfade 混合 ==========
-
-    /**
-     * Smoothstep 混合函数
-     * <p>
-     * 在 edge0 和 edge1 之间对 x 进行平滑插值，
-     * 结果被限制在 [0, 1] 范围内。
-     * <p>
-     * 公式：t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
-     *       result = t² * (3 - 2t)
-     * <p>
-     * 用途：morph 过渡区间内的平滑混合权重计算。
-     * <p>
-     * 边界情况：当 edge0 == edge1 时，x >= edge0 返回 1，否则返回 0，
-     * 避免 0/0 产生 NaN。
-     *
-     * @param edge0 下边界
-     * @param edge1 上边界
-     * @param x     输入值
-     * @return 平滑插值结果 [0, 1]
-     */
-    public static float smoothstep(float edge0, float edge1, float x) {
-        if (edge0 == edge1) {
-            return (x >= edge0) ? 1f : 0f;
-        }
-        float t = (x - edge0) / (edge1 - edge0);
-        t = Math.max(0f, Math.min(1f, t)); // clamp [0, 1]
-        return t * t * (3f - 2f * t);
     }
 
     // ========== NaN/Infinity 防护 ==========
