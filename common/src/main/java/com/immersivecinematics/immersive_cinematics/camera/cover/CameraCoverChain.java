@@ -36,6 +36,9 @@ public final class CameraCoverChain {
     /** 本帧是否有 Modifier 参与合成（{@link #evaluate} 刷新；无活跃 Base 时为 {@code false}）。 */
     private boolean modifiersApplied = false;
 
+    /** 本帧胜出 Base 层的档位（{@link #evaluate} 刷新；无活跃 Base 时为 {@link Integer#MIN_VALUE}）。 */
+    private int winnerPriority = Integer.MIN_VALUE;
+
     /** 注册一层 Base；同一实例重复注册 = 多份（注销按对象逐个移除）。 */
     public void register(BaseCameraProvider provider) {
         providers.add(provider);
@@ -78,9 +81,11 @@ public final class CameraCoverChain {
         BaseCameraProvider winner = selectWinner();
         if (winner == null) {
             modifiersApplied = false;
+            winnerPriority = Integer.MIN_VALUE;
             return false;
         }
         out.set(winner.provideBaseState());
+        winnerPriority = winner.basePriority();
         modifiersApplied = !winner.suppressesModifiers() && composeModifiers(out);
         return true;
     }
@@ -91,6 +96,14 @@ public final class CameraCoverChain {
      */
     public boolean modifiersApplied() {
         return modifiersApplied;
+    }
+
+    /**
+     * 本帧胜出 Base 层的档位（{@code PRIORITY_*}；无活跃 Base 时为 {@link Integer#MIN_VALUE}）；
+     * {@link #evaluate} 每次刷新。消费方 = 主画面 lane 的取用点（链胜出层非脚本导演时画面取链输出）。
+     */
+    public int winnerPriority() {
+        return winnerPriority;
     }
 
     /**

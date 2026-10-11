@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
+import com.immersivecinematics.immersive_cinematics.api.BaseCameraProvider;
 import com.immersivecinematics.immersive_cinematics.api.CameraApi;
 import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraCoverChain;
@@ -128,6 +129,16 @@ public class CameraManager implements CameraApi {
     public CameraState getCameraState() { return stateHolder.snapshot(); }
     /** 本帧链上是否有 Modifier 参与合成（消费方 = 主相机 lane：有 Modifier 时取链输出）。 */
     public boolean modifiersApplied() { return coverChain.modifiersApplied(); }
+    /**
+     * 本帧链胜出层是否为直控类层（飞行 300 / 编辑器直控 200 / 外部接管 400，即非脚本导演 100）。
+     *
+     * <p>消费方 = 主画面 lane 的取用点（{@code ScriptLaneDriver}）：直控类层胜出时相机轨道跳过写入
+     * （{@code CameraTrackPlayer.onRenderFrame} 在 {@code isPreviewDirectControl()} 时直接返回），
+     * 主相机 lane 要么不存在、要么不是本帧相机——画面必须取链输出（本帧相机）才跟得上直控。</p>
+     */
+    public boolean isDirectControlWinner() {
+        return coverChain.winnerPriority() > BaseCameraProvider.PRIORITY_SCRIPT_DIRECTOR;
+    }
     /** 当前镜头 yaw（度；方向性预加载用）。 */
     public float getCameraYaw() { return stateHolder.properties().getYaw(); }
     /** 编辑器直控写侧（五参数，位置不动）：写完立即刷新统一快照。 */

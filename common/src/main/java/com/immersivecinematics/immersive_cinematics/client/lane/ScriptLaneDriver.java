@@ -68,8 +68,11 @@ import java.util.Map;
  * 主画面特例，零 lane 时回落原版视角。视图中心与遮挡剔除都改为 <b>lane 驱动</b>（读正在渲染的 lane
  * 自己的相机）。
  *
- * 覆盖链 Modifier 的作用面：只作用主相机那份（总表最上层 lane）——链上本帧有 Modifier 生效时该 lane
- * 的相机状态取覆盖链输出；次级 lane 保持各自片段的原始相机（覆盖链定稿 §14③）。
+ * 主画面的相机来源 = <b>覆盖链输出</b>（本帧相机）：链上本帧有 Modifier 生效、或链胜出层是直控类层
+ * （飞行 / 编辑器直控 / 外部接管——该态下相机轨道跳过写入，本帧没有脚本 lane）时，主画面那份取链输出
+ * （有脚本 lane 时换进最上层 lane，没有脚本 lane 时由链输出注册一条全屏 lane，见
+ * {@link #registerChainLane}）。脚本导演胜出且无 Modifier 时链输出与主相机 lane 自身快照逐位同值，故不替换
+ * ——纯脚本播放路径逐帧不变。次级 lane 保持各自片段的原始相机（覆盖链定稿 §14③）。
  *
  * <h2>lane 来源与相机 id</h2>
  * 本类是 lane 的<b>唯一来源</b>（代码级调试驱动已删，四象限演示改为脚本 {@code cinematics/release/quadrant.json}）：
@@ -94,6 +97,9 @@ public final class ScriptLaneDriver {
     /** lane 内容档：与主画面一致（理由见类注释）。 */
     private static final LaneRenderer.LaneContent CONTENT = LaneRenderer.LaneContent.FULL;
 
+    /** 主画面 lane 的调试捕获相机 id（链输出注册的主画面那份，见 {@link #registerChainLane}）。 */
+    private static final String CHAIN_CAPTURE_ID = "chain";
+
     /** 本帧各 lane 的合成参数（按 lane 序号槽位复用，避免每帧分配）。 */
     private static final List<Slot> SLOTS = new ArrayList<>();
 
@@ -101,9 +107,11 @@ public final class ScriptLaneDriver {
     }
 
     /**
-     * 注册本帧的脚本 lane（渲染线程，{@code LaneRenderer.render} 之前调用一次）。
+     * 注册本帧的画面 lane（渲染线程，{@code LaneRenderer.render} 之前调用一次）：
+     * 脚本播放器本帧的活跃画面 lane；本帧没有脚本 lane 而链胜出层是直控类层时，由链输出注册主画面那条
+     * （见 {@link #registerChainLane}）。
      *
-     * @return 本帧是否有脚本 lane
+     * @return 本帧是否有 lane
      */
     public static boolean tick(Minecraft mc) {
         LaneRenderer renderer = LaneRenderer.INSTANCE;
@@ -142,6 +150,12 @@ public final class ScriptLaneDriver {
             }
         }
         if (index == 0) {
+            // 直控类层胜出（飞行 / 编辑器直控）：该态下相机轨道跳过写入 → 本帧没有脚本 lane，但画面
+            // 仍必须跟链输出——按「主画面 = dest 全屏、opacity=1 的全屏 lane 特例」由链输出注册一条。
+            if (registerChainLane(renderer)) {
+                onLaneActivityChanged(mc, lanesWereActive, true);
+                return true;
+            }
             onLaneActivityChanged(mc, lanesWereActive, false);
             return false;
         }
@@ -180,20 +194,55 @@ public final class ScriptLaneDriver {
     }
 
     /**
-     * 主相机那份（总表最上层 lane）取覆盖链输出：链上本帧有 Modifier 生效时，把合成后的六参数写进该 lane
-     * ——Modifier 只作用主相机，次级 lane 保持各自片段的原始相机（覆盖链定稿 §14③）。
+     * 主相机那份（总表最上层 lane）取覆盖链输出：链输出与主相机 lane 自身快照<b>不同源</b>的两种情形——
+     * ① 链上有 Modifier 生效（链输出 = 脚本状态 + Modifier）；② 链胜出层是直控类层（飞行 / 编辑器直控 /
+     * 外部接管）——此时相机轨道跳过写入，lane 快照不是本帧相机。把合成后的六参数写进该 lane——Modifier /
+     * 直控只作用主相机，次级 lane 保持各自片段的原始相机（覆盖链定稿 §14③）。
      *
-     * 链上无 Modifier 时链输出与主相机 lane 自身快照逐位同值，故不替换（零改动）；链输出为 {@code null}
-     * （无活跃 Base）时同样不动。
+     * <p>其余情形（脚本导演胜出且无 Modifier）链输出与主相机 lane 自身快照逐位同值，故不替换（零改动）；
+     * 链输出为 {@code null}（无活跃 Base）时同样不动。</p>
      *
      * @param laneCount 本帧总 lane 数（&gt; 0）：最上层 lane 序号 = {@code laneCount - 1}
      * @param mainFrame 最上层 lane 的帧数据（取它的 lane 级调色交给替换后的同一 lane）
      */
     private static void applyModifiers(LaneRenderer renderer, int laneCount, LaneFrame mainFrame) {
-        if (!CameraManager.INSTANCE.modifiersApplied()) return;
+        if (!chainOutputIsFrameCamera()) return;
         CameraState main = CameraManager.INSTANCE.getCameraState();
         if (main == null) return;
         renderer.setLane(laneCount - 1, main, CONTENT, mainFrame.laneAdjust(), slot(laneCount - 1).captureId);
+    }
+
+    /**
+     * 本帧无脚本 lane 时，主画面由链输出单独注册一条（全屏、不透明、无 lane 级调色）。
+     *
+     * <p>触发条件 = {@link #chainOutputIsFrameCamera()}（链胜出层非脚本导演）：该态下相机由飞控 /
+     * 编辑器直写驱动、相机轨道跳过写入，lane 表为空——不注册就回落原版视角（画面不跟直控）。
+     * 无活跃 Base / 无活跃实例（链输出 {@code null}）时不注册，仍回落原版视角。</p>
+     *
+     * @return 是否已注册主画面 lane
+     */
+    private static boolean registerChainLane(LaneRenderer renderer) {
+        if (!chainOutputIsFrameCamera()) return false;
+        CameraState main = CameraManager.INSTANCE.getCameraState();
+        if (main == null) return false;
+        Slot slot = slot(0);
+        // 合成参数显式归位（槽位跨帧复用：上一帧同序号 lane 的 dest / opacity 不得残留）
+        slot.opacity = 1.0F;
+        slot.source = LaneCompositor.Rect.FULL;
+        slot.dest = LaneCompositor.Rect.FULL;
+        slot.captureId = CHAIN_CAPTURE_ID;
+        renderer.setLane(0, main, CONTENT, null, slot.captureId);
+        renderer.setSink(ScriptLaneDriver::compose);
+        return true;
+    }
+
+    /**
+     * 主画面的相机是否必须取覆盖链输出（本帧相机）：链上有 Modifier 生效，或链胜出层是直控类层
+     * （飞行 / 编辑器直控 / 外部接管）。其余情形链输出与主相机 lane 自身快照逐位同值（取与不取等价）。
+     */
+    private static boolean chainOutputIsFrameCamera() {
+        CameraManager manager = CameraManager.INSTANCE;
+        return manager.modifiersApplied() || manager.isDirectControlWinner();
     }
 
     /**
