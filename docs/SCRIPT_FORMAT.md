@@ -81,7 +81,7 @@ immersive_cinematics/
 | `hide_hotbar` | boolean/null | `null` | 同上 |
 | `hide_crosshair` | boolean/null | `null` | 同上 |
 | `hide_bossbar` | boolean/null | `null` | 同上 |
-| `hide_skip_hud` | boolean/null | `null` | 同上；控制长按跳过提示（右下角图标+进度环） |
+| `hide_skip_hud` | boolean/null | `null` | **三态**：仅显式 `true` 隐藏长按跳过提示（右下角图标+进度环）；`null`（缺省）/`false` = **显示（默认开启）**，不回落 `hide_hud` |
 | `hud_layers` | object | `{}` | 模组/自定义 HUD 层的显隐覆盖：`{ "modid:layer": true/false }`，`true`=隐藏、`false`=显示 |
 | `hard_hide_hud` | boolean/null | `null` | **三态·仅 Forge**：强硬隐藏模式。`true`=除原版 HUD 与注册表 overlay 外，**连"不走 overlay 注册表、直接在 `RenderGuiEvent.Pre` 里自绘"的第三方 HUD 也一起隐藏**（接管整段 HUD 渲染，再按白名单重画）；`null`（缺省）/`false`=normal，行为与不带此字段完全一致。仅当 `hide_hud` 生效时才接管（`hide_hud=false` 时不接管）。**与 `hide_*` 的区别**：null 不回落 `hide_hud`——缺省即 normal。Fabric 无对应语义（字段被解析但不生效） |
 | `render_player_model` | boolean | `true` | 是否渲染玩家模型（第三人称时） |

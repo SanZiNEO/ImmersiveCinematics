@@ -30,8 +30,8 @@ public class SkipHudRenderer {
 
         if (!CameraManager.INSTANCE.isScriptMode()) return;
         if (!CameraManager.INSTANCE.isTopInstanceSkippable()) return;
-        Boolean hideSkipHud = CinematicController.INSTANCE.isHideSkipHud();
-        if (hideSkipHud != null ? hideSkipHud : CinematicController.INSTANCE.isHideHud()) return;
+        // hide_skip_hud 三态：仅显式 true 隐藏；未设置（null）= 显示（不回落 hide_hud，用户口径 2026-10-11）
+        if (Boolean.TRUE.equals(CinematicController.INSTANCE.isHideSkipHud())) return;
 
         float progress = CinematicKeyBindings.getSkipHoldProgress();
         renderInternal(mc, guiGraphics, progress);
