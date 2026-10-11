@@ -364,10 +364,10 @@ public final class MathModelRegistry {                    // script/schema，Fie
 | 多圈角度语义 | 不在模型层（属关键帧 / 过渡层） | `transition.md` §5 |
 | 编辑器曲线手柄 / 预设 | 不在运行时（编辑器阶段） | 「任务2改判」（progress:144） |
 
-### 定稿 12｜待用户拍板
+### 定稿 12｜两项已拍板（2026-10-10 用户，000.md 口径回写）
 
-1. **seek 后的模型状态**：候选 A = `reset()`（倾向：与「编辑器 seek = 硬定位」一致、确定性最好、无隐藏成本；代价 = 拖动播放头后弹簧从初值追赶的一次瞬态）；候选 B = 从片段起点按固定步长预热重放（观感更接近连续播放；代价 = 每次 seek 的重放成本 + 需定义预热步长，且仍不等于真实历史）。
-2. **模型库包名**：候选 A = `...immersive_cinematics.math`（倾向：不绑相机、与 `util/MathUtil` 的「通用工具」区分）；候选 B = `...immersive_cinematics.util.math`（与 `MathUtil` / `TimeInterpolation` 同处 util 树）。低影响，可与 B16-b 任务书一起定。
+1. **seek 后的模型状态**：**已拍板 = 候选 A `reset()`**（与「编辑器 seek = 硬定位」一致、确定性最好、无隐藏成本；拖动播放头后弹簧从初值追赶的一次瞬态为已接受代价）。候选 B（预热重放）不采用。
+2. **模型库包名**：**已拍板 = `math`（`...immersive_cinematics.math`）**，不绑相机、与 `util/MathUtil` 的「通用工具」区分。B16-b 已按此落地。
 
 ---
 
