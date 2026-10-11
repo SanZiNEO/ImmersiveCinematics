@@ -658,8 +658,8 @@ public final class ScriptValidator {
     /**
      * 校验相机片段的运动模型定义（{@code motion_*} 六字段，clip 级）：定义对象形态、{@code type} 已注册、
      * 参数名已知、嵌套深度 / 节点数上限（与 {@code MathModelRegistry} 同源常量）、组合域一致
-     * （结构键 {@code domain} 缺省继承所在通道 / 父定义）。只记 issue 不阻断加载——运行期由
-     * {@code MathModelRegistry} 按同一口径回落 {@code linear}（= 无效果）。
+     * （结构键 {@code domain} 顶层由通道域覆盖、组合内子定义缺省继承父定义，见 {@link #checkMathModelDomain}）。
+     * 只记 issue 不阻断加载——运行期由 {@code MathModelRegistry} 按同一口径回落 {@code linear}（= 无效果）。
      */
     private static void checkMotionModels(JsonObject clip, String cp, List<String> issues) {
         for (String field : MOTION_FIELDS) {
@@ -691,14 +691,17 @@ public final class ScriptValidator {
                     + MathModelRegistry.MODEL_MAX_NODES + "，深度 " + measure[1] + " / 上限 "
                     + MathModelRegistry.MODEL_MAX_DEPTH + "）：运行时整链回落 linear");
         }
-        checkMathModelNode(value.getAsJsonObject(), path, expectedDomain, issues);
+        checkMathModelNode(value.getAsJsonObject(), path, expectedDomain, true, issues);
     }
 
     /**
      * 校验单个模型定义节点（递归下钻 {@code model} / {@code model_list} 参数）：
      * {@code expectedDomain} = 继承域（顶层 = 通道值域）；{@code type} 缺失 / 未注册时无法确定参数表，不再下钻。
+     *
+     * @param root {@code true} = 字段顶层定义（{@code domain} 被解析期通道域覆盖，见 {@link #checkMathModelDomain}）；
+     *             {@code false} = 组合内子定义（{@code domain} 参与组合域一致性判定）
      */
-    private static void checkMathModelNode(JsonObject def, String path, String expectedDomain,
+    private static void checkMathModelNode(JsonObject def, String path, String expectedDomain, boolean root,
                                            List<String> issues) {
         JsonElement typeElement = def.get("type");
         if (typeElement == null || !typeElement.isJsonPrimitive() || !typeElement.getAsJsonPrimitive().isString()) {
@@ -712,7 +715,7 @@ public final class ScriptValidator {
                     + String.join(" / ", MathModelRegistry.types()) + "；运行时回落 linear）");
             return;
         }
-        String domain = checkMathModelDomain(def, path, expectedDomain, issues);
+        String domain = checkMathModelDomain(def, path, expectedDomain, root, issues);
         Map<String, FieldDef> params = MathModelRegistry.params(type);
         for (Map.Entry<String, JsonElement> entry : def.entrySet()) {
             String key = entry.getKey();
@@ -727,8 +730,16 @@ public final class ScriptValidator {
         }
     }
 
-    /** 校验 {@code domain} 结构键：未知值域 / 与继承域不一致（组合域不匹配）各记一条 issue；返回生效域。 */
-    private static String checkMathModelDomain(JsonObject def, String path, String expectedDomain,
+    /**
+     * 校验 {@code domain} 结构键：未知值域 / 与继承域不一致各记一条 issue；返回生效域。
+     *
+     * 不一致的语义分两层（与 {@code ScriptParser.parseMathModel} 的解析口径一致）：字段顶层定义的
+     * {@code domain} 在解析期被通道域覆盖（声明值被忽略，运行期按通道域跑、不回落）；只有组合内子定义
+     * 才是组合域不匹配（运行期该子模型回落 {@code linear}）。
+     *
+     * @param root {@code true} = 字段顶层定义
+     */
+    private static String checkMathModelDomain(JsonObject def, String path, String expectedDomain, boolean root,
                                                List<String> issues) {
         JsonElement element = def.get("domain");
         if (element == null || element.isJsonNull()) return expectedDomain;
@@ -742,8 +753,13 @@ public final class ScriptValidator {
             return expectedDomain;
         }
         if (!declared.equals(expectedDomain)) {
-            issues.add(path + ".domain 组合域不匹配：父定义 " + expectedDomain + "，此处 " + declared
-                    + "（运行时该子模型回落 linear）");
+            if (root) {
+                issues.add(path + ".domain 与通道域不一致：顶层 domain 由通道域覆盖（运行期按 " + expectedDomain
+                        + " 跑，声明的 " + declared + " 被忽略，不回落 linear）——仅组合内子定义的 domain 不匹配才回落 linear");
+            } else {
+                issues.add(path + ".domain 组合域不匹配：父定义 " + expectedDomain + "，此处 " + declared
+                        + "（运行时该子模型回落 linear）");
+            }
         }
         return declared;
     }
@@ -757,7 +773,7 @@ public final class ScriptValidator {
                     issues.add(path + " 需要对象（子模型定义）");
                     return;
                 }
-                checkMathModelNode(value.getAsJsonObject(), path, domain, issues);
+                checkMathModelNode(value.getAsJsonObject(), path, domain, false, issues);
             }
             case "model_list" -> {
                 if (!value.isJsonArray()) {
@@ -773,7 +789,7 @@ public final class ScriptValidator {
                         issues.add(path + "[" + i + "] 需要对象（子模型定义）");
                         continue;
                     }
-                    checkMathModelNode(array.get(i).getAsJsonObject(), path + "[" + i + "]", domain, issues);
+                    checkMathModelNode(array.get(i).getAsJsonObject(), path + "[" + i + "]", domain, false, issues);
                 }
             }
             default -> { }
