@@ -6,11 +6,13 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
@@ -36,7 +38,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <b>为什么是"最上层 lane"而不是"每条 lane 各自的相机"</b>：可见区块网格是单份共享状态，整帧只能有一个
  * 中心——逐 pass 换中心会让 {@code ViewArea.repositionCamera} 在每个 pass 把整张网格搬走并让区块全部
  * 置脏重建（{@code RenderChunk.setOrigin → reset() → dirty}），一帧内反复来回搬 = 持续重建、画面缺块。
- * 逐 lane 独立可见集合是长期方向（见 {@code multi-camera-rendering.md}）。
+ * 逐 lane 独立的是可见集合，不是网格中心（见 {@code multi-camera-rendering.md} §12.9）。
  */
 @Mixin(LevelRenderer.class)
 public class LevelRendererMixin {
@@ -74,7 +76,7 @@ public class LevelRendererMixin {
         return lane != null ? lane.state().position() : null;
     }
 
-    // ===== 相机在实心方块里：照搬原版旁观者那条逻辑（按帧统一决定）=====
+    // ===== 遮挡剔除开关（lane pass 按本 pass 的相机判定；其余走整帧缓解标志）=====
 
     @Shadow
     @Final
@@ -86,27 +88,31 @@ public class LevelRendererMixin {
     private boolean immersivecinematics$occlusionRestore;
 
     /**
-     * 原版 {@code setupRender} 里的遮挡剔除开关：
-     * <pre>
-     * boolean bl3 = this.minecraft.smartCull;
-     * if (player.isSpectator() && level.getBlockState(camera.getBlockPosition()).isSolidRender(...)) {
-     *     bl3 = false;   // 旁观者在实心方块里 → 关掉遮挡剔除
-     * }
-     * </pre>
-     * 本模组在<b>有活跃 lane 的帧整帧把它压成 false</b>（判定见 {@link CinematicOcclusion}）：
-     * 可见区块集合是共享状态、且由某个 pass 的相机经 BFS 遮挡剪枝重建，剪枝只对<b>播种相机</b>成立 ⇒
-     * 其它机位（各 lane）会整块缺 16 格区块（副画面里的倾斜裁切矩形）。关掉遮挡剪枝后 BFS 退化为
-     * "视距内全部区块"，各 pass 仍各自 {@code applyFrustum} 视锥过滤。
-     * <p>必须**整帧统一**（各 pass 用不同的值会互相重建，表现为画面在"塌缩 / 完整"之间来回闪）。
-     * 原版对玩家相机自己的旁观者判定不受影响：本模组只在 lane 活跃的帧改写这个字段，非 lane 帧原样放行。</p>
+     * 原版 {@code setupRender} 的遮挡剔除开关（{@code minecraft.smartCull}），lane pass 内按本 pass 的相机判定。
+     *
+     * 两条判定：lane pass 且 per-lane 生效 → 该 lane 相机所在方块实心渲染则本 pass 关掉遮挡剪枝
+     * （沿用原版旁观者那条判定的口径，把相机换成该 lane 的；剪枝只对播种相机成立，实心方块里会看不到外面）；
+     * 其余（主 pass、无 lane 帧、回落路径）→ 整帧缓解标志 {@link CinematicOcclusion#isOcclusionOffThisFrame()}
+     * （per-lane 生效时恒 false = 主 pass 完全走原版判定）。RETURN 侧无条件还原。
      */
     @Inject(method = "setupRender", at = @At("HEAD"))
     private void immersivecinematics_applyCameraOcclusion(Camera camera, Frustum frustum,
                                                           boolean bl, boolean bl2, CallbackInfo ci) {
-        if (!CinematicOcclusion.isOcclusionOffThisFrame()) return;
+        if (!immersivecinematics$occlusionOff(camera)) return;
         this.immersivecinematics$occlusionRestore = this.minecraft.smartCull;
         this.minecraft.smartCull = false;
         this.immersivecinematics$occlusionToggled = true;
+    }
+
+    /** 本 pass 是否把 {@code smartCull} 压成 false（口径见 {@link #immersivecinematics_applyCameraOcclusion}）。 */
+    private boolean immersivecinematics$occlusionOff(Camera camera) {
+        if (LaneRenderer.isRenderingLane() && LaneRenderer.isPerLaneCullActive(this.minecraft)) {
+            ClientLevel level = this.minecraft.level;
+            if (level == null) return false;
+            BlockPos pos = camera.getBlockPosition();
+            return level.getBlockState(pos).isSolidRender(level, pos);
+        }
+        return CinematicOcclusion.isOcclusionOffThisFrame();
     }
 
     @Inject(method = "setupRender", at = @At("RETURN"))

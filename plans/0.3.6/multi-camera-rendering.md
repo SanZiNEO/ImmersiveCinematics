@@ -463,6 +463,7 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 | `lastCameraX/Y/Z` / `lastCameraChunkX/Y/Z`（网格中心跟踪） / `lastViewDistance` | `LevelRenderer.java:232-237` / `:251` | **不拆** | 网格单份、视距全局；网格中心不逐 pass 切换。 |
 | `renderedEntities` / `culledEntities` | `LevelRenderer.java:252-253` | **不拆** | `renderLevel` 每 pass 开头清零（`:1046-1047`），无跨 pass 残留。 |
 | `capturedFrustum` / `frustumPos` / `frustumPoints` | `LevelRenderer.java:255-259` | **不拆** | 全景图捕获路径，lane 不走它。 |
+| `nextFullUpdateMillis`（全量 BFS 重试定时器） | `LevelRenderer.java:264`（AtomicLong） | **拆**（B3-b 审查补入） | 共享时一条 lane 的边界重试（500ms 节流）会压住其它 pass 的重建 → lane 画面缺块（与 §12.8-B 症状同类）；各槽各一份。 |
 
 #### 12.9.2 实现载体选型
 

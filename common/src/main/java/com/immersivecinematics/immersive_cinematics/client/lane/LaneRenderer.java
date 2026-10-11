@@ -46,8 +46,9 @@ import java.util.Map;
  *   → 视图 PoseStack（XP=xRot、YP=yRot+180）→ roll → setInverseViewRotationMatrix
  *   → 该 lane 自己的 fov → 投影 → setProjectionMatrix（全局投影 = 该 lane 的投影）
  *   → prepareCullFrustum（该 lane 的 pose + 相机位置）
- *   → applyFrustum（该 lane 的视锥，绕开原版朝向门闩强制重刷：可见集合必须由本 lane 姿态算出）
- *   → renderLevel → doEntityOutline（lane 内描边）→ 还原全局投影
+ *   → 可见集合：per-lane 生效 = 换入该 lane 自己的候选集 / 可见集合 / 门闩（{@link LaneCullSlot}）；
+ *     不可用 = 按本 lane 视锥强制刷共享可见集合（回落路径）
+ *   → renderLevel → doEntityOutline（lane 内描边）→ 还原全局投影 → 换出 lane 剔除状态
  *   → 恢复 mainRenderTarget → （lane 级调色 pass：lane 画面 → adjustTarget）
  *   → 交给 {@link Sink}（合成层；有 lane 级调色时给的是 adjustTarget，否则是 lane FBO）
  * </pre>
@@ -120,6 +121,13 @@ public final class LaneRenderer {
     };
 
     /**
+     * per-lane 可见集合开关：{@code -Dicinematics.perLaneCull} / 环境变量 {@code ICINEMATICS_PER_LANE_CULL}
+     * （{@code 0} / {@code false} 即关，缺省开）。关闭 = 回落整帧缓解（共享可见集合 + 每 pass 强制刷新
+     * + 整帧 {@code smartCull=false}），用于 A/B 对照与出问题时的应急回落。
+     */
+    private static final boolean PER_LANE_CULL = parsePerLaneCull();
+
+    /**
      * lane 内容开关。默认全关（{@link #WORLD_ONLY}）——副画面只要世界地形；
      * 实体 / 粒子 / 天空 / 天气按需打开（设计见 plans/0.3.6/render-routes.md §2）。
      */
@@ -156,6 +164,8 @@ public final class LaneRenderer {
         private LaneContent content = LaneContent.WORLD_ONLY;
         private ColorAdjustParams adjust;
         private String captureId;
+        /** 该 lane 的剔除槽（per-lane 候选集 / 可见集合 / 门闩）；惰性创建、跨帧持有、停播归还池。 */
+        private LaneCullSlot cull;
 
         /** 该 lane 的独立原版相机实例（生命周期 = 槽位，跨帧复用）。 */
         public Camera camera() {
@@ -284,9 +294,11 @@ public final class LaneRenderer {
      */
     public void render(Minecraft mc, float partialTick, long nanoTime) {
         if (activeCount == 0) {
+            releaseAllCullSlots();
             return;
         }
         if (mc.level == null || mc.player == null) {
+            releaseAllCullSlots();
             return;
         }
         if (isUnavailable()) {
@@ -321,6 +333,7 @@ public final class LaneRenderer {
             for (int i = 0; i < lanes.size(); i++) {
                 Lane lane = lanes.get(i);
                 if (lane.state == null) {
+                    releaseCullSlot(lane);
                     continue;
                 }
                 // 调试捕获用的相机 id：生产者没给时回退 lane<序号>（文件名安全化在 LaneDebugCapture 内做）
@@ -338,6 +351,36 @@ public final class LaneRenderer {
             RenderSystem.setInverseViewRotationMatrix(prevInverseViewRotation);
             main.bindWrite(false);
             RenderSystem.viewport(0, 0, width, height);
+            // 异常兜底：lane pass 中途抛出时保证换入的槽全部弹净、字段回到原版值（正常路径已在各自 finally 配对弹出）
+            if (mc.levelRenderer instanceof LaneCullBridge cullBridge) {
+                cullBridge.ic$popAllLaneCullStates();
+            }
+        }
+    }
+
+    /** 该 lane 的剔除槽（惰性创建，跨帧持有）；per-lane 剔除不可用时不会被调用。 */
+    private static LaneCullSlot cullSlot(Lane lane) {
+        LaneCullSlot slot = lane.cull;
+        if (slot == null) {
+            slot = LaneCullSlots.acquire();
+            lane.cull = slot;
+        }
+        return slot;
+    }
+
+    /** 停播归还：清空后入池复用（内存 ∝ 并发 lane 峰值，不随历史 lane 数增长）。 */
+    private static void releaseCullSlot(Lane lane) {
+        LaneCullSlot slot = lane.cull;
+        if (slot != null) {
+            lane.cull = null;
+            LaneCullSlots.release(slot);
+        }
+    }
+
+    /** 停播 / 世界卸载：归还全部 lane 的剔除槽。 */
+    private void releaseAllCullSlots() {
+        for (int i = 0; i < lanes.size(); i++) {
+            releaseCullSlot(lanes.get(i));
         }
     }
 
@@ -372,6 +415,13 @@ public final class LaneRenderer {
         // 渲染期间让原版所有 getMainRenderTarget() 引用都落在该 lane 的 FBO 上（落地要点 ①）
         ((MinecraftAccessor) mc).ic$setMainRenderTarget(fbo);
         activeContent = lane.content;
+        // per-lane 可见集合：本 pass 换入该 lane 的候选集 / 可见集合 / 门闩（pass 结束或异常时换出；
+        // 换入必须在 prepareCullFrustum 之前，换出在 renderLevel + doEntityOutline 之后）
+        boolean perLane = isPerLaneCullActive(mc);
+        LaneCullBridge cullBridge = perLane ? (LaneCullBridge) mc.levelRenderer : null;
+        if (cullBridge != null) {
+            cullBridge.ic$pushLaneCullState(cullSlot(lane));
+        }
         try {
             fbo.bindWrite(true);   // 绑定 FBO + 视口 = FBO 全尺寸
             // 目标不可写（附件丢失 / 重建失败 / 尺寸非法）→ 驱动会丢掉这次绘制、只留下未写内容：
@@ -410,16 +460,17 @@ public final class LaneRenderer {
                     Math.max(fov, (double) mc.options.fov().get()));
             Vec3 cameraPos = camera.getPosition();
             mc.levelRenderer.prepareCullFrustum(poseStack, cameraPos, cullProjection);
-            // 可见集合按本 lane 的视锥强制刷一次：原版 applyFrustum 有朝向门闩（needsFrustumUpdate 或
-            // floor(xRot/2)/floor(yRot/2) 变化才触发），同朝向桶的 lane 会沿用上一 pass 的可见集合
-            // （= 别条 lane 的视锥过滤结果）→ 该 lane 画面缺块。这里在 renderLevel（→ setupRender）之前
-            // 按原版口径刷一次：视锥与 prepareCullFrustum 同源（同 pose + 同剔除投影），再向外扩 8 格
-            // 以包含相机所在区块（与 setupRender 里 new Frustum(frustum).offsetToFullyIncludeCameraCube(8)
-            // 完全一致）。setupRender 若因门闩打开自己再刷一次，用的是同一份视锥，结果相同。
-            Frustum laneFrustum = new Frustum(poseStack.last().pose(), cullProjection);
-            laneFrustum.prepare(cameraPos.x, cameraPos.y, cameraPos.z);
-            ((LevelRendererAccessor) mc.levelRenderer)
-                    .ic$applyFrustum(laneFrustum.offsetToFullyIncludeCameraCube(8));
+            if (cullBridge == null) {
+                // 回落路径（per-lane 不可用）：可见集合仍是整帧单份，原版朝向门闩（needsFrustumUpdate 或
+                // floor(xRot/2)/floor(yRot/2) 变化才刷）会让同朝向桶的 lane 沿用上一 pass 的集合 → 本 lane
+                // 缺块。这里在 renderLevel（→ setupRender）之前按本 lane 视锥强制刷一次：视锥与
+                // prepareCullFrustum 同源（同 pose + 同剔除投影）再外扩 8 格，与原版 setupRender 里那次同口径。
+                // per-lane 生效时不需要：该 lane 的槽自带门闩，BFS / 局部更新都会把门闩置起，由原版那次刷新。
+                Frustum laneFrustum = new Frustum(poseStack.last().pose(), cullProjection);
+                laneFrustum.prepare(cameraPos.x, cameraPos.y, cameraPos.z);
+                ((LevelRendererAccessor) mc.levelRenderer)
+                        .ic$applyFrustum(laneFrustum.offsetToFullyIncludeCameraCube(8));
+            }
 
             // 该 lane 自己的视锥 + 相机姿态 → 原版 8 格膨胀剔除 3~5 步收敛，不需要自建剔除方案
             mc.levelRenderer.renderLevel(poseStack, partialTick, nanoTime, false, camera, gameRenderer,
@@ -436,6 +487,9 @@ public final class LaneRenderer {
             reportLaneFailure(captureId, "lane 渲染异常（画面未写 / 半写）", e);
             return new LaneOutput(fbo, false);
         } finally {
+            if (cullBridge != null) {
+                cullBridge.ic$popLaneCullState();
+            }
             activeContent = null;
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
         }
@@ -558,6 +612,24 @@ public final class LaneRenderer {
             }
         }
         return null;
+    }
+
+    /**
+     * per-lane 剔除本帧是否生效：开关 on + 有活跃 lane + 非渲染优化模组 + 槽 mixin 在位
+     * （{@code LevelRenderer} 实现了 {@link LaneCullBridge}）。缺任一条件即回落整帧缓解。
+     */
+    public static boolean isPerLaneCullActive(Minecraft mc) {
+        return PER_LANE_CULL && INSTANCE.activeCount > 0 && !INSTANCE.isUnavailable()
+                && mc.levelRenderer instanceof LaneCullBridge;
+    }
+
+    /** 开关解析：系统属性 {@code icinematics.perLaneCull}，再环境变量 {@code ICINEMATICS_PER_LANE_CULL}；缺省开。 */
+    private static boolean parsePerLaneCull() {
+        String value = System.getProperty("icinematics.perLaneCull");
+        if (value == null || value.isEmpty()) {
+            value = System.getenv("ICINEMATICS_PER_LANE_CULL");
+        }
+        return value == null || value.isEmpty() || (!"0".equals(value) && !"false".equalsIgnoreCase(value));
     }
 
     // ===== Mixin 接入点 =====

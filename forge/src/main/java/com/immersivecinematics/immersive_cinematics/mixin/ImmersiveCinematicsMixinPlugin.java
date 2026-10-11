@@ -13,17 +13,20 @@ import java.util.Set;
 /**
  * Forge 专属 Mixin 配置插件。
  *
- * <p>检测到 Sodium / Rubidium / Embeddium 时跳过 {@link LevelRendererMixin}：
- * 这些模组会 {@code @Overwrite} 原版 {@code LevelRenderer.setupRender}，
- * 导致我们的 {@code @Redirect} / {@code @ModifyVariable} 无法注入；
- * 但它们基于 Camera/Frustum 的渲染中心已经会跟随 {@code CameraMixin} 写入的虚拟相机，
- * 因此跳过不会丢失功能。
+ * 检测到 Sodium / Rubidium / Embeddium 时跳过 {@link LevelRendererMixin} 与 {@code LaneCullStateMixin}：
+ * 这些模组会 {@code @Overwrite} 原版 {@code LevelRenderer.setupRender}，我们的 {@code @Redirect} /
+ * {@code @ModifyVariable} 无法注入，vanilla 的剔除字段也成了死路径；但它们基于 Camera/Frustum 的渲染中心
+ * 已经会跟随 {@code CameraMixin} 写入的虚拟相机，且 lane 渲染本身在检测到优化模组时已禁用，因此跳过不会丢失功能。
  *
- * <p>直接使用 Forge API，不使用 Java 反射。
+ * 直接使用 Forge API，不使用 Java 反射。
  */
 public final class ImmersiveCinematicsMixinPlugin implements IMixinConfigPlugin {
 
-    private static final String LEVEL_RENDERER_MIXIN = "com.immersivecinematics.immersive_cinematics.mixin.LevelRendererMixin";
+    /** 检测到渲染优化模组时跳过的 mixin（完整类名）。 */
+    private static final Set<String> OPTIMIZER_SKIPPED_MIXINS = Set.of(
+            "com.immersivecinematics.immersive_cinematics.mixin.LevelRendererMixin",
+            "com.immersivecinematics.immersive_cinematics.mixin.LaneCullStateMixin"
+    );
 
     private static final Set<String> RENDER_OPTIMIZER_MOD_IDS = Set.of(
             "sodium",
@@ -45,10 +48,7 @@ public final class ImmersiveCinematicsMixinPlugin implements IMixinConfigPlugin 
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        if (mixinClassName.equals(LEVEL_RENDERER_MIXIN)) {
-            return !isRenderOptimizerPresent();
-        }
-        return true;
+        return !(OPTIMIZER_SKIPPED_MIXINS.contains(mixinClassName) && isRenderOptimizerPresent());
     }
 
     @Override
