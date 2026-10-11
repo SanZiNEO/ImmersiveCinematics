@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.camera.cover;
 
-import com.immersivecinematics.immersive_cinematics.camera.CameraState;
+import com.immersivecinematics.immersive_cinematics.api.BaseCameraProvider;
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -1,6 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera.source;
 
-import com.immersivecinematics.immersive_cinematics.camera.CameraState;
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.transition.CameraTransitionLayer;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionBlend;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionFrame;

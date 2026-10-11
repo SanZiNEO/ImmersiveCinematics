@@ -1,8 +1,9 @@
 package com.immersivecinematics.immersive_cinematics.trigger.client;
 
 import com.immersivecinematics.immersive_cinematics.Config;
+import com.immersivecinematics.immersive_cinematics.api.CameraApi;
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
-import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
@@ -54,14 +55,15 @@ public final class PreloadRequester {
     }
 
     public void tick(Minecraft mc) {
-        CameraManager cam = CameraManager.INSTANCE;
+        // 读侧经 api 面（只读查询三件）；其余查询 / 控制仍走门面
+        CameraApi cam = CameraManager.INSTANCE;
         if (!Config.preloadEnabled) {
             releaseIfNeeded();
             return;
         }
-        PlaybackInstance instance = cam.activeInstance();
+        PlaybackInstance instance = CameraManager.INSTANCE.activeInstance();
         ScriptPlayer sp = instance != null ? instance.player() : null;
-        if (sp != null && sp.isPlaying() && !cam.isPreviewMode()) {
+        if (sp != null && sp.isPlaying() && !CameraManager.INSTANCE.isPreviewMode()) {
             CinematicScript script = sp.getScript();
             String sid = script != null ? script.getId() : "";
             if (sid.isEmpty()) {
@@ -99,7 +101,7 @@ public final class PreloadRequester {
                 }
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
                         new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, 0,
-                                cam.getCameraYaw(), mc.options.renderDistance().get(),
+                                CameraManager.INSTANCE.getCameraYaw(), mc.options.renderDistance().get(),
                                 activeCamera));
                 return;
             }
@@ -112,7 +114,7 @@ public final class PreloadRequester {
                             sid, bx, bz, bx >> 4, bz >> 4, activeCamera, activeChanged);
                 }
                 com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                        new C2SPreloadPositionPacket(bx, bz, cam.getCameraYaw(), activeCamera));
+                        new C2SPreloadPositionPacket(bx, bz, CameraManager.INSTANCE.getCameraYaw(), activeCamera));
             }
             tickPrewarm(mc, sid, script, sp);
         } else {

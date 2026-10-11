@@ -1,54 +1,42 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
 /**
- * 相机属性控制器 — 管理相机的所有自身属性
- * 包含：朝向（yaw, pitch, roll）和 光学特征（FOV, Zoom）
- * 完全不知道 CameraPath 的存在
- * <p>
- * 🎬 帧回调驱动模式（ReplayMod 式）：
- * - 不再使用 partialTick 插值
- * - 每渲染帧由 CameraTrackPlayer.onRenderFrame() 直接设置精确值
- * - getXxx() 直接返回 currentXxx，无插值层
- * <p>
- * 注意：画幅比（aspectRatio）不在此处管理，因为它属于覆盖层系统，
- * 独立于镜头跳转逻辑，由 CameraManager 直接管理。
+ * 相机朝向与光学写入缓冲（六参数之 yaw / pitch / roll / fov / zoom）：只保存当前值，无插值、无过渡。
+ *
+ * 单位：yaw / pitch / roll / fov 为度，zoom 为倍率。缺省：yaw / pitch / roll = 0、fov = 70、zoom = 1；
+ * 越界值不在此处钳制（钳制在渲染边界）。写入 = 覆盖当前值。
+ * 仅包内可见：它是全局写入缓冲的组成，读写入口见 {@code CameraStateHolder}。线程契约：仅客户端主线程。
  */
-public class CameraProperties {
+final class CameraProperties {
 
-    // --- 默认值 ---
+    /** 缺省视场角（度）。 */
     private static final float DEFAULT_FOV = 70.0f;
-    private static final float DEFAULT_ROLL = 0.0f;
+
+    /** 缺省缩放（倍率）。 */
     private static final float DEFAULT_ZOOM = 1.0f;
 
-    /**
-     * 单个动画属性的当前值
-     */
+    /** 单个属性的当前值。 */
     private static class AnimValue {
         float current;
 
-        /** 直接设置值（瞬移，无过渡） */
         void setDirect(float v) {
             current = v;
         }
     }
 
-    // --- 五个动画属性 ---
     private final AnimValue yaw = new AnimValue();
     private final AnimValue pitch = new AnimValue();
     private final AnimValue roll = new AnimValue();
     private final AnimValue fov = new AnimValue();
     private final AnimValue zoom = new AnimValue();
 
-    {
-        // 初始化 fov 和 zoom 的默认值（需在构造后执行）
+    CameraProperties() {
         fov.setDirect(DEFAULT_FOV);
         zoom.setDirect(DEFAULT_ZOOM);
     }
 
-    // ========== 🎬 直接设置方法（帧回调驱动模式） ==========
-
-    /** 🎬 批量设置所有属性（帧回调驱动模式，CameraTrackPlayer 使用） */
-    public void setAllDirect(float yaw, float pitch, float roll, float fov, float zoom) {
+    /** 批量覆盖五个属性。 */
+    void setAllDirect(float yaw, float pitch, float roll, float fov, float zoom) {
         this.yaw.setDirect(yaw);
         this.pitch.setDirect(pitch);
         this.roll.setDirect(roll);
@@ -56,49 +44,33 @@ public class CameraProperties {
         this.zoom.setDirect(zoom);
     }
 
-    /** 🎬 直接设置偏航角 */
-    public void setYawDirect(float v) { yaw.setDirect(v); }
+    /** 覆盖 yaw（度）。 */
+    void setYawDirect(float v) { yaw.setDirect(v); }
 
-    /** 🎬 直接设置俯仰角 */
-    public void setPitchDirect(float v) { pitch.setDirect(v); }
+    /** 覆盖 pitch（度）。 */
+    void setPitchDirect(float v) { pitch.setDirect(v); }
 
-    /** 🎬 直接设置翻滚角 */
-    public void setRollDirect(float v) { roll.setDirect(v); }
+    /** 当前 yaw（度）。 */
+    float getYaw() { return yaw.current; }
 
-    /** 🎬 直接设置视场角 */
-    public void setFovDirect(float v) { fov.setDirect(v); }
+    /** 当前 pitch（度）。 */
+    float getPitch() { return pitch.current; }
 
+    /** 当前 roll（度）。 */
+    float getRoll() { return roll.current; }
 
-    /** 🎬 直接设置缩放 */
-    public void setZoomDirect(float v) { zoom.setDirect(v); }
+    /** 当前 fov（度）。 */
+    float getFov() { return fov.current; }
 
-    // ========== 获取当前值（直接返回，无 partialTick 插值） ==========
+    /** 当前 zoom（倍率）。 */
+    float getZoom() { return zoom.current; }
 
-    /** 🎬 获取当前偏航角 */
-    public float getYaw() { return yaw.current; }
-
-    /** 🎬 获取当前俯仰角 */
-    public float getPitch() { return pitch.current; }
-
-    /** 🎬 获取当前翻滚角 */
-    public float getRoll() { return roll.current; }
-
-    /** 🎬 获取当前视场角 */
-    public float getFov() { return fov.current; }
-
-
-    /** 🎬 获取当前缩放 */
-    public float getZoom() { return zoom.current; }
-
-    // ========== 重置 ==========
-
-    /** 重置到默认值 */
-    public void reset() {
+    /** 复位到缺省值（yaw / pitch / roll = 0、fov = 70、zoom = 1）。 */
+    void reset() {
         yaw.setDirect(0f);
         pitch.setDirect(0f);
         roll.setDirect(0f);
         fov.setDirect(DEFAULT_FOV);
         zoom.setDirect(DEFAULT_ZOOM);
     }
-
 }

@@ -1,14 +1,15 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
-import com.immersivecinematics.immersive_cinematics.camera.cover.BaseCameraProvider;
+import com.immersivecinematics.immersive_cinematics.api.BaseCameraProvider;
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
 
 /**
  * 编辑器直控 Base 层（档位 {@link BaseCameraProvider#PRIORITY_EDITOR_DIRECT}）。
  *
  * 活跃条件：本帧发生过五参数直写——活跃窗口实际只覆盖「直写穿透刷新」那一瞬
  * （{@link CameraManager#setCameraDirect(float, float, float, float, float)} 内的那次求值）；
- * 帧末求值因帧首已清零而恒不活跃，本层与脚本导演层同源同值，故本版本无可观察差异。
- * 「直控压制脚本导演层」的语义要等各层各持自有状态快照后才生效（B4-P5 / 定稿 §12）。
+ * 帧末求值因帧首已清零而恒不活跃，本层与脚本导演层同源同值（本版本无可观察差异）：
+ * 直控层压制脚本导演层的语义要等各层各持自有状态快照后才生效。
  * 状态：全局写入缓冲的当前值（同 {@link ScriptDirectorBase}）。
  */
 final class DirectControlBase implements BaseCameraProvider {

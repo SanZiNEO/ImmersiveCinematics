@@ -1,6 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
-import com.immersivecinematics.immersive_cinematics.camera.CameraState;
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import net.minecraft.client.Camera;

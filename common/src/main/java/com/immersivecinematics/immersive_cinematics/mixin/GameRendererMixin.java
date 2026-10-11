@@ -1,7 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
-import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CinematicOcclusion;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneDebugCapture;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;

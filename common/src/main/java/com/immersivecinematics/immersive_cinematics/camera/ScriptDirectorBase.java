@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
-import com.immersivecinematics.immersive_cinematics.camera.cover.BaseCameraProvider;
+import com.immersivecinematics.immersive_cinematics.api.BaseCameraProvider;
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
 
 /**
  * 脚本导演 Base 层（档位 {@link BaseCameraProvider#PRIORITY_SCRIPT_DIRECTOR}）。

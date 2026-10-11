@@ -1,0 +1,12 @@
+# B3-c 两态帧成本对照（per-lane 可见集合 vs 整帧缓解回落）
+# 实测 2026-10-11（B3-c）。同脚本、同世界、同位置、同 10 s 窗口长度；两态只差 ICINEMATICS_PER_LANE_CULL。
+# 场景：新的世界（超平坦，作弊开，正午冻结/无自然生成）视距 12；tilt_repro 脚本 2 条 CAMERA 轨
+#       （surface 地上俯视 + dig 跟铁傀儡钻地，静态段：傀儡分步下移完成后两相机静止）。
+# 环境：enableVsync=false、maxFps=260（=解锁）、pauseOnLostFocus=false。
+# 工具：原版客户端 metrics 剖析（与 F3+L 同入口，经仓库外 attach 工具 E:/tmp/b3c/agent 触发），10 s 窗口；
+#       产物 zip → client/profiling.txt（本节数字全部来自该文件）。
+# 换算：帧时间 = 1000 / fps（剖析 root 即整帧）；每段 ms = 该段 globalPercentage% × 帧时间。
+#       百分比为剖析树聚合值：main pass 在 gameRenderer.level 下，lane pass 在 gameRenderer 下（renderLevel RETURN 处）。
+state,frames_in_10s,fps,frame_ms,terrain_setup_ms,terrain_setup_update_ms,forced_apply_frustum_ms,terrain_draw_ms,clouds_ms,entities_ms,compilechunks_ms,level_ms,game_renderer_ms
+per_lane,4447,444.8,2.248,0.008,0.001,0.000,0.436,0.700,0.265,0.029,0.936,1.852
+fallback,1682,168.2,5.945,0.639,0.618,0.348,1.118,1.181,0.607,0.096,2.112,5.191

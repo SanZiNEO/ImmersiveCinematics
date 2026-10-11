@@ -1,15 +1,12 @@
-package com.immersivecinematics.immersive_cinematics.camera.cover;
-
-import com.immersivecinematics.immersive_cinematics.camera.CameraState;
+package com.immersivecinematics.immersive_cinematics.api;
 
 /**
  * Base 层接口：决定「这一帧的基础相机状态」，每层产出整帧六参数（不做部分覆盖）。
  *
  * 优先级域：Base 与 Modifier 是两条独立优先级域，数值互不比较；链按优先级从高到低询问，
- * 同优先级 = 后注册者胜。内置档位见 {@code PRIORITY_*} 常量（间隔 100，供未来插入）。
- * 切换语义：Base 层之间为 Cut（瞬时切换，无过渡）；无活跃层 = 回退玩家相机。
- * 分配契约：{@link #provideBaseState()} 必须复用本层已有的快照产出（不新建 record、不复制）——
- * 覆盖链本体每帧零分配，唯一分配点 = 链产出的统一快照 record。
+ * 同优先级 = 后注册者胜；无活跃层 = 回退玩家相机。内置档位见 {@code PRIORITY_*} 常量（间隔 100，供未来插入）。
+ * 切换语义：Base 层之间为 Cut（瞬时切换，无过渡）。
+ * 分配契约：{@link #provideBaseState()} 必须复用本层已有的快照产出（不新建 record、不复制）。
  * 线程契约：仅客户端主线程（tick 与渲染同线程）；跨线程调用方须自行 marshal 到主线程。
  * 状态所有权：链只读 provider 返回的快照，不持有、不修改 provider 的内部状态。
  */
@@ -18,13 +15,13 @@ public interface BaseCameraProvider {
     /** 档位：外部接管（公开入口留位，尚未开放）。 */
     int PRIORITY_EXTERNAL = 400;
 
-    /** 档位：飞行取景（{@code control/FlightController} 六参数直写）。 */
+    /** 档位：飞行取景（飞行控制器六参数直写）。 */
     int PRIORITY_FLIGHT = 300;
 
-    /** 档位：编辑器直控（{@code webui/WebEditorApi} 五参数直写，位置不动）。 */
+    /** 档位：编辑器直控（编辑器五参数直写，位置不动）。 */
     int PRIORITY_EDITOR_DIRECT = 200;
 
-    /** 档位：脚本导演（{@code script/CameraTrackPlayer}）。 */
+    /** 档位：脚本导演（相机轨道播放器）。 */
     int PRIORITY_SCRIPT_DIRECTOR = 100;
 
     /** 本层本帧是否活跃；链按优先级从高到低询问，取第一个活跃层。 */

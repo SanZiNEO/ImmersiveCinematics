@@ -1,6 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.client.lane;
 
-import com.immersivecinematics.immersive_cinematics.camera.CameraState;
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustParams;
 import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustPass;
 import com.immersivecinematics.immersive_cinematics.mixin.GameRendererAccessor;

@@ -2,8 +2,9 @@ package com.immersivecinematics.immersive_cinematics.script;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.immersivecinematics.immersive_cinematics.api.CameraApi;
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
-import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
 import com.immersivecinematics.immersive_cinematics.mixin.CameraAccessor;
 import net.minecraft.client.Camera;
@@ -17,6 +18,9 @@ import net.minecraft.client.Minecraft;
  */
 public final class AudioListenerController {
 
+    /** 相机只读查询面（{@link CameraApi}）；非查询面方法仍走门面。 */
+    private static final CameraApi CAMERA = CameraManager.INSTANCE;
+
     private static CinematicScript cachedScript;
     private static String cachedListener = "player";
 
@@ -26,7 +30,7 @@ public final class AudioListenerController {
     public static boolean shouldOverride() {
         // 与 isCameraListener() 同一口径（顶层实例，§3.3），二者恒互补：
         // 有效听者不是相机 → 覆盖为玩家；是相机 → 覆盖为镜头代理（cameraListener）。
-        return CameraManager.INSTANCE.isActive() && !isCameraListener();
+        return CAMERA.isActive() && !isCameraListener();
     }
 
     /**
@@ -41,14 +45,14 @@ public final class AudioListenerController {
      * 也回落 player——与画面没有 lane 覆盖（= 原版玩家视角）时听者落在玩家一致。
      */
     public static boolean isCameraListener() {
-        return CameraManager.INSTANCE.isActive()
+        return CAMERA.isActive()
                 && CameraManager.INSTANCE.topInstanceHasActiveCameraClip()
                 && "camera".equals(listenerMode());
     }
 
     /** 当前听者世界坐标：camera → 镜头位置；player → 玩家位置 */
     public static net.minecraft.world.phys.Vec3 getListenerPosition() {
-        CameraState state = CameraManager.INSTANCE.getCameraState();
+        CameraState state = CAMERA.getCameraState();
         if (isCameraListener() && state != null) {
             return state.position();
         }
@@ -75,7 +79,7 @@ public final class AudioListenerController {
      * 无快照（本帧无活跃相机）时回落玩家代理，与 {@link #getListenerPosition()} 的回落一致。
      */
     public static Camera cameraListener() {
-        CameraState state = CameraManager.INSTANCE.getCameraState();
+        CameraState state = CAMERA.getCameraState();
         if (state == null) {
             return playerCamera();
         }

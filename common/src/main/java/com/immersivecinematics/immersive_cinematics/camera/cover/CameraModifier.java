@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.camera.cover;
 
+import com.immersivecinematics.immersive_cinematics.api.BaseCameraProvider;
+
 /**
  * Modifier：在 Base 状态之上按通道掩码做部分修改（不做整帧覆盖）。
  *

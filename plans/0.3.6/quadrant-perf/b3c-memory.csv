@@ -1,0 +1,18 @@
+# B3-c 内存实测（候选集 / 槽固定结构）
+# 实测 2026-10-11（B3-c）。方法：jcmd GC.class_histogram（先 GC.run，避免未回收垃圾计入），
+#       同一 JVM 内两态对照（run2b：per-lane；run3：回落），场景同 b3c-culling-cost.csv。
+# 相关类：net.minecraft.client.renderer.LevelRenderer$RenderChunkInfo（候选集条目）
+#         [LLevelRenderer$RenderChunkInfo;（候选集 renderInfoMap 数组，15 004 槽 = (2R+1)^2 x 视高段数，R=12）
+#         java.util.LinkedHashMap$Entry（候选集 LinkedHashSet 的节点；本行含全 JVM 该类的总量，非仅候选集）
+#         com.immersivecinematics...client.lane.LaneCullSlot（per-lane 槽；回落态为 0 = 不建槽）
+# 单实例字节（直方图 bytes/instances 实测）：RenderChunkInfo 24 B；LinkedHashMap$Entry 40 B；
+#         renderInfoMap 数组 60 016 B/份（15 004 x 4 B）。
+state,lane_cull_mode,render_chunk_info_instances,render_chunk_info_bytes,render_info_map_arrays,render_info_map_bytes,lane_cull_slot_instances,linkedhashmap_entry_instances,linkedhashmap_entry_bytes
+no_lane,na,4015,96360,1,60016,3,137935,5517400
+per_lane_2lane,per_lane,4566,109584,2,120032,3,138492,5539680
+fallback_2lane,fallback,7256,174144,1,60016,0,140718,5628720
+# 读数说明（本场景 = 超平坦 + 视距 12，视高段 24；空段不进候选集，故单份候选集 ≈ 1.5k 条而非 15 004 上界）：
+#   * 单份候选集条目 ≈ 1.5k（4 015 条 / vanilla 一份；4 566 条 = vanilla + 1 条 lane 自建集，另 1 条 lane 首次播种仍复用 vanilla 集）
+#   * 每 lane 固定结构 ≈ renderInfoMap 数组 60 KB（LaneCullSlot 惰性建槽时分配，随该 lane 首次自建候选集落地）
+#   * 上界口径（全段有几何的普通地形、R=12）：15 004 x (24+40) B + 60 KB ≈ 1.02 MB/lane → 8 lane ≈ 8.2 MB
+#   * 对照 multi-camera-rendering.md §12.9.5 估算：C≈1e4 → 0.78 MB/lane、8 lane ≈ 6.3 MB（同量级）

@@ -1,0 +1,82 @@
+# B3-c 像素实证原始数据（脚本 E:/tmp/b3c/analyze_b3c.py / ab_diff.py 输出摘录）
+# 指标定义：
+#   sky%      = 判为天空的像素占比（B-R>30 且 B>120；脚本把蓝通道压到 0 的象限该判据失效 → 记 n/a）
+#   horizon   = 逐列「最深天空像素行」的中位数（px，图高 1392）
+#   hole      = p95(最深天空像素行) - horizon（px）：缺块 = 该值异常增大（warm-up 与 fov 曲率基线 ≤ 45 px）
+#   changed%  = 与 per-lane 态同一轮次窗口帧的逐像素差（|Δ|max>12 记为变化），按区域统计
+# 产物路径（仓库外，跑完已从 fabric/run/lane-captures 备份还原）：
+#   E:/tmp/b3c/evidence/run1-quadrant/         （新的世界 + quadrant_demo，4 lane，5 轮）
+#   E:/tmp/b3c/evidence/run2-tilt-perlane/     （新的世界 + tilt_repro，per-lane，5 轮）
+#   E:/tmp/b3c/evidence/run2b-tilt-perlane-long/（同上，长窗版，5 轮 + 剖析/内存采样）
+#   E:/tmp/b3c/evidence/run3-tilt-fallback/    （新的世界 + tilt_repro，回落态，5 轮）
+case,state,round,region,sky_pct,horizon_row,hole_px,note
+quadrant,per_lane,1,Q_TL,28.1,224,21,warm-up（首帧，区块尚在编译）
+quadrant,per_lane,1,Q_TR,33.2,246,45,warm-up
+quadrant,per_lane,1,Q_BL,40.1,281,24,warm-up
+quadrant,per_lane,1,Q_BR,12.5,116,19,warm-up（opacity 0.5 + source 裁切）
+quadrant,per_lane,2,Q_TL,28.5,211,3,steady
+quadrant,per_lane,2,Q_TR,31.5,230,4,steady
+quadrant,per_lane,2,Q_BL,18.1,130,23,steady
+quadrant,per_lane,2,Q_BR,9.2,79,21,steady
+quadrant,per_lane,3,Q_TL,27.5,204,3,steady
+quadrant,per_lane,3,Q_TR,30.7,224,4,steady
+quadrant,per_lane,3,Q_BL,n/a,n/a,n/a,蓝通道被脚本压到 0 → 天空判据失效
+quadrant,per_lane,3,Q_BR,5.9,55,16,steady
+quadrant,per_lane,4,Q_TL,26.8,198,4,steady
+quadrant,per_lane,4,Q_TR,30.1,220,3,steady
+quadrant,per_lane,4,Q_BL,n/a,n/a,n/a,同上
+quadrant,per_lane,4,Q_BR,3.1,33,17,steady
+quadrant,per_lane,5,Q_TL,25.8,191,4,steady
+quadrant,per_lane,5,Q_TR,29.2,213,4,steady
+quadrant,per_lane,5,Q_BL,n/a,n/a,n/a,同上
+quadrant,per_lane,5,Q_BR,0.6,11,13,steady
+quadrant_lane_raw,per_lane,1,cam0,30.5,450,42,warm-up
+quadrant_lane_raw,per_lane,1,cam1,35.5,494,90,warm-up
+quadrant_lane_raw,per_lane,1,cam2,40.2,564,48,warm-up
+quadrant_lane_raw,per_lane,1,cam3,34.5,499,57,warm-up
+quadrant_lane_raw,per_lane,2,cam0,28.5,422,6,steady
+quadrant_lane_raw,per_lane,2,cam1,31.6,461,7,steady
+quadrant_lane_raw,per_lane,2,cam2,34.7,494,7,steady
+quadrant_lane_raw,per_lane,2,cam3,30.4,443,6,steady
+quadrant_lane_raw,per_lane,3,cam0,27.5,408,6,steady
+quadrant_lane_raw,per_lane,3,cam1,30.7,449,8,steady
+quadrant_lane_raw,per_lane,3,cam2,34.0,484,7,steady
+quadrant_lane_raw,per_lane,3,cam3,29.5,430,7,steady
+quadrant_lane_raw,per_lane,4,cam0,26.7,397,7,steady
+quadrant_lane_raw,per_lane,4,cam1,30.1,440,8,steady
+quadrant_lane_raw,per_lane,4,cam2,33.4,476,8,steady
+quadrant_lane_raw,per_lane,4,cam3,28.8,420,7,steady
+quadrant_lane_raw,per_lane,5,cam0,25.8,383,7,steady
+quadrant_lane_raw,per_lane,5,cam1,29.2,428,7,steady
+quadrant_lane_raw,per_lane,5,cam2,32.6,465,8,steady
+quadrant_lane_raw,per_lane,5,cam3,27.8,406,8,steady
+quadrant_tint,per_lane,2,cam0,-27.64,-0.19,-0.14,ΔRGB（composited - raw 均值差）= 脚本 red 关键帧生效
+quadrant_tint,per_lane,3,cam0,-43.26,-0.19,-0.15,同上
+quadrant_tint,per_lane,4,cam0,-54.70,-0.19,-0.15,同上
+quadrant_tint,per_lane,5,cam0,-65.34,-0.19,-0.15,同上（red 压到 -1 的钳制）
+quadrant_tint,per_lane,5,cam1,-0.19,-81.52,-0.15,green 通道
+quadrant_tint,per_lane,5,cam2,-0.19,-0.19,-73.54,blue 通道
+quadrant_tint,per_lane,5,cam3,-14.70,-16.23,-36.46,cam3 无调色：差值来自 opacity 0.5 + source 裁切（非污染）
+tilt,per_lane,1,MAIN_right,39.4,564,3,warm-up（首帧）
+tilt,per_lane,2,MAIN_right,44.5,619,3,steady
+tilt,per_lane,3,MAIN_right,44.5,619,3,steady
+tilt,per_lane,4,MAIN_right,44.5,619,3,steady
+tilt,per_lane,5,MAIN_right,44.5,619,3,steady
+tilt,per_lane,2,LANES_left,51.4,1391,0,steady（两 lane 区域）
+tilt,per_lane,5,LANES_left,51.5,1391,0,steady
+tilt,per_lane,2,cam0_raw,14.0,191,18,steady（surface lane 自身画面）
+tilt,per_lane,5,cam0_raw,14.0,191,18,steady
+tilt,per_lane,2,cam1_raw,89.0,1391,0,steady（dig lane：相机在实心方块内，透过地形看到雾/天空色）
+tilt,fallback,1,MAIN_right,39.7,569,4,warm-up（首帧）
+tilt,fallback,2,MAIN_right,44.5,619,3,steady（与 per-lane 态一致）
+tilt,fallback,3,MAIN_right,44.5,619,3,steady（与 per-lane 态一致）
+tilt,fallback,4,MAIN_right,61.5,854,4,缺块：主画面远景整体消失（地平线下移 235 px）
+tilt,fallback,5,MAIN_right,72.9,1014,3,缺块扩大（地平线下移 395 px，天空占比 44.5% -> 72.9%）
+tilt,fallback,2,LANES_left,51.4,1391,0,steady（lane 区域与 per-lane 态一致）
+tilt,fallback,5,LANES_left,51.5,1391,0,steady
+tilt,fallback,2,cam0_raw,14.0,191,18,steady（lane 自身画面两态一致）
+tilt,fallback,5,cam0_raw,14.0,191,18,steady
+tilt,fallback,2,cam1_raw,88.9,1391,0,steady
+tilt,fallback,5,cam1_raw,88.9,1391,0,steady
+tilt_ab_diff,fallback_vs_per_lane,5,MAIN_right,65.48,n/a,n/a,changed%（meanAbsDiff 70.86）
+tilt_ab_diff,fallback_vs_per_lane,5,LANES_left,4.01,n/a,n/a,changed%（meanAbsDiff 4.04）

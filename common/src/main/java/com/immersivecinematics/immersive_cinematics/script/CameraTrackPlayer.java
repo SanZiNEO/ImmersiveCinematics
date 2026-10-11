@@ -1,7 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
-import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.source.CameraKeyframeEvaluator;
 import com.immersivecinematics.immersive_cinematics.camera.source.EntityTargetResolver;
 import com.immersivecinematics.immersive_cinematics.camera.source.LaneSnapshotCollector;

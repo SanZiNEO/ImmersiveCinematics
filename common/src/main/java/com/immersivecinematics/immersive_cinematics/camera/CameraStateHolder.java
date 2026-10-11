@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import net.minecraft.world.phys.Vec3;
 
 /**

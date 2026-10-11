@@ -10,7 +10,7 @@ import org.lwjgl.glfw.GLFW;
  * 飞行取景操控模式（0.3.5 第5轮）。
  * <p>
  * 输入由 InputRouter/Mixin 路由到本控制器：键盘在 tick 里读原版 Options 键位，
- * 鼠标由 MouseHandler.onMove 注入 delta。相机直接驱动 CameraManager 的 POJO 状态。
+ * 鼠标由 MouseHandler.onMove 注入 delta。写侧经 {@code CameraManager} 门面写六参数（不直写内部对象）。
  */
 public class FlightController {
 

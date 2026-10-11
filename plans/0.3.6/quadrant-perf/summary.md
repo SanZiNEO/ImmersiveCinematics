@@ -123,3 +123,19 @@
 | 22 | 136.8 | 3611 | 1832 | 34617 |
 | 23 | 151.2 | 3818 | 2117 | 98521 |
 | 24 | 165.6 | 3755 | 1901 | 82156 |
+
+## 后续归档（B3-c，2026-10-11）：per-lane 可见集合 vs 整帧缓解回落
+
+> 全文（口径 / 复现步骤 / 证据边界）见 **`b3c-culling-cost.md`**；数据 `b3c-culling-cost.csv` / `b3c-memory.csv` / `b3c-pixel-evidence.csv`。
+> 两态 = `ICINEMATICS_PER_LANE_CULL` 缺省（B3-b 的 per-lane 可见集合）vs `=0`（回落 = B3-b 前的整帧 `smartCull=false` + 每 pass 强制 `applyFrustum`）；
+> 场景 = `新的世界` 超平坦 + `tilt_repro` 复现配方（铁傀儡嵌入地层 + 相机 follow/look_at 钻地，2 lane 静态段），视距 12、vsync off / 帧率解锁，10 s 剖析窗。
+
+| 指标 [实测] | per-lane | 回落 |
+|---|---|---|
+| 帧率 / 帧时间 | **444.8 fps / 2.25 ms** | **168.2 fps / 5.94 ms** |
+| `terrain_setup` | 0.008 ms/帧 | 0.639 ms/帧（含每帧 `apply_frustum`） |
+| 回落专属强制 `apply_frustum` | 0 | 0.348 ms/帧 |
+| `terrain` 绘制 / `clouds` | 0.436 / 0.700 ms | 1.118 / 1.181 ms |
+| 主画面缺块（像素） | 地平线 619 px 五轮不动 | r4 854 px → r5 1014 px（远景整片消失，主画面区 65.5% 像素变化） |
+| 候选集条目（本场景）/ lane 内存上界 | vanilla 4 015 + 551；≤1.02 MB/lane [估算] | 共享 1 份 7 256；0（不建槽） |
+| quadrant 四象限回归（per-lane） | 稳态缺块离群量 ≤ 8 px、映射无污染 | — |

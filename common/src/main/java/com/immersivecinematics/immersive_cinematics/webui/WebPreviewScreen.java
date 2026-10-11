@@ -1,7 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.webui;
 
+import com.immersivecinematics.immersive_cinematics.api.CameraApi;
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
-import com.immersivecinematics.immersive_cinematics.camera.CameraState;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.immersivecinematics.immersive_cinematics.control.FlightModeManager;
 import com.google.gson.JsonObject;
@@ -146,7 +147,7 @@ public class WebPreviewScreen extends Screen {
      */
     public static void enterFlightMode(Double x, Double y, Double z, Float yaw, Float pitch,
                                        Float roll, Float fov, Float zoom, boolean absolute) {
-        CameraManager cam = CameraManager.INSTANCE;
+        CameraApi cam = CameraManager.INSTANCE;
         CameraState state = cam.getCameraState();
         Vec3 pos;
         float curYaw, curPitch, curRoll, curFov, curZoom;

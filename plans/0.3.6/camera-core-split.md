@@ -81,6 +81,13 @@
 - 收紧内部实现：`CameraPath`/`CameraProperties` 降为包内可见（渲染 Mixin 已零引用，仅 CameraManager + CameraTrackPlayer 触碰）；`getPath()`/`getProperties()` 收为包内写入口（CameraTrackPlayer 写侧改经 `CameraStateHolder` 的包内接口）。
 - 外部调用方（`WebEditorApi`、`FlightController`、听者/预加载/预览 HUD）改经 api 面，行为不变。
 
+**已落地（2026-10-11，B4-P5）**：
+
+- `api/` 三件：`CameraApi`（只读三件：`isActive` / `hasActiveCameraClip` / `getCameraState`；实现 = `CameraManager implements CameraApi`）+ `CameraState`（自 `camera/` 迁入）+ `BaseCameraProvider`（自 `camera/cover/` 迁入）。**`CameraModifier` 留在 `camera/cover/`**：其签名引用核心工作区 `CameraStateBuffer` 与 `ComposeMode`（§12「落点」行定稿），迁 api 即内部类型泄漏，故本项按定稿执行、任务书「Modifier 接口迁入」以 §12 落点为准（实现形态对外开放留后续批次）。
+- 可见性收紧：`CameraPath` / `CameraProperties` 降为包内（`final class` + 成员包内）；`getPath()` / `getProperties()` 门面方法自 P1 起已不存在（写侧一直经 `CameraStateHolder` 包内接口）。顺带删 `CameraProperties` 死成员（`setRollDirect` / `setFovDirect` / `setZoomDirect` / `DEFAULT_ROLL`）。
+- 外部调用方：听者（`AudioListenerController`）、预加载（`PreloadRequester`）、预览 HUD（`WebPreviewScreen`）的只读查询改经 `CameraApi` 引用（同一实例，调用点等值）；`WebEditorApi` / `FlightController` 的相机调用全是控制 / 写侧（api 面只有只读三件）→ 零改动；`FlightController` 类注释的「直接驱动 POJO」过时句一并修正。
+- `CameraManager` 门面收口：G7 帧驱动搬出为 `camera/FrameDriver`（`frame()` 体与原 `onRenderFrame()` 逐行等值，92/92 行 diff = 0）、tick 实体数诊断搬出为 `camera/ClientEntityProbe`；门面删死方法 `playScript(×2)` / `stopScript` / `reset`（全仓零调用者，`getGameTimeSeconds` 保留——`ScriptPlayer.clockSource` 以方法引用消费）。
+
 ## 三、迁移顺序（每步编译过、行为不变、可独立提交）
 
 | 步 | 内容 | 验收 |
@@ -90,7 +97,7 @@
 | P2 | `PlaybackRegistry` / `PreviewChannel` / `PlaybackLedger` / `PlaybackLifecycle` | 同上 + 预览/接播路径实机 |
 | P3 | `EntityTargetResolver` | 同上 + 选择器脚本回归（tests/trigger + camera follow） |
 | P4 | `CameraKeyframeEvaluator` / `LaneSnapshotCollector` / `WorldPointLocator` | 同上 + quadrant 实机回归 |
-| P5 | api 包 + 可见性收紧 | 同上 + API 面冒烟 + `grep` 边界检查 |
+| P5 | api 包 + 可见性收紧 ✅ **已落地（2026-10-11，B4-P5）**：`api/`（`CameraApi` / `CameraState` / `BaseCameraProvider`）、`CameraPath` / `CameraProperties` 降包内、外部读侧改经 `CameraApi`、`CameraManager` 拆出 `FrameDriver` + `ClientEntityProbe` 并收至 **150 行**（`CameraTrackPlayer` = 180 行） | 同上 + API 面冒烟 + `grep` 边界检查 |
 
 每步照工作规则：一个子任务一个子代理、执行类串行、任务书引用本文段落。
 
@@ -102,6 +109,8 @@
 - `CameraManager` ≤ 150 行（门面）、`CameraTrackPlayer` ≤ 200 行（编排）；
 - 每类单职责；死代码 0；
 - 边界：`grep CameraPath\|CameraProperties` 在 `mixin/`、`api/` 零命中；`camera/core/` 不 import 任何外围包；api 包无内部类型泄漏。
+
+**P5 落地证据（2026-10-11）**：`wc -l` → `CameraManager` 150 / `CameraTrackPlayer` 180 / `FrameDriver` 162 / `ClientEntityProbe` 54 / `CameraPath` 30 / `CameraProperties` 76；`CameraPath|CameraProperties|getPath()|getProperties()` 在 `mixin/`、`api/`、`fabric/`、`forge/` 零命中；`api/` 唯一外部 import = `net.minecraft.world.phys.Vec3`（无内部类型）；核心三件（`CameraStateHolder` / `CameraPath` / `CameraProperties`）import 只有 `api` + `net.minecraft`（`camera/core/` 名义包在现布局不存在——核心即 `camera/` 状态三件）；`FrameDriver.frame()` 与原 `onRenderFrame()` 逐行等值（92/92 行、diff = 0）；门面 34 个公开方法逐方法体比对（30 个逐字节等值 + 4 个已知改写：`playCinematic×2` 改直调 `lifecycle.playScript`、`onRenderFrame` / `tick` 改委托），另删 4 个零调用者死方法；validator `RESULT: 2 of 142 scripts have issues`（既有 2 条不变）、icv2 14 套件 / icgl 14 套件全绿。
 
 ## 五、与队列的关系
 

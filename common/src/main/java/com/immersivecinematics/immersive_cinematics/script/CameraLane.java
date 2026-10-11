@@ -1,6 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
-import com.immersivecinematics.immersive_cinematics.camera.CameraState;
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
 
 /**
  * 一条画面 lane 的脚本侧快照 —— 相机六参数 + 产出它的片段 + 该片段内的本地时间。
