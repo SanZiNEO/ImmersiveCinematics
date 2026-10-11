@@ -480,6 +480,14 @@ public class ScriptPlayer {
             // 圈边界（本帧局部时间 < 上帧）→ 折返重置（其余状态每帧按时间重查，天然自愈）
             if (!Float.isNaN(lastLocalElapsed) && local < lastLocalElapsed) {
                 playerMovement.onScriptLoop();
+                for (TrackPlayer tp : trackPlayers) {
+                    try {
+                        tp.onLoopRestart();
+                    } catch (Exception e) {
+                        com.immersivecinematics.immersive_cinematics.util.ErrorLog.log(
+                                "Playback", "TrackPlayer onLoopRestart 异常", e);
+                    }
+                }
             }
             lastLocalElapsed = local;
             elapsedSeconds = local;

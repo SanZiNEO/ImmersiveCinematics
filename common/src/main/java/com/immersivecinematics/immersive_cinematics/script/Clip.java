@@ -1,6 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
+import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionInterrupt;
+import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 
 import java.util.Collections;
@@ -21,6 +23,9 @@ public class Clip {
     private final TrackType trackType;
     private final Map<String, Object> data;
     private final List<Keyframe> keyframes;
+
+    /** 过渡声明缓存（{@link #getTransitionSpec()} 首次访问建成；片段数据解析后只读，故可缓存）。 */
+    private TransitionSpec transitionSpec;
 
     public Clip(float startTime, float duration, TrackType trackType,
                 Map<String, Object> data, List<Keyframe> keyframes) {
@@ -80,6 +85,29 @@ public class Clip {
 
     public float getTransitionDuration() {
         return getFloat("transition_duration", 0.5f);
+    }
+
+    /**
+     * 本片段的过渡声明（分参数 / 曲线 / 打断）——{@link #isMorph()} 为 {@code true} 时恒非 {@code null}。
+     *
+     * 值 = 片段级字段归一而成（{@code transition_duration} / {@code transition_curve} /
+     * {@code transition_params} / {@code transition_interrupt}）；未声明任何过渡字段时为 {@code null}。
+     * 首次访问建成并缓存（片段数据在解析后只读）。字段语义与缺省见 {@code docs/SCRIPT_FORMAT.md} §「过渡」。
+     */
+    public TransitionSpec getTransitionSpec() {
+        if (transitionSpec == null && declaresTransition()) {
+            transitionSpec = TransitionSpec.resolve(getObject("transition_params"), getTransitionDuration(),
+                    getObject("transition_curve"),
+                    TransitionInterrupt.byName(getString("transition_interrupt", "blend")));
+        }
+        return transitionSpec;
+    }
+
+    /** 是否声明了任何过渡字段（{@link #getTransitionSpec()} 的建成判据）。 */
+    private boolean declaresTransition() {
+        return data.containsKey("transition") || data.containsKey("transition_duration")
+                || data.containsKey("transition_params") || data.containsKey("transition_curve")
+                || data.containsKey("transition_interrupt");
     }
 
     public boolean isPositionModeRelative() {

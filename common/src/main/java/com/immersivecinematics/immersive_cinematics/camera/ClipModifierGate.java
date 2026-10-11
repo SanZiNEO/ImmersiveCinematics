@@ -4,6 +4,7 @@ import com.immersivecinematics.immersive_cinematics.camera.cover.CameraModifier;
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraStateBuffer;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ComposeMode;
+import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 
 import java.util.function.DoubleSupplier;
@@ -13,7 +14,8 @@ import java.util.function.DoubleSupplier;
  *
  * 活跃判定：声明只在它所在片段的活跃窗内参与合成——窗 = {@code [startTime, windowEnd)}，永不结束的片段
  * （{@link Clip#isEffectivelyInfinite()}）自 {@code startTime} 起永续；本片段是 morph 转场的前一段时
- * 窗末再延长半个过渡时长（重叠窗内前后两侧的声明并存，叠加序照旧：优先级升序 → 注册序）。
+ * 窗末再延长半个过渡窗口（{@link TransitionSpec#windowEnd}，与轨道驱动 / 活跃判定同一口径；
+ * 重叠窗内前后两侧的声明并存，叠加序照旧：优先级升序 → 注册序）。
  * 时间取所属播放实例本帧的时间轴读数（与轨道分发同一口径，见 {@code ScriptPlayer.timelineTime()}）。
  * 分配契约：{@link #isActiveThisFrame()} 每帧只读一个 float + 两次比较，零分配；本对象在播放实例
  * 注册 / 脚本替换时各建一次，不在帧内创建。
@@ -46,12 +48,12 @@ final class ClipModifierGate implements CameraModifier {
         this.windowEnd = windowEnd(clip, next);
     }
 
-    /** 活跃窗末端：普通片段 = {@code start + duration}（循环 = 周期 × 次数）；morph 前一段 + 半个过渡时长。 */
+    /** 活跃窗末端：普通片段 = {@code start + duration}（循环 = 周期 × 次数）；morph 前一段 + 半个过渡窗口。 */
     private static float windowEnd(Clip clip, Clip next) {
         float end = clip.getWindowEnd();
-        if (next == null || clip.isEffectivelyInfinite()) return end;
-        if (!clip.isMorph() || clip.getTransitionDuration() <= 0f) return end;
-        return end + clip.getTransitionDuration() / 2f;
+        if (next == null || clip.isEffectivelyInfinite() || !clip.isMorph()) return end;
+        TransitionSpec spec = clip.getTransitionSpec();
+        return spec == null ? end : spec.windowEnd(end);
     }
 
     @Override

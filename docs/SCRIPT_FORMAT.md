@@ -182,8 +182,11 @@ immersive_cinematics/
 |------|------|------|------|------|
 | `start_time` | float | 是 | — | 全局时间线起始点（秒） |
 | `duration` | float | 是 | — | 持续时间，正数=定长，负数=无限 |
-| `transition` | string | 否 | `"cut"` | `"cut"`=硬切，`"morph"`=线性过渡 |
-| `transition_duration` | float | 否 | `0.5` | morph 过渡时长（秒） |
+| `transition` | string | 否 | `"cut"` | `"cut"`=硬切，`"morph"`=过渡（写在**前一段**上，见「过渡」） |
+| `transition_duration` | float | 否 | `0.5` | 过渡时长（秒）；分参数未声明通道的缺省时长 |
+| `transition_curve` | object | 否 | `null` | 过渡权重曲线（数学模型定义 `{type, …}`，SCALAR 域）；缺省 = 线性斜坡 |
+| `transition_params` | object | 否 | `null` | 分参数过渡声明 `{<通道>: {mode?, duration?, curve?}}`；缺省 = 全六通道 blend |
+| `transition_interrupt` | string | 否 | `"blend"` | 打断规则：`"blend"`=从当前混合中间态续接；`"snap"`=硬切到新目标 |
 | `dimension` | string | 否 | `""` | CAMERA clip 声明的维度；与玩家当前维度不同时仅日志提示（0.4.0 预留，不自动切换） |
 | `orient` | string | 否 | `"manual"` | 朝向模式：`"manual"`=用关键帧角度；`"tangent"`=沿路径切线方向看，可配合 `yaw_offset`/`pitch_offset` |
 | `yaw_offset` | float | 否 | `0` | `orient=tangent` 时的水平偏移角（度） |
@@ -214,6 +217,64 @@ immersive_cinematics/
 > **v3 迁移**：`position_mode` 已迁移到**关键帧级**；旧 `cam_tracking_follow*`/`cam_tracking_look_at*` 字段已由关键帧级 `follow`/`look_at` 系列字段取代。clip 级不再支持这些旧字段（保留会被 validate 报废弃提示）。
 
 > **0.3.6 起：插值 = 匀速线性 + 编辑器烘焙缓动**。clip 级 `interpolation` 字段（旧 `"linear"` / `"smooth"`）已**移除**——旧 `"smooth"`（Centripetal Catmull-Rom 样条，会改变运动轨迹）一并退役，不留双轨；保留该字段会被 validate 报出。运行时关键帧之间一律**匀速线性插值**（两点定一段匀速直线），没有隐式数学。想要"缓动 / 速度曲线"：在编辑器里选速度曲线，由**编辑器按曲线采样、把补出的关键帧写进脚本**（脚本里存的是显式关键帧），运行时照常线性求值——运动与脚本内容完全一致。
+
+### 过渡（transition）
+
+**过渡 = 相机从状态 A 到状态 B 的变化过程**：`transition: "morph"` 写在**前一段**（转场的起点侧）上，声明「本段结束进入下一段时做过渡」；`"cut"` = 硬切（瞬时切换，= 时长为 0 的特例）。过渡只发生在两段交界前后，**不改关键帧段内插值**（段内一律匀速线性，缓动由编辑器烘焙成显式关键帧）。
+
+**窗口**：以交界时刻（前一段的窗口末端）为中心，宽度 = 该通道的过渡时长（缺省 `transition_duration`，单位秒）；交界前取 A 侧、交界后取 B 侧的实时值。两侧状态各自按自身时间采样（A 侧走完自己的尾部、B 侧真实进入）。
+
+**六参数各自独立**：`position` / `yaw` / `pitch` / `roll` / `fov` / `zoom` 每个通道可各自选择模式、时长、曲线：
+
+| 通道模式（`mode`） | 语义 |
+|---|---|
+| `"blend"`（缺省） | 按权重在 A / B 之间混合 |
+| `"hold"` | 本通道不参与过渡：窗口内保持 A 侧取值，窗口结束随片段切换为 B 侧 |
+| `"cut"` | 本通道不做过渡：交界时刻之前取 A 侧、之后取 B 侧 |
+
+**混合口径**（按通道数值域）：`position` 逐轴线性（世界坐标）；`yaw` / `roll` 走**最短路径**（度，差值环绕到 (-180, 180]，多圈不在本层）；`pitch` / `fov` 线性；`zoom` **几何域**（两侧均 > 0 时按对数等比推进，否则回退线性）。
+
+**权重曲线**（`transition_curve` / 逐通道 `curve`）：值 = 数学模型定义（SCALAR 域，类型清单与写法见下方「相机参数运动模型」），输入 = 该通道的归一化进度（钳到 `0 ~ 1`），输出 = 该通道权重；缺省 = 线性（= 现状的线性斜坡）。曲线是**权重的时间映射**，不是关键帧缓动。
+
+**缺省 = 现状**：不写 `transition_curve` / `transition_params` / `transition_interrupt` 时，全六通道同一权重、线性斜坡、时长 = `transition_duration`。
+
+**打断与链式**（`transition_interrupt`，只在打断时生效；未被打断的过渡一律按声明时长混合）：
+
+| 情形 | 规则 | 效果 |
+|---|---|---|
+| 过渡进行中，新过渡窗口开始（新的一对片段接管） | `"blend"`（缺省） | 以**打断前的混合中间态**为新的 A 侧、时长重新起算——逐帧连续、不跳变 |
+| 同上 | `"snap"` | 立即完成当前过渡（= 时长 0 特例）：新过渡窗口内输出恒取新目标 |
+| A→B→C 连续过渡（窗口不重叠） | — | 各段独立过渡；B→C 的 A 侧 = B 的实时状态，自然衔接 |
+| A→B→C 窗口重叠（链式 + 打断叠加） | 后开始的过渡接管（`blend` / `snap` 同上） | 叠加序 = **后开始的过渡优先**；A 侧 = 打断前最后渲染的混合值 |
+| 同一交界内的过渡走完后 | — | 不再重开：该交界窗口内交常规路径（= 进入片段的实时状态） |
+
+**边界**：
+
+- 与 `look_at` / `follow` 目标切换平滑无关（那是选择器锁定层的 `selector_switch_smooth` 机制，始终生效）。
+- 编辑器 seek（`setTime`）= 硬定位：过渡作废，从 seek 点重新开始。
+- `meta.play_mode`（排队 / 接播）是**播放控制层**的脚本级行为，与本层过渡正交：接播开始时是否做过渡由接播脚本自己的片段声明决定。
+- 过渡声明只写在 CAMERA 轨的片段上；写在其它轨道上不生效（validate 拦下）。
+
+**示例**：一段 1 秒过渡里，`roll` 保持 A 侧、`fov` 直接切、其余通道走 smoothstep 曲线、`zoom` 用 2 秒的缓入缓出：
+
+```json
+{
+  "start_time": 0, "duration": 4,
+  "transition": "morph",
+  "transition_duration": 1,
+  "transition_curve": { "type": "smoothstep" },
+  "transition_interrupt": "blend",
+  "transition_params": {
+    "roll": { "mode": "hold" },
+    "fov":  { "mode": "cut" },
+    "zoom": { "mode": "blend", "duration": 2, "curve": { "type": "ease_in_out" } }
+  },
+  "keyframes": [
+    { "time": 0, "position": { "dx": 3, "dy": 2, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+    { "time": 4, "position": { "dx": 0, "dy": 3, "dz": -3 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 70, "zoom": 1 }
+  ]
+}
+```
 
 ### 循环（loop）语义
 

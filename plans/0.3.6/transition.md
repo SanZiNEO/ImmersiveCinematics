@@ -80,6 +80,9 @@
 
 需要明确它与 Base / Modifier 的优先级、打断和叠加关系。
 
+**实施接线（2026-10-11，B18 落地回写）**：第一版取「独立过渡层」，落点 = `camera/transition/`（层本体 + 声明 + 载体 + 混合公式），由 `CameraKeyframeEvaluator` 每轨持有一份；**合成位置 = 主相机状态写入点（覆盖链的 Base 写入侧）**，即实际次序为「过渡层 → 覆盖链（Base 选择 + Modifier 合成）→ 渲染读取」，而非「覆盖链 → 过渡层」。原因两条：① 过渡的两侧（A 侧 = 前一段实时状态、B 侧 = 后一段实时状态）只存在于 Base 写入点，放到链输出之后拿不到 A 侧，legacy morph 无法逐帧复现（B18 验收硬项）；② 渲染读取的主相机 lane 目前只在链上有 Modifier 生效时取链输出（`client/lane/ScriptLaneDriver.applyModifiers`），放链输出之后需先改该条件，否则过渡窗口内主画面不生效。③ 既有 morph×Modifier 的次序是「先混合再合成」，本实现保持该次序才满足「未改路径行为基线对拍」。
+**将来迁移门槛**（满足后即可把层下移到链输出之后，A/B 口径不变）：主 lane 无条件取链输出（`ScriptLaneDriver` 条件改为「有 Modifier 或过渡进行中」）+ 层应用点移到 `CameraManager.refreshCameraState`。
+
 ---
 
 ## 7. 可能的问题

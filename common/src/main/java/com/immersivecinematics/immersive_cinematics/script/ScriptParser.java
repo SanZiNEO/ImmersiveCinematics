@@ -7,6 +7,9 @@ import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraChannels;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ComposeMode;
+import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionInterrupt;
+import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionMode;
+import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionParams;
 import com.immersivecinematics.immersive_cinematics.math.MathModel;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
@@ -369,6 +372,11 @@ public class ScriptParser {
             return parseBlendMode(value, p + "." + fieldName);
         }
 
+        // 过渡打断规则（clip 级 transition_interrupt；schema 里是 enum，但额外拦非法枚举值）
+        if (!isKeyframe && "transition_interrupt".equals(fieldName) && def != null) {
+            return parseTransitionInterrupt(value, p + "." + fieldName);
+        }
+
         if (def == null) {
             // 不在 schema 中的字段 — 简单类型自动解析（向前兼容）
             if (value.isJsonPrimitive()) {
@@ -403,6 +411,7 @@ public class ScriptParser {
             case "color_curve" -> parseColorCurve(value, p + "." + fieldName);
             case "model" -> parseMathModel(value, p + "." + fieldName, fieldName);
             case "modifier" -> parseClipModifier(value, p + "." + fieldName);
+            case "transition_params" -> parseTransitionParams(value, p + "." + fieldName);
             case "map" -> {
                 if (value.isJsonObject()) {
                     yield parseDataMap(value.getAsJsonObject(), p + "." + fieldName);
@@ -758,6 +767,83 @@ public class ScriptParser {
             throw new ScriptParseException(p + "." + key, "未知键（结构键: channels / mode / priority；值键: 通道名 "
                     + CameraChannels.namesHint() + "）");
         }
+    }
+
+    // ========== 过渡声明解析 ==========
+
+    /**
+     * 解析 clip 级 {@code transition_params}（过渡分参数声明 → {@link TransitionParams}）：
+     * {@code {<通道>: {mode?, duration?, curve?}}}——通道名见 {@link CameraChannels}；未声明的通道 / 键保留
+     * 「未声明」标记（由 {@code Clip.getTransitionSpec()} 按片段级缺省补齐）。字段语义见
+     * {@code docs/SCRIPT_FORMAT.md} §「过渡（transition）」；与
+     * {@code ScriptValidator#checkTransition} 同一口径（校验拦下的写法解析期也会拒绝）。
+     */
+    private static TransitionParams parseTransitionParams(JsonElement value, String p) throws ScriptParseException {
+        if (!value.isJsonObject()) {
+            throw new ScriptParseException(p, "需要对象 {<通道>: {mode?, duration?, curve?}}（通道名: "
+                    + CameraChannels.namesHint() + "）");
+        }
+        TransitionMode[] modes = new TransitionMode[TransitionParams.CHANNELS];
+        float[] durations = new float[TransitionParams.CHANNELS];
+        MathModel[] curves = new MathModel[TransitionParams.CHANNELS];
+        for (int i = 0; i < TransitionParams.CHANNELS; i++) {
+            durations[i] = Float.NaN;
+        }
+        for (Map.Entry<String, JsonElement> entry : value.getAsJsonObject().entrySet()) {
+            String channel = entry.getKey();
+            int index = Integer.numberOfTrailingZeros(CameraChannels.bitOf(channel));
+            if (index < 0 || index >= TransitionParams.CHANNELS) {
+                throw new ScriptParseException(p + "." + channel,
+                        "未知通道（可用: " + CameraChannels.namesHint() + "）");
+            }
+            if (!entry.getValue().isJsonObject()) {
+                throw new ScriptParseException(p + "." + channel, "需要对象 {mode?, duration?, curve?}");
+            }
+            for (Map.Entry<String, JsonElement> key : entry.getValue().getAsJsonObject().entrySet()) {
+                String channelPath = p + "." + channel;
+                switch (key.getKey()) {
+                    case "mode" -> modes[index] = parseTransitionMode(key.getValue(), channelPath + ".mode");
+                    case "duration" -> durations[index] =
+                            parseTransitionDuration(key.getValue(), channelPath + ".duration");
+                    case "curve" -> curves[index] =
+                            parseMathModel(key.getValue(), channelPath + ".curve", "transition_curve");
+                    default -> throw new ScriptParseException(channelPath + "." + key.getKey(),
+                            "未知键（结构键: mode / duration / curve）");
+                }
+            }
+        }
+        return new TransitionParams(modes, durations, curves);
+    }
+
+    /** 过渡打断规则：脚本用名 {@code blend} / {@code snap}。 */
+    private static String parseTransitionInterrupt(JsonElement value, String p) throws ScriptParseException {
+        String name = value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() ? value.getAsString() : null;
+        if (TransitionInterrupt.byName(name) == null) {
+            throw new ScriptParseException(p, "需要 blend / snap（缺省 blend）");
+        }
+        return name;
+    }
+
+    /** 过渡通道模式：脚本用名 {@code blend} / {@code hold} / {@code cut}。 */
+    private static TransitionMode parseTransitionMode(JsonElement value, String p) throws ScriptParseException {
+        String name = value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() ? value.getAsString() : null;
+        TransitionMode mode = TransitionMode.byName(name);
+        if (mode == null) {
+            throw new ScriptParseException(p, "需要 blend / hold / cut（实际: " + value + "）");
+        }
+        return mode;
+    }
+
+    /** 过渡通道时长：有限正数（秒）——不做过渡请用 {@code mode: "cut"}。 */
+    private static float parseTransitionDuration(JsonElement value, String p) throws ScriptParseException {
+        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) {
+            throw new ScriptParseException(p, "需要数字（秒，> 0）");
+        }
+        float duration = value.getAsFloat();
+        if (!Float.isFinite(duration) || duration <= 0f) {
+            throw new ScriptParseException(p, "需要有限正数（秒）；不做过渡请用 mode: \"cut\"");
+        }
+        return duration;
     }
 
     // ========== PositionData 解析 ==========

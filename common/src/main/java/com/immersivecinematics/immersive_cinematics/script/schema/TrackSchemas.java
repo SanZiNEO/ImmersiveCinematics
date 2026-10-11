@@ -42,8 +42,13 @@ public final class TrackSchemas {
      */
     private static TrackTypeSchema camera() {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
-        clips.put("transition", new FieldDef("enum", "cut", false, List.of("cut", "morph")));
-        clips.put("transition_duration", new FieldDef("float", 0.5f));
+        // 过渡（clip 级）：transition / transition_duration 为既有字段；其余三个是过渡声明（分参数 / 权重曲线 / 打断），
+        // 缺省 = 现状（全六通道同权重线性斜坡）；字段形态与校验见 docs/SCRIPT_FORMAT.md §「过渡（transition）」
+        clips.put("transition", new FieldDef("enum", "cut", false, List.of("cut", "morph"), "transition"));
+        clips.put("transition_duration", new FieldDef("float", 0.5f, false, List.of(), "transition"));
+        clips.put("transition_curve", new FieldDef("model", null, false, List.of(), "transition"));
+        clips.put("transition_params", new FieldDef("transition_params", null, false, List.of(), "transition"));
+        clips.put("transition_interrupt", new FieldDef("enum", "blend", false, List.of("blend", "snap"), "transition"));
         clips.put("curve", new FieldDef("bezier_curve", null));
         clips.put("dimension", new FieldDef("string", ""));
         clips.put("loop", new FieldDef("bool", false));

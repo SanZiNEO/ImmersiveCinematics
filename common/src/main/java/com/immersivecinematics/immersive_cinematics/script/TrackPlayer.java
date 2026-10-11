@@ -47,6 +47,14 @@ public interface TrackPlayer {
     }
 
     /**
+     * 宏观循环折返（圈边界，圈内局部时间由大到小）时调用：把按时间推进的派生状态归位，
+     * 使新一圈从圈内局部时间重新推进（圈内局部时间对轨道不可见，故由播放器在折返点通知）。
+     */
+    default void onLoopRestart() {
+        // 默认无状态
+    }
+
+    /**
      * 组 A：脚本数据被替换（编辑器编辑 → replaceScript）时调用。
      * 实现应复位依赖 clip 对象身份的状态（lastClipIndex 等）；
      * 音频轨道在此重映射实例（sound+startTime+duration 匹配复用，避免重解码）。

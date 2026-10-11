@@ -150,8 +150,11 @@
 |---|---|
 | `start_time` | 在全局时间线的起点（秒） |
 | `duration` | 持续时长。正数 = 定长；负数 = 无限 |
-| `transition` | `"cut"` = 硬切（默认）；`"morph"` = 本 clip 尾部与下一 clip 的交叉淡化过渡（重叠 t/2） |
-| `transition_duration` | **仅 morph 时有效**，过渡时长秒（后段 start 需 = 本段末尾 − t/2）。cut 时不要写 |
+| `transition` | `"cut"` = 硬切（默认）；`"morph"` = 与**下一段**做过渡（写在本段上：窗口以两段交界为中心，两侧实时值交叉） |
+| `transition_duration` | **仅 morph 时有效**，过渡时长（秒，缺省 0.5）；cut 时不要写 |
+| `transition_curve` | 过渡权重曲线（可选）：`{"type": "smoothstep"}` 这类数学模型定义，控制过渡节奏；缺省 = 线性 |
+| `transition_params` | **分参数过渡**（可选）：`{"roll": {"mode": "hold"}, "fov": {"mode": "cut"}}`——每个通道独立选 `blend` / `hold` / `cut`，可各自给 `duration` / `curve`；缺省 = 全六通道同权重线性 |
+| `transition_interrupt` | 打断规则（可选，只在过渡被打断时生效）：`"blend"`（默认，从当前混合中间态续接）/ `"snap"`（硬切到新目标） |
 | `loop` / `loop_count` | 循环生命周期：`loop: true` + `loop_count: -1` = 无限循环（配合 follow/look_at 可做常驻跟随视角）；正整数 = 播 N 个周期后停在末帧；`loop_count: 0` 非法（按 1 处理） |
 | `loop_mode` | 循环时间映射：`"repeat"`（默认）= 从头到尾重复；`"pingpong"` = 往复折返（监控视角来回摇，关键帧只写半程即可） |
 | `curve` | 贝塞尔路径（可选，见 SCRIPT_FORMAT.md） |
@@ -371,7 +374,7 @@
 
 **精细化的关键**：
 1. 一段 motion 至少 3 个关键帧（起→中→止），中间帧做缓急变化，比两点直线"有呼吸"
-2. 段落之间用 `morph` 过渡衔接，避免硬切跳变——**morph 是交叉淡化：过渡时长 t 秒 = 前一段尾部 t/2 与后一段头部 t/2 重叠**。`transition` 写在前一段 clip 上（表示"本 clip 尾部与下一 clip 的过渡"），**后一段的 `start_time` 必须 = 前一段末尾 − t/2**（编辑器会自动对齐；手写脚本要自己算）
+2. 段落之间用 `morph` 过渡衔接，避免硬切跳变——**过渡窗口以两段交界（前一段末尾）为中心、向两侧各展开 t/2**：`transition` / `transition_duration` 写在前一段上，后一段的 `start_time` 就填交界时刻（= 前一段末尾；编辑器自动对齐）。进阶写法（曲线 / 分参数 / 打断）见 §4.2
 3. 特写/情绪段落用变焦 + 微俯 + 慢速（1 格/秒），全景段落用快一点（2~3 格/秒）
 4. 长脚本分段设计：开场全景 → 中段叙事特写 → 结尾收回
 
@@ -404,6 +407,30 @@
 2. 想"黑场多停一会"：压场 clip 末尾多写一个 `opacity 1` 的关键帧（如上 `2 → 4` 保持全黑），或把 `duration` 拉长。
 3. **压不住字幕**：fade 的默认 `z_index` 是 10，比字幕（按 §3.5b 惯例写 30 或更高）低，`z_index` 大者在上 → 黑场期间字幕仍然可见。要让遮罩盖住字幕，得给 fade clip 写更高的 `z_index`（如 200）——转场遮罩是否该压住字幕设计上仍待定。
 4. 黑场与白场**没有任何实现差异**，只换 `color`；两个脚本实例见 `cinematics/tests/transition/test_fade_black.json` / `test_fade_white.json`。
+
+### 4.2 过渡（morph）的进阶写法
+
+`transition` 只写三个开关就够日常用（`"morph"` + `transition_duration`）；想让转场更讲究，再加这三个字段（都写在前一段上）：
+
+| 想达到的效果 | 怎么写 |
+|---|---|
+| **节奏**（慢起快收 / 两端都缓） | `"transition_curve": { "type": "smoothstep" }`（可选 `ease_in` / `ease_out` / `ease_in_out` / `cubic_bezier`）；缺省 = 线性 |
+| **某些通道不动 / 直接切** | `"transition_params": { "roll": { "mode": "hold" }, "fov": { "mode": "cut" } }`——`hold` = 过渡期间保持旧值（转完再切），`cut` = 交界处直接切；不写的通道照常混合 |
+| **某通道单独时长**（如位置慢、变焦快） | `"transition_params": { "position": { "duration": 2 }, "fov": { "duration": 0.4 } }`（秒，窗口仍以交界为中心） |
+| **连续转场被打断时**（A→B 还没转完就进了 B→C） | `"transition_interrupt": "blend"`（默认，从当前混合中间态平滑转向新目标、时长重算）/ `"snap"`（立刻硬切到新目标） |
+
+**要点**：
+1. **缺省 = 全六通道同一权重、线性、时长 `transition_duration`**——不写新字段的脚本行为与以前完全一致。
+2. 过渡只改**两段交界前后**的取值；段内关键帧插值不受影响（缓动仍由编辑器烘焙成关键帧）。
+3. `transition_interrupt` 只在"过渡进行中又开始新过渡"时生效；没有被谁打断的过渡照常按声明时长走完。
+
+```json
+{ "start_time": 8, "duration": 6,
+  "transition": "morph", "transition_duration": 1.5,
+  "transition_curve": { "type": "ease_in_out" },
+  "transition_params": { "roll": { "mode": "hold" } },
+  "keyframes": [ /* … */ ] }
+```
 
 ---
 

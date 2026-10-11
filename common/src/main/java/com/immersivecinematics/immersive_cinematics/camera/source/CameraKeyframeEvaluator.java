@@ -1,6 +1,10 @@
 package com.immersivecinematics.immersive_cinematics.camera.source;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraState;
+import com.immersivecinematics.immersive_cinematics.camera.transition.CameraTransitionLayer;
+import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionBlend;
+import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionFrame;
+import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
 import com.immersivecinematics.immersive_cinematics.script.BezierPathStrategy;
 import com.immersivecinematics.immersive_cinematics.script.BreathDisturbance;
 import com.immersivecinematics.immersive_cinematics.script.CameraLane;
@@ -37,7 +41,8 @@ import java.util.Map;
  * {@code look_at} != none 时静态侧（锁 + 基准 + 偏移）整体不参与，朝向由动态目标点插值决定。
  * 状态所有权：{@link #lastWorldPos} 与 {@link #frame} 是跨帧求值状态，仅本实例持有；
  * 重叠窗口的捕获求值经 {@link #snapshotFrameState()} / {@link #restoreFrameState()} 留底与回写，
- * 目标锁状态由 {@link EntityTargetResolver} 自行留底；每 lane 的运动模型实例见 {@link LaneMotionStepper}。
+ * 目标锁状态由 {@link EntityTargetResolver} 自行留底；每 lane 的运动模型实例见 {@link LaneMotionStepper}；
+ * 过渡状态（进度 / 曲线 / 打断留底）由 {@link CameraTransitionLayer} 持有（本轨一份）。
  * 分配 / 线程契约：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱。
  */
 public final class CameraKeyframeEvaluator {
@@ -88,6 +93,14 @@ public final class CameraKeyframeEvaluator {
     /** 本轨 per-lane 运动模型实例槽（六通道；定义来自本帧生效片段，缺省 null = 该通道不接模型）。 */
     private final LaneMotionStepper motion = new LaneMotionStepper();
 
+    /** 本轨的过渡层实例（过渡流的唯一持有者：进度 / 曲线 / 分参数 / 打断状态只属于本轨）。 */
+    private final CameraTransitionLayer transitionLayer = new CameraTransitionLayer();
+
+    /** 过渡层输入 / 输出载体（A 侧 / B 侧 / 输出；跨帧复用，过渡求值零分配）。 */
+    private final TransitionFrame morphFrom = new TransitionFrame();
+    private final TransitionFrame morphTo = new TransitionFrame();
+    private final TransitionFrame morphOut = new TransitionFrame();
+
     /** 运动模型 step 的六参数缓冲区（0~2 = 位置 x/y/z，3~7 = yaw/pitch/roll/fov/zoom）；仅求值路径使用。 */
     private final double[] motionValues = new double[LaneMotionStepper.VALUES];
 
@@ -106,8 +119,9 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 本轨在 globalTime 是否有画面：有活跃片段（含无限片段），或落在某 morph 转场窗口
-     * {@code [end−t/2, end+t/2)} 内即为真。
+     * 本轨在 globalTime 是否有画面：有活跃片段（含无限片段），或落在某过渡窗口内即为真。
+     *
+     * 过渡窗口判据 = {@link TransitionSpec#covers}（与轨道驱动 / Modifier 活跃窗延长同一口径）。
      *
      * @param clips 本轨片段（轨道顺序）
      */
@@ -116,12 +130,9 @@ public final class CameraKeyframeEvaluator {
         if (c != null) return true;
         for (int i = 0; i < clips.size() - 1; i++) {
             Clip prev = clips.get(i);
-            if (prev.isMorph() && prev.getTransitionDuration() > 0f && !prev.isEffectivelyInfinite()) {
-                // B 模型：转场区以片段边界为中心 [end−t/2, end+t/2)
-                float prevEnd = prev.getWindowEnd();
-                float half = prev.getTransitionDuration() / 2f;
-                if (globalTime >= prevEnd - half && globalTime < prevEnd + half) return true;
-            }
+            if (!prev.isMorph() || prev.isEffectivelyInfinite()) continue;
+            TransitionSpec spec = prev.getTransitionSpec();
+            if (spec != null && spec.covers(globalTime, prev.getWindowEnd())) return true;
         }
         return false;
     }
@@ -206,15 +217,16 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * B 模型 morph 交叉求值（两 clip 混合成一份相机状态），并提交 {@link #lastWorldPos}。
+     * B 模型 morph 交叉求值（两 clip 各按自身时间插值 → 过渡层合成一份相机状态），并提交 {@link #lastWorldPos}。
      *
+     * 过渡声明（分参数 / 曲线 / 打断）取自 {@code prevClip}；缺省 = 全六通道同权重线性斜坡（= 现状）。
      * 混合结果 = 本帧顶层 lane 的目标值：运动模型 step 以进入的片段（{@code nextClip}）的定义跑一次
      * （两端不各自推进，禁止同一实例一帧 step 两次）。
      *
-     * @return 混合后的六参数快照；两端都无插值结果时 {@code null}
+     * @return 混合后的六参数快照；两端都无插值结果、或过渡本帧不产出时 {@code null}
      */
-    public CameraState renderMorph(Clip prevClip, Clip nextClip, float weight, float globalTime) {
-        // B 模型：双轨各自按自身时间插值（prev 走 [dur−t/2, dur)，next 走 [0, t)），再按 weight 交叉
+    public CameraState renderMorph(Clip prevClip, Clip nextClip, float globalTime) {
+        // B 模型：双轨各自按自身时间插值（prev 走 [dur−t/2, dur)，next 走 [0, t)），再交过渡层按声明合成
         float prevLocal = globalTime - prevClip.getStartTime();
         float nextLocal = globalTime - nextClip.getStartTime();
         KeyframeInterpolator.InterpolationResult prevResult =
@@ -232,8 +244,6 @@ public final class CameraKeyframeEvaluator {
         Keyframe nextFrom = nextResult != null ? nextResult.from : null;
         Keyframe nextTo = nextResult != null ? nextResult.to : null;
 
-        float invWeight = 1f - weight;
-
         Vec3 prevPos = prevFrom != null
                 ? interpolateWorldPosition(prevFrom, prevTo, prevS, prevClip)
                 : lastWorldPos;
@@ -242,32 +252,33 @@ public final class CameraKeyframeEvaluator {
                 ? interpolateWorldPosition(nextFrom, nextTo, nextS, nextClip)
                 : lastWorldPos;
 
-        Vec3 pos = new Vec3(
-                prevPos.x * invWeight + nextPos.x * weight,
-                prevPos.y * invWeight + nextPos.y * weight,
-                prevPos.z * invWeight + nextPos.z * weight
-        );
-
         float prevYawBase = prevFrom != null ? KeyframeInterpolator.interpolateYaw(prevFrom, prevTo, prevS) : 0f;
         float prevPitchBase = prevFrom != null ? KeyframeInterpolator.interpolatePitch(prevFrom, prevTo, prevS) : 0f;
         float nextYawBase = nextFrom != null ? KeyframeInterpolator.interpolateYaw(nextFrom, nextTo, nextS) : 0f;
         float nextPitchBase = nextFrom != null ? KeyframeInterpolator.interpolatePitch(nextFrom, nextTo, nextS) : 0f;
         float[] prevYp = segmentYawPitch(prevFrom, prevTo, prevS, prevClip, prevPos, prevYawBase, prevPitchBase);
         float[] nextYp = segmentYawPitch(nextFrom, nextTo, nextS, nextClip, nextPos, nextYawBase, nextPitchBase);
-        float yaw = blendAngle(prevYp[0], nextYp[0], weight);
-        float pitch = blendFloat(prevYp[1], nextYp[1], weight);
-        float roll = blendAngle(
+
+        morphFrom.set(prevPos.x, prevPos.y, prevPos.z, prevYp[0], prevYp[1],
                 prevFrom != null ? KeyframeInterpolator.interpolateRoll(prevFrom, prevTo, prevS) : 0f,
-                nextFrom != null ? KeyframeInterpolator.interpolateRoll(nextFrom, nextTo, nextS) : 0f,
-                weight);
-        float fov = blendFloat(
                 prevFrom != null ? KeyframeInterpolator.interpolateFov(prevFrom, prevTo, prevS) : 70f,
+                prevFrom != null ? KeyframeInterpolator.interpolateZoom(prevFrom, prevTo, prevS) : 1f);
+        morphTo.set(nextPos.x, nextPos.y, nextPos.z, nextYp[0], nextYp[1],
+                nextFrom != null ? KeyframeInterpolator.interpolateRoll(nextFrom, nextTo, nextS) : 0f,
                 nextFrom != null ? KeyframeInterpolator.interpolateFov(nextFrom, nextTo, nextS) : 70f,
-                weight);
-        float zoom = blendZoom(
-                prevFrom != null ? KeyframeInterpolator.interpolateZoom(prevFrom, prevTo, prevS) : 1f,
-                nextFrom != null ? KeyframeInterpolator.interpolateZoom(nextFrom, nextTo, nextS) : 1f,
-                weight);
+                nextFrom != null ? KeyframeInterpolator.interpolateZoom(nextFrom, nextTo, nextS) : 1f);
+
+        // 过渡层：进度 / 曲线 / 分参数 / 打断（缺省 = 全六通道同权重线性斜坡）；未产出 = 本帧按常规路径处理
+        if (!transitionLayer.blendInto(globalTime, prevClip.getWindowEnd(), prevClip.getTransitionSpec(),
+                morphFrom, morphTo, morphOut)) {
+            return null;
+        }
+        Vec3 pos = new Vec3(morphOut.px, morphOut.py, morphOut.pz);
+        float yaw = morphOut.yaw;
+        float pitch = morphOut.pitch;
+        float roll = morphOut.roll;
+        float fov = morphOut.fov;
+        float zoom = morphOut.zoom;
 
         // ====== 运动模型 step（混合后的目标值 → 每通道 step；重叠窗内以进入片段的定义为当前定义）======
         motionValues[0] = pos.x;
@@ -321,6 +332,16 @@ public final class CameraKeyframeEvaluator {
      */
     public void resetMotionState() {
         motion.reset();
+    }
+
+    /** 本轨的过渡层当前是否在过渡中（未走完 / 未结算）——驱动方据此在窗口外继续喂同一对片段。 */
+    public boolean isTransitionActive() {
+        return transitionLayer.isActive();
+    }
+
+    /** 过渡归位（停播 / seek / 脚本替换）：清空过渡状态（进度 / 曲线 / 打断留底），下一次求值重新开始。 */
+    public void resetTransitionState() {
+        transitionLayer.reset();
     }
 
     /** 记录本帧基准坐标系（{@code null} = 本帧没有基准坐标系）并同步给点源求值侧。 */
@@ -852,16 +873,14 @@ public final class CameraKeyframeEvaluator {
     }
 
     private static float blendFloat(float a, float b, float weight) {
-        return a * (1f - weight) + b * weight;
+        return TransitionBlend.linear(a, b, weight);
     }
 
     private static float blendZoom(float a, float b, float weight) {
-        if (a <= 0f || b <= 0f) return blendFloat(a, b, weight);
-        return (float) Math.exp(Math.log(a) * (1f - weight) + Math.log(b) * weight);
+        return TransitionBlend.zoom(a, b, weight);
     }
 
     private static float blendAngle(float a, float b, float weight) {
-        float diff = ((b - a) % 360f + 540f) % 360f - 180f;
-        return a + diff * weight;
+        return TransitionBlend.angle(a, b, weight);
     }
 }

@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraChannels;
+import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionMode;
 import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
@@ -351,6 +352,8 @@ public final class ScriptValidator {
                     checkMotionModels(clip, cp, issues);
                     // 覆盖链 Modifier（0.3.6）：clip 级 modifier 声明 + suppress_modifiers 标志
                     checkModifier(clip, cp, issues);
+                    // 过渡声明（0.3.6）：clip 级分参数 / 权重曲线 / 打断（只对 transition=morph 生效）
+                    checkTransition(clip, cp, issues);
                     // LUT 是整体画面（master）处理，只挂在 ADJUST 轨：相机片段上写 lut 不会生效，直接拦下
                     if (clip.has("lut")) {
                         issues.add(cp + ".lut 不支持（LUT 是对整体画面的处理，只写在 ADJUST 轨的片段上）："
@@ -658,21 +661,34 @@ public final class ScriptValidator {
     private static void checkMotionModels(JsonObject clip, String cp, List<String> issues) {
         for (String field : MOTION_FIELDS) {
             if (!clip.has(field)) continue;
-            String path = cp + "." + field;
-            JsonElement e = clip.get(field);
-            if (!e.isJsonObject()) {
-                issues.add(path + " 需要对象 {type, ...}（数学模型定义；缺省 = 该通道不接模型）");
-                continue;
-            }
-            int[] measure = {0, 0};
-            measureModel(e.getAsJsonObject(), 1, measure);
-            if (measure[0] > MathModelRegistry.MODEL_MAX_NODES || measure[1] > MathModelRegistry.MODEL_MAX_DEPTH) {
-                issues.add(path + " 模型定义超限（节点 " + measure[0] + " / 上限 "
-                        + MathModelRegistry.MODEL_MAX_NODES + "，深度 " + measure[1] + " / 上限 "
-                        + MathModelRegistry.MODEL_MAX_DEPTH + "）：运行时整链回落 linear");
-            }
-            checkMathModelNode(e.getAsJsonObject(), path, MathModelRegistry.channelDomain(field).key(), issues);
+            checkModelDefinition(clip.get(field), cp + "." + field,
+                    MathModelRegistry.channelDomain(field).key(), "缺省 = 该通道不接模型", issues);
         }
+    }
+
+    /**
+     * 校验一个模型定义字段（{@code motion_*} / 过渡权重曲线）：对象形态、嵌套深度 / 节点数上限
+     * （与 {@code MathModelRegistry} 同源常量）、定义树逐节点（{@code type} 已注册 / 参数名已知 / 组合域一致）。
+     *
+     * @param value          字段值
+     * @param path           字段路径（报错定位）
+     * @param expectedDomain 继承域（顶层 = 通道值域；结构键 {@code domain} 缺省继承它）
+     * @param hint           缺省语义提示（拼进对象形态错误里）
+     */
+    private static void checkModelDefinition(JsonElement value, String path, String expectedDomain,
+                                             String hint, List<String> issues) {
+        if (!value.isJsonObject()) {
+            issues.add(path + " 需要对象 {type, ...}（数学模型定义；" + hint + "）");
+            return;
+        }
+        int[] measure = {0, 0};
+        measureModel(value.getAsJsonObject(), 1, measure);
+        if (measure[0] > MathModelRegistry.MODEL_MAX_NODES || measure[1] > MathModelRegistry.MODEL_MAX_DEPTH) {
+            issues.add(path + " 模型定义超限（节点 " + measure[0] + " / 上限 "
+                    + MathModelRegistry.MODEL_MAX_NODES + "，深度 " + measure[1] + " / 上限 "
+                    + MathModelRegistry.MODEL_MAX_DEPTH + "）：运行时整链回落 linear");
+        }
+        checkMathModelNode(value.getAsJsonObject(), path, expectedDomain, issues);
     }
 
     /**
@@ -919,13 +935,98 @@ public final class ScriptValidator {
         }
     }
 
-    /** 覆盖链 Modifier 字段只写在 CAMERA 片段上：其余轨道上写 = 不生效（与 {@code lut} 的轨道口径同款）。 */
+    /**
+     * 校验相机片段的过渡声明（clip 级 {@code transition_curve} / {@code transition_params} /
+     * {@code transition_interrupt}）：分参数形态（通道名 / {@code mode} / {@code duration} / {@code curve}）、
+     * 权重曲线模型定义（与 {@code motion_*} 同一口径）、打断枚举。字段语义见
+     * {@code docs/SCRIPT_FORMAT.md} §「过渡（transition）」；与 {@code ScriptParser#parseTransitionParams}
+     * 同一口径（校验拦下的写法解析期也会拒绝）。
+     */
+    private static void checkTransition(JsonObject clip, String cp, List<String> issues) {
+        boolean declared = clip.has("transition_curve") || clip.has("transition_params")
+                || clip.has("transition_interrupt");
+        if (declared && !"morph".equals(transitionName(clip))) {
+            issues.add(cp + " 过渡声明（transition_curve / transition_params / transition_interrupt）只对"
+                    + " transition=morph 生效：把 transition 改成 morph，或删掉这些字段");
+        }
+        if (clip.has("transition_curve")) {
+            checkTransitionCurve(clip.get("transition_curve"), cp + ".transition_curve", issues);
+        }
+        if (clip.has("transition_interrupt")) {
+            checkEnum(clip, cp, "transition_interrupt", issues, "blend", "snap");
+        }
+        if (!clip.has("transition_params")) return;
+        String pp = cp + ".transition_params";
+        JsonElement e = clip.get("transition_params");
+        if (!e.isJsonObject()) {
+            issues.add(pp + " 需要对象 {<通道>: {mode?, duration?, curve?}}（通道名: "
+                    + CameraChannels.namesHint() + "）");
+            return;
+        }
+        for (Map.Entry<String, JsonElement> entry : e.getAsJsonObject().entrySet()) {
+            String path = pp + "." + entry.getKey();
+            if (CameraChannels.bitOf(entry.getKey()) == 0) {
+                issues.add(path + " 未知通道（可用: " + CameraChannels.namesHint() + "）");
+                continue;
+            }
+            if (!entry.getValue().isJsonObject()) {
+                issues.add(path + " 需要对象 {mode?, duration?, curve?}");
+                continue;
+            }
+            for (Map.Entry<String, JsonElement> key : entry.getValue().getAsJsonObject().entrySet()) {
+                switch (key.getKey()) {
+                    case "mode" -> checkTransitionMode(key.getValue(), path + ".mode", issues);
+                    case "duration" -> checkTransitionDuration(key.getValue(), path + ".duration", issues);
+                    case "curve" -> checkTransitionCurve(key.getValue(), path + ".curve", issues);
+                    default -> issues.add(path + "." + key.getKey() + " 未知键（结构键: mode / duration / curve）");
+                }
+            }
+        }
+    }
+
+    /** 片段的过渡名（{@code transition} 字段；缺失 / 非字符串 = 缺省 {@code cut}）。 */
+    private static String transitionName(JsonObject clip) {
+        JsonElement e = clip.get("transition");
+        return e != null && e.isJsonPrimitive() && e.getAsJsonPrimitive().isString() ? e.getAsString() : "cut";
+    }
+
+    /** 过渡通道模式：脚本用名 {@code blend} / {@code hold} / {@code cut}（缺省 {@code blend}）。 */
+    private static void checkTransitionMode(JsonElement value, String path, List<String> issues) {
+        String name = value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() ? value.getAsString() : null;
+        if (TransitionMode.byName(name) == null) {
+            issues.add(path + " 需要 blend / hold / cut（缺省 blend）");
+        }
+    }
+
+    /** 过渡通道时长：有限正数（秒）；不做过渡请用 {@code mode: "cut"}。 */
+    private static void checkTransitionDuration(JsonElement value, String path, List<String> issues) {
+        if (!isNumber(value)) {
+            issues.add(path + " 需要数字（秒，> 0）");
+            return;
+        }
+        float duration = value.getAsFloat();
+        if (!Float.isFinite(duration) || duration <= 0f) {
+            issues.add(path + " 需要有限正数（秒）；不做过渡请用 mode: \"cut\"");
+        }
+    }
+
+    /** 过渡权重曲线：模型定义对象（SCALAR 域；缺省 = 线性斜坡）。 */
+    private static void checkTransitionCurve(JsonElement value, String path, List<String> issues) {
+        checkModelDefinition(value, path, ValueDomain.SCALAR.key(), "缺省 = 线性斜坡", issues);
+    }
+
+    /** 覆盖链 Modifier / 过渡声明字段只写在 CAMERA 片段上：其余轨道上写 = 不生效（与 {@code lut} 的轨道口径同款）。 */
     private static void checkModifierTrackScope(JsonObject clip, String cp, String type, List<String> issues) {
         if ("CAMERA".equalsIgnoreCase(type)) return;
         for (String field : new String[]{"modifier", "suppress_modifiers"}) {
             if (clip.has(field)) {
                 issues.add(cp + "." + field + " 不支持（覆盖链 Modifier 只作用于主相机状态）："
                         + "该字段只写在 CAMERA 轨的片段上");
+            }
+        }
+        for (String field : new String[]{"transition_curve", "transition_params", "transition_interrupt"}) {
+            if (clip.has(field)) {
+                issues.add(cp + "." + field + " 不支持（过渡声明只写在 CAMERA 轨的片段上）");
             }
         }
     }
