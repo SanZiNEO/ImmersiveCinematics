@@ -49,7 +49,7 @@ public final class ResourceFileService {
     private static final int MAX_DEPTH = 5;
     /** 列举条数上限（病态目录树兜底） */
     private static final int MAX_FILES = 2000;
-    /** 语言文件名 = 语言代码：严格小写（plans/0.3.6/script-i18n.md §6-2） */
+    /** 语言文件名 = 语言代码：严格小写（plans/0.3.6/done/script-i18n.md §6-2） */
     private static final Pattern LANGUAGE_PATTERN = Pattern.compile("^[a-z0-9_]{2,16}$");
 
     private ResourceFileService() {}

@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
 /**
  * 文本资源（脚本 i18n）——把 {@code @lang:<key>} 引用解析成客户端当前语言的译文。
  * <p>
- * 文本 = 第三种资源（定稿见 {@code plans/0.3.6/script-i18n.md}）：与图片 / 音频同构，
+ * 文本 = 第三种资源（定稿见 {@code plans/0.3.6/done/script-i18n.md}）：与图片 / 音频同构，
  * 一个语言一个扁平字典文件 {@code <游戏目录>/immersive_cinematics/resource/lang/<语言>.json}，
  * 客户端按需读取、不走服务器流量、不进资源包。
  * <p>

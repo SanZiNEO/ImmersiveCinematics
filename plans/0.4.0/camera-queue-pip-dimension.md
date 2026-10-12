@@ -2,11 +2,11 @@
 
 **来源**: 由 `plans/0.3.4/pending-work.md` 的 F 类章节移入
 **状态**: ⏳ 远期，未实施
-**关联**: `plans/complete/0.3.5/chunk-preload.md`（区块预加载，0.3.5 已落地）、`plans/0.3.6/parallel-playback.md`（并行实例，实例切换的演进方向）
+**关联**: `plans/complete/0.3.5/chunk-preload.md`（区块预加载，0.3.5 已落地）、`plans/0.3.6/F-playback/parallel-playback.md`（并行实例，实例切换的演进方向）
 
 > 原文的 G1（相机实例队列）与 G2（画中画）已被 0.3.6 的
-> [并行播放](../0.3.6/parallel-playback.md) / [画面合成](../0.3.6/camera-composition.md) /
-> [多相机渲染](../0.3.6/multi-camera-rendering.md) 三篇取代并抹除
+> [并行播放](../0.3.6/F-playback/parallel-playback.md) / [画面合成](../0.3.6/F-playback/camera-composition.md) /
+> [多相机渲染](../0.3.6/F-playback/multi-camera-rendering.md) 三篇取代并抹除
 > （G2 的渲染降耗与模组兼容证据已并入多相机渲染文档 §6.1 / §7.1）。
 > 本文只保留 F 类跨维度运镜。文件名保留以免打破历史归档链接。
 

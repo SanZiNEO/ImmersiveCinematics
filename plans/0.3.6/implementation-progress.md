@@ -1,9 +1,9 @@
 # 0.3.6 全量实现进度（todo / 追踪文档）
 
-> 生成：2026-10-07 晚。**明天从这里接着做。**
+> 生成：2026-10-07 晚。**批次 A（调色）2026-10-09 关单、批次 B（相机底层）2026-10-11 关单；剩余 C–H 批次与遗留项（P1-impl / P3-impl / CLEANUP-3）见下方表。**
 > 目标：**0.3.6 计划全部实现**（不允许"差一点"）；**编辑器（游戏外 WebUI）放到最后**（需严密规划：参考 `example/editor/{olive,lossless-cut}`，核心 = 只产出游戏可解析的固定格式脚本）。
 > 执行方式：一个子代理只做一个小任务（任务书写全需求）→ 主代理验收（编译 + 冒烟/读码）→ 中文 commit → 更新本表。**并行口径（2026-10-08 用户明确）**：**计划类任务可并行**（各写各的文档、互不冲突）；**执行类任务必须串行**（改代码的多子代理易出错——一个完成并验收提交后才开下一个）。
-> 依据：`plans/0.3.6/implementation-audit-2026-10-07.md`（缺口总清单）；`plans/0.3.6/pending-discussions.md`（未定项清查：多数属执行时再定型、任务落地时定稿；少数需拍板）；工作笔记 `.planning/036-impl/state-brief-{arch,flow}.md`（现状/工具）。
+> 依据：`plans/0.3.6/_archive/implementation-audit-2026-10-07.md`（缺口总清单）；`plans/0.3.6/pending-discussions.md`（未定项清查：多数属执行时再定型、任务落地时定稿；少数需拍板）；工作笔记 `.planning/036-impl/state-brief-{arch,flow}.md`（现状/工具）。
 
 ## 通用原则（每个任务都必须遵守）
 
@@ -23,7 +23,7 @@
 
 ---
 
-## 批次 A：调色系统（screen-color-adjust）
+## 批次 A：调色系统（screen-color-adjust）✅ 已关单（A1–A14，2026-10-09）
 
 | ID | 任务 | 依赖 | 状态 | commit |
 |---|---|---|---|---|
@@ -42,7 +42,7 @@
 | A11 | PS 式六色带微调（Hue/Sat 分色带） | A5 | ✅ | `01cae9f` |
 | A12 | 混合模式作用于调整层（正片叠底/屏幕/柔光/叠加） | A9 | ✅ | `ff1e5a5` |
 
-## 批次 B：相机底层
+## 批次 B：相机底层 ✅ 已关单（B1–B19，2026-10-11）
 
 | ID | 任务 | 依赖 | 状态 |
 |---|---|---|---|
@@ -118,7 +118,7 @@
 | G1 | 参数寻址到分量（"只让 X 动"） | — | ☐ |
 | G2 | FieldDef keyframable 标记 | — | ☐ |
 | G3 | meta 关键帧化（listener/hide_hud/可跳过等） | G1 | ☐ |
-| G4 | 时间精度（float → 高精度）→ **时钟抽象**（任务书已定稿：`plans/0.3.6/clock-abstraction.md`，2026-10-09 用户裁决五步——① Clock 抽象 + 单调秒（GameClock/PreviewClock）② elapsed 链路 double 化（消 float 截断）③ elapsed 唯一分发语义 + 去死参数 ④ overlay delta 真实化 ⑤ float 存储边界契约；顺带修跨脚本并行 hasActiveCameraTrack 算错） | — | ☐ |
+| G4 | 时间精度（float → 高精度）→ **时钟抽象**（任务书已定稿：`plans/0.3.6/G-script-model/clock-abstraction.md`，2026-10-09 用户裁决五步——① Clock 抽象 + 单调秒（GameClock/PreviewClock）② elapsed 链路 double 化（消 float 截断）③ elapsed 唯一分发语义 + 去死参数 ④ overlay delta 真实化 ⑤ float 存储边界契约；顺带修跨脚本并行 hasActiveCameraTrack 算错） | — | ☐ |
 | G5 | 叠化 hold 自动补帧工具/模板 | — | ⊘ 归编辑器工具（2026-10-10 归置，templates.md §7） |
 | G6 | 关键帧结构升级（自带插值/手柄）——按方案 E 结案（文档标注） | — | ✅ 2026-10-10 标注完成（script-model §4-1/§8 步骤 2） |
 
@@ -127,7 +127,7 @@
 | ID | 任务 | 依赖 | 状态 |
 |---|---|---|---|
 | H1 | region-sync 全部实现（平移映射/镜像旋转/多区域链/传送/防乒乓/朝向策略） | — | ☐ |
-| H2 | wait-point-track 全部实现（WAIT_POINT 轨 + 事件源 + pause_managed + player_death + 分支） | C2 + **P1-impl + P3-impl**（事件/事实层先行——等待点等的事件正是这一层；H2 需在二者之后） | ☐ |
+| H2 | wait-point-track 全部实现（WAIT_POINT 轨 + 事件源 + pause_managed + player_death + 分支） | C2 + **P1-impl + P3-impl**（事件/事实层先行——等待点等的事件正是这一层；H2 需在二者之后） | ⊘ 已被 C6 判定规则吸收（2026-10-10 用户拍板「判定点/等待点收编」，等待点 = `until→do` 阻塞形态；事件/事实层归 P1-impl / P3-impl；`wait-point-track.md` 归档 `_archive/`，2026-10-12 整理） |
 | H4 | feedback-04 #1 结案（按"命令归 EVENT 轨"新方向标注） | — | ✅ 2026-10-10（`476b442`，按「命令归 EVENT 轨」新方向结案标注） |
 | H5 | 文档滞后清理（审计 §三 12 条） | — | ☐ |
 | H6 | 实机验证批次（审计 §四 7 条：调色/叠化/hard-hide/模板命令/release 脚本游戏内跑） | A,B,D | ☐ |
@@ -137,10 +137,10 @@
 | ID | 任务 | 依赖 | 状态 | commit |
 |---|---|---|---|---|
 | CLEANUP-2 | 删除运行时 pip 层（被 lane 取代；PipLayer 是占位实现从未接入真实画面）；WebUI 便捷操作留编辑器阶段 | — | ✅ 2026-10-08 代码完成（`5b3265d`）；2026-10-10 表状态回写 |
-| P1 | **计划文档《脚本状态机与状态追踪》**：布尔值点状事件判定 → **事实追踪**（用户点名；后续优化基于它） | — | ✅ `6c1097f`（plans/0.3.6/state-tracking.md） |
+| P1 | **计划文档《脚本状态机与状态追踪》**：布尔值点状事件判定 → **事实追踪**（用户点名；后续优化基于它） | — | ✅ `6c1097f`（plans/0.3.6/C-trigger/state-tracking.md） |
 | P1-impl | 按 P1 计划实现状态机/状态追踪优化 | P1 | ☐ |
-| P2 | **计划文档《Iris/Oculus 兼容调研计划》**：挂点/可行性/风险/工作量（用户点名：先写计划，结论定策略） | — | ✅ `2ff77b6`（plans/0.3.6/iris-oculus-compat.md） |
-| P3 | **计划文档《触发器系统的连续性》**：现状 = 全采样但不连续（离散轮询）；目标 = 做成连续的（与状态追踪同类思路；用户点名，独立成篇） | — | ✅ `8d6fc61`（plans/0.3.6/trigger-continuity.md） |
+| P2 | **计划文档《Iris/Oculus 兼容调研计划》**：挂点/可行性/风险/工作量（用户点名：先写计划，结论定策略） | — | ✅ `2ff77b6`（plans/0.3.6/F-playback/iris-oculus-compat.md） |
+| P3 | **计划文档《触发器系统的连续性》**：现状 = 全采样但不连续（离散轮询）；目标 = 做成连续的（与状态追踪同类思路；用户点名，独立成篇） | — | ✅ `8d6fc61`（plans/0.3.6/C-trigger/trigger-continuity.md） |
 | P3-impl | 按 P3 计划实现触发器连续性 | P3 | ☐ |
 | B3' | 每 lane 独立可见集合 → **做**（用户裁决；工程大，拆多个子任务：设计 → 实现 → 性能实测） | — | ✅（= B3 已落地） |
 | A13' | 多实例 master 合并 → **按层级叠加**（lane 包内/包上调整 → 合成 → master 整体调整；多实例 master 按实例顺序叠加应用） | A8 | ✅ | `4aa03d8` |
@@ -151,11 +151,11 @@
 | A12 形态 | **blend_mode 枚举（normal/multiply/screen/soft_light/overlay）+ blend_amount 关键帧**（2026-10-09 用户拍板）：层级混合在全部操作栈步骤后整体施加，非栈步骤 | A9 | ✅ | `ff1e5a5` |
 | 调度口径 | **全模组口径**（2026-10-09 用户裁决，已入通用原则）：模组按脚本解析「能放什么、怎么放、能调度什么」并管时机；执行 = 有什么放什么、脚本定了怎么放就怎么放、没有就不放；多脚本同屏各自按数据执行，模组不挑不猜；预期外效果非代码根本问题 = 作者侧解决（如多 LUT 叠加观感） | — | ✅ 口径记录 | — |
 | 本轮范围 | 2026-10-09 用户裁决：本轮只做**批次 A 关单**（A10 收尾 + A11 + A12 + A13'），批次 B 起另起 | — | ✅ 口径记录 | — |
-| CLEANUP-3 | **注释收敛**（规范已定稿：`plans/0.3.6/code-comment-style.md`，2026-10-09 用户口径「注释=定义/生效的公正说明，Why 归 plans，稳定后必须简化」）：全仓 20,569 代码行 / 6,844 注释行（比 0.33）收到 ≤25%；按包分片 S1–S6 纯注释 diff、逻辑零动、三套冒烟兜底；默认 B–H 落地后统一执行，本版不再动的包可提前 | — | ☐ | — |
+| CLEANUP-3 | **注释收敛**（规范已定稿：`plans/0.3.6/misc/code-comment-style.md`，2026-10-09 用户口径「注释=定义/生效的公正说明，Why 归 plans，稳定后必须简化」）：全仓 20,569 代码行 / 6,844 注释行（比 0.33）收到 ≤25%；按包分片 S1–S6 纯注释 diff、逻辑零动、三套冒烟兜底；默认 B–H 落地后统一执行，本版不再动的包可提前 | — | ☐ | — |
 | E0 裁决 | **`/icinematics template` 命令删除**（2026-10-10 用户拍板）：与「运行时只读只执行」一致；E 批删除任务解锁（script/template/ 10 文件 + 命令子树 + ScriptTemplate/script.new 链路 + 文档回写，须与编辑器骨架本地化同批） | — | ✅ 口径记录 |
 | B1 拍板 | **覆盖链四项（2026-10-10 用户拍板）**：① Modifier 缺省合成 = 偏移类 ADD（position/yaw/pitch/roll）、缩放类 MULTIPLY（fov/zoom）、REPLACE 显式 ② Base 优先级 飞行 300 > 直控 200（用户说明：飞控与编辑器互斥、编辑器只接收回传值，无实际语义差异）③ Modifier 只作用主相机状态 ④ 通道掩码 6 位 | — | ✅ 口径记录 |
 | B16 拍板 | **seek 后模型实例状态 = reset**（2026-10-10 用户拍板）；数学模型库包名 = `math` 包（低影响，主代理定） | — | ✅ 口径记录 |
-| 点源时态拍板 | **点源时态开关（2026-10-11 用户拍板）**：点源加时态值（实时/快照）控制动静——来源×时态二维，坐标类天然恒定、玩家/选择器类缺省实时（现状）、快照=冻结取点；三条边界 = clip 开始取一次 / seek 重取（同 B16 口径）/ loop 延续·morph 各持快照；只管点源、不动现有字段、不扩 motion 模型输入；设计文档 `plans/0.3.6/point-source-time-mode.md`，实现 = C7 排 C 轮开头 | — | ✅ 口径记录 | `6db63a5` |
+| 点源时态拍板 | **点源时态开关（2026-10-11 用户拍板）**：点源加时态值（实时/快照）控制动静——来源×时态二维，坐标类天然恒定、玩家/选择器类缺省实时（现状）、快照=冻结取点；三条边界 = clip 开始取一次 / seek 重取（同 B16 口径）/ loop 延续·morph 各持快照；只管点源、不动现有字段、不扩 motion 模型输入；设计文档 `plans/0.3.6/C-trigger/point-source-time-mode.md`，实现 = C7 排 C 轮开头 | — | ✅ 口径记录 | `6db63a5` |
 | 核心思路（重申） | **2026-10-10 用户重申（设计不得脱离）**：模组运行时只做三件事——定义（机制/模型/字段语义）→ 按定义解析（ScriptParser/Validator）→ 按规则播放（几何解算/播放求值属播放，k 系数计算允许在运行时）；**编辑器 = 生成固定格式脚本**，一切优化/生成/一键操作（起始/结束点写法、像素→scale 换算、四象限一键生成等）归编辑器，产物与手写脚本等价；运行时禁止生成/调配运算与改写脚本数据 | — | ✅ 口径记录 |
 | 版本策略 | **不保留旧脚本兼容（2026-10-10 用户口径）**：每次更新不带旧兼容层、不加迁移垫片；格式以当前版本为准，保持干净。任务书/验收不再要求「旧脚本零回归」；等值类任务只对「未改路径行为」做对拍。 | — | ✅ 口径记录 |
 | 几何口径 | **统一几何模型（2026-10-10 用户口径，替代参考画布方案）**：① 取材 `source` 与缩放 `scale_x/scale_y` 的参照 = **素材自身**（取材 = 素材左上角 (0,0) 归一化起始/结束区域；缩放 = 相对素材原始尺寸的倍数，例：1600×900 ×(2, 0.5) = 3200×450）；② 放置位置的参照 = **窗口**（百分比）；③ **画布 = 窗口**（废 16:9 参考画布 + Fit 映射，variable-frame §4.1 待改写）；④ 分辨率转义 = 编辑基准分辨率 → 播放窗口的整体缩放（例：2560×1440 编辑、1920×1080 播放 → 处理后整体 ×1920/2560）；⑤ 脚本保持标准字段写法（x/y/w/h），起始/结束点等便捷写法归编辑器「一键优化」 | — | ✅ 口径记录（2026-10-10 收口：落点 = `meta.base_resolution`（缺省 1920×1080）；溢出 = 单一 contain 系数 `k = min(W播/W基, H播/H基)`；定稿 = variable-frame.md §4.2） |
@@ -195,9 +195,9 @@
 | 2026-10-08（续4） | **任务 3（文档口径修正）完成**（无代码）：批次 A 表 **A8 行改述**为「lane 级调色 = 相机片段自带（CAMERA clip / 关键帧携带调色，作用于该相机轨产出的 lane，渲染完、合成前）」（commit 列标注 `8114a85` → `b529757`，原实现数据形态错误：自创 `scope=lane` + ADJUST 轨挂调色）；**A9 行结案**为「调整层 = ADJUST 轨（顶层、不参与排序、默认比其他层级高一个）作用于整幅画面；无新机制（2026-10-08 用户口径）」（文档口径结案，无代码）；**调整层 / 两级分层口径改写**（`screen-color-adjust.md`：lane 级 = 相机片段字段 → 调整层/master = ADJUST 轨；「调整层」即 ADJUST 轨的现有顶层位置，不参与排序、默认高一级，无新机制）。顺带口径记录：**任务 2 改判跳过**（曲线贝塞尔手柄归编辑器阶段，2026-10-08 用户裁决）、**任务 1 已完成**（`b529757`：lane 级调色改为相机片段自带）。 |
 | 2026-10-09 | **批次 A 关单**：A10c 欠账清偿（`ed2a18e`：CubeLutLoader 缓存释放挂接播放生命周期 + F3+T 双端、静默点告警、validator 拦相机片段 lut_strength、尺寸策略注记）；LUT 输入域适配 `lut_input_gamma`（`76f0fe7`）；A10d 文档（`43ca082`）+ LUT 创作者工作流 `docs/LUT_WORKFLOW.md`（`f8a6265`）+ re 评估 5 处 + 2 处文档滞后回写（`1f60c9d`）；**A11 六色带 12 通道**（`01cae9f`）；**A12 混合模式**（`ff1e5a5`）；**A13' 多实例 master 叠加**（`4aa03d8`）。批次 A 全 ✅；用户裁决本轮只做批次 A，B 起另起。 |
 | 2026-10-09（续） | **批次 A 展示脚本集交付**（`a253bec` + `6cf31c3`）：`cinematics/0.3.6/`（scripts/ 13 支自动播脚本入库、resource/ 6 个 cube 不追踪）——01~05 标量/曲线、06 LUT 60s 顺序 6 cube + gamma 纠偏、07~10 混合器/LGG/六色带（绿→黄）/混合模式、11 合成参数关键帧 + lane 级调色、12 多实例叠加双脚本；login 触发器错峰排队（delay=秒，`ScriptManager` ×1000→ms、`TriggerEngine` /50→ticks），一场 8m49s。实机观看验收通过（用户：没什么大问题）；启动窗口默认放大化 = options.txt `overrideWidth/Height` 2560×1392（fabric+forge run）。**欠账**：icv 校验器不查 `meta.name` ≤50 字符（运行时 `ScriptParser` 强制，10 号脚本曾因此拒载后修复）——校验规则待补。 |
-| 2026-10-09（续2） | **多脚本同屏偶发黑屏调查完成（只调查未修）**：压力实验（13 脚本同时播）实证 1 次黑屏事件（世界层纯黑/GUI 完好，截图+日志存证 `E:/tmp/icblack/out/`）；三路排查收敛——主嫌疑 = **fail-open 链式 blit**（applyTo 无条件 return true、整屏 blit 无条件信任中转缓冲、全链 0 处 glGetError/checkFramebufferStatus）+ NaN 级联（validator 不在加载/播放路径）+ LUT 单元错位；时序/并发已排除。**用户裁决（修复验收标准）：渲染错误 fail-safe = 返回原始画面直通，绝不能输出 0/黑**。报告：`plans/0.3.6/multi-instance-black-screen.md`；诊断工具 `E:/tmp/icblack/`（黑屏检测器 + 压力脚本 + RUNBOOK，可复用回归）。 |
+| 2026-10-09（续2） | **多脚本同屏偶发黑屏调查完成（只调查未修）**：压力实验（13 脚本同时播）实证 1 次黑屏事件（世界层纯黑/GUI 完好，截图+日志存证 `E:/tmp/icblack/out/`）；三路排查收敛——主嫌疑 = **fail-open 链式 blit**（applyTo 无条件 return true、整屏 blit 无条件信任中转缓冲、全链 0 处 glGetError/checkFramebufferStatus）+ NaN 级联（validator 不在加载/播放路径）+ LUT 单元错位；时序/并发已排除。**用户裁决（修复验收标准）：渲染错误 fail-safe = 返回原始画面直通，绝不能输出 0/黑**。报告：`plans/0.3.6/_archive/multi-instance-black-screen.md`；诊断工具 `E:/tmp/icblack/`（黑屏检测器 + 压力脚本 + RUNBOOK，可复用回归）。 |
 | 2026-10-09（续3） | **黑屏修复落地 + 结案**：四方向全修（`adfa008` fail-safe 直通 / `5bbc598` NaN 守卫 / `6deb2d7` LUT 绑定自检 / `c579f5f` lane 守门），负对照逐条证明四类机制可整屏黑、修复后正常路径逐字节不变。回归残余「黑」定性 = **极端叠加的合法数学结果**（13 套 master 连乘叠压算到全 0，同场可见全屏红/全屏绿佐证；用户裁定非 bug、作者侧解决，符合全模组调度口径）；gamma 奇异点假设被 shader 公式否决；拆锅实验取消。收尾：删交接文档、`plans/0.3.6/re/` 入 .gitignore 不提交、run 目录还原。**待讨论（先不动）**：F1「失败时返回前有效结果」语义去留。 |
-| 2026-10-09（续4） | **明日开工材料就绪**：批次 B~H 开工计划定稿（`plans/0.3.6/next-phase-batches.md`：B 逐项 19 条 + C~H 汇总 + 遗留清点 + Q1–Q32 串行队列 + 明天首批 1 编码 + 5 并行）；注释规范定稿（`plans/0.3.6/code-comment-style.md`，实测基线 0.33 → 目标 ≤25%，CLEANUP-3 分片方案）；时钟抽象计划入库并排入 G4（`d419f93`）；F3/F4 新增类补交（`06b4d3d`，教训：`git add -u` 会漏新建文件，此后新文件显式 add）。F1 失败语义经讨论**保留**（与极端叠加无关、只拦真渲染故障）。 |
+| 2026-10-09（续4） | **明日开工材料就绪**：批次 B~H 开工计划定稿（`plans/0.3.6/_archive/next-phase-batches.md`：B 逐项 19 条 + C~H 汇总 + 遗留清点 + Q1–Q32 串行队列 + 明天首批 1 编码 + 5 并行）；注释规范定稿（`plans/0.3.6/misc/code-comment-style.md`，实测基线 0.33 → 目标 ≤25%，CLEANUP-3 分片方案）；时钟抽象计划入库并排入 G4（`d419f93`）；F3/F4 新增类补交（`06b4d3d`，教训：`git add -u` 会漏新建文件，此后新文件显式 add）。F1 失败语义经讨论**保留**（与极端叠加无关、只拦真渲染故障）。 |
 | 2026-10-10（续3） | **Q4 B4-P1 ∪ 时钟抽象步骤 1 ✅**——新建 `util/Clock`（@FunctionalInterface `double seconds()`）/`GameClock`（暂停冻结、末实例退出归零，`lastRealNanos=0` 技巧收进类内）/`PreviewClock`（float→double）/`camera/CameraStateHolder`（path/properties 写入缓冲 + snapshot + 四刷新点），`CameraManager` 999→970 行改持双时钟 + 委托读数（调用方零改动），`ScriptPlayer.clockSource` DoubleSupplier→Clock。等值证明：快照四刷新点逐一断言 + GameClock 200k 帧含 100300 冻结帧对拍 mismatch=0 + 预览 1h 累计误差 float 2.793s → double 1.7e-8s（改善）；实机 quadrant 前后捕获 + **同码对照轮**证明像素差异分布不可区分（来自运行间时间抖动非重构）。顺带修 H5-2（挂点 javadoc LaneRendererMixin→GameRendererMixin）与 B4-P0 残留（onScriptReplaced javadoc）。注：PlaybackClock 职责由 CameraManager 直持 GameClock+PreviewClock 承接（等价布局，§15 签名草案口径）。 |
 | 2026-10-10（续2） | **B 轮串行队列推进（Q2/Q3 关单）**：**Q2 C4 动作面收敛 ✅ `476b442`**——删 3 个死代码 TriggerAction（StopPlayback/PlaySound/ExecuteCommand）+ TriggerStateStore/PlayerTriggerState 死读方法 4 对（负对照 = 7 符号删前全仓零调用者证据）；H4 结案标注（命令归 EVENT 轨，feedback-04 #1 划线结案 + README 同步）；顺带清 SuccessOnlySource javadoc 悬挂引用。**Q3 B9 ✅**——纯垂直线边界修复（两处调用点同口径：`horizontal < LINE_HORIZONTAL_EPSILON` → 拒绝 + 2 秒限频告警，回退 world；负对照 = HEAD/工作树守卫原文对拍，修复前纯垂直线产出方向无关恒定 yaw = 未定义）+ 「视线/身体朝向」措辞统一（yaw=身体朝向 yBodyRot、pitch=视线 xRot，SCRIPT_FORMAT/TrackSchemas/coordinate-frame 一致）+ coordinate-frame §6 三类线规则收口 + 新增 test_camera_vertical_line.json（icv [OK]）。 |
 | 2026-10-10（续） | **几何工作包关单（统一几何模型全链落地）**：定稿 `6975da2`（variable-frame §4.2 取代参考画布 + camera-composition 对齐）；任务一 `501950c`（CanvasTransform 新几何 `resolutionEscape`/`element` + 四图层窗口百分比改造 + fit 消费废除 + 画幅层 pillarbox + OverlayTrackPlayer 删 stepFit；负对照 = 3600 组新旧公式 k=1 对拍 0 偏差 + §4.2.6 例 1 数字 2400×337.5 核对）；任务二（meta.base_resolution 全链：MetaSchemas/ScriptMeta/ScriptParser 告警回落/ScriptValidator 正整数≤16384 + fit 废除拦截/OverlayTrackPlayer 接线 + docs 五处回写；validator 八例 + fit 拦截负对照 + 接线回读 2560×1440）。**B 轮串行队列启动**：Q1（B4-P0）✅ → Q2（C4 动作面收敛）开工。 |

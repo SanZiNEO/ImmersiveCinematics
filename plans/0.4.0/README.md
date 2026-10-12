@@ -15,8 +15,8 @@
 
 ## 已移交 0.3.6 的条目
 
-- **WAIT_POINT 等待点轨道** → `plans/0.3.6/wait-point-track.md`
-- **相机实例队列（G1）** → `plans/0.3.6/parallel-playback.md`（取代）
-- **画中画（G2）** → `plans/0.3.6/camera-composition.md` + `multi-camera-rendering.md`（取代）
+- **WAIT_POINT 等待点轨道** → `plans/0.3.6/C-trigger/condition-system.md`（等待点收编为 `until→do` 阻塞形态；原文档 `plans/0.3.6/_archive/wait-point-track.md`）
+- **相机实例队列（G1）** → `plans/0.3.6/F-playback/parallel-playback.md`（取代）
+- **画中画（G2）** → `plans/0.3.6/F-playback/camera-composition.md` + `plans/0.3.6/F-playback/multi-camera-rendering.md`（取代）
 - **Bezier 曲线编辑器**（控制点可视化） → 收录为 `plans/0.3.6/README.md` 看板待定小项
 - 预设片段库 / 编辑器音频联动 / 维度字段：已在 0.3.4 / 0.3.5 落地（见 `plans/complete/`）
