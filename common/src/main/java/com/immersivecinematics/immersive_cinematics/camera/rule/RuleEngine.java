@@ -9,6 +9,8 @@ import com.immersivecinematics.immersive_cinematics.script.ClipRule;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.util.Clock;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import java.util.List;
@@ -19,7 +21,7 @@ import java.util.List;
  * 槽位在 {@link #sync} 时按脚本一次性建成（片段活跃窗 + 规则 + 基本类型状态数组，帧内零分配）；
  * 活跃窗口径与 {@code ClipModifierGate} 一致：{@code [startTime, windowEnd)}，morph 前一段窗末延长半个过渡窗。
  * 帧内：{@code if} 规则按 enter 边沿 / dwell 驻留 + once / cooldown 门触发；{@code until} 规则条件假则挂起本实例
- * 播放时钟、真或 timeout（真实时钟）先到则解除并触发（动作执行归 {@link RuleActions}）。
+ * （保持内容位置，见 {@code ScriptPlayer#beginSuspend}）、真或 timeout（真实时钟）先到则解除并触发（动作执行归 {@link RuleActions}）。
  *
  * 时钟口径：cooldown 与 dwell（if）走播放时钟（挂起 / 游戏暂停一起冻结）；timeout 与 dwell（until）走
  * {@link #setClockSource 注入的真实时钟}（挂起期间照走）。折返（timelineTime 回退 = 宏观循环圈边界或向后 seek）
@@ -28,12 +30,16 @@ import java.util.List;
  * 动作侧（0.3.6 C6-3）：{@code camera_set} / {@code overlay_set} / {@code adjust_set} 的实例级工件在触发帧
  * {@link #attachArtifact 接入}、片段活跃窗末 / 引擎重建 / 停播时回收（同类再次触发 = 覆盖）；
  * {@code pause} / {@code resume} 动作走 {@link #suspendByAction} / {@link #resumeByAction}
- * （与 until 的挂起同一状态、分开记账：pause 的挂起只在 resume / 回收时解除）。
+ * （与 until 的挂起同一状态、分开记账：pause 的挂起由 {@code resume} / 触发片段里再无释放者时的
+ * 挂起出口（见 {@link #evaluate}）/ 引擎重建 / 停播解除）。
  *
  * 分配契约：{@link #evaluate} 不新建集合、不装箱（条件求值走 {@link ClientConditions}，其访问器同样零分配）。
  * 线程契约：仅客户端主线程。
  */
 public final class RuleEngine {
+
+    /** 限频日志窗口（毫秒）：同一失败点每 5 秒最多一条。 */
+    private static final long LOG_INTERVAL_MS = 5000L;
 
     /** 动作作用对象（本实例）；未接线（探针）时为 {@code null}，动作执行按无宿主跳过。 */
     private PlaybackInstance owner;
@@ -91,6 +97,9 @@ public final class RuleEngine {
     /** 动作 {@code pause} 持有的挂起（与 until 的挂起分开记账：until 按帧判定，pause 由 resume / 回收解除）。 */
     private boolean actionSuspendHeld = false;
 
+    /** 触发 {@code pause} 动作的片段（挂起出口判定的作用域：只认触发它的片段里的释放者；{@code null} = 无）。 */
+    private Clip actionSuspendClip = null;
+
     // ===== 帧内临时（复用缓冲，帧内不新建） =====
 
     private int[] resolvedSlots = new int[0];
@@ -140,14 +149,17 @@ public final class RuleEngine {
     }
 
     /**
-     * 规则动作 {@code pause}：挂起本实例播放时钟（引擎持有；{@code resume} 动作 / 片段结束 /
-     * 引擎重建 / 停播时解除——防悬挂）。与 until 的挂起同一状态、分开记账。
+     * 规则动作 {@code pause}：保持本实例内容位置（引擎持有；{@code resume} 动作 / 片段里已无释放者
+     * （见 {@link #evaluate}）/ 引擎重建 / 停播时解除——防卡死）。与 until 的挂起同一状态、分开记账。
+     *
+     * @param clip 触发本动作的片段（挂起出口判定只认它里面的释放者）
      */
-    public void suspendByAction() {
+    public void suspendByAction(Clip clip) {
         ScriptPlayer player = player();
         if (player == null) return;
         player.beginSuspend();
         actionSuspendHeld = true;
+        actionSuspendClip = clip;
     }
 
     /** 规则动作 {@code resume}：解除挂起（幂等；until 等待与 pause 的挂起一并解除）。 */
@@ -264,6 +276,15 @@ public final class RuleEngine {
         } else if (suspendRequested) {
             releaseUntilSuspend(player);
         }
+        // 挂起出口（防卡死）：pause 的挂起在触发它的片段里已无释放者 → 自动解除 + 限频说明原因
+        if (actionSuspendHeld && !pauseReleasable(timeline, elapsed)) {
+            ErrorLog.logRateLimited("Rules", "pause:no-releaser", LOG_INTERVAL_MS,
+                    "规则动作 pause 已无释放者（片段 " + clipLabel(actionSuspendClip)
+                            + " 里既无未完成的 until、也无仍可触发的 resume）——自动解除挂起："
+                            + "暂停保持内容位置 ⇒ 后续片段不激活、时间条件不走，跨片段 / 时间门的 resume 不可达；"
+                            + "请在触发 pause 的同一片段里声明 resume 或 until");
+            releaseActionSuspend(player);
+        }
     }
 
     /** 持续规则（{@code if}）：enter 边沿 / dwell 驻留 + once / cooldown 门 → 触发。 */
@@ -339,7 +360,63 @@ public final class RuleEngine {
         if (!suspendRequested && !actionSuspendHeld) return;
         suspendRequested = false;
         actionSuspendHeld = false;
+        actionSuspendClip = null;
         if (player != null) player.endSuspend();
+    }
+
+    /** 只解除 pause 动作持有的挂起（until 的挂起请求不受影响；幂等）——挂起出口用。 */
+    private void releaseActionSuspend(ScriptPlayer player) {
+        if (!actionSuspendHeld) return;
+        actionSuspendHeld = false;
+        actionSuspendClip = null;
+        if (!suspendRequested && player != null) player.endSuspend();
+    }
+
+    /**
+     * {@code pause} 的挂起是否仍有释放者：触发它的片段里（且仍在活跃窗内——出窗的规则本帧不再求值）
+     * 存在未完成的 {@code until}（其解除帧一并解冻），或存在仍可触发的 {@code resume} 动作
+     * （{@code once} 已用完 / 冷却未过的不算——挂起中播放时钟不走，冷却永不失效）。挂起出口读它，见 {@link #evaluate}。
+     */
+    private boolean pauseReleasable(float timeline, float elapsed) {
+        Clip clip = actionSuspendClip;
+        if (clip == null) return true;
+        for (int i = 0; i < slotCount; i++) {
+            if (slotClips[i] != clip) continue;
+            if (timeline < slotWindowStart[i] || timeline >= slotWindowEnd[i]) continue;
+            ClipRule rule = slotRules[i];
+            if (ClipRule.KIND_UNTIL.equals(rule.getKind())) {
+                if (!untilDone[i]) return true;
+            } else if ((!rule.isOnce() || !onceFired[i]) && elapsed >= cooldownUntil[i] && hasResume(rule)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 规则的动作声明（{@code do} / {@code on_timeout}）里是否含 {@code resume}。 */
+    private static boolean hasResume(ClipRule rule) {
+        return containsResume(rule.getActions()) || containsResume(rule.getOnTimeout());
+    }
+
+    /** 动作数组里是否含 {@code resume} 动作（只读 JSON type 字段，零分配）。 */
+    private static boolean containsResume(List<JsonObject> actions) {
+        for (int i = 0; i < actions.size(); i++) {
+            JsonObject action = actions.get(i);
+            if (action != null && "resume".equals(stringField(action, "type"))) return true;
+        }
+        return false;
+    }
+
+    /** JSON 字符串字段（缺失 / 非字符串 → {@code null}）。 */
+    private static String stringField(JsonObject obj, String key) {
+        JsonElement value = obj.get(key);
+        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()
+                ? value.getAsString() : null;
+    }
+
+    /** 片段标签（日志文案用；{@code null} → {@code "<未知片段>"}）。 */
+    private static String clipLabel(Clip clip) {
+        return clip == null ? "<未知片段>" : clip.getTrackType() + "@" + clip.getStartTime() + "s";
     }
 
     /** 本实例的播放器（未接线时为 {@code null}）。 */
@@ -405,6 +482,7 @@ public final class RuleEngine {
         resolvedTimedOut = new boolean[0];
         resolvedCount = 0;
         wantSuspend = false;
+        actionSuspendClip = null;
         lastTimeline = Float.NaN;
         lastElapsed = Float.NaN;
         lastClock = Double.NaN;

@@ -188,13 +188,14 @@ public class ScriptEventManager {
 
                 pb.viewers.removeIf(uuid -> server.getPlayerList().getPlayer(uuid) == null);
 
-                // 暂停态：不处理 keyframe，仅累计暂停 tick
+                // 暂停态：不处理 keyframe（恢复帧按上报内容位置重定基准）
                 if (pb.paused) {
                     return false;
                 }
 
-                // 有效 elapsed = (当前tick - 开始tick - 总暂停tick) / 20
-                float elapsed = (currentTick - pb.startTick - pb.totalPausedTicks) / 20f;
+                // 时间线读数 = 上报的内容位置 + 基准之后经过的服务端 tick
+                // （未收到上报 = 基准不动，回落 tick 推算——不卡事件）
+                float elapsed = pb.timelineAnchorSeconds + (currentTick - pb.timelineAnchorTick) / 20f;
 
                 int clipIndex = 0;
                 for (Clip clip : pb.eventClips) {
@@ -234,29 +235,42 @@ public class ScriptEventManager {
     }
 
     /**
-     * 处理客户端发来的暂停/恢复信号。
+     * 处理客户端发来的暂停/恢复信号（0.3.6 C-pause：载荷带内容相对位置）。
      * <p>
-     * 暂停时记录暂停起始 tick，恢复时累计暂停时长，
-     * 使 onServerTick 中的 elapsed 计算跳过暂停时段。
+     * 状态转换那一帧按上报位置重定 EVENT 时间线基准（{@link ScriptPlayback#timelineAnchorSeconds}）：
+     * 暂停期间不处理关键帧，恢复后从上报位置继续推进（退掉墙钟暂停 tick 账本）。
+     *
+     * @param positionClipStart 片段起始秒（{@link Float#NaN} = 无片段覆盖：位置即 {@code positionOffset} 绝对秒）
+     * @param positionOffset    片段内偏移秒（{@link Float#NaN} = 未上报 → 保持既有基准不动，回落 tick 推算）
      */
-    public void handlePause(ServerPlayer player, String scriptId, String instanceId, boolean paused) {
+    public void handlePause(ServerPlayer player, String scriptId, String instanceId, boolean paused,
+                            float positionClipStart, float positionOffset) {
         ScriptPlayback pb = playback(scriptId, instanceId);
         if (pb == null) return;
 
+        int tick = player.server.getTickCount();
         if (paused && !pb.paused) {
             // 进入暂停
             pb.paused = true;
-            pb.pauseStartTick = player.server.getTickCount();
-            LOGGER.debug("Script '{}' paused at tick {} by player {}", scriptId, pb.pauseStartTick, player.getName().getString());
+            reanchor(pb, positionClipStart, positionOffset, tick);
+            LOGGER.debug("Script '{}' paused at tick {} (position {}) by player {}",
+                    scriptId, tick, pb.timelineAnchorSeconds, player.getName().getString());
         } else if (!paused && pb.paused) {
-            // 恢复
-            int resumeTick = player.server.getTickCount();
-            int pausedThisTime = resumeTick - pb.pauseStartTick;
-            pb.totalPausedTicks += pausedThisTime;
+            // 恢复：从上报的内容位置续
             pb.paused = false;
-            pb.pauseStartTick = -1;
-            LOGGER.debug("Script '{}' resumed at tick {} (paused {} ticks)", scriptId, resumeTick, pausedThisTime);
+            reanchor(pb, positionClipStart, positionOffset, tick);
+            LOGGER.debug("Script '{}' resumed at tick {} (position {})",
+                    scriptId, tick, pb.timelineAnchorSeconds);
         }
+    }
+
+    /** 按上报的内容位置重定时间线基准；未上报（NaN）时保持基准不动（回落 tick 推算，不卡事件）。 */
+    private static void reanchor(ScriptPlayback pb, float positionClipStart, float positionOffset, int tick) {
+        if (Float.isNaN(positionOffset)) return;
+        float position = Float.isNaN(positionClipStart) ? positionOffset : positionClipStart + positionOffset;
+        if (!Float.isFinite(position) || position < 0f) return;
+        pb.timelineAnchorSeconds = position;
+        pb.timelineAnchorTick = tick;
     }
 
     /**
@@ -321,10 +335,13 @@ public class ScriptEventManager {
         final List<Clip> eventClips;
         MinecraftServer server;
 
-        // ── 暂停状态 ──
+        // ── 暂停状态与时间线基准 ──
+        /** 本实例暂停中（暂停期间不处理 EVENT 关键帧）。 */
         boolean paused = false;
-        int pauseStartTick = -1;
-        int totalPausedTicks = 0;
+        /** EVENT 时间线基准：最近一次上报的内容位置（秒；初始 = 脚本起点 0）。 */
+        float timelineAnchorSeconds = 0f;
+        /** 基准建立时的服务端 tick（读数 = 基准 + 其后经过的 tick）。 */
+        int timelineAnchorTick;
 
         ScriptPlayback(String scriptId, String instanceId, List<Clip> eventClips, int startTick, int skipVoteRatio) {
             this.scriptId = scriptId;
@@ -334,6 +351,7 @@ public class ScriptEventManager {
             this.skipVoteRatio = skipVoteRatio;
             this.eventClips = eventClips;
             this.startTick = startTick;
+            this.timelineAnchorTick = startTick;
         }
     }
 }

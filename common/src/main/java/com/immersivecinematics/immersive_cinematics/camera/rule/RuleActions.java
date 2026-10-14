@@ -35,7 +35,7 @@ import java.util.List;
  *
  * v1 动作集九种：{@code camera_set}（覆盖链 Modifier 叠加，工件随片段结束注销）/ {@code overlay_set}
  * （fade 临时层）/ {@code adjust_set}（master 规则调整层）/ {@code goto_clip}（{@code track} + {@code at}
- * 时间寻址）/ {@code pause} / {@code resume}（实例挂起时钟）/ {@code exit}（声明式退出，跳过 hold_at_end 拒绝）/
+ * 时间寻址）/ {@code pause} / {@code resume}（实例挂起：保持内容位置 / 从该位置续）/ {@code exit}（声明式退出，跳过 hold_at_end 拒绝）/
  * {@code play_sound}（本实例一次性发声）/ {@code emit_command}（C2S 交服务端，仅观看者可执行）。
  * {@code hold} 销项（用 {@code until} 无 timeout 表达，见 {@link #ACTION_HOLD}）。
  *
@@ -85,7 +85,7 @@ public final class RuleActions {
                 case "overlay_set" -> overlaySet(instance, action);
                 case "adjust_set" -> adjustSet(instance, action);
                 case "goto_clip" -> gotoClip(instance, action);
-                case "pause" -> instance.ruleEngine().suspendByAction();
+                case "pause" -> instance.ruleEngine().suspendByAction(clip);
                 case "resume" -> instance.ruleEngine().resumeByAction();
                 case "exit" -> CameraManager.INSTANCE.requestDeclaredExit(instance);
                 case "play_sound" -> playSound(instance, action);

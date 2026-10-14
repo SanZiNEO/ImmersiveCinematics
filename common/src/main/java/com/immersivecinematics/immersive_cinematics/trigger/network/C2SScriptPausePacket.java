@@ -5,10 +5,16 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * 客户端 → 服务端：脚本暂停/恢复状态同步。
+ * 客户端 → 服务端：脚本暂停/恢复状态同步（0.3.6 C-pause：载荷带内容相对位置）。
  * <p>
- * 当客户端游戏暂停（pause_when_game_paused=true 且 MC 暂停）时发送，
- * 服务端停止处理该脚本的 EVENT keyframe，避免事件在暂停期间误触发。
+ * 客户端在「本实例暂停中」状态转换那一帧发送：游戏暂停（{@code pause_when_game_paused}）或规则挂起
+ * （{@code until} 等待 / {@code pause} 动作）任一成立即冻结服务端 EVENT 时间线。随包带上本实例的
+ * <b>内容相对位置</b>（片段起始秒 + 片段内偏移秒），服务端据此把 EVENT 时间线的基准对到客户端真实位置
+ * （取代墙钟 tick 推算；位置即真源，恢复从该位置续）。
+ * <p>
+ * 位置缺省 = 未上报（{@link #getPositionOffset()} 为 {@link Float#NaN}，旧客户端 / 位置不可得）：
+ * 服务端保持既有基准不动（回落 tick 推算，不卡事件）。无片段覆盖（片段间隙）时片段起始秒为 NaN、
+ * 偏移即绝对秒——见 {@code ScriptPlayer#contentPosition}。
  * <p>
  * {@code instanceId} 为 {@link S2CPlayScriptPacket#getInstanceId()} 的原样回传（§3.7），
  * 服务端据此在账本中按 {@code (scriptId, instanceId)} 精确解析暂停信号所属的播放实例。
@@ -22,12 +28,19 @@ public class C2SScriptPausePacket implements CinematicC2SPacket {
     private final String instanceId;
     private final boolean paused;
     private final String refId;
+    /** 内容相对位置：片段起始秒（NaN = 无片段覆盖，位置即 {@link #positionOffset} 的绝对秒） */
+    private final float positionClipStart;
+    /** 内容相对位置：片段内偏移秒（NaN = 未上报 → 服务端保持既有基准不动） */
+    private final float positionOffset;
 
-    public C2SScriptPausePacket(String scriptId, String instanceId, boolean paused, String refId) {
+    public C2SScriptPausePacket(String scriptId, String instanceId, boolean paused, String refId,
+                                float positionClipStart, float positionOffset) {
         this.scriptId = scriptId;
         this.instanceId = instanceId == null ? "" : instanceId;
         this.paused = paused;
         this.refId = refId;
+        this.positionClipStart = positionClipStart;
+        this.positionOffset = positionOffset;
     }
 
     public C2SScriptPausePacket(FriendlyByteBuf buf) {
@@ -35,6 +48,8 @@ public class C2SScriptPausePacket implements CinematicC2SPacket {
         this.instanceId = buf.readUtf();
         this.paused = buf.readBoolean();
         this.refId = buf.readUtf();
+        this.positionClipStart = buf.readFloat();
+        this.positionOffset = buf.readFloat();
     }
 
     @Override
@@ -43,11 +58,14 @@ public class C2SScriptPausePacket implements CinematicC2SPacket {
         buf.writeUtf(instanceId);
         buf.writeBoolean(paused);
         buf.writeUtf(refId);
+        buf.writeFloat(positionClipStart);
+        buf.writeFloat(positionOffset);
     }
 
     @Override
     public void handle(ServerPlayer player) {
-        ScriptEventManager.INSTANCE.handlePause(player, scriptId, instanceId, paused);
+        ScriptEventManager.INSTANCE.handlePause(player, scriptId, instanceId, paused,
+                positionClipStart, positionOffset);
         // N1：处理成功后回执
         if (refId != null && !refId.isEmpty()) {
             S2CScriptPauseAckPacket.send(player, refId);
@@ -58,4 +76,10 @@ public class C2SScriptPausePacket implements CinematicC2SPacket {
     public String getInstanceId() { return instanceId; }
     public boolean isPaused() { return paused; }
     public String getRefId() { return refId; }
+
+    /** 内容相对位置：片段起始秒（NaN = 无片段覆盖）。 */
+    public float getPositionClipStart() { return positionClipStart; }
+
+    /** 内容相对位置：片段内偏移秒（NaN = 未上报）。 */
+    public float getPositionOffset() { return positionOffset; }
 }

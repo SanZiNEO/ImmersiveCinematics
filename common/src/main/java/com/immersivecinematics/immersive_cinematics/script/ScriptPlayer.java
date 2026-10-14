@@ -75,16 +75,11 @@ public class ScriptPlayer {
     private double startGameTimeSeconds = 0;
 
     /**
-     * 挂起起始时钟读数（秒；NaN = 未挂起）：{@link #beginSuspend()} 记下当时读数，
-     * {@link #endSuspend()} 用它与当前读数之差累加进 {@link #suspendAccum}。
+     * 挂起期间保持的内容位置（已播放秒；NaN = 未挂起）：{@link #beginSuspend()} 记下挂起瞬间的读数，
+     * 挂起中 {@link #getElapsedSeconds()} 恒返回它，{@link #endSuspend()} 以它重定起始读数——
+     * 挂起时长不累计（位置即真源，恢复从该位置续）。
      */
-    private double suspendStartClock = Double.NaN;
-
-    /**
-     * 历次挂起累计的真实时长（秒）：起始读数与读数比较时都扣掉这一段，挂起期间的真实时间因此不计入
-     * {@link #getElapsedSeconds()}（恢复不补算，与游戏共享虚拟时钟的冻结口径一致）。
-     */
-    private float suspendAccum = 0f;
+    private float heldElapsed = Float.NaN;
 
     /**
      * 本实例的时钟源（{@link Clock}，秒）——默认 = 游戏共享虚拟时钟（{@code CameraManager.getGameTimeSeconds()}，游戏实例）。
@@ -622,48 +617,47 @@ public class ScriptPlayer {
     }
 
     /**
-     * 挂起本实例的播放时钟（阻塞规则触发时调用）：时间轴冻结在挂起瞬间，游戏世界与其它实例照常。
-     *
-     * 幂等——已挂起时再调无操作。挂起期间真实时钟照走，但 {@link #getElapsedSeconds()} 钳在挂起瞬间读数。
+     * 挂起本实例（执行状态暂停：保持当前内容位置，后续关键帧不推进）。幂等。
+     * 挂起期间真实时钟照走，但 {@link #getElapsedSeconds()} 恒为挂起瞬间的位置。
      */
     public void beginSuspend() {
         if (isSuspended()) return;
-        suspendStartClock = clockSeconds();
+        heldElapsed = getElapsedSeconds();
     }
 
-    /** 解除挂起：挂起期间的真实时长累加进偏移（不补算播放时间）；幂等——未挂起时无操作。 */
+    /**
+     * 解除挂起：从保持的内容位置续播（起始读数按它重定，挂起时长不计入播放时间）。
+     * 幂等——未挂起时无操作。
+     */
     public void endSuspend() {
         if (!isSuspended()) return;
-        suspendAccum += (float) (clockSeconds() - suspendStartClock);
-        suspendStartClock = Double.NaN;
+        startGameTimeSeconds = clockSeconds() - heldElapsed;
+        heldElapsed = Float.NaN;
     }
 
-    /** 本实例是否处于挂起（播放时钟冻结）状态。 */
+    /** 本实例是否处于挂起（内容位置保持中）状态。 */
     public boolean isSuspended() {
-        return !Double.isNaN(suspendStartClock);
+        return !Float.isNaN(heldElapsed);
     }
 
     /**
      * 定位到期望的已播放时间（秒）：起始读数按 {@link #alignTime} 换算，各轨按时间推进的派生状态一并归位
      * （{@link #onSeek()}）——两半必须成对，只改读数不归位会让运动模型从错误的时间差重新推进。
-     *
-     * 基准取本实例的有效时钟读数（挂起中 = 挂起瞬间读数）：挂起期间真实时钟照走，seek 后
-     * {@link #getElapsedSeconds()} 仍恰为 {@code desiredElapsedSeconds}。
      */
     public void seekTo(float desiredElapsedSeconds) {
-        alignTime(desiredElapsedSeconds, isSuspended() ? suspendStartClock : clockSeconds());
+        alignTime(desiredElapsedSeconds, clockSeconds());
         onSeek();
     }
 
     /**
      * 对齐内部时钟，使脚本已播放时间等于期望值（编辑器重载脚本 / 定位预览播放头 / {@code goto_clip} 跳转）。
      *
-     * 起始读数 = 基准读数 − 期望时间 − 挂起累计：与 {@link #getElapsedSeconds()} 同一公式
-     * （两处必须同步），否则挂起过的实例每次对齐都会少算已挂起的时长。
-     * 定位即路径变更：执行事实按新位置重导（{@link #rederiveContentFacts}）。
+     * 起始读数 = 基准读数 − 期望时间：与 {@link #getElapsedSeconds()} 同一公式（两处必须同步）。
+     * 挂起中定位改写保持的内容位置（恢复仍从该位置续）；定位即路径变更，执行事实按新位置重导。
      */
     public void alignTime(float desiredElapsedSeconds, double currentGameTimeSeconds) {
-        this.startGameTimeSeconds = currentGameTimeSeconds - desiredElapsedSeconds - suspendAccum;
+        this.startGameTimeSeconds = currentGameTimeSeconds - desiredElapsedSeconds;
+        if (isSuspended()) heldElapsed = desiredElapsedSeconds;
         rederiveContentFacts(desiredElapsedSeconds);
     }
 
@@ -990,14 +984,37 @@ public class ScriptPlayer {
     }
 
     /**
-     * 本实例已播放时间（秒）= 有效时钟读数 − 起始读数 − 挂起累计。
+     * 内容相对位置 = (片段起始秒, 片段内偏移秒)：{@link #timelineTime()} 所在片段 + 片段内偏移秒。
+     * 片段 = 扁平序（轨道序 → 轨道内片段序）上第一个覆盖该读数的片段——全轨道共用一条时间轴，
+     * 故任一覆盖片段都确定同一位置；无片段覆盖（片段间隙 / 空时间轴）= 起始秒 {@link Float#NaN}、偏移 = 读数本身。
      *
-     * 挂起中有效读数 = 挂起瞬间读数（钳住不随真实时钟走），因此挂起期间本值恒定；恢复后从该值继续。
+     * @param out 调用方复用缓冲（长度 ≥ 2）：{@code out[0]} = 片段起始秒，{@code out[1]} = 片段内偏移秒；零分配
+     */
+    public void contentPosition(float[] out) {
+        float head = timelineTime;
+        if (script != null && script.getTimeline() != null) {
+            for (TimelineTrack track : script.getTimeline().getTracks()) {
+                for (Clip clip : track.getClips()) {
+                    if (head < clip.getStartTime() || head >= clip.getWindowEnd()) continue;
+                    out[0] = clip.getStartTime();
+                    out[1] = head - clip.getStartTime();
+                    return;
+                }
+            }
+        }
+        out[0] = Float.NaN;
+        out[1] = head;
+    }
+
+    /**
+     * 本实例已播放时间（秒）= 时钟读数 − 起始读数；挂起中 = 保持的内容位置（{@link #heldElapsed}）。
+     *
+     * 挂起期间本值恒定、恢复后从该值继续（起始读数在 {@link #endSuspend()} 按它重定）。
      * 时钟源随实例走（{@link #setClockSource}）：游戏实例 = 全局虚拟时钟；预览实例 = 预览播放头。
      */
     public float getElapsedSeconds() {
-        double clock = isSuspended() ? suspendStartClock : clockSeconds();
-        return (float)(clock - startGameTimeSeconds - suspendAccum);
+        if (isSuspended()) return heldElapsed;
+        return (float)(clockSeconds() - startGameTimeSeconds);
     }
 
     /**

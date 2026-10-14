@@ -43,6 +43,9 @@ final class FrameDriver {
     /** 统一快照刷新钩子（值 = 覆盖链输出，无活跃实例时为 {@code null}）。 */
     private final Runnable refreshSnapshot;
 
+    /** 暂停握手的内容位置复用缓冲（{@code [0] = 片段起始秒, [1] = 片段内偏移秒}；帧内零分配）。 */
+    private final float[] pausePosition = new float[2];
+
     FrameDriver(PlaybackRegistry registry, PreviewChannel previewChannel, GameClock gameClock,
                 PreviewClock previewClock, PlaybackLedger ledger, PlaybackLifecycle lifecycle,
                 DirectControlBase directControlBase, Runnable refreshSnapshot) {
@@ -118,8 +121,11 @@ final class FrameDriver {
             if (pauseTransition && !instance.isPreview() && player.isPlaying()) {
                 String scriptId = player.getScriptId();
                 if (!"<none>".equals(scriptId)) {
-                    // 语义 = 「实例暂停中」：游戏暂停或规则挂起（C6-2）任一成立即冻结服务端 EVENT 时间线
-                    ledger.sendPausePacket(scriptId, instance.instanceId(), gamePaused || player.isSuspended());
+                    // 语义 = 「实例暂停中」：游戏暂停或规则挂起（C6-2）任一成立即冻结服务端 EVENT 时间线；
+                    // 随包带上内容相对位置（服务端据此对基准，不再靠墙钟推算）
+                    player.contentPosition(pausePosition);
+                    ledger.sendPausePacket(scriptId, instance.instanceId(),
+                            gamePaused || player.isSuspended(), pausePosition[0], pausePosition[1]);
                 }
             }
 
@@ -148,8 +154,9 @@ final class FrameDriver {
                         && player.isSuspended() != suspendedBefore) {
                     String scriptId = player.getScriptId();
                     if (!"<none>".equals(scriptId)) {
+                        player.contentPosition(pausePosition);
                         ledger.sendPausePacket(scriptId, instance.instanceId(),
-                                gamePaused || player.isSuspended());
+                                gamePaused || player.isSuspended(), pausePosition[0], pausePosition[1]);
                     }
                 }
                 // 帧级缓存取并集：任一实例本帧有活跃 Camera 轨道即算有（门控与上面分发的时间同一口径）

@@ -18,9 +18,9 @@
   - ✅ `C2SScriptFinishedPacket`（客户端→服务端，`script_finished`）：播放结束（含完成原因枚举 + 播放实例 id）时回执，服务端按 `(scriptId, instanceId)` 精确解析所属实例并移除观看者、参与跳过投票统计（`C2SScriptFinishedPacket`、`TriggerEngine`、`ScriptEventManager`）
   - ✅ 回执发送方：客户端 `ClientScriptNotifier.notifyScriptFinished()` 在相机管理器结束播放时调用（`ClientScriptNotifier`）
 - **暂停链路（N1 双向握手）**
-  - ✅ `C2SScriptPausePacket`（客户端→服务端，`script_pause`）：客户端游戏暂停/恢复时发送（脚本 id + 播放实例 id + 暂停标志 + refId），服务端据此按实例精确解析并暂停 EVENT 关键帧推进（暂停 tick 累计，恢复后跳过暂停时段）（`C2SScriptPausePacket`、`ScriptEventManager.handlePause`）
+  - ✅ `C2SScriptPausePacket`（客户端→服务端，`script_pause`）：客户端暂停状态转换时发送（脚本 id + 播放实例 id + 暂停标志 + **内容相对位置**（片段起始秒 + 片段内偏移秒）+ refId），服务端据此按实例精确解析、暂停期间不处理 EVENT 关键帧，并把时间线基准对到上报位置（恢复从该位置续；未上报则保持基准不动，回落 tick 推算）（`C2SScriptPausePacket`、`ScriptEventManager.handlePause`）
   - ✅ `S2CScriptPauseAckPacket`（服务端→客户端，`script_pause_ack`）：服务端处理成功后的回执，客户端 `AckTracker` 超时 2s 重发、最多 3 次后放弃（`S2CScriptPauseAckPacket`、`AckTracker`）
-  - ✅ 发送方：`CameraManager.onRenderFrame()` 检测到暂停状态转换时发送（`CameraManager`）
+  - ✅ 发送方：`FrameDriver.frame()` 检测到暂停 / 挂起状态转换时发送（位置取自 `ScriptPlayer.contentPosition`）（`FrameDriver`、`PlaybackLedger`）
 - **脚本保存/重载链路**
   - ✅ `C2SScriptSavedPacket`（客户端→服务端，`script_saved`）：编辑器保存脚本后通知服务端，服务端指纹对比后向全体在线玩家广播 `S2CScriptReloadPacket`（`C2SScriptSavedPacket`、`S2CScriptReloadPacket`、`ScriptSyncState`）
 - **跳过投票链路**

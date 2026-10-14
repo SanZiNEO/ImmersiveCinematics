@@ -854,9 +854,10 @@ public final class ScriptValidator {
     /**
      * 校验 clip 级 {@code rules}（判定规则；与轨道无关，任意轨道的片段都可挂）。
      *
-     * 与 {@link ClipRule#parse} 同一口径（校验拦下的写法解析期也会拒绝），另加两条结构语义拦截：
+     * 与 {@link ClipRule#parse} 同一口径（校验拦下的写法解析期也会拒绝），另加三条结构语义拦截：
      * 空数组（= 不写；写出来必是作者误解）、{@code until} 带 {@code once} / {@code cooldown}
-     * （阻塞规则触发即解除，无重复触发概念）。条件 type 白名单 = v1 判定源 + 组合器（C6-2）；
+     * （阻塞规则触发即解除，无重复触发概念）、{@code pause} 无同片段释放规则（见 {@link #checkPauseReleaser}）。
+     * 条件 type 白名单 = v1 判定源 + 组合器（C6-2）；
      * 动作 {@code type} 白名单归动作集（C6-3），本层只查元素是对象且带字符串 {@code type}。
      */
     private static void checkRules(JsonObject clip, String cp, List<String> issues) {
@@ -874,6 +875,43 @@ public final class ScriptValidator {
         for (int i = 0; i < arr.size(); i++) {
             checkRule(arr.get(i), cp + ".rules[" + i + "]", issues);
         }
+        checkPauseReleaser(arr, cp, issues);
+    }
+
+    /**
+     * 挂起出口（0.3.6 C-pause §2.4）：clip 声明 {@code pause} 动作但同 clip 无任何释放规则
+     * （{@code resume} 动作 / {@code until} 规则）→ issue。
+     *
+     * 依据：暂停保持内容位置 ⇒ 后续片段不激活、时间条件不走，跨片段 / 时间门的 {@code resume} 不可达；
+     * 运行期对无释放者的 pause 会自动解除 + 限频告警，故该写法写出来必是作者误解。
+     */
+    private static void checkPauseReleaser(JsonArray rules, String cp, List<String> issues) {
+        boolean pause = false;
+        boolean releaser = false;
+        for (int i = 0; i < rules.size(); i++) {
+            JsonElement el = rules.get(i);
+            if (!el.isJsonObject()) continue;
+            JsonObject rule = el.getAsJsonObject();
+            if (rule.has("until")) releaser = true;
+            pause |= hasActionType(rule.get("do"), "pause") || hasActionType(rule.get("on_timeout"), "pause");
+            releaser |= hasActionType(rule.get("do"), "resume") || hasActionType(rule.get("on_timeout"), "resume");
+        }
+        if (pause && !releaser) {
+            issues.add(cp + ".rules 声明了 pause 动作但同片段无释放规则（resume 动作 / until）："
+                    + "暂停保持内容位置 ⇒ 后续片段不激活、时间条件不走，跨片段 / 时间门的 resume 不可达"
+                    + "（运行期无释放者时自动解除并告警）——请在触发 pause 的同一片段里声明 resume 或 until");
+        }
+    }
+
+    /** 动作数组里是否含指定 {@code type}（结构问题归各自校验点：非数组 / 元素非对象一律忽略）。 */
+    private static boolean hasActionType(JsonElement actions, String type) {
+        if (actions == null || !actions.isJsonArray()) return false;
+        for (JsonElement el : actions.getAsJsonArray()) {
+            if (!el.isJsonObject()) continue;
+            JsonElement t = el.getAsJsonObject().get("type");
+            if (t != null && isString(t) && type.equals(t.getAsString())) return true;
+        }
+        return false;
     }
 
     /** 单条规则：形态互斥、条件对象、动作数组、公共修饰字段取值。 */
