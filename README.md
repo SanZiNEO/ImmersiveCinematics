@@ -10,7 +10,7 @@
 
 ## What Is This?
 
-ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server-side trigger system coordinates with client-side playback: script authors define cutscenes in JSON (or via the desktop editor), and the trigger system plays them automatically when conditions are met — 23 trigger types covering login, location, advancement, biome, entity kill, entity/block/item-on-interact, dimension change/residency, item craft/use/consume/release/instant-use/use-interrupt, item pickup/drop, xp, observation, inventory, structure, and gamestage.
+ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server-side trigger system coordinates with client-side playback: script authors define cutscenes in JSON (or via the desktop editor), and the trigger system plays them automatically when conditions are met — 27 trigger types covering login, location, advancement, biome, entity kill, death, entity/block/item-on-interact, dimension change/residency, item craft/use/consume/release/instant-use/use-interrupt, item pickup/drop, xp, observation, facing, inventory, structure, gamestage, and the nestable `all_of` / `any` condition combinators.
 
 **Use cases:**
 - Play an intro cutscene when entering a new area
@@ -27,17 +27,26 @@ ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server
 - 6-DOF camera: position, yaw, pitch, roll, FOV, zoom
 - Keyframe animation + Bézier curve paths for smooth camera movement
 - Relative/absolute positioning, looping, infinite duration, camera follow/look-at tracking
+- Point-source time mode (`<field>_time`): `"snapshot"` freezes a reference point at the first resolved position (the entity may move, the shot stays), `"live"` (default) tracks it every frame
+- Script end = "content played out" (all clips consumed, loop counts exhausted) — not a fixed duration; `total_duration` is informational
 - Multi-track timeline: camera, letterbox, audio, event, mod event, overlay (fade / image / subtitle)
 - Widescreen letterbox bars with keyframe-driven aspect ratio animation
 - Morph transitions between shots (crossfade model)
 
 **Trigger System (Server-Side)**
-- 23 trigger types: login, location (point+radius / cuboid area), advancement, biome, entity kill (with scene conditions: dimension/biome/position), entity interact, block interact, item-on-interact (item+target+target_type, bare-hand support), dimension change, dimension residency, item craft, item use, item consume, item release, item instant use, item use interrupt, item pickup, item drop, xp (level/total), observation (server raycast, block/entity), inventory, structure, gamestage
+- 27 trigger types: login, location (point+radius / cuboid area), advancement, biome, entity kill (with scene conditions: dimension/biome/position), death (player death — scene conditions judged at the moment of death), entity interact, block interact, item-on-interact (item+target+target_type, bare-hand support), dimension change, dimension residency, item craft, item use, item consume, item release, item instant use, item use interrupt, item pickup, item drop, xp (level/total), observation (server raycast, block/entity), facing (view-angle range), inventory, structure, gamestage, plus `all_of` / `any` (condition combinators, nestable up to 8 levels)
 - OR/AND logic and wildcard matching supported
 - Repeatable or single-fire, with configurable delay and on_enter/exit_buffer
+- Per-trigger / per-script poll interval (`poll_interval` on a trigger, `meta.trigger_poll_interval` on the script)
+
+**Judgment Rules (in-clip)**
+- Clip-level `rules`: `if` (continuous check during the clip → run actions on the moment the condition holds) or `until` (hold the script, run actions once the condition holds or the `timeout` fires)
+- Conditions reuse the trigger vocabulary (time, location, facing, biome, dimension, camera state, combinators); actions: `camera_set`, `overlay_set`, `adjust_set`, `goto_clip`, `pause`, `resume`, `exit`, `play_sound`, `emit_command`
+- `pause` / `resume` = execution-state pause (the script holds its content position — camera, subtitles and overlays stop in place, not a game pause — and resumes from there)
 
 **Runtime Control**
 - 18 behavior flags: skippable, interruptible, hold-at-end, keyboard/mouse/mob-AI blocking, 7 independent HUD toggles, arm hiding, view bob suppression, player model rendering, pause-when-paused, etc.
+- Script play relations (`meta.play_mode`): `parallel` (default — never blocks newcomers, never interrupted), `exclusive` (others queue up while it plays, then resume by priority), `interruptible` (a newcomer can take over)
 - Playback queue: un-interruptible scripts queue incoming requests (capacity 8, priority-ordered, auto-continue); interruptible scripts are replaced immediately; priority never overrides interruptibility
 - Multi-player script tracking with completion sync
 

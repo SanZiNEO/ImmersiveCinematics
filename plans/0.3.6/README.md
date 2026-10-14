@@ -61,7 +61,7 @@ plans/0.3.6/
 
 | 轮次 | 目录 | 文档 | 状态 |
 |---|---|---|---|
-| C 触发器与判定 | `C-trigger/` | trigger-conditions（C1–C4）、playback-relations（C5）、condition-system（C6）、point-source-time-mode（C7）、trigger-continuity（P3）、state-tracking（P1） | C4 ✅；C5/C6/C7 设计定稿、实现 ☐；C1/C2/C3 ☐ |
+| C 触发器与判定 | `C-trigger/` | trigger-conditions（C1–C4）、playback-relations（C5）、condition-system（C6）、point-source-time-mode（C7）、trigger-continuity（P3）、state-tracking（P1） | ✅ **已完成（C1–C7 + C-reg + ②族改按执行事实判定 + C-pause，2026-10-14 关单）**；文档仍留本目录——`trigger-continuity` / `state-tracking` 属 **P3-impl / P1-impl** 方向稿（未落地），随其实现后再归档 |
 | D 转场/遮罩 | `D-transition/` | scene-transition（D1–D3）、overlay-color-mask（D4–D7）、variable-frame（D8–D10） | 全 ☐ |
 | E 模板 | `E-template/` | templates | ⊘ 归编辑器阶段（E0 重审） |
 | F 播放/渲染 | `F-playback/` | parallel-playback（F2）、multi-camera-rendering（F3–F5）、camera-composition、iris-oculus-compat（P2） | F2–F5 ☐ |
