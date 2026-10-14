@@ -1,0 +1,98 @@
+{
+  "meta": {
+    "id": "test_exit_branch_extend",
+    "name": "退出测试-分支延长路径",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "②族分支路径判定：CAMERA clip1（0-4s）本地 1s 触发 goto_clip 跳到 8s——跳转把 4-8s 的主路径剩余片段移出执行路径（不再计入剩余内容），跳转目标之后的内容（8-14s）计入。total_duration 故意声明 8s（= 无分支时的内容末端）：实播沿实际路径走到 14s 内容执行完才自然结束（分支比声明长 → 继续播完，不截断）",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 8,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "主路径入口（0-4s）：1s 时触发 goto_clip 跳到 8s",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 8,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "分支路径（8-14s）：跳转目标之后的内容——播到这里（14s）才自然结束（total_duration 8s 不参与判定）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 14, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 4,
+            "transition": "cut",
+            "loop": false,
+            "rules": [
+              {
+                "if": { "type": "time", "at": 1 },
+                "do": [ { "type": "goto_clip", "track": "CAMERA", "at": 8 } ],
+                "once": true
+              }
+            ],
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 4, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 20, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 4,
+            "duration": 4,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 20, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 4, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 40, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 8,
+            "duration": 6,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 60, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 6, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

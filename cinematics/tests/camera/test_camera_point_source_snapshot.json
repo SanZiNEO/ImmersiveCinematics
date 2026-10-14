@@ -5,9 +5,7 @@
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "look_at_time=snapshot：注视点 = 首次解析到的盔甲架位置，此后冻结（盔甲架 4s 被 tp 走，画面注视点不动）；对照组 = 第二片段实时跟随",
-    "triggers": [
-      { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_trigger_login"] }
-    ],
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

@@ -194,6 +194,15 @@ public final class ScriptValidator {
             }
         }
 
+        // ===== meta 已移除字段：出现即报错（不留静默失效的写法）=====
+        if (root.has("meta") && root.get("meta").isJsonObject()) {
+            JsonObject meta = root.getAsJsonObject("meta");
+            if (meta.has("exit_on_duration_overrun")) {
+                issues.add("meta.exit_on_duration_overrun 已移除：②族「内容播完」按实际执行内容判定"
+                        + "（片段消费状态 + 剩余内容计数），total_duration 不再是结束判据，也不需要兜底上限——请删掉该字段");
+            }
+        }
+
         // ===== meta 宏观循环（macro_loop）=====
         if (root.has("meta") && root.get("meta").isJsonObject()) {
             JsonObject meta = root.getAsJsonObject("meta");

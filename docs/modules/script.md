@@ -49,7 +49,7 @@
   - ✅ `TrackPlayer` 工厂按类型分发：CAMERA→`CameraTrackPlayer`、LETTERBOX→`LetterboxTrackPlayer`、AUDIO→`AudioTrackPlayer`、MOD_EVENT→`ModEventTrackPlayer`、OVERLAY→`OverlayTrackPlayer`；创建时传入轨道索引，数据源按索引定位（`TrackPlayer`）
   - ✅ 帧回调驱动：每渲染帧调度所有 TrackPlayer；`holdAtEnd` 时钳制在最后一帧（0.1ms 偏移）等待退出（`ScriptPlayer`）
   - ✅ 启动时若 `block_mob_ai` 开启，清空 128 格范围内以玩家为目标的生物（`ScriptPlayer`）
-  - ✅ 支持结束判定（时间耗尽/无限循环）、剩余时间查询、`hasActiveCameraTrack()` 供 Mixin 缓存（`ScriptPlayer`）
+  - ✅ 支持结束判定（②族按执行内容播完：片段消费状态 + 剩余内容计数，分支跳转按实际路径重导；无限内容不结束）、剩余时间查询、`hasActiveCameraTrack()` 供 Mixin 缓存（`ScriptPlayer`）
   - ✅ 支持时间对齐 `alignTime()`（编辑器预览拖动播放头）、音频暂停/恢复/重定位（`ScriptPlayer`）
   - ✅ 画面 lane 快照收集：`collectCameraLanes()` 按绘制顺序（轨道层级 → 轨道内 clip 顺序，后面的在上）扁平化列出各 CAMERA 轨本帧**全部活跃 clip** 的 `CameraLane`（相机六参数 + 所属 clip + clip 内本地时间；重叠窗口内一轨可贡献多份）；主相机 = 列表最后一个元素（`ScriptPlayer`、`CameraTrackPlayer`、`CameraLane`）
 - **CAMERA 轨道播放器**

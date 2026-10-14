@@ -5,9 +5,7 @@
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "facing_origin_time=snapshot：第 1 片段实时跟随玩家（缺省 live），第 2 片段冻结在第 2 片段开始时的玩家位置（6-12s 走动观察机位不动）",
-    "triggers": [
-      { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_trigger_login"] }
-    ],
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

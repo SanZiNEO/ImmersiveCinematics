@@ -1,0 +1,60 @@
+{
+  "meta": {
+    "id": "test_exit_loop_count",
+    "name": "退出测试-有限循环圈数耗尽",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "②族循环判定：CAMERA clip1 声明 2s 单圈（关键帧 0→2，period=2）+ loop_count=3 → 消费窗口 = 0-6s。循环圈数没计满前不算播完（2s / 4s 处不结束），第 3 圈走完（6s）该片段才消费完；total_duration 故意声明 10s——本值只是统计位，不参与结束判定",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 10,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "有限循环（2s 一圈 × 3 圈）：第 3 圈走完（6s）才自然结束（total_duration 10s 不参与判定）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 2,
+            "transition": "cut",
+            "loop": true,
+            "loop_count": 3,
+            "loop_mode": "repeat",
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 2, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 30, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

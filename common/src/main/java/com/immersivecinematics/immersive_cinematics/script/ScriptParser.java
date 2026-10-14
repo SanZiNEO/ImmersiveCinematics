@@ -145,8 +145,6 @@ public class ScriptParser {
         boolean interruptible = optBoolMeta(metaObj, "interruptible");
         boolean skippable = optBoolMeta(metaObj, "skippable");
         boolean holdAtEnd = optBoolMeta(metaObj, "hold_at_end");
-        // total_duration 兜底上限开关（缺省 false = 只限频告警、不退出；见 condition-system.md §8.1）
-        boolean exitOnDurationOverrun = optBoolMeta(metaObj, "exit_on_duration_overrun");
         boolean macroLoop = optBoolMeta(metaObj, "macro_loop");
         // 宏观循环次数：-1 = 无限重复；正整数 N = 从 a 到 b 重复 N 圈后自然结束；0 无意义 → 按 1（与 clip.loop_count 同口径）
         int macroLoopCount = optInt(metaObj, "macro_loop_count", -1);
@@ -183,7 +181,7 @@ public class ScriptParser {
                 hardHideHud,
                 renderPlayerModel,
                 pauseWhenGamePaused, interruptible, skippable,
-                holdAtEnd, exitOnDurationOverrun, macroLoop, macroLoopMode, macroLoopCount, hudLayers);
+                holdAtEnd, macroLoop, macroLoopMode, macroLoopCount, hudLayers);
 
         // 播放优先级（默认值来自 SchemaRegistry.getMetaFields()；仅用于队列内排序）
         int priority = optInt(metaObj, "priority", 0);

@@ -1,0 +1,64 @@
+{
+  "meta": {
+    "id": "test_exit_suspended",
+    "name": "退出测试-挂起中不结束",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "②族挂起判定：CAMERA clip1 进片段即上膛 until(location (0,64,0) r4)（无 timeout = 无限等待）——条件不成立时本实例播放时钟冻结、内容不判播完（挂起中不自然结束）；玩家走到 (0,64,0)±4 内 → 解除挂起 → 内容继续播到 4s 才结束。实机抽验：脚本停在 0s 等玩家到场，到场后正常播完",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 4,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "等待点（until location，无 timeout）：走到 (0,64,0) 附近才继续播放；挂起期间不判「内容播完」",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 4,
+            "transition": "cut",
+            "loop": false,
+            "rules": [
+              {
+                "until": { "type": "location", "position": { "x": 0, "y": 64, "z": 0 }, "radius": 4 },
+                "do": [ { "type": "play_sound", "sound": "minecraft:block.note_block.pling", "volume": 0.6, "pitch": 1.2 } ]
+              }
+            ],
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 4, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 45, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

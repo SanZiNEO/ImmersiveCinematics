@@ -166,9 +166,10 @@ final class FrameDriver {
 
             if (!instance.isStopping() && player.isPlaying() && player.isFinished()) {
                 boolean holdAtEnd = instance.isHoldAtEnd();
-                // 诊断：退出链路（脚本自然结束检查）
-                LOGGER.info("NATURAL_END check: playing={} finished=true stopping={} holdAtEnd={} elapsed={}",
+                // 诊断：退出链路（脚本自然结束检查）——elapsed = 脚本播放头，instanceClock = 本实例时钟读数
+                LOGGER.info("NATURAL_END check: playing={} finished=true stopping={} holdAtEnd={} elapsed={} instanceClock={}",
                         player.isPlaying(), instance.isStopping(), holdAtEnd,
+                        String.format("%.2f", player.getElapsedSeconds()),
                         String.format("%.2f", instanceClock));
                 if (!holdAtEnd) {
                     LOGGER.info("NATURAL_END -> requestExit");

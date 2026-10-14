@@ -1,0 +1,60 @@
+{
+  "meta": {
+    "id": "test_exit_infinite",
+    "name": "退出测试-无限内容不结束",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "②族无限内容判定：CAMERA clip1 无限循环（loop=true + loop_count=-1）→ 该片段永不消费完，脚本永不自然结束（无论 total_duration 写多少）；退出只能走 ① 族（跳过 / 打断）或 ③ 族（规则 exit）。实机抽验：播放后画面持续循环、不自动退出；长按跳过键可退出",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 4,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "无限循环（loop_count=-1）：永不「内容播完」——本脚本不会自然结束（跳过键可退出）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 4,
+            "transition": "cut",
+            "loop": true,
+            "loop_count": -1,
+            "loop_mode": "repeat",
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 4, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 60, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

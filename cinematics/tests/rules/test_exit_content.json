@@ -4,7 +4,7 @@
     "name": "退出测试-内容播完谓词",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "②族「内容播完」退出（C6-4）：内容末端 = 10s（两个片段各 5s），total_duration 故意声明 12s——时间不再是退出触发，脚本播到 10s 内容消费完即自然结束，不会等到 12s（旧口径会多播 2s 空档）；字幕轨第三段本应写在 10-12s，此处故意不写，用来对照「内容末端才是终点」；exit_on_duration_overrun=false（缺省口径：内容没播完而时间已过时只限频告警、不退出）",
+    "description": "②族「内容播完」退出：内容末端 = 10s（两个片段各 5s），total_duration 故意声明 12s——本值只作统计位（记录 / 真同步），脚本播到 10s 内容执行完即自然结束，不会等到 12s（旧口径会多播 2s 空档）；字幕轨第三段本应写在 10-12s，此处故意不写，用来对照「内容末端才是终点」；判定读执行事实（片段消费状态 + 剩余内容计数），不拿播放时钟与窗口末做数值比较",
     "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
     "block_keyboard": false,
     "block_mouse": false,
@@ -15,7 +15,6 @@
     "interruptible": true,
     "skippable": true,
     "hold_at_end": false,
-    "exit_on_duration_overrun": false,
     "render_player_model": true
   },
   "timeline": {

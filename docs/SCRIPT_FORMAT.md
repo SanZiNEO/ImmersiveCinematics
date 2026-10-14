@@ -91,7 +91,6 @@ immersive_cinematics/
 | `play_mode` | enum | `parallel` | **跨脚本播放关系**（三态，**在播侧**语义——声明「本脚本在播期间与其它脚本的关系」）：`parallel` = 不阻塞新来者（直接并行加入）、也不被跨脚本打断；`exclusive` = 我播时其它脚本的启动请求一律**排队**，我播完按 `priority` 降序 + FIFO 接播；`interruptible` = 可被新来者**顶掉**（硬切：实例销毁让位）。取值域外 / 缺失 = `parallel`（旧脚本零回归；非法值告警并按 `parallel` 处理）。**与 `interruptible` 分工**：`interruptible`（bool）管**同脚本**再触发的替换语义，`play_mode` 管**跨脚本**关系，两者共存、不合并（同名值 `interruptible` 语义同向） |
 | `skippable` | boolean | `true` | 是否允许玩家长按跳过 |
 | `hold_at_end` | boolean | `false` | 内容播完后是否停留在最后一帧（驻留点在**内容末端**——各片段展开结束时刻的最大值，不是 `total_duration`） |
-| `exit_on_duration_overrun` | boolean | `false` | **`total_duration` 兜底上限开关**：内容没播完而播放头已过 `total_duration` 时，`true` = 到点退出（`NATURAL_END`）；缺省 `false` = 只限频告警、继续把内容播完。用于「内容状态算漏 / 分支异常」时防卡死（时间本身不再是退出触发，见 `total_duration` 行） |
 | `macro_loop` | boolean | `false` | 宏观循环开关：**从 `a` 到 `b` 重复执行**（循环 = 播放控制层的重复执行，不是时间折叠）。区间 `[a,b]` = `timeline.loop_start` / `loop_end`（缺省 `a=0`、`b=宏观末端`）；宏观末端 = 各片段展开结束时刻的最大值（含片段自身循环展开），**不是** `total_duration`。缺省 `loop_end` 时若存在永不结束片段 → 末端不存在 → 不循环（时间照直走）。圈数见 `macro_loop_count`。与 `hold_at_end` **互斥**（无限圈数下 `hold_at_end` 不会生效；校验器告警）。服务端 EVENT 不参与循环（仅客户端表现层） |
 | `macro_loop_count` | int | `-1` | 宏观循环次数：`-1`（缺省）= 无限重复，脚本不再自然结束（退出走跳过/打断路径）；正整数 N = 从 `a` 到 `b` 重复 N 圈后自然结束（总播放时长 = `a + N × (b − a)`）。`0` 非法（运行时按 1 处理） |
 | `macro_loop_mode` | enum | `repeat` | 宏观循环模式：`repeat`=折回起点重复 / `pingpong`=往复折返。**第一版只实现 `repeat`**，`pingpong` 按 `repeat` 播放（校验器会告警） |
@@ -149,7 +148,7 @@ immersive_cinematics/
 
 | 字段 | 类型 | 必需 | 说明 |
 |------|------|------|------|
-| `total_duration` | float | 是 | **声明时长（秒，正数；不允许 0）**——**统计 / 信息位**（记录、真同步、补帧参考），**不再是播放结束判据**：脚本播到**内容末端**（各片段展开结束时刻的最大值）即自然结束，比声明值短就早结束、比声明值长（分支延长等）就继续播完。另兼**可选兜底上限**：内容没播完而播放头已过本值 → 限频告警（每 ~10s 一条），仅 `meta.exit_on_duration_overrun=true` 时到点退出（缺省只告警、不退出） |
+| `total_duration` | float | 是 | **声明时长（秒，正数；不允许 0）**——**统计 / 信息位**（记录、真同步、补帧参考），**不是播放结束判据**：脚本按**实际执行内容**判定播完（实际执行路径上已无剩余可执行内容——无待进入 / 执行中的片段、无待完成循环圈数）即自然结束，比声明值短就早结束、比声明值长（分支延长等）就继续播完。内容比声明值长时限频告警（每 ~10s 一条）提示核对声明值 |
 | `tracks` | array | 是 | 轨道数组 |
 | `loop_start` | float | 否 | **宏观循环区间起点 `a`**（秒，缺省 `0`），仅在 `meta.macro_loop=true` 时被读取 |
 | `loop_end` | float | 否 | **宏观循环区间终点 `b`**（秒，缺省 = 宏观末端）。声明后即按 `[loop_start, loop_end]` 重复（可用于子区间循环）；`≤ loop_start` 或 `a` 之后区间为空时不循环 |
@@ -287,7 +286,7 @@ immersive_cinematics/
 
 `loop` + `loop_count` 决定片段的**生命周期**（活跃窗口），`loop_mode` 决定周期内的**时间映射**：
 
-- **无限循环**（`loop: true` + `loop_count: -1`）：片段一旦开始就永不结束，脚本也随之持续播放——**永不「内容播完」**，退出走 ① 族（跳过 / 打断）或 ③ 族（规则 `exit`）；需要「播 N 秒就收」时用 `meta.exit_on_duration_overrun: true` 把 `total_duration` 当兜底上限。适合常驻跟随视角（follow/look_at 固定镜头）：
+- **无限循环**（`loop: true` + `loop_count: -1`）：片段一旦开始就永不结束，脚本也随之持续播放——**永不「内容播完」**，退出走 ① 族（跳过 / 打断）或 ③ 族（规则 `exit`）；需要「播 N 秒就收」时用 `until`（`{"until": {"type": "time", "at": N}, "do": [{"type": "exit"}]}`）。适合常驻跟随视角（follow/look_at 固定镜头）：
   ```json
   { "start_time": 0, "duration": 10, "loop": true, "loop_count": -1,
     "keyframes": [
@@ -1743,7 +1742,7 @@ PS「调整图层 + 图层混合模式」的运行时形态：把**调整层的�
 ### 13d. 退出模型里的位置（边界三条）
 
 1. **① 族（人为干预）不受规则影响**：强退 / 跳过 / 投票跳过仍按 `meta` 的 `skippable` / `skipVoteRatio` / `interruptible` 门控。
-2. **② 族（内容播完）**：**全部内容消费完毕** → 自然结束（`hold_at_end` 时驻留）。判据 = 所有轨道的全部片段消费窗口到达终点（片段级 `loop` 的展开圈数耗尽、无限片段除外）**且无挂起在跑**；**按内容点判定、不按墙钟**——`total_duration` 已降级为统计 / 信息位，只有 `meta.exit_on_duration_overrun=true` 才把它当兜底上限用。无限内容（`loop_count: -1` 片段 / `duration < 0` / `macro_loop` 无限圈）永不「内容播完」，只能 ①③ 族退出。
+2. **② 族（内容播完）**：**实际执行路径上已无剩余可执行内容** → 自然结束（`hold_at_end` 时驻留）。判据 = 每实例的**执行事实**——每个片段「待进入 / 执行中 / 已消费完」的消费状态（有限循环片段要求展开圈数计满，无限片段永不消费完），剩余内容计数归零即播完；`goto_clip` 分支跳转 = 路径变更，跳转后原路径剩余内容不再计入、跳转目标之后的内容计入。**按执行内容判定、不按墙钟**（不拿播放时钟与片段窗口末做数值比较）；`total_duration` 只是统计 / 信息位，不参与结束判定。挂起中（规则 `until` / 动作 `pause`）不判播完。无限内容（`loop_count: -1` 片段 / `duration < 0` / `macro_loop` 无限圈）永不「内容播完」，只能 ①③ 族退出。
 3. **③ 族（声明式退出）= 规则动作 `exit`**：走 `clip.rules`，不新开 `meta` 字段；映射归 NATURAL_END（完成原因五值不扩）。`hold_at_end` 脚本上规则 `exit` 照常生效。
 
 ### 13e. 回退语义（失败即回主支）

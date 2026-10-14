@@ -90,12 +90,6 @@ public class ScriptMeta {
     public boolean isInterruptible() { return behavior.interruptible(); }
     public boolean isSkippable() { return behavior.skippable(); }
     public boolean isHoldAtEnd() { return behavior.holdAtEnd(); }
-    /**
-     * {@code total_duration} 兜底上限开关（{@code meta.exit_on_duration_overrun}，缺省 {@code false}）：
-     * 内容未播完而播放头已过 {@code total_duration} → {@code true} 才到点退出（NATURAL_END），
-     * 缺省只限频告警、继续把内容播完（时间不再是退出触发，见 {@code condition-system.md} §8.1）。
-     */
-    public boolean isExitOnDurationOverrun() { return behavior.exitOnDurationOverrun(); }
     /** 宏观循环开关：整条时间轴（或 loop_start/loop_end 区间）从 a 到 b 重复执行（第一版只实现 repeat） */
     public boolean isMacroLoop() { return behavior.macroLoop(); }
     /** 宏观循环次数：-1 = 无限重复；正整数 N = 重复 N 圈后自然结束 */
@@ -167,7 +161,6 @@ public class ScriptMeta {
             boolean interruptible,
             boolean skippable,
             boolean holdAtEnd,
-            boolean exitOnDurationOverrun,
             boolean macroLoop,
             String macroLoopMode,
             int macroLoopCount,
@@ -179,7 +172,7 @@ public class ScriptMeta {
                 null, null, null, null, null, null, null, null, null, null,
                 true,
                 true, true, true, false,
-                false, false, "repeat", -1,
+                false, "repeat", -1,
                 java.util.Collections.emptyMap()
         );
 
@@ -207,7 +200,6 @@ public class ScriptMeta {
             private boolean interruptible = DEFAULT.interruptible();
             private boolean skippable = DEFAULT.skippable();
             private boolean holdAtEnd = DEFAULT.holdAtEnd();
-            private boolean exitOnDurationOverrun = DEFAULT.exitOnDurationOverrun();
             private boolean macroLoop = DEFAULT.macroLoop();
             private String macroLoopMode = DEFAULT.macroLoopMode();
             private int macroLoopCount = DEFAULT.macroLoopCount();
@@ -235,7 +227,6 @@ public class ScriptMeta {
             public Builder interruptible(boolean v) { this.interruptible = v; return this; }
             public Builder skippable(boolean v) { this.skippable = v; return this; }
             public Builder holdAtEnd(boolean v) { this.holdAtEnd = v; return this; }
-            public Builder exitOnDurationOverrun(boolean v) { this.exitOnDurationOverrun = v; return this; }
             public Builder macroLoop(boolean v) { this.macroLoop = v; return this; }
             public Builder macroLoopMode(String v) { this.macroLoopMode = v; return this; }
             public Builder macroLoopCount(int v) { this.macroLoopCount = v; return this; }
@@ -251,7 +242,6 @@ public class ScriptMeta {
                         hardHideHud,
                         renderPlayerModel,
                         pauseWhenGamePaused, interruptible, skippable, holdAtEnd,
-                        exitOnDurationOverrun,
                         macroLoop, macroLoopMode, macroLoopCount,
                         hudLayers
                 );
