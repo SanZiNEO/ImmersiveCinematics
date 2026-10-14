@@ -194,6 +194,18 @@ public class Clip {
         return getBool("suppress_modifiers", false);
     }
 
+    /**
+     * 片段级判定规则（clip 级 {@code rules} 数组，解析期归一为 {@link ClipRule} 列表）。
+     *
+     * 顺序 = 声明顺序（阻塞规则按声明逐条生效）；本片段不写 {@code rules} 时为空表（恒非 {@code null}）。
+     * 规则随本片段对象存活、播放期只读；条件求值归判定源、动作执行归动作集，见 {@link ClipRule}。
+     */
+    @SuppressWarnings("unchecked")
+    public List<ClipRule> getRules() {
+        Object v = data.get("rules");
+        return v instanceof List ? (List<ClipRule>) v : List.of();
+    }
+
     // ── Convenience: ADJUST ──
 
     /**

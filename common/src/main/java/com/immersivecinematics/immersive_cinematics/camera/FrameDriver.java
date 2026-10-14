@@ -113,7 +113,9 @@ final class FrameDriver {
             }
 
             if (player.isPlaying()) {
-                float instanceTime = instanceClock;
+                // 本实例已播放时间（不是帧驱动的时钟读数）：并行实例的起始读数各不相同，且挂起中要冻结，
+                // 用绝对时钟读数当 elapsed 会误判活跃（见下方 hasActiveCameraTrack）。
+                float instanceTime = player.getElapsedSeconds();
                 // holdAtEnd=true：时间耗尽后把渲染时间钳到总时长末尾，让最后一帧保持住
                 if (player.isFinished() && instance.isHoldAtEnd()) {
                     CinematicScript s = player.getScript();
@@ -123,7 +125,7 @@ final class FrameDriver {
                     }
                 }
                 player.onRenderFrame(instanceTime);
-                // 帧级缓存取并集：任一实例本帧有活跃 Camera 轨道即算有
+                // 帧级缓存取并集：任一实例本帧有活跃 Camera 轨道即算有（门控与上面分发的时间同一口径）
                 boolean instanceCameraClip = player.hasActiveCameraTrack(instanceTime);
                 anyActiveCameraClip |= instanceCameraClip;
                 // 顶层实例单独记一份（同一钳制时间口径）——听者门控只认它

@@ -354,6 +354,8 @@ public final class ScriptValidator {
                 }
                 checkEnum(clip, cp, "transition", issues, "cut", "morph");
                 checkEnum(clip, cp, "orient", issues, "manual", "tangent");
+                // 判定规则（0.3.6 C6-1）：与轨道无关，任意轨道的片段都可挂（轨道作用域不拦）
+                checkRules(clip, cp, issues);
                 if ("CAMERA".equalsIgnoreCase(type)) {
                     // 废弃检测：position_mode / cam_tracking_* 已迁移到关键帧级
                     if (clip.has("position_mode") || clip.has("cam_tracking_look_at")
@@ -834,6 +836,122 @@ public final class ScriptValidator {
                 for (JsonElement item : value.getAsJsonArray()) {
                     if (item.isJsonObject()) measureModel(item.getAsJsonObject(), depth + 1, acc);
                 }
+            }
+        }
+    }
+
+    /**
+     * 校验 clip 级 {@code rules}（判定规则；与轨道无关，任意轨道的片段都可挂）。
+     *
+     * 与 {@link ClipRule#parse} 同一口径（校验拦下的写法解析期也会拒绝），另加两条结构语义拦截：
+     * 空数组（= 不写；写出来必是作者误解）、{@code until} 带 {@code once} / {@code cooldown}
+     * （阻塞规则触发即解除，无重复触发概念）。动作 {@code type} 白名单归动作集（C6-3），本层只查
+     * 元素是对象且带字符串 {@code type}。
+     */
+    private static void checkRules(JsonObject clip, String cp, List<String> issues) {
+        if (!clip.has("rules")) return;
+        JsonElement rules = clip.get("rules");
+        if (!rules.isJsonArray()) {
+            issues.add(cp + ".rules 需要数组（rules = 判定规则数组）");
+            return;
+        }
+        JsonArray arr = rules.getAsJsonArray();
+        if (arr.isEmpty()) {
+            issues.add(cp + ".rules 为空数组（不写 rules 即无规则；空数组必是作者误解，删掉该字段）");
+            return;
+        }
+        for (int i = 0; i < arr.size(); i++) {
+            checkRule(arr.get(i), cp + ".rules[" + i + "]", issues);
+        }
+    }
+
+    /** 单条规则：形态互斥、条件对象、动作数组、公共修饰字段取值。 */
+    private static void checkRule(JsonElement el, String rp, List<String> issues) {
+        if (!el.isJsonObject()) {
+            issues.add(rp + " 需要对象 {if|until, do, once?, cooldown?, mode?, timeout?, on_timeout?}");
+            return;
+        }
+        JsonObject rule = el.getAsJsonObject();
+        boolean hasIf = rule.has("if");
+        boolean hasUntil = rule.has("until");
+        if (hasIf == hasUntil) {
+            issues.add(rp + (hasIf
+                    ? " if 与 until 互斥（一条规则只能一种形态：if = 持续判定，until = 挂起等待）"
+                    : " 缺少条件（if / until 恰写一个）"));
+        } else {
+            String key = hasIf ? "if" : "until";
+            if (!rule.get(key).isJsonObject()) {
+                issues.add(rp + "." + key + " 需要对象（条件定义，如 {\"type\": \"time\", \"at\": 12}）");
+            }
+        }
+        checkRuleActions(rule, rp, issues);
+        checkRuleModifiers(rule, rp, issues);
+    }
+
+    /** 动作数组：{@code do} 必填非空、{@code on_timeout} 可省；元素 = 对象且 {@code type} 为字符串。 */
+    private static void checkRuleActions(JsonObject rule, String rp, List<String> issues) {
+        if (!rule.has("do")) {
+            issues.add(rp + ".do 缺失（规则必须声明 do 动作数组）");
+        } else {
+            checkActionArray(rule.get("do"), rp + ".do", true, issues);
+        }
+        if (rule.has("on_timeout")) {
+            checkActionArray(rule.get("on_timeout"), rp + ".on_timeout", false, issues);
+        }
+    }
+
+    /** 动作数组：{@code required} 时空数组也报；元素必须带字符串 {@code type}（白名单归 C6-3）。 */
+    private static void checkActionArray(JsonElement e, String ap, boolean required, List<String> issues) {
+        if (!e.isJsonArray()) {
+            issues.add(ap + " 需要数组（元素 = 动作对象）");
+            return;
+        }
+        JsonArray arr = e.getAsJsonArray();
+        if (required && arr.isEmpty()) {
+            issues.add(ap + " 为空（规则至少一个动作）");
+        }
+        for (int i = 0; i < arr.size(); i++) {
+            JsonElement el = arr.get(i);
+            String ip = ap + "[" + i + "]";
+            if (!el.isJsonObject()) {
+                issues.add(ip + " 需要对象（动作元素）");
+                continue;
+            }
+            JsonElement type = el.getAsJsonObject().get("type");
+            if (type == null || !isString(type)) {
+                issues.add(ip + ".type 缺失或不是字符串（动作元素需要 type）");
+            }
+        }
+    }
+
+    /** 公共修饰字段：{@code once} 布尔 / {@code cooldown} 非负 / {@code mode} 枚举 / {@code timeout} 正数。 */
+    private static void checkRuleModifiers(JsonObject rule, String rp, List<String> issues) {
+        JsonElement once = rule.get("once");
+        if (once != null && (!once.isJsonPrimitive() || !once.getAsJsonPrimitive().isBoolean())) {
+            issues.add(rp + ".once 需要布尔值（true = 只触发一次；缺省 true）");
+        }
+        JsonElement cooldown = rule.get("cooldown");
+        if (cooldown != null && (!isNumber(cooldown) || !Float.isFinite(cooldown.getAsFloat())
+                || cooldown.getAsFloat() < 0f)) {
+            issues.add(rp + ".cooldown 需要 ≥ 0 的有限数字（秒；缺省 0 = 不静默），实际: " + cooldown);
+        }
+        JsonElement mode = rule.get("mode");
+        if (mode != null && (!isString(mode)
+                || (!"enter".equals(mode.getAsString()) && !"dwell".equals(mode.getAsString())))) {
+            issues.add(rp + ".mode 未知值: " + (isString(mode) ? mode.getAsString() : mode)
+                    + "（可选: enter / dwell；缺省 enter）");
+        }
+        JsonElement timeout = rule.get("timeout");
+        if (timeout != null && (!isNumber(timeout) || !Float.isFinite(timeout.getAsFloat())
+                || !(timeout.getAsFloat() > 0f))) {
+            issues.add(rp + ".timeout 需要 > 0 的有限数字（秒；缺省 -1 = 无限等待），实际: " + timeout);
+        }
+        if (rule.has("until")) {
+            if (once != null) {
+                issues.add(rp + ".once 在 until 形态下无效（阻塞规则触发即解除，无重复触发概念）：请删掉该字段");
+            }
+            if (cooldown != null) {
+                issues.add(rp + ".cooldown 在 until 形态下无效（阻塞规则触发即解除，无重复触发概念）：请删掉该字段");
             }
         }
     }

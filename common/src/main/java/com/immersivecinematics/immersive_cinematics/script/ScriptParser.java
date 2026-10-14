@@ -421,6 +421,7 @@ public class ScriptParser {
             case "color_curve" -> parseColorCurve(value, p + "." + fieldName);
             case "model" -> parseMathModel(value, p + "." + fieldName, fieldName);
             case "modifier" -> parseClipModifier(value, p + "." + fieldName);
+            case "rules" -> parseClipRules(value, p + "." + fieldName);
             case "transition_params" -> parseTransitionParams(value, p + "." + fieldName);
             case "map" -> {
                 if (value.isJsonObject()) {
@@ -596,6 +597,27 @@ public class ScriptParser {
             Object type = key.get("type");
             return MathModelRegistry.create(type instanceof String text ? text : null, key);
         });
+    }
+
+    // ========== 判定规则解析（clip 级 rules 字段）==========
+
+    /**
+     * 解析 clip 级 {@code rules}（判定规则数组 → {@link ClipRule} 列表）：逐元素 {@link ClipRule#parse}，
+     * 元素结构非法即抛（走既有解析错误链，本片段不落地半成品规则表）。
+     *
+     * 空数组 = 空规则表（与不写等价；validator 记 issue 提示作者）。条件与动作原文原样保留——
+     * 条件求值归判定源（C6-2）、动作执行归动作集（C6-3）。
+     */
+    private static List<ClipRule> parseClipRules(JsonElement value, String p) throws ScriptParseException {
+        if (!value.isJsonArray()) {
+            throw new ScriptParseException(p, "需要数组（rules = 判定规则数组）");
+        }
+        JsonArray arr = value.getAsJsonArray();
+        List<ClipRule> rules = new ArrayList<>(arr.size());
+        for (int i = 0; i < arr.size(); i++) {
+            rules.add(ClipRule.parse(arr.get(i), p + "[" + i + "]"));
+        }
+        return rules;
     }
 
     // ========== 覆盖链 Modifier 声明解析（CAMERA clip 级 modifier 字段）==========

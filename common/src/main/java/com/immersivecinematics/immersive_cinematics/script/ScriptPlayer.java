@@ -55,6 +55,18 @@ public class ScriptPlayer {
     private double startGameTimeSeconds = 0;
 
     /**
+     * 挂起起始时钟读数（秒；NaN = 未挂起）：{@link #beginSuspend()} 记下当时读数，
+     * {@link #endSuspend()} 用它与当前读数之差累加进 {@link #suspendAccum}。
+     */
+    private double suspendStartClock = Double.NaN;
+
+    /**
+     * 历次挂起累计的真实时长（秒）：起始读数与读数比较时都扣掉这一段，挂起期间的真实时间因此不计入
+     * {@link #getElapsedSeconds()}（恢复不补算，与游戏共享虚拟时钟的冻结口径一致）。
+     */
+    private float suspendAccum = 0f;
+
+    /**
      * 本实例的时钟源（{@link Clock}，秒）——默认 = 游戏共享虚拟时钟（{@code CameraManager.getGameTimeSeconds()}，游戏实例）。
      * <p>
      * 预览实例由 {@code CameraManager} 注入<b>预览播放头</b>（{@code plans/0.3.6/parallel-playback.md}
@@ -536,11 +548,47 @@ public class ScriptPlayer {
     }
 
     /**
-     * Align the internal clock so that the script elapsed time matches a desired value.
-     * Called by CameraManager when the script is reloaded during preview.
+     * 挂起本实例的播放时钟（阻塞规则触发时调用）：时间轴冻结在挂起瞬间，游戏世界与其它实例照常。
+     *
+     * 幂等——已挂起时再调无操作。挂起期间真实时钟照走，但 {@link #getElapsedSeconds()} 钳在挂起瞬间读数。
+     */
+    public void beginSuspend() {
+        if (isSuspended()) return;
+        suspendStartClock = clockSeconds();
+    }
+
+    /** 解除挂起：挂起期间的真实时长累加进偏移（不补算播放时间）；幂等——未挂起时无操作。 */
+    public void endSuspend() {
+        if (!isSuspended()) return;
+        suspendAccum += (float) (clockSeconds() - suspendStartClock);
+        suspendStartClock = Double.NaN;
+    }
+
+    /** 本实例是否处于挂起（播放时钟冻结）状态。 */
+    public boolean isSuspended() {
+        return !Double.isNaN(suspendStartClock);
+    }
+
+    /**
+     * 定位到期望的已播放时间（秒）：起始读数按 {@link #alignTime} 换算，各轨按时间推进的派生状态一并归位
+     * （{@link #onSeek()}）——两半必须成对，只改读数不归位会让运动模型从错误的时间差重新推进。
+     *
+     * 基准取本实例的有效时钟读数（挂起中 = 挂起瞬间读数）：挂起期间真实时钟照走，seek 后
+     * {@link #getElapsedSeconds()} 仍恰为 {@code desiredElapsedSeconds}。
+     */
+    public void seekTo(float desiredElapsedSeconds) {
+        alignTime(desiredElapsedSeconds, isSuspended() ? suspendStartClock : clockSeconds());
+        onSeek();
+    }
+
+    /**
+     * 对齐内部时钟，使脚本已播放时间等于期望值（编辑器重载脚本 / 定位预览播放头时调用）。
+     *
+     * 起始读数 = 基准读数 − 期望时间 − 挂起累计：与 {@link #getElapsedSeconds()} 同一公式
+     * （两处必须同步），否则挂起过的实例每次对齐都会少算已挂起的时长。
      */
     public void alignTime(float desiredElapsedSeconds, double currentGameTimeSeconds) {
-        this.startGameTimeSeconds = currentGameTimeSeconds - desiredElapsedSeconds;
+        this.startGameTimeSeconds = currentGameTimeSeconds - desiredElapsedSeconds - suspendAccum;
     }
 
     /**
@@ -723,12 +771,14 @@ public class ScriptPlayer {
     }
 
     /**
-     * 本实例已播放时间（秒）= 本实例时钟读数 − 起始读数。
-     * <p>
+     * 本实例已播放时间（秒）= 有效时钟读数 − 起始读数 − 挂起累计。
+     *
+     * 挂起中有效读数 = 挂起瞬间读数（钳住不随真实时钟走），因此挂起期间本值恒定；恢复后从该值继续。
      * 时钟源随实例走（{@link #setClockSource}）：游戏实例 = 全局虚拟时钟；预览实例 = 预览播放头。
      */
     public float getElapsedSeconds() {
-        return (float)(clockSeconds() - startGameTimeSeconds);
+        double clock = isSuspended() ? suspendStartClock : clockSeconds();
+        return (float)(clock - startGameTimeSeconds - suspendAccum);
     }
 
     /**

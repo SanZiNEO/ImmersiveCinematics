@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script.schema;
 
+import com.immersivecinematics.immersive_cinematics.script.ClipRule;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
 import com.immersivecinematics.immersive_cinematics.selector.SelectorSchema;
 import java.util.LinkedHashMap;
@@ -28,6 +29,16 @@ public final class TrackSchemas {
     }
 
     /**
+     * 全轨道 clip 共有的字段（逐轨道显式登记，不做隐式合并）：{@code all()} 里七个 builder 各调一次。
+     *
+     * 目前只有 {@code rules}（判定规则数组，0.3.6 C6-1）：任意轨道的片段都可挂——判定源与轨道无关，
+     * 轨道作用域不做限制（校验器不拦）。字段形态与语义见 {@link ClipRule}。
+     */
+    private static void putCommonClipFields(Map<String, FieldDef> clips) {
+        clips.put("rules", new FieldDef("rules", null, false, List.of(), "rules"));
+    }
+
+    /**
      * CAMERA 轨道（相机运动 + 合成 + 自带调色）。
      * <p>
      * <b>相机片段自带调色</b>（0.3.6：每个 lane / 图层各自持有调整）：clip 级 10 条曲线
@@ -42,6 +53,7 @@ public final class TrackSchemas {
      */
     private static TrackTypeSchema camera() {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
+        putCommonClipFields(clips);
         // 过渡（clip 级）：transition / transition_duration 为既有字段；其余三个是过渡声明（分参数 / 权重曲线 / 打断），
         // 缺省 = 现状（全六通道同权重线性斜坡）；字段形态与校验见 docs/SCRIPT_FORMAT.md §「过渡（transition）」
         clips.put("transition", new FieldDef("enum", "cut", false, List.of("cut", "morph"), "transition"));
@@ -271,6 +283,7 @@ public final class TrackSchemas {
 
     private static TrackTypeSchema letterbox() {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
+        putCommonClipFields(clips);
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
         kfs.put("aspect_ratio", new FieldDef("float", 2.35f));
         return new TrackTypeSchema(clips, kfs);
@@ -278,6 +291,7 @@ public final class TrackSchemas {
 
     private static TrackTypeSchema audio() {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
+        putCommonClipFields(clips);
         clips.put("sound", new FieldDef("string", null, true));
         clips.put("source", new FieldDef("enum", "file", false, List.of("file", "minecraft")));
         clips.put("volume", new FieldDef("float", 1.0f));
@@ -300,6 +314,7 @@ public final class TrackSchemas {
 
     private static TrackTypeSchema event() {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
+        putCommonClipFields(clips);
         clips.put("event_type", new FieldDef("string", "command"));
 
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
@@ -312,6 +327,7 @@ public final class TrackSchemas {
 
     private static TrackTypeSchema modEvent() {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
+        putCommonClipFields(clips);
         clips.put("event_type", new FieldDef("string", null, true));
         clips.put("data", new FieldDef("map", null));
 
@@ -324,6 +340,7 @@ public final class TrackSchemas {
 
     private static TrackTypeSchema overlay() {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
+        putCommonClipFields(clips);
         clips.put("layer_type", new FieldDef("enum", "fade", true, List.of("fade", "image", "subtitle")));
         clips.put("color", new FieldDef("string", "#000000"));
         clips.put("path", new FieldDef("string", ""));
@@ -400,6 +417,7 @@ public final class TrackSchemas {
      */
     private static TrackTypeSchema adjust() {
         Map<String, FieldDef> clips = new LinkedHashMap<>();
+        putCommonClipFields(clips);
         // 曲线组（形态 b）：曲线定义一次（clip 级结构字段），关键帧只控各自强度
         clips.put("rgb_curve", new FieldDef("color_curve", null));
         clips.put("r_curve", new FieldDef("color_curve", null));
