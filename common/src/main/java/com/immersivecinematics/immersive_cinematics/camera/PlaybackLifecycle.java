@@ -24,7 +24,8 @@ import java.util.List;
  * 相机状态 / 覆盖层都不复位；最后一个实例退出才全局复位。
  *
  * 同脚本单实例：{@link #playScript} 命中同脚本活跃实例时按可打断性「立即替换 / 入队」，
- * 接播在 {@link #deactivateNow} 末尾（{@code pendingScript} 优先于队列）。
+ * 接播在 {@link #deactivateNow} 收尾（{@code pendingScript} 优先于队列）。队列跨实例存活
+ * （只有全停清空），接播先于全局复位——接播出实例时共享时钟 / 状态 / 覆盖层都不复位。
  *
  * 线程：仅客户端主线程。
  */
@@ -98,8 +99,8 @@ final class PlaybackLifecycle {
             return 1;
         }
 
-        // 不可打断 → 一律排队（容量满则拒绝）
-        if (scriptQueue.offer(script, instanceId)) return 2;
+        // 不可打断 → 一律排队（容量满则拒绝）；同脚本重复请求替换自己的排队位，不占新格
+        if (scriptQueue.offerOrReplace(script, instanceId)) return 2;
         return 0;
     }
 
@@ -199,9 +200,9 @@ final class PlaybackLifecycle {
     // ========== 实例启停 ==========
 
     /**
-     * 立即停用指定实例（不渐出）：出列 → 通知结束 → 清理该实例 → 全局复位或按剩余实例重算 → 接播。
-     * 跨脚本并行下只影响传入实例：只要还有实例在播，共享时钟 / 相机状态 / 覆盖层 / 输入交接都不复位。
-     * 预览实例不上报网络账本，退出它也不触发待接播。
+     * 立即停用指定实例（不渐出）：出列 → 通知结束 → 清理该实例 → 接播 → 全局复位或按剩余实例重算。
+     * 跨脚本并行下只影响传入实例：只要还有实例在播（含刚接播的），共享时钟 / 相机状态 / 覆盖层 / 输入交接都不复位。
+     * 预览实例不上报网络账本，退出它也不触发待接播与队列接播。
      *
      * @param instance 目标实例；{@code null} = 无播放可结束（仅做一次全局复位检查）
      */
@@ -223,8 +224,24 @@ final class PlaybackLifecycle {
             instance.stop(reason);
         }
 
+        // 接播先于全局复位：接播出的新实例要用共享时钟 / 相机状态 / 覆盖层，不能先被复位清掉。
+        if (!preview && pendingScript != null) {
+            // 同脚本替换（可打断路径）的接播：替换目标已被本方法出列
+            CinematicScript next = pendingScript;
+            String nextInstanceId = pendingInstanceId;
+            pendingScript = null;
+            pendingInstanceId = "";
+            ledger.reportPlaybackStarted(next, startScriptInternal(next, nextInstanceId));
+        } else if (!preview && canDequeue() && !scriptQueue.isEmpty()) {
+            // 队列接播：队头按 priority 降序 + FIFO；队列不随实例结束清空，可继续滚动接播
+            ScriptQueue.Entry next = scriptQueue.poll();
+            ledger.reportPlaybackStarted(next.script(), startScriptInternal(next.script(), next.instanceId()));
+        } else {
+            // 真正回到正常游戏：释放时由服务端差集补发自动决定需要重发的玩家区区块。
+        }
+
         if (registry.isEmpty()) {
-            // 最后一个实例退出：全局复位（虚拟时钟 / 相机状态 / 预览标志 / 输入交接 / 行为开关 / 覆盖层）
+            // 接播后仍无实例：全局复位（虚拟时钟 / 相机状态 / 预览标志 / 输入交接 / 行为开关 / 覆盖层）
             gameClock.reset();
             previewChannel.setPreviewDirectControl(false);
             previewChannel.setPreviewInitialized(false);
@@ -235,36 +252,32 @@ final class PlaybackLifecycle {
             reset();
             OverlayManager.INSTANCE.reset();
         } else {
-            // 仍有实例在播：全局时钟与相机状态属于剩余实例，不能复位；只按剩余实例重算行为开关并集。
-            // 队列与现状一致地随实例结束清空（队列语义待 plans/0.3.6/parallel-playback.md §6 定稿）。
-            scriptQueue.clear();
+            // 仍有实例在播（含刚接播的）：全局时钟与相机状态属于剩余实例，不能复位；只重算行为开关并集。
             CinematicController.INSTANCE.recomputeUnion(registry.instanceBehaviors());
-        }
-
-        if (!preview && pendingScript != null) {
-            // 同脚本替换（可打断路径）的接播：替换目标已被本方法出列
-            CinematicScript next = pendingScript;
-            String nextInstanceId = pendingInstanceId;
-            pendingScript = null;
-            pendingInstanceId = "";
-            ledger.reportPlaybackStarted(next, startScriptInternal(next, nextInstanceId));
-        } else if (!preview && !scriptQueue.isEmpty()) {
-            // 队列接播（同脚本单实例的排队请求）：当前不可达——队列在上面的实例结束路径已清空，
-            // 语义待 §6 定稿后一并实现（需要「按脚本匹配取队头」的队列 API）。
-            ScriptQueue.Entry next = scriptQueue.poll();
-            ledger.reportPlaybackStarted(next.script(), startScriptInternal(next.script(), next.instanceId()));
-        } else {
-            // 真正回到正常游戏：释放时由服务端差集补发自动决定需要重发的玩家区区块。
         }
 
         // 停用即失效快照；若上面接播了 pendingScript/队列（已有新实例），这里重建为接播后的最新值。
         refreshSnapshot.run();
     }
 
-    /** 复位全局写入缓冲与播放队列（不改快照；快照由调用方的 refresh 决定）。 */
+    /**
+     * 队列出队判据：{@code true} = 队头可以接播。本任务口径 = 无非预览在播实例（阻塞队列的实例全结束）；
+     * 跨脚本 {@code play_mode} 落地后升级为「无 exclusive 在播」，升级只改本方法体。
+     */
+    private boolean canDequeue() {
+        List<PlaybackInstance> instances = registry.instances();
+        for (int i = 0; i < instances.size(); i++) {
+            if (!instances.get(i).isPreview()) return false;
+        }
+        return true;
+    }
+
+    /**
+     * 复位全局写入缓冲（不改快照；快照由调用方的 refresh 决定）。
+     * 队列不在这里清——它跨实例存活，只有全停（{@code deactivateAllNow}）才清空。
+     */
     void reset() {
         stateHolder.reset();
-        scriptQueue.clear();
     }
 
     // ========== 实例创建 ==========

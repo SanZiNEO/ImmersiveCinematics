@@ -3,14 +3,20 @@ package com.immersivecinematics.immersive_cinematics.camera;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.PriorityQueue;
 
 /**
- * 客户端播放队列（C1）：当前脚本不可打断时，新脚本一律入队（容量 8，满则拒绝），
- * 当前脚本结束后按优先级（高→低，同优先级先入先出）自动接播。
- * 优先级仅用于队列内排序——不可打断的脚本永远不会被打断（优先级不能大于打断）。
+ * 客户端播放队列：当前脚本不可打断时新脚本入队（容量 8，满则拒绝），阻塞它的实例结束后按优先级
+ * （高→低，同优先级先入先出）接播。优先级只决定队列内次序——不可打断的脚本永远不会被打断。
+ *
+ * <p>队列键 = 脚本 id：同脚本第二次请求替换自己的排队位（{@link #offerOrReplace}，不占新格）；
+ * {@link #cancel} 按脚本 id 撤销排队项。队列跨实例存活——只有全停（{@code forceDeactivate} /
+ * {@code emergencyStop}）才 {@link #clear}。
  *
  * <p>每个排队项携带发起该播放请求时的播放实例 id（§3.7），供接播时随 {@code C2SPlaybackStarted} 上报。
+ *
+ * <p>线程：仅客户端主线程。
  */
 public class ScriptQueue {
 
@@ -32,6 +38,35 @@ public class ScriptQueue {
         if (queue.size() >= CAPACITY) return false;
         queue.add(new QueuedScript(s, instanceId == null ? "" : instanceId, seq++));
         return true;
+    }
+
+    /**
+     * 入队或替换排队位：同脚本 id 已在排队 → 用本次请求替换该位（instanceId 更新、sequence 保留原位次，
+     * 即不插到队尾）；未排队 → 等价 {@link #offer}。
+     *
+     * @return {@code true} = 已入队（含替换）；{@code false} = 队列已满且该脚本未排队
+     */
+    public boolean offerOrReplace(CinematicScript s, String instanceId) {
+        String id = s.getId();
+        for (QueuedScript queued : queue) {
+            if (Objects.equals(id, queued.script().getId())) {
+                queue.remove(queued);
+                queue.add(new QueuedScript(s, instanceId == null ? "" : instanceId, queued.sequence()));
+                return true;
+            }
+        }
+        return offer(s, instanceId);
+    }
+
+    /** 按脚本 id 取消排队项；{@code true} = 确有该项被移除（未排队 = {@code false}）。 */
+    public boolean cancel(String scriptId) {
+        return queue.removeIf(q -> Objects.equals(scriptId, q.script().getId()));
+    }
+
+    /** 队头（不出队）；空队列返回 {@code null}。 */
+    public Entry peek() {
+        QueuedScript head = queue.peek();
+        return head == null ? null : new Entry(head.script(), head.instanceId());
     }
 
     public Entry poll() {
