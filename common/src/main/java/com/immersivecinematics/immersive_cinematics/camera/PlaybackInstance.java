@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraCoverChain;
+import com.immersivecinematics.immersive_cinematics.camera.cover.CameraModifier;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.camera.rule.RuleEngine;
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
@@ -231,6 +232,22 @@ public final class PlaybackInstance {
             }
         }
         return collected;
+    }
+
+    // ========== 规则动作 Modifier 接线（camera_set；注册 / 注销由规则引擎的工件生命周期驱动） ==========
+
+    /**
+     * 注册一条规则动作建出的 Modifier（{@code camera_set} 触发时；见 {@code RuleEngine.attachArtifact}）。
+     * 与 {@link #syncModifiers} 的静态声明分开记账：本类不持有它们的清单——回收由引擎在片段窗末 /
+     * 重建 / 停播时调 {@link #detachRuleModifier}。
+     */
+    public void attachRuleModifier(CameraModifier modifier) {
+        if (coverChain != null && modifier != null) coverChain.register(modifier);
+    }
+
+    /** 注销一条规则动作建出的 Modifier（片段窗末 / 引擎重建 / 停播；未注册过时为无操作）。 */
+    public void detachRuleModifier(CameraModifier modifier) {
+        if (coverChain != null && modifier != null) coverChain.unregister(modifier);
     }
 
     // ========== 生命周期判定（按实例独立） ==========

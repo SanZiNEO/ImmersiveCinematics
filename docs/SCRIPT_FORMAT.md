@@ -1694,6 +1694,61 @@ PS「调整图层 + 图层混合模式」的运行时形态：把**调整层的�
 
 ---
 
+## 13. 判定规则（rules）— 片段级条件与动作
+
+**规则 = 挂在片段上的「条件 + 动作」**：片段执行期间持续判定，条件成立则执行动作（改播放 / 分支 / 发声 / 控制）。字段是 **clip 级 `rules` 数组**（与 `keyframes` 平级），**任意轨道**的片段都可挂（判定与动作都不限轨道）。语义等价代码里的 `if` / `while`：判定成立 → 做事。
+
+### 13a. 两种形态（`if` / `until` 恰写一个）
+
+```json
+"rules": [
+  { "if":   { "type": "location", "position": { "x": 130, "y": 64, "z": -170 }, "radius": 4 },
+    "do":   [ { "type": "play_sound", "sound": "minecraft:ambient.cave" } ], "cooldown": 5 },
+  { "until": { "type": "time", "at": 12.0 },
+    "do":    [ { "type": "goto_clip", "track": "CAMERA", "at": 20 } ],
+    "timeout": 20, "on_timeout": [ { "type": "exit" } ] }
+]
+```
+
+| 形态 | 语义 | 判定节奏 |
+|------|------|---------|
+| `if`（持续规则） | 条件成立的那一刻触发 `do`；播放时钟**不冻结** | 每渲染帧；`mode: "enter"`（缺省）= 假→真边沿触发；`mode: "dwell"` + `dwell: 秒` = 持续成立满 N 秒才触发 |
+| `until`（阻塞规则） | 条件假 → **挂起本实例播放时钟**；条件成立（或 `timeout` 真实时钟先到）→ 解除挂起并执行 `do`（超时走 `on_timeout`） | 挂起期间照常判定（这正是 until 的语义） |
+
+公共字段：`do`（必填，动作数组，至少一个）、`once`（缺省 `true` = 本片段内只触发一次，片段 loop 折返重置）、`cooldown`（缺省 `0` = 不静默，触发后 N 秒内不再触发，走播放时钟）、`mode` / `dwell`（`if` 专用）、`timeout`（缺省 `-1` = 无限等待，走真实时钟）/ `on_timeout`（`until` 专用）。`until` 下写 `once` / `cooldown` 会被校验拦下（阻塞规则触发即解除，无重复触发概念）。
+
+**挂起（`until` 生效期间）三条**：① 本实例**全部轨**一起停（含 EVENT 轨时间线，服务端一并冻结）；游戏世界、触发器、其它播放实例照常。② 本片段的规则**继续判定**（含同片段其它 `if` 规则）。③ 打断 / 跳过 / 强退不受挂起影响（照常生效）。
+
+### 13b. 判定源（v1 八种 + 组合器）
+
+`time`（相对片段本地时钟：`at` 到点或 `from`/`to` 区间，**挂起期间不走**）、`location`、`facing`、`biome`、`dimension`、`camera_pos`、`camera_facing`、`camera_fov`；组合器 `all_of` / `any`（`list` 元素 = `{type, conditions}`，嵌套 ≤ 8 层含顶层）。字段名与取值语义与 `meta.triggers[].conditions` 同源（同一份 schema）。**判定端 = 客户端逐实例**：各看各的本地玩家与相机（多人广播脚本 = 个人化运镜的自然语义）。事件类 / 前置条件类判定源留 v2。
+
+### 13c. 动作集 v1（九种）
+
+动作**只作用触发它的那个播放实例**（跨脚本作用走 v2 的跨脚本族）。同类「参数调整」动作在**同一片段内再次触发 = 覆盖**（先回收旧的那一份），不无限叠加。
+
+| 动作 | 参数 | 语义 |
+|------|------|------|
+| `camera_set` | `channels`（必填，通道名数组）+ `mode?`（`add` / `multiply` / `replace`，缺省逐通道：偏移类 add、缩放类 multiply）+ `priority?`（应用序，缺省 0）+ 各通道值 | 触发即向**覆盖链**注册一条 Modifier，**持续叠加**到片段结束（`position` 整通道一位，写 `{x, y, z}`；`yaw` / `pitch` / `roll` / `fov` / `zoom` 写数字）。`blend` 过渡 / `look_at` / `follow` 偏移叠加留 v2 |
+| `overlay_set` | `layer_type`（v1 只支持 `"fade"`）+ `color?`（`#RRGGBB`，缺省黑）+ `opacity?`（0~1，缺省 1）+ `z_index?`（缺省 10） | 建一层**临时覆盖层**（归属本实例），持续到片段结束移除。`image` / `subtitle` 留 v2 |
+| `adjust_set` | 基础校色 15 个标量通道（`exposure` / `contrast` / `highlights` / `shadows` / `whites` / `blacks` / `hue` / `saturation` / `vibrance` / `lightness` / `temperature` / `tint` / `red` / `green` / `blue`；参数名与 ADJUST 轨关键帧字段同名） | 建一层**master 规则调整层**（叠加在该实例 ADJUST 轨输出之上；未写通道不动），持续到片段结束清除 |
+| `goto_clip` | `track`（轨道类型名，如 `CAMERA`）+ `at`（目标已播放时间秒） | 时间寻址跳转：目标时间须落在该轨某个片段的窗内；越界 / 该轨无片段 → 限频日志 + 不动 |
+| `pause` / `resume` | 无 | 挂起 / 解除本实例播放时钟（片段结束 / 脚本重建 / 停播时强制解除，不留冻结实例） |
+| `exit` | 无 | **声明式退出**：跳过 `hold_at_end` 拒绝（声明式优先于末尾驻留），完成原因 = `FINISHED`（归 NATURAL_END 映射，退出原因五值不扩） |
+| `play_sound` | `sound`（必填，音效 id）+ `volume?` / `pitch?`（缺省 1） | 本实例一次性声音（相对听者、无衰减）；随实例停止清理，挂起期间停 |
+| `emit_command` | `command`（必填，不含前导 `/`；多条用 `&&` 分隔） | 交**服务端**执行，口径与 EVENT 轨一致（`&&` 拆分 + 成功结果回执）；**仅该脚本当前播放实例的观看者**会执行（防命令注入） |
+| `hold` | — | **未实现（销项）**：无限等待用 `until` 无 timeout 表达（`{"until": {<条件>}, "do": [...]}`，缺省 `timeout` = 无限等待）。写了 `hold` 会被校验拦下 |
+
+### 13d. 退出模型里的位置（边界三条）
+
+1. **① 族（人为干预）不受规则影响**：强退 / 跳过 / 投票跳过仍按 `meta` 的 `skippable` / `skipVoteRatio` / `interruptible` 门控。
+2. **② 族（内容播完）**：全部内容消费完毕 → 自然结束（`hold_at_end` 时驻留）。
+3. **③ 族（声明式退出）= 规则动作 `exit`**：走 `clip.rules`，不新开 `meta` 字段；映射归 NATURAL_END（完成原因五值不扩）。`hold_at_end` 脚本上规则 `exit` 照常生效。
+
+### 13e. 回退语义（失败即回主支）
+
+动作执行失败（参数非法 / 目标越界 / 目标片段缺失 / 执行异常）**一律不传播、不中断播放**：限频日志（`logs/immersive_cinematics/script-errors.log`）+ 继续按时间线走——「动作失败 = 什么都没发生」。回退目标恒为**主支**（分支无栈、不做嵌套恢复）：`goto_clip` 成功跳转后再失败也回主支当前状态，时间线继续。
+
 ## 完整示例
 
 ```json

@@ -69,6 +69,14 @@ public class CameraManager implements CameraApi {
     // ========== 播放控制（PlaybackLifecycle）==========
     /** 统一退出入口：作用于顶层实例（跳过键 / 强制退出键等玩家交互面向的就是顶层）。 */
     public boolean requestExit(ExitReason reason) { return lifecycle.requestExit(registry.topInstance(), reason); }
+
+    /**
+     * 声明式退出（规则动作 {@code exit}；设计 §8.1 ③族）：作用于触发它的那个实例，
+     * 映射 {@link ExitReason#NATURAL_END} 但跳过 {@code hold_at_end} 拒绝（声明式优先于末尾驻留）。
+     */
+    public boolean requestDeclaredExit(PlaybackInstance instance) {
+        return lifecycle.requestDeclaredExit(instance);
+    }
     /**
      * 播放脚本：跨脚本一律新建实例并行播放；同脚本已有活跃实例时按可打断性「立即替换 / 入队」。
      *

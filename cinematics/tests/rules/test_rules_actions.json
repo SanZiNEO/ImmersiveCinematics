@@ -1,0 +1,170 @@
+{
+  "meta": {
+    "id": "test_rules_actions",
+    "name": "规则测试-动作集 v1",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "动作集 v1（C6-3）全量走查：clip1 = camera_set（覆盖链叠加）+ overlay_set（fade 临时层）+ adjust_set（master 规则调整层）；clip2 = until（biome）→ goto_clip 时间寻址，timeout 8s → on_timeout exit；clip3 = pause → until（location，超时兜底）resume → play_sound（一次性声音）→ emit_command（服务端命令，仅观看者执行）→ exit（声明式退出）",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 24,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "动作集 v1（0-8s）：camera_set 位置/视野叠加 + overlay_set 半黑 fade 层 + adjust_set 曝光/饱和度",
+            "x": 0.5,
+            "y": 0.05,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.05, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.05, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 8,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "动作集 v1（8-16s）：until（biome=plains）→ goto_clip 跳到 16s；8 秒未满足 → on_timeout exit",
+            "x": 0.5,
+            "y": 0.05,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 8, "x": 0.5, "y": 0.05, "opacity": 1 },
+              { "time": 16, "x": 0.5, "y": 0.05, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 16,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "动作集 v1（16-24s）：pause → resume（位置条件 / 超时兜底）→ play_sound → emit_command → exit",
+            "x": 0.5,
+            "y": 0.05,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 16, "x": 0.5, "y": 0.05, "opacity": 1 },
+              { "time": 24, "x": 0.5, "y": 0.05, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 24,
+            "keyframes": [
+              { "time": 0, "exposure": 0.0, "saturation": 0.0, "contrast": 0.1 },
+              { "time": 24, "exposure": 0.0, "saturation": 0.0, "contrast": 0.1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "rules": [
+              {
+                "if": { "type": "time", "at": 2 },
+                "do": [ { "type": "camera_set", "channels": [ "position", "fov" ], "mode": "add", "position": { "x": 6, "y": 2, "z": -4 }, "fov": -8, "priority": 5 } ],
+                "once": true
+              },
+              {
+                "if": { "type": "time", "at": 3 },
+                "do": [ { "type": "overlay_set", "layer_type": "fade", "color": "#000000", "opacity": 0.5, "z_index": 200 } ],
+                "once": true
+              },
+              {
+                "if": { "type": "time", "at": 4 },
+                "do": [ { "type": "adjust_set", "exposure": 0.6, "saturation": 0.25 } ],
+                "once": true
+              }
+            ],
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 30, "pitch": -5, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 8,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "rules": [
+              {
+                "until": { "type": "biome", "biome": "minecraft:plains" },
+                "do": [ { "type": "goto_clip", "track": "CAMERA", "at": 16 } ],
+                "timeout": 8,
+                "on_timeout": [ { "type": "exit" } ]
+              }
+            ],
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 30, "pitch": -5, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 60, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 16,
+            "duration": 8,
+            "transition": "cut",
+            "loop": false,
+            "rules": [
+              {
+                "if": { "type": "time", "at": 2 },
+                "do": [ { "type": "pause" } ],
+                "once": true
+              },
+              {
+                "until": { "type": "location", "position": { "x": 0, "y": 64, "z": 0 }, "radius": 8 },
+                "do": [ { "type": "resume" } ],
+                "timeout": 15,
+                "on_timeout": [ { "type": "resume" } ]
+              },
+              {
+                "if": { "type": "time", "at": 4 },
+                "do": [ { "type": "play_sound", "sound": "minecraft:ambient.cave", "volume": 0.7, "pitch": 1.0 } ],
+                "once": true
+              },
+              {
+                "if": { "type": "time", "at": 5 },
+                "do": [ { "type": "emit_command", "command": "say 规则动作 v1: emit_command 生效" } ],
+                "once": true
+              },
+              {
+                "if": { "type": "time", "at": 6 },
+                "do": [ { "type": "exit" } ],
+                "once": true
+              }
+            ],
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 60, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 8, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 90, "pitch": 5, "roll": 0, "fov": 65, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

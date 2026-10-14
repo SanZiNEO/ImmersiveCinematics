@@ -25,6 +25,11 @@ import java.util.List;
  * {@link #setClockSource 注入的真实时钟}（挂起期间照走）。折返（timelineTime 回退 = 宏观循环圈边界或向后 seek）
  * 重置 once / 边沿 / 驻留 / until 等待态（cooldown 按播放时钟跨圈保持）。
  *
+ * 动作侧（0.3.6 C6-3）：{@code camera_set} / {@code overlay_set} / {@code adjust_set} 的实例级工件在触发帧
+ * {@link #attachArtifact 接入}、片段活跃窗末 / 引擎重建 / 停播时回收（同类再次触发 = 覆盖）；
+ * {@code pause} / {@code resume} 动作走 {@link #suspendByAction} / {@link #resumeByAction}
+ * （与 until 的挂起同一状态、分开记账：pause 的挂起只在 resume / 回收时解除）。
+ *
  * 分配契约：{@link #evaluate} 不新建集合、不装箱（条件求值走 {@link ClientConditions}，其访问器同样零分配）。
  * 线程契约：仅客户端主线程。
  */
@@ -70,6 +75,22 @@ public final class RuleEngine {
     /** until 等待起始（真实时钟秒）。 */
     private double[] untilWaitStart = new double[0];
 
+    // ===== 动作工件（camera_set / overlay_set / adjust_set；触发帧建出，窗末 / 重建 / 停播回收） =====
+
+    /** 已接入的实例级工件（同类至多一件；槽位数组 + 窗末平行数组，帧内零分配）。 */
+    private RuleArtifact[] artifactSlots = new RuleArtifact[0];
+
+    /** 各工件的回收时刻（时间轴读数秒；到达即回收）。 */
+    private float[] artifactWindowEnd = new float[0];
+
+    private int artifactCount = 0;
+
+    /** 本批动作的注册窗末（= 所属槽位的片段活跃窗末；{@link #attachArtifact} 记进工件）。 */
+    private float actionWindowEnd = Float.MAX_VALUE;
+
+    /** 动作 {@code pause} 持有的挂起（与 until 的挂起分开记账：until 按帧判定，pause 由 resume / 回收解除）。 */
+    private boolean actionSuspendHeld = false;
+
     // ===== 帧内临时（复用缓冲，帧内不新建） =====
 
     private int[] resolvedSlots = new int[0];
@@ -96,6 +117,44 @@ public final class RuleEngine {
         if (clock != null) this.clock = clock;
     }
 
+    // ===== 动作侧入口（RuleActions 调用；动作只作用触发它的本实例） =====
+
+    /**
+     * 接入一件规则动作工件（{@code camera_set} / {@code overlay_set} / {@code adjust_set} 触发时）。
+     * 窗末 = 本批动作所属片段的活跃窗末（与规则槽位同一口径），{@link #evaluate} 到期回收；
+     * <b>同类工件先回收旧的</b>（一实例同类至多一件 = 触发即覆盖）。
+     */
+    public void attachArtifact(RuleArtifact artifact) {
+        if (artifact == null) return;
+        for (int i = artifactCount - 1; i >= 0; i--) {
+            if (artifactSlots[i].kind() == artifact.kind()) {
+                artifactSlots[i].release();
+                removeArtifact(i);
+            }
+        }
+        if (artifactCount >= artifactSlots.length) growArtifacts();
+        artifactSlots[artifactCount] = artifact;
+        artifactWindowEnd[artifactCount] = actionWindowEnd;
+        artifactCount++;
+        artifact.attach();
+    }
+
+    /**
+     * 规则动作 {@code pause}：挂起本实例播放时钟（引擎持有；{@code resume} 动作 / 片段结束 /
+     * 引擎重建 / 停播时解除——防悬挂）。与 until 的挂起同一状态、分开记账。
+     */
+    public void suspendByAction() {
+        ScriptPlayer player = player();
+        if (player == null) return;
+        player.beginSuspend();
+        actionSuspendHeld = true;
+    }
+
+    /** 规则动作 {@code resume}：解除挂起（幂等；until 等待与 pause 的挂起一并解除）。 */
+    public void resumeByAction() {
+        releaseSuspend(player());
+    }
+
     /**
      * 按脚本重建规则槽位（{@code start} / {@code replaceScript} 时调用）：旧等待一并作废（脚本已换）。
      *
@@ -104,6 +163,7 @@ public final class RuleEngine {
      */
     public void sync(CinematicScript script, ScriptPlayer player) {
         releaseSuspend(player);
+        releaseArtifacts();
         clearSlots();
         if (script == null || script.getTimeline() == null) return;
 
@@ -141,9 +201,10 @@ public final class RuleEngine {
         lastClock = Double.NaN;
     }
 
-    /** 清空规则槽位并释放引擎持有的挂起（{@code stop} 时调用：不留冻结的实例）。 */
+    /** 清空规则槽位并释放引擎持有的挂起与动作工件（{@code stop} 时调用：不留冻结的实例 / 不留残件）。 */
     public void reset(ScriptPlayer player) {
         releaseSuspend(player);
+        releaseArtifacts();
         clearSlots();
     }
 
@@ -153,11 +214,14 @@ public final class RuleEngine {
      * @param player 本实例播放器（时间轴读数 / 挂起开关 / seek 都作用于它）
      */
     public void evaluate(ScriptPlayer player) {
-        if (slotCount == 0 || player == null) return;
+        if (player == null) return;
+        float timeline = player.timelineTime();
+        // 动作工件到期回收：片段活跃窗末已过（先于本帧链求值——本帧渲染不再看到过期工件）
+        if (artifactCount > 0) expireArtifacts(timeline);
+        if (slotCount == 0) return;
         context.beginFrame();
         if (!context.available()) return;
 
-        float timeline = player.timelineTime();
         float elapsed = player.getElapsedSeconds();
         float dt = Float.isNaN(lastElapsed) ? 0f : elapsed - lastElapsed;
         if (!(dt >= 0f)) dt = 0f;                       // 首帧 / 时间轴回退：驻留不倒退
@@ -183,11 +247,13 @@ public final class RuleEngine {
             }
         }
 
-        if (resolvedCount > 0) releaseSuspend(player);
+        if (resolvedCount > 0) releaseUntilSuspend(player);
         for (int r = 0; r < resolvedCount; r++) {
             int slot = resolvedSlots[r];
             ClipRule rule = slotRules[slot];
             List<JsonObject> actions = resolvedTimedOut[r] ? rule.getOnTimeout() : rule.getActions();
+            // 本批动作的注册窗末（camera_set / overlay_set / adjust_set 的工件回收时刻）
+            actionWindowEnd = slotWindowEnd[slot];
             for (int a = 0; a < actions.size(); a++) {
                 RuleActions.execute(owner, slotClips[slot], rule, actions.get(a));
             }
@@ -196,7 +262,7 @@ public final class RuleEngine {
             player.beginSuspend();
             suspendRequested = true;
         } else if (suspendRequested) {
-            releaseSuspend(player);
+            releaseUntilSuspend(player);
         }
     }
 
@@ -262,11 +328,64 @@ public final class RuleEngine {
         }
     }
 
-    /** 释放引擎持有的挂起（幂等；未持有 / 未挂起时无操作）。 */
-    private void releaseSuspend(ScriptPlayer player) {
-        if (!suspendRequested) return;
+    /** 解除 until 的挂起请求（pause 动作的挂起仍持有时不解冻；幂等）。 */
+    private void releaseUntilSuspend(ScriptPlayer player) {
         suspendRequested = false;
+        if (!actionSuspendHeld && player != null) player.endSuspend();
+    }
+
+    /** 解除全部挂起（until + pause；{@code resume} 动作 / 引擎重建 / 停播；幂等）。 */
+    private void releaseSuspend(ScriptPlayer player) {
+        if (!suspendRequested && !actionSuspendHeld) return;
+        suspendRequested = false;
+        actionSuspendHeld = false;
         if (player != null) player.endSuspend();
+    }
+
+    /** 本实例的播放器（未接线时为 {@code null}）。 */
+    private ScriptPlayer player() {
+        return owner != null ? owner.player() : null;
+    }
+
+    // ===== 动作工件（帧内零分配：槽位数组 + 窗末平行数组） =====
+
+    /** 片段窗末到期回收（{@code timeline} 已达回收时刻即 {@link RuleArtifact#release()}）。 */
+    private void expireArtifacts(float timeline) {
+        for (int i = artifactCount - 1; i >= 0; i--) {
+            if (timeline >= artifactWindowEnd[i]) {
+                artifactSlots[i].release();
+                removeArtifact(i);
+            }
+        }
+    }
+
+    /** 回收全部工件（引擎重建 / 停播）。 */
+    private void releaseArtifacts() {
+        for (int i = 0; i < artifactCount; i++) {
+            artifactSlots[i].release();
+            artifactSlots[i] = null;
+        }
+        artifactCount = 0;
+    }
+
+    /** 摘除一个槽位（尾元素填坑，保序无关：同类覆盖与到期回收都不依赖顺序）。 */
+    private void removeArtifact(int index) {
+        int last = artifactCount - 1;
+        artifactSlots[index] = artifactSlots[last];
+        artifactWindowEnd[index] = artifactWindowEnd[last];
+        artifactSlots[last] = null;
+        artifactCount = last;
+    }
+
+    /** 扩容工件槽位（只在触发帧发生）。 */
+    private void growArtifacts() {
+        int size = Math.max(2, artifactSlots.length * 2);
+        RuleArtifact[] slots = new RuleArtifact[size];
+        float[] ends = new float[size];
+        System.arraycopy(artifactSlots, 0, slots, 0, artifactCount);
+        System.arraycopy(artifactWindowEnd, 0, ends, 0, artifactCount);
+        artifactSlots = slots;
+        artifactWindowEnd = ends;
     }
 
     private void clearSlots() {

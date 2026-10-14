@@ -216,6 +216,21 @@ final class PlaybackLifecycle {
         return false;
     }
 
+    /**
+     * 声明式退出（规则动作 {@code exit}；设计 §8.1 ③族归 {@link ExitReason#NATURAL_END}，五值不扩）：
+     * 与 {@link #requestExit} 的 NATURAL_END 同一映射（{@link CompletionReason#FINISHED} + 渐出退场），
+     * 但<b>跳过 {@code hold_at_end} 拒绝</b>——声明式退出优先于末尾驻留（hold 是「内容自然播完后驻留」，
+     * 作者在规则里显式声明的退出不该被驻留门挡下）。
+     *
+     * @param instance 目标实例（本实例作用域；{@code null} = 无播放可结束）
+     * @return 恒 {@code true}（声明式退出不经行为开关门控）
+     */
+    boolean requestDeclaredExit(PlaybackInstance instance) {
+        setExitReason(instance, CompletionReason.FINISHED);
+        deactivate(instance);
+        return true;
+    }
+
     /** 请求指定实例退场渐出（只淡出本实例的层；渐出完成后由帧驱动的结束判定真正停用）。 */
     private void deactivate(PlaybackInstance instance) {
         if (instance == null) return;

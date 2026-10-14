@@ -357,6 +357,25 @@
 
 通用字段：`repeatable`（可重复触发）、`delay`（延迟秒）、`on_enter`（仅进入时触发，位置类用）、`poll_interval`（**检测频率覆盖**，tick，`1`~`600`，**仅轮询类**有效；缺省回落到脚本级 `meta.trigger_poll_interval` → 类型级默认，事件驱动写 = 无效）。完整 27 种见 `docs/TRIGGER_TYPES.md`。
 
+### 3.7 判定规则（`rules`：片段执行中满足条件就做事）
+
+触发器管「脚本什么时候开始播」，**规则管「播到某段时满足条件做什么」**。写在**片段**上（clip 级 `rules` 数组，任意轨道都可挂）：
+
+```json
+"rules": [
+  { "if":   { "type": "location", "position": { "x": 130, "y": 64, "z": -170 }, "radius": 4 },
+    "do":   [ { "type": "play_sound", "sound": "minecraft:ambient.cave" } ], "cooldown": 5 },
+  { "until": { "type": "time", "at": 12.0 },
+    "do":    [ { "type": "goto_clip", "track": "CAMERA", "at": 20 } ],
+    "timeout": 20, "on_timeout": [ { "type": "exit" } ] }
+]
+```
+
+- 两种形态：`if`（条件成立那一刻做 `do`，不冻结播放）；`until`（条件不成立就**冻结本实例播放时钟**等它成立——等待点；`timeout` 真实时钟先到则走 `on_timeout`）。
+- 判定源与触发器同词汇：`time`（片段本地时钟 `at` / `from`+`to`）、`location`、`facing`、`biome`、`dimension`、`camera_pos`、`camera_facing`、`camera_fov` + 组合器 `all_of` / `any`。
+- 动作 v1 九种（只作用本播放实例）：`camera_set`（`channels` + 可选 `mode` / `priority` + 通道值：触发起持续叠加到片段结束）、`overlay_set`（`layer_type:"fade"` + `opacity` / `color`）、`adjust_set`（基础校色 15 通道，如 `{"exposure":0.5}`）、`goto_clip`（`{"track":"CAMERA","at":秒}` 时间寻址）、`pause` / `resume`、`exit`（声明式退出，`hold_at_end` 也照退）、`play_sound`（`sound` + 可选 `volume` / `pitch`）、`emit_command`（`command`，服务端执行、仅该脚本观看者）。
+- 无限等待用 `until` 不写 `timeout`（**没有** `hold` 动作）；动作失败只记限频日志、播放照走（不中断）。
+
 ---
 
 ## 4. 常用运镜配方（写精细化脚本的组合套路）

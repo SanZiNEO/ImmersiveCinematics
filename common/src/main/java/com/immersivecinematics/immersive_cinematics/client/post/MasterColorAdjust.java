@@ -33,6 +33,12 @@ import java.util.Map;
  * <p>集合的生命周期 = <b>一帧</b>：帧首 {@link #beginFrame} 复位（丢帧间残留）、{@link #consume} 取走即清空，
  * 所以插入序就是本帧实例循环的顺序。</p>
  *
+ * <h2>规则调整层（{@code adjust_set}，0.3.6 C6-3）</h2>
+ * 规则动作建出的实例级调整层另存一份（{@link #publishRuleLayer} / {@link #clearRuleLayer}）：跨帧存活
+ * （触发即覆盖值，片段结束 / 停播清除），{@link #consume} 时紧随其所属实例的轨道层之后输出——
+ * 因此它是<b>叠加</b>在该实例的 ADJUST 轨输出之上的一层（未写通道取缺省 = 不改变画面），
+ * 与「不同实例各占一层、逐套顺序施加」的多实例口径一致。
+ *
  * <h2>线程</h2>
  * 发布在渲染线程（{@code CameraManager.onRenderFrame} 的调用链里）、取走也在渲染线程
  * （{@code GameRenderer.renderLevel} 返回之后）——单线程配对；集合用 {@code synchronized} 保护
@@ -49,6 +55,15 @@ public final class MasterColorAdjust {
      * 只覆盖值、不改变位置。</p>
      */
     private final Map<Object, ColorAdjustParams> pending = new LinkedHashMap<>();
+
+    /**
+     * 实例级<b>规则调整层</b>（规则动作 {@code adjust_set}；一实例至多一条）：触发即覆盖值，
+     * 片段结束 / 停播时清除（由规则引擎的工件生命周期驱动）。与 {@link #pending} 分开记账——
+     * 后者是「一帧」的生命周期（帧首复位、取走即清空），规则层跨帧存活。
+     * <p>输出位置：{@link #consume} 时紧随其所属实例的轨道层之后（叠加在该实例的 ADJUST 轨输出之上；
+     * 未写通道取缺省 0 = 不改变画面），无活跃轨道的实例则单独成层。</p>
+     */
+    private final Map<Object, ColorAdjustParams> ruleLayers = new LinkedHashMap<>();
 
     private MasterColorAdjust() {
     }
@@ -72,12 +87,41 @@ public final class MasterColorAdjust {
     }
 
     /**
+     * 发布<b>某个实例</b>的规则调整层（{@code adjust_set} 触发时；一实例至多一条 = 触发即覆盖值）。
+     * 恒等参数（全部通道缺省）视为「无规则层」（移除该实例的条目）。
+     *
+     * @param instanceKey 实例标识（与 {@link #publish} 同一个对象：本实例的播放器）
+     * @param params      规则层参数（未写通道取缺省 = 不改变画面）
+     */
+    public synchronized void publishRuleLayer(Object instanceKey, ColorAdjustParams params) {
+        if (instanceKey == null) {
+            return;
+        }
+        if (params == null || params.isIdentity()) {
+            this.ruleLayers.remove(instanceKey);
+        } else {
+            this.ruleLayers.put(instanceKey, params);
+        }
+    }
+
+    /**
+     * 清除<b>某个实例</b>的规则调整层（片段结束 / 引擎重建 / 停播；其它实例不受影响）。
+     *
+     * @param instanceKey 实例标识（与 {@link #publishRuleLayer} 同一个对象）
+     */
+    public synchronized void clearRuleLayer(Object instanceKey) {
+        if (instanceKey != null) {
+            this.ruleLayers.remove(instanceKey);
+        }
+    }
+
+    /**
      * 帧首复位（{@code GameRenderer.render} 的 HEAD、实例循环之前调用）：丢弃两帧之间产生的条目。
      *
      * <p>实例循环按 {@code CameraManager.instances()} 的列表顺序逐实例发布，插入序因此 = 实例启动顺序；
      * 但播放实例的<b>预执行首帧</b>（{@code ScriptPlayer.start}）等旁路发布可能落在两帧之间，先于循环插入
      * 会让顺序失真一帧——帧首清掉即可保证本帧的顺序只由本帧的循环决定（被清掉的实例在循环里会重新发布，
-     * 因为循环覆盖全部在播实例）。</p>
+     * 因为循环覆盖全部在播实例）。规则调整层不在这里清：它跨帧存活，直到片段结束 / 停播。</p>
      */
     public synchronized void beginFrame() {
         this.pending.clear();
@@ -87,13 +131,25 @@ public final class MasterColorAdjust {
      * 取走本帧全部实例的调整参数并清空。
      *
      * @return 按实例顺序（先启动的在前 = 下层）排列的调整参数列表；无调整（没人发布 / 参数恒等）
-     *         返回空列表
+     *         返回空列表。某实例的规则调整层紧随它的轨道层之后（叠加在上），无轨道层的实例单独成层
      */
     public synchronized List<ColorAdjustParams> consume() {
-        if (this.pending.isEmpty()) {
+        if (this.pending.isEmpty() && this.ruleLayers.isEmpty()) {
             return List.of();
         }
-        List<ColorAdjustParams> layers = new ArrayList<>(this.pending.values());
+        List<ColorAdjustParams> layers = new ArrayList<>(this.pending.size() + this.ruleLayers.size());
+        for (Map.Entry<Object, ColorAdjustParams> entry : this.pending.entrySet()) {
+            layers.add(entry.getValue());
+            ColorAdjustParams rule = this.ruleLayers.get(entry.getKey());
+            if (rule != null) {
+                layers.add(rule);
+            }
+        }
+        for (Map.Entry<Object, ColorAdjustParams> entry : this.ruleLayers.entrySet()) {
+            if (!this.pending.containsKey(entry.getKey())) {
+                layers.add(entry.getValue());
+            }
+        }
         this.pending.clear();
         return layers;
     }

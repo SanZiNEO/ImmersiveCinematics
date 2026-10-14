@@ -49,9 +49,9 @@
             "rules": [
               {
                 "until": { "type": "time", "at": 3 },
-                "do": [ { "type": "goto_clip", "at": 6 } ],
+                "do": [ { "type": "goto_clip", "track": "CAMERA", "at": 6 } ],
                 "timeout": 10,
-                "on_timeout": [ { "type": "goto_clip", "at": 12 } ]
+                "on_timeout": [ { "type": "goto_clip", "track": "CAMERA", "at": 12 } ]
               }
             ],
             "keyframes": [

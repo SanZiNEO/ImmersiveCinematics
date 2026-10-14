@@ -4,7 +4,7 @@
     "name": "规则测试-基础层",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "clip.rules 基础层：一条 if（location 条件 → camera_set，mode enter）+ 一条 until（time 条件 → goto_clip，timeout 20s → on_timeout exit）；本任务只落数据链与挂起时钟，判定源 / 动作集待 C6-2 / C6-3",
+    "description": "clip.rules 基础层：一条 if（location 条件 → camera_set 覆盖链叠加）+ 一条 until（time 条件 → goto_clip 时间寻址，timeout 20s → on_timeout exit）；动作形态 = 动作集 v1（C6-3）",
     "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
     "block_keyboard": false,
     "block_mouse": false,
@@ -27,7 +27,7 @@
             "start_time": 0,
             "duration": 12,
             "layer_type": "subtitle",
-            "text": "测试: clip.rules 基础层 | if location → camera_set | until time 12s → goto_clip（timeout 20s → exit）",
+            "text": "测试: clip.rules 基础层 | if location → camera_set(position replace) | until time 12s → goto_clip(track CAMERA, at 12)（timeout 20s → exit）",
             "x": 0.5,
             "y": 0.5,
             "z_index": 100,
@@ -49,12 +49,12 @@
             "rules": [
               {
                 "if": { "type": "location", "corner1": { "x": 100, "y": 60, "z": -200 }, "corner2": { "x": 120, "y": 80, "z": -180 } },
-                "do": [ { "type": "camera_set", "position": [110, 75, -190], "blend": 1.5 } ],
+                "do": [ { "type": "camera_set", "channels": [ "position" ], "mode": "replace", "position": { "x": 110, "y": 75, "z": -190 } } ],
                 "mode": "enter"
               },
               {
                 "until": { "type": "time", "at": 12.0 },
-                "do": [ { "type": "goto_clip", "clip": "clip_b" } ],
+                "do": [ { "type": "goto_clip", "track": "CAMERA", "at": 12 } ],
                 "timeout": 20,
                 "on_timeout": [ { "type": "exit" } ]
               }

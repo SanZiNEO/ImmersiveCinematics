@@ -19,7 +19,8 @@ import java.util.ArrayList;
  * 顺序固定：直控层活跃窗口收口 → 时钟推进 → 逐实例驱动（按启动顺序，后驱动者后写入共享相机状态）
  * → 帧缓存写入 → 快照重建。某实例结束只退它自己，最后一个实例退出才全局复位。
  * 逐实例驱动内：轨道分发之后跑本实例的判定规则引擎（{@code PlaybackInstance.ruleEngine}），
- * 挂起状态变化那一帧发暂停握手（服务端冻结 / 解冻 EVENT 时间线）。
+ * 挂起状态变化那一帧发暂停握手（服务端冻结 / 解冻 EVENT 时间线）；音频同步（游戏暂停或本实例挂起）
+ * 每帧幂等执行——音轨实例走全局 SoundEngine 暂停链路、规则一次性声音走 per-instance 停声。
  * 退场渐出判定按实例的层（{@code OverlayManager.isAnimating(instance)}）：A 实例的渐出不决定 B 实例何时停。
  * 调用点：{@code GameRendererMixin}（{@code GameRenderer.render} 的 HEAD，世界渲染之前），有活跃实例的帧各一次；
  * 必须早于 {@code ScriptLaneDriver.tick}（后者读本方法填好的 lane 快照）。
@@ -100,12 +101,18 @@ final class FrameDriver {
             // 本实例的时钟读数：游戏实例 = 共享虚拟时钟；预览实例 = 预览播放头（各自计时）
             float instanceClock = instance.isPreview() ? previewTime : gameTime;
 
-            // 每帧同步音频暂停状态（幂等；对齐 MC SoundEngine：暂停时无新声音、已有实例幂等 pause）。
-            // 必须位于 player.onRenderFrame 之前并每帧执行。
-            if (instancePaused) {
+            // 每帧同步音频状态（幂等；对齐 MC SoundEngine：暂停时无新声音、已有实例幂等 pause）。
+            // 必须位于 player.onRenderFrame 之前并每帧执行。挂起（规则 until / pause 动作）与游戏暂停
+            // 都冻结本实例声音：音轨实例走既有全局 SoundEngine 暂停链路；规则挂起另停本实例的一次性声音
+            // （play_sound 容器是实例自己的，全局暂停不覆盖它，见 AudioTrackPlayer#stopOneShots）。
+            boolean audioPaused = instancePaused || player.isSuspended();
+            if (audioPaused) {
                 player.pauseAudio();
             } else {
                 player.resumeAudio();
+            }
+            if (player.isSuspended()) {
+                player.stopOneShotSounds();
             }
 
             if (pauseTransition && !instance.isPreview() && player.isPlaying()) {

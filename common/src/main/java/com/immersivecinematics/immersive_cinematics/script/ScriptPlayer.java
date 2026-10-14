@@ -7,6 +7,8 @@ import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.util.Clock;
 import net.minecraft.client.Minecraft;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
@@ -139,6 +141,13 @@ public class ScriptPlayer {
     // TrackPlayer 调度列表
     private List<TrackPlayer> trackPlayers = Collections.emptyList();
 
+    /**
+     * 规则动作 {@code play_sound} 的一次性发声宿主（0.3.6 C6-3；懒建）：与轨道列表无关——
+     * 没有 AUDIO 轨道的脚本同样能发声。不参与轨道分发（只用到一次性声音容器 / 回收 / 停止），
+     * 随实例停止清理（见 {@link #cleanupTrackPlayers()}）。
+     */
+    private AudioTrackPlayer oneShotHost;
+
     /** 组 A：按轨道索引取 clips（动态数据源；支持同类型多条轨道——OVERLAY 多轨道） */
     public List<Clip> clipsForTrack(int trackIndex) {
         if (script == null) return Collections.emptyList();
@@ -230,7 +239,7 @@ public class ScriptPlayer {
 
     // ========== 生命周期 ==========
 
-    /** 停止并清空当前所有 TrackPlayer（start 前与 stop 时共用，防音频实例泄漏） */
+    /** 停止并清空当前所有 TrackPlayer（start 前与 stop 时共用，防音频实例泄漏）；一次性声音宿主一并清理。 */
     private void cleanupTrackPlayers() {
         for (TrackPlayer tp : trackPlayers) {
             try {
@@ -240,6 +249,10 @@ public class ScriptPlayer {
             }
         }
         trackPlayers = Collections.emptyList();
+        if (oneShotHost != null) {
+            oneShotHost.onStop();
+            oneShotHost = null;
+        }
     }
 
     /**
@@ -542,6 +555,10 @@ public class ScriptPlayer {
                 com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackPlayer 执行异常", e);
             }
         }
+        // 一次性声音（规则动作 play_sound）的帧内回收：已播完的从容器移除
+        if (oneShotHost != null) {
+            oneShotHost.pruneOneShots();
+        }
 
         // 玩家移动控制（EVENT position 关键帧驱动，与相机同一虚拟时钟，暂停感知）
         playerMovement.onRenderFrame(elapsedSeconds);
@@ -602,6 +619,28 @@ public class ScriptPlayer {
             } catch (Exception e) {
                 com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackPlayer onSeek 异常", e);
             }
+        }
+    }
+
+    /**
+     * 播一条一次性声音（规则动作 {@code play_sound}；本实例作用域）。宿主懒建：无 AUDIO 轨道的脚本也能发声。
+     *
+     * @param sound    音效事件（已解析）
+     * @param category 声音分类
+     * @param volume   音量（1 = 原值）
+     * @param pitch    音调（1 = 原值）
+     */
+    public void playOneShot(SoundEvent sound, SoundSource category, float volume, float pitch) {
+        if (oneShotHost == null) {
+            oneShotHost = new AudioTrackPlayer(this, TrackType.AUDIO, Vec3.ZERO, -1);
+        }
+        oneShotHost.playOneShot(sound, category, volume, pitch);
+    }
+
+    /** 停本实例的一次性声音（规则挂起 / 停播；无宿主 = 无操作）。 */
+    public void stopOneShotSounds() {
+        if (oneShotHost != null) {
+            oneShotHost.stopOneShots();
         }
     }
 

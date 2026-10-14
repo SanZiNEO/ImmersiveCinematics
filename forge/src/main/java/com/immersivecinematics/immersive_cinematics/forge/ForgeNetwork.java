@@ -80,6 +80,9 @@ public final class ForgeNetwork implements NetworkBridge {
         CHANNEL.registerMessage(id++, C2SAudioListenerPacket.class,
                 CinematicPacket::write, C2SAudioListenerPacket::new,
                 (pkt, ctx) -> { ctx.get().enqueueWork(() -> pkt.handle(ctx.get().getSender())); ctx.get().setPacketHandled(true); });
+        CHANNEL.registerMessage(id++, C2SRuleCommandPacket.class,
+                CinematicPacket::write, C2SRuleCommandPacket::new,
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> pkt.handle(ctx.get().getSender())); ctx.get().setPacketHandled(true); });
     }
 
     @Override

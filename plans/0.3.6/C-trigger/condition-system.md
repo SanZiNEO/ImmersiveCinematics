@@ -70,6 +70,9 @@
 
 动作作用对象 = **本实例**（触发它的那个播放实例）；跨实例作用只经「跨脚本」族显式表达。
 
+**v1 落地（2026-10-14，C6-3）**：`camera_set`（覆盖链 Modifier：`channels` + `mode` + `priority` + 通道值，持续叠加到片段结束 / 同类覆盖；**`blend` 过渡与 `look_at` / `follow` 偏移叠加留 v2**）、`overlay_set`（v1 只支持 `layer_type: "fade"` 临时层）、`adjust_set`（基础校色 15 标量通道的 master 规则调整层）、`goto_clip`（**时间寻址**：`{track, at}`——`clip` id 字段不引入，id 体系归编辑器阶段）、`pause` / `resume`、`exit`（声明式旁路：跳过 `hold_at_end` 拒绝）、`play_sound`（本实例一次性声音）、`emit_command`（C2S 交服务端，**仅该脚本当前观看者执行**）。
+**`hold` 销项**：语义等价 `until` 无 `timeout`（无限等待），v1 不单独实现——写 `hold` 由校验器拦下并提示改用 `until`；`switch_variant` / 跨脚本族 / 规则自控按上表留 v2。
+
 ### 5.1 分支与回退语义（定稿 2026-10-10 用户口径）
 
 分支条件达成 → 执行分支（`goto_clip` / `switch_variant` 等改变播放路线的动作）。**分支执行不成功或中间出现纰漏 → 自然回退主支**：

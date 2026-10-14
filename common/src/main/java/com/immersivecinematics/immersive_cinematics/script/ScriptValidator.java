@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraChannels;
+import com.immersivecinematics.immersive_cinematics.camera.rule.RuleActions;
 import com.immersivecinematics.immersive_cinematics.camera.source.PointSource;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionMode;
 import com.immersivecinematics.immersive_cinematics.client.rule.ClientConditions;
@@ -1073,7 +1074,7 @@ public final class ScriptValidator {
         }
     }
 
-    /** 动作数组：{@code required} 时空数组也报；元素必须带字符串 {@code type}（白名单归 C6-3）。 */
+    /** 动作数组：{@code required} 时空数组也报；元素必须带字符串 {@code type}（白名单与参数结构见 {@link #checkActionElement}）。 */
     private static void checkActionArray(JsonElement e, String ap, boolean required, List<String> issues) {
         if (!e.isJsonArray()) {
             issues.add(ap + " 需要数组（元素 = 动作对象）");
@@ -1090,11 +1091,169 @@ public final class ScriptValidator {
                 issues.add(ip + " 需要对象（动作元素）");
                 continue;
             }
-            JsonElement type = el.getAsJsonObject().get("type");
-            if (type == null || !isString(type)) {
-                issues.add(ip + ".type 缺失或不是字符串（动作元素需要 type）");
+            checkActionElement(el.getAsJsonObject(), ip, issues);
+        }
+    }
+
+    /**
+     * 单个动作元素：{@code type} 白名单（v1 九种，见 {@link RuleActions#ACTION_TYPES_V1}）+ 各动作参数结构；
+     * 与 {@code RuleActions} 的运行期解析同一口径（校验拦下的写法运行期也会跳过——不静默无效）。
+     * {@code hold} 是销项动作：语义 = {@code until} 无 timeout（无限等待），不单独实现。
+     */
+    private static void checkActionElement(JsonObject action, String ip, List<String> issues) {
+        JsonElement typeEl = action.get("type");
+        if (typeEl == null || !isString(typeEl)) {
+            issues.add(ip + ".type 缺失或不是字符串（动作元素需要 type；v1 动作: "
+                    + RuleActions.typesLabel() + "）");
+            return;
+        }
+        String type = typeEl.getAsString();
+        switch (type) {
+            case "camera_set" -> checkModifierBody(action, ip, issues, "type");
+            case "overlay_set" -> checkActionOverlaySet(action, ip, issues);
+            case "adjust_set" -> checkActionAdjustSet(action, ip, issues);
+            case "goto_clip" -> checkActionGotoClip(action, ip, issues);
+            case "play_sound" -> checkActionPlaySound(action, ip, issues);
+            case "emit_command" -> checkActionEmitCommand(action, ip, issues);
+            case "pause", "resume", "exit" -> rejectActionKeys(action, ip, issues);
+            case RuleActions.ACTION_HOLD -> issues.add(ip + " hold 动作未实现（销项）：无限等待用 until 无 timeout 表达"
+                    + "——{\"until\": {<条件>}, \"do\": [...]}（缺省 timeout = 无限等待）");
+            default -> issues.add(ip + ".type 未知动作: " + type + "（v1 动作: " + RuleActions.typesLabel() + "）");
+        }
+    }
+
+    /**
+     * {@code overlay_set}：{@code layer_type} 必填（v1 = {@code fade}；image / subtitle 留 v2）+
+     * {@code opacity} 0~1（缺省 1）+ {@code color} 十六进制 + {@code z_index} 整数。
+     */
+    private static void checkActionOverlaySet(JsonObject action, String ip, List<String> issues) {
+        if (!action.has("layer_type")) {
+            issues.add(ip + ".layer_type 缺失（v1 支持: "
+                    + String.join(" / ", RuleActions.OVERLAY_LAYER_TYPES_V1) + "）");
+        } else {
+            checkEnum(action, ip, "layer_type", issues,
+                    RuleActions.OVERLAY_LAYER_TYPES_V1.toArray(new String[0]));
+        }
+        checkHexColor(action, ip, "color", issues);
+        JsonElement opacity = action.get("opacity");
+        if (opacity != null && (!isNumber(opacity) || !Float.isFinite(opacity.getAsFloat())
+                || opacity.getAsFloat() < 0f || opacity.getAsFloat() > 1f)) {
+            issues.add(ip + ".opacity 需要 0~1 的有限数字（缺省 1 = 全遮），实际: " + opacity);
+        }
+        JsonElement zIndex = action.get("z_index");
+        if (zIndex != null && (!isNumber(zIndex) || !Double.isFinite(zIndex.getAsDouble())
+                || zIndex.getAsDouble() != Math.rint(zIndex.getAsDouble()))) {
+            issues.add(ip + ".z_index 需要整数（层级索引：数值越大越靠上；缺省 10），实际: " + zIndex);
+        }
+        rejectActionKeys(action, ip, issues, "layer_type", "opacity", "color", "z_index");
+    }
+
+    /**
+     * {@code adjust_set}：参数名 ∈ {@link RuleActions#ADJUST_CHANNELS_V1}（与 ADJUST 轨关键帧字段同名），
+     * 值为有限数字；至少一个通道（只写 type = 什么都不做）。
+     */
+    private static void checkActionAdjustSet(JsonObject action, String ip, List<String> issues) {
+        String hint = String.join(" / ", RuleActions.ADJUST_CHANNELS_V1);
+        int declared = 0;
+        for (String key : action.keySet()) {
+            if ("type".equals(key)) continue;
+            declared++;
+            if (!RuleActions.ADJUST_CHANNELS_V1.contains(key)) {
+                issues.add(ip + "." + key + " 未知通道（v1 支持: " + hint + "）");
+                continue;
+            }
+            JsonElement e = action.get(key);
+            if (!isNumber(e) || !Float.isFinite(e.getAsFloat())) {
+                issues.add(ip + "." + key + " 需要有限数字（缺省 0 = 不改变画面）");
             }
         }
+        if (declared == 0) {
+            issues.add(ip + " 未声明任何通道（至少一个: " + hint + "）");
+        }
+    }
+
+    /**
+     * {@code goto_clip}：{@code track}（轨道类型名）+ {@code at}（目标已播放时间秒 ≥ 0）时间寻址；
+     * 不引入 clip id 字段。目标时间须落在该轨某个片段的窗内（运行期解析，越界 = 限频日志 + 不动）。
+     */
+    private static void checkActionGotoClip(JsonObject action, String ip, List<String> issues) {
+        JsonElement track = action.get("track");
+        if (track == null) {
+            issues.add(ip + ".track 缺失（轨道类型名: " + trackTypesHint() + "）");
+        } else if (!isString(track) || trackTypeOf(track.getAsString()) == null) {
+            issues.add(ip + ".track 未知轨道类型: " + track + "（可选: " + trackTypesHint() + "）");
+        }
+        JsonElement at = action.get("at");
+        if (at == null) {
+            issues.add(ip + ".at 缺失（目标已播放时间，秒；须落在该轨某个片段的窗内）");
+        } else if (!isNumber(at) || !Float.isFinite(at.getAsFloat()) || at.getAsFloat() < 0f) {
+            issues.add(ip + ".at 需要 ≥ 0 的有限数字（秒），实际: " + at);
+        }
+        rejectActionKeys(action, ip, issues, "track", "at");
+    }
+
+    /** {@code play_sound}：{@code sound} 必填（非空字符串）+ {@code volume} / {@code pitch} 可选（有限数字）。 */
+    private static void checkActionPlaySound(JsonObject action, String ip, List<String> issues) {
+        JsonElement sound = action.get("sound");
+        if (sound == null || !isString(sound) || sound.getAsString().isEmpty()) {
+            issues.add(ip + ".sound 缺失或不是非空字符串（音效 id，如 minecraft:ambient.cave）");
+        }
+        checkActionNumber(action, ip, "volume", issues);
+        checkActionNumber(action, ip, "pitch", issues);
+        rejectActionKeys(action, ip, issues, "sound", "volume", "pitch");
+    }
+
+    /** {@code emit_command}：{@code command} 必填（非空字符串；多条用 {@code &&} 分隔）。 */
+    private static void checkActionEmitCommand(JsonObject action, String ip, List<String> issues) {
+        JsonElement command = action.get("command");
+        if (command == null || !isString(command) || command.getAsString().isBlank()) {
+            issues.add(ip + ".command 缺失或不是非空字符串（命令原文，不含前导 /；多条用 && 分隔）");
+        }
+        rejectActionKeys(action, ip, issues, "command");
+    }
+
+    /** 可选数字参数（缺失 = 跳过；非法 → issue）。 */
+    private static void checkActionNumber(JsonObject action, String ip, String key, List<String> issues) {
+        JsonElement e = action.get(key);
+        if (e != null && (!isNumber(e) || !Float.isFinite(e.getAsFloat()))) {
+            issues.add(ip + "." + key + " 需要有限数字，实际: " + e);
+        }
+    }
+
+    /** 动作元素的结构键白名单：{@code type} 之外的键都必须在 {@code allowed} 里（空 = 该动作无参数）。 */
+    private static void rejectActionKeys(JsonObject action, String ip, List<String> issues, String... allowed) {
+        for (String key : action.keySet()) {
+            if ("type".equals(key)) continue;
+            boolean known = false;
+            for (String a : allowed) {
+                if (a.equals(key)) {
+                    known = true;
+                    break;
+                }
+            }
+            if (!known) {
+                issues.add(ip + "." + key + " 未知键（"
+                        + (allowed.length == 0 ? "该动作无参数" : "可用: " + String.join(" / ", allowed)) + "）");
+            }
+        }
+    }
+
+    /** 轨道类型名 → 枚举（大小写不敏感；未知 → {@code null}；与运行期同一口径）。 */
+    private static TrackType trackTypeOf(String name) {
+        for (TrackType type : TrackType.values()) {
+            if (type.name().equalsIgnoreCase(name)) return type;
+        }
+        return null;
+    }
+
+    /** 轨道类型名清单（报错文案用）。 */
+    private static String trackTypesHint() {
+        StringBuilder sb = new StringBuilder();
+        for (TrackType type : TrackType.values()) {
+            if (sb.length() > 0) sb.append(" / ");
+            sb.append(type.name());
+        }
+        return sb.toString();
     }
 
     /** 公共修饰字段：{@code once} 布尔 / {@code cooldown} 非负 / {@code mode} 枚举 / {@code timeout} 正数。 */
@@ -1159,7 +1318,17 @@ public final class ScriptValidator {
             issues.add(mp + " 需要对象 {channels, mode?, priority?, <通道值>}");
             return;
         }
-        JsonObject modifier = e.getAsJsonObject();
+        checkModifierBody(e.getAsJsonObject(), mp, issues);
+    }
+
+    /**
+     * 校验 Modifier 参数体（{@code channels} + {@code mode?} + {@code priority?} + 通道值）：
+     * clip 级 {@code modifier} 字段与规则动作 {@code camera_set} 共用（同一份参数结构）。
+     *
+     * @param extraStructuralKeys 额外允许的结构键（{@code camera_set} 传 {@code "type"}；无则空）
+     */
+    private static void checkModifierBody(JsonObject modifier, String mp, List<String> issues,
+                                          String... extraStructuralKeys) {
         int mask = checkModifierChannels(modifier, mp, issues);
         checkModifierMode(modifier, mp, issues);
         checkModifierPriority(modifier, mp, issues);
@@ -1178,11 +1347,16 @@ public final class ScriptValidator {
             }
             checkModifierValue(modifier.get(name), mp + "." + name, name, issues);
         }
+        StringBuilder extra = new StringBuilder();
+        for (String key : extraStructuralKeys) {
+            extra.append(" / ").append(key);
+        }
         for (String key : modifier.keySet()) {
             if ("channels".equals(key) || "mode".equals(key) || "priority".equals(key)) continue;
             if (CameraChannels.bitOf(key) != 0) continue;
-            issues.add(mp + "." + key + " 未知键（结构键: channels / mode / priority；值键: 通道名 "
-                    + CameraChannels.namesHint() + "）");
+            if (extra.indexOf(" / " + key) >= 0) continue;
+            issues.add(mp + "." + key + " 未知键（结构键: channels / mode / priority" + extra
+                    + "；值键: 通道名 " + CameraChannels.namesHint() + "）");
         }
     }
 

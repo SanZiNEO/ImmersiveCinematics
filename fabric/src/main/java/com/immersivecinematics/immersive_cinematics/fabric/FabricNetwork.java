@@ -52,6 +52,10 @@ public final class FabricNetwork implements NetworkBridge {
             C2SResolveEntitySelectorPacket pkt = new C2SResolveEntitySelectorPacket(buf);
             server.execute(() -> pkt.handle(player));
         });
+        ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.RULE_COMMAND), (server, player, handler, buf, responseSender) -> {
+            C2SRuleCommandPacket pkt = new C2SRuleCommandPacket(buf);
+            server.execute(() -> pkt.handle(player));
+        });
 
         // ===== S2C（仅客户端：专用服务端没有 ClientPlayNetworking）=====
         if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
@@ -118,6 +122,7 @@ public final class FabricNetwork implements NetworkBridge {
         if (packet instanceof C2SPreloadRequestPacket) return id(NetworkHandler.PRELOAD_REQ);
         if (packet instanceof C2SPreloadPositionPacket) return id(NetworkHandler.PRELOAD_POS);
         if (packet instanceof C2SAudioListenerPacket) return id(NetworkHandler.AUDIO_LISTENER);
+        if (packet instanceof C2SRuleCommandPacket) return id(NetworkHandler.RULE_COMMAND);
         if (packet instanceof C2SResolveEntitySelectorPacket) return id(NetworkHandler.RESOLVE_ENTITY_SELECTOR);
         if (packet instanceof S2CPlayScriptPacket) return id(NetworkHandler.PLAY_SCRIPT);
         if (packet instanceof S2CStopScriptPacket) return id(NetworkHandler.STOP_SCRIPT);

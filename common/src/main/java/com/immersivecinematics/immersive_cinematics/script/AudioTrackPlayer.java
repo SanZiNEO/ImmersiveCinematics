@@ -1,6 +1,10 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -13,10 +17,41 @@ import java.util.*;
  * <p>
  * 不再直接操作 OpenAL：实例为 {@link CinematicAudioInstance}（AbstractTickableSoundInstance），
  * 由 SoundEngine 统一管理空间/衰减/分类音量/暂停。每个 Clip 对应一个实例，clip 激活时创建并 play。
+ * <p>
+ * 规则动作 {@code play_sound} 走一次性声音（{@link #playOneShot}）：与 clip 键的实例分开装在
+ * {@link #oneShots} 里（不属任何 clip），由 {@link #pruneOneShots} / {@link #stopOneShots} / {@link #onStop}
+ * 管理生命周期。声音引擎出口收在 {@link SoundSink} 后（探针可注入桩）。
  */
 public class AudioTrackPlayer implements TrackPlayer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/Audio");
+
+    /** 生产出口：原版 SoundEngine（全局暂停 / 恢复也走它，见 {@link #pauseAll}）。 */
+    private static final SoundSink ENGINE_SINK = new SoundSink() {
+        @Override
+        public void play(SoundInstance instance) {
+            Minecraft.getInstance().getSoundManager().play(instance);
+        }
+
+        @Override
+        public void stop(SoundInstance instance) {
+            Minecraft.getInstance().getSoundManager().stop(instance);
+        }
+
+        @Override
+        public boolean isActive(SoundInstance instance) {
+            return Minecraft.getInstance().getSoundManager().isActive(instance);
+        }
+    };
+
+    /** 声音引擎出口（play / stop / isActive 三个动作；无头探针注入桩即可验证一次性声音的生命周期）。 */
+    public interface SoundSink {
+        void play(SoundInstance instance);
+
+        void stop(SoundInstance instance);
+
+        boolean isActive(SoundInstance instance);
+    }
 
     private final ScriptPlayer scriptPlayer;
     private final TrackType type;
@@ -26,6 +61,16 @@ public class AudioTrackPlayer implements TrackPlayer {
     /** 创建失败的音频 clip：跳过并只提示一次，避免每帧刷异常 */
     private final Set<Clip> failedClips = new HashSet<>();
     private int lastClipIndex = -1;
+
+    /**
+     * 规则动作 {@code play_sound} 的一次性声音（0.3.6 C6-3）：<b>独立于按 clip 键的 {@link #instances}</b>——
+     * 不属任何 clip，随实例生命周期清理（{@link #pruneOneShots} 帧内回收已播完的、{@link #onStop} 全停清空、
+     * {@link #stopOneShots} 挂起时停本实例的一次性声音）。
+     */
+    private final List<SoundInstance> oneShots = new ArrayList<>();
+
+    /** 声音引擎出口（原版 {@code SoundManager} 的薄封装）；探针可注入桩（无头环境无 SoundEngine）。 */
+    private SoundSink sink = ENGINE_SINK;
 
     /** 组 1：暂停状态（对齐 MC SoundEngine） */
     private boolean paused = false;
@@ -106,6 +151,7 @@ public class AudioTrackPlayer implements TrackPlayer {
             inst.cleanup();
         }
         instances.clear();
+        stopOneShots();
         previouslyActive.clear();
         failedClips.clear();
         lastClipIndex = -1;
@@ -154,6 +200,71 @@ public class AudioTrackPlayer implements TrackPlayer {
             Minecraft.getInstance().getSoundManager().resume();
         }
         paused = false;
+    }
+
+    // ========== 一次性声音（规则动作 play_sound，0.3.6 C6-3） ==========
+
+    /**
+     * 播一条一次性声音（{@code play_sound} 动作）：相对听者、无衰减的本机声音实例，记进 {@link #oneShots}
+     * 容器（不属任何 clip，不进 {@link #instances}）。
+     *
+     * @param sound    音效事件（已解析；调用方负责未知 id 的日志）
+     * @param category 声音分类（分类音量 / 静音随原版走）
+     * @param volume   音量（1 = 原值）
+     * @param pitch    音调（1 = 原值）
+     */
+    public void playOneShot(SoundEvent sound, SoundSource category, float volume, float pitch) {
+        if (sound == null) return;
+        playOneShot(sound.getLocation(), category, volume, pitch);
+    }
+
+    /**
+     * 按音效 id 播一条一次性声音（同一实现的 id 入口；规则动作已在上游把 id 解析成 {@link SoundEvent}）。
+     */
+    void playOneShot(ResourceLocation soundId, SoundSource category, float volume, float pitch) {
+        if (soundId == null) return;
+        SoundInstance instance = new SimpleSoundInstance(soundId, category, volume, pitch,
+                SoundInstance.createUnseededRandom(), false, 0, SoundInstance.Attenuation.NONE,
+                0.0, 0.0, 0.0, true);
+        oneShots.add(instance);
+        sink.play(instance);
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("one-shot start: sound={} category={} active={}",
+                    soundId, category, oneShots.size());
+        }
+    }
+
+    /** 帧内回收已播完的一次性声音（SoundEngine 不再持有即移除；索引倒序遍历，零新增分配）。 */
+    public void pruneOneShots() {
+        for (int i = oneShots.size() - 1; i >= 0; i--) {
+            if (!sink.isActive(oneShots.get(i))) {
+                oneShots.remove(i);
+            }
+        }
+    }
+
+    /**
+     * 停本实例的一次性声音并清空容器（规则挂起 / 停播；幂等）。
+     * <p>
+     * 只动<b>本实例</b>的一次性声音：音轨实例（{@link #instances}）走既有全局 SoundEngine 暂停链路
+     * （{@link #pauseAll} = 全局 pause，非 per-instance），一次性声音没有「续播」语义，挂起即停。
+     */
+    public void stopOneShots() {
+        if (oneShots.isEmpty()) return;
+        for (int i = 0; i < oneShots.size(); i++) {
+            sink.stop(oneShots.get(i));
+        }
+        oneShots.clear();
+    }
+
+    /** 本实例当前在播的一次性声音条数（诊断 / 探针读数）。 */
+    public int oneShotCount() {
+        return oneShots.size();
+    }
+
+    /** 注入声音引擎出口（探针用；生产不调，默认 = 原版 SoundEngine）。 */
+    public void setSoundSink(SoundSink sink) {
+        if (sink != null) this.sink = sink;
     }
 
     private void startClipInstance(Clip clip) {

@@ -4,7 +4,7 @@
     "name": "规则测试-时间判定源",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "判定规则 if + time 判定源（C6-2）：CAMERA 片段在片段本地时钟到 3s 时触发 do → goto_clip 跳到 8s；字幕轨可判别（3 秒时字幕从第一段换成第二段）",
+    "description": "判定规则 if + time 判定源（C6-2）：CAMERA 片段在片段本地时钟到 3s 时触发 do → goto_clip 跳到 8s（track CAMERA 时间寻址）；字幕轨可判别（3 秒时字幕从第一段换成第二段）",
     "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
     "block_keyboard": false,
     "block_mouse": false,
@@ -62,7 +62,7 @@
             "rules": [
               {
                 "if": { "type": "time", "at": 3 },
-                "do": [ { "type": "goto_clip", "at": 8 } ],
+                "do": [ { "type": "goto_clip", "track": "CAMERA", "at": 8 } ],
                 "once": true
               }
             ],

@@ -259,6 +259,33 @@ public class ScriptEventManager {
         }
     }
 
+    /**
+     * 规则动作 {@code emit_command} 的服务端入口（0.3.6 C6-3）：执行口径与 EVENT 轨完全一致
+     * （{@code &&} 拆分 + {@link SuccessOnlySource} 成功结果回执，见 {@link #executeCommand}）。
+     *
+     * <p><b>权限门</b>：只有该脚本<b>当前播放实例的观看者</b>才执行——命令随客户端规则触发而来，
+     * 不校验就等于把「任意命令执行」开放给任何客户端包；非观看者 / 无该实例 / 空命令一律丢弃。</p>
+     */
+    public void handleRuleCommand(ServerPlayer player, String scriptId, String instanceId, String command) {
+        if (!isRuleCommandAllowed(player != null ? player.getUUID() : null, scriptId, instanceId)) {
+            LOGGER.debug("规则命令被拒（非该脚本观看者或无此实例）: script={} instance={}",
+                    scriptId, instanceId);
+            return;
+        }
+        if (command == null || command.isBlank()) return;
+        executeCommand(player, command);
+    }
+
+    /**
+     * 规则命令权限门：发送者是否是该脚本当前播放实例的观看者（{@code ScriptPlayback.viewers} 含其 UUID）。
+     * 探针可直调（不需要 {@code ServerPlayer} 实例）。
+     */
+    public boolean isRuleCommandAllowed(UUID playerId, String scriptId, String instanceId) {
+        if (playerId == null || scriptId == null) return false;
+        ScriptPlayback pb = playback(scriptId, instanceId);
+        return pb != null && pb.viewers.contains(playerId);
+    }
+
     private void executeCommand(ServerPlayer player, String command) {
         String[] parts = command.split("\\s*&&\\s*");
         // 成功结果（/locate 坐标等）发给玩家，失败反馈吞掉（不打扰玩家，错误原因进 ErrorLog 排查）
