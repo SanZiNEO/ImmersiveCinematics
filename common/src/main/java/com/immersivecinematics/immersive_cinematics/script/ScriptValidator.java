@@ -14,6 +14,7 @@ import com.immersivecinematics.immersive_cinematics.selector.SelectorSchema;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
+import com.immersivecinematics.immersive_cinematics.trigger.server.evaluator.Evaluators;
 import com.immersivecinematics.immersive_cinematics.trigger.server.prereq.PrerequisiteRegistry;
 
 import java.util.ArrayList;
@@ -1751,13 +1752,10 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 meta.triggers 的 type / conditions 结构（0.3.6：facing / all_of / any 三个新类型）：
-     * - 未知触发器类型；conditions 不是对象；
-     * - facing：yaw1/pitch1/yaw2/pitch2 必须是数字；pitch 端点必须在 -90~90；
-     * - all_of / any：list 必须是非空数组，元素为 { type, conditions }；子类型必须是已注册的轮询类
-     *   触发器或已注册的前置条件（script_played / script_started / script_completed，锁存语义）；
-     *   事件类不可用——会带来“很久以前发生过也算”的误判；两者都不允许嵌套组合器；
-     * - facing / all_of / any 上的 exit_buffer 不会生效（无空间外扩），给出提示。
+     * 校验 meta.triggers 的 type / conditions 结构：未知类型、conditions 非对象；facing 的四个角度字段
+     * （yaw1/pitch1/yaw2/pitch2 为数字、pitch 端点 ±90）；all_of / any 的 list 结构与子类型（轮询类触发器 /
+     * 已注册前置条件 / 嵌套组合器，层数上限 {@link Evaluators#MAX_COMBINATION_DEPTH} 含顶层，事件类不可用）；
+     * facing / all_of / any 上无效的 exit_buffer 提示。
      */
     private static void validateTriggerConditions(JsonObject meta, String path,
                                                   Collection<String> knownScriptIds, List<String> issues) {
@@ -1789,7 +1787,7 @@ public final class ScriptValidator {
                 if ("facing".equals(type)) {
                     validateFacingConditions(conditions, tp + ".conditions", issues);
                 } else if ("all_of".equals(type) || "any".equals(type)) {
-                    validateCombinationConditions(conditions, tp + ".conditions", type,
+                    validateCombinationConditions(conditions, tp + ".conditions", type, 1,
                             selfId, knownScriptIds, issues);
                 }
             }
@@ -1821,14 +1819,13 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验组合器（all_of / any）的 conditions.list：
-     * - list 必须是非空数组，元素必须是对象且带非空字符串 type；
-     * - 子类型可以是**已注册的轮询类触发器**（瞬时语义），也可以是**已注册的前置条件**
-     *   （script_played / script_started / script_completed，锁存语义）；
-     * - 事件类触发器（“最近发生过”语义）与嵌套组合器（all_of / any）一律拒绝；
-     * - 前置条件子项复用 requires 的同一套字段 / 跨脚本引用校验。
+     * 校验组合器（all_of / any）的 conditions.list（递归，支持嵌套）：list 必须是非空数组，元素为对象且带非空
+     * 字符串 type；子类型可以是已注册的轮询类触发器、已注册前置条件（锁存）或另一个组合器（嵌套）；事件类拒绝。
+     * 嵌套层数 = 本层 + 1（顶层 = 1），超过 {@link Evaluators#MAX_COMBINATION_DEPTH} 报错并停止下钻。
+     *
+     * @param depth 本组合器所处层数，顶层 = 1（与求值侧同一常量口径）
      */
-    private static void validateCombinationConditions(JsonObject c, String p, String combinator,
+    private static void validateCombinationConditions(JsonObject c, String p, String combinator, int depth,
                                                       String selfId, Collection<String> knownScriptIds,
                                                       List<String> issues) {
         if (!c.has("list") || !c.get("list").isJsonArray()) {
@@ -1856,12 +1853,21 @@ public final class ScriptValidator {
                 issues.add(sp + ".type 缺失或不是非空字符串");
                 continue;
             }
-            if ("all_of".equals(subType) || "any".equals(subType)) {
-                issues.add(sp + " 不允许嵌套组合器（" + subType + "，最小版本只支持一层）");
-                continue;
-            }
-            if (sub.has("conditions") && !sub.get("conditions").isJsonObject()) {
+            boolean badConditions = sub.has("conditions") && !sub.get("conditions").isJsonObject();
+            if (badConditions) {
                 issues.add(sp + ".conditions 必须是对象");
+            }
+            if ("all_of".equals(subType) || "any".equals(subType)) {
+                if (depth + 1 > Evaluators.MAX_COMBINATION_DEPTH) {
+                    issues.add(sp + " 嵌套超过 " + Evaluators.MAX_COMBINATION_DEPTH + " 层（组合器最大深度，含顶层）: "
+                            + subType);
+                    continue;
+                }
+                if (badConditions) continue;   // conditions 结构已报错，无法继续下钻
+                JsonObject nested = sub.has("conditions") ? sub.getAsJsonObject("conditions") : new JsonObject();
+                validateCombinationConditions(nested, sp + ".conditions", subType, depth + 1,
+                        selfId, knownScriptIds, issues);
+                continue;
             }
             if (PrerequisiteRegistry.has(subType)) {
                 // 前置条件子项（锁存语义）：数据与触发器一致地放在 conditions 里，复用 requires 的同一套字段检查
