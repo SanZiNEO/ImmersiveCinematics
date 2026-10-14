@@ -230,6 +230,20 @@ public final class ScriptValidator {
             }
         }
 
+        // ===== meta.play_mode：跨脚本播放关系（三态枚举，缺省 parallel）=====
+        if (root.has("meta") && root.get("meta").isJsonObject()) {
+            JsonObject meta = root.getAsJsonObject("meta");
+            if (meta.has("play_mode")) {
+                JsonElement playMode = meta.get("play_mode");
+                if (!isString(playMode)) {
+                    issues.add("meta.play_mode 需要字符串（parallel / exclusive / interruptible）");
+                } else if (!ScriptMeta.PlayMode.isKnown(playMode.getAsString())) {
+                    issues.add("meta.play_mode 未知值: " + playMode.getAsString()
+                            + "（可选: parallel / exclusive / interruptible），运行时按 parallel 处理");
+                }
+            }
+        }
+
         // ===== meta.base_resolution：编辑基准分辨率（分辨率转义系数 k 的分母）=====
         if (root.has("meta") && root.get("meta").isJsonObject()) {
             checkBaseResolution(root.getAsJsonObject("meta"), issues);

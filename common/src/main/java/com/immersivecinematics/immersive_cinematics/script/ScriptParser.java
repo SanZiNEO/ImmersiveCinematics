@@ -162,6 +162,12 @@ public class ScriptParser {
             ErrorLog.log("Parse", p + ".macro_loop_mode 非法值: " + macroLoopMode + "，按 repeat 处理");
             macroLoopMode = "repeat";
         }
+        // 跨脚本播放关系：枚举 parallel / exclusive / interruptible，缺省 parallel（= 现状）；非法值 → 告警并按 parallel
+        String playModeRaw = optString(metaObj, "play_mode", ScriptMeta.PlayMode.PARALLEL.id());
+        if (!ScriptMeta.PlayMode.isKnown(playModeRaw)) {
+            ErrorLog.log("Parse", p + ".play_mode 非法值: " + playModeRaw + "，按 parallel 处理");
+        }
+        ScriptMeta.PlayMode playMode = ScriptMeta.PlayMode.fromString(playModeRaw);
         java.util.Map<String, Boolean> hudLayers = parseHudLayers(metaObj);
         // 编辑基准分辨率（可选）：{w, h} 正整数；缺省 1920×1080，非法 → 告警 + 回落缺省（防御式）
         int[] baseResolution = parseBaseResolution(metaObj);
@@ -203,7 +209,7 @@ public class ScriptParser {
             }
         }
 
-        return new ScriptMeta(id, name, author, version, description, behavior, priority, dimension, triggers, skipVoteRatio,
+        return new ScriptMeta(id, name, author, version, description, behavior, priority, playMode, dimension, triggers, skipVoteRatio,
                 triggerPollInterval, baseResolution[0], baseResolution[1]);
     }
 

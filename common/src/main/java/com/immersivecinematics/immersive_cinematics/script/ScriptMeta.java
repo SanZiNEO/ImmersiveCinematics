@@ -10,6 +10,8 @@ public class ScriptMeta {
     private final String description;
     private final RuntimeBehavior behavior;
     private final int priority;
+    /** 跨脚本播放关系（{@code meta.play_mode}，三态，缺省 {@link PlayMode#PARALLEL}） */
+    private final PlayMode playMode;
     private final String dimension;
     private final List<TriggerDefinition> triggers;
     /** 跳过投票比例（百分比，10~100）；null = 未指定，运行时回落到全局配置 Config.skipVoteRatio */
@@ -27,7 +29,7 @@ public class ScriptMeta {
     public static final int DEFAULT_BASE_HEIGHT = 1080;
 
     public ScriptMeta(String id, String name, String author, int version, String description,
-                      RuntimeBehavior behavior, int priority, String dimension,
+                      RuntimeBehavior behavior, int priority, PlayMode playMode, String dimension,
                       List<TriggerDefinition> triggers, Integer skipVoteRatio,
                       Integer triggerPollInterval, int baseWidth, int baseHeight) {
         this.id = id;
@@ -37,6 +39,7 @@ public class ScriptMeta {
         this.description = description;
         this.behavior = behavior;
         this.priority = priority;
+        this.playMode = playMode != null ? playMode : PlayMode.PARALLEL;
         this.dimension = dimension;
         this.triggers = triggers != null ? triggers : Collections.emptyList();
         this.skipVoteRatio = skipVoteRatio;
@@ -53,6 +56,8 @@ public class ScriptMeta {
     public RuntimeBehavior getBehavior() { return behavior; }
     /** 播放优先级：数值越大优先级越高，仅用于队列内排序（不可打断脚本永不被打断） */
     public int getPriority() { return priority; }
+    /** 跨脚本播放关系（{@code meta.play_mode}，缺省 {@link PlayMode#PARALLEL}）；与同脚本再触发的 interruptible 分工不同 */
+    public PlayMode getPlayMode() { return playMode; }
     public String getDimension() { return dimension; }
     public List<TriggerDefinition> getTriggers() { return triggers; }
     /** 跳过投票比例（10~100）；null = 未指定，运行时使用全局配置 Config.skipVoteRatio */
@@ -91,6 +96,42 @@ public class ScriptMeta {
     public int getMacroLoopCount() { return behavior.macroLoopCount(); }
     /** 宏观循环模式：repeat（默认）/ pingpong（第一版未实现，按 repeat 播放） */
     public String getMacroLoopMode() { return behavior.macroLoopMode(); }
+
+    /**
+     * 跨脚本播放关系三态（{@code meta.play_mode}）：声明本脚本<b>在播期间</b>与其它脚本的关系。
+     * 新来者的去向由在播集合裁决（parallel 不阻塞新来者也不被顶掉；exclusive 让新来者排队；
+     * interruptible 可被新来者顶掉）。与同脚本再触发的 {@code meta.interruptible}（bool）分工不同：后者管同脚本替换。
+     * 不进 {@link RuntimeBehavior}——behavior 参与 {@code recomputeUnion} 按位并集，塞进去会污染并集语义。
+     */
+    public enum PlayMode {
+        PARALLEL("parallel"), EXCLUSIVE("exclusive"), INTERRUPTIBLE("interruptible");
+
+        private static final PlayMode[] VALUES = values();
+
+        /** JSON 取值字面量（脚本里写的 {@code parallel} / {@code exclusive} / {@code interruptible}）。 */
+        private final String id;
+
+        PlayMode(String id) { this.id = id; }
+
+        /** JSON 取值字面量。 */
+        public String id() { return id; }
+
+        /** 取值域内 → 对应枚举；缺省 / 域外 → {@link #PARALLEL}（旧脚本零回归）。 */
+        public static PlayMode fromString(String value) {
+            for (PlayMode mode : VALUES) {
+                if (mode.id.equals(value)) return mode;
+            }
+            return PARALLEL;
+        }
+
+        /** {@code value} 是否在取值域内（解析期告警 / 校验器用）。 */
+        public static boolean isKnown(String value) {
+            for (PlayMode mode : VALUES) {
+                if (mode.id.equals(value)) return true;
+            }
+            return false;
+        }
+    }
 
     @Override
     public String toString() {

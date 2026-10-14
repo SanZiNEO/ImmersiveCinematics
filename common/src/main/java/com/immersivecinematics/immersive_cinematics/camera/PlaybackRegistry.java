@@ -11,7 +11,8 @@ import java.util.List;
  *
  * 列表顺序 = 启动顺序（帧驱动按顺序遍历，后写入者覆盖先写入者 → 后来者居上），
  * 顶层实例 = 列表最后一个。不变量：预览实例恒为末位（{@link #insertBefore} 把游戏实例插在它之前），
- * 因此预览激活时顶层 = 预览实例。同脚本同玩家保持单实例：{@link #instancePlaying(String)}。
+ * 因此预览激活时顶层 = 预览实例。同脚本同玩家保持单实例：{@link #instancePlaying(String)}；
+ * 跨脚本到达裁决按播放模式查在播集合：{@link #hasGameInstancePlaying(ScriptMeta.PlayMode)}。
  *
  * 帧缓存（{@link #hasActiveCameraClip()} / {@link #topInstanceHasActiveCameraClip()}）由帧驱动
  * 每帧同一时点写入一次，供帧内多个消费方读取；帧缓存只在帧驱动写入——无活跃实例时帧驱动不跑、缓存不刷新，
@@ -92,6 +93,22 @@ final class PlaybackRegistry {
             if (instance.player().isPlaying() && scriptId.equals(instance.scriptId())) return instance;
         }
         return null;
+    }
+
+    /**
+     * 是否存在「非预览实例 + 播放模式 = {@code mode}」的在播实例（跨脚本到达裁决的唯一查询面）。
+     * 在播 = 仍在实例表中（含渐出中与 {@code hold_at_end} 驻留实例——两者都还在渲染 / 占位）；
+     * 预览实例恒不参与（预览通道不套用脚本行为，也不与游戏实例争夺播放关系）。
+     *
+     * @param mode 目标播放模式；{@code null} = 无匹配
+     */
+    boolean hasGameInstancePlaying(ScriptMeta.PlayMode mode) {
+        if (mode == null) return false;
+        for (int i = 0; i < instances.size(); i++) {
+            PlaybackInstance instance = instances.get(i);
+            if (!instance.isPreview() && instance.playMode() == mode) return true;
+        }
+        return false;
     }
 
     /**

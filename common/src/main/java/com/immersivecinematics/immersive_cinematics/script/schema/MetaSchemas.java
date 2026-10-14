@@ -43,6 +43,9 @@ public final class MetaSchemas {
         map.put("render_player_model", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
         map.put("pause_when_game_paused", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
         map.put("interruptible", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
+        // 跨脚本播放关系（三态，缺省 parallel = 现状）；同脚本再触发的替换语义仍看上面的 interruptible
+        map.put("play_mode", new FieldDef("enum", "parallel", false,
+                java.util.List.of("parallel", "exclusive", "interruptible"), "runtime"));
         map.put("skippable", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
         map.put("hold_at_end", new FieldDef("bool", false, false, java.util.Collections.emptyList(), "runtime"));
         map.put("macro_loop", new FieldDef("bool", false, false, java.util.Collections.emptyList(), "runtime"));

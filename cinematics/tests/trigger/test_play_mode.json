@@ -1,0 +1,83 @@
+{
+  "meta": {
+    "id": "test_play_mode",
+    "name": "播放关系测试-play_mode 三态",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "meta.play_mode 三态演示（本脚本 = exclusive）：在播侧语义 + 到达组合规则。parallel（缺省）= 不阻塞新来者、也不被跨脚本顶掉；exclusive = 我播时其他脚本一律排队、我播完按 priority 降序 + FIFO 接播；interruptible = 可被新来者硬切顶掉。同脚本再触发的替换语义仍看 meta.interruptible（bool），与 play_mode 分工不同。详见 docs/SCRIPT_FORMAT.md",
+    "triggers": [ {"id":"trg_login","type":"login","repeatable":false,"delay":0,"conditions":{}} ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "play_mode": "exclusive",
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 9,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 3,
+            "layer_type": "subtitle",
+            "text": "play_mode=exclusive（本脚本）| 在播侧：我播时其他脚本的启动请求一律入队，我播完按 priority 降序 + FIFO 接播",
+            "x": 0.5,
+            "y": 0.4,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.4, "opacity": 1 },
+              { "time": 3, "x": 0.5, "y": 0.4, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 3,
+            "duration": 3,
+            "layer_type": "subtitle",
+            "text": "play_mode=parallel（缺省 = 0.3.6 现状）| 不阻塞新来者（直接并行加入），也不被跨脚本打断",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 3, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 3,
+            "layer_type": "subtitle",
+            "text": "play_mode=interruptible | 在播侧：可被新来者硬切顶掉（实例销毁让位；同脚本替换仍看 meta.interruptible）",
+            "x": 0.5,
+            "y": 0.6,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 6, "x": 0.5, "y": 0.6, "opacity": 1 },
+              { "time": 9, "x": 0.5, "y": 0.6, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 9,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "say [播放关系] play_mode 三态：exclusive 排队 / parallel 并行（缺省）/ interruptible 可打断；本脚本 = exclusive" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

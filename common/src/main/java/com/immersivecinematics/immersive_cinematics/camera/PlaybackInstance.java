@@ -25,7 +25,8 @@ import java.util.function.DoubleSupplier;
  *       {@link ScriptMeta.RuntimeBehavior} 快照，{@link #replaceScript}（编辑器增量替换）时随新脚本刷新。
  *       生命周期判定（{@link #isSkippable()} / {@link #isInterruptible()} / {@link #isHoldAtEnd()} /
  *       {@link #isPauseWhenGamePaused()}）一律读本实例，不再读全局 {@code CinematicController}
- *       ——跳过 / 打断 / 末尾保持 / 暂停联动因此按实例独立。</li>
+ *       ——跳过 / 打断 / 末尾保持 / 暂停联动因此按实例独立。跨脚本播放模式（{@link #playMode()}）
+ *       在同一时点快照 / 刷新。</li>
  *   <li><b>生命周期状态</b>：退场渐出中（{@link #isStopping()}）与退出原因（{@link #exitReason()}）
  *       原先分散在 {@code CameraManager} 的 {@code stopping} / {@code pendingCompletionReason} 字段，随实例走。</li>
  * </ul>
@@ -82,6 +83,12 @@ public final class PlaybackInstance {
     /** 启动时快照的运行时行为（脚本 meta 的那一份；与 {@link ScriptPlayer} 持有的为同一对象） */
     private ScriptMeta.RuntimeBehavior behavior;
 
+    /**
+     * 启动时快照的播放模式（脚本 meta 的那一份）：跨脚本到达裁决读本实例，与同脚本再触发的
+     * {@link #isInterruptible()} 分工不同。不进 {@link ScriptMeta.RuntimeBehavior}——behavior 参与按位并集。
+     */
+    private ScriptMeta.PlayMode playMode = ScriptMeta.PlayMode.PARALLEL;
+
     /** 退场渐出中（等价改造前 {@code CameraManager.stopping}） */
     private boolean stopping = false;
 
@@ -113,6 +120,11 @@ public final class PlaybackInstance {
         return behavior;
     }
 
+    /** 本实例的播放模式（跨脚本关系，启动 / 脚本替换时快照）；未开始时为 {@link ScriptMeta.PlayMode#PARALLEL}。 */
+    public ScriptMeta.PlayMode playMode() {
+        return playMode;
+    }
+
     // ========== 生命周期驱动（CameraManager） ==========
 
     /**
@@ -127,6 +139,7 @@ public final class PlaybackInstance {
         this.player.start(script, preExecuteAt);
         ScriptMeta meta = script.getMeta();
         this.behavior = meta != null ? meta.getBehavior() : null;
+        this.playMode = meta != null ? meta.getPlayMode() : ScriptMeta.PlayMode.PARALLEL;
         syncModifiers(script);
     }
 
@@ -136,6 +149,7 @@ public final class PlaybackInstance {
         this.player.replaceScript(newScript);
         ScriptMeta meta = newScript.getMeta();
         this.behavior = meta != null ? meta.getBehavior() : null;
+        this.playMode = meta != null ? meta.getPlayMode() : ScriptMeta.PlayMode.PARALLEL;
         syncModifiers(newScript);
     }
 

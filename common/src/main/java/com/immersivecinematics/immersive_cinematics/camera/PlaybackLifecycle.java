@@ -13,19 +13,21 @@ import net.minecraft.client.Minecraft;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * 播放生命周期与队列：启动 / 退出 / 停止 / 待接播 / 播放队列。
  *
- * 退出统一入口 {@link #requestExit(PlaybackInstance, ExitReason)} 按原因映射完成原因，再走
- * 「渐出退场」（{@link #deactivate}）或「立即停用」（{@link #deactivateNow}）；渐出完成与自然结束
- * 由帧驱动判定后调 {@link #deactivateNow}。生命周期按实例独立：只要还有实例在播，共享时钟 /
- * 相机状态 / 覆盖层都不复位；最后一个实例退出才全局复位。
+ * 退出统一入口 {@link #requestExit(PlaybackInstance, ExitReason)} 按原因映射完成原因，再走「渐出退场」
+ * （{@link #deactivate}）或「立即停用」（{@link #deactivateNow}）；生命周期按实例独立：只要还有实例在播，
+ * 共享时钟 / 相机状态 / 覆盖层都不复位，最后一个实例退出才全局复位。
  *
- * 同脚本单实例：{@link #playScript} 命中同脚本活跃实例时按可打断性「立即替换 / 入队」，
- * 接播在 {@link #deactivateNow} 收尾（{@code pendingScript} 优先于队列）。队列跨实例存活
- * （只有全停清空），接播先于全局复位——接播出实例时共享时钟 / 状态 / 覆盖层都不复位。
+ * 同脚本单实例：{@link #playScript} 命中同脚本活跃实例时按可打断性「立即替换 / 入队」，接播在
+ * {@link #deactivateNow} 收尾（{@code pendingScript} 优先于队列）；队列跨实例存活（只有全停清空），接播先于全局复位。
+ *
+ * 跨脚本到达裁决（{@code meta.play_mode}，设计 §4）：S 含 exclusive → 新来者入队；S 无 exclusive 但含
+ * interruptible → 顶掉全部 interruptible（硬切）后开播；其余（S 空 / 仅 parallel）→ 并行加入。出队判据见 {@link #canDequeue()}。
  *
  * 线程：仅客户端主线程。
  */
@@ -72,8 +74,9 @@ final class PlaybackLifecycle {
     // ========== 脚本播放 ==========
 
     /**
-     * 播放脚本：跨脚本（无同脚本活跃实例）一律新建实例并行播放；同脚本已有活跃实例时维持单实例语义
-     * （可打断 → 立即替换该实例；不可打断 → 入队，容量满则拒绝）。
+     * 播放脚本（到达裁决）：同脚本已有活跃实例 → 既有单实例路径（可打断 → 立即替换；不可打断 → 入队）；
+     * 跨脚本 → 按在播集合 S 裁决（设计 §4）：S 含 exclusive → 入队；S 无 exclusive 但含 interruptible →
+     * 顶掉全部 interruptible 后开播；其余（S 空 / 仅 parallel）→ 直接并行开播。
      *
      * @param instanceId 服务端播放请求的播放实例 id；本地来源传空串
      * @return 0=被拒绝, 1=已开始播放, 2=已排队等待
@@ -82,9 +85,16 @@ final class PlaybackLifecycle {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return 0;
 
-        // 同脚本单实例：只有“同一脚本已在播”才走原有决策树；跨脚本请求不受在播实例影响
+        // 同脚本单实例：只有“同一脚本已在播”才走原有决策树；跨脚本请求按在播集合裁决
         PlaybackInstance sameScript = registry.instancePlaying(script.getId());
         if (sameScript == null) {
+            // 在播集合含 exclusive：新来者一律排队（容量满则拒绝）；同脚本重复请求替换自己的排队位
+            if (registry.hasGameInstancePlaying(ScriptMeta.PlayMode.EXCLUSIVE)) {
+                if (scriptQueue.offerOrReplace(script, instanceId)) return 2;
+                return 0;
+            }
+            // 无 exclusive 但含 interruptible：先顶掉全部 interruptible 实例（硬切），再开播
+            interruptInterruptibles();
             PlaybackInstance started = startScriptInternal(script, instanceId);
             ledger.reportPlaybackStarted(script, started);
             return 1;
@@ -102,6 +112,27 @@ final class PlaybackLifecycle {
         // 不可打断 → 一律排队（容量满则拒绝）；同脚本重复请求替换自己的排队位，不占新格
         if (scriptQueue.offerOrReplace(script, instanceId)) return 2;
         return 0;
+    }
+
+    /**
+     * 顶掉全部在播的 interruptible 非预览实例（跨脚本到达裁决：新来者打断它们后开播）。
+     * 打断形态 = 硬切（{@link CompletionReason#INTERRUPTED} + {@link #deactivateNow}），与同脚本替换路径同形。
+     * 先取目标副本再逐个停用：停用可能接播队列，避免边遍历边增删（新接播的实例不在本次目标内）。
+     */
+    private void interruptInterruptibles() {
+        List<PlaybackInstance> targets = new ArrayList<>();
+        List<PlaybackInstance> instances = registry.instances();
+        for (int i = 0; i < instances.size(); i++) {
+            PlaybackInstance instance = instances.get(i);
+            if (!instance.isPreview() && instance.playMode() == ScriptMeta.PlayMode.INTERRUPTIBLE) {
+                targets.add(instance);
+            }
+        }
+        for (int i = 0; i < targets.size(); i++) {
+            PlaybackInstance instance = targets.get(i);
+            instance.setExitReason(CompletionReason.INTERRUPTED);
+            deactivateNow(instance);
+        }
     }
 
     /** 停止顶层实例（系统停止）。 */
@@ -261,15 +292,11 @@ final class PlaybackLifecycle {
     }
 
     /**
-     * 队列出队判据：{@code true} = 队头可以接播。本任务口径 = 无非预览在播实例（阻塞队列的实例全结束）；
-     * 跨脚本 {@code play_mode} 落地后升级为「无 exclusive 在播」，升级只改本方法体。
+     * 队列出队判据：{@code true} = 队头可以接播。口径 = 无 EXCLUSIVE 在播（阻塞队列的只有 exclusive；
+     * parallel / interruptible 实例还活着也要出队——它们不阻塞队列）。
      */
     private boolean canDequeue() {
-        List<PlaybackInstance> instances = registry.instances();
-        for (int i = 0; i < instances.size(); i++) {
-            if (!instances.get(i).isPreview()) return false;
-        }
-        return true;
+        return !registry.hasGameInstancePlaying(ScriptMeta.PlayMode.EXCLUSIVE);
     }
 
     /**

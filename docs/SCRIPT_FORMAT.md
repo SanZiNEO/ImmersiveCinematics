@@ -86,7 +86,8 @@ immersive_cinematics/
 | `hard_hide_hud` | boolean/null | `null` | **三态·仅 Forge**：强硬隐藏模式。`true`=除原版 HUD 与注册表 overlay 外，**连"不走 overlay 注册表、直接在 `RenderGuiEvent.Pre` 里自绘"的第三方 HUD 也一起隐藏**（接管整段 HUD 渲染，再按白名单重画）；`null`（缺省）/`false`=normal，行为与不带此字段完全一致。仅当 `hide_hud` 生效时才接管（`hide_hud=false` 时不接管）。**与 `hide_*` 的区别**：null 不回落 `hide_hud`——缺省即 normal。Fabric 无对应语义（字段被解析但不生效） |
 | `render_player_model` | boolean | `true` | 是否渲染玩家模型（第三人称时） |
 | `pause_when_game_paused` | boolean | `true` | 游戏暂停时是否暂停过场动画 |
-| `interruptible` | boolean | `true` | 是否允许被其他脚本打断 |
+| `interruptible` | boolean | `true` | 是否允许被其他脚本打断（**同脚本**再触发的替换语义 + 退出原因门控；跨脚本关系见 `play_mode`） |
+| `play_mode` | enum | `parallel` | **跨脚本播放关系**（三态，**在播侧**语义——声明「本脚本在播期间与其它脚本的关系」）：`parallel` = 不阻塞新来者（直接并行加入）、也不被跨脚本打断；`exclusive` = 我播时其它脚本的启动请求一律**排队**，我播完按 `priority` 降序 + FIFO 接播；`interruptible` = 可被新来者**顶掉**（硬切：实例销毁让位）。取值域外 / 缺失 = `parallel`（旧脚本零回归；非法值告警并按 `parallel` 处理）。**与 `interruptible` 分工**：`interruptible`（bool）管**同脚本**再触发的替换语义，`play_mode` 管**跨脚本**关系，两者共存、不合并（同名值 `interruptible` 语义同向） |
 | `skippable` | boolean | `true` | 是否允许玩家长按跳过 |
 | `hold_at_end` | boolean | `false` | 播放完毕后是否停留在最后一帧 |
 | `macro_loop` | boolean | `false` | 宏观循环开关：**从 `a` 到 `b` 重复执行**（循环 = 播放控制层的重复执行，不是时间折叠）。区间 `[a,b]` = `timeline.loop_start` / `loop_end`（缺省 `a=0`、`b=宏观末端`）；宏观末端 = 各片段展开结束时刻的最大值（含片段自身循环展开），**不是** `total_duration`。缺省 `loop_end` 时若存在永不结束片段 → 末端不存在 → 不循环（时间照直走）。圈数见 `macro_loop_count`。与 `hold_at_end` **互斥**（无限圈数下 `hold_at_end` 不会生效；校验器告警）。服务端 EVENT 不参与循环（仅客户端表现层） |
@@ -95,6 +96,8 @@ immersive_cinematics/
 | `priority` | int | `0` | 播放优先级，数值越大越优先；**仅用于队列内排序**（优先级不能大于打断——不可打断脚本永不被打断，新请求一律排队） |
 | `skip_vote_ratio` | int | 无（用全局配置） | **可选**。多人跳过投票所需比例（10~100，百分比），仅当所有看过此脚本的观众投票后才生效。缺省/非法值 → 回落到全局配置 `skipVoteRatio`（默认 100 = 全票）。例：`50` = 半数观众投跳过即强制停止 |
 | `trigger_poll_interval` | int | 无（用类型级默认） | **可选**。脚本级检测频率覆盖（tick，`1`~`600`）：该脚本**全部**轮询类触发器的缺省轮询间隔，可被触发器级 `poll_interval` 覆盖。生效链 = 触发器级 ?? 脚本级 ?? 类型级默认（`Config.triggerPollInterval_*`）；仅轮询类生效。缺省/非法值 → 告警 + 回落到类型级默认。例：`10` = 该脚本轮询类触发器默认每 10 tick 检测一次（0.3.6） |
+
+> **`play_mode` 到达组合规则**（新来者 B 到达时按**在播集合 S** 裁决，语义轴 = 在播侧）：S 空 / 仅 `parallel` → B 直接开播（并行加入）；S 含 `exclusive` → B **入队**（队列容量 8，满则拒绝；同脚本重复请求替换自己的排队位，不占新格）；S 无 `exclusive` 但含 `interruptible` → 顶掉**全部** `interruptible` 实例后开播（S 里的 `parallel` 实例继续；打断形态 = 硬切）。B 开播后 B 自己的 `play_mode` 对后续到达者生效。**队列出队条件** = 阻塞它的 `exclusive` 实例全部结束（`parallel` / `interruptible` 实例还活着也出队——它们不阻塞队列）。**同脚本再触发优先**于跨脚本裁决：`interruptible`（bool）= `true` → 立即替换该实例 / `false` → 入队。`hold_at_end` 驻留实例算「在播」（参与 `exclusive` 阻塞判定）。预览实例不参与（编辑器预览与游戏实例互不影响）。设计依据：`plans/0.3.6/C-trigger/playback-relations.md` §2/§4。
 
 > 运行时行为在脚本播放激活期间生效，**不要求存在活跃 CAMERA clip**；纯 HUD/字幕/手臂等行为的显隐只判断当前是否处于电影播放状态。
 >
@@ -254,7 +257,7 @@ immersive_cinematics/
 
 - 与 `look_at` / `follow` 目标切换平滑无关（那是选择器锁定层的 `selector_switch_smooth` 机制，始终生效）。
 - 编辑器 seek（`setTime`）= 硬定位：过渡作废，从 seek 点重新开始。
-- `meta.play_mode`（排队 / 接播）是**播放控制层**的脚本级行为，与本层过渡正交：接播开始时是否做过渡由接播脚本自己的片段声明决定。
+- `meta.play_mode`（排队 / 接播）是**播放控制层**的脚本级行为，与本层过渡正交：接播开始时是否做过渡由接播脚本自己的片段声明决定（三态语义与到达组合规则见 §1b `play_mode`）。
 - 过渡声明只写在 CAMERA 轨的片段上；写在其它轨道上不生效（validate 拦下）。
 
 **示例**：一段 1 秒过渡里，`roll` 保持 A 侧、`fov` 直接切、其余通道走 smoothstep 曲线、`zoom` 用 2 秒的缓入缓出：
