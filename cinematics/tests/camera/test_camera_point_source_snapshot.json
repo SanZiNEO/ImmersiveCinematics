@@ -1,0 +1,92 @@
+{
+  "meta": {
+    "id": "test_camera_point_source_snap",
+    "name": "相机测试-点源快照(look_at 实体)",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "look_at_time=snapshot：注视点 = 首次解析到的盔甲架位置，此后冻结（盔甲架 4s 被 tp 走，画面注视点不动）；对照组 = 第二片段实时跟随",
+    "triggers": [
+      { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_trigger_login"] }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "layer_type": "subtitle",
+            "text": "测试: test_camera_point_source_snapshot | 功能: look_at 实体 + look_at_time=snapshot | 0-6s 快照注视点（盔甲架 4s tp 走，注视点不动） | 6-12s 实时跟随",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 1,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "summon minecraft:armor_stand ~ ~2 ~" }
+            ]
+          },
+          {
+            "start_time": 4,
+            "duration": 1,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 4, "event_type": "command", "command": "tp @e[type=minecraft:armor_stand,limit=1] ~8 ~ ~" }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "id": "camera_point_source_snapshot",
+        "clips": [
+          {
+            "start_time": 1,
+            "duration": 5,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "entity", "look_at_selector": "@e[type=minecraft:armor_stand,limit=1]", "look_at_time": "snapshot", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 5, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "entity", "look_at_selector": "@e[type=minecraft:armor_stand,limit=1]", "look_at_time": "snapshot", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 6,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "entity", "look_at_selector": "@e[type=minecraft:armor_stand,limit=1]", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 6, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "entity", "look_at_selector": "@e[type=minecraft:armor_stand,limit=1]", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraChannels;
+import com.immersivecinematics.immersive_cinematics.camera.source.PointSource;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionMode;
 import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
@@ -555,6 +556,13 @@ public final class ScriptValidator {
                                 issues.add(kp + ".facing_origin_offset 不存在：位置点源的偏移写在 position 对象里"
                                         + "（dx/dy/dz 世界轴 / fwd/up/right 基准坐标系）");
                             }
+                            // 点源时态（live = 逐帧重取 / snapshot = 首次取点后冻结）：只对实体选择器形态生效，
+                            // 静态来源写 = 无效果（提示级；未知枚举值报错，运行期仍回落 live）
+                            checkPointSourceTime(kf, kp, "facing_origin", issues);
+                            checkPointSourceTime(kf, kp, "facing_target", issues);
+                            checkPointSourceTime(kf, kp, "yaw_base_from", issues);
+                            checkPointSourceTime(kf, kp, "yaw_base_to", issues);
+                            checkLookAtTime(kf, kp, lookAt, issues);
                             // ===== 合成参数（0.3.6 camera-composition）：opacity / dest / source =====
                             checkUnitFloat(kf, kp, "opacity", issues);
                             checkRect(kf, kp, "dest", issues);
@@ -1484,6 +1492,36 @@ public final class ScriptValidator {
             if (!kf.has(key) || !isNumber(kf.get(key))) {
                 issues.add(path + "." + key + " 缺失或不是数字（" + field + " = \"coordinate\" 时必须给出点源坐标）");
             }
+        }
+    }
+
+    /**
+     * 校验点源时态字段 {@code <字段>_time}：{@code live}（缺省）= 逐帧重取，{@code snapshot} = 首次解析到的点冻结；
+     * 未知值报错（运行期按缺省回落 live，脚本仍可播，与其余枚举校验同口径）。时态只对实体选择器形态生效：
+     * 坐标 / 方块 / 结构 / 玩家激活位置天生恒定，写了 = 无效果（提示级，参照 exit_buffer 无效提示）。
+     */
+    private static void checkPointSourceTime(JsonObject kf, String path, String field, List<String> issues) {
+        String key = field + "_time";
+        if (!kf.has(key)) return;
+        checkEnum(kf, path, key, issues, "live", "snapshot");
+        JsonElement e = kf.get(field);
+        String form = e != null && e.isJsonPrimitive() && e.getAsJsonPrimitive().isString() ? e.getAsString() : "";
+        if (PointSource.kindOf(form) != PointSource.Kind.SELECTOR) {
+            issues.add(path + "." + key + " 无效果（" + field + " 的来源天生恒定，时态只对实体选择器形态生效）");
+        }
+    }
+
+    /**
+     * 校验注视点时态字段 {@code look_at_time}：形态判据是 {@code look_at} 枚举（不是点源形态字符串），故单列一份。
+     * 只有 {@code look_at = entity}（实体选择器）可切时态，其余形态（含 {@code none}）恒定 = 写了无效果（提示级）。
+     *
+     * @param lookAt 该关键帧的 {@code look_at} 取值（缺省 {@code none}）
+     */
+    private static void checkLookAtTime(JsonObject kf, String path, String lookAt, List<String> issues) {
+        if (!kf.has("look_at_time")) return;
+        checkEnum(kf, path, "look_at_time", issues, "live", "snapshot");
+        if (!"entity".equals(lookAt)) {
+            issues.add(path + ".look_at_time 无效果（look_at=" + lookAt + " 的来源天生恒定，时态只对 entity 生效）");
         }
     }
 

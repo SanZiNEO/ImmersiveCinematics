@@ -22,7 +22,7 @@
 | 来源形态 | 时态 = 实时（缺省） | 时态 = 快照 |
 |---|---|---|
 | 坐标 / 方块 / 结构 | 天生恒定，写不写无差 | 同左（无意义） |
-| 玩家（WORLD 形态） | 跟着玩家走 | 冻在取快照那一刻的玩家位置 |
+| 玩家（WORLD 形态，脚本写 `"player"`） | 玩家**激活位置**（脚本激活时玩家所在位置，整场不变 = **等价快照语义**；实时跟随玩家 = 选择器 `@p`） | 同左（无效果） |
 | 实体选择器（SELECTOR） | 跟着实体走（= 跟随语义） | 冻在首次解析到的位置 |
 
 - **缺省 = 现状**：玩家/选择器类缺省实时，坐标类天然恒定；不写这个值的脚本逐位零变化。
@@ -62,3 +62,56 @@
 ## 7. 批次归属
 
 **C 批新增小件**（暂记 C7「点源时态开关」，implementation-progress.md 批次 C 表登记随 T20 收口后补）。排 C 轮开头做掉，不挡触发器主线；若与 C6 判定规则的「冻结值 vs 实时值」语义有耦合，实现前先在此文档对齐一次再动手。
+
+---
+
+## 8. 落地记录（2026-10-14 实现）
+
+### 8.1 字段形态（落地值）
+
+字段名 = **点源字段名 + `_time`**，取值 `"live"`（缺省）/ `"snapshot"`，共 5 个：
+`facing_origin_time` / `facing_target_time` / `yaw_base_from_time` / `yaw_base_to_time` / `look_at_time`。
+未知取值运行期回落 `live`，校验器报错（脚本仍可播，与其余枚举校验同口径）。
+
+### 8.2 实现口径
+
+- **形态适用范围**：时态只对 **SELECTOR 形态**（`@…` / `uuid:…`）生效；静态来源（坐标 / 方块 / 结构 / 玩家激活位置）
+  写了 = 无效果（validator 提示级）。原因：WORLD（脚本写 `"player"`）= 玩家**激活位置、整场不变**，代码现状
+  **已是快照语义**（`PointSource.world()` / `EntityTargetResolver.originPos` 唯一赋值点 = 脚本激活位置）。
+- **capture = lazy**：不做 clip 激活检测钩子。快照在「首次求值且解析非 null」那帧捕获（`lookup → miss → 现算 →
+  非 null 才存`），null 不入表（目标搜索态期间不钉死「无点源」）。对快照点源写在片段首段的常规用法与
+  「clip 开始取一次」逐位等价。
+- **冻结的是展开偏移后的最终坐标**：快照 = 整个点源结果（来源取点 + 偏移表达空间展开），命中即整份读回
+  ——这也是「稳态命中路径零分配」的前提（命中不重算偏移）。
+- **分桶 = 片段身份 + 槽位**：槽位与点源字段一一对应（facing_origin / facing_target / yaw_base_from /
+  yaw_base_to / look_at / position-anchor），故**同一片段内该字段的所有关键帧共用一份快照**；
+  morph 两侧各持各的（两个片段两个桶）；`selector_anchor=origin` 的位置侧锚点取值单列一桶
+  （它固定按锚点 `camera` 解析，与位置基准点按配置锚点解析的结果可以不同）。
+- **生命周期**：`onSeek` / `onStop` / `onScriptReplaced` 清空（seek = 硬定位 → 重取）；`onLoopRestart` **不清**
+  （折返 = 状态延续）。seek 链（`PreviewChannel.setTime` → `ScriptPlayer.onSeek` → 轨道 `onSeek`）是唯一重取入口。
+- **当前片段注入**：求值器在位置 / 注视点 / 朝向段 / 可用性探测（含 morph 两侧）各入口注入片段身份，
+  前置探测（`isClipUsable`）与求值读同一（片段，槽位）桶，判据不分叉。
+
+### 8.3 WORLD 行修正说明
+
+本文件 §2 原表「玩家（WORLD 形态）：实时 = 跟着玩家走」与代码不符，已按代码现状修正为
+「WORLD = 玩家激活位置（恒定，等价快照语义）；实时跟随玩家 = 选择器 `@p`」。§4.1 的「follow 位置 / yaw_base=entity
+直连路径不动」不受影响。
+
+### 8.4 落地清单
+
+- `camera/source/PointSource.java`：record 加 `Time` 分量 + `Time` 枚举 + `parseTime` + `withTime`；`of(pd, point, time)`。
+- `camera/source/PointSourceSnapshots.java`（新）：按（片段引用，槽位）分桶的取点表，线性扫描、容量按需增长。
+- `camera/source/EntityTargetResolver.java`：`resolvePointSource` 加快照门（`attachSnapshots` / `attachClip`）。
+- `camera/source/CameraKeyframeEvaluator.java`：各求值入口注入当前片段；`look_at` / `facing_origin` 装配时态。
+- `script/CameraTrackPlayer.java`：持有快照表并在 seek / 停止 / 替换时清空。
+- `script/schema/TrackSchemas.java`：5 条 `_time` 字段元数据（自动导出 WebUI）。
+- `script/ScriptValidator.java`：`_time` 枚举校验 + 静态来源无效果提示。
+- `cinematics/tests/camera/test_camera_point_source_snapshot.json`、`..._snapshot_seg2.json`（新 fixture）。
+- `docs/SCRIPT_FORMAT.md`：§「点源」+ §「点源时态」（含三条边界表）+ Keyframe 字段表 5 行。
+
+### 8.5 验收口径
+
+未改路径逐位对拍（HEAD 版类 vs 新版类，git HEAD 版 camera fixture 语料 52 个脚本 / 6247 采样帧，raw-bits
+逐字节一致）+ 敏感度对照（带 `_time` 的合成脚本必须两侧有差异）+ 三条边界探针 + 稳态快照命中 0 分配。
+探针脚手架：`E:/tmp/c7/probe/run.sh`。

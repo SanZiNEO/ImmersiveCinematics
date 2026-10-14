@@ -39,6 +39,8 @@ import java.util.Map;
  * {@code look_at} != none 时静态侧（锁 + 基准 + 偏移）整体不参与，朝向由动态目标点插值决定。
  * 状态所有权：{@link #lastWorldPos} 与 {@link #frame} 是跨帧求值状态，仅本实例持有；重叠窗口的捕获求值经 {@link #snapshotFrameState()} / {@link #restoreFrameState()} 留底与回写，
  * 目标锁状态由 {@link EntityTargetResolver} 留底；每 lane 的运动模型实例见 {@link LaneMotionStepper}。
+ * 点源快照（时态 = 快照）由轨道播放器持有的 {@link PointSourceSnapshots} 承载（桶键 = 片段身份 + 槽位）：
+ * 本类各求值入口（位置 / 注视点 / 朝向段 / 可用性探测，含 morph 两侧）先注入当前片段，同帧同片段读同一桶。
  * 过渡状态（进度 / 曲线 / 打断留底）由 {@link CameraTransitionLayer} 持有（本轨一份）。
  * 分配 / 线程契约：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱。
  */
@@ -143,6 +145,8 @@ public final class CameraKeyframeEvaluator {
      * 找不到就找不到——不引入任何替代值/回退逻辑。
      */
     public boolean isClipUsable(Clip clip) {
+        // 快照桶键：前置探测与求值读同一（片段，槽位）桶，故先注入本片段
+        entityResolver.attachClip(clip);
         for (Keyframe kf : clip.getKeyframes()) {
             // 注视点：形态判据与求值同源（look_at = none = 角度模式，无点源）
             PointSource lookAt = lookAtSource(kf);
@@ -168,7 +172,8 @@ public final class CameraKeyframeEvaluator {
             PositionData pd = kf.getPosition();
             if (pd != null && pd.isRelative()) {
                 // 位置点源不可解析 → 该段无基准，按空片段处理
-                if (evalPointSource(PointSource.of(pd, PointSource.EntityPoint.FOOT),
+                if (evalPointSource(PointSource.of(pd, PointSource.EntityPoint.FOOT,
+                        PointSource.parseTime(kf, "facing_origin")),
                         lastWorldPos, "facing_origin", kf) == null) {
                     return false;
                 }
@@ -241,10 +246,13 @@ public final class CameraKeyframeEvaluator {
         Keyframe nextFrom = nextResult != null ? nextResult.from : null;
         Keyframe nextTo = nextResult != null ? nextResult.to : null;
 
+        // 快照桶键：两侧求值交错，各侧求值前注入自己的片段（同一片段的两侧调用读同一桶）
+        entityResolver.attachClip(prevClip);
         Vec3 prevPos = prevFrom != null
                 ? interpolateWorldPosition(prevFrom, prevTo, prevS, prevClip)
                 : lastWorldPos;
 
+        entityResolver.attachClip(nextClip);
         Vec3 nextPos = nextFrom != null
                 ? interpolateWorldPosition(nextFrom, nextTo, nextS, nextClip)
                 : lastWorldPos;
@@ -356,6 +364,7 @@ public final class CameraKeyframeEvaluator {
      * 注意：实体/结构目标不可用已在 isClipUsable 前置拦截（该片段按空处理），此处分支为防御。
      */
     private Vec3 evalKeyframeWorldPos(Keyframe kf, Clip clip) {
+        entityResolver.attachClip(clip);
         PositionData pd = kf.getPosition();
         boolean relative = pd != null && pd.isRelative();
         boolean baseSpace = pd != null && pd.isBaseSpace();
@@ -455,7 +464,8 @@ public final class CameraKeyframeEvaluator {
      * 实体形态的基准点按 {@code base} 通道平滑；坐标 / 结构 / 方块 / 玩家激活位置不平滑（静态点）。
      */
     private Vec3 evalFacingBasePoint(Keyframe kf, PositionData pd) {
-        PointSource source = PointSource.of(pd, PointSource.EntityPoint.FOOT);
+        PointSource source = PointSource.of(pd, PointSource.EntityPoint.FOOT,
+                PointSource.parseTime(kf, "facing_origin"));
         Vec3 raw = evalPointSource(source, lastWorldPos, "facing_origin", kf);
         return raw == null || source.kind() != PointSource.Kind.SELECTOR ? raw : smoothFacingBase(kf, pd, raw);
     }
@@ -530,7 +540,10 @@ public final class CameraKeyframeEvaluator {
             case "block" -> PointSource.blockFromString(kf.getString("look_at_target_block", ""));
             default -> null;
         };
-        return source != null ? source.withOffset(PointSource.parseOffset(kf, "look_at")) : null;
+        return source != null
+                ? source.withOffset(PointSource.parseOffset(kf, "look_at"))
+                        .withTime(PointSource.parseTime(kf, "look_at"))
+                : null;
     }
 
     /**
@@ -557,6 +570,7 @@ public final class CameraKeyframeEvaluator {
      * 返回 null 表示该端无注视目标（实体消失 / 方块与结构定位失败），该段按 look_at=none 处理（关键帧角度）。
      */
     private Vec3 evalLookTarget(Keyframe kf, Clip clip, Vec3 pos) {
+        entityResolver.attachClip(clip);
         PointSource source = lookAtSource(kf);
         if (source != null) {
             Vec3 raw = evalPointSource(source, pos, "look_at", kf);
@@ -600,6 +614,8 @@ public final class CameraKeyframeEvaluator {
      */
     private float[] segmentYawPitch(Keyframe from, Keyframe to, float s, Clip clip, Vec3 segPos,
                                     float yawBase, float pitchBase) {
+        // 快照桶键：本段经 lineDir（连线端点）也走点源求值，入口处注入即覆盖整条链路
+        entityResolver.attachClip(clip);
         // 1) look_at 优先（关键帧级）：段内任一端有 look_at 就用目标点插值
         if (from != null && to != null) {
             boolean anyLook = !"none".equals(from.getString("look_at", "none"))

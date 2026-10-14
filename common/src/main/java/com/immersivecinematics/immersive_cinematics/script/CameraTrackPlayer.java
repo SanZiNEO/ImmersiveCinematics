@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.source.CameraKeyframeEvaluator;
 import com.immersivecinematics.immersive_cinematics.camera.source.EntityTargetResolver;
 import com.immersivecinematics.immersive_cinematics.camera.source.LaneSnapshotCollector;
+import com.immersivecinematics.immersive_cinematics.camera.source.PointSourceSnapshots;
 import com.immersivecinematics.immersive_cinematics.camera.source.WorldPointLocator;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
 import net.minecraft.world.phys.Vec3;
@@ -30,6 +31,8 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     /** 目标解析与锁定：selector → 实体 + 按 {@code role + selector} 维护的锁与切换平滑状态 */
     private final EntityTargetResolver entityResolver = new EntityTargetResolver();
+    /** 点源快照表（时态 = 快照的选择器点源）：本轨一份，seek / 停止 / 替换清空，loop 折返不清（延续） */
+    private final PointSourceSnapshots snapshots = new PointSourceSnapshots();
     /** 关键帧求值（六参数 / 插值 / 过渡合成） */
     private final CameraKeyframeEvaluator evaluator;
     /** 本轨本帧的 lane 快照捕获与持有 */
@@ -44,6 +47,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         this.trackIndex = trackIndex;
         this.cameraManager = cameraManager;
         WorldPointLocator pointLocator = new WorldPointLocator();
+        entityResolver.attachSnapshots(snapshots);
         this.evaluator = new CameraKeyframeEvaluator(entityResolver, pointLocator, originPos);
         this.laneCollector = new LaneSnapshotCollector(entityResolver, evaluator);
     }
@@ -150,28 +154,31 @@ public class CameraTrackPlayer implements TrackPlayer {
     public void onStop() {
         laneCollector.clear();
         entityResolver.clear();
+        snapshots.clear();
         evaluator.resetTransitionState();
         transitionPair = -1;
     }
 
-    /** 编辑器 seek：本轨运动模型实例归位（下一次求值以当帧输入为初值，dt = 0）；过渡作废（seek = 硬定位）。 */
+    /** 编辑器 seek：点源快照重取（seek = 硬定位）；本轨运动模型实例归位（下一次求值以当帧输入为初值，dt = 0）；过渡作废。 */
     @Override
     public void onSeek() {
+        snapshots.clear();
         evaluator.resetMotionState();
         evaluator.resetTransitionState();
         transitionPair = -1;
     }
 
-    /** 组 A：数据替换后复位派生状态——lane 快照 / 目标锁 / 过渡（都按脚本数据重建）。 */
+    /** 组 A：数据替换后复位派生状态——lane 快照 / 目标锁 / 点源快照 / 过渡（都按脚本数据重建）。 */
     @Override
     public void onScriptReplaced() {
         laneCollector.clear();
         entityResolver.clear();
+        snapshots.clear();
         evaluator.resetTransitionState();
         transitionPair = -1;
     }
 
-    /** 宏观循环折返：过渡归位（结算记录 / 打断留底按新一圈重新开始）。 */
+    /** 宏观循环折返：过渡归位（结算记录 / 打断留底按新一圈重新开始）；点源快照不重取（折返 = 状态延续）。 */
     @Override
     public void onLoopRestart() {
         evaluator.resetTransitionState();

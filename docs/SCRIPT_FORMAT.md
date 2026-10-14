@@ -456,9 +456,11 @@ immersive_cinematics/
 | `follow_selector` | string | 否 | `"@p"` | 跟随目标选择器（见下方"目标选择器"） |
 | `facing_origin` | string | 否 | `""` | **位置点源**（一个点源，写法见下方"点源"）：世界轴偏移（`dx`/`dy`/`dz`）与基准坐标系偏移（`fwd`/`up`/`right`）**共用同一位置点源**，同时是基准坐标系的原点。不写 = 世界轴偏移用玩家激活位置、基准坐标系偏移用玩家实体（`@p`，实时跟随） |
 | `facing_origin_x/y/z` | float | 否 | `0` | `facing_origin` 取 `"coordinate"` 形态时的世界坐标（三个都要写） |
+| `facing_origin_time` | string | 否 | `"live"` | 位置点源时态：`"live"`=逐帧重取 / `"snapshot"`=片段内首次解析到的点冻结（见下方"点源时态"）。只对实体选择器形态生效 |
 | `facing_target` | string | 否 | `""` | 基准坐标系的**前轴目标**，一个点源（写法见下方"点源"）：前轴 = 位置点源 → 该目标的连线方向（实体取包围盒中心）。不写 = 位置点源自身朝向（实体 = 身体朝向 + 视线；玩家 = 实时视线）。不可解析 = 该端无目标，片段按空处理 |
 | `facing_target_x/y/z` | float | 否 | `0` | `facing_target` 取 `"coordinate"` 形态时的世界坐标（三个都要写） |
 | `facing_target_offset` | object | 否 | `null` | `facing_target` 的偏移（点源通用偏移，见下方"偏移"） |
+| `facing_target_time` | string | 否 | `"live"` | `facing_target` 的时态（取值同上；`"snapshot"` = 首次解析到的前轴目标点冻结） |
 | `look_at` | string | 否 | `"none"` | `"none"`=用 yaw/pitch；`"player"`=注视玩家激活位置；`"coordinate"`=注视固定点（xyz 或结构中心）；`"entity"`=注视实体（包围盒内取点，部位由 `look_at_part` 定，缺省中心）；`"block"`=注视就近搜索到的方块中心（用 `look_at_target_block`）。look_at 关键帧的目标点之间插值 → 切换/开关平滑过渡 |
 | `look_at_selector` | string | 否 | `"@p"` | 注视目标选择器（`entity` 模式） |
 | `look_at_part` | object | 否 | `null` | `look_at=entity` 的**部位百分比**：`{x,y,z}` 每轴 `0`~`100`（`0`=该轴最小侧、`50`=包围盒中心、`100`=最大侧），缺省分量 = `50`（= 不写该字段的现行为）。取点 = 实体包围盒（宽 `getBbWidth`、高 `getBbHeight`，世界轴对齐）内按百分比定位，**越界值钳制在 `0`~`100`**（取点始终在包围盒内，不伸到体外）。只对 `look_at=entity` 有效：坐标 / 结构 / 方块来源没有部位，要微调直接改坐标——写在其它 `look_at` 模式下会被 validate 报错 |
@@ -466,6 +468,7 @@ immersive_cinematics/
 | `look_at_target_structure` | string | 否 | `""` | 注视结构中心（`coordinate` 模式）：填结构 id（如 `minecraft:village`）。播放时服务端自动定位**结构 bounding box 中心**（就近搜索，原版 /locate 同范围）并替换为坐标后推送；编辑器里为注册表下拉补全；多人服务器播放同样生效。**与 `look_at_target_x/y/z` 互斥**：指定结构后定位失败也不回退坐标，该端无注视目标（回退角度插值） |
 | `look_at_target_block` | string | 否 | `""` | 注视方块中心（`block` 模式）：**一个点源的方块形态**（写法与 `facing_origin` / `yaw_base_from` 同一套）`"block:<方块 id>[:<半径>]"`，取就近搜索到的**方块中心**（整数坐标 + 0.5，半径缺省 16 格）。不可解析（附近没有该方块 / 多人服务器无服务端世界）= 该端无注视目标（回退角度插值） |
 | `look_at_offset` | object | 否 | `null` | 注视点偏移（点源通用偏移，见下方"偏移"）：叠加在来源取点之后（`look_at=entity` 时 = 部位百分比取点之后再加偏移） |
+| `look_at_time` | string | 否 | `"live"` | 注视点时态（取值同 `facing_origin_time`）：只对 `look_at=entity` 生效，其余形态恒定 |
 | `selector_refresh` | float | 否 | `1.0` | 目标存活时的重新扫描间隔（秒）。**目标丢失**（死亡/移除/未加载）后不受此值限制：锁进入搜索态并保持最后画面，按固定节奏（0.2 秒）持续重找，找到即恢复。作用于本关键帧所有选择器调用点（缺省回落；调用点专属字段见下方"调用点级策略覆盖"） |
 | `selector_switch_while_alive` | bool | 否 | `true` | `true`=目标存活时也按 `selector_refresh` 扫描并切到新的最近目标；`false`=当前目标活着就不换。**目标丢失后不受此项限制**：进入搜索态持续重找，解析到任意符合规则的目标就立即恢复 |
 | `selector_switch_interval` | float | 否 | = `selector_refresh` | 两次真实切换之间的最小间隔（秒），与扫描频率无关：扫描到新目标但距上次切换不足 N 秒 → 继续用旧目标。`0`=不限制。缺省 = `selector_refresh` |
@@ -478,6 +481,7 @@ immersive_cinematics/
 | `yaw_base_from` / `yaw_base_to` | string | 否 | `""` | `yaw_base/pitch_base=line` 时的两个端点，**各是一个点源**（写法见下方"点源"；实体选择器是其中一种形态）。连线退化（两端水平位置重合 = 纯垂直线，或两点重合 = 零长度线）时水平角未定义 → 该朝向输入被拒（回退 `"world"` 基准，运行时限频告警）；纯水平连线（只有水平分量）合法，基准俯仰 = 0。任一端无点源或不可解析 = 该端无目标，片段按空处理 |
 | `yaw_base_from_x/y/z` / `yaw_base_to_x/y/z` | float | 否 | `0` | 端点取 `"coordinate"` 形态时的世界坐标（三个都要写；缺省 `0` 会把点源钉在世界原点，校验器直接拦下） |
 | `yaw_base_from_offset` / `yaw_base_to_offset` | object | 否 | `null` | 连线端点的偏移（点源通用偏移，见下方"偏移"） |
+| `yaw_base_from_time` / `yaw_base_to_time` | string | 否 | `"live"` | 连线端点的时态（取值同 `facing_origin_time`；`"snapshot"` = 首次解析到的端点冻结） |
 | `yaw` | float | 是 | — | 偏航角（度）。0=南，90=西，±180=北。`look_at != none` 时被覆盖；使用 `yaw_base` 时表示相对基准的偏移，写了 `yaw_lock` 时表示相对锁值的偏移 |
 | `pitch` | float | 是 | — | 俯仰角（度）。正=向下看。`look_at != none` 时被覆盖；写了 `pitch_lock` 时表示相对锁值的偏移 |
 | `yaw_lock` | float | 否 | `null` | 偏航轴锁值（度，世界角绝对值）：写了 = 该轴基准固定为该值（不再查 `yaw_base` 的方向源），关键帧 `yaw` 偏移仍叠加；不写 = 跟 `yaw_base` 的来源。`look_at != none` 时静态侧整体不参与（锁不生效）。两轴独立：可一轴锁、另一轴跟来源 |
@@ -537,12 +541,13 @@ immersive_cinematics/
 
 ### 点源（Point Source）
 
-能产出一个**世界坐标**的来源 = **来源 + 偏移**。五个形态通用：`facing_origin` / `facing_target` /
-`yaw_base_from` / `yaw_base_to` 四个关键帧字段与 `look_at` 的坐标 / 结构 / 实体 / 方块来源都用这套写法。
+能产出一个**世界坐标**的来源 = **来源 + 偏移 + 时态**（时态见下方 §「点源时态」）。五个形态通用：
+`facing_origin` / `facing_target` / `yaw_base_from` / `yaw_base_to` 四个关键帧字段与 `look_at` 的
+坐标 / 结构 / 实体 / 方块来源都用这套写法。
 
 | 写法 | 含义 | 取点 |
 |------|------|------|
-| `"player"` | 玩家激活位置（脚本激活时玩家所在位置，整场不变） | 玩家脚底 |
+| `"player"` | 玩家激活位置（脚本激活时玩家所在位置，**整场不变 = 等价快照语义**；要实时跟随玩家用选择器 `@p`） | 玩家脚底 |
 | `"coordinate"` | 固定坐标：配 `<字段>_x` / `<字段>_y` / `<字段>_z`（三个都要写） | 该坐标 |
 | `"block:<方块 id>[:<半径>]"` | 玩家附近搜索最近匹配方块（半径缺省 16 格） | 方块中心（整数坐标 + 0.5） |
 | `"@…"` / `"uuid:…"` | 实体选择器（写法与 `follow_selector` 同） | `facing_origin` / 连线端点 / `look_at=entity` 部位（`look_at_part`）= 包围盒内取点；`facing_target` = 包围盒中心 |
@@ -557,6 +562,40 @@ immersive_cinematics/
 - 字段落点：点源字段（`facing_origin` / `facing_target` / `yaw_base_from` / `yaw_base_to`）与坐标形态的配套坐标
   （`<字段>_x/_y/_z`）都写在**关键帧**上；`position` 对象只承载**位置通道的偏移**（世界轴 `dx/dy/dz`、绝对
   `x/y/z`、基准坐标系 `fwd`/`up`/`right`）。
+
+### 点源时态（`<字段>_time`）
+
+点源 = 来源 + 偏移 + **时态**：`"live"`（缺省）= 每帧重新取点（现状）；`"snapshot"` = 首次解析到的点冻结，
+此后每帧读同一份。字段名 = 点源字段名 + `_time`，共 5 个：`facing_origin_time` / `facing_target_time` /
+`yaw_base_from_time` / `yaw_base_to_time` / `look_at_time`。
+
+| 来源形态 | `"live"`（缺省） | `"snapshot"` |
+|---|---|---|
+| 坐标 / 方块 / 结构 | 天生恒定，写不写无差 | 同左（无效果，校验器提示） |
+| `"player"` 玩家激活位置 | 玩家激活位置，整场不变（等价快照语义） | 同左（无效果，校验器提示） |
+| `"@…"` / `"uuid:…"` 实体选择器 | 跟着实体走（= 跟随语义） | 冻在首次解析到的位置 |
+
+- **实时跟随玩家**用选择器 `@p`：`"player"` 是脚本激活时的玩家位置，不跟人走。
+- 时态只对**实体选择器**形态生效；静态来源写了 = 无效果（校验器提示，不拦下）。
+- 冻结的是**展开偏移后的最终世界坐标**（偏移一起冻结）。
+- 未知取值回落 `live`（校验器报错，脚本仍可播）。
+- 快照按**片段 + 字段**分桶：同一片段内该字段的所有关键帧共用同一份快照（片段内取一次）。
+
+| 边界 | 规则 |
+|---|---|
+| 取快照时刻 | 片段内**首次解析成功**那帧取一次；目标还没找到（解析 `null`）期间不钉死「无点源」，解析成功才捕获 |
+| seek（编辑器拖播放头） | **重取**（seek = 硬定位、状态归零） |
+| loop 折返 | **不重取**（状态延续，与运动模型 macro loop 同口径） |
+| morph 过渡 | 两侧**各用各的快照**（两个片段各持状态，互不覆盖） |
+
+```json
+{
+  "look_at": "entity", "look_at_selector": "@e[type=minecraft:armor_stand]",
+  "look_at_time": "snapshot"
+}
+```
+
+上例：注视点 = 本片段首次解析到的盔甲架位置，此后盔甲架移动画面不动（要实时跟随请删掉 `look_at_time`）。
 
 ### 偏移（点源通用属性）
 

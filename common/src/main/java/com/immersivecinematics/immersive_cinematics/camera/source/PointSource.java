@@ -7,11 +7,16 @@ import net.minecraft.world.phys.Vec3;
 import java.util.Map;
 
 /**
- * 点源规格 = 来源 + 偏移：五形态来源 + 实体形态的取点 + 一层偏移（表达空间可选世界轴 / 基准坐标系）。
+ * 点源规格 = 来源 + 偏移 + 时态：五形态来源 + 实体形态的取点 + 一层偏移（表达空间可选世界轴 / 基准坐标系）
+ * + 时态（{@link Time}）。
  *
  * 五形态（{@link Kind}，本类一处定义；位置基准 / 基准朝向目标 / 连线端点 / 注视点共用同一份解析）：
  * {@link Kind#WORLD} 玩家激活位置 / {@link Kind#COORDINATE} 固定坐标 / {@link Kind#SELECTOR} 实体选择器 /
  * {@link Kind#BLOCK} 就近搜索的方块中心 / {@link Kind#STRUCTURE} 结构中心。
+ *
+ * 时态只对 {@link Kind#SELECTOR} 生效：{@link Time#LIVE}（缺省）= 逐帧重取；{@link Time#SNAPSHOT} = 首次解析
+ * 到的点冻结（片段内取一次，seek 重取，loop 折返延续，morph 两侧各持，见 {@code PointSourceSnapshots}）。
+ * 静态来源（坐标 / 方块 / 结构 / 玩家激活位置）天生恒定，写时态无效果。
  *
  * 坐标空间与单位：世界空间方块坐标；方块与结构取中心，实体取 {@link EntityPoint}（包围盒内每轴百分比）。
  * 叠加顺序 = 先取点（形态取点 / 实体百分比）后加偏移（{@link Offset#apply}）。
@@ -19,16 +24,23 @@ import java.util.Map;
  * 字段缺省或空串 = 无点源（{@link #parse} 返回 {@code null}），与不可解析同语义。
  *
  * 字段形态（{@code <字段>} = 点源字段名，如 {@code yaw_base_from}）：{@code <字段>} = 形态字符串；
- * {@code <字段>_x/_y/_z} = coordinate 形态的配套坐标；{@code <字段>_offset} = 偏移对象。
+ * {@code <字段>_x/_y/_z} = coordinate 形态的配套坐标；{@code <字段>_offset} = 偏移对象；
+ * {@code <字段>_time} = 时态（{@code live} / {@code snapshot}，缺省 {@code live}）。
  * 形态字符串：{@code "player"} 玩家激活位置；{@code "coordinate"} 固定坐标；{@code "block:id[:radius]"} 方块
  * （半径缺省 {@link PositionData#DEFAULT_BLOCK_RADIUS}）；{@code "@…"} / {@code "uuid:…"} 实体选择器；
  * 其余非空字符串 = 结构 id。
  */
 public record PointSource(Kind kind, String selector, String structureId, String blockId, int blockRadius,
-                          Vec3 coordinate, EntityPoint entityPoint, Offset offset) {
+                          Vec3 coordinate, EntityPoint entityPoint, Offset offset, Time time) {
 
     /** 点源形态：{@code WORLD} / {@code COORDINATE} / {@code SELECTOR} / {@code BLOCK} / {@code STRUCTURE}。 */
     public enum Kind { WORLD, COORDINATE, SELECTOR, BLOCK, STRUCTURE }
+
+    /**
+     * 点源时态：{@code LIVE} 逐帧重取（缺省）/ {@code SNAPSHOT} 首次解析到的点冻结。
+     * 只对 {@link Kind#SELECTOR} 生效（静态来源天生恒定，写时态无效果）。
+     */
+    public enum Time { LIVE, SNAPSHOT }
 
     /** 偏移的表达空间：{@code WORLD} 世界轴（缺省）/ {@code BASE} 基准坐标系。 */
     public enum Space { WORLD, BASE }
@@ -100,35 +112,44 @@ public record PointSource(Kind kind, String selector, String structureId, String
         }
     }
 
-    /** 附上偏移（不可变副本）：来源 + 偏移。 */
+    /** 附上偏移（不可变副本）：来源 + 偏移（时态保留）。 */
     public PointSource withOffset(Offset offset) {
-        return new PointSource(kind, selector, structureId, blockId, blockRadius, coordinate, entityPoint, offset);
+        return new PointSource(kind, selector, structureId, blockId, blockRadius, coordinate, entityPoint, offset,
+                time);
+    }
+
+    /** 附上时态（不可变副本）：来源 + 偏移 + 时态。 */
+    public PointSource withTime(Time time) {
+        return new PointSource(kind, selector, structureId, blockId, blockRadius, coordinate, entityPoint, offset,
+                time);
     }
 
     /** 玩家激活位置（{@code WORLD}）：脚本激活时玩家所在位置，整场不变。 */
     public static PointSource world() {
-        return new PointSource(Kind.WORLD, null, null, null, 0, null, EntityPoint.FOOT, Offset.NONE);
+        return new PointSource(Kind.WORLD, null, null, null, 0, null, EntityPoint.FOOT, Offset.NONE, Time.LIVE);
     }
 
     /** 固定坐标（{@code COORDINATE}，世界空间方块坐标）。 */
     public static PointSource coordinate(double x, double y, double z) {
         return new PointSource(Kind.COORDINATE, null, null, null, 0, new Vec3(x, y, z), EntityPoint.FOOT,
-                Offset.NONE);
+                Offset.NONE, Time.LIVE);
     }
 
     /** 实体选择器（{@code SELECTOR}）：位置 = 实体渲染帧插值位置；取点由 {@code entityPoint} 决定。 */
     public static PointSource selector(String selector, EntityPoint entityPoint) {
-        return new PointSource(Kind.SELECTOR, selector, null, null, 0, null, entityPoint, Offset.NONE);
+        return new PointSource(Kind.SELECTOR, selector, null, null, 0, null, entityPoint, Offset.NONE, Time.LIVE);
     }
 
     /** 结构中心（{@code STRUCTURE}，结构 id）：结构 bounding box 中心，就近搜索。 */
     public static PointSource structure(String structureId) {
-        return new PointSource(Kind.STRUCTURE, null, structureId, null, 0, null, EntityPoint.FOOT, Offset.NONE);
+        return new PointSource(Kind.STRUCTURE, null, structureId, null, 0, null, EntityPoint.FOOT, Offset.NONE,
+                Time.LIVE);
     }
 
     /** 就近搜索的方块中心（{@code BLOCK}，{@code block:id[:radius]} 口径）。 */
     public static PointSource block(String blockId, int radius) {
-        return new PointSource(Kind.BLOCK, null, null, blockId, radius, null, EntityPoint.FOOT, Offset.NONE);
+        return new PointSource(Kind.BLOCK, null, null, blockId, radius, null, EntityPoint.FOOT, Offset.NONE,
+                Time.LIVE);
     }
 
     /**
@@ -160,26 +181,29 @@ public record PointSource(Kind kind, String selector, String structureId, String
      *
      * @param pd          位置侧点源来源
      * @param entityPoint 实体形态的取点（其余形态不读）
+     * @param time        时态（{@code facing_origin_time}，只对实体选择器形态生效）
      */
-    public static PointSource of(PositionData pd, EntityPoint entityPoint) {
-        return switch (kindOf(pd.getOriginType())) {
+    public static PointSource of(PositionData pd, EntityPoint entityPoint, Time time) {
+        PointSource source = switch (kindOf(pd.getOriginType())) {
             case WORLD -> world();
             case COORDINATE -> coordinate(pd.getOriginX(), pd.getOriginY(), pd.getOriginZ());
             case BLOCK -> block(pd.getOriginBlockId(), pd.getOriginBlockRadius());
             case SELECTOR -> selector(pd.getOriginSelector(), entityPoint);
             case STRUCTURE -> structure(pd.getOriginStructure());
         };
+        return source.withTime(time);
     }
 
     /**
      * 解析点源字段：{@code value} = 形态字符串，配套坐标形态读 {@code kf} 的 {@code <field>_x/_y/_z}，
-     * 偏移读 {@code <field>_offset}（{@link #parseOffset}）。判据见 {@link #kindOf}（一处定义，不复制）。
+     * 偏移读 {@code <field>_offset}（{@link #parseOffset}），时态读 {@code <field>_time}（{@link #parseTime}）。
+     * 判据见 {@link #kindOf}（一处定义，不复制）。
      *
      * @param kf          配套字段来源关键帧
      * @param field       点源字段名（{@code yaw_base_from} / {@code yaw_base_to} / {@code facing_target}）
      * @param value       形态字符串；{@code null} / 空串 = 无点源（由调用点决定取值来源：关键帧字段 / 位置侧解析结果）
      * @param entityPoint 实体形态的取点（其余形态不读）
-     * @return 点源规格（含偏移）；无点源 = {@code null}
+     * @return 点源规格（含偏移与时态）；无点源 = {@code null}
      */
     public static PointSource parse(Keyframe kf, String field, String value, EntityPoint entityPoint) {
         Kind kind = kindOf(value);
@@ -192,7 +216,18 @@ public record PointSource(Kind kind, String selector, String structureId, String
             case BLOCK -> blockFromString(value);
             case STRUCTURE -> structure(value);
         };
-        return source.withOffset(parseOffset(kf, field));
+        return source.withOffset(parseOffset(kf, field)).withTime(parseTime(kf, field));
+    }
+
+    /**
+     * 解析点源时态字段 {@code <field>_time}：{@code "snapshot"} = 快照，其余（含缺省 {@code "live"} 与未知值）= 实时。
+     * 未知值由校验器报错，运行期按缺省回落（与 {@code SelectorSchema.isAnchor} 同口径）。
+     *
+     * @param kf    字段来源关键帧
+     * @param field 点源字段名（{@code look_at} 的时态字段名即 {@code look_at_time}）
+     */
+    public static Time parseTime(Keyframe kf, String field) {
+        return "snapshot".equals(kf.getString(field + "_time", "live")) ? Time.SNAPSHOT : Time.LIVE;
     }
 
     /** 方块形态字符串（{@code block:id[:radius]}）→ 方块点源。 */

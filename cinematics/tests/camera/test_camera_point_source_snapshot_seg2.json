@@ -1,0 +1,71 @@
+{
+  "meta": {
+    "id": "test_camera_snapshot_seg2",
+    "name": "相机测试-点源快照(第2片段冻结)",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "facing_origin_time=snapshot：第 1 片段实时跟随玩家（缺省 live），第 2 片段冻结在第 2 片段开始时的玩家位置（6-12s 走动观察机位不动）",
+    "triggers": [
+      { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_trigger_login"] }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "layer_type": "subtitle",
+            "text": "测试: test_camera_point_source_snapshot_seg2 | 0-6s facing_origin=@p 实时跟随 | 6-12s facing_origin_time=snapshot（走动观察：机位冻结在第 2 片段开始位置）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "id": "camera_snapshot_seg2",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -8 }, "facing_origin": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 6, "position": { "dx": 0, "dy": 4, "dz": -8 }, "facing_origin": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 6,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -8 }, "facing_origin": "@p", "facing_origin_time": "snapshot", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 6, "position": { "dx": 0, "dy": 4, "dz": -8 }, "facing_origin": "@p", "facing_origin_time": "snapshot", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera.source;
 
+import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.PositionData;
 import com.immersivecinematics.immersive_cinematics.selector.EntitySelectorService;
@@ -45,6 +46,15 @@ public final class EntityTargetResolver {
     private PointSource.Frame frame;
 
     /**
+     * 点源快照表（时态 = 快照的选择器点源，按片段身份 + 槽位分桶）：见 {@link #attachSnapshots}；
+     * {@code null} = 未注入（快照不启用）。
+     */
+    private PointSourceSnapshots snapshots;
+
+    /** 当前求值片段（快照表的桶键）：见 {@link #attachClip}；{@code null} = 无当前片段（快照不启用）。 */
+    private Clip currentClip;
+
+    /**
      * 注入世界上下文（点源定位器 + 玩家激活位置）：由 {@code CameraKeyframeEvaluator} 构造时传入同一实例，
      * 两者共用定位器缓存；一次性接线，重复注入以最后一次为准。
      */
@@ -56,6 +66,23 @@ public final class EntityTargetResolver {
     /** 注入本帧基准坐标系：位置通道每帧重建后调用；{@code null} = 本帧没有基准坐标系。 */
     public void attachFrame(PointSource.Frame frame) {
         this.frame = frame;
+    }
+
+    /**
+     * 注入点源快照表（时态 = 快照的选择器点源，见 {@link PointSourceSnapshots}）：由轨道播放器持有并注入，
+     * 停止 / 替换 / seek 由它 {@link PointSourceSnapshots#clear()}；未注入 = 不启用快照（一律按实时求值）。
+     */
+    public void attachSnapshots(PointSourceSnapshots snapshots) {
+        this.snapshots = snapshots;
+    }
+
+    /**
+     * 注入当前求值片段（快照表的桶键）：由 {@code CameraKeyframeEvaluator} 在每次进入片段求值路径时调用
+     * （位置 / 注视点 / 朝向段各入口，含 morph 两侧），保证同帧同一片段的全部调用读同一桶；
+     * {@code null} = 无当前片段（快照不启用，按实时求值）。
+     */
+    public void attachClip(Clip clip) {
+        this.currentClip = clip;
     }
 
     /** 生命周期清理：清空目标锁与客户端选择器缓存（停止播放 / 脚本替换时调用）。 */
@@ -150,6 +177,10 @@ public final class EntityTargetResolver {
      * 前轴目标共用。实体形态的解析原点 = {@code cameraPos}，锚点取 {@code anchor}；求值结果按点源偏移展开
      * （先取点后加偏移，base 表达空间读本帧基准坐标系）。
      *
+     * 时态 = {@link PointSource.Time#SNAPSHOT} 且形态 = 选择器（且已注入快照表与当前片段）时走快照：
+     * 首次解析到的结果（含偏移展开）存入 {@link PointSourceSnapshots}，此后同（片段，槽位）直接读回；
+     * 解析结果为 {@code null} 不存（下一帧继续取）。其余路径逐帧现算（与快照引入前逐位一致）。
+     *
      * @param source    点源规格；{@code null} = 无点源
      * @param cameraPos 实体形态的解析原点（锚点 {@code camera} 的取值）
      * @param role      实体形态的调用点名（策略 / 锚点 / 锁键，见 {@link SelectorSchema#CALLPOINTS}）
@@ -158,7 +189,34 @@ public final class EntityTargetResolver {
      * @return 世界空间坐标；无点源 / 不可解析 = {@code null}
      */
     public Vec3 resolvePointSource(PointSource source, Vec3 cameraPos, String role, Keyframe kf, String anchor) {
+        return resolvePointSource(source, cameraPos, role, kf, anchor, slotOf(role));
+    }
+
+    /**
+     * 快照槽位：调用点名与点源字段同名，故按 {@code role} 直接映射；其余调用点（位置侧点源的锚点取值，
+     * 由 {@link #originPointSource} 显式指定槽位）落 {@link PointSourceSnapshots#SLOT_ANCHOR_ORIGIN}。
+     */
+    private static int slotOf(String role) {
+        return switch (role) {
+            case "facing_target" -> PointSourceSnapshots.SLOT_FACING_TARGET;
+            case "yaw_base_from" -> PointSourceSnapshots.SLOT_YAW_BASE_FROM;
+            case "yaw_base_to" -> PointSourceSnapshots.SLOT_YAW_BASE_TO;
+            case "look_at" -> PointSourceSnapshots.SLOT_LOOK_AT;
+            default -> PointSourceSnapshots.SLOT_FACING_ORIGIN;
+        };
+    }
+
+    /** 点源求值（{@code slot} = 快照槽位，见 {@link #slotOf}）。 */
+    private Vec3 resolvePointSource(PointSource source, Vec3 cameraPos, String role, Keyframe kf, String anchor,
+                                    int slot) {
         if (source == null) return null;
+        boolean frozen = source.time() == PointSource.Time.SNAPSHOT
+                && source.kind() == PointSource.Kind.SELECTOR
+                && snapshots != null && currentClip != null;
+        if (frozen) {
+            Vec3 captured = snapshots.get(currentClip, slot);
+            if (captured != null) return captured;
+        }
         Vec3 point = switch (source.kind()) {
             case WORLD -> originPos;
             case COORDINATE -> source.coordinate();
@@ -170,7 +228,9 @@ public final class EntityTargetResolver {
                     : null;
             case SELECTOR -> selectorPoint(source, cameraPos, role, kf, anchor);
         };
-        return point != null ? source.offset().apply(point, frame) : null;
+        Vec3 result = point != null ? source.offset().apply(point, frame) : null;
+        if (frozen && result != null) snapshots.put(currentClip, slot, result);
+        return result;
     }
 
     /** 实体形态：解析目标实体 → 按 {@link PointSource.EntityPoint} 的每轴百分比在包围盒内取点。 */
@@ -203,8 +263,10 @@ public final class EntityTargetResolver {
     private Vec3 originPointSource(Keyframe kf, Vec3 cameraPos) {
         PositionData pd = kf != null ? kf.getPosition() : null;
         return pd != null
-                ? resolvePointSource(PointSource.of(pd, PointSource.EntityPoint.FOOT),
-                        cameraPos, "facing_origin", kf, SelectorSchema.ANCHOR_CAMERA)
+                ? resolvePointSource(PointSource.of(pd, PointSource.EntityPoint.FOOT,
+                        PointSource.parseTime(kf, "facing_origin")),
+                        cameraPos, "facing_origin", kf, SelectorSchema.ANCHOR_CAMERA,
+                        PointSourceSnapshots.SLOT_ANCHOR_ORIGIN)
                 : null;
     }
 

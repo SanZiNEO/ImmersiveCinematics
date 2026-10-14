@@ -101,6 +101,9 @@ public final class TrackSchemas {
         kfs.put("facing_origin_x", new FieldDef("float", 0f));
         kfs.put("facing_origin_y", new FieldDef("float", 0f));
         kfs.put("facing_origin_z", new FieldDef("float", 0f));
+        // 点源时态（live = 逐帧重取 / snapshot = 首次解析到的点冻结；seek 重取、loop 折返延续、morph 两侧各持）：
+        // 只对实体选择器形态生效，静态来源（坐标 / 方块 / 结构 / 玩家激活位置）写 = 无效果（validator 提示）
+        kfs.put("facing_origin_time", new FieldDef("enum", "live", false, List.of("live", "snapshot")));
         // 基准坐标系前轴目标：留空 = 位置点源自身朝向；否则 = 位置点源 → 该目标的连线方向（点源，见
         // camera/source/PointSource；"coordinate" 形态的坐标取 facing_target_x/y/z）；偏移 facing_target_offset
         kfs.put("facing_target", new FieldDef("string", ""));
@@ -109,6 +112,7 @@ public final class TrackSchemas {
         kfs.put("facing_target_z", new FieldDef("float", null));
         // 点源偏移（{dx,dy,dz} 世界轴 / {fwd,up,right} 基准坐标系；见 camera/source/PointSource.Offset）
         kfs.put("facing_target_offset", new FieldDef("map", null));
+        kfs.put("facing_target_time", new FieldDef("enum", "live", false, List.of("live", "snapshot")));
         kfs.put("follow", new FieldDef("enum", "none", false, List.of("none", "entity")));
         kfs.put("follow_selector", new FieldDef("string", "@p"));
         kfs.put("look_at", new FieldDef("enum", "none", false, List.of("none", "player", "coordinate", "entity", "block")));
@@ -123,6 +127,8 @@ public final class TrackSchemas {
         kfs.put("look_at_target_block", new FieldDef("string", ""));
         // 注视点偏移（{dx,dy,dz} 世界轴 / {fwd,up,right} 基准坐标系）：叠加在来源取点之后
         kfs.put("look_at_offset", new FieldDef("map", null));
+        // 注视点时态：只对 look_at=entity 生效（其余形态恒定）
+        kfs.put("look_at_time", new FieldDef("enum", "live", false, List.of("live", "snapshot")));
         // 选择器目标锁定策略：通用字段 = 该关键帧所有调用点的缺省回落（语义见 selector/SelectorPolicy）。
         // 调用点专属字段名 = <字段>_<调用点>（调用点名见 SelectorSchema.CALLPOINTS），
         // 缺省 null = 回落通用字段；不写任何调用点字段 = 旧行为（只用通用字段）。
@@ -165,11 +171,13 @@ public final class TrackSchemas {
         kfs.put("yaw_base_from_y", new FieldDef("float", null));
         kfs.put("yaw_base_from_z", new FieldDef("float", null));
         kfs.put("yaw_base_from_offset", new FieldDef("map", null));
+        kfs.put("yaw_base_from_time", new FieldDef("enum", "live", false, List.of("live", "snapshot")));
         kfs.put("yaw_base_to", new FieldDef("string", ""));
         kfs.put("yaw_base_to_x", new FieldDef("float", null));
         kfs.put("yaw_base_to_y", new FieldDef("float", null));
         kfs.put("yaw_base_to_z", new FieldDef("float", null));
         kfs.put("yaw_base_to_offset", new FieldDef("map", null));
+        kfs.put("yaw_base_to_time", new FieldDef("enum", "live", false, List.of("live", "snapshot")));
         kfs.put("yaw", new FieldDef("float", 0));
         kfs.put("pitch", new FieldDef("float", 0));
         // 方向锁（每轴一把，缺省 null = 不锁，跟 yaw_base / pitch_base 的方向源）：
