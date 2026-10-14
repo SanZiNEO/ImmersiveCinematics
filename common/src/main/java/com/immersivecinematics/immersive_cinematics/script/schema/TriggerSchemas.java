@@ -11,6 +11,9 @@ import java.util.Map;
  * 由 SchemaExporter 导出给 WebUI 动态生成表单。Java 侧是唯一权威。
  * <p>
  * 字段定义参考 docs/TRIGGER_TYPES.md。
+ * <p>
+ * 新增类型：在 {@link #typeList()} 与 {@link #all()} 各登记一处即可——{@code ScriptValidator}
+ * 的通用层直接按本表校验 conditions（必填 / 类型 / enum 取值 / 有限数值），无需加校验分支。
  */
 public final class TriggerSchemas {
 
@@ -49,8 +52,14 @@ public final class TriggerSchemas {
         );
     }
 
-    /** 所有触发器的 conditions schema */
+    /** 所有触发器的 conditions schema（只读共享表：构建一次后缓存，调用方不得修改） */
     public static Map<String, Map<String, FieldDef>> all() {
+        return ALL;
+    }
+
+    private static final Map<String, Map<String, FieldDef>> ALL = buildAll();
+
+    private static Map<String, Map<String, FieldDef>> buildAll() {
         Map<String, Map<String, FieldDef>> map = new LinkedHashMap<>();
         map.put("login", login());
         map.put("location", location());
@@ -233,7 +242,7 @@ public final class TriggerSchemas {
 
     private static Map<String, FieldDef> inventory() {
         Map<String, FieldDef> m = new LinkedHashMap<>();
-        m.put("items", new FieldDef("map", null, true));
+        m.put("items", new FieldDef("array", null, true));
         m.put("mode", new FieldDef("enum", "and", false, List.of("and", "or")));
         m.put("change", new FieldDef("enum", "", false, List.of("", "increase", "decrease")));
         return m;

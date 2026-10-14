@@ -202,7 +202,7 @@ export const DEMO_SCHEMA: Schema = {
         reach: { type: 'float', default: 4.5, required: false, enumValues: [], section: 'info' },
       },
       inventory: {
-        items: { type: 'map', default: null, required: true, enumValues: [], section: 'info' },
+        items: { type: 'array', default: null, required: true, enumValues: [], section: 'info' },
         mode: { type: 'enum', default: 'and', required: false, enumValues: ['and', 'or'], section: 'info' },
         change: { type: 'enum', default: '', required: false, enumValues: ['', 'increase', 'decrease'], section: 'info' },
       },

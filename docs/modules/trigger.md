@@ -4,8 +4,8 @@
 
 功能树：
 
-- **23 种触发器类型**
-  - ✅ 入口类 `ImmersiveCinematics.registerTriggerTypes()` 注册 23 种触发器：location、biome、inventory、structure、gamestage、xp、dimension、observation（轮询）+ advancement、entity_kill、entity_interact、dimension_change、login、item_craft、item_use、item_consume、item_release、item_instant_use、item_use_interrupt、block_interact、item_on_interact、item_pickup、item_drop（事件驱动）（`TriggerRegistry`、`TriggerType`）
+- **27 种触发器类型**
+  - ✅ 入口类 `ImmersiveCinematics.registerTriggerTypes()` 注册 27 种触发器：location、biome、inventory、structure、gamestage、xp、dimension、observation、facing、all_of、any（轮询）+ advancement、entity_kill、entity_interact、dimension_change、login、item_craft、item_use、item_consume、item_release、item_instant_use、item_use_interrupt、block_interact、item_on_interact、item_pickup、item_drop、death（事件驱动）（`TriggerRegistry`、`TriggerType`）
   - ✅ `TriggerType` 定义触发器元数据：id、监听策略（轮询/事件驱动）、轮询间隔、条件求值器（`TriggerType`）
   - ✅ `TriggerRegistry` 提供注册/查询/清空触发器类型（`TriggerRegistry`）
 - **双通道触发引擎**
@@ -60,6 +60,24 @@
   - ✅ 玩家登录时加载、退出时保存并卸载、服务端停止/世界保存时全量保存（`TriggerStateStore`）
   - ✅ `PlayerTriggerState` 维护每玩家的 已触发触发器集合（脚本→触发器 id）与已完成脚本集合，带脏标记避免无变化写入（`PlayerTriggerState`）
   - ✅ 提供查询与变更 API：isTriggered/markTriggered、resetScript/resetAll、isScriptCompleted/markScriptCompleted（`TriggerStateStore`、`PlayerTriggerState`）
+
+## 新增触发器类型的注册清单
+
+加一个新类型 = 改下面 5 处（前 4 处是逻辑本身所在，第 5 处是文档）：
+
+| # | 位置 | 改什么 |
+|---|------|--------|
+| 1 | `trigger/server/evaluator/Evaluators.java` | 求值器 `evaluateXxx(player, conditions)`；需要跨 tick 记忆的再加 per-player tracker（玩家退出时清理） |
+| 2 | `ImmersiveCinematics.registerTriggerTypes()` | 一行注册：id / `ListenStrategy` / 轮询间隔（事件驱动填 0）/ 求值器方法引用 |
+| 3 | `handler/ServerEventHandler.java` | **仅事件型**：事件入口记录 tracker 状态后调 `TriggerEngine.INSTANCE.onGameEvent("<type>", player)` |
+| 4 | `script/schema/TriggerSchemas.java` | `typeList()` 加 id（编辑器下拉顺序）+ `all()` 登记 conditions 字段表（`FieldDef`：type / default / required / enum） |
+| 5 | `docs/TRIGGER_TYPES.md`（表格 + 示例）、`docs/AI_SCRIPTING_GUIDE.md` | 类型详情 |
+
+**`ScriptValidator` 不用为新类型加分支**：conditions 的必填缺失 / 类型不符 / enum 越值 / 非有限数值由通用层
+（`ScriptValidator.validateConditionsBySchema`）按 `TriggerSchemas.all()` 的字段表自动校验。
+只有 schema 表达不了的**跨字段语义**才要加专用分支，现有三类：`facing`（两对端点成套 + pitch 端点钳制）、
+`all_of` / `any`（`list` 的 `{ type, conditions }` 结构与嵌套深度）、`death`（场景组字段互相配合，文案带场景语义）；
+加这类类型时在 `validateTriggerConditions` 的分发处补一条 `else if` 并注明 schema 为什么表达不了。
 
 ## 已知问题
 

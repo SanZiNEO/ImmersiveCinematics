@@ -207,6 +207,47 @@
 
 ---
 
+## 10. 注册面收敛（2026-10-14 用户口径，C-reg）
+
+> 用户口径：「触发器那边也写的容易注册一些。毕竟触发器已经多了很多种类了，可以看见的未来是肯定不止这些触发器类型的」。
+> 目标：**加一个新触发器类型 = 动最少的文件**——把「校验分支」这处从必改清单里去掉。
+
+**手段**：`ScriptValidator.validateTriggerConditions` 的类型分发末尾加 schema 通用层（`validateConditionsBySchema`）：
+按 `TriggerSchemas.all()` 里该类型的字段表逐字段校验 **必填缺失 / 类型不符 / enum 越值 / 数值非有限**
+（`FieldDef` 的 type / required / enumValues 元数据），新普通类型只要在 schema 登记字段，校验自动生效。
+
+**落地清单**
+
+| # | 改动 | 位置 |
+|---|---|---|
+| 1 | 新增 `validateConditionsBySchema`（schema 驱动通用层）+ 辅助 `enumLabel` / `isString` / `isInt32`；类型分发 `else` 分支接入 | `script/ScriptValidator.java` |
+| 2 | 通用层单源：`TriggerSchemas.all()` 改为构建一次后缓存（只读共享表），类 javadoc 写明「新增类型登记 typeList() + all() 即可」 | `script/schema/TriggerSchemas.java` |
+| 3 | schema 修正：`inventory.items` 声明由 `map` 改为 `array`（求值器要求 `isJsonArray()`、文档写 `string[]`、既有脚本用的是数组——原声明是笔误） | `script/schema/TriggerSchemas.java` |
+| 4 | 文档：`docs/modules/trigger.md` 新增「新增触发器类型的注册清单」（① 求值器 ② 注册行 ③ 事件入口 ④ schema ⑤ 文档；并写明普通类型不需要动 ScriptValidator） | `docs/modules/trigger.md` |
+
+**仍走专用分支的类型（schema 表达不了，逐个注明原因）**
+
+| 类型 | 保留的校验 | 为什么 schema 表达不了 |
+|---|---|---|
+| `facing` | yaw1/pitch1/yaw2/pitch2 为数字 + pitch 端点 ±90 / 有限 | 四字段是两对**配对端点**，且 pitch 要按原版范围钳制；报错文案把四字段作为一组说明 |
+| `all_of` / `any` | `list` 结构、子项 `{ type, conditions }`、子类型（轮询类 / 前置条件 / 嵌套组合器）、嵌套深度 | `list` 元素是**异构结构**（触发器 / 前置条件 / 组合器三类语义），schema 只登记类型、无字段 |
+| `death` | 场景组字段类型（dimension / biome / position / radius / corner1 / corner2） | 场景组字段**互相配合**（position+radius 与 corner1+corner2 二选一），且报错文案带「按死亡时刻记录判定」的场景语义，通用文案无法逐字节复现 |
+
+**行为边界**：既有类型（含 facing / all_of / any / death）的校验结果逐字节不变；通用层只覆盖此前**没有任何校验**
+的普通类型 conditions 字段（新增报错，不修改既有文案）——「未知字段静默」策略不变（不做未知字段拒绝）。
+
+**验收**（无头 validator，仓库外脚手架 `E:/tmp/icv/Validate.java`）
+
+- `sh gradlew compileJava`：BUILD SUCCESSFUL。
+- 153 脚本（`cinematics/tests` + `cinematics/release`）改前 / 改后 stdout：`cmp` 逐字节一致（0 差异）。
+- 负例语料 16 条（`E:/tmp/creg/negative/`，覆盖 facing 缺失 / pitch 超范围 / pitch 非有限 / death 场景组类型 /
+  组合器 list 结构·子类型·嵌套深度·前置条件 / 未知类型 / conditions 形状 / exit_buffer·on_enter 提示 / requires）：
+  改前 / 改后 `cmp` 逐字节一致。
+- 新类型演练探针（`E:/tmp/creg/NewTypeProbe.java`）：探针内注册假类型 + 反射往 `TriggerSchemas.all()` 声明字段，
+  必填 / 类型 / enum / 非有限数值错误全部由通用层自动报出（11 项断言全过，校验器源码无该类型名）。
+
+---
+
 ## 已知缺陷（2026-10-06 代码复查）
 
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。

@@ -10,6 +10,7 @@ import com.immersivecinematics.immersive_cinematics.camera.transition.Transition
 import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
+import com.immersivecinematics.immersive_cinematics.script.schema.TriggerSchemas;
 import com.immersivecinematics.immersive_cinematics.selector.SelectorSchema;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
@@ -1752,11 +1753,14 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 meta.triggers 的 type / conditions 结构：未知类型、conditions 非对象；facing 的四个角度字段
-     * （yaw1/pitch1/yaw2/pitch2 为数字、pitch 端点 ±90）；all_of / any 的 list 结构与子类型（轮询类触发器 /
-     * 已注册前置条件 / 嵌套组合器，层数上限 {@link Evaluators#MAX_COMBINATION_DEPTH} 含顶层，事件类不可用）；
-     * death 的场景组字段类型（dimension / biome / position / radius / corner1 / corner2）；
-     * facing / all_of / any 上无效的 exit_buffer 提示，death 上无效的 on_enter / exit_buffer 提示。
+     * 校验 meta.triggers 的 type / conditions 结构：未知类型、conditions 非对象，以及 conditions 字段的
+     * schema 通用校验（必填 / 类型 / enum 取值 / 有限数值，见 {@link #validateConditionsBySchema}）。
+     * <p>
+     * 只有 schema 表达不了的跨字段语义才走专用分支：facing（yaw1/pitch1 与 yaw2/pitch2 是配对端点，
+     * pitch 端点按原版范围钳制）、all_of / any（list 是 { type, conditions } 结构，子项可嵌套或引用前置条件，
+     * 层数上限 {@link Evaluators#MAX_COMBINATION_DEPTH} 含顶层）、death（场景组字段互相配合，
+     * 报错文案带场景语义）。另有 facing / all_of / any 上无效的 exit_buffer 提示，
+     * death 上无效的 on_enter / exit_buffer 提示。
      */
     private static void validateTriggerConditions(JsonObject meta, String path,
                                                   Collection<String> knownScriptIds, List<String> issues) {
@@ -1786,12 +1790,17 @@ public final class ScriptValidator {
             }
             if (conditions != null) {
                 if ("facing".equals(type)) {
+                    // schema 表达不了：四个角度字段是两对端点，pitch 端点还要按原版 -90~90 钳制
                     validateFacingConditions(conditions, tp + ".conditions", issues);
                 } else if ("all_of".equals(type) || "any".equals(type)) {
+                    // schema 表达不了：list 元素是 { type, conditions } 结构，子项可嵌套或引用前置条件
                     validateCombinationConditions(conditions, tp + ".conditions", type, 1,
                             selfId, knownScriptIds, issues);
                 } else if ("death".equals(type)) {
+                    // schema 表达不了：场景组字段互相配合（position+radius / corner1+corner2），文案带场景语义
                     validateDeathConditions(conditions, tp + ".conditions", issues);
+                } else {
+                    validateConditionsBySchema(conditions, tp + ".conditions", type, issues);
                 }
             }
             if (("facing".equals(type) || "all_of".equals(type) || "any".equals(type))
@@ -1810,6 +1819,87 @@ public final class ScriptValidator {
                 }
             }
         }
+    }
+
+    /**
+     * conditions 通用校验（schema 驱动）：按 {@link TriggerSchemas#all()} 里该类型的字段表逐字段检查
+     * 必填缺失 / 类型不符 / enum 取值非法 / 数值非有限。新触发器类型只要在 TriggerSchemas 登记字段，
+     * 校验自动生效——不需要在校验器加分支（跨字段语义类型走各自专用分支，见
+     * {@link #validateTriggerConditions}）。未登记的字段保持静默（向前兼容，不做未知字段拒绝）。
+     */
+    private static void validateConditionsBySchema(JsonObject c, String p, String type, List<String> issues) {
+        Map<String, FieldDef> fields = TriggerSchemas.all().get(type);
+        if (fields == null) return;
+        for (Map.Entry<String, FieldDef> entry : fields.entrySet()) {
+            String key = entry.getKey();
+            FieldDef def = entry.getValue();
+            String fp = p + "." + key;
+            if (!c.has(key)) {
+                if (def.required()) issues.add(fp + " 缺失（" + type + " 的必填条件字段）");
+                continue;
+            }
+            JsonElement v = c.get(key);
+            switch (def.type()) {
+                case "string" -> {
+                    if (!isString(v)) issues.add(fp + " 需要字符串");
+                }
+                case "bool" -> {
+                    if (!v.isJsonPrimitive() || !v.getAsJsonPrimitive().isBoolean()) {
+                        issues.add(fp + " 需要布尔值（true / false）");
+                    }
+                }
+                case "map" -> {
+                    if (!v.isJsonObject()) issues.add(fp + " 需要对象（形如 { \"x\": ..., \"y\": ..., \"z\": ... }）");
+                }
+                case "array" -> {
+                    if (!v.isJsonArray()) issues.add(fp + " 需要数组");
+                }
+                case "int" -> {
+                    if (!isNumber(v)) {
+                        issues.add(fp + " 需要整数");
+                    } else if (!isInt32(v)) {
+                        issues.add(fp + " 不是整数：" + v);
+                    }
+                }
+                case "float", "number", "double" -> {
+                    if (!isNumber(v)) {
+                        issues.add(fp + " 需要数字");
+                    } else if (!Float.isFinite(v.getAsFloat())) {
+                        issues.add(fp + " 不是有限数字（NaN / Infinity）：" + v);
+                    }
+                }
+                case "enum" -> {
+                    if (!isString(v) || !def.enumValues().contains(v.getAsString())) {
+                        issues.add(fp + " 取值非法: " + v + "（" + type + " 只接受 "
+                                + enumLabel(def.enumValues()) + "）");
+                    }
+                }
+                default -> {
+                    // 未知字段类型：留给 schema 演进，不报（新增字段类型时在此补一条）
+                }
+            }
+        }
+    }
+
+    /** enum 取值集的可读列表；空串是 schema 里的「显式不限制」取值，渲染成 {@code ""} */
+    private static String enumLabel(List<String> values) {
+        StringBuilder sb = new StringBuilder();
+        for (String value : values) {
+            if (sb.length() > 0) sb.append(" / ");
+            sb.append(value.isEmpty() ? "\"\"" : value);
+        }
+        return sb.toString();
+    }
+
+    private static boolean isString(JsonElement e) {
+        return e.isJsonPrimitive() && e.getAsJsonPrimitive().isString();
+    }
+
+    /** 数值是否为 32 位可表示整数（NaN / Infinity / 小数 / 越界均不算） */
+    private static boolean isInt32(JsonElement e) {
+        double d = e.getAsDouble();
+        return Double.isFinite(d) && d == Math.rint(d)
+                && d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE;
     }
 
     private static void validateFacingConditions(JsonObject c, String p, List<String> issues) {
