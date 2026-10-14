@@ -42,11 +42,17 @@ public class ScriptPlayer {
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/ScriptPlayer");
 
     /**
-     * holdAtEnd 模式下的时间偏移量 — 略小于 totalDuration，
-     * 避免 isFinished() 判定脚本已结束。
+     * holdAtEnd 模式下的时间偏移量 — 略小于内容终点，
+     * 避免内容谓词判定脚本已结束。
      * 0.1ms 的偏移在视觉上不可察觉，但确保插值仍取最后一帧的值。
      */
     private static final float HOLD_END_EPSILON = 0.0001f;
+
+    /** total_duration 兜底告警的最小输出间隔（毫秒；内容未播完而时间已过时限频提示作者）。 */
+    private static final long OVERRUN_WARN_INTERVAL_MS = 10_000L;
+
+    /** 空片段槽（空时间轴：不分配）。 */
+    private static final int[] EMPTY_LOOP_COUNTS = new int[0];
 
     // ========== 状态 ==========
 
@@ -131,6 +137,19 @@ public class ScriptPlayer {
     private float lastLocalElapsed = Float.NaN;
 
     /**
+     * 内容消费谓词（②族「内容播完」）用的 per-clip 已展开圈数槽：索引 = 扁平片段序（轨道序 → 轨道内片段序），
+     * 与 {@link Clip} 一一对应，由 {@link #countClipLoops} 每帧累加（有限循环片段到 {@code loop_count} 即「次数耗尽」）。
+     * 容量在 {@link #start} / {@link #replaceScript} 时按脚本片段总数重建，每帧路径零分配。
+     */
+    private int[] clipLoopCounts = EMPTY_LOOP_COUNTS;
+
+    /**
+     * 折返检测基准：上一帧的播放头读数（秒）；NaN = 无上一帧。
+     * 与 {@link #clipLoopCounts} 配合，按「本帧相对上帧跨过的循环边界数」累加，跳转 / 回退不误计。
+     */
+    private float clipLoopPrevTime = Float.NaN;
+
+    /**
      * 本帧分发给轨道的时间轴读数（秒；宏观循环 = 圈内局部时间）——片段活跃窗判定的唯一读侧出口
      * （{@code ClipModifierGate} 按它比较声明片段的窗口）。未开始播放时为 {@code start} 传入的预执行时间。
      */
@@ -173,6 +192,7 @@ public class ScriptPlayer {
         this.script = newScript;
         this.currentBehavior = newScript.getMeta() != null ? newScript.getMeta().getBehavior() : null;
         this.computeMacroLoop();
+        this.resetClipLoopCounts();
 
         if (layoutChanged) {
             // 轨道布局变化(轨道数/类型顺序不同):旧 TrackPlayer 绑定的轨道索引对新脚本失效,
@@ -311,6 +331,8 @@ public class ScriptPlayer {
 
         // 宏观循环：推导区间 [a, b] 与圈数并缓存（NaN = 不循环）
         computeMacroLoop();
+        // 内容消费计数槽：按新脚本的片段总数重建（②族谓词的「循环次数耗尽」判据）
+        resetClipLoopCounts();
 
         // block_mob_ai：清空已锁定玩家的生物目标
         if (currentBehavior.blockMobAi() && mc.level != null) {
@@ -382,14 +404,11 @@ public class ScriptPlayer {
     }
 
     /**
-     * 脚本是否已播放完成（时间耗尽）
-     * <p>
-     * 注意：此方法仅检查时间是否耗尽，不检查 holdAtEnd。
-     * holdAtEnd 的保持逻辑由 CameraManager.onRenderFrame() 负责：
-     * <ul>
-     *   <li>holdAtEnd=false → 播完后自动 deactivateNow()</li>
-     *   <li>holdAtEnd=true → 播完后保持相机状态，等待用户退出或新脚本打断</li>
-     * </ul>
+     * 脚本是否已播放完成：{@link #allContentConsumed()}（②族「内容播完」谓词）或兜底上限
+     * （{@code meta.exit_on_duration_overrun=true} 且播放头已过 {@code total_duration}）。
+     * 宏观循环：有限 N 圈按 {@link #macroLoopTotalEnd()}，无限圈恒 false；时间本身不再是退出触发
+     * （见 {@code plans/0.3.6/C-trigger/condition-system.md} §8.1）。
+     * 不检查 holdAtEnd——播完后驻留 / 退出由调用方（{@code FrameDriver}）按 {@code hold_at_end} 处置。
      */
     public boolean isFinished() {
         if (!playing || script == null) return false;
@@ -399,12 +418,46 @@ public class ScriptPlayer {
             // 有限次数 → 播完第 N 圈后自然结束
             return getElapsedSeconds() >= macroLoopTotalEnd();
         }
-        float totalDuration = script.getTotalDuration();
-        if (totalDuration < 0) return false; // 无限循环脚本
+        return allContentConsumed() || isDurationOverrun();
+    }
+
+    /**
+     * ②族「内容播完」谓词：全部轨道的全部片段消费窗口到达终点（{@link Clip#getWindowEnd()} ≤ 播放头）
+     * 且有限循环片段的展开圈数耗尽（{@link #clipLoopCounts}）且无挂起在跑。
+     * 永不结束的片段窗口末恒 {@link Float#MAX_VALUE} → 恒 false（只能 ①③ 族退出）；按内容点判定、不按墙钟。
+     * 零分配：只遍历既有轨道 / 片段结构（索引循环，不建集合 / 不装箱）。
+     */
+    private boolean allContentConsumed() {
+        if (isSuspended()) return false;
+        if (script == null || script.getTimeline() == null) return false;
         float elapsed = getElapsedSeconds();
-        if (elapsed < totalDuration) return false;
-        // 时间耗尽后：若存在已开始的无限循环片段（loop=true + loop_count=-1），脚本永不结束
-        return !hasActiveInfiniteLoopClip(elapsed);
+        List<TimelineTrack> tracks = script.getTimeline().getTracks();
+        int i = 0;
+        for (int ti = 0; ti < tracks.size(); ti++) {
+            List<Clip> clips = tracks.get(ti).getClips();
+            for (int ci = 0; ci < clips.size(); ci++) {
+                Clip clip = clips.get(ci);
+                // 窗口末未到（无限片段 = MAX_VALUE → 恒不满足）
+                if (clip.getWindowEnd() > elapsed) return false;
+                // 有限循环：展开圈数未耗尽（无循环周期 = 未展开，不要求计数）
+                if (clip.isLoop() && clip.getLoopCount() > 0 && clip.getAnimPeriod() > 0f
+                        && (i >= clipLoopCounts.length || clipLoopCounts[i] < clip.getLoopCount())) {
+                    return false;
+                }
+                i++;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * {@code total_duration} 兜底上限是否成立：内容未播完而播放头已过正数 {@code total_duration}，
+     * 且脚本显式打开 {@code meta.exit_on_duration_overrun}（缺省 false = 只告警、不退出）。
+     */
+    private boolean isDurationOverrun() {
+        if (!script.getMeta().isExitOnDurationOverrun()) return false;
+        float total = script.getTotalDuration();
+        return total > 0f && getElapsedSeconds() >= total;
     }
 
     /**
@@ -419,7 +472,10 @@ public class ScriptPlayer {
     }
 
     /**
-     * 获取剩余播放时间（秒）
+     * 距内容终点的剩余秒数（终点 = 各片段展开结束时刻 {@link Clip#getWindowEnd()} 的最大值，不是 {@code total_duration}）。
+     * 无限内容（永不结束片段 / 宏观无限圈）→ {@link Float#MAX_VALUE}（「不会自然结束」哨兵，读方无需判 NaN）；
+     * 已过终点 → {@code 0}；未播放 → {@code 0}。宏观循环按 {@code a + N × (b − a)} 计；内容比声明时长长时
+     * 本值可大于「{@code total_duration} − 已播时间」——时间不是结束判据。
      */
     public float getRemainingTime() {
         if (!playing || script == null) return 0f;
@@ -427,10 +483,9 @@ public class ScriptPlayer {
             if (macroLoopCount < 0) return Float.MAX_VALUE; // 无限重复：不自然结束
             return Math.max(0f, macroLoopTotalEnd() - getElapsedSeconds());
         }
-        float totalDuration = script.getTotalDuration();
-        if (totalDuration < 0) return Float.MAX_VALUE; // 无限循环
-        if (hasActiveInfiniteLoopClip(getElapsedSeconds())) return Float.MAX_VALUE; // 无限循环片段已开始
-        return Math.max(0f, totalDuration - getElapsedSeconds());
+        float end = contentEnd();
+        if (Float.isNaN(end)) return Float.MAX_VALUE; // 无限内容：无内容终点
+        return Math.max(0f, end - getElapsedSeconds());
     }
 
     /**
@@ -533,16 +588,28 @@ public class ScriptPlayer {
             }
             lastLocalElapsed = local;
             elapsedSeconds = local;
-        } else if (totalDuration > 0 && elapsedSeconds >= totalDuration) {
-            // 检查脚本是否结束（宏观循环与 hold 钳制互斥：开启循环时不走本分支）
-            if (hasActiveInfiniteLoopClip(elapsedSeconds)) {
-                // 无限循环片段（loop=true + loop_count=-1）已开始：脚本持续播放，不退出
-            } else if (script.getMeta().isHoldAtEnd()) {
-                // holdAtEnd: 保持在最后一帧
-                elapsedSeconds = totalDuration - HOLD_END_EPSILON;
-            } else {
-                // 脚本结束，isFinished() 将返回 true
-                return;
+        } else {
+            // ②族内容消费：按本帧播放头推进累加各有限循环片段的已展开圈数（谓词用；零分配）
+            countClipLoops(elapsedSeconds);
+            if (allContentConsumed()) {
+                // 内容播完：hold_at_end 驻留在内容末端最后一帧，否则本帧不分发
+                // （isFinished() 为 true，由调用方走自然结束 / 驻留）
+                if (script.getMeta().isHoldAtEnd()) {
+                    elapsedSeconds = Math.max(0f, contentEnd() - HOLD_END_EPSILON);
+                } else {
+                    return;
+                }
+            } else if (totalDuration > 0f && elapsedSeconds >= totalDuration) {
+                // total_duration 降级为统计位 + 可选兜底上限：内容未播完而时间已过 → 限频告警
+                // 无限内容（无内容终点）默认不告警——那不是「算漏」；显式打开兜底退出时照告警（说明退出口径）
+                boolean exitOnOverrun = script.getMeta().isExitOnDurationOverrun();
+                float end = contentEnd();
+                if (!Float.isNaN(end) || exitOnOverrun) {
+                    warnDurationOverrun(elapsedSeconds, totalDuration, end);
+                }
+                if (exitOnOverrun) {
+                    return; // 兜底退出：isFinished() 为 true，由调用方走 NATURAL_END
+                }
             }
         }
 
@@ -767,37 +834,99 @@ public class ScriptPlayer {
     }
 
     /**
-     * 宏观末端（秒）= 脚本内所有片段展开结束时刻（{@link Clip#getWindowEnd()}，含片段自身循环展开）的最大值。
-     * <p>
-     * 存在永不结束的片段（{@link Clip#isEffectivelyInfinite()}）→ 末端不存在 → 返回 null（不循环）。
-     * 不用作者声明的 total_duration 当末端。
+     * 内容终点（秒）= 各片段展开结束时刻（{@link Clip#getWindowEnd()}，含片段自身循环展开）的最大值。
+     * 存在永不结束的片段（{@link Clip#isEffectivelyInfinite()}）→ {@code NaN}（无终点：谓词恒 false、
+     * 兜底也不告警）；空时间轴 / 零长度 → {@code 0}。不用作者声明的 {@code total_duration} 当终点。
      */
-    private Float computeMacroEnd() {
-        if (script == null || script.getTimeline() == null) return null;
+    private float contentEnd() {
+        if (script == null || script.getTimeline() == null) return Float.NaN;
         float end = 0f;
-        for (TimelineTrack track : script.getTimeline().getTracks()) {
-            for (Clip clip : track.getClips()) {
-                if (clip.isEffectivelyInfinite()) return null; // 永不结束片段 → 末端不存在
+        List<TimelineTrack> tracks = script.getTimeline().getTracks();
+        for (int ti = 0; ti < tracks.size(); ti++) {
+            List<Clip> clips = tracks.get(ti).getClips();
+            for (int ci = 0; ci < clips.size(); ci++) {
+                Clip clip = clips.get(ci);
+                if (clip.isEffectivelyInfinite()) return Float.NaN; // 永不结束片段 → 终点不存在
                 end = Math.max(end, clip.getWindowEnd());
             }
         }
-        return end > 0f ? end : null; // 空时间轴 / 零长度：不循环，避免对 0 取模
+        return end;
     }
 
     /**
-     * 是否存在已开始（elapsed >= clip.startTime）且永不结束（无限时长或无限循环）的片段。
-     * 用于时间耗尽后判定脚本是否因无限循环片段而持续播放。
+     * 宏观末端（秒）= {@link #contentEnd()}；不存在（永不结束片段 / 空时间轴 / 零长度）→ 返回 null（不循环）。
      */
-    private boolean hasActiveInfiniteLoopClip(float elapsed) {
-        if (script == null) return false;
-        for (TimelineTrack track : script.getTimeline().getTracks()) {
-            for (Clip clip : track.getClips()) {
-                if (clip.isEffectivelyInfinite() && elapsed >= clip.getStartTime()) {
-                    return true;
-                }
+    private Float computeMacroEnd() {
+        float end = contentEnd();
+        return Float.isNaN(end) || end <= 0f ? null : end; // 空时间轴 / 零长度：不循环，避免对 0 取模
+    }
+
+    /**
+     * 按当前脚本的片段总数重建内容消费计数槽（{@link #clipLoopCounts}）并清折返基准。
+     * 只在 {@link #start} / {@link #replaceScript} 调用——每帧路径零分配。
+     */
+    private void resetClipLoopCounts() {
+        int n = 0;
+        if (script != null && script.getTimeline() != null) {
+            for (TimelineTrack track : script.getTimeline().getTracks()) {
+                n += track.getClips().size();
             }
         }
-        return false;
+        clipLoopCounts = n == 0 ? EMPTY_LOOP_COUNTS : new int[n];
+        clipLoopPrevTime = Float.NaN;
+    }
+
+    /**
+     * 内容消费计数：按本帧播放头相对上帧的推进，为每个有限循环片段累加「已展开圈数」
+     * （②族谓词的「循环次数耗尽」判据——{@link KeyframeInterpolator} 只做时间映射不计数，故引擎自记）。
+     * 折返检测 = 上帧时间（{@link #clipLoopPrevTime}，NaN 守卫）与本帧时间各自跨过的循环边界数之差：
+     * 未推进（含 seek 回退 / hold 驻留）不计数，一帧跨多圈一次补齐——计数单调不减、恒 ≤ {@code loop_count}。
+     * 零分配（只写既有 int 槽数组）；宏观循环圈数另由 {@link #macroLoopCount} 计，本方法只在非宏观路径调用。
+     */
+    private void countClipLoops(float elapsed) {
+        float prev = clipLoopPrevTime;
+        clipLoopPrevTime = elapsed;
+        if (Float.isNaN(prev) || elapsed <= prev || script == null || script.getTimeline() == null) return;
+        List<TimelineTrack> tracks = script.getTimeline().getTracks();
+        int i = 0;
+        for (int ti = 0; ti < tracks.size(); ti++) {
+            List<Clip> clips = tracks.get(ti).getClips();
+            for (int ci = 0; ci < clips.size(); ci++) {
+                Clip clip = clips.get(ci);
+                if (i < clipLoopCounts.length && clip.isLoop() && clip.getLoopCount() > 0) {
+                    int crossed = lapsBefore(clip, elapsed) - lapsBefore(clip, prev);
+                    if (crossed > 0) {
+                        clipLoopCounts[i] = Math.min(clipLoopCounts[i] + crossed, clip.getLoopCount());
+                    }
+                }
+                i++;
+            }
+        }
+    }
+
+    /** 时间 {@code t} 处片段已展开的完整圈数（未开始 / 无循环周期 → 0）。 */
+    private static int lapsBefore(Clip clip, float t) {
+        float period = clip.getAnimPeriod();
+        if (period <= 0f) return 0;
+        float local = t - clip.getStartTime();
+        return local <= 0f ? 0 : (int) (local / period);
+    }
+
+    /**
+     * {@code total_duration} 兜底告警：内容未播完而播放头已过声明时长 → 限频（{@link #OVERRUN_WARN_INTERVAL_MS}）
+     * 提示作者检查时间轴与声明时长的一致性；是否到点退出由 {@code meta.exit_on_duration_overrun} 决定。
+     * 只在异常路径调用（拼串 / 装箱不进每帧零分配契约）。
+     */
+    private void warnDurationOverrun(float elapsed, float totalDuration, float end) {
+        String endText = Float.isNaN(end) ? "无（永不结束片段）" : end + "s";
+        com.immersivecinematics.immersive_cinematics.util.ErrorLog.logRateLimited(
+                "Playback", "duration-overrun:" + getScriptId(), OVERRUN_WARN_INTERVAL_MS,
+                String.format("脚本 '%s' 内容未播完而 total_duration(%ss) 已过（elapsed %ss，内容终点 %s）：%s",
+                        getScriptId(), totalDuration, elapsed, endText,
+                        script.getMeta().isExitOnDurationOverrun()
+                                ? "exit_on_duration_overrun=true → 本次到点退出（NATURAL_END）"
+                                : "继续播完内容（total_duration 已降级为统计位；需要到点退出请设 "
+                                        + "meta.exit_on_duration_overrun=true）"));
     }
 
     /**

@@ -139,7 +139,7 @@
 
 | 字段 | 说明 |
 |---|---|
-| `total_duration` | 总时长秒。正数 = 定长；负数 = 无限时长（脚本永不宣布结束，但**不会**回卷循环） |
+| `total_duration` | 声明时长秒（正数，不允许 0）。**统计 / 信息位**：脚本播到**内容末端**（各片段展开结束时刻的最大值）就自然结束，本值不决定结束时刻（比内容长就早结束、比内容短就继续播完）。仅当 `meta.exit_on_duration_overrun=true` 时兼作兜底上限（到点退出） |
 | `tracks` | 轨道数组。CAMERA 可多条（每条 = 一个画面 lane，轨道层级后面的在上；最后一轨的顶层 clip 决定主相机）；LETTERBOX/EVENT 建议 1 条，AUDIO/OVERLAY/MOD_EVENT 不限 |
 | `loop_start` / `loop_end` | **宏观循环区间 `[a,b]`**（秒），仅在 `meta.macro_loop=true` 时被读取：`a` 缺省 `0`，`b` 缺省 = 宏观末端。写 `loop_end` 即按 `[loop_start, loop_end]` 重复（子区间循环）。编辑器 A-B 快捷键（I / O）写的就是这两个字段 |
 
@@ -375,6 +375,7 @@
 - 判定源与触发器同词汇：`time`（片段本地时钟 `at` / `from`+`to`）、`location`、`facing`、`biome`、`dimension`、`camera_pos`、`camera_facing`、`camera_fov` + 组合器 `all_of` / `any`。
 - 动作 v1 九种（只作用本播放实例）：`camera_set`（`channels` + 可选 `mode` / `priority` + 通道值：触发起持续叠加到片段结束）、`overlay_set`（`layer_type:"fade"` + `opacity` / `color`）、`adjust_set`（基础校色 15 通道，如 `{"exposure":0.5}`）、`goto_clip`（`{"track":"CAMERA","at":秒}` 时间寻址）、`pause` / `resume`、`exit`（声明式退出，`hold_at_end` 也照退）、`play_sound`（`sound` + 可选 `volume` / `pitch`）、`emit_command`（`command`，服务端执行、仅该脚本观看者）。
 - 无限等待用 `until` 不写 `timeout`（**没有** `hold` 动作）；动作失败只记限频日志、播放照走（不中断）。
+- **结束与退出**：脚本播到**内容末端**（所有片段走到尽头、循环圈数耗尽、无挂起）就自然结束——`timeline.total_duration` 不再是结束判据（只是统计位；`meta.exit_on_duration_overrun=true` 时才兼作「到点退出」的兜底上限）。无限内容（`loop_count: -1` / `macro_loop_count: -1`）永不自然结束，要用规则 `exit`（③族）或让玩家跳过/打断（①族）收尾；`hold_at_end: true` = 自然结束后停在最后一帧等干预。
 
 ---
 
@@ -637,7 +638,7 @@
 ## 7. 交付前校验清单
 
 - [ ] `meta.version = 3`，`id` 只含字母/数字/下划线
-- [ ] `total_duration` 等于最后一段 clip 的结束时间（或为负 = 无限）
+- [ ] `total_duration` = 最后一段 clip 的结束时间（声明时长与内容末端一致最省心；不一致时脚本按**内容末端**结束——`total_duration` 只是统计位兼可选兜底上限）
 - [ ] 每个 clip：`duration ≠ 0`，**所有轨道都有 `keyframes`**（letterbox/EVENT/AUDIO/OVERLAY 同 CAMERA，无 clip 级简写）
 - [ ] 每个 clip 内：keyframe 的 `time` 严格递增
 - [ ] 逐段核对：相机方位 ↔ yaw 是否匹配（§1.4 对照表）

@@ -131,6 +131,8 @@
 - 与既有 `ExitReason`（FORCE_QUIT/SYSTEM_STOP/INTERRUPTED/USER_SKIP/NATURAL_END）：①族映射既有五值不变；②③族归 NATURAL_END，保持五值不扩。
 - `hold_at_end` 不变（自然结束后驻留至干预退出）；`macro_loop` 无限圈永不「内容播完」→ 只能 ①/③ 退出——「循环 + 条件退出」即「播到 X 发生为止」的干净组合。
 
+**落地（2026-10-14，C6-4）**：②族谓词落在 `ScriptPlayer.allContentConsumed()`（全部片段 `getWindowEnd()` ≤ 播放头 + 有限循环展开圈数耗尽（per-clip `int` 槽，折返检测累加）+ `isSuspended()` → false；无限片段窗口末恒 `MAX_VALUE` → 恒 false），`isFinished()` 改为「内容谓词 ∨ 兜底上限」；`onRenderFrame` 的时间分支改写为「谓词真 → 既有收尾（`hold_at_end` 驻留钳到**内容末端**）」/「谓词假且 `elapsed ≥ total_duration` → 限频告警（`ErrorLog.logRateLimited`，10s）」；兜底退出 = **新 meta 字段 `exit_on_duration_overrun`（bool，缺省 false）**，缺省只告警不退出（裁定 2026-10-14：默认不退出，防「分支比脚本时长长」被误杀）。`getRemainingTime()` 语义换成「距内容终点」；`total_duration` 保持必填、validator 只要求 ≠ 0 / 有限（**不校验 ≥ 内容末端**——内容比声明值长是合法用法）。`hold_at_end` 走 ②族同一路径（`FrameDriver` 的 `requestExit(NATURAL_END)` 仍按 `hold_at_end` 拒绝，声明式 `exit` 才跳过它）。
+
 2. 与「运行时只读只执行」原则的边界：规则动作改的是**实例运行时状态**（参数叠加/播放位置），不改脚本定义（keyframes 只读）；`switch_variant` 若引入内容变体，变体集仍是定义数据、只读。
 3. 编辑器呈现（规则的可视化编辑/预览）归编辑器阶段，不在 C 批实现范围。
 4. 外部模组注册自定义判定源/动作（`modid:name` 式）留 v2（与 PrerequisiteRegistry 同族思路）。

@@ -1,0 +1,79 @@
+{
+  "meta": {
+    "id": "test_exit_content",
+    "name": "退出测试-内容播完谓词",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "②族「内容播完」退出（C6-4）：内容末端 = 10s（两个片段各 5s），total_duration 故意声明 12s——时间不再是退出触发，脚本播到 10s 内容消费完即自然结束，不会等到 12s（旧口径会多播 2s 空档）；字幕轨第三段本应写在 10-12s，此处故意不写，用来对照「内容末端才是终点」；exit_on_duration_overrun=false（缺省口径：内容没播完而时间已过时只限频告警、不退出）",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "exit_on_duration_overrun": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "第一段（0-5s）：CAMERA 在 2s 用规则改 fov（camera_set 叠加）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 5,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "第二段（5-10s）：内容末端 = 10s → 播到这里脚本自然结束（total_duration 12s 不参与判定）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 5, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 10, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "transition": "cut",
+            "loop": false,
+            "rules": [
+              {
+                "if": { "type": "time", "at": 2 },
+                "do": [ { "type": "camera_set", "channels": ["fov"], "mode": "add", "fov": -10, "priority": 5 } ],
+                "once": true
+              }
+            ],
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 10, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 90, "pitch": -10, "roll": 0, "fov": 60, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

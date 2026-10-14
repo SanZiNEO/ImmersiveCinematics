@@ -48,6 +48,9 @@ public final class MetaSchemas {
                 java.util.List.of("parallel", "exclusive", "interruptible"), "runtime"));
         map.put("skippable", new FieldDef("bool", true, false, java.util.Collections.emptyList(), "runtime"));
         map.put("hold_at_end", new FieldDef("bool", false, false, java.util.Collections.emptyList(), "runtime"));
+        // total_duration 兜底上限：内容未播完而时间已过 → true 才到点退出（缺省 false = 只限频告警）
+        map.put("exit_on_duration_overrun",
+                new FieldDef("bool", false, false, java.util.Collections.emptyList(), "runtime"));
         map.put("macro_loop", new FieldDef("bool", false, false, java.util.Collections.emptyList(), "runtime"));
         map.put("macro_loop_count", new FieldDef("int", -1, false, java.util.Collections.emptyList(), "runtime"));
         map.put("macro_loop_mode", new FieldDef("enum", "repeat", false, java.util.List.of("repeat", "pingpong"), "runtime"));
