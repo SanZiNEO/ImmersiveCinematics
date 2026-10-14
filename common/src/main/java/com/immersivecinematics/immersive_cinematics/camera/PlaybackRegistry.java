@@ -12,7 +12,8 @@ import java.util.List;
  * 列表顺序 = 启动顺序（帧驱动按顺序遍历，后写入者覆盖先写入者 → 后来者居上），
  * 顶层实例 = 列表最后一个。不变量：预览实例恒为末位（{@link #insertBefore} 把游戏实例插在它之前），
  * 因此预览激活时顶层 = 预览实例。同脚本同玩家保持单实例：{@link #instancePlaying(String)}；
- * 跨脚本到达裁决按播放模式查在播集合：{@link #hasGameInstancePlaying(ScriptMeta.PlayMode)}。
+ * 跨脚本到达裁决按播放模式查在播集合：{@link #hasGameInstancePlaying(ScriptMeta.PlayMode)}；
+ * 控制原语按脚本 / 实例 id 定位：{@link #instanceOf(String, String)} / {@link #instancesOf(String)}。
  *
  * 帧缓存（{@link #hasActiveCameraClip()} / {@link #topInstanceHasActiveCameraClip()}）由帧驱动
  * 每帧同一时点写入一次，供帧内多个消费方读取；帧缓存只在帧驱动写入——无活跃实例时帧驱动不跑、缓存不刷新，
@@ -93,6 +94,39 @@ final class PlaybackRegistry {
             if (instance.player().isPlaying() && scriptId.equals(instance.scriptId())) return instance;
         }
         return null;
+    }
+
+    /**
+     * 按脚本 + 播放实例 id 定位活跃实例（控制原语 E9：按 id 停非顶层）。
+     * {@code instanceId} 空串 = 该脚本的任意实例（返回首个）；非空则要求实例 id 相等。
+     *
+     * @param scriptId   脚本 id；{@code null} = 无匹配
+     * @param instanceId 播放实例 id；空串 / {@code null} = 任意
+     * @return 首个匹配的实例；无匹配返回 {@code null}
+     */
+    PlaybackInstance instanceOf(String scriptId, String instanceId) {
+        if (scriptId == null) return null;
+        boolean anyInstance = instanceId == null || instanceId.isEmpty();
+        for (PlaybackInstance instance : instances) {
+            if (!instance.player().isPlaying() || !scriptId.equals(instance.scriptId())) continue;
+            if (anyInstance || instanceId.equals(instance.instanceId())) return instance;
+        }
+        return null;
+    }
+
+    /**
+     * 全部正在播放 {@code scriptId} 的活跃实例（启动顺序）。
+     * 同脚本同玩家保持单实例，故常态至多一个游戏实例（预览实例另算）。
+     *
+     * @param scriptId 脚本 id；{@code null} = 无匹配（返回空列表）
+     */
+    List<PlaybackInstance> instancesOf(String scriptId) {
+        if (scriptId == null) return Collections.emptyList();
+        List<PlaybackInstance> matched = new ArrayList<>();
+        for (PlaybackInstance instance : instances) {
+            if (instance.player().isPlaying() && scriptId.equals(instance.scriptId())) matched.add(instance);
+        }
+        return matched;
     }
 
     /**

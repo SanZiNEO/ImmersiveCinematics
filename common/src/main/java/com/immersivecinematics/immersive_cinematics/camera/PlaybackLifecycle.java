@@ -27,7 +27,10 @@ import java.util.List;
  * {@link #deactivateNow} 收尾（{@code pendingScript} 优先于队列）；队列跨实例存活（只有全停清空），接播先于全局复位。
  *
  * 跨脚本到达裁决（{@code meta.play_mode}，设计 §4）：S 含 exclusive → 新来者入队；S 无 exclusive 但含
- * interruptible → 顶掉全部 interruptible（硬切）后开播；其余（S 空 / 仅 parallel）→ 并行加入。出队判据见 {@link #canDequeue()}。
+ * interruptible → 顶掉全部 interruptible（{@code requestExit(INTERRUPTED)} → 渐出退场）后开播；
+ * 其余（S 空 / 仅 parallel）→ 并行加入。出队判据见 {@link #canDequeue()}。
+ *
+ * 同脚本替换路径（可打断的同一脚本再触发）保持硬切：置原因 + {@code deactivateNow}。
  *
  * 线程：仅客户端主线程。
  */
@@ -93,7 +96,7 @@ final class PlaybackLifecycle {
                 if (scriptQueue.offerOrReplace(script, instanceId)) return 2;
                 return 0;
             }
-            // 无 exclusive 但含 interruptible：先顶掉全部 interruptible 实例（硬切），再开播
+            // 无 exclusive 但含 interruptible：先顶掉全部 interruptible 实例（requestExit → 渐出退场），再开播
             interruptInterruptibles();
             PlaybackInstance started = startScriptInternal(script, instanceId);
             ledger.reportPlaybackStarted(script, started);
@@ -116,7 +119,8 @@ final class PlaybackLifecycle {
 
     /**
      * 顶掉全部在播的 interruptible 非预览实例（跨脚本到达裁决：新来者打断它们后开播）。
-     * 打断形态 = 硬切（{@link CompletionReason#INTERRUPTED} + {@link #deactivateNow}），与同脚本替换路径同形。
+     * 打断走统一退出入口 {@link #requestExit(PlaybackInstance, ExitReason)}（{@link ExitReason#INTERRUPTED}）
+     * ——渐出退场链：置原因 → {@code deactivate}（只淡出被打断者的层）→ 帧驱动判定完成 → {@code deactivateNow}。
      * 先取目标副本再逐个停用：停用可能接播队列，避免边遍历边增删（新接播的实例不在本次目标内）。
      */
     private void interruptInterruptibles() {
@@ -129,15 +133,32 @@ final class PlaybackLifecycle {
             }
         }
         for (int i = 0; i < targets.size(); i++) {
-            PlaybackInstance instance = targets.get(i);
-            instance.setExitReason(CompletionReason.INTERRUPTED);
-            deactivateNow(instance);
+            requestExit(targets.get(i), ExitReason.INTERRUPTED);
         }
     }
 
     /** 停止顶层实例（系统停止）。 */
     void stopScript() {
         requestExit(registry.topInstance(), ExitReason.SYSTEM_STOP);
+    }
+
+    /**
+     * 按脚本定位并停止实例（服务端 stop 原语，E9）：不限于顶层——非顶层实例同样被停。
+     *
+     * @param scriptId   脚本 id
+     * @param instanceId 播放实例 id；空串 = 该脚本任意实例
+     * @return {@code false} = 无匹配实例（调用方转而尝试取消排队项）
+     */
+    boolean stopScriptById(String scriptId, String instanceId) {
+        PlaybackInstance instance = registry.instanceOf(scriptId, instanceId);
+        if (instance == null) return false;
+        requestExit(instance, ExitReason.SYSTEM_STOP);
+        return true;
+    }
+
+    /** 取消该脚本的排队项（E3）；{@code true} = 确有排队项被移除。 */
+    boolean cancelQueued(String scriptId) {
+        return scriptQueue.cancel(scriptId);
     }
 
     /** 强制立即停用全部活跃实例：不渐出、不接播。 */
@@ -195,11 +216,11 @@ final class PlaybackLifecycle {
         return false;
     }
 
-    /** 请求指定实例退场渐出（渐出完成后由帧驱动的结束判定真正停用）。 */
+    /** 请求指定实例退场渐出（只淡出本实例的层；渐出完成后由帧驱动的结束判定真正停用）。 */
     private void deactivate(PlaybackInstance instance) {
         if (instance == null) return;
         if (instance.isStopping()) return;
-        OverlayManager.INSTANCE.startFadeOut();
+        OverlayManager.INSTANCE.startFadeOut(instance);
         instance.markStopping();
     }
 

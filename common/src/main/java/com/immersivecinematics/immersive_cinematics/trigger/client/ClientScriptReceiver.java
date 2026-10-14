@@ -75,12 +75,14 @@ public class ClientScriptReceiver {
             if (scriptId.isEmpty()) {
                 CameraManager.INSTANCE.forceDeactivate();
                 LOGGER.info("Force-stopped all scripts by server");
+            } else if (CameraManager.INSTANCE.stopScriptById(scriptId, packet.getInstanceId())) {
+                // 按 (scriptId, instanceId) 定位实例：顶层 / 非顶层一律停（E9），走渐出退场链
+                LOGGER.info("Stopped script by server: {} (instance={})", scriptId, packet.getInstanceId());
+            } else if (CameraManager.INSTANCE.cancelQueued(scriptId)) {
+                // 不在播 → 取消排队项（E3）；两者都不匹配 = 无目标，静默忽略
+                LOGGER.info("Cancelled queued script by server: {}", scriptId);
             } else {
-                String activeId = CameraManager.INSTANCE.getActiveScriptId();
-                if (activeId != null && activeId.equals(scriptId)) {
-                    CameraManager.INSTANCE.forceDeactivate();
-                    LOGGER.info("Stopped script by server: {}", scriptId);
-                }
+                LOGGER.info("Stop ignored (no playing instance / queued entry): {}", scriptId);
             }
             // N1：stop 回执（refId 非空才回；旧格式 stop 由 forceDeactivate 现有通知链路覆盖）；
             // 经 NetworkGuard 防断线崩溃

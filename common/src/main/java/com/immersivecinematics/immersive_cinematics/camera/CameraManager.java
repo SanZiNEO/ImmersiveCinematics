@@ -82,6 +82,17 @@ public class CameraManager implements CameraApi {
     public int playCinematic(CinematicScript script) { return playCinematic(script, ""); }
     /** 强制立即停用全部活跃实例（服务端 stop / 调试强制退出）：不渐出、不接播。 */
     public void forceDeactivate() { lifecycle.forceDeactivate(); }
+    /**
+     * 按脚本（+可选播放实例 id）停止实例：非顶层同样生效（E9）。
+     *
+     * @param instanceId 播放实例 id；空串 = 该脚本任意实例
+     * @return {@code false} = 无匹配实例（调用方转而尝试 {@link #cancelQueued(String)}）
+     */
+    public boolean stopScriptById(String scriptId, String instanceId) {
+        return lifecycle.stopScriptById(scriptId, instanceId);
+    }
+    /** 取消该脚本的排队项（E3）；{@code true} = 确有排队项被移除。 */
+    public boolean cancelQueued(String scriptId) { return lifecycle.cancelQueued(scriptId); }
     /** 紧急停止（世界退出/断线）：跳过退场动画直接清理全部实例，防止 OpenAL 音频残留。 */
     public void emergencyStop() { lifecycle.emergencyStop(); }
 

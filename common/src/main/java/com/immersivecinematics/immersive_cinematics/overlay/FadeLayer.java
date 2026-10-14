@@ -13,15 +13,34 @@ import net.minecraft.client.gui.GuiGraphics;
  */
 public class FadeLayer implements OverlayLayer {
 
+    /** 渐出时长（秒）——内部常量速率，不做脚本字段（设计 §6-2 只要求不误伤他实例） */
+    private static final float FADE_OUT_SECONDS = 0.5f;
+
+    /** 层归属（不透明 token = 建层方的播放实例引用）；{@code null} = 无主层 */
+    private final Object owner;
+
     private int zIndex = CanvasTransform.DEFAULT_Z_INDEX;
 
     /** ARGB 颜色值（不含 alpha — alpha 由 targetOpacity 决定） */
     private int color = 0x000000;
     private float targetOpacity = 0f;
 
+    /** 渐出进度（秒）；{@code <0} = 未在渐出 */
+    private float fadeOutElapsed = -1f;
+
+    public FadeLayer(Object owner) {
+        this.owner = owner;
+    }
+
+    @Override
+    public Object owner() {
+        return owner;
+    }
+
     @Override
     public void render(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {
-        int alpha = (int) (targetOpacity * 255);
+        float opacity = effectiveOpacity();
+        int alpha = (int) (opacity * 255);
         if (alpha <= 0) return;
 
         int argb = (alpha << 24) | (color & 0x00FFFFFF);
@@ -30,7 +49,7 @@ public class FadeLayer implements OverlayLayer {
 
     @Override
     public boolean isVisible() {
-        return targetOpacity > 0.001f;
+        return effectiveOpacity() > 0.001f;
     }
 
     @Override
@@ -41,6 +60,35 @@ public class FadeLayer implements OverlayLayer {
     @Override
     public void reset() {
         targetOpacity = 0f;
+        fadeOutElapsed = -1f;
+    }
+
+    @Override
+    public void tick(float deltaTime) {
+        if (!isAnimating()) return;
+        fadeOutElapsed = Math.min(FADE_OUT_SECONDS, fadeOutElapsed + deltaTime);
+    }
+
+    /** 启动渐出：渲染不透明度从当前值（系数 1）线性降到 0；重复调用幂等。 */
+    @Override
+    public void startFadeOut() {
+        if (fadeOutElapsed >= 0f) return;
+        fadeOutElapsed = 0f;
+    }
+
+    /** 渐出中（含未启动渐出 = false；渐出走完 = false → 帧驱动随即硬停本实例）。 */
+    @Override
+    public boolean isAnimating() {
+        return fadeOutElapsed >= 0f && fadeOutElapsed < FADE_OUT_SECONDS;
+    }
+
+    /**
+     * 实际渲染不透明度 = 关键帧 opacity × 渐出系数（1 → 0）。
+     * 关键帧在退场期间继续驱动 opacity，渐出只在其上叠加，不互相覆盖。
+     */
+    private float effectiveOpacity() {
+        if (fadeOutElapsed < 0f) return targetOpacity;
+        return targetOpacity * (1f - Math.min(1f, fadeOutElapsed / FADE_OUT_SECONDS));
     }
 
     /**

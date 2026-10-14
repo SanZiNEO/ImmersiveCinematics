@@ -11,9 +11,7 @@ import net.minecraft.client.gui.GuiGraphics;
  * 渲染流程：
  * <pre>
  * ClientGuiEvent.RENDER_HUD → CinematicOverlay.render() → OverlayManager.render()
- *     → LetterboxLayer.render()  (zIndex=0, 最底层)
- *     → TextLayer.render()       (zIndex=100, 后续扩展)
- *     → VideoLayer.render()      (zIndex=200, 后续扩展)
+ *     → 各实例的层按 zIndex 升序绘制（黑边 0 → 脚本层 10+）
  * </pre>
  */
 public class CinematicOverlay {
@@ -29,7 +27,7 @@ public class CinematicOverlay {
      */
     public static void render(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {
         boolean cameraActive = CameraManager.INSTANCE.isActive();
-        boolean overlayAnimating = OverlayManager.INSTANCE.isAnimating();
+        boolean overlayAnimating = OverlayManager.INSTANCE.isAnyAnimating();
 
         if (!cameraActive && !overlayAnimating) {
             return;

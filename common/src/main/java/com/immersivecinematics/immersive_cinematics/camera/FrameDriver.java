@@ -17,6 +17,7 @@ import java.util.ArrayList;
  *
  * 顺序固定：直控层活跃窗口收口 → 时钟推进 → 逐实例驱动（按启动顺序，后驱动者后写入共享相机状态）
  * → 帧缓存写入 → 快照重建。某实例结束只退它自己，最后一个实例退出才全局复位。
+ * 退场渐出判定按实例的层（{@code OverlayManager.isAnimating(instance)}）：A 实例的渐出不决定 B 实例何时停。
  * 调用点：{@code GameRendererMixin}（{@code GameRenderer.render} 的 HEAD，世界渲染之前），有活跃实例的帧各一次；
  * 必须早于 {@code ScriptLaneDriver.tick}（后者读本方法填好的 lane 快照）。
  * 线程契约：仅客户端主线程；帧内遍历用副本防并发修改；帧内路径不新建集合以外对象——例外：诊断日志的拼串 / 装箱
@@ -129,7 +130,7 @@ final class FrameDriver {
                 if (instance == top) topActiveCameraClip = instanceCameraClip;
             }
 
-            if (instance.isStopping() && !OverlayManager.INSTANCE.isAnimating()) {
+            if (instance.isStopping() && !OverlayManager.INSTANCE.isAnimating(instance)) {
                 lifecycle.deactivateNow(instance);
                 continue;
             }

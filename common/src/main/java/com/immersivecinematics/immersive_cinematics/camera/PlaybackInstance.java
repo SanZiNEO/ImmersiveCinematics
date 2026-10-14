@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.camera;
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraCoverChain;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
+import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
@@ -136,6 +137,8 @@ public final class PlaybackInstance {
      */
     void start(CinematicScript script, String instanceId, float preExecuteAt) {
         this.instanceId = instanceId != null ? instanceId : "";
+        // 层归属先接线（建 TrackPlayer / 建层发生在 player.start 内）：层按本实例过滤渐出与清理
+        this.player.attachOwner(this);
         this.player.start(script, preExecuteAt);
         ScriptMeta meta = script.getMeta();
         this.behavior = meta != null ? meta.getBehavior() : null;
@@ -146,6 +149,7 @@ public final class PlaybackInstance {
     /** 编辑器增量替换脚本数据（常驻实例零重启）：播放数据与行为快照一起刷新。 */
     void replaceScript(CinematicScript newScript) {
         if (newScript == null) return;
+        this.player.attachOwner(this);
         this.player.replaceScript(newScript);
         ScriptMeta meta = newScript.getMeta();
         this.behavior = meta != null ? meta.getBehavior() : null;
@@ -157,6 +161,8 @@ public final class PlaybackInstance {
     void stop(CompletionReason reason) {
         this.player.stop(reason);
         syncModifiers(null);
+        // 层兜底：TrackPlayer 清理抛异常时也不留残层（层归属 = 本实例，只清自己的）
+        OverlayManager.INSTANCE.removeLayersOf(this);
     }
 
     /** 置入退场渐出态（渐出完成后 {@code CameraManager.deactivateNow} 才真正停用本实例）。 */

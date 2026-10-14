@@ -129,13 +129,13 @@ public class OverlayTrackPlayer implements TrackPlayer {
         OverlayLayer layer;
         switch (layerType) {
             case "fade" -> {
-                FadeLayer fl = new FadeLayer();
+                FadeLayer fl = new FadeLayer(scriptPlayer.owner());
                 fl.setColor(clip.getString("color", "#000000"));
                 fl.setZIndex(zIndex);
                 layer = fl;
             }
             case "image" -> {
-                ImageLayer il = new ImageLayer();
+                ImageLayer il = new ImageLayer(scriptPlayer.owner());
                 String path = clip.getString("path", "");
                 if (!path.isEmpty()) {
                     ResourceLocation tex = com.immersivecinematics.immersive_cinematics.util.TextureLoader.loadTexture(path);
@@ -152,7 +152,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
                 layer = il;
             }
             case "subtitle" -> {
-                SubtitleLayer sl = new SubtitleLayer();
+                SubtitleLayer sl = new SubtitleLayer(scriptPlayer.owner());
                 // 文本资源：@lang:<key> → 客户端当前语言译文（回退 en_us → 原样串，§3.2）；
                 // 非引用串原样透传。解析在分行之前（SubtitleLayer 渲染时才 split("\n")，§3.5）。
                 sl.setText(com.immersivecinematics.immersive_cinematics.util.LangResources

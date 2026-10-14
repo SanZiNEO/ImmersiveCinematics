@@ -5,6 +5,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -13,18 +14,12 @@ import java.util.stream.Collectors;
  * 类似剪辑软件的轨道系统，管理所有覆盖层的生命周期和渲染顺序。
  * 层按 zIndex 升序排列：zIndex 越小越先绘制（底层），越大越后绘制（顶层）。
  * <p>
- * 支持多实例层（如多个文字层），通过 {@link #getLayers(Class)} 按类型查找所有匹配层。
+ * 层由建层方（{@code OverlayTrackPlayer} / {@code LetterboxTrackPlayer}）运行时加入，
+ * 每层带一个不透明的<b>归属 token</b>（{@link OverlayLayer#owner()}，值 = 播放实例引用）；
+ * 渐出触发 / 动画判定 / 清理都按归属过滤——一个实例退场不碰其他实例的层（设计 §6-2）。
+ * 无参全停版 {@code startFadeOut()} 已删除：全停走逐实例 {@code deactivateNow}，不经渐出。
  * <p>
- * 当前内置层：
- * <ul>
- *   <li>{@link LetterboxLayer} (zIndex=0) — 画幅比黑边</li>
- * </ul>
- * <p>
- * 后续可扩展：
- * <ul>
- *   <li>TextLayer (zIndex=100+) — 多个文字字幕层</li>
- *   <li>VideoLayer (zIndex=200+) — 视频播放</li>
- * </ul>
+ * 支持多实例层（如多个文字层 / 多实例黑边层），通过 {@link #getLayers(Class)} 按类型查找所有匹配层。
  */
 public class OverlayManager {
 
@@ -33,11 +28,7 @@ public class OverlayManager {
     /** 所有注册的覆盖层（按 zIndex 升序排列） */
     private final List<OverlayLayer> layers = new ArrayList<>();
 
-    /** 内置层引用（方便快速访问） */
-    private final LetterboxLayer letterboxLayer = new LetterboxLayer();
-
     private OverlayManager() {
-        addLayer(letterboxLayer);
     }
 
     // ========== 渲染 ==========
@@ -100,15 +91,6 @@ public class OverlayManager {
                 .collect(Collectors.toList());
     }
 
-    // ========== 内置层便捷访问 ==========
-
-    /**
-     * 获取黑边层
-     */
-    public LetterboxLayer getLetterboxLayer() {
-        return letterboxLayer;
-    }
-
     // ========== 动画驱动 ==========
 
     /**
@@ -125,29 +107,57 @@ public class OverlayManager {
     }
 
     /**
-     * 是否有层正在执行过渡动画
-     * <p>
-     * 用于 CameraManager.onRenderFrame() 判断退场动画是否结束，
-     * 以及 CinematicOverlay 判断是否需要继续渲染（即使相机已停用）。
-     * 遍历所有层调用各自的 isAnimating()，只有所有层都完成动画才返回 false。
+     * 指定归属是否有层正在执行过渡动画（帧驱动据此判定<b>该实例</b>的退场是否完成：
+     * A 实例的渐出不决定 B 实例何时停）。逐层读 {@link OverlayLayer#isAnimating()}，零分配。
+     *
+     * @param owner 层归属 token（{@code null} = 只匹配无主层）
      */
-    public boolean isAnimating() {
-        for (OverlayLayer layer : layers) {
-            if (layer.isAnimating()) return true;
+    public boolean isAnimating(Object owner) {
+        for (int i = 0; i < layers.size(); i++) {
+            OverlayLayer layer = layers.get(i);
+            if (Objects.equals(layer.owner(), owner) && layer.isAnimating()) return true;
         }
         return false;
     }
 
     /**
-     * 触发所有层的退出动画
-     * <p>
-     * 由 CameraManager 在脚本结束前 fadeOut 时长处调用，
-     * 遍历所有层调用 startFadeOut()。
+     * 任一归属是否有层正在动画 —— 渲染入口门控用（相机已停但层还在渐出时仍需渲染一帧）。
      */
-    public void startFadeOut() {
-        for (OverlayLayer layer : layers) {
-            layer.startFadeOut();
+    public boolean isAnyAnimating() {
+        for (int i = 0; i < layers.size(); i++) {
+            if (layers.get(i).isAnimating()) return true;
         }
+        return false;
+    }
+
+    /**
+     * 触发指定归属层的退出动画（只对 {@code owner} 匹配的层调 {@link OverlayLayer#startFadeOut()}）。
+     * 无参版已删除：全停（forceDeactivate / emergencyStop）不经渐出，走逐实例 {@code deactivateNow}。
+     *
+     * @param owner 层归属 token（{@code null} = 只匹配无主层）
+     */
+    public void startFadeOut(Object owner) {
+        for (int i = 0; i < layers.size(); i++) {
+            OverlayLayer layer = layers.get(i);
+            if (Objects.equals(layer.owner(), owner)) layer.startFadeOut();
+        }
+    }
+
+    /**
+     * 移除指定归属的全部层（实例退场兜底：TrackPlayer 清理抛异常时也不留残层）。
+     *
+     * @param owner 层归属 token（{@code null} = 只匹配无主层）
+     * @return 实际移除的层数
+     */
+    public int removeLayersOf(Object owner) {
+        int removed = 0;
+        for (int i = layers.size() - 1; i >= 0; i--) {
+            if (Objects.equals(layers.get(i).owner(), owner)) {
+                layers.remove(i);
+                removed++;
+            }
+        }
+        return removed;
     }
 
     // ========== 生命周期 ==========

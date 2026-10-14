@@ -26,6 +26,9 @@ public class ImageLayer implements OverlayLayer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/Overlay");
 
+    /** 层归属（不透明 token = 建层方的播放实例引用）；{@code null} = 无主层。本层无渐出动画，归属只供实例退场兜底清理 */
+    private final Object owner;
+
     /** 字段初值 0：未被关键帧驱动 = 不可见（脚本缺省 opacity = 1.0，由 OverlayTrackPlayer 补齐） */
     private float opacity = 0f;
     /** 窗口归一化位置（0~1，未缩放基准矩形中心） */
@@ -52,6 +55,15 @@ public class ImageLayer implements OverlayLayer {
     private int zIndex = CanvasTransform.DEFAULT_Z_INDEX;
     /** 诊断：位置日志节流 */
     private long lastPosLog;
+
+    public ImageLayer(Object owner) {
+        this.owner = owner;
+    }
+
+    @Override
+    public Object owner() {
+        return owner;
+    }
 
     @Override
     public void render(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {

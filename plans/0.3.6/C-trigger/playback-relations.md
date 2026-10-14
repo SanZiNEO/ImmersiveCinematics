@@ -11,8 +11,8 @@
 | # | 问题 | 证据 |
 |---|---|---|
 | 1 | **队列形同虚设**：所有 `deactivateNow` 路径在 `poll` 前已 `clear`（非空分支直接 clear，空分支经 `reset()`）→ 不可打断脚本的第二份请求入队后永久丢失 | `camera/PlaybackLifecycle.java`（playScript→offer→deactivateNow→clear） |
-| 2 | **`ExitReason.INTERRUPTED` 不可达**：`requestExit` 的 INTERRUPTED case 全仓无调用者 | `PlaybackLifecycle.requestExit` |
-| 3 | **渐出是全局的**：`deactivate` 走 `OverlayManager.INSTANCE.startFadeOut()`，会把**其他实例**的 overlay 一起淡掉 | `PlaybackLifecycle` deactivate 路径 |
+| 2 | ~~**`ExitReason.INTERRUPTED` 不可达**：`requestExit` 的 INTERRUPTED case 全仓无调用者~~ ✅ 已落地（C5-c：跨脚本顶掉走 `requestExit(instance, INTERRUPTED)`） | `PlaybackLifecycle.requestExit` |
+| 3 | ~~**渐出是全局的**：`deactivate` 走 `OverlayManager.INSTANCE.startFadeOut()`，会把**其他实例**的 overlay 一起淡掉~~ ✅ 已落地（C5-c：层持 owner token，`startFadeOut(owner)` / `isAnimating(owner)` / `removeLayersOf(owner)` 按实例过滤） | `PlaybackLifecycle` deactivate 路径 |
 
 其他现状事实（保持，不在本篇改）：相机全局写缓冲后来者居上；音频 per-instance 各响各的；overlay 全局 zIndex 混排；输入/HUD 全实例并集；听者/预加载/跳过提示按顶层实例。完整 30 行语义空间穷举存 `.planning/036-orch/` 调查记录，本篇只收裁决。
 
@@ -62,9 +62,9 @@
 
 | 原语 | 裁决 | 归属 |
 |---|---|---|
-| 排队候播 / 同键替换排队位 | ✅ 做 | §3 |
-| 按脚本 id 取消排队项（E3） | ✅ 做 | ScriptQueue API + 控制入口 |
-| 按实例/脚本精确停止非顶层（E9，现状 stop 只对顶层生效） | ✅ 做（修缺陷） | `ClientScriptReceiver.handleStopScript` |
+| 排队候播 / 同键替换排队位 | ✅ 做（C5-a 落地） | §3 |
+| 按脚本 id 取消排队项（E3） | ✅ 做（C5-a `ScriptQueue.cancel` + C5-c `CameraManager.cancelQueued` 接线） | ScriptQueue API + 控制入口 |
+| 按实例/脚本精确停止非顶层（E9，现状 stop 只对顶层生效） | ✅ 做（修缺陷）（C5-c：`CameraManager.stopScriptById` + `ClientScriptReceiver.handleStopScript` 重写） | `ClientScriptReceiver.handleStopScript` |
 | 插队（提到队首） | ⛔ 不做（priority 已表达） | — |
 | 组与标签整组进出（E6） | ⛔ 不做（维持 parallel-playback §3.6「互斥组不做」） | — |
 | 跨脚本抢占（无视 interruptible 硬抢） | ⛔ 不做（forceDeactivate 已是管理端出口） | — |
@@ -73,7 +73,9 @@
 ## 6. 冲突裁决与异常（保持现状 + 两处修复）
 
 1. 共享资源裁决维持现状表（§1）；「主相机声明」（F1）不做。
-2. **渐出 per-instance**（修 §1-3）：`deactivate` 只淡出本实例的层；全局 `startFadeOut` 仅保留给全停场景。
+2. **渐出 per-instance**（修 §1-3，C5-c 已落地）：`deactivate` 只淡出本实例的层（层持 owner token = 播放实例引用）；
+   `FadeLayer` / `LetterboxLayer` 实现渐出（内部常量 0.5s，渐完 `isAnimating()=false` → 帧驱动硬停本实例），
+   `ImageLayer` / `SubtitleLayer` 保持无动画（下一帧硬停，观感与现状一致）；黑边层改 per-instance 实例，不再全局单例共写。
 3. 异常生命周期维持现状：退世界/断线 = `emergencyStop` 清全部；`pause_when_game_paused` 并集暂停；`hold_at_end` 驻留实例**算**「在播」（参与 exclusive 阻塞判定与并集）；跨维度运镜（0.4.0 F 类）与本篇正交。
 4. 玩家死亡处置归 C2（death 触发器），本篇不定义。
 
@@ -89,10 +91,13 @@
 
 > **落地标注（2026-10-14，C5-b）**：上表 1–5 全部按本篇默认方案落地——语义轴 = 在播侧；`interruptible`（bool，同脚本）与 `play_mode`（enum，跨脚本）共存分工**不合并**；打断 = 硬切（`CompletionReason.INTERRUPTED` + `deactivateNow`，无 `on_interrupt`）；队列满 = 拒绝新请求（返回码不变）；interrupt 到达时队列不动。实现面：`ScriptMeta.PlayMode` + `meta.play_mode` 解析/校验/schema + `PlaybackLifecycle.playScript` 到达裁决 + `canDequeue()` 升级为「无 exclusive 在播」；缺省 `parallel` 与 0.3.6 现状逐字节对拍一致。
 
+> **落地标注（2026-10-14，C5-c）**：§1-2 / §1-3 / §5 / §6-2 落地——① 渐出 per-instance：`OverlayLayer.owner()`（不透明 token = 播放实例引用）+ `OverlayManager.startFadeOut(owner)` / `isAnimating(owner)` / `removeLayersOf(owner)`（无参全停版删除，全停走逐实例 `deactivateNow`），`ScriptPlayer.attachOwner` 由 `PlaybackInstance` 注入，`FrameDriver` 完成判定改 `isAnimating(instance)`；`FadeLayer` / `LetterboxLayer` 实现渐出（内部常量 0.5s，不做脚本字段），`ImageLayer` / `SubtitleLayer` 保持无动画（下一帧硬停 = 现状观感）。② 黑边层 per-instance（`LetterboxTrackPlayer` 建自己的层，`OverlayManager` 不再注册全局单例，`getLetterboxLayer()` 删除）。③ 跨脚本顶掉改走 `requestExit(instance, ExitReason.INTERRUPTED)`（渐出退场链；同脚本替换路径保持硬切）。④ 控制原语：`PlaybackRegistry.instanceOf/instancesOf` + `PlaybackLifecycle.stopScriptById`（非顶层也停）+ `cancelQueued` + `ClientScriptReceiver.handleStopScript` 重写（按 id 停 → 否则取消排队项；**不再 forceDeactivate 全杀**）+ `/icinematics stop [script] [players]`。
+> **对拍口径**：image/subtitle 层退场（无渐出层）逐帧状态与 HEAD 逐字节一致；fade 层退场由 1 帧硬停变为 10 帧渐出（0.5s ÷ 1/20s，仅此一处差异）。
+
 ## 8. 实现清单（C 批任务切分建议）
 
-1. 队列可达性修复 + 按脚本匹配 API（§3，含 §1-1 bug）。
-2. `meta.play_mode` 解析/校验/schema/文档 + 到达组合规则（§2/§4）。
-3. 打断与渐出 per-instance（§1-2/§1-3/§6-2）。
-4. 控制原语补齐（§5：取消排队、按 id 停非顶层）。
-5. 实机验收：三态各一组对照脚本 + 队列接播 + 打断场景；缺省 `parallel` 行为 = 现状基线（等值类对拍口径，见进度表「版本策略」）。
+1. 队列可达性修复 + 按脚本匹配 API（§3，含 §1-1 bug）。✅ C5-a
+2. `meta.play_mode` 解析/校验/schema/文档 + 到达组合规则（§2/§4）。✅ C5-b
+3. 打断与渐出 per-instance（§1-2/§1-3/§6-2）。✅ C5-c
+4. 控制原语补齐（§5：取消排队、按 id 停非顶层）。✅ C5-c
+5. 实机验收：三态各一组对照脚本 + 队列接播 + 打断场景；缺省 `parallel` 行为 = 现状基线（等值类对拍口径，见进度表「版本策略」）。⏳ 主代理收口阶段

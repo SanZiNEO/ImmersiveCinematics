@@ -13,6 +13,13 @@ public class LetterboxTrackPlayer implements TrackPlayer {
     private final TrackType type;
     private final int trackIndex;
     private final OverlayManager overlayManager;
+
+    /**
+     * 本实例的黑边层（per-instance：多实例各自黑边互不覆盖，设计 §6-2）——构造时建层入 Manager，
+     * {@link #onStop()} 移除；归属 token = 本实例的播放器（渐出 / 动画判定按实例过滤）。
+     */
+    private final LetterboxLayer letterbox;
+
     private int lastClipIdx = -1;
 
     public LetterboxTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, OverlayManager overlayManager, int trackIndex) {
@@ -20,6 +27,8 @@ public class LetterboxTrackPlayer implements TrackPlayer {
         this.type = type;
         this.trackIndex = trackIndex;
         this.overlayManager = overlayManager;
+        this.letterbox = new LetterboxLayer(scriptPlayer.owner());
+        overlayManager.addLayer(letterbox);
     }
 
     /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建） */
@@ -34,7 +43,7 @@ public class LetterboxTrackPlayer implements TrackPlayer {
 
     @Override
     public void onRenderFrame(float globalTime) {
-        LetterboxLayer letterbox = overlayManager.getLetterboxLayer();
+        LetterboxLayer letterbox = this.letterbox;
         List<Clip> clips = clips();
         Clip activeClip = findActiveClip(globalTime);
 
@@ -81,7 +90,8 @@ public class LetterboxTrackPlayer implements TrackPlayer {
 
     @Override
     public void onStop() {
-        overlayManager.getLetterboxLayer().setAspectRatio(0.0f);
+        // per-instance：本层随本轨道退场移除（不再共写全局单例，其他实例黑边不受影响）
+        overlayManager.removeLayer(letterbox);
     }
 
     /** 组 A：数据替换后复位 clip 索引状态 */

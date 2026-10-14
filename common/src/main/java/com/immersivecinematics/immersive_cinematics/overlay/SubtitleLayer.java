@@ -20,6 +20,9 @@ import net.minecraft.network.chat.Component;
  */
 public class SubtitleLayer implements OverlayLayer {
 
+    /** 层归属（不透明 token = 建层方的播放实例引用）；{@code null} = 无主层。本层无渐出动画，归属只供实例退场兜底清理 */
+    private final Object owner;
+
     private String text = "";
     /** 字段初值 0：未被关键帧驱动 = 不可见（脚本缺省 opacity = 1.0，由 OverlayTrackPlayer 补齐） */
     private float opacity = 0f;
@@ -38,6 +41,15 @@ public class SubtitleLayer implements OverlayLayer {
     private float baseWidth = CanvasTransform.DEFAULT_BASE_WIDTH;
     private float baseHeight = CanvasTransform.DEFAULT_BASE_HEIGHT;
     private int zIndex = CanvasTransform.DEFAULT_Z_INDEX;
+
+    public SubtitleLayer(Object owner) {
+        this.owner = owner;
+    }
+
+    @Override
+    public Object owner() {
+        return owner;
+    }
 
     @Override
     public void render(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {

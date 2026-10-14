@@ -65,7 +65,7 @@ ImmersiveCinematics 是一个为整合包设计的过场动画模组。服务端
 | 命令 | 说明 |
 |------|------|
 | `/icinematics play <文件> [玩家]` | 播放过场动画脚本（默认全体玩家，支持 `@a`/`@p` 选择器） |
-| `/icinematics stop [玩家]` | 停止当前播放 |
+| `/icinematics stop [脚本] [玩家]` | 停止播放 —— 不写参数 = 停全部脚本（全体玩家）；写脚本 = 只停该脚本（顺带取消它的排队请求） |
 | `/icinematics status` | 显示播放状态 |
 | `/icinematics reload` | 同步全局脚本到世界存档并重载触发器 |
 | `/icinematics validate <文件>` | 脚本静态校验（AI 写脚本后的自查闭环） |

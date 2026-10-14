@@ -39,6 +39,7 @@ immersive_cinematics/
 
 - 脚本 `id` 仍是 `meta.id`（全局唯一），子目录**只是文件组织**，不参与 id 语义；同 `id` 冲突时按相对路径提示。
 - 命令用“目录:文件名”标识定位文件：`/icinematics play chapter1:boss_fight`（Tab 补全会给出建议；根目录脚本直接写 `showcase_01`）。
+- 停止同样按脚本定位：`/icinematics stop <脚本>` 只停该脚本（已加载脚本 id，或 `play` 同款“目录:文件名”标识——服务端解析文件取 `meta.id` 后下发）；不写脚本 = 停全部脚本。玩家选择器写在脚本之后；只给选择器（如 `/icinematics stop @a`）= 停全部脚本。
 - 音频/图片已有子路径支持（`resource/` 下 `path` 写 `"sub/bgm.ogg"` 即可）。
 - 文本资源（`resource/lang/<语言>.json`）见 [§12](#12-文本资源与多语言langkey)——字幕 `text` 与 `meta.description` 支持 `@lang:<key>` 引用。
 

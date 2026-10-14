@@ -68,6 +68,23 @@ public class ScriptPlayer {
     // 玩家移动控制（EVENT 关键帧 position 驱动，假输入走原版链路；不建 TrackPlayer，直接读 EVENT 轨道数据）
     private final PlayerMoveController playerMovement = new PlayerMoveController();
 
+    /**
+     * 层归属 token（不透明，值 = 创建本播放器的播放实例引用）：建层时随 {@link #owner()} 传给覆盖层，
+     * 使渐出 / 动画判定 / 退场清理按实例过滤。{@code Object} 类型以免 script/ → camera/ 包依赖；
+     * 未接线时为 {@code null}（层为无主层）。
+     */
+    private Object owner;
+
+    /** 接线层归属（由 {@code PlaybackInstance} 在 start / replaceScript 时注入；幂等）。 */
+    public void attachOwner(Object owner) {
+        this.owner = owner;
+    }
+
+    /** 本播放器的层归属 token；未接线时为 {@code null}（无主层）。 */
+    public Object owner() {
+        return owner;
+    }
+
     public PlayerMoveController getPlayerMovement() { return playerMovement; }
     public Vec3 getOriginPos() { return originPos; }
 

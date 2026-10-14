@@ -65,7 +65,7 @@ ImmersiveCinematics is a Minecraft mod that adds cutscenes to modpacks. A server
 | Command | Description |
 |---------|-------------|
 | `/icinematics play <file> [players]` | Play a cinematic script (defaults to all players, supports `@a`/`@p` selectors) |
-| `/icinematics stop [players]` | Stop current playback |
+| `/icinematics stop [script] [players]` | Stop playback — no args = every script for all players; `script` = stop only that script (also cancels its queued request) |
 | `/icinematics status` | Show playback status |
 | `/icinematics reload` | Sync global scripts to the world save and reload triggers |
 | `/icinematics validate <file>` | Static-validate a script file (authoring self-check) |

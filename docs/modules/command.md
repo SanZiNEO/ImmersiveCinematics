@@ -11,7 +11,9 @@
   - ✅ file 参数带 Tab 自动补全，**命令标识格式为“目录:文件名”**：子目录 `chapter1/boss_fight.json` 补全为 `chapter1:boss_fight`，根目录脚本直接写 `showcase_01`；目录名中的 `/` 在命令标识中以命名空间下划线表示（`CinematicCommand`）
   - ✅ 文件不存在或解析失败时向执行者返回带搜索路径的失败提示（`CinematicCommand`）
 - **stop — 停止播放**
-  - ✅ `/icinematics stop [players]`：通过 `S2CStopScriptPacket`（空 scriptId = 强制停止全部）向目标玩家发送停止指令，默认全体玩家（`CinematicCommand`）
+  - ✅ `/icinematics stop`：通过 `S2CStopScriptPacket`（空 scriptId = 强制停止全部）向全体在线玩家发送停止指令（`CinematicCommand`）
+  - ✅ `/icinematics stop <script> [players]`：只停指定脚本——script 为已加载脚本 id（Tab 补全 = `ScriptManager` 已加载 id），也接受 `play` 同款「目录:文件名」标识（服务端解析文件取 `meta.id` 再下发）；客户端按 `(scriptId, instanceId)` 定位实例停止（**非顶层同样生效**，走渐出退场链），不在播则取消该脚本的排队项（`CinematicCommand`、`ClientScriptReceiver`、`CameraManager.stopScriptById` / `cancelQueued`）
+  - ⚠ 参数顺序：第一个参数先按脚本 id 解析，因此纯玩家名会被当作脚本 id；只停玩家请用选择器（`/icinematics stop @a` = 停全部脚本），或在脚本之后写选择器（`CinematicCommand`）
 - **reload — 重新加载脚本**
   - ✅ `/icinematics reload`：权限等级 2（op），直接从游戏根目录重新加载 `.json` 脚本并重建触发器索引；**不再同步到世界存档**（`CinematicCommand`、`ScriptManager`）
 - **validate — 脚本静态校验**

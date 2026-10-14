@@ -70,6 +70,11 @@ public class CinematicCommand {
     private static final SuggestionProvider<CommandSourceStack> TEMPLATE_SUGGESTIONS =
             (ctx, builder) -> SharedSuggestionProvider.suggest(TemplateRegistry.ids(), builder);
 
+    /** stop 的 script 参数补全：已加载脚本 id（{@code meta.id} = 网络层脚本 id 口径）。 */
+    private static final SuggestionProvider<CommandSourceStack> LOADED_SCRIPT_SUGGESTIONS =
+            (ctx, builder) -> SharedSuggestionProvider.suggest(
+                    ScriptManager.INSTANCE.getAllScripts().stream().map(CinematicScript::getId).toList(), builder);
+
     /** 把 globalDir 下的文件转为命令 ID：目录中的 / 用 _ 代替，目录与文件名用 : 分隔 */
     private static String toCommandId(Path globalDir, Path p) {
         String rel = toForwardRel(globalDir, p).replace(".json", "");
@@ -94,6 +99,11 @@ public class CinematicCommand {
                                         .executes(CinematicCommand::playScript))))
                 .then(Commands.literal("stop")
                         .executes(CinematicCommand::stopScript)
+                        .then(Commands.argument("script", ResourceLocationArgument.id())
+                                .suggests(LOADED_SCRIPT_SUGGESTIONS)
+                                .executes(CinematicCommand::stopScript)
+                                .then(Commands.argument("players", EntityArgument.players())
+                                        .executes(CinematicCommand::stopScript)))
                         .then(Commands.argument("players", EntityArgument.players())
                                 .executes(CinematicCommand::stopScript)))
                 .then(Commands.literal("reload")
@@ -185,6 +195,15 @@ public class CinematicCommand {
         CommandSourceStack source = context.getSource();
         MinecraftServer server = source.getServer();
 
+        // 可选 script 参数（E9）：不写 = 停全部；写了 = 只停该脚本（在播实例优先，否则取消排队项）
+        String scriptId;
+        try {
+            ResourceLocation location = ResourceLocationArgument.getId(context, "script");
+            scriptId = resolveStopScriptId(server, scriptPathOf(location), location.toString());
+        } catch (IllegalArgumentException e) {
+            scriptId = "";
+        }
+
         Collection<ServerPlayer> targets;
         try {
             targets = EntityArgument.getPlayers(context, "players");
@@ -195,19 +214,43 @@ public class CinematicCommand {
 
         // N1：握手 — 登记 ACK，超时重发（幂等：重复 stop 安全）
         final Collection<ServerPlayer> ackTargets = targets;
+        final String stopScriptId = scriptId;
         String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
         com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId, () -> {
             for (ServerPlayer p : ackTargets) {
-                S2CStopScriptPacket.send(p, "", "", refId);
+                S2CStopScriptPacket.send(p, stopScriptId, "", refId);
             }
         });
         for (ServerPlayer player : targets) {
-            S2CStopScriptPacket.send(player, "", "", refId);
+            S2CStopScriptPacket.send(player, stopScriptId, "", refId);
         }
 
         final int count = targets.size();
-        LOGGER.info("已向 {} 名玩家发送停止指令", count);
+        if (stopScriptId.isEmpty()) {
+            LOGGER.info("已向 {} 名玩家发送停止指令", count);
+        } else {
+            LOGGER.info("已向 {} 名玩家发送停止脚本指令: {}", count, stopScriptId);
+        }
         return 1;
+    }
+
+    /**
+     * stop 的 script 参数 → 网络层脚本 id（{@code meta.id}）：先按「目录:文件名」命令标识定位脚本文件并解析取
+     * meta.id（与 play 同一标识口径）；文件不存在 / 解析失败 → 原样返回参数（允许直接写已加载脚本 id）。
+     */
+    private static String resolveStopScriptId(MinecraftServer server, String filePath, String literal) {
+        Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
+        Path file = findScriptFile(filePath, globalDir);
+        if (file != null) {
+            try {
+                return ScriptParser.parse(Files.readString(file)).getId();
+            } catch (Exception e) {
+                LOGGER.warn("stop: 脚本文件解析失败，按字面量下发脚本 id: {} ({})", file, e.getMessage());
+            }
+        } else if (ScriptManager.INSTANCE.getScript(literal) == null) {
+            LOGGER.warn("stop: 既不是已加载脚本 id 也没有同名脚本文件，按字面量下发: {}", literal);
+        }
+        return literal;
     }
 
     private static int reloadScripts(CommandContext<CommandSourceStack> context) {

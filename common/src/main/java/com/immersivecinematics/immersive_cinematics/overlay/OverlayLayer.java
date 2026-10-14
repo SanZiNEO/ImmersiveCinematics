@@ -50,6 +50,15 @@ public interface OverlayLayer {
     int getZIndex();
 
     /**
+     * 层归属 token（不透明）——{@code null} = 无主层。
+     * <p>
+     * 由建层方构造注入（值 = 播放实例引用；{@code Object} 类型以免 overlay → camera 包依赖）。
+     * {@link OverlayManager#startFadeOut(Object)} / {@link OverlayManager#isAnimating(Object)} /
+     * {@link OverlayManager#removeLayersOf(Object)} 按此过滤：A 实例的渐出不碰 B 实例的层。
+     */
+    Object owner();
+
+    /**
      * 重置此覆盖层到默认状态
      * <p>
      * 由 OverlayManager.reset() 在相机停用时遍历调用。
@@ -72,16 +81,16 @@ public interface OverlayLayer {
      * 触发退出动画
      * <p>
      * 实现类可重写以启动 fade-out 过渡，
-     * 默认实现为空操作（无动画的层无需关心）。
+     * 默认实现为空操作（无动画的层无需关心——下一帧由帧驱动硬停）。
      */
     default void startFadeOut() {}
 
     /**
      * 是否正在执行过渡动画
      * <p>
-     * 由 OverlayManager.isAnimating() 遍历调用，
-     * 用于判断所有层是否都已完成动画。
-     * 默认实现返回 false（无动画的层始终视为非动画状态）。
+     * 由 {@link OverlayManager#isAnimating(Object)} 遍历调用（按层归属过滤），
+     * 用于判断<b>该实例</b>的层是否都已完成退场动画。
+     * 默认实现返回 false（无动画的层始终视为非动画状态 → 退场时下一帧硬停）。
      */
     default boolean isAnimating() { return false; }
 }
