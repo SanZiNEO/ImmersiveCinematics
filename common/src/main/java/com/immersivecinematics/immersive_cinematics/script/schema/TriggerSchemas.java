@@ -24,6 +24,7 @@ public final class TriggerSchemas {
                 "advancement",
                 "biome",
                 "entity_kill",
+                "death",
                 "entity_interact",
                 "block_interact",
                 "item_on_interact",
@@ -56,6 +57,7 @@ public final class TriggerSchemas {
         map.put("advancement", advancement());
         map.put("biome", biome());
         map.put("entity_kill", entityKill());
+        map.put("death", death());
         map.put("entity_interact", entityInteract());
         map.put("block_interact", blockInteract());
         map.put("item_on_interact", itemOnInteract());
@@ -112,6 +114,18 @@ public final class TriggerSchemas {
         Map<String, FieldDef> m = new LinkedHashMap<>();
         m.put("entity", new FieldDef("string", null, true));
         m.put("mode", new FieldDef("enum", "or", false, List.of("or", "and")));
+        m.put("dimension", new FieldDef("string", ""));
+        m.put("biome", new FieldDef("string", ""));
+        m.put("position", new FieldDef("map", null));
+        m.put("radius", new FieldDef("float", 0f));
+        m.put("corner1", new FieldDef("map", null));
+        m.put("corner2", new FieldDef("map", null));
+        return m;
+    }
+
+    /** death 场景条件（镜像 entity_kill 的场景组，无 entity / mode）：字段缺省 = 不限制 */
+    private static Map<String, FieldDef> death() {
+        Map<String, FieldDef> m = new LinkedHashMap<>();
         m.put("dimension", new FieldDef("string", ""));
         m.put("biome", new FieldDef("string", ""));
         m.put("position", new FieldDef("map", null));

@@ -147,7 +147,7 @@
 - 前置条件（requires 类）是**锁存语义**（发生过即真），已可纳入组合（见 §8）；`requires` 现有字段不动；
 - schema：`facing` 已登记字段（yaw1 / pitch1 / yaw2 / pitch2）；`all_of` / `any` 只登记类型，无专用控件（手写 JSON）。
 
-**后续批次**：组合器嵌套（多层）；新增类型 `death`（玩家死亡）；检测频率可配（按触发器 / 按脚本）；编辑器 UI（游戏内 + WebUI）。
+**后续批次**：~~新增类型 `death`（玩家死亡）~~ **已落地（2026-10-14，C2）**：事件驱动，场景条件（dimension / biome / position+radius / corner1+corner2）按死亡时刻记录判定；求值器 `Evaluators.evaluateDeath` + 记录 `Evaluators.DeathTracker`，事件入口 `ServerEventHandler.onLivingDeath`（与击杀者分支独立，PvP 双触发）；无死因字段、无重生回调；见 `docs/TRIGGER_TYPES.md` §28。其余待做：组合器嵌套（多层）；检测频率可配（按触发器 / 按脚本）；编辑器 UI（游戏内 + WebUI）。
 
 **验收标准**：validate 通过；facing 可单独用；all_of 只在全真时触发（"先 A 后 B"不误判）；any 任一满足即触发；旧脚本零回归。
 

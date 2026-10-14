@@ -48,5 +48,7 @@ public final class ImmersiveCinematics {
         TriggerRegistry.register(new TriggerType("facing", ListenStrategy.POLLING, 5, Evaluators::evaluateFacing));
         TriggerRegistry.register(new TriggerType("all_of", ListenStrategy.POLLING, 5, Evaluators::evaluateAllOf));
         TriggerRegistry.register(new TriggerType("any", ListenStrategy.POLLING, 5, Evaluators::evaluateAny));
+        // 0.3.6：玩家死亡（事件驱动，场景条件按死亡时刻记录判定）
+        TriggerRegistry.register(new TriggerType("death", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateDeath));
     }
 }

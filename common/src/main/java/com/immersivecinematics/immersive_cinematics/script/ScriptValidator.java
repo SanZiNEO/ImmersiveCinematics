@@ -1755,7 +1755,8 @@ public final class ScriptValidator {
      * 校验 meta.triggers 的 type / conditions 结构：未知类型、conditions 非对象；facing 的四个角度字段
      * （yaw1/pitch1/yaw2/pitch2 为数字、pitch 端点 ±90）；all_of / any 的 list 结构与子类型（轮询类触发器 /
      * 已注册前置条件 / 嵌套组合器，层数上限 {@link Evaluators#MAX_COMBINATION_DEPTH} 含顶层，事件类不可用）；
-     * facing / all_of / any 上无效的 exit_buffer 提示。
+     * death 的场景组字段类型（dimension / biome / position / radius / corner1 / corner2）；
+     * facing / all_of / any 上无效的 exit_buffer 提示，death 上无效的 on_enter / exit_buffer 提示。
      */
     private static void validateTriggerConditions(JsonObject meta, String path,
                                                   Collection<String> knownScriptIds, List<String> issues) {
@@ -1789,11 +1790,24 @@ public final class ScriptValidator {
                 } else if ("all_of".equals(type) || "any".equals(type)) {
                     validateCombinationConditions(conditions, tp + ".conditions", type, 1,
                             selfId, knownScriptIds, issues);
+                } else if ("death".equals(type)) {
+                    validateDeathConditions(conditions, tp + ".conditions", issues);
                 }
             }
             if (("facing".equals(type) || "all_of".equals(type) || "any".equals(type))
                     && isPositiveNumber(t.get("exit_buffer"))) {
                 issues.add(tp + ".exit_buffer 对 " + type + " 无效（没有可外扩的空间条件），将被忽略");
+            }
+            if ("death".equals(type)) {
+                if (isPositiveNumber(t.get("exit_buffer"))) {
+                    issues.add(tp + ".exit_buffer 对 death 无效（事件驱动触发器不参与进出区域判定），将被忽略");
+                }
+                if (t.has("on_enter") && t.get("on_enter").isJsonPrimitive()
+                        && t.get("on_enter").getAsJsonPrimitive().isBoolean()
+                        && t.get("on_enter").getAsBoolean()) {
+                    issues.add(tp + ".on_enter 对 death 无效（事件驱动触发器没有进入/离开语义，"
+                            + "而进入状态不会复位）：写了等于只触发一次，建议改用 repeatable 控制");
+                }
             }
         }
     }
@@ -1815,6 +1829,28 @@ public final class ScriptValidator {
             } else if (p1 < -90f || p1 > 90f || p2 < -90f || p2 > 90f) {
                 issues.add(p + " pitch 端点超出 -90~90（原版 pitch 范围），该条件将永不满足");
             }
+        }
+    }
+
+    /**
+     * death 条件校验（场景组，字段全部可选）：dimension / biome 必须是字符串，position / corner1 / corner2
+     * 必须是对象（形如 {@code { "x": ..., "y": ..., "z": ... } }），radius 必须是数字。写错类型 = 该条件
+     * 永不满足（求值侧按类型不符直接判 false），故报错而非静默忽略。
+     */
+    private static void validateDeathConditions(JsonObject c, String p, List<String> issues) {
+        for (String key : new String[]{"dimension", "biome"}) {
+            if (c.has(key) && (!c.get(key).isJsonPrimitive() || !c.get(key).getAsJsonPrimitive().isString())) {
+                issues.add(p + "." + key + " 必须是字符串（场景条件按死亡时刻记录判定，如 \"minecraft:the_nether\"）");
+            }
+        }
+        for (String key : new String[]{"position", "corner1", "corner2"}) {
+            if (c.has(key) && !c.get(key).isJsonObject()) {
+                issues.add(p + "." + key + " 必须是对象（形如 { \"x\": ..., \"y\": ..., \"z\": ... }）");
+            }
+        }
+        if (c.has("radius") && (!c.get("radius").isJsonPrimitive()
+                || !c.get("radius").getAsJsonPrimitive().isNumber())) {
+            issues.add(p + ".radius 必须是数字（配合 position，缺省 0）");
         }
     }
 

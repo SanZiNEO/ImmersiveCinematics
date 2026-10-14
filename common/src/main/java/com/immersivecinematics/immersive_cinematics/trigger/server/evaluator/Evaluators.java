@@ -123,7 +123,8 @@ public class Evaluators {
         if (!entity.isJsonArray()) {
             KillTracker.KillRecord rec = KillTracker.getLastKill(player);
             if (rec == null) return false;
-            return matchesId(rec.entityId(), entity.getAsString()) && matchesScene(c, rec);
+            return matchesId(rec.entityId(), entity.getAsString())
+                    && matchesScene(c, rec.dimension(), rec.biome(), rec.x(), rec.y(), rec.z());
         }
 
         String mode = c.has("mode") ? c.get("mode").getAsString() : "or";
@@ -141,34 +142,46 @@ public class Evaluators {
             }
             // 场景条件按最近一次击杀记录判定（击杀时刻的位置，非玩家当前位置）
             KillTracker.KillRecord last = KillTracker.getLastKill(player);
-            return last != null && matchesScene(c, last);
+            return last != null && matchesScene(c, last.dimension(), last.biome(), last.x(), last.y(), last.z());
         }
 
         KillTracker.KillRecord rec = KillTracker.getLastKill(player);
         if (rec == null) return false;
         for (var elem : entity.getAsJsonArray()) {
-            if (matchesId(rec.entityId(), elem.getAsString()) && matchesScene(c, rec)) return true;
+            if (matchesId(rec.entityId(), elem.getAsString())
+                    && matchesScene(c, rec.dimension(), rec.biome(), rec.x(), rec.y(), rec.z())) return true;
         }
         return false;
     }
 
     /**
-     * entity_kill 场景条件：dimension / biome / position+radius / corner1+corner2，
-     * 全部按击杀时刻的记录（KillRecord）判定，而非玩家当前位置。
+     * death：玩家死亡时触发（事件驱动，无轮询）。场景条件按死亡时刻的记录判定，与
+     * {@link #matchesScene} 同口径；该玩家没有死亡记录（未死过 / 已清理）→ false。
      */
-    private static boolean matchesScene(JsonObject c, KillTracker.KillRecord rec) {
-        if (c.has("dimension") && !matchesId(rec.dimension(), c.get("dimension").getAsString())) return false;
-        if (c.has("biome") && !matchesId(rec.biome(), c.get("biome").getAsString())) return false;
+    public static boolean evaluateDeath(ServerPlayer player, JsonObject c) {
+        DeathTracker.DeathRecord rec = DeathTracker.getLastDeath(player.getUUID());
+        if (rec == null) return false;
+        return matchesScene(c, rec.dimension(), rec.biome(), rec.x(), rec.y(), rec.z());
+    }
+
+    /**
+     * 事件时刻场景条件：dimension / biome / position+radius / corner1+corner2，按事件发生时刻记录下来的
+     * 维度/群系/坐标判定（entity_kill 传击杀记录、death 传死亡记录），而不是玩家当前位置；无字段 = 恒真。
+     */
+    private static boolean matchesScene(JsonObject c, String dimension, String biome,
+                                       double x, double y, double z) {
+        if (c.has("dimension") && !matchesId(dimension, c.get("dimension").getAsString())) return false;
+        if (c.has("biome") && !matchesId(biome, c.get("biome").getAsString())) return false;
         if (c.has("position")) {
             if (!c.get("position").isJsonObject()) return false;
             double radius = c.has("radius") && c.get("radius").isJsonPrimitive()
                     && c.get("radius").getAsJsonPrimitive().isNumber()
                     ? c.get("radius").getAsDouble() : 0.0;
-            if (!inRadius(rec.x(), rec.y(), rec.z(), c.getAsJsonObject("position"), radius)) return false;
+            if (!inRadius(x, y, z, c.getAsJsonObject("position"), radius)) return false;
         }
         if (c.has("corner1") && c.has("corner2")
                 && c.get("corner1").isJsonObject() && c.get("corner2").isJsonObject()) {
-            if (!inBox(rec.x(), rec.y(), rec.z(), c.getAsJsonObject("corner1"), c.getAsJsonObject("corner2"))) return false;
+            if (!inBox(x, y, z, c.getAsJsonObject("corner1"), c.getAsJsonObject("corner2"))) return false;
         }
         return true;
     }
@@ -656,6 +669,32 @@ public class Evaluators {
         public static void clear(UUID uuid) {
             lastKills.remove(uuid);
             allKills.remove(uuid);
+        }
+    }
+
+    /**
+     * death 触发器记录：每位玩家单槽（最近一次死亡），内容 = 死亡时刻的维度 / 群系 / 坐标。
+     * <p>与 {@link KillTracker} 并列而不复用：KillRecord 带实体 id 且维护 allKills 集合（entity_kill 的
+     * and 模式语义），死亡没有"被杀的实体"，混用会污染该集合。维度 / 群系为 id 字符串，坐标为世界坐标。
+     */
+    public static class DeathTracker {
+        /** 死亡记录：死亡时刻的维度 / 群系 / 坐标（场景条件用，与 KillRecord 的对应字段同形） */
+        public record DeathRecord(String dimension, String biome, double x, double y, double z) {}
+
+        private static final Map<UUID, DeathRecord> lastDeaths = new java.util.HashMap<>();
+
+        /** 记录一次死亡（uuid = 死者）；同一玩家再次死亡覆盖单槽 */
+        public static void record(UUID uuid, String dimension, String biome, double x, double y, double z) {
+            lastDeaths.put(uuid, new DeathRecord(dimension, biome, x, y, z));
+        }
+
+        /** 最近一次死亡记录；无记录（未死过 / 已 clear）→ null */
+        public static DeathRecord getLastDeath(UUID uuid) {
+            return lastDeaths.get(uuid);
+        }
+
+        public static void clear(UUID uuid) {
+            lastDeaths.remove(uuid);
         }
     }
 

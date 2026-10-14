@@ -61,6 +61,7 @@ public final class ServerEventHandler {
         com.immersivecinematics.immersive_cinematics.trigger.server.AudioListenerServerState.clear(uuid);
         TriggerStateStore.INSTANCE.unloadForPlayer(uuid);
         Evaluators.KillTracker.clear(uuid);
+        Evaluators.DeathTracker.clear(uuid);
         Evaluators.AdvancementTracker.clear(uuid);
         Evaluators.InteractTracker.clear(uuid);
         Evaluators.CraftTracker.clear(uuid);
@@ -90,6 +91,15 @@ public final class ServerEventHandler {
             Evaluators.KillTracker.record(player, entity.getType(),
                     (ServerLevel) entity.level(), entity.getX(), entity.getY(), entity.getZ());
             TriggerEngine.INSTANCE.onGameEvent("entity_kill", player);
+        }
+        // PvP 双触发：击杀者走上面的 entity_kill、死者走下面的 death，两条分支独立（不是 else-if）
+        if (entity instanceof ServerPlayer victim) {
+            ServerLevel level = victim.serverLevel();
+            Evaluators.DeathTracker.record(victim.getUUID(), level.dimension().location().toString(),
+                    level.getBiome(victim.blockPosition()).unwrapKey()
+                            .map(key -> key.location().toString()).orElse(""),
+                    victim.getX(), victim.getY(), victim.getZ());
+            TriggerEngine.INSTANCE.onGameEvent("death", victim);
         }
     }
 

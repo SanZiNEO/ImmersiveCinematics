@@ -335,6 +335,7 @@
 | `advancement` | 获得进度（事件携带 id 匹配） | `advancement` |
 | `biome` | 进入群系 | `biome` |
 | `entity_kill` | 击杀实体 | `entity`（+场景条件 `dimension`/`biome`/`position`） |
+| `death` | 玩家死亡 | 场景条件全可选：`dimension` / `biome` / `position`+`radius` / `corner1`+`corner2`（按死亡时刻记录判定） |
 | `entity_interact` / `block_interact` | 右键交互目标 | `target` |
 | `item_on_interact` | 持物交互 | `item` + `target`（+`target_type`；`"item": ""` = 空手） |
 | `item_craft` | 合成物品 | `item` |
@@ -353,7 +354,7 @@
 
 组合器（`all_of` / `any`）的 `list` 子条件可以是**轮询类**触发器（`location` / `facing` / `observation` / `structure` / `biome` / `xp` / `inventory` / `gamestage` / `dimension`）、**前置条件**（`{"type":"script_played","conditions":{"script":"脚本 id"}}`，锁存语义：发生过即真），也可以是**另一个组合器**（嵌套，最多 8 层、含顶层自身）；事件类不可用。
 
-通用字段：`repeatable`（可重复触发）、`delay`（延迟秒）、`on_enter`（仅进入时触发，位置类用）。完整 26 种见 `docs/TRIGGER_TYPES.md`。
+通用字段：`repeatable`（可重复触发）、`delay`（延迟秒）、`on_enter`（仅进入时触发，位置类用）。完整 27 种见 `docs/TRIGGER_TYPES.md`。
 
 ---
 

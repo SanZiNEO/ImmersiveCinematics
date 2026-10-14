@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "id": "test_trigger_death",
+    "name": "触发器测试-death",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "玩家死亡时触发（场景条件：死亡时刻在主世界）；非 repeatable = 一生只触发一次（跨死亡持久）",
+    "triggers": [
+      {"id":"trg_death","type":"death","repeatable":false,"conditions":{"dimension":"minecraft:overworld"}}
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 6,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "death trigger fired | 测试: test_trigger_death | 功能: 玩家死亡（场景条件按死亡时刻记录判定）| 触发: death + dimension=minecraft:overworld",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
