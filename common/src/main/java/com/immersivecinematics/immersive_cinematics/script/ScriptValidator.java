@@ -7,6 +7,7 @@ import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraChannels;
 import com.immersivecinematics.immersive_cinematics.camera.source.PointSource;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionMode;
+import com.immersivecinematics.immersive_cinematics.client.rule.ClientConditions;
 import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
@@ -845,8 +846,8 @@ public final class ScriptValidator {
      *
      * 与 {@link ClipRule#parse} 同一口径（校验拦下的写法解析期也会拒绝），另加两条结构语义拦截：
      * 空数组（= 不写；写出来必是作者误解）、{@code until} 带 {@code once} / {@code cooldown}
-     * （阻塞规则触发即解除，无重复触发概念）。动作 {@code type} 白名单归动作集（C6-3），本层只查
-     * 元素是对象且带字符串 {@code type}。
+     * （阻塞规则触发即解除，无重复触发概念）。条件 type 白名单 = v1 判定源 + 组合器（C6-2）；
+     * 动作 {@code type} 白名单归动作集（C6-3），本层只查元素是对象且带字符串 {@code type}。
      */
     private static void checkRules(JsonObject clip, String cp, List<String> issues) {
         if (!clip.has("rules")) return;
@@ -882,10 +883,182 @@ public final class ScriptValidator {
             String key = hasIf ? "if" : "until";
             if (!rule.get(key).isJsonObject()) {
                 issues.add(rp + "." + key + " 需要对象（条件定义，如 {\"type\": \"time\", \"at\": 12}）");
+            } else {
+                checkRuleCondition(rule.getAsJsonObject(key), rp + "." + key, issues);
             }
         }
         checkRuleActions(rule, rp, issues);
         checkRuleModifiers(rule, rp, issues);
+    }
+
+    /**
+     * 规则条件（{@code if} / {@code until} 的值）：type 白名单 = v1 判定源 + 组合器（嵌套 ≤
+     * {@link ClientConditions#MAX_COMBINATION_DEPTH}），叶子按各自字段结构校验；事件类 / tracker 类 /
+     * 前置条件类判定源 v1 不支持（issue），未知 type 同样报错。求值侧同名单源见 {@link ClientConditions}。
+     */
+    private static void checkRuleCondition(JsonObject condition, String cp, List<String> issues) {
+        JsonElement type = condition.get("type");
+        if (type == null || !isString(type)) {
+            issues.add(cp + ".type 缺失或不是字符串（判定源类型；v1 支持: " + v1SourceLabel() + "）");
+            return;
+        }
+        checkRuleConditionNode(condition, cp, type.getAsString(), 1, issues);
+    }
+
+    /** 单个条件节点：组合器递归下钻（层数用尽即报），叶子按类型做字段校验。 */
+    private static void checkRuleConditionNode(JsonObject c, String cp, String type, int depth,
+                                               List<String> issues) {
+        if ("all_of".equals(type) || "any".equals(type)) {
+            checkRuleCombination(c, cp, type, depth, issues);
+            return;
+        }
+        if (!ClientConditions.V1_TYPES.contains(type)) {
+            issues.add(cp + ".type " + ruleSourceSupport(type) + ": " + type
+                    + "（v1 判定源: " + v1SourceLabel() + " + all_of/any）");
+            return;
+        }
+        switch (type) {
+            case "time" -> checkRuleTime(c, cp, issues);
+            case "camera_pos" -> checkRuleCameraPos(c, cp, issues);
+            case "camera_facing" -> checkRuleCameraFacing(c, cp, issues);
+            case "camera_fov" -> checkRuleCameraFov(c, cp, issues);
+            default -> {
+                // location / facing / biome / dimension：与触发器同名词汇，复用同一份 schema 驱动校验
+                validateConditionsBySchema(c, cp, type, issues);
+                if ("facing".equals(type)) validateFacingConditions(c, cp, issues);
+            }
+        }
+    }
+
+    /**
+     * 组合器（all_of / any）：{@code list} 元素 = {@code {type, conditions}}（与触发器同一结构），
+     * 子类型须是 v1 判定源或嵌套组合器；嵌套层数含顶层 ≤ {@link ClientConditions#MAX_COMBINATION_DEPTH}。
+     */
+    private static void checkRuleCombination(JsonObject c, String cp, String combinator, int depth,
+                                             List<String> issues) {
+        if (!c.has("list") || !c.get("list").isJsonArray()) {
+            issues.add(cp + ".list 缺失或不是数组（" + combinator
+                    + " 需要 \"list\": [ { \"type\": ..., \"conditions\": { ... } }, ... ]）");
+            return;
+        }
+        JsonArray list = c.getAsJsonArray("list");
+        if (list.isEmpty()) {
+            issues.add(cp + ".list 不能为空");
+            return;
+        }
+        for (int i = 0; i < list.size(); i++) {
+            JsonElement e = list.get(i);
+            String sp = cp + ".list[" + i + "]";
+            if (!e.isJsonObject()) {
+                issues.add(sp + " 不是对象（应为 { type, conditions }）");
+                continue;
+            }
+            JsonObject sub = e.getAsJsonObject();
+            JsonElement subTypeEl = sub.get("type");
+            if (subTypeEl == null || !isString(subTypeEl) || subTypeEl.getAsString().isEmpty()) {
+                issues.add(sp + ".type 缺失或不是非空字符串");
+                continue;
+            }
+            String subType = subTypeEl.getAsString();
+            boolean badConditions = sub.has("conditions") && !sub.get("conditions").isJsonObject();
+            if (badConditions) {
+                issues.add(sp + ".conditions 必须是对象");
+                continue;
+            }
+            JsonObject data = sub.has("conditions") ? sub.getAsJsonObject("conditions") : null;
+            if ("all_of".equals(subType) || "any".equals(subType)) {
+                if (depth + 1 > ClientConditions.MAX_COMBINATION_DEPTH) {
+                    issues.add(sp + " 嵌套超过 " + ClientConditions.MAX_COMBINATION_DEPTH
+                            + " 层（组合器最大深度，含顶层）: " + subType);
+                    continue;
+                }
+                checkRuleCombination(data != null ? data : new JsonObject(), sp + ".conditions", subType,
+                        depth + 1, issues);
+                continue;
+            }
+            if (!ClientConditions.V1_TYPES.contains(subType)) {
+                issues.add(sp + ".type " + ruleSourceSupport(subType) + ": " + subType
+                        + "（v1 判定源: " + v1SourceLabel() + " + all_of/any）");
+                continue;
+            }
+            if (data == null) {
+                issues.add(sp + ".conditions 缺失（判定源 " + subType + " 的数据对象）");
+                continue;
+            }
+            checkRuleConditionNode(data, sp + ".conditions", subType, depth, issues);
+        }
+    }
+
+    /** {@code time}：{@code at}（到点）或 {@code from} / {@code to}（闭区间）至少一个，两者互斥。 */
+    private static void checkRuleTime(JsonObject c, String cp, List<String> issues) {
+        boolean at = c.has("at");
+        boolean from = c.has("from");
+        boolean to = c.has("to");
+        checkRuleNumbers(c, cp, issues, "at", "from", "to");
+        if (!at && !from && !to) {
+            issues.add(cp + " 缺少时间参数（需要 at 或 from/to 至少一个，单位秒；相对片段本地时钟）");
+        } else if (at && (from || to)) {
+            issues.add(cp + " at 与 from/to 互斥（at = 到点，from/to = 区间，二者只写一种）");
+        }
+    }
+
+    /** {@code camera_pos}：方体（corner1+corner2）或球（position+radius）至少一组。 */
+    private static void checkRuleCameraPos(JsonObject c, String cp, List<String> issues) {
+        boolean box = c.has("corner1") || c.has("corner2");
+        boolean sphere = c.has("position");
+        if (!box && !sphere) {
+            issues.add(cp + " 缺少区域参数（需要 position+radius 或 corner1+corner2；坐标为相机世界坐标）");
+            return;
+        }
+        for (String key : new String[]{"position", "corner1", "corner2"}) {
+            if (c.has(key) && !c.get(key).isJsonObject()) {
+                issues.add(cp + "." + key + " 需要对象（形如 { \"x\": ..., \"y\": ..., \"z\": ... }）");
+            }
+        }
+        checkRuleNumbers(c, cp, issues, "radius");
+    }
+
+    /** {@code camera_facing}：与 facing 同字段（yaw1/pitch1/yaw2/pitch2），作用对象换成相机朝向。 */
+    private static void checkRuleCameraFacing(JsonObject c, String cp, List<String> issues) {
+        validateFacingConditions(c, cp, issues);
+    }
+
+    /** {@code camera_fov}：{@code from} / {@code to} 至少一个（闭区间，度）。 */
+    private static void checkRuleCameraFov(JsonObject c, String cp, List<String> issues) {
+        boolean from = c.has("from");
+        boolean to = c.has("to");
+        checkRuleNumbers(c, cp, issues, "from", "to");
+        if (!from && !to) {
+            issues.add(cp + " 缺少 FOV 参数（需要 from / to 至少一个，单位度）");
+        }
+    }
+
+    /** 指定字段：存在则必须是有限数字（缺省值语义由求值侧定）。 */
+    private static void checkRuleNumbers(JsonObject c, String cp, List<String> issues, String... keys) {
+        for (String key : keys) {
+            JsonElement e = c.get(key);
+            if (e != null && (!isNumber(e) || !Float.isFinite(e.getAsFloat()))) {
+                issues.add(cp + "." + key + " 需要有限数字，实际: " + e);
+            }
+        }
+    }
+
+    /** v1 判定源的可读清单（报错文案用）。 */
+    private static String v1SourceLabel() {
+        StringBuilder sb = new StringBuilder();
+        for (String type : ClientConditions.V1_TYPES) {
+            if (sb.length() > 0) sb.append(" / ");
+            sb.append(type);
+        }
+        return sb.toString();
+    }
+
+    /** 不支持原因：已注册的触发器 / 前置条件（v1 未覆盖）与完全未知 type 分开表述。 */
+    private static String ruleSourceSupport(String type) {
+        if (TriggerRegistry.get(type) != null || PrerequisiteRegistry.has(type)) {
+            return "是 v1 不支持的判定源（触发器 / 前置条件类判定源留 v2）";
+        }
+        return "未知判定源";
     }
 
     /** 动作数组：{@code do} 必填非空、{@code on_timeout} 可省；元素 = 对象且 {@code type} 为字符串。 */
@@ -936,15 +1109,26 @@ public final class ScriptValidator {
             issues.add(rp + ".cooldown 需要 ≥ 0 的有限数字（秒；缺省 0 = 不静默），实际: " + cooldown);
         }
         JsonElement mode = rule.get("mode");
-        if (mode != null && (!isString(mode)
+        boolean modeIsString = mode != null && isString(mode);
+        String modeText = modeIsString ? mode.getAsString() : "enter";
+        if (mode != null && (!modeIsString
                 || (!"enter".equals(mode.getAsString()) && !"dwell".equals(mode.getAsString())))) {
-            issues.add(rp + ".mode 未知值: " + (isString(mode) ? mode.getAsString() : mode)
+            issues.add(rp + ".mode 未知值: " + (modeIsString ? mode.getAsString() : mode)
                     + "（可选: enter / dwell；缺省 enter）");
         }
         JsonElement timeout = rule.get("timeout");
         if (timeout != null && (!isNumber(timeout) || !Float.isFinite(timeout.getAsFloat())
                 || !(timeout.getAsFloat() > 0f))) {
             issues.add(rp + ".timeout 需要 > 0 的有限数字（秒；缺省 -1 = 无限等待），实际: " + timeout);
+        }
+        JsonElement dwell = rule.get("dwell");
+        if (dwell != null && (!isNumber(dwell) || !Float.isFinite(dwell.getAsFloat())
+                || dwell.getAsFloat() < 0f)) {
+            issues.add(rp + ".dwell 需要 ≥ 0 的有限数字（秒；缺省 0 = 即刻），实际: " + dwell);
+        }
+        if (dwell != null && !"dwell".equals(modeText)) {
+            issues.add(rp + ".dwell 只在 mode=dwell 下生效（当前 mode=" + modeText
+                    + "）：请删掉该字段或改 mode");
         }
         if (rule.has("until")) {
             if (once != null) {

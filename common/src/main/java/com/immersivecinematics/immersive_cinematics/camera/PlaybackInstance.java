@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.camera;
 
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraCoverChain;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
+import com.immersivecinematics.immersive_cinematics.camera.rule.RuleEngine;
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
@@ -65,9 +66,21 @@ public final class PlaybackInstance {
     /** 本实例已注册进链的 Modifier（= 本脚本里 clip 级静态声明的注册形态）；停止 / 脚本替换时注销。 */
     private final List<ClipModifierGate> modifiers = new ArrayList<>();
 
+    /**
+     * 判定规则引擎（{@code clip.rules}；0.3.6 C6-2）：判定端 = 客户端逐实例，每帧由 {@code FrameDriver}
+     * 在轨道分发之后驱动。规则槽随脚本重建（{@link #start} / {@link #replaceScript}），停止时清空。
+     */
+    private final RuleEngine ruleEngine = new RuleEngine();
+
     PlaybackInstance(CameraCoverChain coverChain, boolean preview) {
         this.coverChain = coverChain;
         this.preview = preview;
+        this.ruleEngine.attachOwner(this);
+    }
+
+    /** 本实例的判定规则引擎（帧驱动调用 {@code evaluate}；探针直取以注入上下文 / 时钟）。 */
+    public RuleEngine ruleEngine() {
+        return ruleEngine;
     }
 
     /** 是否为编辑器预览实例（§7 步骤 5：独立实例，与游戏实例并行共存）。 */
@@ -144,6 +157,7 @@ public final class PlaybackInstance {
         this.behavior = meta != null ? meta.getBehavior() : null;
         this.playMode = meta != null ? meta.getPlayMode() : ScriptMeta.PlayMode.PARALLEL;
         syncModifiers(script);
+        ruleEngine.sync(script, player);
     }
 
     /** 编辑器增量替换脚本数据（常驻实例零重启）：播放数据与行为快照一起刷新。 */
@@ -155,12 +169,14 @@ public final class PlaybackInstance {
         this.behavior = meta != null ? meta.getBehavior() : null;
         this.playMode = meta != null ? meta.getPlayMode() : ScriptMeta.PlayMode.PARALLEL;
         syncModifiers(newScript);
+        ruleEngine.sync(newScript, player);
     }
 
-    /** 停止播放：清空轨道（音频实例、覆盖层随之释放）+ 注销本实例的 Modifier。 */
+    /** 停止播放：清空轨道（音频实例、覆盖层随之释放）+ 注销本实例的 Modifier + 清规则槽（释放挂起）。 */
     void stop(CompletionReason reason) {
         this.player.stop(reason);
         syncModifiers(null);
+        ruleEngine.reset(player);
         // 层兜底：TrackPlayer 清理抛异常时也不留残层（层归属 = 本实例，只清自己的）
         OverlayManager.INSTANCE.removeLayersOf(this);
     }

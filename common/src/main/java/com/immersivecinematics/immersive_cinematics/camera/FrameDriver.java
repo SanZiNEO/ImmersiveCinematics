@@ -4,6 +4,7 @@ import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.GameClock;
 import com.immersivecinematics.immersive_cinematics.util.PreviewClock;
 import net.minecraft.client.Minecraft;
@@ -17,6 +18,8 @@ import java.util.ArrayList;
  *
  * 顺序固定：直控层活跃窗口收口 → 时钟推进 → 逐实例驱动（按启动顺序，后驱动者后写入共享相机状态）
  * → 帧缓存写入 → 快照重建。某实例结束只退它自己，最后一个实例退出才全局复位。
+ * 逐实例驱动内：轨道分发之后跑本实例的判定规则引擎（{@code PlaybackInstance.ruleEngine}），
+ * 挂起状态变化那一帧发暂停握手（服务端冻结 / 解冻 EVENT 时间线）。
  * 退场渐出判定按实例的层（{@code OverlayManager.isAnimating(instance)}）：A 实例的渐出不决定 B 实例何时停。
  * 调用点：{@code GameRendererMixin}（{@code GameRenderer.render} 的 HEAD，世界渲染之前），有活跃实例的帧各一次；
  * 必须早于 {@code ScriptLaneDriver.tick}（后者读本方法填好的 lane 快照）。
@@ -108,7 +111,8 @@ final class FrameDriver {
             if (pauseTransition && !instance.isPreview() && player.isPlaying()) {
                 String scriptId = player.getScriptId();
                 if (!"<none>".equals(scriptId)) {
-                    ledger.sendPausePacket(scriptId, instance.instanceId(), gamePaused);
+                    // 语义 = 「实例暂停中」：游戏暂停或规则挂起（C6-2）任一成立即冻结服务端 EVENT 时间线
+                    ledger.sendPausePacket(scriptId, instance.instanceId(), gamePaused || player.isSuspended());
                 }
             }
 
@@ -125,6 +129,22 @@ final class FrameDriver {
                     }
                 }
                 player.onRenderFrame(instanceTime);
+                // 判定规则（0.3.6 C6-2）：轨道分发之后逐实例判定（挂起 / 恢复 / 动作都作用在本实例上）
+                boolean suspendedBefore = player.isSuspended();
+                try {
+                    instance.ruleEngine().evaluate(player);
+                } catch (Exception e) {
+                    ErrorLog.logRateLimited("Playback", "rule-engine", 5000L, "规则引擎判定异常（本帧跳过）", e);
+                }
+                // 挂起开始 / 结束是帧级事件：状态变化那一帧发一条暂停握手（服务端冻结 / 解冻 EVENT 时间线）
+                if (!instance.isPreview() && player.isPlaying()
+                        && player.isSuspended() != suspendedBefore) {
+                    String scriptId = player.getScriptId();
+                    if (!"<none>".equals(scriptId)) {
+                        ledger.sendPausePacket(scriptId, instance.instanceId(),
+                                gamePaused || player.isSuspended());
+                    }
+                }
                 // 帧级缓存取并集：任一实例本帧有活跃 Camera 轨道即算有（门控与上面分发的时间同一口径）
                 boolean instanceCameraClip = player.hasActiveCameraTrack(instanceTime);
                 anyActiveCameraClip |= instanceCameraClip;

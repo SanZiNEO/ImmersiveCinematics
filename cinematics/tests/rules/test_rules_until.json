@@ -1,0 +1,66 @@
+{
+  "meta": {
+    "id": "test_rules_until",
+    "name": "规则测试-until 挂起闭环",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "判定规则 until + time 判定源（C6-2）：进入片段即挂起播放时钟（time 条件在冻结时钟下不走），timeout 10s（真实时钟）先到 → on_timeout goto_clip 跳到 12s 收尾；挂起期间字幕 / 相机一起冻结",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "layer_type": "subtitle",
+            "text": "until time at 3 → 条件假即挂起（画面冻结）；timeout 10s 先到 → on_timeout goto_clip at 12",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "transition": "cut",
+            "loop": false,
+            "rules": [
+              {
+                "until": { "type": "time", "at": 3 },
+                "do": [ { "type": "goto_clip", "at": 6 } ],
+                "timeout": 10,
+                "on_timeout": [ { "type": "goto_clip", "at": 12 } ]
+              }
+            ],
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 12, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 90, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

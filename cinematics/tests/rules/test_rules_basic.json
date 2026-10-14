@@ -48,7 +48,7 @@
             "loop": false,
             "rules": [
               {
-                "if": { "type": "location", "corner1": [100, 60, -200], "corner2": [120, 80, -180] },
+                "if": { "type": "location", "corner1": { "x": 100, "y": 60, "z": -200 }, "corner2": { "x": 120, "y": 80, "z": -180 } },
                 "do": [ { "type": "camera_set", "position": [110, 75, -190], "blend": 1.5 } ],
                 "mode": "enter"
               },

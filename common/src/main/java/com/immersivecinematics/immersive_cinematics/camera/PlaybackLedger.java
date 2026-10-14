@@ -39,7 +39,12 @@ final class PlaybackLedger {
                 () -> NetworkHandler.sendToServer(new C2SPlaybackStartedPacket(id, instanceId, true)));
     }
 
-    /** 暂停/恢复握手（按实例）：立即发一条 + 登记 ACK 超时重发（服务端处理幂等）。 */
+    /**
+     * 暂停/恢复握手（按实例）：立即发一条 + 登记 ACK 超时重发（服务端处理幂等）。
+     * <p>
+     * {@code paused} 语义 = 「本实例暂停中」：游戏暂停或规则挂起（0.3.6 C6-2，{@code clip.rules} 的
+     * {@code until} 等待）任一成立即冻结服务端 EVENT 时间线；调用侧传组合值。
+     */
     void sendPausePacket(String scriptId, String instanceId, boolean paused) {
         String refId = AckTracker.newRefId();
         AckTracker.expect(refId,

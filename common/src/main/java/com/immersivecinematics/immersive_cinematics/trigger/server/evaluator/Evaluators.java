@@ -4,6 +4,7 @@ import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrateg
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
 import com.immersivecinematics.immersive_cinematics.trigger.server.prereq.PrerequisiteRegistry;
+import com.immersivecinematics.immersive_cinematics.trigger.shared.GeometryConditions;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -13,7 +14,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.ItemStack;
@@ -31,49 +31,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+/**
+ * 触发器条件求值（服务端）：每种触发器类型一个静态方法，输入 = 玩家 + conditions 对象。
+ *
+ * 纯几何 / id 匹配 / 朝向区间数学已下沉到 {@link GeometryConditions}（0.3.6 C6-2，规则侧客户端共用同一核），
+ * 本类只保留「读玩家 / 世界状态」的部分并委托共享核。线程契约：仅服务端主线程。
+ */
 public class Evaluators {
 
+    /** 区域条件外扩：委托判定源共享几何（{@link GeometryConditions#expandConditions}，C6-2 下沉）。 */
     public static JsonObject expandConditions(JsonObject c, float buffer) {
-        if (c == null || buffer <= 0f) return null;
-        if (!c.has("corner1") || !c.has("corner2")) {
-            if (c.has("position") && c.get("position").isJsonObject()
-                    && c.has("radius") && c.get("radius").isJsonPrimitive()
-                    && c.get("radius").getAsJsonPrimitive().isNumber()) {
-                JsonObject expanded = c.deepCopy();
-                expanded.addProperty("radius", c.get("radius").getAsFloat() + buffer);
-                return expanded;
-            }
-            return null;
-        }
-        if (!c.get("corner1").isJsonObject() || !c.get("corner2").isJsonObject()) {
-            return null;
-        }
-        JsonObject result = c.deepCopy();
-        JsonObject c1 = result.getAsJsonObject("corner1");
-        JsonObject c2 = result.getAsJsonObject("corner2");
-        expandAxis(c1, c2, "x", buffer);
-        expandAxis(c1, c2, "y", buffer);
-        expandAxis(c1, c2, "z", buffer);
-        return result;
-    }
-
-    /**
-     * 沿单个轴把方体向外扩 buffer：先对 corner1/corner2 在该轴的分量做 min/max 归一化，
-     * 保证无论角落点写入顺序如何，该轴都是向外扩大（与 {@link #inBox} 的顺序无关语义一致）。
-     */
-    private static void expandAxis(JsonObject c1, JsonObject c2, String axis, float buffer) {
-        boolean has1 = c1.has(axis);
-        boolean has2 = c2.has(axis);
-        if (has1 && has2) {
-            double a = c1.get(axis).getAsDouble();
-            double b = c2.get(axis).getAsDouble();
-            c1.addProperty(axis, Math.min(a, b) - buffer);
-            c2.addProperty(axis, Math.max(a, b) + buffer);
-        } else if (has1) {
-            c1.addProperty(axis, c1.get(axis).getAsDouble() - buffer);
-        } else if (has2) {
-            c2.addProperty(axis, c2.get(axis).getAsDouble() + buffer);
-        }
+        return GeometryConditions.expandConditions(c, buffer);
     }
 
     public static boolean evaluateLocation(ServerPlayer player, JsonObject c) {
@@ -85,7 +53,7 @@ public class Evaluators {
         }
         if (c.has("corner1") && c.has("corner2")
                 && c.get("corner1").isJsonObject() && c.get("corner2").isJsonObject()) {
-            if (inBox(player.getX(), player.getY(), player.getZ(),
+            if (GeometryConditions.inBox(player.getX(), player.getY(), player.getZ(),
                     c.getAsJsonObject("corner1"), c.getAsJsonObject("corner2"))) {
                 return true;
             }
@@ -95,7 +63,7 @@ public class Evaluators {
             double radius = c.has("radius") && c.get("radius").isJsonPrimitive()
                     && c.get("radius").getAsJsonPrimitive().isNumber()
                     ? c.get("radius").getAsDouble() : 0.0;
-            return inRadius(player.getX(), player.getY(), player.getZ(),
+            return GeometryConditions.inRadius(player.getX(), player.getY(), player.getZ(),
                     c.getAsJsonObject("position"), radius);
         }
         return c.has("dimension");
@@ -104,7 +72,7 @@ public class Evaluators {
     public static boolean evaluateAdvancement(ServerPlayer player, JsonObject c) {
         if (!c.has("advancement")) return false;
         String last = AdvancementTracker.getLastAdvancement(player);
-        return last != null && matchesId(last, c.get("advancement").getAsString());
+        return last != null && GeometryConditions.matchesId(last, c.get("advancement").getAsString());
     }
 
     public static boolean evaluateBiome(ServerPlayer player, JsonObject c) {
@@ -112,7 +80,7 @@ public class Evaluators {
         String pattern = c.get("biome").getAsString();
         Holder<Biome> biome = player.level().getBiome(player.blockPosition());
         return biome.unwrapKey()
-                .map(key -> matchesId(key.location().toString(), pattern))
+                .map(key -> GeometryConditions.matchesId(key.location().toString(), pattern))
                 .orElse(false);
     }
 
@@ -123,7 +91,7 @@ public class Evaluators {
         if (!entity.isJsonArray()) {
             KillTracker.KillRecord rec = KillTracker.getLastKill(player);
             if (rec == null) return false;
-            return matchesId(rec.entityId(), entity.getAsString())
+            return GeometryConditions.matchesId(rec.entityId(), entity.getAsString())
                     && matchesScene(c, rec.dimension(), rec.biome(), rec.x(), rec.y(), rec.z());
         }
 
@@ -136,7 +104,7 @@ public class Evaluators {
                 String pattern = elem.getAsString();
                 boolean matched = false;
                 for (KillTracker.KillRecord rec : allKills) {
-                    if (matchesId(rec.entityId(), pattern)) { matched = true; break; }
+                    if (GeometryConditions.matchesId(rec.entityId(), pattern)) { matched = true; break; }
                 }
                 if (!matched) return false;
             }
@@ -148,7 +116,7 @@ public class Evaluators {
         KillTracker.KillRecord rec = KillTracker.getLastKill(player);
         if (rec == null) return false;
         for (var elem : entity.getAsJsonArray()) {
-            if (matchesId(rec.entityId(), elem.getAsString())
+            if (GeometryConditions.matchesId(rec.entityId(), elem.getAsString())
                     && matchesScene(c, rec.dimension(), rec.biome(), rec.x(), rec.y(), rec.z())) return true;
         }
         return false;
@@ -170,48 +138,20 @@ public class Evaluators {
      */
     private static boolean matchesScene(JsonObject c, String dimension, String biome,
                                        double x, double y, double z) {
-        if (c.has("dimension") && !matchesId(dimension, c.get("dimension").getAsString())) return false;
-        if (c.has("biome") && !matchesId(biome, c.get("biome").getAsString())) return false;
+        if (c.has("dimension") && !GeometryConditions.matchesId(dimension, c.get("dimension").getAsString())) return false;
+        if (c.has("biome") && !GeometryConditions.matchesId(biome, c.get("biome").getAsString())) return false;
         if (c.has("position")) {
             if (!c.get("position").isJsonObject()) return false;
             double radius = c.has("radius") && c.get("radius").isJsonPrimitive()
                     && c.get("radius").getAsJsonPrimitive().isNumber()
                     ? c.get("radius").getAsDouble() : 0.0;
-            if (!inRadius(x, y, z, c.getAsJsonObject("position"), radius)) return false;
+            if (!GeometryConditions.inRadius(x, y, z, c.getAsJsonObject("position"), radius)) return false;
         }
         if (c.has("corner1") && c.has("corner2")
                 && c.get("corner1").isJsonObject() && c.get("corner2").isJsonObject()) {
-            if (!inBox(x, y, z, c.getAsJsonObject("corner1"), c.getAsJsonObject("corner2"))) return false;
+            if (!GeometryConditions.inBox(x, y, z, c.getAsJsonObject("corner1"), c.getAsJsonObject("corner2"))) return false;
         }
         return true;
-    }
-
-    private static boolean inRadius(double x, double y, double z, JsonObject pos, double radius) {
-        if (pos == null || !pos.has("x") || !pos.has("y") || !pos.has("z")) {
-            return false;
-        }
-        double px = pos.get("x").getAsDouble();
-        double py = pos.get("y").getAsDouble();
-        double pz = pos.get("z").getAsDouble();
-        double dx = x - px;
-        double dy = y - py;
-        double dz = z - pz;
-        return dx * dx + dy * dy + dz * dz <= radius * radius;
-    }
-
-    private static boolean inBox(double x, double y, double z, JsonObject c1, JsonObject c2) {
-        if (c1 == null || c2 == null
-                || !c1.has("x") || !c1.has("y") || !c1.has("z")
-                || !c2.has("x") || !c2.has("y") || !c2.has("z")) {
-            return false;
-        }
-        double minX = Math.min(c1.get("x").getAsDouble(), c2.get("x").getAsDouble());
-        double maxX = Math.max(c1.get("x").getAsDouble(), c2.get("x").getAsDouble());
-        double minY = Math.min(c1.get("y").getAsDouble(), c2.get("y").getAsDouble());
-        double maxY = Math.max(c1.get("y").getAsDouble(), c2.get("y").getAsDouble());
-        double minZ = Math.min(c1.get("z").getAsDouble(), c2.get("z").getAsDouble());
-        double maxZ = Math.max(c1.get("z").getAsDouble(), c2.get("z").getAsDouble());
-        return x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ;
     }
 
     public static boolean evaluateInteract(ServerPlayer player, JsonObject c) {
@@ -225,7 +165,7 @@ public class Evaluators {
     public static boolean evaluateDimensionChange(ServerPlayer player, JsonObject c) {
         if (!c.has("dimension")) return false;
         // 目标维度匹配（现有）
-        if (!matchesId(player.level().dimension().location().toString(),
+        if (!GeometryConditions.matchesId(player.level().dimension().location().toString(),
                 c.get("dimension").getAsString())) {
             return false;
         }
@@ -233,7 +173,7 @@ public class Evaluators {
         if (c.has("from_dimension")) {
             String from = DimensionTracker.getLastFrom(player);
             if (from == null) return false;
-            if (!matchesId(from, c.get("from_dimension").getAsString())) return false;
+            if (!GeometryConditions.matchesId(from, c.get("from_dimension").getAsString())) return false;
         }
         return true;
     }
@@ -246,42 +186,42 @@ public class Evaluators {
         if (!c.has("item")) return false;
         String lastCrafted = CraftTracker.getLastCrafted(player);
         if (lastCrafted == null) return false;
-        return matchesId(lastCrafted, c.get("item").getAsString());
+        return GeometryConditions.matchesId(lastCrafted, c.get("item").getAsString());
     }
 
     public static boolean evaluateItemUse(ServerPlayer player, JsonObject c) {
         if (!c.has("item")) return false;
         String lastUsed = UseItemTracker.getLastUsed(player);
         if (lastUsed == null) return false;
-        return matchesId(lastUsed, c.get("item").getAsString());
+        return GeometryConditions.matchesId(lastUsed, c.get("item").getAsString());
     }
 
     public static boolean evaluateItemConsume(ServerPlayer player, JsonObject c) {
         if (!c.has("item")) return false;
         String lastConsumed = UseItemTracker.getLastConsumed(player);
         if (lastConsumed == null) return false;
-        return matchesId(lastConsumed, c.get("item").getAsString());
+        return GeometryConditions.matchesId(lastConsumed, c.get("item").getAsString());
     }
 
     public static boolean evaluateItemRelease(ServerPlayer player, JsonObject c) {
         if (!c.has("item")) return false;
         String lastReleased = UseItemTracker.getLastReleased(player);
         if (lastReleased == null) return false;
-        return matchesId(lastReleased, c.get("item").getAsString());
+        return GeometryConditions.matchesId(lastReleased, c.get("item").getAsString());
     }
 
     public static boolean evaluateItemUseInterrupt(ServerPlayer player, JsonObject c) {
         if (!c.has("item")) return false;
         String lastInterrupted = UseItemTracker.getLastInterrupted(player);
         if (lastInterrupted == null) return false;
-        return matchesId(lastInterrupted, c.get("item").getAsString());
+        return GeometryConditions.matchesId(lastInterrupted, c.get("item").getAsString());
     }
 
     public static boolean evaluateItemInstantUse(ServerPlayer player, JsonObject c) {
         if (!c.has("item")) return false;
         String lastInstantUsed = UseItemTracker.getLastInstantUsed(player);
         if (lastInstantUsed == null) return false;
-        return matchesId(lastInstantUsed, c.get("item").getAsString());
+        return GeometryConditions.matchesId(lastInstantUsed, c.get("item").getAsString());
     }
 
     public static boolean evaluateXp(ServerPlayer player, JsonObject c) {
@@ -303,7 +243,7 @@ public class Evaluators {
                 for (JsonElement elem : item.getAsJsonArray()) {
                     boolean found = false;
                     for (String id : picked) {
-                        if (matchesId(id, elem.getAsString())) {
+                        if (GeometryConditions.matchesId(id, elem.getAsString())) {
                             found = true;
                             break;
                         }
@@ -315,7 +255,7 @@ public class Evaluators {
             String lastPickedUp = PickupDropTracker.getLastPickedUp(player);
             if (lastPickedUp == null) return false;
             for (JsonElement elem : item.getAsJsonArray()) {
-                if (matchesId(lastPickedUp, elem.getAsString())) return true;
+                if (GeometryConditions.matchesId(lastPickedUp, elem.getAsString())) return true;
             }
             return false;
         }
@@ -323,14 +263,14 @@ public class Evaluators {
         // 单物品模式：item 为字符串，匹配最近一次捡起
         String lastPickedUp = PickupDropTracker.getLastPickedUp(player);
         if (lastPickedUp == null) return false;
-        return matchesId(lastPickedUp, item.getAsString());
+        return GeometryConditions.matchesId(lastPickedUp, item.getAsString());
     }
 
     public static boolean evaluateItemDrop(ServerPlayer player, JsonObject c) {
         if (!c.has("item")) return false;
         String lastDropped = PickupDropTracker.getLastDropped(player);
         if (lastDropped == null) return false;
-        return matchesId(lastDropped, c.get("item").getAsString());
+        return GeometryConditions.matchesId(lastDropped, c.get("item").getAsString());
     }
 
     /**
@@ -350,14 +290,14 @@ public class Evaluators {
             BlockHitResult blockHit = player.level().clip(
                     new ClipContext(eye, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player));
             if (blockHit.getType() == HitResult.Type.MISS) return false;
-            return matchesId(BuiltInRegistries.BLOCK.getKey(
+            return GeometryConditions.matchesId(BuiltInRegistries.BLOCK.getKey(
                     player.level().getBlockState(blockHit.getBlockPos()).getBlock()).toString(), target);
         }
         if ("entity".equals(targetType)) {
             EntityHitResult entityHit = ProjectileUtil.getEntityHitResult(
                     player.level(), player, eye, end, searchArea, e -> !e.isSpectator() && e.isPickable(), 0.3f);
             if (entityHit == null) return false;
-            return matchesId(BuiltInRegistries.ENTITY_TYPE.getKey(entityHit.getEntity().getType()).toString(), target);
+            return GeometryConditions.matchesId(BuiltInRegistries.ENTITY_TYPE.getKey(entityHit.getEntity().getType()).toString(), target);
         }
         BlockHitResult blockHit = player.level().clip(
                 new ClipContext(eye, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player));
@@ -365,10 +305,10 @@ public class Evaluators {
                 player.level(), player, eye, end, searchArea, e -> !e.isSpectator() && e.isPickable(), 0.3f);
         if (entityHit != null && (blockHit.getType() == HitResult.Type.MISS
                 || entityHit.getLocation().distanceToSqr(eye) <= blockHit.getLocation().distanceToSqr(eye))) {
-            return matchesId(BuiltInRegistries.ENTITY_TYPE.getKey(entityHit.getEntity().getType()).toString(), target);
+            return GeometryConditions.matchesId(BuiltInRegistries.ENTITY_TYPE.getKey(entityHit.getEntity().getType()).toString(), target);
         }
         if (blockHit.getType() != HitResult.Type.MISS) {
-            return matchesId(BuiltInRegistries.BLOCK.getKey(
+            return GeometryConditions.matchesId(BuiltInRegistries.BLOCK.getKey(
                     player.level().getBlockState(blockHit.getBlockPos()).getBlock()).toString(), target);
         }
         return false;
@@ -378,7 +318,7 @@ public class Evaluators {
         if (!c.has("target")) return false;
         String lastInteract = InteractTracker.getLastInteraction(player);
         if (lastInteract == null) return false;
-        return matchesId(lastInteract, c.get("target").getAsString());
+        return GeometryConditions.matchesId(lastInteract, c.get("target").getAsString());
     }
 
     public static boolean evaluateItemOnInteract(ServerPlayer player, JsonObject c) {
@@ -386,11 +326,11 @@ public class Evaluators {
         String lastItem = InteractTracker.getLastInteractionItem(player);
         if (lastItem == null) return false;
         String itemPattern = c.get("item").getAsString();
-        if (!matchesId(lastItem, itemPattern)) return false;
+        if (!GeometryConditions.matchesId(lastItem, itemPattern)) return false;
         String lastTarget = InteractTracker.getLastInteraction(player);
         if (lastTarget == null) return false;
         String targetPattern = c.get("target").getAsString();
-        if (!matchesId(lastTarget, targetPattern)) return false;
+        if (!GeometryConditions.matchesId(lastTarget, targetPattern)) return false;
         if (c.has("target_type")
                 && !c.get("target_type").getAsString().equals(InteractTracker.getLastInteractionType(player))) {
             return false;
@@ -442,7 +382,7 @@ public class Evaluators {
                 if (!stack.isEmpty()) {
                     String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
                     for (String p : patterns) {
-                        if (matchesId(id, p)) return true;
+                        if (GeometryConditions.matchesId(id, p)) return true;
                     }
                 }
             }
@@ -454,7 +394,7 @@ public class Evaluators {
             var stack = inventory.getItem(i);
             if (!stack.isEmpty()) {
                 String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-                remaining.removeIf(pattern -> matchesId(id, pattern));
+                remaining.removeIf(pattern -> GeometryConditions.matchesId(id, pattern));
                 if (remaining.isEmpty()) return true;
             }
         }
@@ -491,7 +431,7 @@ public class Evaluators {
                     var structures = level.structureManager().getAllStructuresAt(center.offset(dx, 0, dz));
                     for (var structure : structures.keySet()) {
                         ResourceLocation id = structureRegistry.getKey(structure);
-                        if (id != null && matchesId(id.toString(), pattern)) return true;
+                        if (id != null && GeometryConditions.matchesId(id.toString(), pattern)) return true;
                     }
                 }
             }
@@ -499,7 +439,7 @@ public class Evaluators {
             var structures = level.structureManager().getAllStructuresAt(center);
             for (var structure : structures.keySet()) {
                 ResourceLocation id = structureRegistry.getKey(structure);
-                if (id != null && matchesId(id.toString(), pattern)) return true;
+                if (id != null && GeometryConditions.matchesId(id.toString(), pattern)) return true;
             }
         }
         return false;
@@ -518,17 +458,6 @@ public class Evaluators {
         }
     }
 
-    private static boolean matchesId(String actual, String pattern) {
-        if (pattern.equals("*") || pattern.equals(actual)) return true;
-        if (pattern.endsWith(":*")) {
-            return actual.startsWith(pattern.substring(0, pattern.length() - 1));
-        }
-        if (!pattern.contains(":")) {
-            return actual.contains(pattern);
-        }
-        return false;
-    }
-
     // ===== 0.3.6：朝向范围 + 多重条件（AND 组合） =====
 
     /** 数字字段检查（存在且是数字） */
@@ -539,11 +468,8 @@ public class Evaluators {
 
     /**
      * 朝向范围条件：玩家视线（原版 yaw / pitch，服务端同步的玩家实体值）是否落在
-     * (yaw1, pitch1) → (yaw2, pitch2) 内。
-     * <ul>
-     *   <li>yaw：从 yaw1 顺时针扫到 yaw2（跨越 ±180° 自然环绕）；起止相同 = 整圈（不限制）</li>
-     *   <li>pitch：取 min / max（顺序无关；正 = 向下看）</li>
-     * </ul>
+     * (yaw1, pitch1) → (yaw2, pitch2) 内。区间数学（含跨 ±180° 环绕）委托
+     * {@link GeometryConditions#facingInRange}（C6-2 下沉，规则侧客户端共用同一核）。
      * 只读玩家实体自身的朝向，与相机脚本 / 模组相机无关。
      */
     public static boolean evaluateFacing(ServerPlayer player, JsonObject c) {
@@ -551,20 +477,9 @@ public class Evaluators {
                 || !isNumber(c, "yaw2") || !isNumber(c, "pitch2")) {
             return false;
         }
-        float pitch = player.getXRot();
-        float pitch1 = c.get("pitch1").getAsFloat();
-        float pitch2 = c.get("pitch2").getAsFloat();
-        if (pitch < Math.min(pitch1, pitch2) || pitch > Math.max(pitch1, pitch2)) return false;
-
-        float yaw = Mth.wrapDegrees(player.getYRot());
-        float yaw1 = Mth.wrapDegrees(c.get("yaw1").getAsFloat());
-        float yaw2 = Mth.wrapDegrees(c.get("yaw2").getAsFloat());
-        float span = Mth.wrapDegrees(yaw2 - yaw1);
-        if (span == 0f) return true;                 // 起止相同：整圈，不限制朝向
-        float delta = Mth.wrapDegrees(yaw - yaw1);   // 从起点顺时针走过的角度
-        if (span > 0f) return delta >= 0f && delta <= span;
-        // span < 0：顺时针弧 > 180°（= span + 360），delta 落在补弧 (span, 0) 之外即为真
-        return delta >= 0f || delta <= span;
+        return GeometryConditions.facingInRange(player.getYRot(), player.getXRot(),
+                c.get("yaw1").getAsFloat(), c.get("pitch1").getAsFloat(),
+                c.get("yaw2").getAsFloat(), c.get("pitch2").getAsFloat());
     }
 
     /**

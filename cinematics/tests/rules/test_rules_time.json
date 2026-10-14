@@ -1,0 +1,78 @@
+{
+  "meta": {
+    "id": "test_rules_time",
+    "name": "规则测试-时间判定源",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "判定规则 if + time 判定源（C6-2）：CAMERA 片段在片段本地时钟到 3s 时触发 do → goto_clip 跳到 8s；字幕轨可判别（3 秒时字幕从第一段换成第二段）",
+    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "第一段（0-8s）：if time at 3 → goto_clip at 8 | 3 秒时画面应直接跳到 8 秒",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 8,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "第二段（8-12s）：已跳转（time 规则生效）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "transition": "cut",
+            "loop": false,
+            "rules": [
+              {
+                "if": { "type": "time", "at": 3 },
+                "do": [ { "type": "goto_clip", "at": 8 } ],
+                "once": true
+              }
+            ],
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 12, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 90, "pitch": -10, "roll": 0, "fov": 60, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

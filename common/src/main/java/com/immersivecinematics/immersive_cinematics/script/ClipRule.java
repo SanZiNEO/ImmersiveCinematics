@@ -18,6 +18,7 @@ import java.util.List;
  *
  * 字段与缺省：{@code once} = 只触发一次（缺省 {@code true}）、{@code cooldown} = 触发后静默秒数
  * （缺省 0）、{@code mode} = {@code enter} 瞬时边沿 / {@code dwell} 驻留成立（缺省 {@code enter}）、
+ * {@code dwell} = 驻留判定阈值秒数（缺省 0 = 即刻；仅 {@code mode: dwell} 下生效）、
  * {@code timeout} = 阻塞等待上限（秒；缺省 -1 = 无限等待）、{@code on_timeout} = 超时动作（缺省空）。
  *
  * 线程 / 存活期：仅客户端主线程；解析期一次建成、播放期只读（改规则 = 重新解析）。
@@ -39,6 +40,9 @@ public final class ClipRule {
     /** 无超时（{@code timeout} 缺省）：阻塞等待无限长。 */
     public static final float TIMEOUT_NONE = -1f;
 
+    /** 无驻留阈值（{@code dwell} 缺省）：条件成立即刻触发。 */
+    public static final float DWELL_NONE = 0f;
+
     /** 形态：{@link #KIND_IF} 或 {@link #KIND_UNTIL}。 */
     private final String kind;
 
@@ -57,6 +61,9 @@ public final class ClipRule {
     /** 触发方式（{@link #MODE_ENTER} / {@link #MODE_DWELL}）。 */
     private final String mode;
 
+    /** 驻留判定阈值（秒，≥ 0；{@link #DWELL_NONE} = 即刻触发）。 */
+    private final float dwell;
+
     /** 阻塞等待上限（秒，> 0；{@link #TIMEOUT_NONE} = 无限等待）。 */
     private final float timeout;
 
@@ -64,13 +71,14 @@ public final class ClipRule {
     private final List<JsonObject> onTimeout;
 
     private ClipRule(String kind, JsonObject condition, List<JsonObject> actions, boolean once,
-                     float cooldown, String mode, float timeout, List<JsonObject> onTimeout) {
+                     float cooldown, String mode, float dwell, float timeout, List<JsonObject> onTimeout) {
         this.kind = kind;
         this.condition = condition;
         this.actions = actions;
         this.once = once;
         this.cooldown = cooldown;
         this.mode = mode;
+        this.dwell = dwell;
         this.timeout = timeout;
         this.onTimeout = onTimeout;
     }
@@ -101,7 +109,7 @@ public final class ClipRule {
         List<JsonObject> actions = parseActionList(obj.get("do"), path + ".do", true);
         List<JsonObject> onTimeout = parseActionList(obj.get("on_timeout"), path + ".on_timeout", false);
         return new ClipRule(kind, condition, actions, parseOnce(obj, path), parseCooldown(obj, path),
-                parseMode(obj, path), parseTimeout(obj, path), onTimeout);
+                parseMode(obj, path), parseDwell(obj, path), parseTimeout(obj, path), onTimeout);
     }
 
     /** 条件对象（{@code if} / {@code until} 的值）：必须是对象，内容原样保留（求值归判定源）。 */
@@ -176,6 +184,21 @@ public final class ClipRule {
         return mode;
     }
 
+    /** {@code dwell}（缺省 0 = 即刻）：有限非负数，单位秒；只在 {@code mode: dwell} 下参与判定。 */
+    private static float parseDwell(JsonObject obj, String path) throws ScriptParser.ScriptParseException {
+        if (!obj.has("dwell")) return DWELL_NONE;
+        JsonElement e = obj.get("dwell");
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) {
+            throw new ScriptParser.ScriptParseException(path + ".dwell",
+                    "需要数字（秒，≥ 0；缺省 0 = 即刻）");
+        }
+        float v = e.getAsFloat();
+        if (!Float.isFinite(v) || v < 0f) {
+            throw new ScriptParser.ScriptParseException(path + ".dwell", "需要 ≥ 0 的有限数字（秒）：" + e);
+        }
+        return v;
+    }
+
     /** {@code timeout}（缺省 -1 = 无限等待）：有限正数，单位秒。 */
     private static float parseTimeout(JsonObject obj, String path) throws ScriptParser.ScriptParseException {
         if (!obj.has("timeout")) return TIMEOUT_NONE;
@@ -219,6 +242,11 @@ public final class ClipRule {
     /** 触发方式（{@link #MODE_ENTER} / {@link #MODE_DWELL}）。 */
     public String getMode() {
         return mode;
+    }
+
+    /** 驻留判定阈值（秒，≥ 0；{@link #DWELL_NONE} = 即刻触发；仅 {@code dwell} 模式参与判定）。 */
+    public float getDwell() {
+        return dwell;
     }
 
     /** 阻塞等待上限（秒，> 0；{@link #TIMEOUT_NONE} = 无限等待）。 */
