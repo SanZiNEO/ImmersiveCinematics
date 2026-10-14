@@ -38,6 +38,16 @@
 4. 挂起中的打断/跳过/退出：走既有生命周期（interruptible/skippable/forceDeactivate 门控不变）。
 5. 多条阻塞规则同片段 = 顺序声明、逐条生效（同一时刻只挂起一次；嵌套挂起不做）。
 
+**口径补记（2026-10-14 用户口径，`pause` 从「时间暂停」改为「执行状态暂停」）**：原先 `pause` 按「冻结播放时钟」理解，随之而来的是一整套时间账本（挂起累计秒 `suspendAccum`、跨片段 / 时间门的 `resume` 在冻结时钟下不可达等），**不可控**。按新理念（②族已改为「按执行内容判定」）改为**执行状态暂停**：
+
+- **暂停时**：读本实例的**脚本执行状态**（执行到哪个片段、哪个分支、什么内容 / 哪些执行事实）并**上报服务端**（服务端据此知道客户端在 EVENT 时间线的哪一点，取代 `totalPausedTicks` 之类的墙钟推算）；
+- **恢复时**：从该状态**接着续**（状态即真源，不需要时间换算）；
+- **不再考虑时间**：挂起/恢复不依赖播放时钟冻结与累计时长 → **从不可控变可控**。
+
+落地形态（实现时定）：执行状态 = ②族判定的同一份执行事实（片段 entered/completed、圈数、分支位置、事件游标）；上报 = 既有 C2S 暂停握手通道（`PlaybackLedger` / `ScriptEventManager.handlePause`）载荷改为携带状态；服务端 EVENT 时间线改为按状态推进而非 `elapsed` 推算。与 `state-tracking.md`（P1 事实追踪层）同族。
+
+**状态表示细化（2026-10-14 用户口径）**：上报的状态 = **内容相对位置**，形如 **`(片段标识, 片段内偏移秒)`**——例：相机片段 3 起始 6s、持续 10s → 记「片段 3 的第 x 秒」。依据 = **脚本固定 + 全轨道共用一条时间轴**（A 轨某时刻必然对应 B 轨某时刻，一一对应）⇒ `(片段, 片段内偏移)` 唯一确定整脚本在所有轨道上的状态，**因此准确**；服务端回执（暂停/恢复握手）也据它执行——位置无歧义。取代「绝对播放时钟秒 + 挂起累计秒」那套账本。（**机制形态沿用已定稿**：§2「特例收编」早已把「等待点 / 判定点」内化为阻塞规则 `until→do`；`pause` = 「等待条件为外部 `resume`」的阻塞规则特例——本次改的只是「停住」的**表示**（内容位置）与时钟账本的退场，不新造机制。）
+
 ## 4. 判定源（词汇复用触发器条件 + 播放侧新增）
 
 判定语法与取值**复用** `meta.triggers[].conditions` 一族（含 `all_of` / `any` 组合器与 `requires` 前置锁存思路）；实现上把求值器核下沉为共享库（触发器服务端与规则客户端共用同一 schema/语义）。
@@ -131,7 +141,16 @@
 - 与既有 `ExitReason`（FORCE_QUIT/SYSTEM_STOP/INTERRUPTED/USER_SKIP/NATURAL_END）：①族映射既有五值不变；②③族归 NATURAL_END，保持五值不扩。
 - `hold_at_end` 不变（自然结束后驻留至干预退出）；`macro_loop` 无限圈永不「内容播完」→ 只能 ①/③ 退出——「循环 + 条件退出」即「播到 X 发生为止」的干净组合。
 
-**落地（2026-10-14，C6-4）**：②族谓词落在 `ScriptPlayer.allContentConsumed()`（全部片段 `getWindowEnd()` ≤ 播放头 + 有限循环展开圈数耗尽（per-clip `int` 槽，折返检测累加）+ `isSuspended()` → false；无限片段窗口末恒 `MAX_VALUE` → 恒 false），`isFinished()` 改为「内容谓词 ∨ 兜底上限」；`onRenderFrame` 的时间分支改写为「谓词真 → 既有收尾（`hold_at_end` 驻留钳到**内容末端**）」/「谓词假且 `elapsed ≥ total_duration` → 限频告警（`ErrorLog.logRateLimited`，10s）」；兜底退出 = **新 meta 字段 `exit_on_duration_overrun`（bool，缺省 false）**，缺省只告警不退出（裁定 2026-10-14：默认不退出，防「分支比脚本时长长」被误杀）。`getRemainingTime()` 语义换成「距内容终点」；`total_duration` 保持必填、validator 只要求 ≠ 0 / 有限（**不校验 ≥ 内容末端**——内容比声明值长是合法用法）。`hold_at_end` 走 ②族同一路径（`FrameDriver` 的 `requestExit(NATURAL_END)` 仍按 `hold_at_end` 拒绝，声明式 `exit` 才跳过它）。
+**落地（C6-4 首版 2026-10-14 → 当日修订）**：首版②族谓词 = 每帧拿播放时钟 `elapsed` 与各 clip `getWindowEnd()` 数值比较（+ 圈数 + `!isSuspended()`），`isFinished()` = 内容谓词 ∨ 兜底上限（新 meta `exit_on_duration_overrun`，缺省 false = 只告警）。
+**修订（2026-10-14，按用户口径「做成可靠底层判定、不靠兜底」）**：改为**执行事实判定**——`ScriptPlayer` per-clip 消费状态槽（`CLIP_PENDING` 未进入 / `CLIP_ACTIVE` 执行中 / `CLIP_CONSUMED` 无剩余内容，`byte[]` 扁平片段序）+ 剩余内容计数 `remainingContent`；事实在播放头推进时记录（`recordContentFacts`：片段进入 / 消费完 / 圈数计满）、**路径变更时重导**（`rederiveContentFacts`，挂在 `alignTime` 上 → `goto_clip` 跳转 / 编辑器 seek / 首个基准全覆盖）；谓词 `allContentConsumed()` 只读 `remainingContent == 0`（**O(1)、不读时钟、零分配**）。有限片段消费完 = 消费窗口末到达（⇒ 其 EVENT 关键帧事件必已执行）且有限循环展开圈数计满；无限片段恒不消费完；挂起中恒 false。宏观循环路径未动。
+**兜底上限删除**：`meta.exit_on_duration_overrun` 整体移除（字段 / `RuntimeBehavior` / 解析 / schema / 判定分支），validator 对出现该字段**报错「已移除」**（负例已验）；`total_duration` 保持必填（统计 / 真同步），validator 口径不变；「内容比声明长」降级为限频**诊断提示**（非机制）。`getRemainingTime()` 语义 = 距内容终点；`hold_at_end` 走 ②族同一路径（`FrameDriver` 的 `requestExit(NATURAL_END)` 仍按 `hold_at_end` 拒绝，声明式 `exit` 才跳过）。
+**未决**：`pause` 改「执行状态暂停」模型（§3 补记）时需同步 ②族的 `isSuspended` 短路出口。
+
+**口径补记（2026-10-14 用户口径，修正②族判定依据）**：**②族「内容播完」要做成可靠的底层判定，不靠兜底上限**。依据 = 脚本的**固定内容结构**——格式固定、内容固定、循环执行次数固定、分支各走各的路径；因此「完成」= **实际执行路径上已无剩余可执行内容**（当前播放位置之后没有片段、没有事件、没有待完成的循环圈数、没有在跑的分支），任一分支路径都有自己的终点（「后面没有东西」那一刻）。**按执行内容判定完毕是相对准确的**。
+
+- 与现实现的差距：`allContentConsumed()` 现在是**每帧拿播放时钟 `elapsed` 与各 clip `getWindowEnd()` 做数值比较**（+ 圈数 + `!isSuspended()`），属「时钟 vs 窗口末」；本条要求的是**执行状态判定**（哪些片段已执行到尽头、圈数已计满、分支已完）——正是本节正文「内容完成度统计 = 内部状态追踪（`state-tracking.md` 事实追踪族）」的落点。修复方向按此定：②族判定改为消费**执行事实/执行状态**，而非时钟阈值比较。
+- 兜底上限（`total_duration`）因此**不是机制的一部分**（正文称其「防内容状态算漏卡死」——底层判定可靠后该网不必要；其存在本身即「判定不可靠」的自认）。
+- 连带：本条把②族的正确落点指向 `state-tracking.md`（P1 事实追踪层），与 `P1-impl` 同族。
 
 2. 与「运行时只读只执行」原则的边界：规则动作改的是**实例运行时状态**（参数叠加/播放位置），不改脚本定义（keyframes 只读）；`switch_variant` 若引入内容变体，变体集仍是定义数据、只读。
 3. 编辑器呈现（规则的可视化编辑/预览）归编辑器阶段，不在 C 批实现范围。
