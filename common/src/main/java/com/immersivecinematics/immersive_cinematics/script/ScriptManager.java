@@ -109,6 +109,9 @@ public class ScriptManager {
                     continue;
                 }
                 int delayMs = (int)(td.getDelay() * 1000);
+                // 生效轮询间隔：触发器级 ?? 脚本级 ?? 类型级默认（仅轮询类；事件驱动 = 0）
+                int effectivePollInterval = triggerType.resolvePollInterval(
+                        td.getPollInterval(), meta.getTriggerPollInterval());
                 JsonObject exitConditions = td.isOnEnter() && td.getExitBuffer() > 0f
                         ? Evaluators.expandConditions(conditions, td.getExitBuffer())
                         : null;
@@ -134,7 +137,8 @@ public class ScriptManager {
                         td.isOnEnter(),
                         td.getExitBuffer(),
                         exitConditions,
-                        td.getRequires()
+                        td.getRequires(),
+                        effectivePollInterval
                 ));
             }
         }

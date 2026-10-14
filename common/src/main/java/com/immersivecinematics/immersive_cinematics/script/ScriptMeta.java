@@ -14,6 +14,8 @@ public class ScriptMeta {
     private final List<TriggerDefinition> triggers;
     /** 跳过投票比例（百分比，10~100）；null = 未指定，运行时回落到全局配置 Config.skipVoteRatio */
     private final Integer skipVoteRatio;
+    /** 脚本级轮询间隔（tick，1~600）：该脚本全部轮询类触发器的缺省覆盖；null = 未指定，回落到类型级默认 */
+    private final Integer triggerPollInterval;
     /** 编辑基准分辨率宽（像素）：分辨率转义系数 k 的分母，脚本未声明 meta.base_resolution 时为缺省值 */
     private final int baseWidth;
     /** 编辑基准分辨率高（像素）：分辨率转义系数 k 的分母，脚本未声明 meta.base_resolution 时为缺省值 */
@@ -27,7 +29,7 @@ public class ScriptMeta {
     public ScriptMeta(String id, String name, String author, int version, String description,
                       RuntimeBehavior behavior, int priority, String dimension,
                       List<TriggerDefinition> triggers, Integer skipVoteRatio,
-                      int baseWidth, int baseHeight) {
+                      Integer triggerPollInterval, int baseWidth, int baseHeight) {
         this.id = id;
         this.name = name;
         this.author = author;
@@ -38,6 +40,7 @@ public class ScriptMeta {
         this.dimension = dimension;
         this.triggers = triggers != null ? triggers : Collections.emptyList();
         this.skipVoteRatio = skipVoteRatio;
+        this.triggerPollInterval = triggerPollInterval;
         this.baseWidth = baseWidth;
         this.baseHeight = baseHeight;
     }
@@ -54,6 +57,8 @@ public class ScriptMeta {
     public List<TriggerDefinition> getTriggers() { return triggers; }
     /** 跳过投票比例（10~100）；null = 未指定，运行时使用全局配置 Config.skipVoteRatio */
     public Integer getSkipVoteRatio() { return skipVoteRatio; }
+    /** 脚本级轮询间隔（tick）；null = 未指定，运行时回落到类型级默认（Config 注册值） */
+    public Integer getTriggerPollInterval() { return triggerPollInterval; }
     /** 编辑基准分辨率宽（像素）：分辨率转义系数 k 的分母（缺省 {@link #DEFAULT_BASE_WIDTH}） */
     public int getBaseWidth() { return baseWidth; }
     /** 编辑基准分辨率高（像素）：分辨率转义系数 k 的分母（缺省 {@link #DEFAULT_BASE_HEIGHT}） */

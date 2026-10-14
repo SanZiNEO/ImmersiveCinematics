@@ -94,6 +94,7 @@ immersive_cinematics/
 | `macro_loop_mode` | enum | `repeat` | 宏观循环模式：`repeat`=折回起点重复 / `pingpong`=往复折返。**第一版只实现 `repeat`**，`pingpong` 按 `repeat` 播放（校验器会告警） |
 | `priority` | int | `0` | 播放优先级，数值越大越优先；**仅用于队列内排序**（优先级不能大于打断——不可打断脚本永不被打断，新请求一律排队） |
 | `skip_vote_ratio` | int | 无（用全局配置） | **可选**。多人跳过投票所需比例（10~100，百分比），仅当所有看过此脚本的观众投票后才生效。缺省/非法值 → 回落到全局配置 `skipVoteRatio`（默认 100 = 全票）。例：`50` = 半数观众投跳过即强制停止 |
+| `trigger_poll_interval` | int | 无（用类型级默认） | **可选**。脚本级检测频率覆盖（tick，`1`~`600`）：该脚本**全部**轮询类触发器的缺省轮询间隔，可被触发器级 `poll_interval` 覆盖。生效链 = 触发器级 ?? 脚本级 ?? 类型级默认（`Config.triggerPollInterval_*`）；仅轮询类生效。缺省/非法值 → 告警 + 回落到类型级默认。例：`10` = 该脚本轮询类触发器默认每 10 tick 检测一次（0.3.6） |
 
 > 运行时行为在脚本播放激活期间生效，**不要求存在活跃 CAMERA clip**；纯 HUD/字幕/手臂等行为的显隐只判断当前是否处于电影播放状态。
 >
@@ -125,6 +126,7 @@ immersive_cinematics/
 | `delay` | number | 否 | `0` | 触发后延迟执行秒数 |
 | `on_enter` | boolean | 否 | `false` | 仅位置类触发器有效：仅在首次进入区域时触发，已在区域内不重复；离开区域后复位，可再次进入触发（0.3.6 修复）。播放期间不更新状态机，跳过镜头不会立刻重播 |
 | `exit_buffer` | number | 否 | `0` | 配合 `on_enter`：玩家离开触发区域多少格后才标记为"已离开"，防止边界抖动。外扩按 `corner1` 为最小角、`corner2` 为最大角计算，角落点写反会让该轴外扩变缩小（见 `plans/0.3.6/feedback-0.3.5/03-exit-buffer-corner-order.md`） |
+| `poll_interval` | int | 否 | 无（用脚本级 / 类型级） | **检测频率覆盖**（tick，`1`~`600`）：只改本触发器的轮询节奏，**仅轮询类触发器有效**；事件驱动触发器写 = 无效（校验器提示）。非法值（越界 / 非整数）解析期告警 + 按"未写"处理（回落脚本级 `meta.trigger_poll_interval` → 类型级默认）。详见 `TRIGGER_TYPES.md` §「检测频率可配」（0.3.6） |
 | `requires` | array | 否 | `[]` | **前置依赖**：AND 语义，全部满足才允许触发。旧写法为前置脚本 id 字符串数组，等价于“脚本**播放完成**”（开始播放且结束播放，跳过/打断/自然播完都算）；也支持对象型前置条件 `{ "type": "script_played"/"script_started"/"script_completed", "script": "xxx" }` 或其他模组注册的自定义类型。示例：`"requires": ["script_a"]` |
 
 全部触发类型及条件参数见 `TRIGGER_TYPES.md`。

@@ -18,7 +18,8 @@
   - ✅ 支持**前置依赖 `requires`**：旧写法为前置脚本 id 字符串数组，AND 语义，要求前置脚本**播放完成**（开始播放且结束播放，跳过/打断/自然播完都算）；也支持对象型 `{ "type": "script_played"/"script_started"/"script_completed", "script": "id" }` 与自定义前置类型。依赖检查在 shouldSkip 之前（未解锁时连去重都不碰）；解锁后 repeatable 语义照旧（`TriggerEngine.prerequisitesMet`、`PrerequisiteRegistry`、`BuiltinPrerequisites`、`TriggerStateStore`）
   - ✅ 触发后标记状态并依次执行注册的动作列表（`TriggerEngine`）
 - **触发器注册模型**
-  - ✅ `TriggerRegistration` 封装一次注册：脚本 id、触发器 id、类型、条件、退出条件、动作列表、repeatable/delay/on_enter/exit_buffer（`TriggerRegistration`）
+  - ✅ `TriggerRegistration` 封装一次注册：脚本 id、触发器 id、类型、条件、退出条件、动作列表、repeatable/delay/on_enter/exit_buffer、生效轮询间隔（`TriggerRegistration`）
+  - ✅ 检测频率单列可配：触发器级 `poll_interval` ?? 脚本级 `meta.trigger_poll_interval` ?? 类型级默认（`TriggerType.resolvePollInterval`，钳 ≥ 1 防 `%0`）；轮询按**生效间隔**分桶，事件驱动不入桶（`TriggerRegistration.getEffectivePollInterval`、`TriggerEngine.rebuildIndex`）
   - ✅ `ScriptManager.registerAllTriggers()` 将脚本内嵌触发器批量转成注册项，动作统一为 `StartPlaybackAction`（`ScriptManager`）
 - **区块预加载与相机锚点（0.3.5）**
   - ✅ `ChunkPreloadManager` 采用**状态边界统一差集**：每次相机中心变化时计算 `desired - playerCovered - 已持有`；没有 far/near 距离门控，也没有 `CameraFakePlayer`/假人接管（`ChunkPreloadManager`）

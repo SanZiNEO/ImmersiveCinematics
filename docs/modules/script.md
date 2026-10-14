@@ -11,7 +11,7 @@
   - ✅ 校验贝塞尔曲线 `control_points` 必须恰好 2 个点，`curve` 非法时拒绝解析（`ScriptParser`、`BezierCurve`）
   - ✅ 校验必填字段（来自 schema 元数据），缺失时报错（`ScriptParser`、`SchemaLoader`）
   - ✅ 提供向后兼容：LETTERBOX 缺 keyframes 时从 clip 级 `aspect_ratio` 自动生成两个关键帧；EVENT 旧式 clip 级 `command` 自动迁移到 keyframe（`ScriptParser`）
-  - ✅ 支持未知字段自动解析（向前兼容），触发器定义解析支持 `on_enter`/`exit_buffer`（`ScriptParser`）
+  - ✅ 支持未知字段自动解析（向前兼容），触发器定义解析支持 `on_enter`/`exit_buffer`/`poll_interval`（`ScriptParser`）
   - ✅ 解析轨道级合法性：CAMERA 轨道可多条（每条 = 一个画面 lane，不再限 1 条）、LETTERBOX/EVENT 建议最多 1 条、morph 相邻 clip position_mode 不一致时告警（`ScriptParser`）
 - **脚本加载与触发器注册**
   - ✅ 提供单例 `ScriptManager.INSTANCE`，从游戏根目录 `immersive_cinematics/scripts` 递归加载子文件夹全部 .json 脚本并缓存原始 JSON（深度 ≤ 5）（`ScriptManager`）
@@ -25,12 +25,12 @@
   - ✅ 控件决策在 WebUI 前端：`DynamicForm.vue` + `fields/*.vue` 按 `FieldDef.type` 渲染控件（bool→开关、tristate→三态、enum→下拉/循环、数值/文本/映射等），`schema.ts` 负责按 schema 填默认值与保存前精简；Java 侧只导出 schema（`SchemaExporter`、`editor/src/DynamicForm.vue`、`editor/src/schema.ts`）。0.3.6 前这份决策由游戏内编辑器的 `editor/fields/FieldControl` 承担，已随退役删除
 - **数据模型**
   - ✅ `CinematicScript` 为顶层容器：meta + timeline + 原始 JSON（供网络同步）（`CinematicScript`）
-  - ✅ `ScriptMeta` 持有 id/name/author/version/description/dimension/triggers、priority、skip_vote_ratio、`base_resolution`（编辑基准分辨率 `{w,h}`，缺省 1920×1080，供分辨率转义系数 `k` 作分母）、camera_mob_* 及完整运行时行为（`ScriptMeta`）
+  - ✅ `ScriptMeta` 持有 id/name/author/version/description/dimension/triggers、priority、skip_vote_ratio、`trigger_poll_interval`（脚本级轮询间隔，tick，1~600；0.3.6）、`base_resolution`（编辑基准分辨率 `{w,h}`，缺省 1920×1080，供分辨率转义系数 `k` 作分母）、camera_mob_* 及完整运行时行为（`ScriptMeta`）
   - ✅ 运行时行为：屏蔽键盘/鼠标、屏蔽生物 AI、隐藏 HUD/手臂/聊天/记分板/动作栏/标题/字幕/快捷栏/准星/Boss 条/跳过 HUD、`hud_layers` 自定义 HUD 覆盖、抑制视角摆动/画面扭曲、渲染玩家模型、游戏暂停时暂停、可打断、可跳过、结尾保持（`ScriptMeta`）
   - ✅ `Timeline` 管理总时长与并行轨道，提供按类型查询轨道的便捷方法（`Timeline`）
   - ✅ `TimelineTrack` 为同类型通用片段数组，`Clip` 为通用片段容器（start_time/duration + data map + keyframes）（`TimelineTrack`、`Clip`）
   - ✅ `Keyframe` 为通用关键帧容器（time + data map），`PositionData` 区分相对（dx/dy/dz）与绝对（x/y/z）两种坐标模式（`Keyframe`、`PositionData`）
-  - ✅ `TriggerDefinition` 描述脚本内嵌触发器：类型/条件/repeatable/delay/on_enter/exit_buffer（`TriggerDefinition`）
+  - ✅ `TriggerDefinition` 描述脚本内嵌触发器：类型/条件/repeatable/delay/on_enter/exit_buffer/poll_interval（触发器级轮询间隔，tick，1~600；0.3.6）（`TriggerDefinition`）
 - **轨道种类**
   - ✅ 共 6 种轨道类型：CAMERA、LETTERBOX、AUDIO、EVENT、MOD_EVENT、OVERLAY（`TrackType`）
   - ✅ 轨道数量限制：CAMERA 不限（每条 = 一个画面 lane，轨道层级后面的在上；最后一轨的顶层 clip 决定主相机），LETTERBOX/EVENT 建议最多 1 条，AUDIO/MOD_EVENT/OVERLAY 不限（`TrackType`）

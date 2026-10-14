@@ -354,7 +354,7 @@
 
 组合器（`all_of` / `any`）的 `list` 子条件可以是**轮询类**触发器（`location` / `facing` / `observation` / `structure` / `biome` / `xp` / `inventory` / `gamestage` / `dimension`）、**前置条件**（`{"type":"script_played","conditions":{"script":"脚本 id"}}`，锁存语义：发生过即真），也可以是**另一个组合器**（嵌套，最多 8 层、含顶层自身）；事件类不可用。
 
-通用字段：`repeatable`（可重复触发）、`delay`（延迟秒）、`on_enter`（仅进入时触发，位置类用）。完整 27 种见 `docs/TRIGGER_TYPES.md`。
+通用字段：`repeatable`（可重复触发）、`delay`（延迟秒）、`on_enter`（仅进入时触发，位置类用）、`poll_interval`（**检测频率覆盖**，tick，`1`~`600`，**仅轮询类**有效；缺省回落到脚本级 `meta.trigger_poll_interval` → 类型级默认，事件驱动写 = 无效）。完整 27 种见 `docs/TRIGGER_TYPES.md`。
 
 ---
 

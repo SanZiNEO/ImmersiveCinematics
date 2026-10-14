@@ -237,8 +237,10 @@ public final class ScriptValidator {
 
         // ===== meta.triggers：前置依赖（requires）+ 类型/条件结构校验 =====
         if (root.has("meta") && root.get("meta").isJsonObject()) {
-            validateTriggerRequires(root.getAsJsonObject("meta"), "meta", knownScriptIds, issues);
-            validateTriggerConditions(root.getAsJsonObject("meta"), "meta", knownScriptIds, issues);
+            JsonObject meta = root.getAsJsonObject("meta");
+            checkPollIntervalField(meta, "trigger_poll_interval", "meta", issues);
+            validateTriggerRequires(meta, "meta", knownScriptIds, issues);
+            validateTriggerConditions(meta, "meta", knownScriptIds, issues);
         }
 
         // ===== timeline =====
@@ -1760,7 +1762,8 @@ public final class ScriptValidator {
      * pitch 端点按原版范围钳制）、all_of / any（list 是 { type, conditions } 结构，子项可嵌套或引用前置条件，
      * 层数上限 {@link Evaluators#MAX_COMBINATION_DEPTH} 含顶层）、death（场景组字段互相配合，
      * 报错文案带场景语义）。另有 facing / all_of / any 上无效的 exit_buffer 提示，
-     * death 上无效的 on_enter / exit_buffer 提示。
+     * death 上无效的 on_enter / exit_buffer 提示，以及触发器级轮询间隔 {@code poll_interval}
+     * （范围见 {@link #checkPollIntervalField}；事件驱动类型上写 = 无效提示）。
      */
     private static void validateTriggerConditions(JsonObject meta, String path,
                                                   Collection<String> knownScriptIds, List<String> issues) {
@@ -1807,6 +1810,11 @@ public final class ScriptValidator {
                     && isPositiveNumber(t.get("exit_buffer"))) {
                 issues.add(tp + ".exit_buffer 对 " + type + " 无效（没有可外扩的空间条件），将被忽略");
             }
+            checkPollIntervalField(t, "poll_interval", tp, issues);
+            if (tt.getStrategy() == ListenStrategy.EVENT_DRIVEN
+                    && t.has("poll_interval") && !t.get("poll_interval").isJsonNull()) {
+                issues.add(tp + ".poll_interval 对 " + type + " 无效（事件驱动触发器不参与轮询），将被忽略");
+            }
             if ("death".equals(type)) {
                 if (isPositiveNumber(t.get("exit_buffer"))) {
                     issues.add(tp + ".exit_buffer 对 death 无效（事件驱动触发器不参与进出区域判定），将被忽略");
@@ -1818,6 +1826,31 @@ public final class ScriptValidator {
                             + "而进入状态不会复位）：写了等于只触发一次，建议改用 repeatable 控制");
                 }
             }
+        }
+    }
+
+    /**
+     * 校验轮询间隔字段（tick）：触发器级 {@code poll_interval} 与脚本级 {@code meta.trigger_poll_interval}
+     * 同口径——存在时必须为 {@link TriggerType#POLL_INTERVAL_MIN}~{@link TriggerType#POLL_INTERVAL_MAX}
+     * 的整数；JSON null 视为未写（与解析层同口径，回落下一级）。
+     */
+    private static void checkPollIntervalField(JsonObject obj, String key, String path, List<String> issues) {
+        if (!obj.has(key) || obj.get(key).isJsonNull()) return;
+        JsonElement e = obj.get(key);
+        String fp = path + "." + key;
+        String range = TriggerType.POLL_INTERVAL_MIN + "~" + TriggerType.POLL_INTERVAL_MAX;
+        if (!isNumber(e)) {
+            issues.add(fp + " 需要整数（tick，" + range + "），实际: " + e);
+            return;
+        }
+        double d = e.getAsDouble();
+        if (!Double.isFinite(d) || d != Math.floor(d)) {
+            issues.add(fp + " 不是整数（tick，" + range + "），实际: " + e);
+            return;
+        }
+        int v = (int) d;
+        if (v < TriggerType.POLL_INTERVAL_MIN || v > TriggerType.POLL_INTERVAL_MAX) {
+            issues.add(fp + " 超出范围 " + range + "（tick），实际: " + v);
         }
     }
 

@@ -13,6 +13,7 @@ import com.immersivecinematics.immersive_cinematics.camera.transition.Transition
 import com.immersivecinematics.immersive_cinematics.math.MathModel;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
+import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -187,6 +188,9 @@ public class ScriptParser {
             skipVoteRatio = null;
         }
 
+        // 脚本级轮询间隔（可选，tick，1~600）：该脚本全部轮询类触发器的缺省覆盖；缺省/非法 → null
+        Integer triggerPollInterval = optPollInterval(metaObj, "trigger_poll_interval", p);
+
         // 脚本维度限制（可选）
         String dimension = optString(metaObj, "dimension", "");
 
@@ -200,7 +204,7 @@ public class ScriptParser {
         }
 
         return new ScriptMeta(id, name, author, version, description, behavior, priority, dimension, triggers, skipVoteRatio,
-                baseResolution[0], baseResolution[1]);
+                triggerPollInterval, baseResolution[0], baseResolution[1]);
     }
 
     // ========== Timeline 解析 ==========
@@ -960,7 +964,9 @@ public class ScriptParser {
         boolean onEnter = optBool(obj, "on_enter", false);
         float exitBuffer = optFloat(obj, "exit_buffer", 0f);
         List<TriggerRequirement> requires = parseTriggerRequires(obj, p);
-        return new TriggerDefinition(type, conditions, repeatable, delay, onEnter, exitBuffer, requires);
+        // 触发器级轮询间隔（可选，tick）：缺省/非法 → null，运行时回落到脚本级 → 类型级默认
+        Integer pollInterval = optPollInterval(obj, "poll_interval", p);
+        return new TriggerDefinition(type, conditions, repeatable, delay, onEnter, exitBuffer, requires, pollInterval);
     }
 
     /**
@@ -1205,6 +1211,32 @@ public class ScriptParser {
         JsonElement el = obj.get(key);
         if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isNumber()) return null;
         return el.getAsInt();
+    }
+
+    /**
+     * 可选轮询间隔（tick，{@link TriggerType#POLL_INTERVAL_MIN}~{@link TriggerType#POLL_INTERVAL_MAX}）：
+     * 缺省 / JSON null → null（回落到下一级）；非整数 / 越界 → 告警 + null（防御式，与 skip_vote_ratio 同口径）。
+     *
+     * @param key  字段名（取值）
+     * @param path 报错用路径（如 {@code meta.triggers[0]}）
+     */
+    private static Integer optPollInterval(JsonObject obj, String key, String path) {
+        if (!obj.has(key) || obj.get(key).isJsonNull()) return null;
+        JsonElement el = obj.get(key);
+        String fp = path + "." + key;
+        double d = el.isJsonPrimitive() && el.getAsJsonPrimitive().isNumber() ? el.getAsDouble() : Double.NaN;
+        if (!Double.isFinite(d) || d != Math.floor(d)) {
+            ErrorLog.log("Parse", fp + " 需要整数（tick，" + TriggerType.POLL_INTERVAL_MIN + "~"
+                    + TriggerType.POLL_INTERVAL_MAX + "），实际: " + el + "，已忽略（回落到下一级默认）");
+            return null;
+        }
+        int v = (int) d;
+        if (v < TriggerType.POLL_INTERVAL_MIN || v > TriggerType.POLL_INTERVAL_MAX) {
+            ErrorLog.log("Parse", fp + " 超出范围 " + TriggerType.POLL_INTERVAL_MIN + "~"
+                    + TriggerType.POLL_INTERVAL_MAX + "（tick），实际: " + v + "，已忽略（回落到下一级默认）");
+            return null;
+        }
+        return v;
     }
 
     /**

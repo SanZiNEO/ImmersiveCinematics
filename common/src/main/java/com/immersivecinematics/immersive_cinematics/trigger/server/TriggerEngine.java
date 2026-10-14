@@ -55,7 +55,7 @@ public class TriggerEngine {
                 // 用触发器类型 ID 作为事件索引键
                 eventIndex.computeIfAbsent(type.getId(), k -> new ArrayList<>()).add(reg);
             } else if (type.getStrategy() == ListenStrategy.POLLING) {
-                int interval = type.getPollInterval();
+                int interval = reg.getEffectivePollInterval();
                 pollBuckets.computeIfAbsent(interval, k -> new ArrayList<>()).add(reg);
             }
         }

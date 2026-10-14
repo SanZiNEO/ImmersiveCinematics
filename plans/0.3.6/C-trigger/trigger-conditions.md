@@ -40,7 +40,7 @@
 | `facing` / `all_of` / `any`（已实现） | `facing`：视线角度区间（纯角度判定，不需目标）；`all_of` / `any`：组合器（支持嵌套 ≤ 8 层，见 §9），子条件可为轮询类、前置条件或另一个组合器 |
 | `observation` | 看向某个**具体目标**（实体 / 方块，带 reach）；与 `facing` 互补，两者都保留 |
 
-**缺口（当前）**：① ~~组合器只支持一层~~ **已做**（多层嵌套，≤ 8 层，见 §9）；② 检测频率仍按类型全局，未按触发器 / 脚本可配；③ 编辑器 UI 未跟进（游戏内编辑器类型清单不含 `facing` / `all_of` / `any`）。
+**缺口（当前）**：① ~~组合器只支持一层~~ **已做**（多层嵌套，≤ 8 层，见 §9）；② ~~检测频率仍按类型全局，未按触发器 / 脚本可配~~ **已做**（触发器级 / 脚本级 / 类型级三级回落，见 §11）；③ 编辑器 UI 未跟进（游戏内编辑器类型清单不含 `facing` / `all_of` / `any`）。
 
 ---
 
@@ -87,7 +87,7 @@
 1. **yaw 环绕**：已实现“从 yaw1 顺时针扫到 yaw2”——跨越 ±180° 自然环绕；起止相同 = 整圈 / 不限制。
 2. **边界包含性**：端点包含；`pitch` 端点由校验限制在 ±90。
 3. **与 `on_enter` / `exit_buffer` 的关系**：组合条件下的“进入触发一次”同样依赖触发状态机——状态机已修复（fb-05），组合条件直接沿用。
-4. **轮询频率**：已定单列（按触发器 / 按脚本可配）；当前实现仍为固定 5 tick，单列可配未做。
+4. **轮询频率**：已定单列（按触发器 / 按脚本可配）；**已落地（2026-10-14，C3，见 §11）**：生效链 = 触发器级 `poll_interval` ?? 脚本级 `meta.trigger_poll_interval` ?? 类型级默认（tick，1~600）。
 5. **求值顺序与短路**：已实现按列表顺序求值、任一不满足立即短路；按代价排序（先便宜后贵）未做。
 6. **与 `observation` 的分工**：`observation` = “看向某个具体目标（实体 / 方块，带距离）”；朝向条件 = “视线落在某角度范围”；两者都保留，互不替代。
 7. **校验与报错**：已实现结构校验（条件列表非空、子类型已知且为轮询类 / 已注册前置条件 / 另一个组合器、组合器嵌套 ≤ 8 层（含顶层，见 §9）、朝向端点合法、组合内前置条件的 `script` 字段与跨脚本引用）；旧脚本零回归。
@@ -105,7 +105,7 @@
 - 朝向范围按**玩家原版视线参数**（yaw ±180、pitch ±90）。
 - 最小版本：只做 `all_of`、只做玩家、JSON 手写 + 服务端生效 + 校验通过；编辑器后置。
 - 现有触发器格式不动，旧脚本零迁移。
-- 轮询间隔单列：按触发器 / 按脚本可配。
+- 轮询间隔单列：按触发器 / 按脚本可配（**已落地**，见 §11）。
 
 **待定**
 
@@ -147,7 +147,7 @@
 - 前置条件（requires 类）是**锁存语义**（发生过即真），已可纳入组合（见 §8）；`requires` 现有字段不动；
 - schema：`facing` 已登记字段（yaw1 / pitch1 / yaw2 / pitch2）；`all_of` / `any` 只登记类型，无专用控件（手写 JSON）。
 
-**后续批次**：~~新增类型 `death`（玩家死亡）~~ **已落地（2026-10-14，C2）**：事件驱动，场景条件（dimension / biome / position+radius / corner1+corner2）按死亡时刻记录判定；求值器 `Evaluators.evaluateDeath` + 记录 `Evaluators.DeathTracker`，事件入口 `ServerEventHandler.onLivingDeath`（与击杀者分支独立，PvP 双触发）；无死因字段、无重生回调；见 `docs/TRIGGER_TYPES.md` §28。其余待做：组合器嵌套（多层）；检测频率可配（按触发器 / 按脚本）；编辑器 UI（游戏内 + WebUI）。
+**后续批次**：~~新增类型 `death`（玩家死亡）~~ **已落地（2026-10-14，C2）**：事件驱动，场景条件（dimension / biome / position+radius / corner1+corner2）按死亡时刻记录判定；求值器 `Evaluators.evaluateDeath` + 记录 `Evaluators.DeathTracker`，事件入口 `ServerEventHandler.onLivingDeath`（与击杀者分支独立，PvP 双触发）；无死因字段、无重生回调；见 `docs/TRIGGER_TYPES.md` §28。其余待做：编辑器 UI（游戏内 + WebUI）——~~组合器嵌套（多层）~~ 见 §9、~~检测频率可配（按触发器 / 按脚本）~~ 见 §11，均已落地。
 
 **验收标准**：validate 通过；facing 可单独用；all_of 只在全真时触发（"先 A 后 B"不误判）；any 任一满足即触发；旧脚本零回归。
 
@@ -245,6 +245,37 @@
   改前 / 改后 `cmp` 逐字节一致。
 - 新类型演练探针（`E:/tmp/creg/NewTypeProbe.java`）：探针内注册假类型 + 反射往 `TriggerSchemas.all()` 声明字段，
   必填 / 类型 / enum / 非有限数值错误全部由通用层自动报出（11 项断言全过，校验器源码无该类型名）。
+
+---
+
+## 11. 检测频率可配（按触发器 / 按脚本）（2026-10-14 落地，C3）
+
+对应 §2 缺口②（§1 需求 3）：轮询间隔从"类型级固化"升级为 **触发器级 ?? 脚本级 ?? 类型级默认**；EVENT_DRIVEN 不受影响。
+
+**语义（已定）**
+
+- 字段形态：触发器级 `triggers[].poll_interval`、脚本级 `meta.trigger_poll_interval`（int，单位 **tick**，范围 `1`~`600`，与 Forge `defineInRange(…, 1, 600)` 对齐）；
+- 生效链 = 触发器级 `?? 脚本级 `?? 类型级（注册时读 Config 的默认值）；**只对 POLLING 类型生效**；EVENT_DRIVEN 触发器写该字段 = validator 提示无效（照 `exit_buffer` 无效提示写法）；
+- 单位 = tick（与 Config 侧一致）；`delay` 用秒是既有事实，本批不统一它；
+- 生效时机：JSON 字段经 `/icinematics reload` 生效（reload → registerAllTriggers → rebuildIndex 既有链路）；全局 Config 改动仍需重启（不在本批）；
+- 防御：解析层非法值（越界 / 非整数）→ 告警 + 回落 null（照 `skip_vote_ratio` 范式）；引擎侧 `Math.max(1, interval)` 兜底防 `%0`（`TriggerType.resolvePollInterval`）。
+
+**落地清单**
+
+| # | 改动 | 位置 |
+|---|---|---|
+| 1 | `POLL_INTERVAL_MIN/MAX` + `resolvePollInterval`（生效链 + 钳 ≥ 1；事件驱动恒 0） | `trigger/server/TriggerType.java` |
+| 2 | 触发器级 `pollInterval` 字段 + 新构造重载（旧重载缺省 = 类型级值） | `script/TriggerDefinition.java`、`trigger/server/TriggerRegistration.java` |
+| 3 | 脚本级 `triggerPollInterval` 字段 + accessor | `script/ScriptMeta.java` |
+| 4 | 解析 `poll_interval` / `trigger_poll_interval`（`optPollInterval`：非整数 / 越界 → 告警 + null） | `script/ScriptParser.java` |
+| 5 | 注册时算生效间隔并传入注册项；分桶键改用 `getEffectivePollInterval()` | `script/ScriptManager.java`、`trigger/server/TriggerEngine.java` |
+| 6 | 校验：`checkPollIntervalField`（1~600 整数，触发器级 + meta 级同口径）+ 事件驱动类型上的无效提示 | `script/ScriptValidator.java` |
+| 7 | 测试脚本 `test_trigger_poll_interval.json`；负例与分桶探针放仓库外 `E:/tmp/c3/` | `cinematics/tests/trigger/` |
+| 8 | 文档：`TRIGGER_TYPES.md`（通用字段表 +「检测频率可配」小节 + 11 处轮询散文）、`AI_SCRIPTING_GUIDE.md` §3.6、`docs/modules/trigger.md` | `docs/` |
+
+**验收**：compileJava 通过；154 脚本语料 2 of 154 FAIL（基线不变，新 fixture `[OK]`）；分桶探针三触发器 → `pollBuckets` 键集合 `{2, 10, 20}`、EVENT_DRIVEN 只进 `eventIndex`、类型级默认 0 被钳成桶键 1；reload 重建后新间隔生效（`{2, 10}` → `{7, 30}`）。
+
+**不做**（见任务书 §4）：dwell / window 语义原语（P3-impl 线）、全局 Config 热生效、schema / 编辑器暴露、`delay` 单位统一。
 
 ---
 
