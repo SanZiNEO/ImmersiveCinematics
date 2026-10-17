@@ -24,6 +24,7 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 import org.slf4j.Logger;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -44,7 +45,7 @@ import java.util.Map;
  *   → 视图 PoseStack（XP=xRot、YP=yRot+180）→ roll → setInverseViewRotationMatrix
  *   → 该 lane 自己的 fov → 投影 → setProjectionMatrix（全局投影 = 该 lane 的投影）
  *   → prepareCullFrustum（该 lane 的 pose + 相机位置）
- *   → 可见集合：换入该 lane 自己的候选集 / 可见集合 / 门闩（{@link LaneCullSlot}）
+ *   → 可见集合：bridge 在位时换入该 lane 自己的候选集 / 可见集合 / 门闩（{@link LaneCullSlot}）
  *   → renderLevel → doEntityOutline（lane 内描边）→ 还原全局投影 → 换出 lane 剔除状态
  *   → 恢复 mainRenderTarget → （lane 级调色 pass：lane 画面 → adjustTarget）
  *   → 交给 {@link Sink}（合成层；有 lane 级调色时给的是 adjustTarget，否则是 lane FBO）
@@ -94,13 +95,24 @@ import java.util.Map;
  * （原型实测：1 张共用缓冲跑完 25 个画面）。lane 数不设上限，成本 ≈ 每 lane 一遍世界渲染。
  *
  * <h2>兼容</h2>
- * 运行时检测到 Sodium / Embeddium（Rubidium）时禁用 lane 渲染并 warn 一次：它们 {@code @Overwrite}
- * 原版区块渲染与 {@code setupRender}，副画面第二遍裸调原版区块 API 不可靠
- * （见 plans/0.3.6/multi-camera-rendering.md §7.1）。检测走类名存在性，不引入硬依赖。
+ * lane 渲染不按第三方渲染模组的存在性分支：原版与优化模组环境下都照常尝试渲染，只有本 lane 的
+ * 渲染本身失败时才按 {@code written = false} 跳过（合成层守门）。
+ * <p><b>历史错误（已移除）</b>：早期版本按标记类检测到 Sodium / Embeddium 就禁用 lane，依据只是
+ * "它们改写了区块绘制，所以第二遍可能有问题"的源码推演，从未实机验证。本实现并不接管渲染——每条 lane
+ * 仍走原版 {@code LevelRenderer.renderLevel} 渲到离屏 FBO，第三方接管区块绘制是 lane pass 正常出图
+ * 的一部分。剔除中心 / 实体可见性 / 光影时间 uniform 等仍属<b>未实测的细节风险</b>，不再据此新造
+ * 禁用或降级分支。</p>
+ * <ul>
+ *   <li><b>原版</b>：{@code LaneCullStateMixin} 在位时换入该 lane 自己的候选集 / 可见集合 / 门闩，
+ *       保留 lane 级调色 / 合成 / master 调色全部功能。</li>
+ *   <li><b>优化模组 / mixin 缺位</b>：拿不到 {@link LaneCullBridge} 时不换 per-lane 剔除状态，
+ *       继续走同一个 {@code renderLevel} 路径；第三方 {@code @Overwrite setupRender} 下由它自己的
+ *       每 pass 剔除接管，没有可用状态可换也不影响 lane 渲染。</li>
+ *   <li><b>光影</b>：lane pass 内 {@code GameRenderer.getMainCamera()} 返回 lane 相机（不写 final 字段），
+ *       {@code renderHand} 关闭；其余交给光影自己的渲染管线。</li>
+ * </ul>
  */
 public final class LaneRenderer {
-
-    private static final Logger LOGGER = LogUtils.getLogger();
 
     /** 一次失败判定的 GL 错误排空上限（防病态驱动下死循环；超过就按「有错误」处理）。 */
     private static final int MAX_DRAINED_ERRORS = 16;
@@ -111,11 +123,23 @@ public final class LaneRenderer {
     /** 全局单例接入点（渲染线程访问）。 */
     public static final LaneRenderer INSTANCE = new LaneRenderer();
 
-    /** 渲染优化模组的存在性标记类（Sodium 家族：Fabric Sodium / Embeddium / Rubidium 各自的入口类）。 */
-    private static final String[] RENDER_OPTIMIZER_MARKERS = {
-            "net.caffeinemc.mods.sodium.client.SodiumClientMod",   // Sodium（Fabric，0.5.x）
-            "me.jellysquid.mods.sodium.client.SodiumClientMod",    // Embeddium / Rubidium（Forge，1.20.1）
-    };
+    /** 光影模组存在性（Iris / Oculus 都提供 {@code IrisApi}）：只用于诊断，不做任何注入。 */
+    private static final String IRIS_API = "net.irisshaders.iris.api.v0.IrisApi";
+
+    /**
+     * Iris {@code MixinRenderTarget} 加在 {@link RenderTarget} 上的私有 int：深度重挂版本。
+     * {@code RenderTargets.resizeIfNeeded} 只在它与 Iris 缓存不同时重挂深度纹理。
+     */
+    private static final String IRIS_DEPTH_VERSION_FIELD = "iris$depthBufferVersion";
+
+    private static final Logger LOGGER = LogUtils.getLogger();
+
+    /** 反射缓存的字段；{@code null} = 无光影 / 字段不存在 / 反射失败（之后每次静默跳过）。只解析一次。 */
+    private static Field irisDepthVersionField;
+    /** 字段是否已尝试解析（无论成败都只尝试一次）。 */
+    private static boolean irisDepthVersionResolved;
+    /** 首次成功递增时打一行 INFO（只一次，不按 lane 刷屏）。 */
+    private static boolean irisDepthVersionBumpLogged;
 
     /**
      * lane 内容开关。默认全关（{@link #WORLD_ONLY}）——副画面只要世界地形；
@@ -196,11 +220,25 @@ public final class LaneRenderer {
     private RenderTarget target;
     /** lane 级调色的输出缓冲（有 lane 级调色时才创建；与 {@link #target} 同尺寸 / 同重建口径）。 */
     private RenderTarget adjustTarget;
-    /** 渲染优化模组检测结果；{@code null} = 尚未检测。 */
-    private Boolean renderOptimizerPresent;
+    /** 光影模组（Iris / Oculus）存在性；{@code null} = 尚未检测。只用于诊断。 */
+    private Boolean shaderModPresent;
 
     /** 当前正在渲染的 lane 的内容开关；lane pass 之外为 {@code null}（主画面不受内容开关影响）。 */
     private static LaneContent activeContent;
+
+    /**
+     * 当前正在渲染的 lane 的相机；lane pass 之外为 {@code null}。
+     * {@code GameRenderer.getMainCamera()} 在 lane pass 内返回它（不写 {@code mainCamera} 字段），
+     * 让 Iris / Oculus / Embeddium / 原版通过 getter 读相机的代码都拿到 lane 视角。
+     */
+    private static Camera activeLaneCamera;
+
+    /**
+     * 诊断用的内容档覆盖（F5 性能对比 FULL / WORLD_ONLY）：{@code null} = 用生产者传入的正式档
+     * （正式路径恒 {@code FULL}）。由 {@code LaneDiagnostics} 的 manifest 用例设置 / 复位；
+     * 不改变生产默认，也不常驻。
+     */
+    private static LaneContent diagnosticContentOverride;
 
     /**
      * 是否正处在"主画面自己的描边"那一次 {@code doEntityOutline} 调用内（{@link #render} 在 lane 块
@@ -242,12 +280,22 @@ public final class LaneRenderer {
             return;
         }
         lane.state = state;
-        lane.content = content != null ? content : LaneContent.WORLD_ONLY;
+        LaneContent override = diagnosticContentOverride;
+        lane.content = override != null ? override
+                : (content != null ? content : LaneContent.WORLD_ONLY);
         lane.adjust = adjust;
         lane.captureId = captureId;
         if (byCamera.put(lane.camera, lane) == null) {
             activeCount++;
         }
+    }
+
+    /**
+     * 诊断用例的内容档覆盖（F5 性能对比 FULL / WORLD_ONLY）：{@code null} = 恢复正常生产者档。
+     * 只应在诊断 manifest 用例的起止设置 / 复位；生产路径恒为 {@code null}。
+     */
+    public static void setDiagnosticContentOverride(LaneContent content) {
+        diagnosticContentOverride = content;
     }
 
     /** 停用全部 lane（保留槽位与相机实例）。生产者本帧没有 lane 时调用；无活跃 lane 时零开销。 */
@@ -279,7 +327,7 @@ public final class LaneRenderer {
 
     /**
      * 渲染本帧的全部 lane（挂在 {@code GameRenderer.renderLevel} 的 RETURN：
-     * 主画面渲染之后、{@code doEntityOutline} / {@code postEffect} / GUI 之前）。
+     * 主画面渲染之后、原版描边 / 后处理 / GUI 之前）。
      * 没有活跃 lane 时不做任何事。
      */
     public void render(Minecraft mc, float partialTick, long nanoTime) {
@@ -291,11 +339,6 @@ public final class LaneRenderer {
             releaseAllCullSlots();
             return;
         }
-        // lane 渲染需要 per-lane 剔除槽（{@code LaneCullStateMixin}）：渲染优化模组跳过该 mixin 时
-        // 槽缺位 = lane 渲染不可用（提示由 isUnavailable 的检测发出一次）——不渲染、不建槽。
-        if (!isPerLaneCullActive(mc)) {
-            return;
-        }
 
         RenderTarget main = mc.getMainRenderTarget();
         int width = main.width;
@@ -305,6 +348,8 @@ public final class LaneRenderer {
         Matrix4f prevProjection = RenderSystem.getProjectionMatrix();
         VertexSorting prevSorting = RenderSystem.getVertexSorting();
         Matrix3f prevInverseViewRotation = RenderSystem.getInverseViewRotationMatrix();
+        GameRendererAccessor gameRendererAccessor = (GameRendererAccessor) mc.gameRenderer;
+        boolean prevRenderHand = gameRendererAccessor.ic$getRenderHand();
 
         try {
             // 主画面自己的发光描边先落地：lane 会覆盖共享的 entityTarget，原版那次整屏调用已被屏蔽。
@@ -321,6 +366,10 @@ public final class LaneRenderer {
             // 调试捕获：推进帧计数、决定本帧是否读回（ICINEMATICS_CAPTURE 门控；关闭时零差异）
             LaneDebugCapture.beginFrame();
 
+            // 手在 lane 画面里没有意义（原版手在 renderLevel 之外；Iris 的 HandRenderer 在 renderLevel 内，
+            // 只能靠 renderHand=false 关掉）。整个 lane 块关一次、块末还原。
+            mc.gameRenderer.setRenderHand(false);
+
             Sink laneSink = this.sink;
             for (int i = 0; i < lanes.size(); i++) {
                 Lane lane = lanes.get(i);
@@ -330,14 +379,33 @@ public final class LaneRenderer {
                 }
                 // 调试捕获用的相机 id：生产者没给时回退 lane<序号>（文件名安全化在 LaneDebugCapture 内做）
                 String captureId = lane.captureId != null ? lane.captureId : "lane" + i;
-                LaneOutput output = renderLane(mc, lane, captureId, fbo, main, partialTick, nanoTime);
+                // F5：诊断口径 = 玩家当前有效视距（lane 不再有独立视距覆盖）
+                int diagnosticDistance = mc.options.getEffectiveRenderDistance();
+                // disabled 时 beginLane 返回 0、零分配 / 零 nanoTime
+                long laneStart = LaneDiagnostics.beginLane(i, captureId, diagnosticDistance, fbo);
+                LaneOutput output;
+                try {
+                    output = renderLane(mc, lane, captureId, fbo, main, partialTick, nanoTime);
+                } catch (Throwable t) {
+                    LaneDiagnostics.endLane(i, laneStart, false);
+                    throw t;
+                }
+                LaneDiagnostics.endLane(i, laneStart, output.written());
                 if (laneSink != null) {
                     // written = false（渲染失败 / 未写）：合成层守门会跳过该 lane，主画面保持基画面
-                    laneSink.laneRendered(i, output.target(), output.written());
+                    long compositeStart = LaneDiagnostics.beginComposite(i);
+                    try {
+                        laneSink.laneRendered(i, output.target(), output.written());
+                    } finally {
+                        LaneDiagnostics.endComposite(i, compositeStart);
+                    }
                 }
             }
         } finally {
             activeContent = null;
+            activeLaneCamera = null;
+            // 还原 lane pass 期间被临时改写的全局状态
+            mc.gameRenderer.setRenderHand(prevRenderHand);
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
             RenderSystem.setProjectionMatrix(prevProjection, prevSorting);
             RenderSystem.setInverseViewRotationMatrix(prevInverseViewRotation);
@@ -350,7 +418,7 @@ public final class LaneRenderer {
         }
     }
 
-    /** 该 lane 的剔除槽（惰性创建，跨帧持有）；per-lane 剔除不可用时不会被调用。 */
+    /** 该 lane 的剔除槽（惰性创建，跨帧持有）；没有 bridge 时不会被调用。 */
     private static LaneCullSlot cullSlot(Lane lane) {
         LaneCullSlot slot = lane.cull;
         if (slot == null) {
@@ -388,8 +456,8 @@ public final class LaneRenderer {
      * @return 交给合成层的画面纹理 + 是否可用：无 lane 级调色 = lane 自己的 FBO（{@code fbo}）；
      *         有 = 调色后的共享 {@link #adjustTarget(int, int)}
      */
-    private LaneOutput renderLane(Minecraft mc, Lane lane, String captureId, RenderTarget fbo, RenderTarget main,
-                                  float partialTick, long nanoTime) {
+    private LaneOutput renderLane(Minecraft mc, Lane lane, String captureId,
+                                  RenderTarget fbo, RenderTarget main, float partialTick, long nanoTime) {
         Camera camera = lane.camera;
         CameraState state = lane.state;
         GameRenderer gameRenderer = mc.gameRenderer;
@@ -407,11 +475,16 @@ public final class LaneRenderer {
         // 渲染期间让原版所有 getMainRenderTarget() 引用都落在该 lane 的 FBO 上（落地要点 ①）
         ((MinecraftAccessor) mc).ic$setMainRenderTarget(fbo);
         activeContent = lane.content;
-        // per-lane 可见集合：本 pass 换入该 lane 的候选集 / 可见集合 / 门闩（pass 结束或异常时换出；
-        // 换入必须在 prepareCullFrustum 之前，换出在 renderLevel + doEntityOutline 之后）。
-        // 槽 mixin 必定在位：render 已按 isPerLaneCullActive 门控（缺位 = lane 渲染整体不可用）。
-        LaneCullBridge cullBridge = (LaneCullBridge) mc.levelRenderer;
-        cullBridge.ic$pushLaneCullState(cullSlot(lane));
+        // lane pass 内 GameRenderer.getMainCamera() 返回本 lane 相机（不写 private final 字段）：
+        // Iris/Oculus 的 CameraUniforms / 流体判定、Embeddium 云与 render stage、原版天空色 / 粒子都走该 getter
+        activeLaneCamera = camera;
+
+        // per-lane 可见集合：bridge 在位时换入该 lane 的候选集 / 可见集合 / 门闩；拿不到 bridge
+        // （mixin 缺位 / 第三方改写）时不换状态，继续用同一路径渲染本 lane。
+        LaneCullBridge cullBridge = mc.levelRenderer instanceof LaneCullBridge bridge ? bridge : null;
+        if (cullBridge != null) {
+            cullBridge.ic$pushLaneCullState(cullSlot(lane));
+        }
         try {
             fbo.bindWrite(true);   // 绑定 FBO + 视口 = FBO 全尺寸
             // 目标不可写（附件丢失 / 重建失败 / 尺寸非法）→ 驱动会丢掉这次绘制、只留下未写内容：
@@ -451,6 +524,12 @@ public final class LaneRenderer {
             Vec3 cameraPos = camera.getPosition();
             mc.levelRenderer.prepareCullFrustum(poseStack, cameraPos, cullProjection);
 
+            // 该 lane 自己的深度纹理接管：Iris 的深度重挂键是 RenderTarget 上的 iris$depthBufferVersion，
+            // 不是 depth texture id —— lane FBO 版本与 Iris 缓存相同（通常都是 0）时，resizeIfNeeded 判定
+            // “没变化”，lane pass 内的 depthtex0/1/2 / gdepthtex / centerDepthSampler 仍指向主相机深度
+            // （反朝向出现扇形 / 斜线深度边界与绿色毛边）。递增一次迫使本次 lane pass 重挂 lane 深度。
+            bumpIrisDepthBufferVersion(fbo);
+
             // 该 lane 自己的视锥 + 相机姿态 → 原版 8 格膨胀剔除 3~5 步收敛，不需要自建剔除方案
             mc.levelRenderer.renderLevel(poseStack, partialTick, nanoTime, false, camera, gameRenderer,
                     gameRenderer.lightTexture(), projection);
@@ -466,8 +545,11 @@ public final class LaneRenderer {
             reportLaneFailure(captureId, "lane 渲染异常（画面未写 / 半写）", e);
             return new LaneOutput(fbo, false);
         } finally {
-            cullBridge.ic$popLaneCullState();
+            if (cullBridge != null) {
+                cullBridge.ic$popLaneCullState();
+            }
             activeContent = null;
+            activeLaneCamera = null;
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
         }
 
@@ -563,42 +645,79 @@ public final class LaneRenderer {
         return target;
     }
 
-    // ===== 兼容：渲染优化模组 =====
+    // ===== 兼容 / 诊断 =====
 
-    /** lane 渲染是否因渲染优化模组（Sodium / Embeddium）而不可用。 */
-    public boolean isUnavailable() {
-        if (renderOptimizerPresent == null) {
-            String marker = findRenderOptimizer();
-            renderOptimizerPresent = marker != null;
-            if (marker != null) {
-                LOGGER.warn("[lane] 检测到渲染优化模组（{}）：多 lane 副画面渲染已禁用"
-                        + "（它们 @Overwrite 原版区块渲染与 setupRender）。关闭该模组后重启即可使用多相机画面。", marker);
-            }
-        }
-        return renderOptimizerPresent;
+    /**
+     * per-lane 剔除本帧是否生效：有活跃 lane + {@link LaneCullBridge} 在位。
+     * bridge 缺位只表示不换 vanilla 剔除字段，lane 仍然照常渲染（见 {@link #renderLane}）。
+     */
+    public static boolean isPerLaneCullActive(Minecraft mc) {
+        return INSTANCE.activeCount > 0 && mc.levelRenderer instanceof LaneCullBridge;
     }
 
-    private static String findRenderOptimizer() {
-        ClassLoader loader = LaneRenderer.class.getClassLoader();
-        for (String marker : RENDER_OPTIMIZER_MARKERS) {
-            try {
-                Class.forName(marker, false, loader);
-                return marker;
-            } catch (ClassNotFoundException | LinkageError ignored) {
-                // 不存在 → 继续探测下一个
-            }
+    /** 是否检测到光影模组（Iris / Oculus 都提供 {@code IrisApi}；只用于诊断，不注入）。 */
+    public static boolean isShaderModPresent() {
+        LaneRenderer renderer = INSTANCE;
+        if (renderer.shaderModPresent == null) {
+            renderer.shaderModPresent = classPresent(IRIS_API);
         }
-        return null;
+        return renderer.shaderModPresent;
+    }
+
+    /** 类存在性（{@code initialize = false}；只用于诊断探测，不参与 mixin 决策）。 */
+    private static boolean classPresent(String className) {
+        try {
+            Class.forName(className, false, LaneRenderer.class.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException | LinkageError ignored) {
+            return false;
+        }
     }
 
     /**
-     * per-lane 剔除本帧是否生效：有活跃 lane + 非渲染优化模组 + 槽 mixin 在位
-     * （{@code LevelRenderer} 实现了 {@link LaneCullBridge}）。lane 渲染没有共享可见集合的回落路径：
-     * 任一条件不成立即不渲染 lane（{@link #render}）。
+     * 把 lane FBO 的 Iris 深度重挂版本 +1，迫使本次 lane pass 的 {@code RenderTargets.resizeIfNeeded}
+     * 把 {@code depthtex0/1/2}、{@code gdepthtex}、{@code centerDepthSampler} 重挂到 lane FBO 自己的
+     * 深度纹理（否则版本与 Iris 缓存相同，屏幕空间效果会继续采样主相机深度）。
+     *
+     * <p>字段是 Iris {@code MixinRenderTarget} 加在 {@link RenderTarget} 上的私有 int
+     * {@code iris$depthBufferVersion}，反射缓存一次。只在渲染线程调用，每条 lane 递增一次。
+     * 回主画面后不需要手动恢复：Iris 的缓存停在本 lane 的版本上，下一次主 pass 的
+     * {@code resizeIfNeeded} 会因版本不同自动重挂主深度。</p>
+     *
+     * <p>无光影 / 字段不存在 / 反射失败：静默跳过，不抛异常（无光影路径零影响）。</p>
      */
-    public static boolean isPerLaneCullActive(Minecraft mc) {
-        return INSTANCE.activeCount > 0 && !INSTANCE.isUnavailable()
-                && mc.levelRenderer instanceof LaneCullBridge;
+    private static void bumpIrisDepthBufferVersion(RenderTarget laneTarget) {
+        Field field = irisDepthVersionField();
+        if (field == null) {
+            return;
+        }
+        try {
+            field.setInt(laneTarget, field.getInt(laneTarget) + 1);
+            if (!irisDepthVersionBumpLogged) {
+                irisDepthVersionBumpLogged = true;
+                LOGGER.info("[lane] Iris 深度重挂已接管：lane pass 内 depthtex0/1/2 / gdepthtex / "
+                        + "centerDepthSampler 采样 lane FBO 自己的深度（{}）", IRIS_DEPTH_VERSION_FIELD);
+            }
+        } catch (Throwable ignored) {
+            // 字段语义变化 / 访问被拒：降级为原行为（屏幕空间效果仍采样主相机深度），渲染本身不受影响
+        }
+    }
+
+    /** 反射解析一次 {@code iris$depthBufferVersion}；无光影或失败时返回 {@code null}（之后不再尝试）。 */
+    private static Field irisDepthVersionField() {
+        if (!irisDepthVersionResolved) {
+            irisDepthVersionResolved = true;
+            if (isShaderModPresent()) {
+                try {
+                    Field field = RenderTarget.class.getDeclaredField(IRIS_DEPTH_VERSION_FIELD);
+                    field.setAccessible(true);
+                    irisDepthVersionField = field;
+                } catch (Throwable ignored) {
+                    // 字段不存在 / 无反射权限：保持 null，之后每次静默跳过
+                }
+            }
+        }
+        return irisDepthVersionField;
     }
 
     // ===== Mixin 接入点 =====
@@ -609,9 +728,14 @@ public final class LaneRenderer {
         return renderer.activeCount == 0 ? null : renderer.byCamera.get(camera);
     }
 
+    /** 当前正在渲染的 lane 相机；不在 lane pass 内时为 {@code null}（{@code GameRenderer.getMainCamera} 用）。 */
+    public static Camera activeLaneCamera() {
+        return activeLaneCamera;
+    }
+
     /**
      * 本帧<b>最上层</b> lane（lane 表里序号最大且有状态的槽位）；无活跃 lane 时为 {@code null}。
-     * <p>视图中心（{@code LevelRendererMixin}）取它的相机位置——可见区块网格（{@code ViewArea} +
+     * <p>视图中心（{@code LevelRendererVanillaMixin}）取它的相机位置——可见区块网格（{@code ViewArea} +
      * {@code renderChunkStorage}）是<b>单份共享状态</b>，<b>整帧只能有一个中心</b>：
      * 逐 pass 用不同中心会让 {@code ViewArea.repositionCamera} 在每个 pass 把整张网格搬到新位置
      * （{@code RenderChunk.setOrigin} → {@code reset()} → 区块全部置脏重建），一帧内主 pass + N 个 lane

@@ -4,123 +4,33 @@ import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Camera;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.culling.Frustum;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 渲染视图中心跟随相机（0.3.5 第3轮-B v5；0.3.6 主相机替换链退役后改为 <b>lane 驱动</b>）：
- * 1.20.1 的 {@code LevelRenderer.setupRender} 用 {@code minecraft.player} 坐标计算 ViewArea
- * （可见/待建渲染区块）中心——相机飞出玩家渲染距离后，区块即使已加载到客户端缓存也不被构建/渲染。
- * <p>
- * 本 Mixin 把 {@code setupRender} 里的玩家坐标局部变量 {@code d0/d1/d2} 替换为<b>本帧最上层 lane</b>
- * 的相机坐标（{@link LaneRenderer#topLane()}）；后续 {@code SectionPos.posToSectionCoord} 与
- * {@code ViewArea.repositionCamera} 都会自然使用该坐标。无活跃 lane 时返回 {@code null} =
- * 原版玩家坐标（主画面替换链已退役：原版主相机就是玩家相机，见 plans/0.3.6/parallel-playback.md §3.3）。
- * <p>
- * <b>为什么是"最上层 lane"而不是"每条 lane 各自的相机"</b>：可见区块网格是单份共享状态，整帧只能有一个
- * 中心——逐 pass 换中心会让 {@code ViewArea.repositionCamera} 在每个 pass 把整张网格搬走并让区块全部
- * 置脏重建（{@code RenderChunk.setOrigin → reset() → dirty}），一帧内反复来回搬 = 持续重建、画面缺块。
- * 逐 lane 独立的是可见集合，不是网格中心（见 {@code multi-camera-rendering.md} §12.9）。
+ * {@code LevelRenderer} 的通用渲染挂点（不依赖 {@code setupRender}）：
+ *
+ * <ul>
+ *   <li><b>整屏描边屏蔽</b>：原版在 lane 合成之后那次 {@code doEntityOutline} 会盖在合成图外面。</li>
+ *   <li><b>lane pass 清屏 alpha / 内容开关</b>（天空、云、天气、实体）。</li>
+ * </ul>
+ *
+ * <p>{@code setupRender} 专属的视图中心与遮挡开关在 {@link LevelRendererVanillaMixin}：优化模组
+ * （Sodium / Rubidium / Embeddium）改写该方法时由 MixinPlugin 跳过那个 mixin，改走它们的
+ * Camera / Frustum 优化路径；本类的挂点始终应用。</p>
  */
 @Mixin(LevelRenderer.class)
 public class LevelRendererMixin {
 
-    @ModifyVariable(method = "setupRender", at = @At(value = "INVOKE_ASSIGN",
-            target = "Lnet/minecraft/client/player/LocalPlayer;getX()D"), ordinal = 0)
-    private double immersivecinematics_cameraSectionX(double coord) {
-        Vec3 v = cinematicViewCenter();
-        return v != null ? v.x : coord;
-    }
-
-    @ModifyVariable(method = "setupRender", at = @At(value = "INVOKE_ASSIGN",
-            target = "Lnet/minecraft/client/player/LocalPlayer;getY()D"), ordinal = 1)
-    private double immersivecinematics_cameraSectionY(double coord) {
-        Vec3 v = cinematicViewCenter();
-        return v != null ? v.y : coord;
-    }
-
-    @ModifyVariable(method = "setupRender", at = @At(value = "INVOKE_ASSIGN",
-            target = "Lnet/minecraft/client/player/LocalPlayer;getZ()D"), ordinal = 2)
-    private double immersivecinematics_cameraSectionZ(double coord) {
-        Vec3 v = cinematicViewCenter();
-        return v != null ? v.z : coord;
-    }
-
-    /**
-     * 本帧最上层 lane 的相机位置；无活跃 lane（= 原版视角）时为 {@code null} = 用原版玩家坐标。
-     *
-     * <p>lane 表在本帧<b>世界渲染之前</b>就已注册（帧驱动 + lane 注册挂在 {@code GameRenderer.render}
-     * 的 HEAD，见 {@code GameRendererMixin.onRenderFrameStart}），所以这里读到的是<b>本帧</b>的相机位置，
-     * 不存在"上一帧 lane 表"的滞后。</p>
-     */
-    private static Vec3 cinematicViewCenter() {
-        LaneRenderer.Lane lane = LaneRenderer.INSTANCE.topLane();
-        return lane != null ? lane.state().position() : null;
-    }
-
-    // ===== 遮挡剔除开关（lane pass 按本 pass 的相机判定）=====
-
-    @Shadow
-    @Final
-    private Minecraft minecraft;
-
-    @Unique
-    private boolean immersivecinematics$occlusionToggled;
-    @Unique
-    private boolean immersivecinematics$occlusionRestore;
-
-    /**
-     * 原版 {@code setupRender} 的遮挡剔除开关（{@code minecraft.smartCull}），lane pass 内按本 pass 的相机判定。
-     *
-     * lane pass 且 per-lane 剔除生效 → 该 lane 相机所在方块实心渲染则本 pass 关掉遮挡剪枝
-     * （沿用原版旁观者那条判定的口径，把相机换成该 lane 的；剪枝只对播种相机成立，实心方块里会看不到外面）；
-     * 主 pass 与非 lane 帧不改写，走原版判定。RETURN 侧无条件还原。
-     */
-    @Inject(method = "setupRender", at = @At("HEAD"))
-    private void immersivecinematics_applyCameraOcclusion(Camera camera, Frustum frustum,
-                                                          boolean bl, boolean bl2, CallbackInfo ci) {
-        if (!immersivecinematics$occlusionOff(camera)) return;
-        this.immersivecinematics$occlusionRestore = this.minecraft.smartCull;
-        this.minecraft.smartCull = false;
-        this.immersivecinematics$occlusionToggled = true;
-    }
-
-    /** 本 pass 是否把 {@code smartCull} 压成 false（口径见 {@link #immersivecinematics_applyCameraOcclusion}）。 */
-    private boolean immersivecinematics$occlusionOff(Camera camera) {
-        if (!LaneRenderer.isRenderingLane() || !LaneRenderer.isPerLaneCullActive(this.minecraft)) {
-            return false;
-        }
-        ClientLevel level = this.minecraft.level;
-        if (level == null) return false;
-        BlockPos pos = camera.getBlockPosition();
-        return level.getBlockState(pos).isSolidRender(level, pos);
-    }
-
-    @Inject(method = "setupRender", at = @At("RETURN"))
-    private void immersivecinematics_restoreCameraOcclusion(Camera camera, Frustum frustum,
-                                                            boolean bl, boolean bl2, CallbackInfo ci) {
-        if (this.immersivecinematics$occlusionToggled) {
-            this.minecraft.smartCull = this.immersivecinematics$occlusionRestore;
-            this.immersivecinematics$occlusionToggled = false;
-        }
-    }
+    // ===== lane 自包含：屏蔽原版在合成之后那次整屏描边 =====
 
     /**
      * 多相机渲染底层：原版在 {@code GameRenderer.renderLevel} 返回之后会整屏贴一次描边
@@ -178,8 +88,7 @@ public class LevelRendererMixin {
     }
 
     // ===== lane 内容开关（见 plans/0.3.6/render-routes.md §2）=====
-    // 非 lane pass 恒放行（主画面不受影响）；Sodium / Embeddium 下本 Mixin 被插件跳过，
-    // 而那时 lane 渲染本身也被 LaneRenderer 禁用，故这些开关不会缺位造成影响。
+    // 非 lane pass 恒放行（主画面不受影响）。
 
     @Inject(method = "renderSky", at = @At("HEAD"), cancellable = true)
     private void immersivecinematics_laneSkySwitch(PoseStack poseStack, Matrix4f matrix4f, float partialTick,

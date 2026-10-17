@@ -148,7 +148,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 ### 7.1 渲染优化模组兼容策略（自 0.4.0 G2 并入）
 
 - **事实**：Sodium `@Overwrite` 原版区块渲染（Fabric Sodium：`renderLayer` → `SodiumWorldRenderer.drawChunkLayer`，`WorldRendererMixin.java:100-108`；Embeddium 端方法名是 `renderChunkLayer`，`WorldRendererMixin.java:128-142`）与 `setupRender`（`((ViewportProvider) frustum).sodium$createViewport()` 是**硬转换**——副相机的 Frustum 必须实现该接口，否则 CCE：Fabric `:115-124`、Embeddium `:148-164`，接口实现见 `mixin/core/render/frustum/FrustumMixin.java`；整段调用还必须用 `RenderDevice.enterManagedCode()` / `exitManagedCode()` 包住 = 文档里说的"渲染上下文"）；Oculus = Iris 的 Forge 移植（同构，包名同样是 `net.irisshaders.iris`），Forge 端对应物为 Embeddium。副画面第二遍裸调原版区块 API 在 Sodium 下**不可靠**（视锥接口不匹配 / 缺渲染上下文 / 可见性图被两遍打散）；Iris 为此维护了**一整套** Sodium 兼容层——`example/Iris-1.20.1/src/sodiumCompatibility` 共 **83 个 Java 文件 / 4788 行**，其中阴影 pass 专属的 `mixin/shadow_map/*` + `impl/shadow_map/*` 是 **10 个文件 / 321 行**（例：`MixinRenderSectionManager` 为 shadow pass 另存一份 `shadowRenderLists` 并重定向 `renderLists` 字段；`MixinSodiumWorldRenderer` 在 shadow pass 里强制 `RenderSectionManager.needsUpdate() == true`），第二遍本体 `shadows/ShadowRenderer.java` **730 行**（Oculus 版 729 行）。
-- **策略（推荐）**：副画面渲染走原版 API + **运行时检测 Sodium / Embeddium / Oculus** → 存在时副画面自动禁用 + warn 日志（提示关闭对应模组以使用多相机画面）；无优化模组时正常。不做 Iris 级完整适配（成本高）；需求提升后再评估升级。**✅ 已落地（2026-10-07）**：`LaneRenderer.isUnavailable()` 按标记类存在性运行时检测（`net.caffeinemc.mods.sodium.client.SodiumClientMod` / `me.jellysquid.mods.sodium.client.SodiumClientMod`，不引入硬依赖），命中即不渲染 + warn 一次；Oculus / Iris 的"取已处理画面"仍未验证（§7 第 3 点）。
+- **现行策略（2026-10-17 恢复原设计）**：检测到 Sodium / Rubidium / Embeddium 时，跳过只针对原版 `setupRender` 的两个 mixin——`LevelRendererVanillaMixin`（视图中心 / 遮挡开关）与 `LaneCullStateMixin`（vanilla 剔除字段交换）——改走它们基于 `Camera` / `Frustum` 的优化路径（`CameraMixin` 已写入虚拟相机，`Viewport` / `setupTerrain` 会跟随）。lane 渲染始终执行；缺 `LaneCullBridge` 时只跳过剔除状态交换。历史上 `3a191d3` 加的 `isUnavailable()` 整条禁用已删除（未实测的源码推断）。
 - 另见 §11：Sodium / Embeddium 的渲染中心来自 `Camera` / `Frustum`，`CameraMixin` 路线已验证，可作为适配时的另一条参考路径。
 
 ---
@@ -345,7 +345,7 @@ mainRenderTarget 临时指向 lane FBO → fbo.bindWrite(true)（视口 = FBO �
 
 ### 12.5 兼容
 
-- **Sodium / Embeddium（Rubidium）**：`LaneRenderer.isUnavailable()` 按标记类存在性运行时检测（`net.caffeinemc.mods.sodium.client.SodiumClientMod` / `me.jellysquid.mods.sodium.client.SodiumClientMod`）→ 命中即**不渲染 + warn 一次**，不引入硬依赖。检测结果缓存；脚本 lane 照常注册，但渲染被禁用（此时调试捕获也拿不到 lane 画面）。
+- **Sodium / Embeddium（Rubidium）**：检测到即跳过 `LevelRendererVanillaMixin` 与 `LaneCullStateMixin`，改走优化器自己的 `setupRender` / 剔除路径；lane 始终渲染，缺 `LaneCullBridge` 时只跳过剔除状态交换。
 - 光影（Iris / Oculus）：未做适配（§7 第 3 点仍待调研）。
 
 ### 12.6 调试入口
@@ -370,7 +370,7 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 - 节奏：首帧抓一轮，此后每 200 帧一轮，最多 5 轮；第 2 轮起文件名带 `-r{k}`（k≥2）。一轮 = 每条 lane 2 个 raw + 2 个 composited，加 1 张 `frame`。
 - 日志：每次读回一行 `[lane-capture] ...`，含文件名与 alpha 统计（整体 0/255/中间值占比 + 自上而下 10 条横带的 alpha=0 占比）。
 - 位置：raw 读回在 `LaneRenderer.renderLane` 内（lane 级调色之前），composited 读回在 `ScriptLaneDriver.compose` 里（紧随 `LaneCompositor.compose`），窗口终帧在 `GameRendererMixin` 的 `GameRenderer.render` RETURN（原版 `blitToScreen` 在 `Minecraft.runTick` 里、`render` 返回之后才调用，内容与窗口一致）。
-- 命中优化模组（`LaneRenderer.isUnavailable()`）时 lane 不渲染 → raw / composited 没有产出，`frame` 仍会出（那是原版画面）。
+- lane 渲染失败（`written=false`）时 raw / composited 没有产出，`frame` 仍会出（那是原版画面）；不再有「按模组禁用」分支。
 
 ### 12.7 原型处置（版本原则：不留旧代码）
 
@@ -471,7 +471,7 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 - **正确性**：每 lane 状态在其 pass 内独占 → 帧内无交叉改写 → 无闪帧；每条 lane 自己播种、自己剪枝、自己过滤 → 画面完整。
 - **性能**：拿回遮挡剪枝（B3 的目的）；BFS 只在该 lane 门闩触发时跑（非每帧），不重复网格编译（§12.9.5）。
 - **侵入面**：新增 1 个 LevelRenderer 侧 mixin + `LaneRenderer` 调用点，不改 vanilla 逻辑。
-- **与 Sodium/Embeddium 共存**：新 mixin 与 `LevelRendererMixin` 同策略——插件检测到 sodium 系即跳过（`ImmersiveCinematicsMixinPlugin.java:47-50`）；Sodium 下 lane 渲染本就被禁用（`LaneRenderer.isUnavailable()`，§12.5），无 per-lane 剔除需求。
+- **与 Sodium/Embeddium 共存**：`LevelRendererVanillaMixin` / `LaneCullStateMixin` 由插件跳过，vanilla 剔除字段不参与；可见集合由优化器自己的 pass 管理。lane 渲染不受影响。
 
 **机制（b 的落地形状）**：
 
@@ -547,7 +547,7 @@ C ≤ N_slot               （候选 section 数；遮挡剪枝后远小于上�
 | 缺块（lane 画面缺 16 格区块） | 可见集合 / 门闩沿用上一 pass（§12.8-B） | 每 lane 独立候选集 / 可见集合 / 门闩（§12.9.1 拆项 1/2/4/5/6）——各 lane 各自播种、各自过滤 |
 | 异步 BFS 写错槽 | 后台 BFS 完成时字段已被换出，写入落到当前安装槽 | 每 lane BFS 归槽（§12.9.2 约束；§12.9.7② 已收敛：lane pass 内同步执行 + 换入前 await） |
 | 深度污染 / translucent 排序错乱 | `xTransparentOld/y/z` 跨 lane 残留（`LevelRenderer.java:260-262`） | 该三字段纳入 lane 槽（或每 pass 复位） |
-| 与 Sodium / Embeddium 共存 | 插件对 sodium 系直接跳过 `LevelRendererMixin`（`ImmersiveCinematicsMixinPlugin.java:47-50`）；Sodium `@Overwrite setupTerrain`（`iris-sodium.txt` §3.1）使 vanilla 剔除字段成死路径 | 新 cull mixin 同样加入插件跳过名单；Sodium 下 lane 渲染本就被禁用（`LaneRenderer.isUnavailable()`，§12.5）；不做 Iris 级适配（§7.1） |
+| 与 Sodium / Embeddium 共存 | 优化器 `@Overwrite setupTerrain`（`iris-sodium.txt` §3.1）使 vanilla 剔除字段成死路径 | lane 仍渲染；`LaneCullBridge` 缺位时不换剔除状态（§12.5）；per-lane 槽是否仍需要待实测 |
 | 停播恢复失败（残留 lane 集合 / 中心未复位） | 槽未弹净 / 未强刷 | 停播（含异常）时 `finally` 弹净 + 一次 `needsUpdate()` + 中心回退玩家（§12.9.4）；日志可确认 |
 | 内存随 lane 数增长 | 每 lane 一份候选集 | 池化复用 + 停播归还（§12.9.5）；内存 ∝ 并发峰值 |
 

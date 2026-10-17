@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneDebugCapture;
+import com.immersivecinematics.immersive_cinematics.client.lane.LaneDiagnostics;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.immersivecinematics.immersive_cinematics.client.lane.ScriptLaneDriver;
 import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustPass;
@@ -22,10 +23,28 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class GameRendererMixin {
 
     /**
+     * lane pass 内让 {@code getMainCamera()} 返回当前 lane 的相机。
+     *
+     * <p>Iris / Oculus 的 {@code CameraUniforms}（cameraPosition、阴影中心）、{@code CommonUniforms}
+     * 的水下判定、Embeddium 的云雾与 {@code dispatchRenderStage}、原版 {@code LevelRenderer} 的天空色 /
+     * 粒子 / 1038 事件都通过该 getter 读相机。lane pass 之外返回原相机（零差异）。</p>
+     *
+     * <p>不写 {@code GameRenderer.mainCamera}（private final）：final 字段在 {@code <init>} 之外写入会抛
+     * {@code IllegalAccessError}。</p>
+     */
+    @Inject(method = "getMainCamera", at = @At("RETURN"), cancellable = true)
+    private void immersivecinematics_laneMainCamera(CallbackInfoReturnable<Camera> cir) {
+        Camera laneCamera = LaneRenderer.activeLaneCamera();
+        if (laneCamera != null) {
+            cir.setReturnValue(laneCamera);
+        }
+    }
+
+    /**
      * 每帧开始（帧首，世界渲染之前）：帧驱动 + lane 注册（{@code renderLevel} 参数为真且已有世界时）——
      * {@link CameraManager#onRenderFrame()} 推进时钟 / 轨道 / lane 快照，随后注册本帧 lane
      * （脚本 lane 是 lane 的唯一来源，见 {@link ScriptLaneDriver}）。必须排在<b>世界渲染之前</b>：视图中心
-     * （{@code LevelRendererMixin} 改写 {@code setupRender} 的玩家坐标）读 lane 表，挂在世界渲染之后会让它
+     * （{@code LevelRendererVanillaMixin} 改写 {@code setupRender} 的玩家坐标）读 lane 表，挂在世界渲染之后会让它
      * 滞后一帧（主 pass 读到上一帧的 lane 相机位置）。
      *
      * <p>与原挂点（{@code LaneRendererMixin} 的 {@code GameRenderer.renderLevel} RETURN）等价性：两者都只在
@@ -36,6 +55,8 @@ public abstract class GameRendererMixin {
     @Inject(method = "render", at = @At("HEAD"))
     private void onRenderFrameStart(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
         Minecraft mc = Minecraft.getInstance();
+        // F5 诊断会话帧首：manifest 未启用时仅一次静态 null 检查（不取 nanoTime / 不分配 / 不 IO）。
+        LaneDiagnostics.onFrameStart(mc, renderLevel && mc.level != null);
         if (renderLevel && mc.level != null) {
             CameraManager mgr = CameraManager.INSTANCE;
             if (mgr.isActive()) {
@@ -57,11 +78,16 @@ public abstract class GameRendererMixin {
      * <b>之后</b>才调用（1.20.1 {@code Minecraft.java:1044-1045}），只是把主画面整幅拷到窗口、不改变主画面内容
      * ——所以这里读回的内容 = 玩家看到的窗口画面。</p>
      *
-     * <p>关闭 {@code ICINEMATICS_CAPTURE} / 本帧未捕获 / 未进世界时零差异（内部第一行返回）。</p>
+     * <p>关闭 {@code ICINEMATICS_CAPTURE} / 本帧未捕获 / 未进世界时零差异（内部第一行返回）。
+     * F5 诊断会话的帧尾计时（{@link LaneDiagnostics#onFrameEnd}）排在本钩子之后：窗口读回属于
+     * {@code GameRenderer.render} 的 RETURN 前工作，截图帧随后在统计中整体剔除。</p>
      */
     @Inject(method = "render", at = @At("RETURN"))
     private void onRenderFrameEnd(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
-        LaneDebugCapture.onFrameEnd(Minecraft.getInstance());
+        Minecraft mc = Minecraft.getInstance();
+        LaneDebugCapture.onFrameEnd(mc);
+        // F5 诊断会话帧尾：必须排在窗口读回之后，使整帧计时包含 RETURN 前的读回（截图帧随后被剔除）。
+        LaneDiagnostics.onFrameEnd(mc);
     }
 
     /**

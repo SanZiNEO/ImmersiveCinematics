@@ -7,9 +7,8 @@ package com.immersivecinematics.immersive_cinematics.client.lane;
  * {@link #ic$popLaneCullState} 反向。{@link #ic$popAllLaneCullStates} 是异常兜底（lane pass 中途抛出时
  * 保证所有层弹净、字段回到原版值）。
  *
- * 实现方可能缺位（Sodium 系跳过该 mixin，{@code LevelRenderer} 便不实现本接口）：调用方按
- * {@code instanceof} 判定，缺位 = lane 渲染不可用（{@link LaneRenderer#isPerLaneCullActive} /
- * {@link LaneRenderer#render} 直接不渲染——lane 渲染没有共享可见集合的回落路径）。
+ * 实现可能缺位（mixin 未应用 / 第三方 {@code @Overwrite} 导致注入跳过）：调用方按 {@code instanceof}
+ * 判定，缺位时只是不换 per-lane 剔除字段，lane 仍然照常渲染。
  */
 public interface LaneCullBridge {
 

@@ -25,7 +25,7 @@
 ## 4. 兼容分支
 
 - **光影（Iris / Oculus）**：能否拿"已处理后的画面"；
-- **性能模组（Sodium / Embeddium）**：检测到 → 副画面禁用 + warn；或走它们的 Camera / Frustum 管线（`CameraMixin` 路线）。
+- **性能模组（Sodium / Embeddium）**：~~检测到 → 副画面禁用 + warn~~（历史建议，未实测、已废弃）；现为检测到即跳过 `setupRender` 专属 mixin、走它们的 Camera / Frustum 管线（`CameraMixin` 路线），lane 始终渲染。
 
 ## 5. 待定
 

@@ -143,8 +143,11 @@ public class LaneCullStateMixin implements LaneCullBridge {
      * lane pass 内同步执行：任务体写 {@code this.renderChunkStorage} / {@code this.needsFrustumUpdate}，
      * 同步 = 写入时刻安装的槽正是发起它的那个 lane 槽。主 pass 照原版异步提交（写入落在 vanilla 槽），
      * 其落地由 {@link #ic$awaitPendingFullUpdate} 在 lane 槽换入前保证。
+     *
+     * <p>若第三方改写了 {@code setupRender}（未实测的细节风险），注入点不存在时跳过而不是阻止启动；
+     * lane 渲染不依赖本重定向。</p>
      */
-    @Redirect(method = "setupRender", at = @At(value = "INVOKE",
+    @Redirect(method = "setupRender", require = 0, at = @At(value = "INVOKE",
             target = "Ljava/util/concurrent/ExecutorService;submit(Ljava/lang/Runnable;)Ljava/util/concurrent/Future;"))
     private Future<?> ic$submitFullCullUpdate(ExecutorService executor, Runnable task) {
         if (LaneRenderer.isRenderingLane() && LaneRenderer.isPerLaneCullActive(this.minecraft)) {

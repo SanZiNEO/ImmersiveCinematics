@@ -13,19 +13,26 @@ import java.util.Set;
 /**
  * Forge 专属 Mixin 配置插件。
  *
- * 检测到 Sodium / Rubidium / Embeddium 时跳过 {@link LevelRendererMixin} 与 {@code LaneCullStateMixin}：
- * 这些模组会 {@code @Overwrite} 原版 {@code LevelRenderer.setupRender}，我们的 {@code @Redirect} /
- * {@code @ModifyVariable} 无法注入，vanilla 的剔除字段也成了死路径；但它们基于 Camera/Frustum 的渲染中心
- * 已经会跟随 {@code CameraMixin} 写入的虚拟相机，且 lane 渲染本身在检测到优化模组时已禁用，因此跳过不会丢失功能。
+ * <p>检测到渲染优化模组（Sodium / Rubidium / Embeddium）时，跳过只针对原版
+ * {@code LevelRenderer.setupRender} 的两个 mixin：</p>
+ * <ul>
+ *   <li>{@code LevelRendererVanillaMixin}（视图中心 + 遮挡开关）；</li>
+ *   <li>{@code LaneCullStateMixin}（vanilla 剔除字段的 per-lane 交换）。</li>
+ * </ul>
  *
- * 直接使用 Forge API，不使用 Java 反射。
+ * <p>原因：这些模组会 {@code @Overwrite} 原版 {@code setupRender}，注入无法应用；但它们基于
+ * {@code Camera} / {@code Frustum} 的渲染中心会跟随 {@code CameraMixin} 写入的虚拟相机，
+ * 因此跳过等于<strong>改走它们的优化路径</strong>，不是禁用 lane。lane 渲染本身由
+ * {@code LaneRenderer} 照常执行；缺少 {@code LaneCullBridge} 时只跳过剔除状态交换。</p>
  */
 public final class ImmersiveCinematicsMixinPlugin implements IMixinConfigPlugin {
 
-    /** 检测到渲染优化模组时跳过的 mixin（完整类名）。 */
-    private static final Set<String> OPTIMIZER_SKIPPED_MIXINS = Set.of(
-            "com.immersivecinematics.immersive_cinematics.mixin.LevelRendererMixin",
-            "com.immersivecinematics.immersive_cinematics.mixin.LaneCullStateMixin"
+    private static final String PREFIX = "com.immersivecinematics.immersive_cinematics.mixin.";
+
+    /** 只针对原版 setupRender 的 mixin：优化模组改写该方法时跳过（改用它们的路径）。 */
+    private static final Set<String> VANILLA_SETUP_RENDER_MIXINS = Set.of(
+            PREFIX + "LevelRendererVanillaMixin",
+            PREFIX + "LaneCullStateMixin"
     );
 
     private static final Set<String> RENDER_OPTIMIZER_MOD_IDS = Set.of(
@@ -34,7 +41,7 @@ public final class ImmersiveCinematicsMixinPlugin implements IMixinConfigPlugin 
             "embeddium"
     );
 
-    private static Boolean optimizerModPresent;
+    private static Boolean optimizerPresent;
 
     @Override
     public void onLoad(String mixinPackage) {
@@ -48,7 +55,10 @@ public final class ImmersiveCinematicsMixinPlugin implements IMixinConfigPlugin 
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        return !(OPTIMIZER_SKIPPED_MIXINS.contains(mixinClassName) && isRenderOptimizerPresent());
+        if (VANILLA_SETUP_RENDER_MIXINS.contains(mixinClassName)) {
+            return !isRenderOptimizerPresent();
+        }
+        return true;
     }
 
     @Override
@@ -72,14 +82,14 @@ public final class ImmersiveCinematicsMixinPlugin implements IMixinConfigPlugin 
     }
 
     private static boolean isRenderOptimizerPresent() {
-        if (optimizerModPresent == null) {
-            optimizerModPresent = detectRenderOptimizer();
+        if (optimizerPresent == null) {
+            optimizerPresent = detectRenderOptimizer();
         }
-        return optimizerModPresent;
+        return optimizerPresent;
     }
 
     private static boolean detectRenderOptimizer() {
-        // 早期阶段优先使用 LoadingModList
+        // Mixin 可能在 ModList 构建完成前运行：优先用早期可用的 LoadingModList。
         var loadingModList = FMLLoader.getLoadingModList();
         if (loadingModList != null) {
             for (ModInfo mod : loadingModList.getMods()) {
@@ -88,8 +98,6 @@ public final class ImmersiveCinematicsMixinPlugin implements IMixinConfigPlugin 
                 }
             }
         }
-
-        // 兜底：ModList 已构建完成时再查一次
         ModList modList = ModList.get();
         if (modList != null) {
             for (String modId : RENDER_OPTIMIZER_MOD_IDS) {
@@ -98,7 +106,6 @@ public final class ImmersiveCinematicsMixinPlugin implements IMixinConfigPlugin 
                 }
             }
         }
-
         return false;
     }
 }

@@ -38,8 +38,8 @@
 | 队列键 | 脚本 id | 同脚本第二次请求**替换**自己的排队位（不再占一格） |
 | 跨实例存活 | **队列不随在播实例结束而清空**（修 §1-1 bug） | 接播按队列持续滚动；仅世界退出/forceDeactivate 清空 |
 | 出队条件 | 阻塞它的 `exclusive` 实例全部结束 | 无 exclusive 在播 = 不排队（parallel 不阻塞） |
-| 排序 | `meta.priority` 降序 + FIFO | 现 `ScriptQueue`（PriorityQueue，容量 8）不变 |
-| 满容量 | 拒绝新请求（现状返回码不变） | 「替换最旧」= §7 待拍板 |
+| 排序 | `meta.priority` 降序 + FIFO | `ScriptQueue`（PriorityQueue，不设容量上限） |
+| 满容量 | 不设上限（consolidation 决策 8） | 第 9 项起也正常入队 |
 | 接播形态 | 硬切起步（现状）；转场起步归 scene-transition | — |
 
 `ScriptQueue` 需补「按脚本匹配」API（F2 原口径）：同键替换排队位、按脚本取消（E3）。

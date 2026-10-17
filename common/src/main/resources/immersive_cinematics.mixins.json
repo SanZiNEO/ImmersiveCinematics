@@ -20,6 +20,7 @@
     "LaneRendererMixin",
     "LaneCullStateMixin",
     "LevelRendererMixin",
+    "LevelRendererVanillaMixin",
     "LivingEntityMixin",
     "LocalPlayerMixin",
     "MinecraftAccessor",

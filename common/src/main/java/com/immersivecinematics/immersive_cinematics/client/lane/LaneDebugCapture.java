@@ -47,11 +47,19 @@ import java.util.Locale;
  * 见 {@link LaneRenderer#setLane}）；没有 id 的 lane 回退 {@code lane<序号>}。文件名安全化：
  * {@code [A-Za-z0-9_.-]} 之外的字符一律换成 {@code _}（脚本 id 可能含 {@code :} 等）。</p>
  *
+ * <h2>F5 诊断会话（{@code f-round.json}，与本开关独立）</h2>
+ * <p>{@link LaneDiagnostics} 启用时，三个钩子在旧开关逻辑之外再走一条<b>有限的检查点捕获</b>路径：
+ * {@code onLaneRendered} / {@code onLaneComposited} 只在 manifest 指定脚本的检查点帧、按 lane 选择
+ * 写 raw / composited；{@code onFrameEnd} 写窗口终帧。图片写进诊断会话目录（见
+ * {@link LaneDiagnostics#imageDirectory()}），张数由 manifest 上限约束。诊断未启用时
+ * {@link LaneDiagnostics#isEnabled()} 为 false，三个钩子不做任何额外工作；旧开关的节奏 / 文件 / 目录
+ * 完全不变。</p>
+ *
  * <h2>开关与节奏</h2>
  * <ul>
  *   <li>开关 = {@code -Dicinematics.capture} / 环境变量 {@code ICINEMATICS_CAPTURE}（{@code 1} / {@code true}
- *       等即开，见 {@link #parseEnabled}）。关闭时所有钩子第一行即返回：不读回、不分配、不写盘、
- *       不切任何 GL 状态——<b>零差异</b>。</li>
+ *       等即开，见 {@link #parseEnabled}）。关闭时旧路径第一行即返回：不读回、不分配、不写盘、
+ *       不切任何 GL 状态——<b>零差异</b>（诊断路径仍按自己的开关独立判断）。</li>
  *   <li>产出目录：{@code <gameDirectory>/lane-captures/}（开发环境 = {@code fabric/run/lane-captures/}）。</li>
  *   <li>节奏：首帧抓一轮（{@link #beginFrame}），此后每 {@link #INTERVAL_FRAMES} 帧一轮，最多
  *       {@link #MAX_ROUNDS} 轮；第 2 轮起文件名带 {@code -r{k}} 后缀，不覆盖第一轮。
@@ -119,7 +127,15 @@ public final class LaneDebugCapture {
      * @param target   lane 的离屏缓冲
      */
     public static void onLaneRendered(String cameraId, RenderTarget target) {
-        if (!ENABLED || !captureThisFrame || target.width <= 0 || target.height <= 0) {
+        // F5 诊断会话（manifest opt-in）：按检查点与 lane 选择写有限 raw 图；关闭时 isEnabled 第一行返回。
+        // 与旧 ICINEMATICS_CAPTURE 完全独立，旧路径行为不变。
+        if (LaneDiagnostics.isEnabled() && target != null && target.width > 0 && target.height > 0
+                && LaneDiagnostics.shouldCaptureLaneImage(cameraId)) {
+            NativeImage diagnostic = download(target, false);   // 保真 alpha
+            writeDiagnostic(diagnostic, LaneDiagnostics.laneImageName(cameraId, "raw"),
+                    "相机 " + cameraId + " raw");
+        }
+        if (!ENABLED || !captureThisFrame || target == null || target.width <= 0 || target.height <= 0) {
             return;
         }
         NativeImage image = download(target, false);   // false = 保留原始 alpha
@@ -138,6 +154,23 @@ public final class LaneDebugCapture {
      * @param dest     该相机的屏幕归一化目标矩形（原点左上，与 {@link LaneCompositor.Rect} 同口径）
      */
     public static void onLaneComposited(String cameraId, LaneCompositor.Rect dest) {
+        // F5 诊断会话：该 lane 的 raw 判定成功时，紧随合成读回主 framebuffer 并按 dest 裁切。
+        if (LaneDiagnostics.isEnabled() && dest != null && LaneDiagnostics.shouldCaptureCompositeImage(cameraId)) {
+            RenderTarget diagnosticMain = Minecraft.getInstance().getMainRenderTarget();
+            if (diagnosticMain != null && diagnosticMain.width > 0 && diagnosticMain.height > 0) {
+                NativeImage full = download(diagnosticMain, false);
+                NativeImage diagnostic;
+                try {
+                    diagnostic = crop(full, dest, diagnosticMain.width, diagnosticMain.height);
+                } finally {
+                    full.close();
+                }
+                if (diagnostic != null) {
+                    writeDiagnostic(diagnostic, LaneDiagnostics.laneImageName(cameraId, "composited"),
+                            "相机 " + cameraId + " composited");
+                }
+            }
+        }
         if (!ENABLED || !captureThisFrame || dest == null) {
             return;
         }
@@ -170,6 +203,15 @@ public final class LaneDebugCapture {
      * 不会重复出图。关闭 / 非捕获帧 / 未进世界时第一行返回。</p>
      */
     public static void onFrameEnd(Minecraft mc) {
+        // F5 诊断会话：检查点窗口终帧（即使本帧没有可渲染 lane 也写窗口图；raw/composited 由 lane 钩子负责）。
+        if (LaneDiagnostics.isEnabled() && mc != null && mc.level != null
+                && LaneDiagnostics.shouldCaptureWindowImage()) {
+            RenderTarget diagnosticMain = mc.getMainRenderTarget();
+            if (diagnosticMain != null && diagnosticMain.width > 0 && diagnosticMain.height > 0) {
+                NativeImage diagnostic = download(diagnosticMain, true);
+                writeDiagnostic(diagnostic, LaneDiagnostics.windowImageName(), "窗口终帧");
+            }
+        }
         if (!ENABLED || !captureThisFrame) {
             return;
         }
@@ -266,6 +308,30 @@ public final class LaneDebugCapture {
                 image.writeToFile(new File(dir, name + ".png"));
             } catch (IOException e) {
                 LOGGER.warn("[lane-capture] 写盘失败：{}", e.toString());
+            } finally {
+                image.close();
+            }
+        });
+    }
+
+    /**
+     * F5 诊断会话图片：写进会话目录的 {@code images/}（由 {@link LaneDiagnostics#imageDirectory()} 给出），
+     * 不写 alpha 灰度图（raw 本身保真 alpha），编码与写盘交给 IO 线程。关闭 / 目录不可用时只关图。
+     */
+    private static void writeDiagnostic(NativeImage image, String name, String what) {
+        File dir = LaneDiagnostics.imageDirectory();
+        if (dir == null) {
+            image.close();
+            return;
+        }
+        LOGGER.info("[diagnostics] {}：{}x{} → {}/{}",
+                what, image.getWidth(), image.getHeight(), dir.getAbsolutePath(), name);
+        Util.ioPool().execute(() -> {
+            try {
+                dir.mkdirs();
+                image.writeToFile(new File(dir, name));
+            } catch (IOException e) {
+                LOGGER.warn("[diagnostics] 图片写盘失败：{}", e.toString());
             } finally {
                 image.close();
             }

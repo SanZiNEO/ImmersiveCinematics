@@ -110,10 +110,10 @@
 
 | ID | 任务 | 依赖 | 状态 |
 |---|---|---|---|
-| F2 | 队列按脚本匹配接播（ScriptQueue API + deactivateNow 语义） | — | ☐ |
-| F3 | Iris/Oculus 适配（挂点先后调研 + 兼容或文档化限制） | — | ☐ |
-| F4 | 视距档位 | — | ☐ |
-| F5 | 帧耗时统计（新结构下重测成本曲线） | B3 | ☐ |
+| F2 | 队列按脚本匹配接播（ScriptQueue API + deactivateNow 语义） | — | 🟡 实现完成（2026-10-17）：出队按 priority/FIFO 逐项判定可播性、无 exclusive 一次排空、同脚本排队副本不被误启动、预览隔离、去掉容量 8；无头行为探针 68/68；实机待用户 |
+| F3 | Iris/Oculus 适配（挂点先后调研 + 兼容或文档化限制） | — | 🟡 实现完成（2026-10-17）：删除 `isUnavailable()` 整条禁用；检测保留用于跳过 `setupRender` 专属 mixin（`LevelRendererVanillaMixin` / `LaneCullStateMixin`），改走优化器 Camera/Frustum 路径；lane 始终渲染，缺 `LaneCullBridge` 时只跳过剔除状态交换；画面细节待用户实测 |
+| F4 | 视距档位 | — | ⊘ 按用户裁决取消脚本字段（2026-10-17）：lane 视距自动跟随玩家设置，不新增 `render_distance` 或其它脚本开关 |
+| F5 | 帧耗时统计（新结构下重测成本曲线） | B3 | 🟡 实现完成（2026-10-17）：opt-in 诊断会话（manifest / events.jsonl / 定点图片 / CPU 提交区间 CSV + p50/p95）、21 支测试脚本；真实成本数据待用户实测回填 |
 
 ## 批次 G：script-model
 
@@ -242,3 +242,4 @@
 | 2026-10-17 | **D 轮底座收口（D8 / D10）**：前置 MC + example 两路只读研究 → 子代理分辨率校验修正 / 黑边透明度全链 → 主代理编译与实机验收。D9 按用户澄清取消：字幕完整呈现、不裁切，新增代码/接线/样例全部撤回。编译在线依赖握手失败后，`sh gradlew --offline compileJava` 三模块通过；19 项播放器探针从 10 FAIL 到全过；165 脚本校验仅原有 2 条问题；Fabric 实机分阶段截图与像素测量通过，60.02s 内容消费结束后层清理。后续派单以“完整、独立可验收功能切片”一次写清，不再机械拆成几行一单。D1–D7 当时未完成、未冒充完成（现已于同日后续轮次收口）；E–H / P1/P3 未冒充完成；详细证据见 `D-transition/execution-round.md`。 |
 | 2026-10-17（续） | **D4–D7 高级颜色覆盖层关单**：既有fade扩展渐变/五混合/局部形状/颜色关键帧，双端重载与统一close资源生命周期；W3C柔光公式纠偏。离线三模块编译通过，数据278/0、新shader334/0、真实生产renderer129/0、旧GL14套全绿（blend240/0），166脚本仅2个历史问题。Fabric真实资源重载代次5→6，同层LUT重建；实际渐变/multiply/z序像素命中；演示68.00s自然结束与强停后GPU资源归零。文档、指南、模块说明、CHANGELOG同步；D1–D3/F/G/H/P1/P3不混入（D1–D3 已在同日续2收口）。证据及Forge未实机边界见 `D-transition/color-mask-execution.md`。 |
 | 2026-10-17（续2） | **D1–D3 收口 / D 轮关单**：D1 定稿 C 最终方案（纯显式 clip / 关键帧，不新增 `transition_in/out`、`TRANSITION` 轨或运行时生成器；CAMERA transition=cut/morph 仍只是相机状态）；D2 CAMERA clip `mask_shape` full/rect/circle + 关键帧几何（.5 中心可越界、窗口比例尺寸、短边真圆、0 不绘制、source/dest 独立、full 兼容；image/subtitle 不裁切，CAMERA 不开放 gradient/blend_mode）；D3 显式 `z_index`（普通 fade 10、转场 fade 1000、示例字幕 100；需同时显示的 OVERLAY 各自独立轨，同轨只消费首活跃 clip；不改原版 HUD）。叠化校正为底 A 不透明 + 上 B 0→1；旧“互补 alpha 不会露底”的错误结论已纠正，无运行时配对 / 归一。证据：离线三模块 `compileJava`；真实 Parser/Validator/Clip/LaneMask **337/0**；新 shader GL **80/0**；旧 GL14 全绿；168 脚本仅 2 历史问题；Fabric 五案 `result=1` 自然结束 15.01/8.01/8.00/10.01/10.01s，rect 横纵与真圆可见，叠化四像素与端点均值误差 1，普通 fade 灰像素误差 1 且字幕可见，黑/白 hold 中心与字幕矩形严格 0/255；层序案截图略早于全黑边界 RGB 1–4，不夸为严格 0。Forge 仅编译、Iris/Oculus 未实机；Minecraft 已关闭 exit 0。本轮仅本地提交，不推送。文档收口见 `D-transition/scene-transition.md` §9。 |
+| 2026-10-17（F 轮） | **F 轮实现完成（真实画面/成本待用户实测）**：F2 队列出队按 priority/FIFO 逐项判定可播性、无 exclusive 一次排空、同脚本排队副本不被误启动、预览隔离、去掉容量 8（无头行为探针 68/68）；F3 删除未实测的“检测到 Sodium/Embeddium 即禁用 lane”守卫与全部第三方模组 mixin/编译桩，lane 始终渲染，缺 `LaneCullBridge` 时只跳过剔除状态交换；F4 按用户裁决取消脚本字段，lane 视距自动跟随玩家设置；F5 opt-in 诊断会话（manifest / events.jsonl / 定点图片 / CPU 提交区间 CSV + p50/p95）与 21 支脚本。证据：三模块 `compileJava` 通过；29 支 F 轮脚本 Parser/Validator **0 issue**；Forge/Fabric 发行 jar 构建成功；Forge jar + `f_round` / `f_queue` 脚本 + manifest 已部署到用户实例（旧 jar 备份）。光影/优化模组画面与性能数据待用户实测回填。 |

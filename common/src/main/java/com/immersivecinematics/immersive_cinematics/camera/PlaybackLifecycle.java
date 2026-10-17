@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * 播放生命周期与队列：启动 / 退出 / 停止 / 待接播 / 播放队列。
@@ -24,7 +25,8 @@ import java.util.List;
  * 共享时钟 / 相机状态 / 覆盖层都不复位，最后一个实例退出才全局复位。
  *
  * 同脚本单实例：{@link #playScript} 命中同脚本活跃实例时按可打断性「立即替换 / 入队」，接播在
- * {@link #deactivateNow} 收尾（{@code pendingScript} 优先于队列）；队列跨实例存活（只有全停清空），接播先于全局复位。
+ * {@link #deactivateNow} 收尾（{@code pendingScript} 优先于队列；无 exclusive 时按 priority/FIFO
+ * 排空全部可播项，遇到新启动的 exclusive 立即停止取项）；队列跨实例存活（只有全停清空），接播先于全局复位。
  *
  * 跨脚本到达裁决（{@code meta.play_mode}，设计 §4）：S 含 exclusive → 新来者入队；S 无 exclusive 但含
  * interruptible → 顶掉全部 interruptible（{@code requestExit(INTERRUPTED)} → 渐出退场）后开播；
@@ -58,8 +60,11 @@ final class PlaybackLifecycle {
     /** 待接播脚本携带的播放实例 id；本地来源为空串，{@code pendingScript} 为 {@code null} 时无意义。 */
     private String pendingInstanceId = "";
 
-    /** 播放队列（容量 8）：当前脚本不可打断时新脚本入队，结束后自动接播。 */
+    /** 播放队列（不设上限）：当前脚本不可打断时新脚本入队，结束后自动接播。 */
     private final ScriptQueue scriptQueue = new ScriptQueue();
+
+    /** 出队可播判定：该脚本当前没有游戏实例在播（预览实例不参与）。复用一份，避免每次出队分配。 */
+    private final Predicate<CinematicScript> scriptNotPlaying;
 
     PlaybackLifecycle(PlaybackRegistry registry, PlaybackLedger ledger, PreviewChannel previewChannel,
                       CameraStateHolder stateHolder, GameClock gameClock, PreviewClock previewClock,
@@ -72,6 +77,7 @@ final class PlaybackLifecycle {
         this.previewClock = previewClock;
         this.coverChain = coverChain;
         this.refreshSnapshot = refreshSnapshot;
+        this.scriptNotPlaying = script -> registry.instancePlaying(script.getId()) == null;
     }
 
     // ========== 脚本播放 ==========
@@ -91,13 +97,15 @@ final class PlaybackLifecycle {
         // 同脚本单实例：只有“同一脚本已在播”才走原有决策树；跨脚本请求按在播集合裁决
         PlaybackInstance sameScript = registry.instancePlaying(script.getId());
         if (sameScript == null) {
-            // 在播集合含 exclusive：新来者一律排队（容量满则拒绝）；同脚本重复请求替换自己的排队位
+            // 在播集合含 exclusive：新来者一律排队（不设上限）；同脚本重复请求替换自己的排队位
             if (registry.hasGameInstancePlaying(ScriptMeta.PlayMode.EXCLUSIVE)) {
-                if (scriptQueue.offerOrReplace(script, instanceId)) return 2;
-                return 0;
+                scriptQueue.offerOrReplace(script, instanceId);
+                return 2;
             }
             // 无 exclusive 但含 interruptible：先顶掉全部 interruptible 实例（requestExit → 渐出退场），再开播
             interruptInterruptibles();
+            // 本次请求直接开播：同脚本旧排队副本已被本次请求取代，移除，避免本实例结束后又拉起旧副本
+            scriptQueue.cancel(script.getId());
             PlaybackInstance started = startScriptInternal(script, instanceId);
             ledger.reportPlaybackStarted(script, started);
             return 1;
@@ -112,9 +120,9 @@ final class PlaybackLifecycle {
             return 1;
         }
 
-        // 不可打断 → 一律排队（容量满则拒绝）；同脚本重复请求替换自己的排队位，不占新格
-        if (scriptQueue.offerOrReplace(script, instanceId)) return 2;
-        return 0;
+        // 不可打断 → 一律排队（不设上限）；同脚本重复请求替换自己的排队位，不占新格
+        scriptQueue.offerOrReplace(script, instanceId);
+        return 2;
     }
 
     /**
@@ -292,19 +300,23 @@ final class PlaybackLifecycle {
         }
 
         // 接播先于全局复位：接播出的新实例要用共享时钟 / 相机状态 / 覆盖层，不能先被复位清掉。
-        if (!preview && pendingScript != null) {
-            // 同脚本替换（可打断路径）的接播：替换目标已被本方法出列
-            CinematicScript next = pendingScript;
-            String nextInstanceId = pendingInstanceId;
-            pendingScript = null;
-            pendingInstanceId = "";
-            ledger.reportPlaybackStarted(next, startScriptInternal(next, nextInstanceId));
-        } else if (!preview && canDequeue() && !scriptQueue.isEmpty()) {
-            // 队列接播：队头按 priority 降序 + FIFO；队列不随实例结束清空，可继续滚动接播
-            ScriptQueue.Entry next = scriptQueue.poll();
-            ledger.reportPlaybackStarted(next.script(), startScriptInternal(next.script(), next.instanceId()));
-        } else {
-            // 真正回到正常游戏：释放时由服务端差集补发自动决定需要重发的玩家区区块。
+        if (!preview) {
+            if (pendingScript != null) {
+                // 同脚本替换（可打断路径）的接播：替换目标已被本方法出列
+                CinematicScript next = pendingScript;
+                String nextInstanceId = pendingInstanceId;
+                pendingScript = null;
+                pendingInstanceId = "";
+                // pending 优先：同脚本旧排队副本被本次请求取代，不能在本实例结束后再拉起
+                scriptQueue.cancel(next.getId());
+                ledger.reportPlaybackStarted(next, startScriptInternal(next, nextInstanceId));
+            }
+            // 无 exclusive 时排空全部可播项；每启动一个后重新检查——新启动的 exclusive 会阻塞剩余项
+            while (canDequeue()) {
+                ScriptQueue.Entry next = scriptQueue.pollFirstEligible(scriptNotPlaying);
+                if (next == null) break;
+                ledger.reportPlaybackStarted(next.script(), startScriptInternal(next.script(), next.instanceId()));
+            }
         }
 
         if (registry.isEmpty()) {
@@ -328,8 +340,9 @@ final class PlaybackLifecycle {
     }
 
     /**
-     * 队列出队判据：{@code true} = 队头可以接播。口径 = 无 EXCLUSIVE 在播（阻塞队列的只有 exclusive；
-     * parallel / interruptible 实例还活着也要出队——它们不阻塞队列）。
+     * 队列出队判据：{@code true} = 当前可以继续从队列取可播项。口径 = 无 EXCLUSIVE 在播
+     * （阻塞队列的只有 exclusive；parallel / interruptible 实例还活着也要出队——它们不阻塞队列）。
+     * 每个接播项启动后都重新判定一次：新启动的 exclusive 会立即阻塞剩余项。
      */
     private boolean canDequeue() {
         return !registry.hasGameInstancePlaying(ScriptMeta.PlayMode.EXCLUSIVE);

@@ -52,7 +52,7 @@ public class ClientScriptReceiver {
                 LOGGER.info("Playing script from server: {} (result={}, instance={})",
                         script.getId(), result, packet.getInstanceId());
                 if (result == 0) {
-                    LOGGER.warn("Play request rejected (queue full or not in world): {}", script.getId());
+                    LOGGER.warn("Play request rejected (not in world): {}", script.getId());
                 }
                 // N1：play 回执（仅传输层 ACK —— 排队/被拒绝也必须回，否则服务端 AckTracker 超时重发 play 包导致重复入队）。
                 // 服务端“已开始播放”账本由 CameraManager 在脚本真正开始时单独上报（reportPlaybackStarted），

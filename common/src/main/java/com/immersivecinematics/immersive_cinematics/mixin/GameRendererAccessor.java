@@ -4,6 +4,7 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.GameRenderer;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
@@ -29,4 +30,8 @@ public interface GameRendererAccessor {
     /** 复刻原版：{@code GameRenderer.getFov(Camera, float, boolean)}（走 {@code GameRendererMixin} 的 lane 分支）。 */
     @Invoker("getFov")
     double ic$getFov(Camera camera, float partialTick, boolean useFovSetting);
+
+    /** 原版 {@code renderHand} 开关：lane pass 内关掉（光影的手部渲染在 renderLevel 内）。 */
+    @Accessor("renderHand")
+    boolean ic$getRenderHand();
 }

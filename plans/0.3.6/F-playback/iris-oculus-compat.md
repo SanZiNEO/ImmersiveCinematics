@@ -4,8 +4,10 @@
 **目标版本**: 0.3.6
 **关联**: [multi-camera-rendering](multi-camera-rendering.md)（§7 / §7.1 / §12.5）、[render-routes](../_archive/render-routes.md)（§4）、[render-second-pass-cost](../_archive/render-second-pass-cost.md)（§7）、[screen-color-adjust](../../complete/0.3.6/A-color/screen-color-adjust.md)（§4 光影挂点段 / §5-1）
 
+> **2026-10-17 现状更新**：`LaneRenderer.isUnavailable()` 整条禁用已删除；检测保留，用于在优化模组存在时跳过只针对原版 `setupRender` 的 mixin（改走它们的 Camera / Frustum 路径）。lane 始终渲染。§3 的“缺陷 / 风险”仍全部是源码级推演，不是实测结论。
+
 > **术语**：**光影** = Iris（Fabric）/ Oculus（Forge 移植，`modId=oculus`、`provides=["iris"]`）；**优化模组** = Sodium（Fabric）/ Embeddium、Rubidium（Forge）。
-> **范围**：本文只管「光影」这一条兼容分支。优化模组的适配是另一条线（现状 = 检测到即禁用副画面 + Mixin 插件跳过 `LevelRendererMixin`），只在**交叉项**（§3-④⑤）里涉及。
+> **范围**：本文只管「光影」这一条兼容分支。优化模组的适配是另一条线（现行 = 检测到优化模组时跳过只针对原版 `setupRender` 的 mixin（`LevelRendererVanillaMixin` / `LaneCullStateMixin`），lane 始终渲染；`isUnavailable()` 整条禁用已于 2026-10-17 移除），只在**交叉项**（§3-④⑤）里涉及。
 > **写法**：**已确认的写「已确认」**——读码核实过的另附文件 + 方法 / 行号；**不确定的写「未验证」+ 方向与可能的问题**（含调查方法）。不写伪代码——只写要查什么、怎么查、产出什么。
 
 ---
@@ -29,7 +31,7 @@
 | 文档 | 现有断言 | 本文的动作 |
 |---|---|---|
 | `multi-camera-rendering.md` §7 | 光影「自己会做多次渲染，说明多次渲染可行；但第三方二次调用可能绕过光影的合成，或触发重复特效；**需要专门调研：能否在光影环境下拿到『已处理后的画面』**」 | 把这三句拆成 §3 的可调查项（① 先后 / ② 可行性 / ⑧ 合成归属） |
-| 同文档 §7.1 / §12.5 | 策略「副画面走原版 API + 运行时检测 Sodium / Embeddium / Oculus → 存在时副画面自动禁用 + warn」；✅ 已落地（`LaneRenderer.isUnavailable()`）；明确写「**不做 Iris 级完整适配**」；「Oculus / Iris 的『取已处理画面』仍未验证」；§12.5「光影（Iris / Oculus）：未做适配（§7 第 3 点仍待调研）」 | 本文就是那条「待调研」的**计划**；检测口径与策略选项在 §3-⑦ / §4 展开 |
+| 同文档 §7.1 / §12.5 | 策略：检测到 Sodium / Embeddium 时跳过 `setupRender` 专属 mixin、走其 Camera / Frustum 路径（`07e49db` 原设计）；`isUnavailable()` 整条禁用已移除（2026-10-17）；明确写「**不做 Iris 级完整适配**」；「Oculus / Iris 的『取已处理画面』仍未验证」；§12.5「光影（Iris / Oculus）：未做适配（§7 第 3 点仍待调研）」 | 本文就是那条「待调研」的**计划**；检测口径与策略选项在 §3-⑦ / §4 展开 |
 | `render-routes.md` §4 | 兼容分支两条：光影 =「能否拿『已处理后的画面』」；优化模组 =「检测到 → 禁用 + warn；或走它们的 Camera / Frustum 管线（`CameraMixin` 路线）」 | 沿用该二分；本文只做光影一侧 |
 | `render-second-pass-cost.md` §7 | 未决问题清单里三条与本文直接相关：「副画面在 **Iris/Oculus** 光影环境下的可用性」；「两遍/帧在 **Sodium/Embeddium** 下 `frame++` 语义是否会导致区块渲染错误」；「副画面是否需要**独立光照**」；§6.3 步骤 5 已写了一个可选佐证方案（装 Iris + 带阴影的光影包，用阴影开 / 关的 FPS 差估「每帧一遍世界渲染」的占比，**只作量级参照**） | ④⑥ 直接继承；§6.3 步骤 5 升级为本文 §5 的正式步骤（并明确它只回答量级，不回答正确性） |
 | `screen-color-adjust.md` §4（光影挂点段）/ §5-1 | 「Iris / Oculus 在 `GameRenderer.renderLevel` 的 `TAIL` 调 `finalizeGameRendering()`；Iris 的最终合成在 `LevelRenderer.renderLevel` 尾部 `finalizeLevelRendering()` → `compositeRenderer.renderAll()` + `finalPassRenderer.renderFinalPass()`；`finalizeGameRendering()` 做色彩空间转换 → **都早于原版 `postEffect` 那一步**；无光影包时 `VanillaRenderingPipeline` 两个方法都是空实现；**取舍仍待定**」 | §2.3 / §2.5 逐条核实；**§2.6 给出两处口径澄清**（「都早于原版那一步」对合成成立，对色彩空间转换不成立——它与我们的**旧**挂点同点）；**挂点取舍已于 2026-10-08 由用户裁决落定：调色挂点后移到原版 RPOST 之后、GUI 之前，与色彩空间转换解耦（§2.7）** |
@@ -40,7 +42,9 @@
 
 > 核实口径（2026-10-08）：本仓 `common/` 代码 + `example/Iris-1.20.1`、`example/Oculus-1.20.1-new` 源码。`example/` 被 `.gitignore:36` 忽略、无 git 历史，只能用文件内容；行号为该副本内的行号。
 
-### 2.1 现状策略：优化模组 → 副画面自动禁用 + warn；**光影不在检测列表里**（已核实）
+### 2.1 历史实现：整条禁用（`isUnavailable`）已移除；加载器跳过规则保留
+
+> 下表前两行是 2026-10-07–10-17 的整条禁用实现（已删除）；加载器侧“检测到优化模组时跳过 `setupRender` 专属 mixin”的规则是 0.3.5 原设计，保留。
 
 | 事实 | 证据 |
 |---|---|
@@ -104,7 +108,7 @@
 1. `screen-color-adjust.md` §4 写「Iris / Oculus 的 `finalizeGameRendering()` 挂在 `GameRenderer.renderLevel` 的 `TAIL`；Iris 的最终合成在 `LevelRenderer.renderLevel` 尾部 —— **都早于原版那一步**」。
    - **对「最终合成」成立**（`LevelRenderer.renderLevel` 尾部早于 `GameRenderer.renderLevel` 的返回点，也早于原版 `postEffect`）；
    - **对「色彩空间转换」不成立**：它与我们**旧**的挂点（`GameRenderer.renderLevel` 的 RETURN）**在同一处返回指令**，先后未定（§3-①）。→ **已解决（2026-10-08）**：调色挂点已后移出 `renderLevel`（原版 RPOST 之后、GUI 之前），与色彩空间转换分处不同阶段、顺序可控；见 §2.7。
-2. `multi-camera-rendering.md` §7.1 把 Iris / Oculus 与 Sodium / Embeddium 并列在「检测到就禁用」的策略里，但**已落地的检测列表只有 Sodium 家族**（§2.1）——即「策略」与「实现」目前不一致：光影下副画面**没有**被禁用。本文 §4 的选项 A/C 正是要在这条线上做决定。
+2. `multi-camera-rendering.md` §7.1 把 Iris / Oculus 与 Sodium / Embeddium 并列在「检测到就禁用」的策略里，但**已落地的检测列表只有 Sodium 家族**（§2.1）——即「策略」与「实现」目前不一致：光影下副画面**没有**被禁用。本文 §4 的选项 A/C 正是要在这条线上做决定。（2026-10-17：检测与禁用均已删除，本条不一致随之消解。）
 
 ### 2.7 主画面挂点兼容性结论（2026-10-08）
 
@@ -249,9 +253,9 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 ### ④ Sodium / Embeddium 下两遍 / 帧的 `frame++` 语义
 
 - **问题**：`SodiumWorldRenderer.setupTerrain(..., frame++, ...)` 的 `frame` 形参每调用一次自增，Sodium 内部用它判断「本帧是否已见过」；一帧两次 `setupTerrain`（主 pass + lane pass）会让计数语义变化——**是否引起区块渲染错误未验证**（[render-second-pass-cost](../_archive/render-second-pass-cost.md) §3.2 已标未验证；Embeddium 侧该形参已标 `@Deprecated(forRemoval = true)`，只传给 `renderSectionManager.update`）。
-- **为什么重要**：这条决定「优化模组 + 光影」组合下能不能解禁副画面；也决定我们是否要在 `LaneRenderer.isUnavailable()` 上放宽（目前是**直接禁用**，所以这条现在是「被规避」而非「已解决」）。
+- **为什么重要**：这条决定优化模组下两遍/帧的缓存语义是否稳定；lane 已不再禁用（2026-10-17），所以这条从「被规避」变成「需要实测」。
 - **调查方法**：① 实机对照（Sodium / Embeddium 开 + 多 lane）：看是否有缺块 / 闪块 / 区块不更新（与我们在原版下遇到过的「倾斜裁切矩形」区分开）；② 反汇编 `WorldRendererMixin` 与 `SodiumWorldRenderer.setupTerrain` 的 `frame` 实际用途（`example/embeddium-20.1-forge`、`example/sodium-1.20.1-stable`）；③ 若确认有问题，评估「每帧只增一次」的绕法（在 lane pass 期间给 Sodium 一个固定的 frame 值）。
-- **预期产出**：「优化模组 + 多遍渲染的 `frame` 语义结论」+ 是否需要保持/放宽 `isUnavailable()` 的判定。
+- **预期产出**：「优化模组 + 多遍渲染的 `frame` 语义结论」+ 是否需要每帧只增一次。
 
 ### ⑤ Rubidium 兼容
 
@@ -286,7 +290,9 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 
 ## 4. 策略选项（供调研结论落地）
 
-> 四个选项**不是互斥**——A 是现状、C 是 A 与 B 之间的档位、D 是调研中可能发现的其它路径（例如「按 pack 特性分档」「把 lane 交给光影管线渲染」）。选哪个由 §5 的步骤 6 决策，**现在不选**。
+> **2026-10-17 更新**：A 的“整条禁用”形态已否决——它建立在未实测的源码推断上；检测保留用于选择优化器路径（跳过 `setupRender` 专属 mixin），不是禁用 lane。以下 A/B/C/D 仅作历史调研记录。
+>
+> 四个选项**不是互斥**——A 是历史现状、C 是 A 与 B 之间的档位、D 是调研中可能发现的其它路径（例如「按 pack 特性分档」「把 lane 交给光影管线渲染」）。选哪个由 §5 的步骤 6 决策。
 
 | 选项 | 内容 | 代价 | 风险 | 工作量（粗） | 需要的调研结论 |
 |---|---|---|---|---|---|
@@ -326,13 +332,13 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 
 ### 5.2 待定项
 
-- **策略选择**（A / B / C / D 及其组合）——步骤 6 定；本文件现在不选。
+- **策略选择**：2026-10-17 用户裁决——不整条禁用 lane（A/C 的禁用形态否决）；检测用于跳过 `setupRender` 专属 mixin、走优化器路径；剩余问题只是实机细节，见 §3。
 - **检测口径**：按「光影模组存在」还是按「光影包已启用」？（§2.5-1 表明后者的一档天然等价无光影；但「装了但没启用」的判定要读光影 API，可能引入硬依赖——`IrisApi` / `net.irisshaders.iris.Iris` 的存在性检测 vs 反射调用。）**→ 主画面挂点一侧已定（2026-10-08）：用 `IrisApi.getInstance().isShaderPackInUse()`，见 §2.7；本条剩下的只是「副画面策略」是否复用同一口径。**
 - **是否给用户配置开关**（例如「光影下强制启用副画面（自担风险）」）——与「不设硬上限、只给推荐」的既有口径是否一致，待定。
 - **lane 画面在光影下的目标形态**：要「与主画面一致的光影画面」（贵、语义复杂）还是「原版画面」（便宜、但副画面与主画面美术不一致）？这是产品问题，调研结论只提供可行性边界。
 - **Rubidium 结论来源**：本仓无源码，只能靠 jar 核对 + 实机（§3-⑤）；是否需要专门环境。
 - **性能档位是否按光影另立**（`multi-camera-rendering.md` §6 的推荐值目前是无光影口径）。
-- **是否要把「光影」也并入 `isUnavailable()` 的同一套机制**，还是单开一条「光影下副画面降级」路径（与优化模组的「@Overwrite 导致不可靠」是**不同原因**，文案与检测位置可能要分开）。
+- ~~是否要把「光影」也并入 `isUnavailable()` 的同一套机制~~：机制本身已删除（2026-10-17），不再按模组存在性禁用。
 
 ---
 

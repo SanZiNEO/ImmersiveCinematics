@@ -264,7 +264,7 @@ this.lastCameraX = pos.x; ... this.currentViewport = viewport;
 | **独立 `RenderBuffers` + 显式 save/restore** | 避免污染主渲染 / 状态错乱 | 实现复杂度 | Iris（否则「very weird things」） |
 | **屏蔽每帧重建 / 重算**（云、区块重建队列） | 可避免 10% 级尖峰 | 需找到所有触发点 | Iris 注释（10%）；`MixinPreventRebuildNearInShadowPass` |
 | **复用而非重建**：Frustum / RenderTarget / 矩阵对象按 lane 复用 | GC / 分配抖动 | 需生命周期管理 | 通用工程实践 [推断] |
-| **检测 Sodium/Embeddium 后禁用副画面** | 规避 §3.2 的缓存抖动 | 功能损失 | `multi-camera-rendering.md` §7.1 推荐策略 |
+| ~~检测 Sodium/Embeddium 后禁用副画面~~（已废弃） | — | — | 改为跳过 `setupRender` 专属 mixin、走优化器路径（2026-10-17） |
 
 > 遮挡剔除：原版 `Minecraft.smartCull` + section occlusion graph 与单 frustum 绑定。Iris 在第二遍**关掉**它。本项目若想要遮挡收益，需要**按 lane 维护独立剔除图**——`multi-camera-rendering.md` §11 提到的「复用 Sodium 的 Camera/Frustum 管线」是另一条路，但 §3.2 表明 Sodium 的图缓存同样会被两遍/帧打散。
 
