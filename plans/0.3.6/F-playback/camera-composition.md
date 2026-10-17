@@ -36,11 +36,11 @@
 | 主相机（现状） | dest = 全屏，opacity = 1 |
 | PIP 画中画 | dest = 小矩形 |
 | 分屏 | 两个 lane，dest 各占左 / 右（或上 / 下）半屏 |
-| 叠化（dissolve） | 两个全屏 lane，opacity 交叉：A 1→0、B 0→1 |
+| 叠化（dissolve） | 两个全屏 lane，下层 A 保持 opacity=1，上层 B 在重叠窗口 0→1 |
 | 数字变焦 / 局部取景 | source rect 取局部，dest 全屏 |
 | 监视器墙 | N 个 lane，dest 网格排布 |
 
-> **这些形态没有独立实现（已确认·2026-10-07）**：它们都是同一套合成参数关键帧的编排。以叠化为例——叠化是**对两个相机 clip 的状态（合成参数 opacity）做处理**：clip A 末尾 opacity 关键帧 1→0、clip B 开头 0→1；**追踪 = 调 clip 的关键帧参数**，没有独立转场轨 / 字段 / 代码。唯一机制性支持是叠化预热（渲染层，见 `multi-camera-rendering.md`）。详见[画面转场](../D-transition/scene-transition.md) §3.2。
+> **这些形态没有独立实现（已确认·2026-10-07；叠化合同 2026-10-17 纠正）**：它们都是同一套合成参数关键帧的编排。叠化由下层 clip A 保持 opacity=1、上层 clip B 在重叠窗口 0→1 表达；普通 source-over 下两层同时半透明会漏出第三层基画面，不能以 A+B≈1 证明不露底。**追踪 = 调 clip 的关键帧参数**，没有独立转场轨 / 字段 / 生成代码；多相机渲染负责重叠区双 lane 上屏。详见[画面转场](../D-transition/scene-transition.md) §3.2。
 
 **取材区域语义（已确认）**：对相机**输出画面**的矩形裁剪（屏幕空间 UV），不是改相机视锥的世界空间取景。
 
@@ -120,14 +120,13 @@ OVERLAY 现有 `pip` 层是静态占位（半透明黑填充 + 2px 白边，不�
 > **主相机替换链已退役（2026-10-07，见 [并行播放](parallel-playback.md) §3.3 落地记录）**——
 > 「合成层输出 = 玩家看到的画面」现已完全成立；步骤 6（编辑器预览面板）未落地。
 >
-> **叠化（步骤 4）数据链路已验证（2026-10-07）**：叠化 = 两条**时间重叠**的 CAMERA clip 各自
-> opacity 关键帧交叉（A 末尾 hold 段 1→0、B 开头 hold 段 0→1，hold = 复制等值关键帧冻结画面）。
-> `cinematics/tests/transition/test_dissolve.json`（A[0,6] / B[4,10]，重叠窗口 [4,6)）经
-> `ScriptValidator`（与 `/icinematics validate` 同源）校验通过；离线冒烟（真实 `Clip` /
-> `KeyframeInterpolator` 驱动，逐点核对）确认：重叠窗口 [4,6) 双 lane 且 opacity 互补（A+B≈1）、
-> 其余时段单 lane opacity=1、全程无空隙（不露原版画面）、重叠区两 clip 关键帧等值（hold 成立）。
-> 附带修复：`ScriptValidator` 原「同轨道重叠」拒绝项与 lane 模型冲突（旧单相机约束），已删除。
-> **游戏内上屏视觉未验证（属后续任务）。**
+> **叠化（步骤 4）合同纠正与实机验证（2026-10-17）**：两条时间重叠的 CAMERA clip，
+> 下层 A 全程 opacity=1，上层 B 在重叠窗口淡入；hold = 复制等值关键帧冻结相机姿态。
+> `cinematics/tests/transition/test_dissolve.json`（A[0,6] / B[4,10]，重叠窗口 [4,6)）
+> 已通过真实解析 / 校验与数据探针；Fabric 10.01s 自然结束，四个稳定像素在叠化中点
+> 与 A/B 端点均值的最大通道误差为 1，详见 `scene-transition.md` §9。
+> 原 2026-10-07 “A、B opacity 互补即不露底”的离线结论错误，已被本次实机证据取代；
+> 不存在运行时 alpha 配对 / 归一机制。此前删除同轨重叠拒绝项的修复仍成立（CAMERA 支持双 lane）。
 >
 > 步骤 1–2 不依赖多相机渲染，可先行验证关键帧链路；步骤 3 起依赖渲染原型。
 

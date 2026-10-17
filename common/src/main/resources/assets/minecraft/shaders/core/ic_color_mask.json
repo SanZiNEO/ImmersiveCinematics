@@ -1,0 +1,32 @@
+{
+    "blend": {
+        "func": "add",
+        "srcrgb": "srcalpha",
+        "dstrgb": "1-srcalpha"
+    },
+    "vertex": "ic_color_mask",
+    "fragment": "ic_color_mask",
+    "attributes": [
+        "Position",
+        "UV0"
+    ],
+    "samplers": [
+        { "name": "Sampler0" },
+        { "name": "GradientLut" }
+    ],
+    "uniforms": [
+        { "name": "ModelViewMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+        { "name": "ProjMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+        { "name": "MaskCenter", "type": "float", "count": 2, "values": [ 0.0, 0.0 ] },
+        { "name": "MaskHalfSize", "type": "float", "count": 2, "values": [ 0.0, 0.0 ] },
+        { "name": "MaskShape", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "MaskRadius", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "GradientType", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "GradientDir", "type": "float", "count": 2, "values": [ 1.0, 0.0 ] },
+        { "name": "GradientCenter", "type": "float", "count": 2, "values": [ 0.0, 0.0 ] },
+        { "name": "GradientExtent", "type": "float", "count": 1, "values": [ 1.0 ] },
+        { "name": "Color", "type": "float", "count": 3, "values": [ 0.0, 0.0, 0.0 ] },
+        { "name": "Opacity", "type": "float", "count": 1, "values": [ 0.0 ] },
+        { "name": "BlendMode", "type": "float", "count": 1, "values": [ 0.0 ] }
+    ]
+}

@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import com.immersivecinematics.immersive_cinematics.overlay.CanvasTransform;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.overlay.LetterboxLayer;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
@@ -8,6 +9,9 @@ import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import java.util.List;
 
 public class LetterboxTrackPlayer implements TrackPlayer {
+
+    /** 画幅比缺省（同 {@code TrackSchemas.letterbox()} / {@link Keyframe#getAspectRatio()}）：关键帧没写该通道时用。 */
+    private static final float DEFAULT_ASPECT_RATIO = 2.35f;
 
     private final ScriptPlayer scriptPlayer;
     private final TrackType type;
@@ -19,8 +23,6 @@ public class LetterboxTrackPlayer implements TrackPlayer {
      * {@link #onStop()} 移除；归属 token = 本实例的播放器（渐出 / 动画判定按实例过滤）。
      */
     private final LetterboxLayer letterbox;
-
-    private int lastClipIdx = -1;
 
     public LetterboxTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, OverlayManager overlayManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
@@ -44,48 +46,23 @@ public class LetterboxTrackPlayer implements TrackPlayer {
     @Override
     public void onRenderFrame(float globalTime) {
         LetterboxLayer letterbox = this.letterbox;
-        List<Clip> clips = clips();
         Clip activeClip = findActiveClip(globalTime);
 
         if (activeClip == null) {
+            // clip 空档：画幅比归 0（一条黑边都不画），不透明度一并复位到缺省 1 —— 不残留前一片段的透明度
             letterbox.setAspectRatio(0.0f);
-            lastClipIdx = -1;
+            letterbox.setOpacity(CanvasTransform.DEFAULT_OPACITY);
             return;
         }
 
-        int clipIdx = clips.indexOf(activeClip);
-        float localTime = clipTime(activeClip, globalTime);
+        // 两个通道都在片段本地时间处按相邻关键帧匀速线性求值（运行时统一线性：缓动由编辑器烘焙成显式关键帧，
+        // 运行时不求值）；关键帧为空 / 单帧 / 首帧前 / 末帧后由插值器统一取缺省或边界值。
         List<Keyframe> kfs = activeClip.getKeyframes();
-
-        if (kfs == null || kfs.isEmpty()) {
-            lastClipIdx = clipIdx;
-            return;
-        }
-
-        float ratio;
-        if (kfs.size() < 2) {
-            ratio = kfs.get(0).getAspectRatio();
-        } else {
-            Keyframe from = kfs.get(0), to = kfs.get(kfs.size() - 1);
-            for (int i = 0; i < kfs.size() - 1; i++) {
-                if (localTime >= kfs.get(i).getTime() && localTime <= kfs.get(i + 1).getTime()) {
-                    from = kfs.get(i);
-                    to = kfs.get(i + 1);
-                    break;
-                }
-            }
-            float t = (to.getTime() - from.getTime() > 0.001f)
-                    ? (localTime - from.getTime()) / (to.getTime() - from.getTime()) : 0f;
-            t = Math.max(0f, Math.min(1f, t));
-            // E3：smoothstep（3t²-2t³）缓入缓出，letterbox 出入场变平滑
-            t = t * t * (3f - 2f * t);
-            ratio = from.getAspectRatio() + (to.getAspectRatio() - from.getAspectRatio()) * t;
-        }
-
-        if (clipIdx != lastClipIdx || Math.abs(letterbox.getAspectRatio() - ratio) > 0.001f) {
-            letterbox.setAspectRatio(ratio);
-        }
-        lastClipIdx = clipIdx;
+        float localTime = clipTime(activeClip, globalTime);
+        letterbox.setAspectRatio(KeyframeInterpolator.interpolateChannel(
+                kfs, localTime, "aspect_ratio", DEFAULT_ASPECT_RATIO));
+        letterbox.setOpacity(KeyframeInterpolator.interpolateChannel(
+                kfs, localTime, "opacity", CanvasTransform.DEFAULT_OPACITY));
     }
 
     @Override
@@ -94,14 +71,13 @@ public class LetterboxTrackPlayer implements TrackPlayer {
         overlayManager.removeLayer(letterbox);
     }
 
-    /** 组 A：数据替换后复位 clip 索引状态 */
-    @Override
-    public void onScriptReplaced() {
-        lastClipIdx = -1;
-    }
-
     private float clipTime(Clip clip, float globalTime) {
-        return Math.max(0f, Math.min(clip.getDuration(), globalTime - clip.getStartTime()));
+        float elapsed = globalTime - clip.getStartTime();
+        if (clip.getDuration() < 0f) {
+            // 无限片段（duration < 0）：不按 duration 钳制，本地时间照常推进（同 AudioTrackPlayer.clipTime）
+            return Math.max(0f, elapsed);
+        }
+        return Math.max(0f, Math.min(clip.getDuration(), elapsed));
     }
 
     private Clip findActiveClip(float globalTime) {

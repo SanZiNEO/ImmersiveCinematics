@@ -57,7 +57,7 @@ immersive_cinematics/
 | `version` | int | 是 | — | 固定为 `3`（仅支持版本 3） |
 | `description` | string | 否 | `""` | 脚本描述文本；支持 `@lang:<key>` 引用（见 [§12](#12-文本资源与多语言langkey)） |
 | `dimension` | string | 否 | `""` | 限制脚本只在指定维度可用；空 = 不限制 |
-| `base_resolution` | object | 否 | `null`（= `1920×1080`） | **编辑基准分辨率** `{"w":2560,"h":1440}`：`w`/`h` 为正整数（`1` ~ `16384`），作为分辨率转义系数 `k = min(W播/W基, H播/H基)` 的分母（见 [§9](#9-overlay-轨道覆盖层图片--字幕--淡化--画中画)）。缺省 = `1920×1080`。非法（非对象 / 缺 `w` 或 `h` / 非正整数 / 超 `16384`）→ 校验器拒绝脚本；解析期兜底告警并回落缺省 |
+| `base_resolution` | object | 否 | `null`（= `1920×1080`） | **编辑基准分辨率** `{"w":2560,"h":1440}`：`w`/`h` 为正整数，不设人为分辨率上限；当前整数存储的表示范围为 `1` ~ `2147483647`。作为分辨率转义系数 `k = min(W播/W基, H播/H基)` 的分母（见 [§9](#9-overlay-轨道覆盖层图片--字幕--淡化--画中画)）。缺省 = `1920×1080`。非对象、缺分量、非正整数或超出存储范围 → 校验器拒绝；解析期告警并回落缺省 |
 | `listener` | string | 否 | `"player"` | 音频听者：`"player"`=默认，电影相机下仍以玩家视角听音；`"camera"`=听者切换到镜头位置，环境音/方块音/水声等按相机采样 |
 
 > **0.3.6 起移除的脚本级开关**：`meta.preload` 与 `meta.camera_mob_spawn` / `meta.camera_mob_radius` / `meta.camera_mob_ai` 已删除（解析器只读已声明字段，未知 meta 键被忽略、写了不生效）。区块预加载由全局配置 `preloadEnabled` + 脚本是否存在**非空 CAMERA 轨道**自动决定；相机区域刷怪由相机锚点按原版规则自动处理——均无脚本级开关。
@@ -175,7 +175,7 @@ immersive_cinematics/
 | `"audio"` | 音频播放 |
 | `"event"` | 服务端命令事件 |
 | `"mod_event"` | 第三方模组扩展事件 |
-| `"overlay"` | 覆盖层（fade 全屏颜色 / image 图片 / subtitle 字幕），**支持多条同类型轨道同时渲染** |
+| `"overlay"` | 覆盖层（fade 颜色遮罩 / image 图片 / subtitle 字幕），**支持多条同类型轨道同时渲染** |
 | `"adjust"` | 画面颜色调整（**整体画面 = master**：作用于合成输出）：曝光 / 对比度 / 高光 / 阴影 / 白 / 黑 / 色相 / 饱和度 / 自然饱和度 / 亮度 / 色温 / 色调 / R/G/B 通道系数 / 灰度 / 反相，全部参数可关键帧；**单条相机轨画面的调色写在 CAMERA 片段上**（见 §4「相机片段调色」） |
 
 ---
@@ -216,6 +216,7 @@ immersive_cinematics/
 | `motion_zoom` | object | 否 | `null` | zoom 通道的数学模型定义（同上） |
 | `modifier` | object | 否 | `null` | 片段级静态 Modifier 声明（`{channels, mode?, priority?, <通道值>}`）；缺省 = 本片段不声明，见「覆盖链 Modifier」 |
 | `suppress_modifiers` | boolean | 否 | `false` | `true` = 本片段活跃时跳过 Modifier 链（链输出 = 本片段原始六参数），见「覆盖链 Modifier」 |
+| `mask_shape` | string | 否 | `"full"` | **CAMERA lane 合成遮罩**：`full` 整幅 / `rect` 矩形 / `circle` 圆形。几何由关键帧 `mask_x` / `mask_y` / `mask_width` / `mask_height` / `mask_radius` 驱动，见下方「lane 合成遮罩」。只作用于该片段产出的 lane 画面，不裁切字幕 / 图片；与 `source` / `dest` 独立。CAMERA 不接受 `gradient` / `gradient_*` / `blend_mode`（`gradient` / `gradient_*` 专属 OVERLAY fade；`blend_mode` 属于 ADJUST 或 fade） |
 | `keyframes` | array | 是 | — | 关键帧数组，至少 1 个 |
 
 > **相机片段自带调色**：CAMERA clip 还可写调色字段（clip 级 10 条曲线 + 关键帧级 57 个调色通道），作用于该相机轨产出的 lane——见下方「相机片段调色」。
@@ -227,6 +228,14 @@ immersive_cinematics/
 ### 过渡（transition）
 
 **过渡 = 相机从状态 A 到状态 B 的变化过程**：`transition: "morph"` 写在**前一段**（转场的起点侧）上，声明「本段结束进入下一段时做过渡」；`"cut"` = 硬切（瞬时切换，= 时长为 0 的特例）。过渡只发生在两段交界前后，**不改关键帧段内插值**（段内一律匀速线性，缓动由编辑器烘焙成显式关键帧）。
+
+**相机过渡 ≠ 画面转场**：`cut` / `morph` 只改变**相机六参数**（位置 / yaw / pitch / roll / fov / zoom），不会叠化、划像或自动生成第二幅画面。画面转场一律用**显式 clip + 关键帧**表达：
+
+- **叠化**：同一 CAMERA 轨放两条全屏 clip，下层 A 全程 `opacity: 1`（不透明底图），上层 B 在重叠窗口 `opacity: 0 → 1`。普通 source-over 合成下结果 = `B×a + A×(1−a)`，任何时刻都有一幅不透明画面在底；不存在运行时配对 / 归一，A 保持不透明即可。
+- **划像 / 局部显露**：上层 B 用 clip 级 `mask_shape`（`rect` / `circle`）+ 关键帧 `mask_*` 几何逐步扩大覆盖（见下方「lane 合成遮罩」）。
+- **黑场 / 白场**：OVERLAY 轨的 `fade` clip（见 §9），把相机硬切藏在全遮期间。
+
+不存在 `TRANSITION` 轨道、`transition_in` / `transition_out` 字段或运行时生成器；画面转场就是普通 clip / 关键帧数据。正式示例见 `cinematics/tests/transition/` 下的 `test_dissolve.json`、`test_wipe.json`、`test_fade_black.json`、`test_fade_white.json`、`test_transition_zindex.json`。
 
 **窗口**：以交界时刻（前一段的窗口末端）为中心，宽度 = 该通道的过渡时长（缺省 `transition_duration`，单位秒）；交界前取 A 侧、交界后取 B 侧的实时值。两侧状态各自按自身时间采样（A 侧走完自己的尾部、B 侧真实进入）。
 
@@ -305,7 +314,7 @@ immersive_cinematics/
   ```
 - `loop_count: 0` 非法，解析时记录错误并按 1 处理。
 - **永不结束的片段 = 时间轴终点**：其后的其他片段不播放（0.3.6 起，替代旧"特写覆盖"语义）。
-- **片段允许时间重叠**（0.3.6 起）：重叠区按轨道层级 → 轨道内 clip 顺序分层，后面的 clip 覆盖前面 clip 的上层；叠化 = 上一个 clip 末尾帧复制延长（hold）+ 下一个 clip 首帧复制延长，交叉窗口内 opacity 关键帧。
+- **片段允许时间重叠**（0.3.6 起）：重叠区按轨道层级 → 轨道内 clip 顺序分层，后面的 clip 覆盖前面 clip 的上层；叠化 = 上一个 clip 末尾帧复制延长（hold）+ 下一个 clip 首帧复制延长，重叠窗口内**下层 A 保持 `opacity: 1`、上层 B 从 `0` 升到 `1`**（不要两边同时淡出，否则两层半透明处会漏出原版基画面）。
 
 ### 宏观循环（`meta.macro_loop`）
 
@@ -495,9 +504,12 @@ immersive_cinematics/
 | `roll` | float | 是 | — | 翻滚角（度）。正=屏幕顺时针（画面向右倒），任何朝向一致 |
 | `fov` | float | 是 | — | 视场角（度），标准 70 |
 | `zoom` | float | 否 | `1.0` | 缩放倍率，`>1`=放大 |
-| `opacity` | float | 否 | `1.0` | 合成不透明度（`0`~`1`）。叠化 = 两个 clip 的 opacity 交叉关键帧 |
+| `opacity` | float | 否 | `1.0` | 合成不透明度（`0`~`1`）。叠化 = **下层 clip 保持 `1`、上层 clip 在重叠窗口 `0 → 1`**（普通 source-over 线性交叉；不要写成两边同时淡出） |
 | `dest` | object | 否 | 全屏 `{x:0,y:0,w:1,h:1}` | 目标区域：本 clip 画面铺到屏幕的归一化矩形，格式见下方"合成参数" |
 | `source` | object | 否 | 全幅 `{x:0,y:0,w:1,h:1}` | 取材区域：从本 clip 画面内取哪一块的归一化矩形，格式见下方"合成参数" |
+| `mask_x` / `mask_y` | float | 否 | `0.5` | **CAMERA lane 遮罩几何**（`rect` / `circle` 消费）：覆盖区域中心，窗口比例（`0.5` = 窗口中心；有限值，可越界）。`full` 不读取 |
+| `mask_width` / `mask_height` | float | 否 | `1` | **CAMERA lane 遮罩几何**（`rect` 消费）：宽 / 高占窗口比例，有限且非负、不设人为上限；任一为 `0` 时该 lane 不绘制（显露下层）。`circle` / `full` 不读取 |
+| `mask_radius` | float | 否 | `0.5` | **CAMERA lane 遮罩几何**（`circle` 消费）：半径 / 窗口**较短边**比例，有限且非负、不设人为上限；`0` 时该 lane 不绘制。非方形窗口在物理像素里仍是真圆 |
 
 **调用点级策略覆盖**（0.3.6）：上面 4 个 `selector_*` 策略字段、`selector_anchor` 与 `selector_pick` 都是**通用回落**——默认作用于本关键帧全部选择器调用点。想给某个调用点单独配置，写 `<字段>_<调用点>`，它优先于通用字段；不写 = 回落通用字段（旧脚本行为逐点不变）。
 
@@ -781,12 +793,49 @@ immersive_cinematics/
 | 主相机（默认） | `dest` 全屏、`opacity` = 1（都可省略） |
 | PIP 画中画 | `dest` = 小矩形（如右下角 `{x:0.6,y:0.05,w:0.35,h:0.35}`） |
 | 分屏 | 两个 clip 各占半屏（`dest` 左/右或上/下） |
-| 叠化 | 两个全屏 clip 的 `opacity` 交叉关键帧（A 末 1→0、B 首 0→1） |
+| 叠化 | 同轨两条全屏 clip：下层 A 全程 `opacity: 1`，上层 B 在重叠窗口 `0 → 1`（不要写成 A `1→0` + B `0→1`） |
 | 数字变焦 / 局部取景 | `source` 取局部矩形、`dest` 全屏 |
 
 > 渲染消费已落地（2026-10-07）：脚本 lane 的合成参数由 `client/lane/ScriptLaneDriver` 按本节字段
 > 逐帧从 clip 关键帧插值取出，交给 `LaneCompositor` 上屏（缺省 = `1` / 全屏 / 全幅）。
 > 插值为**匀速线性**（0.3.6 起运行时统一线性；缓动 = 编辑器烘焙成显式关键帧）。
+
+### lane 合成遮罩（`mask_shape` / `mask_*`）
+
+CAMERA 片段可以给**该片段产出的整幅 lane 画面**加一个几何覆盖范围；遮罩只决定 lane 哪些像素参与合成，**不裁切字幕、图片或其它覆盖层**，也不改变 `source` / `dest` 的取材与放置。
+
+- **字段归属**：`mask_shape` 写在 CAMERA **clip 级**；`mask_x` / `mask_y` / `mask_width` / `mask_height` / `mask_radius` 只写在**关键帧**。写错层级 / 写错轨道会被解析 / 校验带字段路径拒绝，不会静默生效；非法形状枚举、非有限值、负尺寸同样拒绝。
+- **形状**：`full`（缺省）= 整幅；`rect` = 窗口归一化矩形；`circle` = 窗口物理像素里的真圆。
+- **几何**（`W` / `H` = 播放窗口宽 / 高）：
+  - `rect`：中心 `(mask_x × W, mask_y × H)`；半宽 `mask_width × W / 2`、半高 `mask_height × H / 2`。
+  - `circle`：中心同上；半径 `mask_radius × min(W, H)`（按**短边**比例，非方形窗口仍是真圆）。
+  - `mask_x` / `mask_y` 缺省 `0.5`，有限值，允许在窗口外；`mask_width` / `mask_height` 缺省 `1`，有限且非负、不设人为上限；`mask_radius` 缺省 `0.5`，有限且非负、不设人为上限。
+  - 覆盖率是硬边 `0` / `1`（不做抗锯齿）：形状内覆盖率为 1，形状外为 0；区域外像素保持底图。
+  - `rect` 的 `mask_width` 或 `mask_height` 为 `0`、或 `circle` 的 `mask_radius` 为 `0` = **该 lane 不绘制**（显露下层），这是划像的正常起点，不是「整屏全遮」。
+- **与 opacity 的关系**：合成 alpha = `opacity × coverage`；先按形状算覆盖率，再与关键帧 `opacity` 相乘。遮罩不读取 lane 纹理的 alpha，也不改变 `source` / `dest` 的 UV / 顶点映射。
+- **坐标口径**：遮罩几何始终按**播放窗口坐标**计算，不随 `dest` 的放置矩形缩放或平移；`dest` 只决定 lane 贴到哪里，`source` 只决定取材。
+- **时间**：几何按该 clip 的本地时间与其它关键帧通道同一套匀速线性插值；hold / loop / pingpong 的时间语义与相机六参数一致。
+- **兼容**：`full`（缺省）不读取任何几何通道，输出与旧版本逐像素一致；不写 `mask_shape` 的旧 clip 自动按 `full` 处理。
+- **失败行为**：非 `full` 而专用合成 shader 不可用时，该 lane 跳过并记录错误，不会退回无遮罩输出；`full` 沿用既有回退。
+- **能力边界**：`gradient` / `gradient_*` 仍只属于 OVERLAY 的 `layer_type=fade`；`blend_mode` 只属于 ADJUST 轨或 OVERLAY fade；CAMERA 都不接受。`mask_shape` / `mask_*` 也不适用于 `image` / `subtitle`，字幕永远完整呈现（不做文字裁切）。
+
+最小矩形划像（CAMERA 轨的**上层 B clip 节选**，不是完整脚本；下层 A 另放一条全屏 clip）：
+
+```json
+{
+  "start_time": 2, "duration": 3, "transition": "cut", "mask_shape": "rect",
+  "keyframes": [
+    { "time": 0, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+      "opacity": 1, "mask_x": 0.5, "mask_y": 0.5, "mask_width": 0, "mask_height": 1 },
+    { "time": 2, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+      "opacity": 1, "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 1 },
+    { "time": 3, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+      "opacity": 1, "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 1 }
+  ]
+}
+```
+
+> 完整可运行写法见 `cinematics/tests/transition/test_wipe.json`（rect 横 / 纵、circle 真圆）与 `test_dissolve.json`（叠化）。
 
 ### 相机片段调色
 
@@ -839,8 +888,9 @@ immersive_cinematics/
 |------|------|------|------|------|
 | `time` | float | 是 | — | 在 clip 内的时间偏移（秒），从 0 开始 |
 | `aspect_ratio` | float | 否 | `2.35` | 目标宽高比。`0`=无遮幅（全屏），`2.35`=宽银幕电影，`1.778`=16:9 |
+| `opacity` | float | 否 | `1` | 黑边整体不透明度，`0` ~ `1`：`0` 不显示，`0.5` 半透明，`1` 纯黑；上下黑边与左右黑边均适用 |
 
-关键帧之间宽高比线性插值。
+画幅比和不透明度均按相邻关键帧**匀速线性插值**，首帧前 / 末帧后保持端点值；无活跃片段时不绘制黑边。运行时不额外施加 smoothstep，缓动由编辑器烘焙为显式关键帧。无限片段的本地时间照常推进。可运行 `cinematics/tests/overlay/test_letterbox_opacity.json` 查看分阶段示例。
 
 **恒定遮幅示例：**
 
@@ -949,9 +999,15 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 
 ---
 
-## 9. OVERLAY 轨道（覆盖层：图片 / 字幕 / 淡化 / 画中画）
+## 9. OVERLAY 轨道（覆盖层：图片 / 字幕 / 颜色遮罩 / 画中画）
 
-在屏幕上渲染图片、字幕、全屏淡化或画中画。**支持多条 OVERLAY 轨道同时渲染**（如图片一条轨道、字幕一条轨道，用 `id` 区分），层间按 `z_index` 分层（大者在上）。
+在屏幕上渲染图片、字幕、颜色遮罩（全屏或局部）或画中画。**支持多条 OVERLAY 轨道同时渲染**（如图片一条轨道、字幕一条轨道，用 `id` 区分），层间按 `z_index` 分层（大者在上）。
+
+**层级与同时显示（显式 z 序）**：
+
+- 每条 OVERLAY 轨同一时刻**只消费首个活跃 clip**（`OverlayTrackPlayer.findActiveClip`）。需要同时显示的层（如字幕 + 转场黑场 + 普通 fade）必须**各自使用独立 OVERLAY 轨道**；把两个同时段 clip 放进同一条轨，后面的 clip 不会同时渲染。
+- `z_index` 只在本模组覆盖层之间排序，**不改原版 HUD**。普通 `fade` 不写 `z_index` 时保持默认 `10`；字幕示例写 `100`；转场黑/白场需要压住字幕时由作者**显式**写 `1000`。这不是「转场自动置顶」——遮罩是否盖住字幕由作者决定。
+- 本节的「fade 专用」字段均指 OVERLAY 的 `layer_type=fade`；CAMERA 片段另有同名的 lane 遮罩字段（见 §4「lane 合成遮罩」），两者归属不同，不能互写。
 
 ### Clip 字段
 
@@ -959,11 +1015,14 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 |------|------|------|------|------|
 | `start_time` | float | 是 | — | 起始时间 |
 | `duration` | float | 是 | — | 持续时间 |
-| `layer_type` | string | 是 | — | `"fade"` 全屏颜色 / `"image"` 图片 / `"subtitle"` 字幕 |
+| `layer_type` | string | 是 | — | `"fade"` 颜色遮罩（全屏或局部）/ `"image"` 图片 / `"subtitle"` 字幕 |
 | `path` | string | image 必需 | — | 图片文件名（如 `"my_image.png"` 或 `"flame.gif"`）。支持 **PNG / GIF**（GIF 自动拆帧按帧延迟轮播），文件放 `<游戏目录>/immersive_cinematics/resource/` 下，用英文命名 |
 | `text` | string | subtitle 必需 | — | 字幕文本，`\n` 换行；支持 `@lang:<key>` 文本资源引用（见 [§12](#12-文本资源与多语言langkey)） |
-| `color` | string | fade 必需 | — | 淡化颜色，如 `"#000000"` |
-| `z_index` | int | 否 | `10` | 层级，越大越靠上。**0.3.6 起默认统一 10**（旧文档写 20）；想让字幕压在 fade 之上，给字幕写更大的值（如 30） |
+| `color` | string | 否 | `#000000` | fade 颜色：`#RRGGBB` 六位十六进制（`#` 可省、大小写均可；不支持 ARGB）。纯色模式的基色 / 关键帧 `color` 缺省回落；渐变模式不参与取色（颜色由 `gradient.stops` 决定） |
+| `gradient` | object | 否 | 无（纯色） | **fade 专用**：多色渐变 `{type: "linear"｜"radial", stops: [...]}`，见下方「fade 高级颜色遮罩」 |
+| `mask_shape` | string | 否 | `full` | **仅 OVERLAY 的 `layer_type=fade` 使用**：`full` 整窗口 / `rect` 局部矩形 / `circle` 圆形。这是**颜色层**覆盖范围，**不是字幕或画面纹理裁切**；CAMERA 的同名字段是另一套 lane 遮罩（§4） |
+| `blend_mode` | string | 否 | `normal` | **fade 专用（颜色层混合）**：`normal` / `multiply` / `screen` / `soft_light` / `overlay`，公式与 ADJUST 轨同一 W3C 口径 |
+| `z_index` | int | 否 | `10` | 层级，越大越靠上。**0.3.6 起默认统一 10**（旧文档写 20）；只在本模组覆盖层之间排序，不改原版 HUD。普通 fade 保持 10，字幕示例写 100；转场 fade 要压住字幕时由作者显式写 1000（不是自动最高层）。同轨只消费首个活跃 clip，同时显示请分轨 |
 | `keyframes` | array | 是 | — | 关键帧数组 |
 
 ### Keyframe 字段（统一参数：位置 = 窗口百分比，缩放 = 素材原始像素的倍数）
@@ -975,6 +1034,8 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 - **分辨率转义 `k = min(W播/W基, H播/H基)`**：`W基×H基` = `meta.base_resolution`（缺省 `1920×1080`），`W播×H播` = 播放窗口物理像素。上屏尺寸 = `裁切后素材像素 × scale × k`；`k` 只保证**基准构图整体**不溢出窗口，单个元素可按作者意图越界。
 - **非基准宽高比**（窗口宽高比 ≠ `base_resolution` 宽高比）：窗口里会单边留空 —— 模型不画任何东西，该区域显示下层画面；要黑边就写 LETTERBOX 轨的 `aspect_ratio`。位置按窗口百分比取，与「纯等比映射」的偏差 ≤ 留边厚度（中心为 0、边缘最大）。
 - **`1920×1080` 窗口 + 缺省 `base_resolution` + `source` 整幅** 时 `k = 1`，与 0.3.6 之前逐像素一致。
+
+> 下表中标注「fade 专用」的字段均指 **OVERLAY 的 `layer_type=fade`**。CAMERA 片段另有同名的 `mask_shape` / `mask_*` lane 几何（见 §4），两者作用对象不同、归属不同，不能互写；`image` / `subtitle` 不接受这些字段，字幕永远完整呈现。
 
 | 字段 | 类型 | 默认 | 说明 |
 |------|------|------|------|
@@ -988,14 +1049,91 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
 | `source` | object | 全幅 `{0,0,1,1}` | **取材**（`image` 专用）：`{"x":0,"y":0,"w":1,"h":1}` 为素材归一化子矩形（**原点 = 素材左上角**），裁掉不要的部分（如只要左半：`{"x":0,"y":0,"w":0.5,"h":1}`） |
 | `font_scale` | float | `1` | **字幕专用**：字号倍数（`1` = 原版 9px 字号）。矩阵缩放实现，与 MC `/title` 大字同一机制；它决定文字块本身的基准尺寸，可与 `scale_x/y` 叠加（最终缩放 = `font_scale × scale_x/y`） |
 | `opacity` | float | `1` | 透明度（`0` = 完全透明，`1` = 不透明）。**淡入/淡出完全由该字段的关键帧表达**，代码层不叠加其他淡化。**0.3.6 起默认 1（旧默认 0 = 不可见）**：不写 opacity 的 clip 会直接显示 |
+| `color` | string | 回落 clip 级 `color` | **fade 专用**：纯色模式颜色关键帧（`#RRGGBB`），逐 RGB 通道线性插值；首帧前 / 末帧后保持端点。渐变模式不消费（颜色来自 stops），但显式值仍校验格式 |
+| `mask_x` / `mask_y` | float | `0.5` | **OVERLAY fade 专用**：覆盖区域中心，窗口比例（`0.5` = 窗口中心；可越界）。`full` 不读取 |
+| `mask_width` / `mask_height` | float | `1` | **OVERLAY fade 专用**：`rect` 宽 / 高占窗口比例，非负，不设人为上限；任一为 `0` 不绘制。`circle` / `full` 不读取 |
+| `mask_radius` | float | `0.5` | **OVERLAY fade 专用**：`circle` 半径 / 窗口**较短边**比例，非负；`0` 不绘制。非方形窗口仍是真圆 |
+| `gradient_angle` | float | `0` | **fade 专用**：`linear` 方向角（度），有限值；`0` = 向右，`90` = 向下。`radial` 不读取 |
+| `gradient_center_x` / `gradient_center_y` | float | `0.5` | **fade 专用**：渐变中心，窗口比例，有限值，可越界；`linear` / `radial` 都读取 |
+| `gradient_radius` | float | `0.5` | **fade 专用**：`radial` 半径 / 窗口**较短边**比例，必须 `> 0`。`linear` 不读取 |
 
 > **逐类基准尺寸**（`scale = 1` 时元素多大）：图片 = 裁切后素材像素 × `k`（整幅时 = 原图像素 × `k`）；字幕 = `font_scale` 下文字块像素 × `k`；效果层 / 画幅层 = 铺满窗口（无缩放概念）。位置始终指**未缩放基准矩形**的中心；锚点非 0.5 时，缩放会改变元素的视觉中心（同 CSS `transform-origin`）。
 >
-> **逐层生效范围**（0.3.6 起）：`fade` 是效果层，基准尺寸 = 铺满**窗口**，**x/y/anchor/scale 对它不生效**（只读 `opacity`）。**x/y = 0.5 即窗口居中**；贴边需按元素尺寸/2 折算（如贴左缘 = 元素半宽），避免元素移出窗口。
+> **逐层生效范围**（0.3.6 起）：`fade` 是效果层，基准尺寸 = 铺满**窗口**，**x/y/anchor/scale 对它不生效**；它读取 `opacity`，并在声明高级颜色遮罩时读取下方 `color` / `mask_*` / `gradient_*` 通道。**x/y = 0.5 即窗口居中**；贴边需按元素尺寸/2 折算（如贴左缘 = 元素半宽），避免元素移出窗口。
+> 字幕按**完整文本**呈现，不消费 `source`；取材裁切适用于图片与相机画面 lane，不要求每种图层具备全部参数能力。**在 OVERLAY 内，fade 的 `gradient` / `mask_shape` / `blend_mode`、`mask_*` / `gradient_*` 与关键帧 `color` 只属于 `layer_type=fade`**：写在 `image` / `subtitle` 上会被解析 / 校验直接拒绝，不会静默生效（clip 级 `color` 是通用字段，image / subtitle 不消费）；字幕不做任何裁切。CAMERA 的 `mask_shape` / `mask_*` 是 lane 合成遮罩（§4），不是这里的颜色层字段。
 >
 > **取材先于缩放**：先按 `source` 从素材裁出子矩形，再按 `scale` 放大（上屏尺寸 = `裁切后素材像素 × scale × k`）。**适配字段 `fit` 已移除（0.3.6 起）**：元素框由素材派生，素材恒按框铺满，宽高比由 `scale_x : scale_y` 直接表达 —— 旧 `fit: "stretch"` 语义不变，旧 `fit: "fit"` / `"fill"` 需改写 `scale`（写 `fit` 的脚本会被校验拦下）。
 >
 > **插值**（0.3.6 起）：关键帧之间**匀速线性**（每两个相邻关键帧定一段匀速运动），clip 级 `interpolation` 字段已移除。`source` 按分量整体线性，`z_index` 是离散值（步进取值）。想要缓动/速度曲线：编辑器按曲线采样、把补出的关键帧写进脚本（脚本里存显式关键帧），运行时照常线性求值。
+
+### fade 高级颜色遮罩（0.3.6 D4–D7）
+
+**不新增 `layer_type` / 轨道 / 转场机制**：仍是 `layer_type: "fade"`，旧的纯色全屏写法与规则 `overlay_set` 的临时 fade 都不变。只有声明了渐变、`rect` / `circle` 或非 `normal` 混合时才走专用 shader；**纯色 + `full` + `normal` 继续走原有全屏 fill 快路径**（不新建 FBO / shader，逐像素表现与旧 fade 一致）。规则 `overlay_set` 仍只支持 `layer_type` / `color` / `opacity` / `z_index`，不扩高级字段。
+
+**字段归属（OVERLAY fade）**：`gradient` / `mask_shape` / `blend_mode` 只写在 fade 的 **clip 级**；`mask_*` / `gradient_*` 只写在 fade 的**关键帧**；`color` 两级都可写（关键帧缺省回落 clip）。写错层级会被解析 / 校验拒绝，不会静默生效。这里的 `mask_*` 是**颜色层**几何；CAMERA 的同名字段是 lane 合成遮罩（§4），两者不互通，CAMERA 也不接受 `gradient` / `gradient_*` / `blend_mode`。
+
+**渐变定义（clip 级，整段固定）**：
+
+```json
+"gradient": {
+  "type": "linear",
+  "stops": [
+    { "offset": 0,    "color": "#FF0000" },
+    { "offset": 0.15, "color": "#00FF00" },
+    { "offset": 1,    "color": "#0000FF" }
+  ]
+}
+```
+
+- `type` 必填：`"linear"` 或 `"radial"`。
+- `stops` 至少 **2** 个，**不设数量上限**；每个 `offset` 必须是有限数字、范围 `0`~`1`、**严格递增**；首尾不必是 `0` / `1`，范围外保持端点颜色。
+- 每个 stop 的 `color` 为 `#RRGGBB`（与 fade 的 `color` 同一口径）。`stops` 是结构数据，**定义在 clip 级、整段不变**；关键帧只驱动方向 / 中心 / 半径，不支持动画改变 stops 的数量或内容。
+- 不写 `gradient` = 纯色，颜色取 clip 级 `color` / 关键帧 `color`。
+
+**覆盖形状与几何（关键帧通道）**：
+
+下式中 `W` / `H` = 播放窗口宽 / 高（GUI 像素）。
+
+| 形状 | 中心 / 尺寸 |
+|------|-------------|
+| `full`（缺省） | 整窗口；`mask_*` 不读取 |
+| `rect` | 中心 `(mask_x × W, mask_y × H)`；半宽 `mask_width × W / 2`，半高 `mask_height × H / 2`；`mask_width` 或 `mask_height` 为 `0` 不绘制 |
+| `circle` | 中心同上；半径 `mask_radius × min(W, H)`（按窗口**短边**比例，非方形窗口仍是真圆）；`mask_radius = 0` 不绘制 |
+
+- `mask_x` / `mask_y`：窗口比例，缺省 `0.5`，有限值，**允许在窗口外**。
+- `mask_width` / `mask_height`：窗口比例，缺省 `1`，有限且非负、不设人为上限。
+- `mask_radius`：窗口短边比例，缺省 `0.5`，有限且非负。
+- `rect` / `circle` 只绘制「形状包围盒 ∩ 窗口」，形状外像素不改变；边缘为硬边，不做抗锯齿。
+
+**渐变几何与采样**：
+
+- `linear`：方向 `d = (cos θ, sin θ)`，`L = |cos θ| × W + |sin θ| × H`，`t = 0.5 + dot(p - center, d) / L`。θ = `gradient_angle`（度），缺省 `0` = 向右，`90` = 向下，有限值。
+- `radial`：`t = distance(p - center) / (gradient_radius × min(W, H))`。`gradient_radius` 缺省 `0.5`，有限且必须 `> 0`。
+- `gradient_center_x` / `gradient_center_y`：窗口比例，缺省 `0.5`，有限值，可越界；`linear` / `radial` 都读取。
+- `t` 钳制到 `0`~`1` 后查 stops（范围外保持端点）。`gradient_angle` 只对 `linear` 生效，`gradient_radius` 只对 `radial` 生效；另一形态的对应通道不读取。
+
+**混合模式（clip 级 `blend_mode`）**：
+
+base = 本颜色层之前的实际屏幕内容；src = 本层颜色；二者均为逐通道 `0`~`1` 的 RGB。`amount = opacity × coverage`（coverage：形状内 `1`、形状外 `0`）。
+
+| `blend_mode` | `B(base, src)` |
+|--------------|----------------|
+| `normal`（缺省） | `src` |
+| `multiply` | `base × src` |
+| `screen` | `1 - (1 - base) × (1 - src)` |
+| `soft_light` | `src <= 0.5`：`base - (1 - 2×src) × base × (1 - base)`；否则 `base + (2×src - 1) × (D(base) - base)` |
+| `overlay` | `base <= 0.5`：`2 × base × src`；否则 `1 - 2 × (1 - base) × (1 - src)` |
+
+- `soft_light` 的 `D(x) = x <= 0.25 ? ((16x - 12)x + 4)x : sqrt(x)`；按 W3C compositing-1，**分支看 src、D 曲线作用于 base**（与 ADJUST 轨的 `blend_mode` 同一语义）。
+- `normal` 用 `amount` 作为 alpha 做常规混合；纯色 + `full` + `normal` 走旧快路径，其余形态走 shader 的 `normal` 路径。
+- fade **没有** ADJUST 轨的 `blend_amount`：混合强度就是关键帧 `opacity`（再乘形状 coverage），`opacity = 0` 时该层不产生任何混合。
+- 非 `normal` 需要读取 backdrop：实现先把主 framebuffer 复制到 scratch，再按模式混合，**不读写同一纹理**。最终 `RGB = mix(base, B(base, src), amount)`；只改 RGB，不改变区域外像素、后续 GUI 或 framebuffer alpha。不同层按当前 `z_index` 顺序逐层合成。
+
+**实现采样精度**：多色 stops 在 CPU 侧烘成 **1024×1** RGB 采样表（首尾 texel 对齐 `t = 0` / `1`，段内线性），片元按 `t` 取 texel 中心并做线性过滤。stops 数量不设上限，但任意密集或极窄区间的 stops 不保证逐像素与解析式完全一致；不承诺任意 stops 分布下的统一误差上限。
+
+**资源与重载**：有渐变的高级 fade 层持有自己的 LUT；共享 shader / scratch 在最后一个高级层释放或资源重载时释放。移除层会调用 `close()`；F3+T / 资源包重载通过 `invalidate()` 排队到渲染线程释放资源，存活层下一帧按新代次重建。shader / LUT / scratch 创建失败时跳过该颜色层并记录日志，不会伪造纯黑或回退到不相符的效果。详见 [overlay 模块](modules/overlay.md)。
+
+**仓库内 fixture**：`cinematics/tests/overlay/test_color_mask.json`（D4–D6 分阶段：线性 / 径向 / `rect` / `circle` / 五种混合 / 几何关键帧 / 纯色颜色关键帧）与 `cinematics/tests/overlay/test_overlay_zindex.json`（D7 z 层级演示）。运行方式与现有测试脚本一致，像素结果以实际客户端测量为准。
 
 ### 示例：图片 + 字幕双 OVERLAY 轨道同时渲染
 
@@ -1028,7 +1166,7 @@ AUDIO 关键帧包含 `volume`、`x`、`y`、`z`，用于逐关键帧控制音�
       "duration": 12,
       "layer_type": "subtitle",
       "text": "副标题文字",
-      "z_index": 30,
+      "z_index": 100,
       "keyframes": [
         { "time": 0,  "x": 0.5, "y": 0.5, "font_scale": 2.0, "opacity": 0 },
         { "time": 1,  "x": 0.5, "y": 0.5, "font_scale": 2.0, "opacity": 1 },
@@ -1082,7 +1220,7 @@ lane 渲染（含 lane 内发光描边）
 | `sv_l_curve` | array | 否 | — | **SvL 曲线**：以 **饱和度** 为键、输出 **亮度**（低饱和 / 高饱和分区调明暗） |
 | `lut` | string | 否 | — | **整体画面 LUT**（master 级）：`resource/` 目录下的 `.cube` **文件名**（非空、不含路径分隔符 / 盘符，如 `"Teal and Orange.cube"`）；不写 = 无 LUT。**只写在 ADJUST 轨**——相机片段上写 `lut` 会被 validator 拦下（LUT 作用于整个世界画面，见下方「LUT（`lut` / `lut_input_gamma` / `lut_strength`）」） |
 | `lut_input_gamma` | float | 否 | `1.0` | **LUT 输入域适配**：查表前 `v = pow(clamp(c, 0, 1), gamma)`（**必须 > 0**）；给现成 LUT（为别的素材调的）套上后整体偏亮 / 偏色时用来纠偏，自制（从游戏帧调的）LUT 保持缺省 `1.0`；**`lut` 为空时忽略** |
-| `blend_mode` | string | 否 | `"normal"` | **层级混合的混合模式**（混合模式作用于调整层）：`normal`（直替换，= 不写）/ `multiply` / `screen` / `soft_light` / `overlay`——把**调整层输出**（调色操作栈全部步骤算出的颜色）与**基画面**（原图）按该模式整体混合，强度由关键帧 `blend_amount` 控制。**只写在 ADJUST 轨**——相机片段上写 `blend_mode` 会被 validator 拦下（见下方「层级混合（`blend_mode` / `blend_amount`）」） |
+| `blend_mode` | string | 否 | `"normal"` | **层级混合的混合模式**（混合模式作用于调整层）：`normal`（直替换，= 不写）/ `multiply` / `screen` / `soft_light` / `overlay`——把**调整层输出**（调色操作栈全部步骤算出的颜色）与**基画面**（原图）按该模式整体混合，强度由关键帧 `blend_amount` 控制。**ADJUST 的 `blend_mode` 只写在 ADJUST 轨**——相机片段上写会被 validator 拦下；fade 颜色遮罩的同名字段是另一套（见 §9，公式同口径、作用对象不同）。详见下方「层级混合（`blend_mode` / `blend_amount`）」 |
 
 > 十条曲线、`lut` / `lut_input_gamma` 与 `blend_mode` 都是 clip 级字段（不随时间变，故不挂关键帧）；47 个标量通道、十条曲线强度（`curve_strength` / `r_curve_strength` / `g_curve_strength` / `b_curve_strength` / `hv_h_strength` ~ `sv_l_strength`）、LUT 混合强度 `lut_strength` 与层级混合强度 `blend_amount` 全部写在关键帧上（与 letterbox/EVENT/AUDIO/OVERLAY 同一套「统一关键帧级调控」规则）。
 
@@ -1357,12 +1495,12 @@ PS「调整图层 + 图层混合模式」的运行时形态：把**调整层的�
   | `normal` | `b`（直替换 = 现状；不写 `blend_mode` 就是这个） |
   | `multiply` | `a·b`（相乘 → 压暗） |
   | `screen` | `1 - (1-a)·(1-b)`（反相相乘 → 提亮） |
-  | `soft_light` | `a ≤ 0.5 ? b - (1-2a)·b·(1-b) : b + (2a-1)·(d(b)-b)`，`d(b) = b ≤ 0.25 ? ((16b-12)·b+4)·b : sqrt(b)`（柔光） |
+  | `soft_light` | `b ≤ 0.5 ? a - (1-2b)·a·(1-a) : a + (2b-1)·(d(a)-a)`，`d(a) = a ≤ 0.25 ? ((16a-12)·a+4)·a : sqrt(a)`（柔光；按 W3C compositing-1：分支看调整层输出 `b`，`d` 曲线作用于基画面 `a`） |
   | `overlay` | `a ≤ 0.5 ? 2ab : 1 - 2(1-a)(1-b)`（叠加：基画面暗处走 multiply、亮处走 screen） |
 
 - **`blend_amount`**：`1` = 调整层全量（缺省）、`0.5` = 一半（调整层半透明）、`0` = **调整层整体透明**（输出 = 基画面，画面逐位不变）。做「风格渐入 / 渐出」就把它打关键帧。
 - **零差异**：不写 `blend_mode`（= `normal`）+ `blend_amount` 缺省 `1` → 混合步骤整段跳过，画面与不带混合功能时**逐字节一致**。
-- **只写在 ADJUST 轨**：混合模式作用于调整层（= ADJUST 轨）；相机片段上写 `blend_mode` / `blend_amount` 不生效，会被 validator 直接拦下。
+- **ADJUST 的 `blend_mode` 只写在 ADJUST 轨**：混合模式作用于调整层（= ADJUST 轨）；相机片段上写 `blend_mode` / `blend_amount` 不生效，会被 validator 直接拦下。fade 的 `blend_mode` 是颜色层自己的字段（§9），与本节的调整层混合互不替代。
 - **只动 RGB**：`alpha` 逐位直通，透明度仍只在合成层由 `opacity` 调控。
 
 ```json

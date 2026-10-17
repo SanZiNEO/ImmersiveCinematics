@@ -96,8 +96,8 @@
 //     normal(0)     = b（直替换 = 现状）
 //     multiply(1)   = a·b
 //     screen(2)     = 1 - (1-a)·(1-b)
-//     soft_light(3) = a ≤ 0.5 ? b - (1-2a)·b·(1-b) : b + (2a-1)·(d(b)-b)，
-//                     其中 d(b) = b ≤ 0.25 ? ((16b-12)·b+4)·b : sqrt(b)
+//     soft_light(3) = b ≤ 0.5 ? a - (1-2b)·a·(1-a) : a + (2b-1)·(d(a)-a)，
+//                     其中 d(a) = a ≤ 0.25 ? ((16a-12)·a+4)·a : sqrt(a)（a = 基画面 Cb、b = 调整层 Cs）
 //     overlay(4)    = a ≤ 0.5 ? 2ab : 1 - 2(1-a)(1-b)（a = 0.5 处两式相等，边界无跳变）
 //   缺省 normal + 1 = 直替换（与混合功能落地前逐位一致，故该步整段跳过）；BlendAmount = 0 =
 //   调整层整体透明（输出 = 基画面 = 恒等）。<b>不是操作栈步骤</b>，而是层级语义
@@ -338,11 +338,11 @@ vec2 sixBandShift(float theta) {
 }
 
 // 层级混合（第 20 步）：调整层输出（b = 全部 19 步算出的颜色）与基画面（a = Sampler0 原图）的混合。
-// 公式 = W3C compositing 口径（逐通道、输入均 0~1）；mode = 0 ~ 4 编码（见文件头）。
+// 公式 = W3C compositing-1（逐通道、输入均 0~1）；a = Cb（基画面）、b = Cs（调整层）；mode = 0 ~ 4 编码（见文件头）。
 float softLightChannel(float a, float b) {
-    float d = (b <= 0.25) ? ((16.0 * b - 12.0) * b + 4.0) * b : sqrt(b);
-    return (a <= 0.5) ? (b - (1.0 - 2.0 * a) * b * (1.0 - b))
-                      : (b + (2.0 * a - 1.0) * (d - b));
+    float d = (a <= 0.25) ? ((16.0 * a - 12.0) * a + 4.0) * a : sqrt(a);
+    return (b <= 0.5) ? (a - (1.0 - 2.0 * b) * a * (1.0 - a))
+                      : (a + (2.0 * b - 1.0) * (d - a));
 }
 
 // 混合模式（a = 基画面、b = 调整层输出；逐通道 RGB、均 0~1）

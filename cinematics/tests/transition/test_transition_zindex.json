@@ -1,0 +1,123 @@
+{
+  "meta": {
+    "id": "test_transition_zindex",
+    "name": "转场测试-层级序",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "D3 显式 z 序对照（手动播放，10s）：字幕 z_index=100；转场 fade color=#000000、z_index=1000（显式）；普通 fade 不写 z_index（默认 10）；普通 fade 与转场 fade 分属独立 OVERLAY 轨（同轨 findActiveClip 只消费首个活跃 clip，重叠会遮蔽后者）。0-2s 普通 fade z10 以 #808080 / opacity 0.5 压暗画面，字幕 z100 在其上仍可读；2-6s 转场 fade z1000 完成 0→1→0（3-5s 全黑，盖住 z100 字幕；5s 处 A→B 相机硬切在全黑下完成）；6-10s 转场 fade=0，只剩 z10 普通 fade 与 z100 字幕，字幕仍可读；10s 全部有限片段自然结束。采样：t=1.0 中心 (0.5,0.5)=画面被 #808080 半压暗、顶部字幕 (0.5,0.25) 可读；t=3.0 中心=纯黑 #000000、字幕不可见；t=5.0 中心=纯黑（切镜后仍是 B 的同一全黑）；t=7.0 中心=画面被 #808080 半压暗、字幕可读；t=10.0 自然结束。",
+    "triggers": [],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 10,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "layer_type": "subtitle",
+            "text": "z 序对照：字幕 z100 · 普通 fade 默认 z10（在字幕下）· 转场 fade z1000（盖住字幕）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.25, "opacity": 1 },
+              { "time": 10, "x": 0.5, "y": 0.25, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 5,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 0, "dy": 2, "dz": -6 },
+                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": -0.5, "saturation": 0.1
+              },
+              {
+                "time": 5,
+                "position": { "dx": 0, "dy": 2, "dz": -6 },
+                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": -0.5, "saturation": 0.1
+              }
+            ]
+          },
+          {
+            "start_time": 5,
+            "duration": 5,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 6, "dy": 2, "dz": 0 },
+                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": 0.7, "saturation": 0.1
+              },
+              {
+                "time": 5,
+                "position": { "dx": 6, "dy": 2, "dz": 0 },
+                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": 0.7, "saturation": 0.1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "layer_type": "fade",
+            "color": "#808080",
+            "keyframes": [
+              { "time": 0, "opacity": 0.5 },
+              { "time": 10, "opacity": 0.5 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 2,
+            "duration": 4,
+            "layer_type": "fade",
+            "color": "#000000",
+            "z_index": 1000,
+            "keyframes": [
+              { "time": 0, "opacity": 0 },
+              { "time": 1, "opacity": 1 },
+              { "time": 3, "opacity": 1 },
+              { "time": 4, "opacity": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

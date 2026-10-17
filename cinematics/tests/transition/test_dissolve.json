@@ -4,7 +4,7 @@
     "name": "转场测试-叠化",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "叠化：两条时间重叠的 CAMERA clip，opacity 关键帧交叉——A 末尾 hold 段 1→0、B 开头 hold 段 0→1。重叠窗口 [4,6) 双 lane 交叉，其余时段单 lane，全程无空隙（不露原版画面）",
+    "description": "叠化（D1 纯关键帧 C 格式，无 transition_in/out / TRANSITION 轨 / 运行时生成器）：同一 CAMERA 轨两条全屏 clip，绘制顺序 A 在下、B 在上。A[0,6] 全程 opacity=1（不透明底图，不参与淡出）；B[4,10] 的 opacity 只在重叠窗口 [4,6) 从 0 线性升到 1，之后 hold=1 到自然结束。source-over 合成 = B.rgb×a + A.rgb×(1-a)，任何时刻都有一幅不透明画面在底，不会露出第三层原版基画面；A、B 用不同机位 + 明确调色（A 冷蓝 / B 暖橙）区分。采样：t=5.0 中心 (0.5,0.5) 为 A/B 各约 50% 的混合；t=6.0 与 t=9.5 中心为纯 B；全程字幕 z100 在画面顶部。",
     "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_fade_white"] } ],
     "block_keyboard": false,
     "block_mouse": false,
@@ -25,15 +25,35 @@
         "clips": [
           {
             "start_time": 0,
-            "duration": 10,
+            "duration": 4,
             "layer_type": "subtitle",
-            "text": "测试: test_dissolve | 转场: 叠化 | A[0,6] 末尾 1→0 · B[4,10] 开头 0→1 | 重叠窗口 4-6s",
-            "x": 0.5,
-            "y": 0.5,
+            "text": "阶段1 · A 独占：A 全程 opacity=1（冷蓝机位）",
             "z_index": 100,
             "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 10, "x": 0.5, "y": 0.5, "opacity": 1 }
+              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.18, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 4,
+            "duration": 2,
+            "layer_type": "subtitle",
+            "text": "阶段2 · 重叠 [4,6)：A 保持不透明 + B opacity 0→1（source-over，无第三底图）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
+              { "time": 2, "x": 0.5, "y": 0.18, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "阶段3 · B 独占 hold：B opacity=1 到 10s 自然结束（暖橙机位）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.18, "opacity": 1 }
             ]
           }
         ]
@@ -47,9 +67,33 @@
             "transition": "cut",
             "loop": false,
             "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 },
-              { "time": 4, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 },
-              { "time": 6, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 0 }
+              {
+                "time": 0,
+                "position": { "dx": 0, "dy": 2, "dz": -6 },
+                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": -0.7, "saturation": 0.15,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 4,
+                "position": { "dx": 0, "dy": 2, "dz": -6 },
+                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": -0.7, "saturation": 0.15,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 6,
+                "position": { "dx": 0, "dy": 2, "dz": -6 },
+                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": -0.7, "saturation": 0.15,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              }
             ]
           },
           {
@@ -58,9 +102,33 @@
             "transition": "cut",
             "loop": false,
             "keyframes": [
-              { "time": 0, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 0 },
-              { "time": 2, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 },
-              { "time": 6, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 }
+              {
+                "time": 0,
+                "position": { "dx": 6, "dy": 2, "dz": 0 },
+                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 0,
+                "temperature": 0.8, "saturation": 0.15,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 2,
+                "position": { "dx": 6, "dy": 2, "dz": 0 },
+                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": 0.8, "saturation": 0.15,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 6,
+                "position": { "dx": 6, "dy": 2, "dz": 0 },
+                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": 0.8, "saturation": 0.15,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              }
             ]
           }
         ]

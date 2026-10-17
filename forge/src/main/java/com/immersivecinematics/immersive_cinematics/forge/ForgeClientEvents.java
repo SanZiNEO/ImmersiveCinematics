@@ -6,6 +6,7 @@ import com.immersivecinematics.immersive_cinematics.client.ConfigScreen;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import com.immersivecinematics.immersive_cinematics.forge.hud.ForgeHudLayerRegistry;
 import com.immersivecinematics.immersive_cinematics.handler.ClientEventHandler;
+import com.immersivecinematics.immersive_cinematics.overlay.ColorMaskRenderer;
 import com.immersivecinematics.immersive_cinematics.script.CubeLutLoader;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
@@ -59,7 +60,12 @@ public final class ForgeClientEvents {
      */
     @SubscribeEvent
     public static void onRegisterClientReloadListeners(RegisterClientReloadListenersEvent event) {
-        event.registerReloadListener((ResourceManagerReloadListener) resourceManager -> CubeLutLoader.clearCache());
+        event.registerReloadListener((ResourceManagerReloadListener) resourceManager -> {
+            CubeLutLoader.clearCache();
+            // 颜色遮罩的 core shader / scratch / 各层 LUT 由渲染侧按代次重建；
+            // 本回调可能不在渲染线程，invalidate 内部会排队到渲染线程，绝不直接碰 GL。
+            ColorMaskRenderer.invalidate();
+        });
     }
 
     @Mod.EventBusSubscriber(modid = ImmersiveCinematics.MOD_ID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)

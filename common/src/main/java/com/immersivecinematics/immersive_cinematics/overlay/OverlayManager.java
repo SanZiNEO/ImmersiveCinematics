@@ -66,13 +66,15 @@ public class OverlayManager {
     }
 
     /**
-     * 移除覆盖层
+     * 移除覆盖层并释放其 GPU 资源（{@link OverlayLayer#close()}）。
      *
      * @param layer 要移除的覆盖层
-     * @return 是否成功移除
+     * @return 是否成功移除（{@code false} = 不在列表中，不调用 close，避免误关他处仍持有的层）
      */
     public boolean removeLayer(OverlayLayer layer) {
-        return layers.remove(layer);
+        boolean removed = layers.remove(layer);
+        if (removed) layer.close();
+        return removed;
     }
 
     /**
@@ -144,7 +146,8 @@ public class OverlayManager {
     }
 
     /**
-     * 移除指定归属的全部层（实例退场兜底：TrackPlayer 清理抛异常时也不留残层）。
+     * 移除指定归属的全部层并释放其 GPU 资源（{@link OverlayLayer#close()}）。
+     * <p>实例退场兜底：TrackPlayer 清理抛异常时也不留残层。</p>
      *
      * @param owner 层归属 token（{@code null} = 只匹配无主层）
      * @return 实际移除的层数
@@ -152,8 +155,10 @@ public class OverlayManager {
     public int removeLayersOf(Object owner) {
         int removed = 0;
         for (int i = layers.size() - 1; i >= 0; i--) {
-            if (Objects.equals(layers.get(i).owner(), owner)) {
+            OverlayLayer layer = layers.get(i);
+            if (Objects.equals(layer.owner(), owner)) {
                 layers.remove(i);
+                layer.close();
                 removed++;
             }
         }

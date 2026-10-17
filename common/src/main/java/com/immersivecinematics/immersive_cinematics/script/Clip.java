@@ -27,6 +27,11 @@ public class Clip {
     /** 过渡声明缓存（{@link #getTransitionSpec()} 首次访问建成；片段数据解析后只读，故可缓存）。 */
     private TransitionSpec transitionSpec;
 
+    /** fade 颜色遮罩定义缓存（{@link #getColorMaskSpec()} 首次访问建成；片段数据解析后只读，故可缓存）。 */
+    private ColorMaskSpec colorMaskSpec;
+    /** 是否已尝试建立 {@link #colorMaskSpec}（非 OVERLAY 轨的 {@code null} 结果同样只解析一次）。 */
+    private boolean colorMaskSpecResolved;
+
     public Clip(float startTime, float duration, TrackType trackType,
                 Map<String, Object> data, List<Keyframe> keyframes) {
         this.startTime = startTime;
@@ -108,6 +113,24 @@ public class Clip {
         return data.containsKey("transition") || data.containsKey("transition_duration")
                 || data.containsKey("transition_params") || data.containsKey("transition_curve")
                 || data.containsKey("transition_interrupt");
+    }
+
+    /**
+     * 本片段的 fade 高级颜色遮罩定义（0.3.6 D4–D7）。
+     *
+     * <p>首次访问由 {@link ColorMaskSpec#from(Clip)} 建成并缓存（片段数据在解析后只读）。
+     * 只有 {@link TrackType#OVERLAY} 片段有该定义；其余轨道恒返回 {@code null}（同样只判定一次）。</p>
+     *
+     * <p>结构非法时 {@link ColorMaskSpec#from(Clip)} 抛
+     * {@link ColorMaskSpec.InvalidColorMaskException}；{@code ScriptParser} 在解析期主动触发本方法，
+     * 把该异常转成带完整字段路径的 {@code ScriptParseException}。</p>
+     */
+    public ColorMaskSpec getColorMaskSpec() {
+        if (!colorMaskSpecResolved) {
+            colorMaskSpecResolved = true;
+            colorMaskSpec = trackType == TrackType.OVERLAY ? ColorMaskSpec.from(this) : null;
+        }
+        return colorMaskSpec;
     }
 
     public boolean isPositionModeRelative() {

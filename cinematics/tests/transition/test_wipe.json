@@ -1,0 +1,276 @@
+{
+  "meta": {
+    "id": "test_wipe",
+    "name": "转场测试-几何划像",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "几何划像（D2 CAMERA lane 遮罩，手动播放）：三个阶段，每个阶段 A 为整幅不透明底图（不同机位 + 调色），B 为同 dest/source 全屏（source=dest={0,0,1,1}，不缩放），仅用 clip 级 mask_shape + 关键帧几何逐步显露 B。阶段1 0-5s：A1 冷蓝 / B1 暖橙，rect 水平 mask_width 0→1（2-4s），4-5s 全覆；阶段2 5-10s：A2 绿 / B2 品红，rect 垂直 mask_height 0→1（7-9s），9-10s 全覆；阶段3 10-15s：A3 高对比 / B3 高饱和，circle 半径 0→0.6→1.5（12-14s，按窗口短边真圆；1.5 保证常见宽屏四角也被盖住），14-15s 全覆。每阶段 B 覆盖到位后才结束 A，序列中任何时刻都有 A 或 B 的整幅画面在底，无原版基画面空隙；15s 全部有限片段自然结束。采样：t=3.0 中心偏左 (0.30,0.5)=B1、右侧 (0.80,0.5)=A1；t=4.5 全屏=B1；t=8.0 (0.5,0.30)=B2、(0.5,0.80)=A2；t=9.5 全屏=B2；t=13.0 中心=B3、右上角 (0.90,0.10)=A3（圆外）、(0.5,0.90)=B3（短边方向圆内）；t=14.5 四角=B3。",
+    "triggers": [],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 15,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "阶段1 · A1 整幅（冷蓝）· B1 rect 水平 0→1（2-4s）· 4-5s 全覆",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.04, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.04, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 5,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "阶段2 · A2 整幅（绿）· B2 rect 垂直 0→1（7-9s）· 9-10s 全覆",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.04, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.04, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 10,
+            "duration": 5,
+            "layer_type": "subtitle",
+            "text": "阶段3 · A3 整幅（高对比）· B3 circle 半径 0→0.6→1.5（12-14s，真圆按短边）· 14-15s 全覆",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.04, "opacity": 1 },
+              { "time": 5, "x": 0.5, "y": 0.04, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 5,
+            "transition": "cut",
+            "loop": false,
+            "mask_shape": "full",
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 0, "dy": 2, "dz": -6 },
+                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": -0.7, "saturation": 0.15,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 5,
+                "position": { "dx": 0, "dy": 2, "dz": -6 },
+                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": -0.7, "saturation": 0.15,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              }
+            ]
+          },
+          {
+            "start_time": 2,
+            "duration": 3,
+            "transition": "cut",
+            "loop": false,
+            "mask_shape": "rect",
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 6, "dy": 2, "dz": 0 },
+                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": 0.8, "saturation": 0.15,
+                "mask_x": 0.5, "mask_y": 0.5, "mask_width": 0, "mask_height": 1,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 2,
+                "position": { "dx": 6, "dy": 2, "dz": 0 },
+                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": 0.8, "saturation": 0.15,
+                "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 1,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 3,
+                "position": { "dx": 6, "dy": 2, "dz": 0 },
+                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": 0.8, "saturation": 0.15,
+                "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 1,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              }
+            ]
+          },
+          {
+            "start_time": 5,
+            "duration": 5,
+            "transition": "cut",
+            "loop": false,
+            "mask_shape": "full",
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": -6, "dy": 2, "dz": 0 },
+                "yaw": -90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "red": -0.2, "green": 0.6, "saturation": 0.2,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 5,
+                "position": { "dx": -6, "dy": 2, "dz": 0 },
+                "yaw": -90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "red": -0.2, "green": 0.6, "saturation": 0.2,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              }
+            ]
+          },
+          {
+            "start_time": 7,
+            "duration": 3,
+            "transition": "cut",
+            "loop": false,
+            "mask_shape": "rect",
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 0, "dy": 2, "dz": 6 },
+                "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "red": 0.2, "blue": 0.6, "saturation": 0.2,
+                "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 0,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 2,
+                "position": { "dx": 0, "dy": 2, "dz": 6 },
+                "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "red": 0.2, "blue": 0.6, "saturation": 0.2,
+                "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 1,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 3,
+                "position": { "dx": 0, "dy": 2, "dz": 6 },
+                "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "red": 0.2, "blue": 0.6, "saturation": 0.2,
+                "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 1,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              }
+            ]
+          },
+          {
+            "start_time": 10,
+            "duration": 5,
+            "transition": "cut",
+            "loop": false,
+            "mask_shape": "full",
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 0, "dy": 4, "dz": -6 },
+                "yaw": 0, "pitch": 20, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "exposure": 0.5, "contrast": 0.2,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 5,
+                "position": { "dx": 0, "dy": 4, "dz": -6 },
+                "yaw": 0, "pitch": 20, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "exposure": 0.5, "contrast": 0.2,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              }
+            ]
+          },
+          {
+            "start_time": 12,
+            "duration": 3,
+            "transition": "cut",
+            "loop": false,
+            "mask_shape": "circle",
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 6, "dy": 4, "dz": 0 },
+                "yaw": 90, "pitch": 20, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "hue": 0.3, "saturation": 0.5,
+                "mask_x": 0.5, "mask_y": 0.5, "mask_radius": 0,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 1,
+                "position": { "dx": 6, "dy": 4, "dz": 0 },
+                "yaw": 90, "pitch": 20, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "hue": 0.3, "saturation": 0.5,
+                "mask_x": 0.5, "mask_y": 0.5, "mask_radius": 0.6,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 2,
+                "position": { "dx": 6, "dy": 4, "dz": 0 },
+                "yaw": 90, "pitch": 20, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "hue": 0.3, "saturation": 0.5,
+                "mask_x": 0.5, "mask_y": 0.5, "mask_radius": 1.5,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 3,
+                "position": { "dx": 6, "dy": 4, "dz": 0 },
+                "yaw": 90, "pitch": 20, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "hue": 0.3, "saturation": 0.5,
+                "mask_x": 0.5, "mask_y": 0.5, "mask_radius": 1.5,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

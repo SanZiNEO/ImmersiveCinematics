@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.fabric;
 import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
 import com.immersivecinematics.immersive_cinematics.handler.ClientEventHandler;
 import com.immersivecinematics.immersive_cinematics.handler.ServerEventHandler;
+import com.immersivecinematics.immersive_cinematics.overlay.ColorMaskRenderer;
 import com.immersivecinematics.immersive_cinematics.script.CubeLutLoader;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -89,6 +90,9 @@ public final class FabricEvents {
                     @Override
                     public void onResourceManagerReload(ResourceManager resourceManager) {
                         CubeLutLoader.clearCache();
+                        // 颜色遮罩的 core shader / scratch / 各层 LUT 由渲染侧按代次重建；
+                        // 本回调可能不在渲染线程，invalidate 内部会排队到渲染线程，绝不直接碰 GL。
+                        ColorMaskRenderer.invalidate();
                     }
                 });
     }

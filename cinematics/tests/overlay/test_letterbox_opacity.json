@@ -1,0 +1,214 @@
+{
+  "meta": {
+    "id": "test_letterbox_opacity",
+    "name": "黑边测试-不透明度与线性求值",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "手动播放，60s 内容消费完毕后退出。依次展示缺省 opacity=1、0、0.5、1、透明度线性动画、画幅比线性动画、左右黑边、空档及上下/左右黑边切换。背景 #80A0C0，字幕独立高层；无限片段推进另由播放器探针验证。",
+    "triggers": [],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": false,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 60,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 60,
+            "layer_type": "fade",
+            "color": "#80A0C0",
+            "z_index": -10,
+            "keyframes": [
+              { "time": 0, "opacity": 1 },
+              { "time": 60, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "keyframes": [
+              { "time": 0, "aspect_ratio": 2.35 },
+              { "time": 6, "aspect_ratio": 2.35 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 6,
+            "keyframes": [
+              { "time": 0, "aspect_ratio": 2.35, "opacity": 0 },
+              { "time": 6, "aspect_ratio": 2.35, "opacity": 0 }
+            ]
+          },
+          {
+            "start_time": 12,
+            "duration": 6,
+            "keyframes": [
+              { "time": 0, "aspect_ratio": 2.35, "opacity": 0.5 },
+              { "time": 6, "aspect_ratio": 2.35, "opacity": 0.5 }
+            ]
+          },
+          {
+            "start_time": 18,
+            "duration": 6,
+            "keyframes": [
+              { "time": 0, "aspect_ratio": 2.35, "opacity": 1 },
+              { "time": 6, "aspect_ratio": 2.35, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 24,
+            "duration": 8,
+            "keyframes": [
+              { "time": 0, "aspect_ratio": 2.35, "opacity": 0 },
+              { "time": 8, "aspect_ratio": 2.35, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 32,
+            "duration": 12,
+            "keyframes": [
+              { "time": 0, "aspect_ratio": 2, "opacity": 1 },
+              { "time": 12, "aspect_ratio": 4, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 44,
+            "duration": 6,
+            "keyframes": [
+              { "time": 0, "aspect_ratio": 1.0, "opacity": 1 },
+              { "time": 6, "aspect_ratio": 1.0, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 54,
+            "duration": 6,
+            "keyframes": [
+              { "time": 0, "aspect_ratio": 2.35, "opacity": 1 },
+              { "time": 6, "aspect_ratio": 1.0, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "P1 t0-6 缺省 opacity=1: 上下黑边纯黑(0,0,0)，中带 #80A0C0",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.06, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.06, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "P2 t6-12 opacity=0: 无黑边，全屏背景(128,160,192)",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.06, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.06, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 12,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "P3 t12-18 opacity=0.5: 黑边=背景x0.5 约(64,80,96)",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.06, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.06, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 18,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "P4 t18-24 opacity=1: 上下黑边纯黑",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.06, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.06, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 24,
+            "duration": 8,
+            "layer_type": "subtitle",
+            "text": "P5 t24-32 opacity 线性0->1: t=26 取0.25 约(96,120,145)，非 smoothstep",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.06, "opacity": 1 },
+              { "time": 8, "x": 0.5, "y": 0.06, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 32,
+            "duration": 12,
+            "layer_type": "subtitle",
+            "text": "P6 t32-44 aspect 2->4 线性: t=35 取2.5(黑边约14%高)，opacity 恒1",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.06, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.06, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 44,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "P7 t44-50 aspect=1.0: 左右黑边各约22%宽，纯黑",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.06, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.06, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 50,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "text": "GAP t50-54 无 clip: 画幅比归0，无黑边，全屏背景",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.06, "opacity": 1 },
+              { "time": 4, "x": 0.5, "y": 0.06, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 54,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "P8 t54-60 有限6s: aspect 2.35->1.0 线性(上下黑边收窄转左右黑边)",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.06, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.06, "opacity": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

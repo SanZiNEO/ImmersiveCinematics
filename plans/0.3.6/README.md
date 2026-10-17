@@ -7,8 +7,8 @@
 
 - 文档约定：一个文档一个点；不写伪代码，写实现思路与每一步的交付物。
 - 通用原则：先定义工具（底层），再考虑怎么调用、整合工具（应用层）——先底层后应用；模板、转场等应用层文档都遵循此分层。
-- 效果原则：大部分效果写成**系统可追踪的数据**（轨道 → clip → 关键帧参数），不写死代码；机制性能力最小化。转场即例子：叠化 = 末尾帧/首帧复制延长（hold 等值关键帧）+ opacity 关键帧交叉，黑场/白场 = OVERLAY 轨预配置 clip。参考项目：ReplayMod 路径系统（Timeline/Path/Keyframe 全数据化）、olive（节点参数全关键帧）。
-- 时间轴原则：**允许 clip 时间重叠**（lane 模型红利，旧单相机时代不允许——一个时间点只能有一个相机状态）；重叠解析 = 先按轨道层级，再按轨道内 clip 顺序（后面的 clip 在上）。叠化 = **末尾帧/首帧复制延长（hold 等值关键帧，工具自动补充）** + opacity 关键帧；不允许重叠会露原版画面。
+- 效果原则：大部分效果写成**系统可追踪的数据**（轨道 → clip → 关键帧参数），不写死代码；机制性能力最小化。转场即例子：叠化 = 底层 A 保持不透明 + 上层 B opacity 0→1（hold 等值关键帧由作者 / 工具写入），黑场/白场 = OVERLAY 轨预配置 clip。参考项目：ReplayMod 路径系统（Timeline/Path/Keyframe 全数据化）、olive（节点参数全关键帧）。
+- 时间轴原则：**允许 clip 时间重叠**（lane 模型红利，旧单相机时代不允许——一个时间点只能有一个相机状态）；重叠解析 = 先按轨道层级，再按轨道内 clip 顺序（后面的 clip 在上）。叠化 = **底 A 不透明 + 上 B opacity 0→1**（hold 等值关键帧由工具写入，运行时只执行）；不允许重叠会露原版画面。
 - 版本原则：**不维护自己的过时东西**——每个版本自己的代码保持最干净；不写迁移 shim、不保留旧格式/旧写法兼容层、不留旧代码路径；设计变更直接替换旧语义并在文档标注（如"0.3.6 起"）。注意：**MC 多版本支持是要做的目标**（common 层架构为此服务），本条只管模组自己的代码与脚本格式，与跨 MC 版本适配不冲突。
 - 比例原则：**一切按比例缩放，不用绝对像素**——位置/尺寸/缩放全是归一化比例；计算全程浮点，**最后一步才映射到屏幕像素**，中间不取整；窗口从 600×800 到 2K 构图一致。（**2026-10-10 起参照口径更新**：参考画布方案废除、`fit` 字段废除，画布 = 窗口，统一几何模型见 `D-transition/variable-frame.md` §4.2。）
 - 画面完整性原则：**每个画面层（lane / 覆盖层）产出的是一张完整、不透明的画面**——渲染期间不允许出现透明像素（雾、背景等一律以不透明色呈现）；**透明度只作用于完整的画面上**（合成层的 opacity 参数），而不是渲染时把透明"烤"进画面本身。反面教材（已修复）：lane 清屏色 alpha=0 + 合成 discard → 原版画面从雾区天窗透出。
@@ -57,12 +57,12 @@ plans/0.3.6/
 
 ---
 
-## 二、待执行批次（本目录，按轮次）
+## 二、批次状态（本目录，按轮次）
 
 | 轮次 | 目录 | 文档 | 状态 |
 |---|---|---|---|
 | C 触发器与判定 | `C-trigger/` | trigger-conditions（C1–C4）、playback-relations（C5）、condition-system（C6）、point-source-time-mode（C7）、trigger-continuity（P3）、state-tracking（P1） | ✅ **已完成（C1–C7 + C-reg + ②族改按执行事实判定 + C-pause，2026-10-14 关单）**；文档仍留本目录——`trigger-continuity` / `state-tracking` 属 **P3-impl / P1-impl** 方向稿（未落地），随其实现后再归档 |
-| D 转场/遮罩 | `D-transition/` | scene-transition（D1–D3）、overlay-color-mask（D4–D7）、variable-frame（D8–D10） | 全 ☐ |
+| D 转场/遮罩 | `D-transition/` | scene-transition（D1–D3）、overlay-color-mask（D4–D7）、variable-frame（D8–D10）；执行记录见 `execution-round.md` / `color-mask-execution.md` | ✅ **D1–D8 / D10 已完成（2026-10-17），D 轮关单**；D9 取消（字幕不裁切，不是待办）；D1–D3 纯显式 clip / 关键帧（C 最终方案），D2 lane rect/circle，D3 显式 z 序，见 `scene-transition.md` §3–§9 |
 | E 模板 | `E-template/` | templates | ⊘ 归编辑器阶段（E0 重审） |
 | F 播放/渲染 | `F-playback/` | parallel-playback（F2）、multi-camera-rendering（F3–F5）、camera-composition、iris-oculus-compat（P2） | F2–F5 ☐ |
 | G script-model | `G-script-model/` | script-model（G1–G6）、clock-abstraction（G4） | G6 ✅；G1–G4 ☐；G5 归编辑器 |

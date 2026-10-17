@@ -1,0 +1,410 @@
+{
+  "meta": {
+    "id": "test_color_mask",
+    "name": "覆盖层测试-高级颜色遮罩",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "D4-D7 高级颜色遮罩手动验收：68s，无自动触发（/icinematics play test_color_mask）。3-9s 三色线性（非等距 stop），9-15s 径向，15-21s 局部矩形，21-27s 非 16:9 窗口真圆，27-47s 五种混合（背景 #4080C0 / 上层 #C04080 / opacity 0.5），47-59s mask 与 gradient 几何关键帧，59-65s 纯色 RGB 关键帧。字幕独立 z=1000，全部层在 68s 自然结束并清理。",
+    "triggers": [],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 68,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 3,
+            "duration": 6,
+            "layer_type": "fade",
+            "z_index": 10,
+            "mask_shape": "full",
+            "blend_mode": "normal",
+            "gradient": {
+              "type": "linear",
+              "stops": [
+                { "offset": 0, "color": "#FF0000" },
+                { "offset": 0.15, "color": "#00FF00" },
+                { "offset": 1, "color": "#0000FF" }
+              ]
+            },
+            "keyframes": [
+              { "time": 0, "opacity": 1, "gradient_angle": 0 },
+              { "time": 6, "opacity": 1, "gradient_angle": 0 }
+            ]
+          },
+          {
+            "start_time": 9,
+            "duration": 6,
+            "layer_type": "fade",
+            "z_index": 10,
+            "mask_shape": "full",
+            "blend_mode": "normal",
+            "gradient": {
+              "type": "radial",
+              "stops": [
+                { "offset": 0, "color": "#FFFFFF" },
+                { "offset": 1, "color": "#FF4000" }
+              ]
+            },
+            "keyframes": [
+              { "time": 0, "opacity": 1, "gradient_center_x": 0.5, "gradient_center_y": 0.5, "gradient_radius": 0.45 },
+              { "time": 6, "opacity": 1, "gradient_center_x": 0.5, "gradient_center_y": 0.5, "gradient_radius": 0.45 }
+            ]
+          },
+          {
+            "start_time": 15,
+            "duration": 6,
+            "layer_type": "fade",
+            "z_index": 10,
+            "color": "#00E0FF",
+            "mask_shape": "rect",
+            "blend_mode": "normal",
+            "keyframes": [
+              { "time": 0, "opacity": 1, "mask_x": 0.3, "mask_y": 0.5, "mask_width": 0.3, "mask_height": 0.5 },
+              { "time": 6, "opacity": 1, "mask_x": 0.3, "mask_y": 0.5, "mask_width": 0.3, "mask_height": 0.5 }
+            ]
+          },
+          {
+            "start_time": 21,
+            "duration": 6,
+            "layer_type": "fade",
+            "z_index": 10,
+            "color": "#FF2DA0",
+            "mask_shape": "circle",
+            "blend_mode": "normal",
+            "keyframes": [
+              { "time": 0, "opacity": 1, "mask_x": 0.5, "mask_y": 0.5, "mask_radius": 0.3 },
+              { "time": 6, "opacity": 1, "mask_x": 0.5, "mask_y": 0.5, "mask_radius": 0.3 }
+            ]
+          },
+          {
+            "start_time": 47,
+            "duration": 6,
+            "layer_type": "fade",
+            "z_index": 10,
+            "color": "#FFCC00",
+            "mask_shape": "rect",
+            "blend_mode": "normal",
+            "keyframes": [
+              { "time": 0, "opacity": 1, "mask_x": 0.25, "mask_y": 0.5, "mask_width": 0.2, "mask_height": 0.3 },
+              { "time": 3, "opacity": 1, "mask_x": 0.5, "mask_y": 0.5, "mask_width": 0.3, "mask_height": 0.45 },
+              { "time": 6, "opacity": 1, "mask_x": 0.75, "mask_y": 0.5, "mask_width": 0.4, "mask_height": 0.6 }
+            ]
+          },
+          {
+            "start_time": 53,
+            "duration": 6,
+            "layer_type": "fade",
+            "z_index": 10,
+            "mask_shape": "full",
+            "blend_mode": "normal",
+            "gradient": {
+              "type": "radial",
+              "stops": [
+                { "offset": 0, "color": "#FFFFFF" },
+                { "offset": 1, "color": "#FF6600" }
+              ]
+            },
+            "keyframes": [
+              { "time": 0, "opacity": 1, "gradient_center_x": 0.3, "gradient_center_y": 0.5, "gradient_radius": 0.25, "gradient_angle": 0 },
+              { "time": 3, "opacity": 1, "gradient_center_x": 0.5, "gradient_center_y": 0.5, "gradient_radius": 0.35, "gradient_angle": 0 },
+              { "time": 6, "opacity": 1, "gradient_center_x": 0.7, "gradient_center_y": 0.5, "gradient_radius": 0.45, "gradient_angle": 0 }
+            ]
+          },
+          {
+            "start_time": 59,
+            "duration": 6,
+            "layer_type": "fade",
+            "z_index": 10,
+            "color": "#FF0000",
+            "mask_shape": "full",
+            "blend_mode": "normal",
+            "keyframes": [
+              { "time": 0, "opacity": 1, "color": "#FF0000" },
+              { "time": 1.8, "opacity": 1, "color": "#FFFF00" },
+              { "time": 3.6, "opacity": 1, "color": "#00FFFF" },
+              { "time": 5.2, "opacity": 1, "color": "#0000FF" },
+              { "time": 6, "opacity": 1, "color": "#0000FF" }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 27,
+            "duration": 20,
+            "layer_type": "fade",
+            "z_index": 20,
+            "color": "#4080C0",
+            "mask_shape": "full",
+            "blend_mode": "normal",
+            "keyframes": [
+              { "time": 0, "opacity": 1 },
+              { "time": 20, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 27,
+            "duration": 4,
+            "layer_type": "fade",
+            "z_index": 30,
+            "color": "#C04080",
+            "mask_shape": "full",
+            "blend_mode": "normal",
+            "keyframes": [
+              { "time": 0, "opacity": 0.5 },
+              { "time": 4, "opacity": 0.5 }
+            ]
+          },
+          {
+            "start_time": 31,
+            "duration": 4,
+            "layer_type": "fade",
+            "z_index": 30,
+            "color": "#C04080",
+            "mask_shape": "full",
+            "blend_mode": "multiply",
+            "keyframes": [
+              { "time": 0, "opacity": 0.5 },
+              { "time": 4, "opacity": 0.5 }
+            ]
+          },
+          {
+            "start_time": 35,
+            "duration": 4,
+            "layer_type": "fade",
+            "z_index": 30,
+            "color": "#C04080",
+            "mask_shape": "full",
+            "blend_mode": "screen",
+            "keyframes": [
+              { "time": 0, "opacity": 0.5 },
+              { "time": 4, "opacity": 0.5 }
+            ]
+          },
+          {
+            "start_time": 39,
+            "duration": 4,
+            "layer_type": "fade",
+            "z_index": 30,
+            "color": "#C04080",
+            "mask_shape": "full",
+            "blend_mode": "soft_light",
+            "keyframes": [
+              { "time": 0, "opacity": 0.5 },
+              { "time": 4, "opacity": 0.5 }
+            ]
+          },
+          {
+            "start_time": 43,
+            "duration": 4,
+            "layer_type": "fade",
+            "z_index": 30,
+            "color": "#C04080",
+            "mask_shape": "full",
+            "blend_mode": "overlay",
+            "keyframes": [
+              { "time": 0, "opacity": 0.5 },
+              { "time": 4, "opacity": 0.5 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 3,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "0.3.6 高级颜色遮罩演示（D4-D7）\n总长 68s，各阶段 4-6s；无自动触发，手动播放\n字幕 z=1000，颜色层在其下方",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 3, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          },
+          {
+            "start_time": 3,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "阶段 1/7 线性渐变（3-9s）\nstops: 0 红 / 0.15 绿 / 1 蓝（非等距）\n采样 y=0.5：x=0 红，x=0.15 绿，x=1 蓝",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 6, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          },
+          {
+            "start_time": 9,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "阶段 2/7 径向渐变（9-15s）\n中心 (0.5,0.5) 白，半径 0.45×短边 处橙红\n采样：中心白；向下 0.45 处 #FF4000",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 6, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          },
+          {
+            "start_time": 15,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "阶段 3/7 局部矩形（15-21s）\nrect 中心 (0.3,0.5)，宽 0.3 高 0.5，纯色 #00E0FF\n采样：中心青色；右侧 (0.7,0.5) 不受影响",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 6, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          },
+          {
+            "start_time": 21,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "阶段 4/7 真圆（21-27s）\n圆心 (0.5,0.5)，半径 0.30×短边，纯色 #FF2DA0\n请把窗口调成 4:3 或竖屏：圆仍为正圆",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 6, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          },
+          {
+            "start_time": 27,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "阶段 5/7 blend: normal（27-31s）采样屏幕中心\n背景 #4080C0 + 上层 #C04080 @ opacity 0.5\n期望 ≈ RGB(128,96,160) #8060A0",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 4, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          },
+          {
+            "start_time": 31,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "阶段 5/7 blend: multiply（31-35s）采样屏幕中心\n背景 #4080C0 + 上层 #C04080 @ 0.5\n期望 ≈ RGB(56,80,144) #385090（压暗）",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 4, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          },
+          {
+            "start_time": 35,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "阶段 5/7 blend: screen（35-39s）采样屏幕中心\n背景 #4080C0 + 上层 #C04080 @ 0.5\n期望 ≈ RGB(136,144,208) #8890D0（提亮）",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 4, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          },
+          {
+            "start_time": 39,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "阶段 5/7 blend: soft_light（39-43s）采样屏幕中心\n背景 #4080C0 + 上层 #C04080 @ 0.5\n期望 ≈ RGB(80,112,192) #5070C0（真 W3C）",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 4, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          },
+          {
+            "start_time": 43,
+            "duration": 4,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "阶段 5/7 blend: overlay（43-47s）采样屏幕中心\n背景 #4080C0 + 上层 #C04080 @ 0.5\n期望 ≈ RGB(80,96,192) #5060C0",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 4, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          },
+          {
+            "start_time": 47,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "阶段 6/7 mask 几何关键帧（47-53s）\nrect: x 0.25→0.75，宽 0.20→0.40，高 0.30→0.60\n采样 t=47 左窄 / t=50 居中 / t=53 右宽",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 6, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          },
+          {
+            "start_time": 53,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "阶段 6/7 gradient 几何关键帧（53-59s）\nradial: center_x 0.30→0.70，半径 0.25→0.45\n采样 t=53 左小 / t=56 中 / t=59 右大",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 6, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          },
+          {
+            "start_time": 59,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "阶段 7/7 纯色 color 关键帧（59-65s）\n59 红 → 60.8 黄 → 62.6 青 → 64.2 蓝\n逐 RGB 通道线性插值，无其他运算",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 6, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          },
+          {
+            "start_time": 65,
+            "duration": 3,
+            "layer_type": "subtitle",
+            "z_index": 1000,
+            "text": "演示结束（65-68s）\n全部 OVERLAY 层在 68s 自然结束并清理\n中途退出：/icinematics stop",
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 },
+              { "time": 3, "x": 0.5, "y": 0.1, "opacity": 1, "font_scale": 3 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 68,
+            "layer_type": "fade",
+            "z_index": 900,
+            "color": "#000000",
+            "mask_shape": "rect",
+            "blend_mode": "normal",
+            "keyframes": [
+              { "time": 0, "opacity": 0.55, "mask_x": 0.5, "mask_y": 0.1, "mask_width": 1, "mask_height": 0.18 },
+              { "time": 68, "opacity": 0.55, "mask_x": 0.5, "mask_y": 0.1, "mask_width": 1, "mask_height": 0.18 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

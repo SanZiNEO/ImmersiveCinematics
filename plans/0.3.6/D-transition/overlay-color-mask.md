@@ -1,5 +1,7 @@
 # 0.3.6 计划：完整颜色遮罩（Color Mask / Full Overlay）
 
+> **2026-10-17 实现落点**：D4–D7 扩展既有 `layer_type: "fade"`，包含线性 / 径向多色渐变、五种混合模式、矩形 / 圆形局部覆盖和高对比层级演示。字段合同与本轮验收见 [执行记录](color-mask-execution.md)，对外格式见 `docs/SCRIPT_FORMAT.md` §9。D1–D3 已另行收口：纯显式 clip / 关键帧（C 方案），转场 fade 的显式 z 序见 [scene-transition.md](scene-transition.md) §3.3；D9 取消（字幕不裁切）。以下背景及末尾事实核查保留为历史快照，不代表当前缺口。
+
 ## 1. 背景
 
 0.3.5 已实现基础的全屏遮罩能力：
@@ -31,9 +33,9 @@
 ### 2.1 基础增强
 - 全屏颜色遮罩（已有，继续保留）
 - 透明度关键帧控制（已有）
-- z_index 分层（已有，但需要测试更直观）
+- z_index 分层（已有；D3 定稿为**显式** z 序：普通 fade 缺省 10、转场 fade 显式 1000、转场示例字幕 100；需要同时显示的 OVERLAY 层各自独立轨，不自动置顶，也不改原版 HUD）
 
-### 2.2 新增能力（讨论项）
+### 2.2 新增能力（已定型并实现）
 - **渐变色遮罩**
   - 线性渐变 / 径向渐变
   - 多色 stops
@@ -42,6 +44,7 @@
 - **局部遮罩**
   - 矩形 / 圆形区域
   - 可指定 x/y 与尺寸
+  - 注：这是 **fade 颜色层**的覆盖范围；CAMERA lane 侧另有 clip 级 `mask_shape` full / rect / circle（D2，见 `scene-transition.md` §3.5）。image / subtitle 不裁切。
 - ~~颜色调色/滤镜~~ → **已移交 `screen-color-adjust.md`**：RGBA 通道拆分、完整 HSL、亮度/对比度等“改已有画面颜色”的能力归该文档；本文只管“往上盖一层颜色”（遮罩）。
 
 ### 2.3 测试可视化
@@ -64,22 +67,20 @@
 - 测试脚本：
   - `cinematics/tests/overlay/test_overlay_zindex.json`
 
-## 4. 开放问题
+## 4. 本轮范围裁决
 
-1. 颜色遮罩是否要做渐变？
-2. 是否要做混合模式？如果做，0.3.6 优先级如何？
-3. 局部遮罩是否必须，还是先做全屏高级遮罩？
-4. 是否保留现有脚本字段兼容？
-   - 现有 `layer_type: "fade"` 是否扩展字段，还是新增 `layer_type: "color_mask"` / `"gradient"`？
-5. 0.3.6 是否同时处理 WebUI 编辑器中的颜色/遮罩配置面板？
+- 渐变、混合与局部覆盖均纳入 D4–D6；D7 同步重做层级演示。
+- 扩展现有 `layer_type: "fade"`，不新建图层类型、轨道或转场机制。默认全屏纯色保持原行为，不引入格式兼容分支。
+- 字幕完整呈现，不做取材裁切；局部遮罩只定义颜色覆盖范围。
+- WebUI 配置面板留在编辑器阶段，本轮只提供运行时数据工具；D1–D3 已于 2026-10-17 另行收口（纯显式 clip / 关键帧，见 `scene-transition.md`），D9 取消（字幕不裁切）。
 
 ## 5. 验收标准
 
-- [ ] 颜色遮罩能明显显示，不再依赖“仔细看”
-- [ ] z_index 层级一眼可辨
-- [ ] 至少支持纯色、渐变、局部区域三种形态（或按讨论范围）
-- [ ] 测试脚本更新后可自动验证
-- [ ] 文档同步更新
+- [x] 颜色遮罩能明显显示，不再依赖“仔细看”
+- [x] z_index 层级一眼可辨
+- [x] 支持纯色、渐变、局部区域三种形态
+- [x] 正式测试脚本校验通过，数据 / GL / 真实生产渲染器探针与实机像素验收通过
+- [x] 文档同步更新；详细结果与未测边界见 `color-mask-execution.md`
 
 ---
 
@@ -105,7 +106,7 @@
 ### ③ 补全的信息
 
 - **§1 fade 无 ScriptParser 专用解析分支**：`script/ScriptParser.java` 无 `fade`/`layer_type`/`opacity` 相关匹配；字段读取为通用的 `Clip.getString/getInt`，合法性由 `ScriptValidator.checkEnum` 与 `schema/TrackSchemas.overlay()` 约束。原文「ScriptParser 的 fade 解析」若被理解为独立解析逻辑则不成立。
-- **`z_index` 默认值不一致（源码内部）**：`OverlayTrackPlayer.createLayer` 用 `clip.getInt("z_index", 10)`（默认 10）；`schema/TrackSchemas.overlay()` 的 FieldDef 默认值为 20；`docs/SCRIPT_FORMAT.md` 第 450 行文档默认值亦为 20。即无 `z_index` 时运行时实际取 10，与 schema/文档默认 20 不符。
+- **`z_index` 默认值不一致（源码内部，2026-10-07 历史记录）**：当时 `OverlayTrackPlayer.createLayer` 用 `clip.getInt("z_index", 10)`（默认 10）；`schema/TrackSchemas.overlay()` 的 FieldDef 默认值为 20；`docs/SCRIPT_FORMAT.md` 第 450 行文档默认值亦为 20。**现行（2026-10-17）**：运行时与 schema 缺省统一为 **10**；D3 定稿为显式 z 序（普通 fade 10 / 转场 fade 1000 / 转场示例字幕 100）。
 - **FadeLayer 颜色解析**：`setColor(String)` 只解析 `#RRGGBB`（`Integer.parseInt(clean,16) & 0x00FFFFFF`），alpha 完全由 `targetOpacity` 决定；非法颜色 WARN 后回退黑色。故 `#FF0000` + 关键帧 opacity 0.4 → ARGB `0x66FF0000`，颜色通道本身正确。
 
 ### ④ 无法核实的断言（未验证）

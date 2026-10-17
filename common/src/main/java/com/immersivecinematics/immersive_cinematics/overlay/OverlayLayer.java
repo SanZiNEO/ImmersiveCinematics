@@ -93,4 +93,13 @@ public interface OverlayLayer {
      * 默认实现返回 false（无动画的层始终视为非动画状态 → 退场时下一帧硬停）。
      */
     default boolean isAnimating() { return false; }
+
+    /**
+     * 释放此覆盖层持有的 GPU / 原生资源（默认无资源 = 空操作）。
+     * <p>
+     * 由 {@link OverlayManager#removeLayer(OverlayLayer)} /
+     * {@link OverlayManager#removeLayersOf(Object)} 在层真正移出列表后调用；每个层只会被关闭一次
+     * （实现方仍需对重复调用保持幂等）。{@code reset()} 不关闭资源——层仍在列表中，只是回到默认状态。
+     */
+    default void close() {}
 }

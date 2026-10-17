@@ -63,6 +63,9 @@ public final class TrackSchemas {
         clips.put("transition_interrupt", new FieldDef("enum", "blend", false, List.of("blend", "snap"), "transition"));
         clips.put("curve", new FieldDef("bezier_curve", null));
         clips.put("dimension", new FieldDef("string", ""));
+        // lane 合成遮罩形状（0.3.6 D2）：只属于 CAMERA（OVERLAY 的 fade 另有同名字段，语义相同但作用于颜色层）。
+        // 几何通道（mask_x / mask_y / mask_width / mask_height / mask_radius）是关键帧字段，见下方 kfs。
+        clips.put("mask_shape", new FieldDef("enum", "full", false, List.of("full", "rect", "circle")));
         clips.put("loop", new FieldDef("bool", false));
         clips.put("loop_count", new FieldDef("int", -1));
         clips.put("loop_mode", new FieldDef("enum", "repeat", false, List.of("repeat", "pingpong")));
@@ -205,6 +208,14 @@ public final class TrackSchemas {
         kfs.put("opacity", new FieldDef("float", 1.0f));
         kfs.put("dest", new FieldDef("map", null));
         kfs.put("source", new FieldDef("map", null));
+        // lane 合成遮罩几何（0.3.6 D2；形状是 clip 级 mask_shape）：窗口比例中心 / 宽高 / 短边半径，
+        // 随关键帧线性插值，由 client/lane/LaneMask 逐帧采样（语义 = fade 局部几何，作用对象 = lane 整幅 RGB）。
+        // full 不消费这些通道；rect 读 x/y/width/height；circle 读 x/y/radius。
+        kfs.put("mask_x", new FieldDef("float", 0.5f));
+        kfs.put("mask_y", new FieldDef("float", 0.5f));
+        kfs.put("mask_width", new FieldDef("float", 1.0f));
+        kfs.put("mask_height", new FieldDef("float", 1.0f));
+        kfs.put("mask_radius", new FieldDef("float", 0.5f));
 
         // 调色：每个相机片段直接携带自己的调色；作用于该相机轨的 lane（渲染完、合成前）
         // 下列 57 个字段与 ADJUST 轨同名同缺省（47 个标量通道缺省 0 + 10 个曲线强度缺省 1）。
@@ -286,6 +297,9 @@ public final class TrackSchemas {
         putCommonClipFields(clips);
         Map<String, FieldDef> kfs = new LinkedHashMap<>();
         kfs.put("aspect_ratio", new FieldDef("float", 2.35f));
+        // 黑边不透明度（0~1，缺省 1 = 纯黑边）：与覆盖层同名通道同口径（LetterboxLayer#setOpacity），
+        // 随关键帧线性插值（0.3.6 D10 接通；此前恒为 1）
+        kfs.put("opacity", new FieldDef("float", 1.0f));
         return new TrackTypeSchema(clips, kfs);
     }
 
@@ -343,6 +357,13 @@ public final class TrackSchemas {
         putCommonClipFields(clips);
         clips.put("layer_type", new FieldDef("enum", "fade", true, List.of("fade", "image", "subtitle")));
         clips.put("color", new FieldDef("string", "#000000"));
+        // fade 高级颜色遮罩（0.3.6 D4–D7）：只属于 layer_type=fade；image / subtitle 上写会被
+        // ScriptParser / ScriptValidator 明确拒绝（不扩规则动作字段，也不影响旧 fade 默认表现）
+        // gradient = {type: linear|radial, stops: [{offset, color}, ...]}（结构数据，解析期一次校验）
+        clips.put("gradient", new FieldDef("map", null));
+        clips.put("mask_shape", new FieldDef("enum", "full", false, List.of("full", "rect", "circle")));
+        clips.put("blend_mode", new FieldDef("enum", "normal", false,
+                List.of("normal", "multiply", "screen", "soft_light", "overlay")));
         clips.put("path", new FieldDef("string", ""));
         clips.put("text", new FieldDef("string", ""));
         // 顺序：统一默认 10（0.3.6 起单一取值；letterbox 的 z = 0 是内置常量，不在脚本口径内）
@@ -363,6 +384,23 @@ public final class TrackSchemas {
         kfs.put("source", new FieldDef("map", null));
         // 不透明度：缺省 1.0 = 不透明（fade/letterbox 也有效）
         kfs.put("opacity", new FieldDef("float", 1.0f));
+        // fade 高级颜色遮罩关键帧通道（0.3.6 D4–D7）：只属于 layer_type=fade；image / subtitle 上写会被
+        // ScriptParser / ScriptValidator 明确拒绝。几何通道缺省 = 旧 fade 的全窗口覆盖。
+        // color 缺省 null = 回落 clip 级 color（不是固定黑色）
+        kfs.put("color", new FieldDef("string", null));
+        // 覆盖区域中心（窗口比例，可越界）
+        kfs.put("mask_x", new FieldDef("float", 0.5f));
+        kfs.put("mask_y", new FieldDef("float", 0.5f));
+        // rect 宽高 / 窗口比例（非负，不设人为上限；零面积不绘制）
+        kfs.put("mask_width", new FieldDef("float", 1.0f));
+        kfs.put("mask_height", new FieldDef("float", 1.0f));
+        // circle 半径 / 窗口较短边（非负；0 不绘制）
+        kfs.put("mask_radius", new FieldDef("float", 0.5f));
+        // linear 方向角（0 = 向右，90 = 向下）；radial 中心（窗口比例，可越界）与半径（短边比例，必须 > 0）
+        kfs.put("gradient_angle", new FieldDef("float", 0f));
+        kfs.put("gradient_center_x", new FieldDef("float", 0.5f));
+        kfs.put("gradient_center_y", new FieldDef("float", 0.5f));
+        kfs.put("gradient_radius", new FieldDef("float", 0.5f));
         // 字幕专用：字号倍数（1 = 原版 9px），改变文字块基准尺寸，与 scale_x/y 叠加
         kfs.put("font_scale", new FieldDef("float", 1));
 

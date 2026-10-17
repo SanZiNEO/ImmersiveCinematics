@@ -4,7 +4,7 @@
     "name": "转场测试-黑场",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "黑场转场：OVERLAY 轨两个预配置 fade clip（color=#000000）——压场 0→1 + 亮起 1→0；两段 CAMERA 之间的硬切被黑场遮住",
+    "description": "黑场转场（D3 显式 z 序）：转场 fade 两段 color=#000000、z_index=1000（显式）；说明字幕 4 段 z_index=100（显式）；对照用普通 fade 不写 z_index（默认 10）。转场 fade 与普通 fade 分属独立 OVERLAY 轨（同轨 findActiveClip 只消费首个活跃 clip，重叠会遮蔽后者）。0-2s 压场，2-4s 全遮 hold，4-6s 亮起，6-8s 转场 fade=0（普通 fade 4-6s 升到 0.5、6-8s 在 z10 hold 0.5）；4s 处 A→B 相机硬切完全发生在全黑之下，8s 自然结束。采样：t=1.0 中心 (0.5,0.5) = 约 50% 黑 + 50% 画面（压场）；t=3.0 中心 = 纯黑 #000000（全遮 hold，字幕被 z1000 完全盖住）；t=5.0 中心 = 约 50% 黑（亮起；其下 z10 普通 fade 此时 0.25）；t=7.0 转场 fade=0，普通 fade（z10）以 #404040 / opacity 0.5 压暗画面，字幕 z100 仍在普通 fade 之上可读（对照）。",
     "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_overlay_fade"] } ],
     "block_keyboard": false,
     "block_mouse": false,
@@ -25,15 +25,46 @@
         "clips": [
           {
             "start_time": 0,
-            "duration": 8,
+            "duration": 2,
             "layer_type": "subtitle",
-            "text": "测试: test_fade_black | 转场: 黑场 | 压场 0-4s → 亮起 4-8s",
-            "x": 0.5,
-            "y": 0.5,
+            "text": "压场 0-2s：z1000 黑场 0→1（字幕 z100 被盖）",
             "z_index": 100,
             "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
+              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
+              { "time": 2, "x": 0.5, "y": 0.18, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 2,
+            "duration": 2,
+            "layer_type": "subtitle",
+            "text": "全遮 2-4s：z1000 = 1（纯黑，字幕不可见）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
+              { "time": 2, "x": 0.5, "y": 0.18, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 4,
+            "duration": 2,
+            "layer_type": "subtitle",
+            "text": "亮起 4-6s：z1000 黑场 1→0（A→B 切镜在全遮下完成）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
+              { "time": 2, "x": 0.5, "y": 0.18, "opacity": 1 }
+            ]
+          },
+          {
+            "start_time": 6,
+            "duration": 2,
+            "layer_type": "subtitle",
+            "text": "对照 6-8s：普通 fade 默认 z10 在字幕 z100 之下（字幕仍可读）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
+              { "time": 2, "x": 0.5, "y": 0.18, "opacity": 1 }
             ]
           }
         ]
@@ -47,8 +78,20 @@
             "transition": "cut",
             "loop": false,
             "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 4, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1 }
+              {
+                "time": 0,
+                "position": { "dx": 0, "dy": 2, "dz": -6 },
+                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": -0.7, "saturation": 0.15
+              },
+              {
+                "time": 4,
+                "position": { "dx": 0, "dy": 2, "dz": -6 },
+                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": -0.7, "saturation": 0.15
+              }
             ]
           },
           {
@@ -57,8 +100,20 @@
             "transition": "cut",
             "loop": false,
             "keyframes": [
-              { "time": 0, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 4, "position": { "dx": 6, "dy": 2, "dz": 0 }, "yaw": 180, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1 }
+              {
+                "time": 0,
+                "position": { "dx": 6, "dy": 2, "dz": 0 },
+                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": 0.8, "saturation": 0.15
+              },
+              {
+                "time": 4,
+                "position": { "dx": 6, "dy": 2, "dz": 0 },
+                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
+                "opacity": 1,
+                "temperature": 0.8, "saturation": 0.15
+              }
             ]
           }
         ]
@@ -71,7 +126,7 @@
             "duration": 4,
             "layer_type": "fade",
             "color": "#000000",
-            "z_index": 10,
+            "z_index": 1000,
             "keyframes": [
               { "time": 0, "opacity": 0 },
               { "time": 2, "opacity": 1 },
@@ -83,11 +138,27 @@
             "duration": 4,
             "layer_type": "fade",
             "color": "#000000",
-            "z_index": 10,
+            "z_index": 1000,
             "keyframes": [
               { "time": 0, "opacity": 1 },
               { "time": 2, "opacity": 0 },
               { "time": 4, "opacity": 0 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 4,
+            "duration": 4,
+            "layer_type": "fade",
+            "color": "#404040",
+            "keyframes": [
+              { "time": 0, "opacity": 0 },
+              { "time": 2, "opacity": 0.5 },
+              { "time": 4, "opacity": 0.5 }
             ]
           }
         ]

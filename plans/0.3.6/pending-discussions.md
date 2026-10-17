@@ -31,6 +31,8 @@
 
 ## 一、仍未定（0.3.6 边做边讨论：随批次推进就地销项，销项进 §二；少数架构/优先级决策仍需用户拍板）
 
+> D 轮（2026-10-17）的 D1–D8 / D10 已收口、D9 取消；各节保留一行状态便于核对，完整销项见 §二 / §三。
+
 ### 索引层
 - **Bezier 曲线编辑器（控制点可视化）**：数值编辑已有（`BezierCurveField`），控制点可视化无；原 0.4.0 条目，随编辑器线排期。影响：编辑器线。（`README.md` §七；审计 §一）
 - **相机底层七篇缺统摄 roadmap**：先做哪篇、谁依赖谁未定。影响：camera-state-plan / coordinate-frame / selector-model / math-models / temporal-interpolation / transition / hysteresis 的排期。（`README.md` §五）
@@ -126,7 +128,7 @@
 - **§10 TBD（8 条）**：`action` 的精确语义（continue/end/next_script/jump/branch）/ 超时行为的完整定义 / any·all_of·branch 事件树的最终形式 / 多玩家·广播脚本下等待点按玩家独立还是全局共享 / 按钮·屏幕坐标·文本输入等 UI 事件的具体渲染与交互 / 外部模组事件接入 API / 等待期间能否允许其他轨道（非音频）继续 / 编辑器中的可视化与编辑方式。（§10 L228-235）
 
 ### overlay-color-mask.md（Overlay 颜色遮罩）
-- **§4 开放问题（6 条）**：颜色遮罩是否要做渐变 / 是否要做混合模式（若做，0.3.6 优先级如何）/ 局部遮罩是否必须还是先做全屏高级遮罩 / 是否保留现有脚本字段兼容 / 扩展 `layer_type:"fade"` 字段还是新增 `color_mask`·`gradient` 类型 / 0.3.6 是否同时处理 WebUI 编辑器中的颜色·遮罩配置面板。（§4）
+- **D4–D7 已收口（2026-10-17，销项）**：§4 六项开放问题全部定型——渐变 / 混合 / 局部遮罩均做；扩展 `layer_type:"fade"`，不新增类型；默认全屏纯色保持；WebUI 面板归编辑器。实现、验收与 Forge / Iris 边界见 `D-transition/color-mask-execution.md`。
 
 ### screen-color-adjust.md（画面颜色调整）
 - **曲线关键帧形态 a/b 的选择**：倾向先 b 后 a，仍留待执行时定。（§3.1 L283-286、§6 L337）
@@ -137,20 +139,13 @@
 - **LUT 的时机**。（§6）
 
 ### scene-transition.md（画面转场）
-- **转场数据落点形态 A/B/C**：倾向 C 先行（零成本验证语义）、A 默认、B 远期——落地时定。影响：TrackType 扩展。（§4、§7 L124）
-- **转场类型第一版范围**：cut/dissolve/black/white 之外是否纳入 wipe。（§7 L125）
-- **转场时长 / 曲线的默认值**。（§7）
-- **转场期间的时间线语义**：算前一片段还是后一片段，还是独立区间（与 script-model 片段窗口语义联动）。（§7）
-- **z 序**：转场遮罩是否要压住字幕（现状 fade z=10 < 字幕 z=30，压不住；需更高 z 或转场专用层）。（§3.3、§6 L117）
-- **转场与跳过/打断的交互**：跳过途中转场 = 立即硬切还是加速完成。（§6 L115）
-- **lane 的 opacity 插值曲线**：复用 overlay 的 `interpolation`（linear/smooth）还是另定。（§6 L116）
-- **转场归属形态（§4 A/B/C）与 TrackType 扩展的关系**。（§6 L113）
-- **叠化期间主相机是否可动**（沿用 multi-camera §9）。（§6 L114）
-- **script-loop 回卷衔接**：repeat 硬切 or 可选叠化——与 `script-loop.md` §11 挂钩。（§5 L106）
+- **D1–D3 已收口（2026-10-17，销项）**：数据落点 = **C（纯显式 clip / 关键帧）最终方案**，不新增 `transition_in/out`、`TRANSITION` 轨或运行时生成器；转场类型第一版 = cut / dissolve / black / white / wipe；z 序 = 显式 `z_index`（普通 fade 10 / 转场 fade 1000 / 示例字幕 100；同时显示的 OVERLAY 层各自独立轨，同轨只消费首活跃 clip）；叠化 = 底 A 不透明 + 上 B 0→1；旧“互补 alpha 不会露底”的错误结论已纠正。详见 `scene-transition.md` §3–§9。
+- **仍开放（应用层，不阻塞 D 轮）**：叠化期间主相机是否可动（沿用 multi-camera §9）；跳过 / 打断途中的转场行为；lane opacity 插值曲线；script-loop 回卷衔接（repeat 硬切 or 可选叠化）。
 
 ### variable-frame.md（画面系统核心）
-- **§7 可能的问题（7 条）+ §8 待定（3 条）**：画面层在 z 序里的基线（应在 letterbox 之下，现 letterbox z=0 已最小，需更低基线）/ 素材无内在尺寸（纯色遮罩·文本）时「取材」的语义 / 取材超出素材边界的行为（钳制/黑/循环）/ 旋转是否纳入（不纳入则锚点意义减半）/ 小尺寸画面是否按显示尺寸渲染（取舍问题）/ 与 HUD·letterbox 的叠放顺序细节 / 相机侧 `dest`（屏幕归一化口径）与画布归一化口径的换算（步骤 3-5 对齐时定）。（§7 L250-254、§8 L260-263、§3.1 L149）
-- **预览画布的具体形态**（现有 `WebPreviewScreen` 帧推流通道可作基础）。（§5 L234）
+- **D8 / D10 已完成（2026-10-17，销项）**：统一几何（§4.2）沿用；`base_resolution` 不设 16384 人为上限（正整数可表示范围）；LETTERBOX opacity 线性接线；**D9 取消（字幕完整呈现，不裁切，不是待办）**。
+- **仍开放（与几何口径无关）**：画面层 z 序基线（应在 letterbox 之下）；旋转是否纳入；小尺寸画面是否按显示尺寸渲染；与 HUD / letterbox 的叠放顺序细节；编辑器预览画布具体形态。
+- 已结清：取材边界（钳制到素材内、裁到 0 不绘制）；`dest` 与画布换算（无换算，统一窗口参照）；`pip` 删除；`fit` 废除。
 
 ### script-model.md（关键帧模型）
 - **§6 可能的问题（6 条）+ §7 待定（6 条）**：参数寻址的粒度在编辑器怎么呈现（每分量一条曲线还是合并）/ 关键帧级插值后片段级插值字段（clip `interpolation`）的去留与迁移 / meta 关键帧化的边界（哪些 meta 不适合）/ 时间精度的迁移代价 / 参数声明与现有 `FieldDef` 的合并方式 / 关键帧数据规模（脚本体积·解析开销）；关键帧的字段形态（含贝塞尔手柄表示）/ 参数寻址的具体写法 / `keyframable` 的声明位置（schema 还是运行时）/ meta 关键帧化的清单与例外 / 时间精度方案 / 实例身份与跨实例引用的规则。（§6 L88-93、§7 L99-104）
@@ -302,6 +297,11 @@
 - **parallel-playback 已知缺陷「`emergencyStop()` 不清队列」** → 已修正（`deactivateNow` 先 `reset()` 清空 `scriptQueue`）。（`parallel-playback.md` L233）
 - **parallel-playback「`C2SPlaybackStarted` 无条件回报」** → 已修复（2026-10-07，ACK 与播放账本拆分）。（`parallel-playback.md` L234）
 
+### D 轮（2026-10-17）
+- **scene-transition D1–D3** → 已收口：C 为最终方案（纯显式 clip / 关键帧，无新字段 / 新轨 / 运行时生成器）；wipe = CAMERA `mask_shape` full/rect/circle + source/dest 关键帧；z 序 = 显式 `z_index`；叠化 = 底 A 不透明 + 上 B 淡入。见 `scene-transition.md` §3–§9。
+- **overlay-color-mask D4–D7** → 已收口：渐变 / 五混合 / 局部矩形圆形 / 高对比 z 序演示。见 `color-mask-execution.md`。
+- **variable-frame D8 / D10** → 已完成；D9 取消（字幕不裁切）。见 `execution-round.md`（历史轮）与 `variable-frame.md` 文首。
+
 ### 跨文档已结清
 - **scene-transition「转场是否影响 GUI 层」** → 已结清：不影响（共用 `screen-color-adjust.md` §5-3 的结论）。（`scene-transition.md` §6 L118）
 - **quadrant-perf/summary.md「≈1.2–1.4 × 主画面」比值** → 已删除（summary.md L17 已改；`multi-camera-rendering.md` 事实核查 L268「未改动」的说法已过时）。（`quadrant-perf/summary.md` L17）
@@ -321,6 +321,7 @@
 - **parallel-playback 单 lane 全屏优化（保留点②）** → 未保留：一律走全 lane 渲染（每 lane ≈3.4–3.6 ms）。（§3.3 L90）
 - **parallel-playback 触发状态机按实例维护** → 不做：状态机键保持（玩家 + 脚本 + 触发器），与同脚本单实例一致。（§3.7 L111）
 - **overlay-color-mask 颜色调色/滤镜** → 已移交 `screen-color-adjust.md`。（`overlay-color-mask.md` §2.2）
+- **variable-frame D9（文本层取材 / 字幕裁切）** → **取消（明确不做，不是待办）**：用户 2026-10-17 澄清字幕完整呈现、无裁切需求；`source` 只用于图片与相机画面 lane，`fit` 不恢复。执行期间短暂新增的字幕裁切代码、接线、样例已撤回。（`variable-frame.md` 文首、`execution-round.md` 历史轮）
 - **quadrant-prototype 原型文件（QuadrantProto 等）** → 已删除/正式化为 `client/lane/LaneRenderer`（2026-10-07）。（`quadrant-prototype-results.md` §7 L146-150）
 - **`plans/0.3.6/README.md` §五 七篇的 🔒「长期讨论」标记** → 口径修正：本目录全部文档 = 0.3.6 工作范围；「🔒 长期讨论」已废止为**历史标记**，0.3.6 工作方式 = **边做边讨论**、随批次就地销项（2026-10-11 用户口径），标记应视为「未实现」而非范围外。（`README.md` §五；审计 §六）
 

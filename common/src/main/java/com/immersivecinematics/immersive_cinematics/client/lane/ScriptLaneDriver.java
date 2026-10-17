@@ -20,7 +20,7 @@ import java.util.Map;
 
 /**
  * 脚本 lane 驱动：把脚本播放器本帧的活跃画面 lane 注册进 {@link LaneRenderer}，并按每条 lane
- * 所属 clip 的关键帧合成参数（{@code opacity} / {@code dest} / {@code source}）逐 lane 上屏。
+ * 所属 clip 的关键帧合成参数（{@code opacity} / {@code dest} / {@code source} / lane 遮罩）逐 lane 上屏。
  *
  * <h2>链路</h2>
  * <pre>
@@ -51,7 +51,11 @@ import java.util.Map;
  *
  * <h2>合成参数的来源</h2>
  * 每 lane 的 {@code opacity} / {@code dest} / {@code source} 取自该 lane 所属 clip 的关键帧，
- * 在<b>该 clip 的本地时间</b>处插值（{@link CameraLane#clipLocalTime()}）——与相机六参数用同一个插值器，
+ * <b>lane 遮罩</b>（{@code mask_shape} / {@code mask_x} / {@code mask_y} / {@code mask_width} /
+ * {@code mask_height} / {@code mask_radius}）同样在该 clip 本地时间处由 {@link LaneMask} 采样；
+ * 每槽复用一个 {@link LaneMask} 实例，无逐帧分配。链输出注册的主画面 lane（无 CAMERA clip）显式
+ * 复位 full，避免槽位跨帧复用时残留上一帧的遮罩。
+ * <p>上述参数均在<b>该 clip 的本地时间</b>处插值（{@link CameraLane#clipLocalTime()}）——与相机六参数用同一个插值器，
  * 所以 hold（片段末尾复制延长）、loop / pingpong 的时间语义与相机完全一致。段内进度为<b>匀速线性</b>
  * （0.3.6 起运行时统一线性：缓动由编辑器烘焙成显式关键帧，运行时不求值）。缺省 = {@code 1} / 全屏 / 全幅
  * （字段与校验见 docs/SCRIPT_FORMAT.md §4「合成参数」）。矩形按分量整体插值（同 {@code position} 的复合值口径）。
@@ -230,6 +234,9 @@ public final class ScriptLaneDriver {
         slot.opacity = 1.0F;
         slot.source = LaneCompositor.Rect.FULL;
         slot.dest = LaneCompositor.Rect.FULL;
+        // 链输出 = 主画面，无 CAMERA clip：显式复位 full（槽位跨帧复用，防上一帧同序号 lane 的遮罩残留）。
+        // sample(null, 0) 是数据层的复位约定：全部字段回默认 full，不抛异常、不分配。
+        slot.mask.sample(null, 0.0F);
         slot.captureId = CHAIN_CAPTURE_ID;
         renderer.setLane(0, main, CONTENT, null, slot.captureId);
         renderer.setSink(ScriptLaneDriver::compose);
@@ -246,7 +253,8 @@ public final class ScriptLaneDriver {
     }
 
     /**
-     * 一条 lane 的合成参数：从它所属 clip 的关键帧在其本地时间处插值（缺省 = 1 / 全屏 / 全幅）。
+     * 一条 lane 的合成参数：从它所属 clip 的关键帧在其本地时间处插值（缺省 = 1 / 全屏 / 全幅），
+     * 并在同一时间点采样 lane 遮罩（{@link LaneMask}；缺省 / 旧 clip = full）。
      * <p>
      * 段内进度为匀速线性（0.3.6 起运行时统一线性；缓动由编辑器烘焙成显式关键帧，运行时不求值）。
      */
@@ -258,14 +266,17 @@ public final class ScriptLaneDriver {
             slot.opacity = 1.0F;
             slot.source = LaneCompositor.Rect.FULL;
             slot.dest = LaneCompositor.Rect.FULL;
-            return;
+        } else {
+            Keyframe from = result.from;
+            Keyframe to = result.to;
+            float s = result.adjustedT;
+            slot.opacity = lerp(from.getFloat("opacity", 1.0F), to.getFloat("opacity", 1.0F), s);
+            slot.source = interpolateRect(from, to, s, "source");
+            slot.dest = interpolateRect(from, to, s, "dest");
         }
-        Keyframe from = result.from;
-        Keyframe to = result.to;
-        float s = result.adjustedT;
-        slot.opacity = lerp(from.getFloat("opacity", 1.0F), to.getFloat("opacity", 1.0F), s);
-        slot.source = interpolateRect(from, to, s, "source");
-        slot.dest = interpolateRect(from, to, s, "dest");
+        // 遮罩：与合成参数同一 clip 本地时间采样（沿用 loop / morph 的既有时间口径）。
+        // 无 mask 字段 / 空关键帧的旧 clip → full（LaneMask 内部复位，不扫描没消费的几何）。
+        slot.mask.sample(lane.clip(), lane.clipLocalTime());
     }
 
     /** 关键帧矩形字段 {@code {x,y,w,h}} 的逐分量插值；字段缺省 = 全幅 / 全屏。 */
@@ -303,7 +314,8 @@ public final class ScriptLaneDriver {
     private static void compose(int index, RenderTarget texture, boolean written) {
         Slot slot = SLOTS.get(index);
         // 失败 / 未写的 lane 由合成层守门跳过（判定与限频告警在 LaneCompositor.compose 内）
-        boolean composited = LaneCompositor.compose(texture, slot.source, slot.dest, slot.opacity, written);
+        boolean composited = LaneCompositor.compose(texture, slot.source, slot.dest, slot.opacity, written,
+                slot.mask);
         // 调试捕获 b（每相机 composited）：该相机确实贴到主画面之后立刻读回主 framebuffer 的该相机区域
         // （保真 alpha，按 dest 裁剪）。ICINEMATICS_CAPTURE 门控；关闭 / 未上屏（守门跳过）时零差异。
         if (composited) {
@@ -324,6 +336,8 @@ public final class ScriptLaneDriver {
         private float opacity = 1.0F;
         private LaneCompositor.Rect source = LaneCompositor.Rect.FULL;
         private LaneCompositor.Rect dest = LaneCompositor.Rect.FULL;
+        /** CAMERA lane 遮罩：每槽复用，每次 resolve / 链输出复位时重新采样（无逐帧分配）。 */
+        private final LaneMask mask = new LaneMask();
         private String captureId;
     }
 }

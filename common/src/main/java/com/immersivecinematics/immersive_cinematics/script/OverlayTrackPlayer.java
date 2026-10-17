@@ -30,12 +30,22 @@ public class OverlayTrackPlayer implements TrackPlayer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OverlayTrackPlayer.class);
 
+    // fade 高级颜色遮罩通道缺省（口径 = plans/0.3.6/D-transition/color-mask-execution.md）
+    private static final float DEFAULT_MASK_POSITION = 0.5f;   // mask_x / mask_y（窗口比例，元素中心）
+    private static final float DEFAULT_MASK_SIZE = 1.0f;       // mask_width / mask_height（窗口比例）
+    private static final float DEFAULT_MASK_RADIUS = 0.5f;     // mask_radius（短边比例）
+    private static final float DEFAULT_GRADIENT_ANGLE = 0f;    // 0 = 向右，90 = 向下
+    private static final float DEFAULT_GRADIENT_CENTER = 0.5f; // gradient_center_x / _y（窗口比例）
+    private static final float DEFAULT_GRADIENT_RADIUS = 0.5f; // gradient_radius（短边比例）
+
     private final ScriptPlayer scriptPlayer;
     private final TrackType type;
     private final int trackIndex;
     private final OverlayManager overlayManager;
     private OverlayLayer currentLayer = null;
     private Clip activeClip = null;
+    /** 当前 fade 片段的高级颜色遮罩定义（建层时取一次；clip 切换 / reset / stop 时清空，不逐帧新建） */
+    private ColorMaskSpec activeMaskSpec = null;
 
     public OverlayTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, OverlayManager overlayManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
@@ -115,6 +125,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
             currentLayer = null;
         }
         activeClip = null;
+        activeMaskSpec = null;
     }
 
     private OverlayLayer createLayer(Clip clip) {
@@ -131,6 +142,10 @@ public class OverlayTrackPlayer implements TrackPlayer {
             case "fade" -> {
                 FadeLayer fl = new FadeLayer(scriptPlayer.owner());
                 fl.setColor(clip.getString("color", "#000000"));
+                // 高级颜色遮罩定义在解析期已缓存于 clip；建层时取一次并送入层（GPU 资源生命周期归 FadeLayer）
+                ColorMaskSpec spec = clip.getColorMaskSpec();
+                activeMaskSpec = spec;
+                fl.setMaskSpec(spec);
                 fl.setZIndex(zIndex);
                 layer = fl;
             }
@@ -172,8 +187,51 @@ public class OverlayTrackPlayer implements TrackPlayer {
 
     private void updateLayer(float opacity, List<Keyframe> kfs, float localTime) {
         if (currentLayer instanceof FadeLayer fl) {
-            // 效果层铺满画布：位置 / 锚点 / 缩放不生效，只有 opacity
+            // 效果层铺满画布：位置 / 锚点 / 缩放不生效；opacity 先按原默认作用于合成结果
             fl.setOpacity(opacity);
+            // 高级颜色遮罩：只按 spec 能力采样被消费的通道，颜色由 spec 按 localTime 缓存采样
+            // （缺省 full / 无渐变时跳过对应几何采样，层保持初始化缺省 = 旧 fade 行为）
+            ColorMaskSpec spec = activeMaskSpec;
+            if (spec != null) {
+                // 只采样 spec 实际消费的通道（新层已初始化各通道缺省，未读通道保持缺省）：
+                // full 不读 mask 几何；rect 读 x/y/宽/高；circle 读 x/y/半径。
+                String maskShape = spec.maskShape();
+                if ("rect".equals(maskShape)) {
+                    fl.setMaskGeometry(
+                            interpolateFloat(kfs, localTime, "mask_x", DEFAULT_MASK_POSITION),
+                            interpolateFloat(kfs, localTime, "mask_y", DEFAULT_MASK_POSITION),
+                            interpolateFloat(kfs, localTime, "mask_width", DEFAULT_MASK_SIZE),
+                            interpolateFloat(kfs, localTime, "mask_height", DEFAULT_MASK_SIZE),
+                            DEFAULT_MASK_RADIUS
+                    );
+                } else if ("circle".equals(maskShape)) {
+                    fl.setMaskGeometry(
+                            interpolateFloat(kfs, localTime, "mask_x", DEFAULT_MASK_POSITION),
+                            interpolateFloat(kfs, localTime, "mask_y", DEFAULT_MASK_POSITION),
+                            DEFAULT_MASK_SIZE, DEFAULT_MASK_SIZE,
+                            interpolateFloat(kfs, localTime, "mask_radius", DEFAULT_MASK_RADIUS)
+                    );
+                }
+                // 渐变几何只在声明了渐变时读取：linear 用方向角 + 中心；radial 用中心 + 半径。
+                if (spec.hasGradient()) {
+                    if ("radial".equals(spec.gradientType())) {
+                        fl.setGradientGeometry(
+                                DEFAULT_GRADIENT_ANGLE,
+                                interpolateFloat(kfs, localTime, "gradient_center_x", DEFAULT_GRADIENT_CENTER),
+                                interpolateFloat(kfs, localTime, "gradient_center_y", DEFAULT_GRADIENT_CENTER),
+                                interpolateFloat(kfs, localTime, "gradient_radius", DEFAULT_GRADIENT_RADIUS)
+                        );
+                    } else {
+                        fl.setGradientGeometry(
+                                interpolateFloat(kfs, localTime, "gradient_angle", DEFAULT_GRADIENT_ANGLE),
+                                interpolateFloat(kfs, localTime, "gradient_center_x", DEFAULT_GRADIENT_CENTER),
+                                interpolateFloat(kfs, localTime, "gradient_center_y", DEFAULT_GRADIENT_CENTER),
+                                DEFAULT_GRADIENT_RADIUS
+                        );
+                    }
+                }
+                fl.setColorRgb(spec.sampleColor(localTime));
+            }
         } else if (currentLayer instanceof ImageLayer il) {
             il.setOpacity(opacity);
             il.setPosition(
@@ -286,7 +344,13 @@ public class OverlayTrackPlayer implements TrackPlayer {
     // ========== Helpers ==========
 
     private float clipTime(Clip clip, float globalTime) {
-        return Math.max(0f, Math.min(clip.getDuration(), globalTime - clip.getStartTime()));
+        float elapsed = globalTime - clip.getStartTime();
+        // 无限时长（duration < 0）不能参与 Math.min(duration, elapsed)（会把时间钳成 0）：
+        // 负 duration 片段从 start 起持续播放，localTime 正常推进；有限时长维持原钳制。
+        if (clip.getDuration() < 0f) {
+            return Math.max(0f, elapsed);
+        }
+        return Math.max(0f, Math.min(clip.getDuration(), elapsed));
     }
 
     private Clip findActiveClip(float globalTime) {

@@ -57,6 +57,8 @@
   - ✅ 时间重叠窗口内每个活跃 clip 各产一个 lane 快照（叠化数据前提）：顶层 clip 走正常求值路径（写全局相机 = 主相机），层级在下的活跃 clip 用同一条求值链**只捕获不写**（不写全局相机、不推进跨帧求值状态、目标锁状态整体保存/还原）→ 重叠区取到各 clip 自己的 hold 值（延长区等值关键帧 / 范围外钳到端点）（`CameraTrackPlayer`）
   - ✅ 每渲染帧定位活跃 clip（含循环/无限片段）并写入精确相机状态，无 partialTick 插值（`CameraTrackPlayer`）
   - ✅ morph 过渡窗口内混合上一片段末帧与下一片段首帧（位置线性混合、角度最短路径混合）（`CameraTrackPlayer`）
+  - ✅ lane 合成遮罩（0.3.6 D2）：clip 级 `mask_shape`（`full` / `rect` / `circle`）+ 关键帧 `mask_x` / `mask_y` / `mask_width` / `mask_height` / `mask_radius` 由 `LaneMask` 按 clip 本地时间采样（每槽复用、无逐帧分配）；`full` 不读几何并复位缺省，旧 clip 输出不变（`LaneMask`、`ScriptLaneDriver`）
+  - ✅ 遮罩在 `LaneCompositor` 合成阶段按窗口物理像素判定覆盖率，与 `opacity` 相乘后作为混合 alpha；`rect` 用窗口比例中心 / 宽高，`circle` 半径按短边（非方形窗口仍为真圆）；不读 lane 纹理 alpha、不改 `source` / `dest` UV；区域外保持底图，零尺寸 = 该 lane 不绘制；非 `full` 而专用 shader 不可用时跳过该 lane 并报错，不退回无遮罩输出（`LaneCompositor`）
   - ✅ 关键帧级 `follow`（位置跟随实体，position 即相对实体偏移）与 `look_at`（注视实体/坐标/结构）：两端关键帧各自求值为世界坐标再插值 → follow↔普通、换目标、look_at 开关全部平滑过渡；look_at 目标点插值模型（none 端=该关键帧 yaw/pitch 方向远点）（`CameraTrackPlayer`）
   - ✅ 实体选择器子集：`@p`/`@s`/`@e`/`@e[type=…,name=…]`/`uuid:…`，就近优先 + 1 秒缓存（`CameraTrackPlayer`）
   - ✅ 切线朝向：clip 级 `orient=tangent` 时沿路径切线方向看，可叠 `yaw_offset`/`pitch_offset`；关键帧级 `yaw_base`/`pitch_base` 支持 world/entity/line 三种基准，`yaw`/`pitch` 作为相对基准偏移（`TangentOrientation`、`CameraTrackPlayer`）
@@ -73,9 +75,13 @@
   - ✅ 支持暂停/恢复/按时间重定位（`syncToTime` 偏差超 0.5s 时重播）（`CinematicAudioInstance`）
   - ✅ 音频听者：`meta.listener="camera"` 时环境音/方块音/水声等按相机采样（配合相关 Mixin）；`"player"`（默认）时 `SoundManagerMixin` 用玩家视角代理听音（`AudioListenerController`）
 - **LETTERBOX 轨道播放器**
-  - ✅ 关键帧插值驱动画幅比黑边（`aspect_ratio`），无活跃 clip 时归零，停止时重置（`LetterboxTrackPlayer`）
+  - ✅ 关键帧 `aspect_ratio` / `opacity`（默认 1，0~1）复用 `KeyframeInterpolator.interpolateChannel` 匀速线性求值，首尾保持，不叠加 smoothstep；无活跃 clip 时画幅比归零并复位透明度；无限 clip 本地时间正常推进，停止时只移除本轨所属黑边层（`LetterboxTrackPlayer`）
 - **OVERLAY 轨道播放器**
-  - ✅ 按 clip 的 `layer_type` 创建对应覆盖层（fade/image/subtitle）并注册到 `OverlayManager`，支持 z_index 分层（默认 10，0.3.6 起统一）（`OverlayTrackPlayer`）
+  - ✅ 按 clip 的 `layer_type` 创建对应覆盖层（fade/image/subtitle）并注册到 `OverlayManager`，支持 z_index 分层（默认 10，0.3.6 起统一；只在本模组覆盖层之间排序，不改原版 HUD）；每条轨同一时刻只消费首个活跃 clip，同时显示的层需各自独立轨道（`OverlayTrackPlayer`）
+  - ✅ fade 高级颜色遮罩（0.3.6 D4–D7）：`ScriptParser` 在 fade clip 解析期构建 `ColorMaskSpec`（clip 级 `gradient` / `mask_shape` / `blend_mode`；纯色模式缓存关键帧 `color`，渐变模式只校验格式），结构 / 颜色非法转成带字段路径的 `ScriptParseException`；`ScriptValidator` 同步枚举、有限值、非负 / 正数范围与 stops 结构。fade 的 `gradient` / `mask_shape` / `blend_mode` 只属于 fade 的 clip 级，fade 的 `mask_*` / `gradient_*` 只属于 fade 的关键帧，`color` 两级都可写；上述 fade 高级字段（含关键帧 `color`）写在 image / subtitle 上会被解析 / 校验明确拒绝（clip 级 `color` 是通用字段，image / subtitle 不消费；`ColorMaskSpec`、`ScriptParser`、`ScriptValidator`、`TrackSchemas`）
+  - ✅ CAMERA lane 合成遮罩字段归属（0.3.6 D2）：clip 级只允许 `mask_shape`（`full` / `rect` / `circle`）；关键帧只允许 `mask_x` / `mask_y` / `mask_width` / `mask_height` / `mask_radius`，复用有限 / 非负数值检查；错层级 / 错轨道带字段路径拒绝。CAMERA 拒绝 `gradient` / `gradient_*`（专属 OVERLAY fade）与 `blend_mode`（属于既有 ADJUST 轨或 fade）（`ScriptParser`、`ScriptValidator`、`TrackSchemas`）
+  - ✅ 建层时把 `clip.getColorMaskSpec()` 一次送入 `FadeLayer.setMaskSpec`；逐帧只采样该 spec 消费的几何通道：`rect` 读 `mask_x/y/width/height`，`circle` 读 `mask_x/y/radius`，`linear` 读 `gradient_angle/center_x/center_y`，`radial` 读 `gradient_center_x/center_y/radius`；颜色由 `ColorMaskSpec#sampleColor(localTime)` 缓存采样（纯色关键帧逐 RGB 线性、缺省回落 clip 级 `color`；渐变模式由 stops 决定）。未声明渐变 / `full` 时层保持初始化缺省，旧 fade 行为不变（`OverlayTrackPlayer`、`ColorMaskSpec`、`FadeLayer`）
+  - ✅ 不新增 `layer_type` / 轨道 / 转场机制；规则 `overlay_set` 仍只建静态 fade；渐变 stops 定义在 clip 级、整段固定，关键帧只驱动几何，不实现 stops 拓扑动画（`OverlayTrackPlayer`）
   - ✅ 按统一参数字段表取值（0.3.6 步骤 4）：`x/y`（播放窗口归一化，元素中心，缺省 0.5）、`anchor_x/anchor_y`（缩放绕点，缺省 0.5）、`scale_x/scale_y`（相对素材原始像素尺寸的倍数，缺省 1）、`source`（素材归一化取材，按分量线性，缺省全幅）、`font_scale`（字号倍数，subtitle）、`opacity`（透明度，缺省 1，淡入淡出完全由关键帧表达）；创建层时把脚本 `meta.base_resolution`（缺省 1920×1080）送入层作 `k` 的分母；关键帧之间**匀速线性**插值（0.3.6 起运行时统一线性，范围外钳制到边界关键帧）（`OverlayTrackPlayer`）
   - ✅ 支持多条同类型 OVERLAY 轨道同时渲染：TrackPlayer 数据源按轨道索引定位（`clipsForTrack(trackIndex)`），轨道 JSON 以 `id` 区分管理（`ScriptPlayer`、`TrackPlayer`）
   - ✅ clip 切换或停止时移除并清理覆盖层（`OverlayTrackPlayer`）

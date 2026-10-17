@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.client.lane;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
@@ -22,7 +23,7 @@ import java.io.IOException;
  * 合成层：把一条 lane 的画面纹理按合成参数铺到屏幕（主 framebuffer）。
  *
  * <p>{@link LaneRenderer} 渲染完一条 lane 后，经 {@link LaneRenderer.Sink} 把离屏画面交给本类；
- * 四个参数在<b>同一次 quad 绘制</b>里完成（见 plans/0.3.6/camera-composition.md §1）：</p>
+ * 全部参数在<b>同一次 quad 绘制</b>里完成（见 plans/0.3.6/camera-composition.md §1）：</p>
  *
  * <table border="1">
  *   <caption>合成参数 → 绘制机制</caption>
@@ -30,6 +31,7 @@ import java.io.IOException;
  *   <tr><td>{@code source}</td><td>取材区域：画面内归一化矩形（默认全幅）</td><td>UV 子区域</td></tr>
  *   <tr><td>{@code dest}</td><td>目标区域：屏幕归一化矩形（默认全屏）</td><td>quad 顶点（像素）</td></tr>
  *   <tr><td>{@code opacity}</td><td>叠放不透明度 0~1（默认 1）</td><td>混合 alpha（{@code ColorModulator.a}）</td></tr>
+ *   <tr><td>{@code mask}</td><td>lane 遮罩 full / rect / circle（默认 full）</td><td>片元覆盖率（乘进混合 alpha）</td></tr>
  *   <tr><td>{@code order}</td><td>叠放顺序：后面的在上</td><td><b>绘制顺序</b>（见下）</td></tr>
  * </table>
  *
@@ -53,9 +55,10 @@ import java.io.IOException;
  *
  * <h2>alpha 契约（lane 纹理的 alpha 不参与合成）</h2>
  * 合成只读 lane 画面的 <b>RGB</b>：专用着色器 {@code ic_lane_blit}
- * （{@code fragColor = vec4(texture(Sampler0, uv).rgb, 1.0) * ColorModulator}）把写出的 alpha 恒定为 1，
- * 不透明度<b>只</b>由 {@code ColorModulator.a}（{@code opacity}）承担，混合结果 =
- * {@code lane.rgb × opacity + main.rgb × (1 − opacity)}，与 lane 纹理里写下的 a 值无关。
+ * （{@code fragColor = vec4(rgb * ColorModulator.rgb, ColorModulator.a * coverage)}）把写出的 alpha
+ * 定为 {@code opacity × coverage}（full 时 coverage = 1），混合结果 =
+ * {@code lane.rgb × opacity × coverage + main.rgb × (1 − opacity × coverage)}，
+ * 与 lane 纹理里写下的 a 值无关。
  * <p>为什么不能沿用原版 {@code position_tex}：lane FBO 里写下的 alpha 不干净、也没人清理——原版从不
  * 显示它（{@code RenderTarget._colorMask(true,true,true,false)}），于是星星（a=127）、方块图集 mipmap
  * 边缘的 1px 暗缝（a=146~254）、cutout 植被等都留着 a&lt;255；而 {@code position_tex} 是
@@ -64,8 +67,27 @@ import java.io.IOException;
  * <p>lane 侧配套：{@code LevelRendererMixin} 的 {@code laneClearAlpha} 仍把清屏 alpha 抬到 1
  * （未覆盖区 = 实心雾色），但它只影响 FBO 数据本身（调试读回 / 未来可能的 alpha 消费方），
  * <b>不再承担合成的正确性</b>。
- * <p>兜底：{@code ic_lane_blit} 加载失败（资源包覆盖 / 编译失败；只记一次错误）时退回原版
- * {@code position_tex}——画面仍可见，代价是重新引入上面那条 alpha 透底。
+ * <p>兜底（仅 full）：{@code ic_lane_blit} 加载失败（资源包覆盖 / 编译失败；只记一次错误）时退回原版
+ * {@code position_tex}——画面仍可见，代价是重新引入上面那条 alpha 透底。非 full 遮罩不走这条兜底
+ * （见下节：报错跳过，不伪造无遮罩输出）。
+ *
+ * <h2>lane 遮罩（CAMERA clip 的 {@code mask_*} 关键帧）</h2>
+ * {@code mask} 非空且 shape 非 full 时，同一次 quad 的片元按<b>窗口物理像素</b>几何判定覆盖率：
+ * <ul>
+ *   <li><b>rect</b>：中心 {@code (mask_x, mask_y)}、半宽 / 半高 {@code mask_width / 2, mask_height / 2}
+ *       （窗口归一化；中心允许越界）内的像素覆盖率为 1，其余 0；</li>
+ *   <li><b>circle</b>：中心同上，半径 = {@code mask_radius × min(窗口宽, 窗口高)}（物理像素里是<b>真圆</b>，
+ *       非正方形窗口不椭圆化）内的像素覆盖率为 1，其余 0。</li>
+ * </ul>
+ * 覆盖率为硬边 0/1，与 {@code opacity} 相乘后作为混合 alpha；区域外 alpha=0 → 主画面保持原样。
+ * 上传给着色器的几何 uniform 已按主 framebuffer 物理像素换算（中心 / 半宽半高 / 短边半径分别乘
+ * {@code screenW / screenH / min(screenW, screenH)}），shader 直接用 {@code gl_FragCoord} 的左上原点
+ * 物理像素比较——圆在非正方形窗口里仍是真圆。
+ * 遮罩只改合成覆盖率：不读 lane 纹理 alpha，不改 {@code source} / {@code dest} 的 UV / 顶点映射。
+ * {@code mask == null} 或 shape=full = 全窗口，并把全部遮罩 uniform 显式复位（防上一 lane 的脏值）。
+ * rect 宽 / 高或 circle 半径为 0 = 不绘制（显露起点，正常路径，静默跳过）。
+ * <b>非 full 而专用着色器不可用 → 跳过该 lane 并报错，绝不退回无遮罩的 {@code position_tex}</b>；
+ * full 的既有兜底不变。
  *
  * <h2>失败直通（守门）</h2>
  * {@link #compose} 画之前先过 {@link LaneComposeGate}：画面未写 / 没有颜色纹理 / 矩形非有限或退化
@@ -77,6 +99,8 @@ import java.io.IOException;
  * 全局模型视图矩阵、shader 颜色（{@code ColorModulator}）与 0 号 shader 纹理、深度测试 / 深度写 /
  * 颜色写 / 混合。本类在入口保存、出口还原；绘制结束把主 framebuffer 留在绑定态
  * （{@link LaneRenderer} 下一轮自己绑 lane FBO，收尾也自己绑主画面）。
+ * 遮罩 uniform 属于 {@code ic_lane_blit} 实例私有状态，<b>每次 compose 全量覆盖</b>
+ * （full 也显式复位），不存在跨 lane 泄漏，也无需进全局状态保存 / 还原。
  *
  * <h2>默认零差异</h2>
  * 本类只在被调用时动作：没有 lane 就没有调用（{@link LaneRenderer} 在无活跃 lane 时第一行返回），
@@ -114,19 +138,21 @@ public final class LaneCompositor {
      * <p><b>必须当帧调用</b>：lane 的离屏缓冲是共用的，调用返回后随时会被下一条 lane 覆盖
      * （见 {@link LaneRenderer.Sink}）。</p>
      *
-     * <p><b>失败直通（守门）</b>：画之前先过 {@link LaneComposeGate} 的两道判定——任何一条不过就
-     * <b>整个跳过这次绘制</b>，主画面保持此前的内容（基画面 / 更下层 lane），绝不用未写 / 不可采样的
-     * 画面覆盖它（否则 dest 全屏时整屏变黑）。{@code opacity ≤ 0} 是正常语义（叠化到 0），静默跳过；
-     * 其余原因限频告警（逐帧复现的失败不刷屏）。</p>
+     * <p><b>失败直通（守门）</b>：画之前先过 {@link LaneComposeGate} 的判定与遮罩几何判定——任何一条
+     * 不过就<b>整个跳过这次绘制</b>，主画面保持此前的内容（基画面 / 更下层 lane），绝不用未写 /
+     * 不可采样的画面覆盖它（否则 dest 全屏时整屏变黑）。{@code opacity ≤ 0} 与遮罩零尺寸是正常语义
+     * （叠化到 0 / 显露起点），静默跳过；其余原因限频告警（逐帧复现的失败不刷屏）。</p>
      *
      * @param texture lane 的离屏画面（取其颜色纹理作采样源）
      * @param source  取材区域（画面内归一化矩形，{@link Rect#FULL} = 全幅）
      * @param dest    目标区域（屏幕归一化矩形，{@link Rect#FULL} = 全屏）
      * @param opacity 叠放不透明度 0~1；{@code ≤0} 视为不可见，直接跳过
      * @param written 该画面本帧是否被写满（{@code false} = 渲染失败 / 未写，内容不可用 → 跳过）
+     * @param mask    lane 遮罩；{@code null} 或 shape=full = 全窗口（master blit 传 {@code null}）
      * @return 是否真的把画面铺上了屏（{@code false} = 被守门跳过，主画面保持原样）
      */
-    public static boolean compose(RenderTarget texture, Rect source, Rect dest, float opacity, boolean written) {
+    public static boolean compose(RenderTarget texture, Rect source, Rect dest, float opacity, boolean written,
+                                  LaneMask mask) {
         // 守门：画面层（未写 / 无颜色纹理 / 不可见）+ 矩形层（非有限 / 退化）——判定见 LaneComposeGate
         if (texture == null || source == null || dest == null) {
             reportSkipped("画面 / 矩形为空（texture=" + texture + "）");
@@ -146,6 +172,21 @@ public final class LaneCompositor {
             }
             return false;
         }
+        // 遮罩层判定（只在非 full 时读几何；full 不扫描没消费的字段）：零尺寸 = coverage 0 = 正常
+        // 显露起点（静默跳过）；非有限 / 负值 = 数据错误（报错跳过）；未知 shape 同样报错跳过
+        boolean fullMask = mask == null || mask.shape() == LaneMask.SHAPE_FULL;
+        if (!fullMask) {
+            MaskCheck check = checkMask(mask);
+            if (check == MaskCheck.ZERO) {
+                return false;   // rect 宽/高 = 0 或 circle 半径 = 0：本帧无覆盖，主画面保持原样
+            }
+            if (check == MaskCheck.BAD) {
+                reportSkipped("遮罩几何非法（shape = " + mask.shape() + ", x = " + mask.x()
+                        + ", y = " + mask.y() + ", width = " + mask.width() + ", height = " + mask.height()
+                        + ", radius = " + mask.radius() + "）");
+                return false;
+            }
+        }
         Minecraft mc = Minecraft.getInstance();
         RenderTarget main = mc.getMainRenderTarget();
         int screenW = main.width;
@@ -162,8 +203,20 @@ public final class LaneCompositor {
         float vTop = 1.0F - source.y();
         float vBottom = vTop - source.h();
 
-        // 专用不透明 blit（忽略 lane 纹理 alpha，见类注释「alpha 契约」）；加载失败时退回原版 position_tex
+        // 专用不透明 blit（忽略 lane 纹理 alpha，见类注释「alpha 契约」）；加载失败时退回原版 position_tex。
+        // 非 full 遮罩必须走专用着色器：不可用就报错跳过，绝不伪造无遮罩输出（full 的旧兜底不变）。
         ShaderInstance blit = blitShader(mc);
+        if (!fullMask && blit == null) {
+            reportSkipped("遮罩 lane 需要专用着色器 " + SHADER_NAME + "，当前不可用 → 跳过该 lane"
+                    + "（不退回无遮罩的 position_tex）");
+            return false;
+        }
+        // uniform 全量写入（含 full 复位）：在改任何 GL 状态之前完成；非 full 缺 uniform = 着色器不可用
+        if (blit != null && !setMaskUniforms(blit, mask, fullMask, screenW, screenH)) {
+            reportSkipped("专用着色器 " + SHADER_NAME + " 缺少遮罩 uniform（MaskShape / MaskCenter / "
+                    + "MaskHalfSize / MaskRadius / ScreenSize）→ 跳过该 lane（不退回无遮罩的 position_tex）");
+            return false;
+        }
 
         Matrix4f prevProjection = RenderSystem.getProjectionMatrix();
         VertexSorting prevSorting = RenderSystem.getVertexSorting();
@@ -192,8 +245,9 @@ public final class LaneCompositor {
                 if (blit != null) {
                     RenderSystem.setShader(() -> blit);
                 } else {
-                    // 兜底：ic_lane_blit 不可用（加载失败已记一次错误）→ 退回原版 position_tex。
+                    // 兜底（仅 full）：ic_lane_blit 不可用（加载失败已记一次错误）→ 退回原版 position_tex。
                     // 画面仍可见（取材 / 目标区域 / opacity 照旧），代价是重新引入 lane 纹理 alpha 的透底。
+                    // 非 full 遮罩不会走到这里（上面已报错跳过，不伪造无遮罩输出）。
                     RenderSystem.setShader(GameRenderer::getPositionTexShader);
                 }
                 RenderSystem.setShaderTexture(0, texture.getColorTextureId());
@@ -223,6 +277,91 @@ public final class LaneCompositor {
         return true;
     }
 
+    /** 遮罩几何判定结果。 */
+    private enum MaskCheck {
+        /** 几何有效（宽高 / 半径 &gt; 0）。 */
+        OK,
+        /** 覆盖率为 0（rect 宽或高 = 0 / circle 半径 = 0）：正常显露起点，静默跳过。 */
+        ZERO,
+        /** 非法（未知 shape / 非有限 / 负尺寸）：报错跳过。 */
+        BAD
+    }
+
+    /**
+     * 非 full 遮罩的几何判定（零尺寸 = coverage 0；非有限 / 负值 / 未知 shape = 数据错误）。
+     * <p>中心允许越界（数据语义），故不检查范围。</p>
+     */
+    private static MaskCheck checkMask(LaneMask mask) {
+        int shape = mask.shape();
+        if (shape != LaneMask.SHAPE_RECT && shape != LaneMask.SHAPE_CIRCLE) {
+            return MaskCheck.BAD;
+        }
+        if (!Float.isFinite(mask.x()) || !Float.isFinite(mask.y())) {
+            return MaskCheck.BAD;
+        }
+        if (shape == LaneMask.SHAPE_RECT) {
+            float w = mask.width();
+            float h = mask.height();
+            if (!Float.isFinite(w) || !Float.isFinite(h) || w < 0.0F || h < 0.0F) {
+                return MaskCheck.BAD;
+            }
+            return w == 0.0F || h == 0.0F ? MaskCheck.ZERO : MaskCheck.OK;
+        }
+        float radius = mask.radius();
+        if (!Float.isFinite(radius) || radius < 0.0F) {
+            return MaskCheck.BAD;
+        }
+        return radius == 0.0F ? MaskCheck.ZERO : MaskCheck.OK;
+    }
+
+    /**
+     * 写入遮罩 uniform：<b>每 lane 全量覆盖</b>（含 full 的显式复位，防上一 lane 的脏值）。
+     * {@code Uniform.set} 只标记脏值，绘制前由 {@code ShaderInstance.apply()} 统一上传。
+     * <p><b>全部几何 uniform 都按主 framebuffer 的物理像素写入</b>（{@code gl_FragCoord} 口径）：
+     * 数据层的归一化中心 / 宽高 / 短边半径在此乘以 {@code screenW / screenH / min(screenW, screenH)}；
+     * shader 只做物理像素比较，circle 因此在非正方形窗口里仍是真圆。</p>
+     * <p>full 时 shape=0，shader 不读其余几何，但仍写回全窗口默认值保持 uniform 状态确定（防上一 lane
+     * 脏值）；非 full 时按 rect / circle 填对应参数，另一形状的参数显式归位。</p>
+     *
+     * @return {@code false} = 非 full 但着色器缺少必要 uniform（调用方报错跳过，不伪造无遮罩输出）
+     */
+    private static boolean setMaskUniforms(ShaderInstance shader, LaneMask mask, boolean fullMask,
+                                           int screenW, int screenH) {
+        Uniform shape = shader.getUniform("MaskShape");
+        Uniform center = shader.getUniform("MaskCenter");
+        Uniform halfSize = shader.getUniform("MaskHalfSize");
+        Uniform radius = shader.getUniform("MaskRadius");
+        Uniform screen = shader.getUniform("ScreenSize");
+        if (!fullMask && (shape == null || center == null || halfSize == null
+                || radius == null || screen == null)) {
+            return false;
+        }
+        float w = screenW;
+        float h = screenH;
+        float shortSide = Math.min(w, h);
+        if (fullMask) {
+            // 全窗口默认值（shape=0 时 shader 不读，但显式归位，防槽位 / 上一 lane 的脏 uniform）
+            if (shape != null) shape.set((float) LaneMask.SHAPE_FULL);
+            if (center != null) center.set(w * 0.5F, h * 0.5F);
+            if (halfSize != null) halfSize.set(w * 0.5F, h * 0.5F);
+            if (radius != null) radius.set(shortSide * 0.5F);
+        } else if (mask.shape() == LaneMask.SHAPE_RECT) {
+            shape.set((float) LaneMask.SHAPE_RECT);
+            center.set(mask.x() * w, mask.y() * h);
+            halfSize.set(mask.width() * w * 0.5F, mask.height() * h * 0.5F);
+            radius.set(shortSide * 0.5F);   // circle 专用，显式归位
+        } else {
+            shape.set((float) LaneMask.SHAPE_CIRCLE);
+            center.set(mask.x() * w, mask.y() * h);
+            halfSize.set(w * 0.5F, h * 0.5F);   // rect 专用，显式归位
+            radius.set(mask.radius() * shortSide);
+        }
+        if (screen != null) {
+            screen.set(w, h);
+        }
+        return true;
+    }
+
     /**
      * 守门跳过的限频告警（逐帧复现的失败不刷屏；同一失败点 5 秒一条，抑制次数合并到下一次输出）。
      * <p>只报告「不该画」的失败；{@code opacity ≤ 0} 的叠化到 0 是正常路径，静默跳过。</p>
@@ -237,7 +376,8 @@ public final class LaneCompositor {
      *
      * <p>资源重载（换资源包 / F3+T）后重建：旧实例 {@code close()} 释放它持有的 GL program
      * （原版 Program 缓存按名字复用，不释放就会拿到旧编译结果），随后按新资源重新编译。
-     * 加载失败只记一次（同一资源周期内不重试、不刷屏），{@link #compose} 退回原版 {@code position_tex}。</p>
+     * 加载失败只记一次（同一资源周期内不重试、不刷屏）：full 的 {@link #compose} 退回原版
+     * {@code position_tex}；非 full 遮罩则报错跳过该 lane（不伪造无遮罩输出）。</p>
      *
      * <p>资产走 {@code minecraft} 命名空间（{@code assets/minecraft/shaders/core/}）：原版
      * {@link ShaderInstance} 的构造只认 {@code shaders/core/<name>.json}（默认命名空间），

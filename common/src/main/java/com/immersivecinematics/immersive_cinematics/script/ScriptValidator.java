@@ -42,9 +42,6 @@ public final class ScriptValidator {
     private static final String[] KNOWN_TYPES =
             {"CAMERA", "LETTERBOX", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY", "ADJUST"};
 
-    /** {@code meta.base_resolution} 的 w / h 上限（像素）：覆盖 8K 宽，超出视为笔误。 */
-    private static final int BASE_RESOLUTION_MAX = 16384;
-
     /**
      * 调色曲线字段（clip 级结构字段，0.3.6 起 ADJUST 轨与 CAMERA 片段共用同一套）：
      * {@code rgb_curve} = RGB 复合曲线；{@code r_curve} / {@code g_curve} / {@code b_curve} = 每通道曲线；
@@ -62,6 +59,25 @@ public final class ScriptValidator {
      */
     private static final String[] BLEND_MODES =
             {"normal", "multiply", "screen", "soft_light", "overlay"};
+
+    /** fade 覆盖形状（0.3.6 D4–D7；缺省 full = 整窗口）。 */
+    private static final String[] FADE_MASK_SHAPES = {"full", "rect", "circle"};
+
+    /** fade 高级颜色遮罩的 clip 级字段：只属于 layer_type=fade（image / subtitle 上写直接报错）。 */
+    private static final String[] FADE_ONLY_CLIP_FIELDS = {"gradient", "mask_shape", "blend_mode"};
+
+    /** fade 高级颜色遮罩的关键帧字段：只属于 layer_type=fade（image / subtitle 上写直接报错）。 */
+    private static final String[] FADE_ONLY_KEYFRAME_FIELDS = {
+            "color", "mask_x", "mask_y", "mask_width", "mask_height", "mask_radius",
+            "gradient_angle", "gradient_center_x", "gradient_center_y", "gradient_radius"};
+
+    /** CAMERA lane 合成遮罩的几何关键帧字段（0.3.6 D2）：只属于关键帧。 */
+    private static final String[] CAMERA_MASK_GEOMETRY_FIELDS = {
+            "mask_x", "mask_y", "mask_width", "mask_height", "mask_radius"};
+
+    /** fade 渐变专用字段：CAMERA 片段 / 关键帧上写 = 明确报错（CAMERA 遮罩只有形状 + 几何）。 */
+    private static final String[] FADE_GRADIENT_FIELDS = {
+            "gradient", "gradient_angle", "gradient_center_x", "gradient_center_y", "gradient_radius"};
 
     /**
      * 调色关键帧标量通道 → 合法区间（顺序与
@@ -386,6 +402,8 @@ public final class ScriptValidator {
                     checkModifier(clip, cp, issues);
                     // 过渡声明（0.3.6）：clip 级分参数 / 权重曲线 / 打断（只对 transition=morph 生效）
                     checkTransition(clip, cp, issues);
+                    // lane 合成遮罩（0.3.6 D2）：clip 级只允许 mask_shape，几何只属于关键帧
+                    checkCameraMaskClipFields(clip, cp, issues);
                     // LUT 是整体画面（master）处理，只挂在 ADJUST 轨：相机片段上写 lut 不会生效，直接拦下
                     if (clip.has("lut")) {
                         issues.add(cp + ".lut 不支持（LUT 是对整体画面的处理，只写在 ADJUST 轨的片段上）："
@@ -410,13 +428,17 @@ public final class ScriptValidator {
                 if ("OVERLAY".equalsIgnoreCase(type)) {
                     checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle");
                     // layer_type 缺省时运行期按 "fade" 处理（OverlayTrackPlayer.createLayer）
-                    String layerType = clip.has("layer_type") && clip.get("layer_type").isJsonPrimitive()
-                            ? clip.get("layer_type").getAsString() : "fade";
+                    String layerType = overlayLayerType(clip);
                     if ("image".equals(layerType) && !clip.has("path")) {
                         issues.add(cp + ".path 缺失（layer_type=image 需要图片文件名，只支持 PNG）");
                     }
                     if ("fade".equals(layerType)) {
                         checkHexColor(clip, cp, "color", issues);
+                        checkFadeClipFields(clip, cp, issues);
+                    } else if ("image".equals(layerType) || "subtitle".equals(layerType)) {
+                        // 高级颜色遮罩字段只属于 fade：image / subtitle 上写 = 明确报错（不宣称生效）
+                        rejectFadeOnlyFields(clip, cp, FADE_ONLY_CLIP_FIELDS, layerType, issues);
+                        rejectFadeKeyframeOnlyFields(clip, cp, layerType, issues);
                     }
                 }
                 if ("ADJUST".equalsIgnoreCase(type)) {
@@ -598,6 +620,8 @@ public final class ScriptValidator {
                             checkUnitFloat(kf, kp, "opacity", issues);
                             checkRect(kf, kp, "dest", issues);
                             checkRect(kf, kp, "source", issues);
+                            // lane 合成遮罩几何（0.3.6 D2）：有限中心 + 非负宽高 / 半径；形状只属于 clip 级
+                            checkCameraMaskKeyframeFields(kf, kp, issues);
                             // 调色（0.3.6）：本相机片段关键帧的 57 个调色通道区间
                             checkAdjustFields(null, null, kf, kp, issues);
                             // LUT 是整体画面（master）处理：相机片段关键帧写 lut_strength 同样不生效，直接拦下
@@ -627,6 +651,18 @@ public final class ScriptValidator {
                         // OVERLAY 关键帧：fit 已移除（元素框由素材派生，形状由 scale_x/scale_y 表达）
                         if ("OVERLAY".equalsIgnoreCase(type)) {
                             checkRemovedFit(kf, kp, issues);
+                            String layerType = overlayLayerType(clip);
+                            if ("fade".equals(layerType)) {
+                                checkFadeKeyframeFields(kf, kp, issues);
+                            } else if ("image".equals(layerType) || "subtitle".equals(layerType)) {
+                                rejectFadeOnlyFields(kf, kp, FADE_ONLY_KEYFRAME_FIELDS, layerType, issues);
+                                rejectFadeOnlyFields(kf, kp, FADE_ONLY_CLIP_FIELDS, layerType, issues);
+                            }
+                        }
+
+                        // LETTERBOX 关键帧：黑边不透明度 opacity（0~1，缺省 1 = 纯黑边；0.3.6 D10 接通）
+                        if ("LETTERBOX".equalsIgnoreCase(type)) {
+                            checkUnitFloat(kf, kp, "opacity", issues);
                         }
                     }
                 }
@@ -1708,8 +1744,9 @@ public final class ScriptValidator {
 
     /**
      * 校验 {@code meta.base_resolution}（编辑基准分辨率，分辨率转义系数 k 的分母）：
-     * 必须是对象且含正整数 {@code w} / {@code h}（{@code > 0}、整数、上限 {@link #BASE_RESOLUTION_MAX}），
+     * 必须是对象且含正整数 {@code w} / {@code h}（{@code > 0}、整数、数值上限为 {@link Integer#MAX_VALUE}），
      * 违规 → 脚本被拒。字段缺省 / JSON null（= 1920×1080）时跳过。
+     * <p>不设分辨率政策上限：{@code 1 ~ Integer.MAX_VALUE} 均合法，上界只是 int 存储表示范围，非分辨率限制。
      */
     private static void checkBaseResolution(JsonObject meta, List<String> issues) {
         if (!meta.has("base_resolution") || meta.get("base_resolution").isJsonNull()) return;
@@ -1723,7 +1760,7 @@ public final class ScriptValidator {
         checkBaseResolutionComponent(obj, "h", issues);
     }
 
-    /** 校验 {@code meta.base_resolution} 的一个分量：正整数且 ≤ {@link #BASE_RESOLUTION_MAX}。 */
+    /** 校验 {@code meta.base_resolution} 的一个分量：正整数且 ≤ {@link Integer#MAX_VALUE}（无分辨率政策上限）。 */
     private static void checkBaseResolutionComponent(JsonObject obj, String key, List<String> issues) {
         String path = "meta.base_resolution." + key;
         if (!obj.has(key)) {
@@ -1740,8 +1777,8 @@ public final class ScriptValidator {
             issues.add(path + " 不是整数：" + e);
             return;
         }
-        if (d <= 0 || d > BASE_RESOLUTION_MAX) {
-            issues.add(path + " 超出范围 1 ~ " + BASE_RESOLUTION_MAX + "：" + e);
+        if (d <= 0 || d > Integer.MAX_VALUE) {
+            issues.add(path + " 超出范围 1 ~ " + Integer.MAX_VALUE + "（int 表示范围，非分辨率上限）：" + e);
         }
     }
 
@@ -1767,6 +1804,269 @@ public final class ScriptValidator {
     private static void checkRemovedFit(JsonObject kf, String kp, List<String> issues) {
         if (kf.has("fit")) {
             issues.add(kp + ".fit 已移除（0.3.6 起）：形状由 scale_x/scale_y 表达");
+        }
+    }
+
+    /** OVERLAY 的生效 layer_type：缺省 / 非原始值按运行期口径回落 {@code fade}。 */
+    private static String overlayLayerType(JsonObject clip) {
+        return clip.has("layer_type") && clip.get("layer_type").isJsonPrimitive()
+                ? clip.get("layer_type").getAsString() : "fade";
+    }
+
+    /**
+     * 是否 fade 的「仅关键帧」字段（{@link #FADE_ONLY_KEYFRAME_FIELDS} 去掉两级都合法的 {@code color}）。
+     * 复用同一集合做 clip 级交叉归属检查，避免再复制一套字段名。
+     */
+    private static boolean isFadeKeyframeOnlyField(String fieldName) {
+        if ("color".equals(fieldName)) return false;
+        for (String candidate : FADE_ONLY_KEYFRAME_FIELDS) {
+            if (candidate.equals(fieldName)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 校验 CAMERA 片段的 clip 级 lane 合成遮罩字段（0.3.6 D2）：
+     * 形状 {@code mask_shape} 枚举；几何通道只属于关键帧；fade 渐变字段不因新增遮罩而被 CAMERA 接受。
+     * {@code blend_mode} 在 CAMERA 片段上已由调用方的 ADJUST 专用检查拦下（不重复报）。
+     */
+    private static void checkCameraMaskClipFields(JsonObject clip, String cp, List<String> issues) {
+        if (clip.has("mask_shape")) {
+            checkFadeEnum(clip, cp, "mask_shape", issues, FADE_MASK_SHAPES);
+        }
+        for (String field : CAMERA_MASK_GEOMETRY_FIELDS) {
+            if (clip.has(field)) {
+                issues.add(cp + "." + field
+                        + " 只属于关键帧（mask_x / mask_y / mask_width / mask_height / mask_radius"
+                        + " 必须写在 keyframes 元素里，clip 级不生效）");
+            }
+        }
+        for (String field : FADE_GRADIENT_FIELDS) {
+            if (clip.has(field)) {
+                issues.add(cp + "." + field
+                        + " fade 专用（gradient / gradient_* 只属于 OVERLAY 的 layer_type=fade）："
+                        + "CAMERA lane 遮罩用 clip 级 mask_shape + 关键帧 mask_* 几何");
+            }
+        }
+    }
+
+    /**
+     * 校验 CAMERA 关键帧的 lane 合成遮罩几何（0.3.6 D2）：{@code mask_x} / {@code mask_y} 有限；
+     * {@code mask_width} / {@code mask_height} / {@code mask_radius} 有限非负。形状只属于 clip 级，
+     * fade 渐变字段不属于 CAMERA。
+     */
+    private static void checkCameraMaskKeyframeFields(JsonObject kf, String kp, List<String> issues) {
+        if (kf.has("mask_shape")) {
+            issues.add(kp + ".mask_shape 只属于 clip 级（形状在片段级声明，关键帧不生效）");
+        }
+        for (String field : FADE_GRADIENT_FIELDS) {
+            if (kf.has(field)) {
+                issues.add(kp + "." + field
+                        + " fade 专用（gradient / gradient_* 只属于 OVERLAY 的 layer_type=fade）："
+                        + "CAMERA lane 遮罩用 clip 级 mask_shape + 关键帧 mask_* 几何");
+            }
+        }
+        if (kf.has("blend_mode")) {
+            issues.add(kp + ".blend_mode 只属于 clip 级（混合模式只写在 ADJUST 轨片段的 clip 级）");
+        }
+        checkFiniteFloat(kf, kp, "mask_x", issues);
+        checkFiniteFloat(kf, kp, "mask_y", issues);
+        checkNonNegativeFloat(kf, kp, "mask_width", issues);
+        checkNonNegativeFloat(kf, kp, "mask_height", issues);
+        checkNonNegativeFloat(kf, kp, "mask_radius", issues);
+    }
+
+    /**
+     * 校验 fade 片段的 clip 级高级颜色遮罩字段（0.3.6 D4–D7）：
+     * {@code gradient} 结构（类型 / 至少 2 个色标 / offset 有限且 0~1 严格递增 / 颜色合法）、
+     * {@code mask_shape} 与 {@code blend_mode} 枚举。字段缺省时跳过（缺省值生效）。
+     * <p>色标数量不设人为上限；首尾 offset 不要求恰好 0 / 1（范围外由渲染侧保持端点）。</p>
+     */
+    private static void checkFadeClipFields(JsonObject clip, String cp, List<String> issues) {
+        // 归属交叉检查：mask_* / gradient_* 数值通道只属于关键帧（color 两级都合法）
+        for (String field : FADE_ONLY_KEYFRAME_FIELDS) {
+            if (isFadeKeyframeOnlyField(field) && clip.has(field)) {
+                issues.add(cp + "." + field
+                        + " 只属于关键帧（数值通道必须写在 keyframes 元素里，clip 级不生效）");
+            }
+        }
+        if (clip.has("mask_shape")) {
+            checkFadeEnum(clip, cp, "mask_shape", issues, FADE_MASK_SHAPES);
+        }
+        if (clip.has("blend_mode")) {
+            checkFadeEnum(clip, cp, "blend_mode", issues, BLEND_MODES);
+        }
+        if (!clip.has("gradient")) return;
+
+        String gp = cp + ".gradient";
+        JsonElement gradientElement = clip.get("gradient");
+        if (!gradientElement.isJsonObject()) {
+            issues.add(gp + " 需要对象 {type: linear|radial, stops: [...]}（缺省 = 纯色）");
+            return;
+        }
+        JsonObject gradient = gradientElement.getAsJsonObject();
+        if (!gradient.has("type")) {
+            issues.add(gp + ".type 缺失（linear / radial）");
+        } else {
+            checkFadeEnum(gradient, gp, "type", issues, "linear", "radial");
+        }
+
+        if (!gradient.has("stops")) {
+            issues.add(gp + ".stops 缺失（至少 2 个色标 {offset, color}）");
+            return;
+        }
+        JsonElement stopsElement = gradient.get("stops");
+        if (!stopsElement.isJsonArray()) {
+            issues.add(gp + ".stops 需要数组 [{offset, color}, ...]（至少 2 个色标）");
+            return;
+        }
+        JsonArray stops = stopsElement.getAsJsonArray();
+        if (stops.size() < 2) {
+            issues.add(gp + ".stops 至少需要 2 个色标，实际: " + stops.size());
+        }
+        float previous = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < stops.size(); i++) {
+            String sp = gp + ".stops[" + i + "]";
+            JsonElement stopElement = stops.get(i);
+            if (!stopElement.isJsonObject()) {
+                issues.add(sp + " 需要对象 {offset, color}");
+                continue;
+            }
+            JsonObject stop = stopElement.getAsJsonObject();
+            if (!stop.has("offset")) {
+                issues.add(sp + ".offset 缺失（有限数字 0~1）");
+            } else {
+                JsonElement offsetElement = stop.get("offset");
+                if (!isNumber(offsetElement)) {
+                    issues.add(sp + ".offset 不是数字（范围 0~1）");
+                } else {
+                    float offset = offsetElement.getAsFloat();
+                    if (!Float.isFinite(offset)) {
+                        issues.add(sp + ".offset 不是有限数字（NaN / Infinity；范围 0~1）：" + offset);
+                    } else {
+                        if (offset < 0f || offset > 1f) {
+                            issues.add(sp + ".offset 超出范围 0~1：" + offset);
+                        }
+                        if (i > 0 && offset <= previous) {
+                            issues.add(sp + ".offset 必须严格递增（前一个 offset = "
+                                    + previous + "，当前 = " + offset + "）");
+                        }
+                        previous = offset;
+                    }
+                }
+            }
+            if (!stop.has("color")) {
+                issues.add(sp + ".color 缺失（#RRGGBB 六位十六进制）");
+            } else {
+                checkHexColor(stop, sp, "color", issues);
+            }
+        }
+    }
+
+    /** 校验 fade 关键帧的高级颜色遮罩通道（0.3.6 D4–D7）：有限值 / 非负 / 正数 / 0~1 / 颜色格式。 */
+    private static void checkFadeKeyframeFields(JsonObject kf, String kp, List<String> issues) {
+        // 归属交叉检查：gradient / mask_shape / blend_mode 只属于 clip 级（color 两级都合法）
+        for (String field : FADE_ONLY_CLIP_FIELDS) {
+            if (kf.has(field)) {
+                issues.add(kp + "." + field
+                        + " 只属于 clip 级（不能写在关键帧里，关键帧不生效）");
+            }
+        }
+        checkUnitFloat(kf, kp, "opacity", issues);
+        checkHexColor(kf, kp, "color", issues);
+        checkFiniteFloat(kf, kp, "mask_x", issues);
+        checkFiniteFloat(kf, kp, "mask_y", issues);
+        checkNonNegativeFloat(kf, kp, "mask_width", issues);
+        checkNonNegativeFloat(kf, kp, "mask_height", issues);
+        checkNonNegativeFloat(kf, kp, "mask_radius", issues);
+        checkFiniteFloat(kf, kp, "gradient_angle", issues);
+        checkFiniteFloat(kf, kp, "gradient_center_x", issues);
+        checkFiniteFloat(kf, kp, "gradient_center_y", issues);
+        checkPositiveFloat(kf, kp, "gradient_radius", issues);
+    }
+
+    /** 枚举字段（新 fade 字段专用）：先做类型守卫，非法类型只记 issue，不抛异常。 */
+    private static void checkFadeEnum(JsonObject obj, String path, String key, List<String> issues,
+                                      String... allowed) {
+        JsonElement e = obj.get(key);
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
+            issues.add(path + "." + key + " 应为字符串（可选: " + String.join(" / ", allowed) + "）");
+            return;
+        }
+        String value = e.getAsString();
+        for (String candidate : allowed) {
+            if (candidate.equals(value)) return;
+        }
+        issues.add(path + "." + key + " 未知值: " + value
+                + "（可选: " + String.join(" / ", allowed) + "）");
+    }
+
+    private static void checkFiniteFloat(JsonObject obj, String path, String key, List<String> issues) {
+        if (!obj.has(key)) return;
+        JsonElement e = obj.get(key);
+        if (!isNumber(e)) {
+            issues.add(path + "." + key + " 不是数字");
+            return;
+        }
+        float value = e.getAsFloat();
+        if (!Float.isFinite(value)) {
+            issues.add(path + "." + key + " 不是有限数字（NaN / Infinity）：" + value);
+        }
+    }
+
+    private static void checkNonNegativeFloat(JsonObject obj, String path, String key, List<String> issues) {
+        if (!obj.has(key)) return;
+        JsonElement e = obj.get(key);
+        if (!isNumber(e)) {
+            issues.add(path + "." + key + " 不是数字（必须非负）");
+            return;
+        }
+        float value = e.getAsFloat();
+        if (!Float.isFinite(value)) {
+            issues.add(path + "." + key + " 不是有限数字（NaN / Infinity）：" + value);
+            return;
+        }
+        if (value < 0f) {
+            issues.add(path + "." + key + " 不能为负数：" + value);
+        }
+    }
+
+    private static void checkPositiveFloat(JsonObject obj, String path, String key, List<String> issues) {
+        if (!obj.has(key)) return;
+        JsonElement e = obj.get(key);
+        if (!isNumber(e)) {
+            issues.add(path + "." + key + " 不是数字（必须大于 0）");
+            return;
+        }
+        float value = e.getAsFloat();
+        if (!Float.isFinite(value)) {
+            issues.add(path + "." + key + " 不是有限数字（NaN / Infinity）：" + value);
+            return;
+        }
+        if (!(value > 0f)) {
+            issues.add(path + "." + key + " 必须大于 0：" + value);
+        }
+    }
+
+    /** fade 专用字段出现在 image / subtitle 片段上：明确报错（不静默存值宣称生效）。 */
+    private static void rejectFadeOnlyFields(JsonObject obj, String path, String[] fields,
+                                             String layerType, List<String> issues) {
+        for (String field : fields) {
+            if (obj.has(field)) {
+                issues.add(path + "." + field + " 仅 layer_type=fade 支持（当前 layer_type="
+                        + layerType + "）：高级颜色遮罩字段只属于 fade");
+            }
+        }
+    }
+
+    /** fade 的「仅关键帧」数值通道出现在 image / subtitle 的 clip 级：明确报错。 */
+    private static void rejectFadeKeyframeOnlyFields(JsonObject obj, String path, String layerType,
+                                                     List<String> issues) {
+        for (String field : FADE_ONLY_KEYFRAME_FIELDS) {
+            if (isFadeKeyframeOnlyField(field) && obj.has(field)) {
+                issues.add(path + "." + field + " 仅 layer_type=fade 支持（当前 layer_type="
+                        + layerType + "）：高级颜色遮罩字段只属于 fade");
+            }
         }
     }
 

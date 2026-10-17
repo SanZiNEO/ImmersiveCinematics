@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -50,6 +51,29 @@ public class ScriptParser {
      * 键为解析期一次建成的只读 map（入库后不再变更）；条目数 = 出现过的定义形态数。
      */
     private static final Map<Map<String, Object>, MathModel> MODEL_DEFINITIONS = new ConcurrentHashMap<>();
+
+    /**
+     * fade 高级颜色遮罩的 clip 级字段（0.3.6 D4–D7）：只属于 {@code layer_type=fade}。
+     * {@code layer_type=image / subtitle} 上写 → 解析期明确拒绝（不静默存进 data 宣称生效）。
+     */
+    private static final Set<String> FADE_ONLY_CLIP_FIELDS =
+            Set.of("gradient", "mask_shape", "blend_mode");
+
+    /** fade 高级颜色遮罩的关键帧字段：只属于 {@code layer_type=fade}（image / subtitle 上写同样拒绝）。 */
+    private static final Set<String> FADE_ONLY_KEYFRAME_FIELDS = Set.of(
+            "color", "mask_x", "mask_y", "mask_width", "mask_height", "mask_radius",
+            "gradient_angle", "gradient_center_x", "gradient_center_y", "gradient_radius");
+
+    /**
+     * CAMERA lane 合成遮罩的几何关键帧字段（0.3.6 D2）：只属于关键帧。
+     * clip 级只允许形状 {@code mask_shape}；写错层级 / 写错轨道都明确拒绝。
+     */
+    private static final Set<String> CAMERA_MASK_GEOMETRY_FIELDS =
+            Set.of("mask_x", "mask_y", "mask_width", "mask_height", "mask_radius");
+
+    /** fade 渐变专用字段：CAMERA 片段 / 关键帧上写 = 明确拒绝（CAMERA 遮罩只有形状 + 几何）。 */
+    private static final Set<String> FADE_GRADIENT_FIELDS =
+            Set.of("gradient", "gradient_angle", "gradient_center_x", "gradient_center_y", "gradient_radius");
 
     /**
      * 解析异常 — 包含字段路径信息
@@ -261,12 +285,55 @@ public class ScriptParser {
         float startTime = requireFloat(obj, p, "start_time");
         float duration = requireFloat(obj, p, "duration");
 
+        // OVERLAY 的 fade 专用字段（高级颜色遮罩）按 layer_type 分派：fade 走严格解析，
+        // image / subtitle 上写 = 明确拒绝（不静默存进 data 宣称生效）
+        String overlayLayerType = type == TrackType.OVERLAY ? overlayLayerType(obj) : null;
+        boolean fadeOverlay = type == TrackType.OVERLAY
+                && !"image".equals(overlayLayerType) && !"subtitle".equals(overlayLayerType);
+
         // 解析类型特有字段到 data map
         Map<String, Object> data = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
             String fieldName = entry.getKey();
             if ("start_time".equals(fieldName) || "duration".equals(fieldName) || "keyframes".equals(fieldName)) {
                 continue; // 通用字段跳过
+            }
+            if (type == TrackType.OVERLAY) {
+                if (fadeOverlay) {
+                    // 归属交叉检查：mask_* / gradient_* 数值通道只属于关键帧（color 两级都合法）
+                    if (isFadeKeyframeOnlyField(fieldName)) {
+                        throw new ScriptParseException(p + "." + fieldName,
+                                "只属于关键帧（数值通道必须写在 keyframes 元素里，clip 级不生效）");
+                    }
+                    Object maskValue = parseFadeClipField(fieldName, entry.getValue(), p);
+                    if (maskValue != null) {
+                        data.put(fieldName, maskValue);
+                        continue;
+                    }
+                } else if (FADE_ONLY_CLIP_FIELDS.contains(fieldName) || isFadeKeyframeOnlyField(fieldName)) {
+                    throw new ScriptParseException(p + "." + fieldName,
+                            "fade 专用字段（当前 layer_type=" + overlayLayerType
+                                    + "）：高级颜色遮罩只属于 layer_type=fade");
+                }
+            }
+            if (type == TrackType.CAMERA) {
+                // 归属交叉检查（0.3.6 D2）：形状只属于 clip 级，几何只属于关键帧；fade 渐变 / 混合模式
+                // 不因新增遮罩字段而被 CAMERA 接受（遮罩只有形状 + 几何，没有颜色层语义）。
+                if (CAMERA_MASK_GEOMETRY_FIELDS.contains(fieldName)) {
+                    throw new ScriptParseException(p + "." + fieldName,
+                            "只属于关键帧（mask_x / mask_y / mask_width / mask_height / mask_radius"
+                                    + " 必须写在 keyframes 元素里，clip 级不生效）");
+                }
+                if (FADE_GRADIENT_FIELDS.contains(fieldName)) {
+                    throw new ScriptParseException(p + "." + fieldName,
+                            "fade 专用（gradient / gradient_* 只属于 OVERLAY 的 layer_type=fade）："
+                                    + "CAMERA lane 遮罩用 clip 级 mask_shape + 关键帧 mask_* 几何");
+                }
+                if ("blend_mode".equals(fieldName)) {
+                    throw new ScriptParseException(p + "." + fieldName,
+                            "不支持（混合模式只写在 ADJUST 轨片段的 clip 级；fade 的高级遮罩只属于"
+                                    + " OVERLAY 的 layer_type=fade）");
+                }
             }
             Object value = parseFieldBySchema(fieldName, entry.getValue(), p, type, false, null);
             if (value != null) {
@@ -286,7 +353,8 @@ public class ScriptParser {
         if (obj.has("keyframes")) {
             JsonArray kfArr = obj.getAsJsonArray("keyframes");
             for (int i = 0; i < kfArr.size(); i++) {
-                keyframes.add(parseKeyframe(kfArr.get(i).getAsJsonObject(), p + ".keyframes[" + i + "]", type));
+                keyframes.add(parseKeyframe(kfArr.get(i).getAsJsonObject(), p + ".keyframes[" + i + "]",
+                        type, fadeOverlay, overlayLayerType));
             }
         }
 
@@ -321,11 +389,23 @@ public class ScriptParser {
             }
         }
 
-        return new Clip(startTime, duration, type, data, keyframes);
+        Clip clip = new Clip(startTime, duration, type, data, keyframes);
+        if (fadeOverlay) {
+            // fade 片段构建后立即建立 ColorMaskSpec（懒缓存首次访问）：结构 / 颜色非法在此转成
+            // 带完整字段路径的解析错误，绝不把非法输入默默变黑
+            try {
+                clip.getColorMaskSpec();
+            } catch (ColorMaskSpec.InvalidColorMaskException e) {
+                throw new ScriptParseException(p + "." + e.getFieldPath(), e.getMessage());
+            }
+        }
+        return clip;
     }
     // ========== Keyframe 解析（统一 schema 驱动）==========
 
-    private static Keyframe parseKeyframe(JsonObject obj, String p, TrackType type) throws ScriptParseException {
+    private static Keyframe parseKeyframe(JsonObject obj, String p, TrackType type,
+                                          boolean fadeOverlay, String overlayLayerType)
+            throws ScriptParseException {
         float time = requireFloat(obj, p, "time");
         if (time < 0) {
             throw new ScriptParseException(p + ".time", "不能为负数: " + time);
@@ -342,6 +422,45 @@ public class ScriptParser {
                                 + " look_at_target_structure、方块用 look_at_target_block，偏移用 look_at_offset"
                                 + "（世界轴 dx/dy/dz / 基准坐标系 fwd/up/right）");
             }
+            if (type == TrackType.OVERLAY) {
+                if (fadeOverlay) {
+                    // 归属交叉检查：gradient / mask_shape / blend_mode 只属于 clip 级（color 两级都合法）
+                    if (FADE_ONLY_CLIP_FIELDS.contains(fieldName)) {
+                        throw new ScriptParseException(p + "." + fieldName,
+                                "只属于 clip 级（不能写在关键帧里，关键帧不生效）");
+                    }
+                    Object maskValue = parseFadeKeyframeField(fieldName, entry.getValue(), p);
+                    if (maskValue != null) {
+                        data.put(fieldName, maskValue);
+                        continue;
+                    }
+                } else if (FADE_ONLY_KEYFRAME_FIELDS.contains(fieldName)
+                        || FADE_ONLY_CLIP_FIELDS.contains(fieldName)) {
+                    throw new ScriptParseException(p + "." + fieldName,
+                            "fade 专用字段（当前 layer_type=" + overlayLayerType
+                                    + "）：高级颜色遮罩只属于 layer_type=fade");
+                }
+            }
+            if (type == TrackType.CAMERA) {
+                // 归属交叉检查（0.3.6 D2）：形状在 clip 级；几何严格有限 / 非负（不把非法值静默吞成缺省）。
+                if ("mask_shape".equals(fieldName)) {
+                    throw new ScriptParseException(p + "." + fieldName,
+                            "只属于 clip 级（形状在片段级声明，关键帧不生效）");
+                }
+                if (FADE_GRADIENT_FIELDS.contains(fieldName)) {
+                    throw new ScriptParseException(p + "." + fieldName,
+                            "fade 专用（gradient / gradient_* 只属于 OVERLAY 的 layer_type=fade）："
+                                    + "CAMERA lane 遮罩用 clip 级 mask_shape + 关键帧 mask_* 几何");
+                }
+                if ("blend_mode".equals(fieldName)) {
+                    throw new ScriptParseException(p + "." + fieldName,
+                            "只属于 clip 级（混合模式只写在 ADJUST 轨片段的 clip 级）");
+                }
+                if (CAMERA_MASK_GEOMETRY_FIELDS.contains(fieldName)) {
+                    data.put(fieldName, parseCameraMaskKeyframeField(fieldName, entry.getValue(), p));
+                    continue;
+                }
+            }
             Object value = parseFieldBySchema(fieldName, entry.getValue(), p, type, true, obj);
             if (value != null) data.put(fieldName, value);
         }
@@ -352,6 +471,178 @@ public class ScriptParser {
             }
         }
         return new Keyframe(time, type, data);
+    }
+
+    /** OVERLAY 的生效 layer_type：缺省 / 非字符串按运行期口径回落 {@code fade}（见 OverlayTrackPlayer.createLayer）。 */
+    private static String overlayLayerType(JsonObject clip) {
+        return clip.has("layer_type") && clip.get("layer_type").isJsonPrimitive()
+                ? clip.get("layer_type").getAsString() : "fade";
+    }
+
+    /**
+     * 是否 fade 的「仅关键帧」字段（{@link #FADE_ONLY_KEYFRAME_FIELDS} 去掉两级都合法的 {@code color}）。
+     * 复用同一集合做 clip 级交叉归属检查，避免再复制一套字段名。
+     */
+    private static boolean isFadeKeyframeOnlyField(String fieldName) {
+        return !"color".equals(fieldName) && FADE_ONLY_KEYFRAME_FIELDS.contains(fieldName);
+    }
+
+    /**
+     * 解析 fade 专用的 clip 级字段（0.3.6 D4–D7）。返回 {@code null} = 该字段不属于本方法。
+     *
+     * <p>这里只做 JSON 形态检查并归一为 data map 的值；渐变内容 / 枚举取值 / 颜色格式由
+     * {@link ColorMaskSpec#from(Clip)} 在片段构建后统一校验（同一套口径，字段路径一致）。
+     * 非 fade 的 OVERLAY 片段不会走到这里——调用方先按 layer_type 拒绝。</p>
+     */
+    private static Object parseFadeClipField(String fieldName, JsonElement value, String p)
+            throws ScriptParseException {
+        String path = p + "." + fieldName;
+        return switch (fieldName) {
+            case "color" -> {
+                if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
+                    throw new ScriptParseException(path,
+                            "需要字符串颜色（#RRGGBB 六位十六进制，# 可省）");
+                }
+                yield value.getAsString();
+            }
+            case "mask_shape" -> {
+                if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
+                    throw new ScriptParseException(path,
+                            "需要字符串（full / rect / circle；缺省 full）");
+                }
+                yield value.getAsString();
+            }
+            case "blend_mode" -> {
+                if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
+                    throw new ScriptParseException(path,
+                            "需要字符串（normal / multiply / screen / soft_light / overlay；缺省 normal）");
+                }
+                yield value.getAsString();
+            }
+            case "gradient" -> {
+                if (!value.isJsonObject()) {
+                    throw new ScriptParseException(path,
+                            "需要对象 {type: linear|radial, stops: [...]}（缺省 = 纯色）");
+                }
+                // parseDataMap 会丢弃 JSON null（数组元素 / 对象值）——那会让 stops 下标错位、非法结构被吞。
+                // 渐变结构里 null 没有合法语义，先整体拒绝，保证 ColorMaskSpec 看到的元素与作者写的逐项对应。
+                if (containsJsonNull(value)) {
+                    throw new ScriptParseException(path,
+                            "不能包含 null（type / stops / 色标 offset / color 都必须有值）");
+                }
+                // 结构数据只解析一次：这里归一为 Map，ColorMaskSpec 再一次性校验并烘成数组
+                yield parseDataMap(value.getAsJsonObject(), path);
+            }
+            default -> null;
+        };
+    }
+
+    /**
+     * 解析 fade 专用的关键帧字段（0.3.6 D4–D7）。返回 {@code null} = 该字段不属于本方法。
+     *
+     * <p>新增通道在 schema 里是 float / string；这里额外严格拦非数字 / 非有限值，
+     * 避免 schema 驱动的「非数字 → null → 静默回落缺省」把非法输入悄悄变成缺省效果。
+     * 取值范围（非负 / > 0 / 0~1）归 {@code ScriptValidator}（与既有通道分工一致）。</p>
+     */
+    private static Object parseFadeKeyframeField(String fieldName, JsonElement value, String p)
+            throws ScriptParseException {
+        String path = p + "." + fieldName;
+        return switch (fieldName) {
+            case "color" -> {
+                if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
+                    throw new ScriptParseException(path,
+                            "需要字符串颜色（#RRGGBB 六位十六进制，# 可省；缺省回落 clip.color）");
+                }
+                yield value.getAsString();
+            }
+            case "mask_x", "mask_y" -> requireFiniteNumber(value, path,
+                    "需要有限数字（窗口比例，元素中心；缺省 0.5，可越界）");
+            case "mask_width", "mask_height" -> requireFiniteNumber(value, path,
+                    "需要有限数字（窗口比例，非负；缺省 1）");
+            case "mask_radius" -> requireFiniteNumber(value, path,
+                    "需要有限数字（窗口较短边比例，非负；缺省 0.5）");
+            case "gradient_angle" -> requireFiniteNumber(value, path,
+                    "需要有限数字（角度，0 = 向右、90 = 向下；缺省 0）");
+            case "gradient_center_x", "gradient_center_y" -> requireFiniteNumber(value, path,
+                    "需要有限数字（窗口比例；缺省 0.5，可越界）");
+            case "gradient_radius" -> requireFiniteNumber(value, path,
+                    "需要有限数字（窗口较短边比例；缺省 0.5，必须 > 0）");
+            default -> null;
+        };
+    }
+
+    /** 严格读取一个有限数字（新 fade 通道用；不把非数字 / NaN / Infinity 静默吞成缺省）。 */
+    private static float requireFiniteNumber(JsonElement value, String path, String message)
+            throws ScriptParseException {
+        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) {
+            throw new ScriptParseException(path, message);
+        }
+        float number = value.getAsFloat();
+        if (!Float.isFinite(number)) {
+            throw new ScriptParseException(path, message + "（实际: " + value + "）");
+        }
+        return number;
+    }
+
+    /** 严格读取一个有限非负数字（CAMERA 遮罩尺寸 / 半径用；负数与 NaN / Infinity 都带字段路径拒绝）。 */
+    private static float requireNonNegativeNumber(JsonElement value, String path, String message)
+            throws ScriptParseException {
+        float number = requireFiniteNumber(value, path, message);
+        if (number < 0f) {
+            throw new ScriptParseException(path, message + "（实际: " + number + "）");
+        }
+        return number;
+    }
+
+    /**
+     * CAMERA lane 遮罩形状（clip 级 {@code mask_shape}）：{@code full} / {@code rect} / {@code circle}。
+     * 非字符串 / 未知值都在解析期带字段路径拒绝（不静默回落 full）。
+     */
+    private static String parseMaskShape(JsonElement value, String path) throws ScriptParseException {
+        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
+            throw new ScriptParseException(path, "需要字符串（full / rect / circle；缺省 full）");
+        }
+        String shape = value.getAsString();
+        if (!"full".equals(shape) && !"rect".equals(shape) && !"circle".equals(shape)) {
+            throw new ScriptParseException(path,
+                    "未知覆盖形状: " + shape + "（可选: full / rect / circle）");
+        }
+        return shape;
+    }
+
+    /**
+     * CAMERA lane 遮罩几何（关键帧 {@code mask_*}）：中心可越界（有限即可），
+     * 宽高 / 半径有限非负。返回归一后的 {@code float} 存进关键帧 data。
+     */
+    private static float parseCameraMaskKeyframeField(String fieldName, JsonElement value, String p)
+            throws ScriptParseException {
+        String path = p + "." + fieldName;
+        return switch (fieldName) {
+            case "mask_x", "mask_y" -> requireFiniteNumber(value, path,
+                    "需要有限数字（窗口比例，中心；缺省 0.5，可越界）");
+            case "mask_width", "mask_height" -> requireNonNegativeNumber(value, path,
+                    "需要有限非负数字（窗口比例；缺省 1，0 = 不绘制）");
+            case "mask_radius" -> requireNonNegativeNumber(value, path,
+                    "需要有限非负数字（窗口短边比例；缺省 0.5，0 = 不绘制）");
+            default -> throw new ScriptParseException(path, "不是 CAMERA 遮罩几何字段");
+        };
+    }
+
+    /** 递归检查 JSON 里是否含 null（parseDataMap / parseDataArray 会丢弃 null，渐变结构不允许）。 */
+    private static boolean containsJsonNull(JsonElement value) {
+        if (value.isJsonNull()) {
+            return true;
+        }
+        if (value.isJsonArray()) {
+            for (JsonElement element : value.getAsJsonArray()) {
+                if (containsJsonNull(element)) return true;
+            }
+        } else if (value.isJsonObject()) {
+            for (Map.Entry<String, JsonElement> entry : value.getAsJsonObject().entrySet()) {
+                if (containsJsonNull(entry.getValue())) return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -385,6 +676,12 @@ public class ScriptParser {
         // 过渡打断规则（clip 级 transition_interrupt；schema 里是 enum，但额外拦非法枚举值）
         if (!isKeyframe && "transition_interrupt".equals(fieldName) && def != null) {
             return parseTransitionInterrupt(value, p + "." + fieldName);
+        }
+
+        // CAMERA lane 遮罩形状（clip 级 mask_shape）：schema 里是 enum，但额外拦非法枚举值
+        // （OVERLAY fade 的同名字段在 parseFadeClipField 已按同一口径严格读取，不会走到这里）
+        if (!isKeyframe && "mask_shape".equals(fieldName) && def != null && type == TrackType.CAMERA) {
+            return parseMaskShape(value, p + "." + fieldName);
         }
 
         if (def == null) {

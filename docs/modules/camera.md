@@ -45,3 +45,10 @@
   - ✅ v2：`cam_breath_type` 多类型（`perlin` 默认 / `perlin_axis` / `sine` / `trauma`）+ `cam_breath_speed`，旧 `enabled/intensity/seed` 兼容（缺省 type 按 perlin 处理）；`trauma` 专属 `cam_breath_trauma/decay`；确定性（同 seed + 同时间 → 同抖动），叠加在最终 yaw/pitch/roll 上（`BreathDisturbance`、`CameraTrackPlayer`）
 - **合成参数 `dest` / `source` 的口径（0.3.6）**
   - ✅ CAMERA 关键帧的 `dest` = **窗口（屏幕）归一化**目标矩形（放置参照窗口）、`source` = **lane 画面归一化**取材矩形（取材参照素材自身，原点 = 左上角）；缩放隐含在 `dest` 尺寸 / `source` 尺寸之比，**不乘分辨率转义系数 `k`**（lane 画面每帧按播放窗口尺寸渲染，`k = 1`）。两族（lane / 素材）放置统一为窗口参照、无画布换算 —— 完整模型见 `plans/0.3.6/variable-frame.md` §4.2；字段表见 `docs/SCRIPT_FORMAT.md` §4「合成参数」。消费方在 `client/lane/ScriptLaneDriver` 逐帧取值、`client/lane/LaneCompositor` 上屏
+- **画面 lane 合成遮罩（0.3.6 D2）**
+  - ✅ CAMERA clip 级 `mask_shape`（`full` 缺省 / `rect` / `circle`）+ 关键帧 `mask_x` / `mask_y` / `mask_width` / `mask_height` / `mask_radius`：`LaneMask` 按该 clip 的本地时间线性采样，每槽复用一个实例；`full` 不读几何并复位缺省，旧 clip 输出不变（`LaneMask`、`ScriptLaneDriver`）
+  - ✅ `LaneCompositor` 在合成阶段按**窗口物理像素**判定覆盖率（`rect` 中心 / 宽高为窗口比例；`circle` 半径为窗口短边比例，非方形窗口仍是真圆），覆盖率与 `opacity` 相乘作为混合 alpha；不读 lane 纹理 alpha、不改 `source` / `dest` 的 UV / 顶点映射；区域外保持底图，`rect` 宽/高或 `circle` 半径为 `0` 时该 lane 不绘制；非 `full` 而专用 shader 不可用时跳过该 lane 并报错，不退回无遮罩输出（`LaneCompositor`、`ic_lane_blit`）
+  - ✅ 遮罩只作用于相机 lane，**不裁切字幕 / 图片**；CAMERA 不接受 `gradient` / `gradient_*` / `blend_mode`（`gradient` / `gradient_*` 专属 OVERLAY fade；`blend_mode` 属于 ADJUST / fade），`image` / `subtitle` 不接受 `mask_shape` / `mask_*`（`ScriptParser`、`ScriptValidator`）
+- **相机过渡与画面转场的区别（0.3.6 D1）**
+  - ✅ `transition: "cut"` / `"morph"` 只改变相机六参数（位置 / yaw / pitch / roll / fov / zoom）；morph 窗口内混合两侧相机状态，但**不叠化、不划像画面**，也不生成额外画面（`CameraTrackPlayer`、`TransitionType`）
+  - ✅ 画面转场由显式 clip + 关键帧表达：叠化 = 同轨重叠 clip，下层 A 保持 `opacity: 1`、上层 B `0 → 1`；划像 = 上层 clip 的 `mask_shape` + `mask_*` 关键帧；黑场 / 白场 = OVERLAY fade。不存在 `TRANSITION` 轨、`transition_in` / `transition_out` 或运行时生成器（`ScriptPlayer`、`LaneCompositor`）
