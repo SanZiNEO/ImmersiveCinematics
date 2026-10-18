@@ -41,25 +41,42 @@
 - F5 的 l25 两档被阻塞，F5 矩阵无法整体关单。
 - l16 的 30,410 字符已经接近上限，继续加轨 / 关键帧就会踩到同一条线。
 
-## 当前处置（仅验收侧）
+## 修复（2026-10-18）
 
-把 l25 测试脚本按默认值压缩：删除 300 个与默认值相同的字段，保留全部 25 条相机轨和关键帧。
+**方案 = 压缩后按字节发送 + 长度前缀 + 双向上限 + 命令入口预检**（对应上文建议 2 + 3；分片传输本轮不做）。
 
-- 压缩前：46,944 字符
-- 压缩后：**24,869 字符**（低于 32,767）
-- 语义不变：`dest` / `opacity` 缺省即全屏、不透明；`fov=70`、`zoom=1`、`roll=0`、`loop=false`、`cut` 均为默认值。
+`S2CPlayScriptPacket` 的载荷从「整份 JSON 当字符串」改为「gzip 字节数组 + `writeVarInt` 长度前缀」：
 
-压缩后的文件只放在开发运行目录，**未提交**；l25 尚未重跑，F5 的 l25 数据仍为空。
+| 项 | 值 |
+|---|---|
+| 字段 | `byte[] scriptGzip` + `refId` + `instanceId` |
+| 线格式 | `writeVarInt(len)` → `writeBytes(gzip)` → `writeUtf(refId)` → `writeUtf(instanceId)` |
+| 解压后上限 | 4 MiB（`MAX_SCRIPT_JSON_BYTES`） |
+| 压缩后上限 | 1 MiB（`MAX_COMPRESSED_BYTES`，读侧同样校验，防畸形包） |
+| 构造 / 解码 | `encode` / `decode` 抛 `IllegalArgumentException`，消息带具体字节数 |
+| 发送 | `send(...)` 返回 `boolean`；超限只记 ERROR 日志、不抛（触发器路径不崩服务端） |
+| 命令入口 | `CinematicCommand.playScript` 在 `ScriptStructureResolver` 之后、`AckTracker.expect` 之前调 `validate`，超限 `sendFailure("§c脚本 JSON 过大：…")`、记一条 `WARN 拒绝播放脚本 <path>：…` 并 `return 0`——不再落到「意外错误」，也不登记 ACK 触发重发 |
+| 触发器入口 | `StartPlaybackAction.sendTo` 发送失败只 `warn`，按玩家跳过 |
 
-## 建议的产品修复（本轮不做）
+协议是同一版本客户端/服务端的线格式变更，不做旧版本兼容（项目既定版本策略）。
 
-1. **分片传输**：把脚本 JSON 拆成多包，带序号 / 总片数，客户端收齐后组装再播放。
-2. **压缩后按字节发送**：gzip / deflate 后用 byte array 传输，不再走字符串字段；需要协议版本与兼容处理。
-3. **播放前预检**：`play` 入口先序列化并检查长度，超限时返回明确错误（例如「脚本过大：46944 / 32767」）并写日志，而不是落到通用异常。
-4. 长期可考虑脚本资源 id + 客户端从服务端同步的独立通道，避免每次播放都重传整份 JSON。
+### 验证
+
+- **原始脚本直接播放**：`ic_f_perf_l25.json` 原始 47,757 字节，只去掉长驻 `OVERLAY` 字幕轨后 47,061 字节（仍 > 32,767），未做任何默认值压缩 → 客户端日志 `Playing script from server: ic_f_perf_l25`，无 `String too big`、无 `ACK 重发失败`。
+- **性能矩阵补齐**（会话 `diagnostics/sessions/20261018-173824-f5-acceptance`，Fabric / Iris 1.7.6 + Sodium + ComplementaryUnbound，vsync 关 / maxFps 260 / 视距 12 / 600 帧）：
+
+| 档 | valid | lane rows | lane failure frames | game_render p50 / p95 | lane_total p50 / p95 | composite p50 / p95 | frame_interval p50 / p95 |
+|---|---|---|---|---|---|---|---|
+| `perf_l25_full`（run 1） | 600/600 COMPLETE | 15000 | 0 | 27.26 / 39.43 ms | 22.87 / 33.24 ms | 0.47 / 0.81 ms | 169.31 / 174.68 ms |
+| `perf_l25_world_only`（run 2） | 600/600 COMPLETE | 15000 | 0 | 18.88 / 21.74 ms | 15.07 / 17.30 ms | 0.39 / 0.48 ms | 161.48 / 166.13 ms |
+
+- **负例**：`too_big.json`（4,400,160 字节，合法 JSON，`meta.description` 为超长字符串）执行 `/icinematics play fround:too_big` → 服务端 `WARN (ImmersiveCinematics/Command) 拒绝播放脚本 …too_big.json：脚本 JSON 过大：4400160 字节，超过 4194304 字节上限`，无异常堆栈，客户端无 `Playing script from server: too_big`（脚本未进入播放）。玩家直接执行时同一文本经 `sendFailure` 进聊天栏；EVENT 轨命令源（`SuccessOnlySource`）按设计吞掉失败反馈，故该路径以 WARN 日志为准。
+- 构建：`sh gradlew compileJava --offline`、`sh gradlew :fabric:build --offline` 均 `BUILD SUCCESSFUL`。
 
 ## 状态
 
-- F5：l0 / l1 / l4 / l16 的 FULL 与 WORLD_ONLY 已有 600 帧完整数据；**l25 FULL / WORLD_ONLY 仍缺**。
-- 本条归 F 轮收尾，代码修复未实施；F 轮不因「l25 已压缩」而关单。
-- 关联：`f-round-issues.md` §5、`implementation-progress.md` F5 行。
+- 已修复（2026-10-18）：gzip 字节传输 + 双向上限 + 命令入口预检已落地。
+- F5 矩阵**完整**：l0 / l1 / l4 / l16 / l25 的 FULL 与 WORLD_ONLY 均 600/600。
+- 验收侧按默认值压缩的临时脚本（24,869 字符）已不需要，未提交。
+- 失败处理审计（`failure-handling-audit.md`）的 P0 批次**仍开放**，不属本条。
+- 关联：`f-round-issues.md` §1.1 / §5、`implementation-progress.md` F5 行。

@@ -4,7 +4,7 @@
 > 2560×1369（测试中曾调整窗口比例），光影启用，`shader_pack_in_use=true`。
 > 会话：`diagnostics/sessions/20261017-172637-f-round/`。
 
-> **2026-10-18 状态**：问题 A / B 已定位并修复（根因 = Iris/Oculus 每视角共享状态，不是合成层 alpha；证据见 `.planning/036-shader-lane-investigation/evidence.md` §7 与 [iris-oculus-compat](iris-oculus-compat.md) §7）。**性能矩阵仍未完成**（§1.1）；F3 生产验收通过（Fabric/Iris 三视角 + 热切换；Forge/Oculus 同 jar 已部署）；F4 按用户裁决取消；F5 诊断实现完成、真实成本待回填。失败处理审计（[failure-handling-audit](failure-handling-audit.md)）**尚未实施**。
+> **2026-10-18 状态**：问题 A / B 已定位并修复（根因 = Iris/Oculus 每视角共享状态，不是合成层 alpha；证据见 `.planning/_archive/2026-10-18/036-shader-lane-investigation/evidence.md` §7 与 [iris-oculus-compat](iris-oculus-compat.md) §7）。**性能矩阵已完成**（§1.1，l25 在 gzip 传输修复后补齐）；F3 验收通过（Fabric/Iris 三视角 + 热切换；Forge/Oculus 同 jar 已部署）；F4 按用户裁决取消；F5 诊断实现与真实数据均完成。失败处理审计（[failure-handling-audit](failure-handling-audit.md)）**尚未实施**，是本轮唯一未收口项。
 
 ## 1. 测试进度与缺失项
 
@@ -29,13 +29,13 @@
 | `perf_l16` FULL | ✅ 600/600（2026-10-18 复测） |
 | `perf_l4` WORLD_ONLY | ✅ 600/600（2026-10-18 复测） |
 | `perf_l1` WORLD_ONLY | ✅ 600/600（2026-10-18 复测） |
-| `perf_l25` | ☐ **仍缺**：脚本 46,944 字符超过 32,767 传输上限，`play` 报「意外错误」；见 [f5-script-packet-limit](f5-script-packet-limit.md) |
+| `perf_l25` | ✅ 600/600（2026-10-18，gzip 传输修复后；见 [f5-script-packet-limit](f5-script-packet-limit.md)） |
 | 其余 600/600 档（`perf_l0` / `perf_l1` FULL / `perf_l16` WORLD_ONLY / `perf_l4` FULL） | ✅ 已采；2026-10-18 每视角历史隔离后已复测（l0 / l1 / l4 / l16 全部 600/600） |
-| F3 | ✅ 实现完成 + 生产验收通过；Fabric/Iris 1.7.6 三包 A/B 干净；Forge/Oculus 1.8.0 同 jar 已部署；④⑤⑥ 兼容细节开放（见 [iris-oculus-compat](iris-oculus-compat.md) §7.5） |
+| F3 | ✅ 实现完成 + 验收通过；Fabric/Iris 1.7.6 三包 A/B 实机干净；Forge/Oculus 1.8.0 为同构移植、同 jar 部署；④ 由 Sodium 实机覆盖、⑥ 由 F5 矩阵覆盖，⑤（Rubidium 类名）与非 `SRGB` 色彩空间为已知限制（见 [iris-oculus-compat](iris-oculus-compat.md) §7.5） |
 | F4 | ⊘ 已取消（2026-10-17 用户裁决）：lane 视距跟随玩家设置，不新增脚本字段 |
-| F5 | 🟡 诊断会话与 21 支脚本完成；l0 / l1 / l4 / l16 的 FULL 与 WORLD_ONLY 已回填 600 帧数据；**l25 被 32,767 字符脚本传输上限阻塞**（见 [f5-script-packet-limit](f5-script-packet-limit.md)） |
+| F5 | ✅ 诊断会话与矩阵完成；l0 / l1 / l4 / l16 / l25 的 FULL 与 WORLD_ONLY 均 600/600（l25 于 2026-10-18 gzip 传输修复后补齐，见 [f5-script-packet-limit](f5-script-packet-limit.md)） |
 
-⇒ 性能矩阵与 F5 成本曲线**均未完成**，F 轮不能据此关单。
+⇒ 性能矩阵（l0 / l1 / l4 / l16 / l25 × FULL / WORLD_ONLY）**已完整**（2026-10-18）；F 轮剩余收口项是失败处理 P0 批次。
 
 ## 2. 问题 A：lane 合成疑似非 100% 不透明（绿色毛边 / 隐约透底）——✅ 已解决（2026-10-18）
 
@@ -234,7 +234,7 @@
 
 - **分支历史**：调查分支已按最终状态压缩为 2 个提交（修复 + 文档），探针与一次性验收脚本未进入最终树；记录见 [history-consolidation](history-consolidation.md)。
 - ~~深度修复（`8836cd7`）待用户实机验证~~ → 已完成并**被取代**（2026-10-18）：每视角深度重绑 + 历史 colortex / shadowcolor / previous 隔离，三包 A/B 干净；见 §2 / §3 结论与 [iris-oculus-compat](iris-oculus-compat.md) §7。
-- **性能矩阵补齐**：`perf_l16` FULL、`perf_l4` WORLD_ONLY、`perf_l1` WORLD_ONLY 已于 2026-10-18 复测 600/600；**`perf_l25` 仍缺**，原因是脚本 46,944 字符超过 32,767 传输上限（[f5-script-packet-limit](f5-script-packet-limit.md)），压缩后的测试脚本已就绪但未重跑。
-- **F3 生产验收**：已通过（Fabric/Iris 三视角 + 热切换；Forge/Oculus 1.8.0 同 jar 已部署）；Rubidium（§3-⑤）与 Sodium/Embeddium `frame++`（§3-④）仍作为兼容细节开放。
+- **性能矩阵补齐**：`perf_l16` FULL、`perf_l4` WORLD_ONLY、`perf_l1` WORLD_ONLY 已于 2026-10-18 复测 600/600；**`perf_l25` 同日补齐**——32,767 字符上限已由 gzip 字节传输修复（[f5-script-packet-limit](f5-script-packet-limit.md)），原始 47,061 字节脚本直接播放，FULL / WORLD_ONLY 均 600/600。矩阵完整。
+- **F3 验收**：已通过（Fabric/Iris 三视角 + 热切换实机；Forge/Oculus 为同构移植、同 jar 部署）；Sodium `frame++`（§3-④）由 Sodium 实机 A/B 与 F5 十档覆盖，Rubidium 类名核对（§3-⑤）为已知限制。
 - **失败处理**：按 `failure-handling-audit.md` 第 1 批 P0 落地（帧首 / 逐实例 / lane 合成 / 服务端 tick / 包处理 / 命令入口 / `PacketGuard`），再 P1、P2；网络发包防护与断线清理同批。
-- **F 轮收口条件**：性能数据回填 + P0 批次落地 + F2 实机接播；F3 生产验收已通过（2026-10-18）。在此之前 F2/F5 保持「实现完成、待实机/待数据」，F 轮不整体关单。
+- **F 轮收口条件**：性能数据回填（已完成，2026-10-18）+ 失败处理 P0 批次落地；F2 / F3 / F5 均已实现并验收（F3 为 Fabric/Iris 实机 + Forge/Oculus 同构同 jar），剩余唯一未收口项是 P0 批次。Iris ⑤（Rubidium 类名核对）与非 `SRGB` 色彩空间属**已知限制**，不阻塞关单。

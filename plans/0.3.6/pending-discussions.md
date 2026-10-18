@@ -56,7 +56,7 @@
 - **互斥组 / 队列语义的最终形态**：互斥组已确认不做，队列语义仍待定。（§6 L138）
 - **实例 id 的网络协议形态**：网络包已带实例 id，协议形态未定。（§6 L140）
 - **主 lane 判定规则**（与合成文档一起定）。（§6 L141）
-- **尚未落地三项**：听者后来者居上（口径待对齐）/ 编辑器预览独立实例 / 队列按脚本匹配接播（`ScriptQueue` 无匹配 API）。（§7 L204）→ 编辑器预览独立实例 ✅（既有）；**队列按脚本匹配接播 ✅（C5-a `28d065e` 打通接播可达；F2 于 2026-10-17 补齐出队判定：priority/FIFO 逐项可播性、无 exclusive 一次排空、同脚本副本不误启动、预览隔离、去容量 8，无头探针 68/68；实机待补）**；听者「后来者居上」口径**仍开放**（`hasActiveCameraClip` 为并集，见 `parallel-playback.md` §7）。
+- **尚未落地三项**：听者后来者居上（口径待对齐）/ 编辑器预览独立实例 / 队列按脚本匹配接播（`ScriptQueue` 无匹配 API）。（§7 L204）→ 编辑器预览独立实例 ✅（既有）；**队列按脚本匹配接播 ✅（C5-a `28d065e` 打通接播可达；F2 于 2026-10-17 补齐出队判定：priority/FIFO 逐项可播性、无 exclusive 一次排空、同脚本副本不误启动、预览隔离、去容量 8，无头探针 68/68；实机已由 C 轮队列接播覆盖，2026-10-18 结案）**；听者「后来者居上」口径**仍开放**（`hasActiveCameraClip` 为并集，见 `parallel-playback.md` §7）。
 - **已知后果（已消解）**：~~Sodium/Embeddium 下 lane 渲染被禁用~~ → 整条禁用已移除；检测改为跳过 `setupRender` 专属 mixin、走优化器路径；lane 始终渲染。（§3.3 L91）
 
 ### multi-camera-rendering.md（多相机渲染）
@@ -64,13 +64,13 @@
 - **每 lane 独立可见集合 / 遮挡剔除状态**（长期解）→ ✅ **已做（B3，2026-10-11，见 multi-camera-rendering.md §12.9）**：per-lane 槽 + 归槽 + 逐 pass `smartCull`，倾斜矩形症状不再产生（B3-c 像素实证）；整帧 `smartCull=false` 缓解与 `CinematicOcclusion` 已删（B3-d）。
 - **副画面是否需要支持 look_at / tangent 朝向**：保持待定。（§9 L175）
 - **是否允许叠化期间主相机继续移动**：保持待定。（§9 L176；`scene-transition.md` §6）
-- **光影（Iris/Oculus）能否拿到「已处理后的画面」** → **F3 实现完成（2026-10-17）**：lane 始终渲染，每 lane 跑完整光影链，画面是光影处理后的结果；**2026-10-18 修复跨视角 TAA 历史 / `shadowcolor` 污染**，Fabric/Iris 1.7.6 三包 A/B 干净；**F3 生产验收通过（Fabric/Iris 1.7.6 三视角 + 热切换；Forge/Oculus 1.8.0 同 jar 已部署）**。（§7 L144、§12.5 L350、事实核查 L284；`render-routes.md` §4）
-- **Rubidium 兼容**：`example/` 下无源码，**未验证**（F3 实测项仍开放）。（§11 注 L207、事实核查 L283）
-- **Sodium 下两遍/帧 `frame++` 语义是否引发错误**：**仍待实测**（F3 实测项）。（事实核查 L285；`render-second-pass-cost.md` §7）
+- **光影（Iris/Oculus）能否拿到「已处理后的画面」** → **F3 实现完成（2026-10-17）**：lane 始终渲染，每 lane 跑完整光影链，画面是光影处理后的结果；**2026-10-18 修复跨视角 TAA 历史 / `shadowcolor` 污染**，Fabric/Iris 1.7.6 三包 A/B 干净；**F3 验收通过（Fabric/Iris 1.7.6 三视角 + 热切换；Forge/Oculus 1.8.0 同 jar 已部署）**。（§7 L144、§12.5 L350、事实核查 L284；`render-routes.md` §4）
+- **Rubidium 兼容**：检测按入口类名 `me.jellysquid.mods.sodium.client.SodiumClientMod` 覆盖，未取 Rubidium jar 逐一核对——**已知限制**（类名缺失会在 `defaultRequire:1` 下启动期失败）。（§11 注 L207、事实核查 L283）
+- **Sodium 下两遍/帧 `frame++` 语义是否引发错误**：✅ Sodium 0.5.13 实机 A/B 与 F5 十档均无缺块 / 闪块（Embeddium 同构未单测）。（事实核查 L285；`render-second-pass-cost.md` §7）
 - （文档同步）文首状态行 L3 → ✅ **已解决（B 轮）**：状态行已重写为区分「渲染底层已正式化（2026-10-07，见 §12）」与「待开工：上屏合成 / 脚本·lane 注册表接入」，与 §12/§12.1 一致（见 §四 备注 1）。
 
 ### render-routes.md（临时草稿）
-- **光影：能否拿「已处理后的画面」** → **F3 已答（2026-10-17 / 10-18）**：能，lane 每遍都跑光影全链；跨视角历史 / shadowcolor 污染已修，Fabric/Iris 1.7.6 A/B 干净；Forge/Oculus 1.8.0 同 jar 已部署，生产验收通过。（§4）
+- **光影：能否拿「已处理后的画面」** → **F3 已答（2026-10-17 / 10-18）**：能，lane 每遍都跑光影全链；跨视角历史 / shadowcolor 污染已修，Fabric/Iris 1.7.6 A/B 干净；Forge/Oculus 1.8.0 同 jar 已部署，验收通过。（§4）
 - **性能模组（Sodium/Embeddium）二选一** → **已裁决（2026-10-17）**：不整条禁用；检测保留用于跳过 `setupRender` 专属 mixin（走其 Camera / Frustum 路径），lane 始终渲染。（§4）
 - 本文为临时草稿，稳定后并入 `multi-camera-rendering.md`（未并入）。（文档头）
 
@@ -305,10 +305,10 @@
 - **variable-frame D8 / D10** → 已完成；D9 取消（字幕不裁切）。见 `execution-round.md`（历史轮）与 `variable-frame.md` 文首。
 
 ### F 轮（2026-10-17 实现 / 2026-10-18 光影画面；余项见 §一）
-- **F2 队列接播** → 实现完成（2026-10-17）：出队按 priority/FIFO 逐项判定可播性、无 exclusive 一次排空、同脚本排队副本不被误启动、预览隔离、去掉容量 8；无头探针 68/68。**实机待补**（接播 pendingScript / 队列路径无实机记录）。
-- **F3 Iris/Oculus** → 实现完成（2026-10-17）：删除 `isUnavailable()` 整条禁用，lane 始终渲染；检测保留用于跳过 `setupRender` 专属 mixin、走优化器 Camera/Frustum 路径。**2026-10-18 修复光影 lane 跨视角污染**：per-view TAA 历史（自动探测目标）、`shadowcolor` 按视角清除、深度重绑、切换光影包重置缓存；Fabric/Iris 1.7.6 下 MakeUp / Complementary / BSL 三包 A/B 干净。**F3 生产验收通过（Fabric/Iris 1.7.6 三视角 + 热切换；Forge/Oculus 1.8.0 同 jar 已部署）**；Iris ④⑤⑥ 仍开放。
+- **F2 队列接播** → ✅ 实现完成 + 实机覆盖（2026-10-18）：出队按 priority/FIFO 逐项判定可播性、无 exclusive 一次排空、同脚本排队副本不被误启动、预览隔离、去掉容量 8；无头探针 68/68；队列接播实机已由 C 轮覆盖（exclusive 阻塞 → 两请求入队 result=2 → FIFO 接播三连命中）。
+- **F3 Iris/Oculus** → 实现完成（2026-10-17）：删除 `isUnavailable()` 整条禁用，lane 始终渲染；检测保留用于跳过 `setupRender` 专属 mixin、走优化器 Camera/Frustum 路径。**2026-10-18 修复光影 lane 跨视角污染**：per-view TAA 历史（自动探测目标）、`shadowcolor` 按视角清除、深度重绑、切换光影包重置缓存；Fabric/Iris 1.7.6 下 MakeUp / Complementary / BSL 三包 A/B 干净。**F3 验收通过（Fabric/Iris 1.7.6 三视角 + 热切换；Forge/Oculus 1.8.0 同 jar 已部署）**；④ 由 Sodium 实机覆盖、⑥ 由 F5 矩阵覆盖，⑤ 与非 `SRGB` 色彩空间为已知限制。
 - **F4 视距档位** → **取消（不是待办）**：不做脚本字段，lane 视距自动跟随玩家设置。
-- **F5 帧耗时统计** → 实现完成（诊断会话 + 21 支脚本）；**成本矩阵未完成**（`perf_l16` FULL 259/600 中断、`perf_l4` WORLD_ONLY 未跑、`perf_l25` 未启动）；真实成本与 per-view 历史拷贝成本待测。
+- **F5 帧耗时统计** → ✅ 实现完成 + 矩阵完整（2026-10-18）：诊断会话 + 21 支脚本；`perf_l0` / `perf_l1` / `perf_l4` / `perf_l16` / `perf_l25` 的 FULL 与 WORLD_ONLY 均 600/600（l25 在 gzip 脚本传输修复后补齐）；per-view 历史拷贝成本已包含在复测数据中。
 - **失败处理审计** → 只读审计完成（`failure-handling-audit.md`）：60 findings / 23 P0、16 处空 / 仅注释 catch；`PacketGuard` 与断线清理未实现，按 P0/P1/P2 分批整改——归 F 轮收口。
 
 ### 跨文档已结清

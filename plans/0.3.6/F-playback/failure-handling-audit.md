@@ -53,7 +53,7 @@
 | `PacketGuard`（统一包处理边界） | ☐ 未落地（§4 / §9 第 1 批第 6 项） |
 | 断线清理 | ☐ 未落地：`PreloadRequester` 直发、`NetworkHandler.sendToPlayer` 无防护、断线未清 viewer 均仍在（关联段「已知网络层缺口」） |
 | 批次 | P0 → P1 → P2 三批（§9）；**三批均未开工** |
-| F 轮收口 | 以「P0 批次落地 + 性能数据回填 + F2 实机接播」为条件（[f-round-issues](f-round-issues.md) §5）；F3 生产验收已于 2026-10-18 通过。本审计未完成前 F 轮不关单 |
+| F 轮收口 | 以「P0 批次落地」为条件（[f-round-issues](f-round-issues.md) §5）；性能数据回填与 F2 队列接播实机覆盖已于 2026-10-18 完成，F3 验收已于 2026-10-18 通过。本审计未完成前 F 轮不关单 |
 
 > 本文件是**待实施清单**，不是已完成记录；§2–§6 的 findings 与 §9 的加固顺序保持原样。2026-10-18 的光影 lane 修复只涉及 `client/lane` 的每视角状态隔离（历史 colortex / shadowcolor / 深度 / previous），**不覆盖本审计的任何边界捕获项**。
 
