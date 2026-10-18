@@ -4,7 +4,7 @@
     "name": "相机测试-音频听者（listener=camera）",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "校验用：meta.listener=camera 的音频听者实机 fixture（0.3.6 B1 验收 P5，plans/0.3.6/camera-state-plan.md §10「音频听者」）。轨迹同 test_camera_smooth_motion（段 1 线性 12s + 段 2 贝塞尔 8s，六参数全程单调，不挂 motion_*）。实机判据：脚本播放期间音频听者坐标必须逐帧等于统一相机快照位置（398/398 帧实测命中），且通常不等于玩家位置（脚本起点与玩家重合，故 t=0 起两帧同坐标；其余帧相距最大 73.9 方块）；脚本结束（无活跃相机）回落玩家位置。验法 = 临时探针在 FrameDriver 帧末与 SoundManagerMixin 下发点各记一行（开关 ICINEMATICS_TRACE），跑完还原。与 cinematics/tests/audio/test_audio_listener_{camera,player}.json（听感判别）互补：本 fixture 管坐标口径。",
+    "description": "校验用：meta.listener=camera 的音频听者实机 fixture（0.3.6 B1 验收 P5，plans/0.3.6/camera-state-plan.md §10「音频听者」）。轨迹同 test_camera_smooth_motion（段 1 线性 12s + 段 2 贝塞尔 8s，六参数全程单调，不挂 motion_*）。实机判据：脚本播放期间音频听者坐标必须逐帧等于统一相机快照位置（398/398 帧实测命中），且通常不等于玩家位置（脚本起点与玩家重合，故 t=0 起两帧同坐标；其余帧相距最大 73.9 方块）；脚本结束（无活跃相机）回落玩家位置。验法 = 临时探针在 FrameDriver 帧末与 SoundManagerMixin 下发点各记一行（开关 ICINEMATICS_TRACE），跑完还原。与 cinematics/0.3.6/tests/audio/test_audio_listener_{camera,player}.json（听感判别）互补：本 fixture 管坐标口径。",
     "triggers": [
       {
         "id": "trg_login",

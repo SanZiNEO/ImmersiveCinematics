@@ -34,7 +34,7 @@ plans/0.3.6/
 ├── E-template/        E 轮：模板
 ├── F-playback/        F 轮：播放/渲染主线
 ├── G-script-model/    G 轮：script-model（关键帧/时间精度）
-├── H-other/           H 轮：区域同步/HUD 隐藏/实机验证
+├── H-other/           H 轮：区域同步/HUD 隐藏/实机验证/触发器状态层（H7/H8）
 ├── done/              主链路已完成（非 A/B 轮）
 ├── misc/              其余（规范/注释收敛）
 ├── _archive/          已结案过程文档、过时元文档、性能原型数据（quadrant-perf）
@@ -61,12 +61,12 @@ plans/0.3.6/
 
 | 轮次 | 目录 | 文档 | 状态 |
 |---|---|---|---|
-| C 触发器与判定 | `C-trigger/` | trigger-conditions（C1–C4）、playback-relations（C5）、condition-system（C6）、point-source-time-mode（C7）、trigger-continuity（P3）、state-tracking（P1） | ✅ **已完成（C1–C7 + C-reg + ②族改按执行事实判定 + C-pause，2026-10-14 关单）**；文档仍留本目录——`trigger-continuity` / `state-tracking` 属 **P3-impl / P1-impl** 方向稿（未落地），随其实现后再归档 |
+| C 触发器与判定 | `C-trigger/` | trigger-conditions（C1–C4）、playback-relations（C5）、condition-system（C6）、point-source-time-mode（C7） | ✅ **已完成（C1–C7 + C-reg + ②族改按执行事实判定 + C-pause，2026-10-14 关单）**；原 `trigger-continuity` / `state-tracking` 两篇方向稿已移入 **H 轮**（`H-other/` = H7 / H8） |
 | D 转场/遮罩 | `D-transition/` | scene-transition（D1–D3）、overlay-color-mask（D4–D7）、variable-frame（D8–D10）；执行记录见 `execution-round.md` / `color-mask-execution.md` | ✅ **D1–D8 / D10 已完成（2026-10-17），D 轮关单**；D9 取消（字幕不裁切，不是待办）；D1–D3 纯显式 clip / 关键帧（C 最终方案），D2 lane rect/circle，D3 显式 z 序，见 `scene-transition.md` §3–§9 |
 | E 模板 | `E-template/` | templates | ⊘ 归编辑器阶段（E0 重审） |
 | F 播放/渲染 | `F-playback/` | parallel-playback（F2）、multi-camera-rendering（F3–F5）、camera-composition、iris-oculus-compat（P2） | ✅ **F2/F3/F5 已完成；F4 取消**（不做脚本字段，lane 视距自动跟随玩家）。Fabric/Iris 1.7.6 光影 lane A/B 已于 **2026-10-18 通过**（MakeUp / Complementary / BSL 三包，绿边 / 缝隙 / 扇形消除）；**F3 验收通过（Fabric/Iris 1.7.6 三视角 + 热切换实机；Forge/Oculus 1.8.0 同构移植、同 jar 部署）**；**F5 成本矩阵完整**（l0/l1/l4/l16/l25 × FULL / WORLD_ONLY 均 600/600，l25 在 gzip 脚本传输修复后补齐，见 [f5-script-packet-limit](F-playback/f5-script-packet-limit.md)）；**失败处理审计 P0 收口待做** |
 | G script-model | `G-script-model/` | script-model（G1–G6）、clock-abstraction（G4） | G6 ✅；G1–G4 ☐；G5 归编辑器 |
-| H 其它 | `H-other/` | region-sync（H1）、hud-hard-hide（hard_hide_hud，H6 实机验证） | H1 ☐；H2 ⊘ 已被 C6 判定规则吸收（等待点收编为 `until→do` 阻塞形态，wait-point-track 归档 `_archive/`）；H4 ✅；H5 ☐；H6 ☐ |
+| H 其它 | `H-other/` | region-sync（H1）、hud-hard-hide（H4–H6）、state-tracking（H7 = P1-impl）、trigger-continuity（H8 = P3-impl）、skip-vote-and-hud（H9） | H1 ☐；H2 ⊘ 已被 C6 判定规则吸收（等待点收编为 `until→do` 阻塞形态，wait-point-track 归档 `_archive/`）；H4 ✅；H5 ☐；H6 ☐；**H7/H8 ☐ 零实现**（2026-10-18 逐条核对）；**H9 🟡 有实现但不完整**（判定两处口径不一致 + HUD 两行分居）；详见 [`H-other/README.md`](H-other/README.md) |
 | 主链路已完成 | `done/` | script-loop、script-i18n、editor-webui-migration、editor-script-graph | ✅（script-loop / script-i18n 已落地；编辑器两篇主体落地，剩余步骤归编辑器阶段） |
 
 ---

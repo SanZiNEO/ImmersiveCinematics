@@ -235,7 +235,7 @@ immersive_cinematics/
 - **划像 / 局部显露**：上层 B 用 clip 级 `mask_shape`（`rect` / `circle`）+ 关键帧 `mask_*` 几何逐步扩大覆盖（见下方「lane 合成遮罩」）。
 - **黑场 / 白场**：OVERLAY 轨的 `fade` clip（见 §9），把相机硬切藏在全遮期间。
 
-不存在 `TRANSITION` 轨道、`transition_in` / `transition_out` 字段或运行时生成器；画面转场就是普通 clip / 关键帧数据。正式示例见 `cinematics/tests/transition/` 下的 `test_dissolve.json`、`test_wipe.json`、`test_fade_black.json`、`test_fade_white.json`、`test_transition_zindex.json`。
+不存在 `TRANSITION` 轨道、`transition_in` / `transition_out` 字段或运行时生成器；画面转场就是普通 clip / 关键帧数据。正式示例见 `cinematics/0.3.6/tests/transition/` 下的 `test_dissolve.json`、`test_wipe.json`、`test_fade_black.json`、`test_fade_white.json`、`test_transition_zindex.json`。
 
 **窗口**：以交界时刻（前一段的窗口末端）为中心，宽度 = 该通道的过渡时长（缺省 `transition_duration`，单位秒）；交界前取 A 侧、交界后取 B 侧的实时值。两侧状态各自按自身时间采样（A 侧走完自己的尾部、B 侧真实进入）。
 
@@ -458,7 +458,7 @@ immersive_cinematics/
 - **链上不做 clamp / 归一化**：合成结果原样交给渲染侧（`fov` 超出可视角、`zoom` 取负等都按数值直通）。
 - **无字段 = 零改动**：不写这两个字段的片段，链输出与启用覆盖链之前逐位一致（无声明 = Modifier 链为空）。
 
-> 示例脚本（`cinematics/tests/camera/`）：`test_camera_modifier_baseline`（常规相机脚本 = 基线）、`test_camera_modifier_mask`（掩码关断：只声明 `zoom`，其余通道与基线逐帧一致）、`test_camera_modifier_add` / `_multiply` / `_replace`（三种合成模式）、`test_camera_modifier_nosuppress` / `_suppress`（suppress 开 / 关对照）、`test_camera_modifier_window`（两段跨窗：第一段的声明在第二段失效）。
+> 示例脚本（`cinematics/0.3.6/tests/camera/`）：`test_camera_modifier_baseline`（常规相机脚本 = 基线）、`test_camera_modifier_mask`（掩码关断：只声明 `zoom`，其余通道与基线逐帧一致）、`test_camera_modifier_add` / `_multiply` / `_replace`（三种合成模式）、`test_camera_modifier_nosuppress` / `_suppress`（suppress 开 / 关对照）、`test_camera_modifier_window`（两段跨窗：第一段的声明在第二段失效）。
 
 ### Keyframe 字段
 
@@ -835,7 +835,7 @@ CAMERA 片段可以给**该片段产出的整幅 lane 画面**加一个几何覆
 }
 ```
 
-> 完整可运行写法见 `cinematics/tests/transition/test_wipe.json`（rect 横 / 纵、circle 真圆）与 `test_dissolve.json`（叠化）。
+> 完整可运行写法见 `cinematics/0.3.6/tests/transition/test_wipe.json`（rect 横 / 纵、circle 真圆）与 `test_dissolve.json`（叠化）。
 
 ### 相机片段调色
 
@@ -890,7 +890,7 @@ CAMERA 片段可以给**该片段产出的整幅 lane 画面**加一个几何覆
 | `aspect_ratio` | float | 否 | `2.35` | 目标宽高比。`0`=无遮幅（全屏），`2.35`=宽银幕电影，`1.778`=16:9 |
 | `opacity` | float | 否 | `1` | 黑边整体不透明度，`0` ~ `1`：`0` 不显示，`0.5` 半透明，`1` 纯黑；上下黑边与左右黑边均适用 |
 
-画幅比和不透明度均按相邻关键帧**匀速线性插值**，首帧前 / 末帧后保持端点值；无活跃片段时不绘制黑边。运行时不额外施加 smoothstep，缓动由编辑器烘焙为显式关键帧。无限片段的本地时间照常推进。可运行 `cinematics/tests/overlay/test_letterbox_opacity.json` 查看分阶段示例。
+画幅比和不透明度均按相邻关键帧**匀速线性插值**，首帧前 / 末帧后保持端点值；无活跃片段时不绘制黑边。运行时不额外施加 smoothstep，缓动由编辑器烘焙为显式关键帧。无限片段的本地时间照常推进。可运行 `cinematics/0.3.6/tests/overlay/test_letterbox_opacity.json` 查看分阶段示例。
 
 **恒定遮幅示例：**
 
@@ -1133,7 +1133,7 @@ base = 本颜色层之前的实际屏幕内容；src = 本层颜色；二者均�
 
 **资源与重载**：有渐变的高级 fade 层持有自己的 LUT；共享 shader / scratch 在最后一个高级层释放或资源重载时释放。移除层会调用 `close()`；F3+T / 资源包重载通过 `invalidate()` 排队到渲染线程释放资源，存活层下一帧按新代次重建。shader / LUT / scratch 创建失败时跳过该颜色层并记录日志，不会伪造纯黑或回退到不相符的效果。详见 [overlay 模块](modules/overlay.md)。
 
-**仓库内 fixture**：`cinematics/tests/overlay/test_color_mask.json`（D4–D6 分阶段：线性 / 径向 / `rect` / `circle` / 五种混合 / 几何关键帧 / 纯色颜色关键帧）与 `cinematics/tests/overlay/test_overlay_zindex.json`（D7 z 层级演示）。运行方式与现有测试脚本一致，像素结果以实际客户端测量为准。
+**仓库内 fixture**：`cinematics/0.3.6/tests/overlay/test_color_mask.json`（D4–D6 分阶段：线性 / 径向 / `rect` / `circle` / 五种混合 / 几何关键帧 / 纯色颜色关键帧）与 `cinematics/0.3.6/tests/overlay/test_overlay_zindex.json`（D7 z 层级演示）。运行方式与现有测试脚本一致，像素结果以实际客户端测量为准。
 
 ### 示例：图片 + 字幕双 OVERLAY 轨道同时渲染
 

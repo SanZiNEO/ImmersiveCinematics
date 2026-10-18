@@ -353,7 +353,7 @@
 - **几何**（`W` / `H` = 窗口宽 / 高）：`rect` 中心 `(mask_x×W, mask_y×H)`、半宽 `mask_width×W/2`、半高 `mask_height×H/2`；`circle` 同中心、半径 `mask_radius×min(W,H)`（非方形窗口仍是真圆）。`linear` 用 `t = 0.5 + dot(p-center, (cosθ,sinθ)) / (|cosθ|W + |sinθ|H)`；`radial` 用 `t = distance(p-center) / (gradient_radius×min(W,H))`，再钳到 0~1。
 - **混合**：`normal` 直替换；`multiply = base×src`；`screen = 1-(1-base)(1-src)`；`soft_light` 按 W3C——分支看 src、D 曲线作用于 base（`D(x)=x≤0.25 ? ((16x-12)x+4)x : sqrt(x)`）；`overlay` 分支看 base（`2×base×src` / `1-2(1-base)(1-src)`）。最终 `RGB = mix(base, B(base,src), opacity×coverage)`，不改变区域外像素或 alpha。fade **没有** `blend_amount`，混合强度就是关键帧 `opacity`。
 - **路径与精度**：纯色 + `full` + `normal` 仍走旧的全屏 fill 快路径；多色渐变烘成 1024×1 采样表。这是实现采样精度，任意密集 stops 不保证逐像素与解析式完全一致（不声明误差上限）。
-- **示例**：`cinematics/tests/overlay/test_color_mask.json`（线性 / 径向 / rect / circle / 五种混合 / 几何关键帧）与 `cinematics/tests/overlay/test_overlay_zindex.json`（z 层级）。
+- **示例**：`cinematics/0.3.6/tests/overlay/test_color_mask.json`（线性 / 径向 / rect / circle / 五种混合 / 几何关键帧）与 `cinematics/0.3.6/tests/overlay/test_overlay_zindex.json`（z 层级）。
 
 **多轨道写法**（图片 + 字幕同时显示，各自一条 OVERLAY 轨道）：
 
@@ -486,7 +486,7 @@
 1. **关键帧 `time` 是 clip 内偏移**（每个 clip 都从 0 开始），不是全局时间——第二段 `start_time: 4`，其关键帧仍是 `0 / 2 / 4`。
 2. 想"黑场多停一会"：压场 clip 末尾多写一个 `opacity 1` 的关键帧（如上 `2 → 4` 保持全黑），或把 `duration` 拉长。
 3. **是否压住字幕由作者显式决定**：普通 fade 不写 `z_index` 时保持默认 `10`；字幕示例写 `100`；转场 fade 要盖住字幕就写 `1000`（如上例）。`z_index` 大者在上，但**不是自动最高层**，也不改原版 HUD。
-4. 黑场与白场**没有任何实现差异**，只换 `color`；两个脚本实例见 `cinematics/tests/transition/test_fade_black.json` / `test_fade_white.json`。
+4. 黑场与白场**没有任何实现差异**，只换 `color`；两个脚本实例见 `cinematics/0.3.6/tests/transition/test_fade_black.json` / `test_fade_white.json`。
 5. **同时显示的层必须各用独立 OVERLAY 轨道**：同一条轨同一时刻只消费首个活跃 clip，`z_index` 只排层序，不能让同轨第二个 clip 同时渲染。转场 fade、普通 fade、字幕同屏时请分轨。
 
 ### 4.2 过渡（morph）的进阶写法
@@ -515,13 +515,13 @@
 
 ### 4.3 画面转场（叠化 / 划像 / 黑场）
 
-画面转场不用 `transition`，也**没有** `TRANSITION` 轨、`transition_in` / `transition_out` 或运行时生成器——就是普通 clip + 关键帧（下表 fixture 均在 `cinematics/tests/transition/` 下）：
+画面转场不用 `transition`，也**没有** `TRANSITION` 轨、`transition_in` / `transition_out` 或运行时生成器——就是普通 clip + 关键帧（下表 fixture 均在 `cinematics/0.3.6/tests/transition/` 下）：
 
 | 转场 | 最小写法 | 正式 fixture |
 |---|---|---|
-| **叠化** | 同一 CAMERA 轨两条全屏 clip：下层 A 全程 `opacity: 1`，上层 B 在重叠窗口 `opacity: 0 → 1` | `cinematics/tests/transition/test_dissolve.json` |
-| **矩形划像** | 上层 B 写 clip 级 `"mask_shape": "rect"`，关键帧 `mask_width`（或 `mask_height`）`0 → 1` | `cinematics/tests/transition/test_wipe.json` |
-| **圆形划像** | 上层 B 写 `"mask_shape": "circle"`，关键帧 `mask_radius` `0 → 1.5`（按窗口短边真圆） | `cinematics/tests/transition/test_wipe.json` |
+| **叠化** | 同一 CAMERA 轨两条全屏 clip：下层 A 全程 `opacity: 1`，上层 B 在重叠窗口 `opacity: 0 → 1` | `cinematics/0.3.6/tests/transition/test_dissolve.json` |
+| **矩形划像** | 上层 B 写 clip 级 `"mask_shape": "rect"`，关键帧 `mask_width`（或 `mask_height`）`0 → 1` | `cinematics/0.3.6/tests/transition/test_wipe.json` |
+| **圆形划像** | 上层 B 写 `"mask_shape": "circle"`，关键帧 `mask_radius` `0 → 1.5`（按窗口短边真圆） | `cinematics/0.3.6/tests/transition/test_wipe.json` |
 | **黑场 / 白场** | OVERLAY 轨 `fade` 压场 `0 → 1`、亮起 `1 → 0`，转场 fade 显式 `z_index: 1000` | `test_fade_black.json` / `test_fade_white.json` |
 | **显式层级** | 普通 fade 默认 `10`、字幕 `100`、转场 fade `1000`，各自独立 OVERLAY 轨 | `test_transition_zindex.json` |
 
