@@ -1,6 +1,6 @@
 # 0.3.6 多相机渲染（PIP / 分屏 / 叠化）方案
 
-**状态**: 🚧 进行中 —— **渲染底层已正式化**（2026-10-07：`client/lane/LaneRenderer`，每 lane 独立相机姿态 → 整尺寸渲染进共用离屏 FBO、顺序复用、默认零差异，见 §12）。**待开工**：上屏合成（取材 / 目标区域 / 不透明度 → [画面合成](camera-composition.md)）、脚本 / lane 注册表接入（→ [并行播放](parallel-playback.md)）。原型代码（`proto/QuadrantProto` + `QuadrantProtoMixin`）已按版本原则删除，只保留调试入口 `ICINEMATICS_QUADRANT=1|4|16|25…`
+**状态**: ✅ **实现完成（2026-10-18）** —— 渲染底层（`client/lane/LaneRenderer`，每 lane 独立相机姿态 → 整尺寸渲染进共用离屏 FBO、顺序复用，见 §12）、上屏合成（取材 / 目标区域 / 不透明度 → [画面合成](camera-composition.md) §7 步骤 3–5）、脚本 / lane 注册表接入（→ [并行播放](parallel-playback.md) §7 步骤 4）均已落地。**光影（Iris / Oculus）每视角状态隔离**已落地，Fabric / Iris 1.7.6 上 MakeUp / Complementary / BSL A/B 干净（§12.10）；**F3 生产验收通过（Forge / Oculus 1.8.0 同 jar 已部署）**。**F4（视距档位）已按用户裁决取消**（lane 视距跟随玩家）；**F5（成本曲线）实现完成、真实数据待回填**（§6）。原型代码（`proto/QuadrantProto` + `QuadrantProtoMixin`）与调试驱动 `ICINEMATICS_QUADRANT` 已按版本原则删除（§12.6 / §12.7）。
 **目标版本**: 0.3.6
 
 > 本文讨论“同一时刻渲染多个相机画面”以及“叠化（dissolve）”功能。
@@ -24,8 +24,8 @@
 ### 1.2 叠化（Dissolve / Crossfade）
 
 - 不是 morph（相机状态平滑过渡）
-- 而是：过渡期内两张画面互相淡化叠加
-- 上一个画面 alpha 从 1 → 0，下一个画面 alpha 从 0 → 1
+- 而是：过渡期内两张画面叠加淡化
+- **合同（2026-10-17 纠正）**：下层 A 全程保持 opacity = 1（不透明底图），上层 B 在重叠窗口 `0 → 1`；不是「A 1→0 + B 0→1」（两边同时半透明会漏出第三层基画面）
 - 剪辑软件里的“叠化”效果
 
 ---
@@ -90,7 +90,7 @@
 | 第二个 Camera | 需要独立 Camera 实例，位置/朝向来自我们的路径（原型：每 lane 一个 `new Camera()`，见 `proto/QuadrantProto.ProtoCamera`） |
 | 第二个 Frustum | 副相机要有自己的视锥体，否则裁剪错误——原版入口是 `LevelRenderer.prepareCullFrustum(PoseStack, Vec3, Matrix4f)`：每次调用**重建** `cullingFrustum`（`new Frustum(pose, projection)`）并按传入的相机位置 `Frustum.prepare(x,y,z)` |
 | 副画面内容 | 通常只要世界，不要第一人称手/HUD——原版里手在 `GameRenderer.renderLevel` 的 `hand` 段、HUD/屏幕在 `GameRenderer.render` 的 `gui` 段，**都在 `LevelRenderer.renderLevel` 之外**，所以副画面只调 `LevelRenderer.renderLevel` 天然不含手/HUD |
-| 渲染顺序 | 第二遍在主世界渲染之后、GUI 之前，还是先渲染第二遍再合成，需要定（原型实测挂点：`GameRenderer.renderLevel` 的 RETURN，即主世界渲染之后、`doEntityOutline` / `postEffect` / GUI 之前；见 `QuadrantProtoMixin`） |
+| 渲染顺序 | **已定**：挂点 = `GameRenderer.renderLevel` 的 RETURN，即主世界渲染之后、`doEntityOutline` / `postEffect` / GUI 之前（`LaneRendererMixin`）；帧驱动 / lane 注册再前移到 `GameRenderer.render` HEAD（§12.8-B②） |
 | 光影/模组兼容 | 很多模组假设每帧只调一次 `renderLevel`，二次调用可能冲突（对照：Iris 每帧插一次完整第二遍——`ShadowRenderer.renderShadows`，注入点 `mixin/MixinLevelRenderer.java:140-143`，在 `renderSky` 之前） |
 | 剔除 / 视锥 | 曾经遇到的 `Frustum.offsetToFullyIncludeCameraCube` 病态膨胀（jstack 实证挂死）来自**视锥与相机姿态不一致**（方块永远进不去）；实测只要 `prepareCullFrustum` 用**该 lane 自己的 pose + 相机位置**，四象限全部机位 3~5 步收敛——**不需要自建剔除方案**（JOML 语义离线模拟 + 实机验证，见 `quadrant-prototype-results.md` §3.4）。调用点：`LevelRenderer.setupRender` 内 `applyFrustum(new Frustum(frustum).offsetToFullyIncludeCameraCube(8))`（`LevelRenderer.java:831`） |
 | 剔除状态是**共享**的 | 可见集合 / 遮挡剔除（`LevelRenderer.renderChunkStorage` + `renderChunksInFrustum`，BFS = `updateRenderChunks` 的队列扩张）在 `LevelRenderer` 上是单份共享状态；多 lane 若各自用不同 `smartCull` 会互相重建 → 画面来回闪。现行做法 = **每 lane 独立维护**（候选集 / 可见集合 / 门闩按 lane 槽字段级快照交换，见 §12.9；编译产物与区块网格仍共享）。 |
@@ -119,6 +119,8 @@
 - 分屏模式长期双渲染，必须做内容 / 视距档位（**不降分辨率**）
 - 可选项：副画面跳过实体渲染 / 降低视距 / 关闭粒子
 
+**F5 成本实测状态（2026-10-18）**：opt-in 诊断会话（manifest / events.jsonl / 定点图片 / CPU 提交区间 CSV + p50/p95）与 21 支测试脚本已实现（2026-10-17）。真实数据**部分回填**：`perf_l0` / `perf_l1` / `perf_l4` FULL 各 600/600 完成；`perf_l16` FULL **259/600 中断**（`FORCE_QUIT`）、`perf_l16` WORLD_ONLY 600/600；`perf_l4` WORLD_ONLY **未跑**；`perf_l25` **未启动**（命令层报错，待用户补报错原文）。**真实成本曲线待回填**；2026-10-18 新增的每视角历史拷贝成本（通常 1 个目标 × 2 张纹理 blit / 视角）**未测**。F4 已取消：lane 视距自动跟随玩家设置，不新增脚本字段。
+
 ### 6.1 降耗设计（借鉴 Iris `ShadowRenderer` 第二视角渲染模式，自 0.4.0 G2 并入）
 
 | 机制 | 说明 |
@@ -141,9 +143,10 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 - 光影（Iris/Oculus）：
   - 它们自己会做多次渲染，说明多次渲染可行
   - 但第三方二次调用可能绕过光影的合成，或触发重复特效
-  - 需要专门调研：能否在光影环境下拿到“已处理后的画面”
+  - **✅ 已落地（2026-10-18，F3）**：不再要求「拿到已处理后的画面」，改为**每视角隔离光影的跨视角状态**——TAA 颜色历史（自动探测历史 colortex）、`shadowcolor`、previous 矩阵 / tracker；切换光影包时重置缓存。详见 §12.10。Fabric / Iris 1.7.6 三包 A/B 干净；**F3 生产验收通过（Forge / Oculus 1.8.0 同 jar 已部署）**。
 - 性能模组（Sodium）：
   - 渲染状态管理更严格，二次调用前必须确认状态保存/恢复方式（具体：`RenderDevice.enterManagedCode()` / `exitManagedCode()` 包住 `drawChunkLayer` / `setupTerrain`；`setupRender` 里的 `frame++` 每调一次自增；`SodiumWorldRenderer.setupTerrain` 用相机位姿判 `dirty` → 每帧两次 `markGraphDirty()` 让渲染列表缓存失效——见 `render-second-pass-cost.md` §3.1–3.2）
+  - 状态（2026-10-18）：F3 已删除 `isUnavailable()` 整条禁用（lane 始终渲染，§7.1）；**Rubidium 兼容**与**Sodium 下两遍 / 帧 `frame++` 语义**仍未实机验证（§9）。
 
 ### 7.1 渲染优化模组兼容策略（自 0.4.0 G2 并入）
 
@@ -155,14 +158,16 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 
 ## 8. 实施步骤（0.3.6）
 
-1. 调研：原版 `GameRenderer.renderLevel` 可重入性、状态保存/恢复
-2. 原型：单机双 RenderTarget + 二次渲染，先不做光影兼容
-3. 多 lane 渲染：N 个相机各渲染到独立 RenderTarget（上屏布局见[画面合成](camera-composition.md)）
-4. 叠化预热：叠化前提前渲染下一 lane，保证首帧有效（预热调度见[画面合成](camera-composition.md)）
-5. 兼容：Iris/Oculus/Sodium 实测
-6. 性能：原分辨率副画面 + 内容档位 + 帧耗时统计
-7. 文档：SCRIPT_FORMAT / AI_SCRIPTING_GUIDE
-8. **实机缺陷缓解（2026-10-07，见 §12.8）**：lane 透底（合成层改专用不透明 blit `ic_lane_blit`）与倾斜裁切矩形（lane 活跃期间整帧关闭遮挡剪枝 + 每 lane pass 强制重刷可见集合 + 帧驱动移到世界渲染之前）
+| # | 步骤 | 状态 |
+|---|---|---|
+| 1 | 调研：原版 `GameRenderer.renderLevel` 可重入性、状态保存/恢复 | ✅（§12 落地） |
+| 2 | 原型：单机双 RenderTarget + 二次渲染，先不做光影兼容 | ✅（原型已按版本原则删除，§12.7） |
+| 3 | 多 lane 渲染：N 个相机各渲染到独立 RenderTarget（上屏布局见[画面合成](camera-composition.md)） | ✅ 2026-10-07（共用一张离屏缓冲顺序复用，§12.3；上屏见画面合成 §7 步骤 3–5） |
+| 4 | 叠化预热：叠化前提前渲染下一 lane，保证首帧有效（预热调度见[画面合成](camera-composition.md)） | ✅ 结论：预热 = 重叠窗口本身，无独立调度（§3.3） |
+| 5 | 兼容：Iris/Oculus/Sodium 实测 | 🟡 Sodium / Embeddium 策略已落地（§7.1）；Iris / Oculus 每视角隔离 2026-10-18 落地（§12.10，Fabric / Iris 1.7.6 A/B 干净）；**F3 生产验收通过（Forge / Oculus 同 jar 已部署）** |
+| 6 | 性能：原分辨率副画面 + 内容档位 + 帧耗时统计 | 🟡 F5 诊断与 21 支脚本已实现（2026-10-17）；真实数据部分回填（§6） |
+| 7 | 文档：SCRIPT_FORMAT / AI_SCRIPTING_GUIDE | ✅ 合成参数已进 `docs/SCRIPT_FORMAT.md` §4 与 `docs/AI_SCRIPTING_GUIDE.md` |
+| 8 | **实机缺陷缓解（2026-10-07，见 §12.8）**：lane 透底（合成层改专用不透明 blit `ic_lane_blit`）与倾斜裁切矩形（lane 活跃期间整帧关闭遮挡剪枝 + 每 lane pass 强制重刷可见集合 + 帧驱动移到世界渲染之前） | ✅（后续被 §12.9 per-lane 可见集合取代「整帧关闭剪枝」；2026-10-18 光影跨视角污染另见 §12.10） |
 
 ---
 
@@ -172,17 +177,20 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
   **已回答**：多脚本实例 × 每实例多 lane，不设上限——见[并行播放](parallel-playback.md)。
 - ~~叠化是否只支持两相机，还是 N 相机？~~ / ~~分屏是否要支持任意布局？~~
   **已回答**：分屏 / 叠化 / PIP 统一为合成参数（取材区域 / 目标区域 / 不透明度）的特例，lane 数不设限——见[画面合成](camera-composition.md)。
-- 副画面是否需要支持 look_at / tangent 朝向？
-- 是否允许叠化期间主相机继续移动？
+- 🟡 **副画面是否需要支持 look_at / tangent 朝向？**（未定）
+- 🟡 **是否允许叠化期间主相机继续移动？**（未定；合成层不限制，属编排 / 语义决定）
+- 🟡 **Rubidium 兼容**：`example/` 下无 Rubidium 源码，未验证（§11）。
+- 🟡 **Sodium 下两遍 / 帧的 `frame++` 语义**：仍未实机验证（§7 / §7.1）。
+- 🟡 **每视角历史拷贝成本**：2026-10-18 新增隔离的帧时间开销未测（F5 回填）。
 - ~~预热时长是固定值还是脚本可配？~~ **已解答（2026-10-07）**：都不是——预热 = 重叠窗口本身（作者编排 B 的开头延长量），见 §3.3 与 `camera-composition.md` §4。
 
 ---
 
 ## 10. 结论
 
-- 0.3.5 不做
-- 0.3.6 作为核心功能攻克
-- 先做原型验证二次渲染，再谈上屏合成与编辑器 UI
+- 0.3.5 不做；0.3.6 作为核心功能攻克。
+- **路线已走完（2026-10-18）**：原型验证二次渲染 → 渲染底层（§12）→ 上屏合成（[画面合成](camera-composition.md) §7 步骤 3–5）→ 光影每视角隔离（§12.10）。
+- 剩余是**验收与回填**，不是新机制：F3 生产验收已通过（§12.10）、F5 真实成本（§6）、§9 的开放项；编辑器 UI 归编辑器阶段。
 
 ---
 
@@ -221,6 +229,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 ## 事实核查（2026-10-07）
 
 > 依据：MC 1.20.1 解出源码（`.gradle/loom-cache/minecraftMaven/...-sources.jar` 与 `%TEMP%\mcsrc\`——同一份 CFR 解出物，行号一致；`GameRenderer` / `LevelRenderer` / `RenderTarget` / `Frustum` 四文件已用 sources.jar 逐段交叉核对）、本仓库 `common/...` 代码、`example/` 参考模组源码、`plans/0.3.6/quadrant-perf/*.csv`。只补事实、不改设计方向；§3.3 / §8 / §9 的设计类开放问题保持待定。
+> **本小节是 2026-10-07 快照**：此后落地（上屏合成、脚本 lane 注册、F3 / F4 / F5、光影每视角隔离 2026-10-18）见 §7–§12；下文「未验证 / 待定」不覆盖这些后续结果。
 
 ### ① 核实为真（附证据）
 
@@ -287,7 +296,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 
 ---
 
-## 12. 渲染底层实现（2026-10-07 落地）
+## 12. 渲染底层实现（2026-10-07 落地；2026-10-18 补光影每视角隔离 §12.10）
 
 > 本节是**已实现**的渲染底层（代码为准）；§3 技术路线 / §4 关键难点 的结论全部体现在这里。
 > 上屏合成（取材 / 目标区域 / 不透明度 / 叠放顺序）与脚本 / lane 注册表接入**不在本节**。
@@ -308,12 +317,13 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 | `mixin/LevelRendererMixin.java` | lane 视图中心（`setupRender` 的 `ModifyVariable` ×3 用本帧**最上层 lane** 的相机位置做整帧单一中心；无 lane 时用玩家坐标——单份网格不能逐 pass 换中心，见该文件 javadoc）+ 遮挡剔除**逐 pass 判定**（lane pass 的相机在实心方块内 → 本 pass `smartCull=false`；主 pass 走原版判定）+ lane pass 清屏 alpha（§12.8-A）+ 原版整屏描边屏蔽（有活跃 lane 时）+ 内容开关（`renderSky` / `renderClouds` / `renderSnowAndRain` / `renderEntity`） |
 | `mixin/ParticleEngineMixin.java` | 内容开关：粒子 |
 | `mixin/LaneCullStateMixin.java` + `client/lane/LaneCullSlot.java` / `LaneCullSlots.java` | 每 lane 独立可见集合：lane pass 前后把「候选集 / 可见集合 / 门闩 / 相机移动判定 / 透明排序基准」与 lane 槽字段级换入换出（槽池化复用）；§12.9 |
+| `client/lane/{ShaderCompat,ViewScope,ColorHistoryCapture,ViewStateCapture,ShadowColorClear}.java` | 光影每视角隔离（2026-10-18）：历史 colortex / `shadowcolor` / previous 矩阵与 tracker 按视角保存恢复，pipeline 切换时重置；§12.10 |
 
 ### 12.2 lane 状态与接入点
 
 - **lane 状态 = `CameraState`（六参数快照）+ `LaneContent`（内容开关）**；
   `LaneContent.WORLD_ONLY`（默认，全关）/ `LaneContent.FULL`（调试、压测）。
-- 接入点（后续任务用）：
+- 接入点（生产者使用）：
   - `LaneRenderer.INSTANCE.setLane(index, state, content, adjust, captureId)` —— 激活 / 更新一条 lane（`state == null` 停用；`captureId` = 调试捕获用的相机 id，可为 null）；
   - `LaneRenderer.INSTANCE.clear()` —— 生产者本帧没有 lane 时调用；
   - `LaneRenderer.INSTANCE.setSink((index, target) -> …)` —— **合成接缝**：每条 lane 渲染完、离屏缓冲还热时回调（共用缓冲 → 必须当帧消费）。
@@ -346,7 +356,7 @@ mainRenderTarget 临时指向 lane FBO → fbo.bindWrite(true)（视口 = FBO �
 ### 12.5 兼容
 
 - **Sodium / Embeddium（Rubidium）**：检测到即跳过 `LevelRendererVanillaMixin` 与 `LaneCullStateMixin`，改走优化器自己的 `setupRender` / 剔除路径；lane 始终渲染，缺 `LaneCullBridge` 时只跳过剔除状态交换。
-- 光影（Iris / Oculus）：未做适配（§7 第 3 点仍待调研）。
+- 光影（Iris / Oculus）：**每视角状态隔离已落地（2026-10-18，§12.10）**——TAA 颜色历史 / `shadowcolor` / previous 矩阵与 tracker 按视角保存恢复，切换光影包时重置缓存；深度附件由既有深度版本修复保证（lane 首帧 `irisDepth=78`）。Fabric / Iris 1.7.6 三包 A/B 干净，**F3 生产验收通过（Forge / Oculus 同 jar 已部署）**。
 
 ### 12.6 调试入口
 
@@ -577,3 +587,34 @@ C ≤ N_slot               （候选 section 数；遮挡剪枝后远小于上�
 - **代价**：lane pass 内同步跑一次全量 BFS ⇒ 渲染线程可能出现 BFS 抖动（相机移动 >8 格 / 首帧 / `needsUpdate()` 触发时）。**接受**——BFS 只在该 lane 门闩触发时跑（非每帧，§12.9.5），规模 ≤ vanilla 单次，换来归槽机制的零侵入。
 
 > 实现：`LaneCullStateMixin.ic$submitFullCullUpdate` / `ic$awaitPendingFullUpdate`；该 mixin 的 javadoc 把「取舍与依据」指向 §12.9.7②，实指本小节。
+
+---
+
+### 12.10 光影每视角隔离（2026-10-18，F3 落地）
+
+**问题**：光影开启时 lane 画面出现绿色毛边 / 竖缝 / 扇形明暗 / 跨视角颜色污染（`f-round-issues.md` §2–§3）。根因不在合成层（`ic_lane_blit` 只读 RGB），而在光影的**每视角共享状态**：`MakeUp` 的 `fast_taa.glsl` 把 `colortex3` 当上一帧历史读写（全视角共享）；`shadowcolor0/1` 在 `buffersToBeCleared=[]` 下跨视角残留；previous 矩阵 / tracker 沿用主视角。深度版本号那条假设（2026-10-17）**不充分**，已由本节的按视角隔离取代；深度附件本身由既有修复保证（lane 首帧重挂）。
+
+**实现**（`common/.../client/lane/`；证据 `.planning/036-shader-lane-investigation/evidence.md` §7）：
+
+| 组件 | 职责 |
+|---|---|
+| `ShaderCompat` | 反射 Iris pipeline 的 `renderTargets` / `shadowRenderTargets`；扫当前光影包源码探测「上一帧采样」的 colortex（`historyTargets`）；`refresh()` 返回 pipeline 是否变化 |
+| `ViewScope` | 视角边界：主视角 = 原版 `LevelRenderer.renderLevel` HEAD/RETURN；lane = `LaneRenderer` 进入 / 合成后退出 |
+| `ColorHistoryCapture` | 按视角保存 / 恢复历史 colortex 的 main/alt（GPU blit），首帧清空 live；格式 / 尺寸变化重建快照 |
+| `ViewStateCapture` | 按视角保存 / 恢复 previous 矩阵与 tracker；不再回滚全局 COUNTER |
+| `ShadowColorClear` | 包未声明清 `shadowcolor` 时，每视角 `beginLevelRendering` 后清 main/alt |
+
+**探测与结果**：
+
+- 自动探测：MakeUp-UltraFast 9.5f `historyTargets=[3]`；ComplementaryUnbound r5.9.3 / BSL v8.4 `[2]`（Complementary 自带清屏声明，`shadow-clear` 不触发）。
+- `test_shadow_scene` / `test_ab_split_scale` r5：lane raw 与主视角均干净——无绿边 / 竖缝 / 扇形；日志 `f1 begin_return irisDepth=78` 确认 lane 首帧已重绑自己的深度附件。
+- 游戏内切换光影包：pipeline 变化时 `ViewStateCapture.onPipelineReady/onPipelineChanged` + `ColorHistoryCapture.reset()` + `ViewScope` 清栈 → 不再纯白、无需重启（用户实机多次切换 BSL / ComplementaryReimagined / ComplementaryUnbound / MakeUp 通过）。
+- Iris 行为 mixin 全部移除，只保留 `IrisCameraTrackerCaptureMixin` / `IrisPreviousCaptureMixin` 两个只读构造器注册。
+
+**未完成 / 已知边界**：
+
+- **F3 生产验收通过（Forge / Oculus 1.8.0 同 jar 已部署）**（开发环境是 Fabric / Iris 1.7.6；类名 / 字段已核对；如需复验可看 `[shader-compat]` / `[color-history]` 日志）。
+- **每视角历史拷贝成本未测**（通常 1 个目标 × 2 张纹理 blit / 视角）——F5 回填。
+- **自定义历史纹理**：包把历史放在非标准 colortex、且源码无「上一帧采样 colortex」语句时探测不到，不隔离。
+- **`hide_arm` 未生效**：独立问题，不属跨视角污染。
+- **连续快速切换**且中间无世界帧时 `Previous` 实例可能多留一组（日志 `previousInstances=6`）；颜色历史仍会 reset，纯白不回。

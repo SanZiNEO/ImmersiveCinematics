@@ -12,6 +12,8 @@
 > - [多相机渲染](../F-playback/multi-camera-rendering.md)（叠化预热）
 >
 > **D1–D3 已收口（2026-10-17）**：纯显式 clip / 关键帧（C 方案）为最终合同；不新增 `transition_in` / `transition_out`、`TRANSITION` 轨或运行时生成器。D9 取消（字幕不裁切，不属本文）。实现与验收记录见 §9；历史执行轮见 [execution-round.md](execution-round.md)。
+>
+> **当前状态（2026-10-18 回写）**：D 轮已关单——D1–D8 / D10 于 2026-10-17 完成，D9 取消（字幕不裁切，明确不做）；本文合同冻结为纯显式 clip / 关键帧（C 方案）。§6 列出的是**应用层仍开放**的问题，不是未完成的 D 任务；§8 仅剩编辑器面板（归编辑器阶段）。
 
 ---
 
@@ -106,19 +108,22 @@ RGBA 的 A 通道**不属于调色**（[画面颜色调整](../../complete/0.3.6
 | `transition.md` | **相机六参数**（position/yaw/pitch/roll/fov/zoom）的 A→B 状态过渡 | 正交：本文管"画面之间怎么换"，它管"相机状态怎么变"；叠化 + 相机 blend 可组合 |
 | `camera-composition.md` | 叠化的**底层**（opacity 交叉、预热） | 本文只引用，不重复定义 |
 | `overlay-color-mask.md` | **纯色覆盖层**的底层定义（FadeLayer：颜色 + 不透明度；D4–D7 渐变 / 混合 / 局部覆盖） | 黑场 / 白场 / 淡入淡出 / 颜色遮罩都是它的应用；CAMERA wipe 的 rect / circle 遮罩见 §3.5（D2） |
-| `script-loop.md` | 循环回卷瞬间的画面衔接 | 回卷 = 时间轴末端折回，衔接处可复用本文转场（repeat 硬切 or 可选叠化——待定，与 script-loop §11 衔接问题挂钩） |
+| `script-loop.md` | 循环回卷瞬间的画面衔接 | 回卷 = 时间轴末端折回，衔接处可复用本文转场（repeat 硬切 or 可选叠化——**开放**，非 D 轮待办，与 `script-loop.md` §11 衔接问题挂钩） |
 | `wait-point-track.md` | 等待点后的继续 / 接播 | 接播瞬间用哪种转场，属脚本编排，引用本文 |
 
 ---
 
-## 6. 可能的问题（D1–D3 收口后仍开放）
+## 6. 仍开放的应用层问题（D 轮关单后；非 D 待办）
 
-- 叠化期间主相机是否可动（沿用 `multi-camera-rendering.md` §9 的开放问题）。
-- 转场与跳过 / 打断的交互：跳过途中转场 = 立即硬切还是加速完成。
-- alpha 关键帧的插值曲线：现有 OverlayTrackPlayer 的 `interpolation`（linear / smooth）只作用于 overlay 层；lane 的 opacity 插值曲线复用还是另定。
-- script-loop 回卷衔接：repeat 硬切 or 可选叠化——与 `script-loop.md` §11 挂钩。
+D1–D3 已关闭的旧待定项：数据落点 A/B/C（= C，§4）、第一版是否纳入 wipe（= 纳入，D2，§3.5）、转场时长 / 曲线默认值（= 不存在此类字段，时长与曲线就是作者关键帧数据，§4）、转场期间时间线语义（= 无独立语义，§4）、z 序（= 显式 `z_index`，D3，§3.3）、lane opacity 的曲线表达（= 与其它数值关键帧一样由关键帧数据本身表达，§3.2 / §4；overlay 的 clip 级 `interpolation` 只作用于 overlay 层，维持现状）。以上均不再作为待定。
 
-已结清：转场不影响 GUI 层（与 `screen-color-adjust.md` §5-3 同结论）；黑场 / 白场与字幕的叠放次序 = 显式 `z_index`（§3.3）。
+仍开放（均标「开放」，非 D 轮待办）：
+
+- **开放**：叠化期间主相机是否可动（沿用 `multi-camera-rendering.md` §9 的开放问题）。
+- **开放**：转场与跳过 / 打断的交互——跳过途中转场 = 立即硬切还是加速完成。
+- **开放**：script-loop 回卷衔接——repeat 硬切 or 可选叠化，与 `script-loop.md` §11 挂钩。
+
+已结清：转场不影响 GUI 层（与 `screen-color-adjust.md` §5-3 同结论）；黑场 / 白场与字幕的叠放次序 = 显式 `z_index`（§3.3）；黑 / 白 hold 与字幕矩形实测严格 0/255（§9）。
 
 ---
 
@@ -143,6 +148,8 @@ D1–D3 已收口：数据落点 = C（纯显式 clip / 关键帧），转场类
 ## 9. 实现与验收记录（2026-10-17）
 
 D1–D3 按纯数据合同收口，D 轮（D1–D8 / D10；D9 取消）关单。以下为实际执行结果；本轮仅本地提交，不推送。
+
+**当前状态（2026-10-18 回写）**：本节即 D 轮关单依据；下述边界（Forge 仅编译、Iris / Oculus 未实机）为已知未验面，不阻塞关单，也不冒充已验。
 
 - **数据 / 合同**：真实 `ScriptParser` / `ScriptValidator` / `Clip` / `LaneMask` 探针 **337 OK / 0 FAIL**，覆盖缺省、端点、中间、四边界、短边半径、非法值、字段归属与既有正例；全量 168 支脚本仅 2 支历史问题（`test_camera_facing_origin_coordinate` id 过长、`test_camera_relative_axis` 缺 yaw）。五支正式 fixture：`test_dissolve` / `test_fade_black` / `test_fade_white` / `test_wipe` / `test_transition_zindex`，全部解析 / 校验通过。
 - **渲染**：新真实 shader `ic_lane_blit` GL 探针 **80 OK / 0 FAIL**（full 与旧输出逐像素等值、rect / circle、窗口物理像素真圆、UV、source/dest 映射、opacity、alpha 不写）；旧 GL 14 套全绿。

@@ -51,22 +51,22 @@
 
 ---
 
-## 2. 合成参数的归属（待定·核心问题）
+## 2. 合成参数的归属（已定·2026-10-07）
 
 关键帧数据放在哪：
 
 - **候选 A：自声明**——每个脚本声明自己 lane 的合成参数；跨脚本并行时各管各的，order 冲突按启动顺序。简单，第一版够用。
 - **候选 B：合成导演**——独立的导演脚本 / 轨道统一引用并编排各 lane。表达力强，但依赖 lane 寻址（名字 / id）。
 
-倾向：**A 先行，B 作为后续扩展**（结构上不堵死）。
+**已定：A（自声明）**——参数写在本 clip 自己的关键帧上，不引入独立合成轨 / 导演；候选 B 的结构空间未被堵死（将来可加寻址层，前置 = 跨脚本 lane 寻址，见 §6）。
 
-关键帧通道的落点：lane 的合成参数是作为新轨道类型，还是挂在 CAMERA 轨 clip 上，执行时定。
+**关键帧通道的落点（已定）**：合成参数**挂在 CAMERA 轨 clip 的关键帧上**（`Keyframe.data` 通用容器），不新开轨道类型；字段表与校验见 §7「步骤 1 定稿」。
 
 ---
 
-## 3. 与现有 pip 层的关系（方向）
+## 3. 与现有 pip 层的关系（已定·2026-10-08）
 
-OVERLAY 现有 `pip` 层是静态占位（半透明黑填充 + 2px 白边，不绑定任何纹理/相机画面）；画面 lane 是动态纹理。方向：`pip` 层升级为可绑定 lane（lane 作为一种图层来源），合成参数即层的几何属性；或 pip 层被合成层取代。执行时定。
+OVERLAY 现有 `pip` 层是静态占位（半透明黑填充 + 2px 白边，不绑定任何纹理/相机画面）；画面 lane 是动态纹理。方向：`pip` 层升级为可绑定 lane（lane 作为一种图层来源），合成参数即层的几何属性；或 pip 层被合成层取代。**已定（2026-10-08）：pip 层被合成层取代**（见下方裁决）。
 
 > **裁决（2026-10-08，CLEANUP-2）**：走「pip 层被合成层取代」——`pip` 层**已删除**（0.3.6 起，被 lane 取代）。画中画 = 一条 CAMERA lane 的合成参数（`dest` / `source` / `opacity`）。**WebUI 里对脚本片段的便捷操作留编辑器阶段。**
 
@@ -84,41 +84,47 @@ OVERLAY 现有 `pip` 层是静态占位（半透明黑填充 + 2px 白边，不�
 
 ---
 
-## 5. 可能的问题
+## 5. 可能的问题（状态·2026-10-18）
 
-- 合成参数归属（自声明 vs 导演）。
-- order 冲突的判定规则（已定：轨道层级 → 轨道内 clip 顺序 → z_index，见 §1）。
-- dest 矩形之外的区域谁垫底：无 lane 覆盖时露原版视角还是黑场。（时间轴允许重叠后，作者可用重叠保证全屏总有覆盖、无空隙——露原版视角是"有空隙"的结果，靠作者编排避免；兜底策略仍待定。）
-- 编辑器预览怎么表现多 lane 合成。
-- 与 HUD / letterbox 的叠放顺序。
-- 性能：合成本身是全屏 quad 拷贝，开销小；主要开销在渲染侧（见多相机渲染文档）。原型实测：每 lane ≈3.4–3.6 ms（主画面稳态 2–3 ms）、线性；且 **lane 级后处理（如发光描边）属于该 lane，必须在 lane 的 FBO 内完成**（见 `quadrant-prototype-results.md` §3.2）。
+- ✅ **合成参数归属**：已定自声明（§2）；order 冲突规则已定（轨道层级 → 轨道内 clip 顺序 → z_index，见 §1）。
+- 🟡 **dest 矩形之外的兜底**：当前实现 = 露**原版玩家视角**（原版主相机照常渲染，lane 只覆盖自己的 dest）；是否改为黑场兜底**未定**。时间轴允许重叠后，作者可用重叠保证全屏总有覆盖、无空隙（露原版视角是「有空隙」的结果，靠作者编排避免）。
+- 🟡 **编辑器预览的多 lane 合成表现**：步骤 6 未做（WebUI 属性面板 + 多 lane 预览）。
+- 🟡 **与 HUD / letterbox 的叠放顺序**：合成层写入主 framebuffer、在原版 GUI 之前；letterbox 属 OVERLAY 层（GUI 内）——两者的层级语义 / z 序基线仍待定（跨文档见 `variable-frame.md` §6）。
+- 性能：合成本身是全屏 quad 拷贝，开销小；主要开销在渲染侧（见多相机渲染文档）。原型实测：每 lane ≈3.4–3.6 ms（主画面稳态 2–3 ms）、线性；且 **lane 级后处理（如发光描边）属于该 lane，必须在 lane 的 FBO 内完成**（见 `quadrant-prototype-results.md` §3.2）。**光影每视角历史拷贝成本未测**（F5 回填）。
 
 ---
 
 ## 6. 待定
 
-- 合成参数字段形态与归属轨道。
-- 主 lane（听者归属用，见并行播放 §3.3）的判定规则。
-- ~~`pip` 层的去留。~~ **已定（2026-10-08，CLEANUP-2）**：pip 层已删除，被 lane 取代（画中画 = lane 合成参数 `dest`/`source`/`opacity`）；WebUI 便捷操作留编辑器阶段。
-- 跨脚本 lane 寻址（候选 B 的前置）。
+- **主 lane**（听者归属用，见并行播放 §3.3）的判定规则。
+- **跨脚本 lane 寻址**（候选 B 的前置）。
+- **dest 矩形之外无 lane 覆盖时的兜底**（露原版视角 vs 黑场，见 §5）。
+- **编辑器预览的多 lane 合成表现**（步骤 6）。
+- **与 HUD / letterbox 的叠放顺序 / z 序基线**（跨文档：`variable-frame.md` §6）。
+
+**已定（保留结论）**：
+
+- 合成参数字段形态与归属：`opacity` / `dest` / `source` 挂 CAMERA clip 关键帧，自声明（§2、§7 步骤 1）。
+- `pip` 层：已删除，被 lane 取代（2026-10-08，CLEANUP-2）。
 
 ---
 
 ## 7. 落地顺序（方向）
 
-| # | 步骤 | 交付物（完成后我们要什么） |
-|---|---|---|
-| 1 | 合成参数模型定稿：字段表 + 默认值 + 校验规则 | 文档字段表；手写 JSON 即可表达分屏 / PIP / 叠化意图 |
-| 2 | 单 lane 非全屏：主相机的 dest / opacity 可关键帧 | 单相机脚本可把画面缩到屏幕一角、淡入淡出，无需第二相机 |
-| 3 | 双 lane 上屏（依赖多相机渲染原型）：order + dest 铺屏 | 分屏脚本可跑 |
-| 4 | opacity 关键帧 → 叠化，含预热 | 两镜头 dissolve 过渡可用 |
-| 5 | source rect 裁剪 | 同一相机画面取局部铺满全屏（数字变焦 / 局部取景） |
-| 6 | 编辑器：合成参数属性面板 + 多 lane 预览 | WebUI 内可编排并预览分屏 / 叠化 |
+| # | 步骤 | 交付物（完成后我们要什么） | 状态 |
+|---|---|---|---|
+| 1 | 合成参数模型定稿：字段表 + 默认值 + 校验规则 | 文档字段表；手写 JSON 即可表达分屏 / PIP / 叠化意图 | ✅ 2026-10-07（字段表见本节末；`docs/SCRIPT_FORMAT.md` §4 / AI 指南同步） |
+| 2 | 单 lane 非全屏：主相机的 dest / opacity 可关键帧 | 单相机脚本可把画面缩到屏幕一角、淡入淡出，无需第二相机 | ✅ 2026-10-07（渲染侧消费见「步骤 3–5」） |
+| 3 | 双 lane 上屏（依赖多相机渲染原型）：order + dest 铺屏 | 分屏脚本可跑 | ✅ 2026-10-07（合成层 + 脚本侧接线） |
+| 4 | opacity 关键帧 → 叠化，含预热 | 两镜头 dissolve 过渡可用 | ✅ 2026-10-17（合同纠正 + 实机像素验证；预热 = 重叠窗口，无独立调度） |
+| 5 | source rect 裁剪 | 同一相机画面取局部铺满全屏（数字变焦 / 局部取景） | ✅ 2026-10-07（`LaneCompositor` UV 子区域） |
+| 6 | 编辑器：合成参数属性面板 + 多 lane 预览 | WebUI 内可编排并预览分屏 / 叠化 | ☐ 未开工（归编辑器阶段） |
 
-> **落地状态（2026-10-07）**：步骤 1（数据层）、步骤 3–5 的**渲染侧合成层**与**脚本侧接线**
-> （关键帧 → lane 注册 → 合成参数 → 上屏）均已落地（见本节末）；
+> **落地状态（2026-10-18）**：步骤 1–5 已落地——数据层（字段表 + 校验 + 文档）、渲染侧合成层（`LaneCompositor`）与脚本侧接线（关键帧 → lane 注册 → 合成参数 → 上屏）全部完成；
 > **主相机替换链已退役（2026-10-07，见 [并行播放](parallel-playback.md) §3.3 落地记录）**——
-> 「合成层输出 = 玩家看到的画面」现已完全成立；步骤 6（编辑器预览面板）未落地。
+> 「合成层输出 = 玩家看到的画面」完全成立；**步骤 6（编辑器预览面板 / 多 lane 预览）未落地**。
+> 队列接播（F2）已于 2026-10-17 实现（无头 68/68，实机待用户），见并行播放 §7「F2 落地记录」；
+> 光影下多 lane 上屏的跨视角污染已于 2026-10-18 隔离（见下方「光影环境下的多 lane 合成」）。
 >
 > **叠化（步骤 4）合同纠正与实机验证（2026-10-17）**：两条时间重叠的 CAMERA clip，
 > 下层 A 全程 opacity=1，上层 B 在重叠窗口淡入；hold = 复制等值关键帧冻结相机姿态。
@@ -185,8 +191,23 @@ CameraTrackPlayer.onRenderFrame   本帧活跃 clip 各产一份 lane 快照（C
 - **叠放顺序**：lane 序号 = 提交顺序 = 绘制顺序，末位（主相机所属 clip）最后画、盖在最上面。
 - **内容档 = `FULL`（与主画面一致）**：单条全屏 lane（opacity=1、dest 全屏）会盖住主画面，且叠化要求两条 lane 观感一致 → 实体 / 粒子 / 天空 / 天气必须全开；`WORLD_ONLY` 只画地形，全屏 lane 下会看不到生物 / 掉落物 / 天空 / 雨雪。
 - **lane 来源（已更新·2026-10-07 清理）**：脚本 lane 是**唯一来源**——当时的调试驱动共存机制（`-Dicinematics.quadrant` 让位规则）随驱动一起删除；无脚本播放时没有 lane，画面回落原版玩家视角。
-- **画面 = 合成层输出（主相机替换链已退役·2026-10-07）**：原版主相机照常走玩家视角，lane 是**唯一画面来源**——单条全屏、opacity=1 的 lane 就是主画面特例；零 lane 时回落原版视角。`dest` 非全屏时露出的就是**原版玩家视角**（不再是旧主链的相机画面）；主画面里在 lane 之前画进主 framebuffer 的内容（`renderLevel` 内的第一人称手臂——仅当脚本显式 `hide_arm: false` 时可见）会被不透明的全屏 lane 盖住。见 [并行播放](parallel-playback.md) §3.3 落地记录。
+- **画面 = 合成层输出（主相机替换链已退役·2026-10-07）**：原版主相机照常走玩家视角，lane 是**唯一画面来源**——单条全屏、opacity=1 的 lane 就是主画面特例；零 lane 时回落原版视角。`dest` 非全屏时露出的就是**原版玩家视角**（不再是旧主链的相机画面）；主画面里在 lane 之前画进主 framebuffer 的内容（`renderLevel` 内的第一人称手臂——仅当脚本显式 `hide_arm: false` 时可见）会被不透明的全屏 lane 盖住（见 [并行播放](parallel-playback.md) §3.3 落地记录）。**已知缺陷（2026-10-18）**：`hide_arm: true` 当前未生效，手臂仍可见（独立问题，见下「光影环境下的多 lane 合成」）。
 - **验证**：编译通过；离线冒烟（真实测试脚本 JSON → 关键帧 → 参数取值逐点核对：缺省 / 插值 / 矩形缺分量 / 末尾钳制）；游戏内冒烟 = 播一个带 CAMERA clip 的脚本（如 `cinematics/tests/camera/test_compositing_params.json`）肉眼核对 `dest` 缩角 / `source` 裁剪 / `opacity` 淡入淡出。
+
+### 光影环境下的多 lane 合成（2026-10-18）
+
+多 lane 上屏在光影环境下的错误（绿色毛边 / 竖缝 / 扇形明暗 / 跨视角颜色污染）已定位为**光影的每视角状态未隔离**——合成层本身无责（`ic_lane_blit` 只读 RGB、alpha 契约不变），污染在 lane 的 RGB 内部。已落地三类新增隔离 + 一项既有修复验证（实现见[多相机渲染](multi-camera-rendering.md) §12.10）：
+
+| 隔离项 | 做法 | 证据 |
+|---|---|---|
+| 每视角 TAA 颜色历史 | 从当前光影包源码自动探测「上一帧采样」的 colortex（`historyTargets`），按视角保存 / 恢复 main/alt，首帧清空 live | MakeUp `[3]`、ComplementaryUnbound r5.9.3 `[2]`、BSL v8.4 `[2]` |
+| 每视角 `shadowcolor` | 包未声明清屏（`buffersToBeCleared=[]`）时，每视角 `beginLevelRendering` 后清 `shadowcolor` main/alt | 清后 B lane 绿墙橙边消失 |
+| 每视角 previous / tracker | previous 矩阵与 tracker 按视角恢复；不再回滚全局 COUNTER | main→cam0→cam1 不再串联 |
+| 深度附件（既有修复，本轮不改） | lane 首帧已重挂到自己的深度附件（日志 `f1 begin_return irisDepth=78`） | `test_shadow_scene` 首帧日志 |
+| 游戏内切换光影包 | pipeline 变化 → 清空每视角历史快照 / `Previous` 实例 / 视角栈，首帧重建 | 多次切换 BSL / Complementary / MakeUp 不再纯白，无需重启 |
+
+**A/B 结果（Fabric / Iris 1.7.6）**：MakeUp / Complementary / BSL 三包 `test_ab_split_scale` r5 的 lane raw 与主视角均干净——无绿边、无竖缝、无扇形。
+**F3 生产验收通过（Forge / Oculus 1.8.0 同 jar 已部署）**；每视角历史拷贝成本未测（F5 回填）；`hide_arm` 未生效是独立问题（不属跨视角污染）。
 
 ---
 
@@ -200,13 +221,14 @@ CameraTrackPlayer.onRenderFrame   本帧活跃 clip 各产一份 lane 快照（C
 
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
 
-- **pip 的 opacity 不生效**：`overlay/PipLayer` 算出的 `fillArgb` / `borderArgb` 从未使用（直接用了常量）→ `opacity` 对 pip 填充与边框完全不起作用；且 pip 的 `x/y/width/height` 是原始像素而非屏幕百分比。
+- **pip 的 opacity 不生效**：`overlay/PipLayer` 算出的 `fillArgb` / `borderArgb` 从未使用（直接用了常量）→ `opacity` 对 pip 填充与边框完全不起作用；且 pip 的 `x/y/width/height` 是原始像素而非屏幕百分比。**（存档：pip 层已于 2026-10-08 删除，被 lane 取代。）**
 
 ---
 
 ## 事实核查（2026-10-07）
 
 > 依据文件：`common/src/main/java/com/immersivecinematics/immersive_cinematics/overlay/{PipLayer,ImageLayer,FadeLayer,SubtitleLayer,LetterboxLayer,OverlayManager}.java`、`.../proto/QuadrantProto.java`、`.../mixin/QuadrantProtoMixin.java`、`.../script/OverlayTrackPlayer.java`、`plans/0.3.6/quadrant-perf/summary.md`、`plans/0.3.6/quadrant-prototype-results.md`。核查针对本文事实性断言，不改设计方向。
+> **本小节是 2026-10-07 快照**：此后 pip 层删除、合成层换 `ic_lane_blit`、多 lane 上屏与光影每视角隔离（2026-10-18）均见 §3 / §7。
 
 ### ① 核实为真
 

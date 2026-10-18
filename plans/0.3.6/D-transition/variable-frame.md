@@ -1,6 +1,8 @@
 # 0.3.6 可变画面：从固定输出到可摆放的画面元素（长期计划·方向稿）
 
 > **范围修订（用户 2026-10-17 澄清）**：字幕按完整文本呈现，没有裁切需求。统一模型统一共有参数的参照与语义，不要求每类内容具备全部能力；`source` 取材只适用于图片与相机画面 lane。本文旧“文本取材待接入 / 补齐所有类别”的方向取消，**D9 已取消（明确不做，不是待办）**；字幕保留位置、锚点、字号、缩放与透明度，`fit` 不恢复。D1–D3 转场已按 [scene-transition.md](scene-transition.md) 收口（纯显式 clip / 关键帧），与本文字幕 / 几何范围无关。执行记录见 [本轮计划](execution-round.md)（历史：该轮只做 D8 / D10）。
+>
+> **当前状态（2026-10-18 回写）**：D 轮已关单（2026-10-17）——D8（lane 与覆盖层的取材 / 放置参照核实收口）与 D10（LETTERBOX `opacity` 接线、`aspect_ratio` / `opacity` 线性播放）已完成；D9 取消（字幕不裁切）。几何口径以 §4.2 为准，§4.1 仅存档。§7 / §8 剩余条目是长期开放方向，不是 D 轮待办；§9 步骤 6（编辑器）归编辑器阶段。
 
 > 本文是 0.3.6 的长期计划方向稿。
 > - 已确认的写“已确认”
@@ -391,21 +393,21 @@ Cs       = (source.w · 素材宽, source.h · 素材高)          裁切后素�
 
 > 已解决项不再列出：宽高比不一致的留空策略 → §4.2.3；每类默认参数 → §3.1。
 
-- **画面层在 z 序里的基线**：它应该在 letterbox **之下**（现在 letterbox 的 z=0 已是最小，需要给画面层留更低的基线）。（未决·与几何口径无关）
+- **开放（长期）**：画面层在 z 序里的基线——它应该在 letterbox **之下**（现在 letterbox 的 z=0 已是最小，需要给画面层留更低的基线）。（与几何口径无关；画面 lane 不走 OVERLAY 的 `z_index`，本条只涉及跨 pass 次序）
 - **素材与取材能力分开（用户 2026-10-17 澄清）**：文本层有内在尺寸（`font_scale` 下的文字块像素），但字幕作为完整文本呈现、不需要裁切；图片与相机画面消费 `source`。效果层 / 画幅层无素材，也不消费 `source`。
 - ~~取材超出素材边界时的行为（钳制 / 黑 / 循环）。~~ **已定（2026-10-10）**：**钳制到素材内**（现状 `ImageLayer` 的 `clamp01` 口径：`x/y` 钳到 `0~1`，裁出区域按 `x+w ≤ 1`、`y+h ≤ 1` 截断）；裁到 0 宽 / 0 高 → 该层当帧不绘制。无黑边 / 循环语义。
-- 旋转是否纳入：不纳入的话锚点的意义减半，但第一版可以只服务缩放。（未决·延后）
-- 性能：小尺寸画面是否按显示尺寸渲染（现计划写的是“正式合成不降分辨率”）。（未决·与几何口径无关）
+- **开放（长期）**：旋转是否纳入——不纳入的话锚点的意义减半，但第一版可以只服务缩放。（延后）
+- **开放（长期）**：性能——小尺寸画面是否按显示尺寸渲染（现计划写的是“正式合成不降分辨率”）。（与几何口径无关）
 
 ---
 
-## 8. 待定
+## 8. 待定（仅剩开放项；已定项以删除线保留历史）
 
 - ~~取材的边界语义。~~ **已定（2026-10-10）**：钳制到素材内、裁到 0 不绘制（见 §7）。
-- 与 HUD / letterbox 的叠放顺序细节。（未决·与几何口径无关）
+- **开放（长期）**：与 HUD / letterbox 的叠放顺序细节。（与几何口径无关；OVERLAY 内的显式 `z_index` 已由 D3 定稿，跨 pass 的 lane / letterbox / HUD 次序仍未定）
 - ~~pip 层是被取代还是升级。~~ **已定（2026-10-08，CLEANUP-2）**：pip 层已删除，被 lane 取代（画中画 = lane 合成参数 `dest`/`source`/`opacity`）；WebUI 便捷操作留编辑器阶段。
 - ~~相机侧 `dest`（屏幕归一化口径，已落地）与画布归一化口径的换算（步骤 3–5）。~~ **已定（2026-10-10）**：**无换算** —— 两族统一为窗口参照（lane 的 `dest` 保持屏幕（窗口）归一化矩形，`source` 参照 lane 画面，缩放隐含在 dest/source 尺寸比，`k = 1`），见 §3.1「与相机侧合成参数的关系」与 §4.2.4。
-- **画幅层左右黑边已落地**：`LetterboxLayer` 按窗口与目标宽高比选择上下或左右黑边；本轮 `aspect_ratio=1.0` 实机验证左右黑边。不要与画面 lane 的采样尺寸问题混为一谈。
+- **画幅层左右黑边已落地**：`LetterboxLayer` 按窗口与目标宽高比选择上下或左右黑边；本轮 `aspect_ratio=1.0` 实机验证左右黑边。不要与画面 lane 的采样尺寸问题混为一谈。**D10（2026-10-17）已接通 LETTERBOX 轨 `opacity`（0~1，缺省 1）并移除隐含 smoothstep，`aspect_ratio` 与 `opacity` 均按关键帧线性播放**，见 [execution-round.md](execution-round.md)。
 - **`base_resolution` 不设人为上限**（2026-10-12 用户裁决，2026-10-17 校验修正）：正整数，当前存储表示范围为 `1..Integer.MAX_VALUE`，超出表示范围拒绝，不再按 `16384` 限制作者。
 
 ---
@@ -432,6 +434,8 @@ Cs       = (source.w · 素材宽, source.h · 素材高)          裁切后素�
 ---
 
 ## 11. 几何口径重写：代码改动清单（2026-10-10；只登记，不改代码）
+
+> **状态（2026-10-18 回写）**：本清单已于 2026-10-10 执行落地（见 [execution-round.md](execution-round.md) §1）；保留为改动依据与验收口径的历史记录，不是待办。
 
 > **范围**：把 0.3.6 步骤 4 的「参考画布」实现（§4.1）改为 §4.2 的「统一几何模型」。**运行时只做定义 / 解析 / 播放求值**（`k` 计算属播放求值）；**不做任何便捷写法解析、像素换算、脚本改写**。可拆为两个串行编码任务：**任务一 = 11.1–11.5（几何与图层）**，**任务二 = 11.6（meta 字段与校验）+ 11.7–11.8（文档 / 编辑器登记）**。
 > **共同验收**：`sh gradlew compileJava` 通过；一次性冒烟（不入库）逐点核对 §4.2.6 三例；**1920×1080 播放窗口 + 缺省 `base_resolution` + `source` 整幅** 下与重写前逐像素一致（回归基线）。
@@ -460,7 +464,7 @@ Cs       = (source.w · 素材宽, source.h · 素材高)          裁切后素�
 
 ### 11.4 `overlay/LetterboxLayer.java` / `overlay/FadeLayer.java`
 
-- `LetterboxLayer`：删除 `canvas(...)` 与「画布留边」分支（画布 = 窗口，无留边）；黑边直接按窗口算 `contentHeight = screenWidth / targetAspectRatio`，`contentHeight < screenHeight` 时画上下两条（与旧算法同式、去掉画布层）。**不乘 `k`**（黑边由窗口与目标画幅比决定）。`ratio` 窄于窗口时的左右黑边见 §8 待拍板（本轮保持现状）。
+- `LetterboxLayer`：删除 `canvas(...)` 与「画布留边」分支（画布 = 窗口，无留边）；黑边直接按窗口算 `contentHeight = screenWidth / targetAspectRatio`，`contentHeight < screenHeight` 时画上下两条（与旧算法同式、去掉画布层）。**不乘 `k`**（黑边由窗口与目标画幅比决定）。`ratio` 窄于窗口时的左右黑边见 §8 待拍板（本轮保持现状）。**（当时状态；左右黑边后续已实现，见 §8）**
 - `FadeLayer`：`canvas(...)` → 直接 `fill(0, 0, screenWidth, screenHeight, argb)`（铺满窗口）；**不乘 `k`**。
 - **验收**：16:9 窗口 + `ratio = 2.35` 的黑边高度 = `round((H − W/2.35)/2)`，与重写前逐像素一致；非 16:9 窗口下 fade 铺满整窗（旧实现只铺画布区）。
 
@@ -538,7 +542,7 @@ Cs       = (source.w · 素材宽, source.h · 素材高)          裁切后素�
 
 ### ④ 无法核实（未验证）
 
-1. §2 分类表“画面层 = 相机 lane 的输出纹理 / 每条 CAMERA 轨或每个相机一条”、§5 Gizmo 与参数面板双向同步——均为**方向**，无对应现状实现可核。（§3 字段名 / §9 步骤 1–2 已于 2026-10-07 定稿，见 §3.1；**§4.1 参考画布已于 2026-10-10 被 §4.2 取代**；§8 余下待定项与 §9 步骤 3–6 仍为方向。）
+1. §2 分类表“画面层 = 相机 lane 的输出纹理 / 每条 CAMERA 轨或每个相机一条”、§5 Gizmo 与参数面板双向同步——均为**方向**，无对应现状实现可核。（§3 字段名 / §9 步骤 1–2 已于 2026-10-07 定稿，见 §3.1；**§4.1 参考画布已于 2026-10-10 被 §4.2 取代**；§9 步骤 3–4 已落地（D8 / 几何重写）、步骤 5 取消（D9），§8 余下开放项与 §9 步骤 6（编辑器）仍为方向。）
 2. §7“小尺寸画面是否按显示尺寸渲染”属取舍问题，非事实断言；其引用的“正式合成不降分辨率”已在 ①.12 核实为真。
 3. olive 侧“变换先按序列归一化”的完整语义链（`MatrixGenerator::GenerateMatrix` 生成矩阵的坐标系约定）未逐行追到基类实现，本核查只验证到 `AdjustMatrixByResolutions` 的缩放/适配与 NDC 顶点约定（见 ①.7）。
 
@@ -562,7 +566,7 @@ Cs       = (source.w · 素材宽, source.h · 素材高)          裁切后素�
   - `TrackSchemas.overlay()`：字段表对齐（clip `z_index` 默认 10；关键帧补 `anchor_x/anchor_y/source/fit`，`opacity` 默认 1，`x/y` 默认 0.5）。
 - **文档**：`docs/SCRIPT_FORMAT.md` §9、`docs/AI_SCRIPTING_GUIDE.md` §3.5b、`docs/modules/overlay.md`、`docs/modules/script.md`。
 - **验证**：`sh gradlew compileJava` 通过；一次性冒烟（不入库，`javac -encoding UTF-8` + 真实 `CanvasTransform`）→ 1920×1080 下图片几何 1470/1470 组合与旧口径**逐位一致**（最大位置偏差 0.0 px），字幕块位置/尺寸一致，锚点不动点、非 16:9 Fit 映射、`source`+`fit` 三档、`fit` 枚举解析全通过；schema 冒烟（`ScriptParser` + `ScriptRegistry`）确认新字段解析进关键帧数据、默认值对齐、校验器不报错。
-- **遗留**：letterbox 的 `opacity` 已具备渲染能力（`setOpacity` + alpha），但 LETTERBOX 轨的脚本字段（`LetterboxTrackPlayer` / `TrackSchemas.letterbox()`）不在本次改动范围，未接线 —— 目前恒为 1（纯黑边，与旧行为一致）。
+- **遗留（已由 D10 关闭，2026-10-17）**：letterbox 的 `opacity` 已具备渲染能力（`setOpacity` + alpha），但 LETTERBOX 轨的脚本字段（`LetterboxTrackPlayer` / `TrackSchemas.letterbox()`）不在本次改动范围，当时未接线 —— 恒为 1（纯黑边，与旧行为一致）。**D10 已接通 LETTERBOX 轨 `opacity`（0~1，缺省 1），并移除隐含 smoothstep，`aspect_ratio` 与 `opacity` 均按关键帧线性播放**；实机九个时刻与 19 项播放器探针见 [execution-round.md](execution-round.md)。
 
 ### ⑦ 几何口径重写（2026-10-10）
 
@@ -572,6 +576,6 @@ Cs       = (source.w · 素材宽, source.h · 素材高)          裁切后素�
   2. **绘制空间不一致（实现关键点）**：`handler/ClientEventHandler` 传 `mc.getWindow().getGuiScaledWidth/Height` → 覆盖层在 **GUI 缩放空间**；`LaneCompositor` 直接对主 framebuffer 画（`dest` 是帧缓冲归一化）→ lane 在 **物理像素空间**。位置是百分比（两空间同值），尺寸是像素 → 覆盖层内 `k` 需按绘制空间换算（§4.2.2 实现注）。**这是本次重写最易错处，已写进清单验收。**
   3. `LaneRenderer` 的 lane FBO 按 `mc.getMainRenderTarget().width/height` 建 / 重建（`offscreenTarget`）→ lane 素材每帧 = 播放窗口尺寸，`k = 1` 成立（§4.2.4）。
   4. `ScriptPlayer` 已暴露 `getScript()`（`ScriptPlayer.java:438`），`CinematicScript.getMeta()` 可用 → `base_resolution` 送层的路径存在，无需新增跨层查询。
-  5. `LetterboxLayer` 现只画「目标画幅比宽于窗口」的上下黑边（`contentHeight < canvas.height()` 分支），无 pillarbox 分支 → 列为 §8 待拍板（不属本次重写范围）。
+  5. `LetterboxLayer` 现只画「目标画幅比宽于窗口」的上下黑边（`contentHeight < canvas.height()` 分支），无 pillarbox 分支 → 列为 §8 待拍板（不属本次重写范围）。**（当时状态；左右黑边后续已实现，见 §8）**
 - **本次文档改写范围**：本文 §3 / §3.1（参照系 + 基准尺寸逐类）、§4（方向）、§4.1（标注取代）、§4.2（新增定稿）、§5（编辑器登记）、§6（适配标注）、§7 / §8（悬项收口 + 2 项待拍板）、§9（落地顺序）、§11（新增代码改动清单）。`camera-composition.md` 回写 `dest` / `source` 口径（指向 §4.2，不重复定义）。
-- **未验证**：§4.2.6 三例为**手算推演**（尚无代码实现可跑）；`k` 的绘制空间换算只有公式等价性推导，无运行期实测（属重写任务的验收项）。
+- **未验证（历史记录）**：§4.2.6 三例为**手算推演**（当时尚无代码实现可跑）；`k` 的绘制空间换算只有公式等价性推导，无运行期实测（属重写任务的验收项）。**2026-10-18 补注**：统一几何重写已于 2026-10-10 落地（见 [execution-round.md](execution-round.md) §1），本行保留为当时记录；§4.2.6 三例的逐点运行期核对未在 D 轮验收中单列，属未验面，不阻塞 D 关单。

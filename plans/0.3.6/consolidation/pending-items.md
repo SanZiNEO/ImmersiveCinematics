@@ -1,4 +1,4 @@
-# 0.3.6「待讨论」条目完整清单（截至 2026-10-12）
+# 0.3.6「待讨论」条目完整清单（截至 2026-10-18）
 
 > 口径：只列「仍未定 / 仍需拍板 / 实现未做」的条目；已销项、已定稿、已落地的只保留一行说明。
 > 状态标注：✅ 已定/已落地　🔵 方向已确认但实现未做　🟡 仍开放未定　👤 需用户拍板。
@@ -24,9 +24,9 @@
 ## 一、播放与画面架构（未决项）
 
 ### parallel-playback.md
-- 🔵 **队列按脚本匹配接播**（`ScriptQueue` 无匹配 API）→ 归 **F2**。
-- 🔵 **听者「后来者居上」口径待对齐**（`AudioListenerController` 已按顶层，`hasActiveCameraClip` 为并集）→ 归 **F 批**。
-- 🟡 **多实例 AUDIO 空间锚点**、**跳过投票 UI**、**实例与 Base Provider 对应关系**、**区块预加载 ticket 并集**、**实例 id 网络协议形态** → 涉及并行播放放开（步骤 5/6），随 F 批定。
+- 🟡 **队列按脚本匹配接播**（`ScriptQueue` 无匹配 API）→ **F2 实现完成（2026-10-17）**：出队按 priority/FIFO 逐项判定可播性、无 exclusive 一次排空、同脚本排队副本不被误启动、预览隔离、去掉容量 8；无头探针 68/68。**实机待补**（接播 pendingScript / 队列路径仍无实机记录）。
+- 🔵 **听者「后来者居上」口径待对齐**（`AudioListenerController` 已按顶层，`hasActiveCameraClip` 为并集）→ 归 **F 批**，仍开放。
+- 🟡 **多实例 AUDIO 空间锚点**、**跳过投票 UI**、**实例与 Base Provider 对应关系**、**区块预加载 ticket 并集**、**实例 id 网络协议形态** → 涉及并行播放放开（步骤 5/6），随 F 批收口，仍开放。
 - ✅ 已销项：同脚本重入保持单实例（§〇 用户裁决）、互斥组不做、队列三态语义（被 `playback-relations.md` 吸收）。
 
 ### camera-composition.md
@@ -40,8 +40,8 @@
 ### multi-camera-rendering.md
 - 🟡 **副画面是否支持 look_at / tangent 朝向**。
 - 🟡 **叠化期间主相机是否可移动**。
-- 🔵 **光影（Iris/Oculus）能否拿「已处理后的画面」** → 归 **F3 / P2 调研**。
-- 🔵 **Rubidium 兼容**、**Sodium 下两遍/帧 `frame++` 语义** → 归 **F3 实测**。
+- 🟡 **光影（Iris/Oculus）能否拿「已处理后的画面」** → **F3 实现完成（2026-10-17 / 画面修复 2026-10-18）**：lane 始终渲染，每 lane 跑完整光影链；跨视角 TAA 历史与 `shadowcolor` 污染已修，Fabric/Iris 1.7.6 三包 A/B 干净。**F3 生产验收通过（Fabric/Iris 三视角 + 热切换；Forge/Oculus 1.8.0 同 jar 已部署）**（§7 L144、§12.5 L350、事实核查 L284；`render-routes.md` §4）。
+- 🔵 **Rubidium 兼容**、**Sodium 下两遍/帧 `frame++` 语义** → 归 **F3 实测**，**仍开放**（Rubidium 无源码，`frame` 语义未验证）。（§11 注 L207、事实核查 L283/285）
 - ✅ 已销项：渲染顺序（renderLevel RETURN 已实测）、每 lane 独立可见集合（B3）、预热时长、性能模组检测策略、alpha 透底（ic_lane_blit）、per-lane 槽归槽。
 
 ### scene-transition.md
@@ -71,6 +71,15 @@
 - 🟡 **折返瞬间动画/事件帧对齐**、**长跑虚拟时钟精度**（float 强转单精度）、**触发式脚本第 0 秒起点** → 部分归 **G4 / clock-abstraction**。
 - 🔵 **宏观 pingpong**（计划延后项）。
 - ✅ 已销项：宏观末端口径、子区间循环、预览不展开、服务端不跟随折叠、折返硬切。
+
+### F-playback 轮（2026-10-17 实现 / 2026-10-18 光影画面修复）
+- 🟡 **F2 队列接播** → 实现完成（2026-10-17），无头探针 68/68；**实机待补**（接播 pendingScript / 队列路径无实机记录）。
+- ✅ **F3 Iris/Oculus** → 实现完成 + 生产验收通过；Fabric/Iris 1.7.6 光影 lane A/B 于 2026-10-18 通过（MakeUp / Complementary / BSL 三包，绿边 / 缝隙 / 扇形消除）；**F3 生产验收通过（Forge/Oculus 1.8.0 同 jar 已部署）**；④⑤⑥ 兼容细节开放。
+- ⊘ **F4 视距档位** → **取消**（不做脚本字段，lane 视距自动跟随玩家），不是待办。
+- 🟡 **F5 帧耗时统计** → 实现完成（诊断会话 + 21 支脚本）；成本矩阵**未完成**（`perf_l16` FULL 259/600 中断、`perf_l4` WORLD_ONLY 未跑、`perf_l25` 未启动）；真实成本与 per-view 历史拷贝成本待测。
+- 🟡 **失败处理审计** → `failure-handling-audit.md`（只读）**60 findings / 23 P0**，16 处空 / 仅注释 catch；`PacketGuard` 与断线清理未实现，按 P0 / P1 / P2 分批整改。
+- 🟡 **Iris ④⑤⑥ 仍开放**：Sodium/Embeddium `frame++` 语义、Rubidium 兼容、光影下副画面成本；① 挂点先后与 ② 可行性已由 2026-10-18 实机 A/B 收口，③ 色彩空间默认 `SRGB` 为无操作。
+- 🟡 **合成 / 并行 / 多相机开放项**：见上文 `camera-composition.md`（dest 外兜底、编辑器预览多 lane、HUD/letterbox 顺序、主 lane、跨脚本 lane 寻址）、`parallel-playback.md`（听者后来者居上、多实例 AUDIO 锚点、跳过投票 UI、实例/Base Provider、ticket 并集、实例 id 网络）、`multi-camera-rendering.md`（lane look_at/tangent、叠化期间主相机移动）。
 
 ---
 
@@ -179,8 +188,8 @@
 | 类别 | 数量 |
 |---|---|
 | 需用户拍板 | 已全部拍板（6 项，见 §〇 / decisions.md） |
-| 仍开放未定（🟡） | ~60 条，归并为约 20 类 |
-| 方向已确认、实现未做（🔵） | 覆盖批次 C/D/F/G/H 全部待办 |
-| 已销项（A/B 轮 + 各批已落地） | 其余全部 |
+| 仍开放未定（🟡） | ~60 条，归并为约 20 类；F 轮余项见 §一「F-playback 轮」（F5 成本矩阵、失败审计、Iris ④⑤⑥） |
+| 方向已确认、实现未做（🔵） | 覆盖批次 C/D/F/G/H 全部待办；F2 队列接播已实现（实机待补） |
+| 已销项（A/B 轮 + 各批已落地） | 其余全部（含 F4 取消、F3 光影画面 A/B） |
 
 > 说明：🟡 未定项绝大多数属「执行时再定」或「编辑器阶段呈现」，随对应批次（C/D/F/G/H/P1-impl/P3-impl）落地时定稿即可；需提前决策的项已全部拍板（§〇）。

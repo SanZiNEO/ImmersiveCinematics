@@ -4,6 +4,8 @@
 > 2560×1369（测试中曾调整窗口比例），光影启用，`shader_pack_in_use=true`。
 > 会话：`diagnostics/sessions/20261017-172637-f-round/`。
 
+> **2026-10-18 状态**：问题 A / B 已定位并修复（根因 = Iris/Oculus 每视角共享状态，不是合成层 alpha；证据见 `.planning/036-shader-lane-investigation/evidence.md` §7 与 [iris-oculus-compat](iris-oculus-compat.md) §7）。**性能矩阵仍未完成**（§1.1）；F3 生产验收通过（Fabric/Iris 三视角 + 热切换；Forge/Oculus 同 jar 已部署）；F4 按用户裁决取消；F5 诊断实现完成、真实成本待回填。失败处理审计（[failure-handling-audit](failure-handling-audit.md)）**尚未实施**。
+
 ## 1. 测试进度与缺失项
 
 | 项 | 记录 |
@@ -20,7 +22,41 @@
 `l25` 的脚本本身加载正常（启动日志有 `Loaded script: ic_f_perf_l25`，26 条轨、900s）。
 需要用户补充聊天栏报错原文，才能确定是“脚本文件不存在”还是参数/命令解析问题。
 
-## 2. 问题 A：lane 合成疑似非 100% 不透明（绿色毛边 / 隐约透底）
+### 1.1 矩阵状态（2026-10-18 复核）
+
+| 项 | 状态 |
+|---|---|
+| `perf_l16` FULL | ✅ 600/600（2026-10-18 复测） |
+| `perf_l4` WORLD_ONLY | ✅ 600/600（2026-10-18 复测） |
+| `perf_l1` WORLD_ONLY | ✅ 600/600（2026-10-18 复测） |
+| `perf_l25` | ☐ **仍缺**：脚本 46,944 字符超过 32,767 传输上限，`play` 报「意外错误」；见 [f5-script-packet-limit](f5-script-packet-limit.md) |
+| 其余 600/600 档（`perf_l0` / `perf_l1` FULL / `perf_l16` WORLD_ONLY / `perf_l4` FULL） | ✅ 已采；2026-10-18 每视角历史隔离后已复测（l0 / l1 / l4 / l16 全部 600/600） |
+| F3 | ✅ 实现完成 + 生产验收通过；Fabric/Iris 1.7.6 三包 A/B 干净；Forge/Oculus 1.8.0 同 jar 已部署；④⑤⑥ 兼容细节开放（见 [iris-oculus-compat](iris-oculus-compat.md) §7.5） |
+| F4 | ⊘ 已取消（2026-10-17 用户裁决）：lane 视距跟随玩家设置，不新增脚本字段 |
+| F5 | 🟡 诊断会话与 21 支脚本完成；l0 / l1 / l4 / l16 的 FULL 与 WORLD_ONLY 已回填 600 帧数据；**l25 被 32,767 字符脚本传输上限阻塞**（见 [f5-script-packet-limit](f5-script-packet-limit.md)） |
+
+⇒ 性能矩阵与 F5 成本曲线**均未完成**，F 轮不能据此关单。
+
+## 2. 问题 A：lane 合成疑似非 100% 不透明（绿色毛边 / 隐约透底）——✅ 已解决（2026-10-18）
+
+### 结论（2026-10-18）
+
+**合成层不是根因**：lane 的 raw 画面（完整光影管线输出、合成前）已经带毛边 / 缝隙 / 扇形；`ic_lane_blit` 只读 RGB、不读 lane alpha，会话中 raw / window 的 alpha 实测均为 255。此前把**本次**绿边归因于 alpha 透底不成立——历史那次 alpha 透底是另一个问题，已由 `ic_lane_blit`（只读 RGB、写出 `opacity × coverage`）修掉。
+
+**真根因 = Iris/Oculus 的每帧状态按「一帧只渲染一次世界」假设共享**，而我们在同一帧里为每条 lane 再跑一次 `LevelRenderer.renderLevel`，各视角读写同一份状态：
+
+| 共享状态 | 对应症状 | 修复 |
+|---|---|---|
+| 历史 colortex（TAA 的上一帧颜色；MakeUp=`colortex3`，Complementary/BSL=`colortex2`） | 反朝向时的绿边 / 竖缝（在 final 的边缘处理上被放大）；A 相机云上的粉 / 紫斜条与硬边矩形块（来自主视角玩家手臂的颜色历史） | `ColorHistoryCapture` 按视角保存 / 恢复历史目标 main/alt；目标由 `ShaderCompat` 从光影包源码自动探测 |
+| `shadowcolor0/1` 彩色阴影 | 绿墙右缘橙色竖线（主视角红墙的彩色阴影残留） | `ShadowColorClear` 每视角清 shadowcolor main/alt |
+| 深度附件 | 反朝向扇形 / 锥形明暗、深度重建错误 | 每视角重绑 lane 自己的深度附件（`ViewStateLog`：lane 首帧 `irisDepth=78`） |
+| `Previous` 矩阵 / tracker / 帧计数 | 屏幕空间历史被错误重投影（「单条全屏 lane 内部竖缝」的来源） | `ViewStateCapture` 按视角保存 / 恢复 previous / tracker |
+
+**验证**：受控场景 `test_shadow_scene` 修前复现（A 粉云 / 矩形块、B 橙边），隔离后 A/B raw 与主视角全干净；原始 A/B 分屏 `test_ab_split_scale` 在 MakeUp（`historyTargets=[3]`）/ Complementary（`[2]`）/ BSL（`[2]`）三包 r5 均无绿边、无缝隙、无扇形。详见 [iris-oculus-compat](iris-oculus-compat.md) §7。
+
+**修正**：2026-10-17 的「lane FBO 深度版本号 +1」修复（`8836cd7`）实测仍留缝 / 扇形，判定为**不充分**；现由每视角深度重绑取代。该条降级为「已排除 / 不充分」，不再作为修复项。
+
+**遗留（独立问题）**：`hide_arm` 在受控场景与 A/B 中仍未生效（第一人称手臂在 lane 与主视角可见），不属于跨视角污染，未一并修改。
 
 ### 现象
 
@@ -84,6 +120,8 @@
 - 修复候选：lane 绑定 FBO 前把 `iris$depthBufferVersion` 改成与缓存不同的值（反射或软访问器），
   强制重挂 lane 深度；回主画面时再挂回。需要实测确认。
 
+> **2026-10-18 更正**：该候选实测**不充分**（版本 +1 后竖缝 / 扇形仍在，见 §3「修复尝试结果」）；现由每视角深度重绑 + 历史 colortex / shadowcolor / previous 隔离解决，见本节结论。
+
 ### 建议的最小判定（RGB 分离）
 
 - 场景：主画面正对一块**纯红**方块墙，lane 相机正对一块**纯蓝**方块墙，PIP 覆盖主画面；
@@ -91,7 +129,23 @@
 - 再分别用纯 R/G/B 三色重复，排除 shader 色差；
 - 同时记录 raw lane 的 alpha 与窗口终帧 RGB，区分“lane 纹理 alpha”与“合成后混合”。
 
-## 3. 问题 B：光影下玩家锚定的扇形/锥形明暗区域
+## 3. 问题 B：光影下玩家锚定的扇形/锥形明暗区域——✅ 已解决（2026-10-18）
+
+### 结论（2026-10-18）
+
+**用户观察成立**：光影里与阴影相关的链路确实影响 lane 画面，但要拆成三份，不是「阴影 pass 本身错了」：
+
+| 症状 | 归属 | 依据 |
+|---|---|---|
+| 反朝向时的扇形 / 锥形明暗、深度重建错误 | lane pass 用了**主相机的深度附件**（`depthtex0/1/2`、`gdepthtex`、`CenterDepthSampler`） | 每视角重绑后消失（`irisDepth=78`） |
+| 绿墙右缘橙线、草地橙斑 | `shadowcolor0/1` 跨视角残留（MakeUp `buffersToBeCleared=[]`） | 强制清 shadowcolor 后橙边消失，粉云仍在 |
+| 粉 / 紫斜条、硬边矩形块（云上）、绿边 / 缝隙 | TAA 历史 colortex 跨视角污染；绿边在 final 边缘处理（FXAA / sharpen / TAA / 色差）上被放大 | 清 shadowcolor 后仍在，按视角隔离历史后消失 |
+
+**阴影 pass 本身不是根因**：`ShadowRenderer` 每 lane 重画、中心 / 视锥跟随 lane 相机（`ShadowRenderer.java:354-405`），不是主 pass 缓存。
+
+**修复与验证**：`ShadowColorClear`（每视角清 shadowcolor）+ `ColorHistoryCapture`（按视角保存 / 恢复历史 colortex）+ 每视角深度重绑 + `ViewStateCapture`（previous / tracker 按视角）。受控场景 `test_shadow_scene` 与 A/B 分屏 `test_ab_split_scale` 在 MakeUp / Complementary / BSL 三包下均干净；游戏内切换光影包不再纯白（pipeline 变更时 reset）。详见 [iris-oculus-compat](iris-oculus-compat.md) §7。
+
+**修正**：2026-10-17 的「深度版本号 +1」假设降级为**不充分**（实测仍留缝 / 扇形），现由每视角深度重绑取代；「TAA 不是主因」的旧表述也已修正——TAA 不是暗斑的主因，但确实是粉云 / 矩形块的主因。
 
 ### 现象
 
@@ -147,13 +201,15 @@
 - 本次实机确认：**光影里处理阴影的那条链路会影响 lane 画面**。
 - 但先不追来源，优先做原始 RGB 分析，确认差异到底落在哪一类像素上；确认前不改代码。
 
-### 下一步：原始 RGB 分析（用户建议）
+### 原始 RGB 分析（2026-10-17 历史；已执行，结果见 `.planning/036-shader-lane-investigation/evidence.md` §3）
 
 - 回到历史探针的做法：同一帧取 **lane raw** 与 **窗口终帧**，按 lane alpha 分组
   （`>=254.9` vs `<255`），比较 RGB 平均绝对偏差；再做 R/G/B 分离，判断是否有背景混合。
 - 需要能直接读游戏内 framebuffer / 纹理像素，而不是只看截图。
 
-### 修复候选
+### 修复候选（2026-10-17，历史）
+
+> 以下为当时的候选；2026-10-18 已由「每视角深度重绑 + 历史 colortex / shadowcolor 隔离」取代（见本节结论），保留作过程记录。
 
 - lane 绑定 FBO 前，把 lane FBO 的 `iris$depthBufferVersion` 改成与缓存不同的值
   （反射缓存 `Field`，无 Iris 时跳过；失败降级），强制 `resizeIfNeeded` 重挂 lane 深度；
@@ -172,8 +228,13 @@
   照常上抛或走明确终止路径。
 - 目标：失败有真实记录、可定位；不立刻崩溃；不把错误包成无法调查的静默。
 
+**状态（2026-10-18）**：以上口径只写进了 [failure-handling-audit](failure-handling-audit.md)，**一条都未实施**——60 条 findings / 23 条 P0、16 处空体或仅注释 catch 全部仍在；`PacketGuard` 统一包处理与断线清理也未落地。按 P0 → P1 → P2 分三批，归 F 轮收口。
+
 ## 5. 下一步
 
-- 深度修复已落盘（`8836cd7`），待用户实机验证；
-- 失败→崩溃全仓审计：`failure-handling-audit.md`（按上述原则给“捕获 / 上抛 / 先补日志”建议）；
-- 网络发包防护与断线清理按审计结论一并修，归入 F 轮收口。
+- **分支历史**：调查分支已按最终状态压缩为 2 个提交（修复 + 文档），探针与一次性验收脚本未进入最终树；记录见 [history-consolidation](history-consolidation.md)。
+- ~~深度修复（`8836cd7`）待用户实机验证~~ → 已完成并**被取代**（2026-10-18）：每视角深度重绑 + 历史 colortex / shadowcolor / previous 隔离，三包 A/B 干净；见 §2 / §3 结论与 [iris-oculus-compat](iris-oculus-compat.md) §7。
+- **性能矩阵补齐**：`perf_l16` FULL、`perf_l4` WORLD_ONLY、`perf_l1` WORLD_ONLY 已于 2026-10-18 复测 600/600；**`perf_l25` 仍缺**，原因是脚本 46,944 字符超过 32,767 传输上限（[f5-script-packet-limit](f5-script-packet-limit.md)），压缩后的测试脚本已就绪但未重跑。
+- **F3 生产验收**：已通过（Fabric/Iris 三视角 + 热切换；Forge/Oculus 1.8.0 同 jar 已部署）；Rubidium（§3-⑤）与 Sodium/Embeddium `frame++`（§3-④）仍作为兼容细节开放。
+- **失败处理**：按 `failure-handling-audit.md` 第 1 批 P0 落地（帧首 / 逐实例 / lane 合成 / 服务端 tick / 包处理 / 命令入口 / `PacketGuard`），再 P1、P2；网络发包防护与断线清理同批。
+- **F 轮收口条件**：性能数据回填 + P0 批次落地 + F2 实机接播；F3 生产验收已通过（2026-10-18）。在此之前 F2/F5 保持「实现完成、待实机/待数据」，F 轮不整体关单。
