@@ -125,7 +125,7 @@ public final class ScriptLaneDriver {
         renderer.clear();
         // 无脚本播放 → 一定没有 lane（不进收集路径：零分配、零差异）
         if (mc.level == null || mc.player == null || !CameraManager.INSTANCE.isActive()) {
-            onLaneActivityChanged(mc, lanesWereActive, false);
+            onLaneActivityChanged(mc, lanesWereActive, false, renderer);
             return false;
         }
 
@@ -157,15 +157,15 @@ public final class ScriptLaneDriver {
             // 直控类层胜出（飞行 / 编辑器直控）：该态下相机轨道跳过写入 → 本帧没有脚本 lane，但画面
             // 仍必须跟链输出——按「主画面 = dest 全屏、opacity=1 的全屏 lane 特例」由链输出注册一条。
             if (registerChainLane(renderer)) {
-                onLaneActivityChanged(mc, lanesWereActive, true);
+                onLaneActivityChanged(mc, lanesWereActive, true, renderer);
                 return true;
             }
-            onLaneActivityChanged(mc, lanesWereActive, false);
+            onLaneActivityChanged(mc, lanesWereActive, false, renderer);
             return false;
         }
         applyModifiers(renderer, index, mainFrame);
         renderer.setSink(ScriptLaneDriver::compose);
-        onLaneActivityChanged(mc, lanesWereActive, true);
+        onLaneActivityChanged(mc, lanesWereActive, true, renderer);
         return true;
     }
 
@@ -184,7 +184,10 @@ public final class ScriptLaneDriver {
      * <p>线程：本方法只在渲染线程（{@code GameRenderer.render} 的 HEAD，世界渲染之前）被调用，
      * 故可直接读 {@code Minecraft.levelRenderer}。</p>
      */
-    private static void onLaneActivityChanged(Minecraft mc, boolean lanesWereActive, boolean lanesAreActive) {
+    private static void onLaneActivityChanged(Minecraft mc, boolean lanesWereActive, boolean lanesAreActive,
+                                              LaneRenderer renderer) {
+        // 先清理已消失的 lane 视角：活跃度不变时也可能少了一条 lane（3 → 2）。
+        ViewStateCapture.releaseStale(renderer.captureIds());
         if (lanesWereActive == lanesAreActive) {
             return;
         }
@@ -319,7 +322,8 @@ public final class ScriptLaneDriver {
         // 调试捕获 b（每相机 composited）：该相机确实贴到主画面之后立刻读回主 framebuffer 的该相机区域
         // （保真 alpha，按 dest 裁剪）。ICINEMATICS_CAPTURE 门控；关闭 / 未上屏（守门跳过）时零差异。
         if (composited) {
-            LaneDebugCapture.onLaneComposited(slot.captureId != null ? slot.captureId : "lane" + index, slot.dest);
+            String captureId = slot.captureId != null ? slot.captureId : "lane" + index;
+            LaneDebugCapture.onLaneComposited(captureId, slot.dest);
         }
     }
 

@@ -50,6 +50,8 @@
 - 相对定位的 AUDIO 轨道现在以当前听者为锚点，而不是固定跟着玩家。
 
 ### 修复
+- **修复多相机 lane 在光影下的跨视角污染**：主视角与各 lane 不再共享 `colortex` 时域历史和 `shadowcolor`——自动从光影包源码识别真正的 TAA 历史目标（MakeUp `colortex3`，Complementary/BSL `colortex2`），按视角保存/恢复；光影包未声明 shadowcolor 清除时再按视角清一次。修复分屏/多相机时的绿色毛边、彩色阴影残边、云层粉紫块/矩形块与画面缝隙。
+- **切换光影包后不再需要重启**：Iris/Oculus 重建 pipeline 时，旧的历史快照、previous 矩阵和 camera tracker 状态不再套到新 pipeline 上——自动清理每视角缓存，首帧重新建立历史。修复游戏内切换光影后 A/B lane 或主视角变纯白/错画面、必须重启才恢复的问题。
 - **柔光（`soft_light`）混合操作数修正**：按 W3C compositing-1 改为**分支看上层 `src`、`D` 曲线作用于底层 `base`**（`D(x) = x ≤ 0.25 ? ((16x-12)x+4)x : sqrt(x)`）；此前实现把两者角色写反。ADJUST 轨的层级混合与 fade 颜色遮罩的 `soft_light` 现共用同一语义；`src = 0.5` 保持底色，`base = 0` / `1` 保持边界。
 - 修复多脚本同屏播放时偶发的世界画面全黑（HUD / 字幕完好）：调色链改为逐层校验（目标缓冲完整 + 该层绘制无 GL 错误），任一环节失败就跳过该层并直通原始画面，不再可能把未写 / 未定义的内容铺满全屏；调色失败按限频写入日志（`logs/immersive_cinematics/script-errors.log`，类别 `Render`）。
 - 修复相机听者模式下部分声音听不到、听不全的问题。

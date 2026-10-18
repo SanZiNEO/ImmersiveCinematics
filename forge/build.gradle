@@ -94,6 +94,14 @@ processResources {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
+jar {
+    exclude 'net/irisshaders/**'
+}
+
+sourcesJar {
+    exclude 'net/irisshaders/**'
+}
+
 jar.finalizedBy('reobfJar')
 
 manifest {

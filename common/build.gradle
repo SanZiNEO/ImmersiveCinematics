@@ -19,6 +19,14 @@ dependencies {
      implementation group: 'com.google.code.findbugs', name: 'jsr305', version: '3.0.1'
 }
 
+jar {
+    exclude 'net/irisshaders/**'
+}
+
+sourcesJar {
+    exclude 'net/irisshaders/**'
+}
+
 publishing {
     publications {
         mavenJava(MavenPublication) {

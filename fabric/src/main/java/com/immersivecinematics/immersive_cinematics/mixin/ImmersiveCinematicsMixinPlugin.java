@@ -27,6 +27,9 @@ public final class ImmersiveCinematicsMixinPlugin implements IMixinConfigPlugin 
 
     private static final String PREFIX = "com.immersivecinematics.immersive_cinematics.mixin.";
 
+    /** 只在 Oculus/Iris 存在时应用的兼容 mixin（只读注册；Iris* 全部按此前缀判定）。 */
+    private static final String IRIS_COMPAT_PREFIX = PREFIX + "Iris";
+
     /** 只针对原版 setupRender 的 mixin：优化模组改写该方法时跳过（改用它们的路径）。 */
     private static final Set<String> VANILLA_SETUP_RENDER_MIXINS = Set.of(
             PREFIX + "LevelRendererVanillaMixin",
@@ -53,6 +56,10 @@ public final class ImmersiveCinematicsMixinPlugin implements IMixinConfigPlugin 
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        if (mixinClassName.startsWith(IRIS_COMPAT_PREFIX)) {
+            FabricLoader loader = FabricLoader.getInstance();
+            return loader.isModLoaded("iris") || loader.isModLoaded("oculus");
+        }
         if (VANILLA_SETUP_RENDER_MIXINS.contains(mixinClassName)) {
             return !isRenderOptimizerPresent();
         }

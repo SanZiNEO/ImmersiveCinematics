@@ -233,6 +233,12 @@ public final class LaneRenderer {
      */
     private static Camera activeLaneCamera;
 
+    /** 当前 lane 的调试 id（阶段探针文件命名用）；lane pass 之外为 {@code null}。 */
+    private static String activeLaneCaptureId;
+
+    /** 当前 lane 的相机状态（阶段探针元数据用）；lane pass 之外为 {@code null}。 */
+    private static CameraState activeLaneState;
+
     /**
      * 诊断用的内容档覆盖（F5 性能对比 FULL / WORLD_ONLY）：{@code null} = 用生产者传入的正式档
      * （正式路径恒 {@code FULL}）。由 {@code LaneDiagnostics} 的 manifest 用例设置 / 复位；
@@ -381,24 +387,29 @@ public final class LaneRenderer {
                 String captureId = lane.captureId != null ? lane.captureId : "lane" + i;
                 // F5：诊断口径 = 玩家当前有效视距（lane 不再有独立视距覆盖）
                 int diagnosticDistance = mc.options.getEffectiveRenderDistance();
-                // disabled 时 beginLane 返回 0、零分配 / 零 nanoTime
-                long laneStart = LaneDiagnostics.beginLane(i, captureId, diagnosticDistance, fbo);
-                LaneOutput output;
+                ViewScope.enter(captureId);
                 try {
-                    output = renderLane(mc, lane, captureId, fbo, main, partialTick, nanoTime);
-                } catch (Throwable t) {
-                    LaneDiagnostics.endLane(i, laneStart, false);
-                    throw t;
-                }
-                LaneDiagnostics.endLane(i, laneStart, output.written());
-                if (laneSink != null) {
-                    // written = false（渲染失败 / 未写）：合成层守门会跳过该 lane，主画面保持基画面
-                    long compositeStart = LaneDiagnostics.beginComposite(i);
+                    // disabled 时 beginLane 返回 0、零分配 / 零 nanoTime
+                    long laneStart = LaneDiagnostics.beginLane(i, captureId, diagnosticDistance, fbo);
+                    LaneOutput output;
                     try {
-                        laneSink.laneRendered(i, output.target(), output.written());
-                    } finally {
-                        LaneDiagnostics.endComposite(i, compositeStart);
+                        output = renderLane(mc, lane, captureId, fbo, main, partialTick, nanoTime);
+                    } catch (Throwable t) {
+                        LaneDiagnostics.endLane(i, laneStart, false);
+                        throw t;
                     }
+                    LaneDiagnostics.endLane(i, laneStart, output.written());
+                    if (laneSink != null) {
+                        // written = false（渲染失败 / 未写）：合成层守门会跳过该 lane，主画面保持基画面
+                        long compositeStart = LaneDiagnostics.beginComposite(i);
+                        try {
+                            laneSink.laneRendered(i, output.target(), output.written());
+                        } finally {
+                            LaneDiagnostics.endComposite(i, compositeStart);
+                        }
+                    }
+                } finally {
+                    ViewScope.exit(captureId);
                 }
             }
         } finally {
@@ -475,6 +486,8 @@ public final class LaneRenderer {
         // 渲染期间让原版所有 getMainRenderTarget() 引用都落在该 lane 的 FBO 上（落地要点 ①）
         ((MinecraftAccessor) mc).ic$setMainRenderTarget(fbo);
         activeContent = lane.content;
+        activeLaneCaptureId = captureId;
+        activeLaneState = state;
         // lane pass 内 GameRenderer.getMainCamera() 返回本 lane 相机（不写 private final 字段）：
         // Iris/Oculus 的 CameraUniforms / 流体判定、Embeddium 云与 render stage、原版天空色 / 粒子都走该 getter
         activeLaneCamera = camera;
@@ -528,7 +541,7 @@ public final class LaneRenderer {
             // 不是 depth texture id —— lane FBO 版本与 Iris 缓存相同（通常都是 0）时，resizeIfNeeded 判定
             // “没变化”，lane pass 内的 depthtex0/1/2 / gdepthtex / centerDepthSampler 仍指向主相机深度
             // （反朝向出现扇形 / 斜线深度边界与绿色毛边）。递增一次迫使本次 lane pass 重挂 lane 深度。
-            bumpIrisDepthBufferVersion(fbo);
+            bumpIrisDepthBufferVersion(fbo, main);
 
             // 该 lane 自己的视锥 + 相机姿态 → 原版 8 格膨胀剔除 3~5 步收敛，不需要自建剔除方案
             mc.levelRenderer.renderLevel(poseStack, partialTick, nanoTime, false, camera, gameRenderer,
@@ -550,6 +563,8 @@ public final class LaneRenderer {
             }
             activeContent = null;
             activeLaneCamera = null;
+            activeLaneCaptureId = null;
+            activeLaneState = null;
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
         }
 
@@ -686,13 +701,21 @@ public final class LaneRenderer {
      *
      * <p>无光影 / 字段不存在 / 反射失败：静默跳过，不抛异常（无光影路径零影响）。</p>
      */
-    private static void bumpIrisDepthBufferVersion(RenderTarget laneTarget) {
+    private static void bumpIrisDepthBufferVersion(RenderTarget laneTarget, RenderTarget mainTarget) {
         Field field = irisDepthVersionField();
         if (field == null) {
             return;
         }
         try {
-            field.setInt(laneTarget, field.getInt(laneTarget) + 1);
+            int laneVersion = field.getInt(laneTarget);
+            int mainVersion = mainTarget != null ? field.getInt(mainTarget) : Integer.MIN_VALUE;
+            int next = laneVersion + 1;
+            // 第一帧第一条 lane：lane FBO 初始 0，+1 可能正好等于主 FBO 版本（Iris 缓存），
+            // resizeIfNeeded 会判定“没变化”而不重挂。跳过主版本，保证第一次也真正重挂。
+            if (next == mainVersion) {
+                next++;
+            }
+            field.setInt(laneTarget, next);
             if (!irisDepthVersionBumpLogged) {
                 irisDepthVersionBumpLogged = true;
                 LOGGER.info("[lane] Iris 深度重挂已接管：lane pass 内 depthtex0/1/2 / gdepthtex / "
@@ -733,6 +756,16 @@ public final class LaneRenderer {
         return activeLaneCamera;
     }
 
+    /** 当前 lane 的调试 id；不在 lane pass 内时为 {@code null}。 */
+    public static String activeLaneCaptureId() {
+        return activeLaneCaptureId;
+    }
+
+    /** 当前 lane 的相机状态；不在 lane pass 内时为 {@code null}。 */
+    public static CameraState activeLaneState() {
+        return activeLaneState;
+    }
+
     /**
      * 本帧<b>最上层</b> lane（lane 表里序号最大且有状态的槽位）；无活跃 lane 时为 {@code null}。
      * <p>视图中心（{@code LevelRendererVanillaMixin}）取它的相机位置——可见区块网格（{@code ViewArea} +
@@ -771,6 +804,17 @@ public final class LaneRenderer {
     /** 本帧是否有活跃 lane（原版整屏描边是否要让位给 lane 内描边）。 */
     public boolean hasActiveLanes() {
         return activeCount > 0;
+    }
+
+    /** 本帧活跃 lane 的 captureId；per-view 历史/previous 快照用它判断哪些视角已经消失。 */
+    public List<String> captureIds() {
+        List<String> ids = new ArrayList<>(activeCount);
+        for (Lane lane : lanes) {
+            if (lane.state != null && lane.captureId != null) {
+                ids.add(lane.captureId);
+            }
+        }
+        return ids;
     }
 
     /** 当前 pass 是否要画天空：非 lane pass 恒真（主画面不受内容开关影响）。 */

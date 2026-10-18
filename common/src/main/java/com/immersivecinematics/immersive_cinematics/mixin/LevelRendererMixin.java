@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
+import com.immersivecinematics.immersive_cinematics.client.lane.ViewScope;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Camera;
@@ -55,6 +56,18 @@ public class LevelRendererMixin {
                 && !LaneRenderer.isMainOutlinePass()) {
             ci.cancel();
         }
+    }
+
+    // ===== 视角作用域：主视角在 renderLevel HEAD/RETURN；lane 自己的 renderLevel 由 LaneRenderer 包 =====
+
+    @Inject(method = "renderLevel", at = @At("HEAD"))
+    private void immersivecinematics_viewHead(CallbackInfo ci) {
+        ViewScope.onLevelHead();
+    }
+
+    @Inject(method = "renderLevel", at = @At("RETURN"))
+    private void immersivecinematics_viewReturn(CallbackInfo ci) {
+        ViewScope.onLevelReturn();
     }
 
     // ===== lane pass 清屏不透明（未覆盖区 = 实心雾色）=====

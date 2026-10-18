@@ -51,6 +51,14 @@ tasks.named("sourcesJar", Jar) {
     from(project(":common").sourceSets.main.allSource)
 }
 
+jar {
+    exclude 'net/irisshaders/**'
+}
+
+sourcesJar {
+    exclude 'net/irisshaders/**'
+}
+
 processResources {
     from project(":common").sourceSets.main.resources
 }

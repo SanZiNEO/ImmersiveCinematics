@@ -17,6 +17,8 @@
     "GameRendererMixin",
     "GuiMixin",
     "KeyboardHandlerMixin",
+    "IrisCameraTrackerCaptureMixin",
+    "IrisPreviousCaptureMixin",
     "LaneRendererMixin",
     "LaneCullStateMixin",
     "LevelRendererMixin",
