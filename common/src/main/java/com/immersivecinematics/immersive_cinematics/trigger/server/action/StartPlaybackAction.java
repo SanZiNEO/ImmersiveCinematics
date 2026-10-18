@@ -66,6 +66,8 @@ public class StartPlaybackAction implements TriggerAction {
 
     private void sendTo(ServerPlayer p, String json) {
         LOGGER.info("Sending play packet for script '{}' to player {}", scriptId, p.getName().getString());
-        S2CPlayScriptPacket.send(p, json);
+        if (!S2CPlayScriptPacket.send(p, json)) {
+            LOGGER.warn("脚本 '{}' 过大，未发送给 {}", scriptId, p.getName().getString());
+        }
     }
 }

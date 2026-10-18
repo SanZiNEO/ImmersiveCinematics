@@ -175,6 +175,14 @@ public class CinematicCommand {
         // → 服务端定位最近结构/方块 → 替换为坐标（坐标按执行者所在维度/位置定位；脚本文件本身不被修改）
         final String resolvedJson = com.immersivecinematics.immersive_cinematics.util.ScriptStructureResolver
                 .resolveTargets(json, source.getLevel(), source.getPosition());
+        // 传输上限预检：超限脚本给出明确提示，不再落到通用“意外错误”，也不登记 ACK 触发重发
+        String sizeError = S2CPlayScriptPacket.validate(resolvedJson);
+        if (sizeError != null) {
+            // 命令入口是边界：拒绝播放必须留痕（脚本命令常由 EVENT 轨触发，失败反馈可能被命令源吞掉）
+            LOGGER.warn("拒绝播放脚本 {}：{}", scriptPath, sizeError);
+            source.sendFailure(Component.literal("§c" + sizeError));
+            return 0;
+        }
         com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId, () -> {
             for (ServerPlayer p : ackTargets) {
                 S2CPlayScriptPacket.send(p, resolvedJson, refId);
