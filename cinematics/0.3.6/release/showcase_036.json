@@ -1,757 +1,199 @@
 {
   "meta": {
     "id": "showcase_036",
-    "name": "0.3.6 四象限主片",
+    "name": "0.3.6 · 镜头之外",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "0.3.6 主片 · 120s · 四象限全程同时可见。四条 CAMERA 轨各占左上/右上/左下/右下，每轨 6 个 20s 片段：①运镜与变焦；②象限内 dest 40%×30% + source 取材缩放；③朝向机制（look_at 部位 / yaw_lock+pitch_lock / follow / yaw_base+pitch_base）；④象限对调（1↔3、2↔4 纵向交换再换回）；⑤lane 遮罩（rect/circle，起止全象限覆盖，不隐藏 lane）；⑥终章（环绕/升降/Dutch angle）。全程并行：ADJUST 单轨慢调色（复合曲线/LGG/通道混合器/六色带）、OVERLAY 低透明度渐变与遮罩、字幕、LETTERBOX 终章画幅、AUDIO 音乐与章节音、EVENT 时间切换。基准机位硬编码朝向触发点玩家，仅第三章 Q1 使用 look_at。无 LUT。",
-    "triggers": [
-      {
-        "id": "showcase_on_login",
-        "type": "login",
-        "repeatable": false,
-        "delay": 1.0,
-        "conditions": {}
-      }
-    ],
-    "dimension": "",
-    "block_keyboard": false,
-    "block_mouse": false,
+    "description": "84s 无音轨开发前瞻，手动播放，无登录触发与世界命令。0–14s 单镜建立主体；14s 人物近景入场、24s 高位空间入场、32s 低位侧景入场，32–38s 四视角共存，之后依次退场；46–64s 同机位静止构图做原画/单机位调色对照，避免把运镜差异误认为调色；64–68s 矩形划像接高位收束镜头，68–84s 单镜回归与片尾。轨道分工互不重叠：主镜依次做推进（0–16s 斜向靠近、16–34s 正面推近）与升高（34–46s），近景保持基本静止并带轻微呼吸，高位只做水平横移（24–44s），低位轮廓全程固定——任何时刻至多一条轨道在运动，且运动类型互不相同。片段衔接由硬切改为 morph 缓接。相对播放起点构图，注视激活点上方 1.2 格；请在开阔场地让主体站定。无 LUT、图片或外部资源依赖，不改变时间/天气/实体。",
+    "triggers": [],
+    "block_keyboard": true,
+    "block_mouse": true,
     "block_mob_ai": false,
     "hide_hud": true,
     "hide_arm": true,
+    "hide_skip_hud": true,
     "suppress_bob": true,
-    "hide_skip_hud": false,
+    "suppress_distortion": true,
     "render_player_model": true,
     "pause_when_game_paused": true,
-    "interruptible": true,
+    "play_mode": "exclusive",
+    "interruptible": false,
     "skippable": true,
-    "hold_at_end": false,
-    "priority": 0
+    "hold_at_end": false
   },
   "timeline": {
-    "total_duration": 120,
+    "total_duration": 84,
     "tracks": [
       {
-        "type": "CAMERA",
-        "id": "q1_northwest",
+        "type": "CAMERA", "id": "hero", "name": "主镜 · 建立主体 / 正面推进 / 升高 / 原画基准",
         "clips": [
           {
-            "start_time": 0,
-            "duration": 20,
-            "transition": "cut",
-            "transition_duration": 0,
-            "orient": "manual",
-            "loop": false,
+            "start_time": 0, "duration": 16, "transition": "morph", "transition_duration": 1.2, "transition_easing": "ease_in_out",
+            "curve": { "type": "bezier", "control_points": [ { "dx": 2, "dy": -0.5, "dz": 1 }, { "dx": 6, "dy": -2, "dz": 2 } ] },
             "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 10, "position": { "dx": 0, "dy": 3.8, "dz": -7 }, "position_mode": "relative", "yaw": 0, "pitch": 17.3, "roll": 0, "fov": 58, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 20, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 } }
+              { "time": 0, "position_mode": "relative", "position": { "dx": -5, "dy": 5, "dz": -14 }, "yaw": -20, "pitch": 14, "roll": 0, "fov": 62, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 3, "position_mode": "relative", "position": { "dx": -3.6, "dy": 4.7, "dz": -13.5 }, "yaw": -14, "pitch": 13.2, "roll": 0, "fov": 62, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 7, "position_mode": "relative", "position": { "dx": -1.2, "dy": 4.2, "dz": -12.5 }, "yaw": -4, "pitch": 12, "roll": 0, "fov": 62, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 11, "position_mode": "relative", "position": { "dx": 1.8, "dy": 3.6, "dz": -11.3 }, "yaw": 10, "pitch": 10.4, "roll": 0, "fov": 62, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 14, "position_mode": "relative", "position": { "dx": 3.4, "dy": 3.2, "dz": -10.4 }, "yaw": 18, "pitch": 9.3, "roll": 0, "fov": 62, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 16, "position_mode": "relative", "position": { "dx": 4, "dy": 3, "dz": -10 }, "yaw": 22, "pitch": 9, "roll": 0, "fov": 62, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } }
             ]
           },
           {
-            "start_time": 20,
-            "duration": 20,
-            "transition": "morph",
-            "transition_duration": 1.0,
-            "orient": "manual",
-            "loop": false,
+            "start_time": 16, "duration": 18, "transition": "morph", "transition_duration": 1.2, "transition_easing": "ease_in_out",
+            "curve": { "type": "bezier", "control_points": [ { "dx": 5, "dy": -0.1, "dz": 0.8 }, { "dx": 6.2, "dy": -0.15, "dz": 2 } ] },
             "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "source": { "x": 0, "y": 0, "w": 1, "h": 1 } },
-              { "time": 4, "position": { "dx": 0, "dy": 3.2, "dz": -8.5 }, "position_mode": "relative", "yaw": 0, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.05, "y": 0.10, "w": 0.40, "h": 0.30 }, "source": { "x": 0.2, "y": 0.2, "w": 0.6, "h": 0.6 } },
-              { "time": 12, "position": { "dx": 0, "dy": 3.2, "dz": -8.5 }, "position_mode": "relative", "yaw": 0, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.05, "y": 0.10, "w": 0.40, "h": 0.30 }, "source": { "x": 0.15, "y": 0.15, "w": 0.7, "h": 0.7 } },
-              { "time": 16, "position": { "dx": 0, "dy": 3.2, "dz": -8.5 }, "position_mode": "relative", "yaw": 0, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.05, "y": 0.10, "w": 0.40, "h": 0.30 }, "source": { "x": 0.2, "y": 0.2, "w": 0.6, "h": 0.6 } },
-              { "time": 20, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "source": { "x": 0, "y": 0, "w": 1, "h": 1 } }
+              { "time": 0, "position_mode": "relative", "position": { "dx": 4, "dy": 3, "dz": -10 }, "yaw": 22, "pitch": 9, "roll": 0, "fov": 62, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 5, "position_mode": "relative", "position": { "dx": 4.7, "dy": 2.95, "dz": -9 }, "yaw": 25, "pitch": 8.7, "roll": 0, "fov": 61.5, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 11, "position_mode": "relative", "position": { "dx": 5.7, "dy": 2.88, "dz": -7.9 }, "yaw": 30, "pitch": 8.4, "roll": 0, "fov": 61, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 16, "position_mode": "relative", "position": { "dx": 6.5, "dy": 2.82, "dz": -6.9 }, "yaw": 34, "pitch": 8.1, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 18, "position_mode": "relative", "position": { "dx": 6.8, "dy": 2.8, "dz": -6.6 }, "yaw": 36, "pitch": 8, "roll": 0, "fov": 59, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } }
             ]
           },
           {
-            "start_time": 40,
-            "duration": 20,
-            "transition": "cut",
-            "transition_duration": 0,
-            "orient": "manual",
-            "loop": false,
+            "start_time": 34, "duration": 12, "transition": "morph", "transition_duration": 1.0, "transition_easing": "ease_in_out",
             "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "look_at": "entity", "look_at_selector": "@p", "look_at_part": { "x": 50, "y": 90, "z": 50 } },
-              { "time": 10, "position": { "dx": 1.5, "dy": 3.5, "dz": -8.5 }, "position_mode": "relative", "yaw": 10.0, "pitch": 12.3, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "look_at": "entity", "look_at_selector": "@p", "look_at_part": { "x": 50, "y": 90, "z": 50 } },
-              { "time": 20, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "look_at": "entity", "look_at_selector": "@p", "look_at_part": { "x": 50, "y": 90, "z": 50 } }
+              { "time": 0, "position_mode": "relative", "position": { "dx": 6.8, "dy": 2.8, "dz": -6.6 }, "yaw": 36, "pitch": 8, "roll": 0, "fov": 59, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 2, "position_mode": "relative", "position": { "dx": 6.8, "dy": 3.4, "dz": -6.6 }, "yaw": 36.5, "pitch": 12, "roll": 0, "fov": 59, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 5, "position_mode": "relative", "position": { "dx": 6.8, "dy": 5.6, "dz": -6.6 }, "yaw": 38, "pitch": 22, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 8, "position_mode": "relative", "position": { "dx": 6.8, "dy": 8.4, "dz": -6.6 }, "yaw": 41, "pitch": 34, "roll": 0, "fov": 62, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 11, "position_mode": "relative", "position": { "dx": 6.8, "dy": 10.6, "dz": -6.6 }, "yaw": 44, "pitch": 44, "roll": 0, "fov": 64, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 12, "position_mode": "relative", "position": { "dx": 6.8, "dy": 11, "dz": -6.6 }, "yaw": 45, "pitch": 46, "roll": 0, "fov": 64, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } }
             ]
           },
           {
-            "start_time": 60,
-            "duration": 20,
-            "transition": "morph",
-            "transition_duration": 1.0,
-            "orient": "manual",
-            "loop": false,
+            "start_time": 46, "duration": 22, "transition": "cut",
             "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 2, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 14, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 16, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 20, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 } }
-            ]
-          },
-          {
-            "start_time": 80,
-            "duration": 20,
-            "transition": "cut",
-            "transition_duration": 0,
-            "orient": "manual",
-            "loop": false,
-            "mask_shape": "rect",
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "mask_x": 0.25, "mask_y": 0.25, "mask_width": 0.5, "mask_height": 0.5 },
-              { "time": 5, "position": { "dx": 0, "dy": 3.2, "dz": -8.5 }, "position_mode": "relative", "yaw": 0, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "mask_x": 0.25, "mask_y": 0.25, "mask_width": 0.42, "mask_height": 0.5 },
-              { "time": 10, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "mask_x": 0.25, "mask_y": 0.25, "mask_width": 0.5, "mask_height": 0.5 },
-              { "time": 15, "position": { "dx": 0, "dy": 3.2, "dz": -8.5 }, "position_mode": "relative", "yaw": 0, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "mask_x": 0.25, "mask_y": 0.25, "mask_width": 0.5, "mask_height": 0.42 },
-              { "time": 20, "position": { "dx": 0, "dy": 3, "dz": -9 }, "position_mode": "relative", "yaw": 0, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 }, "mask_x": 0.25, "mask_y": 0.25, "mask_width": 0.5, "mask_height": 0.5 }
-            ]
-          },
-          {
-            "start_time": 100,
-            "duration": 20,
-            "transition": "morph",
-            "transition_duration": 1.5,
-            "orient": "manual",
-            "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -10 }, "position_mode": "relative", "yaw": 0, "pitch": 13.4, "roll": 0, "fov": 65, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 5, "position": { "dx": 10, "dy": 4, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 13.4, "roll": 4, "fov": 65, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 10, "position": { "dx": 0, "dy": 4, "dz": 10 }, "position_mode": "relative", "yaw": 180, "pitch": 13.4, "roll": 0, "fov": 65, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 15, "position": { "dx": -10, "dy": 4, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 13.4, "roll": -4, "fov": 65, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 20, "position": { "dx": 0, "dy": 4, "dz": -10 }, "position_mode": "relative", "yaw": 0, "pitch": 13.4, "roll": 0, "fov": 65, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 } }
+              { "time": 0, "position_mode": "relative", "position": { "dx": 8, "dy": 4, "dz": -10 }, "yaw": 39, "pitch": 12, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } },
+              { "time": 22, "position_mode": "relative", "position": { "dx": 8, "dy": 4, "dz": -10 }, "yaw": 39, "pitch": 12, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 } }
             ]
           }
         ]
       },
       {
-        "type": "CAMERA",
-        "id": "q2_northeast",
+        "type": "CAMERA", "id": "portrait_and_grade", "name": "近景 · 人物细节（呼吸微动）/ 同机位调色对照",
         "clips": [
           {
-            "start_time": 0,
-            "duration": 20,
-            "transition": "cut",
-            "transition_duration": 0,
-            "orient": "manual",
-            "loop": false,
+            "start_time": 14, "duration": 24, "transition": "cut",
+            "cam_breath_enabled": true, "cam_breath_intensity": 0.03, "cam_breath_seed": 7, "cam_breath_type": "perlin",
             "keyframes": [
-              { "time": 0, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 10, "position": { "dx": 9, "dy": 5.5, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 23.3, "roll": 0, "fov": 60, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 20, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 } }
+              { "time": 0, "position_mode": "relative", "position": { "dx": 7, "dy": 2.1, "dz": -5 }, "yaw": 54, "pitch": 6, "roll": 0, "fov": 50, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.70, "y": 0.23, "w": 0.28, "h": 0.60 }, "source": { "x": 0.266667, "y": 0, "w": 0.466666, "h": 1 }, "opacity": 0 },
+              { "time": 0.4, "position_mode": "relative", "position": { "dx": 7, "dy": 2.1, "dz": -5 }, "yaw": 54, "pitch": 6, "roll": 0, "fov": 50, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.696, "y": 0.221, "w": 0.28, "h": 0.60 }, "source": { "x": 0.266667, "y": 0, "w": 0.466666, "h": 1 }, "opacity": 0.15 },
+              { "time": 1, "position_mode": "relative", "position": { "dx": 7, "dy": 2.1, "dz": -5 }, "yaw": 54, "pitch": 6, "roll": 0, "fov": 50, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.677, "y": 0.177, "w": 0.28, "h": 0.60 }, "source": { "x": 0.266667, "y": 0, "w": 0.466666, "h": 1 }, "opacity": 0.8 },
+              { "time": 1.6, "position_mode": "relative", "position": { "dx": 7, "dy": 2.1, "dz": -5 }, "yaw": 54, "pitch": 6, "roll": 0, "fov": 50, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.67, "y": 0.16, "w": 0.28, "h": 0.60 }, "source": { "x": 0.266667, "y": 0, "w": 0.466666, "h": 1 }, "opacity": 1 },
+              { "time": 5, "position_mode": "relative", "position": { "dx": 7, "dy": 2.1, "dz": -5 }, "yaw": 54, "pitch": 6, "roll": 0, "fov": 50, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.67, "y": 0.16, "w": 0.28, "h": 0.60 }, "source": { "x": 0.266667, "y": 0, "w": 0.466666, "h": 1 }, "opacity": 1 },
+              { "time": 12, "position_mode": "relative", "position": { "dx": 6.85, "dy": 2.1, "dz": -4.9 }, "yaw": 54, "pitch": 6, "roll": 0, "fov": 50, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.67, "y": 0.16, "w": 0.28, "h": 0.60 }, "source": { "x": 0.266667, "y": 0, "w": 0.466666, "h": 1 }, "opacity": 1 },
+              { "time": 18, "position_mode": "relative", "position": { "dx": 6.4, "dy": 2.1, "dz": -4.6 }, "yaw": 54, "pitch": 6, "roll": 0, "fov": 50, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.67, "y": 0.16, "w": 0.28, "h": 0.60 }, "source": { "x": 0.266667, "y": 0, "w": 0.466666, "h": 1 }, "opacity": 1 },
+              { "time": 22, "position_mode": "relative", "position": { "dx": 6.4, "dy": 2.1, "dz": -4.6 }, "yaw": 54, "pitch": 6, "roll": 0, "fov": 50, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.67, "y": 0.16, "w": 0.28, "h": 0.60 }, "source": { "x": 0.266667, "y": 0, "w": 0.466666, "h": 1 }, "opacity": 1 },
+              { "time": 24, "position_mode": "relative", "position": { "dx": 6.4, "dy": 2.1, "dz": -4.6 }, "yaw": 54, "pitch": 6, "roll": 0, "fov": 50, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.67, "y": 0.16, "w": 0.28, "h": 0.60 }, "source": { "x": 0.266667, "y": 0, "w": 0.466666, "h": 1 }, "opacity": 0 }
             ]
           },
           {
-            "start_time": 20,
-            "duration": 20,
-            "transition": "morph",
-            "transition_duration": 1.0,
-            "orient": "manual",
-            "loop": false,
+            "start_time": 46, "duration": 18, "transition": "cut", "mask_shape": "rect",
             "keyframes": [
-              { "time": 0, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "source": { "x": 0, "y": 0, "w": 1, "h": 1 } },
-              { "time": 4, "position": { "dx": 9, "dy": 3.2, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.55, "y": 0.10, "w": 0.40, "h": 0.30 }, "source": { "x": 0.2, "y": 0.2, "w": 0.6, "h": 0.6 } },
-              { "time": 12, "position": { "dx": 9, "dy": 3.2, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.55, "y": 0.10, "w": 0.40, "h": 0.30 }, "source": { "x": 0.15, "y": 0.15, "w": 0.7, "h": 0.7 } },
-              { "time": 16, "position": { "dx": 9, "dy": 3.2, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.55, "y": 0.10, "w": 0.40, "h": 0.30 }, "source": { "x": 0.2, "y": 0.2, "w": 0.6, "h": 0.6 } },
-              { "time": 20, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "source": { "x": 0, "y": 0, "w": 1, "h": 1 } }
-            ]
-          },
-          {
-            "start_time": 40,
-            "duration": 20,
-            "transition": "cut",
-            "transition_duration": 0,
-            "orient": "manual",
-            "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "yaw_lock": 90, "pitch_lock": 10 },
-              { "time": 10, "position": { "dx": 7.5, "dy": 3.5, "dz": 1.5 }, "position_mode": "relative", "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "yaw_lock": 90, "pitch_lock": 10 },
-              { "time": 20, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "yaw_lock": 90, "pitch_lock": 10 }
-            ]
-          },
-          {
-            "start_time": 60,
-            "duration": 20,
-            "transition": "morph",
-            "transition_duration": 1.0,
-            "orient": "manual",
-            "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 6, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 8, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 18, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 20, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 } }
-            ]
-          },
-          {
-            "start_time": 80,
-            "duration": 20,
-            "transition": "cut",
-            "transition_duration": 0,
-            "orient": "manual",
-            "loop": false,
-            "mask_shape": "circle",
-            "keyframes": [
-              { "time": 0, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "mask_x": 0.75, "mask_y": 0.25, "mask_radius": 0.51 },
-              { "time": 5, "position": { "dx": 9, "dy": 3.2, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "mask_x": 0.75, "mask_y": 0.25, "mask_radius": 0.30 },
-              { "time": 10, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "mask_x": 0.75, "mask_y": 0.25, "mask_radius": 0.51 },
-              { "time": 15, "position": { "dx": 9, "dy": 3.2, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "mask_x": 0.75, "mask_y": 0.25, "mask_radius": 0.40 },
-              { "time": 20, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 }, "mask_x": 0.75, "mask_y": 0.25, "mask_radius": 0.51 }
-            ]
-          },
-          {
-            "start_time": 100,
-            "duration": 20,
-            "transition": "morph",
-            "transition_duration": 1.5,
-            "orient": "manual",
-            "loop": false,
-            "cam_breath_enabled": true,
-            "cam_breath_type": "sine",
-            "cam_breath_intensity": 0.015,
-            "cam_breath_speed": 0.7,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 8, "position": { "dx": 9, "dy": 6, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 26.0, "roll": 0, "fov": 45, "zoom": 1.2, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 16, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 20, "position": { "dx": 9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 } }
+              { "time": 0, "position_mode": "relative", "position": { "dx": 8, "dy": 4, "dz": -10 }, "yaw": 39, "pitch": 12, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 1, "mask_y": 0.5, "mask_width": 0, "mask_height": 1, "contrast": 0.14, "shadows": 0.10, "temperature": 0.22, "saturation": -0.08, "lift_b": 0.04, "gain_r": 0.04, "opacity": 1 },
+              { "time": 1, "position_mode": "relative", "position": { "dx": 8, "dy": 4, "dz": -10 }, "yaw": 39, "pitch": 12, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.975, "mask_y": 0.5, "mask_width": 0.05, "mask_height": 1, "contrast": 0.14, "shadows": 0.10, "temperature": 0.22, "saturation": -0.08, "lift_b": 0.04, "gain_r": 0.04, "opacity": 1 },
+              { "time": 2, "position_mode": "relative", "position": { "dx": 8, "dy": 4, "dz": -10 }, "yaw": 39, "pitch": 12, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.9, "mask_y": 0.5, "mask_width": 0.2, "mask_height": 1, "contrast": 0.14, "shadows": 0.10, "temperature": 0.22, "saturation": -0.08, "lift_b": 0.04, "gain_r": 0.04, "opacity": 1 },
+              { "time": 3, "position_mode": "relative", "position": { "dx": 8, "dy": 4, "dz": -10 }, "yaw": 39, "pitch": 12, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.775, "mask_y": 0.5, "mask_width": 0.45, "mask_height": 1, "contrast": 0.14, "shadows": 0.10, "temperature": 0.22, "saturation": -0.08, "lift_b": 0.04, "gain_r": 0.04, "opacity": 1 },
+              { "time": 4, "position_mode": "relative", "position": { "dx": 8, "dy": 4, "dz": -10 }, "yaw": 39, "pitch": 12, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.75, "mask_y": 0.5, "mask_width": 0.5, "mask_height": 1, "contrast": 0.14, "shadows": 0.10, "temperature": 0.22, "saturation": -0.08, "lift_b": 0.04, "gain_r": 0.04, "opacity": 1 },
+              { "time": 12, "position_mode": "relative", "position": { "dx": 8, "dy": 4, "dz": -10 }, "yaw": 39, "pitch": 12, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.75, "mask_y": 0.5, "mask_width": 0.5, "mask_height": 1, "contrast": 0.14, "shadows": 0.10, "temperature": 0.22, "saturation": -0.08, "lift_b": 0.04, "gain_r": 0.04, "opacity": 1 },
+              { "time": 13, "position_mode": "relative", "position": { "dx": 8, "dy": 4, "dz": -10 }, "yaw": 39, "pitch": 12, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.725, "mask_y": 0.5, "mask_width": 0.55, "mask_height": 1, "contrast": 0.14, "shadows": 0.10, "temperature": 0.22, "saturation": -0.08, "lift_b": 0.04, "gain_r": 0.04, "opacity": 1 },
+              { "time": 15, "position_mode": "relative", "position": { "dx": 8, "dy": 4, "dz": -10 }, "yaw": 39, "pitch": 12, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.525, "mask_y": 0.5, "mask_width": 0.95, "mask_height": 1, "contrast": 0.14, "shadows": 0.10, "temperature": 0.22, "saturation": -0.08, "lift_b": 0.04, "gain_r": 0.04, "opacity": 1 },
+              { "time": 16, "position_mode": "relative", "position": { "dx": 8, "dy": 4, "dz": -10 }, "yaw": 39, "pitch": 12, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 1, "contrast": 0.14, "shadows": 0.10, "temperature": 0.22, "saturation": -0.08, "lift_b": 0.04, "gain_r": 0.04, "opacity": 1 },
+              { "time": 18, "position_mode": "relative", "position": { "dx": 8, "dy": 4, "dz": -10 }, "yaw": 39, "pitch": 12, "roll": 0, "fov": 60, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 1, "contrast": 0.14, "shadows": 0.10, "temperature": 0.22, "saturation": -0.08, "lift_b": 0.04, "gain_r": 0.04, "opacity": 0 }
             ]
           }
         ]
       },
       {
-        "type": "CAMERA",
-        "id": "q3_southwest",
+        "type": "CAMERA", "id": "space_and_finale", "name": "空间 · 高位横移 / 划像接收束镜头",
         "clips": [
           {
-            "start_time": 0,
-            "duration": 20,
-            "transition": "cut",
-            "transition_duration": 0,
-            "orient": "manual",
-            "loop": false,
+            "start_time": 24, "duration": 20, "transition": "cut",
             "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 5, "position": { "dx": -1.6, "dy": 3, "dz": 8.9 }, "position_mode": "relative", "yaw": 190.2, "pitch": 8.7, "roll": 6, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 10, "position": { "dx": -3.1, "dy": 3.4, "dz": 8.5 }, "position_mode": "relative", "yaw": 200.0, "pitch": 11.1, "roll": -6, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 15, "position": { "dx": -1.6, "dy": 3.4, "dz": 8.9 }, "position_mode": "relative", "yaw": 190.2, "pitch": 11.1, "roll": 6, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 20, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } }
+              { "time": 0, "position_mode": "relative", "position": { "dx": -4, "dy": 14, "dz": 5 }, "yaw": -141, "pitch": 63, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.05, "y": 0.57, "w": 0.36, "h": 0.36 }, "opacity": 0 },
+              { "time": 1.4, "position_mode": "relative", "position": { "dx": -4, "dy": 14, "dz": 5 }, "yaw": -141, "pitch": 63, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.05, "y": 0.57, "w": 0.36, "h": 0.36 }, "opacity": 1 },
+              { "time": 3, "position_mode": "relative", "position": { "dx": -3.3, "dy": 14, "dz": 5 }, "yaw": -146, "pitch": 63, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.05, "y": 0.57, "w": 0.36, "h": 0.36 }, "opacity": 1 },
+              { "time": 10, "position_mode": "relative", "position": { "dx": 0, "dy": 14, "dz": 5 }, "yaw": 180, "pitch": 63, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.05, "y": 0.57, "w": 0.36, "h": 0.36 }, "opacity": 1 },
+              { "time": 17, "position_mode": "relative", "position": { "dx": 3.3, "dy": 14, "dz": 5 }, "yaw": 146, "pitch": 63, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.05, "y": 0.57, "w": 0.36, "h": 0.36 }, "opacity": 1 },
+              { "time": 18.6, "position_mode": "relative", "position": { "dx": 4, "dy": 14, "dz": 5 }, "yaw": 141, "pitch": 63, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.05, "y": 0.57, "w": 0.36, "h": 0.36 }, "opacity": 1 },
+              { "time": 20, "position_mode": "relative", "position": { "dx": 4, "dy": 14, "dz": 5 }, "yaw": 141, "pitch": 63, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.05, "y": 0.57, "w": 0.36, "h": 0.36 }, "opacity": 0 }
             ]
           },
           {
-            "start_time": 20,
-            "duration": 20,
-            "transition": "morph",
-            "transition_duration": 1.0,
-            "orient": "manual",
-            "loop": false,
+            "start_time": 64, "duration": 20, "transition": "cut", "mask_shape": "rect",
             "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 }, "source": { "x": 0, "y": 0, "w": 1, "h": 1 } },
-              { "time": 4, "position": { "dx": 0, "dy": 3.2, "dz": 8.5 }, "position_mode": "relative", "yaw": 180, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.05, "y": 0.60, "w": 0.40, "h": 0.30 }, "source": { "x": 0.25, "y": 0.2, "w": 0.5, "h": 0.6 } },
-              { "time": 12, "position": { "dx": 0, "dy": 3.2, "dz": 8.5 }, "position_mode": "relative", "yaw": 180, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.05, "y": 0.60, "w": 0.40, "h": 0.30 }, "source": { "x": 0.2, "y": 0.15, "w": 0.6, "h": 0.7 } },
-              { "time": 16, "position": { "dx": 0, "dy": 3.2, "dz": 8.5 }, "position_mode": "relative", "yaw": 180, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.05, "y": 0.60, "w": 0.40, "h": 0.30 }, "source": { "x": 0.25, "y": 0.2, "w": 0.5, "h": 0.6 } },
-              { "time": 20, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 }, "source": { "x": 0, "y": 0, "w": 1, "h": 1 } }
-            ]
-          },
-          {
-            "start_time": 40,
-            "duration": 20,
-            "transition": "cut",
-            "transition_duration": 0,
-            "orient": "manual",
-            "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 }, "follow": "entity", "follow_selector": "@p" },
-              { "time": 10, "position": { "dx": 1, "dy": 3.5, "dz": 8.5 }, "position_mode": "relative", "yaw": 173.3, "pitch": 12.4, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 }, "follow": "entity", "follow_selector": "@p" },
-              { "time": 20, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 }, "follow": "entity", "follow_selector": "@p" }
-            ]
-          },
-          {
-            "start_time": 60,
-            "duration": 20,
-            "transition": "morph",
-            "transition_duration": 1.0,
-            "orient": "manual",
-            "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 2, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 14, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 16, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 20, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } }
-            ]
-          },
-          {
-            "start_time": 80,
-            "duration": 20,
-            "transition": "cut",
-            "transition_duration": 0,
-            "orient": "manual",
-            "loop": false,
-            "mask_shape": "circle",
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 }, "mask_x": 0.25, "mask_y": 0.75, "mask_radius": 0.51 },
-              { "time": 5, "position": { "dx": 0, "dy": 3.2, "dz": 8.5 }, "position_mode": "relative", "yaw": 180, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 }, "mask_x": 0.25, "mask_y": 0.75, "mask_radius": 0.32 },
-              { "time": 10, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 }, "mask_x": 0.25, "mask_y": 0.75, "mask_radius": 0.51 },
-              { "time": 15, "position": { "dx": 0, "dy": 3.2, "dz": 8.5 }, "position_mode": "relative", "yaw": 180, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 }, "mask_x": 0.25, "mask_y": 0.75, "mask_radius": 0.40 },
-              { "time": 20, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 }, "mask_x": 0.25, "mask_y": 0.75, "mask_radius": 0.51 }
-            ]
-          },
-          {
-            "start_time": 100,
-            "duration": 20,
-            "transition": "morph",
-            "transition_duration": 1.5,
-            "orient": "manual",
-            "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 6, "position": { "dx": 0, "dy": 2.5, "dz": 7 }, "position_mode": "relative", "yaw": 180, "pitch": 7.2, "roll": 0, "fov": 60, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 12, "position": { "dx": 0, "dy": 3.5, "dz": 6 }, "position_mode": "relative", "yaw": 180, "pitch": 17.4, "roll": 0, "fov": 75, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 18, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 20, "position": { "dx": 0, "dy": 3, "dz": 9 }, "position_mode": "relative", "yaw": 180, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0.5, "w": 0.5, "h": 0.5 } }
+              { "time": 0, "position_mode": "relative", "position": { "dx": 0, "dy": 14, "dz": -16 }, "yaw": 0, "pitch": 39, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0, "mask_y": 0.5, "mask_width": 0, "mask_height": 1 },
+              { "time": 0.8, "position_mode": "relative", "position": { "dx": -0.48, "dy": 13.84, "dz": -15.64 }, "yaw": -2, "pitch": 39, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.04, "mask_y": 0.5, "mask_width": 0.08, "mask_height": 1 },
+              { "time": 1.6, "position_mode": "relative", "position": { "dx": -0.96, "dy": 13.68, "dz": -15.28 }, "yaw": -4, "pitch": 39, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.20, "mask_y": 0.5, "mask_width": 0.40, "mask_height": 1 },
+              { "time": 2.4, "position_mode": "relative", "position": { "dx": -1.44, "dy": 13.52, "dz": -14.92 }, "yaw": -6, "pitch": 39, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.42, "mask_y": 0.5, "mask_width": 0.84, "mask_height": 1 },
+              { "time": 3.2, "position_mode": "relative", "position": { "dx": -1.92, "dy": 13.36, "dz": -14.56 }, "yaw": -8, "pitch": 39, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 1 },
+              { "time": 8, "position_mode": "relative", "position": { "dx": -4.6, "dy": 12.6, "dz": -12.8 }, "yaw": -21, "pitch": 38.5, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 1 },
+              { "time": 14, "position_mode": "relative", "position": { "dx": -8.9, "dy": 11.2, "dz": -9.4 }, "yaw": -43, "pitch": 35, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 1 },
+              { "time": 18, "position_mode": "relative", "position": { "dx": -11.4, "dy": 10.3, "dz": -7.4 }, "yaw": -57, "pitch": 32.5, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 1 },
+              { "time": 20, "position_mode": "relative", "position": { "dx": -12, "dy": 10, "dz": -7 }, "yaw": -60, "pitch": 32, "roll": 0, "fov": 66, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "mask_x": 0.5, "mask_y": 0.5, "mask_width": 1, "mask_height": 1 }
             ]
           }
         ]
       },
       {
-        "type": "CAMERA",
-        "id": "q4_southeast",
+        "type": "CAMERA", "id": "silhouette", "name": "轮廓 · 稳定低位侧景，不追随其它轨动作",
+        "clips": [ {
+          "start_time": 32, "duration": 14, "transition": "cut",
+          "keyframes": [
+            { "time": 0, "position_mode": "relative", "position": { "dx": -7, "dy": 1.5, "dz": 3 }, "yaw": -113, "pitch": 2, "roll": 0, "fov": 45, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.44, "y": 0.66, "w": 0.20, "h": 0.20 }, "opacity": 0, "saturation": -0.35, "contrast": 0.08 },
+            { "time": 1.5, "position_mode": "relative", "position": { "dx": -7, "dy": 1.5, "dz": 3 }, "yaw": -113, "pitch": 2, "roll": 0, "fov": 45, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.44, "y": 0.66, "w": 0.20, "h": 0.20 }, "opacity": 1, "saturation": -0.35, "contrast": 0.08 },
+            { "time": 11, "position_mode": "relative", "position": { "dx": -7, "dy": 1.5, "dz": 3 }, "yaw": -113, "pitch": 2, "roll": 0, "fov": 45, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.44, "y": 0.66, "w": 0.20, "h": 0.20 }, "opacity": 1, "saturation": -0.35, "contrast": 0.08 },
+            { "time": 14, "position_mode": "relative", "position": { "dx": -7, "dy": 1.5, "dz": 3 }, "yaw": -113, "pitch": 2, "roll": 0, "fov": 45, "zoom": 1, "look_at": "player", "look_at_offset": { "dx": 0, "dy": 1.2, "dz": 0 }, "dest": { "x": 0.44, "y": 0.66, "w": 0.20, "h": 0.20 }, "opacity": 0, "saturation": -0.35, "contrast": 0.08 }
+          ]
+        } ]
+      },
+      {
+        "type": "LETTERBOX", "id": "breathing_frame", "name": "只在片头片尾使用宽幅，中段让出画布",
         "clips": [
-          {
-            "start_time": 0,
-            "duration": 20,
-            "transition": "cut",
-            "transition_duration": 0,
-            "orient": "manual",
-            "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 6, "position": { "dx": -9, "dy": 2.2, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 3.7, "roll": 0, "fov": 88, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 12, "position": { "dx": -9, "dy": 2.2, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 3.7, "roll": 0, "fov": 40, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 20, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } }
-            ]
-          },
-          {
-            "start_time": 20,
-            "duration": 20,
-            "transition": "morph",
-            "transition_duration": 1.0,
-            "orient": "manual",
-            "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "source": { "x": 0, "y": 0, "w": 1, "h": 1 } },
-              { "time": 4, "position": { "dx": -9, "dy": 3.2, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.55, "y": 0.60, "w": 0.40, "h": 0.30 }, "source": { "x": 0.25, "y": 0.2, "w": 0.5, "h": 0.6 } },
-              { "time": 12, "position": { "dx": -9, "dy": 3.2, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.55, "y": 0.60, "w": 0.40, "h": 0.30 }, "source": { "x": 0.2, "y": 0.15, "w": 0.6, "h": 0.7 } },
-              { "time": 16, "position": { "dx": -9, "dy": 3.2, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.55, "y": 0.60, "w": 0.40, "h": 0.30 }, "source": { "x": 0.25, "y": 0.2, "w": 0.5, "h": 0.6 } },
-              { "time": 20, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "source": { "x": 0, "y": 0, "w": 1, "h": 1 } }
-            ]
-          },
-          {
-            "start_time": 40,
-            "duration": 20,
-            "transition": "cut",
-            "transition_duration": 0,
-            "orient": "manual",
-            "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 10, "pitch": -5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "yaw_base": "entity", "pitch_base": "entity", "yaw_base_selector": "@p" },
-              { "time": 10, "position": { "dx": -8, "dy": 3.5, "dz": 1 }, "position_mode": "relative", "yaw": 10, "pitch": -5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "yaw_base": "entity", "pitch_base": "entity", "yaw_base_selector": "@p" },
-              { "time": 20, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": 10, "pitch": -5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "yaw_base": "entity", "pitch_base": "entity", "yaw_base_selector": "@p" }
-            ]
-          },
-          {
-            "start_time": 60,
-            "duration": 20,
-            "transition": "morph",
-            "transition_duration": 1.0,
-            "orient": "manual",
-            "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 6, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 8, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 18, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 } },
-              { "time": 20, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } }
-            ]
-          },
-          {
-            "start_time": 80,
-            "duration": 20,
-            "transition": "cut",
-            "transition_duration": 0,
-            "orient": "manual",
-            "loop": false,
-            "mask_shape": "rect",
-            "keyframes": [
-              { "time": 0, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "mask_x": 0.75, "mask_y": 0.75, "mask_width": 0.5, "mask_height": 0.5 },
-              { "time": 5, "position": { "dx": -9, "dy": 3.2, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "mask_x": 0.75, "mask_y": 0.75, "mask_width": 0.42, "mask_height": 0.5 },
-              { "time": 10, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "mask_x": 0.75, "mask_y": 0.75, "mask_width": 0.5, "mask_height": 0.5 },
-              { "time": 15, "position": { "dx": -9, "dy": 3.2, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 10.5, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "mask_x": 0.75, "mask_y": 0.75, "mask_width": 0.5, "mask_height": 0.42 },
-              { "time": 20, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 }, "mask_x": 0.75, "mask_y": 0.75, "mask_width": 0.5, "mask_height": 0.5 }
-            ]
-          },
-          {
-            "start_time": 100,
-            "duration": 20,
-            "transition": "morph",
-            "transition_duration": 1.5,
-            "orient": "manual",
-            "loop": false,
-            "modifier": { "channels": ["roll"], "mode": "add", "priority": 100, "roll": 3 },
-            "keyframes": [
-              { "time": 0, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 6, "position": { "dx": -9, "dy": 4, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 14.8, "roll": -12, "fov": 60, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 12, "position": { "dx": -9, "dy": 4, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 14.8, "roll": 12, "fov": 60, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 18, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } },
-              { "time": 20, "position": { "dx": -9, "dy": 3, "dz": 0 }, "position_mode": "relative", "yaw": -90, "pitch": 8.7, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0.5, "w": 0.5, "h": 0.5 } }
-            ]
-          }
+          { "start_time": 0, "duration": 14, "keyframes": [ { "time": 0, "aspect_ratio": 2.35, "opacity": 1 }, { "time": 10, "aspect_ratio": 2.35, "opacity": 1 }, { "time": 11, "aspect_ratio": 2.35, "opacity": 0.9 }, { "time": 13, "aspect_ratio": 2.35, "opacity": 0.1 }, { "time": 14, "aspect_ratio": 2.35, "opacity": 0 } ] },
+          { "start_time": 68, "duration": 16, "keyframes": [ { "time": 0, "aspect_ratio": 2.35, "opacity": 0 }, { "time": 1, "aspect_ratio": 2.35, "opacity": 0.1 }, { "time": 3, "aspect_ratio": 2.35, "opacity": 0.9 }, { "time": 4, "aspect_ratio": 2.35, "opacity": 1 }, { "time": 16, "aspect_ratio": 2.35, "opacity": 1 } ] }
         ]
       },
       {
-        "type": "ADJUST",
-        "id": "grade",
+        "type": "ADJUST", "id": "final_grade", "name": "对照结束后才加入整体风格，不干扰原画比较",
+        "clips": [ { "start_time": 68, "duration": 16, "keyframes": [
+          { "time": 0, "contrast": 0, "shadows": 0, "temperature": 0, "saturation": 0, "lift_b": 0, "gain_r": 0 },
+          { "time": 2, "contrast": 0.05, "shadows": 0.04, "temperature": 0.05, "saturation": -0.02, "lift_b": 0.012, "gain_r": 0.012 },
+          { "time": 4, "contrast": 0.10, "shadows": 0.08, "temperature": 0.10, "saturation": -0.04, "lift_b": 0.025, "gain_r": 0.025 },
+          { "time": 16, "contrast": 0.10, "shadows": 0.08, "temperature": 0.10, "saturation": -0.04, "lift_b": 0.025, "gain_r": 0.025 }
+        ] } ]
+      },
+      {
+        "type": "OVERLAY", "id": "headlines", "name": "观众视角的说明，而非参数清单",
         "clips": [
-          {
-            "start_time": 0,
-            "duration": 120,
-            "rgb_curve": [ [0, 0], [0.5, 0.55], [1, 1] ],
-            "keyframes": [
-              { "time": 0, "exposure": 0, "contrast": 0.05, "saturation": 0, "temperature": 0.1, "curve_strength": 0.5 },
-              { "time": 20, "exposure": 0.05, "contrast": 0.1, "saturation": 0.05, "temperature": 0.15, "curve_strength": 0.8 },
-              { "time": 40, "exposure": 0, "contrast": 0.05, "saturation": 0, "temperature": 0, "curve_strength": 0.6 },
-              { "time": 60, "exposure": 0.1, "contrast": 0.1, "saturation": 0.1, "temperature": -0.1, "curve_strength": 1 },
-              { "time": 80, "exposure": 0, "contrast": 0.05, "saturation": 0.05, "temperature": -0.15, "curve_strength": 0.7 },
-              { "time": 100, "exposure": 0.05, "contrast": 0.15, "saturation": 0.1, "temperature": 0.1, "curve_strength": 0.9, "lift_b": 0.03, "gain_r": 0.03, "mix_rr": 0.05, "mix_bb": 0.05, "hue_red": 0.03, "sat_red": 0.1, "hue_blue": -0.03 },
-              { "time": 120, "exposure": 0, "contrast": 0, "saturation": 0, "temperature": 0, "curve_strength": 0, "lift_b": 0, "gain_r": 0, "mix_rr": 0, "mix_bb": 0, "hue_red": 0, "sat_red": 0, "hue_blue": 0 }
-            ]
-          }
+          { "start_time": 2, "duration": 7, "layer_type": "subtitle", "text": "ImmersiveCinematics", "z_index": 1000, "keyframes": [ { "time": 0, "x": 0.5, "y": 0.24, "font_scale": 3.4, "opacity": 0 }, { "time": 1, "x": 0.5, "y": 0.24, "font_scale": 3.4, "opacity": 1 }, { "time": 5.5, "x": 0.5, "y": 0.24, "font_scale": 3.4, "opacity": 1 }, { "time": 7, "x": 0.5, "y": 0.24, "font_scale": 3.4, "opacity": 0 } ] },
+          { "start_time": 15, "duration": 6, "layer_type": "subtitle", "text": "同一个瞬间，不止一种视角。", "z_index": 1000, "keyframes": [ { "time": 0, "x": 0.35, "y": 0.10, "font_scale": 2.4, "opacity": 0 }, { "time": 0.8, "x": 0.35, "y": 0.10, "font_scale": 2.4, "opacity": 1 }, { "time": 5, "x": 0.35, "y": 0.10, "font_scale": 2.4, "opacity": 1 }, { "time": 6, "x": 0.35, "y": 0.10, "font_scale": 2.4, "opacity": 0 } ] },
+          { "start_time": 33, "duration": 6, "layer_type": "subtitle", "text": "主镜、近景、空间、轮廓。", "z_index": 1000, "keyframes": [ { "time": 0, "x": 0.35, "y": 0.10, "font_scale": 2.4, "opacity": 0 }, { "time": 0.8, "x": 0.35, "y": 0.10, "font_scale": 2.4, "opacity": 1 }, { "time": 5, "x": 0.35, "y": 0.10, "font_scale": 2.4, "opacity": 1 }, { "time": 6, "x": 0.35, "y": 0.10, "font_scale": 2.4, "opacity": 0 } ] },
+          { "start_time": 47, "duration": 11, "layer_type": "subtitle", "text": "同一构图，另一种气氛。", "z_index": 1000, "keyframes": [ { "time": 0, "x": 0.5, "y": 0.10, "font_scale": 2.4, "opacity": 0 }, { "time": 0.8, "x": 0.5, "y": 0.10, "font_scale": 2.4, "opacity": 1 }, { "time": 10, "x": 0.5, "y": 0.10, "font_scale": 2.4, "opacity": 1 }, { "time": 11, "x": 0.5, "y": 0.10, "font_scale": 2.4, "opacity": 0 } ] },
+          { "start_time": 73, "duration": 10, "layer_type": "subtitle", "text": "ImmersiveCinematics · 0.3.6", "z_index": 1000, "keyframes": [ { "time": 0, "x": 0.5, "y": 0.45, "font_scale": 3.2, "opacity": 0 }, { "time": 1.5, "x": 0.5, "y": 0.45, "font_scale": 3.2, "opacity": 1 }, { "time": 8.5, "x": 0.5, "y": 0.45, "font_scale": 3.2, "opacity": 1 }, { "time": 10, "x": 0.5, "y": 0.45, "font_scale": 3.2, "opacity": 0 } ] }
         ]
       },
       {
-        "type": "OVERLAY",
-        "id": "color_wash",
+        "type": "OVERLAY", "id": "subheads", "name": "开发前瞻声明 / 更新近况",
         "clips": [
-          {
-            "start_time": 0,
-            "duration": 20,
-            "layer_type": "fade",
-            "z_index": 10,
-            "mask_shape": "full",
-            "blend_mode": "normal",
-            "gradient": { "type": "linear", "stops": [ { "offset": 0, "color": "#2A6F97" }, { "offset": 1, "color": "#F4A261" } ] },
-            "keyframes": [
-              { "time": 0, "opacity": 0.08, "gradient_angle": 0 },
-              { "time": 20, "opacity": 0.08, "gradient_angle": 90 }
-            ]
-          },
-          {
-            "start_time": 20,
-            "duration": 20,
-            "layer_type": "fade",
-            "z_index": 10,
-            "mask_shape": "full",
-            "blend_mode": "overlay",
-            "gradient": { "type": "radial", "stops": [ { "offset": 0, "color": "#FFFFFF" }, { "offset": 1, "color": "#FFE0C0" } ] },
-            "keyframes": [
-              { "time": 0, "opacity": 0.08, "gradient_center_x": 0.3, "gradient_center_y": 0.5, "gradient_radius": 0.3 },
-              { "time": 20, "opacity": 0.08, "gradient_center_x": 0.7, "gradient_center_y": 0.5, "gradient_radius": 0.45 }
-            ]
-          },
-          {
-            "start_time": 40,
-            "duration": 20,
-            "layer_type": "fade",
-            "z_index": 10,
-            "color": "#00E0FF",
-            "mask_shape": "rect",
-            "blend_mode": "multiply",
-            "keyframes": [
-              { "time": 0, "opacity": 0.10, "mask_x": 0.25, "mask_y": 0.25, "mask_width": 0.5, "mask_height": 0.5 },
-              { "time": 10, "opacity": 0.10, "mask_x": 0.25, "mask_y": 0.25, "mask_width": 0.4, "mask_height": 0.5 },
-              { "time": 20, "opacity": 0.10, "mask_x": 0.25, "mask_y": 0.25, "mask_width": 0.5, "mask_height": 0.5 }
-            ]
-          },
-          {
-            "start_time": 60,
-            "duration": 20,
-            "layer_type": "fade",
-            "z_index": 10,
-            "color": "#FF2DA0",
-            "mask_shape": "circle",
-            "blend_mode": "screen",
-            "keyframes": [
-              { "time": 0, "opacity": 0.10, "mask_x": 0.75, "mask_y": 0.75, "mask_radius": 0.15 },
-              { "time": 10, "opacity": 0.10, "mask_x": 0.75, "mask_y": 0.75, "mask_radius": 0.25 },
-              { "time": 20, "opacity": 0.10, "mask_x": 0.75, "mask_y": 0.75, "mask_radius": 0.15 }
-            ]
-          },
-          {
-            "start_time": 80,
-            "duration": 20,
-            "layer_type": "fade",
-            "z_index": 10,
-            "mask_shape": "circle",
-            "blend_mode": "soft_light",
-            "gradient": { "type": "radial", "stops": [ { "offset": 0, "color": "#FFFFFF" }, { "offset": 1, "color": "#FF6600" } ] },
-            "keyframes": [
-              { "time": 0, "opacity": 0.10, "mask_x": 0.25, "mask_y": 0.75, "mask_radius": 0.2, "gradient_center_x": 0.25, "gradient_center_y": 0.75, "gradient_radius": 0.25 },
-              { "time": 10, "opacity": 0.10, "mask_x": 0.75, "mask_y": 0.25, "mask_radius": 0.2, "gradient_center_x": 0.75, "gradient_center_y": 0.25, "gradient_radius": 0.25 },
-              { "time": 20, "opacity": 0.10, "mask_x": 0.25, "mask_y": 0.75, "mask_radius": 0.2, "gradient_center_x": 0.25, "gradient_center_y": 0.75, "gradient_radius": 0.25 }
-            ]
-          },
-          {
-            "start_time": 100,
-            "duration": 20,
-            "layer_type": "fade",
-            "z_index": 900,
-            "color": "#000000",
-            "mask_shape": "full",
-            "blend_mode": "normal",
-            "keyframes": [
-              { "time": 0, "opacity": 0 },
-              { "time": 14, "opacity": 0 },
-              { "time": 18, "opacity": 0.9 },
-              { "time": 20, "opacity": 1 }
-            ]
-          }
+          { "start_time": 3, "duration": 6, "layer_type": "subtitle", "text": "0.3.6 前瞻", "z_index": 1000, "keyframes": [ { "time": 0, "x": 0.5, "y": 0.33, "font_scale": 2, "opacity": 0 }, { "time": 1, "x": 0.5, "y": 0.33, "font_scale": 2, "opacity": 1 }, { "time": 4.5, "x": 0.5, "y": 0.33, "font_scale": 2, "opacity": 1 }, { "time": 6, "x": 0.5, "y": 0.33, "font_scale": 2, "opacity": 0 } ] },
+          { "start_time": 75, "duration": 8, "layer_type": "subtitle", "text": "敬请期待", "z_index": 1000, "keyframes": [ { "time": 0, "x": 0.5, "y": 0.56, "font_scale": 2.2, "opacity": 0 }, { "time": 1, "x": 0.5, "y": 0.56, "font_scale": 2.2, "opacity": 1 }, { "time": 6.5, "x": 0.5, "y": 0.56, "font_scale": 2.2, "opacity": 1 }, { "time": 8, "x": 0.5, "y": 0.56, "font_scale": 2.2, "opacity": 0 } ] }
         ]
       },
       {
-        "type": "OVERLAY",
-        "id": "subtitles",
-        "clips": [
-          {
-            "start_time": 0,
-            "duration": 4,
-            "layer_type": "subtitle",
-            "text": "0.3.6 · 四象限主片",
-            "z_index": 1000,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.08, "opacity": 0, "font_scale": 2.0 },
-              { "time": 0.4, "x": 0.5, "y": 0.08, "opacity": 1, "font_scale": 2.0 },
-              { "time": 3.6, "x": 0.5, "y": 0.08, "opacity": 1, "font_scale": 2.0 },
-              { "time": 4, "x": 0.5, "y": 0.08, "opacity": 0, "font_scale": 2.0 }
-            ]
-          },
-          {
-            "start_time": 20,
-            "duration": 4,
-            "layer_type": "subtitle",
-            "text": "第二章 · 象限内缩放与取材",
-            "z_index": 1000,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.08, "opacity": 0, "font_scale": 2.0 },
-              { "time": 0.4, "x": 0.5, "y": 0.08, "opacity": 1, "font_scale": 2.0 },
-              { "time": 3.6, "x": 0.5, "y": 0.08, "opacity": 1, "font_scale": 2.0 },
-              { "time": 4, "x": 0.5, "y": 0.08, "opacity": 0, "font_scale": 2.0 }
-            ]
-          },
-          {
-            "start_time": 40,
-            "duration": 4,
-            "layer_type": "subtitle",
-            "text": "第三章 · 朝向机制",
-            "z_index": 1000,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.08, "opacity": 0, "font_scale": 2.0 },
-              { "time": 0.4, "x": 0.5, "y": 0.08, "opacity": 1, "font_scale": 2.0 },
-              { "time": 3.6, "x": 0.5, "y": 0.08, "opacity": 1, "font_scale": 2.0 },
-              { "time": 4, "x": 0.5, "y": 0.08, "opacity": 0, "font_scale": 2.0 }
-            ]
-          },
-          {
-            "start_time": 60,
-            "duration": 4,
-            "layer_type": "subtitle",
-            "text": "第四章 · 象限对调",
-            "z_index": 1000,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.08, "opacity": 0, "font_scale": 2.0 },
-              { "time": 0.4, "x": 0.5, "y": 0.08, "opacity": 1, "font_scale": 2.0 },
-              { "time": 3.6, "x": 0.5, "y": 0.08, "opacity": 1, "font_scale": 2.0 },
-              { "time": 4, "x": 0.5, "y": 0.08, "opacity": 0, "font_scale": 2.0 }
-            ]
-          },
-          {
-            "start_time": 80,
-            "duration": 4,
-            "layer_type": "subtitle",
-            "text": "第五章 · 遮罩与合成",
-            "z_index": 1000,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.08, "opacity": 0, "font_scale": 2.0 },
-              { "time": 0.4, "x": 0.5, "y": 0.08, "opacity": 1, "font_scale": 2.0 },
-              { "time": 3.6, "x": 0.5, "y": 0.08, "opacity": 1, "font_scale": 2.0 },
-              { "time": 4, "x": 0.5, "y": 0.08, "opacity": 0, "font_scale": 2.0 }
-            ]
-          },
-          {
-            "start_time": 100,
-            "duration": 4,
-            "layer_type": "subtitle",
-            "text": "第六章 · 终章",
-            "z_index": 1000,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.08, "opacity": 0, "font_scale": 2.0 },
-              { "time": 0.4, "x": 0.5, "y": 0.08, "opacity": 1, "font_scale": 2.0 },
-              { "time": 3.6, "x": 0.5, "y": 0.08, "opacity": 1, "font_scale": 2.0 },
-              { "time": 4, "x": 0.5, "y": 0.08, "opacity": 0, "font_scale": 2.0 }
-            ]
-          },
-          {
-            "start_time": 116,
-            "duration": 4,
-            "layer_type": "subtitle",
-            "text": "0.3.6 · BEGIN",
-            "z_index": 1000,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 0, "font_scale": 2.5 },
-              { "time": 0.4, "x": 0.5, "y": 0.5, "opacity": 1, "font_scale": 2.5 },
-              { "time": 3.6, "x": 0.5, "y": 0.5, "opacity": 1, "font_scale": 2.5 },
-              { "time": 4, "x": 0.5, "y": 0.5, "opacity": 0, "font_scale": 2.5 }
-            ]
-          }
-        ]
+        "type": "OVERLAY", "id": "original_label", "name": "原画侧标注",
+        "clips": [ { "start_time": 50, "duration": 8, "layer_type": "subtitle", "text": "原始画面", "z_index": 1000, "keyframes": [ { "time": 0, "x": 0.25, "y": 0.90, "font_scale": 2, "opacity": 0 }, { "time": 0.5, "x": 0.25, "y": 0.90, "font_scale": 2, "opacity": 1 }, { "time": 7, "x": 0.25, "y": 0.90, "font_scale": 2, "opacity": 1 }, { "time": 8, "x": 0.25, "y": 0.90, "font_scale": 2, "opacity": 0 } ] } ]
       },
       {
-        "type": "LETTERBOX",
-        "clips": [
-          {
-            "start_time": 100,
-            "duration": 20,
-            "keyframes": [
-              { "time": 0, "aspect_ratio": 2.35, "opacity": 1 },
-              { "time": 10, "aspect_ratio": 2.1, "opacity": 1 },
-              { "time": 20, "aspect_ratio": 2.35, "opacity": 1 }
-            ]
-          }
-        ]
+        "type": "OVERLAY", "id": "graded_label", "name": "调色侧标注",
+        "clips": [ { "start_time": 50, "duration": 8, "layer_type": "subtitle", "text": "单机位调色", "z_index": 1000, "keyframes": [ { "time": 0, "x": 0.75, "y": 0.90, "font_scale": 2, "opacity": 0 }, { "time": 0.5, "x": 0.75, "y": 0.90, "font_scale": 2, "opacity": 1 }, { "time": 7, "x": 0.75, "y": 0.90, "font_scale": 2, "opacity": 1 }, { "time": 8, "x": 0.75, "y": 0.90, "font_scale": 2, "opacity": 0 } ] } ]
       },
       {
-        "type": "AUDIO",
-        "id": "music",
+        "type": "OVERLAY", "id": "bookends", "name": "只在开头和结尾收黑，不用重复闪光分章",
         "clips": [
-          {
-            "start_time": 0,
-            "duration": 120,
-            "sound": "minecraft:sounds/music/game/calm1.ogg",
-            "source": "minecraft",
-            "volume": 0.3,
-            "pitch": 1,
-            "loop": true,
-            "fade_in": 2,
-            "fade_out": 8,
-            "attenuation": "none",
-            "position_mode": "relative",
-            "category": "music",
-            "keyframes": [
-              { "time": 0, "volume": 0.3 },
-              { "time": 40, "volume": 0.22 },
-              { "time": 80, "volume": 0.35 },
-              { "time": 120, "volume": 0.3 }
-            ]
-          }
-        ]
-      },
-      {
-        "type": "AUDIO",
-        "id": "accents",
-        "clips": [
-          {
-            "start_time": 20,
-            "duration": 1,
-            "sound": "minecraft:sounds/random/click.ogg",
-            "source": "minecraft",
-            "volume": 0.35,
-            "pitch": 1.0,
-            "loop": false,
-            "fade_in": 0.05,
-            "fade_out": 0.05,
-            "attenuation": "none",
-            "position_mode": "relative",
-            "category": "ambient",
-            "keyframes": [ { "time": 0, "volume": 0.35 } ]
-          },
-          {
-            "start_time": 40,
-            "duration": 1,
-            "sound": "minecraft:sounds/random/click.ogg",
-            "source": "minecraft",
-            "volume": 0.35,
-            "pitch": 1.1,
-            "loop": false,
-            "fade_in": 0.05,
-            "fade_out": 0.05,
-            "attenuation": "none",
-            "position_mode": "relative",
-            "category": "ambient",
-            "keyframes": [ { "time": 0, "volume": 0.35 } ]
-          },
-          {
-            "start_time": 60,
-            "duration": 1,
-            "sound": "minecraft:sounds/random/click.ogg",
-            "source": "minecraft",
-            "volume": 0.35,
-            "pitch": 1.2,
-            "loop": false,
-            "fade_in": 0.05,
-            "fade_out": 0.05,
-            "attenuation": "none",
-            "position_mode": "relative",
-            "category": "ambient",
-            "keyframes": [ { "time": 0, "volume": 0.35 } ]
-          },
-          {
-            "start_time": 80,
-            "duration": 1,
-            "sound": "minecraft:sounds/random/click.ogg",
-            "source": "minecraft",
-            "volume": 0.35,
-            "pitch": 1.3,
-            "loop": false,
-            "fade_in": 0.05,
-            "fade_out": 0.05,
-            "attenuation": "none",
-            "position_mode": "relative",
-            "category": "ambient",
-            "keyframes": [ { "time": 0, "volume": 0.35 } ]
-          },
-          {
-            "start_time": 100,
-            "duration": 1,
-            "sound": "minecraft:sounds/random/click.ogg",
-            "source": "minecraft",
-            "volume": 0.35,
-            "pitch": 1.4,
-            "loop": false,
-            "fade_in": 0.05,
-            "fade_out": 0.05,
-            "attenuation": "none",
-            "position_mode": "relative",
-            "category": "ambient",
-            "keyframes": [ { "time": 0, "volume": 0.35 } ]
-          }
-        ]
-      },
-      {
-        "type": "EVENT",
-        "clips": [
-          {
-            "start_time": 0,
-            "duration": 120,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0, "event_type": "command", "command": "time set 6000" },
-              { "time": 0.1, "event_type": "command", "command": "weather clear" },
-              { "time": 60, "event_type": "command", "command": "time set 12500" },
-              { "time": 100, "event_type": "command", "command": "time set 18000" }
-            ]
-          }
+          { "start_time": 0, "duration": 2, "layer_type": "fade", "color": "#000000", "z_index": 900, "keyframes": [ { "time": 0, "opacity": 1 }, { "time": 0.4, "opacity": 0.92 }, { "time": 1.4, "opacity": 0.16 }, { "time": 2, "opacity": 0 } ] },
+          { "start_time": 78, "duration": 6, "layer_type": "fade", "color": "#000000", "z_index": 900, "keyframes": [ { "time": 0, "opacity": 0 }, { "time": 1, "opacity": 0.06 }, { "time": 3, "opacity": 0.70 }, { "time": 4.5, "opacity": 1 }, { "time": 6, "opacity": 1 } ] }
         ]
       }
     ]
