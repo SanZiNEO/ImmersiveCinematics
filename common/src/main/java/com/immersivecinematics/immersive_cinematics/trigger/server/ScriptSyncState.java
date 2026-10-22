@@ -14,10 +14,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * N2b 编辑同步 — 服务端指纹登记 + 广播。
- * <p>
+ * 编辑同步 — 服务端指纹登记 + 广播。
  * 编辑器模式统一使用全局脚本目录（serverDir/immersive_cinematics/scripts，与编辑器保存目录同语义），
- * 不读世界脚本目录（避免目录不一致导致的重复发包与内容错位）。
+ * 不读世界脚本目录：两个目录不一致会造成重复发包与内容错位。
  * 收到 C2SScriptSaved 只做文件存在性校验 + 指纹登记 + 广播（零解析）。
  */
 public final class ScriptSyncState {

@@ -38,6 +38,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * {@code /icinematics} 命令树：播放 / 停止 / 重载 / 校验 / 片段模板生成。
+ *
+ * 脚本一律从服务端游戏根目录的 {@code immersive_cinematics/scripts/} 读取，
+ * 命令 ID 与文件相对路径互转见 {@link #scriptPathOf} 与 {@link #toCommandId}。
+ */
 public class CinematicCommand {
 
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/Command");
@@ -88,6 +94,7 @@ public class CinematicCommand {
         return globalDir.relativize(p).toString().replace('\\', '/');
     }
 
+    /** 把 {@code /icinematics} 及其子命令注册到给定 dispatcher（服务端启动时调用一次）。 */
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("icinematics")
                 .then(Commands.literal("play")
@@ -168,7 +175,7 @@ public class CinematicCommand {
             targets = server.getPlayerList().getPlayers();
         }
 
-        // N1：握手 — 登记 ACK，超时重发（幂等：playCinematic 有打断/排队逻辑）
+        // 握手：登记 ACK，超时重发（幂等：playCinematic 有打断/排队逻辑）
         final Collection<ServerPlayer> ackTargets = targets;
         String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
         // 结构/方块来源解析：脚本关键帧中的 look_at_target_structure、position.relative_origin 等
@@ -203,7 +210,7 @@ public class CinematicCommand {
         CommandSourceStack source = context.getSource();
         MinecraftServer server = source.getServer();
 
-        // 可选 script 参数（E9）：不写 = 停全部；写了 = 只停该脚本（在播实例优先，否则取消排队项）
+        // 可选 script 参数：不写 = 停全部；写了 = 只停该脚本（在播实例优先，否则取消排队项）
         String scriptId;
         try {
             ResourceLocation location = ResourceLocationArgument.getId(context, "script");
@@ -220,7 +227,7 @@ public class CinematicCommand {
             targets = server.getPlayerList().getPlayers();
         }
 
-        // N1：握手 — 登记 ACK，超时重发（幂等：重复 stop 安全）
+        // 握手：登记 ACK，超时重发（幂等：重复 stop 安全）
         final Collection<ServerPlayer> ackTargets = targets;
         final String stopScriptId = scriptId;
         String refId = com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.newRefId();
@@ -354,7 +361,7 @@ public class CinematicCommand {
     }
 
     /**
-     * /icinematics template &lt;id&gt; [key=value ...] — 展开片段模板为**标准脚本 JSON**：
+     * /icinematics template &lt;id&gt; [key=value ...] — 展开片段模板为标准脚本 JSON：
      * 写入 {@code scripts/generated/<name>.json}，并当场走 {@link ScriptValidator}
      * （与 {@code /icinematics validate} 同源）。产物与手写脚本同构，可继续编辑 / 播放。
      */
@@ -459,10 +466,8 @@ public class CinematicCommand {
 
     /**
      * 命令 ID → 相对文件路径：
-     * <ul>
-     *   <li>根目录脚本：直接返回文件名（ResourceLocation 的默认 namespace 为 minecraft）；</li>
-     *   <li>子目录脚本：namespace 中的下划线还原为目录斜杠，再拼接文件名。</li>
-     * </ul>
+     * 根目录脚本直接返回文件名（ResourceLocation 默认 namespace 为 minecraft）；
+     * 子目录脚本把 namespace 中的下划线还原为目录斜杠，再拼接文件名。
      */
     private static String scriptPathOf(ResourceLocation location) {
         String ns = location.getNamespace();

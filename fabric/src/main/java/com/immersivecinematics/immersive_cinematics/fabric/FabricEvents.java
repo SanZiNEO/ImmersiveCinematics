@@ -24,7 +24,7 @@ import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.resources.ResourceManager;
 
 /**
- * Fabric 事件注册（0.3.5 第7轮去 Arch）。
+ * Fabric 事件注册：把 Fabric API 回调接到平台无关的 {@link ServerEventHandler} 与 {@link ClientEventHandler}。
  */
 public final class FabricEvents {
 
@@ -44,7 +44,7 @@ public final class FabricEvents {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 ServerEventHandler.onRegisterCommands(dispatcher));
 
-        // TODO Fabric: advancement 事件在 1.20.1 Fabric API 0.92.9 无对应回调，后续用 Mixin 补
+        // advancement 无 Fabric API 回调（0.92.9），由 PlayerAdvancementsMixin 拦截 award 接线
         ServerLivingEntityEvents.AFTER_DEATH.register(ServerEventHandler::onLivingDeath);
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
             ServerEventHandler.onRightClickBlock(player, hand, hitResult.getBlockPos(), hitResult.getDirection());
@@ -68,8 +68,7 @@ public final class FabricEvents {
         ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD.register((player, origin, destination) ->
                 ServerEventHandler.onChangeDimension((ServerPlayer) player, origin.dimension(), destination.dimension()));
 
-        // Craft / pickup / drop / advancement / level save 在 Fabric 上通过 Mixin 或可用事件补齐；
-        // 这里先注册已有 API，缺失项由后续 Mixin 补充。
+        // craft / pickup / drop / level save 同样无 Fabric API 回调，由 fabric 侧对应 Mixin 接线
     }
 
     public static void registerClient() {

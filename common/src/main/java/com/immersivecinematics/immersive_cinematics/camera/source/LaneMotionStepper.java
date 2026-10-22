@@ -11,10 +11,10 @@ import com.immersivecinematics.immersive_cinematics.script.Clip;
  * 3 = yaw、4 = pitch、5 = roll（ANGLE，度）；6 = fov、7 = zoom（SCALAR）。
  * 定义来源 = 本 lane 本帧生效片段的 clip 级 {@code motion_*} 字段（解析期已归一，见 MathModelRegistry）；
  * 缺省 null = 该通道不接模型（本类不触碰对应值槽）。
- * 生命周期：lane 的片段切换时按通道比较定义对象（相等性 = 对象同一；解析期按 {@code type} + 参数键值 + 域
- * 驻留，见 {@code ScriptParser.parseMathModel}）——不变 = 实例与状态延续、变化 = 重建、变 null = 销毁；
- * {@link #reset()} 供 seek 全实例归位。lane 槽按「距顶层 lane 的层号」索引、按需创建（实例只在片段边界建 /
- * 销毁）；某层本帧没有 lane 时其实例保留（状态延续），该层下次被占用时按同一判据处置。
+ * 生命周期：片段切换时按通道比较定义对象（相等性 = 对象同一；解析期按 {@code type} + 参数键值 + 域驻留，
+ * 见 {@code ScriptParser.parseMathModel}）——不变 = 实例与状态延续、变化 = 重建、变 null = 销毁；
+ * {@link #reset()} 供 seek 全实例归位。lane 槽按层号索引、按需创建；某层本帧没有 lane 时实例保留（状态延续），
+ * 下次被占用时按同一判据处置；模型实例只在片段边界建 / 销毁。
  * 线程与分配契约：仅客户端主线程；每渲染帧每 lane 每通道至多一次 step；稳态逐帧路径零分配（不新建集合 /
  * 不装箱）——分配只发生在片段边界（首建 lane / 通道槽、定义变化时 instantiate + 通道缓冲）。
  */
@@ -74,8 +74,8 @@ final class LaneMotionStepper {
 
     /**
      * 该片段是否至少有一个 {@code motion_*} 定义（建槽判据）：lane 槽不存在期间每帧调用一次（6 次 map 查表，
-     * O(1)）；建槽后不再调用。缺省关（无定义）= 取值逐位不变 + 零分配，但不是「无任何新增工作」——
-     * 每帧仍有这 6 次查表，调用方另有 8 次缓冲写入。
+     * O(1)）；建槽后不再调用。缺省关（无定义）= 取值逐位不变 + 零分配，但并非零工作——每帧仍有这 6 次查表，
+     * 调用方另有 8 次缓冲写入。
      */
     private static boolean hasDefinition(Clip clip) {
         for (String field : FIELDS) {

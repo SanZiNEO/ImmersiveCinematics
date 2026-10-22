@@ -8,18 +8,13 @@ import org.lwjgl.glfw.GLFW;
 /**
  * 独立飞控模式管理器。
  *
- * <p>飞控核心会话与任何界面解耦：WebUI 预览屏与键盘中转统一走这里。
- * 飞控会话不依赖具体 Screen，可独立工作。
- *
- * <p>职责：
- * <ul>
- *   <li>进入飞控：暂停相机、启用直控、初始化 FlightController</li>
- *   <li>退出/取消：恢复直控、返回最终相机数据或恢复初始值</li>
- *   <li>每帧 tick、键盘事件转发、光学 reset</li>
- * </ul>
+ * 飞控核心会话与任何界面解耦：WebUI 预览屏与键盘中转统一走这里，不依赖具体 Screen，可独立工作。
+ * 进入时暂停相机、启用直控并初始化 FlightController；退出 / 取消时关闭直控、还原光标，
+ * 并返回最终相机数据（取消则恢复进入前的值）；另转发每帧 tick、键盘与鼠标事件。
  */
 public final class FlightModeManager {
 
+    /** 全局单例：会话状态在 FlightController 内，本类只做门面转发。 */
     public static final FlightModeManager INSTANCE = new FlightModeManager();
 
     private FlightModeManager() {
@@ -44,6 +39,7 @@ public final class FlightModeManager {
         }
     }
 
+    /** 飞控会话是否激活。 */
     public boolean isActive() {
         return FlightController.INSTANCE.isActive();
     }

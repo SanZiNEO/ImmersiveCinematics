@@ -14,12 +14,11 @@ import java.util.List;
 
 /**
  * 相机门面：持有统一状态、双时钟与各播放组件，公开方法只转发；只读查询面见 {@link CameraApi}。
- *
- * 组件分工：{@link PlaybackRegistry} 实例列表与查询、{@link PreviewChannel} 编辑器预览通道、
- * {@link PlaybackLedger} 网络账本、{@link PlaybackLifecycle} 生命周期与队列、{@link FrameDriver} 帧驱动、
- * {@link ClientEntityProbe} tick 诊断；{@link CameraStateHolder} 是六参数的唯一写入缓冲与统一快照来源
- * （快照值 = 覆盖链输出：先按优先级选出胜出 Base 层、再按注册表合成 Modifier）；转发方法的定义 / 缺省 /
- * 边界见各自组件类的 javadoc；线程契约：仅客户端主线程（渲染线程）。
+ * 组件分工：{@link PlaybackRegistry} 实例列表、{@link PreviewChannel} 编辑器预览、{@link PlaybackLedger} 网络账本、
+ * {@link PlaybackLifecycle} 生命周期与队列、{@link FrameDriver} 帧驱动、{@link ClientEntityProbe} tick 诊断；
+ * {@link CameraStateHolder} 是六参数的唯一写入缓冲与统一快照来源（快照 = 覆盖链输出：先按优先级选胜出 Base 层，
+ * 再按注册表合成 Modifier）。各转发方法的定义 / 缺省 / 边界见对应组件类 javadoc。
+ * 线程契约：仅客户端主线程（渲染线程）。
  */
 public class CameraManager implements CameraApi {
 
@@ -43,14 +42,14 @@ public class CameraManager implements CameraApi {
 
     private CameraManager() {
         previewChannel.bindLifecycle(lifecycle);
-        // 注册顺序 = 同优先级次序（本版本每层只注册一个）；档位表见 BaseCameraProvider
+        // 注册顺序 = 同优先级次序（每层各注册一个）；档位表见 BaseCameraProvider
         coverChain.register(new ScriptDirectorBase(registry, stateHolder));
         coverChain.register(directControlBase);
         coverChain.register(new FlightBase(previewChannel, stateHolder));
     }
 
     // ========== 实例查询（PlaybackRegistry）==========
-    /** 活跃播放实例 —— 顶层实例（启动最晚者，后来者居上）；无播放时为 {@code null}。预览激活时顶层 = 预览实例。 */
+    /** 活跃播放实例 = 顶层实例（启动最晚者，后启动者覆盖先启动者）；无播放时为 {@code null}。预览激活时顶层 = 预览实例。 */
     public PlaybackInstance activeInstance() { return registry.topInstance(); }
     /** 全部活跃播放实例，按启动顺序排列（先启动在前，顶层 = 最后一个）——只读视图，随增删实时变化。 */
     public List<PlaybackInstance> instances() { return registry.instances(); }
@@ -71,8 +70,8 @@ public class CameraManager implements CameraApi {
     public boolean requestExit(ExitReason reason) { return lifecycle.requestExit(registry.topInstance(), reason); }
 
     /**
-     * 声明式退出（规则动作 {@code exit}；设计 §8.1 ③族）：作用于触发它的那个实例，
-     * 映射 {@link ExitReason#NATURAL_END} 但跳过 {@code hold_at_end} 拒绝（声明式优先于末尾驻留）。
+     * 声明式退出（规则动作 {@code exit}）：作用于触发它的那个实例，映射 {@link ExitReason#NATURAL_END}
+     * 但跳过 {@code hold_at_end} 拒绝（声明式优先于末尾驻留）。
      */
     public boolean requestDeclaredExit(PlaybackInstance instance) {
         return lifecycle.requestDeclaredExit(instance);
@@ -91,7 +90,7 @@ public class CameraManager implements CameraApi {
     /** 强制立即停用全部活跃实例（服务端 stop / 调试强制退出）：不渐出、不接播。 */
     public void forceDeactivate() { lifecycle.forceDeactivate(); }
     /**
-     * 按脚本（+可选播放实例 id）停止实例：非顶层同样生效（E9）。
+     * 按脚本（+可选播放实例 id）停止实例：非顶层同样生效。
      *
      * @param instanceId 播放实例 id；空串 = 该脚本任意实例
      * @return {@code false} = 无匹配实例（调用方转而尝试 {@link #cancelQueued(String)}）
@@ -99,7 +98,7 @@ public class CameraManager implements CameraApi {
     public boolean stopScriptById(String scriptId, String instanceId) {
         return lifecycle.stopScriptById(scriptId, instanceId);
     }
-    /** 取消该脚本的排队项（E3）；{@code true} = 确有排队项被移除。 */
+    /** 取消该脚本的排队项；{@code true} = 确有排队项被移除。 */
     public boolean cancelQueued(String scriptId) { return lifecycle.cancelQueued(scriptId); }
     /** 紧急停止（世界退出/断线）：跳过退场动画直接清理全部实例，防止 OpenAL 音频残留。 */
     public void emergencyStop() { lifecycle.emergencyStop(); }
@@ -142,7 +141,8 @@ public class CameraManager implements CameraApi {
     /**
      * 统一只读相机状态快照（本帧最新值）；无活跃相机时为 {@code null}。
      *
-     * 刷新点：帧末、停用 / 重启、直写入口——任何写入后立即反映新值，同一帧内多次读取结果一致。
+     * 刷新点：帧末、停用 / 重启、直控写入口；脚本导演写入只改写入缓冲，由帧末统一重建。
+     * 同一帧内多次读取结果一致。
      */
     @Override
     public CameraState getCameraState() { return stateHolder.snapshot(); }
@@ -150,10 +150,9 @@ public class CameraManager implements CameraApi {
     public boolean modifiersApplied() { return coverChain.modifiersApplied(); }
     /**
      * 本帧链胜出层是否为直控类层（飞行 300 / 编辑器直控 200 / 外部接管 400，即非脚本导演 100）。
-     *
-     * <p>消费方 = 主画面 lane 的取用点（{@code ScriptLaneDriver}）：直控类层胜出时相机轨道跳过写入
+     * 消费方 = 主画面 lane 的取用点（{@code ScriptLaneDriver}）：直控类层胜出时相机轨道跳过写入
      * （{@code CameraTrackPlayer.onRenderFrame} 在 {@code isPreviewDirectControl()} 时直接返回），
-     * 主相机 lane 要么不存在、要么不是本帧相机——画面必须取链输出（本帧相机）才跟得上直控。</p>
+     * 主相机 lane 要么不存在、要么不是本帧相机——画面须取链输出（本帧相机）才跟得上直控。
      */
     public boolean isDirectControlWinner() {
         return coverChain.winnerPriority() > BaseCameraProvider.PRIORITY_SCRIPT_DIRECTOR;

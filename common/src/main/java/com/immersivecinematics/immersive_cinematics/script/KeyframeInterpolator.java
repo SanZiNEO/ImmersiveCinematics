@@ -5,12 +5,9 @@ import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 import java.util.List;
 
 /**
- * 关键帧插值器 — 匀速插值模型
- * <p>
- * 关键帧之间为匀速直线运动。弧长进度 s 等于线性时间进度 t，无需速度曲线。
- * 贝塞尔路径通过 ArcLengthLUT 确保路径上的匀速运动。
- * <p>
- * 此类为无状态工具类，所有方法都是静态的，不持有任何运行时状态。
+ * 关键帧插值器 —— 匀速插值模型：关键帧之间为匀速直线运动，弧长进度 s 等于线性时间进度 t。
+ * 贝塞尔路径由 {@link ArcLengthLUT} 保证路径上的匀速运动。
+ * 无状态工具类：全部方法静态，不持有运行时状态。
  */
 public final class KeyframeInterpolator {
 
@@ -19,22 +16,13 @@ public final class KeyframeInterpolator {
     // ========== 时间计算 ==========
 
     /**
-     * 计算关键帧插值结果
-     * <p>
-     * 算法：
-     * <ol>
-     *   <li>根据 clipTime 找到关键帧段 (from, to)</li>
-     *   <li>计算段内线性进度 t ∈ [0, 1]</li>
-     *   <li>弧长进度 s = t（匀速）</li>
-     *   <li>返回 from, to, s</li>
-     * </ol>
-     * <p>
-     * 循环处理：如果 clip.loop=true，对片段内时间取模实现循环。
+     * 计算 {@code clipTime} 所处的关键帧段与段内进度：返回 from / to 与弧长进度 s（= 线性进度 t）。
+     * {@code clip.loop=true} 时先按 {@code loopMode} 折叠片段内时间（{@code pingpong} 往复、其余 repeat），
+     * 达到 {@code loopCount} 后停在末段；时间在关键帧范围外时取边界帧。
      *
      * @param clipTime 片段内时间（秒）
      * @param clip     所属片段
-     * @return 插值结果，包含 from/to 关键帧和弧长进度 s；
-     *         如果时间在关键帧范围外，返回 null
+     * @return 插值结果；关键帧列表为空时 {@code null}
      */
     public static InterpolationResult computeInterpolation(float clipTime, Clip clip) {
         List<Keyframe> keyframes = clip.getKeyframes();
@@ -108,21 +96,15 @@ public final class KeyframeInterpolator {
     // ========== 标量通道插值 ==========
 
     /**
-     * 标量通道插值（匀速线性；0.3.6 起运行时统一线性，缓动由编辑器烘焙成显式关键帧）。
-     *
-     * <p>取值语义与各轨道播放器里的逐通道取值同一口径（{@code OverlayTrackPlayer} 的
-     * {@code opacity} / {@code x} / {@code y} / {@code scale_*} 就是这么取的）：</p>
-     * <ul>
-     *   <li>关键帧列表为空 → {@code defaultValue}；</li>
-     *   <li>只有一个关键帧 → 该关键帧的值；</li>
-     *   <li>时间在首帧之前 / 末帧之后 → 取边界关键帧的值（不外推）；</li>
-     *   <li>段内 → 两端关键帧线性插值（零长段取 0 进度）。</li>
-     * </ul>
+     * 标量通道插值（匀速线性；缓动由编辑器烘焙成显式关键帧）。
+     * 空列表 → {@code defaultValue}；单帧 → 该帧值；时间在首帧之前 / 末帧之后 → 边界帧值（不外推）；
+     * 段内 → 两端线性插值，零长段取 0 进度。
+     * 与各轨道播放器的逐通道取值同一口径（如 {@code OverlayTrackPlayer} 的 opacity / x / y / scale_*）。
      *
      * @param keyframes    片段的关键帧列表（时间递增）
      * @param localTime    片段内本地时间（秒）
-     * @param key          通道名（关键帧 {@code data} 里的字段名）
-     * @param defaultValue 关键帧没写该字段时的缺省值
+     * @param key          {@code data} 里的字段名
+     * @param defaultValue 关键帧未写该字段时的缺省值
      * @return 插值结果
      */
     public static float interpolateChannel(List<Keyframe> keyframes, float localTime, String key,

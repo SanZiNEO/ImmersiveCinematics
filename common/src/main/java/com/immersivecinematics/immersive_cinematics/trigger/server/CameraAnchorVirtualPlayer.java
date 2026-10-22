@@ -9,14 +9,8 @@ import java.util.UUID;
 
 /**
  * 纯计算用的“虚拟玩家”引用，仅用于让 {@code NaturalSpawner} 能算相机位置到刷怪点的距离。
- * <p>
- * 它不是世界里的实体：
- * <ul>
- *   <li>不会被 addFreshEntity / addEntity</li>
- *   <li>不会进入 ServerLevel.players / PlayerList / ChunkMap</li>
- *   <li>没有 connection，不接收/发送任何包</li>
- *   <li>只提供坐标和 distanceToSqr，用完即弃</li>
- * </ul>
+ * 它不是世界里的实体：不会被 addFreshEntity / addEntity，不进 ServerLevel.players / PlayerList /
+ * ChunkMap，没有 connection（不收发包），只提供坐标与 distanceToSqr，用完即弃。
  */
 public class CameraAnchorVirtualPlayer extends Player {
 

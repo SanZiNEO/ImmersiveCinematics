@@ -11,7 +11,7 @@ import java.util.Map;
 
 /**
  * 新建脚本的默认骨架（空脚本模板）。
- * <p>
+ *
  * meta 默认值取自 {@link SchemaLoader#getMetaFields()}（tristate 字段无默认值则不写入，
  * 与运行时 {@code optNullableBool} 语义一致）；轨道列表跟随 {@link TrackType} 枚举，
  * 每条轨道带唯一 id 与空 clips 数组。生成的 JSON 与手写脚本同构，

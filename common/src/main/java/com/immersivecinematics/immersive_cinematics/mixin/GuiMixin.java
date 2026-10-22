@@ -14,12 +14,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 电影模式下 HUD 白名单控制。
- * <p>
- * 在每个 Gui 私有方法的渲染入口注入可取消检查，替代旧 Forge {@code RenderGuiOverlayEvent.Pre}。
- * 双向兼容 Fabric 和 Forge。
- * <p>
- * 非 Gui 私有方法的组件（ChatComponent、BossHealthOverlay、PlayerTabOverlay、SubtitleOverlay）在独立的 Mixin 类中处理。
+ * 电影模式下按白名单隐藏 HUD。
+ *
+ * 挂点是每个 {@code Gui} 私有渲染方法的 HEAD + cancel，取代 Forge 的
+ * {@code RenderGuiOverlayEvent.Pre}：该事件只在 Forge 存在，逐方法注入才能让 Fabric / Forge 共用同一套
+ * 挂点。非 {@code Gui} 私有方法的组件（{@link ChatComponentMixin}、{@link BossHealthOverlayMixin}、
+ * {@link PlayerTabOverlayMixin}、{@link SubtitleOverlayMixin}）各自单独处理。
  */
 @Mixin(Gui.class)
 public abstract class GuiMixin {
@@ -34,7 +34,7 @@ public abstract class GuiMixin {
         return setting;
     }
 
-    // ===== Action Bar / Title（GUI.render 内联渲染，帧内清零时间以跳过渲染并恢复） =====
+    // ===== Action Bar / Title：在 Gui.render 内联渲染、没有独立方法可注入，帧内把计时清零再于 RETURN 还原 =====
 
     @Shadow private int overlayMessageTime;
     @Shadow private int titleTime;

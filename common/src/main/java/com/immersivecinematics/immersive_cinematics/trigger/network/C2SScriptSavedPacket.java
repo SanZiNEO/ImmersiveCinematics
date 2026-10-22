@@ -5,8 +5,8 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * 编辑器保存成功通知（N2b）— 只带文件名，不含脚本内容。
- * <p>
+ * 编辑器保存成功通知 — 只带文件名，不含脚本内容。
+ *
  * 服务端只做文件存在性校验 + 指纹登记 + 广播（零解析），客户端指纹变化才解析一次。
  */
 public class C2SScriptSavedPacket implements CinematicC2SPacket {

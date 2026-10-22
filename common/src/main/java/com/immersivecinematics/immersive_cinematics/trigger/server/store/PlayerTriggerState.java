@@ -5,6 +5,11 @@ import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 
 import java.util.Set;
 
+/**
+ * 单个玩家的触发器状态（内存快照）：已触发集合、已开始 / 已结束脚本集合。
+ * 读写契约：标记方法只置 dirty，落盘时机由 {@link TriggerStateStore} 决定；getter 直接返回内部集合
+ * （反序列化要往里填，故不复制）。
+ */
 public class PlayerTriggerState {
 
     private final Object2ObjectOpenHashMap<String, ObjectOpenHashSet<String>> triggeredScripts;

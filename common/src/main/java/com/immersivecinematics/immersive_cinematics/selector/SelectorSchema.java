@@ -6,9 +6,9 @@ import java.util.List;
  * 选择器字段与取值的单一定义点：调用点名单、锚点取值集、择一取值集、调用点专属字段名模式
  * （{@code <字段>_<调用点>}）。
  *
- * schema 声明（{@code script/schema/TrackSchemas.camera()}）、脚本校验（{@code script/ScriptValidator}）
- * 与运行时服务（{@link EntitySelectorService}）共用本类，三方不可能不同步。名单与取值集的顺序 =
- * 字段登记顺序 = 校验报错文案顺序（{@code " / "} 连接），增删一律只改本类。
+ * schema 声明（{@code TrackSchemas.camera()}）、脚本校验（{@code ScriptValidator}）与运行时服务
+ * （{@link EntitySelectorService}）共用本类，三方不可能不同步；名单与取值集的顺序 = 字段登记顺序 =
+ * 校验报错文案顺序（{@code " / "} 连接），增删一律只改本类。锚点与择一的取值语义见各自常量。
  */
 public final class SelectorSchema {
 

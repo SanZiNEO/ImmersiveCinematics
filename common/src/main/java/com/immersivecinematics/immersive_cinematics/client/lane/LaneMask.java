@@ -7,25 +7,15 @@ import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
 import java.util.List;
 
 /**
- * CAMERA lane 合成遮罩的逐帧采样结果（0.3.6 D2）——每条 lane 槽位复用一个实例。
+ * CAMERA lane 合成遮罩的逐帧采样结果（每条 lane 槽位复用一个实例）。
  *
- * <p>数据来源 = 该 lane 所属 {@link Clip} 的 clip 级 {@code mask_shape}
- * （{@code full} 缺省 / {@code rect} / {@code circle}）与关键帧级几何通道
- * （{@code mask_x} / {@code mask_y} 缺省 {@code 0.5}，{@code mask_width} / {@code mask_height}
- * 缺省 {@code 1}，{@code mask_radius} 缺省 {@code 0.5}）。字段语义与 fade 的局部几何同一口径：
- * 中心 / 宽高为窗口比例，半径为窗口较短边比例；几何独立于 {@code source} / {@code dest}。</p>
+ * 数据来源 = 该 lane 所属 {@link Clip} 的 clip 级 {@code mask_shape}（{@code full} 缺省 / {@code rect} /
+ * {@code circle}）与关键帧几何（{@code mask_x} / {@code mask_y} 缺省 {@code 0.5}，宽 / 高缺省 {@code 1}，
+ * 半径缺省 {@code 0.5}）；中心 / 宽高为窗口比例，半径为窗口短边比例；几何独立于 {@code source} / {@code dest}。
  *
- * <p><b>复用约定</b>：实例由 {@code ScriptLaneDriver.Slot} 持有，每次更新槽位时调用
- * {@link #sample(Clip, float)}。本类只写自己的字段，不分配数组 / record、不解析字符串
- * （clip 级形状按 clip 引用缓存，同一片段跨帧不再比较）；{@code shape == SHAPE_FULL} 时直接复位缺省，
- * 不扫描关键帧、不消费任何几何通道。{@code sample(null, 0f)} 是合法调用（链输出主画面复用槽位 0 时复位），
- * 结果 = 缺省 full。</p>
- *
- * <p><b>时间</b>：{@code localTime} = 该片段的实际本地时间（与相机状态 / {@code opacity} / {@code dest}
- * 同源）。循环语义与 {@link KeyframeInterpolator#computeInterpolation(float, Clip)} 一致
- * （repeat / pingpong / 有限循环末端钳制），此处用同一映射后再走
- * {@link KeyframeInterpolator#interpolateChannel} 的线性插值口径——无关键帧 / 单关键帧 / 端点 / 零长段
- * 的行为因此与其它通道完全相同。</p>
+ * 复用：实例由 {@code ScriptLaneDriver.Slot} 持有，更新槽位时调用 {@link #sample(Clip, float)}；只写自身
+ * 字段、不分配；{@code full} 直接复位缺省，不扫描关键帧；{@code sample(null, 0f)} 合法（复位为 full）。
+ * 时间：{@code localTime} = 片段本地时间（与相机状态同源），循环映射与 {@link KeyframeInterpolator} 同口径。
  */
 public final class LaneMask {
 
@@ -57,10 +47,11 @@ public final class LaneMask {
     private int cachedShape = SHAPE_FULL;
 
     /**
-     * 按片段与本地时间采样遮罩。{@code clip == null} 或片段未声明 {@code mask_shape}（旧脚本）→ full。
-     *
-     * <p>full 不读取关键帧；rect 只读 {@code mask_x/y/width/height}；circle 只读
-     * {@code mask_x/y/radius}。未消费的通道写回缺省，避免槽位复用时残留上一条 lane 的几何。</p>
+     * 按片段与本地时间采样遮罩。{@code clip == null} 或未声明 {@code mask_shape} → full；
+     * {@code sample(null, 0f)} 合法（链输出主画面复用槽位 0 时复位）。
+     * full 不读关键帧；rect 只读 {@code mask_x/y/width/height}；circle 只读 {@code mask_x/y/radius}；
+     * 未消费的通道写回缺省，避免槽位复用时残留上一条 lane 的几何。
+     * 无关键帧 / 单关键帧 / 端点 / 零长段走同一插值口径，与其它通道逐条一致。
      */
     public void sample(Clip clip, float localTime) {
         if (clip == null) {

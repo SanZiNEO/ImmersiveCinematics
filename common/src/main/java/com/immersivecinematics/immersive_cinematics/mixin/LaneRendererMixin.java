@@ -11,24 +11,19 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 整屏合成挂点：{@code GameRenderer.renderLevel} 的 RETURN
- * —— 主画面世界渲染之后、{@code tryTakeScreenshotIfNeeded} / {@code doEntityOutline} /
- * {@code postEffect} / GUI 之前。
+ * 整屏合成挂点：{@code GameRenderer.renderLevel} 的 RETURN —— 主画面世界渲染之后，
+ * {@code tryTakeScreenshotIfNeeded} / {@code doEntityOutline} / {@code postEffect} / GUI 之前。
  *
- * <p>本挂点只做一件事：<b>MCOMP 合成</b>——{@link LaneRenderer#render} 逐 lane 渲染并把画面贴到主
- * framebuffer；lane 来源在本帧<b>世界渲染之前</b>就已注册（脚本 lane，唯一来源 {@link ScriptLaneDriver}；
- * 注册点见 {@code GameRendererMixin.onRenderFrameStart}）。</p>
+ * 本挂点只做 MCOMP 合成：{@link LaneRenderer#render} 逐 lane 渲染并把画面贴到主 framebuffer。
+ * lane 来源必须在本帧世界渲染之前注册（{@link ScriptLaneDriver}，见
+ * {@code GameRendererMixin.onRenderFrameStart}）：视图中心在 {@code setupRender} 里读 lane 表，
+ * 挂到渲染之后会让它读到上一帧的相机位置。
  *
- * <p>RADJ（master 颜色调整）<b>已不在本挂点</b>：2026-10-08 起后移到 {@code GameRenderer.render} 内
- * 原版后处理链（RPOST）之后、GUI 之前（见 {@code GameRendererMixin.onWorldPostProcessed}，
- * 以及 plans/0.3.6/screen-color-adjust.md §4）——master 调色是世界画面的最终字，必须作用在
- * 后处理链的输出上，且不得污染 GUI 层（黑边 / 字幕 / 黑白场转场走 OVERLAY，需精确色值）。</p>
+ * master 调色（RADJ）不在这里：它是世界画面的最终字，挂在原版后处理链之后、GUI 之前
+ * （{@code GameRendererMixin.onWorldPostProcessed}），既作用在合成输出上，又不污染 GUI 层
+ * （黑边 / 字幕 / 黑白场转场走 OVERLAY，需要精确色值）。
  *
- * <p>帧驱动（{@code CameraManager.onRenderFrame()}）与 lane 注册原本也在这里（本挂点开头），
- * 2026-10-07 为消除"视图中心读到上一帧 lane 表"迁到 {@code GameRendererMixin.onRenderFrameStart}
- * （{@code GameRenderer.render} 的 HEAD，世界渲染之前）。</p>
- *
- * <p>默认零差异：没有活跃 lane 时 {@link LaneRenderer#render} 第一行即返回。</p>
+ * 默认零差异：没有活跃 lane 时 {@link LaneRenderer#render} 第一行即返回。
  */
 @Mixin(GameRenderer.class)
 public abstract class LaneRendererMixin {

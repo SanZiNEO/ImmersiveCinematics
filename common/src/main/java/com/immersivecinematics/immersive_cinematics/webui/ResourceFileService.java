@@ -21,15 +21,15 @@ import java.util.stream.Stream;
 
 /**
  * 资源目录服务：WebUI {@code resource.list} 的只读列举（文本 / 图片 / 音频）。
- * <p>
+ *
  * 列举范围 = {@code <游戏目录>/immersive_cinematics/resource/}（{@link ResourcePath}），
  * 与运行时读取同一份本地资源——编辑器不需要（也不该）走服务器流量。
- * <p>
- * <b>路径安全</b>：所有相对路径经 {@link #resolveSafe} 归一化 + 包含性校验，
+ *
+ * 路径安全：所有相对路径经 {@link #resolveSafe} 归一化 + 包含性校验，
  * 拒绝绝对路径 / 盘符 / {@code ..} 逃逸（与 {@code ScriptFileService.resolveSafe} 同款防护）；
  * 语言代码另按严格小写约束过滤，双重保证文件名不会穿越目录。
- * <p>
- * 本类不写文件：编辑器改译文请直接编辑 {@code resource/lang/*.json}（key × 语言矩阵面板后置，§7-3）。
+ *
+ * 本类不写文件：编辑器改译文请直接编辑 {@code resource/lang/*.json}。
  */
 public final class ResourceFileService {
 
@@ -49,7 +49,7 @@ public final class ResourceFileService {
     private static final int MAX_DEPTH = 5;
     /** 列举条数上限（病态目录树兜底） */
     private static final int MAX_FILES = 2000;
-    /** 语言文件名 = 语言代码：严格小写（plans/0.3.6/done/script-i18n.md §6-2） */
+    /** 语言文件名 = 语言代码：严格小写，长度 2~16 */
     private static final Pattern LANGUAGE_PATTERN = Pattern.compile("^[a-z0-9_]{2,16}$");
 
     private ResourceFileService() {}

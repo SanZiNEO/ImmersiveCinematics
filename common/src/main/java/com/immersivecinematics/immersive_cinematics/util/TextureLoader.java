@@ -24,10 +24,10 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * 从 {@link ResourcePath} 目录加载 PNG/GIF 纹理到 Minecraft 纹理系统。
- * <p>
+ * 从 {@link ResourcePath} 目录加载 PNG / GIF 纹理到 Minecraft 纹理系统。
+ *
  * 静态图注册为 DynamicTexture；GIF 拆帧后由 {@link GifAnimation} 持有帧序列，
- * 渲染时按全局时间轮播并只上传当前帧。加载过的纹理会被缓存，重复使用。
+ * 渲染时按全局时间轮播并只上传当前帧。纹理、原始像素尺寸与 GIF 帧序列按文件名缓存。
  */
 public final class TextureLoader {
 
@@ -45,11 +45,10 @@ public final class TextureLoader {
 
     /**
      * 从 resource/ 目录加载图片文件，返回可用的 ResourceLocation。
-     * <p>
-     * .gif 走拆帧 + 轮播路径；其余格式走 NativeImage 静态图路径。
+     * {@code .gif} 走拆帧 + 轮播路径；其余格式走 NativeImage 静态图路径。
      *
      * @param fileName 文件名（如 {@code "overlay.png"} 或 {@code "flame.gif"}）
-     * @return ResourceLocation 用于渲染，加载失败返回 null
+     * @return 渲染用 ResourceLocation；加载失败返回 null
      */
     public static ResourceLocation loadTexture(String fileName) {
         if (fileName == null || fileName.isEmpty()) return null;

@@ -8,19 +8,9 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 贝塞尔弧长查找表 — 基于德卡斯特里奥自适应细分构建
- * <p>
- * 将贝塞尔曲线的参数 t 映射到等弧长参数 s ∈ [0,1]，
- * 使得匀速的 s 变化产生匀速的曲线运动。
- * <p>
- * 构建方法：
- * <ol>
- *   <li>使用德卡斯特里奥算法递归细分曲线</li>
- *   <li>通过中间层点距离判断平坦度，自适应决定采样密度</li>
- *   <li>弯曲处密集采样（高精度），直线段稀疏采样（省内存）</li>
- * </ol>
- * <p>
- * 查询方法：给定 s，二分查找对应的 t，线性插值精化。
+ * 贝塞尔弧长查找表：把曲线参数 t 映射到等弧长参数 s ∈ [0,1]，使匀速的 s 变化产生匀速的曲线运动。
+ * 构建 = 德卡斯特里奥递归细分，按中间层点距离判平坦度（弯曲处密、直线段疏）；查询 = 累积弧长上二分 + 线性插值精化。
+ * 缺省容差 {@value #DEFAULT_TOLERANCE} 世界单位、最大递归深度 {@value #DEFAULT_MAX_DEPTH}（≤ 2^8 个采样点）。
  */
 public class ArcLengthLUT {
 
@@ -40,14 +30,26 @@ public class ArcLengthLUT {
     private final List<Float> arcLengths = new ArrayList<>();
 
     /**
-     * 使用默认参数构建弧长 LUT
+     * 使用默认容差与递归深度构建弧长 LUT。
+     *
+     * @param p0 曲线起点
+     * @param p1 控制点 1
+     * @param p2 控制点 2
+     * @param p3 曲线终点
      */
     public ArcLengthLUT(Vec3 p0, Vec3 p1, Vec3 p2, Vec3 p3) {
         this(p0, p1, p2, p3, DEFAULT_TOLERANCE, DEFAULT_MAX_DEPTH);
     }
 
     /**
-     * 使用自定义参数构建弧长 LUT
+     * 使用自定义参数构建弧长 LUT。
+     *
+     * @param p0       曲线起点
+     * @param p1       控制点 1
+     * @param p2       控制点 2
+     * @param p3       曲线终点
+     * @param tolerance 平坦度容差（世界坐标单位；越小采样越密）
+     * @param maxDepth  最大递归深度（采样点数上限 2^maxDepth）
      */
     public ArcLengthLUT(Vec3 p0, Vec3 p1, Vec3 p2, Vec3 p3, float tolerance, int maxDepth) {
         this.p0 = p0;
@@ -55,14 +57,12 @@ public class ArcLengthLUT {
         this.p2 = p2;
         this.p3 = p3;
 
-        // 第一步：自适应细分收集采样点
         List<Float> rawT = new ArrayList<>();
         rawT.add(0f);
         subdivide(rawT, p0, p1, p2, p3, tolerance, maxDepth, 0f, 1f);
         rawT.add(1f);
         Collections.sort(rawT);
 
-        // 第二步：去重
         List<Float> uniqueT = new ArrayList<>();
         for (float t : rawT) {
             if (uniqueT.isEmpty() || Math.abs(t - uniqueT.get(uniqueT.size() - 1)) > 1e-7f) {
@@ -70,7 +70,6 @@ public class ArcLengthLUT {
             }
         }
 
-        // 第三步：计算累积弧长并归一化
         double total = 0.0;
         List<Double> cumLengths = new ArrayList<>();
         cumLengths.add(0.0);
@@ -83,7 +82,6 @@ public class ArcLengthLUT {
             prev = curr;
         }
 
-        // 第四步：填充查找表
         for (int i = 0; i < uniqueT.size(); i++) {
             tValues.add(uniqueT.get(i));
             double normalized = (total > 0.0) ? cumLengths.get(i) / total : (double)i / (uniqueT.size() - 1);
@@ -92,7 +90,10 @@ public class ArcLengthLUT {
     }
 
     /**
-     * 给定归一化弧长 s ∈ [0,1]，查找对应的贝塞尔参数 t
+     * 给定归一化弧长 s ∈ [0,1]，查找对应的贝塞尔参数 t。
+     *
+     * @param s 归一化弧长（≤0 / ≥1 直接取端点）
+     * @return 贝塞尔参数 t ∈ [0,1]
      */
     public float lookupT(float s) {
         if (tValues.isEmpty() || s <= 0f) return 0f;
@@ -122,16 +123,16 @@ public class ArcLengthLUT {
         return tLo + (tHi - tLo) * frac;
     }
 
-    /** 获取采样点数量 */
+    /**
+     * 获取采样点数量。
+     *
+     * @return 采样点数（≤ 2^maxDepth）
+     */
     public int size() {
         return tValues.size();
     }
 
-    /**
-     * 自适应细分 — 收集需要采样的 t 值
-     * <p>
-     * 使用德卡斯特里奥算法的中间层点判断曲线平坦度。
-     */
+    /** 自适应细分：在 t=0.5 处德卡斯特里奥分割，平坦度 = 中间层线段最大距离。 */
     private static void subdivide(List<Float> outT,
                                   Vec3 cp0, Vec3 cp1, Vec3 cp2, Vec3 cp3,
                                   float tolerance, int maxDepth,

@@ -10,11 +10,11 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
- * 让 {@code NaturalSpawner} 的"最近玩家"取更近者（真实玩家与相机锚点谁近用谁）。
- * <p>
- * 原版这次查询传 {@code distance = -1.0}（不设上限），只判断"有没有玩家"没有意义：
- * 只要服务器里有玩家就永远返回真实玩家，相机离玩家 128 格外时生物不会在相机附近刷出。
- * 不创建世界实体：虚拟玩家只是一个纯坐标引用，只用于 distanceToSqr。
+ * 让 {@code NaturalSpawner} 的「最近玩家」取更近者（真实玩家与相机锚点谁近用谁）。
+ *
+ * 坑：原版这次查询传 {@code distance = -1.0}（不设上限），只判断「有没有玩家」——只要服务器里有玩家就永远
+ * 返回真实玩家，相机离玩家 128 格外时生物不会在相机附近刷出。
+ * 不创建世界实体：虚拟玩家只是纯坐标引用，只用于 {@code distanceToSqr}。
  */
 @Mixin(NaturalSpawner.class)
 public abstract class NaturalSpawnerMixin {

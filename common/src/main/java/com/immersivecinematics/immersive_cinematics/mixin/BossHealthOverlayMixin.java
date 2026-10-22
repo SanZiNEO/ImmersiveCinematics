@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/** Boss 血条：按 {@code hideBossbar}（未设回落 {@code hideHud}）隐藏。 */
 @Mixin(BossHealthOverlay.class)
 public class BossHealthOverlayMixin {
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)

@@ -8,12 +8,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * 贝塞尔路径策略 — 弧长参数化的三次贝塞尔曲线插值
- * <p>
- * 在速度驱动模型下，输入的 t 是弧长进度 s ∈ [0,1]。
- * 使用 ArcLengthLUT 将 s 映射为贝塞尔参数 t_bezier，确保匀速运动。
- * <p>
- * 缓存 ArcLengthLUT 避免每帧重建。
+ * 贝塞尔路径策略：弧长参数化的三次贝塞尔曲线插值。
+ * 速度驱动模型下输入的 t 是弧长进度 s ∈ [0,1]，用 {@link ArcLengthLUT} 把 s 映射成贝塞尔参数，
+ * 保证匀速运动；LUT 按段缓存，避免每帧重建。
  */
 public class BezierPathStrategy implements PathStrategy {
 

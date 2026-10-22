@@ -1,6 +1,9 @@
 package com.immersivecinematics.immersive_cinematics.script;
 import java.util.Collections;
 import java.util.List;
+/**
+ * 脚本元数据：标识 / 作者 / 格式版本 + 运行时行为（{@link RuntimeBehavior}）+ 触发定义 + 分辨率基准。
+ */
 public class ScriptMeta {
 
     private final String id;
@@ -90,18 +93,18 @@ public class ScriptMeta {
     public boolean isInterruptible() { return behavior.interruptible(); }
     public boolean isSkippable() { return behavior.skippable(); }
     public boolean isHoldAtEnd() { return behavior.holdAtEnd(); }
-    /** 宏观循环开关：整条时间轴（或 loop_start/loop_end 区间）从 a 到 b 重复执行（第一版只实现 repeat） */
+    /** 宏观循环开关：整条时间轴（或 loop_start / loop_end 区间）从 a 到 b 重复执行。 */
     public boolean isMacroLoop() { return behavior.macroLoop(); }
     /** 宏观循环次数：-1 = 无限重复；正整数 N = 重复 N 圈后自然结束 */
     public int getMacroLoopCount() { return behavior.macroLoopCount(); }
-    /** 宏观循环模式：repeat（默认）/ pingpong（第一版未实现，按 repeat 播放） */
+    /** 宏观循环模式：{@code repeat}（默认）/ {@code pingpong}（按 repeat 播放）。 */
     public String getMacroLoopMode() { return behavior.macroLoopMode(); }
 
     /**
-     * 跨脚本播放关系三态（{@code meta.play_mode}）：声明本脚本<b>在播期间</b>与其它脚本的关系。
-     * 新来者的去向由在播集合裁决（parallel 不阻塞新来者也不被顶掉；exclusive 让新来者排队；
-     * interruptible 可被新来者顶掉）。与同脚本再触发的 {@code meta.interruptible}（bool）分工不同：后者管同脚本替换。
-     * 不进 {@link RuntimeBehavior}——behavior 参与 {@code recomputeUnion} 按位并集，塞进去会污染并集语义。
+     * 跨脚本播放关系三态（{@code meta.play_mode}）：本脚本在播期间与其它脚本的关系。
+     * parallel 不阻塞新来者也不被顶掉；exclusive 让新来者排队；interruptible 可被新来者顶掉。
+     * 与同脚本再触发的 {@code meta.interruptible} 分工不同：后者管同脚本替换。
+     * 不进 {@link RuntimeBehavior}：behavior 参与 {@code recomputeUnion} 按位并集，会污染并集语义。
      */
     public enum PlayMode {
         PARALLEL("parallel"), EXCLUSIVE("exclusive"), INTERRUPTIBLE("interruptible");
@@ -116,7 +119,7 @@ public class ScriptMeta {
         /** JSON 取值字面量。 */
         public String id() { return id; }
 
-        /** 取值域内 → 对应枚举；缺省 / 域外 → {@link #PARALLEL}（旧脚本零回归）。 */
+        /** 取值域内 → 对应枚举；缺省 / 域外 → {@link #PARALLEL}（解析宽容：未知取值不让脚本失效）。 */
         public static PlayMode fromString(String value) {
             for (PlayMode mode : VALUES) {
                 if (mode.id.equals(value)) return mode;

@@ -7,13 +7,13 @@ import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * 飞行取景操控模式（0.3.5 第5轮）。
- * <p>
- * 输入由 InputRouter/Mixin 路由到本控制器：键盘在 tick 里读原版 Options 键位，
- * 鼠标由 MouseHandler.onMove 注入 delta。写侧经 {@code CameraManager} 门面写六参数（不直写内部对象）。
+ * 飞行取景操控模式：键盘在 tick 里读原版 Options 键位，鼠标由 MouseHandler.onMove 注入 delta。
+ *
+ * 写侧经 {@link CameraManager} 门面写六参数（写完立即刷新统一快照），禁止直写内部对象。
  */
 public class FlightController {
 
+    /** 全局单例：会话状态全部实例字段，无并发访问假设。 */
     public static final FlightController INSTANCE = new FlightController();
 
     /** 长按连续微调：两段式加速度（刚按小步长 → 平滑加速 → 封顶最大速率） */
@@ -65,42 +65,56 @@ public class FlightController {
 
     private FlightController() {}
 
+    /** 飞控会话是否激活。 */
     public boolean isActive() {
         return active;
     }
 
+    /** 当前相机位置（世界坐标）。 */
     public Vec3 getPos() {
         return pos;
     }
 
+    /** 当前 yaw（度）。 */
     public float getYaw() {
         return yaw;
     }
 
+    /** 当前 pitch（度）；鼠标移动时钳制 ±90。 */
     public float getPitch() {
         return pitch;
     }
 
+    /** 当前 roll（度）。 */
     public float getRoll() {
         return roll;
     }
 
+    /** 当前 FOV（度）；连续微调时钳制 30~110。 */
     public float getFov() {
         return fov;
     }
 
+    /** 当前 zoom 倍率（钳制 0.5~100）。 */
     public float getZoom() {
         return zoom;
     }
 
+    /** 相机参数是否按绝对坐标解释（否则相对模式）；由飞行模式键切换。 */
     public boolean isModeAbsolute() {
         return modeAbsolute;
     }
 
+    /** 是否按住慢速键（Ctrl）。 */
     public boolean isSlowDown() {
         return keySlow;
     }
 
+    /**
+     * 进入飞控：以给定六参数为起点并立即写入相机，同时记录为取消时的恢复点。
+     *
+     * 起始 zoom 越界钳制到 [0.5, 100]；按键状态全部清零（避免沿用上一会话的按下标记）。
+     */
     public void enter(Vec3 startPos, float startYaw, float startPitch,
                       float startRoll, float startFov, float startZoom,
                       boolean startModeAbsolute) {
@@ -123,11 +137,13 @@ public class FlightController {
         applyToCamera();
     }
 
+    /** 结束飞控会话，保留当前相机参数（不写回、不恢复）。 */
     public void exit() {
         this.active = false;
         resetKeys();
     }
 
+    /** 取消飞控：恢复进入时的六参数并写回相机，再结束会话。 */
     public void cancel() {
         this.pos = startPos;
         this.yaw = startYaw;
@@ -291,7 +307,7 @@ public class FlightController {
 
     private void applyToCamera() {
         if (!active) return;
-        // 写侧收口：经 CameraManager 门面写六参数（写完立即刷新统一快照），不再直写内部对象
+        // 写侧收口：经 CameraManager 门面写六参数（写完立即刷新统一快照），禁止直写内部对象
         CameraManager.INSTANCE.setCameraDirect(pos, yaw, pitch, roll, fov, zoom);
     }
 }

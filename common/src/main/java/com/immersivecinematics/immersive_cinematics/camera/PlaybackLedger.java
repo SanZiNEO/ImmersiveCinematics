@@ -40,13 +40,10 @@ final class PlaybackLedger {
     }
 
     /**
-     * 暂停/恢复握手（按实例）：立即发一条 + 登记 ACK 超时重发（服务端处理幂等）。
-     * <p>
-     * {@code paused} 语义 = 「本实例暂停中」：游戏暂停或规则挂起（0.3.6 C-pause，{@code clip.rules} 的
-     * {@code until} 等待 / {@code pause} 动作）任一成立即冻结服务端 EVENT 时间线；调用侧传组合值。
-     * <p>
-     * 载荷带本实例的内容相对位置（{@code clipStart} + {@code offset}，取自 {@code ScriptPlayer#contentPosition}）：
-     * 服务端据此把 EVENT 时间线基准对到客户端真实位置（不再靠墙钟推算暂停时长）。
+     * 暂停/恢复握手（按实例）：立即发一条 + 登记 ACK 超时重发（服务端处理幂等）。{@code paused} = 本实例
+     * 暂停中（游戏暂停或规则挂起任一成立即冻结服务端 EVENT 时间线）；载荷带本实例的内容相对位置
+     * （{@code clipStart} + {@code offset}），服务端据此把 EVENT 时间线基准对到客户端真实位置，
+     * 不再靠墙钟推算暂停时长。
      */
     void sendPausePacket(String scriptId, String instanceId, boolean paused, float clipStart, float offset) {
         String refId = AckTracker.newRefId();

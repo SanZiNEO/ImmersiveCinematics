@@ -5,14 +5,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 触发器 conditions 字段的 Java 元数据（0.3.5 WebUI Editor）。
- * <p>
+ * 触发器 conditions 字段的 Java 元数据。
+ *
  * 与 TrackSchemas / MetaSchemas 同构：每种触发器类型对应一个 conditions 字段 map，
  * 由 SchemaExporter 导出给 WebUI 动态生成表单。Java 侧是唯一权威。
- * <p>
- * 字段定义参考 docs/TRIGGER_TYPES.md。
- * <p>
- * 新增类型：在 {@link #typeList()} 与 {@link #all()} 各登记一处即可——{@code ScriptValidator}
+ *
+ * 扩展类型：在 {@link #typeList()} 与 {@link #all()} 各登记一处即可——{@code ScriptValidator}
  * 的通用层直接按本表校验 conditions（必填 / 类型 / enum 取值 / 有限数值），无需加校验分支。
  */
 public final class TriggerSchemas {

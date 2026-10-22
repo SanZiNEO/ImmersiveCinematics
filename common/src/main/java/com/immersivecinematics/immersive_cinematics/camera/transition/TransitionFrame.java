@@ -33,7 +33,6 @@ public final class TransitionFrame {
     /** zoom（倍率）。 */
     public float zoom;
 
-    /** 写入六参数（就地覆盖）。 */
     public void set(double px, double py, double pz, float yaw, float pitch, float roll, float fov, float zoom) {
         this.px = px;
         this.py = py;
@@ -45,7 +44,6 @@ public final class TransitionFrame {
         this.zoom = zoom;
     }
 
-    /** 复制另一份载体的六参数（就地覆盖）。 */
     public void copyFrom(TransitionFrame other) {
         set(other.px, other.py, other.pz, other.yaw, other.pitch, other.roll, other.fov, other.zoom);
     }

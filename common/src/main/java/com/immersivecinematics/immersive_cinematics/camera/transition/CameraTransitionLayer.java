@@ -6,18 +6,18 @@ import com.immersivecinematics.immersive_cinematics.math.MathModelInstance;
 /**
  * 过渡层 — A→B 状态过渡的独立层（进度 / 曲线 / 分参数 / 打断与链式；不进 Base / Modifier 内部）。
  *
- * 输入：A 侧（起点）与 B 侧（目标）的整帧六参数（各自按自身时间采样）+ 声明 + 片段交界时刻；
- * 输出：写进调用方提供的 {@link TransitionFrame}。两侧与输出都是「链输出口径」的整帧状态。
- * 接线：输出 = 主相机状态（调用方在 Base 写入点写进链，Modifier 合成在其上）。
- * 窗口与权重：每通道窗口 = 以交界时刻为中心、该通道时长为宽度；进度 = (now − 窗口起点) / 时长，
- * 钳到 [0,1] 后交该通道曲线（缺省恒等 = 线性斜坡）；取值 = BLEND 按权重混合 / HOLD 保持 A 侧 /
- * CUT 交界前 A 侧、交界后 B 侧。混合公式见 {@link TransitionBlend}。
- * 打断与链式：过渡进行中交界变化 = 打断——{@link TransitionInterrupt#BLEND}（缺省）以当前混合中间态为
- * 新的 A 侧、时长重新起算；{@link TransitionInterrupt#SNAP} 立即完成（= 时长 0 特例，本过渡窗口内输出
- * 恒取 B 侧）。A→B→C 链式 = 打断 blend 的自然延伸；同一 / 更早的交界结算后不再重开。
- * 使用面：仅内部（不进 {@code api} 包）；每条过渡流一份实例，状态不跨流共享。
+ * 输入：A 侧（起点）与 B 侧（目标）的整帧六参数（各自按自身时间采样）+ 声明 + 交界时刻；
+ * 输出写进调用方提供的 {@link TransitionFrame}，即主相机状态（调用方在 Base 写入点写进链，
+ * Modifier 合成在其上）。
+ * 窗口与权重：每通道窗口以交界为中心、以该通道时长为宽度；进度钳到 [0,1] 后交该通道曲线
+ * （无曲线 = 线性斜坡）；取值 = BLEND 按权重混合 / HOLD 保持 A 侧 / CUT 交界前 A 侧、交界后 B 侧。
+ * 混合公式见 {@link TransitionBlend}。
+ * 打断：交界变化即打断——{@link TransitionInterrupt#BLEND}（缺省）以当前混合中间态为新 A 侧
+ * （逐位连续、不跳变）、时长重新起算；{@link TransitionInterrupt#SNAP} 立即完成
+ * （= 时长 0 特例，本过渡窗口内输出恒取 B 侧）。
+ * A→B→C 链式 = 打断 blend 的自然延伸；同一 / 更早的交界结算后不再重开。
  * 分配契约：{@link #blendInto} 逐帧零分配（不 new / 不装箱 / 不建集合）；曲线实例只在过渡开始时分配一次。
- * 线程契约：仅客户端主线程。
+ * 线程契约：仅客户端主线程；每条过渡流一份实例，状态不跨流共享。
  */
 public final class CameraTransitionLayer {
 
@@ -80,8 +80,8 @@ public final class CameraTransitionLayer {
      * 每帧过渡求值：推进本层状态并把输出写进 {@code out}。
      *
      * @param now      当前时刻（秒，单调；与交界同一时间基准）
-     * @param boundary 本次过渡的交界时刻（秒；= 两侧片段的交界）
-     * @param spec     本次过渡的声明；{@code null} / 最大时长为 0 = 无过渡
+     * @param boundary 交界时刻（秒；= 两侧片段的交界）
+     * @param spec     过渡声明；{@code null} / 最大时长为 0 = 无过渡
      * @param from     A 侧状态（起点；本层在打断 blend 后改用自己的留底）
      * @param to       B 侧状态（目标）
      * @param out      输出（本层写入；调用方复用）
@@ -145,11 +145,7 @@ public final class CameraTransitionLayer {
         this.lastNow = now;
     }
 
-    /**
-     * 打断：{@code blend} = 打断前的混合中间态留底为新的 A 侧、时长重新起算；{@code snap} = 立即完成
-     * （时长 0 特例）——窗口内输出 = 新目标（B 侧），窗口结束交常规路径。
-     * blend 的 A 侧取自 {@link #lastOutput}（= 打断前最后一帧的输出，逐位连续、不跳变）。
-     */
+    /** 打断处置：snap = 本窗口内恒取 B 侧；blend = 以 {@link #lastOutput} 为新 A 侧、从当帧起算。 */
     private void interrupt(float now, float boundary, TransitionSpec spec) {
         if (spec.interrupt() == TransitionInterrupt.SNAP) {
             this.spec = spec;

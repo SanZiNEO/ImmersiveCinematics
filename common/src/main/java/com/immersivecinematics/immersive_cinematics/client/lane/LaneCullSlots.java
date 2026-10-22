@@ -12,15 +12,12 @@ import java.util.List;
  * 池：槽按需创建（{@link #acquire}）、lane 停播归还（{@link #release}，清空后复用），内存 ∝ 并发 lane 峰值。
  * 登记表：{@link #mirrorCompiled} 向当前被 lane 持有的全部槽投递「区块已编译」事件——原版那份队列每帧只被
  * 首个 pass 排空，其余 lane 槽会漏掉局部更新，候选集停在旧口径、新编译区块在 lane 画面里缺块。
- *
- * 帧栈：{@link #beginPush} / {@link #endPop} 配对登记「本层换入了哪个槽、旧值存进哪个保存位」，
- * 深度通常 ≤ 1（lane pass 顺序执行）；{@link #depth} = 0 时字段就是原版自己的值（无 lane 时零差异）。
+ * 帧栈：{@link #beginPush} / {@link #endPop} 配对登记「本层换入了哪个槽、旧值存进哪个保存位」，深度通常 ≤ 1；
+ * {@link #depth} = 0 时字段就是原版自己的值（无 lane 时零差异）。
  *
  * 线程：池 / 登记表 / 帧栈由渲染线程读写；{@link #mirrorCompiled} 可能来自区块编译完成回调（线程不定），
- * 只做 volatile 快照遍历 + 队列入队，漏投一次不致命（该区块在槽的下一次全量 BFS 里补上）。
- * 分配：换入 / 换出零分配为预热后口径（保存位复用）；首次用到某层时惰性新建保存位、栈扩容时重建数组；
- * {@link #acquire} / {@link #release} 各重建一次
- * {@link #liveSnapshot}（只在 lane 起停时发生，不随帧数增长）。
+ * 只做 volatile 快照遍历 + 队列入队。分配：换入 / 换出预热后零分配（保存位复用）；首次用到某层时惰性新建
+ * 保存位，{@link #acquire} / {@link #release} 各重建一次 {@link #liveSnapshot}（只在 lane 起停时发生）。
  */
 public final class LaneCullSlots {
 
@@ -117,11 +114,9 @@ public final class LaneCullSlots {
     // ===== 区块编译完成的逐 lane 投递 =====
 
     /**
-     * 把一个「刚编译完的区块」投给每个 lane 槽的局部更新队列。
-     *
-     * 只投给候选集已就位的槽：跳过当前换入的槽（原版路径已写它）、未播种的槽、正等全量重建的槽
-     * （{@code fullUpdate} = 局部事件会被下一次全量 BFS 覆盖，且避免局部更新去动播种来的别家候选集）。
-     * 漏投 = 该区块等下个全量 BFS；重复投 = 多跑一次同源扩张；两者都不影响正确性。
+     * 把一个「刚编译完的区块」投给每个 lane 槽的局部更新队列，并同步投给当前保存位（原版槽）。
+     * 只投已播种、且不在等全量重建的槽：跳过当前换入的槽（原版路径已写它）与正等全量重建的槽
+     * （局部事件会被下一次全量 BFS 覆盖）；漏投 / 重复投都不影响正确性（等下个全量 BFS / 多跑一次同源扩张）。
      */
     public static void mirrorCompiled(ChunkRenderDispatcher.RenderChunk renderChunk) {
         LaneCullSlot installed = installed();
@@ -141,8 +136,8 @@ public final class LaneCullSlots {
 
     /**
      * {@code LevelRenderer.allChanged} 后作废全部槽的候选集与可见集合：旧 {@code ViewArea} 的区块已被释放，
-     * 槽内引用必须在下一次读取前被新一次全量 BFS 换掉（{@code fullUpdate = true} 保证顺序）。
-     * 换入中的槽与各层保存位一并处理——{@code allChanged} 可能发生在 lane pass 内。
+     * 槽内引用必须在下一次读取前由新一次全量 BFS 换掉（{@code fullUpdate = true} 保证顺序）。换入中的槽与
+     * 各层保存位一并处理——{@code allChanged} 可能发生在 lane pass 内。
      */
     public static void onAllChanged() {
         for (LaneCullSlot slot : liveSnapshot) {
@@ -155,7 +150,7 @@ public final class LaneCullSlots {
     }
 
     /**
-     * {@code LevelRenderer.needsUpdate()}（窗口尺寸变化 / 选项变化 / F3+A 等「立即全量重建」入口）：
+     * {@code LevelRenderer.needsUpdate()}（窗口尺寸变化 / 选项变化 / 手动强制重建等入口）：
      * 活槽与栈内各层一并标全量重建，可见集合不动（重建后的候选集由各自的门闩重新过滤）。
      */
     public static void onNeedsUpdate() {

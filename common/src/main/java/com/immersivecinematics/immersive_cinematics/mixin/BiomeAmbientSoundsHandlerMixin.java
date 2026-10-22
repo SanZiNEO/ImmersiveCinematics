@@ -10,9 +10,9 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
  * 听者=相机时，群系环境音采样点重定向到相机。
- * <p>
- * 只处理 {@code tick()} 中直接调用 {@code LocalPlayer.getX/getY/getZ} 的主采样路径，
- * 不进入 lambda 合成方法，避免硬编码 Fabric/Forge 的 lambda 方法名。
+ *
+ * 只处理 {@code tick()} 中直接调用 {@code LocalPlayer.getX/getY/getZ} 的主采样路径；
+ * 不进入 lambda 合成方法，避免硬编码 Fabric / Forge 的 lambda 方法名。
  */
 @Mixin(BiomeAmbientSoundsHandler.class)
 public abstract class BiomeAmbientSoundsHandlerMixin {

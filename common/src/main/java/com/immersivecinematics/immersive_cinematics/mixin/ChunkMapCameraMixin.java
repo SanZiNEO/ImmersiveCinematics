@@ -10,17 +10,12 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
- * 虚拟相机中心：把原版 ChunkMap 的玩家差集中心临时替换成相机中心。
- * <p>
- * 核心思路是复用原版 {@link ChunkMap#move(net.minecraft.server.level.ServerPlayer)} 的
- * “旧中心 = lastSectionPos，新中心 = SectionPos.of(player)”机制：
- * <ul>
- *   <li>相机激活：设置虚拟 section，原版 move 自动从玩家过渡到相机；</li>
- *   <li>相机移动：更新虚拟 section，原版 move 自动做 old/new 差集；</li>
- *   <li>相机结束：清除虚拟 section，原版 move 自动从相机过渡回玩家。</li>
- * </ul>
- * 我们只替换“新中心”的来源，DistanceManager/客户端发送全部仍由原版驱动。
- * 相机中心状态存在 {@link CameraVirtualCenterState}，供本类与实体配对 mixin 共用。
+ * 虚拟相机中心：把原版 {@link ChunkMap} 的玩家差集中心临时替换成相机中心。
+ *
+ * 复用原版 {@link ChunkMap#move(ServerPlayer)} 的「旧中心 = {@code lastSectionPos}、新中心 =
+ * {@code SectionPos.of(player)}」机制，只替换新中心的来源：相机激活 → 原版 move 自动从玩家过渡到相机；
+ * 相机移动 → 原版自动做 old/new 差集；相机结束 → 原版自动从相机过渡回玩家。DistanceManager 与客户端发送
+ * 全部仍由原版驱动。相机中心状态存在 {@link CameraVirtualCenterState}，供本类与实体配对 mixin 共用。
  */
 @Mixin(ChunkMap.class)
 public abstract class ChunkMapCameraMixin {

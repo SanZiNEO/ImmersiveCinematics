@@ -14,17 +14,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 每视角 previous 矩阵与 CameraPositionTracker 的保存/恢复。
+ * 每视角 previous 矩阵与 CameraPositionTracker 的保存 / 恢复。
  *
- * <p>这两个实例由两个只读构造器 mixin 注册：</p>
- * <ul>
- *   <li>{@code CameraUniforms.CameraPositionTracker.<init>}；</li>
- *   <li>{@code MatrixUniforms.Previous.<init>}。</li>
- * </ul>
- * <p>mixin 只记录实例、不改光影模组的行为；字段读写发生在 {@link ViewScope} 的视角边界上。</p>
+ * 实例由两个只读构造器 mixin 注册：{@code CameraUniforms.CameraPositionTracker.<init>} 与
+ * {@code MatrixUniforms.Previous.<init>}。mixin 只记录实例、不改光影模组行为，字段读写只发生在
+ * {@link ViewScope} 的视角边界上。
  *
- * <p>光影 pipeline 切换时 {@link #onPipelineChanged()} 会丢掉旧 pipeline 的实例和保存状态，
- * 避免旧 previous/tracker 套到新 pipeline 上。</p>
+ * pipeline 切换时 {@link #onPipelineChanged()} 丢掉旧 pipeline 的实例与保存状态（旧 previous/tracker 不能套到
+ * 新 pipeline 上）。视角连续 2 帧不在活跃列表才释放快照（单帧空档不丢快照），main 永不释放。
  */
 public final class ViewStateCapture {
 
@@ -33,7 +30,7 @@ public final class ViewStateCapture {
     private static Object tracker;
     private static final List<Object> previousInstances = new ArrayList<>();
     private static final Map<String, SavedView> saved = new HashMap<>();
-    /** 已消失视角的连续帧数：连续 2 帧不在活跃列表才释放，避免条件 lane 单帧空档丢历史。 */
+    /** 视角不在活跃列表的连续帧数（连续 2 帧才释放，容忍条件 lane 的单帧空档）。 */
     private static final Map<String, Integer> stale = new HashMap<>();
     /** 上一次 pipeline 变化时已有的 Previous 实例数；切换后新实例追加在它后面。 */
     private static int lastPipelineInstanceCount;
@@ -117,7 +114,7 @@ public final class ViewStateCapture {
         ColorHistoryCapture.release(view);
     }
 
-    /** 每帧 lane 注册后调用：连续 2 帧不在活跃列表的 lane 视角释放快照；main 永不释放。 */
+    /** 每帧 lane 注册后调用：释放连续 2 帧不在活跃列表的 lane 视角快照。 */
     public static void releaseStale(Collection<String> activeViews) {
         if (activeViews == null) {
             return;

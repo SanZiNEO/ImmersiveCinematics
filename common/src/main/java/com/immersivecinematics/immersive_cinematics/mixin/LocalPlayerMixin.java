@@ -10,11 +10,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 玩家移动控制（假输入注入）：
- * 注入 {@code LocalPlayer.serverAiStep} @HEAD——
- * 原版该方法在 {@code super.serverAiStep()} 后将 {@code input.leftImpulse/forwardImpulse}
- * 复制到 {@code xxa/zza} 走 {@code travel()} 完整链路。我们在 @HEAD（input.tick 之后）写入冲量，
- * 实现"朝目标点走"；仅在脚本激活且 PlayerMoveController 有当前目标时启用。非激活时一字不动（走原版键盘）。
+ * 玩家移动控制（假输入注入）：在 {@code LocalPlayer.serverAiStep} 的 HEAD 写
+ * {@code input.leftImpulse/forwardImpulse}。
+ *
+ * 原版在 {@code super.serverAiStep()} 之后才把这两个冲量复制到 {@code xxa/zza} 再走 {@code travel()} 完整链路，
+ * 所以必须抢在 HEAD（{@code input.tick} 之后）写，再晚这次写入就不会被本次 travel 读到。
+ * 仅在脚本激活且 {@link PlayerMoveController} 有当前目标时启用；非激活时一字不动（走原版键盘）。
  */
 @Mixin(LocalPlayer.class)
 public class LocalPlayerMixin {

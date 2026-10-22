@@ -5,10 +5,9 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import java.util.List;
 
 /**
- * GIF 动图数据（0.3.5 第5轮 5C）。
- * <p>
- * 拆帧后持有全部 NativeImage 帧与每帧延迟；渲染时按 globalTime 计算帧索引，
- * 把目标帧 copy 进同一个 DynamicTexture 并 upload，显存只占一帧。
+ * GIF 动图数据：拆帧后持有全部 NativeImage 帧与每帧延迟。
+ *
+ * 渲染时按 globalTime 计算帧索引，把目标帧 copy 进同一个 DynamicTexture 并 upload，显存只占一帧。
  */
 public class GifAnimation {
 

@@ -11,10 +11,10 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
- * despawn 的"最近玩家"改用相机锚点虚拟玩家。
- * <p>
- * 相机锚点存在（预加载会话期间）且锚点虚拟玩家比真实玩家更近时返回虚拟玩家，
- * 让相机区域的普通怪按原版规则留在原处（128 格外才 despawn、32 格内清 noActionTime）。
+ * despawn 的「最近玩家」改用相机锚点虚拟玩家。
+ *
+ * 相机锚点存在（预加载会话期间）且锚点虚拟玩家比真实玩家更近时返回虚拟玩家，让相机区域的普通怪按原版规则
+ * 留在原处（128 格外才 despawn、32 格内清 {@code noActionTime}）；否则相机一飞远，镜头里的怪就被清掉。
  * 锚点不在附近（>128 格）或本方法运行在客户端时返回原版结果。
  */
 @Mixin(Mob.class)

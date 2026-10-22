@@ -14,16 +14,15 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Map;
 
 /**
- * 结构定位工具 — 返回结构的几何中心（bounding box 中心）
- * <p>
- * 找结构用<b>触发器同款附近搜寻</b>（structureManager.getAllStructuresAt 按 chunk 步进扫描
- * 玩家附近已加载区域的 STRUCTURE_REFERENCES）——look_at/相对基准的场景基本都是"玩家在结构附近"，
+ * 结构定位工具 — 返回结构的几何中心（bounding box 中心）。
+ *
+ * 找结构用触发器同款附近搜寻（{@code structureManager.getAllStructuresAt} 按 chunk 步进扫描
+ * 玩家附近已加载区域的 STRUCTURE_REFERENCES）：look_at / 相对基准的场景基本都是「玩家在结构附近」，
  * 附近搜寻天然命中最近的已加载结构。
- * <p>
- * 不采用原版 {@code findNearestMapStructure}（/locate 同源）：它是网格环序 + 环内固定顺序命中，
- * 可能选到更远的未加载区域结构（相机飞到远处），且会强制加载 chunk。
- * <p>
- * 命中后取 {@link StructureStart#getBoundingBox()} 的几何中心作为注视/相对基准。
+ *
+ * 不用原版 {@code findNearestMapStructure}（/locate 同源）：它是网格环序 + 环内固定顺序命中，
+ * 可能选到更远的未加载区域结构（相机飞到远处），且会强制加载 chunk。只在已加载区域查找。
+ * 命中后取 {@link StructureStart#getBoundingBox()} 的几何中心作为注视 / 相对基准。
  * 服务端播放推送（CinematicCommand）与客户端编辑器预览（CameraTrackPlayer）共用此实现。
  */
 public final class StructureLocator {
@@ -69,7 +68,7 @@ public final class StructureLocator {
             }
             return null;
         } catch (Exception e) {
-            // 定位失败 → null（调用方按"结构未找到"处理，片段空）；真实扫描异常要可见
+            // 定位失败 → null（调用方按「结构未找到」处理，片段空）；异常记 warn
             org.slf4j.LoggerFactory.getLogger("ImmersiveCinematics/StructureLocator")
                     .warn("结构定位异常 '{}': {}", structureId, e.getMessage());
             return null;

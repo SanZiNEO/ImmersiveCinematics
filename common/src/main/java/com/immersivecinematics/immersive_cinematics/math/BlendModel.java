@@ -21,7 +21,10 @@ public final class BlendModel implements MathModel {
     private final MathModel b;
     private final double weight;
 
-    /** @param a 子模型（非 null；缺省 / 无效由注册表回落 linear）；@param weight 权重，越界 / NaN 按 {@link #clampWeight} 钳制 */
+    /**
+     * @param a 子模型（非 null；缺省 / 无效由注册表回落 linear）
+     * @param weight 权重；越界 / NaN 按 {@link #clampWeight} 钳制
+     */
     public BlendModel(ValueDomain domain, MathModel a, MathModel b, double weight) {
         this.domain = domain;
         this.a = a;

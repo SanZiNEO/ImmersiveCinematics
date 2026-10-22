@@ -33,13 +33,12 @@ import java.util.UUID;
 
 /**
  * 触发器条件求值（服务端）：每种触发器类型一个静态方法，输入 = 玩家 + conditions 对象。
- *
- * 纯几何 / id 匹配 / 朝向区间数学已下沉到 {@link GeometryConditions}（0.3.6 C6-2，规则侧客户端共用同一核），
+ * 纯几何 / id 匹配 / 朝向区间数学在 {@link GeometryConditions}（规则侧客户端共用同一核），
  * 本类只保留「读玩家 / 世界状态」的部分并委托共享核。线程契约：仅服务端主线程。
  */
 public class Evaluators {
 
-    /** 区域条件外扩：委托判定源共享几何（{@link GeometryConditions#expandConditions}，C6-2 下沉）。 */
+    /** 区域条件外扩：委托共享几何核（规则侧客户端同一实现）。 */
     public static JsonObject expandConditions(JsonObject c, float buffer) {
         return GeometryConditions.expandConditions(c, buffer);
     }
@@ -458,7 +457,7 @@ public class Evaluators {
         }
     }
 
-    // ===== 0.3.6：朝向范围 + 多重条件（AND 组合） =====
+    // ===== 朝向范围 + 多重条件（AND 组合） =====
 
     /** 数字字段检查（存在且是数字） */
     private static boolean isNumber(JsonObject c, String key) {
@@ -469,7 +468,7 @@ public class Evaluators {
     /**
      * 朝向范围条件：玩家视线（原版 yaw / pitch，服务端同步的玩家实体值）是否落在
      * (yaw1, pitch1) → (yaw2, pitch2) 内。区间数学（含跨 ±180° 环绕）委托
-     * {@link GeometryConditions#facingInRange}（C6-2 下沉，规则侧客户端共用同一核）。
+     * {@link GeometryConditions#facingInRange}（规则侧客户端共用同一核）。
      * 只读玩家实体自身的朝向，与相机脚本 / 模组相机无关。
      */
     public static boolean evaluateFacing(ServerPlayer player, JsonObject c) {
@@ -497,7 +496,7 @@ public class Evaluators {
     }
 
     /**
-     * 任一条件（OR）：conditions.list 内**任一**子条件满足即为真，命中即短路。
+     * 任一条件（OR）：conditions.list 内任一子条件满足即为真，命中即短路。
      * 与 {@link #evaluateAllOf} 同构（同一份 list、同一个内核），只有判定从“全真”改为“任一真”；
      * 前置条件是锁存语义，解锁后该子条件持续为真，因此 any 列表里含已解锁前置条件时下一轮即命中。
      */
@@ -589,8 +588,8 @@ public class Evaluators {
 
     /**
      * death 触发器记录：每位玩家单槽（最近一次死亡），内容 = 死亡时刻的维度 / 群系 / 坐标。
-     * <p>与 {@link KillTracker} 并列而不复用：KillRecord 带实体 id 且维护 allKills 集合（entity_kill 的
-     * and 模式语义），死亡没有"被杀的实体"，混用会污染该集合。维度 / 群系为 id 字符串，坐标为世界坐标。
+     * 与 {@link KillTracker} 并列而不复用：KillRecord 带实体 id 且维护 allKills 集合（entity_kill 的
+     * and 模式语义），死亡没有“被杀的实体”，混用会污染该集合。
      */
     public static class DeathTracker {
         /** 死亡记录：死亡时刻的维度 / 群系 / 坐标（场景条件用，与 KillRecord 的对应字段同形） */

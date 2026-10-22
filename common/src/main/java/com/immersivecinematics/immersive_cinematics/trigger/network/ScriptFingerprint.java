@@ -3,10 +3,9 @@ package com.immersivecinematics.immersive_cinematics.trigger.network;
 import java.security.MessageDigest;
 
 /**
- * 脚本文件指纹（N2b）— 内容 SHA-256 前 16 字符 hex。
- * <p>
- * 服务端/客户端只做指纹对比，不解析内容，避免无谓的整体重算。
- * 异常时用内容长度作为弱指纹兜底（简单可靠）。
+ * 脚本文件指纹 — 内容 SHA-256 前 16 字符 hex。
+ * 服务端/客户端只做指纹对比，不解析内容，避免无谓的整体重算；
+ * 摘要不可用时用内容长度兜底（可能"内容变但指纹不变"）。
  */
 public final class ScriptFingerprint {
 

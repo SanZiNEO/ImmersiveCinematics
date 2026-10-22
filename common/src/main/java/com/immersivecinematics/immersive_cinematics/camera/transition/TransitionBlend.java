@@ -13,23 +13,23 @@ public final class TransitionBlend {
 
     private TransitionBlend() {} // 工具类，禁止实例化
 
-    /** 位置逐轴线性混合（世界坐标，方块）。 */
+    /** 位置逐轴线性（世界坐标，方块）。 */
     public static double axis(double a, double b, float weight) {
         return a * (1f - weight) + b * weight;
     }
 
-    /** 线性混合（pitch / fov，度）。 */
+    /** 线性（pitch / fov，度）。 */
     public static float linear(float a, float b, float weight) {
         return a * (1f - weight) + b * weight;
     }
 
-    /** 最短路径角度混合（度）：差值环绕到 [-180, 180) 后按权重推进。 */
+    /** 最短路径角度混合（度）。 */
     public static float angle(float a, float b, float weight) {
         float diff = ((b - a) % 360f + 540f) % 360f - 180f;
         return a + diff * weight;
     }
 
-    /** 几何域混合（zoom）：两侧均 > 0 时按对数等比推进，否则回退线性。 */
+    /** zoom 几何域混合（倍率）。 */
     public static float zoom(float a, float b, float weight) {
         if (a <= 0f || b <= 0f) {
             return linear(a, b, weight);

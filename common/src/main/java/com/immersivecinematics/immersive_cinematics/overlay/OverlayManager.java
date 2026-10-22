@@ -9,17 +9,15 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * 覆盖层管理器 — 单例模式
- * <p>
- * 类似剪辑软件的轨道系统，管理所有覆盖层的生命周期和渲染顺序。
- * 层按 zIndex 升序排列：zIndex 越小越先绘制（底层），越大越后绘制（顶层）。
- * <p>
+ * 覆盖层管理器 —— 层的注册表与统一调度（渲染 / 动画驱动 / 按归属清理）。
+ *
+ * 层按 zIndex 升序排列：越小越先绘制（底层），越大越后绘制（顶层）。
  * 层由建层方（{@code OverlayTrackPlayer} / {@code LetterboxTrackPlayer}）运行时加入，
- * 每层带一个不透明的<b>归属 token</b>（{@link OverlayLayer#owner()}，值 = 播放实例引用）；
- * 渐出触发 / 动画判定 / 清理都按归属过滤——一个实例退场不碰其他实例的层（设计 §6-2）。
- * 无参全停版 {@code startFadeOut()} 已删除：全停走逐实例 {@code deactivateNow}，不经渐出。
- * <p>
- * 支持多实例层（如多个文字层 / 多实例黑边层），通过 {@link #getLayers(Class)} 按类型查找所有匹配层。
+ * 每层带一个不透明的归属 token（{@link OverlayLayer#owner()}，值 = 播放实例引用）；
+ * 渐出触发 / 动画判定 / 清理都按归属过滤 —— 一个实例退场不碰其他实例的层。
+ * 全停（{@code forceDeactivate} / {@code emergencyStop}）不经渐出：逐实例 {@code deactivateNow} 直接清层。
+ *
+ * 支持多实例层（如多个文字层 / 多实例黑边层）：{@link #getLayers(Class)} 按类型返回全部匹配层。
  */
 public class OverlayManager {
 
@@ -34,10 +32,7 @@ public class OverlayManager {
     // ========== 渲染 ==========
 
     /**
-     * 渲染所有可见的覆盖层
-     * <p>
-     * 按 zIndex 升序顺序渲染，确保底层先绘制、顶层后绘制。
-     * 不可见的层（isVisible() == false）自动跳过。
+     * 渲染所有可见的覆盖层：按 zIndex 升序绘制（底层先、顶层后），不可见的层跳过。
      *
      * @param guiGraphics  Minecraft GUI 绘图上下文
      * @param screenWidth  窗口宽度（像素）
@@ -54,9 +49,7 @@ public class OverlayManager {
     // ========== 层管理 ==========
 
     /**
-     * 添加覆盖层
-     * <p>
-     * 添加后自动按 zIndex 重新排序
+     * 添加覆盖层，并按 zIndex 重新排序。
      *
      * @param layer 要添加的覆盖层
      */
@@ -78,9 +71,7 @@ public class OverlayManager {
     }
 
     /**
-     * 按类型查找所有匹配的覆盖层（支持多实例）
-     * <p>
-     * 适用于同一类型有多个实例的场景，如多个 TextLayer。
+     * 按类型查找所有匹配的覆盖层（多实例）：同一类型可有多个实例，如多个 TextLayer。
      *
      * @param clazz 层的 Class 对象
      * @param <T>   层类型
@@ -96,9 +87,7 @@ public class OverlayManager {
     // ========== 动画驱动 ==========
 
     /**
-     * 每渲染帧更新所有层（驱动动画）
-     * <p>
-     * 在 render() 之前调用，遍历所有层调用 tick(deltaTime)。
+     * 每渲染帧更新所有层（驱动动画）：在 render() 之前调用，逐层 tick(deltaTime)。
      *
      * @param deltaTime 距上一帧的秒数
      */
@@ -109,8 +98,9 @@ public class OverlayManager {
     }
 
     /**
-     * 指定归属是否有层正在执行过渡动画（帧驱动据此判定<b>该实例</b>的退场是否完成：
-     * A 实例的渐出不决定 B 实例何时停）。逐层读 {@link OverlayLayer#isAnimating()}，零分配。
+     * 指定归属是否有层正在执行过渡动画（帧驱动据此判定该实例的退场是否完成：
+     * A 实例的渐出不决定 B 实例何时停）。
+     * 逐层读 {@link OverlayLayer#isAnimating()}，零分配。
      *
      * @param owner 层归属 token（{@code null} = 只匹配无主层）
      */
@@ -134,7 +124,6 @@ public class OverlayManager {
 
     /**
      * 触发指定归属层的退出动画（只对 {@code owner} 匹配的层调 {@link OverlayLayer#startFadeOut()}）。
-     * 无参版已删除：全停（forceDeactivate / emergencyStop）不经渐出，走逐实例 {@code deactivateNow}。
      *
      * @param owner 层归属 token（{@code null} = 只匹配无主层）
      */
@@ -147,7 +136,7 @@ public class OverlayManager {
 
     /**
      * 移除指定归属的全部层并释放其 GPU 资源（{@link OverlayLayer#close()}）。
-     * <p>实例退场兜底：TrackPlayer 清理抛异常时也不留残层。</p>
+     * 实例退场兜底：TrackPlayer 清理抛异常时也不留残层。
      *
      * @param owner 层归属 token（{@code null} = 只匹配无主层）
      * @return 实际移除的层数
@@ -168,12 +157,8 @@ public class OverlayManager {
     // ========== 生命周期 ==========
 
     /**
-     * 重置所有层到默认状态
-     * <p>
-     * 遍历所有注册的层调用各自的 reset()，
-     * 每层自行负责自己的重置逻辑，无需在此硬编码。
-     * <p>
-     * 在相机停用时调用，确保黑边等效果消失
+     * 重置所有层到默认状态：遍历所有层调用各自的 reset()，每层自行负责重置逻辑。
+     * 在相机停用时调用，确保黑边等效果消失。
      */
     public void reset() {
         for (OverlayLayer layer : layers) {

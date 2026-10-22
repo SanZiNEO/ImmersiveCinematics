@@ -3,20 +3,18 @@ package com.immersivecinematics.immersive_cinematics.overlay;
 import net.minecraft.client.gui.GuiGraphics;
 
 /**
- * 画幅层（letterbox）— 黑边
+ * 画幅层（letterbox）—— 上下或左右黑边。
  *
- * 画幅层无素材、铺满窗口，故 x/y/anchor/scale 对它不生效；<b>opacity 有效</b>（黑边整体透明度，
- * 见 {@link #setOpacity}）。黑边由窗口尺寸与目标画幅比（{@code aspect_ratio}）决定，<b>不乘 k</b>
+ * 画幅层无素材、铺满窗口，故 x/y/anchor/scale 对它不生效；opacity 有效（黑边整体透明度，
+ * 见 {@link #setOpacity}）。黑边由窗口尺寸与目标画幅比（{@code aspect_ratio}）决定，不乘 k
  * （分辨率转义只作用于有素材的层）。
  *
  * 按目标画幅比与窗口宽高比的关系画一种黑边（两者相等时一条不画）：
  * 目标画幅比更宽（如 2.35:1 电影黑边）→ 上下黑边，{@code contentHeight = 窗口宽 / ratio < 窗口高}；
- * 目标画幅比更窄（如 16:9 窗口设 1.0）→ 左右黑边（pillarbox），{@code contentWidth = 窗口高 · ratio < 窗口宽}。
+ * 目标画幅比更窄（如 16:9 窗口设 1.0）→ 左右黑边（pillarbox），{@code contentWidth = 窗口高 · ratio}。
  *
- * 黑边是唯一写死 z（0，最底层）的内置层 —— 不在脚本 {@code z_index} 口径内。
- *
- * <b>per-instance</b>：每个 LETTERBOX 轨道各持一层（构造时 {@code addLayer}、{@code onStop} 移除），
- * 不再有全局单例共写 —— 多实例各自黑边互不覆盖（设计 §6-2）。
+ * z = 0（最底层；唯一写死 z 的内置层，不在脚本 {@code z_index} 口径内）。
+ * 每个 LETTERBOX 轨道各持一层（构造时 {@code addLayer}、{@code onStop} 移除），多实例互不覆盖。
  */
 public class LetterboxLayer implements OverlayLayer {
 

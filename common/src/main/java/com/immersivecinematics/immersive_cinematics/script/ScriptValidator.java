@@ -27,10 +27,12 @@ import java.util.Map;
 
 /**
  * 脚本静态校验器 — 供 /icinematics validate 命令使用。
- * <p>
- * 与 {@link ScriptParser} 不同：解析器"报错即停"（运行时），本校验器**收集所有问题**继续扫描，
- * 一次输出完整问题清单（结构错误 / 字段缺失 / 语义错误 / 缺省字段提示）。
- * 面向"AI 仅凭参考指南写脚本"的场景：拿到清单即可逐条修正。
+ *
+ * 与 {@link ScriptParser} 的区别：解析器遇错即停（运行时拒载），本校验器收集全部问题继续扫描，
+ * 一次输出完整清单（结构错误 / 字段缺失 / 语义错误 / 缺省字段提示）。
+ * 面向 AI 仅凭参考指南写脚本的场景：拿到清单即可逐条修正。
+ * 校验口径与解析器同源（同一口径）：校验拦下的写法解析期也会拒绝；校验器另有更严的结构语义
+ * 提示（见 {@link #checkRules}）。失败只返回 issue 列表，不抛异常。
  */
 public final class ScriptValidator {
 
@@ -43,7 +45,7 @@ public final class ScriptValidator {
             {"CAMERA", "LETTERBOX", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY", "ADJUST"};
 
     /**
-     * 调色曲线字段（clip 级结构字段，0.3.6 起 ADJUST 轨与 CAMERA 片段共用同一套）：
+     * 调色曲线字段（clip 级结构字段，ADJUST 轨与 CAMERA 片段共用同一套）：
      * {@code rgb_curve} = RGB 复合曲线；{@code r_curve} / {@code g_curve} / {@code b_curve} = 每通道曲线；
      * 后六条 = DaVinci 曲线页口径的 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）。
      */
@@ -54,13 +56,13 @@ public final class ScriptValidator {
     /**
      * 层级混合模式（clip 级 {@code blend_mode} 的合法值；顺序 = shader 的 {@code BlendMode} uniform
      * 编码 {@code 0 ~ 4}，与 {@code client/post/ColorAdjustParams} 的 {@code BLEND_*} 常量一一对应）。
-     * <p>缺省 {@code normal} = 直替换 = 现状；混合模式作用于调整层（= ADJUST 轨）的输出与基画面，
-     * 只写在 ADJUST 轨（master）的片段上——相机片段上写会被拦下（同 {@code lut} 口径）。</p>
+     * 缺省 {@code normal} = 直替换；混合模式作用于调整层（= ADJUST 轨）的输出与基画面，
+     * 只写在 ADJUST 轨（master）的片段上——相机片段上写会被拦下（同 {@code lut} 口径）。
      */
     private static final String[] BLEND_MODES =
             {"normal", "multiply", "screen", "soft_light", "overlay"};
 
-    /** fade 覆盖形状（0.3.6 D4–D7；缺省 full = 整窗口）。 */
+    /** fade 覆盖形状（缺省 full = 整窗口）。 */
     private static final String[] FADE_MASK_SHAPES = {"full", "rect", "circle"};
 
     /** fade 高级颜色遮罩的 clip 级字段：只属于 layer_type=fade（image / subtitle 上写直接报错）。 */
@@ -71,7 +73,7 @@ public final class ScriptValidator {
             "color", "mask_x", "mask_y", "mask_width", "mask_height", "mask_radius",
             "gradient_angle", "gradient_center_x", "gradient_center_y", "gradient_radius"};
 
-    /** CAMERA lane 合成遮罩的几何关键帧字段（0.3.6 D2）：只属于关键帧。 */
+    /** CAMERA lane 合成遮罩的几何关键帧字段：只属于关键帧。 */
     private static final String[] CAMERA_MASK_GEOMETRY_FIELDS = {
             "mask_x", "mask_y", "mask_width", "mask_height", "mask_radius"};
 
@@ -80,13 +82,10 @@ public final class ScriptValidator {
             "gradient", "gradient_angle", "gradient_center_x", "gradient_center_y", "gradient_radius"};
 
     /**
-     * 调色关键帧标量通道 → 合法区间（顺序与
-     * {@code TrackSchemas.adjust()} / {@code ColorAdjustParams} / {@code ic_color_adjust.fsh} 一致）。
-     * <p>0.3.6 起 ADJUST 轨与 CAMERA 片段共用同一套通道（见 {@link #checkAdjustFields}）。</p>
-     * <p>标量通道缺省 0 = 无效果（{@code curve_strength} / {@code r_curve_strength} / {@code g_curve_strength} /
-     * {@code b_curve_strength} 与六条 hue 曲线的强度 {@code hv_h_strength} ~ {@code sv_l_strength}
-     * 例外：缺省 1 = 曲线全量生效）。层级混合的 {@code blend_amount}（0 ~ 1，缺省 1）不在这里——
-     * 它与 clip 级 {@code blend_mode} 一起由 {@link #checkBlendFields} 校验（ADJUST 轨专用）。</p>
+     * 调色关键帧标量通道 → 合法区间（顺序与 {@code TrackSchemas.adjust()} / {@code ColorAdjustParams} /
+     * {@code ic_color_adjust.fsh} 一致；ADJUST 轨与 CAMERA 片段共用，见 {@link #checkAdjustFields}）。
+     * 标量通道缺省 0 = 无效果；十个曲线强度（curve / r_curve / g_curve / b_curve 与 hv_h ~ sv_l）缺省 1；
+     * {@code blend_amount}（0 ~ 1，缺省 1）见 {@link #checkBlendFields}。
      */
     private static final List<ChannelRange> ADJUST_CHANNELS = List.of(
             new ChannelRange("exposure", -5f, 5f),
@@ -381,10 +380,10 @@ public final class ScriptValidator {
                 }
                 checkEnum(clip, cp, "transition", issues, "cut", "morph");
                 checkEnum(clip, cp, "orient", issues, "manual", "tangent");
-                // 判定规则（0.3.6 C6-1）：与轨道无关，任意轨道的片段都可挂（轨道作用域不拦）
+                // 判定规则：与轨道无关，任意轨道的片段都可挂（轨道作用域不拦）
                 checkRules(clip, cp, issues);
                 if ("CAMERA".equalsIgnoreCase(type)) {
-                    // 废弃检测：position_mode / cam_tracking_* 已迁移到关键帧级
+                    // 拒绝 clip 级 position_mode / cam_tracking_*：这些字段只写在关键帧对象里
                     if (clip.has("position_mode") || clip.has("cam_tracking_look_at")
                             || clip.has("cam_tracking_look_target_x") || clip.has("cam_tracking_look_target_y")
                             || clip.has("cam_tracking_look_target_z") || clip.has("cam_tracking_target_selector")
@@ -393,16 +392,16 @@ public final class ScriptValidator {
                         issues.add(cp + " 使用了已废弃的 clip 级字段（position_mode / cam_tracking_*）——已迁移到关键帧级："
                                 + "position_mode、follow、follow_selector、look_at、look_at_selector、look_at_target_x/y/z 写在关键帧对象里");
                     }
-                    // 调色（0.3.6）：本相机片段自带调色，作用于该相机轨的 lane——字段集与 ADJUST 轨完全一致
+                    // 调色：本相机片段自带调色，作用于该相机轨的 lane——字段集与 ADJUST 轨完全一致
                     checkRemovedScopeLane(clip, cp, issues);
                     checkAdjustFields(clip, cp, null, null, issues);
-                    // 相机参数运动模型（0.3.6）：clip 级 motion_* 六字段
+                    // 相机参数运动模型：clip 级 motion_* 六字段
                     checkMotionModels(clip, cp, issues);
-                    // 覆盖链 Modifier（0.3.6）：clip 级 modifier 声明 + suppress_modifiers 标志
+                    // 覆盖链 Modifier：clip 级 modifier 声明 + suppress_modifiers 标志
                     checkModifier(clip, cp, issues);
-                    // 过渡声明（0.3.6）：clip 级分参数 / 权重曲线 / 打断（只对 transition=morph 生效）
+                    // 过渡声明：clip 级分参数 / 权重曲线 / 打断（只对 transition=morph 生效）
                     checkTransition(clip, cp, issues);
-                    // lane 合成遮罩（0.3.6 D2）：clip 级只允许 mask_shape，几何只属于关键帧
+                    // lane 合成遮罩：clip 级只允许 mask_shape，几何只属于关键帧
                     checkCameraMaskClipFields(clip, cp, issues);
                     // LUT 是整体画面（master）处理，只挂在 ADJUST 轨：相机片段上写 lut 不会生效，直接拦下
                     if (clip.has("lut")) {
@@ -442,7 +441,7 @@ public final class ScriptValidator {
                     }
                 }
                 if ("ADJUST".equalsIgnoreCase(type)) {
-                    // ADJUST 轨只作用于整体画面（master）：lane 级调色已改为 CAMERA 片段字段
+                    // ADJUST 轨只作用于整体画面（master）；lane 级调色写在 CAMERA 片段上
                     checkRemovedScopeLane(clip, cp, issues);
                     checkAdjustFields(clip, cp, null, null, issues);
                     // LUT（整体画面烘焙）：clip 级 lut 文件名 + 关键帧级 lut_strength——只在 ADJUST 轨
@@ -616,13 +615,13 @@ public final class ScriptValidator {
                             checkPointSourceTime(kf, kp, "yaw_base_from", issues);
                             checkPointSourceTime(kf, kp, "yaw_base_to", issues);
                             checkLookAtTime(kf, kp, lookAt, issues);
-                            // ===== 合成参数（0.3.6 camera-composition）：opacity / dest / source =====
+                            // ===== 合成参数：opacity / dest / source =====
                             checkUnitFloat(kf, kp, "opacity", issues);
                             checkRect(kf, kp, "dest", issues);
                             checkRect(kf, kp, "source", issues);
-                            // lane 合成遮罩几何（0.3.6 D2）：有限中心 + 非负宽高 / 半径；形状只属于 clip 级
+                            // lane 合成遮罩几何：有限中心 + 非负宽高 / 半径；形状只属于 clip 级
                             checkCameraMaskKeyframeFields(kf, kp, issues);
-                            // 调色（0.3.6）：本相机片段关键帧的 57 个调色通道区间
+                            // 调色：本相机片段关键帧的 57 个调色通道区间
                             checkAdjustFields(null, null, kf, kp, issues);
                             // LUT 是整体画面（master）处理：相机片段关键帧写 lut_strength 同样不生效，直接拦下
                             if (kf.has("lut_strength")) {
@@ -660,22 +659,21 @@ public final class ScriptValidator {
                             }
                         }
 
-                        // LETTERBOX 关键帧：黑边不透明度 opacity（0~1，缺省 1 = 纯黑边；0.3.6 D10 接通）
+                        // LETTERBOX 关键帧：黑边不透明度 opacity（0~1，缺省 1 = 纯黑边）
                         if ("LETTERBOX".equalsIgnoreCase(type)) {
                             checkUnitFloat(kf, kp, "opacity", issues);
                         }
                     }
                 }
 
-                // 片段时间允许重叠（0.3.6 lane 模型）：叠化 = 上一个 clip 末尾帧复制延长（hold 等值关键帧）
-                // + 下一个 clip 首帧复制延长，两冻结区时间交叉、opacity 关键帧交叉（scene-transition §3.2）；
-                // 重叠区按「轨道层级 → 轨道内 clip 顺序」分层（后者在上，camera-composition §1）。
-                // 故此处不再拒绝同轨道重叠——旧「一个时间点只能有一个相机状态」的单相机约束已随 lane 模型作废。
+                // 片段时间允许重叠（lane 模型）：叠化 = 上一个 clip 末尾帧复制延长（hold 等值关键帧）
+                // + 下一个 clip 首帧复制延长，两冻结区时间交叉、opacity 关键帧交叉；
+                // 重叠区按「轨道层级 → 轨道内 clip 顺序」分层（后者在上）。
                 float end = start + dur;
                 prevContentEnd = Math.max(prevContentEnd, end);
             }
             if (prevContentEnd > 0f) {
-                // 预留：可在此处对比 total_duration 与内容末尾
+                // 预留：可在此处对比 total_duration 与内容末尾（目前不校验轨道总长）
             }
         }
         return issues;
@@ -683,7 +681,7 @@ public final class ScriptValidator {
 
     /**
      * 校验数值字段的取值区间（闭区间）；字段缺省时跳过（缺省值生效）。
-     * <p>与 {@link #checkUnitFloat} 同族，只是区间由调用方给定（ADJUST 轨道的各通道区间不同）。</p>
+     * 与 {@link #checkUnitFloat} 同族，区间由调用方给定（ADJUST 各通道区间不同）。
      */
     private static void checkRange(JsonObject obj, String path, String key, List<String> issues,
                                    float min, float max) {
@@ -705,14 +703,10 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验调色字段（0.3.6 起 ADJUST 轨与 CAMERA 片段的调色字段集完全一致；ADJUST 作用于整体画面，
-     * CAMERA 片段作用于该相机轨的 lane）：
-     * <ul>
-     *   <li>clip 级：10 条调色曲线的结构（{@link #COLOR_CURVE_FIELDS}，控制点数组）；</li>
-     *   <li>关键帧级：57 个通道的取值区间（{@link #ADJUST_CHANNELS} = 47 个标量 + 10 个曲线强度）。</li>
-     * </ul>
-     * <p>{@code clip} 与 {@code kf} 分别对应两种上下文，调用方按当前层级传非空值、另一侧传 {@code null}
-     * （路径前缀 {@code cp} / {@code kp} 随之，缺省字段一律跳过、由缺省值生效）。</p>
+     * 校验调色字段（ADJUST 轨与 CAMERA 片段共用同一套字段集）：ADJUST 作用于整体画面（master），
+     * CAMERA 片段作用于该相机轨的 lane；clip 级 = 10 条调色曲线结构（{@link #COLOR_CURVE_FIELDS}），
+     * 关键帧级 = 57 个通道的取值区间（{@link #ADJUST_CHANNELS} = 47 标量 + 10 曲线强度）。
+     * {@code clip} / {@code kf} 按上下文各传一侧、另一侧传 {@code null}；缺省字段跳过（由缺省值生效）。
      */
     private static void checkAdjustFields(JsonObject clip, String cp, JsonObject kf, String kp,
                                           List<String> issues) {
@@ -889,12 +883,10 @@ public final class ScriptValidator {
 
     /**
      * 校验 clip 级 {@code rules}（判定规则；与轨道无关，任意轨道的片段都可挂）。
-     *
-     * 与 {@link ClipRule#parse} 同一口径（校验拦下的写法解析期也会拒绝），另加三条结构语义拦截：
-     * 空数组（= 不写；写出来必是作者误解）、{@code until} 带 {@code once} / {@code cooldown}
-     * （阻塞规则触发即解除，无重复触发概念）、{@code pause} 无同片段释放规则（见 {@link #checkPauseReleaser}）。
-     * 条件 type 白名单 = v1 判定源 + 组合器（C6-2）；
-     * 动作 {@code type} 白名单归动作集（C6-3），本层只查元素是对象且带字符串 {@code type}。
+     * 与 {@link ClipRule#parse} 同一口径，另加三条结构语义拦截：空数组（= 不写；写出来必是作者误解）、
+     * {@code until} 带 {@code once} / {@code cooldown}（阻塞规则触发即解除）、{@code pause} 无同片段释放规则
+     * （见 {@link #checkPauseReleaser}）。条件 type 白名单 = v1 判定源 + 组合器；动作 type 白名单归动作集，
+     * 本层只查元素是对象且带字符串 {@code type}。
      */
     private static void checkRules(JsonObject clip, String cp, List<String> issues) {
         if (!clip.has("rules")) return;
@@ -915,11 +907,10 @@ public final class ScriptValidator {
     }
 
     /**
-     * 挂起出口（0.3.6 C-pause §2.4）：clip 声明 {@code pause} 动作但同 clip 无任何释放规则
+     * 挂起出口：clip 声明 {@code pause} 动作但同 clip 无任何释放规则
      * （{@code resume} 动作 / {@code until} 规则）→ issue。
-     *
-     * 依据：暂停保持内容位置 ⇒ 后续片段不激活、时间条件不走，跨片段 / 时间门的 {@code resume} 不可达；
-     * 运行期对无释放者的 pause 会自动解除 + 限频告警，故该写法写出来必是作者误解。
+     * 暂停保持内容位置 ⇒ 后续片段不激活、时间条件不走，跨片段 / 时间门的 {@code resume} 不可达；
+     * 运行期对无释放者的 pause 自动解除 + 限频告警。
      */
     private static void checkPauseReleaser(JsonArray rules, String cp, List<String> issues) {
         boolean pause = false;
@@ -1137,7 +1128,7 @@ public final class ScriptValidator {
         return sb.toString();
     }
 
-    /** 不支持原因：已注册的触发器 / 前置条件（v1 未覆盖）与完全未知 type 分开表述。 */
+    /** 报错文案：已注册的触发器 / 前置条件（v1 未覆盖）与完全未知 type 分开表述。 */
     private static String ruleSourceSupport(String type) {
         if (TriggerRegistry.get(type) != null || PrerequisiteRegistry.has(type)) {
             return "是 v1 不支持的判定源（触发器 / 前置条件类判定源留 v2）";
@@ -1157,7 +1148,10 @@ public final class ScriptValidator {
         }
     }
 
-    /** 动作数组：{@code required} 时空数组也报；元素必须带字符串 {@code type}（白名单与参数结构见 {@link #checkActionElement}）。 */
+    /**
+     * 动作数组：{@code required} 时空数组也报；元素须为对象且带字符串 {@code type}
+     * （白名单与参数结构见 {@link #checkActionElement}）。
+     */
     private static void checkActionArray(JsonElement e, String ap, boolean required, List<String> issues) {
         if (!e.isJsonArray()) {
             issues.add(ap + " 需要数组（元素 = 动作对象）");
@@ -1383,9 +1377,8 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验覆盖链 Modifier 字段（CAMERA 片段专用）：clip 级 {@code modifier} 声明与 {@code suppress_modifiers}
-     * 标志。字段语义见 {@code docs/SCRIPT_FORMAT.md} §「覆盖链 Modifier」；与 {@code ScriptParser#parseClipModifier}
-     * 同一口径（校验拦下的写法解析期也会拒绝）。
+     * 校验覆盖链 Modifier 字段（CAMERA 片段专用）：clip 级 {@code modifier} 声明与
+     * {@code suppress_modifiers} 标志；与 {@code ScriptParser#parseClipModifier} 同一口径。
      */
     private static void checkModifier(JsonObject clip, String cp, List<String> issues) {
         if (clip.has("suppress_modifiers")) {
@@ -1542,8 +1535,7 @@ public final class ScriptValidator {
     /**
      * 校验相机片段的过渡声明（clip 级 {@code transition_curve} / {@code transition_params} /
      * {@code transition_interrupt}）：分参数形态（通道名 / {@code mode} / {@code duration} / {@code curve}）、
-     * 权重曲线模型定义（与 {@code motion_*} 同一口径）、打断枚举。字段语义见
-     * {@code docs/SCRIPT_FORMAT.md} §「过渡（transition）」；与 {@code ScriptParser#parseTransitionParams}
+     * 权重曲线模型定义（与 {@code motion_*} 同一口径）、打断枚举；与 {@code ScriptParser#parseTransitionParams}
      * 同一口径（校验拦下的写法解析期也会拒绝）。
      */
     private static void checkTransition(JsonObject clip, String cp, List<String> issues) {
@@ -1636,14 +1628,10 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 LUT 字段（<b>ADJUST 轨专用</b>：LUT 是对整体画面（master）的烘焙，逐 lane / 相机片段不参与）：
-     * <ul>
-     *   <li>clip 级 {@code lut}：LUT 文件名（字符串、非空、不含路径分隔符，见 {@link #checkLutFile}）；</li>
-     *   <li>clip 级 {@code lut_input_gamma}：输入域适配的幂指数（数字、{@code > 0}，缺省 1 = 不变换，
-     *       见 {@link #checkLutInputGamma}）；</li>
-     *   <li>关键帧级 {@code lut_strength}：混合强度 0 ~ 1（缺省 1 = 全量生效，写回 0 = 淡出）。</li>
-     * </ul>
-     * <p>{@code clip} / {@code kf} 的用法同 {@link #checkAdjustFields}（另一侧传 {@code null}）。</p>
+     * 校验 LUT 字段（ADJUST 轨专用：LUT 是对整体画面（master）的烘焙，逐 lane / 相机片段不参与）：
+     * clip 级 {@code lut}（文件名，见 {@link #checkLutFile}）与 {@code lut_input_gamma}（幂指数，
+     * {@code > 0}，缺省 1 = 不变换，见 {@link #checkLutInputGamma}）；关键帧级 {@code lut_strength}
+     * （0 ~ 1，缺省 1 = 全量生效，写回 0 = 淡出）。{@code clip} / {@code kf} 另一侧传 {@code null}。
      */
     private static void checkLutFields(JsonObject clip, String cp, JsonObject kf, String kp,
                                        List<String> issues) {
@@ -1661,15 +1649,10 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验层级混合字段（<b>ADJUST 轨专用</b>：混合模式作用于<b>调整层</b>（= ADJUST 轨）的输出与
-     * 基画面（{@code Sampler0} 原图）的层级混合，逐 lane / 相机片段不参与）：
-     * <ul>
-     *   <li>clip 级 {@code blend_mode}：枚举 {@code normal} / {@code multiply} / {@code screen} /
-     *       {@code soft_light} / {@code overlay}（缺省 {@code normal} = 直替换 = 现状，
-     *       见 {@link #checkBlendMode}）；</li>
-     *   <li>关键帧级 {@code blend_amount}：混合强度 0 ~ 1（缺省 1 = 全量生效，写回 0 = 调整层整体透明）。</li>
-     * </ul>
-     * <p>{@code clip} / {@code kf} 的用法同 {@link #checkAdjustFields}（另一侧传 {@code null}）。</p>
+     * 校验层级混合字段（ADJUST 轨专用：混合模式作用于调整层 = ADJUST 轨的输出与基画面
+     * （{@code Sampler0} 原图）的层级混合，逐 lane / 相机片段不参与）：clip 级 {@code blend_mode} 枚举
+     * （缺省 {@code normal} = 直替换，见 {@link #checkBlendMode}）；关键帧级 {@code blend_amount} 0 ~ 1
+     * （缺省 1 = 全量生效，写回 0 = 调整层整体透明）。{@code clip} / {@code kf} 另一侧传 {@code null}。
      */
     private static void checkBlendFields(JsonObject clip, String cp, JsonObject kf, String kp,
                                          List<String> issues) {
@@ -1682,10 +1665,9 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 clip 级 {@code blend_mode}（混合模式）：字符串、合法值 = {@code normal} / {@code multiply} /
-     * {@code screen} / {@code soft_light} / {@code overlay}（缺省 {@code normal} = 直替换 = 现状）。
-     * <p>与 {@code ScriptParser#parseBlendMode} 同一口径——校验拦下的写法解析期也会拒绝。
-     * 字段缺省时跳过（缺省 {@code normal} 生效）。</p>
+     * 校验 clip 级 {@code blend_mode}：字符串，合法值 = {@code normal} / {@code multiply} / {@code screen} /
+     * {@code soft_light} / {@code overlay}（缺省 {@code normal} = 直替换）。
+     * 与 {@code ScriptParser#parseBlendMode} 同一口径；字段缺省时跳过。
      */
     private static void checkBlendMode(JsonElement e, String path, List<String> issues) {
         if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
@@ -1704,9 +1686,8 @@ public final class ScriptValidator {
 
     /**
      * 校验 clip 级 {@code lut_input_gamma}（LUT 输入域适配的幂指数）：数字、必须 {@code > 0}
-     * （缺省 1 = 不变换，恒合法；{@code NaN} 也落在这里被拒）。
-     * <p>与 {@code ScriptParser#parseLutInputGamma} 同一口径——校验拦下的写法解析期也会拒绝。
-     * 字段缺省时跳过（缺省 1 生效）；{@code lut} 缺省时不额外报错（{@code lut == null} 时本字段被忽略）。</p>
+     * （缺省 1 = 不变换，恒合法；{@code NaN} / Infinity 同样被拒）。
+     * 与 {@code ScriptParser#parseLutInputGamma} 同一口径；字段缺省时跳过，{@code lut} 缺省时本字段被忽略。
      */
     private static void checkLutInputGamma(JsonElement e, String path, List<String> issues) {
         if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) {
@@ -1724,8 +1705,8 @@ public final class ScriptValidator {
 
     /**
      * 校验 clip 级 {@code lut}（LUT 文件名）：字符串、非空、不含路径分隔符（{@code /} / {@code \} / {@code :}）。
-     * <p>与 {@code ScriptParser#parseLutFile} 同一口径——校验拦下的写法解析期也会拒绝。
-     * 文件是否存在此处不查（校验器无游戏目录上下文；缺失由 {@code CubeLutLoader} 记日志、按「无 LUT」继续）。</p>
+     * 与 {@code ScriptParser#parseLutFile} 同一口径。文件是否存在此处不查（校验器无游戏目录上下文；
+     * 缺失由 {@code CubeLutLoader} 记日志、按「无 LUT」继续）。
      */
     private static void checkLutFile(JsonElement e, String path, List<String> issues) {
         if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
@@ -1746,7 +1727,7 @@ public final class ScriptValidator {
      * 校验 {@code meta.base_resolution}（编辑基准分辨率，分辨率转义系数 k 的分母）：
      * 必须是对象且含正整数 {@code w} / {@code h}（{@code > 0}、整数、数值上限为 {@link Integer#MAX_VALUE}），
      * 违规 → 脚本被拒。字段缺省 / JSON null（= 1920×1080）时跳过。
-     * <p>不设分辨率政策上限：{@code 1 ~ Integer.MAX_VALUE} 均合法，上界只是 int 存储表示范围，非分辨率限制。
+     * 不设分辨率政策上限：{@code 1 ~ Integer.MAX_VALUE} 均合法，上界只是 int 存储表示范围，非分辨率限制。
      */
     private static void checkBaseResolution(JsonObject meta, List<String> issues) {
         if (!meta.has("base_resolution") || meta.get("base_resolution").isJsonNull()) return;
@@ -1784,7 +1765,7 @@ public final class ScriptValidator {
 
     /**
      * 拒绝已移除的 {@code scope} / {@code lane} 字段（ADJUST 与 CAMERA 两种轨道的 clip 都拦）：
-     * 0.3.6 起 lane 级调色改为相机片段字段——调色直接写在 CAMERA 片段上，ADJUST 轨只管整体画面（master）。
+     * lane 级调色直接写在 CAMERA 片段上，ADJUST 轨只管整体画面（master）。
      */
     private static void checkRemovedScopeLane(JsonObject clip, String cp, List<String> issues) {
         if (clip.has("scope")) {
@@ -1826,8 +1807,8 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 CAMERA 片段的 clip 级 lane 合成遮罩字段（0.3.6 D2）：
-     * 形状 {@code mask_shape} 枚举；几何通道只属于关键帧；fade 渐变字段不因新增遮罩而被 CAMERA 接受。
+     * 校验 CAMERA 片段的 clip 级 lane 合成遮罩字段：形状 {@code mask_shape} 枚举；
+     * 几何通道只属于关键帧；fade 渐变字段不被 CAMERA 接受。
      * {@code blend_mode} 在 CAMERA 片段上已由调用方的 ADJUST 专用检查拦下（不重复报）。
      */
     private static void checkCameraMaskClipFields(JsonObject clip, String cp, List<String> issues) {
@@ -1851,7 +1832,7 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 CAMERA 关键帧的 lane 合成遮罩几何（0.3.6 D2）：{@code mask_x} / {@code mask_y} 有限；
+     * 校验 CAMERA 关键帧的 lane 合成遮罩几何：{@code mask_x} / {@code mask_y} 有限；
      * {@code mask_width} / {@code mask_height} / {@code mask_radius} 有限非负。形状只属于 clip 级，
      * fade 渐变字段不属于 CAMERA。
      */
@@ -1877,10 +1858,10 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 fade 片段的 clip 级高级颜色遮罩字段（0.3.6 D4–D7）：
-     * {@code gradient} 结构（类型 / 至少 2 个色标 / offset 有限且 0~1 严格递增 / 颜色合法）、
-     * {@code mask_shape} 与 {@code blend_mode} 枚举。字段缺省时跳过（缺省值生效）。
-     * <p>色标数量不设人为上限；首尾 offset 不要求恰好 0 / 1（范围外由渲染侧保持端点）。</p>
+     * 校验 fade 片段的 clip 级高级颜色遮罩字段：{@code gradient} 结构（类型 / 至少 2 个色标 /
+     * offset 有限且 0~1 严格递增 / 颜色合法）、{@code mask_shape} 与 {@code blend_mode} 枚举。
+     * 字段缺省时跳过（缺省值生效）；色标数量不设上限，首尾 offset 不要求恰好 0 / 1
+     * （范围外由渲染侧保持端点）。
      */
     private static void checkFadeClipFields(JsonObject clip, String cp, List<String> issues) {
         // 归属交叉检查：mask_* / gradient_* 数值通道只属于关键帧（color 两级都合法）
@@ -1963,7 +1944,7 @@ public final class ScriptValidator {
         }
     }
 
-    /** 校验 fade 关键帧的高级颜色遮罩通道（0.3.6 D4–D7）：有限值 / 非负 / 正数 / 0~1 / 颜色格式。 */
+    /** 校验 fade 关键帧的高级颜色遮罩通道：有限值 / 非负 / 正数 / 0~1 / 颜色格式。 */
     private static void checkFadeKeyframeFields(JsonObject kf, String kp, List<String> issues) {
         // 归属交叉检查：gradient / mask_shape / blend_mode 只属于 clip 级（color 两级都合法）
         for (String field : FADE_ONLY_CLIP_FIELDS) {
@@ -2048,7 +2029,7 @@ public final class ScriptValidator {
         }
     }
 
-    /** fade 专用字段出现在 image / subtitle 片段上：明确报错（不静默存值宣称生效）。 */
+    /** fade 专用字段写在 image / subtitle 片段上：明确报错（不静默存值宣称生效）。 */
     private static void rejectFadeOnlyFields(JsonObject obj, String path, String[] fields,
                                              String layerType, List<String> issues) {
         for (String field : fields) {
@@ -2059,7 +2040,7 @@ public final class ScriptValidator {
         }
     }
 
-    /** fade 的「仅关键帧」数值通道出现在 image / subtitle 的 clip 级：明确报错。 */
+    /** fade 的「仅关键帧」数值通道写在 image / subtitle 的 clip 级：明确报错。 */
     private static void rejectFadeKeyframeOnlyFields(JsonObject obj, String path, String layerType,
                                                      List<String> issues) {
         for (String field : FADE_ONLY_KEYFRAME_FIELDS) {
@@ -2075,6 +2056,7 @@ public final class ScriptValidator {
      * {@code g_curve} / {@code b_curve} / 六条 hue 曲线）：
      * 控制点数组 {@code [[x,y], ...]}——至少 2 点、每点 2 个数字、{@code x} 严格递增、{@code x} / {@code y} 各 0~1
      * （与 {@code ScriptParser#parseColorCurve} 同一口径：校验拦下的写法解析期也会拒绝）。
+     * 曲线不能静默忽略：它是作者显式写下的意图，悄悄丢掉会得到「脚本没错但画面不对」。
      */
     private static void checkColorCurve(JsonElement e, String path, List<String> issues) {
         if (!e.isJsonArray()) {
@@ -2259,7 +2241,7 @@ public final class ScriptValidator {
     }
 
     /**
-     * 拒绝已移除的位置基准字段（{@code position.relative_origin} 与配套坐标）：0.3.6 起位置基准统一用
+     * 拒绝已移除的位置基准字段（{@code position.relative_origin} 与配套坐标）：位置基准统一用
      * 关键帧字段 {@code facing_origin}（五形态），两种偏移表达空间共用同一位置点源。
      */
     private static void checkRemovedRelativeOrigin(JsonObject kf, String path, List<String> issues) {
@@ -2270,13 +2252,13 @@ public final class ScriptValidator {
                 "relative_origin_z"}) {
             if (p.has(field)) {
                 issues.add(path + ".position." + field + " 已移除（0.3.6 起）：位置基准统一用关键帧字段 facing_origin"
-                        + "（写法见 docs/SCRIPT_FORMAT.md §「点源」）");
+                        + "（点源形态：坐标取 facing_origin_x/y/z）");
             }
         }
     }
 
     /**
-     * 拒绝已移除的垂直面基准字段 {@code position.up_axis}：0.3.6 起基准坐标系的上轴固定为世界竖直
+     * 拒绝已移除的垂直面基准字段 {@code position.up_axis}：基准坐标系的上轴固定为世界竖直
      * （前轴 / 右轴取水平面内分量），方向侧每轴跟来源 / 锁值改用 {@code yaw_lock} / {@code pitch_lock}。
      */
     private static void checkRemovedUpAxis(JsonObject kf, String path, List<String> issues) {
@@ -2302,7 +2284,7 @@ public final class ScriptValidator {
 
     /**
      * 拒绝已移除的注视目标对象 {@code look_at_target}（含 {@code relative_to} / 对象内偏移）：
-     * 0.3.6 起注视目标统一为点源 + 偏移。
+     * 注视目标统一为点源 + 偏移。
      */
     private static void checkRemovedLookAtTarget(JsonObject kf, String path, List<String> issues) {
         if (kf.has("look_at_target")) {
@@ -2315,9 +2297,10 @@ public final class ScriptValidator {
 
     /**
      * 校验点源字段（CAMERA 关键帧的连线端点 / 基准朝向目标）：取值须为字符串，形态与判据见
-     * {@code camera/source/PointSource}（{@code player} / {@code coordinate} / {@code block:id[:radius]} /
-     * {@code @选择器} / {@code uuid:…} / 结构 id）。{@code "coordinate"} 形态必须带 {@code <字段>_x/_y/_z}
-     * 三个数字——缺省会被当作 (0,0,0)，静默把点源钉在世界原点。字段缺省 / 空串 = 无点源（不报错）。
+     * {@code camera/source/PointSource}（{@code player} / {@code coordinate} /
+     * {@code block:id[:radius]} / {@code @选择器} / {@code uuid:…} / 结构 id）。
+     * {@code "coordinate"} 必须带 {@code <字段>_x/_y/_z} 三个数字——缺省会被当作 (0,0,0)，
+     * 静默把点源钉在世界原点。字段缺省 / 空串 = 无点源（不报错）。
      */
     private static void checkPointSourceField(JsonObject kf, String path, String field, List<String> issues) {
         if (!kf.has(field)) return;
@@ -2515,10 +2498,8 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 fade 覆盖层的 color 十六进制格式。
-     * <p>
-     * 规则与运行期 {@code FadeLayer.setColor} 的文档契约一致：#RRGGBB 六位十六进制，
-     * 前缀 {@code #} 可省，大小写均可（{@code Integer.parseInt(_, 16)} 接受 a-f）。
+     * 校验 fade 覆盖层的 color 十六进制格式：与运行期 {@code FadeLayer.setColor} 的文档契约一致——
+     * #RRGGBB 六位十六进制，前缀 {@code #} 可省，大小写均可。
      * 字段缺省时跳过——运行期默认回退黑色（不告警），仅在作者显式写了非法色时提示。
      */
     private static void checkHexColor(JsonObject obj, String path, String key, List<String> issues) {
@@ -2536,10 +2517,9 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验 meta.triggers 的 requires 前置条件：
-     * - 结构性：requires 必须是数组，元素可以是字符串脚本 id 或对象型前置条件；
-     * - 字符串（旧语法）：按 script_played 前置条件校验脚本存在/自引用；
-     * - 对象型：内置 script_played / script_started / script_completed 需要有效的 script 字段。
+     * 校验 meta.triggers 的 requires 前置条件：requires 必须是数组，元素为字符串脚本 id
+     * 或对象型前置条件。字符串按 script_played 校验脚本存在 / 自引用；对象型内置
+     * script_played / script_started / script_completed 需要有效的 script 字段。
      */
     private static void validateTriggerRequires(JsonObject meta, String path,
                                                  Collection<String> knownScriptIds, List<String> issues) {
@@ -2594,13 +2574,8 @@ public final class ScriptValidator {
     /**
      * 校验 meta.triggers 的 type / conditions 结构：未知类型、conditions 非对象，以及 conditions 字段的
      * schema 通用校验（必填 / 类型 / enum 取值 / 有限数值，见 {@link #validateConditionsBySchema}）。
-     * <p>
-     * 只有 schema 表达不了的跨字段语义才走专用分支：facing（yaw1/pitch1 与 yaw2/pitch2 是配对端点，
-     * pitch 端点按原版范围钳制）、all_of / any（list 是 { type, conditions } 结构，子项可嵌套或引用前置条件，
-     * 层数上限 {@link Evaluators#MAX_COMBINATION_DEPTH} 含顶层）、death（场景组字段互相配合，
-     * 报错文案带场景语义）。另有 facing / all_of / any 上无效的 exit_buffer 提示，
-     * death 上无效的 on_enter / exit_buffer 提示，以及触发器级轮询间隔 {@code poll_interval}
-     * （范围见 {@link #checkPollIntervalField}；事件驱动类型上写 = 无效提示）。
+     * 跨字段语义走专用分支：facing（端点配对 + pitch 钳制）、all_of / any（嵌套结构 + 层数上限）、
+     * death（场景组字段）；另报无效字段提示（exit_buffer / on_enter）与轮询间隔。
      */
     private static void validateTriggerConditions(JsonObject meta, String path,
                                                   Collection<String> knownScriptIds, List<String> issues) {
@@ -2745,7 +2720,7 @@ public final class ScriptValidator {
                     }
                 }
                 default -> {
-                    // 未知字段类型：留给 schema 演进，不报（新增字段类型时在此补一条）
+                    // 未知字段类型：不报（schema 演进留白；补字段类型时在此加分支）
                 }
             }
         }
@@ -2888,7 +2863,7 @@ public final class ScriptValidator {
      * 前置条件的公共校验（{@code requires} 的对象型写法与组合器子条件共用同一套规则）：
      * type 必需且非空；内置 {@code script_played} / {@code script_started} / {@code script_completed}
      * 的数据对象必须提供 script 字段，并做自引用与跨脚本存在性检查。未知 / 自定义类型不在这里硬报错——
-     * 是否允许由调用方决定（requires 允许其他模组注册后使用；组合器子条件只允许已注册类型）。
+     * 是否允许由调用方判定（requires 允许其他模组注册后使用；组合器子条件只允许已注册类型）。
      *
      * @param typeHolder 带 {@code type} 的对象（requires 元素 / 组合器子条件）
      * @param data       该前置条件的数据对象（requires 元素自身；组合器子条件为 {@code conditions}）

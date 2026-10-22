@@ -31,21 +31,22 @@ import net.minecraft.sounds.SoundSource;
 import java.util.List;
 
 /**
- * 规则动作执行入口（0.3.6 C6-2/C6-3）：{@code rules[].do} / {@code on_timeout} 的元素逐条执行。
+ * 规则动作执行入口：{@code rules[].do} / {@code on_timeout} 的元素逐条执行。
  *
- * v1 动作集九种：{@code camera_set}（覆盖链 Modifier 叠加，工件随片段结束注销）/ {@code overlay_set}
+ * 动作集九种：{@code camera_set}（覆盖链 Modifier 叠加，工件到片段活跃窗末注销）/ {@code overlay_set}
  * （fade 临时层）/ {@code adjust_set}（master 规则调整层）/ {@code goto_clip}（{@code track} + {@code at}
- * 时间寻址）/ {@code pause} / {@code resume}（实例挂起：保持内容位置 / 从该位置续）/ {@code exit}（声明式退出，跳过 hold_at_end 拒绝）/
- * {@code play_sound}（本实例一次性发声）/ {@code emit_command}（C2S 交服务端，仅观看者可执行）。
+ * 时间寻址）/ {@code pause} / {@code resume}（实例挂起：保持内容位置 / 从该位置续）/
+ * {@code exit}（声明式退出，跳过 hold_at_end 拒绝）/ {@code play_sound}（本实例一次性发声）/
+ * {@code emit_command}（客户端发往服务端执行，仅观看者可执行）。
  * {@code hold} 销项（用 {@code until} 无 timeout 表达，见 {@link #ACTION_HOLD}）。
  *
- * 作用对象恒为触发它的那个实例（设计 §5 末条）。失败回退（设计 §5.1）：参数非法 / 目标越界 / 执行异常
+ * 作用对象恒为触发它的那个实例。失败回退：参数非法 / 目标越界 / 执行异常
  * 一律不传播、不中断播放——限频日志 + 继续（分支无栈，回退目标恒为主支 = 「动作失败 = 什么都没发生」）。
  * 分配契约：只在动作触发帧调用（非稳态路径），可读 JSON 字符串 / 建工件。线程契约：仅客户端主线程。
  */
 public final class RuleActions {
 
-    /** v1 动作 type 白名单（与 {@link #execute} 的 switch 同名单源；校验器按它拦未知动作）。 */
+    /** 动作 type 白名单（与 {@link #execute} 的 switch 同名单源；校验器按它拦未知动作）。 */
     public static final List<String> ACTION_TYPES_V1 = List.of(
             "camera_set", "overlay_set", "adjust_set", "goto_clip",
             "pause", "resume", "exit", "play_sound", "emit_command");
@@ -53,13 +54,13 @@ public final class RuleActions {
     /** 销项动作：{@code hold} 语义 = {@code until} 无 timeout（无限等待），不单独实现。 */
     public static final String ACTION_HOLD = "hold";
 
-    /** {@code adjust_set} v1 通道名（顺序 = 基础校色 15 通道；参数名与 ADJUST 轨关键帧字段同名）。 */
+    /** {@code adjust_set} 通道名（顺序 = 基础校色 15 通道；参数名与 ADJUST 轨关键帧字段同名）。 */
     public static final List<String> ADJUST_CHANNELS_V1 = List.of(
             "exposure", "contrast", "highlights", "shadows", "whites", "blacks",
             "hue", "saturation", "vibrance", "lightness",
             "temperature", "tint", "red", "green", "blue");
 
-    /** {@code overlay_set} v1 层类型（fade 临时层；image / subtitle 留 v2）。 */
+    /** {@code overlay_set} 层类型（仅 fade 临时层）。 */
     public static final List<String> OVERLAY_LAYER_TYPES_V1 = List.of("fade");
 
     /** 限频日志窗口（毫秒）：同一失败点每 5 秒最多一条。 */
@@ -68,7 +69,7 @@ public final class RuleActions {
     private RuleActions() {}
 
     /**
-     * 执行一条动作（接口签名固定，C6-3 按此扩展）。
+     * 执行一条动作；未知 type / 执行异常 → 限频日志，不中断播放。
      *
      * @param instance 触发规则的播放实例（动作作用对象；探针无宿主时为 {@code null}）
      * @param clip     规则所在片段
@@ -91,8 +92,7 @@ public final class RuleActions {
                 case "play_sound" -> playSound(instance, action);
                 case "emit_command" -> emitCommand(instance, action);
                 case ACTION_HOLD -> ErrorLog.logRateLimited("Rules", "action:hold", LOG_INTERVAL_MS,
-                        "hold 动作用 until 无 timeout 表达（无限等待），本版本不单独实现——见"
-                                + " docs/SCRIPT_FORMAT.md §判定规则");
+                        "hold 动作用 until 无 timeout 表达（无限等待），本版本不单独实现");
                 default -> ErrorLog.logRateLimited("Rules", "action:" + type, LOG_INTERVAL_MS,
                         "未知规则动作: " + type + "（v1 动作: " + typesLabel() + "）");
             }
@@ -101,7 +101,7 @@ public final class RuleActions {
         }
     }
 
-    /** v1 动作清单（报错文案用）。 */
+    /** 动作清单（报错文案用）。 */
     public static String typesLabel() {
         return String.join(" / ", ACTION_TYPES_V1);
     }
@@ -111,7 +111,7 @@ public final class RuleActions {
     /**
      * {@code camera_set}：建一条 {@link RuleModifier} 并接入覆盖链（持续叠加到片段结束 / 被同类覆盖）。
      * 参数结构 = {@code modifier} 字段同款（{@code channels} + {@code mode?} + {@code priority?} + 通道值）；
-     * 非法参数 → 限频日志 + 不动（播放继续）。{@code blend} / {@code look_at} / {@code follow} 留 v2。
+     * 非法参数 → 限频日志 + 不动（播放继续）。
      */
     private static void cameraSet(PlaybackInstance instance, JsonObject action) {
         int mask = cameraChannels(action);
@@ -217,7 +217,7 @@ public final class RuleActions {
     }
 
     /**
-     * {@code overlay_set}：建一层临时覆盖层（v1 = fade，owner = 本实例）并接入覆盖层管理器，
+     * {@code overlay_set}：建一层临时覆盖层（仅 fade，owner = 本实例）并接入覆盖层管理器，
      * 持续到片段结束移除。{@code layer_type} 非 fade / 参数非法 → 限频日志 + 不动。
      */
     private static void overlaySet(PlaybackInstance instance, JsonObject action) {
@@ -238,7 +238,7 @@ public final class RuleActions {
     }
 
     /**
-     * {@code adjust_set}：建一份 master 规则调整层（v1 = {@link #ADJUST_CHANNELS_V1} 十五个基础校色标量，
+     * {@code adjust_set}：建一份 master 规则调整层（{@link #ADJUST_CHANNELS_V1} 十五个基础校色标量，
      * 参数名与 ADJUST 轨关键帧字段同名）并发布到 {@link MasterColorAdjust}，持续到片段结束清除。
      * 非法通道名 / 非有限数值 → 限频日志 + 不动。
      */
@@ -300,8 +300,8 @@ public final class RuleActions {
     /**
      * {@code goto_clip}：{@code track}（轨道类型名）+ {@code at}（目标已播放时间秒）时间寻址——
      * 目标时间须落在该轨某个片段的闭区间窗 {@code [startTime, windowEnd]} 内（末端取闭：跳到最后一段末尾
-     * = 收尾）；轨道缺失 / 无片段覆盖 / 时间越界 → 限频日志 + 不动（播放继续，设计 §5.1 失败即回主支）。
-     * 不引入 clip id 字段（id 体系归编辑器阶段）。
+     * = 收尾）；轨道缺失 / 无片段覆盖 / 时间越界 → 限频日志 + 不动（播放继续）。
+     * 寻址只用轨道类型名 + 时间，不引入 clip id 字段。
      */
     private static void gotoClip(PlaybackInstance instance, JsonObject action) {
         String trackName = str(action, "track");

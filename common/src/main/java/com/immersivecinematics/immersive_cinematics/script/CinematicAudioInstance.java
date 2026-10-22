@@ -36,9 +36,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * AUDIO 轨道实例 — 回归原版 SoundEngine（0.3.5 第4轮，跨平台 common Mixin 方案）。
- * <p>
- * 继承 {@link AbstractTickableSoundInstance}，由原版 SoundEngine 统一管理空间/衰减/分类音量/暂停。
+ * AUDIO 轨道实例：继承 {@link AbstractTickableSoundInstance}，由原版 SoundEngine 统一管理空间 / 衰减 / 分类音量 / 暂停。
  * 自定义流通过 {@link CustomStreamProvider} + {@code SoundEngineMixin} 提供给原版，不依赖 Forge 补丁。
  */
 public class CinematicAudioInstance extends AbstractTickableSoundInstance implements CustomStreamProvider {
@@ -59,6 +57,15 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
     private int channels;
     private int sampleRate;
 
+    /**
+     * 解码音频并建立实例（解码失败抛 {@link RuntimeException}，由调用方记为失败 clip）。
+     *
+     * @param fileName   文件名（{@code sourceType=minecraft} 时为资源 id，否则为资源目录下的相对路径）
+     * @param sourceType {@code "minecraft"} = 从资源包读取，其余 = 本地文件
+     * @param loop       是否循环
+     * @param pitch      音调倍率（1 = 原值）
+     * @param category   声音分类（分类音量 / 静音随原版走）
+     */
     public CinematicAudioInstance(String fileName, String sourceType, boolean loop, float pitch, SoundSource category) {
         super(SoundEvent.createVariableRangeEvent(new ResourceLocation(
                         "immersive_cinematics", "audio_" + Integer.toHexString(Objects.hash(fileName, sourceType)))),
@@ -115,8 +122,9 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
         // 位置/音量由 AudioTrackPlayer 每帧通过 setVolume/setPosition 写入字段，原版自动读取
     }
 
-    // ===== 对外兼容 API =====
+    // ===== 对外 API =====
 
+    /** 开始播放（幂等）：从 {@link #seekOffset} 处起播，之后交由原版 SoundEngine 驱动。 */
     public void play() {
         if (!valid || playing) return;
         if (pcmData != null) {
@@ -126,35 +134,45 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
         Minecraft.getInstance().getSoundManager().play(this);
     }
 
+    /** 停止实例（幂等）：仅置位并交还 SoundEngine，PCM 数据保留以便再次 play。 */
     public void stopInstance() {
         if (!valid || !playing) return;
         playing = false;
         Minecraft.getInstance().getSoundManager().stop(this);
     }
 
+    /** 空实现：暂停语义由 {@code AudioTrackPlayer} 走 SoundEngine 全局 pause 处理。 */
     public void pause() {
-        // 暂停语义由 AudioTrackPlayer 走 SoundEngine.pause() 全局处理
     }
 
+    /** 空实现：恢复语义由 {@code AudioTrackPlayer} 走 SoundEngine 全局 resume 处理。 */
     public void resume() {
-        // 同上
     }
 
+    /** 设置音量（0~1，原版据此乘分类音量 / 衰减）。 */
     public void setVolume(float vol) {
         this.currentVolume = vol;
         this.volume = vol;
     }
 
+    /** 设置世界坐标位置（空间音源由原版按听者距离衰减）。 */
     public void setPosition(Vec3 pos) {
         this.x = pos.x;
         this.y = pos.y;
         this.z = pos.z;
     }
 
+    /**
+     * 设置衰减模式。
+     *
+     * @param mode     {@code "none"} = 无衰减，其它值 = 线性衰减
+     * @param distance 距离参数（当前实现不使用，由原版按音量曲线计算）
+     */
     public void setAttenuation(String mode, float distance) {
         this.attenuation = "none".equals(mode) ? SoundInstance.Attenuation.NONE : SoundInstance.Attenuation.LINEAR;
     }
 
+    /** 设置衰减模式（{@code "none"} = 无衰减，其它值 = 线性衰减）。 */
     public void setAttenuation(String mode) {
         setAttenuation(mode, 16f);
     }
@@ -164,7 +182,11 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
         this.relative = rel;
     }
 
-    /** 编辑器 seek：把 PCM 游标移到目标秒；若正在播放则先停止（由 syncToTime 负责按需重启） */
+    /**
+     * 编辑器 seek：把 PCM 游标移到目标秒；若正在播放则先停止（由 syncToTime 负责按需重启）。
+     *
+     * @param seconds 目标片段内时间（秒，钳制到 [0, duration]）
+     */
     public void seekTo(float seconds) {
         if (!valid) return;
         seekOffset = Math.max(0f, Math.min(seconds, duration));
@@ -173,7 +195,13 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
         }
     }
 
-    /** 编辑器定位：seek + 音量，并在非暂停场景下立即以新位置重启播放 */
+    /**
+     * 编辑器定位：seek + 音量，并在非暂停场景下立即以新位置重启播放。
+     *
+     * @param targetLocalTime 目标片段内时间（秒）
+     * @param volume          目标音量（0~1）
+     * @param fadeIn          淡入时长（秒；当前实现不重放淡入，保留给调用方折算音量）
+     */
     public void syncToTime(float targetLocalTime, float volume, float fadeIn) {
         setVolume(volume);
         seekTo(targetLocalTime);
@@ -189,14 +217,16 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
         return (int) Math.max(0, Math.min(bytes, limit));
     }
 
+    /** 空实现：位置 / 音量由 {@code AudioTrackPlayer} 每帧写入字段，原版 SoundEngine 自行读取。 */
     public void update() {
-        // 原版 tick 已自动处理
     }
 
+    /** 是否正在发声（已 play 且未被 SoundEngine 停止）。 */
     public boolean isPlaying() {
         return valid && playing && !isStopped();
     }
 
+    /** 释放实例：停播并置为无效（再次 play / seek 均不再生效）。 */
     public void cleanup() {
         if (valid && playing) {
             Minecraft.getInstance().getSoundManager().stop(this);
@@ -206,24 +236,30 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
         stop();
     }
 
+    /** 解码得到的时长（秒）。 */
     public float getDuration() { return duration; }
 
+    /** 兼容读数：1 = 播放中，0 = 未播放（本实现不直接驱动 OpenAL）。 */
     public int getSourceState() {
         return playing ? 1 : 0;
     }
 
+    /** 当前音量（最近一次 setVolume 的值，未含分类音量 / 衰减）。 */
     public float getGain() {
         return currentVolume;
     }
 
+    /** 兼容读数：本实现不直接调用 OpenAL，恒为 0。 */
     public int getOpenAlError() {
         return 0;
     }
 
+    /** 兼容读数：本实现不跟踪播放游标，恒为 0（定位走 {@link #seekTo}）。 */
     public float getCurrentTime() {
         return 0f;
     }
 
+    /** 实例是否可用（解码成功且未 cleanup）。 */
     public boolean isValid() { return valid; }
 
     // ===== 解码（失败即抛 RuntimeException，可见） =====
@@ -329,7 +365,14 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
         }
     }
 
-    /** 编辑器波形峰值解码（失败即抛） */
+    /**
+     * 编辑器波形峰值解码（失败即抛）。
+     *
+     * @param fileName   音频文件名（同构造器口径）
+     * @param sourceType 音源类型（同构造器口径）
+     * @param buckets    峰值桶数（≥1）
+     * @return 每桶的最大绝对幅值（0~1）
+     */
     public static float[] decodePeaks(String fileName, String sourceType, int buckets) {
         DecodeResult r = decode(fileName, sourceType);
         r.rawAudio.rewind();

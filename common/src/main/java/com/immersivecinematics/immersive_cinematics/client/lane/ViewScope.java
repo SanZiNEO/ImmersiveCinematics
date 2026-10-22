@@ -4,21 +4,18 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 /**
- * 视角作用域：主视角和每条 lane 各自进入/退出一次，统一驱动
- * previous/tracker、颜色历史、shadowcolor 的隔离。
+ * 视角作用域：主视角和每条 lane 各自进入 / 退出一次，统一驱动 previous/tracker、颜色历史、shadowcolor 的隔离。
  *
- * <p>挂点：</p>
- * <ul>
- *   <li>lane：{@link LaneRenderer} 在渲染每条 lane 前 {@link #enter(String)}，合成完成后
- *       {@link #exit(String)}；</li>
- *   <li>main：原版 {@code LevelRenderer.renderLevel} HEAD/RETURN。主视角的 begin 实际发生在
- *       lane 之后，所以不能在帧首进入；{@code renderLevel} 正好是主视角真正的 level 边界。</li>
- * </ul>
+ * 挂点：lane 由 {@link LaneRenderer} 在渲染每条 lane 前 {@link #enter(String)}、合成完成后 {@link #exit(String)}；
+ * main 用原版 {@code LevelRenderer.renderLevel} HEAD / RETURN——不依赖 Iris 的 beginLevelRendering /
+ * finalizeLevelRendering，也不假设 main 与 lane 的先后；renderLevel 正是主视角真正的 level 边界
+ * （它的 begin 实际发生在 lane 之后，不能提前到帧首）。{@link #onLevelHead()} / {@link #onLevelReturn()}
+ * 在 lane pass 内不生效。
+ * {@link #enter(String)} 与 {@link #exit(String)} 必须按同一 view 名配对：exit 只弹栈顶同名的一层，
+ * 未配对调用无副作用。
  *
- * <p>不依赖 Iris 的 beginLevelRendering / finalizeLevelRendering，也不假设 main 与 lane 的先后；
- * 光影模组不存在时适配层探测为空，这里只做 no-op。</p>
- *
- * <p>pipeline 切换时 {@link ShaderCompat#refresh()} 返回 true，栈会被清空；旧视角作用域不再生效。</p>
+ * 光影 pipeline 切换时 {@link ShaderCompat#refresh()} 返回 true，栈被清空、旧视角作用域不再生效；
+ * 光影模组不存在时适配层探测为空，这里只做 no-op。
  */
 public final class ViewScope {
 

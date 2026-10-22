@@ -4,17 +4,15 @@ package com.immersivecinematics.immersive_cinematics.math;
  * inertia — 惯性：阻尼基准随输入运动的二阶追踪（{@code e'' = −k·e − 2ζω·e'}，{@code e = x − target}、
  * {@code e' = x' − target'}、{@code ω = √k}）。
  *
- * 与 {@link SpringModel} 的唯一差别 = 阻尼项基准：spring 取绝对速度（跟随移动目标有稳态滞后 {@code 2ζv/ω}）；
- * inertia 取相对速度（与移动目标同速 = 稳态零滞后），动量集中在起步 / 停止处——起步慢、停止后过冲再回稳；
- * 输入静止（{@code target' = 0}）时 = 同参数的 spring。参数名 / 缺省 / 范围与 spring 一致。
+ * 与 {@link SpringModel} 的唯一差别 = 阻尼项基准：spring 取绝对速度（跟随匀速目标有稳态滞后 {@code 2ζv/ω}）；
+ * inertia 取相对速度（与移动目标同速 = 稳态零滞后）；动量集中在起步 / 停止处——起步慢、停止后过冲再回稳。
+ * 输入静止（{@code target' = 0}）时 = 同参数的 spring；参数名 / 缺省 / 范围与 spring 一致。
  * 位置不连续（cut 过渡 / 循环回卷 / 目标切换）直通：输出随输入跳变，速度（动量）保留并随后衰减。
  *
- * 参考速度 {@code target'} = 输入差分（ANGLE 取最短角差）除以 dt，且不超过上一步估计的幅度——
- * 跳变输入不注入冲量，代价 = 输入速度增大的首帧前馈滞后一帧。
- *
+ * 参考速度 {@code target'} = 输入差分（ANGLE 取最短角差）除以 dt，幅度上限 = 上一步估计（跳变不注入冲量），
+ * 代价 = 输入速度增大的首帧前馈滞后一帧。
  * 状态：每分量（当前值, 速度, 参考速度, 上一步输入, 上一步估计）；初值 = 首个输入 + {@code initial_velocity}
- * （参考速度 = 0）；输出 = 当前值（ANGLE 不归一）；dt 上限 {@link MathModelInstance#MAX_DT}；
- * 实例状态所有权：实例独占；定义线程安全。
+ * （参考速度 = 0）；输出 = 当前值（ANGLE 不归一）；dt 上限 {@link MathModelInstance#MAX_DT}；实例独占状态。
  */
 public final class InertiaModel implements MathModel {
 
@@ -153,7 +151,7 @@ public final class InertiaModel implements MathModel {
         }
 
         /**
-         * 本步参考速度 = 输入变化率（上一帧采样 → 本帧采样），上限 = 上一步估计的幅度（跳变不注入冲量）。
+         * 本步参考速度 = 输入变化率（上一帧采样 → 本帧采样），幅度上限 = 上一步估计。
          *
          * {@link #previous} 保持上一帧采样值到本步结束（分支用它算起点误差）。
          */

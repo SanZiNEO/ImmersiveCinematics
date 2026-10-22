@@ -8,21 +8,21 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * 统一时间插值入口 — tick(20Hz) 与渲染帧之间的帧间采样。
- * <p>
- * 逻辑 tick 固定 20Hz，而渲染帧为 60/120/… Hz；实体位置、朝向等状态只在 tick 更新，
- * 直接读取当前 tick 值会出现台阶感。渲染侧按 {@code partialTick}（= {@code Minecraft.getFrameTime()}
- * = {@code Timer.partialTick}）在上一 tick 快照与当前 tick 值之间采样即可平滑，且
- * <b>不改变状态语义</b>（只做帧间采样，不是状态过渡/缓动）。
- * <p>
- * 上一 tick 快照复用原版既有机制：{@code Entity.xo/yo/zo}（{@code setOldPosAndRot} 每 tick 写入）、
+ *
+ * 逻辑 tick 固定 20Hz，渲染帧为 60/120/… Hz；实体位置、朝向等状态只在 tick 更新，直接读取当前
+ * tick 值会出现台阶感。渲染侧按 {@code partialTick}（= {@code Minecraft.getFrameTime()} =
+ * {@code Timer.partialTick}）在上一 tick 快照与当前 tick 值之间采样即可平滑；只做帧间采样，
+ * 不是状态过渡 / 缓动，不改变状态语义。
+ *
+ * 上一 tick 快照复用原版既有字段：{@code Entity.xo/yo/zo}（{@code setOldPosAndRot} 每 tick 写入）、
  * {@code yRotO/xRotO}、{@code LivingEntity.yBodyRotO}，本类不重复造这些字段。
- * <p>
- * 与 {@link MathUtil} 的区别：{@code MathUtil.lerp(from, to, t)} 是通用插值曲线辅助，
- * 本类形参顺序对齐原版 {@code Mth.lerp(partialTick, prev, current)}，语义是"帧间采样"。
+ *
+ * 与 {@link MathUtil} 的差异：{@code MathUtil.lerp(from, to, t)} 是通用插值辅助，
+ * 本类形参顺序对齐原版 {@code Mth.lerp(partialTick, prev, current)}，语义是帧间采样。
  */
 public final class TimeInterpolation {
 
-    private TimeInterpolation() {} // 禁止实例化
+    private TimeInterpolation() {}
 
     // ========== 纯函数：按 partialTick 在 prev/current 间采样 ==========
 
@@ -66,9 +66,7 @@ public final class TimeInterpolation {
     }
 
     /**
-     * 实体身体 yaw 的渲染帧插值。
-     * <p>
-     * 原版 {@code LivingEntityRenderer} 使用 {@code Mth.rotLerp(partialTick, yBodyRotO, yBodyRot)}；
+     * 实体身体 yaw 的渲染帧插值：{@code LivingEntity} 用 {@code Mth.rotLerp(partialTick, yBodyRotO, yBodyRot)}；
      * 非 LivingEntity 退化为 {@code Entity.yRotO → getYRot()}。
      */
     public static float entityBodyYaw(Entity e) {
@@ -79,7 +77,7 @@ public final class TimeInterpolation {
         return rotLerp(pt, e.yRotO, e.getYRot());
     }
 
-    /** 实体 pitch 的渲染帧插值：原版使用 {@code Mth.lerp(partialTick, xRotO, getXRot())}。 */
+    /** 实体 pitch 的渲染帧插值：{@code Mth.lerp(partialTick, xRotO, getXRot())}。 */
     public static float entityPitch(Entity e) {
         float pt = partialTick();
         return lerp(pt, e.xRotO, e.getXRot());

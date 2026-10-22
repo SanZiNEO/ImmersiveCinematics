@@ -9,20 +9,19 @@ import java.util.List;
 /**
  * 播放实例注册表：活跃实例列表 + 实例查询 + 帧级相机 clip 缓存。
  *
- * 列表顺序 = 启动顺序（帧驱动按顺序遍历，后写入者覆盖先写入者 → 后来者居上），
- * 顶层实例 = 列表最后一个。不变量：预览实例恒为末位（{@link #insertBefore} 把游戏实例插在它之前），
- * 因此预览激活时顶层 = 预览实例。同脚本同玩家保持单实例：{@link #instancePlaying(String)}
- * （只看游戏实例，预览另算）；跨脚本到达裁决按播放模式查在播集合：
- * {@link #hasGameInstancePlaying(ScriptMeta.PlayMode)}；控制原语按脚本 / 实例 id 定位：
- * {@link #instanceOf(String, String)} / {@link #instancesOf(String)}（同样排除预览）。
+ * 列表顺序 = 启动顺序（帧驱动按顺序遍历，后写入者覆盖先写入者 → 后来者居上），顶层 = 最后一个；
+ * 不变量：预览实例恒为末位（{@link #insertBefore} 把游戏实例插在它之前）。
+ * 同脚本单实例只看游戏实例（{@link #instancePlaying(String)}，预览另算）；跨脚本到达裁决按播放模式
+ * 查在播集合（{@link #hasGameInstancePlaying(ScriptMeta.PlayMode)}）；控制原语按脚本 / 实例 id
+ * 定位（{@link #instanceOf(String, String)} / {@link #instancesOf(String)}，同样排除预览）。
  *
- * 帧缓存（{@link #hasActiveCameraClip()} / {@link #topInstanceHasActiveCameraClip()}）由帧驱动
- * 每帧同一时点写入一次，供帧内多个消费方读取；帧缓存只在帧驱动写入——无活跃实例时帧驱动不跑、缓存不刷新，
- * 消费方以 {@link #isActive()} / 快照非空为准。两份缓存的差别只在多实例：
- * 前者 = 全部实例并集，后者 = 顶层实例自身（听者门控口径）。
+ * 帧缓存（{@link #hasActiveCameraClip()} / {@link #topInstanceHasActiveCameraClip()}）由帧驱动每帧
+ * 同一时点写入一次；前者 = 全部实例并集，后者 = 顶层实例自身（听者门控口径）。
+ * 缓存只在帧驱动写入：无活跃实例时帧驱动不跑、缓存不刷新，消费方必须以 {@link #isActive()} /
+ * 快照非空为准。
  *
- * 线程：仅客户端主线程（渲染线程）。{@link #instances()} 的只读视图随增删实时变化，
- * 帧内遍历需自行防并发修改；查询路径零分配（{@link #instanceBehaviors()} 除外，只在实例增删时调用）。
+ * 线程：仅客户端主线程（渲染线程）。{@link #instances()} 的只读视图随增删实时变化，帧内遍历需自行
+ * 防并发修改；查询路径零分配（{@link #instanceBehaviors()} 除外，只在实例增删时调用）。
  */
 final class PlaybackRegistry {
 
@@ -85,7 +84,7 @@ final class PlaybackRegistry {
     }
 
     /**
-     * 正在播放 {@code scriptId} 的<b>游戏</b>实例；无则 {@code null}。
+     * 正在播放 {@code scriptId} 的游戏实例；无则 {@code null}。
      * 预览实例不参与——预览与游戏实例互不替换，游戏同脚本请求 / 队列可播判定都只看游戏实例。
      *
      * @param scriptId 脚本 id；{@code null} = 无匹配
@@ -100,7 +99,7 @@ final class PlaybackRegistry {
     }
 
     /**
-     * 按脚本 + 播放实例 id 定位活跃实例（控制原语 E9：按 id 停非顶层）。
+     * 按脚本 + 播放实例 id 定位活跃实例（控制原语：按 id 停非顶层）。
      * {@code instanceId} 空串 = 该脚本的任意实例（返回首个）；非空则要求实例 id 相等。
      *
      * @param scriptId   脚本 id；{@code null} = 无匹配
@@ -120,7 +119,7 @@ final class PlaybackRegistry {
     }
 
     /**
-     * 全部正在播放 {@code scriptId} 的<b>游戏</b>实例（启动顺序；预览实例另算，不在此列）。
+     * 全部正在播放 {@code scriptId} 的游戏实例（启动顺序；预览实例另算，不在此列）。
      * 同脚本同玩家保持单实例，故常态至多一个。
      *
      * @param scriptId 脚本 id；{@code null} = 无匹配（返回空列表）

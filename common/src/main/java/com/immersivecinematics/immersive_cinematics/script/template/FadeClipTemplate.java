@@ -9,15 +9,11 @@ import java.util.List;
 /**
  * 片段模板：黑场 / 白场（OVERLAY 轨的纯色遮罩片段）。
  *
- * <p>底层是纯色覆盖层（{@code layer_type=fade} + {@code color}）+ 不透明度关键帧，
- * 黑场与白场之间没有实现差异（同一个工具换颜色）——见 {@code plans/0.3.6/scene-transition.md} §3.3。</p>
- *
- * <p>三种用法由两个参数表达，都是同一条 opacity 曲线的特例：</p>
- * <ul>
- *   <li>纯色场（默认）：{@code fade_in=0, fade_out=0} → 整段不透明（"黑场 1s"一键插入）；</li>
- *   <li>压场（fade to black）：{@code fade_in=N} → 开头 N 秒由透明渐入全遮；</li>
- *   <li>亮起（fade from black）：{@code fade_out=N} → 结尾 N 秒由全遮渐出透明。</li>
- * </ul>
+ * 产物是纯色覆盖层（{@code layer_type=fade} + {@code color}）+ 不透明度关键帧；黑场与白场同一条路径，
+ * 只换颜色。两个参数各管一端，都是同一条 opacity 曲线的特例（可同时给）：
+ * 纯色场（默认）：{@code fade_in=0, fade_out=0} → 整段不透明；
+ * 压场（fade to black）：{@code fade_in=N} → 开头 N 秒由透明渐入全遮；
+ * 亮起（fade from black）：{@code fade_out=N} → 结尾 N 秒由全遮渐出透明。
  */
 public final class FadeClipTemplate implements ClipTemplate {
 

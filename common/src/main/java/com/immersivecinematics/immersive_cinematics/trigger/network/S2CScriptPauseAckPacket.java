@@ -4,8 +4,8 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * 服务端 → 客户端：暂停/恢复包的 ACK 回执（N1）。
- * <p>
+ * 服务端 → 客户端：暂停/恢复包的 ACK 回执。
+ *
  * 客户端收到后 {@link AckTracker#ack} 对应 refId，确认包不丢。
  */
 public class S2CScriptPauseAckPacket implements CinematicS2CPacket {

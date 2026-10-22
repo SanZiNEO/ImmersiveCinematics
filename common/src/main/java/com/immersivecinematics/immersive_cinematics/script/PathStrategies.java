@@ -9,19 +9,11 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * 路径策略注册表 — 按 curve.type 名称注册 PathStrategy
- * <p>
- * 默认注册：
- * <ul>
- *   <li>"bezier" → {@link BezierPathStrategy}</li>
- *   <li>"linear" → 线性插值（from.lerp(to, t)）</li>
- * </ul>
- * <p>
- * 默认策略为 "linear"：当 curveType 为 null 或未知时，使用最简单的线性插值，
- * 语义更清晰（null/未知 → 最简路径）。显式指定 "bezier" 不受影响。
- * <p>
- * 未来扩展：注册新的 curve.type 名称和对应的 PathStrategy 实现即可，
- * 无需修改 KeyframeInterpolator。
+ * 路径策略注册表 —— 按 {@code curve.type} 名称注册 {@link PathStrategy} 工厂。
+ *
+ * 默认注册 {@code "bezier"}（{@link BezierPathStrategy}）与 {@code "linear"}（{@code from.lerp(to, t)}）；
+ * 未注册或 {@code type} 为 null / 空时回落 {@code "linear"}（最简路径），并记一条 WARN。
+ * 工厂按次返回新实例：有状态策略（{@code BezierPathStrategy} 的 LUT 缓存）不会跨次累积。
  */
 public final class PathStrategies {
 
@@ -40,16 +32,13 @@ public final class PathStrategies {
         register("bezier", BezierPathStrategy::new);
     }
 
-    private PathStrategies() {}  // 工具类，禁止实例化
+    private PathStrategies() {}
 
     /**
-     * 注册路径策略工厂
-     * <p>
-     * 使用 Supplier 而不是直接存储实例，允许每次获取时创建新实例。
-     * 无状态策略（如 linear）可返回同一个 lambda 实例。
+     * 注册路径策略工厂（同名覆盖并记 WARN）。
      *
-     * @param type     curve.type 名称
-     * @param factory  策略工厂
+     * @param type    {@code curve.type} 名称
+     * @param factory 策略工厂
      */
     public static void register(String type, Supplier<PathStrategy> factory) {
         if (REGISTRY.containsKey(type)) {
@@ -59,12 +48,10 @@ public final class PathStrategies {
     }
 
     /**
-     * 获取路径策略
-     * <p>
-     * 每次调用返回一个新的策略实例（有状态的策略如 BezierPathStrategy 不会累积缓存）。
+     * 获取路径策略的新实例。
      *
-     * @param type curve.type 名称，null 或空字符串返回默认策略
-     * @return 对应的 PathStrategy 新实例，未找到时返回默认策略
+     * @param type {@code curve.type} 名称；null 或空字符串返回默认策略
+     * @return 对应的 {@link PathStrategy} 新实例；未注册时回落 {@code "linear"} 并记 WARN
      */
     public static PathStrategy get(String type) {
         if (type == null || type.isEmpty()) {
@@ -79,7 +66,9 @@ public final class PathStrategies {
     }
 
     /**
-     * 获取已注册策略名称的只读视图
+     * 获取已注册策略名称的只读视图。
+     *
+     * @return 策略名 → 工厂（不可修改）
      */
     public static Map<String, Supplier<PathStrategy>> getRegistered() {
         return Collections.unmodifiableMap(REGISTRY);

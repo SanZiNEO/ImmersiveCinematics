@@ -11,21 +11,24 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 客户端 NBT / 复杂实体选择器解析缓存。
+ * 客户端 NBT / 复杂实体选择器解析缓存：只存服务端回传的 UUID，UUID → 客户端实体由调用方
+ * （{@code EntityTargetResolver}）映射；本类只负责缓存与 pending 去重。
  *
- * 键 = {@link Key}（调用点 + 锚点来源 + 选择器字符串）三分量。同一 selector 在不同调用点 / 不同锚点来源
- * 各占一份条目、互不覆盖（1vN 场景下 follow 与 look_at 各持自己锚点解析出的结果）。
+ * 键 = {@link Key} 三分量（调用点 + 锚点来源 + 选择器字符串）：同一 selector 在不同调用点 /
+ * 锚点来源各占一条、互不覆盖（1vN 场景下 follow 与 look_at 各持自己锚点解析出的结果）。
  *
- * 只保存服务端回传的 UUID，不引用任何客户端实体类；UUID → 客户端实体由调用方
- * （{@code EntityTargetResolver}）映射。本类只负责缓存与 pending 去重。
+ * 失效边界：三分量任一变化 = 旧键不再命中，无需显式清理；条目不因目标死亡 / 卸载 / 维度切换
+ * 被删除，由调用方用 {@code Entry.resolvedAt} + 调用点扫描间隔（{@code selector_refresh}）与
+ * 重试节流兜底。{@code clear()} 在脚本停止 / 替换时清空全部条目，避免跨脚本复用旧 UUID。
  *
- * 失效语义：键三分量任一变化 = 旧键不再命中，无需显式清理；条目不因目标死亡 / 卸载 / 维度切换被删除，
- * 由调用方时效兜底——{@code Entry.resolvedAt} + 调用点扫描间隔（{@code selector_refresh}）与重试节流。
- *
- * 线程：仅客户端主线程调用；{@code clear()} 在脚本停止 / 替换时清空全部条目。
+ * 线程：仅客户端主线程调用。
  */
 public final class ClientEntitySelectorCache {
 
+    /**
+     * 待发请求上限；达上限即丢弃新请求（不排队），防止服务端不回包时无限堆积。
+     * 注意：回包丢失时该键的 {@code pending} 不会复位，后续请求被永久跳过，直到 {@link #clear()}。
+     */
     private static final int MAX_PENDING = 64;
 
     /**

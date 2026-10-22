@@ -6,7 +6,7 @@ package com.immersivecinematics.immersive_cinematics.camera.transition;
  *
  * {@link #BLEND}（缺省）：不跳变——以当前混合中间态为新的 A 侧、向新目标续接，时长重新起算。
  * {@link #SNAP}：立即结束当前过渡、输出 = 新目标（= 过渡时长 0 的特例）。
- * 与链式 A→B→C 的叠加序见 {@code docs/SCRIPT_FORMAT.md} §「过渡（transition）」。
+ * 链式 A→B→C = 打断 {@link #BLEND} 的自然延伸；同一 / 更早的交界结算后不再重开。
  */
 public enum TransitionInterrupt {
 

@@ -14,21 +14,19 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 脚本架构图数据扫描（WebUI 架构图视图的数据侧，见 plans/0.3.6/editor-script-graph.md §2）。
+ * 脚本架构图数据扫描（WebUI 架构图视图的数据侧）。
  *
- * <p>复用 {@link ScriptFileService} 的递归列举与路径越界防护扫描 scripts 目录，产出三类数据：</p>
- * <ul>
- *   <li><b>节点</b> = 脚本：相对路径 / 所在文件夹 / meta 摘要 / 时长 / 轨道构成 / 触发器清单 / requires；</li>
- *   <li><b>边</b> = 触发器 {@code requires} 前置依赖：被依赖脚本 → 依赖方脚本（有向）；</li>
- *   <li><b>分区</b> = 文件夹：脚本所在子文件夹（{@code ""} = scripts 根）。</li>
- * </ul>
+ * 复用 {@link ScriptFileService} 的递归列举与路径越界防护扫描 scripts 目录，产出三类数据：
+ * 节点 = 脚本：相对路径 / 所在文件夹 / meta 摘要 / 时长 / 轨道构成 / 触发器清单 / requires；
+ * 边 = 触发器 {@code requires} 前置依赖：被依赖脚本 → 依赖方脚本（有向）；
+ * 分区 = 文件夹：脚本所在子文件夹（{@code ""} = scripts 根）。
  *
- * <p>节点 id 用相对路径（唯一）；边的两端按 {@code meta.id}（脚本 id）解析——{@code requires}
+ * 节点 id 用相对路径（唯一）；边的两端按 {@code meta.id}（脚本 id）解析——{@code requires}
  * 引用的是脚本 id 而不是路径。指向不存在脚本的 requires 保留在节点上（{@code resolved=false}）
- * 并进入 warnings，由前端按悬空边提示（与 {@code ScriptManager.loadFromDir} 的加载期校验同口径）。</p>
+ * 并进入 warnings，由前端按悬空边提示（与 {@code ScriptManager.loadFromDir} 的加载期校验同口径）。
  *
- * <p>容错扫描：不依赖 {@code ScriptParser}（解析失败即停，是运行时口径）。写坏的脚本也要出现在图上，
- * 只是标记 {@code valid=false} + {@code error}；时长/轨道/触发器能读多少读多少。</p>
+ * 容错扫描：不依赖 {@code ScriptParser}（解析失败即停，是运行时口径）。写坏的脚本也要出现在图上，
+ * 只是标记 {@code valid=false} + {@code error}；时长/轨道/触发器能读多少读多少。
  */
 public final class ScriptGraphService {
 
@@ -39,7 +37,10 @@ public final class ScriptGraphService {
     private static final Set<String> SCRIPT_REQUIREMENT_TYPES =
             Set.of("script_played", "script_started", "script_completed");
 
-    /** 旧语法（{@code requires: ["script_a"]}）等价的前置条件类型，见 {@code ScriptParser.parseTriggerRequires} */
+    /**
+     * 字符串简写（{@code requires: ["script_a"]}）等价的前置条件类型，
+     * 见 {@code ScriptParser.parseTriggerRequires}
+     */
     private static final String LEGACY_REQUIREMENT_TYPE = "script_played";
 
     /** warnings 上限：异常包（上百条坏引用）不至于把消息撑爆 */
@@ -166,7 +167,7 @@ public final class ScriptGraphService {
             }
             node.name = orEmpty(str(meta, "name"));
             node.author = orEmpty(str(meta, "author"));
-            // 文本资源：description 顺手支持 @lang:<key>（§4 范围表）；节点 tooltip / 属性面板可见
+            // 文本资源：description 支持 @lang:<key>；节点 tooltip / 属性面板可见
             node.description = com.immersivecinematics.immersive_cinematics.util.LangResources
                     .resolve(orEmpty(str(meta, "description")));
             node.dimension = orEmpty(str(meta, "dimension"));
@@ -225,7 +226,7 @@ public final class ScriptGraphService {
 
     /**
      * 单个 requires 元素 → {@code {type, script}}（解析结果 resolved 由第二遍填）。
-     * 字符串元素按旧语法等价 {@code {"type":"script_played","script":"..."}}；
+     * 字符串元素按简写等价 {@code {"type":"script_played","script":"..."}}；
      * 对象元素只有内置 script_* 类型带脚本 id，自定义类型 script 留空。
      */
     private static JsonObject readRequirement(JsonElement re) {

@@ -10,24 +10,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * {@link CubeLut} 的资源定位与缓存 —— 与音频（{@code CinematicAudioInstance}）/ 图片（{@code TextureLoader}）
- * 同口径：文件名经 {@link ResourcePath#resolve(String)} 落到
- * {@code <游戏目录>/immersive_cinematics/resource/} 下，扩展名不敏感（{@code .cube} / {@code .CUBE} 都行，
- * 由调用方给文件名，本类不猜扩展名）。
- *
- * <h2>缓存</h2>
- * <ul>
- *   <li><b>按文件路径</b>缓存解析结果（同一文件只解析一次，多个 clip 共享同一不可变实例）；
- *       解析失败也会被记住（负缓存），保证「失败只记一次日志」、不每帧重试；</li>
- *   <li><b>按 clip</b>（{@link #forClip(String, String)} / {@link #releaseClip(String)}）：clip 只持有引用、
- *       底层实例仍按路径共享；播放结束 / 换脚本时由 {@code ScriptPlayer} 释放该脚本片段的引用；</li>
- *   <li>{@link #clearCache()} 清空全部（F3+T 资源重载时由 fabric / forge 的客户端重载监听器调用）。</li>
- * </ul>
- *
- * <h2>失败口径（与着色器加载失败一致）</h2>
- * 解析失败不抛给调用方、不静默：{@link ErrorLog} 记一条 ERROR（含文件名 + 行号 + 原因），
- * {@link #load(String)} / {@link #loadFile(Path, String)} 返回 {@code null} = 本次「无 LUT」，
- * 调用方按无 LUT 继续。
+ * {@link CubeLut} 的资源定位与缓存：文件名经 {@link ResourcePath#resolve(String)} 落到
+ * {@code <游戏目录>/immersive_cinematics/resource/} 下，扩展名由调用方给。
+ * 三层缓存：按绝对路径缓存解析结果（多 clip 共享同一不可变实例）、失败负缓存（同一坏文件只记一次日志、不每帧重试）、按 clip 的引用表。
+ * 失败口径：不抛给调用方、不静默——{@link ErrorLog} 记一条 ERROR（文件名 + 行号 + 原因），
+ * 返回 {@code null} = 本次「无 LUT」，调用方按无 LUT 继续。
  */
 public final class CubeLutLoader {
 
@@ -56,8 +43,8 @@ public final class CubeLutLoader {
     }
 
     /**
-     * 从<b>显式路径</b>加载并解析一个 .cube 文件（按绝对路径缓存）。
-     * <p>不经 {@code resource/} 目录 —— 供编辑器/校验器按用户选定的路径加载，也便于脱离客户端单测。</p>
+     * 从显式路径加载并解析一个 .cube 文件（按绝对路径缓存）。
+     * 不经 {@code resource/} 目录——供编辑器 / 校验器按用户选定路径加载，也便于脱离客户端单测。
      *
      * @param file        文件路径
      * @param displayName 错误信息中使用的文件名
@@ -96,11 +83,10 @@ public final class CubeLutLoader {
 
     /**
      * 接线面：按 clip 取 LUT（同一文件仍共享同一实例）。
-     * <p>调用方 = {@code ColorAdjustSampler}：把 ADJUST 轨片段的 {@code lut} 文件名在这里换成缓存实例，
-     * {@code clipId} = {@code Clip#getClipId()}（同一 clip 反复调用传同一值）。
-     * 解析失败时该 clip 记录被清掉、返回 {@code null}。</p>
+     * 调用方 = {@code ColorAdjustSampler}：{@code clipId} = {@code Clip#getClipId()}（同一 clip 反复调用传同一值）；
+     * 解析失败时该 clip 记录被清掉、返回 {@code null}。
      *
-     * @param clipId   该 clip 的标识（同一 clip 反复调用应传同一值）
+     * @param clipId   该 clip 的标识
      * @param fileName 资源目录下的 .cube 文件名
      * @return LUT；失败返回 {@code null}
      */

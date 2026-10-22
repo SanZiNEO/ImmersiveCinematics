@@ -15,7 +15,7 @@ public final class ModelParams {
     private final Map<String, Object> values;
 
     /**
-     * @param domain 本定义的值域（由通道或父定义决定）
+     * @param domain 本定义的值域（由通道或父定义给定）
      * @param values 归一化参数（键 = 参数名，值 = {@code Double} / {@link MathModel} / {@code List<MathModel>}）
      */
     public ModelParams(ValueDomain domain, Map<String, Object> values) {

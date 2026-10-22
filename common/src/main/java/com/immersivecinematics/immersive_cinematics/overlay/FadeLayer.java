@@ -4,21 +4,20 @@ import com.immersivecinematics.immersive_cinematics.script.ColorMaskSpec;
 import net.minecraft.client.gui.GuiGraphics;
 
 /**
- * 全屏颜色覆盖层 — 用于淡入淡出和色彩滤镜（0.3.6 起兼高级颜色遮罩）。
- * <p>
- * 纯色 + full + normal 仍走原有的 {@link GuiGraphics#fill} 快路径：铺满窗口的 ARGB 矩形，
- * 颜色由 clip 的 color / 关键帧 color 决定，透明度由关键帧 opacity 插值控制。
- * <p>
- * 声明了渐变 / rect / circle / 非 normal 混合时走 {@link ColorMaskRenderer}（专用 core shader）；
- * 几何与渐变参数由播放侧逐帧送入 {@link #setMaskGeometry} / {@link #setGradientGeometry}，
- * 颜色由 {@link #setColorRgb} 送入（{@link ColorMaskSpec#sampleColor(float)} 的缓存采样结果）。
- * <p>
- * 效果层无素材，<b>x/y/anchor/scale 对它不生效</b>（脚本写了也不读取）；填充<b>不乘 k</b>
- * （分辨率转义只作用于有素材的层）。有效 opacity 始终乘既有退场系数。
+ * 全屏颜色覆盖层 —— 淡入淡出与色彩滤镜（兼高级颜色遮罩）。
+ *
+ * 纯色 + full + normal 走 {@link GuiGraphics#fill} 快路径：铺满窗口的 ARGB 矩形，颜色由 clip 的
+ * color / 关键帧 color 决定，透明度由关键帧 opacity 插值控制。
+ * 渐变 / rect / circle / 非 normal 混合走 {@link ColorMaskRenderer}（专用 core shader）：几何与渐变参数
+ * 由播放侧逐帧送入 {@link #setMaskGeometry} / {@link #setGradientGeometry}，颜色由 {@link #setColorRgb}
+ * 送入（{@link ColorMaskSpec#sampleColor(float)} 的缓存采样结果）。
+ *
+ * 效果层无素材，x/y/anchor/scale 对它不生效（脚本写了也不读取）；填充不乘 k（分辨率转义只作用于
+ * 有素材的层）。有效 opacity 始终乘退场系数。多实例并存时按 owner 只处理本实例的层，不误伤他实例。
  */
 public class FadeLayer implements OverlayLayer {
 
-    /** 渐出时长（秒）——内部常量速率，不做脚本字段（设计 §6-2 只要求不误伤他实例） */
+    /** 渐出时长（秒）——内部常量速率，不做脚本字段 */
     private static final float FADE_OUT_SECONDS = 0.5f;
 
     /** 层归属（不透明 token = 建层方的播放实例引用）；{@code null} = 无主层 */

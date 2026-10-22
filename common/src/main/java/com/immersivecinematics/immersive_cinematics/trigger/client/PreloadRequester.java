@@ -22,29 +22,31 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 区块预加载客户端请求器 — 由 ClientEventHandler 客户端 tick 驱动。
- * <p>
- * 采用与服务端一致的原版差集思路：脚本激活后持续上报相机位置，
- * 不做“是否远离玩家”的门控；服务端自行计算应加载/补发的差集。
- * <ul>
- *   <li>脚本开始（新 script id）→ 发 PRELOAD（初始窗口 = 相机当前位置）</li>
- *   <li>播放中 → 每 {@link Config#preloadReportInterval} tick 上报相机位置（滑动窗口跟随）</li>
- *   <li>脚本结束/停止/预览 → 发 RELEASE 释放</li>
- * </ul>
+ * 区块预加载客户端请求器，由客户端 tick 驱动。
+ *
+ * 与原版差集思路一致：脚本激活后持续上报相机位置，不做「是否远离玩家」的门控，服务端自行算差集。
+ * 位置上报按 {@link Config#preloadReportInterval} tick 节流，相机活跃态翻转时立即补发一次；
+ * 相机空档 / 无活跃 CAMERA 片段时改报玩家位置，让服务端把窗口切回玩家区。
+ *
+ * 上报全是单向的：不等服务端回执，服务端未响应也不阻塞播放，只是该区域少预热。
  */
 public final class PreloadRequester {
 
+    /** 由客户端 tick 驱动的唯一实例。 */
     public static final PreloadRequester INSTANCE = new PreloadRequester();
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/PreloadClient");
 
+    /** 当前已上报 PRELOAD 的脚本 id；空串 = 未激活。 */
     private String lastScript = "";
+    /** 距上次位置上报的 tick 数。 */
     private int tickCounter = 0;
+    /** 已发 PRELOAD 且尚未 RELEASE。 */
     private boolean preloadActive = false;
 
     /** 已发送预热的脚本/片段目标，避免每 tick 重复发包 */
     private String prewarmTargetKey = "";
 
-    /** 上一刷新是否有活跃 CAMERA 片段；空档/无镜头切换时立即上报玩家位置 */
+    /** 上一刷新是否有活跃 CAMERA 片段；翻转时立即补发位置 */
     private boolean lastHadActiveCamera = false;
 
     private PreloadRequester() {}
@@ -54,8 +56,13 @@ public final class PreloadRequester {
         return preloadActive;
     }
 
+    /**
+     * 每客户端 tick 调用：脚本切换发 PRELOAD，播放中按间隔发位置，结束 / 停止 / 预览发 RELEASE。
+     *
+     * @param mc 客户端实例（读渲染距离与玩家位置）
+     */
     public void tick(Minecraft mc) {
-        // 读侧经 api 面（只读查询三件）；其余查询 / 控制仍走门面
+        // 读侧走 api 面（只读查询）；其余查询 / 控制仍走门面
         CameraApi cam = CameraManager.INSTANCE;
         if (!Config.preloadEnabled) {
             releaseIfNeeded();
@@ -193,7 +200,7 @@ public final class PreloadRequester {
         return active;
     }
 
-    /** 静态可解析的下一片段首帧世界坐标；结构/方块/实体/基准坐标系等动态基准返回 null（首版跳过） */
+    /** 静态可解析的下一片段首帧世界坐标；结构 / 方块 / 实体 / 基准坐标系等动态基准无法静态求值，返回 null。 */
     private static Vec3 computeClipStartWorldPos(Clip clip, Vec3 originPos) {
         if (clip.getKeyframes().isEmpty()) return null;
         Keyframe kf = clip.getKeyframes().get(0);

@@ -12,7 +12,7 @@ package com.immersivecinematics.immersive_cinematics.math;
  */
 public interface MathModelInstance {
 
-    /** 单步 dt 上限（秒）：限制单步目标跳变幅度（闭式解析步进无过冲），超出按此值推进。 */
+    /** 单步 dt 上限（秒）：限制单步目标跳变幅度——闭式解析步进无过冲，超长帧按此值推进。 */
     double MAX_DT = 0.25;
 
     /** 推进一步（每帧一次）；{@code in} / {@code out} 长度 = 定义的输入 / 输出通道数，调用方复用。 */

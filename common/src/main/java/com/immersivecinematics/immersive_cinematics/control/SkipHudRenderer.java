@@ -9,6 +9,11 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
+/**
+ * 跳过提示 HUD：右下角画跳过键图标与长按进度环，仅脚本模式且顶层实例可跳过时出现。
+ *
+ * 连远程服时额外显示跳过投票计数；本地服没有投票（本机即服务端）。
+ */
 public class SkipHudRenderer {
 
     private static final ResourceLocation SKIP_KEY_TEXTURE =
@@ -22,6 +27,7 @@ public class SkipHudRenderer {
     private static final int GAP_TEXT_RING = 4;
     private static final int RING_SEGMENTS = 80;
 
+    /** 绘制跳过提示；不满足显示条件时直接返回，不做任何绘制。 */
     public static void render(GuiGraphics guiGraphics) {
         if (!Config.showSkipHud) return;
 
@@ -30,7 +36,7 @@ public class SkipHudRenderer {
 
         if (!CameraManager.INSTANCE.isScriptMode()) return;
         if (!CameraManager.INSTANCE.isTopInstanceSkippable()) return;
-        // hide_skip_hud 三态：仅显式 true 隐藏；未设置（null）= 显示（不回落 hide_hud，用户口径 2026-10-11）
+        // hide_skip_hud 三态：仅显式 true 隐藏；未设置（null）= 显示（不回落 hide_hud）
         if (Boolean.TRUE.equals(CinematicController.INSTANCE.isHideSkipHud())) return;
 
         float progress = CinematicKeyBindings.getSkipHoldProgress();

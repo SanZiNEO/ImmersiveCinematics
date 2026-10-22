@@ -29,19 +29,19 @@ import java.util.Map;
 /**
  * 相机关键帧求值：把脚本数据（片段 / 关键帧 / 目标源）算成六参数快照与 lane 快照（纯计算，不写全局相机）。
  *
- * 单位与坐标空间：位置为世界空间方块坐标；yaw / pitch / roll 为度——yaw = 身体朝向、pitch = 视线，
- * MC 视线方向 = {@code (-sin yaw·cos pitch, -sin pitch, cos yaw·cos pitch)}；时间参数为秒。
- * 数值契约：连线水平分量 < {@link #LINE_HORIZONTAL_EPSILON}（零长度 / 纯垂直线）时水平角未定义 → 拒绝该朝向输入（回退基准 0 = world，限频告警）；目标不可解析 → 该段按空处理（返回 null / 基准 0），不引入替代值。
- * 偏移表达空间 base 的参照系 = 本帧基准坐标系：位置通道建立（原点 = {@code facing_origin} 点源，前轴 =
- * {@code facing_target} 点源 / 位置点源实体朝向 / follow 实体 / 玩家；上轴固定世界竖直，前轴 / 右轴取水平面内分量）；本帧未建立 = 偏移不生效。
- * 朝向叠加次序（{@code look_at = none} 时）：最终角 = 该轴基准（{@code yaw_lock} / {@code pitch_lock} 锁值，
- * 不写 = 方向源 {@code yaw_base} / {@code pitch_base}）+ 关键帧偏移（{@code yaw} / {@code pitch}）；
- * {@code look_at} != none 时静态侧（锁 + 基准 + 偏移）整体不参与，朝向由动态目标点插值决定。
- * 状态所有权：{@link #lastWorldPos} 与 {@link #frame} 是跨帧求值状态，仅本实例持有；重叠窗口的捕获求值经 {@link #snapshotFrameState()} / {@link #restoreFrameState()} 留底与回写，
- * 目标锁状态由 {@link EntityTargetResolver} 留底；每 lane 的运动模型实例见 {@link LaneMotionStepper}。
- * 点源快照（时态 = 快照）由轨道播放器持有的 {@link PointSourceSnapshots} 承载（桶键 = 片段身份 + 槽位）：
- * 本类各求值入口（位置 / 注视点 / 朝向段 / 可用性探测，含 morph 两侧）先注入当前片段，同帧同片段读同一桶。
- * 过渡状态（进度 / 曲线 / 打断留底）由 {@link CameraTransitionLayer} 持有（本轨一份）。
+ * 单位与坐标空间：位置 = 世界空间方块坐标；yaw / pitch / roll = 度（yaw = 身体朝向、pitch = 视线）；
+ * 时间 = 秒；MC 视线方向 = {@code (-sin yaw·cos pitch, -sin pitch, cos yaw·cos pitch)}。
+ * 数值契约：连线水平分量 < {@link #LINE_HORIZONTAL_EPSILON}（零长度 / 纯垂直线）= 水平角未定义 →
+ * 拒绝该朝向输入（回退基准 0 = world，限频告警）；目标不可解析 → 该段按空处理（null / 基准 0），
+ * 不引入替代值 / 回退逻辑。
+ * 基准坐标系：原点 = {@code facing_origin} 点源，前轴 = {@code facing_target} 点源 / 位置点源实体朝向 /
+ * follow 实体 / 玩家，上轴 = 世界竖直；本帧未建立 = base 表达空间的偏移不生效。
+ * 朝向叠加次序（{@code look_at = none}）：最终角 = 该轴基准（{@code yaw_lock} / {@code pitch_lock} 锁值，
+ * 不写 = 方向源 {@code yaw_base} / {@code pitch_base}）+ 关键帧偏移；{@code look_at} != none 时静态侧不参与。
+ * 状态所有权：{@link #lastWorldPos} / {@link #frame} 仅本实例持有；捕获求值经 {@link #snapshotFrameState()} /
+ * {@link #restoreFrameState()} 留底回写，目标锁由 {@link EntityTargetResolver} 留底。
+ * 点源快照（时态 = 快照）由轨道播放器持有的 {@link PointSourceSnapshots} 承载（桶键 = 片段 + 槽位）；
+ * 求值入口先注入当前片段，同帧同片段读同一桶。过渡状态由 {@link CameraTransitionLayer} 持有（本轨一份）。
  * 分配 / 线程契约：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱。
  */
 public final class CameraKeyframeEvaluator {
@@ -137,12 +137,10 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 片段目标可用性：注视点（{@code look_at} 点源）、follow 实体、位置点源（{@code facing_origin}）、
-     * 基准坐标系前轴目标（{@code facing_target}）、朝向基准（{@code yaw_base} / {@code pitch_base}）
-     * 任一不可解析 → 片段不可用，按空片段处理（不写相机，玩家视角）。
-     * 某轴写了方向锁（{@code yaw_lock} / {@code pitch_lock}）= 该轴的基准不参与求值，不要求其来源可解析。
-     * 点源（位置点源 / 注视点 / 连线端点 / 基准坐标系前轴目标）与求值路径走同一解析，判据不分叉。
-     * 找不到就找不到——不引入任何替代值/回退逻辑。
+     * 片段目标可用性：注视点（{@code look_at}）、follow 实体、位置点源（{@code facing_origin}）、
+     * 基准坐标系前轴目标（{@code facing_target}）、朝向基准（{@code yaw_base} / {@code pitch_base}）任一不可解析
+     * → 片段不可用（不写相机，玩家视角）；某轴写了锁 = 该轴基准不参与，不要求来源可解析。
+     * 点源与求值路径走同一解析，判据不分叉；找不到就找不到，不引入替代值 / 回退。
      */
     public boolean isClipUsable(Clip clip) {
         // 快照桶键：前置探测与求值读同一（片段，槽位）桶，故先注入本片段
@@ -307,7 +305,7 @@ public final class CameraKeyframeEvaluator {
         }
         // ====== End 运动模型 ======
 
-        // ====== Breath disturbance (v2: 按 cam_breath_type 分派, 确定性) ======
+        // ====== Breath disturbance（按 cam_breath_type 分派，确定性）======
         if (prevClip.getBool("cam_breath_enabled", false)) {
             float[] jitter = BreathDisturbance.fromClip(prevClip).compute(globalTime);
             yaw += jitter[0];
@@ -356,12 +354,10 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 关键帧世界坐标求值：
-     * follow=entity → 实体渲染帧插值位置 + position 偏移（动态，每帧重算）
-     * 普通关键帧    → position 对象自描述：absolute = 世界坐标；relative = 位置点源 + 偏移
-     *                （世界轴 dx/dy/dz 或基准坐标系 fwd/up/right，点源 = facing_origin）
-     * 相对模式同时更新本帧基准坐标系（建立条件见 {@link #declaresFrame}）。
-     * 注意：实体/结构目标不可用已在 isClipUsable 前置拦截（该片段按空处理），此处分支为防御。
+     * 关键帧世界坐标求值：follow=entity → 实体渲染帧插值位置 + position 偏移（每帧重算）；
+     * 普通关键帧 → position 自描述：absolute = 世界坐标，relative = 位置点源 + 偏移
+     * （世界轴 dx/dy/dz 或基准坐标系 fwd/up/right，点源 = facing_origin），同时更新本帧基准坐标系。
+     * 注意：实体 / 结构目标不可用已由 {@link #isClipUsable} 前置拦截（该片段按空处理），此处为防御分支。
      */
     private Vec3 evalKeyframeWorldPos(Keyframe kf, Clip clip) {
         entityResolver.attachClip(clip);
@@ -519,10 +515,10 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * look_at 的点源（关键帧级，{@link #isClipUsable} 与 {@link #evalLookTarget} 共用同一构造）：
-     * {@code player} = 玩家激活位置；{@code coordinate} = 固定坐标（{@code look_at_target_x/y/z}；结构优先：
+     * look_at 的点源（关键帧级，{@link #isClipUsable} 与 {@link #evalLookTarget} 共用）：
+     * {@code player} = 玩家激活位置；{@code coordinate} = 固定坐标（{@code look_at_target_x/y/z}，
      * {@code look_at_target_structure} 非空时取结构中心）；{@code entity} = 实体选择器 + 部位百分比
-     * （{@code look_at_selector} / {@code look_at_part}）；{@code block} = 方块点源（{@code look_at_target_block}）。
+     * （{@code look_at_selector} / {@code look_at_part}）；{@code block} = 方块点源。
      * 偏移 = {@code look_at_offset}（世界轴 dx/dy/dz / 基准坐标系 fwd/up/right）。
      *
      * @return 点源规格；{@code look_at = none}（角度模式）/ 形态字段缺省 = {@code null}
@@ -566,7 +562,7 @@ public final class CameraKeyframeEvaluator {
      * 关键帧 look_at 目标点求值（点源 + 偏移，形态见 {@link #lookAtSource}）：
      * player → 玩家激活位置；entity → 实体包围盒内的取点（部位百分比，缺省包围盒中心）；
      * block → 就近搜索的方块中心；coordinate → 固定坐标 / 结构中心（结构优先）；
-     * none → 由该关键帧 yaw/pitch 决定的 100 格方向远点（看向它 = 保持该朝向）。
+     * none → 由该关键帧 yaw/pitch 确定的 100 格方向远点（看向它 = 保持该朝向）。
      * 返回 null 表示该端无注视目标（实体消失 / 方块与结构定位失败），该段按 look_at=none 处理（关键帧角度）。
      */
     private Vec3 evalLookTarget(Keyframe kf, Clip clip, Vec3 pos) {
@@ -606,11 +602,9 @@ public final class CameraKeyframeEvaluator {
 
     /**
      * 单段朝向求值，优先级：look_at（动态目标点）> 切线朝向（clip 级 {@code orient=tangent}）> 手写角度
-     * （静态侧：该轴基准 + 关键帧偏移，见 {@link #finalYaw}）。任一端 look_at != none 时用目标点插值模型
-     * （看向插值目标点）；两端目标齐全才用目标点，目标缺失（evalLookTarget 返回 null）时该段按 look_at=none
-     * 处理——用两端关键帧自身的 yaw/pitch 角度插值（yawBase/pitchBase）。方向锁（{@code yaw_lock} /
-     * {@code pitch_lock}）属静态侧，只在手写角度这一支生效。目标不可用已由 isClipUsable 前置拦截（片段按空处理），
-     * 此处为防御。返回 [yaw, pitch]。
+     * （静态侧：该轴基准 + 关键帧偏移，见 {@link #finalYaw}）。任一端 look_at != none 时用目标点插值模型；
+     * 两端目标齐全才用目标点，目标缺失时该段按 look_at=none 处理（两端关键帧自身角度插值）。
+     * 方向锁属静态侧，只在手写角度支生效。目标不可用已由 isClipUsable 前置拦截，此处为防御。返回 [yaw, pitch]。
      */
     private float[] segmentYawPitch(Keyframe from, Keyframe to, float s, Clip clip, Vec3 segPos,
                                     float yawBase, float pitchBase) {
@@ -785,7 +779,7 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 单段求值出相机六参数，并按 {@code capture} 决定是否提交 {@link #lastWorldPos}。
+     * 单段求值出相机六参数，并按 {@code capture} 提交或跳过 {@link #lastWorldPos}。
      *
      * 次序：关键帧 / look_at 目标点插值出目标值 → 每通道运动模型 step（{@link LaneMotionStepper}，
      * 定义取本段片段）→ 呼吸叠加 → 直写。
@@ -804,7 +798,7 @@ public final class CameraKeyframeEvaluator {
         float zoom = KeyframeInterpolator.interpolateZoom(from, to, s);
 
         // ====== look_at 目标点插值模型 ======
-        // 关键帧 look_at 定义"目标点"（entity=实体正中心、coordinate=固定点、none=由该关键帧 yaw/pitch 决定的方向远点）。
+        // 关键帧 look_at 定义"目标点"（entity=实体正中心、coordinate=固定点、none=由该关键帧 yaw/pitch 确定的方向远点）。
         // 目标点在关键帧间插值后相机看向插值点——look_at 切换/开关天然平滑；两端都 none 时保持角度插值（零回归）。
         float[] yp = segmentYawPitch(from, to, s, clip, pos, yawBase, pitchBase);
         float yaw = yp[0];
@@ -831,7 +825,7 @@ public final class CameraKeyframeEvaluator {
             zoom = (float) motionValues[7];
         }
         // ====== End 运动模型 ======
-        // ====== Breath disturbance (v2: 按 cam_breath_type 分派, 确定性) ======
+        // ====== Breath disturbance（按 cam_breath_type 分派，确定性）======
         if (clip.getBool("cam_breath_enabled", false)) {
             float[] jitter = BreathDisturbance.fromClip(clip).compute(globalTime);
             yaw += jitter[0];

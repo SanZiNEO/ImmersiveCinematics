@@ -9,7 +9,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 服务端保存每个玩家的“音频听者位置”（相机听者模式）。
- * <p>
  * 原版 {@code PlayerList.broadcast} 只按玩家实体坐标筛选声音包，相机听者离玩家很远时
  * 生物音根本不会下发。客户端通过 {@code C2SAudioListenerPacket} 上报相机位置，
  * 混合注入 {@code PlayerList} 后用这里的值作为第二判定点。

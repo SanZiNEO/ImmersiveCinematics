@@ -3,10 +3,8 @@ package com.immersivecinematics.immersive_cinematics.trigger.network;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * 网络层（0.3.5 第7轮去 Arch）。
- * <p>
- * 平台无关：由 {@link NetworkBridge} 注入实际发送实现，
- * 包 ID 常量供 Fabric/Forge 平台注册时使用。
+ * 网络层：平台无关的发送入口。
+ * 由 {@link NetworkBridge} 注入实际发送实现，包 ID 常量供 Fabric/Forge 平台注册时使用。
  */
 public final class NetworkHandler {
 
@@ -35,19 +33,22 @@ public final class NetworkHandler {
 
     private NetworkHandler() {}
 
+    /** 平台在 common init 前注入实际实现；未注入时所有发送静默丢弃。 */
     public static void setBridge(NetworkBridge b) {
         bridge = b;
     }
 
+    /** 发给单个玩家；bridge 为空（平台未注入）时静默丢弃。 */
     public static void sendToPlayer(ServerPlayer player, CinematicS2CPacket packet) {
         if (bridge != null) bridge.sendToPlayer(player, packet);
     }
 
+    /** 发给服务端；bridge 为空（客户端未注入）时静默丢弃。 */
     public static void sendToServer(CinematicC2SPacket packet) {
         if (bridge != null) bridge.sendToServer(packet);
     }
 
-    /** 兼容旧调用：由平台在 common init 前注入 bridge */
+    /** 空入口：bridge 已由平台在 common init 前注入，此处无需动作。 */
     public static void init() {
     }
 }

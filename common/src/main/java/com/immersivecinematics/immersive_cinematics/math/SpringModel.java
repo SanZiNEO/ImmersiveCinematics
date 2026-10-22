@@ -34,7 +34,7 @@ public final class SpringModel implements MathModel {
     private final double damping;
     private final double initialVelocity;
 
-    /** @param stiffness 刚度 k；@param damping 阻尼比 ζ；@param initialVelocity 初速度；越界 / NaN 各自按 clamp* 钳制 */
+    /** 刚度 / 阻尼比 / 初速度越界或 NaN 时按 {@code clamp*} 钳制（各自缺省见常量）。 */
     public SpringModel(ValueDomain domain, double stiffness, double damping, double initialVelocity) {
         this.domain = domain;
         this.stiffness = clampStiffness(stiffness);

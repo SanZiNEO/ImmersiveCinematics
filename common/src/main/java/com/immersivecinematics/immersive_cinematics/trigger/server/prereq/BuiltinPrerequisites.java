@@ -4,9 +4,7 @@ import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.trigger.server.store.TriggerStateStore;
 
 /**
- * 内置前置条件类型。
- * <p>
- * 由 {@code ImmersiveCinematics.init()} 调用 {@link #registerAll()} 注册。
+ * 内置前置条件类型：由 {@code ImmersiveCinematics.init()} 调用 {@link #registerAll()} 注册。
  */
 public final class BuiltinPrerequisites {
 
@@ -25,7 +23,7 @@ public final class BuiltinPrerequisites {
             return script != null && TriggerStateStore.INSTANCE.isScriptStarted(player.getUUID(), script);
         });
 
-        // 只要求结束播放（历史语义，保留给需要“只看结束”的作者）
+        // 只要求结束播放：沿用“结束信号即满足”的语义，不校验是否开始过（保留给“只看结束”的作者）
         PrerequisiteRegistry.register("script_completed", (player, data) -> {
             String script = getScript(data);
             return script != null && TriggerStateStore.INSTANCE.isScriptCompleted(player.getUUID(), script);

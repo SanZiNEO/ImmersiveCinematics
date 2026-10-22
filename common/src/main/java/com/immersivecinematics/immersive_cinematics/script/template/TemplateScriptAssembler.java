@@ -10,12 +10,12 @@ import com.immersivecinematics.immersive_cinematics.script.ScriptTemplate;
 /**
  * 把片段模板的产物装进一份可播放的标准脚本（接入点用）。
  *
- * <p>骨架直接复用新建脚本的默认结构 {@link ScriptTemplate#build()}（meta 默认值 + 每种轨道一条空轨），
- * 把展开出的 clip 追加到 {@link ClipTemplate#trackType()} 对应的轨道上，并把
- * {@code timeline.total_duration} 收到 clip 末端。</p>
+ * 骨架复用新建脚本的默认结构 {@link ScriptTemplate#build()}（meta 默认值 + 每种轨道一条空轨），
+ * 把展开出的 clip 追加到 {@link ClipTemplate#trackType()} 对应的轨道，并把
+ * {@code timeline.total_duration} 收到 clip 末端。
  *
- * <p>这**不是**脚本级模板（那要引用多条轨道、带触发器与默认转场）：这里只是"片段 → 能播的脚本"的
- * 最小装配，产物与手写脚本同构，走 {@code ScriptParser} / {@code ScriptValidator} 后即可编辑 / 播放。</p>
+ * 只做"片段 → 能播的脚本"的最小装配，不是脚本级模板（后者引用多条轨道、带触发器与默认转场）；
+ * 产物与手写脚本同构，走 {@code ScriptParser} / {@code ScriptValidator} 后即可编辑 / 播放。
  */
 public final class TemplateScriptAssembler {
 
@@ -35,7 +35,7 @@ public final class TemplateScriptAssembler {
      * 装配脚本对象。
      *
      * @param template 片段模板
-     * @param args     已归一的实参（{@link TemplateArgs#startTime()} 决定 clip 的 {@code start_time}）
+     * @param args     已归一的实参（{@link TemplateArgs#startTime()} 即 clip 的 {@code start_time}）
      * @param scriptId 脚本 id / 文件名（写入 {@code meta.id} 与 {@code meta.name}）
      */
     public static JsonObject assemble(ClipTemplate template, TemplateArgs args, String scriptId) {

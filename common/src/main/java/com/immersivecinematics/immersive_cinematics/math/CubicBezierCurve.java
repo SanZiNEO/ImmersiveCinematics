@@ -5,7 +5,7 @@ package com.immersivecinematics.immersive_cinematics.math;
  *
  * 输入 x = 归一化进度 [0,1]（越界钳制），输出 y（可越界 = 允许过冲；y1 / y2 的范围见 {@link #clampY}）。
  * 求值 = 先解 x(t) = x 的 t（牛顿迭代 8 次，未收敛时二分兜底；容差 = x 残差 1e-7），再取 y(t)。
- * 参数不可变、无状态：同输入 → 同输出（不依赖迭代历史）。缺省控制点 = 恒等曲线。
+ * 参数不可变、无状态：同输入 → 同输出。缺省控制点 = 恒等曲线。
  */
 public final class CubicBezierCurve implements CurveFn {
 

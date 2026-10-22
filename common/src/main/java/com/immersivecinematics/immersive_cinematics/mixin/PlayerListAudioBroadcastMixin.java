@@ -24,15 +24,11 @@ import java.util.List;
 
 /**
  * 相机听者模式下的服务端声音广播补丁。
- * <p>
- * 原版 {@code PlayerList.broadcast} 只按玩家实体坐标筛选声音包，相机听者离玩家很远时
- * 生物音/攻击音不会下发。这里对声音类包增加“相机听者位置”这个第二判定点：
- * <ul>
- *   <li>玩家自身仍在原版半径内 → 照常发送；</li>
- *   <li>相机听者在放宽后的半径内 → 补发；</li>
- *   <li>两者都不在 → 不发。</li>
- * </ul>
- * 只拦截声音相关包，其他广播原样走原版逻辑。
+ *
+ * 坑：原版 {@code PlayerList.broadcast} 只按玩家实体坐标筛选声音包，相机听者离玩家很远时生物音 / 攻击音
+ * 不会下发。这里对声音类包（{@code ClientboundSound*} / {@code ClientboundLevelEvent}）增加「相机听者位置」
+ * 这个第二判定点：玩家自身仍在原版半径内 → 照常发送；相机听者在放宽后的半径内 → 补发；两者都不在 → 不发。
+ * 其他广播原样走原版逻辑。
  */
 @Mixin(PlayerList.class)
 public abstract class PlayerListAudioBroadcastMixin {

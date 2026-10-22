@@ -8,8 +8,8 @@ import java.util.List;
 /**
  * 片段模板：固定机位 + 呼吸（手持感）。
  *
- * <p>两个等值关键帧把位置 / 朝向 / 光学钉死，晃动完全由 clip 级的程序化呼吸扰动
- * （{@code cam_breath_*}，逐帧噪声，不是关键帧数据）产生——"固定视角"与"呼吸"是两个正交的层。</p>
+ * 两个等值关键帧把位置 / 朝向 / 光学钉死，晃动完全由 clip 级的程序化呼吸扰动（{@code cam_breath_*}，
+ * 逐帧噪声、不是关键帧数据）产生——固定视角与呼吸是两个正交的层。
  */
 public final class StaticBreathClipTemplate implements ClipTemplate {
 

@@ -5,27 +5,12 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * ADJUST 轨的 RGB 复合曲线（0.3.6 曲线组，形态 b：曲线定义一次 + {@code curve_strength} 关键帧控混合强度）。
- *
- * <h2>数据形态</h2>
- * clip 级字段 {@code curve} = 控制点数组 {@code [[x,y], ...]}（{@code x} 严格递增、各 0~1、≥2 点），
- * 由 {@code ScriptParser} 解析成本类；缺省（不写该字段）= 无曲线。
- * 关键帧只控 {@code curve_strength}（0~1，缺省 1 = 曲线全量生效），渲染侧按
- * {@code c = mix(c, curve(c), strength)} 逐通道混合——曲线本身不随时间变，故不进关键帧。
- *
- * <h2>LUT（CPU 侧采样，渲染侧查表）</h2>
- * 控制点在 CPU 侧采样成 {@value #LUT_SIZE} 点 LUT（{@code lut[i]} = 曲线在 {@code x = i / 255} 处的取值），
- * 上传成 256×1 纹理给 {@code ic_color_adjust.fsh} 查表——着色器里不做曲线求值。
- * <ul>
- *   <li>插值 = <b>Fritsch–Carlson 单调三次插值</b>（PCHIP）：单调控制点 ⇒ 单调 LUT，
- *       段内无过冲（不会出现「提亮黑场却把暗部压暗」这类越界），两端切线取单侧斜率；</li>
- *   <li>端点外钳制：{@code x < x0} 取 {@code y0}、{@code x > x_last} 取 {@code y_last}（不外推）；</li>
- *   <li><b>缓存</b>：LUT 在构造时算好、对象内持有——一个 clip 解析出一个对象、全生命周期复用，
- *       {@code AdjustTrackPlayer} 每帧拿到的是同一个数组（渲染侧按引用比较，只在换 clip 时重传纹理）。
- *       与 {@code BezierPathStrategy} 的 {@code lutCache} 同思路，只是键 = 曲线对象自身（不必再建 Map）。</li>
- * </ul>
- *
- * <p>不可变对象：控制点表与 LUT 都不再改动；{@link #lut()} 返回的数组只读，调用方不得修改。</p>
+ * ADJUST 轨的 RGB 复合曲线：曲线定义一次（clip 级 {@code curve} = 控制点数组
+ * {@code [[x,y], ...]}，{@code x} 严格递增、各 0~1、≥2 点；缺省 = 无曲线），
+ * 关键帧只控 {@code curve_strength}（0~1，缺省 1）。
+ * 渲染侧按 {@code c = mix(c, curve(c), strength)} 逐通道混合——曲线本身不随时间变；
+ * 控制点在 CPU 侧采样成 {@value #LUT_SIZE} 点 LUT（{@code x = i / 255}）上传成 256×1 纹理给 shader 查表。
+ * 插值 = Fritsch–Carlson 单调三次（PCHIP）：单调控制点 ⇒ 单调 LUT、段内无过冲，区间外钳制到端点值（不外推）。
  */
 public final class ColorCurve {
 
@@ -43,9 +28,7 @@ public final class ColorCurve {
 
     /**
      * 由控制点建一条曲线并采样出 LUT。
-     *
-     * <p><b>前置条件</b>（由 {@code ScriptParser} / {@code ScriptValidator} 保证，本类不再重复校验）：
-     * ≥2 个点、{@code x} 严格递增、{@code x} / {@code y} 各在 0~1。</p>
+     * 前置条件（由 {@code ScriptParser} / {@code ScriptValidator} 保证）：≥2 个点、{@code x} 严格递增、各 0~1。
      */
     public ColorCurve(List<Point> points) {
         this.points = Collections.unmodifiableList(new ArrayList<>(points));
@@ -76,12 +59,9 @@ public final class ColorCurve {
     }
 
     /**
-     * Fritsch–Carlson 单调三次插值（PCHIP）采样整条曲线。
-     *
-     * <p>步骤：区间斜率 {@code d} → 切线初值（端点取单侧斜率、内部取相邻斜率均值）→
-     * 单调性修正（{@code d = 0} 时两端切线置 0；切线符号与区间斜率相反时置 0；
-     * {@code α² + β² > 9} 时按 {@code 3 / √(α²+β²)} 缩回——这三条保证段内无过冲）→
-     * 逐点 Hermite 求值；区间外钳制到端点值。</p>
+     * Fritsch–Carlson 单调三次插值（PCHIP）采样整条曲线：三条单调性修正（{@code d = 0} 时两端切线置 0、
+     * 切线符号与区间斜率相反时置 0、{@code α² + β² > 9} 时按 {@code 3 / √(α²+β²)} 缩回）保证段内无过冲；
+     * 区间外钳制到端点值。
      */
     private static float[] sample(List<Point> pts) {
         int n = pts.size();

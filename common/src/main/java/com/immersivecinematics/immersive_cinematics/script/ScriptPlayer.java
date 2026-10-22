@@ -24,27 +24,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 脚本播放器 — 驱动 CinematicScript 的运行时播放
- * <p>
- * 核心职责（重构后）：
- * <ul>
- *   <li>管理全局播放时间（基于 CameraManager 虚拟时钟）</li>
- *   <li>创建并调度 TrackPlayer 实例（Camera/Letterbox/Audio/ModEvent）</li>
- *   <li>管理当前脚本的运行时行为（从 ScriptMeta.RuntimeBehavior 直接持有）</li>
- *   <li>处理脚本结束 / holdAtEnd</li>
- * </ul>
- * <p>
- * 不再直接访问 CameraManager/OverlayManager 的写入方法 —
- * 所有轨道处理逻辑已抽取到各自的 TrackPlayer 实现中。
+ * 脚本播放器 —— 驱动 {@link CinematicScript} 的运行时播放。
+ *
+ * 管理播放时间（按本实例的 {@link Clock} 换算）；创建并调度 {@link TrackPlayer} 实例
+ * （相机 / 黑边 / 音频 / 事件）；持有当前脚本的运行时行为（{@link ScriptMeta.RuntimeBehavior}）；
+ * 处理脚本结束与 {@code hold_at_end} 驻留。宏观循环开启时对外分发圈内局部时间。
+ *
+ * 轨道处理全部在各自的 TrackPlayer 内完成，本类只做调度与时间 / 内容事实的账本。
  */
 public class ScriptPlayer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/ScriptPlayer");
 
     /**
-     * holdAtEnd 模式下的时间偏移量 — 略小于内容终点，
-     * 避免内容谓词判定脚本已结束。
-     * 0.1ms 的偏移在视觉上不可察觉，但确保插值仍取最后一帧的值。
+     * hold_at_end 的驻留读数偏移：驻留位置 = 内容终点 − 本值，略小于终点以免内容谓词判定脚本已结束；
+     * 偏移量在视觉上不可察觉，插值仍取最后一帧的值。
      */
     private static final float HOLD_END_EPSILON = 0.0001f;
 
@@ -82,10 +76,8 @@ public class ScriptPlayer {
     private float heldElapsed = Float.NaN;
 
     /**
-     * 本实例的时钟源（{@link Clock}，秒）——默认 = 游戏共享虚拟时钟（{@code CameraManager.getGameTimeSeconds()}，游戏实例）。
-     * <p>
-     * 预览实例由 {@code CameraManager} 注入<b>预览播放头</b>（{@code plans/0.3.6/parallel-playback.md}
-     * §7 步骤 5）：预览与游戏各自独立计时——预览的暂停/播放不再冻结游戏实例的时间轴，反之亦然。
+     * 本实例的时钟源（{@link Clock}，秒）：默认 = 游戏共享虚拟时钟；预览实例注入预览播放头。
+     * 预览与游戏各自独立计时，任一侧的暂停 / 播放不影响另一侧的时间轴。
      */
     private Clock clockSource = CameraManager.INSTANCE::getGameTimeSeconds;
 
@@ -144,14 +136,14 @@ public class ScriptPlayer {
     private float lastLocalElapsed = Float.NaN;
 
     /**
-     * ②族执行事实用的 per-clip 已执行圈数槽：索引 = 扁平片段序（轨道序 → 轨道内片段序），与 {@link Clip}
+     * 执行事实用的 per-clip 已执行圈数槽：索引 = 扁平片段序（轨道序 → 轨道内片段序），与 {@link Clip}
      * 一一对应，由 {@link #recordContentFacts} 按播放头推进累加（有限循环片段到 {@code loop_count} = 次数耗尽）。
      * 容量在 {@link #start} / {@link #replaceScript} 时按脚本片段总数重建，每帧路径零分配。
      */
     private int[] clipLoopCounts = EMPTY_LOOP_COUNTS;
 
     /**
-     * ②族执行事实用的 per-clip 消费状态槽（同索引，取值 {@link #CLIP_PENDING} / {@link #CLIP_ACTIVE} /
+     * 执行事实用的 per-clip 消费状态槽（同索引，取值 {@link #CLIP_PENDING} / {@link #CLIP_ACTIVE} /
      * {@link #CLIP_CONSUMED}）：只在播放头推进（{@link #recordContentFacts}）与路径变更
      * （{@link #rederiveContentFacts}）时改写，判定侧只读。
      */
@@ -171,7 +163,7 @@ public class ScriptPlayer {
 
     /**
      * 本帧分发给轨道的时间轴读数（秒；宏观循环 = 圈内局部时间）——片段活跃窗判定的唯一读侧出口
-     * （{@code ClipModifierGate} 按它比较声明片段的窗口）。未开始播放时为 {@code start} 传入的预执行时间。
+     * （{@code ClipModifierGate} 按它比较声明片段的窗口）。初始为 {@code 0}，{@link #start} 后为首帧预执行时间。
      */
     private float timelineTime = 0f;
 
@@ -181,13 +173,13 @@ public class ScriptPlayer {
     private List<TrackPlayer> trackPlayers = Collections.emptyList();
 
     /**
-     * 规则动作 {@code play_sound} 的一次性发声宿主（0.3.6 C6-3；懒建）：与轨道列表无关——
+     * 规则动作 {@code play_sound} 的一次性发声宿主（懒建）：与轨道列表无关——
      * 没有 AUDIO 轨道的脚本同样能发声。不参与轨道分发（只用到一次性声音容器 / 回收 / 停止），
      * 随实例停止清理（见 {@link #cleanupTrackPlayers()}）。
      */
     private AudioTrackPlayer oneShotHost;
 
-    /** 组 A：按轨道索引取 clips（动态数据源；支持同类型多条轨道——OVERLAY 多轨道） */
+    /** 按轨道索引取 clips（动态数据源；支持同类型多条轨道，如 OVERLAY）。 */
     public List<Clip> clipsForTrack(int trackIndex) {
         if (script == null) return Collections.emptyList();
         List<TimelineTrack> tracks = script.getTimeline().getTracks();
@@ -196,10 +188,8 @@ public class ScriptPlayer {
     }
 
     /**
-     * 组 A：增量替换脚本数据（编辑器编辑路径，常驻播放器零重启）。
-     * <p>
-     * 只替换 CinematicScript 引用并通知各 TrackPlayer 复位/重映射——
-     * 不重建 TrackPlayer、不重新解码音频。相机/音频在下一帧用新数据驱动。
+     * 增量替换脚本数据（编辑器编辑路径）：只替换 {@link CinematicScript} 引用并通知各 TrackPlayer
+     * 复位 / 重映射，不重建 TrackPlayer、不重新解码音频；相机 / 音频在下一帧用新数据驱动。
      */
     public void replaceScript(CinematicScript newScript) {
         if (newScript == null) return;
@@ -235,10 +225,7 @@ public class ScriptPlayer {
         playerMovement.onScriptStart(newScript, originPos);
     }
 
-    /**
-     * 维度校验（0.3.5 B）：CAMERA clip 的 dimension 字段 ≠ 玩家当前维度 → 日志提示。
-     * 不做自动切换（跨维度运镜为 0.4.0 F 类，消费本字段）。有错即报错，不兜底。
-     */
+    /** CAMERA 片段的 {@code dimension} ≠ 玩家当前维度 → 日志提示；不自动切换维度，有错即报错。 */
     private void validateClipDimensions(CinematicScript script) {
         if (script == null || script.getTimeline() == null) return;
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
@@ -297,8 +284,8 @@ public class ScriptPlayer {
 
     /**
      * 释放脚本里带 {@code lut} 的片段在 {@link CubeLutLoader} 的 clip 引用（播放结束 / 换脚本时）。
-     * <p>只摘「哪些 clip 引用了 LUT」的引用表，按路径共享的解析缓存不动——同一 LUT 的其它脚本 / 后续播放
-     * 仍复用同一不可变实例；资源重载走 {@link CubeLutLoader#clearCache()}。</p>
+     * 只摘「哪些 clip 引用了 LUT」的引用表，按路径共享的解析缓存不动——同一 LUT 的其它脚本 / 后续播放
+     * 仍复用同一不可变实例；资源重载走 {@link CubeLutLoader#clearCache()}。
      */
     private static void releaseLutClipRefs(CinematicScript script) {
         if (script == null || script.getTimeline() == null) return;
@@ -324,13 +311,12 @@ public class ScriptPlayer {
      * 启动脚本播放
      *
      * @param script        已解析的脚本对象
-     * @param preExecuteAt  预执行首帧的期望 elapsed 时间（预览模式 = previewTime，
-     *                      避免重启后首帧写 t=0 造成画面跳变；游戏内 = 0）
+     * @param preExecuteAt  预执行首帧的 elapsed（预览 = 播放头时间，避免首帧跳变；游戏内 = 0）
      */
     public void start(CinematicScript script, float preExecuteAt) {
-        // D1：替换 trackPlayers 前先清理旧实例（否则 AudioTrackPlayer 的 OpenAL source 泄漏 → 重复播放/无法停止）
+        // 替换 trackPlayers 前先清理旧实例（否则 AudioTrackPlayer 的 OpenAL source 泄漏 → 重复播放 / 无法停止）
         cleanupTrackPlayers();
-        // LUT：被本次 start 顶掉的旧脚本的 clip 引用一并释放（this.script 尚未指向新脚本）
+        // LUT：start 顶掉的旧脚本的 clip 引用一并释放（此时 this.script 仍指向旧脚本）
         releaseLutClipRefs(this.script);
 
         Minecraft mc = Minecraft.getInstance();
@@ -345,13 +331,12 @@ public class ScriptPlayer {
         this.stopping = false;
         this.startGameTimeSeconds = clockSeconds();
 
-        // 持有当前脚本的运行时行为
         ScriptMeta meta = script.getMeta();
         this.currentBehavior = meta.getBehavior();
 
         // 宏观循环：推导区间 [a, b] 与圈数并缓存（NaN = 不循环）
         computeMacroLoop();
-        // 执行事实槽：按新脚本的片段总数重建（②族「内容播完」判定的事实来源）
+        // 执行事实槽：按新脚本的片段总数重建（内容播完判定的唯一事实来源）
         resetContentFacts();
 
         // block_mob_ai：清空已锁定玩家的生物目标
@@ -369,13 +354,13 @@ public class ScriptPlayer {
             }
         }
 
-        // 创建 TrackPlayer 实例（组 A：数据源动态化，后续 replaceScript 不重建；传轨道索引支持同类型多轨道）
+        // 创建 TrackPlayer 实例（replaceScript 复用；传轨道索引支持同类型多轨道）
         buildTrackPlayers(script);
 
         // 玩家移动控制：提取 EVENT position 关键帧
         playerMovement.onScriptStart(script, originPos);
 
-        // 维度校验（0.3.5 B）：CAMERA clip 声明 dimension ≠ 玩家当前维度 → 提示（不做自动切换，0.4.0 F 类）
+        // 维度校验：CAMERA clip 声明的 dimension ≠ 玩家当前维度 → 提示（不自动切换）
         validateClipDimensions(script);
 
         // 预执行第一帧（避免首帧闪烁）— 用调用方期望的 elapsed（预览模式 = previewTime，避免 t=0 跳变）
@@ -395,11 +380,6 @@ public class ScriptPlayer {
                 script.getName(), script.getTotalDuration(), trackPlayers.size());
     }
 
-    /**
-     * 停止脚本播放
-     *
-     * @param reason 完成原因
-     */
     public void stop(CompletionReason reason) {
         if (script != null) {
             LOGGER.info("脚本播放停止: {} (原因: {})", script.getName(), reason);
@@ -424,9 +404,9 @@ public class ScriptPlayer {
     }
 
     /**
-     * 脚本是否已播放完成 = {@link #allContentConsumed()}（②族「内容播完」）：实际执行路径上已无剩余
-     * 可执行内容。宏观循环：有限 N 圈按 {@link #macroLoopTotalEnd()}，无限圈恒 false。
-     * 不检查 holdAtEnd——播完后驻留 / 退出由调用方（{@code FrameDriver}）按 {@code hold_at_end} 处置。
+     * 脚本是否已播放完成 = {@link #allContentConsumed()}（实际执行路径上已无剩余可执行内容）。
+     * 宏观循环：有限 N 圈按 {@link #macroLoopTotalEnd()}，无限圈恒 false。
+     * 不检查 hold_at_end——播完后驻留 / 退出由调用方（{@code FrameDriver}）处置。
      */
     public boolean isFinished() {
         if (!playing || script == null) return false;
@@ -440,9 +420,9 @@ public class ScriptPlayer {
     }
 
     /**
-     * ②族「内容播完」谓词：读执行事实（{@link #remainingContent} = 0 = 无待进入 / 执行中的片段；
+     * 内容播完谓词：读执行事实（{@link #remainingContent} = 0 = 无待进入 / 执行中的片段；
      * 无限片段永不消费完，故无限内容恒 false）。事实由播放头推进与路径变更记录，本方法不读时钟。
-     * 挂起中恒 false（设计 §8.1：内容完成度含「无挂起在跑」）。
+     * 挂起中恒 false（内容完成度含「无挂起在跑」）。
      */
     private boolean allContentConsumed() {
         if (isSuspended()) return false;
@@ -450,13 +430,7 @@ public class ScriptPlayer {
         return remainingContent == 0;
     }
 
-    /**
-     * 获取当前播放脚本的ID
-     * <p>
-     * 用于日志和调试，如 CameraManager 打印脚本抢占拒绝信息。
-     *
-     * @return 脚本ID，无脚本播放时返回 "<none>"
-     */
+    /** 当前播放脚本的 ID；无脚本时为 {@code "<none>"}。 */
     public String getScriptId() {
         return script != null ? script.getId() : "<none>";
     }
@@ -479,26 +453,12 @@ public class ScriptPlayer {
     }
 
     /**
-     * 画面 lane 快照收集：按绘制顺序扁平化列出各 CAMERA 轨本帧的<b>全部活跃 clip</b>快照
-     * ——先按轨道层级（时间轴中先出现的轨在前），再按轨道内 clip 顺序（<b>后面的在上</b>）。
-     * <p>
-     * 时间重叠窗口内一条轨可能贡献多份（如叠化：上一个 clip 的 hold 尾帧 + 下一个 clip 的 hold 首帧）；
-     * 无重叠时每条轨一份。列表顺序即 lane 合成的绘制顺序：先画的在下，后画的盖在上面
-     * （见 {@code LaneCompositor}）。
-     * <p>
-     * <b>顶层相机 = 列表最后一个元素</b>（轨道层级最后的活跃轨的顶层活跃 clip，即写入全局
-     * {@link CameraManager} 的那一份状态）。本方法只读快照，不改变相机行为。
-     * <p>
-     * 每份 {@link LaneFrame} 携带产出它的片段与该片段内的本地时间（渲染侧据此取该时刻的合成参数
-     * opacity / dest / source）、产出它的 CAMERA 轨序号、以及该 lane 的调色参数（来自该 lane 的
-     * 相机片段：在片段本地时间处由 {@link ColorAdjustSampler} 采样——重叠窗口下同轨的多条 lane
-     * 各自独立采样；恒等参数归一化为 {@code null} = 不调色）。该参数只承载 <b>RGB</b> 调整
-     * （不含 alpha / opacity）：调色 pass 只动 RGB、alpha 逐位直通，透明度在<b>合成之后</b>由合成层调控。
-     * <p>
-     * <b>相机轨序号口径</b> = 时间轴里第几条 CAMERA 轨（0 起，按出现顺序）
-     * （不是时间轴中的绝对轨道索引；OVERLAY / AUDIO 等其它轨不占号）。
+     * 画面 lane 快照：按绘制顺序（轨道层级 → 轨道内 clip 顺序，后画的在上）扁平列出各 CAMERA 轨
+     * 本帧全部活跃 clip 的 {@link LaneFrame}；列表最后一个元素 = 顶层相机（写入全局相机状态的那份）。
+     * 每份 LaneFrame 带产出片段 / 片段内本地时间 / CAMERA 轨序号（0 起，按出现顺序）/ 该 lane 的调色参数
+     * （恒等 = {@code null}；只承载 RGB，透明度归合成层）。本方法只读快照，不改变相机行为。
      *
-     * @return 扁平化的 lane 列表；无 CAMERA 轨 / 未播放 / 各轨本帧均无画面时为空列表
+     * @return 无 CAMERA 轨 / 未播放 / 各轨本帧均无画面时为空列表
      */
     public List<LaneFrame> collectCameraLanes() {
         List<LaneFrame> frames = new ArrayList<>();
@@ -534,11 +494,7 @@ public class ScriptPlayer {
         return script;
     }
 
-    /**
-     * 获取当前活跃的脚本运行时行为
-     *
-     * @return 当前脚本运行时行为，无脚本播放时返回 null
-     */
+    /** 当前脚本运行时行为；无脚本播放时为 {@code null}。 */
     public ScriptMeta.RuntimeBehavior getCurrentProperties() {
         return currentBehavior;
     }
@@ -579,7 +535,7 @@ public class ScriptPlayer {
             lastLocalElapsed = local;
             elapsedSeconds = local;
         } else {
-            // ②族执行事实：按本帧播放头推进记录片段进入 / 消费完 / 圈数计满（判定读事实；零分配）
+            // 执行事实：按本帧播放头推进记录片段进入 / 消费完 / 圈数计满（判定读事实；零分配）
             recordContentFacts(elapsedSeconds);
             if (allContentConsumed()) {
                 // 内容播完：hold_at_end 驻留在内容末端最后一帧，否则本帧不分发
@@ -719,10 +675,7 @@ public class ScriptPlayer {
         }
     }
 
-    /**
-     * Reposition audio tracks to match a new global time.
-     * Called from CameraManager when editor playhead is dragged.
-     */
+    /** 把音频轨道重定位到新的全局时间（编辑器拖动播放头时由 {@code CameraManager} 调用）。 */
     public void repositionAudio(float globalTime) {
         for (TrackPlayer tp : trackPlayers) {
             if (tp instanceof AudioTrackPlayer atp) {
@@ -764,7 +717,6 @@ public class ScriptPlayer {
 
     /**
      * 推导宏观循环参数（区间 [a, b] 与圈数）；不满足条件 → 不循环（macroLoopEnd = NaN）。
-     * <p>
      * 条件：{@code meta.macro_loop=true} + 宏观循环被允许（预览实例关闭）+ 区间非空。
      * a = {@code timeline.loop_start}（缺省 0，负值按 0）；b 优先取 {@code timeline.loop_end}
      * （作者声明的子区间），缺省取宏观末端——此时存在永不结束片段 → 末端不存在 → 不循环。
@@ -865,7 +817,7 @@ public class ScriptPlayer {
     }
 
     /**
-     * ②族执行事实记录：按本帧播放头相对上帧的推进，记录每个片段的「进入」（到达片段起点）、
+     * 执行事实记录：按本帧播放头相对上帧的推进，记录每个片段的「进入」（到达片段起点）、
      * 「消费完」（有限循环圈数计满且到达消费窗口末；无限片段永不消费完）与圈数计满，并递减剩余内容计数。
      * 播放头未推进（挂起 / 游戏暂停 / hold 驻留）⇒ 无新事实；回退（seek）走 {@link #rederiveContentFacts}。
      * 零分配（只写既有 byte / int 槽）；宏观循环圈数另由 {@link #macroLoopCount} 计，本方法只在非宏观路径调用。
@@ -974,11 +926,7 @@ public class ScriptPlayer {
                         getScriptId(), totalDuration, elapsed, endText));
     }
 
-    /**
-     * 本帧分发给轨道的时间轴读数（秒；宏观循环 = 圈内局部时间）——片段活跃窗判定的读侧出口：
-     * 覆盖链的 Modifier 活跃门（{@code ClipModifierGate}）按它与声明片段的窗口比较。
-     * 未开始播放时为 0（{@link #start} 传入的预执行时间）。
-     */
+    /** 本帧分发给轨道的时间轴读数（秒；宏观循环 = 圈内局部时间）。 */
     public float timelineTime() {
         return timelineTime;
     }
@@ -1019,9 +967,8 @@ public class ScriptPlayer {
 
     /**
      * 设置本实例的时钟源（秒）；{@code null} = 保持当前（默认游戏共享虚拟时钟）。
-     * <p>
-     * 由 {@code CameraManager} 在创建预览实例时注入预览播放头（§7 步骤 5）；必须在
-     * {@link #start(CinematicScript, float)} 之前设置，起始读数在 start 时取。
+     * 须在 {@link #start(CinematicScript, float)} 之前设置（起始读数在 start 时取）。
+     * 预览实例注入预览播放头。
      */
     public void setClockSource(Clock source) {
         if (source != null) this.clockSource = source;

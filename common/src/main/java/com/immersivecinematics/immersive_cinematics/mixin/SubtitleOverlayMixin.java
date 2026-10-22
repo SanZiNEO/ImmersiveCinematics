@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/** 字幕：按 {@code hideSubtitles}（未设回落 {@code hideHud}）隐藏。 */
 @Mixin(SubtitleOverlay.class)
 public class SubtitleOverlayMixin {
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)

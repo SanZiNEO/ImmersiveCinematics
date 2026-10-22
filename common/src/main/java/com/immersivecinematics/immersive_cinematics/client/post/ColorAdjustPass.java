@@ -33,127 +33,25 @@ import java.nio.FloatBuffer;
 import java.util.List;
 
 /**
- * 画面颜色调整的渲染 pass：把 {@link ColorAdjustParams} 的标量组一次全屏 pass 应用到画面纹理上。
- * 两条使用路径共用本类（同一份着色器 + 同一份 uniform 上传 + 同一个 {@link #applyTo}）：
- * <ul>
- *   <li><b>master</b>（{@link MasterColorAdjust} 发布）：作用于<b>合成输出</b>（架构图 RADJ 节点）——
- *       {@link #render} 在 lane 合成（MCOMP）与原版后处理链（RPOST）之后、GUI 之前调一次。</li>
- *   <li><b>lane 级</b>（来自该 lane 的相机片段）：作用于<b>该 lane 的画面</b>，在 lane 渲染完成
- *       之后、合成之前（{@code client.lane.LaneRenderer#renderLane} 调 {@link #applyTo}，
- *       写进共享 adjustTarget 再交给合成层）。</li>
- * </ul>
- *
- * <h2>挂点</h2>
- * master：lane 合成（MCOMP，{@code LaneRenderer.render}，挂在 {@code GameRenderer.renderLevel} 的 RETURN）
- * 与原版后处理链（RPOST）之后、GUI 之前 —— 即 {@code mixin/GameRendererMixin.onWorldPostProcessed}：
- * {@code GameRenderer.render} 内 {@code postEffect.process(f)} 之后那一句
- * {@code getMainRenderTarget().bindWrite(true)} 的调用点上（2026-10-08 后移；此前在
- * {@code LaneRendererMixin} 里、紧接 lane 合成之后）。
- * <h3>截图（两条路径，行为不同）</h3>
- * 原版有两条截图路径，本挂点后移后二者行为不同（依 1.20.1 反编译源码）：
- * <ul>
- *   <li><b>F2 直抓</b>（{@code KeyboardHandler.keyPress} → {@code Screenshot.grab(gameDirectory,
- *       getMainRenderTarget(), ...)}）：在输入处理阶段读<b>上一帧</b>已画完的主画面（含 GUI 与调色），
- *       与挂点位置无关 —— 新旧挂点下<b>都含</b>调色。</li>
- *   <li><b>自动世界截图</b>（{@code GameRenderer.render} 内的 {@code tryTakeScreenshotIfNeeded()} →
- *       {@code takeAutoScreenshot} → {@code Screenshot.takeScreenshot(getMainRenderTarget())}）：
- *       调用点在 {@code renderLevel} 之后、本挂点<b>之前</b>（新挂点）—— 该路径截图<b>不含</b>调色；
- *       旧挂点（{@code renderLevel} 的 RETURN）下该调用点在本挂点之后，则含调色。</li>
- * </ul>
- * GUI（字幕 / 黑边 / 黑白场 / 跳过提示）不受调色影响。
- * <p>lane 级：{@code LaneRenderer.renderLane} 内，lane 的 {@code renderLevel} + {@code doEntityOutline}
- * 之后、{@link LaneCompositor#compose} 之前。</p>
- *
- * <h2>两个 pass（master 路径）</h2>
- * 不能同时读写主画面纹理，所以与「一个效果 = 效果 pass + blit 回 main」的原版链同构：
- * <ol>
- *   <li>主画面 → 中转缓冲（{@code ic_color_adjust}，全屏 quad，应用全部标量调整）；</li>
- *   <li>中转缓冲 → 主画面（整屏 blit，复用合成层的 {@link LaneCompositor#compose}）。</li>
- * </ol>
- * 成本 = 两次全屏 quad，与画面内容无关。lane 路径只有一次 pass（lane FBO → adjustTarget），
- * 随后的合成由 {@code LaneRenderer} 照常走 {@link LaneCompositor#compose}。
- * <p><b>多实例叠加（A13'）</b>：每个实例一套参数，逐套重复第 1 步（目标缓冲在「主画面 / 中转缓冲」
- * 之间交替，前一套输出 = 后一套的基画面）；偶数套直接落在主画面上、奇数套末尾补第 2 步。
- * 成本 = 层数次全屏 quad（+ 至多一次 blit），单实例时与上面两条逐点一致。</p>
- *
- * <h2>alpha 契约（两条路径一致）</h2>
- * 调色只动 RGB：着色器 {@code fragColor.a = src.a} 逐位直通（见 {@code ic_color_adjust.fsh}），
- * 透明度只在合成层由 {@code opacity}（{@code ColorModulator.a}）调控。
- *
- * <h2>着色器资产（自建，非复用原版）</h2>
- * {@code assets/minecraft/shaders/core/ic_color_adjust.{json,vsh,fsh}}：程序 JSON 与 GLSL 走
- * <b>{@code minecraft} 命名空间</b>——原版 {@link ShaderInstance} 的构造只认
- * {@code shaders/core/<name>.json}（默认命名空间），这是沿用原版机制的前提
- * （与 {@code EffectInstance} 对 {@code shaders/program/<name>.json} 的约束同源）。
- * 顶点格式 = {@code DefaultVertexFormat.POSITION_TEX}，与合成层 / 原版 blit 同一套。
- * <p>十二个采样器（顶格 = MC 1.20.1 {@code GlStateManager} 的 12 个纹理单元 0~11，
- * 见 {@code GlStateManager.TEXTURE_COUNT}）：{@code Sampler0} = 画面（第一纹理单元）、
- * {@code CurveLut} = RGB 复合曲线的 256×1 LUT、
- * {@code RCurveLut} / {@code GCurveLut} / {@code BCurveLut} = 每通道曲线的 256×1 LUT、
- * {@code HvHLut} / {@code HvSLut} / {@code HvLLut} / {@code LvSLut} / {@code SvSLut} / {@code SvLLut}
- * = 六条 hue 曲线的 256×1 LUT（第二 ~ 第十一纹理单元，见 {@link LutTexture}）、
- * {@code Lut3D} = .cube 的<b>合成</b> 3D 表（S×S×S，{@link CubeLut#composed3D()}，
- * 见 {@link Lut3DTexture}；第十二 = 最后一个纹理单元，单元 {@link LutBindGuard#LUT_3D_UNIT}）——
- * 只在本帧参数带 LUT（ADJUST 轨写了 {@code lut} 且 {@code lut_strength} 非 0）时才被采样；
- * lane 路径恒为 {@code null}（LUT 只作用于整体画面）。</p>
- *
- * <p><b>为什么 LUT 只有一张表</b>：1D shaper 与 3D 曾各占一个采样器（13 个采样器 → 单元 0~12），
- * 而 {@code ShaderInstance.apply()} 按 JSON {@code samplers} 下标逐单元
- * {@code GlStateManager._bindTexture(unit)}，单元 12 越界（数组长度 12）→
- * {@code ArrayIndexOutOfBoundsException}。现在 1D 段与两段 DOMAIN 都在加载期烘焙进
- * {@link CubeLut#composed3D()} 的单张表，采样器回到 12 个顶格。</p>
- *
- * <h2>LUT 绑定自检（绑定前，失败 = 只跳过 LUT 步）</h2>
- * 3D 表按 {@code GL_TEXTURE_3D} 目标<b>手动</b>绑到单元 {@link LutBindGuard#LUT_3D_UNIT}
- * （{@code setSampler} 那条路一律按 {@code GL_TEXTURE_2D} 目标绑），而着色器读的是哪个单元
- * 由 {@code ShaderInstance} 按<b>压缩后</b>的采样器下标决定（见 {@link LutBindGuard}）——
- * 驱动 / GLSL 优化掉任一靠前的采样器就会让两者错位，此时着色器会去采另一个单元上的 2D 曲线 LUT
- * （{@code sampler3D} 采到不完整纹理 = GL 语义未定义，常见实现返回 {@code (0,0,0,1)} → 画面变黑），
- * <b>而且 GL 一个错都不报</b>。所以绑之前先自检两道，任一不过就把本帧当「没有 LUT」处理
- * （{@code LutStrength} / {@code Lut3DSize} 归 0、3D 单元绑 0），<b>只跳过 LUT 步</b>——
- * 本层其余步骤照常，输出仍是有效画面（绝不输出黑）：
- * <ol>
- *   <li><b>采样器单元</b>：{@link LutBindGuard#resolveUnit} 算出的实际单元必须等于
- *       {@link LutBindGuard#LUT_3D_UNIT}（随着色器实例缓存，不逐帧查 GL）；</li>
- *   <li><b>纹理完整性</b>：纹理已创建、level 0 边长与 {@code Lut3DSize} 一致
- *       （上传后回读 {@code glGetTexLevelParameteri} 校验，见 {@link LutBindGuard#textureReady}）。</li>
- * </ol>
- * 两者都按 {@link #FAILURE_LOG_INTERVAL_MS} 限频告警（{@link ErrorLog}，类别 {@code Render}）。
- *
- * <h2>默认零差异</h2>
- * 无调整时 {@link #render} 第一行返回；{@link #applyTo} 参数为空 / 恒等时第一行返回：
- * 不取着色器、不建中转缓冲、不切任何 GL 状态、不画任何东西。
- * 着色器是首次真正需要时才编译的（不用不编译），资源重载后重建。
- *
- * <h2>层级混合（混合模式作用于调整层）</h2>
- * 操作栈全部步骤（曝光 ~ 反相）之后、输出之前，着色器再做一步<b>层级混合</b>：把调整层输出
- * （{@code c_adj}）与基画面（{@code Sampler0} 原图 {@code c_base}）按 {@code BlendMode}
- * （枚举编码 0 ~ 4）与 {@code BlendAmount}（0 ~ 1）混合——
- * {@code c = mix(c_base, blend(c_base, c_adj, mode), clamp(BlendAmount, 0, 1))}。
- * 缺省 {@code normal} + {@code 1} = 直替换 = 与混合功能落地前逐位一致（渲染侧该步整段跳过）；
- * 两个 uniform 只由 <b>ADJUST 轨（master）</b>取值，lane 路径恒为缺省。
- *
- * <h2>失败语义（fail-safe 直通）</h2>
- * 渲染错误一律<b>直通</b>：宁可不调色，也绝不把未写 / 未定义的缓冲铺上屏
- * （用户裁决 2026-10-09，见 {@code plans/0.3.6/multi-instance-black-screen.md} §五）。三层守卫：
- * <ol>
- *   <li><b>每层施加可失败</b>：{@link #applyTo} 绘制前查目标 FBO 完整、绘制后清查 GL 错误
- *       （进入前先清积压，只算本 pass 的错误；<b>无读回、无 {@code glFinish} 之类同步等待</b>），
- *       任一步不过 → 返回 {@code false} = 本层未施加；异常同样吞成失败。</li>
- *   <li><b>失败即停</b>：{@link #render} 的链式施加遇到失败立刻停下，当前有效内容（上一层输出或
- *       原始画面）保持不动——失败层的目标可能是半写 / 未写的，绝不再当输入或输出用。</li>
- *   <li><b>回写前验证「本帧已写」</b>：末尾整屏 blit 只在本帧确实写过中转缓冲时执行
- *       （{@link #swapWrittenThisFrame}）；没写过就不 blit，主画面自然保持原样
- *       （首层失败 = 整链直通原始画面）。</li>
- * </ol>
- * 失败按 {@link #FAILURE_LOG_INTERVAL_MS} 限频告警（{@link ErrorLog}，类别 {@code Render}）。
- * 正常路径零差异：这些检查只是状态查询，不改绘制语义 / 参数 / 纹理内容。
- * <p>LUT 步的绑定自检不在此列：它是<b>步骤级</b>降级（见上「LUT 绑定自检」），
- * 只让 LUT 一步不生效，本层照常施加、照常算成功。</p>
+ * 画面颜色调整 pass：把 {@link ColorAdjustParams} 的标量组一次全屏 pass 应用到画面纹理。
+ * master（{@link MasterColorAdjust} 发布）作用于合成输出：lane 合成与原版后处理链之后、GUI 之前，
+ * 挂点在 {@code GameRendererMixin} 的 {@code postEffect.process(f)} 之后。
+ * lane 级作用于该 lane 画面：{@code LaneRenderer.renderLane} 之后、合成之前调 {@link #applyTo}；
+ * 成本：master 两次全屏 quad（逐层每层一次，末尾至多一次整屏 blit），lane 一次。
+ * 无调整 = 零 GL 状态改动、不编译着色器；截图边界：手动 F2 读上一帧已画完的主画面（含调色），自动世界截图在挂点之前（不含调色）。
+ * 失败语义（fail-safe 直通）：宁可不调色，也绝不把未写 / 未定义的缓冲铺上屏。{@link #applyTo} 返回
+ * {@code false} = 本层未施加；{@link #render} 链式施加遇败即停、保留上一层输出；末尾整屏 blit 仅在
+ * 本帧确实写过中转缓冲时执行（检查全是状态查询，无读回 / 无同步等待）。
+ * 十二个采样器（顶格 = {@code GlStateManager} 的 12 个纹理单元）与 LUT 绑定自检见 {@link LutBindGuard}。
+ * 为什么 LUT 只有一张表：1D shaper 与 3D 各占一个采样器会到 13 个，而 {@code GlStateManager} 只有 12 个纹理单元，
+ * 第 13 个在 {@code ShaderInstance.apply()} 按 JSON 下标绑定时越界崩溃；
+ * 故加载期把 1D 段与两段 DOMAIN 烘焙进 {@link CubeLut#composed3D()} 的单张表。
+ * alpha 契约：只动 RGB，{@code fragColor.a = src.a} 逐位直通；层级混合 {@code c = mix(c_base,
+ * blend(c_base, c_adj, mode), clamp(amount, 0, 1))}，缺省 {@code normal} + {@code 1} = 直替换、整步跳过。
  */
 public final class ColorAdjustPass {
 
-    /** 着色器名：{@code assets/minecraft/shaders/core/ic_color_adjust.{json,vsh,fsh}} */
+    /** 着色器名：{@code assets/minecraft/shaders/core/ic_color_adjust.{json,vsh,fsh}}（默认命名空间）。 */
     private static final String SHADER_NAME = "ic_color_adjust";
 
     /** 当前着色器实例；{@code null} = 尚未加载或该资源周期内加载失败。 */
@@ -166,9 +64,7 @@ public final class ColorAdjustPass {
     private static RenderTarget swapTarget;
 
     /**
-     * 「本帧中转缓冲已写」标记：{@link #render} 每次进入链式施加时清空，只有本帧<b>已验证</b>的写入
-     * （{@link #applyTo} 返回 {@code true} 且目标 = 中转缓冲）才置位。末尾整屏 blit 以它为准——
-     * 没写过就不回写，主画面自然保持原样（见类注释「失败语义」）。
+     * 「本帧中转缓冲已写」标记：{@link #render} 每次进入链式施加时清空，只有确认过的写入（目标 = 中转缓冲）才置位。
      */
     private static boolean swapWrittenThisFrame;
 
@@ -192,10 +88,7 @@ public final class ColorAdjustPass {
     private static final LutTexture G_CURVE_LUT = new LutTexture();
     private static final LutTexture B_CURVE_LUT = new LutTexture();
 
-    /**
-     * 六条 hue 曲线的 LUT 纹理槽（{@code HvHLut} / {@code HvSLut} / {@code HvLLut} /
-     * {@code LvSLut} / {@code SvSLut} / {@code SvLLut} 采样器，顺序同上表）。
-     */
+    /** 六条 hue 曲线的 LUT 纹理槽（采样器名见 {@link LutBindGuard#DECLARED_SAMPLERS}）。 */
     private static final LutTexture HV_H_LUT = new LutTexture();
     private static final LutTexture HV_S_LUT = new LutTexture();
     private static final LutTexture HV_L_LUT = new LutTexture();
@@ -203,10 +96,7 @@ public final class ColorAdjustPass {
     private static final LutTexture SV_S_LUT = new LutTexture();
     private static final LutTexture SV_L_LUT = new LutTexture();
 
-    /**
-     * 已解析过 {@code Lut3D} 实际单元的着色器实例（单元号在链接后固定，随实例缓存一次即可；
-     * 换实例 = 资源重载后重新解析）。
-     */
+    /** 已解析过 {@code Lut3D} 实际单元的着色器实例（单元号链接后固定，随实例缓存；换实例 = 资源重载后重新解析）。 */
     private static ShaderInstance lut3DUnitResolvedFor;
 
     /** 缓存的 {@code Lut3D} 实际单元（{@link LutBindGuard#resolveUnit} 的结果；{@code -1} = 被优化掉）。 */
@@ -219,20 +109,10 @@ public final class ColorAdjustPass {
     }
 
     /**
-     * 在<b>合成输出</b>上应用本帧的 master 颜色调整（架构图 RADJ 节点）。
-     *
-     * <p>多实例按层级叠加（A13'）：{@link MasterColorAdjust#consume} 给出按实例启动顺序排好的参数套
-     * （先启动的在前 = 下层），逐套<b>顺序施加</b>——前一套的输出就是后一套的基画面（层级混合读的
-     * {@code Sampler0}），目标缓冲在「主画面 / 中转缓冲」之间交替；结果停在中转缓冲时（层数为奇数）
-     * 末尾再整屏 blit 回主画面。单实例（= 一套参数）的调用序列与叠加落地前逐字节一致：
-     * 主画面 → 中转缓冲 →（整屏 blit）→ 主画面。</p>
-     *
-     * <p>无调整（本帧没人发布 / 参数恒等）时不做任何事；某层不可用 / 施加失败时停在该层之前已施加的
-     * 输出上（宁可不调色，也不动画面）——失败层的目标缓冲可能是半写 / 未写的，绝不再当输入或输出用。</p>
-     *
-     * <p><b>fail-safe</b>：末尾整屏 blit 只在「本帧确实写过中转缓冲」时执行（{@link #swapWrittenThisFrame}）；
-     * 没写过就不 blit，主画面保持原样——首层失败 = 整链直通原始画面，任何情况下都不会把未写 /
-     * 未定义的缓冲铺上屏（见类注释「失败语义」）。</p>
+     * 在合成输出上应用本帧的 master 颜色调整：逐层顺序施加，前一层输出 = 后一层的基画面，
+     * 目标缓冲在主画面 / 中转缓冲之间交替，结果停在中转缓冲时末尾整屏 blit 回主画面。
+     * 无调整（没人发布 / 参数恒等）直接返回；某层施加失败即停，已施加的输出保持不动。
+     * 末尾 blit 只在「本帧确实写过中转缓冲」时执行——首层失败 = 整链直通原始画面。
      */
     public static void render(Minecraft mc) {
         List<ColorAdjustParams> layers = MasterColorAdjust.INSTANCE.consume();
@@ -246,11 +126,8 @@ public final class ColorAdjustPass {
             return;
         }
         RenderTarget swap = swapTarget(width, height);
-        // 逐层链式施加：本层输入 = 上一层输出（current），输出写进另一个缓冲
-        // （不能同时读写同一张纹理；每层自带混合模式 / 强度，混合的基画面 = 上一层输出）
-        // fail-safe：applyTo 只在「目标 FBO 完整 + 本次施加无 GL 错误」时返回 true——失败即停，
-        // current 停在最后一个已验证的写入上（可能是主画面 = 原始画面），半写 / 未写的缓冲不再当输入或输出用
-        swapWrittenThisFrame = false;   // 「本帧已写」标记：只由本帧已验证的写入置位
+        // 逐层链式施加：本层输入 = 上一层输出，写进另一个缓冲（不能同时读写同一张纹理）
+        swapWrittenThisFrame = false;
         RenderTarget current = main;
         for (int i = 0; i < layers.size(); i++) {
             RenderTarget next = current == main ? swap : main;
@@ -263,13 +140,10 @@ public final class ColorAdjustPass {
             current = next;
         }
         if (current != main) {
-            // pass 2：中转缓冲 → 主画面（整屏 blit，复用合成层的状态保存 / 还原与 UV 口径）。
-            // 只有本帧确实写过中转缓冲才 blit：没写过就不回写（主画面保持原样），
-            // 绝不把未写 / 未定义的缓冲铺上屏。blit 自身失败是安全的——它在主画面上混合覆盖，
-            // 失败时主画面保持原内容（有效画面），不会变黑。
+            // pass 2：中转缓冲 → 主画面（整屏 blit，复用合成层的状态保存 / 还原与 UV 口径）；
+            // 只有本帧写过才 blit，否则主画面保持原内容（blit 失败也不会变黑）。
             if (swapWrittenThisFrame) {
-                // written = swapWrittenThisFrame：本分支已确认中转缓冲本帧被写满（守门据此放行）。
-                // mask = null：master blit 无 lane 遮罩，合成按 full 处理（全窗口）。
+                // written 参数 = 本帧已写（守门据此放行）；mask = null → 合成按 full 处理。
                 LaneCompositor.compose(current, LaneCompositor.Rect.FULL, LaneCompositor.Rect.FULL, 1.0F,
                         swapWrittenThisFrame, null);
             } else {
@@ -281,20 +155,10 @@ public final class ColorAdjustPass {
 
     /**
      * 一次调色 pass：把 {@code src} 的颜色纹理经调色着色器写进 {@code dst}（全屏 quad，1:1）。
-     *
-     * <p><b>master 与 lane 级共用这一份实现</b>（着色器获取 + uniform 上传 + pass 执行都不分叉）：
-     * master 路径是「主画面 → 中转缓冲」（{@link #render}），lane 路径是「lane FBO → adjustTarget」
-     * （{@code client.lane.LaneRenderer#renderLane}）——两条路径的唯一差别是源 / 目标缓冲。</p>
-     *
-     * <p><b>alpha 契约</b>：只动 RGB，{@code fragColor.a = src.a} 逐位直通；透明度由合成层的
-     * {@code opacity}（{@code ColorModulator.a}）单独调控，调色不承担任何透明度语义。</p>
-     *
-     * <p>状态保存 / 还原：进入时保存、退出时还原全局投影 + VertexSorting、shader 颜色与 0 号纹理、
-     * 深度测试 / 深度写 / 颜色写 / 混合；退出时目标缓冲保持绑定态（调用方接着画）。</p>
-     *
-     * <p><b>失败语义（fail-safe 直通）</b>：本方法只在「目标 FBO 完整 + 本次施加全程无 GL 错误」时返回
-     * {@code true}；任何失败（含异常）都返回 {@code false} = 本层未施加——调用方必须丢弃 {@code dst}
-     * 的内容（它可能是未写 / 半写的），保持此前已确认有效的画面。检查全是状态查询，无读回 / 无同步等待。</p>
+     * master 与 lane 级共用同一实现（着色器获取 / uniform 上传 / pass 执行都不分叉），唯一差别是源 / 目标缓冲。
+     * 失败语义（fail-safe 直通）：只在「目标 FBO 完整 + 本 pass 施加全程无 GL 错误」时返回 {@code true}；
+     * 任何失败（含异常）都返回 {@code false} = 本层未施加，调用方必须丢弃 {@code dst} 的内容。
+     * 进入时保存、退出时还原全局投影 / VertexSorting / shader 颜色与 0 号纹理 / 深度与混合状态。
      *
      * @param src    源画面（取颜色纹理作采样源；不得与 {@code dst} 同一张纹理）
      * @param dst    目标缓冲（视口会被设成全尺寸）
@@ -322,8 +186,7 @@ public final class ColorAdjustPass {
         if (shaderInstance == null) {
             return false;   // 着色器不可用：宁可不调色，也不动画面
         }
-        // 本 pass 的 GL 错误从零开始计：先清掉进入前的积压（别的模块 / 上一帧留下的），
-        // 之后产生的错误才算本 pass 的（含采样器绑定 / LUT 上传 / uniform 上传 / 绘制）
+        // 本 pass 的 GL 错误从零开始计：先清进入前的积压，之后产生的错误才算本 pass 的
         drainGlErrors();
         try {
             return pass(shaderInstance, src, dst, params);
@@ -334,12 +197,11 @@ public final class ColorAdjustPass {
     }
 
     /**
-     * 一次调色 pass 的执行体：上传参数 → 绘制 → 校验「目标确实被本次施加写满」。
+     * 一次调色 pass 的执行体：上传参数 → 绘制 → 校验「目标确实被本 pass 写满」。
+     * 校验口径：目标 FBO 必须是 {@code GL_FRAMEBUFFER_COMPLETE}（不完整就连画都不画），且全程无 GL 错误；
+     * 只查状态，无读回、无 {@code glFinish} 之类同步等待。
      *
-     * <p><b>校验口径</b>（无读回、无 {@code glFinish} 之类同步等待）：目标 FBO 状态必须是
-     * {@code GL_FRAMEBUFFER_COMPLETE}（不完整就连画都不画），且本次施加全程没有产生 GL 错误。</p>
-     *
-     * @return 目标缓冲是否被本次施加写满（{@code false} = 未写 / 半写 / 报错，调用方必须丢弃这个输出）
+     * @return 目标缓冲是否被本 pass 写满（{@code false} = 未写 / 半写 / 报错，调用方必须丢弃这个输出）
      */
     private static boolean pass(ShaderInstance shaderInstance, RenderTarget src, RenderTarget dst,
                                ColorAdjustParams params) {
@@ -358,13 +220,9 @@ public final class ColorAdjustPass {
         shaderInstance.setSampler("SvSLut", SV_S_LUT.bind(activeLut(params.svSLut(), params.svSStrength())));
         shaderInstance.setSampler("SvLLut", SV_L_LUT.bind(activeLut(params.svLLut(), params.svLStrength())));
 
-        // LUT（第 11 步）：无 LUT 或强度 0 → 强度置 0、整步跳过（逐位恒等）；
-        // 只有一张合成表（1D shaper 与两段 DOMAIN 已在加载期烘焙进 CubeLut#composed3D），
-        // 走 GL_TEXTURE_3D 手动绑定（见 LutBindGuard#LUT_3D_UNIT）
+        // LUT：无 LUT 或强度 0 → 整步跳过（逐位恒等）；3D 表按 GL_TEXTURE_3D 手动绑（见 LutBindGuard）
         CubeLut lut = params.lut() != null && params.lutStrength() != 0.0F ? params.lut() : null;
-        // 绑定自检（见类注释「LUT 绑定自检」）：采样器单元错位 / 3D 表不完整 → 绝不上传 / 不绑，
-        // 直接当「本帧没有 LUT」处理（下面的 uniform 上传会把 LutStrength / Lut3DSize 归 0）；
-        // 只跳过 LUT 步，本层其余步骤照常
+        // 绑定自检不过 → 当「本帧没有 LUT」处理（uniform 上传把 LutStrength / Lut3DSize 归 0），只跳过 LUT 步
         if (lut != null && !lutStepReady(shaderInstance, lut)) {
             lut = null;
         }
@@ -402,8 +260,7 @@ public final class ColorAdjustPass {
                     RenderSystem.setShaderTexture(0, src.getColorTextureId());
                     RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
                     if (lut != null) {
-                        // 3D LUT 只能在绘制前按 GL_TEXTURE_3D 目标手动绑（见 LutBindGuard#LUT_3D_UNIT）；
-                        // lut == null = 本帧没有 LUT 或自检没过（LutStrength 已归 0，着色器不采样它）
+                        // 3D LUT 必须在绘制前按 GL_TEXTURE_3D 目标手动绑（setSampler 一律按 2D 绑）
                         LUT_3D.bind();
                     }
 
@@ -423,8 +280,7 @@ public final class ColorAdjustPass {
                     modelView.popPose();
                     RenderSystem.applyModelViewMatrix();
                 }
-                // 施加全程无 GL 错误 = 目标确实被这次绘制写满（绘制报错时驱动会丢掉这次绘制，
-                // 目标留下的内容不可信）；这里只查状态、不读回、不同步等待
+                // 施加全程无 GL 错误 = 目标确实被这次绘制写满；只查状态、不读回、不同步等待
                 written = !drainGlErrors();
             }
             if (!written) {
@@ -447,9 +303,7 @@ public final class ColorAdjustPass {
 
     /**
      * 清空 / 读取 GL 错误队列（至多 {@link #MAX_DRAINED_ERRORS} 条，防病态驱动下死循环）。
-     *
-     * <p>用法固定成对：{@link #applyTo} 进入时先调一次「清积压」（此前别的模块 / 上一帧留下的错误
-     * 不归本次施加），绘制后再调一次——这次读到错误 = 本次施加失败。</p>
+     * 用法固定成对：{@link #applyTo} 进入时清积压（进入前的错误不归本 pass），绘制后再调一次——读到错误 = 本 pass 失败。
      *
      * @return 是否读到过错误
      */
@@ -465,8 +319,7 @@ public final class ColorAdjustPass {
     }
 
     /**
-     * 失败告警（限频）：失败会逐帧复现，所以两次告警至少间隔 {@link #FAILURE_LOG_INTERVAL_MS}，
-     * 窗口内的次数合并到下一次输出里（不刷屏，也不丢「一直在失败」这个事实）。
+     * 失败告警（限频）：两次告警至少间隔 {@link #FAILURE_LOG_INTERVAL_MS}，窗口内的次数合并到下一次输出。
      *
      * @param what 失败描述（不含「画面颜色调整失败：」前缀）
      * @param t    异常（无异常传 {@code null}）
@@ -489,18 +342,9 @@ public final class ColorAdjustPass {
     }
 
     /**
-     * LUT 步绑定自检（见类注释「LUT 绑定自检」）：两道都过才允许上传 / 绑定 3D 表。
-     * <ol>
-     *   <li><b>采样器单元</b>：{@link LutBindGuard#resolveUnit} 按 MC {@code ShaderInstance.updateLocations()}
-     *       的压缩口径算出 {@code Lut3D} 的<b>实际</b>单元，必须等于 Java 侧绑定的
-     *       {@link LutBindGuard#LUT_3D_UNIT}——不等说明驱动 / GLSL 优化掉了靠前的某个采样器，
-     *       声明下标已经前移，再按声明下标绑 3D 表只会让着色器去采另一个单元上的 2D 纹理
-     *       （未定义 / 黑）。结果随着色器实例缓存（链接后固定，不逐帧查 12 次 GL）。</li>
-     *   <li><b>纹理完整性</b>：上传后回读纹理 level 0 边长，必须与本次要采样的表边长一致
-     *       （{@link LutBindGuard#textureReady}；纹理没建出来 / 超驱动上限 / 上传被截断都会在这里被拦）。</li>
-     * </ol>
-     * 任一不过 → 限频告警 + 返回 {@code false}：调用方把本帧当「没有 LUT」处理，
-     * <b>只跳过 LUT 步</b>（本层其余步骤照常，输出仍是有效画面）。
+     * LUT 步绑定自检（见 {@link LutBindGuard}）：采样器实际单元必须等于 {@link LutBindGuard#LUT_3D_UNIT}，
+     * 且 3D 纹理 level 0 边长与要采样的表边长一致；单元结论随着色器实例缓存，不逐帧查 GL。
+     * 任一不过 → 限频告警 + 返回 {@code false}：调用方把本帧当「没有 LUT」处理，只跳过 LUT 步。
      */
     private static boolean lutStepReady(ShaderInstance shader, CubeLut lut) {
         if (shader != lut3DUnitResolvedFor) {
@@ -529,13 +373,11 @@ public final class ColorAdjustPass {
     }
 
     /**
-     * 参数 → uniform（逐帧覆盖；着色器 JSON 里已声明全部通道，缺省 0 = 无效果）。
-     * <p>顺序与 {@link ColorAdjustParams} 的分量顺序、shader 的操作栈顺序一致
-     * （曲线 LUT 走采样器 {@code CurveLut}，在 {@link #applyTo} 里绑定）。</p>
+     * 参数 → uniform（逐帧覆盖；着色器 JSON 已声明全部通道，缺省 0 = 无效果）；
+     * 顺序与 {@link ColorAdjustParams} 的分量顺序、着色器的操作栈顺序一致。
      *
-     * @param lut 本帧 LUT 步实际要用的表（{@code null} = 没有 LUT / 强度 0 / 绑定自检没过）——
-     *            由 {@link #pass} 判定一次，这里只照它把 {@code LutStrength} / {@code LutInputGamma} /
-     *            {@code Lut3DSize} 归零或置真值（归零 = 着色器整步跳过 = 逐位恒等）
+     * @param lut 本帧 LUT 步实际要用的表（{@code null} = 没有 LUT / 强度 0 / 自检没过）：
+     *            {@code LutStrength} / {@code Lut3DSize} 归 0、{@code LutInputGamma} 归 1，着色器整步跳过
      */
     private static void upload(ShaderInstance shader, ColorAdjustParams p, CubeLut lut) {
         set(shader, "Exposure", p.exposure());
@@ -575,9 +417,7 @@ public final class ColorAdjustPass {
         set(shader, "GainR", p.gainR());
         set(shader, "GainG", p.gainG());
         set(shader, "GainB", p.gainB());
-        // LUT（第 11 步）：lut == null（无 LUT / 强度 0 / 绑定自检没过）→ 强度置 0（着色器整步跳过）；
-        // 表尺寸 = 合成表边长（CubeLut#composed3D，1D 段与 DOMAIN 已烘焙进表）；
-        // 输入域适配 = clip 级幂指数（无 LUT 时归 1 = 不变换，与「整步跳过」同口径）
+        // LUT：lut == null（无 LUT / 强度 0 / 自检没过）→ 强度与尺寸归 0、输入 gamma 归 1（整步跳过）
         set(shader, "LutStrength", lut == null ? 0.0F : p.lutStrength());
         set(shader, "LutInputGamma", lut == null ? 1.0F : p.lutInputGamma());
         set(shader, "Lut3DSize", lut == null ? 0.0F : lut.composed3D().size());
@@ -587,7 +427,6 @@ public final class ColorAdjustPass {
         set(shader, "LvSStrength", p.lvSLut() == null ? 0.0F : p.lvSStrength());
         set(shader, "SvSStrength", p.svSLut() == null ? 0.0F : p.svSStrength());
         set(shader, "SvLStrength", p.svLLut() == null ? 0.0F : p.svLStrength());
-        // PS 式六色带微调（第 17 步）：六条色带（红 / 黄 / 绿 / 青 / 蓝 / 品红）各一对 hue / sat 通道
         set(shader, "HueRed", p.hueRed());
         set(shader, "SatRed", p.satRed());
         set(shader, "HueYellow", p.hueYellow());
@@ -602,9 +441,7 @@ public final class ColorAdjustPass {
         set(shader, "SatMagenta", p.satMagenta());
         set(shader, "Grayscale", p.grayscale());
         set(shader, "Invert", p.invert());
-        // 层级混合（第 20 步 = 全部操作栈步骤之后整体施加；只属 ADJUST 轨，lane 路径恒为 normal + 1）：
-        // BlendMode = 枚举编码 0 ~ 4（normal / multiply / screen / soft_light / overlay），
-        // BlendAmount = 混合强度 0 ~ 1（缺省 1 = 全量生效；着色器内 clamp）
+        // 层级混合：枚举编码 0 ~ 4、强度 0 ~ 1（缺省 1，着色器内 clamp）；只属 ADJUST 轨，lane 路径恒为缺省
         set(shader, "BlendMode", p.blendMode());
         set(shader, "BlendAmount", p.blendAmount());
     }
@@ -615,20 +452,11 @@ public final class ColorAdjustPass {
     }
 
     /**
-     * 一个曲线 LUT 纹理槽：256×1、LINEAR 过滤（LUT 相邻项之间线性插值，等价于曲线上的细分采样）。
-     *
-     * <p>纹理只建一次；数组按<b>引用</b>比较——LUT 随 clip 缓存（{@code ColorCurve} 对象内持有），
-     * 同一片段每帧拿到的是同一个数组，所以每换一次曲线才重传一次像素。</p>
-     *
-     * <p>绑定走 {@link ShaderInstance#setSampler}（着色器 JSON 的 {@code samplers} 次序 = 纹理单元：
-     * {@code Sampler0} / {@code CurveLut} / {@code RCurveLut} / {@code GCurveLut} / {@code BCurveLut} /
-     * {@code HvHLut} / {@code HvSLut} / {@code HvLLut} / {@code LvSLut} / {@code SvSLut} / {@code SvLLut}），
-     * 由 {@code ShaderInstance.apply()} 在绘制前落实——不占 {@code RenderSystem} 的
-     * {@code shaderTextures} 槽位（那是 {@code Sampler0..Sampler11} 与叠加色用的），
-     * 因此没有额外的全局状态需要保存 / 还原。</p>
-     *
-     * <p>无曲线 / 强度为 0 时承载恒等 LUT——<b>采样器常绑</b>，不会出现未绑定的采样器
-     * （着色器里强度 &gt; 0 才走该分支，恒等 LUT 不改变画面）。</p>
+     * 一个曲线 LUT 纹理槽：256×1、LINEAR 过滤（相邻项之间线性插值 = 曲线上的细分采样）。
+     * 纹理只建一次；数组按引用比较（LUT 随 clip 缓存，同一片段每帧同一个数组 → 换曲线才重传）。
+     * 绑定走 {@link ShaderInstance#setSampler}（JSON {@code samplers} 次序 = 纹理单元），不占
+     * {@code RenderSystem} 的 {@code shaderTextures} 槽位，无额外全局状态需要保存 / 还原。
+     * 无曲线 / 强度 0 时承载恒等 LUT——采样器常绑，不出现未绑定的采样器。
      */
     private static final class LutTexture {
 
@@ -658,28 +486,15 @@ public final class ColorAdjustPass {
     }
 
     /**
-     * 3D LUT 的纹理槽（{@code Lut3D} 采样器）：S×S×S、RGBA16F、NEAREST + CLAMP_TO_EDGE。
-     * 表 = {@link CubeLut#composed3D()}（1D shaper 与两段 DOMAIN 已在加载期烘焙，
-     * 采样坐标 {@code x ∈ [0,1]³} 直接对应网格）。
-     *
-     * <p>按 {@link CubeLut} 实例<b>引用</b>比较：同一 LUT 每帧拿到同一引用（{@link CubeLutLoader}
-     * 按路径共享实例、{@code composed3D()} 自身缓存）→ 只上传一次像素，换 LUT 才重传。
-     * 用 16 位浮点而不是 8 位：{@code .cube} 的数据是浮点、可超出 {@code [0,1]}（见 {@link CubeLut} 文档），
-     * 8 位量化会把超出部分截掉、并在中性灰附近留下台阶。</p>
-     *
-     * <p><b>过滤 = NEAREST</b>：插值不交给硬件三线性，而是着色器用 {@code texelFetch} 取 8 个角点后按
-     * <b>四面体</b>（tetrahedral）加权（业界默认口径，三线性在中性灰附近会偏色）。</p>
-     *
-     * <p><b>绑定</b>：3D 纹理不能走 {@link ShaderInstance#setSampler}（那条路一律按 {@code GL_TEXTURE_2D}
-     * 目标绑定），所以这里按 {@code GL_TEXTURE_3D} 目标手动绑到 {@link LutBindGuard#LUT_3D_UNIT}——
-     * 采样器的纹理单元号仍由 {@code ShaderInstance.apply()} 按 JSON {@code samplers} 次序上传
-     * （samplerMap 里放占位值即可，见 {@code applyTo}）。</p>
-     *
-     * <p><b>完整性守卫</b>：上传后回读 level 0 的三个维度（{@code glGetTexLevelParameteri}），
-     * 只有与表边长逐维一致才记 {@link #textureSize}（= 可用）；纹理没建出来 / 超驱动上限 /
-     * 上传被截断都留 0，{@link #readyFor} 随即判不可用 → 调用方跳过 LUT 步
-     * （见 {@link LutBindGuard#textureReady}）。回读只在上传时做一次（同一 LUT 实例不重传），
-     * 不进逐帧路径。</p>
+     * 3D LUT 的纹理槽（{@code Lut3D} 采样器）：S×S×S、RGBA16F、NEAREST + CLAMP_TO_EDGE；
+     * 表 = {@link CubeLut#composed3D()}，采样坐标 {@code x ∈ [0,1]³} 直接对应网格。
+     * 按 {@link CubeLut} 实例引用比较：同一 LUT 只上传一次，换 LUT 才重传（上传失败也记，不逐帧重试）。
+     * 用 16 位浮点而非 8 位：{@code .cube} 数据是浮点且可超出 {@code [0,1]}（见 {@link CubeLut} 文档），
+     * 8 位量化会截掉超出部分并在中性灰附近留下台阶。
+     * NEAREST：插值不交给硬件，着色器 {@code texelFetch} 取 8 个角点后按四面体加权。
+     * 完整性：上传后回读 level 0 三个维度，与表边长逐维一致才记 {@link #textureSize}（否则 0 = 不可用）。
+     * 3D 纹理不能走 {@link ShaderInstance#setSampler}（那条路按 {@code GL_TEXTURE_2D} 绑定），
+     * 这里按 {@code GL_TEXTURE_3D} 手动绑到 {@link LutBindGuard#LUT_3D_UNIT}。
      */
     private static final class Lut3DTexture {
 
@@ -691,7 +506,7 @@ public final class ColorAdjustPass {
         /** 已处理过的 LUT（引用比较：同一个 LUT 实例只传一次；上传失败也记，避免逐帧重试）。 */
         private CubeLut uploaded;
 
-        /** 纹理 level 0 的<b>实际</b>边长（上传后回读校验通过才置位；{@code 0} = 没有可用纹理）。 */
+        /** 纹理 level 0 的实际边长（上传后回读校验通过才置位；{@code 0} = 没有可用纹理）。 */
         private int textureSize;
 
         /** 上传本 LUT 的合成表（同一实例只传一次）；无 LUT / 已处理 → 不动。 */
@@ -702,7 +517,7 @@ public final class ColorAdjustPass {
             CubeLut.Composed3D composed = lut.composed3D();
             int size = composed.size();
             // 尺寸守卫：合成表理论上 ≤ COMPOSED_MAX_SIZE，仍按驱动上限核一道——超上限的上传必然不完整
-            // （texelFetch 采到未定义值），所以直接不上传、标记不可用，让调用方跳过 LUT 步
+            // （texelFetch 采到未定义值），故直接不上传、标记不可用，让调用方跳过 LUT 步
             int maxSize = maxTextureSize();
             if (maxSize > 0 && size > maxSize) {
                 uploaded = lut;
@@ -744,7 +559,7 @@ public final class ColorAdjustPass {
             }
         }
 
-        /** 纹理完整性守卫：纹理已创建且 level 0 边长与本次要采样的表边长一致。 */
+        /** 纹理完整性守卫：纹理已创建且 level 0 边长与要采样的表边长一致。 */
         boolean readyFor(int expectedSize) {
             return LutBindGuard.textureReady(textureId, textureSize, expectedSize);
         }
@@ -795,10 +610,9 @@ public final class ColorAdjustPass {
     }
 
     /**
-     * 取（必要时创建）着色器实例。资源重载（换资源包 / F3+T）后重建：
-     * 旧实例 {@code close()} 会释放它持有的 GL program（原版 Program 缓存按名字复用，
-     * 不释放就会拿到旧编译结果），随后按新资源重新编译。
-     * <p>加载失败只记一次（同一资源周期内不重试、不刷屏），画面保持未调色。</p>
+     * 取（必要时创建）着色器实例；换资源管理器（资源重载）后重建——旧实例 {@code close()} 释放 GL program，
+     * 否则原版 Program 缓存按名字复用会拿到旧编译结果。
+     * 加载失败只记一次（同一资源周期内不重试），画面保持未调色。
      */
     private static ShaderInstance shader(Minecraft mc) {
         ResourceManager resources = mc.getResourceManager();
@@ -820,9 +634,8 @@ public final class ColorAdjustPass {
     }
 
     /**
-     * 中转缓冲（按主画面尺寸创建 / 重建）。
-     * <p>不需要深度附件（只画一个全屏 quad、且深度测试关闭）；过滤保持默认 NEAREST——
-     * 采样是 1:1 的，NEAREST 正是要的（合成层要缩放才需要 LINEAR）。</p>
+     * 中转缓冲（按主画面尺寸创建 / 重建）；无深度附件（只画一个全屏 quad、深度测试关闭），
+     * 过滤保持默认 NEAREST（采样是 1:1 的，缩放才需要 LINEAR）。
      */
     private static RenderTarget swapTarget(int width, int height) {
         if (swapTarget == null) {

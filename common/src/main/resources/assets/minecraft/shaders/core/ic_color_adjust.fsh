@@ -1,9 +1,9 @@
 #version 150
 
 // 画面颜色调整 —— 一次全屏 pass 合并全部标量调整；master 与 lane 级共用同一份着色器与操作栈
-// （master：合成输出 → 中转缓冲；lane 级：lane FBO → adjustTarget，见 plans/0.3.6/screen-color-adjust.md 步骤 5）。
+// （master：合成输出 → 中转缓冲；lane 级：lane FBO → adjustTarget）。
 //
-// 操作栈顺序固定（与 plans/0.3.6/screen-color-adjust.md §3 一致，非破坏、不可调）：
+// 操作栈顺序固定（非破坏、不可调）：
 //   1. 曝光      2. 对比度     3. 高光 / 阴影   4. 白场 / 黑场
 //   5. 色温 / 色调  6. RGB 通道系数  7. RGB 通道混合器（3×3 矩阵，单位阵 + 参数矩阵）
 //   8. RGB 复合曲线（CurveLut 查表）
@@ -100,7 +100,7 @@
 //                     其中 d(a) = a ≤ 0.25 ? ((16a-12)·a+4)·a : sqrt(a)（a = 基画面 Cb、b = 调整层 Cs）
 //     overlay(4)    = a ≤ 0.5 ? 2ab : 1 - 2(1-a)(1-b)（a = 0.5 处两式相等，边界无跳变）
 //   缺省 normal + 1 = 直替换（与混合功能落地前逐位一致，故该步整段跳过）；BlendAmount = 0 =
-//   调整层整体透明（输出 = 基画面 = 恒等）。<b>不是操作栈步骤</b>，而是层级语义
+//   调整层整体透明（输出 = 基画面 = 恒等）。不是操作栈步骤，而是层级语义
 //   （调整层输出 vs 底下的画面）；只动 rgb，alpha 逐位直通。
 //
 // 亮度口径：Rec.709 权重（0.2126 / 0.7152 / 0.0722）。
@@ -111,7 +111,6 @@
 // 禁止把透明「烤」进画面，也禁止在画面处理阶段动 alpha。
 // 两条路径同一契约，执行顺序：lane 渲染 → lane 级调整（只动 RGB）→ 合成（opacity / dest / source）
 // → 全部 lane 完成后 → master 调整（本 pass 作用于合成输出）。
-// 依据：plans/0.3.6/README.md「画面完整性原则」、plans/0.3.6/multi-camera-rendering.md §12.8-A。
 
 uniform sampler2D Sampler0;
 
@@ -211,8 +210,8 @@ float lutLookup(sampler2D lut, float x) {
     return texture(lut, vec2(clamp(x, 0.0, 1.0) * (255.0 / 256.0) + (0.5 / 256.0), 0.5)).r;
 }
 
-// LUT（.cube）查表：四面体插值（tetrahedral，业界默认；三线性在中性灰附近会偏色，
-// 见 example/lut-reference/README.md）—— 8 个角点用 texelFetch 精确取（不走纹理过滤），
+// LUT（.cube）查表：四面体插值（tetrahedral，业界默认；三线性在中性灰附近会偏色）
+// —— 8 个角点用 texelFetch 精确取（不走纹理过滤），
 // 按 d.r / d.g / d.b 的大小关系选四面体、四点加权。
 // 合成表的输入域已经是 [0,1]³（CPU 加载期把 1D shaper 与两段 DOMAIN 归一化全部烘焙进表，
 // 见 CubeLut#composed3D），所以这里只做 [0,1] 钳制 + 乘 (size-1) 取网格坐标，不做任何归一化。

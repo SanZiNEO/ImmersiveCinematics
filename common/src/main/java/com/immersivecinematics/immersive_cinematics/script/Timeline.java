@@ -5,17 +5,14 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 时间轴 — 脚本的核心数据容器
- * <p>
- * 包含总时长和并行轨道数组。
- * 时间层级：总时间轴 → 轨道 → 片段 → 关键帧
+ * 时间轴 —— 脚本的核心数据容器：总时长 + 并行轨道；层级 = 总时间轴 → 轨道 → 片段 → 关键帧。
  */
 public class Timeline {
 
     /** 脚本总时长（秒），负数 = 含无限时长片段（无法预计算） */
     private final float totalDuration;
 
-    /** 并行轨道数组 */
+    /** 并行轨道列表（构造后不再修改） */
     private final List<TimelineTrack> tracks;
 
     /** 宏观循环区间起点 a（秒）：{@code loop_start}，缺省 0（负值按 0 处理） */
@@ -24,6 +21,12 @@ public class Timeline {
     /** 宏观循环区间终点 b（秒）：{@code loop_end}；负数 = 未声明（运行时取宏观末端） */
     private final float loopEnd;
 
+    /**
+     * @param totalDuration 总时长（秒）；负数 = 含无限时长片段
+     * @param tracks        并行轨道（null 视为空）
+     * @param loopStart     宏观循环区间起点（秒，负值按 0 处理）
+     * @param loopEnd       宏观循环区间终点（秒）；负数 = 未声明
+     */
     public Timeline(float totalDuration, List<TimelineTrack> tracks, float loopStart, float loopEnd) {
         this.totalDuration = totalDuration;
         this.tracks = tracks != null ? tracks : Collections.emptyList();
@@ -52,7 +55,7 @@ public class Timeline {
     // ========== 便捷查询方法 ==========
 
     /**
-     * 按轨道类型查找第一条匹配的轨道
+     * 按轨道类型查找第一条匹配的轨道。
      *
      * @param type 轨道类型
      * @return 匹配的轨道，可能为空
@@ -73,14 +76,18 @@ public class Timeline {
     }
 
     /**
-     * 获取 Letterbox 轨道（最多1条）
+     * 获取 Letterbox 轨道（最多 1 条）。
+     *
+     * @return Letterbox 轨道，可能为空
      */
     public Optional<TimelineTrack> getLetterboxTrack() {
         return findTrack(TrackType.LETTERBOX);
     }
 
     /**
-     * 获取所有 Audio 轨道
+     * 获取所有 Audio 轨道。
+     *
+     * @return Audio 轨道列表（按时间轴顺序）
      */
     public List<TimelineTrack> getAudioTracks() {
         return tracks.stream()
@@ -89,14 +96,18 @@ public class Timeline {
     }
 
     /**
-     * 获取 Event 轨道（最多1条）
+     * 获取 Event 轨道（最多 1 条）。
+     *
+     * @return Event 轨道，可能为空
      */
     public Optional<TimelineTrack> getEventTrack() {
         return findTrack(TrackType.EVENT);
     }
 
     /**
-     * 获取所有 ModEvent 轨道
+     * 获取所有 ModEvent 轨道。
+     *
+     * @return ModEvent 轨道列表（按时间轴顺序）
      */
     public List<TimelineTrack> getModEventTracks() {
         return tracks.stream()

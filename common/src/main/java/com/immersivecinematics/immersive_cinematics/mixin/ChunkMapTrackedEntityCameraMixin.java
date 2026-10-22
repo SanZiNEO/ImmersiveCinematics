@@ -9,11 +9,10 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
  * 实体配对距离改用相机中心。
- * <p>
- * 相机片段激活时，把原版 {@code ChunkMap$TrackedEntity.updatePlayer} 里的
- * {@code player.position()} 换成相机坐标（x/z，y 固定 0，距离判定只读 x/z），
- * 使相机附近的实体按原版规则配对/取消配对（距离阈值、seenBy、addPairing 全部沿用原版）。
- * 目标类是包私有内部类，只能用字符串 targets。
+ *
+ * 相机片段激活时，把原版 {@code ChunkMap$TrackedEntity.updatePlayer} 里的 {@code player.position()} 换成
+ * 相机坐标（x/z，y 固定 0，距离判定只读 x/z），使相机附近的实体按原版规则配对 / 取消配对（距离阈值、
+ * {@code seenBy}、{@code addPairing} 全部沿用原版）。目标类是包私有内部类，只能用字符串 targets。
  */
 @Mixin(targets = "net.minecraft.server.level.ChunkMap$TrackedEntity")
 public abstract class ChunkMapTrackedEntityCameraMixin {

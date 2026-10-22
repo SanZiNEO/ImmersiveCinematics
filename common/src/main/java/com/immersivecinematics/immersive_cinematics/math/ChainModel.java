@@ -13,6 +13,7 @@ import java.util.List;
  */
 public final class ChainModel implements MathModel {
 
+    /** 模型类型标识（脚本 JSON 的 {@code type} 取值）。 */
     public static final String TYPE = "chain";
 
     private final ValueDomain domain;

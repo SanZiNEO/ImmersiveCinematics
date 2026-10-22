@@ -80,7 +80,7 @@ public final class PointSourceSnapshots {
         size = 0;
     }
 
-    /** 槽数组翻倍（只在新增片段时调用；分配次数 ∝ 片段数）。 */
+    /** 槽数组翻倍（只在新片段入表时调用；分配次数 ∝ 片段数）。 */
     private void grow() {
         int capacity = clips.length * 2;
         Clip[] grownClips = new Clip[capacity];

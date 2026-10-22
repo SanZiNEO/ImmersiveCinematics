@@ -10,11 +10,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 通用片段容器 — 替代各轨道类型的独立 Clip 类
- * <p>
- * 所有轨道共享 {@code startTime} 和 {@code duration} 字段。
- * 轨道特有字段存储在 {@code data} map 中，通过 {@link SchemaLoader} 定义。
- * 关键帧使用 {@link Keyframe} 泛型类。
+ * 通用片段容器：所有轨道共享 {@code startTime} / {@code duration}；
+ * 轨道特有字段存在 {@code data} map 中（由 {@link SchemaLoader} 定义），关键帧使用 {@link Keyframe} 泛型。
  */
 public class Clip {
 
@@ -97,7 +94,8 @@ public class Clip {
      *
      * 值 = 片段级字段归一而成（{@code transition_duration} / {@code transition_curve} /
      * {@code transition_params} / {@code transition_interrupt}）；未声明任何过渡字段时为 {@code null}。
-     * 首次访问建成并缓存（片段数据在解析后只读）。字段语义与缺省见 {@code docs/SCRIPT_FORMAT.md} §「过渡」。
+     * 首次访问建成并缓存（片段数据在解析后只读）。未声明的通道 / 键按片段级缺省补齐
+     * （全六通道 BLEND、同一时长、无曲线 = 线性斜坡、BLEND 打断）。
      */
     public TransitionSpec getTransitionSpec() {
         if (transitionSpec == null && declaresTransition()) {
@@ -116,14 +114,10 @@ public class Clip {
     }
 
     /**
-     * 本片段的 fade 高级颜色遮罩定义（0.3.6 D4–D7）。
-     *
-     * <p>首次访问由 {@link ColorMaskSpec#from(Clip)} 建成并缓存（片段数据在解析后只读）。
-     * 只有 {@link TrackType#OVERLAY} 片段有该定义；其余轨道恒返回 {@code null}（同样只判定一次）。</p>
-     *
-     * <p>结构非法时 {@link ColorMaskSpec#from(Clip)} 抛
-     * {@link ColorMaskSpec.InvalidColorMaskException}；{@code ScriptParser} 在解析期主动触发本方法，
-     * 把该异常转成带完整字段路径的 {@code ScriptParseException}。</p>
+     * 本片段的 fade 颜色遮罩定义；只有 {@link TrackType#OVERLAY} 片段有，其余轨道恒 {@code null}。
+     * 首次访问由 {@link ColorMaskSpec#from(Clip)} 建成并缓存（片段数据解析后只读，{@code null} 也只判定一次）。
+     * 结构非法时抛 {@link ColorMaskSpec.InvalidColorMaskException}，由 {@code ScriptParser} 在解析期
+     * 转成带完整字段路径的 {@code ScriptParseException}。
      */
     public ColorMaskSpec getColorMaskSpec() {
         if (!colorMaskSpecResolved) {
@@ -259,54 +253,46 @@ public class Clip {
 
     /**
      * clip 级 LUT 文件名（{@code resource/} 目录下的 {@code .cube}；{@code null} = 本片段不做 LUT）。
-     * <p><b>只有 ADJUST 轨（整体画面 / master）</b>带 LUT：逐 lane 的相机片段上即使写了 {@code lut}
-     * 也不生效（{@code ScriptValidator} 会直接拦下），此处按轨道类型挡一道，保证 lane 永远不会被套 LUT。</p>
-     * <p>只存文件名，不解析：解析结果由 {@link CubeLutLoader#forClip} 按路径缓存、按 clip 记引用
-     * （键 = {@link #getClipId()}），同一文件在多个片段间共享同一不可变实例。</p>
+     * 只有 ADJUST 轨（整体画面 / master）带 LUT：按轨道类型挡一道，lane 路径恒 {@code null}
+     * （{@code ScriptValidator} 同样拦下），保证逐 lane 的相机片段永远不会被套 LUT。
+     * 只存文件名、不解析：解析结果由 {@link CubeLutLoader#forClip}
+     * 按路径缓存、按 clip 记引用（键 = {@link #getClipId()}），同一文件跨片段共享同一不可变实例。
      */
     public String getLut() {
         return trackType == TrackType.ADJUST ? getString("lut", null) : null;
     }
 
     /**
-     * clip 级 LUT 输入域适配的幂指数（缺省 {@code 1.0} = 不变换；语义见 {@link #getLut()} 与
-     * {@code TrackSchemas.adjust()}）：查表前对输入 RGB 逐通道
+     * clip 级 LUT 输入域适配幂指数（缺省 {@code 1.0} = 不变换）：查表前对输入 RGB 逐通道
      * {@code v = pow(clamp(c, 0, 1), gamma)}，以 {@code v} 为四面体查表坐标。
-     * <p><b>只有 ADJUST 轨（整体画面 / master）</b>参与 LUT，故与 {@link #getLut()} 同款按轨道类型挡一道：
-     * lane 路径恒得缺省 1.0（相机片段上即使写了该字段也不生效——{@code ScriptValidator} 会直接拦下）。</p>
-     * <p>与 {@link #getLut()} 同款：无 LUT（{@code lut} 缺省 / 解析失败）时该值被忽略——查表整步不生效。</p>
+     * 与 {@link #getLut()} 同款只对 ADJUST 轨生效（lane 路径恒得 1.0）；无 LUT 时该值被忽略（查表整步不生效）。
      */
     public float getLutInputGamma() {
         return trackType == TrackType.ADJUST ? getFloat("lut_input_gamma", 1.0F) : 1.0F;
     }
 
     /**
-     * clip 级混合模式（{@code blend_mode}；{@code normal} / {@code multiply} / {@code screen} /
-     * {@code soft_light} / {@code overlay}，缺省 {@code "normal"} = 直替换 = 现状）。
-     * <p>语义 = <b>层级混合</b>（混合模式作用于调整层）：把调整层输出（操作栈全部步骤算出的
-     * {@code c_adj}）与基画面（{@code Sampler0} 原图 {@code c_base}）按该模式整体混合，强度由关键帧
-     * {@code blend_amount} 控制（{@code c = mix(c_base, blend(c_base, c_adj, mode), amount)}）；
-     * 见 {@code client/post/ColorAdjustParams} 与 {@code ic_color_adjust.fsh} 第 20 步。</p>
-     * <p><b>只有 ADJUST 轨（整体画面 / master）</b>带该字段：与 {@link #getLut()} 同款按轨道类型挡一道，
-     * lane 路径恒得缺省 {@code "normal"}（相机片段上即使写了该字段也不生效——{@code ScriptValidator}
-     * 会直接拦下；{@code "normal"} 下混合步骤恒等，故 lane 行为与混合功能落地前逐位一致）。</p>
+     * clip 级混合模式（{@code normal} 缺省 / {@code multiply} / {@code screen} / {@code soft_light} /
+     * {@code overlay}）：调整层输出 {@code c_adj} 与基画面 {@code c_base} 按模式整体混合，
+     * {@code c = mix(c_base, blend(c_base, c_adj, mode), amount)}，强度 = 关键帧 {@code blend_amount}。
+     * 与 {@link #getLut()} 同款只对 ADJUST 轨生效：lane 路径恒得 {@code "normal"}（混合步骤恒等）。
      */
     public String getBlendMode() {
         return trackType == TrackType.ADJUST ? getString("blend_mode", "normal") : "normal";
     }
 
     /**
-     * 本片段的稳定标识（{@link CubeLutLoader#forClip} 的 clip 键）：同一实例反复调用恒定。
-     * <p>片段对象在解析期一次建成、整个播放期存活，故用对象身份即可；不同实例理论上可能撞值，
-     * 但该表只用于记录「哪些片段引用了 LUT」，撞值不影响取到的 LUT（实例本身按文件路径共享）。</p>
+     * 本片段的稳定标识（{@link CubeLutLoader#forClip} 的 clip 键）：片段对象解析期一次建成、播放期存活，
+     * 故用对象身份；不同实例理论上可能撞值，但该表只记录「哪些片段引用了 LUT」，
+     * 撞值不影响取到的实例（LUT 实例本身按文件路径共享）。
      */
     public String getClipId() {
         return "clip@" + Integer.toHexString(System.identityHashCode(this));
     }
 
     /**
-     * HvH 曲线（六条 hue 曲线，DaVinci 曲线页口径）：以 <b>hue</b> 为键、输出 <b>hue</b>。
-     * {@code null} = 本片段无该曲线；关键帧控 {@code hv_h_strength}。
+     * HvH 曲线（六条 hue 曲线，DaVinci 曲线页口径）：以 hue 为键、输出 hue；关键帧控 {@code hv_h_strength}。
+     * {@code null} = 本片段无该曲线。
      */
     public ColorCurve getHvHCurve() {
         return getObject("hv_h_curve");

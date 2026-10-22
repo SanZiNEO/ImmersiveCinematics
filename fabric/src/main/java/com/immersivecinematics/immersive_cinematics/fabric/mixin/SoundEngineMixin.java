@@ -16,9 +16,8 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Fabric 专属：自定义音频流接入原版 SoundEngine。
  *
- * <p>Fabric 环境下存在其他模组对
- * {@code SoundBufferLibrary.getStream(ResourceLocation, boolean)} 的 {@code @Redirect}，
- * 因此这里继续使用 MixinExtras {@link WrapOperation} 以避免冲突。
+ * Fabric 环境下存在其他模组对 {@code SoundBufferLibrary.getStream(ResourceLocation, boolean)} 的
+ * {@code @Redirect}，因此这里用 MixinExtras {@link WrapOperation} 以避免冲突。
  */
 @Mixin(SoundEngine.class)
 public class SoundEngineMixin {

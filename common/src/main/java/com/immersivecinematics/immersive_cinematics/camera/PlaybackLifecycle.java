@@ -20,25 +20,22 @@ import java.util.function.Predicate;
 /**
  * 播放生命周期与队列：启动 / 退出 / 停止 / 待接播 / 播放队列。
  *
- * 退出统一入口 {@link #requestExit(PlaybackInstance, ExitReason)} 按原因映射完成原因，再走「渐出退场」
- * （{@link #deactivate}）或「立即停用」（{@link #deactivateNow}）；生命周期按实例独立：只要还有实例在播，
- * 共享时钟 / 相机状态 / 覆盖层都不复位，最后一个实例退出才全局复位。
+ * 退出统一入口 {@link #requestExit(PlaybackInstance, ExitReason)}：按原因映射完成原因，再走渐出退场
+ * （{@link #deactivate}）或立即停用（{@link #deactivateNow}）。生命周期按实例独立：仍有实例在播时
+ * 共享时钟 / 相机状态 / 覆盖层不复位，最后一个实例退出才全局复位。
  *
- * 同脚本单实例：{@link #playScript} 命中同脚本活跃实例时按可打断性「立即替换 / 入队」，接播在
- * {@link #deactivateNow} 收尾（{@code pendingScript} 优先于队列；无 exclusive 时按 priority/FIFO
- * 排空全部可播项，遇到新启动的 exclusive 立即停止取项）；队列跨实例存活（只有全停清空），接播先于全局复位。
+ * 同脚本单实例：{@link #playScript} 命中同脚本活跃实例时按可打断性「立即替换 / 入队」；接播在
+ * {@link #deactivateNow} 收尾，{@code pendingScript} 优先于队列，队列项按 priority/FIFO 排空。
+ * 队列排空遇到新启动的 exclusive 立即停止取项。队列跨实例存活（只有全停清空），接播先于全局复位。
  *
- * 跨脚本到达裁决（{@code meta.play_mode}，设计 §4）：S 含 exclusive → 新来者入队；S 无 exclusive 但含
- * interruptible → 顶掉全部 interruptible（{@code requestExit(INTERRUPTED)} → 渐出退场）后开播；
- * 其余（S 空 / 仅 parallel）→ 并行加入。出队判据见 {@link #canDequeue()}。
- *
- * 同脚本替换路径（可打断的同一脚本再触发）保持硬切：置原因 + {@code deactivateNow}。
+ * 跨脚本到达裁决（{@code meta.play_mode}）：在播集合含 exclusive → 新来者入队；无 exclusive 但含
+ * interruptible → 顶掉全部 interruptible（渐出退场）后开播；其余（空 / 仅 parallel）→ 并行加入。
  *
  * 线程：仅客户端主线程。
  */
 final class PlaybackLifecycle {
 
-    /** 日志通道名固定为拆分前值，保持日志输出逐行不变。 */
+    /** 日志通道名固定为 {@code ImmersiveCinematics/CameraManager}，不随类名变化。 */
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CameraManager");
 
     private final PlaybackRegistry registry;
@@ -84,7 +81,7 @@ final class PlaybackLifecycle {
 
     /**
      * 播放脚本（到达裁决）：同脚本已有活跃实例 → 既有单实例路径（可打断 → 立即替换；不可打断 → 入队）；
-     * 跨脚本 → 按在播集合 S 裁决（设计 §4）：S 含 exclusive → 入队；S 无 exclusive 但含 interruptible →
+     * 跨脚本 → 按在播集合 S 裁决：S 含 exclusive → 入队；S 无 exclusive 但含 interruptible →
      * 顶掉全部 interruptible 后开播；其余（S 空 / 仅 parallel）→ 直接并行开播。
      *
      * @param instanceId 服务端播放请求的播放实例 id；本地来源传空串
@@ -151,7 +148,7 @@ final class PlaybackLifecycle {
     }
 
     /**
-     * 按脚本定位并停止实例（服务端 stop 原语，E9）：不限于顶层——非顶层实例同样被停。
+     * 按脚本定位并停止实例（服务端 stop 原语）：不限于顶层——非顶层实例同样被停。
      *
      * @param scriptId   脚本 id
      * @param instanceId 播放实例 id；空串 = 该脚本任意实例
@@ -164,7 +161,7 @@ final class PlaybackLifecycle {
         return true;
     }
 
-    /** 取消该脚本的排队项（E3）；{@code true} = 确有排队项被移除。 */
+    /** 取消该脚本的排队项；{@code true} = 确有排队项被移除。 */
     boolean cancelQueued(String scriptId) {
         return scriptQueue.cancel(scriptId);
     }
@@ -225,10 +222,9 @@ final class PlaybackLifecycle {
     }
 
     /**
-     * 声明式退出（规则动作 {@code exit}；设计 §8.1 ③族归 {@link ExitReason#NATURAL_END}，五值不扩）：
-     * 与 {@link #requestExit} 的 NATURAL_END 同一映射（{@link CompletionReason#FINISHED} + 渐出退场），
-     * 但<b>跳过 {@code hold_at_end} 拒绝</b>——声明式退出优先于末尾驻留（hold 是「内容自然播完后驻留」，
-     * 作者在规则里显式声明的退出不该被驻留门挡下）。
+     * 声明式退出（规则动作 {@code exit}）：完成原因映射与 {@link #requestExit} 的 NATURAL_END 一致
+     * （{@link CompletionReason#FINISHED} + 渐出退场），但跳过 {@code hold_at_end} 拒绝——
+     * 理由：hold 只覆盖「内容自然播完后驻留」，作者显式声明的退出不该被驻留门挡下。
      *
      * @param instance 目标实例（本实例作用域；{@code null} = 无播放可结束）
      * @return 恒 {@code true}（声明式退出不经行为开关门控）
@@ -325,7 +321,7 @@ final class PlaybackLifecycle {
             previewChannel.setPreviewDirectControl(false);
             previewChannel.setPreviewInitialized(false);
             // 退出输入优雅交接：键盘按当前物理状态重同步 + 鼠标按钮同步 + 清鼠标累积量
-            // （不再 releaseAll 全量释放——避免玩家仍按着键时退出导致按键失效直到松开重按）
+            // （不走 releaseAll 全量释放——避免玩家仍按着键时退出导致按键失效直到松开重按）
             CinematicController.INSTANCE.syncInputStateAfterExit();
             CinematicController.INSTANCE.revert();
             reset();
@@ -380,7 +376,7 @@ final class PlaybackLifecycle {
             CinematicController.INSTANCE.releaseAllKeys();
         }
 
-        // 预览实例重启不再重置相机到玩家位置（否则每次 pushScript 节流重启都闪回 → 拖拽卡顿）；
+        // 预览实例重启不重置相机到玩家位置（否则每次 pushScript 节流重启都闪回 → 拖拽卡顿）；
         // 首次进入预览仍初始化一次，保证预览首帧从玩家位置起步。游戏实例每次开播都从玩家位置起步。
         if (!preview || !previewChannel.isPreviewInitialized()) {
             stateHolder.setInitialView(mc.player.position(), mc.player.getYRot(), mc.player.getXRot());

@@ -18,21 +18,21 @@ import net.minecraft.world.level.biome.Biome;
 import java.util.List;
 
 /**
- * 客户端判定源（0.3.6 C6-2）：{@code clip.rules} 条件在本端的求值薄镜像——读本地玩家 / 相机状态，
+ * 客户端判定源：{@code clip.rules} 条件在本端的求值薄镜像——读本地玩家 / 相机状态，
  * 纯几何与 id 匹配调用 {@link GeometryConditions}（与触发器侧同一核，语义同源）。
  *
- * v1 判定源 = {@link #V1_TYPES} 八项：{@code time}（片段本地时钟 = timelineTime − clip.startTime）、
+ * 支持的判定类型 = {@link #V1_TYPES} 八项：{@code time}（片段本地时钟 = timelineTime − clip.startTime）、
  * {@code location} / {@code facing} / {@code biome} / {@code dimension}（镜像触发器同名词汇）、
- * {@code camera_pos} / {@code camera_facing} / {@code camera_fov}（相机状态，新增）。组合器 {@code all_of}
+ * {@code camera_pos} / {@code camera_facing} / {@code camera_fov}（读相机状态）。组合器 {@code all_of}
  * / {@code any} 用触发器同一份 {@code list} 语义，嵌套上限 {@link #MAX_COMBINATION_DEPTH}（与触发器侧同值）。
- * 事件类 / tracker 类 / 前置条件类判定源 v1 不支持（validator 报 issue，运行期按不满足处理）。
+ * 事件类 / tracker 类 / 前置条件类判定源不支持（validator 报 issue，运行期按不满足处理）。
  *
  * 分配契约：{@link #evaluate} 只读输入、不新建集合、不装箱（帧内路径安全）；维度 / 群系 id 字符串在
  * {@link LocalContext} 内按变化记忆，稳态零分配。线程契约：仅客户端主线程。
  */
 public final class ClientConditions {
 
-    /** v1 判定源白名单（validator 与求值侧同一单源；组合器另计）。 */
+    /** 支持的判定类型白名单（validator 与求值侧同一单源；组合器另计）。 */
     public static final List<String> V1_TYPES = List.of(
             "time", "location", "facing", "biome", "dimension", "camera_pos", "camera_facing", "camera_fov");
 
@@ -45,7 +45,7 @@ public final class ClientConditions {
     private ClientConditions() {}
 
     /**
-     * 求值一条条件：未知 / v1 不支持的 type、结构不全一律 false（不抛——非法 JSON 不该炸帧）。
+     * 求值一条条件：未知 / 不支持的 type、结构不全一律 false（不抛：非法 JSON 不炸帧）。
      *
      * @param condition     条件原文（{@code ClipRule} 存的那份）
      * @param ctx           本帧世界状态（玩家 / 相机）
@@ -121,7 +121,7 @@ public final class ClientConditions {
 
     /**
      * {@code time}：{@code at} = 片段本地时钟 ≥ 该点；{@code from} / {@code to} = 闭区间（可单边）。
-     * 两者都缺 → false（结构不全）。挂起期间本地时钟冻结，故 time 条件天然不走（设计 §4）。
+     * 两者都缺 → false（结构不全）。挂起期间本地时钟冻结，time 条件因此不成立。
      */
     private static boolean evalTime(JsonObject c, float localTime) {
         if (isNumber(c, "at")) return localTime >= c.get("at").getAsFloat();

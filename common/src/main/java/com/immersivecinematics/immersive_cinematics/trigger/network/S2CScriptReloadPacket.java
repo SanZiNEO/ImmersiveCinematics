@@ -4,8 +4,8 @@ import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptR
 import net.minecraft.network.FriendlyByteBuf;
 
 /**
- * 服务端 → 客户端：脚本文件已保存，请对比指纹并按需重载（N2b）。
- * <p>
+ * 服务端 → 客户端：脚本文件已保存，请对比指纹并按需重载。
+ *
  * 客户端读本地全局脚本目录同名文件，指纹相同则忽略（不解析不重算）。
  */
 public class S2CScriptReloadPacket implements CinematicS2CPacket {

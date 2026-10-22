@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerPlayer;
 import java.util.Map;
 import java.util.Set;
 
+/** 服务端 → 客户端：触发器状态全量同步（各脚本已触发的触发器 / 已完成脚本）。 */
 public class S2CTriggerStateSyncPacket implements CinematicS2CPacket {
 
     private final Object2ObjectOpenHashMap<String, ObjectOpenHashSet<String>> triggeredScripts;

@@ -75,10 +75,8 @@ public class TriggerEngine {
     // ===== Event-driven entry =====
 
     /**
-     * 事件驱动触发器入口。
-     * <p>
-     * 由 {@code ServerEventHandler} 中的 Architectury 事件回调调用，
-     * 传入事件类型 ID（如 {@code "advancement"}、{@code "entity_kill"}）。
+     * 事件驱动触发器入口：按事件类型 id（如 {@code "advancement"}、{@code "entity_kill"}）
+     * 查索引并逐个求值。由 {@code ServerEventHandler} 的 Architectury 事件回调调用。
      */
     public void onGameEvent(String eventTypeId, ServerPlayer player) {
         if (!initialized) return;
@@ -171,8 +169,8 @@ public class TriggerEngine {
 
     public void onPlaybackStarted(ServerPlayer player, String scriptId, String instanceId) {
         // 记录“开始播放”信号：配合结束信号构成“播放过”语义。
-        // 触发器状态机的键 (玩家, 脚本, 触发器) 不变（同脚本同玩家单实例，§3.5）；
-        // 播放账本（观看者 / 跳过投票 / 事件时间线）按实例记账（§3.7）。
+        // 触发器状态机的键 (玩家, 脚本, 触发器) 与实例无关；播放账本（观看者 / 跳过投票 / 事件时间线）
+        // 才按实例记账——所以这里两个都要喂。
         TriggerStateStore.INSTANCE.markScriptStarted(player.getUUID(), scriptId);
         ScriptEventManager.INSTANCE.startPlayback(player, scriptId, instanceId);
     }
@@ -196,13 +194,9 @@ public class TriggerEngine {
     }
 
     /**
-     * 触发器命中前的跳过判定（§3.5 重述后语义）。
-     * <p>
-     * “正在播放”门控是<b>同脚本</b>口径：只有该玩家正在播放<b>本触发器所指向的脚本</b>
-     * （{@code reg.getScriptId()}）时才跳过，即同脚本同玩家保持单实例；
-     * <b>跨脚本不阻塞</b>——播放脚本 A 期间，指向脚本 B 的触发器照常命中并新建实例
-     * （客户端多实例已就绪，§3.5/§3.6）。
-     * <p>
+     * 触发器命中前的跳过判定。
+     * “正在播放”门控是同脚本口径：只有该玩家正在播放本触发器所指向的脚本（{@code reg.getScriptId()}）
+     * 时才跳过，即同脚本同玩家保持单实例；跨脚本不阻塞——播放脚本 A 期间，指向脚本 B 的触发器照常命中。
      * 随后才是 non-repeatable 触发器的“已触发过”去重。
      */
     private boolean shouldSkip(ServerPlayer player, TriggerRegistration reg) {
@@ -255,9 +249,8 @@ public class TriggerEngine {
 
     /**
      * “进入触发 + 离开复位”状态机。
-     * <p>
      * 调用方每次轮询都必须调用（即使玩家在区域外），否则“离开复位”分支不可达、
-     * 触发器每局只能触发一次。详见 plans/0.3.6/feedback-0.3.5/05-on-enter-not-repeatable.md。
+     * 触发器每局只能触发一次。
      *
      * @param inOriginal 玩家当前是否在原始触发区域内（由调用方求值，避免重复求值）
      * @return 是否应视为“新进入”而触发

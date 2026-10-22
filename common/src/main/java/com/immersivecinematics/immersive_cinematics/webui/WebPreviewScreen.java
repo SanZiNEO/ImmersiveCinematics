@@ -29,12 +29,12 @@ import java.util.List;
 /**
  * WebUI 编辑器预览屏幕。
  *
- * <p>游戏端只做三件事：
+ * 游戏端只做三件事：
  * 1. 画面传输（把游戏画面编码后通过 WebSocket 发给前端）
  * 2. 播放控制（接收前端的 play/pause/seek/stop/pushScript 指令）
  * 3. 飞控模式（前端发送 enter_flight_mode 指令后，玩家在游戏中用 WASD 飞行编辑关键帧）
  *
- * <p>所有编辑器按键绑定由前端自己处理，游戏端不转发。</p>
+ * 所有编辑器按键绑定由前端自己处理，游戏端不转发。
  */
 public class WebPreviewScreen extends Screen {
 
@@ -46,6 +46,7 @@ public class WebPreviewScreen extends Screen {
     /** 播放状态广播节流：50ms 一次（约 20Hz） */
     private long lastPlaybackStateBroadcast;
 
+    /** 打开预览屏：{@code init()} 时启动本地 WebUI 服务并开始推流。 */
     public WebPreviewScreen() {
         super(Component.literal("Web Preview"));
     }
@@ -140,7 +141,7 @@ public class WebPreviewScreen extends Screen {
     /**
      * 前端请求进入飞控模式。
      *
-     * <p>默认以当前实际相机为取景起点（与 Java 编辑器一致）；前端显式提供的字段
+     * 默认以当前实际相机为取景起点（与 Java 编辑器一致）；前端显式提供的字段
      * （{@code x/y/z/yaw/pitch/roll/fov/zoom}，null 表示未提供）覆盖对应默认值，
      * 未提供的字段才回落到当前相机状态。{@code absolute} 只作为飞控会话的坐标模式标记
      * 转发给 {@link FlightModeManager}，不参与坐标解释。
@@ -159,7 +160,7 @@ public class WebPreviewScreen extends Screen {
             curFov = state.fov();
             curZoom = state.zoom();
         } else {
-            // 相机未激活：沿用内部状态的复位默认值，与改造前直读一致
+            // 相机未激活时状态为 null：用复位默认值兜底，避免 NPE
             pos = Vec3.ZERO;
             curYaw = 0f;
             curPitch = 0f;

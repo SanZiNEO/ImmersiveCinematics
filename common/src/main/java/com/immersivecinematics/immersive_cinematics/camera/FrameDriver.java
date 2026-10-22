@@ -18,18 +18,18 @@ import java.util.ArrayList;
  *
  * 顺序固定：直控层活跃窗口收口 → 时钟推进 → 逐实例驱动（按启动顺序，后驱动者后写入共享相机状态）
  * → 帧缓存写入 → 快照重建。某实例结束只退它自己，最后一个实例退出才全局复位。
- * 逐实例驱动内：轨道分发之后跑本实例的判定规则引擎（{@code PlaybackInstance.ruleEngine}），
- * 挂起状态变化那一帧发暂停握手（服务端冻结 / 解冻 EVENT 时间线）；音频同步（游戏暂停或本实例挂起）
- * 每帧幂等执行——音轨实例走全局 SoundEngine 暂停链路、规则一次性声音走 per-instance 停声。
- * 退场渐出判定按实例的层（{@code OverlayManager.isAnimating(instance)}）：A 实例的渐出不决定 B 实例何时停。
+ * 逐实例驱动：轨道分发之后跑本实例的判定规则引擎（{@code PlaybackInstance.ruleEngine}），挂起状态变化
+ * 那一帧发暂停握手（服务端冻结 / 解冻 EVENT 时间线）；音频同步每帧幂等（音轨实例走全局 SoundEngine
+ * 暂停链路，规则一次性声音走 per-instance 停声）。退场渐出按实例的层判定
+ * （{@code OverlayManager.isAnimating(instance)}）：A 实例的渐出不牵连 B 实例的退场时机。
  * 调用点：{@code GameRendererMixin}（{@code GameRenderer.render} 的 HEAD，世界渲染之前），有活跃实例的帧各一次；
  * 必须早于 {@code ScriptLaneDriver.tick}（后者读本方法填好的 lane 快照）。
- * 线程契约：仅客户端主线程；帧内遍历用副本防并发修改；帧内路径不新建集合以外对象——例外：诊断日志的拼串 / 装箱
- * （自然结束帧的 {@code NATURAL_END} 日志无条件拼串；{@code pauseSync} 调试日志仅在 debug 开启时装箱）。
+ * 线程契约：仅客户端主线程；帧内遍历用副本防并发修改；帧内路径不新建集合以外对象——例外为诊断日志的
+ * 拼串 / 装箱（自然结束帧的 {@code NATURAL_END} 日志无条件拼串；{@code pauseSync} 调试日志仅在 debug 开启时装箱）。
  */
 final class FrameDriver {
 
-    /** 日志通道名固定为拆分前值，保持日志输出逐行不变。 */
+    /** 日志通道名固定为 {@code CameraManager}（日志格式契约）。 */
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CameraManager");
 
     private final PlaybackRegistry registry;
@@ -61,8 +61,8 @@ final class FrameDriver {
 
     /** 每渲染帧驱动一次（见类 javadoc 的顺序）。 */
     void frame() {
-        // 直控层活跃窗口收口：一次五参数直写只在其穿透刷新那一瞬被选中，帧末求值前已清零
-        // （三层同源同值，本版本无可观察差异；压制语义待各层各持自有快照后才生效）
+        // 直控层活跃窗口收口：一次五参数直写只在其穿透刷新那一瞬被选中，帧末求值前已清零。
+        // 已知限制：直控层与脚本导演层同源同值（同一写入缓冲），压制语义要等各层各持状态快照后才生效。
         directControlBase.clearFrame();
 
         // 暂停联动取并集：任一游戏实例声明 pause_when_game_paused 即按游戏暂停处理；
@@ -121,7 +121,7 @@ final class FrameDriver {
             if (pauseTransition && !instance.isPreview() && player.isPlaying()) {
                 String scriptId = player.getScriptId();
                 if (!"<none>".equals(scriptId)) {
-                    // 语义 = 「实例暂停中」：游戏暂停或规则挂起（C6-2）任一成立即冻结服务端 EVENT 时间线；
+                    // 语义 = 「实例暂停中」：游戏暂停或规则挂起任一成立即冻结服务端 EVENT 时间线；
                     // 随包带上内容相对位置（服务端据此对基准，不再靠墙钟推算）
                     player.contentPosition(pausePosition);
                     ledger.sendPausePacket(scriptId, instance.instanceId(),
@@ -133,7 +133,7 @@ final class FrameDriver {
                 // 本实例已播放时间（不是帧驱动的时钟读数）：并行实例的起始读数各不相同，且挂起中要冻结，
                 // 用绝对时钟读数当 elapsed 会误判活跃（见下方 hasActiveCameraTrack）。
                 float instanceTime = player.getElapsedSeconds();
-                // holdAtEnd=true：时间耗尽后把渲染时间钳到总时长末尾，让最后一帧保持住
+                // 末帧保持（{@code holdAtEnd}）：时间耗尽后把渲染时间钳到总时长末尾，让最后一帧保持住
                 if (player.isFinished() && instance.isHoldAtEnd()) {
                     CinematicScript s = player.getScript();
                     if (s != null) {
@@ -142,7 +142,7 @@ final class FrameDriver {
                     }
                 }
                 player.onRenderFrame(instanceTime);
-                // 判定规则（0.3.6 C6-2）：轨道分发之后逐实例判定（挂起 / 恢复 / 动作都作用在本实例上）
+                // 判定规则：轨道分发之后逐实例判定（挂起 / 恢复 / 动作都作用在本实例上）
                 boolean suspendedBefore = player.isSuspended();
                 try {
                     instance.ruleEngine().evaluate(player);

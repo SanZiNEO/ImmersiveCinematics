@@ -12,23 +12,19 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 相机侧选择器适配：把关键帧的 selector 字段（含调用点专属回落链）与点源解析接到通用
- * {@link EntitySelectorService}；通用机制（解析双路 / 目标锁与切换 / 择一 / 锚点取位 / 平滑 / 捕获留底）
- * 在 selector 包，本类只做字段读取与相机上下文注入。
+ * 相机侧选择器适配：把关键帧 selector 字段与点源解析接到通用 {@link EntitySelectorService}；
+ * 通用机制（解析 / 目标锁与切换 / 择一 / 锚点取位 / 平滑 / 捕获留底）在 selector 包，本类只做字段读取与上下文注入。
  *
- * 字段回落链 = 「{@code <字段>_<调用点>} → 通用 {@code <字段>} → 缺省」：策略四件套
- * （{@code selector_refresh} / {@code selector_switch_while_alive} /
- * {@code selector_switch_interval} / {@code selector_switch_smooth}，单位秒）、
- * 锚点 {@code selector_anchor}（缺省 {@code camera}）、择一 {@code selector_pick}（缺省
- * {@code first}）；调用点名与取值集见 {@link SelectorSchema}。
+ * 字段回落链 = {@code <字段>_<调用点>} → 通用 {@code <字段>} → 缺省：策略四件套
+ * {@code selector_refresh}（秒）/ {@code selector_switch_while_alive}（布尔）/
+ * {@code selector_switch_interval}（秒）/ {@code selector_switch_smooth}（秒）；
+ * 锚点 {@code selector_anchor}（缺省 {@code camera}），择一 {@code selector_pick}（缺省 {@code first}）。
+ * 调用点名与取值集见 {@link SelectorSchema}。
  *
- * 点源解析（{@link #resolvePointSource}，五形态 + 偏移见 {@link PointSource}）：位置点源 / 注视点 / 连线端点 /
- * 基准坐标系前轴目标共用；求值结果按点源偏移展开（{@link PointSource.Offset#apply}，base 表达空间读本帧
- * 基准坐标系，见 {@link #attachFrame}）。锚点 {@code origin} 取 {@code position} 的位置侧点源
- * （实体形态按锚点 {@code camera} 解析，以免绕回自身锚点）。
- * 返回世界空间方块坐标，不可解析 = {@code null}。
- *
- * 线程与频率：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱。
+ * 点源解析（{@link #resolvePointSource}）：五形态 + 偏移展开见 {@link PointSource}，位置点源 / 注视点 /
+ * 连线端点 / 基准坐标系前轴目标共用；{@code origin} 锚点取 {@code position} 的位置侧点源（实体形态按
+ * {@code camera} 锚点解析，以免绕回自身）。返回世界空间方块坐标，不可解析 = {@code null}。
+ * 线程与分配：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱。
  * 状态所有权：目标锁与平滑状态由内部服务实例持有，生命周期 = 所属轨道播放器（停止 / 替换经 {@link #clear()}）。
  */
 public final class EntityTargetResolver {
@@ -95,7 +91,7 @@ public final class EntityTargetResolver {
      *
      * @param selector  选择器字符串；{@code null} / 空串 = 无目标
      * @param cameraPos 相机世界坐标（调用方当前视点）：锚点缺省值与全部回落分支的取值
-     * @param role      调用点名：决定策略字段、锚点字段与锁的键，见 {@link SelectorSchema#CALLPOINTS}
+     * @param role      调用点名：指定策略字段、锚点字段与锁的键，见 {@link SelectorSchema#CALLPOINTS}
      * @param kf        策略 / 锚点 / 择一字段来源关键帧；{@code null} = 三者全缺省
      * @return 解析到的客户端实体；无匹配 / 目标未加载 / 节流未到 = {@code null}
      */
@@ -104,7 +100,7 @@ public final class EntityTargetResolver {
     }
 
     /**
-     * 按给定锚点取值解析（锚点由调用方决定，不再读字段）：公共入口用 {@link #selectorAnchor} 的结果；
+     * 按给定锚点取值解析（锚点由调用方给出，不读字段）：公共入口用 {@link #selectorAnchor} 的结果；
      * 点源实体分支固定传 {@link SelectorSchema#ANCHOR_CAMERA}——anchor=origin 经点源实体解析会绕回自身锚点。
      * 择一策略由 {@link #selectorPick} 按同一 role 读字段，不随锚点分支改写。
      */
@@ -174,12 +170,11 @@ public final class EntityTargetResolver {
 
     /**
      * 统一点源求值（五形态唯一定义处，见 {@link PointSource}）：位置点源 / 注视点 / 连线端点 / 基准坐标系
-     * 前轴目标共用。实体形态的解析原点 = {@code cameraPos}，锚点取 {@code anchor}；求值结果按点源偏移展开
+     * 前轴目标共用；实体形态的解析原点 = {@code cameraPos}，锚点取 {@code anchor}；结果按点源偏移展开
      * （先取点后加偏移，base 表达空间读本帧基准坐标系）。
-     *
      * 时态 = {@link PointSource.Time#SNAPSHOT} 且形态 = 选择器（且已注入快照表与当前片段）时走快照：
-     * 首次解析到的结果（含偏移展开）存入 {@link PointSourceSnapshots}，此后同（片段，槽位）直接读回；
-     * 解析结果为 {@code null} 不存（下一帧继续取）。其余路径逐帧现算（与快照引入前逐位一致）。
+     * 首次结果（含偏移展开）存入 {@link PointSourceSnapshots}，同（片段，槽位）直接读回；解析结果为
+     * {@code null} 时不写入锁表（下一帧继续取），其余路径逐帧现算。
      *
      * @param source    点源规格；{@code null} = 无点源
      * @param cameraPos 实体形态的解析原点（锚点 {@code camera} 的取值）
@@ -277,7 +272,7 @@ public final class EntityTargetResolver {
      * @param channel       通道名：同一把锁下各通道互不影响
      * @param raw           本帧原始目标点（世界空间方块坐标）
      * @param smoothSeconds 过渡时长（秒）；{@code <= 0} = 立即跳到新目标
-     * @param kf            锚点字段来源关键帧（决定用哪把锁）；{@code null} = 锚点 {@code camera}
+     * @param kf            锚点字段来源关键帧（指定用哪把锁）；{@code null} = 锚点 {@code camera}
      * @return 平滑后的目标点；无对应锁（该目标未解析过）= {@code raw}
      */
     public Vec3 smoothTargetPoint(String role, String selector, String channel, Vec3 raw, float smoothSeconds,

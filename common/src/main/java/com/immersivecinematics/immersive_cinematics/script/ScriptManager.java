@@ -28,7 +28,7 @@ public class ScriptManager {
     private static final Logger LOGGER = LogUtils.getLogger();
     public static final ScriptManager INSTANCE = new ScriptManager();
 
-    /** 游戏根目录的全局脚本目录（服务端统一从根目录加载,不再同步进世界存档） */
+    /** 游戏根目录的全局脚本目录（服务端统一从根目录加载，不依赖世界存档）。 */
     private static final String GLOBAL_SCRIPT_DIR = "immersive_cinematics/scripts";
 
     /** 脚本递归加载的最大深度（子文件夹组织，防异常目录结构） */
@@ -41,7 +41,6 @@ public class ScriptManager {
 
     public void loadAll(MinecraftServer server) {
         scripts.clear();
-        // 服务端统一从游戏根目录加载脚本（不依赖世界存档；播放时通过 S2C 包下发完整 JSON 给客户端）
         Path scriptDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
         loadFromDir(scriptDir, true);
         loaded = true;
@@ -149,8 +148,8 @@ public class ScriptManager {
     public void reload(MinecraftServer server) {
         TriggerEngine.INSTANCE.clear();
         loadAll(server);
-        // 重新注册全部触发器（registerAllTriggers 内部会重建索引）——
-        // 之前只调 rebuildIndex 而 allRegistrations 已被 clear 清空，导致 reload 后触发器全部失效
+        // 必须重新登记，不能只 rebuildIndex：上面的 clear() 已清空 allRegistrations，
+        // 只重建索引会得到空索引、reload 后触发器全部失效（registerAllTriggers 内部顺带重建）。
         registerAllTriggers();
     }
 

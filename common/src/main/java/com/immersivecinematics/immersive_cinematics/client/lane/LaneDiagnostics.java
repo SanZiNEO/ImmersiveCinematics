@@ -37,19 +37,15 @@ import java.util.Optional;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
- * F5 有限诊断会话：opt-in manifest（{@code <gameDir>/immersive_cinematics/diagnostics/f-round.json}）
- * 驱动的结构化事件、检查点图片与 CPU 提交区间采样。
- *
- * <p><b>关闭零开销</b>：manifest 不存在 / {@code enabled != true} 时 {@link #SESSION} 为 null，
- * 所有钩子只做一次静态判空，不取 nanoTime、不分配缓冲、不写盘。旧 {@code ICINEMATICS_CAPTURE} 开关独立。</p>
- *
- * <p><b>输出</b>：{@code sessions/<时间戳>-<name>/} 下 {@code environment.json}、{@code events.jsonl}、
- * {@code images/}、{@code performance/<case>-run<N>-{frames,lanes,summary}.*}。图片与采样均有上限。</p>
- *
- * <p><b>计时口径</b>：{@code game_render_ns} = GameRenderer.render HEAD→RETURN；
- * {@code lane_*} = renderLane 的 beginLane→endLane；{@code composite_total_ns} = sink 调用区间；
- * {@code frame_interval_ns} = 相邻有效采样帧的帧首间隔。全部是 CPU 提交区间，
- * <b>不是 GPU 时间、不含 GPU timer query、也不是含 vsync 的呈现时间</b>。</p>
+ * 有限诊断会话：opt-in manifest（{@code <gameDir>/immersive_cinematics/diagnostics/f-round.json}）驱动的
+ * 结构化事件、检查点图片与 CPU 提交区间采样。
+ * 关闭零开销：manifest 不存在 / {@code enabled != true} 时 {@link #SESSION} 为 null，所有钩子只做一次静态
+ * 判空，不取 nanoTime、不分配缓冲、不写盘。
+ * 输出：{@code sessions/<时间戳>-<name>/} 下 {@code environment.json}、{@code events.jsonl}、
+ * {@code images/}、{@code performance/<case>-run<N>-{frames,lanes,summary}.*}；图片与采样均有上限。
+ * 计时口径：{@code game_render_ns} = GameRenderer.render HEAD→RETURN；{@code lane_*} = renderLane 的
+ * beginLane→endLane；{@code composite_total_ns} = sink 调用区间；{@code frame_interval_ns} = 相邻有效帧间隔。
+ * 全部是 CPU 提交区间，不是 GPU 时间、不含 GPU timer query、也不是含 vsync 的呈现时间。
  */
 public final class LaneDiagnostics {
 

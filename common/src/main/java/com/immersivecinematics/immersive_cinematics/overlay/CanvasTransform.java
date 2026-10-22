@@ -1,13 +1,11 @@
 package com.immersivecinematics.immersive_cinematics.overlay;
 
 /**
- * 覆盖层统一几何 —— 分辨率转义与元素框解算（定义层，不做任何渲染）。
+ * 覆盖层统一几何 —— 分辨率转义与元素框解算（定义层，不做渲染）。
  *
- * 口径：取材与缩放参照<b>素材自身</b>，放置位置参照<b>窗口</b>（百分比），分辨率转义为单一系数
- * {@code k = min(W播/W基, H播/H基)}（W播/H播 = 播放窗口、W基/H基 = 编辑基准分辨率）。
- * 本类承载三样东西：统一参数的默认值常量、分辨率转义纯函数 {@link #resolutionEscape}、
- * 以及「位置 / 锚点 / 缩放 → 元素框」的纯几何解算（{@link #element}）；不引用任何 Minecraft 类，
- * 可独立验证。完整模型见 {@code plans/0.3.6/variable-frame.md} §4.2。
+ * 口径：取材与缩放参照素材自身，放置位置参照窗口（百分比）；分辨率转义为单一系数
+ * {@code k = min(W播/W基, H播/H基)}（W播/H播 = 播放窗口，W基/H基 = 编辑基准分辨率）。
+ * 本类只有默认值常量、{@link #resolutionEscape} 与 {@link #element}，不引用任何 Minecraft 类。
  *
  * 元素几何（像素）：
  * {@code B = (裁切后素材宽 · k, 裁切后素材高 · k)}（未缩放基准尺寸，scale = 1 时的上屏像素）；
@@ -15,15 +13,12 @@ package com.immersivecinematics.immersive_cinematics.overlay;
  * {@code TL0 = 中心 − B/2}；{@code A = TL0 + (anchor_x·B.x, anchor_y·B.y)}（锚点 = 缩放不动点）；
  * {@code TL = A − (anchor_x·B.x·s.x, anchor_y·B.y·s.y)}；{@code S = (B.x·s.x, B.y·s.y)}（上屏尺寸）。
  *
- * 缺省 {@code anchor = 0.5} 时元素中心恒为 {@code (x·W播, y·H播)}（绕中心缩放，退化为「中心 − 尺寸/2」）；
- * 锚点非中心时缩放会改变元素的视觉中心（同 CSS {@code transform-origin}）。归一化坐标不钳制：
- * 越界元素按公式落到窗口外，由屏幕边界裁剪。
+ * 缺省 {@code anchor = 0.5} 时元素中心恒为 {@code (x·W播, y·H播)}（绕中心缩放）；锚点非中心时缩放
+ * 会改变元素视觉中心（同 CSS {@code transform-origin}）。归一化坐标不钳制：越界元素按公式落到窗口外。
  *
- * 全程比例域：几何计算都在浮点比例域完成，只在最终绘制那一步落到像素，中间不做取整。
- *
- * 绘制空间：覆盖层在 GUI 缩放空间绘制（调用方传 {@code getGuiScaledWidth/Height}）。{@code k} 的定义
- * 口径是窗口帧缓冲（物理像素）；层内可直接在该空间用 {@code min(空间宽/W基, 空间高/H基)} 计算
- * （= 帧缓冲 {@code k} / {@code guiScale}，两者至多差 1px 舍入）。
+ * 全程浮点比例域，只在最终绘制那一步落到像素。绘制空间为 GUI 缩放空间（调用方传
+ * {@code getGuiScaledWidth/Height}）；{@code k} 的口径是窗口帧缓冲物理像素，层内可用
+ * {@code min(空间宽/W基, 空间高/H基)} 直接算（= 帧缓冲 {@code k} / {@code guiScale}，至多差 1px 舍入）。
  */
 public final class CanvasTransform {
 
@@ -58,8 +53,8 @@ public final class CanvasTransform {
     /**
      * 分辨率转义系数：编辑基准分辨率 → 播放窗口的整体缩放，宽高共用单一系数。
      *
-     * <p>返回 {@code min(wPlay / wBase, hPlay / hBase)}（contain 式：基准构图整体完整可见、
-     * 不溢出播放窗口）。任一入参 ≤ 0 → 返回 0（调用方按退化不绘制处理）。</p>
+     * 返回 {@code min(wPlay / wBase, hPlay / hBase)}（contain 式：基准构图整体完整可见、不溢出播放窗口）。
+     * 任一入参 ≤ 0 → 返回 0（调用方按退化不绘制处理）。
      *
      * @param wBase 编辑基准分辨率宽（像素）
      * @param hBase 编辑基准分辨率高（像素）
@@ -72,12 +67,10 @@ public final class CanvasTransform {
     }
 
     /**
-     * 解算一个覆盖层元素的绘制矩形（绘制空间像素，见类注释的几何式）。
+     * 解算一个覆盖层元素的绘制矩形（绘制空间像素；公式与缺省退化见类注释）。
      *
-     * <p>基准尺寸以<b>像素</b>给出（已含 {@code k}）：{@code B = 裁切后素材像素 × k}。位置 {@code x/y}
-     * 是窗口归一化坐标（未缩放基准矩形的中心），乘绘制空间尺寸得像素中心。全程浮点，不做取整。
-     * 缺省 {@code anchor = 0.5} 时元素中心恒为 {@code (x·W播, y·H播)}；锚点非中心时缩放会改变元素的
-     * 视觉中心（同 CSS {@code transform-origin}）。归一化坐标不钳制：越界元素按公式落到窗口外。</p>
+     * 位置 {@code x/y} 是窗口归一化坐标（未缩放基准矩形的中心）；基准尺寸以像素给出（已含 {@code k}）。
+     * 基准尺寸 ≤ 0 → 返回全 0 矩形（调用方按不可见处理）。
      *
      * @param x          位置 x（窗口归一化，未缩放基准矩形中心）
      * @param y          位置 y（窗口归一化）

@@ -23,14 +23,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class GameRendererMixin {
 
     /**
-     * lane pass 内让 {@code getMainCamera()} 返回当前 lane 的相机。
-     *
-     * <p>Iris / Oculus 的 {@code CameraUniforms}（cameraPosition、阴影中心）、{@code CommonUniforms}
-     * 的水下判定、Embeddium 的云雾与 {@code dispatchRenderStage}、原版 {@code LevelRenderer} 的天空色 /
-     * 粒子 / 1038 事件都通过该 getter 读相机。lane pass 之外返回原相机（零差异）。</p>
-     *
-     * <p>不写 {@code GameRenderer.mainCamera}（private final）：final 字段在 {@code <init>} 之外写入会抛
-     * {@code IllegalAccessError}。</p>
+     * lane pass 内让 {@code getMainCamera()} 返回当前 lane 的相机：Iris / Oculus 相机 uniform、水下判定、
+     * Embeddium 云雾、原版天空色 / 粒子等都经该 getter 取相机；lane pass 之外返回原相机。
+     * 不改写 {@code GameRenderer.mainCamera}：private final 字段在构造器之外写入抛
+     * {@code IllegalAccessError}。
      */
     @Inject(method = "getMainCamera", at = @At("RETURN"), cancellable = true)
     private void immersivecinematics_laneMainCamera(CallbackInfoReturnable<Camera> cir) {
@@ -41,16 +37,10 @@ public abstract class GameRendererMixin {
     }
 
     /**
-     * 每帧开始（帧首，世界渲染之前）：帧驱动 + lane 注册（{@code renderLevel} 参数为真且已有世界时）——
-     * {@link CameraManager#onRenderFrame()} 推进时钟 / 轨道 / lane 快照，随后注册本帧 lane
-     * （脚本 lane 是 lane 的唯一来源，见 {@link ScriptLaneDriver}）。必须排在<b>世界渲染之前</b>：视图中心
-     * （{@code LevelRendererVanillaMixin} 改写 {@code setupRender} 的玩家坐标）读 lane 表，挂在世界渲染之后会让它
-     * 滞后一帧（主 pass 读到上一帧的 lane 相机位置）。
-     *
-     * <p>与原挂点（{@code LaneRendererMixin} 的 {@code GameRenderer.renderLevel} RETURN）等价性：两者都只在
-     * "世界渲染这一次调用"里跑，故此处用 {@code renderLevel} 参数 + {@code level != null} 守卫（原版调用点
-     * 的条件就是 {@code p_109096_ && this.minecraft.level != null}）——世界未渲染（加载中 / 主菜单）时不驱动、
-     * 不注册，时钟不空转（与原挂点一致）。</p>
+     * 帧首（世界渲染之前）：帧驱动 + lane 注册。{@link CameraManager#onRenderFrame()} 推进时钟 / 轨道 /
+     * lane 快照，{@link ScriptLaneDriver} 注册本帧 lane。必须早于世界渲染：视图中心
+     * （{@code LevelRendererVanillaMixin} 改写 {@code setupRender} 的玩家坐标）读 lane 表，
+     * 晚挂会滞后一帧。{@code renderLevel} 为真且已有世界时才跑，加载中 / 主菜单不驱动、不注册。
      */
     @Inject(method = "render", at = @At("HEAD"))
     private void onRenderFrameStart(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
@@ -70,17 +60,10 @@ public abstract class GameRendererMixin {
     }
 
     /**
-     * 每帧结束（{@code GameRenderer.render} 的 RETURN，覆盖全部返回路径）：调试捕获的<b>窗口终帧</b>读回
-     * （{@link LaneDebugCapture#onFrameEnd}）。
-     *
-     * <p>此刻本帧画面已全部画完（世界 → lane 渲染与合成 → 原版后处理链 → master 调色 → GUI / 屏幕 / 提示），
-     * 主 framebuffer 还留着最终图像：原版 {@code blitToScreen} 在 {@code Minecraft.runTick} 里、本方法返回
-     * <b>之后</b>才调用（1.20.1 {@code Minecraft.java:1044-1045}），只是把主画面整幅拷到窗口、不改变主画面内容
-     * ——所以这里读回的内容 = 玩家看到的窗口画面。</p>
-     *
-     * <p>关闭 {@code ICINEMATICS_CAPTURE} / 本帧未捕获 / 未进世界时零差异（内部第一行返回）。
-     * F5 诊断会话的帧尾计时（{@link LaneDiagnostics#onFrameEnd}）排在本钩子之后：窗口读回属于
-     * {@code GameRenderer.render} 的 RETURN 前工作，截图帧随后在统计中整体剔除。</p>
+     * 帧尾（{@code render} 的 RETURN，覆盖全部返回路径）：调试捕获的窗口终帧读回（{@link LaneDebugCapture#onFrameEnd}）。
+     * 此刻世界 → lane 合成 → 原版后处理 → master 调色 → GUI 已画完，主 framebuffer 仍是最终图像，原版在
+     * {@code render} 返回后才整幅拷到窗口且不改内容，故读回 = 玩家看到的窗口画面。未开捕获 / 未进世界时零差异。
+     * 诊断计时（{@link LaneDiagnostics#onFrameEnd}）排在本钩子之后，截图帧在统计中整体剔除。
      */
     @Inject(method = "render", at = @At("RETURN"))
     private void onRenderFrameEnd(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
@@ -91,36 +74,11 @@ public abstract class GameRendererMixin {
     }
 
     /**
-     * 主画面世界渲染 + 原版后处理链（RPOST）之后、GUI 之前：应用本帧的 master 颜色调整
-     * （架构图 RADJ 节点，{@link ColorAdjustPass#render}）。
-     *
-     * <h2>挂点口径（2026-10-08 用户裁决）</h2>
-     * master 调色（含未来的整体 LUT 烘焙）是世界画面的<b>最终字</b>，挂点必须满足三条：
-     * <ol>
-     *   <li><b>在 lane 合成（MCOMP）之后</b>：调色作用在合成输出（主 framebuffer）上——
-     *       {@code LaneRenderer.render} 仍在 {@code renderLevel} 的 RETURN，早于本挂点。</li>
-     *   <li><b>在原版后处理链之后</b>：受伤红晕 / 水幕 / 旁观者特效等原版屏幕特效属世界画面，应一并风格化；
-     *       挂 RPOST 之后即"读到后处理链的输出"。</li>
-     *   <li><b>在 GUI 之前</b>：黑边 / 字幕 / 黑白场转场走 OVERLAY 层、在 GUI 阶段绘制且需要精确色值，
-     *       不得被调色 / LUT 污染（GUI 不参与调色）。</li>
-     * </ol>
-     * 同时与 Iris 的色彩空间转换（{@code finalizeGameRendering}，挂在 {@code renderLevel} 的 TAIL）解耦：
-     * 两者不再共享同一个返回指令，顺序完全可控（见 plans/0.3.6/iris-oculus-compat.md）。</p>
-     *
-     * <h2>注入目标</h2>
-     * {@code Lnet/minecraft/client/renderer/GameRenderer;render} 内对
-     * {@code Lcom/mojang/blaze3d/pipeline/RenderTarget;bindWrite(Z)V} 的调用 —— 原版 1.20.1
-     * {@code GameRenderer.render} 里它是 {@code postEffect.process(f)} 之后的下一句
-     * （{@code this.minecraft.getMainRenderTarget().bindWrite(true)}，反编译 {@code :1100}），
-     * 也是 GUI 段（正交投影 + {@code gui.render}，{@code :1103} 起）之前的最后一句。
-     *
-     * <p><b>为什么不直接锚 {@code Gui.render}</b>：{@code gui.render} 在原版里被
-     * {@code if (!options.hideGui || screen != null)} 包着——玩家按 F1 隐藏 HUD 时整段 GUI 不渲染，
-     * 锚在那里会让调色随 HUD 显隐而消失。锚 {@code bindWrite(true)} 位于同一 {@code if (renderLevel && level != null)}
-     * 分支内、且不受 HUD 显隐影响，与旧挂点（{@code renderLevel} 的 RETURN）的生效条件逐帧等价。</p>
-     *
-     * <p>默认零差异：本帧无人发布调色（或参数恒等）时 {@link ColorAdjustPass#render} 第一行即返回，
-     * 不取着色器、不建中转缓冲、不切任何 GL 状态。</p>
+     * 主画面世界渲染 + 原版后处理之后、GUI 之前应用 master 调色：调色必须作用在合成输出上且不得污染 GUI
+     * （黑边 / 字幕 / 转场走 OVERLAY、在 GUI 阶段绘制且需精确色值）。挂点 = {@code render} 内
+     * {@code RenderTarget.bindWrite} 调用（后处理之后、GUI 段之前）；不锚 {@code Gui.render}，因为后者被
+     * {@code !options.hideGui || screen != null} 包着，F1 隐藏 HUD 时调色会随 GUI 一起消失。
+     * 无人发布调色或参数恒等时 {@link ColorAdjustPass#render} 首行返回（零差异）。
      */
     @Inject(method = "render",
             at = @At(value = "INVOKE",
@@ -132,8 +90,7 @@ public abstract class GameRendererMixin {
     @Inject(method = "getFov", at = @At("RETURN"), cancellable = true)
     private void onGetFov(Camera camera, float partialTick, boolean useFOVSetting,
                           CallbackInfoReturnable<Double> cir) {
-        // lane 相机（多相机渲染底层）：用自己的 fov/zoom。
-        // 非 lane 相机（原版主相机）放行原版结果——主相机替换链已退役。
+        // lane 相机（多相机渲染底层）用自己的 fov/zoom；非 lane 相机放行原版结果。
         LaneRenderer.Lane lane = LaneRenderer.laneOf(camera);
         if (lane != null) {
             CameraState laneState = lane.state();
@@ -183,6 +140,6 @@ public abstract class GameRendererMixin {
     }
 
     // ===== 相机 Roll（翻滚角）=====
-    // 主相机的 roll 钩子已随主相机替换链退役删除（lane 的 roll 在 LaneRenderer.renderLane 内
-    // 施加到该 lane 自己的 PoseStack 上：绕相机视线轴旋转，roll>0 = 屏幕空间顺时针）。
+    // lane 的 roll 在 LaneRenderer.renderLane 内施加到该 lane 自己的 PoseStack 上：
+    // 绕相机视线轴旋转，roll>0 = 屏幕空间顺时针。
 }

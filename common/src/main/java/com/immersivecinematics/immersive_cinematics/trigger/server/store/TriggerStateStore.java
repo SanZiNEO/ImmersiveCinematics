@@ -19,6 +19,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * 触发器状态存储：每玩家一个 SNBT 文件（世界目录 {@code immersive_cinematics/trigger_state/<uuid>.snbt}）。
+ * 读：{@link #loadForPlayer} 在玩家进入时载入内存，查询接口只读内存、不触盘；
+ * 写：标记方法只置 dirty，{@link #saveIfChanged} / {@link #saveAll} 才落盘（临时文件 + 原子移动，防半写）。
+ */
 public class TriggerStateStore {
 
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -32,6 +37,7 @@ public class TriggerStateStore {
 
     private TriggerStateStore() {}
 
+    /** 绑定世界目录并建目录；未初始化时所有落盘调用都静默跳过（纯内存模式）。 */
     public void initialize(MinecraftServer server) {
         this.storeRoot = server.getWorldPath(LevelResource.ROOT).resolve(STORE_PATH);
         try {
@@ -43,11 +49,13 @@ public class TriggerStateStore {
 
     // ===== Query =====
 
+    /** 该 (玩家, 脚本, 触发器) 是否已触发过；无内存状态视为未触发。 */
     public boolean isTriggered(UUID player, String scriptId, String triggerId) {
         PlayerTriggerState state = playerStates.get(player);
         return state != null && state.isTriggered(scriptId, triggerId);
     }
 
+    /** 该玩家是否已结束过指定脚本（script_completed 的判定源）。 */
     public boolean isScriptCompleted(UUID player, String scriptId) {
         PlayerTriggerState state = playerStates.get(player);
         return state != null && state.isScriptCompleted(scriptId);
@@ -65,22 +73,26 @@ public class TriggerStateStore {
         return state != null && state.hasPlayed(scriptId);
     }
 
+    /** 取玩家状态，不存在则建空状态（不置 dirty，未变更不会落盘）。 */
     public PlayerTriggerState getOrCreate(UUID player) {
         return playerStates.computeIfAbsent(player, k -> new PlayerTriggerState());
     }
 
     // ===== Mutation =====
 
+    /** 首次标记返回 true 并置 dirty；已触发过返回 false。 */
     public boolean markTriggered(UUID player, String scriptId, String triggerId) {
         PlayerTriggerState state = getOrCreate(player);
         return state.markTriggered(scriptId, triggerId);
     }
 
+    /** 首次标记返回 true 并置 dirty；已记录返回 false。 */
     public boolean markScriptStarted(UUID player, String scriptId) {
         PlayerTriggerState state = getOrCreate(player);
         return state.markScriptStarted(scriptId);
     }
 
+    /** 首次标记返回 true 并置 dirty；已记录返回 false。 */
     public boolean markScriptCompleted(UUID player, String scriptId) {
         PlayerTriggerState state = getOrCreate(player);
         return state.markScriptCompleted(scriptId);
@@ -88,6 +100,7 @@ public class TriggerStateStore {
 
     // ===== Persistence (SNBT text format) =====
 
+    /** 从磁盘载入；文件缺失或解析失败都回落到空状态（坏档不阻塞进服）。 */
     public void loadForPlayer(UUID player) {
         if (storeRoot == null) return;
         Path file = storeRoot.resolve(player.toString() + ".snbt");
@@ -106,11 +119,13 @@ public class TriggerStateStore {
         }
     }
 
+    /** 先落盘（若 dirty）再移除内存状态；断线清理用。 */
     public void unloadForPlayer(UUID player) {
         saveIfChanged(player);
         playerStates.remove(player);
     }
 
+    /** 仅 dirty 时落盘并清脏位；未初始化时直接返回。 */
     public void saveIfChanged(UUID player) {
         PlayerTriggerState state = playerStates.get(player);
         if (state == null || !state.isDirty() || storeRoot == null) return;
@@ -118,6 +133,7 @@ public class TriggerStateStore {
         state.markClean();
     }
 
+    /** 落盘所有 dirty 玩家（关卡保存 / 服务端停止）。 */
     public void saveAll() {
         if (storeRoot == null) return;
         for (Map.Entry<UUID, PlayerTriggerState> entry : playerStates.entrySet()) {

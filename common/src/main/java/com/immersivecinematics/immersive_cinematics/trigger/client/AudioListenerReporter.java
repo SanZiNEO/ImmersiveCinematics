@@ -10,25 +10,31 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 相机听者位置上报器。
- * <p>
- * 仅在 {@link AudioListenerController#isCameraListener()} 为真（脚本 meta.listener=camera
- * 且当前有活跃 CAMERA clip）时，把镜头位置发给服务端；位置不变不重复发。
- * 退出相机听者时发一次 active=false 释放服务端状态。
+ * 相机听者位置上报器：把脚本镜头位置同步给服务端音频听者。
+ *
+ * 仅在 {@link AudioListenerController#isCameraListener()} 为真（meta.listener=camera 且顶层实例
+ * 有活跃 CAMERA clip）时上报；位置不变不重复发包。退出该状态时发一次 active=false 释放服务端状态。
  */
 public final class AudioListenerReporter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/AudioListener");
 
+    /** 由客户端 tick 驱动的唯一实例。 */
     public static final AudioListenerReporter INSTANCE = new AudioListenerReporter();
 
     private boolean active = false;
+    /** 上次上报的世界坐标（方块）。 */
     private double x;
     private double y;
     private double z;
 
     private AudioListenerReporter() {}
 
+    /**
+     * 每客户端 tick 调用：首次进入相机听者或位置变化时上报，退出时释放。
+     *
+     * @param mc 客户端实例；{@code null} 或未进入世界按「不上报」处理
+     */
     public void tick(Minecraft mc) {
         boolean shouldReport = mc != null
                 && mc.level != null

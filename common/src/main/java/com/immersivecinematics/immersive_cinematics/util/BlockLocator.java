@@ -8,9 +8,9 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * 方块搜索基准 — 玩家附近搜索最近匹配方块（如传送门框架 obsidian），作为相对坐标 / 注视目标的基准点。
- * <p>
- * 静态目标：搜索成功的坐标由调用方缓存（与结构基准同语义：成功永久、失败短重试）。
+ * 方块搜索基准 — 在玩家附近搜索最近匹配方块（如传送门框架 obsidian），作为相对坐标 / 注视目标的基准点。
+ *
+ * 成功坐标由调用方缓存（与结构基准同语义：成功永久、失败短重试）。
  * xz 平面按格遍历 + y 范围限制（玩家 y ± {@link #Y_RANGE}），返回与中心最近距离的匹配方块。
  */
 public final class BlockLocator {

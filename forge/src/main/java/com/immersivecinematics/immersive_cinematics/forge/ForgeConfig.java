@@ -9,11 +9,11 @@ import net.minecraftforge.fml.event.config.ModConfigEvent;
 
 /**
  * Forge 平台配置实现。
- * <p>
- * 使用 ForgeConfigSpec 管理配置，在 {@link ModConfigEvent} 触发时重新加载值。
- * 在 {@link ImmersiveCinematicsForge} 构造函数中创建并注册。
- * <p>
- * 注意：ForgeConfigSpec 的值在 {@link ModConfigEvent} 触发前不可调用 {@code get()}，
+ *
+ * 配置由 {@link ForgeConfigSpec} 管理，在 {@link ModConfigEvent} 触发时重新加载值；
+ * 实例在 {@link ImmersiveCinematicsForge} 构造函数中创建并注册。
+ *
+ * 坑：ForgeConfigSpec 的值在 {@link ModConfigEvent} 触发前不可调用 {@code get()}，
  * 因此首次 {@link #load()} 返回 {@link Config.ConfigValues#defaults()}。
  */
 public class ForgeConfig implements Config.ConfigProvider {

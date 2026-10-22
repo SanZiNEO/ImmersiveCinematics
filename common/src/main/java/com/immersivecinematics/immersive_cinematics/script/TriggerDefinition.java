@@ -6,6 +6,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 触发器定义：类型 + 条件表 + 重复 / 延迟 / 进入 / 退出缓冲 / 前置条件 / 轮询间隔（静态数据，运行时求值在 trigger 包）。
+ */
 public class TriggerDefinition {
 
     private final String type;

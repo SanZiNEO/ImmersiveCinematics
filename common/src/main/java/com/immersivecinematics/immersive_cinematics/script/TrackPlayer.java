@@ -3,39 +3,25 @@ package com.immersivecinematics.immersive_cinematics.script;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 轨道播放器接口 — 解耦 ScriptPlayer 与具体轨道类型的处理逻辑
- * <p>
- * 每种轨道类型（CAMERA/LETTERBOX/AUDIO/MOD_EVENT/OVERLAY/ADJUST）有对应的 TrackPlayer 实现，
- * ScriptPlayer 只负责调度（遍历 trackPlayers，调用 onRenderFrame），
- * 不再直接访问 CameraManager/OverlayManager 的写入方法。
- * <p>
- * 新增轨道类型时只需：
- * <ol>
- *   <li>创建新的 TrackPlayer 实现类</li>
- *   <li>在 {@link #create} 工厂方法中注册</li>
- * </ol>
- * ScriptPlayer 零改动。
+ * 轨道播放器接口 — 每种轨道类型一个实现，{@link ScriptPlayer} 只负责按帧调度。
+ *
+ * 生命周期：{@link #isActiveAt} 判定本帧是否活跃；{@link #onRenderFrame} 每渲染帧计算状态并写入目标系统；
+ * {@link #onStop} 释放本轨资源（只清本实例，不影响同帧其它实例）。派生状态在 {@link #onSeek} /
+ * {@link #onLoopRestart} / {@link #onScriptReplaced} 归位。
+ * 线程契约：仅客户端主线程，逐渲染帧调用。
+ * 数据源：实现不持有轨道快照，按轨道索引从 {@link ScriptPlayer#clipsForTrack(int)} 动态取。
+ * 新增轨道类型 = 新建实现 + 在 {@link #create} 注册：解耦 {@link ScriptPlayer} 与具体轨道类型，
+ * 它不直接触碰各轨道系统的写入 API，故新增类型时 ScriptPlayer 零改动。
  */
 public interface TrackPlayer {
 
-    /**
-     * 判断该轨道在指定全局时间是否活跃
-     *
-     * @param globalTime 全局时间（秒）
-     * @return 是否活跃
-     */
+    /** 该轨道在指定全局时间（秒）是否活跃。 */
     boolean isActiveAt(float globalTime);
 
-    /**
-     * 每渲染帧驱动 — 计算当前帧状态并写入目标系统
-     *
-     * @param globalTime 全局时间（秒）
-     */
+    /** 每渲染帧驱动：计算当前帧状态并写入目标系统（globalTime 单位：秒）。 */
     void onRenderFrame(float globalTime);
 
-    /**
-     * 停止时清理资源
-     */
+    /** 停止时释放本轨资源。 */
     void onStop();
 
     /**
@@ -55,27 +41,26 @@ public interface TrackPlayer {
     }
 
     /**
-     * 组 A：脚本数据被替换（编辑器编辑 → replaceScript）时调用。
+     * 脚本数据被替换（编辑器编辑 → replaceScript）时调用。
      * 实现应复位依赖 clip 对象身份的状态（lastClipIndex 等）；
-     * 音频轨道在此重映射实例（sound+startTime+duration 匹配复用，避免重解码）。
+     * 音频轨道在此重映射实例（sound + startTime + duration 匹配复用，避免重解码）。
      */
     default void onScriptReplaced() {
         // 默认无状态
     }
 
     /**
-     * 工厂方法 — 根据轨道类型创建对应的 TrackPlayer
-     * <p>
-     * 组 A：TrackPlayer 不再持有轨道数据快照，数据源改为运行时从 {@link ScriptPlayer}
-     * 动态获取（{@link ScriptPlayer#clipsForTrack(int)}）——编辑器编辑走 replaceScript
-     * 增量替换，TrackPlayer 零重建、常驻活跃。
+     * 工厂方法 — 按轨道类型创建对应的 TrackPlayer。
      *
-     * @param type            轨道类型
-     * @param scriptPlayer    所属播放器（动态数据源）
-     * @param originPos       相对模式基准位置
-     * @param cameraManager   相机管理器（Camera 轨道需要）
-     * @param overlayManager  覆盖层管理器（Letterbox/Overlay 轨道需要）
-     * @param trackIndex      轨道索引（数据源定位；支持同类型多条轨道，如多 OVERLAY 轨道）
+     * 实现不持有轨道数据快照：数据源在运行时从 {@link ScriptPlayer#clipsForTrack(int)} 取，
+     * 编辑器编辑走 replaceScript 增量替换，TrackPlayer 零重建。
+     *
+     * @param type           轨道类型
+     * @param scriptPlayer   所属播放器（动态数据源）
+     * @param originPos      相对模式基准位置
+     * @param cameraManager  相机管理器（CAMERA 轨道需要）
+     * @param overlayManager 覆盖层管理器（LETTERBOX / OVERLAY 轨道需要）
+     * @param trackIndex     轨道索引（支持同类型多条轨道，如多 OVERLAY 轨道）
      * @return 对应的 TrackPlayer 实例
      */
     static TrackPlayer create(TrackType type, ScriptPlayer scriptPlayer, Vec3 originPos,

@@ -14,64 +14,20 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * 调试钩子：按<b>相机 id</b>把每帧的 lane 画面读回写盘（PNG），供离屏分析。
+ * 调试钩子：按相机 id 把每帧的 lane 画面读回写盘（PNG），供离屏分析。
  *
- * <p>三类产出（每轮各一份，lane 数量任意、无「4 条 lane / 8 个文件」的假设）：</p>
- * <ul>
- *   <li><b>每相机 raw</b>（{@link #onLaneRendered}，{@code LaneRenderer.renderLane} 内、lane 级调色之前）：
- *       该 lane 离屏 FBO 的原始 RGBA（{@code downloadTexture(0, false)}，<b>保真 alpha</b>）→
- *       {@code <id>-raw[-r{k}].png} + {@code <id>-raw[-r{k}]-alpha.png}（alpha 灰度可视化）。</li>
- *   <li><b>每相机 composited</b>（{@link #onLaneComposited}，该相机 {@link LaneCompositor#compose} 之后）：
- *       主 framebuffer 的保真 alpha 读回（{@code downloadTexture(0, false)}），裁剪到该相机的 {@code dest}
- *       矩形 → {@code <id>-composited[-r{k}].png} + {@code <id>-composited[-r{k}]-alpha.png}。</li>
- *   <li><b>窗口终帧</b>（{@link #onFrameEnd}，{@code GameRenderer.render} 的 RETURN）：整帧渲染结束
- *       （世界 → lane 合成 → master 调色 → GUI / 屏幕 / 提示）之后的主画面 → {@code frame[-r{k}].png}
- *       （alpha 强制 255，与 F2 截图同口径；内容 = 玩家看到的窗口画面）。</li>
- * </ul>
+ * 每轮三类产出（lane 数量任意）：raw = lane 离屏 FBO 原始 RGBA（lane 级调色之前，附 alpha 灰度图）；
+ * composited = 该相机贴进主画面之后的主 framebuffer，按 {@code dest} 裁剪；
+ * 窗口终帧 = 整帧渲染结束后的主画面（alpha 强制 255）。
+ * 文件名 = {@code <id>-raw} / {@code <id>-composited} / {@code frame} + {@code -r{k}} 轮次后缀。
+ * id 由 {@code ScriptLaneDriver} 注册 lane 时给出（缺省 {@code lane<序号>}），文件名安全化后使用。
+ * raw / composited 按保真 alpha 读回（不强制 255）：合成层已忽略 lane alpha，但 FBO 里的 alpha 仍是
+ * 「未覆盖区 / 星星 / mipmap 边缘」的判据，保留它才能分析这些边界。
+ * 与手动 F2 截图不同：{@code Screenshot} 走 {@code downloadTexture(0, true)}，那个 true 把 alpha 强制写成 255。
  *
- * <h2>为什么 raw 要看 alpha</h2>
- * <p>lane 纹理的 alpha 通道历史上直接决定屏幕上看得见什么（{@code position_tex} 的
- * {@code srcalpha / 1-srcalpha} 混合 + {@code if (color.a == 0.0) discard;}），而 lane FBO 的背景是
- * {@code FogRenderer.setupColor} 的清屏色——<b>alpha=0</b>（{@code LevelRendererMixin} 的
- * {@code laneClearAlpha} 现已把清屏 alpha 抬到 1，只影响 FBO 数据本身）。合成层改用
- * {@code ic_lane_blit}（忽略 lane alpha）后这条依赖已解除，但 FBO 里的 alpha 仍是「未覆盖区 /
- * 星星 / mipmap 边缘」的判据，所以 raw 与 composited 都按保真 alpha 读回。</p>
- *
- * <h2>与 MC 自己的截图不同</h2>
- * <p>{@code Screenshot.takeScreenshot} 走 {@code downloadTexture(0, true)}，那个 {@code true} 会把
- * alpha <b>强制写成 255</b>（见 {@code NativeImage.downloadTexture} 实现）——所以 F2 截图看不到真实
- * alpha。raw / composited 读回传 {@code false} 保留原始 alpha；窗口终帧按 F2 同口径传 {@code true}。</p>
- *
- * <h2>相机 id 与文件名</h2>
- * <p>id = {@code <scriptId>_cam<相机轨序号>}（{@code ScriptLaneDriver} 注册 lane 时传入，
- * 见 {@link LaneRenderer#setLane}）；没有 id 的 lane 回退 {@code lane<序号>}。文件名安全化：
- * {@code [A-Za-z0-9_.-]} 之外的字符一律换成 {@code _}（脚本 id 可能含 {@code :} 等）。</p>
- *
- * <h2>F5 诊断会话（{@code f-round.json}，与本开关独立）</h2>
- * <p>{@link LaneDiagnostics} 启用时，三个钩子在旧开关逻辑之外再走一条<b>有限的检查点捕获</b>路径：
- * {@code onLaneRendered} / {@code onLaneComposited} 只在 manifest 指定脚本的检查点帧、按 lane 选择
- * 写 raw / composited；{@code onFrameEnd} 写窗口终帧。图片写进诊断会话目录（见
- * {@link LaneDiagnostics#imageDirectory()}），张数由 manifest 上限约束。诊断未启用时
- * {@link LaneDiagnostics#isEnabled()} 为 false，三个钩子不做任何额外工作；旧开关的节奏 / 文件 / 目录
- * 完全不变。</p>
- *
- * <h2>开关与节奏</h2>
- * <ul>
- *   <li>开关 = {@code -Dicinematics.capture} / 环境变量 {@code ICINEMATICS_CAPTURE}（{@code 1} / {@code true}
- *       等即开，见 {@link #parseEnabled}）。关闭时旧路径第一行即返回：不读回、不分配、不写盘、
- *       不切任何 GL 状态——<b>零差异</b>（诊断路径仍按自己的开关独立判断）。</li>
- *   <li>产出目录：{@code <gameDirectory>/lane-captures/}（开发环境 = {@code fabric/run/lane-captures/}）。</li>
- *   <li>节奏：首帧抓一轮（{@link #beginFrame}），此后每 {@link #INTERVAL_FRAMES} 帧一轮，最多
- *       {@link #MAX_ROUNDS} 轮；第 2 轮起文件名带 {@code -r{k}} 后缀，不覆盖第一轮。
- *       一轮 = 每条 lane 2 个 raw 文件 + 2 个 composited 文件，加 1 张窗口终帧。</li>
- *   <li>日志：每次读回打一行 {@code [lane-capture] ...}，含文件名与 alpha 的 0/255/中间值占比、
- *       <b>自上而下 10 条横带的 alpha=0 占比</b>（用来直接定位「上半有内容、下半透明」的分界线）。</li>
- * </ul>
- *
- * <h2>线程与状态</h2>
- * <p>读回必须在渲染线程（三个钩子都在渲染线程被调用）；PNG 编码与写盘丢给 {@link Util#ioPool()}。
- * 读回只动两处状态并还原：0 号纹理绑定（{@code RenderSystem.bindTexture} 与 {@code Screenshot} 同一取法）
- * 与当前纹理单元（显式切到 0 号，避免踩到光照贴图的 2 号单元）。</p>
+ * 开关 = {@code -Dicinematics.capture} / 环境变量 {@code ICINEMATICS_CAPTURE}（与诊断会话开关独立），
+ * 关闭时本开关路径第一行返回（零差异）；节奏 = 首帧一轮、此后每 {@link #INTERVAL_FRAMES} 帧一轮、最多 {@link #MAX_ROUNDS} 轮。
+ * 线程：读回必须在渲染线程，PNG 编码与写盘交给 {@link Util#ioPool()}。
  */
 public final class LaneDebugCapture {
 
@@ -100,11 +56,9 @@ public final class LaneDebugCapture {
     }
 
     /**
-     * 本帧开始、lane 渲染之前调用一次（{@code LaneRenderer.render} 的 lane 循环之前）：推进帧计数并决定
-     * 本帧是否捕获。关闭时零差异。
-     *
-     * <p>只在本帧确实有 lane 可渲染时被调用——所以「窗口终帧」的捕获标志由 {@link #onFrameEnd} 消费一次，
-     * 不会在没有 lane 的帧上重复出图。</p>
+     * 本帧开始、lane 渲染之前调用一次（{@code LaneRenderer.render} 的 lane 循环之前）：推进帧计数并判定
+     * 本帧是否捕获。只在本帧确实有 lane 可渲染时被调用，故「窗口终帧」标志由 {@link #onFrameEnd} 消费一次，
+     * 不会在没有 lane 的帧上重复出图。关闭时零差异。
      */
     public static void beginFrame() {
         if (!ENABLED) {
@@ -118,17 +72,14 @@ public final class LaneDebugCapture {
     }
 
     /**
-     * <b>a. 每相机 raw</b>：一条 lane 渲染完、lane 级调色之前调用（{@code LaneRenderer.renderLane} 内）。
-     *
-     * <p>读的是 lane 离屏 FBO 的原始渲染结果（不含 lane 级调色、不含合成），保真 alpha。关闭 / 非捕获帧
-     * 时第一行返回。</p>
+     * 每相机 raw：一条 lane 渲染完、lane 级调色之前调用（{@code LaneRenderer.renderLane} 内），读 lane 离屏
+     * FBO 的原始结果（不含调色 / 合成），保真 alpha；关闭 / 非捕获帧时第一行返回。
      *
      * @param cameraId 该 lane 的相机 id（{@code null} / 空 = 由调用方给出的回退名）
      * @param target   lane 的离屏缓冲
      */
     public static void onLaneRendered(String cameraId, RenderTarget target) {
-        // F5 诊断会话（manifest opt-in）：按检查点与 lane 选择写有限 raw 图；关闭时 isEnabled 第一行返回。
-        // 与旧 ICINEMATICS_CAPTURE 完全独立，旧路径行为不变。
+        // 诊断会话（独立开关）：按检查点与 lane 选择写有限 raw 图；未启用时 isEnabled 第一行返回。
         if (LaneDiagnostics.isEnabled() && target != null && target.width > 0 && target.height > 0
                 && LaneDiagnostics.shouldCaptureLaneImage(cameraId)) {
             NativeImage diagnostic = download(target, false);   // 保真 alpha
@@ -143,18 +94,15 @@ public final class LaneDebugCapture {
     }
 
     /**
-     * <b>b. 每相机 composited（带 alpha）</b>：该相机合成进主画面<b>之后</b>调用
-     * （{@code ScriptLaneDriver.compose} 内，紧随 {@link LaneCompositor#compose}）。
-     *
-     * <p>读回主 framebuffer 的保真 alpha（{@code downloadTexture(0, false)}），裁剪到该相机的 {@code dest}
-     * 矩形——即「这台相机在窗口画面里占的那块、合成后的样子」。{@code dest} 为空 / 退化（宽或高为 0）时跳过。
-     * 关闭 / 非捕获帧时第一行返回。</p>
+     * 每相机 composited：该相机合成进主画面之后调用（{@code ScriptLaneDriver.compose} 内，紧随
+     * {@link LaneCompositor#compose}）；读回主 framebuffer 的保真 alpha 并裁剪到该相机的 {@code dest} 矩形，
+     * {@code dest} 退化（宽或高为 0）时跳过；关闭 / 非捕获帧时第一行返回。
      *
      * @param cameraId 该 lane 的相机 id（{@code null} / 空 = 由调用方给出的回退名）
      * @param dest     该相机的屏幕归一化目标矩形（原点左上，与 {@link LaneCompositor.Rect} 同口径）
      */
     public static void onLaneComposited(String cameraId, LaneCompositor.Rect dest) {
-        // F5 诊断会话：该 lane 的 raw 判定成功时，紧随合成读回主 framebuffer 并按 dest 裁切。
+        // 诊断会话：raw 判定成功时，紧随合成读回主 framebuffer 并按 dest 裁切
         if (LaneDiagnostics.isEnabled() && dest != null && LaneDiagnostics.shouldCaptureCompositeImage(cameraId)) {
             RenderTarget diagnosticMain = Minecraft.getInstance().getMainRenderTarget();
             if (diagnosticMain != null && diagnosticMain.width > 0 && diagnosticMain.height > 0) {
@@ -192,18 +140,13 @@ public final class LaneDebugCapture {
     }
 
     /**
-     * <b>c. 窗口终帧</b>：整帧渲染结束（GUI 之后）调用 —— {@code GameRenderer.render} 的 RETURN。
-     *
-     * <p>读回主 framebuffer → {@code frame[-r{k}].png}，alpha 强制 255（与 {@code Screenshot.takeScreenshot}
-     * / F2 截图同口径）。此刻本帧画面已全部画完，内容 = 玩家看到的窗口画面：原版 {@code blitToScreen}
-     * 在 {@code Minecraft.runTick} 里、{@code GameRenderer.render} 返回<b>之后</b>才调用，只是把主画面整幅
-     * 拷到窗口，不改变主画面内容。</p>
-     *
-     * <p>本方法<b>消费</b>本帧的捕获标志：一帧最多一张终帧，没有 lane 的帧（{@link #beginFrame} 未被调用）
-     * 不会重复出图。关闭 / 非捕获帧 / 未进世界时第一行返回。</p>
+     * 窗口终帧：整帧渲染结束（GUI 之后）调用 —— {@code GameRenderer.render} 的 RETURN；读回主 framebuffer，
+     * alpha 强制 255（与原版截图同口径），内容 = 玩家看到的窗口画面（原版 blitToScreen 在 render 返回后才
+     * 把主画面拷到窗口，不改变内容）。本方法消费本帧捕获标志：一帧最多一张终帧，没有 lane 的帧不会重复出图；
+     * 关闭 / 非捕获帧 / 未进世界时第一行返回。
      */
     public static void onFrameEnd(Minecraft mc) {
-        // F5 诊断会话：检查点窗口终帧（即使本帧没有可渲染 lane 也写窗口图；raw/composited 由 lane 钩子负责）。
+        // 诊断会话：检查点窗口终帧（本帧没有可渲染 lane 也写窗口图；raw / composited 由 lane 钩子负责）
         if (LaneDiagnostics.isEnabled() && mc != null && mc.level != null
                 && LaneDiagnostics.shouldCaptureWindowImage()) {
             RenderTarget diagnosticMain = mc.getMainRenderTarget();
@@ -229,7 +172,10 @@ public final class LaneDebugCapture {
 
     // ===== 读回 =====
 
-    /** 读回一个 framebuffer 的颜色纹理（渲染线程）：{@code forceAlpha=true} 时 alpha 强制 255（F2 截图口径）。 */
+    /**
+     * 读回一个 framebuffer 的颜色纹理（渲染线程）：{@code forceAlpha=true} 时 alpha 强制 255（与原版截图同口径）。
+     * 只动两处状态并还原：0 号纹理绑定与当前纹理单元（显式切到 0 号，避免踩到光照贴图的 2 号单元）。
+     */
     private static NativeImage download(RenderTarget target, boolean forceAlpha) {
         NativeImage image = new NativeImage(target.width, target.height, false);
         int prevTexture = RenderSystem.getShaderTexture(0);
@@ -315,8 +261,8 @@ public final class LaneDebugCapture {
     }
 
     /**
-     * F5 诊断会话图片：写进会话目录的 {@code images/}（由 {@link LaneDiagnostics#imageDirectory()} 给出），
-     * 不写 alpha 灰度图（raw 本身保真 alpha），编码与写盘交给 IO 线程。关闭 / 目录不可用时只关图。
+     * 诊断会话图片：写进会话目录的 {@code images/}（见 {@link LaneDiagnostics#imageDirectory()}），
+     * 不写 alpha 灰度图；编码与写盘交给 IO 线程，目录不可用时只关图。
      */
     private static void writeDiagnostic(NativeImage image, String name, String what) {
         File dir = LaneDiagnostics.imageDirectory();
@@ -378,8 +324,8 @@ public final class LaneDebugCapture {
     }
 
     /**
-     * alpha 统计（写进日志，省得主代理非要去开图）：整体 0/255/中间值占比 + 自上而下 10 条横带的
-     * {@code alpha=0} 占比（10 个数就是"内容到第几条带为止"的分界线）。
+     * alpha 统计（写进日志）：整体 0/255/中间值占比 + 自上而下 10 条横带的 {@code alpha=0} 占比
+     * （10 个数即「内容到第几条带为止」的分界线）。
      */
     private static String alphaReport(NativeImage image) {
         int width = image.getWidth();
@@ -417,7 +363,10 @@ public final class LaneDebugCapture {
                 100.0F * zero / total, 100.0F * full / total, 100.0F * mid / total, bandsText);
     }
 
-    /** 开关解析（{@code 1} / {@code true} 等即开）：系统属性 {@code icinematics.capture}，再环境变量 {@code ICINEMATICS_CAPTURE}。 */
+    /**
+     * 开关解析：系统属性 {@code icinematics.capture} 优先，其次环境变量 {@code ICINEMATICS_CAPTURE}；
+     * {@code 1} / {@code true} 等即开，非法值按开处理。
+     */
     private static boolean parseEnabled() {
         String value = System.getProperty("icinematics.capture");
         if (value == null || value.isEmpty()) {
@@ -432,7 +381,7 @@ public final class LaneDebugCapture {
         try {
             return Integer.parseInt(value.trim()) > 0;
         } catch (NumberFormatException e) {
-            return true;   // 非法值按开处理（沿用原语义）
+            return true;
         }
     }
 }

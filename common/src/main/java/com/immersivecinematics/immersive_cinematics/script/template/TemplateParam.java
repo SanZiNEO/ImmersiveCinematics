@@ -8,12 +8,9 @@ import java.util.List;
 /**
  * 模板参数声明：{@code key} + 显示名 + 与 {@code script/schema} 同源的 {@link FieldDef}。
  *
- * <p>模板参数不新造一套参数体系：类型 / 默认值 / 枚举候选 / 分组全部走 {@link FieldDef}
- * （与轨道字段、meta 字段同一底层），因此模板参数天然可以喂给 schema 驱动的表单
- * （见 {@code plans/0.3.6/templates.md} §3.1）。</p>
- *
- * <p>参数一律"有默认值"：{@code required} 恒为 false——模板的意义就是填几个目标参数即可生成，
- * 未填写的走 {@link #defaultValue()}。</p>
+ * 模板参数不新造一套参数体系：类型 / 默认值 / 枚举候选 / 分组全部走 {@link FieldDef}
+ * （与轨道字段、meta 字段同一底层），因此模板参数可直接喂给 schema 驱动的表单。
+ * 参数一律有默认值：{@code required} 恒为 false，未填写的走 {@link #defaultValue()}。
  */
 public record TemplateParam(String key, String label, FieldDef field) {
 

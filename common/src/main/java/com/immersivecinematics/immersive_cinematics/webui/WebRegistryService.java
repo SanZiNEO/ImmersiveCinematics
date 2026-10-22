@@ -16,8 +16,8 @@ import java.util.stream.Collectors;
 /**
  * WebUI 注册表/自动补全数据源。
  *
- * <p>第一版采用“即时查询”：前端请求时从 MC 注册表读取并过滤。
- * 走 Mojang official mapping 的公共 API，Forge / Fabric 通用。</p>
+ * 即时查询：前端请求时从 MC 注册表读取并过滤，不做缓存。
+ * 走 Mojang official mapping 的公共 API，Forge / Fabric 通用。
  */
 public final class WebRegistryService {
 

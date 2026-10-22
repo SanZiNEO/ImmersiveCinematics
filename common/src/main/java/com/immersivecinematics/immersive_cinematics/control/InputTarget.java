@@ -1,10 +1,9 @@
 package com.immersivecinematics.immersive_cinematics.control;
 
 /**
- * 按键/鼠标事件的传输目标。
- * <p>
- * 由 {@link InputRouter} 决定每个输入事件应该被路由到哪里。
- * 可扩展：新增目标只需添加枚举值，对应路由逻辑在 Mixin 中处理。
+ * 按键/鼠标事件的传输目标，由 {@link InputRouter} 按当前会话为每个事件选定。
+ *
+ * 新增目标只需加枚举值，路由分支在 Mixin 里补；枚举自身不携带状态。
  */
 public enum InputTarget {
     /** 放行，原样交给游戏正常处理 */

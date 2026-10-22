@@ -8,13 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 判定规则（clip 级 {@code rules[]} 的一条）：条件 + 动作的不可变数据载体（0.3.6 C6-1）。
+ * 判定规则（clip 级 {@code rules[]} 的一条）：条件 + 动作的不可变数据载体。
  *
- * 两种形态（互斥；语义见 plans/0.3.6/C-trigger/condition-system.md §2）：{@code if} = 持续规则
- * （条件成立瞬间触发 {@code do}）；{@code until} = 阻塞规则（挂起本实例播放时钟直到条件成立 / 超时）。
- *
- * 条件（{@code if} / {@code until} 的值）与动作（{@code do} / {@code on_timeout} 的元素）保留原始 JSON：
- * 条件求值归判定源（C6-2），动作执行归动作集（C6-3）——本层只解析结构，不改写内容。
+ * 两种形态（互斥）：{@code if} = 持续规则（条件成立瞬间触发 {@code do}）；{@code until} = 阻塞规则
+ * （挂起本实例播放时钟直到条件成立 / 超时）。条件与动作保留原始 JSON：本层只解析结构、不改写内容，
+ * 求值归判定源、执行归动作集。
  *
  * 字段与缺省：{@code once} = 只触发一次（缺省 {@code true}）、{@code cooldown} = 触发后静默秒数
  * （缺省 0）、{@code mode} = {@code enter} 瞬时边沿 / {@code dwell} 驻留成立（缺省 {@code enter}）、

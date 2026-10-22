@@ -16,18 +16,18 @@ import com.google.gson.JsonObject;
 import java.util.List;
 
 /**
- * 判定规则引擎（0.3.6 C6-2）：每帧逐规则判定 clip 级 {@code rules}（判定端 = 客户端逐实例）。
+ * 判定规则引擎：每帧逐规则判定 clip 级 {@code rules}（判定端 = 客户端逐实例）。
  *
  * 槽位在 {@link #sync} 时按脚本一次性建成（片段活跃窗 + 规则 + 基本类型状态数组，帧内零分配）；
  * 活跃窗口径与 {@code ClipModifierGate} 一致：{@code [startTime, windowEnd)}，morph 前一段窗末延长半个过渡窗。
  * 帧内：{@code if} 规则按 enter 边沿 / dwell 驻留 + once / cooldown 门触发；{@code until} 规则条件假则挂起本实例
- * （保持内容位置，见 {@code ScriptPlayer#beginSuspend}）、真或 timeout（真实时钟）先到则解除并触发（动作执行归 {@link RuleActions}）。
+ * （保持内容位置，见 {@code ScriptPlayer#beginSuspend}）、真或 timeout 先到则解除并触发（动作执行归 {@link RuleActions}）。
  *
  * 时钟口径：cooldown 与 dwell（if）走播放时钟（挂起 / 游戏暂停一起冻结）；timeout 与 dwell（until）走
  * {@link #setClockSource 注入的真实时钟}（挂起期间照走）。折返（timelineTime 回退 = 宏观循环圈边界或向后 seek）
  * 重置 once / 边沿 / 驻留 / until 等待态（cooldown 按播放时钟跨圈保持）。
  *
- * 动作侧（0.3.6 C6-3）：{@code camera_set} / {@code overlay_set} / {@code adjust_set} 的实例级工件在触发帧
+ * 动作侧：{@code camera_set} / {@code overlay_set} / {@code adjust_set} 的实例级工件在触发帧
  * {@link #attachArtifact 接入}、片段活跃窗末 / 引擎重建 / 停播时回收（同类再次触发 = 覆盖）；
  * {@code pause} / {@code resume} 动作走 {@link #suspendByAction} / {@link #resumeByAction}
  * （与 until 的挂起同一状态、分开记账：pause 的挂起由 {@code resume} / 触发片段里再无释放者时的
@@ -131,7 +131,7 @@ public final class RuleEngine {
     /**
      * 接入一件规则动作工件（{@code camera_set} / {@code overlay_set} / {@code adjust_set} 触发时）。
      * 窗末 = 本批动作所属片段的活跃窗末（与规则槽位同一口径），{@link #evaluate} 到期回收；
-     * <b>同类工件先回收旧的</b>（一实例同类至多一件 = 触发即覆盖）。
+     * 同类工件先回收旧的（一实例同类至多一件 = 触发即覆盖）。
      */
     public void attachArtifact(RuleArtifact artifact) {
         if (artifact == null) return;
@@ -276,7 +276,7 @@ public final class RuleEngine {
         } else if (suspendRequested) {
             releaseUntilSuspend(player);
         }
-        // 挂起出口（防卡死）：pause 的挂起在触发它的片段里已无释放者 → 自动解除 + 限频说明原因
+        // 挂起出口（防卡死）：pause 的挂起在触发它的片段里已无释放者 → 自动解除 + 限频告警
         if (actionSuspendHeld && !pauseReleasable(timeline, elapsed)) {
             ErrorLog.logRateLimited("Rules", "pause:no-releaser", LOG_INTERVAL_MS,
                     "规则动作 pause 已无释放者（片段 " + clipLabel(actionSuspendClip)
@@ -328,7 +328,7 @@ public final class RuleEngine {
         }
     }
 
-    /** 记一次触发（动作延迟到挂起释放之后按声明序执行：设计 §3-3「恢复时钟并执行 do」）。 */
+    /** 记一次触发（动作延迟到挂起释放之后按声明序执行）。 */
     private void resolve(int slot, boolean timedOut) {
         if (ClipRule.KIND_UNTIL.equals(slotRules[slot].getKind())) untilDone[slot] = true;
         if (resolvedCount >= resolvedSlots.length) return;

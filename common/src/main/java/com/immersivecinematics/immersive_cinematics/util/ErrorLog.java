@@ -12,9 +12,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 脚本错误日志 — 写游戏目录 {@code logs/immersive_cinematics/script-errors.log}。
- * <p>
- * 用途：脚本运行中的各种报错（解析失败/校验问题/资源缺失/运行时异常）。
- * 控制台 **ERROR 级可见**（模组规范：报错不吞，作者直接看到），同时落盘完整堆栈供深挖。
+ *
+ * 覆盖解析失败 / 校验问题 / 资源缺失 / 运行时异常：控制台 ERROR 级可见（报错不吞，作者直接看到），
+ * 同时落盘完整堆栈供深挖。写盘串行化于 {@code LOCK}；限频表 {@code RATE_LIMIT} 记上次输出时刻与抑制计数，
+ * 同一 key 按调用方给定间隔限频，窗口内被抑制的次数合并到下一次输出。
  */
 public final class ErrorLog {
 
@@ -31,11 +32,10 @@ public final class ErrorLog {
 
     /**
      * 限频记录一条错误：同一 {@code key} 两次输出至少间隔 {@code intervalMs}。
-     * <p>用于逐帧复现的渲染失败（不限频就会每帧刷屏）；窗口内被抑制的次数合并到下一次输出里，
-     * 不丢「一直在失败」这个事实。</p>
+     * 用于逐帧复现的失败（不限频会每帧刷屏）；窗口内被抑制的次数合并到下一次输出，不丢「一直在失败」这个事实。
      *
      * @param category   分类（控制台 / 文件里的 {@code [category]}）
-     * @param key        限频位置标识（不同的失败点用不同 key，互不影响）
+     * @param key        限频位置标识（不同失败点用不同 key，互不影响）
      * @param intervalMs 同一 key 的最小输出间隔（毫秒）
      * @param message    失败描述
      */

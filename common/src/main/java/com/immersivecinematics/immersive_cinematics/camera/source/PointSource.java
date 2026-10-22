@@ -7,33 +7,27 @@ import net.minecraft.world.phys.Vec3;
 import java.util.Map;
 
 /**
- * 点源规格 = 来源 + 偏移 + 时态：五形态来源 + 实体形态的取点 + 一层偏移（表达空间可选世界轴 / 基准坐标系）
- * + 时态（{@link Time}）。
+ * 点源规格 = 来源 + 偏移 + 时态：五形态来源 + 实体形态取点 + 一层偏移（世界轴 / 基准坐标系）+ 时态。
  *
- * 五形态（{@link Kind}，本类一处定义；位置基准 / 基准朝向目标 / 连线端点 / 注视点共用同一份解析）：
+ * 五形态（{@link Kind}，本类一处定义；位置基准 / 基准朝向目标 / 连线端点 / 注视点共用）：
  * {@link Kind#WORLD} 玩家激活位置 / {@link Kind#COORDINATE} 固定坐标 / {@link Kind#SELECTOR} 实体选择器 /
  * {@link Kind#BLOCK} 就近搜索的方块中心 / {@link Kind#STRUCTURE} 结构中心。
- *
- * 时态只对 {@link Kind#SELECTOR} 生效：{@link Time#LIVE}（缺省）= 逐帧重取；{@link Time#SNAPSHOT} = 首次解析
- * 到的点冻结（片段内取一次，seek 重取，loop 折返延续，morph 两侧各持，见 {@code PointSourceSnapshots}）。
+ * 时态只对 {@link Kind#SELECTOR} 生效：{@link Time#LIVE}（缺省）= 逐帧重取；{@link Time#SNAPSHOT} =
+ * 首次解析到的点冻结（片段内取一次，seek 重取，loop 折返延续，morph 两侧各持，见 {@link PointSourceSnapshots}）。
  * 静态来源（坐标 / 方块 / 结构 / 玩家激活位置）天生恒定，写时态无效果。
- *
  * 坐标空间与单位：世界空间方块坐标；方块与结构取中心，实体取 {@link EntityPoint}（包围盒内每轴百分比）。
  * 叠加顺序 = 先取点（形态取点 / 实体百分比）后加偏移（{@link Offset#apply}）。
  * 数值契约：来源不可解析（实体未找到 / 结构未定位 / 附近没有该方块）= 求值返回 {@code null}，调用方按空片段兜底；
  * 字段缺省或空串 = 无点源（{@link #parse} 返回 {@code null}），与不可解析同语义。
- *
- * 字段形态（{@code <字段>} = 点源字段名，如 {@code yaw_base_from}）：{@code <字段>} = 形态字符串；
- * {@code <字段>_x/_y/_z} = coordinate 形态的配套坐标；{@code <字段>_offset} = 偏移对象；
- * {@code <字段>_time} = 时态（{@code live} / {@code snapshot}，缺省 {@code live}）。
- * 形态字符串：{@code "player"} 玩家激活位置；{@code "coordinate"} 固定坐标；{@code "block:id[:radius]"} 方块
- * （半径缺省 {@link PositionData#DEFAULT_BLOCK_RADIUS}）；{@code "@…"} / {@code "uuid:…"} 实体选择器；
- * 其余非空字符串 = 结构 id。
+ * 字段形态（{@code <字段>} = 点源字段名）：{@code <字段>} = 形态字符串；{@code <字段>_x/_y/_z} =
+ * coordinate 配套坐标；{@code <字段>_offset} = 偏移对象；{@code <字段>_time} = 时态（缺省 {@code live}）。
+ * 形态字符串：{@code "player"} / {@code "coordinate"} / {@code "block:id[:radius]"}（半径缺省
+ * {@link PositionData#DEFAULT_BLOCK_RADIUS}）/ {@code "@…"} / {@code "uuid:…"} 实体选择器 / 其余非空 = 结构 id。
  */
 public record PointSource(Kind kind, String selector, String structureId, String blockId, int blockRadius,
                           Vec3 coordinate, EntityPoint entityPoint, Offset offset, Time time) {
 
-    /** 点源形态：{@code WORLD} / {@code COORDINATE} / {@code SELECTOR} / {@code BLOCK} / {@code STRUCTURE}。 */
+    /** 点源形态（五选一，语义见类 javadoc）。 */
     public enum Kind { WORLD, COORDINATE, SELECTOR, BLOCK, STRUCTURE }
 
     /**
@@ -53,7 +47,8 @@ public record PointSource(Kind kind, String selector, String structureId, String
 
     /**
      * 点源偏移：向量 + 表达空间。分量按表达空间对应：
-     * {@link Space#WORLD} = {@code (dx, dy, dz)} 世界轴；{@link Space#BASE} = {@code (fwd, up, right)} 基准坐标系三轴。
+     * {@link Space#WORLD} = {@code (dx, dy, dz)} 世界轴；
+     * {@link Space#BASE} = {@code (fwd, up, right)} 基准坐标系三轴。
      */
     public record Offset(Vec3 vector, Space space) {
 
@@ -135,7 +130,7 @@ public record PointSource(Kind kind, String selector, String structureId, String
                 Offset.NONE, Time.LIVE);
     }
 
-    /** 实体选择器（{@code SELECTOR}）：位置 = 实体渲染帧插值位置；取点由 {@code entityPoint} 决定。 */
+    /** 实体选择器（{@code SELECTOR}）：位置 = 实体渲染帧插值位置；取点由 {@code entityPoint} 指定。 */
     public static PointSource selector(String selector, EntityPoint entityPoint) {
         return new PointSource(Kind.SELECTOR, selector, null, null, 0, null, entityPoint, Offset.NONE, Time.LIVE);
     }
@@ -196,12 +191,12 @@ public record PointSource(Kind kind, String selector, String structureId, String
 
     /**
      * 解析点源字段：{@code value} = 形态字符串，配套坐标形态读 {@code kf} 的 {@code <field>_x/_y/_z}，
-     * 偏移读 {@code <field>_offset}（{@link #parseOffset}），时态读 {@code <field>_time}（{@link #parseTime}）。
-     * 判据见 {@link #kindOf}（一处定义，不复制）。
+     * 偏移读 {@code <field>_offset}（{@link #parseOffset}），时态读 {@code <field>_time}
+     * （{@link #parseTime}）。判据见 {@link #kindOf}（一处定义，不复制）。
      *
      * @param kf          配套字段来源关键帧
      * @param field       点源字段名（{@code yaw_base_from} / {@code yaw_base_to} / {@code facing_target}）
-     * @param value       形态字符串；{@code null} / 空串 = 无点源（由调用点决定取值来源：关键帧字段 / 位置侧解析结果）
+     * @param value       形态字符串；{@code null} / 空串 = 无点源（取值来源由调用点指定）
      * @param entityPoint 实体形态的取点（其余形态不读）
      * @return 点源规格（含偏移与时态）；无点源 = {@code null}
      */

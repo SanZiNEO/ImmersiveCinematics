@@ -11,10 +11,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 让原版刷怪判定认为“相机锚点附近也有刷怪中心”。
- * <p>
- * 纯坐标方案：不创建任何 Player 实体，只让 {@code ChunkMap.anyPlayerCloseEnoughForSpawning}
- * 在相机锚点附近返回 true，从而触发 {@code NaturalSpawner}。
+ * 让原版刷怪判定认为「相机锚点附近也有刷怪中心」。
+ *
+ * 纯坐标方案：不创建任何 Player 实体，只让 {@code ChunkMap.anyPlayerCloseEnoughForSpawning} 在相机锚点
+ * 附近返回 true，从而触发 {@code NaturalSpawner}——否则相机离玩家超过刷怪半径时镜头里永不刷怪。
  */
 @Mixin(ChunkMap.class)
 public abstract class ChunkMapMixin {

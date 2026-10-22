@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory;
  */
 final class ClientEntityProbe {
 
-    /** 日志通道名固定为拆分前值，保持日志输出逐行不变。 */
+    /** 日志通道名固定为 {@code CameraManager}（日志格式契约）。 */
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CameraManager");
 
     /** 采样立方体半径（方块，三轴同值）。 */

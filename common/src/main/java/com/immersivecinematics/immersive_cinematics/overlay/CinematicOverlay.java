@@ -4,15 +4,11 @@ import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import net.minecraft.client.gui.GuiGraphics;
 
 /**
- * 电影覆盖层 — 客户端 HUD 渲染入口
- * <p>
- * 作为分层覆盖系统（{@link OverlayManager}）的渲染入口，在 {@code ClientGuiEvent.RENDER_HUD} 事件中注册（Phase 7）。
- * <p>
- * 渲染流程：
- * <pre>
- * ClientGuiEvent.RENDER_HUD → CinematicOverlay.render() → OverlayManager.render()
- *     → 各实例的层按 zIndex 升序绘制（黑边 0 → 脚本层 10+）
- * </pre>
+ * 电影覆盖层 —— 客户端 HUD 渲染入口。
+ *
+ * 作为分层覆盖系统（{@link OverlayManager}）的渲染入口，在 {@code ClientGuiEvent.RENDER_HUD} 事件中注册。
+ * 渲染链路：{@code ClientGuiEvent.RENDER_HUD} → {@link #render} → {@link OverlayManager#render} →
+ * 各实例的层按 zIndex 升序绘制（黑边 0 → 脚本层 10+）。
  */
 public class CinematicOverlay {
 
@@ -20,10 +16,7 @@ public class CinematicOverlay {
     public static final String OVERLAY_ID = "cinematic_overlay";
 
     /**
-     * HUD 渲染回调。
-     * <p>
-     * 在相机激活或有层正在动画时渲染覆盖层，否则自动跳过。
-     * 通过 {@code ClientGuiEvent.RENDER_HUD} 注册（Phase 7）。
+     * HUD 渲染回调：相机激活或有层正在动画时渲染覆盖层，否则跳过。
      */
     public static void render(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {
         boolean cameraActive = CameraManager.INSTANCE.isActive();

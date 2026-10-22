@@ -8,8 +8,8 @@ import com.immersivecinematics.immersive_cinematics.script.TrackType;
 import java.util.Map;
 
 /**
- * 将 Java 字段元数据导出为标准 JSON schema（0.3.5 收尾 / WebUI 预留）。
- * <p>
+ * 将 Java 字段元数据导出为标准 JSON schema。
+ *
  * 以后 WebUI 连接后通过 {@code schema.get} 获取这份数据，由前端动态生成表单；
  * Java 侧始终是唯一 schema 权威，避免两端字段漂移。
  */
@@ -17,6 +17,7 @@ public final class SchemaExporter {
 
     private SchemaExporter() {}
 
+    /** 导出完整 schema（meta / tracks / triggers / models 四段）；只转发各注册表，不自行补字段。 */
     public static JsonObject exportAll() {
         JsonObject root = new JsonObject();
         root.add("meta", exportFields(SchemaRegistry.getMetaFields()));

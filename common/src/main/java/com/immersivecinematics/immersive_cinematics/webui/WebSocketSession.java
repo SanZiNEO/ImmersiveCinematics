@@ -11,7 +11,7 @@ import net.minecraft.client.Minecraft;
 /**
  * 单个 WebSocket 客户端会话。
  *
- * <p>负责读取客户端帧、发送文本/二进制帧，并在断开时从服务端移除。</p>
+ * 负责读取客户端帧、发送文本/二进制帧，并在断开时从服务端移除。
  */
 class WebSocketSession {
 
@@ -55,14 +55,17 @@ class WebSocketSession {
         }
     }
 
+    /** 发送一帧文本消息（UTF-8，opcode 0x1）；会话已关闭时静默丢弃。 */
     synchronized void sendText(String text) {
         sendFrame(0x81, text.getBytes(StandardCharsets.UTF_8));
     }
 
+    /** 发送一帧二进制消息（opcode 0x2，帧流走这里）；会话已关闭时静默丢弃。 */
     synchronized void sendBinary(byte[] payload) {
         sendFrame(0x82, payload);
     }
 
+    /** 关闭 socket 并从服务端会话表移除；幂等，可被收发两端并发调用。 */
     void close() {
         if (closed) return;
         closed = true;

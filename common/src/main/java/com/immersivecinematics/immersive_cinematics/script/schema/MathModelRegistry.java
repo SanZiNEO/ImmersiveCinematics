@@ -136,11 +136,12 @@ public final class MathModelRegistry {
      * JSON 定义 → 模型定义（已归一：缺省 / 钳制 / 未知忽略 / 未注册回落；超深度 / 节点上限 → 整链回落）。
      *
      * 「定义对象同一」判据（调用方据以判定定义不变 = 实例延续 / 定义变化 = 重建）的唯一来源 =
-     * {@code ScriptParser} 的归一驻留入口：后续调用方（B18 / B19）需要该判据时必须经驻留入口取定义，
+     * {@code ScriptParser} 的归一驻留入口：后续调用方需要该判据时必须经驻留入口取定义，
      * 不要绕过它直接调本方法——同形态的两次 create 得到两个对象，会被误判为「定义变化」而重置实例状态。
      *
      * @param type 注册名（null / 空 / 未注册 → 回落 {@link #DEFAULT_TYPE}）
-     * @param raw  定义对象的键值（含 {@code type} 与可选的 {@code domain}；非 null；嵌套子定义为 {@code Map} / {@code List}）
+     * @param raw  定义对象的键值（含 {@code type} 与可选的 {@code domain}；非 null；
+     *             嵌套子定义为 {@code Map} / {@code List}）
      * @return 可直接 {@code instantiate()} 的定义（已带运行时守门）
      */
     public static MathModel create(String type, Map<String, Object> raw) {
@@ -166,7 +167,8 @@ public final class MathModelRegistry {
         return entry == null ? Collections.emptyMap() : entry.params();
     }
 
-    /** 通道字段 → 值域（{@code motion_position} = VECTOR、{@code motion_yaw} / {@code pitch} / {@code roll} = ANGLE、
+    /** 通道字段 → 值域（{@code motion_position} = VECTOR、
+     *  {@code motion_yaw} / {@code pitch} / {@code roll} = ANGLE、
      *  {@code motion_fov} / {@code motion_zoom} = SCALAR）；非运动模型字段 → SCALAR。 */
     public static ValueDomain channelDomain(String fieldName) {
         ValueDomain domain = CHANNEL_DOMAINS.get(fieldName);

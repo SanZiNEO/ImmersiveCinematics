@@ -6,28 +6,29 @@ import org.lwjgl.glfw.GLFW;
 
 /**
  * 输入路由器——决定按键/鼠标事件要路由到哪里。
- * <p>
- * 两层设计：
- * <ol>
- *   <li><b>接收层</b> — Mixin 在 HEAD 捕获原始事件，永不 cancel</li>
- *   <li><b>传输层</b> — 本接口决定每个事件的目标</li>
- * </ol>
- * <p>
- * 可替换实现。默认实现根据 {@link CinematicController} 的 blockKeyboard/blockMouse
- * 判断当前是否需要拦截，并对配置中的白名单键放行。
+ *
+ * 两层设计：接收层是 Mixin，在 HEAD 捕获原始事件且永不 cancel；传输层是本接口，决定每个事件的目标。
+ *
+ * 可替换实现。默认实现根据 {@link CinematicController} 的 blockKeyboard/blockMouse 判断当前是否需要
+ * 拦截，并对配置中的白名单键放行。
  */
 public interface InputRouter {
 
+    /** 键盘事件的目标：飞行取景与跳过键优先，其余看键盘屏蔽开关。 */
     InputTarget routeKeyboard(int key, int scanCode, int action, int modifiers);
 
+    /** 鼠标按键事件的目标：飞行取景优先，其余看鼠标屏蔽开关。 */
     InputTarget routeMouseButton(int button, int action, int modifiers);
 
+    /** 滚轮事件的目标：飞行取景优先，其余看鼠标屏蔽开关。 */
     InputTarget routeMouseScroll(double delta);
 
+    /** 视角转动事件的目标：飞行取景优先，其余看鼠标屏蔽开关。 */
     InputTarget routeTurnPlayer();
 
     // ===== 默认实现 =====
 
+    /** 默认实现：无状态，每次调用按当前相机 / 控制状态判定目标。 */
     static InputRouter createDefault() {
         return new InputRouter() {
             public InputTarget routeKeyboard(int key, int scanCode, int action, int modifiers) {

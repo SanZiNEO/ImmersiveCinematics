@@ -16,62 +16,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Adobe / IRIDAS Cube LUT（{@code .cube}）解析器与解析结果 —— 纯 Java、无 Minecraft 依赖
- * （唯一外部依赖 = slf4j，仅用于合成表降级时的一条 WARN）。
+ * Adobe / IRIDAS Cube LUT（{@code .cube}）解析器与解析结果 —— 纯 Java，唯一外部依赖 slf4j（合成表降级 WARN）。
  *
- * <h2>格式基线</h2>
- * 以 Adobe/IRIDAS Cube LUT Specification 1.0 为基线，并兼容 <b>DaVinci Resolve</b> 导出的变体
- * （{@code LUT_1D_INPUT_RANGE} / {@code LUT_3D_INPUT_RANGE}）。行为对齐 OpenColorIO（Iridas / Resolve
- * 两个解析器）、three.js {@code LUTCubeLoader}、FFmpeg {@code vf_lut3d}、libplacebo 四家实现的公共口径，
- * 详见 {@code example/lut-reference/README.md}。
+ * 格式基线 = Adobe/IRIDAS Cube LUT Specification 1.0，兼容 DaVinci Resolve 的 {@code LUT_1D_INPUT_RANGE} /
+ * {@code LUT_3D_INPUT_RANGE}，口径对齐 OpenColorIO / three.js / FFmpeg / libplacebo。指令（大小写不敏感、
+ * 各至多一次、必须在数据区之前）：{@code TITLE}、{@code LUT_1D_SIZE} / {@code LUT_3D_SIZE}
+ * （{@value #MIN_SIZE}..{@value #MAX_SIZE_1D} / {@value #MAX_SIZE_3D}）、
+ * {@code DOMAIN_MIN} / {@code DOMAIN_MAX}、
+ * {@code LUT_*_INPUT_RANGE}（优先于 DOMAIN）、{@code #} 注释；未知指令报错。
+ * 数据区：每行 3 个浮点数，红变化最快（{@link #index3D}）；值不钳制、不归一化（可为负 / 大于 1 / 超出 DOMAIN）。
+ * 1D + 3D 组合文件中 1D 数据在前、3D 在后，应用顺序先 1D 后 3D；DOMAIN 只描述输入域、不改数据值，
+ * 查表坐标 = {@code (v - min) / (max - min) × (size - 1)}（先钳到 [0,1]，结果即采样点下标空间）。
+ * 容错「宽进严出」：空白 / BOM / 科学计数法 / 省略前导零 / 行尾多余字符容忍；条数严格等于声明值，NaN / Infinity / 十六进制 / 后缀 {@code f} 拒绝。
  *
- * <h2>接受的指令（大小写不敏感，各至多一次，必须位于数据区之前）</h2>
- * <ul>
- *   <li>{@code TITLE "..."} —— 带引号文本（无引号时取整行剩余内容），仅保存不参与解析；</li>
- *   <li>{@code LUT_1D_SIZE N} —— 1D 尺寸，{@value #MIN_SIZE}..{@value #MAX_SIZE_1D}；</li>
- *   <li>{@code LUT_3D_SIZE N} —— 3D 尺寸，{@value #MIN_SIZE}..{@value #MAX_SIZE_3D}；</li>
- *   <li>{@code DOMAIN_MIN r g b} / {@code DOMAIN_MAX r g b} —— 输入域（逐通道），默认 {@code 0 0 0} / {@code 1 1 1}；</li>
- *   <li>{@code LUT_1D_INPUT_RANGE min max} / {@code LUT_3D_INPUT_RANGE min max} —— Resolve 写法，
- *       语义 = 对应 LUT 的输入域（三通道同值），优先级高于 {@code DOMAIN_*}；</li>
- *   <li>{@code #} 注释行 —— 可出现在任意位置（含数据区中间）。</li>
- * </ul>
- * 未知指令一律报错（宁可拒绝也不误读文件）。
- *
- * <h2>数据区</h2>
- * 每行 3 个空白分隔的浮点数，<b>红变化最快</b>：{@code data[(b * size + g) * size + r]}（见 {@link #index3D}）。
- * 数据值<b>不受限</b>（可 &lt;0、&gt;1，也可超出 DOMAIN），解析阶段不钳制、不归一化。
- * 1D + 3D 组合文件（Resolve shaper 形态）中 <b>1D 数据在前、3D 数据在后</b>，
- * 应用顺序为 <b>先 1D 后 3D</b>（{@link #has1D()} / {@link #has3D()} 的调用方需遵守）。
- *
- * <h2>容错口径（"宽进严出"）</h2>
- * <ul>
- *   <li>前导/多余空白、CR/LF/CRLF 混用、UTF-8 BOM：全部容忍；</li>
- *   <li>科学计数法（{@code 1e-3} / {@code 1E3}）、省略前导零（{@code .5}）、显式正号：全部接受；</li>
- *   <li>行尾多余字符（含行尾逗号，FFmpeg {@code sscanf("%f %f %f")} 口径）：前两个值必须是完整数字，
- *       第三个值之后的任何内容一律忽略（{@code 0.1 0.2 0.3,} 与 {@code 0.1 0.2 0.3,4} 都读成 {@code 0.1 0.2 0.3}）；</li>
- *   <li>数据条数<b>严格</b>校验：3D = {@code N³} 条、1D = {@code N} 条，组合文件为两者之和（OCIO 口径）；</li>
- *   <li>NaN / Infinity / 十六进制 / 后缀 {@code f} 等非普通浮点字面量：拒绝。</li>
- * </ul>
- *
- * <h2>DOMAIN 语义</h2>
- * DOMAIN 描述的是<b>输入域</b>，不改变数据值。查找时应做 {@code (v - min) / (max - min)} 再乘以
- * {@code size - 1}（不做 ffmpeg 那种忽略 {@code min} 的简化）。本类提供两套访问：
- * <ul>
- *   <li>{@code domainMin1D} / {@code domainMax1D} / {@code domainMin3D} / {@code domainMax3D}
- *       原始值 —— 归一化留给调用方；</li>
- *   <li>{@link #composed3D()} —— 把 1D shaper + 3D 两段与 DOMAIN 归一化一次性烘焙成<b>单张</b>
- *       输入域 {@code [0,1]³} 的 3D 表（渲染侧只吃这一张表，见该方法的等价性说明）。</li>
- * </ul>
- *
- * <h2>尺寸策略</h2>
- * 真实 LUT 以 ≤65³ 居多（Resolve 33³ / 65³ 导出、通用 64³），解析上限 {@value #MAX_SIZE_3D} / {@value #MAX_SIZE_1D}
- * 远宽于实际用量；需要重采样的合成表（{@link #composed3D()}：带 1D shaper 或非单位域）边长上限
- * {@value #COMPOSED_MAX_SIZE}——1D 段超出上限按 {@value #COMPOSED_MAX_SIZE} 点重采样并记一条 WARN
- * （误差有上界、不阻断；纯 3D 单位域走复用路径、不受此上限影响）。
- *
- * <h2>不可变</h2>
- * 解析结果不可变；{@link #data1D()} / {@link #data3D()} 与 {@link Composed3D#data()} 返回内部数组
- * （只读契约），调用方不得修改。
+ * 合成表（{@link #composed3D()}）：S×S×S，S = m + 1；
+ * m0 = ceil(min(最细源格距的倒数, {@value #COMPOSED_MAX_SIZE} - 1))，
+ * 最细 = 各通道 {@code (size3D - 1) / DOMAIN 跨度} 取大；再从 m0 向上搜到 {@code min(8·m0, 上限 - 1)}，取首个
+ * 「源表折点平面全部落在合成网格上」的步数（格点对齐，避免插值走样）。1D 段令 {@code m = max(m, min(size1D - 1, 上限 - 1))}，
+ * size1D 超上限时按上限重采样并记 WARN（误差有上界）。纯 1D LUT（无 3D 段）的合成表 = 对角表：每个格点 = 逐通道 1D 曲线作用在单位网格上。
+ * 不可变：{@link #data1D()} / {@link #data3D()} / {@link Composed3D#data()} 返回内部只读数组，调用方不得修改。
  */
 public final class CubeLut {
 
@@ -80,11 +43,7 @@ public final class CubeLut {
     /** 1D / 3D LUT 的最小尺寸（至少 2 个采样点）。 */
     public static final int MIN_SIZE = 2;
 
-    /**
-     * 3D LUT 尺寸上限。
-     * <p>取 FFmpeg 的 {@code MAX_LEVEL}（256）；README §5.5 建议的 129（OpenColorIO {@code Max3DLUTLength}）
-     * 更保守，本实现按任务给出的越界边界（{@code >256} 判非法）取 256。真实 LUT 远小于此（Resolve 33/65、通用 64）。</p>
-     */
+    /** 3D LUT 尺寸上限（对齐 FFmpeg {@code MAX_LEVEL}；真实 LUT 远小于此——Resolve 33/65、通用 64）。 */
     public static final int MAX_SIZE_3D = 256;
 
     /** 1D LUT 尺寸上限（FFmpeg {@code MAX_1D_LEVEL} 与 OpenColorIO {@code Max1DLUTLength} 同量级）。 */
@@ -92,15 +51,15 @@ public final class CubeLut {
 
     /**
      * {@link #composed3D()} 重采样路径的网格边长上限 S。
-     * <p>上限取 64：S³ 个采样点在 16 位浮点纹理里是 2 MB（CPU 侧构建用 3 MB 临时 float），
-     * 再往上对「1D shaper / DOMAIN 归一化」这类低曲率变换没有可见收益 —— 1D 段的合成误差随
-     * S⁻² 收敛、3D 段在对齐搜索命中时逐位一致（见 {@link #composed3D()} 的尺寸规则）。
-     * 纯 3D 且输入域 = {@code [0,1]³} 的常见文件（Resolve 33³ / 65³ 导出）走复用路径，
-     * 不受此上限影响。</p>
+     * 取 64：S³ 个采样点在 16 位浮点纹理里约 2 MB，再大对 1D shaper / DOMAIN 归一化这类低曲率变换
+     * 无可见收益（1D 段误差随采样数二阶 S⁻² 收敛）；纯 3D 单位域走复用路径，不受此上限影响。
      */
     public static final int COMPOSED_MAX_SIZE = 64;
 
-    /** 普通浮点字面量：接受 {@code .5} / {@code 1.} / {@code 1e-3} / {@code +1.5}，拒绝 NaN / Infinity / 0x / 后缀 f。 */
+    /**
+     * 普通浮点字面量：接受 {@code .5} / {@code 1.} / {@code 1e-3} / {@code +1.5}，
+     * 拒绝 NaN / Infinity / 0x / 后缀 f。
+     */
     private static final Pattern NUMBER = Pattern.compile("[+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?");
 
     /** 严格整数（尺寸参数）：不接受 {@code 2.0} / {@code 0x2} / 空白。 */
@@ -470,7 +429,7 @@ public final class CubeLut {
     }
 
     /**
-     * 3D 数据（RGB 交错，长度 {@code size3D³ * 3}，<b>红最快</b>，见 {@link #index3D}）；
+     * 3D 数据（RGB 交错，长度 {@code size3D³ * 3}，红最快，见 {@link #index3D}）；
      * 无 3D 部分返回 {@code null}。返回内部数组，调用方不得修改。
      */
     public float[] data3D() {
@@ -500,60 +459,11 @@ public final class CubeLut {
     // ==================== 合成 3D 表 ====================
 
     /**
-     * <b>合成后的单张 3D 表</b>：把「1D shaper → 3D」两段与两段各自的 DOMAIN 输入域归一化全部
-     * 烘焙进一张 {@code S×S×S} 表 —— 采样坐标 {@code x ∈ [0,1]³} <b>直接对应网格</b>
-     * （免着色器归一化），红最快、值与 {@link #data3D()} 同口径（可超出 {@code [0,1]}，不钳制）。
-     *
-     * <p>为什么：渲染侧一张表 = 一个采样器。此前 1D 与 3D 各占一个采样器，加上画面与十条曲线共
-     * 13 个采样器，而 MC 1.20.1 的 {@code GlStateManager} 只维护 12 个纹理单元（0~11）——
-     * 第 13 个（单元 12）在 {@code ShaderInstance.apply()} 里越界崩溃。合成后只剩 {@code Lut3D}
-     * 一个（单元 11，总数 12 顶格）。</p>
-     *
-     * <h3>三种形态</h3>
-     * <ol>
-     *   <li><b>纯 3D 且输入域 = {@code [0,1]³}</b>：<b>直接复用</b> {@link #data3D()} ——
-     *       {@code S = size3D}、零重采样；此时 {@code x·(S-1)} 与旧的
-     *       {@code (v-min)/(max-min)·(size-1)} 逐位相同，画面逐位不变；</li>
-     *   <li><b>1D + 3D 组合</b>（Resolve shaper 形态）：{@code composed(v) = lut3D(lut1D(v))}，
-     *       在与着色器<b>相同</b>的插值口径下（1D = 相邻采样点线性插值、3D = 四面体）于 {@code [0,1]³}
-     *       网格上重采样成新表（<b>1D 先、输出喂 3D</b>）；</li>
-     *   <li><b>纯 1D</b>：对角表 {@code composed(r,g,b) = (1D_r(r), 1D_g(g), 1D_b(b))}。
-     *       四面体插值在任一分支下给某个输出分量的权重只落在该分量自己的两个网格层上
-     *       （例如 {@code out.r = (1-d.r)·T[p.r] + d.r·T[n.r]}，与 g / b 无关），
-     *       所以该表逐通道等价于「1D 曲线在 S 个点上采样 + 线性插值」。</li>
-     * </ol>
-     *
-     * <h3>尺寸 {@code S}</h3>
-     * {@code S = 1 + m}，其中步数 {@code m} 按「分辨率下限 + 格点对齐」取（上限 {@value #COMPOSED_MAX_SIZE}）：
-     * <ul>
-     *   <li>3D 段分辨率下限 {@code m0 = max_c ceil((size3D-1)/(domainMax_c-domainMin_c))} ——
-     *       合成网格在 {@code [0,1]} 上的间距不低于源表在自己输入域上的间距（不丢源表细节）；</li>
-     *   <li>对齐搜索：若 {@code [m0, 8·m0]} 内存在步数使源表的<b>格点平面</b>都落在合成网格上
-     *       （{@code min_c·m} 与 {@code span_c·m/(size3D-1)} 都是整数，容差 {@code 1e-4}），取最小的那个 ——
-     *       此时合成表与旧口径<b>逐位一致</b>（源表在格点之间是线性的，对齐后没有折点被抹平）；</li>
-     *   <li>找不到对齐步数时取 {@code m0}：折点错位只影响源表格点附近一个合成单元，
-     *       误差 {@code ~ 二阶差分 / (4m)}，对细网格 LUT 可忽略；</li>
-     *   <li>1D 段：{@code m = max(m, min(size1D-1, }{@value #COMPOSED_MAX_SIZE}{@code -1))} ——
-     *       shaper 的采样分辨率最多保留到上限（1D 表可以很大，65536 点没法整张塞进 3D 表）；
-     *       被截断时误差 {@code ~ 二阶导数 / (8m²)}（二阶，收敛快）。</li>
-     * </ul>
-     *
-     * <h3>等价性（与旧「1D 采样器 + DOMAIN 归一化」口径的偏差）</h3>
-     * 合成表是原变换在 {@code S³} 个格点上的采样，渲染侧再做一次四面体插值：
-     * <ul>
-     *   <li><b>复用路径</b>（纯 3D + 单位域）：表就是原表、查表坐标逐位相同 → 偏差 <b>0</b>；</li>
-     *   <li><b>对齐命中</b>（尺寸规则的对齐搜索成功）：源表的折点平面都落在合成网格上，
-     *       原变换在合成单元内是线性的 → 偏差 <b>0</b>（只余浮点舍入，{@code ≲1e-7}）；</li>
-     *   <li><b>对齐未命中</b>：折点被抹平在一个合成单元内，偏差 {@code ≤ |Δ斜率| / (4m)}
-     *       （一阶，随 m 线性收敛；{@code Δ斜率} 是该折点两侧斜率之差，对细网格 LUT 很小）；</li>
-     *   <li><b>1D 段被上限截断</b>（{@code size1D-1 > m}）：曲线被重采样到 m 个点后线性插值，
-     *       偏差 {@code ≤ max|f''| / (8m²)}（二阶，随 m² 收敛）。</li>
-     * </ul>
-     * 也就是说：常见的 Resolve 导出（33³ / 65³、单位域）走复用路径逐位不变；带 shaper 或
-     * 非单位域的文件在加载期一次算清，误差有上界且随 {@code m} 收敛（{@code m ≤ }{@value #COMPOSED_MAX_SIZE}{@code -1}）。
-     *
-     * <p>结果惰性计算并缓存：同一实例重复调用返回同一 {@link Composed3D}（渲染侧按引用比较，
-     * 只在换 LUT 时重传纹理）。</p>
+     * 合成后的单张 3D 表：1D → 3D 两段与各自 DOMAIN 归一化烘焙进一张 {@code S×S×S} 表（S 规则见类 javadoc），
+     * 采样坐标 {@code x ∈ [0,1]³} 直接对应网格，红最快、值不钳制；纯 3D 单位域直接复用原表（逐位不变）。
+     * 惰性计算并缓存：同一实例重复调用返回同一 {@link Composed3D}（渲染侧按引用比较，换 LUT 才重传）。
+     * 单表 = 单采样器：1D 与 3D 各占一个会到 13 个，而 MC 1.20.1 只有 12 个纹理单元，第 13 个在
+     * {@code ShaderInstance.apply()} 越界崩溃（采样器压缩见 {@code LutBindGuard}）。
      */
     public Composed3D composed3D() {
         Composed3D result = composed3D;
@@ -573,7 +483,7 @@ public final class CubeLut {
     private Composed3D compose3D() {
         if (size3D > 0 && size1D == 0
                 && isUnitDomain(domainMin3D, domainMax3D)) {
-            return new Composed3D(size3D, data3D, false);   // 复用：与旧口径逐位一致
+            return new Composed3D(size3D, data3D, false);   // 复用原表：查表坐标逐位相同
         }
         int size = composedSteps() + 1;
         float[] out = new float[size * size * size * 3];
@@ -592,7 +502,7 @@ public final class CubeLut {
         return new Composed3D(size, out, true);
     }
 
-    /** 合成网格步数 {@code m = S - 1}（见 {@link #composed3D()} 的尺寸规则）。 */
+    /** 合成网格步数 {@code m = S - 1}：3D 源格距与 1D 长度取大，再向上做格点对齐搜索，均封顶 {@value #COMPOSED_MAX_SIZE} - 1。 */
     private int composedSteps() {
         int m = 1;
         if (size3D > 0) {
@@ -601,7 +511,7 @@ public final class CubeLut {
                 finest = Math.max(finest, (size3D - 1) / (double) (domainMax3D[c] - domainMin3D[c]));
             }
             m = Math.max(1, (int) Math.ceil(Math.min(finest, COMPOSED_MAX_SIZE - 1.0)));
-            // 格点对齐搜索（见 composed3D 的尺寸规则）：对齐 = 源表的折点平面都落在合成网格上
+            // 格点对齐搜索：对齐 = 源表的折点平面都落在合成网格上（避免重采样走样）
             int limit = Math.min(m * 8, COMPOSED_MAX_SIZE - 1);
             for (int candidate = m; candidate <= limit; candidate++) {
                 if (gridAligned(candidate)) {
@@ -649,7 +559,7 @@ public final class CubeLut {
     }
 
     /**
-     * 旧口径的完整变换：1D 段（先）→ 3D 段（后），各段按自己的 DOMAIN 归一化。
+     * 完整变换：1D 段（先）→ 3D 段（后），各段按自己的 DOMAIN 归一化。
      * 输出写进 {@code out}（长度 3），避免逐格点分配。
      */
     private void evaluate(float r, float g, float b, float[] out) {
@@ -681,7 +591,10 @@ public final class CubeLut {
         return data1D[k * 3 + channel] * (1.0F - f) + data1D[(k + 1) * 3 + channel] * f;
     }
 
-    /** 3D 段：DOMAIN 归一化 + 四面体（tetrahedral）插值 —— 与 {@code ic_color_adjust.fsh} 的 lut3dLookup 逐分支一致。 */
+    /**
+     * 3D 段：DOMAIN 归一化 + 四面体（tetrahedral）插值 ——
+     * 与 {@code ic_color_adjust.fsh} 的 lut3dLookup 逐分支一致。
+     */
     private void sample3D(float r, float g, float b, float[] out) {
         float tr = normalize(r, domainMin3D[0], domainMax3D[0]) * (size3D - 1);
         float tg = normalize(g, domainMin3D[1], domainMax3D[1]) * (size3D - 1);
@@ -748,12 +661,11 @@ public final class CubeLut {
     }
 
     /**
-     * {@link CubeLut#composed3D()} 的结果：一张输入域已归一化到 {@code [0,1]³} 的 3D 表（不可变）。
+     * {@link CubeLut#composed3D()} 的结果：输入域已归一化到 {@code [0,1]³} 的不可变 3D 表。
      *
      * @param size      网格边长 S（表为 {@code S×S×S}）
-     * @param data      表数据（RGB 交错、红最快、长度 {@code S³×3}；{@code resampled = false} 时
-     *                  就是 {@link CubeLut#data3D()} 本身）
-     * @param resampled 是否重采样过（{@code false} = 直接复用原 3D 表，输入域本来就是 {@code [0,1]³}）
+     * @param data      表数据（RGB 交错、红最快、长度 {@code S³×3}；{@code resampled = false} 时即原表）
+     * @param resampled 是否重采样过（{@code false} = 直接复用原 3D 表，输入域本就是 {@code [0,1]³}）
      */
     public record Composed3D(int size, float[] data, boolean resampled) {
 
@@ -775,7 +687,7 @@ public final class CubeLut {
      * @param r    红通道格点索引（0..size-1，变化最快）
      * @param g    绿通道格点索引
      * @param b    蓝通道格点索引（变化最慢）
-     * @return 该格点在 {@link #data3D()} 中的<b>采样点</b>下标（乘 3 得分量下标）
+     * @return 该格点在 {@link #data3D()} 中的采样点下标（乘 3 得分量下标）
      */
     public static int index3D(int size, int r, int g, int b) {
         return (b * size + g) * size + r;

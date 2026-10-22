@@ -11,9 +11,8 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 
 /**
- * 音频听者控制（0.3.5 第4轮 A；0.3.6 主相机替换链退役后听者相机全部由代理提供）：
- * 脚本 meta.listener == "camera" → 听者相机 = 镜头代理（{@link #cameraListener()}，位置/朝向取自
- * 统一相机状态快照）；== "player"（默认）→ 听者相机 = 玩家代理（{@link #playerCamera()}）。
+ * 音频听者控制：脚本 {@code meta.listener == "camera"} → 听者相机 = 镜头代理（{@link #cameraListener()}，位置/朝向取自
+ * 统一相机状态快照）；{@code == "player"}（默认）→ 听者相机 = 玩家代理（{@link #playerCamera()}）。
  * 两者都经 {@code SoundManagerMixin} 交给原版 {@code SoundEngine.updateSource}。
  */
 public final class AudioListenerController {
@@ -28,21 +27,18 @@ public final class AudioListenerController {
 
     /** 是否需要在 SoundManager.updateSource 时把听者覆盖为玩家（仅过场激活且有效听者不是相机） */
     public static boolean shouldOverride() {
-        // 与 isCameraListener() 同一口径（顶层实例，§3.3），二者恒互补：
+        // 与 isCameraListener() 同一口径（顶层实例），二者恒互补：
         // 有效听者不是相机 → 覆盖为玩家；是相机 → 覆盖为镜头代理（cameraListener）。
         return CAMERA.isActive() && !isCameraListener();
     }
 
     /**
      * 是否听者=相机（用于环境音采样点重定向）。
-     * <p>
-     * 口径（§3.3 后来者居上）：听者由<b>顶层实例</b>（启动最晚的活跃实例）决定——既读它的
-     * {@code meta.listener}，也只看它自身本帧是否有活跃 CAMERA clip
-     * （{@link CameraManager#topInstanceHasActiveCameraClip()}），而不是全实例并集：
+     * 口径（后来者居上）：听者由顶层实例（启动最晚的活跃实例）决定——既读它的 {@code meta.listener}，也只看它自身
+     * 本帧是否有活跃 CAMERA clip（{@link CameraManager#topInstanceHasActiveCameraClip()}），而不是全实例并集：
      * 并集会让下层实例的 CAMERA clip 把顶层自身没有 CAMERA clip 时的听者误判为 camera。
-     * <p>
-     * 必须同时有活跃 CAMERA clip：顶层实例没有 CAMERA clip 时其 {@code meta.listener=camera}
-     * 也回落 player——与画面没有 lane 覆盖（= 原版玩家视角）时听者落在玩家一致。
+     * 必须同时有活跃 CAMERA clip：顶层实例没有 CAMERA clip 时其 {@code meta.listener=camera} 也回落 player——
+     * 与画面没有 lane 覆盖（= 原版玩家视角）时听者落在玩家一致。
      */
     public static boolean isCameraListener() {
         return CAMERA.isActive()
@@ -72,10 +68,8 @@ public final class AudioListenerController {
 
     /**
      * 构造镜头视角代理 Camera（位置/朝向 = 统一快照 = 顶层实例顶层活跃 clip 的相机状态）。
-     * <p>
-     * 主相机替换链退役后，原版主相机就是玩家相机（{@code Minecraft.tick} 把
-     * {@code gameRenderer.getMainCamera()} 交给 {@code SoundEngine.updateSource}），
-     * listener=camera 不再"天然成立"，必须显式把听者相机搬到镜头位置。
+     * 原版主相机就是玩家相机（{@code Minecraft.tick} 把 {@code gameRenderer.getMainCamera()} 交给
+     * {@code SoundEngine.updateSource}），listener=camera 不会天然成立，必须显式把听者相机搬到镜头位置。
      * 无快照（本帧无活跃相机）时回落玩家代理，与 {@link #getListenerPosition()} 的回落一致。
      */
     public static Camera cameraListener() {

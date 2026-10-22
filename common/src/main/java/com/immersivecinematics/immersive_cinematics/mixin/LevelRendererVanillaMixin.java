@@ -20,13 +20,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * 原版 {@code setupRender} 专属挂点：视图中心 + 遮挡剔除开关。
  *
- * <p>Sodium / Rubidium / Embeddium 会 {@code @Overwrite} 原版 {@code setupRender}；检测到它们时
- * 由 MixinPlugin 跳过本类，改走它们基于 {@code Camera} / {@code Frustum} 的优化路径——
+ * Sodium / Rubidium / Embeddium 会 {@code @Overwrite} 原版 {@code setupRender}，直接注入必然撞车；
+ * 检测到它们时由 MixinPlugin 跳过本类，改走它们基于 {@code Camera} / {@code Frustum} 的优化路径——
  * {@code CameraMixin} 已把虚拟相机写进 {@code Camera}，它们的 {@code Viewport} / {@code setupTerrain}
- * 会跟着该相机走（0.3.5 `07e49db` 的原始设计）。</p>
+ * 会跟着该相机走。
  *
- * <p>跳过本类不影响 lane 渲染：lane 的清屏 alpha / 天空与内容开关 / 描边屏蔽在
- * {@link LevelRendererMixin}，始终应用。</p>
+ * 跳过本类不影响 lane 渲染：清屏 alpha / 天空与内容开关 / 描边屏蔽在 {@link LevelRendererMixin}，
+ * 始终应用。
  */
 @Mixin(LevelRenderer.class)
 public class LevelRendererVanillaMixin {
@@ -57,8 +57,8 @@ public class LevelRendererVanillaMixin {
     /**
      * 本帧最上层 lane 的相机位置；无活跃 lane（= 原版视角）时为 {@code null} = 用原版玩家坐标。
      *
-     * <p>lane 表在本帧<b>世界渲染之前</b>就已注册（帧驱动 + lane 注册挂在 {@code GameRenderer.render}
-     * 的 HEAD），所以这里读到的是<b>本帧</b>的相机位置。</p>
+     * lane 表在本帧世界渲染之前就已注册（帧驱动 + lane 注册挂在 {@code GameRenderer.render} 的 HEAD），
+     * 所以这里读到的是本帧的相机位置，不会滞后一帧。
      */
     private static Vec3 cinematicViewCenter() {
         LaneRenderer.Lane lane = LaneRenderer.INSTANCE.topLane();
@@ -77,10 +77,9 @@ public class LevelRendererVanillaMixin {
     private boolean immersivecinematics$occlusionRestore;
 
     /**
-     * 原版 {@code setupRender} 的遮挡剔除开关（{@code minecraft.smartCull}），lane pass 内按本 pass 的相机判定。
-     *
-     * <p>lane pass 且 per-lane 剔除生效 → 该 lane 相机所在方块实心渲染则本 pass 关掉遮挡剪枝；
-     * 主 pass 与非 lane 帧不改写，走原版判定。RETURN 侧无条件还原。</p>
+     * 原版 {@code setupRender} 的遮挡剔除开关（{@code minecraft.smartCull}），lane pass 内按本 pass 的相机判定：
+     * 相机所在方块实心渲染 → 本 pass 关掉遮挡剪枝（沿用原版旁观者口径：剪枝只对播种相机成立，相机埋在实心
+     * 方块里会看不到外面）。主 pass 与非 lane 帧不改写，走原版判定；RETURN 侧无条件还原。
      */
     @Inject(method = "setupRender", at = @At("HEAD"), require = 0)
     private void immersivecinematics_applyCameraOcclusion(Camera camera, Frustum frustum,

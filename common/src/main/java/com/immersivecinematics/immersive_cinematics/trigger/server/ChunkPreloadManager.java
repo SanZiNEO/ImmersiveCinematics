@@ -19,15 +19,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * 区块预加载（服务端）— 虚拟相机中心方案。
- * <p>
- * 不再自建差集/手动发包：相机激活/移动/结束时，把玩家的虚拟 Section 写入
- * {@code ChunkMapCameraMixin}，然后调用原版 {@code ChunkMap.move}，让原版的：
- * <ul>
- *   <li>DistanceManager 正方形 ticket 加载</li>
- *   <li>ChunkMap 圆角 isChunkInRange 客户端发送/遗忘</li>
- * </ul>
- * 自动围绕相机中心运转；玩家/空档时清除虚拟中心即可交还原版玩家差集。
+ * 区块预加载（服务端）— 虚拟相机中心方案：把玩家的虚拟 Section 写入 {@code ChunkMapCameraMixin}
+ * 再调原版 {@code ChunkMap.move}，让 DistanceManager 的正方形 ticket 加载与 ChunkMap 的圆角
+ * isChunkInRange 发送/遗忘自动围绕相机中心运转；清除虚拟中心即交还原版玩家差集。不自建差集、不手动发包。
  */
 public final class ChunkPreloadManager {
 
@@ -38,6 +32,10 @@ public final class ChunkPreloadManager {
 
     private ChunkPreloadManager() {}
 
+    /**
+     * 客户端预加载请求。{@code radius} / {@code renderDistance} / {@code yaw} 仅为协议字段，
+     * 本方案不使用：加载半径与发送范围全交原版 ChunkMap。
+     */
     public void handleRequest(ServerPlayer player, int mode, String scriptId, int x, int z, int radius, float yaw, int renderDistance,
                               boolean cameraMode) {
         if (!Config.preloadEnabled) {
@@ -56,7 +54,7 @@ public final class ChunkPreloadManager {
             return;
         }
         if (mode == C2SPreloadRequestPacket.MODE_PREWARM) {
-            // 预热已废弃：原版虚拟相机中心会在片段激活时直接按原版规则加载。
+            // 预热模式空转：虚拟相机中心在片段激活时会按原版规则加载，提前预热只是多做一次差集。
             return;
         }
         CinematicScript preloadScript = ScriptManager.INSTANCE.getScript(scriptId);
@@ -166,7 +164,7 @@ public final class ChunkPreloadManager {
 
     // ===== 锚点 =====
 
-    /** 更新相机锚点；实体同步交给原版 ChunkMap 虚拟中心，不再走自建实体同步器。 */
+    /** 更新相机锚点；实体同步由原版 ChunkMap 虚拟中心负责，锚点只供刷怪判定查询。 */
     private void updateAnchors(UUID player, ServerLevel level, ChunkPos cam) {
         CameraAnchorManager.INSTANCE.setAnchor(player, level, cam);
     }

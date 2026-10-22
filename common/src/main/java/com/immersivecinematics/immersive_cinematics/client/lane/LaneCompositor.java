@@ -20,91 +20,24 @@ import org.joml.Matrix4f;
 import java.io.IOException;
 
 /**
- * 合成层：把一条 lane 的画面纹理按合成参数铺到屏幕（主 framebuffer）。
+ * 合成层：把一条 lane 的画面纹理按合成参数铺到屏幕（主 framebuffer），全部参数在同一次 quad 绘制内完成。
  *
- * <p>{@link LaneRenderer} 渲染完一条 lane 后，经 {@link LaneRenderer.Sink} 把离屏画面交给本类；
- * 全部参数在<b>同一次 quad 绘制</b>里完成（见 plans/0.3.6/camera-composition.md §1）：</p>
+ * 参数：{@code source} = 画面内取材区域（默认全幅，UV 子区域）；{@code dest} = 屏幕目标区域（默认全屏，quad 顶点）。
+ * {@code opacity} = 叠放不透明度 0~1（默认 1，落混合 alpha）；{@code mask} = 遮罩 full / rect / circle（默认 full）。
+ * {@code order} = 叠放顺序：合成即时进行，所有 lane 共用一张离屏缓冲、不能攒批排序，后调用者盖在先调用者之上。
+ * {@code source} / {@code dest} 都是 0~1 归一化矩形，原点在左上角（x 向右、y 向下）；纹理 v 轴在内部翻转。
  *
- * <table border="1">
- *   <caption>合成参数 → 绘制机制</caption>
- *   <tr><th>参数</th><th>含义</th><th>落点</th></tr>
- *   <tr><td>{@code source}</td><td>取材区域：画面内归一化矩形（默认全幅）</td><td>UV 子区域</td></tr>
- *   <tr><td>{@code dest}</td><td>目标区域：屏幕归一化矩形（默认全屏）</td><td>quad 顶点（像素）</td></tr>
- *   <tr><td>{@code opacity}</td><td>叠放不透明度 0~1（默认 1）</td><td>混合 alpha（{@code ColorModulator.a}）</td></tr>
- *   <tr><td>{@code mask}</td><td>lane 遮罩 full / rect / circle（默认 full）</td><td>片元覆盖率（乘进混合 alpha）</td></tr>
- *   <tr><td>{@code order}</td><td>叠放顺序：后面的在上</td><td><b>绘制顺序</b>（见下）</td></tr>
- * </table>
+ * alpha 契约：专用着色器 {@code ic_lane_blit} 只读 lane 画面的 RGB，写出 alpha = opacity × coverage
+ * （定义点见其 fsh）；与 lane 纹理里的 a 无关——lane alpha 不干净会透底，不能沿用原版 {@code position_tex}。
  *
- * <h2>order = 绘制顺序</h2>
- * 合成即时进行、不缓存纹理——设计上就是「渲染一张 → 贴到屏幕 → 复用缓冲」（§1），
- * 所有 lane 共用一张离屏缓冲，纹理当帧即被下一条 lane 覆盖，所以合成器不能攒批排序：
- * <b>叠放顺序就是调用顺序</b>。调用方按「轨道层级 → 轨道内 clip 顺序（后面的在上）→ z_index」
- * 升序逐层调用 {@link #compose}，后调用者盖在先调用者之上。
+ * 遮罩按窗口物理像素判定覆盖率（硬边 0/1）：rect = 中心 / 半宽半高；circle 半径按短边缩放，非正方形窗口仍是真圆。
+ * 零尺寸（rect 宽高 / circle 半径 = 0）= 不绘制（显露起点，静默跳过）；中心允许越界；mask 为 null 或 full = 全窗口。
+ * 遮罩只改覆盖率：不读 lane 纹理 alpha，不改 source / dest 映射。
  *
- * <h2>矩形口径</h2>
- * {@code source} / {@code dest} 都是 0~1 归一化矩形、<b>原点在左上角</b>（x 向右、y 向下）：
- * {@code source} 相对 lane 画面，{@code dest} 相对屏幕。纹理 v 轴在内部翻转
- * （FBO 纹理的 v=0 在画面底部，与 {@code RenderTarget.blitToScreen} 的 UV 口径一致）。
- *
- * <h2>绘制路径</h2>
- * 复刻原版 {@code RenderTarget._blitToScreen} 的屏幕空间画法：屏幕正交投影
- * （{@code setOrtho(0, w, h, 0, 1000, 3000)}）+ 模型视图平移到 z=−2000，用 4 顶点 quad 覆盖
- * {@code dest}；差别只在 ① 走本模组自建的 {@code ic_lane_blit}（见下「alpha 契约」；其 shader JSON
- * 自带 {@code srcalpha / 1-srcalpha} 混合，正是 opacity 需要的），② UV 取 {@code source} 子区域，
- * ③ 顶点按 {@code dest} 缩放。alpha 通道不写（与 {@code blitToScreen} 同：主画面 alpha 不归合成层管）。
- *
- * <h2>alpha 契约（lane 纹理的 alpha 不参与合成）</h2>
- * 合成只读 lane 画面的 <b>RGB</b>：专用着色器 {@code ic_lane_blit}
- * （{@code fragColor = vec4(rgb * ColorModulator.rgb, ColorModulator.a * coverage)}）把写出的 alpha
- * 定为 {@code opacity × coverage}（full 时 coverage = 1），混合结果 =
- * {@code lane.rgb × opacity × coverage + main.rgb × (1 − opacity × coverage)}，
- * 与 lane 纹理里写下的 a 值无关。
- * <p>为什么不能沿用原版 {@code position_tex}：lane FBO 里写下的 alpha 不干净、也没人清理——原版从不
- * 显示它（{@code RenderTarget._colorMask(true,true,true,false)}），于是星星（a=127）、方块图集 mipmap
- * 边缘的 1px 暗缝（a=146~254）、cutout 植被等都留着 a&lt;255；而 {@code position_tex} 是
- * {@code color * ColorModulator} + srcalpha 混合，这些像素的混合权重被乘成 {@code a × opacity}
- * ⇒ 主画面（玩家视角）从 lane 的 a&lt;255 处透出来（隐约透底；实测这类像素占 0.15%~1.77%）。
- * <p>lane 侧配套：{@code LevelRendererMixin} 的 {@code laneClearAlpha} 仍把清屏 alpha 抬到 1
- * （未覆盖区 = 实心雾色），但它只影响 FBO 数据本身（调试读回 / 未来可能的 alpha 消费方），
- * <b>不再承担合成的正确性</b>。
- * <p>兜底（仅 full）：{@code ic_lane_blit} 加载失败（资源包覆盖 / 编译失败；只记一次错误）时退回原版
- * {@code position_tex}——画面仍可见，代价是重新引入上面那条 alpha 透底。非 full 遮罩不走这条兜底
- * （见下节：报错跳过，不伪造无遮罩输出）。
- *
- * <h2>lane 遮罩（CAMERA clip 的 {@code mask_*} 关键帧）</h2>
- * {@code mask} 非空且 shape 非 full 时，同一次 quad 的片元按<b>窗口物理像素</b>几何判定覆盖率：
- * <ul>
- *   <li><b>rect</b>：中心 {@code (mask_x, mask_y)}、半宽 / 半高 {@code mask_width / 2, mask_height / 2}
- *       （窗口归一化；中心允许越界）内的像素覆盖率为 1，其余 0；</li>
- *   <li><b>circle</b>：中心同上，半径 = {@code mask_radius × min(窗口宽, 窗口高)}（物理像素里是<b>真圆</b>，
- *       非正方形窗口不椭圆化）内的像素覆盖率为 1，其余 0。</li>
- * </ul>
- * 覆盖率为硬边 0/1，与 {@code opacity} 相乘后作为混合 alpha；区域外 alpha=0 → 主画面保持原样。
- * 上传给着色器的几何 uniform 已按主 framebuffer 物理像素换算（中心 / 半宽半高 / 短边半径分别乘
- * {@code screenW / screenH / min(screenW, screenH)}），shader 直接用 {@code gl_FragCoord} 的左上原点
- * 物理像素比较——圆在非正方形窗口里仍是真圆。
- * 遮罩只改合成覆盖率：不读 lane 纹理 alpha，不改 {@code source} / {@code dest} 的 UV / 顶点映射。
- * {@code mask == null} 或 shape=full = 全窗口，并把全部遮罩 uniform 显式复位（防上一 lane 的脏值）。
- * rect 宽 / 高或 circle 半径为 0 = 不绘制（显露起点，正常路径，静默跳过）。
- * <b>非 full 而专用着色器不可用 → 跳过该 lane 并报错，绝不退回无遮罩的 {@code position_tex}</b>；
- * full 的既有兜底不变。
- *
- * <h2>失败直通（守门）</h2>
- * {@link #compose} 画之前先过 {@link LaneComposeGate}：画面未写 / 没有颜色纹理 / 矩形非有限或退化
- * ⇒ <b>整个跳过这次绘制</b>，主画面保持基画面（失败直通），绝不用未写 / 不可采样的画面覆盖它——
- * 否则「dest 全屏」时就是整屏黑。跳过原因限频告警（{@code opacity ≤ 0} 的叠化到 0 除外，那是正常路径）。
- *
- * <h2>状态保存 / 还原</h2>
- * 一次 {@link #compose} 会改动：绑定的 framebuffer 与视口、全局投影矩阵与 VertexSorting、
- * 全局模型视图矩阵、shader 颜色（{@code ColorModulator}）与 0 号 shader 纹理、深度测试 / 深度写 /
- * 颜色写 / 混合。本类在入口保存、出口还原；绘制结束把主 framebuffer 留在绑定态
- * （{@link LaneRenderer} 下一轮自己绑 lane FBO，收尾也自己绑主画面）。
- * 遮罩 uniform 属于 {@code ic_lane_blit} 实例私有状态，<b>每次 compose 全量覆盖</b>
- * （full 也显式复位），不存在跨 lane 泄漏，也无需进全局状态保存 / 还原。
- *
- * <h2>默认零差异</h2>
- * 本类只在被调用时动作：没有 lane 就没有调用（{@link LaneRenderer} 在无活跃 lane 时第一行返回），
- * 因此不装本模组与装了但不放 lane 都是零差异。
+ * 失败直通：画之前先过 {@link LaneComposeGate}，任一条不过 = 整个跳过这次绘制，主画面保持原样。
+ * 非 full 而专用着色器不可用 → 报错跳过，绝不退回无遮罩的 {@code position_tex}；full 的兜底才退回它（代价是透底）。
+ * 状态：入口保存、出口还原绑定 / 视口 / 投影 / 模型视图 / shader 颜色与纹理 / 深度 / 颜色写 / 混合；遮罩 uniform 每次全量覆盖。
+ * 默认零差异：没有 lane 就没有调用。
  */
 public final class LaneCompositor {
 
@@ -121,10 +54,7 @@ public final class LaneCompositor {
     }
 
     /**
-     * 归一化矩形（各分量 0~1），原点在左上角。
-     *
-     * <p>与脚本侧字段口径一致（camera-composition.md §7 步骤 1 的 {@code dest} / {@code source}
-     * 对象 {@code {x,y,w,h}}）：{@code source} 相对 lane 画面，{@code dest} 相对屏幕。</p>
+     * 归一化矩形（各分量 0~1），原点在左上角：{@code source} 相对 lane 画面，{@code dest} 相对屏幕。
      */
     public record Rect(float x, float y, float w, float h) {
 
@@ -133,22 +63,11 @@ public final class LaneCompositor {
     }
 
     /**
-     * 把 {@code texture}（一条 lane 的离屏画面）按合成参数铺到屏幕。
+     * 把 {@code texture}（一条 lane 的离屏画面）按合成参数铺到屏幕；必须当帧调用——缓冲随即被下一条 lane 覆盖。
+     * {@code written = false}（渲染失败 / 未写）的画面不可用，由守门跳过。
+     * 失败直通：画之前先过 {@link LaneComposeGate} 与遮罩几何判定，任一条不过 = 整个跳过，主画面保持原样；
+     * {@code opacity ≤ 0} 与遮罩零尺寸是正常语义（叠化到 0 / 显露起点），静默跳过，其余失败限频告警。
      *
-     * <p><b>必须当帧调用</b>：lane 的离屏缓冲是共用的，调用返回后随时会被下一条 lane 覆盖
-     * （见 {@link LaneRenderer.Sink}）。</p>
-     *
-     * <p><b>失败直通（守门）</b>：画之前先过 {@link LaneComposeGate} 的判定与遮罩几何判定——任何一条
-     * 不过就<b>整个跳过这次绘制</b>，主画面保持此前的内容（基画面 / 更下层 lane），绝不用未写 /
-     * 不可采样的画面覆盖它（否则 dest 全屏时整屏变黑）。{@code opacity ≤ 0} 与遮罩零尺寸是正常语义
-     * （叠化到 0 / 显露起点），静默跳过；其余原因限频告警（逐帧复现的失败不刷屏）。</p>
-     *
-     * @param texture lane 的离屏画面（取其颜色纹理作采样源）
-     * @param source  取材区域（画面内归一化矩形，{@link Rect#FULL} = 全幅）
-     * @param dest    目标区域（屏幕归一化矩形，{@link Rect#FULL} = 全屏）
-     * @param opacity 叠放不透明度 0~1；{@code ≤0} 视为不可见，直接跳过
-     * @param written 该画面本帧是否被写满（{@code false} = 渲染失败 / 未写，内容不可用 → 跳过）
-     * @param mask    lane 遮罩；{@code null} 或 shape=full = 全窗口（master blit 传 {@code null}）
      * @return 是否真的把画面铺上了屏（{@code false} = 被守门跳过，主画面保持原样）
      */
     public static boolean compose(RenderTarget texture, Rect source, Rect dest, float opacity, boolean written,
@@ -172,13 +91,12 @@ public final class LaneCompositor {
             }
             return false;
         }
-        // 遮罩层判定（只在非 full 时读几何；full 不扫描没消费的字段）：零尺寸 = coverage 0 = 正常
-        // 显露起点（静默跳过）；非有限 / 负值 = 数据错误（报错跳过）；未知 shape 同样报错跳过
+        // 遮罩层判定：零尺寸 = coverage 0（正常显露起点，静默跳过）；非有限 / 负值 / 未知 shape = 数据错误
         boolean fullMask = mask == null || mask.shape() == LaneMask.SHAPE_FULL;
         if (!fullMask) {
             MaskCheck check = checkMask(mask);
             if (check == MaskCheck.ZERO) {
-                return false;   // rect 宽/高 = 0 或 circle 半径 = 0：本帧无覆盖，主画面保持原样
+                return false;
             }
             if (check == MaskCheck.BAD) {
                 reportSkipped("遮罩几何非法（shape = " + mask.shape() + ", x = " + mask.x()
@@ -203,8 +121,7 @@ public final class LaneCompositor {
         float vTop = 1.0F - source.y();
         float vBottom = vTop - source.h();
 
-        // 专用不透明 blit（忽略 lane 纹理 alpha，见类注释「alpha 契约」）；加载失败时退回原版 position_tex。
-        // 非 full 遮罩必须走专用着色器：不可用就报错跳过，绝不伪造无遮罩输出（full 的旧兜底不变）。
+        // 专用 blit 忽略 lane 纹理 alpha（见类注释 alpha 契约）；非 full 遮罩缺它必须跳过，不伪造无遮罩输出。
         ShaderInstance blit = blitShader(mc);
         if (!fullMask && blit == null) {
             reportSkipped("遮罩 lane 需要专用着色器 " + SHADER_NAME + "，当前不可用 → 跳过该 lane"
@@ -245,9 +162,7 @@ public final class LaneCompositor {
                 if (blit != null) {
                     RenderSystem.setShader(() -> blit);
                 } else {
-                    // 兜底（仅 full）：ic_lane_blit 不可用（加载失败已记一次错误）→ 退回原版 position_tex。
-                    // 画面仍可见（取材 / 目标区域 / opacity 照旧），代价是重新引入 lane 纹理 alpha 的透底。
-                    // 非 full 遮罩不会走到这里（上面已报错跳过，不伪造无遮罩输出）。
+                    // 兜底（仅 full）：着色器不可用 → 退回原版 position_tex；画面仍可见，代价是 lane 纹理 alpha 透底。
                     RenderSystem.setShader(GameRenderer::getPositionTexShader);
                 }
                 RenderSystem.setShaderTexture(0, texture.getColorTextureId());
@@ -288,8 +203,8 @@ public final class LaneCompositor {
     }
 
     /**
-     * 非 full 遮罩的几何判定（零尺寸 = coverage 0；非有限 / 负值 / 未知 shape = 数据错误）。
-     * <p>中心允许越界（数据语义），故不检查范围。</p>
+     * 非 full 遮罩的几何判定：零尺寸 = coverage 0（正常显露起点），非有限 / 负值 / 未知 shape = 数据错误。
+     * 中心允许越界（数据语义），故不检查范围。
      */
     private static MaskCheck checkMask(LaneMask mask) {
         int shape = mask.shape();
@@ -315,13 +230,10 @@ public final class LaneCompositor {
     }
 
     /**
-     * 写入遮罩 uniform：<b>每 lane 全量覆盖</b>（含 full 的显式复位，防上一 lane 的脏值）。
-     * {@code Uniform.set} 只标记脏值，绘制前由 {@code ShaderInstance.apply()} 统一上传。
-     * <p><b>全部几何 uniform 都按主 framebuffer 的物理像素写入</b>（{@code gl_FragCoord} 口径）：
-     * 数据层的归一化中心 / 宽高 / 短边半径在此乘以 {@code screenW / screenH / min(screenW, screenH)}；
-     * shader 只做物理像素比较，circle 因此在非正方形窗口里仍是真圆。</p>
-     * <p>full 时 shape=0，shader 不读其余几何，但仍写回全窗口默认值保持 uniform 状态确定（防上一 lane
-     * 脏值）；非 full 时按 rect / circle 填对应参数，另一形状的参数显式归位。</p>
+     * 写入遮罩 uniform：每 lane 全量覆盖（含 full 的显式复位，防上一 lane 的脏值）。
+     * 几何全部按主 framebuffer 物理像素写入（{@code gl_FragCoord} 口径）：归一化中心 / 宽高 / 短边半径
+     * 在此乘 {@code screenW / screenH / min(screenW, screenH)}，circle 在非正方形窗口仍是真圆。
+     * full 时 shape=0，其余几何仍写回全窗口默认值；非 full 时另一形状的参数显式归位。
      *
      * @return {@code false} = 非 full 但着色器缺少必要 uniform（调用方报错跳过，不伪造无遮罩输出）
      */
@@ -363,8 +275,8 @@ public final class LaneCompositor {
     }
 
     /**
-     * 守门跳过的限频告警（逐帧复现的失败不刷屏；同一失败点 5 秒一条，抑制次数合并到下一次输出）。
-     * <p>只报告「不该画」的失败；{@code opacity ≤ 0} 的叠化到 0 是正常路径，静默跳过。</p>
+     * 守门跳过的限频告警：同一失败点 5 秒一条，抑制次数合并到下一次输出（逐帧复现的失败不刷屏）。
+     * 只报告「不该画」的失败；{@code opacity ≤ 0} 的叠化到 0 是正常路径，不经过本方法。
      */
     private static void reportSkipped(String what) {
         ErrorLog.logRateLimited("Render", "lane-compose-skip", 5000L,
@@ -372,16 +284,11 @@ public final class LaneCompositor {
     }
 
     /**
-     * 取（必要时创建）合成 blit 着色器实例（{@code ic_lane_blit}）。
-     *
-     * <p>资源重载（换资源包 / F3+T）后重建：旧实例 {@code close()} 释放它持有的 GL program
-     * （原版 Program 缓存按名字复用，不释放就会拿到旧编译结果），随后按新资源重新编译。
-     * 加载失败只记一次（同一资源周期内不重试、不刷屏）：full 的 {@link #compose} 退回原版
-     * {@code position_tex}；非 full 遮罩则报错跳过该 lane（不伪造无遮罩输出）。</p>
-     *
-     * <p>资产走 {@code minecraft} 命名空间（{@code assets/minecraft/shaders/core/}）：原版
-     * {@link ShaderInstance} 的构造只认 {@code shaders/core/<name>.json}（默认命名空间），
-     * 与 {@code ColorAdjustPass} 的 {@code ic_color_adjust} 同源同约束。</p>
+     * 取（必要时创建）合成 blit 着色器实例 {@code ic_lane_blit}；资源重载（换资源包等）后重建：
+     * 旧实例 {@code close()} 释放其 GL program（原版 Program 缓存按名字复用），随后按新资源重新编译。
+     * 加载失败只记一次（同一资源周期内不重试）：full 退回原版 {@code position_tex}，非 full 遮罩报错跳过。
+     * 资产走 {@code minecraft} 命名空间（{@code assets/minecraft/shaders/core/}）：原版 {@link ShaderInstance}
+     * 只认 {@code shaders/core/<name>.json}，与 {@code ic_color_adjust} 同源同约束。
      */
     private static ShaderInstance blitShader(Minecraft mc) {
         ResourceManager resources = mc.getResourceManager();

@@ -44,11 +44,11 @@ public final class ImmersiveCinematics {
         TriggerRegistry.register(new TriggerType("item_drop", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateItemDrop));
         // 5 tick ≈ 0.25s 轮询，保证注视响应及时
         TriggerRegistry.register(new TriggerType("observation", ListenStrategy.POLLING, 5, Evaluators::evaluateObservation));
-        // 0.3.6：朝向范围条件（yaw/pitch 区间）与条件组合器（all_of 全真 / any 任一），同样 5 tick 轮询
+        // 朝向范围条件（yaw/pitch 区间）与条件组合器（all_of 全真 / any 任一），同样 5 tick 轮询
         TriggerRegistry.register(new TriggerType("facing", ListenStrategy.POLLING, 5, Evaluators::evaluateFacing));
         TriggerRegistry.register(new TriggerType("all_of", ListenStrategy.POLLING, 5, Evaluators::evaluateAllOf));
         TriggerRegistry.register(new TriggerType("any", ListenStrategy.POLLING, 5, Evaluators::evaluateAny));
-        // 0.3.6：玩家死亡（事件驱动，场景条件按死亡时刻记录判定）
+        // 玩家死亡（事件驱动，场景条件按死亡时刻记录判定）
         TriggerRegistry.register(new TriggerType("death", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateDeath));
     }
 }

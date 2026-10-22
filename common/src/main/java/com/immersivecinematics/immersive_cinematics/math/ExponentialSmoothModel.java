@@ -12,9 +12,13 @@ package com.immersivecinematics.immersive_cinematics.math;
  */
 public final class ExponentialSmoothModel implements MathModel {
 
+    /** 模型类型标识（脚本 JSON 的 {@code type} 取值）。 */
     public static final String TYPE = "exponential_smooth";
+    /** 缺省时间常数 τ（秒）。 */
     public static final double DEFAULT_TAU = 0.15;
+    /** τ 下限（秒）：再小则单帧步长 k→1，状态直接甩到目标。 */
     public static final double MIN_TAU = 1.0e-3;
+    /** τ 上限（秒）。 */
     public static final double MAX_TAU = 100.0;
 
     private final ValueDomain domain;

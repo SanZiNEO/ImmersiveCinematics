@@ -11,6 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/** 玩家列表（Tab）：按 {@code hideScoreboard}（未设回落 {@code hideHud}）隐藏。 */
 @Mixin(PlayerTabOverlay.class)
 public class PlayerTabOverlayMixin {
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)

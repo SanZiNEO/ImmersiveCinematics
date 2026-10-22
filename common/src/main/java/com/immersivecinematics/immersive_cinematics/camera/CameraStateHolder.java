@@ -6,14 +6,12 @@ import net.minecraft.world.phys.Vec3;
 /**
  * 全局相机状态持有者：写入缓冲（{@link CameraPath} / {@link CameraProperties}）+ 当前值镜像 + 统一只读快照。
  *
- * 写入缓冲是「顶层实例顶层活跃 clip 当前值」的唯一落点；{@link #current()} 是它的不可变镜像
- * （每次写入同步），覆盖链上各 Base 层据此取自身状态。脚本导演写入同时带上该片段的
- * {@code suppress_modifiers} 标志（{@link #suppressesModifiers()}），供脚本导演 Base 层跳过 Modifier 链。
- * 快照 {@link CameraState} 由调用方置入（覆盖链输出），无活跃相机时为 {@code null}（读侧据此回落）。
- *
- * 刷新时机由调用方（{@code CameraManager}）决定——每帧驱动末尾、停用 / 重启、直写入口；
- * 同一帧内多次读取得到同一份快照。缓冲写入不隐含刷新：写入只改缓冲与镜像，
- * 要求立即对读侧可见的入口须紧接着刷新快照。
+ * 写入缓冲是「顶层实例顶层活跃 clip 当前值」的唯一落点；{@link #current()} 是它的不可变镜像（每次写入同步），
+ * 覆盖链上各 Base 层据此取自身状态。脚本导演写入同时带上该片段的 {@code suppress_modifiers} 标志
+ * （{@link #suppressesModifiers()}），供脚本导演 Base 层跳过 Modifier 链。
+ * 快照由调用方置入（值 = 覆盖链输出），无活跃相机时为 {@code null}（读侧据此回落）。
+ * 刷新时机由调用方（{@code CameraManager}）掌握：每帧驱动末尾、停用 / 重启、直写入口——同一帧内多次读取
+ * 得到同一份快照。缓冲写入不隐含刷新：写入只改缓冲与镜像，要求立即对读侧可见的入口须紧接着刷新快照。
  */
 final class CameraStateHolder {
 

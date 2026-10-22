@@ -4,6 +4,7 @@ import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptR
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
+/** 服务端 → 客户端：跳过投票进度（已投票人数 / 观看者总数）。 */
 public class S2CSkipVoteUpdatePacket implements CinematicS2CPacket {
 
     private final String scriptId;

@@ -32,7 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Forge 客户端事件（0.3.5 第7轮去 Arch）。
+ * Forge 客户端事件：MOD 总线管注册期回调，FORGE 总线管每帧 HUD 与 tick。
  */
 @Mod.EventBusSubscriber(modid = ImmersiveCinematics.MOD_ID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
 public final class ForgeClientEvents {
@@ -55,8 +55,8 @@ public final class ForgeClientEvents {
 
     /**
      * F3+T 资源重载：清空 LUT 解析缓存（解析缓存 + 负缓存 + clip 引用表），下次取用按新文件重新解析。
-     * <p>用 {@link RegisterClientReloadListenersEvent}（MOD 总线，Minecraft 构造期触发）而不是
-     * {@code FMLClientSetupEvent}——前者注册进客户端资源管理器、此后每次资源重载都会回调。</p>
+     * 用 {@link RegisterClientReloadListenersEvent}（MOD 总线，Minecraft 构造期触发）而不是
+     * {@code FMLClientSetupEvent}——前者注册进客户端资源管理器、此后每次资源重载都会回调。
      */
     @SubscribeEvent
     public static void onRegisterClientReloadListeners(RegisterClientReloadListenersEvent event) {
@@ -86,7 +86,8 @@ public final class ForgeClientEvents {
          * 取消 {@code RenderGuiEvent.Pre} → Forge 跳过原版 HUD、全部注册表 overlay 与 {@code Post}，
          * 同时跳过排在本监听器之后的其他订阅者（在 Pre 里自绘的第三方 HUD，如鬼灭冷却条）。
          * 随后由 {@link #renderHardHide} 按白名单重画 + 补画本模组 overlay。
-         * <p>normal 模式（未声明该字段）此方法直接返回，行为与改造前一致。
+         *
+         * normal 模式（未声明该字段）此方法直接返回，不接管。
          */
         @SubscribeEvent(priority = EventPriority.HIGHEST)
         public static void onRenderGuiPre(RenderGuiEvent.Pre event) {
@@ -100,7 +101,8 @@ public final class ForgeClientEvents {
 
         /**
          * normal 模式的绘制点（黑边 / 字幕 / GIF / 跳过提示）。
-         * <p>绘制点按模式分流：hard 模式已在 {@link #onRenderGuiPre} 接管处补画，
+         *
+         * 绘制点按模式分流：hard 模式已在 {@link #onRenderGuiPre} 接管处补画，
          * 且 Pre 被取消后 Forge 不会再发 {@code Post}——此处早退只为让"每帧只画一次"成为显式不变式。
          */
         @SubscribeEvent
@@ -121,14 +123,12 @@ public final class ForgeClientEvents {
         }
 
         /**
-         * hard 模式重画：复位左右高度 → 逐层重画白名单判为"显示"的注册表 overlay → 补画本模组 overlay。
-         * <p>
-         * 判定复用 normal 模式同一套白名单：{@link ForgeHudLayerRegistry#isWorldOverlay} 豁免
-         * （暗角 / 望远镜 / 传送门 / 调试文本等世界效果层永不隐藏）+ {@code isLayerHidden(category)}。
-         * 不补发 {@code RenderGuiOverlayEvent.Pre/Post}（理由见 {@code plans/0.3.6/hud-hard-hide.md} 落地标注）。
-         * <p>
-         * 与 {@code ForgeGui.render} 的差异（有意为之）：不设 {@code screenWidth/Height}（ForgeGui 在 Pre 之前
-         * 已设）、不重新播种 {@code random}（`Gui.random` 为 protected，跨包不可访问；影响仅限食物图标抖动）。
+         * hard 模式重画：复位左右高度 → 逐层重画白名单判为"显示"的注册表 overlay → 补画本模组 overlay；
+         * 判定复用 normal 模式同一套白名单（世界效果层豁免 + {@code isLayerHidden(category)}）。
+         * 不补发 {@code RenderGuiOverlayEvent.Pre/Post}：构造器 {@code @ApiStatus.Internal}
+         * 且 {@code NamedGuiOverlay} 无法自建，
+         * {@link #onRenderGuiOverlayPre} 的效果已由上面的过滤逐层复现，补发只会多派发两轮事件。
+         * 与 {@code ForgeGui.render} 的差异：不设 screenWidth/Height（Pre 前已设）、不重播 random（字段不可访问，仅影响食物图标抖动）。
          */
         private static void renderHardHide(Minecraft mc, ForgeGui gui, GuiGraphics graphics, float partialTick) {
             // ForgeGui.render 在 Pre 之前已复位，这里再复位一次是防御：更早的 HIGHEST 订阅者可能改过这两个公开字段

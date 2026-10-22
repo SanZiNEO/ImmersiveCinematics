@@ -13,14 +13,12 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 
 /**
- * AUDIO 轨道播放器 — 回归原版 SoundEngine（0.3.5 第4轮）。
- * <p>
- * 不再直接操作 OpenAL：实例为 {@link CinematicAudioInstance}（AbstractTickableSoundInstance），
- * 由 SoundEngine 统一管理空间/衰减/分类音量/暂停。每个 Clip 对应一个实例，clip 激活时创建并 play。
- * <p>
- * 规则动作 {@code play_sound} 走一次性声音（{@link #playOneShot}）：与 clip 键的实例分开装在
- * {@link #oneShots} 里（不属任何 clip），由 {@link #pruneOneShots} / {@link #stopOneShots} / {@link #onStop}
- * 管理生命周期。声音引擎出口收在 {@link SoundSink} 后（探针可注入桩）。
+ * AUDIO 轨道播放器：实例为 {@link CinematicAudioInstance}（AbstractTickableSoundInstance），
+ * 空间 / 衰减 / 分类音量 / 暂停全部交给原版 SoundEngine。
+ * 每个 Clip 对应一个实例，clip 激活时创建并 play；规则动作 {@code play_sound} 走一次性声音
+ * （{@link #playOneShot}），与 clip 实例分开装在 {@link #oneShots} 里（不属任何 clip），由
+ * {@link #pruneOneShots} / {@link #stopOneShots} / {@link #onStop} 管理生命周期。
+ * 声音引擎出口收在 {@link SoundSink} 后（探针可注入桩）。
  */
 public class AudioTrackPlayer implements TrackPlayer {
 
@@ -63,7 +61,7 @@ public class AudioTrackPlayer implements TrackPlayer {
     private int lastClipIndex = -1;
 
     /**
-     * 规则动作 {@code play_sound} 的一次性声音（0.3.6 C6-3）：<b>独立于按 clip 键的 {@link #instances}</b>——
+     * 规则动作 {@code play_sound} 的一次性声音：独立于按 clip 键的 {@link #instances}——
      * 不属任何 clip，随实例生命周期清理（{@link #pruneOneShots} 帧内回收已播完的、{@link #onStop} 全停清空、
      * {@link #stopOneShots} 挂起时停本实例的一次性声音）。
      */
@@ -72,7 +70,7 @@ public class AudioTrackPlayer implements TrackPlayer {
     /** 声音引擎出口（原版 {@code SoundManager} 的薄封装）；探针可注入桩（无头环境无 SoundEngine）。 */
     private SoundSink sink = ENGINE_SINK;
 
-    /** 组 1：暂停状态（对齐 MC SoundEngine） */
+    /** 暂停状态（对齐 MC SoundEngine 的全局暂停语义） */
     private boolean paused = false;
 
     private final Set<Clip> previouslyActive = new HashSet<>();
@@ -98,7 +96,7 @@ public class AudioTrackPlayer implements TrackPlayer {
         // 精准压制 vanilla 背景音乐（只停 MusicManager 曲目，不影响我们自己的 SoundEngine 实例）
         Minecraft.getInstance().getMusicManager().stopPlaying();
 
-        // 组 1：暂停时不创建实例、不更新、不启动任何声音
+        // 暂停时不创建实例、不更新、不启动任何声音
         if (paused) return;
         Clip activeClip = findActiveClip(globalTime);
         List<Clip> clips = clips();
@@ -186,7 +184,7 @@ public class AudioTrackPlayer implements TrackPlayer {
         previouslyActive.clear();
     }
 
-    /** 组 1：幂等暂停 — 走原版 SoundEngine 全局暂停 */
+    /** 幂等暂停：走原版 SoundEngine 全局 pause（本实现无 per-instance 暂停语义） */
     public void pauseAll() {
         if (!paused) {
             Minecraft.getInstance().getSoundManager().pause();
@@ -194,7 +192,7 @@ public class AudioTrackPlayer implements TrackPlayer {
         paused = true;
     }
 
-    /** 组 1：幂等恢复 — 走原版 SoundEngine 全局恢复 */
+    /** 幂等恢复：走原版 SoundEngine 全局 resume */
     public void resumeAll() {
         if (paused) {
             Minecraft.getInstance().getSoundManager().resume();
@@ -202,7 +200,7 @@ public class AudioTrackPlayer implements TrackPlayer {
         paused = false;
     }
 
-    // ========== 一次性声音（规则动作 play_sound，0.3.6 C6-3） ==========
+    // ========== 一次性声音（规则动作 play_sound） ==========
 
     /**
      * 播一条一次性声音（{@code play_sound} 动作）：相对听者、无衰减的本机声音实例，记进 {@link #oneShots}
@@ -245,8 +243,7 @@ public class AudioTrackPlayer implements TrackPlayer {
 
     /**
      * 停本实例的一次性声音并清空容器（规则挂起 / 停播；幂等）。
-     * <p>
-     * 只动<b>本实例</b>的一次性声音：音轨实例（{@link #instances}）走既有全局 SoundEngine 暂停链路
+     * 只动本实例的一次性声音：音轨实例（{@link #instances}）走全局 SoundEngine 暂停链路
      * （{@link #pauseAll} = 全局 pause，非 per-instance），一次性声音没有「续播」语义，挂起即停。
      */
     public void stopOneShots() {
@@ -443,7 +440,7 @@ public class AudioTrackPlayer implements TrackPlayer {
         return SoundSource.MUSIC;
     }
 
-    /** 编辑器 reposition：seek/sync 精确实现属于第 E 项；当前保留 API 结构 */
+    /** 编辑器定位：按目标时间把活动 clip 实例重定位（暂停态只 seek，播放态 seek 后重启），其余实例清理 */
     public void repositionAudio(float globalTime) {
         Clip activeClip = findActiveClip(globalTime);
         Iterator<Map.Entry<Clip, CinematicAudioInstance>> it = instances.entrySet().iterator();

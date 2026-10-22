@@ -11,16 +11,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 每视角颜色历史隔离：把光影包用于时域历史的 colortex 按视角保存/恢复。
+ * 每视角颜色历史隔离：把光影包用于时域历史的 colortex 按视角保存 / 恢复。
  *
- * <p>历史目标不再写死：由 {@link ShaderCompat} 从 Iris/Oculus 的 flipped 集合自动发现
- * （MakeUp 是 colortex3，Complementary 是 colortex2；BSL 或其他包用标准翻转缓冲也能覆盖）。
- * 探测不到时不隔离，由日志说明。</p>
+ * 历史目标不写死，由 {@link ShaderCompat} 从光影包源码自动发现（MakeUp = colortex3，
+ * Complementary / BSL = colortex2）；探测不到时不隔离，由日志说明。
  *
- * <p>实现：每个视角、每个目标各一对快照纹理（main/alt），格式/尺寸跟随 live；视角开始前
- * 快照 → live，结束后 live → 快照；首帧没有快照时清空 live。GPU blit，临时 FBO 持久复用。</p>
+ * 实现：每个视角、每个目标各一对快照纹理（main/alt），格式 / 尺寸跟随 live；视角开始前快照 → live，
+ * 结束后 live → 快照；首帧没有快照时清空 live。GPU blit，临时 FBO 持久复用。
  *
- * <p>光影 pipeline 切换时必须 {@link #reset()}：旧快照属于旧 pipeline，不能把旧历史 blit 回新 live。</p>
+ * 光影 pipeline 切换时必须 {@link #reset()}：旧快照属于旧 pipeline，不能把旧历史 blit 回新 live。
  */
 public final class ColorHistoryCapture {
 

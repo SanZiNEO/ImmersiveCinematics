@@ -5,45 +5,14 @@ import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustParam
 import java.util.List;
 
 /**
- * 调色采样器 —— 在<b>片段本地时间</b>处把一段 clip 的调色字段插值成一份 {@link ColorAdjustParams}。
+ * 调色采样器 — 在片段本地时间处把一段 clip 的调色字段插值成一份 {@link ColorAdjustParams}。
  *
- * <h2>职责</h2>
- * 纯粹的关键帧求值：47 个标量通道 + 十条曲线强度 + LUT 强度在本地时间处插值，曲线 LUT 与 .cube LUT 随 clip 缓存复用。
- * 无状态、无副作用——ADJUST 轨（master）与每条相机片段（lane 级）都从这里取同一份口径的采样结果。
- *
- * <h2>两个使用方</h2>
- * <ul>
- *   <li><b>master</b>：{@link AdjustTrackPlayer} 在 ADJUST 轨活跃 clip 的本地时间处采样，
- *       结果发布给 {@code MasterColorAdjust}，作用于<b>整体画面</b>。</li>
- *   <li><b>lane 级</b>：{@link ScriptPlayer#collectCameraLanes()} 对每条 lane 用<b>它自己的相机片段</b>
- *       与 {@link CameraLane#clipLocalTime()} 采样（重叠窗口下多 lane 各自独立采样），
- *       渲染侧在该 lane 渲染完成、合成之前开 pass。</li>
- * </ul>
- *
- * <h2>只承载 RGB</h2>
- * 采样结果（{@link ColorAdjustParams}）只描述 <b>RGB</b> 调整——57 个通道 + 10 个强度 + 10 个 LUT 里
- * <b>没有任何 alpha / opacity 参数</b>。调色 pass 只动 RGB、alpha 逐位直通；
- * 透明度一律在<b>合成之后</b>由合成层（{@code opacity} / {@code ColorModulator.a}）调控，
- * 既不烤进画面、也不在调色 pass 里先处理。
- *
- * <h2>数据口径</h2>
- * 47 个标量通道全部是<b>关键帧字段</b>（缺省全 0 = 无效果）；曲线组是 clip 级字段（不随时间变），
- * 各自的 256 点 LUT 由 {@link ColorCurve} 对象持有（逐帧拿到同一个数组），此处只把各自的混合强度
- * 在本地时间处插值——<b>强度缺省 1</b>：写了曲线就是全量生效，关键帧把强度写回 0 即曲线淡出；
- * 无曲线时该强度置 0（那一步不生效）。插值走 {@link KeyframeInterpolator#interpolateChannel}（匀速线性），
- * 与其它轨道的标量通道同一口径。<b>LUT</b>（clip 级 {@code lut} 文件名 / {@code lut_input_gamma} + 关键帧 {@code lut_strength}）
- * 同款：文件名在这里换成缓存实例（{@link CubeLutLoader#forClip}，失败 = {@code null} = 无 LUT），
- * 强度缺省 1、无 LUT 时置 0（那一步不生效）；{@code lut_input_gamma}（缺省 1 = 不变换，必须 &gt; 0）
- * 是 clip 级查表输入域适配的幂指数，同样不随时间变、无 LUT 时被忽略。
- * LUT 是<b>整体画面（master）</b>处理——
- * {@link Clip#getLut()} 只在 ADJUST 轨给值，故 lane 路径采样到的 {@code lut} 恒为 {@code null}。
- *
- * <h2>层级混合（混合模式作用于调整层）</h2>
- * clip 级 {@code blend_mode}（枚举名 → 编码 0 ~ 4，见 {@link ColorAdjustParams#blendModeCode(String)}）
- * + 关键帧 {@code blend_amount}（0 ~ 1，<b>缺省 1</b> = 全量生效）同样只属 <b>ADJUST 轨（master）</b>：
- * {@link Clip#getBlendMode()} 只在 ADJUST 轨给值、{@code blend_amount} 只在该轨插值，
- * lane 路径恒得缺省（{@code normal} + {@code 1} = 混合步骤恒等）。两者一起描述
- * 「调整层输出 vs 基画面」的层级混合（在全部操作栈步骤之后整体施加，见 {@link ColorAdjustParams}）。
+ * 纯关键帧求值、无状态：47 个标量通道 + 10 条曲线强度 + LUT 强度在本地时间处插值，
+ * 曲线 LUT 与 .cube LUT 随 clip 缓存复用。两个使用方：ADJUST 轨（master，作用于整体画面）与
+ * {@link ScriptPlayer#collectCameraLanes()} 的逐 lane 采样（每条 lane 用自己的相机片段与
+ * {@link CameraLane#clipLocalTime()}，渲染侧在该 lane 渲染完成、合成之前开 pass）。
+ * 结果只承载 RGB：参数语义 / 范围 / 缺省见 {@link ColorAdjustParams}，像素级契约见 {@code ic_color_adjust.fsh}。
+ * LUT 与层级混合只属 ADJUST 轨（master）：lane 路径恒得 {@code lut = null} 与缺省混合。
  */
 public final class ColorAdjustSampler {
 
@@ -51,14 +20,9 @@ public final class ColorAdjustSampler {
     }
 
     /**
-     * 本片段在<b>片段本地时间</b>处的全部取值（顺序 = {@link ColorAdjustParams} 分量顺序 = shader 操作栈顺序）。
+     * 本片段在片段本地时间处的全部取值（顺序 = {@link ColorAdjustParams} 分量顺序 = shader 操作栈顺序）。
      *
-     * <p>35 个标量通道走 {@link KeyframeInterpolator#interpolateChannel}（缺省 0 = 无效果）；
-     * 曲线组（形态 b）的十条曲线都是 clip 级字段（{@code curve} / {@code r_curve} / {@code g_curve} /
-     * {@code b_curve} 与六条 hue 曲线 {@code hv_h_curve} ~ {@code sv_l_curve}，不随时间变）：
-     * LUT 由 {@link ColorCurve} 对象持有（按 clip 缓存，逐帧拿到同一个数组），
-     * 此处只把各自的强度在本地时间处插值——<b>强度缺省 1</b>：写了曲线就是全量生效，
-     * 关键帧把强度写回 0 即曲线淡出；无曲线时该强度置 0（那一步不生效）。</p>
+     * 标量通道缺省 0 = 无效果；曲线 LUT 按 clip 缓存，此处只插值各曲线的强度（缺省 1，无曲线 → 0）。
      */
     public static ColorAdjustParams sample(Clip clip, float localTime) {
         List<Keyframe> keyframes = clip.getKeyframes();
@@ -72,8 +36,7 @@ public final class ColorAdjustSampler {
         float[] lvSLut = lut(clip.getLvSCurve());
         float[] svSLut = lut(clip.getSvSCurve());
         float[] svLLut = lut(clip.getSvLCurve());
-        // LUT（clip 级文件名 + 关键帧强度）：解析结果按路径缓存、按 clip 记引用（失败 = null = 无 LUT）；
-        // 无 LUT 时强度置 0（那一步不生效），有 LUT 时强度缺省 1 = 全量生效
+        // LUT：解析失败 = null = 无 LUT（此时强度置 0）；解析结果按路径缓存、按 clip 记引用。
         CubeLut lut = CubeLutLoader.forClip(clip.getClipId(), clip.getLut());
         return new ColorAdjustParams(
                 channel(keyframes, localTime, "exposure"),
@@ -127,8 +90,6 @@ public final class ColorAdjustSampler {
                 strength(keyframes, localTime, "lv_s_strength", lvSLut),
                 strength(keyframes, localTime, "sv_s_strength", svSLut),
                 strength(keyframes, localTime, "sv_l_strength", svLLut),
-                // PS 式六色带微调（第 17 步）：六条固定色带（红 / 黄 / 绿 / 青 / 蓝 / 品红）各一对
-                // hue（±1 = ±180° 旋转）/ sat（乘性 (1 + Δsat)）通道，缺省 0 = 无效果
                 channel(keyframes, localTime, "hue_red"),
                 channel(keyframes, localTime, "sat_red"),
                 channel(keyframes, localTime, "hue_yellow"),
@@ -143,9 +104,8 @@ public final class ColorAdjustSampler {
                 channel(keyframes, localTime, "sat_magenta"),
                 channel(keyframes, localTime, "grayscale"),
                 channel(keyframes, localTime, "invert"),
-                // 层级混合（第 20 步 = 全部操作栈步骤之后整体施加）：clip 级 blend_mode 编码
-                // + 关键帧 blend_amount（缺省 1 = 全量生效）；只有 ADJUST 轨（master）带混合字段——
-                // lane 路径恒得缺省（normal + 1 = 混合步骤恒等，行为与混合功能落地前逐位一致）
+                // 层级混合：clip 级 blend_mode 编码 + 关键帧 blend_amount（缺省 1 = 全量生效）；
+                // 只有 ADJUST 轨（master）带混合字段，lane 路径恒得缺省（normal + 1 = 恒等）。
                 ColorAdjustParams.blendModeCode(clip.getBlendMode()),
                 clip.getTrackType() == TrackType.ADJUST
                         ? KeyframeInterpolator.interpolateChannel(keyframes, localTime, "blend_amount", 1.0F)

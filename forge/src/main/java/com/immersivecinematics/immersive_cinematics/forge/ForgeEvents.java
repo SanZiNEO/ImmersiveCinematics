@@ -14,7 +14,7 @@ import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 
 /**
- * Forge 事件注册（0.3.5 第7轮去 Arch）。
+ * Forge 事件注册：把 Forge 总线事件接到平台无关的 {@link ServerEventHandler}。
  */
 public final class ForgeEvents {
 

@@ -14,8 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * lane 内容开关：粒子。原版 {@code LevelRenderer.renderLevel} 在 translucent 段前后各调一次
  * {@code particleEngine.render(...)}——两处都在这里统一拦掉，避免逐调用点 {@code @Redirect}。
- *
- * <p>非 lane pass 恒放行（主画面不受内容开关影响）。</p>
+ * 非 lane pass 恒放行（主画面不受内容开关影响）。
  */
 @Mixin(ParticleEngine.class)
 public abstract class ParticleEngineMixin {

@@ -9,8 +9,8 @@ import java.util.Map;
 /**
  * 片段模板注册表（内置库）。
  *
- * <p>命名空间 = 片段级模板 id（轨道级 / 脚本级模板注册表见 templates.md 步骤 3 / 4，暂不共用 id 空间）。
- * 初版只做内置模板：生成逻辑是 Java 代码，注册在静态初始化里。</p>
+ * 命名空间 = 片段级模板 id，不与轨道级 / 脚本级共用；生成逻辑是 Java 代码，注册在静态初始化里。
+ * 注册顺序即 {@link #all()} / {@link #ids()} 的返回顺序。
  */
 public final class TemplateRegistry {
 
@@ -25,7 +25,7 @@ public final class TemplateRegistry {
 
     private TemplateRegistry() {}
 
-    /** 注册一个模板；id 重复直接报错（内置库不该出现静默覆盖）。 */
+    /** 注册一个模板；id 重复直接抛错（避免内置库静默覆盖）。 */
     public static void register(ClipTemplate template) {
         if (template == null) throw new IllegalArgumentException("模板不能为空");
         ClipTemplate previous = TEMPLATES.putIfAbsent(template.id(), template);

@@ -28,19 +28,18 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 脚本解析器 — 将 JSON 字符串解析为 CinematicScript POJO
- * <p>
- * 使用 Gson 的 JsonElement 树 API 手动解析，而非反射绑定。
- * 通过 {@link SchemaLoader} 驱动字段解析，不再为每种轨道类型编写独立解析方法。
+ * 脚本解析器 — 将 JSON 字符串解析为 {@link CinematicScript}。
+ *
+ * 使用 Gson 的 JsonElement 树 API 手动解析（不做反射绑定）；字段表由 {@link SchemaLoader} 驱动。
+ * 报错即停：首个错误抛 {@link ScriptParseException}，消息带字段路径（如 {@code meta.id}）。
  */
 public class ScriptParser {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/ScriptParser");
 
-    /** {@code position.up_axis} 的移除口径（0.3.6 起基准坐标系上轴固定世界竖直，方向侧改用锁字段）。 */
+    /** {@code position.up_axis} 的移除口径（基准坐标系上轴固定世界竖直，方向侧改用锁字段）。 */
     private static final String REMOVED_UP_AXIS = "已移除（0.3.6 起）：基准坐标系的上轴固定为世界竖直"
-            + "（前轴 / 右轴取水平面内分量）；方向侧每轴跟来源或锁值改用 yaw_lock / pitch_lock"
-            + "（写法见 docs/SCRIPT_FORMAT.md §「方向锁」）";
+            + "（前轴 / 右轴取水平面内分量）；方向侧每轴跟来源或锁值改用 yaw_lock / pitch_lock";
 
     /**
      * 模型定义驻留表：键 = 定义对象的归一形态（{@code type} + 参数键值 + 通道域，见 {@link #parseMathModel}）。
@@ -53,7 +52,7 @@ public class ScriptParser {
     private static final Map<Map<String, Object>, MathModel> MODEL_DEFINITIONS = new ConcurrentHashMap<>();
 
     /**
-     * fade 高级颜色遮罩的 clip 级字段（0.3.6 D4–D7）：只属于 {@code layer_type=fade}。
+     * fade 高级颜色遮罩的 clip 级字段：只属于 {@code layer_type=fade}。
      * {@code layer_type=image / subtitle} 上写 → 解析期明确拒绝（不静默存进 data 宣称生效）。
      */
     private static final Set<String> FADE_ONLY_CLIP_FIELDS =
@@ -65,7 +64,7 @@ public class ScriptParser {
             "gradient_angle", "gradient_center_x", "gradient_center_y", "gradient_radius");
 
     /**
-     * CAMERA lane 合成遮罩的几何关键帧字段（0.3.6 D2）：只属于关键帧。
+     * CAMERA lane 合成遮罩的几何关键帧字段：只属于关键帧。
      * clip 级只允许形状 {@code mask_shape}；写错层级 / 写错轨道都明确拒绝。
      */
     private static final Set<String> CAMERA_MASK_GEOMETRY_FIELDS =
@@ -75,9 +74,7 @@ public class ScriptParser {
     private static final Set<String> FADE_GRADIENT_FIELDS =
             Set.of("gradient", "gradient_angle", "gradient_center_x", "gradient_center_y", "gradient_radius");
 
-    /**
-     * 解析异常 — 包含字段路径信息
-     */
+    /** 解析异常 — 消息 = {@code 字段路径: 说明}；{@link #getFieldPath()} 返回路径部分。 */
     public static class ScriptParseException extends Exception {
         private final String fieldPath;
 
@@ -317,8 +314,8 @@ public class ScriptParser {
                 }
             }
             if (type == TrackType.CAMERA) {
-                // 归属交叉检查（0.3.6 D2）：形状只属于 clip 级，几何只属于关键帧；fade 渐变 / 混合模式
-                // 不因新增遮罩字段而被 CAMERA 接受（遮罩只有形状 + 几何，没有颜色层语义）。
+                // 归属交叉检查：形状只属于 clip 级，几何只属于关键帧；fade 渐变 / 混合模式
+                // 不被 CAMERA 接受（遮罩只有形状 + 几何，没有颜色层语义）。
                 if (CAMERA_MASK_GEOMETRY_FIELDS.contains(fieldName)) {
                     throw new ScriptParseException(p + "." + fieldName,
                             "只属于关键帧（mask_x / mask_y / mask_width / mask_height / mask_radius"
@@ -358,12 +355,9 @@ public class ScriptParser {
             }
         }
 
-        // 关键帧级统一设计（2026-08-09 决定）：所有轨道一律以 keyframes 调控，
-        // 不再提供 clip 级简写/旧格式兼容（letterbox 的 clip 级 aspect_ratio 简写、
-        // EVENT 的 clip 级 command 迁移等遗留兼容已删除）——旧格式脚本会因缺 keyframes
-        // 校验失败，需按关键帧形式改写。
+        // 所有轨道一律以 keyframes 调控：不提供 clip 级简写 / 旧格式兼容。
 
-        // 验证
+        // 结构校验
         if (type == TrackType.CAMERA && keyframes.isEmpty()) {
             throw new ScriptParseException(p, "camera clip 的 keyframes 至少1个");
         }
@@ -381,7 +375,7 @@ public class ScriptParser {
             throw new ScriptParseException(p + ".curve", "control_points 必须恰好2个点");
         }
 
-        // 验证关键帧时间单调递增
+        // 关键帧时间必须单调递增
         for (int i = 1; i < keyframes.size(); i++) {
             if (keyframes.get(i).getTime() <= keyframes.get(i - 1).getTime()) {
                 throw new ScriptParseException(p + ".keyframes[" + i + "].time",
@@ -442,7 +436,7 @@ public class ScriptParser {
                 }
             }
             if (type == TrackType.CAMERA) {
-                // 归属交叉检查（0.3.6 D2）：形状在 clip 级；几何严格有限 / 非负（不把非法值静默吞成缺省）。
+                // 归属交叉检查：形状在 clip 级；几何严格有限 / 非负（不把非法值静默吞成缺省）。
                 if ("mask_shape".equals(fieldName)) {
                     throw new ScriptParseException(p + "." + fieldName,
                             "只属于 clip 级（形状在片段级声明，关键帧不生效）");
@@ -488,11 +482,10 @@ public class ScriptParser {
     }
 
     /**
-     * 解析 fade 专用的 clip 级字段（0.3.6 D4–D7）。返回 {@code null} = 该字段不属于本方法。
-     *
-     * <p>这里只做 JSON 形态检查并归一为 data map 的值；渐变内容 / 枚举取值 / 颜色格式由
+     * 解析 fade 专用的 clip 级字段；返回 {@code null} = 该字段不属于本方法。
+     * 这里只做 JSON 形态检查并归一为 data map 的值；渐变内容 / 枚举取值 / 颜色格式由
      * {@link ColorMaskSpec#from(Clip)} 在片段构建后统一校验（同一套口径，字段路径一致）。
-     * 非 fade 的 OVERLAY 片段不会走到这里——调用方先按 layer_type 拒绝。</p>
+     * 非 fade 的 OVERLAY 片段不会走到这里——调用方先按 layer_type 拒绝。
      */
     private static Object parseFadeClipField(String fieldName, JsonElement value, String p)
             throws ScriptParseException {
@@ -538,11 +531,9 @@ public class ScriptParser {
     }
 
     /**
-     * 解析 fade 专用的关键帧字段（0.3.6 D4–D7）。返回 {@code null} = 该字段不属于本方法。
-     *
-     * <p>新增通道在 schema 里是 float / string；这里额外严格拦非数字 / 非有限值，
-     * 避免 schema 驱动的「非数字 → null → 静默回落缺省」把非法输入悄悄变成缺省效果。
-     * 取值范围（非负 / > 0 / 0~1）归 {@code ScriptValidator}（与既有通道分工一致）。</p>
+     * 解析 fade 专用的关键帧字段；返回 {@code null} = 该字段不属于本方法。
+     * 这里严格拦非数字 / 非有限值，避免 schema 驱动的「非数字 → null → 静默回落缺省」
+     * 把非法输入悄悄变成缺省效果；取值范围（非负 / {@code > 0} / 0~1）归 {@code ScriptValidator}。
      */
     private static Object parseFadeKeyframeField(String fieldName, JsonElement value, String p)
             throws ScriptParseException {
@@ -731,12 +722,13 @@ public class ScriptParser {
     }
 
     /**
-     * 解析 clip 级 {@code lut}（LUT 文件名，如 {@code "Teal and Orange.cube"}；<b>ADJUST 轨专用</b>——
-     * LUT 是对<b>整体画面</b>（master）的烘焙，逐 lane / 相机片段不参与）。
-     * <p>LUT 只从 {@code resource/} 目录取（{@link com.immersivecinematics.immersive_cinematics.util.ResourcePath}），
-     * 故文件名必须是<b>非空</b>且<b>不含路径分隔符</b>（{@code /} / {@code \}）或盘符分隔符（{@code :}）的
-     * 单个文件名——{@code ../} 之类穿越、绝对路径、Windows 盘符相对路径（{@code C:foo}）一律拒绝
-     * （与 {@code ScriptValidator#checkLutFile} 同一口径：校验拦下的写法解析期也会拒绝）。</p>
+     * 解析 clip 级 {@code lut}（LUT 文件名，如 {@code "Teal and Orange.cube"}；ADJUST 轨专用——
+     * LUT 是对整体画面（master）的烘焙，逐 lane / 相机片段不参与）。
+     * 只从 {@code resource/} 目录取
+     * （{@link com.immersivecinematics.immersive_cinematics.util.ResourcePath}），
+     * 文件名必须非空且不含路径 / 盘符分隔符（{@code /} / {@code \} / {@code :}），
+     * 穿越、绝对路径、Windows 盘符相对路径一律拒绝（与 {@code ScriptValidator#checkLutFile} 同一口径）。
+     * 原因：查找基准固定在 {@code resource/}，放行分隔符或盘符就等于让脚本读任意路径的文件。
      */
     private static String parseLutFile(JsonElement value, String p) throws ScriptParseException {
         if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
@@ -756,12 +748,11 @@ public class ScriptParser {
     }
 
     /**
-     * 解析 clip 级 {@code lut_input_gamma}（LUT 输入域适配的幂指数；<b>ADJUST 轨专用</b>——
-     * LUT 是对<b>整体画面</b>（master）的烘焙，逐 lane / 相机片段不参与）。
-     * <p>语义：查表前对输入 RGB 逐通道 {@code v = pow(clamp(c, 0, 1), lut_input_gamma)}，
-     * 以 {@code v} 为四面体查表坐标；缺省 1 = 不变换。必须 {@code > 0}（0 会让整个输入域塌到 1、
-     * 负数在 {@code c = 0} 处发散——解析期直接拒绝，与 {@code ScriptValidator#checkLutInputGamma}
-     * 同一口径：校验拦下的写法解析期也会拒绝）。{@code NaN} 同样落在这里被拒（{@code !(v > 0)}）。</p>
+     * 解析 clip 级 {@code lut_input_gamma}（LUT 输入域适配的幂指数；ADJUST 轨专用——
+     * LUT 是对整体画面（master）的烘焙，逐 lane / 相机片段不参与）。
+     * 语义：查表前对输入 RGB 逐通道 {@code v = pow(clamp(c, 0, 1), lut_input_gamma)}，以 {@code v}
+     * 为四面体查表坐标；缺省 1 = 不变换。必须 {@code > 0}（0 会让输入域塌到 1，负数在 c = 0 处发散）。
+     * 与 {@code ScriptValidator#checkLutInputGamma} 同一口径；{@code NaN} 同样被拒。
      */
     private static Float parseLutInputGamma(JsonElement value, String p) throws ScriptParseException {
         if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) {
@@ -775,11 +766,11 @@ public class ScriptParser {
     }
 
     /**
-     * 解析 clip 级 {@code blend_mode}（混合模式；<b>ADJUST 轨专用</b>——混合模式作用于<b>调整层</b>
-     * （= ADJUST 轨）的输出与基画面（{@code Sampler0} 原图）的层级混合，逐 lane / 相机片段不参与）。
-     * <p>合法值 = {@code normal} / {@code multiply} / {@code screen} / {@code soft_light} /
-     * {@code overlay}（缺省 {@code normal} = 直替换 = 现状）；其余值解析期直接拒绝
-     * （与 {@code ScriptValidator} 的枚举校验同一口径：校验拦下的写法解析期也会拒绝）。</p>
+     * 解析 clip 级 {@code blend_mode}（混合模式；ADJUST 轨专用——混合模式作用于调整层
+     * （= ADJUST 轨）的输出与基画面（{@code Sampler0} 原图），逐 lane / 相机片段不参与）。
+     * 合法值 = {@code normal} / {@code multiply} / {@code screen} / {@code soft_light} /
+     * {@code overlay}
+     * （缺省 {@code normal} = 直替换）；其余值解析期直接拒绝（与 {@code ScriptValidator} 同一口径）。
      */
     private static String parseBlendMode(JsonElement value, String p) throws ScriptParseException {
         if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
@@ -827,12 +818,9 @@ public class ScriptParser {
     // ========== ColorCurve 解析（ADJUST 轨曲线组，形态 b）==========
 
     /**
-     * 解析 {@code color_curve} 字段 = 控制点数组 {@code [[x,y], ...]}
-     * （ADJUST 轨 / CAMERA 片段的 RGB 复合曲线 {@code rgb_curve} 与每通道曲线 {@code r_curve} / {@code g_curve} / {@code b_curve}
-     * 共用本解析；字段名由 {@code p} 带出）。
-     * <p>结构在此严格校验（与 {@code ScriptValidator} 同一口径）：数组、每点 2 个数字、x 严格递增、
-     * x / y 各 0~1、至少 2 点——不合法直接抛 {@link ScriptParseException}（不是静默忽略：
-     * 曲线是作者显式写下的意图，悄悄丢掉会得到「脚本没错但画面不对」）。</p>
+     * 解析 {@code color_curve} 字段 = 控制点数组 {@code [[x,y], ...]}（RGB 复合曲线与每通道曲线共用，
+     * 字段名由 {@code p} 带出）。结构在此严格校验（与 {@code ScriptValidator} 同一口径）：数组、
+     * 每点 2 个数字、x 严格递增、x / y 各 0~1、至少 2 点；不合法直接抛 {@link ScriptParseException}。
      */
     private static ColorCurve parseColorCurve(JsonElement value, String p) throws ScriptParseException {
         if (!value.isJsonArray()) {
@@ -873,16 +861,11 @@ public class ScriptParser {
 
     /**
      * 解析 {@code model} 字段 = 数学模型定义对象（JSON → 定义的唯一入口 = {@link MathModelRegistry#create}）。
-     *
-     * 形态：{@code {"type": "spring", "stiffness": 8.0}}；组合子定义内联（{@code chain} 的 {@code models}
-     * 数组 / {@code blend} 的 {@code a}、{@code b}）。值域由字段名决定（{@code motion_position} = VECTOR、
-     * {@code motion_yaw} / {@code motion_pitch} / {@code motion_roll} = ANGLE、{@code motion_fov} /
-     * {@code motion_zoom} = SCALAR），以结构键 {@code domain} 交给注册表（缺省继承 = 通道值域）。
-     *
-     * 定义对象按归一形态（{@code type} + 参数键值 + 域）驻留：同形态的定义（含重新解析的同一脚本）
-     * 得到同一对象，调用方据此判定「定义不变」；数字统一为 {@code float}，故 {@code 8} 与 {@code 8.0} 同形态。
-     * 未注册 / 缺失 type、未知参数、越界值按注册表口径限频告警 + 回落（{@code linear} = 无效果），不阻断解析；
-     * 值不是对象才视为结构错误。
+     * 形态 {@code {"type": "spring", "stiffness": 8.0}}；组合子定义内联（{@code chain} 的
+     * {@code models} 数组 / {@code blend} 的 {@code a}、{@code b}）。值域由字段名决定
+     * （{@code motion_position} = VECTOR、{@code motion_yaw} 等 = ANGLE、
+     * {@code motion_fov} / {@code motion_zoom} = SCALAR），以 {@code domain} 交给注册表。
+     * 定义按归一形态驻留（同形态复用同一对象）；未注册 / 未知参数 / 越界值告警 + 回落 {@code linear}。
      */
     private static MathModel parseMathModel(JsonElement value, String p, String fieldName) throws ScriptParseException {
         if (!value.isJsonObject()) {
@@ -900,10 +883,8 @@ public class ScriptParser {
 
     /**
      * 解析 clip 级 {@code rules}（判定规则数组 → {@link ClipRule} 列表）：逐元素 {@link ClipRule#parse}，
-     * 元素结构非法即抛（走既有解析错误链，本片段不落地半成品规则表）。
-     *
-     * 空数组 = 空规则表（与不写等价；validator 记 issue 提示作者）。条件与动作原文原样保留——
-     * 条件求值归判定源（C6-2）、动作执行归动作集（C6-3）。
+     * 元素结构非法即抛（走既有解析错误链，本片段不落地半成品规则表）。空数组 = 空规则表
+     * （与不写等价；validator 记 issue 提示作者）；条件与动作原文原样保留。
      */
     private static List<ClipRule> parseClipRules(JsonElement value, String p) throws ScriptParseException {
         if (!value.isJsonArray()) {
@@ -920,11 +901,10 @@ public class ScriptParser {
     // ========== 覆盖链 Modifier 声明解析（CAMERA clip 级 modifier 字段）==========
 
     /**
-     * 解析 clip 级 {@code modifier}（片段级静态 Modifier 声明 → {@link ClipModifier}）：{@code {channels, mode?,
-     * priority?, <通道值>}}——结构键 {@code channels} / {@code mode} / {@code priority}，值键 = 通道名本身
-     * （{@code position} 是 {@code {x, y, z}}，其余五个是有限数字）。字段语义见
-     * {@code docs/SCRIPT_FORMAT.md} §「覆盖链 Modifier」；与 {@code ScriptValidator#checkModifier} 同一口径
-     * （校验拦下的写法解析期也会拒绝）。
+     * 解析 clip 级 {@code modifier}（片段级静态 Modifier 声明 → {@link ClipModifier}）：
+     * {@code {channels, mode?, priority?, <通道值>}}——结构键 {@code channels} / {@code mode} /
+     * {@code priority}，值键 = 通道名本身（{@code position} 是 {@code {x, y, z}}，其余五个是有限数字）。
+     * 与 {@code ScriptValidator#checkModifier} 同一口径（校验拦下的写法解析期也会拒绝）。
      */
     private static ClipModifier parseClipModifier(JsonElement value, String p) throws ScriptParseException {
         if (!value.isJsonObject()) {
@@ -1103,8 +1083,8 @@ public class ScriptParser {
     /**
      * 解析 clip 级 {@code transition_params}（过渡分参数声明 → {@link TransitionParams}）：
      * {@code {<通道>: {mode?, duration?, curve?}}}——通道名见 {@link CameraChannels}；未声明的通道 / 键保留
-     * 「未声明」标记（由 {@code Clip.getTransitionSpec()} 按片段级缺省补齐）。字段语义见
-     * {@code docs/SCRIPT_FORMAT.md} §「过渡（transition）」；与
+     * 「未声明」标记（由 {@code Clip.getTransitionSpec()} 按片段级缺省补齐：全六通道 BLEND、
+     * 同一时长、无曲线 = 线性斜坡、BLEND 打断）。与
      * {@code ScriptValidator#checkTransition} 同一口径（校验拦下的写法解析期也会拒绝）。
      */
     private static TransitionParams parseTransitionParams(JsonElement value, String p) throws ScriptParseException {
@@ -1212,7 +1192,7 @@ public class ScriptParser {
     }
 
     /**
-     * 位置点源的移除字段：0.3.6 起位置基准统一用关键帧字段 {@code facing_origin}（五形态），
+     * 位置点源的移除字段：位置基准统一用关键帧字段 {@code facing_origin}（五形态），
      * {@code position.relative_origin} 与配套坐标不再存在；{@code facing_origin} / {@code facing_target}
      * 写在关键帧上（与 {@code yaw_base_from} 同级），不写在 position 内。
      */
@@ -1222,7 +1202,7 @@ public class ScriptParser {
             if (posObj.has(field)) {
                 throw new ScriptParseException(p + "." + field,
                         "已移除（0.3.6 起）：位置基准统一用关键帧字段 facing_origin"
-                                + "（写法见 docs/SCRIPT_FORMAT.md §「点源」）");
+                                + "（点源形态：坐标取 facing_origin_x/y/z）");
             }
         }
         if (posObj.has("facing_origin") || posObj.has("facing_target")) {
@@ -1233,7 +1213,8 @@ public class ScriptParser {
 
     /**
      * 位置点源 + 偏移装配。位置点源 = 关键帧字段 {@code facing_origin}（五形态：{@code "player"} 玩家激活位置 /
-     * {@code "coordinate"} + {@code facing_origin_x/y/z} / {@code block:id[:radius]} / 实体选择器 / 结构 id）；
+     * {@code "coordinate"} + {@code facing_origin_x/y/z} / {@code block:id[:radius]} / 实体选择器 /
+     * 结构 id）；
      * 不写 = 玩家激活位置（世界轴偏移）/ 玩家实体 {@code "@p"}（基准坐标系偏移，实时跟随）。
      * 偏移按 {@code baseSpace} 装配：true = 基准坐标系（fwd/up/right），false = 世界轴（dx/dy/dz）。
      * 前轴目标 = 关键帧字段 {@code facing_target}（点源形态字符串，空 = 位置点源自身朝向）。
@@ -1295,11 +1276,9 @@ public class ScriptParser {
     }
 
     /**
-     * 解析触发器前置条件 requires（AND 语义；缺省 = 无前置，兼容旧脚本）。
-     * <ul>
-     *   <li>旧语法：字符串 = 前置脚本 id，等价于 {@code {"type":"script_played","script":"id"}}</li>
-     *   <li>新语法：对象 = {@code {"type":"...", ...}}，可注册自定义前置条件</li>
-     * </ul>
+     * 解析触发器前置条件 requires（AND 语义；缺省 = 无前置）。
+     * 元素两种写法：字符串 = 前置脚本 id（等价于 {@code {"type":"script_played","script":"id"}}）；
+     * 对象 = {@code {"type":"...", ...}}，可注册自定义前置条件。
      */
     private static List<TriggerRequirement> parseTriggerRequires(JsonObject obj, String p) throws ScriptParseException {
         if (!obj.has("requires")) return Collections.emptyList();
@@ -1340,7 +1319,7 @@ public class ScriptParser {
         return result;
     }
 
-    // ========== 验证方法 ==========
+    // ========== 轨道结构校验 ==========
 
     private static void validateTracks(List<TimelineTrack> tracks, String p) throws ScriptParseException {
         long letterboxCount = tracks.stream().filter(t -> t.getType() == TrackType.LETTERBOX).count();
@@ -1436,7 +1415,7 @@ public class ScriptParser {
         return list;
     }
 
-    // Fallback: for unknown JSON objects, parse as Map
+    // 未知字段：递归解析为 Map（向前兼容）
     private static Map<String, Object> parseUnknownObject(JsonObject obj, String p) {
         Map<String, Object> map = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {

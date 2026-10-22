@@ -8,9 +8,9 @@ import java.util.List;
 /**
  * 片段模板：推近 / 拉远（直线变距）。
  *
- * <p>沿基准朝向的前后轴直线移动，两个关键帧定速度（运行时匀速线性）。给两个不同的 fov 就是
- * <b>希区柯克变焦</b>（dolly zoom）：位置推进的同时视角反向变化，主体大小不变、背景透视被压缩——
- * 不单列模板，因为它与推近是同一条路径，只差光学参数。</p>
+ * 沿基准朝向的前后轴直线移动，两个关键帧定速度（运行时匀速线性）。
+ * {@code fov_start} 与 {@code fov_end} 不同即希区柯克变焦（dolly zoom）：位置推进的同时视角反向变化，
+ * 主体大小不变、背景透视被压缩；与推近是同一条路径，只差光学参数，故不单列模板。
  */
 public final class DollyClipTemplate implements ClipTemplate {
 

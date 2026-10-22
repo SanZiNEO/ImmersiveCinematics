@@ -13,9 +13,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 鼠标输入处理 — 接收层 + 传输层分离。
- * <p>
- * 与 {@link KeyboardHandlerMixin} 相同架构，共用 {@link InputRouter}。
+ * 鼠标输入处理 —— 接收层 + 传输层分离，与 {@link KeyboardHandlerMixin} 同构，共用 {@link InputRouter}。
+ *
+ * 飞行取景例外：它需要 delta 与软回中，所以在 {@code onMove} 里自己记上一次位置（不读 vanilla 私有字段），
+ * 每次移动后把光标拉回屏幕中心并 {@code setIgnoreFirstMove()}，下一次事件只用于让 vanilla 同步内部位置。
  */
 @Mixin(MouseHandler.class)
 public abstract class MouseHandlerMixin {
@@ -69,7 +70,7 @@ public abstract class MouseHandlerMixin {
             return;
         }
 
-        // 等待“回中后”的那一次事件：让 vanilla 用 setIgnoreFirstMove 同步内部位置
+        // 等待回中后的那一次事件：让 vanilla 用 setIgnoreFirstMove 同步内部位置
         if (icAwaitingCenterSync) {
             icAwaitingCenterSync = false;
             icLastMouseX = x;

@@ -6,9 +6,9 @@ import com.google.gson.JsonObject;
 /**
  * 片段模板展开用的 JSON 构造小工具（避免每个模板重复拼同样的对象）。
  *
- * <p>只做"字段名正确"这一件事：关键帧字段名与 {@code docs/SCRIPT_FORMAT.md} / {@code ScriptValidator}
- * 的口径一致（CAMERA 关键帧的 {@code position} / {@code position_mode} / {@code yaw} / {@code pitch} /
- * {@code roll} / {@code fov} / {@code zoom}）。</p>
+ * 只做"字段名正确"：关键帧字段名与 {@code ScriptValidator} 口径一致
+ * （CAMERA 关键帧的 {@code position} / {@code position_mode} / {@code yaw} / {@code pitch} /
+ * {@code roll} / {@code fov} / {@code zoom}）。
  */
 public final class TemplateJson {
 
@@ -32,10 +32,10 @@ public final class TemplateJson {
     }
 
     /**
-     * CAMERA 关键帧。
+     * CAMERA 关键帧：六个可控字段全部显式写出（含默认值）。
      *
-     * <p>六个可控字段全部显式写出（含默认值）：{@code ScriptValidator} 对缺省的 CAMERA 关键帧字段
-     * 会逐条提示"将使用默认值"，生成产物要做到零提示——显式写出即与手写脚本的完整写法一致。</p>
+     * {@code ScriptValidator} 对缺省的 CAMERA 关键帧字段会逐条提示"将使用默认值"，
+     * 显式写出即与手写脚本的完整写法一致、产物零提示。
      */
     public static JsonObject cameraKeyframe(float time, JsonObject position,
                                             float yaw, float pitch, float roll, float fov, float zoom) {
@@ -58,7 +58,7 @@ public final class TemplateJson {
         return kf;
     }
 
-    /** 贝塞尔路径曲线：两个**相对**控制点（相对段起点关键帧位置）。 */
+    /** 贝塞尔路径曲线：两个「相对」控制点（相对段起点关键帧位置）。 */
     public static JsonObject bezierCurve(JsonObject controlPoint1, JsonObject controlPoint2) {
         JsonObject curve = new JsonObject();
         curve.addProperty("type", "bezier");

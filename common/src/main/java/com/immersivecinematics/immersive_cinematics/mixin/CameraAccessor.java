@@ -6,25 +6,26 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
- * {@code Camera} 写入访问器 —— 供<b>听者代理相机</b>使用
- * （{@code AudioListenerController.cameraListener()}，{@code SoundManagerMixin} 传入原版
- * {@code SoundEngine.updateSource}）。
+ * {@code Camera} 写入访问器，供听者代理相机使用（{@code AudioListenerController.cameraListener()}，
+ * 由 {@code SoundManagerMixin} 传给原版 {@code SoundEngine.updateSource}）。
  *
- * <p>主相机替换链退役后，原版主相机 = 玩家相机（{@code Minecraft.tick} 里
- * {@code soundManager.updateSource(gameRenderer.getMainCamera())} 拿到的就是它），所以脚本
- * {@code meta.listener = "camera"} 时必须显式造一个位于镜头位置/朝向的 {@link Camera}；
- * 原版 {@code SoundEngine.updateSource} 要求 {@code isInitialized()} 为真，故一并设置
- * {@code initialized}（与 {@code Camera.setup} 的效果一致，只是值来自模组快照）。</p>
+ * 原版 {@code Minecraft.tick} 传的是主相机 = 玩家相机，所以 {@code meta.listener = "camera"} 时必须
+ * 显式造一个位于镜头位置 / 朝向的 {@link Camera}；{@code SoundEngine.updateSource} 要求
+ * {@code isInitialized()} 为真，故一并设置 {@code initialized}（与 {@code Camera.setup} 的效果一致，
+ * 只是值来自模组快照）。
  */
 @Mixin(Camera.class)
 public interface CameraAccessor {
 
+    /** 写相机位置（世界坐标，已是眼高）。 */
     @Invoker("setPosition")
     void ic$setPosition(double x, double y, double z);
 
+    /** 写相机朝向（度）。 */
     @Invoker("setRotation")
     void ic$setRotation(float yaw, float pitch);
 
+    /** 置 {@code initialized}：绕开 {@code setup()} 也必须满足 {@code isInitialized()}。 */
     @Accessor("initialized")
     void ic$setInitialized(boolean initialized);
 }

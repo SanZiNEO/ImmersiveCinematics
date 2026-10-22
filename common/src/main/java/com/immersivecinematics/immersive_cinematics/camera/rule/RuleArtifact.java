@@ -1,13 +1,13 @@
 package com.immersivecinematics.immersive_cinematics.camera.rule;
 
 /**
- * 规则动作建出的<b>实例级工件</b>（0.3.6 C6-3）：{@code camera_set} 的覆盖链 Modifier /
+ * 规则动作建出的实例级工件：{@code camera_set} 的覆盖链 Modifier /
  * {@code overlay_set} 的临时层 / {@code adjust_set} 的规则调整层——三类动作的共同形态：
  * 触发那一刻 {@link #attach()}，片段活跃窗末（{@code RuleEngine} 逐帧到期回收）/
  * 规则引擎重建（脚本替换）/ 停播时 {@link #release()}。
  *
- * <b>一实例同类至多一件</b>：同类工件再次触发 = 覆盖（引擎先回收旧件，见
- * {@link RuleEngine#attachArtifact}）——与设计 §5「触发即覆盖值 / 被覆盖」同口径。
+ * 一实例同类至多一件：同类工件再次触发 = 覆盖（引擎先回收旧件，见
+ * {@link RuleEngine#attachArtifact}）。
  * 分配契约：工件在触发帧建出（非稳态路径），帧内只做 {@link #kind()} 比较与到期回收（零分配）。
  * 线程契约：仅客户端主线程。
  */

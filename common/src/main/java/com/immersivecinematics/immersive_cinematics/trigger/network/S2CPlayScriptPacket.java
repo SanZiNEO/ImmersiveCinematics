@@ -14,21 +14,17 @@ import java.util.zip.GZIPOutputStream;
 
 /**
  * 服务端 → 客户端播放请求。
- * <p>
- * 两个 id 职责不同：
- * <ul>
- *   <li>{@code refId}：传输层 ACK 标识（{@link AckTracker}），用于抑制 play 包超时重发；</li>
- *   <li>{@code instanceId}：<b>播放实例 id</b>（{@code plans/0.3.6/parallel-playback.md} §3.7）。
- *       同一次播放请求对全部目标玩家是同一个 id；客户端原样回传（{@link C2SPlaybackStartedPacket}），
- *       服务端据此按实例维护播放账本（观看者 / 跳过投票 / 事件时间线）。</li>
- * </ul>
- * 最简做法（本版本）：命令路径把 refId 直接复用为 instanceId —— 一次播放请求的 refId 本就唯一，
- * 且对该请求的所有目标一致，正是实例 id 需要的语义。无 refId 的调用点（触发器
- * {@code StartPlaybackAction} 按玩家逐个发包）实例 id 留空，该脚本的全部观看者共用退化键
- * {@code (scriptId, "")} —— 与实例化之前的账本语义一致。
- * <p>
+ *
+ * 两个 id 职责不同：{@code refId} 是传输层 ACK 标识（{@link AckTracker}），用于抑制 play 包超时重发；
+ * {@code instanceId} 是播放实例 id，同一次播放请求对全部目标玩家是同一个 id，客户端原样回传
+ * （{@link C2SPlaybackStartedPacket}），服务端据此按实例维护播放账本（观看者 / 跳过投票 / 事件时间线）。
+ *
+ * 命令路径把 refId 直接复用为 instanceId：一次播放请求的 refId 本就唯一，且对该请求的所有目标一致，
+ * 正是实例 id 需要的语义。无 refId 的调用点（{@code StartPlaybackAction} 按玩家逐个发包）实例 id
+ * 留空，该脚本的全部观看者共用退化键 {@code (scriptId, "")}。
+ *
  * 脚本正文走 gzip + 长度前缀而不是 {@code writeUtf}：后者受 32,767 字符上限约束，
- * 25 机位量级的脚本（约 47 KB JSON）会被直接拒绝（{@code plans/0.3.6/F-playback/f5-script-packet-limit.md}）。
+ * 25 机位量级的脚本（约 47 KB JSON）会被直接拒绝。
  */
 public class S2CPlayScriptPacket implements CinematicS2CPacket {
 
@@ -49,7 +45,7 @@ public class S2CPlayScriptPacket implements CinematicS2CPacket {
         this(scriptJson, "");
     }
 
-    /** refId 复用为实例 id：同一次播放请求的 refId 唯一且对该请求的所有目标一致。 */
+    /** refId 同时充当实例 id，理由见类注释。 */
     public S2CPlayScriptPacket(String scriptJson, String refId) {
         this.scriptGzip = encode(scriptJson);
         this.refId = refId;

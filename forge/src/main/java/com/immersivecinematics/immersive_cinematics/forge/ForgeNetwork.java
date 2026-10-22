@@ -10,7 +10,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 /**
- * Forge 网络桥接（0.3.5 第7轮去 Arch）。
+ * Forge 网络桥接：C2S/S2C 共用一条 {@link SimpleChannel}，包按注册序号区分。
  */
 public final class ForgeNetwork implements NetworkBridge {
 

@@ -10,12 +10,8 @@ import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 
 /**
- * 播放脚本动作（0.3.5 第3.5轮）：支持 target 广播。
- * <ul>
- *   <li>{@code target} 缺省 / {@code "player"}：只发给触发者本人（现状）</li>
- *   <li>{@code "all"}：全体在线玩家（含触发者本人）</li>
- *   <li>{@code "all_except_trigger"}：除触发者外的所有在线玩家</li>
- * </ul>
+ * 播放脚本动作：按 {@code target} 决定收包人——缺省 / {@code "player"} 只发触发者本人，
+ * {@code "all"} 发全体在线玩家（含触发者），{@code "all_except_trigger"} 发除触发者外的所有人。
  */
 public class StartPlaybackAction implements TriggerAction {
 

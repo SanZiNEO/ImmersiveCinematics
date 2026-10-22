@@ -1,7 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.math;
 
 /**
- * 逐分量曲线函数 — 无状态纯函数（同输入 → 同输出，不依赖调用历史）。
+ * 逐分量曲线函数 — 无状态纯函数（同输入 → 同输出）。
  */
 @FunctionalInterface
 public interface CurveFn {

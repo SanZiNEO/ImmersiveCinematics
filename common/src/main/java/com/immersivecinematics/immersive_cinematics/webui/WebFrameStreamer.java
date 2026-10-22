@@ -9,8 +9,8 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * 把 WebFrameCapture 读回的 RGBA 像素通过 WebSocket 发送。
  *
- * <p>原始 RGBA 路线：不编码，直接把最新帧打包发出去。
- * 读帧在渲染线程，翻转/网络发送在独立 worker 线程；跟不上时只保留最新一帧。</p>
+ * 原始 RGBA 路线：不编码，直接把最新帧打包发出去。
+ * 读帧在渲染线程，翻转/网络发送在独立 worker 线程；跟不上时只保留最新一帧。
  *
  * 帧格式：
  * [1 byte type = 0x01]

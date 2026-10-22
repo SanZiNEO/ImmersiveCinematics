@@ -13,14 +13,11 @@ import net.minecraft.world.phys.Vec3;
 import java.util.List;
 
 /**
- * CAMERA 轨道播放器：TrackPlayer 接口实现 + 逐帧编排（数据源 / 时间推进 / 片段选取 / 写入分发 / 生命周期）。
- *
- * 职责边界：关键帧求值（六参数 / 插值）与过渡合成（分参数 / 曲线 / 打断，经 {@code camera.transition}
- * 的过渡层）归 {@link CameraKeyframeEvaluator}，重叠窗口的 lane 捕获归
- * {@link LaneSnapshotCollector}，结构 / 方块静态目标定位归 {@link WorldPointLocator}。
- * 写入契约：本轨本帧的顶层相机状态（六参数）由本类经 {@link CameraManager#setScriptState} 写入全局写入缓冲
- * （脚本导演 Base 层的当前值来源）；重叠窗口层级在下的 clip 只产 lane 快照、不写全局。
- * 线程契约：仅客户端主线程，逐渲染帧调用；帧内路径不新建集合。
+ * CAMERA 轨道播放器：逐帧编排数据源 / 时间推进 / 片段选取 / 写入分发 / 生命周期。
+ * 写入契约：本轨顶层六参数经 {@link CameraManager#setScriptState} 进全局写入缓冲
+ * （导演 Base 层的当前值来源）；重叠窗口里层级在下的 clip 只产 lane 快照、不写全局。
+ * 求值与过渡合成归 {@link CameraKeyframeEvaluator}，lane 捕获归 {@link LaneSnapshotCollector}；
+ * 仅客户端主线程逐渲染帧调用，帧内路径不新建集合。
  */
 public class CameraTrackPlayer implements TrackPlayer {
 
@@ -52,7 +49,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         this.laneCollector = new LaneSnapshotCollector(entityResolver, evaluator);
     }
 
-    /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建） */
+    /** 动态数据源：replaceScript 后自动用新数据，无需重建轨道 */
     private List<Clip> clips() {
         return scriptPlayer.clipsForTrack(trackIndex);
     }
@@ -134,7 +131,8 @@ public class CameraTrackPlayer implements TrackPlayer {
      * 本帧过渡窗口覆盖的最新一对相邻 morph 片段下标（无 = -1）。
      *
      * 窗口判据 = {@link TransitionSpec#covers}（与活跃判定 / Modifier 活跃窗延长同一口径）；倒序扫描 =
-     * 后开始的过渡优先（进行中的旧过渡被新过渡打断，规则见 {@code docs/SCRIPT_FORMAT.md} §「过渡」）。
+     * 后开始的过渡优先（进行中的旧过渡被新过渡打断：blend 以当前混合中间态为新 A 侧续接，
+     * snap 立即切到新目标）。
      */
     private static int transitionPairAt(List<Clip> clips, float globalTime) {
         for (int i = clips.size() - 2; i >= 0; i--) {
@@ -168,7 +166,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         transitionPair = -1;
     }
 
-    /** 组 A：数据替换后复位派生状态——lane 快照 / 目标锁 / 点源快照 / 过渡（都按脚本数据重建）。 */
+    /** 数据替换后复位派生状态：lane 快照 / 目标锁 / 点源快照 / 过渡（都按脚本数据重建）。 */
     @Override
     public void onScriptReplaced() {
         laneCollector.clear();

@@ -31,10 +31,8 @@ public class ScriptEventManager {
 
     /**
      * 播放账本：scriptId → 实例 id → 该实例的播放状态。
-     * <p>
-     * §3.7：观看者、跳过投票、事件时间线全部按<b>实例</b>维护。单实例语义下每个脚本至多一条
-     * （实例 id 为空串时即“该脚本的唯一实例”），行为与实例化之前逐点一致；同一脚本的不同播放请求
-     * （实例 id 不同）各记一条，互不干扰。
+     * 观看者 / 跳过投票 / 事件时间线全部按实例维护：同一脚本的不同播放请求各记一条、互不干扰；
+     * 空实例 id 是“无实例来源”的退化条目，该脚本的全部观看者共用一条。
      */
     private final Map<String, Map<String, ScriptPlayback>> scriptPlaybacks = new HashMap<>();
 
@@ -62,10 +60,8 @@ public class ScriptEventManager {
 
     /**
      * 账本精确解析：按 {@code (scriptId, instanceId)} 直取实例。
-     * <p>
-     * §3.7：结束 / 暂停信号随包携带实例 id（{@code C2SScriptFinishedPacket} /
-     * {@code C2SScriptPausePacket}），与开始信号同一 id；无该实例时返回 {@code null}
-     * （不再按“观看者成员”回退猜测）。
+     * 结束 / 暂停信号随包携带实例 id（{@code C2SScriptFinishedPacket} / {@code C2SScriptPausePacket}），
+     * 与开始信号同一 id；查不到即返回 {@code null}——按“观看者成员”回退猜测会误配到别的实例。
      */
     private ScriptPlayback playback(String scriptId, String instanceId) {
         Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
@@ -141,11 +137,9 @@ public class ScriptEventManager {
     }
 
     /**
-     * 该玩家是否正在播放<b>指定脚本</b>（同脚本口径，§3.5）。
-     * <p>
-     * 只查 {@code scriptId} 名下的全部实例，任一实例把该玩家记为观看者即为真；
-     * 因此它表达的是“同脚本同玩家单实例”的占用，<b>不</b>因“有别的脚本在播”而返回真。
-     * 触发器门控（{@code TriggerEngine.shouldSkip}）据此实现跨脚本不阻塞。
+     * 该玩家是否正在播放指定脚本。
+     * 只查 {@code scriptId} 名下的实例，任一实例把该玩家记为观看者即为真：表达的是“同脚本同玩家单实例”的占用，
+     * 不因“有别的脚本在播”而返回真——{@code TriggerEngine.shouldSkip} 据此实现跨脚本不阻塞。
      */
     public boolean isPlayerPlayingScript(UUID playerUuid, String scriptId) {
         Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(scriptId);
@@ -176,7 +170,7 @@ public class ScriptEventManager {
     }
 
     public void onServerTick(MinecraftServer server) {
-        // N1：ACK 超时重发检查（服务端侧；先于空检查执行）
+        // ACK 超时重发检查：必须先于下面的空检查执行，否则无播放账本时永不重发
         com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.tick();
         if (scriptPlaybacks.isEmpty()) return;
         int currentTick = server.getTickCount();
@@ -235,8 +229,7 @@ public class ScriptEventManager {
     }
 
     /**
-     * 处理客户端发来的暂停/恢复信号（0.3.6 C-pause：载荷带内容相对位置）。
-     * <p>
+     * 处理客户端发来的暂停 / 恢复信号（载荷带内容相对位置）。
      * 状态转换那一帧按上报位置重定 EVENT 时间线基准（{@link ScriptPlayback#timelineAnchorSeconds}）：
      * 暂停期间不处理关键帧，恢复后从上报位置继续推进（退掉墙钟暂停 tick 账本）。
      *
@@ -274,11 +267,10 @@ public class ScriptEventManager {
     }
 
     /**
-     * 规则动作 {@code emit_command} 的服务端入口（0.3.6 C6-3）：执行口径与 EVENT 轨完全一致
+     * 规则动作 {@code emit_command} 的服务端入口：执行口径与 EVENT 轨一致
      * （{@code &&} 拆分 + {@link SuccessOnlySource} 成功结果回执，见 {@link #executeCommand}）。
-     *
-     * <p><b>权限门</b>：只有该脚本<b>当前播放实例的观看者</b>才执行——命令随客户端规则触发而来，
-     * 不校验就等于把「任意命令执行」开放给任何客户端包；非观看者 / 无该实例 / 空命令一律丢弃。</p>
+     * 权限门：只有该脚本当前播放实例的观看者才执行——命令随客户端规则触发而来，不校验就等于把
+     * 「任意命令执行」开放给任何客户端包；非观看者 / 无该实例 / 空命令一律丢弃。
      */
     public void handleRuleCommand(ServerPlayer player, String scriptId, String instanceId, String command) {
         if (!isRuleCommandAllowed(player != null ? player.getUUID() : null, scriptId, instanceId)) {
@@ -324,7 +316,7 @@ public class ScriptEventManager {
 
     public static class ScriptPlayback {
         final String scriptId;
-        /** 播放实例 id（§3.7）；空串=无实例 id 的来源（该脚本的全部观看者共用一条退化账本） */
+        /** 播放实例 id；空串 = 无实例 id 的来源（该脚本的全部观看者共用一条退化账本） */
         final String instanceId;
         final Set<UUID> viewers;
         final Set<UUID> skipVoters;

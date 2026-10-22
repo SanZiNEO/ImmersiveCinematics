@@ -9,18 +9,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 图片覆盖层 — 在屏幕上渲染一张纹理
+ * 图片覆盖层 —— 在屏幕上渲染一张纹理。
  *
- * 统一参数（口径见 {@code plans/0.3.6/variable-frame.md} §4.2）：
- * x/y = <b>窗口</b>归一化位置（0~1，未缩放基准矩形的中心，0.5 = 窗口正中）；
+ * 统一参数：
+ * x/y = 窗口归一化位置（0~1，未缩放基准矩形的中心，0.5 = 窗口正中）；
  * anchor_x/anchor_y = 缩放绕点（元素自身归一化，0.5 = 绕元素中心缩放）；
- * scale_x/scale_y = 相对<b>素材原始像素尺寸</b>的倍数（1 = 素材 1:1 像素）；
+ * scale_x/scale_y = 相对素材原始像素尺寸的倍数（1 = 素材 1:1 像素）；
  * source = {x,y,w,h} 取材（素材归一化，原点 = 素材左上角，越界钳制到素材内）；
  * opacity = 透明度（0~1）。
  *
  * 基准尺寸 B = 裁切后素材像素 × k（k = 分辨率转义，见 {@link CanvasTransform#resolutionEscape}）；
- * 素材恒按元素框铺满（无独立适配参数）。几何全程在浮点比例域解算
- * （{@link CanvasTransform#element}），只在 blit 那一步落到像素。
+ * 素材恒按元素框铺满（无独立适配参数）。几何全程在浮点比例域解算（{@link CanvasTransform#element}），
+ * 只在 blit 那一步落到像素。
  */
 public class ImageLayer implements OverlayLayer {
 

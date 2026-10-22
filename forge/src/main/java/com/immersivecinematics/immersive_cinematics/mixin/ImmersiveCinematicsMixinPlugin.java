@@ -13,17 +13,14 @@ import java.util.Set;
 /**
  * Forge 专属 Mixin 配置插件。
  *
- * <p>检测到渲染优化模组（Sodium / Rubidium / Embeddium）时，跳过只针对原版
- * {@code LevelRenderer.setupRender} 的两个 mixin：</p>
- * <ul>
- *   <li>{@code LevelRendererVanillaMixin}（视图中心 + 遮挡开关）；</li>
- *   <li>{@code LaneCullStateMixin}（vanilla 剔除字段的 per-lane 交换）。</li>
- * </ul>
+ * 检测到渲染优化模组（Sodium / Rubidium / Embeddium）时，跳过只针对原版
+ * {@code LevelRenderer.setupRender} 的两个 mixin：{@code LevelRendererVanillaMixin}（视图中心 + 遮挡开关）与
+ * {@code LaneCullStateMixin}（vanilla 剔除字段的 per-lane 交换）。
  *
- * <p>原因：这些模组会 {@code @Overwrite} 原版 {@code setupRender}，注入无法应用；但它们基于
- * {@code Camera} / {@code Frustum} 的渲染中心会跟随 {@code CameraMixin} 写入的虚拟相机，
- * 因此跳过等于<strong>改走它们的优化路径</strong>，不是禁用 lane。lane 渲染本身由
- * {@code LaneRenderer} 照常执行；缺少 {@code LaneCullBridge} 时只跳过剔除状态交换。</p>
+ * 原因：这些模组会 {@code @Overwrite} 原版 {@code setupRender}，注入无法应用；但它们基于
+ * {@code Camera} / {@code Frustum} 的渲染中心会跟随 {@code CameraMixin} 写入的虚拟相机，因此跳过等于改走
+ * 它们的优化路径，不是禁用 lane。lane 渲染本身由 {@code LaneRenderer} 照常执行；缺少
+ * {@code LaneCullBridge} 时只跳过剔除状态交换。
  */
 public final class ImmersiveCinematicsMixinPlugin implements IMixinConfigPlugin {
 

@@ -1,7 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.client.lane;
 
 /**
- * lane 剔除状态的换入 / 换出驱动口（由 {@code LaneCullStateMixin} 实现在 {@code LevelRenderer} 上）。
+ * lane 剔除状态的换入 / 换出驱动口（由 {@code LaneCullStateMixin} 在 {@code LevelRenderer} 上实现）。
  *
  * 换入 / 换出必须成对：{@link #ic$pushLaneCullState} 把当前字段值存进帧栈保存位、换入该 lane 的槽；
  * {@link #ic$popLaneCullState} 反向。{@link #ic$popAllLaneCullStates} 是异常兜底（lane pass 中途抛出时

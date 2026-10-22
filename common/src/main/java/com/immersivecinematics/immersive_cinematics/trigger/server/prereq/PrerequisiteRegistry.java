@@ -9,9 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 前置条件类型注册表。
- * <p>
- * 内置条件由 {@code BuiltinPrerequisites} 注册；其他模组可在自己的
+ * 前置条件类型注册表：内置条件由 {@code BuiltinPrerequisites} 注册；其他模组可在自己的
  * 初始化阶段调用 {@link #register(String, TriggerPrerequisite)} 添加自定义类型。
  */
 public final class PrerequisiteRegistry {

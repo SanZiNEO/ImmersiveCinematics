@@ -9,12 +9,11 @@ import java.util.Map;
 /**
  * 一次模板展开的实参：用户填写的值（可缺省）+ 解析后的最终值。
  *
- * <p>构造时按参数声明的 {@link TemplateParam#type()} 做类型归一（命令行的字符串 → 数值 / 布尔 / 枚举），
- * 未填写的参数取 {@link TemplateParam#defaultValue()}。因此展开器可以无条件读取
- * {@link #getFloat(String)} / {@link #getString(String)} 等，不需要自己兜默认值。</p>
- *
- * <p>{@link #startTime()} 不是模板参数，而是"这段 clip 放在时间轴哪一刻"——由调用方
- * （命令 / 编辑器插入点）给定，展开器把它写进产物的 {@code start_time}。</p>
+ * 构造时按参数声明的 {@link TemplateParam#type()} 做类型归一（命令行字符串 → 数值 / 布尔 / 枚举），
+ * 未填写的参数取 {@link TemplateParam#defaultValue()}；因此展开器可无条件读取
+ * {@link #getFloat(String)} / {@link #getString(String)} 等，无需自己兜默认值。
+ * {@link #startTime()} 不是模板参数，而是"这段 clip 放在时间轴哪一刻"，由调用方
+ * （命令 / 编辑器插入点）给定，展开器把它写进产物的 {@code start_time}。
  */
 public final class TemplateArgs {
 
@@ -34,8 +33,8 @@ public final class TemplateArgs {
     /**
      * 解析实参。
      *
-     * @param params    模板参数声明（决定类型归一与默认值）
-     * @param raw       用户填写的值，key = 参数 key；值可以是字符串（命令行）或已归一的 Number / Boolean
+     * @param params    模板参数声明（类型归一与默认值的来源）
+     * @param raw       用户填写的值，key = 参数 key；字符串（命令行）或已归一的 Number / Boolean
      * @param startTime 该 clip 在时间轴上的起始时间（秒）
      * @throws IllegalArgumentException 未知参数 / 值无法归一 / 枚举值不在候选中
      */

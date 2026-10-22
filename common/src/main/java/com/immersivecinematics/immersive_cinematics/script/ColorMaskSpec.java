@@ -4,36 +4,29 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * fade 覆盖层的高级颜色遮罩定义（0.3.6 D4–D7）——解析期一次建成的不可变快照。
+ * fade 覆盖层的高级颜色遮罩定义——解析期一次建成的不可变快照，无 MC / GL 依赖。
  *
- * <p>数据来源 = 已解析的 {@link Clip}：clip 级 {@code color} / {@code gradient} / {@code mask_shape} /
- * {@code blend_mode}，关键帧级 {@code color}（纯色模式逐 RGB 线性插值）。本类<b>无 MC / GL 依赖</b>，
- * 只做数据归一与缓存，不向脚本 map 写值，也不改写入参。</p>
+ * 数据来源 = 已解析的 {@link Clip}：clip 级 {@code color} / {@code gradient} / {@code mask_shape} /
+ * {@code blend_mode}，关键帧级 {@code color}（纯色模式逐 RGB 线性插值）；只做数据归一与缓存，
+ * 不向脚本 map 写值、不改写入参。
  *
- * <p>字段口径见 {@code plans/0.3.6/D-transition/color-mask-execution.md}：</p>
- * <ul>
- *   <li>{@code color} = {@code #RRGGBB}，缺省黑色；与 {@code ScriptValidator#checkHexColor} 同口径
- *       （{@code #} 可省、大小写均可、恰 6 位 RGB；不支持 ARGB）。</li>
- *   <li>{@code gradient} = 可选 {@code {type: linear|radial, stops: [{offset, color}, ...]}}；
- *       至少 2 个色标、offset 有限且 0~1、严格递增；首尾不必是 0 / 1，范围外保持端点；
- *       不设色标数量上限。缺省 = 无渐变（纯色）。</li>
- *   <li>{@code mask_shape} = {@code full}（缺省）/ {@code rect} / {@code circle}。</li>
- *   <li>{@code blend_mode} = {@code normal}（缺省）/ {@code multiply} / {@code screen} /
- *       {@code soft_light} / {@code overlay}。</li>
- * </ul>
+ * {@code color} = {@code #RRGGBB}，缺省黑色（{@code #} 可省、大小写均可、恰 6 位，不支持 ARGB）。
+ * {@code gradient} = 可选 {@code {type: linear|radial, stops: [{offset, color}, ...]}}：至少 2 个色标、
+ * offset 有限且 0~1、严格递增，首尾不必 0 / 1（范围外保持端点），不设数量上限；缺省 = 纯色。
+ * {@code mask_shape} = {@code full}（缺省）/ {@code rect} / {@code circle}；{@code blend_mode} =
+ * {@code normal}（缺省）/ {@code multiply} / {@code screen} / {@code soft_light} / {@code overlay}。
  *
- * <p>纯色关键帧颜色在 {@link #from(Clip)} 里<b>一次解析成 RGB int 缓存</b>；{@link #sampleColor(float)}
- * 只做段内逐通道线性插值与端点保持，不逐帧 parse 字符串、不分配数组。渐变 stops 同样只解析一次。
- * 没有颜色动画（无关键帧声明 {@code color}）或使用渐变时，不建立颜色时间 / 颜色缓存，共享空数组，
- * {@link #sampleColor(float)} 直接返回 clip 级颜色。</p>
+ * 纯色关键帧颜色在 {@link #from(Clip)} 里一次解析成 RGB int 缓存；{@link #sampleColor(float)} 只做段内
+ * 逐通道线性插值与端点保持，不逐帧 parse 字符串、不分配数组。渐变 stops 同样只解析一次。
+ * 无颜色动画（无关键帧声明 {@code color}）或使用渐变时不建颜色缓存，共享空数组，采样直接返回 clip 级颜色。
  */
 public final class ColorMaskSpec {
 
-    /** 缺省颜色（与旧 fade 的 {@code color} 缺省一致）。 */
+    /** 缺省颜色：黑色。 */
     public static final String DEFAULT_COLOR = "#000000";
     /** 缺省覆盖形状：整窗口。 */
     public static final String DEFAULT_MASK_SHAPE = "full";
-    /** 缺省混合模式：直替换（旧 fade 行为）。 */
+    /** 缺省混合模式：直替换。 */
     public static final String DEFAULT_BLEND_MODE = "normal";
 
     private static final String[] GRADIENT_TYPES = {"linear", "radial"};
@@ -74,12 +67,10 @@ public final class ColorMaskSpec {
 
     /**
      * 从已解析的片段建立定义（解析期一次；结果由 {@link Clip#getColorMaskSpec()} 懒缓存）。
-     *
-     * <p>只读取 {@link Clip#getData()} 与 {@link Clip#getKeyframes()}，不修改任何入参结构。
+     * 只读 {@link Clip#getData()} 与 {@link Clip#getKeyframes()}，不改任何入参结构。
      * 结构非法（渐变类型 / stops / offset / 颜色、mask_shape、blend_mode、关键帧颜色）时抛
-     * {@link InvalidColorMaskException}，异常携带 clip 内相对字段路径（如
-     * {@code gradient.stops[1].offset}、{@code keyframes[2].color}）；由
-     * {@code ScriptParser} 转成带完整脚本路径的解析错误——<b>不把非法输入默默变黑</b>。</p>
+     * {@link InvalidColorMaskException}（携带 clip 内相对字段路径），由 {@code ScriptParser} 转成
+     * 带完整脚本路径的解析错误——不把非法输入默默变黑。
      */
     public static ColorMaskSpec from(Clip clip) {
         if (clip == null) {
@@ -92,9 +83,8 @@ public final class ColorMaskSpec {
         String blendMode = parseBlendMode(data);
 
         List<Keyframe> keyframes = clip.getKeyframes();
-        // 只有「纯色 + 至少一个关键帧显式声明 color」才需要颜色时间 / 颜色缓存；
-        // 渐变模式与无颜色动画的纯色片段共享空数组，sampleColor 直接返回 baseColor。
-        // 但显式 keyframe.color 的格式仍逐项验证（渐变模式不消费也不能吞掉格式错误）。
+        // 只有「纯色 + 至少一个关键帧显式声明 color」才建颜色时间 / 颜色缓存；其余共享空数组。
+        // 显式 keyframe.color 仍逐项检查格式：渐变模式不消费，也不能吞掉格式错误。
         boolean declaresKeyframeColor = false;
         for (Keyframe keyframe : keyframes) {
             if (keyframe.getData().get("color") != null) {
@@ -146,7 +136,7 @@ public final class ColorMaskSpec {
 
     /**
      * 渐变色标 offset（0~1，严格递增，长度与 {@link #stopColors()} 一致）。
-     * 无渐变时为空数组；返回<b>副本</b>，调用方无法改动定义本身。
+     * 无渐变时为空数组；返回副本，调用方无法改动定义本身。
      */
     public float[] stopOffsets() {
         return stopOffsets.clone();
@@ -154,7 +144,7 @@ public final class ColorMaskSpec {
 
     /**
      * 渐变色标颜色（0xRRGGBB，与 {@link #stopOffsets()} 逐项对应）。
-     * 无渐变时为空数组；返回<b>副本</b>。
+     * 无渐变时为空数组；返回副本。
      */
     public int[] stopColors() {
         return stopColors.clone();
@@ -165,7 +155,10 @@ public final class ColorMaskSpec {
         return maskShape;
     }
 
-    /** 混合模式：{@code normal} / {@code multiply} / {@code screen} / {@code soft_light} / {@code overlay}。 */
+    /**
+     * 混合模式：{@code normal} / {@code multiply} / {@code screen} /
+     * {@code soft_light} / {@code overlay}。
+     */
     public String blendMode() {
         return blendMode;
     }
@@ -173,9 +166,8 @@ public final class ColorMaskSpec {
     /**
      * 纯色模式颜色采样（0xRRGGBB）：关键帧 {@code color} 已预解析，段内逐 RGB 通道线性插值；
      * 首帧之前 / 末帧之后保持端点；零长段取左端点；关键帧没写 {@code color} 时使用 clip 级颜色。
-     * 无关键帧 → clip 级颜色；渐变模式 → clip 级颜色（渐变颜色来自 stops，渲染侧不消费本方法的返回值）。
-     *
-     * <p>本方法只读缓存数组，不分配、不 parse 字符串，可逐帧调用。</p>
+     * 无关键帧 / 渐变模式 → clip 级颜色（渐变颜色来自 stops，渲染侧不消费本方法返回值）。
+     * 只读缓存数组，不分配、不 parse 字符串，可逐帧调用。
      */
     public int sampleColor(float localTime) {
         if (hasGradient || keyframeColors.length == 0) {
@@ -379,7 +371,7 @@ public final class ColorMaskSpec {
     private record Gradient(String type, float[] offsets, int[] colors) {}
 
     /**
-     * 结构非法的颜色遮罩定义。{@link #getFieldPath()} 为 <b>clip 内相对路径</b>
+     * 结构非法的颜色遮罩定义。{@link #getFieldPath()} 为 clip 内相对路径
      * （如 {@code gradient.stops[1].offset} / {@code keyframes[0].color}）；
      * {@code ScriptParser} 在其前面拼上片段路径后转成 {@code ScriptParseException}。
      */

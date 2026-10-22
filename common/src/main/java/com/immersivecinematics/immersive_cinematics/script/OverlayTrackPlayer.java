@@ -10,27 +10,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * OVERLAY 轨道播放器 — 驱动 fade/image/subtitle 覆盖层
- * <p>
- * 生命周期：
- * <ol>
- *   <li>onRenderFrame 检测当前活跃的 clip</li>
- *   <li>Clip 切换时创建/移除对应的 OverlayLayer</li>
- *   <li>Clip 持续时通过关键帧插值驱动 layer 属性</li>
- *   <li>onStop 时清理所有层</li>
- * </ol>
- * 字段口径 = 统一参数字段表（{@code plans/0.3.6/variable-frame.md} §4.2）：
- * 位置 x/y（<b>窗口</b>归一化，元素中心，缺省 0.5）、锚点 anchor_x/anchor_y（元素自身归一化，缺省 0.5）、
- * 缩放 scale_x/scale_y（相对<b>素材原始像素尺寸</b>的倍数，缺省 1）、取材 source（素材归一化，缺省全幅）、
- * 不透明度 opacity（缺省 1.0）、顺序 z_index（clip 级，缺省 10）。
- * 位置 / 锚点 / 缩放对 fade 不生效（效果层铺满窗口）。
- * 层创建时把编辑基准分辨率（W基/H基，k 的分母口径）送入层；取值来源归 meta 字段。
+ * OVERLAY 轨道播放器 — 驱动 fade / image / subtitle 覆盖层。
+ *
+ * 每渲染帧检测活跃 clip：clip 切换时创建并挂上对应的 OverlayLayer（旧层移除），
+ * clip 持续时按关键帧插值驱动层属性；{@link #onStop()} 清理本实例的层。
+ * 每个播放实例各自持有自己的层（归属 token = 本实例的播放器），多实例互不覆盖。
+ *
+ * 合成参数取自统一字段表（{@code TrackSchemas.overlay()}）：位置 x/y（窗口归一化，元素中心，缺省 0.5）、
+ * 锚点 anchor_x/anchor_y（元素自身归一化，缺省 0.5）、缩放 scale_x/scale_y（相对素材原始像素尺寸的倍数，
+ * 缺省 1）、取材 source（素材归一化，缺省全幅）、不透明度 opacity（缺省 1.0）、顺序 z_index
+ * （clip 级，缺省 10）。位置 / 锚点 / 缩放对 fade 不生效（效果层铺满窗口）；层创建时把编辑基准分辨率
+ * （k 的分母口径）送入层，取值来源归 meta 字段。
  */
 public class OverlayTrackPlayer implements TrackPlayer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OverlayTrackPlayer.class);
 
-    // fade 高级颜色遮罩通道缺省（口径 = plans/0.3.6/D-transition/color-mask-execution.md）
+    // fade 高级颜色遮罩通道缺省
     private static final float DEFAULT_MASK_POSITION = 0.5f;   // mask_x / mask_y（窗口比例，元素中心）
     private static final float DEFAULT_MASK_SIZE = 1.0f;       // mask_width / mask_height（窗口比例）
     private static final float DEFAULT_MASK_RADIUS = 0.5f;     // mask_radius（短边比例）
@@ -54,7 +50,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
         this.overlayManager = overlayManager;
     }
 
-    /** 组 A：动态数据源（replaceScript 后自动用新数据，零重建；按轨道索引定位，支持同类型多轨道） */
+    /** 动态数据源：replaceScript 后自动用新数据，零重建；按轨道索引定位，支持同类型多轨道。 */
     private List<Clip> clips() {
         return scriptPlayer.clipsForTrack(trackIndex);
     }
@@ -68,7 +64,6 @@ public class OverlayTrackPlayer implements TrackPlayer {
     public void onRenderFrame(float globalTime) {
         Clip clip = findActiveClip(globalTime);
 
-        // Transition: clip changed or no longer active
         if (clip != activeClip) {
             // 诊断：层切换（排查脚本结束后字幕残留）
             if (activeClip != null || clip != null) {
@@ -96,8 +91,8 @@ public class OverlayTrackPlayer implements TrackPlayer {
         float localTime = clipTime(clip, globalTime);
         List<Keyframe> kfs = clip.getKeyframes();
 
-        // 透明度完全由关键帧 opacity 控制（fade_in/fade_out 由关键帧表达，代码层不叠加）；
-        // 缺省 1.0 = 不透明（§3.1 字段表）
+        // 透明度完全由关键帧 opacity 控制（fade_in / fade_out 由关键帧表达，代码层不叠加）；
+        // 缺省 1.0 = 不透明
         float opacity = interpolateFloat(kfs, localTime, "opacity", CanvasTransform.DEFAULT_OPACITY);
 
         updateLayer(opacity, kfs, localTime);
@@ -111,7 +106,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
         cleanupCurrentLayer();
     }
 
-    /** 组 A：数据替换后 clip 对象身份变化，onRenderFrame 的 activeClip 比较会自动重建 layer；这里仅清理当前层 */
+    /** 数据替换后 clip 对象身份变化，onRenderFrame 的 activeClip 比较会自动重建 layer；这里仅清理当前层。 */
     @Override
     public void onScriptReplaced() {
         cleanupCurrentLayer();
@@ -130,7 +125,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
 
     private OverlayLayer createLayer(Clip clip) {
         String layerType = clip.getString("layer_type", "fade");
-        // z_index 是 clip 级字段（= 只有一个值的步进通道，§3.1 字段表）；默认统一 10
+        // z_index 是 clip 级字段（单值通道），缺省 10
         int zIndex = clip.getInt("z_index", CanvasTransform.DEFAULT_Z_INDEX);
         // 编辑基准分辨率（k 的分母）取自脚本 meta；无脚本 / 未声明 → 缺省 1920×1080
         ScriptMeta meta = scriptPlayer.getScript() != null ? scriptPlayer.getScript().getMeta() : null;
@@ -162,18 +157,16 @@ public class OverlayTrackPlayer implements TrackPlayer {
                     }
                 }
                 il.setZIndex(zIndex);
-                // 编辑基准分辨率送层（k 的分母）
                 il.setBaseResolution(baseWidth, baseHeight);
                 layer = il;
             }
             case "subtitle" -> {
                 SubtitleLayer sl = new SubtitleLayer(scriptPlayer.owner());
-                // 文本资源：@lang:<key> → 客户端当前语言译文（回退 en_us → 原样串，§3.2）；
-                // 非引用串原样透传。解析在分行之前（SubtitleLayer 渲染时才 split("\n")，§3.5）。
+                // 文本资源：@lang:<key> → 客户端当前语言译文（回退 en_us → 原样串），非引用串原样透传；
+                // 分行归 SubtitleLayer 渲染时（此处只解析引用）。
                 sl.setText(com.immersivecinematics.immersive_cinematics.util.LangResources
                         .resolve(clip.getString("text", "")));
                 sl.setZIndex(zIndex);
-                // 编辑基准分辨率送层（k 的分母）
                 sl.setBaseResolution(baseWidth, baseHeight);
                 layer = sl;
             }
@@ -275,11 +268,8 @@ public class OverlayTrackPlayer implements TrackPlayer {
     // ========== 关键帧插值（匀速线性 / 步进）==========
 
     /**
-     * 关键帧浮点通道插值：匀速线性。
-     * <p>
-     * 0.3.6 起运行时统一线性（旧 clip 级 {@code interpolation} / Catmull-Rom {@code smooth} 已退役）：
-     * 运动与脚本里写的关键帧完全一致，没有隐式数学；缓动由<b>编辑器烘焙</b>为显式关键帧写入脚本，
-     * 运行时不求值（见 plans/0.3.6/script-model.md）。
+     * 关键帧浮点通道插值：匀速线性——运动与脚本里写的关键帧完全一致，没有隐式数学；
+     * 缓动由编辑器烘焙为显式关键帧写入脚本，运行时不求值。
      */
     private float interpolateFloat(List<Keyframe> kfs, float localTime, String key, float defaultValue) {
         if (kfs == null || kfs.isEmpty()) return defaultValue;
@@ -297,7 +287,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
     }
 
     /**
-     * 取材 {@code source = {x,y,w,h}} 的分量插值：按分量整体线性（§3.1 字段表）。
+     * 取材 {@code source = {x,y,w,h}} 的分量插值：按分量整体线性。
      * 关键帧没写 {@code source} 时按 {@code defaultValue}（缺省 = 全幅）处理。
      */
     private float interpolateSourceComponent(List<Keyframe> kfs, float localTime, String component,

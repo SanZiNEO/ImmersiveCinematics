@@ -4,15 +4,18 @@ import com.google.gson.JsonObject;
 import net.minecraft.util.Mth;
 
 /**
- * 判定源共享几何核（0.3.6 C6-2）：触发器侧（服务端 {@code Evaluators}）与规则侧
- * （客户端 {@code ClientConditions}）共用的纯函数——只吃 JSON 条件 + 数值输入，不碰玩家 / 世界对象。
+ * 判定源共享几何核：触发器侧（服务端 {@code Evaluators}）与规则侧（客户端 {@code ClientConditions}）
+ * 共用的纯函数——只吃 JSON 条件 + 数值输入，不碰玩家 / 世界对象。
  *
- * 本类由 {@code Evaluators} 逐位等值平移而来（服务端改委托，行为不变）：{@link #matchesId}（id 通配匹配）、
- * {@link #inBox} / {@link #inRadius}（区域）、{@link #expandConditions}（区域外扩）、
- * {@link #facingInRange}（朝向区间数学，含跨 ±180° 环绕）。字段名与取值语义以 {@code TriggerSchemas} 为单源。
+ * 本类由 {@code Evaluators} 逐位等值平移而来（服务端改委托，行为不变）。
  *
- * 分配契约：全部方法只读输入、不新建集合、不装箱（帧内路径安全；{@link #expandConditions} 按契约产出新对象，
- * 只在注册 / 校验期调用）。线程契约：无状态静态函数，任意线程可调。
+ * 入口：{@link #matchesId}（id 通配）、{@link #inBox} / {@link #inRadius}（区域）、
+ * {@link #expandConditions}（区域外扩）、{@link #facingInRange}（朝向区间，含跨 ±180° 环绕）。
+ * 字段名与取值语义以 {@code TriggerSchemas} 为单源。
+ *
+ * 分配契约：除 {@link #expandConditions} 外只读输入、不新建集合、不装箱（帧内路径安全）；
+ * {@link #expandConditions} 按契约产出新对象，只在注册 / 校验期调用。
+ * 线程契约：无状态静态函数，任意线程可调。
  */
 public final class GeometryConditions {
 

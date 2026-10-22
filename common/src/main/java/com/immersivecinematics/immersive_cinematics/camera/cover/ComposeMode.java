@@ -4,6 +4,7 @@ package com.immersivecinematics.immersive_cinematics.camera.cover;
  * 合成模式：Modifier 的通道值如何并入 Base 状态（合成语义唯一定义点）。
  *
  * 单一模式作用于该 Modifier 的整个掩码；需要不同模式的通道拆成多个 Modifier。
+ * 通道缺省模式见 {@link CameraChannels#defaultMode(int)}。
  * 数值契约：不做 clamp / normalize / 角度环绕——结果原样交给消费侧。
  */
 public enum ComposeMode {
@@ -11,10 +12,10 @@ public enum ComposeMode {
     /** 直写该通道（必须显式声明，不作通道缺省）。 */
     REPLACE,
 
-    /** 相加：偏移类通道（position / yaw / pitch / roll）的缺省。 */
+    /** 相加（增量）。 */
     ADD,
 
-    /** 相乘：缩放类通道（fov / zoom）的缺省。 */
+    /** 相乘（倍率）。 */
     MULTIPLY;
 
     /**

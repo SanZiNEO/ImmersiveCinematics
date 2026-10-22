@@ -10,14 +10,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 玩家移动控制 — EVENT 关键帧可选 position(x/z) 驱动玩家平滑直线移动（假输入走原版移动链路）。
- * <ul>
- *   <li>有 position 的关键帧 = 玩家目标点（多个 = 折线）；相邻两点间玩家直线移动</li>
- *   <li>position 写 x/z = 世界绝对坐标；写 dx/dz = 相对玩家激活位置（触发点）</li>
- *   <li>假输入：{@code LocalPlayerMixin} 在 serverAiStep @HEAD 设 input 冲量 → 原版 travel()
- *       完整链路（碰撞/走路动画/脚步/自动跳跃），服务端零改动</li>
- *   <li>被挡停在被挡处；播完/停止停在最后目标；游戏暂停 / 编辑器预览时不驱动</li>
- * </ul>
+ * 玩家移动控制：EVENT 关键帧可选 position(x/z) 驱动玩家平滑直线移动，假输入走原版移动链路。
+ * 有 position 的关键帧 = 玩家目标点（多个 = 折线），相邻两点间直线移动；写 x/z = 世界绝对坐标，写 dx/dz = 相对激活位置（触发点）。
+ * 假输入：{@code LocalPlayerMixin} 在 serverAiStep @HEAD 设 input 冲量 → 原版 travel() 完整链路
+ * （碰撞/走路动画/脚步/自动跳跃），服务端零改动。
+ * 被挡停在被挡处；播完/停止停在最后目标；游戏暂停 / 编辑器预览时不驱动。
  */
 public class PlayerMoveController {
 
@@ -41,7 +38,12 @@ public class PlayerMoveController {
     private boolean moving = false;
     private Target current;
 
-    /** 脚本开始时初始化：从 EVENT 轨道提取"有 position 的关键帧"，按全局时间排序 */
+    /**
+     * 脚本开始时初始化：从 EVENT 轨道提取「有 position 的关键帧」，按全局时间排序。
+     *
+     * @param script    脚本数据
+     * @param originPos 脚本原点（{@code dx/dz} 的相对基准）
+     */
     public void onScriptStart(CinematicScript script, Vec3 originPos) {
         targets.clear();
         destIndex = 0;
@@ -78,7 +80,11 @@ public class PlayerMoveController {
         }
     }
 
-    /** 每渲染帧（脚本时间）更新当前移动目标；由 {@link ScriptPlayer#onRenderFrame} 调用 */
+    /**
+     * 每渲染帧（脚本时间）更新当前移动目标；由 {@link ScriptPlayer#onRenderFrame} 调用。
+     *
+     * @param elapsed 脚本已播放时间（秒）
+     */
     public void onRenderFrame(float elapsed) {
         current = null;
         if (!moving || targets.size() < 2) return;

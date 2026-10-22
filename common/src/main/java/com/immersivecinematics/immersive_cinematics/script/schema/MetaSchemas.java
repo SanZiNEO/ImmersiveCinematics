@@ -4,8 +4,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 脚本 meta 字段的 Java 元数据（0.3.5 第5轮 5B）。
- * <p>
+ * 脚本 meta 字段的 Java 元数据。
+ *
  * 顺序即编辑器 Script Properties 面板渲染顺序；section 用于 info/runtime 分组。
  */
 public final class MetaSchemas {

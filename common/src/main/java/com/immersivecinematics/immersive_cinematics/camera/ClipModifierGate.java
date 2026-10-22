@@ -15,7 +15,7 @@ import java.util.function.DoubleSupplier;
  * 活跃判定：声明只在它所在片段的活跃窗内参与合成——窗 = {@code [startTime, windowEnd)}，永不结束的片段
  * （{@link Clip#isEffectivelyInfinite()}）自 {@code startTime} 起永续；本片段是 morph 转场的前一段时
  * 窗末再延长半个过渡窗口（{@link TransitionSpec#windowEnd}，与轨道驱动 / 活跃判定同一口径；
- * 重叠窗内前后两侧的声明并存，叠加序照旧：优先级升序 → 注册序）。
+ * 重叠窗内前后两侧的声明并存，叠加序 = 优先级升序 → 注册序）。
  * 时间取所属播放实例本帧的时间轴读数（与轨道分发同一口径，见 {@code ScriptPlayer.timelineTime()}）。
  * 分配契约：{@link #isActiveThisFrame()} 每帧只读一个 float + 两次比较，零分配；本对象在播放实例
  * 注册 / 脚本替换时各建一次，不在帧内创建。

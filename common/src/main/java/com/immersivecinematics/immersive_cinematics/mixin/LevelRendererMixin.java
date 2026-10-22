@@ -17,16 +17,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * {@code LevelRenderer} 的通用渲染挂点（不依赖 {@code setupRender}）：
+ * {@code LevelRenderer} 的通用渲染挂点（不依赖 {@code setupRender}）：整屏描边屏蔽，以及 lane pass 的
+ * 清屏 alpha / 内容开关（天空、云、天气、实体）。
  *
- * <ul>
- *   <li><b>整屏描边屏蔽</b>：原版在 lane 合成之后那次 {@code doEntityOutline} 会盖在合成图外面。</li>
- *   <li><b>lane pass 清屏 alpha / 内容开关</b>（天空、云、天气、实体）。</li>
- * </ul>
- *
- * <p>{@code setupRender} 专属的视图中心与遮挡开关在 {@link LevelRendererVanillaMixin}：优化模组
+ * {@code setupRender} 专属的视图中心与遮挡开关在 {@link LevelRendererVanillaMixin}：优化模组
  * （Sodium / Rubidium / Embeddium）改写该方法时由 MixinPlugin 跳过那个 mixin，改走它们的
- * Camera / Frustum 优化路径；本类的挂点始终应用。</p>
+ * Camera / Frustum 优化路径；本类的挂点始终应用。
  */
 @Mixin(LevelRenderer.class)
 public class LevelRendererMixin {
@@ -34,20 +30,10 @@ public class LevelRendererMixin {
     // ===== lane 自包含：屏蔽原版在合成之后那次整屏描边 =====
 
     /**
-     * 多相机渲染底层：原版在 {@code GameRenderer.renderLevel} 返回之后会整屏贴一次描边
-     * （{@code doEntityOutline()}，1:1 整屏）——那一步会盖在 lane 合成图外面（共享的 {@code entityTarget}
-     * 已被最后一条 lane 覆盖）。有活跃 lane 时屏蔽它。
-     *
-     * <p>一帧里三次调用要分开对待：</p>
-     * <ol>
-     *   <li><b>主画面自己那次</b>（{@link LaneRenderer#render} 在 lane 块开头发起，此时
-     *       {@code entityTarget} 里还是主画面的描边数据）——<b>放行</b>，否则主画面的发光描边整帧丢失
-     *       （判定见 {@link LaneRenderer#isMainOutlinePass()}）。</li>
-     *   <li><b>lane 自己那次</b>（各 lane 在<b>自己的</b> FBO 内贴描边）——放行，
-     *       用 {@link LaneRenderer#isRenderingLane()} 区分。</li>
-     *   <li><b>渲染之后原版那次</b>（{@code GameRenderer.render} 里的整屏调用）——屏蔽，
-     *       它面对的 {@code entityTarget} 已被最后一条 lane 覆盖。</li>
-     * </ol>
+     * 原版在 {@code GameRenderer.renderLevel} 返回后整屏贴一次描边，会盖在 lane 合成图外（共享的
+     * {@code entityTarget} 已被最后一条 lane 覆盖）：有活跃 lane 时屏蔽这一次，但一帧内另两次必须放行——
+     * 主画面自己那次（{@link LaneRenderer#isMainOutlinePass()}，否则主画面发光描边整帧丢失）与
+     * lane 自己在各 FBO 内贴的那次（{@link LaneRenderer#isRenderingLane()}）。
      */
     @Inject(method = "doEntityOutline", at = @At("HEAD"), cancellable = true)
     private void immersivecinematics_laneOutlineGuard(CallbackInfo ci) {
@@ -73,19 +59,10 @@ public class LevelRendererMixin {
     // ===== lane pass 清屏不透明（未覆盖区 = 实心雾色）=====
 
     /**
-     * lane pass 的清屏 alpha 抬到 1（<b>性能 / 数据整洁，不承担合成正确性</b>）：
-     * {@code LevelRenderer.renderLevel} 开头那次 {@code RenderSystem.clear(16640)} 用的是雾色清屏，而
-     * {@code FogRenderer.setupColor} 末尾是 {@code clearColor(fogR, fogG, fogB, 0.0f)}（alpha=0）。
-     *
-     * <p>合成层的 alpha 契约：lane FBO 的 alpha <b>不参与合成</b>——{@code LaneCompositor} 用专用
-     * {@code ic_lane_blit}（{@code vec4(rgb, 1.0) * ColorModulator}）上屏，只读 RGB，不透明度只由合成层
-     * 的 opacity 决定。所以这里抬 alpha 不再是正确性要求（旧实现走原版 {@code position_tex} 时才是：
-     * {@code color.a == 0.0 → discard} + srcalpha 混合，未覆盖区 alpha=0 会整片透出主画面）。</p>
-     *
-     * <p>保留的理由：让"未覆盖区 = 实心雾色"这一语义在 FBO 数据里也成立（调试读回的 lane RGBA、
-     * 以及将来任何读 lane 纹理 alpha 的消费方），且清屏颜色本来就要设、成本为零。
-     * RGB 取刚由 {@code FogRenderer.levelFogColor()} 设好的雾色（与清屏色同源，就在本调用前一行）。
-     * 非 lane pass 原样放行（零差异）。</p>
+     * lane pass 的清屏 alpha 抬到 1：原版清屏 alpha=0，而 lane FBO 的 alpha 不参与合成（合成走
+     * {@code ic_lane_blit}，只读 RGB、不透明度由合成层 opacity 决定），抬到 1 只为让「未覆盖区 = 实心雾色」
+     * 在 FBO 数据里也成立（调试读回 / 任何读 lane alpha 的消费方），成本为零。RGB 取
+     * {@code FogRenderer.levelFogColor()} 刚设好的雾色（与清屏色同源）；非 lane pass 原样放行（零差异）。
      */
     @Inject(method = "renderLevel", at = @At(value = "INVOKE",
             target = "Lcom/mojang/blaze3d/systems/RenderSystem;clear(IZ)V",
@@ -100,7 +77,7 @@ public class LevelRendererMixin {
         }
     }
 
-    // ===== lane 内容开关（见 plans/0.3.6/render-routes.md §2）=====
+    // ===== lane 内容开关：按 lane 设置关掉天空 / 云 / 天气 / 实体，让该 lane 的 FBO 内容自包含 =====
     // 非 lane pass 恒放行（主画面不受影响）。
 
     @Inject(method = "renderSky", at = @At("HEAD"), cancellable = true)
@@ -111,7 +88,7 @@ public class LevelRendererMixin {
         }
     }
 
-    /** 云跟随"天空"开关（同属天空内容）。 */
+    /** 云跟随天空开关（同属天空内容）。 */
     @Inject(method = "renderClouds", at = @At("HEAD"), cancellable = true)
     private void immersivecinematics_laneCloudsSwitch(PoseStack poseStack, Matrix4f matrix4f, float partialTick,
                                                       double d, double e, double f, CallbackInfo ci) {

@@ -16,17 +16,16 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 脚本推送前的服务端结构/方块基准替换。
- * <p>
- * 遍历脚本关键帧，把"客户端无法解析的来源"就地替换为坐标：
- * <ul>
- *   <li>{@code look_at_target_structure} → {@code look_at_target_x/y/z}</li>
- *   <li>{@code facing_origin}（结构 id）→ {@code "coordinate"} + {@code facing_origin_x/y/z}</li>
- *   <li>{@code facing_origin}（{@code block:id[:radius]}）→ 同上</li>
- * </ul>
- * 定位失败保留原字段（客户端该端无目标，片段按空处理）。脚本文件本身不被修改，只替换推送内容。
- * <p>
- * 两个服务端推送路径共用：{@code /icinematics play}（命令执行者位置为基准）与触发器播放
+ * 脚本推送前的服务端结构 / 方块基准替换：遍历脚本关键帧，把客户端无法解析的来源就地替换为坐标。
+ *
+ * 三条替换规则：
+ * {@code look_at_target_structure} → {@code look_at_target_x/y/z}；
+ * {@code facing_origin}（结构 id）→ {@code "coordinate"} + {@code facing_origin_x/y/z}；
+ * {@code facing_origin}（{@code block:id[:radius]}）→ {@code "coordinate"} +
+ * {@code facing_origin_x/y/z}（方块中心坐标）。
+ * 定位失败保留原字段（客户端该端无目标，片段按空处理）；脚本文件本身不被修改，只替换推送内容。
+ *
+ * 两条服务端推送路径共用：{@code /icinematics play}（命令执行者位置为基准）与触发器播放
  * （{@code StartPlaybackAction}，触发者位置为基准）。单人服不受影响：客户端
  * {@code CameraTrackPlayer} 仍保留兜底解析。
  */

@@ -10,12 +10,12 @@ import java.util.List;
  * 覆盖链本体：Base 选择 + Modifier 合成（每帧 {@link #snapshot()} 或 {@link #evaluate(CameraStateBuffer)}）。
  *
  * 组合次序固定：Base Chain → Modifier Chain → 最终状态。
- * Base 选择：按优先级从高到低取第一个活跃层；同优先级 = 后注册者胜（后来者居上）；无活跃层 = {@code null}。
+ * Base 选择：按优先级从高到低取第一个活跃层；同优先级 = 后注册者胜；无活跃层 = {@code null}。
  * Modifier 应用：按优先级升序逐条合成（同值 = 先注册者先应用），本帧不活跃者
  * （{@link CameraModifier#isActiveThisFrame()} 为 false）跳过；胜出 Base 层
  * {@link BaseCameraProvider#suppressesModifiers()} 为 true 时整条跳过。
  * 切换语义：层间切换为 Cut——不混合、不过渡、不迟滞；链上不做 clamp / normalize。
- * 分配契约：注册表只在注册 / 注销时改动（不在帧内）；每帧零新增分配，唯一分配点 = 快照 record 的产出
+ * 分配契约：注册表只在注册 / 注销时改动（不在帧内）；每帧零分配，唯一分配点 = 快照产出
  * （工作区 {@link CameraStateBuffer} 跨帧复用）。
  * 线程契约：仅客户端主线程；注册 / 注销与每帧求值同线程。
  */

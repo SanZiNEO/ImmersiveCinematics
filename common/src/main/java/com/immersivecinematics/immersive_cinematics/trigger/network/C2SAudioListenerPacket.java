@@ -7,7 +7,7 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * 客户端 → 服务端：上报/释放音频听者位置。
- * <p>
+ *
  * 相机听者模式激活期间，客户端在位置变化时发送；离开相机听者（脚本结束、
  * 没有活跃 CAMERA clip）时发送 active=false 释放，服务端回落到只按玩家位置广播。
  */

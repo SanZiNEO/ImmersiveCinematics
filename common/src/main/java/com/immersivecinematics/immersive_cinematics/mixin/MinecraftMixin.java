@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 
 /**
- * 听者=相机时，环境粒子/方块音采样中心从玩家改为相机。
+ * 听者=相机时，环境粒子 / 方块音采样中心取相机位置。
  */
 @Mixin(Minecraft.class)
 public abstract class MinecraftMixin {

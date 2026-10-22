@@ -7,10 +7,10 @@ import com.immersivecinematics.immersive_cinematics.math.MathModelInstance;
 /**
  * 过渡声明（已归一的最终形态）——六通道各自的模式 / 时长 / 权重曲线 + 打断规则。
  *
- * 缺省（不声明 {@code transition_params} / {@code transition_curve} / {@code transition_interrupt}）= 现状：
+ * 缺省（{@code transition_params} / {@code transition_curve} / {@code transition_interrupt} 均不声明）：
  * 全六通道 {@link TransitionMode#BLEND}、同一时长（片段 {@code transition_duration}）、无曲线
  * （恒等 = 线性斜坡）、{@link TransitionInterrupt#BLEND}。
- * 窗口口径：每通道窗口 = 以片段交界时刻为中心、该通道时长为宽度；{@link #maxDuration} = 非 CUT 通道的
+ * 窗口口径：每通道窗口以片段交界时刻为中心、以该通道时长为宽度；{@link #maxDuration} = 非 CUT 通道的
  * 最大时长（CUT 通道不做过渡、不占窗口；全部为 CUT 或时长全为 0 = 无过渡）。
  * 数组下标 = 通道位序（{@code position=0} … {@code zoom=5}，见 {@link CameraChannels}）；时长单位 = 秒。
  * 分配契约：解析期建成后只读；{@link #instantiateCurves} 在过渡开始时调用一次（不在逐帧路径）。
@@ -51,8 +51,8 @@ public final class TransitionSpec {
     }
 
     /**
-     * 分参数声明 → 最终形态：未声明通道 / 键按片段级缺省补齐（不声明任何新字段 = 现状：
-     * 全六通道 {@link TransitionMode#BLEND}、同一时长、无曲线、{@link TransitionInterrupt#BLEND}）。
+     * 分参数声明 → 最终形态：未声明通道 / 键按片段级缺省补齐（全部缺省 = 全六通道
+     * {@link TransitionMode#BLEND}、同一时长、无曲线、{@link TransitionInterrupt#BLEND}）。
      *
      * @param params          分参数声明；{@code null} = 未声明（全缺省）
      * @param defaultDuration 片段级缺省时长（秒）；非有限 / ≤ 0 = 该通道无过渡

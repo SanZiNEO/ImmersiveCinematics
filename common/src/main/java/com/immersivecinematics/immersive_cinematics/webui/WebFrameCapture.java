@@ -14,11 +14,13 @@ import java.util.Arrays;
 /**
  * WebUI 专用低分辨率帧捕获。
  *
- * <p>把主 RenderTarget 缩放到固定 16:9 小 FBO，再 glReadPixels 读回 CPU。</p>
+ * 把主 RenderTarget 缩放到固定 16:9 小 FBO，再 glReadPixels 读回 CPU。
  */
 public class WebFrameCapture {
 
+    /** 捕获帧宽（像素，固定 16:9） */
     public static final int TARGET_W = 1280;
+    /** 捕获帧高（像素） */
     public static final int TARGET_H = 720;
 
     private static int fboId = -1;
@@ -96,14 +98,17 @@ public class WebFrameCapture {
         }
     }
 
+    /** 捕获帧宽（像素）；帧流头里写的就是这个值。 */
     public static int getWidth() {
         return TARGET_W;
     }
 
+    /** 捕获帧高（像素）；帧流头里写的就是这个值。 */
     public static int getHeight() {
         return TARGET_H;
     }
 
+    /** 小 FBO 的颜色附件纹理 id（未初始化时为 -1）。 */
     public static int getTextureId() {
         return texId;
     }
@@ -132,6 +137,7 @@ public class WebFrameCapture {
         prevH = h;
     }
 
+    /** 释放 FBO 与纹理（关闭预览屏时调用）；幂等。 */
     public static void destroy() {
         if (fboId != -1) {
             GL30.glDeleteFramebuffers(fboId);

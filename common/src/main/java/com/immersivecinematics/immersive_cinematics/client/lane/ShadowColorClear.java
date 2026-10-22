@@ -9,12 +9,12 @@ import org.slf4j.Logger;
 import java.util.Collection;
 
 /**
- * 兼容补丁：光影包没有把 shadowcolor 放进 Iris 的清除列表时，在每个视角开始前强制清一次
- * shadowcolor main/alt。MakeUp 的 {@code buffersToBeCleared=[]} 会走到这里；Complementary 的
- * {@code [0,0,1,1]} 由 Iris 自己清，这里直接跳过。
+ * 兼容补丁：光影包没把 shadowcolor 放进 Iris 的清除列表时，在每个视角开始前强制清一次 shadowcolor main/alt
+ * （MakeUp 的 {@code buffersToBeCleared=[]} 会走到这里；Complementary 的 {@code [0,0,1,1]} 由 Iris 自己清，
+ * 这里直接跳过）。
  *
- * <p>只清颜色、不动深度；使用与 Iris shadow clear 相同的白色 clear color。目标通过
- * {@link ShaderCompat} 反射获取，不编译依赖 Iris/Oculus。</p>
+ * 只清颜色、不动深度；clear color 与 Iris shadow clear 相同（纯白）。目标经 {@link ShaderCompat} 反射获取，
+ * 不编译依赖 Iris/Oculus。
  */
 public final class ShadowColorClear {
 

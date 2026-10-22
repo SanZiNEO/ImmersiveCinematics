@@ -8,10 +8,18 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
+/**
+ * 客户端键位注册与每 tick 输入轮询（跳过键长按、F9 编辑器、Ctrl+P 强制退出）。
+ *
+ * 跳过键要按住累计到 {@code Config.skipHoldThresholdMs} 才请求退出，且一次会话只触发一次
+ * （skipTriggered 消费，避免长按重复请求）；F9 重开有 {@code EDITOR_REOPEN_COOLDOWN} 冷却，
+ * 防止预览屏关闭瞬间的残留按键立刻重开。
+ */
 public class CinematicKeyBindings {
 
     private static final String EDITOR_CATEGORY = "key.categories.immersive_cinematics";
 
+    /** 跳过键（默认 C）：长按触发，非单击。 */
     public static final KeyMapping SKIP_KEY = new KeyMapping(
         "key.immersive_cinematics.skip",
         GLFW.GLFW_KEY_C,
@@ -34,6 +42,7 @@ public class CinematicKeyBindings {
     private static final long EDITOR_REOPEN_COOLDOWN = 500;
     private static boolean webUiConnectedNotified = false;
 
+    /** 每 tick 轮询输入；无世界时直接返回。 */
     public static void onClientTick() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;
@@ -94,10 +103,12 @@ public class CinematicKeyBindings {
         }
     }
 
+    /** 预览屏关闭时调用，记录时间戳以启动 F9 重开冷却。 */
     public static void notifyEditorClosed() {
         editorClosedAt = System.currentTimeMillis();
     }
 
+    /** 跳过键长按进度 [0,1]：已达阈值或已触发为 1，未按下为 0。 */
     public static float getSkipHoldProgress() {
         if (skipTriggered) return 1f;
         if (skipKeyDownSince == 0) return 0f;

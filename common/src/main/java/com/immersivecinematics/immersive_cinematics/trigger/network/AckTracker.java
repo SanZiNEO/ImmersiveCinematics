@@ -5,10 +5,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 播放控制包 ACK 跟踪器（N1）— 客户端/服务端共享静态实例（refId 随机唯一，无冲突）。
- * <p>
- * Architectury SimpleNetworkManager 纯 fire-and-forget（无确认/重传），
- * 这里自建：发送方 {@link #expect} 登记待确认包，接收方处理成功后 {@link #ack}；
+ * 播放控制包 ACK 跟踪器 — 客户端/服务端共享静态实例（refId 随机唯一，无冲突）。
+ * Architectury SimpleNetworkManager 纯 fire-and-forget（无确认/重传），这里自建：
+ * 发送方 {@link #expect} 登记待确认包，接收方处理成功后 {@link #ack}；
  * 每 tick {@link #tick} 检查超时（2s）重发，最多 3 次后放弃。
  */
 public final class AckTracker {
@@ -30,7 +29,7 @@ public final class AckTracker {
         sentAt.put(refId, System.currentTimeMillis());
     }
 
-    /** 收到回执；空 refId（旧包/异常）直接忽略 */
+    /** 收到回执；空 refId（缺省/异常）直接忽略 */
     public static void ack(String refId) {
         if (refId == null || refId.isEmpty()) return;
         pending.remove(refId);

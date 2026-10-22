@@ -27,25 +27,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * 本地 WebSocket 服务端。
  *
- * <p>mod 作为服务端，Editor 作为客户端连接。
- * 支持双向文本 JSON 消息和二进制帧流。只绑定 127.0.0.1。</p>
+ * mod 作为服务端，Editor 作为客户端连接。支持双向文本 JSON 消息和二进制帧流，只绑定 127.0.0.1。
  *
- * <p><b>握手身份校验</b>（防止本地网页 / 本地程序冒充编辑器）：仅绑定回环地址不足以拦住
+ * 握手身份校验（防止本地网页 / 本地程序冒充编辑器）：仅绑定回环地址不足以拦住
  * 用户浏览器里的任意网页（浏览器会替网页连 127.0.0.1）。因此在 {@code /ws} 升级前做两道校验，
- * 任一不过直接 403 + 关连接 + 日志：</p>
- * <ol>
- *   <li><b>Origin 白名单</b>：浏览器在 WebSocket 握手里强制带上 {@code Origin}，网页无法伪造。
- *       只放行 Electron 打包态（{@code file://} / {@code null}）、本机 dev server（localhost / 127.0.0.1 / ::1），
- *       其余（含 {@code https://evil.com}）拒绝；无 Origin 的非浏览器客户端放行到第二道。</li>
- *   <li><b>每次启动随机 token</b>：{@code start()} 生成 32 字节随机 token 并写入
- *       {@code <user.home>/.immersivecinematics/webui-token}（可用环境变量 {@code IC_WEBUI_TOKEN_FILE} 覆盖路径），
- *       客户端以 {@code ws://127.0.0.1:8765/ws?token=...} 携带，常量时间比对，{@code stop()} 删除文件。
- *       网页读不到该文件，因此即使 Origin 落在白名单内也无法连接。</li>
- * </ol>
- * <p>协议信封（{@code {type,data,id}}）与消息类型不受影响：token 只出现在握手 URL 里。</p>
+ * 任一不过直接 403 + 关连接 + 日志：
+ * 1. Origin 白名单：浏览器在 WebSocket 握手里强制带上 {@code Origin}，网页无法伪造。
+ *    只放行 Electron 打包态（{@code file://} / {@code null}）、本机 dev server（localhost / 127.0.0.1 / ::1），
+ *    其余（含 {@code https://evil.com}）拒绝；无 Origin 的非浏览器客户端放行到第二道。
+ * 2. 每次启动随机 token：{@code start()} 生成 32 字节随机 token 并写入
+ *    {@code <user.home>/.immersivecinematics/webui-token}（可用环境变量 {@code IC_WEBUI_TOKEN_FILE} 覆盖路径），
+ *    客户端以 {@code ws://127.0.0.1:8765/ws?token=...} 携带，常量时间比对，{@code stop()} 删除文件。
+ *    网页读不到该文件，因此即使 Origin 落在白名单内也无法连接。
+ *
+ * 协议信封（{@code {type,data,id}}）与消息类型不受影响：token 只出现在握手 URL 里。
  */
 public class WebEditorServer {
 
+    /** 监听端口（固定值：Editor 侧硬编码同一端口） */
     public static final int DEFAULT_PORT = 8765;
     private static final String WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -69,6 +68,7 @@ public class WebEditorServer {
             "</body>\n" +
             "</html>\n";
 
+    /** 进程内单例：端口独占，整个客户端只跑一个服务端实例。 */
     public static final WebEditorServer INSTANCE = new WebEditorServer();
 
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -81,14 +81,21 @@ public class WebEditorServer {
     private WebEditorServer() {
     }
 
+    /** 服务是否在监听（{@code start()} 成功后为 true，{@code stop()} 后为 false）。 */
     public boolean isRunning() {
         return running.get();
     }
 
+    /** 当前是否有已升级的 Editor 连接；无客户端时渲染侧跳过帧捕获与发送。 */
     public boolean hasClients() {
         return !sessions.isEmpty();
     }
 
+    /**
+     * 启动监听：绑定 127.0.0.1:{@link #DEFAULT_PORT}，生成本次运行期的握手 token 并落盘。
+     *
+     * 已运行时直接返回 true；端口占用等失败返回 false（不抛异常）。
+     */
     public synchronized boolean start() {
         if (running.get()) return true;
         try {
@@ -108,6 +115,9 @@ public class WebEditorServer {
         }
     }
 
+    /**
+     * 停止监听：关闭 socket、断开全部会话、删除 token 文件（{@code token} 置空后握手一律拒绝）。
+     */
     public synchronized void stop() {
         if (!running.get()) return;
         running.set(false);
@@ -129,7 +139,10 @@ public class WebEditorServer {
 
     // ── 握手身份校验：token 文件 ──────────────────────────────
 
-    /** token 文件路径：{@code IC_WEBUI_TOKEN_FILE} 优先，否则 {@code <user.home>/.immersivecinematics/webui-token}。 */
+    /**
+     * token 文件路径：{@code IC_WEBUI_TOKEN_FILE} 优先，
+     * 否则 {@code <user.home>/.immersivecinematics/webui-token}。
+     */
     static Path tokenFilePath() {
         String override = System.getenv(TOKEN_FILE_ENV);
         if (override != null && !override.isBlank()) {
@@ -178,8 +191,8 @@ public class WebEditorServer {
     /**
      * Origin 白名单：浏览器强制附带且网页无法伪造，用来挡掉“用户浏览器里的任意网页”。
      *
-     * <p>放行：无 Origin（非浏览器客户端，交 token 把关）、{@code null} / {@code file://}（Electron 打包态页面）、
-     * {@code http(s)://localhost|127.0.0.1|::1[:port]}（vite dev server）。其余一律拒绝。</p>
+     * 放行：无 Origin（非浏览器客户端，交 token 把关）、{@code null} / {@code file://}（Electron 打包态页面）、
+     * {@code http(s)://localhost|127.0.0.1|::1[:port]}（vite dev server）。其余一律拒绝。
      */
     private static boolean isAllowedOrigin(String origin) {
         if (origin == null || origin.isEmpty()) return true;

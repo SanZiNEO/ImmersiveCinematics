@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
  */
 final class PreviewChannel {
 
-    /** 日志通道名固定为拆分前值，保持日志输出逐行不变。 */
+    /** 日志通道名固定为 {@code ImmersiveCinematics/CameraManager}，不随类名变化。 */
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CameraManager");
 
     /** 预览播放头（预览实例的时钟源）。 */
@@ -43,7 +43,7 @@ final class PreviewChannel {
     /** 预览实例（列表末位）；非预览态为 {@code null}。 */
     private PlaybackInstance previewInstance = null;
 
-    /** 预览相机是否已初始化（首次进入预览时从玩家位置起步，之后重启不再重置）。 */
+    /** 预览相机是否已初始化（首次进入预览时从玩家位置起步，之后重启不重置）。 */
     private boolean previewInitialized = false;
 
     /** 编辑器拖拽直控标志（直控期间轨道写入被跳过，相机由编辑器直驱）。 */

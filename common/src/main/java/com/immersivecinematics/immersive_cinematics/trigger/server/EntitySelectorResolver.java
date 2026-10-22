@@ -15,13 +15,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 服务端实体选择器解析器。
- * <p>
- * 只负责用原版 {@link EntitySelectorParser} 解析 selector，并在服务端求值。
- * 不引用任何客户端类；必须在服务端主线程调用。
- * <p>
- * 支持原版选择器的完整选项，包括 {@code nbt=} / {@code tag=} / {@code type=} /
- * {@code name=} / {@code distance=} / {@code sort=} / {@code limit=} 等。
+ * 服务端实体选择器解析器：用原版 {@link EntitySelectorParser} 解析 selector 并在服务端求值，
+ * 支持完整选项（{@code nbt=} / {@code tag=} / {@code type=} / {@code name=} / {@code distance=} /
+ * {@code sort=} / {@code limit=} 等）。不引用任何客户端类；必须在服务端主线程调用。
  */
 public final class EntitySelectorResolver {
 

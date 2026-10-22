@@ -5,14 +5,12 @@ import net.minecraft.server.level.ServerPlayer;
 
 /**
  * 前置条件求值接口。
- * <p>
  * 其他模组可以通过 {@link PrerequisiteRegistry#register(String, TriggerPrerequisite)}
  * 注册自定义前置条件类型，并在脚本触发器的 {@code requires} 中使用对象语法：
- * <pre>
+ *
  * "requires": [
  *   { "type": "my_mod:custom", "value": 42 }
  * ]
- * </pre>
  */
 @FunctionalInterface
 public interface TriggerPrerequisite {

@@ -1,16 +1,13 @@
 package com.immersivecinematics.immersive_cinematics;
 
 /**
- * ImmersiveCinematics 跨平台配置
- * <p>
- * 静态字段存储运行时配置值。平台差异通过 {@link ConfigProvider} 接口抽象：
- * <ul>
- *   <li>Forge: {@code ForgeConfig.java} 使用 ForgeConfigSpec</li>
- *   <li>Fabric: {@code FabricConfig.java} 使用 JSON 文件</li>
- * </ul>
- * <p>
- * 配置值在游戏启动时通过 {@link #init(ConfigProvider)} 从平台 provider 加载，
- * ConfigScreen 修改时通过 setter 更新静态字段并写入持久化存储。
+ * ImmersiveCinematics 跨平台配置。
+ *
+ * 静态字段存储运行时配置值；平台差异由 {@link ConfigProvider} 抽象（Forge = {@code ForgeConfigSpec}，
+ * Fabric = JSON 文件，实现见各平台 {@code ForgeConfig} / {@code FabricConfig}）。
+ *
+ * 配置值在游戏启动时通过 {@link #init(ConfigProvider)} 从平台 provider 加载；
+ * ConfigScreen 修改时经 setter 写回静态字段并写入平台持久化存储。
  */
 public class Config {
 
@@ -47,7 +44,7 @@ public class Config {
     /** gamestage 触发器的轮询间隔（tick） */
     public static int triggerPollIntervalGamestage = 20;
 
-    // ===== 区块预加载配置（0.3.5 第3轮；静态默认值，平台配置文件持久化随第5轮配置/编辑器接入） =====
+    // ===== 区块预加载配置 =====
 
     /** 全局总闸：区块预加载（服务端强制；脚本层没有开关） */
     public static boolean preloadEnabled = true;
@@ -73,9 +70,7 @@ public class Config {
     private static ConfigProvider provider;
 
     /**
-     * 平台配置提供者接口。
-     * <p>
-     * Forge 和 Fabric 各自实现此接口，将配置读写到平台对应的持久化机制
+     * 平台配置提供者接口：Forge / Fabric 各自实现，读写平台对应的持久化机制
      * （ForgeConfigSpec / JSON 文件）。
      */
     public interface ConfigProvider {
@@ -124,9 +119,7 @@ public class Config {
     }
 
     /**
-     * 初始化配置系统。
-     * <p>
-     * 从平台 provider 加载配置值，填充到静态字段。
+     * 初始化配置系统：从平台 provider 加载配置值填充到静态字段。
      * 游戏启动时由 {@link ImmersiveCinematics} 调用。
      */
     public static void init(ConfigProvider p) {

@@ -6,10 +6,7 @@ import java.util.Collections;
 import java.util.Map;
 
 /**
- * 通用关键帧容器 — 替代各轨道类型的独立 Keyframe 类
- * <p>
- * 所有关键帧共享 {@code time} 字段。
- * 轨道特有字段存储在 {@code data} map 中。
+ * 通用关键帧容器 —— 所有轨道共享 {@code time} 字段，轨道特有字段存在 {@code data} map 中（键见 schema）。
  */
 public class Keyframe {
 
@@ -59,7 +56,7 @@ public class Keyframe {
         return (T) data.get(key);
     }
 
-    // ── Convenience: Camera keyframes ──
+    // ── 相机关键帧便捷访问 ──
 
     public PositionData getPosition() {
         return getObject("position");
@@ -71,7 +68,7 @@ public class Keyframe {
     public float getFov() { return getFloat("fov", 70f); }
     public float getZoom() { return getFloat("zoom", 1.0f); }
 
-    // ── Convenience: Letterbox keyframes ──
+    // ── 黑边关键帧便捷访问 ──
 
     public float getAspectRatio() { return getFloat("aspect_ratio", 2.35f); }
 

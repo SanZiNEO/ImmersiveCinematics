@@ -18,46 +18,30 @@ import java.util.List;
 import java.util.function.DoubleSupplier;
 
 /**
- * 播放实例 — 一次脚本播放的独立载体（并行播放模型的第一步：播放 = 实例）。
+ * 播放实例 — 一次脚本播放的独立载体（播放 = 实例）。
  *
- * <h2>形态</h2>
- * <ul>
- *   <li><b>一个实例 = 一个 {@link ScriptPlayer}</b>：时间轴、轨道状态、音频实例、玩家移动控制全部随实例走，
- *       实例之间不共享可变状态（见 {@code plans/0.3.6/parallel-playback.md} §1、§3.1）。</li>
- *   <li><b>运行时行为快照</b>：{@link #behavior()} 是启动时从脚本 meta 取下的
- *       {@link ScriptMeta.RuntimeBehavior} 快照，{@link #replaceScript}（编辑器增量替换）时随新脚本刷新。
- *       生命周期判定（{@link #isSkippable()} / {@link #isInterruptible()} / {@link #isHoldAtEnd()} /
- *       {@link #isPauseWhenGamePaused()}）一律读本实例，不再读全局 {@code CinematicController}
- *       ——跳过 / 打断 / 末尾保持 / 暂停联动因此按实例独立。跨脚本播放模式（{@link #playMode()}）
- *       在同一时点快照 / 刷新。</li>
- *   <li><b>生命周期状态</b>：退场渐出中（{@link #isStopping()}）与退出原因（{@link #exitReason()}）
- *       原先分散在 {@code CameraManager} 的 {@code stopping} / {@code pendingCompletionReason} 字段，随实例走。</li>
- * </ul>
+ * 一个实例 = 一个 {@link ScriptPlayer}：时间轴、轨道状态、音频实例、玩家移动控制全部随实例走，
+ * 实例之间不共享可变状态。运行时行为快照（{@link #behavior()}）在启动时取自脚本 meta，
+ * {@link #replaceScript}（编辑器增量替换）时随新脚本刷新；跳过 / 打断 / 末尾保持 / 暂停联动
+ * 一律按本实例判定。退场渐出（{@link #isStopping()}）与退出原因（{@link #exitReason()}）随实例走。
  *
- * <h2>并行播放（多实例）</h2>
- * {@code CameraManager} 的实例列表可同时持有多个实例（数量不设上限）：跨脚本请求一律新建实例并行播放
- * （§3.6），同脚本同玩家保持单实例（第二个请求拒绝/排队，§3.5）。帧驱动按列表顺序遍历全部实例
- * （后来者居上，§3.4），实例结束只影响它自己；只要还有实例在播，共享虚拟时钟 / 相机状态 / 覆盖层都不复位。
+ * 多实例并行：跨脚本请求新建实例并行播放，同脚本同玩家保持单实例（第二个请求替换或入队）；
+ * 帧驱动按列表顺序遍历（后来者居上），实例结束只影响它自己，仍有实例在播时共享时钟 / 相机状态 /
+ * 覆盖层都不复位。
  *
- * <h2>预览实例（§7 步骤 5）</h2>
- * 编辑器预览也是一个实例，但它是<b>独立</b>的一份（{@link #isPreview()}）：编辑器预览的
- * pushScript / setTime / resume / stop 只作用于它，游戏实例照常播放、互不替换；退出预览只退它。
- * 它与游戏实例的差别只有三处：时钟源 = 预览播放头（不是游戏共享虚拟时钟）、恒为实例列表末位（顶层）、
- * 不参与暂停联动 / 行为并集与网络账本上报。
- *
- * <p>生命周期驱动方法（{@code start} / {@code replaceScript} / {@code stop} / {@code markStopping} /
- * {@code setExitReason}）为包内可见：实例只能由 {@code CameraManager} 创建与驱动。
+ * 预览实例（{@link #isPreview()}）独立：只受编辑器预览通道驱动，以预览播放头为时钟源、恒为实例
+ * 列表末位，不参与暂停联动 / 行为并集与网络账本。生命周期驱动方法为包内可见：实例只由
+ * {@code CameraManager} 创建与驱动。
  */
 public final class PlaybackInstance {
 
     private final ScriptPlayer player = new ScriptPlayer();
 
     /**
-     * 是否为编辑器预览实例（{@code plans/0.3.6/parallel-playback.md} §7 步骤 5）。
-     * <p>
-     * 预览 = 一个<b>独立</b>实例：与游戏实例并行共存、互不替换（预览不再挤掉游戏内播放）；
-     * 预览实例有自己的时钟（预览播放头）、不参与暂停联动 / 行为并集，也不上报网络账本
-     * （{@code C2SPlaybackStarted} / 结束通知 / 暂停握手）与跳过投票——本地预览无账本可言。
+     * 是否为编辑器预览实例。
+     *
+     * 预览 = 一个独立实例：与游戏实例并行共存、互不替换；有自己的时钟（预览播放头）、
+     * 不参与暂停联动 / 行为并集，也不上报网络账本（开始回执 / 结束通知 / 暂停握手）与跳过投票。
      */
     private final boolean preview;
 
@@ -68,7 +52,7 @@ public final class PlaybackInstance {
     private final List<ClipModifierGate> modifiers = new ArrayList<>();
 
     /**
-     * 判定规则引擎（{@code clip.rules}；0.3.6 C6-2）：判定端 = 客户端逐实例，每帧由 {@code FrameDriver}
+     * 判定规则引擎（{@code clip.rules}）：判定端 = 客户端逐实例，每帧由 {@code FrameDriver}
      * 在轨道分发之后驱动。规则槽随脚本重建（{@link #start} / {@link #replaceScript}），停止时清空。
      */
     private final RuleEngine ruleEngine = new RuleEngine();
@@ -84,13 +68,13 @@ public final class PlaybackInstance {
         return ruleEngine;
     }
 
-    /** 是否为编辑器预览实例（§7 步骤 5：独立实例，与游戏实例并行共存）。 */
+    /** 是否为编辑器预览实例（独立实例，与游戏实例并行共存）。 */
     public boolean isPreview() {
         return preview;
     }
 
     /**
-     * 本实例的播放实例 id（§3.7）：服务端播放请求携带的账本键，{@link #start} 时传入；
+     * 本实例的播放实例 id：服务端播放请求携带的账本键，{@link #start} 时传入；
      * 本地来源（编辑器预览/重载等）为空串。实例身份不随 {@link #replaceScript}（编辑器增量替换）改变。
      */
     private String instanceId = "";
@@ -104,10 +88,10 @@ public final class PlaybackInstance {
      */
     private ScriptMeta.PlayMode playMode = ScriptMeta.PlayMode.PARALLEL;
 
-    /** 退场渐出中（等价改造前 {@code CameraManager.stopping}） */
+    /** 退场渐出中（渐出完成后才真正停用）。 */
     private boolean stopping = false;
 
-    /** 退出原因：由 {@code requestExit} 置入、{@code deactivateNow} 消费（等价改造前 {@code pendingCompletionReason}） */
+    /** 退出原因：由 {@code requestExit} 置入、{@code deactivateNow} 消费。 */
     private CompletionReason exitReason = CompletionReason.FINISHED;
 
     /** 本实例的播放器（时间轴与轨道状态）。 */
@@ -125,7 +109,7 @@ public final class PlaybackInstance {
         return player.getScriptId();
     }
 
-    /** 本实例的播放实例 id（§3.7）；本地来源为空串，{@link #replaceScript} 不改变它。 */
+    /** 本实例的播放实例 id；本地来源为空串，{@link #replaceScript} 不改变它。 */
     public String instanceId() {
         return instanceId;
     }
@@ -146,7 +130,7 @@ public final class PlaybackInstance {
      * 开始播放：启动本实例的播放器，并快照脚本的运行时行为。
      *
      * @param script       已解析的脚本对象
-     * @param instanceId   服务端播放请求的播放实例 id（§3.7）；本地来源传空串
+     * @param instanceId   服务端播放请求的播放实例 id；本地来源传空串
      * @param preExecuteAt 预执行首帧的期望 elapsed 时间（预览模式 = 播放头，游戏内 = 0）
      */
     void start(CinematicScript script, String instanceId, float preExecuteAt) {

@@ -23,21 +23,16 @@ import java.util.zip.ZipFile;
 /**
  * Iris / Oculus 兼容适配层：只通过公开 API 与反射访问，不在编译期依赖任何光影模组。
  *
- * <p>能力探测：</p>
- * <ul>
- *   <li>pipeline：{@code Iris.getPipelineManager().getPipelineNullable()}（Iris/Oculus 公开入口）；</li>
- *   <li>renderTargets / shadowRenderTargets：pipeline 字段；</li>
- *   <li>历史目标：扫描光影包 composite/deferred/begin/prepare 的 fragment source，找
- *       {@code texture*(colortexN, texcoordPast|prvCoord|previous*)} 这类“上一帧采样”；
- *       只有真正被当作历史的 colortex 才会被隔离，不会误伤主颜色或 gbuffer；</li>
- *   <li>没有任何硬编码的 colortex 编号；探测不到就不隔离，并在日志里说明。</li>
- * </ul>
+ * 能力探测项：pipeline 取 {@code Iris.getPipelineManager().getPipelineNullable()}（Iris/Oculus 公开入口）；
+ * renderTargets / shadowRenderTargets 取 pipeline 字段；历史目标扫光影包的 composite / deferred / begin /
+ * prepare 的 fragment source，匹配 {@code texture*(colortexN, texcoordPast|prvCoord|previous*)} 这类上一帧
+ * 采样调用：只有真正被当作历史的 colortex 才会被隔离，不会误伤主颜色或 gbuffer；不硬编码 colortex 编号。
  *
- * <p>类名候选同时覆盖新包名（{@code net.irisshaders.iris}）与旧包名
- * （{@code net.coderbot.iris}）；字段/方法缺失时返回 null，由调用方静默降级。</p>
+ * 类名候选同时覆盖新包名（{@code net.irisshaders.iris}）与旧包名（{@code net.coderbot.iris}）；字段 / 方法 /
+ * 类缺失一律返回 null 或空，由调用方静默降级：探测不到就不隔离，并在 {@link #refresh()} 的 INFO 行说明。
  *
- * <p>pipeline 变化（切换光影包 / 关闭光影）时，{@link #refresh()} 会重置每视角历史快照和
- * previous/tracker 状态；Iris 只清理自己的 pipeline，不会清理我们的缓存。</p>
+ * pipeline 变化（切换光影包 / 关闭光影）时 {@link #refresh()} 重置每视角历史快照与 previous/tracker 状态；
+ * Iris 只清理自己的 pipeline，不会清理本类缓存。
  */
 public final class ShaderCompat {
 

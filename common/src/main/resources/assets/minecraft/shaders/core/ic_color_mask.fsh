@@ -2,7 +2,7 @@
 
 // 颜色遮罩（fade 高级路径）片元着色器 —— 线性 / 径向多 stops 渐变、矩形 / 圆形遮罩、五种混合。
 //
-// 口径（plans/0.3.6/D-transition/color-mask-execution.md）：
+// 坐标与采样口径：
 //   · guiPos = GUI 像素坐标（左上原点、y 向下）；遮罩 / 渐变几何全部在片元内按像素计算。
 //   · linear：t = 0.5 + dot(p - center, dir) / extent；radial：t = length(p - center) / extent。
 //     端点外保持端点（t 钳到 0..1）。
@@ -12,7 +12,7 @@
 //   · 非 normal：base = 主 framebuffer 的实际内容（CPU 先 blit 到同尺寸 scratch，Sampler0 用
 //     texelFetch 逐像素精确采样、不翻 y、不走过滤）；输出 = mix(base, B(base,src), opacity*coverage)，
 //     alpha = 1（混合因子 1 等效替换），最终 RGB 全在 shader 内完成。
-//   · 混合公式（a = base、b = src，本仓 A 轮 W3C 口径，与 ic_color_adjust.fsh 一致）：
+//   · 混合公式（a = base、b = src，W3C 口径，与 ic_color_adjust.fsh 一致）：
 //       normal = b
 //       multiply = a*b
 //       screen = 1-(1-a)(1-b)

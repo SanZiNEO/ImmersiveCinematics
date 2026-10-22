@@ -5,13 +5,13 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 /**
- * 字幕覆盖层 — 在屏幕上渲染文字
+ * 字幕覆盖层 —— 在屏幕上渲染文字。
  *
- * 统一参数（口径见 {@code plans/0.3.6/variable-frame.md} §4.2）：
- * x/y = <b>窗口</b>归一化位置（0~1）——文字块（未缩放基准矩形）的中心，0.5 = 窗口正中；
+ * 统一参数：
+ * x/y = 窗口归一化位置（0~1）—— 文字块（未缩放基准矩形）的中心，0.5 = 窗口正中；
  * anchor_x/anchor_y = 缩放绕点（元素自身归一化；0.5 = 绕文字块中心缩放）；
- * scale_x/scale_y = 相对<b>素材原始像素尺寸</b>的倍数（文本层素材 = font_scale 下的文字块像素）；
- * font_scale = 字号倍数（1.0 = 原版 9px，矩阵缩放实现，同 MC title 机制），决定文字块本身的像素尺寸；
+ * scale_x/scale_y = 相对素材原始像素尺寸的倍数（文本层素材 = font_scale 下的文字块像素）；
+ * font_scale = 字号倍数（1.0 = 原版 9px，矩阵缩放实现，同 MC title 机制），决定文字块像素尺寸；
  * opacity = 透明度（0~1）。
  *
  * 基准尺寸 B = 文字块像素（font_scale 下）× k（k = 分辨率转义，见

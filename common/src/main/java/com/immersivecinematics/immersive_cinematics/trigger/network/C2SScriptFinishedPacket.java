@@ -7,15 +7,15 @@ import net.minecraft.server.level.ServerPlayer;
 
 /**
  * 客户端 → 服务端：脚本播放结束回执（含完成原因枚举）。
- * <p>
- * {@code instanceId} 为 {@link S2CPlayScriptPacket#getInstanceId()} 的原样回传（§3.7），
+ *
+ * {@code instanceId} 为 {@link S2CPlayScriptPacket#getInstanceId()} 的原样回传，
  * 服务端据此在账本中按 {@code (scriptId, instanceId)} 精确解析本条结束信号所属的播放实例；
- * 无实例 id 的来源（本地播放、旧路径）回传空串，对应 {@code (scriptId, "")} 的退化账本键。
+ * 无实例 id 的来源（本地播放）回传空串，对应 {@code (scriptId, "")} 的退化账本键。
  */
 public class C2SScriptFinishedPacket implements CinematicC2SPacket {
 
     private final String scriptId;
-    /** 播放实例 id（§3.7）；空串=无实例 id 的来源 */
+    /** 播放实例 id；空串=无实例 id 的来源 */
     private final String instanceId;
     private final CompletionReason reason;
     private final String refId;
@@ -44,7 +44,7 @@ public class C2SScriptFinishedPacket implements CinematicC2SPacket {
 
     @Override
     public void handle(ServerPlayer player) {
-        // N1：stop 包的自然回执
+        // stop 包的自然回执：顺带清掉发送方的重发登记
         AckTracker.ack(refId);
         TriggerEngine.INSTANCE.onScriptFinished(player, scriptId, instanceId, reason);
         // 区块预加载保底：任意退出（含强退）都强制释放，把加载交还玩家/原版机制

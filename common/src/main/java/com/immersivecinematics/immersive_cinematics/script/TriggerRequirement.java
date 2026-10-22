@@ -3,11 +3,10 @@ package com.immersivecinematics.immersive_cinematics.script;
 import com.google.gson.JsonObject;
 
 /**
- * 触发器前置条件（可扩展）。
- * <p>
- * 每个条件由 {@code type} + 参数 {@code data} 组成。
+ * 触发器前置条件（可扩展）：每个条件由 {@code type} + 参数 {@code data} 组成。
+ *
  * 内置类型由 {@code PrerequisiteRegistry} 注册，其他模组也可注册自己的类型。
- * 旧脚本的 {@code requires: ["script_a"]} 会在解析时转换为
+ * 旧脚本的 {@code requires: ["script_a"]} 在解析时转换为
  * {@code type="script_played", data={"script":"script_a"}}。
  */
 public final class TriggerRequirement {

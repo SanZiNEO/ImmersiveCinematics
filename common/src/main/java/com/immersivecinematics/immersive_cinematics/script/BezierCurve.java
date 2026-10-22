@@ -5,36 +5,9 @@ import net.minecraft.world.phys.Vec3;
 import java.util.List;
 
 /**
- * 贝塞尔曲线路径控制 — 仅影响位置路径
- * <p>
- * 朝向（yaw/pitch/roll）和光学属性（fov/zoom）按匀速线性插值（0.3.6 起运行时统一线性——
- * 缓动由编辑器烘焙成显式关键帧，运行时不求值）。
- * <p>
- * 数学逻辑：
- * <ul>
- *   <li>起始关键帧位置 = P0，结束关键帧位置 = P3</li>
- *   <li>P0 + P1 + P2 + P3 = 三次贝塞尔曲线 B(t)</li>
- *   <li>P1 == P2（重叠）：控制点重合为圆心，P0→P3 做正圆弧运动</li>
- *   <li>P1、P2 在一条线上：镜头做椭圆弧线运动</li>
- *   <li>四段贝塞尔曲线首尾相连：可近似任意圆或椭圆运动</li>
- * </ul>
- * <p>
- * 控制点支持两种模式（与 position 对象同模式，每个控制点自描述）：
- * <ul>
- *   <li>绝对（有 x/y/z）：世界坐标，直接参与曲线</li>
- *   <li>相对（有 dx/dy/dz）：相对<b>段起点关键帧</b>（from）的偏移——运行时求值为
- *       {@code from + 偏移}；适合"以玩家为出发点绕圆"等相对场景（玩家位置运行时才知道，绝对模式写不了）</li>
- * </ul>
- * JSON 示例：
- * <pre>
- * {
- *   "type": "bezier",
- *   "control_points": [
- *     { "dx": 10.0, "dy": 1.5, "dz": 3.0 },
- *     { "dx": 0.0, "dy": 2.0, "dz": -2.0 }
- *   ]
- * }
- * </pre>
+ * 贝塞尔曲线路径控制：仅影响位置路径；朝向与光学属性按匀速线性插值（缓动由编辑器烘焙成显式关键帧）。
+ * P1 / P2 自描述：绝对（x/y/z，世界坐标）或相对（dx/dy/dz，相对段起点 from）。形状口径：P1 == P2 时以重合点为圆心做正圆弧，
+ * P1、P2 共线时为椭圆弧，四段首尾相连可近似任意圆 / 椭圆。控制点必须恰好 2 个，否则按直线插值。
  */
 public class BezierCurve {
 
@@ -67,15 +40,19 @@ public class BezierCurve {
         return controlPoints.get(1).resolve(segmentStart);
     }
 
-    /** 获取所有控制点（不可变视图） */
+    /**
+     * 控制点列表（构造时传入的顺序：P1、P2）。
+     *
+     * @return 控制点列表
+     */
     public List<ControlPoint> getControlPoints() {
         return controlPoints;
     }
 
     /**
-     * 验证贝塞尔曲线数据是否合法
+     * 曲线数据是否可用（控制点恰好 2 个）。
      *
-     * @return true 如果 control_points 恰好有2个点
+     * @return 恰好 2 个控制点返回 true；否则调用方按直线插值
      */
     public boolean isValid() {
         return controlPoints != null && controlPoints.size() == 2;
@@ -91,11 +68,8 @@ public class BezierCurve {
     }
 
     /**
-     * 贝塞尔控制点 — 自描述坐标（与 PositionData 同模式）
-     * <ul>
-     *   <li>relative=true：dx/dy/dz — 相对段起点关键帧的偏移</li>
-     *   <li>relative=false：x/y/z — 世界绝对坐标</li>
-     * </ul>
+     * 贝塞尔控制点 —— 自描述坐标（与 PositionData 同模式）：
+     * {@code relative=true} 用 dx/dy/dz（相对段起点关键帧的偏移），{@code relative=false} 用 x/y/z（世界绝对坐标）。
      */
     public static class ControlPoint {
 

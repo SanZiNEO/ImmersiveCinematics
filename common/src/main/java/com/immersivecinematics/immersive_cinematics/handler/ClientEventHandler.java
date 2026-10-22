@@ -9,19 +9,22 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 
 /**
- * 客户端事件处理（0.3.5 第7轮去 Arch）。
- * <p>
+ * 客户端事件处理：把平台事件翻译成相机 / 按键 / 覆盖层的调用。
+ *
  * 只保留纯逻辑；平台（Fabric/Forge）负责把原生事件转发到这里。
  */
 public final class ClientEventHandler {
 
+    /** 平台注册按键绑定的回调（各加载器注册表 API 不同，由平台实现）。 */
     @FunctionalInterface
     public interface KeyMappingRegistrar {
+        /** 把单个按键绑定交给平台注册表。 */
         void register(KeyMapping keyMapping);
     }
 
     private ClientEventHandler() {}
 
+    /** 客户端初始化：确保资源目录与 scripts 目录存在，编辑器首次保存时无需再建目录。 */
     public static void onClientInit() {
         com.immersivecinematics.immersive_cinematics.util.ResourcePath.ensureDir();
         try {
@@ -33,6 +36,7 @@ public final class ClientEventHandler {
         }
     }
 
+    /** 注册本 mod 的全部按键：跳过键 + WebUI 预览屏与飞控相关按键。 */
     public static void registerKeyMappings(KeyMappingRegistrar registrar) {
         registrar.register(CinematicKeyBindings.SKIP_KEY);
         // WebUI 预览屏与飞控相关按键（游戏内 Java 编辑器退役后仅剩这些）
@@ -48,6 +52,12 @@ public final class ClientEventHandler {
         registrar.register(CinematicKeyBindings.EDITOR_FLIGHT_RESET_OPTICS);
     }
 
+    /**
+     * 每 tick 驱动相机、按键、触发相关客户端组件。
+     *
+     * 无世界而相机仍活跃（如退出世界时平台漏发停播）→ emergencyStop，
+     * 否则相机状态会跨世界残留，进入下一个存档时直接接管视角。
+     */
     public static void onClientTick(Minecraft mc) {
         CameraManager.INSTANCE.tick();
         CinematicKeyBindings.onClientTick();
@@ -59,6 +69,7 @@ public final class ClientEventHandler {
         }
     }
 
+    /** HUD 渲染：电影覆盖层 + 跳过提示，均在 GUI 缩放坐标系下绘制。 */
     public static void onRenderHud(GuiGraphics graphics) {
         Minecraft mc = Minecraft.getInstance();
         CinematicOverlay.render(graphics,

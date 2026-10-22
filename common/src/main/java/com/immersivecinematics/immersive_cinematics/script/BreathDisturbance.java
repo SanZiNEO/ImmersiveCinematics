@@ -7,20 +7,16 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 呼吸扰动 v2：多类型可选手持晃动（perlin / perlin_axis / sine / trauma）。
- * <p>
- * 所有类型确定性：同 seed + 同 globalTime → 同抖动（重放一致，编辑器预览与播放共用）。
- * 旧的"每帧白噪声"方案已废弃（帧间无关 → 静电感、无速度/频率控制）。
- * <p>
- * 字段模型（clip 级，旧 enabled/intensity/seed 保持兼容）：
- * <ul>
- *   <li>cam_breath_type：perlin（默认）/ perlin_axis / sine / trauma</li>
- *   <li>cam_breath_intensity：振幅/力度（约等于角度）</li>
- *   <li>cam_breath_seed：波形种子（决定形状/相位）</li>
- *   <li>cam_breath_speed：时间推进速度，越大晃得越快</li>
- *   <li>cam_breath_trauma（仅 trauma）：初始冲击强度 0~1</li>
- *   <li>cam_breath_decay（仅 trauma）：强度每秒衰减速率</li>
- * </ul>
+ * 呼吸扰动：多类型可选手持晃动（perlin / perlin_axis / sine / trauma）。
+ *
+ * 所有类型确定性：同 seed + 同 globalTime → 同抖动（重放一致，编辑器预览与播放共用），
+ * 不依赖帧间随机噪声。
+ *
+ * 字段模型（clip 级；兼容字段 enabled / intensity / seed）：
+ * {@code cam_breath_type} = perlin（缺省）/ perlin_axis / sine / trauma；
+ * {@code cam_breath_intensity} = 振幅 / 力度（约等于角度）；{@code cam_breath_seed} = 波形种子（形状 / 相位）；
+ * {@code cam_breath_speed} = 时间推进速度（越大晃得越快）；
+ * {@code cam_breath_trauma}（仅 trauma）= 初始冲击强度 0~1；{@code cam_breath_decay}（仅 trauma）= 强度每秒衰减。
  */
 public final class BreathDisturbance {
 
@@ -41,7 +37,7 @@ public final class BreathDisturbance {
 
     public BreathDisturbance() {}
 
-    /** 从 clip 的 cam_breath_* 字段构造（缺省字段 → 设计默认值，旧脚本按 perlin 处理） */
+    /** 从 clip 的 cam_breath_* 字段构造（缺省字段 → 设计默认值；类型缺省 perlin） */
     public static BreathDisturbance fromClip(Clip clip) {
         BreathDisturbance b = new BreathDisturbance();
         b.intensity = clip.getFloat("cam_breath_intensity", b.intensity);
@@ -129,7 +125,7 @@ public final class BreathDisturbance {
      */
     private static PerlinNoise cached(int firstOctave, int seed, double amplitude, double... smoothness) {
         // ⚠️ 不要用 new StringBuilder(firstOctave)——负数（perlin=-2 / perlin_axis=-7）会被当成初始容量，
-        // 直接抛 NegativeArraySizeException（历史 bug：呼吸开启即相机钉死被此吞掉）。
+        // 直接抛 NegativeArraySizeException；这里必须用无参构造再 append。
         StringBuilder key = new StringBuilder().append(firstOctave).append('|').append(seed).append('|').append(amplitude);
         for (double s : smoothness) key.append('|').append(s);
         return NOISE_CACHE.computeIfAbsent(key.toString(),

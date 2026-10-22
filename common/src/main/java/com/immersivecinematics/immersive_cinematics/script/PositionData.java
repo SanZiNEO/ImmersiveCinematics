@@ -63,7 +63,6 @@ public class PositionData {
     /** Z 分量（绝对坐标）或 DZ 分量（相对偏移） */
     private final float z;
 
-    /** 相对基准类型（仅 relative 有意义）：ORIGIN_PLAYER / ORIGIN_COORDINATE / ORIGIN_STRUCTURE / ORIGIN_BLOCK */
     private final int originType;
 
     /** 相对基准坐标（ORIGIN_COORDINATE 时有效） */
@@ -80,10 +79,10 @@ public class PositionData {
     /** 相对基准方块搜索半径（ORIGIN_BLOCK 时有效，格） */
     private final int originBlockRadius;
 
-    /** 基准坐标系偏移的基准点实体选择器（ORIGIN_SELECTOR 时有效，如 "@e[type=…]"） */
+    /** 位置点源实体选择器（{@link #ORIGIN_SELECTOR} 时有效） */
     private final String originSelector;
 
-    /** 基准坐标系前轴的目标（facing_target 点源）：前轴 = 位置点源 → 该目标（两点连线方向）；空 = 位置点源自身朝向 */
+    /** 前轴目标点源（facing_target）：前轴 = 位置点源 → 该目标；空 = 位置点源自身朝向 */
     private final String facingTarget;
 
     /** 偏移表达空间：true = 基准坐标系（fwd/up/right），false = 世界轴（dx/dy/dz） */
@@ -168,7 +167,7 @@ public class PositionData {
                 true, fwd, up, right, null);
     }
 
-    /** 基准坐标系偏移（fwd/up/right），位置点源 = 玩家附近搜索到的方块中心（{@code facing_origin} 填 {@code block:id[:radius]}）。 */
+    /** 基准坐标系偏移（fwd/up/right），位置点源 = 附近的方块中心（{@code block:id[:radius]}）。 */
     public static PositionData facingToBlock(float fwd, float up, float right, String blockId, int radius) {
         return new PositionData(true, 0f, 0f, 0f, ORIGIN_BLOCK, 0f, 0f, 0f, null, blockId, radius, null,
                 true, fwd, up, right, null);
@@ -221,7 +220,7 @@ public class PositionData {
         this.right = right;
     }
 
-    /** 相对基准类型（{@link #ORIGIN_PLAYER} / {@link #ORIGIN_COORDINATE} / {@link #ORIGIN_STRUCTURE} / {@link #ORIGIN_BLOCK} / {@link #ORIGIN_SELECTOR}） */
+    /** 位置点源类型（{@code ORIGIN_*} 之一）。 */
     public int getOriginType() {
         return originType;
     }

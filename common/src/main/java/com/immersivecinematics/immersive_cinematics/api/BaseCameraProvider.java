@@ -1,10 +1,10 @@
 package com.immersivecinematics.immersive_cinematics.api;
 
 /**
- * Base 层接口：决定「这一帧的基础相机状态」，每层产出整帧六参数（不做部分覆盖）。
+ * Base 层接口：产出「这一帧的基础相机状态」，每层给出整帧六参数（不做部分覆盖）。
  *
  * 优先级域：Base 与 Modifier 是两条独立优先级域，数值互不比较；链按优先级从高到低询问，
- * 同优先级 = 后注册者胜；无活跃层 = 回退玩家相机。内置档位见 {@code PRIORITY_*} 常量（间隔 100，供未来插入）。
+ * 同优先级 = 后注册者胜；无活跃层 = 回退玩家相机。内置档位见 {@code PRIORITY_*} 常量。
  * 切换语义：Base 层之间为 Cut（瞬时切换，无过渡）。
  * 分配契约：{@link #provideBaseState()} 必须复用本层已有的快照产出（不新建 record、不复制）。
  * 线程契约：仅客户端主线程（tick 与渲染同线程）；跨线程调用方须自行 marshal 到主线程。
@@ -12,10 +12,10 @@ package com.immersivecinematics.immersive_cinematics.api;
  */
 public interface BaseCameraProvider {
 
-    /** 档位：外部接管（公开入口留位，尚未开放）。 */
+    /** 档位：外部接管。 */
     int PRIORITY_EXTERNAL = 400;
 
-    /** 档位：飞行取景（飞行控制器六参数直写）。 */
+    /** 档位：飞行取景（六参数直写）。 */
     int PRIORITY_FLIGHT = 300;
 
     /** 档位：编辑器直控（编辑器五参数直写，位置不动）。 */

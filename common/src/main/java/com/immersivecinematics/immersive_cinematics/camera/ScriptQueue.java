@@ -11,16 +11,15 @@ import java.util.function.Predicate;
  * 客户端播放队列：当前脚本不可打断时新脚本入队（不设上限），阻塞它的实例结束后按优先级
  * （高→低，同优先级先入先出）接播。优先级只决定队列内次序——不可打断的脚本永远不会被打断。
  *
- * <p>队列键 = 脚本 id：同脚本第二次请求替换自己的排队位（{@link #offerOrReplace}，不占新格）；
+ * 队列键 = 脚本 id：同脚本第二次请求替换自己的排队位（{@link #offerOrReplace}，不占新格）；
  * {@link #cancel} 按脚本 id 撤销排队项。队列跨实例存活——只有全停（{@code forceDeactivate} /
  * {@code emergencyStop}）才 {@link #clear}。
  *
- * <p>出队侧：{@link #pollFirstEligible(Predicate)} 按 priority/FIFO 选最靠前的<b>可播</b>项
- * （被同脚本在播实例阻塞的项跳过但保留原位）；不做“取出再放回”的临时重排。
+ * 出队侧：{@link #pollFirstEligible(Predicate)} 按 priority/FIFO 选最靠前的可播项（被同脚本在播
+ * 实例阻塞的项跳过但保留原位）；不做「取出再放回」的临时重排。每个排队项携带发起该播放请求时的
+ * 播放实例 id，供接播时随 {@code C2SPlaybackStarted} 上报。
  *
- * <p>每个排队项携带发起该播放请求时的播放实例 id（§3.7），供接播时随 {@code C2SPlaybackStarted} 上报。
- *
- * <p>线程：仅客户端主线程。
+ * 线程：仅客户端主线程。
  */
 public class ScriptQueue {
 
@@ -73,7 +72,7 @@ public class ScriptQueue {
     /**
      * 按队列顺序取首个可播项并移除；无可播项返回 {@code null}。
      *
-     * <p>线扫全部排队项，仅移除选中的那一项——不把不可播项临时取出再放回，其他项的相对次序不变。
+     * 线扫全部排队项，仅移除选中的那一项——不把不可播项临时取出再放回，其他项的相对次序不变。
      *
      * @param eligible 可播判定（入参 = 排队脚本；{@code true} = 当前可启动）
      */

@@ -11,7 +11,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Fabric 网络桥接（0.3.5 第7轮去 Arch）。
+ * Fabric 网络桥接：C2S 走 {@code ServerPlayNetworking}，S2C 走 {@code ClientPlayNetworking}。
  */
 public final class FabricNetwork implements NetworkBridge {
 

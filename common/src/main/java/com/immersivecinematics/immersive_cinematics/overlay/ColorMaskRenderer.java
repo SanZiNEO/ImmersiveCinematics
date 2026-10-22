@@ -30,22 +30,21 @@ import java.nio.ByteBuffer;
 import java.util.function.Supplier;
 
 /**
- * fade 高级颜色遮罩的 GPU 渲染器（0.3.6 D4–D7）。
+ * fade 高级颜色遮罩的 GPU 渲染器。
  *
- * <p>负责纯色 / 多 stops 线性与径向渐变、full / rect / circle 覆盖范围、normal / multiply /
- * screen / soft_light / overlay 五种混合。纯色 + full + normal 不走这里（{@link FadeLayer} 保留
- * {@link GuiGraphics#fill} 快路径）；其余形态由 {@code ic_color_mask} core shader 完成。</p>
+ * 能力面：纯色 / 多 stops 线性与径向渐变、full / rect / circle 覆盖范围、normal / multiply / screen /
+ * soft_light / overlay 五种混合。纯色 + full + normal 不走这里（{@link FadeLayer} 保留
+ * {@link GuiGraphics#fill} 快路径）；其余形态由 {@code ic_color_mask} core shader 完成。
  *
- * <p>每个高级 {@link FadeLayer} 持有一个实例；构造只登记共享资源引用计数，GL 资源按需创建。
+ * 每个高级 {@link FadeLayer} 持有一个实例；构造只登记共享资源引用计数，GL 资源按需创建。
  * {@link #close()} 释放本层 LUT，并在最后一个实例关闭时释放共享 shader / dummy / scratch。
- * 资源重载由 {@link #invalidate()} 接入（Fabric / Forge 的 reload listener），跨线程调用会
- * {@link RenderSystem#recordRenderCall} 排队到渲染线程，绝不在 reload 线程直接碰 GL。</p>
+ * 资源重载由 {@link #invalidate()} 接入：跨线程调用经 {@link RenderSystem#recordRenderCall}
+ * 排队到渲染线程，绝不在 reload 线程直接碰 GL。
  *
- * <p>绘制状态契约：入口先 {@code guiGraphics.flush()}；随后保存 / 恢复 shader、纹理单元、
- * blend / equation、depth、colorMask、scissor、framebuffer / viewport；所有改动都在 finally 还原。
- * 主 framebuffer 的 alpha 始终不写（colorMask 关 alpha）。非 normal 先把它复制到同尺寸 scratch
- * （{@code glBlitFramebuffer}，同像素、不翻 y），shader 用 {@code texelFetch} 精确读取 base，
- * 不会同时读写同一纹理。</p>
+ * 绘制状态契约：入口先 {@code guiGraphics.flush()}；随后保存 / 恢复 shader、纹理单元、blend / equation、
+ * depth、colorMask、scissor、framebuffer / viewport，所有改动都在 finally 还原。主 framebuffer 的 alpha
+ * 始终不写（colorMask 关 alpha）。非 normal 先把它复制到同尺寸 scratch（{@code glBlitFramebuffer}，
+ * 同像素、不翻 y），shader 用 {@code texelFetch} 精确读取 base，不会同时读写同一纹理。
  */
 public final class ColorMaskRenderer {
 
@@ -440,8 +439,9 @@ public final class ColorMaskRenderer {
 
     /**
      * 资源重载（F3+T / 资源包切换）入口：递增代次并释放共享 GL 资源。
-     * <p>reload listener 可能不在渲染线程——跨线程时排队到渲染线程，绝不当场调用 GL。
-     * 存活 renderer 在下一帧按新代次重建 LUT；shader / dummy / scratch 按需重建。</p>
+     *
+     * reload listener 可能不在渲染线程 —— 跨线程时排队到渲染线程，绝不当场调用 GL。
+     * 存活 renderer 在下一帧按新代次重建 LUT；shader / dummy / scratch 按需重建。
      */
     public static void invalidate() {
         generation++;

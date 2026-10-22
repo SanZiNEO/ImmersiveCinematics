@@ -12,9 +12,8 @@ import java.util.UUID;
 
 /**
  * 相机虚拟中心状态（服务端主线程访问，与 CameraAnchorManager / ChunkPreloadManager 同线程约定）。
- * <p>
- * 只存相机坐标：section（给原版 ChunkMap 差集用）与 center（给实体配对距离用）在写入时算好。
- * 记录维度是为了避免玩家切维度后旧中心被误用（不匹配一律视为未激活）。
+ * 只替换“中心”这一个入口：section（原版 ChunkMap 差集用）与 center（实体配对距离用）在写入时算好，
+ * DistanceManager 与客户端发送仍全归原版；记维度是为了切维度后旧中心不被误用（不匹配即未激活）。
  */
 public final class CameraVirtualCenterState {
 
@@ -34,7 +33,7 @@ public final class CameraVirtualCenterState {
         ENTRIES.remove(player);
     }
 
-    /** 该玩家在**当前维度**是否处于相机中心模式；是则返回相机所在 section，否则 null。 */
+    /** 该玩家在当前维度是否处于相机中心模式；是则返回相机所在 section，否则 null。 */
     public static SectionPos cameraSectionFor(ServerPlayer player) {
         Entry e = ENTRIES.get(player.getUUID());
         return e != null && e.level == player.level() ? e.section : null;

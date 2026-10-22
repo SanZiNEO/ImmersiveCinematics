@@ -11,13 +11,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 使用状态机（LivingEntity）注入点：
- * <ul>
- *   <li>{@code completeUsingItem} — 仅在 {@code --useItemRemaining <= 0 && !useOnRelease()} 时调用，
- *       天然只有食物/药水等"用尽"类物品会走到这里（吃一半松手不会）。</li>
- *   <li>{@code releaseUsingItem} — 松手路径。弓/弩/三叉戟/望远镜（UseAnim 判定）为"释放"，
- *       其余（吃一半/喝一半/普通物品/自定义 UseAnim）归为"中断"。</li>
- * </ul>
+ * 使用状态机（LivingEntity）的两个注入点：
+ *
+ * {@code completeUsingItem} 仅在 {@code --useItemRemaining <= 0 && !useOnRelease()} 时调用，天然只有食物 /
+ * 药水等「用尽」类物品会走到这里（吃一半松手不会）。{@code releaseUsingItem} 是松手路径：弓 / 弩 / 三叉戟 /
+ * 望远镜（按 {@link UseAnim} 判定）算「释放」，其余（吃一半 / 喝一半 / 普通物品 / 自定义 UseAnim）归「中断」。
  */
 @Mixin(LivingEntity.class)
 public abstract class ItemUseMixin {

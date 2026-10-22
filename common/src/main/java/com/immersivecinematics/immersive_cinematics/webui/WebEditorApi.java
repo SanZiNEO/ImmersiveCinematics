@@ -23,6 +23,11 @@ public final class WebEditorApi {
     private WebEditorApi() {
     }
 
+    /**
+     * 处理一条 Editor 文本消息：按 {@code type} 分发，异常只记日志不回抛。
+     *
+     * 必须在 Minecraft 主线程调用（{@link WebSocketSession} 已切线程）。
+     */
     public static void handle(String message, WebSocketSession session) {
         try {
             JsonObject root = JsonParser.parseString(message).getAsJsonObject();
@@ -121,7 +126,7 @@ public final class WebEditorApi {
         }
     }
 
-    /** 保存成功后沿旧编辑器 N2b 通知服务端：文件指纹登记 + 广播（失败不影响保存）。 */
+    /** 保存成功后通知服务端登记文件指纹并广播；通知失败不影响已落盘的保存结果。 */
     private static void notifyScriptSaved(String path) {
         try {
             String fileName = path.contains("/") ? path.substring(path.lastIndexOf('/') + 1) : path;
@@ -211,7 +216,7 @@ public final class WebEditorApi {
     }
 
     /**
-     * 脚本架构图数据（0.3.6）：扫描 scripts 目录返回 节点 / 边 / 分区 / 提示。
+     * 脚本架构图数据：扫描 scripts 目录返回 节点 / 边 / 分区 / 提示。
      * 全量重扫（无增量），前端每次打开视图或手动刷新时请求一次。
      */
     private static void handleScriptGraph(WebSocketSession session, String id) {
@@ -222,7 +227,7 @@ public final class WebEditorApi {
     }
 
     /**
-     * 资源列举（0.3.6）：返回 {@code resource/} 下的文本 key 清单 / 图片 / 音频文件，
+     * 资源列举：返回 {@code resource/} 下的文本 key 清单 / 图片 / 音频文件，
      * 供编辑器 {@code @lang:<key>} 与 {@code path} 字段的浏览控件使用。
      * 只读；路径经 {@link ResourceFileService#resolveSafe} 校验（拒绝 {@code ../} 越界）。
      */
@@ -239,7 +244,7 @@ public final class WebEditorApi {
 
     private static void handleSeek(JsonObject data) {
         if (data.has("time")) {
-            // 旧编辑器组 3：非播放按钮定位先暂停，避免拖动播放头时继续跑
+            // 定位前先暂停，避免拖动播放头时后台继续跑
             CameraManager.INSTANCE.pause();
             CameraManager.INSTANCE.setTime(data.get("time").getAsFloat());
         }
@@ -284,7 +289,7 @@ public final class WebEditorApi {
     public static void pushPlaybackState() {
         JsonObject data = new JsonObject();
         // 预览播放头（预览实例的时钟；预览未激活时回落全局虚拟时钟）——游戏实例与预览实例各自计时，
-        // 全局虚拟时钟不再代表预览播放头（plans/0.3.6/parallel-playback.md §7 步骤 5）
+        // 全局虚拟时钟不再代表预览播放头
         data.addProperty("time", (float) CameraManager.INSTANCE.getPreviewTimeSeconds());
         // playing = 用户正在播放（未暂停），不是“脚本已加载”
         boolean playing = CameraManager.INSTANCE.isPreviewMode()

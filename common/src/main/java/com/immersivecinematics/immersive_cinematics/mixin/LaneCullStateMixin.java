@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * 全量 BFS 归槽：lane pass 的那次在 lane 槽已换入时「同步」执行（写入落在发起它的槽）；主 pass 保持原版异步，
  * 但 lane 槽换入前先等它落地（{@link #ic$awaitPendingFullUpdate}）——异步任务写的是「写入时刻安装的槽」，
- * 不等就可能落进别的 lane。取舍与依据见 plans/0.3.6/multi-camera-rendering.md §12.9.7②。
+ * 不等就可能落进别的 lane。
  *
  * 线程：字段换入 / 换出只发生在渲染线程；{@link #ic$mirrorCompiledChunk} 可能来自区块编译完成回调（线程不定），
  * 只往各槽的并发队列投递。分配：换入 / 换出路径不分配（保存位预分配复用）。
@@ -144,8 +144,8 @@ public class LaneCullStateMixin implements LaneCullBridge {
      * 同步 = 写入时刻安装的槽正是发起它的那个 lane 槽。主 pass 照原版异步提交（写入落在 vanilla 槽），
      * 其落地由 {@link #ic$awaitPendingFullUpdate} 在 lane 槽换入前保证。
      *
-     * <p>若第三方改写了 {@code setupRender}（未实测的细节风险），注入点不存在时跳过而不是阻止启动；
-     * lane 渲染不依赖本重定向。</p>
+     * 若第三方改写了 {@code setupRender}（未实测的细节风险），注入点不存在时跳过而不是阻止启动；
+     * lane 渲染不依赖本重定向。
      */
     @Redirect(method = "setupRender", require = 0, at = @At(value = "INVOKE",
             target = "Ljava/util/concurrent/ExecutorService;submit(Ljava/lang/Runnable;)Ljava/util/concurrent/Future;"))

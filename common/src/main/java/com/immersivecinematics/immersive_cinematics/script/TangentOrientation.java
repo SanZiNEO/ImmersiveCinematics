@@ -3,10 +3,8 @@ package com.immersivecinematics.immersive_cinematics.script;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 切线朝向（0.3.5）：让相机沿路径切线方向看，并叠加水平/垂直偏移角。
- * <p>
- * 与运动模型解耦：这里只负责把“路径切线”转成 MC 的 yaw/pitch，
- * 不关心路径怎么生成、速度怎么分配。
+ * 切线朝向 —— 让相机沿路径切线方向看，并叠加水平 / 垂直偏移角。
+ * 与运动模型解耦：只负责把路径切线转成 MC 的 yaw / pitch，不关心路径如何生成、速度如何分配。
  */
 public final class TangentOrientation {
 

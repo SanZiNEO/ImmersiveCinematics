@@ -1,9 +1,9 @@
 package com.immersivecinematics.immersive_cinematics.math;
 
 /**
- * 值域语义 — 决定通道数与环绕规则（定义 / 实例分离：域属定义）。
+ * 值域语义 — 定义通道数与环绕规则（域属定义）。
  *
- * 通道数：SCALAR / ANGLE = 1、VECTOR = 3、COLOR = 4；v1 输入 / 输出同域。
+ * 通道数：SCALAR / ANGLE = 1、VECTOR = 3、COLOR = 4。
  * 单位：ANGLE = 度；差值 / 混合取最短路径（wrap 到 (-180, 180]），绝对输出不强制归一；
  * VECTOR / COLOR 逐分量独立状态。{@link #key()} 为 JSON 定义对象的 {@code domain} 结构键。
  */
@@ -20,7 +20,7 @@ public enum ValueDomain {
         this.channels = channels;
     }
 
-    /** 通道数（定长 double 通道：SCALAR / ANGLE = 1、VECTOR = 3、COLOR = 4）。 */
+    /** 通道数（定长 double 通道）。 */
     public int channels() {
         return channels;
     }

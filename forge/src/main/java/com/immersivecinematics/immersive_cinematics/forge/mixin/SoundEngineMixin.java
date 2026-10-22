@@ -15,7 +15,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Forge 专属：自定义音频流接入原版 SoundEngine。
  *
- * <p>Forge 的 {@code SoundEngine.play()} 会调用
+ * Forge 的 {@code SoundEngine.play()} 会调用
  * {@code SoundInstance.getStream(SoundBufferLibrary, Sound, boolean)}（Forge 加的 default 方法）。
  * 这里用原版 {@link Redirect} 拦截，不依赖 MixinExtras。
  */

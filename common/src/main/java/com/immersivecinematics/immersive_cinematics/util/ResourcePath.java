@@ -27,26 +27,16 @@ public final class ResourcePath {
                 .resolve(RESOURCE_DIR);
     }
 
-    /**
-     * 解析文件名到资源目录下的完整路径
-     *
-     * @param fileName 文件名（如 {@code "bgm.ogg"}、{@code "overlay.png"}）
-     * @return 资源目录下的完整路径
-     */
+    /** 解析到资源根目录下的完整路径（不校验存在性）。 */
     public static Path resolve(String fileName) {
         return getBasePath().resolve(fileName);
     }
 
-    /**
-     * 检查文件在资源目录下是否存在
-     */
     public static boolean exists(String fileName) {
         return Files.exists(resolve(fileName));
     }
 
-    /**
-     * 确保资源目录存在，不存在则创建
-     */
+    /** 确保资源目录存在，缺失则创建；失败只记日志。 */
     public static void ensureDir() {
         try {
             Files.createDirectories(getBasePath());

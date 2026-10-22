@@ -10,7 +10,7 @@ import com.immersivecinematics.immersive_cinematics.api.CameraState;
  * 仍然活跃，状态保持写入缓冲的上一次写入值。
  * 状态：全局写入缓冲的当前值。脚本导演 / 编辑器直控 / 飞行三层写的是同一份写入缓冲，
  * 层与层的差别只在活跃条件与优先级；写入方见 {@link CameraManager#setScriptState}。
- * Modifier 抑制：跟当前值的来源片段（clip 级 {@code suppress_modifiers}），随写入缓冲同步。
+ * Modifier 抑制：取当前值的来源片段（clip 级 {@code suppress_modifiers}），随写入缓冲同步。
  */
 final class ScriptDirectorBase implements BaseCameraProvider {
 

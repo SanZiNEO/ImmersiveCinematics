@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/** 电影期间按 {@code blockMobAi} 禁止敌对生物攻击玩家（镜头里的人不该被怪追着打）。 */
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin {
 

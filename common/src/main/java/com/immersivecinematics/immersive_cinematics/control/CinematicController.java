@@ -27,8 +27,8 @@ public class CinematicController {
     private Boolean hideSkipHud = null;
     /**
      * 强硬隐藏模式（脚本字段 {@code hard_hide_hud}）：三态，null = 未声明 → normal。
-     * <p>见 {@code plans/0.3.6/hud-hard-hide.md}：hard 模式在 Forge 侧接管 {@code RenderGuiEvent.Pre}，
-     * 连"不走 overlay 注册表、直接在 Pre 里自绘"的第三方 HUD 一起隐藏，再按白名单重画。
+     * 开启时 Forge 侧接管 {@code RenderGuiEvent.Pre}，连不走 overlay 注册表、直接在 Pre 里自绘的第三方 HUD
+     * 一并隐藏，再按白名单重画。
      */
     private Boolean hardHideHud = null;
 
@@ -44,18 +44,12 @@ public class CinematicController {
     private boolean distortionOverridden = false;
 
     /**
-     * 运行时控制取并集（{@code plans/0.3.6/parallel-playback.md} §3.2）：行为开关在**所有活跃实例**之间
-     * 逐位 OR —— 任一实例要求隐藏 / 屏蔽即生效；实例增删后由 {@code CameraManager} 重算，
-     * 消费方（HUD 白名单 / 输入路由 / 各 Mixin）读到的仍是这里的全局开关，只是其值 = 并集。
-     *
-     * <p>三态开关（{@code hide_chat} 等，null = 未声明）先按**各实例自己的** {@code hide_hud} 解析成有效值再 OR，
-     * 与消费方「null 则回落 {@code hide_hud}」的既有语义一致；因此**单实例**的并集结果与直接读该实例的行为
-     * 逐位相同（零回归），多实例时取并集。
-     *
-     * <p>生命周期开关（{@code skippable} / {@code interruptible} / {@code hold_at_end} / {@code pause_when_game_paused}）
-     * 不参与并集：播放门控一律读活跃实例本身（{@code PlaybackInstance}），HUD 与输入路由的即时查询走
-     * {@code CameraManager} 的并集（暂停联动）/ 顶层实例（跳过提示）接口（{@code plans/0.3.6/parallel-playback.md}
-     * §3.1 与审查修订②）。
+     * 运行时控制取并集：行为开关在所有活跃实例间逐位 OR——任一实例要求隐藏 / 屏蔽即生效，
+     * 实例增删后由 {@code CameraManager} 重算；三态开关先按各实例的 {@code hide_hud} 解析成有效值再 OR
+     * （单实例结果与直接读该实例一致）。
+     * 生命周期开关（{@code skippable} / {@code interruptible} / {@code hold_at_end} /
+     * {@code pause_when_game_paused}）不参与并集：
+     * 播放门控读活跃实例本身，HUD / 输入路由的即时查询走 {@code CameraManager} 并集或顶层实例接口。
      *
      * @param behaviors 活跃实例的行为快照（顺序无关；null 元素忽略；null / 空 = 无实例要求 → 恢复默认值）
      */
@@ -67,7 +61,7 @@ public class CinematicController {
             }
         }
         if (active.isEmpty()) {
-            // 无实例要求 → 行为开关回默认值；注意此处必须**恢复** screenEffectScale 而不是按默认值重新求值
+            // 无实例要求 → 行为开关回默认值；注意此处必须恢复 screenEffectScale 而不是按默认值重新求值
             // （默认值 hide_hud=true 会让 shouldSuppressDistortion() 为真 → 反而全局压制扭曲）
             resetBehaviorToggles();
             restoreScreenEffectScale();
@@ -87,7 +81,7 @@ public class CinematicController {
             uBlockMobAi |= b.blockMobAi();
         }
 
-        // hud_layers：并集必须在**全部实例**上求值——未声明该键的实例按自身的 hide_hud 参与
+        // hud_layers：并集必须在全部实例上求值——未声明该键的实例按自身的 hide_hud 参与
         // （否则该键会失去「其他实例 hide_hud=true」这一票），与消费方「未声明则回落 hide_hud」一致。
         java.util.Set<String> layerKeys = new java.util.LinkedHashSet<>();
         for (ScriptMeta.RuntimeBehavior b : active) {
@@ -124,12 +118,15 @@ public class CinematicController {
         updateScreenEffectScale();
     }
 
-    /** 三态开关在**单个实例**上的有效值：显式声明以声明为准，null = 未声明 → 回落该实例自己的 {@code hide_hud}。 */
+    /** 三态开关在单个实例上的有效值：显式声明以声明为准，null = 未声明 → 回落该实例自己的 {@code hide_hud}。 */
     private static boolean effective(Boolean setting, ScriptMeta.RuntimeBehavior b) {
         return setting != null ? setting : b.hideHud();
     }
 
-    /** {@code suppress_distortion} 在单个实例上的有效值：显式声明 → 回落 {@code suppress_bob} → 回落 {@code hide_hud}。 */
+    /**
+     * {@code suppress_distortion} 在单个实例上的有效值：显式声明 → 回落 {@code suppress_bob} →
+     * 回落 {@code hide_hud}。
+     */
     private static boolean effectiveDistortion(ScriptMeta.RuntimeBehavior b) {
         if (b.suppressDistortion() != null) return b.suppressDistortion();
         return effective(b.suppressBob(), b);
@@ -137,7 +134,7 @@ public class CinematicController {
 
     /**
      * {@code hard_hide_hud} 在单个实例上的有效值：显式 {@code true} 才开启强硬模式。
-     * <p>与 {@code hide_*} 的区别：null **不**回落 {@code hide_hud}——该开关是"模式"而非"显隐"，
+     * 与 {@code hide_*} 的区别：null 不回落 {@code hide_hud}——该开关是"模式"而非"显隐"，
      * 缺省即 normal（全局默认），否则默认脚本会凭空获得强硬行为。
      */
     private static boolean effectiveHardHide(ScriptMeta.RuntimeBehavior b) {
@@ -197,15 +194,11 @@ public class CinematicController {
     }
 
     /**
-     * 播放退出后的输入状态重同步（优雅交接）——播放开始用 {@link #releaseAllKeys()} 清旧状态，
-     * 退出改用本方法按实际物理按键状态重建，避免玩家持续按住 W 时退出导致"按键被强制松开，
-     * 直到松开重按才恢复"的卡键现象。
-     * <ol>
-     *   <li>鼠标视角累积量：清空 {@code accumulatedDX/DY}，避免退出后第一次 {@code turnPlayer} 消费播放期间
-     *       积压位移；</li>
-     *   <li>键盘：{@code KeyMapping.setAll()} 把全部 KEYSYM 绑定按当前物理按键状态 setDown；</li>
-     *   <li>鼠标按钮：{@code KeyMapping.setAll()} 只处理键盘，鼠标按键单独按 GLFW 物理状态同步。</li>
-     * </ol>
+     * 播放退出后的输入状态重同步（优雅交接）：播放开始用 {@link #releaseAllKeys()} 清旧状态，退出改用本方法
+     * 按实际物理按键状态重建，避免玩家持续按住 W 时退出卡键（要松开重按才恢复）。三步：
+     * 1. 鼠标视角累积量：清空 {@code accumulatedDX/DY}，避免退出后第一次 {@code turnPlayer} 消费播放期积压位移；
+     * 2. 键盘：{@code KeyMapping.setAll()} 把全部 KEYSYM 绑定按当前物理按键状态 setDown；
+     * 3. 鼠标按钮：{@code KeyMapping.setAll()} 只处理键盘，鼠标按键单独按 GLFW 物理状态同步。
      */
     public void syncInputStateAfterExit() {
         Minecraft mc = Minecraft.getInstance();
@@ -275,9 +268,9 @@ public class CinematicController {
 
     /**
      * 强硬隐藏模式是否生效（脚本字段 {@code hard_hide_hud}，任一活跃实例显式声明 {@code true} 即生效）。
-     * <p>该开关**不**参与「三态回落 {@code hide_hud}」：null = 未声明 = normal（全局默认值，本版本无配置键）。
+     * 该开关不参与「三态回落 {@code hide_hud}」：null = 未声明 = normal（全局默认值，当前无配置键）。
      * 接管条件还需 {@code CameraManager.isActive()} 与 {@link #isHideHud()} 同时为真——{@code hide_hud=false}
-     * 时无物可藏，不接管（见 {@code plans/0.3.6/hud-hard-hide.md} §3/§5）。
+     * 时无物可藏，不接管。
      */
     public boolean isHardHideHud() { return Boolean.TRUE.equals(hardHideHud); }
 
@@ -288,11 +281,8 @@ public class CinematicController {
     public boolean isBlockMobAi() { return blockMobAi; }
 
     /**
-     * 是否屏蔽屏幕扭曲（反胃/传送门旋转）。
-     * <ul>
-     *   <li>脚本显式写了 {@code suppress_distortion} 时以脚本为准；</li>
-     *   <li>未写时兼容旧行为：跟随 {@code suppress_bob}，再回落到 {@code hide_hud}。</li>
-     * </ul>
+     * 是否屏蔽屏幕扭曲（反胃/传送门旋转）：脚本显式写了 {@code suppress_distortion} 时以脚本为准；
+     * 未写时兼容旧行为——跟随 {@code suppress_bob}，再回落到 {@code hide_hud}。
      */
     private boolean shouldSuppressDistortion() {
         if (suppressDistortion != null) return suppressDistortion;

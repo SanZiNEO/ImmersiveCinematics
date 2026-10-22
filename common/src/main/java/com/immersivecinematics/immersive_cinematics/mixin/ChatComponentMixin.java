@@ -9,6 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/** 聊天框：按 {@code hideChat}（未设回落 {@code hideHud}）隐藏。 */
 @Mixin(ChatComponent.class)
 public class ChatComponentMixin {
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)

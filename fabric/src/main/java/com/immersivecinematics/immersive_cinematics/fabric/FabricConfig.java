@@ -14,9 +14,8 @@ import java.nio.file.Path;
 
 /**
  * Fabric 平台配置实现。
- * <p>
- * 使用 JSON 文件存储配置，路径为 {@code config/immersive_cinematics.json}。
- * 文件不存在时使用默认值自动创建。
+ *
+ * 配置以 JSON 存储于 {@code config/immersive_cinematics.json}，文件不存在时按默认值创建。
  */
 public class FabricConfig implements Config.ConfigProvider {
 
