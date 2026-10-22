@@ -32,7 +32,7 @@
     "hold_at_end": false
   },
   "timeline": {
-    "total_duration": 96,
+    "total_duration": 105,
     "tracks": [
       {
         "type": "CAMERA",
@@ -94,9 +94,7 @@
           {
             "start_time": 22,
             "duration": 14,
-            "transition": "morph",
-            "transition_duration": 1.5,
-            "transition_easing": "ease_in_out",
+            "transition": "cut",
             "keyframes": [
               {
                 "time": 0,
@@ -119,6 +117,101 @@
               },
               {
                 "time": 3,
+                "position_mode": "relative",
+                "facing_origin": "@p",
+                "position": {
+                  "fwd": -2,
+                  "right": -0.2,
+                  "up": 1.5
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 50,
+                "zoom": 1,
+                "look_at": "entity",
+                "look_at_selector": "@e[type=minecraft:ender_dragon,distance=..256]",
+                "selector_anchor_look_at": "player",
+                "selector_refresh_look_at": 0.5
+              },
+              {
+                "time": 3.8,
+                "position_mode": "relative",
+                "facing_origin": "@p",
+                "position": {
+                  "fwd": -2,
+                  "right": -0.2,
+                  "up": 1.5
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 46,
+                "zoom": 1,
+                "look_at": "entity",
+                "look_at_selector": "@e[type=minecraft:ender_dragon,distance=..256]",
+                "selector_anchor_look_at": "player",
+                "selector_refresh_look_at": 0.5
+              },
+              {
+                "time": 4.15,
+                "position_mode": "relative",
+                "facing_origin": "@p",
+                "position": {
+                  "fwd": -2,
+                  "right": -0.2,
+                  "up": 1.5
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 46,
+                "zoom": 7.36,
+                "look_at": "entity",
+                "look_at_selector": "@e[type=minecraft:ender_dragon,distance=..256]",
+                "selector_anchor_look_at": "player",
+                "selector_refresh_look_at": 0.5
+              },
+              {
+                "time": 8.6,
+                "position_mode": "relative",
+                "facing_origin": "@p",
+                "position": {
+                  "fwd": -2,
+                  "right": -0.2,
+                  "up": 1.5
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 46,
+                "zoom": 7.36,
+                "look_at": "entity",
+                "look_at_selector": "@e[type=minecraft:ender_dragon,distance=..256]",
+                "selector_anchor_look_at": "player",
+                "selector_refresh_look_at": 0.5
+              },
+              {
+                "time": 8.95,
+                "position_mode": "relative",
+                "facing_origin": "@p",
+                "position": {
+                  "fwd": -2,
+                  "right": -0.2,
+                  "up": 1.5
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 46,
+                "zoom": 1,
+                "look_at": "entity",
+                "look_at_selector": "@e[type=minecraft:ender_dragon,distance=..256]",
+                "selector_anchor_look_at": "player",
+                "selector_refresh_look_at": 0.5
+              },
+              {
+                "time": 9.75,
                 "position_mode": "relative",
                 "facing_origin": "@p",
                 "position": {
@@ -149,7 +242,7 @@
                 "pitch": 0,
                 "roll": 0,
                 "fov": 50,
-                "zoom": 1.8,
+                "zoom": 1,
                 "look_at": "entity",
                 "look_at_selector": "@e[type=minecraft:ender_dragon,distance=..256]",
                 "selector_anchor_look_at": "player",
@@ -159,104 +252,510 @@
           },
           {
             "start_time": 36,
-            "duration": 10,
-            "transition": "morph",
-            "transition_duration": 1.2,
-            "transition_easing": "ease_in_out",
+            "duration": 27.5,
+            "transition": "cut",
             "keyframes": [
               {
                 "time": 0,
                 "position_mode": "relative",
-                "position": {
-                  "dx": 0,
-                  "dy": 20,
-                  "dz": -4
-                },
-                "yaw": 100,
-                "pitch": 22,
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -45, "up": 18, "right": 0 },
                 "roll": 0,
-                "fov": 60,
+                "fov": 55,
                 "zoom": 1,
-                "look_at": "entity",
-                "look_at_selector": "@e[type=minecraft:ender_dragon,distance=..256]",
-                "selector_anchor_look_at": "player",
-                "selector_refresh_look_at": 0.5
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
               },
               {
-                "time": 4,
+                "time": 2.5,
                 "position_mode": "relative",
-                "position": {
-                  "dx": -30,
-                  "dy": 35,
-                  "dz": -8
-                },
-                "yaw": 112,
-                "pitch": 26,
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -45, "up": 18, "right": 0 },
                 "roll": 0,
-                "fov": 60,
+                "fov": 55,
                 "zoom": 1,
-                "look_at": "entity",
-                "look_at_selector": "@e[type=minecraft:ender_dragon,distance=..256]",
-                "selector_anchor_look_at": "player",
-                "selector_refresh_look_at": 0.5
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
               },
               {
-                "time": 7,
+                "time": 3.5,
                 "position_mode": "relative",
-                "position": {
-                  "dx": -55,
-                  "dy": 42,
-                  "dz": -12
-                },
-                "yaw": 122,
-                "pitch": 28,
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -45, "up": 18, "right": 0 },
                 "roll": 0,
-                "fov": 60,
+                "fov": 58,
                 "zoom": 1,
-                "look_at": "entity",
-                "look_at_selector": "@e[type=minecraft:ender_dragon,distance=..256]",
-                "selector_anchor_look_at": "player",
-                "selector_refresh_look_at": 0.5
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
               },
               {
-                "time": 10,
+                "time": 4.5,
                 "position_mode": "relative",
-                "position": {
-                  "dx": -70,
-                  "dy": 42,
-                  "dz": -15
-                },
-                "yaw": 128,
-                "pitch": 29,
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -45, "up": 18, "right": 0 },
                 "roll": 0,
-                "fov": 60,
+                "fov": 63,
                 "zoom": 1,
-                "look_at": "entity",
-                "look_at_selector": "@e[type=minecraft:ender_dragon,distance=..256]",
-                "selector_anchor_look_at": "player",
-                "selector_refresh_look_at": 0.5
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 5.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -45, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 68,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 6.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -44.5, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 73,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 7.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -42, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 76,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 8.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -39, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 79,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 9.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -35.5, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 83,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 10.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -32, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 87,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 11.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -28, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 91,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 12.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -24, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 95,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 13.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -20, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 98,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 14.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -16, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 100,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 15.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -12, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 100,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 16.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -8, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 98,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 17.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": -4, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 94,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 18.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": 0, "up": 18, "right": 0 },
+                "roll": 0,
+                "fov": 89,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 19.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": 4, "up": 18.5, "right": 0 },
+                "roll": 0,
+                "fov": 89,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 20.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": 7, "up": 19, "right": 0 },
+                "roll": 0,
+                "fov": 92,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 21.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": 10, "up": 19.5, "right": 0 },
+                "roll": 0,
+                "fov": 96,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 22.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": 13, "up": 19.5, "right": 0 },
+                "roll": 0,
+                "fov": 100,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 23.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": 15.5, "up": 20, "right": 0 },
+                "roll": 0,
+                "fov": 104,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 24.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": 17, "up": 20, "right": 0 },
+                "roll": 0,
+                "fov": 106,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 25.5,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": 18, "up": 20, "right": 0 },
+                "roll": 0,
+                "fov": 105,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 26,
+                "position_mode": "relative",
+                "facing_origin": "@e[type=minecraft:ender_dragon]",
+                "facing_target": "coordinate",
+                "facing_target_x": 0,
+                "facing_target_y": 64,
+                "facing_target_z": 0,
+                "position": { "fwd": 18, "up": 20, "right": 0 },
+                "roll": 0,
+                "fov": 105,
+                "zoom": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
               }
             ]
           },
           {
-            "start_time": 46,
-            "duration": 10,
-            "transition": "morph",
-            "transition_duration": 1.2,
-            "transition_easing": "ease_in_out",
+            "start_time": 62,
+            "duration": 1.5,
+            "transition": "cut",
             "keyframes": [
               {
                 "time": 0,
-                "position_mode": "relative",
-                "position": {
-                  "dx": -70,
-                  "dy": 42,
-                  "dz": -15
-                },
-                "yaw": 128,
-                "pitch": 29,
+                "position_mode": "absolute",
+                "position": { "x": 0, "y": 70, "z": 7 },
+                "yaw": 0,
+                "pitch": 0,
                 "roll": 0,
-                "fov": 55,
+                "fov": 50,
+                "zoom": 1,
+                "opacity": 0,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 1.5,
+                "position_mode": "absolute",
+                "position": { "x": 0, "y": 70, "z": 7 },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 50,
+                "zoom": 1,
+                "opacity": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              }
+            ]
+          },
+          {
+            "start_time": 63.5,
+            "duration": 4.5,
+            "transition": "cut",
+            "curve": {
+              "type": "bezier",
+              "control_points": [
+                { "dx": 9.333, "dy": 0, "dz": 0 },
+                { "dx": 9.333, "dy": 0, "dz": -14 }
+              ]
+            },
+            "keyframes": [
+              {
+                "time": 0,
+                "position_mode": "absolute",
+                "position": { "x": 0, "y": 70, "z": 7 },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 50,
                 "zoom": 1,
                 "look_at": "coordinate",
                 "look_at_target_x": 0,
@@ -264,51 +763,11 @@
                 "look_at_target_z": 0
               },
               {
-                "time": 3,
-                "position_mode": "relative",
-                "position": {
-                  "dx": -82,
-                  "dy": 33,
-                  "dz": -10
-                },
-                "yaw": 130,
-                "pitch": 40,
-                "roll": 0,
-                "fov": 55,
-                "zoom": 1,
-                "look_at": "coordinate",
-                "look_at_target_x": 0,
-                "look_at_target_y": 64,
-                "look_at_target_z": 0
-              },
-              {
-                "time": 6,
-                "position_mode": "relative",
-                "position": {
-                  "dx": -92,
-                  "dy": 26,
-                  "dz": -4
-                },
-                "yaw": 128,
-                "pitch": 49,
-                "roll": 0,
-                "fov": 53,
-                "zoom": 1,
-                "look_at": "coordinate",
-                "look_at_target_x": 0,
-                "look_at_target_y": 64,
-                "look_at_target_z": 0
-              },
-              {
-                "time": 10,
-                "position_mode": "relative",
-                "position": {
-                  "dx": -99,
-                  "dy": 20,
-                  "dz": 0
-                },
-                "yaw": 130,
-                "pitch": 54,
+                "time": 4.5,
+                "position_mode": "absolute",
+                "position": { "x": 0, "y": 70, "z": -7 },
+                "yaw": 0,
+                "pitch": 0,
                 "roll": 0,
                 "fov": 50,
                 "zoom": 1,
@@ -320,11 +779,40 @@
             ]
           },
           {
-            "start_time": 56,
-            "duration": 16,
-            "transition": "morph",
-            "transition_duration": 1.5,
-            "transition_easing": "ease_in_out",
+            "start_time": 68,
+            "duration": 4,
+            "transition": "cut",
+            "keyframes": [
+              {
+                "time": 0,
+                "position_mode": "relative",
+                "facing_origin": "@p",
+                "position": { "fwd": 1.5, "up": 1.62, "right": 0 },
+                "yaw_base": "entity",
+                "yaw": 180,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 50,
+                "zoom": 1
+              },
+              {
+                "time": 4,
+                "position_mode": "relative",
+                "facing_origin": "@p",
+                "position": { "fwd": 1.5, "up": 1.62, "right": 0 },
+                "yaw_base": "entity",
+                "yaw": 180,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 50,
+                "zoom": 1
+              }
+            ]
+          },
+          {
+            "start_time": 72,
+            "duration": 17.5,
+            "transition": "cut",
             "keyframes": [
               {
                 "time": 0,
@@ -365,11 +853,9 @@
             ]
           },
           {
-            "start_time": 72,
-            "duration": 24,
-            "transition": "morph",
-            "transition_duration": 1.5,
-            "transition_easing": "ease_in_out",
+            "start_time": 88,
+            "duration": 17,
+            "transition": "cut",
             "keyframes": [
               {
                 "time": 0,
@@ -384,13 +870,33 @@
                 "roll": 0,
                 "fov": 60,
                 "zoom": 1,
+                "opacity": 0,
                 "look_at": "coordinate",
                 "look_at_target_x": 0,
                 "look_at_target_y": 64,
                 "look_at_target_z": 0
               },
               {
-                "time": 6,
+                "time": 1.5,
+                "position_mode": "relative",
+                "position": {
+                  "dx": -108,
+                  "dy": 50.5,
+                  "dz": -11
+                },
+                "yaw": 137.5,
+                "pitch": 18,
+                "roll": 0,
+                "fov": 61.5,
+                "zoom": 1,
+                "opacity": 1,
+                "look_at": "coordinate",
+                "look_at_target_x": 0,
+                "look_at_target_y": 64,
+                "look_at_target_z": 0
+              },
+              {
+                "time": 4.6,
                 "position_mode": "relative",
                 "position": {
                   "dx": -116,
@@ -408,7 +914,7 @@
                 "look_at_target_z": 0
               },
               {
-                "time": 12,
+                "time": 8.7,
                 "position_mode": "relative",
                 "position": {
                   "dx": -134,
@@ -426,7 +932,7 @@
                 "look_at_target_z": 0
               },
               {
-                "time": 18,
+                "time": 12.9,
                 "position_mode": "relative",
                 "position": {
                   "dx": -152,
@@ -444,7 +950,7 @@
                 "look_at_target_z": 0
               },
               {
-                "time": 24,
+                "time": 17,
                 "position_mode": "relative",
                 "position": {
                   "dx": -170,
@@ -471,7 +977,7 @@
         "name": "龙正面小窗 · 以末影龙为基准坐标系，相机置于其前方并回望其身",
         "clips": [
           {
-            "start_time": 48,
+            "start_time": 64,
             "duration": 8,
             "transition": "cut",
             "keyframes": [
@@ -493,10 +999,16 @@
                 "fov": 55,
                 "zoom": 1,
                 "dest": {
-                  "x": 0.26,
+                  "x": 0.05,
                   "y": 0.1,
                   "w": 0.44,
                   "h": 0.28
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0.1818,
+                  "w": 1,
+                  "h": 0.6364
                 },
                 "opacity": 0
               },
@@ -518,10 +1030,16 @@
                 "fov": 55,
                 "zoom": 1,
                 "dest": {
-                  "x": 0.26,
+                  "x": 0.05,
                   "y": 0.1,
                   "w": 0.44,
                   "h": 0.28
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0.1818,
+                  "w": 1,
+                  "h": 0.6364
                 },
                 "opacity": 1
               },
@@ -543,10 +1061,16 @@
                 "fov": 55,
                 "zoom": 1,
                 "dest": {
-                  "x": 0.26,
+                  "x": 0.05,
                   "y": 0.1,
                   "w": 0.44,
                   "h": 0.28
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0.1818,
+                  "w": 1,
+                  "h": 0.6364
                 },
                 "opacity": 1
               },
@@ -568,10 +1092,16 @@
                 "fov": 55,
                 "zoom": 1,
                 "dest": {
-                  "x": 0.26,
+                  "x": 0.05,
                   "y": 0.1,
                   "w": 0.44,
                   "h": 0.28
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0.1818,
+                  "w": 1,
+                  "h": 0.6364
                 },
                 "opacity": 0
               }
@@ -585,7 +1115,7 @@
         "name": "末影人正面小窗 · 以末影人为基准坐标系，相机置于其前方并回望头部",
         "clips": [
           {
-            "start_time": 48,
+            "start_time": 64,
             "duration": 8,
             "transition": "cut",
             "keyframes": [
@@ -608,15 +1138,15 @@
                 "zoom": 1,
                 "dest": {
                   "x": 0.82,
-                  "y": 0.32,
+                  "y": 0.48,
                   "w": 0.16,
                   "h": 0.44
                 },
                 "opacity": 0,
                 "source": {
-                  "x": 0.25,
+                  "x": 0.3182,
                   "y": 0,
-                  "w": 0.5,
+                  "w": 0.3636,
                   "h": 1
                 }
               },
@@ -639,15 +1169,15 @@
                 "zoom": 1,
                 "dest": {
                   "x": 0.82,
-                  "y": 0.32,
+                  "y": 0.48,
                   "w": 0.16,
                   "h": 0.44
                 },
                 "opacity": 1,
                 "source": {
-                  "x": 0.25,
+                  "x": 0.3182,
                   "y": 0,
-                  "w": 0.5,
+                  "w": 0.3636,
                   "h": 1
                 }
               },
@@ -670,15 +1200,15 @@
                 "zoom": 1,
                 "dest": {
                   "x": 0.82,
-                  "y": 0.32,
+                  "y": 0.48,
                   "w": 0.16,
                   "h": 0.44
                 },
                 "opacity": 1,
                 "source": {
-                  "x": 0.25,
+                  "x": 0.3182,
                   "y": 0,
-                  "w": 0.5,
+                  "w": 0.3636,
                   "h": 1
                 }
               },
@@ -701,15 +1231,15 @@
                 "zoom": 1,
                 "dest": {
                   "x": 0.82,
-                  "y": 0.32,
+                  "y": 0.48,
                   "w": 0.16,
                   "h": 0.44
                 },
                 "opacity": 0,
                 "source": {
-                  "x": 0.25,
+                  "x": 0.3182,
                   "y": 0,
-                  "w": 0.5,
+                  "w": 0.3636,
                   "h": 1
                 }
               }
@@ -724,7 +1254,7 @@
         "clips": [
           {
             "start_time": 0,
-            "duration": 96,
+            "duration": 105,
             "keyframes": [
               {
                 "time": 0,
@@ -752,27 +1282,27 @@
                 "opacity": 1
               },
               {
-                "time": 56,
+                "time": 72,
                 "aspect_ratio": 2.0,
                 "opacity": 1
               },
               {
-                "time": 62,
+                "time": 78,
                 "aspect_ratio": 2.08,
                 "opacity": 1
               },
               {
-                "time": 70,
+                "time": 86,
                 "aspect_ratio": 2.3,
                 "opacity": 1
               },
               {
-                "time": 76,
+                "time": 92,
                 "aspect_ratio": 2.35,
                 "opacity": 1
               },
               {
-                "time": 96,
+                "time": 105,
                 "aspect_ratio": 2.35,
                 "opacity": 1
               }
@@ -787,7 +1317,7 @@
         "clips": [
           {
             "start_time": 0,
-            "duration": 96,
+            "duration": 105,
             "keyframes": [
               {
                 "time": 0,
@@ -811,14 +1341,7 @@
                 "temperature": 0
               },
               {
-                "time": 46,
-                "contrast": 0.02,
-                "shadows": 0.16,
-                "saturation": 0,
-                "temperature": 0
-              },
-              {
-                "time": 56,
+                "time": 62,
                 "contrast": 0.02,
                 "shadows": 0.16,
                 "saturation": 0,
@@ -826,13 +1349,20 @@
               },
               {
                 "time": 72,
+                "contrast": 0.02,
+                "shadows": 0.16,
+                "saturation": 0,
+                "temperature": 0
+              },
+              {
+                "time": 88,
                 "contrast": 0.04,
                 "shadows": 0.08,
                 "saturation": -0.04,
                 "temperature": -0.03
               },
               {
-                "time": 96,
+                "time": 105,
                 "contrast": 0.04,
                 "shadows": 0.08,
                 "saturation": -0.04,
@@ -851,7 +1381,7 @@
             "start_time": 3,
             "duration": 6,
             "layer_type": "subtitle",
-            "text": "0.2.0 · 第一个镜头，从这里开始。",
+            "text": "0.2.0 · 第一个镜头，从这里开始",
             "z_index": 1000,
             "keyframes": [
               {
@@ -885,8 +1415,8 @@
             ]
           },
           {
-            "start_time": 79,
-            "duration": 9,
+            "start_time": 97,
+            "duration": 8,
             "layer_type": "subtitle",
             "text": "ImmersiveCinematics · 0.3.6",
             "z_index": 1000,
@@ -899,25 +1429,18 @@
                 "opacity": 0
               },
               {
-                "time": 1.5,
+                "time": 1,
                 "x": 0.5,
                 "y": 0.45,
                 "font_scale": 3.2,
                 "opacity": 1
               },
               {
-                "time": 7.5,
+                "time": 8,
                 "x": 0.5,
                 "y": 0.45,
                 "font_scale": 3.2,
                 "opacity": 1
-              },
-              {
-                "time": 9,
-                "x": 0.5,
-                "y": 0.45,
-                "font_scale": 3.2,
-                "opacity": 0
               }
             ]
           }
@@ -929,8 +1452,8 @@
         "name": "结尾承接开发前瞻",
         "clips": [
           {
-            "start_time": 81,
-            "duration": 7,
+            "start_time": 101,
+            "duration": 4,
             "layer_type": "subtitle",
             "text": "敬请期待",
             "z_index": 1000,
@@ -950,18 +1473,11 @@
                 "opacity": 1
               },
               {
-                "time": 5.5,
+                "time": 4,
                 "x": 0.5,
                 "y": 0.56,
                 "font_scale": 2,
                 "opacity": 1
-              },
-              {
-                "time": 7,
-                "x": 0.5,
-                "y": 0.56,
-                "font_scale": 2,
-                "opacity": 0
               }
             ]
           }
@@ -1002,8 +1518,8 @@
             ]
           },
           {
-            "start_time": 91,
-            "duration": 5,
+            "start_time": 101,
+            "duration": 4,
             "layer_type": "fade",
             "color": "#000000",
             "z_index": 900,
@@ -1013,19 +1529,11 @@
                 "opacity": 0
               },
               {
-                "time": 1,
-                "opacity": 0.08
-              },
-              {
-                "time": 3,
-                "opacity": 0.8
+                "time": 2,
+                "opacity": 0.5
               },
               {
                 "time": 4,
-                "opacity": 1
-              },
-              {
-                "time": 5,
                 "opacity": 1
               }
             ]
