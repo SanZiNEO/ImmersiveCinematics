@@ -1,4 +1,112 @@
-# 0.3.6 脚本模型：meta、轨道与关键帧（长期计划·方向稿）
+# 脚本模型：meta、轨道与关键帧
+
+> 状态：实现中（关键帧容器、片段重叠、多实例状态已落地；分量寻址、可关键帧声明、meta 关键帧化、时间精度未落地）
+> 范围：脚本的数据结构、时间语义、片段重叠与实例状态归属
+> 关联：[并行播放](../F-playback/parallel-playback.md)、[画面合成](../F-playback/camera-composition.md)、[画面转场](../D-transition/scene-transition.md)、[时钟抽象](clock-abstraction.md)、[脚本循环](../done/script-loop.md)
+
+## 一、摘要
+
+一份脚本等于 meta（脚本自己的属性）加轨道（时间轴上的内容）；轨道下是片段，片段下是关键帧。核心判定规则是「可调即关键帧」：只要一个量希望被调整，它就应该走关键帧而不是 meta 里的静态值。模型要让同一时刻的多段画面并存、让一份定义被多个播放实例共用，并把缓动、循环、合成收进既有结构；已落地部分与缺口见 §六。
+
+## 二、为什么做
+
+### 2.1 问题
+
+- 想让位置只在一个轴上动，只能重写整段位置。
+- 听者模式、HUD 隐藏、可跳过这类属性整段只有一个值，中途要变只能拆脚本。
+- 片段级插值字段让同一份数据在不同轨道上含义不同，写下的值与实际运动对不上。
+- 一份脚本同时只能播一份，并行播放与预览共存无法表达。
+
+后果：镜头表现受限，脚本膨胀，并行与预览场景无法建模。
+
+### 2.2 目标
+
+- 可调即关键帧：任意希望被调整的量都能用关键帧表达，新增量不必改关键帧结构。
+- 参数寻址到分量：关键帧归属细化到轨道、参数与分量，「只让 X 动」因此可写。
+- 参数声明带可关键帧标记：能不能打帧是声明的一部分，编辑器据此决定是否显示关键帧入口。
+- meta 也进关键帧：听者、HUD、可跳过这类属性按同一规则处理，做不到的单独说明原因。
+- 一份脚本定义可被多个播放实例同时使用，实例状态互不共享。
+- 脚本里没有隐式数学：看到的运动等于数据加匀速线性（再加显式路径）。
+
+### 2.3 非目标
+
+- 不把调度类属性做成关键帧：优先级、播放模式决定何时播，不是画面参数。
+- 不在运行时求值缓动曲线：曲线由编辑器烘焙成显式关键帧。
+- 不引入独立转场轨、转场字段或转场代码。
+
+## 三、方案
+
+写一份脚本等于摆轨道、放片段、打关键帧。
+
+- 关键帧之间匀速直线。要弧线就在片段上声明路径（两个控制点，可相对段起点也可绝对），弧线上仍然匀速——弧长参数化保证。
+- 要缓动就在编辑器里选曲线，编辑器把采样出的关键帧写进脚本，区间总时长不变；脚本里只有显式关键帧，运行时照常线性求值。
+- 片段可以重叠：后面的盖前面的；层级先按轨道顺序、再按轨道内片段顺序。重叠的每个片段各自渲染一份画面，分屏、画中画、叠化因此是同一套机制。
+- 叠化不靠转场机制：前后两个片段各自复制延长末帧与首帧（插等值关键帧、画面冻结），交叉窗口里写透明度关键帧；透明度这类合成参数直接挂在相机片段的关键帧上。
+- 循环两级：片段级（片段自己重复，可限次数，repeat 或 pingpong）与脚本级（整段从 a 到 b 重复 N 圈，属 meta）。
+- 边界：同一片段内关键帧时间必须严格递增；位置是整体值，不能只给某个轴打帧；meta 属性整段生效。
+
+## 四、技术细节
+
+### 4.1 核心模型
+
+- 脚本：只读定义，含 meta 与时间轴（总时长、循环区间、轨道表）。
+- 轨道：类型加片段表；同一类型可以有多条（覆盖层、音频）。
+- 片段：起点、时长、轨道字段表、关键帧表；另带活跃窗口（含片段自身循环展开）、过渡声明、运动模型声明、修饰声明、判定规则。
+- 关键帧：时间、轨道类型、字段表；字段名由 schema 声明，取值走类型化访问器并挡非有限值。
+- 播放器：每实例一份，持时钟源、播放头、循环区间、执行事实、轨道播放器表。
+- 轨道播放器：每轨道一份，负责求值、分发与生命周期复位。
+- 画面 lane：相机快照加来源片段与片段内本地时间；渲染侧再包一层轨序号与调色参数。
+- 运动模型：定义（不可变、可共享）与实例（每调用点一份、独占状态）分离。
+
+### 4.2 契约
+
+脚本对象不可变，可被多实例共享；实例的创建与销毁归播放生命周期。轨道播放器按脚本轨道布局建一次，脚本替换时复用并复位派生状态。lane 快照每帧由轨道播放器产出，帧末统一重建只读快照。运动模型定义在解析期驻留、按相等性复用，实例归「实例、lane、通道」三级，只在片段边界建或销。片段级修饰声明的注册形态归实例，活跃窗口按实例的时间轴读数判定。
+
+### 4.3 数据形态
+
+时间统一以秒表示；长脚本加密集关键帧时不得因表示精度丢帧，具体表示（浮点或高精度）随实现定稿。关键帧字段表放相机位置、朝向、fov 与 zoom、合成参数、遮罩几何、调色通道等，字段集合由 schema 声明。片段字段表放循环、过渡、路径、运动模型、修饰、规则。标识：脚本 id（网络层口径）、轨道 id（类型小写加序号）、播放实例 id（服务端请求携带，本地来源为空串）、片段对象身份。
+
+### 4.4 边界
+
+运行时只读脚本，不生成、不改写。缓动与曲线编辑归编辑器，产物是显式关键帧。时钟与精度口径归时钟抽象文档。lane 的叠加、透明度与遮罩归渲染侧合成。
+
+## 五、为什么不选别的
+
+| 备选方案 | 做法 | 代价 | 为什么没选 |
+|---|---|---|---|
+| 属性全放 meta 静态值 | 所有属性整段一个值 | 中途变化只能拆脚本，同一镜头切不进去 | 采用「可调即关键帧」 |
+| 独立转场轨 / 转场字段 | 转场作为专门机制声明 | 第二套时间语义、第二套校验、作者要学两套写法 | 用片段重叠加 hold 与透明度关键帧表达 |
+| 运行时求值缓动曲线 | 关键帧自带曲线，运行时求值 | 隐式数学，所见非所得；旧样条还会改轨迹 | 编辑器烘焙成显式关键帧，运行时只做线性 |
+| 每个参数一个强类型字段 | 关键帧为每个量开字段 | 每加一个量改结构、序列化与校验 | 字段表容器，加量不改结构 |
+
+**本方案的缺点**：
+
+- 位置、矩形这类复合值只能整体插值，做到分量级之前无法只动一个轴。
+- meta 属性中途不可变，需要拆脚本或借判定规则的动作绕行。
+- 关键帧时间严格递增，同一时刻多分量、多轨的表达受限。
+- 字段表没有编译期类型约束，写错键只能靠校验发现。
+
+## 六、实现结果
+
+状态：实现中
+
+关键帧容器、片段重叠与多 lane、每实例状态、编辑器烘焙缓动、合成参数挂片段已落地；分量寻址、可关键帧声明、meta 关键帧化、时间精度未开始。
+
+| 原设计 | 实际实现 | 偏离原因 |
+|---|---|---|
+| 参数寻址到分量 | 未实现：位置、矩形等复合值整体插值 | 未开始 |
+| 参数声明带可关键帧标记 | 未实现：字段元数据里没有该标记 | 未开始 |
+| meta 纳入关键帧 | 未实现：meta 属性整段一个值 | 未开始 |
+| 时间精度按长脚本需求定表示 | 仍为 float 秒，未改 | 未开始 |
+| hold 延伸等于插等值关键帧加窗口调整 | 运行时无新增字段与机制；一键生成的工具未做 | 工具归编辑器阶段 |
+
+其余条目与设计一致：插值字段已移除、缓动由编辑器烘焙、片段可重叠、合成参数挂片段、一份定义配多份实例。
+
+---
+
+## 附录：重写前原文
+
+### 0.3.6 脚本模型：meta、轨道与关键帧（长期计划·方向稿）
 
 > 本文是 0.3.6 的长期计划方向稿。
 > - 已确认的写“已确认”
@@ -13,7 +121,7 @@
 
 ---
 
-## 1. 定位（已确认）
+#### 1. 定位（已确认）
 
 一份脚本 = **meta（脚本自己的属性）+ 轨道（时间轴上的内容）**。
 
@@ -24,7 +132,7 @@
 
 这条规则是本文的核心：它把“哪些东西该做成关键帧”从口味问题变成了一个可判定的标准。
 
-### 1.1 时间轴：片段允许时间重叠（已确认·2026-10-07）
+##### 1.1 时间轴：片段允许时间重叠（已确认·2026-10-07）
 
 - 一份脚本的时间轴上，**片段允许在时间上重叠**（lane 模型后的自然结果——以前不允许是因为只有一个相机，同一时刻只能有一个相机状态；现在每个活跃 clip 渲染自己的 lane）。
 - **重叠区的解析规则**：后面的 clip 覆盖在前面 clip 的上层；整体层级 = 先按**轨道层级**分层，再按**轨道内 clip 顺序**分层（详见[画面合成](../F-playback/camera-composition.md) §1）。
@@ -34,7 +142,7 @@
 
 ---
 
-## 2. 现状（方向）
+#### 2. 现状（方向）
 
 - 关键帧**已经是通用容器**（`Keyframe { time, trackType, data: Map }`，`script/Keyframe.java`）——加字段不用改类，底子是好的。
 - 但离“所有东西都能关键帧”还差：
@@ -48,7 +156,7 @@
 
 ---
 
-## 3. 参考：剪辑软件的数据模型（方向）
+#### 3. 参考：剪辑软件的数据模型（方向）
 
 参考 `example/editor/olive`（GPL 开源非线性剪辑软件）的做法：
 
@@ -61,7 +169,7 @@
 
 ---
 
-## 4. 升级方向
+#### 4. 升级方向
 
 1. **缓动 = 编辑器烘焙，运行时保持线性（已确认·2026-10-07，方案 E）**：编辑时用剪辑软件标准的**贝塞尔手柄**（第一版先做缓动预设：linear / ease_in / ease_out / ease_in_out，手柄曲线编辑器后置）；**落盘时把曲线采样烘焙成显式关键帧**（每段变速 ≈8–20 个采样关键帧），脚本 = 纯线性 + 显式关键帧；**运行时零新增**（只做线性插值），实际运动与脚本完全一致（所见即所得，无隐式数学）。**时长守恒**：烘焙不改变区间总时长，只把速度分布"显示化"为更多关键帧。clip 级 `interpolation` 字段删除（旧 smooth=Catmull-Rom 退役，不留双轨）。编辑器侧曲线 UI + 烘焙属编辑器线任务。
    > **落地记录·2026-10-07（编辑器侧，第一版预设曲线）**：`editor/src/operations.ts` 新增「缓动烘焙」段——`EASING_PRESETS`（linear / ease_in / ease_out / ease_in_out，公式沿用旧 `InterpolationType`：`t` / `t²` / `1−(1−t)²` / 两段二次）、`easingProgress(easing, u)`、`bakeSampleCount(duration) = clamp(round(duration×4)+2, 8, 20)`（含首尾的帧数）、`easingSupport(trackType, clip)`、`bakeClipEasing` / `bakeDocEasing`；UI 在关键帧面板（`editor/src/components/KeyframePanel.vue`，作用于「本帧 → 下一帧」区段）。**标记 `easing` 是编辑器私有字段**（挂在区段起点关键帧上），保存（`store.saveScript`）/ 预览推送（`store.pushScript`）/ 校验前在深拷贝上烘焙后删除，脚本 JSON 里只有显式关键帧。采样：时间等距（首尾时间与值不变），值按缓动进度逐通道采样，口径与运行时逐通道取值一致（yaw/roll 最短路径环绕、pitch/fov/位置分量/其余标量线性、zoom 对数、`source`/`dest` 矩形逐分量），区段起点的离散字段（`position_mode` / `follow` / `look_at` / `yaw_base` / `fit` …）原样复制进补帧（运行时这些字段只读区段起点）。**不参与烘焙**：LETTERBOX（运行时自带 smoothstep）、EVENT / MOD_EVENT（离散事件，补帧会重复触发）、带贝塞尔 `curve` 的 CAMERA 片段（路径由运行时按弧长求值）。
@@ -75,7 +183,7 @@
 
 ---
 
-## 5. 实例与状态（方向）
+#### 5. 实例与状态（方向）
 
 - **一份脚本定义 × N 份运行时状态**：定义（meta + 轨道 + 关键帧）只读；实例状态（时钟、当前值、播放头、lane 绑定）各自独立。（现状：`CinematicScript` 确为只读定义——字段 `final`，类注释即“脚本只包含编辑时确定的静态数据，不包含运行时动态状态。运行时状态由 `ScriptPlayer` 管理”；但 `ScriptPlayer` 目前是单实例（`CameraManager.getScriptPlayer()`），N 份实例状态尚未实现。）
 - 实例之间**不共享可变状态**（与[并行播放](../F-playback/parallel-playback.md)的实例模型对齐）。
@@ -84,7 +192,7 @@
 
 ---
 
-## 6. 可能的问题
+#### 6. 可能的问题
 
 - 参数寻址的粒度：到“轨道 / 参数 / 分量”之后，编辑器怎么呈现（每个分量一条曲线还是合并显示）。
 - 关键帧级插值之后，片段级插值字段的去留与迁移。
@@ -95,7 +203,7 @@
 
 ---
 
-## 7. 待定
+#### 7. 待定
 
 - 关键帧的字段形态（含贝塞尔手柄的表示）。
 - 参数寻址的具体写法。
@@ -106,7 +214,7 @@
 
 ---
 
-## 8. 落地顺序（方向）
+#### 8. 落地顺序（方向）
 
 1. 定下“可调即关键帧”的判定规则与例外清单
 2. 关键帧结构升级（自带插值 / 手柄）——**按方案 E 结案**：缓动 = 编辑器烘焙（`editor/src/operations.ts`），手柄归编辑器阶段（2026-10-08 用户裁决「任务2改判」，见 `implementation-progress.md` 用户裁决新增表）
@@ -120,7 +228,7 @@
 
 ---
 
-## 9. 相关文档
+#### 9. 相关文档
 
 - [并行播放](../F-playback/parallel-playback.md)
 - [可变画面](../D-transition/variable-frame.md)
@@ -130,11 +238,11 @@
 
 ---
 
-## 事实核查（2026-10-07）
+#### 事实核查（2026-10-07）
 
 > 依据：参考实现 `example/editor/olive/app/`，本仓 `common/src/main/java/com/immersivecinematics/immersive_cinematics/`。每条附文件/符号；读不到的标“未验证”。
 
-### ① 核实为真（olive 侧，§3）
+##### ① 核实为真（olive 侧，§3）
 
 | 断言 | 证据 |
 |---|---|
@@ -149,7 +257,7 @@
 | 参数用 properties 声明 min / 显示方式（如按百分比） | `Node::SetInputProperty()`（`app/node/node.cpp:399`）/`NodeInput::GetProperty()`；`SetInputProperty(kRadiusInput, "min", 0)`（`app/node/filter/blur/blur.cpp`）、`"view" = FloatSlider::kPercentage`（`app/node/block/clip/clip.cpp`）、`"view" = RationalSlider::kTime`（`app/node/block/block.cpp`） |
 | 时间用有理数，不是浮点秒 | `NodeKeyframe` 的 `rational time_`（`keyframe.h`）；`NodeValue::kRational`（`app/node/value.h:74`）；`app/node/block/block.cpp` 用 `NodeValue::kRational` + `RationalSlider::kTime` |
 
-### ② 核实为真（本仓，§2）
+##### ② 核实为真（本仓，§2）
 
 - **`Keyframe` 是通用容器**：`script/Keyframe.java` 字段恰为 `private final float time; private final TrackType trackType; private final Map<String,Object> data;`，另有 `getString/getFloat/getInt/getBool/getObject` 泛型取值 → “加字段不用改类”成立（新字段进 `data` map）。
 - **插值是片段级**：`schema/TrackSchemas.java` 把 `interpolation` 声明在 **clips** 上（CAMERA 第 32 行、OVERLAY 第 149 行，`enum linear|smooth`）；`Keyframe.java` 无插值字段；`script/InterpolationType.java` 只有 `LINEAR` 且**全仓无引用**（注释自述“仅用于 JSON 校验白名单”）；`ScriptValidator` 对 clip 做 `interpolation ∈ {linear, smooth}` 校验。
@@ -158,28 +266,28 @@
 - **meta 不可关键帧**：`script/ScriptMeta.java` 只有 `id/name/author/version/description/behavior/priority/dimension/triggers/skipVoteRatio` + `record RuntimeBehavior(…)`，无关键帧通道；meta 字段表见 `schema/MetaSchemas.java`（含 `listener`、`hide_hud`、`skippable`、`interruptible`、`priority`、`hold_at_end`）。`listener` 属运行期字段，只在 `rawJson` 里读（`AudioListenerController.listenerMode()`；`ScriptParser` 注释“meta.listener 等运行期扩展字段只在 rawJson 里读取”）。
 - **时间是 float 秒**：`Keyframe.time` 为 `float`；`ScriptParser` 用 `requireFloat` 读 `time`（`parseKeyframe`）、`start_time`/`duration`（`parseClip`）、`total_duration`（`parseTimeline`）。
 
-### ③ 已修正
+##### ③ 已修正
 
 1. **§3 参数声明结构体名错**：旧“每个参数是一条 `NodeInput { type, flags, default, properties, human_name }`” → 新：声明记录是 **`Node::Input { type, flags, default_value, properties, human_name, array_size }`**（`app/node/node.h:1147-1154`，私有结构体），`NodeInput`（`app/node/param.h`）是**引用**三元组 `{node, input, element}`；字段名是 `default_value` 而非 `default`。证据：`Node::InsertInput()`（`app/node/node.cpp:1672`）写入 `i.type / i.default_value = NodeValue::split_normal_value_into_track_values(type, default_value) / i.flags / i.array_size`。另：olive 仓库中不存在 `app/node/input.h` 与 `params.cpp`；相关实现分布在 `param.h` / `param.cpp` / `node.cpp`。
 2. **§3 flag 名**：旧“还有 `NotConnectable`、`Array` 等 flag” → 新：确切枚举名 `kInputFlagNotConnectable`(0x4)、`kInputFlagArray`(0x1)，另有 `kInputFlagHidden`、`kInputFlagIgnoreInvalidations`、`kInputFlagStatic`。
 3. **§2 “meta 里的东西…（听者 / HUD / 循环 / 可跳过…）”**：旧把“循环”算作 meta 整段值 → 新：听者/HUD/可跳过/可打断/优先级/末尾行为确在 meta，但**“循环”当前是 clip 级字段** `loop` / `loop_count` / `loop_mode`（`schema/TrackSchemas.java` 第 35–37 行相机、第 102 行音频；`Clip.isLoop()/getLoopCount()/getLoopMode()`），meta schema 无循环开关。证据：`MetaSchemas.java` 全表无 loop；`KeyframeInterpolator.java:47` 的循环处理读 `clip.isLoop()`。
 4. **§2 交叉引用错**：旧“见 `camera-state-plan.md` 的‘已知缺陷’” → 新：该文件（182 行）的“已知缺陷（2026-10-06 代码复查）”一节**只有 1 条**（“退出过场首帧视角跳变”），不含“相机段不消费 interpolation”。改为直接引代码证据（`CameraTrackPlayer.java` 无该字段读取）。跨文档不一致记录在案，未改他人文档。
 
-### 冲突裁决（`git log -1 --format=%cI -- <路径>`，仓库根执行）
+##### 冲突裁决（`git log -1 --format=%cI -- <路径>`，仓库根执行）
 
 | 冲突 | 文档侧时间 | 代码/文档侧时间 | 裁决 |
 |---|---|---|---|
 | §2 “循环在 meta” vs 代码（clip 级） | `plans/0.3.6/script-model.md` = 2026-10-06T21:31:25+08:00 | `script/schema/TrackSchemas.java` = 2026-09-17T13:38:01+08:00；`script/Clip.java` = 2026-08-10T19:30:55+08:00 | 文档较新，但该句是**现状描述**、实现对现状有唯一解释权，且 §1 把“循环”列为 meta 是方向稿目标态 → 保留 §1 方向表述，修正 §2 现状句 |
 | §2 引用 `camera-state-plan.md`“已知缺陷” vs 该文档实际内容 | `script-model.md` = 2026-10-06T21:31:25+08:00 | `plans/0.3.6/camera-state-plan.md` = 2026-10-06T21:16:28+08:00 | 文档较新但被引内容不存在 → 改为引代码证据，冲突记录在案 |
 
-### ④ 补全的信息
+##### ④ 补全的信息
 
 - **olive 侧符号/路径**：`Node::Input`（`node.h:1147`）、`AddInput`/`PrependInput`/`InsertInput`/`SetInputProperty`/`SetInputFlag`/`IsInputKeyframable`（`node.h`/`node.cpp`）、`InputFlag` 枚举全值（`param.h`）、`NodeKeyframe` 全成员 + `kDefaultType`（`keyframe.h`/`keyframe.cpp`）、`NodeInputImmediate::keyframe_tracks_` 与 `get_keyframe_at_time*`（`inputimmediate.h/.cpp`）、`NodeValue::split_normal_value_into_track_values` / `combine_track_values_into_normal_value` / `get_number_of_keyframe_tracks`（`value.cpp`）、`NodeKeyframeTrackReference`（`param.h:318`）。
 - **本仓符号/路径**：`script/Keyframe.java`、`script/Clip.java`（`isLoop/getLoopCount/getLoopMode/getCurve`）、`script/PositionData.java`、`script/KeyframeInterpolator.java`（`computeInterpolation` / `interpolatePosition` / `InterpolationResult`）、`script/CameraTrackPlayer.java`、`script/OverlayTrackPlayer.java`、`script/ScriptMeta.java`、`script/schema/TrackSchemas.java`、`script/schema/MetaSchemas.java`、`script/schema/FieldDef.java`（record 字段名 `defaultValue` / `enumValues`）、`script/ScriptParser.java`。
 - **新增事实（对 §4 有约束）**：本仓同一 clip 内关键帧时间**必须严格单调递增**（`ScriptParser`：`keyframes.get(i).getTime() <= keyframes.get(i-1).getTime()` → 抛 `ScriptParseException`）；而 olive 允许同一时刻多帧（不同 track/element）。按分量分轨落地时必须一并处理这条约束。
 - **§6 `FieldDef`**：实际 record 为 `FieldDef(String type, Object defaultValue, boolean required, List<String> enumValues, String section)`，`section` 默认 `"info"`；javadoc 现为「`section` 为 WebUI 自动分组预留；Java 侧只做元数据声明，不消费该字段」（0.3.6 前写的是「游戏内编辑器使用 `FieldGroup`，不直接消费 section」，该编辑器与 `FieldGroup` 已随退役删除）。
 
-### ⑤ 未验证
+##### ⑤ 未验证
 
 - **§5“一份脚本定义 × N 份运行时状态”**：`CinematicScript` 只读定义已核实（字段 `final` + 类注释“脚本只包含编辑时确定的静态数据，不包含运行时动态状态。运行时状态由 `ScriptPlayer` 管理”）；但“N 份实例状态”当前不存在——`CameraManager` 只有 `private final ScriptPlayer scriptPlayer = new ScriptPlayer();`（单实例，`getScriptPlayer()` 返回它）。N 实例为方向，未实现（未验证）。
 - **§3“参数声明 = `NodeInput`”**：olive 中不存在任何名为 `NodeInput` 的**声明型**结构体（只有引用型 `NodeInput`）；最接近的 `NodeInputImmediate`（`app/node/inputimmediate.h`）是运行期值容器（`standard_value_` + `keyframe_tracks_`）。已按实际结构体名（`Node::Input`）修正。

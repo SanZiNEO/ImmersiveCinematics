@@ -89,7 +89,7 @@ The mod jar ships the playback runtime plus the local WebSocket server, frame st
 
 ## Version
 
-**Current: 0.3.5**
+**Released: 0.3.5 · In development: 0.3.6**
 
 | | Version |
 |---|---------|

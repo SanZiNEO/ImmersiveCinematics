@@ -1,6 +1,114 @@
-# 0.3.6 多相机渲染（PIP / 分屏 / 叠化）方案
+# 多相机渲染
 
-**状态**: ✅ **实现完成（2026-10-18）** —— 渲染底层（`client/lane/LaneRenderer`，每 lane 独立相机姿态 → 整尺寸渲染进共用离屏 FBO、顺序复用，见 §12）、上屏合成（取材 / 目标区域 / 不透明度 → [画面合成](camera-composition.md) §7 步骤 3–5）、脚本 / lane 注册表接入（→ [并行播放](parallel-playback.md) §7 步骤 4）均已落地。**光影（Iris / Oculus）每视角状态隔离**已落地，Fabric / Iris 1.7.6 上 MakeUp / Complementary / BSL A/B 干净（§12.10）；**F3 验收通过（Fabric/Iris 1.7.6 实机；Forge/Oculus 为同构移植、同 jar 部署）**。**F4（视距档位）已按用户裁决取消**（lane 视距跟随玩家）；**F5（成本曲线）实现完成、数据已全部回填**（§6，l0/l1/l4/l16/l25 × FULL / WORLD_ONLY 均 600/600）。原型代码（`proto/QuadrantProto` + `QuadrantProtoMixin`）与调试驱动 `ICINEMATICS_QUADRANT` 已按版本原则删除（§12.6 / §12.7）。
+> 状态：已实现（2026-10-18）
+> 范围：同一帧内把多个相机视角渲染成独立画面并合成上屏；不含布局参数的脚本语义与实例调度。
+> 关联：`camera-composition.md`、`parallel-playback.md`、`iris-oculus-compat.md`、`docs/SCRIPT_FORMAT.md` §4。
+
+## 一、摘要
+
+同一帧内把多个相机视角分别渲染成独立画面，再按取材区域、目标区域、不透明度与遮罩合成到屏幕。分屏、画中画、叠化与划像共用同一套底层：每条画面在自己的缓冲里完成世界渲染与 lane 级后处理，互不干扰；玩家视角作底图，未覆盖处保持可见。该能力已实现。
+
+## 二、为什么做
+
+### 2.1 问题
+
+原版每帧只渲染玩家一个视角，画面只能全屏替换：分屏、画中画、双机位叠化无法同屏呈现；两张画面直接半透明叠加会互相透底，多机位共用剔除与光影状态时副画面缺块、闪烁、串色。
+
+### 2.2 目标
+
+- 同一帧内多条机位各自成像，画面完整、互不串色。
+- 全屏 / 画中画 / 分屏 / 叠化 / 划像由关键帧表达，不改渲染代码。
+- 叠化时下层保持不透明，上层由 0 升到 1。
+- 光影与优化模组下副画面仍可用，与主视角一致。
+- 单条画面失败只影响自己；成本随条数近似线性。
+
+### 2.3 非目标
+
+- 不重写渲染器，不接管区块网格与光照。
+- 不做相机状态 morph：叠化是画面叠加，不是参数插值。
+- 不设条数硬上限，不承诺帧率。
+- 不做每条画面独立视距或网格中心。
+- 不做编辑器预览的低分辨率传输。
+- 不改字幕 / 黑边 / 转场的绘制阶段。
+
+## 三、方案
+
+一条相机轨里放多个相机片段；同一时刻活跃的每个片段产出一条画面，自带取材区域、目标区域、不透明度与遮罩，全部关键帧化。
+
+- **主画面与多条副画面**：玩家视角先渲染成底图；脚本播放时最上层通常是全屏不透明的相机画面，即主画面，其余片段各产出一条副画面。无脚本画面而飞行或直控接管时，注册一条全屏画面承接链输出；未覆盖处露玩家视角。
+- **每条画面自包含**：世界渲染、发光描边与 lane 级调色都在自己的缓冲内完成；副画面没有第一人称手与 HUD。
+- **合成顺序**：先注册在下、后注册在上，顺序 = 实例启动顺序 → 轨道层级 → 片段顺序。叠化 = 下层不透明、上层 0→1；划像 = 遮罩覆盖率从 0 扩大。遮罩硬边，不透明度 = 关键帧值 × 覆盖率；尺寸 0 不绘制。
+- **视距**：跟随玩家设置，不新增档位；每条画面按自己的相机与视锥取可见范围。
+- **光影与优化模组**：每条画面走完整光影链；颜色历史、阴影颜色、上一帧矩阵与位置跟踪按视角隔离，切换光影包重建。装有 Sodium / Rubidium / Embeddium 时，跳过只针对原版剔除入口的两处接管，改走它们的相机 / 视锥路径。
+- **失败降级**：某条画面渲染失败、未写满或无颜色纹理时，该条不上屏，其余画面与主画面不动；带遮罩而合成着色器不可用时整条跳过，全幅画面退回原版贴图（可能透底）。
+
+## 四、技术细节
+
+### 4.1 核心模型
+
+- lane：一条画面的运行时单位，含独立 `Camera`、`CameraState`、`LaneContent`、lane 级调色、合成参数与剔除槽。
+- `LaneRenderer`：lane 槽表、一张全尺寸离屏缓冲（顺序复用）、调色中转缓冲、合成回调。
+- `LaneCompositor`：按 `source` / `dest` / `opacity` / `LaneMask` 贴屏。
+- `LaneCullSlot` / `LaneCullBridge`：每 lane 候选集、可见集合、门闩、相机位姿、透明排序；池化复用。
+- 光影 `ViewScope` / `ShaderCompat` / `ColorHistoryCapture` / `ViewStateCapture`；上游 `PlaybackRegistry` / `FrameDriver`。
+
+### 4.2 契约
+
+- **归属**：渲染器持有槽位与缓冲；停用清状态、留槽位与相机；剔除槽停播归还池。
+- **帧序**：帧首注册 lane → 主世界渲染 → 逐 lane 渲染并立即合成；注册必须早于世界渲染。
+- **状态**：投影、逆视图矩阵、`mainRenderTarget`、绑定与视口由 lane 块保存 / 还原；雾、深度、混合由原版收敛；异常由 `finally` 兜底。
+- **主画面与描边**：主画面描边在 lane 循环前落地；最上层相机可改取链输出，无脚本 lane 时注册全屏链 lane；原版随后那次整屏描边被屏蔽。
+- **合成与失败**：共用一张缓冲、当帧消费、顺序 = 注册顺序；写满 = 颜色纹理 + FBO 完整 + 无 GL 错误，否则跳过。
+
+### 4.3 数据形态
+
+- **标识与相机**：序号 = 合成顺序；调试 id 为 `<scriptId>_cam<轨道序号>` / `lane<序号>` / `chain`；相机六参数，roll 绕视线轴，fov 经 zoom 钳制。
+- **合成参数**：`opacity` 0~1；`source` / `dest` 为归一化矩形（原点左上）；遮罩为形状 + 中心 + 宽高 / 半径。
+- **内容与调色**：四布尔，底层缺省 `WORLD_ONLY`、脚本 `FULL`；调色只动 RGB，alpha 直通。
+- **剔除与光影**：14 字段槽；网格与编译产物共享；每视角、每历史目标 main/alt + previous / tracker。
+
+### 4.4 边界
+
+- 只执行合成参数，不定义布局语义；叠放顺序由注册顺序唯一决定。
+- 不碰脚本 / 时间轴 / 排队 / 网络与 GUI 覆盖层；不改原版手与 HUD。
+- 不复制网格与编译产物；不改第三方内部；正式合成不降分辨率；未知历史目标不隔离。
+
+## 五、为什么不选别的
+
+| 备选方案 | 做法 | 代价 | 为什么没选 |
+|---|---|---|---|
+| 自建渲染器 | 自画区块与实体 | 重写光照、雾、光影链 | 原版管线已能产出完整画面 |
+| 每 lane 常驻独立缓冲 | N 张全尺寸 FBO | 显存随条数增长 | 顺序复用一张缓冲 |
+| 副画面降分辨率 | 低分辨率再放大 | 画质损失，叠化边界可见 | 正式输出要求同分辨率 |
+| 共享可见集合 + 每 pass 重建 | 保存并全量重建 | 每帧 N 次全量 BFS | 每 lane 一份字段槽 |
+| 叠化前单独提前渲染 | 提前渲染下一画面 | 额外调度，首帧可能未就绪 | 重叠窗口内上层片段已在渲染 |
+| 沿用原版贴图着色器 | 按纹理 alpha 混合 | alpha 不干净，边缘透底 | 专用 blit 只读 RGB |
+
+**本方案的缺点**：
+
+- 每条画面一遍完整世界渲染，成本近似线性；重场景两三条就吃掉可观帧预算。
+- 共用缓冲使合成必须即时，叠放顺序只能是注册顺序。
+- 网格只有一份、中心取最上层画面；机位远离玩家时，远处画面受视距与网格中心限制。
+
+## 六、实现结果
+
+状态：已实现（2026-10-18）
+
+渲染底层、上屏合成、脚本接入、光影隔离、优化模组路径与成本诊断均已落地；2026-10-23 注释收敛（63dbd9a）。F5 矩阵 l0/l1/l4/l16/l25 × FULL/WORLD_ONLY 全部 600/600；Fabric/Iris 1.7.6 与 Forge/Oculus 均已验收。
+
+| 原设计 | 实际实现 | 偏离原因 |
+|---|---|---|
+| 每 lane 独立 RenderTarget / 独立 RenderBuffers | 共用一张离屏缓冲，共享原版 `RenderBuffers` | 显存不随 lane 数增长；原版缓冲私有且 lane 内需完整实体 / 描边链 |
+| 副画面只渲染区块层，实体 / 粒子默认关 | 整段原版 `renderLevel` + 脚本 lane 恒 `FULL` | 复用原版管线保证完整；分屏需要与主画面同内容，`WORLD_ONLY` 仍是底层默认 |
+| lane 自包含包括原版后处理 | 只有发光描边在 lane 内完成，原版 `postEffect` 在合成输出上跑一次 | 原版后处理作用于整屏，逐 lane 重放会重复 |
+| 帧驱动与 lane 注册挂在世界渲染之后 | 前移到帧首、世界渲染之前 | 视图中心与剔除在渲染准备阶段读 lane 表 |
+| 叠化前单独提前渲染 | 不设独立调度，靠时间轴重叠 | 上层画面从 `opacity=0` 段就在渲染 |
+
+## 附录：重写前原文
+
+### 0.3.6 多相机渲染（PIP / 分屏 / 叠化）方案
+
+**状态**: ✅ **实现完成（2026-10-18）** —— 渲染底层（`client/lane/LaneRenderer`，每 lane 独立相机姿态 → 整尺寸渲染进共用离屏 FBO、顺序复用，见 §12）、上屏合成（取材 / 目标区域 / 不透明度 → [画面合成](camera-composition.md) §7 步骤 3–5）、脚本 / lane 注册表接入（→ [并行播放](parallel-playback.md) §7 步骤 4）均已落地。**光影（Iris / Oculus）每视角状态隔离**已落地，Fabric / Iris 1.7.6 上 MakeUp / Complementary / BSL A/B 干净（§12.10）；**F3 验收通过（Fabric/Iris 1.7.6 实机；Forge/Oculus 为同构移植、同 jar 部署）**。**F5（成本曲线）实现完成、数据已全部回填**（§6，l0/l1/l4/l16/l25 × FULL / WORLD_ONLY 均 600/600）。原型代码（`proto/QuadrantProto` + `QuadrantProtoMixin`）与调试驱动 `ICINEMATICS_QUADRANT` 已按版本原则删除（§12.6 / §12.7）。
 **目标版本**: 0.3.6
 
 > 本文讨论“同一时刻渲染多个相机画面”以及“叠化（dissolve）”功能。
@@ -12,16 +120,16 @@
 
 ---
 
-## 1. 需求定义
+#### 1. 需求定义
 
-### 1.1 PIP / 分屏
+##### 1.1 PIP / 分屏
 
 - 不是“带边框的小窗 UI”
 - 而是：同一帧内渲染多个相机画面并合成到屏幕
 - 例如：左侧显示相机 1，右侧显示相机 2
 - 类似监视器墙 / 分屏监控
 
-### 1.2 叠化（Dissolve / Crossfade）
+##### 1.2 叠化（Dissolve / Crossfade）
 
 - 不是 morph（相机状态平滑过渡）
 - 而是：过渡期内两张画面叠加淡化
@@ -30,7 +138,7 @@
 
 ---
 
-## 2. 底层能力
+#### 2. 底层能力
 
 两者共用同一个底层能力：
 
@@ -41,16 +149,16 @@
 
 ---
 
-## 3. 技术路线
+#### 3. 技术路线
 
-### 3.1 不是自己搭渲染器
+##### 3.1 不是自己搭渲染器
 
 - 复用原版世界渲染管线：`GameRenderer.renderLevel` / `LevelRenderer.renderLevel`
 - 用第二个 `Camera` 再调用一次原版世界渲染
 - 输出到独立的 `RenderTarget`（FBO）
 - 最后把多张纹理合成到屏幕
 
-### 3.2 每帧流程（双相机）
+##### 3.2 每帧流程（双相机）
 
 ```text
 1. 准备相机 A、相机 B（位置/朝向来自脚本路径）
@@ -63,7 +171,7 @@
 6. 继续渲染 GUI / 主画面
 ```
 
-### 3.3 叠化提前量（预热）
+##### 3.3 叠化提前量（预热）
 
 问题：
 - 叠化开始那一刻，A 和 B 的画面必须同时存在
@@ -82,7 +190,7 @@
 
 ---
 
-## 4. 关键难点
+#### 4. 关键难点
 
 | 难点 | 说明 |
 |---|---|
@@ -101,7 +209,7 @@
 
 ---
 
-## 5. 脚本 / 数据模型
+#### 5. 脚本 / 数据模型
 
 > **已被取代**：相机来源（多脚本实例 × 每实例多 lane）见[并行播放](parallel-playback.md)；
 > 上屏布局（分屏 / 叠化 / PIP 统一为“取材区域 / 目标区域 / 不透明度”的关键帧参数）见[画面合成](camera-composition.md)。
@@ -109,19 +217,18 @@
 
 ---
 
-## 6. 性能策略
+#### 6. 性能策略
 
 - **原则：不设硬上限，只给推荐**——lane 数由作者决定；我们给成本模型与实测数据（推荐值），帧率不做保证，压力由作者自行评估
 - **实测（轻场景 1.0x 上限口径；探针分支已按"测完即删"删除，数字留档在 `render-second-pass-cost.md` §4.2）**：每多一个 lane ≈ **+0.56ms** 世界渲染（≈ 0.85× 主 `renderLevel`）；N=5 时世界渲染 ≈ 5.5×、帧间隔 1.2→4.0ms——线性，无超线性偏离
 - **推荐（不是限制）**：可用 lane 数 ≈ (帧预算 − 基线帧时间) ÷ 单 lane 成本。轻场景单 lane ≈ +0.56ms（60fps 预算 16.6ms 下很宽裕）；重场景单 lane ≈ **3.4–3.7 ms**（原型实测：单画面 3.4/3.5/3.6 ms vs 主画面 2–3 ms；**0.85× 是轻场景探针口径，不是重场景**）。按 0.85× 口径外推：主渲染 5ms 时 ≈ +4.3ms/lane，2–3 个 lane 就吃掉 8–13ms——**超过推荐值不禁止，帧率自负**
 - **分辨率：正式合成走原分辨率**（与主画面同分辨率，靠取材区域裁切再铺屏）；**低分辨率只用于编辑器预览传输**（省带宽）
 - 叠化只在过渡期开双渲染，平时单渲染
-- 分屏模式长期双渲染，必须做内容 / 视距档位（**不降分辨率**）
-- 可选项：副画面跳过实体渲染 / 降低视距 / 关闭粒子
+- 分屏模式长期双渲染：lane 视距自动跟随玩家设置，不新增视距档位或其它脚本开关
 
-**F5 成本实测状态（2026-10-18，矩阵完整）**：opt-in 诊断会话（manifest / events.jsonl / 定点图片 / CPU 提交区间 CSV + p50/p95）与 21 支测试脚本已实现（2026-10-17）。数据**已全部回填**：`perf_l0` / `perf_l1` / `perf_l4` / `perf_l16` / `perf_l25` 的 FULL 与 WORLD_ONLY **均为 600/600 有效帧**（`perf_l16` FULL 从 259/600 中断补到完整；`perf_l25` 在 gzip 脚本传输修复后补齐，见 [f5-script-packet-limit](f5-script-packet-limit.md)）。采样环境：Fabric / Iris 1.7.6 + Sodium + ComplementaryUnbound，vsync 关、maxFps 260、视距 12。**25 lane 档**（会话 `20261018-173824-f5-acceptance`，15000 lane rows、0 lane 失败帧）：FULL `game_render` p50/p95 = 27.26 / 39.43 ms、`lane_total` 22.87 / 33.24 ms、`composite_total` 0.47 / 0.81 ms；WORLD_ONLY 分别为 18.88 / 21.74 ms、15.07 / 17.30 ms、0.39 / 0.48 ms。2026-10-18 新增的每视角历史拷贝成本已包含在这些数字里（未单独拆分）。F4 已取消：lane 视距自动跟随玩家设置，不新增脚本字段。
+**F5 成本实测状态（2026-10-18，矩阵完整）**：opt-in 诊断会话（manifest / events.jsonl / 定点图片 / CPU 提交区间 CSV + p50/p95）与 21 支测试脚本已实现（2026-10-17）。数据**已全部回填**：`perf_l0` / `perf_l1` / `perf_l4` / `perf_l16` / `perf_l25` 的 FULL 与 WORLD_ONLY **均为 600/600 有效帧**（`perf_l16` FULL 从 259/600 中断补到完整；`perf_l25` 在 gzip 脚本传输修复后补齐，见 [f5-script-packet-limit](f5-script-packet-limit.md)）。采样环境：Fabric / Iris 1.7.6 + Sodium + ComplementaryUnbound，vsync 关、maxFps 260、视距 12。**25 lane 档**（会话 `20261018-173824-f5-acceptance`，15000 lane rows、0 lane 失败帧）：FULL `game_render` p50/p95 = 27.26 / 39.43 ms、`lane_total` 22.87 / 33.24 ms、`composite_total` 0.47 / 0.81 ms；WORLD_ONLY 分别为 18.88 / 21.74 ms、15.07 / 17.30 ms、0.39 / 0.48 ms。2026-10-18 新增的每视角历史拷贝成本已包含在这些数字里（未单独拆分）。
 
-### 6.1 降耗设计（借鉴 Iris `ShadowRenderer` 第二视角渲染模式，自 0.4.0 G2 并入）
+##### 6.1 降耗设计（借鉴 Iris `ShadowRenderer` 第二视角渲染模式，自 0.4.0 G2 并入）
 
 | 机制 | 说明 |
 |------|------|
@@ -138,7 +245,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 
 ---
 
-## 7. 兼容性风险
+#### 7. 兼容性风险
 
 - 光影（Iris/Oculus）：
   - 它们自己会做多次渲染，说明多次渲染可行
@@ -148,7 +255,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
   - 渲染状态管理更严格，二次调用前必须确认状态保存/恢复方式（具体：`RenderDevice.enterManagedCode()` / `exitManagedCode()` 包住 `drawChunkLayer` / `setupTerrain`；`setupRender` 里的 `frame++` 每调一次自增；`SodiumWorldRenderer.setupTerrain` 用相机位姿判 `dirty` → 每帧两次 `markGraphDirty()` 让渲染列表缓存失效——见 `render-second-pass-cost.md` §3.1–3.2）
   - 状态（2026-10-18）：F3 已删除 `isUnavailable()` 整条禁用（lane 始终渲染，§7.1）；**Sodium 0.5.13 实机 A/B 与 F5 十档均无缺块 / 闪块**（`frame++` 语义实际未产生症状）；**Rubidium 类名核对**为已知限制（§9）。
 
-### 7.1 渲染优化模组兼容策略（自 0.4.0 G2 并入）
+##### 7.1 渲染优化模组兼容策略（自 0.4.0 G2 并入）
 
 - **事实**：Sodium `@Overwrite` 原版区块渲染（Fabric Sodium：`renderLayer` → `SodiumWorldRenderer.drawChunkLayer`，`WorldRendererMixin.java:100-108`；Embeddium 端方法名是 `renderChunkLayer`，`WorldRendererMixin.java:128-142`）与 `setupRender`（`((ViewportProvider) frustum).sodium$createViewport()` 是**硬转换**——副相机的 Frustum 必须实现该接口，否则 CCE：Fabric `:115-124`、Embeddium `:148-164`，接口实现见 `mixin/core/render/frustum/FrustumMixin.java`；整段调用还必须用 `RenderDevice.enterManagedCode()` / `exitManagedCode()` 包住 = 文档里说的"渲染上下文"）；Oculus = Iris 的 Forge 移植（同构，包名同样是 `net.irisshaders.iris`），Forge 端对应物为 Embeddium。副画面第二遍裸调原版区块 API 在 Sodium 下**不可靠**（视锥接口不匹配 / 缺渲染上下文 / 可见性图被两遍打散）；Iris 为此维护了**一整套** Sodium 兼容层——`example/Iris-1.20.1/src/sodiumCompatibility` 共 **83 个 Java 文件 / 4788 行**，其中阴影 pass 专属的 `mixin/shadow_map/*` + `impl/shadow_map/*` 是 **10 个文件 / 321 行**（例：`MixinRenderSectionManager` 为 shadow pass 另存一份 `shadowRenderLists` 并重定向 `renderLists` 字段；`MixinSodiumWorldRenderer` 在 shadow pass 里强制 `RenderSectionManager.needsUpdate() == true`），第二遍本体 `shadows/ShadowRenderer.java` **730 行**（Oculus 版 729 行）。
 - **现行策略（2026-10-17 恢复原设计）**：检测到 Sodium / Rubidium / Embeddium 时，跳过只针对原版 `setupRender` 的两个 mixin——`LevelRendererVanillaMixin`（视图中心 / 遮挡开关）与 `LaneCullStateMixin`（vanilla 剔除字段交换）——改走它们基于 `Camera` / `Frustum` 的优化路径（`CameraMixin` 已写入虚拟相机，`Viewport` / `setupTerrain` 会跟随）。lane 渲染始终执行；缺 `LaneCullBridge` 时只跳过剔除状态交换。历史上 `3a191d3` 加的 `isUnavailable()` 整条禁用已删除（未实测的源码推断）。
@@ -156,7 +263,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 
 ---
 
-## 8. 实施步骤（0.3.6）
+#### 8. 实施步骤（0.3.6）
 
 | # | 步骤 | 状态 |
 |---|---|---|
@@ -165,13 +272,13 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 | 3 | 多 lane 渲染：N 个相机各渲染到独立 RenderTarget（上屏布局见[画面合成](camera-composition.md)） | ✅ 2026-10-07（共用一张离屏缓冲顺序复用，§12.3；上屏见画面合成 §7 步骤 3–5） |
 | 4 | 叠化预热：叠化前提前渲染下一 lane，保证首帧有效（预热调度见[画面合成](camera-composition.md)） | ✅ 结论：预热 = 重叠窗口本身，无独立调度（§3.3） |
 | 5 | 兼容：Iris/Oculus/Sodium 实测 | 🟡 Sodium / Embeddium 策略已落地（§7.1）；Iris / Oculus 每视角隔离 2026-10-18 落地（§12.10，Fabric / Iris 1.7.6 A/B 干净）；**F3 验收通过（Forge / Oculus 同 jar 已部署）** |
-| 6 | 性能：原分辨率副画面 + 内容档位 + 帧耗时统计 | ✅ F5 诊断与 21 支脚本已实现（2026-10-17）；成本矩阵已完整回填（§6，含 25 lane 档） |
+| 6 | 性能：原分辨率副画面 + 帧耗时统计 | ✅ F5 诊断与 21 支脚本已实现（2026-10-17）；成本矩阵已完整回填（§6，含 25 lane 档） |
 | 7 | 文档：SCRIPT_FORMAT / AI_SCRIPTING_GUIDE | ✅ 合成参数已进 `docs/SCRIPT_FORMAT.md` §4 与 `docs/AI_SCRIPTING_GUIDE.md` |
 | 8 | **实机缺陷缓解（2026-10-07，见 §12.8）**：lane 透底（合成层改专用不透明 blit `ic_lane_blit`）与倾斜裁切矩形（lane 活跃期间整帧关闭遮挡剪枝 + 每 lane pass 强制重刷可见集合 + 帧驱动移到世界渲染之前） | ✅（后续被 §12.9 per-lane 可见集合取代「整帧关闭剪枝」；2026-10-18 光影跨视角污染另见 §12.10） |
 
 ---
 
-## 9. 开放问题
+#### 9. 开放问题
 
 - ~~多相机是否走“多条 CAMERA 轨道”还是“单轨道多 camera_id”？~~
   **已回答**：多脚本实例 × 每实例多 lane，不设上限——见[并行播放](parallel-playback.md)。
@@ -180,13 +287,13 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 - 🟡 **副画面是否需要支持 look_at / tangent 朝向？**（未定）
 - 🟡 **是否允许叠化期间主相机继续移动？**（未定；合成层不限制，属编排 / 语义决定）
 - 🟡 **Rubidium 兼容**：`example/` 下无 Rubidium 源码，未验证（§11）。
-- 🟡 **Sodium 下两遍 / 帧的 `frame++` 语义**：仍未实机验证（§7 / §7.1）。
+- ✅ **Sodium 下两遍 / 帧的 `frame++` 语义**：Sodium 0.5.13 实机 A/B 与 F5 十档均无缺块 / 闪块（Embeddium 同构未单测）；§7 / §7.1 的「未验证」字样是 2026-10-07 快照。
 - ✅ **每视角历史拷贝成本**：已包含在 F5 复测数据中（未单独拆分，见 §6）。
 - ~~预热时长是固定值还是脚本可配？~~ **已解答（2026-10-07）**：都不是——预热 = 重叠窗口本身（作者编排 B 的开头延长量），见 §3.3 与 `camera-composition.md` §4。
 
 ---
 
-## 10. 结论
+#### 10. 结论
 
 - 0.3.5 不做；0.3.6 作为核心功能攻克。
 - **路线已走完（2026-10-18）**：原型验证二次渲染 → 渲染底层（§12）→ 上屏合成（[画面合成](camera-composition.md) §7 步骤 3–5）→ 光影每视角隔离（§12.10）。
@@ -194,7 +301,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 
 ---
 
-## 11. 参考：Sodium / Rubidium / Embeddium 源码
+#### 11. 参考：Sodium / Rubidium / Embeddium 源码
 
 0.3.5 已验证一个重要事实：
 
@@ -218,7 +325,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 
 ---
 
-## 已知缺陷（2026-10-06 代码复查）
+#### 已知缺陷（2026-10-06 代码复查）
 
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
 
@@ -226,12 +333,12 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 
 ---
 
-## 事实核查（2026-10-07）
+#### 事实核查（2026-10-07）
 
 > 依据：MC 1.20.1 解出源码（`.gradle/loom-cache/minecraftMaven/...-sources.jar` 与 `%TEMP%\mcsrc\`——同一份 CFR 解出物，行号一致；`GameRenderer` / `LevelRenderer` / `RenderTarget` / `Frustum` 四文件已用 sources.jar 逐段交叉核对）、本仓库 `common/...` 代码、`example/` 参考模组源码、`plans/0.3.6/quadrant-perf/*.csv`。只补事实、不改设计方向；§3.3 / §8 / §9 的设计类开放问题保持待定。
-> **本小节是 2026-10-07 快照**：此后落地（上屏合成、脚本 lane 注册、F3 / F4 / F5、光影每视角隔离 2026-10-18）见 §7–§12；下文「未验证 / 待定」不覆盖这些后续结果。
+> **本小节是 2026-10-07 快照**：此后落地（上屏合成、脚本 lane 注册、F3 / F5、光影每视角隔离 2026-10-18）见 §7–§12；下文「未验证 / 待定」不覆盖这些后续结果。
 
-### ① 核实为真（附证据）
+##### ① 核实为真（附证据）
 
 **§4 关键难点**
 
@@ -268,7 +375,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 
 20. **MODE=1 数组越界 ✓**：`CAMERAS = new ProtoCamera[Math.max(VIEWS, 1)]`，mode=1 时 `VIEWS = 0` → 长度 1；`CinematicOcclusion.beginFrame` 的 `for (int i = 0; i < 4 && !inside; i++) inside = isInsideSolidBlock(mc, QuadrantProto.camera(i).camera());` 会在 `i=1` 越界（`QuadrantProto.camera(int)` 直接 `return CAMERAS[i]`，无边界检查）。触发条件：`ICINEMATICS_QUADRANT=1` + 已进世界 + `camera(0)` **不在**实心方块内（若在，`inside=true` 提前结束循环）；挂点 `GameRendererMixin` 的 `render` HEAD → `CinematicOcclusion.beginFrame(...)`（该类已随 B3-d 删除）。
 
-### ② 已修正
+##### ② 已修正
 
 1. **§6「重场景单 lane ≈ 0.85 × 主 `renderLevel`」→ 重场景实测 ≈ 3.4–3.7 ms**（0.85× 是**轻场景探针**口径）。
    证据：0.85× 出自 `render-second-pass-cost.md` §4.2（轻场景：新世界 / 视距 12 / 无光影模组）；`quadrant-perf/summary.md` 的重场景（地表 + 20 多实体 + 发光描边）单画面 3.4/3.5/3.6 ms、主画面 2–3 ms。
@@ -279,7 +386,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
    冲突裁决：本文档 2026-10-06T21:16:28+08:00 vs `example/Iris-1.20.1/...` 文件 mtime 2025-06-27 11:29:13（`example/` 被 `.gitignore:36` 忽略、无 git 历史，只能用 mtime）；文档晚于源码副本落地 → 按源码实测修正。
 4. **细节精度修正**：`renderLevel` 内的 viewport 重置是"重置成**该 target 的 view 尺寸**"（`entityTarget` 恰好是主画面/窗口尺寸），不是无条件的"整窗"；`offsetToFullyIncludeCameraCube` 的循环移动方向是 **−viewVector**；Embeddium 端被 `@Overwrite` 的方法名是 `renderChunkLayer`（Fabric Sodium 是 `renderLayer`）。
 
-### ③ 补全
+##### ③ 补全
 
 - **§4 表格**：为"全局状态切换/恢复 / 第二个 Camera / 第二个 Frustum / 副画面内容 / 渲染顺序 / 光影兼容 / 剔除视锥 / 剔除状态 / lane 自包含 / 主画面指向 / 全局投影 / 性能"各行补上具体类名+方法名（`RenderTarget.bindWrite`、`LevelRenderer.prepareCullFrustum`、`FogRenderer.setupFog(FOG_TERRAIN)`、`RenderSystem.setProjectionMatrix`、`LevelRenderer.renderChunkStorage` 等）。
 - **§4 新增事实**（回答 §9"渲染顺序"的**事实边界**，不代替设计决定）：`renderLevel` 之后的整屏步骤 = `tryTakeScreenshotIfNeeded` → `doEntityOutline` → `postEffect` → `getMainRenderTarget().bindWrite(true)`，帧末另有 `Minecraft.runTick` 的 `blitToScreen`。
@@ -287,7 +394,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 - **§7**：Sodium 状态项补三个具体点——`RenderDevice.enterManagedCode()/exitManagedCode()`、`setupRender` 的 `frame++` 每调一次自增、相机位姿变化触发的 `markGraphDirty()`。
 - **§11**：补四个参考文件的行数与关键行号；补 `setupTerrain` / `Viewport` 的源码依据；就地标注 Rubidium 未验证。
 
-### ④ 未验证
+##### ④ 未验证
 
 - **Rubidium**：`example/` 下没有 Rubidium 源码 → §11 关于它的一条**未验证**（已就地标注）。
 - **"光影环境下能否拿到已处理后的画面"**（§7 第三点）：只核实了 Iris 第二遍的存在与状态处理，未验证第三方能否安全取用 Iris 合成后的画面——保持"需要专门调研"。
@@ -296,12 +403,12 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 
 ---
 
-## 12. 渲染底层实现（2026-10-07 落地；2026-10-18 补光影每视角隔离 §12.10）
+#### 12. 渲染底层实现（2026-10-07 落地；2026-10-18 补光影每视角隔离 §12.10）
 
 > 本节是**已实现**的渲染底层（代码为准）；§3 技术路线 / §4 关键难点 的结论全部体现在这里。
 > 上屏合成（取材 / 目标区域 / 不透明度 / 叠放顺序）与脚本 / lane 注册表接入**不在本节**。
 
-### 12.1 组件
+##### 12.1 组件
 
 | 文件 | 职责 |
 |---|---|
@@ -319,7 +426,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 | `mixin/LaneCullStateMixin.java` + `client/lane/LaneCullSlot.java` / `LaneCullSlots.java` | 每 lane 独立可见集合：lane pass 前后把「候选集 / 可见集合 / 门闩 / 相机移动判定 / 透明排序基准」与 lane 槽字段级换入换出（槽池化复用）；§12.9 |
 | `client/lane/{ShaderCompat,ViewScope,ColorHistoryCapture,ViewStateCapture,ShadowColorClear}.java` | 光影每视角隔离（2026-10-18）：历史 colortex / `shadowcolor` / previous 矩阵与 tracker 按视角保存恢复，pipeline 切换时重置；§12.10 |
 
-### 12.2 lane 状态与接入点
+##### 12.2 lane 状态与接入点
 
 - **lane 状态 = `CameraState`（六参数快照）+ `LaneContent`（内容开关）**；
   `LaneContent.WORLD_ONLY`（默认，全关）/ `LaneContent.FULL`（调试、压测）。
@@ -329,7 +436,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
   - `LaneRenderer.INSTANCE.setSink((index, target) -> …)` —— **合成接缝**：每条 lane 渲染完、离屏缓冲还热时回调（共用缓冲 → 必须当帧消费）。
 - **默认零差异**：没有活跃 lane 时 `render(...)` 第一行即返回（不渲染、不分配、不切状态）；调试捕获未开（`ICINEMATICS_CAPTURE`）时 `LaneDebugCapture` 的每个钩子第一行即返回。
 
-### 12.3 每条 lane 的渲染流程
+##### 12.3 每条 lane 的渲染流程
 
 ```text
 mainRenderTarget 临时指向 lane FBO → fbo.bindWrite(true)（视口 = FBO 全尺寸）
@@ -346,19 +453,19 @@ mainRenderTarget 临时指向 lane FBO → fbo.bindWrite(true)（视口 = FBO �
 - 离屏缓冲**共用一张**（按主画面尺寸创建 / 跟随窗口重建）→ 显存不随 lane 数增长；顺序复用即 §6.1 的"缓冲复用"。
 - 副画面天然不含第一人称手 / HUD（它们在 `LevelRenderer.renderLevel` 之外），不额外处理。
 
-### 12.4 状态保存 / 恢复
+##### 12.4 状态保存 / 恢复
 
 - lane 块入口保存、出口还原：**全局投影矩阵 + VertexSorting**、**全局逆视图旋转矩阵**、**mainRenderTarget**、**当前 framebuffer + 视口**；
 - 雾 / 深度 / 混合状态由 `renderLevel` 自己收敛到"渲染结束"态（与原版主画面同态，末尾 `setupNoFog` / `depthMask(true)` / `disableBlend`）；
 - 视锥每帧由各 pass 重建（`GameRenderer.renderLevel` 每帧调 `prepareCullFrustum`），无需还原；
 - **主画面的发光描边**：有活跃 lane 时原版那次整屏 `doEntityOutline()` 被屏蔽（否则会把最后一条 lane 的描边 1:1 盖满全屏），改为在 lane 块开头先为**主画面**贴一次（主画面描边不丢）。
 
-### 12.5 兼容
+##### 12.5 兼容
 
 - **Sodium / Embeddium（Rubidium）**：检测到即跳过 `LevelRendererVanillaMixin` 与 `LaneCullStateMixin`，改走优化器自己的 `setupRender` / 剔除路径；lane 始终渲染，缺 `LaneCullBridge` 时只跳过剔除状态交换。
 - 光影（Iris / Oculus）：**每视角状态隔离已落地（2026-10-18，§12.10）**——TAA 颜色历史 / `shadowcolor` / previous 矩阵与 tracker 按视角保存恢复，切换光影包时重置缓存；深度附件由既有深度版本修复保证（lane 首帧 `irisDepth=78`）。Fabric / Iris 1.7.6 三包 A/B 干净，**F3 验收通过（Forge / Oculus 同 jar 已部署）**。
 
-### 12.6 调试入口
+##### 12.6 调试入口
 
 **四象限演示 = 脚本，不是代码级驱动**：`cinematics/release/quadrant.json`（脚本 id `quadrant_demo`，单脚本 4 条 CAMERA 轨、`dest` 各占半屏；每格调色直接写在各自相机片段的关键帧上）。把该文件放进 `<游戏目录>/immersive_cinematics/scripts/`，进世界由 login 触发器自动播一次：
 
@@ -382,13 +489,13 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 - 位置：raw 读回在 `LaneRenderer.renderLane` 内（lane 级调色之前），composited 读回在 `ScriptLaneDriver.compose` 里（紧随 `LaneCompositor.compose`），窗口终帧在 `GameRendererMixin` 的 `GameRenderer.render` RETURN（原版 `blitToScreen` 在 `Minecraft.runTick` 里、`render` 返回之后才调用，内容与窗口一致）。
 - lane 渲染失败（`written=false`）时 raw / composited 没有产出，`frame` 仍会出（那是原版画面）；不再有「按模组禁用」分支。
 
-### 12.7 原型处置（版本原则：不留旧代码）
+##### 12.7 原型处置（版本原则：不留旧代码）
 
 - 删除：`proto/QuadrantProto.java`（渲染逻辑 + 压测统计 / CSV / 出图）、`mixin/QuadrantProtoMixin.java`、`proto` 包；
 - 保留并适配：`mixin/MinecraftAccessor.java`（lane 期间主画面指向）、`CameraMixin` / `GameRendererMixin` / `LevelRendererMixin` 的接管分支（原型分支 → lane 分支）；
 - 压测数据留在 `quadrant-perf/`（存档），压测/统计代码随原型删除——渲染底层再次需要成本曲线时按新结构重测。
 
-### 12.8 实机缺陷与缓解（2026-10-07 多相机 lane 实机验证）
+##### 12.8 实机缺陷与缓解（2026-10-07 多相机 lane 实机验证）
 
 > 现象 / 根因 / 处置都是**实机 + 代码**口径（探针：`ICINEMATICS_QUADRANT=4`，逐帧读回 lane 帧与合成帧做像素级对比）。
 > **注（2026-10-07 清理）**：当时的探针走已删的 `LaneDebugDriver`；现在的捕获入口是 `ICINEMATICS_CAPTURE`（见 §12.6），本节只作历史记录。
@@ -431,17 +538,17 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 
 ---
 
-### 12.9 每 lane 独立可见集合设计定稿（2026-10-10）
+##### 12.9 每 lane 独立可见集合设计定稿（2026-10-10）
 
 **范围**：每 lane 独立可见集合（候选集 / 可见集合 / 门闩 / 相机移动判定 / 透明排序基准）——已实现。
 **依据**：§12.8-B（现象 / 根因）、§12.1（组件现状）、
-`.planning/036-orch/mcculling.txt`（MC 1.20.1 剔除链全图）、`.planning/036-orch/iris-sodium.txt`（Iris/Sodium 第二遍）、`.planning/036-orch/repocameramap.txt`（本仓挂点）。
+本节结论来自 MC 1.20.1 剔除链、Iris/Sodium 第二遍与本仓挂点的源码实读（结论已并入本节）。
 
 **结论（一句话）**：把 `LevelRenderer` 上**单份共享**的「候选集 + 可见集合 + 剔除门闩」拆成**每 lane 一份**（lane 槽持有），
 在每条 lane pass 前换入 / 后换出；**编译产物（`CompiledChunk` / `visibilitySet`）、区块网格、渲染列表结构继续共享**。
 这样各 lane 才能各自跑遮挡剪枝——既消除 §12.8-B 的缺块根因，又拿回 `smartCull=false` 让出的性能。
 
-#### 12.9.1 状态拆分边界
+###### 12.9.1 状态拆分边界
 
 逐项：拆 = 每 lane 一份；不拆 = 继续共享（或每 pass scratch）。
 
@@ -467,7 +574,7 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 
 > **口径注（B3-b 实现期补入）**：上表「拆」项里真正进槽的字段实为 **14 个**——候选集 / 可见集合 / `recentlyCompiledChunks` 队列 / 两个门闩 / 重试定时器 / `prevCamX/Y/Z` / `prevCamRotX/Y` / `xTransparentOld/y/z`（与 `LaneCullStateMixin` 自注「换入 / 换出的 14 个字段」一致；`smartCull` 行不占槽，由 `LevelRendererMixin` 每 pass 包夹判定；同 mixin 另有两个不参与换入的 `@Shadow`：`minecraft`、`lastFullRenderChunkUpdate`）。progress / 提交旧称「16 字段槽」与实现口径的差异未逐项复核，**以实现口径（14）为准**。
 
-#### 12.9.2 实现载体选型
+###### 12.9.2 实现载体选型
 
 候选：
 
@@ -496,7 +603,7 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 若字段在 lane pass 结束后被换出、而后台任务此时才写入，结果会落进「当时安装的槽」= **别的 lane**。
 → 每 lane 的全量 BFS **必须写入发起它的那个槽**；机制见 §12.9.7②（已收敛：lane pass 内同步执行 + 换入 lane 槽前 await 主 pass 异步落地）。
 
-#### 12.9.3 `smartCull` 的 per-pass 判定
+###### 12.9.3 `smartCull` 的 per-pass 判定
 
 - lane pass 的 camera 在实心方块内 → 本 pass `smartCull=false`；否则 `true`（启用遮挡剪枝）。
   判定沿用原版旁观者那条口径（`LevelRenderer.java:795-798`），把相机换成该 lane 的——剪枝只对播种相机成立，
@@ -505,7 +612,7 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
   只在 lane pass 且 per-lane 剔除生效时改写（`LaneRenderer.isRenderingLane()` +
   `LaneRenderer.isPerLaneCullActive(mc)`）。
 
-#### 12.9.4 停播恢复方案
+###### 12.9.4 停播恢复方案
 
 最后一个 lane 停播（或异常退出）后，可见集合 / `smartCull` / 视图中心回到原版口径：
 
@@ -519,7 +626,7 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
 - **首帧跳变规避**：停播帧由第 4 条强制重建，主画面在该帧即按玩家相机重建集合与网格中心，不残留 lane 口径的可见集合。网格中心从 topLane 移回玩家会触发一次 `ViewArea.repositionCamera`（一次性全量置脏，`mcculling.txt` §5）——属预期的一次性成本，不是持续抖动。
 - **异常路径同口径**：`LaneRenderer.render` 的 `finally`（`:334-340`）保证所有未 pop 的 lane 槽被弹出；实例强制退出 / 脚本错误 → lane 表清空（`ScriptLaneDriver.clear` / `setLane(null)`，`repocameramap.txt` §4）→ 走「最后一个 lane 停播」同一条路径（含一次 `needsUpdate()`）。
 
-#### 12.9.5 内存与编译量预算
+###### 12.9.5 内存与编译量预算
 
 **per-lane 内存上界公式**（只算 §12.9.1「拆」出来的部分）：
 
@@ -549,7 +656,7 @@ C ≤ N_slot               （候选 section 数；遮挡剪枝后远小于上�
 
 **lane 数量口径**：不设硬上限（§6「不设硬上限，只给推荐」）；**按需分配 + 池化复用**——lane 首次活跃时惰性建槽，停播归还池、下次复用（清空内容），内存 ∝ **并发 lane 峰值**而非历史总数；视距变化 / 换世界（`allChanged`）时整池作废重建。建议 ≤8 并发（内存 ≈ 6–15 MB，见上）。
 
-#### 12.9.6 风险清单
+###### 12.9.6 风险清单
 
 | 风险 | 成因 | 规避动作（一行） |
 |---|---|---|
@@ -561,7 +668,7 @@ C ≤ N_slot               （候选 section 数；遮挡剪枝后远小于上�
 | 停播恢复失败（残留 lane 集合 / 中心未复位） | 槽未弹净 / 未强刷 | 停播（含异常）时 `finally` 弹净 + 一次 `needsUpdate()` + 中心回退玩家（§12.9.4）；日志可确认 |
 | 内存随 lane 数增长 | 每 lane 一份候选集 | 池化复用 + 停播归还（§12.9.5）；内存 ∝ 并发峰值 |
 
-#### 12.9.7 定①（视图中心）与②（BFS 归槽，已收敛）
+###### 12.9.7 定①（视图中心）与②（BFS 归槽，已收敛）
 
 **① 视图中心口径——定：保持现状，B3 不改。** 中心 = 本帧最上层 lane 的相机位置；无 lane = 玩家坐标（§12.1 现行口径）。
 
@@ -590,11 +697,11 @@ C ≤ N_slot               （候选 section 数；遮挡剪枝后远小于上�
 
 ---
 
-### 12.10 光影每视角隔离（2026-10-18，F3 落地）
+##### 12.10 光影每视角隔离（2026-10-18，F3 落地）
 
 **问题**：光影开启时 lane 画面出现绿色毛边 / 竖缝 / 扇形明暗 / 跨视角颜色污染（`f-round-issues.md` §2–§3）。根因不在合成层（`ic_lane_blit` 只读 RGB），而在光影的**每视角共享状态**：`MakeUp` 的 `fast_taa.glsl` 把 `colortex3` 当上一帧历史读写（全视角共享）；`shadowcolor0/1` 在 `buffersToBeCleared=[]` 下跨视角残留；previous 矩阵 / tracker 沿用主视角。深度版本号那条假设（2026-10-17）**不充分**，已由本节的按视角隔离取代；深度附件本身由既有修复保证（lane 首帧重挂）。
 
-**实现**（`common/.../client/lane/`；证据 `.planning/036-shader-lane-investigation/evidence.md` §7）：
+**实现**（`common/.../client/lane/`）：
 
 | 组件 | 职责 |
 |---|---|

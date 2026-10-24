@@ -276,7 +276,7 @@ kfs.put("sat_red", new FieldDef("float", 0f));
 - 范围：`common/src/main/java` + `fabric/src/main/java` + `forge/src/main/java`，全部 `.java`。
 - 注释行 = 行首 `//`、`/*` / `/**` 块内行；代码行 = 其余非空行；空行单列。
 - 行尾注释 ≈ 87 处（本仓风格是行首注释），不单列统计。
-- 复算口径：行首注释行 / 代码行 / 空行三分类（行尾注释单列）；收敛批次开工时把同一口径写成一次性脚本放 `.planning/036-impl/`（不入库），每片完成后回写本节。
+- 复算口径：行首注释行 / 代码行 / 空行三分类（行尾注释单列）；收敛批次开工时把同一口径写成一次性脚本放仓库外临时目录（不入库），每片完成后回写本节。
 
 ### 5.2 总量
 
@@ -351,7 +351,7 @@ kfs.put("sat_red", new FieldDef("float", 0f));
 
 1. 用 grep 找出全仓**多行复述 ≥ 2 处**的概念（基线已知，2026-10-09 grep 计数：六色带 10 处（Java 6 + 着色器 6）、alpha 直通契约 10 处、fail-safe 直通 7 处、ADJUST / lane 两级分层 5 处、操作栈步骤号多处）；
 2. 按 §2.4 规则为每个概念指定**唯一定义点**与允许的 ≤ 1 行指向处；
-3. 登记表落在 `.planning/036-impl/comment-defpoints.md`（不入库；如需入库，追加为本文件附录）。
+3. 登记表如需保留，直接追加为本文件附录（不单独建文件）。
 
 **没有这张表不许开分片**——否则跨片复读会重复处理或漏处理。
 
@@ -376,7 +376,7 @@ kfs.put("sat_red", new FieldDef("float", 0f));
 # 目标
 对 <片范围> 做注释收敛（纯注释 diff，逻辑零动），依据 plans/0.3.6/misc/code-comment-style.md。
 # 前置
-读 code-comment-style.md §〇/§一/§二/§三/§五；读 .planning/036-impl/comment-defpoints.md（定义点登记表）。
+读 code-comment-style.md §〇/§一/§二/§三/§五。
 # 步骤
 1. 逐文件通读（限本片文件，禁止跨片编辑）。
 2. 按 §1.2 禁止清单标注每条待删 / 待改注释；按定义点表把复读收敛为「1 处定义 + ≤1 行指向」。
@@ -400,7 +400,7 @@ git diff -U0 -- '*.java' | awk '/^[+-]/ && !/^(\+\+\+|---)/' \
   | awk '!/^[+-][[:space:]]*(\/\/|\/\*|\*|\*\/)/ && !/^[+-][[:space:]]*$/'
 
 # ② 硬证明：剥离注释与空行后，前后源码逐字节一致
-#    剥离器（一次性脚本，放 .planning/036-impl/comment-strip.sh）：去掉行首注释行、行尾 // 片段、空行；
+#    剥离器（一次性脚本，放仓库外临时目录）：去掉行首注释行、行尾 // 片段、空行；
 #    对每个改动文件比对 `git show HEAD:<file>` 与工作区版本，期望逐字节一致。
 ```
 
@@ -414,7 +414,7 @@ git diff -U0 -- '*.java' | awk '/^[+-]/ && !/^(\+\+\+|---)/' \
 sh gradlew compileJava
 
 # 2. 脚本校验（E:/tmp/icv，与收敛前逐项一致；基线：tests 仅 3 个既有 FAIL、release 0 issues）
-#    $CP = common/build/classes/java/main + gson + slf4j（逐字见 .planning/036-impl/state-brief-flow.md §3.2）
+#    $CP = common/build/classes/java/main + gson + slf4j
 cd E:/tmp/icv
 java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -cp "out;$CP" Validate \
   "E:/Documents/GitHub/ImmersiveCinematics/cinematics/tests"
@@ -432,7 +432,7 @@ ICINEMATICS_CAPTURE=1 sh gradlew :fabric:runClient --args='--quickPlaySingleplay
 ```
 
 - 验收标准 = **与收敛前逐项一致**（不是固定数字：harness 数量随批次演进）。
-- 三套工具在 `E:/tmp`（仓库外一次性工具，不入库）；缺失时按 `.planning/036-impl/state-brief-flow.md` §3 与 `implementation-progress.md` 进度日志重建。
+- 三套工具在 `E:/tmp`（仓库外一次性工具，不入库）；缺失时按 `implementation-progress.md` 进度日志重建。
 - 每片通过后：提交 `chore(0.3.6): 注释收敛——<片名>（纯注释 diff，逻辑零动）`，并在本文件 §五 回写该片新基线。
 
 ### 6.7 未归档决策理由的搬运规则（先搬后删）
@@ -458,7 +458,7 @@ ICINEMATICS_CAPTURE=1 sh gradlew :fabric:runClient --args='--quickPlaySingleplay
 ### 6.9 收尾
 
 - 全部片完成后：本文件 §五 基线表更新为收敛后实测值；在 §五 记一行「收敛完成（日期 / commit）」。
-- 若用户要求：可把「定义点登记表」并入本文件附录（默认留 `.planning/`，不入库）。
+- 若用户要求：可把「定义点登记表」并入本文件附录。
 
 ---
 

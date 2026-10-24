@@ -1,0 +1,6 @@
+# 冒烟场景：确认 mc-cli 能驱动客户端
+# 用法：uv run --with pyautogui --with pillow python .planning/devtools/mc-cli.py run .planning/devtools/scenarios/smoke.txt
+wait 2
+say devtools smoke
+wait 1
+shot lane-captures/smoke.png

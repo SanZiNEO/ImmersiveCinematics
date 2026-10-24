@@ -1,0 +1,10 @@
+[project]
+name = "ic-devtools"
+version = "0.1.0"
+description = "ImmersiveCinematics 本地测试工具包（客户端控制 / 取证 / 日志 / 诊断校验）"
+requires-python = ">=3.10"
+dependencies = [
+    "pyautogui>=0.9.54",
+    "pillow>=10.0.0",
+    "ddddocr>=1.6.1",   # mcmod.py 认 MC 百科的验证码用
+]

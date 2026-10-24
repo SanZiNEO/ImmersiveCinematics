@@ -401,7 +401,7 @@ graph LR
 | 资产 | 位置 / 命令 | 适用 |
 |---|---|---|
 | 编译 | `sh gradlew compileJava`（progress:164） | 全部批次（每步必过） |
-| 无头 validator（icv） | `E:/tmp/icv`：`sh run.sh [脚本目录...]`（`Validate.java` + 自带 self-test，含 name/author/id 边界负例）；命令与 classpath 见 `.planning/036-impl/state-brief-flow.md`（progress:168） | B/C/D/E/G 批（凡动脚本格式/schema/校验） |
+| 无头 validator（icv） | `E:/tmp/icv`：`sh run.sh [脚本目录...]`（`Validate.java` + 自带 self-test，含 name/author/id 边界负例） | B/C/D/E/G 批（凡动脚本格式/schema/校验） |
 | 数据层冒烟（icv2） | `E:/tmp/icv2/run.sh`（14 个 harness：调色 / LUT / NaN 守卫 / lane 合成守卫…） | B 批（相机数据路径）、D 批（overlay 数据）、G 批（时间/插值数据） |
 | GL 冒烟（icgl） | `E:/tmp/icgl/run.sh [shader 目录]`（14 个 harness，含 `GlLaneFailSafeSmoke`） | D 批（遮罩/混合 shader）、B 批（lane 相关）、F 批 |
 | 实机 + 捕获 | `ICINEMATICS_CAPTURE=1 sh gradlew :fabric:runClient --args='--quickPlaySingleplayer QuadrantTest'`（progress:165-166）；产出 `fabric/run/lane-captures/`（raw / composited / frame 三类 PNG，progress:167） | B/C/D/F/H 批的画面与播放验证 |

@@ -31,7 +31,7 @@
 
 ## 一、仍未定（0.3.6 边做边讨论：随批次推进就地销项，销项进 §二；少数架构/优先级决策仍需用户拍板）
 
-> D 轮（2026-10-17）的 D1–D8 / D10 已收口、D9 取消；F 轮（2026-10-17 实现 / 2026-10-18 光影画面）F2/F3/F5 实现完成、F4 取消，余项见 §二「F 轮」与本节各文档条目；各节保留一行状态便于核对，完整销项见 §二 / §三。
+> D 轮（2026-10-17）的 D1–D8 / D10 已收口、D9 不做；F 轮（2026-10-17 实现 / 2026-10-18 光影画面）F2/F3/F5 实现完成、F4 不做，余项见 §二「F 轮」与本节各文档条目；各节保留一行状态便于核对，完整销项见 §二 / §三。
 
 ### 索引层
 - **Bezier 曲线编辑器（控制点可视化）**：数值编辑已有（`BezierCurveField`），控制点可视化无；原 0.4.0 条目，随编辑器线排期。影响：编辑器线。（`README.md` §七；审计 §一）
@@ -145,7 +145,7 @@
 - **仍开放（应用层，不阻塞 D 轮）**：叠化期间主相机是否可动（沿用 multi-camera §9）；跳过 / 打断途中的转场行为；lane opacity 插值曲线；script-loop 回卷衔接（repeat 硬切 or 可选叠化）。
 
 ### variable-frame.md（画面系统核心）
-- **D8 / D10 已完成（2026-10-17，销项）**：统一几何（§4.2）沿用；`base_resolution` 不设 16384 人为上限（正整数可表示范围）；LETTERBOX opacity 线性接线；**D9 取消（字幕完整呈现，不裁切，不是待办）**。
+- **D8 / D10 已完成（2026-10-17，销项）**：统一几何（§4.2）沿用；`base_resolution` 不设 16384 人为上限（正整数可表示范围）；LETTERBOX opacity 线性接线。
 - **仍开放（与几何口径无关）**：画面层 z 序基线（应在 letterbox 之下）；旋转是否纳入；小尺寸画面是否按显示尺寸渲染；与 HUD / letterbox 的叠放顺序细节；编辑器预览画布具体形态。
 - 已结清：取材边界（钳制到素材内、裁到 0 不绘制）；`dest` 与画布换算（无换算，统一窗口参照）；`pip` 删除；`fit` 废除。
 
@@ -302,13 +302,12 @@
 ### D 轮（2026-10-17）
 - **scene-transition D1–D3** → 已收口：C 为最终方案（纯显式 clip / 关键帧，无新字段 / 新轨 / 运行时生成器）；wipe = CAMERA `mask_shape` full/rect/circle + source/dest 关键帧；z 序 = 显式 `z_index`；叠化 = 底 A 不透明 + 上 B 淡入。见 `scene-transition.md` §3–§9。
 - **overlay-color-mask D4–D7** → 已收口：渐变 / 五混合 / 局部矩形圆形 / 高对比 z 序演示。见 `color-mask-execution.md`。
-- **variable-frame D8 / D10** → 已完成；D9 取消（字幕不裁切）。见 `execution-round.md`（历史轮）与 `variable-frame.md` 文首。
+- **variable-frame D8 / D10** → 已完成。见 `execution-round.md`（历史轮）与 `variable-frame.md` 文首。
 
 ### F 轮（2026-10-17 实现 / 2026-10-18 光影画面；余项见 §一）
 - **F2 队列接播** → ✅ 实现完成 + 实机覆盖（2026-10-18）：出队按 priority/FIFO 逐项判定可播性、无 exclusive 一次排空、同脚本排队副本不被误启动、预览隔离、去掉容量 8；无头探针 68/68；队列接播实机已由 C 轮覆盖（exclusive 阻塞 → 两请求入队 result=2 → FIFO 接播三连命中）。
 - **F3 Iris/Oculus** → 实现完成（2026-10-17）：删除 `isUnavailable()` 整条禁用，lane 始终渲染；检测保留用于跳过 `setupRender` 专属 mixin、走优化器 Camera/Frustum 路径。**2026-10-18 修复光影 lane 跨视角污染**：per-view TAA 历史（自动探测目标）、`shadowcolor` 按视角清除、深度重绑、切换光影包重置缓存；Fabric/Iris 1.7.6 下 MakeUp / Complementary / BSL 三包 A/B 干净。**F3 验收通过（Fabric/Iris 1.7.6 三视角 + 热切换；Forge/Oculus 1.8.0 同 jar 已部署）**；④ 由 Sodium 实机覆盖、⑥ 由 F5 矩阵覆盖，⑤ 与非 `SRGB` 色彩空间为已知限制。
-- **F4 视距档位** → **取消（不是待办）**：不做脚本字段，lane 视距自动跟随玩家设置。
-- **F5 帧耗时统计** → ✅ 实现完成 + 矩阵完整（2026-10-18）：诊断会话 + 21 支脚本；`perf_l0` / `perf_l1` / `perf_l4` / `perf_l16` / `perf_l25` 的 FULL 与 WORLD_ONLY 均 600/600（l25 在 gzip 脚本传输修复后补齐）；per-view 历史拷贝成本已包含在复测数据中。
+- **F5 帧耗时统计** → ✅ 实现完成 + 矩阵完整（2026-10-18）：诊断会话 + 21 支脚本；`perf_l0` / `perf_l1` / `perf_l4` / `perf_l16` / `perf_l25` 的 FULL 与 WORLD_ONLY 均 600/600（l25 在 gzip 传输修复后补齐）；per-view 历史拷贝成本已包含在复测数据中。
 - **失败处理审计** → 只读审计完成（`failure-handling-audit.md`）：60 findings / 23 P0、16 处空 / 仅注释 catch；`PacketGuard` 与断线清理未实现，按 P0/P1/P2 分批整改——归 F 轮收口。
 
 ### 跨文档已结清
@@ -330,9 +329,9 @@
 - **parallel-playback 单 lane 全屏优化（保留点②）** → 未保留：一律走全 lane 渲染（每 lane ≈3.4–3.6 ms）。（§3.3 L90）
 - **parallel-playback 触发状态机按实例维护** → 不做：状态机键保持（玩家 + 脚本 + 触发器），与同脚本单实例一致。（§3.7 L111）
 - **overlay-color-mask 颜色调色/滤镜** → 已移交 `screen-color-adjust.md`。（`overlay-color-mask.md` §2.2）
-- **variable-frame D9（文本层取材 / 字幕裁切）** → **取消（明确不做，不是待办）**：用户 2026-10-17 澄清字幕完整呈现、无裁切需求；`source` 只用于图片与相机画面 lane，`fit` 不恢复。执行期间短暂新增的字幕裁切代码、接线、样例已撤回。（`variable-frame.md` 文首、`execution-round.md` 历史轮）
+- **variable-frame D9（文本层取材 / 字幕裁切）** → **不做**：字幕完整呈现、无裁切需求；`source` 只用于图片与相机画面 lane，`fit` 不恢复。（`variable-frame.md` 文首、`execution-round.md` 历史轮）
 - **quadrant-prototype 原型文件（QuadrantProto 等）** → 已删除/正式化为 `client/lane/LaneRenderer`（2026-10-07）。（`quadrant-prototype-results.md` §7 L146-150）
-- **F4 视距档位（`render_distance` 等脚本字段）** → **取消（明确不做，不是待办）**：用户 2026-10-17 裁决 lane 视距自动跟随玩家设置，不新增脚本开关。（`F-playback/multi-camera-rendering.md`；`implementation-progress.md` F4 行）
+- **F4 视距档位（`render_distance` 等脚本字段）** → **不做**：lane 视距自动跟随玩家设置，不新增脚本开关。（`F-playback/multi-camera-rendering.md`；`implementation-progress.md` F4 行）
 - **`plans/0.3.6/README.md` §五 七篇的 🔒「长期讨论」标记** → 口径修正：本目录全部文档 = 0.3.6 工作范围；「🔒 长期讨论」已废止为**历史标记**，0.3.6 工作方式 = **边做边讨论**、随批次就地销项（2026-10-11 用户口径），标记应视为「未实现」而非范围外。（`README.md` §五；审计 §六）
 
 ---

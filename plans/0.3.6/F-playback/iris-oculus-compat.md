@@ -1,6 +1,119 @@
-# 0.3.6 光影（Iris / Oculus）兼容调研计划
+# 光影（Iris / Oculus）兼容
 
-**状态**: 📋 **调研计划**——只定义「已经知道什么、还要查什么、怎么查、结论怎么用」；**本文不含结论**（用户点名：光影兼容「现在还不知道有什么问题，而且没有调查，这个写个计划」）。**例外**：§2.7 是 2026-10-08 用户裁决后的**已定结论**（只覆盖主画面 master 调色挂点），其余仍为待调查项。
+> 状态：已实现（2026-10-18）
+> 范围：Iris（Fabric）/ Oculus（Forge）启用光影包时的多相机 lane 渲染与每视角状态隔离
+> 关联：[multi-camera-rendering](multi-camera-rendering.md)、[f-round-issues](f-round-issues.md)、[failure-handling-audit](failure-handling-audit.md)、[screen-color-adjust](../../complete/0.3.6/A-color/screen-color-adjust.md)
+
+## 一、摘要
+
+光影启用时，多相机 lane 照常出画：每条 lane 完整跑一遍世界渲染，光影的阴影、合成与最终输出随之各跑一遍。兼容层在视角边界把光影按「一帧只渲染一次世界」共享的每帧状态切成每视角一份，用完写回。没有这层隔离，副画面会出现跨视角污染：历史颜色串味、彩色阴影残边、深度错配的扇形明暗。现行实现覆盖 Iris 与 Oculus，状态与偏离见 §六。
+
+## 二、为什么做
+
+### 2.1 问题
+
+- 光影假定一帧只渲染一次世界；多相机在一帧内为每条 lane 再跑一次，主视角与各 lane 读写同一份每帧状态。
+- 副画面出现毛边、竖缝、扇形明暗；云层带上其它相机（或主视角手臂）的粉紫斜条与矩形块；彩色阴影在相邻画面边缘留下橙线；主视角也被反向污染出残影。
+- 游戏内切换或关闭光影后画面变纯白或错乱，必须重启才恢复。
+
+### 2.2 目标
+
+- 光影包启用时 lane 照常渲染与合成，分屏与单 lane 画面无毛边、竖缝、扇形明暗、彩色残边。
+- 主视角与各 lane 的时域历史、阴影颜色、深度与相机历史互不污染。
+- 游戏内切换光影包、关闭再开启后无需重启，首帧重建历史。
+- 未装光影模组，或已装但未启用包时，行为与无光影一致。
+- 光影下多相机播放不因兼容层中断。
+
+### 2.3 非目标
+
+- 不接管或改写光影管线，不修改光影包的着色器、设置与画面风格。
+- 不接管光影的合成链；lane 的阴影、合成与最终输出由光影自己完成。
+- 不承诺任意光影包：历史目标按包源码识别，识别不到就不隔离。
+- 不改主画面调色挂点。
+
+## 三、方案
+
+开着光影播放多相机脚本时，每个相机画面都是完整的光影画面；取材、位置、不透明度与叠放顺序照常生效。
+
+- 开光影：lane 照常出画，无需逐包配置；主视角与各 lane 各自维护时域历史、阴影颜色、深度与相机历史。
+- 未装光影模组，或装了但未启用包：兼容层静默，按无光影处理。
+- 游戏内切换、关闭再开启光影：无需重启；切换后首帧重建历史。
+- 支持范围：历史目标从光影包源码识别，常见写法的包无需适配；识别不到时不隔离，可能出现残影或污染，但不崩溃，也不影响其它 lane，日志会说明探测结果。
+- 成本：每条 lane 跑完整光影链，光影下多相机成本明显高于无光影，lane 越多越明显。
+
+## 四、技术细节
+
+### 4.1 核心模型
+
+- `ShaderCompat`：识别当前光影管线，取得渲染目标与阴影目标，并从光影包源码识别历史颜色目标。
+- `ViewScope`：视角作用域，主视角与每条 lane 各进入 / 退出一次；进入恢复、退出保存该视角状态。
+- `ViewStateCapture`：保存相机位置 tracker 的五个向量与每个 `Previous` 实例的上一帧矩阵；实例由两个只读构造器注入注册。
+- `ColorHistoryCapture`：每视角、每历史目标一对快照纹理（main / alt）；进入前写回 live，退出后写回快照，首帧清空 live。
+- `ShadowColorClear`：包未声明清除 shadowcolor 时，每视角 `beginLevelRendering` 之后用与光影一致的白色补清。
+- 深度隔离：每个视角把深度采样重绑到自己的深度附件；lane 缓冲与主画面各用各的深度。
+
+### 4.2 契约
+
+- 主视角边界 = 原版 `LevelRenderer.renderLevel` 的 HEAD / RETURN；lane 边界 = 渲染前进入、合成后退出；不依赖光影的管线回调。
+- 栈按同名配对，退出只弹栈顶同名一层；pipeline 变化后旧作用域整体失效。
+- pipeline 变化由视角进入时检测：清栈、丢弃旧快照、首帧清空 live；光影只重建自己的资源。
+- 每个视角标识一份快照；主视角常驻，lane 连续两帧不活跃才释放。
+- 光影是否启用由光影 API 判定；未启用或探测失败时整层 no-op。
+
+### 4.3 数据形态
+
+- 视角标识：`<scriptId>_cam<相机轨序号>`，主视角固定 `main`；同一相机轨的多条 lane 共用标识与历史。
+- 历史目标：颜色目标编号集合；探测不到时为空集（不隔离）。
+- 颜色快照：每视角每目标一对纹理，尺寸与格式跟随 live；GPU 拷贝，不读回 CPU。
+- 视角快照：tracker 的五个位置向量 + 每个 Previous 实例的上一帧矩阵副本。
+
+### 4.4 边界
+
+- 兼容层只读光影状态；唯一写入是补清阴影颜色与重绑深度，只为让当前 lane 看到自己的状态。
+- 不接管光影合成链；合成层只读 lane 画面 RGB，不读 alpha。
+- 主画面调色在光影色彩空间转换之后、GUI 之前；默认 SRGB 下该转换是空操作。
+- 帧计数不回滚：兼容层不重置光影的全局帧计数，避免影响光影自身的时间推进。
+
+## 五、为什么不选别的
+
+| 备选方案 | 做法 | 代价 | 为什么没选 |
+|---|---|---|---|
+| 不做每视角隔离 | 共用历史颜色、阴影颜色、深度与相机历史 | 零成本 | 跨视角污染直接可见 |
+| 每 lane 前重建光影管线 | 强制重置全部状态 | 每次 lane 一次重建 | 成本与副作用不可控 |
+| 写死历史纹理编号 | 按已知包硬编码 | 实现简单 | 换包即失效 |
+| 视角边界挂光影回调 | 用光影渲染时机划边界 | 与版本强耦合 | 时机随版本漂移 |
+
+**本方案的缺点**：
+
+- 每 lane 跑完整光影链，成本随 lane 数上升；每视角历史还要每目标两张全尺寸纹理拷贝。
+- 依赖反射访问光影内部结构，改字段或方法名即降级为不隔离（画面可能退化，不崩溃）。
+- 历史目标靠源码模式匹配，非标准写法探测不到。
+- 每视角快照常驻显存；快速切换光影包时相机历史实例可能多留一组。
+
+## 六、实现结果
+
+状态：已实现（2026-10-18）
+
+`isUnavailable()` 已删除，lane 始终渲染；五个兼容组件与两个只读注册注入落地。Fabric / Iris 1.7.6 上 MakeUp 9.5f、ComplementaryUnbound r5.9.3、BSL v8.4 三包 A/B 与热切换（含 ComplementaryReimagined）通过；Forge / Oculus 1.8.0 + Embeddium 0.3.31 部署同一批实现；F5 矩阵 l0 / l1 / l4 / l16 / l25 × FULL / WORLD_ONLY 均 600/600。提交 `4390941`。
+
+| 原设计 | 实际实现 | 偏离原因 |
+|---|---|---|
+| 视角边界依赖光影管线回调或注入顺序 | 改为原版 `LevelRenderer.renderLevel` 边界 + lane 渲染边界 | 不依赖光影时机与版本 |
+| 每 lane 会触发整套光影链，需调整 lane pass 以避免 | 未避免，每 lane 跑完整链，靠每视角隔离保证正确 | 完整链实测可出正确画面；避免需侵入光影内部 |
+| 主画面兼容开关用 `IrisApi.isShaderPackInUse()` 判定 | 只在诊断 JSON 记录 `shader_pack_in_use`；兼容层按 pipeline 是否存在决定 | 无光影时天然 no-op，不需要分支 |
+| 阴影颜色在每视角 `beginLevelRendering` 后清 | 在视角进入时（世界渲染之前）清 | 视角边界已不依赖光影回调；pass 前清等效 |
+
+已知限制（不阻塞验收）：
+
+- Rubidium 只按入口类名覆盖，未取 jar 核对；类名缺失时跳过规则不生效，`defaultRequire: 1` 下启动期失败而非静默降级。
+- 非 SRGB 色彩空间未实测；每视角历史拷贝成本未单独拆分；无光影路径未单独回归。
+- `hide_arm` 在受控场景与 A/B 中仍未生效，属独立问题。
+
+## 附录：重写前原文
+
+### 0.3.6 光影（Iris / Oculus）兼容调研计划
+
+**状态**: ✅ **调研完成 + 实机验证（2026-10-18）**——§3 的源码级推演已由 §7 的实机结论取代，F3 记为「实现完成 + 验收通过」；§5.2 的待定项仍未定。本文原为调研计划（只定义「查什么、怎么查」），§2.7 是 2026-10-08 用户裁决后的已定结论（主画面 master 调色挂点）。
 **目标版本**: 0.3.6
 **关联**: [multi-camera-rendering](multi-camera-rendering.md)（§7 / §7.1 / §12.5）、[render-routes](../_archive/render-routes.md)（§4）、[render-second-pass-cost](../_archive/render-second-pass-cost.md)（§7）、[screen-color-adjust](../../complete/0.3.6/A-color/screen-color-adjust.md)（§4 光影挂点段 / §5-1）
 
@@ -14,21 +127,21 @@
 
 ---
 
-## 1. 定位与背景
+#### 1. 定位与背景
 
-### 1.1 议题
+##### 1.1 议题
 
 多相机 lane 渲染（`client/lane/LaneRenderer`，0.3.6 已落地）走的是**原版渲染 API 的第二遍世界渲染**：每 lane 一次 `LevelRenderer.renderLevel` + `doEntityOutline`，渲染进共用离屏 FBO，再由合成层贴回主画面；master 调色（`ColorAdjustPass`）在主画面合成之后、原版后处理链之后（2026-10-08 后移，见 §2.7）。
 
 光影模组把「一遍世界渲染」整体改写成自己的管线（gbuffer → composite 链 → final pass → 色彩空间转换），并且**每帧自己还会额外渲染一遍**（阴影 pass）。两者都改同一批入口（`LevelRenderer.renderLevel` / `GameRenderer.renderLevel`），因此「我们的第二遍在光影下是什么语义、能不能跑对、跑起来多贵」完全未知。
 
-### 1.2 为什么现在写计划
+##### 1.2 为什么现在写计划
 
 - 渲染底层与合成已经落地并在实机验证（[multi-camera-rendering](multi-camera-rendering.md) §12），**唯一没做适配、也没调查**的兼容面就是光影；
 - 光影是 MC 生态里客户端最常见的「渲染改写型」模组，用户的机器上大概率装着；「装了光影就看不到多相机画面」与「装了光影画面错乱」是两种完全不同的产品后果，必须先知道是哪种；
 - 现在的行为是**未经检验的默认路径**：检测列表里**没有** Iris / Oculus（见 §2.1），也就是说光影下 lane 会照常走第二遍——是「能用」「画面错」还是「崩」，目前**没有任何实测数据**。
 
-### 1.3 与既有文档的关系（各文档的现状断言，此处复述不改变其结论）
+##### 1.3 与既有文档的关系（各文档的现状断言，此处复述不改变其结论）
 
 | 文档 | 现有断言 | 本文的动作 |
 |---|---|---|
@@ -40,11 +153,11 @@
 
 ---
 
-## 2. 已知道的（读码核实）
+#### 2. 已知道的（读码核实）
 
 > 核实口径（2026-10-08）：本仓 `common/` 代码 + `example/Iris-1.20.1`、`example/Oculus-1.20.1-new` 源码。`example/` 被 `.gitignore:36` 忽略、无 git 历史，只能用文件内容；行号为该副本内的行号。
 
-### 2.1 历史实现：整条禁用（`isUnavailable`）已移除；加载器跳过规则保留
+##### 2.1 历史实现：整条禁用（`isUnavailable`）已移除；加载器跳过规则保留
 
 > 下表前两行是 2026-10-07–10-17 的整条禁用实现（已删除）；加载器侧“检测到优化模组时跳过 `setupRender` 专属 mixin”的规则是 0.3.5 原设计，保留。
 
@@ -52,15 +165,13 @@
 |---|---|
 | 检测走**标记类存在性**（不引入硬依赖），只列 Sodium 家族两个入口类：`net.caffeinemc.mods.sodium.client.SodiumClientMod`（Fabric Sodium）/ `me.jellysquid.mods.sodium.client.SodiumClientMod`（Embeddium / Rubidium） | `client/lane/LaneRenderer.java` `RENDER_OPTIMIZER_MARKERS`（:107-110）+ `findRenderOptimizer()`（:464-473） |
 | 命中即**不渲染**（不分配、不切状态；脚本 lane 照常注册，只是渲染被禁用，调试捕获也拿不到 lane 画面）并 **warn 一次**（结果缓存） | 同文件 `isUnavailable()`（:452-461）、`render(...)` 开头的 `if (isUnavailable()) return;`（:276-278）；日志文案「检测到渲染优化模组（…）：多 lane 副画面渲染已禁用（它们 @Overwrite 原版区块渲染与 setupRender）」 |
-| **光影（Iris / Oculus）没有任何检测**：`common/src/main/java` 全树搜 `iris` / `oculus` / `shaderpack`（不分大小写）**零命中** | 全树检索结果为空 |
+| 光影（Iris / Oculus）检测：`ShaderCompat` 按包名候选 `net.irisshaders.iris` / `net.coderbot.iris` + pipeline 反射 + 包源码扫描（见 §7） | `client/lane/ShaderCompat.java` |
 | 加载器侧另有一层：Mixin 配置插件在检测到 `sodium` / `rubidium` / `embeddium` 时**跳过 `LevelRendererMixin`**（理由是它们 `@Overwrite` 原版 `setupRender`，我们的注入无法应用；且它们基于 Camera/Frustum 的渲染中心会跟随 `CameraMixin` 的虚拟相机） | `fabric/src/main/java/.../mixin/ImmersiveCinematicsMixinPlugin.java`、`forge/src/main/java/.../mixin/ImmersiveCinematicsMixinPlugin.java`（两者同构，`shouldApplyMixin`）；插件挂在 `common/src/main/resources/immersive_cinematics.mixins.json` 的 `plugin` 字段 |
 | 我们的 Mixin 配置是 `"defaultRequire": 1`——注入点若被第三方改写而找不到，**启动期直接失败**（不是静默降级） | `immersive_cinematics.mixins.json`（`injectors.defaultRequire`） |
 
-**推论（未验证）**：装了光影但**没有**装 Sodium 家族（例如 Fabric Iris 单装、或 Forge Oculus 单装）时，`isUnavailable()` 不命中 → lane 会照常走第二遍原版 `LevelRenderer.renderLevel`，而这一次调用**同时**会触发光影自己的全部注入。这正是 §3 要查的现状路径。
+**现行**：lane 始终渲染，不按模组存在性禁用；光影探测由 `ShaderCompat` 提供（包名候选 `net.irisshaders.iris` / `net.coderbot.iris` + pipeline 反射 + 包源码扫描，见 §7）。加载器侧跳过规则与 `defaultRequire: 1` 仍然有效。
 
-> **2026-10-18 更正**：`LaneRenderer` 的 `RENDER_OPTIMIZER_MARKERS` / `isUnavailable()` 已随 F3 删除（lane 始终渲染，不再按模组存在性禁用）；光影探测现由 `ShaderCompat` 提供（包名候选 `net.irisshaders.iris` / `net.coderbot.iris` + pipeline 反射 + 包源码扫描），见 §7。表中「光影没有任何检测」与上面「推论」两行是 2026-10-08 的当时事实，不再是现状；加载器侧跳过规则与 `defaultRequire: 1` 仍然有效。
-
-### 2.2 我们的挂点位置（本仓代码，已核实）
+##### 2.2 我们的挂点位置（本仓代码，已核实）
 
 | 环节 | 挂点 / 行为 | 证据 |
 |---|---|---|
@@ -74,7 +185,7 @@
 
 **要点**：我们的 lane pass 是在 `GameRenderer.renderLevel` 的**返回点**执行的，此时主 `LevelRenderer.renderLevel` 已经返回——我们是在「一帧之外」再开 N 次 `LevelRenderer.renderLevel`。
 
-### 2.3 光影的挂点位置（example 源码，已核实）
+##### 2.3 光影的挂点位置（example 源码，已核实）
 
 | 光影动作 | 挂点 | 证据 |
 |---|---|---|
@@ -90,7 +201,7 @@
 - 光影的「最终合成」在 `LevelRenderer.renderLevel` 尾部 —— 我们的 lane 渲染与 master 调色在**它之后**（不同方法、不同层级）；
 - 光影的「色彩空间转换」在 `GameRenderer.renderLevel` 的 **TAIL** —— 与我们的挂点**在同一个返回点**（我们 `@At("RETURN")`，它 `@At("TAIL")`，同一处 RETURN 指令）。**两者的执行先后不由我们控制**（两边都没写显式 `priority`），**未实测** → §3-①/③。
 
-### 2.4 光影的帧缓冲 / 管线结构（example 源码能读到的程度）
+##### 2.4 光影的帧缓冲 / 管线结构（example 源码能读到的程度）
 
 | 结构 | 事实 | 证据 |
 |---|---|---|
@@ -102,19 +213,19 @@
 | 色彩空间 | 只在 pack 声明 `supportsColorCorrection()` 时安装转换器；转换器把结果 `copyTexSubImage2D` 写回主画面颜色纹理（**原地改写**） | `IrisRenderingPipeline.java:524-543`；`pathways/colorspace/ColorSpaceFragmentConverter.java`（`process`） |
 | Sodium 兼容层 | 光影自带的 Sodium 兼容层规模：`src/sodiumCompatibility` 子树 Iris 178 个条目 / Oculus 179 个条目（`ls -R` 计数，含目录）；[multi-camera-rendering](multi-camera-rendering.md) §7.1 记的是 Iris 侧 83 个 Java 文件 / 4788 行 | `ls -R example/{Iris-1.20.1,Oculus-1.20.1-new}/src/sodiumCompatibility` |
 
-### 2.5 两条「已核实、不构成问题」的边界
+##### 2.5 两条「已核实、不构成问题」的边界
 
 1. **无光影包时（装了 Iris/Oculus 但没启用包）**：`VanillaRenderingPipeline` 的 `finalizeLevelRendering()` / `finalizeGameRendering()` 都是空实现（`pipeline/VanillaRenderingPipeline.java:106-114`）→ 我们的路径应当与「没装光影」一致。**（未实测：只是源码事实，未在游戏内验证过「装了 Iris 但未启用包」这一档。）**
 2. **光影不改我们的注入目标方法**：Iris / Oculus 对 `GameRenderer.renderLevel`、`GameRenderer.render`、`LevelRenderer.setupRender` 用的是 `@Inject` / `@ModifyVariable` / `@ModifyArg` / `@Redirect`（如 `MixinLevelRenderer` 的 `ModifyVariable(method="renderSky")`、`MixinGameRenderer` 的一批 `getXxxShader` `@Inject`），**没有对这几个方法的 `@Overwrite`** → 我们的 `defaultRequire: 1` 注入点不会被它们抹掉。**（仅核实了光影自身；第三方组合未验证。）**
 
-### 2.6 现状断言的文档口径澄清（两处）
+##### 2.6 现状断言的文档口径澄清（两处）
 
 1. `screen-color-adjust.md` §4 写「Iris / Oculus 的 `finalizeGameRendering()` 挂在 `GameRenderer.renderLevel` 的 `TAIL`；Iris 的最终合成在 `LevelRenderer.renderLevel` 尾部 —— **都早于原版那一步**」。
    - **对「最终合成」成立**（`LevelRenderer.renderLevel` 尾部早于 `GameRenderer.renderLevel` 的返回点，也早于原版 `postEffect`）；
    - **对「色彩空间转换」不成立**：它与我们**旧**的挂点（`GameRenderer.renderLevel` 的 RETURN）**在同一处返回指令**，先后未定（§3-①）。→ **已解决（2026-10-08）**：调色挂点已后移出 `renderLevel`（原版 RPOST 之后、GUI 之前），与色彩空间转换分处不同阶段、顺序可控；见 §2.7。
 2. `multi-camera-rendering.md` §7.1 把 Iris / Oculus 与 Sodium / Embeddium 并列在「检测到就禁用」的策略里，但**已落地的检测列表只有 Sodium 家族**（§2.1）——即「策略」与「实现」目前不一致：光影下副画面**没有**被禁用。本文 §4 的选项 A/C 正是要在这条线上做决定。（2026-10-17：检测与禁用均已删除，本条不一致随之消解。）
 
-### 2.7 主画面挂点兼容性结论（2026-10-08）
+##### 2.7 主画面挂点兼容性结论（2026-10-08）
 
 > 本节只结清**主画面 master 调色挂点**这一件事（它此前是 §2.6-1 / §3-① / §3-③ 的未决项）。本文其余部分（光影下**副画面**能否渲染、成本、§4 策略选项）仍是待调查项，本节结论不覆盖它们。
 
@@ -129,13 +240,13 @@
 
 ---
 
-## 3. 不知道的（待调查问题清单）
+#### 3. 不知道的（待调查问题清单）
 
 > 每条：**问题** → **为什么重要** → **调查方法** → **预期产出**。方法里的「挂点实测」= 加日志 / 用现成的 `ICINEMATICS_CAPTURE` 调试捕获（`LaneDebugCapture`，输出到 `<gameDir>/lane-captures/`，见 [multi-camera-rendering](multi-camera-rendering.md) §12.6）出图对比，**不是**改设计。
 >
 > **各条实测状态汇总见 §7.3**（2026-10-18）：①② 已有实机结论，③ 默认 `SRGB` 档为 no-op，④ 由 Sodium 实机覆盖，⑥ 由 F5 矩阵覆盖，⑤ 为已知限制。以下各条正文保留调研当时的问题定义与推演，未按新结论改写。
 
-### ① 我们的挂点（lane 渲染）与光影各阶段的精确先后
+##### ① 我们的挂点（lane 渲染）与光影各阶段的精确先后
 
 - **问题**：在同一帧里，光影的 `finalizeLevelRendering()`（合成）、`finalizeGameRendering()`（色彩空间）、我们 `GameRenderer.renderLevel` RETURN 上的「lane 渲染 + 合成」，实际执行顺序是什么？特别是**同一返回点上的两个注入**（我们 `@At("RETURN")`、光影 `@At("TAIL")`）谁先。**（master 调色已不在这个返回点上——2026-10-08 后移到 RPOST 之后、GUI 之前，与色彩空间转换的顺序已确定、可控，见 §2.7；本节余下的问题只剩 lane 渲染与光影各阶段的先后。）**
 - **为什么重要**：顺序决定 lane 渲染看到的是「光影处理后的主画面」还是「原版主画面」。顺序不定，「兼容」就无从定义。（master 调色与色彩空间转换的先后已确定，见 §2.7。）
@@ -143,7 +254,7 @@
 - **预期产出**：「挂点先后实测报告」——一张表：{光影阶段 × 我们的阶段} 的确定顺序，含「同一返回点谁先」的结论与证据（日志 + 反汇编）。
 - **状态（2026-10-18）**：✅ 消解——lane 渲染看到的确实是光影处理后的主画面；视角边界改由 `ViewScope` 显式划定，不再依赖同一返回点上两个注入的先后。剩余：非 `SRGB` 色彩空间未测（§7.3）。
 
-#### 调研记录（2026-10-10）——① 挂点先后
+###### 调研记录（2026-10-10）——① 挂点先后
 
 > **性质：源码级定序，不是实测**。实机环境不具备（run 目录无 Iris / Oculus、无光影包，见本节末「环境限制与实测清单」）。证据链 = `example/` 光影源码 + 本仓注入点 + Mixin 0.8.7 注入顺序规则（源码）+ 1.20.1 原版字节码（`javap -c`）。
 
@@ -184,7 +295,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 - 「色彩空间先后」在默认口径下不需要处理（结论 2）；只有 **D1（按 pack 特性分档）** 想引入 color-correction 档时才需要把它变成显式顺序——那时用 `@Inject(order = ...)` 钉死即可，**不需要换挂点**。
 - 不改变 A / C / D 的相对代价与风险（① 不产生「确实坏」的证据）。
 
-### ② 光影下 `renderLevel` 内做第二遍渲染是否可行（帧缓冲绑定、管线状态、深度 / 模板）
+##### ② 光影下 `renderLevel` 内做第二遍渲染是否可行（帧缓冲绑定、管线状态、深度 / 模板）
 
 - **问题**：在光影启用的帧里，我们每 lane 再调一次 `LevelRenderer.renderLevel`，会发生什么？具体怀疑点（均已核实为「光影的注入会随每一次 `LevelRenderer.renderLevel` 触发」）：
   - 每次调用都会重新走 `iris$setupPipeline`（HEAD，重取管线 / 改 `cullingFrustum` / 改 `smartCull`）→ `beginLevelRendering()` → **阴影 pass**（每 lane 一次完整阴影渲染）→ `finalizeLevelRendering()`（每 lane 一次完整 composite 链 + final pass）；
@@ -195,7 +306,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 - **预期产出**：「可行性结论」——在 {光影开 / 关 × pack 特性档} 下，lane 渲染是「可用 / 有条件可用 / 不可用」的结论 + 出错时的最小复现与根因定位（哪一段光影代码）。
 - **状态（2026-10-18）**：✅ 有条件可用——三包（MakeUp / Complementary / BSL）A/B 干净，条件是每视角隔离历史 colortex / shadowcolor / 深度 / previous。**F3 验收通过（Forge/Oculus 同 jar 已部署）**（§7.3 / §7.5）。
 
-#### 调研记录（2026-10-10）——② 第二遍 `renderLevel` 可行性
+###### 调研记录（2026-10-10）——② 第二遍 `renderLevel` 可行性
 
 > **性质：源码级可行性推演 + 待实测项清单，不是实测**（环境不具备，见本节末）。方法 = 逐调用点推演「每 lane 一次 `LevelRenderer.renderLevel` 会走到光影的哪些代码」，全部引 `example/` 行号；**画面到底对不对必须实测**。
 
@@ -230,7 +341,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 - **D1（按 pack 特性分档）多两个可分档位**：`shadowDistance == 0` 的 pack 每 lane 不跑阴影 pass（`ShadowRenderer.java:355-356`）；只有声明 `supportsColorCorrection()` 的 pack 才碰色彩空间那条（`IrisRenderingPipeline.java:524`）。
 - **D3（让 lane 走光影管线）在源码级是可行的**：绑定关系自洽（「主画面」处处解析为 lane FBO），剩下的只是成本问题（§3-⑥）。
 
-#### 环境限制与实测清单（①/② 共用）
+###### 环境限制与实测清单（①/② 共用）
 
 **环境核查结果（2026-10-10）**：`fabric/run/mods/` **空**、`fabric/run/shaderpacks/` **不存在**、`forge/run/mods/` 无 Oculus、gradle 缓存与 `~/Downloads` 里**没有任何 iris / oculus jar**、`fabric/run/logs/` 历史日志里也没有装过光影的痕迹。⇒ 当时**本机无法做「光影启用帧」的实测**；上文全部为源码级结论，未在游戏内验证过任何一条。
 
@@ -253,7 +364,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 3. **时间 uniform 实测（本记录缺陷 1/2 的验证）**：全开 pack 下看依赖 `frameCounter` / `frameTime` 的动画（云 / 水波 / TAA）在 lane 数 0 / 1 / 4 时是否跑快；profiler 里 `iris_final` 与阴影段是否随 lane 数线性增长（同时是 §3-⑥ 的入口）。
 4. **日志与崩溃面**：`fabric/run/logs/latest.log` 里搜光影的断言 / GL 错误 / 我们的 `lane 渲染失败` 限频告警（`LaneRenderer.reportLaneFailure`）。
 
-### ③ 色彩空间（光影的色彩空间转换与我们的调色 pass 的相互影响）
+##### ③ 色彩空间（光影的色彩空间转换与我们的调色 pass 的相互影响）
 
 - **问题**：Iris 的 `colorSpaceConverter.process(...)` 会把主画面颜色纹理**原地**改写（`copyTexSubImage2D` 回写，`ColorSpaceFragmentConverter`）；我们的 master 调色（`ColorAdjustPass`：主画面 → 中转 → 主画面）在它之前还是之后？若在其之前，我们的输出会被再做一次线性↔sRGB 变换（参数语义被改）；若在其之后，我们的输出不经过该变换（画面的「色彩空间位置」与其它像素不一致）。
 - **为什么重要**：调色的所有参数（亮度 / 对比度 / 饱和度 / 曲线）都是**对某个色彩空间成立**的；顺序错 → 参数效果整体偏移（同一个 saturation 在两种顺序下视觉结果不同），并且 lane 画面与主画面可能处在不同空间。
@@ -261,7 +372,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 - **预期产出**：「调色在光影下的语义定义」——明确 master 调色作用于哪个空间、需要什么顺序保证（或需要在光影下禁用 / 换成对光影输出的后置 pass）。
 - **状态（2026-10-18）**：🟡 默认 `colorSpace=SRGB` 下转换器 no-op，与我们的挂点无冲突（§2.7）；非 `SRGB` 档（pack 声明 color correction + 用户改配置）未实测（§7.3）。
 
-### ④ Sodium / Embeddium 下两遍 / 帧的 `frame++` 语义
+##### ④ Sodium / Embeddium 下两遍 / 帧的 `frame++` 语义
 
 - **问题**：`SodiumWorldRenderer.setupTerrain(..., frame++, ...)` 的 `frame` 形参每调用一次自增，Sodium 内部用它判断「本帧是否已见过」；一帧两次 `setupTerrain`（主 pass + lane pass）会让计数语义变化——**是否引起区块渲染错误未验证**（[render-second-pass-cost](../_archive/render-second-pass-cost.md) §3.2 已标未验证；Embeddium 侧该形参已标 `@Deprecated(forRemoval = true)`，只传给 `renderSectionManager.update`）。
 - **为什么重要**：这条决定优化模组下两遍/帧的缓存语义是否稳定；lane 已不再禁用（2026-10-17），所以这条从「被规避」变成「需要实测」。
@@ -269,7 +380,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 - **预期产出**：「优化模组 + 多遍渲染的 `frame` 语义结论」+ 是否需要每帧只增一次。
 - **状态（2026-10-18）**：✅ Sodium 0.5.13 实机 A/B 未出现缺块 / 闪块，F5 十档 600/600 亦无异常；Embeddium 与 Sodium 同构（该形参已标 `@Deprecated(forRemoval)`），未单测——已知限制，不阻塞（§7.3）。
 
-### ⑤ Rubidium 兼容
+##### ⑤ Rubidium 兼容
 
 - **问题**：Rubidium（Forge 侧 Sodium 系）在我们的检测里只按**类名标记**（`me.jellysquid.mods.sodium.client.SodiumClientMod`）覆盖，且 `example/` 下**没有 Rubidium 源码**——它的 `@Overwrite` 面、`setupTerrain` 签名、与 Embeddium 的差异都**未验证**。
 - **为什么重要**：Forge 1.20.1 玩家群大量使用 Rubidium + Oculus 组合。检测现在**只用于选择优化器路径**（命中即跳过只针对原版 `setupRender` 的 `LevelRendererVanillaMixin` / `LaneCullStateMixin`），不再禁用 lane；漏检（mod id / 包名不同）的后果因此变成：跳过规则不生效，我们的注入撞上 Rubidium 的 `@Overwrite`，在 `defaultRequire: 1` 下**启动期失败**（§2.1）。
@@ -277,7 +388,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 - **预期产出**：「Rubidium 检测与行为结论」+ 检测标记列表是否需要补类名。
 - **状态（2026-10-18）**：🟡 **已知限制**——检测按入口类名 `me.jellysquid.mods.sodium.client.SodiumClientMod` 覆盖 Embeddium / Rubidium，未取 Rubidium jar 逐一核对；若类名缺失则跳过规则不生效，`defaultRequire:1` 下启动期失败。Forge 侧出问题时按此排查（§7.3）。
 
-### ⑥ 性能影响（光影下副画面成本）
+##### ⑥ 性能影响（光影下副画面成本）
 
 - **问题**：光影下每 lane 一遍世界渲染的实际成本是多少？§3-② 已证实每 lane 会触发一次光影全链（阴影 + composite + final），成本量级从「+0.56 ms/lane（无光影轻场景，[render-second-pass-cost](../_archive/render-second-pass-cost.md) §4.2）」跳到「一 lane ≈ 一整个光影帧」——**具体倍数未测**。
 - **为什么重要**：`multi-camera-rendering.md` §6 的推荐值（不设上限、只给推荐）建立在无光影的实测曲线上；光影下若成本爆炸，推荐值 / 档位口径要另立一档（或直接落回 §4 选项 A）。
@@ -285,14 +396,14 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 - **预期产出**：「光影下成本数据表 + 推荐值修订建议」。
 - **状态（2026-10-18）**：✅ 成本已由 F5 矩阵覆盖——l0 / l1 / l4 / l16 / l25 × FULL / WORLD_ONLY 各 600/600，25 lane 档 FULL `game_render` p50/p95 = 27.26 / 39.43 ms、`lane_total` 22.87 / 33.24 ms（[f-round-issues](f-round-issues.md) §1.1）；「每视角历史 blit」与「每 lane 全链倍数」未单独拆分，记为已知限制。
 
-### ⑦ Oculus 与 Iris 的差异面
+##### ⑦ Oculus 与 Iris 的差异面
 
 - **问题**：Oculus 是 Iris 的 Forge 移植（同构），但差异面必须列清：加载器（`javafml` vs Fabric）、`modId` / `provides`、mixin 配置文件命名（`mixins.oculus*.json` vs `mixins.iris*.json`）、额外的兼容 mixin（Oculus 多 `compat.dh` / `compat.pixelmon`）、**对 Embeddium 的强制配置**（`[mods."sodium:options"]` 关掉 sky / entity / gui.font 三个 mixin 特性 + 可选依赖 `embeddium [0.3.1,)`）、以及**行级差异**（`MixinLevelRenderer` 285 vs 269 行、`IrisRenderingPipeline` 1323 vs 1309 行、`ShadowRenderer` 730 vs 729 行）。
 - **为什么重要**：我们的检测 / 适配如果按 Fabric 侧（Iris）设计，可能在 Forge 侧（Oculus + Embeddium）组合上失效；反过来 Oculus 的 Embeddium 配置会改变 Embeddium 的行为（例如 sky/entity 渲染不走 Embeddium 的 mixin），影响 §3-②④ 的结论在两侧的可移植性。
 - **调查方法**：① 逐文件对照两侧同构文件（`mixin/MixinGameRenderer.java`、`mixin/MixinLevelRenderer.java`、`pipeline/IrisRenderingPipeline.java`、`shadows/ShadowRenderer.java`）并记录差异；② 核对两侧 `META-INF` / mixin 配置 / `mods.toml` 的声明差异；③ 实机各跑一次（Iris+Fabric / Oculus+Forge）做同一条用例，比对日志与出图。
 - **预期产出**：「Iris / Oculus 差异清单」+ 结论（一套适配能否覆盖两侧；不能的话差异点在哪）。
 
-### 读码新发现的补充项（本次核实后新增，非用户点名但会影响结论）
+##### 读码新发现的补充项（本次核实后新增，非用户点名但会影响结论）
 
 **⑧ 遮挡剔除决策互相覆盖**：光影在 `LevelRenderer.renderLevel` HEAD 每 pass 赋 `Minecraft.smartCull = !pipeline.shouldDisableOcclusionCulling()`（`MixinLevelRenderer.java:96`），而我们在 `setupRender` HEAD / RETURN 包夹按本 pass 的相机改写 `smartCull`（lane pass 的相机在实心方块内 → 本 pass `false`；`LevelRendererMixin`，可见集合按 lane 槽独立）。两者作用区间重叠 → 光影下「倾斜裁切矩形」是否回归？**调查方法**：实机对比（光影开，多 lane）看副画面是否出现沿区块网格的斜切缺块；**产出**：光影下遮挡剔除归属结论（我们的包夹是否仍需保留 / 是否要与光影的赋值合并）。
 
@@ -302,7 +413,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 
 ---
 
-## 4. 策略选项（供调研结论落地）
+#### 4. 策略选项（供调研结论落地）
 
 > **2026-10-17 更新**：A 的“整条禁用”形态已否决——它建立在未实测的源码推断上；检测保留用于选择优化器路径（跳过 `setupRender` 专属 mixin），不是禁用 lane。以下 A/B/C/D 仅作历史调研记录。
 >
@@ -319,7 +430,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 
 ---
 
-## 5. 调研的落地步骤
+#### 5. 调研的落地步骤
 
 > 每步一个可交付物；步骤顺序 = 依赖顺序（①/② 最先，因为 §4 的所有选项都等它们）。
 >
@@ -335,7 +446,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 | 6 | **策略决策**：按 §4 选 A / B / C / D（可组合），并把结论写回各文档 | 「策略决策记录」+ 本文件 §4 定稿 + 关联文档（`multi-camera-rendering` §7.1/§12.5、`render-routes` §4、`screen-color-adjust` §5、`render-second-pass-cost` §7）同步更新 | 步骤 2–5 |
 | 7 | **（若选 B / C / D 的非「仅文档」形态）实现与验证**：挂点调整 / 状态保存恢复补齐 / 检测与开关 / 性能档位 | 「实现 + 实机验证记录」（含回归：无光影下行为不变——默认零差异） | 步骤 6 |
 
-### 5.1 可能的问题（风险）
+##### 5.1 可能的问题（风险）
 
 - **每 lane 一次光影全链**：若 §3-② 证实「每 lane 触发阴影 + composite + final」，成本量级是「一 lane ≈ 一个光影帧」，B 与 D3 都可能因此不划算（结论要么降档要么禁用）。
 - **光影内部的「主画面」判定被我们的交换影响**（§3-⑨）：可能出现「lane 被光影接管（画面是光影画面但成本翻倍）」或「光影对 lane 半接管（状态错乱）」两种，都不好；需要确定后显式处理（例如 lane pass 期间临时把 `getMainRenderTarget()` 的可见性 / 或改用别的方式指向 lane 输出）。
@@ -346,7 +457,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 - **优化模组组合**：Oculus 会强制关掉 Embeddium 的 sky / entity / gui.font mixin（`mods.toml` 的 `[mods."sodium:options"]`），Forge 侧的组合行为与 Fabric 侧（Iris + Sodium）不同 → 两侧结论要分别验证。
 - **`defaultRequire: 1`**：任何第三方改写我们的注入目标方法 → 启动期失败（不是静默降级）；光影自身不触发（§2.5-2），组合未穷举。
 
-### 5.2 待定项
+##### 5.2 待定项
 
 - **策略选择**：2026-10-17 用户裁决——不整条禁用 lane（A/C 的禁用形态否决）；检测用于跳过 `setupRender` 专属 mixin、走优化器路径；剩余问题只是实机细节，见 §3。
 - **检测口径**：按「光影模组存在」还是按「光影包已启用」？（§2.5-1 表明后者的一档天然等价无光影；但「装了但没启用」的判定要读光影 API，可能引入硬依赖——`IrisApi` / `net.irisshaders.iris.Iris` 的存在性检测 vs 反射调用。）**→ 主画面挂点一侧已定（2026-10-08）：用 `IrisApi.getInstance().isShaderPackInUse()`，见 §2.7；本条剩下的只是「副画面策略」是否复用同一口径。**
@@ -358,7 +469,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 
 ---
 
-## 6. 证据索引
+#### 6. 证据索引
 
 | 断言 | 出处 |
 |---|---|
@@ -379,12 +490,12 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 
 ---
 
-## 7. 2026-10-18 实测状态（光影 lane 兼容收口）
+#### 7. 2026-10-18 实测状态（光影 lane 兼容收口）
 
-> 本节是实测结论，取代 §3 各条此前的「源码级推演」状态。证据链：`.planning/036-shader-lane-investigation/evidence.md` §7/§8、同目录 `progress.md`（2026-10-18）。
+> 本节是实测结论，取代 §3 各条此前的「源码级推演」状态。
 > 环境：**开发环境（实机验证）** = Fabric / Iris 1.7.6 + Sodium 0.5.13 + MakeUp 9.5f / ComplementaryUnbound r5.9.3 / BSL v8.4；**生产实例** = Forge / Oculus 1.8.0 + Embeddium 0.3.31（Oculus 是 Iris 的 Forge 同构移植，同一批 jar 部署；类名 / 字段已核对，机制由 Fabric 侧实机验证覆盖）。
 
-### 7.1 根因（已定位、已修）
+##### 7.1 根因（已定位、已修）
 
 lane 的 raw 画面（完整光影管线输出、合成前）就带毛边 / 缝隙 / 扇形 → **合成层不是根因**（`LaneCompositor` 只读 RGB、不读 lane alpha，见 [f-round-issues](f-round-issues.md) §2）。真正根因 = Iris / Oculus 的每帧状态按「一帧只渲染一次世界」假设共享，我们在一帧里多跑 N 次 `LevelRenderer.renderLevel`，各视角读写同一份状态：
 
@@ -398,7 +509,7 @@ lane 的 raw 画面（完整光影管线输出、合成前）就带毛边 / 缝�
 
 视角边界改为 `ViewScope`：主视角用原版 `LevelRenderer.renderLevel` HEAD / RETURN，lane 用 `LaneRenderer` 进入 / 合成后退出——**不再依赖 Iris 的 `beginLevelRendering` / `finalizeLevelRendering` 时机**。Iris 行为类 mixin 全部移除，只保留 `IrisCameraTrackerCaptureMixin` / `IrisPreviousCaptureMixin` 两个只读构造器注册（Iris 无公开实例入口）。
 
-### 7.2 验证结果
+##### 7.2 验证结果
 
 | 验证 | 结果 |
 |---|---|
@@ -407,7 +518,7 @@ lane 的 raw 画面（完整光影管线输出、合成前）就带毛边 / 缝�
 | 游戏内切换 BSL / ComplementaryReimagined / ComplementaryUnbound / MakeUp（含关闭光影再开启） | 不再纯白、无需重启；日志每次切换有 `[shader-compat] ... first=false`、`[color-history] reset snapshots=N`、`[color-history] first frame ...` |
 | 无光影路径 | 按设计不进入隔离分支（探测不到光影 / 历史目标即跳过并记日志）；**未单独做无光影回归实测** |
 
-### 7.3 ①–⑥ 状态（2026-10-18）
+##### 7.3 ①–⑥ 状态（2026-10-18）
 
 | 条 | 问题 | 状态 |
 |---|---|---|
@@ -425,7 +536,7 @@ lane 的 raw 画面（完整光影管线输出、合成前）就带毛边 / 缝�
 - **连续快速切换**：多次 pack 变更之间没有世界帧时，`Previous` 实例可能多留一组（日志 `previousInstances=6`）；颜色历史仍会 reset，纯白不会回来；若出现 TAA ghost 再按 pipeline 版本标记实例。
 - **生产实例**：Forge/Oculus 1.8.0 + Embeddium 0.3.31 已部署同一批 jar（Oculus 为 Iris 同构移植，类名 / 字段已核对）；机制由 Fabric/Iris 侧实机验证覆盖。如需运行时复验，看 `shader-compat` / `color-history` 日志与 `historyTargets`（预期 Complementary `[2]`）。
 
-### 7.4 与 §5 落地步骤的对应
+##### 7.4 与 §5 落地步骤的对应
 
 | 步骤 | 状态（2026-10-18） |
 |---|---|
@@ -437,6 +548,6 @@ lane 的 raw 画面（完整光影管线输出、合成前）就带毛边 / 缝�
 | 6 策略决策 | ✅ 2026-10-17 已定：不整条禁用、lane 始终渲染；2026-10-18 补「每视角隔离」为实现形态 |
 | 7 实现与验证 | ✅ Fabric/Iris 三视角实机通过；Forge/Oculus 同构同 jar 部署 |
 
-### 7.5 F3 口径
+##### 7.5 F3 口径
 
 F3 的实现状态：`isUnavailable()` 已删、lane 始终渲染；`ShaderCompat` / `ViewScope` / `ColorHistoryCapture` / `ShadowColorClear` / `ViewStateCapture` 已落地，并在 Fabric/Iris 1.7.6 上完成三包 A/B 实机验证。Forge/Oculus 1.8.0 为 Iris 的 Forge 同构移植，已部署同一批 jar（类名 / 字段已核对），机制由 Fabric 侧实机验证覆盖——**F3 记为「实现完成 + 验收通过」**。④⑤⑥ 中的 ④ 已由 Sodium 实机覆盖、⑥ 已由 F5 矩阵覆盖，⑤（Rubidium 类名核对）与非 `SRGB` 色彩空间记为**已知限制**，不阻塞 F 轮关单；F 轮剩余项只有失败处理 P0 批次（[failure-handling-audit](failure-handling-audit.md)）。

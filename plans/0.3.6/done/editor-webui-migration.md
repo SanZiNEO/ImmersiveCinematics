@@ -1,13 +1,125 @@
-# 编辑器 WebUI 迁移（0.3.6）
+# 编辑器 WebUI 迁移
+
+> 状态：实现中（独立编辑器与本地服务端已可用；飞控按选中片段的单独镜头只落地了绑定入口，全屏 lane 渲染与可选编码未做）
+> 范围：编辑器从游戏内 Java UI 迁到独立桌面前端，模组侧保留本地服务端与脚本权威；含协议、握手校验、预览推流、飞控接入。
+> 关联：[脚本架构图](editor-script-graph.md)、[脚本格式](../../../docs/SCRIPT_FORMAT.md)、[editor 模块](../../../docs/modules/editor.md)
+
+## 一、摘要
+
+编辑器是独立桌面程序，模组在游戏内提供本地服务端，两者经本机 WebSocket 通信。它不是视频剪辑器也不是构图编辑器，而是固定格式脚本的生成器：时间轴、预览、参数面板都为产出脚本服务，产物由模组侧解析与播放模块唯一确认。外部编辑器是唯一编辑器。
+
+## 二、为什么做
+
+### 2.1 问题
+
+- 游戏内编辑器编译在模组里，每个 Minecraft 版本都要重新适配，一份编辑器对接不了多个版本。
+- 它占模组 Java 代码三分之一左右，自带文件读写、预览捕获与整套 UI，与播放解析混在一处。
+- 作者只能在游戏里改脚本，改完切回游戏看效果，一轮迭代成本接近重开游戏。
+
+### 2.2 目标
+
+- 一份编辑器对接所有版本：字段由模组侧 schema 描述，编辑器按 schema 渲染表单。
+- 不启动游戏也能打开界面，用示例数据浏览与编辑。
+- 游戏内按键后，编辑器能读写脚本、校验、看实时画面、控制播放、进飞控取景。
+- 新增字段只需改 schema 并补一个控件。
+- 只有本机编辑器能连上；脚本数据模型与字段元数据不随编辑器存亡。
+
+### 2.3 非目标
+
+- 不做视频剪辑器：媒体导入、成片导出、转码、特效库都不做。
+- 不做构图编辑器：时间轴与预览只为产出脚本服务。
+- 不把前端打包进模组 jar，不托管成网页，不做远程访问。
+- 不保留游戏内 Java 编辑器。
+
+## 三、方案
+
+形态是独立的 Windows 小工具，不随模组分发，带离线演示模式：没连游戏时也能浏览界面与示例脚本。游戏内按 F9 打开预览屏并启动本地服务，编辑器连上即可工作，关屏即断开。
+
+编辑器里能做：脚本管理（新建、打开、保存、删除、校验）、meta 与轨道、片段、关键帧与触发器编辑、播放控制、实时预览、飞控取景、撤销重做、A-B 循环、marker、快捷键与中英双语。时间轴与预览是产出脚本的辅助，不是通用剪辑能力。
+
+权威始终在模组侧：编辑器不直接读文件、不自己解析，字段有哪些、脚本是否合法都经协议回答；加一个字段等于改 schema 加一个控件。
+
+飞控按选中的相机片段开单独镜头：进入时该片段的相机画面全屏覆盖预览（一个铺满全屏、不透明的画面层），精确调控的正是这一个相机；退出时把最终姿态写回该片段。不把它做成小窗叠在原画上，也不退回原画面再操作。
+
+只绑回环地址不够：浏览器会替任意网页连回环，所以握手阶段再做身份校验，用来源白名单挡网页、用每次启动轮换的随机凭据挡本地程序。边界：飞控留在游戏原生环境，编辑器只负责进入、退出与状态显示。
+
+## 四、技术细节
+
+### 4.1 核心模型
+
+- `WebEditorServer` / `WebSocketSession`：本地服务端只绑 `127.0.0.1:8765`，自实现握手与帧编解码；单连接收发，文本消息切到 Minecraft 主线程分发。
+- `WebEditorApi`：消息路由与主动推送。
+- `ScriptFileService`：脚本列举、读写、新建、删除，相对路径加越界校验。
+- `WebRegistryService`：注册表即时查询，供字段自动补全。
+- `WebFrameCapture` / `WebFrameStreamer`：主画面缩到固定 16:9 小缓冲读回像素，独立线程翻转与发送。
+- `WebPreviewScreen`：F9 预览屏，启动服务、驱动帧流与状态推送、绘制飞控 HUD。
+- `FlightModeManager`（`control/`）：飞控会话与相机接管，不依赖界面。
+- `SchemaExporter`（`script/schema/`）：字段元数据唯一权威，经 `schema.get` 下发。
+
+### 4.2 契约
+
+- mod 是服务端、编辑器是客户端；服务端随预览屏启停，关闭时断开全部会话。
+- 脚本解析与播放归模组侧，是唯一权威；编辑器只消费 schema 与校验结果。
+- 播放状态与飞控状态归游戏端：编辑器只发命令，时间、是否播放、最终姿态由游戏端回推。
+- 字段元数据归 `script/schema/`，独立于任何编辑器存在。
+- 飞控绑定选中片段：进入时提供该片段在播放头处的姿态，退出时接收最终姿态并写回。
+- 握手凭据每次启动轮换，只出现在握手 URL 里。
+
+### 4.3 数据形态
+
+- 文本帧信封：`type`、`data`、可选 `id`；请求带 `id` 并在回执中带回，事件不带。
+- 请求族：`hello`、`script.*`、`registry.*`、`schema.get`、`editor.*`；回执族：`hello_ack`、各 `*.result`、`schema.data`。
+- 推送族：播放状态（约 20Hz）、飞控状态（飞控中约 10Hz）、飞控退出（最终参数与相对基准点）、错误。
+- 二进制帧：类型字节、帧号、宽、高（后三者大端 2 字节）加 RGBA 像素，发送前按行翻转。
+- 凭据文件在用户主目录下，可由环境变量覆盖；脚本以相对脚本根的路径标识。
+
+### 4.4 边界
+
+- 编辑器不解析脚本、不读磁盘；服务端不保存编辑器状态（撤销栈、面板布局、草稿都在前端）。
+- 预览与游戏内播放走不同实例，互不挤占。
+- 飞控期间相机由飞控接管，编辑器只显示与写回；模组不打包前端产物。
+
+## 五、为什么不选别的
+
+| 备选方案 | 做法 | 代价 | 为什么没选 |
+|---|---|---|---|
+| 继续保留游戏内 Java 编辑器 | UI 留在模组内 | 每版本重适配、改字段重编译 | 一份编辑器对接所有版本更划算 |
+| 以 Olive / lossless-cut 为壳 | 取用开源剪辑器代码 | 两者是 GPL，本项目 MIT，会被迫改许可 | 许可不可行 |
+| 以 MIT 剪辑软件为基座 | 用现成剪辑器改 | 素材是媒体、核心是切片段，与脚本生成器不同构 | 结构不采用，只借交互外形 |
+| 模组托管网页给浏览器 | 服务端出页面 | 页面读不到凭据、权限受限 | 桌面客户端更合适 |
+| 引第三方 WebSocket 库 | 现成库做握手与帧 | 多一份依赖与打包成本 | 需求只有文本帧、二进制帧与单机连接 |
+
+**本方案的缺点**：
+
+- 预览屏不开就用不了，失去"不切窗口"的便利。
+- 服务端仍在模组内，跨版本适配只解决一半。
+- 飞控单独镜头依赖多相机画面与预览隔离，链路长。
+- 预览用原始像素，带宽与画质固定；单凭据无权限分级。
+
+## 六、实现结果
+
+状态：实现中。独立编辑器、服务端、协议、握手校验、预览推流、飞控已落地，游戏内编辑器已删除；选中片段全屏画面、可选编码与远程面板未做。
+
+| 原设计 | 实际实现 | 偏离原因 |
+|---|---|---|
+| 飞控按选中片段开单独镜头，退出写回该片段 | 进入时按片段在播放头处的姿态绑定，退出写回选中关键帧；全屏 lane 渲染未实现（2026-10-07） | 全屏渲染依赖多相机 lane；写回先按关键帧 |
+| 预览与游戏播放通道隔离（原列为并行播放步骤 5） | 预览为独立实例，已隔离（2026-10-07） | — |
+| 协议只列脚本、注册表、schema 与编辑器命令 | 另加资源列举与保存后通知（2026-10-07） | 脚本 i18n 与服务器同步需要 |
+
+剩余：选中片段全屏 lane 渲染；H.264 / WebRTC 与飞控远程面板；调色、组合器、转场、模板面板与贝塞尔控制点可视化。
+
+## 附录：重写前原文
+
+### 编辑器 WebUI 迁移（0.3.6）
 
 **状态**: 独立 Editor（Vue 3 + Electron）已实现并打包 0.1.0；**游戏内编辑器已退役并删除（2026-10-07 落地，见 §4）**；剩余工作见 §3。
 **范围**: 本文只描述“编辑器 WebUI 迁移”这一件事，不混入其他 0.3.6 方案。
 
 ---
 
-## 1. 现状
+#### 1. 现状
 
-### 1.1 产品形态
+##### 1.1 产品形态
 
 - **独立 Windows 小工具**：Vue 3 + TypeScript + Vite + Electron，源码在 `editor/`，已打出安装包（0.1.0，测试中），**不打包进 mod**。
 - **定位（已确认）**：编辑器**不是视频剪辑器、也不是构图编辑器**，它是**固定格式脚本的生成器**——最终产物就是那份脚本。推论：
@@ -20,7 +132,7 @@
 - **游戏内 Java 编辑器已退役**：0.3.6 随退役删除（F6 键与 `editor/` 包一并移除，见 §4/§7）。脚本格式与字段 schema 仍由 mod 侧 `script/` 唯一权威，独立 Editor 是唯一编辑器。
 - Editor 带离线演示模式（未连接游戏时可浏览界面与示例数据）。
 
-### 1.2 Java 侧（`common/.../webui/` 及其依赖模块）
+##### 1.2 Java 侧（`common/.../webui/` 及其依赖模块）
 
 `webui/` 包共 10 个文件：`WebEditorServer` / `WebSocketSession` / `WebEditorApi` / `ScriptFileService` / `WebRegistryService` / `WebFrameCapture` / `WebFrameStreamer` / `WebPreviewScreen` / `ScriptGraphService` / `ResourceFileService`（2026-10-09 回写：后两个为 0.3.6 新增）。
 
@@ -38,12 +150,12 @@
 | `FlightModeManager`（在 `control/`） | 飞控核心：不依赖具体界面，WebUI 预览屏与键盘中转共用 |
 | `SchemaExporter`（在 `script/schema/`） | 导出字段元数据（`schema.get`）；Java 侧是唯一 schema 权威 |
 
-### 1.3 前端（`editor/`）
+##### 1.3 前端（`editor/`）
 
 - 组件：时间轴、预览、脚本列表、触发器面板（各类型专用编辑器 + schema 动态表单）、轨道 / 片段 / 关键帧面板、中英 i18n。
 - 已覆盖：脚本管理（新建 / 打开 / 保存 / 删除 / 校验）、meta / 轨道 / clip / 关键帧编辑、触发器编辑、播放控制、预览画面、飞控模式（进入 / 记录 / 取消）、撤销重做、A-B 循环、marker、快捷键。
 
-### 1.4 与原方案的差异（实施时定的）
+##### 1.4 与原方案的差异（实施时定的）
 
 - WebSocket 服务为自实现，未用 NanoHTTPD / Java-WebSocket。
 - 预览为 raw RGBA 720p + 约 60fps 节流；未做 JPEG / H.264 / WebRTC。
@@ -52,7 +164,7 @@
 
 ---
 
-## 2. 通信协议（现状）
+#### 2. 通信协议（现状）
 
 - 文本帧：`{ "type": "...", "data": {...}, "id": "..." }` 信封；请求带回执，事件主动推送。
 - 已实现消息：`hello`；`script.list` / `script.load` / `script.save` / `script.delete` / `script.new` / `script.validate`；`registry.query` / `registry.get`；`schema.get`；`script.graph` / `resource.list`；`editor.seek` / `editor.play` / `editor.pause` / `editor.stop` / `editor.setCamera` / `editor.pushScript`；`editor.enter_flight_mode` / `editor.exit_flight_mode` / `editor.cancel_flight_mode`。（2026-10-09 回写：`script.graph` / `resource.list` 为 0.3.6 新增，`WebEditorApi.handle()` :46-47 分派，结果消息 `script.graph.result` :221 / `resource.list.result` :234。）
@@ -62,7 +174,7 @@
 
 ---
 
-## 3. 剩余工作
+#### 3. 剩余工作
 
 - **旧游戏内编辑器退役**：**已落地（2026-10-07）**——`editor/` 包、桥接、F6 键与 `EDITOR_ENABLED` 开关全部删除（删除清单见 §4）。
 - **安全加固**：**已落地（2026-10-07）**——握手身份校验（Origin 白名单 + 每次启动随机 token），方案与两端改动点见 §3.2。
@@ -70,7 +182,7 @@
 - **预览与游戏内播放的通道隔离**：编辑器预览目前走 `CameraManager` 直控；隔离属[并行播放](../F-playback/parallel-playback.md)步骤 5 的范围。
 - **远期 / 可选**：H.264 / WebRTC；飞控远程面板；动效。
 
-### 3.1 飞控模式：按选中片段开"单独镜头"（已确认·2026-10-07）
+##### 3.1 飞控模式：按选中片段开"单独镜头"（已确认·2026-10-07）
 
 **方向**：飞控不再只是"接管全局唯一相机"，而是**绑定到选中的相机轨道片段**——n 条相机轨道中选中轨道 A 的某个片段进入飞控时，该片段的相机画面**自动全屏覆盖预览**（即一个 dest=全屏、opacity=1 的 lane，"单独开了一个镜头"），精确调控的正是这一个相机的状态；退出飞控把最终姿态写回该片段（现状：`FlightModeManager.enter()` = `CameraManager.pause()` + `setPreviewDirectControl(true)`，`FlightController` 接管全局相机，`exit()` 返回 `FlightState` 供编辑器写回片段）。
 
@@ -86,7 +198,7 @@
 - **退出写回**：仍写回选中关键帧（属选中片段），未按"整段"重写。
 - **仍缺**：选中片段画面的**全屏 lane 渲染**（"单独开了一个镜头"的画面表现）——依赖 ①②，未实现；本批次只解决"进入飞控时取哪个片段的哪个姿态"。
 
-### 3.2 安全加固：握手身份校验（已落地 · 2026-10-07）
+##### 3.2 安全加固：握手身份校验（已落地 · 2026-10-07）
 
 **威胁模型**：`WebEditorServer` 只绑 `127.0.0.1` 挡不住"用户浏览器里的任意网页"——浏览器会替网页连回环地址。恶意页面或本地程序可连 `ws://127.0.0.1:8765/ws` 冒充编辑器读写脚本、控制预览。加固 = **握手阶段的身份校验**。
 
@@ -119,7 +231,7 @@
 
 ---
 
-## 4. 游戏内编辑器退役（已确认 · 已落地）
+#### 4. 游戏内编辑器退役（已确认 · 已落地）
 
 **决策**：**不留游戏内编辑器**，后续只维护外部编辑器。
 
@@ -159,7 +271,7 @@
 
 ---
 
-## 5. 参考编辑器评估（已确认）
+#### 5. 参考编辑器评估（已确认）
 
 `example/editor/` 下有两份开源剪辑软件：
 
@@ -174,7 +286,7 @@
 
 lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑器已是同一套栈（Vue 3 + Vite + Electron），fork 它是降级。
 
-### 5.1 GitHub 上的 MIT 剪辑软件（2026-10-06 检索；网络数据，未复检）
+##### 5.1 GitHub 上的 MIT 剪辑软件（2026-10-06 检索；网络数据，未复检）
 
 | 项目 | ★ | 许可 | 形态 | 说明 |
 |---|---|---|---|---|
@@ -190,7 +302,7 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 
 参考的是它们的**外形**：这类工具“该有的功能长什么样”（时间轴怎么摆、关键帧怎么编辑、属性面板怎么组织），再**翻译成我们的**（脚本生成器该有的样子）。**不是抄功能，也不是复制实现**。
 
-### 5.2 脚手架（已确认）
+##### 5.2 脚手架（已确认）
 
 编辑器要的是**一副好用的脚手架 + 改功能**，不是一套完整剪辑器：
 
@@ -200,7 +312,7 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 
 ---
 
-## 6. 数据模型保留（已确认）
+#### 6. 数据模型保留（已确认）
 
 删除 `editor/` 包时，**脚本数据模型不随之删除**：
 
@@ -211,7 +323,7 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 
 ---
 
-## 7. 迁移路径（方向）
+#### 7. 迁移路径（方向）
 
 1. **冻结**：不再给游戏内编辑器加功能。✅
 2. **对齐能力**：确认外部编辑器覆盖其全部能力（缺口清单见 `feedback-0.3.5/02`）。✅
@@ -220,7 +332,7 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 
 ---
 
-## 已知缺陷（2026-10-06 代码复查）
+#### 已知缺陷（2026-10-06 代码复查）
 
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
 
@@ -228,14 +340,14 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 
 ---
 
-## 事实核查（2026-10-07）
+#### 事实核查（2026-10-07）
 
 > **快照说明**：本节是**删包前**（`cfd3b7d`）的核查结果，其中的 `editor/` 包文件清单、`CinematicKeyBindings` F6 行号、`EditorBridgeImpl` 等条目描述的是当时的代码；该包随后已删除（§4）。保留本节用于记录当时的口径与修正依据。**2026-10-09 回写**：`webui/` 包现为 10 文件（新增 `ScriptGraphService` / `ResourceFileService`），协议消息新增 `script.graph` / `resource.list`（`WebEditorApi.handle()` :46-47 分派，结果 `script.graph.result` :221 / `resource.list.result` :234）；下方 ①-3 / ①-9 / ②-2 与 ③ 的相关条目已就地标注当前口径。
 
 **核查依据**：本仓工作树（文档最后提交 `cfd3b7d` = 2026-10-06T21:57:01+08:00，其后无代码改动）、`common/src/main/java/com/immersivecinematics/immersive_cinematics/{webui,editor,script,control,client}/`、`editor/`（前端）、`example/editor/olive/app/`、`example/editor/lossless-cut/`。
 **行数口径**：`git ls-files <pathspec> | xargs cat | wc -l`（逐文件 `wc -l` 会因 xargs 分批产生多个 total，故改用 cat 汇总）。
 
-### ① 核实为真的断言
+##### ① 核实为真的断言
 
 | # | 断言 | 证据 |
 |---|---|---|
@@ -262,7 +374,7 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 | 21 | §5 从 Olive 采纳的设计点 | Auto-Scale 下拉 `{None, Fit, Fill, Stretch}`（`transformdistortnode.cpp:80`，故 "Fit / Fill / Stretch 三档" 属实）；按序列分辨率归一化（同文件 `:291-297` `scale(2.0/sequence_res.x(), 2.0/sequence_res.y(), 1.0)` 再 `texture_res*0.5`）；关键帧贝塞尔手柄与三次/二次插值（`keyframe.h:104-111`、`node.cpp:487-513`）；裁切四边 0~1（`cropdistortnode.cpp:154-157` 四个 side 输入 `min=0/max=1/Percentage`，`:109-112` 按分辨率换算）；向量按分量分轨（`NodeKeyframeTrackReference(NodeInput(this, kPositionInput), 0/1)` 分量索引） |
 | 22 | 已知缺陷 | `WebPreviewScreen.java:138-152` `enterFlightMode(double x, double y, double z, float yaw, float pitch, float roll, float fov, float zoom, boolean absolute)` 只使用 `absolute`，其余 8 个参数全部丢弃，改用 `CameraManager.INSTANCE.getPath().getPosition()` + `getProperties().get{Yaw,Pitch,Roll,Fov,Zoom}()`；`WebEditorApi.handleEnterFlightMode` 确实解析并传入了这些字段 |
 
-### ② 已修正的断言
+##### ② 已修正的断言
 
 | # | 旧说法 | 新事实 | 证据 / 裁决 |
 |---|---|---|---|
@@ -271,7 +383,7 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 | 3 | §4 表：「游戏内编辑器（`editor/` 包 + `client/EditorBridgeImpl`）10,164」 | 10,164 只是 `editor/` 包；`EditorBridgeImpl` 34 行，合计 10,198（占比仍 33%） | `git ls-files .../editor/*` = 10,164；`client/EditorBridgeImpl.java` = 34 |
 | 4 | §4 表：「外部编辑器（`editor/src`，Vue 3 + TS）12,799」 | 12,799 是 `editor/src` 全量文件（含 26 个 SVG 4,168 行 + 1 个 PNG）；TS+Vue 实为 5,643（.ts 439 + .vue 5,204） | `git ls-files 'editor/src/**'` 按扩展名分组统计 |
 
-### ③ 补全的信息
+##### ③ 补全的信息
 
 - **`webui/` 包文件清单与行数**（原表缺 `WebSocketSession`，且未给路径/行数）：见 ①-3（2026-10-09 回写：现共 10 文件，清单见 §1.2）。
 - **`WebRegistryService` 支持的 kind**：`item` / `block` / `entity`(别名 `entity_type`) / `sound` / `target` / `biome` / `dimension`(别名 `from_dimension`) / `structure` / `advancement`；`stage`(`gamestage`) 返回空列表（`WebRegistryService.java:39-51`）。
@@ -280,7 +392,7 @@ lossless-cut 用的 `electron-vite` 脚手架本身是 MIT，但我们的编辑�
 - **`editor/` 包的外部引用面**（已补进 §6）：仅 3 处。
 - **§5.1 表头**：标注「网络数据，未复检」。
 
-### ④ 无法核实的断言（未验证）
+##### ④ 无法核实的断言（未验证）
 
 - §5：「lossless-cut 用的 `electron-vite` 脚手架本身是 MIT」——本仓 `example/editor/lossless-cut/node_modules/` 不存在，无法就地核验 electron-vite 的 license 字段；仅确认其构建脚本使用 `electron-vite build`（`package.json:19`）。**未验证**。
 - §5.1 全表（★ 数、各项目许可与形态）：2026-10-06 网络快照，按要求未重搜。**未验证**。

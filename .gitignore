@@ -57,7 +57,13 @@ plans/0.3.3/phase4-unified-clip-model.md
 /editor/layout_check*.png
 /editor/right_panel_crop.png
 /.workbuddy
-/.planning
+
+# --- 开发工具 ---
+tools/devtools/.venv/
+
+# MC 百科工具：会话 cookie 与临时产物（不提交）
+tools/devtools/.mcmod-cookie
+tools/devtools/.mcmod-*
 
 # --- 0.3.6 展示资源（商业版权 LUT 等，不入库）---
 cinematics/0.3.6/resource/
@@ -66,3 +72,4 @@ plans/0.3.6/re/
 # --- 交接简报（不提交不追踪）---
 *交接*.md
 000.md
+*.pyc

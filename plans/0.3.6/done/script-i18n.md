@@ -1,4 +1,128 @@
-# 0.3.6 脚本文本 i18n：文本作为第三种资源（已落地）
+# 脚本文本 i18n（`@lang:` 文本资源）
+
+> 状态：已实现（2026-10-07）
+> 范围：字幕 `text` 与 `meta.description` 的 `@lang:<key>` 引用、`resource/lang/<语言>.json` 字典、语言回退链、编辑器的资源字段与提示
+> 关联：`docs/SCRIPT_FORMAT.md` §12、`docs/AI_SCRIPTING_GUIDE.md`、`docs/modules/editor.md`、`docs/modules/util.md`
+
+## 一、摘要
+
+把脚本里的可读文本做成与图片、音频并列的第三种资源：脚本只写 `@lang:<key>` 引用，译文按语言放进资源目录的扁平字典，客户端按当前语言解析。同一场放映，中文客户端看中文、英文客户端看英文，服务端不需要知道任何语言信息；改译文不动脚本。打包分发、多人服资源、缺失不阻塞三条性质与图片 / 音频完全一致，协议零改动。
+
+## 二、为什么做
+
+### 2.1 问题
+
+- 字幕与描述是脚本 JSON 的一部分，随播放包下发。想让同一段演出在中英文客户端各显其语言，只能维护两份脚本，或改文案后重新分发整条脚本。
+- 若把"文本命中字典就替换"当规则，正常文案与条目无法区分——一句恰好等于某条目的字幕会凭空变成另一句话，而且不报错。
+- 资源缺失时若静默替换成空白，作者看不出漏了条目，玩家只看到字幕消失。
+
+### 2.2 目标
+
+- 字幕与描述可以只写引用，译文集中维护；改译文不需要改脚本。
+- 同一场放映中，不同语言的客户端各显示自己的语言。
+- 当前语言缺条目时回退英文，英文也缺时原样显示引用串，让缺条目一眼可见。
+- 资源缺失、字典解析失败只记日志，不阻塞播放；资源不进网络包、不进存档。
+- 编辑器里能从现有条目和资源文件中选择，当前值缺失时给黄色提示，但不阻塞保存与播放。
+
+### 2.3 非目标
+
+- 脚本名、id、作者不翻译：名字是可检索标识，id 是依赖键。
+- 命令文案不翻译：它走服务端执行，属于另一条链路。
+- 占位符参数：译文里的百分号按字面渲染。
+- 编辑器自身界面的翻译，以及用编辑器写语言文件（只读列举）。
+- 语言族回退：中文简体不会回落到任意中文变体。
+- 资源热重载与模板产条目：改译文重启生效，模板仍产文案。
+
+## 三、方案
+
+作者在资源目录的 `lang/` 下按语言放扁平字典文件（一个语言一个文件，键是条目名、值是译文），脚本里把字幕文本或脚本描述写成 `@lang:<条目名>`。
+
+**解析规则只有一条**：值以引用前缀开头才查表，其余字符串原样渲染。想在字幕里真的显示 `@lang:` 开头的文字，多写一个 `@`——转义在查表之前处理。
+
+**条目命名**：点分段，每段沿用脚本 id 的字符约束，建议"脚本 id + 用途"（如 `boss_fight.intro`）。字典全局一份，命名空间是唯一的防撞手段；跨脚本复用同一条目是预期用法。
+
+**回退链**：当前语言 → 英文 → 原样显示引用串。第三段刻意不静默：玩家看到 `@lang:boss_fight.intro` 就知道作者漏了条目。语言文件或条目缺失只记调试日志，播放照常。
+
+**作用范围**：只有字幕文本与脚本描述支持引用；脚本名、id、作者、事件命令都不解析。字幕译文里可以换行，换行在查表之后按行渲染。
+
+**编辑器**：字幕与描述字段变成带候选的资源字段——候选项来自所有语言文件的条目并集，选项上显示当前编辑器语言的译文；图片路径字段同样可以从资源目录里选文件。当前值缺条目或缺文件时字段下方显示黄色提示，不进校验问题列表，也不阻塞保存与播放。
+
+**边界**：语言文件只读，没有语言矩阵编辑面板；预览按客户端语言解析，没有手动切语言的开关。
+
+## 四、技术细节
+
+### 4.1 核心模型
+
+- 文本资源解析器：负责前缀与转义判定、条目语法校验、语言代码归一、字典加载与缓存、回退链；输入是字段原值，输出仍是字符串。
+- 字典文件：`resource/lang/<语言>.json`，与图片、音频同处资源根目录，客户端按需读取。
+- 编辑器列举接口：只读列举资源目录——文本资源给语言清单与条目并集（每条带各语言译文），图片 / 音频给相对资源根的路径清单。
+- 前端资源字段控件：带候选的文本输入 + 当前值的缺失提示。
+- 解析落点：字幕文本设置处与脚本描述的读取显示处，两处都在客户端渲染 / 显示路径上。
+
+### 4.2 契约
+
+- 字典首次解析时读入并缓存在进程内，进程内有效；不注册资源重载监听，改译文重启客户端生效。
+- 解析发生在分行渲染之前；译文本身允许换行。
+- 资源缺失或字典解析失败只记日志，不阻塞播放。
+- 编辑器列举直接读盘，与运行时共用同一字典读取口径；列举只读，不写任何文件。
+- 状态归属：缓存归解析器；列举结果只存在于单次请求；脚本 JSON 里存的始终是引用串本身。
+
+### 4.3 数据形态
+
+- 字典文件：根为扁平对象，键是条目名、值是译文（只收字符串）。
+- 引用：`@lang:<条目名>`；条目名一段或多段字母数字下划线用点连接，建议以脚本 id 起头。`@@lang:` 表示字面量 `@lang:`。
+- 语言代码与 MC 一致（`zh_cn` / `en_us`），文件名严格小写；一个语言一个文件。
+- 回退链：当前语言 → `en_us` → 原样显示引用串。
+- 作用字段：只有字幕 `text` 与 `meta.description` 支持引用，其余文本字段保持字面。
+
+### 4.4 边界
+
+- 不碰原版语言体系（资源包 + 资源重载 + 可翻译文本）：作者内容走本地目录，不进资源包。
+- 不改脚本结构：引用是普通字符串，字段 schema 零改动。
+- 服务端不参与：脚本原样下发引用串，服务端不读语言文件、不感知语言。
+- 编辑器只读资源：缺失条目只给提示，不进校验问题列表。
+- 不覆盖脚本名、id、作者与事件命令。
+
+## 五、为什么不选别的
+
+| 备选方案 | 做法 | 代价 | 为什么没选 |
+|---|---|---|---|
+| 裸条目自动替换 | 文本命中字典就替换 | 正常文案与条目必然歧义，误替换不报错 | 一条显式前缀即可消除歧义 |
+| `%key` / `$key` | 用占位符风格的标记 | 与百分号、美元符的占位符语义打架 | 前缀要独立于既有格式 |
+| `{key}` | 大括号包裹 | 与文案里的大括号冲突 | 同上 |
+| 全部文本强制走字典 | 字幕必须是条目名 | 现存脚本字幕全部失效 | 破坏向后兼容 |
+| 复用原版可翻译文本 | 作者文本塞进资源包语言文件 | 丢掉本地目录读取、不走服务器、不随资源包分发三条性质 | 作者内容与模组界面是两层资源 |
+
+**本方案的缺点**：
+
+- 改译文要重启客户端，校对循环慢；没有热重载，也没有编辑器内的翻译面板。
+- 缺条目时把引用串暴露给玩家，属于"宁可难看也要可见"的取舍。
+- 没有占位符参数，带变量的文案只能拆成多条静态条目。
+- 字典全局一份，撞条目没有框架检查，全靠命名空间自觉。
+- 只覆盖字幕与描述两类字段，其它文本要么不翻译，要么各自想办法。
+
+## 六、实现结果
+
+状态：已实现（2026-10-07）
+
+解析器、回退链、转义、字幕与描述两个落点、编辑器资源字段与提示、资源列举命令均已落地；语言矩阵编辑面板与模板产条目未做。
+
+| 原设计 | 实际实现 | 偏离原因 |
+|---|---|---|
+| 脚本描述在元数据取值处解析 | 在架构图节点构建处解析 | 元数据取值没有其它消费方，且解析依赖客户端语言与本地目录，不能带进服务端路径 |
+| 编辑器列举文本条目或整棵资源树 | 增加可选子目录参数（文本资源默认只看 `lang/`） | 图片 / 音频子目录多时路径字段可用；路径安全校验有真实入口 |
+| 前端新增字段类型来分派 | 按字段键分派（字幕、描述 → 条目；图片路径 → 文件），schema 零改动 | 避免改动字段类型体系 |
+| 条目命名规范执行时再定 | 定为每段 ≤ 32 字符、总长 ≤ 256，非法条目按"未找到"原样显示 | 需要一个可判定的边界 |
+| 语言代码严格小写 | 一致；不合格的语言代码统一按英文处理 | 顺带挡住路径穿越形态 |
+| 撞条目检查作为可选项 | 不做 | 同一文件内重复键由 JSON 语义合并；跨脚本复用是设计意图 |
+| 语言文件矩阵编辑面板（可选后置） | 未做，编辑器只读列举 | 本期范围外 |
+| 预览可手动切换语言 | 按客户端语言解析，无切换开关 | 预览走游戏内渲染路径，需单独给预览通道传语言 |
+| 模板产出条目名而非文案 | 未做，模板仍产文案 | 依赖模板体系重建 |
+| 未涉及无客户端状态的取值 | 原样返回引用串 | 无头自检与服务端进程不能因取语言而崩溃 |
+
+## 附录：重写前原文
+
+### 0.3.6 脚本文本 i18n：文本作为第三种资源（已落地）
 
 > ✅ 已落地（文本 = 第三种资源已在运行时实现：`util/LangResources` + `resource/lang/<语言>.json`）。
 > - 已确认的写“已确认”
@@ -14,7 +138,7 @@
 
 ---
 
-## 1. 定位（已确认）
+#### 1. 定位（已确认）
 
 **文本 = 第三种资源**，与图片 / 音频同构：放 `immersive_cinematics/resource/` 下、由客户端按需读取；脚本里只写引用 key，译文集中管理——**改译文不动脚本**。
 
@@ -28,9 +152,9 @@
 
 ---
 
-## 2. 资源形态（方向）
+#### 2. 资源形态（方向）
 
-### 2.1 目录与文件
+##### 2.1 目录与文件
 
 ```text
 <游戏目录>/immersive_cinematics/resource/
@@ -48,7 +172,7 @@
   - 备选（待定，§6-7）：按脚本分文件 `resource/lang/<脚本id>/<语言>.json`——便于按脚本整体拷贝，但跨脚本复用文案会重复。
     → **落地：不采用**，仍是全局一份 `resource/lang/<语言>.json`（跨脚本复用同一句文案是常态）。
 
-### 2.2 引用语法（倾向 `@lang:<key>`）
+##### 2.2 引用语法（倾向 `@lang:<key>`）
 
 脚本里**只写引用 key**，`text` 字段形如 `@lang:chapter1.boss.intro`。
 
@@ -66,21 +190,21 @@
 **待定**：以 `@lang:` 开头的**字面**文案怎么写（转义 `@@lang:`？）——见 §6-6。
 → **落地（已实现）**：`@@lang:<key>` 表示字面量 `@lang:<key>`（多写一个 `@`），在查表之前处理，见 §6-6。
 
-### 2.3 key 命名
+##### 2.3 key 命名
 
 建议 `<脚本id>.<用途>`（如 `boss_fight.intro`），命名空间段沿用 `meta.id` 的字符约束（`^[a-zA-Z0-9_]{1,32}$`，§8-3）。具体规范执行时定；**多脚本共用一份字典，命名空间是唯一的防撞手段**。
 
 ---
 
-## 3. 运行时解析（方向）
+#### 3. 运行时解析（方向）
 
-### 3.1 加载
+##### 3.1 加载
 
 按**客户端当前语言**加载对应文件：`Minecraft.getInstance().getLanguageManager().getSelected()` 取代码（§8-5）→ 读 `resource/lang/<code>.json`。
 
 字幕是**每个客户端各自渲染**的（脚本 JSON 下发到客户端、覆盖层在客户端绘制），所以“按客户端当前语言”天然成立——同一场放映，中文客户端看中文、英文客户端看英文，**服务端不需要知道任何语言信息**。
 
-### 3.2 回退链
+##### 3.2 回退链
 
 ```text
 当前语言（如 zh_cn） → en_us → 原样显示引用串（@lang:<key>）
@@ -94,25 +218,25 @@
 
 第三段“原样显示引用串”是刻意的：**不静默**——玩家看到 `@lang:boss.intro` 就知道作者漏了 key，而不是看到一片空白。
 
-### 3.3 解析落点
+##### 3.3 解析落点
 
 `SubtitleLayer` 内部存的是 `String text`（`SubtitleLayer.java:24`），渲染时才 `Component.literal`（`:79`）——所以解析**输入是 String、输出还是 String**，落在 `OverlayTrackPlayer` 的 subtitle 分支（`OverlayTrackPlayer.java:147-152` 的 `setText(clip.getString("text",""))`）或 `SubtitleLayer.setText`（`:103-105`）都行。
 
 **不引入 `Component.translatable` 体系**：那是 MC 资源包 + `ResourceManager` 的世界（assets 下的 lang 文件、随资源包重载），把作者内容塞进去会同时丢掉“本地目录读取 / 不走服务器 / 不随资源包分发”三条性质。两层的区分见 §8-5。
 
-### 3.4 缓存与重载
+##### 3.4 缓存与重载
 
 **与图片 / 音频现状一致**：首次解析时读入并缓存（进程内静态 map），MC 的资源重载**不影响**我们——现状本来就没有注册任何 `ResourceManagerReloadListener`，`TextureLoader.clearCache()` 的注释虽写“在资源重载时调用”但**全工程无调用方**（§8-6）。
 
 即：**改译文后重启客户端生效**。是否需要更快的路径（编辑器预览通道内单独重读）→ 待定（§6-4）。
 
-### 3.5 多行
+##### 3.5 多行
 
 `text` 支持 `\n` 换行（`SubtitleLayer.java:55` 的 `text.split("\n", -1)`）；译文里同样允许 `\n`。解析发生在分行**之前**（key 查表先于分行）。
 
 ---
 
-## 4. 范围（方向）
+#### 4. 范围（方向）
 
 | 字段 | 是否进 i18n | 理由 |
 |---|---|---|
@@ -125,7 +249,7 @@
 
 ---
 
-## 5. 编辑器（方向）
+#### 5. 编辑器（方向）
 
 - **key 输入**：`text` 仍是字符串字段（`FieldRenderer.vue:37` → `StringField` → `CommitTextField`），作者手写 `@lang:<key>`。这一步**零改动**。
 - **资源浏览**：⚠️ 现状纠正——**目前编辑器没有任何资源浏览控件**。`path`（图片）字段也是纯文本输入：`FieldRenderer.vue` 只对 `REGISTRY_KEYS`（`item` / `entity` / `biome` / `sound` 等注册表键）走 `RegistryStringField` 下拉（`:22-29`、`:37`），`path` 不在其中；后端 `WebEditorApi` 只有 `script.*` / `registry.*` / `schema.get` / `script.graph` 这些命令（`:36-46`），**没有列举 `resource/` 目录的接口**（§8-7）。
@@ -134,7 +258,7 @@
 
 ---
 
-## 6. 可能的问题 / 待定
+#### 6. 可能的问题 / 待定
 
 > **0.3.6 已落地**：以下逐条标注实现结果，代码位置与验证见 §9。
 
@@ -157,7 +281,7 @@
 
 ---
 
-## 7. 落地顺序（方向）
+#### 7. 落地顺序（方向）
 
 1. **lang 资源加载 + `@lang:` 解析 + 回退链**：读 `resource/lang/<code>.json`、缓存、按 §3.2 回退；覆盖字幕 `text` 与 `meta.description`。交付物 = 一个“文本资源解析器”（底层工具，先底层后应用）。
    → ✅ **已实现**：`util/LangResources`（解析器）+ 两个落点（`OverlayTrackPlayer` 字幕分支、`ScriptGraphService` 的 `description` 读取处）。
@@ -170,13 +294,13 @@
 
 ---
 
-## 8. 现状调查（2026-10-07，逐条带证据）
+#### 8. 现状调查（2026-10-07，逐条带证据）
 
 MC 侧证据取自 1.20.1 loom 源码包
 `.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-d95c7b3016/1.20.1-loom.mappings.1_20_1.layered+hash.2198-v2/minecraft-merged-d95c7b3016-1.20.1-loom.mappings.1_20_1.layered+hash.2198-v2-sources.jar`
 （下文记作 `MC源:`），行号为包内行号。
 
-### 8-1 资源目录与图片 / 音频引用
+##### 8-1 资源目录与图片 / 音频引用
 
 - 资源根目录 `<gameDir>/immersive_cinematics/resource/`：`ResourcePath.getBasePath()`（`util/ResourcePath.java:24-28`），常量 `RESOURCE_DIR = "resource"`（`:19`）；`resolve(fileName)` = 根目录直接 resolve（`:36-37`，**支持子路径**）；`exists`（`:43-45`）；`ensureDir`（`:50-56`）。
 - 类注释明写三条性质：**“单机/联机/编辑器共用同一份，不走服务器流量、不做文件同步；资源缺失时由各加载点记录日志，不阻塞脚本播放”**（`ResourcePath.java:11-14`）。
@@ -185,14 +309,14 @@ MC 侧证据取自 1.20.1 loom 源码包
 - 文档口径：`docs/SCRIPT_FORMAT.md:39`（“音频/图片已有子路径支持”）、`:520`（图片 `path`）、`:448-449`（`sound` / `source`）；`docs/AI_SCRIPTING_GUIDE.md:201`（AUDIO）、`:221`（图片 `path`）。
 - **英文命名约束**：音频构造时对非 ASCII 文件名告警——“音频文件名包含非 ASCII 字符: {} — Windows 下可能无法解码，建议使用英文命名”（`CinematicAudioInstance.java:71-73`）；AI 指南列为脚本常见坑第 13 条：“Windows 下 stb 解码走 ANSI 代码页，中文路径打不开。**资源文件统一英文命名**”（`docs/AI_SCRIPTING_GUIDE.md:512`）；`CHANGELOG.md:98`“音频资源统一为英文命名，避免部分系统下无法解码”。→ 图片侧读文件走 Java `Files.newInputStream`（`TextureLoader.java:73`）**没有**对应检查，只有文档告诫。
 
-### 8-2 字幕轨现状
+##### 8-2 字幕轨现状
 
 - 解析：`OverlayTrackPlayer.createLayer` 的 `subtitle` 分支 `sl.setText(clip.getString("text", ""))`——**原样透传，无任何引用 / 前缀语法**（`OverlayTrackPlayer.java:147-152`）。
 - 字段定义：`clips.put("text", new FieldDef("string", ""))`（`TrackSchemas.java:152`）。
 - 渲染：`SubtitleLayer` 存 `String text`（`SubtitleLayer.java:24`），`render` 里 `text.split("\n", -1)` 分行（`:55`）、逐行 `Component.literal` + `font.drawString`（`:79`）——**纯字面量，不走 `translatable`**。
 - 既有坑（与 i18n 无关但同层）：`alpha < 4` 直接 return（MC `Font` 会把低 alpha 补成全不透明，`SubtitleLayer.java:44-52`）。
 
-### 8-3 meta 字段与编辑器显示
+##### 8-3 meta 字段与编辑器显示
 
 - 字段定义与默认值：`id`(string,"untitled",required)、`name`(string,"Untitled",required)、`author`(string,"")、`version`(int,3,required)、`description`(string,"")（`script/schema/MetaSchemas.java:16-20`）。
 - 解析：`id` / `name` / `author` 必填、`version` 必填、`description` 缺省 `""`（`ScriptParser.java:80-84`）；`id` 必须匹配 `^[a-zA-Z0-9_]{1,32}$`（`:86-87`）。
@@ -201,14 +325,14 @@ MC 侧证据取自 1.20.1 loom 源码包
   - 脚本列表**只显示相对路径**（`editor/src/components/ScriptList.vue:31-34`）；
   - 架构图节点把 `name` / `author` / `description` 打进节点（`webui/ScriptGraphService.java:167-169`），前端在节点与 tooltip 里显示（`editor/src/components/ScriptGraph.vue:399-405`），`name` 为空时回落路径（`ScriptGraphService.java:325-327`）。
 
-### 8-4 多人服资源分发现状
+##### 8-4 多人服资源分发现状
 
 - **脚本走网络**：服务端从 `<serverDir>/immersive_cinematics/scripts` 加载（`ScriptManager.java:32,45`），播放时 `S2CPlayScriptPacket` 携带**完整脚本 JSON** 下发（`S2CPlayScriptPacket.java:40-49`；`docs/modules/network.md`“S2CPlayScriptPacket（服务端→客户端，play_script）：携带脚本原始 JSON”）。
 - **资源不走网络**：客户端一律从本地游戏目录读（`ResourcePath.java:11-14` 明写“不走服务器流量、不做文件同步”）。
 - → i18n 资源放 `resource/lang/` 即**天然与图片 / 音频同待遇**：不新增包、不改协议、不新增同步逻辑。
 - 附带事实（若将来 key 要走网络）：`FriendlyByteBuf.MAX_STRING_LENGTH = Short.MAX_VALUE`（32767），`readUtf()` 默认此上限、`readUtf(int)` 可指定，`getMaxEncodedUtfLength(i) = i*3`，组件序列化用 262144（`MC源: net/minecraft/network/FriendlyByteBuf.java:91-92,612-617,651`）。**当前设计不需要**——脚本 JSON 里已经是 key 字符串，随现有 play 包走即可。
 
-### 8-5 客户端语言机制与两层翻译
+##### 8-5 客户端语言机制与两层翻译
 
 - **取当前语言**：`Minecraft.getLanguageManager()`（`MC源: net/minecraft/client/Minecraft.java:2164-2165`）→ `LanguageManager.getSelected()` 返回语言代码（`MC源: …/language/LanguageManager.java:77-79`）；常量 `DEFAULT_LANGUAGE_CODE = "en_us"`（`:33`）。
 - **MC 原生回退链**：`onResourceManagerReload` 组列表 `[en_us, 当前语言]`（`LanguageManager.java:63-65`）→ `ClientLanguage.loadFrom`（`:68`）→ 逐语言读 `lang/<code>.json`（`ClientLanguage.java:41`）、`Language.loadFromJson(inputStream, map::put)` **后读覆盖先读**（`:59`）→ 单条缺失时 `getOrDefault` 返回 key 本身（`Language.java:90-91`）；默认语言常量 `Language.DEFAULT = "en_us"`（`Language.java:34`）。
@@ -220,28 +344,28 @@ MC 侧证据取自 1.20.1 loom 源码包
   - 本文的 i18n 属于**第二层**，所以不能复用第一层的 `translatable` 通道（否则丢掉“本地目录 / 不走服务器 / 不随资源包”）。
 - **编辑器自身的 i18n**：`editor/src/i18n/index.ts`（`zh_cn` / `en_us` 扁平字典、`%s` / `%d` 占位、缺 key 回退 en_us 再回退 key 本身、`switchLang`）——这是**编辑器 UI** 的翻译，与作者内容无关，也不与模组 lang 文件共用。
 
-### 8-6 资源重载语义现状
+##### 8-6 资源重载语义现状
 
 - 图片 / 音频**不参与 MC 资源重载**：mod 未注册任何 `ResourceManagerReloadListener`（在 `common/src`、`fabric/src`、`forge/src` 下 grep `ReloadListener` / `onResourceManagerReload` **无命中**）。
 - `TextureLoader.clearCache()` 的 javadoc 写“在资源重载时调用”（`TextureLoader.java:193`），但**全工程无调用方**（grep `clearCache` 仅命中定义处 `:194`）——即缓存生命周期 = 客户端进程（`:35-39` 三个静态 map）。
 - `/icinematics reload` 只重载脚本：命令注册（`command/CinematicCommand.java:99-101`）、实现（`:213-227`，注释“reload = 重新加载持有的脚本（不做任何文件同步）”）。
 - → 现状 = **加载一次、进程内缓存、无热重载**。§3.4 的“与现状一致”即指此。
 
-### 8-7 编辑器前端既有控件
+##### 8-7 编辑器前端既有控件
 
 - 字段渲染分发：`FieldRenderer.vue` 按 `field.type` 选组件（`:35-49`）；`string` 时仅当 `fieldKey ∈ REGISTRY_KEYS`（`item` / `target` / `entity` / `biome` / `dimension` / `from_dimension` / `advancement` / `structure` / `look_at_target_structure` / `stage` / `sound`，`:22-25`）才用 `RegistryStringField` 下拉，否则 `StringField`（`:28-29,37`）。
 - `StringField.vue` = `CommitTextField`（纯文本输入）。
 - → `path`（图片）与 `text`（字幕）**都是纯文本输入，没有资源浏览控件**。
 - 后端命令面：`WebEditorApi` 支持 `hello` / `script.list|load|save|delete|new|validate` / `registry.query|get` / `schema.get` / `script.graph`（`:36-46`）；`script.list` → `ScriptFileService.listScripts()`（`:86-90`），递归 walk `immersive_cinematics/scripts`（`ScriptFileService.java:19,24-34`）；`WebRegistryService` 只列注册表键（`WebRegistryService.java:79-84`）。**没有列举 `resource/` 的接口**。
 
-### 8-8 模板生成文本（范围外，仅记录）
+##### 8-8 模板生成文本（范围外，仅记录）
 
 - 模板系统在 `script/template/`（`TemplateRegistry` / `TemplateScriptAssembler` / 各 `ClipTemplate`），`/icinematics template` 生成脚本到 `scripts/generated/`（`command/CinematicCommand.java:281-303`）。
 - 模板产出的字幕文案同样是字面量 → 若要 i18n，模板参数应产出 key（§6-5，依赖 `templates.md`）。
 
 ---
 
-### 未验证 / 保留
+##### 未验证 / 保留
 
 - **图片侧是否有非 ASCII 文件名检查**：**未发现**（`TextureLoader` 无对应检查，只有文档告诫）——这是 grep 结论，未逐一核对 stb / NativeImage 的内部行为。
 - **编辑器预览链路对字幕的显示是否与游戏内渲染完全同路**：**未核实**（本文只依赖“字幕在客户端本地渲染”这一点，该点由 `SubtitleLayer` 处在 common 的客户端渲染路径直接成立）。
@@ -249,9 +373,9 @@ MC 侧证据取自 1.20.1 loom 源码包
 
 ---
 
-## 9. 实现记录（0.3.6 落地）
+#### 9. 实现记录（0.3.6 落地）
 
-### 9-1 代码清单
+##### 9-1 代码清单
 
 | 文件 | 变更 |
 |------|------|
@@ -272,7 +396,7 @@ MC 侧证据取自 1.20.1 loom 源码包
 | `docs/modules/overlay.md` | 字幕层补「创建层时经 `LangResources.resolve` 解析」说明 |
 | `CHANGELOG.md` | 0.3.6 新增：字幕/描述多语言 + 编辑器资源字段 |
 
-### 9-2 与方向稿的偏差 / 补充
+##### 9-2 与方向稿的偏差 / 补充
 
 1. **`meta.description` 的解析落点** = `ScriptGraphService` 的节点读取处（唯一 Java 显示点），**不是** `ScriptMeta.getDescription()`。理由：该方法目前没有任何消费方，而 `ScriptParser` 在服务端也会跑——在 getter 里解析会把客户端语言依赖带进服务端路径（`ResourcePath` / `LanguageManager` 都是客户端状态）。
 2. **编辑器列举接口比方向稿多一个可选 `dir`**（资源根下的子目录，缺省整棵树、`lang` 缺省 `lang/`）：方向稿只要求「列举 lang 或整棵树」，加 `dir` 是为了让 `path` 字段在子目录多时可用，并给路径安全校验一个真实入口（`../` 一律拒绝）。
@@ -280,7 +404,7 @@ MC 侧证据取自 1.20.1 loom 源码包
 4. **编辑器不做语言文件写入**（§7-3 的矩阵面板仍未做）：本期编辑器只读列举。
 5. **`LangResources.resolve(String)` 在无客户端状态时原样返回**（`Minecraft.getInstance()` 为 null / 抛错，如无头自检）：不解析、不崩溃，游戏内始终有客户端状态。
 
-### 9-3 验证（0.3.6 落地时）
+##### 9-3 验证（0.3.6 落地时）
 
 - `sh gradlew compileJava`：通过（仅既有 deprecation 警告）。
 - 无头自检（临时 harness，未进仓库；`common` 主源集 classpath + 回环 socket 伪造 WS 会话）：

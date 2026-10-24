@@ -2,7 +2,7 @@
 
 > **历史说明（2026-10-17）**：本文记录 D8 / D10 收口轮；文中 §1 / §5 的“D1–D3 未做 / 仍开放”是**当时状态**。D1–D7 均已在同日后续轮次完成：D1–D3 见 [scene-transition.md](scene-transition.md) §9，D4–D7 见 [color-mask-execution.md](color-mask-execution.md)。本文不删除历史，也不把后续轮次的验收混入本轮。
 >
-> **当前状态（2026-10-18 回写）**：D 轮已关单——D1–D8 / D10 于 2026-10-17 完成，D9 取消（字幕不裁切）。本文只是 D8 / D10 的历史执行记录；现行仍开放的只有验收边界（Forge 未实机、Iris / Oculus 未实机）、§5 末条（斜线 / 星形 wipe 与跨实例层序不在本版）以及 E / F / G / H / P1 / P3 未关单，均不是 D 轮待办。
+> **当前状态（2026-10-18 回写）**：D 轮已关单——D1–D8 / D10 于 2026-10-17 完成。本文只是 D8 / D10 的历史执行记录；现行仍开放的只有验收边界（Forge 未实机、Iris / Oculus 未实机）、§5 末条（斜线 / 星形 wipe 与跨实例层序不在本版）以及 E / F / G / H / P1 / P3 未关单，均不是 D 轮待办。
 
 ## 1. 版本现状与本轮选择
 
@@ -11,11 +11,11 @@ ABC 主体已完成，不重开既有实现。C 的事实追踪 / 连续语义�
 本轮选择 **D8 核实收口 + D10 LETTERBOX 透明度**，不是一次把整个 D 批次标成完成：
 
 - D8：画面 lane 与现有覆盖层已经共享取材 / 放置参照，保留两族不同的素材来源与执行路径，不为统一而强行把世界渲染搬进 GUI 层。统一几何重写已于 2026-10-10 提前落地。
-- **D9 取消（用户 2026-10-17 澄清）**：字幕没有裁切要求。字幕保留定位、锚点、字号、缩放与透明度，不消费 `source`；`source` 仍用于图片与相机 lane，`fit` 不恢复。执行期间短暂新增的字幕裁切代码、接线、演示脚本全部撤回，不交付、不提交。
+- 字幕：完整呈现、不裁切，不消费 `source`；`source` 仍用于图片与相机 lane，`fit` 不恢复。
 - D10：LETTERBOX 轨接通 `opacity`；移除该播放器隐含的 smoothstep，使 `aspect_ratio` 与 `opacity` 均按脚本关键帧线性播放。
 - 几何裁决一致性：去掉 `base_resolution` 的 16384 人为上限；保留当前正整数存储类型的可表示边界，解析和校验一致，不允许溢出截断。ScriptParser 已正确支持该范围，实际只修校验器。
 
-选择依据：README 通用原则“先底层后应用”；`variable-frame.md` §3.1 / §4.2 / §9 / §11（字幕取材旧方向由本次用户澄清取代）；`scene-transition.md` §2 LETTERBOX 缺口；`G-script-model/script-model.md` §4-1 运行时线性、缓动归编辑器；`consolidation/decisions.md` 第 3 项“不设上限”。
+选择依据：README 通用原则“先底层后应用”；`variable-frame.md` §3.1 / §4.2 / §9 / §11（字幕不取材）；`scene-transition.md` §2 LETTERBOX 缺口；`G-script-model/script-model.md` §4-1 运行时线性、缓动归编辑器；`consolidation/decisions.md` 第 3 项“不设上限”。
 
 ## 2. 调研前置（已完成）
 
@@ -24,7 +24,7 @@ ABC 主体已完成，不重开既有实现。C 的事实追踪 / 连续语义�
 1. MC 1.20.1 GuiGraphics / Font / scissor / GUI 缩放与 framebuffer 坐标，以及渲染混合状态契约。
 2. `example/` 中 Olive / ReplayMod / BBS / 相关模组的取材、关键帧、遮罩与混合机制，区分数据创作与运行时播放。
 
-长期源码依据：Forge `1.20.1-47.4.16_mapped_official_1.20.1-sources.jar` 的 `GuiGraphics.java`、`Font.java`、`Window.java`、`RenderTarget.java`；Olive 的 `app/node/distort/crop/`、`app/node/distort/transform/`、`app/shaders/`；BBS 的 `particles/components/appearance/colors/Gradient.java`、`ui/framework/elements/utils/Batcher2D.java`。调查摘要记录在 `.planning/036-d/findings.md`。
+长期源码依据：Forge `1.20.1-47.4.16_mapped_official_1.20.1-sources.jar` 的 `GuiGraphics.java`、`Font.java`、`Window.java`、`RenderTarget.java`；Olive 的 `app/node/distort/crop/`、`app/node/distort/transform/`、`app/shaders/`；BBS 的 `particles/components/appearance/colors/Gradient.java`、`ui/framework/elements/utils/Batcher2D.java`。调查摘要已并入本节结论。
 
 ## 3. 小工作包与接口
 
@@ -36,7 +36,7 @@ ABC 主体已完成，不重开既有实现。C 的事实追踪 / 连续语义�
 | D10-a | 黑边透明度与线性求值 | LetterboxTrackPlayer / TrackSchemas.letterbox / ScriptValidator、一份演示脚本 | opacity 缺省 1、范围 0~1；区间内线性、区间外保持端点；空档清黑边；无限片段时间正常推进 |
 | D10 验收资产 | 实际播放器数值与生命周期探针 | 仅仓库外 Java / shell 文件 | 用真实解析器与播放器验证，不用 mock 回显，不入库 |
 
-撤回包：D9-a 字幕渲染、D9-b 字幕接线 / 样例，均由原编码代理精准撤回自己的改动，不动 D10 代码或其他已有功能。
+撤回包：字幕渲染与字幕接线 / 样例，均由原编码代理精准撤回自己的改动，不动 D10 代码或其他已有功能。
 
 ## 4. 验收
 
