@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.trigger.client;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPlaybackStartedPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPlayScriptPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CScriptReloadPacket;
@@ -89,28 +90,38 @@ public class ClientScriptReceiver {
      */
     public static void handleStopScript(S2CStopScriptPacket packet) {
         Minecraft.getInstance().execute(() -> {
-            resetSkipVote();
             String scriptId = packet.getScriptId();
-            if (scriptId.isEmpty()) {
-                CameraManager.INSTANCE.forceDeactivate();
-                LOGGER.info("Force-stopped all scripts by server");
-            } else if (CameraManager.INSTANCE.stopScriptById(scriptId, packet.getInstanceId())) {
-                // 按 (scriptId, instanceId) 定位实例：顶层 / 非顶层一律停，走渐出退场链
-                LOGGER.info("Stopped script by server: {} (instance={})", scriptId, packet.getInstanceId());
-            } else if (CameraManager.INSTANCE.cancelQueued(scriptId)) {
-                // 不在播 → 取消排队项；两者都不匹配 = 无目标，静默忽略
-                LOGGER.info("Cancelled queued script by server: {}", scriptId);
-            } else {
-                LOGGER.info("Stop ignored (no playing instance / queued entry): {}", scriptId);
-            }
-            // stop 回执（refId 非空才回）；旧格式 stop 无 refId，其通知由 forceDeactivate 链路覆盖
-            if (packet.getRefId() != null && !packet.getRefId().isEmpty()) {
-                com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptFinished(stop ack)",
-                        () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                                new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptFinishedPacket(
-                                        scriptId, packet.getInstanceId(),
-                                        com.immersivecinematics.immersive_cinematics.control.CompletionReason.STOPPED,
-                                        packet.getRefId())));
+            String instanceId = packet.getInstanceId();
+            String refId = packet.getRefId();
+            try {
+                if (scriptId.isEmpty()) {
+                    CameraManager.INSTANCE.forceDeactivate();
+                    LOGGER.info("Force-stopped all scripts by server");
+                } else if (CameraManager.INSTANCE.stopScriptById(scriptId, instanceId)) {
+                    // 按 (scriptId, instanceId) 定位实例：顶层 / 非顶层一律停，走渐出退场链
+                    LOGGER.info("Stopped script by server: {} (instance={})", scriptId, instanceId);
+                } else if (CameraManager.INSTANCE.cancelQueued(scriptId)) {
+                    // 不在播 → 取消排队项；两者都不匹配 = 无目标，静默忽略
+                    LOGGER.info("Cancelled queued script by server: {}", scriptId);
+                } else {
+                    LOGGER.info("Stop ignored (no playing instance / queued entry): {}", scriptId);
+                }
+                // stop 回执（refId 非空才回）；旧格式 stop 无 refId，其通知由 forceDeactivate 链路覆盖
+                if (refId != null && !refId.isEmpty()) {
+                    com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard.sendToServer("C2SScriptFinished(stop ack)",
+                            () -> com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                                    new com.immersivecinematics.immersive_cinematics.trigger.network.C2SScriptFinishedPacket(
+                                            scriptId, instanceId,
+                                            com.immersivecinematics.immersive_cinematics.control.CompletionReason.STOPPED,
+                                            refId)));
+                }
+            } catch (Exception e) {
+                FatalErrors.rethrowIfFatal(e);
+                // 停止是边界：异常不外抛（否则打断客户端 tick），但必须留完整栈便于定位
+                LOGGER.error("Failed to handle stop script: script={}, instance={}, refId={}",
+                        scriptId, instanceId, refId, e);
+            } finally {
+                resetSkipVote();
             }
         });
     }

@@ -9,6 +9,8 @@ import com.immersivecinematics.immersive_cinematics.client.lane.ScriptLaneDriver
 import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustPass;
 import com.immersivecinematics.immersive_cinematics.client.post.MasterColorAdjust;
 import com.immersivecinematics.immersive_cinematics.control.CinematicController;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -45,17 +47,26 @@ public abstract class GameRendererMixin {
     @Inject(method = "render", at = @At("HEAD"))
     private void onRenderFrameStart(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
         Minecraft mc = Minecraft.getInstance();
-        // F5 诊断会话帧首：manifest 未启用时仅一次静态 null 检查（不取 nanoTime / 不分配 / 不 IO）。
-        LaneDiagnostics.onFrameStart(mc, renderLevel && mc.level != null);
-        if (renderLevel && mc.level != null) {
-            CameraManager mgr = CameraManager.INSTANCE;
-            if (mgr.isActive()) {
-                // master 调色的实例集合生命周期 = 本帧的实例循环：先复位（预执行首帧等帧间发布不能决定本帧顺序），
-                // 再按列表顺序逐实例发布（插入序 = 实例启动顺序 = 叠加顺序，见 MasterColorAdjust）
-                MasterColorAdjust.INSTANCE.beginFrame();
-                mgr.onRenderFrame();
+        try {
+            // F5 诊断会话帧首：manifest 未启用时仅一次静态 null 检查（不取 nanoTime / 不分配 / 不 IO）。
+            LaneDiagnostics.onFrameStart(mc, renderLevel && mc.level != null);
+            if (renderLevel && mc.level != null) {
+                CameraManager mgr = CameraManager.INSTANCE;
+                if (mgr.isActive()) {
+                    // master 调色的实例集合生命周期 = 本帧的实例循环：先复位（预执行首帧等帧间发布不能决定本帧顺序），
+                    // 再按列表顺序逐实例发布（插入序 = 实例启动顺序 = 叠加顺序，见 MasterColorAdjust）
+                    MasterColorAdjust.INSTANCE.beginFrame();
+                    mgr.onRenderFrame();
+                }
+                ScriptLaneDriver.tick(mc);
             }
-            ScriptLaneDriver.tick(mc);
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            int instances = CameraManager.INSTANCE.isActive() ? CameraManager.INSTANCE.instances().size() : 0;
+            ErrorLog.logRateLimited("Render", "frame-head", 5000L,
+                    "帧首驱动异常（renderLevel=" + renderLevel + ", level=" + (mc.level != null)
+                            + ", active=" + CameraManager.INSTANCE.isActive() + ", instances=" + instances
+                            + "）：本帧跳过，下一帧重试", e);
         }
     }
 

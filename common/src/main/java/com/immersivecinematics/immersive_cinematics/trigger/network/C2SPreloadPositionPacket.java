@@ -37,6 +37,12 @@ public class C2SPreloadPositionPacket implements CinematicC2SPacket {
     @Override
     public void handle(ServerPlayer player) {
         // 平台网络层保证在主线程执行（ticket 变更/发包必须主线程）
-        ChunkPreloadManager.INSTANCE.handlePosition(player, x, z, yaw, cameraMode);
+        try {
+            ChunkPreloadManager.INSTANCE.handlePosition(player, x, z, yaw, cameraMode);
+        } catch (RuntimeException e) {
+            // 半更新状态（虚拟中心 / 锚点 / PlayerState）必须释放，异常继续交给 PacketGuard 记录
+            ChunkPreloadManager.INSTANCE.releaseOnFailure(player);
+            throw e;
+        }
     }
 }

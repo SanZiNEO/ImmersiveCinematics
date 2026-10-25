@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.script.ColorCurve;
 import com.immersivecinematics.immersive_cinematics.script.CubeLut;
 import com.immersivecinematics.immersive_cinematics.script.CubeLutLoader;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
@@ -125,30 +126,43 @@ public final class ColorAdjustPass {
         if (width <= 0 || height <= 0) {
             return;
         }
-        RenderTarget swap = swapTarget(width, height);
-        // 逐层链式施加：本层输入 = 上一层输出，写进另一个缓冲（不能同时读写同一张纹理）
-        swapWrittenThisFrame = false;
-        RenderTarget current = main;
-        for (int i = 0; i < layers.size(); i++) {
-            RenderTarget next = current == main ? swap : main;
-            if (!applyTo(current, next, layers.get(i), mc)) {
-                break;   // 未施加 / 施加失败：停在这一层之前（已施加的层保持）
+        int currentLayer = -1;
+        try {
+            RenderTarget swap = swapTarget(width, height);
+            // 逐层链式施加：本层输入 = 上一层输出，写进另一个缓冲（不能同时读写同一张纹理）
+            swapWrittenThisFrame = false;
+            RenderTarget current = main;
+            for (int i = 0; i < layers.size(); i++) {
+                currentLayer = i;
+                RenderTarget next = current == main ? swap : main;
+                if (!applyTo(current, next, layers.get(i), mc)) {
+                    break;   // 未施加 / 施加失败：停在这一层之前（已施加的层保持）
+                }
+                if (next == swap) {
+                    swapWrittenThisFrame = true;
+                }
+                current = next;
             }
-            if (next == swap) {
-                swapWrittenThisFrame = true;
+            if (current != main) {
+                // pass 2：中转缓冲 → 主画面（整屏 blit，复用合成层的状态保存 / 还原与 UV 口径）；
+                // 只有本帧写过才 blit，否则主画面保持原内容（blit 失败也不会变黑）。
+                if (swapWrittenThisFrame) {
+                    // written 参数 = 本帧已写（守门据此放行）；mask = null → 合成按 full 处理。
+                    LaneCompositor.compose(current, LaneCompositor.Rect.FULL, LaneCompositor.Rect.FULL, 1.0F,
+                            swapWrittenThisFrame, null);
+                } else {
+                    main.bindWrite(true);   // 不 blit：把主画面绑回来（调用方接着画）
+                    reportFailure("链末尾校验未通过：中转缓冲本帧未被写入，跳过回写（画面保持原样）", null);
+                }
             }
-            current = next;
-        }
-        if (current != main) {
-            // pass 2：中转缓冲 → 主画面（整屏 blit，复用合成层的状态保存 / 还原与 UV 口径）；
-            // 只有本帧写过才 blit，否则主画面保持原内容（blit 失败也不会变黑）。
-            if (swapWrittenThisFrame) {
-                // written 参数 = 本帧已写（守门据此放行）；mask = null → 合成按 full 处理。
-                LaneCompositor.compose(current, LaneCompositor.Rect.FULL, LaneCompositor.Rect.FULL, 1.0F,
-                        swapWrittenThisFrame, null);
-            } else {
-                main.bindWrite(true);   // 不 blit：把主画面绑回来（调用方接着画）
-                reportFailure("链末尾校验未通过：中转缓冲本帧未被写入，跳过回写（画面保持原样）", null);
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            reportFailure("调色链执行异常（失败层=" + currentLayer + "，共 " + layers.size()
+                    + " 层）：本帧跳过剩余层，主画面保持上一层输出", e);
+        } finally {
+            // 异常可能停在 swap 绑定后：主 framebuffer 必须回到 main，否则 GUI 会画进错缓冲。
+            if (GL11.glGetInteger(GL30.GL_FRAMEBUFFER_BINDING) != main.frameBufferId) {
+                main.bindWrite(true);
             }
         }
     }

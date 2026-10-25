@@ -6,6 +6,8 @@ import com.immersivecinematics.immersive_cinematics.trigger.network.S2CTriggerSt
 import com.immersivecinematics.immersive_cinematics.trigger.server.prereq.PrerequisiteRegistry;
 import com.immersivecinematics.immersive_cinematics.trigger.server.store.PlayerTriggerState;
 import com.immersivecinematics.immersive_cinematics.trigger.server.store.TriggerStateStore;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
@@ -85,12 +87,20 @@ public class TriggerEngine {
         if (triggers == null || triggers.isEmpty()) return;
 
         for (TriggerRegistration reg : triggers) {
-            if (!prerequisitesMet(player, reg)) continue;
-            if (shouldSkip(player, reg)) continue;
-            boolean inRegion = evaluateSafely(reg, player);
-            if (inRegion) {
-                if (reg.isOnEnter() && !checkEnterState(player, reg, inRegion)) continue;
-                fireTrigger(player, reg);
+            try {
+                if (!prerequisitesMet(player, reg)) continue;
+                if (shouldSkip(player, reg)) continue;
+                boolean inRegion = evaluateSafely(reg, player);
+                if (inRegion) {
+                    if (reg.isOnEnter() && !checkEnterState(player, reg, inRegion)) continue;
+                    fireTrigger(player, reg);
+                }
+            } catch (Exception e) {
+                FatalErrors.rethrowIfFatal(e);
+                ErrorLog.logRateLimited("Trigger", "event:" + eventTypeId + ":" + reg.getTriggerId(), 5000L,
+                        "触发器事件处理异常（event=" + eventTypeId + ", trigger=" + reg.getTriggerId()
+                                + ", script=" + reg.getScriptId() + ", player=" + player.getName().getString()
+                                + "）：该触发器本轮跳过，其他触发器继续", e);
             }
         }
     }
@@ -107,17 +117,25 @@ public class TriggerEngine {
 
             for (TriggerRegistration reg : entry.getValue()) {
                 for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-                    if (!prerequisitesMet(player, reg)) continue;
-                    if (shouldSkip(player, reg)) continue;
-                    boolean inRegion = evaluateSafely(reg, player);
-                    if (reg.isOnEnter()) {
-                        // 状态机每次轮询都要更新（含“区域外复位”），否则 on_enter 只会触发一次
-                        if (!checkEnterState(player, reg, inRegion)) continue;
-                        if (!inRegion) continue;
-                    } else if (!inRegion) {
-                        continue;
+                    try {
+                        if (!prerequisitesMet(player, reg)) continue;
+                        if (shouldSkip(player, reg)) continue;
+                        boolean inRegion = evaluateSafely(reg, player);
+                        if (reg.isOnEnter()) {
+                            // 状态机每次轮询都要更新（含“区域外复位”），否则 on_enter 只会触发一次
+                            if (!checkEnterState(player, reg, inRegion)) continue;
+                            if (!inRegion) continue;
+                        } else if (!inRegion) {
+                            continue;
+                        }
+                        fireTrigger(player, reg);
+                    } catch (Exception e) {
+                        FatalErrors.rethrowIfFatal(e);
+                        ErrorLog.logRateLimited("Trigger", "poll:" + reg.getTriggerId(), 5000L,
+                                "触发器轮询异常（trigger=" + reg.getTriggerId() + ", script=" + reg.getScriptId()
+                                        + ", player=" + player.getName().getString()
+                                        + "）：该触发器本轮跳过，其他触发器继续", e);
                     }
-                    fireTrigger(player, reg);
                 }
             }
         }
@@ -142,7 +160,16 @@ public class TriggerEngine {
             var fires = entry.getValue();
             fires.removeIf(df -> {
                 if (currentTick >= df.fireTick) {
-                    executeActions(player, df.reg);
+                    try {
+                        executeActions(player, df.reg);
+                    } catch (Exception e) {
+                        FatalErrors.rethrowIfFatal(e);
+                        ErrorLog.logRateLimited("Trigger", "delayed:" + df.reg.getTriggerId(), 5000L,
+                                "延迟触发器执行异常（trigger=" + df.reg.getTriggerId()
+                                        + ", script=" + df.reg.getScriptId()
+                                        + ", player=" + player.getName().getString()
+                                        + "）：跳过本次动作，继续处理其他延迟触发", e);
+                    }
                     return true;
                 }
                 return false;
@@ -241,7 +268,16 @@ public class TriggerEngine {
 
     private void executeActions(ServerPlayer player, TriggerRegistration reg) {
         for (var action : reg.getActions()) {
-            action.execute(player);
+            try {
+                action.execute(player);
+            } catch (Exception e) {
+                FatalErrors.rethrowIfFatal(e);
+                ErrorLog.logRateLimited("Trigger", "action:" + reg.getTriggerId() + ":" + action.getClass().getName(),
+                        5000L, "触发器动作异常（trigger=" + reg.getTriggerId() + ", script=" + reg.getScriptId()
+                                + ", player=" + player.getName().getString()
+                                + ", action=" + action.getClass().getSimpleName()
+                                + "）：跳过该动作，继续后续动作", e);
+            }
         }
     }
 

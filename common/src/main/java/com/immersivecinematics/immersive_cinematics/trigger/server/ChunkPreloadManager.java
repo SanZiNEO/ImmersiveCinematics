@@ -108,6 +108,11 @@ public final class ChunkPreloadManager {
         release(player.getUUID(), player);
     }
 
+    /** 包处理异常兜底：释放半更新的虚拟相机中心 / 锚点 / 玩家状态，避免坏状态留在服务端。 */
+    public void releaseOnFailure(ServerPlayer player) {
+        release(player.getUUID(), player);
+    }
+
     // ===== 释放 =====
 
     private void release(UUID uuid, ServerPlayer p) {

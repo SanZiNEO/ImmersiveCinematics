@@ -4,6 +4,13 @@ import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.immersivecinematics.immersive_cinematics.control.SkipHudRenderer;
 import com.immersivecinematics.immersive_cinematics.overlay.CinematicOverlay;
+import com.immersivecinematics.immersive_cinematics.trigger.client.AudioListenerReporter;
+import com.immersivecinematics.immersive_cinematics.trigger.client.ClientEntitySelectorCache;
+import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver;
+import com.immersivecinematics.immersive_cinematics.trigger.client.PreloadRequester;
+import com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -21,6 +28,9 @@ public final class ClientEventHandler {
         /** 把单个按键绑定交给平台注册表。 */
         void register(KeyMapping keyMapping);
     }
+
+    /** 上一 tick 是否在世界内；只在「进入 → 退出」这一次跳变做清理，避免无世界时每 tick 重试。 */
+    private static boolean inWorld = false;
 
     private ClientEventHandler() {}
 
@@ -55,17 +65,68 @@ public final class ClientEventHandler {
     /**
      * 每 tick 驱动相机、按键、触发相关客户端组件。
      *
-     * 无世界而相机仍活跃（如退出世界时平台漏发停播）→ emergencyStop，
-     * 否则相机状态会跨世界残留，进入下一个存档时直接接管视角。
+     * 无世界而相机仍活跃（如退出世界时平台漏发停播）→ emergencyStop，否则相机状态会跨世界残留，
+     * 进入下一个存档时直接接管视角。退出世界的那一次跳变同时清 ACK / 选择器缓存 / 预载 / 跳过投票，
+     * 避免旧世界状态跨存档残留。
      */
     public static void onClientTick(Minecraft mc) {
-        CameraManager.INSTANCE.tick();
-        CinematicKeyBindings.onClientTick();
-        com.immersivecinematics.immersive_cinematics.trigger.client.PreloadRequester.INSTANCE.tick(mc);
-        com.immersivecinematics.immersive_cinematics.trigger.client.AudioListenerReporter.INSTANCE.tick(mc);
-        com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.tick();
-        if (mc.level == null && CameraManager.INSTANCE.isActive()) {
-            CameraManager.INSTANCE.emergencyStop();
+        try {
+            CameraManager.INSTANCE.tick();
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Client", "client-tick:camera", 5000L,
+                    "客户端 tick 相机驱动异常（本 tick 跳过，后续子系统继续）", e);
+        }
+        try {
+            CinematicKeyBindings.onClientTick();
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Client", "client-tick:keybindings", 5000L,
+                    "客户端 tick 按键处理异常（本 tick 跳过，后续子系统继续）", e);
+        }
+        try {
+            PreloadRequester.INSTANCE.tick(mc);
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Client", "client-tick:preload", 5000L,
+                    "客户端 tick 预载上报异常（本 tick 跳过，后续子系统继续）", e);
+        }
+        try {
+            AudioListenerReporter.INSTANCE.tick(mc);
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Client", "client-tick:audio-listener", 5000L,
+                    "客户端 tick 音频监听上报异常（本 tick 跳过，后续子系统继续）", e);
+        }
+        try {
+            AckTracker.tick();
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Client", "client-tick:ack", 5000L,
+                    "客户端 tick ACK 重发异常（本 tick 跳过，后续子系统继续）", e);
+        }
+
+        if (mc.level != null) {
+            inWorld = true;
+            return;
+        }
+        // 正常路径只在「进入世界 → 退出世界」跳变时清理；相机仍活跃时保留原兜底
+        // （平台漏发停播 / 进入无世界状态），避免相机状态跨存档残留。
+        if (!inWorld && !CameraManager.INSTANCE.isActive()) return;
+        try {
+            if (CameraManager.INSTANCE.isActive()) {
+                CameraManager.INSTANCE.emergencyStop();
+            }
+            AckTracker.clear();
+            ClientEntitySelectorCache.clear();
+            PreloadRequester.INSTANCE.reset();
+            ClientScriptReceiver.resetSkipVote();
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Client", "client-tick:world-exit", 5000L,
+                    "退出世界清理异常（相机/ACK/选择器缓存/预载/跳过投票）：已尽力清理，游戏继续运行", e);
+        } finally {
+            inWorld = false;
         }
     }
 

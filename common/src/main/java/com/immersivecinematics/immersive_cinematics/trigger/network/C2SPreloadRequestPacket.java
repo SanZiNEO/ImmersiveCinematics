@@ -61,7 +61,13 @@ public class C2SPreloadRequestPacket implements CinematicC2SPacket {
     @Override
     public void handle(ServerPlayer player) {
         // 平台网络层保证在主线程执行（addRegionTicket/removeRegionTicket/connection.send 必须主线程）
-        ChunkPreloadManager.INSTANCE.handleRequest(player, mode, scriptId, x, z, radius, yaw, renderDistance,
-                cameraMode);
+        try {
+            ChunkPreloadManager.INSTANCE.handleRequest(player, mode, scriptId, x, z, radius, yaw, renderDistance,
+                    cameraMode);
+        } catch (RuntimeException e) {
+            // 半更新状态（虚拟中心 / 锚点 / PlayerState）必须释放，异常继续交给 PacketGuard 记录
+            ChunkPreloadManager.INSTANCE.releaseOnFailure(player);
+            throw e;
+        }
     }
 }

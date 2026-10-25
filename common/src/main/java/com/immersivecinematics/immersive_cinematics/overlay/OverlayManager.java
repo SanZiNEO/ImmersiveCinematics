@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.overlay;
 
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import net.minecraft.client.gui.GuiGraphics;
 
 import java.util.ArrayList;
@@ -40,8 +42,16 @@ public class OverlayManager {
      */
     public void render(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {
         for (OverlayLayer layer : layers) {
-            if (layer.isVisible()) {
-                layer.render(guiGraphics, screenWidth, screenHeight);
+            try {
+                if (layer.isVisible()) {
+                    layer.render(guiGraphics, screenWidth, screenHeight);
+                }
+            } catch (Exception e) {
+                FatalErrors.rethrowIfFatal(e);
+                ErrorLog.logRateLimited("Render", "overlay:" + layer.getClass().getName(), 5000L,
+                        "覆盖层渲染失败（层=" + layer.getClass().getSimpleName()
+                                + ", owner=" + layer.owner() + ", z=" + layer.getZIndex()
+                                + "）：本帧跳过，下一帧重试", e);
             }
         }
     }

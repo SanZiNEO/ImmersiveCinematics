@@ -7,6 +7,8 @@ import com.immersivecinematics.immersive_cinematics.trigger.network.S2CTriggerSt
 import com.immersivecinematics.immersive_cinematics.trigger.server.evaluator.Evaluators;
 import com.immersivecinematics.immersive_cinematics.trigger.server.store.PlayerTriggerState;
 import com.immersivecinematics.immersive_cinematics.trigger.server.store.TriggerStateStore;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.advancements.Advancement;
 import net.minecraft.commands.CommandSourceStack;
@@ -82,9 +84,27 @@ public final class ServerEventHandler {
 
     /** 每 tick 驱动触发引擎、脚本事件队列与相机锚点。 */
     public static void onServerTick(MinecraftServer server) {
-        TriggerEngine.INSTANCE.onServerTick(server);
-        ScriptEventManager.INSTANCE.onServerTick(server);
-        com.immersivecinematics.immersive_cinematics.trigger.server.CameraAnchorManager.INSTANCE.tick();
+        try {
+            TriggerEngine.INSTANCE.onServerTick(server);
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Server", "tick:trigger-engine", 5000L,
+                    "服务端 tick 触发器引擎异常（本 tick 跳过该子系统，其余子系统继续）", e);
+        }
+        try {
+            ScriptEventManager.INSTANCE.onServerTick(server);
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Server", "tick:script-event", 5000L,
+                    "服务端 tick 脚本事件时间线异常（本 tick 跳过该子系统，其余子系统继续）", e);
+        }
+        try {
+            com.immersivecinematics.immersive_cinematics.trigger.server.CameraAnchorManager.INSTANCE.tick();
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Server", "tick:camera-anchor", 5000L,
+                    "服务端 tick 相机锚点异常（本 tick 跳过该子系统，其余子系统继续）", e);
+        }
     }
 
     /** 命令注册：转交 {@code CinematicCommand}，命令树只在服务端构建一次。 */

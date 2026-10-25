@@ -30,59 +30,59 @@ public final class ForgeNetwork implements NetworkBridge {
         // ===== C2S =====
         CHANNEL.registerMessage(id++, C2SScriptFinishedPacket.class,
                 CinematicPacket::write, C2SScriptFinishedPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(() -> pkt.handle(ctx.get().getSender())); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.SCRIPT_FINISHED, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, C2SPlaybackStartedPacket.class,
                 CinematicPacket::write, C2SPlaybackStartedPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(() -> pkt.handle(ctx.get().getSender())); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.PLAYBACK_STARTED, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, C2SScriptPausePacket.class,
                 CinematicPacket::write, C2SScriptPausePacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(() -> pkt.handle(ctx.get().getSender())); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.SCRIPT_PAUSE, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, C2SScriptSavedPacket.class,
                 CinematicPacket::write, C2SScriptSavedPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(() -> pkt.handle(ctx.get().getSender())); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.SCRIPT_SAVED, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, C2SPreloadRequestPacket.class,
                 CinematicPacket::write, C2SPreloadRequestPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(() -> pkt.handle(ctx.get().getSender())); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.PRELOAD_REQ, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, C2SPreloadPositionPacket.class,
                 CinematicPacket::write, C2SPreloadPositionPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(() -> pkt.handle(ctx.get().getSender())); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.PRELOAD_POS, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, C2SResolveEntitySelectorPacket.class,
                 CinematicPacket::write, C2SResolveEntitySelectorPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(() -> pkt.handle(ctx.get().getSender())); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.RESOLVE_ENTITY_SELECTOR, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
 
         // ===== S2C =====
         CHANNEL.registerMessage(id++, S2CPlayScriptPacket.class,
                 CinematicPacket::write, S2CPlayScriptPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(pkt::handle); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.PLAY_SCRIPT, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, S2CStopScriptPacket.class,
                 CinematicPacket::write, S2CStopScriptPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(pkt::handle); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.STOP_SCRIPT, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, S2CTriggerStateSyncPacket.class,
                 CinematicPacket::write, S2CTriggerStateSyncPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(pkt::handle); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.TRIGGER_STATE_SYNC, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, S2CSkipVoteUpdatePacket.class,
                 CinematicPacket::write, S2CSkipVoteUpdatePacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(pkt::handle); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.SKIP_VOTE_UPDATE, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, S2CScriptPauseAckPacket.class,
                 CinematicPacket::write, S2CScriptPauseAckPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(pkt::handle); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.SCRIPT_PAUSE_ACK, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, S2CScriptReloadPacket.class,
                 CinematicPacket::write, S2CScriptReloadPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(pkt::handle); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.SCRIPT_RELOAD, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, S2CPreloadResultPacket.class,
                 CinematicPacket::write, S2CPreloadResultPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(pkt::handle); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.PRELOAD_RESULT, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, S2CResolveEntitySelectorResultPacket.class,
                 CinematicPacket::write, S2CResolveEntitySelectorResultPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(pkt::handle); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.RESOLVE_ENTITY_SELECTOR_RESULT, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
 
         // 追加在最后：保持既有包 ID 不变（新包只占新 ID，不平移旧包）
         CHANNEL.registerMessage(id++, C2SAudioListenerPacket.class,
                 CinematicPacket::write, C2SAudioListenerPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(() -> pkt.handle(ctx.get().getSender())); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.AUDIO_LISTENER, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, C2SRuleCommandPacket.class,
                 CinematicPacket::write, C2SRuleCommandPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(() -> pkt.handle(ctx.get().getSender())); ctx.get().setPacketHandled(true); });
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.RULE_COMMAND, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
     }
 
     @Override

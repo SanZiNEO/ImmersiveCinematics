@@ -47,14 +47,15 @@ public final class ErrorLog {
     }
 
     /**
-     * 同 {@link #logRateLimited(String, String, long, String)}，另带异常（堆栈写入文件，控制台只打摘要）。
+     * 同 {@link #logRateLimited(String, String, long, String)}，另带异常：堆栈写入文件，
+     * 窗口首次输出时完整打到控制台（窗口内被抑制的重复失败不重复刷屏）。
      *
      * @param t 异常（可传 {@code null}）
      */
     public static void logRateLimited(String category, String key, long intervalMs, String message, Throwable t) {
         String merged = rateLimit(key, intervalMs, message);
         if (merged != null) {
-            log(category, merged, t);
+            write(category, merged, t, true);
         }
     }
 
@@ -80,21 +81,25 @@ public final class ErrorLog {
 
     /** 记录一条脚本错误：控制台 ERROR + 日志文件追加（线程安全） */
     public static void log(String category, String message) {
-        LOGGER.error("[{}] {}", category, message);
-        synchronized (LOCK) {
-            try {
-                ensureWriter();
-                writer.printf("%1$tF %1$tT [%2$s] %3$s%n", System.currentTimeMillis(), category, message);
-                writer.flush();
-            } catch (IOException ignored) {
-                // 日志文件都写不了就不强求（不影响脚本播放）
-            }
-        }
+        write(category, message, null, false);
     }
 
-    /** 记录一条带异常的脚本错误（堆栈写入文件，控制台 ERROR 可见） */
+    /** 记录一条带异常的脚本错误（堆栈写入文件，控制台 ERROR 打摘要） */
     public static void log(String category, String message, Throwable t) {
-        LOGGER.error("[{}] {}: {}", category, message, t != null ? t.getClass().getSimpleName() + " " + t.getMessage() : "");
+        write(category, message, t, false);
+    }
+
+    /**
+     * 统一输出：{@code consoleStack} 决定控制台是否打完整堆栈；日志文件始终追加完整堆栈（若有异常）。
+     */
+    private static void write(String category, String message, Throwable t, boolean consoleStack) {
+        if (t == null) {
+            LOGGER.error("[{}] {}", category, message);
+        } else if (consoleStack) {
+            LOGGER.error("[{}] {}", category, message, t);
+        } else {
+            LOGGER.error("[{}] {}: {}", category, message, t.getClass().getSimpleName() + " " + t.getMessage());
+        }
         synchronized (LOCK) {
             try {
                 ensureWriter();

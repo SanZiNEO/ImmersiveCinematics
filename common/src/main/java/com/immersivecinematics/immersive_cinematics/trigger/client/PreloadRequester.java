@@ -13,6 +13,9 @@ import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPreloadPositionPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPreloadRequestPacket;
+import com.immersivecinematics.immersive_cinematics.trigger.network.CinematicC2SPacket;
+import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard;
+import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -54,6 +57,20 @@ public final class PreloadRequester {
     /** 预载是否真的激活过（用于退出时是否触发全量渲染重建） */
     public boolean isPreloadActive() {
         return preloadActive;
+    }
+
+    /** 断线 / 退出世界时清空上报状态：不发 RELEASE（连接已不可用），保证下个世界从干净状态开始。 */
+    public void reset() {
+        lastScript = "";
+        preloadActive = false;
+        prewarmTargetKey = "";
+        lastHadActiveCamera = false;
+        tickCounter = 0;
+    }
+
+    /** 统一 C2S 发送：断线 / 退出世界时只记日志，不打断客户端 tick。 */
+    private static void send(String label, CinematicC2SPacket packet) {
+        NetworkGuard.sendToServer(label, () -> NetworkHandler.sendToServer(packet));
     }
 
     /**
@@ -106,10 +123,8 @@ public final class PreloadRequester {
                     LOGGER.info("[preload client] START script={} 位置=({},{}) 相机块=({},{}) cameraMode={} render={}",
                             sid, bx, bz, bx >> 4, bz >> 4, activeCamera, mc.options.renderDistance().get());
                 }
-                com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                        new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, 0,
-                                CameraManager.INSTANCE.getCameraYaw(), mc.options.renderDistance().get(),
-                                activeCamera));
+                send("C2SPreloadRequest", new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PRELOAD, sid, bx, bz, 0,
+                        CameraManager.INSTANCE.getCameraYaw(), mc.options.renderDistance().get(), activeCamera));
                 return;
             }
             tickCounter++;
@@ -120,7 +135,7 @@ public final class PreloadRequester {
                     LOGGER.info("[preload client] POS script={} 位置=({},{}) 相机块=({},{}) cameraMode={} activeChanged={}",
                             sid, bx, bz, bx >> 4, bz >> 4, activeCamera, activeChanged);
                 }
-                com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
+                send("C2SPreloadPosition",
                         new C2SPreloadPositionPacket(bx, bz, CameraManager.INSTANCE.getCameraYaw(), activeCamera));
             }
             tickPrewarm(mc, sid, script, sp);
@@ -134,22 +149,18 @@ public final class PreloadRequester {
         Minecraft mc = Minecraft.getInstance();
         // 不在游戏内/连接已关闭时只清状态，绝不发包（异常断线/世界退出场景）
         if (mc.level == null || mc.getConnection() == null) {
-            lastScript = "";
-            preloadActive = false;
-            prewarmTargetKey = "";
-            lastHadActiveCamera = false;
+            reset();
             return;
         }
+        // 先清状态再发包：发送失败（断线/退出世界）也不会让 RELEASE 每 tick 重试
+        String scriptId = lastScript;
+        reset();
         if (Config.debugLogging) {
-            LOGGER.info("[preload client] RELEASE script={}", lastScript);
+            LOGGER.info("[preload client] RELEASE script={}", scriptId);
         }
-        com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_RELEASE, lastScript, 0, 0, 0, 0f, 0,
+        send("C2SPreloadRelease",
+                new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_RELEASE, scriptId, 0, 0, 0, 0f, 0,
                         C2SPreloadRequestPacket.DEFAULT_CAMERA_MODE));
-        lastScript = "";
-        preloadActive = false;
-        prewarmTargetKey = "";
-        lastHadActiveCamera = false;
     }
 
     /** 预热：接近下个 CAMERA 片段时，把下一片段首帧位置发给服务端提前加载 */
@@ -181,12 +192,12 @@ public final class PreloadRequester {
             LOGGER.info("[preload client] PREWARM script={} 目标=({},{}) 相机块=({},{}) lead={}",
                     sid, bx, bz, bx >> 4, bz >> 4, String.format("%.1f", lead));
         }
-        com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler.sendToServer(
-                new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PREWARM, sid, bx, bz,
-                        Config.preloadPrewarmRadius,
-                        CameraManager.INSTANCE.getCameraYaw(), mc.options.renderDistance().get(),
-                        CameraManager.INSTANCE.hasActiveCameraClip()));
+        // 先记目标再发包：发送失败也不会每 tick 重复发同一个预热请求
         prewarmTargetKey = key;
+        send("C2SPreloadPrewarm", new C2SPreloadRequestPacket(C2SPreloadRequestPacket.MODE_PREWARM, sid, bx, bz,
+                Config.preloadPrewarmRadius,
+                CameraManager.INSTANCE.getCameraYaw(), mc.options.renderDistance().get(),
+                CameraManager.INSTANCE.hasActiveCameraClip()));
     }
 
     private static int findActiveCameraClipIndex(List<Clip> clips, float elapsed) {

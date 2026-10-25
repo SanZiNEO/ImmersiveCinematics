@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.client.lane;
 
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.shaders.Uniform;
@@ -179,6 +180,12 @@ public final class LaneCompositor {
                 modelView.popPose();
                 RenderSystem.applyModelViewMatrix();
             }
+        } catch (RuntimeException e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Render", "lane-compose-exception", 5000L,
+                    "lane 合成异常（lane 纹理=" + texture.getColorTextureId() + ", opacity=" + opacity
+                            + "）：该 lane 跳过，主画面保持基画面", e);
+            return false;
         } finally {
             RenderSystem.setShaderColor(prevColor[0], prevColor[1], prevColor[2], prevColor[3]);
             RenderSystem.setShaderTexture(0, prevTexture);

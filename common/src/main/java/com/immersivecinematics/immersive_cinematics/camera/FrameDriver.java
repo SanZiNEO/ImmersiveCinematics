@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.immersivecinematics.immersive_cinematics.util.GameClock;
 import com.immersivecinematics.immersive_cinematics.util.PreviewClock;
 import net.minecraft.client.Minecraft;
@@ -98,90 +99,108 @@ final class FrameDriver {
         // 遍历副本：帧内可能有实例退出（出列）或接播（追加新实例），避免并发修改
         for (PlaybackInstance instance : new ArrayList<>(registry.instances())) {
             if (!registry.contains(instance)) continue; // 本帧更早的退出已移除该实例
-            ScriptPlayer player = instance.player();
-            // 本实例的暂停态：游戏实例 = 游戏暂停联动（并集）；预览实例 = 编辑器暂停态
-            boolean instancePaused = instance.isPreview() ? previewChannel.isPreviewPaused() : gamePaused;
-            // 本实例的时钟读数：游戏实例 = 共享虚拟时钟；预览实例 = 预览播放头（各自计时）
-            float instanceClock = instance.isPreview() ? previewTime : gameTime;
+            try {
+                ScriptPlayer player = instance.player();
+                // 本实例的暂停态：游戏实例 = 游戏暂停联动（并集）；预览实例 = 编辑器暂停态
+                boolean instancePaused = instance.isPreview() ? previewChannel.isPreviewPaused() : gamePaused;
+                // 本实例的时钟读数：游戏实例 = 共享虚拟时钟；预览实例 = 预览播放头（各自计时）
+                float instanceClock = instance.isPreview() ? previewTime : gameTime;
 
-            // 每帧同步音频状态（幂等；对齐 MC SoundEngine：暂停时无新声音、已有实例幂等 pause）。
-            // 必须位于 player.onRenderFrame 之前并每帧执行。挂起（规则 until / pause 动作）与游戏暂停
-            // 都冻结本实例声音：音轨实例走既有全局 SoundEngine 暂停链路；规则挂起另停本实例的一次性声音
-            // （play_sound 容器是实例自己的，全局暂停不覆盖它，见 AudioTrackPlayer#stopOneShots）。
-            boolean audioPaused = instancePaused || player.isSuspended();
-            if (audioPaused) {
-                player.pauseAudio();
-            } else {
-                player.resumeAudio();
-            }
-            if (player.isSuspended()) {
-                player.stopOneShotSounds();
-            }
+                // 每帧同步音频状态（幂等；对齐 MC SoundEngine：暂停时无新声音、已有实例幂等 pause）。
+                // 必须位于 player.onRenderFrame 之前并每帧执行。挂起（规则 until / pause 动作）与游戏暂停
+                // 都冻结本实例声音：音轨实例走既有全局 SoundEngine 暂停链路；规则挂起另停本实例的一次性声音
+                // （play_sound 容器是实例自己的，全局暂停不覆盖它，见 AudioTrackPlayer#stopOneShots）。
+                boolean audioPaused = instancePaused || player.isSuspended();
+                if (audioPaused) {
+                    player.pauseAudio();
+                } else {
+                    player.resumeAudio();
+                }
+                if (player.isSuspended()) {
+                    player.stopOneShotSounds();
+                }
 
-            if (pauseTransition && !instance.isPreview() && player.isPlaying()) {
-                String scriptId = player.getScriptId();
-                if (!"<none>".equals(scriptId)) {
-                    // 语义 = 「实例暂停中」：游戏暂停或规则挂起任一成立即冻结服务端 EVENT 时间线；
-                    // 随包带上内容相对位置（服务端据此对基准，不再靠墙钟推算）
-                    player.contentPosition(pausePosition);
-                    ledger.sendPausePacket(scriptId, instance.instanceId(),
-                            gamePaused || player.isSuspended(), pausePosition[0], pausePosition[1]);
-                }
-            }
-
-            if (player.isPlaying()) {
-                // 本实例已播放时间（不是帧驱动的时钟读数）：并行实例的起始读数各不相同，且挂起中要冻结，
-                // 用绝对时钟读数当 elapsed 会误判活跃（见下方 hasActiveCameraTrack）。
-                float instanceTime = player.getElapsedSeconds();
-                // 末帧保持（{@code holdAtEnd}）：时间耗尽后把渲染时间钳到总时长末尾，让最后一帧保持住
-                if (player.isFinished() && instance.isHoldAtEnd()) {
-                    CinematicScript s = player.getScript();
-                    if (s != null) {
-                        float total = s.getTotalDuration();
-                        if (total > 0f) instanceTime = Math.max(0f, total - 0.001f);
-                    }
-                }
-                player.onRenderFrame(instanceTime);
-                // 判定规则：轨道分发之后逐实例判定（挂起 / 恢复 / 动作都作用在本实例上）
-                boolean suspendedBefore = player.isSuspended();
-                try {
-                    instance.ruleEngine().evaluate(player);
-                } catch (Exception e) {
-                    ErrorLog.logRateLimited("Playback", "rule-engine", 5000L, "规则引擎判定异常（本帧跳过）", e);
-                }
-                // 挂起开始 / 结束是帧级事件：状态变化那一帧发一条暂停握手（服务端冻结 / 解冻 EVENT 时间线）
-                if (!instance.isPreview() && player.isPlaying()
-                        && player.isSuspended() != suspendedBefore) {
+                if (pauseTransition && !instance.isPreview() && player.isPlaying()) {
                     String scriptId = player.getScriptId();
                     if (!"<none>".equals(scriptId)) {
+                        // 语义 = 「实例暂停中」：游戏暂停或规则挂起任一成立即冻结服务端 EVENT 时间线；
+                        // 随包带上内容相对位置（服务端据此对基准，不再靠墙钟推算）
                         player.contentPosition(pausePosition);
                         ledger.sendPausePacket(scriptId, instance.instanceId(),
                                 gamePaused || player.isSuspended(), pausePosition[0], pausePosition[1]);
                     }
                 }
-                // 帧级缓存取并集：任一实例本帧有活跃 Camera 轨道即算有（门控与上面分发的时间同一口径）
-                boolean instanceCameraClip = player.hasActiveCameraTrack(instanceTime);
-                anyActiveCameraClip |= instanceCameraClip;
-                // 顶层实例单独记一份（同一钳制时间口径）——听者门控只认它
-                if (instance == top) topActiveCameraClip = instanceCameraClip;
-            }
 
-            if (instance.isStopping() && !OverlayManager.INSTANCE.isAnimating(instance)) {
-                lifecycle.deactivateNow(instance);
-                continue;
-            }
+                if (player.isPlaying()) {
+                    // 本实例已播放时间（不是帧驱动的时钟读数）：并行实例的起始读数各不相同，且挂起中要冻结，
+                    // 用绝对时钟读数当 elapsed 会误判活跃（见下方 hasActiveCameraTrack）。
+                    float instanceTime = player.getElapsedSeconds();
+                    // 末帧保持（{@code holdAtEnd}）：时间耗尽后把渲染时间钳到总时长末尾，让最后一帧保持住
+                    if (player.isFinished() && instance.isHoldAtEnd()) {
+                        CinematicScript s = player.getScript();
+                        if (s != null) {
+                            float total = s.getTotalDuration();
+                            if (total > 0f) instanceTime = Math.max(0f, total - 0.001f);
+                        }
+                    }
+                    player.onRenderFrame(instanceTime);
+                    // 判定规则：轨道分发之后逐实例判定（挂起 / 恢复 / 动作都作用在本实例上）
+                    boolean suspendedBefore = player.isSuspended();
+                    try {
+                        instance.ruleEngine().evaluate(player);
+                    } catch (Exception e) {
+                        ErrorLog.logRateLimited("Playback", "rule-engine", 5000L, "规则引擎判定异常（本帧跳过）", e);
+                    }
+                    // 挂起开始 / 结束是帧级事件：状态变化那一帧发一条暂停握手（服务端冻结 / 解冻 EVENT 时间线）
+                    if (!instance.isPreview() && player.isPlaying()
+                            && player.isSuspended() != suspendedBefore) {
+                        String scriptId = player.getScriptId();
+                        if (!"<none>".equals(scriptId)) {
+                            player.contentPosition(pausePosition);
+                            ledger.sendPausePacket(scriptId, instance.instanceId(),
+                                    gamePaused || player.isSuspended(), pausePosition[0], pausePosition[1]);
+                        }
+                    }
+                    // 帧级缓存取并集：任一实例本帧有活跃 Camera 轨道即算有（门控与上面分发的时间同一口径）
+                    boolean instanceCameraClip = player.hasActiveCameraTrack(instanceTime);
+                    anyActiveCameraClip |= instanceCameraClip;
+                    // 顶层实例单独记一份（同一钳制时间口径）——听者门控只认它
+                    if (instance == top) topActiveCameraClip = instanceCameraClip;
+                }
 
-            if (!instance.isStopping() && player.isPlaying() && player.isFinished()) {
-                boolean holdAtEnd = instance.isHoldAtEnd();
-                // 诊断：退出链路（脚本自然结束检查）——elapsed = 脚本播放头，instanceClock = 本实例时钟读数
-                LOGGER.info("NATURAL_END check: playing={} finished=true stopping={} holdAtEnd={} elapsed={} instanceClock={}",
-                        player.isPlaying(), instance.isStopping(), holdAtEnd,
-                        String.format("%.2f", player.getElapsedSeconds()),
-                        String.format("%.2f", instanceClock));
-                if (!holdAtEnd) {
-                    LOGGER.info("NATURAL_END -> requestExit");
-                    // 精确作用于本实例：其他并行实例不受影响
-                    lifecycle.requestExit(instance, ExitReason.NATURAL_END);
+                if (instance.isStopping() && !OverlayManager.INSTANCE.isAnimating(instance)) {
+                    lifecycle.deactivateNow(instance);
+                    continue;
+                }
+
+                if (!instance.isStopping() && player.isPlaying() && player.isFinished()) {
+                    boolean holdAtEnd = instance.isHoldAtEnd();
+                    // 诊断：退出链路（脚本自然结束检查）——elapsed = 脚本播放头，instanceClock = 本实例时钟读数
+                    LOGGER.info("NATURAL_END check: playing={} finished=true stopping={} holdAtEnd={} elapsed={} instanceClock={}",
+                            player.isPlaying(), instance.isStopping(), holdAtEnd,
+                            String.format("%.2f", player.getElapsedSeconds()),
+                            String.format("%.2f", instanceClock));
+                    if (!holdAtEnd) {
+                        LOGGER.info("NATURAL_END -> requestExit");
+                        // 精确作用于本实例：其他并行实例不受影响
+                        lifecycle.requestExit(instance, ExitReason.NATURAL_END);
+                    }
+                }
+            } catch (Exception e) {
+                FatalErrors.rethrowIfFatal(e);
+                String scriptId = instance.scriptId();
+                String instanceId = instance.instanceId();
+                ErrorLog.logRateLimited("Playback", "frame-instance:" + instanceId, 5000L,
+                        "帧驱动实例异常（script=" + scriptId + ", instance=" + instanceId
+                                + ", preview=" + instance.isPreview()
+                                + "）：该实例本帧停用，其他实例继续", e);
+                try {
+                    lifecycle.deactivateNow(instance);
+                } catch (Exception deactivateError) {
+                    FatalErrors.rethrowIfFatal(deactivateError);
+                    ErrorLog.logRateLimited("Playback", "frame-instance-deactivate:" + instanceId, 5000L,
+                            "实例异常后停用失败（script=" + scriptId + ", instance=" + instanceId
+                                    + "）：实例已从播放表移除，继续其他实例", deactivateError);
                 }
             }
         }
@@ -190,6 +209,12 @@ final class FrameDriver {
 
         // 帧末统一生成/替换快照：本帧所有渲染侧读取（lane 收集、听者、预加载、预览 HUD）
         // 都拿到这一份，且同帧内多次读取一致。
-        refreshSnapshot.run();
+        try {
+            refreshSnapshot.run();
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Playback", "frame-snapshot", 5000L,
+                    "帧末快照重建异常（保持上一帧快照，其他实例继续）", e);
+        }
     }
 }

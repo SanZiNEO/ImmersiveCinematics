@@ -1,0 +1,29 @@
+{
+  "meta": {
+    "id": "bad_meta_string",
+    "name": "故障-字符串类型错误",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": {}
+  },
+  "timeline": {
+    "total_duration": 1,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 1,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": {"dx":0,"dy":0,"dz":0}, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 1, "position": {"dx":0,"dy":0,"dz":0}, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

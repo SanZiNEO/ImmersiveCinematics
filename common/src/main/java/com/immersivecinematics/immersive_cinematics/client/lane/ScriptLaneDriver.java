@@ -8,6 +8,8 @@ import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
 import com.immersivecinematics.immersive_cinematics.script.LaneFrame;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.logging.LogUtils;
@@ -71,21 +73,42 @@ public final class ScriptLaneDriver {
         int index = 0;
         LaneFrame mainFrame = null;
         for (PlaybackInstance instance : CameraManager.INSTANCE.instances()) {
-            ScriptPlayer player = instance.player();
-            if (!player.isPlaying()) {
-                continue;
-            }
-            List<LaneFrame> lanes = player.collectCameraLanes();
-            for (int i = 0; i < lanes.size(); i++) {
-                LaneFrame frame = lanes.get(i);
-                CameraLane lane = frame.lane();
-                Slot slot = slot(index);
-                resolve(lane, slot);
-                // 相机 id（产出文件名口径）：<scriptId>_cam<相机轨序号>；同一相机轨本帧的多条 lane 共用同一 id
-                slot.captureId = instance.scriptId() + "_cam" + frame.cameraTrackIndex();
-                renderer.setLane(index, lane.state(), CONTENT, frame.laneAdjust(), slot.captureId);
-                mainFrame = frame;   // 总表最上层 lane = 主相机那份（主画面特例）
-                index++;
+            int instanceStart = index;
+            LaneFrame mainFrameBefore = mainFrame;
+            boolean touched = false;
+            try {
+                ScriptPlayer player = instance.player();
+                if (!player.isPlaying()) {
+                    continue;
+                }
+                List<LaneFrame> lanes = player.collectCameraLanes();
+                for (int i = 0; i < lanes.size(); i++) {
+                    LaneFrame frame = lanes.get(i);
+                    CameraLane lane = frame.lane();
+                    Slot slot = slot(index);
+                    resolve(lane, slot);
+                    // 相机 id（产出文件名口径）：<scriptId>_cam<相机轨序号>；同一相机轨本帧的多条 lane 共用同一 id
+                    slot.captureId = instance.scriptId() + "_cam" + frame.cameraTrackIndex();
+                    touched = true;
+                    renderer.setLane(index, lane.state(), CONTENT, frame.laneAdjust(), slot.captureId);
+                    mainFrame = frame;   // 总表最上层 lane = 主相机那份（主画面特例）
+                    index++;
+                }
+            } catch (Exception e) {
+                // 失败实例本帧不注册任何 lane：把本实例已写入的槽位停用，序号回到进入本实例前。
+                int lastTouched = touched ? index : index - 1;
+                for (int k = instanceStart; k <= lastTouched; k++) {
+                    renderer.setLane(k, null, null, null, null);
+                }
+                index = instanceStart;
+                mainFrame = mainFrameBefore;
+                FatalErrors.rethrowIfFatal(e);
+                String scriptId = instance.scriptId();
+                String instanceId = instance.instanceId();
+                ErrorLog.logRateLimited("Render", "lane-collect:" + instanceId, 5000L,
+                        "lane 收集异常（script=" + scriptId + ", instance=" + instanceId
+                                + ", preview=" + instance.isPreview()
+                                + "）：该实例本帧不注册 lane，其他实例继续", e);
             }
         }
         if (index == 0) {

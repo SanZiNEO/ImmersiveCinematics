@@ -6,6 +6,7 @@ import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustPass;
 import com.immersivecinematics.immersive_cinematics.mixin.GameRendererAccessor;
 import com.immersivecinematics.immersive_cinematics.mixin.MinecraftAccessor;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
@@ -273,15 +274,18 @@ public final class LaneRenderer {
         RenderTarget main = mc.getMainRenderTarget();
         int width = main.width;
         int height = main.height;
-        RenderTarget fbo = offscreenTarget(width, height);
+        RenderTarget fbo;
 
         Matrix4f prevProjection = RenderSystem.getProjectionMatrix();
         VertexSorting prevSorting = RenderSystem.getVertexSorting();
         Matrix3f prevInverseViewRotation = RenderSystem.getInverseViewRotationMatrix();
         GameRendererAccessor gameRendererAccessor = (GameRendererAccessor) mc.gameRenderer;
         boolean prevRenderHand = gameRendererAccessor.ic$getRenderHand();
+        int currentLane = -1;
+        String currentCaptureId = null;
 
         try {
+            fbo = offscreenTarget(width, height);
             // 主画面自己的描边必须先落地：lane 会覆盖共享 entityTarget，原版渲染之后那次已被屏蔽；
             // 用标记与本类区分（两次都在 lane pass 之外，isRenderingLane() 区分不了）。
             main.bindWrite(false);
@@ -307,6 +311,8 @@ public final class LaneRenderer {
                 }
                 // 调试捕获的相机 id：生产者没给时回退 lane<序号>（文件名安全化在 LaneDebugCapture 内做）
                 String captureId = lane.captureId != null ? lane.captureId : "lane" + i;
+                currentLane = i;
+                currentCaptureId = captureId;
                 // 诊断口径 = 玩家当前有效视距（lane 无独立视距覆盖）
                 int diagnosticDistance = mc.options.getEffectiveRenderDistance();
                 ViewScope.enter(captureId);
@@ -334,6 +340,11 @@ public final class LaneRenderer {
                     ViewScope.exit(captureId);
                 }
             }
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Render", "lane-render", FAILURE_LOG_INTERVAL_MS,
+                    "lane 渲染循环异常（lane=" + currentLane + ", capture=" + currentCaptureId
+                            + ", lanes=" + lanes.size() + "）：本帧停止后续 lane，主画面保持基画面", e);
         } finally {
             activeContent = null;
             activeLaneCamera = null;

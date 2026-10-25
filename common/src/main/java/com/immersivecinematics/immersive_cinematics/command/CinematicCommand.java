@@ -4,7 +4,9 @@ import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException;
+import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.immersivecinematics.immersive_cinematics.script.ScriptValidator;
@@ -13,6 +15,7 @@ import com.immersivecinematics.immersive_cinematics.script.template.TemplateArgs
 import com.immersivecinematics.immersive_cinematics.script.template.TemplateParam;
 import com.immersivecinematics.immersive_cinematics.script.template.TemplateRegistry;
 import com.immersivecinematics.immersive_cinematics.script.template.TemplateScriptAssembler;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.ResourceLocationArgument;
@@ -101,36 +104,58 @@ public class CinematicCommand {
                         .requires(s -> s.hasPermission(2))
                         .then(Commands.argument("file", ResourceLocationArgument.id())
                                 .suggests(SCRIPT_SUGGESTIONS)
-                                .executes(CinematicCommand::playScript)
+                                .executes(guarded("play", CinematicCommand::playScript))
                                 .then(Commands.argument("players", EntityArgument.players())
-                                        .executes(CinematicCommand::playScript))))
+                                        .executes(guarded("play", CinematicCommand::playScript)))))
                 .then(Commands.literal("stop")
-                        .executes(CinematicCommand::stopScript)
+                        .executes(guarded("stop", CinematicCommand::stopScript))
                         .then(Commands.argument("script", ResourceLocationArgument.id())
                                 .suggests(LOADED_SCRIPT_SUGGESTIONS)
-                                .executes(CinematicCommand::stopScript)
+                                .executes(guarded("stop", CinematicCommand::stopScript))
                                 .then(Commands.argument("players", EntityArgument.players())
-                                        .executes(CinematicCommand::stopScript)))
+                                        .executes(guarded("stop", CinematicCommand::stopScript))))
                         .then(Commands.argument("players", EntityArgument.players())
-                                .executes(CinematicCommand::stopScript)))
+                                .executes(guarded("stop", CinematicCommand::stopScript))))
                 .then(Commands.literal("reload")
                         .requires(s -> s.hasPermission(2))
-                        .executes(CinematicCommand::reloadScripts))
+                        .executes(guarded("reload", CinematicCommand::reloadScripts)))
                 .then(Commands.literal("validate")
                         .requires(s -> s.hasPermission(2))
                         .then(Commands.argument("file", ResourceLocationArgument.id())
                                 .suggests(SCRIPT_SUGGESTIONS)
-                                .executes(CinematicCommand::validateScriptFile)))
+                                .executes(guarded("validate", CinematicCommand::validateScriptFile))))
                 .then(Commands.literal("template")
                         .requires(s -> s.hasPermission(2))
                         .then(Commands.literal("list")
-                                .executes(CinematicCommand::listTemplates))
+                                .executes(guarded("template list", CinematicCommand::listTemplates)))
                         .then(Commands.argument("id", StringArgumentType.word())
                                 .suggests(TEMPLATE_SUGGESTIONS)
-                                .executes(CinematicCommand::generateFromTemplate)
+                                .executes(guarded("template generate", CinematicCommand::generateFromTemplate))
                                 .then(Commands.argument("params", StringArgumentType.greedyString())
-                                        .executes(CinematicCommand::generateFromTemplate))))
+                                        .executes(guarded("template generate", CinematicCommand::generateFromTemplate)))))
         );
+    }
+
+    /**
+     * 命令执行边界：executor 内任何未预期异常都不允许冒泡回 Brigadier（命令源只会看到通用报错，
+     * 且命令常由 EVENT 轨 / 命令方块触发，异常反馈容易被吞掉）。
+     *
+     * <p>{@link CommandSyntaxException} 原样上抛（Brigadier 用它渲染语法/参数提示）；其余 Exception
+     * 先过致命错误判定，再记录完整栈并向命令源回显内部错误，返回 0。
+     */
+    private static Command<CommandSourceStack> guarded(String name, Command<CommandSourceStack> command) {
+        return ctx -> {
+            try {
+                return command.run(ctx);
+            } catch (CommandSyntaxException e) {
+                throw e;
+            } catch (Exception e) {
+                FatalErrors.rethrowIfFatal(e);
+                LOGGER.error("命令执行失败: {}", name, e);
+                ctx.getSource().sendFailure(Component.literal("§c内部错误: " + e.getMessage()));
+                return 0;
+            }
+        };
     }
 
     private static int playScript(CommandContext<CommandSourceStack> context) {

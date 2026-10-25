@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "id": "bad_meta_bool",
+    "name": "故障-布尔类型错误",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "hide_hud 为数组，触发 optBoolMeta 的非布尔值异常",
+    "hide_hud": []
+  },
+  "timeline": {
+    "total_duration": 1,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 1,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": {"dx":0,"dy":0,"dz":0}, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 1, "position": {"dx":0,"dy":0,"dz":0}, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

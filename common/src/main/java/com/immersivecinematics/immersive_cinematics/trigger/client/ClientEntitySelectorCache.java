@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.trigger.client;
 
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SResolveEntitySelectorPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler;
+import net.minecraft.client.Minecraft;
 
 import java.util.Collections;
 import java.util.List;
@@ -71,6 +72,10 @@ public final class ClientEntitySelectorCache {
         if (PENDING.size() >= MAX_PENDING) {
             return;
         }
+        // 断线 / 退出世界时不再登记 pending：发送层会吞掉异常，登记后只能等 clear() 才复位。
+        if (Minecraft.getInstance().getConnection() == null) {
+            return;
+        }
 
         Entry entry = CACHE.computeIfAbsent(key, k -> new Entry());
         synchronized (entry) {
@@ -82,14 +87,8 @@ public final class ClientEntitySelectorCache {
 
         int requestId = NEXT_REQUEST_ID.getAndIncrement();
         PENDING.put(requestId, key);
-        try {
-            NetworkHandler.sendToServer(new C2SResolveEntitySelectorPacket(requestId, key.selector(), x, y, z));
-        } catch (Exception e) {
-            PENDING.remove(requestId);
-            synchronized (entry) {
-                entry.pending = false;
-            }
-        }
+        // 发送层只记日志不抛异常；连接在登记后断开时由 clear()（脚本停止 / 退出世界）兜底复位。
+        NetworkHandler.sendToServer(new C2SResolveEntitySelectorPacket(requestId, key.selector(), x, y, z));
     }
 
     /**

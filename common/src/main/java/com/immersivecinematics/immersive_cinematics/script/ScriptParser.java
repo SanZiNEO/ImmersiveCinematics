@@ -97,7 +97,20 @@ public class ScriptParser {
 
     // ========== 入口方法 ==========
 
+    /**
+     * 解析入口：{@link ScriptParseException} 原样上抛；其余 RuntimeException（典型为字段类型错误：
+     * 数字字段写成字符串 → NumberFormatException，对象/数组字段写成标量 → UnsupportedOperationException）
+     * 统一收敛为带根路径的解析异常，调用方只需处理一种异常。
+     */
     public static CinematicScript parse(String json) throws ScriptParseException {
+        try {
+            return parseInternal(json);
+        } catch (RuntimeException e) {
+            throw new ScriptParseException("<root>", "字段类型错误: " + e.getMessage(), e);
+        }
+    }
+
+    private static CinematicScript parseInternal(String json) throws ScriptParseException {
         JsonElement root;
         try {
             root = JsonParser.parseString(json);

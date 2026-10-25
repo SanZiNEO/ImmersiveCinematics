@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.trigger.network;
 
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
@@ -29,6 +31,8 @@ public final class NetworkHandler {
     public static final String AUDIO_LISTENER = "audio_listener";
     public static final String RULE_COMMAND = "rule_command";
 
+    private static final long SEND_LOG_INTERVAL_MS = 5000L;
+
     private static NetworkBridge bridge;
 
     private NetworkHandler() {}
@@ -40,12 +44,30 @@ public final class NetworkHandler {
 
     /** 发给单个玩家；bridge 为空（平台未注入）时静默丢弃。 */
     public static void sendToPlayer(ServerPlayer player, CinematicS2CPacket packet) {
-        if (bridge != null) bridge.sendToPlayer(player, packet);
+        if (bridge == null) return;
+        try {
+            bridge.sendToPlayer(player, packet);
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            String name = packet != null ? packet.getClass().getSimpleName() : "null";
+            ErrorLog.logRateLimited("Net", "send:S2C:" + name, SEND_LOG_INTERVAL_MS,
+                    "发送 S2C 包失败（包: " + name + "，玩家: "
+                            + (player != null ? player.getGameProfile().getName() + "/" + player.getUUID() : "null")
+                            + "）：该包已丢弃，播放继续", e);
+        }
     }
 
     /** 发给服务端；bridge 为空（客户端未注入）时静默丢弃。 */
     public static void sendToServer(CinematicC2SPacket packet) {
-        if (bridge != null) bridge.sendToServer(packet);
+        if (bridge == null) return;
+        try {
+            bridge.sendToServer(packet);
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            String name = packet != null ? packet.getClass().getSimpleName() : "null";
+            ErrorLog.logRateLimited("Net", "send:C2S:" + name, SEND_LOG_INTERVAL_MS,
+                    "发送 C2S 包失败（包: " + name + "，方向: C2S）：该包已丢弃，播放继续", e);
+        }
     }
 
     /** 空入口：bridge 已由平台在 common init 前注入，此处无需动作。 */

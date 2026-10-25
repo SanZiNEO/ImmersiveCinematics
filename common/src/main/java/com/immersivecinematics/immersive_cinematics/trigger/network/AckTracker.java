@@ -41,6 +41,13 @@ public final class AckTracker {
         return java.util.UUID.randomUUID().toString().substring(0, 8);
     }
 
+    /** 断线 / 退出世界时清空全部待确认与重发状态（否则会跨世界重发旧包、并让旧回调继续重试）。 */
+    public static void clear() {
+        pending.clear();
+        retries.clear();
+        sentAt.clear();
+    }
+
     /** 每 tick 调用（服务端：ScriptEventManager.onServerTick；客户端：ClientEventHandler.CLIENT_POST） */
     public static void tick() {
         long now = System.currentTimeMillis();

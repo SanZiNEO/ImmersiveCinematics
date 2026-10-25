@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "id": "bad_meta_int",
+    "name": "故障-整数类型错误",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "macro_loop_count 为字符串，触发 optInt 的 NumberFormatException",
+    "macro_loop_count": "abc"
+  },
+  "timeline": {
+    "total_duration": 1,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 1,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": {"dx":0,"dy":0,"dz":0}, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 1, "position": {"dx":0,"dy":0,"dz":0}, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

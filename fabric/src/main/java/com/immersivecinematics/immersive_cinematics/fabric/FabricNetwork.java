@@ -22,39 +22,39 @@ public final class FabricNetwork implements NetworkBridge {
 
         ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.SCRIPT_FINISHED), (server, player, handler, buf, responseSender) -> {
             C2SScriptFinishedPacket pkt = new C2SScriptFinishedPacket(buf);
-            server.execute(() -> pkt.handle(player));
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.SCRIPT_FINISHED, player, () -> pkt.handle(player)));
         });
         ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.PLAYBACK_STARTED), (server, player, handler, buf, responseSender) -> {
             C2SPlaybackStartedPacket pkt = new C2SPlaybackStartedPacket(buf);
-            server.execute(() -> pkt.handle(player));
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.PLAYBACK_STARTED, player, () -> pkt.handle(player)));
         });
         ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.SCRIPT_PAUSE), (server, player, handler, buf, responseSender) -> {
             C2SScriptPausePacket pkt = new C2SScriptPausePacket(buf);
-            server.execute(() -> pkt.handle(player));
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.SCRIPT_PAUSE, player, () -> pkt.handle(player)));
         });
         ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.SCRIPT_SAVED), (server, player, handler, buf, responseSender) -> {
             C2SScriptSavedPacket pkt = new C2SScriptSavedPacket(buf);
-            server.execute(() -> pkt.handle(player));
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.SCRIPT_SAVED, player, () -> pkt.handle(player)));
         });
         ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.PRELOAD_REQ), (server, player, handler, buf, responseSender) -> {
             C2SPreloadRequestPacket pkt = new C2SPreloadRequestPacket(buf);
-            server.execute(() -> pkt.handle(player));
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.PRELOAD_REQ, player, () -> pkt.handle(player)));
         });
         ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.PRELOAD_POS), (server, player, handler, buf, responseSender) -> {
             C2SPreloadPositionPacket pkt = new C2SPreloadPositionPacket(buf);
-            server.execute(() -> pkt.handle(player));
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.PRELOAD_POS, player, () -> pkt.handle(player)));
         });
         ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.AUDIO_LISTENER), (server, player, handler, buf, responseSender) -> {
             C2SAudioListenerPacket pkt = new C2SAudioListenerPacket(buf);
-            server.execute(() -> pkt.handle(player));
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.AUDIO_LISTENER, player, () -> pkt.handle(player)));
         });
         ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.RESOLVE_ENTITY_SELECTOR), (server, player, handler, buf, responseSender) -> {
             C2SResolveEntitySelectorPacket pkt = new C2SResolveEntitySelectorPacket(buf);
-            server.execute(() -> pkt.handle(player));
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.RESOLVE_ENTITY_SELECTOR, player, () -> pkt.handle(player)));
         });
         ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.RULE_COMMAND), (server, player, handler, buf, responseSender) -> {
             C2SRuleCommandPacket pkt = new C2SRuleCommandPacket(buf);
-            server.execute(() -> pkt.handle(player));
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.RULE_COMMAND, player, () -> pkt.handle(player)));
         });
 
         // ===== S2C（仅客户端：专用服务端没有 ClientPlayNetworking）=====
@@ -62,35 +62,35 @@ public final class FabricNetwork implements NetworkBridge {
 
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.PLAY_SCRIPT), (client, handler, buf, responseSender) -> {
             S2CPlayScriptPacket pkt = new S2CPlayScriptPacket(buf);
-            client.execute(pkt::handle);
+            client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.PLAY_SCRIPT, () -> pkt.handle()));
         });
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.STOP_SCRIPT), (client, handler, buf, responseSender) -> {
             S2CStopScriptPacket pkt = new S2CStopScriptPacket(buf);
-            client.execute(pkt::handle);
+            client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.STOP_SCRIPT, () -> pkt.handle()));
         });
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.TRIGGER_STATE_SYNC), (client, handler, buf, responseSender) -> {
             S2CTriggerStateSyncPacket pkt = new S2CTriggerStateSyncPacket(buf);
-            client.execute(pkt::handle);
+            client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.TRIGGER_STATE_SYNC, () -> pkt.handle()));
         });
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.SKIP_VOTE_UPDATE), (client, handler, buf, responseSender) -> {
             S2CSkipVoteUpdatePacket pkt = new S2CSkipVoteUpdatePacket(buf);
-            client.execute(pkt::handle);
+            client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.SKIP_VOTE_UPDATE, () -> pkt.handle()));
         });
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.SCRIPT_PAUSE_ACK), (client, handler, buf, responseSender) -> {
             S2CScriptPauseAckPacket pkt = new S2CScriptPauseAckPacket(buf);
-            client.execute(pkt::handle);
+            client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.SCRIPT_PAUSE_ACK, () -> pkt.handle()));
         });
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.SCRIPT_RELOAD), (client, handler, buf, responseSender) -> {
             S2CScriptReloadPacket pkt = new S2CScriptReloadPacket(buf);
-            client.execute(pkt::handle);
+            client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.SCRIPT_RELOAD, () -> pkt.handle()));
         });
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.PRELOAD_RESULT), (client, handler, buf, responseSender) -> {
             S2CPreloadResultPacket pkt = new S2CPreloadResultPacket(buf);
-            client.execute(pkt::handle);
+            client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.PRELOAD_RESULT, () -> pkt.handle()));
         });
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.RESOLVE_ENTITY_SELECTOR_RESULT), (client, handler, buf, responseSender) -> {
             S2CResolveEntitySelectorResultPacket pkt = new S2CResolveEntitySelectorResultPacket(buf);
-            client.execute(pkt::handle);
+            client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.RESOLVE_ENTITY_SELECTOR_RESULT, () -> pkt.handle()));
         });
         }
     }
