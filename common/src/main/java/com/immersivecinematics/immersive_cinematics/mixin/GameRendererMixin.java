@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneDebugCapture;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneDiagnostics;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
@@ -48,6 +49,8 @@ public abstract class GameRendererMixin {
     private void onRenderFrameStart(float partialTick, long nanoTime, boolean renderLevel, CallbackInfo ci) {
         Minecraft mc = Minecraft.getInstance();
         try {
+            // 资源重载后重建跨维度视图（监听器只置位，GL 操作必须留在渲染线程）。
+            DimensionViews.processPending(mc);
             // F5 诊断会话帧首：manifest 未启用时仅一次静态 null 检查（不取 nanoTime / 不分配 / 不 IO）。
             LaneDiagnostics.onFrameStart(mc, renderLevel && mc.level != null);
             if (renderLevel && mc.level != null) {
@@ -68,6 +71,15 @@ public abstract class GameRendererMixin {
                             + ", active=" + CameraManager.INSTANCE.isActive() + ", instances=" + instances
                             + "）：本帧跳过，下一帧重试", e);
         }
+    }
+
+    /**
+     * 窗口尺寸变化：跨维度视图的渲染器跟随重建描边 / 半透明链（主渲染器由原版 {@code resize} 自己处理）。
+     * 没有目标视图时零开销。
+     */
+    @Inject(method = "resize", at = @At("RETURN"))
+    private void onResizeDimensionViews(int width, int height, CallbackInfo ci) {
+        DimensionViews.resize(Minecraft.getInstance(), width, height);
     }
 
     /**

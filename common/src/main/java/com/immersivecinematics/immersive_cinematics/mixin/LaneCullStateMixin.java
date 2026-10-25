@@ -6,7 +6,6 @@ import com.immersivecinematics.immersive_cinematics.client.lane.LaneCullSlots;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.chunk.ChunkRenderDispatcher;
 import org.slf4j.Logger;
@@ -50,10 +49,6 @@ public class LaneCullStateMixin implements LaneCullBridge {
 
     /** 同步执行全量 BFS 时返回的完成态 future（共享常量：调用方只读 {@code isDone()}）。 */
     private static final Future<?> IC$COMPLETED = CompletableFuture.completedFuture(null);
-
-    @Shadow
-    @Final
-    private Minecraft minecraft;
 
     // ===== 换入 / 换出的 14 个字段（逐项对应见 LaneCullSlot）=====
 
@@ -107,6 +102,11 @@ public class LaneCullStateMixin implements LaneCullBridge {
         if (LaneCullSlots.depth() == 0) {
             ic$awaitPendingFullUpdate();
         }
+        // 槽按 lane 序号跨帧复用，跨维度 lane 的目标渲染器与主渲染器会先后用到同一个槽：
+        // 槽里的候选集 / 可见集合属于上一个渲染器的 ViewArea，必须整箱作废、按本渲染器的字段重新播种。
+        if (slot.owner != this) {
+            slot.reseedFor(this);
+        }
         LaneCullSlot save = LaneCullSlots.beginPush(slot);
         if (slot.storage.get() == null) {
             // 首次播种：槽内候选集必须有值——未播种时局部更新路径会读到 null。取当前字段的「值」
@@ -150,7 +150,8 @@ public class LaneCullStateMixin implements LaneCullBridge {
     @Redirect(method = "setupRender", require = 0, at = @At(value = "INVOKE",
             target = "Ljava/util/concurrent/ExecutorService;submit(Ljava/lang/Runnable;)Ljava/util/concurrent/Future;"))
     private Future<?> ic$submitFullCullUpdate(ExecutorService executor, Runnable task) {
-        if (LaneRenderer.isRenderingLane() && LaneRenderer.isPerLaneCullActive(this.minecraft)) {
+        if (LaneRenderer.isRenderingLane()
+                && LaneRenderer.isPerLaneCullActive((LevelRenderer) (Object) this)) {
             task.run();
             return IC$COMPLETED;
         }
@@ -177,7 +178,7 @@ public class LaneCullStateMixin implements LaneCullBridge {
 
     @Inject(method = "addRecentlyCompiledChunk", at = @At("HEAD"))
     private void ic$mirrorCompiledChunk(ChunkRenderDispatcher.RenderChunk renderChunk, CallbackInfo ci) {
-        LaneCullSlots.mirrorCompiled(renderChunk);
+        LaneCullSlots.mirrorCompiled(this, renderChunk);
     }
 
     // ===== 视距变化 / 换世界 / 立即全量重建 =====
@@ -196,6 +197,8 @@ public class LaneCullStateMixin implements LaneCullBridge {
 
     @Unique
     private void ic$copyFieldsTo(LaneCullSlot box) {
+        // 保存位同样按渲染器归属：区块编译完成回调只投给同一渲染器的槽（见 LaneCullSlots.mirrorCompiled）
+        box.owner = this;
         box.storage = this.renderChunkStorage;
         box.visible = this.renderChunksInFrustum;
         box.compiled = this.recentlyCompiledChunks;

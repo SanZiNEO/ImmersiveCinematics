@@ -31,7 +31,9 @@ public final class ViewScope {
         if (!STACK.isEmpty() && STACK.peek().equals(view)) {
             return;
         }
-        if (ShaderCompat.refresh()) {
+        // lane 循环内不刷新 pipeline：刷新会清空视角栈，把本帧已 enter 的 lane 作用域打散（exit 配不上）。
+        // pipeline 切换只可能在帧与帧之间发生，帧首第一次 enter 仍按原逻辑刷新。
+        if (!LaneRenderer.isLaneLoopActive() && ShaderCompat.refresh()) {
             // pipeline 切换后旧视角作用域已失效；第一个新视角重新建立。
             STACK.clear();
         }

@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.handler;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.immersivecinematics.immersive_cinematics.control.SkipHudRenderer;
 import com.immersivecinematics.immersive_cinematics.overlay.CinematicOverlay;
@@ -117,6 +118,8 @@ public final class ClientEventHandler {
             if (CameraManager.INSTANCE.isActive()) {
                 CameraManager.INSTANCE.emergencyStop();
             }
+            // 跨维度视图持有独立 ClientLevel / LevelRenderer / 区块网格：不释放会跨存档泄漏
+            DimensionViews.closeAll();
             AckTracker.clear();
             ClientEntitySelectorCache.clear();
             CameraCenterReporter.INSTANCE.reset();
@@ -124,7 +127,7 @@ public final class ClientEventHandler {
         } catch (Exception e) {
             FatalErrors.rethrowIfFatal(e);
             ErrorLog.logRateLimited("Client", "client-tick:world-exit", 5000L,
-                    "退出世界清理异常（相机/ACK/选择器缓存/相机中心/跳过投票）：已尽力清理，游戏继续运行", e);
+                    "退出世界清理异常（相机/跨维度视图/ACK/选择器缓存/相机中心/跳过投票）：已尽力清理，游戏继续运行", e);
         } finally {
             inWorld = false;
         }

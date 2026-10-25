@@ -1,6 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.client.lane;
 
 import com.immersivecinematics.immersive_cinematics.api.CameraState;
+import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionView;
+import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
 import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustParams;
 import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustPass;
 import com.immersivecinematics.immersive_cinematics.mixin.GameRendererAccessor;
@@ -17,7 +19,10 @@ import com.mojang.logging.LogUtils;
 import com.mojang.math.Axis;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
@@ -44,6 +49,10 @@ import java.util.Map;
  * 兼容：不按第三方渲染模组的存在性分支，原版与优化模组环境都照常渲染；
  * 只有本 lane 渲染本身失败时才按 {@code written = false} 跳过（合成层守门）。
  * 状态所有权：雾 / 深度 / 混合状态由 {@code renderLevel} 自身收敛，视锥每帧重建——这些不需要额外还原。
+ * 跨维度：lane 的片段 {@code dimension} 非空且不是玩家当前维度时，该 lane 的 pass 内临时把全局
+ * {@code Minecraft.level} / {@code levelRenderer} / 两个渲染分发器指向目标视图（{@link DimensionView}，
+ * 独立 {@code ClientLevel} + {@code LevelRenderer} + {@code LightTexture}），pass 结束在 finally 还原；
+ * 玩家本身不跨维度，主画面继续用玩家当前世界。空串 / 当前维度 = {@link DimensionViews#MAIN}，逐位保持原行为。
  */
 public final class LaneRenderer {
 
@@ -110,6 +119,12 @@ public final class LaneRenderer {
         private ColorAdjustParams adjust;
         private String dimension;
         private String captureId;
+        /** 本帧该 lane 的视图：{@link DimensionViews#MAIN} = 玩家当前维度；{@code null} = 目标视图不可用。 */
+        private DimensionView view;
+        /** 本帧视图解析失败（{@link DimensionViews#acquire} 返回 {@code null}）：渲染时按失败跳过该 lane。 */
+        private boolean viewFailed;
+        /** 本帧视角作用域键：主画面 = {@code captureId}；目标视图 = {@code captureId@维度}。 */
+        private String viewKey;
         /** 该 lane 的剔除槽（per-lane 候选集 / 可见集合 / 门闩）；惰性创建、跨帧持有、停播归还池。 */
         private LaneCullSlot cull;
 
@@ -149,6 +164,16 @@ public final class LaneRenderer {
          */
         public ColorAdjustParams adjust() {
             return adjust;
+        }
+
+        /** 本帧该 lane 的视图（{@link DimensionViews#MAIN} = 玩家当前维度）；未解析 / 解析失败时为 {@code null}。 */
+        public DimensionView view() {
+            return view;
+        }
+
+        /** 本帧视图解析是否失败（目标视图不可用：FABULOUS / 维度缺失 / 非法 id）；诊断用。 */
+        public boolean viewFailed() {
+            return viewFailed;
         }
     }
 
@@ -195,6 +220,18 @@ public final class LaneRenderer {
      * 主画面那次与渲染之后原版那次都在 lane pass 之外，只能靠本标记区分（见 {@code LevelRendererMixin}）。
      */
     private static boolean mainOutlinePass;
+
+    /**
+     * 本帧实际换入剔除状态的 bridge：跨维度 lane 用的是目标视图的 {@code LevelRenderer}，与
+     * {@code mc.levelRenderer}（pass 结束后已还原成主渲染器）不是同一个实例；异常兜底只能弹它。
+     */
+    private static LaneCullBridge activeCullBridge;
+
+    /**
+     * 是否正处在逐 lane 渲染循环内（第一条 lane 的 {@code ViewScope.enter} 之前置位、循环结束复位）。
+     * {@code ViewScope.enter} 据此跳过光影 pipeline 刷新：刷新会清空视角栈，把本帧已配对的 lane 作用域打散。
+     */
+    private static boolean laneLoopActive;
 
     private LaneRenderer() {
     }
@@ -264,6 +301,10 @@ public final class LaneRenderer {
             lane.adjust = null;
             lane.dimension = null;
             lane.captureId = null;
+            lane.view = null;
+            lane.viewFailed = false;
+            // viewKey 保留到下一帧 prepareViews 覆盖：ScriptLaneDriver 每帧先 clear 再注册，
+            // 视图作用域的清理（releaseStale）要在注册后、渲染前读到上一帧真正 enter 过的键。
             byCamera.remove(lane.camera);
             activeCount--;
         }
@@ -289,6 +330,10 @@ public final class LaneRenderer {
             releaseAllCullSlots();
             return;
         }
+
+        // 逐 lane 解析视图（空串 / 当前维度 = MAIN 哨兵，零分配；跨维度 = 目标视图或失败）。
+        // 解析失败只记在本帧 lane 上：渲染时按失败跳过该 lane，不影响其他 lane 与主画面。
+        prepareViews(mc);
 
         RenderTarget main = mc.getMainRenderTarget();
         int width = main.width;
@@ -322,6 +367,8 @@ public final class LaneRenderer {
             mc.gameRenderer.setRenderHand(false);
 
             Sink laneSink = this.sink;
+            // lane 循环内不刷新光影 pipeline（ViewScope.enter 据此跳过 ShaderCompat.refresh）
+            laneLoopActive = true;
             for (int i = 0; i < lanes.size(); i++) {
                 Lane lane = lanes.get(i);
                 if (lane.state == null) {
@@ -335,7 +382,9 @@ public final class LaneRenderer {
                 currentCaptureId = captureId;
                 // 诊断口径 = 玩家当前有效视距（lane 无独立视距覆盖）
                 int diagnosticDistance = mc.options.getEffectiveRenderDistance();
-                ViewScope.enter(captureId);
+                // 视角作用域键：目标视图带 @维度 后缀，同名相机的不同维度不互相覆盖历史快照
+                String viewKey = lane.viewKey != null ? lane.viewKey : captureId;
+                ViewScope.enter(viewKey);
                 try {
                     // disabled 时 beginLane 返回 0、零分配 / 零 nanoTime
                     long laneStart = LaneDiagnostics.beginLane(i, captureId, diagnosticDistance, fbo);
@@ -357,7 +406,7 @@ public final class LaneRenderer {
                         }
                     }
                 } finally {
-                    ViewScope.exit(captureId);
+                    ViewScope.exit(viewKey);
                 }
             }
         } catch (Exception e) {
@@ -366,8 +415,12 @@ public final class LaneRenderer {
                     "lane 渲染循环异常（lane=" + currentLane + ", capture=" + currentCaptureId
                             + ", lanes=" + lanes.size() + "）：本帧停止后续 lane，主画面保持基画面", e);
         } finally {
+            laneLoopActive = false;
             activeContent = null;
             activeLaneCamera = null;
+            activeLaneCaptureId = null;
+            activeLaneIndex = -1;
+            activeLaneState = null;
             // 还原 lane pass 期间被临时改写的全局状态
             mc.gameRenderer.setRenderHand(prevRenderHand);
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
@@ -375,11 +428,52 @@ public final class LaneRenderer {
             RenderSystem.setInverseViewRotationMatrix(prevInverseViewRotation);
             main.bindWrite(false);
             RenderSystem.viewport(0, 0, width, height);
-            // 异常兜底：lane pass 中途抛出时保证换入的槽全部弹净、字段回到原版值（正常路径已在各自 finally 配对弹出）
-            if (mc.levelRenderer instanceof LaneCullBridge cullBridge) {
+            // 异常兜底：弹的是本帧实际换入过的 bridge（跨维度 lane 的目标渲染器与 mc.levelRenderer 不同），
+            // 保证槽全部弹净、字段回到原版值（正常路径已在各自 finally 配对弹出）
+            LaneCullBridge cullBridge = activeCullBridge;
+            if (cullBridge != null) {
+                activeCullBridge = null;
                 cullBridge.ic$popAllLaneCullStates();
             }
         }
+    }
+
+    /**
+     * 逐 lane 解析本帧视图并缓存到 lane 上：空串 / 玩家当前维度 = {@link DimensionViews#MAIN}（零分配、零切换）；
+     * 其他维度 = 目标视图（首次创建）或 {@code null}（本帧该 lane 跳过）。
+     * 目标视图的区块缓存中心按该 lane 相机逐帧推进——视图中心是单份共享状态，不同维度各有一份。
+     */
+    private void prepareViews(Minecraft mc) {
+        int viewDistance = mc.options.getEffectiveRenderDistance();
+        for (int i = 0; i < lanes.size(); i++) {
+            Lane lane = lanes.get(i);
+            if (lane.state == null) {
+                continue;
+            }
+            DimensionView view;
+            try {
+                view = DimensionViews.acquire(mc, lane.dimension());
+            } catch (Exception e) {
+                // 解析在渲染边界内：单条 lane 的异常不得打断整帧（该 lane 本帧跳过，其他 lane 照常）
+                FatalErrors.rethrowIfFatal(e);
+                ErrorLog.logRateLimited("Render", "dimension-acquire", FAILURE_LOG_INTERVAL_MS,
+                        "跨维度视图解析异常（lane=" + i + "，维度=" + lane.dimension() + "）：该 lane 本帧跳过", e);
+                view = null;
+            }
+            lane.view = view;
+            lane.viewFailed = view == null;
+            String captureId = lane.captureId != null ? lane.captureId : "lane" + i;
+            lane.viewKey = viewKey(lane, captureId);
+            if (view != null && !view.isMain()) {
+                view.updateViewCenter(lane.state.position(), viewDistance);
+            }
+        }
+    }
+
+    /** 视角作用域键：目标视图追加 {@code @维度}（同名相机在不同维度各自保存一份历史快照）。 */
+    private static String viewKey(Lane lane, String captureId) {
+        DimensionView view = lane.view;
+        return view == null || view.isMain() ? captureId : captureId + "@" + lane.dimension();
     }
 
     /** 该 lane 的剔除槽（惰性创建，跨帧持有）；没有 bridge 时不会被调用。 */
@@ -423,6 +517,22 @@ public final class LaneRenderer {
         GameRenderer gameRenderer = mc.gameRenderer;
         GameRendererAccessor gameRendererAccessor = (GameRendererAccessor) gameRenderer;
 
+        // 本帧视图：MAIN = 玩家当前维度（走原来的 mc.level / mc.levelRenderer 口径）；
+        // 目标视图 = 独立 ClientLevel / LevelRenderer / LightTexture；解析失败 = 本 lane 跳过。
+        DimensionView view = lane.view;
+        if (view == null) {
+            reportLaneFailure(captureId, lane.viewFailed
+                    ? "跨维度视图不可用（维度 " + lane.dimension() + "）"
+                    : "lane 视图未解析（内部状态）", null);
+            return new LaneOutput(fbo, false);
+        }
+        boolean crossDimension = !view.isMain();
+        ClientLevel prevLevel = mc.level;
+        LevelRenderer prevRenderer = mc.levelRenderer;
+        ClientLevel viewLevel = crossDimension ? view.level() : mc.level;
+        LevelRenderer renderer = crossDimension ? view.renderer() : mc.levelRenderer;
+        LightTexture lightTexture = crossDimension ? view.lightTexture() : gameRenderer.lightTexture();
+
         // 缓冲没有颜色纹理：采样只会得到黑（GL 不报错），渲染与合成都没有意义
         if (fbo.getColorTextureId() <= 0) {
             reportLaneFailure(captureId, "lane 缓冲没有颜色纹理（纹理名 = 0）", null);
@@ -442,9 +552,11 @@ public final class LaneRenderer {
         activeLaneCamera = camera;
 
         // per-lane 可见集合：bridge 在位时换入该 lane 的候选集 / 可见集合 / 门闩；缺位时不换状态，继续同一路径渲染。
-        LaneCullBridge cullBridge = mc.levelRenderer instanceof LaneCullBridge bridge ? bridge : null;
+        // 判定必须用本 pass 的渲染器（跨维度 lane 的目标渲染器与 mc.levelRenderer 不同）。
+        LaneCullBridge cullBridge = renderer instanceof LaneCullBridge bridge ? bridge : null;
         if (cullBridge != null) {
             cullBridge.ic$pushLaneCullState(cullSlot(lane));
+            activeCullBridge = cullBridge;
         }
         try {
             fbo.bindWrite(true);   // 绑定 FBO + 视口 = FBO 全尺寸
@@ -454,11 +566,30 @@ public final class LaneRenderer {
                 return new LaneOutput(fbo, false);
             }
 
-            // 我们的相机接管：Camera.setup → CameraMixin 的 lane 分支读该实例的 CameraState
-            camera.setup(mc.level, mc.player,
-                    !mc.options.getCameraType().isFirstPerson(),
-                    mc.options.getCameraType().isMirrored(),
-                    partialTick);
+            if (crossDimension) {
+                // 目标视图：整段 pass 把全局 level / levelRenderer / 两个渲染分发器指向目标维度。
+                // 原版渲染链里 Minecraft.level / levelRenderer / getMainRenderTarget 的读取点太多，
+                // 在边界上换一次、finally 还原（异常路径同样还原），比逐点改写可靠。
+                mc.level = view.level();
+                ((MinecraftAccessor) mc).ic$setLevelRenderer(view.renderer());
+                mc.getEntityRenderDispatcher().setLevel(view.level());
+                mc.getBlockEntityRenderDispatcher().setLevel(view.level());
+                // 目标维度的光照贴图：主画面每帧由 GameRenderer.tick 置脏；目标视图没有 tick，这里补一次
+                // （updateLightTexture 只在置脏后生效，否则贴图停在初始全白）。
+                view.lightTexture().tick();
+                view.lightTexture().updateLightTexture(partialTick);
+            }
+
+            // 我们的相机接管：Camera.setup → CameraMixin 的 lane 分支读该实例的 CameraState。
+            // 跨维度 lane 强制 detached：相机不跟随玩家实体，只用该 lane 自己的位置 / 朝向。
+            if (crossDimension) {
+                camera.setup(viewLevel, mc.player, true, false, partialTick);
+            } else {
+                camera.setup(mc.level, mc.player,
+                        !mc.options.getCameraType().isFirstPerson(),
+                        mc.options.getCameraType().isMirrored(),
+                        partialTick);
+            }
 
             // 视图矩阵：复刻 GameRenderer.renderLevel
             PoseStack poseStack = new PoseStack();
@@ -480,18 +611,19 @@ public final class LaneRenderer {
             Matrix4f cullProjection = gameRendererAccessor.ic$getProjectionMatrix(
                     Math.max(fov, (double) mc.options.fov().get()));
             Vec3 cameraPos = camera.getPosition();
-            mc.levelRenderer.prepareCullFrustum(poseStack, cameraPos, cullProjection);
+            renderer.prepareCullFrustum(poseStack, cameraPos, cullProjection);
 
             // Iris 深度重挂键是版本号而非纹理 id：版本与 Iris 缓存同值（通常都是 0）时不重挂，
             // depthtex0/1/2 / gdepthtex / centerDepthSampler 会继续采样主相机深度——递增一次强制重挂。
             bumpIrisDepthBufferVersion(fbo, main);
 
-            // 该 lane 自己的视锥 + 相机姿态 → 原版 8 格膨胀剔除 3~5 步收敛，不需要自建剔除方案
-            mc.levelRenderer.renderLevel(poseStack, partialTick, nanoTime, false, camera, gameRenderer,
-                    gameRenderer.lightTexture(), projection);
+            // 该 lane 自己的视锥 + 相机姿态 → 原版 8 格膨胀剔除 3~5 步收敛，不需要自建剔除方案。
+            // 目标视图用自己的渲染器 / 光照贴图 / 世界；主画面仍是原来的 mc.levelRenderer 口径。
+            renderer.renderLevel(poseStack, partialTick, nanoTime, false, camera, gameRenderer,
+                    lightTexture, projection);
 
             // lane 自包含：描边后处理已合成进共享 entityTarget，此刻 lane FBO 还绑着 → 立刻贴进本 lane 画面。
-            mc.levelRenderer.doEntityOutline();
+            renderer.doEntityOutline();
             // 描边后必须还原全局投影：doEntityOutline → blitToScreen 会把它改成正交矩阵（与进入前那次成对）。
             RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
         } catch (RuntimeException e) {
@@ -501,6 +633,17 @@ public final class LaneRenderer {
         } finally {
             if (cullBridge != null) {
                 cullBridge.ic$popLaneCullState();
+                if (activeCullBridge == cullBridge) {
+                    activeCullBridge = null;
+                }
+            }
+            if (crossDimension) {
+                // 还原全局 level / levelRenderer / 两个分发器（先于 active* 复位：后续逻辑按主世界口径）。
+                // mainRenderTarget 不在这里还原——外层 finally 统一回绑。
+                mc.level = prevLevel;
+                ((MinecraftAccessor) mc).ic$setLevelRenderer(prevRenderer);
+                mc.getEntityRenderDispatcher().setLevel(prevLevel);
+                mc.getBlockEntityRenderDispatcher().setLevel(prevLevel);
             }
             activeContent = null;
             activeLaneCamera = null;
@@ -598,8 +741,8 @@ public final class LaneRenderer {
      * per-lane 剔除本帧是否生效：有活跃 lane + {@link LaneCullBridge} 在位。
      * bridge 缺位只表示不换原版剔除字段，lane 仍然照常渲染（见 {@link #renderLane}）。
      */
-    public static boolean isPerLaneCullActive(Minecraft mc) {
-        return INSTANCE.activeCount > 0 && mc.levelRenderer instanceof LaneCullBridge;
+    public static boolean isPerLaneCullActive(LevelRenderer renderer) {
+        return INSTANCE.activeCount > 0 && renderer instanceof LaneCullBridge;
     }
 
     /** 是否检测到光影模组（Iris / Oculus 都提供 {@code IrisApi}；只用于诊断，不注入）。 */
@@ -701,7 +844,9 @@ public final class LaneRenderer {
      * 本帧最上层 lane（序号最大且有状态的槽位）；无活跃 lane 时为 {@code null}。
      * 视图中心取它的相机位置：可见区块网格是单份共享状态，整帧只能有一个中心——逐 pass 换中心会让
      * {@code ViewArea.repositionCamera} 反复搬动整张网格（区块全部置脏重建、画面缺块），因此取玩家看到的
-     * 最上层画面那台相机。主 pass 读本帧 lane 表（帧驱动挂在 {@code GameRenderer.render} HEAD），无滞后。
+     * 最上层画面那台相机。主 pass 读本帧 lane 表（帧驱动挂在 {@code GameRenderer.render} 的 HEAD），无滞后。
+     * 跨维度 lane 不能拖动主画面中心：主 pass 侧只在「该 lane 不跨维度」时才用它
+     * （见 {@code LevelRendererVanillaMixin.cinematicViewCenter}）。
      */
     public Lane topLane() {
         for (int i = lanes.size() - 1; i >= 0; i--) {
@@ -716,6 +861,14 @@ public final class LaneRenderer {
     /** 是否正在某个 lane 的 pass 内（lane 自包含分流 + 内容开关判定用）。 */
     public static boolean isRenderingLane() {
         return activeContent != null;
+    }
+
+    /**
+     * 是否正处在逐 lane 渲染循环内：{@code ViewScope.enter} 据此跳过光影 pipeline 刷新
+     * （刷新会清空视角栈，把本帧已配对的 lane 作用域打散）。
+     */
+    public static boolean isLaneLoopActive() {
+        return laneLoopActive;
     }
 
     /**
@@ -736,7 +889,7 @@ public final class LaneRenderer {
         return activeCount;
     }
 
-    /** 本帧活跃 lane 的 captureId；per-view 快照据此判断哪些视角已消失。 */
+    /** 本帧活跃 lane 的 captureId（调试捕获文件名口径，跨维度 lane 也不带维度后缀）。 */
     public List<String> captureIds() {
         List<String> ids = new ArrayList<>(activeCount);
         for (Lane lane : lanes) {
@@ -745,6 +898,27 @@ public final class LaneRenderer {
             }
         }
         return ids;
+    }
+
+    /**
+     * 本帧活跃 lane 的视角作用域键（{@code captureId}；目标视图 = {@code captureId@维度}）：
+     * {@code ViewStateCapture.releaseStale} 据此判断哪些视角已消失。
+     * 键在 {@link #prepareViews} 里与本帧 {@code ViewScope.enter} 用同一口径计算，不会错配。
+     */
+    public List<String> viewKeys() {
+        List<String> keys = new ArrayList<>(activeCount);
+        for (int i = 0; i < lanes.size(); i++) {
+            Lane lane = lanes.get(i);
+            if (lane.state == null) {
+                continue;
+            }
+            if (lane.viewKey != null) {
+                keys.add(lane.viewKey);
+            } else {
+                keys.add(lane.captureId != null ? lane.captureId : "lane" + i);
+            }
+        }
+        return keys;
     }
 
     /** 当前 pass 是否要画天空：非 lane pass 恒真（主画面不受内容开关影响）。 */

@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.fabric;
 
 import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
+import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
 import com.immersivecinematics.immersive_cinematics.handler.ClientEventHandler;
 import com.immersivecinematics.immersive_cinematics.handler.ServerEventHandler;
 import com.immersivecinematics.immersive_cinematics.overlay.ColorMaskRenderer;
@@ -94,6 +95,8 @@ public final class FabricEvents {
                         // 颜色遮罩的 core shader / scratch / 各层 LUT 由渲染侧按代次重建；
                         // 本回调可能不在渲染线程，invalidate 内部会排队到渲染线程，绝不直接碰 GL。
                         ColorMaskRenderer.invalidate();
+                        // 跨维度视图的渲染器描边链在渲染线程重建（本回调可能不在渲染线程，只置位）
+                        DimensionViews.requestResourceReload();
                     }
                 });
     }

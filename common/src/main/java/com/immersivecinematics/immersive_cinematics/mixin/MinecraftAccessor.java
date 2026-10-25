@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LevelRenderer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.gen.Accessor;
@@ -20,4 +21,12 @@ public interface MinecraftAccessor {
     @Accessor("mainRenderTarget")
     @Mutable
     void ic$setMainRenderTarget(RenderTarget target);
+
+    /**
+     * 换世界渲染器指向（跨维度 lane pass 期间临时切到目标视图的渲染器）；调用方负责成对还原。
+     * 原版字段是 {@code public final}，{@code @Mutable} 让 mixin 生成 setter 时剥掉 final。
+     */
+    @Accessor("levelRenderer")
+    @Mutable
+    void ic$setLevelRenderer(LevelRenderer renderer);
 }

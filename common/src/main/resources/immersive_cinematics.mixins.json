@@ -13,6 +13,8 @@
     "CameraMixin",
     "ChatComponentMixin",
     "ClientChunkCacheMixin",
+    "ClientLevelAccessor",
+    "ClientPacketListenerAccessor",
     "GameRendererAccessor",
     "GameRendererMixin",
     "GuiMixin",

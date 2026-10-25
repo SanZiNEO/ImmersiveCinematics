@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.client.lane;
 import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
+import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
 import com.immersivecinematics.immersive_cinematics.script.CameraLane;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
@@ -14,6 +15,7 @@ import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -40,6 +42,12 @@ public final class ScriptLaneDriver {
 
     /** lane 内容档：{@code FULL} = 与主画面同内容（实体 / 粒子 / 天空 / 天气）。 */
     private static final LaneRenderer.LaneContent CONTENT = LaneRenderer.LaneContent.FULL;
+
+    /**
+     * 跨维度 lane 的内容档：实体 / 天空 / 天气（地形恒画），关粒子——
+     * 粒子是主世界局部的客户端状态（方块破坏 / 环境粒子），从另一个维度采样没有意义。
+     */
+    private static final LaneRenderer.LaneContent CROSS_DIM = new LaneRenderer.LaneContent(true, false, true, true);
 
     /** 主画面 lane 的调试捕获相机 id（链输出注册的主画面那份，见 {@link #registerChainLane}）。 */
     private static final String CHAIN_CAPTURE_ID = "chain";
@@ -90,8 +98,8 @@ public final class ScriptLaneDriver {
                     // 相机 id（产出文件名口径）：<scriptId>_cam<相机轨序号>；同一相机轨本帧的多条 lane 共用同一 id
                     slot.captureId = instance.scriptId() + "_cam" + frame.cameraTrackIndex();
                     touched = true;
-                    renderer.setLane(index, lane.state(), CONTENT, frame.laneAdjust(),
-                            frame.dimension(), slot.captureId);
+                    renderer.setLane(index, lane.state(), contentFor(mc, frame.dimension()),
+                            frame.laneAdjust(), frame.dimension(), slot.captureId);
                     mainFrame = frame;   // 总表最上层 lane = 主相机那份（主画面特例）
                     index++;
                 }
@@ -122,7 +130,7 @@ public final class ScriptLaneDriver {
             onLaneActivityChanged(mc, lanesWereActive, false, renderer);
             return false;
         }
-        applyModifiers(renderer, index, mainFrame);
+        applyModifiers(mc, renderer, index, mainFrame);
         renderer.setSink(ScriptLaneDriver::compose);
         onLaneActivityChanged(mc, lanesWereActive, true, renderer);
         return true;
@@ -136,7 +144,8 @@ public final class ScriptLaneDriver {
     private static void onLaneActivityChanged(Minecraft mc, boolean lanesWereActive, boolean lanesAreActive,
                                               LaneRenderer renderer) {
         // 先清理已消失的 lane 视角：活跃度不变时也可能少了一条 lane（3 → 2）。
-        ViewStateCapture.releaseStale(renderer.captureIds());
+        // 用作用域键（跨维度 lane 带 @维度 后缀）：releaseStale 的登记口径必须与 ViewScope.enter 一致。
+        ViewStateCapture.releaseStale(renderer.viewKeys());
         if (lanesWereActive == lanesAreActive) {
             return;
         }
@@ -157,12 +166,27 @@ public final class ScriptLaneDriver {
      * @param laneCount 本帧总 lane 数（&gt; 0）：最上层 lane 序号 = {@code laneCount - 1}
      * @param mainFrame 最上层 lane 的帧数据（沿用它的 lane 级调色）
      */
-    private static void applyModifiers(LaneRenderer renderer, int laneCount, LaneFrame mainFrame) {
+    private static void applyModifiers(Minecraft mc, LaneRenderer renderer, int laneCount, LaneFrame mainFrame) {
         if (!chainOutputIsFrameCamera()) return;
         CameraState main = CameraManager.INSTANCE.getCameraState();
         if (main == null) return;
-        renderer.setLane(laneCount - 1, main, CONTENT, mainFrame.laneAdjust(),
-                mainFrame.dimension(), slot(laneCount - 1).captureId);
+        // 内容档与维度同源：主相机片段的 dimension 非空且跨维度时同样走 CROSS_DIM
+        renderer.setLane(laneCount - 1, main, contentFor(mc, mainFrame.dimension()),
+                mainFrame.laneAdjust(), mainFrame.dimension(), slot(laneCount - 1).captureId);
+    }
+
+    /**
+     * 该维度用的内容档：空串 / 玩家当前维度 = {@link #CONTENT}（与主画面同内容）；
+     * 跨维度 = {@link #CROSS_DIM}（实体 / 天空 / 天气，关粒子）。
+     */
+    private static LaneRenderer.LaneContent contentFor(Minecraft mc, String dimension) {
+        if (dimension == null || dimension.isEmpty()) {
+            return CONTENT;
+        }
+        ClientLevel level = mc.level;
+        return level != null && dimension.equals(DimensionViews.currentDimensionId(level))
+                ? CONTENT
+                : CROSS_DIM;
     }
 
     /**

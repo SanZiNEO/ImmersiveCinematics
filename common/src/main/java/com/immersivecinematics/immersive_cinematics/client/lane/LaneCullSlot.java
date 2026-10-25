@@ -26,6 +26,14 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class LaneCullSlot {
 
+    /**
+     * 当前槽内字段值属于哪个 {@code LevelRenderer}（身份比较）；{@code null} = 未播种。
+     * 跨维度 lane 的目标渲染器与主渲染器共用同一批槽（按 lane 序号复用）：换渲染器时必须整箱作废、
+     * 按新渲染器的字段重新播种，否则槽里的候选集会指向另一个维度的 {@code ViewArea} 区块。
+     * 写入只发生在渲染线程，读取可能来自区块编译回调线程，故 volatile。
+     */
+    public volatile Object owner;
+
     public AtomicReference<Object> storage = new AtomicReference<>();
 
     public ObjectArrayList<Object> visible = new ObjectArrayList<>(10000);
@@ -49,8 +57,20 @@ public final class LaneCullSlot {
     public double transparentOldY;
     public double transparentOldZ;
 
+    /**
+     * 换渲染器（主画面 ↔ 跨维度视图）时整箱作废：槽内字段值属于旧渲染器的 {@code ViewArea}，
+     * 清空后按新渲染器的字段重新播种，并记录新的归属。
+     *
+     * @param owner 即将换入本槽的 {@code LevelRenderer}
+     */
+    public void reseedFor(Object owner) {
+        clear();
+        this.owner = owner;
+    }
+
     /** 归还池 / 作废时清空：复用既有集合对象，候选集值置空表示下次换入重新播种。 */
     void clear() {
+        owner = null;
         storage.set(null);
         visible.clear();
         if (compiled == null) {

@@ -117,22 +117,44 @@ public final class LaneCullSlots {
      * 把一个「刚编译完的区块」投给每个 lane 槽的局部更新队列，并同步投给当前保存位（原版槽）。
      * 只投已播种、且不在等全量重建的槽：跳过当前换入的槽（原版路径已写它）与正等全量重建的槽
      * （局部事件会被下一次全量 BFS 覆盖）；漏投 / 重复投都不影响正确性（等下个全量 BFS / 多跑一次同源扩张）。
+     *
+     * @param owner 编译该区块的 {@code LevelRenderer}（身份比较）：跨维度 lane 的目标渲染器与主渲染器
+     *              共用槽表，投错渲染器的区块会污染另一个维度的候选集
      */
-    public static void mirrorCompiled(ChunkRenderDispatcher.RenderChunk renderChunk) {
+    public static void mirrorCompiled(Object owner, ChunkRenderDispatcher.RenderChunk renderChunk) {
         LaneCullSlot installed = installed();
         LaneCullSlot[] slots = liveSnapshot;
         for (LaneCullSlot slot : slots) {
-            if (slot != installed && slot.storage.get() != null && !slot.fullUpdate) {
+            if (slot != installed && slot.owner == owner && slot.storage.get() != null && !slot.fullUpdate) {
                 slot.compiled.add(renderChunk);
             }
         }
         LaneCullSlot vanilla = saved();
-        if (vanilla != null && vanilla.storage != null && !vanilla.fullUpdate) {
+        if (vanilla != null && vanilla.owner == owner && vanilla.storage != null && !vanilla.fullUpdate) {
             vanilla.compiled.add(renderChunk);
         }
     }
 
     // ===== 视距变化 / 换世界 =====
+
+    /**
+     * 目标维度视图关闭后丢弃槽的渲染器归属：槽可能留在池里（或仍被 lane 持有）等下次复用，
+     * 强引用已关闭的 {@code LevelRenderer} 会让它连同独立 {@code RenderBuffers} 一起留在内存里。
+     * 只断引用、不动字段值；下一次换入因 owner 不匹配会按新渲染器重新播种。
+     * 只在渲染线程、且没有换入中的层（depth = 0）时调用。
+     */
+    public static void dropOwners() {
+        for (LaneCullSlot slot : liveSnapshot) {
+            slot.owner = null;
+        }
+        for (LaneCullSlot slot : POOL) {
+            slot.owner = null;
+        }
+        for (int i = 0; i < depth; i++) {
+            installedStack[i].owner = null;
+            savedStack[i].owner = null;
+        }
+    }
 
     /**
      * {@code LevelRenderer.allChanged} 后作废全部槽的候选集与可见集合：旧 {@code ViewArea} 的区块已被释放，

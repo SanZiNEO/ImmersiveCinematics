@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
+import com.immersivecinematics.immersive_cinematics.api.CameraState;
+import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -55,14 +57,34 @@ public class LevelRendererVanillaMixin {
     }
 
     /**
-     * 本帧最上层 lane 的相机位置；无活跃 lane（= 原版视角）时为 {@code null} = 用原版玩家坐标。
+     * 本帧视图中心；{@code null} = 用原版玩家坐标。
+     *
+     * lane pass 内：目标维度的渲染器必须跟随它自己那条 lane 的相机（{@code activeLaneState}），
+     * 否则目标视图的区块网格会按玩家位置搬动。
+     * 主 pass：取本帧最上层 lane 的相机，但只在该 lane 不跨维度时生效——跨维度 lane 的画面由
+     * 目标渲染器自己的区块网格提供，不能把主画面的视图中心拖到另一个维度（否则主世界区块全部置脏 / 缺块）。
      *
      * lane 表在本帧世界渲染之前就已注册（帧驱动 + lane 注册挂在 {@code GameRenderer.render} 的 HEAD），
      * 所以这里读到的是本帧的相机位置，不会滞后一帧。
      */
     private static Vec3 cinematicViewCenter() {
+        if (LaneRenderer.isRenderingLane()) {
+            CameraState laneState = LaneRenderer.activeLaneState();
+            return laneState != null ? laneState.position() : null;
+        }
         LaneRenderer.Lane lane = LaneRenderer.INSTANCE.topLane();
-        return lane != null ? lane.state().position() : null;
+        if (lane == null) {
+            return null;
+        }
+        String dimension = lane.dimension();
+        if (dimension != null && !dimension.isEmpty()) {
+            Minecraft mc = Minecraft.getInstance();
+            if (!dimension.equals(DimensionViews.currentDimensionId(mc.level))) {
+                // 跨维度 lane：主 pass 用玩家自己的中心
+                return null;
+            }
+        }
+        return lane.state().position();
     }
 
     // ===== 遮挡剔除开关（lane pass 按本 pass 的相机判定）=====
@@ -91,7 +113,8 @@ public class LevelRendererVanillaMixin {
     }
 
     private boolean immersivecinematics$occlusionOff(Camera camera) {
-        if (!LaneRenderer.isRenderingLane() || !LaneRenderer.isPerLaneCullActive(this.minecraft)) {
+        if (!LaneRenderer.isRenderingLane()
+                || !LaneRenderer.isPerLaneCullActive((LevelRenderer) (Object) this)) {
             return false;
         }
         ClientLevel level = this.minecraft.level;
