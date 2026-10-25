@@ -19,6 +19,7 @@ import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegist
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
 import com.immersivecinematics.immersive_cinematics.trigger.server.evaluator.Evaluators;
 import com.immersivecinematics.immersive_cinematics.trigger.server.prereq.PrerequisiteRegistry;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -401,6 +402,8 @@ public final class ScriptValidator {
                     checkModifier(clip, cp, issues);
                     // 过渡声明：clip 级分参数 / 权重曲线 / 打断（只对 transition=morph 生效）
                     checkTransition(clip, cp, issues);
+                    // 渲染维度：客户端按此维度渲染该 lane（空串 = 玩家当前维度，不做服务端传送）
+                    checkCameraDimension(clip, cp, issues);
                     // lane 合成遮罩：clip 级只允许 mask_shape，几何只属于关键帧
                     checkCameraMaskClipFields(clip, cp, issues);
                     // LUT 是整体画面（master）处理，只挂在 ADJUST 轨：相机片段上写 lut 不会生效，直接拦下
@@ -1804,6 +1807,26 @@ public final class ScriptValidator {
             if (candidate.equals(fieldName)) return true;
         }
         return false;
+    }
+
+    /**
+     * 校验 CAMERA 片段的 {@code dimension}：声明时必须是字符串；非空时必须是合法的资源位置
+     * （{@code namespace:path}，如 {@code minecraft:overworld}）。空串 = 玩家当前维度。
+     * 该字段只描述「这条 lane 从哪个维度渲染」，不做任何玩家传送。
+     */
+    private static void checkCameraDimension(JsonObject clip, String cp, List<String> issues) {
+        if (!clip.has("dimension")) return;
+        JsonElement e = clip.get("dimension");
+        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
+            issues.add(cp + ".dimension 需要字符串（维度 id，如 minecraft:overworld；空串 = 玩家当前维度）");
+            return;
+        }
+        String dimension = e.getAsString();
+        if (dimension.isEmpty()) return;
+        if (ResourceLocation.tryParse(dimension) == null) {
+            issues.add(cp + ".dimension 不是合法的维度 id: " + dimension
+                    + "（需要 namespace:path，如 minecraft:overworld）");
+        }
     }
 
     /**

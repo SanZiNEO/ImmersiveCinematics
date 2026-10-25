@@ -131,6 +131,14 @@ public class Clip {
         return "relative".equals(getString("position_mode", "relative"));
     }
 
+    /**
+     * 本片段渲染时所用的维度（{@code dimension}，如 {@code minecraft:overworld}）。
+     * 空串 = 玩家当前维度（缺省）：客户端只把该 lane 的画面按此维度渲染，服务端不传送玩家。
+     */
+    public String getDimension() {
+        return getString("dimension", "");
+    }
+
     public boolean isLoop() {
         return getBool("loop", false);
     }

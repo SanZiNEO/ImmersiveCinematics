@@ -90,7 +90,8 @@ public final class ScriptLaneDriver {
                     // 相机 id（产出文件名口径）：<scriptId>_cam<相机轨序号>；同一相机轨本帧的多条 lane 共用同一 id
                     slot.captureId = instance.scriptId() + "_cam" + frame.cameraTrackIndex();
                     touched = true;
-                    renderer.setLane(index, lane.state(), CONTENT, frame.laneAdjust(), slot.captureId);
+                    renderer.setLane(index, lane.state(), CONTENT, frame.laneAdjust(),
+                            frame.dimension(), slot.captureId);
                     mainFrame = frame;   // 总表最上层 lane = 主相机那份（主画面特例）
                     index++;
                 }
@@ -98,7 +99,7 @@ public final class ScriptLaneDriver {
                 // 失败实例本帧不注册任何 lane：把本实例已写入的槽位停用，序号回到进入本实例前。
                 int lastTouched = touched ? index : index - 1;
                 for (int k = instanceStart; k <= lastTouched; k++) {
-                    renderer.setLane(k, null, null, null, null);
+                    renderer.setLane(k, null, null, null, null, null);
                 }
                 index = instanceStart;
                 mainFrame = mainFrameBefore;
@@ -160,7 +161,8 @@ public final class ScriptLaneDriver {
         if (!chainOutputIsFrameCamera()) return;
         CameraState main = CameraManager.INSTANCE.getCameraState();
         if (main == null) return;
-        renderer.setLane(laneCount - 1, main, CONTENT, mainFrame.laneAdjust(), slot(laneCount - 1).captureId);
+        renderer.setLane(laneCount - 1, main, CONTENT, mainFrame.laneAdjust(),
+                mainFrame.dimension(), slot(laneCount - 1).captureId);
     }
 
     /**
@@ -181,7 +183,8 @@ public final class ScriptLaneDriver {
         // 链输出无 CAMERA clip：显式复位 full（槽位跨帧复用，防上一帧同序号 lane 的遮罩残留）
         slot.mask.sample(null, 0.0F);
         slot.captureId = CHAIN_CAPTURE_ID;
-        renderer.setLane(0, main, CONTENT, null, slot.captureId);
+        // 链输出无 CAMERA clip：维度空串（= 玩家当前维度），不跨维度渲染
+        renderer.setLane(0, main, CONTENT, null, "", slot.captureId);
         renderer.setSink(ScriptLaneDriver::compose);
         return true;
     }

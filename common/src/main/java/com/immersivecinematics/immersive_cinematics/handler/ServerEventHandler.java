@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.handler;
 
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
+import com.immersivecinematics.immersive_cinematics.trigger.server.CameraCenterManager;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ScriptEventManager;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerEngine;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CTriggerStateSyncPacket;
@@ -44,15 +45,23 @@ public final class ServerEventHandler {
      * 最后 registerAllTriggers 才能把已加载脚本的触发器挂到引擎上。
      */
     public static void onServerStarted(MinecraftServer server) {
+        // 单机同进程换存档：静态相机中心 / 锚点 / 虚拟中心不得继承上一份存档的玩家
+        CameraCenterManager.INSTANCE.clearAll();
         ScriptManager.INSTANCE.loadAll(server);
         TriggerStateStore.INSTANCE.initialize(server);
         TriggerEngine.INSTANCE.initialize();
         ScriptManager.INSTANCE.registerAllTriggers();
     }
 
-    /** 服务端停止：把全部玩家触发状态落盘（关服前最后一次持久化）。 */
+    /** 服务端停止：把全部玩家触发状态落盘（关服前最后一次持久化），再清空相机中心（不做 move）。 */
     public static void onServerStopping(MinecraftServer server) {
         TriggerStateStore.INSTANCE.saveAll();
+        CameraCenterManager.INSTANCE.clearAll();
+    }
+
+    /** 维度卸载：清掉该维度的相机中心 / 锚点 / 虚拟中心，不做 move。 */
+    public static void onLevelUnload(ServerLevel level) {
+        CameraCenterManager.INSTANCE.onLevelUnload(level);
     }
 
     /** 玩家加入：清空残留音频监听状态，载入并同步触发状态，再补发 login 事件。 */
@@ -68,7 +77,7 @@ public final class ServerEventHandler {
     /** 玩家退出：清理该 UUID 的相机中心 / 音频 / 触发状态与各评估器快照，避免重连后读到上一轮状态。 */
     public static void onPlayerQuit(ServerPlayer serverPlayer) {
         UUID uuid = serverPlayer.getUUID();
-        com.immersivecinematics.immersive_cinematics.trigger.server.CameraCenterManager.INSTANCE.onDisconnect(uuid, serverPlayer);
+        CameraCenterManager.INSTANCE.onDisconnect(uuid, serverPlayer);
         com.immersivecinematics.immersive_cinematics.trigger.server.AudioListenerServerState.clear(uuid);
         TriggerStateStore.INSTANCE.unloadForPlayer(uuid);
         Evaluators.KillTracker.clear(uuid);
@@ -82,7 +91,7 @@ public final class ServerEventHandler {
         Evaluators.DimensionTracker.clear(uuid);
     }
 
-    /** 每 tick 驱动触发引擎、脚本事件队列与相机锚点。 */
+    /** 每 tick 驱动触发引擎、脚本事件队列与相机中心超时清理。 */
     public static void onServerTick(MinecraftServer server) {
         try {
             TriggerEngine.INSTANCE.onServerTick(server);
@@ -99,11 +108,11 @@ public final class ServerEventHandler {
                     "服务端 tick 脚本事件时间线异常（本 tick 跳过该子系统，其余子系统继续）", e);
         }
         try {
-            com.immersivecinematics.immersive_cinematics.trigger.server.CameraAnchorManager.INSTANCE.tick();
+            CameraCenterManager.INSTANCE.tick(server);
         } catch (Exception e) {
             FatalErrors.rethrowIfFatal(e);
-            ErrorLog.logRateLimited("Server", "tick:camera-anchor", 5000L,
-                    "服务端 tick 相机锚点异常（本 tick 跳过该子系统，其余子系统继续）", e);
+            ErrorLog.logRateLimited("Server", "tick:camera-center", 5000L,
+                    "服务端 tick 相机中心超时清理异常（本 tick 跳过该子系统，其余子系统继续）", e);
         }
     }
 

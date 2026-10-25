@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "id": "test_camera_center_spawn",
+    "name": "相机中心·刷怪门测试(夜晚停留)",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "超平坦/任意世界：相机固定相对玩家 -X 200 格、高 2 格停留 60s，t=0 设午夜/普通难度/开启刷怪并清空非玩家实体。相机离玩家 200 格（超出 128 配对半径）时服务端仍应按相机中心刷怪：日志 gateHit>0、attempts>0、spawned>0、localCapReject 偏低；对账 pairSeen 与客户端 total/r128。",
+    "triggers": [
+      { "id": "tcs_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_center_multiclip"] }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 60,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 60,
+            "layer_type": "subtitle",
+            "text": "测试: test_camera_center_spawn | 功能: 相机中心刷怪门 | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 60, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 60,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": -200, "dy": 2, "dz": 0 },
+                "yaw": 90,
+                "pitch": 30,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 60,
+                "position": { "dx": -200, "dy": 2, "dz": 0 },
+                "yaw": 90,
+                "pitch": 30,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 60,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "time set midnight && gamerule doMobSpawning true && difficulty normal && kill @e[type=!player]" },
+              { "time": 5, "event_type": "command", "command": "say [相机中心] 刷怪门：相机离玩家约 200 格，等服务端按相机中心刷怪" },
+              { "time": 20, "event_type": "command", "command": "say [相机中心] 20s：日志应出现 gateHit>0 / attempts>0 / spawned>0" },
+              { "time": 40, "event_type": "command", "command": "say [相机中心] 40s：spawned 应持续增长；localCapReject 只应少量" },
+              { "time": 60, "event_type": "command", "command": "say [相机中心] 结束：对账 pairSeen 与客户端 total/r128（差值应落在 distOut/uncompiled/frustumOut）" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

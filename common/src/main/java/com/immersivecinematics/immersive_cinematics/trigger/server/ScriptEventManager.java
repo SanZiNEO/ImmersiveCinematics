@@ -5,7 +5,6 @@ import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
-import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CSkipVoteUpdatePacket;
@@ -15,6 +14,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 
 import java.util.HashMap;
@@ -51,6 +51,8 @@ public class ScriptEventManager {
             pb = new ScriptPlayback(scriptId, instanceId, clips, player.server.getTickCount(), voteRatio);
             scriptPlaybacks.computeIfAbsent(scriptId, k -> new HashMap<>()).put(instanceId, pb);
         }
+        // 相对玩家激活位置的 CAMERA 关键帧以本位置为基准（与客户端脚本起点的 originPos 同口径）
+        pb.viewerOrigins.putIfAbsent(player.getUUID(), new ViewerOrigin(player.position(), player.getYRot()));
         pb.viewers.add(player.getUUID());
     }
 
@@ -181,6 +183,7 @@ public class ScriptEventManager {
                 if (pb.viewers.isEmpty()) return true;
 
                 pb.viewers.removeIf(uuid -> server.getPlayerList().getPlayer(uuid) == null);
+                pb.viewerOrigins.keySet().retainAll(pb.viewers);
 
                 // 暂停态：不处理 keyframe（恢复帧按上报内容位置重定基准）
                 if (pb.paused) {
@@ -314,6 +317,9 @@ public class ScriptEventManager {
                 .orElse(List.of());
     }
 
+    /** 观看者激活脚本时的位置与朝向（相对玩家激活位置的 CAMERA 关键帧按此换算世界坐标）。 */
+    private record ViewerOrigin(Vec3 position, float yaw) {}
+
     public static class ScriptPlayback {
         final String scriptId;
         /** 播放实例 id；空串 = 无实例 id 的来源（该脚本的全部观看者共用一条退化账本） */
@@ -325,6 +331,8 @@ public class ScriptEventManager {
         final Set<Integer> triggeredKeyframes = new HashSet<>();
         final int startTick;
         final List<Clip> eventClips;
+        /** 观看者激活脚本时的位置 / 朝向（相对玩家激活位置的 CAMERA 关键帧基准） */
+        final Map<UUID, ViewerOrigin> viewerOrigins = new HashMap<>();
         MinecraftServer server;
 
         // ── 暂停状态与时间线基准 ──
@@ -335,7 +343,8 @@ public class ScriptEventManager {
         /** 基准建立时的服务端 tick（读数 = 基准 + 其后经过的 tick）。 */
         int timelineAnchorTick;
 
-        ScriptPlayback(String scriptId, String instanceId, List<Clip> eventClips, int startTick, int skipVoteRatio) {
+        ScriptPlayback(String scriptId, String instanceId, List<Clip> eventClips,
+                       int startTick, int skipVoteRatio) {
             this.scriptId = scriptId;
             this.instanceId = instanceId;
             this.viewers = new HashSet<>();

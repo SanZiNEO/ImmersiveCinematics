@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.forge;
 
 import com.immersivecinematics.immersive_cinematics.handler.ServerEventHandler;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
@@ -39,6 +40,7 @@ public final class ForgeEvents {
         forgeBus.addListener(ForgeEvents::onChangedDimension);
         forgeBus.addListener(ForgeEvents::onEntityJoinLevel);
         forgeBus.addListener(ForgeEvents::onLevelSave);
+        forgeBus.addListener(ForgeEvents::onLevelUnload);
     }
 
     private static void onServerStarted(ServerStartedEvent event) {
@@ -125,5 +127,11 @@ public final class ForgeEvents {
 
     private static void onLevelSave(LevelEvent.Save event) {
         ServerEventHandler.onLevelSave();
+    }
+
+    private static void onLevelUnload(LevelEvent.Unload event) {
+        if (event.getLevel() instanceof ServerLevel level) {
+            ServerEventHandler.onLevelUnload(level);
+        }
     }
 }

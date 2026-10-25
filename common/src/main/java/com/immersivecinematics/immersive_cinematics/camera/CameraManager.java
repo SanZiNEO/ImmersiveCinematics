@@ -8,6 +8,9 @@ import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.util.GameClock;
 import com.immersivecinematics.immersive_cinematics.util.PreviewClock;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
@@ -15,7 +18,7 @@ import java.util.List;
 /**
  * 相机门面：持有统一状态、双时钟与各播放组件，公开方法只转发；只读查询面见 {@link CameraApi}。
  * 组件分工：{@link PlaybackRegistry} 实例列表、{@link PreviewChannel} 编辑器预览、{@link PlaybackLedger} 网络账本、
- * {@link PlaybackLifecycle} 生命周期与队列、{@link FrameDriver} 帧驱动、{@link ClientEntityProbe} tick 诊断；
+ * {@link PlaybackLifecycle} 生命周期与队列、{@link FrameDriver} 帧驱动、{@link ClientEntityProbe} tick / 渲染 pass 诊断；
  * {@link CameraStateHolder} 是六参数的唯一写入缓冲与统一快照来源（快照 = 覆盖链输出：先按优先级选胜出 Base 层，
  * 再按注册表合成 Modifier）。各转发方法的定义 / 缺省 / 边界见对应组件类 javadoc。
  * 线程契约：仅客户端主线程（渲染线程）。
@@ -132,6 +135,13 @@ public class CameraManager implements CameraApi {
     public void onRenderFrame() { frameDriver.frame(); }
     /** 每客户端 tick 驱动诊断（见 {@link ClientEntityProbe}）。 */
     public void tick() { entityProbe.tick(); }
+    /**
+     * 渲染 pass 诊断采样（{@code LevelRenderer.renderLevel} RETURN）：只读转发给 {@link ClientEntityProbe}。
+     * 采样自身受 {@code debugLogging}、活跃实例与 pass 类型门控，关闭时立即返回。
+     */
+    public void onRenderPass(LevelRenderer renderer, Frustum frustum, Camera camera) {
+        entityProbe.onRenderPass(renderer, frustum, camera);
+    }
 
     // ========== 全局相机状态 ==========
     /** 脚本导演写侧：顶层 clip 本帧六参数写入全局写入缓冲 + 同步链上的当前值（不刷新快照）。 */

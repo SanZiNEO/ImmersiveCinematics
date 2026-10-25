@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
+import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.immersivecinematics.immersive_cinematics.client.lane.ViewScope;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -9,9 +10,11 @@ import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.world.entity.Entity;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -26,6 +29,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(LevelRenderer.class)
 public class LevelRendererMixin {
+
+    /** 该 pass 的剔除视锥（{@code prepareCullFrustum} 写入；渲染 pass 诊断采样用）。 */
+    @Shadow
+    private Frustum cullingFrustum;
 
     // ===== lane 自包含：屏蔽原版在合成之后那次整屏描边 =====
 
@@ -54,6 +61,19 @@ public class LevelRendererMixin {
     @Inject(method = "renderLevel", at = @At("RETURN"))
     private void immersivecinematics_viewReturn(CallbackInfo ci) {
         ViewScope.onLevelReturn();
+    }
+
+    /**
+     * 渲染 pass 诊断采样：每个 {@code renderLevel} 返回点各触发一次（主 pass + 每个 lane pass）。
+     * 视锥 = 本 pass 的 {@code cullingFrustum}（lane pass 由 {@code prepareCullFrustum} 在渲染前写入）；
+     * 只采样主相机与 lane pass，嵌套 pass 由探针自行跳过。debugLogging 关闭时探针立即返回。
+     */
+    @Inject(method = "renderLevel", at = @At("RETURN"))
+    private void immersivecinematics_probeReturn(PoseStack poseStack, float partialTick, long nanoTime,
+                                                 boolean renderBlockOutline, Camera camera,
+                                                 GameRenderer gameRenderer, LightTexture lightTexture,
+                                                 Matrix4f projectionMatrix, CallbackInfo ci) {
+        CameraManager.INSTANCE.onRenderPass((LevelRenderer) (Object) this, this.cullingFrustum, camera);
     }
 
     // ===== lane pass 清屏不透明（未覆盖区 = 实心雾色）=====

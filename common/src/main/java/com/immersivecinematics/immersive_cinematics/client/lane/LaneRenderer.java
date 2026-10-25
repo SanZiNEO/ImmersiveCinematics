@@ -101,13 +101,14 @@ public final class LaneRenderer {
         void laneRendered(int index, RenderTarget target, boolean written);
     }
 
-    /** 一个 lane 槽位：独立原版 {@link Camera} 实例 + 本帧相机状态 + 内容开关 + lane 级调色 + 调试用相机 id。 */
+    /** 一个 lane 槽位：独立原版 {@link Camera} 实例 + 本帧相机状态 + 内容开关 + lane 级调色 + 渲染维度 + 调试用相机 id。 */
     public static final class Lane {
 
         private final Camera camera = new Camera();
         private CameraState state;
         private LaneContent content = LaneContent.WORLD_ONLY;
         private ColorAdjustParams adjust;
+        private String dimension;
         private String captureId;
         /** 该 lane 的剔除槽（per-lane 候选集 / 可见集合 / 门闩）；惰性创建、跨帧持有、停播归还池。 */
         private LaneCullSlot cull;
@@ -125,6 +126,14 @@ public final class LaneRenderer {
         /** 本帧内容开关。 */
         public LaneContent content() {
             return content;
+        }
+
+        /**
+         * 本帧该 lane 的渲染维度（片段 {@code dimension}）；空串 / {@code null} = 玩家当前维度。
+         * 非空 = 从该维度渲染这条 lane（世界 / 实体数据由服务端流式提供），玩家本身不跨维度。
+         */
+        public String dimension() {
+            return dimension;
         }
 
         /**
@@ -166,6 +175,12 @@ public final class LaneRenderer {
     /** 当前 lane 的调试 id（阶段探针文件命名用）；lane pass 之外为 {@code null}。 */
     private static String activeLaneCaptureId;
 
+    /**
+     * 当前 lane 的序号；lane pass 之外为 {@code -1}。诊断用：同一条 CAMERA 轨道的上下两个 lane 共用
+     * {@link #activeLaneCaptureId}，只有序号能区分。
+     */
+    private static int activeLaneIndex = -1;
+
     /** 当前 lane 的相机状态（阶段探针元数据用）；lane pass 之外为 {@code null}。 */
     private static CameraState activeLaneState;
 
@@ -202,10 +217,12 @@ public final class LaneRenderer {
      *
      * @param content   内容开关（{@code null} 视为 {@link LaneContent#WORLD_ONLY}）
      * @param adjust    lane 级调色参数（{@code null} = 无：渲染完直接进合成，不跑调色 pass）
+     * @param dimension 该 lane 的渲染维度（片段 {@code dimension}；空串 / {@code null} = 玩家当前维度，
+     *                  非空 = 从该维度渲染这条 lane，玩家本身不跨维度）
      * @param captureId 相机 id（调试捕获文件名口径；{@code null} = 回退 {@code lane<序号>}）
      */
     public void setLane(int index, CameraState state, LaneContent content, ColorAdjustParams adjust,
-                        String captureId) {
+                        String dimension, String captureId) {
         Lane lane = lane(index);
         if (state == null) {
             deactivate(lane);
@@ -216,6 +233,7 @@ public final class LaneRenderer {
         lane.content = override != null ? override
                 : (content != null ? content : LaneContent.WORLD_ONLY);
         lane.adjust = adjust;
+        lane.dimension = dimension;
         lane.captureId = captureId;
         if (byCamera.put(lane.camera, lane) == null) {
             activeCount++;
@@ -244,6 +262,7 @@ public final class LaneRenderer {
         if (lane.state != null) {
             lane.state = null;
             lane.adjust = null;
+            lane.dimension = null;
             lane.captureId = null;
             byCamera.remove(lane.camera);
             activeCount--;
@@ -312,6 +331,7 @@ public final class LaneRenderer {
                 // 调试捕获的相机 id：生产者没给时回退 lane<序号>（文件名安全化在 LaneDebugCapture 内做）
                 String captureId = lane.captureId != null ? lane.captureId : "lane" + i;
                 currentLane = i;
+                activeLaneIndex = i;
                 currentCaptureId = captureId;
                 // 诊断口径 = 玩家当前有效视距（lane 无独立视距覆盖）
                 int diagnosticDistance = mc.options.getEffectiveRenderDistance();
@@ -485,6 +505,7 @@ public final class LaneRenderer {
             activeContent = null;
             activeLaneCamera = null;
             activeLaneCaptureId = null;
+            activeLaneIndex = -1;
             activeLaneState = null;
             ((MinecraftAccessor) mc).ic$setMainRenderTarget(main);
         }
@@ -666,6 +687,11 @@ public final class LaneRenderer {
         return activeLaneCaptureId;
     }
 
+    /** 当前 lane 的序号；不在 lane pass 内时为 {@code -1}（诊断分 pass 用，见 {@link #activeLaneCaptureId()}）。 */
+    public static int activeLaneIndex() {
+        return activeLaneIndex;
+    }
+
     /** 当前 lane 的相机状态；不在 lane pass 内时为 {@code null}。 */
     public static CameraState activeLaneState() {
         return activeLaneState;
@@ -703,6 +729,11 @@ public final class LaneRenderer {
     /** 本帧是否有活跃 lane（原版整屏描边是否要让位给 lane 内描边）。 */
     public boolean hasActiveLanes() {
         return activeCount > 0;
+    }
+
+    /** 本帧活跃 lane 数（只读；诊断用）。 */
+    public int activeLaneCount() {
+        return activeCount;
     }
 
     /** 本帧活跃 lane 的 captureId；per-view 快照据此判断哪些视角已消失。 */

@@ -46,8 +46,8 @@ public class Config {
 
     // ===== 相机中心同步配置 =====
 
-    /** 相机中心位置上报间隔（tick） */
-    public static int cameraCenterReportInterval = 20;
+    /** 相机中心位置上报间隔（tick）；位移 ≥1 格或相机模式翻转时会提前发送 */
+    public static int cameraCenterReportInterval = 5;
 
     private static ConfigProvider provider;
 
@@ -83,7 +83,7 @@ public class Config {
     ) {
         /** 使用默认值构造 */
         public static ConfigValues defaults() {
-            return new ConfigValues(3000, true, 100, false, 20, 40, 20, 20, 20, 20);
+            return new ConfigValues(3000, true, 100, false, 20, 40, 20, 20, 20, 5);
         }
     }
 

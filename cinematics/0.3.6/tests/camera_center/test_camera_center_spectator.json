@@ -1,0 +1,92 @@
+{
+  "meta": {
+    "id": "test_camera_center_spectator",
+    "name": "相机中心·观众模式刷怪测试",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "超平坦/任意世界：t=0 切观众模式并设 spectatorsGenerateChunks=true、午夜、普通难度、清空非玩家实体；相机固定相对玩家 -X 200 格停留 30s。观众没有 PLAYER ticket（服务端 hasPlayersNearby 为 false），因此本用例验证相机中心的刷怪门是否绕过观众判定：日志 gateHit>0、attempts>0、spawned>0。t=29 恢复 survival / doMobSpawning / 白天，避免污染后续用例；另请手动把 spectatorsGenerateChunks 设为 false 再跑一次做对照。",
+    "triggers": [
+      { "id": "tcspec_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_center_stop"] }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 30,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "layer_type": "subtitle",
+            "text": "测试: test_camera_center_spectator | 功能: 观众模式刷怪门 | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 30, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": -200, "dy": 2, "dz": 0 },
+                "yaw": 90,
+                "pitch": 30,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 30,
+                "position": { "dx": -200, "dy": 2, "dz": 0 },
+                "yaw": 90,
+                "pitch": 30,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "gamemode spectator && gamerule spectatorsGenerateChunks true && time set midnight && gamerule doMobSpawning true && difficulty normal && kill @e[type=!player]" },
+              { "time": 5, "event_type": "command", "command": "say [相机中心] 观众模式：无 PLAYER ticket，验证相机刷怪门是否绕过 isSpectator" },
+              { "time": 20, "event_type": "command", "command": "say [相机中心] 20s：gateHit/attempts/spawned 应>0；对照组把 spectatorsGenerateChunks 设为 false 再跑" },
+              { "time": 29, "event_type": "command", "command": "gamemode survival && gamerule doMobSpawning true && time set day && say [相机中心] 已恢复 survival / 刷怪 / 白天（如需其他模式请手动切回）" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

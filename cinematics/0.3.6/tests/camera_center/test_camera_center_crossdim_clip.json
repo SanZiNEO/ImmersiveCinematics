@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "id": "test_camera_center_crossdim_clip",
+    "name": "相机中心·片段维度切换",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "玩家在主世界启动：CAMERA 片段 t=2 声明 dimension=minecraft:the_end、绝对位置 (79,61.6,-26)。服务端应在片段起点前 0.5s 把玩家传送到末地该坐标，客户端相机脚本继续播放到 22s 结束。脚本自动切 creative + doMobSpawning + normal；不要用 spectator（旁观模式不产生刷怪尝试）。不铺平台、不清场、不 kill。",
+    "triggers": [
+      { "id": "tccc_disabled", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "minecraft:the_void" } }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 22,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 22,
+            "layer_type": "subtitle",
+            "text": "跨维度片段: t=2 相机片段声明 minecraft:the_end (79,61.6,-26)；服务端提前 0.5s 切换维度",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 22, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 2,
+            "duration": 20,
+            "dimension": "minecraft:the_end",
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "x": 79, "y": 61.6, "z": -26 },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 20,
+                "position": { "x": 79, "y": 61.6, "z": -26 },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 22,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "gamemode creative && gamerule doMobSpawning true && difficulty normal" },
+              { "time": 0, "event_type": "command", "command": "say [camera-center] crossdim-clip: start (overworld)" },
+              { "time": 2, "event_type": "command", "command": "say [camera-center] crossdim-clip: camera clip start -> the_end (79,61.6,-26)" },
+              { "time": 22, "event_type": "command", "command": "say [camera-center] crossdim-clip: done" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

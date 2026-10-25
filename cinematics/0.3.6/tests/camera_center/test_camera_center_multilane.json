@@ -1,0 +1,121 @@
+{
+  "meta": {
+    "id": "test_camera_center_multilane",
+    "name": "相机中心·多 lane 叠加测试",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "超平坦/任意世界：同一 CAMERA 轨两条片段重叠——A[0,20] 在 -X 300 格，B[10,20] 在 +X 300 格（均为全屏、opacity=1，关键帧时间按片段本地 0..duration）。t<10 只有 A（单 lane）；t≥10 lanes=2，顶层=B（写全局相机）。验收：日志 perLane 出现同一 captureId 的 #0/#1 两条，顶层 B 跳转后 uncompiled 先升后 2s 内归零；下层 A 的 total≈0（共享 ViewArea 只跟顶层 lane，属 C4 边界，非缺陷）。",
+    "triggers": [
+      { "id": "tcml_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_center_cave"] }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 20,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "layer_type": "subtitle",
+            "text": "测试: test_camera_center_multilane | 功能: 多 lane 诊断 | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 20, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": -300, "dy": 2, "dz": 0 },
+                "yaw": 0,
+                "pitch": 30,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 1
+              },
+              {
+                "time": 20,
+                "position": { "dx": -300, "dy": 2, "dz": 0 },
+                "yaw": 0,
+                "pitch": 30,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 1
+              }
+            ]
+          },
+          {
+            "start_time": 10,
+            "duration": 10,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 300, "dy": 2, "dz": 0 },
+                "yaw": 0,
+                "pitch": 30,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 1
+              },
+              {
+                "time": 10,
+                "position": { "dx": 300, "dy": 2, "dz": 0 },
+                "yaw": 0,
+                "pitch": 30,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "say [相机中心] 多lane：0-10s 只有 A(-300) 单 lane" },
+              { "time": 10, "event_type": "command", "command": "say [相机中心] 双lane 窗口：A#0(-300) + B#1(+300)，顶层 B 写全局相机，共享 ViewArea 跟 B" },
+              { "time": 20, "event_type": "command", "command": "say [相机中心] 结束：perLane 应见 #0/#1；顶层跳转后 uncompiled 2s 内归零；下层 A 的 total≈0 属 C4 边界" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

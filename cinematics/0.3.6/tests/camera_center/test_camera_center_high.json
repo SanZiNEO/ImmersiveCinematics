@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "id": "test_camera_center_high",
+    "name": "相机中心·高空刷怪测试(俯视)",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "任意世界（超平坦最直观）：相机固定在玩家正上方 50 格、pitch=90 俯视 60s，t=0 设午夜/普通难度/清空非玩家实体。以超平坦为例：玩家脚底约 -60 → 相机 y 约 -10，虚拟玩家 y 必须等于相机 y（state anchorY==cam.y），地面刷怪点距相机约 50 格才过 24 格下限 → spawned>0；若锚点仍取地面（旧 groundY），刷怪点距锚点≈0 会被 24 格下限拒绝且落在 32 格消失半径内，spawned≈0。",
+    "triggers": [
+      { "id": "tch_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_center_spawn"] }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 60,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 60,
+            "layer_type": "subtitle",
+            "text": "测试: test_camera_center_high | 功能: 相机 y 贯通(C3) | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 60, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 60,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 0, "dy": 50, "dz": 0 },
+                "yaw": 0,
+                "pitch": 90,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 60,
+                "position": { "dx": 0, "dy": 50, "dz": 0 },
+                "yaw": 0,
+                "pitch": 90,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 60,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "time set midnight && gamerule doMobSpawning true && difficulty normal && kill @e[type=!player]" },
+              { "time": 5, "event_type": "command", "command": "say [相机中心] 高空：相机在玩家正上方 50 格，虚拟玩家 y 应等于相机 y" },
+              { "time": 20, "event_type": "command", "command": "say [相机中心] 20s：state 行 anchorY 应≈cam.y；地面刷怪点距相机约 50 格应通过 24 格下限" },
+              { "time": 40, "event_type": "command", "command": "say [相机中心] 40s：若 spawned 仍为 0，检查锚点 y 是否退回地表（旧 groundY）" },
+              { "time": 60, "event_type": "command", "command": "say [相机中心] 结束：验收 anchorY==cam.y 且 spawned>0" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

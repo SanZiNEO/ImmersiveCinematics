@@ -1,13 +1,18 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.trigger.server.CameraAnchorManager;
+import com.immersivecinematics.immersive_cinematics.trigger.server.CameraCenterDiagnostics;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.NaturalSpawner;
+import net.minecraft.world.level.chunk.LevelChunk;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * 让 {@code NaturalSpawner} 的「最近玩家」取更近者（真实玩家与相机锚点谁近用谁）。
@@ -18,6 +23,19 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  */
 @Mixin(NaturalSpawner.class)
 public abstract class NaturalSpawnerMixin {
+
+    /** 刷怪尝试计数（诊断）：相机 128 格内每个「分类 × 区块」一次。 */
+    @Inject(
+            method = "spawnCategoryForChunk(Lnet/minecraft/world/entity/MobCategory;Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/level/chunk/LevelChunk;Lnet/minecraft/world/level/NaturalSpawner$SpawnPredicate;Lnet/minecraft/world/level/NaturalSpawner$AfterSpawnCallback;)V",
+            at = @At("HEAD")
+    )
+    private static void immersivecinematics_countSpawnAttempt(MobCategory category, ServerLevel level,
+                                                              LevelChunk chunk,
+                                                              NaturalSpawner.SpawnPredicate predicate,
+                                                              NaturalSpawner.AfterSpawnCallback callback,
+                                                              CallbackInfo ci) {
+        CameraCenterDiagnostics.onSpawnAttempt(level, chunk.getPos());
+    }
 
     @Redirect(
             method = "spawnCategoryForPosition(Lnet/minecraft/world/entity/MobCategory;Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/level/chunk/ChunkAccess;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/NaturalSpawner$SpawnPredicate;Lnet/minecraft/world/level/NaturalSpawner$AfterSpawnCallback;)V",

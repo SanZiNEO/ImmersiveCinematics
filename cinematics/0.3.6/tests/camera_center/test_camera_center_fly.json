@@ -17,10 +17,7 @@
     "interruptible": true,
     "skippable": true,
     "hold_at_end": false,
-    "render_player_model": true,
-    "camera_mob_spawn": true,
-    "camera_mob_radius": 2,
-    "camera_mob_ai": true
+    "render_player_model": true
   },
   "timeline": {
     "total_duration": 30,

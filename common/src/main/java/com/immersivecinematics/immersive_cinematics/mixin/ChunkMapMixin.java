@@ -1,9 +1,13 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.trigger.server.CameraAnchorManager;
+import com.immersivecinematics.immersive_cinematics.trigger.server.CameraCenterDiagnostics;
+import com.immersivecinematics.immersive_cinematics.trigger.server.CameraVirtualCenterState;
 import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -11,10 +15,17 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 让原版刷怪判定认为「相机锚点附近也有刷怪中心」。
+ * 让原版刷怪判定认为「相机附近也有刷怪中心」。
  *
- * 纯坐标方案：不创建任何 Player 实体，只让 {@code ChunkMap.anyPlayerCloseEnoughForSpawning} 在相机锚点
- * 附近返回 true，从而触发 {@code NaturalSpawner}——否则相机离玩家超过刷怪半径时镜头里永不刷怪。
+ * 纯坐标方案：不创建任何 Player 实体。
+ * <ul>
+ *   <li>{@code anyPlayerCloseEnoughForSpawning} HEAD：观众模式下原版 move 不会写 PLAYER ticket，
+ *       外层 {@code hasPlayersNearby} 门会先失败；这里按相机锚点直接放行，覆盖「状态已写入、move 尚未生效」的窗口。</li>
+ *   <li>{@code playerIsCloseEnoughForSpawning} HEAD：原版同一方法同时服务外层门与
+ *       {@code getPlayersCloseForSpawning}（局部上限 {@code LocalMobCapCalculator}）。相机 128 格内放行，
+ *       返回对象仍是真实 {@link ServerPlayer}，局部上限按玩家记账，不新增假玩家。</li>
+ * </ul>
+ * 语义：相机是观察者，不额外加 {@code isSpectator()} 判断——镜头所在区域允许刷怪（当前行为）。
  */
 @Mixin(ChunkMap.class)
 public abstract class ChunkMapMixin {
@@ -25,6 +36,19 @@ public abstract class ChunkMapMixin {
     @Inject(method = "anyPlayerCloseEnoughForSpawning", at = @At("HEAD"), cancellable = true)
     private void immersivecinematics_cameraAnchorCloseForSpawning(ChunkPos chunkPos, CallbackInfoReturnable<Boolean> cir) {
         if (CameraAnchorManager.INSTANCE.isAnyAnchorNear(this.level, chunkPos)) {
+            CameraCenterDiagnostics.onSpawnGateHit(this.level, chunkPos);
+            cir.setReturnValue(true);
+        }
+    }
+
+    @Inject(method = "playerIsCloseEnoughForSpawning", at = @At("HEAD"), cancellable = true)
+    private void immersivecinematics_cameraPlayerCloseForSpawning(ServerPlayer player, ChunkPos chunkPos,
+                                                                 CallbackInfoReturnable<Boolean> cir) {
+        Vec3 camera = CameraVirtualCenterState.cameraCenterFor(player);
+        if (camera == null) return;
+        double dx = (chunkPos.x << 4) + 8 - camera.x;
+        double dz = (chunkPos.z << 4) + 8 - camera.z;
+        if (dx * dx + dz * dz < 16384.0) {
             cir.setReturnValue(true);
         }
     }

@@ -8,9 +8,10 @@ import net.minecraft.world.entity.player.Player;
 import java.util.UUID;
 
 /**
- * 纯计算用的“虚拟玩家”引用，仅用于让 {@code NaturalSpawner} 能算相机位置到刷怪点的距离。
- * 它不是世界里的实体：不会被 addFreshEntity / addEntity，不进 ServerLevel.players / PlayerList /
- * ChunkMap，没有 connection（不收发包），只提供坐标与 distanceToSqr，用完即弃。
+ * 纯计算用的“虚拟玩家”引用，仅用于让 {@code NaturalSpawner} / {@code Mob.checkDespawn} 能算相机位置到
+ * 刷怪点 / 生物的距离。它不是世界里的实体：不会被 addFreshEntity / addEntity，不进 ServerLevel.players /
+ * PlayerList / ChunkMap，没有 connection（不收发包），只提供坐标与 distanceToSqr；每个锚点复用一个实例，
+ * 位置更新走 {@code moveTo}。
  */
 public class CameraAnchorVirtualPlayer extends Player {
 

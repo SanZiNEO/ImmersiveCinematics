@@ -14,6 +14,7 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
 import net.fabricmc.fabric.api.event.player.*;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
@@ -33,6 +34,7 @@ public final class FabricEvents {
     public static void registerServer() {
         ServerLifecycleEvents.SERVER_STARTED.register(ServerEventHandler::onServerStarted);
         ServerLifecycleEvents.SERVER_STOPPING.register(ServerEventHandler::onServerStopping);
+        ServerWorldEvents.UNLOAD.register((server, world) -> ServerEventHandler.onLevelUnload(world));
 
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 ServerEventHandler.onPlayerJoin((ServerPlayer) handler.player));

@@ -41,9 +41,12 @@
     "ChunkMapMixin",
     "ChunkMapTrackedEntityCameraMixin",
     "ItemUseMixin",
+    "LocalMobCapCalculatorMixin",
     "MobDespawnCameraMixin",
     "NaturalSpawnerMixin",
-    "PlayerListAudioBroadcastMixin"
+    "NaturalSpawnerSpawnStateMixin",
+    "PlayerListAudioBroadcastMixin",
+    "ServerEntityMixin"
   ],
   "injectors": {
     "defaultRequire": 1

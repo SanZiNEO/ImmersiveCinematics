@@ -1,0 +1,94 @@
+{
+  "meta": {
+    "id": "test_camera_center_radius",
+    "name": "相机中心·客户端可见半径分项测试",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "超平坦最稳妥（起伏地形可能让召唤点埋进方块）：相机固定相对玩家 -X 100 格、yaw=90 朝西、pitch=0 停留 20s；t=0 设午夜、关闭自然刷怪并清空非玩家实体，t=1 在玩家西侧 200 格（= 相机西侧约 100 格）召唤 NoAI+Persistent 的僵尸/鸡/恶魂。需要视距 RD 7~14（默认 10）：RD≈10 时 viewScale=1.25，僵尸可见上限 84、鸡 40 → distOut=2，恶魂上限 320 → 可见；三者均在 r128 内。验收：r128=3、r128xz=3、distOut=2、visible=1，distSample 上限≈84/40/320；pairSeen 应含全部 3 只（相机中心配对）。RD<7 时 100 格处实体不加载；RD>14 时僵尸/鸡上限超过 100 格，distOut 会变少（属预期）。",
+    "triggers": [
+      { "id": "tcr_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_center_multilane"] }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 20,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "layer_type": "subtitle",
+            "text": "测试: test_camera_center_radius | 功能: 客户端可见半径分项 | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 20, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": -100, "dy": 2, "dz": 0 },
+                "yaw": 90,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              },
+              {
+                "time": 20,
+                "position": { "dx": -100, "dy": 2, "dz": 0 },
+                "yaw": 90,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "time set midnight && gamerule doMobSpawning false && kill @e[type=!player]" },
+              { "time": 1, "event_type": "command", "command": "summon minecraft:zombie ~-200 ~ ~-6 {NoAI:1b,PersistenceRequired:1b} && summon minecraft:chicken ~-200 ~ ~0 {NoAI:1b,PersistenceRequired:1b} && summon minecraft:ghast ~-200 ~ ~6 {NoAI:1b,PersistenceRequired:1b}" },
+              { "time": 3, "event_type": "command", "command": "say [相机中心] 半径分项：相机在玩家西侧 100 格，朝西看向召唤点（僵尸/鸡/恶魂距相机约 100 格）" },
+              { "time": 10, "event_type": "command", "command": "say [相机中心] 10s：r128=3；RD10 下 distOut 应为 2（僵尸/鸡），恶魂可见" },
+              { "time": 19, "event_type": "command", "command": "gamerule doMobSpawning true" },
+              { "time": 20, "event_type": "command", "command": "say [相机中心] 结束：distSample 上限应≈84/40/320；pairSeen 应含全部 3 只" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

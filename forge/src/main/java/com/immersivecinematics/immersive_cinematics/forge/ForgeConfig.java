@@ -50,8 +50,8 @@ public class ForgeConfig implements Config.ConfigProvider {
     // ===== 相机中心同步配置 =====
 
     private static final ForgeConfigSpec.IntValue CAMERA_CENTER_REPORT_INTERVAL = BUILDER
-            .comment("相机中心位置上报间隔（tick）")
-            .defineInRange("cameraCenterReportInterval", 20, 1, 600);
+            .comment("相机中心位置上报间隔（tick）；位移 ≥1 格或相机模式翻转时会提前发送")
+            .defineInRange("cameraCenterReportInterval", 5, 1, 600);
 
     // ===== 触发器轮询间隔配置 =====
 
