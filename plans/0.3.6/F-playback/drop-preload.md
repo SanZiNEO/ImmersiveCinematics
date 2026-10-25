@@ -1,6 +1,6 @@
 # 摘掉预加载与预热
 
-> 状态：未实现
+> 状态：已实现（2026-10-25）
 > 范围：客户端相机位置上报、服务端相机虚拟中心与锚点的驱动模块，以及它们在配置、协议、文档里的命名与残留
 > 关联：[相机中心实体](camera-center-entities.md)、[并行播放](parallel-playback.md)、[多相机渲染](multi-camera-rendering.md)、`docs/modules/trigger.md`、`docs/modules/network.md`、`docs/modules/core.md`
 
@@ -104,6 +104,25 @@
 
 ## 六、实现结果
 
-状态：未实现
+状态：已实现（2026-10-25）
 
-待排期。执行顺序建议：先删配置与预热空转，再改协议命名，最后统一文档与测试脚本命名。
+**改动**
+
+| 面 | 结果 |
+|---|---|
+| 命名 | `PreloadRequester` → `CameraCenterReporter`（客户端）；`ChunkPreloadManager` → `CameraCenterManager`（服务端）；日志前缀统一 `ImmersiveCinematics/CameraCenter` |
+| 协议 | `C2SCameraCenterRequestPacket`（`camera_center_request`：模式 START / END、脚本 id、中心坐标、cameraMode）与 `C2SCameraCenterPositionPacket`（`camera_center_position`：中心坐标、cameraMode）；`S2CPreloadResultPacket` / `preload_result` 删除；请求里的半径 / 朝向 / 渲染距离字段删除。Forge / Fabric 同侧注册 ID 同步改名，无兼容层 |
+| 配置 | 10 个 `preload*` 键与 `preloadEnabled` 总闸删除，只留 `cameraCenterReportInterval`（默认 20 tick）；旧 JSON 键加载时静默忽略，不迁移、不写回；`ConfigProvider.setFloat` 随唯一 float 配置一并删除 |
+| 客户端 | 仅当脚本播放且存在非空 CAMERA 轨道时上报；相机片段活跃报相机位置，空档报玩家位置；按 `cameraCenterReportInterval` 上报，相机活跃态翻转立即补发；停止 / 结束 / 进预览 / 断线释放。`tickPrewarm`（下一片段首帧坐标、提前量）与 `isPreloadActive()` 删除 |
+| 服务端 | 无总闸；START 建状态 + 锚点 + 虚拟中心，POSITION 更新，END / 断线无条件释放；保留 `hasCameraTrack` 兜底与 F-1 的 `releaseOnFailure` 半状态清理 |
+| 诊断 | `LaneDiagnostics` 的 `warmup` / `warmupSeconds` 改名 `settle` / `settleSeconds`（manifest 键 `settleSeconds`），采样口径不变 |
+| 编辑器 | `editor/src/types.ts` 删除 `meta.preload` |
+| 测试脚本 | `cinematics/0.3.6/tests/preload/` → `camera_center/`，三支脚本的 id / 名称 / 字幕 / 命令前缀与触发链 `requires` 同步改名 |
+
+**验证（2026-10-25）**
+
+- `sh gradlew :common:compileJava :fabric:compileJava :forge:compileJava --offline` 通过。
+- 无头 validator（`cinematics/0.3.6/tests`）：166 支脚本，3 支已知问题（`test_camera_facing_origin_coordinate`、`test_camera_relative_axis` 两支历史问题 + `faults/bad_meta_int.json` 故障夹具），与改动前一致。
+- 命名清理：模组功能命名在代码 / 配置 / 编辑器类型 / 测试内已清零（Electron 自身的 `preload.cjs` / `webPreferences.preload` 是框架 API，不属于本模块）。计划目录与历史记录里仍有旧名（`plans/complete/0.3.5/`、`_archive/`、`implementation-progress` 历史行、`docs/` 旧文档、CHANGELOG），按「历史记录不回写」保留；`camera-composition` / `multi-camera-rendering` 里的「叠化预热」是渲染时间轴概念，与本模块无关。
+
+**未做（按设计边界）**：原版 `ChunkMap` 差集 / ticket / 发送范围、相机锚点与实体同步判定、多相机渲染的叠化窗口均未改动；旧客户端与旧配置文件不兼容，两端需同版本部署。

@@ -44,28 +44,10 @@ public class Config {
     /** gamestage 触发器的轮询间隔（tick） */
     public static int triggerPollIntervalGamestage = 20;
 
-    // ===== 区块预加载配置 =====
+    // ===== 相机中心同步配置 =====
 
-    /** 全局总闸：区块预加载（服务端强制；脚本层没有开关） */
-    public static boolean preloadEnabled = true;
-    /** 相机位置上报间隔（tick） */
-    public static int preloadReportInterval = 20;
-    /** 相机区每 tick 补发包上限（防一次性洪峰，渐续铺开） */
-    public static int preloadMaxBurstPerTick = 20;
-    /** 每 tick 新增区块 ticket 上限 */
-    public static int preloadMaxRequestsPerTick = 8;
-    /** 预加载范围上限（区块）：防止低配/过大视距导致卡顿；有效半径不会超过它 */
-    public static int preloadRadiusCap = 32;
-    /** 强制使用配置预设范围（忽略玩家渲染距离） */
-    public static boolean preloadForceRadius = false;
-    /** 强制时的预设范围（区块） */
-    public static int preloadForceRadiusValue = 8;
-    /** lookahead 预载：当前片段剩余多少秒开始预载下一片段 */
-    public static float preloadPrewarmLeadSeconds = 2.0f;
-    /** lookahead 预载：下一片段预载范围（区块，取小区域慢速铺） */
-    public static int preloadPrewarmRadius = 8;
-    /** lookahead 预载：每 tick 新增预载 ticket 上限（慢速，默认 6） */
-    public static int preloadPrewarmRequestsPerTick = 6;
+    /** 相机中心位置上报间隔（tick） */
+    public static int cameraCenterReportInterval = 20;
 
     private static ConfigProvider provider;
 
@@ -82,9 +64,6 @@ public class Config {
 
         /** 持久化单个 boolean 配置项 */
         void setBoolean(String key, boolean value);
-
-        /** 持久化单个 float 配置项 */
-        void setFloat(String key, float value);
     }
 
     /**
@@ -100,21 +79,11 @@ public class Config {
             int triggerPollIntervalInventory,
             int triggerPollIntervalStructure,
             int triggerPollIntervalGamestage,
-            boolean preloadEnabled,
-            int preloadReportInterval,
-            int preloadMaxBurstPerTick,
-            int preloadMaxRequestsPerTick,
-            int preloadRadiusCap,
-            boolean preloadForceRadius,
-            int preloadForceRadiusValue,
-            float preloadPrewarmLeadSeconds,
-            int preloadPrewarmRadius,
-            int preloadPrewarmRequestsPerTick
+            int cameraCenterReportInterval
     ) {
         /** 使用默认值构造 */
         public static ConfigValues defaults() {
-            return new ConfigValues(3000, true, 100, false, 20, 40, 20, 20, 20, true,
-                    20, 20, 8, 32, false, 8, 2.0f, 8, 6);
+            return new ConfigValues(3000, true, 100, false, 20, 40, 20, 20, 20, 20);
         }
     }
 
@@ -139,16 +108,7 @@ public class Config {
         triggerPollIntervalInventory = values.triggerPollIntervalInventory();
         triggerPollIntervalStructure = values.triggerPollIntervalStructure();
         triggerPollIntervalGamestage = values.triggerPollIntervalGamestage();
-        preloadEnabled = values.preloadEnabled();
-        preloadReportInterval = values.preloadReportInterval();
-        preloadMaxBurstPerTick = values.preloadMaxBurstPerTick();
-        preloadMaxRequestsPerTick = values.preloadMaxRequestsPerTick();
-        preloadRadiusCap = values.preloadRadiusCap();
-        preloadForceRadius = values.preloadForceRadius();
-        preloadForceRadiusValue = values.preloadForceRadiusValue();
-        preloadPrewarmLeadSeconds = values.preloadPrewarmLeadSeconds();
-        preloadPrewarmRadius = values.preloadPrewarmRadius();
-        preloadPrewarmRequestsPerTick = values.preloadPrewarmRequestsPerTick();
+        cameraCenterReportInterval = values.cameraCenterReportInterval();
     }
 
     // ===== ConfigScreen 写入接口 =====
@@ -166,57 +126,5 @@ public class Config {
     public static void setDebugLogging(boolean value) {
         debugLogging = value;
         if (provider != null) provider.setBoolean("debugLogging", value);
-    }
-
-    // ===== 区块预加载配置写入接口 =====
-
-    public static void setPreloadEnabled(boolean value) {
-        preloadEnabled = value;
-        if (provider != null) provider.setBoolean("preloadEnabled", value);
-    }
-
-    public static void setPreloadReportInterval(int value) {
-        preloadReportInterval = value;
-        if (provider != null) provider.setInt("preloadReportInterval", value);
-    }
-
-    public static void setPreloadMaxBurstPerTick(int value) {
-        preloadMaxBurstPerTick = value;
-        if (provider != null) provider.setInt("preloadMaxBurstPerTick", value);
-    }
-
-    public static void setPreloadMaxRequestsPerTick(int value) {
-        preloadMaxRequestsPerTick = value;
-        if (provider != null) provider.setInt("preloadMaxRequestsPerTick", value);
-    }
-
-    public static void setPreloadRadiusCap(int value) {
-        preloadRadiusCap = value;
-        if (provider != null) provider.setInt("preloadRadiusCap", value);
-    }
-
-    public static void setPreloadForceRadius(boolean value) {
-        preloadForceRadius = value;
-        if (provider != null) provider.setBoolean("preloadForceRadius", value);
-    }
-
-    public static void setPreloadForceRadiusValue(int value) {
-        preloadForceRadiusValue = value;
-        if (provider != null) provider.setInt("preloadForceRadiusValue", value);
-    }
-
-    public static void setPreloadPrewarmLeadSeconds(float value) {
-        preloadPrewarmLeadSeconds = value;
-        if (provider != null) provider.setFloat("preloadPrewarmLeadSeconds", value);
-    }
-
-    public static void setPreloadPrewarmRadius(int value) {
-        preloadPrewarmRadius = value;
-        if (provider != null) provider.setInt("preloadPrewarmRadius", value);
-    }
-
-    public static void setPreloadPrewarmRequestsPerTick(int value) {
-        preloadPrewarmRequestsPerTick = value;
-        if (provider != null) provider.setInt("preloadPrewarmRequestsPerTick", value);
     }
 }

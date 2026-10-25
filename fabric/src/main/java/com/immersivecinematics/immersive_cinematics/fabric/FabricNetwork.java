@@ -36,13 +36,13 @@ public final class FabricNetwork implements NetworkBridge {
             C2SScriptSavedPacket pkt = new C2SScriptSavedPacket(buf);
             server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.SCRIPT_SAVED, player, () -> pkt.handle(player)));
         });
-        ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.PRELOAD_REQ), (server, player, handler, buf, responseSender) -> {
-            C2SPreloadRequestPacket pkt = new C2SPreloadRequestPacket(buf);
-            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.PRELOAD_REQ, player, () -> pkt.handle(player)));
+        ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.CAMERA_CENTER_REQUEST), (server, player, handler, buf, responseSender) -> {
+            C2SCameraCenterRequestPacket pkt = new C2SCameraCenterRequestPacket(buf);
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.CAMERA_CENTER_REQUEST, player, () -> pkt.handle(player)));
         });
-        ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.PRELOAD_POS), (server, player, handler, buf, responseSender) -> {
-            C2SPreloadPositionPacket pkt = new C2SPreloadPositionPacket(buf);
-            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.PRELOAD_POS, player, () -> pkt.handle(player)));
+        ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.CAMERA_CENTER_POSITION), (server, player, handler, buf, responseSender) -> {
+            C2SCameraCenterPositionPacket pkt = new C2SCameraCenterPositionPacket(buf);
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.CAMERA_CENTER_POSITION, player, () -> pkt.handle(player)));
         });
         ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.AUDIO_LISTENER), (server, player, handler, buf, responseSender) -> {
             C2SAudioListenerPacket pkt = new C2SAudioListenerPacket(buf);
@@ -84,10 +84,6 @@ public final class FabricNetwork implements NetworkBridge {
             S2CScriptReloadPacket pkt = new S2CScriptReloadPacket(buf);
             client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.SCRIPT_RELOAD, () -> pkt.handle()));
         });
-        ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.PRELOAD_RESULT), (client, handler, buf, responseSender) -> {
-            S2CPreloadResultPacket pkt = new S2CPreloadResultPacket(buf);
-            client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.PRELOAD_RESULT, () -> pkt.handle()));
-        });
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.RESOLVE_ENTITY_SELECTOR_RESULT), (client, handler, buf, responseSender) -> {
             S2CResolveEntitySelectorResultPacket pkt = new S2CResolveEntitySelectorResultPacket(buf);
             client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.RESOLVE_ENTITY_SELECTOR_RESULT, () -> pkt.handle()));
@@ -119,8 +115,8 @@ public final class FabricNetwork implements NetworkBridge {
         if (packet instanceof C2SPlaybackStartedPacket) return id(NetworkHandler.PLAYBACK_STARTED);
         if (packet instanceof C2SScriptPausePacket) return id(NetworkHandler.SCRIPT_PAUSE);
         if (packet instanceof C2SScriptSavedPacket) return id(NetworkHandler.SCRIPT_SAVED);
-        if (packet instanceof C2SPreloadRequestPacket) return id(NetworkHandler.PRELOAD_REQ);
-        if (packet instanceof C2SPreloadPositionPacket) return id(NetworkHandler.PRELOAD_POS);
+        if (packet instanceof C2SCameraCenterRequestPacket) return id(NetworkHandler.CAMERA_CENTER_REQUEST);
+        if (packet instanceof C2SCameraCenterPositionPacket) return id(NetworkHandler.CAMERA_CENTER_POSITION);
         if (packet instanceof C2SAudioListenerPacket) return id(NetworkHandler.AUDIO_LISTENER);
         if (packet instanceof C2SRuleCommandPacket) return id(NetworkHandler.RULE_COMMAND);
         if (packet instanceof C2SResolveEntitySelectorPacket) return id(NetworkHandler.RESOLVE_ENTITY_SELECTOR);
@@ -130,7 +126,6 @@ public final class FabricNetwork implements NetworkBridge {
         if (packet instanceof S2CSkipVoteUpdatePacket) return id(NetworkHandler.SKIP_VOTE_UPDATE);
         if (packet instanceof S2CScriptPauseAckPacket) return id(NetworkHandler.SCRIPT_PAUSE_ACK);
         if (packet instanceof S2CScriptReloadPacket) return id(NetworkHandler.SCRIPT_RELOAD);
-        if (packet instanceof S2CPreloadResultPacket) return id(NetworkHandler.PRELOAD_RESULT);
         if (packet instanceof S2CResolveEntitySelectorResultPacket) return id(NetworkHandler.RESOLVE_ENTITY_SELECTOR_RESULT);
         throw new IllegalArgumentException("Unknown cinematic packet: " + packet.getClass().getName());
     }

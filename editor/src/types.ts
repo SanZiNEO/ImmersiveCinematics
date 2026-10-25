@@ -68,7 +68,6 @@ export interface ScriptMeta {
   version: number
   description?: string
   dimension?: string
-  preload?: boolean
   listener?: string
   // RuntimeBehavior
   block_keyboard: boolean

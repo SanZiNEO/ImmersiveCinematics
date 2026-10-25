@@ -18,7 +18,6 @@ public final class NetworkHandler {
     public static final String SKIP_VOTE_UPDATE = "skip_vote_update";
     public static final String SCRIPT_PAUSE_ACK = "script_pause_ack";
     public static final String SCRIPT_RELOAD = "script_reload";
-    public static final String PRELOAD_RESULT = "preload_result";
     public static final String RESOLVE_ENTITY_SELECTOR = "resolve_entity_selector";
     public static final String RESOLVE_ENTITY_SELECTOR_RESULT = "resolve_entity_selector_result";
 
@@ -26,8 +25,8 @@ public final class NetworkHandler {
     public static final String PLAYBACK_STARTED = "playback_started";
     public static final String SCRIPT_PAUSE = "script_pause";
     public static final String SCRIPT_SAVED = "script_saved";
-    public static final String PRELOAD_REQ = "preload_req";
-    public static final String PRELOAD_POS = "preload_pos";
+    public static final String CAMERA_CENTER_REQUEST = "camera_center_request";
+    public static final String CAMERA_CENTER_POSITION = "camera_center_position";
     public static final String AUDIO_LISTENER = "audio_listener";
     public static final String RULE_COMMAND = "rule_command";
 

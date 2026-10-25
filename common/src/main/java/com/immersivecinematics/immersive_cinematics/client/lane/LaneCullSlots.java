@@ -16,7 +16,7 @@ import java.util.List;
  * {@link #depth} = 0 时字段就是原版自己的值（无 lane 时零差异）。
  *
  * 线程：池 / 登记表 / 帧栈由渲染线程读写；{@link #mirrorCompiled} 可能来自区块编译完成回调（线程不定），
- * 只做 volatile 快照遍历 + 队列入队。分配：换入 / 换出预热后零分配（保存位复用）；首次用到某层时惰性新建
+ * 只做 volatile 快照遍历 + 队列入队。分配：换入 / 换出稳态后零分配（保存位复用）；首次用到某层时惰性新建
  * 保存位，{@link #acquire} / {@link #release} 各重建一次 {@link #liveSnapshot}（只在 lane 起停时发生）。
  */
 public final class LaneCullSlots {

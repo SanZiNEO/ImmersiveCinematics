@@ -1,10 +1,10 @@
 {
   "meta": {
-    "id": "test_preload_fly",
-    "name": "预加载·超平坦平飞测试(往村庄区域飞)",
+    "id": "test_camera_center_fly",
+    "name": "相机中心·超平坦平飞测试(往村庄区域飞)",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "超平坦世界：固定相对玩家高2格，沿 -X(西) 平飞约300格（目标村庄 -288,0），yaw=90(前方)/pitch=0(不抬头)，观察远处虚空/村庄是否被预加载补顶。",
+    "description": "超平坦世界：固定相对玩家高2格，沿 -X(西) 平飞约300格（目标村庄 -288,0），yaw=90(前方)/pitch=0(不抬头)，观察远处虚空/村庄是否被相机中心补顶。",
     "triggers": [
       { "id": "tpf_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_audio_wav"] }
     ],
@@ -32,7 +32,7 @@
             "start_time": 0,
             "duration": 30,
             "layer_type": "subtitle",
-            "text": "测试: test_preload_fly | 功能: 预加载平飞 | 触发: biome自动",
+            "text": "测试: test_camera_center_fly | 功能: 相机中心平飞 | 触发: biome自动",
             "x": 0.5,
             "y": 0.5,
             "z_index": 100,
@@ -100,10 +100,10 @@
             "duration": 30,
             "event_type": "command",
             "keyframes": [
-              { "time": 0, "event_type": "command", "command": "say [预加载] 起飞：沿 -X(西) 平飞向村庄区域(-288,0)，30s 约300格" },
-              { "time": 10, "event_type": "command", "command": "say [预加载] 10s：约 -100 格" },
-              { "time": 20, "event_type": "command", "command": "say [预加载] 20s：约 -200 格，前方应接近村庄" },
-              { "time": 30, "event_type": "command", "command": "say [预加载] 结束：约 -300 格；看远处村庄/地形是否被补顶" }
+              { "time": 0, "event_type": "command", "command": "say [相机中心] 起飞：沿 -X(西) 平飞向村庄区域(-288,0)，30s 约300格" },
+              { "time": 10, "event_type": "command", "command": "say [相机中心] 10s：约 -100 格" },
+              { "time": 20, "event_type": "command", "command": "say [相机中心] 20s：约 -200 格，前方应接近村庄" },
+              { "time": 30, "event_type": "command", "command": "say [相机中心] 结束：约 -300 格；看远处村庄/地形是否被补顶" }
             ]
           }
         ]

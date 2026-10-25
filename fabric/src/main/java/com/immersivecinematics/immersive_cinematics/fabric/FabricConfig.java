@@ -58,16 +58,7 @@ public class FabricConfig implements Config.ConfigProvider {
                 getInt("triggerPollIntervalInventory", 20),
                 getInt("triggerPollIntervalStructure", 20),
                 getInt("triggerPollIntervalGamestage", 20),
-                getBoolean("preloadEnabled", true),
-                getInt("preloadReportInterval", 20),
-                getInt("preloadMaxBurstPerTick", 20),
-                getInt("preloadMaxRequestsPerTick", 8),
-                getInt("preloadRadiusCap", 32),
-                getBoolean("preloadForceRadius", false),
-                getInt("preloadForceRadiusValue", 8),
-                getFloat("preloadPrewarmLeadSeconds", 2.0f),
-                getInt("preloadPrewarmRadius", 8),
-                getInt("preloadPrewarmRequestsPerTick", 6)
+                getInt("cameraCenterReportInterval", 20)
         );
     }
 
@@ -79,12 +70,6 @@ public class FabricConfig implements Config.ConfigProvider {
 
     @Override
     public void setBoolean(String key, boolean value) {
-        root.add(key, new JsonPrimitive(value));
-        save();
-    }
-
-    @Override
-    public void setFloat(String key, float value) {
         root.add(key, new JsonPrimitive(value));
         save();
     }
@@ -103,13 +88,6 @@ public class FabricConfig implements Config.ConfigProvider {
         return defaultValue;
     }
 
-    private float getFloat(String key, float defaultValue) {
-        if (root.has(key) && root.get(key).isJsonPrimitive()) {
-            return root.get(key).getAsFloat();
-        }
-        return defaultValue;
-    }
-
     private void saveDefaults() {
         root.addProperty("skipHoldThresholdMs", 3000);
         root.addProperty("showSkipHud", true);
@@ -120,16 +98,7 @@ public class FabricConfig implements Config.ConfigProvider {
         root.addProperty("triggerPollIntervalInventory", 20);
         root.addProperty("triggerPollIntervalStructure", 20);
         root.addProperty("triggerPollIntervalGamestage", 20);
-        root.addProperty("preloadEnabled", true);
-        root.addProperty("preloadReportInterval", 20);
-        root.addProperty("preloadMaxBurstPerTick", 20);
-        root.addProperty("preloadMaxRequestsPerTick", 8);
-        root.addProperty("preloadRadiusCap", 32);
-        root.addProperty("preloadForceRadius", false);
-        root.addProperty("preloadForceRadiusValue", 8);
-        root.addProperty("preloadPrewarmLeadSeconds", 2.0f);
-        root.addProperty("preloadPrewarmRadius", 8);
-        root.addProperty("preloadPrewarmRequestsPerTick", 6);
+        root.addProperty("cameraCenterReportInterval", 20);
         save();
     }
 

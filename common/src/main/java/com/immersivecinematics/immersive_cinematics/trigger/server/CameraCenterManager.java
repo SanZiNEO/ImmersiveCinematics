@@ -4,8 +4,7 @@ import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
-import com.immersivecinematics.immersive_cinematics.trigger.network.C2SPreloadRequestPacket;
-import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPreloadResultPacket;
+import com.immersivecinematics.immersive_cinematics.trigger.network.C2SCameraCenterRequestPacket;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -19,47 +18,38 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * 区块预加载（服务端）— 虚拟相机中心方案：把玩家的虚拟 Section 写入 {@code ChunkMapCameraMixin}
+ * 相机中心同步（服务端）— 虚拟相机中心方案：把玩家的虚拟 Section 写入 {@code ChunkMapCameraMixin}
  * 再调原版 {@code ChunkMap.move}，让 DistanceManager 的正方形 ticket 加载与 ChunkMap 的圆角
  * isChunkInRange 发送/遗忘自动围绕相机中心运转；清除虚拟中心即交还原版玩家差集。不自建差集、不手动发包。
  */
-public final class ChunkPreloadManager {
+public final class CameraCenterManager {
 
-    public static final ChunkPreloadManager INSTANCE = new ChunkPreloadManager();
-    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/ChunkPreload");
+    public static final CameraCenterManager INSTANCE = new CameraCenterManager();
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CameraCenter");
 
     private final Map<UUID, PlayerState> states = new HashMap<>();
 
-    private ChunkPreloadManager() {}
+    private CameraCenterManager() {}
 
     /**
-     * 客户端预加载请求。{@code radius} / {@code renderDistance} / {@code yaw} 仅为协议字段，
-     * 本方案不使用：加载半径与发送范围全交原版 ChunkMap。
+     * 客户端相机中心请求。加载半径与发送范围全交原版 ChunkMap，本方法只写入中心与锚点。
      */
-    public void handleRequest(ServerPlayer player, int mode, String scriptId, int x, int z, int radius, float yaw, int renderDistance,
-                              boolean cameraMode) {
-        if (!Config.preloadEnabled) {
-            S2CPreloadResultPacket.send(player, scriptId, "预加载全局已关闭");
-            return;
-        }
+    public void handleRequest(ServerPlayer player, int mode, String scriptId, int x, int z, boolean cameraMode) {
         UUID uuid = player.getUUID();
         if (Config.debugLogging) {
-            LOGGER.info("[preload req] 玩家={} mode={} script={} 相机=({},{}) 玩家块=({},{}) cameraMode={}",
+            LOGGER.info("[camera center req] 玩家={} mode={} script={} 中心=({},{}) 玩家块=({},{}) cameraMode={}",
                     player.getName().getString(), mode, scriptId, x >> 4, z >> 4,
                     player.blockPosition().getX() >> 4, player.blockPosition().getZ() >> 4,
                     cameraMode);
         }
-        if (mode == C2SPreloadRequestPacket.MODE_RELEASE) {
+        if (mode == C2SCameraCenterRequestPacket.MODE_END) {
             release(uuid, player);
             return;
         }
-        if (mode == C2SPreloadRequestPacket.MODE_PREWARM) {
-            // 预热模式空转：虚拟相机中心在片段激活时会按原版规则加载，提前预热只是多做一次差集。
-            return;
-        }
-        CinematicScript preloadScript = ScriptManager.INSTANCE.getScript(scriptId);
-        if (preloadScript != null && !hasCameraTrack(preloadScript)) {
-            S2CPreloadResultPacket.send(player, scriptId, "脚本无CAMERA轨道，跳过预加载");
+        if (mode != C2SCameraCenterRequestPacket.MODE_START) return;
+
+        CinematicScript script = ScriptManager.INSTANCE.getScript(scriptId);
+        if (script != null && !hasCameraTrack(script)) {
             return;
         }
 
@@ -74,7 +64,7 @@ public final class ChunkPreloadManager {
         applyVirtualCamera(player, st, x, z, cameraMode);
     }
 
-    /** 只有非空 CAMERA 轨道才允许预加载；纯 OVERLAY/EVENT 脚本由服务端兜底拒绝 */
+    /** 只有非空 CAMERA 轨道才允许同步中心；纯 OVERLAY/EVENT 脚本由服务端兜底拒绝 */
     private static boolean hasCameraTrack(CinematicScript script) {
         if (script == null || script.getTimeline() == null) return false;
         Optional<TimelineTrack> track = script.getTimeline().getCameraTrack();
@@ -82,14 +72,14 @@ public final class ChunkPreloadManager {
     }
 
     /**
-     * 相机位置上报：更新虚拟相机中心，交给原版 ChunkMap.move 做差集。
+     * 相机中心位置上报：更新虚拟相机中心，交给原版 ChunkMap.move 做差集。
      */
-    public void handlePosition(ServerPlayer player, int x, int z, float yaw, boolean cameraMode) {
+    public void handlePosition(ServerPlayer player, int x, int z, boolean cameraMode) {
         PlayerState st = states.get(player.getUUID());
         if (st == null) return;
         ChunkPos cam = new ChunkPos(x >> 4, z >> 4);
         if (Config.debugLogging) {
-            LOGGER.info("[preload pos] 玩家={} 相机=({},{}) cameraMode={}",
+            LOGGER.info("[camera center pos] 玩家={} 中心=({},{}) cameraMode={}",
                     player.getName().getString(), cam.x, cam.z, cameraMode);
         }
         if (player.level() instanceof ServerLevel serverLevel) {
@@ -123,7 +113,7 @@ public final class ChunkPreloadManager {
             clearVirtualCamera(p);
             return;
         }
-        LOGGER.info("预加载释放: 玩家 {} 清除虚拟相机中心，交还原版玩家差集", p.getName().getString());
+        LOGGER.info("相机中心释放: 玩家 {} 清除虚拟相机中心，交还原版玩家差集", p.getName().getString());
         clearVirtualCamera(p);
     }
 
@@ -147,7 +137,7 @@ public final class ChunkPreloadManager {
         if (sameState) return;
 
         if (Config.debugLogging) {
-            LOGGER.info("[preload virtual] 玩家={} {}相机中心{}", player.getName().getString(),
+            LOGGER.info("[camera center virtual] 玩家={} {}相机中心{}", player.getName().getString(),
                     cameraMode ? "设置" : "清除", cameraMode ? " " + fmt(cam) : "");
         }
         st.virtualCenterActive = cameraMode;
@@ -178,7 +168,7 @@ public final class ChunkPreloadManager {
         return "[" + c.x + ", " + c.z + "]";
     }
 
-    /** 单个玩家的预加载状态 */
+    /** 单个玩家的相机中心同步状态 */
     private static final class PlayerState {
         ServerPlayer player;
         String scriptId = "";

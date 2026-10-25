@@ -47,8 +47,8 @@ public class C2SScriptFinishedPacket implements CinematicC2SPacket {
         // stop 包的自然回执：顺带清掉发送方的重发登记
         AckTracker.ack(refId);
         TriggerEngine.INSTANCE.onScriptFinished(player, scriptId, instanceId, reason);
-        // 区块预加载保底：任意退出（含强退）都强制释放，把加载交还玩家/原版机制
-        com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager.INSTANCE.onScriptFinished(player);
+        // 相机中心保底：任意退出（含强退）都强制释放，把加载交还玩家/原版机制
+        com.immersivecinematics.immersive_cinematics.trigger.server.CameraCenterManager.INSTANCE.onScriptFinished(player);
     }
 
     public String getScriptId() { return scriptId; }

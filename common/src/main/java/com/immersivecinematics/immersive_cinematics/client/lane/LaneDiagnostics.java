@@ -157,13 +157,13 @@ public final class LaneDiagnostics {
         final boolean firstLast;    // false = all lanes
         final int maxImages;
         final boolean perf;
-        final double warmupSeconds;
+        final double settleSeconds;
         final int frames;
         final int expectedLanes;
         final LaneRenderer.LaneContent content;
 
         Case(String id, String script, int run, double[] checkpoints, boolean firstLast, int maxImages,
-             boolean perf, double warmupSeconds, int frames, int expectedLanes,
+             boolean perf, double settleSeconds, int frames, int expectedLanes,
              LaneRenderer.LaneContent content) {
             this.id = id;
             this.script = script;
@@ -172,7 +172,7 @@ public final class LaneDiagnostics {
             this.firstLast = firstLast;
             this.maxImages = maxImages;
             this.perf = perf;
-            this.warmupSeconds = warmupSeconds;
+            this.settleSeconds = settleSeconds;
             this.frames = frames;
             this.expectedLanes = expectedLanes;
             this.content = content;
@@ -215,7 +215,7 @@ public final class LaneDiagnostics {
         final int target;
         final int expectedLanes;
         final LaneRenderer.LaneContent content;
-        final double warmup;
+        final double settle;
         final int playerDistance;
         final int maxRows;
         final int[] valid;
@@ -260,7 +260,7 @@ public final class LaneDiagnostics {
             this.target = c.frames;
             this.expectedLanes = c.expectedLanes;
             this.content = c.content;
-            this.warmup = c.warmupSeconds;
+            this.settle = c.settleSeconds;
             this.maxRows = c.frames + 512;
             this.valid = new int[maxRows];
             this.reason = new String[maxRows];
@@ -393,14 +393,14 @@ public final class LaneDiagnostics {
                     int caseMax = clamp(intOr(c, "maxImages", perCase), 1, maxImages);
                     JsonElement pe = c.get("perf");
                     boolean perf = pe != null && pe.isJsonObject();
-                    double warmup = 2.0;
+                    double settle = 2.0;
                     int frames = 600;
                     int expected = -1;
                     LaneRenderer.LaneContent content = null;
                     if (perf) {
                         JsonObject p = pe.getAsJsonObject();
-                        warmup = doubleOr(p, "warmupSeconds", 2.0);
-                        if (!Double.isFinite(warmup) || warmup < 0) warmup = 2.0;
+                        settle = doubleOr(p, "settleSeconds", 2.0);
+                        if (!Double.isFinite(settle) || settle < 0) settle = 2.0;
                         frames = clamp(intOr(p, "frames", 600), 1, 100_000);
                         expected = Math.max(-1, intOr(p, "expectedLanes", -1));
                         String mode = strOr(p, "content", "");
@@ -411,7 +411,7 @@ public final class LaneDiagnostics {
                         continue;
                     }
                     cases.add(new Case(id, script, run, checkpoints, firstLast, caseMax,
-                            perf, warmup, frames, expected, content));
+                            perf, settle, frames, expected, content));
                 } catch (Throwable t) {
                     LOGGER.warn("[diagnostics] cases[{}] 解析失败，跳过：{}", i, t.toString());
                 }
@@ -627,7 +627,7 @@ public final class LaneDiagnostics {
                 Rt rt = runtimes.get(i);
                 if (!rt.spec.perf || rt.instance == null || rt.perfDone) continue;
                 if (rt.perf == null) {
-                    if (rt.instance.player().getElapsedSeconds() < rt.spec.warmupSeconds) continue;
+                    if (rt.instance.player().getElapsedSeconds() < rt.spec.settleSeconds) continue;
                     if (rt.instance.isStopping()) {
                         rt.perfDone = true;
                         JsonObject aborted = ev("perf_aborted");
@@ -1083,7 +1083,7 @@ public final class LaneDiagnostics {
                 w.write("- script: `" + r.script + "`\n");
                 w.write("- content: " + (r.content != null ? r.content : "production default (FULL)") + "\n");
                 w.write("- player effective distance: " + r.playerDistance + " chunks (lanes follow it)\n");
-                w.write("- warmup: " + r.warmup + "s; target: " + r.target + " valid frames\n");
+                w.write("- settle: " + r.settle + "s; target: " + r.target + " valid frames\n");
                 w.write("- recorded: " + r.recorded + "; valid: " + r.validCount
                         + "; invalid: capture=" + captureFrames + ", other=" + otherInvalid + "\n");
                 w.write("- lane rows: " + r.laneRecorded + (r.truncated ? " (TRUNCATED)" : "")

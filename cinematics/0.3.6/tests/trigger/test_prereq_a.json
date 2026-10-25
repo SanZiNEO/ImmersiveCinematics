@@ -5,7 +5,7 @@
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "触发链 A：测试链起点，biome 轮询自动触发",
-    "triggers": [ {"id":"chain_a","type":"biome","repeatable":false,"delay":0,"conditions":{"biome":"*"},"requires":["test_preload_multiclip"]} ],
+    "triggers": [ {"id":"chain_a","type":"biome","repeatable":false,"delay":0,"conditions":{"biome":"*"},"requires":["test_camera_center_multiclip"]} ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,

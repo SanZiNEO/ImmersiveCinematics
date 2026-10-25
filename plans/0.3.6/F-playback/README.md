@@ -20,7 +20,7 @@
 | [history-consolidation](history-consolidation.md) | 光影调查分支历史压缩记录 | 📄 记录性 | 全文 |
 | [camera-center-entities](camera-center-entities.md) | 相机中心下的刷怪 / 实体可见性（C 方案） | 🟡 实现中：中心替换与配对 / 刷怪 / 消失查询已接相机 | §六（偏离表）；§四（C 方案） |
 | [camera-pool](camera-pool.md) | 相机租约池（按 CAMERA 片段租借、归还清状态） | ☐ 方向已确认，实现未做（2026-10-22） | §一（已确认口径）、§三（要解决的问题） |
-| [drop-preload](drop-preload.md) | 摘掉预加载 / 预热概念：模块改名相机中心同步，删死配置、预热空转与冗余协议 | ☐ 未开工 | §四（删除清单与协议形态）、§六（未实现） |
+| [drop-preload](drop-preload.md) | 摘掉预加载 / 预热概念：模块改名相机中心同步，删死配置、预热空转与冗余协议 | ✅ 已实现（2026-10-25） | §六（实现结果） |
 
 ---
 
@@ -46,7 +46,7 @@
 | 已实施 | 0 条 |
 | 空体 / 仅注释 catch | 16 处 |
 | `PacketGuard`（统一包处理边界） | 未落地 |
-| 断线清理（`PreloadRequester` 直发、`sendToPlayer` 无防护、断线不清 viewer） | 未落地 |
+| 断线清理（`CameraCenterReporter` 直发、`sendToPlayer` 无防护、断线不清 viewer） | 未落地 |
 | camera-center-entities | 实现中：中心替换与配对 / 刷怪 / 消失查询已接相机；统一位置源、局部上限、逐 lane 视图中心、状态清理未落地（§六） |
 | camera-pool | 方向已确认，零实现（进度表 F7） |
 

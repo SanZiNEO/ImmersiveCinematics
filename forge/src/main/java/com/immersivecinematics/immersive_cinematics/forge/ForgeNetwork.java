@@ -40,12 +40,12 @@ public final class ForgeNetwork implements NetworkBridge {
         CHANNEL.registerMessage(id++, C2SScriptSavedPacket.class,
                 CinematicPacket::write, C2SScriptSavedPacket::new,
                 (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.SCRIPT_SAVED, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
-        CHANNEL.registerMessage(id++, C2SPreloadRequestPacket.class,
-                CinematicPacket::write, C2SPreloadRequestPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.PRELOAD_REQ, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
-        CHANNEL.registerMessage(id++, C2SPreloadPositionPacket.class,
-                CinematicPacket::write, C2SPreloadPositionPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.PRELOAD_POS, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
+        CHANNEL.registerMessage(id++, C2SCameraCenterRequestPacket.class,
+                CinematicPacket::write, C2SCameraCenterRequestPacket::new,
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.CAMERA_CENTER_REQUEST, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
+        CHANNEL.registerMessage(id++, C2SCameraCenterPositionPacket.class,
+                CinematicPacket::write, C2SCameraCenterPositionPacket::new,
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.CAMERA_CENTER_POSITION, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, C2SResolveEntitySelectorPacket.class,
                 CinematicPacket::write, C2SResolveEntitySelectorPacket::new,
                 (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.RESOLVE_ENTITY_SELECTOR, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
@@ -69,14 +69,11 @@ public final class ForgeNetwork implements NetworkBridge {
         CHANNEL.registerMessage(id++, S2CScriptReloadPacket.class,
                 CinematicPacket::write, S2CScriptReloadPacket::new,
                 (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.SCRIPT_RELOAD, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
-        CHANNEL.registerMessage(id++, S2CPreloadResultPacket.class,
-                CinematicPacket::write, S2CPreloadResultPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.PRELOAD_RESULT, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, S2CResolveEntitySelectorResultPacket.class,
                 CinematicPacket::write, S2CResolveEntitySelectorResultPacket::new,
                 (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.RESOLVE_ENTITY_SELECTOR_RESULT, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
 
-        // 追加在最后：保持既有包 ID 不变（新包只占新 ID，不平移旧包）
+        // 追加在最后：新增包只占新 ID，不插队改序（跨版本兼容不做保证，两端同版本部署）
         CHANNEL.registerMessage(id++, C2SAudioListenerPacket.class,
                 CinematicPacket::write, C2SAudioListenerPacket::new,
                 (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.AUDIO_LISTENER, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });

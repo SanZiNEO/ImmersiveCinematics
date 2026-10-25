@@ -1,12 +1,12 @@
 {
   "meta": {
-    "id": "test_preload_fly_back",
-    "name": "预加载·倒飞测试(村庄往回飞)",
+    "id": "test_camera_center_fly_back",
+    "name": "相机中心·倒飞测试(村庄往回飞)",
     "author": "ImmersiveCinematics",
     "version": 3,
     "description": "从村庄区域(-300,0)往回飞向出生点(0,0)：验证超远端按玩家视距整块加载——起飞先在远端-300把整片按视距铺出来，飞回来时一路跟随，回到玩家视距内恢复。",
     "triggers": [
-      { "id": "tpfb_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_preload_fly"] }
+      { "id": "tpfb_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_center_fly"] }
     ],
     "block_keyboard": true,
     "block_mouse": true,
@@ -32,7 +32,7 @@
             "start_time": 0,
             "duration": 30,
             "layer_type": "subtitle",
-            "text": "测试: test_preload_fly_back | 功能: 预加载倒飞 | 触发: biome自动",
+            "text": "测试: test_camera_center_fly_back | 功能: 相机中心倒飞 | 触发: biome自动",
             "x": 0.5,
             "y": 0.5,
             "z_index": 100,
@@ -91,9 +91,9 @@
             "duration": 30,
             "event_type": "command",
             "keyframes": [
-              { "time": 0, "event_type": "command", "command": "say [预加载] 起飞：村庄-300 往回飞向出生点，验证远端按玩家视距整块加载" },
-              { "time": 15, "event_type": "command", "command": "say [预加载] 15s：约 -150 格，一路看地形是否跟随" },
-              { "time": 30, "event_type": "command", "command": "say [预加载] 结束：回到约 0 格；看全程是否有断块/虚空" }
+              { "time": 0, "event_type": "command", "command": "say [相机中心] 起飞：村庄-300 往回飞向出生点，验证远端按玩家视距整块加载" },
+              { "time": 15, "event_type": "command", "command": "say [相机中心] 15s：约 -150 格，一路看地形是否跟随" },
+              { "time": 30, "event_type": "command", "command": "say [相机中心] 结束：回到约 0 格；看全程是否有断块/虚空" }
             ]
           }
         ]

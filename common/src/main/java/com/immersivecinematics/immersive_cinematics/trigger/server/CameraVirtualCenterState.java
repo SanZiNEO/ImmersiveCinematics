@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 相机虚拟中心状态（服务端主线程访问，与 CameraAnchorManager / ChunkPreloadManager 同线程约定）。
+ * 相机虚拟中心状态（服务端主线程访问，与 CameraAnchorManager / CameraCenterManager 同线程约定）。
  * 只替换“中心”这一个入口：section（原版 ChunkMap 差集用）与 center（实体配对距离用）在写入时算好，
  * DistanceManager 与客户端发送仍全归原版；记维度是为了切维度后旧中心不被误用（不匹配即未激活）。
  */

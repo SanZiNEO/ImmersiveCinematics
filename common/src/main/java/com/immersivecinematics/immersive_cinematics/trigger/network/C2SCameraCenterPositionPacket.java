@@ -1,28 +1,25 @@
 package com.immersivecinematics.immersive_cinematics.trigger.network;
 
-import com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager;
+import com.immersivecinematics.immersive_cinematics.trigger.server.CameraCenterManager;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
-/** 相机位置上报（C2S，默认 20 tick 一次）：滑动窗口中心的相机区块坐标（方块坐标） */
-public class C2SPreloadPositionPacket implements CinematicC2SPacket {
+/** 相机中心位置上报（C2S，默认 20 tick 一次）：中心方块坐标 + 是否相机模式 */
+public class C2SCameraCenterPositionPacket implements CinematicC2SPacket {
 
     private final int x;
     private final int z;
-    private final float yaw;
     private final boolean cameraMode;
 
-    public C2SPreloadPositionPacket(int x, int z, float yaw, boolean cameraMode) {
+    public C2SCameraCenterPositionPacket(int x, int z, boolean cameraMode) {
         this.x = x;
         this.z = z;
-        this.yaw = yaw;
         this.cameraMode = cameraMode;
     }
 
-    public C2SPreloadPositionPacket(FriendlyByteBuf buf) {
+    public C2SCameraCenterPositionPacket(FriendlyByteBuf buf) {
         this.x = buf.readInt();
         this.z = buf.readInt();
-        this.yaw = buf.readFloat();
         this.cameraMode = buf.readBoolean();
     }
 
@@ -30,7 +27,6 @@ public class C2SPreloadPositionPacket implements CinematicC2SPacket {
     public void write(FriendlyByteBuf buf) {
         buf.writeInt(x);
         buf.writeInt(z);
-        buf.writeFloat(yaw);
         buf.writeBoolean(cameraMode);
     }
 
@@ -38,10 +34,10 @@ public class C2SPreloadPositionPacket implements CinematicC2SPacket {
     public void handle(ServerPlayer player) {
         // 平台网络层保证在主线程执行（ticket 变更/发包必须主线程）
         try {
-            ChunkPreloadManager.INSTANCE.handlePosition(player, x, z, yaw, cameraMode);
+            CameraCenterManager.INSTANCE.handlePosition(player, x, z, cameraMode);
         } catch (RuntimeException e) {
             // 半更新状态（虚拟中心 / 锚点 / PlayerState）必须释放，异常继续交给 PacketGuard 记录
-            ChunkPreloadManager.INSTANCE.releaseOnFailure(player);
+            CameraCenterManager.INSTANCE.releaseOnFailure(player);
             throw e;
         }
     }

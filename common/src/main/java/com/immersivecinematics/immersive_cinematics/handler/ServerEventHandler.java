@@ -65,10 +65,10 @@ public final class ServerEventHandler {
         TriggerEngine.INSTANCE.onGameEvent("login", serverPlayer);
     }
 
-    /** 玩家退出：清理该 UUID 的预载 / 音频 / 触发状态与各评估器快照，避免重连后读到上一轮状态。 */
+    /** 玩家退出：清理该 UUID 的相机中心 / 音频 / 触发状态与各评估器快照，避免重连后读到上一轮状态。 */
     public static void onPlayerQuit(ServerPlayer serverPlayer) {
         UUID uuid = serverPlayer.getUUID();
-        com.immersivecinematics.immersive_cinematics.trigger.server.ChunkPreloadManager.INSTANCE.onDisconnect(uuid, serverPlayer);
+        com.immersivecinematics.immersive_cinematics.trigger.server.CameraCenterManager.INSTANCE.onDisconnect(uuid, serverPlayer);
         com.immersivecinematics.immersive_cinematics.trigger.server.AudioListenerServerState.clear(uuid);
         TriggerStateStore.INSTANCE.unloadForPlayer(uuid);
         Evaluators.KillTracker.clear(uuid);
