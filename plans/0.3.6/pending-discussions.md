@@ -31,7 +31,7 @@
 
 ## 一、仍未定（0.3.6 边做边讨论：随批次推进就地销项，销项进 §二；少数架构/优先级决策仍需用户拍板）
 
-> D 轮（2026-10-17）的 D1–D8 / D10 已收口、D9 不做；F 轮（2026-10-17 实现 / 2026-10-18 光影画面）F2/F3/F5 实现完成、F4 不做，余项见 §二「F 轮」与本节各文档条目；各节保留一行状态便于核对，完整销项见 §二 / §三。
+> D 轮（2026-10-17）的 D1–D8 / D10 已收口、D9 不做；F 轮（2026-10-17 实现 / 2026-10-18 光影画面）F2/F3/F5 实现完成、F4 不做；F8 设计基线已按调查重写，未实现；余项见 §二「F 轮」与本节各文档条目；各节保留一行状态便于核对，完整销项见 §二 / §三。
 
 ### 索引层
 - **Bezier 曲线编辑器（控制点可视化）**：数值编辑已有（`BezierCurveField`），控制点可视化无；原 0.4.0 条目，随编辑器线排期。影响：编辑器线。（`README.md` §七；审计 §一）
@@ -73,6 +73,21 @@
 - **光影：能否拿「已处理后的画面」** → **F3 已答（2026-10-17 / 10-18）**：能，lane 每遍都跑光影全链；跨视角历史 / shadowcolor 污染已修，Fabric/Iris 1.7.6 A/B 干净；Forge/Oculus 1.8.0 同 jar 已部署，验收通过。（§4）
 - **性能模组（Sodium/Embeddium）二选一** → **已裁决（2026-10-17）**：不整条禁用；检测保留用于跳过 `setupRender` 专属 mixin（走其 Camera / Frustum 路径），lane 始终渲染。（§4）
 - 本文为临时草稿，稳定后并入 `multi-camera-rendering.md`（未并入）。（文档头）
+
+### cross-dimension-camera（跨维度相机，per-view 维度渲染）
+
+- 调查已确认：客户端需要第二套 `ClientLevel` / `LevelRenderer` / `LightTexture`；服务端需要 `(player, dimension, cameraId)` 状态、带维度标签的数据流与目标维度 ticket。P0 是验证顺序，不是能力边界。
+- `DimensionView` 生命周期 / 缓存上限 / 卸载策略：按维度复用；播放结束 / 断线 / 维度卸载释放；内存预算未定。
+- 服务端相机维度流：自建带维度的区块 / 光照 / 方块 / 实体包；IP 的 `ChunkLoader` / `ChunkDataSyncManager` / `EntitySync` 只作参考，不替换 vanilla 玩家差集。具体包形态（自定义 viewer set / 复用原版增量发送）开放。
+- 同一玩家同时多个相机 / 多个维度：接口按 `(player, dimension, cameraId)` 设计，不做“单相机维度”的能力限制；同维度多相机时原版单中心 + 额外 ticket 的分工、anchor 取最近还是每相机一条，开放。
+- `CameraState` 公开 API 是否最终加维度字段：当前建议 `CameraState` 保持六参数，维度放 `CameraLane` / `LaneFrame` 旁路；若公开 API 要带维度，另加 wrapper。
+- 维度元数据同步：非当前维度需要 `dimension key -> DimensionType / level stem`；原版三维度可推导，自定义 / 数据包 / 模组维度必须同步，不锁版本。
+- 客户端加载方式：最低要求是第二套 `ClientLevel` / `LevelRenderer` / `LightTexture`；由谁构造、资源 reload / resize 谁负责开放，不锁固定方案。
+- 粒子：每 view 独立 `ParticleEngine` 还是跨维度 lane 关闭粒子，开放。
+- FABULOUS / shadow：静态 target 重定向、shadow map 按 view 复制 / 切换的成本，开放。
+- `ClientChunkCache`：更新 view center / storage radius 还是自定义 chunk store，开放。
+- CAMERA clip 的 `dimension` 缺省 / 空串 = 玩家当前维度；玩家换维度时缺省 view 跟随，不固化启动时维度。
+- 旧传送路径（`ScriptEventManager.applyDimensionSchedule`）与旧 crossdim 测试要删除；不能留作兼容。
 
 ### render-second-pass-cost.md §7 未决问题
 - **副画面是否需要独立光照 / 光照更新**（若需要，`light_updates` 段不可省）。（§7 L311、§1.2 L53）

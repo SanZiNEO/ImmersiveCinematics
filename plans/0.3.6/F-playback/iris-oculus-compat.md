@@ -1,12 +1,12 @@
 # 光影（Iris / Oculus）兼容
 
-> 状态：已实现（2026-10-18）
+> 状态：同维度已实现（2026-10-18）；跨维度 view 为设计基线（2026-10-25 调查后重写），未实现
 > 范围：Iris（Fabric）/ Oculus（Forge）启用光影包时的多相机 lane 渲染与每视角状态隔离
 > 关联：[multi-camera-rendering](multi-camera-rendering.md)、[f-round-issues](f-round-issues.md)、[failure-handling-audit](failure-handling-audit.md)、[screen-color-adjust](../../complete/0.3.6/A-color/screen-color-adjust.md)
 
 ## 一、摘要
 
-光影启用时，多相机 lane 照常出画：每条 lane 完整跑一遍世界渲染，光影的阴影、合成与最终输出随之各跑一遍。兼容层在视角边界把光影按「一帧只渲染一次世界」共享的每帧状态切成每视角一份，用完写回。没有这层隔离，副画面会出现跨视角污染：历史颜色串味、彩色阴影残边、深度错配的扇形明暗。现行实现覆盖 Iris 与 Oculus，状态与偏离见 §六。
+光影启用时，多相机 lane 照常出画：每条 lane 完整跑一遍世界渲染，光影的阴影、合成与最终输出随之各跑一遍。兼容层在视角边界把光影按「一帧只渲染一次世界」共享的每帧状态切成每视角一份，用完写回。没有这层隔离，副画面会出现跨视角污染：历史颜色串味、彩色阴影残边、深度错配的扇形明暗。同维度实现覆盖 Iris 与 Oculus，状态与偏离见 §六；跨维度时每个 `DimensionView` 还要各自隔离 pipeline / lightmap / shadow / history，见 §4.5。
 
 ## 二、为什么做
 
@@ -46,7 +46,8 @@
 ### 4.1 核心模型
 
 - `ShaderCompat`：识别当前光影管线，取得渲染目标与阴影目标，并从光影包源码识别历史颜色目标。
-- `ViewScope`：视角作用域，主视角与每条 lane 各进入 / 退出一次；进入恢复、退出保存该视角状态。
+- `ViewScope`：视角作用域，主视角与每条 lane 各进入 / 退出一次；进入恢复、退出保存该视角状态。跨维度时作用域身份 = 维度 + cameraId（设计基线，未实现）。
+- `DimensionView`：一个维度一套 `LevelRenderer` / `LightTexture`；跨维度时每个 view 有独立的光影 pipeline / 历史目标 / 深度附件。
 - `ViewStateCapture`：保存相机位置 tracker 的五个向量与每个 `Previous` 实例的上一帧矩阵；实例由两个只读构造器注入注册。
 - `ColorHistoryCapture`：每视角、每历史目标一对快照纹理（main / alt）；进入前写回 live，退出后写回快照，首帧清空 live。
 - `ShadowColorClear`：包未声明清除 shadowcolor 时，每视角 `beginLevelRendering` 之后用与光影一致的白色补清。
@@ -58,11 +59,12 @@
 - 栈按同名配对，退出只弹栈顶同名一层；pipeline 变化后旧作用域整体失效。
 - pipeline 变化由视角进入时检测：清栈、丢弃旧快照、首帧清空 live；光影只重建自己的资源。
 - 每个视角标识一份快照；主视角常驻，lane 连续两帧不活跃才释放。
+- 跨维度：视角标识带维度；不同 `DimensionView` 不共用 pipeline / lightmap / 历史 / 深度；进入 / 退出边界按 view 的 `LevelRenderer.renderLevel` 计。
 - 光影是否启用由光影 API 判定；未启用或探测失败时整层 no-op。
 
 ### 4.3 数据形态
 
-- 视角标识：`<scriptId>_cam<相机轨序号>`，主视角固定 `main`；同一相机轨的多条 lane 共用标识与历史。
+- 视角标识：`<维度>/<scriptId>_cam<相机轨序号>`，主视角固定 `main` + 玩家当前维度；同一相机轨的多条 lane 共用标识与历史。跨维度时维度 + cameraId 先参与 key（设计基线，未实现）。
 - 历史目标：颜色目标编号集合；探测不到时为空集（不隔离）。
 - 颜色快照：每视角每目标一对纹理，尺寸与格式跟随 live；GPU 拷贝，不读回 CPU。
 - 视角快照：tracker 的五个位置向量 + 每个 Previous 实例的上一帧矩阵副本。
@@ -73,6 +75,23 @@
 - 不接管光影合成链；合成层只读 lane 画面 RGB，不读 alpha。
 - 主画面调色在光影色彩空间转换之后、GUI 之前；默认 SRGB 下该转换是空操作。
 - 帧计数不回滚：兼容层不重置光影的全局帧计数，避免影响光影自身的时间推进。
+- 跨维度：每个 `DimensionView` 的 lightmap / pipeline / 历史 / 深度独立；shadow map 是否按 view 复制是独立风险（IP 的 shadow swap 也未完成），见 §4.5。
+
+### 4.5 跨维度 view（设计基线，未实现）
+
+同维度隔离已落地；跨维度多一个轴：**每个 `DimensionView` 是一套独立的光影环境**。
+
+- 每个 view 有自己的 `LevelRenderer` / `LightTexture` / pipeline；`ViewScope` 进入 / 退出按该 view 的 `renderLevel` 计。
+- 视角标识带维度 + cameraId：`<dimension>/<camera id>`；`ColorHistoryCapture` / `ViewStateCapture` / 深度重绑都按这个 key 分开。
+- 天空 / 雾 / 光照按 view 的 `ClientLevel` 与 lightmap；不能读主世界状态。
+- **pipeline 选择**：Iris / Oculus 本来就按维度分 pipeline；lane pass 内切 `mc.level` 后，`renderLevel` 会选目标维度的 pipeline。当前 `ShaderCompat` 只缓存一个 pipeline，维度切换会被误判成光影重载，进而清空所有 view；改成按 pipeline / 维度缓存，用光影自己的重载版本计数（Iris 的 `versionCounterForSodiumShaderReload`）区分“包重载”和“维度切换”。
+- **状态归属**：`ViewStateCapture` / `ColorHistoryCapture` / `CameraPositionTracker` / `MatrixUniforms.Previous` 按 pipeline / 维度 + cameraId 分组；切换维度不能丢另一维度的实例。
+- **阴影**：shadow map 每 pipeline 一套，但 lane 每帧重跑 shadow pass；正确性需要按 view 复制 / 切换 shadow target，成本要进性能矩阵。IP 的 GUI 路径没有完整 shadow swap（`ShadowMapSwapper` 注释掉），不能直接照搬；这是验收项，不是“接受主世界 shadow map”的能力限制。
+- **深度 / 历史**：`CenterDepthSampler` 目前没有隔离，跨维度 DoF / TAA 可能出鬼影，要单独处理；`ShadowColorClear` 在目标 pipeline 选好之后再清。
+- **FABULOUS / Oculus**：FABULOUS 的 `RenderStateShard` 静态 target / `transparency.json` 固定 `minecraft:main`，需要重定向；Oculus / Forge 还要处理 Embeddium 的 world / context 切换。
+- 光影包 / pipeline 变化时，只失效对应 view 的缓存；不要清掉其他 view 的历史。
+
+状态：未实现；与 [跨维度相机](cross-dimension-camera.md) 的 `DimensionView` 同步落地。P0 是验证顺序，不是能力边界；验收至少覆盖：主世界 + 末地两个 view、光影开启、切换光影包、FABULOUS、停播 / 断线释放。
 
 ## 五、为什么不选别的
 
@@ -92,9 +111,9 @@
 
 ## 六、实现结果
 
-状态：已实现（2026-10-18）
+状态：同维度已实现（2026-10-18）；跨维度 view 为设计基线（2026-10-25 调查后重写），未实现。
 
-`isUnavailable()` 已删除，lane 始终渲染；五个兼容组件与两个只读注册注入落地。Fabric / Iris 1.7.6 上 MakeUp 9.5f、ComplementaryUnbound r5.9.3、BSL v8.4 三包 A/B 与热切换（含 ComplementaryReimagined）通过；Forge / Oculus 1.8.0 + Embeddium 0.3.31 部署同一批实现；F5 矩阵 l0 / l1 / l4 / l16 / l25 × FULL / WORLD_ONLY 均 600/600。提交 `4390941`。
+`isUnavailable()` 已删除，lane 始终渲染；五个兼容组件与两个只读注册注入落地。Fabric / Iris 1.7.6 上 MakeUp 9.5f、ComplementaryUnbound r5.9.3、BSL v8.4 三包 A/B 与热切换（含 ComplementaryReimagined）通过；Forge / Oculus 1.8.0 + Embeddium 0.3.31 部署同一批实现；F5 矩阵 l0 / l1 / l4 / l16 / l25 × FULL / WORLD_ONLY 均 600/600。提交 `4390941`。跨维度 view 的 per-dimension pipeline / lightmap / shadow 尚未实现；Iris / Oculus 本身按维度分 pipeline，当前缺口在 `ShaderCompat` 的单 pipeline 缓存、view key 与 shadow target 隔离。
 
 | 原设计 | 实际实现 | 偏离原因 |
 |---|---|---|

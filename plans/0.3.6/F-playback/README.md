@@ -1,6 +1,6 @@
 # F 轮（播放 / 渲染）文档索引
 
-> 用途：一页看清本目录 11 篇文档各自负责什么、现在什么状态、还剩哪些开放项。
+> 用途：一页看清本目录 12 篇文档各自负责什么、现在什么状态、还剩哪些开放项。
 > 本页只做汇总，不新增结论；结论以各文档正文的落地记录为准。
 > 图例：✅ 已完成　🟡 部分可用 / 有开放项　☐ 未开工　⊘ 不做　📄 记录性
 
@@ -11,16 +11,17 @@
 | 文档 | 主题 | 状态 | 现行结论 / 落地记录 |
 |---|---|---|---|
 | [parallel-playback](parallel-playback.md) | 并行播放：实例 / lane 模型、叠加秩序、队列、播放关系 | ✅ 步骤 1–6 落地（2026-10-07）；F2 ✅（2026-10-17 实现 / 10-18 实机覆盖） | §7 步骤 1–6 落地记录、F2 落地记录 |
-| [multi-camera-rendering](multi-camera-rendering.md) | 多相机渲染底层：每 lane 独立相机 → 共用离屏 FBO → 上屏；F3–F5 | ✅ 实现完成（2026-10-18） | §12（实现）、§12.10（光影每视角隔离）、§6（成本矩阵） |
-| [camera-composition](camera-composition.md) | 画面合成：取材 / 目标区域 / 不透明度 / 叠放顺序，全关键帧 | 🟡 主体落地（§7 步骤 3–5），5 项开放 | §7 步骤 3–5、§5 / §6 |
-| [iris-oculus-compat](iris-oculus-compat.md) | 光影（Iris / Oculus）兼容调研 + 每视角状态隔离 | ✅ 调研完成 + F3 验收通过（2026-10-18）；2 项已知限制 | §7（结论与修复）、§7.5（Forge/Oculus） |
+| [multi-camera-rendering](multi-camera-rendering.md) | 多相机渲染底层：每 lane 独立相机 → 共用离屏 FBO → 上屏；F3–F5 | ✅ 同维度实现完成（2026-10-18）；跨维度 per-view 维度源为设计基线（2026-10-25 调查后重写），未实现 | §12（实现）、§12.10（光影每视角隔离）、§6（成本矩阵）、§4.5（per-view 维度）、[cross-dimension-camera](cross-dimension-camera.md) §4.2 / §6 |
+| [camera-composition](camera-composition.md) | 画面合成：取材 / 目标区域 / 不透明度 / 叠放顺序，全关键帧 | 🟡 主体落地（§7 步骤 3–5），5 项开放；维度源与合成解耦（设计基线，未实现） | §7 步骤 3–5、§5 / §6、§4.5（维度源） |
+| [iris-oculus-compat](iris-oculus-compat.md) | 光影（Iris / Oculus）兼容调研 + 每视角状态隔离 | ✅ 同维度调研完成 + F3 验收通过（2026-10-18）；跨维度 view 为设计基线（2026-10-25 调查后重写），未实现；2 项已知限制 | §7（结论与修复）、§7.5（Forge/Oculus）、§4.5（跨维度 view） |
 | [f-round-issues](f-round-issues.md) | F 轮实测问题报告：绿边 / 扇形定位、性能矩阵、失败处理原则 | 🟡 问题 A / B 已修；矩阵完整；剩余 = P0 批次 | §1.1（矩阵复核）、§2 / §3（结论）、§5（下一步） |
-| [failure-handling-audit](failure-handling-audit.md) | 运行期失败 → 崩溃路径审计（60 findings / 23 P0） | ☐ **0 条实施**；F 轮关单前置 | §0.4（实施状态）、§9（三批与验收） |
+| [failure-handling-audit](failure-handling-audit.md) | 运行期失败 → 崩溃路径审计（60 findings / 23 P0） | 🟡 第 1 批 P0 已落地（`4eb65b7`，2026-10-25）；P1/P2 未做；正文 §0.4 待回写 | §0.4（实施状态）、§9（三批与验收） |
 | [f5-script-packet-limit](f5-script-packet-limit.md) | 大脚本传输上限（32,767 字符）→ gzip + 长度前缀 | ✅ 已修复（2026-10-18） | 全文（含 l25 复测数据） |
 | [history-consolidation](history-consolidation.md) | 光影调查分支历史压缩记录 | 📄 记录性 | 全文 |
-| [camera-center-entities](camera-center-entities.md) | 相机中心下的刷怪 / 实体可见性（C 方案） | 🟡 实现中：中心替换与配对 / 刷怪 / 消失查询已接相机 | §六（偏离表）；§四（C 方案） |
-| [camera-pool](camera-pool.md) | 相机租约池（按 CAMERA 片段租借、归还清状态） | ☐ 方向已确认，实现未做（2026-10-22） | §一（已确认口径）、§三（要解决的问题） |
+| [camera-center-entities](camera-center-entities.md) | 相机中心下的刷怪 / 实体可见性（C 方案） | 🟡 实现中（工作树，未提交）：同维度中心 / 配对 / 刷怪 / 消失已接相机；跨维度目标维度流为设计基线（2026-10-25 调查后重写），未实现 | §六（偏离表）；§四（C 方案）；§4.5（跨维度数据流） |
+| [camera-pool](camera-pool.md) | 相机租约池（按 CAMERA 片段租借、归还清状态） | ☐ 方向已确认，实现未做（2026-10-22）；视角键需加维度（设计基线） | §一（已确认口径）、§三（要解决的问题） |
 | [drop-preload](drop-preload.md) | 摘掉预加载 / 预热概念：模块改名相机中心同步，删死配置、预热空转与冗余协议 | ✅ 已实现（2026-10-25） | §六（实现结果） |
+| [cross-dimension-camera](cross-dimension-camera.md) | 跨维度相机：per-view 维度渲染（相机采样带维度；每 lane 用自己的维度源；服务端按 `(player, dimension, cameraId)` 供数据） | 🟡 设计基线（2026-10-25 调查后重写），未实现 | §三（调查结论）/ §四（方案骨架）/ §六（P0 与工作包）/ §七（开放问题） |
 
 ---
 
@@ -38,17 +39,18 @@
 
 ## 3. 未收口：F 轮关单条件
 
-**未收口项 = ① [failure-handling-audit](failure-handling-audit.md) 的 P0 批次；② [camera-center-entities](camera-center-entities.md) 实现；③ [camera-pool](camera-pool.md) 实现。** 已完成部分（性能数据、F2 / F3 / F5）见 §2。②③ 是 2026-10-22 新增的两篇设计稿，按「`plans/0.3.6/` 全部文档 = 0.3.6 工作范围」计入关单条件（原口径只写了 ①）。
+**未收口项 = ① [failure-handling-audit](failure-handling-audit.md) 的 P0 批次；② [camera-center-entities](camera-center-entities.md) 实现；③ [camera-pool](camera-pool.md) 实现；④ [cross-dimension-camera](cross-dimension-camera.md) 实现（per-view 维度渲染，2026-10-25 调查后设计基线，未实现）。** 已完成部分（性能数据、F2 / F3 / F5）见 §2。②③④ 是 2026-10-22/25 新增的设计稿，按「`plans/0.3.6/` 全部文档 = 0.3.6 工作范围」计入关单条件（原口径只写了 ①）。
 
 | 项 | 现状 |
 |---|---|
 | findings | 60 条，其中 23 条 P0（高频路径且当前无边界） |
-| 已实施 | 0 条 |
-| 空体 / 仅注释 catch | 16 处 |
-| `PacketGuard`（统一包处理边界） | 未落地 |
-| 断线清理（`CameraCenterReporter` 直发、`sendToPlayer` 无防护、断线不清 viewer） | 未落地 |
-| camera-center-entities | 实现中：中心替换与配对 / 刷怪 / 消失查询已接相机；统一位置源、局部上限、逐 lane 视图中心、状态清理未落地（§六） |
-| camera-pool | 方向已确认，零实现（进度表 F7） |
+| 已实施 | 第 1 批 P0 已落地（`4eb65b7`）；P1/P2 未做；正文 §0.4 待回写 |
+| 空体 / 仅注释 catch | 第 1 批边界已加；剩余条目按 P1/P2 处理 |
+| `PacketGuard`（统一包处理边界） | 第 1 批已落地（`4eb65b7`） |
+| 断线清理（`CameraCenterReporter` 直发、`sendToPlayer` 无防护、断线不清 viewer） | 第 1 批已落地（`4eb65b7`）；正文待回写 |
+| camera-center-entities | 实现中（工作树，未提交）：C0a/C0b/C1a/C1b/C1c/C2/C6 已写；C3/C4/C5/fixtures/review 未做；跨维度目标维度流为设计基线（§4.5），未实现 |
+| camera-pool | 方向已确认，零实现（进度表 F7）；视角键需加维度（设计基线） |
+| cross-dimension-camera | 设计基线（调查后重写），未实现：per-view 维度渲染；采样带维度；每 lane 用 `DimensionView`；服务端 `(player, dimension, cameraId)` 数据流；不切客户端 / 第二客户端 / IP 依赖；P0 + WP1–WP6 见 §六；开放项见 §七 |
 
 批次顺序与验收标准见该文档 §9；三条硬口径（只在边界捕获、捕获必须可定位、致命不吞）见 §0.3。审计范围不含「改设计」，只加边界与降级。
 
@@ -75,6 +77,7 @@
 - 与 HUD / letterbox 的叠放顺序：合成层写主 framebuffer、在原版 GUI 之前；letterbox 属 OVERLAY 层，层级 / z 序基线待定（§5）。
 - 主 lane 判定规则（§6）。
 - 跨脚本 lane 寻址（候选 B「合成导演」的前置，§6）。
+- 维度源：合成层不读维度，只读 lane 纹理；跨维度 lane 的 `dest` / `source` / `opacity` 与同维度一致；跨维度设计基线，未实现，见 [cross-dimension-camera](cross-dimension-camera.md)。
 
 ### multi-camera-rendering
 
@@ -82,6 +85,7 @@
 - 是否允许叠化期间主相机继续移动（§9；属编排 / 语义决定，合成层不限制）。
 - Rubidium 兼容：`example/` 无源码，只按入口类名覆盖，未取 jar 逐一核对 —— **已知限制**（§9 / §11）。
 - 每 lane 独立光照 / 光照更新：继承自 `_archive/render-second-pass-cost.md` §7；F3 后 lane 每遍走光影自己的注入链（[iris-oculus-compat](iris-oculus-compat.md) §7），该问题未单独复测。
+- 跨维度 view：每个 lane 用自己的 `DimensionView`（level / renderer / lightmap / 剔除 / 光影状态）；当前实现固定 `mc.level`；设计基线见 [cross-dimension-camera](cross-dimension-camera.md) §三 / §四，未实现。
 
 ### iris-oculus-compat
 
@@ -93,17 +97,29 @@
 - 「装了 Iris 但未启用包」这一档未实测（§3）。
 - **已知限制**：⑤ Rubidium 类名核对、非 `SRGB` 色彩空间 —— 不阻塞关单（§7.5）。
 
-### camera-center-entities（未开工）
+### camera-center-entities（工作树实现中，未提交）
 
 - §2.6 可见性缺口按置信排序：实体配对只在区块变化时刷新（位置上报 20 tick 一次）、视图中心整帧只有一份（`topLane`）、客户端可见半径（≈84 格）小于服务端配对半径（128 格）。
 - 刷怪侧确定性缺口：`LocalMobCapCalculator.canSpawn` 在相机区无真实玩家时返回 `false`，整块跳过 `spawnCategoryForChunk`（§2.3）。
-- §4 的 C 方案（统一相机 y、原版查询替换）尚无实现。
+- §4 的 C 方案（统一相机 y、原版查询替换）：工作树已有 C0–C2/C6；C3/C4/C5、fixtures、review 未做。
+- 跨维度目标维度流：`CameraVirtualCenterState` / `CameraCenterManager` 目前按玩家当前维度；目标维度需要 `(player, dimension, cameraId)` 状态与独立区块 / 光照 / 实体流，见 [cross-dimension-camera](cross-dimension-camera.md) §4.3 / §4.4。
 
 ### camera-pool（未实现）
 
 - 租约粒度 = 片段；acquire 时槽位干净、release 时清状态（§一）。
-- 现状缺口：视角 key = `scriptId + "_cam" + trackIndex`，同轨道不同片段共用 key（§3.1）。
+- 现状缺口：视角 key = `scriptId + "_cam" + trackIndex`，同轨道不同片段共用 key（§3.1）；跨维度后视角键还要带维度。
 - FBO 不进池（共享 `offscreenTarget` / `adjustTarget`）；预览与游戏实例共用同一个池。
+- 跨维度：`DimensionView` 变化 = 新的视角身份；不跨维度复用光影历史 / 剔除槽 / 相机状态。
+
+### cross-dimension-camera（设计基线，未实现）
+
+- 相机采样带维度；CAMERA clip 的 `dimension` 缺省 / 空串 = 玩家当前维度，填了才走跨维度。
+- 每条 lane 用 `DimensionView`（`ClientLevel` + `LevelRenderer` + `LightTexture` + 剔除 / 光影 / 实体状态）；同一帧顺序渲染多个维度，合成层不变。
+- 服务端按 `(player, dimension, cameraId)` 维护相机中心；目标维度的区块 / 光照 / 方块 / 实体走独立相机维度流，不替换 vanilla 玩家差集。
+- 客户端必须有第二套 `ClientLevel` / `LevelRenderer` / `LightTexture`；`mc.level` / `mc.levelRenderer` 在 lane pass 内换入换出，`finally` 还原。
+- 光影按 pipeline / 维度缓存；`ShaderCompat` 不能把维度切换当光影重载。
+- 不切整个客户端、不传送玩家、不开第二客户端、不依赖 IP；IP 只作参考。
+- 施工顺序：P0 垂直验证；WP1 数据 / 旧路径；WP2 客户端 view；WP3 服务端流；WP4 中心 / 刷怪；WP5 光影；WP6 验收。P0 不是能力边界，接口从第一步按 `(player, dimension, cameraId)` 设计。
 
 ---
 
@@ -114,6 +130,7 @@
 - [iris-oculus-compat](iris-oculus-compat.md) §3 是源码级推演，**结论在 §7**；§5.2 的待定项仍未定。
 - [failure-handling-audit](failure-handling-audit.md) §2–§6 是**待实施清单**，不是已完成记录；状态只看 §0.4。
 - [camera-composition](camera-composition.md) §5 的 🟡 项与 §6「待定」有重叠（主 lane 判定），本索引已合并列出。
+- [cross-dimension-camera](cross-dimension-camera.md) 已于 2026-10-25 按 IP / MC / 光影 / 本仓代码调查重写为 per-view 维度渲染；旧 0.4.0 F 类与 A/B/C 选型不再作为现行口径，A（传送玩家）已停用。P0 是验证顺序，不是能力边界。
 
 ---
 
@@ -129,4 +146,5 @@
 | 相机播放时服务端中心 / 刷怪 / 实体可见性 | [camera-center-entities](camera-center-entities.md) |
 | 相机生命周期与视角状态复用 | [camera-pool](camera-pool.md) |
 | 预加载 / 预热这套命名怎么摘掉 | [drop-preload](drop-preload.md) |
+| 相机能不能在另一个维度 | [cross-dimension-camera](cross-dimension-camera.md) |
 | 实测记录与收尾过程 | [f-round-issues](f-round-issues.md)、[f5-script-packet-limit](f5-script-packet-limit.md)、[history-consolidation](history-consolidation.md) |

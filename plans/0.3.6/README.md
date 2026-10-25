@@ -14,7 +14,7 @@
 - 比例原则：**一切按比例缩放，不用绝对像素**——位置/尺寸/缩放全是归一化比例；计算全程浮点，**最后一步才映射到屏幕像素**，中间不取整；窗口从 600×800 到 2K 构图一致。（**2026-10-10 起参照口径更新**：参考画布方案废除、`fit` 字段废除，画布 = 窗口，统一几何模型见 `D-transition/variable-frame.md` §4.2。）
 - 画面完整性原则：**每个画面层（lane / 覆盖层）产出的是一张完整、不透明的画面**——渲染期间不允许出现透明像素（雾、背景等一律以不透明色呈现）；**透明度只作用于完整的画面上**（合成层的 opacity 参数），而不是渲染时把透明"烤"进画面本身。反面教材（已修复）：lane 清屏色 alpha=0 + 合成 discard → 原版画面从雾区天窗透出。
 
-**0.4.0 口径**：0.4.0 不再作为独立排期桶，活跃讨论全部归本目录；0.4.0 仅保留未搬迁的远期文档（跨维度运镜、运动模型、路径形状）。
+**0.4.0 口径**：0.4.0 不再作为独立排期桶，活跃讨论全部归本目录；0.4.0 仅保留未搬迁的远期文档（运动模型、路径形状）。
 
 **状态图例**：✅ 已完成　🔵 方向已确认、实现未做　🟡 框架讨论/待定　☐ 未开工
 
@@ -65,7 +65,7 @@ plans/0.3.6/
 | C 触发器与判定 | `C-trigger/` | trigger-conditions（C1–C4）、playback-relations（C5）、condition-system（C6）、point-source-time-mode（C7） | ✅ **已完成（C1–C7 + C-reg + ②族改按执行事实判定 + C-pause，2026-10-14 关单）**；原 `trigger-continuity` / `state-tracking` 两篇方向稿已移入 **H 轮**（`H-other/` = H7 / H8） |
 | D 转场/遮罩 | `D-transition/` | scene-transition（D1–D3）、overlay-color-mask（D4–D7）、variable-frame（D8–D10）；执行记录见 `execution-round.md` / `color-mask-execution.md` | ✅ **D1–D8 / D10 已完成（2026-10-17），D 轮关单**；D9 不做（字幕不裁切）；D1–D3 纯显式 clip / 关键帧（C 最终方案），D2 lane rect/circle，D3 显式 z 序，见 `scene-transition.md` §3–§9 |
 | E 模板 | `E-template/` | templates | ⊘ 归编辑器阶段（E0 重审） |
-| F 播放/渲染 | `F-playback/`（索引：[README](F-playback/README.md)） | parallel-playback（F2）、multi-camera-rendering（F3–F5）、camera-composition、iris-oculus-compat（P2）、camera-center-entities（相机中心实体可见性，C 方案）、camera-pool（相机租约池，按片段）、drop-preload（摘掉预加载/预热概念） | ✅ **F2/F3/F5 已完成；F4 不做**（lane 视距自动跟随玩家）。Fabric/Iris 1.7.6 光影 lane A/B 已于 **2026-10-18 通过**（MakeUp / Complementary / BSL 三包，绿边 / 缝隙 / 扇形消除）；**F3 验收通过（Fabric/Iris 1.7.6 三视角 + 热切换实机；Forge/Oculus 1.8.0 同构移植、同 jar 部署）**；**F5 成本矩阵完整**（l0/l1/l4/l16/l25 × FULL / WORLD_ONLY 均 600/600，l25 在 gzip 脚本传输修复后补齐，见 [f5-script-packet-limit](F-playback/f5-script-packet-limit.md)）；**失败处理审计 P0 收口待做**（60 findings / 23 P0，0 条实施，见 [failure-handling-audit](F-playback/failure-handling-audit.md)）；**camera-center-entities（F6）实现中、camera-pool（F7）零实现，同属关单条件；drop-preload 未开工**（2026-10-24 修订） |
+| F 播放/渲染 | `F-playback/`（索引：[README](F-playback/README.md)） | parallel-playback（F2）、multi-camera-rendering（F3–F5）、camera-composition、iris-oculus-compat（P2）、camera-center-entities（F6，相机中心实体可见性）、camera-pool（F7，相机租约池）、drop-preload（已落地）、cross-dimension-camera（F8，per-view 维度渲染） | ✅ **F2/F3/F5 已完成；F4 不做**（lane 视距自动跟随玩家）；drop-preload 已落地（2026-10-25）；失败处理第 1 批 P0 已落地、P1/P2 待做；**F6/F7/F8 未完成，同属关单条件**（2026-10-25 修订；F8 设计基线已按 IP / MC / 光影调查重写，未实现）。F3 验收、F5 矩阵、光影 A/B 见 [F-playback/README](F-playback/README.md)。 |
 | G script-model | `G-script-model/` | script-model（G1–G6）、clock-abstraction（G4） | G6 ✅；G1–G4 ☐；G5 归编辑器 |
 | H 其它 | `H-other/` | region-sync（H1）、hud-hard-hide（H4–H6）、state-tracking（H7 = P1-impl）、trigger-continuity（H8 = P3-impl）、skip-vote-and-hud（H9） | H1 ☐；H2 ⊘ 已被 C6 判定规则吸收（等待点收编为 `until→do` 阻塞形态，wait-point-track 归档 `_archive/`）；H4 ✅；H5 ☐；H6 ☐；**H7/H8 ☐ 零实现**（2026-10-18 逐条核对）；**H9 🟡 有实现但不完整**（判定两处口径不一致 + HUD 两行分居）；详见 [`H-other/README.md`](H-other/README.md) |
 | 主链路已完成 | `done/` | script-loop、script-i18n、editor-webui-migration、editor-script-graph | ✅（script-loop / script-i18n 已落地；编辑器两篇主体落地，剩余步骤归编辑器阶段） |

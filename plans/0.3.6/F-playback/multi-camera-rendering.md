@@ -1,12 +1,12 @@
 # 多相机渲染
 
-> 状态：已实现（2026-10-18）
+> 状态：同维度已实现（2026-10-18）；跨维度 per-view 维度源为设计基线（2026-10-25 调查后重写），未实现
 > 范围：同一帧内把多个相机视角渲染成独立画面并合成上屏；不含布局参数的脚本语义与实例调度。
 > 关联：`camera-composition.md`、`parallel-playback.md`、`iris-oculus-compat.md`、`docs/SCRIPT_FORMAT.md` §4。
 
 ## 一、摘要
 
-同一帧内把多个相机视角分别渲染成独立画面，再按取材区域、目标区域、不透明度与遮罩合成到屏幕。分屏、画中画、叠化与划像共用同一套底层：每条画面在自己的缓冲里完成世界渲染与 lane 级后处理，互不干扰；玩家视角作底图，未覆盖处保持可见。该能力已实现。
+同一帧内把多个相机视角分别渲染成独立画面，再按取材区域、目标区域、不透明度与遮罩合成到屏幕。分屏、画中画、叠化与划像共用同一套底层：每条画面在自己的缓冲里完成世界渲染与 lane 级后处理，互不干扰；玩家视角作底图，未覆盖处保持可见。该能力已实现（同维度）。每个 lane 的渲染源按自己的维度选择；当前实现固定玩家维度；跨维度按 [跨维度相机](cross-dimension-camera.md) 的设计基线推进，未实现。
 
 ## 二、为什么做
 
@@ -17,6 +17,7 @@
 ### 2.2 目标
 
 - 同一帧内多条机位各自成像，画面完整、互不串色。
+- 每个 lane 按自己的维度选渲染源（跨维度，设计基线，未实现；CAMERA clip 的 `dimension` 缺省 / 空串 = 玩家当前维度）。
 - 全屏 / 画中画 / 分屏 / 叠化 / 划像由关键帧表达，不改渲染代码。
 - 叠化时下层保持不透明，上层由 0 升到 1。
 - 光影与优化模组下副画面仍可用，与主视角一致。
@@ -30,6 +31,7 @@
 - 不做每条画面独立视距或网格中心。
 - 不做编辑器预览的低分辨率传输。
 - 不改字幕 / 黑边 / 转场的绘制阶段。
+- 跨维度数据流（服务端按相机维度供区块 / 实体）不在本篇；本篇只定义 per-view 渲染源。
 
 ## 三、方案
 
@@ -46,9 +48,10 @@
 
 ### 4.1 核心模型
 
-- lane：一条画面的运行时单位，含独立 `Camera`、`CameraState`、`LaneContent`、lane 级调色、合成参数与剔除槽。
+- lane：一条画面的运行时单位，含独立 `Camera`、`CameraState`、`LaneContent`、lane 级调色、合成参数、剔除槽与维度源。
+- `DimensionView`：一个维度一套渲染源（`ClientLevel` + `LevelRenderer` + `LightTexture` + 剔除 / 光影 / 实体状态）。当前同维度复用主世界 view；跨维度为设计基线，未实现，见 §4.5。
 - `LaneRenderer`：lane 槽表、一张全尺寸离屏缓冲（顺序复用）、调色中转缓冲、合成回调。
-- `LaneCompositor`：按 `source` / `dest` / `opacity` / `LaneMask` 贴屏。
+- `LaneCompositor`：按 `source` / `dest` / `opacity` / `LaneMask` 贴屏；不读维度。
 - `LaneCullSlot` / `LaneCullBridge`：每 lane 候选集、可见集合、门闩、相机位姿、透明排序；池化复用。
 - 光影 `ViewScope` / `ShaderCompat` / `ColorHistoryCapture` / `ViewStateCapture`；上游 `PlaybackRegistry` / `FrameDriver`。
 
@@ -57,21 +60,40 @@
 - **归属**：渲染器持有槽位与缓冲；停用清状态、留槽位与相机；剔除槽停播归还池。
 - **帧序**：帧首注册 lane → 主世界渲染 → 逐 lane 渲染并立即合成；注册必须早于世界渲染。
 - **状态**：投影、逆视图矩阵、`mainRenderTarget`、绑定与视口由 lane 块保存 / 还原；雾、深度、混合由原版收敛；异常由 `finally` 兜底。
+- **维度**：每条 lane 按自己的维度取 `DimensionView`；CAMERA clip 的 `dimension` 缺省 / 空串 = 玩家当前维度；同维度零回归。同一帧多个维度按 lane 顺序渲染，不并行提交。
 - **主画面与描边**：主画面描边在 lane 循环前落地；最上层相机可改取链输出，无脚本 lane 时注册全屏链 lane；原版随后那次整屏描边被屏蔽。
 - **合成与失败**：共用一张缓冲、当帧消费、顺序 = 注册顺序；写满 = 颜色纹理 + FBO 完整 + 无 GL 错误，否则跳过。
 
 ### 4.3 数据形态
 
-- **标识与相机**：序号 = 合成顺序；调试 id 为 `<scriptId>_cam<轨道序号>` / `lane<序号>` / `chain`；相机六参数，roll 绕视线轴，fov 经 zoom 钳制。
+- **标识与相机**：序号 = 合成顺序；调试 id 为 `<scriptId>_cam<轨道序号>` / `lane<序号>` / `chain`；相机六参数，roll 绕视线轴，fov 经 zoom 钳制。维度是 lane 的采样属性，不属于六参数；CAMERA clip 的 `dimension` 缺省 / 空串 = 玩家当前维度。
 - **合成参数**：`opacity` 0~1；`source` / `dest` 为归一化矩形（原点左上）；遮罩为形状 + 中心 + 宽高 / 半径。
 - **内容与调色**：四布尔，底层缺省 `WORLD_ONLY`、脚本 `FULL`；调色只动 RGB，alpha 直通。
-- **剔除与光影**：14 字段槽；网格与编译产物共享；每视角、每历史目标 main/alt + previous / tracker。
+- **剔除与光影**：14 字段槽；网格与编译产物共享；每视角、每历史目标 main/alt + previous / tracker。跨维度时视角键要带维度（设计基线，未实现），否则两个 view 会共用历史 / 剔除状态。
 
 ### 4.4 边界
 
 - 只执行合成参数，不定义布局语义；叠放顺序由注册顺序唯一决定。
 - 不碰脚本 / 时间轴 / 排队 / 网络与 GUI 覆盖层；不改原版手与 HUD。
 - 不复制网格与编译产物；不改第三方内部；正式合成不降分辨率；未知历史目标不隔离。
+- 当前实现只支持同维度；跨维度 view 的设计基线需要目标维度 `ClientLevel` / `LevelRenderer` / `LightTexture` 与服务端数据流，未实现；见 [跨维度相机](cross-dimension-camera.md)。
+
+### 4.5 每 view 维度（设计基线，未实现）
+
+现状：`LaneRenderer` 固定 `mc.level` / `mc.levelRenderer` / `gameRenderer.lightTexture()`；`CameraState` 六参数没有维度。跨维度按 per-view 源改造，关键约束：
+
+- **采样**：`CameraLane` / `LaneFrame` 带维度；CAMERA clip 的 `dimension` 缺省 / 空串 = 玩家当前维度。
+- **`DimensionView`**：目标维度 `ClientLevel` + `LevelRenderer` + `LightTexture` + 剔除 / 光影 / 实体状态；同维度复用主世界 view。
+- **第二套世界**：`LevelRenderer` 的 `ViewArea` / `ChunkRenderDispatcher` 是 per-instance，不能每帧 `setLevel` 切维度；目标维度必须有独立 renderer，资源 reload / resize 也要独立接。
+- **状态换入换出**：lane pass 内临时切 `mc.level` / `mc.levelRenderer`（字段是 `final`，需要 accessor）/ `EntityRenderDispatcher` / `BlockEntityRenderDispatcher` / `hitResult` / particle level；`Camera.setup(view.level(), viewEntity, ...)` 用 view 级 entity，不硬套主世界 `mc.player`；`finally` 还原。
+- **视图中心 / 剔除**：每条 lane 用自己的相机作 view center；`LevelRendererVanillaMixin` 不能再取全局 `topLane()`；`LaneCullBridge` / 剔除槽按 view 归属。
+- **光照 / 数据**：`renderLevel` 显式传 `view.lightTexture()`；目标维度区块 / 光照 / 实体包的路由、light 队列、`ClientChunkCache` 范围见 [跨维度相机](cross-dimension-camera.md) §4.2 / §4.3。
+- **状态归属**：`ViewStateCapture` / `ColorHistoryCapture` / `ViewScope` 的 key 带维度 + cameraId；`ShaderCompat` 按 pipeline / 维度缓存，不能把维度切换当光影重载。
+- **合成**：`LaneCompositor` 不变；全屏 / 分屏只是 `dest` 参数。
+- **顺序**：同一帧多个 view 顺序渲染、逐条合成；不是第二客户端，不切整个客户端。
+- **风险**：`ParticleEngine` 单例、FABULOUS 静态 target、shadow map 成本都要单独处理；见 [跨维度相机](cross-dimension-camera.md) §3 / §4.5 / §7。
+
+状态：未实现；P0 垂直验证 + WP1–WP6 见 [跨维度相机](cross-dimension-camera.md) §6。P0 是验证顺序，不是能力边界。
 
 ## 五、为什么不选别的
 
@@ -92,9 +114,9 @@
 
 ## 六、实现结果
 
-状态：已实现（2026-10-18）
+状态：同维度已实现（2026-10-18）；跨维度 per-view 维度源为设计基线（2026-10-25 调查后重写），未实现。
 
-渲染底层、上屏合成、脚本接入、光影隔离、优化模组路径与成本诊断均已落地；2026-10-23 注释收敛（63dbd9a）。F5 矩阵 l0/l1/l4/l16/l25 × FULL/WORLD_ONLY 全部 600/600；Fabric/Iris 1.7.6 与 Forge/Oculus 均已验收。
+渲染底层、上屏合成、脚本接入、光影隔离、优化模组路径与成本诊断均已落地；2026-10-23 注释收敛（63dbd9a）。F5 矩阵 l0/l1/l4/l16/l25 × FULL/WORLD_ONLY 全部 600/600；Fabric/Iris 1.7.6 与 Forge/Oculus 均已验收。跨维度 `DimensionView` / 服务端维度流尚未实现；当前 lane 仍固定 `mc.level`。目标设计要求第二套 `ClientLevel` / `LevelRenderer` / `LightTexture`，并在 lane pass 内换入换出全局状态；见 [跨维度相机](cross-dimension-camera.md) §4.2 / §6。
 
 | 原设计 | 实际实现 | 偏离原因 |
 |---|---|---|
@@ -103,6 +125,7 @@
 | lane 自包含包括原版后处理 | 只有发光描边在 lane 内完成，原版 `postEffect` 在合成输出上跑一次 | 原版后处理作用于整屏，逐 lane 重放会重复 |
 | 帧驱动与 lane 注册挂在世界渲染之后 | 前移到帧首、世界渲染之前 | 视图中心与剔除在渲染准备阶段读 lane 表 |
 | 叠化前单独提前渲染 | 不设独立调度，靠时间轴重叠 | 上层画面从 `opacity=0` 段就在渲染 |
+| 每 lane 独立维度源 | 未实现；当前固定 `mc.level` / `mc.levelRenderer` / 主 lightmap；设计基线要求第二套 `ClientLevel` / `LevelRenderer` / `LightTexture` + 服务端维度流 | 跨维度需要目标维度数据流与 `DimensionView`，见 [跨维度相机](cross-dimension-camera.md) §4.2 / §6 |
 
 ## 附录：重写前原文
 

@@ -230,7 +230,7 @@
   照常上抛或走明确终止路径。
 - 目标：失败有真实记录、可定位；不立刻崩溃；不把错误包成无法调查的静默。
 
-**状态（2026-10-18）**：以上口径只写进了 [failure-handling-audit](failure-handling-audit.md)，**一条都未实施**——60 条 findings / 23 条 P0、16 处空体或仅注释 catch 全部仍在；`PacketGuard` 统一包处理与断线清理也未落地。按 P0 → P1 → P2 分三批，归 F 轮收口。
+**状态（2026-10-25）**：第 1 批 P0 已落地（`4eb65b7`）——帧首 / 逐实例 / 服务端 tick / 包处理 / 命令入口边界、`PacketGuard`、断线清理与坏脚本 fixture 已接；P1/P2 未做，`failure-handling-audit.md` §0.4 仍写“0 条”，待回写。按 P0 → P1 → P2 分三批，归 F 轮收口。
 
 ## 5. 下一步
 
@@ -239,4 +239,4 @@
 - **性能矩阵补齐**：`perf_l16` FULL、`perf_l4` WORLD_ONLY、`perf_l1` WORLD_ONLY 已于 2026-10-18 复测 600/600；**`perf_l25` 同日补齐**——32,767 字符上限已由 gzip 字节传输修复（[f5-script-packet-limit](f5-script-packet-limit.md)），原始 47,061 字节脚本直接播放，FULL / WORLD_ONLY 均 600/600。矩阵完整。
 - **F3 验收**：已通过（Fabric/Iris 三视角 + 热切换实机；Forge/Oculus 为同构移植、同 jar 部署）；Sodium `frame++`（§3-④）由 Sodium 实机 A/B 与 F5 十档覆盖，Rubidium 类名核对（§3-⑤）为已知限制。
 - **失败处理**：按 `failure-handling-audit.md` 第 1 批 P0 落地（帧首 / 逐实例 / lane 合成 / 服务端 tick / 包处理 / 命令入口 / `PacketGuard`），再 P1、P2；网络发包防护与断线清理同批。
-- **F 轮收口条件（2026-10-24 修订）**：① 性能数据回填（已完成，2026-10-18）；② 失败处理 P0 批次落地；③ [camera-center-entities](camera-center-entities.md) 实现；④ [camera-pool](camera-pool.md) 实现。F2 / F3 / F5 均已实现并验收（F3 为 Fabric/Iris 实机 + Forge/Oculus 同构同 jar）。原口径（2026-10-18）只写了 ①②；③④ 是 2026-10-22 新增的两篇设计稿，按「`plans/0.3.6/` 全部文档 = 0.3.6 工作范围」一并计入关单条件。Iris ⑤（Rubidium 类名核对）与非 `SRGB` 色彩空间属**已知限制**，不阻塞关单。
+- **F 轮收口条件（2026-10-25 修订）**：① 性能数据回填（已完成，2026-10-18）；② 失败处理 P0 第 1 批已落地（`4eb65b7`），P1/P2 未做；③ [camera-center-entities](camera-center-entities.md) 实现（同维度工作树未提交；跨维度数据流为设计基线，未实现）；④ [camera-pool](camera-pool.md) 实现；⑤ [cross-dimension-camera](cross-dimension-camera.md) 实现（per-view 维度渲染，2026-10-25 调查后设计基线，未实现；P0 + WP1–WP6 见该文 §6）。F2 / F3 / F5 均已实现并验收（F3 为 Fabric/Iris 实机 + Forge/Oculus 同构同 jar）。原口径（2026-10-18）只写了 ①②；③④ 是 2026-10-22 新增，⑤ 是 2026-10-25 新增，按「`plans/0.3.6/` 全部文档 = 0.3.6 工作范围」一并计入关单条件。Iris ⑤（Rubidium 类名核对）与非 `SRGB` 色彩空间属**已知限制**，不阻塞关单。

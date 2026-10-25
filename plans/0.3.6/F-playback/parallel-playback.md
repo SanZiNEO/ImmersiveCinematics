@@ -1,12 +1,12 @@
 # 并行播放：多脚本实例与画面 lane
 
-> 状态：实现中（实例模型与播放关系已落地；多实例音频锚点与跳过投票界面未做）
+> 状态：实现中（实例模型与播放关系已落地；多实例音频锚点与跳过投票界面未做；跨维度是 lane 源属性，不改实例模型；跨维度设计基线，未实现）
 > 范围：客户端播放模型：一次播放 = 一个实例，可同时存在多个；生命周期、隔离、叠放与到达关系
 > 关联：[画面合成](camera-composition.md)、[多相机渲染](multi-camera-rendering.md)、[相机状态与覆盖链](../../complete/0.3.6/B-camera/camera-state-plan.md)、[播放关系](../C-trigger/playback-relations.md)
 
 ## 一、摘要
 
-播放以实例为单位：每次真正开始播放新建实例，实例自带时间轴、轨道状态、音频、玩家移动控制与覆盖层归属。多个实例可同时存在，不设上限；实例内每条相机轨产出一条画面 lane，所有 lane 进入合成层。本文定义隔离、收尾、叠放与到达关系。
+播放以实例为单位：每次真正开始播放新建实例，实例自带时间轴、轨道状态、音频、玩家移动控制与覆盖层归属。多个实例可同时存在，不设上限；实例内每条相机轨产出一条画面 lane，所有 lane 进入合成层。本文定义隔离、收尾、叠放与到达关系。lane 的维度源是画面属性，不改变实例 / 队列 / 叠放模型；CAMERA clip 的 `dimension` 缺省 / 空串 = 玩家当前维度，见 [跨维度相机](cross-dimension-camera.md)；当前为设计基线，未实现。
 
 ## 二、为什么做
 
@@ -48,6 +48,7 @@
 
 - **播放实例**：一次播放的载体——自己的播放器、启动时快照的行为与播放模式、退场状态与退出原因、覆盖链修改器、规则引擎、预览标志与实例 id。
 - **实例注册表**：活跃实例的有序列表（启动顺序 = 叠放顺序，顶层 = 最后一个），提供同脚本 / 按 id / 按播放模式查询与每帧两份相机片段缓存（并集、顶层自身）。
+- **画面 lane**：相机快照 + 合成参数 + 维度源；维度不影响实例顺序、队列与叠放，只决定该 lane 用哪个 `DimensionView` 渲染（跨维度设计基线，未实现）。
 - **生命周期与队列**：到达裁决、统一退出、渐出退场、立即停用、接播与全局复位；待接播槽 + 按脚本 id 的优先队列（优先级降序、同级先入先出）。
 - **预览通道与网络账本**：预览实例、播放头与直控标志；开始回执、暂停握手、结束通知与跳过投票复位（只记游戏实例）。
 - **帧驱动与共享状态**：每帧推进时钟、逐实例驱动、写缓存、重建快照；门面只转发，状态持有者保存六参数缓冲与统一快照，覆盖链合成 Base 层与修改器。
@@ -73,6 +74,7 @@
 
 - 铺屏、排序与混合归画面合成；lane 渲染、光影与优化模组归多相机渲染。
 - 相机状态覆盖链归相机状态文档；预览通道不参与游戏侧账本、并集与暂停联动；服务端不参与到达裁决。
+- 维度源归多相机渲染 / 跨维度相机；并行播放只负责 lane 顺序，不定义 view 创建、数据流或维度缺省（缺省 = 玩家当前维度）。跨维度当前为设计基线，未实现。
 
 ## 五、为什么不选别的
 
@@ -106,7 +108,7 @@
 | 顶层 = 最晚启动的实例 | 游戏实例按启动顺序，预览恒为末位 | 预览是独立通道 |
 | 触发状态机按实例维护；同脚本多实例可放开 | 未采用：键不变、同脚本单实例 | 与既有语义一致 |
 
-实测：队列接播无头探针 68/68，独占阻塞与按序接播已实机覆盖；控制并集由离线性质测试覆盖，多实例并集未实机验证。
+实测：队列接播无头探针 68/68，独占阻塞与按序接播已实机覆盖；控制并集由离线性质测试覆盖，多实例并集未实机验证。跨维度：lane 的维度源为设计基线，未实现；不改变实例 / 队列 / 叠放模型；缺省维度 = 玩家当前维度。
 
 ## 附录：重写前原文
 
@@ -391,7 +393,7 @@
 5. **已知缺陷 2 “`C2SPlaybackStarted` 无条件回报”** —— 属实。`trigger/client/ClientScriptReceiver.handlePlayScript`：`CameraManager.INSTANCE.playCinematic(script);` 后无条件 `NetworkHandler.sendToServer(new C2SPlaybackStartedPacket(script.getId(), packet.getRefId()))`，未检查返回值。`CameraManager.playScript` 的 javadoc 明确 `@return 0=被拒绝, 1=已开始播放, 2=已排队等待`（`CameraManager.java:145`）；`playCinematic` 直接丢弃返回值（`:177-179`）。
 6. **§3.7 “网络包带实例 id（方向）/ 触发状态机按实例维护（方向）”** —— 现状确实无实例 id：`S2CPlayScriptPacket` 仅 `scriptJson` + `refId`；`C2SPlaybackStartedPacket` 仅 `scriptId` + `refId`；`ScriptEventManager` 的 `Map<String, ScriptPlayback> scriptPlaybacks` 以 **scriptId** 为键，`ScriptPlayback` 只含 `Set<UUID> viewers` / `Set<UUID> skipVoters`；`ScriptSyncState` 只做脚本文件指纹登记（`Map<String,String> fingerprints`），与实例无关。故“带实例 id”确为尚未实现的方向。
 7. **§1 原型数据（引用 `quadrant-perf/summary.md`）** —— 绝对数值属实：结论表列 1/4/16/25 画面帧间隔 8/17/61/98 ms、单画面 3.4/3.5/3.6 ms、主画面各档 2–3 ms、线性。原「≈1.2–1.4 × 主画面」比值经 2026-10-07 跨文档核查与 CSV 明细不符，已在本文与引用处删除（裁决见 multi-camera-rendering.md 核查小节）。
-8. **§8 “G1 原文已从 0.4.0 抹除”** —— 属实。`plans/0.4.0/README.md:12` 注明“G1/G2 已抹除”，`:19` 注“相机实例队列（G1）→ `plans/0.3.6/parallel-playback.md`（取代）”；`plans/0.4.0/camera-queue-pip-dimension.md` 开头声明 G1/G2 已被 0.3.6 三篇取代并抹除，仅保留 F 类跨维度运镜。全 0.4.0 目录 grep `G1` 仅剩这些“已抹除”说明。
+8. **§8 “G1 原文已从 0.4.0 抹除”** —— 属实。`plans/0.4.0/README.md:12` 注明“G1/G2 已抹除”，`:19` 注“相机实例队列（G1）→ `plans/0.3.6/parallel-playback.md`（取代）”；原 `plans/0.4.0/camera-queue-pip-dimension.md` 已删除，跨维度内容归 `plans/0.3.6/F-playback/cross-dimension-camera.md`；G1/G2 已被 0.3.6 三篇取代并抹除。全 0.4.0 目录 grep `G1` 仅剩这些“已抹除”说明。
 
 ##### ② 已修正的断言
 
