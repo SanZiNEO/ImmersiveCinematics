@@ -97,6 +97,16 @@ public final class LaneRenderer {
     }
 
     /**
+     * 一条活跃 lane 的跨维度视图快照（只读）：客户端 tick 据此向服务端上报「该维度需要在相机附近
+     * 流式加载区块 / 实体」。只包含 {@code dimension} 非空的 lane（空串 = 玩家当前维度，走原版连接）。
+     *
+     * @param viewId    视图 id，口径 {@code captureId@dimension}（captureId 缺失时回退 {@code lane<序号>}）
+     * @param dimension 目标维度 id（{@code namespace:path}）
+     * @param position  该 lane 本帧的相机眼位
+     */
+    public record LaneView(String viewId, String dimension, Vec3 position) {}
+
+    /**
      * 每条 lane 渲染完成后的回调——合成层在这里把画面贴到屏幕（实现见 {@link LaneCompositor}）。
      * 必须当帧消费：所有 lane 共用同一张离屏缓冲，回调返回后缓冲会被下一条 lane 覆盖。
      */
@@ -887,6 +897,44 @@ public final class LaneRenderer {
     /** 本帧活跃 lane 数（只读；诊断用）。 */
     public int activeLaneCount() {
         return activeCount;
+    }
+
+    /**
+     * 本帧活跃的跨维度视图快照（客户端 tick 上报用）：只收 {@code dimension} 非空的 lane，
+     * {@code viewId = captureId@dimension}（captureId 缺失回退 {@code lane<序号>}）。
+     * 同一 captureId + 维度（同一条 CAMERA 轨道的上下两个 lane）会产生相同 viewId：服务端按视图 id
+     * 只维护一份流，这里同样按 viewId 去重并保留最后一条（该相机轨的主相机那份），
+     * 避免上下两个 lane 位置不同时逐帧来回移动服务端 ticket / 区块差集。
+     */
+    public List<LaneView> activeViews() {
+        if (activeCount == 0) {
+            return List.of();
+        }
+        List<LaneView> views = new ArrayList<>(activeCount);
+        for (int i = 0; i < lanes.size(); i++) {
+            Lane lane = lanes.get(i);
+            if (lane.state == null) {
+                continue;
+            }
+            String dimension = lane.dimension;
+            if (dimension == null || dimension.isEmpty()) {
+                continue;
+            }
+            String captureId = lane.captureId != null ? lane.captureId : "lane" + i;
+            LaneView view = new LaneView(captureId + "@" + dimension, dimension, lane.state.position());
+            boolean replaced = false;
+            for (int j = 0; j < views.size(); j++) {
+                if (views.get(j).viewId().equals(view.viewId())) {
+                    views.set(j, view);
+                    replaced = true;
+                    break;
+                }
+            }
+            if (!replaced) {
+                views.add(view);
+            }
+        }
+        return views;
     }
 
     /** 本帧活跃 lane 的 captureId（调试捕获文件名口径，跨维度 lane 也不带维度后缀）。 */

@@ -1,6 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.trigger.server.CameraAnchorManager;
+import com.immersivecinematics.immersive_cinematics.trigger.server.CameraViewManager;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
@@ -29,13 +31,25 @@ public abstract class MobDespawnCameraMixin {
         if (!(level instanceof ServerLevel serverLevel)) {
             return real;
         }
-        Player camera = CameraAnchorManager.INSTANCE.getVirtualPlayer(serverLevel, entity.blockPosition());
-        if (camera == null) {
-            return real;
+        BlockPos pos = entity.blockPosition();
+        Player anchor = CameraAnchorManager.INSTANCE.getVirtualPlayer(serverLevel, pos);
+        Player view = CameraViewManager.INSTANCE.getVirtualPlayer(serverLevel, pos);
+        // 真实玩家优先（同距保持原行为），虚拟玩家只在与真实玩家更近时接管
+        Player best = real;
+        double bestSq = real == null ? Double.MAX_VALUE : real.distanceToSqr(entity);
+        if (anchor != null) {
+            double d2 = anchor.distanceToSqr(entity);
+            if (d2 < bestSq) {
+                bestSq = d2;
+                best = anchor;
+            }
         }
-        if (real == null) {
-            return camera;
+        if (view != null) {
+            double d2 = view.distanceToSqr(entity);
+            if (d2 < bestSq) {
+                best = view;
+            }
         }
-        return real.distanceToSqr(entity) <= camera.distanceToSqr(entity) ? real : camera;
+        return best;
     }
 }

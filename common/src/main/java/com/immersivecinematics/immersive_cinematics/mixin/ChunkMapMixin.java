@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.trigger.server.CameraAnchorManager;
 import com.immersivecinematics.immersive_cinematics.trigger.server.CameraCenterDiagnostics;
+import com.immersivecinematics.immersive_cinematics.trigger.server.CameraViewManager;
 import com.immersivecinematics.immersive_cinematics.trigger.server.CameraVirtualCenterState;
 import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
@@ -13,6 +14,8 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import java.util.List;
 
 /**
  * 让原版刷怪判定认为「相机附近也有刷怪中心」。
@@ -38,6 +41,38 @@ public abstract class ChunkMapMixin {
         if (CameraAnchorManager.INSTANCE.isAnyAnchorNear(this.level, chunkPos)) {
             CameraCenterDiagnostics.onSpawnGateHit(this.level, chunkPos);
             cir.setReturnValue(true);
+        }
+    }
+
+    /**
+     * 跨维度视图（独立于 F6 单锚点）：目标维度里玩家不在该 level 的 {@code playerMap}，
+     * 原版外层门 {@code anyPlayerCloseEnoughForSpawning} 会直接返回 false，刷怪根本不会发生。
+     * 视图 128 格内按相机放行，与原版玩家口径一致。
+     */
+    @Inject(method = "anyPlayerCloseEnoughForSpawning", at = @At("HEAD"), cancellable = true)
+    private void immersivecinematics_cameraViewCloseForSpawning(ChunkPos chunkPos, CallbackInfoReturnable<Boolean> cir) {
+        if (CameraViewManager.INSTANCE.isAnyViewNear(this.level, chunkPos)) {
+            cir.setReturnValue(true);
+        }
+    }
+
+    /**
+     * 刷怪局部上限（{@code LocalMobCapCalculator}）取「区块附近玩家」：视图附近没有真实玩家时，
+     * 返回视图属主的真实 {@link ServerPlayer}（不伪造玩家），让 mob cap 继续按玩家记账。
+     */
+    @Inject(method = "getPlayersCloseForSpawning", at = @At("RETURN"), cancellable = true)
+    private void immersivecinematics_cameraViewPlayersForSpawn(ChunkPos chunkPos,
+                                                              CallbackInfoReturnable<List<ServerPlayer>> cir) {
+        List<ServerPlayer> players = cir.getReturnValue();
+        if (players != null && !players.isEmpty()) {
+            return;
+        }
+        if (!CameraViewManager.INSTANCE.isAnyViewNear(this.level, chunkPos)) {
+            return;
+        }
+        ServerPlayer viewer = CameraViewManager.INSTANCE.playerForSpawn(this.level, chunkPos);
+        if (viewer != null) {
+            cir.setReturnValue(List.of(viewer));
         }
     }
 

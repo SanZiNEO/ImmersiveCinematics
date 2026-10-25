@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.trigger.server.CameraAnchorManager;
 import com.immersivecinematics.immersive_cinematics.trigger.server.CameraCenterDiagnostics;
+import com.immersivecinematics.immersive_cinematics.trigger.server.CameraViewManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.MobCategory;
@@ -47,14 +48,26 @@ public abstract class NaturalSpawnerMixin {
     private static Player immersivecinematics_useCameraAnchorForSpawnDistance(
             ServerLevel serverLevel, double x, double y, double z, double distance, boolean creative
     ) {
+        BlockPos pos = BlockPos.containing(x, y, z);
         Player real = serverLevel.getNearestPlayer(x, y, z, distance, creative);
-        Player camera = CameraAnchorManager.INSTANCE.getVirtualPlayer(serverLevel, BlockPos.containing(x, y, z));
-        if (camera == null) {
-            return real;
+        Player anchor = CameraAnchorManager.INSTANCE.getVirtualPlayer(serverLevel, pos);
+        Player view = CameraViewManager.INSTANCE.getVirtualPlayer(serverLevel, pos);
+        // 真实玩家优先（同距保持原行为），虚拟玩家只在与真实玩家更近时接管
+        Player best = real;
+        double bestSq = real == null ? Double.MAX_VALUE : real.distanceToSqr(x, y, z);
+        if (anchor != null) {
+            double d2 = anchor.distanceToSqr(x, y, z);
+            if (d2 < bestSq) {
+                bestSq = d2;
+                best = anchor;
+            }
         }
-        if (real == null) {
-            return camera;
+        if (view != null) {
+            double d2 = view.distanceToSqr(x, y, z);
+            if (d2 < bestSq) {
+                best = view;
+            }
         }
-        return real.distanceToSqr(x, y, z) <= camera.distanceToSqr(x, y, z) ? real : camera;
+        return best;
     }
 }

@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.handler;
 
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.trigger.server.CameraCenterManager;
+import com.immersivecinematics.immersive_cinematics.trigger.server.CameraViewManager;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ScriptEventManager;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerEngine;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CTriggerStateSyncPacket;
@@ -47,6 +48,7 @@ public final class ServerEventHandler {
     public static void onServerStarted(MinecraftServer server) {
         // 单机同进程换存档：静态相机中心 / 锚点 / 虚拟中心不得继承上一份存档的玩家
         CameraCenterManager.INSTANCE.clearAll();
+        CameraViewManager.INSTANCE.clearAll();
         ScriptManager.INSTANCE.loadAll(server);
         TriggerStateStore.INSTANCE.initialize(server);
         TriggerEngine.INSTANCE.initialize();
@@ -57,11 +59,13 @@ public final class ServerEventHandler {
     public static void onServerStopping(MinecraftServer server) {
         TriggerStateStore.INSTANCE.saveAll();
         CameraCenterManager.INSTANCE.clearAll();
+        CameraViewManager.INSTANCE.clearAll();
     }
 
-    /** 维度卸载：清掉该维度的相机中心 / 锚点 / 虚拟中心，不做 move。 */
+    /** 维度卸载：清掉该维度的相机中心 / 锚点 / 虚拟中心与跨维度视图，不做 move。 */
     public static void onLevelUnload(ServerLevel level) {
         CameraCenterManager.INSTANCE.onLevelUnload(level);
+        CameraViewManager.INSTANCE.onLevelUnload(level);
     }
 
     /** 玩家加入：清空残留音频监听状态，载入并同步触发状态，再补发 login 事件。 */
@@ -71,6 +75,8 @@ public final class ServerEventHandler {
         PlayerTriggerState joinState = TriggerStateStore.INSTANCE.getOrCreate(serverPlayer.getUUID());
         S2CTriggerStateSyncPacket.send(
                 serverPlayer, joinState.getTriggeredScripts(), joinState.getCompletedScripts());
+        // 跨维度视图建 ClientLevel 需要「维度 id → 维度类型」表；加入时下发一次
+        CameraViewManager.INSTANCE.sendDimensionInfo(serverPlayer);
         TriggerEngine.INSTANCE.onGameEvent("login", serverPlayer);
     }
 
@@ -78,6 +84,7 @@ public final class ServerEventHandler {
     public static void onPlayerQuit(ServerPlayer serverPlayer) {
         UUID uuid = serverPlayer.getUUID();
         CameraCenterManager.INSTANCE.onDisconnect(uuid, serverPlayer);
+        CameraViewManager.INSTANCE.onPlayerQuit(serverPlayer);
         com.immersivecinematics.immersive_cinematics.trigger.server.AudioListenerServerState.clear(uuid);
         TriggerStateStore.INSTANCE.unloadForPlayer(uuid);
         Evaluators.KillTracker.clear(uuid);
@@ -113,6 +120,13 @@ public final class ServerEventHandler {
             FatalErrors.rethrowIfFatal(e);
             ErrorLog.logRateLimited("Server", "tick:camera-center", 5000L,
                     "服务端 tick 相机中心超时清理异常（本 tick 跳过该子系统，其余子系统继续）", e);
+        }
+        try {
+            CameraViewManager.INSTANCE.tick(server);
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Server", "tick:camera-view", 5000L,
+                    "服务端 tick 跨维度视图流异常（本 tick 跳过该子系统，其余子系统继续）", e);
         }
     }
 

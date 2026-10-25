@@ -80,6 +80,16 @@ public final class ForgeNetwork implements NetworkBridge {
         CHANNEL.registerMessage(id++, C2SRuleCommandPacket.class,
                 CinematicPacket::write, C2SRuleCommandPacket::new,
                 (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.RULE_COMMAND, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
+        // 跨维度视图：同样追加在最后，不改变既有包 ID
+        CHANNEL.registerMessage(id++, C2SCameraViewPacket.class,
+                CinematicPacket::write, C2SCameraViewPacket::new,
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.CAMERA_VIEW, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
+        CHANNEL.registerMessage(id++, S2CCameraViewPacket.class,
+                CinematicPacket::write, S2CCameraViewPacket::new,
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.CAMERA_VIEW, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
+        CHANNEL.registerMessage(id++, S2CDimensionInfoPacket.class,
+                CinematicPacket::write, S2CDimensionInfoPacket::new,
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.DIMENSION_INFO, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
     }
 
     @Override

@@ -29,6 +29,8 @@ public final class NetworkHandler {
     public static final String CAMERA_CENTER_POSITION = "camera_center_position";
     public static final String AUDIO_LISTENER = "audio_listener";
     public static final String RULE_COMMAND = "rule_command";
+    public static final String CAMERA_VIEW = "camera_view";
+    public static final String DIMENSION_INFO = "dimension_info";
 
     private static final long SEND_LOG_INTERVAL_MS = 5000L;
 

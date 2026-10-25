@@ -7,6 +7,7 @@ import com.immersivecinematics.immersive_cinematics.control.SkipHudRenderer;
 import com.immersivecinematics.immersive_cinematics.overlay.CinematicOverlay;
 import com.immersivecinematics.immersive_cinematics.trigger.client.AudioListenerReporter;
 import com.immersivecinematics.immersive_cinematics.trigger.client.CameraCenterReporter;
+import com.immersivecinematics.immersive_cinematics.trigger.client.CameraViewReporter;
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientEntitySelectorCache;
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver;
 import com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker;
@@ -93,6 +94,13 @@ public final class ClientEventHandler {
                     "客户端 tick 相机中心上报异常（本 tick 跳过，后续子系统继续）", e);
         }
         try {
+            CameraViewReporter.INSTANCE.tick(mc);
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Client", "client-tick:camera-view", 5000L,
+                    "客户端 tick 跨维度视图上报异常（本 tick 跳过，后续子系统继续）", e);
+        }
+        try {
             AudioListenerReporter.INSTANCE.tick(mc);
         } catch (Exception e) {
             FatalErrors.rethrowIfFatal(e);
@@ -123,6 +131,7 @@ public final class ClientEventHandler {
             AckTracker.clear();
             ClientEntitySelectorCache.clear();
             CameraCenterReporter.INSTANCE.reset();
+            CameraViewReporter.INSTANCE.reset();
             ClientScriptReceiver.resetSkipVote();
         } catch (Exception e) {
             FatalErrors.rethrowIfFatal(e);

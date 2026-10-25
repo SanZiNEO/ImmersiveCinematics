@@ -1,0 +1,170 @@
+{
+  "meta": {
+    "id": "test_camera_center_crossdim_view",
+    "name": "相机中心·三画面跨维度",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "玩家留在主世界。CAMERA 轨两条跨维度片段分别占左上角 1/2×1/2 与右上角 1/2×1/2，其余区域保持玩家原视角。末地相机前 5 格放置一只静止末影人，下界相机前 5 格放置一只静止僵尸；验收目标画面能各自看到本维度地形与附近实体，玩家不传送。手动执行 /cinematics play test_camera_center_crossdim_view。",
+    "triggers": [
+      { "id": "tccv_disabled", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "minecraft:the_void" } }
+    ],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 20,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "layer_type": "subtitle",
+            "text": "三画面：左上=末地 | 右上=下界 | 其余=主世界玩家原视角（玩家不传送）",
+            "x": 0.5,
+            "y": 0.06,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.06, "opacity": 1 },
+              { "time": 20, "x": 0.5, "y": 0.06, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "dimension": "minecraft:the_end",
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "x": 79, "y": 61.6, "z": -26 },
+                "yaw": 0,
+                "pitch": -10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 20,
+                "position": { "x": 79, "y": 61.6, "z": -26 },
+                "yaw": 0,
+                "pitch": -10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              }
+            ]
+          },
+          {
+            "start_time": 0,
+            "duration": 20,
+            "dimension": "minecraft:the_nether",
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "x": 0, "y": 70, "z": 0 },
+                "yaw": 0,
+                "pitch": -10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 20,
+                "position": { "x": 0, "y": 70, "z": 0 },
+                "yaw": 0,
+                "pitch": -10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              }
+            ]
+          },
+          {
+            "start_time": 0,
+            "duration": 20,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "dx": 0, "dy": 0, "dz": 0 },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 20,
+                "position": { "dx": 0, "dy": 0, "dz": 0 },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "gamemode creative" },
+              { "time": 0, "event_type": "command", "command": "gamerule doMobSpawning true" },
+              { "time": 0, "event_type": "command", "command": "difficulty normal" },
+              { "time": 0, "event_type": "command", "command": "execute in minecraft:the_end run kill @e[type=minecraft:enderman]" },
+              { "time": 0, "event_type": "command", "command": "execute in minecraft:the_nether run kill @e[type=minecraft:zombie]" },
+              { "time": 0, "event_type": "command", "command": "execute in minecraft:the_end run summon minecraft:enderman 79 61.6 -21 {NoAI:1b,NoGravity:1b,PersistenceRequired:1b,Silent:1b}" },
+              { "time": 0, "event_type": "command", "command": "execute in minecraft:the_nether run summon minecraft:zombie 0 70 5 {NoAI:1b,NoGravity:1b,PersistenceRequired:1b,Silent:1b}" },
+              { "time": 0, "event_type": "command", "command": "say [crossdim-view] start: player stays overworld; end lane top-left, nether lane top-right" },
+              { "time": 10, "event_type": "command", "command": "say [crossdim-view] top-left: enderman in the_end; top-right: zombie in the_nether" },
+              { "time": 20, "event_type": "command", "command": "say [crossdim-view] done: player dimension unchanged" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

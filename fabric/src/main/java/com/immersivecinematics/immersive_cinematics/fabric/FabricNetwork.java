@@ -56,6 +56,10 @@ public final class FabricNetwork implements NetworkBridge {
             C2SRuleCommandPacket pkt = new C2SRuleCommandPacket(buf);
             server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.RULE_COMMAND, player, () -> pkt.handle(player)));
         });
+        ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.CAMERA_VIEW), (server, player, handler, buf, responseSender) -> {
+            C2SCameraViewPacket pkt = new C2SCameraViewPacket(buf);
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.CAMERA_VIEW, player, () -> pkt.handle(player)));
+        });
 
         // ===== S2C（仅客户端：专用服务端没有 ClientPlayNetworking）=====
         if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
@@ -87,6 +91,14 @@ public final class FabricNetwork implements NetworkBridge {
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.RESOLVE_ENTITY_SELECTOR_RESULT), (client, handler, buf, responseSender) -> {
             S2CResolveEntitySelectorResultPacket pkt = new S2CResolveEntitySelectorResultPacket(buf);
             client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.RESOLVE_ENTITY_SELECTOR_RESULT, () -> pkt.handle()));
+        });
+        ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.CAMERA_VIEW), (client, handler, buf, responseSender) -> {
+            S2CCameraViewPacket pkt = new S2CCameraViewPacket(buf);
+            client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.CAMERA_VIEW, () -> pkt.handle()));
+        });
+        ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.DIMENSION_INFO), (client, handler, buf, responseSender) -> {
+            S2CDimensionInfoPacket pkt = new S2CDimensionInfoPacket(buf);
+            client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.DIMENSION_INFO, () -> pkt.handle()));
         });
         }
     }
@@ -120,6 +132,7 @@ public final class FabricNetwork implements NetworkBridge {
         if (packet instanceof C2SAudioListenerPacket) return id(NetworkHandler.AUDIO_LISTENER);
         if (packet instanceof C2SRuleCommandPacket) return id(NetworkHandler.RULE_COMMAND);
         if (packet instanceof C2SResolveEntitySelectorPacket) return id(NetworkHandler.RESOLVE_ENTITY_SELECTOR);
+        if (packet instanceof C2SCameraViewPacket) return id(NetworkHandler.CAMERA_VIEW);
         if (packet instanceof S2CPlayScriptPacket) return id(NetworkHandler.PLAY_SCRIPT);
         if (packet instanceof S2CStopScriptPacket) return id(NetworkHandler.STOP_SCRIPT);
         if (packet instanceof S2CTriggerStateSyncPacket) return id(NetworkHandler.TRIGGER_STATE_SYNC);
@@ -127,6 +140,8 @@ public final class FabricNetwork implements NetworkBridge {
         if (packet instanceof S2CScriptPauseAckPacket) return id(NetworkHandler.SCRIPT_PAUSE_ACK);
         if (packet instanceof S2CScriptReloadPacket) return id(NetworkHandler.SCRIPT_RELOAD);
         if (packet instanceof S2CResolveEntitySelectorResultPacket) return id(NetworkHandler.RESOLVE_ENTITY_SELECTOR_RESULT);
+        if (packet instanceof S2CCameraViewPacket) return id(NetworkHandler.CAMERA_VIEW);
+        if (packet instanceof S2CDimensionInfoPacket) return id(NetworkHandler.DIMENSION_INFO);
         throw new IllegalArgumentException("Unknown cinematic packet: " + packet.getClass().getName());
     }
 }
