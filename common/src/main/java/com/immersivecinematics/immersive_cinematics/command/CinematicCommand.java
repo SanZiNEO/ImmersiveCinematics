@@ -44,8 +44,9 @@ import java.util.stream.Stream;
 /**
  * {@code /icinematics} 命令树：播放 / 停止 / 重载 / 校验 / 片段模板生成。
  *
- * 脚本一律从服务端游戏根目录的 {@code immersive_cinematics/scripts/} 读取，
- * 命令 ID 与文件相对路径互转见 {@link #scriptPathOf} 与 {@link #toCommandId}。
+ * 脚本一律从服务端游戏根目录的 {@code immersive_cinematics/scripts/} 读取。命令路径即该目录下的
+ * 相对路径（{@code /} 分隔、不带 {@code .json}）；文件 → 命令路径见 {@link #toCommandPath}，
+ * 命令输入 → 候选路径见 {@link #scriptPathCandidates}（colon 形式仅作兼容别名）。
  */
 public class CinematicCommand {
 
@@ -64,7 +65,7 @@ public class CinematicCommand {
         if (Files.isDirectory(globalDir)) {
             try (Stream<Path> files = Files.walk(globalDir, MAX_SCRIPT_DEPTH)) {
                 files.filter(p -> Files.isRegularFile(p) && p.toString().endsWith(".json"))
-                        .map(p -> toCommandId(globalDir, p))
+                        .map(p -> toCommandPath(globalDir, p))
                         .sorted()
                         .forEach(builder::suggest);
             } catch (IOException e) {
@@ -79,17 +80,32 @@ public class CinematicCommand {
     private static final SuggestionProvider<CommandSourceStack> TEMPLATE_SUGGESTIONS =
             (ctx, builder) -> SharedSuggestionProvider.suggest(TemplateRegistry.ids(), builder);
 
-    /** stop 的 script 参数补全：已加载脚本 id（{@code meta.id} = 网络层脚本 id 口径）。 */
-    private static final SuggestionProvider<CommandSourceStack> LOADED_SCRIPT_SUGGESTIONS =
-            (ctx, builder) -> SharedSuggestionProvider.suggest(
-                    ScriptManager.INSTANCE.getAllScripts().stream().map(CinematicScript::getId).toList(), builder);
+    /**
+     * stop 的 script 参数补全：已加载脚本 id（{@code meta.id} = 网络层脚本 id 口径）与脚本目录下
+     * 相对路径（命令路径）的并集 —— 两种写法都能被 stop 接受。
+     */
+    private static final SuggestionProvider<CommandSourceStack> LOADED_SCRIPT_SUGGESTIONS = (ctx, builder) -> {
+        java.util.Set<String> suggestions = new java.util.LinkedHashSet<>();
+        ScriptManager.INSTANCE.getAllScripts().stream().map(CinematicScript::getId).forEach(suggestions::add);
+        MinecraftServer server = ctx.getSource().getServer();
+        Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
+        if (Files.isDirectory(globalDir)) {
+            try (Stream<Path> files = Files.walk(globalDir, MAX_SCRIPT_DEPTH)) {
+                files.filter(p -> Files.isRegularFile(p) && p.toString().endsWith(".json"))
+                        .map(p -> toCommandPath(globalDir, p))
+                        .sorted()
+                        .forEach(suggestions::add);
+            } catch (IOException e) {
+                LOGGER.warn("Tab 补全扫描脚本目录失败: {} ({})", e.getMessage(), globalDir);
+            }
+        }
+        return SharedSuggestionProvider.suggest(suggestions, builder);
+    };
 
-    /** 把 globalDir 下的文件转为命令 ID：目录中的 / 用 _ 代替，目录与文件名用 : 分隔 */
-    private static String toCommandId(Path globalDir, Path p) {
-        String rel = toForwardRel(globalDir, p).replace(".json", "");
-        int idx = rel.lastIndexOf('/');
-        if (idx < 0) return rel;
-        return rel.substring(0, idx).replace('/', '_') + ":" + rel.substring(idx + 1);
+    /** 把 globalDir 下的文件转为命令路径：scripts/ 下的相对路径，{@code /} 分隔，去掉末尾 .json。 */
+    private static String toCommandPath(Path globalDir, Path p) {
+        String rel = toForwardRel(globalDir, p);
+        return rel.endsWith(".json") ? rel.substring(0, rel.length() - ".json".length()) : rel;
     }
 
     /** 把 globalDir 下的文件转为向前斜杠的相对路径 */
@@ -160,19 +176,15 @@ public class CinematicCommand {
 
     private static int playScript(CommandContext<CommandSourceStack> context) {
         ResourceLocation location = ResourceLocationArgument.getId(context, "file");
-        String filePath = scriptPathOf(location);
+        List<String> candidates = scriptPathCandidates(location);
         CommandSourceStack source = context.getSource();
         MinecraftServer server = source.getServer();
 
         Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
 
-        Path scriptPath = findScriptFile(filePath, globalDir);
+        Path scriptPath = findScriptFile(candidates, globalDir);
         if (scriptPath == null) {
-            source.sendFailure(Component.literal("§c脚本文件不存在: " + filePath +
-                    "\n§7搜索路径:" +
-                    "\n§7  1. " + globalDir.resolve(filePath) +
-                    "\n§7  2. " + globalDir.resolve(filePath + ".json") +
-                    "\n§7请将 .json 脚本文件放入: " + globalDir));
+            source.sendFailure(scriptNotFound(candidates, globalDir));
             return 0;
         }
 
@@ -239,7 +251,7 @@ public class CinematicCommand {
         String scriptId;
         try {
             ResourceLocation location = ResourceLocationArgument.getId(context, "script");
-            scriptId = resolveStopScriptId(server, scriptPathOf(location), location.toString());
+            scriptId = resolveStopScriptId(server, location);
         } catch (IllegalArgumentException e) {
             scriptId = "";
         }
@@ -275,12 +287,13 @@ public class CinematicCommand {
     }
 
     /**
-     * stop 的 script 参数 → 网络层脚本 id（{@code meta.id}）：先按「目录:文件名」命令标识定位脚本文件并解析取
-     * meta.id（与 play 同一标识口径）；文件不存在 / 解析失败 → 原样返回参数（允许直接写已加载脚本 id）。
+     * stop 的 script 参数 → 网络层脚本 id（{@code meta.id}）：先按命令路径（与 play / validate 同一候选口径）
+     * 定位脚本文件并解析取 meta.id；文件不存在 / 解析失败 → 原样返回参数（允许直接写已加载脚本 id）。
      */
-    private static String resolveStopScriptId(MinecraftServer server, String filePath, String literal) {
+    private static String resolveStopScriptId(MinecraftServer server, ResourceLocation location) {
+        String literal = location.toString();
         Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
-        Path file = findScriptFile(filePath, globalDir);
+        Path file = findScriptFile(scriptPathCandidates(location), globalDir);
         if (file != null) {
             try {
                 return ScriptParser.parse(Files.readString(file)).getId();
@@ -316,16 +329,15 @@ public class CinematicCommand {
      */
     private static int validateScriptFile(CommandContext<CommandSourceStack> context) {
         ResourceLocation location = ResourceLocationArgument.getId(context, "file");
-        String filePath = scriptPathOf(location);
+        List<String> candidates = scriptPathCandidates(location);
         CommandSourceStack source = context.getSource();
         MinecraftServer server = source.getServer();
 
         Path globalDir = server.getServerDirectory().toPath().toAbsolutePath().resolve(GLOBAL_SCRIPT_DIR);
 
-        Path scriptPath = findScriptFile(filePath, globalDir);
+        Path scriptPath = findScriptFile(candidates, globalDir);
         if (scriptPath == null) {
-            source.sendFailure(Component.literal("§c脚本文件不存在: " + filePath
-                    + "\n§7请将 .json 脚本文件放入: " + globalDir));
+            source.sendFailure(scriptNotFound(candidates, globalDir));
             return 0;
         }
 
@@ -380,7 +392,7 @@ public class CinematicCommand {
             }
         }
         msg.append("§7保留 key：§fname§7=<文件名，默认模板 id>、§fstart§7=<起始秒，默认 0>\n");
-        msg.append("§7生成到 scripts/generated/ 并当场校验；播放：§f/icinematics play generated:<name>");
+        msg.append("§7生成到 scripts/generated/ 并当场校验；播放：§f/icinematics play generated/<name>");
         source.sendSuccess(() -> Component.literal(msg.toString()), false);
         return 1;
     }
@@ -478,42 +490,85 @@ public class CinematicCommand {
             return 0;
         }
 
-        final String cmdId = GENERATED_SUBDIR + ":" + scriptId;
+        final String cmdPath = GENERATED_SUBDIR + "/" + scriptId;
         final String out = outFile.toString();
         final String overwritten = existed ? "§7(覆盖已存在文件) " : "";
         source.sendSuccess(() -> Component.literal("§a已生成脚本 " + overwritten + out
                 + "\n§7模板: " + id + " §7| 轨道: " + template.trackType().name() + " §7| 校验通过"
-                + "\n§7播放: §f/icinematics play " + cmdId
-                + "§7 | 再校验: §f/icinematics validate " + cmdId), false);
+                + "\n§7播放: §f/icinematics play " + cmdPath
+                + "§7 | 再校验: §f/icinematics validate " + cmdPath), false);
         LOGGER.info("模板 {} 生成脚本 {}（参数 {}）", id, out, raw);
         return 1;
     }
 
     /**
-     * 命令 ID → 相对文件路径：
-     * 根目录脚本直接返回文件名（ResourceLocation 默认 namespace 为 minecraft）；
-     * 子目录脚本把 namespace 中的下划线还原为目录斜杠，再拼接文件名。
+     * 命令输入 → 候选相对路径列表（{@code scripts/} 下，{@code /} 分隔、不带 .json），按优先级排列：
+     * <ol>
+     *   <li>{@code minecraft} namespace：只有 path 本身（根目录或 path 内含层级）；</li>
+     *   <li>其他 namespace：先字面 {@code namespace/path}，再旧解码 {@code namespace.replace('_', '/')/path}
+     *       （与字面相同则去重）。</li>
+     * </ol>
+     * 字面候选存在时绝不回退旧解码，见 {@link #findScriptFile}。
      */
-    private static String scriptPathOf(ResourceLocation location) {
-        String ns = location.getNamespace();
+    private static List<String> scriptPathCandidates(ResourceLocation location) {
+        String namespace = location.getNamespace();
         String path = location.getPath();
-        if ("minecraft".equals(ns)) return path;
-        return ns.replace('_', '/') + "/" + path;
+        if ("minecraft".equals(namespace)) return List.of(path);
+        String literal = namespace + "/" + path;
+        String legacy = namespace.replace('_', '/') + "/" + path;
+        return legacy.equals(literal) ? List.of(literal) : List.of(literal, legacy);
     }
 
-    private static Path findScriptFile(String filePath, Path scriptDir) {
-        Path candidate;
-
-        // 只搜索游戏根脚本目录，拒绝路径遍历
-        candidate = scriptDir.resolve(filePath).normalize();
-        if (!candidate.startsWith(scriptDir.normalize())) return null;
-        if (Files.exists(candidate)) return candidate;
-        if (!filePath.endsWith(".json")) {
-            candidate = scriptDir.resolve(filePath + ".json").normalize();
-            if (!candidate.startsWith(scriptDir.normalize())) return null;
-            if (Files.exists(candidate)) return candidate;
+    /**
+     * 按候选顺序定位脚本文件：每个候选先精确路径、再补 {@code .json}，第一个存在的胜出。
+     * 越界候选（绝对路径、{@code ../} 逃逸）被拒绝，不会读到 {@code scriptDir} 之外。
+     * 若后面的候选也能命中，说明输入有歧义（字面 / 旧解码同时存在），字面胜出并记 WARN。
+     */
+    private static Path findScriptFile(List<String> candidates, Path scriptDir) {
+        Path base = scriptDir.normalize();
+        for (int i = 0; i < candidates.size(); i++) {
+            Path found = resolveScriptCandidate(candidates.get(i), base);
+            if (found == null) continue;
+            for (int j = i + 1; j < candidates.size(); j++) {
+                Path shadowed = resolveScriptCandidate(candidates.get(j), base);
+                if (shadowed != null) {
+                    LOGGER.warn("脚本路径存在歧义: {} 与 {} 都能命中，已按字面路径选择 {}；请用 / 写明确路径",
+                            candidates.get(i), candidates.get(j), found);
+                    break;
+                }
+            }
+            return found;
         }
-
         return null;
+    }
+
+    /** 单个候选 → 存在的文件；越界返回 null。先精确、再补 .json（候选本身已带 .json 时不重复补）。 */
+    private static Path resolveScriptCandidate(String relPath, Path base) {
+        Path candidate = base.resolve(relPath).normalize();
+        if (!candidate.startsWith(base)) return null;
+        if (Files.isRegularFile(candidate)) return candidate;
+        if (!relPath.endsWith(".json")) {
+            Path withJson = base.resolve(relPath + ".json").normalize();
+            if (!withJson.startsWith(base)) return null;
+            if (Files.isRegularFile(withJson)) return withJson;
+        }
+        return null;
+    }
+
+    /** 文件不存在时的统一提示：列出实际尝试过的候选路径（含 .json 变体），并提示用 {@code /} 写明确路径。 */
+    private static Component scriptNotFound(List<String> candidates, Path scriptDir) {
+        Path base = scriptDir.normalize();
+        StringBuilder attempts = new StringBuilder();
+        int n = 0;
+        for (String candidate : candidates) {
+            attempts.append("\n§7  ").append(++n).append(". ").append(base.resolve(candidate));
+            if (!candidate.endsWith(".json")) {
+                attempts.append("\n§7  ").append(++n).append(". ").append(base.resolve(candidate + ".json"));
+            }
+        }
+        return Component.literal("§c脚本文件不存在: " + String.join(" 或 ", candidates)
+                + "\n§7已尝试的路径:" + attempts
+                + "\n§7提示: 用 / 写明确路径（如 camera_center/test_x），.json 可省略"
+                + "\n§7请将 .json 脚本文件放入: " + base);
     }
 }

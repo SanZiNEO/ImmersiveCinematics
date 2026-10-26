@@ -17,7 +17,7 @@
 
 ## 0. 脚本目录组织约定
 
-脚本统一放在 `<游戏目录>/immersive_cinematics/scripts/`。支持**子文件夹组织**——按章节/场景/剧情线建文件夹放脚本，加载时递归遍历（深度 ≤ 5）。编辑器脚本列表显示相对路径（如 `chapter1/boss_fight`）；`/icinematics` 命令 Tab 补全显示**命令标识**：目录名转命名空间 + 冒号 + 文件名（如 `chapter1:boss_fight`）。
+脚本统一放在 `<游戏目录>/immersive_cinematics/scripts/`。支持**子文件夹组织**——按章节/场景/剧情线建文件夹放脚本，加载时递归遍历（深度 ≤ 5）。编辑器脚本列表与 `play` / `validate` 的 Tab 补全都显示**相对路径**：`scripts/` 下、`/` 分隔、不带 `.json`（如 `chapter1/boss_fight`、`camera/center/test_x`、`camera_center/test_x`）；`stop` 的补全额外包含已加载 `meta.id`。
 
 ```
 immersive_cinematics/
@@ -38,8 +38,9 @@ immersive_cinematics/
 ```
 
 - 脚本 `id` 仍是 `meta.id`（全局唯一），子目录**只是文件组织**，不参与 id 语义；同 `id` 冲突时按相对路径提示。
-- 命令用“目录:文件名”标识定位文件：`/icinematics play chapter1:boss_fight`（Tab 补全会给出建议；根目录脚本直接写 `showcase_01`）。
-- 停止同样按脚本定位：`/icinematics stop <脚本>` 只停该脚本（已加载脚本 id，或 `play` 同款“目录:文件名”标识——服务端解析文件取 `meta.id` 后下发）；不写脚本 = 停全部脚本。玩家选择器写在脚本之后；只给选择器（如 `/icinematics stop @a`）= 停全部脚本。
+- 命令用**相对路径**定位文件：`/icinematics play chapter1/boss_fight`、`/icinematics play camera/center/test_x`、`/icinematics play camera_center/test_x`（Tab 补全给出相对路径建议；根目录脚本直接写 `showcase_01`）。
+- 冒号写法（如 `chapter1:boss_fight`）只是**旧输入兼容别名**，不是规范写法：解析时先找字面路径 `chapter1/boss_fight`，不存在再按旧规则把 namespace 里的 `_` 解码成 `/`（`camera_center:test_x` → `camera/center/test_x`）；两个字面候选都存在时字面路径胜出并记一条歧义告警。新写脚本 / 命令请用 `/`。
+- 停止同样按脚本定位：`/icinematics stop <脚本>` 只停该脚本（已加载脚本 id，或 `play` 同款相对路径——服务端解析文件取 `meta.id` 后下发）；不写脚本 = 停全部脚本。玩家选择器写在脚本之后；只给选择器（如 `/icinematics stop @a`）= 停全部脚本。
 - 音频/图片已有子路径支持（`resource/` 下 `path` 写 `"sub/bgm.ogg"` 即可）。
 - 文本资源（`resource/lang/<语言>.json`）见 [§12](#12-文本资源与多语言langkey)——字幕 `text` 与 `meta.description` 支持 `@lang:<key>` 引用。
 
@@ -1694,7 +1695,7 @@ PS「调整图层 + 图层混合模式」的运行时形态：把**调整层的�
 | `/icinematics template <id> [key=value ...]` | 展开为完整脚本 → 写入 `scripts/generated/<name>.json` → 当场校验 |
 
 - 保留参数：`name=<文件名>`（默认 = 模板 id，只允许小写字母 / 数字 / 下划线）、`start=<起始秒>`（默认 0）。
-- 生成物放在 `scripts/generated/` 子目录：`/icinematics play generated:<name>` 直接播放，`/icinematics validate generated:<name>` 再校验。
+- 生成物放在 `scripts/generated/` 子目录：`/icinematics play generated/<name>` 直接播放，`/icinematics validate generated/<name>` 再校验。
 
 ### 内置模板
 
