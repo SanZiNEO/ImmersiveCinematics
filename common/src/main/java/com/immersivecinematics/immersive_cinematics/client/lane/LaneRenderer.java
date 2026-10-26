@@ -100,7 +100,8 @@ public final class LaneRenderer {
      * 一条活跃 lane 的跨维度视图快照（只读）：客户端 tick 据此向服务端上报「该维度需要在相机附近
      * 流式加载区块 / 实体」。只包含 {@code dimension} 非空的 lane（空串 = 玩家当前维度，走原版连接）。
      *
-     * @param viewId    视图 id，口径 {@code captureId@dimension}（captureId 缺失时回退 {@code lane<序号>}）
+     * @param viewId    视图 id：有租约 = {@link CameraLease#viewKey()}（槽位 + 代际 + 维度）；
+     *                  无租约 = {@code captureId@dimension}（captureId 缺失时回退 {@code lane<序号>}）
      * @param dimension 目标维度 id（{@code namespace:path}）
      * @param position  该 lane 本帧的相机眼位
      */
@@ -133,9 +134,11 @@ public final class LaneRenderer {
         private DimensionView view;
         /** 本帧视图解析失败（{@link DimensionViews#acquire} 返回 {@code null}）：渲染时按失败跳过该 lane。 */
         private boolean viewFailed;
-        /** 本帧视角作用域键：主画面 = {@code captureId}；目标视图 = {@code captureId@维度}。 */
+        /** 本帧视角作用域键：有租约 = {@link CameraLease#viewKey()}；回退 = {@code captureId}（目标视图带 {@code @维度}）。 */
         private String viewKey;
-        /** 该 lane 的剔除槽（per-lane 候选集 / 可见集合 / 门闩）；惰性创建、跨帧持有、停播归还池。 */
+        /** 本帧相机租约（片段级身份 + 剔除槽）；{@code null} = 无租约（链输出等回退路径）。 */
+        private CameraLease lease;
+        /** 无租约时的回退剔除槽（惰性创建、跨帧持有、停播归还池）；有租约时由租约持有。 */
         private LaneCullSlot cull;
 
         /** 该 lane 的独立原版相机实例（生命周期 = 槽位，跨帧复用）。 */
@@ -267,13 +270,20 @@ public final class LaneRenderer {
      * @param dimension 该 lane 的渲染维度（片段 {@code dimension}；空串 / {@code null} = 玩家当前维度，
      *                  非空 = 从该维度渲染这条 lane，玩家本身不跨维度）
      * @param captureId 相机 id（调试捕获文件名口径；{@code null} = 回退 {@code lane<序号>}）
+     * @param lease     该 lane 的相机租约（片段级视角身份 + 剔除槽）；{@code null} = 无租约，走旧回退路径
      */
     public void setLane(int index, CameraState state, LaneContent content, ColorAdjustParams adjust,
-                        String dimension, String captureId) {
+                        String dimension, String captureId, CameraLease lease) {
         Lane lane = lane(index);
         if (state == null) {
             deactivate(lane);
             return;
+        }
+        // 槽位从「无租约回退」切到「有租约」：旧回退剔除槽立即归还，避免两套槽同时占着。
+        // 租约槽不在这里归还：它归 CameraLeasePool 所有，deactivate 时已断开引用。
+        if (lease != null && lane.lease == null && lane.cull != null) {
+            LaneCullSlots.release(lane.cull);
+            lane.cull = null;
         }
         lane.state = state;
         LaneContent override = diagnosticContentOverride;
@@ -282,6 +292,7 @@ public final class LaneRenderer {
         lane.adjust = adjust;
         lane.dimension = dimension;
         lane.captureId = captureId;
+        lane.lease = lease;
         if (byCamera.put(lane.camera, lane) == null) {
             activeCount++;
         }
@@ -313,8 +324,13 @@ public final class LaneRenderer {
             lane.captureId = null;
             lane.view = null;
             lane.viewFailed = false;
-            // viewKey 保留到下一帧 prepareViews 覆盖：ScriptLaneDriver 每帧先 clear 再注册，
-            // 视图作用域的清理（releaseStale）要在注册后、渲染前读到上一帧真正 enter 过的键。
+            // 视角身份随租约走：停用即清，下一帧 prepareViews 按新租约重算
+            lane.viewKey = null;
+            // 租约槽归 CameraLeasePool：这里只断开引用，由租约归还时统一 release，避免双重归还
+            if (lane.lease != null) {
+                lane.cull = null;
+            }
+            lane.lease = null;
             byCamera.remove(lane.camera);
             activeCount--;
         }
@@ -473,7 +489,8 @@ public final class LaneRenderer {
             lane.view = view;
             lane.viewFailed = view == null;
             String captureId = lane.captureId != null ? lane.captureId : "lane" + i;
-            lane.viewKey = viewKey(lane, captureId);
+            // 有租约：视角键 = 槽位 + 代际（+ 维度），片段结束即失效；无租约：沿用 captureId 回退
+            lane.viewKey = lane.lease != null ? lane.lease.viewKey() : viewKey(lane, captureId);
             if (view != null && !view.isMain()) {
                 view.updateViewCenter(lane.state.position(), viewDistance);
             }
@@ -486,8 +503,11 @@ public final class LaneRenderer {
         return view == null || view.isMain() ? captureId : captureId + "@" + lane.dimension();
     }
 
-    /** 该 lane 的剔除槽（惰性创建，跨帧持有）；没有 bridge 时不会被调用。 */
+    /** 该 lane 的剔除槽：有租约 = 租约独占槽；无租约 = 惰性创建的回退槽。没有 bridge 时不会被调用。 */
     private static LaneCullSlot cullSlot(Lane lane) {
+        if (lane.lease != null) {
+            return lane.lease.cull();
+        }
         LaneCullSlot slot = lane.cull;
         if (slot == null) {
             slot = LaneCullSlots.acquire();
@@ -496,8 +516,11 @@ public final class LaneRenderer {
         return slot;
     }
 
-    /** 停播归还：清空后入池复用（内存 ∝ 并发 lane 峰值，不随累计 lane 数增长）。 */
+    /** 停播归还回退槽（有租约时槽位归租约池，由 {@code CameraLeasePool.release} 归还）。 */
     private static void releaseCullSlot(Lane lane) {
+        if (lane.lease != null) {
+            return;
+        }
         LaneCullSlot slot = lane.cull;
         if (slot != null) {
             lane.cull = null;
@@ -901,10 +924,9 @@ public final class LaneRenderer {
 
     /**
      * 本帧活跃的跨维度视图快照（客户端 tick 上报用）：只收 {@code dimension} 非空的 lane，
-     * {@code viewId = captureId@dimension}（captureId 缺失回退 {@code lane<序号>}）。
-     * 同一 captureId + 维度（同一条 CAMERA 轨道的上下两个 lane）会产生相同 viewId：服务端按视图 id
-     * 只维护一份流，这里同样按 viewId 去重并保留最后一条（该相机轨的主相机那份），
-     * 避免上下两个 lane 位置不同时逐帧来回移动服务端 ticket / 区块差集。
+     * 有租约时 {@code viewId = lease.viewKey()}（槽位 + 代际 + 维度），无租约回退
+     * {@code captureId@dimension}（captureId 缺失回退 {@code lane<序号>}）。
+     * 同一 viewId 仍按去重并保留最后一条，避免同源 lane 位置不同时逐帧来回移动服务端 ticket / 区块差集。
      */
     public List<LaneView> activeViews() {
         if (activeCount == 0) {
@@ -921,7 +943,8 @@ public final class LaneRenderer {
                 continue;
             }
             String captureId = lane.captureId != null ? lane.captureId : "lane" + i;
-            LaneView view = new LaneView(captureId + "@" + dimension, dimension, lane.state.position());
+            String viewId = lane.lease != null ? lane.lease.viewKey() : captureId + "@" + dimension;
+            LaneView view = new LaneView(viewId, dimension, lane.state.position());
             boolean replaced = false;
             for (int j = 0; j < views.size(); j++) {
                 if (views.get(j).viewId().equals(view.viewId())) {
@@ -949,24 +972,25 @@ public final class LaneRenderer {
     }
 
     /**
-     * 本帧活跃 lane 的视角作用域键（{@code captureId}；目标视图 = {@code captureId@维度}）：
-     * {@code ViewStateCapture.releaseStale} 据此判断哪些视角已消失。
-     * 键在 {@link #prepareViews} 里与本帧 {@code ViewScope.enter} 用同一口径计算，不会错配。
+     * 调试用只读签名：本帧活跃 lane 的 {@code captureId=viewKey}，按 lane 序号空格分隔。
+     * 有租约时 viewKey 取 {@link CameraLease#viewKey()}；链输出回退 lane 为 {@code chain=chain}。
+     * 只在 {@code Config.debugLogging} 下由 {@link ScriptLaneDriver} 调用；不缓存、不参与渲染热路径。
      */
-    public List<String> viewKeys() {
-        List<String> keys = new ArrayList<>(activeCount);
+    public String debugLaneSignature() {
+        StringBuilder signature = new StringBuilder();
         for (int i = 0; i < lanes.size(); i++) {
             Lane lane = lanes.get(i);
             if (lane.state == null) {
                 continue;
             }
-            if (lane.viewKey != null) {
-                keys.add(lane.viewKey);
-            } else {
-                keys.add(lane.captureId != null ? lane.captureId : "lane" + i);
+            if (signature.length() > 0) {
+                signature.append(' ');
             }
+            String captureId = lane.captureId != null ? lane.captureId : "lane" + i;
+            String viewKey = lane.lease != null ? lane.lease.viewKey() : captureId;
+            signature.append(captureId).append('=').append(viewKey);
         }
-        return keys;
+        return signature.toString();
     }
 
     /** 当前 pass 是否要画天空：非 lane pass 恒真（主画面不受内容开关影响）。 */

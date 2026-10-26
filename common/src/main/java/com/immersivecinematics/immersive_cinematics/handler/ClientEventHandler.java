@@ -2,6 +2,8 @@ package com.immersivecinematics.immersive_cinematics.handler;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
+import com.immersivecinematics.immersive_cinematics.client.lane.CameraLeasePool;
+import com.immersivecinematics.immersive_cinematics.client.lane.ScriptLaneDriver;
 import com.immersivecinematics.immersive_cinematics.control.CinematicKeyBindings;
 import com.immersivecinematics.immersive_cinematics.control.SkipHudRenderer;
 import com.immersivecinematics.immersive_cinematics.overlay.CinematicOverlay;
@@ -126,6 +128,10 @@ public final class ClientEventHandler {
             if (CameraManager.INSTANCE.isActive()) {
                 CameraManager.INSTANCE.emergencyStop();
             }
+            // 相机租约兜底：实例停止已逐个归还，这里再收一次口（平台漏发停播 / 异常路径）
+            CameraLeasePool.releaseAll();
+            // 链输出回退 lane 无租约：世界退出没有下一帧，这里直接释放它的视角快照
+            ScriptLaneDriver.releaseFallbackViewState();
             // 跨维度视图持有独立 ClientLevel / LevelRenderer / 区块网格：不释放会跨存档泄漏
             DimensionViews.closeAll();
             AckTracker.clear();

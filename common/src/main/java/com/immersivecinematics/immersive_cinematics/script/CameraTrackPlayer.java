@@ -10,6 +10,7 @@ import com.immersivecinematics.immersive_cinematics.camera.source.WorldPointLoca
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -38,6 +39,12 @@ public class CameraTrackPlayer implements TrackPlayer {
     /** 本轨正在驱动的过渡对（相邻片段下标 i / i + 1）；-1 = 无——打断续接的尾巴据此在窗口外继续驱动。 */
     private int transitionPair = -1;
 
+    /**
+     * 本帧活跃的 CAMERA 片段（按轨道顺序；morph / 过渡窗口 = prev + next）。
+     * 每帧开头清空，供租约对账保留「片段仍活跃但本帧不产画面」的租约。
+     */
+    private final List<Clip> frameActiveClips = new ArrayList<>(2);
+
     public CameraTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos, CameraManager cameraManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
         this.type = type;
@@ -63,6 +70,23 @@ public class CameraTrackPlayer implements TrackPlayer {
         return laneCollector.getLaneSnapshots();
     }
 
+    /**
+     * 本帧活跃的 CAMERA 片段（按轨道顺序；morph / 过渡窗口 = prev + next）。只读，供租约对账使用。
+     *
+     * @return 本轨本帧活跃片段；空列表 = 本轨无活跃片段
+     */
+    public List<Clip> frameActiveClips() {
+        return frameActiveClips;
+    }
+
+    /**
+     * 片段在本轨 {@code clips()} 里的下标。
+     * {@link Clip} 未重写 {@code equals}，这里按对象身份比较（与租约身份同一口径）；找不到 = {@code -1}。
+     */
+    public int indexOfClip(Clip clip) {
+        return clips().indexOf(clip);
+    }
+
     @Override
     public boolean isActiveAt(float globalTime) {
         return evaluator.isActiveAt(clips(), globalTime);
@@ -72,6 +96,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     public void onRenderFrame(float globalTime) {
         // 本帧无写入 → lane 快照为空；有写入时由顶层路径与逐 clip 捕获填值
         laneCollector.clear();
+        frameActiveClips.clear();
         List<Clip> clips = clips();
         if (clips.isEmpty()) return;
 
@@ -86,6 +111,9 @@ public class CameraTrackPlayer implements TrackPlayer {
         if (pair >= 0) {
             Clip prev = clips.get(pair);
             Clip next = clips.get(pair + 1);
+            // 租约对账口径：过渡两侧都算活跃（即使本帧不产画面，也不释放它们的租约）
+            frameActiveClips.add(prev);
+            frameActiveClips.add(next);
             // 进入的片段目标不可用 → 整个转场按空处理
             if (!evaluator.isClipUsable(next)) {
                 evaluator.warnClipUnusableOnce();
@@ -106,6 +134,8 @@ public class CameraTrackPlayer implements TrackPlayer {
         // 顶层活跃片段（轨道顺序最后者；后面的 clip 覆盖前面）驱动相机
         List<Clip> active = evaluator.findActiveClips(clips, globalTime);
         if (active.isEmpty()) return;
+        // 可用性检查之前登记：目标暂时不可用的片段仍算活跃，租约保持到片段真正结束
+        frameActiveClips.addAll(active);
         Clip topClip = active.get(active.size() - 1);
         // 目标不可用（结构/实体找不到）= 该片段按空处理（不写相机 → 玩家视角，与片段间隙同语义）
         if (!evaluator.isClipUsable(topClip)) {
@@ -151,6 +181,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     @Override
     public void onStop() {
         laneCollector.clear();
+        frameActiveClips.clear();
         entityResolver.clear();
         snapshots.clear();
         evaluator.resetTransitionState();
@@ -170,6 +201,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     @Override
     public void onScriptReplaced() {
         laneCollector.clear();
+        frameActiveClips.clear();
         entityResolver.clear();
         snapshots.clear();
         evaluator.resetTransitionState();

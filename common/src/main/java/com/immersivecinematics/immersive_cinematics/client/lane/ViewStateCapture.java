@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +20,8 @@ import java.util.Map;
  * {@link ViewScope} 的视角边界上。
  *
  * pipeline 切换时 {@link #onPipelineChanged()} 丢掉旧 pipeline 的实例与保存状态（旧 previous/tracker 不能套到
- * 新 pipeline 上）。视角连续 2 帧不在活跃列表才释放快照（单帧空档不丢快照），main 永不释放。
+ * 新 pipeline 上）。释放由 {@link CameraLeasePool} 在租约归还时确定性触发（{@link #releaseView}）：
+ * 片段结束即清，不再按「连续 2 帧不活跃」启发式回收；main 永不释放。
  */
 public final class ViewStateCapture {
 
@@ -30,8 +30,6 @@ public final class ViewStateCapture {
     private static Object tracker;
     private static final List<Object> previousInstances = new ArrayList<>();
     private static final Map<String, SavedView> saved = new HashMap<>();
-    /** 视角不在活跃列表的连续帧数（连续 2 帧才释放，容忍条件 lane 的单帧空档）。 */
-    private static final Map<String, Integer> stale = new HashMap<>();
     /** 上一次 pipeline 变化时已有的 Previous 实例数；切换后新实例追加在它后面。 */
     private static int lastPipelineInstanceCount;
 
@@ -60,7 +58,6 @@ public final class ViewStateCapture {
     public static void onPipelineReady() {
         lastPipelineInstanceCount = previousInstances.size();
         saved.clear();
-        stale.clear();
     }
 
     /** pipeline 切换：丢掉旧 pipeline 注册的 Previous 实例，保留新实例；清空每视角保存状态。 */
@@ -71,7 +68,6 @@ public final class ViewStateCapture {
         }
         lastPipelineInstanceCount = previousInstances.size();
         saved.clear();
-        stale.clear();
         if (Config.debugLogging) {
             LOGGER.info("[view-capture] pipeline changed; previousInstances={}", previousInstances.size());
         }
@@ -110,26 +106,7 @@ public final class ViewStateCapture {
             return;
         }
         saved.remove(view);
-        stale.remove(view);
         ColorHistoryCapture.release(view);
-    }
-
-    /** 每帧 lane 注册后调用：释放连续 2 帧不在活跃列表的 lane 视角快照。 */
-    public static void releaseStale(Collection<String> activeViews) {
-        if (activeViews == null) {
-            return;
-        }
-        for (String view : new ArrayList<>(saved.keySet())) {
-            if ("main".equals(view)) {
-                continue;
-            }
-            if (activeViews.contains(view)) {
-                stale.remove(view);
-            } else if (stale.merge(view, 1, Integer::sum) >= 2) {
-                releaseView(view);
-            }
-        }
-        stale.keySet().removeIf(view -> !saved.containsKey(view));
     }
 
     private static SavedView capture() {

@@ -172,6 +172,9 @@ public class ScriptPlayer {
     // TrackPlayer 调度列表
     private List<TrackPlayer> trackPlayers = Collections.emptyList();
 
+    /** 本帧活跃 CAMERA 片段的拼接缓冲（{@link #collectActiveCameraClips()} 复用；调用方可当帧追加）。 */
+    private final List<Clip> activeCameraClips = new ArrayList<>();
+
     /**
      * 规则动作 {@code play_sound} 的一次性发声宿主（懒建）：与轨道列表无关——
      * 没有 AUDIO 轨道的脚本同样能发声。不参与轨道分发（只用到一次性声音容器 / 回收 / 停止），
@@ -259,6 +262,7 @@ public class ScriptPlayer {
             }
         }
         trackPlayers = Collections.emptyList();
+        activeCameraClips.clear();
         if (oneShotHost != null) {
             oneShotHost.onStop();
             oneShotHost = null;
@@ -435,8 +439,9 @@ public class ScriptPlayer {
     /**
      * 画面 lane 快照：按绘制顺序（轨道层级 → 轨道内 clip 顺序，后画的在上）扁平列出各 CAMERA 轨
      * 本帧全部活跃 clip 的 {@link LaneFrame}；列表最后一个元素 = 顶层相机（写入全局相机状态的那份）。
-     * 每份 LaneFrame 带产出片段 / 片段内本地时间 / CAMERA 轨序号（0 起，按出现顺序）/ 该 lane 的调色参数
-     * （恒等 = {@code null}；只承载 RGB，透明度归合成层）。本方法只读快照，不改变相机行为。
+     * 每份 LaneFrame 带产出片段 / 片段内本地时间 / CAMERA 轨序号（0 起，按出现顺序）/ 片段在轨内下标
+     * （0 起）/ 该 lane 的调色参数（恒等 = {@code null}；只承载 RGB，透明度归合成层）。
+     * 本方法只读快照，不改变相机行为。
      *
      * @return 无 CAMERA 轨 / 未播放 / 各轨本帧均无画面时为空列表
      */
@@ -451,12 +456,30 @@ public class ScriptPlayer {
                     // 恒等参数归一化为 null —— 渲染侧因此保持 lane FBO 直接进合成的原路径。
                     ColorAdjustParams adjust = ColorAdjustSampler.sample(lane.clip(), lane.clipLocalTime());
                     // dimension：空串 = 玩家当前维度；非空 = 客户端按该维度渲染这条 lane（无服务端传送）
-                    frames.add(new LaneFrame(lane, cameraLaneIndex, adjust.isIdentity() ? null : adjust,
-                            lane.clip().getDimension()));
+                    frames.add(new LaneFrame(lane, cameraLaneIndex, ctp.indexOfClip(lane.clip()),
+                            adjust.isIdentity() ? null : adjust, lane.clip().getDimension()));
                 }
             }
         }
         return frames;
+    }
+
+    /**
+     * 本帧活跃 CAMERA 片段的拼接列表（各 {@link CameraTrackPlayer#frameActiveClips()} 按轨道顺序拼接）：
+     * 租约对账口径——片段仍活跃但本帧不产画面（目标不可用 / 单帧空档 / morph 两侧）时保留租约。
+     *
+     * <p>返回的是复用缓冲，仅本帧有效；调用方可在本帧内追加片段（例如本帧 lane 里出现过的片段）。</p>
+     *
+     * @return 活跃片段列表（可能为空；不新建集合）
+     */
+    public List<Clip> collectActiveCameraClips() {
+        activeCameraClips.clear();
+        for (TrackPlayer tp : trackPlayers) {
+            if (tp instanceof CameraTrackPlayer ctp) {
+                activeCameraClips.addAll(ctp.frameActiveClips());
+            }
+        }
+        return activeCameraClips;
     }
 
     public boolean hasActiveCameraTrack(float elapsed) {

@@ -1,10 +1,12 @@
 package com.immersivecinematics.immersive_cinematics.client.lane;
 
+import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
 import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
 import com.immersivecinematics.immersive_cinematics.script.CameraLane;
+import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
 import com.immersivecinematics.immersive_cinematics.script.LaneFrame;
@@ -52,6 +54,15 @@ public final class ScriptLaneDriver {
     /** 主画面 lane 的调试捕获相机 id（链输出注册的主画面那份，见 {@link #registerChainLane}）。 */
     private static final String CHAIN_CAPTURE_ID = "chain";
 
+    /**
+     * 上一帧是否注册了链输出 lane。链输出 lane 无租约，视角快照按固定键 {@link #CHAIN_CAPTURE_ID} 保存：
+     * 只在「本帧不再注册」时释放一次，每帧重新注册时不能释放（否则历史每帧清空）。
+     */
+    private static boolean chainLaneActive;
+
+    /** 上一帧活跃 lane 的调试签名（仅 {@link Config#debugLogging} 开启时维护；关闭时置 null，不拼串）。 */
+    private static String lastLaneSignature;
+
     /** 本帧各 lane 的合成参数（按 lane 序号槽位复用，避免每帧分配）。 */
     private static final List<Slot> SLOTS = new ArrayList<>();
 
@@ -73,20 +84,29 @@ public final class ScriptLaneDriver {
         renderer.clear();
         // 无脚本播放 → 一定没有 lane（不进收集路径：零分配、零差异）
         if (mc.level == null || mc.player == null || !CameraManager.INSTANCE.isActive()) {
-            onLaneActivityChanged(mc, lanesWereActive, false, renderer);
+            // 租约没有消费者：全部归还（重播 / 换世界从干净状态开始）
+            CameraLeasePool.releaseAll();
+            // 链输出 lane 无租约：早退路径同样要收口（否则 "chain" 视角快照残留）
+            releaseFallbackViewState();
+            logLaneSignature(renderer);
+            onLaneActivityChanged(mc, lanesWereActive, false);
             return false;
         }
 
         // 跨实例平铺：实例按启动顺序，总表序号 = 叠放顺序（见类 javadoc）
         int index = 0;
         LaneFrame mainFrame = null;
+        CameraLease mainLease = null;
         for (PlaybackInstance instance : CameraManager.INSTANCE.instances()) {
             int instanceStart = index;
             LaneFrame mainFrameBefore = mainFrame;
+            CameraLease mainLeaseBefore = mainLease;
             boolean touched = false;
             try {
                 ScriptPlayer player = instance.player();
                 if (!player.isPlaying()) {
+                    // 停播实例不持有租约：生命周期收口之外再兜一次（实例仍在列表但播放器已停）
+                    CameraLeasePool.releaseOwner(instance);
                     continue;
                 }
                 List<LaneFrame> lanes = player.collectCameraLanes();
@@ -95,22 +115,39 @@ public final class ScriptLaneDriver {
                     CameraLane lane = frame.lane();
                     Slot slot = slot(index);
                     resolve(lane, slot);
-                    // 相机 id（产出文件名口径）：<scriptId>_cam<相机轨序号>；同一相机轨本帧的多条 lane 共用同一 id
-                    slot.captureId = instance.scriptId() + "_cam" + frame.cameraTrackIndex();
+                    // 一条片段一次租约：视角键 = 槽位 + 代际（+ 维度），片段结束确定性归还
+                    CameraLease lease = CameraLeasePool.acquire(instance, lane.clip(), frame.dimension());
+                    // 调试捕获 id（产出文件名口径）：<scriptId>_cam<相机轨序号>_clip<片段序号>；预览实例再带 _preview
+                    slot.captureId = instance.scriptId() + "_cam" + frame.cameraTrackIndex()
+                            + "_clip" + frame.clipIndex() + (instance.isPreview() ? "_preview" : "");
                     touched = true;
                     renderer.setLane(index, lane.state(), contentFor(mc, frame.dimension()),
-                            frame.laneAdjust(), frame.dimension(), slot.captureId);
+                            frame.laneAdjust(), frame.dimension(), slot.captureId, lease);
                     mainFrame = frame;   // 总表最上层 lane = 主相机那份（主画面特例）
+                    mainLease = lease;
                     index++;
                 }
+                // 片段仍活跃但本帧不产画面（目标不可用 / 单帧空档 / morph 两侧）时保留租约；
+                // 本帧 lane 里出现过的片段也按身份补进 keep（防御：帧活跃列表与 lane 快照口径不一致）
+                List<Clip> keep = player.collectActiveCameraClips();
+                for (int i = 0; i < lanes.size(); i++) {
+                    Clip clip = lanes.get(i).lane().clip();
+                    if (!containsIdentity(keep, clip)) {
+                        keep.add(clip);
+                    }
+                }
+                CameraLeasePool.reconcile(instance, keep);
             } catch (Exception e) {
                 // 失败实例本帧不注册任何 lane：把本实例已写入的槽位停用，序号回到进入本实例前。
                 int lastTouched = touched ? index : index - 1;
                 for (int k = instanceStart; k <= lastTouched; k++) {
-                    renderer.setLane(k, null, null, null, null, null);
+                    renderer.setLane(k, null, null, null, null, null, null);
                 }
                 index = instanceStart;
                 mainFrame = mainFrameBefore;
+                mainLease = mainLeaseBefore;
+                // 异常实例本帧的租约全部归还（已登记但未上屏的也不能留）
+                CameraLeasePool.releaseOwner(instance);
                 FatalErrors.rethrowIfFatal(e);
                 String scriptId = instance.scriptId();
                 String instanceId = instance.instanceId();
@@ -124,16 +161,39 @@ public final class ScriptLaneDriver {
             // 直控类层胜出：相机轨道跳过写入 → 本帧无脚本 lane，按「dest 全屏、opacity=1」的主画面特例
             // 由链输出注册一条，画面仍跟链输出。
             if (registerChainLane(renderer)) {
-                onLaneActivityChanged(mc, lanesWereActive, true, renderer);
+                logLaneSignature(renderer);
+                onLaneActivityChanged(mc, lanesWereActive, true);
                 return true;
             }
-            onLaneActivityChanged(mc, lanesWereActive, false, renderer);
+            releaseFallbackViewState();
+            logLaneSignature(renderer);
+            onLaneActivityChanged(mc, lanesWereActive, false);
             return false;
         }
-        applyModifiers(mc, renderer, index, mainFrame);
+        // 本帧有脚本 lane：链输出 lane 已不在本帧注册，释放它上一帧留下的 "chain" 视角快照
+        releaseFallbackViewState();
+        applyModifiers(mc, renderer, index, mainFrame, mainLease);
         renderer.setSink(ScriptLaneDriver::compose);
-        onLaneActivityChanged(mc, lanesWereActive, true, renderer);
+        logLaneSignature(renderer);
+        onLaneActivityChanged(mc, lanesWereActive, true);
         return true;
+    }
+
+    /**
+     * 活跃 lane 签名变化日志（debug）：签名在全部注册完成后按 {@link LaneRenderer} 的实际状态生成，
+     * 异常实例已回退，不会误报变化。关闭 debug 时只置空上一帧签名，不拼串、不分配。
+     */
+    private static void logLaneSignature(LaneRenderer renderer) {
+        if (!Config.debugLogging) {
+            lastLaneSignature = null;
+            return;
+        }
+        String signature = renderer.debugLaneSignature();
+        if (signature.equals(lastLaneSignature)) {
+            return;
+        }
+        lastLaneSignature = signature;
+        LOGGER.info("[lane] 活跃 lane: {}", signature);
     }
 
     /**
@@ -141,11 +201,7 @@ public final class ScriptLaneDriver {
      * 可见集合 / 网格中心惰性重建，不强刷要等相机再移动 8 格才换口径（缺块 / 中心滞后）；
      * 按帧判一次，因为一帧内「清空 → 逐条注册」会被按次判定误读成停播 + 起播（两次强刷 + 刷屏）。
      */
-    private static void onLaneActivityChanged(Minecraft mc, boolean lanesWereActive, boolean lanesAreActive,
-                                              LaneRenderer renderer) {
-        // 先清理已消失的 lane 视角：活跃度不变时也可能少了一条 lane（3 → 2）。
-        // 用作用域键（跨维度 lane 带 @维度 后缀）：releaseStale 的登记口径必须与 ViewScope.enter 一致。
-        ViewStateCapture.releaseStale(renderer.viewKeys());
+    private static void onLaneActivityChanged(Minecraft mc, boolean lanesWereActive, boolean lanesAreActive) {
         if (lanesWereActive == lanesAreActive) {
             return;
         }
@@ -165,14 +221,16 @@ public final class ScriptLaneDriver {
      *
      * @param laneCount 本帧总 lane 数（&gt; 0）：最上层 lane 序号 = {@code laneCount - 1}
      * @param mainFrame 最上层 lane 的帧数据（沿用它的 lane 级调色）
+     * @param mainLease 最上层 lane 的相机租约（重注册沿用同一句柄，不换视角身份）
      */
-    private static void applyModifiers(Minecraft mc, LaneRenderer renderer, int laneCount, LaneFrame mainFrame) {
+    private static void applyModifiers(Minecraft mc, LaneRenderer renderer, int laneCount, LaneFrame mainFrame,
+                                       CameraLease mainLease) {
         if (!chainOutputIsFrameCamera()) return;
         CameraState main = CameraManager.INSTANCE.getCameraState();
         if (main == null) return;
         // 内容档与维度同源：主相机片段的 dimension 非空且跨维度时同样走 CROSS_DIM
         renderer.setLane(laneCount - 1, main, contentFor(mc, mainFrame.dimension()),
-                mainFrame.laneAdjust(), mainFrame.dimension(), slot(laneCount - 1).captureId);
+                mainFrame.laneAdjust(), mainFrame.dimension(), slot(laneCount - 1).captureId, mainLease);
     }
 
     /**
@@ -207,10 +265,34 @@ public final class ScriptLaneDriver {
         // 链输出无 CAMERA clip：显式复位 full（槽位跨帧复用，防上一帧同序号 lane 的遮罩残留）
         slot.mask.sample(null, 0.0F);
         slot.captureId = CHAIN_CAPTURE_ID;
-        // 链输出无 CAMERA clip：维度空串（= 玩家当前维度），不跨维度渲染
-        renderer.setLane(0, main, CONTENT, null, "", slot.captureId);
+        // 链输出无 CAMERA clip：维度空串（= 玩家当前维度），不跨维度渲染；无租约，走 captureId 回退
+        renderer.setLane(0, main, CONTENT, null, "", slot.captureId, null);
         renderer.setSink(ScriptLaneDriver::compose);
+        chainLaneActive = true;
         return true;
+    }
+
+    /**
+     * 释放链输出回退 lane 的视角快照（固定键 {@link #CHAIN_CAPTURE_ID}）并复位状态。
+     * 本帧不再注册链输出 lane 时调用一次（每帧重新注册时不能调用，否则历史每帧清空）；
+     * 世界退出时由 {@code ClientEventHandler} 兜底调用，覆盖没有下一帧的机会。
+     */
+    public static void releaseFallbackViewState() {
+        if (!chainLaneActive) {
+            return;
+        }
+        chainLaneActive = false;
+        ViewStateCapture.releaseView(CHAIN_CAPTURE_ID);
+    }
+
+    /** 片段是否已在列表中（对象身份；{@link Clip} 未重写 equals）。 */
+    private static boolean containsIdentity(List<Clip> clips, Clip clip) {
+        for (int i = 0; i < clips.size(); i++) {
+            if (clips.get(i) == clip) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -4,6 +4,7 @@ import com.immersivecinematics.immersive_cinematics.camera.cover.CameraCoverChai
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraModifier;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.camera.rule.RuleEngine;
+import com.immersivecinematics.immersive_cinematics.client.lane.CameraLeasePool;
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
@@ -148,6 +149,8 @@ public final class PlaybackInstance {
     /** 编辑器增量替换脚本数据（常驻实例零重启）：播放数据与行为快照一起刷新。 */
     void replaceScript(CinematicScript newScript) {
         if (newScript == null) return;
+        // 旧脚本的片段身份失效：先归还本实例全部租约，新脚本从干净状态重新获取
+        CameraLeasePool.releaseOwner(this);
         this.player.attachOwner(this);
         this.player.replaceScript(newScript);
         ScriptMeta meta = newScript.getMeta();
@@ -159,6 +162,8 @@ public final class PlaybackInstance {
 
     /** 停止播放：清空轨道（音频实例、覆盖层随之释放）+ 注销本实例的 Modifier + 清规则槽（释放挂起）。 */
     void stop(CompletionReason reason) {
+        // 生命周期收口：实例停止即归还全部租约（视角快照 / 颜色历史 / 剔除槽）
+        CameraLeasePool.releaseOwner(this);
         this.player.stop(reason);
         syncModifiers(null);
         ruleEngine.reset(player);
