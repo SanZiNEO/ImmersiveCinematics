@@ -1,6 +1,6 @@
 # 跨维度相机（per-view 维度渲染）
 
-> 状态：设计基线（2026-10-25 调查后重写），未实现。
+> 状态：P0 + WP1–WP4 已实现并提交（2026-10-25，`8354731` / `c0b1ac1` / `50aa5fb`）；WP5（光影每视角隔离）部分；WP6（实机验收矩阵）未完成。实现状态与已知限制见 §八。
 > 范围：相机采样带维度；同一客户端内每个画面 view 用目标维度的渲染源；服务端按相机 view 供区块、实体与刷怪中心。玩家留在原维度，不切整个客户端、不传送玩家、不开第二客户端。
 > 关联：[多相机渲染](multi-camera-rendering.md)、[画面合成](camera-composition.md)、[相机中心实体](camera-center-entities.md)、[相机租约池](camera-pool.md)、[光影兼容](iris-oculus-compat.md)、[并行播放](parallel-playback.md)。
 > 调查依据：`example/ImmersivePortalsMod-1.20.1`、MC 1.20.1 反编译源码、Iris 1.7.6 / Oculus 1.8.0、本仓客户端与服务端代码（2026-10-25）。IP 只作参考实现，不作为运行时依赖。
@@ -90,8 +90,8 @@
 - `CameraLane` / `LaneFrame` 增加 `dimension`；`ScriptLaneDriver` / `LaneSnapshotCollector` / `LaneRenderer.Lane` 全链传递。
 - `ScriptValidator` 校验 `dimension` 是合法 `ResourceLocation`；缺省 / 空串不报错。
 - 删除旧传送语义：`ScriptEventManager.applyDimensionSchedule` 的 `teleportTo` 路径、`ScriptPlayer.validateClipDimensions` 的“服务端切换”注释、`DimensionClip` 相关调度与旧测试夹具全部退出。新的 `dimension` 只表示采样维度，不再驱动玩家传送。
-- `CameraCenterReporter` 从“每个玩家一条中心”改为“每条活跃相机一条上报”：`(cameraId, dimension, x, y, z, cameraMode)`；`sessionId` 按 view 生成，旧播放的迟到包不能误杀新播放。
-- 调试 id 仍用 `<scriptId>_cam<轨道序号>`；日志与捕获文件名追加维度，避免两个 view 的产物混在一起。
+- `CameraCenterReporter` 从“每个玩家一条中心”改为“每条活跃相机一条上报”：`(cameraId, dimension, x, y, z, cameraMode)`；`sessionId` 按 view 生成，旧播放的迟到包不能误杀新播放。（实际实现未改同维度 reporter：跨维度由独立的 `CameraViewReporter` + `CameraViewManager` 上报 / 接收，见 §八。）
+- 调试 id 用 `<scriptId>_cam<轨道序号>_clip<片段序号>`（预览实例加 `_preview`）；每条 lane 的捕获产物因此天然按片段分开，不需要再追加维度后缀。
 
 ### 4.2 客户端 `DimensionView`
 
@@ -246,12 +246,40 @@ P0 通过，说明“采样带维度 → 目标 view → 数据流 → 合成”
 
 ## 八、实现状态
 
-设计基线，未实现（2026-10-25）。
+状态：P0 + WP1–WP4 已实现并提交（2026-10-25，`8354731` / `c0b1ac1` / `50aa5fb`）；WP5（光影每视角隔离）部分；WP6（实机验收矩阵）未完成。以下按当前代码陈述，不是实机验收结论。
 
-- 当前 `CameraState` 仍是六参数；`CameraLane` / `LaneFrame` 没有维度；`LaneRenderer` 仍固定 `mc.level` / `mc.levelRenderer` / `gameRenderer.lightTexture()`。
-- 当前服务端 `CameraVirtualCenterState` 仍按玩家单条；`CameraAnchorManager` 仍是一个玩家一个锚点；`CameraCenterManager.applyVirtualCamera` 仍固定 `player.level()`；上报包没有维度 / cameraId。
-- 当前 `ScriptEventManager.applyDimensionSchedule` 仍会把观看者传送到片段维度；这是旧 A 路径，不在新方案内，实施时删除。
-- 当前 `ShaderCompat.refresh()` 仍把 pipeline 对象变化当重载；跨维度会清空全部 view 状态。
-- 当前 crossdim 测试验证的是旧传送路径，不是“玩家不动、相机在另一个维度渲染”。
+### 8.1 已落地
 
-下一步按 §6.1 做 P0；P0 通过后再拆 WP1–WP6。本文只更新设计文档，未改代码。
+- **采样 / 数据**：`Clip.dimension` → `CameraLane` / `LaneFrame.dimension`；空串 = 玩家当前维度。`LaneRenderer` 逐 lane 解析 `DimensionView` 并在 lane pass 内换入 `mc.level` / `mc.levelRenderer` / 实体与方块实体分发器 / 光照贴图，`finally` 还原。
+- **客户端 view**：`DimensionViews` 按维度懒创建 `DimensionView`（独立 `ClientLevel` + `LevelRenderer` + `LightTexture` + `RenderBuffers`）；`MAIN` 哨兵复用玩家当前维度；`FABULOUS`（`Minecraft.useShaderTransparency()`）、缺维度类型、非法 id 返回 `null`（该 lane 本帧跳过并限频告警）；窗口 resize / 资源重载 / 世界退出 `closeAll()`。
+- **服务端流**：`CameraViewManager` 按 `(玩家 UUID, viewId)` 维护 `ViewState`（`ServerLevel` / 位置 / section / 已发区块 / 实体 / 虚拟玩家 / ticket）；`DistanceManager.addPlayer(相机 section, 真实玩家)`；区块 `ClientboundLevelChunkWithLightPacket` + 离开半径 `ClientboundForgetLevelChunkPacket`；实体 `ServerEntity.sendPairingData` 只发初始配对，离开 / 移除补 `ClientboundRemoveEntitiesPacket`；全部经 `S2CCameraViewPacket` 信封（维度 + vanilla 包 id + payload）。
+- **客户端路由 / 上报**：`CameraViewReporter` 每 5 tick / 位移 ≥1 格 / 状态变化上报；`CameraViewPacketRouter` 按维度 `DimensionViews.acquire`，临时切 `ClientPacketListener.level` 处理 vanilla 包、排干 light 更新、`finally` 还原。
+- **刷怪 / 消失**：`ChunkMapMixin` 增加视图门（`isAnyViewNear` / `playerForSpawn`）与 `getPlayersCloseForSpawning` 返回视图属主真实玩家；`NaturalSpawnerMixin` / `MobDespawnCameraMixin` 在真实玩家、F6 锚点虚拟玩家、视图虚拟玩家三者中取最近。
+- **剔除 / 视角状态**：`LaneCullSlot` 带 `owner`，换渲染器时整箱作废、按新渲染器重新播种；`LaneCullSlots.mirrorCompiled` 只投给同渲染器的槽；`ViewScope` 在 lane 循环内跳过 `ShaderCompat.refresh()`（P0 折中，不是 per-pipeline 隔离）。
+- **租约**：F7 后视角身份 = 租约（维度 + 槽位 + 代际），相邻片段 / 重播不继承光影历史；租约归还时确定性释放 `ViewStateCapture` / `ColorHistoryCapture`，见 [相机租约池](camera-pool.md)。
+- **旧路径**：服务端“片段起点传送玩家”已删除（`8354731`）；`ScriptEventManager.applyDimensionSchedule` 不再参与跨维度。
+
+### 8.2 与设计基线的偏离
+
+| 设计 | 实际实现 | 原因 |
+|---|---|---|
+| `CameraVirtualCenterState` / `CameraAnchorManager` / `CameraCenterManager` 改造成 `(player, dimension, cameraId)` | 同维度链路保持原样；跨维度新增并行 `CameraViewManager` | 同维度零回归；三张表按 view 重做会牵动 F6 |
+| 自定义 `TicketType` / region ticket 覆盖 entity-ticking | `DistanceManager.addPlayer(相机 section, 真实玩家)` + 每 tick `resetEmptyTime()` | 复用原版 ticket 语义；目标维度实体 tick 由 `emptyTime` 重置保住 |
+| 区块 / 光照 / 方块 / 实体全量增量 | 区块首包带光照、实体只发初始配对；无方块 / 光照增量、无实体持续同步 | P0 先验证“可见”；增量发送要避开原版 `TrackedEntity` 的 dirty 数据 |
+| 每 view 独立 `ParticleEngine` 或决策 | 跨维度 lane 内容档 `CROSS_DIM` 关粒子 | 粒子是主世界局部客户端状态，跨维度采样没有意义 |
+| 光影 per-pipeline / 维度缓存，shadow 每 view | 未完成；`ViewScope` 在 lane 循环内跳过刷新 | WP5；FABULOUS 直接拒绝目标视图 |
+| 客户端 `ClientChunkCache` 自定义 store | 复用 `ClientChunkCache` + `updateViewCenter` | 改动面更小；视距与 storage radius 已验证够用（P0） |
+
+### 8.3 已知限制
+
+- **实体是快照**：目标维度实体只发初始配对，不调用 `sendChanges`；目标 `ClientLevel` 不 tick，实体不移动 / 不播放动画。
+- **目标维度只有区块 + 实体**：没有方块更新、光照更新、声音、天气、方块事件、粒子（跨维度 lane 内容档关粒子）。
+- **FABULOUS 不支持**：`Minecraft.useShaderTransparency()` 为真时 `DimensionViews` 拒绝创建目标视图；光影 per-pipeline 隔离未做，`ViewScope` 跳过刷新是折中。
+- **包上限**：自定义通道约 1 MiB；超大区块包丢弃（限频日志），目标视图可能缺一块。
+- **多视图同维度**：同一玩家同一维度多个 view 会重复发区块（forget / remove 有去重）；`DistanceManager` 同 section 多视图可能重复 ticket，未实机验证。
+- **F6 与 F8 并行**：F6 单锚点 `CameraCenterManager` 保持原样；跨维度视图是第二条链，不合并成单 key。
+- **未实机验收**：三画面 fixture `test_camera_center_crossdim_view` 已提交，尚未跑；WP6 验收矩阵未完成。
+
+### 8.4 下一步
+
+按 §6.3 做 WP6 实机验收（玩家主世界 + 末地 / 下界双 lane、停播释放、光影 / FABULOUS 边界）；补目标维度实体增量、方块 / 光照更新与光影 per-pipeline 隔离后再宣称完整跨维度。

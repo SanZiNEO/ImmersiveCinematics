@@ -1,0 +1,68 @@
+{
+  "meta": {
+    "id": "test_lease_replay",
+    "name": "相机租约·同轨片段与重播",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "同一条 CAMERA 轨两个 5s 片段：0-5 位置 A，5-10 位置 B。用于检查相邻片段得到不同租约 / 视角键，以及停止后重播从新代际开始。",
+    "triggers": [],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 10,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 10,
+            "layer_type": "subtitle",
+            "text": "F7 租约测试：片段 A(0-5s) → 片段 B(5-10s)；停止后重播",
+            "x": 0.5,
+            "y": 0.08,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.08, "opacity": 1 },
+              { "time": 10, "x": 0.5, "y": 0.08, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 5,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 5, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          },
+          {
+            "start_time": 5,
+            "duration": 5,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 5, "position": { "dx": 8, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 10, "position": { "dx": 8, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

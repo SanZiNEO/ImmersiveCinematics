@@ -4,7 +4,7 @@
     "name": "相机中心·片段维度切换",
     "author": "ImmersiveCinematics",
     "version": 3,
-    "description": "玩家在主世界启动：CAMERA 片段 t=2 声明 dimension=minecraft:the_end、绝对位置 (79,61.6,-26)。服务端应在片段起点前 0.5s 把玩家传送到末地该坐标，客户端相机脚本继续播放到 22s 结束。脚本自动切 creative + doMobSpawning + normal；不要用 spectator（旁观模式不产生刷怪尝试）。不铺平台、不清场、不 kill。",
+    "description": "历史 A 方案（服务端传送玩家）已删除；现行跨维度请用 test_camera_center_crossdim_view。本脚本仅作历史参考：CAMERA 片段 t=2 声明 dimension=minecraft:the_end、绝对位置 (79,61.6,-26)，旧实现在片段起点前 0.5s 把玩家传送到末地，现在不再传送玩家。",
     "triggers": [
       { "id": "tccc_disabled", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "minecraft:the_void" } }
     ],

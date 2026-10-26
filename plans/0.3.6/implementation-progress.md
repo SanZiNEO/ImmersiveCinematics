@@ -1,6 +1,6 @@
 # 0.3.6 全量实现进度（todo / 追踪文档）
 
-> 生成：2026-10-07 晚。**批次 A（调色）2026-10-09 关单、批次 B（相机底层）2026-10-11 关单、批次 C（触发器 / 播放关系 / 判定规则）2026-10-14 关单、批次 D（转场 / 遮罩 / 覆盖层）2026-10-17 关单（D1–D8 / D10；D9 不做）；F 轮（播放/渲染）F2/F3/F5 已完成、F4 不做，F3 验收通过；F5 成本矩阵已完整（2026-10-18）；失败处理审计第 1 批 P0 已落地、P1/P2 待做；F6/F7/F8 未完成（F8 设计基线已按调查重写、未实现）；剩余 E–H 批次与遗留项（P1-impl / P3-impl / CLEANUP-3 / C 轮 `pause` 实机复验）见下方表。**
+> 生成：2026-10-07 晚。**批次 A（调色）2026-10-09 关单、批次 B（相机底层）2026-10-11 关单、批次 C（触发器 / 播放关系 / 判定规则）2026-10-14 关单、批次 D（转场 / 遮罩 / 覆盖层）2026-10-17 关单（D1–D8 / D10；D9 不做）；F 轮（播放/渲染）F2/F3/F5 已完成、F4 不做，F3 验收通过；F5 成本矩阵已完整（2026-10-18）；失败处理审计第 1 批 P0 已落地、P1/P2 待做；F6/F7 已实现并提交、F8 实现完成（WP5 光影 / WP6 实机验收未完成）；剩余 E–H 批次与遗留项（P1-impl / P3-impl / CLEANUP-3 / C 轮 `pause` 实机复验）见下方表。**
 > 目标：**0.3.6 计划全部实现**（不允许"差一点"）；**编辑器（游戏外 WebUI）放到最后**（需严密规划：参考 `example/editor/{olive,lossless-cut}`，核心 = 只产出游戏可解析的固定格式脚本）。
 > 执行方式：一个子代理只做一个小任务（任务书写全需求）→ 主代理验收（编译 + 冒烟/读码）→ 中文 commit → 更新本表。**并行口径（2026-10-08 用户明确）**：**计划类任务可并行**（各写各的文档、互不冲突）；**执行类任务必须串行**（改代码的多子代理易出错——一个完成并验收提交后才开下一个）。
 > 依据：`plans/0.3.6/_archive/implementation-audit-2026-10-07.md`（缺口总清单）；`plans/0.3.6/pending-discussions.md`（未定项清查：多数属执行时再定型、任务落地时定稿；少数需拍板）。
@@ -114,11 +114,11 @@
 | F3 | Iris/Oculus 适配（挂点先后调研 + 兼容或文档化限制） | — | ✅ 实现完成 + 验收通过（2026-10-18）：删除 `isUnavailable()` 整条禁用；检测保留用于跳过 `setupRender` 专属 mixin（`LevelRendererVanillaMixin` / `LaneCullStateMixin`），改走优化器 Camera/Frustum 路径；lane 始终渲染，缺 `LaneCullBridge` 时只跳过剔除状态交换。**光影 lane 跨视角污染修复（2026-10-18）**：per-view TAA 历史（自动探测历史目标，MakeUp `[3]` / Complementary、BSL `[2]`）、`shadowcolor` 按视角清除、深度重绑、切换光影包时重置缓存；Fabric/Iris 1.7.6 A/B 干净（三包，绿边 / 缝隙 / 扇形消失）。**F3 验收通过（Fabric/Iris 1.7.6 三视角 + 热切换实机；Forge/Oculus 1.8.0 同构移植、同 jar 部署）**；④ 由 Sodium 实机覆盖、⑥ 由 F5 矩阵覆盖，⑤ 与非 `SRGB` 色彩空间为已知限制 |
 | F4 | 视距档位 | — | ⊘ **不做**：lane 视距自动跟随玩家设置，不新增 `render_distance` 或其它脚本开关 |
 | F5 | 帧耗时统计（新结构下重测成本曲线） | B3 | ✅ 实现完成 + 矩阵完整（2026-10-18）：opt-in 诊断会话（manifest / events.jsonl / 定点图片 / CPU 提交区间 CSV + p50/p95）、21 支测试脚本；`perf_l0` / `perf_l1` / `perf_l4` / `perf_l16` / `perf_l25` 的 FULL 与 WORLD_ONLY **全部 600/600**（每视角历史隔离后复测；l25 在 gzip 传输修复后补齐，见 [f5-script-packet-limit](F-playback/f5-script-packet-limit.md)）；per-view 历史拷贝成本已包含在复测数据中 |
-| F6 | 相机中心实体可见性（C 方案）：统一相机 y、配对刷新节拍、可见半径对齐、刷怪上限 | — | 🟡 实现中（工作树，未提交）：C0a/C0b/C1a/C1b/C1c/C2/C6 已写；C3/C4/C5/fixtures/review 未做；跨维度目标维度流见 F8（[camera-center-entities](F-playback/camera-center-entities.md)） |
-| F7 | 相机租约池：按 CAMERA 片段租借 / 归还，视角 key 按片段隔离 | — | ☐ 未开工（2026-10-22 方向确认；视角 key 需加维度，[camera-pool](F-playback/camera-pool.md)） |
-| F8 | 跨维度相机：per-view 维度渲染（采样带维度；每 lane `DimensionView`；服务端 `(player, dimension, cameraId)` 数据流） | — | ☐ 设计基线（2026-10-25 调查后重写），未实现；P0 垂直验证 + WP1–WP6 见 [cross-dimension-camera](F-playback/cross-dimension-camera.md) §6；不锁版本 / 客户端加载方式；开放项见 §7 |
+| F6 | 相机中心实体可见性（C 方案）：统一相机 y、配对刷新节拍、可见半径对齐、刷怪上限 | — | ✅ 同维度 C0–C3 / C6 已实现并提交（`8354731`）；C4「主画面只取最上层 lane」与 C5「客户端可见半径维持原版」为接受项；跨维度视图流已实现（`50aa5fb`，见 F8）。细节与未实机项见 [camera-center-entities](F-playback/camera-center-entities.md) §六 |
+| F7 | 相机租约池：按 CAMERA 片段租借 / 归还，视角 key 按片段隔离 | — | ✅ 已实现并提交（`38f3972`，2026-10-26）：`CameraLease` / `CameraLeasePool` 按 `owner + clip` 对象身份复用，`lease<槽位>g<代际>@<维度>` 作为视角键；片段结束 / 实例停止 / 替换脚本 / 世界卸载 / lane 收集异常确定性归还；剔除槽随租约独占，回退 lane 保留惰性槽。验收 fixture 与观察口径见 [camera_pool 测试说明](../../cinematics/0.3.6/tests/camera_pool/README.md)，实机日志待跑 |
+| F8 | 跨维度相机：per-view 维度渲染（采样带维度；每 lane `DimensionView`；服务端按 `(player, viewId)` 供数据） | — | 🟡 P0 + WP1–WP4 已实现并提交（`8354731` / `c0b1ac1` / `50aa5fb`）；WP5 光影部分、WP6 实机验收未完成。实现状态、偏离与已知限制见 [cross-dimension-camera](F-playback/cross-dimension-camera.md) §八 |
 
-> **F 轮收口附项**：失败处理审计 `failure-handling-audit.md`（2026-10-17，只读）共 **60 findings / 23 P0**，其中 16 处空 / 仅注释的 `catch`；**第 1 批 P0 已落地（`4eb65b7`，2026-10-25）**，`PacketGuard` 与断线清理已接第 1 批；P1/P2 未做，正文 §0.4 待回写——**归 F 轮收口，未冒充全部完成**。
+> **F 轮收口附项**：失败处理审计 `failure-handling-audit.md`（2026-10-17，只读）共 **60 findings / 23 P0**，其中 16 处空 / 仅注释的 `catch`；**第 1 批 P0 已落地（`4eb65b7`，2026-10-25）**，`PacketGuard` 与断线清理已接第 1 批；P1/P2 未做，§0.4 / §9 已按落地范围回写——**P0 归 F 轮关单条件，P1/P2 未做不冒充完成**。
 
 ## 批次 G：script-model
 

@@ -1,16 +1,16 @@
 # 相机租约池（按片段）
 
-> 状态：未实现（维度进视角键为跨维度前置；跨维度设计基线 2026-10-25，未实现）
+> 状态：已实现（2026-10-26）
 > 范围：客户端 lane 相机的槽位归属、视角状态与合成顺序。服务端相机中心 / 刷怪见 [`camera-center-entities.md`](camera-center-entities.md)；编辑器（`editor/`）不在范围内。
 > 关联：`multi-camera-rendering.md`（每 lane 渲染）、`iris-oculus-compat.md`（每视角状态隔离）、`docs/modules/camera.md`。
 
 ## 一、摘要
 
-多相机播放里，一个 CAMERA 片段就是一次相机调用：它需要一台相机、一份视角状态（光影的上一帧矩阵与颜色历史）、一个剔除槽。当前这些资源按轨道编号与帧序号复用，片段切换与重播会把上一片段的状态带进来。租约池要做的，是让每条片段在激活时借到一个干净槽位、结束时归还并清空，槽位编号与代际成为视角状态的唯一身份，合成顺序仍由时间轴叠放决定。跨维度时视角身份还要带维度，避免两个维度的 view 共用历史 / 剔除状态。目前尚未实现。
+多相机播放里，一个 CAMERA 片段就是一次相机调用：它需要一台相机、一份视角状态（光影的上一帧矩阵与颜色历史）、一个剔除槽。实现前这些资源按轨道编号与帧序号复用，片段切换与重播会把上一片段的状态带进来；现行实现改为让每条片段在激活时借到一个干净槽位、结束时归还并清空，槽位编号与代际成为视角状态的唯一身份，合成顺序仍由时间轴叠放决定。跨维度时视角身份带维度，避免两个维度的 view 共用历史 / 剔除状态。已在 `CameraLease` / `CameraLeasePool` 落地（2026-10-26，见 §六）。
 
 ## 二、为什么做
 
-### 2.1 问题
+### 2.1 问题（实现前的状态；现行行为见 §六）
 
 - 同一轨道相邻两个片段共用同一个视角身份，后一片段进入时会先恢复前一片段的视角状态。
 - 同一脚本重播时，新一次播放会恢复上一次播放留下的视角状态，画面可能停在上一次的某一帧。
@@ -106,9 +106,20 @@
 
 ## 六、实现结果
 
-状态：未实现
+状态：已实现（2026-10-26）
 
-租约模型未落地：视角身份仍是轨道级标签，槽位仍是帧序号；卡在池容量与耗尽策略未拍板，迁移面（快照记录 / 驱动 / 渲染器 / 视角作用域）尚未开始。跨维度要求视角键 = `(dimension, cameraId, lease generation)`；这一项与 [跨维度相机](cross-dimension-camera.md) 的 `DimensionView` 同步落地，当前未实现；不是“单相机维度”的能力限制。
+| 项 | 实现 |
+|---|---|
+| 租约模型 | 每个 CAMERA 片段一个 `CameraLease`（`owner` / `clip` / `dimension` / `slotId` / `generation` / `viewKey` / `cull`），由 `CameraLeasePool` 按 `owner + clip` 对象身份复用；片段首次出现时 acquire |
+| 视角键 | `lease<slot>g<generation>`，维度非空时追加 `@<dimension>`；`ViewScope` / `ViewStateCapture` / `ColorHistoryCapture` 均按该键隔离，同轨相邻片段与重播不继承旧历史 |
+| 生命周期 | 片段结束 / 实例停止 / 替换脚本 / 世界卸载 / lane 收集异常时确定性归还；`reconcile` 按本帧活跃片段列表（含 morph 两侧与目标暂时不可用的片段）保留租约 |
+| 剔除槽 | 租约独占 `LaneCullSlot`，归还时回 `LaneCullSlots` 池；无租约的链输出 lane 仍走惰性回退槽。`LaneRenderer.deactivate` 只断开租约槽引用、不归还（归还权在池），避免与 `release` 双重归还；回退槽仍由 lane 持有 |
+| 日志 | `Config.debugLogging` 下输出 `[camera-lease] acquire / release / releaseOwner`（只在新租约 / 归还时，不按帧刷）与 `[lane] 活跃 lane: captureId=viewKey`（签名变化才打）；`releaseOwner` 无租约时静默 |
+| 释放路径 | `PlaybackInstance.stop` / `replaceScript`、`ScriptLaneDriver` 的停播实例与异常分支、`ClientEventHandler` 世界退出兜底；释放后槽位回空闲表，代际在下次分配时自增。无租约的链输出 lane 用固定键 `chain`，在「本帧不再注册链输出」时释放一次（世界退出再兜底），不会每帧清历史 |
+| 合成顺序 | 仍由 `ScriptLaneDriver` 本帧注册顺序（实例启动顺序 → 轨道 → 片段 → `z_index`）决定，`slotId` 不参与排序 |
+| 预览 / 游戏隔离 | 同一池、按播放实例身份登记；`reconcile` / `releaseOwner` 只作用于本实例，预览与游戏实例互不释放 |
+| 实现偏离 | 相机实例仍由 `LaneRenderer.Lane` 按帧序号持有（每帧 `camera.setup` 覆盖姿态），租约只承载视角身份 + 剔除槽。设计 §4.1 曾把 `Camera` 列进租约字段，本次未迁入：相机对象无跨片段状态，迁入只会扩大改动面 |
+| 已知边界 | 离屏缓冲 / 调色缓冲（FBO）不进池；`release` 只在 lane pass 之外调用（`LaneCullSlots.depth() == 0`）；池容量 = 并发片段数，无上限 / 耗尽策略 |
 
 ## 附录：重写前原文
 

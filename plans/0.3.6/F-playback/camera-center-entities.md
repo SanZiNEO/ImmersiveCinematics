@@ -1,12 +1,12 @@
 # 相机中心的实体可见性
 
-> 状态：实现中（同维度：中心替换与配对 / 刷怪 / 消失查询已接相机；跨维度目标维度流为设计基线（2026-10-25 调查后重写），未实现；统一位置源、局部上限、逐 lane 视图中心、状态清理未落地）
+> 状态：同维度 C0–C3 / C6 已实现并提交（`8354731` / `c0b1ac1` / `50aa5fb`）；C4「主画面只取最上层 lane」与 C5「客户端可见半径维持原版」为接受项；跨维度数据流已实现（`CameraViewManager` + 视图包 + `DimensionView`），细节见 [跨维度相机](cross-dimension-camera.md)。
 > 范围：相机播放期间服务端的区块中心、实体配对、刷怪与消失判定，以及客户端实体可见性。
 > 关联：`camera-pool.md`（客户端相机租约）、`multi-camera-rendering.md`（每 lane 渲染）、`docs/modules/camera.md`。
 
 ## 一、摘要
 
-相机播放期间，服务端把镜头所在区域当作有玩家在场：区块围绕相机加载与发送，实体围绕相机配对下发，刷怪与消失判定以相机为中心。做法是不移动真实玩家、不注册假玩家，在原版规则之上把「位置源」换成一份统一的相机位置，供四条链共用。状态：实现中——同维度中心替换与三条查询已接相机；跨维度需要目标 `ServerLevel` 的相机中心与独立区块 / 实体流（设计基线，未实现）；统一位置源、局部上限、逐 lane 视图中心与状态清理尚未落地。
+相机播放期间，服务端把镜头所在区域当作有玩家在场：区块围绕相机加载与发送，实体围绕相机配对下发，刷怪与消失判定以相机为中心。做法是不移动真实玩家、不注册假玩家，在原版规则之上把「位置源」换成一份统一的相机位置，供四条链共用。状态：同维度 C0–C3 / C6 已实现并提交；跨维度走并行视图流（`CameraViewManager` 按 `(玩家, 视图 id)` 维护 ticket / 区块 / 实体，客户端按维度渲染到 `DimensionView`），玩家不传送；逐 lane 视图中心与客户端可见半径按接受项处理（见 §六）。
 
 ## 二、为什么做
 
@@ -35,7 +35,7 @@
 - 不移动真实玩家，不注册假 `ServerPlayer`。
 - 不复制刷怪系统，不接管刷怪上限公式。
 - 同维度不接管 DistanceManager 与客户端发送，仍由原版驱动。
-- 跨维度不替换 vanilla 玩家差集；使用独立相机维度流（设计基线，未实现），见 §4.5。
+- 跨维度不替换 vanilla 玩家差集；使用独立相机视图流（已实现：`CameraViewManager`），见 §4.5。
 - 不接管幻翼 / 巡逻队 / 猫 / 袭击 / 流浪商人的自定义刷怪。
 - 不改客户端实体距离裁剪，按原版口径记录。
 
@@ -50,7 +50,7 @@
 - 四条链共用一份相机位置（含高度），不再各取一份。
 - 播放结束、强停、断线后，服务端立即回到玩家中心。
 - 多 lane 播放时，每条 lane 的视图中心取自己的相机，实体可见性按各自视角判定。
-- 跨维度：相机中心落在目标 `ServerLevel`；目标维度的区块 / 实体按相机位置加载与发送；客户端路由到对应 `DimensionView`（设计基线，未实现）。
+- 跨维度：相机中心落在目标 `ServerLevel`；目标维度的区块 / 实体由 `CameraViewManager` 按视图加载与发送；客户端把带维度标签的包路由到对应 `DimensionView`（已实现，玩家不传送）。
 
 边界：
 
@@ -63,10 +63,11 @@
 
 ### 4.1 核心模型
 
-- 相机位置源：按 view 保存一份相机位置（x/y/z、section、中心点）；区块差集、配对、刷怪门、最近玩家与消失判定都读它。当前实现只支持玩家当前维度、每个玩家一条；跨维度需按 `(player, dimension, cameraId)` 存。
-- 相机锚点（`CameraAnchorManager`）：按 view 记录相机中心与虚拟玩家引用，供刷怪门与最近玩家比较距离；不创建实体。当前一个玩家一个锚点；跨维度需按 `(player, dimension, cameraId)` 存，查询取该维度最近的锚点。
-- 状态清理：每个条目带写入时刻与代际，超时或新播放开始时失效；释放路径不受配置开关门控。
-- 客户端位置上报：播放期间按固定节拍上报相机位置，相机活跃态翻转时立即补报，无相机时改报玩家位置。跨维度上报需带目标维度与 cameraId（设计基线，未实现）。
+- 相机位置源（`CameraVirtualCenterState`）：按玩家存一份 `(ServerLevel, SectionPos, Vec3 center)`。`section` 只取 x/z，供 `ChunkMapCameraMixin` 的原版差集使用；`center` 是含 y 的完整眼位，供 `ChunkMapTrackedEntityCameraMixin` 的配对使用。查询带维度门：`entry.level == player.level()` 才返回，切维度后旧中心自动失效。
+- 相机锚点（`CameraAnchorManager`）：`setAnchor(player, level, center)` 写入与位置源同一个 `center`，同一玩家同一维度复用同一个 `CameraAnchorVirtualPlayer`，只 `moveTo`；不创建实体、不进玩家列表。锚点 y 就是相机 y；`isAnyAnchorNear` / `getVirtualPlayer` 的 128 格资格过滤是 2D（与原版区块门同口径），3D 距离交原版判定。
+- 状态清理（C0）：`CameraCenterManager.PlayerState` 带 `sessionId`（客户端每次 START 生成，位置包 / END 只认当前会话）与 `lastReportTick`；`tick()` 每 tick 兜底，超过 `max(100, 5 × Config.cameraCenterReportInterval)` tick 无上报或玩家已移除即释放；END、断线（`onDisconnect`）、维度卸载（`onLevelUnload`）、服务端停止 / 换档（`clearAll`）都清三张表；`release()` 不受任何配置开关门控。
+- 客户端位置上报（`CameraCenterReporter`）：每 tick 至多一包；达到 `Config.cameraCenterReportInterval` tick、位移 ≥1 格或相机活跃态翻转即发送；无相机时改报玩家位置（含 y）。
+- 跨维度位置源（`CameraViewManager.ViewState`）：跨维度不进 `CameraVirtualCenterState`，而是按 `(玩家 UUID, 视图 id)` 单独维护 `(ServerLevel, Vec3 pos, SectionPos, 已发区块 / 实体集合, 虚拟玩家)`；视图 id 由客户端 lane 给出，F7 后 = 相机租约键 `lease<槽位>g<代际>@<维度>`（见 [相机租约池](camera-pool.md)）。
 
 ### 4.2 契约
 
@@ -74,33 +75,45 @@
 - 更新：按上报节拍写位置；位置变化按位移阈值触发一次配对刷新。
 - 销毁：脚本结束、断线、世界卸载、配置关闭都清；释放不受开关门控。
 - 状态归属：服务端条目只在主线程读写；客户端只上报坐标与「相机是否覆盖画面」的布尔。
-- 维度：条目带维度与 cameraId；同维度按玩家当前 level，跨维度按目标 `ServerLevel` / cameraId 查找；不匹配即视为未激活。
-- 跨维度数据：目标维度的区块 / 实体走独立相机维度流（设计基线，未实现），不替换 vanilla 玩家差集。
+- 维度：同维度条目带 `ServerLevel`，查询要求 `entry.level == player.level()`，不匹配即视为未激活；跨维度条目由 `CameraViewManager` 按 `(玩家, 视图 id)` 存，包内带维度 id，服务端解析成 `ServerLevel` 后建流（未知维度丢弃；玩家已在目标维度时释放该视图，避免与原版追踪重复配对）。
+- 跨维度数据：目标维度的区块 / 实体走独立视图流（`CameraViewManager` + `S2CCameraViewPacket` 信封 + 客户端 `CameraViewPacketRouter` → `DimensionView`），不替换 vanilla 玩家差集。
 
 ### 4.3 数据形态
 
-- 位置源：`(玩家 UUID, 维度, cameraId)` → (x, y, z, section, 写入代际)。同维度 = 玩家当前维度；跨维度 = 目标 `ServerLevel`。
-- 锚点：`(玩家 UUID, 维度, cameraId)` → (中心区块, 虚拟玩家引用)；查询取该维度最近的锚点。
-- 上报：方块坐标 x/z、相机 yaw、渲染距离、cameraMode 布尔；跨维度另带目标维度 id 与 cameraId（设计基线，未实现）；加载范围同维度全交原版。
-- 诊断：相机半径内实体数、配对集合大小、未编译区块数，按玩家 / 维度 / cameraId 分开记录。
+- 位置源：`玩家 UUID` → `(ServerLevel, SectionPos(x/z), Vec3 center)`，每玩家一条，`CameraVirtualCenterState` 内以维度门过滤。
+- 锚点：`玩家 UUID` → `(ServerLevel, Vec3 center, CameraAnchorVirtualPlayer)`，每玩家一条，维度不匹配即跳过。
+- 跨维度视图：`(玩家 UUID, 视图 id)` → `(ServerLevel, Vec3 pos, SectionPos, 已发区块 / 实体集合, 虚拟玩家)`，由 `CameraViewManager` 持有；视图 id = 相机租约键 `lease<槽位>g<代际>@<维度>`（F7 后，片段结束即换键并释放旧流）。
+- 上报：同维度 = 中心 x/y/z + cameraMode 布尔 + sessionId（`C2SCameraCenterPositionPacket`）；跨维度 = 视图 id + 维度 id + 眼位 + 半径 + active（`C2SCameraViewPacket`，`CameraViewReporter` 每 5 tick 或状态变化上报）。同维度加载范围全交原版。
+- 诊断：`CameraCenterDiagnostics` 按会话分桶输出配对（`pairSeen`）/ 刷怪门（`gateHit`）/ 尝试（`attempts`）/ 生成（`spawned`）/ 局部上限（`localCapAllow`、`localCapReject`），每 `PRINT_INTERVAL_TICKS`（20 tick）一行；客户端 `ClientEntityProbe` 打 `[camera-client]` 的 `total / r128 / visible / distOut / uncompiled / frustumOut` 供对账。
 
 ### 4.4 边界
 
 - 同维度：区块 ticket 与客户端发送仍由原版驱动；本机制只换中心，不自建差集。
-- 跨维度：vanilla `ChunkMap` 只给同维度玩家发包；目标维度需要独立相机维度流（§4.5），不替换玩家差集。
+- 跨维度：vanilla `ChunkMap` 只给同维度玩家发包；目标维度由独立视图流补发（现行实现见 §4.5），玩家不进目标维度 `playerMap`，不替换玩家差集。
 - 客户端渲染侧不接管距离裁剪、视锥与区块编译判定。
 - 自定义刷怪器不接相机位置。
 - 相机中心与锚点都不创建实体，不进入玩家列表、存档、统计或 AI 目标选择。
 
-### 4.5 跨维度数据流（设计基线，未实现）
+### 4.5 跨维度数据流（已实现：`CameraViewManager`）
 
-同维度路径保持不变；跨维度按下面五步：
+同维度路径保持不变；跨维度的设计基线按下面五步（**这是设计口径，不是逐条落地清单**；实际落地与差异见本节末尾「现行实现」）：
 
 1. **状态**：`CameraVirtualCenterState` 按 `(UUID, ResourceKey<Level>, cameraId)` 存；查询带目标 `ServerLevel` 与 cameraId。`CameraCenterManager.PlayerState` 按 view 存；`applyVirtualCamera` 接收目标 `ServerLevel`；`sessionId` 按 view 生成，旧播放的迟到包不能误杀新播放。`CameraAnchorManager` 按 `(player, dimension, cameraId)` 存锚点，刷怪 / 消失 / 最近玩家查询取该维度最近的锚点。
 2. **加载**：目标 `ServerLevel` 按相机位置建自定义 `TicketType` / region ticket（覆盖 entity-ticking）；相机移动只在 section 变化时重挂，添加 / 移除严格配对，避免 ticket 泄漏与 `DistanceManager.removePlayer` 对不存在 section 的 NPE。
 3. **发送**：目标维度 `ChunkMap` 不会给主世界玩家发包；用独立相机维度流把目标区块、光照、方块更新、实体 spawn / update / remove 发给真实玩家的连接。包带维度 + cameraId；客户端按维度 / cameraId 路由到对应 `DimensionView` 的 chunk cache / entity storage。`ClientChunkCache` 要更新 view center / storage radius 或换自定义 store；`handleLevelChunkWithLight` 的 light lambda 在目标 level 还切着时排干，避免写回主世界。
 4. **实体 / 方块**：复用原版 `TrackedEntity` / `ServerEntity` 增量发送或等价自建；`ChunkHolder.broadcastChanges` 的 dirty 集合在清空前复制带维度标签的副本；已发集合 / 配对按 view 维护，处理新加载、离开范围、区块 forget、停播。
 5. **释放**：播放结束、强停、断线、维度卸载时释放目标 view 的 ticket / 实体引用 / 缓存；不残留到下一次播放。
+
+现行实现（`CameraViewManager`，与上面设计的偏离）：
+
+- **不改同维度链路**：`CameraCenterManager.applyVirtualCamera` 仍固定 `player.level()`，`CameraVirtualCenterState` 仍按玩家一条且 `entry.level == player.level()` 才生效。跨维度不改造这两处，而是新增并行视图流，保证同维度路径零回归。
+- **状态**：`CameraViewManager.ViewKey(UUID, viewId)` + `ViewState`（`ServerLevel / pos / section / sentChunks / sentEntities / virtual / ticketAdded`）；超时同 `max(100, 5 × Config.cameraCenterReportInterval)`；`onPlayerQuit`、`onLevelUnload`、`clearAll` 都释放。玩家已在目标维度时释放视图，交还原版追踪。
+- **加载**：`DistanceManager.addPlayer(相机 section, 真实玩家)` 建 PLAYER ticket；section 变化先移除旧 section，`removePlayer` 对不存在条目有兜底，同一 `(section, 玩家)` 被原版玩家或同一玩家的另一视图共用时只清本地标记，不误删对方加载票；每次上报 `level.resetEmptyTime()`，避免目标维度 `emptyTime` 跳过实体 tick。
+- **发送**：区块用 `ClientboundLevelChunkWithLightPacket`（首包含光照）+ 离开半径补 `ClientboundForgetLevelChunkPacket`；实体用 `ServerEntity.sendPairingData` 只发初始配对，离开范围 / 移除补 `ClientboundRemoveEntitiesPacket`；全部经 `S2CCameraViewPacket` 信封（带维度 + 视图 id），单包上限 `MAX_ENVELOPE_PAYLOAD = 1_000_000` 字节，超长丢弃并限频告警；客户端 `CameraViewPacketRouter` 解码后投递进目标 `ClientLevel`。**没有**方块 / 光照增量更新，也**没有**实体持续同步。
+- **实体 / 方块**：不复用原版 `TrackedEntity` 增量（会抢走其 dirty 数据），只用 `ServerEntity.sendPairingData`；实体半径 `ENTITY_RANGE = 64`，区块半径 `min(上报半径, MAX_CHUNK_RADIUS = 8)`，刷新间隔 `CHUNK_INTERVAL = 5` / `ENTITY_INTERVAL = 10` tick。
+- **释放**：`releaseStream` 先补发 forget / remove 再移 ticket；`release` 保留 `ViewState` 以便换维度复用。
+- **刷怪**：`ChunkMapMixin.anyPlayerCloseEnoughForSpawning` HEAD 按 `isAnyViewNear` 放行；`getPlayersCloseForSpawning` RETURN 在列表为空时返回视图属主的真实玩家（局部上限仍按玩家记账）；`NaturalSpawnerMixin` / `MobDespawnCameraMixin` 的最近玩家同时比较 `CameraAnchorManager` 与 `CameraViewManager` 的虚拟玩家。
+- **客户端**：`DimensionViews.acquire` 按维度懒创建 `ClientLevel + LevelRenderer + LightTexture + RenderBuffers`；`FABULOUS`（`Minecraft.useShaderTransparency()`）、非法维度、未连接一律返回 `null`，该 lane 本帧跳过；`LaneRenderer` 在 lane pass 内切 `level / levelRenderer / 实体渲染分发器 / 光照贴图`，`finally` 还原；`LevelRendererVanillaMixin.cinematicViewCenter()` 在 lane pass 内用本 lane 相机，主 pass 只取最上层且非跨维度 lane 的相机。
 
 边界：
 
@@ -111,7 +124,7 @@
 - `ChunkMap.TrackedEntity.seenBy` 是 `ServerPlayerConnection` 集合；复用原版增量发送时，已发集合 / 配对按 view 维护，不伪造真实玩家进世界。
 - 相机维度流只服务“相机 view”；同维度仍走原版。
 - IP 的 `ChunkLoader` / `ChunkDataSyncManager` / `EntitySync` / packet redirection 是参考，不引入依赖。
-- 当前代码缺口：`CameraCenterManager.applyVirtualCamera` 固定 `player.level()`；`CameraVirtualCenterState` 一个玩家一条且 `e.level == player.level()` 才返回；`ChunkMapMixin` / `ChunkMapTrackedEntityCameraMixin` 没有目标 level / cameraId 参数；上报包没有维度与 cameraId。
+- 旧缺口已消解：目标 `ServerLevel` 不再经 `CameraCenterManager`（它仍只服务玩家当前维度），改由 `CameraViewManager` 按视图持有；`ChunkMapMixin` 增加了视图门（`isAnyViewNear` / `playerForSpawn`），上报包增加了维度 id（`C2SCameraViewPacket`）。
 
 施工顺序见 [跨维度相机](cross-dimension-camera.md) §6；不写“只支持单相机 / 只支持原版三维度 / 只做全屏”的能力边界。
 
@@ -135,20 +148,21 @@
 
 ## 六、实现结果
 
-状态：同维度实现中（工作树，未提交）；跨维度设计基线（2026-10-25 调查后重写），未实现。
+状态：同维度 C0–C3 / C6 已实现并提交（`8354731` F6 相机中心实体、`c0b1ac1` F8 客户端跨维度视图、`50aa5fb` F8 服务端视图流与三画面脚本）；C4「主画面只取最上层 lane」与 C5「客户端可见半径维持原版」是接受项；跨维度数据流已实现，细节见 §4.5 / [跨维度相机](cross-dimension-camera.md)。
 
-同维度：中心替换、配对距离、刷怪门、最近玩家与消失判定已接相机；统一位置源、局部上限、逐 lane 视图中心、状态清理未落地。跨维度：目标维度中心 / 区块 / 实体流未实现；当前 `CameraCenterManager` 仍固定 `player.level()`，`CameraVirtualCenterState` 仍按玩家当前维度返回；目标状态按 `(player, dimension, cameraId)` 设计，见 §4.5。
+本表只按当前代码陈述，不是实机验收结论：README 记录的 2026-10-25 实测只有同维度的镜像 / 反向 / 远机位三次；跨维度三画面脚本 `test_camera_center_crossdim_view` 尚无实机记录，操作与观察点见 `cinematics/0.3.6/tests/camera_center/README.md`。
 
-| 原设计 | 实际实现 | 偏离原因 |
+| 原设计 | 实际实现 | 结论 / 偏离原因 |
 |---|---|---|
-| 一份相机位置（含 y）供四条链共用 | 区块与配对用上报的 x/z（y=0）；刷怪与消失用锚点区块地表高度 | 位置源未统一 |
-| 位置更新与配对刷新同一节拍，按位移阈值刷新 | 位置每次上报都写入；配对只在中心区块变化或相机模式翻转时刷新 | 节拍未对齐，未设阈值 |
-| 局部上限也认相机 | 无接入，仍按原版真实玩家列表 | 未实现 |
-| 条目带超时 / 代际，释放不受配置门控 | 按 UUID 存，无超时；释放包被一个配置开关拦截 | 未实现 |
-| 每条 lane 用自己的相机作视图中心 | 整帧一份，取最上层 lane | 未实现 |
-| 客户端可见半径按原版口径记录 | 未接管，口径未文档化 | 未实现 |
-| 诊断分项计数（未配对 / 未下发 / 未编译 / 视锥外） | 只有客户端半径 64 的实体计数 | 未实现 |
-| 跨维度目标中心 / 区块 / 实体 | 未实现；当前 `applyVirtualCamera` 用 `player.level()`，`CameraVirtualCenterState` 只认玩家维度；目标状态按 `(player, dimension, cameraId)` 设计 | 需要独立相机维度流，见 §4.5 / [跨维度相机](cross-dimension-camera.md) |
+| C1 一份相机位置（含 y）供四条链共用 | `CameraVirtualCenterState` 按玩家存 `(ServerLevel, section, Vec3 center)`；`ChunkMapCameraMixin` 读 section（2D 差集），`ChunkMapTrackedEntityCameraMixin` 读 center（含 y，配对仍按原版 2D 只读 x/z）；`CameraAnchorManager.setAnchor` 写同一个 `center`，锚点 y = 相机 y | 已实现 |
+| C0 条目带超时 / 代际，释放不受配置门控 | `CameraCenterManager.PlayerState` 带 `sessionId` 与 `lastReportTick`；`tick()` 按 `max(100, 5 × Config.cameraCenterReportInterval)` 超时释放，玩家已移除也释放；END / 断线 / 维度卸载 / `clearAll` 全清；`release()` 无配置门 | 已实现 |
+| C1 位置更新与配对刷新同一节拍，按位移阈值刷新 | 每次上报都写位置源；`applyVirtualCamera` 只在维度变化（`level`）、cameraMode 翻转（`flip`）、中心区块变化（`section`），或位移 ≥4 格且距上次 move ≥2 tick（`threshold`）时才调 `ChunkMap.move` | 已实现；阈值 4 格 / 2 tick 写在 `applyVirtualCamera`，reason 经 `CameraCenterDiagnostics.onMove` 输出 |
+| C2 局部上限也认相机 | `ChunkMapMixin.playerIsCloseEnoughForSpawning` HEAD 按相机 x/z 128 格放行 → `getPlayersCloseForSpawning` 返回真实玩家，`LocalMobCapCalculator` 不再因空列表整块跳过；`LocalMobCapCalculatorMixin` 只在 RETURN 观察计数，不改判定 | 已实现；不新增假玩家，配额仍按玩家记账 |
+| C3 虚拟玩家 y 用相机 y | `CameraAnchorManager.setAnchor` 的 `center` 直接取上报眼位；`getVirtualPlayer` 的 128 格资格过滤是 2D，3D 距离交原版 | 已实现 |
+| C4 每条 lane 用自己的相机作视图中心 | lane pass 内 `LevelRendererVanillaMixin.cinematicViewCenter()` 用 `LaneRenderer.activeLaneState()`（本 lane 相机）；主 pass 只取 `LaneRenderer.topLane()`，且该 lane 跨维度时回退玩家中心 | 接受项：主画面只取最上层 lane。理由见 `LevelRendererVanillaMixin` 注释——逐 lane 主中心要重播种整张 `ViewArea` 网格，收益不抵成本；跨维度 lane 不能把主画面中心拖到另一维度 |
+| C5 客户端可见半径按原版口径记录 | 未改代码：服务端按原版跟踪范围配对（`clientTrackingRange × 16`，多数生物 8 区块 = 128 格，且不超过视距），客户端 `Entity.shouldRenderAtSqrDistance` 仍约 84 格；`ClientEntityProbe` 按 `total / r128 / r128xz / visible / distOut / uncompiled / frustumOut` 分桶，`r128 = visible + distOut + uncompiled + frustumOut` | 接受项：改它会与玩家视角不一致 |
+| C6 诊断分项计数（未配对 / 未下发 / 未编译 / 视锥外） | 服务端 `CameraCenterDiagnostics` 按会话分桶：配对（`pairSeen`）/ 刷怪门（`gateHit`）/ 尝试（`attempts`）/ 生成（`spawned`）/ 局部上限（`localCapAllow`、`localCapReject`），每 `PRINT_INTERVAL_TICKS`（20 tick）一行；客户端 `ClientEntityProbe` 打 `[camera-client]`，`[camera-client] diff` 逐只对出主视角 / 相机 lane 分类差异 | 已实现；局部上限按跨维度最近锚点归因，不同维度坐标重合时可能误归属，仅诊断用 |
+| 跨维度目标中心 / 区块 / 实体 | `CameraViewManager` 按 `(玩家, 视图 id)` 维护 ticket + 区块 + 实体 + 虚拟玩家；`S2CCameraViewPacket` 信封带维度，客户端 `CameraViewPacketRouter` 路由进 `DimensionView`；`DimensionViews` 按维度懒建 `ClientLevel / LevelRenderer / LightTexture / RenderBuffers`；FABULOUS 拒绝该 lane | 已实现；不改造 `CameraCenterManager.applyVirtualCamera`（仍固定 `player.level()`），跨维度走并行视图流，见 §4.5 |
 
 ## 附录：重写前原文
 

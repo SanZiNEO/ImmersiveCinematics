@@ -193,7 +193,7 @@ immersive_cinematics/
 | `transition_curve` | object | 否 | `null` | 过渡权重曲线（数学模型定义 `{type, …}`，SCALAR 域）；缺省 = 线性斜坡 |
 | `transition_params` | object | 否 | `null` | 分参数过渡声明 `{<通道>: {mode?, duration?, curve?}}`；缺省 = 全六通道 blend |
 | `transition_interrupt` | string | 否 | `"blend"` | 打断规则：`"blend"`=从当前混合中间态续接；`"snap"`=硬切到新目标 |
-| `dimension` | string | 否 | `""` | CAMERA clip 声明的维度；与玩家当前维度不同时仅日志提示（0.4.0 预留，不自动切换） |
+| `dimension` | string | 否 | `""` | CAMERA clip 的渲染维度；空 = 玩家当前维度。非空且与玩家当前维度不同时，客户端为该片段单独解析目标维度视图（**不传送玩家**），服务端按相机视图补发目标维度区块与初始实体配对；主画面仍保持玩家原维度。限制：目标维度暂不接收方块 / 光照增量与实体持续同步，超出区块 / 实体半径的区域为空；`FABULOUS` 画质下该画面跳过 |
 | `orient` | string | 否 | `"manual"` | 朝向模式：`"manual"`=用关键帧角度；`"tangent"`=沿路径切线方向看，可配合 `yaw_offset`/`pitch_offset` |
 | `yaw_offset` | float | 否 | `0` | `orient=tangent` 时的水平偏移角（度） |
 | `pitch_offset` | float | 否 | `0` | `orient=tangent` 时的垂直偏移角（度） |

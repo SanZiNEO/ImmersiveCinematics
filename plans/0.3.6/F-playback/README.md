@@ -18,10 +18,10 @@
 | [failure-handling-audit](failure-handling-audit.md) | 运行期失败 → 崩溃路径审计（60 findings / 23 P0） | 🟡 第 1 批 P0 已落地（`4eb65b7`，2026-10-25）；P1/P2 未做；正文 §0.4 待回写 | §0.4（实施状态）、§9（三批与验收） |
 | [f5-script-packet-limit](f5-script-packet-limit.md) | 大脚本传输上限（32,767 字符）→ gzip + 长度前缀 | ✅ 已修复（2026-10-18） | 全文（含 l25 复测数据） |
 | [history-consolidation](history-consolidation.md) | 光影调查分支历史压缩记录 | 📄 记录性 | 全文 |
-| [camera-center-entities](camera-center-entities.md) | 相机中心下的刷怪 / 实体可见性（C 方案） | 🟡 实现中（工作树，未提交）：同维度中心 / 配对 / 刷怪 / 消失已接相机；跨维度目标维度流为设计基线（2026-10-25 调查后重写），未实现 | §六（偏离表）；§四（C 方案）；§4.5（跨维度数据流） |
-| [camera-pool](camera-pool.md) | 相机租约池（按 CAMERA 片段租借、归还清状态） | ☐ 方向已确认，实现未做（2026-10-22）；视角键需加维度（设计基线） | §一（已确认口径）、§三（要解决的问题） |
+| [camera-center-entities](camera-center-entities.md) | 相机中心下的刷怪 / 实体可见性（C 方案） | ✅ 同维度 C0–C3 / C6 已实现并提交（`8354731`）；C4 / C5 接受项；跨维度视图流已实现（`50aa5fb`） | §六（实现结果）；§4.5（视图流与偏离） |
+| [camera-pool](camera-pool.md) | 相机租约池（按 CAMERA 片段租借、归还清状态） | ✅ 已实现并提交（`38f3972`，2026-10-26）；实机日志待跑 | §六（实现结果）、[camera_pool 测试说明](../../cinematics/0.3.6/tests/camera_pool/README.md) |
 | [drop-preload](drop-preload.md) | 摘掉预加载 / 预热概念：模块改名相机中心同步，删死配置、预热空转与冗余协议 | ✅ 已实现（2026-10-25） | §六（实现结果） |
-| [cross-dimension-camera](cross-dimension-camera.md) | 跨维度相机：per-view 维度渲染（相机采样带维度；每 lane 用自己的维度源；服务端按 `(player, dimension, cameraId)` 供数据） | 🟡 设计基线（2026-10-25 调查后重写），未实现 | §三（调查结论）/ §四（方案骨架）/ §六（P0 与工作包）/ §七（开放问题） |
+| [cross-dimension-camera](cross-dimension-camera.md) | 跨维度相机：per-view 维度渲染（相机采样带维度；每 lane 用自己的维度源；服务端按 `(player, viewId)` 供数据） | 🟡 P0 + WP1–WP4 已实现并提交（2026-10-25）；WP5 光影部分、WP6 实机验收未完成 | §八（实现状态与已知限制）/ §六（施工与验收） |
 
 ---
 
@@ -34,12 +34,13 @@
 | 光影跨视角污染 | 根因 = 每视角共享的历史 colortex / `shadowcolor` / 深度 / `Previous`，按视角保存恢复 + 自动探测历史目标 | MakeUp / Complementary / BSL 三包 A/B 干净（[f-round-issues](f-round-issues.md) §2 / §3） |
 | F5 成本矩阵 | l0 / l1 / l4 / l16 / l25 × FULL / WORLD_ONLY 全部 600/600 | [f-round-issues](f-round-issues.md) §1.1、[f5-script-packet-limit](f5-script-packet-limit.md) |
 | 大脚本传输 | gzip 字节数组 + `writeVarInt` 长度前缀；解压后 4 MiB / 压缩后 1 MiB 双向上限；命令入口预检 | 原始 47,061 字节脚本直接播放；负例 4,400,160 字节被拒（[f5-script-packet-limit](f5-script-packet-limit.md)） |
+| F7 相机租约池 | 每片段一个 `CameraLease`，槽位 + 代际（+ 维度）作为视角键；片段结束 / 停播 / 替换脚本 / 世界卸载确定性归还；剔除槽随租约独占 | `38f3972`；fixture 与日志口径见 [camera_pool 测试说明](../../cinematics/0.3.6/tests/camera_pool/README.md) |
 
 ---
 
-## 3. 未收口：F 轮关单条件
+## 3. 关单条件与剩余验证
 
-**未收口项 = ① [failure-handling-audit](failure-handling-audit.md) 的 P0 批次；② [camera-center-entities](camera-center-entities.md) 实现；③ [camera-pool](camera-pool.md) 实现；④ [cross-dimension-camera](cross-dimension-camera.md) 实现（per-view 维度渲染，2026-10-25 调查后设计基线，未实现）。** 已完成部分（性能数据、F2 / F3 / F5）见 §2。②③④ 是 2026-10-22/25 新增的设计稿，按「`plans/0.3.6/` 全部文档 = 0.3.6 工作范围」计入关单条件（原口径只写了 ①）。
+**代码关单条件 = ① [failure-handling-audit](failure-handling-audit.md) 的 P0 批次；② [camera-center-entities](camera-center-entities.md) 实现；③ [camera-pool](camera-pool.md) 实现；④ [cross-dimension-camera](cross-dimension-camera.md) 实现（per-view 维度渲染）。** 截至 2026-10-26，① 第 1 批 P0 已落地，②③④ 均已实现并提交；剩余是实机验收（跨维度三画面、租约重播、F6 回归）与 WP5 光影部分，不改变代码关单口径。P1/P2 审计项不属 F 轮关单条件。已完成部分（性能数据、F2 / F3 / F5）见 §2。
 
 | 项 | 现状 |
 |---|---|
@@ -48,9 +49,9 @@
 | 空体 / 仅注释 catch | 第 1 批边界已加；剩余条目按 P1/P2 处理 |
 | `PacketGuard`（统一包处理边界） | 第 1 批已落地（`4eb65b7`） |
 | 断线清理（`CameraCenterReporter` 直发、`sendToPlayer` 无防护、断线不清 viewer） | 第 1 批已落地（`4eb65b7`）；正文待回写 |
-| camera-center-entities | 实现中（工作树，未提交）：C0a/C0b/C1a/C1b/C1c/C2/C6 已写；C3/C4/C5/fixtures/review 未做；跨维度目标维度流为设计基线（§4.5），未实现 |
-| camera-pool | 方向已确认，零实现（进度表 F7）；视角键需加维度（设计基线） |
-| cross-dimension-camera | 设计基线（调查后重写），未实现：per-view 维度渲染；采样带维度；每 lane 用 `DimensionView`；服务端 `(player, dimension, cameraId)` 数据流；不切客户端 / 第二客户端 / IP 依赖；P0 + WP1–WP6 见 §六；开放项见 §七 |
+| camera-center-entities | ✅ C0–C3 / C6 已实现并提交（`8354731`）；C4 / C5 为接受项；跨维度视图流已实现（`50aa5fb`）。剩余：同维度 F6 回归与跨维度实机记录 |
+| camera-pool | ✅ 已实现并提交（`38f3972`）；`CameraLease` / `CameraLeasePool`、租约键带维度、剔除槽随租约归还。剩余：实机重播日志（fixture `cinematics/0.3.6/tests/camera_pool/test_lease_replay.json`） |
+| cross-dimension-camera | ✅ P0 + WP1–WP4 已实现并提交（`8354731` / `c0b1ac1` / `50aa5fb`）；WP5 光影部分、WP6 实机验收未完成。三画面 fixture 与观察点见 `cinematics/0.3.6/tests/camera_center/README.md`；开放项见 §七 |
 
 批次顺序与验收标准见该文档 §9；三条硬口径（只在边界捕获、捕获必须可定位、致命不吞）见 §0.3。审计范围不含「改设计」，只加边界与降级。
 
