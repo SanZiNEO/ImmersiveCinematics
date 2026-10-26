@@ -53,7 +53,7 @@ import java.util.Map;
  * {@code Minecraft.level} / {@code levelRenderer} / 两个渲染分发器指向目标视图，并把
  * {@code GameRenderer.lightTexture} 字段换成目标视图的 {@code LightTexture}（{@link DimensionView}，
  * 独立 {@code ClientLevel} + {@code LevelRenderer} + {@code LightTexture}），pass 结束在 finally 还原；
- * 玩家本身不跨维度，主画面继续用玩家当前世界。空串 / 当前维度 = {@link DimensionViews#MAIN}，逐位保持原行为。
+ * 玩家本身不跨维度，玩家自身视角继续用玩家当前世界。空串 / 当前维度 = {@link DimensionViews#MAIN}，逐位保持原行为。
  */
 public final class LaneRenderer {
 
@@ -98,12 +98,12 @@ public final class LaneRenderer {
     }
 
     /**
-     * 一条活跃 lane 的跨维度视图快照（只读）：客户端 tick 据此向服务端上报「该维度需要在相机附近
+     * 一条活跃 lane 的非空维度视图快照（只读）：客户端 tick 据此向服务端上报「该维度需要在相机附近
      * 流式加载区块 / 实体」。只包含 {@code dimension} 非空的 lane（空串 = 玩家当前维度，走原版连接）。
      *
      * @param viewId    视图 id：有租约 = {@link CameraLease#viewKey()}（槽位 + 代际 + 维度）；
      *                  无租约 = {@code captureId@dimension}（captureId 缺失时回退 {@code lane<序号>}）
-     * @param dimension 目标维度 id（{@code namespace:path}）
+     * @param dimension 该 lane 声明的维度 id（{@code namespace:path}；调用方按需排除玩家当前维度）
      * @param position  该 lane 本帧的相机眼位
      */
     public record LaneView(String viewId, String dimension, Vec3 position) {}
@@ -657,7 +657,7 @@ public final class LaneRenderer {
             renderer.prepareCullFrustum(poseStack, cameraPos, cullProjection);
 
             // Iris 深度重挂键是版本号而非纹理 id：版本与 Iris 缓存同值（通常都是 0）时不重挂，
-            // depthtex0/1/2 / gdepthtex / centerDepthSampler 会继续采样主相机深度——递增一次强制重挂。
+            // depthtex0/1/2 / gdepthtex / centerDepthSampler 会继续采样非 lane pass 的深度——递增一次强制重挂。
             bumpIrisDepthBufferVersion(fbo, main);
 
             // 该 lane 自己的视锥 + 相机姿态 → 原版 8 格膨胀剔除 3~5 步收敛，不需要自建剔除方案。
@@ -838,7 +838,7 @@ public final class LaneRenderer {
                         + "centerDepthSampler 采样 lane FBO 自己的深度（{}）", IRIS_DEPTH_VERSION_FIELD);
             }
         } catch (Throwable ignored) {
-            // 字段语义变化 / 访问被拒：降级为原行为（屏幕空间效果仍采样主相机深度），渲染本身不受影响
+            // 字段语义变化 / 访问被拒：降级为原行为（屏幕空间效果仍采样非 lane pass 的深度），渲染本身不受影响
         }
     }
 
@@ -888,11 +888,16 @@ public final class LaneRenderer {
     }
 
     /**
-     * 本帧最上层 lane（序号最大且有状态的槽位）；无活跃 lane 时为 {@code null}。
-     * 视图中心取它的相机位置：可见区块网格是单份共享状态，整帧只能有一个中心——逐 pass 换中心会让
-     * {@code ViewArea.repositionCamera} 反复搬动整张网格（区块全部置脏重建、画面缺块），因此取玩家看到的
-     * 最上层画面那台相机。主 pass 读本帧 lane 表（帧驱动挂在 {@code GameRenderer.render} 的 HEAD），无滞后。
-     * 跨维度 lane 不能拖动主画面中心：主 pass 侧只在「该 lane 不跨维度」时才用它
+     * 本帧合成顺序末位（序号最大且有状态）的 lane；无活跃 lane 时为 {@code null}。
+     *
+     * <p>它只用于「非 lane pass 的共享区块网格中心」这一实现约束：可见区块网格（{@code ViewArea} /
+     * {@code renderChunkStorage}）整帧只有一份，逐 pass 换中心会让 {@code ViewArea.repositionCamera}
+     * 反复搬动整张网格（区块全部置脏重建、画面缺块），因此非 lane pass 取这一条 lane 的相机位置作为
+     * 共享网格中心。合成顺序末位不等于「主相机」：每条 lane 在 lane pass 内仍用自己的
+     * {@link #activeLaneState()} 完整渲染；服务端当前维度中心由 {@link #currentDimensionCenter(String)}
+     * 单独选择，跨维度视图由 {@code CameraViewReporter} 按 view 独立上报。
+     *
+     * <p>跨维度 lane 不能拖动共享网格中心：非 lane pass 侧只在「该 lane 不跨维度」时才用它
      * （见 {@code LevelRendererVanillaMixin.cinematicViewCenter}）。
      */
     public Lane topLane() {
@@ -900,6 +905,35 @@ public final class LaneRenderer {
             Lane lane = lanes.get(i);
             if (lane.state != null) {
                 return lane;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 本帧当前维度的相机中心：按 lane 序号取第一条 {@code dimension} 为空 / 空串 / 等于
+     * {@code currentDimension} 的活跃 lane 的相机眼位。
+     *
+     * <p>这是服务端 {@code CameraCenterManager} 的「当前维度中心」上报源，不是「主相机」：每条 CAMERA
+     * lane 都是独立相机，合成顺序只决定叠放。优先取序号最小的当前维度 lane（最底层 / 背景画面），
+     * 避免 0s 起 {@code opacity=0} 的跨维度预取景 lane 把服务端中心带到目标维度；目标维度 lane 由
+     * {@code CameraViewReporter} 按 view 独立上报，不参与这里的选择。
+     *
+     * @param currentDimension 玩家当前维度 id（{@link DimensionViews#currentDimensionId}）；空串 = 未知
+     * @return 相机眼位；没有当前维度活跃 lane 时为 {@code null}
+     */
+    public Vec3 currentDimensionCenter(String currentDimension) {
+        if (activeCount == 0) {
+            return null;
+        }
+        for (int i = 0; i < lanes.size(); i++) {
+            Lane lane = lanes.get(i);
+            if (lane.state == null) {
+                continue;
+            }
+            String dimension = lane.dimension;
+            if (dimension == null || dimension.isEmpty() || dimension.equals(currentDimension)) {
+                return lane.state.position();
             }
         }
         return null;
@@ -937,10 +971,12 @@ public final class LaneRenderer {
     }
 
     /**
-     * 本帧活跃的跨维度视图快照（客户端 tick 上报用）：只收 {@code dimension} 非空的 lane，
-     * 有租约时 {@code viewId = lease.viewKey()}（槽位 + 代际 + 维度），无租约回退
-     * {@code captureId@dimension}（captureId 缺失回退 {@code lane<序号>}）。
+     * 本帧活跃的非空维度视图快照（客户端 tick 上报用）：只收 {@code dimension} 非空的 lane
+     * （空维度 = 玩家当前维度，不在这里），有租约时 {@code viewId = lease.viewKey()}（槽位 + 代际 + 维度），
+     * 无租约回退 {@code captureId@dimension}（captureId 缺失回退 {@code lane<序号>}）。
      * 同一 viewId 仍按去重并保留最后一条，避免同源 lane 位置不同时逐帧来回移动服务端 ticket / 区块差集。
+     * 当前维度中心不在这里（空维度 lane 被过滤）：服务端当前维度中心用
+     * {@link #currentDimensionCenter(String)}。
      */
     public List<LaneView> activeViews() {
         if (activeCount == 0) {

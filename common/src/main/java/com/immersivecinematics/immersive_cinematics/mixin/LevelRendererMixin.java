@@ -64,9 +64,9 @@ public class LevelRendererMixin {
     }
 
     /**
-     * 渲染 pass 诊断采样：每个 {@code renderLevel} 返回点各触发一次（主 pass + 每个 lane pass）。
+     * 渲染 pass 诊断采样：每个 {@code renderLevel} 返回点各触发一次（非 lane pass + 每个 lane pass）。
      * 视锥 = 本 pass 的 {@code cullingFrustum}（lane pass 由 {@code prepareCullFrustum} 在渲染前写入）；
-     * 只采样主相机与 lane pass，嵌套 pass 由探针自行跳过。debugLogging 关闭时探针立即返回。
+     * 只采样玩家相机（非 lane pass）与 lane pass，嵌套 pass 由探针自行跳过。debugLogging 关闭时探针立即返回。
      */
     @Inject(method = "renderLevel", at = @At("RETURN"))
     private void immersivecinematics_probeReturn(PoseStack poseStack, float partialTick, long nanoTime,

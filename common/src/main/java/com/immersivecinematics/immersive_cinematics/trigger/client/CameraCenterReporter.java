@@ -1,10 +1,10 @@
 package com.immersivecinematics.immersive_cinematics.trigger.client;
 
 import com.immersivecinematics.immersive_cinematics.Config;
-import com.immersivecinematics.immersive_cinematics.api.CameraApi;
-import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
+import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
+import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
@@ -14,6 +14,7 @@ import com.immersivecinematics.immersive_cinematics.trigger.network.CinematicC2S
 import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard;
 import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -26,10 +27,16 @@ import java.util.Optional;
  *
  * 与原版差集思路一致：脚本激活后持续上报中心位置，不做「是否远离玩家」的门控，服务端自行算差集。
  * 位置上报每 tick 至多一包：距上次上报达到 {@link Config#cameraCenterReportInterval} tick，或位移 ≥1 格，
- * 或相机活跃态翻转时发送；相机空档 / 无活跃 CAMERA 片段时改报玩家位置（含 y），让服务端把窗口切回玩家区。
+ * 或当前维度相机态翻转时发送；没有当前维度 CAMERA lane 时改报玩家位置（含 y），让服务端把窗口切回玩家区。
  * 每次新 START 生成新的 sessionId，END 回传同一 sessionId，服务端据此忽略旧播放的迟到包。
  *
- * 上报全是单向的：不等服务端响应，服务端未处理也不阻塞播放。
+ * <p><b>上报的是「当前维度中心」，不是「主相机中心」。</b>每条 CAMERA lane 都是独立相机，合成顺序只决定
+ * 叠放；这里按 lane 顺序取当前维度的第一条（最底层 / 背景）lane，用它自己的相机眼位作为
+ * {@code CameraCenterManager} 的当前维度中心。目标维度的预取景 lane 即使从 0s 起 {@code opacity=0} 也仍是
+ * 活跃 lane，但它不参与这里的选择——目标维度由 {@link CameraViewReporter} 按 view 独立上报。没有当前维度
+ * lane 时回落到玩家位置并令 {@code cameraMode=false}，服务端据此把窗口切回玩家区。
+ *
+ * <p>上报全是单向的：不等服务端响应，服务端未处理也不阻塞播放。
  */
 public final class CameraCenterReporter {
 
@@ -46,8 +53,8 @@ public final class CameraCenterReporter {
     /** 上一次实际上报的位置（位移阈值比较用）。 */
     private Vec3 lastReported = Vec3.ZERO;
 
-    /** 上一刷新是否有活跃 CAMERA 片段；翻转时立即补发位置 */
-    private boolean lastHadActiveCamera = false;
+    /** 上一刷新是否有当前维度 CAMERA lane（= 上报中心是否来自相机）；翻转时立即补发位置。 */
+    private boolean lastHadCurrentDimensionLane = false;
 
     private CameraCenterReporter() {}
 
@@ -55,7 +62,7 @@ public final class CameraCenterReporter {
     public void reset() {
         lastScript = "";
         sessionId = 0L;
-        lastHadActiveCamera = false;
+        lastHadCurrentDimensionLane = false;
         tickCounter = 0;
         lastReported = Vec3.ZERO;
     }
@@ -71,8 +78,6 @@ public final class CameraCenterReporter {
      * @param mc 客户端实例（读玩家位置）
      */
     public void tick(Minecraft mc) {
-        // 读侧走 api 面（只读查询）；其余查询 / 控制仍走门面
-        CameraApi cam = CameraManager.INSTANCE;
         PlaybackInstance instance = CameraManager.INSTANCE.activeInstance();
         ScriptPlayer sp = instance != null ? instance.player() : null;
         if (sp != null && sp.isPlaying() && !CameraManager.INSTANCE.isPreviewMode()) {
@@ -86,13 +91,27 @@ public final class CameraCenterReporter {
                 releaseIfNeeded();
                 return;
             }
-            boolean activeCamera = cam.hasActiveCameraClip();
-            CameraState camState = cam.getCameraState();
+            if (mc.level == null) {
+                releaseIfNeeded();
+                return;
+            }
+            // 当前维度中心 = 该维度第一条（最底层 / 背景）CAMERA lane 的相机眼位。
+            // 不用 CameraManager.getCameraState()：它取顶层实例的覆盖链输出（通常与合成顺序末位 lane 同源），
+            // 跨维度预取景 lane 从 0s 起 opacity=0 也仍是活跃 lane，会把服务端当前维度中心带到目标维度。
+            // 也不用 LaneRenderer.activeViews()：它只收 dimension 非空的 lane（空维度 = 当前维度的 lane 被过滤），
+            // 选不到以空维度注册的当前维度中心。
+            // 玩家当前维度从玩家实体读：即使调用点落在 lane pass 内（mc.level 被换到目标视图）也不会选错维度
+            ClientLevel playerLevel = mc.player != null && mc.player.level() instanceof ClientLevel level
+                    ? level : mc.level;
+            String currentDimension = DimensionViews.currentDimensionId(playerLevel);
+            Vec3 laneCenter = LaneRenderer.INSTANCE.currentDimensionCenter(currentDimension);
+            // 维度未知（无世界）时不认相机中心，回落玩家 / 释放
+            boolean cameraMode = laneCenter != null && !currentDimension.isEmpty();
             Vec3 pos;
-            if (activeCamera && camState != null) {
-                pos = camState.position();
+            if (cameraMode) {
+                pos = laneCenter;
             } else {
-                // 空档/无镜头片段：相机不覆盖，实际是玩家视角，报玩家位置让服务端差集切回玩家区
+                // 没有当前维度 CAMERA lane：相机不覆盖当前维度，实际是玩家视角，报玩家位置让服务端差集切回玩家区
                 if (mc.player == null) {
                     releaseIfNeeded();
                     return;
@@ -104,29 +123,29 @@ public final class CameraCenterReporter {
                 sessionId++;
                 tickCounter = 0;
                 lastReported = pos;
-                lastHadActiveCamera = activeCamera;
+                lastHadCurrentDimensionLane = cameraMode;
                 if (Config.debugLogging) {
                     LOGGER.info("[camera center] START script={} session={} 位置=({},{},{}) 相机块=({},{}) cameraMode={}",
-                            sid, sessionId, pos.x, pos.y, pos.z, chunk(pos.x), chunk(pos.z), activeCamera);
+                            sid, sessionId, pos.x, pos.y, pos.z, chunk(pos.x), chunk(pos.z), cameraMode);
                 }
                 send("C2SCameraCenterRequest", new C2SCameraCenterRequestPacket(
                         C2SCameraCenterRequestPacket.MODE_START, sid, sessionId,
-                        pos.x, pos.y, pos.z, activeCamera));
+                        pos.x, pos.y, pos.z, cameraMode));
                 return;
             }
             tickCounter++;
-            boolean activeChanged = activeCamera != lastHadActiveCamera;
-            if (activeChanged) lastHadActiveCamera = activeCamera;
+            boolean cameraModeChanged = cameraMode != lastHadCurrentDimensionLane;
+            if (cameraModeChanged) lastHadCurrentDimensionLane = cameraMode;
             boolean moved = pos.distanceToSqr(lastReported) >= 1.0;
-            if (tickCounter >= Math.max(1, Config.cameraCenterReportInterval) || moved || activeChanged) {
+            if (tickCounter >= Math.max(1, Config.cameraCenterReportInterval) || moved || cameraModeChanged) {
                 tickCounter = 0;
                 lastReported = pos;
                 if (Config.debugLogging) {
                     LOGGER.info("[camera center] POS script={} session={} 位置=({},{},{}) 相机块=({},{}) cameraMode={} activeChanged={}",
-                            sid, sessionId, pos.x, pos.y, pos.z, chunk(pos.x), chunk(pos.z), activeCamera, activeChanged);
+                            sid, sessionId, pos.x, pos.y, pos.z, chunk(pos.x), chunk(pos.z), cameraMode, cameraModeChanged);
                 }
                 send("C2SCameraCenterPosition",
-                        new C2SCameraCenterPositionPacket(sessionId, pos.x, pos.y, pos.z, activeCamera));
+                        new C2SCameraCenterPositionPacket(sessionId, pos.x, pos.y, pos.z, cameraMode));
             }
         } else {
             releaseIfNeeded();

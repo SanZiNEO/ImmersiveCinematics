@@ -37,7 +37,7 @@
 
 一条相机轨里放多个相机片段；同一时刻活跃的每个片段产出一条画面，自带取材区域、目标区域、不透明度与遮罩，全部关键帧化。
 
-- **主画面与多条副画面**：玩家视角先渲染成底图；脚本播放时最上层通常是全屏不透明的相机画面，即主画面，其余片段各产出一条副画面。无脚本画面而飞行或直控接管时，注册一条全屏画面承接链输出；未覆盖处露玩家视角。
+- **整屏画面与多条副画面**：玩家视角先渲染成底图；脚本播放时，合成顺序末位的 lane 通常是全屏不透明画面，盖住底图，观感等同于整屏画面，但它仍是普通 lane（合成顺序不等于相机身份）。其余片段各产出一条副画面。无脚本画面而飞行或直控接管时，注册一条全屏 lane 承接链输出；未覆盖处露玩家视角。
 - **每条画面自包含**：世界渲染、发光描边与 lane 级调色都在自己的缓冲内完成；副画面没有第一人称手与 HUD。
 - **合成顺序**：先注册在下、后注册在上，顺序 = 实例启动顺序 → 轨道层级 → 片段顺序。叠化 = 下层不透明、上层 0→1；划像 = 遮罩覆盖率从 0 扩大。遮罩硬边，不透明度 = 关键帧值 × 覆盖率；尺寸 0 不绘制。
 - **视距**：跟随玩家设置，不新增档位；每条画面按自己的相机与视锥取可见范围。
@@ -61,7 +61,7 @@
 - **帧序**：帧首注册 lane → 主世界渲染 → 逐 lane 渲染并立即合成；注册必须早于世界渲染。
 - **状态**：投影、逆视图矩阵、`mainRenderTarget`、绑定与视口由 lane 块保存 / 还原；雾、深度、混合由原版收敛；异常由 `finally` 兜底。
 - **维度**：每条 lane 按自己的维度取 `DimensionView`；CAMERA clip 的 `dimension` 缺省 / 空串 = 玩家当前维度；同维度零回归。同一帧多个维度按 lane 顺序渲染，不并行提交。
-- **主画面与描边**：主画面描边在 lane 循环前落地；最上层相机可改取链输出，无脚本 lane 时注册全屏链 lane；原版随后那次整屏描边被屏蔽。
+- **整屏画面与描边**：底图描边在 lane 循环前落地；合成顺序末位 lane 可改取链输出，无脚本 lane 时注册全屏链 lane；原版随后那次整屏描边被屏蔽。
 - **合成与失败**：共用一张缓冲、当帧消费、顺序 = 注册顺序；写满 = 颜色纹理 + FBO 完整 + 无 GL 错误，否则跳过。
 
 ### 4.3 数据形态
@@ -86,7 +86,7 @@
 - **`DimensionView`**：目标维度 `ClientLevel` + `LevelRenderer` + `LightTexture` + 剔除 / 光影 / 实体状态；同维度复用主世界 view。
 - **第二套世界**：`LevelRenderer` 的 `ViewArea` / `ChunkRenderDispatcher` 是 per-instance，不能每帧 `setLevel` 切维度；目标维度必须有独立 renderer，资源 reload / resize 也要独立接（已接：窗口 resize / 资源重载 / 世界退出走 `DimensionViews.closeAll()`）。
 - **状态换入换出**：lane pass 内临时切 `mc.level` / `mc.levelRenderer`（字段是 `final`，走 accessor）/ `EntityRenderDispatcher` / `BlockEntityRenderDispatcher`，并把目标 view 的 `LightTexture` 置脏后更新（目标视图没有 `GameRenderer.tick`）；相机用 `camera.setup(view.level(), ...)` 且强制 detached，不跟随玩家实体；`finally` 还原。`hitResult` 与 particle level 不换——跨维度 lane 内容档 `CROSS_DIM` 关粒子。
-- **视图中心 / 剔除**：lane pass 用本 lane 相机（`LaneRenderer.activeLaneState()`）；主 pass 取本帧最上层 lane 的相机，但该 lane 跨维度时退回玩家自己的中心（逐 lane 主中心不实现 = 接受项，理由见 `LevelRendererVanillaMixin.cinematicViewCenter` 注释：跨维度 lane 的画面由目标渲染器自己的区块网格提供，把主画面中心拖过去会让主世界区块全部置脏 / 缺块）。剔除槽带 `owner`，换渲染器时整箱作废并按新渲染器重新播种；`LaneCullSlots.mirrorCompiled` 只投给同渲染器的槽。
+- **视图中心 / 剔除**：lane pass 用本 lane 相机（`LaneRenderer.activeLaneState()`），每条 lane 独立；非 lane pass（玩家主视角）共享的 `ViewArea` 网格整帧只有一份中心，取本帧合成顺序末位 lane 的相机，但该 lane 跨维度时退回玩家自己的中心（这是共享网格的实现约束，不是「主相机」；逐 pass 换共享网格中心会重播种整张网格，收益不抵成本。理由见 `LevelRendererVanillaMixin.cinematicViewCenter` 注释：跨维度 lane 的画面由目标渲染器自己的区块网格提供，把主世界网格拖过去会让主世界区块全部置脏 / 缺块）。剔除槽带 `owner`，换渲染器时整箱作废并按新渲染器重新播种；`LaneCullSlots.mirrorCompiled` 只投给同渲染器的槽。
 - **光照 / 数据**：`renderLevel` 显式传 `view.lightTexture()`；目标维度区块 / 光照 / 实体包的路由、light 队列、`ClientChunkCache` 范围见 [跨维度相机](cross-dimension-camera.md) §4.2 / §4.3。
 - **状态归属**：视角身份 = 相机租约（维度 + 槽位 + 代际），`ViewScope` / `ViewStateCapture` / `ColorHistoryCapture` 都按租约键 `lease<槽位>g<代际>[@维度]` 分组；租约在片段结束时确定性归还并释放该视角快照 / 颜色历史（`ViewStateCapture.releaseView`），不再靠「连续两帧不活跃」的 stale 启发式。`ShaderCompat` 仍只缓存一个 pipeline（按 pipeline / 维度缓存未做）：`ViewScope` 在 lane 循环内跳过 `ShaderCompat.refresh()`，避免刷新清空视角栈导致 enter / exit 配不上——这是 P0 折中，不是 per-pipeline 隔离。
 - **合成**：`LaneCompositor` 不变；全屏 / 分屏只是 `dest` 参数。
@@ -110,7 +110,7 @@
 
 - 每条画面一遍完整世界渲染，成本近似线性；重场景两三条就吃掉可观帧预算。
 - 共用缓冲使合成必须即时，叠放顺序只能是注册顺序。
-- 网格只有一份（跨维度 lane 用目标维度自己的网格，见 §4.5）、中心取最上层画面；机位远离玩家时，远处画面受视距与网格中心限制。
+- 网格只有一份（跨维度 lane 用目标维度自己的网格，见 §4.5）；非 lane pass 的共享网格中心取合成顺序末位 lane 的相机（跨维度 lane 回退玩家中心），lane pass 各用各的中心；机位远离玩家时，远处画面受视距与共享网格中心限制。
 
 ## 六、实现结果
 
@@ -308,7 +308,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 - ~~叠化是否只支持两相机，还是 N 相机？~~ / ~~分屏是否要支持任意布局？~~
   **已回答**：分屏 / 叠化 / PIP 统一为合成参数（取材区域 / 目标区域 / 不透明度）的特例，lane 数不设限——见[画面合成](camera-composition.md)。
 - 🟡 **副画面是否需要支持 look_at / tangent 朝向？**（未定）
-- 🟡 **是否允许叠化期间主相机继续移动？**（未定；合成层不限制，属编排 / 语义决定）
+- 🟡 **是否允许叠化期间相机 lane 继续移动？**（未定；合成层不限制，属编排 / 语义决定）
 - 🟡 **Rubidium 兼容**：`example/` 下无 Rubidium 源码，未验证（§11）。
 - ✅ **Sodium 下两遍 / 帧的 `frame++` 语义**：Sodium 0.5.13 实机 A/B 与 F5 十档均无缺块 / 闪块（Embeddium 同构未单测）；§7 / §7.1 的「未验证」字样是 2026-10-07 快照。
 - ✅ **每视角历史拷贝成本**：已包含在 F5 复测数据中（未单独拆分，见 §6）。
@@ -422,7 +422,7 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 - **Rubidium**：`example/` 下没有 Rubidium 源码 → §11 关于它的一条**未验证**（已就地标注）。
 - **"光影环境下能否拿到已处理后的画面"**（§7 第三点）：只核实了 Iris 第二遍的存在与状态处理，未验证第三方能否安全取用 Iris 合成后的画面——保持"需要专门调研"。
 - **Sodium 下两遍/帧的 `frame++` 语义变化是否引发错误行为**：`render-second-pass-cost.md` §3.2 已标"未验证"，本次亦无实机验证（该形参在 Embeddium 里标了 `@Deprecated(forRemoval = true)`，仅传给 `renderSectionManager.update`）。
-- **叠化预热时长 / 叠化期主相机是否可动**（§9）：设计类开放问题，源码无法回答，**保持待定**。
+- **叠化预热时长 / 叠化期相机 lane 是否可动**（§9）：设计类开放问题，源码无法回答，**保持待定**。
 
 ---
 
@@ -443,8 +443,8 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
 | `mixin/GameRendererAccessor.java` | `@Invoker`：`getProjectionMatrix(double)` / `getFov(Camera,float,boolean)`（复刻原版投影与光学参数） |
 | `mixin/MinecraftAccessor.java` | `@Accessor @Mutable mainRenderTarget`（lane 期间指向 lane FBO） |
 | `mixin/CameraAccessor.java` | `@Invoker setPosition/setRotation` + `@Accessor initialized`（听者相机代理：listener=camera 时把原版听者搬到镜头位置） |
-| `mixin/CameraMixin.java` | lane 分支：把 lane 的 `CameraState`（position/yaw/pitch）写进该 lane 的独立 `Camera` 实例（`getEntity` / `isDetached` 同样按 lane 判定）。主相机分支已于 2026-10-07 退役删除 |
-| `mixin/LevelRendererMixin.java` | lane 视图中心（`setupRender` 的 `ModifyVariable` ×3 用本帧**最上层 lane** 的相机位置做整帧单一中心；无 lane 时用玩家坐标——单份网格不能逐 pass 换中心，见该文件 javadoc）+ 遮挡剔除**逐 pass 判定**（lane pass 的相机在实心方块内 → 本 pass `smartCull=false`；主 pass 走原版判定）+ lane pass 清屏 alpha（§12.8-A）+ 原版整屏描边屏蔽（有活跃 lane 时）+ 内容开关（`renderSky` / `renderClouds` / `renderSnowAndRain` / `renderEntity`） |
+| `mixin/CameraMixin.java` | lane 分支：把 lane 的 `CameraState`（position/yaw/pitch）写进该 lane 的独立 `Camera` 实例（`getEntity` / `isDetached` 同样按 lane 判定）。旧「单相机替换」分支已于 2026-10-07 退役删除 |
+| `mixin/LevelRendererMixin.java` | lane 视图中心（`setupRender` 的 `ModifyVariable` ×3：lane pass 用本 lane 相机；非 lane pass 用本帧**合成顺序末位 lane** 的相机位置做共享网格的整帧单一中心，无 lane 时用玩家坐标——单份网格不能逐 pass 换中心，见该文件 javadoc；这不是「主相机」）+ 遮挡剔除**逐 pass 判定**（lane pass 的相机在实心方块内 → 本 pass `smartCull=false`；非 lane pass 走原版判定）+ lane pass 清屏 alpha（§12.8-A）+ 原版整屏描边屏蔽（有活跃 lane 时）+ 内容开关（`renderSky` / `renderClouds` / `renderSnowAndRain` / `renderEntity`） |
 | `mixin/ParticleEngineMixin.java` | 内容开关：粒子 |
 | `mixin/LaneCullStateMixin.java` + `client/lane/LaneCullSlot.java` / `LaneCullSlots.java` | 每 lane 独立可见集合：lane pass 前后把「候选集 / 可见集合 / 门闩 / 相机移动判定 / 透明排序基准」与 lane 槽字段级换入换出（槽池化复用）；§12.9 |
 | `client/lane/{ShaderCompat,ViewScope,ColorHistoryCapture,ViewStateCapture,ShadowColorClear}.java` | 光影每视角隔离（2026-10-18）：历史 colortex / `shadowcolor` / previous 矩阵与 tracker 按视角保存恢复，pipeline 切换时重置；§12.10 |
@@ -646,7 +646,7 @@ sh gradlew :fabric:runClient --args='--quickPlaySingleplayer <世界名>'
    （`ScriptLaneDriver.tick` 的活跃度跳变钩子：注册前后各读一次 `LaneRenderer.hasActiveLanes()`，跳变即强刷
    ——一帧内的「清空 → 重注册」不算跳变）——否则集合 / 网格要等相机再移动 8 格才按新口径重建。
 
-- **首帧跳变规避**：停播帧由第 4 条强制重建，主画面在该帧即按玩家相机重建集合与网格中心，不残留 lane 口径的可见集合。网格中心从 topLane 移回玩家会触发一次 `ViewArea.repositionCamera`（一次性全量置脏，`mcculling.txt` §5）——属预期的一次性成本，不是持续抖动。
+- **首帧跳变规避**：停播帧由第 4 条强制重建，玩家主视角在该帧即按玩家相机重建集合与网格中心，不残留 lane 口径的可见集合。网格中心从 topLane 移回玩家会触发一次 `ViewArea.repositionCamera`（一次性全量置脏，`mcculling.txt` §5）——属预期的一次性成本，不是持续抖动。
 - **异常路径同口径**：`LaneRenderer.render` 的 `finally`（`:334-340`）保证所有未 pop 的 lane 槽被弹出；实例强制退出 / 脚本错误 → lane 表清空（`ScriptLaneDriver.clear` / `setLane(null)`，`repocameramap.txt` §4）→ 走「最后一个 lane 停播」同一条路径（含一次 `needsUpdate()`）。
 
 ###### 12.9.5 内存与编译量预算
@@ -693,9 +693,9 @@ C ≤ N_slot               （候选 section 数；遮挡剪枝后远小于上�
 
 ###### 12.9.7 定①（视图中心）与②（BFS 归槽，已收敛）
 
-**① 视图中心口径——定：保持现状，B3 不改。** 中心 = 本帧最上层 lane 的相机位置；无 lane = 玩家坐标（§12.1 现行口径）。
+**① 视图中心口径——定：保持现状，B3 不改。** lane pass 的中心 = 该 lane 相机；非 lane pass 的共享网格中心 = 本帧合成顺序末位 lane 的相机位置；无 lane = 玩家坐标（§12.1 现行口径）。共享网格中心是整帧一份的实现约束，不是「主相机」。
 
-- 依据：`camera-composition.md`「画面 = 合成层输出」——**lane 是覆盖层不是替换层**：原版主相机照常走玩家视角，lane 合成后盖在上面（单条全屏 opacity=1 的 lane 是主画面特例）；被覆盖区域以 lane 画面为准（每 lane 一张完整画面，由 §12.9 的 per-lane 可见集合保证），未覆盖区域露原版玩家视角（`camera-composition.md` §5「dest 之外谁垫底」）。合成模型下不存在「主画面与 lane 争网格中心」的取舍。
+- 依据：`camera-composition.md`「画面 = 合成层输出」——**lane 是覆盖层不是替换层**：原版玩家相机照常走玩家视角，lane 合成后盖在上面（单条全屏 opacity=1 的 lane 是整屏画面特例）；被覆盖区域以 lane 画面为准（每 lane 一张完整画面，由 §12.9 的 per-lane 可见集合保证），未覆盖区域露原版玩家视角（`camera-composition.md` §5「dest 之外谁垫底」）。合成模型下不存在「共享网格中心与 lane 相机中心」的身份冲突：两者是不同层概念，合成顺序不等于相机身份。
 - 「单份网格不能逐 pass 换中心」是既有实现限制（`LevelRendererMixin` javadoc），**不属于 B3 的决策点**，本设计不改；若未来要支持「多机位远离玩家」的网格覆盖，另立任务（如多网格 / 预加载联动），不混入 B3。
 
 **② lane 全量 BFS 的归槽机制（§12.9.2 的正确性约束）——已收敛（B3-b，2026-10-11）：定选 (ii) 变体 = lane pass 内同步执行 + 换入 lane 槽前 await 主 pass 异步落地。**

@@ -68,8 +68,8 @@ public final class AudioListenerController {
 
     /**
      * 构造镜头视角代理 Camera（位置/朝向 = 统一快照 = 顶层实例顶层活跃 clip 的相机状态）。
-     * 原版主相机就是玩家相机（{@code Minecraft.tick} 把 {@code gameRenderer.getMainCamera()} 交给
-     * {@code SoundEngine.updateSource}），listener=camera 不会天然成立，必须显式把听者相机搬到镜头位置。
+     * 原版 {@code Minecraft.tick} 把 {@code gameRenderer.getMainCamera()}（玩家相机）交给
+     * {@code SoundEngine.updateSource}，listener=camera 不会天然成立，必须显式把听者相机搬到镜头位置。
      * 无快照（本帧无活跃相机）时回落玩家代理，与 {@link #getListenerPosition()} 的回落一致。
      */
     public static Camera cameraListener() {

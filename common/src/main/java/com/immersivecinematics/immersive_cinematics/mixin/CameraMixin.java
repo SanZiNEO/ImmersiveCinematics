@@ -19,8 +19,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * lane 相机接管：把 {@link LaneRenderer} 各 lane 的 {@link CameraState} 写进该 lane 自己的
  * {@link Camera} 实例（每 lane 一个相机实例 + 独立投影）。
  *
- * 主画面本身就是「dest 全屏、opacity=1」的 lane，原版主相机不被写入模组状态、照常走原版
- * {@code Camera.setup()}（玩家位置）——无活跃 lane 时画面即原版视角。
+ * 原版玩家相机不被写入模组状态，照常走原版 {@code Camera.setup()}（玩家位置）；一条
+ * 「dest 全屏、opacity=1」的 lane 合成后覆盖底图，观感等同于整屏画面，但它仍只是普通 lane，
+ * 不是「主相机」——无活跃 lane 时画面即原版视角。
  *
  * lane 相机用 HEAD + cancel 拦 {@code setup()}：先跑原版再覆盖会经过「玩家位置 → 相机位置」的中间态，
  * OpenAL Listener 在两处之间来回跳，产生声音卡顿。被跳过的那次 setup 会初始化的字段必须手填：
@@ -49,7 +50,7 @@ public abstract class CameraMixin {
     private boolean detached;
 
     /**
-     * lane 相机读该 lane 自己的 {@link CameraState}；非 lane 相机（原版主相机）放行原版 setup。
+     * lane 相机读该 lane 自己的 {@link CameraState}；非 lane 相机（原版玩家相机）放行原版 setup。
      * 跳变 / 字段补全的原因见类 javadoc。
      */
     @Inject(method = "setup", at = @At("HEAD"), cancellable = true)

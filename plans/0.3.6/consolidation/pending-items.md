@@ -39,7 +39,7 @@
 
 ### multi-camera-rendering.md
 - 🟡 **副画面是否支持 look_at / tangent 朝向**。
-- 🟡 **叠化期间主相机是否可移动**。
+- 🟡 **叠化期间相机 lane 是否可移动**。
 - 🟡 **光影（Iris/Oculus）能否拿「已处理后的画面」** → **F3 实现完成（2026-10-17 / 画面修复 2026-10-18）**：lane 始终渲染，每 lane 跑完整光影链；跨视角 TAA 历史与 `shadowcolor` 污染已修，Fabric/Iris 1.7.6 三包 A/B 干净。**F3 验收通过（Fabric/Iris 三视角 + 热切换实机；Forge/Oculus 同构移植、同 jar 部署）**（§7 L144、§12.5 L350、事实核查 L284；`render-routes.md` §4）。
 - ✅ **Sodium 下两遍 / 帧 `frame++` 语义** → Sodium 0.5.13 实机 A/B 与 F5 十档均无缺块 / 闪块；🟡 **Rubidium 类名核对**为已知限制（检测按入口类名覆盖，类名缺失会 `defaultRequire:1` 启动期失败）。（§11 注 L207、事实核查 L283/285）
 - ✅ 已销项：渲染顺序（renderLevel RETURN 已实测）、每 lane 独立可见集合（B3）、预热时长、性能模组检测策略、alpha 透底（ic_lane_blit）、per-lane 槽归槽。
@@ -49,7 +49,7 @@
 - 🟡 **第一版是否纳入 wipe** → 归 **D2**。
 - 🟡 **转场时长/曲线默认值**、**转场期间时间线语义**、**lane opacity 插值曲线**、**跳过/打断交互** → 归 D 批。
 - 🟡 **z 序**（fade z=10 压不住字幕 z=30）→ 归 **D3**。
-- 🟡 **叠化期间主相机可动**（沿用 multi-camera §9）。
+- 🟡 **叠化期间相机 lane 可动**（沿用 multi-camera §9）。
 - ✅ 已销项：GUI 层不受影响、cut/叠化/黑场白场数据链路已验证。
 
 ### variable-frame.md
@@ -79,7 +79,7 @@
 - ✅ **F5 帧耗时统计** → 实现完成 + 矩阵完整（2026-10-18）：诊断会话 + 21 支脚本；l0 / l1 / l4 / l16 / l25 的 FULL 与 WORLD_ONLY 均 600/600；per-view 历史拷贝成本已包含在复测数据中。
 - 🟡 **失败处理审计** → `failure-handling-audit.md`（只读）**60 findings / 23 P0**，16 处空 / 仅注释 catch；`PacketGuard` 与断线清理未实现，按 P0 / P1 / P2 分批整改。
 - 🟡 **Iris 已知限制**：⑤ Rubidium 类名核对、③ 非 `SRGB` 色彩空间；①② 已由实机 A/B 收口，④ 由 Sodium 实机覆盖，⑥ 由 F5 矩阵覆盖。
-- 🟡 **合成 / 并行 / 多相机开放项**：见上文 `camera-composition.md`（dest 外兜底、编辑器预览多 lane、HUD/letterbox 顺序、主 lane、跨脚本 lane 寻址）、`parallel-playback.md`（听者后来者居上、多实例 AUDIO 锚点、跳过投票 UI、实例/Base Provider、ticket 并集、实例 id 网络）、`multi-camera-rendering.md`（lane look_at/tangent、叠化期间主相机移动）。
+- 🟡 **合成 / 并行 / 多相机开放项**：见上文 `camera-composition.md`（dest 外兜底、编辑器预览多 lane、HUD/letterbox 顺序、主 lane、跨脚本 lane 寻址）、`parallel-playback.md`（听者后来者居上、多实例 AUDIO 锚点、跳过投票 UI、实例/Base Provider、ticket 并集、实例 id 网络）、`multi-camera-rendering.md`（lane look_at/tangent、叠化期间相机 lane 移动）。
 
 ---
 

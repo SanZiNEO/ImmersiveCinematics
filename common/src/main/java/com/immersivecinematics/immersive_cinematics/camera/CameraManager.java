@@ -41,7 +41,7 @@ public class CameraManager implements CameraApi {
             stateHolder, gameClock, previewClock, coverChain, this::refreshCameraState);
     private final FrameDriver frameDriver = new FrameDriver(registry, previewChannel, gameClock, previewClock,
             ledger, lifecycle, directControlBase, this::refreshCameraState);
-    private final ClientEntityProbe entityProbe = new ClientEntityProbe(registry, stateHolder);
+    private final ClientEntityProbe entityProbe = new ClientEntityProbe(registry);
 
     private CameraManager() {
         previewChannel.bindLifecycle(lifecycle);
@@ -153,16 +153,23 @@ public class CameraManager implements CameraApi {
      *
      * 刷新点：帧末、停用 / 重启、直控写入口；脚本导演写入只改写入缓冲，由帧末统一重建。
      * 同一帧内多次读取结果一致。
+     *
+     * <p>这是覆盖链输出 / 顶层实例的全局快照，不是服务端 {@code CameraCenterManager} 的当前维度中心
+     * 上报源；后者由 {@code CameraCenterReporter} 按当前维度第一条 lane 选择。
      */
     @Override
     public CameraState getCameraState() { return stateHolder.snapshot(); }
-    /** 本帧链上是否有 Modifier 参与合成（消费方 = 主相机 lane：有 Modifier 时取链输出）。 */
+    /**
+     * 本帧链上是否有 Modifier 参与合成（消费方 = 合成顺序末位 lane 的覆盖链输出替换位：
+     * 有 Modifier 时该 lane 取链输出）。
+     */
     public boolean modifiersApplied() { return coverChain.modifiersApplied(); }
     /**
      * 本帧链胜出层是否为直控类层（飞行 300 / 编辑器直控 200 / 外部接管 400，即非脚本导演 100）。
-     * 消费方 = 主画面 lane 的取用点（{@code ScriptLaneDriver}）：直控类层胜出时相机轨道跳过写入
-     * （{@code CameraTrackPlayer.onRenderFrame} 在 {@code isPreviewDirectControl()} 时直接返回），
-     * 主相机 lane 要么不存在、要么不是本帧相机——画面须取链输出（本帧相机）才跟得上直控。
+     * 消费方 = {@code ScriptLaneDriver} 的覆盖链输出替换位（合成顺序末位 lane）：直控类层胜出时相机轨道
+     * 跳过写入（{@code CameraTrackPlayer.onRenderFrame} 在 {@code isPreviewDirectControl()} 时直接返回），
+     * 该替换位要么不存在、要么不是本帧相机——画面须取链输出（本帧相机）才跟得上直控。替换位只是覆盖链
+     * 的作用点，不代表「主相机」。
      */
     public boolean isDirectControlWinner() {
         return coverChain.winnerPriority() > BaseCameraProvider.PRIORITY_SCRIPT_DIRECTOR;

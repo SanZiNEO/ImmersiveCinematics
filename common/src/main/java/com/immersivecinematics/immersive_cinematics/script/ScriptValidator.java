@@ -425,7 +425,7 @@ public final class ScriptValidator {
                                 + "只写在 ADJUST 轨的片段上）：相机片段请删掉该字段，或把 blend_mode 移到 ADJUST 轨");
                     }
                 }
-                // 覆盖链 Modifier 只作用于主相机状态：只写在 CAMERA 片段上（其余轨道上写 = 不生效）
+                // 覆盖链 Modifier 只作用于覆盖链输出（全局相机状态）：只写在 CAMERA 片段上（其余轨道上写 = 不生效）
                 checkModifierTrackScope(clip, cp, type, issues);
                 if ("OVERLAY".equalsIgnoreCase(type)) {
                     checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle");
@@ -1619,7 +1619,7 @@ public final class ScriptValidator {
         if ("CAMERA".equalsIgnoreCase(type)) return;
         for (String field : new String[]{"modifier", "suppress_modifiers"}) {
             if (clip.has(field)) {
-                issues.add(cp + "." + field + " 不支持（覆盖链 Modifier 只作用于主相机状态）："
+                issues.add(cp + "." + field + " 不支持（覆盖链 Modifier 只作用于覆盖链输出 / 全局相机状态）："
                         + "该字段只写在 CAMERA 轨的片段上");
             }
         }

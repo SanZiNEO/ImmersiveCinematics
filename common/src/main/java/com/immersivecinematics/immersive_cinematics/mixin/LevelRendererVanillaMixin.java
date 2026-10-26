@@ -33,7 +33,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(LevelRenderer.class)
 public class LevelRendererVanillaMixin {
 
-    // ===== 视图中心（setupRender 的玩家坐标 → 本帧最上层 lane 相机）=====
+    // ===== 视图中心（lane pass 用本 lane 相机；非 lane pass 用共享网格中心）=====
 
     @ModifyVariable(method = "setupRender", require = 0, at = @At(value = "INVOKE_ASSIGN",
             target = "Lnet/minecraft/client/player/LocalPlayer;getX()D"), ordinal = 0)
@@ -59,10 +59,14 @@ public class LevelRendererVanillaMixin {
     /**
      * 本帧视图中心；{@code null} = 用原版玩家坐标。
      *
-     * lane pass 内：目标维度的渲染器必须跟随它自己那条 lane 的相机（{@code activeLaneState}），
-     * 否则目标视图的区块网格会按玩家位置搬动。
-     * 主 pass：取本帧最上层 lane 的相机，但只在该 lane 不跨维度时生效——跨维度 lane 的画面由
-     * 目标渲染器自己的区块网格提供，不能把主画面的视图中心拖到另一个维度（否则主世界区块全部置脏 / 缺块）。
+     * lane pass 内：该 lane 的渲染器必须跟随它自己那条 lane 的相机（{@code activeLaneState}），
+     * 否则该 lane 的区块网格会按玩家位置搬动。每条 lane 都是独立相机，不存在一个中心服务所有相机。
+     *
+     * 非 lane pass（玩家主视角）：共享的 {@code ViewArea} 网格整帧只有一份，不能逐 pass 换中心；这里取
+     * 本帧合成顺序末位 lane 的相机位置作为共享网格中心，且只在该 lane 不跨维度时生效——跨维度 lane 的画面
+     * 由目标渲染器自己的区块网格提供，不能把主世界网格拖到另一个维度（否则主世界区块全部置脏 / 缺块）。
+     * 这个共享网格中心不是「主相机」，也不参与服务端 {@code CameraCenterManager} 的当前维度中心上报
+     * （后者由 {@code CameraCenterReporter} 按当前维度第一条 lane 选择）。
      *
      * lane 表在本帧世界渲染之前就已注册（帧驱动 + lane 注册挂在 {@code GameRenderer.render} 的 HEAD），
      * 所以这里读到的是本帧的相机位置，不会滞后一帧。

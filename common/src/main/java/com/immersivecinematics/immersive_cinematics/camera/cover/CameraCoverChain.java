@@ -92,7 +92,7 @@ public final class CameraCoverChain {
 
     /**
      * 本帧链上是否有 Modifier 参与合成（胜出 Base 层未抑制且至少一条活跃）；{@link #evaluate} 每次刷新。
-     * 消费方 = 主相机那份的取用点（主相机 lane 据此判定「链输出是否已被 Modifier 改写」）。
+     * 消费方 = 合成顺序末位 lane 的覆盖链输出替换位（据此判定「链输出是否已被 Modifier 改写」）。
      */
     public boolean modifiersApplied() {
         return modifiersApplied;
@@ -100,7 +100,8 @@ public final class CameraCoverChain {
 
     /**
      * 本帧胜出 Base 层的档位（{@code PRIORITY_*}；无活跃 Base 时为 {@link Integer#MIN_VALUE}）；
-     * {@link #evaluate} 每次刷新。消费方 = 主画面 lane 的取用点（链胜出层非脚本导演时画面取链输出）。
+     * {@link #evaluate} 每次刷新。消费方 = 合成顺序末位 lane 的覆盖链输出替换位（链胜出层非脚本导演时
+     * 该 lane 取链输出）。
      */
     public int winnerPriority() {
         return winnerPriority;

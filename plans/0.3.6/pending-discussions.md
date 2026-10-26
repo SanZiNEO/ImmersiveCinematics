@@ -63,7 +63,7 @@
 - **§4「渲染顺序」关键难点**：第二遍在主渲染之后/GUI 之前，还是先渲染再合成——事实核查只补了事实边界（挂点 = `renderLevel` RETURN），设计未替文档决定。影响：渲染挂点。（§4 L93）
 - **每 lane 独立可见集合 / 遮挡剔除状态**（长期解）→ ✅ **已做（B3，2026-10-11，见 multi-camera-rendering.md §12.9）**：per-lane 槽 + 归槽 + 逐 pass `smartCull`，倾斜矩形症状不再产生（B3-c 像素实证）；整帧 `smartCull=false` 缓解与 `CinematicOcclusion` 已删（B3-d）。
 - **副画面是否需要支持 look_at / tangent 朝向**：保持待定。（§9 L175）
-- **是否允许叠化期间主相机继续移动**：保持待定。（§9 L176；`scene-transition.md` §6）
+- **是否允许叠化期间相机 lane 继续移动**：保持待定。（§9 L176；`scene-transition.md` §6）
 - **光影（Iris/Oculus）能否拿到「已处理后的画面」** → **F3 实现完成（2026-10-17）**：lane 始终渲染，每 lane 跑完整光影链，画面是光影处理后的结果；**2026-10-18 修复跨视角 TAA 历史 / `shadowcolor` 污染**，Fabric/Iris 1.7.6 三包 A/B 干净；**F3 验收通过（Fabric/Iris 1.7.6 三视角 + 热切换；Forge/Oculus 1.8.0 同 jar 已部署）**。（§7 L144、§12.5 L350、事实核查 L284；`render-routes.md` §4）
 - **Rubidium 兼容**：检测按入口类名 `me.jellysquid.mods.sodium.client.SodiumClientMod` 覆盖，未取 Rubidium jar 逐一核对——**已知限制**（类名缺失会在 `defaultRequire:1` 下启动期失败）。（§11 注 L207、事实核查 L283）
 - **Sodium 下两遍/帧 `frame++` 语义是否引发错误**：✅ Sodium 0.5.13 实机 A/B 与 F5 十档均无缺块 / 闪块（Embeddium 同构未单测）。（事实核查 L285；`render-second-pass-cost.md` §7）
@@ -157,7 +157,7 @@
 
 ### scene-transition.md（画面转场）
 - **D1–D3 已收口（2026-10-17，销项）**：数据落点 = **C（纯显式 clip / 关键帧）最终方案**，不新增 `transition_in/out`、`TRANSITION` 轨或运行时生成器；转场类型第一版 = cut / dissolve / black / white / wipe；z 序 = 显式 `z_index`（普通 fade 10 / 转场 fade 1000 / 示例字幕 100；同时显示的 OVERLAY 层各自独立轨，同轨只消费首活跃 clip）；叠化 = 底 A 不透明 + 上 B 0→1；旧“互补 alpha 不会露底”的错误结论已纠正。详见 `scene-transition.md` §3–§9。
-- **仍开放（应用层，不阻塞 D 轮）**：叠化期间主相机是否可动（沿用 multi-camera §9）；跳过 / 打断途中的转场行为；lane opacity 插值曲线；script-loop 回卷衔接（repeat 硬切 or 可选叠化）。
+- **仍开放（应用层，不阻塞 D 轮）**：叠化期间相机 lane 是否可动（沿用 multi-camera §9）；跳过 / 打断途中的转场行为；lane opacity 插值曲线；script-loop 回卷衔接（repeat 硬切 or 可选叠化）。
 
 ### variable-frame.md（画面系统核心）
 - **D8 / D10 已完成（2026-10-17，销项）**：统一几何（§4.2）沿用；`base_resolution` 不设 16384 人为上限（正整数可表示范围）；LETTERBOX opacity 线性接线。
@@ -240,9 +240,9 @@
 - **统一状态接口的最终形态** → 已定（2026-10-07）：`camera/CameraState.java` 不可变 record（六参数平铺），不活跃用 `null` 快照。定于 §6「接口定稿」。（§9 L192、§6 L119-129）
 - **staged 删除的具体范围** → 已定（2026-10-07，已落地）：见 §4（L67-74 删除清单）。（§4 L56-66、§9 L196）
 - **Modifier 合成模式** → 已确认：REPLACE / ADD / MULTIPLY。（§5.2 L92）
-- **主画面「单相机替换」链** → 已落地（2026-10-07）：主相机分支 / getFov / roll 钩子已删除。（§7 L166-167）
+- **整屏画面「单相机替换」链** → 已落地（2026-10-07）：旧单相机替换分支 / getFov / roll 钩子已删除。（§7 L166-167）
 - **覆盖链定稿（§8 九条 + §9 未结项）** → 已定（B1-a，2026-10-10）：见本文「覆盖链定稿（2026-10-10，B1-a ∪ B2 结案）」§0–§15。（§8 / §9）
-- **B1 四项拍板（2026-10-10 用户拍板）** → 已定：① Modifier 缺省合成 = 偏移类 ADD（position/yaw/pitch/roll）、缩放类 MULTIPLY（fov/zoom）、REPLACE 显式 ② Base 优先级 飞行 300 > 直控 200 ③ Modifier 只作用主相机状态 ④ 通道掩码 6 位。（见覆盖链定稿 §2 补注；`implementation-progress.md`「B1 拍板」行）
+- **B1 四项拍板（2026-10-10 用户拍板）** → 已定：① Modifier 缺省合成 = 偏移类 ADD（position/yaw/pitch/roll）、缩放类 MULTIPLY（fov/zoom）、REPLACE 显式 ② Base 优先级 飞行 300 > 直控 200 ③ Modifier 只作用覆盖链输出（全局相机状态） ④ 通道掩码 6 位。（见覆盖链定稿 §2 补注；`implementation-progress.md`「B1 拍板」行）
 - **B2 结案（每 lane 一份 `CameraPath`/`CameraProperties`）** → 已结案（B2，2026-10-10）：不需要做，已由 lane 快照模型（`CameraLane` / `CameraState`）取代。（覆盖链定稿 §13）
 
 ### coordinate-frame.md（B5–B8 点源链定稿）

@@ -62,7 +62,8 @@ public class CameraTrackPlayer implements TrackPlayer {
     }
 
     /**
-     * 本轨本帧的画面 lane 快照列表（按轨道内 clip 顺序，最后一个是顶层相机）。
+     * 本轨本帧的画面 lane 快照列表（按轨道内 clip 顺序，最后一个是轨道内叠放最上层的相机；
+     * 这不是跨 lane 的「主相机」——每条 lane 仍用各自片段的相机）。
      *
      * @return 空列表 = 本轨本帧不产出画面（片段间隙 / 目标不可用 / 编辑器直控）
      */
@@ -143,7 +144,8 @@ public class CameraTrackPlayer implements TrackPlayer {
             return;
         }
 
-        // 顶层 clip：正常求值（写全局相机状态，与顶层 lane 同源同值）
+        // 顶层 clip：正常求值（写覆盖链输出的脚本导演值，与合成顺序末位 lane 同源同值；
+        // 全局状态供听者 / 预览等消费方使用，不是「主相机」——各 lane 仍用各自片段的快照）
         CameraLane topLane = evaluator.renderSingle(globalTime, topClip, globalTime - topClip.getStartTime(),
                 false, CameraKeyframeEvaluator.TOP_LANE);
         if (topLane != null) writeGlobal(topLane.state(), topClip.getSuppressModifiers());
@@ -152,7 +154,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         if (topLane != null) laneCollector.add(topLane);
     }
 
-    /** 顶层写入：本轨本帧的六参数写入全局相机状态（写入缓冲 + 链上的当前值 + 该片段的 Modifier 抑制标志）。 */
+    /** 顶层写入：本轨本帧的六参数写入覆盖链输出（写入缓冲 + 链上的当前值 + 该片段的 Modifier 抑制标志）。 */
     private void writeGlobal(CameraState state, boolean suppressModifiers) {
         cameraManager.setScriptState(state, suppressModifiers);
     }

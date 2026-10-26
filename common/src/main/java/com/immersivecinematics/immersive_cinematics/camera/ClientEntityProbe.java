@@ -1,10 +1,11 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
 import com.immersivecinematics.immersive_cinematics.Config;
-import com.immersivecinematics.immersive_cinematics.api.CameraState;
+import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneRenderer;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.world.entity.Entity;
@@ -32,9 +33,11 @@ import java.util.UUID;
  *
  * 口径：
  * <ul>
- *   <li>{@code cam} = 该 pass 的相机位置；{@code vc} = 共享视图中心（{@link LaneRenderer#topLane()} 的相机状态，
- *       整帧单份 {@code ViewArea} 的中心——C4 边界：非顶层 lane 的实体若不在该网格内会记为 {@code uncompiled}）；
- *       {@code sent} = 相机中心上报源（{@link CameraManager#getCameraState()} 快照，无快照时回落玩家位置）。</li>
+ *   <li>{@code cam} = 该 pass 的相机位置；{@code vc} = 该 pass 实际使用的视图中心
+ *       （lane pass = 本 lane 相机；非 lane pass = 共享网格中心，取 {@link LaneRenderer#topLane()} 且该 lane
+ *       跨维度时回退玩家中心——C4 边界：非末位 lane 的实体在该共享网格口径下可能记为 {@code uncompiled}）；
+ *       {@code sent} = 服务端当前维度中心的上报源（{@link LaneRenderer#currentDimensionCenter(String)}，
+ *       无当前维度 lane 时回落玩家位置；目标维度 view 不参与）。</li>
  *   <li>半径内分桶互斥且完整：{@code r128 = visible + distOut + uncompiled + frustumOut}，每个实体恰好计入一个桶。</li>
  *   <li>{@code uncompiled} / {@code frustumOut} 只对原版渲染器成立：Sodium / Rubidium / Embeddium 改写渲染管线时
  *       {@code isChunkCompiled} 与 {@code cullingFrustum} 不代表其可见性；{@code distOut} 与渲染器无关。</li>
@@ -66,7 +69,6 @@ final class ClientEntityProbe {
     private static final int NORMAL_LOG_INTERVAL_TICKS = 100;
 
     private final PlaybackRegistry registry;
-    private final CameraStateHolder stateHolder;
 
     /** 最近一帧各 pass 的样本（按插入序：主 pass 在前）；主 pass 开始时清空，lane pass 依次追加。 */
     private final Map<String, PassSample> samples = new LinkedHashMap<>();
@@ -74,9 +76,8 @@ final class ClientEntityProbe {
     /** 已采样 tick 计数。 */
     private int tickCounter = 0;
 
-    ClientEntityProbe(PlaybackRegistry registry, CameraStateHolder stateHolder) {
+    ClientEntityProbe(PlaybackRegistry registry) {
         this.registry = registry;
-        this.stateHolder = stateHolder;
     }
 
     /**
@@ -118,7 +119,8 @@ final class ClientEntityProbe {
         if (mc.level == null || mc.player == null) return;
 
         boolean lanePass = LaneRenderer.isRenderingLane();
-        // 非 lane pass 只认主相机：Iris 阴影等嵌套 pass 的相机不同，采样会覆盖主 pass 的样本
+        // 非 lane pass 只认玩家相机（GameRenderer.getMainCamera）：Iris 阴影等嵌套 pass 的相机不同，
+        // 采样会覆盖非 lane pass 的样本
         if (!lanePass && camera != mc.gameRenderer.getMainCamera()) return;
 
         String pass;
@@ -131,13 +133,24 @@ final class ClientEntityProbe {
         }
 
         Vec3 cam = camera.getPosition();
-        Vec3 vc = cam;
-        LaneRenderer.Lane top = LaneRenderer.INSTANCE.topLane();
-        if (top != null && top.state() != null) {
-            vc = top.state().position();
+        // lane pass：本 lane 相机；非 lane pass：默认玩家坐标（mixin 返回 null 时的口径），下面按共享网格中心覆盖
+        Vec3 vc = lanePass ? cam : mc.player.position();
+        // lane pass 内 mc.level 已被换到目标视图；玩家当前维度必须从玩家实体读（它的 level 不被换入换出）
+        ClientLevel playerLevel = mc.player.level() instanceof ClientLevel level ? level : mc.level;
+        String currentDimension = DimensionViews.currentDimensionId(playerLevel);
+        if (!lanePass) {
+            LaneRenderer.Lane top = LaneRenderer.INSTANCE.topLane();
+            if (top != null && top.state() != null) {
+                String dimension = top.dimension();
+                if (dimension == null || dimension.isEmpty() || dimension.equals(currentDimension)) {
+                    vc = top.state().position();
+                }
+            }
         }
-        CameraState sentState = stateHolder.snapshot();
-        Vec3 sent = sentState != null ? sentState.position() : mc.player.position();
+        Vec3 sent = LaneRenderer.INSTANCE.currentDimensionCenter(currentDimension);
+        if (sent == null) {
+            sent = mc.player.position();
+        }
 
         PassSample sample = new PassSample();
         sample.pass = pass;

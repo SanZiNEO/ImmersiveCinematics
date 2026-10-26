@@ -1,6 +1,6 @@
 # 相机中心的实体可见性
 
-> 状态：同维度 C0–C3 / C6 已实现并提交（`8354731` / `c0b1ac1` / `50aa5fb`）；C4「主画面只取最上层 lane」与 C5「客户端可见半径维持原版」为接受项；跨维度数据流已实现（`CameraViewManager` + 视图包 + `DimensionView`），细节见 [跨维度相机](cross-dimension-camera.md)。
+> 状态：同维度 C0–C3 / C6 已实现并提交（`8354731` / `c0b1ac1` / `50aa5fb`）；C4「每条 lane 用自己的相机作视图中心（客户端非 lane pass 的共享网格中心取合成顺序末位 lane）」与 C5「客户端可见半径维持原版」为接受项——C4 的共享网格部分只是 `ViewArea` 的实现约束，不是「主相机」，lane pass 各用各的中心；跨维度数据流已实现（`CameraViewManager` + 视图包 + `DimensionView`），细节见 [跨维度相机](cross-dimension-camera.md)。
 > 范围：相机播放期间服务端的区块中心、实体配对、刷怪与消失判定，以及客户端实体可见性。
 > 关联：`camera-pool.md`（客户端相机租约）、`multi-camera-rendering.md`（每 lane 渲染）、`docs/modules/camera.md`。
 
@@ -17,7 +17,7 @@
 - 相机区已经存在的怪，在相机飞远后被消失判定清掉。
 - 相机在同一区块内移动时，静止实体的配对不随距离变化：该出现的怪不出现，该断开的还连着。
 - 相机区没有真实玩家时，局部上限直接判「不可刷」，整块跳过。
-- 多 lane 播放时整帧只有一份视图中心，非顶层 lane 的实体不保证可见。
+- 多 lane 播放时，客户端非 lane pass（玩家主视角）共享的 `ViewArea` 网格整帧只有一份中心；非末位 lane 的实体在该共享网格口径下不保证可见（lane pass 本身仍各用各的相机中心）。
 - 服务端相机状态可能跨播放残留，让后续播放围绕旧相机运行。
 
 ### 2.2 目标
@@ -66,7 +66,7 @@
 - 相机位置源（`CameraVirtualCenterState`）：按玩家存一份 `(ServerLevel, SectionPos, Vec3 center)`。`section` 只取 x/z，供 `ChunkMapCameraMixin` 的原版差集使用；`center` 是含 y 的完整眼位，供 `ChunkMapTrackedEntityCameraMixin` 的配对使用。查询带维度门：`entry.level == player.level()` 才返回，切维度后旧中心自动失效。
 - 相机锚点（`CameraAnchorManager`）：`setAnchor(player, level, center)` 写入与位置源同一个 `center`，同一玩家同一维度复用同一个 `CameraAnchorVirtualPlayer`，只 `moveTo`；不创建实体、不进玩家列表。锚点 y 就是相机 y；`isAnyAnchorNear` / `getVirtualPlayer` 的 128 格资格过滤是 2D（与原版区块门同口径），3D 距离交原版判定。
 - 状态清理（C0）：`CameraCenterManager.PlayerState` 带 `sessionId`（客户端每次 START 生成，位置包 / END 只认当前会话）与 `lastReportTick`；`tick()` 每 tick 兜底，超过 `max(100, 5 × Config.cameraCenterReportInterval)` tick 无上报或玩家已移除即释放；END、断线（`onDisconnect`）、维度卸载（`onLevelUnload`）、服务端停止 / 换档（`clearAll`）都清三张表；`release()` 不受任何配置开关门控。
-- 客户端位置上报（`CameraCenterReporter`）：每 tick 至多一包；达到 `Config.cameraCenterReportInterval` tick、位移 ≥1 格或相机活跃态翻转即发送；无相机时改报玩家位置（含 y）。
+- 客户端位置上报（`CameraCenterReporter`）：每 tick 至多一包；达到 `Config.cameraCenterReportInterval` tick、位移 ≥1 格或当前维度相机态翻转即发送；上报中心 = 当前维度第一条（最底层 / 背景）CAMERA lane 的相机眼位；没有当前维度 lane 时改报玩家位置（含 y）并 `cameraMode=false`。目标维度预取景 lane 不参与当前维度中心，由 `CameraViewReporter` 按 view 独立上报。
 - 跨维度位置源（`CameraViewManager.ViewState`）：跨维度不进 `CameraVirtualCenterState`，而是按 `(玩家 UUID, 视图 id)` 单独维护 `(ServerLevel, Vec3 pos, SectionPos, 已发区块 / 实体集合, 虚拟玩家)`；视图 id 由客户端 lane 给出，F7 后 = 相机租约键 `lease<槽位>g<代际>@<维度>`（见 [相机租约池](camera-pool.md)）。
 
 ### 4.2 契约
@@ -113,7 +113,8 @@
 - **实体 / 方块**：不复用原版 `TrackedEntity` 增量（会抢走其 dirty 数据），只用 `ServerEntity.sendPairingData`；实体半径 `ENTITY_RANGE = 64`，区块半径 `min(上报半径, MAX_CHUNK_RADIUS = 8)`，刷新间隔 `CHUNK_INTERVAL = 5` / `ENTITY_INTERVAL = 10` tick。
 - **释放**：`releaseStream` 先补发 forget / remove 再移 ticket；`release` 保留 `ViewState` 以便换维度复用。
 - **刷怪**：`ChunkMapMixin.anyPlayerCloseEnoughForSpawning` HEAD 按 `isAnyViewNear` 放行；`getPlayersCloseForSpawning` RETURN 在列表为空时返回视图属主的真实玩家（局部上限仍按玩家记账）；`NaturalSpawnerMixin` / `MobDespawnCameraMixin` 的最近玩家同时比较 `CameraAnchorManager` 与 `CameraViewManager` 的虚拟玩家。
-- **客户端**：`DimensionViews.acquire` 按维度懒创建 `ClientLevel + LevelRenderer + LightTexture + RenderBuffers`；`FABULOUS`（`Minecraft.useShaderTransparency()`）、非法维度、未连接一律返回 `null`，该 lane 本帧跳过；`LaneRenderer` 在 lane pass 内切 `level / levelRenderer / 实体渲染分发器 / 光照贴图`，`finally` 还原；`LevelRendererVanillaMixin.cinematicViewCenter()` 在 lane pass 内用本 lane 相机，主 pass 只取最上层且非跨维度 lane 的相机。
+- **客户端**：`DimensionViews.acquire` 按维度懒创建 `ClientLevel + LevelRenderer + LightTexture + RenderBuffers`；`FABULOUS`（`Minecraft.useShaderTransparency()`）、非法维度、未连接一律返回 `null`，该 lane 本帧跳过；`LaneRenderer` 在 lane pass 内切 `level / levelRenderer / 实体渲染分发器 / 光照贴图`，`finally` 还原；`LevelRendererVanillaMixin.cinematicViewCenter()` 在 lane pass 内用本 lane 相机；非 lane pass（玩家主视角）的共享网格中心取合成顺序末位 lane 的相机，该 lane 跨维度时回退玩家中心——这是共享 `ViewArea` 的实现约束，不是「主相机」。
+- **当前维度中心**：`CameraCenterReporter` 用 `LaneRenderer.currentDimensionCenter(currentDimension)` 取当前维度第一条（最底层 / 背景）CAMERA lane 的相机眼位，上报 `CameraCenterManager`；目标维度预取景 lane（0s 起 `opacity=0` 也仍是活跃 lane）不参与，由 `CameraViewReporter` 按 view 独立上报。没有当前维度 lane 时回落玩家位置并 `cameraMode=false`。
 
 边界：
 
@@ -148,7 +149,7 @@
 
 ## 六、实现结果
 
-状态：同维度 C0–C3 / C6 已实现并提交（`8354731` F6 相机中心实体、`c0b1ac1` F8 客户端跨维度视图、`50aa5fb` F8 服务端视图流与三画面脚本）；C4「主画面只取最上层 lane」与 C5「客户端可见半径维持原版」是接受项；跨维度数据流已实现，细节见 §4.5 / [跨维度相机](cross-dimension-camera.md)。
+状态：同维度 C0–C3 / C6 已实现并提交（`8354731` F6 相机中心实体、`c0b1ac1` F8 客户端跨维度视图、`50aa5fb` F8 服务端视图流与三画面脚本）；C4「每条 lane 用自己的相机作视图中心（客户端非 lane pass 的共享网格中心取合成顺序末位 lane）」与 C5「客户端可见半径维持原版」是接受项（C4 的共享网格部分是 `ViewArea` 的实现约束，不是「主相机」；lane pass 各用各的中心）；跨维度数据流已实现，细节见 §4.5 / [跨维度相机](cross-dimension-camera.md)。
 
 本表只按当前代码陈述，不是实机验收结论：README 记录的 2026-10-25 实测只有同维度的镜像 / 反向 / 远机位三次；跨维度三画面脚本 `test_camera_center_crossdim_view` 尚无实机记录，操作与观察点见 `cinematics/0.3.6/tests/camera_center/README.md`。
 
@@ -159,7 +160,7 @@
 | C1 位置更新与配对刷新同一节拍，按位移阈值刷新 | 每次上报都写位置源；`applyVirtualCamera` 只在维度变化（`level`）、cameraMode 翻转（`flip`）、中心区块变化（`section`），或位移 ≥4 格且距上次 move ≥2 tick（`threshold`）时才调 `ChunkMap.move` | 已实现；阈值 4 格 / 2 tick 写在 `applyVirtualCamera`，reason 经 `CameraCenterDiagnostics.onMove` 输出 |
 | C2 局部上限也认相机 | `ChunkMapMixin.playerIsCloseEnoughForSpawning` HEAD 按相机 x/z 128 格放行 → `getPlayersCloseForSpawning` 返回真实玩家，`LocalMobCapCalculator` 不再因空列表整块跳过；`LocalMobCapCalculatorMixin` 只在 RETURN 观察计数，不改判定 | 已实现；不新增假玩家，配额仍按玩家记账 |
 | C3 虚拟玩家 y 用相机 y | `CameraAnchorManager.setAnchor` 的 `center` 直接取上报眼位；`getVirtualPlayer` 的 128 格资格过滤是 2D，3D 距离交原版 | 已实现 |
-| C4 每条 lane 用自己的相机作视图中心 | lane pass 内 `LevelRendererVanillaMixin.cinematicViewCenter()` 用 `LaneRenderer.activeLaneState()`（本 lane 相机）；主 pass 只取 `LaneRenderer.topLane()`，且该 lane 跨维度时回退玩家中心 | 接受项：主画面只取最上层 lane。理由见 `LevelRendererVanillaMixin` 注释——逐 lane 主中心要重播种整张 `ViewArea` 网格，收益不抵成本；跨维度 lane 不能把主画面中心拖到另一维度 |
+| C4 每条 lane 用自己的相机作视图中心 | lane pass 内 `LevelRendererVanillaMixin.cinematicViewCenter()` 用 `LaneRenderer.activeLaneState()`（本 lane 相机）；非 lane pass（玩家主视角）共享的 `ViewArea` 网格整帧只有一份中心，取合成顺序末位 lane 的相机（`LaneRenderer.topLane()`），该 lane 跨维度时回退玩家中心；服务端当前维度中心另由 `CameraCenterReporter` 按当前维度第一条 lane 选择，目标维度 lane 不参与 | 接受项：共享网格整帧单中心（客户端实现约束，不是「主相机」；lane 独立相机与 lane pass 中心不受影响）。逐 pass 换共享网格中心会重播种整张 `ViewArea`，收益不抵成本；跨维度 lane 不能把主世界网格拖到另一维度 |
 | C5 客户端可见半径按原版口径记录 | 未改代码：服务端按原版跟踪范围配对（`clientTrackingRange × 16`，多数生物 8 区块 = 128 格，且不超过视距），客户端 `Entity.shouldRenderAtSqrDistance` 仍约 84 格；`ClientEntityProbe` 按 `total / r128 / r128xz / visible / distOut / uncompiled / frustumOut` 分桶，`r128 = visible + distOut + uncompiled + frustumOut` | 接受项：改它会与玩家视角不一致 |
 | C6 诊断分项计数（未配对 / 未下发 / 未编译 / 视锥外） | 服务端 `CameraCenterDiagnostics` 按会话分桶：配对（`pairSeen`）/ 刷怪门（`gateHit`）/ 尝试（`attempts`）/ 生成（`spawned`）/ 局部上限（`localCapAllow`、`localCapReject`），每 `PRINT_INTERVAL_TICKS`（20 tick）一行；客户端 `ClientEntityProbe` 打 `[camera-client]`，`[camera-client] diff` 逐只对出主视角 / 相机 lane 分类差异 | 已实现；局部上限按跨维度最近锚点归因，不同维度坐标重合时可能误归属，仅诊断用 |
 | 跨维度目标中心 / 区块 / 实体 | `CameraViewManager` 按 `(玩家, 视图 id)` 维护 ticket + 区块 + 实体 + 虚拟玩家；`S2CCameraViewPacket` 信封带维度，客户端 `CameraViewPacketRouter` 路由进 `DimensionView`；`DimensionViews` 按维度懒建 `ClientLevel / LevelRenderer / LightTexture / RenderBuffers`；FABULOUS 拒绝该 lane | 已实现；不改造 `CameraCenterManager.applyVirtualCamera`（仍固定 `player.level()`），跨维度走并行视图流，见 §4.5 |
@@ -184,7 +185,7 @@
    两者共用「相机位置」这一个输入，但断点不同，不能用一个结论覆盖。
 4. 当前最可疑的可见性缺口（按置信排序，详见 §2.6）：
    - 实体配对只在**区块变化**时刷新，而位置上报是**每 20 tick**一次 → 相机在同一区块内移动时，静止实体的配对状态不更新；
-   - 视图中心整帧只有一份（`topLane`），多 lane 时非顶层 lane 没有自己的中心；
+   - 客户端非 lane pass 的共享网格中心整帧只有一份（`topLane`）；lane pass 仍各用各的相机中心（原文把「共享网格中心」误写成「只有顶层 lane 有中心」）；
    - 客户端实体可见半径（约 84 格）小于服务端配对半径（128 格）→ 84–128 格这一圈「已下发但永不绘制」。
 5. 刷怪侧的确定性缺口：`LocalMobCapCalculator.canSpawn` 在「相机区没有任何真实玩家」时返回 `false`，导致 `spawnCategoryForChunk` 整块跳过（§2.3）。
 
@@ -274,7 +275,7 @@ flowchart TD
 | 距离裁剪 | `Entity.shouldRenderAtSqrDistance` = `64 × 包围盒平均尺寸 × viewScale` | 僵尸约 84 格（视距 10）；小于服务端 128 |
 | 视锥 | `EntityRenderer.shouldRender` → `frustum.isVisible` | 用当前 pass 的相机 |
 | 区块已编译 | `LevelRenderer.isChunkCompiled(entity.blockPosition())` | 实体所在区块必须在 `ViewArea` 网格内且已编译 |
-| 视图中心 | `LevelRendererVanillaMixin` 把 `setupRender` 的玩家坐标换成 `topLane()` 相机 | **整帧一份**，多 lane 只有顶层有中心 |
+| 视图中心 | `LevelRendererVanillaMixin` 把非 lane pass 的 `setupRender` 玩家坐标换成 `topLane()` 相机 | **共享网格整帧一份**；lane pass 各用本 lane 相机，不是「只有顶层 lane 有中心」 |
 | 内容开关 | `LevelRendererMixin.renderEntity`：`!shouldRenderEntities()` 则 cancel | 生产 `FULL`；`activeContent` 在 `finally` 复位 |
 | 描边/合成 | lane 自包含；`doEntityOutline` 在 lane 内立刻贴回 | `multi-camera-rendering.md` §12.8 |
 
@@ -283,7 +284,7 @@ flowchart TD
 | # | 候选 | 机制 | 置信 | 需要的证据 |
 |---|---|---|---|---|
 | V1 | 配对刷新时机 | 只随区块变化刷新，位置上报 20 tick；同区块内静止实体配对滞后 | 高（代码路径确定） | 配对 add/remove 日志 vs 相机位移 |
-| V2 | 视图中心单份 | `topLane` 整帧唯一；多 lane 时非顶层 lane 的区块可能不在网格内 | 高（设计如此） | 多 lane 场景逐 lane 实体计数 |
+| V2 | 共享网格中心单份 | 非 lane pass 的 `ViewArea` 网格整帧唯一（`topLane`）；多 lane 时非末位 lane 的区块可能不在该网格内（lane pass 自己的网格仍按本 lane 中心） | 高（设计如此） | 多 lane 场景逐 lane 实体计数 |
 | V3 | 客户端可见半径 < 配对半径 | 84 vs 128；84–128 格已下发但 `shouldRenderAtSqrDistance` 拒绝 | 高（原版行为） | 实体距离分布 + 可见计数 |
 | V4 | 区块未编译 | 相机跳转/快速移动后 `isChunkCompiled` 为假，实体暂不画 | 中（瞬态） | 跳转后逐帧可见计数 |
 | V5 | Sodium/Embeddium 路径 | `LevelRendererVanillaMixin` 被 MixinPlugin 跳过，依赖其 `Camera`/`Frustum` 路径 | 中 | 两种渲染器对比 |
@@ -402,10 +403,10 @@ hook 读到旧值，或者因为状态为 `null` 回落到原版路径。真正�
 ##### C4. 可见性：配对刷新与视图中心
 
 - **目标**：相机视角下的实体可见性与「同位置玩家视角」一致（允许视锥差异）。
-- **触点**：C1 的刷新节拍；`LaneRenderer.topLane` / `LevelRendererVanillaMixin`；`isChunkCompiled` 路径。
+- **触点**：C1 的刷新节拍；`LaneRenderer.topLane` / `LevelRendererVanillaMixin`（共享网格中心）与 `LaneRenderer.currentDimensionCenter` / `CameraCenterReporter`（服务端当前维度中心）；`isChunkCompiled` 路径。
 - **要点**：
-  - 单 lane：视图中心 = 该 lane 相机，确认实体所在区块在 `ViewArea` 内且已编译；
-  - 多 lane：明确「只有顶层 lane 有中心」是接受项还是待办项；若接受，写入文档与验收边界；
+  - 单 lane：lane pass 视图中心 = 该 lane 相机，确认实体所在区块在 `ViewArea` 内且已编译；
+  - 多 lane：明确「非 lane pass 的共享网格只取末位 lane 中心」是接受项还是待办项；lane pass 各用各的中心，不是「只有顶层 lane 有中心」；若接受，写入文档与验收边界；
   - 相机跳转/快速移动后，给区块编译留出稳定窗口，或在诊断中区分「未编译」与「未配对」。
 - **验收**：固定相机、慢速移动、快速跳转三种场景，实体可见集合与同位置玩家视角的差异可解释（视锥/未编译/未配对三类）。
 
@@ -453,7 +454,7 @@ hook 读到旧值，或者因为状态为 `null` 回落到原版路径。真正�
 #### 七、未决问题
 
 1. V1（配对刷新）与 V2（视图中心）在单 lane 场景各自占多少？需要逐帧诊断。
-2. 多 lane 的「只有顶层有中心」是长期接受项，还是需要逐 lane 中心？逐 lane 中心会触发 `ViewArea.repositionCamera` 全量置脏，成本需测量。
+2. 多 lane 的「非 lane pass 共享网格只取末位 lane 中心」是长期接受项，还是需要逐 pass 换共享网格中心？逐 pass 换中心会触发 `ViewArea.repositionCamera` 全量置脏，成本需测量（lane pass 本身已各用各的中心）。
 3. 客户端可见半径 84 是否要动？动了会与玩家视角不一致。
 4. Sodium/Embeddium 路径下，`Camera`/`Frustum` 是否完全覆盖视图中心与实体剔除，需要两种渲染器对照。
 5. 相机位置上报节拍是否要从 20 tick 收紧？收紧会增加网络与服务端刷新开销，需要预算。

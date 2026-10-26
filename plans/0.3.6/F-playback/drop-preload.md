@@ -41,7 +41,7 @@
 
 对服主只有一处变化：配置里不再有 preload 那一组键，只剩一个「相机中心上报间隔」。旧的配置文件里写了这些键也不会报错，只是不再生效。
 
-对调试者：日志前缀从 preload 改成 camera-center，不再出现「预加载全局已关闭」。相机中心是否生效只看一件事——当前有没有活跃的相机片段。
+对调试者：日志前缀从 preload 改成 camera-center，不再出现「预加载全局已关闭」。相机中心是否生效只看一件事——当前维度有没有 CAMERA lane（目标维度预取景 lane 不算，它们由跨维度 view 流单独上报）。
 
 边界仍然清晰：区块加载完全由原版负责；相机中心只替换「中心」这一个入口，不改加载半径、不预测下一个片段、不接管客户端区块缓存。
 
@@ -113,7 +113,7 @@
 | 命名 | `PreloadRequester` → `CameraCenterReporter`（客户端）；`ChunkPreloadManager` → `CameraCenterManager`（服务端）；日志前缀统一 `ImmersiveCinematics/CameraCenter` |
 | 协议 | `C2SCameraCenterRequestPacket`（`camera_center_request`：模式 START / END、脚本 id、中心坐标、cameraMode）与 `C2SCameraCenterPositionPacket`（`camera_center_position`：中心坐标、cameraMode）；`S2CPreloadResultPacket` / `preload_result` 删除；请求里的半径 / 朝向 / 渲染距离字段删除。Forge / Fabric 同侧注册 ID 同步改名，无兼容层 |
 | 配置 | 10 个 `preload*` 键与 `preloadEnabled` 总闸删除，只留 `cameraCenterReportInterval`（默认 20 tick）；旧 JSON 键加载时静默忽略，不迁移、不写回；`ConfigProvider.setFloat` 随唯一 float 配置一并删除 |
-| 客户端 | 仅当脚本播放且存在非空 CAMERA 轨道时上报；相机片段活跃报相机位置，空档报玩家位置；按 `cameraCenterReportInterval` 上报，相机活跃态翻转立即补发；停止 / 结束 / 进预览 / 断线释放。`tickPrewarm`（下一片段首帧坐标、提前量）与 `isPreloadActive()` 删除 |
+| 客户端 | 仅当脚本播放且存在非空 CAMERA 轨道时上报；当前维度有 CAMERA lane 时报该维度第一条（最底层 / 背景）lane 的相机位置，没有当前维度 lane 时报玩家位置并 `cameraMode=false`；目标维度预取景 lane 不参与（由 `CameraViewReporter` 按 view 上报）；按 `cameraCenterReportInterval` 上报，当前维度相机态翻转立即补发；停止 / 结束 / 进预览 / 断线释放。`tickPrewarm`（下一片段首帧坐标、提前量）与 `isPreloadActive()` 删除 |
 | 服务端 | 无总闸；START 建状态 + 锚点 + 虚拟中心，POSITION 更新，END / 断线无条件释放；保留 `hasCameraTrack` 兜底与 F-1 的 `releaseOnFailure` 半状态清理 |
 | 诊断 | `LaneDiagnostics` 的 `warmup` / `warmupSeconds` 改名 `settle` / `settleSeconds`（manifest 键 `settleSeconds`），采样口径不变 |
 | 编辑器 | `editor/src/types.ts` 删除 `meta.preload` |

@@ -7,8 +7,8 @@ import com.immersivecinematics.immersive_cinematics.math.MathModelInstance;
  * 过渡层 — A→B 状态过渡的独立层（进度 / 曲线 / 分参数 / 打断与链式；不进 Base / Modifier 内部）。
  *
  * 输入：A 侧（起点）与 B 侧（目标）的整帧六参数（各自按自身时间采样）+ 声明 + 交界时刻；
- * 输出写进调用方提供的 {@link TransitionFrame}，即主相机状态（调用方在 Base 写入点写进链，
- * Modifier 合成在其上）。
+ * 输出写进调用方提供的 {@link TransitionFrame}，即覆盖链的脚本导演 Base 写入值（调用方在 Base 写入点
+ * 写进链，Modifier 合成在其上）。
  * 窗口与权重：每通道窗口以交界为中心、以该通道时长为宽度；进度钳到 [0,1] 后交该通道曲线
  * （无曲线 = 线性斜坡）；取值 = BLEND 按权重混合 / HOLD 保持 A 侧 / CUT 交界前 A 侧、交界后 B 侧。
  * 混合公式见 {@link TransitionBlend}。

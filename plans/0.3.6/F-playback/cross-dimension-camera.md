@@ -86,11 +86,11 @@
 
 ### 4.1 数据模型与旧路径
 
-- `CameraState` 保持六参数，不直接把维度塞进公开 record；维度放在 `CameraLane` / `LaneFrame`，主相机快照另存一份旁路维度。若后续要公开“相机维度” API，再加 wrapper，不破坏现有构造。
+- `CameraState` 保持六参数，不直接把维度塞进公开 record；维度放在 `CameraLane` / `LaneFrame`，全局相机快照另存一份旁路维度。若后续要公开“相机维度” API，再加 wrapper，不破坏现有构造。
 - `CameraLane` / `LaneFrame` 增加 `dimension`；`ScriptLaneDriver` / `LaneSnapshotCollector` / `LaneRenderer.Lane` 全链传递。
 - `ScriptValidator` 校验 `dimension` 是合法 `ResourceLocation`；缺省 / 空串不报错。
 - 删除旧传送语义：`ScriptEventManager.applyDimensionSchedule` 的 `teleportTo` 路径、`ScriptPlayer.validateClipDimensions` 的“服务端切换”注释、`DimensionClip` 相关调度与旧测试夹具全部退出。新的 `dimension` 只表示采样维度，不再驱动玩家传送。
-- `CameraCenterReporter` 从“每个玩家一条中心”改为“每条活跃相机一条上报”：`(cameraId, dimension, x, y, z, cameraMode)`；`sessionId` 按 view 生成，旧播放的迟到包不能误杀新播放。（实际实现未改同维度 reporter：跨维度由独立的 `CameraViewReporter` + `CameraViewManager` 上报 / 接收，见 §八。）
+- `CameraCenterReporter` 保持「每个玩家一条当前维度中心」，但中心取当前维度第一条（最底层 / 背景）CAMERA lane，不再取全局相机快照；跨维度由独立的 `CameraViewReporter` + `CameraViewManager` 按 view 上报 / 接收，`sessionId` 按 view 生成，旧播放的迟到包不能误杀新播放（见 §八）。
 - 调试 id 用 `<scriptId>_cam<轨道序号>_clip<片段序号>`（预览实例加 `_preview`）；每条 lane 的捕获产物因此天然按片段分开，不需要再追加维度后缀。
 
 ### 4.2 客户端 `DimensionView`
@@ -210,7 +210,7 @@ P0 通过，说明“采样带维度 → 目标 view → 数据流 → 合成”
 
 | 包 | 内容 | 验收 |
 |---|---|---|
-| WP1 数据与旧路径 | `CameraLane` / `LaneFrame` 带维度；主相机旁路维度；validator；删除传送路径；reporter 按相机上报 | 同维度脚本零回归；旧 crossdim 测试不再依赖传送 |
+| WP1 数据与旧路径 | `CameraLane` / `LaneFrame` 带维度；全局相机快照旁路维度；validator；删除传送路径；reporter 按相机上报 | 同维度脚本零回归；旧 crossdim 测试不再依赖传送 |
 | WP2 客户端 view | `DimensionView` 注册 / 生命周期；`ClientLevel` / `LevelRenderer` / `LightTexture`；accessor；`mc.level` / `mc.levelRenderer` 换入换出；cull / view center / particle / FABULOUS | 玩家主世界、相机末地全屏正确；停播释放；窗口 resize / 资源 reload 不崩 |
 | WP3 服务端流 | `(player, dimension, cameraId)` 状态；ticket；维度标签信封；区块 / 光照 / 方块 / 实体；客户端路由 + light 队列；实体配对 reconciliation；`ServerLevel.tick` | 末地地形、方块、实体到达正确 `ClientLevel`；主世界不重复收包；断线 / 重连清理 |
 | WP4 相机中心 / 刷怪 | 三张表改 view key；包加维度 / cameraId；目标 `ServerLevel`；`DistanceManager.addPlayer`；`getPlayersCloseForSpawning`；anchor per view | 目标维度相机附近刷怪、实体不冻结、despawn 正常；无假 `ServerPlayer` 进世界 |

@@ -85,7 +85,7 @@
 ### multi-camera-rendering
 
 - 副画面是否需要支持 `look_at` / tangent 朝向（§9）。
-- 是否允许叠化期间主相机继续移动（§9；属编排 / 语义决定，合成层不限制）。
+- 是否允许叠化期间相机 lane 继续移动（§9；属编排 / 语义决定，合成层不限制）。
 - Rubidium 兼容：`example/` 无源码，只按入口类名覆盖，未取 jar 逐一核对 —— **已知限制**（§9 / §11）。
 - 每 lane 独立光照 / 光照更新：继承自 `_archive/render-second-pass-cost.md` §7；F3 后 lane 每遍走光影自己的注入链（[iris-oculus-compat](iris-oculus-compat.md) §7），该问题未单独复测。
 - 跨维度 view：每个 lane 用自己的 `DimensionView`（level / renderer / lightmap / 剔除 / 光影状态）；当前实现固定 `mc.level`；设计基线见 [cross-dimension-camera](cross-dimension-camera.md) §三 / §四，未实现。
@@ -102,7 +102,7 @@
 
 ### camera-center-entities（工作树实现中，未提交）
 
-- §2.6 可见性缺口按置信排序：实体配对只在区块变化时刷新（位置上报 20 tick 一次）、视图中心整帧只有一份（`topLane`）、客户端可见半径（≈84 格）小于服务端配对半径（128 格）。
+- §2.6 可见性缺口按置信排序：实体配对只在区块变化时刷新（位置上报 20 tick 一次）、非 lane pass 的共享网格中心整帧只有一份（`topLane`；lane pass 各用各的中心）、客户端可见半径（≈84 格）小于服务端配对半径（128 格）。
 - 刷怪侧确定性缺口：`LocalMobCapCalculator.canSpawn` 在相机区无真实玩家时返回 `false`，整块跳过 `spawnCategoryForChunk`（§2.3）。
 - §4 的 C 方案（统一相机 y、原版查询替换）：工作树已有 C0–C2/C6；C3/C4/C5、fixtures、review 未做。
 - 跨维度目标维度流：`CameraVirtualCenterState` / `CameraCenterManager` 目前按玩家当前维度；目标维度需要 `(player, dimension, cameraId)` 状态与独立区块 / 光照 / 实体流，见 [cross-dimension-camera](cross-dimension-camera.md) §4.3 / §4.4。

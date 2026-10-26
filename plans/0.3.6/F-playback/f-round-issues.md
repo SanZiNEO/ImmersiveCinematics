@@ -96,7 +96,7 @@
 
 ### 用户补充的关键现象（2026-10-17）
 
-- 绿色毛边**只在 lane 相机朝向与主相机朝向相反时出现**；同朝向没有。
+- 绿色毛边**只在 lane 相机朝向与主 pass 相机朝向相反时出现**；同朝向没有。
 - 发生在空地/物体边缘；静态不明显，运动时明显。
 - 用户单独执行 `test_queue_bulk_09`（**单条**全屏 CAMERA lane，玩家上方 8 格）时，也能看到
   左右纹理略有差异的竖缝。
@@ -104,7 +104,7 @@
 ### 由此推导
 
 - 单条全屏 lane 内部出现竖缝 → 缝在**该 lane 的 RGB 内部**，不是“多 lane 之间 alpha 混合”。
-- 方向相反才出现 → 问题跟着**主相机的屏幕空间/历史状态**走（TAA history、previous 矩阵、
+- 方向相反才出现 → 问题跟着**主 pass 的屏幕空间/历史状态**走（TAA history、previous 矩阵、
   shadow map 覆盖、SSR/SSAO），而不是 lane 相机自身的几何。
 - `ic_lane_blit` 只读 RGB，所以合成层无法修复 lane RGB 里已有的毛边/缝；修复点应在 lane pass
   或光影状态隔离。
@@ -117,8 +117,8 @@
   （resize）时自增（`mixin/MixinRenderTarget.java:21-35`）。
 - lane FBO 是 `TextureTarget`，版本初始 0；主画面未 resize 时也是 0。
   lane pass 调用 `beginLevelRendering` 时 `resizeIfNeeded(0, laneDepthId, ...)` 判定“没变化”，
-  `depthtex0/1/2`、`gdepthtex`、`CenterDepthSampler` 仍是**主相机深度**。
-- 这能解释“同朝向正常、反朝向出扇形/毛边”：屏幕空间效果用主相机深度去算 lane 画面。
+  `depthtex0/1/2`、`gdepthtex`、`CenterDepthSampler` 仍是**主 pass 深度**。
+- 这能解释“同朝向正常、反朝向出扇形/毛边”：屏幕空间效果用主 pass 深度去算 lane 画面。
 - 修复候选：lane 绑定 FBO 前把 `iris$depthBufferVersion` 改成与缓存不同的值（反射或软访问器），
   强制重挂 lane 深度；回主画面时再挂回。需要实测确认。
 
@@ -139,7 +139,7 @@
 
 | 症状 | 归属 | 依据 |
 |---|---|---|
-| 反朝向时的扇形 / 锥形明暗、深度重建错误 | lane pass 用了**主相机的深度附件**（`depthtex0/1/2`、`gdepthtex`、`CenterDepthSampler`） | 每视角重绑后消失（`irisDepth=78`） |
+| 反朝向时的扇形 / 锥形明暗、深度重建错误 | lane pass 用了**主 pass 的深度附件**（`depthtex0/1/2`、`gdepthtex`、`CenterDepthSampler`） | 每视角重绑后消失（`irisDepth=78`） |
 | 绿墙右缘橙线、草地橙斑 | `shadowcolor0/1` 跨视角残留（MakeUp `buffersToBeCleared=[]`） | 强制清 shadowcolor 后橙边消失，粉云仍在 |
 | 粉 / 紫斜条、硬边矩形块（云上）、绿边 / 缝隙 | TAA 历史 colortex 跨视角污染；绿边在 final 边缘处理（FXAA / sharpen / TAA / 色差）上被放大 | 清 shadowcolor 后仍在，按视角隔离历史后消失 |
 
@@ -155,7 +155,7 @@
 - 区域从玩家位置朝玩家视角方向展开，上下摆头会改变；
 - 用户判断与阴影/反射等后处理有关，不是 lane 相机本身。
 
-### 根因（源码确定）：Iris 深度纹理缓存按版本号，lane pass 仍用主相机深度
+### 根因（源码确定）：Iris 深度纹理缓存按版本号，lane pass 仍用主 pass 深度
 
 - `RenderTargets.resizeIfNeeded` 只在 `iris$depthBufferVersion` **变化**时更新
   `currentDepthTexture` 并重挂深度（`targets/RenderTargets.java:147-170`）。
@@ -163,8 +163,8 @@
   lane FBO（`TextureTarget`）构造时版本 **0**，未 resize 的窗口也是 **0**。
 - lane pass 内 `IrisRenderingPipeline.beginLevelRendering` 传入 lane FBO 的版本 0
   （`IrisRenderingPipeline.java:906-923`），与缓存 0 相等 → **不重挂**；
-  `depthtex0/1/2`、`gdepthtex`、`centerDepthSmooth` 仍是**主相机深度**。
-- gbuffer 深度在 lane pass 内从不清（`ClearPassCreator` 只清颜色）→ 深度测试/重建都拿主相机深度。
+  `depthtex0/1/2`、`gdepthtex`、`centerDepthSmooth` 仍是**主 pass 深度**。
+- gbuffer 深度在 lane pass 内从不清（`ClearPassCreator` 只清颜色）→ 深度测试/重建都拿主 pass 深度。
 - **同朝向**：lane 深度 ≈ 主 pass 深度 → 基本正常；
   **反朝向**：逐像素比较的是另一条射线的深度 → 大面积深度测试失败 + 深度重建错误
   → 扇形明暗；final 的边缘处理（FXAA / sharpen / TAA / 色差）用错误深度 → 绿色毛边。

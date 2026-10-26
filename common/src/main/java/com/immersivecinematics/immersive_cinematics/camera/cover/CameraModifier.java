@@ -7,7 +7,7 @@ import com.immersivecinematics.immersive_cinematics.api.BaseCameraProvider;
  *
  * 应用序：按 {@link #modifierPriority()} 升序应用（数值小者先、大者后——高优先级落在最终值上）；
  * 同值 = 先注册者先应用。优先级域独立于 {@link BaseCameraProvider#basePriority()}，两域数值互不比较。
- * 生效范围：只作用于主相机状态（链输出）；lane 快照不经过 Modifier。
+ * 生效范围：只作用于覆盖链输出（全局相机状态）；lane 快照不经过 Modifier。
  * 分配契约：{@link #isActiveThisFrame()} 与 {@link #writeValue(CameraStateBuffer)} 每帧调用，
  * 必须零分配（不新建对象 / 不装箱 / 不建集合）。
  * 实现位置：值工作区字段为包内可见，实现须与本包同包（对外实现形态另行开放）。

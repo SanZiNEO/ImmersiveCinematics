@@ -35,14 +35,15 @@ import java.util.Map;
  * 叠放顺序 = 合成顺序 = lane 序号递增：先注册的在下、后注册的在上。本类每帧按启动顺序平铺全部活跃实例
  * 的 lane（实例整体按启动顺序叠放），实例内部保持自己的顺序（轨道层级 → 轨道内 clip 顺序 → z_index）。
  * lane 级调色只传数据、只承载 RGB（透明度由合成层调控）；内容档 = {@code FULL}。
- * 主画面 = 覆盖链输出（链上有 Modifier 生效或链胜出层为直控类层时替换最上层 lane / 单独注册一条）。
+ * 覆盖链输出：链上有 Modifier 生效或链胜出层为直控类层时，替换合成顺序末位 lane；本帧没有脚本 lane 时
+ * 由链输出单独注册一条全屏 lane。这只是覆盖链的替换位，不是「主相机」——每条 lane 仍用各自片段的相机。
  * 无脚本播放时零差异：不渲染、不分配、不切换状态。
  */
 public final class ScriptLaneDriver {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** lane 内容档：{@code FULL} = 与主画面同内容（实体 / 粒子 / 天空 / 天气）。 */
+    /** lane 内容档：{@code FULL} = 与完整画面同内容（实体 / 粒子 / 天空 / 天气）。 */
     private static final LaneRenderer.LaneContent CONTENT = LaneRenderer.LaneContent.FULL;
 
     /**
@@ -51,7 +52,7 @@ public final class ScriptLaneDriver {
      */
     private static final LaneRenderer.LaneContent CROSS_DIM = new LaneRenderer.LaneContent(true, false, true, true);
 
-    /** 主画面 lane 的调试捕获相机 id（链输出注册的主画面那份，见 {@link #registerChainLane}）。 */
+    /** 链输出 lane 的调试捕获相机 id（本帧无脚本 lane 时由链输出单独注册，见 {@link #registerChainLane}）。 */
     private static final String CHAIN_CAPTURE_ID = "chain";
 
     /**
@@ -71,8 +72,8 @@ public final class ScriptLaneDriver {
 
     /**
      * 注册本帧的画面 lane（渲染线程，{@code LaneRenderer.render} 之前调用一次）：
-     * 脚本播放器本帧的活跃画面 lane；本帧没有脚本 lane 而链胜出层是直控类层时，由链输出注册主画面那条
-     * （见 {@link #registerChainLane}）。
+     * 脚本播放器本帧的活跃画面 lane；本帧没有脚本 lane 而链胜出层是直控类层时，由链输出单独注册一条
+     * 全屏 lane（见 {@link #registerChainLane}）。
      *
      * @return 本帧是否有 lane
      */
@@ -95,12 +96,12 @@ public final class ScriptLaneDriver {
 
         // 跨实例平铺：实例按启动顺序，总表序号 = 叠放顺序（见类 javadoc）
         int index = 0;
-        LaneFrame mainFrame = null;
-        CameraLease mainLease = null;
+        LaneFrame topFrame = null;
+        CameraLease topLease = null;
         for (PlaybackInstance instance : CameraManager.INSTANCE.instances()) {
             int instanceStart = index;
-            LaneFrame mainFrameBefore = mainFrame;
-            CameraLease mainLeaseBefore = mainLease;
+            LaneFrame topFrameBefore = topFrame;
+            CameraLease topLeaseBefore = topLease;
             boolean touched = false;
             try {
                 ScriptPlayer player = instance.player();
@@ -123,8 +124,8 @@ public final class ScriptLaneDriver {
                     touched = true;
                     renderer.setLane(index, lane.state(), contentFor(mc, frame.dimension()),
                             frame.laneAdjust(), frame.dimension(), slot.captureId, lease);
-                    mainFrame = frame;   // 总表最上层 lane = 主相机那份（主画面特例）
-                    mainLease = lease;
+                    topFrame = frame;   // 总表合成顺序末位 lane（覆盖链输出替换位）
+                    topLease = lease;
                     index++;
                 }
                 // 片段仍活跃但本帧不产画面（目标不可用 / 单帧空档 / morph 两侧）时保留租约；
@@ -144,8 +145,8 @@ public final class ScriptLaneDriver {
                     renderer.setLane(k, null, null, null, null, null, null);
                 }
                 index = instanceStart;
-                mainFrame = mainFrameBefore;
-                mainLease = mainLeaseBefore;
+                topFrame = topFrameBefore;
+                topLease = topLeaseBefore;
                 // 异常实例本帧的租约全部归还（已登记但未上屏的也不能留）
                 CameraLeasePool.releaseOwner(instance);
                 FatalErrors.rethrowIfFatal(e);
@@ -158,8 +159,8 @@ public final class ScriptLaneDriver {
             }
         }
         if (index == 0) {
-            // 直控类层胜出：相机轨道跳过写入 → 本帧无脚本 lane，按「dest 全屏、opacity=1」的主画面特例
-            // 由链输出注册一条，画面仍跟链输出。
+            // 直控类层胜出：相机轨道跳过写入 → 本帧无脚本 lane，按「dest 全屏、opacity=1」的整屏画面
+            // 由链输出单独注册一条，画面仍跟链输出。
             if (registerChainLane(renderer)) {
                 logLaneSignature(renderer);
                 onLaneActivityChanged(mc, lanesWereActive, true);
@@ -172,7 +173,7 @@ public final class ScriptLaneDriver {
         }
         // 本帧有脚本 lane：链输出 lane 已不在本帧注册，释放它上一帧留下的 "chain" 视角快照
         releaseFallbackViewState();
-        applyModifiers(mc, renderer, index, mainFrame, mainLease);
+        applyModifiers(mc, renderer, index, topFrame, topLease);
         renderer.setSink(ScriptLaneDriver::compose);
         logLaneSignature(renderer);
         onLaneActivityChanged(mc, lanesWereActive, true);
@@ -215,26 +216,26 @@ public final class ScriptLaneDriver {
     }
 
     /**
-     * 主画面那份（总表最上层 lane）改取覆盖链输出：链上有 Modifier 生效、或链胜出层为直控类层时，
-     * 链输出与 lane 自身快照不同源；Modifier / 直控只作用主画面，次级 lane 保持各自片段的原始相机。
+     * 合成顺序末位 lane 改取覆盖链输出：链上有 Modifier 生效、或链胜出层为直控类层时，链输出与 lane 自身
+     * 快照不同源；Modifier / 直控只作用这个替换位，其他 lane 保持各自片段的原始相机。替换位不是「主相机」。
      * 其余情形（脚本导演胜出且无 Modifier）链输出与 lane 快照逐位同值，不替换；链输出 {@code null} 时不动。
      *
-     * @param laneCount 本帧总 lane 数（&gt; 0）：最上层 lane 序号 = {@code laneCount - 1}
-     * @param mainFrame 最上层 lane 的帧数据（沿用它的 lane 级调色）
-     * @param mainLease 最上层 lane 的相机租约（重注册沿用同一句柄，不换视角身份）
+     * @param laneCount 本帧总 lane 数（&gt; 0）：末位 lane 序号 = {@code laneCount - 1}
+     * @param topFrame 末位 lane 的帧数据（沿用它的 lane 级调色）
+     * @param topLease 末位 lane 的相机租约（重注册沿用同一句柄，不换视角身份）
      */
-    private static void applyModifiers(Minecraft mc, LaneRenderer renderer, int laneCount, LaneFrame mainFrame,
-                                       CameraLease mainLease) {
+    private static void applyModifiers(Minecraft mc, LaneRenderer renderer, int laneCount, LaneFrame topFrame,
+                                       CameraLease topLease) {
         if (!chainOutputIsFrameCamera()) return;
-        CameraState main = CameraManager.INSTANCE.getCameraState();
-        if (main == null) return;
-        // 内容档与维度同源：主相机片段的 dimension 非空且跨维度时同样走 CROSS_DIM
-        renderer.setLane(laneCount - 1, main, contentFor(mc, mainFrame.dimension()),
-                mainFrame.laneAdjust(), mainFrame.dimension(), slot(laneCount - 1).captureId, mainLease);
+        CameraState chainState = CameraManager.INSTANCE.getCameraState();
+        if (chainState == null) return;
+        // 内容档与维度同源：末位 lane 片段的 dimension 非空且跨维度时同样走 CROSS_DIM
+        renderer.setLane(laneCount - 1, chainState, contentFor(mc, topFrame.dimension()),
+                topFrame.laneAdjust(), topFrame.dimension(), slot(laneCount - 1).captureId, topLease);
     }
 
     /**
-     * 该维度用的内容档：空串 / 玩家当前维度 = {@link #CONTENT}（与主画面同内容）；
+     * 该维度用的内容档：空串 / 玩家当前维度 = {@link #CONTENT}（与完整画面同内容）；
      * 跨维度 = {@link #CROSS_DIM}（实体 / 天空 / 天气，关粒子）。
      */
     private static LaneRenderer.LaneContent contentFor(Minecraft mc, String dimension) {
@@ -248,15 +249,15 @@ public final class ScriptLaneDriver {
     }
 
     /**
-     * 本帧无脚本 lane 时，主画面由链输出单独注册一条（全屏、不透明、无 lane 级调色）。
+     * 本帧无脚本 lane 时，由链输出单独注册一条全屏、不透明、无 lane 级调色的 lane（观感等同于整屏画面）。
      * 触发条件见 {@link #chainOutputIsFrameCamera()}；链输出 {@code null} 时不注册，回落原版视角。
      *
-     * @return 是否已注册主画面 lane
+     * @return 是否已注册链输出 lane
      */
     private static boolean registerChainLane(LaneRenderer renderer) {
         if (!chainOutputIsFrameCamera()) return false;
-        CameraState main = CameraManager.INSTANCE.getCameraState();
-        if (main == null) return false;
+        CameraState chainState = CameraManager.INSTANCE.getCameraState();
+        if (chainState == null) return false;
         Slot slot = slot(0);
         // 合成参数显式归位（槽位跨帧复用：上一帧同序号 lane 的 dest / opacity 不得残留）
         slot.opacity = 1.0F;
@@ -266,7 +267,7 @@ public final class ScriptLaneDriver {
         slot.mask.sample(null, 0.0F);
         slot.captureId = CHAIN_CAPTURE_ID;
         // 链输出无 CAMERA clip：维度空串（= 玩家当前维度），不跨维度渲染；无租约，走 captureId 回退
-        renderer.setLane(0, main, CONTENT, null, "", slot.captureId, null);
+        renderer.setLane(0, chainState, CONTENT, null, "", slot.captureId, null);
         renderer.setSink(ScriptLaneDriver::compose);
         chainLaneActive = true;
         return true;
@@ -296,7 +297,7 @@ public final class ScriptLaneDriver {
     }
 
     /**
-     * 主画面的相机是否必须取覆盖链输出（本帧相机）：链上有 Modifier 生效，或链胜出层是直控类层
+     * 覆盖链输出是否必须作为末位 lane 的相机（本帧相机）：链上有 Modifier 生效，或链胜出层是直控类层
      * （飞行 / 编辑器直控 / 外部接管）。其余情形取与不取等价（链输出与 lane 快照逐位同值）。
      */
     private static boolean chainOutputIsFrameCamera() {
