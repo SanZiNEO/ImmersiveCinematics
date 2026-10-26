@@ -45,7 +45,7 @@ REPLAY=1 DRY_RUN=0 bash fabric/run/dev-tools/run-f-round-test.sh \
 
 1. 片段 A / B 的 `view=` 不同（槽位或代际不同）；
 2. 停止后 `releaseOwner ... active=0`，`[lane] 活跃 lane:` 为空或不再出现；
-3. 重播首条 acquire 的 `gen` 大于第一次同槽位的 `gen`（旧视角键不会命中新租约）；
+3. 重播首条 acquire 的 `view=` 与第一次播放的任一 `view=` 不同；旧 `view=` 不再出现在 `[view-capture]` 的 save / restore 日志里（槽位可能被复用，代际必须变化）；新租约首帧没有自己的快照时，`[view-capture]` 只应出现 `restore view=main` 作为基线，不能先 restore 上一条 lane 的 `lease...`；
 4. 不出现 `[camera-lease] releaseAll 后仍有 ... 条租约`；
 5. 不出现 `ERROR` / `Exception` / `route-fail` / `oversize`。
 

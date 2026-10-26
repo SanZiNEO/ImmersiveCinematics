@@ -151,14 +151,15 @@
             "duration": 20,
             "event_type": "command",
             "keyframes": [
-              { "time": 0, "event_type": "command", "command": "gamemode creative" },
-              { "time": 0, "event_type": "command", "command": "gamerule doMobSpawning true" },
-              { "time": 0, "event_type": "command", "command": "difficulty normal" },
-              { "time": 0, "event_type": "command", "command": "execute in minecraft:the_end run kill @e[type=minecraft:enderman]" },
-              { "time": 0, "event_type": "command", "command": "execute in minecraft:the_nether run kill @e[type=minecraft:zombie]" },
-              { "time": 0, "event_type": "command", "command": "execute in minecraft:the_end run summon minecraft:enderman 79 61.6 -21 {NoAI:1b,NoGravity:1b,PersistenceRequired:1b,Silent:1b}" },
-              { "time": 0, "event_type": "command", "command": "execute in minecraft:the_nether run summon minecraft:zombie 0 70 5 {NoAI:1b,NoGravity:1b,PersistenceRequired:1b,Silent:1b}" },
-              { "time": 0, "event_type": "command", "command": "say [crossdim-view] start: player stays overworld; end lane top-left, nether lane top-right" },
+              { "time": 0.0, "event_type": "command", "command": "execute in minecraft:overworld run tp @s 0 80 0" },
+              { "time": 0.2, "event_type": "command", "command": "gamemode creative" },
+              { "time": 0.3, "event_type": "command", "command": "gamerule doMobSpawning true" },
+              { "time": 0.4, "event_type": "command", "command": "difficulty normal" },
+              { "time": 0.5, "event_type": "command", "command": "execute in minecraft:the_end run kill @e[type=minecraft:enderman]" },
+              { "time": 0.6, "event_type": "command", "command": "execute in minecraft:the_nether run kill @e[type=minecraft:zombie]" },
+              { "time": 0.7, "event_type": "command", "command": "execute in minecraft:the_end run summon minecraft:enderman 79 61.6 -21 {NoAI:1b,NoGravity:1b,PersistenceRequired:1b,Silent:1b}" },
+              { "time": 0.8, "event_type": "command", "command": "execute in minecraft:the_nether run summon minecraft:zombie 0 70 5 {NoAI:1b,NoGravity:1b,PersistenceRequired:1b,Silent:1b}" },
+              { "time": 0.9, "event_type": "command", "command": "say [crossdim-view] start: player stays overworld; end lane top-left, nether lane top-right" },
               { "time": 10, "event_type": "command", "command": "say [crossdim-view] top-left: enderman in the_end; top-right: zombie in the_nether" },
               { "time": 20, "event_type": "command", "command": "say [crossdim-view] done: player dimension unchanged" }
             ]

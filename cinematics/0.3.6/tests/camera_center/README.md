@@ -43,7 +43,7 @@
   - 左上 `dest=(0,0,0.5,0.5)` → `minecraft:the_end`，相机 `(79, 61.6, -26)`，yaw 0 / pitch -10；
   - 右上 `dest=(0.5,0,0.5,0.5)` → `minecraft:the_nether`，相机 `(0, 70, 0)`，yaw 0 / pitch -10；
   - 第三条无 `dimension`、全屏、`opacity=0`：不画任何东西，露出主画面的玩家原视角。
-- **场景准备（脚本 t=0 自动执行）**：`gamemode creative`、`gamerule doMobSpawning true`、`difficulty normal`；清掉两个维度的旧末影人 / 僵尸后，在末地 `(79, 61.6, -21)`（相机正前 5 格）召唤 `NoAI` 末影人，在下界 `(0, 70, 5)`（相机正前 5 格）召唤 `NoAI` 僵尸。**不要用 spectator**（旁观不产生刷怪尝试）。
+- **场景准备（脚本 t=0 自动执行）**：先 `execute in minecraft:overworld run tp @s 0 80 0` 把玩家送回主世界（测试存档可能停在末地）；`gamemode creative`、`gamerule doMobSpawning true`、`difficulty normal`；清掉两个维度的旧末影人 / 僵尸后，在末地 `(79, 61.6, -21)`（相机正前 5 格）召唤 `NoAI` 末影人，在下界 `(0, 70, 5)`（相机正前 5 格）召唤 `NoAI` 僵尸。**不铺平台**：测试世界是超平坦，地表在 `y=-60`，玩家会自然落到地表。**不要用 spectator**（旁观不产生刷怪尝试）。
 - **手动播放**：把 fixture 部署到 runtime 的 `immersive_cinematics/scripts/camera/center/`，`reload` 后执行
   `ic play camera:center/test_camera_center_crossdim_view`
   （测试期间把其它会自动触发的旧脚本移到 `scripts_disabled/`，避免干扰）。

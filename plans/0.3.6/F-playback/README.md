@@ -11,17 +11,17 @@
 | 文档 | 主题 | 状态 | 现行结论 / 落地记录 |
 |---|---|---|---|
 | [parallel-playback](parallel-playback.md) | 并行播放：实例 / lane 模型、叠加秩序、队列、播放关系 | ✅ 步骤 1–6 落地（2026-10-07）；F2 ✅（2026-10-17 实现 / 10-18 实机覆盖） | §7 步骤 1–6 落地记录、F2 落地记录 |
-| [multi-camera-rendering](multi-camera-rendering.md) | 多相机渲染底层：每 lane 独立相机 → 共用离屏 FBO → 上屏；F3–F5 | ✅ 同维度实现完成（2026-10-18）；跨维度 per-view 维度源为设计基线（2026-10-25 调查后重写），未实现 | §12（实现）、§12.10（光影每视角隔离）、§6（成本矩阵）、§4.5（per-view 维度）、[cross-dimension-camera](cross-dimension-camera.md) §4.2 / §6 |
-| [camera-composition](camera-composition.md) | 画面合成：取材 / 目标区域 / 不透明度 / 叠放顺序，全关键帧 | 🟡 主体落地（§7 步骤 3–5），5 项开放；维度源与合成解耦（设计基线，未实现） | §7 步骤 3–5、§5 / §6、§4.5（维度源） |
-| [iris-oculus-compat](iris-oculus-compat.md) | 光影（Iris / Oculus）兼容调研 + 每视角状态隔离 | ✅ 同维度调研完成 + F3 验收通过（2026-10-18）；跨维度 view 为设计基线（2026-10-25 调查后重写），未实现；2 项已知限制 | §7（结论与修复）、§7.5（Forge/Oculus）、§4.5（跨维度 view） |
+| [multi-camera-rendering](multi-camera-rendering.md) | 多相机渲染底层：每 lane 独立相机 → 共用离屏 FBO → 上屏；F3–F5 | ✅ 同维度实现完成（2026-10-18）；跨维度 per-view 维度源已实现（`c0b1ac1` / `50aa5fb`，2026-10-25），WP5 光影隔离部分、WP6 验收未完成 | §12（实现）、§12.10（光影每视角隔离）、§6（成本矩阵）、§4.5（per-view 维度）、[cross-dimension-camera](cross-dimension-camera.md) §4.2 / §6 |
+| [camera-composition](camera-composition.md) | 画面合成：取材 / 目标区域 / 不透明度 / 叠放顺序，全关键帧 | 🟡 主体落地（§7 步骤 3–5），5 项开放；维度源与合成解耦已实现（`c0b1ac1`，2026-10-25） | §7 步骤 3–5、§5 / §6、§4.5（维度源） |
+| [iris-oculus-compat](iris-oculus-compat.md) | 光影（Iris / Oculus）兼容调研 + 每视角状态隔离 | ✅ 同维度调研完成 + F3 验收通过（2026-10-18）；跨维度 view 已实现（`c0b1ac1` / `50aa5fb`，2026-10-25），WP5 per-pipeline 隔离部分；2 项已知限制 | §7（结论与修复）、§7.5（Forge/Oculus）、§4.5（跨维度 view） |
 | [f-round-issues](f-round-issues.md) | F 轮实测问题报告：绿边 / 扇形定位、性能矩阵、失败处理原则 | 🟡 问题 A / B 已修；矩阵完整；剩余 = P0 批次 | §1.1（矩阵复核）、§2 / §3（结论）、§5（下一步） |
 | [failure-handling-audit](failure-handling-audit.md) | 运行期失败 → 崩溃路径审计（60 findings / 23 P0） | 🟡 第 1 批 P0 已落地（`4eb65b7`，2026-10-25）；P1/P2 未做；正文 §0.4 待回写 | §0.4（实施状态）、§9（三批与验收） |
 | [f5-script-packet-limit](f5-script-packet-limit.md) | 大脚本传输上限（32,767 字符）→ gzip + 长度前缀 | ✅ 已修复（2026-10-18） | 全文（含 l25 复测数据） |
 | [history-consolidation](history-consolidation.md) | 光影调查分支历史压缩记录 | 📄 记录性 | 全文 |
 | [camera-center-entities](camera-center-entities.md) | 相机中心下的刷怪 / 实体可见性（C 方案） | ✅ 同维度 C0–C3 / C6 已实现并提交（`8354731`）；C4 / C5 接受项；跨维度视图流已实现（`50aa5fb`） | §六（实现结果）；§4.5（视图流与偏离） |
-| [camera-pool](camera-pool.md) | 相机租约池（按 CAMERA 片段租借、归还清状态） | ✅ 已实现并提交（`38f3972`，2026-10-26）；实机日志待跑 | §六（实现结果）、[camera_pool 测试说明](../../cinematics/0.3.6/tests/camera_pool/README.md) |
+| [camera-pool](camera-pool.md) | 相机租约池（按 CAMERA 片段租借、归还清状态） | ✅ 已实现并提交（`38f3972`，2026-10-26）；实机重播日志已跑（2026-10-26：slot 0/1、停播 active=0、重播 gen=2） | §六（实现结果）、[camera_pool 测试说明](../../cinematics/0.3.6/tests/camera_pool/README.md) |
 | [drop-preload](drop-preload.md) | 摘掉预加载 / 预热概念：模块改名相机中心同步，删死配置、预热空转与冗余协议 | ✅ 已实现（2026-10-25） | §六（实现结果） |
-| [cross-dimension-camera](cross-dimension-camera.md) | 跨维度相机：per-view 维度渲染（相机采样带维度；每 lane 用自己的维度源；服务端按 `(player, viewId)` 供数据） | 🟡 P0 + WP1–WP4 已实现并提交（2026-10-25）；WP5 光影部分、WP6 实机验收未完成 | §八（实现状态与已知限制）/ §六（施工与验收） |
+| [cross-dimension-camera](cross-dimension-camera.md) | 跨维度相机：per-view 维度渲染（相机采样带维度；每 lane 用自己的维度源；服务端按 `(player, viewId)` 供数据） | 🟡 P0 + WP1–WP4 已实现并提交（2026-10-25）；WP5 光影部分；WP6 三画面 fixture 已跑一次（2026-10-26，双视图 active），完整矩阵未完成 | §八（实现状态与已知限制）/ §六（施工与验收） |
 
 ---
 

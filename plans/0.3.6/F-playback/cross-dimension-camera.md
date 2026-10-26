@@ -1,6 +1,6 @@
 # 跨维度相机（per-view 维度渲染）
 
-> 状态：P0 + WP1–WP4 已实现并提交（2026-10-25，`8354731` / `c0b1ac1` / `50aa5fb`）；WP5（光影每视角隔离）部分；WP6（实机验收矩阵）未完成。实现状态与已知限制见 §八。
+> 状态：P0 + WP1–WP4 已实现并提交（2026-10-25，`8354731` / `c0b1ac1` / `50aa5fb`）；WP5（光影每视角隔离）部分；WP6 已跑一次三画面 fixture（2026-10-26，光影开启，双视图 active、无 route-fail / oversize），完整验收矩阵未完成。实现状态与已知限制见 §八。
 > 范围：相机采样带维度；同一客户端内每个画面 view 用目标维度的渲染源；服务端按相机 view 供区块、实体与刷怪中心。玩家留在原维度，不切整个客户端、不传送玩家、不开第二客户端。
 > 关联：[多相机渲染](multi-camera-rendering.md)、[画面合成](camera-composition.md)、[相机中心实体](camera-center-entities.md)、[相机租约池](camera-pool.md)、[光影兼容](iris-oculus-compat.md)、[并行播放](parallel-playback.md)。
 > 调查依据：`example/ImmersivePortalsMod-1.20.1`、MC 1.20.1 反编译源码、Iris 1.7.6 / Oculus 1.8.0、本仓客户端与服务端代码（2026-10-25）。IP 只作参考实现，不作为运行时依赖。
@@ -278,7 +278,7 @@ P0 通过，说明“采样带维度 → 目标 view → 数据流 → 合成”
 - **包上限**：自定义通道约 1 MiB；超大区块包丢弃（限频日志），目标视图可能缺一块。
 - **多视图同维度**：同一玩家同一维度多个 view 会重复发区块（forget / remove 有去重）；`DistanceManager` 同 section 多视图可能重复 ticket，未实机验证。
 - **F6 与 F8 并行**：F6 单锚点 `CameraCenterManager` 保持原样；跨维度视图是第二条链，不合并成单 key。
-- **未实机验收**：三画面 fixture `test_camera_center_crossdim_view` 已提交，尚未跑；WP6 验收矩阵未完成。
+- **实机验收进度**：三画面 fixture `test_camera_center_crossdim_view` 于 2026-10-26 跑过一次（光影开启）：玩家留在主世界，末地 / 下界两条视图均 `active=true`，无 `route-fail` / `oversize`；停播释放与完整 WP6 矩阵仍待验。
 
 ### 8.4 下一步
 

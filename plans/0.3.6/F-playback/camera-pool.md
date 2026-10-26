@@ -110,8 +110,8 @@
 
 | 项 | 实现 |
 |---|---|
-| 租约模型 | 每个 CAMERA 片段一个 `CameraLease`（`owner` / `clip` / `dimension` / `slotId` / `generation` / `viewKey` / `cull`），由 `CameraLeasePool` 按 `owner + clip` 对象身份复用；片段首次出现时 acquire |
-| 视角键 | `lease<slot>g<generation>`，维度非空时追加 `@<dimension>`；`ViewScope` / `ViewStateCapture` / `ColorHistoryCapture` 均按该键隔离，同轨相邻片段与重播不继承旧历史 |
+| 租约模型 | 每个 CAMERA 片段一个 `CameraLease`（`owner` / `clip` / `dimension` / `slotId` / `generation` / `viewKey` / `cull`），由 `CameraLeasePool` 按 `owner + clip` 对象身份复用；片段首次出现时 acquire。槽位按从未分配计数（不拿数组容量当已分配数），释放后回空闲表最小优先复用 |
+| 视角键 | `lease<slot>g<generation>`，维度非空时追加 `@<dimension>`；`ViewScope` / `ViewStateCapture` / `ColorHistoryCapture` 均按该键隔离，同轨相邻片段与重播不继承旧历史。新租约首帧没有自己的 `ViewStateCapture` 快照时回落到 `main` 基线（颜色历史首帧清空），避免继承上一条 lane 的 tracker / previous |
 | 生命周期 | 片段结束 / 实例停止 / 替换脚本 / 世界卸载 / lane 收集异常时确定性归还；`reconcile` 按本帧活跃片段列表（含 morph 两侧与目标暂时不可用的片段）保留租约 |
 | 剔除槽 | 租约独占 `LaneCullSlot`，归还时回 `LaneCullSlots` 池；无租约的链输出 lane 仍走惰性回退槽。`LaneRenderer.deactivate` 只断开租约槽引用、不归还（归还权在池），避免与 `release` 双重归还；回退槽仍由 lane 持有 |
 | 日志 | `Config.debugLogging` 下输出 `[camera-lease] acquire / release / releaseOwner`（只在新租约 / 归还时，不按帧刷）与 `[lane] 活跃 lane: captureId=viewKey`（签名变化才打）；`releaseOwner` 无租约时静默 |
