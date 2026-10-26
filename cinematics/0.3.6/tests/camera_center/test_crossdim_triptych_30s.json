@@ -1,0 +1,2974 @@
+{
+  "meta": {
+    "id": "crossdim_triptych_30s",
+    "name": "三界一息 · 30s 细腻运镜",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "30 秒无音轨跨维度运镜，手动播放，无触发器、命令、声音、图片或世界修改。主世界是一条 0–30s 的连续环绕片段，每秒一个关键帧并带轻微呼吸；末地 4s 全屏推进、16s 切画中画、24s 切下方监视器；下界 9s 全屏横移、17s 切右画中画、24s 切右下监视器。主世界内部没有切点；跨维度与全屏/画中画的切换全部用 cut，不做形态过渡；画中画位置与透明度在 0.3–0.8s 内分层展开。建议主世界白天、开阔地播放。",
+    "triggers": [],
+    "block_keyboard": true,
+    "block_mouse": true,
+    "block_mob_ai": false,
+    "hide_hud": true,
+    "hide_arm": true,
+    "hide_skip_hud": true,
+    "suppress_bob": true,
+    "suppress_distortion": true,
+    "render_player_model": false,
+    "pause_when_game_paused": true,
+    "play_mode": "exclusive",
+    "interruptible": false,
+    "skippable": true,
+    "hold_at_end": false
+  },
+  "timeline": {
+    "total_duration": 30,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "id": "main_orbit",
+        "name": "主世界 · 连续环绕 / 呼吸微动",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 30,
+            "transition": "cut",
+            "cam_breath_enabled": true,
+            "cam_breath_intensity": 0.022,
+            "cam_breath_seed": 11,
+            "cam_breath_type": "perlin",
+            "keyframes": [
+              {
+                "time": 0,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 0,
+                  "dy": 2.6,
+                  "dz": -9
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 55,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 1,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 1.909,
+                  "dy": 2.877,
+                  "dz": -8.982
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0.393,
+                "fov": 56.168,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 2,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 3.797,
+                  "dy": 3.133,
+                  "dz": -8.527
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0.755,
+                "fov": 57.243,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 3,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 5.542,
+                  "dy": 3.356,
+                  "dz": -7.627
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 1.061,
+                "fov": 58.15,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 4,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 7.021,
+                  "dy": 3.542,
+                  "dz": -6.322
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 1.289,
+                "fov": 58.837,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 5,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 8.132,
+                  "dy": 3.7,
+                  "dz": -4.695
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 1.429,
+                "fov": 59.289,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 6,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 8.811,
+                  "dy": 3.846,
+                  "dz": -2.863
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 1.478,
+                "fov": 59.526,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 7,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 9.044,
+                  "dy": 3.996,
+                  "dz": -0.951
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 1.444,
+                "fov": 59.599,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 8,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 8.858,
+                  "dy": 4.159,
+                  "dz": 0.931
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 1.34,
+                "fov": 59.581,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 9,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 8.308,
+                  "dy": 4.333,
+                  "dz": 2.699
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 1.185,
+                "fov": 59.553,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 10,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 7.457,
+                  "dy": 4.505,
+                  "dz": 4.305
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0.996,
+                "fov": 59.59,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 11,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 6.356,
+                  "dy": 4.657,
+                  "dz": 5.723
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0.792,
+                "fov": 59.745,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 12,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 5.039,
+                  "dy": 4.768,
+                  "dz": 6.935
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0.585,
+                "fov": 60.041,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 13,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 3.525,
+                  "dy": 4.828,
+                  "dz": 7.916
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0.384,
+                "fov": 60.466,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 14,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 1.833,
+                  "dy": 4.835,
+                  "dz": 8.624
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0.189,
+                "fov": 60.976,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 15,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 0,
+                  "dy": 4.8,
+                  "dz": 9
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 61.5,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 16,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -1.909,
+                  "dy": 4.741,
+                  "dz": 8.982
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -0.189,
+                "fov": 61.952,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 17,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -3.797,
+                  "dy": 4.676,
+                  "dz": 8.527
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -0.384,
+                "fov": 62.25,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 18,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -5.542,
+                  "dy": 4.616,
+                  "dz": 7.627
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -0.585,
+                "fov": 62.323,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 19,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -7.021,
+                  "dy": 4.563,
+                  "dz": 6.322
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -0.792,
+                "fov": 62.131,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 20,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -8.132,
+                  "dy": 4.505,
+                  "dz": 4.695
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -0.996,
+                "fov": 61.668,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 21,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -8.811,
+                  "dy": 4.427,
+                  "dz": 2.863
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -1.185,
+                "fov": 60.964,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 22,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -9.044,
+                  "dy": 4.311,
+                  "dz": 0.951
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -1.34,
+                "fov": 60.08,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 23,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -8.858,
+                  "dy": 4.148,
+                  "dz": -0.931
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -1.444,
+                "fov": 59.1,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 24,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -8.308,
+                  "dy": 3.94,
+                  "dz": -2.699
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -1.478,
+                "fov": 58.115,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 25,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -7.457,
+                  "dy": 3.7,
+                  "dz": -4.305
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -1.429,
+                "fov": 57.211,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 26,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -6.356,
+                  "dy": 3.448,
+                  "dz": -5.723
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -1.289,
+                "fov": 56.45,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 27,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -5.039,
+                  "dy": 3.204,
+                  "dz": -6.935
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -1.061,
+                "fov": 55.867,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 28,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -3.525,
+                  "dy": 2.981,
+                  "dz": -7.916
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -0.755,
+                "fov": 55.46,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 29,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": -1.833,
+                  "dy": 2.783,
+                  "dz": -8.624
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": -0.393,
+                "fov": 55.191,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 30,
+                "position_mode": "relative",
+                "follow": "entity",
+                "follow_selector": "@p",
+                "position": {
+                  "dx": 0,
+                  "dy": 2.6,
+                  "dz": -9
+                },
+                "look_at": "entity",
+                "look_at_selector": "@p",
+                "look_at_offset": {
+                  "dx": 0,
+                  "dy": 1.2,
+                  "dz": 0
+                },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 55,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "id": "end_view",
+        "name": "末地 · 全屏推进 / 画中画 / 监视器",
+        "clips": [
+          {
+            "start_time": 4,
+            "duration": 12,
+            "transition": "cut",
+            "keyframes": [
+              {
+                "time": 0,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 79,
+                  "y": 61.6,
+                  "z": -26
+                },
+                "yaw": 0,
+                "pitch": -10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 0.4,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 78.8,
+                  "y": 61.8,
+                  "z": -26.5
+                },
+                "yaw": 1,
+                "pitch": -10.5,
+                "roll": -0.3,
+                "fov": 69,
+                "zoom": 1,
+                "opacity": 0.18,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 0.8,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 78.3,
+                  "y": 62.2,
+                  "z": -27.4
+                },
+                "yaw": 2,
+                "pitch": -11,
+                "roll": -0.7,
+                "fov": 67,
+                "zoom": 1,
+                "opacity": 0.65,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 1.2,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 77.8,
+                  "y": 62.6,
+                  "z": -28.2
+                },
+                "yaw": 3,
+                "pitch": -11.5,
+                "roll": -1,
+                "fov": 65,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 2,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 77,
+                  "y": 63,
+                  "z": -29.4
+                },
+                "yaw": 5,
+                "pitch": -12.5,
+                "roll": -1.4,
+                "fov": 63,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0.01,
+                  "y": 0.01,
+                  "w": 0.98,
+                  "h": 0.98
+                }
+              },
+              {
+                "time": 3,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 76.2,
+                  "y": 63.4,
+                  "z": -30.7
+                },
+                "yaw": 8,
+                "pitch": -13.5,
+                "roll": -1.8,
+                "fov": 60,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0.02,
+                  "y": 0.02,
+                  "w": 0.96,
+                  "h": 0.96
+                }
+              },
+              {
+                "time": 4,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 75.5,
+                  "y": 63.8,
+                  "z": -32
+                },
+                "yaw": 10,
+                "pitch": -14.5,
+                "roll": -2,
+                "fov": 57,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0.03,
+                  "y": 0.03,
+                  "w": 0.94,
+                  "h": 0.94
+                }
+              },
+              {
+                "time": 5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 74.8,
+                  "y": 64.1,
+                  "z": -33.1
+                },
+                "yaw": 12,
+                "pitch": -15,
+                "roll": -2.1,
+                "fov": 54,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0.04,
+                  "y": 0.04,
+                  "w": 0.92,
+                  "h": 0.92
+                }
+              },
+              {
+                "time": 6,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 74.2,
+                  "y": 64.3,
+                  "z": -34
+                },
+                "yaw": 14,
+                "pitch": -15.5,
+                "roll": -2.1,
+                "fov": 52,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0.05,
+                  "y": 0.05,
+                  "w": 0.9,
+                  "h": 0.9
+                }
+              },
+              {
+                "time": 7,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 73.6,
+                  "y": 64.5,
+                  "z": -34.8
+                },
+                "yaw": 16,
+                "pitch": -16,
+                "roll": -2,
+                "fov": 50,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0.06,
+                  "y": 0.06,
+                  "w": 0.88,
+                  "h": 0.88
+                }
+              },
+              {
+                "time": 7.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 73.3,
+                  "y": 64.6,
+                  "z": -35.2
+                },
+                "yaw": 16.5,
+                "pitch": -16,
+                "roll": -2,
+                "fov": 50,
+                "zoom": 1,
+                "opacity": 0.45,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0.07,
+                  "y": 0.07,
+                  "w": 0.86,
+                  "h": 0.86
+                }
+              },
+              {
+                "time": 8,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 73,
+                  "y": 64.6,
+                  "z": -35.5
+                },
+                "yaw": 17,
+                "pitch": -16,
+                "roll": -2,
+                "fov": 50,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0.08,
+                  "y": 0.08,
+                  "w": 0.84,
+                  "h": 0.84
+                }
+              },
+              {
+                "time": 10,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 72.8,
+                  "y": 64.7,
+                  "z": -35.8
+                },
+                "yaw": 17,
+                "pitch": -16,
+                "roll": -2,
+                "fov": 50,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0.08,
+                  "y": 0.08,
+                  "w": 0.84,
+                  "h": 0.84
+                }
+              },
+              {
+                "time": 12,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 72.6,
+                  "y": 64.7,
+                  "z": -36
+                },
+                "yaw": 17,
+                "pitch": -16,
+                "roll": -2,
+                "fov": 50,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0.08,
+                  "y": 0.08,
+                  "w": 0.84,
+                  "h": 0.84
+                }
+              }
+            ]
+          },
+          {
+            "start_time": 16,
+            "duration": 8,
+            "transition": "cut",
+            "keyframes": [
+              {
+                "time": 0,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 72.6,
+                  "y": 64.7,
+                  "z": -36
+                },
+                "yaw": 17,
+                "pitch": -16,
+                "roll": -2,
+                "fov": 50,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0.08,
+                  "y": 0.08,
+                  "w": 0.84,
+                  "h": 0.84
+                }
+              },
+              {
+                "time": 0.3,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 72.5,
+                  "y": 64.8,
+                  "z": -36.2
+                },
+                "yaw": 18,
+                "pitch": -16.2,
+                "roll": -1.8,
+                "fov": 50,
+                "zoom": 1,
+                "opacity": 0.2,
+                "dest": {
+                  "x": 0.28,
+                  "y": 0.14,
+                  "w": 0.46,
+                  "h": 0.52
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 0.6,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 72.4,
+                  "y": 64.9,
+                  "z": -36.4
+                },
+                "yaw": 19,
+                "pitch": -16.5,
+                "roll": -1.6,
+                "fov": 51,
+                "zoom": 1,
+                "opacity": 0.7,
+                "dest": {
+                  "x": 0.12,
+                  "y": 0.08,
+                  "w": 0.36,
+                  "h": 0.42
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 1,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 72.3,
+                  "y": 65,
+                  "z": -36.6
+                },
+                "yaw": 20,
+                "pitch": -17,
+                "roll": -1.4,
+                "fov": 52,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.03,
+                  "y": 0.06,
+                  "w": 0.3,
+                  "h": 0.3
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 2,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 72.1,
+                  "y": 65.2,
+                  "z": -37
+                },
+                "yaw": 21,
+                "pitch": -17.5,
+                "roll": -1.2,
+                "fov": 53,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.035,
+                  "y": 0.065,
+                  "w": 0.3,
+                  "h": 0.3
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 3,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 71.9,
+                  "y": 65.3,
+                  "z": -37.4
+                },
+                "yaw": 22,
+                "pitch": -18,
+                "roll": -1,
+                "fov": 54,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.04,
+                  "y": 0.07,
+                  "w": 0.31,
+                  "h": 0.31
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 4,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 71.7,
+                  "y": 65.4,
+                  "z": -37.8
+                },
+                "yaw": 23,
+                "pitch": -18.5,
+                "roll": -0.8,
+                "fov": 55,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.04,
+                  "y": 0.07,
+                  "w": 0.31,
+                  "h": 0.31
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 71.5,
+                  "y": 65.5,
+                  "z": -38.2
+                },
+                "yaw": 24,
+                "pitch": -19,
+                "roll": -0.6,
+                "fov": 56,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.045,
+                  "y": 0.075,
+                  "w": 0.32,
+                  "h": 0.32
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 6,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 71.3,
+                  "y": 65.6,
+                  "z": -38.6
+                },
+                "yaw": 25,
+                "pitch": -19.5,
+                "roll": -0.4,
+                "fov": 57,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.045,
+                  "y": 0.075,
+                  "w": 0.32,
+                  "h": 0.32
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 7,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 71.1,
+                  "y": 65.7,
+                  "z": -39
+                },
+                "yaw": 26,
+                "pitch": -20,
+                "roll": -0.2,
+                "fov": 58,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.05,
+                  "y": 0.08,
+                  "w": 0.33,
+                  "h": 0.33
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 7.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 71,
+                  "y": 65.7,
+                  "z": -39.2
+                },
+                "yaw": 26.5,
+                "pitch": -20.2,
+                "roll": -0.1,
+                "fov": 58.5,
+                "zoom": 1,
+                "opacity": 0.45,
+                "dest": {
+                  "x": 0.05,
+                  "y": 0.08,
+                  "w": 0.33,
+                  "h": 0.33
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 8,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 70.9,
+                  "y": 65.8,
+                  "z": -39.4
+                },
+                "yaw": 27,
+                "pitch": -20.5,
+                "roll": 0,
+                "fov": 59,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0.05,
+                  "y": 0.08,
+                  "w": 0.33,
+                  "h": 0.33
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              }
+            ]
+          },
+          {
+            "start_time": 24,
+            "duration": 6,
+            "transition": "cut",
+            "keyframes": [
+              {
+                "time": 0,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 70.9,
+                  "y": 65.8,
+                  "z": -39.4
+                },
+                "yaw": 27,
+                "pitch": -20.5,
+                "roll": 0,
+                "fov": 59,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0.05,
+                  "y": 0.08,
+                  "w": 0.33,
+                  "h": 0.33
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 0.4,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 70.7,
+                  "y": 65.9,
+                  "z": -39.7
+                },
+                "yaw": 28,
+                "pitch": -21,
+                "roll": -0.1,
+                "fov": 58,
+                "zoom": 1,
+                "opacity": 0.2,
+                "dest": {
+                  "x": 0.05,
+                  "y": 0.56,
+                  "w": 0.38,
+                  "h": 0.38
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 0.8,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 70.5,
+                  "y": 66,
+                  "z": -40
+                },
+                "yaw": 29,
+                "pitch": -21.5,
+                "roll": -0.2,
+                "fov": 57,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.04,
+                  "y": 0.64,
+                  "w": 0.26,
+                  "h": 0.26
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 1.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 70.3,
+                  "y": 66.1,
+                  "z": -40.3
+                },
+                "yaw": 30,
+                "pitch": -22,
+                "roll": -0.3,
+                "fov": 56,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.04,
+                  "y": 0.64,
+                  "w": 0.26,
+                  "h": 0.26
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 2.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 70.1,
+                  "y": 66.1,
+                  "z": -40.6
+                },
+                "yaw": 31,
+                "pitch": -22.5,
+                "roll": -0.4,
+                "fov": 55,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.045,
+                  "y": 0.635,
+                  "w": 0.27,
+                  "h": 0.27
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 4,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 69.8,
+                  "y": 66.2,
+                  "z": -41
+                },
+                "yaw": 32,
+                "pitch": -23,
+                "roll": -0.5,
+                "fov": 54,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.045,
+                  "y": 0.635,
+                  "w": 0.27,
+                  "h": 0.27
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 69.6,
+                  "y": 66.3,
+                  "z": -41.3
+                },
+                "yaw": 33,
+                "pitch": -23.2,
+                "roll": -0.6,
+                "fov": 53,
+                "zoom": 1,
+                "opacity": 0.7,
+                "dest": {
+                  "x": 0.05,
+                  "y": 0.63,
+                  "w": 0.28,
+                  "h": 0.28
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 5.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 69.5,
+                  "y": 66.3,
+                  "z": -41.5
+                },
+                "yaw": 33.5,
+                "pitch": -23.3,
+                "roll": -0.7,
+                "fov": 53,
+                "zoom": 1,
+                "opacity": 0.3,
+                "dest": {
+                  "x": 0.05,
+                  "y": 0.63,
+                  "w": 0.28,
+                  "h": 0.28
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 6,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 69.4,
+                  "y": 66.4,
+                  "z": -41.7
+                },
+                "yaw": 34,
+                "pitch": -23.5,
+                "roll": -0.8,
+                "fov": 52,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0.05,
+                  "y": 0.63,
+                  "w": 0.28,
+                  "h": 0.28
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "id": "nether_view",
+        "name": "下界 · 全屏横移 / 画中画 / 监视器",
+        "clips": [
+          {
+            "start_time": 9,
+            "duration": 8,
+            "transition": "cut",
+            "keyframes": [
+              {
+                "time": 0,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 0,
+                  "y": 70,
+                  "z": 0
+                },
+                "yaw": 0,
+                "pitch": -10,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 0.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 0.6,
+                  "y": 70.4,
+                  "z": 0.6
+                },
+                "yaw": 2,
+                "pitch": -10.5,
+                "roll": 0.3,
+                "fov": 68,
+                "zoom": 1,
+                "opacity": 0.35,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 1,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 1.5,
+                  "y": 70.8,
+                  "z": 1.5
+                },
+                "yaw": 5,
+                "pitch": -11,
+                "roll": 0.7,
+                "fov": 66,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 2,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 2.6,
+                  "y": 71.3,
+                  "z": 2.6
+                },
+                "yaw": 8,
+                "pitch": -12,
+                "roll": 1,
+                "fov": 63,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 3,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 3.6,
+                  "y": 71.8,
+                  "z": 3.6
+                },
+                "yaw": 11,
+                "pitch": -13,
+                "roll": 1.2,
+                "fov": 60,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 4,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 4.5,
+                  "y": 72.1,
+                  "z": 4.5
+                },
+                "yaw": 14,
+                "pitch": -14,
+                "roll": 1.4,
+                "fov": 58,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 5.3,
+                  "y": 72.4,
+                  "z": 5.3
+                },
+                "yaw": 16,
+                "pitch": -15,
+                "roll": 1.5,
+                "fov": 56,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 6,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 6,
+                  "y": 72.6,
+                  "z": 6
+                },
+                "yaw": 18,
+                "pitch": -16,
+                "roll": 1.5,
+                "fov": 54,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 6.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 6.5,
+                  "y": 72.7,
+                  "z": 6.5
+                },
+                "yaw": 19,
+                "pitch": -16.5,
+                "roll": 1.5,
+                "fov": 53,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 7,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 7,
+                  "y": 72.8,
+                  "z": 7
+                },
+                "yaw": 20,
+                "pitch": -17,
+                "roll": 1.4,
+                "fov": 52,
+                "zoom": 1,
+                "opacity": 0.5,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 7.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 7.2,
+                  "y": 72.8,
+                  "z": 7.2
+                },
+                "yaw": 20.5,
+                "pitch": -17.5,
+                "roll": 1.4,
+                "fov": 52,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 8,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 7.4,
+                  "y": 72.7,
+                  "z": 7.5
+                },
+                "yaw": 21,
+                "pitch": -18,
+                "roll": 1.4,
+                "fov": 52,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              }
+            ]
+          },
+          {
+            "start_time": 17,
+            "duration": 7,
+            "transition": "cut",
+            "keyframes": [
+              {
+                "time": 0,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 7.4,
+                  "y": 72.7,
+                  "z": 7.5
+                },
+                "yaw": 21,
+                "pitch": -18,
+                "roll": 1.4,
+                "fov": 52,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 0.4,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 7.7,
+                  "y": 72.8,
+                  "z": 7.8
+                },
+                "yaw": 22,
+                "pitch": -18.3,
+                "roll": 1.3,
+                "fov": 52,
+                "zoom": 1,
+                "opacity": 0.2,
+                "dest": {
+                  "x": 0.48,
+                  "y": 0.12,
+                  "w": 0.44,
+                  "h": 0.44
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 0.8,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 8,
+                  "y": 72.9,
+                  "z": 8.1
+                },
+                "yaw": 23,
+                "pitch": -18.7,
+                "roll": 1.2,
+                "fov": 53,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.66,
+                  "y": 0.06,
+                  "w": 0.3,
+                  "h": 0.3
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 1.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 8.3,
+                  "y": 73.1,
+                  "z": 8.4
+                },
+                "yaw": 24,
+                "pitch": -19,
+                "roll": 1.1,
+                "fov": 54,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.68,
+                  "y": 0.06,
+                  "w": 0.3,
+                  "h": 0.3
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 2.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 8.6,
+                  "y": 73.3,
+                  "z": 8.7
+                },
+                "yaw": 25,
+                "pitch": -19.5,
+                "roll": 1,
+                "fov": 55,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.67,
+                  "y": 0.065,
+                  "w": 0.31,
+                  "h": 0.31
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 4,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 8.9,
+                  "y": 73.5,
+                  "z": 9
+                },
+                "yaw": 27,
+                "pitch": -20,
+                "roll": 0.9,
+                "fov": 56,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.66,
+                  "y": 0.07,
+                  "w": 0.32,
+                  "h": 0.32
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 5.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 9.2,
+                  "y": 73.6,
+                  "z": 9.4
+                },
+                "yaw": 29,
+                "pitch": -21,
+                "roll": 0.8,
+                "fov": 57,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.65,
+                  "y": 0.075,
+                  "w": 0.33,
+                  "h": 0.33
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 6.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 9.4,
+                  "y": 73.7,
+                  "z": 9.6
+                },
+                "yaw": 29.5,
+                "pitch": -21.5,
+                "roll": 0.7,
+                "fov": 58,
+                "zoom": 1,
+                "opacity": 0.5,
+                "dest": {
+                  "x": 0.65,
+                  "y": 0.075,
+                  "w": 0.33,
+                  "h": 0.33
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 7,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 9.5,
+                  "y": 73.8,
+                  "z": 9.8
+                },
+                "yaw": 30,
+                "pitch": -22,
+                "roll": 0.6,
+                "fov": 59,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0.65,
+                  "y": 0.075,
+                  "w": 0.33,
+                  "h": 0.33
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              }
+            ]
+          },
+          {
+            "start_time": 24,
+            "duration": 6,
+            "transition": "cut",
+            "keyframes": [
+              {
+                "time": 0,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 9.5,
+                  "y": 73.8,
+                  "z": 9.8
+                },
+                "yaw": 30,
+                "pitch": -22,
+                "roll": 0.6,
+                "fov": 59,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0.65,
+                  "y": 0.075,
+                  "w": 0.33,
+                  "h": 0.33
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 0.4,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 9.7,
+                  "y": 73.9,
+                  "z": 10
+                },
+                "yaw": 31,
+                "pitch": -22.3,
+                "roll": 0.5,
+                "fov": 58,
+                "zoom": 1,
+                "opacity": 0.2,
+                "dest": {
+                  "x": 0.6,
+                  "y": 0.56,
+                  "w": 0.38,
+                  "h": 0.38
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 0.8,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 9.9,
+                  "y": 74,
+                  "z": 10.2
+                },
+                "yaw": 32,
+                "pitch": -22.7,
+                "roll": 0.4,
+                "fov": 57,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.7,
+                  "y": 0.64,
+                  "w": 0.26,
+                  "h": 0.26
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 1.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 10.1,
+                  "y": 74.1,
+                  "z": 10.4
+                },
+                "yaw": 33,
+                "pitch": -23,
+                "roll": 0.3,
+                "fov": 56,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.7,
+                  "y": 0.64,
+                  "w": 0.26,
+                  "h": 0.26
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 2.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 10.3,
+                  "y": 74.2,
+                  "z": 10.6
+                },
+                "yaw": 34,
+                "pitch": -23.3,
+                "roll": 0.2,
+                "fov": 55,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.695,
+                  "y": 0.635,
+                  "w": 0.27,
+                  "h": 0.27
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 4,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 10.5,
+                  "y": 74.4,
+                  "z": 10.8
+                },
+                "yaw": 35,
+                "pitch": -23.6,
+                "roll": 0.1,
+                "fov": 54,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": {
+                  "x": 0.695,
+                  "y": 0.635,
+                  "w": 0.27,
+                  "h": 0.27
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 10.6,
+                  "y": 74.5,
+                  "z": 10.9
+                },
+                "yaw": 35.5,
+                "pitch": -23.8,
+                "roll": 0,
+                "fov": 53,
+                "zoom": 1,
+                "opacity": 0.7,
+                "dest": {
+                  "x": 0.69,
+                  "y": 0.63,
+                  "w": 0.28,
+                  "h": 0.28
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 5.5,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 10.7,
+                  "y": 74.5,
+                  "z": 11
+                },
+                "yaw": 36,
+                "pitch": -24,
+                "roll": -0.1,
+                "fov": 53,
+                "zoom": 1,
+                "opacity": 0.3,
+                "dest": {
+                  "x": 0.69,
+                  "y": 0.63,
+                  "w": 0.28,
+                  "h": 0.28
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              },
+              {
+                "time": 6,
+                "position_mode": "absolute",
+                "position": {
+                  "x": 10.8,
+                  "y": 74.6,
+                  "z": 11.1
+                },
+                "yaw": 36,
+                "pitch": -24,
+                "roll": -0.2,
+                "fov": 52,
+                "zoom": 1,
+                "opacity": 0,
+                "dest": {
+                  "x": 0.69,
+                  "y": 0.63,
+                  "w": 0.28,
+                  "h": 0.28
+                },
+                "source": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
