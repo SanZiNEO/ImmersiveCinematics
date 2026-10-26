@@ -114,7 +114,7 @@ DimensionView {
 - **视图中心**：每条 lane 的 view center 用该 lane 相机；`LevelRendererVanillaMixin` 不能再取全局 `topLane()`，否则目标 renderer 会被拉到另一个维度的坐标。
 - **剔除**：cull bridge / 槽位按 view 归属；不能把主世界候选集套到目标维度。
 - **渲染状态换入换出**：lane pass 内临时把 `mc.level` 切到目标 view，必要时切 `mc.levelRenderer`（accessor，字段是 final）、`EntityRenderDispatcher` / `BlockEntityRenderDispatcher` / `hitResult` / particle level；`Camera.setup(view.level(), viewEntity, ...)` 使用 view 级 entity，不硬套主世界 `mc.player`；`finally` 全部还原。
-- **光照**：`renderLevel` 显式传 `view.lightTexture()`，不读 `gameRenderer.lightTexture()`；天空 / 雾 / 天气读目标 `ClientLevel`。
+- **光照**：`renderLevel` 的 `lightTexture` 参数只覆盖天气 / 粒子；地形 / 实体 / 方块实体走 `RenderStateShard.LightmapStateShard` → `GameRenderer.lightTexture`。lane pass 内必须临时把 `GameRenderer.lightTexture` 字段指向 `view.lightTexture()`（IP 做法），`finally` 还原；只传参不够。Sodium / Embeddium 地形 shader 读 `RenderSystem.getShaderTexture(2)`，字段换入后才拿到目标 lightmap。详见 [跨维度光照贴图绑定](cross-dimension-lightmap.md)。
 - **FBO / 合成**：`LaneCompositor` 不变；FBO 仍按 lane 顺序复用。FABULOUS 需要单独验证静态 target 重定向。
 - **粒子**：先做决策——每 view 独立 `ParticleEngine`，或跨维度 lane 在该 view 内关闭粒子。不能共享主世界单例后假装正确。
 - **卸载**：播放结束、强停、断线、维度卸载时按 lane → view 状态 → renderer / lightmap → level 的顺序释放；不跨 view 复用光影历史、剔除槽、相机实例、FBO 内容。
@@ -250,7 +250,7 @@ P0 通过，说明“采样带维度 → 目标 view → 数据流 → 合成”
 
 ### 8.1 已落地
 
-- **采样 / 数据**：`Clip.dimension` → `CameraLane` / `LaneFrame.dimension`；空串 = 玩家当前维度。`LaneRenderer` 逐 lane 解析 `DimensionView` 并在 lane pass 内换入 `mc.level` / `mc.levelRenderer` / 实体与方块实体分发器 / 光照贴图，`finally` 还原。
+- **采样 / 数据**：`Clip.dimension` → `CameraLane` / `LaneFrame.dimension`；空串 = 玩家当前维度。`LaneRenderer` 逐 lane 解析 `DimensionView` 并在 lane pass 内换入 `mc.level` / `mc.levelRenderer` / 实体与方块实体分发器 / `GameRenderer.lightTexture`，`finally` 还原。
 - **客户端 view**：`DimensionViews` 按维度懒创建 `DimensionView`（独立 `ClientLevel` + `LevelRenderer` + `LightTexture` + `RenderBuffers`）；`MAIN` 哨兵复用玩家当前维度；`FABULOUS`（`Minecraft.useShaderTransparency()`）、缺维度类型、非法 id 返回 `null`（该 lane 本帧跳过并限频告警）；窗口 resize / 资源重载 / 世界退出 `closeAll()`。
 - **服务端流**：`CameraViewManager` 按 `(玩家 UUID, viewId)` 维护 `ViewState`（`ServerLevel` / 位置 / section / 已发区块 / 实体 / 虚拟玩家 / ticket）；`DistanceManager.addPlayer(相机 section, 真实玩家)`；区块 `ClientboundLevelChunkWithLightPacket` + 离开半径 `ClientboundForgetLevelChunkPacket`；实体 `ServerEntity.sendPairingData` 只发初始配对，离开 / 移除补 `ClientboundRemoveEntitiesPacket`；全部经 `S2CCameraViewPacket` 信封（维度 + vanilla 包 id + payload）。
 - **客户端路由 / 上报**：`CameraViewReporter` 每 5 tick / 位移 ≥1 格 / 状态变化上报；`CameraViewPacketRouter` 按维度 `DimensionViews.acquire`，临时切 `ClientPacketListener.level` 处理 vanilla 包、排干 light 更新、`finally` 还原。

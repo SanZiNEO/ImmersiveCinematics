@@ -1,6 +1,6 @@
 # F 轮（播放 / 渲染）文档索引
 
-> 用途：一页看清本目录 13 篇文档各自负责什么、现在什么状态、还剩哪些开放项。
+> 用途：一页看清本目录 14 篇文档各自负责什么、现在什么状态、还剩哪些开放项。
 > 本页只做汇总，不新增结论；结论以各文档正文的落地记录为准。
 > 图例：✅ 已完成　🟡 部分可用 / 有开放项　☐ 未开工　⊘ 不做　📄 记录性
 
@@ -22,6 +22,7 @@
 | [camera-pool](camera-pool.md) | 相机租约池（按 CAMERA 片段租借、归还清状态） | ✅ 已实现并提交（`38f3972`，2026-10-26）；实机重播日志已跑（2026-10-26：slot 0/1、停播 active=0、重播 gen=2） | §六（实现结果）、[camera_pool 测试说明](../../cinematics/0.3.6/tests/camera_pool/README.md) |
 | [drop-preload](drop-preload.md) | 摘掉预加载 / 预热概念：模块改名相机中心同步，删死配置、预热空转与冗余协议 | ✅ 已实现（2026-10-25） | §六（实现结果） |
 | [cross-dimension-camera](cross-dimension-camera.md) | 跨维度相机：per-view 维度渲染（相机采样带维度；每 lane 用自己的维度源；服务端按 `(player, viewId)` 供数据） | 🟡 P0 + WP1–WP4 已实现并提交（2026-10-25）；WP5 光影部分；WP6 三画面 fixture 已跑一次（2026-10-26，双视图 active），完整矩阵未完成 | §八（实现状态与已知限制）/ §六（施工与验收） |
+| [cross-dimension-lightmap](cross-dimension-lightmap.md) | 跨维度 lane 的目标 `LightTexture` 绑定：为什么目标画面发暗、`GameRenderer.lightTexture` 字段换入方案 | 🟡 字段换入已落地（2026-10-26）；统一实机验收待做 | §一（结论）、§三（证据）、§五（修复）、§六（验收） |
 | [script-path-resolution](script-path-resolution.md) | 命令脚本路径：`/` 为规范、colon 为兼容别名、字面优先旧解码兜底 | ✅ 已实现（2026-10-26）；实机命令验证待统一测试 | §三（解析顺序）、§五（验收）、§七（实现结果） |
 
 ---

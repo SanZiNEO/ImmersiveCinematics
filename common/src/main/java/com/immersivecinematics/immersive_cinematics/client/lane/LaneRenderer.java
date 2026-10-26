@@ -50,7 +50,8 @@ import java.util.Map;
  * 只有本 lane 渲染本身失败时才按 {@code written = false} 跳过（合成层守门）。
  * 状态所有权：雾 / 深度 / 混合状态由 {@code renderLevel} 自身收敛，视锥每帧重建——这些不需要额外还原。
  * 跨维度：lane 的片段 {@code dimension} 非空且不是玩家当前维度时，该 lane 的 pass 内临时把全局
- * {@code Minecraft.level} / {@code levelRenderer} / 两个渲染分发器指向目标视图（{@link DimensionView}，
+ * {@code Minecraft.level} / {@code levelRenderer} / 两个渲染分发器指向目标视图，并把
+ * {@code GameRenderer.lightTexture} 字段换成目标视图的 {@code LightTexture}（{@link DimensionView}，
  * 独立 {@code ClientLevel} + {@code LevelRenderer} + {@code LightTexture}），pass 结束在 finally 还原；
  * 玩家本身不跨维度，主画面继续用玩家当前世界。空串 / 当前维度 = {@link DimensionViews#MAIN}，逐位保持原行为。
  */
@@ -591,6 +592,10 @@ public final class LaneRenderer {
             cullBridge.ic$pushLaneCullState(cullSlot(lane));
             activeCullBridge = cullBridge;
         }
+        // 跨维度：地形 / 实体采样走 RenderStateShard.LightmapStateShard → GameRenderer.lightTexture()，
+        // renderLevel 的参数只覆盖天气 / 粒子；目标 lightmap 必须临时换进字段，finally 无条件按标志还原。
+        LightTexture previousLightTexture = null;
+        boolean lightTextureSwapped = false;
         try {
             fbo.bindWrite(true);   // 绑定 FBO + 视口 = FBO 全尺寸
             // FBO 不完整（附件丢失 / 重建失败 / 尺寸非法）→ 驱动会丢掉绘制、留下未写内容：连画都不画，直接判失败。
@@ -611,6 +616,11 @@ public final class LaneRenderer {
                 // （updateLightTexture 只在置脏后生效，否则贴图停在初始全白）。
                 view.lightTexture().tick();
                 view.lightTexture().updateLightTexture(partialTick);
+                // 换字段：地形 / 实体的 lightmap 采样点只认该字段（renderLevel 的参数到不了这里）。
+                // 先置标志再写字段：setter 若抛异常，finally 仍会按 previousLightTexture 还原。
+                previousLightTexture = gameRenderer.lightTexture();
+                lightTextureSwapped = true;
+                gameRendererAccessor.ic$setLightTexture(view.lightTexture());
             }
 
             // 我们的相机接管：Camera.setup → CameraMixin 的 lane 分支读该实例的 CameraState。
@@ -664,6 +674,10 @@ public final class LaneRenderer {
             reportLaneFailure(captureId, "lane 渲染异常（画面未写 / 半写）", e);
             return new LaneOutput(fbo, false);
         } finally {
+            // 先还原 lightmap 字段：即使后续 level / 分发器还原抛异常，也不会把目标 lightmap 留给主画面。
+            if (lightTextureSwapped) {
+                gameRendererAccessor.ic$setLightTexture(previousLightTexture);
+            }
             if (cullBridge != null) {
                 cullBridge.ic$popLaneCullState();
                 if (activeCullBridge == cullBridge) {
