@@ -1,6 +1,6 @@
 # 画面合成：取材区域 / 目标区域 / 不透明度
 
-> 状态：实现中（合成参数、合成层、遮罩与多 lane 上屏已落地；编辑器多 lane 预览与 HUD / 黑边层级基线未定；维度源与合成解耦，跨维度为设计基线，未实现，见 [跨维度相机](cross-dimension-camera.md)）
+> 状态：实现中（合成参数、合成层、遮罩与多 lane 上屏已落地；编辑器多 lane 预览与 HUD / 黑边层级基线未定；维度源与合成解耦已实现，跨维度 lane 随 F8 实机验证，见 [跨维度相机](cross-dimension-camera.md)）
 > 范围：画面 lane 的纹理怎么铺到屏幕——取材、放置、不透明度、遮罩与叠放顺序
 > 关联：[并行播放](parallel-playback.md)、[多相机渲染](multi-camera-rendering.md)、[画面转场](../D-transition/scene-transition.md)、[Overlay 颜色遮罩](../D-transition/overlay-color-mask.md)
 
@@ -76,7 +76,7 @@
 - 字幕、图片、纯色层与黑边走覆盖层，按自己的层级排序；合成层不参与，遮罩也不裁切它们。
 - 合成层不读维度：lane 纹理来自哪个维度由 [多相机渲染](multi-camera-rendering.md) / [跨维度相机](cross-dimension-camera.md) 决定；全屏与分屏只是 `dest` 不同。
 
-### 4.5 维度源（设计基线，未实现）
+### 4.5 维度源（已实现）
 
 合成层只认“一张 lane 纹理 + 合成参数”，不认维度。跨维度时：
 
@@ -85,7 +85,7 @@
 - 全屏 = `dest` 全屏，分屏 = 两条 lane 的 `dest` 各占一半；
 - CAMERA clip 的 `dimension` 缺省 / 空串 = 玩家当前维度，合成层不需要额外分支。
 
-状态：合成侧无需改动；维度源实现见 [跨维度相机](cross-dimension-camera.md) §4.2 / §6。跨维度当前未实现；合成层不负责维度数据流。
+状态：合成侧无需改动；维度源已实现（`c0b1ac1`），并随 F8 实机验证；合成层不负责维度数据流。见 [跨维度相机](cross-dimension-camera.md) §4.2 / §6。
 
 ## 五、为什么不选别的
 

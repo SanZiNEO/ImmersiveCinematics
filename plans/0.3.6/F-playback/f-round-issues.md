@@ -4,7 +4,7 @@
 > 2560×1369（测试中曾调整窗口比例），光影启用，`shader_pack_in_use=true`。
 > 会话：`diagnostics/sessions/20261017-172637-f-round/`。
 
-> **2026-10-18 状态**：问题 A / B 已定位并修复（根因 = Iris/Oculus 每视角共享状态，不是合成层 alpha；见 [iris-oculus-compat](iris-oculus-compat.md) §7）。**性能矩阵已完成**（§1.1，l25 在 gzip 传输修复后补齐）；F3 验收通过（Fabric/Iris 三视角 + 热切换；Forge/Oculus 同 jar 已部署）；F5 诊断实现与真实数据均完成。失败处理审计（[failure-handling-audit](failure-handling-audit.md)）**尚未实施**，是本轮唯一未收口项。
+> **2026-10-26 状态**：问题 A / B 已定位并修复（根因 = Iris/Oculus 每视角共享状态，不是合成层 alpha；见 [iris-oculus-compat](iris-oculus-compat.md) §7）。**性能矩阵已完成**（§1.1，l25 在 gzip 传输修复后补齐）；F3 验收通过（Fabric/Iris 三视角 + 热切换；Forge/Oculus 同 jar 已部署）；F5 诊断实现与真实数据均完成。失败处理 P0 第 1 批已落地（`4eb65b7`），P1/P2 不属 F 轮关单；F6/F7/F8 均已实现，F8 已实机验证，已知限制为相机附近生物无 AI。
 
 ## 1. 测试进度与缺失项
 
@@ -239,4 +239,4 @@
 - **性能矩阵补齐**：`perf_l16` FULL、`perf_l4` WORLD_ONLY、`perf_l1` WORLD_ONLY 已于 2026-10-18 复测 600/600；**`perf_l25` 同日补齐**——32,767 字符上限已由 gzip 字节传输修复（[f5-script-packet-limit](f5-script-packet-limit.md)），原始 47,061 字节脚本直接播放，FULL / WORLD_ONLY 均 600/600。矩阵完整。
 - **F3 验收**：已通过（Fabric/Iris 三视角 + 热切换实机；Forge/Oculus 为同构移植、同 jar 部署）；Sodium `frame++`（§3-④）由 Sodium 实机 A/B 与 F5 十档覆盖，Rubidium 类名核对（§3-⑤）为已知限制。
 - **失败处理**：按 `failure-handling-audit.md` 第 1 批 P0 落地（帧首 / 逐实例 / lane 合成 / 服务端 tick / 包处理 / 命令入口 / `PacketGuard`），再 P1、P2；网络发包防护与断线清理同批。
-- **F 轮收口条件（2026-10-25 修订）**：① 性能数据回填（已完成，2026-10-18）；② 失败处理 P0 第 1 批已落地（`4eb65b7`），P1/P2 未做；③ [camera-center-entities](camera-center-entities.md) 实现（同维度工作树未提交；跨维度数据流为设计基线，未实现）；④ [camera-pool](camera-pool.md) 实现；⑤ [cross-dimension-camera](cross-dimension-camera.md) 实现（per-view 维度渲染，2026-10-25 调查后设计基线，未实现；P0 + WP1–WP6 见该文 §6）。F2 / F3 / F5 均已实现并验收（F3 为 Fabric/Iris 实机 + Forge/Oculus 同构同 jar）。原口径（2026-10-18）只写了 ①②；③④ 是 2026-10-22 新增，⑤ 是 2026-10-25 新增，按「`plans/0.3.6/` 全部文档 = 0.3.6 工作范围」一并计入关单条件。Iris ⑤（Rubidium 类名核对）与非 `SRGB` 色彩空间属**已知限制**，不阻塞关单。
+- **F 轮收口条件（2026-10-26 修订）**：① 性能数据回填（已完成，2026-10-18）；② 失败处理 P0 第 1 批已落地（`4eb65b7`），P1/P2 不属 F 轮关单；③ [camera-center-entities](camera-center-entities.md) 已实现并提交（`8354731`）；④ [camera-pool](camera-pool.md) 已实现并提交（`38f3972`）；⑤ [cross-dimension-camera](cross-dimension-camera.md) 已实现并随 F8 实机验证（`8354731` / `c0b1ac1` / `50aa5fb`，2026-10-26）。F2 / F3 / F5 均已实现并验收。F8 已知限制：相机附近生物无 AI；Iris ⑤（Rubidium 类名核对）与非 `SRGB` 色彩空间属**已知限制**，不阻塞关单。

@@ -1,12 +1,12 @@
 # 多相机渲染
 
-> 状态：同维度已实现（2026-10-18）；跨维度 per-view 维度源已实现（P0 + WP1–WP4，2026-10-25 提交 `8354731` / `c0b1ac1` / `50aa5fb`），WP5（光影每视角隔离）部分、WP6（实机验收矩阵）未完成——现状见 [跨维度相机](cross-dimension-camera.md) §八
+> 状态：同维度已实现（2026-10-18）；跨维度 per-view 维度源已实现（P0 + WP1–WP4，2026-10-25 提交 `8354731` / `c0b1ac1` / `50aa5fb`）并随 F8 实机验证（2026-10-26）；WP5（光影每视角隔离）为技术收口项——现状见 [跨维度相机](cross-dimension-camera.md) §八
 > 范围：同一帧内把多个相机视角渲染成独立画面并合成上屏；不含布局参数的脚本语义与实例调度。
 > 关联：`camera-composition.md`、`parallel-playback.md`、`iris-oculus-compat.md`、`docs/SCRIPT_FORMAT.md` §4。
 
 ## 一、摘要
 
-同一帧内把多个相机视角分别渲染成独立画面，再按取材区域、目标区域、不透明度与遮罩合成到屏幕。分屏、画中画、叠化与划像共用同一套底层：每条画面在自己的缓冲里完成世界渲染与 lane 级后处理，互不干扰；玩家视角作底图，未覆盖处保持可见。该能力已实现（同维度，2026-10-18）；每个 lane 的渲染源按自己的维度选择，跨维度 per-view 维度源已落地（P0 + WP1–WP4）：lane pass 内逐 lane 换入目标维度的 `ClientLevel` / `LevelRenderer` / 实体分发器 / 光照贴图，`finally` 还原。光影的 per-pipeline 隔离与实机验收矩阵未完成，见 [跨维度相机](cross-dimension-camera.md) §八。
+同一帧内把多个相机视角分别渲染成独立画面，再按取材区域、目标区域、不透明度与遮罩合成到屏幕。分屏、画中画、叠化与划像共用同一套底层：每条画面在自己的缓冲里完成世界渲染与 lane 级后处理，互不干扰；玩家视角作底图，未覆盖处保持可见。该能力已实现（同维度，2026-10-18）；每个 lane 的渲染源按自己的维度选择，跨维度 per-view 维度源已落地（P0 + WP1–WP4）：lane pass 内逐 lane 换入目标维度的 `ClientLevel` / `LevelRenderer` / 实体分发器 / 光照贴图，`finally` 还原。光影的 per-pipeline 隔离为技术收口项；跨维度主链已随 F8 实机验证，见 [跨维度相机](cross-dimension-camera.md) §八。
 
 ## 二、为什么做
 
@@ -76,9 +76,9 @@
 - 只执行合成参数，不定义布局语义；叠放顺序由注册顺序唯一决定。
 - 不碰脚本 / 时间轴 / 排队 / 网络与 GUI 覆盖层；不改原版手与 HUD。
 - 不复制网格与编译产物；不改第三方内部；正式合成不降分辨率；未知历史目标不隔离。
-- 跨维度 view 已实现（P0 + WP1–WP4）：目标维度 `ClientLevel` / `LevelRenderer` / `LightTexture` 与服务端维度流均已落地；光影 per-pipeline 隔离（WP5）与实机验收（WP6）未完成，已知限制见 [跨维度相机](cross-dimension-camera.md) §八。
+- 跨维度 view 已实现（P0 + WP1–WP4）：目标维度 `ClientLevel` / `LevelRenderer` / `LightTexture` 与服务端维度流均已落地，并随 F8 实机验证；光影 per-pipeline 隔离（WP5）为技术收口项，已知限制见 [跨维度相机](cross-dimension-camera.md) §八。
 
-### 4.5 每 view 维度（已实现；WP5 / WP6 未完成）
+### 4.5 每 view 维度（已实现；F8 已实机验证；WP5 技术收口）
 
 现状：`LaneRenderer` 逐 lane 解析 `DimensionView`（空串 / 玩家当前维度 = `MAIN`，逐位保持原行为），跨维度 lane 的 pass 内换入 `mc.level` / `mc.levelRenderer` / 实体与方块实体分发器 / 光照贴图，`finally` 还原；`CameraState` 仍是六参数，维度放在 `CameraLane` / `LaneFrame`。以下按现行实现陈述（细节、偏离与已知限制见 [跨维度相机](cross-dimension-camera.md) §八）：
 
@@ -93,7 +93,7 @@
 - **顺序**：同一帧多个 view 顺序渲染、逐条合成；不是第二客户端，不切整个客户端。
 - **风险 / 未完成**：`ParticleEngine` 单例 → 跨维度 lane 内容档 `CROSS_DIM` 关粒子；FABULOUS（`Minecraft.useShaderTransparency()`）直接拒绝目标视图，该 lane 跳过；shadow map 未按 view 复制、光影 per-pipeline 隔离未做。见 [跨维度相机](cross-dimension-camera.md) §4.5 / §8.3。
 
-状态：P0 + WP1–WP4 已实现并提交（2026-10-25）；WP5（光影每视角隔离）部分——目标 view 已有独立 renderer / lightmap，per-pipeline / shadow / FABULOUS 未完成；WP6（实机验收矩阵）未完成。工作包与验收矩阵见 [跨维度相机](cross-dimension-camera.md) §6 / §八。
+状态：P0 + WP1–WP4 已实现并提交（2026-10-25），并随 F8 实机验证（2026-10-26）；WP5（光影每视角隔离）为技术收口项——目标 view 已有独立 renderer / lightmap，per-pipeline / shadow / FABULOUS 仍未完成。工作包与验收矩阵见 [跨维度相机](cross-dimension-camera.md) §6 / §八。
 
 ## 五、为什么不选别的
 
@@ -114,9 +114,9 @@
 
 ## 六、实现结果
 
-状态：同维度已实现（2026-10-18）；跨维度 per-view 维度源已实现（P0 + WP1–WP4，2026-10-25 提交 `8354731` / `c0b1ac1` / `50aa5fb`），WP5（光影每视角隔离）部分、WP6（实机验收矩阵）未完成。
+状态：同维度已实现（2026-10-18）；跨维度 per-view 维度源已实现（P0 + WP1–WP4，2026-10-25 提交 `8354731` / `c0b1ac1` / `50aa5fb`）并随 F8 实机验证（2026-10-26）；WP5（光影每视角隔离）为技术收口项。
 
-渲染底层、上屏合成、脚本接入、光影隔离、优化模组路径与成本诊断均已落地；2026-10-23 注释收敛（63dbd9a）。F5 矩阵 l0/l1/l4/l16/l25 × FULL/WORLD_ONLY 全部 600/600；Fabric/Iris 1.7.6 与 Forge/Oculus 均已验收。跨维度 `DimensionView` / 服务端维度流已落地：`DimensionViews` 按维度懒创建独立 `ClientLevel` / `LevelRenderer` / `LightTexture`，`LaneRenderer` 在 lane pass 内换入并在 `finally` 还原。光影 per-pipeline 隔离（WP5）与 WP6 实机验收矩阵未完成；现状、偏离与已知限制见 [跨维度相机](cross-dimension-camera.md) §八。
+渲染底层、上屏合成、脚本接入、光影隔离、优化模组路径与成本诊断均已落地；2026-10-23 注释收敛（63dbd9a）。F5 矩阵 l0/l1/l4/l16/l25 × FULL/WORLD_ONLY 全部 600/600；Fabric/Iris 1.7.6 与 Forge/Oculus 均已验收。跨维度 `DimensionView` / 服务端维度流已落地：`DimensionViews` 按维度懒创建独立 `ClientLevel` / `LevelRenderer` / `LightTexture`，`LaneRenderer` 在 lane pass 内换入并在 `finally` 还原。光影 per-pipeline 隔离（WP5）为技术收口项；F8 主链已实机验证，现状、偏离与已知限制见 [跨维度相机](cross-dimension-camera.md) §八。
 
 | 原设计 | 实际实现 | 偏离原因 |
 |---|---|---|
@@ -125,7 +125,7 @@
 | lane 自包含包括原版后处理 | 只有发光描边在 lane 内完成，原版 `postEffect` 在合成输出上跑一次 | 原版后处理作用于整屏，逐 lane 重放会重复 |
 | 帧驱动与 lane 注册挂在世界渲染之后 | 前移到帧首、世界渲染之前 | 视图中心与剔除在渲染准备阶段读 lane 表 |
 | 叠化前单独提前渲染 | 不设独立调度，靠时间轴重叠 | 上层画面从 `opacity=0` 段就在渲染 |
-| 每 lane 独立维度源 | 已实现（P0 + WP1–WP4）：逐 lane `DimensionView`，lane pass 内换入 / 还原 `mc.level` / `mc.levelRenderer` / 实体分发器 / 光照贴图；光影 per-pipeline 隔离与 WP6 实机验收未完成 | 先按「每 view 独立 renderer / lightmap + 跳过 pipeline 刷新」收口，完整隔离见 [跨维度相机](cross-dimension-camera.md) §八 |
+| 每 lane 独立维度源 | 已实现（P0 + WP1–WP4）：逐 lane `DimensionView`，lane pass 内换入 / 还原 `mc.level` / `mc.levelRenderer` / 实体分发器 / 光照贴图；F8 已实机验证；光影 per-pipeline 隔离为技术收口项 | 先按「每 view 独立 renderer / lightmap + 跳过 pipeline 刷新」收口，完整隔离见 [跨维度相机](cross-dimension-camera.md) §八 |
 
 ## 附录：重写前原文
 

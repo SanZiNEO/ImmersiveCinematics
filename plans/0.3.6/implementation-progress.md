@@ -145,6 +145,7 @@
 | H7 | **P1-impl 事实层**（布尔点状事件判定 → 事实追踪）：事实模型 / 触发器身份 / 播放生命周期 / 账本收编 / tracker 收编 / 持久化 / 消费面 | — | ☐ **零实现**（现状核对见 [`H-other/README.md`](H-other/README.md) §2.1） |
 | H8 | **P3-impl 连续语义**（离散采样 → 连续判定）：位置扫掠 / 朝向弧 / 进入边沿 / dwell·window / 事件时间戳 | 窗口与事件侧依赖 H7 | ☐ **零实现**（现状核对见 [`H-other/README.md`](H-other/README.md) §2.2） |
 | H9 | **跳过投票 + 跳过 HUD**：判定对齐 MC `SleepStatus`（单一分母 / `max(1, ceil)` / 共用阈值）、HUD 合成一行、位置百分比可配 | — | 🟡 **有实现但不完整**（见 [`H-other/skip-vote-and-hud.md`](H-other/skip-vote-and-hud.md) §1.3） |
+| H10 | **相机视图实体活性**：服务端原版实体跟踪镜像 + 客户端目标世界 tick；不做假玩家、不改 AI goal | — | ☐ 设计稿（见 [`H-other/entity-liveness.md`](H-other/entity-liveness.md)） |
 
 ## 用户裁决新增（2026-10-08）
 

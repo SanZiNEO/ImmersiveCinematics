@@ -1,7 +1,8 @@
 # H 轮：区域同步 / HUD / 实机验证 / 触发器状态层
 
-> 本轮包含 5 项任务，其中 H7 / H8 是 2026-10-18 新加入的两份既有计划
-> （`state-tracking.md` = P1-impl、`trigger-continuity.md` = P3-impl，此前一直挂在 C-trigger 下）。
+> 本轮包含区域同步、HUD、实机验证、触发器状态层，以及相机视图实体活性（H10）。
+> 其中 H7 / H8 是 2026-10-18 新加入的两份既有计划（`state-tracking.md` = P1-impl、
+> `trigger-continuity.md` = P3-impl，此前一直挂在 C-trigger 下）；H10 是 F8 后续的下一项设计稿。
 
 ## 1. 任务清单
 
@@ -15,6 +16,7 @@
 | **H7** | **P1-impl 事实层**：布尔点状事件判定 → 事实追踪 | [`state-tracking.md`](state-tracking.md) | ☐ **零实现**（核对见 §2） |
 | **H8** | **P3-impl 连续语义**：离散采样 → 连续判定 | [`trigger-continuity.md`](trigger-continuity.md) | ☐ **零实现**（核对见 §2） |
 | **H9** | **跳过投票 + 跳过 HUD**：判定对齐 MC `SleepStatus`、HUD 合成一行、位置可配 | [`skip-vote-and-hud.md`](skip-vote-and-hud.md) | 🟡 有实现但不完整（见该文档 §1.3） |
+| **H10** | **相机视图实体活性**：服务端原版实体跟踪镜像 + 客户端目标世界 tick；不做假玩家、不改 AI goal | [`entity-liveness.md`](entity-liveness.md) | ☐ 设计稿（未实现；F8 后续） |
 
 H7 / H8 之间没有强绑定：H8 的**最小版本**（位置扫掠 / 朝向弧 / 进入边沿）不依赖 H7，可先落地；H8 的窗口与事件时间戳依赖 H7。
 
@@ -137,3 +139,4 @@ H7 / H8 之间没有强绑定：H8 的**最小版本**（位置扫掠 / 朝向�
 | [`../C-trigger/trigger-conditions.md`](../C-trigger/trigger-conditions.md) | 条件怎么写、怎么组合；H7/H8 只提供它脚下的查询原语与时间语义，不改它的字段 |
 | [`../C-trigger/condition-system.md`](../C-trigger/condition-system.md) | 判定规则（`clip.rules`），与触发器判定是不同层 |
 | [`../F-playback/parallel-playback.md`](../F-playback/parallel-playback.md) | 实例账本的上游；H7 阶段 2 与之对齐 |
+| [`entity-liveness.md`](entity-liveness.md) | H10，F8 相机视图实体活性的下一项设计 |

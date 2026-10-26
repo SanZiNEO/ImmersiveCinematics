@@ -1,6 +1,6 @@
 # 光影（Iris / Oculus）兼容
 
-> 状态：同维度已实现（2026-10-18）；跨维度 view 的光影环境已落地（每 view 独立 renderer / lightmap，P0 折中：`ViewScope` 在 lane 循环内跳过 pipeline 刷新），per-pipeline / shadow / FABULOUS 隔离与实机验收未完成——现状见 [跨维度相机](cross-dimension-camera.md) §八
+> 状态：同维度已实现（2026-10-18）；跨维度 view 的光影环境已落地并随 F8 实机验证（2026-10-26；每 view 独立 renderer / lightmap，P0 折中：`ViewScope` 在 lane 循环内跳过 pipeline 刷新）；per-pipeline / shadow / FABULOUS 隔离为技术收口项——现状见 [跨维度相机](cross-dimension-camera.md) §八
 > 范围：Iris（Fabric）/ Oculus（Forge）启用光影包时的多相机 lane 渲染与每视角状态隔离
 > 关联：[multi-camera-rendering](multi-camera-rendering.md)、[f-round-issues](f-round-issues.md)、[failure-handling-audit](failure-handling-audit.md)、[screen-color-adjust](../../complete/0.3.6/A-color/screen-color-adjust.md)
 
@@ -91,7 +91,7 @@
 - **FABULOUS / Oculus（未完成）**：`Minecraft.useShaderTransparency()` 为真时 `DimensionViews` 直接拒绝创建目标视图，该 lane 跳过；FABULOUS 的 `RenderStateShard` 静态 target / `transparency.json` 固定 `minecraft:main` 需要重定向才能支持。Oculus / Forge 还要处理 Embeddium 的 world / context 切换。
 - 光影包 / pipeline 变化时，只失效对应 view 的缓存；不要清掉其他 view 的历史。
 
-状态：P0 + WP1–WP4 已实现并提交（2026-10-25）；本篇的 per-pipeline / shadow / FABULOUS 隔离（WP5）未完成，WP6 实机验收未完成。验收至少覆盖：主世界 + 末地两个 view、光影开启、切换光影包、FABULOUS、停播 / 断线释放。
+状态：P0 + WP1–WP4 已实现并提交（2026-10-25），并随 F8 实机验证（2026-10-26）；本篇的 per-pipeline / shadow / FABULOUS 隔离（WP5）为技术收口项。后续增强验收覆盖：主世界 + 末地两个 view、切换光影包、FABULOUS、停播 / 断线释放。
 
 ## 五、为什么不选别的
 
@@ -570,4 +570,4 @@ lane 的 raw 画面（完整光影管线输出、合成前）就带毛边 / 缝�
 
 ##### 7.5 F3 口径
 
-F3 的实现状态：`isUnavailable()` 已删、lane 始终渲染；`ShaderCompat` / `ViewScope` / `ColorHistoryCapture` / `ShadowColorClear` / `ViewStateCapture` 已落地，并在 Fabric/Iris 1.7.6 上完成三包 A/B 实机验证。Forge/Oculus 1.8.0 为 Iris 的 Forge 同构移植，已部署同一批 jar（类名 / 字段已核对），机制由 Fabric 侧实机验证覆盖——**F3 记为「实现完成 + 验收通过」**。④⑤⑥ 中的 ④ 已由 Sodium 实机覆盖、⑥ 已由 F5 矩阵覆盖，⑤（Rubidium 类名核对）与非 `SRGB` 色彩空间记为**已知限制**，不阻塞 F 轮关单；F 轮剩余项只有失败处理 P0 批次（[failure-handling-audit](failure-handling-audit.md)）。
+F3 的实现状态：`isUnavailable()` 已删、lane 始终渲染；`ShaderCompat` / `ViewScope` / `ColorHistoryCapture` / `ShadowColorClear` / `ViewStateCapture` 已落地，并在 Fabric/Iris 1.7.6 上完成三包 A/B 实机验证。Forge/Oculus 1.8.0 为 Iris 的 Forge 同构移植，已部署同一批 jar（类名 / 字段已核对），机制由 Fabric 侧实机验证覆盖——**F3 记为「实现完成 + 验收通过」**。④⑤⑥ 中的 ④ 已由 Sodium 实机覆盖、⑥ 已由 F5 矩阵覆盖，⑤（Rubidium 类名核对）与非 `SRGB` 色彩空间记为**已知限制**，不阻塞 F 轮关单；失败处理 P0 第 1 批已落地，P1/P2 不属 F 轮关单（[failure-handling-audit](failure-handling-audit.md)）。

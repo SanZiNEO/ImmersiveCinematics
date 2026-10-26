@@ -1,6 +1,6 @@
 # 跨维度相机（per-view 维度渲染）
 
-> 状态：P0 + WP1–WP4 已实现并提交（2026-10-25，`8354731` / `c0b1ac1` / `50aa5fb`）；WP5（光影每视角隔离）部分；WP6 已跑一次三画面 fixture（2026-10-26，光影开启，双视图 active、无 route-fail / oversize），完整验收矩阵未完成。实现状态与已知限制见 §八。
+> 状态：P0 + WP1–WP4 已实现并提交（2026-10-25，`8354731` / `c0b1ac1` / `50aa5fb`）；F8 已实机验证（2026-10-26，三画面、光影开启、双视图 active、无 route-fail / oversize）。WP5（光影每视角隔离）为技术收口项；已知限制：相机附近生物无 AI。实现状态与已知限制见 §八。
 > 范围：相机采样带维度；同一客户端内每个画面 view 用目标维度的渲染源；服务端按相机 view 供区块、实体与刷怪中心。玩家留在原维度，不切整个客户端、不传送玩家、不开第二客户端。
 > 关联：[多相机渲染](multi-camera-rendering.md)、[画面合成](camera-composition.md)、[相机中心实体](camera-center-entities.md)、[相机租约池](camera-pool.md)、[光影兼容](iris-oculus-compat.md)、[并行播放](parallel-playback.md)。
 > 调查依据：`example/ImmersivePortalsMod-1.20.1`、MC 1.20.1 反编译源码、Iris 1.7.6 / Oculus 1.8.0、本仓客户端与服务端代码（2026-10-25）。IP 只作参考实现，不作为运行时依赖。
@@ -246,7 +246,7 @@ P0 通过，说明“采样带维度 → 目标 view → 数据流 → 合成”
 
 ## 八、实现状态
 
-状态：P0 + WP1–WP4 已实现并提交（2026-10-25，`8354731` / `c0b1ac1` / `50aa5fb`）；WP5（光影每视角隔离）部分；WP6（实机验收矩阵）未完成。以下按当前代码陈述，不是实机验收结论。
+状态：P0 + WP1–WP4 已实现并提交（2026-10-25，`8354731` / `c0b1ac1` / `50aa5fb`）；F8 已实机验证（2026-10-26，三画面、光影开启、双视图 active、无 route-fail / oversize）。WP5（光影每视角隔离）为技术收口项；已知限制：相机附近生物无 AI。以下按当前代码与实机结果陈述。
 
 ### 8.1 已落地
 
@@ -273,13 +273,14 @@ P0 通过，说明“采样带维度 → 目标 view → 数据流 → 合成”
 ### 8.3 已知限制
 
 - **实体是快照**：目标维度实体只发初始配对，不调用 `sendChanges`；目标 `ClientLevel` 不 tick，实体不移动 / 不播放动画。
+- **相机附近生物无 AI**：F8 实机观察（2026-10-26）；目标维度实体快照是已知原因之一，同维度相机中心是否同样受影响需后续单独定位。作为已知限制记录，不阻塞 F8 关单。
 - **目标维度只有区块 + 实体**：没有方块更新、光照更新、声音、天气、方块事件、粒子（跨维度 lane 内容档关粒子）。
 - **FABULOUS 不支持**：`Minecraft.useShaderTransparency()` 为真时 `DimensionViews` 拒绝创建目标视图；光影 per-pipeline 隔离未做，`ViewScope` 跳过刷新是折中。
 - **包上限**：自定义通道约 1 MiB；超大区块包丢弃（限频日志），目标视图可能缺一块。
 - **多视图同维度**：同一玩家同一维度多个 view 会重复发区块（forget / remove 有去重）；`DistanceManager` 同 section 多视图可能重复 ticket，未实机验证。
 - **F6 与 F8 并行**：F6 单锚点 `CameraCenterManager` 保持原样；跨维度视图是第二条链，不合并成单 key。
-- **实机验收进度**：三画面 fixture `test_camera_center_crossdim_view` 于 2026-10-26 跑过一次（光影开启）：玩家留在主世界，末地 / 下界两条视图均 `active=true`，无 `route-fail` / `oversize`；停播释放与完整 WP6 矩阵仍待验。
+- **实机验证**：三画面 fixture `test_camera_center_crossdim_view` 于 2026-10-26 实机验证（光影开启）：玩家留在主世界，末地 / 下界两条视图均 `active=true`，无 `route-fail` / `oversize`；F8 主链通过。已知限制是相机附近生物无 AI。
 
 ### 8.4 下一步
 
-按 §6.3 做 WP6 实机验收（玩家主世界 + 末地 / 下界双 lane、停播释放、光影 / FABULOUS 边界）；补目标维度实体增量、方块 / 光照更新与光影 per-pipeline 隔离后再宣称完整跨维度。
+F8 主链已关单；后续按需补目标维度实体增量 / 方块 / 光照更新与 WP5 per-pipeline 隔离。实体持续更新（移动 / 动画 / 末影龙部件）的下一项方案见 [H10 entity-liveness](../H-other/entity-liveness.md)；这些是增强项与已知限制，不再作为 F8 关单前置。

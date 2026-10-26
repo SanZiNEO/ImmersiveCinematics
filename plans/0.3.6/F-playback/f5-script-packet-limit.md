@@ -78,5 +78,5 @@
 - 已修复（2026-10-18）：gzip 字节传输 + 双向上限 + 命令入口预检已落地。
 - F5 矩阵**完整**：l0 / l1 / l4 / l16 / l25 的 FULL 与 WORLD_ONLY 均 600/600。
 - 验收侧按默认值压缩的临时脚本（24,869 字符）已不需要，未提交。
-- 失败处理审计（`failure-handling-audit.md`）的 P0 批次**仍开放**，不属本条。
+- 失败处理审计（`failure-handling-audit.md`）的 P0 第 1 批已落地；P1/P2 未做，不属本条，也不属 F 轮关单。
 - 关联：`f-round-issues.md` §1.1 / §5、`implementation-progress.md` F5 行。
