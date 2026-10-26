@@ -73,6 +73,11 @@ public final class ViewStateCapture {
         }
     }
 
+    /** 该视角是否已有保存状态（新租约首帧 = false，由 {@link ViewScope} 回落到 main 基线）。 */
+    public static boolean hasView(String view) {
+        return view != null && saved.containsKey(view);
+    }
+
     public static void restoreView(String view) {
         if (view == null) {
             return;

@@ -38,7 +38,12 @@ public final class ViewScope {
             STACK.clear();
         }
         ShadowColorClear.clearIfNeeded();
-        ViewStateCapture.restoreView(view);
+        if (!ViewStateCapture.hasView(view)) {
+            // 新租约首帧没有自己的历史：回到 main 基线，避免继承上一条 lane 的 tracker / previous
+            ViewStateCapture.restoreView("main");
+        } else {
+            ViewStateCapture.restoreView(view);
+        }
         ColorHistoryCapture.restore(view);
         STACK.push(view);
     }

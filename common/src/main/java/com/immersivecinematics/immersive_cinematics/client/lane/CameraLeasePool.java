@@ -37,6 +37,8 @@ public final class CameraLeasePool {
     private static final TreeSet<Integer> FREE_SLOTS = new TreeSet<>();
     /** 每个槽位的当前代际（按需扩容）。 */
     private static int[] generations = new int[0];
+    /** 下一个从未分配过的槽位编号；{@link #generations} 的长度只是容量，不能当已分配数量用。 */
+    private static int nextSlotId;
     /** 当前活跃租约数（O(1) 读数）。 */
     private static int activeLeaseCount;
 
@@ -184,11 +186,16 @@ public final class CameraLeasePool {
         if (free != null) {
             return free;
         }
-        int slotId = generations.length;
-        int grown = generations.length == 0 ? 4 : generations.length * 2;
-        int[] next = new int[grown];
-        System.arraycopy(generations, 0, next, 0, generations.length);
-        generations = next;
+        int slotId = nextSlotId++;
+        if (slotId >= generations.length) {
+            int grown = generations.length == 0 ? 4 : generations.length * 2;
+            while (grown <= slotId) {
+                grown *= 2;
+            }
+            int[] next = new int[grown];
+            System.arraycopy(generations, 0, next, 0, generations.length);
+            generations = next;
+        }
         return slotId;
     }
 
