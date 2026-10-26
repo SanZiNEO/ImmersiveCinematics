@@ -256,7 +256,7 @@ deactivateNow() 末尾 → pendingScript / 队列非空则自动接播
 
 ### F 类 / G1 / G2 · 跨维度运镜 + 相机实例队列 + 画中画
 
-> 已移入 0.4.0 排期文档：\`plans/0.4.0/camera-queue-pip-dimension.md\`（2026-08-09）。
+> 现归 0.3.6 F 轮：`plans/0.3.6/F-playback/cross-dimension-camera.md`（原 0.4.0 文档已删除）。
 > G3 维度驻留触发器已实施（见状态总览）；G4 relative 片段级基准不排期，记录见下。
 
 #### G3 维度驻留触发器（新增候选 — 与相机体系的关系已厘清）

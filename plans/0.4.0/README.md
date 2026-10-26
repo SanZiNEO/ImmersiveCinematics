@@ -9,12 +9,12 @@
 
 | 文档 | 说明 |
 |---|---|
-| `camera-queue-pip-dimension.md` | **跨维度运镜（F 类）**：片段级维度声明，clip 边界切维度（仅此一篇，G1/G2 已抹除） |
 | `camera-motion-model.md` | 相机运动模型与速度控制（长期讨论；与 0.3.6 的 math-models / hysteresis 关联） |
 | `path-shapes-presets.md` | 路径形状与预设生成（长期讨论：Catmull-Rom、解析型生成器） |
 
 ## 已移交 0.3.6 的条目
 
+- **跨维度运镜（F 类）** → `plans/0.3.6/F-playback/cross-dimension-camera.md`（2026-10-25 拉入 F 轮；已定 per-view 维度渲染；原 0.4.0 文档已删除）
 - **WAIT_POINT 等待点轨道** → `plans/0.3.6/C-trigger/condition-system.md`（等待点收编为 `until→do` 阻塞形态；原文档 `plans/0.3.6/_archive/wait-point-track.md`）
 - **相机实例队列（G1）** → `plans/0.3.6/F-playback/parallel-playback.md`（取代）
 - **画中画（G2）** → `plans/0.3.6/F-playback/camera-composition.md` + `plans/0.3.6/F-playback/multi-camera-rendering.md`（取代）

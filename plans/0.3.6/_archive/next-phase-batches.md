@@ -459,4 +459,4 @@ graph LR
 ---
 
 ## 附：0.4.0 归属标注（不展开）
-`plans/0.4.0/` 三篇 = 下一版本，不在本轮：`camera-queue-pip-dimension.md`（跨维度运镜）、`camera-motion-model.md`（运动模型与速度控制）、`path-shapes-presets.md`（路径形状与预设生成）（pending-discussions §一/§二；`plans/0.4.0/README.md`）。
+`plans/0.4.0/` 三篇 = 下一版本，不在本轮：`camera-queue-pip-dimension.md`（跨维度运镜；已于 2026-10-25 删除，现归 `plans/0.3.6/F-playback/cross-dimension-camera.md`）、`camera-motion-model.md`（运动模型与速度控制）、`path-shapes-presets.md`（路径形状与预设生成）（pending-discussions §一/§二；`plans/0.4.0/README.md`）。

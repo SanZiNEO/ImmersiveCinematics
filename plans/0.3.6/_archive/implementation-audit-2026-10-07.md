@@ -130,4 +130,4 @@
 - 三个审计代理（组 A 播放与画面架构+运行时表现 11 篇；组 B 编辑器+触发器+feedback 12 篇；组 C 相机底层七篇）。
 - 全部结论带代码证据（类名:行号 / commit 号），完整证据见各代理报告（本回合存档于 agent://PlanAuditA/B/C）。
 - 未实现项的判定口径：计划文档"已确认/落地顺序/交付物"写了 + 代码找不到 = 缺口；文档自标"不做/延后/待定"的按计划口径记录但单列。
-- **范围口径（2026-10-07 修正）**：`plans/0.3.6/` 内全部文档 = 0.3.6 工作范围（`plans/0.4.0/README.md`：活跃讨论全部归 0.3.6）。真正的远期仅 `plans/0.4.0/` 的 3 篇：`camera-queue-pip-dimension.md`（跨维度运镜）、`camera-motion-model.md`（运动模型与速度控制）、`path-shapes-presets.md`（路径形状与预设生成）。本目录内 🔒"长期讨论"标记应视为"未实现"，不再作为范围外理由。
+- **范围口径（2026-10-07 修正）**：`plans/0.3.6/` 内全部文档 = 0.3.6 工作范围（`plans/0.4.0/README.md`：活跃讨论全部归 0.3.6）。真正的远期仅 `plans/0.4.0/` 的 3 篇：`camera-queue-pip-dimension.md`（跨维度运镜；已于 2026-10-25 删除，现归 `plans/0.3.6/F-playback/cross-dimension-camera.md`）、`camera-motion-model.md`（运动模型与速度控制）、`path-shapes-presets.md`（路径形状与预设生成）。本目录内 🔒"长期讨论"标记应视为"未实现"，不再作为范围外理由。
