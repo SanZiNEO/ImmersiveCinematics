@@ -3,6 +3,8 @@
 > 状态：已实现（2026-10-14）
 > 范围：点源的时态维度——实时 / 快照、快照的捕获与生命周期、字段形态与适用范围
 > 关联：`docs/SCRIPT_FORMAT.md` §4 点源与点源时态、`plans/complete/0.3.6/B-camera/coordinate-frame.md`、`plans/complete/0.3.6/B-camera/selector-model.md`
+>
+> **新格式口径（2026-10-28）**：`I-script-core` 将本文的 `_time` 枚举（`live`/`snapshot`）替换为 `_freeze` 布尔（`true` 冻结 / `false` 实时，缺省 `false`）。本文记录 C7 已实现的 `_time` 口径；新格式字段名与迁移映射见 [`../I-script-core/`](../I-script-core/README.md)。
 
 ## 一、摘要
 

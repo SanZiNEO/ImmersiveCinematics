@@ -61,10 +61,6 @@ plans/0.3.3/phase4-unified-clip-model.md
 # --- 开发工具 ---
 tools/devtools/.venv/
 
-# MC 百科工具：会话 cookie 与临时产物（不提交）
-tools/devtools/.mcmod-cookie
-tools/devtools/.mcmod-*
-
 # --- 0.3.6 展示资源（商业版权 LUT 等，不入库）---
 cinematics/0.3.6/resource/
 # --- 评估草稿（用户裁定不提交）---
