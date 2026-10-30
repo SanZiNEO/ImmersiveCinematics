@@ -2,11 +2,11 @@
 
 > 状态：未实现
 > 范围：EVENT 离散事件对象、事件记录、边沿触发、事件身份、服务端/客户端分工、MOD_EVENT 占位
-> 关联：`object-model.md`、`runtime-evaluation.md`、`loop-execution.md`；参考 `docs/SCRIPT_FORMAT.md` §7–§8、`trigger/server/ScriptEventManager.java`、`script/PlayerMoveController.java`
+> 关联：`object-model.md`、`runtime-evaluation.md`、`loop-execution.md`、`rule-system.md`（本轮规则方向）、`../C-trigger/condition-system.md`（C 轮 v1 旧实现参考）；参考 `docs/SCRIPT_FORMAT.md` §7–§8、`trigger/server/ScriptEventManager.java`、`script/PlayerMoveController.java`
 
 ## 一、摘要
 
-EVENT / MOD_EVENT 不是采样轨道：事件是**离散边沿**，不是随时间插值的数值。它们仍放在 `objects` 字段容器里，但字段是 `event`（MOD_EVENT 是 `mod_event`），关键帧值是事件记录，`interp` 为无；运行时按时间游标触发一次，不做值插值。EVENT 记录至少包含 `command`，可选 `position`（玩家移动目标）；MOD_EVENT 记录包含 `event_type`/`data`。事件身份 = 播放实例 + clip + 对象路径 + 事件索引；不再用 `clipIndex<<16|kfIndex` 这种位打包键。
+EVENT / MOD_EVENT 不是采样轨道：事件是**离散边沿**，不是随时间插值的数值。它们仍放在 `objects` 字段容器里，但字段是 `event`（MOD_EVENT 是 `mod_event`），关键帧值是事件记录，`interp` 为无；运行时按时间游标触发一次，不做值插值。EVENT 记录至少包含 `command`，可选 `position`（玩家移动目标）；MOD_EVENT 记录包含 `event_type`/`data`。事件身份 = 播放实例 + clip + 对象路径 + 事件索引；不再用 `clipIndex<<16|kfIndex` 这种位打包键。规则动作、成功事实、实例级挂起与延迟动作不改变 EVENT 的事件身份、去重或命令协议；规则命令请求见 `rule-command-trust.md`。
 
 ## 二、为什么做
 
@@ -28,7 +28,7 @@ EVENT / MOD_EVENT 不是采样轨道：事件是**离散边沿**，不是随时�
 
 ### 2.3 非目标
 
-- 不实现新的命令类型/权限模型；`command` 仍走现有服务端执行链。
+- 不实现新的命令类型/权限模型；EVENT 的 `command` 仍走现有服务端执行链；规则 `emit_command` 的信任边界见 `rule-command-trust.md`。
 - 不实现 `MOD_EVENT` 的第三方消费；本轮只定义格式/校验/占位。
 - 不把 EVENT 变成可循环反向的轨道；`pingpong` 在 EVENT 上拒绝。
 - 不改变 `PlayerMoveController` 的移动数学；只改变事件记录来源/配对方式。
@@ -71,9 +71,9 @@ EVENT / MOD_EVENT 不是采样轨道：事件是**离散边沿**，不是随时�
   - 事件时间相同（同一对象内不允许）不会出现；不同对象/不同 clip 可以同时间，按 clip/轨道顺序。
 - `command` 为空 = 占位，标记已触发但不执行。
 - 暂停/挂起：事件时间线随实例暂停，恢复从内容位置继续；不按墙钟补触发。
-- seek：跳到目标时间后，游标重置到“目标时间之后的下一个事件”；目标时间之前的事件不补触发。若作者需要 seek 后重放，使用规则动作/重新播放，不在事件层做。
-- 循环：EVENT 不参与客户端循环；服务端 EVENT 按自己的时间线推进，事件只触发一次，不按片段执行次数重复。片段级 `loop` 不改变服务端事件的重复性；宏观循环也不重放服务端 EVENT（现有口径）。`pingpong` 在 EVENT 上拒绝。
-- 如果作者需要“每次执行都执行命令”，不要依赖 EVENT 循环；用规则动作/显式分段/多条事件轨道表达。该边界在 `loop-execution.md` §3.5 统一说明。
+- seek：跳到目标时间后，游标重置到“目标时间之后的下一个事件”；目标时间之前的事件不补触发。若作者需要 seek 后重放，使用 seek 目标之后的规则时间入口/重新播放，不在事件层做；规则的时间条件不以是否存在跨越事件为前提，详见 `rule-time-gate.md` §三。
+- 循环：EVENT 不按片段执行次数重复。服务端事件游标按实例的事件时间线推进，每条事件只触发一次；片段级 `loop` 与宏观循环都不改变这一点。`pingpong` 在 EVENT 上拒绝。
+- 如果作者需要“每次执行都执行命令”，不要依赖 EVENT 循环；用脚本级规则集合的时间入口（引用片段与局部时间，时间条件是必选执行资格门）/显式分段/多条事件轨道表达。规则入口按片段执行独立判定；门前事实采集属于规则运行态，不是 EVENT 重放；动作走动作路径，不复用 EVENT 的事件身份，不改变服务端 EVENT 的去重边界与命令协议。该边界在 `loop-execution.md` §3.5 与 `rule-exits.md` §五统一说明。
 - 客户端 `PlayerMoveController` 读同一事件记录：只处理带 `position` 的记录；`command` 记录忽略。服务端只处理 `command`，忽略 `position`。两边用同一事件身份去重/对齐。
 
 ### 3.3 事件身份
@@ -82,6 +82,8 @@ EVENT / MOD_EVENT 不是采样轨道：事件是**离散边沿**，不是随时�
 - 服务端/客户端各自持有已触发集合；`instanceId` 区分同脚本多实例。
 - 不再使用 `clipIndex<<16|kfIndex`；事件数量不受 16 位限制。
 - 事件记录可以带作者 `id`（可选字符串）用于跨脚本/跨实例识别；没有 `id` 时用 `EventKey`。本轮不要求 `id`，但 schema 预留。
+- 规则动作 `emit_command` 走动作路径，不复用 `EventKey`，也不改变 EVENT 的每实例一次语义；规则按执行判定不等于 EVENT 重放，也不改变 EVENT 的命令协议。规则命令请求按 `rule-command-trust.md` 收紧。规则门前采集的事件事实属于规则绑定／执行上下文，不写入 EVENT 的已触发集合。
+- 规则成功事实、实例级挂起与延迟动作属于规则系统；它们不写入 EVENT 的已触发集合，也不改变 EVENT 游标。待执行动作参与自然完成，不由 EVENT 游标或命令协议解释。
 
 ### 3.4 MOD_EVENT
 
@@ -149,11 +151,13 @@ EventRecord
 
 ### 4.4 边界
 
-- 不改变命令执行/权限/回执；`command` 仍走服务端现有链路。
+- 不改变 EVENT 的命令执行/权限/回执；EVENT 的 `command` 仍走服务端现有链路。规则 `emit_command` 的请求与权限见 `rule-command-trust.md`。
 - 不改变玩家移动数学；只改变配对来源。
 - 不把事件做成可插值对象；`interp` 无。
 - 不实现 MOD_EVENT 消费；占位。
 - 不参与相机/覆盖层/调色采样。
+- 分支片段与主线片段共用同一事件对象、记录与事件身份模型；分支来源不改变 `EventKey`、去重或 EVENT 命令协议；规则命令请求见 `rule-command-trust.md`。正常完成去向与失败 fallback 属于分支出口策略，不由事件层解释。
+- 规则控制阶段（判定、实例级挂起、事实接力、动作延迟）与 EVENT 触发是不同契约；EVENT 只按自身时间线触发一次，不因规则状态重放或延迟。
 
 ## 五、为什么不选别的
 
@@ -164,13 +168,14 @@ EventRecord
 | 一条事件一个对象 | `event.1`、`event.2`…… | 对象数量爆炸；顺序/身份/编辑器都复杂 | 一个 `event` 对象 + keyframes |
 | 服务端/客户端各自解析旧 keyframes | 保留 `clipIndex<<16\|kfIndex` | 位打包上限；对象模型无 kfIndex；两套解析 | 统一 `EventKey` |
 | EVENT 参与 pingpong 反向 | 反向触发命令 | 命令反向执行没有语义；服务端状态不可逆 | 拒绝 pingpong |
+| 规则动作并入 EVENT 去重身份 | 规则触发的命令复用 `EventKey`，或按规则状态重放事件 | 事件语义被规则运行态污染；循环／多绑定导致事件重复或漏发 | 规则动作走动作路径；EVENT 保持每实例一次与自身去重 |
 
 **本方案的缺点**：
 
 - 事件记录是“对象容器里的非插值值”，类型系统要多一个 `event_record`；与“叶子对象”原则有例外，需要在文档/编辑器里解释。
 - 一个 clip 只允许一个事件对象，事件分组要靠多条轨道；轨道数量可能增加。
 - 服务端/客户端双端各自持有 runtime，去重/seek 行为要严格对齐，否则命令/移动会重复或漏。
-- 宏观循环不重放 EVENT、片段级循环重放 EVENT 的差异需要作者理解。
+- 片段级循环与宏观循环都不重放服务端 EVENT；作者若期望每圈执行命令，需要改用规则时间入口的动作或显式分段。
 - `position` 记录仍是 map，不是叶子；玩家移动无法只动 x 或 z 的关键帧，但事件本来就是离散点，不需要插值。
 
 ## 六、实现结果

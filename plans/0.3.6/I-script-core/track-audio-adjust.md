@@ -62,14 +62,14 @@ AUDIO 的 `volume`/`x`/`y`/`z` 是对象；`sound`/`source`/`pitch`/`file_loop`/
 | `position_mode` | enum `relative`/`absolute` | x/y/z 解释 |
 | `category` | enum `music`/`ambient` | 类别 |
 
-- `rules` 仍是 clip 外层字段（播放控制/规则），不在 value-only 表里。
+- 规则声明属于脚本级独立集合，通过片段引用定位，不是 AUDIO 数值属性；本轨道字段表不承载规则容器，也不在 clip 上新增 `rules`。规则的时间门、条件、门前事实采集、实例级挂起、事实接力与延迟动作由规则集合负责；本轨道只提供片段局部时间轴与对象关键帧。
 - 片段执行循环使用公共 `loop`/`loop_count`/`loop_mode`；`pingpong` 在 AUDIO 上 validator 拒绝（音频反向播放没有意义）。
 - `file_loop` 与执行 `loop` 可以同时存在：执行次数决定片段被调度几次；音频实例仍按现有循环设计复用——跨执行边界仍然活跃的实例不重启，不再活跃的实例下次执行重新起；`file_loop` 只控制实例内部的文件循环。
 - `fade_in`/`fade_out` 是 value-only 包络，不按执行次数自动重计时；是否重新淡入由音频实例是否重建决定。
 
 ### 3.3 ADJUST 对象（59 通道）
 
-全部 `float`、`linear`；缺省除强度类为 1 外均为 0。顺序 = 着色器操作栈顺序。
+全部通道为 `float`、采用 `linear`；缺省除强度类为 1 外均为 0。下表按功能分组，既不是 JSON 字段的执行顺序，也不由参数包排列决定着色器运算；通道数学按 A 轮操作栈。
 
 | 组 | 对象路径 | 缺省 | 说明 |
 |---|---|---|---|
@@ -100,7 +100,8 @@ AUDIO 的 `volume`/`x`/`y`/`z` 是对象；`sound`/`source`/`pitch`/`file_loop`/
 | `lut_input_gamma` | float | >0，缺省 1 |
 | `blend_mode` | enum | `normal`/`multiply`/`screen`/`soft_light`/`overlay` |
 
-- `rules` 仍是 clip 外层字段（播放控制/规则），不在 value-only 表里。
+- 规则声明属于脚本级独立集合，通过片段引用定位，不是 ADJUST 通道属性；本轨道字段表与调色参数包都不承载规则容器。规则的时间门、条件、门前事实采集、实例级挂起、事实接力与延迟动作由规则集合负责。
+- 路径曲线属于脚本级曲线集合，绑定片段内位置对象/对象组的两个相邻关键帧；`rgb_curve`/`r_curve`/`g_curve`/`b_curve` 与六条 hue 曲线是调色结构定义，不属于该集合，也不因曲线集合改变。
 - 曲线/LUT 是结构/文件引用，不随时间变；只有强度是对象。
 - `lut_input_gamma` 是 value-only 常量；不关键帧。
 - `blend_mode` 是 value-only 枚举；`blend_amount` 是对象。
@@ -134,7 +135,7 @@ AdjustClipRuntime
 ```
 
 - `SampledClip` 的 audio 槽位：volume/x/y/z；adjust 槽位：59 个 float。
-- `ColorAdjustParams` 的字段顺序 = schema 顺序 = fsh 栈顺序；三处同步。
+- 参数包、schema 与具名 shader uniform 的通道映射必须一致；字段排列不是实际运算顺序。片段声明要有哪些效果，画面叠放按轨道层级与播放实例执行顺序，通道内部数学按 A 轮固定操作栈；不把 JSON 顺序解释成作者指定的滤镜链。
 - `CinematicAudioInstance` 仍持有 OpenAL 源/衰减/循环；参数来自采样。
 
 ### 4.2 契约

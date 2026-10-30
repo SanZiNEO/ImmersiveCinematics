@@ -28,7 +28,7 @@
 1. **批次 A（调色）**：A1–A14 全部 ✅（含 LUT、六色带、混合模式、多实例 master 叠加 A13'）。
 2. **批次 B（相机底层）**：B1–B19 全部 ✅（覆盖链、坐标系统一、选择器通用化、数学模型库、时间插值、过渡、迟滞、核心拆分+api 包）。
 3. **批次 C**：C4 动作面收敛 ✅；C5/C6/C7 设计已定稿（`playback-relations.md` / `condition-system.md` / `point-source-time-mode.md`），实现 ☐；C1/C2/C3 ☐。
-4. **批次 D/E/F/G/H**：D 全 ☐；E 归编辑器阶段（E0 已重审）；F 全 ☐；G6 ✅（标注）、G1–G4 ☐、G5 归编辑器；H4 ✅、H1/H2/H5/H6 ☐。
+4. **批次 D/E/F/G/H**：D 全 ☐；E 归 Z 轮（E0 已重审）；F 全 ☐；G6 ✅（标注）、G1–G4 ☐、G5 归 Z 轮；H4 ✅、H1/H2/H5/H6 ☐。
 5. **P1/P3** 计划文档 ✅，P1-impl / P3-impl ☐；CLEANUP-2 ✅，CLEANUP-3（注释收敛）☐。
 
 > 由此产生的核心矛盾：`implementation-audit-2026-10-07.md`、`next-phase-batches.md` 两份「开工前」元文档的结论均早于 B 轮完成（`re/` 已删除），其中「math-models / hysteresis / camera-core-split 未实现」「过渡/时间插值/坐标系/选择器部分实现」等判定现已全部失效。

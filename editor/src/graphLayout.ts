@@ -4,7 +4,7 @@
 // 数据来自 Java 侧 script.graph（见 ScriptGraphService）：
 //   节点 = 脚本；边 = 触发器 requires 前置依赖（被依赖 → 依赖方）；分区 = 文件夹。
 //
-// 布局口径（plans/0.3.6/editor-script-graph.md §3）：
+// 布局口径（plans/0.3.6/Z-editor/script-graph.md §三、§九）：
 //   - 分区 = 泳道：每个文件夹一条横向泳道（分组外框 + 标题），泳道左边缘对齐，
 //     列（层）跨泳道对齐——跨文件夹的依赖边因此仍然是从左到右的流向；
 //   - 分区内按依赖拓扑分层：被依赖的靠左，依赖方靠右；

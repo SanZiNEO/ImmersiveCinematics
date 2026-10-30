@@ -1,11 +1,19 @@
+> **过期文档（OUTDATED）——不得作为当前设计或实施依据**
+>
+> 本文未随最新设计更新，仅保留作历史参考。AI 与自动化工具不得据此推断当前格式、功能状态、接口或实施要求，也不得直接照搬其中示例用于新实现。
+>
+> 当前规划请先查阅 [0.3.6 计划状态索引](../../plans/0.3.6/README.md) 与 [I 轮实施基准](../../plans/0.3.6/I-script-core/README.md)，再按状态查阅对应未完成轮次。
+>
+> 计划目标不代表已经实现；核实当前代码行为时须结合源码，不得将旧文或未实现计划当作现状。
+
 # editor（编辑器：WebUI 服务端 + 独立前端）
 
 对应路径：
 - WebUI 服务端：`common/src/main/java/com/immersivecinematics/immersive_cinematics/webui/`
 - WebUI 前端：`editor/`（Electron + Vue 3 独立程序，不打包进 mod）
 
-> **游戏内 Java 编辑器已退役（0.3.6）**：`common/.../editor/` 整包（62 文件 / 10,176 行）、`client/EditorBridgeImpl`、F6 键绑定与 `EDITOR_ENABLED` / `Config.editorEnabled` 开关全部删除，仅编辑器使用的 lang 键一并清理；删除清单见[编辑器 WebUI 迁移](../../plans/0.3.6/editor-webui-migration.md) §4。
-> 0.3.5 的预设系统（`editor/preset/`，含环绕轨道预设）随包删除——模板体系将来从零新建，见 [templates](../../plans/0.3.6/templates.md)。
+> **游戏内 Java 编辑器已退役（0.3.6）**：`common/.../editor/` 整包（62 文件 / 10,176 行）、`client/EditorBridgeImpl`、F6 键绑定与 `EDITOR_ENABLED` / `Config.editorEnabled` 开关全部删除，仅编辑器使用的 lang 键一并清理；删除清单见[实现结果](../../plans/0.3.6/Z-editor/implementation.md) §三。
+> 0.3.5 的预设系统（`editor/preset/`，含环绕轨道预设）随包删除——模板体系将来从零新建，见 [templates](../../plans/0.3.6/Z-editor/templates.md)。
 > 脚本格式与字段 schema 不受影响：权威仍在 `script/`（见 [script.md](./script.md)）。
 
 功能树：

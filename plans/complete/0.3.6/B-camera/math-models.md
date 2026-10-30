@@ -11,6 +11,8 @@
 > - [时间插值](temporal-interpolation.md)
 > - [过渡](transition.md)
 > - [迟滞](hysteresis.md)
+>
+> 归档边界：本文保留数学模型公式与 B16 已完成结果；§7.2 是当时的 lane 级接线，不是后续装配目标。每侧完整状态、每帧单次推进与过渡只消费快照的目标见 [I 轮相机](../../../0.3.6/I-script-core/track-camera.md) 与 [运行时求值](../../../0.3.6/I-script-core/runtime-evaluation.md)；该接线改造未实现。
 
 ---
 
@@ -320,7 +322,7 @@ public final class MathModelRegistry {                    // script/schema，Fie
   - **`inertia` 已随 B19 入批**（`math/InertiaModel`，2026-10-11）：阻尼基准随输入运动的二阶追踪（参数同 `spring`；跟随移动目标稳态零滞后、起步慢、停止后过冲再回稳）。**「输入变化率驱动的动量延续 + 静止衰减」的收敛形态与 `exponential_smooth` 数学等价**（`x' = v`、`v' = (target' − v)/τ` 且播种 `x = target` ⟹ `X(s) = Target(s)/(1 + τs)`），故粘滞不另立型——见 `hysteresis.md`「定稿与落地记录（2026-10-11，B19）」。
 - **输入源族（§3.6）v1 不实现**：输入由调用方提供（§1「调用方只提供输入和上下文」）；接口以 `inputArity() = 0` 预留无输入源模型。
 
-7.2 **B16-c 接入面**（第一个调用方 = 相机参数运动，与 B19 共享）：
+7.2 **B16-c 已实现接入记录**（历史 lane 级接线；I 轮目标改造未实现）：
 
 - 接入点 = 六参数最终目标值的**唯一写入口**：关键帧 / morph 混合（`renderMorph`，`CameraTrackPlayer.java:304`）→ **每通道模型 step** → 呼吸叠加（Modifier 语义：`camera-state-plan.md` §5.2 把「呼吸扰动」列在 Modifier 层）→ 直写（`CameraTrackPlayer.java:1032` / `:1057-1058`）。依据：`hysteresis.md` §5「Base Provider 产出目标值 → 迟滞 / 数学模型计算实际值 → CameraState 基础状态」。
 - **每 lane 每帧单次 step**：`capture` 路径（非顶层 lane / morph 两端捕获）与顶层写入共享同一次求值结果，禁止同一实例一帧推进两次。

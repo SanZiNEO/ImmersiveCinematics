@@ -25,7 +25,7 @@ plans/0.3.6/
 ├── editor/
 │   ├── editor-webui-migration.md   # 只留 §2 通信协议现状 + 未决项；退役过程归档
 │   ├── editor-script-graph.md
-│   └── templates.md                # 改写为「编辑器阶段规格 + 待删运行时清单」
+│   └── templates.md                # 改写为「Z 轮规格 + 待删运行时清单」
 │
 ├── trigger-runtime/                # 触发器与运行时表现
 │   ├── trigger-conditions.md

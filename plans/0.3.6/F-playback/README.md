@@ -80,7 +80,7 @@
 ### camera-composition
 
 - `dest` 矩形之外无 lane 覆盖时的兜底：现状 = 露原版玩家视角；是否改黑场未定（§5）。
-- 编辑器预览的多 lane 合成表现（步骤 6，归编辑器阶段）。
+- 编辑器预览的多 lane 合成表现（步骤 6，归 Z 轮）。
 - 与 HUD / letterbox 的叠放顺序：合成层写主 framebuffer、在原版 GUI 之前；letterbox 属 OVERLAY 层，层级 / z 序基线待定（§5）。
 - 主 lane 判定规则（§6）。
 - 跨脚本 lane 寻址（候选 B「合成导演」的前置，§6）。

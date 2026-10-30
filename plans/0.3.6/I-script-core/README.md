@@ -1,8 +1,8 @@
 # I 轮：脚本底层重构与运行时媒体能力（索引 / 决策日志）
 
-> 状态：方向已定，详细文档已写，未实现
-> 范围：对象-关键帧组、schema/类型、运行时求值、各轨道装配、片段循环、删除 `meta.version` / `timeline.total_duration`、迁移、编辑器对象模型、验收；视频播放/传输属于运行时底层能力，不改脚本字段，见 `media-video.md`
-> 关联：`G-script-model/script-model.md`（G1/G2 被本轮吸收，G3 延后）、`done/script-loop.md`（片段级折叠作废）、`F-playback/`、`docs/SCRIPT_FORMAT.md`
+> 状态：未实现；规则与曲线采用脚本级独立集合、通过片段引用定位内容，具体引用与序列化待结构评审；规则控制、实例级挂起、事实接力与延迟动作方向已确认；正常后继已确认由片段默认、入口显式覆盖优先；行为约束与现有实现结果分别记录
+> 范围：对象-关键帧组、schema/类型、运行时求值、脚本级规则/曲线集合、规则命令信任边界、各轨道装配、片段循环与分支出口、删除 `meta.version` / `timeline.total_duration`、迁移、验收；视频播放/传输属于运行时底层能力，不改脚本字段，见 `media-video.md`；编辑器对象模型归 `Z-editor/object-model.md`，I 轮只定义运行时脚本对象模型。
+> 关联：`G-script-model/script-model.md`（G1/G2 被本轮吸收，G3 延后）、`F-playback/`、`docs/SCRIPT_FORMAT.md`
 
 本页只做索引和决策记录，不重复各文档的正文。一个点一篇文档；接口、字段、公式、迁移步骤以各文档为准。
 
@@ -15,85 +15,146 @@
 | [object-model.md](object-model.md) | 字段形态（value/animated/event）、路径、取值/插值/边界、依赖前置条件 | 未实现 |
 | [schema-and-types.md](schema-and-types.md) | schema 声明、字段模式/类型、插值推导、parser/validator/editor/模板契约 | 未实现 |
 | [runtime-evaluation.md](runtime-evaluation.md) | 同一 executionLocalTime 采样、装配边界、缓存/零分配、morph/lane 求值 | 未实现 |
-| [track-camera.md](track-camera.md) | CAMERA 字段表、curve 轴组合、orient/offset、位置/朝向装配、点源/选择器、morph/motion/breath/modifier | 未实现 |
+| [track-camera.md](track-camera.md) | CAMERA 字段、位置曲线绑定、独立参考系、朝向覆盖、A/B 实际状态采样、motion/breath/modifier | 未实现 |
 | [track-overlay-letterbox.md](track-overlay-letterbox.md) | OVERLAY fade/image/subtitle 字段、颜色/遮罩/渐变、LETTERBOX | 未实现 |
 | [track-audio-adjust.md](track-audio-adjust.md) | AUDIO 字段/value-only、ADJUST 59 通道、曲线/LUT/混合 | 未实现 |
 | [track-event.md](track-event.md) | EVENT/MOD_EVENT 离散记录、边沿触发、事件身份 | 未实现 |
-| [loop-execution.md](loop-execution.md) | 按次数执行、executionLocalTime、展开窗口、pingpong、执行边界状态、宏观循环 | 未实现 |
-| [format-cleanup.md](format-cleanup.md) | 删除 version/total_duration、contentEnd/infinite、触点/旧字段拒绝 | 未实现 |
-| [migration.md](migration.md) | 一次性转换器、稀疏保真、curve 原样迁移、orient/offset 保留、验收/回滚 | 未实现 |
-| [editor-object-model.md](editor-object-model.md) | 编辑器字段模型、关键帧 UI、缓动烘焙、curve/orient/offset 编辑、保存/校验 | 未实现 |
+| [loop-execution.md](loop-execution.md) | 按次数执行、执行身份与局部采样、分支片段出口、语义完成、无限编排 | 未实现 |
+| [rule-system.md](rule-system.md) | 规则与曲线索引：与触发器的关系、共同时间基准、分篇地图 | 未实现 |
+| [rule-collection.md](rule-collection.md) | 规则集合五层（定义/绑定/激活/事实/调度）、多条目多入口、归属与身份 | 未实现 |
+| [rule-time-gate.md](rule-time-gate.md) | 片段局部时间基准、时间门（`>=`）、门前采集与门后提交、条件树 | 未实现 |
+| [rule-suspension.md](rule-suspension.md) | 实例级挂起、多来源持有记账、释放条件可达性 | 未实现 |
+| [rule-facts-scheduling.md](rule-facts-scheduling.md) | 事实接力、判定成功与动作完成分离、延迟动作与承诺动作 | 未实现 |
+| [rule-exits.md](rule-exits.md) | 正常完成 / 失败 fallback、退出三族、循环与 EVENT 边界 | 未实现 |
+| [rule-command-trust.md](rule-command-trust.md) | `emit_command` 的客户端→服务端信任边界：动作引用、实例授权、命令源权限、旧协议处置 | 未实现 |
+| [curve-collection.md](curve-collection.md) | 脚本级曲线集合：定义/绑定、目标片段 + 相邻端点对、几何与进度、多条目 | 未实现 |
+| [rule-implementation.md](rule-implementation.md) | v1 基线、当前实现速查、差距表、结构评审项汇总 | 记录 |
+| [format-cleanup.md](format-cleanup.md) | 删除 version/total_duration、有限末端与显示范围、定位约束、旧字段拒绝 | 未实现 |
+| [migration.md](migration.md) | 一次性转换器、稀疏保真、旧曲线逐段展开、orient/offset 保留、验收/回滚 | 未实现 |
 | [media-video.md](media-video.md) | 运行时视频解码/播放、预览编码流、媒体分片传输；不改脚本字段 | 未实现 |
-| [acceptance.md](acceptance.md) | 数据/相机/覆盖层/音频/事件/循环/迁移/编辑器/真实机器矩阵 | 未实现 |
+| [acceptance.md](acceptance.md) | 数据/相机/覆盖层/音频/事件/规则集合/规则控制/曲线集合/分支/循环/迁移/编辑器消费契约（按 Z）/真实机器矩阵 | 未实现 |
 
-## 二、已定决策
+编辑器对象模型（属性/结构编辑、曲线/规则绑定编辑、保存/校验）归 `Z-editor/object-model.md`；I 轮只定义运行时脚本对象模型，不重复编辑器的数据/交互契约。
 
-以下决策由用户口径 + 现有计划推导，写在对应文档里；如果与你的想法不同，直接改文档，不要改实现去猜。
+规则与曲线按“一篇一个可独立执行的目标”拆开：索引与跨篇口径见 [`rule-system.md`](rule-system.md)，集合/时间门/挂起/事实调度/出口/曲线/实现基线各一篇。`C-trigger/condition-system.md` 只保留 C 轮既有实现记录，新改造归 I 轮、不重开 C 轮。规则声明与曲线声明由脚本级独立集合承载，通过引用定位片段及片段内对象/相邻位置节点；片段仍是执行与编排单元，轨道中的片段保持现有组织方式。目标不把规则固定为 `clip.rules`，也不把曲线固定为 `objects.curve` 或新增轨道。
 
-1. **字段是叶子，路径扁平；`objects` 是字段容器。** `objects` 是 `{path: {value, keyframes[]}}`；路径是点分字符串。已有标量字段名保留；只有 JSON map 展开（`position.x`、`dest.w`、`source.h`、`color.r`、`offset.x`）。嵌套 JSON 只作为编辑器呈现，不是运行时格式。
-2. **同一片段所有字段在同一 `executionLocalTime` 采样，采样后再装配。** 不再有共享 `from/to` 快照；不再有 per-frame `frame` 隐藏字段；轨道装配顺序显式。
-3. **`curve`/`orient`/`yaw_offset`/`pitch_offset` 是运行时字段，不烘焙。** `curve` 是一个整体字段，不拆成 `curve.x/y/z`：它带一个**轴集合**（至少两个轴，顺序无关，允许 `["y","x"]` 这类写法）和两个 3D 控制点；轴集合选 2 轴时做该平面内的 2D 弧长，选 3 轴时做 3D 弧长。`curve` 是**片段级一份**，同一组控制点对每个“位置组”段复用；位置组 = `position.x/y/z` 同时间关键帧；**有 `curve` 时三轴关键帧时间集合必须完全一致，每个时间点三轴都要有显式值**，缺值/不对齐 = validator 错误；没有 `curve` 时三轴仍可独立。`orient` 是 value-only 模式；`yaw_offset`/`pitch_offset` 是 animated 字段，前置条件 `orient=tangent`，可逐关键帧微调。运行时保留 `BezierPathStrategy`/`TangentOrientation`，按轴集合求值/导数。`curve` 在段的空间内求值（`world` 用世界坐标，`base` 用 fwd/up/right）；动态参考系不改变曲线语义。
+### 1.1 实施基准与承接关系
+
+本轮新目标只以下列专篇为唯一权威；旧文档保留历史实现事实或数学依据，不反向定义新语义。
+
+| 能力 | 本轮唯一权威 | 旧依据的承接 |
+|---|---|---|
+| 规则集合、多入口 | `rule-collection.md` | C 轮 `condition-system.md` v1（`clip.rules`）只作既有实现基线；片段级数组由脚本级定义 + 绑定替代 |
+| 时间门、门前采集、条件树 | `rule-time-gate.md` | v1 片段活跃窗槽位与时间条件不再定义目标 |
+| 实例级挂起、持有记账 | `rule-suspension.md` | v1 `until` / `pause` 同片段释放只作实现记录 |
+| 事实接力、延迟动作 | `rule-facts-scheduling.md` | v1 成功即提交、无事实层 |
+| 正常/失败出口、退出边界 | `rule-exits.md` | v1 `goto_clip` 与内容播完判定只作基线 |
+| 循环、执行身份、完成事实、无限编排、分支出口 | `loop-execution.md` | 现行实现的取模/终点截断只作迁移证据；目标按执行次数与完成事实 |
+| 相机、过渡与运行时装配 | `track-camera.md`、`runtime-evaluation.md` | B 轮坐标/覆盖链/过渡数学沿用；A/B 各自实际状态采样、每帧推进与 lane 装配按 I 轮 |
+| 对象、字段与 schema | `object-model.md`、`schema-and-types.md` | G1/G2 被本轮吸收；G3 延后；旧 `Keyframe` 全字段快照与复合整体插值不再定义目标 |
+| 曲线集合 | `curve-collection.md`（集合契约）、`track-camera.md`（相机侧装配）、`Z-editor/object-model.md`、`migration.md` | 旧 `clip.getCurve` 单份曲线只作迁移参照；目标为脚本级集合中的相邻段绑定 |
+| 模板 | `Z-editor/templates.md` 仅作生成物消费者 | 模板不承载运行时结构；生成物遵循 I 轮对象/规则/曲线契约，展开仍在编辑器侧 |
+
+## 二、模型建议与已确认约束
+
+本节区分推荐的类型职责、已确认行为与待评审结构。现有实现只提供基线与迁移证据，不作为目标能力上限。
+
+**片段是执行与编排单元。** 起始时间映射为局部原点，持续时间定义采样范围；有序关键帧提供局部位置与相邻关系。局部坐标用于属性采样、曲线求值和规则时间门，执行身份与完成事实负责调度，不由显示时长代替。内容组织仍是片段 → 对象集合 → 每个对象自己的关键帧序列；规则/曲线集合只通过引用定位，不改变片段内部对象与关键帧的归属，也不把对象变成轨道。
+
+推荐的概念分层如下；名称用于说明职责，不是已定稿的 JSON 字段或公开类名：
+
+| 概念 | 归属 | 职责与边界 |
+|---|---|---|
+| 采样属性（SampledProperty） | 片段 `objects` | 固定值与本属性关键帧产生参数值；不依赖其它属性的共享快照 |
+| 规则定义（RuleDefinition） | 脚本级集合 | 内层条件组合树、动作与策略的不可变定义；可复用，不持有计时、`once`、边沿或等待状态 |
+| 规则绑定（RuleBinding） | 脚本级集合 | 引用规则定义、目标片段与必选外层时间门；时间门控制执行资格，门前事件/事实可采集、动作在门后确认提交；同一规则可有多个独立绑定，各绑定有独立身份 |
+| 曲线定义（CurveDefinition） | 脚本级集合 | 保存两个相邻位置关键帧之间的段几何、控制点参考空间与所选轴；承担原路径段的区间求值职责，不保存播放进度 |
+| 曲线绑定（CurveBinding） | 脚本级集合 | 引用目标片段、目标位置对象/对象组及该序列中的两个相邻关键帧；一条曲线一个绑定 |
+| 规则激活（RuleActivation） | 播放实例 | 按（播放实例，绑定身份，片段执行身份）保存观察、计时与等待状态，随生命周期回收 |
+| 规则事实（RuleFact） | 播放实例 | 判定成功、动作完成/取消、片段开始/完成等可引用事实；按实例/绑定/执行定位，不共享定义状态 |
+| 显式暂停持有（PauseHold） | 播放实例 | 声明式暂停本实例全部内容推进，等待判定或外部条件；多个持有来源独立记账，最后一个解除才恢复 |
+| 待执行动作/等待条件（PendingAction） | 播放实例 | 成功后尚未提交的动作及其片段/局部时间/事实释放条件；不默认持有内容进度，作为完成依赖记账 |
+
+**组合优先、通道级覆盖。** 无语义冲突的能力允许组合；发生冲突时明确被覆盖的通道与仍参与的部分，不扩大为整组互斥。定义与运行态分离，创作策略与执行机制分离；运行时不替作者选择镜头拆分或效果组合。
+
+1. **字段是叶子，路径扁平；`objects` 是字段容器。** 数值字段持有固定 `value` 与可选关键帧；关键帧采样结果优先于固定值，缺省再取 schema 默认值。已有标量名保留，复合数值按分量展开；运行时只读作者数据。
+2. **位置与朝向各自明确参考系，先采样再装配。** 同一次执行的字段使用同一局部采样位置；参考系与点源结果显式传递，不读取另一通道遗留的可变 `frame`。相机状态、覆盖链、过渡与 lane 都属于模组内部模型，原版相机只承担渲染适配。
+3. **曲线声明在脚本级独立集合，绑定片段内目标位置对象/对象组的两个相邻关键帧。** 绑定顺序是先选片段，再选该片段目标位置对象或对象组，再在该目标位置节点序列中选两个相邻关键帧；相邻性只在目标位置节点序列内判断，不把 FOV、调色等其它对象的关键帧并入全片段总编号。一个片段可以有多条曲线/多段路径，每条绑定只使用自己的控制点定义，不隐式复制同一份控制点。保留当前三次贝塞尔数学（两个内部控制点、XYZ 分量可独立编辑）、明确控制点参考空间、所选轴与进度；未选轴仍按自身属性关键帧求值，曲线存在不强制全片段三轴成组。插入/重排关键帧须保持明确绑定或显式重建；不强制某一种细分算法，也不拒绝作者有意改变形状。路径几何与段进度分层，缓动不能靠插位置帧后复用旧控制点破坏路径。`orient` 为 value-only，`yaw_offset`/`pitch_offset` 为 animated；详见相机、schema、编辑器和迁移专篇。
 4. **位置 = 点源 + 偏移；绝对位置 = 无点源的世界坐标。** 点源 = 来源 + 偏移 + 表达空间 + 冻结开关，来源分静态/动态：静态 = 玩家激活位置/固定坐标/结构/方块/实体冻结，动态 = 实体实时。字段统一为 `position_mode`（absolute/relative）、`position_space`（world/base）、`position_origin`（玩家激活/坐标/实体选择器/方块/结构）、`position_origin_freeze`（bool，true = 固定首次解析到的坐标，含偏移展开）；`follow`/`follow_selector` 不再是新格式字段，“跟随实体”= `position_origin=<实体选择器>` + `position_origin_freeze=false`。`absolute` 时原点必须为空；`absolute`+`base`、`absolute`+非空原点错误；`relative` 空原点：`world` 缺省玩家激活位置（静态），`base` 缺省隐式 `@p`（不冻结）；`base` 的方向源由 `facing_source` 单值选择：`auto`（缺省）/ `world` / `entity` / `line`；`auto` 有 `facing_target` → line、有 `facing_entity` → entity、都没有按原点回落（实体选择器 / 隐式 `@p` / `player` → entity；坐标 / 方块 / 结构 → world fwd=+Z、right=-X、up=+Y）；`auto` 下两个载荷同时非空 = 错误；显式 `world`/`entity`/`line` 只读各自载荷，未选中载荷警告。`facing_entity` 只取 body yaw 且无冻结开关；base 轴没有独立角度偏移字段。切换点必须和位置关键帧同一时间，否则 validator 报错。
-5. **`look_at=none` 保持现行语义。** 仍用 100 格远伪目标供两端目标点插值复用；是否改成纯手动朝向另开设计，I 轮不偷偷改。
+5. **`look_at` 覆盖它负责的朝向结果，不定义位置参考系。** 手动朝向先按各轴基准、锁与采样偏移求值；启用注视时按目标产生相应朝向，未覆盖通道仍可组合。两端均为 none 时按手动角度插值，不强加远点模型；混合段也不能用内部远点技巧绕过声明的朝向参考系。`look_at` 只覆盖其语义负责的朝向通道，不排斥位置曲线或其它独立通道。
 6. **矩形/颜色/遮罩/渐变拆叶子；遮罩/渐变保留现有标量名。** `dest`/`source` → `.x/.y/.w/.h`；`color` → `.r/.g/.b`；`mask_x`/`gradient_angle` 等已是标量，不改名。
-7. **插值只有 linear / angle / geometric / step。** 数值默认 linear；yaw/roll/lock 角度；`zoom` 几何；枚举/字符串/布尔/引用/可空数值 step。不引入缓动；编辑器烘焙。
-8. **循环 = 片段级执行次数，不是时间折叠/重新计时。** 声明 `loop` 的片段按 `loop_count` 执行 N 次；每次执行有自己的 `executionLocalTime`。只有循环片段重复，其他片段仍按自己的 `start_time`/`duration` 执行一次。`windowEnd = start + duration × N` 是展开结果，不是驱动时钟。`pingpong` 是每次执行内的遍历模式，只允许视觉轨道；AUDIO/EVENT/MOD_EVENT 拒绝。
-9. **执行边界状态按现有循环设计。** 只重置 `PlayerMoveController`；motion/breath/selector 继续；音频实例跨边界仍活跃则不重启；服务端 EVENT 不重复；overlay/letterbox 每次执行按局部时间求值，不额外重置。详见 `loop-execution.md` §3.5。
+7. **字段插值与路径几何分层。** 数值字段采用 linear / angle / geometric / step；编辑器可将标量缓动落成显式采样数据。曲线路径的进度变化必须保形，不能把通用位置插帧当成曲线分段方案。
+8. **循环由执行次数、执行状态和边界事件定义。** 每次执行有自己的身份与局部采样位置；次数耗尽且本次执行完成才消费完。局部秒数可定位关键帧、规则时间入口和过渡，但窗口乘积、墙钟读数或时间折叠不能代替完成事实。无限表示无自然完成点，不自动禁止同轨或跨轨后续内容；是否可达、是否叠加由作者编排。
+9. **状态所有权明确。** 规则绑定的每次执行建立独立激活；同一规则定义的多个绑定各有计时、`once`、边沿与等待状态，共用定义不共享运行态。观察、计时与等待状态归本实例/绑定/执行；普通观察不阻止自然完成。相机片段效果各自求值、每帧推进一次，过渡消费两侧快照。音频资源复用、玩家移动复位和服务端 EVENT 去重分别遵循自身契约，不统一归零或重放。
 10. **AUDIO `loop` 改名 `file_loop`。** 片段执行循环用公共 `loop`/`loop_count`；文件循环与执行循环分开。
 11. **EVENT/MOD_EVENT 是离散记录字段。** 一个 `event`/`mod_event` 字段的 keyframes 值是事件记录（`command`/`position`/`event_type`/`data`），不拆成可插值叶子；边沿触发；事件身份 = 实例 + clip + 字段路径 + 事件索引。
-12. **删除 `meta.version` 与 `timeline.total_duration`。** `contentEnd = max(clip.getWindowEnd())`；`infinite = any(clip.isEffectivelyInfinite())`；旧字段出现即“已移除”错误；不做兼容。
-13. **字段有三种形态：value-only / animated / event。** `objects` 是字段容器，不是“只能放关键帧对象”：`curve`/`orient` 是 value-only，`position.x`/`yaw_offset` 是 animated，`event` 是 event。字段可声明 `requires` 前置条件（如 offset 要求 `orient=tangent`），可递归但禁止环。clip 外层只留播放控制/结构字段（`start_time`/`duration`/`loop`/`rules`）。G1/G2 由字段路径/形态吸收。
-14. **迁移是一次性 Java CLI，保真优先。** 旧全局关键帧 + 密集网格对照；稀疏字段插修正帧；旧 3D `curve` 原样映射为 `axes:["x","y","z"]`，控制点不拆；`orient`/offset 原样保留；旧 `facing_origin`/`facing_origin_time` 归一为 `position_origin`/`position_origin_freeze`（旧 `snapshot` → `true`，`live`/缺省 → `false`）；旧 `selector_*_follow`/`selector_*_facing_origin` 归一为 `selector_*_position_origin`；旧 `follow=entity` 归一到 `position_origin` + `position_origin_freeze=false`，`follow=none` 不生成原点；旧 `base` 段无 `facing_target` 时写 `facing_source=entity` + `facing_entity`（原点已是该实体/玩家时可省）保留旧方向源；`absolute+follow` 归一为 `relative+position_origin+freeze=false`，`base+follow` 的旧原点差异报告人工复核；旧 follow 段的 curve 按旧线性行为不写/标记；备份/回滚/报告；新格式幂等跳过。
+12. **删除 `meta.version` 与 `timeline.total_duration`。** 有限末端估计与有限部分显示范围是派生信息，不是执行完成真源；含无限内容时表达“无有限自然末端”，不让同一 `contentEnd` 同时代表无限末端和有限显示范围。旧字段出现即“已移除”错误；不做兼容。
+13. **规则与曲线是脚本级独立集合，不占用 `objects` 字段路径，也不新增轨道。** value-only / animated / event 只描述 `objects` 中普通字段的能力。规则定义/绑定与曲线定义/绑定分别建模：前者是“时间门 + 内层条件树 + 动作”的行为声明，后者是相邻位置节点间的段几何；不合并为万能对象。`clip.rules` 与 `objects.curve` 是旧实现/前稿参照，不是目标存储形式；具体引用形式与序列化留作结构评审。
+14. **迁移是一次性 Java CLI，保真优先。** 旧片段曲线按旧的每一段实际用法展开为脚本级曲线绑定，分别保留端点、控制点、相对／绝对含义与 3D 弧长；不能只把旧 clip 曲线搬进一条全片段曲线。稀疏字段用对照和修正数据保真；`orient`/offset 保留，点源与选择器按专篇归一，动态差异报告人工复核。新目标明确改变的过渡装配或规则生命周期须单列差异，不伪称与旧实现完全等值；保留备份、回滚、报告与新格式幂等跳过。
 15. **`meta` 关键帧化（G3）本轮不做。** 对象模型预留 script 级扩展点；不在 clip 对象模型里混。
 16. **视频播放/传输是运行时底层能力。** 不改变对象模型、schema 或脚本字段；不单列一轮，单列 `media-video.md`，随 I 轮实现推进。
 17. **方向源与位置原点解耦。** `base` 轴方向由 `facing_source` 单值选择：`auto`（缺省）/ `world` / `entity` / `line`；`auto` 有 `facing_target` → line、有 `facing_entity` → entity、都没有按原点回落（实体选择器 / 隐式 `@p` / `player` → entity；坐标 / 方块 / 结构 → world）。显式 `world`/`entity`/`line` 只读各自载荷，未选中载荷警告；`auto` 下两个载荷同时非空 = 错误。`facing_entity` 只取 body yaw 且无冻结开关；base 轴没有独立角度偏移字段；`fwd`/`up`/`right` 是位置偏移，`yaw`/`pitch` 是相机朝向相对 `yaw_base`/`pitch_base` 的偏移。冻结按对象各自 `_freeze`，固定解析结果（点，含偏移展开），不是停时间；`facing_entity` 不冻结，固定方向用 line + `facing_target_freeze=true`。
+18. **规则判定 = 必选片段时间门 AND 内层组合条件树。** 默认时间门为片段本次执行的局部时间 `>=` 指定时间；门后开始/继续判定其它条件，迟到成立仍可执行，不要求 cross 事件或恰好同秒。到达时间门前，其它事件条件可能已经触发，但动作不能提前执行；门前有效事件事实按源语义采集保留，门到后确认触发事实与其它条件组合，再提交动作。事件/事实采集与动作提交必须分开，有效的提前事件不能因时间门尚未满足而丢失；时间门是执行资格阈值，不能写成“条件监听只从到达时启动”。状态谓词按自身实时语义判定，不把任意一度为真的状态永久锁存；事件事实按条件原有有效期/匹配/消费语义保留到时间门。每个绑定/执行上下文有独立状态；不设计无界历史记录或跨实例事件总线；记录起点、有效期/消费在原条件未定义时作为精确待评审项，不假设所有历史事件永久有效。关键帧只提供一个已确定的时间点（可直接写秒，或从已有对象关键帧选取），属于时间条件的选取/引用方式，不是与时间条件并列的激活机制；不强制规则依赖关键帧，也不要求创建空关键帧。
+19. **同一规则可有多个独立时间入口。** 脚本级规则集合支持多条规则；同一规则定义可有多个绑定/时间入口，各有明确绑定与运行身份，各入口的事件/事实采集窗口与状态独立。不能把多个“时间 >= t”简单 OR 后让最早时间吞掉后续入口；共用定义不共用计时、`once`、边沿等运行态。多次执行的规则状态按实例/绑定/执行区分，运行态身份 =（播放实例，绑定，片段执行）。
+20. **分支片段与主线片段同模型。** 两者只有执行来源/编排用途不同，普通片段与分支片段使用同一对象 schema，不另造分支内容格式。正常完成后的去向（继续/指定目标/返回/结束本执行或本脚本）由片段定义默认，启动/编排入口可显式覆盖，优先级为入口显式策略 > 片段默认策略；执行失败的 fallback 是独立策略，沿原主线继续，不混入正常后继。不要求嵌套调用栈、并行流程、全局 sequence 库或独立分支引擎作为前置条件。
+21. **规则控制阶段与实例级挂起。** 到达规则所选片段的时间门后，可以先暂停整个本次播放实例等待后续判定，而不是只有全部条件成立后才允许暂停。挂起范围是本实例的全部内容推进，不影响其它独立脚本实例；普通非阻塞观察仍可用，暂停/等待是显式控制方式，不强制所有规则暂停。判定等待与动作延后是不同阶段/持有来源。
+22. **规则事实接力。** 某片段的规则判定成功、片段开始、片段执行完成等事实，可以作为后续规则的条件，触发下一片段执行。接力范围限本实例及相关绑定/执行，不扩大到通用变量语言、跨脚本任意控制或外部注册总线。事实必须按播放实例及绑定/执行定位，不用脚本定义上的共享布尔串循环或多实例；具体跨执行匹配按语义明确，不发明无界永久历史。
+23. **判定成功不等于动作已执行。** 成功后记录本次绑定/执行的成功事实，供后续规则引用；动作可以立即提交，也可以延迟到指定片段开始、执行完成、指定局部时间或明确的时间条件/延迟再执行。片段开始、片段完成、规则判定成功、规则后续动作完成是可区分事实，不能统称“实现了”。已成功结果不因原状态条件之后变假而被隐式抹掉；如需再次确认，应作为明确的执行条件。成功后已承诺但尚未释放的动作不是普通非阻塞观察，作为明确执行依赖参与自然完成，不能在主线采样结束时静默丢弃；等待动作本身不必冻结内容推进，显式终止实例仍回收。
+24. **时间参照与动作目标可不同。** 例如以 A 片段的局部时间或规则成功事实启动 B，不得要求尚未进入的 B 先推进自身时间才能满足启动条件。暂停整个实例后，若需等待本实例未来片段/未来内容位置，须在依赖该进度之前释放相应判定持有，或由声明的恢复/启动控制保证目标可达；不能假装冻结的内容位置仍会推进。等待实时时长/外部事实与等待内容局部位置要区别，计时基准清楚，等待超时本身不被同一挂起冻结。对明确不可达的持有依赖给诊断，不自动解除、吞掉规则或强跳主线；可选外部解除路径与 all/any 按真实可达性区分。无限内容不自然完成，等待其完成不由推算时间假冒成功。
 
 ## 三、吸收 / 取代 / 更新
 
 | 现有计划 | 关系 |
 |---|---|
 | `G-script-model/script-model.md` | G1（参数寻址到分量）/G2（keyframable）被本轮吸收；§4.1/§4.3/§5 的“复合值只能整体插值”作废；G3 延后，G4 只引用 |
-| `G-script-model/clock-abstraction.md` | 只引用；关键帧时间仍 float 秒，不改精度 |
-| `done/script-loop.md` | 现行循环设计（按次数执行/宏观循环/状态策略）是本文基准；`loop-execution.md` 只补对象模型落点，不另立一套 |
-| `F-playback/camera-composition.md` | 字段语义/默认值/叠放顺序保留；`dest`/`source` 的“复合整体插值”理由更新为叶子；lane 采样改为一个 `SampledClip` |
+| `G-script-model/clock-abstraction.md` | 脚本时间存储与运行精度仍按 G4 的边界协调；时间读数用于局部采样／计时，不替代执行身份与完成事实 |
+| `F-playback/camera-composition.md` | 字段语义/默认值/叠放顺序保留；对象化与 lane 采样以 I 轮 `object-model.md` / `runtime-evaluation.md` 为准 |
 | `F-playback/multi-camera-rendering.md` | 只引用；FBO/lane 上屏不变 |
 | `F-playback/iris-oculus-compat.md` | 只引用；每视角隔离不变 |
 | `F-playback/cross-dimension-camera.md` | 只引用；`dimension` 仍是 value-only 字段 |
-| `F-playback/parallel-playback.md` | 只引用；实例/lane/队列不变；clip 窗口口径更新 |
-| `D-transition/overlay-color-mask.md` | 颜色/遮罩/渐变语义保留；`ColorMaskSpec` 的 keyframe color cache 被 `color.r/g/b` 对象取代 |
-| `D-transition/variable-frame.md` | 字段语义保留；关键帧字段改对象；`z_index` 等 value-only 字段定义不变 |
-| `complete/0.3.6/A-color/screen-color-adjust.md` | 调色数学/顺序不变；59 通道对象化；曲线/LUT 仍是 value-only 字段 |
-| `complete/0.3.6/B-camera/*` | 相机数学/cover chain/transition/selector/motion 语义不变；本轮的 `track-camera.md` 只定义对象怎么喂给它们 |
-| `C-trigger/*` | 点源/选择器语义不变；新格式用 `position_origin_freeze` 等 `_freeze` 布尔替代 `_time` 枚举（`snapshot` → `true`，`live`/缺省 → `false`）；选择器字段对象化，冻结键按对象路径 |
-| `E-template/templates.md` | 模板不再写 total_duration/version；字段生成；curve/orient/offset 原样保留 |
+| `F-playback/parallel-playback.md` | 只引用；实例/lane/队列不变；clip 窗口口径以 I 轮 `loop-execution.md` 为准 |
+| `D-transition/overlay-color-mask.md` | 颜色/遮罩/渐变语义保留；对象化与缓存移除以 I 轮 `track-overlay-letterbox.md` 为准 |
+| `D-transition/variable-frame.md` | 字段语义保留；对象化以 I 轮 `track-overlay-letterbox.md` 为准；`z_index` 等 value-only 字段定义不变 |
+| `complete/0.3.6/A-color/screen-color-adjust.md` | 调色数学/顺序沿用；对象化与字段形态以 I 轮 `track-audio-adjust.md` 为准；曲线/LUT 仍是 value-only 字段 |
+| `complete/0.3.6/B-camera/*` | B 轮相机数学、覆盖链公式与选择器能力保留；曲线与 A/B 装配以 I 轮 `track-camera.md` / `runtime-evaluation.md` 为准。旧归档记录不等于这些目标已经实现 |
+| `C-trigger/*` | 点源/选择器语义保留；新格式字段形态以 I 轮 `track-camera.md` 为准 |
+| [`rule-system.md`](rule-system.md) | 规则目标权威：脚本级集合、时间门、实例级挂起、事实接力、判定成功与动作调度、正常/失败出口 |
+| `C-trigger/condition-system.md` | C 轮 v1（`clip.rules`）既有实现记录；新目标以 `rule-system.md` 为准，C 轮不重开 |
+| `Z-editor/templates.md` | 模板只定义生成职责与生成物；产物格式引用 I 轮对象/曲线契约，不反向定义运行时结构，不生成全片段隐式复用曲线 |
 | `F-playback/f5-script-packet-limit.md` | 加对象格式体积说明；4 MiB 解压/1 MiB 压缩仍适用 |
 | `docs/SCRIPT_FORMAT.md` / `AI_SCRIPTING_GUIDE.md` / `docs/modules/*` | 需要按新格式重写；本轮只写计划，未改文档 |
 
 ## 四、待定 / 开放项
 
+本节只列实施待定/结构评审项；用户已裁定的方向（时间门 `>=`、门前事实门后确认、正常后继片段默认+入口覆盖、失败 fallback、实例级挂起/事实接力/延迟动作）见 §二 与 `rule-system.md`，不在此重复。
+
+- **事件条件自身的记录起点/有效期/消费（精确待评审项）**：状态谓词按实时语义判定；事件事实按原条件有效期/匹配/消费语义保留到时间门。若原条件未定义记录起点、有效期或消费方式，按结构/条件评审补定，不假设所有历史事件永久有效；不做无界历史或跨实例事件总线。见 `rule-system.md`。
 - **AUDIO `attenuation=inverse`**：现行实际按 linear 处理；实现时要么补真正反距离衰减，要么从枚举删除并迁移为 linear。见 `track-audio-adjust.md` §4.4。
 - **2D `curve` + 第三轴线性**：轴集合选 2 轴时只在该平面内做 2D 弧长；第三轴仍按自己的 position 关键帧线性走，不参与弧长，所以 3D 速度不一定匀。要整条 3D 路径匀速就选 3 轴。见 `track-camera.md` §3.2。
-- **`curve` 开启后三轴成组**：有 `curve` 的 clip 失去三轴独立打点；常量轴也要在组时间写关键帧/值。这是为了让 A→B 段定义唯一，不开 `curve` 时三轴仍独立。见 `track-camera.md` §3.2。
+- **规则/曲线集合结构评审**：脚本级集合的引用形式、片段与对象/相邻关键帧的寻址、插入和重排后的绑定关系、多入口绑定身份、事件事实与规则事实的记录边界、等待持有记账、激活绑定寻址及序列化；不将这些结构问题退化为字段模式或轨道名称选择。
 - **`orient=tangent` 的切线抖动**：轴集合段边界/控制点差异大时，导数组合的切线可能抖动；需要编辑器/验收覆盖。见 `track-camera.md` §3.3。
 - **动态相机迁移**：position_origin/选择器/动态 look_at/base 方向源无法完全预计算；旧 base 段补 `facing_entity` 保留旧方向，转换器保留语义 + 修正帧，报告人工复核。见 `migration.md` §3.5/§3.10。
 - **负 `duration` 哨兵**：保留为无限单次片段，但与 `[0,duration]` 轴冲突；后续可单独清理为只用 `loop_count=-1`。见 `loop-execution.md` §3.3。
-- **EVENT 不随片段循环重复**：服务端 EVENT 只触发一次；作者需要重复命令时用规则动作/显式分段。见 `track-event.md` §3.2 / `loop-execution.md` §3.5。
-- **执行边界状态**：I 轮只重置玩家移动；motion/breath/selector/audio 按现有设计继续。若要做“每次执行全状态一致”，另开设计。见 `loop-execution.md` §3.5。
-- **主索引/进度表**：`plans/0.3.6/README.md` 还没有 I 行；`implementation-progress.md` 还没有 I 轮记录。等本轮文档评审后再登记，避免先写状态后改。
+- **EVENT 不随片段循环重复**：服务端 EVENT 只触发一次；作者需要重复命令时用规则动作/显式分段。规则动作不复用 EVENT 的 `EventKey`，不改变 EVENT 命令协议；规则命令请求见 `rule-command-trust.md`。见 `track-event.md` §3.2 / `loop-execution.md` §3.5。
+- **执行边界与规则**：每次执行按绑定建立独立激活；已激活观察的完成／取消归实例规则运行态；连续的相机效果和音频资源不一律归零。详见 `loop-execution.md` §3.5 与规则专篇。
+- **存储形式**：规则与曲线由脚本级独立集合承载是已确认方向；具体引用形式及序列化尚未定稿。`clip.rules` 与 `objects.curve` 仅作旧实现/前稿参照，不决定新模型职责。
+- **有限显示范围**：无限内容没有自然完成点，但编辑器仍可展示有限部分与当前执行位置；数值表示不得反过来成为调度或结束条件。
 
 ## 五、非目标（本轮）
 
-- 编辑器 UI/对象分组/曲线编辑的具体实现（`editor-object-model.md` 只定数据/交互契约）。
+- 不要求把全部片段迁入全局资源库，不新造强制段落/sequence 库、另一种分支内容格式或新的渲染器；轨道中的片段保持现有组织方式。
+- 不把嵌套调用栈、并行流程、全局 sequence 库或独立分支引擎作为规则/分支能力的前置条件。
+- 编辑器 UI/对象分组/曲线编辑的具体实现（`Z-editor/object-model.md` 只定数据/交互契约）。
 - `meta` 静态字段关键帧化（G3）。
-- 时间精度 float → double / 有理数。
+- 不在本次语义修订中决定时间数值类型；脚本存储与运行精度仍按 G4 边界协调，不把 float/double 当作执行模型选型。
 - 旧格式兼容层、双语法、解析期分桶。
 - 多版本代码适配工程（脚本格式稳定 + 命名空间 ID 是边界，不是本轮实现）。
 
 ## 六、建议实现顺序（不是任务书）
 
-1. schema/对象模型 + parser/validator + 采样器（核心）。
+1. schema/对象模型 + 脚本级规则/曲线集合解析 + parser/validator + 采样器（核心）。
 2. 各轨道装配（先 CAMERA，再 OVERLAY/LETTERBOX/AUDIO/ADJUST/EVENT）。
-3. 循环执行 + 格式清理（version/total_duration）。
+3. 执行状态、规则控制/事实接力/延迟调度、规则/曲线绑定生命周期、分支出口与格式清理（version/total_duration）。
 4. 迁移器 + 旧脚本转换 + 保真验收。
 5. 编辑器字段模型/缓动烘焙。
 6. 运行时视频播放/传输（`media-video.md`）。
@@ -105,4 +166,4 @@
 
 | 原设计 | 实际实现 | 偏离原因 |
 |---|---|---|
-| 未实现 | — | — |
+| 脚本级规则/曲线集合、必选时间门与门前事实采集、实例级挂起、事实接力、成功≠动作完成、延迟动作、多入口独立运行态、分支同模型、A/B 实际状态采样、无限内容由作者编排 | 本次仅更新计划；运行时代码、脚本格式文档与示例未改 | 语义评审与实现分开；C/B 既有落地事实不冒充新目标已完成 |

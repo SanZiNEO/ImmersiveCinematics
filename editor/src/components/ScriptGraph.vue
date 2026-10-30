@@ -4,7 +4,7 @@
 //
 // 数据：Java 侧 script.graph（ScriptGraphService）→ { nodes, edges, folders, warnings }
 // 布局：graphLayout.computeLayout（文件夹泳道 + 拓扑分层 + 孤立脚本网格收拢，自研，不引图库）
-// 交互（plans/0.3.6/editor-script-graph.md §4）：平移/缩放、节点渲染、悬停摘要、
+// 交互（plans/0.3.6/Z-editor/script-graph.md §三、§九）：平移/缩放、节点渲染、悬停摘要、
 // 点击高亮上下游、双击在编辑器里打开脚本、按名称/触发器/文件夹过滤。
 // ─────────────────────────────────────────────────────────────
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'

@@ -130,7 +130,7 @@
 >
 > **D1–D3 已收口（2026-10-17）**：纯显式 clip / 关键帧（C 方案）为最终合同；不新增 `transition_in` / `transition_out`、`TRANSITION` 轨或运行时生成器。实现与验收记录见 §9；历史执行轮见 [execution-round.md](execution-round.md)。
 >
-> **当前状态（2026-10-18 回写）**：D 轮已关单——D1–D8 / D10 于 2026-10-17 完成；本文合同冻结为纯显式 clip / 关键帧（C 方案）。§6 列出的是**应用层仍开放**的问题，不是未完成的 D 任务；§8 仅剩编辑器面板（归编辑器阶段）。
+> **当前状态（2026-10-18 回写）**：D 轮已关单——D1–D8 / D10 于 2026-10-17 完成；本文合同冻结为纯显式 clip / 关键帧（C 方案）。§6 列出的是**应用层仍开放**的问题，不是未完成的 D 任务；§8 仅剩编辑器面板（归 Z 轮）。
 
 ---
 
@@ -192,7 +192,7 @@ RGBA 的 A 通道**不属于调色**（[画面颜色调整](../../complete/0.3.6
 
 - **归属**：黑场 / 白场**算在 overlay 系统里**——它们是 OVERLAY 轨上的内容，由轨道追踪（时间轴上的 clip），不是转场机制自己实现的东西。
 - **应用形态**：在衔接处插入一段**已调好参数的 clip**——`layer_type=fade`，黑场 = `color=#000000`、白场 = `color=#FFFFFF`，opacity 关键帧 0→1（压场）→ 切下一段 → 1→0（亮起）。参数已定，作者只需决定"放哪、多长"。
-- **与模板的关系**：这类 clip 是[模板](../E-template/templates.md)片段级模板的天然素材（"黑场 1s" = 一个片段模板，一键插入）。
+- **与模板的关系**：这类 clip 是[模板](../Z-editor/templates.md)片段级模板的天然素材（"黑场 1s" = 一个片段模板，一键插入）。
 - **底层已具备**：纯色覆盖层（FadeLayer）+ opacity 关键帧（0.3.5）；黑场与白场之间没有任何实现差异（同一个工具换 `color`）。
 - 与 `hold_at_end` / 末尾保持的组合（压场停在末尾等触发）属脚本编排，不属本文。
 - **已验证可用（手写 JSON，2026-10-07）**：`cinematics/tests/transition/test_fade_black.json` / `test_fade_white.json`（CAMERA 轨两段 + OVERLAY 轨两个 fade clip）经 `ScriptValidator`（与 `/icinematics validate` 同源）校验通过。链路逐环节核实：`OverlayTrackPlayer.createLayer` 读 `layer_type` / `color` → `FadeLayer.setColor`（解析 `#RRGGBB`，白场 `#FFFFFF` 成立）→ 关键帧 `opacity` 线性插值 → 两 clip 先后衔接时按 `findActiveClip` 切换层，衔接点两侧 opacity 均为 1（压场末尾 1 → 亮起开头 1）故黑场/白场不闪。**2026-10-07 时游戏内视觉未验证；2026-10-17 Fabric 实机已通过（黑 / 白 hold 中心与字幕矩形严格 0/255），见 §9。**
@@ -203,7 +203,7 @@ RGBA 的 A 通道**不属于调色**（[画面颜色调整](../../complete/0.3.6
 - **调用**：CAMERA lane 的 `source` / `dest` 矩形关键帧滑动（新画面推进、旧画面退出），或 full dest + clip 级 `mask_shape` + `mask_*` 几何关键帧逐步显露。两者都是纯数据。
 - **CAMERA 遮罩合同（D2）**：clip 级 `mask_shape = full`（缺省）/ `rect` / `circle`；关键帧 `mask_x` / `mask_y` 缺省 0.5（窗口比例中心，有限、可越界），`mask_width` / `mask_height` 缺省 1（相对窗口，有限非负、不设人为上限，0 不绘制），`mask_radius` 缺省 0.5（相对窗口短边，有限非负，0 不绘制）。窗口物理像素定义真圆；source / dest 独立；边界硬边；full 保持既有逐像素输出。解析 / 校验拒绝非法枚举、非有限值与负尺寸，错误带字段路径。仅 CAMERA / OVERLAY fade 支持；image / subtitle 不裁切；CAMERA 不因此接受 fade 专用 `gradient` / `blend_mode`。
 - **演示**：`cinematics/tests/transition/test_wipe.json` 三阶段——rect 水平、rect 垂直、circle（短边真圆）；B 与 A 同 dest/source 全屏避免缩放冒充 wipe；初始 0 → 中间 → 完全覆盖，序列中始终有 A 或 B 整幅画面在底，无原版基画面空隙。Fabric 15.01s 自然结束；2560×1392 截图中圆半径 792.50–793.14px（跨度 0.64px），不是椭圆。
-- **边界**：斜线 / 星形边缘不在本版；编辑器转场面板归编辑器阶段。
+- **边界**：斜线 / 星形边缘不在本版；编辑器转场面板归 Z 轮。
 
 ---
 
@@ -225,7 +225,7 @@ RGBA 的 A 通道**不属于调色**（[画面颜色调整](../../complete/0.3.6
 | `transition.md` | **相机六参数**（position/yaw/pitch/roll/fov/zoom）的 A→B 状态过渡 | 正交：本文管"画面之间怎么换"，它管"相机状态怎么变"；叠化 + 相机 blend 可组合 |
 | `camera-composition.md` | 叠化的**底层**（opacity 交叉、预热） | 本文只引用，不重复定义 |
 | `overlay-color-mask.md` | **纯色覆盖层**的底层定义（FadeLayer：颜色 + 不透明度；D4–D7 渐变 / 混合 / 局部覆盖） | 黑场 / 白场 / 淡入淡出 / 颜色遮罩都是它的应用；CAMERA wipe 的 rect / circle 遮罩见 §3.5（D2） |
-| `script-loop.md` | 循环回卷瞬间的画面衔接 | 回卷 = 时间轴末端折回，衔接处可复用本文转场（repeat 硬切 or 可选叠化——**开放**，非 D 轮待办，与 `script-loop.md` §11 衔接问题挂钩） |
+| `loop-execution.md` | 循环回卷瞬间的画面衔接 | 回卷 = 时间轴末端折回，衔接处可复用本文转场（repeat 硬切 or 可选叠化——**开放**，非 D 轮待办，与循环回卷衔接问题挂钩） |
 | `wait-point-track.md` | 等待点后的继续 / 接播 | 接播瞬间用哪种转场，属脚本编排，引用本文 |
 
 ---
@@ -238,7 +238,7 @@ D1–D3 已关闭的旧待定项：数据落点 A/B/C（= C，§4）、第一版
 
 - **开放**：叠化期间相机 lane 是否可动（沿用 `multi-camera-rendering.md` §9 的开放问题）。
 - **开放**：转场与跳过 / 打断的交互——跳过途中转场 = 立即硬切还是加速完成。
-- **开放**：script-loop 回卷衔接——repeat 硬切 or 可选叠化，与 `script-loop.md` §11 挂钩。
+- **开放**：循环回卷衔接——repeat 硬切 or 可选叠化，与 `I-script-core/loop-execution.md` 挂钩。
 
 已结清：转场不影响 GUI 层（与 `screen-color-adjust.md` §5-3 同结论）；黑场 / 白场与字幕的叠放次序 = 显式 `z_index`（§3.3）；黑 / 白 hold 与字幕矩形实测严格 0/255（§9）。
 
@@ -258,7 +258,7 @@ D1–D3 已收口：数据落点 = C（纯显式 clip / 关键帧），转场类
 | 2 | ✅ 叠化（依赖 camera-composition 双 lane 上屏 + opacity 关键帧；D1 校正为底 A 不透明 + 上 B 淡入） | 两镜头 dissolve 可用 |
 | 3 | ✅ 转场数据落点定稿（§4：C 为最终方案，无新字段 / 新轨） | 纯显式 clip / 关键帧合同 |
 | 4 | ✅ wipe（D2：CAMERA `mask_shape` rect / circle + source/dest 关键帧） | 划像转场可用 |
-| 5 | 编辑器转场面板 + 转场预览 | WebUI 内拖拽转场并预览（归编辑器阶段） |
+| 5 | 编辑器转场面板 + 转场预览 | WebUI 内拖拽转场并预览（归 Z 轮） |
 
 ---
 

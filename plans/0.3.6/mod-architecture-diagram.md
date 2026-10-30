@@ -5,6 +5,8 @@ flowchart LR
     %% - 转场 / 模板 / 调色是应用层：全部由关键帧数据驱动（轨道 → clip → 关键帧），不写死代码
     %% - 片段时间允许重叠（hold 复制延长），叠化 = 重叠窗口 + opacity 关键帧；黑场 / 白场 = OVERLAY 轨预配置 clip
     %% - 叠放层级：实例**整体**按启动顺序（后来者居上；实例内各自顺序 = 轨道层级 → 轨道内 clip 顺序（后面在上）→ z_index）
+    %% - 规则与曲线是脚本级独立集合（与 meta / timeline 并列），不进 clip、不是轨道、不是触发器字段；时间基准 = 片段起点为原点、duration 为轴，关键帧 / 查找 / 时间门 / 曲线进度共用同一个 executionLocalTime（2026-10-30 口径）
+    %% - 规则管「实例播到这段做什么」，触发器管「整个脚本播不播」；两者只共享底层判定核（几何 / id 匹配 + 事件采集），不共享字段
     subgraph PB["播放（实例）"]
         INST["播放实例<br/>（一个正在播放的脚本；数量不设上限）"]
         subgraph LANE["实例内容"]
@@ -18,7 +20,6 @@ flowchart LR
             LMAC["宏观循环<br/>（整条时间轴折回；末端 = 最后片段最后一次播完）"]
             LMIC["微观循环<br/>（片段局部时间：repeat / pingpong）"]
         end
-        WAITPT["等待点轨道（WAIT_POINT）<br/>（停表 → 等回报 → 继续 / 结束 / 接播 / 分支）"]
         OVERLAP["片段时间重叠<br/>（hold 复制延长 · 叠化 = opacity 关键帧交叉）"]
         REENTRY["重入规则<br/>（同玩家 + 同脚本 = 单实例）"]
         QUEUE["接播 / 排队"]
@@ -39,7 +40,7 @@ flowchart LR
         SRVTIME["事件时间线<br/>（EVENT 命令按实例推进）"]
         SRVSEL["服务端选择器求值<br/>（原版选择器解析 · 服务端权威）"]
         ACK["网络可靠性<br/>（请求 / 回执关联 + 超时保护）"]
-        CMD["/icinematics 命令<br/>（validate / play / reload）"]
+        CMD["/icinematics 命令<br/>（play / stop / reload / validate / template）"]
     end
     subgraph INPUT["输入与直控"]
         RAW["玩家输入<br/>（键盘 / 鼠标 / 滚轮 / 视角）"]
@@ -103,6 +104,19 @@ flowchart LR
         VIEW["实体视线"]
         LINE["连线（A→B）"]
     end
+    subgraph RULE["规则与曲线（脚本级集合）"]
+        RSET["规则集合<br/>（脚本级 · 条目数不设上限）"]
+        RDEF["规则定义<br/>（条件树 + 动作 + 策略 · 只读）"]
+        RBIND["规则绑定 × N<br/>（定义引用 + 目标片段 + 必选时间门）"]
+        TGATE["时间门<br/>（片段起点 = 0 · duration = 轴 · 局部 ≥ t）"]
+        RACT["规则激活<br/>（实例 × 绑定 × 片段执行）"]
+        RFACT["事实记录<br/>（片段开始 / 完成 · 规则成功 · 动作完成）"]
+        RSCHED["动作调度<br/>（延迟到片段开始 / 完成 / 局部时间 / 事实）"]
+        RACTN["规则动作<br/>（相机 / 覆盖层 / 调色 / 跳转 / 暂停恢复 / 退出 / 声音 / 命令）"]
+        CSET["曲线集合<br/>（脚本级 · 条目数不设上限）"]
+        CBIND["曲线条目 × N<br/>（目标片段 + 相邻两关键帧 + 控制点）"]
+        EVAL["判定核<br/>（几何 / id 匹配 · 与触发器共用）"]
+    end
     subgraph TRIGGER["触发器核心"]
         subgraph SRCTYPE["触发源"]
             EV["原版事件<br/>（进度 / 击杀 / 交互 / 合成 / 物品使用 / 维度切换 / 登录）"]
@@ -118,13 +132,11 @@ flowchart LR
         end
         subgraph ACTS["动作"]
             ACT["动作"]
-            A_CTRL["控制脚本<br/>（播放 / 停止 / 暂停）"]
-            A_WAIT["回报等待点"]
+            A_CTRL["控制脚本<br/>（起播 / 停止 / 暂停）"]
             ACT --> A_CTRL
-            ACT --> A_WAIT
         end
     end
-    subgraph TYPES["触发器类型（25）"]
+    subgraph TYPES["触发器类型（27）"]
         subgraph G1["位置 / 世界（5）"]
             T1["location"]
             T2["biome"]
@@ -177,28 +189,30 @@ flowchart LR
             T21 ~~~ T22
             T22 ~~~ T23
         end
-        subgraph G7["会话 / 组合（2）"]
+        subgraph G7["会话 / 组合（4）"]
             T24["login"]
             T25["all_of"]
+            T26["any"]
+            T27["death"]
             T24 ~~~ T25
+            T25 ~~~ T26
+            T26 ~~~ T27
         end
-        %% T25 = all_of；death（玩家死亡）为后续批次，未实现
     end
     subgraph WORLD["世界交互"]
-        PREQ["预加载请求器<br/>（客户端上报 / 释放）"]
-        PNET["预加载网络通道<br/>（C2S / S2C）"]
+        CCREPORT["相机中心上报<br/>（客户端 · 当前维度相机 lane 中心；无 CAMERA 轨不上报）"]
+        CCSYNC["虚拟区块中心<br/>（服务端写入 SectionPos · 调用 ChunkMap.move）"]
+        CHUNKMAP["原版区块系统<br/>（DistanceManager 方形 ticket · isChunkInRange 差集）"]
         subgraph CAMZONE["区块与实体（相机中心）"]
-            PRELOAD["区块预加载<br/>（加载 / 下发 / 客户端缓存中心换成相机）"]
             PAIR["实体配对<br/>（相机附近实体按原版规则配对 / 下发）"]
-            ANCHOR["相机锚点<br/>（纯坐标虚拟玩家：刷怪 / 消失 / 配对的距离基准）"]
         end
         subgraph VIEWC["渲染视图"]
             VIEWCENTER["渲染视图中心<br/>（区块构建 / 可见集中心改用相机）"]
             CENTER["客户端缓存中心"]
         end
         subgraph MOB["生成与消失"]
-            SPAWN["自然生成<br/>（中心取真实玩家与锚点更近者）"]
-            DESPAWN["生物消失<br/>（最近玩家改用锚点）"]
+            SPAWN["自然生成<br/>（中心取相机中心）"]
+            DESPAWN["生物消失<br/>（最近玩家改用相机中心）"]
         end
         PLAYERMOVE["玩家移动<br/>（脚本驱动的假输入朝目标走）"]
         REGION["区域同步 / 镜像传送<br/>（对应区域坐标映射）"]
@@ -282,7 +296,6 @@ flowchart LR
         TPL["模板<br/>（脚本 / 轨道 / 片段三层 · 参数化生成）"]
     end
     ACT -->|控制脚本| INST
-    ACT -->|回报等待点| WAITPT
     INST -->|注册| CAMS
     INST -->|持有| NONCAM
     INST -->|每渲染帧驱动| CAMPLAY
@@ -292,11 +305,8 @@ flowchart LR
     INST -->|跳过进度| SKIPHUD
     INST -->|分发脚本时间| LMAC
     LMAC -->|"f(g(t))"| LMIC
-    INST -->|到达等待点：冻结实例时钟| WAITPT
     INST -->|允许重叠（hold 复制延长）| OVERLAP
     OVERLAP -->|叠化 = opacity 关键帧交叉| MCOMP
-    WAITPT -->|继续 / 结束 / 分支| INST
-    WAITPT -->|接播下一个| QUEUE
     INST -->|结束（原因）| QUEUE
     QUEUE -->|接播| INST
     REENTRY -->|约束新建| INST
@@ -350,6 +360,21 @@ flowchart LR
     CMGR -->|onRenderFrame| INST
     INST -->|退出原因| EXIT
     TYPES --> COND
+    RSET --> RDEF
+    RSET --> RBIND
+    RDEF --> RACT
+    RBIND --> TGATE
+    RBIND --> RACT
+    EVAL --> RACT
+    RACT --> RFACT
+    RACT --> RSCHED
+    RSCHED -->|释放条件满足| RACTN
+    RACTN -->|作用于本实例| INST
+    CSET --> CBIND
+    CBIND -->|所选轴路径| CAMPLAY
+    INST -->|executionLocalTime| TGATE
+    INST -->|executionLocalTime| CBIND
+    COND ---|共用判定核| EVAL
     EV -->|事件驱动| COND
     POLL -->|每 N tick| COND
     POS -->|听者位置| LP
@@ -364,20 +389,19 @@ flowchart LR
     APLAY -->|上报听者位置| BC
     BC -->|放宽半径下发| ENG
     PAUSE -->|暂停同步| APLAY
-    POS -->|相机位置 / 无镜头时报玩家| PREQ
-    PREQ -->|上报 / 释放| PNET
-    PNET --> PRELOAD
-    PRELOAD -->|虚拟中心| PAIR
-    PRELOAD -->|锚点（纯坐标）| ANCHOR
-    PRELOAD -->|区块已加载 / 已下发| VIEWCENTER
-    PRELOAD --> CENTER
+    POS -->|相机位置| CCREPORT
+    CCREPORT -->|C2S 中心上报| CCSYNC
+    CCSYNC --> CHUNKMAP
+    CHUNKMAP -->|区块加载 / 卸载| PAIR
+    CHUNKMAP -->|区块已加载 / 已下发| VIEWCENTER
+    CHUNKMAP --> CENTER
     VIEWCENTER --> RLEVEL
     POS -->|相机坐标| PAIR
-    ANCHOR -->|更近者| SPAWN
-    ANCHOR -->|更近者| DESPAWN
+    CCSYNC -->|相机中心| SPAWN
+    CCSYNC -->|相机中心| DESPAWN
     SPAWN -->|相机区实体| PAIR
     INST -->|玩家移动驱动| PLAYERMOVE
-    MULTI -->|预加载取并集| PRELOAD
+    MULTI -->|多 lane 中心取当前维度| CCREPORT
     ACT -->|区域规则| REGION
     REGION -->|坐标映射（站哪传哪）| ENT
     DEST -->|相机姿态| RPOSE

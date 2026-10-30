@@ -133,8 +133,8 @@
 > - [脚本格式](../../../docs/SCRIPT_FORMAT.md)
 > - [AI 脚本指南](../../../docs/AI_SCRIPTING_GUIDE.md)
 > - [可变画面](../D-transition/variable-frame.md)
-> - [WebUI 编辑器](editor-webui-migration.md)
-> - [模板体系](../E-template/templates.md)
+> - [编辑器](../Z-editor/README.md)
+> - [模板体系](../Z-editor/templates.md)
 
 ---
 
@@ -148,7 +148,7 @@
 2. **多人服同待遇**：脚本 JSON 走网络下发（`S2CPlayScriptPacket`），资源由各客户端本地读取，不进服务器流量（§8-4）；
 3. **缺失不阻塞**：资源缺失只记日志，播放照常（§8-1）。
 
-**不属于本文**：模板体系的参数化（见 `templates.md`）、编辑器 UI 自身的翻译（那是编辑器 i18n 字典，§8-5）、`EVENT` 的命令文案、任何“脚本变量 / 占位符”系统。
+**不属于本文**：模板体系的参数化（见 `Z-editor/templates.md`）、编辑器 UI 自身的翻译（那是编辑器 i18n 字典，§8-5）、`EVENT` 的命令文案、任何“脚本变量 / 占位符”系统。
 
 ---
 
@@ -270,7 +270,7 @@
    → **落地（已实现）**：运行时 = debug 日志 + **原样显示引用串**；编辑器 = 字幕字段下方的黄色提示（缺 key / 缺文件），**不进校验问题列表、不阻塞保存与播放**。
 4. **编辑器预览的翻译切换**：预览器是否跟随编辑器 UI 语言 / 能否手动切语言预览 → 待定。
    → **未做（保留待定）**：预览走游戏内渲染路径（`editor.pushScript` → 客户端播放），因此按**客户端语言**解析；编辑器没有“手动切语言预览”的开关。将来要做需要给预览通道单独传语言。
-5. **模板生成文本**：模板参数产出的字幕文案要不要直接产 key（而不是产文案）→ 待定，依赖 `templates.md` 的模板体系重建。
+5. **模板生成文本**：模板参数产出的字幕文案要不要直接产 key（而不是产文案）→ 待定，依赖 `Z-editor/templates.md` 的模板体系重建。
    → **未做（保留待定）**：模板仍产文案，不产 key。
 6. **`@lang:` 转义**：以 `@lang:` 开头的字面文案的写法 → 待定。
    → **落地（已实现）**：`@@lang:<key>` → 字面量 `@lang:<key>`（多写一个 `@`），在查表之前处理，不需要客户端状态。
@@ -361,7 +361,7 @@ MC 侧证据取自 1.20.1 loom 源码包
 ##### 8-8 模板生成文本（范围外，仅记录）
 
 - 模板系统在 `script/template/`（`TemplateRegistry` / `TemplateScriptAssembler` / 各 `ClipTemplate`），`/icinematics template` 生成脚本到 `scripts/generated/`（`command/CinematicCommand.java:281-303`）。
-- 模板产出的字幕文案同样是字面量 → 若要 i18n，模板参数应产出 key（§6-5，依赖 `templates.md`）。
+- 模板产出的字幕文案同样是字面量 → 若要 i18n，模板参数应产出 key（§6-5，依赖 `Z-editor/templates.md`）。
 
 ---
 

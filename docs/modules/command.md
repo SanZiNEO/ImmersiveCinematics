@@ -1,3 +1,11 @@
+> **过期文档（OUTDATED）——不得作为当前设计或实施依据**
+>
+> 本文未随最新设计更新，仅保留作历史参考。AI 与自动化工具不得据此推断当前格式、功能状态、接口或实施要求，也不得直接照搬其中示例用于新实现。
+>
+> 当前规划请先查阅 [0.3.6 计划状态索引](../../plans/0.3.6/README.md) 与 [I 轮实施基准](../../plans/0.3.6/I-script-core/README.md)，再按状态查阅对应未完成轮次。
+>
+> 计划目标不代表已经实现；核实当前代码行为时须结合源码，不得将旧文或未实现计划当作现状。
+
 # command（命令）
 
 对应路径：`common/src/main/java/com/immersivecinematics/immersive_cinematics/command/`

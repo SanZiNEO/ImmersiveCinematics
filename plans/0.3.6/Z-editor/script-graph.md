@@ -1,8 +1,8 @@
 # 脚本架构图
 
-> 状态：实现中（步骤 1 到 4 已落地：图数据、只读全景、阅读交互、搜索过滤；步骤 5 手动布局与持久化、增量刷新未做）
-> 范围：WebUI 编辑器内的脚本架构图视图（数据扫描、布局、交互）。不含编辑器整体架构与协议，不含触发器条件语义。
-> 关联：[编辑器 WebUI 迁移](editor-webui-migration.md)、[触发器条件体系](../C-trigger/trigger-conditions.md)、[脚本格式](../../../docs/SCRIPT_FORMAT.md)
+> 状态：实现中（步骤 1–4 已落地：图数据、只读全景、阅读交互、搜索过滤；步骤 5 手动布局与持久化、增量刷新未做）
+> 范围：编辑器内的脚本架构图视图（数据扫描、布局、交互）；不含编辑器整体架构与协议（见 [`server-protocol.md`](server-protocol.md)），不含触发器条件语义
+> 关联：[`../C-trigger/trigger-conditions.md`](../C-trigger/trigger-conditions.md)、[`../../../docs/SCRIPT_FORMAT.md`](../../../docs/SCRIPT_FORMAT.md)
 
 ## 一、摘要
 
@@ -64,14 +64,14 @@
 - 边带两端脚本、来源触发器类型、前置条件类型。
 - 分区带文件夹路径与脚本数。
 - 前置条件两种写法：字符串即脚本 id；对象写法按类型取脚本 id。
-- 时长取时间线的总时长，负数表示无限。
+- 时长取有限内容末端估计；含无限内容不伪造时长，用 `infinite` 标记（`timeline.total_duration` 已确定删除，不再读取）。
 
 ### 4.4 边界
 
 - 只读：不写脚本，不改前置依赖。
 - 只画前置依赖边；自定义前置条件不成边。
 - 成环不是错误，只做提示。
-- 布局与视图状态不落到脚本文件；游戏内编辑器已退役，视图只在外部编辑器。
+- 布局与视图状态不落到脚本文件；视图只在外部编辑器。
 
 ## 五、为什么不选别的
 
@@ -104,89 +104,11 @@
 | 未设计数据异常提示 | 新增悬空引用、自引用、重复脚本 id、不可解析四类提示，上限 200 条 | 图上要能看出坏数据 |
 | 节点描述按原文显示 | 扫描时解析文本资源引用（2026-10-07） | 脚本 i18n 同批 |
 
-## 附录：重写前原文
-
-### 0.3.6 WebUI 无限画布：脚本架构图（已落地）
-
-> ✅ 主体已落地（步骤 1–4；步骤 5 拖拽布局持久化 + 增量刷新归编辑器阶段）。
-> - 已确认的写“已确认”
-> - 确定不了的只写方向和可能的问题
-> - 字段名、协议细节、布局算法等执行时再定
->
-> 相关文档：
-> - [编辑器 WebUI 迁移](editor-webui-migration.md)
-
----
-
-#### 1. 定位（已确认）
-
-WebUI 编辑器新增一个**脚本架构图**视图：把包内所有脚本铺成一张直观的平面图，让作者看清自己的脚本是怎么串成故事线的。
-
-已确认：
-
-- **无限画布**形态（平移 / 缩放），对标组织架构图 / 节点图的交互习惯；
-- **分组依据 = `scripts/` 文件夹**（第一维度）；
-- **连线依据 = `requires` 前置依赖**，形成脚本树 / 脚本网（第二维度）；
-- 落在 **WebUI 编辑器**；游戏内编辑器已随 0.3.6 退役删除（见[迁移文档](editor-webui-migration.md) §4）。
-
-**不属于本文**：WebUI 编辑器整体架构与通信协议 → 迁移文档；触发器条件编辑 → [触发器条件体系](../C-trigger/trigger-conditions.md)。
-
----
-
-#### 2. 数据（方向）
-
-图数据由 Java 侧扫描提供，走迁移文档的 `{ type, data, id }` 信封，新增一类图数据消息：
-
-- **节点 = 脚本**：相对路径、所在文件夹、meta、时长 / 轨道构成（在 `Timeline` 上，非 `ScriptMeta`）、触发器清单（`requires` 挂在每个触发器上，见文末核查）；
-- **边 = 触发器的 `requires` 前置依赖**：A 的某触发器 requires B → B → A 一条有向边（数组元素为字符串时即脚本 id；对象型取 `data.script`，自定义类型无脚本 id）；
-- **分区 = 文件夹**：`scripts/` 的子文件夹递归映射。
-
----
-
-#### 3. 布局（方向）
-
-- 文件夹作为**泳道 / 分区**（分组外框 + 标题）；
-- 分区内按依赖**拓扑分层**：被依赖的在上（或左），依赖方在下（或右），形成故事线流向；
-- 无依赖的孤立脚本：分区内网格收拢，不散落；
-- 第一版**自研布局**（拓扑分层 + 简单防重叠），不引重型图库。
-
----
-
-#### 4. 交互（方向，分期）
-
-| 期 | 交互 |
-|---|---|
-| 基础 | 平移、缩放；节点渲染（脚本名 + 触发器类型标记） |
-| 阅读 | 悬停显示摘要（时长、轨道构成、触发条件、requires）；点击节点 / 边高亮上下游链 |
-| 跳转 | 双击节点在编辑器里打开该脚本 |
-| 定位 | 按名称 / 触发器类型 / 文件夹搜索过滤 |
-| 整理（后置） | 节点手动拖拽，布局持久化（存储位置待定） |
-
----
-
-#### 5. 可能的问题
-
-- 大包的渲染规模：节点上百时用 canvas 还是 svg，执行时按量级定。
-- `requires` 成环的呈现（标红 / 虚线提示，不算错误——内容由作者负责）。
-- 触发器 → 脚本、EVENT 调用链是否后续加成第二、三类边（本次确认**先做 requires**）。
-- 布局文件存哪（`scripts/` 下隐藏文件还是编辑器本地存储）。
-- 脚本增删改后的增量刷新。
-
----
-
-#### 6. 待定
-
-- 边的种类扩展（触发器、EVENT 调用链）。
-- 布局持久化形态。
-- 画布是否支持反向编辑（拖拽连线改 `requires`——远期）。
-
----
-
-#### 7. 落地顺序（方向）
+## 七、落地顺序
 
 | # | 步骤 | 交付物（完成后我们要什么） | 状态 |
 |---|---|---|---|
-| 1 | 数据协议：Java 侧脚本扫描 + 图数据消息 | WebUI 能拿到全量图数据（节点 / 边 / 分区） | ✅ 已落地（见下） |
+| 1 | 数据协议：Java 侧脚本扫描 + 图数据消息 | WebUI 能拿到全量图数据（节点 / 边 / 分区） | ✅ 已落地 |
 | 2 | 只读全景图：文件夹分区 + 拓扑分层自动布局 + 平移缩放 | 打开视图就能看到整个包的故事线全貌 | ✅ 已落地 |
 | 3 | 阅读交互：悬停摘要、上下游高亮、双击打开脚本 | 从图跳进编辑器编辑任意脚本 | ✅ 已落地 |
 | 4 | 搜索过滤 | 按名称 / 触发器类型 / 文件夹过滤定位 | ✅ 已落地（成本低，随 2–3 一起做） |
@@ -194,62 +116,58 @@ WebUI 编辑器新增一个**脚本架构图**视图：把包内所有脚本铺�
 
 > 步骤 1–3 是核心价值（看懂故事线）；4–5 是体验增强。
 
----
-
-#### 事实核查（2026-10-07）
+## 八、事实核查（2026-10-07）
 
 依据：本仓库 `common/src/main/java/com/immersivecinematics/immersive_cinematics/` 源码。
 
-##### ① 核实为真
+### ① 核实为真
 
-- **`{ type, data, id }` 信封**：`webui/WebEditorApi.java` 类注释 `协议：{ "type": "...", "data": {...}, "id": "..." }`（:19）；入站解析 :28–32；出站组装 :271–275。传输层 `webui/WebSocketSession.java` 只做 WebSocket 帧收发（`sendText`/`sendFrame`），不涉及信封。
-- **现有消息类型中无图数据消息**：`WebEditorApi.java` 的 `switch (type)`（:35–71）仅含 `hello`、`script.list/load/save/delete/new/validate`、`registry.query/get`、`schema.get`、`editor.seek/play/pause/stop/setCamera/pushScript/enter_flight_mode/exit_flight_mode`；全仓库 grep `graph` 在 `webui/` 与 `editor/src` 均无命中。§2“新增一类图数据消息”属实。
-- **`scripts/` 递归扫描 + 子文件夹**：`webui/ScriptFileService.listScripts()`（:25）用 `Files.walk(SCRIPTS_DIR, 5)`（:28），过滤 `.json`，返回正斜杠相对路径（:34）。`script/ScriptManager.loadFromDir`（:51）用 `Files.walk(dir, MAX_SCRIPT_DEPTH)`，`MAX_SCRIPT_DEPTH = 5`（:27）。两处递归深度均为 5，§2“子文件夹递归映射”属实。
+- **`{ type, data, id }` 信封**：`webui/WebEditorApi.java` 类注释（:19）；入站解析 :28–32；出站组装 :271–275。传输层 `webui/WebSocketSession.java` 只做 WebSocket 帧收发，不涉及信封。
+- **现有消息类型中无图数据消息**：`WebEditorApi.java` 的 `switch (type)`（:35–71）仅含 `hello`、`script.list/load/save/delete/new/validate`、`registry.query/get`、`schema.get`、`editor.seek/play/pause/stop/setCamera/pushScript/enter_flight_mode/exit_flight_mode`；全仓库 grep `graph` 在 `webui/` 与 `editor/src` 均无命中。
+- **`scripts/` 递归扫描 + 子文件夹**：`webui/ScriptFileService.listScripts()`（:25）用 `Files.walk(SCRIPTS_DIR, 5)`（:28），过滤 `.json`，返回正斜杠相对路径（:34）。`script/ScriptManager.loadFromDir`（:51）用 `Files.walk(dir, MAX_SCRIPT_DEPTH)`，`MAX_SCRIPT_DEPTH = 5`（:27）。
 - **触发器清单可读**：`ScriptMeta.getTriggers()` 返回 `List<TriggerDefinition>`。
 - **轨道构成可读**：`Timeline.getTracks()`（`Timeline.java`，`List<TimelineTrack> tracks`）。
 - **步骤 1 接入点可复用**：`ScriptFileService.listScripts()` / `loadScript(String relativePath)`（:40）已提供扫描与读取；`ScriptManager.getScript(id)` / `getAllScripts()` 提供解析后的脚本对象。
 
-##### ② 已修正
+### ② 已修正
 
-- **`requires` 不是脚本级字段**：旧表述（§2 节点含“`requires` 列表”、边为脚本级“A requires B”）→ 实际 `requires` 是**触发器级**数组，位于 `meta.triggers[].requires`，解析于 `ScriptParser.parseTriggerRequires`（`ScriptParser.java`:573–609），存于 `TriggerDefinition.requires`（`TriggerDefinition.java`:16，`getRequires()` :50），注册进 `TriggerRegistration`。已改 §2 表述。
-- **时长 / 轨道构成不在 `meta`**：`ScriptMeta` 字段为 id/name/author/version/description/behavior/priority/dimension/triggers/skipVoteRatio，**无时长、无轨道**；时长来自 `Timeline.getTotalDuration()`（`CinematicScript.getTotalDuration()` 转发），轨道来自 `Timeline.getTracks()`。已改 §2。
-- **边的元素形态不止字符串**：`requires` 元素可为字符串（= 脚本 id，等价 `{"type":"script_played","script":"id"}`）或对象 `{"type":"...", ...}`；内置 `script_played`/`script_started`/`script_completed` 的脚本 id 在 `data.script`（`TriggerRequirement.scriptPlayed/scriptStarted/scriptCompleted`），自定义类型无脚本 id。已改 §2。
-- **方法名**：任务描述中的 `readScript` 实为 `ScriptFileService.loadScript`（:40）；`listScripts` 属实。
+- **`requires` 不是脚本级字段**：实际是**触发器级**数组，位于 `meta.triggers[].requires`，解析于 `ScriptParser.parseTriggerRequires`（`ScriptParser.java`:573–609），存于 `TriggerDefinition.requires`（`TriggerDefinition.java`:16，`getRequires()` :50），注册进 `TriggerRegistration`。
+- **时长 / 轨道构成不在 `meta`**：`ScriptMeta` 字段为 id/name/author/version/description/behavior/priority/dimension/triggers/skipVoteRatio，**无时长、无轨道**；时长来自 `Timeline.getTotalDuration()`（`CinematicScript.getTotalDuration()` 转发），轨道来自 `Timeline.getTracks()`。
+- **边的元素形态不止字符串**：`requires` 元素可为字符串（= 脚本 id，等价 `{"type":"script_played","script":"id"}`）或对象 `{"type":"...", ...}`；内置 `script_played`/`script_started`/`script_completed` 的脚本 id 在 `data.script`（`TriggerRequirement.scriptPlayed/scriptStarted/scriptCompleted`），自定义类型无脚本 id。
+- **方法名**：任务描述中的 `readScript` 实为 `ScriptFileService.loadScript`（:40）。
 
-##### ③ 补全的信息
+### ③ 补全的信息
 
-- `ScriptFileService.SCRIPTS_DIR = Paths.get("immersive_cinematics", "scripts")`（相对进程 CWD）；`ScriptManager.GLOBAL_SCRIPT_DIR = "immersive_cinematics/scripts"`，但基于 `server.getServerDirectory()`（`ScriptManager.loadAll` :44）。二者目录字符串一致、基准不同——WebUI 走 `ScriptFileService`（客户端进程侧），图数据扫描应复用后者。
+- `ScriptFileService.SCRIPTS_DIR = Paths.get("immersive_cinematics", "scripts")`（相对进程 CWD）；`ScriptManager.GLOBAL_SCRIPT_DIR = "immersive_cinematics/scripts"`，但基于 `server.getServerDirectory()`（`ScriptManager.loadAll` :44）。二者目录字符串一致、基准不同——WebUI 走 `ScriptFileService`（客户端进程侧），图数据扫描复用后者。
 - `ScriptManager.loadFromDir` 在加载期已做 `requires` 引用校验（指向不存在脚本 / 自引用 → 写 `ErrorLog`，`ScriptManager.java`:115–127），可复用于图中悬空边的提示。
-- `resolveSafe`（`ScriptFileService`:52）做路径越界防护，图数据读取路径应沿用。
+- `resolveSafe`（`ScriptFileService`:52）做路径越界防护，图数据读取路径沿用。
 
-##### ④ 无法核实（未验证）
+### ④ 无法核实（未验证）
 
-- 无。§3–§7 的布局算法、交互分期、落地顺序属方向稿，无代码断言需核实。
+- 无。布局算法、交互分期、落地顺序属方向稿，无代码断言需核实。
 
----
+## 九、落地记录（2026-10-07，步骤 1–4）
 
-#### 落地记录（2026-10-07，步骤 1–4）
-
-##### 数据侧（Java）
+### 数据侧（Java）
 
 - 新增 `webui/ScriptGraphService.java`：复用 `ScriptFileService.listScripts()/loadScript()`（含 `resolveSafe` 越界防护）扫描 `immersive_cinematics/scripts`，容错读取（不依赖 `ScriptParser`——解析失败即停是运行时口径，写坏的脚本也要出现在图上）。
 - 新增消息：请求 `script.graph`（无 data）→ 回执 `script.graph.result`（`id` 原样回传），走既有 `{type,data,id}` 信封（`WebEditorApi.handle` 的 switch 分支）。
 - 数据形态：
-  - `nodes[]`：`id`（= 相对路径，唯一）/ `path` / `folder`（"" = 根）/ `scriptId`（meta.id）/ `name` / `author` / `description` / `dimension` / `priority` / `duration`（`timeline.total_duration`，负数 = 无限）/ `infinite` / `tracks[{type,clips}]` / `triggers[{type,repeatable,requires[{type,script,resolved}]}]` / `requires[]`（去重脚本 id）/ `valid` / `error?`；
+  - `nodes[]`：`id`（= 相对路径，唯一）/ `path` / `folder`（"" = 根）/ `scriptId`（meta.id）/ `name` / `author` / `description` / `dimension` / `priority` / `duration`（有限内容 = `contentEnd`；含无限不伪造，另给 `infinite`）/ `infinite` / `tracks[{type,clips}]` / `triggers[{type,repeatable,requires[{type,script,resolved}]}]` / `requires[]`（去重脚本 id）/ `valid` / `error?`；
   - `edges[]`：`from`（被依赖脚本的节点 id）→ `to`（依赖方节点 id）+ `fromScript`/`toScript`/`trigger`/`requirement`；同一 (from,to,trigger,requirement) 只留一条；
   - `folders[{path,count}]`：分区（= 文件夹，根在前）；
   - `warnings[{kind,path,message}]`：`dangling`（指向不存在脚本，与 `ScriptManager.loadFromDir` 的加载期校验同口径）/ `self_reference` / `duplicate_id` / `invalid`（读失败 / JSON 坏 / meta.id 或 timeline 缺失），上限 200 条。
-- 边方向：被依赖 → 依赖方（B 被 A requires 则 B → A），与 §2 一致。
-- 版本口径：只做 `requires` 边；触发器 → 脚本、EVENT 调用链仍为后续（§6 待定）。
+- 边方向：被依赖 → 依赖方（B 被 A requires 则 B → A）。
+- 版本口径：只做 `requires` 边；触发器 → 脚本、EVENT 调用链仍为后续。
 
-##### 视图侧（前端）
+### 视图侧（前端）
 
 - 新增 `editor/src/graphLayout.ts`（纯函数布局，无第三方图库）+ `editor/src/components/ScriptGraph.vue`（无限画布）+ `store.viewMode`（`'editor' | 'graph'`）；入口：标题栏「视图 → 脚本架构图」与菜单栏一键切换按钮，双击节点跳回编辑器并 `loadScript(path)`。
-- 布局：泳道 = 文件夹（根在前），**列跨泳道对齐**（跨文件夹依赖仍是左→右流向）；分区内按拓扑分层（被依赖在左）；孤立脚本在分层区右侧按 3 行网格收拢；`requires` 成环用 Tarjan SCC 缩点后再分层——环内节点同层、标橙虚线（不算错误，§5）。
+- 布局：泳道 = 文件夹（根在前），**列跨泳道对齐**（跨文件夹依赖仍是左→右流向）；分区内按拓扑分层（被依赖在左）；孤立脚本在分层区右侧按 3 行网格收拢；`requires` 成环用 Tarjan SCC 缩点后再分层——环内节点同层、标橙虚线。
 - 交互：拖拽平移（左键空白 / 中键任意处）+ 滚轮指针锚定缩放（15%–250%）+ 适配视图；悬停摘要（时长 / 轨道构成 / 触发器与 requires / 说明 / 维度 / 作者 / 脚本问题）；单击高亮上下游链（上游绿、下游蓝、其余压暗，Esc 取消）；按名称 / 触发器类型 / 文件夹过滤（AND 组合，可「只看匹配」隐藏其余）；顶部横幅列出图数据提示。
-- 渲染方式：HTML 节点 + SVG 连线（同一条 transform 世界层）。§5 的「上百节点用 canvas 还是 svg」未定论——本次实测规模仅 11 节点，量级压测与 canvas 迁移留到有真实大包时再定。
+- 渲染方式：HTML 节点 + SVG 连线（同一条 transform 世界层）。实测规模仅 11 节点，量级压测与 canvas 迁移留到有真实大包时再定。
 
-##### 未做（与 §5/§6 对应）
+### 未做
 
 - 手动拖拽布局与持久化（步骤 5）；
 - 脚本增删改后的增量刷新（每次打开视图 / 手动刷新全量重扫）；

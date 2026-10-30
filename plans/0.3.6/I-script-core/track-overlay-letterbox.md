@@ -6,7 +6,7 @@
 
 ## 一、摘要
 
-OVERLAY 的几何、透明度、取材、颜色、遮罩、渐变全部拆成叶子对象；LETTERBOX 的 `aspect_ratio`/`opacity` 也是对象。层类型、路径/文本、渐变结构、遮罩形状、混合模式、z 序作为片段级 value-only 字段放进 `objects`；clip 外层只留播放控制/规则。运行时用同一个 `SampledClip` 生成图层参数；`ColorMaskSpec` 不再缓存关键帧颜色数组，`OverlayManager` 仍按 `z_index` 在加入时排序。LETTERBOX 保持独立轨道的 0.5 秒淡出和 z=0 口径。
+OVERLAY 的几何、透明度、取材、颜色、遮罩、渐变全部拆成叶子对象；LETTERBOX 的 `aspect_ratio`/`opacity` 也是对象。层类型、路径/文本、渐变结构、遮罩形状、混合模式、z 序作为片段级 value-only 字段放进 `objects`；clip 外层只留播放控制；规则声明在脚本级独立集合，不在 clip 上承载。运行时用同一个 `SampledClip` 生成图层参数；`ColorMaskSpec` 不再缓存关键帧颜色数组，`OverlayManager` 仍按 `z_index` 在加入时排序。LETTERBOX 保持独立轨道的 0.5 秒淡出和 z=0 口径。
 
 ## 二、为什么做
 
@@ -72,7 +72,8 @@ OVERLAY 的几何、透明度、取材、颜色、遮罩、渐变全部拆成叶
 | `text` | string | subtitle 文本 |
 | `z_index` | int | 图层顺序；加入时排序 |
 
-- `rules` 仍是 clip 外层字段（播放控制/规则），不在 value-only 表里。
+- 规则声明属于脚本级独立集合，通过片段引用定位，不是图层数值属性；本轨道字段表不预定 `rules` 容器，也不在 clip 上新增规则结构。规则的时间门、条件、门前事实采集、实例级挂起、事实接力与延迟动作由规则集合负责。
+- 路径曲线集合只引用位置对象/对象组；OVERLAY/LETTERBOX 不提供位置曲线目标，不参与曲线绑定。
 - `layer_type=image` 的 `path` 支持 `.mp4` / `.webm` / `.mkv`：运行时按扩展名创建 `VideoLayer`，复用 `x/y`、`scale_*`、`source`、`opacity`、`z_index`，不新增字段、不新增 `layer_type` 值。视频时间取片段局部时间；音轨不随视频播放。见 `media-video.md`。
 - `z_index` 是 value-only 字段（无 keyframes）：`OverlayManager.addLayer` 只在加入时按 z 排序；运行中改 z 不会重排。保持现行行为。
 - `gradient` 的 stops 是结构数据，放在 value-only `gradient` 字段里；颜色 stops 不随时间变。若以后要动画渐变颜色，再按字段模型加 `gradient.stop.N.*`，本轮不做。
@@ -84,7 +85,7 @@ OVERLAY 的几何、透明度、取材、颜色、遮罩、渐变全部拆成叶
 | `aspect_ratio` | float | linear | 黑边比例，缺省 2.35 |
 | `opacity` | float | linear | 黑边不透明度，0~1，缺省 1 |
 
-clip 级只有 `rules`。非活跃 clip 设 aspect=0、opacity=1；内部 0.5 秒淡出；z 固定 0。这些行为不变。
+clip 级不承载规则；规则声明在脚本级独立集合，通过引用定位片段。非活跃 clip 设 aspect=0、opacity=1；内部 0.5 秒淡出；z 固定 0。这些行为不变。
 
 ### 3.4 执行
 
@@ -94,7 +95,7 @@ clip 级只有 `rules`。非活跃 clip 设 aspect=0、opacity=1；内部 0.5 �
 - `ImageLayer` 的 `source` 读 `source.x/y/w/h`；`x/y` 是中心，`anchor_*` 是变换原点，`scale_*` 是素材像素倍数，`k` 仍是分辨率逃逸（非脚本字段）。
 - `SubtitleLayer` 的 `font_scale` 读对象；`scale_x/y` 叠加；alpha < 4 跳过（MC 字体 alpha 限制）不变。
 - `OverlayManager` 仍按 `z_index` 在 `addLayer` 时排序；`removeLayer` 关闭 GPU 资源；`startFadeOut` 按 owner。
-- 循环：循环片段按次数执行；对象在每次执行的 `executionLocalTime` 采样；图层生命周期窗口由展开后的 `windowEnd` 决定。执行边界不额外重置图层/淡出；仍活跃的图层按现有循环设计继续，是否重启由活跃窗口/播放控制决定（见 `loop-execution.md` §3.5）。
+- 循环片段按次数执行；对象使用当前执行的 `executionLocalTime` 采样。图层是否仍活跃由调度执行状态和显式播放控制决定，派生 `windowEnd` 只作定位／显示参考，不能到点就代替执行结束事件。边界不额外重置图层／淡出，仍活跃资源继续，释放随实际结束或控制事件（见 `loop-execution.md` §3.5）。
 
 ### 3.5 静态图层
 
@@ -159,7 +160,7 @@ LetterboxClipRuntime
 - `color.r/g/b` 的“缺省回落 value-only 基色”是动态默认，schema 的静态 `default` 表达不了；parser/validator/编辑器要特判。
 - `appliesTo` 让同一轨道的对象集合随层类型变化，schema/编辑器表单需要条件显示。
 - 删除 `ColorMaskSpec` 的 keyframe 缓存会改变内部 API；所有读缓存的地方要迁移到 `OverlayParams`。
-- 执行边界不重置图层/淡出；长循环的视觉节奏由活跃窗口和作者内容决定，需要作者用 `loop_count`/分段控制。
+- 执行边界不一律重置图层／淡出；长循环节奏由作者内容和执行状态决定，不能靠派生窗口截断仍在运行的内容。
 
 ## 六、实现结果
 
