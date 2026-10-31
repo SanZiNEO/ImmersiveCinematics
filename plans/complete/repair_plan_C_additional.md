@@ -16,7 +16,7 @@ if (stopping && !OverlayManager.INSTANCE.isAnimating()) {
 }
 ```
 
-当前流程恰好能工作（因为 `deactivate()` → `startFadeOut()` → 所有 VISIBLE 层进入 FADE_OUT → tick 驱动到 HIDDEN），但语义不正确。如果未来添加一个"始终可见"的层（如水印层），`isAnimating()` 永远返回 true，相机将永远无法停用。
+当前流程恰好能工作（因为 `deactivate()` → `startFadeOut()` → 所有 VISIBLE 层进入 FADE_OUT → tick 驱动到 HIDDEN），但语义不正确。如果添加一个"始终可见"的层（如水印层），`isAnimating()` 永远返回 true，相机将永远无法停用。
 
 ### 修复方案
 
@@ -59,7 +59,7 @@ if (stopping && !OverlayManager.INSTANCE.isAnimating()) {
 ```mermaid
 graph LR
     OL[OverlayLayer 接口] -->|添加 isAnimating 默认方法| LL[LetterboxLayer]
-    OL -->|默认返回 false| Future[未来新层]
+    OL -->|默认返回 false| Future[新层]
     OM[OverlayManager.isAnimating] -->|改为调用 layer.isAnimating| CM[CameraManager.onRenderFrame]
     CM -->|stopping 判断| deactivateNow
 ```

@@ -1,7 +1,7 @@
 # 0.3.4 剩余事项 — 问题清单与解决方案
 
 **创建日期**: 2026-08-09  
-**状态**: ✅ **已全部实施完毕（2026-08-09 当日）**——除明确标注"待讨论/不做/未来"的项  
+**状态**: ✅ **已全部实施完毕（2026-08-09 当日）**——除明确标注"待讨论/不做/未做"的项  
 **对照**: `plans/complete/0.3.4/unfinished-items.md`（归档版清单）的 B 组、C1、E 组
 
 ---
@@ -125,7 +125,7 @@ TriggerEngine.INSTANCE.onGameEvent("item_on_interact", serverPlayer);
 - 开放 API 让"模组套模组触发脚本"语义很怪，且与命令功能重叠
 - custom 无调用方 = 死功能（脚本写 `custom` 条件永远不触发，误导）
 - **决定：删除 `custom` 触发器类型**（注册、`evaluateCustom`、`CustomEventTracker`、schema/编辑器条目一并移除）
-- 若未来有第三方联动需求：文档提供"第三方模组执行命令触发脚本"示例即可，不再引入 API
+- 若有第三方联动需求：文档提供"第三方模组执行命令触发脚本"示例即可，不再引入 API
 
 ### B5. 触发器状态同步链路（S2CTriggerStateSyncPacket）
 
@@ -178,7 +178,7 @@ deactivateNow() 末尾 → pendingScript / 队列非空则自动接播
 
 ---
 
-## 四、触发器分类体系（v1 草案，2026-08-09）
+## 四、触发器分类体系（v1，2026-08-09）
 
 > 目标：归类全部触发器（现有 16 种 + 新增候选），明确组合能力与冒烟测试矩阵。
 > 参考：FTB-Quests 任务类型（xp / dimension 驻留 / observation 观察）与 Architectury 事件模块能力。
@@ -236,7 +236,7 @@ deactivateNow() 末尾 → pendingScript / 队列非空则自动接播
 
 1. **多触发器 OR**（现状）：脚本 triggers 数组各自独立注册，任一满足即播放
 2. **场景条件扩展**：事件型触发器记录**事件时刻**的场景（维度/群系/位置）——`KillTracker.record` 扩展为同时记录 dimension+pos；kill/interact/craft/pickup/drop 的 conditions 加可选 `dimension` / `biome` / `location` 字段（例：`entity_kill` + `"dimension": "minecraft:the_nether"` = "在下界杀怪"）。记录在事件发生那一刻，非"现在"
-3. **脚本级 AND**（可选未来）：全部触发器满足才触发标志——有竞态（事件型与轮询型不同步），需求明确再做
+3. **脚本级 AND**（可选）：全部触发器满足才触发标志——有竞态（事件型与轮询型不同步），需求明确再做
 
 ### E+ 物品检测设计原则（平行线模型，2026-08-09 确认）
 
@@ -256,7 +256,7 @@ deactivateNow() 末尾 → pendingScript / 队列非空则自动接播
 
 ### F 类 / G1 / G2 · 跨维度运镜 + 相机实例队列 + 画中画
 
-> 现归 0.3.6 F 轮：`plans/0.3.6/F-playback/cross-dimension-camera.md`（原 0.4.0 文档已删除）。
+> 现归 0.3.6 F 轮：`plans/0.3.6/F-playback/cross-dimension-camera.md`。
 > G3 维度驻留触发器已实施（见状态总览）；G4 relative 片段级基准不排期，记录见下。
 
 #### G3 维度驻留触发器（新增候选 — 与相机体系的关系已厘清）

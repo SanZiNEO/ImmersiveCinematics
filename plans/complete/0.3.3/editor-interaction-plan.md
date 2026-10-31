@@ -1,5 +1,7 @@
 # 编辑器交互优化计划
 
+> **历史文档**：游戏内编辑器（`editor/` 包）已移除，编辑器改为 WebUI（见 `plans/0.3.6/Z-editor/`）。本文仅作历史设计参考。
+
 > 参考项目：Olive (C++/Qt NLE)、LosslessCut (JS/Electron)
 > 目标：0.3.3 发布前将编辑器体验提升到专业剪辑软件水准
 
@@ -238,7 +240,7 @@ private void buildTabBar() {
 ```
 
 ### 标签图标（可选）
-当前用 emoji 代替图标。未来可替换为纹理图标（16×16 png）。
+当前用 emoji 代替图标。可替换为纹理图标（16×16 png）。
 
 ---
 

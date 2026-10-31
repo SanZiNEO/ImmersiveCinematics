@@ -73,8 +73,8 @@ OVERLAY 的几何、透明度、取材、颜色、遮罩、渐变全部拆成叶
 | `z_index` | int | 图层顺序；加入时排序 |
 
 - 规则声明属于脚本级独立集合，通过片段引用定位，不是图层数值属性；本轨道字段表不预定 `rules` 容器，也不在 clip 上新增规则结构。规则的时间门、条件、门前事实采集、实例级挂起、事实接力与延迟动作由规则集合负责。
-- 路径曲线集合只引用位置对象/对象组；OVERLAY/LETTERBOX 不提供位置曲线目标，不参与曲线绑定。
-- `layer_type=image` 的 `path` 支持 `.mp4` / `.webm` / `.mkv`：运行时按扩展名创建 `VideoLayer`，复用 `x/y`、`scale_*`、`source`、`opacity`、`z_index`，不新增字段、不新增 `layer_type` 值。视频时间取片段局部时间；音轨不随视频播放。见 `media-video.md`。
+- 路径集合只引用位置对象/对象组；OVERLAY/LETTERBOX 不提供位置路径目标，不参与路径绑定。
+- `layer_type=image` 的 `path` 支持 `.mp4` / `.webm` / `.mkv`：运行时按扩展名创建 `VideoLayer`，复用 `x/y`、`scale_*`、`source`、`opacity`、`z_index`，不新增字段、不新增 `layer_type` 值。视频时间取片段局部时间；音轨不随视频播放。见 `../../J-media/playback.md`。
 - `z_index` 是 value-only 字段（无 keyframes）：`OverlayManager.addLayer` 只在加入时按 z 排序；运行中改 z 不会重排。保持现行行为。
 - `gradient` 的 stops 是结构数据，放在 value-only `gradient` 字段里；颜色 stops 不随时间变。若以后要动画渐变颜色，再按字段模型加 `gradient.stop.N.*`，本轮不做。
 
@@ -165,7 +165,3 @@ LetterboxClipRuntime
 ## 六、实现结果
 
 状态：未实现
-
-| 原设计 | 实际实现 | 偏离原因 |
-|---|---|---|
-| 未实现 | — | — |

@@ -1,5 +1,7 @@
 # 编辑器模块化与面板重构（Editor Modularization & Panel Refactor）
 
+> **历史文档**：游戏内编辑器（`editor/` 包）已移除，编辑器改为 WebUI（见 `plans/0.3.6/Z-editor/`）。本文仅作历史设计参考。
+
 **版本**: 0.3.5
 **类型**: 重构 / 稳定性
 **状态**: ✅ 已完成（PanelTabBar / ScrollablePanel / panel / fields 拆分已落地）
@@ -28,7 +30,7 @@
 4. 预设库作为独立模块，并集成到面板中。
 5. 为后续“一个预设一个文件”的扩展方式打好结构基础。
 
-## 拆分结构（草案）
+## 拆分结构
 
 ```
 editor/

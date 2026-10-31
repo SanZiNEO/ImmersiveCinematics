@@ -1,7 +1,6 @@
 # 镜头跟踪系统 (look_at + follow) —【已实现，2026-08-09 归档】
 
-> **状态**：✅ 已在 0.3.4 完成，实现为**关键帧级**设计（非本文件的 clip 级 tracking 块），
-> 能力超越本计划并取代之：
+> **状态**：✅ 已在 0.3.4 以**关键帧级**设计实现：
 > - 字段扁平化到关键帧：`position_mode` / `follow` + `follow_selector` / `look_at` + `look_at_selector` / `look_at_target_x/y/z` / `look_at_target_structure`
 > - 两端关键帧各自求值为世界坐标再插值 → follow↔普通、换目标、look_at 开关全部平滑过渡
 > - 实体选择器子集 `@p`/`@s`/`@e`/`@e[type=..,name=..]`/`uuid:..`（就近优先 + 缓存）
@@ -16,7 +15,7 @@
 
 ## 设计
 
-> ⚠️ 以下为**旧设计**（clip 级嵌套 tracking 块），已被关键帧级实现取代，仅存档追溯。
+> 以下为 clip 级嵌套 tracking 块方案。
 
 新增 clip 级 `tracking` 配置块，三属性独立可控：
 

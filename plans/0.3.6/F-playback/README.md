@@ -1,6 +1,7 @@
 # F 轮（播放 / 渲染）文档索引
 
 > 用途：一页看清本目录 14 篇文档各自负责什么、现在什么状态、还剩哪些开放项。
+> **状态：F 轮已于 2026-10-26 关单。** 下方 🟡 / 开放项均为关单后的技术收口或增强项，不是关单缺口。
 > 本页只做汇总，不新增结论；结论以各文档正文的落地记录为准。
 > 图例：✅ 已完成　🟡 部分可用 / 有开放项　☐ 未开工　⊘ 不做　📄 记录性
 
@@ -136,7 +137,7 @@
 - [iris-oculus-compat](iris-oculus-compat.md) §3 是源码级推演，**结论在 §7**；§5.2 的待定项仍未定。
 - [failure-handling-audit](failure-handling-audit.md) §2–§6 是**待实施清单**，不是已完成记录；状态只看 §0.4。
 - [camera-composition](camera-composition.md) §5 的 🟡 项与 §6「待定」有重叠（主 lane 判定），本索引已合并列出。
-- [cross-dimension-camera](cross-dimension-camera.md) 已于 2026-10-25 按 IP / MC / 光影 / 本仓代码调查重写为 per-view 维度渲染；旧 0.4.0 F 类与 A/B/C 选型不再作为现行口径，A（传送玩家）已停用。P0 是验证顺序，不是能力边界。
+- [cross-dimension-camera](cross-dimension-camera.md) 已于 2026-10-25 按 IP / MC / 光影 / 本仓代码调查重写为 per-view 维度渲染；A（传送玩家）已停用。P0 是验证顺序，不是能力边界。
 
 ---
 

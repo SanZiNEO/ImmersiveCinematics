@@ -243,7 +243,7 @@ ClipExecution
 
 当前实现仍是 `%`/镜像折叠 + `getAnimPeriod()` 周期 + `Float.MAX_VALUE`/`NaN` 数值哨兵；`ScriptValidator` 仍把“无限片段后仍有片段”判为禁播；规则 `once`/`until` 仍按时间回退重置、规则生命周期仍截在片段活跃窗，规则仍以 `clip.rules` 为片段元数据，门控执行资格、提前事实采集、实例级挂起、事实接力与延迟动作均未实现。这些是旧实现，不是本设计已落地；本设计尚未改代码。
 
-| 原设计 | 实际实现 | 偏离原因 |
+| 设计目标 | 实现 | 说明 |
 |---|---|---|
 | 执行次数/执行身份/语义完成 | 未实现；当前 `KeyframeInterpolator` 取模、`ScriptPlayer.lapsBefore` 用 `getAnimPeriod`，完成事实仍混用窗口/圈数 | 本设计未落地，代码仍走旧路径 |
 | 无限只无自然完成、不禁止后续片段 | 未实现；`ScriptValidator` 仍把“无限片段后仍有片段”判为禁播 | 旧 terminal 口径未清除 |

@@ -1,7 +1,7 @@
 # 0.3.5 区块预加载与相机区域统一设计（v5.5 假人完全接管版）
 
-**状态**: 📋 原初设计（假人完全接管版）。实际代码最终采用“状态边界统一差集”，最终方案见 `prewarm-release-diff.md`，本文保留作设计追溯。
-**关联**: 统一 `chunk-preload.md`（3.5 手动 ticket 版）与 `camera-region-mechanics-5.5.md`（5.5 假人接管版）；为 0.3.5 预加载 + 相机区域原初设计源
+**状态**: 设计文档（假人接管版）。
+**关联**: 统一 `chunk-preload.md`（手动 ticket 版）与 `camera-region-mechanics-5.5.md`（假人接管版）；0.3.5 预加载 + 相机区域设计。
 **决策**:
 - 架构：**假人完全接管**，删除手动相机区 ticket / 手动区块补发
 - Prewarm：**保留 ticket 预载**（轻量，只提前加载区块）
@@ -112,7 +112,7 @@
 - 下一 clip 开始前，用轻量 `addRegionTicket` 提前加载目标区域区块；
 - 只加载区块，不转发、不刷怪、不产生实体；
 - 跳过去后由 far-view / 假人接管补发；
-- 若未来需要“下一 clip 实体提前在场”，再扩展为第二假人预载，不在本期做。
+- 若需要“下一 clip 实体提前在场”，再扩展为第二假人预载，不在本期做。
 
 ### 3.5 配置平台持久化
 
@@ -141,7 +141,7 @@
 | `desired/ticketed/sent` 状态 | ✅ 已删除 |
 | `ChunkTicketPool` | 仅保留给 prewarm / 玩家区票券使用，删除相机区用途；注释仍待同步（见 code-review 3.2） |
 | 配置静态默认值 | ✅ 已接入平台持久化 |
-| 旧文档 `chunk-preload.md` 中的 3.5 方案 | 标记为历史方案，本文为唯一设计源 |
+| `chunk-preload.md` 中的 3.5 方案 | 手动 ticket + scanChunk + 补发 |
 
 ---
 
@@ -185,14 +185,14 @@
 5. Prewarm：下一 clip 区块提前加载，跳转后无缝。
 6. 全部预加载配置可在 Forge/Fabric 配置中持久化。
 7. 脚本结束/退出/断线：假人、票券、转发记账、客户端中心全部清理。
-8. `ChunkPreloadManager` 无空实现/死代码；`scanChunk` 相关代码与文档均标记为历史方案。
+8. `ChunkPreloadManager` 无空实现/死代码；`scanChunk` 相关代码与文档一并归档。
 9. `gradlew build` 全平台通过。
 
 ---
 
 ## 7. 实施顺序
 
-1. 更新文档：本文定稿后，将 `chunk-preload.md` 标记为历史方案，`camera-region-mechanics-5.5.md` 与本文合并/互相引用，`1.md` 进度同步。
+1. 更新文档：本文定稿后，`chunk-preload.md` 归档，`camera-region-mechanics-5.5.md` 与本文合并/互相引用，`1.md` 进度同步。
 2. 清理代码：删除手动相机区 ticket / 手动补发 / scanChunk 残留；`ChunkPreloadManager` 瘦身。
 3. 修复 Forge 实体数量偏少：先加转发日志定位，再修 Bundle/顺序/引导差异。
 4. 配置持久化：`ConfigProvider/ConfigValues` 扩展全部预加载字段，Forge/Fabric 接入。

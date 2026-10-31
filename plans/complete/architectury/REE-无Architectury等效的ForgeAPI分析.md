@@ -1,5 +1,7 @@
 # 无 Architectury 等效的 Forge API 记录
 
+> **历史文档**：Architectury 已从项目中移除。当前架构为 MultiLoader（`common` + `fabric` + `forge`，LegacyForge + VanillaGradle + Fabric Loom，Java 17）。本文仅作历史参考。
+
 记录自 2026-07-12 讨论。这部分 Forge API 没有 Architectury 跨平台等效，且 Fabric API（1.20.1）同样不提供等效方案。需要自行搭建（Mixin 注入 + 直接调用逻辑）。
 
 > 更新于 2026-07-12：查阅了 FTB-Quests（参考项目）和 Fabric API 源码后确认，以下 6 项在 Architectury 和 Fabric API 中均无等效方案。

@@ -99,7 +99,7 @@
 
 实例模型、跨脚本并行、每实例生命周期、控制并集、预览隔离、队列与三态播放关系已落地；多实例音频锚点、跳过投票界面与成本曲线未做。
 
-| 原设计 | 实际实现 | 偏离原因 |
+| 设计目标 | 实现 | 说明 |
 |---|---|---|
 | 不做互斥组、跨脚本全并行；队列容量 8 | 三态播放关系；队列不设上限 | 播放关系后独立成篇引入 |
 | 暂停只影响声明联动的实例 | 并集：任一实例声明即全部冻结 | 共用一条时钟 |
@@ -364,12 +364,6 @@
 
 ---
 
-#### 8. 与 0.4.0 旧稿的关系
-
-本文取代 0.4.0 的 **G1（相机实例队列）**：其实例列表、后台预热的思想并入本文，并扩展为“无上限 + lane + 完整并行语义”的模型。G1 原文已从 0.4.0 抹除。
-
----
-
 #### 已知缺陷（2026-10-06 代码复查）
 
 > 只读代码审查发现，未在游戏内复现；不影响当前设计，记录备查。
@@ -393,7 +387,6 @@
 5. **已知缺陷 2 “`C2SPlaybackStarted` 无条件回报”** —— 属实。`trigger/client/ClientScriptReceiver.handlePlayScript`：`CameraManager.INSTANCE.playCinematic(script);` 后无条件 `NetworkHandler.sendToServer(new C2SPlaybackStartedPacket(script.getId(), packet.getRefId()))`，未检查返回值。`CameraManager.playScript` 的 javadoc 明确 `@return 0=被拒绝, 1=已开始播放, 2=已排队等待`（`CameraManager.java:145`）；`playCinematic` 直接丢弃返回值（`:177-179`）。
 6. **§3.7 “网络包带实例 id（方向）/ 触发状态机按实例维护（方向）”** —— 现状确实无实例 id：`S2CPlayScriptPacket` 仅 `scriptJson` + `refId`；`C2SPlaybackStartedPacket` 仅 `scriptId` + `refId`；`ScriptEventManager` 的 `Map<String, ScriptPlayback> scriptPlaybacks` 以 **scriptId** 为键，`ScriptPlayback` 只含 `Set<UUID> viewers` / `Set<UUID> skipVoters`；`ScriptSyncState` 只做脚本文件指纹登记（`Map<String,String> fingerprints`），与实例无关。故“带实例 id”确为尚未实现的方向。
 7. **§1 原型数据（引用 `quadrant-perf/summary.md`）** —— 绝对数值属实：结论表列 1/4/16/25 画面帧间隔 8/17/61/98 ms、单画面 3.4/3.5/3.6 ms、主画面各档 2–3 ms、线性。原「≈1.2–1.4 × 主画面」比值经 2026-10-07 跨文档核查与 CSV 明细不符，已在本文与引用处删除（裁决见 multi-camera-rendering.md 核查小节）。
-8. **§8 “G1 原文已从 0.4.0 抹除”** —— 属实。`plans/0.4.0/README.md:12` 注明“G1/G2 已抹除”，`:19` 注“相机实例队列（G1）→ `plans/0.3.6/parallel-playback.md`（取代）”；原 `plans/0.4.0/camera-queue-pip-dimension.md` 已删除，跨维度内容归 `plans/0.3.6/F-playback/cross-dimension-camera.md`；G1/G2 已被 0.3.6 三篇取代并抹除。全 0.4.0 目录 grep `G1` 仅剩这些“已抹除”说明。
 
 ##### ② 已修正的断言
 

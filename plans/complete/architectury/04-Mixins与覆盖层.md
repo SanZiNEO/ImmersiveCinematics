@@ -1,5 +1,7 @@
 # 阶段 4：Mixins 与覆盖层
 
+> **历史文档**：Architectury 已从项目中移除。当前架构为 MultiLoader（`common` + `fabric` + `forge`，LegacyForge + VanillaGradle + Fabric Loom，Java 17）。本文仅作历史参考。
+
 ## 目标
 
 迁移 Mixin 系统和覆盖层系统（overlay/）到 common 模块。Mixin 类全部为纯 Mixin 代码不依赖 Forge，覆盖层中除了 `CinematicOverlay.java` 使用 Forge GUI overlay 注册外，其他均为纯 Vanilla。

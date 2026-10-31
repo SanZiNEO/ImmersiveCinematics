@@ -261,7 +261,7 @@ P0 通过，说明“采样带维度 → 目标 view → 数据流 → 合成”
 
 ### 8.2 与设计基线的偏离
 
-| 设计 | 实际实现 | 原因 |
+| 设计目标 | 实现 | 说明 |
 |---|---|---|
 | `CameraVirtualCenterState` / `CameraAnchorManager` / `CameraCenterManager` 改造成 `(player, dimension, cameraId)` | 同维度链路保持原样；跨维度新增并行 `CameraViewManager` | 同维度零回归；三张表按 view 重做会牵动 F6 |
 | 自定义 `TicketType` / region ticket 覆盖 entity-ticking | `DistanceManager.addPlayer(相机 section, 真实玩家)` + 每 tick `resetEmptyTime()` | 复用原版 ticket 语义；目标维度实体 tick 由 `emptyTime` 重置保住 |

@@ -46,8 +46,8 @@
 1. 6 个参数分散在 `CameraPath` / `CameraProperties` 两个对象里，没有统一状态边界。
 2. `CameraManager` 同时承担生命周期、脚本、预览、时钟、状态读写等多重职责。
 3. 多个写入者直接写内部对象，谁最后写谁生效，没有优先级和所有权。
-4. ~~`CameraPath` / `CameraProperties` 同时有“当前值”和 staged 过渡值两套职责~~ → **已被 §4 取代（staged 已删除，2026-10-07 落地；2026-10-09 回写）**：两对象现只剩“当前值”一套——`CameraPath.java:14-15` 仅 `currentPosition`，`CameraProperties.AnimValue`（:26-33）仅 `current`；全 camera 包 `targetPosition/startPosition/transitionDuration/transitionProgress/overrideFrom/staged` 零命中。
-5. Mixin / 渲染层直接依赖具体类，未来扩展会继续扩散。
+4. ~~`CameraPath` / `CameraProperties` 同时有“当前值”和 staged 过渡值两套职责~~ → **现由 §4 统一（staged 已删除，2026-10-07 落地；2026-10-09 回写）**：两对象现只剩“当前值”一套——`CameraPath.java:14-15` 仅 `currentPosition`，`CameraProperties.AnimValue`（:26-33）仅 `current`；全 camera 包 `targetPosition/startPosition/transitionDuration/transitionProgress/overrideFrom/staged` 零命中。
+5. Mixin / 渲染层直接依赖具体类，扩展会继续扩散。
 6. 外部 API 没有稳定入口。
 
 ---
@@ -308,13 +308,13 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 
 | 项 | 结论 |
 |---|---|
-| Base / Modifier 接口的最终形态 | **定**：见 §12 草案（B1-b / B1-c 实现；B4-P5 留位）。 |
+| Base / Modifier 接口的最终形态 | **定**：见 §12 设计（B1-b / B1-c 实现；B4-P5 留位）。 |
 | 优先级数值 | **定**：Base = §2 档位表（100 间隔）；Modifier 不设固定档位表——只定「升序应用、同值按注册顺序」的序语义 + 缺省 `0`（效果数量与来源未知，固定档位表无意义）；内置示例（震屏等）的具体数值在 B1-d 定。 |
 | 状态 buffer 设计 | **定**：覆盖链工作区 = `CameraStateBuffer`（§12）；`CameraPath` / `CameraProperties` **保留**为「当前值写入缓冲」（`camera-core-split.md` §〇 CORE 行「降为包内写入缓冲」），**不被取代**——两者职责不同：写入缓冲 = 当前值（快照取值来源），工作区 = 每帧合成中间值。 |
-| 外部 API 开放时机 | **定**：0.3.6 只留位不开放；开放条件 = 内部稳定 + 覆盖链落地（B1-b/c）+ 至少一个版本观察期（`plans/0.4.0` 起评估）——§1、§7「外部 API：Phase 2/3」、`camera-core-split.md` §2.4 / §五。 |
+| 外部 API 开放时机 | **定**：0.3.6 只留位不开放；开放条件 = 内部稳定 + 覆盖链落地（B1-b/c）+ 至少一个版本观察期（后续版本起评估）——§1、§7「外部 API：Phase 2/3」、`camera-core-split.md` §2.4 / §五。 |
 | `zoom` 是否保留独立参数 / 只暴露 effectiveFov | **定**：**保留独立参数**。`zoom` 是既有脚本字段，且 §10 覆盖目标点名「roll / fov / zoom」必须继续可用；`CameraState` 是六参数平铺 record（§6 接口定稿），删 `zoom` = 改已定接口形态。`effectiveFov = fov / zoom` 只作**派生读数**（渲染口径 `GameRendererMixin.java:126-131`）供需要「一个数」的消费方使用，不取代两个独立参数。 |
 
-### 12. 接口形状草案（B1-b/c 实现 + B4-P5 留位）→ **已落地（B1-b / B1-c / B4-P5）**
+### 12. 接口形状（B1-b/c 实现 + B4-P5 留位）→ **已落地（B1-b / B1-c / B4-P5）**
 
 ```java
 // ===== api/（对外留位：camera-core-split §2.4「Base Provider 接口留位」；B4-P5 落地，B1-b 接链）=====
@@ -383,7 +383,7 @@ public final class CameraCoverChain {
 - 直写穿透：`setCameraDirect` 两个重载（`CameraManager.java:977-980` / `:989-992`）写**直控层**后立即 `evaluate + refresh`，保持 §6「写后立即可见」（不等下一帧）。注：旧 5 参数入口 `previewSetCamera` 已随 B4-P0 删除（`camera-core-split.md` §2.3 第 3 条），§6 的历史「直写入口」清单以 `setCameraDirect` 为准。
 - 多 lane：链作用于**主相机状态**（= 顶层实例顶层活跃 clip 那份，与 §6 快照、最上层 lane 同源同值）；次级 lane 的相机状态来自各自 `CameraLane` 快照，不经过链（作用范围见 §14③）。
 
-**落地差异（2026-10-11）**：B1-b / B1-c / B4-P5 实际落地与上草案的差异（以本节为当前口径）：
+**落地差异（2026-10-11）**：B1-b / B1-c / B4-P5 实际落地与上节的差异（以本节为当前口径）：
 
 1. `CameraModifier` 增 `isActiveThisFrame()`（缺省 `true` = 常活跃）——B1-d 的活跃窗门（`camera/ClipModifierGate.java`）据此逐帧判定；`false` = 链跳过本条、不调用 `writeValue`。
 2. `CameraCoverChain` 增 `snapshot()`（无活跃 Base 返回 `null`，否则工作区快照产出）与 `modifiersApplied()`（本帧链上是否有 Modifier 参与合成——消费方 = 主相机那份的取用点，据此判定「链输出是否已被 Modifier 改写」）。

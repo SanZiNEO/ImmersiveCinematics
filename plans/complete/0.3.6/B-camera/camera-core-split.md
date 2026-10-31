@@ -24,7 +24,7 @@
 |---|---|---|---|
 | CORE 相机核心 | 六参数 + 统一快照 + 写入缓冲 | `camera/core/`：`CameraState`（迁 `api/` 或核心包，执行时定）、`CameraPath`/`CameraProperties` 降为包内写入缓冲 **〔落地口径（2026-10-11）：现布局无 `camera/core/` 名义包，核心 = `camera/` 状态三件（`CameraStateHolder` + `CameraPath` + `CameraProperties`），import 仅 `api` + `net.minecraft`，见 §四 P5 落地证据〕** | 现 `camera/` |
 | SRC 输入源（COORDSRC / DIRSRC / FRAMES / TRACK） | 坐标源、方向源、参考系、追踪 → 目标位姿 | `camera/source/`：`EntityTargetResolver`、`WorldPointLocator`、位姿求值 | `CameraTrackPlayer` C/D/E 组 |
-| COVER 覆盖链（Base → Modifier → CSTATE） | Base Provider（脚本导演/编辑器直控/飞行/外部接管）→ Modifier → 统一状态 | **本轮只立接口留位**，接链归 B1（**接口形状已定稿 2026-10-10**：`camera-state-plan.md`「覆盖链定稿」§2 名单档位 + §12 接口草案） | 未来 B1 |
+| COVER 覆盖链（Base → Modifier → CSTATE） | Base Provider（脚本导演/编辑器直控/飞行/外部接管）→ Modifier → 统一状态 | **本轮只立接口留位**，接链归 B1（**接口形状已定稿 2026-10-10**：`camera-state-plan.md`「覆盖链定稿」§2 名单档位 + §12 接口设计） | B1 |
 | 门面/编排（PB.CMGR） | 生命周期 / 编排 / 门面 | `CameraManager`（收缩后薄门面） | `CameraManager` G2/G7 |
 | DEST 输出（RENDER / MULTI / 消费方） | 渲染钩子、lane 快照、听者/预加载/预览 HUD | 现状不动（已零接触内部可变对象），只读核心 | `mixin/`、`client/lane/` |
 | api 包 | 对外稳定面 | `common/.../api/`（B4 本体） | 新建 |
@@ -78,7 +78,7 @@
 
 ### 2.4 API 包（B4 本体）与可见性收紧
 
-- 新建 `common/src/main/java/com/immersivecinematics/immersive_cinematics/api/`：**最小稳定面** = `CameraApi`（只读查询：`isActive` / `hasActiveCameraClip` / `getCameraState`）+ `CameraState`（倾向迁入 api 包）+ **Base Provider 接口留位**（**接口形状已定稿 2026-10-10**：`camera-state-plan.md`「覆盖链定稿」§12 草案——`BaseCameraProvider`（`isBaseActive` / `basePriority` / `provideBaseState` / `suppressesModifiers`）；本轮只定义不接链）。事件（实例开始/结束）暂缓——内部稳定后再评估（camera-state-plan §7）。
+- 新建 `common/src/main/java/com/immersivecinematics/immersive_cinematics/api/`：**最小稳定面** = `CameraApi`（只读查询：`isActive` / `hasActiveCameraClip` / `getCameraState`）+ `CameraState`（倾向迁入 api 包）+ **Base Provider 接口留位**（**接口形状已定稿 2026-10-10**：`camera-state-plan.md`「覆盖链定稿」§12 设计——`BaseCameraProvider`（`isBaseActive` / `basePriority` / `provideBaseState` / `suppressesModifiers`）；本轮只定义不接链）。事件（实例开始/结束）暂缓——内部稳定后再评估（camera-state-plan §7）。
 - 收紧内部实现：`CameraPath`/`CameraProperties` 降为包内可见（渲染 Mixin 已零引用，仅 CameraManager + CameraTrackPlayer 触碰）；`getPath()`/`getProperties()` 收为包内写入口（CameraTrackPlayer 写侧改经 `CameraStateHolder` 的包内接口）。
 - 外部调用方（`WebEditorApi`、`FlightController`、听者/预加载/预览 HUD）改经 api 面，行为不变。
 

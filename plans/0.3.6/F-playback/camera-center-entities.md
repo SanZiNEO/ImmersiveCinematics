@@ -153,7 +153,7 @@
 
 本表按当前代码与实机结果陈述：同维度已于 2026-10-25 实测镜像 / 反向 / 远机位三次；跨维度三画面脚本 `test_camera_center_crossdim_view` 于 2026-10-26 实机验证（双视图 active、无 route-fail / oversize）。已知限制：相机附近生物无 AI；目标维度实体是快照。操作与观察点见 `cinematics/0.3.6/tests/camera_center/README.md`。
 
-| 原设计 | 实际实现 | 结论 / 偏离原因 |
+| 设计目标 | 实现 | 说明 |
 |---|---|---|
 | C1 一份相机位置（含 y）供四条链共用 | `CameraVirtualCenterState` 按玩家存 `(ServerLevel, section, Vec3 center)`；`ChunkMapCameraMixin` 读 section（2D 差集），`ChunkMapTrackedEntityCameraMixin` 读 center（含 y，配对仍按原版 2D 只读 x/z）；`CameraAnchorManager.setAnchor` 写同一个 `center`，锚点 y = 相机 y | 已实现 |
 | C0 条目带超时 / 代际，释放不受配置门控 | `CameraCenterManager.PlayerState` 带 `sessionId` 与 `lastReportTick`；`tick()` 按 `max(100, 5 × Config.cameraCenterReportInterval)` 超时释放，玩家已移除也释放；END / 断线 / 维度卸载 / `clearAll` 全清；`release()` 无配置门 | 已实现 |
