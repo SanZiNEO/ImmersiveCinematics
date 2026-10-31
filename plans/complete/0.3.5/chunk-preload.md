@@ -1,7 +1,5 @@
 # 区块预加载（Chunk Preload）：利用原版机制节流的相机画面加载
 
-> **⚠️ 本文为 3.5 历史方案（手动 ticket + scanChunk + 手动补发），已被 `preload-camera-region-unified.md`（v5.5 假人完全接管版）取代。保留本文仅作追溯，执行以统一设计文档为准。**
-
 > **v4 整体方案（2026-08-19 定稿，覆盖下文方案细节）**
 > 目标：相机超视距也能加载画面；玩家区最小稳定加载不卸载；不拉大视距。
 > - **门控**：仅当 `|相机块 − 玩家块| > farViewCenterThreshold` 才启用全套；近程零介入
@@ -15,7 +13,7 @@
 **版本**: 0.3.5
 **类型**: 新功能（2026-08-13 设计定稿）
 **状态**: ✅ 主体已完成（v7 门控/ticket/滑动窗口/补发/玩家区对账；scanChunk 磁盘分流设计未保留，配置平台持久化未完成——见 1.md 第 3.5 轮剩余项）
-**关联**: `plans/0.4.0/camera-chunk-preload.md`（旧草案，本设计取代之）；与 `audio-listener-model.md`（声音线）构成 0.3.5 的"画面 + 声音"，互不依赖
+**关联**: 与 `audio-listener-model.md`（声音线）构成 0.3.5 的"画面 + 声音"，互不依赖
 **非侵入性**: 只调用原版公开 API（`ServerChunkCache.addRegionTicket/removeRegionTicket/hasChunk`、`ChunkScanAccess.scanChunk`、构造 `ClientboundLevelChunkWithLightPacket` 补发），不 Mixin、不持久化、不 forceload
 
 ---
@@ -166,7 +164,7 @@ clip 切换（prewarm）→ 提前 prewarm 秒对 clip B 初始位置走同一�
 
 ## 维度字段（clip 级 `dimension` 声明）— 2026-08-13 确认纳入 0.3.5
 
-> 0.4.0 README 原计划"区块预加载 + 维度字段一起做"；本设计定稿时曾遗漏该待定项，现确认：**维度字段纳入 0.3.5**，与区块预加载一并落地。跨维度运镜（F 类，现归 `plans/0.3.6/F-playback/cross-dimension-camera.md`）消费本字段做维度切换。
+> 维度字段纳入 0.3.5，与区块预加载一并落地。跨维度运镜（现归 `plans/0.3.6/F-playback/cross-dimension-camera.md`）消费本字段做维度切换。
 
 **脚本格式**（CAMERA clip 级，预留字段）：
 
@@ -177,10 +175,10 @@ clip 切换（prewarm）→ 提前 prewarm 秒对 clip B 初始位置走同一�
 
 **0.3.5 范围（基础处理）**：
 - schema 支持 clip 级 `dimension`（缺省 = 玩家当前维度）
-- 播放校验：脚本 CAMERA clip 声明的维度 ≠ 玩家当前维度时，日志提示（不做自动切换——切换是 0.4.0 F 类）
+- 播放校验：脚本 CAMERA clip 声明的维度 ≠ 玩家当前维度时，日志提示（不做自动切换——切换属跨维度运镜）
 - 预加载按维度管理的基础：ticket 请求带维度（各 ServerLevel 独立 chunkSource，天然隔离）——本版本仅单维度生效
 
-**0.4.0 范围（F 类）**：维度切换流程（黑幕 → 目标维度预加载 → 切换）、跨维度 ticket 管理。
+**跨维度运镜范围**：维度切换流程（黑幕 → 目标维度预加载 → 切换）、跨维度 ticket 管理。
 
 ---
 
@@ -192,10 +190,9 @@ clip 切换（prewarm）→ 提前 prewarm 秒对 clip B 初始位置走同一�
 4. 配置接入（config + schema + 编辑器属性面板）
 5. 冒烟测试：已加载区脚本（零开销路径）、磁盘已生成远距离（读盘 + 快速就绪 + 补发）、未探索区域（worldgen 配额 + 降频轮询渐进完整）、多人同区域（包共享 + 扫描缓存）、clip 切换预热
 
-## 与旧文档关系
+## 实现增量
 
-- `plans/0.4.0/camera-chunk-preload.md`：被本设计取代
-- 本设计相对中间简化版的增量：**磁盘分流（scanChunk + 分级超时 + 未生成配额）恢复为核心机制**（用户要求利用磁盘记录节流）；砍掉实体 tick 档与升级档；补发记账/渐进完整明确化
+- 核心机制：**磁盘分流（scanChunk + 分级超时 + 未生成配额）**（利用磁盘记录节流）；不做实体 tick 档与升级档；补发记账 / 渐进完整明确化
 
 ## 执行前再看 / 具体方案
 

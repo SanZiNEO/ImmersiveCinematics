@@ -1,8 +1,8 @@
-# 规则与曲线（索引）
+# 规则与路径（索引）
 
 > 状态：未实现（方向专篇；C 轮 v1 仅为旧实现基线，不代表新目标已在 C 轮完成）
-> 范围：规则系统与曲线集合的索引与跨篇口径；正文按“一篇一个可独立执行的目标”拆到下列分篇，本页不重复
-> 关联：`rule-collection.md`、`rule-time-gate.md`、`rule-suspension.md`、`rule-facts-scheduling.md`、`rule-exits.md`、`curve-collection.md`、`rule-implementation.md`；结构侧见 `object-model.md`、`schema-and-types.md`、`runtime-evaluation.md`、`track-camera.md`
+> 范围：规则系统与路径集合的索引与跨篇口径；正文按“一篇一个可独立执行的目标”拆到下列分篇，本页不重复
+> 关联：`rule-collection.md`、`rule-time-gate.md`、`rule-suspension.md`、`rule-facts-scheduling.md`、`rule-exits.md`、`path-collection.md`、`rule-implementation.md`；结构侧见 `object-model.md`、`schema-and-types.md`、`runtime-evaluation.md`、`track-camera.md`
 > 口径：本篇自足承载规则方向；C 轮 `../C-trigger/condition-system.md` 只作已完成 v1 的实现证据与旧设计参考。执行者不需要从 C 正文拼接目标语义，C 正文也不因本篇被重新打开。
 
 ## 与触发器的关系（先读）
@@ -23,7 +23,7 @@
 
 ## 共同时间基准（一句话）
 
-规则与曲线都是**新增内容**，不改现有体系。两者共用同一条时间基准：**时间原点 = 目标片段起点，时间轴 = 该片段本次执行的 `[0, duration]`**；关键帧 `time`、关键帧查找与采样、规则时间门、曲线段进度全部用同一个 `executionLocalTime`。展开见 [`rule-time-gate.md`](rule-time-gate.md) §二。
+规则与路径都是**新增内容**，不改现有体系。两者共用同一条时间基准：**时间原点 = 目标片段起点，时间轴 = 该片段本次执行的 `[0, duration]`**；关键帧 `time`、关键帧查找与采样、规则时间门、路径 timing 全部用同一个 `executionLocalTime`。展开见 [`rule-time-gate.md`](rule-time-gate.md) §二。
 
 ## 分篇地图
 
@@ -35,7 +35,7 @@
 | [`rule-facts-scheduling.md`](rule-facts-scheduling.md) | 事实接力、判定成功与动作完成分离、延迟动作与承诺动作参与完成 | 事实与调度；不含出口策略 |
 | [`rule-exits.md`](rule-exits.md) | 正常完成（片段默认 + 入口覆盖）、失败 fallback、退出三族、与循环 / EVENT / 播放关系的边界 | 出口与边界；不含时间门与调度 |
 | [`rule-command-trust.md`](rule-command-trust.md) | `emit_command` 的服务端信任边界：客户端只发动作引用、服务端解析脚本命令、实例授权与权限上限 | 请求面与命令源；不改 EVENT 命令协议 |
-| [`curve-collection.md`](curve-collection.md) | 脚本级曲线集合：定义 / 绑定、目标片段与相邻端点对、几何与进度、多条目 | 集合契约；相机侧装配归 `track-camera.md` |
+| [`path-collection.md`](path-collection.md) | 脚本级路径集合：目标片段与相邻端点对、`geometry`（`line`/`bezier`）、`timing`、多条目 | 集合契约；相机侧装配归 `track-camera.md` |
 | [`rule-implementation.md`](rule-implementation.md) | v1 实现基线、当前实现速查、与目标的差距、结构评审项汇总 | 只记录事实与差距，不定义语义 |
 
 分篇原则：每篇只定一个可独立执行的目标，执行者能在一轮内把它拆成任务并做完；跨篇引用只指目标，不把语义散落到多篇。

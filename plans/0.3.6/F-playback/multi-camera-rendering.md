@@ -118,7 +118,7 @@
 
 渲染底层、上屏合成、脚本接入、光影隔离、优化模组路径与成本诊断均已落地；2026-10-23 注释收敛（63dbd9a）。F5 矩阵 l0/l1/l4/l16/l25 × FULL/WORLD_ONLY 全部 600/600；Fabric/Iris 1.7.6 与 Forge/Oculus 均已验收。跨维度 `DimensionView` / 服务端维度流已落地：`DimensionViews` 按维度懒创建独立 `ClientLevel` / `LevelRenderer` / `LightTexture`，`LaneRenderer` 在 lane pass 内换入并在 `finally` 还原。光影 per-pipeline 隔离（WP5）为技术收口项；F8 主链已实机验证，现状、偏离与已知限制见 [跨维度相机](cross-dimension-camera.md) §八。
 
-| 原设计 | 实际实现 | 偏离原因 |
+| 设计目标 | 实现 | 说明 |
 |---|---|---|
 | 每 lane 独立 RenderTarget / 独立 RenderBuffers | 共用一张离屏缓冲，共享原版 `RenderBuffers` | 显存不随 lane 数增长；原版缓冲私有且 lane 内需完整实体 / 描边链 |
 | 副画面只渲染区块层，实体 / 粒子默认关 | 整段原版 `renderLevel` + 脚本 lane 恒 `FULL` | 复用原版管线保证完整；分屏需要与主画面同内容，`WORLD_ONLY` 仍是底层默认 |
@@ -234,9 +234,9 @@
 
 #### 5. 脚本 / 数据模型
 
-> **已被取代**：相机来源（多脚本实例 × 每实例多 lane）见[并行播放](parallel-playback.md)；
+> 相机来源（多脚本实例 × 每实例多 lane）见[并行播放](parallel-playback.md)；
 > 上屏布局（分屏 / 叠化 / PIP 统一为“取材区域 / 目标区域 / 不透明度”的关键帧参数）见[画面合成](camera-composition.md)。
-> 本文不再维护数据模型草案，只保留渲染底层。
+> 本文只保留渲染底层。
 
 ---
 
@@ -251,7 +251,7 @@
 
 **F5 成本实测状态（2026-10-18，矩阵完整）**：opt-in 诊断会话（manifest / events.jsonl / 定点图片 / CPU 提交区间 CSV + p50/p95）与 21 支测试脚本已实现（2026-10-17）。数据**已全部回填**：`perf_l0` / `perf_l1` / `perf_l4` / `perf_l16` / `perf_l25` 的 FULL 与 WORLD_ONLY **均为 600/600 有效帧**（`perf_l16` FULL 从 259/600 中断补到完整；`perf_l25` 在 gzip 脚本传输修复后补齐，见 [f5-script-packet-limit](f5-script-packet-limit.md)）。采样环境：Fabric / Iris 1.7.6 + Sodium + ComplementaryUnbound，vsync 关、maxFps 260、视距 12。**25 lane 档**（会话 `20261018-173824-f5-acceptance`，15000 lane rows、0 lane 失败帧）：FULL `game_render` p50/p95 = 27.26 / 39.43 ms、`lane_total` 22.87 / 33.24 ms、`composite_total` 0.47 / 0.81 ms；WORLD_ONLY 分别为 18.88 / 21.74 ms、15.07 / 17.30 ms、0.39 / 0.48 ms。2026-10-18 新增的每视角历史拷贝成本已包含在这些数字里（未单独拆分）。
 
-##### 6.1 降耗设计（借鉴 Iris `ShadowRenderer` 第二视角渲染模式，自 0.4.0 G2 并入）
+##### 6.1 降耗设计（借鉴 Iris `ShadowRenderer` 第二视角渲染模式）
 
 | 机制 | 说明 |
 |------|------|
@@ -278,10 +278,10 @@ Iris 阴影是**每帧**第二遍渲染且可接受——同量级证明副画�
   - 渲染状态管理更严格，二次调用前必须确认状态保存/恢复方式（具体：`RenderDevice.enterManagedCode()` / `exitManagedCode()` 包住 `drawChunkLayer` / `setupTerrain`；`setupRender` 里的 `frame++` 每调一次自增；`SodiumWorldRenderer.setupTerrain` 用相机位姿判 `dirty` → 每帧两次 `markGraphDirty()` 让渲染列表缓存失效——见 `render-second-pass-cost.md` §3.1–3.2）
   - 状态（2026-10-18）：F3 已删除 `isUnavailable()` 整条禁用（lane 始终渲染，§7.1）；**Sodium 0.5.13 实机 A/B 与 F5 十档均无缺块 / 闪块**（`frame++` 语义实际未产生症状）；**Rubidium 类名核对**为已知限制（§9）。
 
-##### 7.1 渲染优化模组兼容策略（自 0.4.0 G2 并入）
+##### 7.1 渲染优化模组兼容策略
 
 - **事实**：Sodium `@Overwrite` 原版区块渲染（Fabric Sodium：`renderLayer` → `SodiumWorldRenderer.drawChunkLayer`，`WorldRendererMixin.java:100-108`；Embeddium 端方法名是 `renderChunkLayer`，`WorldRendererMixin.java:128-142`）与 `setupRender`（`((ViewportProvider) frustum).sodium$createViewport()` 是**硬转换**——副相机的 Frustum 必须实现该接口，否则 CCE：Fabric `:115-124`、Embeddium `:148-164`，接口实现见 `mixin/core/render/frustum/FrustumMixin.java`；整段调用还必须用 `RenderDevice.enterManagedCode()` / `exitManagedCode()` 包住 = 文档里说的"渲染上下文"）；Oculus = Iris 的 Forge 移植（同构，包名同样是 `net.irisshaders.iris`），Forge 端对应物为 Embeddium。副画面第二遍裸调原版区块 API 在 Sodium 下**不可靠**（视锥接口不匹配 / 缺渲染上下文 / 可见性图被两遍打散）；Iris 为此维护了**一整套** Sodium 兼容层——`example/Iris-1.20.1/src/sodiumCompatibility` 共 **83 个 Java 文件 / 4788 行**，其中阴影 pass 专属的 `mixin/shadow_map/*` + `impl/shadow_map/*` 是 **10 个文件 / 321 行**（例：`MixinRenderSectionManager` 为 shadow pass 另存一份 `shadowRenderLists` 并重定向 `renderLists` 字段；`MixinSodiumWorldRenderer` 在 shadow pass 里强制 `RenderSectionManager.needsUpdate() == true`），第二遍本体 `shadows/ShadowRenderer.java` **730 行**（Oculus 版 729 行）。
-- **现行策略（2026-10-17 恢复原设计）**：检测到 Sodium / Rubidium / Embeddium 时，跳过只针对原版 `setupRender` 的两个 mixin——`LevelRendererVanillaMixin`（视图中心 / 遮挡开关）与 `LaneCullStateMixin`（vanilla 剔除字段交换）——改走它们基于 `Camera` / `Frustum` 的优化路径（`CameraMixin` 已写入虚拟相机，`Viewport` / `setupTerrain` 会跟随）。lane 渲染始终执行；缺 `LaneCullBridge` 时只跳过剔除状态交换。历史上 `3a191d3` 加的 `isUnavailable()` 整条禁用已删除（未实测的源码推断）。
+- **现行策略（2026-10-17 定稿）**：检测到 Sodium / Rubidium / Embeddium 时，跳过只针对原版 `setupRender` 的两个 mixin——`LevelRendererVanillaMixin`（视图中心 / 遮挡开关）与 `LaneCullStateMixin`（vanilla 剔除字段交换）——改走它们基于 `Camera` / `Frustum` 的优化路径（`CameraMixin` 已写入虚拟相机，`Viewport` / `setupTerrain` 会跟随）。lane 渲染始终执行；缺 `LaneCullBridge` 时只跳过剔除状态交换。
 - 另见 §11：Sodium / Embeddium 的渲染中心来自 `Camera` / `Frustum`，`CameraMixin` 路线已验证，可作为适配时的另一条参考路径。
 
 ---

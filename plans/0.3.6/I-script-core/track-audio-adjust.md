@@ -101,7 +101,7 @@ AUDIO 的 `volume`/`x`/`y`/`z` 是对象；`sound`/`source`/`pitch`/`file_loop`/
 | `blend_mode` | enum | `normal`/`multiply`/`screen`/`soft_light`/`overlay` |
 
 - 规则声明属于脚本级独立集合，通过片段引用定位，不是 ADJUST 通道属性；本轨道字段表与调色参数包都不承载规则容器。规则的时间门、条件、门前事实采集、实例级挂起、事实接力与延迟动作由规则集合负责。
-- 路径曲线属于脚本级曲线集合，绑定片段内位置对象/对象组的两个相邻关键帧；`rgb_curve`/`r_curve`/`g_curve`/`b_curve` 与六条 hue 曲线是调色结构定义，不属于该集合，也不因曲线集合改变。
+- 路径属于脚本级路径集合，绑定片段内位置对象/对象组的两个相邻关键帧；`rgb_curve`/`r_curve`/`g_curve`/`b_curve` 与六条 hue 曲线是调色结构定义，不属于该集合，也不因路径集合改变。
 - 曲线/LUT 是结构/文件引用，不随时间变；只有强度是对象。
 - `lut_input_gamma` 是 value-only 常量；不关键帧。
 - `blend_mode` 是 value-only 枚举；`blend_amount` 是对象。
@@ -189,7 +189,3 @@ AdjustClipRuntime
 ## 六、实现结果
 
 状态：未实现
-
-| 原设计 | 实际实现 | 偏离原因 |
-|---|---|---|
-| 未实现 | — | — |

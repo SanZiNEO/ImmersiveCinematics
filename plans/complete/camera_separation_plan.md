@@ -35,4 +35,4 @@ CameraManager    →  唯一桥梁，驱动两者 tick，Mixin 只从这里读
 
 - **双缓冲架构** — staged/commit 支持多段镜头间硬切换，`overrideFrom()` 设置 `previous = current` 消除 1tick 飞越
 - **partialTick 帧级插值** — `savePreviousTick()` + `getXxxInterpolated(partialTick)` 消除 20tick/s → 60fps 阶梯感
-- **Vec3 依赖可接受** — 纯值类无副作用，未来可替换为三个 float 完全解耦
+- **Vec3 依赖可接受** — 纯值类无副作用，可替换为三个 float 完全解耦

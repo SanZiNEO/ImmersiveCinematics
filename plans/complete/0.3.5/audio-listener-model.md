@@ -3,7 +3,7 @@
 **版本**: 0.3.5
 **类型**: 音频体系设计（2026-08-13 定稿）
 **状态**: ✅ 已完成（listener 模型 / 回归 SoundEngine / 环境音重定向；category 目前实现 music/ambient 两类）
-**关联**: 取代 `audio-playback-model.md`（草案）、`audio-relative-position-modes.md`（结论并入）、`plans/0.4.0/audio-system.md`（旧草案）；与 `chunk-preload.md`（画面/区块加载）构成 0.3.5 的"画面 + 声音"两条线，**互不依赖**
+**关联**: 与 `chunk-preload.md`（画面/区块加载）构成 0.3.5 的"画面 + 声音"两条线，**互不依赖**
 
 ---
 
@@ -124,7 +124,7 @@
 - 服务端按玩家位置广播（原版 `PlayerList.broadcast`），客户端播放——与听者无关，不改
 - 音乐类（`category: music`）与通知/UI 音走此路径
 - 已知限制：**广播的空间声音**（生物叫/方块音/爆炸，服务端按玩家裁剪）在相机区域**缺失**（包到不了客户端）——过场场景事件源稀缺（生物加载不做、无人区方块不交互），缺失可接受；多人其他玩家在镜头前活动的声音会缺失，记录在案
-- 未来若需解决：`PlayerList.broadcast` 距离基准替换（一个 Mixin）+ 相机位置 C2S 上报（与预加载共用通道）——届时再议
+- 解决路径（未做）：`PlayerList.broadcast` 距离基准替换（一个 Mixin）+ 相机位置 C2S 上报（与预加载共用通道）。
 
 ---
 
@@ -146,7 +146,7 @@
 2. **AUDIO 轨道回归原版**：CinematicAudioInstance 重写 + `category` 字段（schema/编辑器）
 3. **位置语义**：relative 相对听者 + 默认衰减
 4. **环境音重定向**（camera 模式）：3 个 handler + animateTick
-5. **编辑器音频联动**（随重构一并重写）：repositionAudio/syncToTime/seek/暂停态基于新 SoundInstance 实现；预览随播放头同步、拖拽音频 clip/关键帧实时跟随（原 0.4.0 条目并入本版本）
+5. **编辑器音频联动**（随重构一并重写）：repositionAudio/syncToTime/seek/暂停态基于新 SoundInstance 实现；预览随播放头同步、拖拽音频 clip/关键帧实时跟随。
 6. **文档更新**：SCRIPT_FORMAT / AI_SCRIPTING_GUIDE / CHANGELOG（relative 衰减行为变化标注）
 7. **冒烟测试**：player 模式回归、camera 模式（环境音跟随镜头、远处轨道声音按相机衰减）、MUSIC 类非空间、relative 衰减、多人独立听者
 

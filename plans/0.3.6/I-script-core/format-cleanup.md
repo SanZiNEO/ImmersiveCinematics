@@ -6,7 +6,7 @@
 
 ## 一、摘要
 
-目标格式删除 `meta.version` 与 `timeline.total_duration`，不再要求作者维护一个可与实际执行路径分离的总时长。静态有限编排可派生有限末端估计；无限编排不伪造有限自然末端，有限部分显示范围独立计算。派生范围服务显示、统计和定位提示；自然完成、末尾驻留及分支可达性分别服从实际执行状态、最终状态与目标内容约束，不由估计时长驱动。旧 `clip.rules` 与 clip 级 `curve` 按已移除／迁移处理；规则／曲线集合不成为新的总时长或完成来源。
+目标格式删除 `meta.version` 与 `timeline.total_duration`，不再要求作者维护一个可与实际执行路径分离的总时长。静态有限编排可派生有限末端估计；无限编排不伪造有限自然末端，有限部分显示范围独立计算。派生范围服务显示、统计和定位提示；自然完成、末尾驻留及分支可达性分别服从实际执行状态、最终状态与目标内容约束，不由估计时长驱动。旧 `clip.rules` 与 clip 级 `curve` 按已移除／迁移处理；规则／路径集合不成为新的总时长或完成来源。
 
 ## 二、为什么做
 
@@ -96,7 +96,7 @@ parser/validator 遇到以下字段直接报错，错误信息包含“已移除
 | `meta.version` | meta | 错误“已移除：meta.version” |
 | `timeline.total_duration` | timeline | 错误“已移除：timeline.total_duration；用片段窗口派生有限末端/显示范围” |
 | `keyframes`（共享快照数组） | clip | 错误“已移除：keyframes；用 objects” |
-| `curve`（旧 clip 单份 3D 曲线） | CAMERA clip | 错误“旧曲线形式已移除；按各旧段迁移至曲线集合条目：引用片段与目标位置对象／组中两个相邻关键帧”；不预设 `objects.curve` value-only，也不把曲线做成片段内隐式全片段控制点；引用与序列化按结构评审结果 |
+| `curve`（旧 clip 单份 3D 曲线） | CAMERA clip | 错误“旧曲线形式已移除；按各旧段迁移至路径集合条目：引用片段与目标位置对象／组中两个相邻关键帧”；不预设 `objects.curve` value-only，也不把路径做成片段内隐式全片段控制点；引用与序列化按结构评审结果 |
 | `rules`（v1 clip 级规则元数据） | clip | 错误“已移除：clip 级 rules；规则改为脚本级集合，绑定引用片段与局部时间”；迁移器拆为规则定义与绑定，运行激活不写入脚本 |
 | `follow` / `follow_selector` | CAMERA keyframe | 错误“已移除：follow；用 position_origin + position_origin_freeze=false（实体 + false = 跟随）” |
 | `facing_origin` / `facing_origin_x/y/z` / `facing_origin_time` | CAMERA keyframe | 错误“已移除：facing_origin；用 position_origin / position_origin_x/y/z / position_origin_freeze” |
@@ -193,7 +193,7 @@ CinematicScript
 - 不改变图服务的节点类型；只换 duration/infinite 来源；含无限不伪造 duration。
 - 不改变编辑器布局/交互；只换总长/有限显示范围来源和校验。
 - “无有限末端”用标志表达，不引入新的数值哨兵 wire 字段。
-- 规则集合与曲线集合是脚本级独立声明，不改变 `total_duration` 删除与完成判定；集合条目只引用片段内容，不复制关键帧，也不成为新的总时长或完成来源。
+- 规则集合与路径集合是脚本级独立声明，不改变 `total_duration` 删除与完成判定；集合条目只引用片段内容，不复制关键帧，也不成为新的总时长或完成来源。
 - 正常完成去向与失败 fallback 属于分支出口策略，不在格式清理范围；`goto_clip` 只换定位范围并保留可达／覆盖约束。
 - 规则控制阶段（判定、实例级挂起、事实接力、动作延迟）属于规则系统；已承诺但未释放的动作作为执行依赖参与自然完成，不由 `total_duration` 或派生显示范围代替。
 
@@ -208,7 +208,7 @@ CinematicScript
 | 加格式版本号区分 | `version=4` | 又回到版本字段；迁移仍需外部 | 不做版本 |
 | 用 `contentEnd=∞`/大数表示无限 | 数值哨兵代替“无有限末端” | 与“无有限末端”不同义；完成判据被数值污染 | 标志 + 单独有限显示范围 |
 | `goto_clip` 只校非负/有限 | 去掉统计上界后不再查覆盖 | 任意空档/不可达目标被放行；丢失作者编排约束 | 保留目标可达/片段覆盖校验 |
-| 把规则/曲线集合做成片段内隐式字段 | 继续用 `clip.rules` / clip 级 `curve` 承载结构 | 结构职责与字段容器混同；引用、重排与多段关系不可见 | 脚本级独立集合，条目引用片段内容 |
+| 把规则/路径集合做成片段内隐式字段 | 继续用 `clip.rules` / clip 级 `curve` 承载结构 | 结构职责与字段容器混同；引用、重排与多段关系不可见 | 脚本级独立集合，条目引用片段内容 |
 
 **本方案的缺点**：
 
@@ -226,9 +226,9 @@ CinematicScript
 
 当前代码仍要求/写入 `meta.version` 和 `timeline.total_duration`；`Clip.getWindowEnd()` 对无限返回 `Float.MAX_VALUE`，`ScriptPlayer.contentEnd()` 返回 `NaN`；`goto_clip` 仍用 `getTotalDuration()` 做上界；规则仍是 `clip.rules` 片段元数据，曲线仍是 clip 级单份，旧字段拒绝与脚本级集合未实现。这些是旧实现，不是本设计已落地。
 
-| 原设计 | 实际实现 | 偏离原因 |
+| 设计目标 | 实现 | 说明 |
 |---|---|---|
 | 删除 version/total_duration | 未实现；parser/validator/schema/editor 仍要求/写入 | 本设计未落地 |
 | 有限末端/无限标志/显示范围分离 | 未实现；`getWindowEnd` 用 `MAX_VALUE`、`contentEnd` 用 `NaN` | 数值哨兵仍在 |
 | `goto_clip` 用有限末端 + 可达/覆盖约束 | 未实现；仍用 `getTotalDuration()` 做上界，`hasClipAt` 覆盖检查已在 | 上界来源未换，覆盖约束需保留 |
-| 规则／曲线脚本级集合；旧 `clip.rules`、clip 级 `curve` 按已移除／迁移处理 | 未实现；规则仍是 `clip.rules` 片段元数据，曲线仍是 clip 级单份；parser 仍读旧载体 | 目标结构与迁移未落地 |
+| 规则／路径脚本级集合；旧 `clip.rules`、clip 级 `curve` 按已移除／迁移处理 | 未实现；规则仍是 `clip.rules` 片段元数据，曲线仍是 clip 级单份；parser 仍读旧载体 | 目标结构与迁移未落地 |

@@ -142,7 +142,7 @@
 ### 7.3 内部 API → 0.3.6 只留位不开放
 
 - **结论**：0.3.6 只做内部统一入口（`util/TimeInterpolation`），**不开放外部 API**。
-- **依据**：`math-models.md` 定稿 10（0.3.6 不开放外部注册，`MathModelRegistry.register` 保持内部可见）+ `camera-state-plan.md` 覆盖链定稿 §11（外部 API 开放时机 = 内部稳定 + 覆盖链落地 + 至少一个版本观察期，`plans/0.4.0` 起评估）。
+- **依据**：`math-models.md` 定稿 10（0.3.6 不开放外部注册，`MathModelRegistry.register` 保持内部可见）+ `camera-state-plan.md` 覆盖链定稿 §11（外部 API 开放时机 = 内部稳定 + 覆盖链落地 + 至少一个版本观察期，后续版本起评估）。
 
 ### 7.4 与覆盖链 / 过渡（B18）的先后关系
 

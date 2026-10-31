@@ -8,7 +8,7 @@
 
 ## 背景
 
-`Letterbox` 关键帧复用 `CameraKeyframe`，以 `roll` 字段存储 `aspect_ratio`。每新增轨道类型就要多一层字段混用，未来 IMAGE/AUDIO 轨道会爆炸。
+`Letterbox` 关键帧复用 `CameraKeyframe`，以 `roll` 字段存储 `aspect_ratio`。每新增轨道类型就要多一层字段混用，IMAGE/AUDIO 轨道会爆炸。
 
 **CameraMixin** 在 clip 间隙期已正确释放镜头控制（`hasActiveCameraClip()`→false→不拦截），但 `ComputeCameraAngles` 的 roll 注入和第 278 行只检查 `isActive()`——间隙期 roll 仍会叠加。
 
@@ -222,8 +222,8 @@ public boolean isActiveAt(float globalTime) {
 |------|-----------|------|------|
 | CAMERA | `CameraKeyframe` | time, position, yaw, pitch, roll, fov, zoom, dof | time + position（mandatory），其余 optFloat 默认值 |
 | LETTERBOX | `LetterboxKeyframe` | time, aspectRatio | time（mandatory），aspectRatio 默认 2.35 |
-| AUDIO(未来) | `AudioKeyframe` | time, volume, pitch, position | time + volume（mandatory），其余默认值 |
-| IMAGE(未来) | `ImageKeyframe` | time, opacity, scale, anchor | time + opacity（mandatory），其余默认值 |
+| AUDIO | `AudioKeyframe` | time, volume, pitch, position | time + volume（mandatory），其余默认值 |
+| IMAGE | `ImageKeyframe` | time, opacity, scale, anchor | time + opacity（mandatory），其余默认值 |
 
 每个轨道完全隔离，解析各自 JSON 格式。`CameraKeyframe` 不再复用。
 

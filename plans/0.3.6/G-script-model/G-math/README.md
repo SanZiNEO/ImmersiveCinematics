@@ -2,7 +2,7 @@
 
 > 状态：实现中（现有三次 Bézier 路径 + 弧长 LUT；其余曲线/算子未实现）
 > 范围：数学表达式的定义/实例/值域/能力边界；路径曲线原语（Bézier、有理 Bézier、B-spline、NURBS、Catmull-Rom、Hermite、回旋线、Fourier）；精确圆锥、弧长参数化与 LUT、连续性与复合、轴约束、验收
-> 关联：`../script-model.md`、`../clock-abstraction.md`、`../../I-script-core/curve-collection.md`、`example/math/README.md`
+> 关联：`../script-model.md`、`../clock-abstraction.md`、`../../I-script-core/path-collection.md`、`example/math/README.md`
 
 本页只做索引和决策记录，不重复各文档正文。一个点一篇文档；接口、公式、schema 以各文档为准。
 
@@ -28,7 +28,7 @@
 
 ## 二、边界
 
-- G-math 只定义数学表达式与路径几何。I 的 `curve-collection.md` 负责“曲线条目挂到片段/相邻端点”，引用 G-math 的类型与算子，不把路径数学塞进 I。
+- G-math 只定义数学表达式与路径几何。I 的 `path-collection.md` 负责“路径条目挂到片段/相邻端点”，引用 G-math 的类型与算子，不把路径数学塞进 I。
 - 不重开脚本模型的 G1/G2 批次项（分量寻址/字段能力，仍归 I）；本目录的 G1/G2 仅指几何连续性。不往 B 轮已关单的 `math-models.md` 加内容。
 - 不碰编辑器/应用层；Z 只消费 schema 与生成产物。
 - 曲线类型并列，各自保留自己的数学表示与接口；只保留最小公共契约，不强行统一成一种表达式。

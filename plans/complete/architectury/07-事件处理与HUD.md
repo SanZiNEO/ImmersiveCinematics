@@ -1,5 +1,7 @@
 # 阶段 7：事件处理与 HUD
 
+> **历史文档**：Architectury 已从项目中移除。当前架构为 MultiLoader（`common` + `fabric` + `forge`，LegacyForge + VanillaGradle + Fabric Loom，Java 17）。本文仅作历史参考。
+
 ## 目标
 
 迁移服务器/客户端事件处理器、HUD 渲染系统和 ConfigScreen。这些模块负责连接前面迁移的各模块，使功能真正可运行。

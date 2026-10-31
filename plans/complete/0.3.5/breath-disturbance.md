@@ -129,7 +129,7 @@ rollJitter  = scale * (float)noise.getValue(146.0, t, 0.0);
 1. Perlin 实例生命周期：per-TrackPlayer 持有（seed 固定）；多片段共用还是 per-clip 由 seed 字段决定（clip 级已有）。
 2. `perlin_axis` / `trauma` 的默认 octave/amplitude 数值执行时统一校准。
 3. `sine` 的频率系数（1.0/0.8/0.6）可按观感调整。
-4. 未来可与动态 yaw 基准叠加：呼吸加在最终 yaw/pitch/roll 上，与基准体系正交。
+4. 可与动态 yaw 基准叠加：呼吸加在最终 yaw/pitch/roll 上，与基准体系正交。
 
 ## 参考链接
 

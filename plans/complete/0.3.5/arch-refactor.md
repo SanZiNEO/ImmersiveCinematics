@@ -10,7 +10,7 @@
 
 - 移除 `dev.architectury.*` 全部 import 与运行时依赖
 - 不依赖第三方前置（Architectury API）
-- 为 0.4.0 多版本（每 MC 版本一个分支）铺路
+- 为多版本（每 MC 版本一个分支）铺路
 
 ---
 

@@ -1,8 +1,8 @@
-# 规则与曲线：实现基线与差距
+# 规则与路径：实现基线与差距
 
 > 状态：记录文档（不定义语义）
 > 范围：v1 实现基线、当前实现速查、与目标的差距、结构评审项汇总
-> 关联：`rule-system.md`、`rule-collection.md`、`rule-time-gate.md`、`rule-suspension.md`、`rule-facts-scheduling.md`、`rule-exits.md`、`curve-collection.md`、`../C-trigger/condition-system.md`
+> 关联：`rule-system.md`、`rule-collection.md`、`rule-time-gate.md`、`rule-suspension.md`、`rule-facts-scheduling.md`、`rule-exits.md`、`path-collection.md`、`../C-trigger/condition-system.md`
 
 ## 一、v1 实现基线
 
@@ -33,7 +33,7 @@ C 轮 v1 只作旧实现证据，不是本方向已实现：
 | 规则／片段事实接力；成功≠动作完成；延迟动作 | 规则结果不能作为条件；动作在条件成立时直接提交 | 事实与调度未实现 | `rule-facts-scheduling.md` |
 | 正常完成片段默认 + 入口覆盖；失败 fallback 独立 | 现行动作集有 `goto_clip`，两者未作为分开契约落地 | 出口结构未实现 | `rule-exits.md` |
 | 循环按执行次数、规则状态按执行隔离 | 循环仍用 `%`／镜像折叠与 `getAnimPeriod()`，规则仍按时间回退重置 | 执行状态未落地 | `rule-exits.md`、`loop-execution.md` |
-| 脚本级曲线集合、目标片段 + 相邻端点对、多条曲线 | `Clip.curve` 一份控制点隐式套所有段 | 集合结构未落地 | `curve-collection.md` |
+| 脚本级路径集合、目标片段 + 相邻端点对、多条路径 | `Clip.curve` 一份控制点隐式套所有段 | 集合结构未落地 | `path-collection.md` |
 | EVENT 去重与命令协议不变 | 一致：EVENT 仍按（实例, clip 索引, 对象路径, 事件索引）只触发一次 | — | `rule-exits.md` |
 | 规则命令的服务端信任边界：客户端只发动作引用，服务端解析脚本命令；观看者由服务端签发 | 客户端原文命令 + viewer 检查 + 权限 4；播放回执可自登记 viewer | 请求面仍是任意命令，观看者身份可伪造 | `rule-command-trust.md` |
 
@@ -44,6 +44,6 @@ C 轮 v1 只作旧实现证据，不是本方向已实现：
 - 事实记录的开始、有效期、消费与跨执行匹配方式；原条件未定义时如何补齐。
 - 持有来源与释放条件的 schema 表达；可达性诊断的报告形态。
 - 延迟动作释放条件如何与片段开始／完成、局部时间、事实和延迟统一表达。
-- 曲线集合的字段名、序列化、端点引用与迁移形态。
+- 路径集合的字段名、序列化、端点引用与迁移形态。
 
 用户已确认的方向（时间门 `>=`、门前事实门后确认、实例级挂起、事实接力、成功≠动作完成、延迟动作、正常后继片段默认 + 入口覆盖、失败 fallback）不在本节重复。

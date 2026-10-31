@@ -1,12 +1,12 @@
 # 一次性迁移（旧脚本 → 对象模型）
 
 > 状态：未实现
-> 范围：旧 `keyframes` 快照 → `objects`、复合值展开、稀疏字段保真、旧 `curve` 逐段展开为脚本级曲线集合、旧 `clip.rules` → 脚本级规则集合、`orient`/offset 保留、`meta.version`/`timeline.total_duration` 删除、AUDIO `loop` 改名、EVENT 记录化、验收/回滚
+> 范围：旧 `keyframes` 快照 → `objects`、复合值展开、稀疏字段保真、旧 `curve` 逐段展开为脚本级路径集合、旧 `clip.rules` → 脚本级规则集合、`orient`/offset 保留、`meta.version`/`timeline.total_duration` 删除、AUDIO `loop` 改名、EVENT 记录化、验收/回滚
 > 关联：`object-model.md`、`loop-execution.md`、`format-cleanup.md`、`I-script-core/rule-system.md`（规则新方向专篇，未完成轮次；旧 `C-trigger/condition-system.md` 仅作 v1 实现参照）、各 `track-*.md`
 
 ## 一、摘要
 
-迁移采用一次性、离线、可回滚的转换：旧共享快照拆成采样属性，旧片段曲线按各实际区间转换为**脚本级曲线集合**的条目（每条引用目标片段与目标位置序列中的两个相邻关键帧），旧片段级 `clip.rules` 转换为**脚本级规则定义 + 绑定**（绑定引用目标片段与执行局部时间门），运行激活不写入脚本。保真范围必须区分：保持语义的字段与数学路径做旧／新对照；明确改变的朝向混合、过渡效果归属、规则生命周期与规则阶段（实例级持有、成功事实、动作延迟、事实接力）按新目标报告差异，不通过修正关键帧或伪造规则状态重新植入旧语义。动态输入无法静态等值时报告人工复核，不承诺对未知运行环境完全等价。具体结构引用与序列化在目标格式评审后确定，新运行时不保留旧格式分支。
+迁移采用一次性、离线、可回滚的转换：旧共享快照拆成采样属性，旧片段路径按各实际区间转换为**脚本级路径集合**的条目（每条引用目标片段与目标位置序列中的两个相邻关键帧），旧片段级 `clip.rules` 转换为**脚本级规则定义 + 绑定**（绑定引用目标片段与执行局部时间门），运行激活不写入脚本。保真范围必须区分：保持语义的字段与数学路径做旧／新对照；明确改变的朝向混合、过渡效果归属、规则生命周期与规则阶段（实例级持有、成功事实、动作延迟、事实接力）按新目标报告差异，不通过修正关键帧或伪造规则状态重新植入旧语义。动态输入无法静态等值时报告人工复核，不承诺对未知运行环境完全等价。具体结构引用与序列化在目标格式评审后确定，新运行时不保留旧格式分支。
 
 ## 二、为什么做
 
@@ -15,7 +15,7 @@
 - 223 个脚本 / 813 个 clip / 2411 个关键帧都是共享快照；手工拆对象不现实，且容易改变运动。
 - 旧运行时对缺失字段取字段默认值，新模型对缺失对象取对象值/默认值；机械拆 map 会让稀疏字段从“默认回落”变成“hold/插值”，静默改变画面。
 - `position`/`dest`/`source`/`color` 是复合值；旧运行时按端点整体求值/插值，新模型按叶子采样；直接拆会改变曲线、position_origin、look_at、混合段。
-- `curve` 在旧运行时是 clip 级一份 3D 控制点，隐式套到每个 from→to 段；新设计是脚本级曲线集合，每条条目引用目标片段与目标位置序列中的两个相邻关键帧，各自持有 geometry。只写一份控制点不能覆盖多个旧段；按轴拆成 1D 曲线又会改变路径形状/速度。曲线条目的序列化/引用待评审。`orient`/offset 保留，但前置条件变为显式。
+- `curve` 在旧运行时是 clip 级一份 3D 控制点，隐式套到每个 from→to 段；新设计是脚本级路径集合，每条条目引用目标片段与目标位置序列中的两个相邻关键帧，各自持有 geometry。只写一份控制点不能覆盖多个旧段；按轴拆成 1D 曲线又会改变路径形状/速度。路径条目的序列化/引用待评审。`orient`/offset 保留，但前置条件变为显式。
 - `clip.rules` 在旧运行时是片段级数组，规则随片段活跃窗建槽；新设计是脚本级规则定义 + 绑定，绑定引用目标片段与执行局部时间门，并区分判定成功、动作调度与完成。旧规则没有实例级判定持有、成功事实、延迟动作或事实接力；这些不能被迁移器凭空补出。
 - `meta.version`/`timeline.total_duration` 删除后，旧脚本不能直接加载；必须一次性转换。
 - AUDIO 的 `loop` 改名 `file_loop`，旧字段不能双读。
@@ -24,7 +24,7 @@
 
 - 转换结果通过目标 parser／validator；语义保持路径在容差内对照一致，明确设计变更单列报告，不要求与旧实现错误等值。
 - 复合值展开为叶子；仅对可保真的稀疏字段生成修正数据，超界关键帧保留但不参与；不得将动态输入烘焙成某次采样环境的固定轨迹。
-- 旧片段曲线按实际区间转换为脚本级曲线条目，分别保留目标片段、端点、控制点与弧长含义；同一片段的多条旧段各成一条，不合并成一份。`orient`／offset 和动态点源保留语义声明。新模型明确改变的求值／生命周期行为不得以修正帧伪装成已保真。
+- 旧片段路径按实际区间转换为脚本级路径条目，分别保留目标片段、端点、控制点与弧长含义；同一片段的多条旧段各成一条，不合并成一份。`orient`／offset 和动态点源保留语义声明。新模型明确改变的求值／生命周期行为不得以修正帧伪装成已保真。
 - 旧 `clip.rules` 转换为脚本级 RuleDefinition + RuleBinding：旧条件/动作/策略成为定义，旧片段的规则生效位置成为绑定的目标片段与执行局部时间门；RuleActivation 不写入脚本。旧规则没有的新阶段（实例级持有、成功事实、动作延迟、事实接力）报告为“未迁移能力”，不伪造状态。
 - 普通片段与分支片段按同一对象 schema 迁移；分支只影响执行来源/编排去向，不生成第二套内容格式。
 - 转换器可重复运行（对新格式幂等/跳过）、可 dry-run、可回滚、输出报告。
@@ -58,7 +58,7 @@
 2. **元数据**：删除 `meta.version`、`timeline.total_duration`；保留 `meta` 其他字段、`timeline.tracks`/宏观循环参数。
 3. **clip 外层字段**：
    - 只保留播放控制字段：`start_time`/`duration`/`loop`/`loop_count`/`loop_mode`；不把 `rules` 固定为 clip 外层目标字段，规则按脚本级 RuleDefinition/RuleBinding 结构迁移，RuleActivation 不写入脚本；非阻塞观察不阻止片段自然完成。
-   - `transition*`/`dimension`/`mask_shape`/`motion_*`/`modifier`/`suppress_modifiers`/`cam_breath_*`/调色曲线/LUT/`blend_mode`/`orient`/offset 等作用于片段的普通数据进 `objects`；是否带 keyframes 由 schema `mode` 决定。曲线条目属于脚本级集合，不进 `objects`。
+   - `transition*`/`dimension`/`mask_shape`/`motion_*`/`modifier`/`suppress_modifiers`/`cam_breath_*`/调色曲线/LUT/`blend_mode`/`orient`/offset 等作用于片段的普通数据进 `objects`；是否带 keyframes 由 schema `mode` 决定。路径条目属于脚本级集合，不进 `objects`。
    - AUDIO `loop` → `file_loop`；AUDIO 片段执行循环用公共 `loop`/`loop_count`。
    - 旧 EVENT/MOD_EVENT 的 clip 级 `event_type`/`data` 迁为 objects 的 value-only 字段，作为事件记录的默认值。
 4. **对象展开**：
@@ -75,8 +75,8 @@
    - `color`（OVERLAY fade）：拆 `color.r/g/b`（0~1）。
    - `look_at_part`：拆 `.x/.y/.z`。
    - `look_at_offset`/`facing_target_offset`/`yaw_base_from_offset`/`yaw_base_to_offset`：拆 `.x/.y/.z` + `.space`（world/base）。
-   - `curve`：旧 clip 级 3D 控制点按旧段逐段迁移为**脚本级曲线集合**条目。对每个相邻旧全局关键帧段（from→to）生成一条条目：目标片段 = 该旧 clip；端点 = 该片段目标位置序列中的 from/to 关键帧（该时刻 `position` 缺失时按旧默认/回落求值，必要时 materialize 成位置组（三轴同时间关键帧））；两个控制点按旧定义复制（相对控制点相对该段起点；绝对控制点原样）；保留 3D 弧长，不拆轴、不烘焙、不合并；几何与进度分离。同一片段的多条旧段各成一条，不限制条数。无曲线条目覆盖的段正常按 `position` SampledProperty 插值；不要求整片段三轴全局成组。曲线条目的序列化/引用待评审；`objects.curve` 与片段级 `curve` 只是前稿/现行实现参照，当前代码是 `clip.getCurve` 单份曲线。旧段任一端 `follow=entity` 时旧运行时忽略 curve（线性）；迁移对该段不写曲线条目，报告；新格式动态段可用曲线条目。
-   - 旧 curve 在位置转世界后求值：相对控制点是世界轴偏移，绝对控制点是世界坐标。`world` 段可直接复制；`base` 段新曲线在 base 空间求值，静态 base 可换算，动态 base 无法预计算 → 报告人工复核，不静默改形状。
+   - `curve`：旧 clip 级 3D 控制点按旧段逐段迁移为**脚本级路径集合**条目。对每个相邻旧全局关键帧段（from→to）生成一条条目：目标片段 = 该旧 clip；端点 = 该片段目标位置序列中的 from/to 关键帧（该时刻 `position` 缺失时按旧默认/回落求值，必要时 materialize 成位置组（三轴同时间关键帧））；两个控制点按旧定义复制（相对控制点相对该段起点；绝对控制点原样）；保留 3D 弧长，不拆轴、不烘焙、不合并；geometry 与 timing 分离。同一片段的多条旧段各成一条，不限制条数。无路径条目覆盖的段正常按 `position` SampledProperty 插值；不要求整片段三轴全局成组。路径条目的序列化/引用待评审；`objects.curve` 与片段级 `curve` 只是前稿/现行实现参照，当前代码是 `clip.getCurve` 单份曲线。旧段任一端 `follow=entity` 时旧运行时忽略 curve（线性）；迁移对该段不写路径条目，报告；新格式动态段可用路径条目。
+   - 旧 curve 在位置转世界后求值：相对控制点是世界轴偏移，绝对控制点是世界坐标。`world` 段可直接复制；`base` 段新路径在 base 空间求值，静态 base 可换算，动态 base 无法预计算 → 报告人工复核，不静默改形状。
    - `orient`：value-only；`yaw_offset`/`pitch_offset`：旧 clip 常量写成 value-only 或单值 animated，保留 `requires=orient=tangent`。
    - `transition*`/morph：旧 clip 的过渡字段迁为 objects 的 value-only/animated 普通属性；新运行时按每侧完整状态快照混合，窗口 = 交界 ± maxDuration/2（3 秒窗口 = 前后各 1.5 秒），迁移不烘焙过渡帧、不生成过渡快照。
    - 其他 map（`data`/`gradient`/`modifier`/调色曲线）不拆；它们是 value-only 结构或离散事件记录。
@@ -104,7 +104,7 @@
 - `zoom`：`interp=geometric`；旧值 >0；若旧值 ≤0，转换器报错/警告（旧运行时可能回退，不能静默改）。
 - `color.r/g/b`：旧 clip 级 `color` 作为动态默认；对象只在旧关键帧有 `color` 时创建；未创建的通道回落 value-only 基色。
 - `volume`：旧 clip 级 `volume` 作为动态默认；对象只在旧关键帧有 `volume` 时创建。
-- 曲线端点 materialize：旧 `curve` 的段边界是**全局**关键帧，不是只在 `position` 出现的时刻。若某段端点时刻 `position` 未出现，转换器按旧有效值（存在值或默认）写三轴 `position` 关键帧作为曲线条目端点；这是“目标位置序列中两个相邻关键帧”的端点对应要求，只 materialize 端点，不要求全片段位置帧成组，也不是把曲线烘焙成采样点或普通稀疏修正帧。曲线条目的引用/序列化待评审。
+- 曲线端点 materialize：旧 `curve` 的段边界是**全局**关键帧，不是只在 `position` 出现的时刻。若某段端点时刻 `position` 未出现，转换器按旧有效值（存在值或默认）写三轴 `position` 关键帧作为路径条目端点；这是“目标位置序列中两个相邻关键帧”的端点对应要求，只 materialize 端点，不要求全片段位置帧成组，也不是把曲线烘焙成采样点或普通稀疏修正帧。路径条目的引用/序列化待评审。
 
 ### 3.4 稀疏字段保真
 
@@ -123,42 +123,42 @@
 1. 取旧 clip 的所有全局关键帧时间 `T`（范围内）作为候选时间。
 2. 取该对象在旧关键帧中的出现时间 `S ⊆ T`。
 3. 以 `S` 为初始 keyframes（值 = 旧值）。
-4. 对每个 `t ∈ T`，用旧 evaluator 算旧有效值 `old(t)`；用新 sampler 算 `new(t)`。若 `|old-new| > ε`，在 `t` 插入旧值 keyframe。曲线段内 `position` 的差异不能用“插位置点并复用旧控制点”来修：只能调整曲线条目的段级 geometry（端点/控制点）或报告；曲线条目的结构契约待评审，迁移不做静默重建。
-5. 再在相邻候选时间的中点/固定采样网格上重复比较；若差异超差，插入修正帧；曲线段内 `position` 同样按上一条处理，不用复用旧控制点的方式伪造保形；直到所有检查点满足容差或达到迭代上限。
+4. 对每个 `t ∈ T`，用旧 evaluator 算旧有效值 `old(t)`；用新 sampler 算 `new(t)`。若 `|old-new| > ε`，在 `t` 插入旧值 keyframe。路径段内 `position` 的差异不能用“插位置点并复用旧控制点”来修：只能调整路径条目的段级 geometry（端点/控制点）或报告；路径条目的结构契约待评审，迁移不做静默重建。
+5. 再在相邻候选时间的中点/固定采样网格上重复比较；若差异超差，插入修正帧；路径段内 `position` 同样按上一条处理，不用复用旧控制点的方式伪造保形；直到所有检查点满足容差或达到迭代上限。
 6. 对线性对象，若插入点落在相邻两点连线上（误差 < ε），可删除该冗余点（无损压缩）；对 step 对象，连续同值可合并。
 7. 输出对象 keyframes；记录插入/压缩数量。
 
 - 容差：位置 < 1e-3 格；角度 < 0.01°；透明度/颜色/调色通道 < 1e-4；音量 < 1e-4；矩形/比例 < 1e-5。可按对象类型配置。
-- 曲线段内的位置采样不是自由关键帧：`old(t)` 与 `new(t)` 的差异只能通过曲线条目的段级 geometry（端点/控制点/段划分）解释或报告；不能靠插段内位置点“修”曲线，也不能用复用旧控制点的方式冒充保形。曲线条目的结构契约待评审。
+- 路径段内的位置采样不是自由关键帧：`old(t)` 与 `new(t)` 的差异只能通过路径条目的段级 geometry（端点/控制点/段划分）解释或报告；不能靠插段内位置点“修”曲线，也不能用复用旧控制点的方式冒充保形。路径条目的结构契约待评审。
 - 这套算法对“字段只在部分全局关键帧出现”的脚本是保真的；对“字段在整个 clip 从未出现”的对象不创建，等价默认。
 - 如果旧字段值本身是非有限/非法，转换器报错；不尝试修复。
 
-### 3.5 相机位置/曲线/朝向
+### 3.5 相机位置/路径/朝向
 
-旧相机按复合端点求值，新模型按独立属性与曲线条目装配。迁移保留仍有效的路径与参数含义，但不假定两套求值在所有场景等价；动态或明确改变的部分必须分类处理：
+旧相机按复合端点求值，新模型按独立属性与路径条目装配。迁移保留仍有效的路径与参数含义，但不假定两套求值在所有场景等价；动态或明确改变的部分必须分类处理：
 
 | 旧特性 | 迁移策略 |
 |---|---|
 | 静态 `position`（absolute world / relative world/base，无 `position_origin` 动态） | 按 §3.2 拆叶子；用 §3.4 保真；不把世界位置烘焙成新关键帧，保留原 `position_mode`/space |
 | 旧 `follow=entity`／位置点源／选择器 | 归一到新点源与冻结声明，保留动态来源；可静态等值的部分做对照，无法保证的动态差异报告复核，不固定成某次运行坐标 |
 | `look_at` 动态目标 | 保留注视目标与选择器，不并入位置点源；目标模型按实际状态计算朝向，不能用手动角度修正帧绕过 look_at 的覆盖语义 |
-| `curve` | 逐旧段迁移为脚本级曲线条目：每个旧全局关键帧段（from→to）生成一条条目，目标片段 = 该 clip，端点 = 该 from/to 的旧有效位置（必要时仅对端点 materialize 成位置组）；控制点按旧定义复制（相对控制点相对该段起点，绝对控制点原样）；保留 3D 弧长；不拆轴、不烘焙、不合并。曲线条目的序列化/引用待评审。`world` 段可直接复制；`base` 段需换算到 base 空间，动态 base 无法预计算时报告人工复核 |
+| `curve` | 逐旧段迁移为脚本级路径条目：每个旧全局关键帧段（from→to）生成一条条目，目标片段 = 该 clip，端点 = 该 from/to 的旧有效位置（必要时仅对端点 materialize 成位置组）；控制点按旧定义复制（相对控制点相对该段起点，绝对控制点原样）；保留 3D 弧长；不拆轴、不烘焙、不合并。路径条目的序列化/引用待评审。`world` 段可直接复制；`base` 段需换算到 base 空间，动态 base 无法预计算时报告人工复核 |
 | `orient=tangent` / `yaw_offset` / `pitch_offset` | 原样保留：`orient` 是 value-only 字段；`yaw_offset`/`pitch_offset` 是 animated 字段（旧 clip 常量写成 `value`，无 keyframes），前置条件 `orient=tangent`；不烘焙成 yaw/pitch 关键帧 |
 | 至少一端 `look_at` 启用的混合段伪目标 | 两端 none 的角度插值可继续对照；混合段的旧伪目标仅为基线，新目标按实际朝向状态处理。差异作为设计变更报告，不宣称插角度帧即可保持动态目标下完全等值 |
 | morph 两侧片段效果 | 保留各侧效果声明；混合前分别求值是目标变更，不生成关键帧模拟旧 next motion／prev breath 装配；报告受影响片段 |
 | v1 规则元数据 | 提取为脚本级 RuleDefinition + RuleBinding：旧规则条件/动作/策略成定义，旧片段成为绑定的目标片段；可提取的局部时间条件作为时间门，否则用执行起点 0。旧窗口不能自动成为新生命周期；实例级持有、成功事实、动作延迟、事实接力是旧数据没有的能力，列入“未迁移”复核，不伪造状态 |
 | `yaw_base=entity/line` 动态基准 | 保留 `yaw_base*` 字段；若旧端点求值与新逐帧不同，插入修正关键帧；动态实体无法预计算时标记人工复核 |
 
-- 旧 `curve` 是 3D 曲线；迁移逐旧段保留同一条 3D 贝塞尔：每段自己的端点/控制点/相对绝对/3D 弧长不变，不做按轴拆分，不合并成一份。段边界 = 旧全局关键帧；端点缺失 `position` 时 materialize 旧有效位置。新条目的端点相邻性只在目标位置序列内判断，旧全局关键帧只用于确定旧段边界，不成为新运行时把其它对象帧并入的总编号。不是“一份控制点写一次”就算迁移完成；曲线条目的序列化/引用待评审。
-- 旧段任一端 `follow=entity` 时旧运行时忽略 curve（线性）；迁移对该段不写曲线条目 geometry，报告；新格式动态段可用曲线条目，但不回填旧 follow 段。
-- 2 轴组合只会在作者显式写两个轴时出现；迁移器不会把旧 3D 曲线降成 2 轴。2 轴曲线条目只保证该平面内 2D 弧长，不承诺 3D 匀速；未选轴仍按自身 SampledProperty 求值。见 `track-camera.md` §3.2。
-- `orient=tangent` 的切线由当前曲线条目的路径导数与未选轴 SampledProperty 导数合成；迁移后与旧切线对拍。
+- 旧 `curve` 是 3D 曲线；迁移逐旧段保留同一条 3D 贝塞尔：每段自己的端点/控制点/相对绝对/3D 弧长不变，不做按轴拆分，不合并成一份。段边界 = 旧全局关键帧；端点缺失 `position` 时 materialize 旧有效位置。新条目的端点相邻性只在目标位置序列内判断，旧全局关键帧只用于确定旧段边界，不成为新运行时把其它对象帧并入的总编号。不是“一份控制点写一次”就算迁移完成；路径条目的序列化/引用待评审。
+- 旧段任一端 `follow=entity` 时旧运行时忽略 curve（线性）；迁移对该段不写路径条目 geometry，报告；新格式动态段可用路径条目，但不回填旧 follow 段。
+- 2 轴组合只会在作者显式写两个轴时出现；迁移器不会把旧 3D 曲线降成 2 轴。2 轴路径条目只保证该平面内 2D 弧长，不承诺 3D 匀速；未选轴仍按自身 SampledProperty 求值。见 `track-camera.md` §3.2。
+- `orient=tangent` 的切线由当前路径条目的路径导数与未选轴 SampledProperty 导数合成；迁移后与旧切线对拍。
 - 旧 `absolute + follow=entity`：旧实现 follow 优先，`position` 实际是实体脚底偏移；迁移归一为 `relative + world + position_origin=<follow_selector> + position_origin_freeze=false`，保留偏移，不保留 `absolute`。
 - 旧 `relative/base + follow=entity`：旧实现 base 原点走 `facing_origin`；新设计原点=跟随实体脚底。若旧 `facing_origin` 为空或不是跟随实体，迁移报告人工复核，不静默改原点。
 - 旧 `relative/base` 且 `facing_target` 为空：旧方向源 = 旧运行时实际解析结果（原点实体 / 隐式 `@p` / follow 实体 / 玩家）；迁移写 `facing_source=entity`，旧选择器写进 `facing_entity`（原点本身就是该实体/玩家时可省略），固定旧方向；报告新增方向源。
 - `position_origin` 实体选择器 `position_origin_freeze=false` 是动态点源，`true` 是静态点源；`follow=none` 不代表静态。迁移保留点源冻结状态，不按字段名猜静/动。
-- 旧 `position_mode`/`follow`/`facing_origin`/`facing_origin_time` 切换，或 `base` 下 `facing_target`/`facing_target_time` 切换：迁移时在切换点插三轴位置关键帧；新格式对应 `position_mode`/`position_origin`/`position_origin_freeze`（base 下还有 `facing_source`/`facing_target`/`facing_target_freeze`/`facing_entity`）切换；base 轴没有独立角度偏移字段；曲线条目与切换点的关系按结构契约处理，迁移不静默改绑，必要时报告人工复核。
-- 迁移报告列出曲线按旧段展开数量/每段端点与控制点对应、`base` 段换算/动态复核清单、`orient`/offset 保留情况；不再有“烘焙采样数/30Hz”。
+- 旧 `position_mode`/`follow`/`facing_origin`/`facing_origin_time` 切换，或 `base` 下 `facing_target`/`facing_target_time` 切换：迁移时在切换点插三轴位置关键帧；新格式对应 `position_mode`/`position_origin`/`position_origin_freeze`（base 下还有 `facing_source`/`facing_target`/`facing_target_freeze`/`facing_entity`）切换；base 轴没有独立角度偏移字段；路径条目与切换点的关系按结构契约处理，迁移不静默改绑，必要时报告人工复核。
+- 迁移报告列出路径按旧段展开数量/每段端点与控制点对应、`base` 段换算/动态复核清单、`orient`/offset 保留情况；不再有“烘焙采样数/30Hz”。
 
 ### 3.6 EVENT / MOD_EVENT
 
@@ -193,7 +193,7 @@
 - 不写旧 `_time` 字段（`facing_origin_time`/`facing_target_time`/`yaw_base_from_time`/`yaw_base_to_time`/`look_at_time`）；统一写对应 `_freeze` 布尔。
 - 旧 `base` 段补出的方向源写 `facing_source=entity` + `facing_entity`（原点已是该实体/玩家时可省）；旧 `facing_target` 写 `facing_source=line` 并保留目标；不写不存在的 `facing_target`/`facing_entity` 空值。
 - 不写 `selector_*_follow`/`selector_*_facing_origin`；统一写 `selector_*_position_origin`；需要时复制到 `selector_*_facing_entity`。
-- 写脚本级曲线集合：每个旧全局关键帧段生成一条条目，保留目标片段引用 + 端点对应 + 控制点 + 3D 弧长；曲线条目的序列化/引用待评审，不写旧 clip 级 `curve` 形态，也不把一份控制点套到多个段。
+- 写脚本级路径集合：每个旧全局关键帧段生成一条条目，保留目标片段引用 + 端点对应 + 控制点 + 3D 弧长；路径条目的序列化/引用待评审，不写旧 clip 级 `curve` 形态，也不把一份控制点套到多个段。
 - 写脚本级规则集合：旧 `clip.rules` 转为 RuleDefinition + RuleBinding（目标片段 + 时间门），RuleActivation 不写；旧数据没有的实例级持有/成功事实/动作延迟/事实接力不写。
 
 ### 3.10 报告与人工复核
@@ -230,7 +230,7 @@ MigrationJob
 - `NewSampler`：新对象采样器（与运行时同源），用于 `new(t)`。
 - `ParityChecker`：在 `T` + 采样网格上比较；输出差异/插入点。
 - `ObjectBuilder`：按字段映射构建对象；处理稀疏/复合/锁/颜色。
-- `CurveBuilder`：旧 `BezierPathStrategy`/`TangentOrientation` 采样；按旧段生成脚本级曲线条目（目标片段/端点/控制点/3D 弧长），序列化/引用待评审，`base` 段控制点换算/复核。
+- `CurveBuilder`：旧 `BezierPathStrategy`/`TangentOrientation` 采样；按旧段生成脚本级路径条目（目标片段/端点/控制点/3D 弧长），序列化/引用待评审，`base` 段控制点换算/复核。
 - `RuleBuilder`：旧 `clip.rules` → RuleDefinition + RuleBinding；提取可用的局部时间门，保留旧条件/动作/策略；旧数据没有的阶段不补写。
 - `ReportWriter`：JSON/Markdown 报告。
 
@@ -268,7 +268,7 @@ MigrationJob
 | 手工迁移 | 逐个脚本改 | 223 个脚本/2411 关键帧，易错、不可重复 | 转换器 |
 | 运行时双格式 | parser 同时读 keyframes/objects | 两套语义/校验/编辑器；旧格式永不清 | 一次性迁移 |
 | 只拆 map，不保稀疏 | 出现点建对象，缺失 hold | 静默改变运动；旧脚本画面变 | 修正关键帧保真 |
-| 只写一份 `curve` 原样映射 | 旧 clip 级控制点复制成新格式一份 | 一份控制点无法表达多个旧段，段归属也不明确；插入关键帧会改变其余段 | 逐旧段迁移为脚本级曲线条目，每条自己的目标片段/端点/控制点；序列化/引用待评审 |
+| 只写一份 `curve` 原样映射 | 旧 clip 级控制点复制成新格式一份 | 一份控制点无法表达多个旧段，段归属也不明确；插入关键帧会改变其余段 | 逐旧段迁移为脚本级路径条目，每条自己的目标片段/端点/控制点；序列化/引用待评审 |
 | 按轴拆成三条 1D 曲线 | 每轴一条标量曲线 | 改变路径形状/速度；无法定义 2D/3D 弧长 | 逐段保留 3D 曲线 |
 | 旧 `clip.rules` 原样搬成新字段 | 仍以片段数组承载规则 | 规则生命周期仍被片段窗口限制；多入口/成功事实/延迟无法表达 | 脚本级 RuleDefinition + RuleBinding；RuleActivation 运行期 |
 | 迁移时补写旧数据没有的规则阶段 | 给旧规则自动加实例级持有/成功事实/延迟 | 改变作者原意；把未实现能力伪装成已迁移 | 只迁移可表达部分，新阶段列“未迁移能力” |
@@ -281,7 +281,7 @@ MigrationJob
 
 - 保真算法复杂；稀疏字段/动态相机需要旧 evaluator 冻结副本，工具链多一套代码。
 - 修正关键帧可能仍很多；4 MiB 限制下需要压缩/分段，报告可能要求人工处理。
-- 旧 `curve` 逐段迁移后曲线条目数量 = 旧全局关键帧段数；脚本会比“一份控制点”大，但目标片段/端点归属明确、可逐段编辑。3D 弧长保留；只有作者后续显式改成 2 轴组合时，才会出现 2D 弧长不承诺 3D 匀速的语义边界。曲线条目的序列化/引用待评审，迁移输出形态要等结构契约定稿。
+- 旧 `curve` 逐段迁移后路径条目数量 = 旧全局关键帧段数；脚本会比“一份控制点”大，但目标片段/端点归属明确、可逐段编辑。3D 弧长保留；只有作者后续显式改成 2 轴组合时，才会出现 2D 弧长不承诺 3D 匀速的语义边界。路径条目的序列化/引用待评审，迁移输出形态要等结构契约定稿。
 - 旧规则迁移只能保留定义/绑定与可提取的时间门；实例级持有、成功事实、动作延迟、事实接力等新阶段在旧数据中不存在，必须由作者后续显式声明，不能自动补全。
 - 旧规则的时间门来源可能不唯一（旧时间条件/片段起点）；迁移需报告选择，不能把“窗口起点生效”静默解释成新的持续判定语义。
 - `base` 段的旧控制点是世界轴定义，新曲线在 base 空间求值；静态 base 可精确换算，动态 base 只能报告/人工复核，不能保证逐点保真。
@@ -293,8 +293,8 @@ MigrationJob
 
 状态：未实现
 
-| 原设计 | 实际实现 | 偏离原因 |
+| 设计目标 | 实现 | 说明 |
 |---|---|---|
-| 旧 clip 级 `curve` 逐旧段迁移为脚本级曲线条目，每条目标片段/端点/控制点对应；旧 `clip.rules` → 脚本级 RuleDefinition + RuleBinding | 当前 `clip.getCurve` 返回单份曲线，旧运行时对每个 from→to 段隐式复用；`objects.curve` 从未实现；旧规则是片段级 `clip.rules`，没有定义/绑定/时间门分层 | 旧格式只有一份 `curve` 与片段级规则数组；脚本级结构是新增设计，序列化/引用待评审，迁移器尚未实现 |
+| 旧 clip 级 `curve` 逐旧段迁移为脚本级路径条目，每条目标片段/端点/控制点对应；旧 `clip.rules` → 脚本级 RuleDefinition + RuleBinding | 当前 `clip.getCurve` 返回单份曲线，旧运行时对每个 from→to 段隐式复用；`objects.curve` 从未实现；旧规则是片段级 `clip.rules`，没有定义/绑定/时间门分层 | 旧格式只有一份 `curve` 与片段级规则数组；脚本级结构是新增设计，序列化/引用待评审，迁移器尚未实现 |
 | 旧规则迁移保留定义/绑定与可提取时间门；新阶段不伪造 | 转换器尚未实现规则迁移；旧规则没有实例级持有/成功事实/延迟/接力 | 迁移未实现 |
 | 旧 `total_duration` 仅在有限时比较有限末端；含无限单列无有限末端 | 当前旧字段直接删除，转换器尚未实现有限/无限分口径报告 | 迁移未实现 |

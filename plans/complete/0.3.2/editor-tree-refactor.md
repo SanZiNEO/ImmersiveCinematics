@@ -1,5 +1,7 @@
 # ⑤ 坐标统一 + 事件树 + Overlay 层 — 逐文件修复指南
 
+> **历史文档**：游戏内编辑器（`editor/` 包）已移除，编辑器改为 WebUI（见 `plans/0.3.6/Z-editor/`）。本文仅作历史设计参考。
+
 **版本**: 0.3.2  
 **类型**: 重构  
 **文件数**: 3（UIComponent / UIContext / EditorScreen）  

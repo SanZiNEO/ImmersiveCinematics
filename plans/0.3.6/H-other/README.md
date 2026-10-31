@@ -135,7 +135,7 @@ H7 / H8 之间没有强绑定：H8 的**最小版本**（位置扫掠 / 朝向�
 | [`trigger-continuity.md`](trigger-continuity.md) | 判定层计划（P3-impl）= H8 |
 | [`region-sync.md`](region-sync.md) | H1，独立功能，与 H7/H8 无依赖 |
 | [`skip-vote-and-hud.md`](skip-vote-and-hud.md) | H9，跳过投票判定 + HUD 布局/位置配置 |
-| [`hud-hard-hide.md`](hud-hard-hide.md) | H4/H5/H6 相关 |
+| [`screen-layers.md`](screen-layers.md) | 画面层：HUD、手臂、摇晃、屏幕效果、玩家模型；普通/白名单模式与注册接口 |
 | [`../C-trigger/trigger-conditions.md`](../C-trigger/trigger-conditions.md) | 条件怎么写、怎么组合；H7/H8 只提供它脚下的查询原语与时间语义，不改它的字段 |
 | [`../C-trigger/condition-system.md`](../C-trigger/condition-system.md) | 判定规则（`clip.rules`），与触发器判定是不同层 |
 | [`../F-playback/parallel-playback.md`](../F-playback/parallel-playback.md) | 实例账本的上游；H7 阶段 2 与之对齐 |
