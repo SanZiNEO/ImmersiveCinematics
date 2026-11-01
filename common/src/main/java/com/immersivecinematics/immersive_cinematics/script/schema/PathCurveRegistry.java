@@ -9,6 +9,7 @@ import com.immersivecinematics.immersive_cinematics.math.path.BezierPathSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.CatmullRomPathSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.ClothoidPathSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.EllipsePathSpec;
+import com.immersivecinematics.immersive_cinematics.math.path.FourierPathSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.HermitePathSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.LinearPathSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.NurbsPathSpec;
@@ -189,6 +190,29 @@ public final class PathCurveRegistry {
                         params.requiredNumber("length"),
                         params.vector("start_direction", ClothoidPathSpec.DEFAULT_START_DIRECTION),
                         params.vector("normal", ClothoidPathSpec.DEFAULT_NORMAL)));
+        register("fourier", Set.of(PathCapability.ANALYTIC_SECOND_DERIVATIVE, PathCapability.PERIODIC),
+                List.of(
+                        new PathParamDef("a0", PathParamKind.VECTOR, Vec3.ZERO, false, null,
+                                "常数项 a0 {x,y,z}（缺省 (0,0,0)）；非周期形式必须为 0"),
+                        new PathParamDef("cos", PathParamKind.POINT_LIST, null, false, null,
+                                "余弦系数 a_k（第 k 项 = 阶数 k；{dx,dy,dz} 与 {x,y,z} 数值等价，系数是偏移量）"),
+                        new PathParamDef("sin", PathParamKind.POINT_LIST, null, false, null,
+                                "正弦系数 b_k（与 cos 等长）"),
+                        new PathParamDef("period", PathParamKind.NUMBER, null, true, null,
+                                "参数周期 T（u 单位），必须 > 0"),
+                        new PathParamDef("periodic", PathParamKind.BOOLEAN, true, false, null,
+                                "true = 周期级数（锚点 FREE，忽略关键帧端点）；false = 三次趋势 + 受约束残差"),
+                        new PathParamDef("start_velocity", PathParamKind.VECTOR, Vec3.ZERO, false, null,
+                                "起点速度 V0（位置 / u），仅 periodic=false 生效"),
+                        new PathParamDef("end_velocity", PathParamKind.VECTOR, Vec3.ZERO, false, null,
+                                "终点速度 V1（位置 / u），仅 periodic=false 生效")),
+                params -> new FourierPathSpec(params.vector("a0", Vec3.ZERO),
+                        coefficients(params.points("cos")),
+                        coefficients(params.points("sin")),
+                        params.requiredNumber("period"),
+                        params.flag("periodic", true),
+                        params.vector("start_velocity", Vec3.ZERO),
+                        params.vector("end_velocity", Vec3.ZERO)));
     }
 
     private PathCurveRegistry() {} // 工具类，禁止实例化
@@ -431,6 +455,18 @@ public final class PathCurveRegistry {
         return new Vec3(readNumber(obj.get("x"), fieldPath + ".x"),
                 readNumber(obj.get("y"), fieldPath + ".y"),
                 readNumber(obj.get("z"), fieldPath + ".z"));
+    }
+
+    /**
+     * 系数列表：{@link PathParamKind#POINT_LIST} → 向量表。
+     * 系数是偏移量、不存在「段起点」，相对形态 {@code {dx,dy,dz}} 与绝对形态 {@code {x,y,z}} 都按原始分量取值。
+     */
+    private static List<Vec3> coefficients(List<PathPoint> points) {
+        List<Vec3> values = new ArrayList<>(points.size());
+        for (PathPoint point : points) {
+            values.add(point.toVec3());
+        }
+        return values;
     }
 
     private static boolean isNumber(JsonElement element) {
