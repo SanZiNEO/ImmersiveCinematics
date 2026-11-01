@@ -53,7 +53,7 @@ public final class LaneMask {
      * 未消费的通道写回缺省，避免槽位复用时残留上一条 lane 的几何。
      * 无关键帧 / 单关键帧 / 端点 / 零长段走同一插值口径，与其它通道逐条一致。
      */
-    public void sample(Clip clip, float localTime) {
+    public void sample(Clip clip, double localTime) {
         if (clip == null) {
             resetFull();
             return;
@@ -65,7 +65,7 @@ public final class LaneMask {
         }
 
         List<Keyframe> keyframes = clip.getKeyframes();
-        float time = effectiveTime(clip, keyframes, localTime);
+        double time = effectiveTime(clip, keyframes, localTime);
         this.shape = resolvedShape;
         if (resolvedShape == SHAPE_RECT) {
             this.x = KeyframeInterpolator.interpolateChannel(keyframes, time, "mask_x", DEFAULT_X);
@@ -134,28 +134,28 @@ public final class LaneMask {
     }
 
     /**
-     * 循环时间映射：与 {@link KeyframeInterpolator#computeInterpolation(float, Clip)} 的循环段逐条一致
+     * 循环时间映射：与 {@link KeyframeInterpolator#computeInterpolation(double, Clip)} 的循环段逐条一致
      * （repeat / pingpong / 有限循环末端钳制），保证遮罩与相机状态 / 合成参数取同一时刻。
      * 非循环 / 关键帧不足 2 个 / 周期非正 → 原样返回。
      */
-    private static float effectiveTime(Clip clip, List<Keyframe> keyframes, float localTime) {
+    private static double effectiveTime(Clip clip, List<Keyframe> keyframes, double localTime) {
         if (!clip.isLoop() || keyframes.size() < 2) {
             return localTime;
         }
-        float period = clip.getAnimPeriod();
-        if (!(period > 0f)) {
+        double period = clip.getAnimPeriod();
+        if (!(period > 0.0)) {
             return localTime;
         }
         if (clip.getLoopCount() > 0) {
-            float maxLoopTime = period * clip.getLoopCount();
+            double maxLoopTime = period * clip.getLoopCount();
             if (localTime >= maxLoopTime) {
                 return keyframes.get(keyframes.size() - 1).getTime();
             }
         }
-        float offset = keyframes.get(0).getTime();
+        double offset = keyframes.get(0).getTime();
         if ("pingpong".equals(clip.getLoopMode())) {
-            float t = (localTime - offset) % (2f * period);
-            return offset + (t <= period ? t : 2f * period - t);
+            double t = (localTime - offset) % (2.0 * period);
+            return offset + (t <= period ? t : 2.0 * period - t);
         }
         return offset + (localTime - offset) % period;
     }

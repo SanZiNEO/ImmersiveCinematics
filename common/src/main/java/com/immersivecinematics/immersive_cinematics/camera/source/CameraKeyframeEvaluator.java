@@ -125,7 +125,7 @@ public final class CameraKeyframeEvaluator {
      *
      * @param clips 本轨片段（轨道顺序）
      */
-    public boolean isActiveAt(List<Clip> clips, float globalTime) {
+    public boolean isActiveAt(List<Clip> clips, double globalTime) {
         Clip c = findActiveClip(clips, globalTime);
         if (c != null) return true;
         for (int i = 0; i < clips.size() - 1; i++) {
@@ -206,13 +206,13 @@ public final class CameraKeyframeEvaluator {
      * @param laneRank 该 clip 所在 lane 的层号（{@link #TOP_LANE} = 顶层；捕获路径按距顶层层级传入）
      * @return 该 clip 本帧的 lane 快照；无插值结果（关键帧为空）时 {@code null}
      */
-    public CameraLane renderSingle(float globalTime, Clip clip, float clipLocalTime, boolean capture,
+    public CameraLane renderSingle(double globalTime, Clip clip, double clipLocalTime, boolean capture,
                                    int laneRank) {
         KeyframeInterpolator.InterpolationResult result =
                 KeyframeInterpolator.computeInterpolation(clipLocalTime, clip);
         if (result == null) return null;
 
-        float s = result.adjustedT;
+        double s = result.adjustedT;
         CameraState state = writeAttributes(result.from, result.to, s, clip, globalTime, capture, laneRank);
         return state != null ? new CameraLane(state, clip, clipLocalTime) : null;
     }
@@ -226,10 +226,10 @@ public final class CameraKeyframeEvaluator {
      *
      * @return 混合后的六参数快照；两端都无插值结果、或过渡本帧不产出时 {@code null}
      */
-    public CameraState renderMorph(Clip prevClip, Clip nextClip, float globalTime) {
+    public CameraState renderMorph(Clip prevClip, Clip nextClip, double globalTime) {
         // B 模型：双轨各自按自身时间插值（prev 走 [dur−t/2, dur)，next 走 [0, t)），再交过渡层按声明合成
-        float prevLocal = globalTime - prevClip.getStartTime();
-        float nextLocal = globalTime - nextClip.getStartTime();
+        double prevLocal = globalTime - prevClip.getStartTime();
+        double nextLocal = globalTime - nextClip.getStartTime();
         KeyframeInterpolator.InterpolationResult prevResult =
                 KeyframeInterpolator.computeInterpolation(prevLocal, prevClip);
         KeyframeInterpolator.InterpolationResult nextResult =
@@ -237,8 +237,8 @@ public final class CameraKeyframeEvaluator {
 
         if (prevResult == null && nextResult == null) return null;
 
-        float prevS = prevResult != null ? prevResult.adjustedT : 0f;
-        float nextS = nextResult != null ? nextResult.adjustedT : 0f;
+        double prevS = prevResult != null ? prevResult.adjustedT : 0.0;
+        double nextS = nextResult != null ? nextResult.adjustedT : 0.0;
 
         Keyframe prevFrom = prevResult != null ? prevResult.from : null;
         Keyframe prevTo = prevResult != null ? prevResult.to : null;
@@ -600,7 +600,7 @@ public final class CameraKeyframeEvaluator {
      * 任一端为 follow（动态目标）时强制 linear（曲线控制点对动态实体无意义）。
      * 由此 follow↔普通、换实体、换偏移的过渡天然平滑（两端都是世界坐标）。
      */
-    private Vec3 interpolateWorldPosition(Keyframe from, Keyframe to, float s, Clip clip) {
+    private Vec3 interpolateWorldPosition(Keyframe from, Keyframe to, double s, Clip clip) {
         Vec3 p0 = evalKeyframeWorldPos(from, clip);
         Vec3 p3 = evalKeyframeWorldPos(to, clip);
         boolean anyFollow = "entity".equals(from.getString("follow", "none"))
@@ -615,7 +615,7 @@ public final class CameraKeyframeEvaluator {
      * 两端目标齐全才用目标点，目标缺失时该段按 look_at=none 处理（两端关键帧自身角度插值）。
      * 方向锁属静态侧，只在手写角度支生效。目标不可用已由 isClipUsable 前置拦截，此处为防御。返回 [yaw, pitch]。
      */
-    private float[] segmentYawPitch(Keyframe from, Keyframe to, float s, Clip clip, Vec3 segPos,
+    private float[] segmentYawPitch(Keyframe from, Keyframe to, double s, Clip clip, Vec3 segPos,
                                     float yawBase, float pitchBase) {
         // 快照桶键：本段经 lineDir（连线端点）也走点源求值，入口处注入即覆盖整条链路
         entityResolver.attachClip(clip);
@@ -797,7 +797,7 @@ public final class CameraKeyframeEvaluator {
      * @param laneRank 本段所在 lane 的层号（{@link #TOP_LANE} = 顶层）
      * @return 本段求值出的六参数快照
      */
-    private CameraState writeAttributes(Keyframe from, Keyframe to, float s, Clip clip, float globalTime,
+    private CameraState writeAttributes(Keyframe from, Keyframe to, double s, Clip clip, double globalTime,
                                         boolean capture, int laneRank) {
         Vec3 pos = interpolateWorldPosition(from, to, s, clip);
         float yawBase = KeyframeInterpolator.interpolateYaw(from, to, s);
@@ -859,7 +859,7 @@ public final class CameraKeyframeEvaluator {
      *
      * @param clips 本轨片段（轨道顺序）
      */
-    public List<Clip> findActiveClips(List<Clip> clips, float globalTime) {
+    public List<Clip> findActiveClips(List<Clip> clips, double globalTime) {
         List<Clip> active = new ArrayList<>(2);
         for (int i = 0; i < clips.size(); i++) {
             Clip clip = clips.get(i);
@@ -881,18 +881,18 @@ public final class CameraKeyframeEvaluator {
      * 驱动相机的片段 = 顶层活跃片段 = 轨道顺序最后的活跃片段（后面的 clip 覆盖前面）。
      * 无活跃片段返回 null（不写相机 → 玩家视角）。
      */
-    private Clip findActiveClip(List<Clip> clips, float globalTime) {
+    private Clip findActiveClip(List<Clip> clips, double globalTime) {
         List<Clip> active = findActiveClips(clips, globalTime);
         if (active.isEmpty()) return null;
         Clip top = active.get(active.size() - 1);
         return top;
     }
 
-    private static float blendFloat(float a, float b, float weight) {
+    private static float blendFloat(float a, float b, double weight) {
         return TransitionBlend.linear(a, b, weight);
     }
 
-    private static float blendAngle(float a, float b, float weight) {
+    private static float blendAngle(float a, float b, double weight) {
         return TransitionBlend.angle(a, b, weight);
     }
 }

@@ -54,8 +54,8 @@ public final class RuleEngine {
 
     private Clip[] slotClips = new Clip[0];
     private ClipRule[] slotRules = new ClipRule[0];
-    private float[] slotWindowStart = new float[0];
-    private float[] slotWindowEnd = new float[0];
+    private double[] slotWindowStart = new double[0];
+    private double[] slotWindowEnd = new double[0];
     private int slotCount = 0;
 
     // ===== 规则状态（每槽一份；基本类型数组，帧内不新建） =====
@@ -73,10 +73,10 @@ public final class RuleEngine {
     private boolean[] edgeTrue = new boolean[0];
 
     /** 驻留累计（秒；if 走播放时钟、until 走真实时钟）。 */
-    private float[] dwellAccum = new float[0];
+    private double[] dwellAccum = new double[0];
 
     /** 冷却截止（播放时钟秒；0 = 无冷却）。 */
-    private float[] cooldownUntil = new float[0];
+    private double[] cooldownUntil = new double[0];
 
     /** until 等待起始（真实时钟秒）。 */
     private double[] untilWaitStart = new double[0];
@@ -87,12 +87,12 @@ public final class RuleEngine {
     private RuleArtifact[] artifactSlots = new RuleArtifact[0];
 
     /** 各工件的回收时刻（时间轴读数秒；到达即回收）。 */
-    private float[] artifactWindowEnd = new float[0];
+    private double[] artifactWindowEnd = new double[0];
 
     private int artifactCount = 0;
 
     /** 本批动作的注册窗末（= 所属槽位的片段活跃窗末；{@link #attachArtifact} 记进工件）。 */
-    private float actionWindowEnd = Float.MAX_VALUE;
+    private double actionWindowEnd = Double.MAX_VALUE;
 
     /** 动作 {@code pause} 持有的挂起（与 until 的挂起分开记账：until 按帧判定，pause 由 resume / 回收解除）。 */
     private boolean actionSuspendHeld = false;
@@ -107,8 +107,8 @@ public final class RuleEngine {
     private int resolvedCount = 0;
     private boolean wantSuspend = false;
     private boolean suspendRequested = false;
-    private float lastTimeline = Float.NaN;
-    private float lastElapsed = Float.NaN;
+    private double lastTimeline = Double.NaN;
+    private double lastElapsed = Double.NaN;
     private double lastClock = Double.NaN;
 
     /** 接线动作作用对象（{@code PlaybackInstance} 构造时调用一次）。 */
@@ -196,8 +196,8 @@ public final class RuleEngine {
                 List<ClipRule> rules = clip.getRules();
                 if (rules.isEmpty()) continue;
                 Clip next = ci + 1 < clips.size() ? clips.get(ci + 1) : null;
-                float start = clip.getStartTime();
-                float end = windowEnd(clip, next);
+                double start = clip.getStartTime();
+                double end = windowEnd(clip, next);
                 for (int ri = 0; ri < rules.size(); ri++) {
                     slotClips[slot] = clip;
                     slotRules[slot] = rules.get(ri);
@@ -208,8 +208,8 @@ public final class RuleEngine {
             }
         }
         slotCount = count;
-        lastTimeline = Float.NaN;
-        lastElapsed = Float.NaN;
+        lastTimeline = Double.NaN;
+        lastElapsed = Double.NaN;
         lastClock = Double.NaN;
     }
 
@@ -227,23 +227,23 @@ public final class RuleEngine {
      */
     public void evaluate(ScriptPlayer player) {
         if (player == null) return;
-        float timeline = player.timelineTime();
+        double timeline = player.timelineTime();
         // 动作工件到期回收：片段活跃窗末已过（先于本帧链求值——本帧渲染不再看到过期工件）
         if (artifactCount > 0) expireArtifacts(timeline);
         if (slotCount == 0) return;
         context.beginFrame();
         if (!context.available()) return;
 
-        float elapsed = player.getElapsedSeconds();
-        float dt = Float.isNaN(lastElapsed) ? 0f : elapsed - lastElapsed;
-        if (!(dt >= 0f)) dt = 0f;                       // 首帧 / 时间轴回退：驻留不倒退
+        double elapsed = player.getElapsedSeconds();
+        double dt = Double.isNaN(lastElapsed) ? 0.0 : elapsed - lastElapsed;
+        if (!(dt >= 0.0)) dt = 0.0;                     // 首帧 / 时间轴回退：驻留不倒退
         lastElapsed = elapsed;
-        if (!Float.isNaN(lastTimeline) && timeline < lastTimeline) resetForLap();
+        if (!Double.isNaN(lastTimeline) && timeline < lastTimeline) resetForLap();
         lastTimeline = timeline;
 
         double now = clock.seconds();
-        float dtReal = Double.isNaN(lastClock) ? 0f : (float) (now - lastClock);
-        if (!(dtReal >= 0f)) dtReal = 0f;
+        double dtReal = Double.isNaN(lastClock) ? 0.0 : now - lastClock;
+        if (!(dtReal >= 0.0)) dtReal = 0.0;
         lastClock = now;
 
         resolvedCount = 0;
@@ -251,7 +251,7 @@ public final class RuleEngine {
         for (int i = 0; i < slotCount; i++) {
             if (timeline < slotWindowStart[i] || timeline >= slotWindowEnd[i]) continue;
             ClipRule rule = slotRules[i];
-            float localTime = timeline - slotClips[i].getStartTime();
+            double localTime = timeline - slotClips[i].getStartTime();
             if (ClipRule.KIND_UNTIL.equals(rule.getKind())) {
                 stepUntil(i, rule, localTime, now, dtReal);
             } else {
@@ -288,12 +288,12 @@ public final class RuleEngine {
     }
 
     /** 持续规则（{@code if}）：enter 边沿 / dwell 驻留 + once / cooldown 门 → 触发。 */
-    private void stepIf(int slot, ClipRule rule, float localTime, float elapsed, float dt) {
+    private void stepIf(int slot, ClipRule rule, double localTime, double elapsed, double dt) {
         if (onceFired[slot]) return;
         boolean truth = ClientConditions.evaluate(rule.getCondition(), context, localTime);
         boolean trigger;
         if (ClipRule.MODE_DWELL.equals(rule.getMode())) {
-            dwellAccum[slot] = truth ? dwellAccum[slot] + dt : 0f;
+            dwellAccum[slot] = truth ? dwellAccum[slot] + dt : 0.0;
             trigger = truth && dwellAccum[slot] >= rule.getDwell();
         } else {
             trigger = truth && !edgeTrue[slot];
@@ -307,7 +307,7 @@ public final class RuleEngine {
     }
 
     /** 阻塞规则（{@code until}）：条件假 → 请求挂起；真 / timeout（真实时钟）先到 → 解除并触发。 */
-    private void stepUntil(int slot, ClipRule rule, float localTime, double now, float dtReal) {
+    private void stepUntil(int slot, ClipRule rule, double localTime, double now, double dtReal) {
         if (untilDone[slot]) return;
         if (!untilArmed[slot]) {
             untilArmed[slot] = true;
@@ -315,7 +315,7 @@ public final class RuleEngine {
         }
         boolean truth = ClientConditions.evaluate(rule.getCondition(), context, localTime);
         if (ClipRule.MODE_DWELL.equals(rule.getMode())) {
-            dwellAccum[slot] = truth ? dwellAccum[slot] + dtReal : 0f;
+            dwellAccum[slot] = truth ? dwellAccum[slot] + dtReal : 0.0;
             truth = truth && dwellAccum[slot] >= rule.getDwell();
         }
         if (truth) {
@@ -377,7 +377,7 @@ public final class RuleEngine {
      * 存在未完成的 {@code until}（其解除帧一并解冻），或存在仍可触发的 {@code resume} 动作
      * （{@code once} 已用完 / 冷却未过的不算——挂起中播放时钟不走，冷却永不失效）。挂起出口读它，见 {@link #evaluate}。
      */
-    private boolean pauseReleasable(float timeline, float elapsed) {
+    private boolean pauseReleasable(double timeline, double elapsed) {
         Clip clip = actionSuspendClip;
         if (clip == null) return true;
         for (int i = 0; i < slotCount; i++) {
@@ -427,7 +427,7 @@ public final class RuleEngine {
     // ===== 动作工件（帧内零分配：槽位数组 + 窗末平行数组） =====
 
     /** 片段窗末到期回收（{@code timeline} 已达回收时刻即 {@link RuleArtifact#release()}）。 */
-    private void expireArtifacts(float timeline) {
+    private void expireArtifacts(double timeline) {
         for (int i = artifactCount - 1; i >= 0; i--) {
             if (timeline >= artifactWindowEnd[i]) {
                 artifactSlots[i].release();
@@ -458,7 +458,7 @@ public final class RuleEngine {
     private void growArtifacts() {
         int size = Math.max(2, artifactSlots.length * 2);
         RuleArtifact[] slots = new RuleArtifact[size];
-        float[] ends = new float[size];
+        double[] ends = new double[size];
         System.arraycopy(artifactSlots, 0, slots, 0, artifactCount);
         System.arraycopy(artifactWindowEnd, 0, ends, 0, artifactCount);
         artifactSlots = slots;
@@ -469,44 +469,44 @@ public final class RuleEngine {
         slotCount = 0;
         slotClips = new Clip[0];
         slotRules = new ClipRule[0];
-        slotWindowStart = new float[0];
-        slotWindowEnd = new float[0];
+        slotWindowStart = new double[0];
+        slotWindowEnd = new double[0];
         onceFired = new boolean[0];
         untilDone = new boolean[0];
         untilArmed = new boolean[0];
         edgeTrue = new boolean[0];
-        dwellAccum = new float[0];
-        cooldownUntil = new float[0];
+        dwellAccum = new double[0];
+        cooldownUntil = new double[0];
         untilWaitStart = new double[0];
         resolvedSlots = new int[0];
         resolvedTimedOut = new boolean[0];
         resolvedCount = 0;
         wantSuspend = false;
         actionSuspendClip = null;
-        lastTimeline = Float.NaN;
-        lastElapsed = Float.NaN;
+        lastTimeline = Double.NaN;
+        lastElapsed = Double.NaN;
         lastClock = Double.NaN;
     }
 
     private void allocateSlots(int count) {
         slotClips = new Clip[count];
         slotRules = new ClipRule[count];
-        slotWindowStart = new float[count];
-        slotWindowEnd = new float[count];
+        slotWindowStart = new double[count];
+        slotWindowEnd = new double[count];
         onceFired = new boolean[count];
         untilDone = new boolean[count];
         untilArmed = new boolean[count];
         edgeTrue = new boolean[count];
-        dwellAccum = new float[count];
-        cooldownUntil = new float[count];
+        dwellAccum = new double[count];
+        cooldownUntil = new double[count];
         untilWaitStart = new double[count];
         resolvedSlots = new int[count];
         resolvedTimedOut = new boolean[count];
     }
 
     /** 片段活跃窗末端：与 {@code ClipModifierGate} 同口径（morph 前一段窗末延长半个过渡窗）。 */
-    private static float windowEnd(Clip clip, Clip next) {
-        float end = clip.getWindowEnd();
+    private static double windowEnd(Clip clip, Clip next) {
+        double end = clip.getWindowEnd();
         if (next == null || clip.isEffectivelyInfinite() || !clip.isMorph()) return end;
         TransitionSpec spec = clip.getTransitionSpec();
         return spec == null ? end : spec.windowEnd(end);

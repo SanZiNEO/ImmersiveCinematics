@@ -134,7 +134,7 @@ public final class PlaybackInstance {
      * @param instanceId   服务端播放请求的播放实例 id；本地来源传空串
      * @param preExecuteAt 预执行首帧的期望 elapsed 时间（预览模式 = 播放头，游戏内 = 0）
      */
-    void start(CinematicScript script, String instanceId, float preExecuteAt) {
+    void start(CinematicScript script, String instanceId, double preExecuteAt) {
         this.instanceId = instanceId != null ? instanceId : "";
         // 层归属先接线（建 TrackPlayer / 建层发生在 player.start 内）：层按本实例过滤渐出与清理
         this.player.attachOwner(this);

@@ -13,27 +13,27 @@ public final class TransitionBlend {
 
     private TransitionBlend() {} // 工具类，禁止实例化
 
-    /** 位置逐轴线性（世界坐标，方块）。 */
-    public static double axis(double a, double b, float weight) {
-        return a * (1f - weight) + b * weight;
+    /** 位置逐轴线性（世界坐标，方块）。weight = 混合进度（double，运行时口径）。 */
+    public static double axis(double a, double b, double weight) {
+        return a * (1.0 - weight) + b * weight;
     }
 
-    /** 线性（pitch / fov，度）。 */
-    public static float linear(float a, float b, float weight) {
-        return a * (1f - weight) + b * weight;
+    /** 线性（pitch / fov，度）。weight = 混合进度（double，运行时口径）。 */
+    public static float linear(float a, float b, double weight) {
+        return (float) (a * (1.0 - weight) + b * weight);
     }
 
-    /** 最短路径角度混合（度）。 */
-    public static float angle(float a, float b, float weight) {
-        float diff = ((b - a) % 360f + 540f) % 360f - 180f;
-        return a + diff * weight;
+    /** 最短路径角度混合（度）。weight = 混合进度（double，运行时口径）。 */
+    public static float angle(float a, float b, double weight) {
+        double diff = ((b - a) % 360.0 + 540.0) % 360.0 - 180.0;
+        return (float) (a + diff * weight);
     }
 
-    /** zoom 几何域混合（倍率）。 */
-    public static float zoom(float a, float b, float weight) {
+    /** zoom 几何域混合（倍率）。weight = 混合进度（double，运行时口径）。 */
+    public static float zoom(float a, float b, double weight) {
         if (a <= 0f || b <= 0f) {
             return linear(a, b, weight);
         }
-        return (float) Math.exp(Math.log(a) * (1f - weight) + Math.log(b) * weight);
+        return (float) Math.exp(Math.log(a) * (1.0 - weight) + Math.log(b) * weight);
     }
 }

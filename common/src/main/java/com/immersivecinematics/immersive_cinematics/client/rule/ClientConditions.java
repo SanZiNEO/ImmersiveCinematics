@@ -51,13 +51,13 @@ public final class ClientConditions {
      * @param ctx           本帧世界状态（玩家 / 相机）
      * @param clipLocalTime 片段本地时钟（秒）= timelineTime − clip.startTime
      */
-    public static boolean evaluate(JsonObject condition, Context ctx, float clipLocalTime) {
+    public static boolean evaluate(JsonObject condition, Context ctx, double clipLocalTime) {
         if (condition == null || ctx == null || !ctx.available()) return false;
         return evaluateNode(condition, ctx, clipLocalTime, 1);
     }
 
     /** 单个条件节点（叶子或组合器）：{@code depth} = 组合器层数（顶层 = 1），叶子不参与。 */
-    private static boolean evaluateNode(JsonObject c, Context ctx, float localTime, int depth) {
+    private static boolean evaluateNode(JsonObject c, Context ctx, double localTime, int depth) {
         String type = str(c, "type");
         if (type == null) return false;
         return switch (type) {
@@ -80,7 +80,7 @@ public final class ClientConditions {
      * 组合器（all_of = 全真 / any = 任一真，命中即短路）：list 元素 = {@code {type, conditions}}，
      * 与触发器侧同一结构；子条件为组合器时递归下钻（层数用尽即不满足）。
      */
-    private static boolean evalCombination(JsonObject c, Context ctx, float localTime, int depth, boolean allOf) {
+    private static boolean evalCombination(JsonObject c, Context ctx, double localTime, int depth, boolean allOf) {
         if (c == null || !c.has("list") || !c.get("list").isJsonArray()) return false;
         JsonArray list = c.getAsJsonArray("list");
         if (list.isEmpty()) return false;
@@ -94,7 +94,7 @@ public final class ClientConditions {
     }
 
     /** 组合器子条件：嵌套组合器走 {@code conditions} 递归，叶子条件按 {@code conditions} 数据求值。 */
-    private static boolean evalChild(JsonObject sub, Context ctx, float localTime, int depth) {
+    private static boolean evalChild(JsonObject sub, Context ctx, double localTime, int depth) {
         String type = str(sub, "type");
         if (type == null) return false;
         boolean nested = "all_of".equals(type) || "any".equals(type);
@@ -123,13 +123,13 @@ public final class ClientConditions {
      * {@code time}：{@code at} = 片段本地时钟 ≥ 该点；{@code from} / {@code to} = 闭区间（可单边）。
      * 两者都缺 → false（结构不全）。挂起期间本地时钟冻结，time 条件因此不成立。
      */
-    private static boolean evalTime(JsonObject c, float localTime) {
-        if (isNumber(c, "at")) return localTime >= c.get("at").getAsFloat();
+    private static boolean evalTime(JsonObject c, double localTime) {
+        if (isNumber(c, "at")) return localTime >= c.get("at").getAsDouble();
         boolean from = isNumber(c, "from");
         boolean to = isNumber(c, "to");
         if (!from && !to) return false;
-        if (from && localTime < c.get("from").getAsFloat()) return false;
-        return !to || localTime <= c.get("to").getAsFloat();
+        if (from && localTime < c.get("from").getAsDouble()) return false;
+        return !to || localTime <= c.get("to").getAsDouble();
     }
 
     /** {@code location}：dimension（全等）→ corner1/corner2 方体 → position+radius 球，与触发器同口径。 */

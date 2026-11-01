@@ -17,8 +17,8 @@ import net.minecraft.client.gui.GuiGraphics;
  */
 public class FadeLayer implements OverlayLayer {
 
-    /** 渐出时长（秒）——内部常量速率，不做脚本字段 */
-    private static final float FADE_OUT_SECONDS = 0.5f;
+    /** 渐出时长（秒，double：与真实帧间隔累加，避免固定帧长下的舍入累积）——内部常量速率，不做脚本字段 */
+    private static final double FADE_OUT_SECONDS = 0.5;
 
     /** 层归属（不透明 token = 建层方的播放实例引用）；{@code null} = 无主层 */
     private final Object owner;
@@ -30,7 +30,7 @@ public class FadeLayer implements OverlayLayer {
     private float targetOpacity = 0f;
 
     /** 渐出进度（秒）；{@code <0} = 未在渐出 */
-    private float fadeOutElapsed = -1f;
+    private double fadeOutElapsed = -1.0;
 
     /** 高级颜色遮罩定义（建层时一次；{@code null} = 旧 fade / 规则临时 fade，永远走快路径）。 */
     private ColorMaskSpec maskSpec;
@@ -108,11 +108,11 @@ public class FadeLayer implements OverlayLayer {
     @Override
     public void reset() {
         targetOpacity = 0f;
-        fadeOutElapsed = -1f;
+        fadeOutElapsed = -1.0;
     }
 
     @Override
-    public void tick(float deltaTime) {
+    public void tick(double deltaTime) {
         if (!isAnimating()) return;
         fadeOutElapsed = Math.min(FADE_OUT_SECONDS, fadeOutElapsed + deltaTime);
     }
@@ -120,23 +120,24 @@ public class FadeLayer implements OverlayLayer {
     /** 启动渐出：渲染不透明度从当前值（系数 1）线性降到 0；重复调用幂等。 */
     @Override
     public void startFadeOut() {
-        if (fadeOutElapsed >= 0f) return;
-        fadeOutElapsed = 0f;
+        if (fadeOutElapsed >= 0.0) return;
+        fadeOutElapsed = 0.0;
     }
 
     /** 渐出中（含未启动渐出 = false；渐出走完 = false → 帧驱动随即硬停本实例）。 */
     @Override
     public boolean isAnimating() {
-        return fadeOutElapsed >= 0f && fadeOutElapsed < FADE_OUT_SECONDS;
+        return fadeOutElapsed >= 0.0 && fadeOutElapsed < FADE_OUT_SECONDS;
     }
 
     /**
      * 实际渲染不透明度 = 关键帧 opacity × 渐出系数（1 → 0）。
      * 关键帧在退场期间继续驱动 opacity，渐出只在其上叠加，不互相覆盖。
+     * 系数在 double 上算（帧间隔累加无舍入累积），只在交回 float 渲染字段时窄化。
      */
     private float effectiveOpacity() {
-        if (fadeOutElapsed < 0f) return targetOpacity;
-        return targetOpacity * (1f - Math.min(1f, fadeOutElapsed / FADE_OUT_SECONDS));
+        if (fadeOutElapsed < 0.0) return targetOpacity;
+        return (float) (targetOpacity * (1.0 - Math.min(1.0, fadeOutElapsed / FADE_OUT_SECONDS)));
     }
 
     /**

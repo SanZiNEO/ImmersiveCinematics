@@ -56,12 +56,12 @@ public class OverlayTrackPlayer implements TrackPlayer {
     }
 
     @Override
-    public boolean isActiveAt(float globalTime) {
+    public boolean isActiveAt(double globalTime) {
         return findActiveClip(globalTime) != null;
     }
 
     @Override
-    public void onRenderFrame(float globalTime) {
+    public void onRenderFrame(double globalTime) {
         Clip clip = findActiveClip(globalTime);
 
         if (clip != activeClip) {
@@ -88,7 +88,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
         if (clip == null || currentLayer == null) return;
 
         // Interpolate keyframe values
-        float localTime = clipTime(clip, globalTime);
+        double localTime = clipTime(clip, globalTime);
         List<Keyframe> kfs = clip.getKeyframes();
 
         // 透明度完全由关键帧 opacity 控制（fade_in / fade_out 由关键帧表达，代码层不叠加）；
@@ -178,7 +178,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
         return layer;
     }
 
-    private void updateLayer(float opacity, List<Keyframe> kfs, float localTime) {
+    private void updateLayer(float opacity, List<Keyframe> kfs, double localTime) {
         if (currentLayer instanceof FadeLayer fl) {
             // 效果层铺满画布：位置 / 锚点 / 缩放不生效；opacity 先按原默认作用于合成结果
             fl.setOpacity(opacity);
@@ -271,7 +271,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
      * 关键帧浮点通道插值：匀速线性——运动与脚本里写的关键帧完全一致，没有隐式数学；
      * 缓动由编辑器烘焙为显式关键帧写入脚本，运行时不求值。
      */
-    private float interpolateFloat(List<Keyframe> kfs, float localTime, String key, float defaultValue) {
+    private float interpolateFloat(List<Keyframe> kfs, double localTime, String key, float defaultValue) {
         if (kfs == null || kfs.isEmpty()) return defaultValue;
         if (kfs.size() < 2) return kfs.get(0).getFloat(key, defaultValue);
 
@@ -290,7 +290,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
      * 取材 {@code source = {x,y,w,h}} 的分量插值：按分量整体线性。
      * 关键帧没写 {@code source} 时按 {@code defaultValue}（缺省 = 全幅）处理。
      */
-    private float interpolateSourceComponent(List<Keyframe> kfs, float localTime, String component,
+    private float interpolateSourceComponent(List<Keyframe> kfs, double localTime, String component,
                                              float defaultValue) {
         if (kfs == null || kfs.isEmpty()) return defaultValue;
         if (kfs.size() < 2) return sourceComponent(kfs.get(0), component, defaultValue);
@@ -315,7 +315,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
     }
 
     /** 定位 localTime 落在哪个关键帧区间：返回左端点索引；范围外返回 -1 */
-    private static int segmentIndex(List<Keyframe> kfs, float localTime) {
+    private static int segmentIndex(List<Keyframe> kfs, double localTime) {
         for (int i = 0; i < kfs.size() - 1; i++) {
             if (localTime >= kfs.get(i).getTime() && localTime <= kfs.get(i + 1).getTime()) {
                 return i;
@@ -325,31 +325,31 @@ public class OverlayTrackPlayer implements TrackPlayer {
     }
 
     /** 区间 [i, i+1] 内的插值系数（钳制到 0~1；零长区间取 0） */
-    private static float segmentT(List<Keyframe> kfs, int i, float localTime) {
-        float span = kfs.get(i + 1).getTime() - kfs.get(i).getTime();
-        float t = (span > 0.001f) ? (localTime - kfs.get(i).getTime()) / span : 0f;
-        return Math.max(0f, Math.min(1f, t));
+    private static float segmentT(List<Keyframe> kfs, int i, double localTime) {
+        double span = (double) kfs.get(i + 1).getTime() - kfs.get(i).getTime();
+        double t = (span > 0.001) ? (localTime - kfs.get(i).getTime()) / span : 0.0;
+        return (float) Math.max(0.0, Math.min(1.0, t));
     }
 
     // ========== Helpers ==========
 
-    private float clipTime(Clip clip, float globalTime) {
-        float elapsed = globalTime - clip.getStartTime();
+    private double clipTime(Clip clip, double globalTime) {
+        double elapsed = globalTime - clip.getStartTime();
         // 无限时长（duration < 0）不能参与 Math.min(duration, elapsed)（会把时间钳成 0）：
         // 负 duration 片段从 start 起持续播放，localTime 正常推进；有限时长维持原钳制。
         if (clip.getDuration() < 0f) {
-            return Math.max(0f, elapsed);
+            return Math.max(0.0, elapsed);
         }
-        return Math.max(0f, Math.min(clip.getDuration(), elapsed));
+        return Math.max(0.0, Math.min(clip.getDuration(), elapsed));
     }
 
-    private Clip findActiveClip(float globalTime) {
+    private Clip findActiveClip(double globalTime) {
         for (Clip clip : clips()) {
             boolean isActive;
             if (clip.getDuration() < 0f) {
                 isActive = globalTime >= clip.getStartTime();
             } else {
-                float clipEnd = clip.getStartTime() + clip.getDuration();
+                double clipEnd = (double) clip.getStartTime() + clip.getDuration();
                 isActive = globalTime >= clip.getStartTime() && globalTime < clipEnd;
             }
             if (isActive) return clip;

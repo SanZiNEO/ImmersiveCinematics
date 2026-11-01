@@ -16,7 +16,9 @@ import java.util.Map;
  */
 public class Clip {
 
+    /** 片段起始秒：float 存储（脚本 JSON 精度）；运行时读取后按 double 参与计算，写回时显式窄化。 */
     private final float startTime;
+    /** 片段时长秒：float 存储（脚本 JSON 精度）；运行时读取后按 double 参与计算，写回时显式窄化。 */
     private final float duration;
     private final TrackType trackType;
     private final Map<String, Object> data;

@@ -321,7 +321,7 @@ public final class ScriptLaneDriver {
         } else {
             Keyframe from = result.from;
             Keyframe to = result.to;
-            float s = result.adjustedT;
+            double s = result.adjustedT;
             slot.opacity = lerp(from.getFloat("opacity", 1.0F), to.getFloat("opacity", 1.0F), s);
             slot.source = interpolateRect(from, to, s, "source");
             slot.dest = interpolateRect(from, to, s, "dest");
@@ -330,7 +330,7 @@ public final class ScriptLaneDriver {
     }
 
     /** 关键帧矩形字段（{@code x} / {@code y} / {@code w} / {@code h}）的逐分量插值；字段缺省 = 全幅 / 全屏。 */
-    private static LaneCompositor.Rect interpolateRect(Keyframe from, Keyframe to, float s, String key) {
+    private static LaneCompositor.Rect interpolateRect(Keyframe from, Keyframe to, double s, String key) {
         float x = lerp(component(from, key, "x", 0.0F), component(to, key, "x", 0.0F), s);
         float y = lerp(component(from, key, "y", 0.0F), component(to, key, "y", 0.0F), s);
         float w = lerp(component(from, key, "w", 1.0F), component(to, key, "w", 1.0F), s);
@@ -356,8 +356,9 @@ public final class ScriptLaneDriver {
                 "keyframe." + key + "." + component);
     }
 
-    private static float lerp(float a, float b, float s) {
-        return a + (b - a) * s;
+    private static float lerp(float a, float b, double s) {
+        // 矩形分量是合成层 float 值域（quad 顶点 / UV）：进度 double，输出窄化到 float
+        return (float) (a + (b - a) * s);
     }
 
     /** 合成回调：把该 lane 当帧的画面按本帧参数贴到屏幕，随后按相机 id 读回该相机的合成结果（调试捕获）。 */

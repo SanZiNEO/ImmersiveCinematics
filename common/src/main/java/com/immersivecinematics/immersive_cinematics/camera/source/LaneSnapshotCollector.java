@@ -56,7 +56,7 @@ public final class LaneSnapshotCollector {
      * @param active  本帧全部活跃 clip（按轨道顺序，最后一个 = 顶层）
      * @param topClip 顶层活跃 clip（已由正常路径求值，这里跳过）
      */
-    public void captureLowerLanes(float globalTime, List<Clip> active, Clip topClip) {
+    public void captureLowerLanes(double globalTime, List<Clip> active, Clip topClip) {
         if (active.size() < 2) return;  // 无重叠：本轨本帧只有顶层一份快照（单 clip 行为不变）
 
         // 捕获求值的"隔离基线"：目标锁状态深拷贝留底（捕获求值只在这份基线之上进行，事后丢弃）

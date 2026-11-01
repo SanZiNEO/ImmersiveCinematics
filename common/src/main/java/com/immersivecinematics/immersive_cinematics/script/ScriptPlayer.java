@@ -40,7 +40,7 @@ public class ScriptPlayer {
      * hold_at_end 的驻留读数偏移：驻留位置 = 内容终点 − 本值，略小于终点以免内容谓词判定脚本已结束；
      * 偏移量在视觉上不可察觉，插值仍取最后一帧的值。
      */
-    private static final float HOLD_END_EPSILON = 0.0001f;
+    private static final double HOLD_END_EPSILON = 0.0001;
 
     /** total_duration 一致性提示的最小输出间隔（毫秒；内容未播完而时间已过时限频提示作者）。 */
     private static final long OVERRUN_WARN_INTERVAL_MS = 10_000L;
@@ -73,7 +73,7 @@ public class ScriptPlayer {
      * 挂起中 {@link #getElapsedSeconds()} 恒返回它，{@link #endSuspend()} 以它重定起始读数——
      * 挂起时长不累计（位置即真源，恢复从该位置续）。
      */
-    private float heldElapsed = Float.NaN;
+    private double heldElapsed = Double.NaN;
 
     /**
      * 本实例的时钟源（{@link Clock}，秒）：默认 = 游戏共享虚拟时钟；预览实例注入预览播放头。
@@ -114,17 +114,17 @@ public class ScriptPlayer {
      * 宏观循环区间起点 a（秒）：timeline {@code loop_start}，缺省 0（负值按 0 处理）。
      * 语义 = "从 a 到 b 这一段重复执行"——循环是播放控制（执行层的重复），不是时间折叠。
      */
-    private float macroLoopStart = 0f;
+    private double macroLoopStart = 0.0;
 
     /**
      * 宏观循环区间终点 b（秒）；NaN = 未启用宏观循环（时间照直走）。
      * b 优先取 timeline 显式声明的 {@code loop_end}（作者声明的子区间），缺省取宏观末端。
      * 脚本开始时推导一次并缓存。
      */
-    private float macroLoopEnd = Float.NaN;
+    private double macroLoopEnd = Double.NaN;
 
     /** 圈长度（b − a，秒）；macroLoopEnd 有效时恒 &gt; 0 */
-    private float macroLoopSpan = 0f;
+    private double macroLoopSpan = 0.0;
 
     /** 宏观循环次数：-1 = 无限重复（脚本不再自然结束）；正整数 N = 重复 N 圈后自然结束 */
     private int macroLoopCount = -1;
@@ -133,7 +133,7 @@ public class ScriptPlayer {
     private boolean macroLoopAllowed = true;
 
     /** 上一帧分发给轨道的圈内局部时间（检测圈边界折返）；NaN = 无上一帧 */
-    private float lastLocalElapsed = Float.NaN;
+    private double lastLocalElapsed = Double.NaN;
 
     /**
      * 执行事实用的 per-clip 已执行圈数槽：索引 = 扁平片段序（轨道序 → 轨道内片段序），与 {@link Clip}
@@ -153,7 +153,7 @@ public class ScriptPlayer {
      * 执行事实基准：上一次记录事实的播放头读数（秒）；NaN = 尚无基准（{@link #start} / {@link #replaceScript}
      * 后由首帧建立）。播放头未推进（挂起 / 游戏暂停 / 同帧重复驱动）⇒ 不产生新事实；回退走路径重导。
      */
-    private float contentFactTime = Float.NaN;
+    private double contentFactTime = Double.NaN;
 
     /**
      * 剩余内容计数（尚未消费的片段数）：{@link #allContentConsumed()} 的唯一读点——0 = 实际执行路径上
@@ -165,7 +165,7 @@ public class ScriptPlayer {
      * 本帧分发给轨道的时间轴读数（秒；宏观循环 = 圈内局部时间）——片段活跃窗判定的唯一读侧出口
      * （{@code ClipModifierGate} 按它比较声明片段的窗口）。初始为 {@code 0}，{@link #start} 后为首帧预执行时间。
      */
-    private float timelineTime = 0f;
+    private double timelineTime = 0.0;
 
     private boolean stopping = false;
 
@@ -291,7 +291,7 @@ public class ScriptPlayer {
      * @param script 已解析的脚本对象
      */
     public void start(CinematicScript script) {
-        start(script, 0f);
+        start(script, 0.0);
     }
 
     /**
@@ -300,7 +300,7 @@ public class ScriptPlayer {
      * @param script        已解析的脚本对象
      * @param preExecuteAt  预执行首帧的 elapsed（预览 = 播放头时间，避免首帧跳变；游戏内 = 0）
      */
-    public void start(CinematicScript script, float preExecuteAt) {
+    public void start(CinematicScript script, double preExecuteAt) {
         // 替换 trackPlayers 前先清理旧实例（否则 AudioTrackPlayer 的 OpenAL source 泄漏 → 重复播放 / 无法停止）
         cleanupTrackPlayers();
         // LUT：start 顶掉的旧脚本的 clip 引用一并释放（此时 this.script 仍指向旧脚本）
@@ -348,7 +348,7 @@ public class ScriptPlayer {
         playerMovement.onScriptStart(script, originPos);
 
         // 预执行第一帧（避免首帧闪烁）— 用调用方期望的 elapsed（预览模式 = previewTime，避免 t=0 跳变）
-        float elapsedSeconds = preExecuteAt;
+        double elapsedSeconds = preExecuteAt;
         timelineTime = elapsedSeconds;
         for (TrackPlayer tp : trackPlayers) {
             if (tp.isActiveAt(elapsedSeconds)) {
@@ -421,19 +421,19 @@ public class ScriptPlayer {
 
     /**
      * 距内容终点的剩余秒数（终点 = 各片段展开结束时刻 {@link Clip#getWindowEnd()} 的最大值，不是 {@code total_duration}）。
-     * 无限内容（永不结束片段 / 宏观无限圈）→ {@link Float#MAX_VALUE}（「不会自然结束」哨兵，读方无需判 NaN）；
+     * 无限内容（永不结束片段 / 宏观无限圈）→ {@link Double#MAX_VALUE}（「不会自然结束」哨兵，读方无需判 NaN）；
      * 已过终点 → {@code 0}；未播放 → {@code 0}。宏观循环按 {@code a + N × (b − a)} 计；内容比声明时长长时
      * 本值可大于「{@code total_duration} − 已播时间」——时间不是结束判据。
      */
-    public float getRemainingTime() {
-        if (!playing || script == null) return 0f;
+    public double getRemainingTime() {
+        if (!playing || script == null) return 0.0;
         if (isMacroLoopActive()) {
-            if (macroLoopCount < 0) return Float.MAX_VALUE; // 无限重复：不自然结束
-            return Math.max(0f, macroLoopTotalEnd() - getElapsedSeconds());
+            if (macroLoopCount < 0) return Double.MAX_VALUE; // 无限重复：不自然结束
+            return Math.max(0.0, macroLoopTotalEnd() - getElapsedSeconds());
         }
-        float end = contentEnd();
-        if (Float.isNaN(end)) return Float.MAX_VALUE; // 无限内容：无内容终点
-        return Math.max(0f, end - getElapsedSeconds());
+        double end = contentEnd();
+        if (Double.isNaN(end)) return Double.MAX_VALUE; // 无限内容：无内容终点
+        return Math.max(0.0, end - getElapsedSeconds());
     }
 
     /**
@@ -482,11 +482,11 @@ public class ScriptPlayer {
         return activeCameraClips;
     }
 
-    public boolean hasActiveCameraTrack(float elapsed) {
+    public boolean hasActiveCameraTrack(double elapsed) {
         // 宏观循环：渲染门控（相机/FOV/roll/遮挡/玩家模型）必须与实际分发给轨道的时间一致，
         // 否则第二圈起 hasActiveCameraClip() 变 false → 相机不渲染
-        float t = localTimeFor(elapsed);
-        if (Float.isNaN(t)) return false; // 有限次数已播完：不渲染，等自然结束
+        double t = localTimeFor(elapsed);
+        if (Double.isNaN(t)) return false; // 有限次数已播完：不渲染，等自然结束
         for (TrackPlayer tp : trackPlayers) {
             if (tp instanceof CameraTrackPlayer && tp.isActiveAt(t)) {
                 return true;
@@ -507,26 +507,26 @@ public class ScriptPlayer {
     // ========== 帧回调驱动 ==========
 
     /**
-     * 每渲染帧驱动：由 CameraManager.onRenderFrame() 调用
+     * 每渲染帧驱动
      *
-     * @param gameTimeSeconds 当前虚拟游戏时间（秒，double 精度）
+     * @param elapsedSeconds 本实例已播放秒（由调用方按本实例时钟换算：挂起时 = 保持位，
+     *                       hold_at_end 时 = 钳制到内容末端的读数）——本方法不再自行读时钟
      */
-    public void onRenderFrame(double gameTimeSeconds) {
+    public void onRenderFrame(double elapsedSeconds) {
         if (!playing || script == null) return;
 
-        float elapsedSeconds = getElapsedSeconds();
-        float totalDuration = script.getTotalDuration();
+        double totalDuration = script.getTotalDuration();
 
         if (isMacroLoopActive()) {
             // 宏观循环（repeat）：从 a 到 b 重复执行；对外分发的一律是圈内局部时间。
             // 作用点唯一——TrackPlayer / PlayerMoveController 拿到的是圈内局部时间，不感知循环。
-            float local = localTimeFor(elapsedSeconds);
-            if (Float.isNaN(local)) {
+            double local = localTimeFor(elapsedSeconds);
+            if (Double.isNaN(local)) {
                 // 有限次数已播完：isFinished() 为 true，由 CameraManager 走自然结束
                 return;
             }
             // 圈边界（本帧局部时间 < 上帧）→ 折返重置（其余状态每帧按时间重查，天然自愈）
-            if (!Float.isNaN(lastLocalElapsed) && local < lastLocalElapsed) {
+            if (!Double.isNaN(lastLocalElapsed) && local < lastLocalElapsed) {
                 playerMovement.onScriptLoop();
                 for (TrackPlayer tp : trackPlayers) {
                     try {
@@ -546,14 +546,14 @@ public class ScriptPlayer {
                 // 内容播完：hold_at_end 驻留在内容末端最后一帧，否则本帧不分发
                 // （isFinished() 为 true，由调用方走自然结束 / 驻留）
                 if (script.getMeta().isHoldAtEnd()) {
-                    elapsedSeconds = Math.max(0f, contentEnd() - HOLD_END_EPSILON);
+                    elapsedSeconds = Math.max(0.0, contentEnd() - HOLD_END_EPSILON);
                 } else {
                     return;
                 }
-            } else if (totalDuration > 0f && elapsedSeconds >= totalDuration) {
+            } else if (totalDuration > 0.0 && elapsedSeconds >= totalDuration) {
                 // total_duration 是统计位（记录 / 真同步），不是结束判据：内容比声明长 → 限频提示作者核对
-                float end = contentEnd();
-                if (!Float.isNaN(end)) {
+                double end = contentEnd();
+                if (!Double.isNaN(end)) {
                     warnDurationOverrun(elapsedSeconds, totalDuration, end);
                 }
             }
@@ -593,19 +593,19 @@ public class ScriptPlayer {
     public void endSuspend() {
         if (!isSuspended()) return;
         startGameTimeSeconds = clockSeconds() - heldElapsed;
-        heldElapsed = Float.NaN;
+        heldElapsed = Double.NaN;
     }
 
     /** 本实例是否处于挂起（内容位置保持中）状态。 */
     public boolean isSuspended() {
-        return !Float.isNaN(heldElapsed);
+        return !Double.isNaN(heldElapsed);
     }
 
     /**
      * 定位到期望的已播放时间（秒）：起始读数按 {@link #alignTime} 换算，各轨按时间推进的派生状态一并归位
      * （{@link #onSeek()}）——两半必须成对，只改读数不归位会让运动模型从错误的时间差重新推进。
      */
-    public void seekTo(float desiredElapsedSeconds) {
+    public void seekTo(double desiredElapsedSeconds) {
         alignTime(desiredElapsedSeconds, clockSeconds());
         onSeek();
     }
@@ -616,7 +616,7 @@ public class ScriptPlayer {
      * 起始读数 = 基准读数 − 期望时间：与 {@link #getElapsedSeconds()} 同一公式（两处必须同步）。
      * 挂起中定位改写保持的内容位置（恢复仍从该位置续）；定位即路径变更，执行事实按新位置重导。
      */
-    public void alignTime(float desiredElapsedSeconds, double currentGameTimeSeconds) {
+    public void alignTime(double desiredElapsedSeconds, double currentGameTimeSeconds) {
         this.startGameTimeSeconds = currentGameTimeSeconds - desiredElapsedSeconds;
         if (isSuspended()) heldElapsed = desiredElapsedSeconds;
         rederiveContentFacts(desiredElapsedSeconds);
@@ -681,7 +681,7 @@ public class ScriptPlayer {
     }
 
     /** 把音频轨道重定位到新的全局时间（编辑器拖动播放头时由 {@code CameraManager} 调用）。 */
-    public void repositionAudio(float globalTime) {
+    public void repositionAudio(double globalTime) {
         for (TrackPlayer tp : trackPlayers) {
             if (tp instanceof AudioTrackPlayer atp) {
                 atp.repositionAudio(globalTime);
@@ -703,20 +703,20 @@ public class ScriptPlayer {
 
     /** 清空宏观循环参数（不循环） */
     private void resetMacroLoop() {
-        macroLoopStart = 0f;
-        macroLoopEnd = Float.NaN;
-        macroLoopSpan = 0f;
+        macroLoopStart = 0.0;
+        macroLoopEnd = Double.NaN;
+        macroLoopSpan = 0.0;
         macroLoopCount = -1;
-        lastLocalElapsed = Float.NaN;
+        lastLocalElapsed = Double.NaN;
     }
 
     /** 宏观循环是否生效（区间 [a, b] 已推导出来） */
     private boolean isMacroLoopActive() {
-        return !Float.isNaN(macroLoopEnd);
+        return !Double.isNaN(macroLoopEnd);
     }
 
     /** 有限次数宏观循环的总播放时长（秒）：a + N × (b − a)；仅在 macroLoopCount &gt; 0 时有意义 */
-    private float macroLoopTotalEnd() {
+    private double macroLoopTotalEnd() {
         return macroLoopStart + macroLoopSpan * macroLoopCount;
     }
 
@@ -734,12 +734,12 @@ public class ScriptPlayer {
         Timeline timeline = script.getTimeline();
         if (timeline == null) return;
 
-        float a = Math.max(0f, timeline.getLoopStart());
-        float b;
+        double a = Math.max(0.0, timeline.getLoopStart());
+        double b;
         if (timeline.getLoopEnd() > a) {
             b = timeline.getLoopEnd(); // 作者声明的子区间末端
         } else {
-            Float macroEnd = computeMacroEnd();
+            Double macroEnd = computeMacroEnd();
             if (macroEnd == null) return; // 末端不存在（存在永不结束片段）→ 不循环
             b = macroEnd;
         }
@@ -756,22 +756,22 @@ public class ScriptPlayer {
      * 圈内局部时间（repeat 语义）：t &lt; a 直通；t ≥ a → a + (t − a) mod (b − a)。
      * 圈边界（本帧局部时间 &lt; 上帧）即折返重置点。
      */
-    private float toLocalTime(float elapsed) {
+    private double toLocalTime(double elapsed) {
         if (elapsed < macroLoopStart) return elapsed;
-        double rel = (double) elapsed - macroLoopStart;
-        return macroLoopStart + (float) (rel % macroLoopSpan);
+        double rel = elapsed - macroLoopStart;
+        return macroLoopStart + (rel % macroLoopSpan);
     }
 
     /**
      * 分发给轨道的圈内局部时间；有限次数已播完 → NaN（不渲染，脚本已结束）。
      * {@code hold_at_end} 时停在区间末端最后一帧。未开启循环 → 原值返回。
      */
-    private float localTimeFor(float elapsed) {
+    private double localTimeFor(double elapsed) {
         if (!isMacroLoopActive()) return elapsed;
         if (macroLoopCount > 0 && elapsed >= macroLoopTotalEnd()) {
             return script != null && script.getMeta().isHoldAtEnd()
                     ? Math.max(macroLoopStart, macroLoopEnd - HOLD_END_EPSILON)
-                    : Float.NaN;
+                    : Double.NaN;
         }
         return toLocalTime(elapsed);
     }
@@ -781,15 +781,15 @@ public class ScriptPlayer {
      * 存在永不结束的片段（{@link Clip#isEffectivelyInfinite()}）→ {@code NaN}（无终点：谓词恒 false、
      * 兜底也不告警）；空时间轴 / 零长度 → {@code 0}。不用作者声明的 {@code total_duration} 当终点。
      */
-    private float contentEnd() {
-        if (script == null || script.getTimeline() == null) return Float.NaN;
-        float end = 0f;
+    private double contentEnd() {
+        if (script == null || script.getTimeline() == null) return Double.NaN;
+        double end = 0.0;
         List<TimelineTrack> tracks = script.getTimeline().getTracks();
         for (int ti = 0; ti < tracks.size(); ti++) {
             List<Clip> clips = tracks.get(ti).getClips();
             for (int ci = 0; ci < clips.size(); ci++) {
                 Clip clip = clips.get(ci);
-                if (clip.isEffectivelyInfinite()) return Float.NaN; // 永不结束片段 → 终点不存在
+                if (clip.isEffectivelyInfinite()) return Double.NaN; // 永不结束片段 → 终点不存在
                 end = Math.max(end, clip.getWindowEnd());
             }
         }
@@ -799,9 +799,9 @@ public class ScriptPlayer {
     /**
      * 宏观末端（秒）= {@link #contentEnd()}；不存在（永不结束片段 / 空时间轴 / 零长度）→ 返回 null（不循环）。
      */
-    private Float computeMacroEnd() {
-        float end = contentEnd();
-        return Float.isNaN(end) || end <= 0f ? null : end; // 空时间轴 / 零长度：不循环，避免对 0 取模
+    private Double computeMacroEnd() {
+        double end = contentEnd();
+        return Double.isNaN(end) || end <= 0.0 ? null : end; // 空时间轴 / 零长度：不循环，避免对 0 取模
     }
 
     /**
@@ -818,7 +818,7 @@ public class ScriptPlayer {
         clipLoopCounts = n == 0 ? EMPTY_LOOP_COUNTS : new int[n];
         clipStates = n == 0 ? EMPTY_CLIP_STATES : new byte[n];
         remainingContent = n;
-        contentFactTime = Float.NaN;
+        contentFactTime = Double.NaN;
     }
 
     /**
@@ -827,10 +827,10 @@ public class ScriptPlayer {
      * 播放头未推进（挂起 / 游戏暂停 / hold 驻留）⇒ 无新事实；回退（seek）走 {@link #rederiveContentFacts}。
      * 零分配（只写既有 byte / int 槽）；宏观循环圈数另由 {@link #macroLoopCount} 计，本方法只在非宏观路径调用。
      */
-    private void recordContentFacts(float elapsed) {
+    private void recordContentFacts(double elapsed) {
         if (script == null || script.getTimeline() == null) return;
-        float prev = contentFactTime;
-        if (Float.isNaN(prev)) {
+        double prev = contentFactTime;
+        if (Double.isNaN(prev)) {
             // 首个基准（start / replaceScript 后首帧）：按当前位置定初值
             rederiveContentFacts(elapsed);
             return;
@@ -867,7 +867,7 @@ public class ScriptPlayer {
      * 片段在播放头 {@code head} 处是否已无剩余可执行内容：无限片段恒 false；有限片段 = 消费窗口末已到
      * 且（有限循环时）展开圈数计满。判定唯一读点（{@link #recordContentFacts} / {@link #rederiveContentFacts} 共用）。
      */
-    private boolean clipConsumedAt(int index, Clip clip, float head) {
+    private boolean clipConsumedAt(int index, Clip clip, double head) {
         if (clip.isEffectivelyInfinite()) return false;
         if (head < clip.getWindowEnd()) return false;
         if (clip.isLoop() && clip.getLoopCount() > 0 && clip.getAnimPeriod() > 0f) {
@@ -881,7 +881,7 @@ public class ScriptPlayer {
      * 新位置之前的片段 = 已无剩余内容（原路径剩余内容不再计入），覆盖新位置的片段 = 执行中（目标之后
      * 的内容计入），之后的片段 = 待进入；有限循环圈数按新位置重算（回跳 = 重执行）。零分配。
      */
-    private void rederiveContentFacts(float head) {
+    private void rederiveContentFacts(double head) {
         contentFactTime = head;
         if (script == null || script.getTimeline() == null) return;
         List<TimelineTrack> tracks = script.getTimeline().getTracks();
@@ -910,11 +910,11 @@ public class ScriptPlayer {
     }
 
     /** 时间 {@code t} 处片段已展开的完整圈数（未开始 / 无循环周期 → 0）。 */
-    private static int lapsBefore(Clip clip, float t) {
-        float period = clip.getAnimPeriod();
-        if (period <= 0f) return 0;
-        float local = t - clip.getStartTime();
-        return local <= 0f ? 0 : (int) (local / period);
+    private static int lapsBefore(Clip clip, double t) {
+        double period = clip.getAnimPeriod();
+        if (period <= 0.0) return 0;
+        double local = t - clip.getStartTime();
+        return local <= 0.0 ? 0 : (int) (local / period);
     }
 
     /**
@@ -922,7 +922,7 @@ public class ScriptPlayer {
      * 提示作者核对声明时长（内容比声明长是合法用法：按内容继续播完，本值只作记录 / 真同步）。
      * 只在异常路径调用（拼串 / 装箱不进每帧零分配契约）。
      */
-    private void warnDurationOverrun(float elapsed, float totalDuration, float end) {
+    private void warnDurationOverrun(double elapsed, double totalDuration, double end) {
         String endText = end + "s";
         com.immersivecinematics.immersive_cinematics.util.ErrorLog.logRateLimited(
                 "Playback", "duration-overrun:" + getScriptId(), OVERRUN_WARN_INTERVAL_MS,
@@ -931,8 +931,8 @@ public class ScriptPlayer {
                         getScriptId(), totalDuration, elapsed, endText));
     }
 
-    /** 本帧分发给轨道的时间轴读数（秒；宏观循环 = 圈内局部时间）。 */
-    public float timelineTime() {
+    /** 本帧分发给轨道的时间轴读数（秒，double 精度；宏观循环 = 圈内局部时间）。 */
+    public double timelineTime() {
         return timelineTime;
     }
 
@@ -941,22 +941,25 @@ public class ScriptPlayer {
      * 片段 = 扁平序（轨道序 → 轨道内片段序）上第一个覆盖该读数的片段——全轨道共用一条时间轴，
      * 故任一覆盖片段都确定同一位置；无片段覆盖（片段间隙 / 空时间轴）= 起始秒 {@link Float#NaN}、偏移 = 读数本身。
      *
+     * <p>缓冲保持 {@code float[]}：这是编辑器 UI 读用的兼容容器（调用方按 float 装配属性面板），
+     * 故在此处显式窄化——时间链本身全程 double，窄化只发生在缓冲写入这一步。</p>
+     *
      * @param out 调用方复用缓冲（长度 ≥ 2）：{@code out[0]} = 片段起始秒，{@code out[1]} = 片段内偏移秒；零分配
      */
     public void contentPosition(float[] out) {
-        float head = timelineTime;
+        double head = timelineTime;
         if (script != null && script.getTimeline() != null) {
             for (TimelineTrack track : script.getTimeline().getTracks()) {
                 for (Clip clip : track.getClips()) {
                     if (head < clip.getStartTime() || head >= clip.getWindowEnd()) continue;
                     out[0] = clip.getStartTime();
-                    out[1] = head - clip.getStartTime();
+                    out[1] = (float) (head - clip.getStartTime());
                     return;
                 }
             }
         }
         out[0] = Float.NaN;
-        out[1] = head;
+        out[1] = (float) head;
     }
 
     /**
@@ -965,14 +968,14 @@ public class ScriptPlayer {
      * 挂起期间本值恒定、恢复后从该值继续（起始读数在 {@link #endSuspend()} 按它重定）。
      * 时钟源随实例走（{@link #setClockSource}）：游戏实例 = 全局虚拟时钟；预览实例 = 预览播放头。
      */
-    public float getElapsedSeconds() {
+    public double getElapsedSeconds() {
         if (isSuspended()) return heldElapsed;
-        return (float)(clockSeconds() - startGameTimeSeconds);
+        return clockSeconds() - startGameTimeSeconds;
     }
 
     /**
      * 设置本实例的时钟源（秒）；{@code null} = 保持当前（默认游戏共享虚拟时钟）。
-     * 须在 {@link #start(CinematicScript, float)} 之前设置（起始读数在 start 时取）。
+     * 须在 {@link #start(CinematicScript, double)} 之前设置（起始读数在 start 时取）。
      * 预览实例注入预览播放头。
      */
     public void setClockSource(Clock source) {

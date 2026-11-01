@@ -20,8 +20,8 @@ public class LetterboxLayer implements OverlayLayer {
 
     private static final int Z_INDEX = 0;
 
-    /** 渐出时长（秒）——内部常量速率，不做脚本字段 */
-    private static final float FADE_OUT_SECONDS = 0.5f;
+    /** 渐出时长（秒，double：与真实帧间隔累加，避免固定帧长下的舍入累积）——内部常量速率，不做脚本字段 */
+    private static final double FADE_OUT_SECONDS = 0.5;
 
     /** 层归属（不透明 token = 建层方的播放实例引用）；{@code null} = 无主层 */
     private final Object owner;
@@ -30,7 +30,7 @@ public class LetterboxLayer implements OverlayLayer {
     /** 黑边不透明度（0~1）：默认 1 = 纯黑边 */
     private float opacity = 1f;
     /** 渐出进度（秒）；{@code <0} = 未在渐出 */
-    private float fadeOutElapsed = -1f;
+    private double fadeOutElapsed = -1.0;
 
     public LetterboxLayer(Object owner) {
         this.owner = owner;
@@ -77,11 +77,11 @@ public class LetterboxLayer implements OverlayLayer {
     public void reset() {
         targetAspectRatio = 0f;
         opacity = 1f;
-        fadeOutElapsed = -1f;
+        fadeOutElapsed = -1.0;
     }
 
     @Override
-    public void tick(float deltaTime) {
+    public void tick(double deltaTime) {
         if (!isAnimating()) return;
         fadeOutElapsed = Math.min(FADE_OUT_SECONDS, fadeOutElapsed + deltaTime);
     }
@@ -89,20 +89,20 @@ public class LetterboxLayer implements OverlayLayer {
     /** 启动渐出：黑边整体 alpha 从当前值线性降到 0（画幅比不动）；重复调用幂等。 */
     @Override
     public void startFadeOut() {
-        if (fadeOutElapsed >= 0f) return;
-        fadeOutElapsed = 0f;
+        if (fadeOutElapsed >= 0.0) return;
+        fadeOutElapsed = 0.0;
     }
 
     /** 渐出中（未启动 / 已走完 = false → 帧驱动随即硬停本实例）。 */
     @Override
     public boolean isAnimating() {
-        return fadeOutElapsed >= 0f && fadeOutElapsed < FADE_OUT_SECONDS;
+        return fadeOutElapsed >= 0.0 && fadeOutElapsed < FADE_OUT_SECONDS;
     }
 
-    /** 渐出系数（1 → 0）；未在渐出时恒为 1。 */
-    private float fadeOutFactor() {
-        if (fadeOutElapsed < 0f) return 1f;
-        return 1f - Math.min(1f, fadeOutElapsed / FADE_OUT_SECONDS);
+    /** 渐出系数（1 → 0）；未在渐出时恒为 1。系数在 double 上算，只在落到 alpha 时收成整数。 */
+    private double fadeOutFactor() {
+        if (fadeOutElapsed < 0.0) return 1.0;
+        return 1.0 - Math.min(1.0, fadeOutElapsed / FADE_OUT_SECONDS);
     }
 
     public void setAspectRatio(float ratio) {

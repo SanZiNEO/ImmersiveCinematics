@@ -1,6 +1,6 @@
 # 时钟抽象：单调秒与 double 运行时
 
-> 状态：实现中（时钟接口与两个实现已落地；已播放秒 double 化、去死参数、覆盖层帧间隔、存储边界契约未执行）
+> 状态：实现中（时钟接口与两个实现已落地；已播放秒 double 化、去死参数未执行；覆盖层帧间隔、存储边界契约已实现）
 > 范围：运行时时间读数口径、时钟源注入、运行 double 与存储 float 的边界
 > 关联：[脚本模型](script-model.md)（时间精度）、[并行播放](../F-playback/parallel-playback.md)（预览独立时钟）、[状态追踪](../H-other/state-tracking.md)（账本与时钟边界）、[时间插值](../../complete/0.3.6/B-camera/temporal-interpolation.md)
 
@@ -79,16 +79,16 @@
 
 ## 六、实现结果
 
-状态：实现中
+状态：已实现（五步全部落地）
 
-时钟接口与两个实现已落地并接入帧驱动与播放器，活跃相机判定已改为收实例已播放秒；已播放秒仍返回 float，帧驱动仍有 float 中间量，覆盖层仍按固定帧长推进。
+时钟接口与两个实现已落地并接入帧驱动与播放器，活跃相机判定已改为收实例已播放秒；运行侧时间全链 double，存储侧仍 float；覆盖层按真实渲染帧间隔推进；存储边界注释已补。
 
 | 设计目标 | 实现 | 说明 |
 |---|---|---|
-| 已播放秒直接改 double，不留兼容层 | 仍返回 float，内部 double 计算后窄化 | 第二步未执行 |
-| 帧驱动回调去掉死参数，或让它承载已播放秒 | 参数保留且未被读取；调用方已改为传已播放秒 | 第二步、第三步未完成 |
-| 覆盖层改收真实帧间隔 | 仍传固定二十分之一秒 | 第四步未执行 |
-| 存储边界补注释（片段、关键帧、时间轴） | 未补 | 第五步未执行 |
+| 已播放秒直接改 double，不留兼容层 | `ScriptPlayer.getElapsedSeconds()` 返回 double；`heldElapsed` / `timelineTime` / 宏观循环区间与折返 / 内容事实基准全为 double；`TrackPlayer.isActiveAt/onRenderFrame`、`KeyframeInterpolator`（含 `InterpolationResult.adjustedT`）、`CameraKeyframeEvaluator`、`TransitionSpec.covers`、`CameraLane.clipLocalTime`、`RuleEngine` 全链 double；无 float 重载 | 第二步已实现：运行侧时间无 float 中间量 |
+| 帧驱动回调去掉死参数，或让它承载已播放秒 | `ScriptPlayer.onRenderFrame(double elapsedSeconds)` 直接使用形参（不再在方法内重算），`FrameDriver` 传入本实例已播放秒 | 第三步已实现 |
+| 覆盖层改收真实帧间隔 | 帧驱动每帧只取一次纳秒读数，两个时钟推进与覆盖层共用；覆盖层间隔 = 相邻渲染帧真实纳秒差，钳到 `[0, 0.25]` 秒、首帧 0；层侧渐出进度与时长用 double 累加 | 第四步已实现：淡入淡出速度与帧率无关 |
+| 存储边界补注释（片段、关键帧、时间轴） | `Clip` 的 `startTime` / `duration`、`Keyframe` 的 `time`、`Timeline` 的 `totalDuration` / `loopStart` / `loopEnd` 注释标明「float 存储（脚本 JSON 精度），运行时按 double 参与计算，写回显式窄化」；字段类型与解析 / 序列化不变 | 第五步已实现 |
 | 客户端不上报时钟读数，服务端按 tick 自推进度 | 暂停握手携带内容相对位置，服务端据此对基准 | 挂起与暂停期间两端进度会漂移，改由客户端提供内容位置对齐 |
 
 时钟抽象与两个实现、每实例时钟源注入、活跃相机判定改收已播放秒均与设计一致。

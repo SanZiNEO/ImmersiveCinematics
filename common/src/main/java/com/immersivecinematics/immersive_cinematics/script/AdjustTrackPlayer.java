@@ -35,12 +35,12 @@ public class AdjustTrackPlayer implements TrackPlayer {
     }
 
     @Override
-    public boolean isActiveAt(float globalTime) {
+    public boolean isActiveAt(double globalTime) {
         return findActiveClip(globalTime) != null;
     }
 
     @Override
-    public void onRenderFrame(float globalTime) {
+    public void onRenderFrame(double globalTime) {
         Clip clip = findActiveClip(globalTime);
         if (clip == null) {
             // 无活跃片段：本帧不发布（不是发布空值）——渲染侧取不到参数自然不调色。
@@ -59,17 +59,17 @@ public class AdjustTrackPlayer implements TrackPlayer {
         MasterColorAdjust.INSTANCE.clear(scriptPlayer);
     }
 
-    private float clipTime(Clip clip, float globalTime) {
-        return Math.max(0f, Math.min(clip.getDuration(), globalTime - clip.getStartTime()));
+    private double clipTime(Clip clip, double globalTime) {
+        return Math.max(0.0, Math.min(clip.getDuration(), globalTime - clip.getStartTime()));
     }
 
-    private Clip findActiveClip(float globalTime) {
+    private Clip findActiveClip(double globalTime) {
         for (Clip clip : clips()) {
             boolean isActive;
             if (clip.getDuration() < 0f) {
                 isActive = globalTime >= clip.getStartTime();
             } else {
-                float clipEnd = clip.getStartTime() + clip.getDuration();
+                double clipEnd = (double) clip.getStartTime() + clip.getDuration();
                 isActive = globalTime >= clip.getStartTime() && globalTime < clipEnd;
             }
             if (isActive) return clip;

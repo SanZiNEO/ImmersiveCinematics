@@ -30,10 +30,10 @@ final class ClipModifierGate implements CameraModifier {
     private final DoubleSupplier timelineTime;
 
     /** 活跃窗起点 = 片段起始时间（秒）。 */
-    private final float windowStart;
+    private final double windowStart;
 
-    /** 活跃窗末端（不含）；永不结束的片段 = {@code Float.MAX_VALUE}。 */
-    private final float windowEnd;
+    /** 活跃窗末端（不含）；永不结束的片段 = {@code Double.MAX_VALUE}。 */
+    private final double windowEnd;
 
     /**
      * @param declaration 片段级静态声明
@@ -49,8 +49,8 @@ final class ClipModifierGate implements CameraModifier {
     }
 
     /** 活跃窗末端：普通片段 = {@code start + duration}（循环 = 周期 × 次数）；morph 前一段 + 半个过渡窗口。 */
-    private static float windowEnd(Clip clip, Clip next) {
-        float end = clip.getWindowEnd();
+    private static double windowEnd(Clip clip, Clip next) {
+        double end = clip.getWindowEnd();
         if (next == null || clip.isEffectivelyInfinite() || !clip.isMorph()) return end;
         TransitionSpec spec = clip.getTransitionSpec();
         return spec == null ? end : spec.windowEnd(end);
@@ -73,7 +73,7 @@ final class ClipModifierGate implements CameraModifier {
 
     @Override
     public boolean isActiveThisFrame() {
-        float time = (float) timelineTime.getAsDouble();
+        double time = timelineTime.getAsDouble();
         return time >= windowStart && time < windowEnd;
     }
 

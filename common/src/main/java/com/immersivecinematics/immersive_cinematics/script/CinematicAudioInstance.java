@@ -51,7 +51,7 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
     private float duration = 0f;
     private float currentVolume = 1.0f;
     /** 编辑器 seek 目标偏移（秒），play() 时把 PCM 游标移到此处 */
-    private float seekOffset = 0f;
+    private double seekOffset = 0.0;
 
     private ByteBuffer pcmData;
     private int channels;
@@ -187,9 +187,9 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
      *
      * @param seconds 目标片段内时间（秒，钳制到 [0, duration]）
      */
-    public void seekTo(float seconds) {
+    public void seekTo(double seconds) {
         if (!valid) return;
-        seekOffset = Math.max(0f, Math.min(seconds, duration));
+        seekOffset = Math.max(0.0, Math.min(seconds, duration));
         if (playing) {
             stopInstance();
         }
@@ -202,7 +202,7 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
      * @param volume          目标音量（0~1）
      * @param fadeIn          淡入时长（秒；当前实现不重放淡入，保留给调用方折算音量）
      */
-    public void syncToTime(float targetLocalTime, float volume, float fadeIn) {
+    public void syncToTime(double targetLocalTime, float volume, float fadeIn) {
         setVolume(volume);
         seekTo(targetLocalTime);
         if (!playing) {
@@ -210,7 +210,7 @@ public class CinematicAudioInstance extends AbstractTickableSoundInstance implem
         }
     }
 
-    private int byteOffset(float seconds) {
+    private int byteOffset(double seconds) {
         if (pcmData == null || sampleRate <= 0 || channels <= 0) return 0;
         long bytes = (long) (seconds * sampleRate * channels * 2);
         int limit = pcmData.limit();

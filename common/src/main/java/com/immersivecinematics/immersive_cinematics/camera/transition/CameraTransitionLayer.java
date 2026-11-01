@@ -53,13 +53,13 @@ public final class CameraTransitionLayer {
     private TransitionSpec spec;
 
     /** 当前过渡的交界时刻（秒）。 */
-    private float boundary;
+    private double boundary;
 
     /** 当前过渡的起点（秒）：新建 = 交界 − 最大时长/2；打断 blend = 打断当帧。 */
-    private float startTime;
+    private double startTime;
 
     /** 已结算的交界（秒）：同一 / 更早的交界不再重开过渡。 */
-    private float settledBoundary = Float.NEGATIVE_INFINITY;
+    private double settledBoundary = Double.NEGATIVE_INFINITY;
 
     /** 新建过渡 = {@code true}（各通道窗口以交界为中心）；打断续接 = {@code false}（从打断当帧起算）。 */
     private boolean centered = true;
@@ -71,7 +71,7 @@ public final class CameraTransitionLayer {
     private boolean snapped;
 
     /** 上一步时刻（秒；曲线 dt 用）。 */
-    private float lastNow;
+    private double lastNow;
 
     /** 曲线实例（过渡开始时按声明实例化；{@code null} 元素 = 恒等）。 */
     private MathModelInstance[] curves;
@@ -87,7 +87,7 @@ public final class CameraTransitionLayer {
      * @param out      输出（本层写入；调用方复用）
      * @return {@code true} = 本层产出过渡输出；{@code false} = 无过渡（{@code out} 已直通 B 侧）
      */
-    public boolean blendInto(float now, float boundary, TransitionSpec spec, TransitionFrame from,
+    public boolean blendInto(double now, double boundary, TransitionSpec spec, TransitionFrame from,
                              TransitionFrame to, TransitionFrame out) {
         if (now < lastNow) {
             // 时间轴非单调（宏观循环折返 / seek）= 状态自愈：清空过渡与结算记录，按新交界重新开始
@@ -126,15 +126,15 @@ public final class CameraTransitionLayer {
     /** 归位（停播 / seek / 脚本替换）：清空过渡状态；下一次求值按新交界重新开始。 */
     public void reset() {
         settle();
-        settledBoundary = Float.NEGATIVE_INFINITY;
-        boundary = 0f;
-        startTime = 0f;
+        settledBoundary = Double.NEGATIVE_INFINITY;
+        boundary = 0.0;
+        startTime = 0.0;
         centered = true;
-        lastNow = 0f;
+        lastNow = 0.0;
     }
 
     /** 新建过渡：窗口以交界为中心（各通道按自身时长对齐交界），A 侧每帧由调用方提供。 */
-    private void begin(float now, float boundary, TransitionSpec spec) {
+    private void begin(double now, double boundary, TransitionSpec spec) {
         this.spec = spec;
         this.boundary = boundary;
         this.startTime = spec.windowStart(boundary);
@@ -146,7 +146,7 @@ public final class CameraTransitionLayer {
     }
 
     /** 打断处置：snap = 本窗口内恒取 B 侧；blend = 以 {@link #lastOutput} 为新 A 侧、从当帧起算。 */
-    private void interrupt(float now, float boundary, TransitionSpec spec) {
+    private void interrupt(double now, double boundary, TransitionSpec spec) {
         if (spec.interrupt() == TransitionInterrupt.SNAP) {
             this.spec = spec;
             this.boundary = boundary;
@@ -179,10 +179,10 @@ public final class CameraTransitionLayer {
     }
 
     /** 逐通道求值：进度 → 曲线权重 → 取值；A 侧取留底（打断 blend 后）或调用方当帧值。 */
-    private void advance(float now, TransitionFrame from, TransitionFrame to, TransitionFrame out) {
-        float dt = now - lastNow;
-        if (!(dt > 0f)) {
-            dt = 0f;
+    private void advance(double now, TransitionFrame from, TransitionFrame to, TransitionFrame out) {
+        double dt = now - lastNow;
+        if (!(dt > 0.0)) {
+            dt = 0.0;
         }
         lastNow = now;
         TransitionFrame a = fromFrozen ? frozenFrom : from;
@@ -198,7 +198,7 @@ public final class CameraTransitionLayer {
     }
 
     /** 单通道取值：snap 打断 = 恒取 B 侧；BLEND 按权重混合（公式按通道数值域分派）；HOLD = A 侧；CUT = 交界前 A 侧、交界后 B 侧。 */
-    private double value(int channel, float now, float dt, double a, double b) {
+    private double value(int channel, double now, double dt, double a, double b) {
         if (snapped) {
             return b;
         }
@@ -209,7 +209,7 @@ public final class CameraTransitionLayer {
         if (mode == TransitionMode.CUT) {
             return now >= boundary ? b : a;
         }
-        float weight = weight(channel, now, dt);
+        double weight = weight(channel, now, dt);
         if (channel == C_POSITION) {
             return TransitionBlend.axis(a, b, weight);
         }
@@ -223,38 +223,38 @@ public final class CameraTransitionLayer {
     }
 
     /** 该通道本帧权重：进度钳到 [0,1] 后交该通道曲线；无曲线 = 恒等（线性斜坡）。 */
-    private float weight(int channel, float now, float dt) {
-        float progress = clamp01(progress(channel, now));
+    private double weight(int channel, double now, double dt) {
+        double progress = clamp01(progress(channel, now));
         MathModelInstance curve = curves != null ? curves[channel] : null;
         if (curve == null) {
             return progress;
         }
         curveIn[0] = progress;
         curve.step(now, dt, curveIn, curveOut);
-        return (float) curveOut[0];
+        return curveOut[0];
     }
 
     /** 该通道进度 = (now − 窗口起点) / 时长；新建过渡的窗口以交界为中心，打断续接从打断当帧起算。 */
-    private float progress(int channel, float now) {
-        float duration = spec.duration(channel);
-        float start = startTime;
+    private double progress(int channel, double now) {
+        double duration = spec.duration(channel);
+        double start = startTime;
         if (centered) {
-            start += (spec.maxDuration() - duration) / 2f;
+            start += (spec.maxDuration() - duration) / 2.0;
         }
-        if (!(duration > 0f)) {
+        if (!(duration > 0.0)) {
             // 零时长通道（片段级缺省 ≤ 0 且本通道未声明时长）= 本通道不做过渡：交界前取 A 侧、之后取 B 侧
-            return now >= start ? 1f : 0f;
+            return now >= start ? 1.0 : 0.0;
         }
         return (now - start) / duration;
     }
 
     /** 钳到 [0,1]；NaN 原样通过（进度由本层保证有限：时长已过零守卫，时刻来自调用方时钟）。 */
-    private static float clamp01(float value) {
-        if (value < 0f) {
-            return 0f;
+    private static double clamp01(double value) {
+        if (value < 0.0) {
+            return 0.0;
         }
-        if (value > 1f) {
-            return 1f;
+        if (value > 1.0) {
+            return 1.0;
         }
         return value;
     }

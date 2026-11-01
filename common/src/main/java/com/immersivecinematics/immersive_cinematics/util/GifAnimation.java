@@ -35,7 +35,7 @@ public class GifAnimation {
     }
 
     /** 按全局时间推进到对应帧；帧变化时才 copy + upload */
-    public void update(float globalTime) {
+    public void update(double globalTime) {
         if (frames.isEmpty()) return;
         int frame = frameIndex(globalTime);
         if (frame == currentFrame) return;
@@ -47,7 +47,7 @@ public class GifAnimation {
         }
     }
 
-    private int frameIndex(float globalTime) {
+    private int frameIndex(double globalTime) {
         if (frames.size() <= 1) return 0;
         long total = 0;
         for (int delay : delays) total += Math.max(1, delay);

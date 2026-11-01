@@ -99,11 +99,15 @@ public class OverlayManager {
     /**
      * 每渲染帧更新所有层（驱动动画）：在 render() 之前调用，逐层 tick(deltaTime)。
      *
-     * @param deltaTime 距上一帧的秒数
+     * 入口钳制：负值归零（不允许动画倒退），上限 0.25s（暂停 / 卡顿后不一次跳完）。
+     * 帧驱动已按同一口径算好真实帧间隔；此处钳制是该契约对任何直接调用方的兜底。
+     *
+     * @param deltaTime 距上一帧的秒数（真实渲染帧间隔）
      */
-    public void update(float deltaTime) {
+    public void update(double deltaTime) {
+        double step = Math.max(0.0, Math.min(0.25, deltaTime));
         for (OverlayLayer layer : layers) {
-            layer.tick(deltaTime);
+            layer.tick(step);
         }
     }
 

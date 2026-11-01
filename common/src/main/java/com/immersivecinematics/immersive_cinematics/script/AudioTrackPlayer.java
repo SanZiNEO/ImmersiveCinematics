@@ -87,12 +87,12 @@ public class AudioTrackPlayer implements TrackPlayer {
     }
 
     @Override
-    public boolean isActiveAt(float globalTime) {
+    public boolean isActiveAt(double globalTime) {
         return findActiveClip(globalTime) != null;
     }
 
     @Override
-    public void onRenderFrame(float globalTime) {
+    public void onRenderFrame(double globalTime) {
         // 精准压制 vanilla 背景音乐（只停 MusicManager 曲目，不影响我们自己的 SoundEngine 实例）
         Minecraft.getInstance().getMusicManager().stopPlaying();
 
@@ -110,16 +110,16 @@ public class AudioTrackPlayer implements TrackPlayer {
             if (clip == activeClip) {
                 updateClipInstance(clip, inst, globalTime);
             } else {
-                float fadeOut = clip.getFadeOut();
-                float clipEnd = clip.getStartTime() + clip.getDuration();
-                float elapsedSinceEnd = globalTime - clipEnd;
+                double fadeOut = clip.getFadeOut();
+                double clipEnd = (double) clip.getStartTime() + clip.getDuration();
+                double elapsedSinceEnd = globalTime - clipEnd;
 
-                if (fadeOut > 0f && elapsedSinceEnd < fadeOut && elapsedSinceEnd >= 0f) {
-                    float fadeFactor = 1f - (elapsedSinceEnd / fadeOut);
-                    fadeFactor = Math.max(0f, Math.min(1f, fadeFactor));
+                if (fadeOut > 0.0 && elapsedSinceEnd < fadeOut && elapsedSinceEnd >= 0.0) {
+                    double fadeFactor = 1.0 - (elapsedSinceEnd / fadeOut);
+                    fadeFactor = Math.max(0.0, Math.min(1.0, fadeFactor));
                     Keyframe lastKf = getLastKeyframe(clip);
                     float baseVol = lastKf != null ? lastKf.getFloat("volume", clip.getVolume()) : clip.getVolume();
-                    inst.setVolume(baseVol * fadeFactor);
+                    inst.setVolume((float) (baseVol * fadeFactor));
                     inst.update();
                 } else {
                     inst.cleanup();
@@ -273,10 +273,10 @@ public class AudioTrackPlayer implements TrackPlayer {
 
         if (failedClips.contains(clip)) return;
 
-        float dur = clip.getDuration();
-        float fadeIn = clip.getFadeIn();
-        float fadeOut = clip.getFadeOut();
-        if (dur > 0f && fadeIn + fadeOut > dur) {
+        double dur = clip.getDuration();
+        double fadeIn = clip.getFadeIn();
+        double fadeOut = clip.getFadeOut();
+        if (dur > 0.0 && fadeIn + fadeOut > dur) {
             LOGGER.warn("AUDIO clip '{}' fade_in+fade_out ({}+{}) exceeds duration ({}), skipping",
                     sound, fadeIn, fadeOut, dur);
             return;
@@ -322,9 +322,9 @@ public class AudioTrackPlayer implements TrackPlayer {
         }
     }
 
-    private void updateClipInstance(Clip clip, CinematicAudioInstance inst, float globalTime) {
-        float localTime = clipTime(clip, globalTime);
-        float dur = clip.getDuration();
+    private void updateClipInstance(Clip clip, CinematicAudioInstance inst, double globalTime) {
+        double localTime = clipTime(clip, globalTime);
+        double dur = clip.getDuration();
         boolean infinite = dur < 0f;
 
         float interpolatedVolume = interpolateFloat(clip, localTime, "volume", clip.getVolume());
@@ -332,23 +332,23 @@ public class AudioTrackPlayer implements TrackPlayer {
         float iy = interpolateFloat(clip, localTime, "y", clip.getFloat("y", 0f));
         float iz = interpolateFloat(clip, localTime, "z", clip.getFloat("z", 0f));
 
-        float fadeFactor = 1f;
-        float elapsed = localTime;
+        double fadeFactor = 1.0;
+        double elapsed = localTime;
 
-        float fadeIn = clip.getFadeIn();
-        if (fadeIn > 0f && elapsed < fadeIn) {
+        double fadeIn = clip.getFadeIn();
+        if (fadeIn > 0.0 && elapsed < fadeIn) {
             fadeFactor = elapsed / fadeIn;
         }
         if (!infinite) {
-            float remaining = dur - elapsed;
-            float fadeOut = clip.getFadeOut();
-            if (fadeOut > 0f && remaining < fadeOut) {
+            double remaining = dur - elapsed;
+            double fadeOut = clip.getFadeOut();
+            if (fadeOut > 0.0 && remaining < fadeOut) {
                 fadeFactor = remaining / fadeOut;
             }
         }
-        fadeFactor = Math.max(0f, Math.min(1f, fadeFactor));
+        fadeFactor = Math.max(0.0, Math.min(1.0, fadeFactor));
 
-        inst.setVolume(interpolatedVolume * fadeFactor);
+        inst.setVolume((float) (interpolatedVolume * fadeFactor));
         inst.setPosition(resolveAudioPosition(clip, new Vec3(ix, iy, iz)));
         if (!inst.isPlaying()) {
             inst.play();
@@ -364,7 +364,7 @@ public class AudioTrackPlayer implements TrackPlayer {
         return offset;
     }
 
-    private float interpolateFloat(Clip clip, float localTime, String key, float defaultValue) {
+    private float interpolateFloat(Clip clip, double localTime, String key, float defaultValue) {
         List<Keyframe> kfs = clip.getKeyframes();
         if (kfs == null || kfs.isEmpty()) {
             return defaultValue;
@@ -391,15 +391,16 @@ public class AudioTrackPlayer implements TrackPlayer {
             return kfs.get(kfs.size() - 1).getFloat(key, defaultValue);
         }
 
-        float t = (to.getTime() - from.getTime() > 0.001f)
-                ? (localTime - from.getTime()) / (to.getTime() - from.getTime()) : 0f;
-        t = Math.max(0f, Math.min(1f, t));
+        double span = (double) to.getTime() - from.getTime();
+        double t = (span > 0.001)
+                ? (localTime - from.getTime()) / span : 0.0;
+        t = Math.max(0.0, Math.min(1.0, t));
         float fromVal = from.getFloat(key, defaultValue);
         float toVal = to.getFloat(key, defaultValue);
-        return fromVal + (toVal - fromVal) * t;
+        return (float) (fromVal + (toVal - fromVal) * t);
     }
 
-    private Vec3 getInterpolatedPosition(Clip clip, float localTime) {
+    private Vec3 getInterpolatedPosition(Clip clip, double localTime) {
         return new Vec3(
                 interpolateFloat(clip, localTime, "x", clip.getFloat("x", 0f)),
                 interpolateFloat(clip, localTime, "y", clip.getFloat("y", 0f)),
@@ -412,13 +413,13 @@ public class AudioTrackPlayer implements TrackPlayer {
         return kfs.get(kfs.size() - 1);
     }
 
-    private Clip findActiveClip(float globalTime) {
+    private Clip findActiveClip(double globalTime) {
         for (Clip clip : clips()) {
             boolean isActive;
             if (clip.getDuration() < 0f) {
                 isActive = globalTime >= clip.getStartTime();
             } else {
-                float clipEnd = clip.getStartTime() + clip.getDuration();
+                double clipEnd = (double) clip.getStartTime() + clip.getDuration();
                 isActive = globalTime >= clip.getStartTime() && globalTime < clipEnd;
             }
             if (isActive) return clip;
@@ -426,12 +427,12 @@ public class AudioTrackPlayer implements TrackPlayer {
         return null;
     }
 
-    private static float clipTime(Clip clip, float globalTime) {
-        float local = globalTime - clip.getStartTime();
+    private static double clipTime(Clip clip, double globalTime) {
+        double local = globalTime - clip.getStartTime();
         if (clip.getDuration() < 0f) {
-            return Math.max(0f, local);
+            return Math.max(0.0, local);
         }
-        return Math.max(0f, Math.min(clip.getDuration(), local));
+        return Math.max(0.0, Math.min(clip.getDuration(), local));
     }
 
     private static SoundSource parseCategory(String category) {
@@ -441,7 +442,7 @@ public class AudioTrackPlayer implements TrackPlayer {
     }
 
     /** 编辑器定位：按目标时间把活动 clip 实例重定位（暂停态只 seek，播放态 seek 后重启），其余实例清理 */
-    public void repositionAudio(float globalTime) {
+    public void repositionAudio(double globalTime) {
         Clip activeClip = findActiveClip(globalTime);
         Iterator<Map.Entry<Clip, CinematicAudioInstance>> it = instances.entrySet().iterator();
         while (it.hasNext()) {
@@ -449,7 +450,7 @@ public class AudioTrackPlayer implements TrackPlayer {
             Clip clip = e.getKey();
             CinematicAudioInstance inst = e.getValue();
             if (clip == activeClip) {
-                float local = clipTime(clip, globalTime);
+                double local = clipTime(clip, globalTime);
                 float vol = interpolateFloat(clip, local, "volume", clip.getVolume());
                 if (paused) {
                     inst.seekTo(local);
@@ -466,7 +467,7 @@ public class AudioTrackPlayer implements TrackPlayer {
             startClipInstance(activeClip);
             CinematicAudioInstance inst = instances.get(activeClip);
             if (inst != null) {
-                float local = clipTime(activeClip, globalTime);
+                double local = clipTime(activeClip, globalTime);
                 float vol = interpolateFloat(activeClip, local, "volume", activeClip.getVolume());
                 if (paused) {
                     inst.pause();

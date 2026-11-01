@@ -9,7 +9,7 @@ import com.immersivecinematics.immersive_cinematics.api.CameraState;
  *
  * @param state         相机六参数快照
  * @param clip          产出该 lane 的片段（合成参数的来源）
- * @param clipLocalTime 片段内本地时间（秒）
+ * @param clipLocalTime 片段内本地时间（秒，double 精度）
  */
-public record CameraLane(CameraState state, Clip clip, float clipLocalTime) {
+public record CameraLane(CameraState state, Clip clip, double clipLocalTime) {
 }

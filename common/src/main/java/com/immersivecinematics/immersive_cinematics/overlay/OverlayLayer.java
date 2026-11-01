@@ -53,12 +53,12 @@ public interface OverlayLayer {
     void reset();
 
     /**
-     * 每渲染帧更新（动画驱动）。由 {@link OverlayManager#update(float)} 遍历调用，
+     * 每渲染帧更新（动画驱动）。由 {@link OverlayManager#update(double)} 遍历调用，
      * 实现类可重写以驱动过渡动画（如 {@link LetterboxLayer} 的渐出）。
      *
-     * @param deltaTime 距上一帧的秒数
+     * @param deltaTime 距上一帧的秒数（真实渲染帧间隔；已由调用方钳到 {@code [0, 0.25]}，首帧 0）
      */
-    default void tick(float deltaTime) {}
+    default void tick(double deltaTime) {}
 
     /**
      * 触发退出动画。实现类可重写以启动渐出，默认空操作

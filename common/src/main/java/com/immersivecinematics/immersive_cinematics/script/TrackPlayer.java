@@ -15,11 +15,11 @@ import net.minecraft.world.phys.Vec3;
  */
 public interface TrackPlayer {
 
-    /** 该轨道在指定全局时间（秒）是否活跃。 */
-    boolean isActiveAt(float globalTime);
+    /** 该轨道在指定全局时间（秒，double 精度）是否活跃。 */
+    boolean isActiveAt(double globalTime);
 
-    /** 每渲染帧驱动：计算当前帧状态并写入目标系统（globalTime 单位：秒）。 */
-    void onRenderFrame(float globalTime);
+    /** 每渲染帧驱动：计算当前帧状态并写入目标系统（globalTime 单位：秒，double 精度）。 */
+    void onRenderFrame(double globalTime);
 
     /** 停止时释放本轨资源。 */
     void onStop();

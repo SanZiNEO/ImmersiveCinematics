@@ -397,7 +397,7 @@ final class PlaybackLifecycle {
         if (preview) {
             instance.player().setClockSource(previewClock);
         }
-        instance.start(script, instanceId, preview ? (float) previewClock.seconds() : 0f);
+        instance.start(script, instanceId, preview ? previewClock.seconds() : 0.0);
         if (preview) {
             // 预览通道不套用脚本行为：允许键鼠。有游戏实例并行时改按游戏实例重算并集——
             // 预览不解除游戏实例的键鼠屏蔽。

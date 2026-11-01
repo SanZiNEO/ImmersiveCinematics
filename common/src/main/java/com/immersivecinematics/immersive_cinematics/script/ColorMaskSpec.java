@@ -16,7 +16,7 @@ import java.util.Map;
  * {@code mask_shape} = {@code full}（缺省）/ {@code rect} / {@code circle}；{@code blend_mode} =
  * {@code normal}（缺省）/ {@code multiply} / {@code screen} / {@code soft_light} / {@code overlay}。
  *
- * 纯色关键帧颜色在 {@link #from(Clip)} 里一次解析成 RGB int 缓存；{@link #sampleColor(float)} 只做段内
+ * 纯色关键帧颜色在 {@link #from(Clip)} 里一次解析成 RGB int 缓存；{@link #sampleColor(double)} 只做段内
  * 逐通道线性插值与端点保持，不逐帧 parse 字符串、不分配数组。渐变 stops 同样只解析一次。
  * 无颜色动画（无关键帧声明 {@code color}）或使用渐变时不建颜色缓存，共享空数组，采样直接返回 clip 级颜色。
  */
@@ -169,14 +169,14 @@ public final class ColorMaskSpec {
      * 无关键帧 / 渐变模式 → clip 级颜色（渐变颜色来自 stops，渲染侧不消费本方法返回值）。
      * 只读缓存数组，不分配、不 parse 字符串，可逐帧调用。
      */
-    public int sampleColor(float localTime) {
+    public int sampleColor(double localTime) {
         if (hasGradient || keyframeColors.length == 0) {
             return baseColor;
         }
         if (keyframeColors.length == 1) {
             return keyframeColors[0];
         }
-        if (!Float.isFinite(localTime)) {
+        if (!Double.isFinite(localTime)) {
             return baseColor;
         }
 
@@ -193,10 +193,11 @@ public final class ColorMaskSpec {
                     : keyframeColors[keyframeColors.length - 1];
         }
 
-        float span = keyframeTimes[segment + 1] - keyframeTimes[segment];
-        float t = span > 0.001f ? (localTime - keyframeTimes[segment]) / span : 0f;
-        t = Math.max(0f, Math.min(1f, t));
-        return lerpRgb(keyframeColors[segment], keyframeColors[segment + 1], t);
+        double span = (double) keyframeTimes[segment + 1] - keyframeTimes[segment];
+        double t = span > 0.001 ? (localTime - keyframeTimes[segment]) / span : 0.0;
+        t = Math.max(0.0, Math.min(1.0, t));
+        // 颜色是 8 位通道值：进度在 lerpRgb（float 值域）处窄化，时间比较全程 double
+        return lerpRgb(keyframeColors[segment], keyframeColors[segment + 1], (float) t);
     }
 
     // ========== 解析 ==========

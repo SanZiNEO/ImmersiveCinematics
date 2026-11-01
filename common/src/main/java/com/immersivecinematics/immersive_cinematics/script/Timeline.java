@@ -9,16 +9,16 @@ import java.util.Optional;
  */
 public class Timeline {
 
-    /** 脚本总时长（秒），负数 = 含无限时长片段（无法预计算） */
+    /** 脚本总时长（秒），负数 = 含无限时长片段（无法预计算）：float 存储（脚本 JSON 精度）；运行时读取后按 double 参与计算，写回时显式窄化。 */
     private final float totalDuration;
 
     /** 并行轨道列表（构造后不再修改） */
     private final List<TimelineTrack> tracks;
 
-    /** 宏观循环区间起点 a（秒）：{@code loop_start}，缺省 0（负值按 0 处理） */
+    /** 宏观循环区间起点 a（秒）：{@code loop_start}，缺省 0（负值按 0 处理）：float 存储（脚本 JSON 精度）；运行时读取后按 double 参与计算，写回时显式窄化。 */
     private final float loopStart;
 
-    /** 宏观循环区间终点 b（秒）：{@code loop_end}；负数 = 未声明（运行时取宏观末端） */
+    /** 宏观循环区间终点 b（秒）：{@code loop_end}；负数 = 未声明（运行时取宏观末端）：float 存储（脚本 JSON 精度）；运行时读取后按 double 参与计算，写回时显式窄化。 */
     private final float loopEnd;
 
     /**

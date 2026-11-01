@@ -109,7 +109,7 @@ public class CameraManager implements CameraApi {
     // ========== 编辑器预览（PreviewChannel）==========
     public void pushScript(String jsonContent) { previewChannel.pushScript(jsonContent); }
     /** 编辑器定位（seek）：预览播放头跳到 {@code seconds} 秒并保持预览激活、暂停。 */
-    public void setTime(float seconds) { previewChannel.setTime(seconds); }
+    public void setTime(double seconds) { previewChannel.setTime(seconds); }
     public void resume() { previewChannel.resume(); }
     public void pause() { previewChannel.pause(); }
     /** 编辑器停止：预览激活时播放头归零并保持激活，否则走游戏内停止。 */

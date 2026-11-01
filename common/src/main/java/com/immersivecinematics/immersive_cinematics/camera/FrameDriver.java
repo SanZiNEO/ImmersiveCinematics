@@ -27,6 +27,7 @@ import java.util.ArrayList;
  * 必须早于 {@code ScriptLaneDriver.tick}（后者读本方法填好的 lane 快照）。
  * 线程契约：仅客户端主线程；帧内遍历用副本防并发修改；帧内路径不新建集合以外对象——例外为诊断日志的
  * 拼串 / 装箱（自然结束帧的 {@code NATURAL_END} 日志无条件拼串；{@code pauseSync} 调试日志仅在 debug 开启时装箱）。
+ * 覆盖层按真实渲染帧间隔推进（上限 0.25s，首帧 0）：淡入淡出速度与帧率无关。
  */
 final class FrameDriver {
 
@@ -47,6 +48,9 @@ final class FrameDriver {
     /** 暂停握手的内容位置复用缓冲（{@code [0] = 片段起始秒, [1] = 片段内偏移秒}；帧内零分配）。 */
     private final float[] pausePosition = new float[2];
 
+    /** 上一渲染帧的纳秒读数（{@code 0} = 尚未取过 → 本帧覆盖层间隔按 0 处理）。 */
+    private long lastFrameNanos;
+
     FrameDriver(PlaybackRegistry registry, PreviewChannel previewChannel, GameClock gameClock,
                 PreviewClock previewClock, PlaybackLedger ledger, PlaybackLifecycle lifecycle,
                 DirectControlBase directControlBase, Runnable refreshSnapshot) {
@@ -62,6 +66,9 @@ final class FrameDriver {
 
     /** 每渲染帧驱动一次（见类 javadoc 的顺序）。 */
     void frame() {
+        // 本帧唯一的时间读数：两个时钟推进与覆盖层间隔共用，避免同帧取两次纳秒造成时钟彼此错位。
+        long now = System.nanoTime();
+
         // 直控层活跃窗口收口：一次五参数直写只在其穿透刷新那一瞬被选中，帧末求值前已清零。
         // 已知限制：直控层与脚本导演层同源同值（同一写入缓冲），压制语义要等各层各持状态快照后才生效。
         directControlBase.clearFrame();
@@ -77,20 +84,24 @@ final class FrameDriver {
         }
 
         // 时钟一：游戏共享虚拟时钟——游戏暂停时冻结（不退出相机画面，继续应用相机/轨道）。
-        gameClock.advance(gamePaused, System.nanoTime());
+        gameClock.advance(gamePaused, now);
 
         // 时钟二：预览播放头（预览实例专用）——暂停 = 冻结在播放头；播放 = 按真实时间推进。
         previewClock.advance(!(previewChannel.isPreviewMode() && !previewChannel.isPreviewPaused()
-                && previewChannel.previewInstance() != null), System.nanoTime());
+                && previewChannel.previewInstance() != null), now);
 
-        float deltaTime = 1f / 20f;
-        OverlayManager.INSTANCE.update(deltaTime);
+        // 覆盖层动画按真实渲染帧间隔推进（与帧率无关）：
+        // 首帧无基准 → 0；上限 0.25s → 暂停 / 卡顿恢复后不一次跳完。
+        double deltaSeconds = lastFrameNanos == 0L ? 0.0 : (now - lastFrameNanos) / 1e9;
+        lastFrameNanos = now;
+        deltaSeconds = Math.max(0.0, Math.min(0.25, deltaSeconds));
+        OverlayManager.INSTANCE.update(deltaSeconds);
 
         // 暂停↔恢复转换是帧级事件：转换发生的那一帧为每个在播游戏实例各发一条握手。
         boolean pauseTransition = ledger.pauseTransition(gamePaused);
 
-        float gameTime = (float) gameClock.seconds();
-        float previewTime = (float) previewClock.seconds();
+        double gameTime = gameClock.seconds();
+        double previewTime = previewClock.seconds();
         boolean anyActiveCameraClip = false;
         // 顶层实例（启动最晚的活跃实例）——听者门控口径只认它自己的 CAMERA clip
         PlaybackInstance top = registry.topInstance();
@@ -104,7 +115,7 @@ final class FrameDriver {
                 // 本实例的暂停态：游戏实例 = 游戏暂停联动（并集）；预览实例 = 编辑器暂停态
                 boolean instancePaused = instance.isPreview() ? previewChannel.isPreviewPaused() : gamePaused;
                 // 本实例的时钟读数：游戏实例 = 共享虚拟时钟；预览实例 = 预览播放头（各自计时）
-                float instanceClock = instance.isPreview() ? previewTime : gameTime;
+                double instanceClock = instance.isPreview() ? previewTime : gameTime;
 
                 // 每帧同步音频状态（幂等；对齐 MC SoundEngine：暂停时无新声音、已有实例幂等 pause）。
                 // 必须位于 player.onRenderFrame 之前并每帧执行。挂起（规则 until / pause 动作）与游戏暂停
@@ -134,13 +145,13 @@ final class FrameDriver {
                 if (player.isPlaying()) {
                     // 本实例已播放时间（不是帧驱动的时钟读数）：并行实例的起始读数各不相同，且挂起中要冻结，
                     // 用绝对时钟读数当 elapsed 会误判活跃（见下方 hasActiveCameraTrack）。
-                    float instanceTime = player.getElapsedSeconds();
+                    double instanceTime = player.getElapsedSeconds();
                     // 末帧保持（{@code holdAtEnd}）：时间耗尽后把渲染时间钳到总时长末尾，让最后一帧保持住
                     if (player.isFinished() && instance.isHoldAtEnd()) {
                         CinematicScript s = player.getScript();
                         if (s != null) {
-                            float total = s.getTotalDuration();
-                            if (total > 0f) instanceTime = Math.max(0f, total - 0.001f);
+                            double total = s.getTotalDuration();
+                            if (total > 0.0) instanceTime = Math.max(0.0, total - 0.001);
                         }
                     }
                     player.onRenderFrame(instanceTime);

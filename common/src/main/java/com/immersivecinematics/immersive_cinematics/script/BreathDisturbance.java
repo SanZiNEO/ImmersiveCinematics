@@ -54,7 +54,7 @@ public final class BreathDisturbance {
      *
      * @param globalTime 脚本全局时间（秒）
      */
-    public float[] compute(float globalTime) {
+    public float[] compute(double globalTime) {
         return switch (type) {
             case TYPE_PERLIN -> perlin(globalTime);
             case TYPE_PERLIN_AXIS -> perlinAxis(globalTime);

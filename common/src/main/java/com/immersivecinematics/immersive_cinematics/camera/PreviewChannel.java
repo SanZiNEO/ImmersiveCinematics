@@ -130,14 +130,14 @@ final class PreviewChannel {
                 if (instance == null) return;
                 disableMacroLoop(instance);
                 double previewHead = previewClock.seconds();
-                instance.player().alignTime((float) previewHead, previewHead);
+                instance.player().alignTime(previewHead, previewHead);
                 // 数据替换后同步暂停态并把实例定位到播放头
                 if (previewPaused) {
                     instance.player().pauseAudio();
                 } else {
                     instance.player().resumeAudio();
                 }
-                instance.player().repositionAudio((float) previewHead);
+                instance.player().repositionAudio(previewHead);
             }
         } catch (ScriptParser.ScriptParseException e) {
             LOGGER.error("编辑器传入的脚本 JSON 解析失败", e);
@@ -148,7 +148,7 @@ final class PreviewChannel {
      * 编辑器定位（seek）：预览播放头跳到 {@code seconds} 秒并保持预览激活、暂停。
      * 只作用于预览实例；游戏共享虚拟时钟不被改写（两实例各自计时）。
      */
-    void setTime(float seconds) {
+    void setTime(double seconds) {
         // 预览模式定位:始终激活并显示对应帧的相机视角(终止后点关键帧/拖播放头即时可见)
         previewClock.seek(seconds);
         previewMode = true;
@@ -161,11 +161,11 @@ final class PreviewChannel {
         disableMacroLoop(instance);
         double previewHead = previewClock.seconds();
         // 定位 = 硬定位：读数对齐 + 派生状态归位成对（见 ScriptPlayer#seekTo）
-        instance.player().seekTo((float) previewHead);
+        instance.player().seekTo(previewHead);
         // 定位即同步暂停态——先于 repositionAudio（其 paused 分支依赖此标志），
         // 并覆盖 startScriptInternal 预执行首帧已创建/播放的实例。
         instance.player().pauseAudio();
-        instance.player().repositionAudio((float) previewHead);
+        instance.player().repositionAudio(previewHead);
     }
 
     /** 编辑器播放：预览实例从播放头续播（通道未激活时先激活并建实例）。 */
@@ -181,7 +181,7 @@ final class PreviewChannel {
         }
         disableMacroLoop(previewInstance);
         double previewHead = previewClock.seconds();
-        previewInstance.player().alignTime((float) previewHead, previewHead);
+        previewInstance.player().alignTime(previewHead, previewHead);
         previewPaused = false;
         previewClock.freeze();
     }
@@ -196,7 +196,7 @@ final class PreviewChannel {
         if (previewMode) {
             // 终止 = 重置播放头到第一帧并保持预览激活(相机回到脚本第一帧视角,而非玩家视角;
             // 玩家视角由脚本时间空隙自然产生——相机片段之间的空缺时段会归还视角)
-            setTime(0f);
+            setTime(0.0);
         } else {
             // 游戏内停止路径
             lifecycle.stopScript();

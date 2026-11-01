@@ -10,6 +10,7 @@ import java.util.Map;
  */
 public class Keyframe {
 
+    /** 关键帧时间秒：float 存储（脚本 JSON 精度）；运行时读取后按 double 参与计算，写回时显式窄化。 */
     private final float time;
     private final TrackType trackType;
     private final Map<String, Object> data;

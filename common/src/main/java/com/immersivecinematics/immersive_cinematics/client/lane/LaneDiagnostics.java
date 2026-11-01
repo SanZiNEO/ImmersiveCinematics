@@ -196,7 +196,7 @@ public final class LaneDiagnostics {
     private static final class Tr {
         final PlaybackInstance instance;
         long seenFrame;
-        float elapsed;
+        double elapsed;
         boolean stoppingLogged;
 
         Tr(PlaybackInstance instance) {

@@ -51,7 +51,8 @@ public class ImageLayer implements OverlayLayer {
     private ResourceLocation texture = null;
     private String fileName = null;
     private GifAnimation gif = null;
-    private float time = 0f;
+    /** 当前全局时间（秒，double：与运行时时间口径一致；GIF 帧索引按 float 取整不影响语义） */
+    private double time = 0.0;
     private int zIndex = CanvasTransform.DEFAULT_Z_INDEX;
     /** 诊断：位置日志节流 */
     private long lastPosLog;
@@ -69,6 +70,7 @@ public class ImageLayer implements OverlayLayer {
     public void render(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {
         if (opacity <= 0.001f || texture == null) return;
 
+        // 帧索引由 GifAnimation 内部按 double 秒取整（帧间隔 ≥ 10ms，取整不影响语义），运行时不窄化
         if (gif != null) gif.update(time);
 
         int[] texSize = TextureLoader.getTextureSize(fileName);
@@ -151,8 +153,8 @@ public class ImageLayer implements OverlayLayer {
         this.gif = TextureLoader.getGif(fileName);
     }
 
-    /** 设置当前全局时间（秒），GIF 层据此计算帧索引 */
-    public void setTime(float globalTime) {
+    /** 设置当前全局时间（秒），GIF 层据此计算帧索引；调用方时间按 double 传入（float 存储侧自动宽化）。 */
+    public void setTime(double globalTime) {
         this.time = globalTime;
     }
 

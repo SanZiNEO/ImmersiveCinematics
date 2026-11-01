@@ -315,11 +315,11 @@ public final class RuleActions {
                     "goto_clip 缺少数字参数 at（目标已播放时间，秒）——动作跳过，播放继续");
             return;
         }
-        float at = action.get("at").getAsFloat();
+        double at = action.get("at").getAsDouble();
         CinematicScript script = instance.script();
         if (script == null || script.getTimeline() == null) return;
-        float total = script.getTotalDuration();
-        if (!Float.isFinite(at) || at < 0f || (total > 0f && at > total)) {
+        double total = script.getTotalDuration();
+        if (!Double.isFinite(at) || at < 0.0 || (total > 0.0 && at > total)) {
             ErrorLog.logRateLimited("Rules", "goto_clip:range", LOG_INTERVAL_MS,
                     "goto_clip 目标时间越界: " + at + "s（总时长 " + total + "s）——动作跳过，播放继续");
             return;
@@ -347,7 +347,7 @@ public final class RuleActions {
     }
 
     /** 该轨是否有片段覆盖目标时间（闭区间 {@code [startTime, windowEnd]}；无限片段恒真）。 */
-    private static boolean hasClipAt(CinematicScript script, TrackType type, float at) {
+    private static boolean hasClipAt(CinematicScript script, TrackType type, double at) {
         for (TimelineTrack track : script.getTimeline().getTracks()) {
             if (track.getType() != type) continue;
             List<Clip> clips = track.getClips();

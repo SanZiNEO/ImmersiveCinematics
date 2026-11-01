@@ -89,12 +89,12 @@ public class CameraTrackPlayer implements TrackPlayer {
     }
 
     @Override
-    public boolean isActiveAt(float globalTime) {
+    public boolean isActiveAt(double globalTime) {
         return evaluator.isActiveAt(clips(), globalTime);
     }
 
     @Override
-    public void onRenderFrame(float globalTime) {
+    public void onRenderFrame(double globalTime) {
         // 本帧无写入 → lane 快照为空；有写入时由顶层路径与逐 clip 捕获填值
         laneCollector.clear();
         frameActiveClips.clear();
@@ -166,7 +166,7 @@ public class CameraTrackPlayer implements TrackPlayer {
      * 后开始的过渡优先（进行中的旧过渡被新过渡打断：blend 以当前混合中间态为新 A 侧续接，
      * snap 立即切到新目标）。
      */
-    private static int transitionPairAt(List<Clip> clips, float globalTime) {
+    private static int transitionPairAt(List<Clip> clips, double globalTime) {
         for (int i = clips.size() - 2; i >= 0; i--) {
             Clip prev = clips.get(i);
             if (!prev.isMorph() || prev.isEffectivelyInfinite()) {

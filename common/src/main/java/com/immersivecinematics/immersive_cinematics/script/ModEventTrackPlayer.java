@@ -16,12 +16,12 @@ public class ModEventTrackPlayer implements TrackPlayer {
     }
 
     @Override
-    public boolean isActiveAt(float globalTime) {
+    public boolean isActiveAt(double globalTime) {
         return false;
     }
 
     @Override
-    public void onRenderFrame(float globalTime) {
+    public void onRenderFrame(double globalTime) {
     }
 
     @Override

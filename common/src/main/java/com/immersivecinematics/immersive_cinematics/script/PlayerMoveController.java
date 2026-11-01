@@ -22,11 +22,11 @@ public class PlayerMoveController {
     private static final double ARRIVE_EPS = 0.05;
 
     private static final class Target {
-        final float time;
+        final double time;
         final double x;
         final double z;
 
-        Target(float time, double x, double z) {
+        Target(double time, double x, double z) {
             this.time = time;
             this.x = x;
             this.z = z;
@@ -55,7 +55,7 @@ public class PlayerMoveController {
         for (TimelineTrack track : script.getTimeline().getTracks()) {
             if (track.getType() != TrackType.EVENT) continue;
             for (Clip clip : track.getClips()) {
-                float clipStart = clip.getStartTime();
+                double clipStart = clip.getStartTime();
                 for (Keyframe kf : clip.getKeyframes()) {
                     Object pos = kf.getObject("position");
                     if (!(pos instanceof Map<?, ?> m)) continue;
@@ -73,7 +73,7 @@ public class PlayerMoveController {
                 }
             }
         }
-        targets.sort((a, b) -> Float.compare(a.time, b.time));
+        targets.sort((a, b) -> Double.compare(a.time, b.time));
         if (targets.size() >= 2) {
             destIndex = 1; // 从 targets[0] 走向 targets[1]
             moving = true;
@@ -85,7 +85,7 @@ public class PlayerMoveController {
      *
      * @param elapsed 脚本已播放时间（秒）
      */
-    public void onRenderFrame(float elapsed) {
+    public void onRenderFrame(double elapsed) {
         current = null;
         if (!moving || targets.size() < 2) return;
         Minecraft mc = Minecraft.getInstance();

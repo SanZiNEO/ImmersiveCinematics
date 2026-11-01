@@ -86,13 +86,13 @@ public final class TransitionSpec {
     }
 
     /** 过渡窗口起点（秒）= 交界 − 最大时长/2。 */
-    public float windowStart(float boundary) {
-        return boundary - maxDuration / 2f;
+    public double windowStart(double boundary) {
+        return boundary - maxDuration / 2.0;
     }
 
     /** 过渡窗口末端（秒，不含）= 交界 + 最大时长/2。 */
-    public float windowEnd(float boundary) {
-        return boundary + maxDuration / 2f;
+    public double windowEnd(double boundary) {
+        return boundary + maxDuration / 2.0;
     }
 
     /**
@@ -104,7 +104,7 @@ public final class TransitionSpec {
      * @param boundary 交界时刻（秒）
      * @return {@code true} = 在窗口内；最大时长 ≤ 0（无过渡）时恒 {@code false}
      */
-    public boolean covers(float now, float boundary) {
+    public boolean covers(double now, double boundary) {
         return maxDuration > 0f && now >= windowStart(boundary) && now < windowEnd(boundary);
     }
 

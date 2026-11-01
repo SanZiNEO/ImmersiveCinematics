@@ -290,7 +290,7 @@ public final class WebEditorApi {
         JsonObject data = new JsonObject();
         // 预览播放头（预览实例的时钟；预览未激活时回落全局虚拟时钟）——游戏实例与预览实例各自计时，
         // 全局虚拟时钟不再代表预览播放头
-        data.addProperty("time", (float) CameraManager.INSTANCE.getPreviewTimeSeconds());
+        data.addProperty("time", CameraManager.INSTANCE.getPreviewTimeSeconds());
         // playing = 用户正在播放（未暂停），不是“脚本已加载”
         boolean playing = CameraManager.INSTANCE.isPreviewMode()
                 && !CameraManager.INSTANCE.isPreviewPaused();

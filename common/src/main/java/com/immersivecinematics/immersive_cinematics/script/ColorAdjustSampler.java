@@ -24,7 +24,7 @@ public final class ColorAdjustSampler {
      *
      * 标量通道缺省 0 = 无效果；曲线 LUT 按 clip 缓存，此处只插值各曲线的强度（缺省 1，无曲线 → 0）。
      */
-    public static ColorAdjustParams sample(Clip clip, float localTime) {
+    public static ColorAdjustParams sample(Clip clip, double localTime) {
         List<Keyframe> keyframes = clip.getKeyframes();
         float[] curveLut = lut(clip.getColorCurve());
         float[] rCurveLut = lut(clip.getRCurve());
@@ -118,12 +118,12 @@ public final class ColorAdjustSampler {
     }
 
     /** 曲线强度：没有对应曲线 → 0（该步不生效）；有曲线 → 关键帧插值，缺省 1 = 全量生效。 */
-    private static float strength(List<Keyframe> keyframes, float localTime, String key, float[] lut) {
+    private static float strength(List<Keyframe> keyframes, double localTime, String key, float[] lut) {
         return lut == null ? 0.0F : KeyframeInterpolator.interpolateChannel(keyframes, localTime, key, 1.0F);
     }
 
     /** 单通道取值：缺省 0 = 无效果（关键帧没写该字段就是不做这项调整）。 */
-    private static float channel(List<Keyframe> keyframes, float localTime, String key) {
+    private static float channel(List<Keyframe> keyframes, double localTime, String key) {
         return KeyframeInterpolator.interpolateChannel(keyframes, localTime, key, 0.0F);
     }
 }
