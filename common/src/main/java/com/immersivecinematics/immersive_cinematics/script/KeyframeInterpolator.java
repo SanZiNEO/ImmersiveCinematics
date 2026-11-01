@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * 关键帧插值器 —— 匀速插值模型：关键帧之间为匀速直线运动，弧长进度 s 等于线性时间进度 t。
- * 贝塞尔路径由 {@link ArcLengthLUT} 保证路径上的匀速运动。
+ * 曲线路径由 {@link com.immersivecinematics.immersive_cinematics.math.path.ArcLengthTable} 保证路径上的匀速运动。
  * 无状态工具类：全部方法静态，不持有运行时状态。
  */
 public final class KeyframeInterpolator {

@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "id": "test_curve_nurbs_circle",
+    "name": "相机测试-NURBS精确整圆",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "只测试 nurbs 曲线路径（9 控制点 / 2 次 / 权重 √2/2 与四段 90° 节点，精确整圆）",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "layer_type": "subtitle",
+            "text": "测试: test_curve_nurbs_circle | 功能: NURBS精确整圆 | 触发: biome自动",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "transition": "cut",
+            "loop": false,
+            "curve": {
+              "type": "nurbs",
+              "control_points": [
+                { "dx": 0, "dy": 0, "dz": 6 },
+                { "dx": -6, "dy": 0, "dz": 6 },
+                { "dx": -12, "dy": 0, "dz": 6 },
+                { "dx": -12, "dy": 0, "dz": 0 },
+                { "dx": -12, "dy": 0, "dz": -6 },
+                { "dx": -6, "dy": 0, "dz": -6 },
+                { "dx": 0, "dy": 0, "dz": -6 }
+              ],
+              "weights": [ 0.70710678, 1, 0.70710678, 1, 0.70710678, 1, 0.70710678 ],
+              "degree": 2,
+              "knots": [ 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4 ]
+            },
+            "keyframes": [
+              { "time": 0, "position": { "x": 6, "y": 64, "z": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
+              { "time": 12, "position": { "x": 6, "y": 64, "z": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

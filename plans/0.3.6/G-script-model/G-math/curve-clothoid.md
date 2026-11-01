@@ -1,6 +1,6 @@
 # 回旋线（Euler 螺旋）过渡
 
-> 状态：未实现
+> 状态：已实现（`math/path/ClothoidPathSpec` + `math/path/Fresnel`，注册名 `clothoid`）
 > 范围：曲率线性变化、Fresnel 积分、直线↔圆弧/圆弧↔圆弧过渡、G1/G2、长度与端点条件
 > 关联：`expression-contract.md`、`continuity-composition.md`、`arc-length.md`、`example/math/papers/bertolazzi_frego_2012_fast_accurate_clothoid_fitting.pdf`
 
@@ -49,8 +49,10 @@
 
 ### 4.2 契约
 
-- 端点：起点位置/切线由前一段给出；终点位置/切线由后一段给出；曲率 `κ0/κ1` 匹配相邻段。
-- G2：端点曲率相等；G1：端点切线同向；G0：端点位置相等。
+- 端点：起点位置取段起点、起点切线取 `start_direction`（`START` 锚点）；终点位置/切线由曲线自身算出，
+  供下一段匹配。相邻段只负责在端点处对齐曲率（`κ0` / `κ1`）与切线。
+- G2：端点曲率相等；G1：端点切线同向；G0：端点位置相等；段间校验属复合路径
+  （`continuity-composition.md`），不由本曲线负责。
 - 长度：由曲率差和转角确定；直线→圆弧 `L=2Rθ`；圆弧→圆弧 `L=2(θ)/(1/R1+1/R2)`（按符号/方向处理）。
 - 弧长：`s` 就是弧长，解析；`u(s)` 是恒等映射（回旋线以弧长为参数）。
 - 数值：Fresnel 积分用查表/级数/渐近；端点附近需要稳定求值。
@@ -58,9 +60,28 @@
 
 ### 4.3 数据形态
 
-- 类型 `clothoid`；参数：起点曲率、终点曲率、长度或转角、方向；位置/切线由相邻段提供。
-- 过渡段是复合路径的段，不是独立作者曲线；端点约束由复合路径校验。
-- 缓存：Fresnel 表可全局共享；每段缓存端点/长度；控制参数变化使缓存失效。
+JSON 形态（CAMERA 片段上的 `curve` 对象；`type` = `clothoid`）：
+
+| 字段 | kind | 必填 | 缺省 | 单位 / 语义 |
+|---|---|---|---|---|
+| `start_curvature` | `NUMBER` | 是 | — | `1/方块`；起点曲率 `κ0`，负值 = 反向弯 |
+| `end_curvature` | `NUMBER` | 是 | — | `1/方块`；终点曲率 `κ1` |
+| `length` | `NUMBER` | 是 | — | 方块；弧长 `L`，必须 `> 0` |
+| `start_direction` | `VECTOR` | 否 | `(1,0,0)` | 世界轴；起点切线方向，只取方向、模长忽略 |
+| `normal` | `VECTOR` | 否 | `(0,1,0)` | 世界轴；过渡平面法向，不得与 `start_direction` 平行 |
+
+绑定口径（`bind(from, to)`，`to` 忽略）：
+
+- `T0 = normalize(start_direction)`、`N0 = normalize(normal × T0)`；局部弧长 `s = u·L`，
+  `θ(s) = κ0 s + a s²/2`、`a = (κ1-κ0)/L`；`position(u) = from + X·T0 + Y·N0`。
+- 定义域 `UNIT`、锚点 `START`：终点位置与切线由曲线自身决定，相邻段只负责在端点处匹配
+  曲率/切线（G2/G1 由复合路径校验，见 `continuity-composition.md`）。
+- 直线→圆弧：`κ0=0`、`κ1=1/R`，长度按 `L = 2Rθ = R·Δθ`（弧度）给。
+- 圆弧→圆弧：`κ0=1/R1`、`κ1=1/R2`，长度按转角确定；负曲率表示反向。
+- 退化：`κ0=κ1=0` 即直线；`κ0=κ1≠0` 即圆弧（闭式求值，不走 Fresnel）；
+  `|a|·L² ≤ 1e-6` 时用中点曲率 `(κ0+κ1)/2` 的圆弧闭式（见 §六）。
+- 非法参数（`length ≤ 0`、曲率非有限、方向/法向零向量或非有限、法向与方向平行、未知字段）
+  一律解析期报错（`PathCurveException`），不静默回落直线。
 
 ### 4.4 边界
 
@@ -85,6 +106,59 @@
 
 ## 六、实现结果
 
-状态：未实现
+已实现 `math/path/ClothoidPathSpec`（定义 + 求值器）与 `math/path/Fresnel`（`C/S` 求值），
+并在 `script/schema/PathCurveRegistry` 注册 `clothoid`
+（能力 `ANALYTIC_ARC_LENGTH` + `ANALYTIC_SECOND_DERIVATIVE`）。
+
+求值口径：
+
+- `bind` 取 `T0 = normalize(start_direction)`、`N0 = normalize(normal × T0)`、`a = (κ1-κ0)/L`；
+  `θ(s) = κ0 s + a s²/2`、`s = u·L`，`position = from + X·T0 + Y·N0`。
+- 三支求值：`a=0` 且 `κ0=0` → `X=s, Y=0`；`a=0` 且 `κ0≠0` → `X=sin(κ0s)/κ0`、
+  `Y=2sin²(κ0s/2)/κ0`；`a≠0` → 配方 `θ=(a/2)(s+u0)²-c`（`u0=κ0/a`、`c=κ0²/(2a)`），
+  `t(s)=(s+u0)·sqrt(|a|/π)`，`X = sqrt(π/|a|)·[cos c·ΔC + sign(a)·sin c·ΔS]`、
+  `Y = sqrt(π/|a|)·[sign(a)·cos c·ΔS - sin c·ΔC]`。
+- `a<0` 的符号已复核：`θ = -(|a|/2)(s+u0)² - c`，代回 `cos θ = cos((π/2)t²+c)`、
+  `sin θ = -sin((π/2)t²+c)`，`ΔS` 项在 X 上带 `sign(a)`、在 Y 上落在 `cos c·ΔS` 上；
+  与直接积分对拍（含 `κ0≠0`、`a<0`、大转角 10 rad）位置相对差 ≤ 1.4e-15。
+- `derivative = L·(cosθ·T0 + sinθ·N0)`、`secondDerivative = L²·κ(s)·(-sinθ·T0 + cosθ·N0)`；
+  `speed` 恒为 `L`（纯标量，零分配）；`arcLength(u0,u1) = L·(u1-u0)`。
+- `Fresnel`：`|z| ≤ 3.53` 幂级数（累加到 `|term| < 1e-17`），`|z| > 3.53` 渐近展开
+  （`f/g` 两个发散级数取最优截断，展开到 `z^-11` 以上），`|z|` 求值后按奇函数取符号。
+  切换点由实测扫描定为 3.53（两侧最大误差各 6e-10）。
+- 近圆弧保护：`|a|·L² ≤ 1e-6` 时改用中点曲率 `(κ0+κ1)/2` 的圆弧闭式——Fresnel 配方的相位
+  `c = κ0²/(2a)` 在 `a→0` 时趋于无穷，其 ulp 会吞掉有效位（`κ0=1, Δκ=1e-12` 时直接积分对拍
+  误差可达 1e-4），而圆弧近似在该阈值内相对偏差 ≤ 8.3e-8。
+
+实测（无头探针，仓库外运行；原有 259 项检查保留，新增 54 项，共 313 项全通过）：
+
+| 检查 | 结果 |
+|---|---|
+| Fresnel 9 点（0.1/0.5/1/1.9/2/2.5/4/8/20）相对误差 | `C` 1.4e-12、`S` 1.6e-12（容差 1e-9） |
+| Fresnel 扫描 `[0.05,20]` 400 点相对误差 | `C` 6.0e-10、`S` 2.8e-10（最差点 z=3.5） |
+| 奇函数 `|C(-z)+C(z)|`、`|S(-z)+S(z)|` | 0（容差 1e-12） |
+| 直线退化 `position = from + u·L·T0`（101 点） | 0（容差 1e-12） |
+| 直线退化 `speed` 逐位等于 `L` | 0 偏差 |
+| 圆弧退化 vs `ArcPathSpec`（`κ0=κ1=1/8`、`L=Rπ/2`，同角度对齐 101 点） | 3.7e-15（容差 1e-9） |
+| `(κ, n)` 与 `(-κ, -n)` 位置一致（101 点） | 0 |
+| 曲率 `|P'×P''|/|P'|³` vs `κ0+(κ1-κ0)u`（101 点） | 6.4e-16（容差 1e-6） |
+| `arcLength(0,1)` / `arcLength(0.25,0.75)` | 逐位等于 `L` / `0.5L` |
+| `ArcLengthTable.length()` vs `L` | 相对误差 0（容差 1e-6） |
+| `derivative(0)` 与 `T0` 夹角 | 0（容差 1e-12） |
+| `derivative(1)` 与 `T0` 夹角 vs `θ(L)` | 0（0.75 rad，容差 1e-9） |
+| `|derivative(u)|` vs `L`（101 点） | 1.5e-16 |
+| `derivative` vs 中心差分（h=1e-6） | 2.3e-10（容差 1e-6） |
+| `secondDerivative` vs 一阶导中心差分 | 9.3e-11（容差 1e-5） |
+| `|P''|` vs `L²·|κ(s)|`（101 点） | 2.8e-16 |
+| `speed` 1e6 次调用分配增量 | 0 字节 |
+| 极小 `length`（1e-3、1e-9、1e-12、2.2e-308、4.9e-324） | 位置/一阶/二阶导/speed 全部有限；终点距相对误差 1.1e-8 |
+| 非法参数（`length ≤ 0`、曲率非有限、零方向、平行法向、null） | 逐例 `IllegalArgumentException` |
+| fixture `cinematics/0.3.6/tests/camera/test_curve_clothoid.json` | `parse` 成功、`validate` 0 issue、首末帧 0 偏差 |
+
+对拍注意：`ArcPathSpec` 的 `u` 是段内有理二次 Bézier 参数，与圆心角不成正比，
+按同一 `u` 比较会在 1/4、3/4 处出现 ~1e-2·R 的「假差异」；上表按**同角度**对齐后比较（二分反解弧参数）。
+
+本期不做：复合路径的段间 G1/G2 校验与按需插入（归 `continuity-composition.md`）；
+本曲线只按给定的 `κ0 / κ1 / L / 方向` 生成过渡段，端点曲率由参数直接指定。
 
 

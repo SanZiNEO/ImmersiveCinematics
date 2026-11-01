@@ -1,6 +1,6 @@
 # NURBS 路径
 
-> 状态：未实现
+> 状态：已实现
 > 范围：NURBS 的权重、节点、次数、有理基、精确圆/椭圆、导数、连续性与退化
 > 关联：`expression-contract.md`、`curve-bspline.md`、`curve-rational-bezier.md`、`exact-conics.md`、`example/math/notes/shene_bsplines_nurbs.pdf`
 
@@ -58,9 +58,32 @@ NURBS 是带权重的 B-spline：用非均匀节点和每个控制点的权重�
 
 ### 4.3 数据形态
 
-- 类型 `nurbs`；控制点、权重、节点、次数；权重长度 = 控制点长度；节点长度 = 控制点数 + 次数 + 1。
-- `arc`/`ellipse` 生成器只存几何参数；展开成 NURBS/有理 Bézier 由生成器负责。
-- 缓存键包含控制点、权重、节点、次数；任一变化使求值/弧长缓存失效。
+```json
+{ "type": "nurbs",
+  "control_points": [ { "dx": 0, "dy": 0, "dz": 6 }, { "dx": -6, "dy": 0, "dz": 6 }, … ],
+  "weights": [ 0.70710678, 1, 0.70710678, 1, 0.70710678, 1, 0.70710678 ],
+  "degree": 2,
+  "knots": [ 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4 ] }
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `control_points` | POINT_LIST，必填 | 内部控制点（不含端点），端点由关键帧给出；`{x,y,z}` 绝对、`{dx,dy,dz}` 相对段起点；个数 = `m-2` |
+| `weights` | NUMBER_LIST，必填 | 内部权重，长度必须等于 `control_points` 个数；每项有限且 `> 0`；端点权重恒为 `1`，完整权重序列为 `[1, weights…, 1]`（共 `m` 项） |
+| `degree` | INTEGER，缺省 `3` | 次数 `p`，必须落在 `1 ~ m-1`（`m` = 控制点总数 = `control_points` + 2） |
+| `knots` | NUMBER_LIST，可选 | 节点向量；缺省按钳制均匀生成，长度恒为 `m+p+1` |
+
+- 绑定后控制点序列为 `P0 = from`、内部点 `resolve(from)`、`P_{m-1} = to`；权重序列同序，两端恒为 `1`。
+- 缺省节点（钳制均匀）与 B-spline 同式：首 `p+1` 项为 `0`、末 `p+1` 项为 `1`、中间 `m-p-1` 项为 `j/(m-p)`
+  （`j = 1 … m-p-1`），曲线端点因此落在首末控制点上。
+- 显式节点：长度必须等于 `m+p+1`、有限且非减、`knots[p] < knots[m]`；重复度 `r` 的内节点把连续性降到
+  `C^{p-r}`（权重不改变连续性阶数，只改曲率）。
+- 权重必须有限且 `> 0`：零 / 负权重让投影穿过无穷远，构造期直接拒绝，不夹取也不回落。
+- 非法参数（权重长度不符 / 权重为零、负、NaN / 次数越界 / 节点长度错 / 节点递减 / 跨度 0 / 控制点 null）
+  一律在构造期抛 `IllegalArgumentException`，注册表把它收敛成 `PathCurveException`。
+- `knots` 给空数组按缺省处理（等价于不写）。
+- `arc` / `ellipse` 生成器只存几何参数；展开成 NURBS / 有理 Bézier 由生成器负责。
+- 缓存键包含控制点、权重、节点、次数；任一变化使求值 / 弧长缓存失效。
 
 ### 4.4 边界
 
@@ -85,6 +108,40 @@ NURBS 是带权重的 B-spline：用非均匀节点和每个控制点的权重�
 
 ## 六、实现结果
 
-状态：未实现
+已实现 `math/path/NurbsPathSpec`（复用 `math/path/BSplineBasis` 的 `findSpan` / `deBoor` /
+`derivativeControlPoints` / `derivativeKnots`），并在 `script/schema/PathCurveRegistry` 注册 `nurbs`
+（能力 `ANALYTIC_SECOND_DERIVATIVE` + `RATIONAL_WEIGHTS` + `KNOT_VECTOR`）。
+
+求值口径：
+
+- 齐次展开：控制点先升到 `(w·x, w·y, w·z, w)`，四组标量各做一次 de Boor 得 `N_x / N_y / N_z / D`，
+  `position = N/D`；权重全正、B-spline 基在定义域上非负且和为 1 ⇒ `D >= min(w_i) > 0`，不会除零。
+- 导数按商法则：`P' = (N'D - ND')/D²`、`P'' = (N''D - ND'')/D² - 2(N'D - ND')D'/D³`；一阶导的降次控制点与
+  二阶导的再降次控制点在 `bind` 时一次算好，导数节点向量在构造期算好（`bind` 只拼端点）。
+- `degree <= 1` 时二阶导恒零向量；`speed` 与 `derivative` 共用同一组私有标量辅助方法（`dx/dy/dz`），
+  de Boor 的 `p+1` 个工作格放在线程本地缓冲里复用，逐帧调用零分配。
+- 定义域取 `[t_p, t_m]`（可不为 `[0,1]`），锚点 `ENDPOINTS`；权重全相等时与 `BSplinePathSpec` 是同一个多项式，
+  全部控制点重合时位置恒定、导数为零、弧长为 0。
+
+实测（无头探针，仓库外运行，195 项全过；fixture `cinematics/0.3.6/tests/camera/test_curve_nurbs_circle.json`
+解析 + 校验 0 issue、首末帧对齐误差 0）：
+
+| 检查 | 结果 |
+|---|---|
+| 权重全 1 vs `BSplinePathSpec`：4 控制点三次 / 8 控制点三次钳制均匀 / 8 控制点三次非均匀节点，位置最大偏差（101 点） | 0 / 0 / 0（容差 1e-12） |
+| 同上一阶导最大偏差 | 0 / 0 / 0（容差 1e-10） |
+| 精确整圆（9 控制点 / `p=2` / 权重 `1, √2/2` / 节点 `[0,0,0,1,1,2,2,3,3,4,4,4]`）`R=1`、`R=10` 定义域 1001 点 `\|\|P-C\|-R\|/R` | 1.1e-15（容差 1e-9） |
+| 整圆端点 vs `C+(R,0,0)` | 0（容差 1e-12） |
+| `derivative` vs 位置中心差分（h=1e-6，101 点）相对误差 | 5.6e-10（容差 1e-6） |
+| `secondDerivative` vs 一阶导中心差分（100 点，避开节点）相对误差 | 3.3e-10（容差 1e-5） |
+| `ArcLengthTable.length` vs `ArcLength.length`（`R=10` 整圆 62.831853072 ≈ 2πR，表 129 项） | 相对 1.4e-16（容差 1e-6） |
+| `sAt(uAt(0.5))` 往返 | 5.6e-17（容差 1e-9） |
+| `speed(u)` vs `\|derivative(u)\|` 相对误差（1001 点） | 0 |
+| `speed` 1e6 次调用分配增量 | 0 字节 |
+| `position` / `derivative` / `secondDerivative` 每调用分配 | 40 / 40 / 40 字节（`Vec3` 为 40 字节；上限 = 每次一个返回向量） |
+| 全同控制点 `(2,-3,5)`：位置最大偏移 / `speed` / `length()` / NaN | 2.7e-15 / 0 / 0 / 无 |
+| 权重不等（0.3, 7.5）但控制点全同：位置偏移 | 2.0e-15，无 NaN |
+| 非法参数（权重长度不符、权重 0 / 负 / NaN / null、次数 0 与 `m`、节点长度错 / 递减 / 跨度 0、控制点 null、端点 null） | 12 例全部抛 `IllegalArgumentException` |
+| fixture 整圆（`R=6`、圆心 `(0,64,0)`）1001 点 `\|\|P-C\|-R\|/R` | 2.9e-10（JSON 权重按 `0.70710678` 截断；`√2/2` 取全精度时为 1.1e-15） |
 
 

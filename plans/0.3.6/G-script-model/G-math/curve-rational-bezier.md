@@ -1,6 +1,6 @@
 # 有理 Bézier 路径
 
-> 状态：未实现
+> 状态：已实现
 > 范围：有理二次/三次 Bézier 的权重、齐次坐标、导数、精确圆锥、退化与连续性
 > 关联：`expression-contract.md`、`curve-bezier.md`、`curve-nurbs.md`、`exact-conics.md`、`example/math/notes/reimers_2011_rational_quadratic_bezier_circles.pdf`
 
@@ -55,9 +55,23 @@
 
 ### 4.3 数据形态
 
-- 类型 `rational_bezier`；控制点数组 + 权重数组，长度一致；权重必须为正（或按类型声明允许的符号），零权重是退化。
-- 作者面 `arc`/`ellipse` 只存几何参数；展开成有理 Bézier 由表达式层/生成器负责。
-- 权重变化会让弧长缓存失效；缓存键包含权重。
+`rational_bezier` 的 JSON 只描述内部点与内部权重，端点由调用点给定（锚点 `ENDPOINTS`）：
+
+```json
+{ "type": "rational_bezier",
+  "control_points": [ { "x": 5, "y": 70, "z": 5 } ],
+  "weights": [ 0.5 ] }
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `control_points` | POINT_LIST，必填 | 内部控件点：1 个 = 二次，2 个 = 三次；`{x,y,z}` 绝对、`{dx,dy,dz}` 相对段起点 |
+| `weights` | NUMBER_LIST，必填 | 与 `control_points` 等长的内部权重（无量纲），每项有限且 `> 0` |
+
+- 端点权重恒为 1（`w0 = wn = 1`），不写进 JSON；绑定后控制点序列为 `P0 = from`、内部点 `resolve(from)`、`Pn = to`。
+- 内部权重非正 / 非有限、点数与权重数不符、点数不是 1 或 2 一律报错，不静默回落。
+- 作者面 `arc` / `ellipse` 只存几何参数，权重与分段由 `ConicSegmentBuilder` 展开。
+- 权重变化会让弧长缓存失效：缓存键是 `PathSpec` 实例 + 端点，换权重 = 换实例。
 
 ### 4.4 边界
 
@@ -82,6 +96,25 @@
 
 ## 六、实现结果
 
-状态：未实现
+已实现 `math/path/RationalBezierPathSpec`（二次 / 三次，端点权重恒 1）与 `script/schema/PathCurveRegistry`
+的 `rational_bezier` 注册（能力 `ANALYTIC_SECOND_DERIVATIVE`）；精确圆弧 / 椭圆由 `ArcPathSpec` /
+`EllipsePathSpec` 经包内 `ConicSegmentBuilder` 复用同一套有理二次构造。
+
+求值口径：
+
+- `position = N/D`，`N = Σ B_i(u) w_i P_i`、`D = Σ B_i(u) w_i`；权重全正 ⇒ `D ≥ min w_i > 0`，不会除零。
+- `derivative = (N'D - ND')/D²`、`secondDerivative = (N''D - ND'')/D² - 2(N'D - ND')D'/D³`，两者解析。
+- `speed` 与 `derivative` 共用同一组私有标量辅助方法（`dx/dy/dz`），逐项同构、零分配。
+- Bernstein 基及其一二阶导对 2 / 3 次写死系数，不走 `Math.pow`；段内不构造临时数组。
+
+实测（无头探针，1001 个采样点）：
+
+| 检查 | 结果 |
+|---|---|
+| 权重全 1 vs `BezierPathSpec` 位置最大偏差（二次 / 三次） | 3.3e-15 / 7.4e-15（容差 1e-12） |
+| 同上一阶导最大偏差 | 7.4e-15 / 1.9e-14 |
+| `speed(u)` vs `\|derivative(u)\|` 相对误差 | 0 |
+| `derivative` vs 中心差分（h=1e-6，101 点）相对误差 | ≤ 5.7e-10 |
+| `speed` 1e6 次调用分配增量 | 0 字节 |
 
 

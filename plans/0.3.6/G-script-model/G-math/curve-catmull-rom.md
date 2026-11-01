@@ -1,6 +1,6 @@
 # Catmull-Rom 路径
 
-> 状态：未实现
+> 状态：已实现（`math/path/CatmullRomPathSpec`，注册名 `catmull_rom`）
 > 范围：uniform/chordal/centripetal Catmull-Rom、切线公式、过点插值、端点处理、闭合
 > 关联：`expression-contract.md`、`curve-hermite.md`、`continuity-composition.md`、`example/math/code/threejs/CatmullRomCurve3.js`
 
@@ -58,9 +58,18 @@ Catmull-Rom 是一类过点插值的三次样条：曲线经过每个控制点�
 
 ### 4.3 数据形态
 
-- 类型 `catmull-rom`；点数组、参数化类型、可选 tension、`closed`。
-- 端点处理策略显式声明（mirror/clamp/repeat），不隐式猜。
-- 缓存键包含点、参数化、tension、closed；点变化使弧长/求值缓存失效。
+JSON 形态（CAMERA 片段上的 `curve` 对象；`type` 取注册名 `catmull_rom`）：
+
+| 字段 | kind | 必填 | 缺省 | 语义 |
+|---|---|---|---|---|
+| `points` | `POINT_LIST` | 是 | — | 内部过点（不含端点），端点由关键帧给出；`{x,y,z}` 绝对 / `{dx,dy,dz}` 相对段起点 |
+| `parameterization` | `ENUM` | 否 | `centripetal` | `uniform`（α=0）/ `chordal`（α=1）/ `centripetal`（α=0.5） |
+| `tension` | `NUMBER` | 否 | `1.0` | 张力，取值 `[0,1]`；乘在 Barry–Goldman 切线上，0 = 切线全零 |
+| `endpoint` | `ENUM` | 否 | `mirror` | 端点幽灵点策略：`mirror`（`2P₀-P₁`）/ `clamp`（重复端点） |
+
+- 未知字段 / 未知枚举取值 / `tension` 越界 / `points` 含 null 一律解析期报错（`PathCurveException`），不静默回落缺省。
+- 闭合（`closed`）本期未开放：注册表只接受上表四个字段；需要首尾相接时把首点重复到末点。
+- 缓存键包含点、参数化、tension、endpoint；点变化使弧长/求值缓存失效。
 
 ### 4.4 边界
 
@@ -85,6 +94,42 @@ Catmull-Rom 是一类过点插值的三次样条：曲线经过每个控制点�
 
 ## 六、实现结果
 
-状态：未实现
+已实现 `math/path/CatmullRomPathSpec`（内嵌 `Parameterization` / `EndpointMode` 两个枚举），并在
+`script/schema/PathCurveRegistry` 注册 `catmull_rom`（能力 `ANALYTIC_SECOND_DERIVATIVE`）。
+
+求值口径：
+
+- 点序列 = `[from, points..., to]`，`n = 点数-1` 段；`points` 的 `relative` 形态按 `PathPoint.resolve(from)` 解析。
+- 参数化 `t₀=0`、`t_{i+1}=t_i+max(|P_{i+1}-P_i|, 1e-9)^α`；`1e-9` 地板让重合点仍有正参数间隔（不出现 0 除）。
+- 端点幽灵点按 §4.2 取（`MIRROR` / `CLAMP`），幽灵参数同式。
+- 切线 Barry–Goldman 再乘 `tension`；段 i 用三次 Hermite，`T0 = m_i·(t_{i+1}-t_i)`、
+  `T1 = m_{i+1}·(t_{i+1}-t_i)`（把对 `t` 的导数换算到局部 `[0,1]` 参数）。
+  位置/一阶/二阶导均为解析式，`speed` 与 `derivative` 共用同一组私有标量辅助方法（`dx/dy/dz`），逐帧零分配。
+- `u∈[0,1]` 按段数均分：`g = u·n`、`i = min(n-1, ⌊g⌋)`、`s = g-i`；`dP/du = n·dP/ds`。
+- 连续性：对参数 `t` 是 C1（相邻两段在 `P_i` 处共享同一个 `m_i`）。由于 `u` 按段数均分、各段 `t` 间隔不必相等，
+  `dP/du` 在段边界按 `(t_{i+1}-t_i)/(t_i-t_{i-1})` 缩放——几何切线方向连续，只有等距点时 `dP/du` 才逐点连续。
+- 退化：相邻点重合由 `1e-9` 地板兜住（无 NaN/Inf）；全部点重合时切线恒零、位置恒等、弧长 0。
+
+实测（无头探针，仓库外运行；fixture `cinematics/0.3.6/tests/camera/test_curve_catmull_rom.json` 解析 + 校验 0 issue）：
+
+| 检查 | 结果 |
+|---|---|
+| 过点性：非均匀 5 点，`u=i/4` 处位置 vs 第 i 个点（三种参数化） | 0（容差 1e-12） |
+| C1（t 参数域）：非均匀 5 点内部点左右导数差（三种参数化） | 1.6e-15（容差 1e-9） |
+| C1（u 参数域）：等距 5 点内部点左右导数差（三种参数化） | 2.7e-15（容差 1e-9） |
+| u 域导数按 dt 比缩放：`dP/du(左)·dt_i/dt_{i-1}` vs `dP/du(右)` | 1.6e-15（容差 1e-9） |
+| uniform 等距：`P_i` 处 `dP/dt` vs `(P_{i+1}-P_{i-1})/2` | 0（容差 1e-12） |
+| uniform 等距：`P_i` 处 `dP/du` vs `n·(P_{i+1}-P_{i-1})/2` | 0（容差 1e-12） |
+| 三种参数化段内位置互差（非均匀 5 点，u = 0.3/0.375/0.6/0.7） | ≥ 2.3e-2（要求 > 1e-6） |
+| `tension=0.5` vs `1.0` 段内位置差 | ≥ 2.0e-1（要求 > 1e-6） |
+| `derivative` vs 中心差分（h=1e-6，避开段接缝） | 7.8e-10（容差 1e-6） |
+| `secondDerivative` vs 一阶导中心差分 | 5.5e-9（容差 1e-5） |
+| `speed(u)` vs `|derivative(u)|` | 0（容差 1e-12） |
+| `speed` 1e6 次调用分配增量 | 0 字节 |
+| 相邻点重合（`p,p,q,q,r`，三种参数化，101 点） | 无 NaN/Inf |
+| 全部点相同：位置恒等 / `speed` / `length()` | 8.9e-16 / 0 / 0 |
+| 非法参数：`tension` <0 / >1 / NaN、内部点 null、内部点列表 null | IAE |
+
+注：`u=0.5` 在 4 段时正好落在过点 `P₂` 上（三种参数化必然同点），参数化/张力差异只能在段内采样看到。
 
 

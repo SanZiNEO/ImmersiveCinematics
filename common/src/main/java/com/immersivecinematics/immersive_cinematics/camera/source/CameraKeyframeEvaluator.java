@@ -5,14 +5,13 @@ import com.immersivecinematics.immersive_cinematics.camera.transition.CameraTran
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionBlend;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionFrame;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
-import com.immersivecinematics.immersive_cinematics.script.BezierPathStrategy;
+import com.immersivecinematics.immersive_cinematics.math.path.PathEvaluator;
+import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
 import com.immersivecinematics.immersive_cinematics.script.BreathDisturbance;
 import com.immersivecinematics.immersive_cinematics.script.CameraLane;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
-import com.immersivecinematics.immersive_cinematics.script.PathStrategies;
-import com.immersivecinematics.immersive_cinematics.script.PathStrategy;
 import com.immersivecinematics.immersive_cinematics.script.PositionData;
 import com.immersivecinematics.immersive_cinematics.script.TangentOrientation;
 import com.immersivecinematics.immersive_cinematics.util.TimeInterpolation;
@@ -42,7 +41,9 @@ import java.util.Map;
  * {@link #restoreFrameState()} 留底回写，目标锁由 {@link EntityTargetResolver} 留底。
  * 点源快照（时态 = 快照）由轨道播放器持有的 {@link PointSourceSnapshots} 承载（桶键 = 片段 + 槽位）；
  * 求值入口先注入当前片段，同帧同片段读同一桶。过渡状态由 {@link CameraTransitionLayer} 持有（本轨一份）。
- * 分配 / 线程契约：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱。
+ * 分配 / 线程契约：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱
+ * （路径求值走 {@link PathEvaluator} 的绑定缓存，仅在 spec / 端点变化时重建，容量上限
+ * {@link PathEvaluator#MAX_BINDINGS}）。
  */
 public final class CameraKeyframeEvaluator {
 
@@ -73,8 +74,8 @@ public final class CameraKeyframeEvaluator {
     private final Vec3 originPos;
     /** 目标解析与锁定：selector → 实体 + 按 {@code role + selector} 维护的锁与切换平滑状态 */
     private final EntityTargetResolver entityResolver;
-    /** 独立 Bezier 路径策略实例（弧长 LUT 缓存随本实例 GC） */
-    private final PathStrategy bezierStrategy = new BezierPathStrategy();
+    /** 路径绑定缓存（spec + 端点 → 表达式 / 弧长表；按需重建，脚本替换 / 停播时清空） */
+    private final PathEvaluator pathEvaluator = new PathEvaluator();
 
     /** 上一帧最终世界坐标（实体目标消失时停在原地、以及作为 @e 就近基准） */
     private Vec3 lastWorldPos;
@@ -347,6 +348,14 @@ public final class CameraKeyframeEvaluator {
         transitionLayer.reset();
     }
 
+    /**
+     * 路径绑定缓存归位（脚本替换 / 停播）：清空 spec → 表达式 / 弧长表的绑定，
+     * 下一次求值按当时的 spec 与端点重新绑定（避免旧脚本的 spec / 端点长期占住缓存槽）。
+     */
+    public void resetPaths() {
+        pathEvaluator.clear();
+    }
+
     /** 记录本帧基准坐标系（{@code null} = 本帧没有基准坐标系）并同步给点源求值侧。 */
     private void setFrame(PointSource.Frame frame) {
         this.frame = frame;
@@ -587,7 +596,7 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 世界坐标空间插值：两端关键帧各自求值成世界坐标后按路径策略插值。
+     * 世界坐标空间插值：两端关键帧各自求值成世界坐标后按路径定义插值（弧长参数化）。
      * 任一端为 follow（动态目标）时强制 linear（曲线控制点对动态实体无意义）。
      * 由此 follow↔普通、换实体、换偏移的过渡天然平滑（两端都是世界坐标）。
      */
@@ -596,8 +605,8 @@ public final class CameraKeyframeEvaluator {
         Vec3 p3 = evalKeyframeWorldPos(to, clip);
         boolean anyFollow = "entity".equals(from.getString("follow", "none"))
                 || "entity".equals(to.getString("follow", "none"));
-        PathStrategy strategy = anyFollow ? PathStrategies.get("linear") : bezierStrategy;
-        return strategy.interpolate(p0, p3, s, anyFollow ? null : clip.getCurve());
+        PathSpec spec = anyFollow ? null : clip.getPathSpec();
+        return spec == null ? p0.lerp(p3, s) : pathEvaluator.position(spec, p0, p3, s);
     }
 
     /**
@@ -644,9 +653,9 @@ public final class CameraKeyframeEvaluator {
             Vec3 p3 = evalKeyframeWorldPos(to, clip);
             boolean anyFollow = "entity".equals(from.getString("follow", "none"))
                     || "entity".equals(to.getString("follow", "none"));
-            PathStrategy strategy = anyFollow ? PathStrategies.get("linear") : bezierStrategy;
-            return TangentOrientation.compute(p0, p3, s,
-                    anyFollow ? null : clip.getCurve(), strategy,
+            PathSpec spec = anyFollow ? null : clip.getPathSpec();
+            Vec3 tangent = spec == null ? p3.subtract(p0) : pathEvaluator.tangent(spec, p0, p3, s);
+            return TangentOrientation.compute(tangent, p0, p3,
                     clip.getFloat("yaw_offset", 0f), clip.getFloat("pitch_offset", 0f));
         }
         // 3) 手写角度：两端关键帧各自算"最终世界角度 = 该轴基准（锁值 / 方向源）+ 偏移"，再做角度插值

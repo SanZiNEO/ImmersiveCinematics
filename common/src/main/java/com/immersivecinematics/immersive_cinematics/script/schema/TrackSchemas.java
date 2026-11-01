@@ -53,7 +53,8 @@ public final class TrackSchemas {
         clips.put("transition_curve", new FieldDef("model", null, false, List.of(), "transition"));
         clips.put("transition_params", new FieldDef("transition_params", null, false, List.of(), "transition"));
         clips.put("transition_interrupt", new FieldDef("enum", "blend", false, List.of("blend", "snap"), "transition"));
-        clips.put("curve", new FieldDef("bezier_curve", null));
+        // 路径曲线（clip 级）：按 type 选路径表达式，形态 / 参数表见 {@link PathCurveRegistry}
+        clips.put("curve", new FieldDef("path_curve", null));
         clips.put("dimension", new FieldDef("string", ""));
         // lane 合成遮罩形状：只属于 CAMERA（OVERLAY 的 fade 另有同名字段，语义相同但作用于颜色层）。
         // 几何通道 mask_x / mask_y / mask_width / mask_height / mask_radius 是关键帧字段，见下方 kfs。

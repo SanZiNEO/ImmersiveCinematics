@@ -13,18 +13,14 @@ public final class TangentOrientation {
     /**
      * 根据路径切线计算最终朝向。
      *
-     * @param from       段起点世界坐标
-     * @param to         段终点世界坐标
-     * @param s          弧长进度 [0,1]
-     * @param curve      贝塞尔曲线（可为 null）
-     * @param strategy   路径策略（用于求切线）
-     * @param yawOffset  水平偏移角（度）
+     * @param tangent     段内切线方向（未归一化；由调用方按路径定义求值）
+     * @param from        段起点世界坐标
+     * @param to          段终点世界坐标
+     * @param yawOffset   水平偏移角（度）
      * @param pitchOffset 垂直偏移角（度）
      * @return [yaw, pitch]
      */
-    public static float[] compute(Vec3 from, Vec3 to, float s, BezierCurve curve, PathStrategy strategy,
-                                  float yawOffset, float pitchOffset) {
-        Vec3 tangent = strategy.tangent(from, to, s, curve);
+    public static float[] compute(Vec3 tangent, Vec3 from, Vec3 to, float yawOffset, float pitchOffset) {
         double dx = tangent.x;
         double dy = tangent.y;
         double dz = tangent.z;

@@ -1,6 +1,6 @@
 # 精确圆与椭圆
 
-> 状态：未实现
+> 状态：已实现
 > 范围：圆弧/椭圆的精确表示、有理二次 Bézier、NURBS、专用 arc/ellipse 原语、与 3×120° 近似的关系
 > 关联：`curve-rational-bezier.md`、`curve-nurbs.md`、`axis-constraints.md`、`example/math/notes/reimers_2011_rational_quadratic_bezier_circles.pdf`
 
@@ -57,10 +57,43 @@
 
 ### 4.3 数据形态
 
-- `arc`：圆心、半径、起始角、结束角、平面/法向、参考轴（起始角 0 的方向）、方向。
-- `ellipse`：圆心、长轴/短轴、旋转、起始角、结束角、平面/法向、参考轴（参数角 0 的方向）。
-- 内部展开为有理二次 Bézier 段；作者不直接编辑权重/控制点，除非切到高级类型。
-- 缓存键包含圆心/半径/角度/平面；变化使弧长/求值缓存失效。
+`arc` / `ellipse` 只存几何参数，权重与分段由 `ConicSegmentBuilder` 在构造期展开；两者锚点都是 `FREE`
+（几何由参数决定，`to` 始终忽略；只有相对形态的 `center` 在绑定时按段起点解析）。
+
+`arc`：
+
+| 字段 | 类型 | 单位 / 缺省 | 说明 |
+|---|---|---|---|
+| `center` | POINT，必填 | 世界单位 | 圆心；`{x,y,z}` 绝对、`{dx,dy,dz}` 相对段起点 |
+| `radius` | NUMBER，必填 | 世界单位 | 半径，有限正数 |
+| `start_angle` | NUMBER，必填 | 度 | 起始角 |
+| `end_angle` | NUMBER，必填 | 度 | 结束角；跨度非零且 `\|Δ\| ≤ 360` |
+| `normal` | VECTOR | 世界轴，缺省 `(0,1,0)` | 圆弧所在平面的法向，不得与 `reference_axis` 平行 |
+| `reference_axis` | VECTOR | 世界轴，缺省 `(1,0,0)` | 起始角 0 的方向 |
+
+`ellipse`：
+
+| 字段 | 类型 | 单位 / 缺省 | 说明 |
+|---|---|---|---|
+| `center` | POINT，必填 | 世界单位 | 圆心；形态同 `arc` |
+| `semi_major` | NUMBER，必填 | 世界单位 | 长半轴，有限正数 |
+| `semi_minor` | NUMBER，必填 | 世界单位 | 短半轴，有限正数 |
+| `rotation` | NUMBER | 度，缺省 0 | 长短轴在 `u/v` 平面内的旋转 |
+| `start_angle` | NUMBER，必填 | 度 | 起始参数角（单位圆参数角，不是几何极角） |
+| `end_angle` | NUMBER，必填 | 度 | 结束参数角；跨度非零且 `\|Δ\| ≤ 360` |
+| `normal` | VECTOR | 世界轴，缺省 `(0,1,0)` | 椭圆所在平面的法向，不得与 `reference_axis` 平行 |
+| `reference_axis` | VECTOR | 世界轴，缺省 `(1,0,0)` | 参数角 0 的方向 |
+
+坐标系与分段：
+
+- `u = normalize(reference_axis - normal·(normal·reference_axis))`、`v = normalize(normal × u)`；
+  `point(θ) = C + a·cosθ·u' + b·sinθ·v'`（圆：`a = b = R`、`u' = u`、`v' = v`）。
+- 椭圆旋转：`u' = u·cos(rot) + v·sin(rot)`、`v' = -u·sin(rot) + v·cos(rot)`。
+- 分段 `n = ceil(|Δ| / 90)`，每段 `Δs = Δ/n`（`|Δs| ≤ 90°`）；段内 `P0 / P2` 取单位圆端点、
+  `P1 = 单位圆中点 / cos(Δs/2)`、`w1 = cos(Δs/2)`（`w1 ≥ cos 45° > 0`）。
+- `u ∈ [0,1]` 线性映射到段序列：`i = min(n-1, floor(u·n))`、`t = u·n - i`；
+  `dP/du = n·dP/dt`、`d²P/du² = n²·d²P/dt²`。
+- 参数非法（半径/轴长非正、跨度为 0 或超 360°、法向与参考轴平行）构造期即抛，不回落直线。
 
 ### 4.4 边界
 
@@ -86,6 +119,30 @@
 
 ## 六、实现结果
 
-状态：未实现
+已实现 `math/path/ArcPathSpec`、`EllipsePathSpec` 与包内共享的 `ConicSegmentBuilder`；`PathCurveRegistry`
+注册 `arc`（能力 `ANALYTIC_ARC_LENGTH` + `ANALYTIC_SECOND_DERIVATIVE`）与 `ellipse`（只有
+`ANALYTIC_SECOND_DERIVATIVE`）。`position / derivative / secondDerivative / speed` 全部解析，`speed` 零分配。
+
+实测（无头探针；R = 1 / 10 / 100，角度组合 (0,90)、(-45,225)、(10,370)、(0,360)、(0,-270)，每组 1001 点）：
+
+| 检查 | 结果 |
+|---|---|
+| 精确圆 `\| \|P-C\| - R \|` | 最大 4.3e-14（契约 1e-9·R） |
+| 圆弧端点 vs 解析端点 | 0 |
+| 段间 G1 切线夹角（30 处接缝） | 最大 3.0e-8 rad（契约 1e-6） |
+| 接缝曲率 vs `1/R` 相对误差 | 1.2e-15 |
+| 椭圆隐式残差（`a=3,b=1,rot=30°` / `a=5,b=2,rot=-60°` / `a=3,b=1,rot=30°,-45°→225°`） | 最大 1.3e-15（契约 1e-9） |
+| 椭圆端点 vs 解析端点 | ≤ 9.9e-16 |
+| `AnalyticArcLength.arcLength(0,1)` vs `R·\|Δθ\|` | 0 |
+| `ArcLengthTable(expr, 1e-9, 20).length()` vs 解析值 | ≤ 1.8e-8（契约 1e-6） |
+| 椭圆数值弧长（`a=b=R`，走积分） vs `2πR` | ≤ 1.1e-16 |
+| `derivative` vs 中心差分（h=1e-6，101 点） | ≤ 5.7e-10 |
+| `speed` vs `\|derivative\|` 相对误差 | 0 |
+| `speed` 1e6 次调用分配增量 | 0 字节 |
+
+缺省容差的 `ArcLengthTable`（相对总长 `1e-6`，最大深度 16，节点上限 1024）在 15 组（R，角度）圆弧上总长
+相对误差最大 2.8e-7：这是表的积分预算决定的，不是 `speed` 的误差。3 段弧（接缝 1/3、2/3 不在二分点上）
+的接缝处 `speed` 导数有折角，GL5 在折角叶上只有二阶收敛，故误差集中在接缝叶；落叶取对半两段 GL5 之和后
+误差降到该量级，同一批曲线在 `1e-9` 紧容差下继续收敛到 1.8e-8。
 
 

@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.script.schema;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.math.path.PathCapability;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
 
 import java.util.Map;
@@ -17,7 +18,7 @@ public final class SchemaExporter {
 
     private SchemaExporter() {}
 
-    /** 导出完整 schema（meta / tracks / triggers / models 四段）；只转发各注册表，不自行补字段。 */
+    /** 导出完整 schema（meta / tracks / triggers / models / curveTypes 五段）；只转发各注册表，不自行补字段。 */
     public static JsonObject exportAll() {
         JsonObject root = new JsonObject();
         root.add("meta", exportFields(SchemaRegistry.getMetaFields()));
@@ -50,6 +51,44 @@ public final class SchemaExporter {
             models.add(type, exportFields(MathModelRegistry.params(type)));
         }
         root.add("models", models);
+
+        // 路径曲线 schema：type →（capabilities + params）
+        // 曲线类型顺序 = 注册顺序；编辑器类型下拉 + 参数表单直接消费
+        JsonObject curveTypes = new JsonObject();
+        for (String type : PathCurveRegistry.types()) {
+            JsonObject curve = new JsonObject();
+            JsonArray capabilities = new JsonArray();
+            for (PathCapability capability : PathCurveRegistry.capabilities(type)) {
+                capabilities.add(capability.name());
+            }
+            curve.add("capabilities", capabilities);
+            JsonObject params = new JsonObject();
+            for (PathParamDef def : PathCurveRegistry.params(type)) {
+                JsonObject param = new JsonObject();
+                param.addProperty("kind", def.kind().name());
+                Object defVal = def.defaultValue();
+                if (defVal == null) {
+                    param.add("default", JsonNull.INSTANCE);
+                } else if (defVal instanceof Boolean b) {
+                    param.addProperty("default", b);
+                } else if (defVal instanceof Number n) {
+                    param.addProperty("default", n);
+                } else {
+                    param.addProperty("default", defVal.toString());
+                }
+                param.addProperty("required", def.required());
+                JsonArray enumValues = new JsonArray();
+                for (String value : def.enumValues()) {
+                    enumValues.add(value);
+                }
+                param.add("enumValues", enumValues);
+                param.addProperty("doc", def.doc());
+                params.add(def.name(), param);
+            }
+            curve.add("params", params);
+            curveTypes.add(type, curve);
+        }
+        root.add("curveTypes", curveTypes);
 
         return root;
     }

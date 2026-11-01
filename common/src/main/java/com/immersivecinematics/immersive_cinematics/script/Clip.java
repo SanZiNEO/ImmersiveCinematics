@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.script;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionInterrupt;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
+import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 
 import java.util.Collections;
@@ -194,7 +195,12 @@ public class Clip {
         return startTime + duration;
     }
 
-    public BezierCurve getCurve() {
+    /**
+     * 本片段的路径定义（clip 级 {@code curve}，解析期由
+     * {@link com.immersivecinematics.immersive_cinematics.script.schema.PathCurveRegistry} 按 {@code type} 建成）。
+     * {@code null} = 未声明曲线（逐段线性）。
+     */
+    public PathSpec getPathSpec() {
         return getObject("curve");
     }
 

@@ -11,8 +11,11 @@ import com.immersivecinematics.immersive_cinematics.camera.transition.Transition
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionMode;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionParams;
 import com.immersivecinematics.immersive_cinematics.math.MathModel;
+import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
+import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveException;
+import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveRegistry;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import net.minecraft.world.phys.Vec3;
@@ -326,6 +329,10 @@ public class ScriptParser {
                                     + "）：高级颜色遮罩只属于 layer_type=fade");
                 }
             }
+            // 路径曲线只属于 CAMERA 轨：其余轨道上写 = 不生效（与 ScriptValidator 同一口径）
+            if ("curve".equals(fieldName) && type != TrackType.CAMERA) {
+                throw new ScriptParseException(p + "." + fieldName, "curve 只支持写在 CAMERA 轨的片段上");
+            }
             if (type == TrackType.CAMERA) {
                 // 归属交叉检查：形状只属于 clip 级，几何只属于关键帧；fade 渐变 / 混合模式
                 // 不被 CAMERA 接受（遮罩只有形状 + 几何，没有颜色层语义）。
@@ -383,9 +390,6 @@ public class ScriptParser {
             com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Parse",
                     p + ".loop_count 不允许为 0（-1=无限循环，正整数=循环次数），已按 1 处理");
             data.put("loop_count", 1);
-        }
-        if (data.get("curve") instanceof BezierCurve curve && !curve.isValid()) {
-            throw new ScriptParseException(p + ".curve", "control_points 必须恰好2个点");
         }
 
         // 关键帧时间必须单调递增
@@ -718,7 +722,7 @@ public class ScriptParser {
                 boolean relative = posObj.has("dx") || posObj.has("fwd") || posObj.has("up") || posObj.has("right");
                 yield parsePositionData(posObj, p + "." + fieldName, relative, kfObj);
             }
-            case "bezier_curve" -> parseBezierCurve(value.getAsJsonObject(), p + "." + fieldName);
+            case "path_curve" -> parsePathCurve(value, p + "." + fieldName);
             case "color_curve" -> parseColorCurve(value, p + "." + fieldName);
             case "model" -> parseMathModel(value, p + "." + fieldName, fieldName);
             case "modifier" -> parseClipModifier(value, p + "." + fieldName);
@@ -800,32 +804,23 @@ public class ScriptParser {
         }
     }
 
-    // ========== BezierCurve 解析 ==========
+    // ========== 路径曲线解析（按 type 走注册表）==========
 
-    private static BezierCurve parseBezierCurve(JsonObject obj, String p) throws ScriptParseException {
-        String type = optString(obj, "type", "bezier");
-        JsonArray cpArr = requireArray(obj, p, "control_points");
-        if (cpArr.size() != 2) {
-            throw new ScriptParseException(p + ".control_points", "必须恰好2个控制点，实际: " + cpArr.size());
+    /**
+     * 解析 clip 级 {@code curve}：{@code {type, ...参数}}。
+     *
+     * 类型 / 参数 / 必填校验全部归 {@link PathCurveRegistry#create}（与 {@code ScriptValidator} 同一入口），
+     * 这里只判「是不是对象」并把 {@link PathCurveException} 收敛成带字段路径的解析异常。
+     */
+    private static PathSpec parsePathCurve(JsonElement value, String p) throws ScriptParseException {
+        if (!value.isJsonObject()) {
+            throw new ScriptParseException(p, "需要对象 {type, ...参数}");
         }
-        List<BezierCurve.ControlPoint> controlPoints = new ArrayList<>();
-        for (int i = 0; i < cpArr.size(); i++) {
-            JsonObject cp = cpArr.get(i).getAsJsonObject();
-            String pp = p + ".control_points[" + i + "]";
-            // 自描述：有 dx/dy/dz = 相对段起点偏移；有 x/y/z = 世界绝对坐标
-            if (cp.has("dx")) {
-                controlPoints.add(BezierCurve.ControlPoint.relative(
-                        requireFloat(cp, pp, "dx"),
-                        requireFloat(cp, pp, "dy"),
-                        requireFloat(cp, pp, "dz")));
-            } else {
-                controlPoints.add(BezierCurve.ControlPoint.absolute(
-                        requireFloat(cp, pp, "x"),
-                        requireFloat(cp, pp, "y"),
-                        requireFloat(cp, pp, "z")));
-            }
+        try {
+            return PathCurveRegistry.create(value.getAsJsonObject(), p);
+        } catch (PathCurveException e) {
+            throw new ScriptParseException(e.fieldPath(), e.getMessage());
         }
-        return new BezierCurve(type, controlPoints);
     }
 
     // ========== ColorCurve 解析（ADJUST 轨曲线组，形态 b）==========

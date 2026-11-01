@@ -1,6 +1,6 @@
 # 三次 Hermite 路径
 
-> 状态：未实现
+> 状态：已实现（`math/path/HermitePathSpec`，注册名 `hermite`）
 > 范围：三次 Hermite 基函数、端点位置/切线、C1、切线模式、与 Catmull-Rom/Bézier 的关系
 > 关联：`expression-contract.md`、`curve-catmull-rom.md`、`curve-bezier.md`、`continuity-composition.md`、`example/math/notes/wisconsin_cs412_lecture13_cubic_hermite.pdf`
 
@@ -57,9 +57,24 @@
 
 ### 4.3 数据形态
 
-- 类型 `hermite`；点数组、切线数组/切线模式、可选闭合。
-- 切线单位/尺度：切线模长影响速度/曲率；必须显式声明是“方向向量”还是“导数向量”。
-- 缓存键包含点、切线、切线模式；变化使弧长/求值缓存失效。
+JSON 形态（CAMERA 片段上的 `curve` 对象；`type` = `hermite`）：
+
+| 字段 | kind | 必填 | 缺省 | 语义 |
+|---|---|---|---|---|
+| `tangents` | `POINT_LIST` | 是 | — | 恰好 2 项：`[首端切线, 末端切线]`；数量不是 2 直接报错 |
+
+`tangents` 的两种形态（逐项独立判定，可与另一种混用）：
+
+| 形态 | 写法 | 解析 |
+|---|---|---|
+| 绝对 | `{x,y,z}` | 切向量就是该世界坐标值本身 |
+| 相对 | `{dx,dy,dz}` | 按 `PathPoint.resolve(端点)` 解析：`T0 = from + (dx,dy,dz)`、`T1 = to + (dx,dy,dz)` |
+
+- 相对切线的基点是**各自的端点**（首端相对 `from`、末端相对 `to`），不是世界原点；因此相对形态不是纯方向向量，
+  其模长随端点位置平移。要「只给方向、不随端点漂移」请写绝对切线。
+- 未知字段 / `tangents` 数量不是 2 / 元素为 null 一律解析期报错（`PathCurveException`），不静默回落。
+- 切线模式（手动 / Catmull-Rom 自动 / 有限差分）本期只开放手动：需要自动切线时用 `catmull_rom`。
+- 缓存键包含两端切线与端点。
 
 ### 4.4 边界
 
@@ -84,6 +99,34 @@
 
 ## 六、实现结果
 
-状态：未实现
+已实现 `math/path/HermitePathSpec`，并在 `script/schema/PathCurveRegistry` 注册 `hermite`
+（能力 `ANALYTIC_SECOND_DERIVATIVE`）。
+
+求值口径：
+
+- `T0 = tangentStart.resolve(from)`、`T1 = tangentEnd.resolve(to)`；位置按 §4.1 基函数原式，
+  `derivative` / `secondDerivative` 是同一组基函数的解析导数：
+  一阶 `6u²-6u / 3u²-4u+1 / -6u²+6u / 3u²-2u`，二阶 `12u-6 / 6u-4 / -12u+6 / 6u-2`。
+- `speed` 与 `derivative` 共用同一组私有标量辅助方法（`dx/dy/dz`），逐帧调用零分配；
+  一阶与二阶导都走同一条标量组合路径，只是系数不同。
+- 定义域 `UNIT`、锚点 `ENDPOINTS`；`P0=P1` 且 `T0=T1=0` 时位置恒为 `P0`、导数为零、弧长 0。
+
+实测（无头探针，仓库外运行；fixture `cinematics/0.3.6/tests/camera/test_curve_hermite.json` 解析 + 校验 0 issue）：
+
+| 检查 | 结果 |
+|---|---|
+| 与三次 Bézier 等价（`T0=3(P1-P0)`、`T1=3(P3-P2)`）位置最大偏差（101 点） | 2.8e-14（容差 1e-12） |
+| 同上 一阶导最大偏差 | 2.3e-14（容差 1e-10） |
+| 同上 二阶导最大偏差 | 8.6e-14（容差 1e-9） |
+| 端点 `position(0)` / `position(1)` vs `P0` / `P1` | 0 / 0（容差 1e-12） |
+| 端点 `derivative(0)` / `derivative(1)` vs `T0` / `T1`（relative 各自相对自己的端点） | 0 / 0（容差 1e-12） |
+| `derivative` vs 中心差分（h=1e-6） | 1.0e-9（容差 1e-6） |
+| `secondDerivative` vs 一阶导中心差分 | 5.2e-10（容差 1e-5） |
+| `speed(u)` vs `|derivative(u)|` | 0（容差 1e-12） |
+| `speed` 1e6 次调用分配增量 | 0 字节 |
+| 全同（`P0=P1`、切线零）：位置恒等 / `speed` / `length()` | 8.9e-16 / 0 / 0 |
+| 非法参数：`tangents` 数量 ≠ 2、切线 null | IAE |
+
+与 Bézier 的换算在实现里不特殊处理：`T0=3(P1-P0)`、`T1=3(P3-P2)` 代入即逐点重合（上表首行）。
 
 

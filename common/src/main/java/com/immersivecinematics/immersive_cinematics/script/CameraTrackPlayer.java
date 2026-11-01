@@ -187,6 +187,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         entityResolver.clear();
         snapshots.clear();
         evaluator.resetTransitionState();
+        evaluator.resetPaths();
         transitionPair = -1;
     }
 
@@ -199,7 +200,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         transitionPair = -1;
     }
 
-    /** 数据替换后复位派生状态：lane 快照 / 目标锁 / 点源快照 / 过渡（都按脚本数据重建）。 */
+    /** 数据替换后复位派生状态：lane 快照 / 目标锁 / 点源快照 / 过渡 / 路径绑定（都按脚本数据重建）。 */
     @Override
     public void onScriptReplaced() {
         laneCollector.clear();
@@ -207,6 +208,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         entityResolver.clear();
         snapshots.clear();
         evaluator.resetTransitionState();
+        evaluator.resetPaths();
         transitionPair = -1;
     }
 

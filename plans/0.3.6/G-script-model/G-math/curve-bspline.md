@@ -1,6 +1,6 @@
 # B-spline 路径
 
-> 状态：未实现
+> 状态：已实现
 > 范围：B-spline 基函数、节点向量、次数、Cox–de Boor、局部支撑、连续性、端点钳制
 > 关联：`expression-contract.md`、`curve-bezier.md`、`curve-nurbs.md`、`continuity-composition.md`、`example/math/books/curve-notes/curve-spline.md`
 
@@ -57,8 +57,29 @@ B-spline 用节点向量和基函数把控制点组合成分段多项式曲线�
 
 ### 4.3 数据形态
 
-- 类型 `bspline`；控制点数组、次数、可选节点向量；默认节点由控制点数/次数生成。
-- 节点向量必须非减、长度匹配；重复度不能超过次数+1；非法节点按解析错误处理。
+`bspline` 的 JSON 只描述内部控制点、次数与可选节点向量，端点由调用点给定（锚点 `ENDPOINTS`）：
+
+```json
+{ "type": "bspline",
+  "control_points": [ { "dx": 5, "dy": 3, "dz": 2 }, { "dx": 7, "dy": 4, "dz": 9 } ],
+  "degree": 3,
+  "knots": [ 0, 0, 0, 0, 1, 1, 1, 1 ] }
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `control_points` | POINT_LIST，必填 | 内部控制点（不含端点），端点由关键帧给出；`{x,y,z}` 绝对、`{dx,dy,dz}` 相对段起点；个数 = `m-2` |
+| `degree` | INTEGER，缺省 `3` | 次数 `p`，必须落在 `1 ~ m-1`（`m` = 控制点总数 = `control_points` + 2） |
+| `knots` | NUMBER_LIST，可选 | 节点向量；缺省按钳制均匀生成 |
+
+- 绑定后控制点序列为 `P0 = from`、内部点 `resolve(from)`、`P_{m-1} = to`；节点向量长度恒为 `m+p+1`。
+- 缺省节点（钳制均匀）：首 `p+1` 项为 `0`、末 `p+1` 项为 `1`、中间 `m-p-1` 项为 `j/(m-p)`（`j = 1 … m-p-1`）。
+  首末各 `p+1` 项相等 ⇒ 曲线端点落在首末控制点上，`b(t_p) = P0`、`b(t_m) = P_{m-1}`。
+- 显式节点：长度必须等于 `m+p+1`、必须有限且非减、必须 `knots[p] < knots[m]`（定义域跨度为正）。不钳制也接受，
+  此时曲线不过首末控制点；重复度 `r` 的内节点把连续性降到 `C^{p-r}`（`r > p` 时曲线断开）。
+- `knots` 给空数组按缺省处理（等价于不写）。
+- 非法参数（次数越界、节点长度错、节点递减、跨度 0、内部点为 null）一律在构造期抛
+  `IllegalArgumentException`，注册表把它收敛成 `PathCurveException`，不静默回落。
 - 缓存键包含控制点、次数、节点向量；节点变化使弧长/求值缓存失效。
 
 ### 4.4 边界
@@ -84,6 +105,37 @@ B-spline 用节点向量和基函数把控制点组合成分段多项式曲线�
 
 ## 六、实现结果
 
-状态：未实现
+已实现 `math/path/BSplineBasis`（包内可见：`findSpan` / `deBoor` / `derivativeControlPoints` /
+`derivativeKnots`）与 `math/path/BSplinePathSpec`，并在 `script/schema/PathCurveRegistry` 注册
+`bspline`（能力 `ANALYTIC_SECOND_DERIVATIVE` + `KNOT_VECTOR`，后者仅 `degree >= 2` 声明）。
+
+求值口径：
+
+- `findSpan` 按 NURBS Book A2.1 二分：`u` 先 clamp 到 `[t_p, t_m]`，`u >= t_m` 直接返回 `m-1`（钳制末节点）。
+- `position` 对三组标量各做一次 de Boor；`derivative` 用 `D_i = p(c_{i+1}-c_i)/(t_{i+p+1}-t_{i+1})`
+  降次（零分母取 0）配合去掉首末项的节点向量，`secondDerivative` 再降一次；`degree <= 1` 时二阶导恒零向量。
+  `degree == 1` 时降次后是 0 次曲线（只剩唯一导数控制点），de Boor 在 0 次下退化为取该值，一阶导因此是常量，
+  不需要单独分支。
+- `speed` 与 `derivative` 共用同一组私有标量辅助方法（`dx/dy/dz`），逐项同构；de Boor 的 `p+1` 个工作格
+  放在线程本地缓冲里复用，因此 `speed` 逐帧调用零分配。
+- 定义域取 `[t_p, t_m]`，锚点 `ENDPOINTS`；控制点全部重合时位置恒定、导数为零、弧长为 0。
+
+实测（无头探针，仓库外运行；fixture `cinematics/0.3.6/tests/camera/test_curve_bspline.json` 解析 + 校验 0 issue）：
+
+| 检查 | 结果 |
+|---|---|
+| 4 控制点三次钳制 B-spline vs 三次 `BezierPathSpec` 位置最大偏差（101 点） | 2.9e-14（容差 1e-12） |
+| 同上一阶导最大偏差 | 1.9e-14（容差 1e-10） |
+| 全同控制点 `(2,-3,5)` 位置最大偏移 | 2.7e-15，`speed` 恒 0，弧长 0，无 NaN |
+| 局部支撑（8 控制点三次，改 `P3`）`u ∈ [0.8, 1]` 位置差 | 0（支撑 `[0, 0.8)`）；`u = 0.4` 处差 1.333 |
+| 单重内节点一二阶导左右差 | 3.3e-11 / 8.4e-11（容差 1e-9，C²） |
+| 二重内节点一阶导左右差 / 二阶导跳变 | 6.8e-11（C¹ ≤ 1e-9）/ 1.2e3（> 1e-3） |
+| `ArcLengthTable.length` vs `ArcLength.length`（8 控制点三次，长 18.913249） | 相对 4.0e-10（容差 1e-6），表 228 项 |
+| `sAt(uAt(0.5))` 往返 | 1.2e-10（容差 1e-9） |
+| `derivative` vs 中心差分（h=1e-6，101 点）相对误差 | 1.4e-9（容差 1e-6） |
+| `secondDerivative` vs 一阶导中心差分相对误差 | 3.3e-10（容差 1e-5） |
+| `speed(u)` vs `\|derivative(u)\|` 相对误差 | 0 |
+| `speed` 1e6 次调用分配增量 | 0 字节 |
+| `position` / `derivative` / `secondDerivative` 每调用分配 | ≤ 12 / ≤ 12 / 40 字节（`Vec3` 为 40 字节；上限 = 每次一个返回向量） |
 
 

@@ -12,6 +12,8 @@ import com.immersivecinematics.immersive_cinematics.client.rule.ClientConditions
 import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
+import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveException;
+import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveRegistry;
 import com.immersivecinematics.immersive_cinematics.script.schema.TriggerSchemas;
 import com.immersivecinematics.immersive_cinematics.selector.SelectorSchema;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
@@ -406,6 +408,8 @@ public final class ScriptValidator {
                     checkCameraDimension(clip, cp, issues);
                     // lane 合成遮罩：clip 级只允许 mask_shape，几何只属于关键帧
                     checkCameraMaskClipFields(clip, cp, issues);
+                    // 路径曲线：按 type 走注册表（与 ScriptParser 同一入口）
+                    checkPathCurve(clip, cp, issues);
                     // LUT 是整体画面（master）处理，只挂在 ADJUST 轨：相机片段上写 lut 不会生效，直接拦下
                     if (clip.has("lut")) {
                         issues.add(cp + ".lut 不支持（LUT 是对整体画面的处理，只写在 ADJUST 轨的片段上）："
@@ -427,6 +431,8 @@ public final class ScriptValidator {
                 }
                 // 覆盖链 Modifier 只作用于覆盖链输出（全局相机状态）：只写在 CAMERA 片段上（其余轨道上写 = 不生效）
                 checkModifierTrackScope(clip, cp, type, issues);
+                // 路径曲线同理：只写在 CAMERA 片段上（其余轨道上写 = 不生效）
+                checkCurveTrackScope(clip, cp, type, issues);
                 if ("OVERLAY".equalsIgnoreCase(type)) {
                     checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle");
                     // layer_type 缺省时运行期按 "fade" 处理（OverlayTrackPlayer.createLayer）
@@ -1612,6 +1618,32 @@ public final class ScriptValidator {
     /** 过渡权重曲线：模型定义对象（SCALAR 域；缺省 = 线性斜坡）。 */
     private static void checkTransitionCurve(JsonElement value, String path, List<String> issues) {
         checkModelDefinition(value, path, ValueDomain.SCALAR.key(), "缺省 = 线性斜坡", issues);
+    }
+
+    /**
+     * 校验相机片段的路径曲线（clip 级 {@code curve}）：形态 / 参数 / 必填全部归
+     * {@link PathCurveRegistry#create}（与 {@code ScriptParser} 同一入口，不重复实现校验）。
+     */
+    private static void checkPathCurve(JsonObject clip, String cp, List<String> issues) {
+        if (!clip.has("curve")) return;
+        JsonElement value = clip.get("curve");
+        if (!value.isJsonObject()) {
+            issues.add(cp + ".curve 需要对象 {type, ...参数}");
+            return;
+        }
+        try {
+            PathCurveRegistry.create(value.getAsJsonObject(), cp + ".curve");
+        } catch (PathCurveException e) {
+            issues.add(e.fieldPath() + ": " + e.getMessage());
+        }
+    }
+
+    /** 路径曲线只写在 CAMERA 片段上：其余轨道上写 = 不生效（与 {@code ScriptParser} 同一口径）。 */
+    private static void checkCurveTrackScope(JsonObject clip, String cp, String type, List<String> issues) {
+        if ("CAMERA".equalsIgnoreCase(type)) return;
+        if (clip.has("curve")) {
+            issues.add(cp + ".curve 只支持写在 CAMERA 轨的片段上");
+        }
     }
 
     /** 覆盖链 Modifier / 过渡声明字段只写在 CAMERA 片段上：其余轨道上写 = 不生效（与 {@code lut} 的轨道口径同款）。 */
