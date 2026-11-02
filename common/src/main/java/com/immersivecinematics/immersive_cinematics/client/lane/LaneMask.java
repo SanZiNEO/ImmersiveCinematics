@@ -82,6 +82,35 @@ public final class LaneMask {
         }
     }
 
+    /**
+     * 直接写入合成参数快照（新格式：参数已由相机求值器从同一 {@code SampledClip} 算出，不再重复采样）。
+     *
+     * @param shape  {@link #SHAPE_FULL} / {@link #SHAPE_RECT} / {@link #SHAPE_CIRCLE}（未知值按 full）
+     * @param x      窗口中心 X（窗口比例）
+     * @param y      窗口中心 Y（窗口比例）
+     * @param width  rect 宽度（窗口比例）
+     * @param height rect 高度（窗口比例）
+     * @param radius circle 半径（窗口短边比例）
+     */
+    public void set(int shape, float x, float y, float width, float height, float radius) {
+        if (shape != SHAPE_RECT && shape != SHAPE_CIRCLE) {
+            resetFull();
+            return;
+        }
+        this.shape = shape;
+        this.x = x;
+        this.y = y;
+        if (shape == SHAPE_RECT) {
+            this.width = width;
+            this.height = height;
+            this.radius = DEFAULT_RADIUS;
+        } else {
+            this.radius = radius;
+            this.width = DEFAULT_WIDTH;
+            this.height = DEFAULT_HEIGHT;
+        }
+    }
+
     /** 合成形状：{@link #SHAPE_FULL} / {@link #SHAPE_RECT} / {@link #SHAPE_CIRCLE}。 */
     public int shape() {
         return shape;

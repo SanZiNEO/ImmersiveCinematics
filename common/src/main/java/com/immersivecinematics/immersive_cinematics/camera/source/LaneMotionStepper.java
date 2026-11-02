@@ -9,7 +9,8 @@ import com.immersivecinematics.immersive_cinematics.script.Clip;
  *
  * 通道与值槽（顺序 = 六参数写入顺序）：0~2 = 位置 x/y/z（VECTOR，世界空间方块坐标）；
  * 3 = yaw、4 = pitch、5 = roll（ANGLE，度）；6 = fov、7 = zoom（SCALAR）。
- * 定义来源 = 本 lane 本帧生效片段的 clip 级 {@code motion_*} 字段（解析期已归一，见 MathModelRegistry）；
+ * 定义来源 = 本 lane 本帧生效片段的 clip 级 {@code motion_*} 字段（旧 / 新格式均在解析期归一成 {@link MathModel}，
+ * 见 {@code ScriptParser.parseObjectClip} / {@code parseMathModel}）；
  * 缺省 null = 该通道不接模型（本类不触碰对应值槽）。
  * 生命周期：片段切换时按通道比较定义对象（相等性 = 对象同一；解析期按 {@code type} + 参数键值 + 域驻留，
  * 见 {@code ScriptParser.parseMathModel}）——不变 = 实例与状态延续、变化 = 重建、变 null = 销毁；
@@ -73,13 +74,13 @@ final class LaneMotionStepper {
     }
 
     /**
-     * 该片段是否至少有一个 {@code motion_*} 定义（建槽判据）：lane 槽不存在期间每帧调用一次（6 次 map 查表，
-     * O(1)）；建槽后不再调用。缺省关（无定义）= 取值逐位不变 + 零分配，但并非零工作——每帧仍有这 6 次查表，
-     * 调用方另有 8 次缓冲写入。
+     * 该片段是否至少有一个 {@code motion_*} 定义（建槽判据）：lane 槽不存在期间每帧调用一次（6 次字段查表，
+     * O(1)；定义已由解析期归一驻留，这里只读引用）；建槽后不再调用。
+     * 缺省关（无定义）= 取值逐位不变 + 零分配，但并非零工作——每帧仍有这 6 次查表，调用方另有 8 次缓冲写入。
      */
     private static boolean hasDefinition(Clip clip) {
         for (String field : FIELDS) {
-            if (clip.getObject(field) != null) {
+            if (clip.<MathModel>getObject(field) != null) {
                 return true;
             }
         }

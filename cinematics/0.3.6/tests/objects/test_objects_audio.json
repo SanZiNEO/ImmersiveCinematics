@@ -1,0 +1,47 @@
+{
+  "meta": {
+    "id": "test_objects_audio",
+    "name": "对象格式-音频",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "新格式 AUDIO 单片段：second_waltz.ogg、volume 0→1、位置关键帧、相对定位线性衰减环境音、淡入淡出",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 4,
+    "tracks": [
+      {
+        "type": "AUDIO",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 4,
+            "objects": {
+              "sound": { "value": "second_waltz.ogg" },
+              "source": { "value": "file" },
+              "position_mode": { "value": "relative" },
+              "attenuation": { "value": "linear" },
+              "category": { "value": "ambient" },
+              "fade_in": { "value": 0.5 },
+              "fade_out": { "value": 0.5 },
+              "volume": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 4, "value": 1 } ] },
+              "x": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 4, "value": 30 } ] },
+              "y": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 4, "value": 0 } ] },
+              "z": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 4, "value": -30 } ] }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

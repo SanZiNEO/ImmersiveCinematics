@@ -1,6 +1,6 @@
 # CAMERA 轨道对象与装配
 
-> 状态：未实现
+> 状态：部分实现（I-3：新格式对象装配 / morph 每侧完整状态 / 路径消费侧；脚本级 `paths[]` 集合归 I-4）
 > 范围：CAMERA 对象清单、位置/朝向装配顺序、点源/选择器对象、morph/motion/breath/modifier、lane 合成参数、脚本级路径条目在相机上的消费
 > 关联：`object-model.md`、`runtime-evaluation.md`、`schema-and-types.md`、`I-script-core/rule-system.md`（规则新方向专篇，未完成轮次）、`track-overlay-letterbox.md`；语义参考 `complete/0.3.6/B-camera/*`、`F-playback/camera-composition.md`、`F-playback/multi-camera-rendering.md`、`F-playback/iris-oculus-compat.md`
 
@@ -303,15 +303,25 @@ CameraClipRuntime
 
 ## 六、实现结果
 
-状态：未实现
+状态：部分实现（I-3：新格式对象装配 / morph 每侧完整状态 / 路径消费侧；脚本级 `paths[]` 集合归 I-4）
 
-本节只列当前代码与设计的差距；未列出的项按“未实现”处理。
+本节同时列已实现项与差距；未列出的项按「未实现」处理。新格式 = `clip.hasObjects()` 为真，走对象装配；旧格式端点求值链路本轮一行未改。
 
-| 设计目标 | 实现 | 说明 |
+| 设计目标 | 实现 | 说明 / 差距 |
 |---|---|---|
-| 每侧完整状态（含本段 motion/breath）→ 过渡混合 | `CameraKeyframeEvaluator.renderMorph` 先混合六参数，再用 `nextClip` 的 motion、`prevClip` 的 breath 补齐；两侧没有各自的完整状态 | 现行实现按“混合后套效果”接线；新设计要求每侧先求完整状态，过渡只混合快照 |
-| 某侧无关键帧时按 `value`/所在段求值 | morph 某侧 `computeInterpolation` 返回 null 时用 `lastWorldPos`/0 兜底 | 旧端点求值路径没有静态片段语义；新设计按字段采样 |
-| 每侧 motion/breath 每帧只推进一次 | 混合后只对 `nextClip`/`prevClip` 各跑一次 | 现行实现缺少两侧各自完整效果状态，不能据此推断每侧已独立推进 |
-| 路径为脚本级集合，每条引用目标片段与目标位置序列相邻端点；RuleDefinition 不可变、RuleBinding 引用目标片段与时间门、RuleActivation 以（实例，绑定，执行）隔离 | 旧 `Clip.curve` 是 clip 级一份 3D 控制点，`interpolateWorldPosition` 对每个 from→to 段隐式复用；`objects.curve` 从未实现；规则是片段级 `clip.rules`，没有定义/绑定/时间门分层 | 旧实现只有一份 `curve` 与片段级规则数组；脚本级结构是新增设计，序列化/引用待评审 |
-| `look_at` 覆盖对应朝向结果；`look_at=none` 直接按手动朝向求值 | 至少一端 `look_at` 启用的混合段当前用 100 格远伪目标做端点求值；两端 `none` 已按角度插值 | 伪目标只影响混合段端点求值，不是 `none` 的通用实现；新实现按每侧实际朝向状态求值 |
-| 过渡窗口以交界为中心（3 秒 = 前后各 1.5 秒） | `TransitionSpec` 窗口 = 交界 ± maxDuration/2；morph 走同一口径 | 与设计一致 |
+| 新格式走对象装配 | `camera/source/ObjectCameraEvaluator`：采样一次 → `PositionSpec`/`FacingSpec`/`OrientationSpec` → `PositionEvaluator`/`OrientationEvaluator` → 六参数 + `CameraLaneComposite` | 已实现；按 `hasObjects()` 分派，旧格式路径未改 |
+| 所有字段同一 `t` 采样，装配只读采样值 | 点源 / 参考系 / 朝向 / `look_at` / 选择器策略全部按 `SampledClip` 槽位求值 | 已实现 |
+| 调用点级选择器回落链 | `selector_*_<callpoint>` 回落链在 `camera/source/ObjectWorldContext`；`look_at` 与 `position_origin` 走 `EntitySelectorService` 的平滑通道（`point` / `pos`） | 已实现 |
+| 参考系不写实例字段，装配不依赖调用顺序 | 参考系只经 `PositionResult#frame()` 传递 | 已实现；旧实现的 per-frame `frame` 隐藏顺序未复现 |
+| `CameraLane` 携带可空合成参数 | `CameraLane` 增加可空 `CameraLaneComposite`（opacity / dest / source / mask）；新格式由相机求值器一次算出，`ScriptLaneDriver#resolve` 直接读 | 已实现；旧格式为 `null`，走旧插值 |
+| `isClipUsable` 只看范围内对象 | 新格式只扫 `[0,duration]` 内对象；超界关键帧不参与、也不让片段不可用 | 已实现 |
+| 路径条目消费（选轴 geometry/timing、切线来源） | `script/path/{PathBinding,PathBindingSource,PathTiming,PathBindingResolver}`；geometry/timing 覆盖 `position.x/y/z` 的选中轴，未选轴仍按 `SampledProperty`；`orient=tangent` 的切线 = 选轴路径导数 + 未选轴采样导数 | 消费侧已实现；**脚本级 `paths[]` 的解析 / 校验 / 索引未实现（I-4）**；`CameraKeyframeEvaluator#setPathBindingSource` 是 I-4 接线口，缺省 `PathBindingSource.NONE` |
+| 两侧完整状态 → 过渡只混合快照 | 新格式每侧求完整状态（位置/朝向 + 本段 motion + 本段 breath）；每侧一份 `LaneMotionStepper`（`motionA`/`motionB`），一帧一侧一次；混合后不再叠加 motion/breath | 已实现；旧格式保留「混合后 next motion + prev breath」，逐位不变 |
+| motion / breath 时间基准 | 新格式 breath 用该侧 `executionLocalTime`（每侧相位独立）；旧格式 breath 用 `globalTime`；motion 的 `dt` 两侧都用 `globalTime` | 已实现 |
+| motion/breath/modifier/transition/10 条调色曲线对新格式可用 | 新格式在**解析期**由 `ScriptParser.parseObjectClip` 归一成强类型（`MathModel`/`ClipModifier`/`TransitionParams`/`ColorCurve`），`LaneMotionStepper`/`Clip.getModifier()`/`Clip.getTransitionSpec()`/`Clip.getColorCurve()` 直接可用 | 已实现 |
+| 新格式路径不依赖 clip 级 `curve` | `cameraObjects()` 移除 `curve`（新格式路径走脚本级绑定）；旧 `clipFields.curve` 保留给旧格式 | 已实现 |
+| 10 条调色曲线形状校验 | `ObjectValidator` 对 CAMERA + ADJUST 的 10 条曲线做形状校验 | 已实现 |
+| 规则集合（定义 / 绑定 / 时间门 / 激活） | — | 未实现，归 I-4（`rule-system.md`） |
+| 旧画面像素回归 | — | 未执行：本轮无实机客户端运行，见 `ROUND-I-3-MAP.md` §九 |
+
+已知边界：`position_space=base` 的路径控制点参考空间沿用 `PathSpec` 的 `PathAnchor` 语义，本轮未新增声明字段。

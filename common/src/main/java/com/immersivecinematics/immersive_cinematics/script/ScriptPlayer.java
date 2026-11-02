@@ -7,6 +7,8 @@ import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipExecutionLedger;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipTimeSource;
+import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
+import com.immersivecinematics.immersive_cinematics.script.object.SampledClip;
 import com.immersivecinematics.immersive_cinematics.util.Clock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.sounds.SoundEvent;
@@ -144,6 +146,13 @@ public class ScriptPlayer implements ClipTimeSource {
     private final List<Clip> activeCameraClips = new ArrayList<>();
 
     /**
+     * CAMERA lane 调色的对象采样缓存：仅 {@code lane.clip().hasObjects()} 时使用（旧格式 lane 仍走
+     * {@link ColorAdjustSampler#sample(Clip, double)}，像素路径不变）。脚本替换 / 停播时清空。
+     */
+    private final ClipRuntimeCache cameraLaneRuntime = new ClipRuntimeCache(TrackType.CAMERA);
+    private final ColorAdjustSampler.CurveCache cameraLaneCurves = new ColorAdjustSampler.CurveCache();
+
+    /**
      * 规则动作 {@code play_sound} 的一次性发声宿主（懒建）：与轨道列表无关——
      * 没有 AUDIO 轨道的脚本同样能发声。不参与轨道分发（只用到一次性声音容器 / 回收 / 停止），
      * 随实例停止清理（见 {@link #cleanupTrackPlayers()}）。
@@ -193,10 +202,12 @@ public class ScriptPlayer implements ClipTimeSource {
                 }
             }
         }
+        // 片段对象已换：CAMERA lane 的采样缓冲 / 曲线解析结果失效
+        cameraLaneRuntime.clear();
+        cameraLaneCurves.clear();
         // 玩家移动控制：增量替换后重新提取 EVENT position 关键帧
         playerMovement.onScriptStart(newScript, originPos);
     }
-
     /** 轨道布局相同判断:轨道数 + 类型顺序一致(忽略 clip 内容) */
     private static boolean sameTrackLayout(List<TimelineTrack> a, List<TimelineTrack> b) {        if (a == null || b == null) return false;
         if (a.size() != b.size()) return false;
@@ -232,6 +243,8 @@ public class ScriptPlayer implements ClipTimeSource {
         }
         trackPlayers = Collections.emptyList();
         activeCameraClips.clear();
+        cameraLaneRuntime.clear();
+        cameraLaneCurves.clear();
         if (oneShotHost != null) {
             oneShotHost.onStop();
             oneShotHost = null;
@@ -432,8 +445,16 @@ public class ScriptPlayer implements ClipTimeSource {
                 cameraLaneIndex++;
                 for (CameraLane lane : ctp.getLaneSnapshots()) {
                     // 每条 lane 各自用「自己的相机片段 + 片段本地时间」采样调色（重叠窗口下各自独立）。
+                    // 新格式走对象采样（57 通道 + value-only 曲线）；旧格式仍扫关键帧，像素路径不变。
+                    ColorAdjustParams adjust;
+                    if (lane.clip().hasObjects()) {
+                        SampledClip sample = cameraLaneRuntime.sample(lane.clip(), lane.clipLocalTime());
+                        adjust = ColorAdjustSampler.sampleCameraLaneObjects(lane.clip(), sample,
+                                cameraLaneRuntime.values(lane.clip()), cameraLaneCurves);
+                    } else {
+                        adjust = ColorAdjustSampler.sample(lane.clip(), lane.clipLocalTime());
+                    }
                     // 恒等参数归一化为 null —— 渲染侧因此保持 lane FBO 直接进合成的原路径。
-                    ColorAdjustParams adjust = ColorAdjustSampler.sample(lane.clip(), lane.clipLocalTime());
                     // dimension：空串 = 玩家当前维度；非空 = 客户端按该维度渲染这条 lane（无服务端传送）
                     frames.add(new LaneFrame(lane, cameraLaneIndex, ctp.indexOfClip(lane.clip()),
                             adjust.isIdentity() ? null : adjust, lane.clip().getDimension()));

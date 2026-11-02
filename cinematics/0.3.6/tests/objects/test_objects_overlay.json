@@ -1,0 +1,90 @@
+{
+  "meta": {
+    "id": "test_objects_overlay",
+    "name": "对象格式-覆盖层三轨",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "新格式 OVERLAY 三条轨：fade（颜色通道/圆形遮罩/线性渐变）、image（位置缩放与素材窗口）、subtitle（字号）",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 6,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "objects": {
+              "layer_type": { "value": "fade" },
+              "color": { "value": "#336699" },
+              "color.r": { "keyframes": [ { "time": 0, "value": 0.2 }, { "time": 6, "value": 1 } ] },
+              "color.b": { "keyframes": [ { "time": 0, "value": 1 }, { "time": 6, "value": 0.3 } ] },
+              "mask_shape": { "value": "circle" },
+              "mask_radius": { "keyframes": [ { "time": 0, "value": 0.2 }, { "time": 6, "value": 0.45 } ] },
+              "gradient": {
+                "value": {
+                  "type": "linear",
+                  "stops": [
+                    { "offset": 0, "color": "#336699" },
+                    { "offset": 1, "color": "#000000" }
+                  ]
+                }
+              },
+              "gradient_angle": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 180 } ] },
+              "opacity": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 1 } ] }
+            }
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "objects": {
+              "layer_type": { "value": "image" },
+              "path": { "value": "test_image.png" },
+              "x": { "keyframes": [ { "time": 0, "value": 0.2 }, { "time": 6, "value": 0.6 } ] },
+              "y": { "keyframes": [ { "time": 0, "value": 0.3 }, { "time": 6, "value": 0.5 } ] },
+              "scale_x": { "keyframes": [ { "time": 0, "value": 0.5 }, { "time": 6, "value": 0.8 } ] },
+              "scale_y": { "keyframes": [ { "time": 0, "value": 0.4 }, { "time": 6, "value": 0.7 } ] },
+              "source.x": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 0.1 } ] },
+              "source.y": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 0.1 } ] },
+              "source.w": { "keyframes": [ { "time": 0, "value": 1 }, { "time": 6, "value": 0.8 } ] },
+              "source.h": { "keyframes": [ { "time": 0, "value": 1 }, { "time": 6, "value": 0.9 } ] },
+              "opacity": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 1, "value": 1 } ] }
+            }
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "objects": {
+              "layer_type": { "value": "subtitle" },
+              "text": { "value": "测试: test_objects_overlay | 新格式 OVERLAY 三轨 | fade / image / subtitle" },
+              "font_scale": { "keyframes": [ { "time": 0, "value": 1 }, { "time": 6, "value": 1.4 } ] },
+              "z_index": { "value": 100 }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

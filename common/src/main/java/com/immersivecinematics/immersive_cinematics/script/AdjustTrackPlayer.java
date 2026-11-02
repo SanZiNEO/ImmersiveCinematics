@@ -1,6 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustParams;
 import com.immersivecinematics.immersive_cinematics.client.post.MasterColorAdjust;
+import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
 
 import java.util.List;
 
@@ -23,6 +25,10 @@ public class AdjustTrackPlayer implements TrackPlayer {
 
     private final ScriptPlayer scriptPlayer;
     private final int trackIndex;
+    /** 新格式片段的采样缓存（旧格式片段不走这里，仍由 {@link ColorAdjustSampler#sample} 扫关键帧）。 */
+    private final ClipRuntimeCache runtime = new ClipRuntimeCache(TrackType.ADJUST);
+    /** 曲线解析缓存：曲线是 value-only 结构，按 clip 只解析一次。 */
+    private final ColorAdjustSampler.CurveCache curves = new ColorAdjustSampler.CurveCache();
 
     public AdjustTrackPlayer(ScriptPlayer scriptPlayer, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
@@ -49,14 +55,28 @@ public class AdjustTrackPlayer implements TrackPlayer {
         }
         // 恒等参数由 publish 归一化为「无调整」（渲染侧一次 GL 调用都不做）。
         // 实例标识 = 本轨所属的 ScriptPlayer：同实例多条 ADJUST 轨互相覆盖，不同实例各占一层。
-        MasterColorAdjust.INSTANCE.publish(scriptPlayer,
-                ColorAdjustSampler.sample(clip, scriptPlayer.executionLocalTime(clip, globalTime)));
+        double localTime = scriptPlayer.executionLocalTime(clip, globalTime);
+        // 新格式：59 通道来自对象模型；旧格式：沿用关键帧扫描（一行不改）。
+        ColorAdjustParams params = clip.hasObjects()
+                ? ColorAdjustSampler.sampleObjects(clip, runtime.sample(clip, localTime),
+                        runtime.values(clip), curves)
+                : ColorAdjustSampler.sample(clip, localTime);
+        MasterColorAdjust.INSTANCE.publish(scriptPlayer, params);
     }
 
     @Override
     public void onStop() {
+        runtime.clear();
+        curves.clear();
         // 只清本实例的一层：同帧别的实例的发布不受影响（多实例并行播放）
         MasterColorAdjust.INSTANCE.clear(scriptPlayer);
+    }
+
+    @Override
+    public void onScriptReplaced() {
+        // 片段对象已换：采样器 / 缓冲 / 曲线解析结果全部失效
+        runtime.clear();
+        curves.clear();
     }
 
     private Clip findActiveClip(double globalTime) {

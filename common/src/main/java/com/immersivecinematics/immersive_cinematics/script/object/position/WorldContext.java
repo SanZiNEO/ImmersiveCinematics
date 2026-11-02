@@ -30,4 +30,25 @@ public interface WorldContext {
 
     /** 结构 bounding box 中心；结构未定位 = {@code null}。 */
     Vec3 structureCenter(String structureId);
+
+    // ── 调用点级查询（选择器策略 / 锚点 / 择一按调用点分桶） ──
+
+    /**
+     * 实体包围盒内取点（带调用点）：调用点 = {@code position_origin} / {@code look_at} / {@code yaw_base} /
+     * {@code yaw_base_from} / {@code yaw_base_to} / {@code facing_target} / {@code facing_entity}
+     * （见 {@code ObjectCallpoints.NEW_CALLPOINTS}）。缺省实现忽略调用点，保持旧实现可直接复用。
+     */
+    default Vec3 entityPoint(String callpoint, String selector, PointSource.EntityPoint point) {
+        return entityPoint(selector, point);
+    }
+
+    /** 实体身体水平朝向（度，带调用点）；缺省实现忽略调用点。 */
+    default double entityBodyYaw(String callpoint, String selector) {
+        return entityBodyYaw(selector);
+    }
+
+    /** 实体视线俯仰（度，带调用点）；缺省实现忽略调用点。 */
+    default double entityLookPitch(String callpoint, String selector) {
+        return entityLookPitch(selector);
+    }
 }

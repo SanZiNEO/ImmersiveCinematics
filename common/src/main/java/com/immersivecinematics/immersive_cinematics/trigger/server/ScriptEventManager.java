@@ -5,8 +5,10 @@ import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
-import com.immersivecinematics.immersive_cinematics.script.Keyframe;
+import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.script.event.EventClipRuntime;
+import com.immersivecinematics.immersive_cinematics.script.event.EventRecord;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CSkipVoteUpdatePacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CStopScriptPacket;
 import com.mojang.logging.LogUtils;
@@ -17,6 +19,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -194,41 +197,63 @@ public class ScriptEventManager {
                 // （未收到上报 = 基准不动，回落 tick 推算——不卡事件）
                 float elapsed = pb.timelineAnchorSeconds + (currentTick - pb.timelineAnchorTick) / 20f;
 
-                int clipIndex = 0;
-                for (Clip clip : pb.eventClips) {
+                // 事件边沿：只推进 (上次扫描时间, 本次 elapsed] 区间；首次从 -inf 开始
+                float previous = pb.scannedThroughSeconds;
+                if (!(elapsed > previous)) {
+                    return false;
+                }
+
+                for (int clipIndex = 0; clipIndex < pb.eventClips.size(); clipIndex++) {
+                    Clip clip = pb.eventClips.get(clipIndex);
                     float clipStart = clip.getStartTime();
                     float clipDuration = clip.getDuration();
                     float clipEnd = clipDuration < 0 ? Float.POSITIVE_INFINITY : clipStart + clipDuration;
 
-                    if (elapsed < clipStart || elapsed > clipEnd) {
-                        clipIndex++;
+                    if (elapsed < clipStart || previous >= clipEnd) {
                         continue;
                     }
 
-                    int kfIndex = 0;
-                    for (Keyframe keyframe : clip.getKeyframes()) {
-                        float globalTime = clipStart + keyframe.getTime();
-                        int triggerKey = (clipIndex << 16) | kfIndex;
-
-                        if (elapsed >= globalTime && !pb.triggeredKeyframes.contains(triggerKey)) {
-                            String cmd = keyframe.getString("command", "");
-                            if (!cmd.isEmpty()) {
-                                for (UUID uuid : pb.viewers) {
-                                    ServerPlayer p = server.getPlayerList().getPlayer(uuid);
-                                    if (p != null) executeCommand(p, cmd);
-                                }
-                            }
-                            pb.triggeredKeyframes.add(triggerKey);
-                        }
-                        kfIndex++;
+                    double to = Math.min(elapsed, clipEnd);
+                    if (!(to >= clipStart)) {
+                        continue;
                     }
-                    clipIndex++;
+
+                    EventClipRuntime runtime = pb.eventRuntimes.get(clipIndex);
+                    int start = runtime.cursor();
+                    int end = runtime.advance(to - clipStart);
+                    for (int i = start; i < end; i++) {
+                        fireEvent(pb, server, runtime.record(i), currentTick);
+                    }
                 }
+                pb.scannedThroughSeconds = elapsed;
 
                 return false;
             });
         }
         scriptPlaybacks.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+    }
+
+    /**
+     * 触发一条事件记录。EVENT 只接受 {@code event_type=command}；空命令是占位（已标记触发，不执行）。
+     * 其他事件类型跳过，并按实例限频告警（每 200 tick 最多一条）。
+     */
+    private void fireEvent(ScriptPlayback pb, MinecraftServer server, EventRecord record, int currentTick) {
+        if (!"command".equals(record.eventType())) {
+            if (currentTick - pb.unsupportedEventTypeWarnTick >= 200) {
+                pb.unsupportedEventTypeWarnTick = currentTick;
+                LOGGER.warn("Script '{}' EVENT 记录 event_type='{}' 不受支持（只接受 command），已跳过",
+                        pb.scriptId, record.eventType());
+            }
+            return;
+        }
+        String command = record.command();
+        if (command == null || command.isEmpty()) {
+            return;
+        }
+        for (UUID uuid : pb.viewers) {
+            ServerPlayer p = server.getPlayerList().getPlayer(uuid);
+            if (p != null) executeCommand(p, command);
+        }
     }
 
     /**
@@ -267,6 +292,8 @@ public class ScriptEventManager {
         if (!Float.isFinite(position) || position < 0f) return;
         pb.timelineAnchorSeconds = position;
         pb.timelineAnchorTick = tick;
+        // 不重置事件游标：重锚沿用既有暂停/恢复行为（向前跨越的事件按边沿区间补扫，向后回退不重复触发）。
+        // seek 语义由 EventClipRuntime#reset 提供，等有 seek 协议时再接。
     }
 
     /**
@@ -309,12 +336,15 @@ public class ScriptEventManager {
         }
     }
 
+    /** 取脚本的全部 EVENT 轨片段（不再只取第一条），与客户端 {@code PlayerMoveController} 同口径。 */
     private List<Clip> extractEventClips(CinematicScript script) {
-        return script.getTimeline().getTracks().stream()
-                .filter(t -> t.getType() == TrackType.EVENT)
-                .findFirst()
-                .map(track -> track.getClips())
-                .orElse(List.of());
+        List<Clip> clips = new ArrayList<>();
+        for (TimelineTrack track : script.getTimeline().getTracks()) {
+            if (track.getType() == TrackType.EVENT) {
+                clips.addAll(track.getClips());
+            }
+        }
+        return clips;
     }
 
     /** 观看者激活脚本时的位置与朝向（相对玩家激活位置的 CAMERA 关键帧按此换算世界坐标）。 */
@@ -328,9 +358,16 @@ public class ScriptEventManager {
         final Set<UUID> skipVoters;
         /** 本场播放实际生效的跳过投票比例（脚本覆盖 ?? 全局配置），创建时解析一次 */
         final int skipVoteRatio;
-        final Set<Integer> triggeredKeyframes = new HashSet<>();
+        /** 本实例的事件身份令牌：同脚本的不同播放实例互不相等（按对象身份去重）。 */
+        final Object eventToken = new Object();
+        /** 每片段一份事件运行时（记录 + 游标 + 已触发集合）。 */
+        final List<EventClipRuntime> eventRuntimes;
         final int startTick;
         final List<Clip> eventClips;
+        /** 上次扫描到的内容时间（全局秒）；{@code -inf} = 首帧从片段起点开始。 */
+        float scannedThroughSeconds = Float.NEGATIVE_INFINITY;
+        /** 不支持的 {@code event_type} 最近一次告警的 tick（限频）。 */
+        int unsupportedEventTypeWarnTick = -1000;
         /** 观看者激活脚本时的位置 / 朝向（相对玩家激活位置的 CAMERA 关键帧基准） */
         final Map<UUID, ViewerOrigin> viewerOrigins = new HashMap<>();
         MinecraftServer server;
@@ -351,6 +388,10 @@ public class ScriptEventManager {
             this.skipVoters = new HashSet<>();
             this.skipVoteRatio = skipVoteRatio;
             this.eventClips = eventClips;
+            this.eventRuntimes = new ArrayList<>(eventClips.size());
+            for (Clip clip : eventClips) {
+                this.eventRuntimes.add(EventClipRuntime.compile(clip, eventToken));
+            }
             this.startTick = startTick;
             this.timelineAnchorTick = startTick;
         }

@@ -121,6 +121,44 @@ public final class ColorMaskSpec {
                 maskShape, blendMode, times, colors);
     }
 
+    /**
+     * 从新格式片段的 value-only 字段建立定义：结构一次解析，不建关键帧颜色缓存。
+     *
+     * <p>颜色由 {@code color.r/g/b} 的采样值经 {@link #rgb(float, float, float)} 合成；
+     * {@link #sampleColor(double)} 在此形态下恒返回基色（新格式不调用它）。</p>
+     *
+     * @param baseColor      value-only {@code color} 解析出的 0xRRGGBB
+     * @param gradientStruct value-only {@code gradient} 的冻结结构；{@code null} = 纯色
+     * @param maskShape      {@code mask_shape}；{@code null}/空 = {@code full}
+     * @param blendMode      {@code blend_mode}；{@code null}/空 = {@code normal}
+     */
+    public static ColorMaskSpec forObjects(int baseColor, Object gradientStruct,
+                                           String maskShape, String blendMode) {
+        Gradient gradient = parseGradient(gradientStruct);
+        return new ColorMaskSpec(baseColor,
+                gradient != null, gradient != null ? gradient.type() : "linear",
+                gradient != null ? gradient.offsets() : EMPTY_OFFSETS,
+                gradient != null ? gradient.colors() : EMPTY_COLORS,
+                requireMaskShape(maskShape), requireBlendMode(blendMode),
+                EMPTY_OFFSETS, EMPTY_COLORS);
+    }
+
+    /**
+     * 采样颜色合成：0~1 浮点通道 → 0xRRGGBB（逐通道四舍五入并钳制；非有限值按 0）。
+     * 新格式 {@code color.r/g/b} 的采样值走这里，不经过字符串解析。
+     */
+    public static int rgb(float red, float green, float blue) {
+        return (channelByte(red) << 16) | (channelByte(green) << 8) | channelByte(blue);
+    }
+
+    private static int channelByte(float value) {
+        if (!Float.isFinite(value)) {
+            return 0;
+        }
+        int scaled = Math.round(value * 255f);
+        return Math.max(0, Math.min(255, scaled));
+    }
+
     /** 是否声明了渐变（缺省 = 纯色）。 */
     public boolean hasGradient() {
         return hasGradient;
@@ -223,11 +261,19 @@ public final class ColorMaskSpec {
             throw new InvalidColorMaskException("mask_shape",
                     "需要字符串（full / rect / circle；缺省 full）");
         }
-        if (!contains(MASK_SHAPES, text)) {
-            throw new InvalidColorMaskException("mask_shape",
-                    "未知覆盖形状: " + text + "（可选: full / rect / circle）");
+        return requireMaskShape(text);
+    }
+
+    /** {@code mask_shape} 值校验；{@code null} = 缺省 {@code full}（空串按非法值拒绝，与旧口径一致）。 */
+    private static String requireMaskShape(String value) {
+        if (value == null) {
+            return DEFAULT_MASK_SHAPE;
         }
-        return text;
+        if (!contains(MASK_SHAPES, value)) {
+            throw new InvalidColorMaskException("mask_shape",
+                    "未知覆盖形状: " + value + "（可选: full / rect / circle）");
+        }
+        return value;
     }
 
     private static String parseBlendMode(Map<String, Object> data) {
@@ -239,12 +285,20 @@ public final class ColorMaskSpec {
             throw new InvalidColorMaskException("blend_mode",
                     "需要字符串（normal / multiply / screen / soft_light / overlay；缺省 normal）");
         }
-        if (!contains(BLEND_MODES, text)) {
+        return requireBlendMode(text);
+    }
+
+    /** {@code blend_mode} 值校验；{@code null} = 缺省 {@code normal}（空串按非法值拒绝，与旧口径一致）。 */
+    private static String requireBlendMode(String value) {
+        if (value == null) {
+            return DEFAULT_BLEND_MODE;
+        }
+        if (!contains(BLEND_MODES, value)) {
             throw new InvalidColorMaskException("blend_mode",
-                    "未知混合模式: " + text
+                    "未知混合模式: " + value
                             + "（可选: normal / multiply / screen / soft_light / overlay）");
         }
-        return text;
+        return value;
     }
 
     private static Gradient parseGradient(Object raw) {

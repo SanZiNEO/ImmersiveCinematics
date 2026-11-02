@@ -6,6 +6,7 @@ import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
 import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
 import com.immersivecinematics.immersive_cinematics.script.CameraLane;
+import com.immersivecinematics.immersive_cinematics.script.CameraLaneComposite;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
@@ -311,6 +312,16 @@ public final class ScriptLaneDriver {
      * 段内进度匀速线性（运行时线性，缓动由编辑器烘焙成显式关键帧，运行时不求值）。
      */
     private static void resolve(CameraLane lane, Slot slot) {
+        CameraLaneComposite composite = lane.composite();
+        if (composite != null) {
+            // 新格式：参数已由相机求值器从同一 SampledClip 算出（与六参数同一时刻），不再重新插值 / 采样
+            slot.opacity = composite.opacity();
+            slot.source = rect(composite.sourceX(), composite.sourceY(), composite.sourceW(), composite.sourceH());
+            slot.dest = rect(composite.destX(), composite.destY(), composite.destW(), composite.destH());
+            slot.mask.set(maskShape(composite.maskShape()), composite.maskX(), composite.maskY(),
+                    composite.maskWidth(), composite.maskHeight(), composite.maskRadius());
+            return;
+        }
         KeyframeInterpolator.InterpolationResult result =
                 KeyframeInterpolator.computeInterpolation(lane.clipLocalTime(), lane.clip());
         if (result == null) {
@@ -327,6 +338,20 @@ public final class ScriptLaneDriver {
             slot.dest = interpolateRect(from, to, s, "dest");
         }
         slot.mask.sample(lane.clip(), lane.clipLocalTime());
+    }
+
+    /** 新格式矩形：与旧路径同口径（缺省 = 全幅 / 全屏时复用 {@link LaneCompositor.Rect#FULL}）。 */
+    private static LaneCompositor.Rect rect(float x, float y, float w, float h) {
+        return x == 0.0F && y == 0.0F && w == 1.0F && h == 1.0F
+                ? LaneCompositor.Rect.FULL
+                : new LaneCompositor.Rect(x, y, w, h);
+    }
+
+    /** 合成遮罩形状 → {@link LaneMask} 编码；未知值按 full。 */
+    private static int maskShape(String shape) {
+        return "rect".equals(shape) ? LaneMask.SHAPE_RECT
+                : "circle".equals(shape) ? LaneMask.SHAPE_CIRCLE
+                : LaneMask.SHAPE_FULL;
     }
 
     /** 关键帧矩形字段（{@code x} / {@code y} / {@code w} / {@code h}）的逐分量插值；字段缺省 = 全幅 / 全屏。 */

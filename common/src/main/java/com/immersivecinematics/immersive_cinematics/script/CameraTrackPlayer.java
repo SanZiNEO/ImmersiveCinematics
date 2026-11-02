@@ -125,8 +125,10 @@ public class CameraTrackPlayer implements TrackPlayer {
             if (morphState != null) {
                 // 转场两侧任一声明 suppress = 本帧跳过 Modifier 链（两侧都活跃）
                 writeGlobal(morphState, prev.getSuppressModifiers() || next.getSuppressModifiers());
+                // 新格式 morph 的合成参数取自 next 侧本帧求值（旧格式 = null，渲染侧按旧插值取值）
                 laneCollector.add(new CameraLane(morphState, next,
-                        scriptPlayer.executionLocalTime(next, globalTime)));
+                        scriptPlayer.executionLocalTime(next, globalTime),
+                        next.hasObjects() ? evaluator.morphComposite() : null));
                 transitionPair = pair;
                 return;
             }
@@ -198,6 +200,7 @@ public class CameraTrackPlayer implements TrackPlayer {
     public void onSeek() {
         snapshots.clear();
         evaluator.resetMotionState();
+        evaluator.resetFreezes();
         evaluator.resetTransitionState();
         transitionPair = -1;
     }
@@ -210,7 +213,7 @@ public class CameraTrackPlayer implements TrackPlayer {
         entityResolver.clear();
         snapshots.clear();
         evaluator.resetTransitionState();
-        evaluator.resetPaths();
+        evaluator.onScriptReplaced();
         transitionPair = -1;
     }
 

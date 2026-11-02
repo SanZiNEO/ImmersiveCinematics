@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "id": "test_objects_adjust",
+    "name": "对象格式-调色",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "新格式 ADJUST 单片段：exposure/saturation/contrast 关键帧、rgb_curve 三点、curve_strength 0→1、normal 混合 1→0.7",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 5,
+    "tracks": [
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 5,
+            "objects": {
+              "exposure": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 5, "value": 0.5 } ] },
+              "saturation": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 5, "value": -0.5 } ] },
+              "contrast": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 5, "value": 0.3 } ] },
+              "rgb_curve": { "value": [ [0, 0], [0.5, 0.65], [1, 1] ] },
+              "curve_strength": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 5, "value": 1 } ] },
+              "blend_mode": { "value": "normal" },
+              "blend_amount": { "keyframes": [ { "time": 0, "value": 1 }, { "time": 5, "value": 0.7 } ] }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

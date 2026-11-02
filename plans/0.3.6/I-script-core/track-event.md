@@ -1,6 +1,6 @@
 # EVENT / MOD_EVENT 轨道
 
-> 状态：未实现
+> 状态：部分实现（I-3：离散记录 / 边沿触发 / `EventKey`；服务端 seek 协议未实现）
 > 范围：EVENT 离散事件对象、事件记录、边沿触发、事件身份、服务端/客户端分工、MOD_EVENT 占位
 > 关联：`object-model.md`、`runtime-evaluation.md`、`loop-execution.md`、`rule-system.md`（本轮规则方向）、`../C-trigger/condition-system.md`（C 轮 v1 旧实现参考）；参考 `docs/SCRIPT_FORMAT.md` §7–§8、`trigger/server/ScriptEventManager.java`、`script/PlayerMoveController.java`
 
@@ -180,4 +180,20 @@ EventRecord
 
 ## 六、实现结果
 
-状态：未实现
+状态：部分实现（I-3：离散记录 / 边沿触发 / `EventKey`；服务端 seek 协议未实现）
+
+本节同时列已实现项与差距；未列出的项按「未实现」处理。新格式 = `clip.hasObjects()` 为真；旧格式事件路径保留。
+
+| 设计目标 | 实现 | 说明 / 差距 |
+|---|---|---|
+| 事件记录与身份 | 新增 `script/event/{EventKey,EventRecord,EventClipRuntime}`；`EventKey = (instanceToken, clip 身份, 对象路径, 事件索引)`；`EventClipRuntime.compile(Clip, Object)` 新格式从 `SampledProperty.Compiled` 编译、旧格式从 `getKeyframes()` 编译（`eventIndex` = keyframe 下标） | 已实现 |
+| 事件游标 API | `cursor()` / `advance(double toLocalTime)` / `reset(double localTime)` / `record(i)` / `key(i)` | 已实现 |
+| 服务端边沿触发 | `ScriptEventManager` 去重键改为 `EventKey`；扫**全部** EVENT 轨（不再只第一条）；按 `scannedThroughSeconds` 只触发 `(上次扫描, 本次 elapsed]` 内的记录 | 已实现 |
+| 空 `command` 与非法事件类型 | 空 `command` 标记已触发但不执行；非 `command` 的 `event_type` 跳过并限频告警 | 已实现 |
+| 客户端移动配对 | `PlayerMoveController` 新格式从事件记录的 `position`（`{x,z}` / `{dx,dz}`）原子读取，并按 `EventKey` 去重；旧格式路径保留 | 已实现 |
+| MOD_EVENT 占位 | `ModEventTrackPlayer` 仍是占位（`isActiveAt` 恒 false）；新增 `runtimeFor(Clip)` 供第三方编译 / 查询 | 已实现（占位 + 只读入口） |
+| 校验 | `ObjectValidator`：`event_type!=command` 错误；MOD_EVENT 记录缺 `event_type` 错误 | 已实现 |
+| 服务端 seek | — | 未实现：服务端没有 seek 协议，跨端 seek 对齐未做；`EventClipRuntime#reset` 已提供，等协议（见 `I-BACKLOG.md` I3-B2） |
+| 片段循环 / 宏观循环重放 | 不重放服务端 EVENT | 按设计保留；语义未变，多入口 / 循环语义待定性（I3-B3） |
+| `PlayerMoveController` 循环语义 | — | 未改（本轮非目标） |
+| 旧画面 / 事件实机回归 | — | 未执行：本轮无实机客户端运行，见 `ROUND-I-3-MAP.md` §九 |

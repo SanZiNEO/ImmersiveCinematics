@@ -1,13 +1,18 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.script.event.EventClipRuntime;
+import com.immersivecinematics.immersive_cinematics.script.event.EventKey;
+import com.immersivecinematics.immersive_cinematics.script.event.EventRecord;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 玩家移动控制：EVENT 关键帧可选 position(x/z) 驱动玩家平滑直线移动，假输入走原版移动链路。
@@ -52,10 +57,25 @@ public class PlayerMoveController {
         if (script == null || script.getTimeline() == null) return;
         double originX = originPos != null ? originPos.x : 0;
         double originZ = originPos != null ? originPos.z : 0;
+        Object eventToken = new Object();
+        Set<EventKey> seen = new HashSet<>();
         for (TimelineTrack track : script.getTimeline().getTracks()) {
             if (track.getType() != TrackType.EVENT) continue;
             for (Clip clip : track.getClips()) {
                 double clipStart = clip.getStartTime();
+                if (clip.hasObjects()) {
+                    // 新格式：事件记录里的 position 原子配对；EventKey 去重（同片段/同下标只取一次）
+                    EventClipRuntime runtime = EventClipRuntime.compile(clip, eventToken);
+                    for (int i = 0; i < runtime.size(); i++) {
+                        EventRecord.Position position = runtime.record(i).position();
+                        if (position == null) continue;
+                        if (!seen.add(runtime.key(i))) continue;
+                        double x = position.relative() ? originX + position.x() : position.x();
+                        double z = position.relative() ? originZ + position.z() : position.z();
+                        targets.add(new Target(clipStart + runtime.record(i).time(), x, z));
+                    }
+                    continue;
+                }
                 for (Keyframe kf : clip.getKeyframes()) {
                     Object pos = kf.getObject("position");
                     if (!(pos instanceof Map<?, ?> m)) continue;

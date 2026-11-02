@@ -718,6 +718,12 @@ public final class TrackSchemas {
                     .min(channelMin(channel)).max(channelMax(channel)).section("color"));
         }
 
+        // 调色曲线（value-only 结构）：曲线定义一次、不随时间变，顺序 = 旧 clip 级声明顺序
+        for (String curve : List.of("rgb_curve", "r_curve", "g_curve", "b_curve",
+                "hv_h_curve", "hv_s_curve", "hv_l_curve", "lv_s_curve", "sv_s_curve", "sv_l_curve")) {
+            add(objects, value(curve, PropertyType.STRUCT, null).section("color"));
+        }
+
         // 相机参数运动模型（value-only 结构）
         for (String channel : List.of("motion_position", "motion_yaw", "motion_pitch",
                 "motion_roll", "motion_fov", "motion_zoom")) {
@@ -747,9 +753,6 @@ public final class TrackSchemas {
         // 覆盖链 Modifier（value-only）
         add(objects, value("modifier", PropertyType.STRUCT, null).section("modifier"));
         add(objects, value("suppress_modifiers", PropertyType.BOOL, false).section("modifier"));
-
-        // 旧 clip 级路径曲线：新格式为 STRUCT value-only
-        add(objects, value("curve", PropertyType.STRUCT, null).section("path"));
 
         // 选择器策略（通用 + 7 个调用点覆盖）
         add(objects, animated("selector_refresh", PropertyType.FLOAT, Interp.STEP, 1f).section("selector"));
@@ -880,11 +883,13 @@ public final class TrackSchemas {
         add(objects, value("layer_type", PropertyType.ENUM, "fade")
                 .enumValues("fade", "image", "subtitle").required(true).section("layer"));
         add(objects, value("color", PropertyType.STRING, "#000000").section("layer"));
-        add(objects, value("gradient", PropertyType.STRUCT, null).section("layer"));
+        add(objects, value("gradient", PropertyType.STRUCT, null)
+                .appliesTo("fade").section("layer"));
         add(objects, value("mask_shape", PropertyType.ENUM, "full")
-                .enumValues("full", "rect", "circle").section("layer"));
+                .enumValues("full", "rect", "circle").appliesTo("fade").section("layer"));
         add(objects, value("blend_mode", PropertyType.ENUM, "normal")
-                .enumValues("normal", "multiply", "screen", "soft_light", "overlay").section("layer"));
+                .enumValues("normal", "multiply", "screen", "soft_light", "overlay")
+                .appliesTo("fade").section("layer"));
         add(objects, value("path", PropertyType.STRING, "").section("layer"));
         add(objects, value("text", PropertyType.STRING, "").section("layer"));
         add(objects, value("z_index", PropertyType.INT, 10).section("layer"));

@@ -5,6 +5,8 @@ import com.immersivecinematics.immersive_cinematics.camera.transition.Transition
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
+import com.immersivecinematics.immersive_cinematics.script.object.PropertyMode;
+import com.immersivecinematics.immersive_cinematics.script.object.SampledProperty;
 import com.immersivecinematics.immersive_cinematics.script.execution.LoopMode;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 
@@ -15,6 +17,14 @@ import java.util.Map;
 /**
  * 通用片段容器：所有轨道共享 {@code startTime} / {@code duration}；
  * 轨道特有字段存在 {@code data} map 中（由 {@link SchemaLoader} 定义），关键帧使用 {@link Keyframe} 泛型。
+ *
+ * <p>新格式片段把片段级字段写成 {@code objects} 里的采样属性。为了让旧消费方（过渡 / 运动模型 / 呼吸 /
+ * modifier / 曲线 / LUT / dimension / 音频）继续按字段名读取，{@link #getString(String, String)}、
+ * {@link #getFloat(String, float)}、{@link #getInt(String, int)}、{@link #getBool(String, boolean)}、
+ * {@link #getObject(String)} 在 {@code data} 没有该键时回落 {@code objects} 里的同名属性——
+ * <b>只回落 {@link PropertyMode#VALUE}（value-only）属性</b>；{@code animated} / {@code event} 属性必须走
+ * 采样器（{@code ClipSampler} / {@code SampledClip}），这里一律按「未提供」处理。旧格式片段的
+ * {@code objects} 为空，回落路径恒不命中，行为与之前逐位一致。</p>
  */
 public class Clip {
 
@@ -89,32 +99,73 @@ public class Clip {
 
     // ── 泛型字段访问 ──
 
+    /**
+     * 该键的 value-only 回落属性：{@code data} 没有该键时，若 {@code objects} 里显式声明了同名属性且形态为
+     * {@link PropertyMode#VALUE}，返回该属性；否则 {@code null}。
+     *
+     * <p>返回属性而非值，是为了区分「没声明」与「声明为 {@code null}」。{@code animated} / {@code event}
+     * 属性不参与回落：动画量必须走采样器。</p>
+     */
+    private SampledProperty valueOnly(String key) {
+        SampledProperty property = objects.get(key);
+        return property != null && property.mode() == PropertyMode.VALUE ? property : null;
+    }
+
+    /** 读字符串：{@code data} 优先；否则取同名 value-only 属性的 {@link String} 值；否则缺省。 */
     public String getString(String key, String defaultValue) {
         Object v = data.get(key);
-        return v instanceof String ? (String) v : defaultValue;
+        if (v instanceof String) return (String) v;
+        SampledProperty property = valueOnly(key);
+        Object fallback = property != null ? property.value() : null;
+        return fallback instanceof String ? (String) fallback : defaultValue;
     }
 
+    /**
+     * 读浮点：{@code data} 优先；否则取同名 value-only 属性的 {@link Number} 值（同样过
+     * {@link MathUtil#sanitizeFloatLogged}）；否则缺省。
+     */
     public float getFloat(String key, float defaultValue) {
         Object v = data.get(key);
-        if (!(v instanceof Number)) return defaultValue;
-        // 数据入口守卫：非有限值（NaN / ±Infinity）回落缺省——片段级字段（lut_input_gamma / volume /
-        // pitch / fade_* 等）同样不得直达采样器 / shader（clamp(NaN) 在主流驱动上取 0 = 整屏变黑）
-        return MathUtil.sanitizeFloatLogged(((Number) v).floatValue(), defaultValue, "clip." + key);
+        if (v instanceof Number) {
+            // 数据入口守卫：非有限值（NaN / ±Infinity）回落缺省——片段级字段（lut_input_gamma / volume /
+            // pitch / fade_* 等）同样不得直达采样器 / shader（clamp(NaN) 在主流驱动上取 0 = 整屏变黑）
+            return MathUtil.sanitizeFloatLogged(((Number) v).floatValue(), defaultValue, "clip." + key);
+        }
+        SampledProperty property = valueOnly(key);
+        Object fallback = property != null ? property.value() : null;
+        return fallback instanceof Number
+                ? MathUtil.sanitizeFloatLogged(((Number) fallback).floatValue(), defaultValue, "clip." + key)
+                : defaultValue;
     }
 
+    /** 读整数：{@code data} 优先；否则取同名 value-only 属性的 {@link Number} 值；否则缺省。 */
     public int getInt(String key, int defaultValue) {
         Object v = data.get(key);
-        return v instanceof Number ? ((Number) v).intValue() : defaultValue;
+        if (v instanceof Number) return ((Number) v).intValue();
+        SampledProperty property = valueOnly(key);
+        Object fallback = property != null ? property.value() : null;
+        return fallback instanceof Number ? ((Number) fallback).intValue() : defaultValue;
     }
 
+    /** 读布尔：{@code data} 优先；否则取同名 value-only 属性的 {@link Boolean} 值；否则缺省。 */
     public boolean getBool(String key, boolean defaultValue) {
         Object v = data.get(key);
-        return v instanceof Boolean ? (Boolean) v : defaultValue;
+        if (v instanceof Boolean) return (Boolean) v;
+        SampledProperty property = valueOnly(key);
+        Object fallback = property != null ? property.value() : null;
+        return fallback instanceof Boolean ? (Boolean) fallback : defaultValue;
     }
 
+    /**
+     * 读任意对象：{@code data} 命中且非 {@code null} 优先；否则若同名 value-only 属性存在，返回其静态值
+     * （可能为 {@code null}）；否则 {@code null}。
+     */
     @SuppressWarnings("unchecked")
     public <T> T getObject(String key) {
-        return (T) data.get(key);
+        Object v = data.get(key);
+        if (v != null) return (T) v;
+        SampledProperty property = valueOnly(key);
+        return property != null ? (T) property.value() : null;
     }
 
     // ── Convenience: CAMERA ──
@@ -144,11 +195,16 @@ public class Clip {
         return transitionSpec;
     }
 
-    /** 是否声明了任何过渡字段（{@link #getTransitionSpec()} 的建成判据）。 */
+    /** 是否声明了任何过渡字段（{@link #getTransitionSpec()} 的建成判据）；{@code objects} 的 value-only 声明同样算。 */
     private boolean declaresTransition() {
-        return data.containsKey("transition") || data.containsKey("transition_duration")
-                || data.containsKey("transition_params") || data.containsKey("transition_curve")
-                || data.containsKey("transition_interrupt");
+        return declares("transition") || declares("transition_duration")
+                || declares("transition_params") || declares("transition_curve")
+                || declares("transition_interrupt");
+    }
+
+    /** {@code data} 显式写了该键，或 {@code objects} 里声明了同名 value-only 属性。 */
+    private boolean declares(String key) {
+        return data.containsKey(key) || valueOnly(key) != null;
     }
 
     /**

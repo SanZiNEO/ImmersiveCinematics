@@ -86,12 +86,12 @@ public final class OrientationEvaluator {
 
         double baseYaw = switch (spec.yawBase()) {
             case WORLD -> 0.0;
-            case ENTITY -> finiteOrZero(ctx.entityBodyYaw(spec.yawBaseSelector()));
+            case ENTITY -> finiteOrZero(ctx.entityBodyYaw("yaw_base", spec.yawBaseSelector()));
             case LINE -> line[0];
         };
         double basePitch = switch (spec.pitchBase()) {
             case WORLD -> 0.0;
-            case ENTITY -> finiteOrZero(ctx.entityLookPitch(spec.yawBaseSelector()));
+            case ENTITY -> finiteOrZero(ctx.entityLookPitch("yaw_base", spec.yawBaseSelector()));
             case LINE -> line[1];
         };
         double yawBase = spec.yawLock() != null ? spec.yawLock() : baseYaw;
@@ -130,7 +130,7 @@ public final class OrientationEvaluator {
             case COORDINATE -> spec.structure().isEmpty()
                     ? new Vec3(spec.targetX(), spec.targetY(), spec.targetZ())
                     : ctx.structureCenter(spec.structure());
-            case ENTITY -> ctx.entityPoint(spec.selector(),
+            case ENTITY -> ctx.entityPoint("look_at", spec.selector(),
                     new PointSource.EntityPoint(spec.partX(), spec.partY(), spec.partZ()));
             case BLOCK -> blockPoint(spec.block(), ctx);
         };

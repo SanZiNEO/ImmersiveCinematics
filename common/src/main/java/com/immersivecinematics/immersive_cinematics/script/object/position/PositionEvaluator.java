@@ -65,7 +65,7 @@ public final class PositionEvaluator {
         }
 
         PointSourceSpec originSpec = spec.origin();
-        Vec3 origin = resolveSource(originSpec, ctx);
+        Vec3 origin = resolveSource(originSpec, ctx, PATH_POSITION_ORIGIN);
         if (origin == null) {
             return null;
         }
@@ -164,7 +164,7 @@ public final class PositionEvaluator {
         if (selector == null || selector.isEmpty()) {
             return null;
         }
-        double yaw = ctx.entityBodyYaw(selector);
+        double yaw = ctx.entityBodyYaw("facing_entity", selector);
         if (Double.isNaN(yaw)) {
             return null;
         }
@@ -199,8 +199,10 @@ public final class PositionEvaluator {
      *
      * <p>位置原点用它（位置偏移由 {@code position.x/y/z} 承担，冻结的是含偏移世界点，故此处不冻结）；
      * 连线端点 / 注视目标用 {@link #resolvePoint}。</p>
+     *
+     * @param callpoint 实体形态的选择器调用点（策略 / 锚点 / 择一 / 锁键）；{@code null} = 只用通用字段
      */
-    static Vec3 resolveSource(PointSourceSpec source, WorldContext ctx) {
+    static Vec3 resolveSource(PointSourceSpec source, WorldContext ctx, String callpoint) {
         if (source == null || source.kind() == null) {
             return null;
         }
@@ -208,7 +210,7 @@ public final class PositionEvaluator {
             case WORLD -> ctx.playerActivation();
             case COORDINATE -> source.coordinate();
             case SELECTOR -> source.selector() == null || source.selector().isEmpty()
-                    ? null : ctx.entityPoint(source.selector(), source.entityPoint());
+                    ? null : ctx.entityPoint(callpoint, source.selector(), source.entityPoint());
             case BLOCK -> source.blockId() == null || source.blockId().isEmpty()
                     ? null : ctx.blockCenter(source.blockId(), source.blockRadius());
             case STRUCTURE -> source.structureId() == null || source.structureId().isEmpty()
@@ -224,12 +226,12 @@ public final class PositionEvaluator {
      * @param ctx          世界查询
      * @param freezes      冻结桶
      * @param clipKey      片段身份
-     * @param path         对象路径（冻结桶键的一段）
+     * @param path         对象路径（冻结桶键的一段，同时作为选择器调用点）
      * @return 含偏移（含冻结）的世界点；不可解析 = {@code null}
      */
     static Vec3 resolvePoint(PointSourceSpec source, PointSource.Frame frameForBase, WorldContext ctx,
                              FreezeStore freezes, String clipKey, String path) {
-        Vec3 point = resolveSource(source, ctx);
+        Vec3 point = resolveSource(source, ctx, path);
         if (point == null) {
             return null;
         }

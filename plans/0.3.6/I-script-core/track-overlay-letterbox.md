@@ -1,6 +1,6 @@
 # OVERLAY / LETTERBOX 轨道对象
 
-> 状态：未实现
+> 状态：已实现（I-3：新格式对象装配；单活跃层 / `gradient.stops` / 运行中 z 重排见 §六 边界）
 > 范围：OVERLAY fade/image/subtitle 的对象路径、颜色/遮罩/渐变叶子、LETTERBOX 对象、片段级 value-only 字段与执行口径
 > 关联：`object-model.md`、`runtime-evaluation.md`；语义参考 `D-transition/overlay-color-mask.md`、`D-transition/variable-frame.md`、`docs/SCRIPT_FORMAT.md` §9–§10
 
@@ -164,4 +164,21 @@ LetterboxClipRuntime
 
 ## 六、实现结果
 
-状态：未实现
+状态：已实现（I-3：新格式对象装配；下列边界项未实现）
+
+本节同时列已实现项与差距；未列出的项按「未实现」处理。新格式 = `clip.hasObjects()` 为真；旧路径未改。
+
+| 设计目标 | 实现 | 说明 / 差距 |
+|---|---|---|
+| 新格式装配、旧路径不动 | `script/OverlayClipRuntime`：value-only 结构按片段解析一次 + 逐帧 `compute`；`OverlayTrackPlayer` 按 `hasObjects()` 分派 | 已实现；旧格式路径未改 |
+| `color.r/g/b` 逐通道回落基色 | 每通道独立：作者声明过该通道取采样值，否则回落 value-only 基色；判定用 `ClipObjects.contains` | 已实现；`presence` 不表达「作者显式声明」，不得替代 |
+| 遮罩只读适用几何 | 按 `mask_shape` 只读对应几何字段 | 已实现 |
+| 渐变只读适用几何 | 按 `gradient.type`：linear 读 angle + center，radial 读 center + radius | 已实现 |
+| 按层类型限定字段 | `source.x/y/w/h` 仅 image；`font_scale` 仅 subtitle | 已实现 |
+| `ColorMaskSpec` 与新格式共存 | 新增 `forObjects(...)` 与 `rgb(...)`；旧 `from(Clip)` / `sampleColor` / 关键帧颜色缓存保留 | 已实现；旧格式仍走缓存 |
+| image 时间基准 | 新格式 `setTime` 传执行局部时间；旧格式仍传 `globalTime` | 已实现 |
+| LETTERBOX 对象 | `aspect_ratio` / `opacity` 从 `SampledClip` 读；0.5 秒淡出、z=0、空档复位不变 | 已实现 |
+| `gradient.stops` 动画 | — | 未实现：仍是 value-only 结构，不可动画（`ClipSampler` 不入数值数组） |
+| 运行中 `z_index` 重排 | — | 未实现：仍只在 `addLayer` 时排序，运行中改 z 不重排 |
+| 同轨多活跃层 | — | 未实现：`OverlayTrackPlayer` 仍是单活跃层（同轨重叠 clip 不支持） |
+| 旧画面像素回归 | — | 未执行：本轮无实机客户端运行，见 `ROUND-I-3-MAP.md` §九 |

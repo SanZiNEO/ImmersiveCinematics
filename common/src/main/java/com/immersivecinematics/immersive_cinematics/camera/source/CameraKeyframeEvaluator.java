@@ -9,12 +9,15 @@ import com.immersivecinematics.immersive_cinematics.math.path.PathEvaluator;
 import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
 import com.immersivecinematics.immersive_cinematics.script.BreathDisturbance;
 import com.immersivecinematics.immersive_cinematics.script.CameraLane;
+import com.immersivecinematics.immersive_cinematics.script.CameraLaneComposite;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
 import com.immersivecinematics.immersive_cinematics.script.PositionData;
 import com.immersivecinematics.immersive_cinematics.script.TangentOrientation;
+import com.immersivecinematics.immersive_cinematics.script.TrackType;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipTimeSource;
+import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
 import com.immersivecinematics.immersive_cinematics.util.TimeInterpolation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
@@ -94,6 +97,17 @@ public final class CameraKeyframeEvaluator {
     /** 本轨 per-lane 运动模型实例槽（六通道；定义来自本帧生效片段，缺省 null = 该通道不接模型）。 */
     private final LaneMotionStepper motion = new LaneMotionStepper();
 
+    /**
+     * morph 专用运动模型实例槽（每侧一份）：A 侧 = {@code prevClip}、B 侧 = {@code nextClip}。
+     * 与 {@link #motion} 分开持有，是为了让两侧各自按自己的片段定义推进（同一帧两侧各 step 一次，
+     * 不共享状态）；{@link #motion} 仍归单片段 / lane 捕获使用。
+     */
+    private final LaneMotionStepper motionA = new LaneMotionStepper();
+    private final LaneMotionStepper motionB = new LaneMotionStepper();
+
+    /** morph 本帧 next 侧的合成参数（{@code null} = 本帧无产出或 next 为旧格式）；供 lane 快照读取。 */
+    private CameraLaneComposite morphComposite;
+
     /** 本轨的过渡层实例（过渡流的唯一持有者：进度 / 曲线 / 分参数 / 打断状态只属于本轨）。 */
     private final CameraTransitionLayer transitionLayer = new CameraTransitionLayer();
 
@@ -113,6 +127,10 @@ public final class CameraKeyframeEvaluator {
     /** 执行账本的只读时间来源（活跃窗 / 执行局部时间 / 有限窗口末端）。 */
     private final ClipTimeSource timeSource;
 
+    /** 新格式对象装配：采样缓存（按片段身份复用缓冲 / value 视图）+ 单片段求值器。 */
+    private final ClipRuntimeCache objectCache = new ClipRuntimeCache(TrackType.CAMERA);
+    private final ObjectCameraEvaluator objectEvaluator;
+
     public CameraKeyframeEvaluator(EntityTargetResolver entityResolver, WorldPointLocator pointLocator,
                                    Vec3 originPos, ClipTimeSource timeSource) {
         this.entityResolver = entityResolver;
@@ -121,6 +139,9 @@ public final class CameraKeyframeEvaluator {
         this.timeSource = timeSource;
         // 世界上下文共用同一实例：位置侧点源（结构 / 方块 / 玩家激活位置）由 EntityTargetResolver 解析
         entityResolver.attachWorldContext(pointLocator, originPos);
+        // 新格式：选择器服务与旧链路共用（锁 / 平滑 / 捕获留底同源），方块 / 结构定位器共用缓存
+        ObjectWorldContext objectWorld = new ObjectWorldContext(entityResolver.service(), pointLocator, originPos);
+        this.objectEvaluator = new ObjectCameraEvaluator(objectCache, objectWorld, originPos);
     }
 
     /**
@@ -149,6 +170,10 @@ public final class CameraKeyframeEvaluator {
      * 点源与求值路径走同一解析，判据不分叉；找不到就找不到，不引入替代值 / 回退。
      */
     public boolean isClipUsable(Clip clip) {
+        if (clip.hasObjects()) {
+            // 新格式：只检查 [0,duration] 内对象（静态对象直接可用，超界关键帧不参与）
+            return objectEvaluator.isClipUsable(clip);
+        }
         // 快照桶键：前置探测与求值读同一（片段，槽位）桶，故先注入本片段
         entityResolver.attachClip(clip);
         for (Keyframe kf : clip.getKeyframes()) {
@@ -213,69 +238,95 @@ public final class CameraKeyframeEvaluator {
      */
     public CameraLane renderSingle(double globalTime, Clip clip, double clipLocalTime, boolean capture,
                                    int laneRank) {
+        if (clip.hasObjects()) {
+            // 新格式：同一 SampledClip 装配六参数 + 合成参数，再叠本片段自己的 motion / breath
+            CameraState base = objectEvaluator.evaluate(clip, clipLocalTime, capture, laneRank);
+            if (base == null) return null;
+            CameraState state = applyClipEffects(clip, clipLocalTime, globalTime, laneRank, motion, base);
+            // 跨帧求值状态 = 本帧最终位置（含运动模型输出；与旧路径 writeAttributes 同一口径）
+            if (!capture) lastWorldPos = state.position();
+            return new CameraLane(state, clip, clipLocalTime, objectEvaluator.composite());
+        }
         KeyframeInterpolator.InterpolationResult result =
                 KeyframeInterpolator.computeInterpolation(clipLocalTime, clip);
         if (result == null) return null;
 
         double s = result.adjustedT;
         CameraState state = writeAttributes(result.from, result.to, s, clip, globalTime, capture, laneRank);
-        return state != null ? new CameraLane(state, clip, clipLocalTime) : null;
+        return state != null ? new CameraLane(state, clip, clipLocalTime, null) : null;
     }
 
     /**
-     * B 模型 morph 交叉求值（两 clip 各按自身时间插值 → 过渡层合成一份相机状态），并提交 {@link #lastWorldPos}。
+     * B 模型 morph 交叉求值（两 clip 各按自身时间求值 → 过渡层合成一份相机状态），并提交 {@link #lastWorldPos}。
+     *
+     * <p>两种格式的求值次序：</p>
+     * <ul>
+     *   <li><b>旧格式</b>（两侧都没有 {@code objects}）：两侧关键帧插值 → 过渡层混合 → 只对混合结果跑
+     *       {@code nextClip} 的 motion、只叠 {@code prevClip} 的 breath（既有行为，逐位不变）；</li>
+     *   <li><b>新格式</b>（任一侧有 {@code objects}）：每侧先求完整状态（位置 / 朝向 + 本段 motion + 本段 breath），
+     *       过渡层只混合两份快照；混合后不再跑 motion / breath。每侧各持一份 {@link LaneMotionStepper}
+     *       （A = prev、B = next），一帧内每侧只 step 一次。</li>
+     * </ul>
      *
      * 过渡声明（分参数 / 曲线 / 打断）取自 {@code prevClip}；缺省 = 全六通道同权重线性斜坡（= 现状）。
-     * 混合结果 = 本帧顶层 lane 的目标值：运动模型 step 以进入的片段（{@code nextClip}）的定义跑一次
-     * （两端不各自推进，禁止同一实例一帧 step 两次）。
      *
-     * @return 混合后的六参数快照；两端都无插值结果、或过渡本帧不产出时 {@code null}
+     * @return 混合后的六参数快照；两端都无结果、或过渡本帧不产出时 {@code null}
      */
     public CameraState renderMorph(Clip prevClip, Clip nextClip, double globalTime) {
-        // B 模型：双轨各自按本次执行局部时间插值（prev 走 [dur−t/2, dur)，next 走 [0, t)），再交过渡层按声明合成
+        // B 模型：双轨各自按本次执行局部时间求值（prev 走 [dur−t/2, dur)，next 走 [0, t)），再交过渡层按声明合成
         double prevLocal = timeSource.executionLocalTime(prevClip, globalTime);
         double nextLocal = timeSource.executionLocalTime(nextClip, globalTime);
-        KeyframeInterpolator.InterpolationResult prevResult =
-                KeyframeInterpolator.computeInterpolation(prevLocal, prevClip);
-        KeyframeInterpolator.InterpolationResult nextResult =
-                KeyframeInterpolator.computeInterpolation(nextLocal, nextClip);
+        if (prevClip.hasObjects() || nextClip.hasObjects()) {
+            return renderMorphFullState(prevClip, nextClip, globalTime, prevLocal, nextLocal);
+        }
+        return renderMorphLegacy(prevClip, nextClip, globalTime, prevLocal, nextLocal);
+    }
 
-        if (prevResult == null && nextResult == null) return null;
+    /**
+     * 新格式 morph：每侧完整状态 → 过渡层只混合两份快照。
+     *
+     * 运动模型按侧推进（{@link #motionA} / {@link #motionB}，时间基准 = {@code globalTime}，dt 单调）；
+     * breath 时间基准走 {@link #breathTime}（新格式 = 该侧局部时间）。混合后不再叠加 motion / breath——
+     * 两侧效果已各自落在快照里。
+     */
+    private CameraState renderMorphFullState(Clip prevClip, Clip nextClip, double globalTime,
+                                             double prevLocal, double nextLocal) {
+        CameraState prevState = sideState(prevClip, prevLocal, globalTime, motionA);
+        CameraState nextState = sideState(nextClip, nextLocal, globalTime, motionB);
+        // lane 合成参数取 next 侧本帧求值结果（旧格式侧恒 null）
+        CameraLaneComposite nextComposite = nextClip.hasObjects() ? objectEvaluator.composite() : null;
+        if (prevState == null && nextState == null) {
+            morphComposite = null;
+            return null;
+        }
+        writeFrame(morphFrom, prevState);
+        writeFrame(morphTo, nextState);
 
-        double prevS = prevResult != null ? prevResult.adjustedT : 0.0;
-        double nextS = nextResult != null ? nextResult.adjustedT : 0.0;
+        // 过渡层：进度 / 曲线 / 分参数 / 打断（缺省 = 全六通道同权重线性斜坡）；未产出 = 本帧按常规路径处理
+        if (!transitionLayer.blendInto(globalTime, timeSource.finiteWindowEnd(prevClip),
+                prevClip.getTransitionSpec(), morphFrom, morphTo, morphOut)) {
+            morphComposite = null;
+            return null;
+        }
+        Vec3 pos = new Vec3(morphOut.px, morphOut.py, morphOut.pz);
+        lastWorldPos = pos;
+        morphComposite = nextComposite;
+        // 画面 lane 快照：混合后的六参数（全局相机写入由编排层执行）
+        return new CameraState(pos, morphOut.yaw, morphOut.pitch, morphOut.roll, morphOut.fov, morphOut.zoom);
+    }
 
-        Keyframe prevFrom = prevResult != null ? prevResult.from : null;
-        Keyframe prevTo = prevResult != null ? prevResult.to : null;
-        Keyframe nextFrom = nextResult != null ? nextResult.from : null;
-        Keyframe nextTo = nextResult != null ? nextResult.to : null;
-
-        // 快照桶键：两侧求值交错，各侧求值前注入自己的片段（同一片段的两侧调用读同一桶）
-        entityResolver.attachClip(prevClip);
-        Vec3 prevPos = prevFrom != null
-                ? interpolateWorldPosition(prevFrom, prevTo, prevS, prevClip)
-                : lastWorldPos;
-
-        entityResolver.attachClip(nextClip);
-        Vec3 nextPos = nextFrom != null
-                ? interpolateWorldPosition(nextFrom, nextTo, nextS, nextClip)
-                : lastWorldPos;
-
-        float prevYawBase = prevFrom != null ? KeyframeInterpolator.interpolateYaw(prevFrom, prevTo, prevS) : 0f;
-        float prevPitchBase = prevFrom != null ? KeyframeInterpolator.interpolatePitch(prevFrom, prevTo, prevS) : 0f;
-        float nextYawBase = nextFrom != null ? KeyframeInterpolator.interpolateYaw(nextFrom, nextTo, nextS) : 0f;
-        float nextPitchBase = nextFrom != null ? KeyframeInterpolator.interpolatePitch(nextFrom, nextTo, nextS) : 0f;
-        float[] prevYp = segmentYawPitch(prevFrom, prevTo, prevS, prevClip, prevPos, prevYawBase, prevPitchBase);
-        float[] nextYp = segmentYawPitch(nextFrom, nextTo, nextS, nextClip, nextPos, nextYawBase, nextPitchBase);
-
-        morphFrom.set(prevPos.x, prevPos.y, prevPos.z, prevYp[0], prevYp[1],
-                prevFrom != null ? KeyframeInterpolator.interpolateRoll(prevFrom, prevTo, prevS) : 0f,
-                prevFrom != null ? KeyframeInterpolator.interpolateFov(prevFrom, prevTo, prevS) : 70f,
-                prevFrom != null ? KeyframeInterpolator.interpolateZoom(prevFrom, prevTo, prevS) : 1f);
-        morphTo.set(nextPos.x, nextPos.y, nextPos.z, nextYp[0], nextYp[1],
-                nextFrom != null ? KeyframeInterpolator.interpolateRoll(nextFrom, nextTo, nextS) : 0f,
-                nextFrom != null ? KeyframeInterpolator.interpolateFov(nextFrom, nextTo, nextS) : 70f,
-                nextFrom != null ? KeyframeInterpolator.interpolateZoom(nextFrom, nextTo, nextS) : 1f);
+    /**
+     * 旧格式 morph：两侧关键帧插值 → 过渡层混合 → 只对混合结果跑 next 的 motion、只叠 prev 的 breath。
+     * 与 I3-A3 之前的行为逐位一致（迁移对照基线）。
+     */
+    private CameraState renderMorphLegacy(Clip prevClip, Clip nextClip, double globalTime,
+                                          double prevLocal, double nextLocal) {
+        morphComposite = null;
+        CameraState prevBase = legacyState(prevClip, prevLocal);
+        CameraState nextBase = legacyState(nextClip, nextLocal);
+        if (prevBase == null && nextBase == null) return null;
+        writeFrame(morphFrom, prevBase);
+        writeFrame(morphTo, nextBase);
 
         // 过渡层：进度 / 曲线 / 分参数 / 打断（缺省 = 全六通道同权重线性斜坡）；未产出 = 本帧按常规路径处理
         if (!transitionLayer.blendInto(globalTime, timeSource.finiteWindowEnd(prevClip),
@@ -325,6 +376,117 @@ public final class CameraKeyframeEvaluator {
         return new CameraState(pos, yaw, pitch, roll, fov, zoom);
     }
 
+    /**
+     * 新格式 morph 的一侧完整状态：位置 / 朝向（新格式对象装配；旧格式走关键帧插值）+ 本段 motion +
+     * 本段 breath。与 {@link #renderSingle} 的新格式分支共用 {@link #applyClipEffects}。
+     *
+     * @param stepper 该侧专用的运动模型槽（一帧一次 step）
+     * @return {@code null} = 该侧本帧无结果（位置点源不可解析 / 无插值关键帧）
+     */
+    private CameraState sideState(Clip clip, double localTime, double globalTime, LaneMotionStepper stepper) {
+        CameraState base = clip.hasObjects()
+                ? objectEvaluator.evaluate(clip, localTime, true, TOP_LANE)
+                : legacyState(clip, localTime);
+        return base != null
+                ? applyClipEffects(clip, localTime, globalTime, TOP_LANE, stepper, base)
+                : null;
+    }
+
+    /**
+     * 旧格式单侧基准快照（关键帧插值 + 朝向源）；无插值结果 = {@code null}。
+     * 求值前注入本片段（快照桶键：两侧求值交错，各侧读自己的桶）。
+     */
+    private CameraState legacyState(Clip clip, double localTime) {
+        KeyframeInterpolator.InterpolationResult result = KeyframeInterpolator.computeInterpolation(localTime, clip);
+        if (result == null) return null;
+        Keyframe from = result.from;
+        Keyframe to = result.to;
+        double s = result.adjustedT;
+        entityResolver.attachClip(clip);
+        Vec3 pos = interpolateWorldPosition(from, to, s, clip);
+        float yawBase = KeyframeInterpolator.interpolateYaw(from, to, s);
+        float pitchBase = KeyframeInterpolator.interpolatePitch(from, to, s);
+        float[] yp = segmentYawPitch(from, to, s, clip, pos, yawBase, pitchBase);
+        return new CameraState(pos, yp[0], yp[1],
+                KeyframeInterpolator.interpolateRoll(from, to, s),
+                KeyframeInterpolator.interpolateFov(from, to, s),
+                KeyframeInterpolator.interpolateZoom(from, to, s));
+    }
+
+    /**
+     * 单侧快照写入过渡载体；{@code null}（该侧本帧无结果）= 既有缺省（位置沿用上一帧最终坐标、
+     * 角度 0、fov 70、zoom 1）。
+     */
+    private void writeFrame(TransitionFrame out, CameraState state) {
+        if (state == null) {
+            out.set(lastWorldPos.x, lastWorldPos.y, lastWorldPos.z, 0f, 0f, 0f, 70f, 1f);
+            return;
+        }
+        Vec3 pos = state.position();
+        out.set(pos.x, pos.y, pos.z, state.yaw(), state.pitch(), state.roll(), state.fov(), state.zoom());
+    }
+
+    /**
+     * 施加本片段自己的效果：motion（六通道模型 step，定义取本片段）+ breath（{@code cam_breath_*}）。
+     * 单片段路径与 morph 每侧共用同一口径 = 本侧完整状态（位置 / 朝向 + 本段 motion + 本段 breath）。
+     *
+     * @param localTime 该片段自己的执行局部时间（新格式 breath 相位；旧格式仍走 {@code globalTime}）
+     * @param globalTime 脚本全局时间（motion 的 t：dt 单调，跨循环不出负值）
+     * @param stepper   本 lane / 本侧的模型实例槽（同一帧只 step 一次）
+     * @param base      位置 / 朝向基准快照（不含 motion / breath）
+     */
+    private CameraState applyClipEffects(Clip clip, double localTime, double globalTime,
+                                         int laneRank, LaneMotionStepper stepper, CameraState base) {
+        Vec3 basePos = base.position();
+        float yaw = base.yaw();
+        float pitch = base.pitch();
+        float roll = base.roll();
+        float fov = base.fov();
+        float zoom = base.zoom();
+
+        motionValues[0] = basePos.x;
+        motionValues[1] = basePos.y;
+        motionValues[2] = basePos.z;
+        motionValues[3] = yaw;
+        motionValues[4] = pitch;
+        motionValues[5] = roll;
+        motionValues[6] = fov;
+        motionValues[7] = zoom;
+        int applied = stepper.step(laneRank, clip, globalTime, motionValues);
+        Vec3 pos = basePos;
+        if ((applied & LaneMotionStepper.CH_POSITION) != 0) {
+            pos = new Vec3(motionValues[0], motionValues[1], motionValues[2]);
+        }
+        if (applied != 0) {
+            yaw = (float) motionValues[3];
+            pitch = (float) motionValues[4];
+            roll = (float) motionValues[5];
+            fov = (float) motionValues[6];
+            zoom = (float) motionValues[7];
+        }
+
+        if (clip.getBool("cam_breath_enabled", false)) {
+            float[] jitter = BreathDisturbance.fromClip(clip).compute(breathTime(clip, localTime, globalTime));
+            yaw += jitter[0];
+            pitch += jitter[1];
+            roll += jitter[2];
+        }
+        return new CameraState(pos, yaw, pitch, roll, fov, zoom);
+    }
+
+    /**
+     * breath 的时间基准：新格式各侧用自己的执行局部时间（每侧相位独立，morph 两侧不再共用全局相位）；
+     * 旧格式沿用全局时间（既有行为，逐位不变）。
+     */
+    private static double breathTime(Clip clip, double localTime, double globalTime) {
+        return clip.hasObjects() ? localTime : globalTime;
+    }
+
+    /** morph 本帧 next 侧的合成参数（{@code null} = 本帧无产出 / next 为旧格式）。 */
+    public CameraLaneComposite morphComposite() {
+        return morphComposite;
+    }
+
     /** 捕获求值隔离：把本帧基准坐标系留底（同一时刻只保留最近一次留底）。 */
     public void snapshotFrameState() {
         baselineFrame = frame;
@@ -341,6 +503,8 @@ public final class CameraKeyframeEvaluator {
      */
     public void resetMotionState() {
         motion.reset();
+        motionA.reset();
+        motionB.reset();
     }
 
     /** 本轨的过渡层当前是否在过渡中（未走完 / 未结算）——驱动方据此在窗口外继续喂同一对片段。 */
@@ -356,9 +520,25 @@ public final class CameraKeyframeEvaluator {
     /**
      * 路径绑定缓存归位（脚本替换 / 停播）：清空 spec → 表达式 / 弧长表的绑定，
      * 下一次求值按当时的 spec 与端点重新绑定（避免旧脚本的 spec / 端点长期占住缓存槽）。
+     * 同时丢弃新格式对象装配的采样缓存与逐片段运行态（切线 / 冻结桶 / 片段键）。
      */
     public void resetPaths() {
         pathEvaluator.clear();
+        objectCache.clear();
+        objectEvaluator.resetRuntimeState();
+    }
+
+    /**
+     * 脚本替换钩子：丢弃新格式对象装配的缓存（采样缓冲 / value 视图 / 切线 / 冻结桶），
+     * 旧格式的路径绑定缓存同样归位。停播与替换共用同一清理口径。
+     */
+    public void onScriptReplaced() {
+        resetPaths();
+    }
+
+    /** seek：新格式冻结桶重取（冻结的是坐标值，硬定位后重新捕获）。 */
+    public void resetFreezes() {
+        objectEvaluator.resetFreezes();
     }
 
     /** 记录本帧基准坐标系（{@code null} = 本帧没有基准坐标系）并同步给点源求值侧。 */

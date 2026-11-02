@@ -47,6 +47,11 @@ public final class ObjectValidator {
     /** {@code layer_type=image} 允许的素材扩展名（只决定运行时实现，不要求 ffmpeg 在场）。 */
     private static final Set<String> IMAGE_EXTENSIONS = Set.of("png", "gif", "mp4", "webm", "mkv");
 
+    /** 调色曲线（CAMERA 与 ADJUST 共用 10 条）：值必须是 {@code [[x,y], ...]}，x 严格递增且在 0~1。 */
+    private static final List<String> COLOR_CURVES = List.of(
+            "rgb_curve", "r_curve", "g_curve", "b_curve",
+            "hv_h_curve", "hv_s_curve", "hv_l_curve", "lv_s_curve", "sv_s_curve", "sv_l_curve");
+
     private ObjectValidator() {
     }
 
@@ -71,7 +76,8 @@ public final class ObjectValidator {
         if (type == null) {
             return;
         }
-        new Check(type, objectsElement.getAsJsonObject(), prefix, issues).run();
+        new Check(type, objectsElement.getAsJsonObject(), prefix, issues,
+                finiteFloat(clip.get("duration"))).run();
     }
 
     // ======================================================================
@@ -184,15 +190,18 @@ public final class ObjectValidator {
         private final String prefix;
         private final List<String> issues;
         private final Map<String, ObjectDef> defs;
+        /** 片段时长；缺失/非有限数字时为 {@code null}。 */
+        private final Float duration;
         /** 已出现且形态为对象的属性；缺失的路径不登记。 */
         private final Map<String, Prop> props = new LinkedHashMap<>();
 
-        Check(TrackType type, JsonObject objects, String prefix, List<String> issues) {
+        Check(TrackType type, JsonObject objects, String prefix, List<String> issues, Float duration) {
             this.type = type;
             this.objects = objects;
             this.prefix = prefix;
             this.issues = issues;
             this.defs = SchemaRegistry.getObjects(type);
+            this.duration = duration;
         }
 
         void run() {
@@ -200,10 +209,22 @@ public final class ObjectValidator {
                 checkProperty(entry.getKey(), entry.getValue());
             }
             checkRequiresAndRequired();
-            if (type == TrackType.CAMERA) {
-                checkCamera();
-            } else if (type == TrackType.OVERLAY) {
-                checkOverlay();
+            switch (type) {
+                case CAMERA -> {
+                    checkCamera();
+                    checkCurves();
+                }
+                case OVERLAY -> checkOverlay();
+                case AUDIO -> checkAudio();
+                case ADJUST -> {
+                    checkAdjust();
+                    checkCurves();
+                }
+                case EVENT -> checkEvent();
+                case MOD_EVENT -> checkModEvent();
+                default -> {
+                    // 其余轨道没有新格式语义检查
+                }
             }
         }
 
@@ -641,6 +662,171 @@ public final class ObjectValidator {
         }
 
         // ------------------------------------------------------------------
+        // AUDIO：attenuation / fade 包络
+        // ------------------------------------------------------------------
+
+        private void checkAudio() {
+            if ("inverse".equals(valueOf("attenuation"))) {
+                issues.add(prefix + "attenuation: attenuation=inverse 当前按 linear 处理（反距离衰减未实现）");
+            }
+            double fadeIn = staticNumber("fade_in", 0d);
+            double fadeOut = staticNumber("fade_out", 0d);
+            if (duration != null && duration > 0f && fadeIn > 0d && fadeOut > 0d
+                    && fadeIn + fadeOut > duration) {
+                issues.add(prefix + "fade_in + fade_out 超过片段时长（"
+                        + fmt(fadeIn) + " + " + fmt(fadeOut) + " > " + fmt(duration)
+                        + "），运行时整段跳过");
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // ADJUST：lut_input_gamma
+        // ------------------------------------------------------------------
+
+        private void checkAdjust() {
+            Prop prop = props.get("lut_input_gamma");
+            if (prop == null || !prop.hasValue) {
+                return;
+            }
+            Float gamma = finiteFloat(prop.value);
+            if (gamma != null && gamma <= 0f) {
+                issues.add(prefix + "lut_input_gamma: 必须 > 0");
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // EVENT / MOD_EVENT：event_type
+        // ------------------------------------------------------------------
+
+        private void checkEvent() {
+            JsonArray frames = eventFrames("event");
+            if (frames == null) {
+                return;
+            }
+            String fallback = valueOf("event_type");
+            for (int i = 0; i < frames.size(); i++) {
+                JsonObject record = eventRecord(frames, i);
+                if (record == null) {
+                    continue;
+                }
+                String eventType = stringMember(record, "event_type");
+                if (eventType == null) {
+                    eventType = fallback;
+                }
+                if (!"command".equals(eventType)) {
+                    issues.add(prefix + "event.keyframes[" + i + "].value: EVENT 只接受 event_type=command（当前: "
+                            + eventType + "）");
+                }
+            }
+        }
+
+        private void checkModEvent() {
+            JsonArray frames = eventFrames("mod_event");
+            if (frames == null) {
+                return;
+            }
+            // MOD_EVENT 的 event_type 是记录必填：回落到显式写出的 value-only 字段，不吃 schema 缺省
+            String fallback = explicitString("event_type");
+            for (int i = 0; i < frames.size(); i++) {
+                JsonObject record = eventRecord(frames, i);
+                if (record == null) {
+                    continue;
+                }
+                String eventType = stringMember(record, "event_type");
+                if (eventType == null) {
+                    eventType = fallback;
+                }
+                if (eventType == null || eventType.isEmpty()) {
+                    issues.add(prefix + "mod_event.keyframes[" + i + "].value: MOD_EVENT 记录缺少 event_type");
+                }
+            }
+        }
+
+        /** 事件对象（{@code event} / {@code mod_event}）的 keyframes 数组；形态不对返回 {@code null}。 */
+        private JsonArray eventFrames(String path) {
+            JsonElement element = objects.get(path);
+            if (element == null || !element.isJsonObject()) {
+                return null;
+            }
+            JsonElement keyframes = element.getAsJsonObject().get("keyframes");
+            return keyframes != null && keyframes.isJsonArray() ? keyframes.getAsJsonArray() : null;
+        }
+
+        /** 第 {@code index} 帧的事件记录（{@code value} 对象）；形态不对返回 {@code null}。 */
+        private static JsonObject eventRecord(JsonArray frames, int index) {
+            JsonElement frame = frames.get(index);
+            if (frame == null || !frame.isJsonObject()) {
+                return null;
+            }
+            JsonElement value = frame.getAsJsonObject().get("value");
+            return value != null && value.isJsonObject() ? value.getAsJsonObject() : null;
+        }
+
+        private static String stringMember(JsonObject object, String member) {
+            return object == null ? null : stringElement(object.get(member));
+        }
+
+        private static String stringElement(JsonElement element) {
+            if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+                return null;
+            }
+            return element.getAsString();
+        }
+
+        // ------------------------------------------------------------------
+        // 调色曲线：[[x,y], ...]，至少 2 点、0~1、x 严格递增
+        // ------------------------------------------------------------------
+
+        private void checkCurves() {
+            for (String path : COLOR_CURVES) {
+                Prop prop = props.get(path);
+                if (prop == null || !prop.hasValue) {
+                    continue;
+                }
+                JsonElement value = prop.value;
+                if (value == null || value.isJsonNull()) {
+                    continue;
+                }
+                String pointsPath = path + ".value";
+                if (!value.isJsonArray()) {
+                    issues.add(prefix + pointsPath + ": 需要控制点数组 [[x,y], ...]");
+                    continue;
+                }
+                JsonArray points = value.getAsJsonArray();
+                if (points.size() < 2) {
+                    issues.add(prefix + pointsPath + ": 至少需要 2 个控制点，实际: " + points.size());
+                    continue;
+                }
+                double previousX = Double.NEGATIVE_INFINITY;
+                for (int i = 0; i < points.size(); i++) {
+                    String pointPath = pointsPath + "[" + i + "]";
+                    JsonElement pointElement = points.get(i);
+                    if (pointElement == null || !pointElement.isJsonArray()
+                            || pointElement.getAsJsonArray().size() != 2) {
+                        issues.add(prefix + pointPath + ": 控制点需要 [x, y] 两个数字");
+                        continue;
+                    }
+                    JsonArray point = pointElement.getAsJsonArray();
+                    Float x = finiteFloat(point.get(0));
+                    Float y = finiteFloat(point.get(1));
+                    if (x == null || y == null) {
+                        issues.add(prefix + pointPath + ": 控制点需要 [x, y] 两个有限数字");
+                        continue;
+                    }
+                    if (x < 0f || x > 1f || y < 0f || y > 1f) {
+                        issues.add(prefix + pointPath + ": 控制点超出 0~1：" + fmt(x) + ", " + fmt(y));
+                        continue;
+                    }
+                    if (x <= previousX) {
+                        issues.add(prefix + pointPath + ": 控制点 x 必须严格递增（前一个 x = "
+                                + fmt(previousX) + "，当前 = " + fmt(x) + "）");
+                    }
+                    previousX = x;
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------
         // 取值工具
         // ------------------------------------------------------------------
 
@@ -648,6 +834,26 @@ public final class ObjectValidator {
         private String valueOf(String path) {
             String value = staticValue(path);
             return value == null ? "" : value;
+        }
+
+        /** 对象的静态数值（value > schema 缺省）；类型不对或非有限时返回 {@code fallback}。 */
+        private double staticNumber(String path, double fallback) {
+            Prop prop = props.get(path);
+            if (prop != null && prop.hasValue) {
+                Float number = finiteFloat(prop.value);
+                if (number != null) {
+                    return number.doubleValue();
+                }
+            }
+            ObjectDef def = defs.get(path);
+            Object defaultValue = def == null ? null : def.defaultValue();
+            return defaultValue instanceof Number number ? number.doubleValue() : fallback;
+        }
+
+        /** 对象显式写出的字符串 value；未写或不是字符串返回 {@code null}（不取 schema 缺省）。 */
+        private String explicitString(String path) {
+            Prop prop = props.get(path);
+            return prop == null || !prop.hasValue ? null : stringElement(prop.value);
         }
     }
 

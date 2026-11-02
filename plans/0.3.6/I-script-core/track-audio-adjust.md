@@ -1,6 +1,6 @@
 # AUDIO / ADJUST 轨道对象
 
-> 状态：未实现
+> 状态：部分实现（I-3：新格式对象装配；`attenuation=inverse` 归 I-5，见 §4.4 / §六）
 > 范围：AUDIO 对象与片段级 value-only 字段、ADJUST 59 通道对象、曲线/LUT/混合的 value-only 定义、lane 与 master 的边界
 > 关联：`object-model.md`、`runtime-evaluation.md`；语义参考 `complete/0.3.6/A-color/screen-color-adjust.md`、`D-transition/color-mask-execution.md`、`docs/SCRIPT_FORMAT.md` §8/§11
 
@@ -188,4 +188,22 @@ AdjustClipRuntime
 
 ## 六、实现结果
 
-状态：未实现
+状态：部分实现（I-3：新格式对象装配；`attenuation=inverse` 未实现，决策归 I-5）
+
+本节同时列已实现项与差距；未列出的项按「未实现」处理。新格式 = `clip.hasObjects()` 为真；旧格式采样值不变。
+
+| 设计目标 | 实现 | 说明 / 差距 |
+|---|---|---|
+| AUDIO 对象字段 | `volume` / `x` / `y` / `z` 从 `SampledClip` 读 | 已实现 |
+| AUDIO value-only 字段 | `sound` / `source` / `pitch` / `file_loop` / `fade_in` / `fade_out` / `attenuation` / `position_mode` / `category` 从 `ClipValueView` 读 | 已实现 |
+| `file_loop` 与执行循环分离 | 新格式读 `file_loop`（取代旧 `isFileLoop()`）；旧格式仍用 `isFileLoop()` | 已实现；旧字段改名 / 拒绝留 I-5 |
+| 无限片段判定 | 新格式用 `clip.isEffectivelyInfinite()`（覆盖 `duration<0` 与无限执行循环）；旧格式保持 `dur<0` | 已实现 |
+| 启动采样 | 新格式启动位置 / 音量按当前执行局部时间采样（不再固定 local 0） | 已实现 |
+| ADJUST 59 通道 | 按 `ObjectSlotLayout.of(ADJUST)` 槽 0..58 顺序填 `ColorAdjustParams` | 已实现 |
+| 曲线 / LUT / 混合 | 10 条曲线解析成 `ColorCurve` 并按 clip 缓存；`lut` / `lut_input_gamma` / `blend_mode` 从 value-only 读 | 已实现 |
+| CAMERA lane 调色 | `ScriptPlayer.collectCameraLanes` 对新格式 lane 走 `sampleCameraLaneObjects`（57 通道，`lut=null`、`blend_amount=1`），与相机状态同一 `executionLocalTime` | 已实现；旧格式 lane 仍走 `ColorAdjustSampler` |
+| `attenuation=inverse` | 仍按 linear 处理；validator 告警「当前按 linear 处理」 | 未实现；决策归 I-5（§4.4） |
+| 曲线缺席时的强度上报 | 新格式在「曲线缺席」时上报 schema 缺省 1 | 已知偏差：渲染侧按 `curveLut==null` 归零，无像素差异 |
+| 校验 | `ObjectValidator`：`attenuation=inverse` 告警；`fade_in+fade_out>duration` 错误；`lut_input_gamma<=0` 错误；10 条曲线形状校验 | 已实现 |
+| AUDIO 旧字段切换 | — | 未实现，归 I-5（`migration.md`） |
+| 旧画面像素回归 | — | 未执行：本轮无实机客户端运行，见 `ROUND-I-3-MAP.md` §九 |

@@ -13,8 +13,12 @@ import com.immersivecinematics.immersive_cinematics.camera.transition.Transition
 import com.immersivecinematics.immersive_cinematics.math.MathModel;
 import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
+import com.immersivecinematics.immersive_cinematics.script.object.Interp;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectFormatException;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectParser;
+import com.immersivecinematics.immersive_cinematics.script.object.PropertyMode;
+import com.immersivecinematics.immersive_cinematics.script.object.PropertyType;
+import com.immersivecinematics.immersive_cinematics.script.object.SampledProperty;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
 import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveException;
@@ -28,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -442,6 +447,8 @@ public class ScriptParser {
         } catch (ObjectFormatException e) {
             throw new ScriptParseException(e.fieldPath(), detailOf(e));
         }
+        // STRUCT 值由 ObjectCodec 落成原始 Map/List；强类型消费方（Clip#getModifier 等）要求解析期归一
+        objects = normalizeStructs(objects, obj.getAsJsonObject("objects"), p, type);
 
         Map<String, Object> data = new HashMap<>();
         if (obj.has("loop")) {
@@ -473,6 +480,96 @@ public class ScriptParser {
         }
 
         return new Clip(startTime, duration, type, data, List.of(), objects, true);
+    }
+
+    /** {@link #normalizeStructs} 的固定路径分类（不做反射扫描）。 */
+    private enum StructKind {
+        MODIFIER,
+        TRANSITION_PARAMS,
+        MATH_MODEL,
+        COLOR_CURVE
+    }
+
+    /**
+     * 新格式 {@code objects} 里需要强类型消费方的 STRUCT 路径 → 归一类别（固定表）。
+     *
+     * <p>未列出的路径（{@code gradient} / {@code data} / {@code lut} / {@code curve} 等）返回 {@code null}：
+     * 它们的消费方按原始 {@code Map}/{@code List} 读取，保持原样。</p>
+     */
+    private static StructKind structKindOf(TrackType type, String path) {
+        switch (path) {
+            case "modifier":
+                return type == TrackType.CAMERA ? StructKind.MODIFIER : null;
+            case "transition_params":
+                return type == TrackType.CAMERA ? StructKind.TRANSITION_PARAMS : null;
+            case "transition_curve":
+            case "motion_position":
+            case "motion_yaw":
+            case "motion_pitch":
+            case "motion_roll":
+            case "motion_fov":
+            case "motion_zoom":
+                return type == TrackType.CAMERA ? StructKind.MATH_MODEL : null;
+            case "rgb_curve":
+            case "r_curve":
+            case "g_curve":
+            case "b_curve":
+            case "hv_h_curve":
+            case "hv_s_curve":
+            case "hv_l_curve":
+            case "lv_s_curve":
+            case "sv_s_curve":
+            case "sv_l_curve":
+                return StructKind.COLOR_CURVE;
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * 把新格式 {@code objects} 的 STRUCT 值从 {@code ObjectCodec} 产出的原始 {@code Map}/{@code List}
+     * 重新解析成强类型对象（{@link ClipModifier} / {@link TransitionParams} / {@link MathModel} /
+     * {@link ColorCurve}），供 {@code Clip#getModifier()} / {@code #getTransitionSpec()} /
+     * {@code #getColorCurve()} 等直接返回。
+     *
+     * <p>只处理 {@code mode=value && type=struct} 且写了 {@code value} 的属性；未分类路径、缺 {@code value}
+     * 的属性原样保留（含插入顺序）。结构非法照旧抛 {@link ScriptParseException}，错误路径指向
+     * {@code <clip>.objects.<path>.value}。</p>
+     */
+    private static ClipObjects normalizeStructs(ClipObjects objects, JsonObject rawObjects, String p, TrackType type)
+            throws ScriptParseException {
+        if (objects.isEmpty() || rawObjects == null) {
+            return objects;
+        }
+        Map<String, SampledProperty> rebuilt = null;
+        for (Map.Entry<String, SampledProperty> entry : objects.asMap().entrySet()) {
+            String path = entry.getKey();
+            SampledProperty property = entry.getValue();
+            StructKind kind = structKindOf(type, path);
+            if (kind == null || property.mode() != PropertyMode.VALUE
+                    || property.type() != PropertyType.STRUCT || property.value() == null) {
+                continue;
+            }
+            JsonElement raw = rawObjects.get(path);
+            if (raw == null || !raw.isJsonObject() || !raw.getAsJsonObject().has("value")) {
+                continue;
+            }
+            String valuePath = p + ".objects." + path + ".value";
+            JsonElement rawValue = raw.getAsJsonObject().get("value");
+            Object typed = switch (kind) {
+                case MODIFIER -> parseClipModifier(rawValue, valuePath);
+                case TRANSITION_PARAMS -> parseTransitionParams(rawValue, valuePath);
+                case MATH_MODEL -> parseMathModel(rawValue, valuePath, path);
+                case COLOR_CURVE -> parseColorCurve(rawValue, valuePath);
+            };
+            if (rebuilt == null) {
+                rebuilt = new LinkedHashMap<>(Math.max(16, objects.asMap().size() * 2));
+                rebuilt.putAll(objects.asMap());
+            }
+            rebuilt.put(path, new SampledProperty(path, PropertyMode.VALUE, PropertyType.STRUCT,
+                    Interp.NONE, typed, List.of()));
+        }
+        return rebuilt == null ? objects : new ClipObjects(rebuilt);
     }
 
     /** 新格式 {@code loop_count}：有限整数（-1 = 无限循环，正整数 = 循环次数）。 */

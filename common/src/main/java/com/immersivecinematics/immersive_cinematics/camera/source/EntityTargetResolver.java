@@ -81,6 +81,11 @@ public final class EntityTargetResolver {
         this.currentClip = clip;
     }
 
+    /** 通用选择器服务：同包的世界上下文（{@code ObjectWorldContext}）复用同一实例，锁 / 平滑 / 留底状态同源。 */
+    EntitySelectorService service() {
+        return service;
+    }
+
     /** 生命周期清理：清空目标锁与客户端选择器缓存（停止播放 / 脚本替换时调用）。 */
     public void clear() {
         service.clear();
@@ -244,7 +249,7 @@ public final class EntityTargetResolver {
      *
      * @return 世界空间方块坐标
      */
-    private static Vec3 entityPoint(Vec3 pos, double width, double height, PointSource.EntityPoint point) {
+    static Vec3 entityPoint(Vec3 pos, double width, double height, PointSource.EntityPoint point) {
         return new Vec3(
                 pos.x + width * ((point.xPct() - 50.0) / 100.0),
                 pos.y + height * (point.yPct() / 100.0),

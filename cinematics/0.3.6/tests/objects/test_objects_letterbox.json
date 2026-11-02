@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "id": "test_objects_letterbox",
+    "name": "对象格式-黑边",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "新格式 LETTERBOX 单片段：aspect_ratio 2.35→1.85、opacity 1→0.8",
+    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 5,
+    "tracks": [
+      {
+        "type": "LETTERBOX",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 5,
+            "objects": {
+              "aspect_ratio": { "keyframes": [ { "time": 0, "value": 2.35 }, { "time": 5, "value": 1.85 } ] },
+              "opacity": { "keyframes": [ { "time": 0, "value": 1 }, { "time": 5, "value": 0.8 } ] }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

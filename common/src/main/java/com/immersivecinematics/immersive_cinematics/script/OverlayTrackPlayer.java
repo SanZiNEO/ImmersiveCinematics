@@ -1,11 +1,13 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.overlay.*;
+import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -42,6 +44,10 @@ public class OverlayTrackPlayer implements TrackPlayer {
     private Clip activeClip = null;
     /** 当前 fade 片段的高级颜色遮罩定义（建层时取一次；clip 切换 / reset / stop 时清空，不逐帧新建） */
     private ColorMaskSpec activeMaskSpec = null;
+    /** 新格式采样装配层：按片段对象身份缓存采样器与复用缓冲（旧格式片段不进入）。 */
+    private final ClipRuntimeCache runtimeCache = new ClipRuntimeCache(TrackType.OVERLAY);
+    /** 每片段 value-only 解析结果（按 clip 对象身份；与 {@link #runtimeCache} 同生命周期）。 */
+    private final Map<Clip, OverlayClipRuntime> clipRuntimes = new IdentityHashMap<>();
 
     public OverlayTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, OverlayManager overlayManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
@@ -77,7 +83,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
             activeClip = null;
 
             if (clip != null) {
-                currentLayer = createLayer(clip);
+                currentLayer = clip.hasObjects() ? createObjectLayer(clip) : createLayer(clip);
                 if (currentLayer != null) {
                     overlayManager.addLayer(currentLayer);
                 }
@@ -87,8 +93,20 @@ public class OverlayTrackPlayer implements TrackPlayer {
 
         if (clip == null || currentLayer == null) return;
 
-        // Interpolate keyframe values
         double localTime = scriptPlayer.executionLocalTime(clip, globalTime);
+
+        if (clip.hasObjects()) {
+            // 新格式：一个 SampledClip 提供全部参数，value-only 结构已按片段解析一次
+            OverlayClipRuntime.OverlayParams params =
+                    OverlayClipRuntime.compute(clip, localTime, runtimeCache, clipRuntime(clip));
+            applyObjectParams(params);
+            if (currentLayer instanceof ImageLayer imageLayer) {
+                // 视频 / GIF 时间跟片段局部时间（旧格式仍用全局时间）
+                imageLayer.setTime(localTime);
+            }
+            return;
+        }
+
         List<Keyframe> kfs = clip.getKeyframes();
 
         // 透明度完全由关键帧 opacity 控制（fade_in / fade_out 由关键帧表达，代码层不叠加）；
@@ -104,12 +122,14 @@ public class OverlayTrackPlayer implements TrackPlayer {
     @Override
     public void onStop() {
         cleanupCurrentLayer();
+        clearRuntimeCache();
     }
 
     /** 数据替换后 clip 对象身份变化，onRenderFrame 的 activeClip 比较会自动重建 layer；这里仅清理当前层。 */
     @Override
     public void onScriptReplaced() {
         cleanupCurrentLayer();
+        clearRuntimeCache();
     }
 
     // ========== Layer management ==========
@@ -121,6 +141,22 @@ public class OverlayTrackPlayer implements TrackPlayer {
         }
         activeClip = null;
         activeMaskSpec = null;
+    }
+
+    /** 脚本替换 / 停播：丢弃全部片段的采样与解析缓存（下次访问按新片段重建）。 */
+    private void clearRuntimeCache() {
+        runtimeCache.clear();
+        clipRuntimes.clear();
+    }
+
+    /** 该片段的 value-only 解析结果；按对象身份缓存，每片段只解析一次。 */
+    private OverlayClipRuntime clipRuntime(Clip clip) {
+        OverlayClipRuntime runtime = clipRuntimes.get(clip);
+        if (runtime == null) {
+            runtime = OverlayClipRuntime.of(clip, runtimeCache.values(clip));
+            clipRuntimes.put(clip, runtime);
+        }
+        return runtime;
     }
 
     private OverlayLayer createLayer(Clip clip) {
@@ -176,6 +212,88 @@ public class OverlayTrackPlayer implements TrackPlayer {
             }
         }
         return layer;
+    }
+
+    /**
+     * 新格式建层：层类型 / 路径 / 文本 / z_index 取自 {@link OverlayClipRuntime}（value-only 解析一次），
+     * 不使用新格式 clip 的空壳 {@code data}。
+     */
+    private OverlayLayer createObjectLayer(Clip clip) {
+        OverlayClipRuntime runtime = clipRuntime(clip);
+        // 编辑基准分辨率（k 的分母）取自脚本 meta；无脚本 / 未声明 → 缺省 1920×1080
+        ScriptMeta meta = scriptPlayer.getScript() != null ? scriptPlayer.getScript().getMeta() : null;
+        int baseWidth = meta != null ? meta.getBaseWidth() : ScriptMeta.DEFAULT_BASE_WIDTH;
+        int baseHeight = meta != null ? meta.getBaseHeight() : ScriptMeta.DEFAULT_BASE_HEIGHT;
+
+        OverlayLayer layer;
+        switch (runtime.layerType()) {
+            case "fade" -> {
+                FadeLayer fl = new FadeLayer(scriptPlayer.owner());
+                // 颜色逐帧由采样值合成（setColorRgb）；这里只送入 value-only 结构
+                ColorMaskSpec spec = runtime.maskSpec();
+                activeMaskSpec = spec;
+                fl.setMaskSpec(spec);
+                fl.setZIndex(runtime.zIndex());
+                layer = fl;
+            }
+            case "image" -> {
+                ImageLayer il = new ImageLayer(scriptPlayer.owner());
+                String path = runtime.path();
+                if (!path.isEmpty()) {
+                    ResourceLocation tex = com.immersivecinematics.immersive_cinematics.util.TextureLoader.loadTexture(path);
+                    if (tex != null) {
+                        il.setTexture(path, tex);
+                    } else {
+                        LOGGER.debug("Image not found in resource/: {}", path);
+                    }
+                }
+                il.setZIndex(runtime.zIndex());
+                il.setBaseResolution(baseWidth, baseHeight);
+                layer = il;
+            }
+            case "subtitle" -> {
+                SubtitleLayer sl = new SubtitleLayer(scriptPlayer.owner());
+                sl.setText(com.immersivecinematics.immersive_cinematics.util.LangResources.resolve(runtime.text()));
+                sl.setZIndex(runtime.zIndex());
+                sl.setBaseResolution(baseWidth, baseHeight);
+                layer = sl;
+            }
+            default -> {
+                LOGGER.warn("未知 OVERLAY layer_type: {}", runtime.layerType());
+                return null;
+            }
+        }
+        return layer;
+    }
+
+    /** 把一帧装配结果写入当前层（只调 setter，不改层内数学）。 */
+    private void applyObjectParams(OverlayClipRuntime.OverlayParams params) {
+        if (currentLayer instanceof FadeLayer fl) {
+            fl.setOpacity(params.opacity());
+            fl.setColorRgb(params.colorRgb());
+            // full 不读遮罩几何（层保持初始化缺省）；rect / circle 由装配层按形状填参数
+            if (!ColorMaskSpec.DEFAULT_MASK_SHAPE.equals(params.maskShape())) {
+                fl.setMaskGeometry(params.maskX(), params.maskY(),
+                        params.maskWidth(), params.maskHeight(), params.maskRadius());
+            }
+            // 无渐变时不读渐变几何（层保持初始化缺省，与旧链路一致）
+            if (params.hasGradient()) {
+                fl.setGradientGeometry(params.gradientAngle(), params.gradientCenterX(),
+                        params.gradientCenterY(), params.gradientRadius());
+            }
+        } else if (currentLayer instanceof ImageLayer il) {
+            il.setOpacity(params.opacity());
+            il.setPosition(params.x(), params.y());
+            il.setAnchor(params.anchorX(), params.anchorY());
+            il.setScale(params.scaleX(), params.scaleY());
+            il.setSource(params.sourceX(), params.sourceY(), params.sourceW(), params.sourceH());
+        } else if (currentLayer instanceof SubtitleLayer sl) {
+            sl.setOpacity(params.opacity());
+            sl.setPosition(params.x(), params.y());
+            sl.setAnchor(params.anchorX(), params.anchorY());
+            sl.setFontScale(params.fontScale());
+            sl.setScale(params.scaleX(), params.scaleY());
+        }
     }
 
     private void updateLayer(float opacity, List<Keyframe> kfs, double localTime) {
