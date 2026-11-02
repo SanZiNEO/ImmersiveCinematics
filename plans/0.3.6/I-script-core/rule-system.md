@@ -23,7 +23,7 @@
 
 ## 共同时间基准（一句话）
 
-规则与路径都是**新增内容**，不改现有体系。两者共用同一条时间基准：**时间原点 = 目标片段起点，时间轴 = 该片段本次执行的 `[0, duration]`**；关键帧 `time`、关键帧查找与采样、规则时间门、路径 timing 全部用同一个 `executionLocalTime`。展开见 [`rule-time-gate.md`](rule-time-gate.md) §二。
+规则与路径都是**新增内容**，不改现有体系。两者共用同一条时间基准：**时间原点 = 该片段本次执行的起点（executionStart，由编排/引用边给出），时间轴 = 该次执行的 `[0, duration]`**；关键帧 `time`、关键帧查找与采样、规则时间门、路径 timing 全部用同一个 `executionLocalTime`。`start_time` 只是默认放置锚点，不是执行起点；片段引用是稳定身份，不按轨道下标/放置位置定位。目标片段可以内联在轨道，也可以是脚本级独立片段，不要求它在任何轨道里（见 `clip-identity.md`）。展开见 [`rule-time-gate.md`](rule-time-gate.md) §二。
 
 ## 分篇地图
 

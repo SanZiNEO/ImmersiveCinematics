@@ -1,6 +1,6 @@
 # 运行时求值（Runtime Evaluation）
 
-> 状态：未实现
+> 状态：部分实现（I-1 通用采样与点源/朝向求值；轨道装配/路径/规则未实现）
 > 范围：对象采样、时间基准、脚本级路径/规则集合的运行时索引、轨道装配调用顺序、缓存/零分配、morph/lane 的求值边界
 > 关联：`object-model.md`、`schema-and-types.md`、`loop-execution.md`、`I-script-core/rule-system.md`（规则新方向专篇，未完成轮次；旧 `C-trigger/condition-system.md` 仅作既有实现参照）、各 `track-*.md`；参考 `F-playback/camera-composition.md`、`multi-camera-rendering.md`
 
@@ -127,7 +127,7 @@ ClipSampler
 ### 3.6 循环与执行次数
 
 - 循环是片段级的执行次数；播放控制负责 `executionIndex`/`executionLocalTime`/方向。采样器只接受已归一化的局部时间：有限片段在 `[0,duration]`；无限执行没有有限上界，只保证 `time >= 0`（无限是执行状态语义，格式层表示不是完成判据）。
-- 运行位置语义 = clip + execution + local；当前网络 `(start, offset)` 只是该位置的投影参照，不要求改协议，也不把网络时间当成执行完成事实。
+- 运行位置语义 = 片段身份 + 执行身份 + 局部时间；执行入口（executionStart）由编排/引用边给出（轨道默认放置、分支/规则跳转、启动入口），不由轨道下标或 `start_time` 唯一决定。当前网络 `(start, offset)` 只是该位置的投影参照，不要求改协议，也不把网络时间当成执行完成事实。
 - 只有声明了 `loop` 的片段重复；非循环片段只执行一次，不被其他片段循环改变。
 - `pingpong` 的反向由播放控制把本次执行的局部时间映射为 `duration - offset`；采样器仍按升序关键帧插值。
 - 每次执行的采样结果独立。绑定所属片段执行进入时建立 RuleActivation；时间门可由作者给值或引用该片段已有对象关键帧，关键帧只提供局部时间值，不成为激活的额外前提；RuleBinding 在时间门前采集有效事件/事实，到达局部时间门后确认并推进激活，可按声明建立本实例级内容持有等待判定或保持非阻塞观察；RuleActivation 身份 =（播放实例，绑定身份，执行身份），激活后的判定成功、动作调度/提交/完成、计时、观察、事实记录由本播放实例管理。判定成功不等于动作完成；成功后按片段开始/完成、局部时间、延迟或事实再调度，不重新判定原规则。同一规则的多条绑定各自独立，不把多个时间门 OR 成最早入口；共用定义不共用运行态。已激活观察各自持有生命周期，可跨片段，不因片段活跃窗结束而统一失效；非阻塞观察不阻止片段自然完成。实例级持有期间内容局部时间不推进，实时计时/超时不因此冻结；多个持有来源最后一个解除才恢复。判定成功后已承诺未释放的动作作为明确执行依赖参与自然完成，但不冻结内容推进；等待片段开始与等待片段完成分别记账。音频/事件/服务端去重按各自既有边界，不因规则激活一律重启。相机每侧状态每帧只推进一次；transition 只消费 A/B 快照，不重复推进相机效果。详见 `loop-execution.md` 与 `rule-system.md`。
@@ -170,8 +170,9 @@ ClipRuntime
   EventClipRuntime events?      // 仅 EVENT/MOD_EVENT
 
 ScriptStructureRuntime
-  pathsByClip: Map<clipId, PathEntryRuntime[]>
-  rulesByClip:  Map<clipId, RuleBindingRuntime[]>
+  pathsByClip:  Map<clipIdentity, PathEntryRuntime[]>
+  rulesByClip:  Map<clipIdentity, RuleBindingRuntime[]>
+  usageByClip:  Map<clipIdentity, UsageEdge[]>   // 加载期编译；谁引用了片段（见 clip-identity.md）
   rules:        RuleDefRuntime[]          // 只读定义
   activations:  RuleActivation[]          // 播放实例持有；含判定/成功/动作阶段
   facts:        RuleFactIndex             // 本实例内规则成功/片段开始/完成等事实
@@ -207,6 +208,8 @@ ClipSampler
 
 - 求值器不定义轨道语义；轨道文档定义“读哪些槽位、按什么顺序组装”，以及路径条目/RuleDefinition/RuleBinding/RuleActivation 如何被该轨道消费。
 - 求值器不定义结构条目的序列化/引用字段；只定义脚本级结构与 SampledProperty 的求值边界。PathDef/RuleDef/RuleBinding 的序列化/引用字段待评审，RuleActivation 属于运行态。
+- 求值器不定义片段身份/引用语法；只按片段身份查路径、绑定与使用边，不按轨道下标或数组顺序定位。身份与使用边见 `clip-identity.md`。
+- 求值器不假设片段有轨道放置：内联片段（轨道 `clips[]`）与脚本级独立片段（`clips` 表）都按片段身份/执行身份求值；独立片段没有默认放置，执行入口由引用边给出。
 - 求值器固定“时间门是执行资格门、提前事实可采集、动作不提前提交、到门后组合判定”；默认时间门 = 本次执行局部时间 >= 指定值，门后持续判定，条件后续成立仍可执行。不另造精确时刻或统一窗口变体。
 - 普通/分支片段共用同一 `ClipSampler`、对象 schema 与执行局部时间坐标；求值器不为分支建立第二套内容/采样路径，分支只改变执行来源/编排去向。求值器不定义正常/分支片段的编排去向；片段默认 + 入口显式覆盖由执行层按 `rule-system.md` 处理，失败 fallback 独立。
 - 求值器不定义规则控制阶段的完整算法（判定持有、成功事实匹配、动作延迟调度、事实接力）；这些归 `rule-system.md`。求值器只提供本实例级持有记账、事实索引与执行局部时间/内容位置接口。
@@ -250,12 +253,13 @@ ClipSampler
 
 ## 六、实现结果
 
-状态：未实现
+状态：部分实现（I-1 通用采样与点源/朝向求值）
 
 本节只列当前代码与设计的差距；相机语义的完整差距见 `track-camera.md` §六。
 
 | 设计目标 | 实现 | 说明 |
 |---|---|---|
+| 同一 executionLocalTime 槽位采样、零分配、点源/参考系/朝向通用求值 | 已实现（I-1）：`ObjectSlotLayout`/`SampledClip`/`ClipSampler`（1e6 次 0 字节）；`script/object/position/`（resolver 注入，不接轨道） | 轨道装配/过渡每侧完整状态/路径条目/规则未接 |
 | 每侧完整状态（含本段 motion/breath）→ 过渡混合 | `CameraKeyframeEvaluator.renderMorph` 先混合六参数，再用 `nextClip` 的 motion、`prevClip` 的 breath 补齐 | 现行实现按“混合后套效果”接线；新设计每侧先求完整状态 |
 | 某侧无关键帧时按 `value`/所在段求值 | 某侧 `computeInterpolation` 返回 null 时用 `lastWorldPos`/0 兜底 | 旧端点求值路径没有静态片段语义 |
 | 每侧 motion/breath 每帧只推进一次 | 混合后只对 `nextClip`/`prevClip` 各跑一次 | 现行实现缺少两侧各自完整效果状态，不能据此推断每侧已独立推进 |

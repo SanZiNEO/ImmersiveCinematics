@@ -1,6 +1,6 @@
 # Schema 与类型（Schema and Types）
 
-> 状态：未实现
+> 状态：部分实现（I-1 ObjectDef/七轨声明/导出；脚本级结构集合未实现）
 > 范围：对象 schema 的声明形态、类型系统、插值方式、默认值/必填、脚本级路径/规则集合的声明职责、parser/validator/editor 的消费契约
 > 关联：`object-model.md`、`runtime-evaluation.md`、`I-script-core/rule-system.md`（规则新方向专篇，未完成轮次；旧 `C-trigger/condition-system.md` 仅作既有实现参照）、各 `track-*.md`；吸收 `G-script-model/script-model.md` 的 G1/G2
 
@@ -336,10 +336,11 @@ RuleBinding
 
 ## 六、实现结果
 
-状态：未实现
+状态：部分实现（I-1 ObjectDef/七轨声明/导出）
 
 | 设计目标 | 实现 | 说明 |
 |---|---|---|
+| ObjectDef / TrackTypeSchema.objects+playControl / 七轨声明 / SchemaExporter 导出 | 已实现（I-1）：`ObjectDef`、`ObjectSchemaValidator`、七轨 `objects`、`playControl`、导出 16 字段 | 结构集合（PathDef/RuleDef/RuleBinding）未声明；编辑器未接 |
 | 路径为脚本级集合，每条引用目标片段与目标位置序列相邻端点，含 `geometry` 与 `timing`；规则为脚本级定义 + 绑定 + 运行激活 | 旧 `Clip.curve` 是 clip 级一份 3D 控制点，对每个 from→to 段隐式复用；`objects.curve` 从未实现；规则是片段级 `clip.rules`，没有定义/绑定/时间门分层 | 旧格式只有一份 `curve` 与片段级规则数组；脚本级结构是新增设计，序列化/引用待评审 |
 | 普通/分支片段共用同一 schema；分支不产生第二套内容声明 | 当前没有分支内容模型，普通片段仍是 clip 对象容器 | 分支编排未实现 |
 | 规则阶段：绑定可声明实例级持有等待判定与动作延迟目标；判定成功事实、动作完成与跨片段事实接力由运行态记录 | 旧 `clip.rules` 只有 if/until + 动作，没有阶段/成功事实/延迟/接力声明 | 规则阶段声明与运行态均未实现；新方向见 `rule-system.md` |
