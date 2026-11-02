@@ -110,7 +110,7 @@
 | F5 | 帧耗时统计（新结构下重测成本曲线） | B3 | ✅ 实现完成 + 矩阵完整（2026-10-18）：opt-in 诊断会话（manifest / events.jsonl / 定点图片 / CPU 提交区间 CSV + p50/p95）、21 支测试脚本；`perf_l0` / `perf_l1` / `perf_l4` / `perf_l16` / `perf_l25` 的 FULL 与 WORLD_ONLY **全部 600/600**（每视角历史隔离后复测；l25 在 gzip 传输修复后补齐，见 [f5-script-packet-limit](F-playback/f5-script-packet-limit.md)）；per-view 历史拷贝成本已包含在复测数据中 |
 | F6 | 相机中心实体可见性（C 方案）：统一相机 y、配对刷新节拍、可见半径对齐、刷怪上限 | — | ✅ 同维度 C0–C3 / C6 已实现并提交（`8354731`）；C4「主画面只取最上层 lane」与 C5「客户端可见半径维持原版」为接受项；跨维度视图流已实现（`50aa5fb`，见 F8）。细节与未实机项见 [camera-center-entities](F-playback/camera-center-entities.md) §六 |
 | F7 | 相机租约池：按 CAMERA 片段租借 / 归还，视角 key 按片段隔离 | — | ✅ 已实现并提交（`38f3972`，2026-10-26）：`CameraLease` / `CameraLeasePool` 按 `owner + clip` 对象身份复用，`lease<槽位>g<代际>@<维度>` 作为视角键；片段结束 / 实例停止 / 替换脚本 / 世界卸载 / lane 收集异常确定性归还；剔除槽随租约独占，回退 lane 保留惰性槽。验收 fixture 与观察口径见 [camera_pool 测试说明](../../cinematics/0.3.6/tests/camera_pool/README.md)，实机日志待跑 |
-| F8 | 跨维度相机：per-view 维度渲染（采样带维度；每 lane `DimensionView`；服务端按 `(player, viewId)` 供数据） | — | 🟡 P0 + WP1–WP4 已实现并提交（`8354731` / `c0b1ac1` / `50aa5fb`）；WP5 光影部分、WP6 实机验收未完成。实现状态、偏离与已知限制见 [cross-dimension-camera](F-playback/cross-dimension-camera.md) §八 |
+| F8 | 跨维度相机：per-view 维度渲染（采样带维度；每 lane `DimensionView`；服务端按 `(player, viewId)` 供数据） | — | ✅ F 轮关单（2026-10-26）：P0 + WP1–WP4 已实现并提交（`8354731` / `c0b1ac1` / `50aa5fb`）；三画面/光影/双视图实机验证通过（2026-10-26，无 route-fail / oversize）。WP5 per-pipeline 隔离与 WP6 扩展矩阵为后续增强项，不再作为关单前置。实现状态、偏离与已知限制见 [cross-dimension-camera](F-playback/cross-dimension-camera.md) §八 |
 
 > **F 轮收口附项**：失败处理审计 `failure-handling-audit.md`（2026-10-17，只读）共 **60 findings / 23 P0**，其中 16 处空 / 仅注释的 `catch`；**第 1 批 P0 已落地（`4eb65b7`，2026-10-25）**，`PacketGuard` 与断线清理已接第 1 批；P1/P2 未做，§0.4 / §9 已按落地范围回写——**P0 归 F 轮关单条件，P1/P2 未做不冒充完成**。
 
@@ -124,7 +124,7 @@
 | G4 | 时间精度（float → 高精度）→ **时钟抽象**（任务书已定稿：`plans/0.3.6/G-script-model/clock-abstraction.md`，2026-10-09 用户裁决五步——① Clock 抽象 + 单调秒（GameClock/PreviewClock）② elapsed 链路 double 化（消 float 截断）③ elapsed 唯一分发语义 + 去死参数 ④ overlay delta 真实化 ⑤ float 存储边界契约；顺带修跨脚本并行 hasActiveCameraTrack 算错） | — | ✅ 2026-11-02：五步全部落地（Clock/GameClock/PreviewClock、运行侧 double、去死参数、覆盖层真实帧间隔、存储边界契约）；验收见 G-script-model/clock-abstraction.md §六 |
 | G5 | 叠化 hold 自动补帧工具/模板 | — | ⊘ 归 Z 轮（编辑器工具；见 `Z-editor/templates.md` §7） |
 | G6 | 关键帧结构升级（自带插值/手柄）——按方案 E 结案（文档标注） | — | ✅ 2026-10-10 标注完成（script-model §4-1/§8 步骤 2） |
-| G7 | 编辑器播放语义（实例维度拆分：内容行为参与、游戏控制不参与） | — | ✅ 2026-11-02：命名统一 + BehaviorEntry/computeUnion/applyUnion + instanceBehaviors 含全部实例；无头探针 E:/tmp/gunion 20/20 PASS；实机待人工 |
+| G7 | 编辑器播放语义（实例维度拆分：内容行为参与、游戏控制不参与） | — | ✅ 2026-11-02：命名统一 + BehaviorEntry/computeUnion/applyUnion + instanceBehaviors 含全部实例；无头探针 E:/tmp/gunion 20/20 PASS；实机通过（Fabric 0.3.6 + BMC4 Forge 0.3.6 禁用 Radium：HUD 显隐/键鼠并集/画面源/退出恢复） |
 
 ## 批次 H：其它
 
@@ -139,6 +139,7 @@
 | H8 | **P3-impl 连续语义**（离散采样 → 连续判定）：位置扫掠 / 朝向弧 / 进入边沿 / dwell·window / 事件时间戳 | 窗口与事件侧依赖 H7 | ☐ **零实现**（现状核对见 [`H-other/README.md`](H-other/README.md) §2.2） |
 | H9 | **跳过投票 + 跳过 HUD**：判定对齐 MC `SleepStatus`（单一分母 / `max(1, ceil)` / 共用阈值）、HUD 合成一行、位置百分比可配 | — | 🟡 **有实现但不完整**（见 [`H-other/skip-vote-and-hud.md`](H-other/skip-vote-and-hud.md) §1.3） |
 | H10 | **相机视图实体活性**：服务端原版实体跟踪镜像 + 客户端目标世界 tick；不做假玩家、不改 AI goal | — | ☐ 设计稿（见 [`H-other/entity-liveness.md`](H-other/entity-liveness.md)） |
+| H11 | **HUD 层注册 API**：面向第三方的正式注册入口 + `hud_layers` / 固定分类口径 + Fabric/Forge 边界 | — | ☐ 设计稿（见 [`H-other/hud-layer-api.md`](H-other/hud-layer-api.md)；G 轮只有内部口子） |
 
 ## 批次 I：脚本底层（设计修订，未实现；运行时媒体独立为 J 轮）
 
@@ -270,3 +271,4 @@
 | 2026-10-30 | **I 轮语义口径修订（只改计划，未改代码）**：规则与曲线改为脚本级独立集合、通过片段引用定位内容；规则外层必选时间门（默认局部时间 `>=` 指定值，门后继续判定、迟到成立仍执行）AND 内层条件树，门前事件/事实可采集、动作在门后确认提交；到门可暂停本实例待判，规则/片段事实可接力，成功≠动作完成，动作可延迟到片段开始/完成或局部时间，承诺动作参与自然完成；同一规则多入口各有独立运行态；曲线绑定目标位置对象/对象组的两个相邻关键帧；分支与主线同模型，正常后继由片段默认、启动/编排入口显式覆盖优先，失败 fallback 独立沿原主线继续。C6 v1 `clip.rules` 只是旧实现事实，目标权威见 I/rule-system.md。 |
 | 2026-11-02 | G 轮收口：G-math 15 篇回写、G4 时钟五步落地、编辑器播放语义实现（20 项无头探针）；实机验收通过（Fabric 0.3.6 + BMC4 Forge 0.3.6 禁用 Radium）：游戏/编辑器实例 HUD 显隐与键鼠并集、画面源（主 RenderTarget 2560×1392 → 1280×720）、退出恢复；全量验证见本轮记录 |
 | 2026-11-02（兼容） | **相机中心兼容 Radium/Lithium**：Radium 用 `@Overwrite` 重写 `ChunkMap.move`，旧 `ChunkMapCameraMixin` 的 `@Redirect` 无法应用（服务端 tick 崩）。改为 `ServerChunkCacheCameraMixin` 在 `ServerChunkCache.move` 的 HEAD/RETURN 临时替换玩家 `position`/`blockPosition`/`chunkPosition`（`EntityAccessor`，不触发 `levelCallback`），原版与 Radium 的差集/Ticket/发送/配对仍围绕相机；窗口外玩家真实位置不变。**实机（BMC4 Forge 0.3.6 + Radium 0.12.4）**：`gt_far_1000` 主相机玩家东侧 1000 格贴地、30s 内 z 位移 200 格并转向，右下角副相机跨维度看末地主岛，主世界/末地区块与实体均加载、无崩溃。 |
+| 2026-11-02（LUT） | **弧长表动态缓存/重建/降级**：新增 `DynamicArcLengthTable`（5 点等距指纹；≤0.25 格复用、超阈值重建、连续 8 次重建后降级为固定采样积分 + 二分；稳定更新恢复建表）+ `PathEvaluator.positionDynamic/tangentDynamic` 入口；`E:/tmp/gcurve` 470 项 + DynamicProbe 12 项全 PASS（降级反解误差 5.8e-10）。 |

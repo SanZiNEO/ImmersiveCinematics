@@ -55,6 +55,8 @@
 规则：
 
 - **显隐唯一来源是脚本字段。** 编辑器不额外隐藏、不额外显示任何层；脚本写什么就是什么。
+- **固定分类优先 `hide_*`。** `hotbar` / `crosshair` / `chat` / `scoreboard` / `bossbar` / `subtitles` / `action_bar` / `title` / `arm` / `skip_hud` / `bob` 这些层只读各自的 `hide_*` 字段（未声明回落 `hide_hud`）；`hud_layers` **不覆盖**固定分类。
+- **`hud_layers` 只作用于未分类层名。** 例如 Forge overlay 的 `modid:overlay`（未注册分类时按 overlay id 字符串匹配），true = 隐藏、false = 显示，未声明回落 `hide_hud`。
 - **未声明的分层字段回落 `hide_hud`**，与普通播放同一套并集逻辑。
 - **传输源是主画面**（窗口 framebuffer），含 HUD；不是合成 FBO，也不是空白画面。
 - **导出源不同**：成片导出取合成 FBO（不含 HUD），见 `../J-media/export.md`；两者不混用。
@@ -106,7 +108,7 @@
 
 ## 七、验收
 
-- 同一脚本、同一时间点：编辑器播放与普通播放的画面一致（逐帧对照）。
+- 同一脚本、同一时间点：编辑器播放与普通播放的内容行为一致（HUD / 相机 / lane / 覆盖层；不做像素逐帧对照）。
 - 脚本 `hide_hud=true`：编辑器里 HUD 同样隐藏；`false`：同样显示。
 - `hud_layers` 分层控制生效。
 - 编辑器播放时键鼠不被屏蔽；退出后恢复。

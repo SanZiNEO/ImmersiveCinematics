@@ -17,6 +17,7 @@
 | **H8** | **P3-impl 连续语义**：离散采样 → 连续判定 | [`trigger-continuity.md`](trigger-continuity.md) | ☐ **零实现**（核对见 §2） |
 | **H9** | **跳过投票 + 跳过 HUD**：判定对齐 MC `SleepStatus`、HUD 合成一行、位置可配 | [`skip-vote-and-hud.md`](skip-vote-and-hud.md) | 🟡 有实现但不完整（见该文档 §1.3） |
 | **H10** | **相机视图实体活性**：服务端原版实体跟踪镜像 + 客户端目标世界 tick；不做假玩家、不改 AI goal | [`entity-liveness.md`](entity-liveness.md) | ☐ 设计稿（未实现；F8 后续） |
+| **H11** | **HUD 层注册 API**：面向第三方的正式注册入口 + `hud_layers` / 固定分类口径 + Fabric/Forge 边界 | [`hud-layer-api.md`](hud-layer-api.md) | ☐ 设计稿（未实现；G 轮只有内部口子） |
 
 H7 / H8 之间没有强绑定：H8 的**最小版本**（位置扫掠 / 朝向弧 / 进入边沿）不依赖 H7，可先落地；H8 的窗口与事件时间戳依赖 H7。
 
@@ -140,3 +141,4 @@ H7 / H8 之间没有强绑定：H8 的**最小版本**（位置扫掠 / 朝向�
 | [`../C-trigger/condition-system.md`](../C-trigger/condition-system.md) | 判定规则（`clip.rules`），与触发器判定是不同层 |
 | [`../F-playback/parallel-playback.md`](../F-playback/parallel-playback.md) | 实例账本的上游；H7 阶段 2 与之对齐 |
 | [`entity-liveness.md`](entity-liveness.md) | H10，F8 相机视图实体活性的下一项设计 |
+| [`hud-layer-api.md`](hud-layer-api.md) | H11，HUD 层正式注册入口（`hud_layers` / 固定分类 / hard 白名单的平台边界） |
