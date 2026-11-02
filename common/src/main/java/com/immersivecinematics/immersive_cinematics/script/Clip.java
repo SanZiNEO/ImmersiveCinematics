@@ -4,6 +4,7 @@ import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionInterrupt;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
+import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 
 import java.util.Collections;
@@ -23,6 +24,8 @@ public class Clip {
     private final TrackType trackType;
     private final Map<String, Object> data;
     private final List<Keyframe> keyframes;
+    /** 新对象模型的采样属性集合；旧格式片段为 {@link ClipObjects#EMPTY}。 */
+    private final ClipObjects objects;
 
     /** 过渡声明缓存（{@link #getTransitionSpec()} 首次访问建成；片段数据解析后只读，故可缓存）。 */
     private TransitionSpec transitionSpec;
@@ -32,13 +35,20 @@ public class Clip {
     /** 是否已尝试建立 {@link #colorMaskSpec}（非 OVERLAY 轨的 {@code null} 结果同样只解析一次）。 */
     private boolean colorMaskSpecResolved;
 
+    /** 旧格式构造器：不携带新对象模型（{@link ClipObjects#EMPTY}）。 */
     public Clip(float startTime, float duration, TrackType trackType,
                 Map<String, Object> data, List<Keyframe> keyframes) {
+        this(startTime, duration, trackType, data, keyframes, ClipObjects.EMPTY);
+    }
+
+    public Clip(float startTime, float duration, TrackType trackType,
+                Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects) {
         this.startTime = startTime;
         this.duration = duration;
         this.trackType = trackType;
         this.data = data != null ? data : Collections.emptyMap();
         this.keyframes = keyframes != null ? keyframes : Collections.emptyList();
+        this.objects = objects != null ? objects : ClipObjects.EMPTY;
     }
 
     // ── 通用字段 ──
@@ -48,6 +58,12 @@ public class Clip {
     public TrackType getTrackType() { return trackType; }
     public Map<String, Object> getData() { return data; }
     public List<Keyframe> getKeyframes() { return keyframes; }
+
+    /** 新对象模型的采样属性集合（旧格式片段为空集合）。 */
+    public ClipObjects getObjects() { return objects; }
+
+    /** 是否携带新对象模型；空 {@code objects} 与旧格式片段同为 {@code false}。 */
+    public boolean hasObjects() { return !objects.isEmpty(); }
 
     /** 是否为无限时长片段（负数即视为无限时长） */
     public boolean isInfinite() { return duration < 0f; }

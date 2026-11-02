@@ -1,11 +1,15 @@
 package com.immersivecinematics.immersive_cinematics.script.schema;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.immersivecinematics.immersive_cinematics.math.path.PathCapability;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
 
+import java.util.Collection;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -29,6 +33,8 @@ public final class SchemaExporter {
             JsonObject track = new JsonObject();
             track.add("clips", exportFields(schema.clipFields()));
             track.add("keyframes", exportFields(schema.kfFields()));
+            track.add("playControl", exportFields(schema.playControl()));
+            track.add("objects", exportObjects(schema.objects()));
             tracks.add(type.name(), track);
         }
         root.add("tracks", tracks);
@@ -124,5 +130,80 @@ public final class SchemaExporter {
 
         o.addProperty("section", def.section());
         return o;
+    }
+
+    private static JsonObject exportObjects(Map<String, ObjectDef> objects) {
+        JsonObject out = new JsonObject();
+        for (Map.Entry<String, ObjectDef> entry : objects.entrySet()) {
+            out.add(entry.getKey(), exportObject(entry.getValue()));
+        }
+        return out;
+    }
+
+    private static JsonObject exportObject(ObjectDef def) {
+        JsonObject o = new JsonObject();
+        o.addProperty("path", def.path());
+        o.addProperty("mode", scriptName(def.mode()));
+        o.addProperty("type", scriptName(def.type()));
+        o.addProperty("interp", scriptName(def.interp()));
+        o.add("default", toJson(def.defaultValue()));
+        o.addProperty("required", def.required());
+        JsonArray enumValues = new JsonArray();
+        for (String value : def.enumValues()) {
+            enumValues.add(value);
+        }
+        o.add("enumValues", enumValues);
+        o.addProperty("nullable", def.nullable());
+        o.add("min", def.min() == null ? JsonNull.INSTANCE : new JsonPrimitive(def.min()));
+        o.add("max", def.max() == null ? JsonNull.INSTANCE : new JsonPrimitive(def.max()));
+        o.add("requires", def.requires() == null
+                ? JsonNull.INSTANCE
+                : new JsonPrimitive(def.requires()));
+        o.add("section", def.section() == null ? JsonNull.INSTANCE : new JsonPrimitive(def.section()));
+        o.add("group", def.group() == null ? JsonNull.INSTANCE : new JsonPrimitive(def.group()));
+        JsonArray appliesTo = new JsonArray();
+        for (String value : def.appliesTo()) {
+            appliesTo.add(value);
+        }
+        o.add("appliesTo", appliesTo);
+        o.add("labelKey", def.labelKey() == null
+                ? JsonNull.INSTANCE
+                : new JsonPrimitive(def.labelKey()));
+        o.add("unit", def.unit() == null ? JsonNull.INSTANCE : new JsonPrimitive(def.unit()));
+        return o;
+    }
+
+    private static String scriptName(Enum<?> value) {
+        return value == null ? null : value.name().toLowerCase(Locale.ROOT);
+    }
+
+    private static JsonElement toJson(Object value) {
+        if (value == null) {
+            return JsonNull.INSTANCE;
+        }
+        if (value instanceof Boolean b) {
+            return new JsonPrimitive(b);
+        }
+        if (value instanceof Number n) {
+            return new JsonPrimitive(n);
+        }
+        if (value instanceof String s) {
+            return new JsonPrimitive(s);
+        }
+        if (value instanceof Map<?, ?> map) {
+            JsonObject object = new JsonObject();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                object.add(String.valueOf(entry.getKey()), toJson(entry.getValue()));
+            }
+            return object;
+        }
+        if (value instanceof Collection<?> collection) {
+            JsonArray array = new JsonArray();
+            for (Object element : collection) {
+                array.add(toJson(element));
+            }
+            return array;
+        }
+        return new JsonPrimitive(String.valueOf(value));
     }
 }

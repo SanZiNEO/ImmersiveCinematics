@@ -10,6 +10,7 @@ import com.immersivecinematics.immersive_cinematics.camera.source.PointSource;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionMode;
 import com.immersivecinematics.immersive_cinematics.client.rule.ClientConditions;
 import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
+import com.immersivecinematics.immersive_cinematics.script.object.ObjectValidator;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
 import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveException;
@@ -375,6 +376,12 @@ public final class ScriptValidator {
                         }
                         dur = d;
                     } catch (Exception e) { issues.add(cp + ".duration 不是数字"); }
+                }
+
+                if (clip.has("objects")) {
+                    ObjectValidator.validate(type == null ? null : trackTypeOf(type), clip, cp, issues);
+                    prevContentEnd = Math.max(prevContentEnd, start + dur);
+                    continue;
                 }
 
                 if (clip.has("interpolation")) {

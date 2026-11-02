@@ -12,6 +12,9 @@ import com.immersivecinematics.immersive_cinematics.camera.transition.Transition
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionParams;
 import com.immersivecinematics.immersive_cinematics.math.MathModel;
 import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
+import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
+import com.immersivecinematics.immersive_cinematics.script.object.ObjectFormatException;
+import com.immersivecinematics.immersive_cinematics.script.object.ObjectParser;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
 import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveException;
@@ -298,6 +301,11 @@ public class ScriptParser {
         float startTime = requireFloat(obj, p, "start_time");
         float duration = requireFloat(obj, p, "duration");
 
+        // 新格式片段：只认 objects（+ 播放控制），与旧 keyframes 分支完全分离。
+        if (obj.has("objects")) {
+            return parseObjectClip(obj, p, type);
+        }
+
         // OVERLAY 的 fade 专用字段（高级颜色遮罩）按 layer_type 分派：fade 走严格解析，
         // image / subtitle 上写 = 明确拒绝（不静默存进 data 宣称生效）
         String overlayLayerType = type == TrackType.OVERLAY ? overlayLayerType(obj) : null;
@@ -412,6 +420,85 @@ public class ScriptParser {
         }
         return clip;
     }
+
+    /**
+     * 新格式片段的解析：{@code start_time} / {@code duration} + 播放控制 + {@code objects}。
+     *
+     * <p>与旧分支严格分离：不做 CAMERA「keyframes 至少 1 个」检查，也不做旧 clip 级字段
+     * （transition / curve / rules / position_mode 等）的归属检查——这些键在 {@link ObjectParser}
+     * 的片段级白名单处即被拒绝。</p>
+     */
+    private static Clip parseObjectClip(JsonObject obj, String p, TrackType type) throws ScriptParseException {
+        float startTime = requireFloat(obj, p, "start_time");
+        float duration = requireFloat(obj, p, "duration");
+        // 与旧口径一致：0 非法；负数 = 无限时长
+        if (duration == 0f) {
+            throw new ScriptParseException(p + ".duration", "不允许为0，正数=有限时长，负数=无限时长，实际: " + duration);
+        }
+
+        ClipObjects objects;
+        try {
+            objects = ObjectParser.parse(obj, p, type);
+        } catch (ObjectFormatException e) {
+            throw new ScriptParseException(e.fieldPath(), detailOf(e));
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        if (obj.has("loop")) {
+            JsonElement loop = obj.get("loop");
+            if (!loop.isJsonPrimitive() || !loop.getAsJsonPrimitive().isBoolean()) {
+                throw new ScriptParseException(p + ".loop", "需要布尔值");
+            }
+            data.put("loop", loop.getAsBoolean());
+        }
+        if (obj.has("loop_count")) {
+            data.put("loop_count", requireLoopCount(obj.get("loop_count"), p + ".loop_count"));
+        }
+        if (obj.has("loop_mode")) {
+            JsonElement loopMode = obj.get("loop_mode");
+            if (!loopMode.isJsonPrimitive() || !loopMode.getAsJsonPrimitive().isString()) {
+                throw new ScriptParseException(p + ".loop_mode", "需要字符串（repeat / pingpong）");
+            }
+            String mode = loopMode.getAsString();
+            if (!"repeat".equals(mode) && !"pingpong".equals(mode)) {
+                throw new ScriptParseException(p + ".loop_mode", "需要 repeat / pingpong，实际: " + mode);
+            }
+            data.put("loop_mode", mode);
+        }
+        // loop_count=0 非法：与旧分支同一口径（记录错误并按 1 处理，不阻断运行）
+        Object loopCount = data.get("loop_count");
+        if (loopCount instanceof Number && ((Number) loopCount).intValue() == 0) {
+            ErrorLog.log("Parse", p + ".loop_count 不允许为 0（-1=无限循环，正整数=循环次数），已按 1 处理");
+            data.put("loop_count", 1);
+        }
+
+        return new Clip(startTime, duration, type, data, List.of(), objects);
+    }
+
+    /** 新格式 {@code loop_count}：有限整数（-1 = 无限循环，正整数 = 循环次数）。 */
+    private static int requireLoopCount(JsonElement value, String p) throws ScriptParseException {
+        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) {
+            throw new ScriptParseException(p, "需要整数");
+        }
+        double number = value.getAsDouble();
+        if (!Double.isFinite(number) || number != Math.floor(number)
+                || number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
+            throw new ScriptParseException(p, "需要整数");
+        }
+        return (int) number;
+    }
+
+    /** {@link ObjectFormatException#getMessage()} 已带 {@code <fieldPath>: } 前缀，转成解析异常时只取说明部分。 */
+    private static String detailOf(ObjectFormatException e) {
+        String message = e.getMessage();
+        String fieldPath = e.fieldPath();
+        if (fieldPath == null) {
+            return message;
+        }
+        String prefix = fieldPath + ": ";
+        return message.startsWith(prefix) ? message.substring(prefix.length()) : message;
+    }
+
     // ========== Keyframe 解析（统一 schema 驱动）==========
 
     private static Keyframe parseKeyframe(JsonObject obj, String p, TrackType type,
