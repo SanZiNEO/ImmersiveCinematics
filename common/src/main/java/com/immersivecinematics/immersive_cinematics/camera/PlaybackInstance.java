@@ -30,8 +30,9 @@ import java.util.function.DoubleSupplier;
  * 帧驱动按列表顺序遍历（后来者居上），实例结束只影响它自己，仍有实例在播时共享时钟 / 相机状态 /
  * 覆盖层都不复位。
  *
- * 预览实例（{@link #isPreview()}）独立：只受编辑器预览通道驱动，以预览播放头为时钟源、恒为实例
- * 列表末位，不参与暂停联动 / 行为并集与网络账本。生命周期驱动方法为包内可见：实例只由
+ * 编辑器播放实例（{@link #isEditorDriven()}）独立：只受编辑器播放通道驱动，以编辑器播放头为时钟源、
+ * 恒为实例列表末位；参与<b>内容行为并集</b>（HUD / lane / 相机 / 音频 / 覆盖层），不参与<b>游戏控制</b>
+ * （键鼠屏蔽、暂停联动、播放队列、网络账本、跳过投票）。生命周期驱动方法为包内可见：实例只由
  * {@code CameraManager} 创建与驱动。
  */
 public final class PlaybackInstance {
@@ -39,12 +40,13 @@ public final class PlaybackInstance {
     private final ScriptPlayer player = new ScriptPlayer();
 
     /**
-     * 是否为编辑器预览实例。
+     * 是否为编辑器播放实例。
      *
-     * 预览 = 一个独立实例：与游戏实例并行共存、互不替换；有自己的时钟（预览播放头）、
-     * 不参与暂停联动 / 行为并集，也不上报网络账本（开始回执 / 结束通知 / 暂停握手）与跳过投票。
+     * 编辑器播放 = 播放引擎的另一种时钟源：与游戏实例并行共存、互不替换；时钟源是编辑器播放头，
+     * 参与<b>内容行为并集</b>（HUD / lane / 相机 / 音频 / 覆盖层），不参与<b>游戏控制</b>
+     * （键鼠屏蔽、暂停联动、播放队列、网络账本、跳过投票）。
      */
-    private final boolean preview;
+    private final boolean editorDriven;
 
     /** 覆盖链（Modifier 注册 / 注销的落点；链由 {@code CameraManager} 持有）。 */
     private final CameraCoverChain coverChain;
@@ -58,9 +60,9 @@ public final class PlaybackInstance {
      */
     private final RuleEngine ruleEngine = new RuleEngine();
 
-    PlaybackInstance(CameraCoverChain coverChain, boolean preview) {
+    PlaybackInstance(CameraCoverChain coverChain, boolean editorDriven) {
         this.coverChain = coverChain;
-        this.preview = preview;
+        this.editorDriven = editorDriven;
         this.ruleEngine.attachOwner(this);
     }
 
@@ -69,9 +71,9 @@ public final class PlaybackInstance {
         return ruleEngine;
     }
 
-    /** 是否为编辑器预览实例（独立实例，与游戏实例并行共存）。 */
-    public boolean isPreview() {
-        return preview;
+    /** 是否由编辑器播放驱动（独立时钟源，与游戏实例并行共存；不参与游戏控制语义）。 */
+    public boolean isEditorDriven() {
+        return editorDriven;
     }
 
     /**
@@ -132,7 +134,7 @@ public final class PlaybackInstance {
      *
      * @param script       已解析的脚本对象
      * @param instanceId   服务端播放请求的播放实例 id；本地来源传空串
-     * @param preExecuteAt 预执行首帧的期望 elapsed 时间（预览模式 = 播放头，游戏内 = 0）
+     * @param preExecuteAt 预执行首帧的期望 elapsed 时间（编辑器播放 = 播放头，游戏内 = 0）
      */
     void start(CinematicScript script, String instanceId, double preExecuteAt) {
         this.instanceId = instanceId != null ? instanceId : "";
@@ -206,7 +208,7 @@ public final class PlaybackInstance {
     /**
      * 脚本里全部片段级静态 Modifier 的注册形态（只取 CAMERA 轨道，按轨道顺序展开；无声明 → 空列表）。
      *
-     * @param timelineTime 时间轴读数来源（每实例一份：游戏实例 = 全局虚拟时钟、预览实例 = 预览播放头）
+     * @param timelineTime 时间轴读数来源（每实例一份：游戏实例 = 全局虚拟时钟、编辑器实例 = 编辑器播放头）
      */
     static List<ClipModifierGate> collectModifiers(CinematicScript script, DoubleSupplier timelineTime) {
         List<ClipModifierGate> collected = new ArrayList<>();

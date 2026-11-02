@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera;
 
+import com.immersivecinematics.immersive_cinematics.control.CinematicController;
 import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 
 import java.util.ArrayList;
@@ -10,10 +11,10 @@ import java.util.List;
  * 播放实例注册表：活跃实例列表 + 实例查询 + 帧级相机 clip 缓存。
  *
  * 列表顺序 = 启动顺序（帧驱动按顺序遍历，后写入者覆盖先写入者 → 后来者居上），顶层 = 最后一个；
- * 不变量：预览实例恒为末位（{@link #insertBefore} 把游戏实例插在它之前）。
- * 同脚本单实例只看游戏实例（{@link #instancePlaying(String)}，预览另算）；跨脚本到达裁决按播放模式
+ * 不变量：编辑器播放实例恒为末位（{@link #insertBefore} 把游戏实例插在它之前）。
+ * 同脚本单实例只看游戏实例（{@link #instancePlaying(String)}，编辑器实例另算）；跨脚本到达裁决按播放模式
  * 查在播集合（{@link #hasGameInstancePlaying(ScriptMeta.PlayMode)}）；控制原语按脚本 / 实例 id
- * 定位（{@link #instanceOf(String, String)} / {@link #instancesOf(String)}，同样排除预览）。
+ * 定位（{@link #instanceOf(String, String)} / {@link #instancesOf(String)}，同样排除编辑器实例）。
  *
  * 帧缓存（{@link #hasActiveCameraClip()} / {@link #topInstanceHasActiveCameraClip()}）由帧驱动每帧
  * 同一时点写入一次；前者 = 全部实例并集，后者 = 顶层实例自身（听者门控口径）。
@@ -85,14 +86,14 @@ final class PlaybackRegistry {
 
     /**
      * 正在播放 {@code scriptId} 的游戏实例；无则 {@code null}。
-     * 预览实例不参与——预览与游戏实例互不替换，游戏同脚本请求 / 队列可播判定都只看游戏实例。
+     * 编辑器实例不参与——编辑器播放与游戏实例互不替换，游戏同脚本请求 / 队列可播判定都只看游戏实例。
      *
      * @param scriptId 脚本 id；{@code null} = 无匹配
      */
     PlaybackInstance instancePlaying(String scriptId) {
         if (scriptId == null) return null;
         for (PlaybackInstance instance : instances) {
-            if (!instance.isPreview() && instance.player().isPlaying()
+            if (!instance.isEditorDriven() && instance.player().isPlaying()
                     && scriptId.equals(instance.scriptId())) return instance;
         }
         return null;
@@ -110,8 +111,8 @@ final class PlaybackRegistry {
         if (scriptId == null) return null;
         boolean anyInstance = instanceId == null || instanceId.isEmpty();
         for (PlaybackInstance instance : instances) {
-            // 预览不参与游戏控制原语：服务端定向 stop 不得命中编辑器预览
-            if (instance.isPreview() || !instance.player().isPlaying()
+            // 编辑器实例不参与游戏控制原语：服务端定向 stop 不得命中编辑器播放
+            if (instance.isEditorDriven() || !instance.player().isPlaying()
                     || !scriptId.equals(instance.scriptId())) continue;
             if (anyInstance || instanceId.equals(instance.instanceId())) return instance;
         }
@@ -119,7 +120,7 @@ final class PlaybackRegistry {
     }
 
     /**
-     * 全部正在播放 {@code scriptId} 的游戏实例（启动顺序；预览实例另算，不在此列）。
+     * 全部正在播放 {@code scriptId} 的游戏实例（启动顺序；编辑器实例另算，不在此列）。
      * 同脚本同玩家保持单实例，故常态至多一个。
      *
      * @param scriptId 脚本 id；{@code null} = 无匹配（返回空列表）
@@ -128,16 +129,16 @@ final class PlaybackRegistry {
         if (scriptId == null) return Collections.emptyList();
         List<PlaybackInstance> matched = new ArrayList<>();
         for (PlaybackInstance instance : instances) {
-            if (!instance.isPreview() && instance.player().isPlaying()
+            if (!instance.isEditorDriven() && instance.player().isPlaying()
                     && scriptId.equals(instance.scriptId())) matched.add(instance);
         }
         return matched;
     }
 
     /**
-     * 是否存在「非预览实例 + 播放模式 = {@code mode}」的在播实例（跨脚本到达裁决的唯一查询面）。
+     * 是否存在「非编辑器实例 + 播放模式 = {@code mode}」的在播实例（跨脚本到达裁决的唯一查询面）。
      * 在播 = 仍在实例表中（含渐出中与 {@code hold_at_end} 驻留实例——两者都还在渲染 / 占位）；
-     * 预览实例恒不参与（预览通道不套用脚本行为，也不与游戏实例争夺播放关系）。
+     * 编辑器实例恒不参与（编辑器播放不参与游戏播放关系，也不与游戏实例争夺播放关系）。
      *
      * @param mode 目标播放模式；{@code null} = 无匹配
      */
@@ -145,28 +146,27 @@ final class PlaybackRegistry {
         if (mode == null) return false;
         for (int i = 0; i < instances.size(); i++) {
             PlaybackInstance instance = instances.get(i);
-            if (!instance.isPreview() && instance.playMode() == mode) return true;
+            if (!instance.isEditorDriven() && instance.playMode() == mode) return true;
         }
         return false;
     }
 
     /**
-     * 全部非预览实例的行为快照（顺序 = 列表顺序）——运行时控制并集
-     * （{@code CinematicController.recomputeUnion}）的输入；预览实例不参与（预览通道不套用脚本行为）。
+     * 全部实例的行为快照（含编辑器实例，标 {@code editorDriven}）——运行时控制并集的输入
+     * （{@code CinematicController.computeUnion}）；键鼠屏蔽由 {@code computeUnion} 单独排除编辑器实例。
      */
-    List<ScriptMeta.RuntimeBehavior> instanceBehaviors() {
-        List<ScriptMeta.RuntimeBehavior> behaviors = new ArrayList<>(instances.size());
+    List<CinematicController.BehaviorEntry> instanceBehaviors() {
+        List<CinematicController.BehaviorEntry> behaviors = new ArrayList<>(instances.size());
         for (PlaybackInstance instance : instances) {
-            if (instance.isPreview()) continue;
-            behaviors.add(instance.behavior());
+            behaviors.add(new CinematicController.BehaviorEntry(instance.behavior(), instance.isEditorDriven()));
         }
         return behaviors;
     }
 
-    /** 任一非预览实例声明 {@code pause_when_game_paused}；无活跃实例时为 {@code false}。 */
+    /** 任一游戏实例声明 {@code pause_when_game_paused}；无活跃实例时为 {@code false}。 */
     boolean isAnyPauseWhenGamePaused() {
         for (PlaybackInstance instance : instances) {
-            if (!instance.isPreview() && instance.isPauseWhenGamePaused()) return true;
+            if (!instance.isEditorDriven() && instance.isPauseWhenGamePaused()) return true;
         }
         return false;
     }

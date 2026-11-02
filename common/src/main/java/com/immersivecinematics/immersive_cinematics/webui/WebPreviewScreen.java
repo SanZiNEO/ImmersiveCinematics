@@ -30,7 +30,7 @@ import java.util.List;
  * WebUI 编辑器预览屏幕。
  *
  * 游戏端只做三件事：
- * 1. 画面传输（把游戏画面编码后通过 WebSocket 发给前端）
+ * 1. 画面传输：把游戏主画面（含 HUD）编码后发给前端；时间源 = 编辑器播放头
  * 2. 播放控制（接收前端的 play/pause/seek/stop/pushScript 指令）
  * 3. 飞控模式（前端发送 enter_flight_mode 指令后，玩家在游戏中用 WASD 飞行编辑关键帧）
  *

@@ -80,7 +80,7 @@ public final class CameraCenterReporter {
     public void tick(Minecraft mc) {
         PlaybackInstance instance = CameraManager.INSTANCE.activeInstance();
         ScriptPlayer sp = instance != null ? instance.player() : null;
-        if (sp != null && sp.isPlaying() && !CameraManager.INSTANCE.isPreviewMode()) {
+        if (sp != null && sp.isPlaying() && !CameraManager.INSTANCE.isEditorPlayback()) {
             CinematicScript script = sp.getScript();
             String sid = script != null ? script.getId() : "";
             if (sid.isEmpty()) {

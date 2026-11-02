@@ -89,7 +89,7 @@ public class PlayerMoveController {
         current = null;
         if (!moving || targets.size() < 2) return;
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || mc.isPaused() || CameraManager.INSTANCE.isPreviewMode()) return;
+        if (mc.player == null || mc.isPaused() || CameraManager.INSTANCE.isEditorPlayback()) return;
 
         // 未到段起点不动（段 = 前一个目标时间 → 当前目标时间）
         if (elapsed < targets.get(destIndex - 1).time) return;

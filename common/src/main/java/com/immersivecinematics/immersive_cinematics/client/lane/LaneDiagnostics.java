@@ -518,9 +518,9 @@ public final class LaneDiagnostics {
             JsonObject begin = ev("instance_start");
             begin.addProperty("script", inst.scriptId());
             begin.addProperty("instance", inst.instanceId());
-            begin.addProperty("preview", inst.isPreview());
+            begin.addProperty("preview", inst.isEditorDriven());
             send(begin);
-            if (inst.isPreview()) return;
+            if (inst.isEditorDriven()) return;
             int run = starts.merge(inst.scriptId(), 1, Integer::sum);
             JsonObject scriptStart = ev("script_start");
             scriptStart.addProperty("script", inst.scriptId());

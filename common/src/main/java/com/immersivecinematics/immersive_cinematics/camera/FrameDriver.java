@@ -74,20 +74,20 @@ final class FrameDriver {
         directControlBase.clearFrame();
 
         // 暂停联动取并集：任一游戏实例声明 pause_when_game_paused 即按游戏暂停处理；
-        // 预览实例不参与——预览的暂停/播放由编辑器驱动，与游戏暂停无关。
+        // 编辑器实例不参与——编辑器播放的暂停/播放由编辑器驱动，与游戏暂停无关。
         boolean gamePaused = Minecraft.getInstance().isPaused() && registry.isAnyPauseWhenGamePaused();
 
-        // 诊断：打印暂停判定组成——若游戏内播放被误判为暂停（gamePaused/预览态异常）即可见。
+        // 诊断：打印暂停判定组成——若游戏内播放被误判为暂停（gamePaused/编辑器暂停态异常）即可见。
         if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("camera pauseSync: gamePaused={} previewMode={} previewPaused={} instances={}",
-                    gamePaused, previewChannel.isPreviewMode(), previewChannel.isPreviewPaused(), registry.size());
+            LOGGER.debug("camera pauseSync: gamePaused={} editorPlayback={} editorPaused={} instances={}",
+                    gamePaused, previewChannel.isEditorPlayback(), previewChannel.isEditorPaused(), registry.size());
         }
 
         // 时钟一：游戏共享虚拟时钟——游戏暂停时冻结（不退出相机画面，继续应用相机/轨道）。
         gameClock.advance(gamePaused, now);
 
-        // 时钟二：预览播放头（预览实例专用）——暂停 = 冻结在播放头；播放 = 按真实时间推进。
-        previewClock.advance(!(previewChannel.isPreviewMode() && !previewChannel.isPreviewPaused()
+        // 时钟二：编辑器播放头（编辑器实例专用）——暂停 = 冻结在播放头；播放 = 按真实时间推进。
+        previewClock.advance(!(previewChannel.isEditorPlayback() && !previewChannel.isEditorPaused()
                 && previewChannel.previewInstance() != null), now);
 
         // 覆盖层动画按真实渲染帧间隔推进（与帧率无关）：
@@ -112,10 +112,10 @@ final class FrameDriver {
             if (!registry.contains(instance)) continue; // 本帧更早的退出已移除该实例
             try {
                 ScriptPlayer player = instance.player();
-                // 本实例的暂停态：游戏实例 = 游戏暂停联动（并集）；预览实例 = 编辑器暂停态
-                boolean instancePaused = instance.isPreview() ? previewChannel.isPreviewPaused() : gamePaused;
-                // 本实例的时钟读数：游戏实例 = 共享虚拟时钟；预览实例 = 预览播放头（各自计时）
-                double instanceClock = instance.isPreview() ? previewTime : gameTime;
+                // 本实例的暂停态：游戏实例 = 游戏暂停联动（并集）；编辑器实例 = 编辑器暂停态
+                boolean instancePaused = instance.isEditorDriven() ? previewChannel.isEditorPaused() : gamePaused;
+                // 本实例的时钟读数：游戏实例 = 共享虚拟时钟；编辑器实例 = 编辑器播放头（各自计时）
+                double instanceClock = instance.isEditorDriven() ? previewTime : gameTime;
 
                 // 每帧同步音频状态（幂等；对齐 MC SoundEngine：暂停时无新声音、已有实例幂等 pause）。
                 // 必须位于 player.onRenderFrame 之前并每帧执行。挂起（规则 until / pause 动作）与游戏暂停
@@ -131,7 +131,7 @@ final class FrameDriver {
                     player.stopOneShotSounds();
                 }
 
-                if (pauseTransition && !instance.isPreview() && player.isPlaying()) {
+                if (pauseTransition && !instance.isEditorDriven() && player.isPlaying()) {
                     String scriptId = player.getScriptId();
                     if (!"<none>".equals(scriptId)) {
                         // 语义 = 「实例暂停中」：游戏暂停或规则挂起任一成立即冻结服务端 EVENT 时间线；
@@ -163,7 +163,7 @@ final class FrameDriver {
                         ErrorLog.logRateLimited("Playback", "rule-engine", 5000L, "规则引擎判定异常（本帧跳过）", e);
                     }
                     // 挂起开始 / 结束是帧级事件：状态变化那一帧发一条暂停握手（服务端冻结 / 解冻 EVENT 时间线）
-                    if (!instance.isPreview() && player.isPlaying()
+                    if (!instance.isEditorDriven() && player.isPlaying()
                             && player.isSuspended() != suspendedBefore) {
                         String scriptId = player.getScriptId();
                         if (!"<none>".equals(scriptId)) {
@@ -203,7 +203,7 @@ final class FrameDriver {
                 String instanceId = instance.instanceId();
                 ErrorLog.logRateLimited("Playback", "frame-instance:" + instanceId, 5000L,
                         "帧驱动实例异常（script=" + scriptId + ", instance=" + instanceId
-                                + ", preview=" + instance.isPreview()
+                                + ", editorDriven=" + instance.isEditorDriven()
                                 + "）：该实例本帧停用，其他实例继续", e);
                 try {
                     lifecycle.deactivateNow(instance);
@@ -218,7 +218,7 @@ final class FrameDriver {
 
         registry.setFrameCaches(anyActiveCameraClip, topActiveCameraClip);
 
-        // 帧末统一生成/替换快照：本帧所有渲染侧读取（lane 收集、听者、预加载、预览 HUD）
+        // 帧末统一生成/替换快照：本帧所有渲染侧读取（lane 收集、听者、预加载、编辑器 HUD）
         // 都拿到这一份，且同帧内多次读取一致。
         try {
             refreshSnapshot.run();

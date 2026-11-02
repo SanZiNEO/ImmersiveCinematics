@@ -52,11 +52,11 @@ public class CameraManager implements CameraApi {
     }
 
     // ========== 实例查询（PlaybackRegistry）==========
-    /** 活跃播放实例 = 顶层实例（启动最晚者，后启动者覆盖先启动者）；无播放时为 {@code null}。预览激活时顶层 = 预览实例。 */
+    /** 活跃播放实例 = 顶层实例（启动最晚者，后启动者覆盖先启动者）；无播放时为 {@code null}。编辑器播放激活时顶层 = 编辑器实例。 */
     public PlaybackInstance activeInstance() { return registry.topInstance(); }
     /** 全部活跃播放实例，按启动顺序排列（先启动在前，顶层 = 最后一个）——只读视图，随增删实时变化。 */
     public List<PlaybackInstance> instances() { return registry.instances(); }
-    /** 暂停联动取并集：任一游戏实例声明 {@code pause_when_game_paused} 即 {@code true}（预览实例不参与）。 */
+    /** 暂停联动取并集：任一游戏实例声明 {@code pause_when_game_paused} 即 {@code true}（编辑器实例不参与）。 */
     public boolean isAnyPauseWhenGamePaused() { return registry.isAnyPauseWhenGamePaused(); }
     public boolean isTopInstanceSkippable() { return registry.isTopInstanceSkippable(); }
     public String getActiveScriptId() { return registry.activeScriptId(); }
@@ -106,28 +106,28 @@ public class CameraManager implements CameraApi {
     /** 紧急停止（世界退出/断线）：跳过退场动画直接清理全部实例，防止 OpenAL 音频残留。 */
     public void emergencyStop() { lifecycle.emergencyStop(); }
 
-    // ========== 编辑器预览（PreviewChannel）==========
+    // ========== 编辑器播放（PreviewChannel）==========
     public void pushScript(String jsonContent) { previewChannel.pushScript(jsonContent); }
-    /** 编辑器定位（seek）：预览播放头跳到 {@code seconds} 秒并保持预览激活、暂停。 */
+    /** 编辑器定位（seek）：编辑器播放头跳到 {@code seconds} 秒并保持编辑器播放激活、暂停。 */
     public void setTime(double seconds) { previewChannel.setTime(seconds); }
     public void resume() { previewChannel.resume(); }
     public void pause() { previewChannel.pause(); }
-    /** 编辑器停止：预览激活时播放头归零并保持激活，否则走游戏内停止。 */
+    /** 编辑器停止：编辑器播放激活时播放头归零并保持激活，否则走游戏内停止。 */
     public void stop() { previewChannel.stop(); }
     public void exitPreview() { previewChannel.exitPreview(); }
     public void setPreviewDirectControl(boolean on) { previewChannel.setPreviewDirectControl(on); }
     /** 编辑器拖拽直控是否生效（轨道写入据此跳过）。 */
     public boolean isPreviewDirectControl() { return previewChannel.isPreviewDirectControl(); }
-    /** 是否处于编辑器预览模式（预览时玩家移动不由玩家输入驱动）。 */
-    public boolean isPreviewMode() { return previewChannel.isPreviewMode(); }
-    public boolean isPreviewPaused() { return previewChannel.isPreviewPaused(); }
+    /** 是否处于编辑器播放（玩家移动不由玩家输入驱动）。 */
+    public boolean isEditorPlayback() { return previewChannel.isEditorPlayback(); }
+    public boolean isEditorPaused() { return previewChannel.isEditorPaused(); }
 
     // ========== 时钟读数 ==========
     /** 游戏共享虚拟时钟读数（秒；游戏实例的时间轴）。 */
     public double getGameTimeSeconds() { return gameClock.seconds(); }
-    /** 编辑器预览播放头（秒）；预览通道未激活时回落游戏共享虚拟时钟。 */
+    /** 编辑器播放头（秒）；编辑器播放未激活时回落游戏共享虚拟时钟。 */
     public double getPreviewTimeSeconds() {
-        return previewChannel.isPreviewMode() ? previewClock.seconds() : gameClock.seconds();
+        return previewChannel.isEditorPlayback() ? previewClock.seconds() : gameClock.seconds();
     }
 
     // ========== 帧与 tick 驱动 ==========

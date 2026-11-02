@@ -14,7 +14,8 @@ import java.util.Arrays;
 /**
  * WebUI 专用低分辨率帧捕获。
  *
- * 把主 RenderTarget 缩放到固定 16:9 小 FBO，再 glReadPixels 读回 CPU。
+ * 捕获源 = 主 RenderTarget（含 HUD、lane 合成、调色），不是合成 FBO；把主 RenderTarget
+ * 缩放到固定 16:9 小 FBO，再 glReadPixels 读回 CPU。输出固定 1280×720，当前无配置项。
  */
 public class WebFrameCapture {
 

@@ -44,38 +44,87 @@ public class CinematicController {
     private boolean distortionOverridden = false;
 
     /**
-     * 运行时控制取并集：行为开关在所有活跃实例间逐位 OR——任一实例要求隐藏 / 屏蔽即生效，
-     * 实例增删后由 {@code CameraManager} 重算；三态开关先按各实例的 {@code hide_hud} 解析成有效值再 OR
-     * （单实例结果与直接读该实例一致）。
-     * 生命周期开关（{@code skippable} / {@code interruptible} / {@code hold_at_end} /
-     * {@code pause_when_game_paused}）不参与并集：
-     * 播放门控读活跃实例本身，HUD / 输入路由的即时查询走 {@code CameraManager} 并集或顶层实例接口。
+     * 行为并集的一项：一个活跃实例的运行时行为快照 + 该实例是否由编辑器驱动。
      *
-     * @param behaviors 活跃实例的行为快照（顺序无关；null 元素忽略；null / 空 = 无实例要求 → 恢复默认值）
+     * <p>{@code editorDriven = true} 的实例参与<b>内容行为并集</b>（HUD / lane / 相机 / 音频 / 覆盖层），
+     * 但不参与<b>游戏控制</b>（键鼠屏蔽）——见 {@link #computeUnion(java.util.List)}。</p>
      */
-    public void recomputeUnion(java.util.List<ScriptMeta.RuntimeBehavior> behaviors) {
-        java.util.List<ScriptMeta.RuntimeBehavior> active = new java.util.ArrayList<>();
-        if (behaviors != null) {
-            for (ScriptMeta.RuntimeBehavior b : behaviors) {
-                if (b != null) active.add(b);
+    public record BehaviorEntry(ScriptMeta.RuntimeBehavior behavior, boolean editorDriven) {}
+
+    /**
+     * 全部活跃实例的行为并集快照（纯数据，不触达 Minecraft）。
+     *
+     * <p>三态字段 {@code null} = 未声明（消费方回落各自默认值）；{@code hudLayers} 为键并集，
+     * 每个键的取值 = 全部实例按各自 {@code hide_hud} 解析后的 OR。</p>
+     *
+     * @param anyInstance 是否有实例参与；{@code false} = 无实例要求（其余字段为默认值）
+     * @param blockKeyboard 键鼠屏蔽（只由非编辑器实例投票）
+     * @param blockMouse    同上
+     * @param hideHud       内容行为：全部实例投票
+     * @param hudLayers     {@code hud_layers} 键并集
+     */
+    public record Union(
+            boolean anyInstance,
+            boolean blockKeyboard, boolean blockMouse,
+            boolean hideHud,
+            Boolean hideChat, Boolean hideScoreboard, Boolean hideActionBar, Boolean hideTitle,
+            Boolean hideSubtitles, Boolean hideHotbar, Boolean hideCrosshair, Boolean hideBossbar,
+            Boolean hideSkipHud, Boolean hardHideHud, Boolean hideArm,
+            Boolean suppressBob, Boolean suppressDistortion,
+            boolean renderPlayerModel, boolean blockMobAi,
+            java.util.Map<String, Boolean> hudLayers) {
+
+        /** 无实例要求：与 resetBehaviorToggles() 的默认值一致。 */
+        static Union none() {
+            return new Union(false,
+                    false, false,
+                    true,
+                    null, null, null, null,
+                    null, null, null, null,
+                    null, null, null,
+                    null, null,
+                    true, false,
+                    java.util.Map.of());
+        }
+    }
+
+    /**
+     * 计算全部活跃实例的行为并集（纯函数：不读不写 Minecraft 状态）。
+     *
+     * <p>分组：</p>
+     * <ul>
+     *   <li><b>游戏控制</b>（{@code block_keyboard} / {@code block_mouse}）：只对 {@code !editorDriven}
+     *       的条目求 OR——编辑器播放不屏蔽键鼠，也不解除游戏实例的屏蔽。</li>
+     *   <li><b>内容行为</b>（{@code hide_hud}、各 {@code hide_*}、{@code hard_hide_hud}、{@code hide_arm}、
+     *       {@code suppress_bob}、{@code suppress_distortion}、{@code render_player_model}、
+     *       {@code block_mob_ai}、{@code hud_layers}）：全部条目求 OR——编辑器播放与普通播放画面一致。</li>
+     * </ul>
+     *
+     * <p>三态开关先按各条目自己的 {@code hide_hud} 解析成有效值再 OR（单实例结果与直接读该实例一致）。</p>
+     *
+     * @param entries 活跃实例的行为条目（顺序无关；null 条目与 null behavior 忽略；
+     *                null / 空 = 无实例要求 → {@link Union#none()}）
+     */
+    public static Union computeUnion(java.util.List<BehaviorEntry> entries) {
+        java.util.List<BehaviorEntry> active = new java.util.ArrayList<>();
+        if (entries != null) {
+            for (BehaviorEntry entry : entries) {
+                if (entry != null && entry.behavior() != null) active.add(entry);
             }
         }
-        if (active.isEmpty()) {
-            // 无实例要求 → 行为开关回默认值；注意此处必须恢复 screenEffectScale 而不是按默认值重新求值
-            // （默认值 hide_hud=true 会让 shouldSuppressDistortion() 为真 → 反而全局压制扭曲）
-            resetBehaviorToggles();
-            restoreScreenEffectScale();
-            return;
-        }
+        if (active.isEmpty()) return Union.none();
 
         boolean uBlockKeyboard = false;
         boolean uBlockMouse = false;
         boolean uHideHud = false;
         boolean uRenderPlayerModel = false;
         boolean uBlockMobAi = false;
-        for (ScriptMeta.RuntimeBehavior b : active) {
-            uBlockKeyboard |= b.blockKeyboard();
-            uBlockMouse |= b.blockMouse();
+        for (BehaviorEntry entry : active) {
+            ScriptMeta.RuntimeBehavior b = entry.behavior();
+            if (!entry.editorDriven()) {
+                uBlockKeyboard |= b.blockKeyboard();
+                uBlockMouse |= b.blockMouse();
+            }
             uHideHud |= b.hideHud();
             uRenderPlayerModel |= b.renderPlayerModel();
             uBlockMobAi |= b.blockMobAi();
@@ -84,38 +133,89 @@ public class CinematicController {
         // hud_layers：并集必须在全部实例上求值——未声明该键的实例按自身的 hide_hud 参与
         // （否则该键会失去「其他实例 hide_hud=true」这一票），与消费方「未声明则回落 hide_hud」一致。
         java.util.Set<String> layerKeys = new java.util.LinkedHashSet<>();
-        for (ScriptMeta.RuntimeBehavior b : active) {
-            layerKeys.addAll(b.hudLayers().keySet());
+        for (BehaviorEntry entry : active) {
+            layerKeys.addAll(entry.behavior().hudLayers().keySet());
         }
         java.util.Map<String, Boolean> uLayers = new java.util.LinkedHashMap<>();
         for (String key : layerKeys) {
             boolean hidden = false;
-            for (ScriptMeta.RuntimeBehavior b : active) {
+            for (BehaviorEntry entry : active) {
+                ScriptMeta.RuntimeBehavior b = entry.behavior();
                 hidden |= effective(b.hudLayers().get(key), b);
             }
             uLayers.put(key, hidden);
         }
 
-        this.blockKeyboard = uBlockKeyboard;
-        this.blockMouse = uBlockMouse;
-        this.hideHud = uHideHud;
-        this.hideChat = union(active, b -> effective(b.hideChat(), b));
-        this.hideScoreboard = union(active, b -> effective(b.hideScoreboard(), b));
-        this.hideActionBar = union(active, b -> effective(b.hideActionBar(), b));
-        this.hideTitle = union(active, b -> effective(b.hideTitle(), b));
-        this.hideSubtitles = union(active, b -> effective(b.hideSubtitles(), b));
-        this.hideHotbar = union(active, b -> effective(b.hideHotbar(), b));
-        this.hideCrosshair = union(active, b -> effective(b.hideCrosshair(), b));
-        this.hideBossbar = union(active, b -> effective(b.hideBossbar(), b));
-        this.hideSkipHud = union(active, b -> effective(b.hideSkipHud(), b));
-        this.hardHideHud = union(active, CinematicController::effectiveHardHide);
-        this.hideArm = union(active, b -> effective(b.hideArm(), b));
-        this.suppressBob = union(active, b -> effective(b.suppressBob(), b));
-        this.suppressDistortion = union(active, CinematicController::effectiveDistortion);
-        this.renderPlayerModel = uRenderPlayerModel;
-        this.blockMobAi = uBlockMobAi;
-        this.hudLayers = uLayers;
+        return new Union(true,
+                uBlockKeyboard, uBlockMouse,
+                uHideHud,
+                union(active, e -> effective(e.behavior().hideChat(), e.behavior())),
+                union(active, e -> effective(e.behavior().hideScoreboard(), e.behavior())),
+                union(active, e -> effective(e.behavior().hideActionBar(), e.behavior())),
+                union(active, e -> effective(e.behavior().hideTitle(), e.behavior())),
+                union(active, e -> effective(e.behavior().hideSubtitles(), e.behavior())),
+                union(active, e -> effective(e.behavior().hideHotbar(), e.behavior())),
+                union(active, e -> effective(e.behavior().hideCrosshair(), e.behavior())),
+                union(active, e -> effective(e.behavior().hideBossbar(), e.behavior())),
+                union(active, e -> effective(e.behavior().hideSkipHud(), e.behavior())),
+                union(active, e -> effectiveHardHide(e.behavior())),
+                union(active, e -> effective(e.behavior().hideArm(), e.behavior())),
+                union(active, e -> effective(e.behavior().suppressBob(), e.behavior())),
+                union(active, e -> effectiveDistortion(e.behavior())),
+                uRenderPlayerModel, uBlockMobAi,
+                uLayers);
+    }
+
+    /**
+     * 写入一份并集快照：无实例要求时回默认值并直接恢复 {@code screenEffectScale}
+     * （默认 {@code hide_hud=true} 会让 {@link #shouldSuppressDistortion()} 为真，
+     * 不能走 {@link #updateScreenEffectScale()}，否则反而全局压制扭曲）；有实例时写全部字段后按并集重算。
+     *
+     * @param union 并集快照；{@code null} = 无实例要求
+     */
+    public void applyUnion(Union union) {
+        if (union == null || !union.anyInstance()) {
+            // 无实例要求 → 行为开关回默认值；必须直接恢复 screenEffectScale（见上）
+            resetBehaviorToggles();
+            restoreScreenEffectScale();
+            return;
+        }
+
+        this.blockKeyboard = union.blockKeyboard();
+        this.blockMouse = union.blockMouse();
+        this.hideHud = union.hideHud();
+        this.hideChat = union.hideChat();
+        this.hideScoreboard = union.hideScoreboard();
+        this.hideActionBar = union.hideActionBar();
+        this.hideTitle = union.hideTitle();
+        this.hideSubtitles = union.hideSubtitles();
+        this.hideHotbar = union.hideHotbar();
+        this.hideCrosshair = union.hideCrosshair();
+        this.hideBossbar = union.hideBossbar();
+        this.hideSkipHud = union.hideSkipHud();
+        this.hardHideHud = union.hardHideHud();
+        this.hideArm = union.hideArm();
+        this.suppressBob = union.suppressBob();
+        this.suppressDistortion = union.suppressDistortion();
+        this.renderPlayerModel = union.renderPlayerModel();
+        this.blockMobAi = union.blockMobAi();
+        this.hudLayers = new java.util.LinkedHashMap<>(union.hudLayers());
         updateScreenEffectScale();
+    }
+
+    /**
+     * 运行时控制取并集：行为开关在所有活跃实例间逐位 OR——任一实例要求隐藏 / 屏蔽即生效，
+     * 实例增删后由 {@code CameraManager} 重算；三态开关先按各实例的 {@code hide_hud} 解析成有效值再 OR
+     * （单实例结果与直接读该实例一致）。
+     * 键鼠屏蔽只由非编辑器实例投票（编辑器播放不参与游戏控制），其余内容行为全部实例参与。
+     * 生命周期开关（{@code skippable} / {@code interruptible} / {@code hold_at_end} /
+     * {@code pause_when_game_paused}）不参与并集：
+     * 播放门控读活跃实例本身，HUD / 输入路由的即时查询走 {@code CameraManager} 并集或顶层实例接口。
+     *
+     * @param entries 活跃实例的行为条目（顺序无关；null 元素忽略；null / 空 = 无实例要求 → 恢复默认值）
+     */
+    public void recomputeUnion(java.util.List<BehaviorEntry> entries) {
+        applyUnion(computeUnion(entries));
     }
 
     /** 三态开关在单个实例上的有效值：显式声明以声明为准，null = 未声明 → 回落该实例自己的 {@code hide_hud}。 */
@@ -141,16 +241,16 @@ public class CinematicController {
         return Boolean.TRUE.equals(b.hardHideHud());
     }
 
-    /** 单实例开关取值函数（局部函数式接口，避免引入额外依赖）。 */
+    /** 单条目开关取值函数（局部函数式接口，避免引入额外依赖）。 */
     private interface FlagOf {
-        boolean get(ScriptMeta.RuntimeBehavior behavior);
+        boolean get(BehaviorEntry entry);
     }
 
-    /** 三态开关的并集：逐实例解析成有效值后 OR（{@code behaviors} 已剔除 null 且非空）。 */
-    private static boolean union(java.util.List<ScriptMeta.RuntimeBehavior> behaviors, FlagOf effectiveValue) {
+    /** 三态开关的并集：逐条目解析成有效值后 OR（{@code entries} 已剔除 null 且非空）。 */
+    private static boolean union(java.util.List<BehaviorEntry> entries, FlagOf effectiveValue) {
         boolean any = false;
-        for (ScriptMeta.RuntimeBehavior b : behaviors) {
-            any |= effectiveValue.get(b);
+        for (BehaviorEntry entry : entries) {
+            any |= effectiveValue.get(entry);
         }
         return any;
     }
@@ -185,9 +285,6 @@ public class CinematicController {
 
     public boolean isBlockKeyboard() { return blockKeyboard; }
     public boolean isBlockMouse() { return blockMouse; }
-
-    public void setBlockKeyboard(boolean v) { this.blockKeyboard = v; }
-    public void setBlockMouse(boolean v) { this.blockMouse = v; }
 
     public void releaseAllKeys() {
         KeyMapping.releaseAll();

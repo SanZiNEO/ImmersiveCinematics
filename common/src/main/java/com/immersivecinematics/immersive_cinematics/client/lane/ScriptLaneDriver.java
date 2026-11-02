@@ -118,9 +118,9 @@ public final class ScriptLaneDriver {
                     resolve(lane, slot);
                     // 一条片段一次租约：视角键 = 槽位 + 代际（+ 维度），片段结束确定性归还
                     CameraLease lease = CameraLeasePool.acquire(instance, lane.clip(), frame.dimension());
-                    // 调试捕获 id（产出文件名口径）：<scriptId>_cam<相机轨序号>_clip<片段序号>；预览实例再带 _preview
+                    // 调试捕获 id（产出文件名口径）：<scriptId>_cam<相机轨序号>_clip<片段序号>；编辑器播放实例再带 _preview
                     slot.captureId = instance.scriptId() + "_cam" + frame.cameraTrackIndex()
-                            + "_clip" + frame.clipIndex() + (instance.isPreview() ? "_preview" : "");
+                            + "_clip" + frame.clipIndex() + (instance.isEditorDriven() ? "_preview" : "");
                     touched = true;
                     renderer.setLane(index, lane.state(), contentFor(mc, frame.dimension()),
                             frame.laneAdjust(), frame.dimension(), slot.captureId, lease);
@@ -154,7 +154,7 @@ public final class ScriptLaneDriver {
                 String instanceId = instance.instanceId();
                 ErrorLog.logRateLimited("Render", "lane-collect:" + instanceId, 5000L,
                         "lane 收集异常（script=" + scriptId + ", instance=" + instanceId
-                                + ", preview=" + instance.isPreview()
+                                + ", preview=" + instance.isEditorDriven()
                                 + "）：该实例本帧不注册 lane，其他实例继续", e);
             }
         }

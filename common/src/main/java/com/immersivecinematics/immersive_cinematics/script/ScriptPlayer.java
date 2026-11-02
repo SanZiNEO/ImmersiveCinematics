@@ -76,8 +76,8 @@ public class ScriptPlayer {
     private double heldElapsed = Double.NaN;
 
     /**
-     * 本实例的时钟源（{@link Clock}，秒）：默认 = 游戏共享虚拟时钟；预览实例注入预览播放头。
-     * 预览与游戏各自独立计时，任一侧的暂停 / 播放不影响另一侧的时间轴。
+     * 本实例的时钟源（{@link Clock}，秒）：默认 = 游戏共享虚拟时钟；编辑器播放实例注入编辑器播放头。
+     * 编辑器播放与游戏播放各自独立计时，任一侧的暂停 / 播放不影响另一侧的时间轴。
      */
     private Clock clockSource = CameraManager.INSTANCE::getGameTimeSeconds;
 
@@ -129,7 +129,7 @@ public class ScriptPlayer {
     /** 宏观循环次数：-1 = 无限重复（脚本不再自然结束）；正整数 N = 重复 N 圈后自然结束 */
     private int macroLoopCount = -1;
 
-    /** 是否允许宏观循环（编辑器预览实例关闭：预览按真实时间线播放，循环不展开也不折叠） */
+    /** 是否允许宏观循环（编辑器播放实例关闭：编辑器播放按真实时间线播放，循环不展开也不折叠） */
     private boolean macroLoopAllowed = true;
 
     /** 上一帧分发给轨道的圈内局部时间（检测圈边界折返）；NaN = 无上一帧 */
@@ -347,7 +347,7 @@ public class ScriptPlayer {
         // 玩家移动控制：提取 EVENT position 关键帧
         playerMovement.onScriptStart(script, originPos);
 
-        // 预执行第一帧（避免首帧闪烁）— 用调用方期望的 elapsed（预览模式 = previewTime，避免 t=0 跳变）
+        // 预执行第一帧（避免首帧闪烁）— 用调用方期望的 elapsed（编辑器播放 = previewTime，避免 t=0 跳变）
         double elapsedSeconds = preExecuteAt;
         timelineTime = elapsedSeconds;
         for (TrackPlayer tp : trackPlayers) {
@@ -611,7 +611,7 @@ public class ScriptPlayer {
     }
 
     /**
-     * 对齐内部时钟，使脚本已播放时间等于期望值（编辑器重载脚本 / 定位预览播放头 / {@code goto_clip} 跳转）。
+     * 对齐内部时钟，使脚本已播放时间等于期望值（编辑器重载脚本 / 定位编辑器播放头 / {@code goto_clip} 跳转）。
      *
      * 起始读数 = 基准读数 − 期望时间：与 {@link #getElapsedSeconds()} 同一公式（两处必须同步）。
      * 挂起中定位改写保持的内容位置（恢复仍从该位置续）；定位即路径变更，执行事实按新位置重导。
@@ -692,7 +692,7 @@ public class ScriptPlayer {
     // ========== 内部方法 ==========
 
     /**
-     * 开关宏观循环。编辑器预览实例必须关闭——预览按真实时间线播放：
+     * 开关宏观循环。编辑器播放实例必须关闭——编辑器播放按真实时间线播放：
      * 循环是运行时播放控制，编辑器时间轴既不展开也不折叠。
      */
     public void setMacroLoopAllowed(boolean allowed) {
@@ -722,7 +722,7 @@ public class ScriptPlayer {
 
     /**
      * 推导宏观循环参数（区间 [a, b] 与圈数）；不满足条件 → 不循环（macroLoopEnd = NaN）。
-     * 条件：{@code meta.macro_loop=true} + 宏观循环被允许（预览实例关闭）+ 区间非空。
+     * 条件：{@code meta.macro_loop=true} + 宏观循环被允许（编辑器播放实例关闭）+ 区间非空。
      * a = {@code timeline.loop_start}（缺省 0，负值按 0）；b 优先取 {@code timeline.loop_end}
      * （作者声明的子区间），缺省取宏观末端——此时存在永不结束片段 → 末端不存在 → 不循环。
      * 脚本开始时调用一次并缓存。
@@ -966,7 +966,7 @@ public class ScriptPlayer {
      * 本实例已播放时间（秒）= 时钟读数 − 起始读数；挂起中 = 保持的内容位置（{@link #heldElapsed}）。
      *
      * 挂起期间本值恒定、恢复后从该值继续（起始读数在 {@link #endSuspend()} 按它重定）。
-     * 时钟源随实例走（{@link #setClockSource}）：游戏实例 = 全局虚拟时钟；预览实例 = 预览播放头。
+     * 时钟源随实例走（{@link #setClockSource}）：游戏实例 = 全局虚拟时钟；编辑器播放实例 = 编辑器播放头。
      */
     public double getElapsedSeconds() {
         if (isSuspended()) return heldElapsed;
@@ -976,7 +976,7 @@ public class ScriptPlayer {
     /**
      * 设置本实例的时钟源（秒）；{@code null} = 保持当前（默认游戏共享虚拟时钟）。
      * 须在 {@link #start(CinematicScript, double)} 之前设置（起始读数在 start 时取）。
-     * 预览实例注入预览播放头。
+     * 编辑器播放实例注入编辑器播放头。
      */
     public void setClockSource(Clock source) {
         if (source != null) this.clockSource = source;

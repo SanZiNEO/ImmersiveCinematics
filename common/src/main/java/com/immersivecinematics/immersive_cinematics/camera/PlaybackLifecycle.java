@@ -60,7 +60,7 @@ final class PlaybackLifecycle {
     /** 播放队列（不设上限）：当前脚本不可打断时新脚本入队，结束后自动接播。 */
     private final ScriptQueue scriptQueue = new ScriptQueue();
 
-    /** 出队可播判定：该脚本当前没有游戏实例在播（预览实例不参与）。复用一份，避免每次出队分配。 */
+    /** 出队可播判定：该脚本当前没有游戏实例在播（编辑器实例不参与）。复用一份，避免每次出队分配。 */
     private final Predicate<CinematicScript> scriptNotPlaying;
 
     PlaybackLifecycle(PlaybackRegistry registry, PlaybackLedger ledger, PreviewChannel previewChannel,
@@ -123,7 +123,7 @@ final class PlaybackLifecycle {
     }
 
     /**
-     * 顶掉全部在播的 interruptible 非预览实例（跨脚本到达裁决：新来者打断它们后开播）。
+     * 顶掉全部在播的 interruptible 游戏实例（跨脚本到达裁决：新来者打断它们后开播）。
      * 打断走统一退出入口 {@link #requestExit(PlaybackInstance, ExitReason)}（{@link ExitReason#INTERRUPTED}）
      * ——渐出退场链：置原因 → {@code deactivate}（只淡出被打断者的层）→ 帧驱动判定完成 → {@code deactivateNow}。
      * 先取目标副本再逐个停用：停用可能接播队列，避免边遍历边增删（新接播的实例不在本次目标内）。
@@ -133,7 +133,7 @@ final class PlaybackLifecycle {
         List<PlaybackInstance> instances = registry.instances();
         for (int i = 0; i < instances.size(); i++) {
             PlaybackInstance instance = instances.get(i);
-            if (!instance.isPreview() && instance.playMode() == ScriptMeta.PlayMode.INTERRUPTIBLE) {
+            if (!instance.isEditorDriven() && instance.playMode() == ScriptMeta.PlayMode.INTERRUPTIBLE) {
                 targets.add(instance);
             }
         }
@@ -251,7 +251,7 @@ final class PlaybackLifecycle {
     /** 紧急停止（世界退出/断线）：跳过退场动画直接清理全部实例，防止 OpenAL 音频残留。 */
     void emergencyStop() {
         previewChannel.deactivateChannel();
-        // 世界已退出：全部实例一起清理（跨脚本并行下逐个清，预览实例也在内，音频/覆盖层都不能残留）
+        // 世界已退出：全部实例一起清理（跨脚本并行下逐个清，编辑器实例也在内，音频/覆盖层都不能残留）
         for (PlaybackInstance instance : registry.instances()) {
             instance.setExitReason(CompletionReason.STOPPED);
         }
@@ -273,7 +273,7 @@ final class PlaybackLifecycle {
     /**
      * 立即停用指定实例（不渐出）：出列 → 通知结束 → 清理该实例 → 接播 → 全局复位或按剩余实例重算。
      * 跨脚本并行下只影响传入实例：只要还有实例在播（含刚接播的），共享时钟 / 相机状态 / 覆盖层 / 输入交接都不复位。
-     * 预览实例不上报网络账本，退出它也不触发待接播与队列接播。
+     * 编辑器实例不上报网络账本，退出它也不触发待接播与队列接播。
      *
      * @param instance 目标实例；{@code null} = 无播放可结束（仅做一次全局复位检查）
      */
@@ -281,7 +281,7 @@ final class PlaybackLifecycle {
         CompletionReason reason = instance != null ? instance.exitReason() : CompletionReason.FINISHED;
         LOGGER.info("deactivateNow: reason={}", reason);
 
-        boolean preview = instance != null && instance.isPreview();
+        boolean editorDriven = instance != null && instance.isEditorDriven();
 
         // 实例先出列：后续读取不再看到本实例
         if (instance != null) {
@@ -296,7 +296,7 @@ final class PlaybackLifecycle {
         }
 
         // 接播先于全局复位：接播出的新实例要用共享时钟 / 相机状态 / 覆盖层，不能先被复位清掉。
-        if (!preview) {
+        if (!editorDriven) {
             if (pendingScript != null) {
                 // 同脚本替换（可打断路径）的接播：替换目标已被本方法出列
                 CinematicScript next = pendingScript;
@@ -362,56 +362,47 @@ final class PlaybackLifecycle {
     /**
      * 新建并启动一个播放实例（每次真正开始播放 = 一个新实例）。
      *
-     * @param preview {@code true} = 编辑器预览实例（独立时钟、恒排列表末位、不参与行为并集与账本）
+     * @param editorDriven {@code true} = 编辑器播放实例（时钟源 = 编辑器播放头、恒排列表末位、
+     *                     参与内容行为并集但不参与游戏控制与账本）
      * @return 新启动的实例（调用方据此上报服务端账本）
      */
-    PlaybackInstance startScriptInternal(CinematicScript script, String instanceId, boolean preview) {
+    PlaybackInstance startScriptInternal(CinematicScript script, String instanceId, boolean editorDriven) {
         Minecraft mc = Minecraft.getInstance();
-        if (!previewChannel.isPreviewMode()) {
+        if (!previewChannel.isEditorPlayback()) {
             mc.setScreen(null);
         }
 
-        // 只有真正屏蔽键鼠的脚本才清空按键；非屏蔽脚本保留玩家当前输入状态，避免切换时中断
-        if (script.getMeta().isBlockKeyboard() || script.getMeta().isBlockMouse()) {
+        // 只有真正屏蔽键鼠的游戏脚本才清空按键；非屏蔽脚本保留玩家当前输入状态，避免切换时中断。
+        // 编辑器播放不参与游戏控制：它不清空玩家按键（也不屏蔽键鼠）。
+        if (!editorDriven && (script.getMeta().isBlockKeyboard() || script.getMeta().isBlockMouse())) {
             CinematicController.INSTANCE.releaseAllKeys();
         }
 
-        // 预览实例重启不重置相机到玩家位置（否则每次 pushScript 节流重启都闪回 → 拖拽卡顿）；
-        // 首次进入预览仍初始化一次，保证预览首帧从玩家位置起步。游戏实例每次开播都从玩家位置起步。
-        if (!preview || !previewChannel.isPreviewInitialized()) {
+        // 编辑器实例重启不重置相机到玩家位置（否则每次 pushScript 节流重启都闪回 → 拖拽卡顿）；
+        // 首次进入编辑器播放仍初始化一次，保证首帧从玩家位置起步。游戏实例每次开播都从玩家位置起步。
+        if (!editorDriven || !previewChannel.isPreviewInitialized()) {
             stateHolder.setInitialView(mc.player.position(), mc.player.getYRot(), mc.player.getXRot());
         }
         previewChannel.setPreviewInitialized(true);
 
-        // 列表顺序 = 叠放顺序：游戏实例插在预览实例之前，预览实例追加到末位（预览恒为顶层）。
-        PlaybackInstance instance = new PlaybackInstance(coverChain, preview);
-        if (preview) {
+        // 列表顺序 = 叠放顺序：游戏实例插在编辑器实例之前，编辑器实例追加到末位（编辑器播放恒为顶层）。
+        PlaybackInstance instance = new PlaybackInstance(coverChain, editorDriven);
+        if (editorDriven) {
             registry.addLast(instance);
             previewChannel.setPreviewInstance(instance);
         } else {
             registry.insertBefore(previewChannel.previewInstance(), instance);
         }
 
-        // 预执行首帧用播放头时间（预览实例），避免首帧写 t=0 造成画面跳变；游戏内播放传 0。
-        instance.player().setMacroLoopAllowed(!preview);
-        if (preview) {
+        // 预执行首帧用播放头时间（编辑器实例），避免首帧写 t=0 造成画面跳变；游戏内播放传 0。
+        instance.player().setMacroLoopAllowed(!editorDriven);
+        if (editorDriven) {
             instance.player().setClockSource(previewClock);
         }
-        instance.start(script, instanceId, preview ? previewClock.seconds() : 0.0);
-        if (preview) {
-            // 预览通道不套用脚本行为：允许键鼠。有游戏实例并行时改按游戏实例重算并集——
-            // 预览不解除游戏实例的键鼠屏蔽。
-            List<ScriptMeta.RuntimeBehavior> gameBehaviors = registry.instanceBehaviors();
-            if (gameBehaviors.isEmpty()) {
-                CinematicController.INSTANCE.setBlockKeyboard(false);
-                CinematicController.INSTANCE.setBlockMouse(false);
-            } else {
-                CinematicController.INSTANCE.recomputeUnion(gameBehaviors);
-            }
-        } else {
-            // 行为开关按全部活跃实例取并集
-            CinematicController.INSTANCE.recomputeUnion(registry.instanceBehaviors());
-        }
+        instance.start(script, instanceId, editorDriven ? previewClock.seconds() : 0.0);
+
+        // 行为开关按全部活跃实例取并集：内容行为全部实例参与，键鼠屏蔽由 computeUnion 单独排除编辑器实例。
+        CinematicController.INSTANCE.recomputeUnion(registry.instanceBehaviors());
 
         // 写侧收口：instance.start 已预执行脚本首帧、直写内部状态；这里立即刷新统一快照，
         // 使同一 tick 内后续读取看到接播后的最新值，而非过期/空快照。

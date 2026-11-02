@@ -13,8 +13,8 @@ import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandl
 /**
  * 播放账本（网络侧）：播放开始回执、暂停/恢复握手、结束通知与跳过投票复位。
  *
- * 只记游戏播放侧的账：编辑器预览实例不上报（由 {@link PlaybackInstance#isPreview()} 门控）。
- * 开始回执只在「实际开始播放」的入口调用（排队等待 / 被拒绝 / 预览都不上报）；
+ * 只记游戏播放侧的账：编辑器播放实例不上报（由 {@link PlaybackInstance#isEditorDriven()} 门控）。
+ * 开始回执只在「实际开始播放」的入口调用（排队等待 / 被拒绝 / 编辑器播放都不上报）；
  * 暂停握手按实例发一条 + 登记 ACK 超时重发，触发时机 = 帧级暂停↔恢复转换。
  *
  * 线程：仅客户端主线程；发包只在事件帧发生。
@@ -66,19 +66,19 @@ final class PlaybackLedger {
     }
 
     /**
-     * 结束通知 + 跳过投票复位；两者都只对游戏实例生效（预览实例退出不动游戏播放侧的账）。
+     * 结束通知 + 跳过投票复位；两者都只对游戏实例生效（编辑器实例退出不动游戏播放侧的账）。
      *
      * @param instance 刚停用的实例；{@code null} = 无实例可通知（仍复位跳过投票）
      * @param reason   上报的完成原因
      */
     void reportScriptFinished(PlaybackInstance instance, CompletionReason reason) {
-        boolean preview = instance != null && instance.isPreview();
+        boolean editorDriven = instance != null && instance.isEditorDriven();
         String finishedScriptId = instance != null ? instance.scriptId() : null;
-        if (finishedScriptId != null && !preview) {
+        if (finishedScriptId != null && !editorDriven) {
             String finishedInstanceId = instance.instanceId() != null ? instance.instanceId() : "";
             ClientScriptNotifier.notifyScriptFinished(finishedScriptId, finishedInstanceId, reason);
         }
-        if (!preview) {
+        if (!editorDriven) {
             ClientScriptReceiver.resetSkipVote();
         }
     }

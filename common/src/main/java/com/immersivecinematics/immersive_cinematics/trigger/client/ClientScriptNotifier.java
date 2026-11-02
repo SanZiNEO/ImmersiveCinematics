@@ -8,7 +8,7 @@ import org.slf4j.Logger;
 /**
  * 脚本结束通知（客户端 → 服务端）。
  *
- * 只对游戏实例发送：预览实例的退出由调用方 {@code PlaybackLedger} 过滤，不进服务端账本。
+ * 只对游戏实例发送：编辑器播放实例的退出由调用方 {@code PlaybackLedger} 过滤，不进服务端账本。
  * 未连接服务器时（断线 / 退出世界）跳过发送，避免网络层抛异常打断渲染线程。
  */
 public class ClientScriptNotifier {

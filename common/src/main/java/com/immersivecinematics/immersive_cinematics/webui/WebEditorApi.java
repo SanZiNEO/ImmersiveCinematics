@@ -288,12 +288,12 @@ public final class WebEditorApi {
     /** 广播当前播放器状态（供 WebPreviewScreen 每帧调用，形成实时双向通信）。 */
     public static void pushPlaybackState() {
         JsonObject data = new JsonObject();
-        // 预览播放头（预览实例的时钟；预览未激活时回落全局虚拟时钟）——游戏实例与预览实例各自计时，
-        // 全局虚拟时钟不再代表预览播放头
+        // 编辑器播放头（编辑器播放实例的时钟；编辑器播放未激活时回落全局虚拟时钟）——游戏实例与编辑器播放实例各自计时，
+        // 全局虚拟时钟不再代表编辑器播放头
         data.addProperty("time", CameraManager.INSTANCE.getPreviewTimeSeconds());
         // playing = 用户正在播放（未暂停），不是“脚本已加载”
-        boolean playing = CameraManager.INSTANCE.isPreviewMode()
-                && !CameraManager.INSTANCE.isPreviewPaused();
+        boolean playing = CameraManager.INSTANCE.isEditorPlayback()
+                && !CameraManager.INSTANCE.isEditorPaused();
         data.addProperty("playing", playing);
         WebEditorServer.INSTANCE.broadcastText(wrap("playback.state", data, ""));
     }
