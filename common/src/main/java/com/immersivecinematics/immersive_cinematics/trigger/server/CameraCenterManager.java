@@ -22,9 +22,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * 相机中心同步（服务端）— 虚拟相机中心方案：把玩家的虚拟 Section 写入 {@code ChunkMapCameraMixin}
- * 再调原版 {@code ChunkMap.move}，让 DistanceManager 的正方形 ticket 加载与 ChunkMap 的圆角
- * isChunkInRange 发送/遗忘自动围绕相机中心运转；清除虚拟中心即交还原版玩家差集。不自建差集、不手动发包。
+ * 相机中心同步（服务端）— 虚拟相机中心方案：调原版 {@code ChunkMap.move} 前，由
+ * {@code ServerChunkCacheCameraMixin} 把玩家的位置视图临时换成相机眼位（{@code position} /
+ * {@code blockPosition} / {@code chunkPosition}），让 DistanceManager 的正方形 ticket 加载与 ChunkMap 的圆角
+ * isChunkInRange 发送/遗忘自动围绕相机中心运转；清除虚拟中心后再 move 即交还原版玩家差集。
+ * 不自建差集、不手动发包，也不依赖 {@code ChunkMap.move} 的具体实现（Lithium/Radium 的 {@code @Overwrite}
+ * 重写版读到的同样是「玩家位置」，只是窗口内是相机）。
  *
  * 状态以客户端生成的 {@code sessionId} 定代：START 替换会话，位置包只接受当前会话，END 只释放匹配会话，
  * 旧播放的迟到包不会误杀新播放。所有入口都在主线程。

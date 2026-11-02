@@ -63,7 +63,7 @@
 
 ### 4.1 核心模型
 
-- 相机位置源（`CameraVirtualCenterState`）：按玩家存一份 `(ServerLevel, SectionPos, Vec3 center)`。`section` 只取 x/z，供 `ChunkMapCameraMixin` 的原版差集使用；`center` 是含 y 的完整眼位，供 `ChunkMapTrackedEntityCameraMixin` 的配对使用。查询带维度门：`entry.level == player.level()` 才返回，切维度后旧中心自动失效。
+- 相机位置源（`CameraVirtualCenterState`）：按玩家存一份 `(ServerLevel, SectionPos, Vec3 center)`。`section` 只取 x/z；`ServerChunkCacheCameraMixin` 在 `ServerChunkCache.move` 的同步窗口内把玩家的 `position` / `blockPosition` / `chunkPosition` 临时换成相机眼位（`EntityAccessor`），原版与 Lithium/Radium 的 `ChunkMap.move` 差集因此围绕相机运转，窗口结束立即还原（不改真实位置、不手动发包）。`center` 是含 y 的完整眼位，供 `ChunkMapTrackedEntityCameraMixin` 的配对使用。查询带维度门：`entry.level == player.level()` 才返回，切维度后旧中心自动失效。
 - 相机锚点（`CameraAnchorManager`）：`setAnchor(player, level, center)` 写入与位置源同一个 `center`，同一玩家同一维度复用同一个 `CameraAnchorVirtualPlayer`，只 `moveTo`；不创建实体、不进玩家列表。锚点 y 就是相机 y；`isAnyAnchorNear` / `getVirtualPlayer` 的 128 格资格过滤是 2D（与原版区块门同口径），3D 距离交原版判定。
 - 状态清理（C0）：`CameraCenterManager.PlayerState` 带 `sessionId`（客户端每次 START 生成，位置包 / END 只认当前会话）与 `lastReportTick`；`tick()` 每 tick 兜底，超过 `max(100, 5 × Config.cameraCenterReportInterval)` tick 无上报或玩家已移除即释放；END、断线（`onDisconnect`）、维度卸载（`onLevelUnload`）、服务端停止 / 换档（`clearAll`）都清三张表；`release()` 不受任何配置开关门控。
 - 客户端位置上报（`CameraCenterReporter`）：每 tick 至多一包；达到 `Config.cameraCenterReportInterval` tick、位移 ≥1 格或当前维度相机态翻转即发送；上报中心 = 当前维度第一条（最底层 / 背景）CAMERA lane 的相机眼位；没有当前维度 lane 时改报玩家位置（含 y）并 `cameraMode=false`。目标维度预取景 lane 不参与当前维度中心，由 `CameraViewReporter` 按 view 独立上报。
@@ -151,11 +151,11 @@
 
 状态：同维度 C0–C3 / C6 已实现并提交（`8354731` F6 相机中心实体、`c0b1ac1` F8 客户端跨维度视图、`50aa5fb` F8 服务端视图流与三画面脚本）；C4「每条 lane 用自己的相机作视图中心（客户端非 lane pass 的共享网格中心取合成顺序末位 lane）」与 C5「客户端可见半径维持原版」是接受项（C4 的共享网格部分是 `ViewArea` 的实现约束，不是「主相机」；lane pass 各用各的中心）；跨维度数据流已实现，细节见 §4.5 / [跨维度相机](cross-dimension-camera.md)。
 
-本表按当前代码与实机结果陈述：同维度已于 2026-10-25 实测镜像 / 反向 / 远机位三次；跨维度三画面脚本 `test_camera_center_crossdim_view` 于 2026-10-26 实机验证（双视图 active、无 route-fail / oversize）。已知限制：相机附近生物无 AI；目标维度实体是快照。操作与观察点见 `cinematics/0.3.6/tests/camera_center/README.md`。
+本表按当前代码与实机结果陈述：同维度已于 2026-10-25 实测镜像 / 反向 / 远机位三次；跨维度三画面脚本 `test_camera_center_crossdim_view` 于 2026-10-26 实机验证（双视图 active、无 route-fail / oversize）。**Radium/Lithium 兼容（2026-11-02 实机，BMC4 Forge 0.3.6 + Radium 0.12.4）**：`gt_far_1000` 主相机在玩家东侧 1000 格贴地、30s 内 z 位移 200 格并转向，同时右下角副相机跨维度看末地主岛——主世界与末地区块/实体均正常加载，无 mixin 崩溃；相机中心改由 `ServerChunkCacheCameraMixin` 在 `move` 窗口内替换位置视图，仍走原版差集。已知限制：相机附近生物无 AI；目标维度实体是快照。操作与观察点见 `cinematics/0.3.6/tests/camera_center/README.md`。
 
 | 设计目标 | 实现 | 说明 |
 |---|---|---|
-| C1 一份相机位置（含 y）供四条链共用 | `CameraVirtualCenterState` 按玩家存 `(ServerLevel, section, Vec3 center)`；`ChunkMapCameraMixin` 读 section（2D 差集），`ChunkMapTrackedEntityCameraMixin` 读 center（含 y，配对仍按原版 2D 只读 x/z）；`CameraAnchorManager.setAnchor` 写同一个 `center`，锚点 y = 相机 y | 已实现 |
+| C1 一份相机位置（含 y）供四条链共用 | `CameraVirtualCenterState` 按玩家存 `(ServerLevel, section, Vec3 center)`；`ServerChunkCacheCameraMixin` 在 `ServerChunkCache.move` 的 HEAD/RETURN 临时替换玩家 `position` / `blockPosition` / `chunkPosition`（`EntityAccessor`），让原版与 Lithium/Radium 的 `ChunkMap.move`（含 `@Overwrite` 重写版）读到相机中心（2D 差集、ticket、区块发送、`playerMap`），窗口结束还原；`ChunkMapTrackedEntityCameraMixin` 读 center（含 y，配对仍按原版 2D 只读 x/z）；`CameraAnchorManager.setAnchor` 写同一个 `center`，锚点 y = 相机 y | 已实现；不再依赖 `ChunkMap.move` 内部调用点，Radium/Lithium 兼容 |
 | C0 条目带超时 / 代际，释放不受配置门控 | `CameraCenterManager.PlayerState` 带 `sessionId` 与 `lastReportTick`；`tick()` 按 `max(100, 5 × Config.cameraCenterReportInterval)` 超时释放，玩家已移除也释放；END / 断线 / 维度卸载 / `clearAll` 全清；`release()` 无配置门 | 已实现 |
 | C1 位置更新与配对刷新同一节拍，按位移阈值刷新 | 每次上报都写位置源；`applyVirtualCamera` 只在维度变化（`level`）、cameraMode 翻转（`flip`）、中心区块变化（`section`），或位移 ≥4 格且距上次 move ≥2 tick（`threshold`）时才调 `ChunkMap.move` | 已实现；阈值 4 格 / 2 tick 写在 `applyVirtualCamera`，reason 经 `CameraCenterDiagnostics.onMove` 输出 |
 | C2 局部上限也认相机 | `ChunkMapMixin.playerIsCloseEnoughForSpawning` HEAD 按相机 x/z 128 格放行 → `getPlayersCloseForSpawning` 返回真实玩家，`LocalMobCapCalculator` 不再因空列表整块跳过；`LocalMobCapCalculatorMixin` 只在 RETURN 观察计数，不改判定 | 已实现；不新增假玩家，配额仍按玩家记账 |

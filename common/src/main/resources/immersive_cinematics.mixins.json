@@ -39,15 +39,16 @@
     "UnderwaterAmbientSoundHandlerMixin"
   ],
   "mixins": [
-    "ChunkMapCameraMixin",
     "ChunkMapMixin",
     "ChunkMapTrackedEntityCameraMixin",
+    "EntityAccessor",
     "ItemUseMixin",
     "LocalMobCapCalculatorMixin",
     "MobDespawnCameraMixin",
     "NaturalSpawnerMixin",
     "NaturalSpawnerSpawnStateMixin",
     "PlayerListAudioBroadcastMixin",
+    "ServerChunkCacheCameraMixin",
     "ServerEntityMixin"
   ],
   "injectors": {
