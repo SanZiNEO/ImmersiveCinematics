@@ -1,6 +1,6 @@
 # 三次 Bézier 路径
 
-> 状态：实现中（现有三次 Bézier 路径 + 弧长 LUT；表达式层契约/多曲线未实现）
+> 状态：已实现
 > 范围：二次/三次 Bézier 的参数、导数、端点切线、G1 拼接、凸包、相对/绝对控制点、现有实现语义
 > 关联：`expression-contract.md`、`curve-rational-bezier.md`、`arc-length.md`、`exact-conics.md`、`example/math/books/curve-notes/curve-bezier.md`
 
@@ -59,9 +59,9 @@ Bézier 是路径表达式的基础原语：用首末端点和两个内部控制
 ### 4.3 数据形态
 
 - 类型 `bezier`；端点来自路径条目的相邻位置节点；两个控制点各自带参考空间。
-- 控制点数量固定为 2；现有 `isValid()` 不通过时 `BezierPathStrategy` 回落到直线并 WARN，目标改为解析期报错/显式降级标记，不静默退回直线。
+- 控制点数量固定为 2；数量不符或元素为 `null` 在构造期抛 `IllegalArgumentException`（解析期报错），不静默退回直线。
 - 退化：`P1=P2` 只表示两个内部控制点重合，不产生圆，也不自动变成直线；曲线仍按三次多项式求值，是否共线取决于 `P0/P1/P3`。`P0=P3` 且控制点重合时为零长，弧长算子返回 0。
-- 现有 `BezierCurve` / `MathUtil.cubicBezier` 的 Javadoc 仍写着“`P1==P2` 为正圆弧、`P1/P2` 共线为椭圆弧”，与实际三次多项式求值不一致；实施时一并修正，避免作者按错误口径写脚本。
+- 旧的 Bézier 曲线类已随链路删除；`BezierPathSpec` 按三次多项式求值，`P1==P2` 不等于圆弧。
 
 ### 4.4 边界
 
@@ -86,8 +86,16 @@ Bézier 是路径表达式的基础原语：用首末端点和两个内部控制
 
 ## 六、实现结果
 
-状态：实现中
+状态：已实现
 
-现有 `BezierPathStrategy` + `ArcLengthLUT` 已实现三次 Bézier 路径与弧长参数化；本计划的目标是把它收进表达式层，并补齐契约、端点/G1 校验与多曲线注册。实现结果待落地后回写。
+`math/path/BezierPathSpec` 实现本文档的全部契约：
+
+- 类型 `bezier`，定义域 `PathDomain.UNIT`，锚点 `PathAnchor.ENDPOINTS`；`bind(from, to)` 用调用点端点当 `P0/P3`，两个内部控制点按各自的相对/绝对语义 `resolve(from)` 得 `P1/P2`。
+- 参数表 `control_points` 恰好 2 个内部点（顺序 `P1`、`P2`）；数量不符或元素为 `null` 构造期抛 `IllegalArgumentException`，经 `PathCurveRegistry.create` 变成解析期报错。
+- 二次升阶：`BezierPathSpec.quadratic(p0, p1, p2)` 按 `Q1 = P0 + (2/3)(P1-P0)`、`Q2 = P2 + (2/3)(P1-P2)` 产出内部点为绝对坐标的三次定义，绑定后与二次曲线逐点等价；作者面仍只有 `bezier`。
+- 求值为三次多项式，声明 `ANALYTIC_SECOND_DERIVATIVE`；退化控制点不改变求值式，零长由弧长算子返回 0。
+- 与 B-spline、Hermite 的等价性实测：B-spline ≡ 三次 Bézier `2.9e-14`，Hermite ≡ 三次 Bézier `2.8e-14`（均在本轮 470 项探针内）。
+
+旧策略链路（策略类、旧 Bézier 曲线类、旧弧长 LUT）已删除，无兼容垫片。
 
 

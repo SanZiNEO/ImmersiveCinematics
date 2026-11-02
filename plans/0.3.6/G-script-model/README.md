@@ -1,6 +1,6 @@
 # G 轮：脚本模型 / 时钟 / 数学底层 / 编辑器播放
 
-> 状态：G6 已完成；G1/G2 归 I 轮；G3 延后；G4 时钟抽象收尾未做；G-math 15 篇中 3 篇实现中、12 篇未实现；editor-playback 未实现。
+> 状态：G6 已完成；G1/G2 归 I 轮；G3 延后；G4 时钟抽象五步全部落地；G-math 15 篇已实现；editor-playback 已实现。
 > 范围：脚本数据模型的既有基线、时钟抽象、数学曲线/路径底层、编辑器播放语义。
 > 关联：[脚本模型](script-model.md)、[时钟抽象](clock-abstraction.md)、[G-math](G-math/README.md)、[编辑器播放](editor-playback.md)、[I 轮对象模型](../I-script-core/README.md)、[Z 编辑器](../Z-editor/README.md)。
 
@@ -15,9 +15,9 @@ G 轮分四块：脚本模型的既有基线（容器、片段重叠、实例状
 | 文档 | 负责什么 | 状态 |
 |---|---|---|
 | [script-model.md](script-model.md) | 脚本容器、片段重叠、每实例状态、既有字段插值基线 | 既有部分已落地；G1/G2 归 I，G3 延后 |
-| [clock-abstraction.md](clock-abstraction.md) | 单调秒、GameClock / PreviewClock、实例时钟注入、double/float 边界 | 接口与两实现已落地；double 化、去死参数、覆盖层帧间隔、存储边界未执行 |
-| [editor-playback.md](editor-playback.md) | 编辑器播放 = 播放引擎的另一种时钟源；内容行为参与范围 | 未实现 |
-| [G-math/README.md](G-math/README.md) | 表达式契约、曲线家族、精确圆锥、弧长/LUT、连续性、轴约束、验收 | 三次 Bézier + 弧长 LUT 已有；其余未实现 |
+| [clock-abstraction.md](clock-abstraction.md) | 单调秒、GameClock / PreviewClock、实例时钟注入、double/float 边界 | 已实现（五步全部落地） |
+| [editor-playback.md](editor-playback.md) | 编辑器播放 = 播放引擎的另一种时钟源；内容行为参与范围 | 已实现 |
+| [G-math/README.md](G-math/README.md) | 表达式契约、曲线家族、精确圆锥、弧长/LUT、连续性、轴约束、验收 | 已实现（15 篇落地，未实现子项见各篇） |
 
 ## 三、排期
 
@@ -85,7 +85,6 @@ G 轮分四块：脚本模型的既有基线（容器、片段重叠、实例状
 
 ## 六、实现结果
 
-- G6 ✅；G1/G2 由 I 轮吸收；G3 延后；G5 归 Z。
-- 三次 Bézier 路径 + 弧长 LUT 已服务现有路径；精确圆锥、B-spline/NURBS、Catmull-Rom/Hermite、回旋线、Fourier、连续性与轴约束未实现。
-- 时钟接口与两个实现已落地；double 化与覆盖层帧间隔未完成。
-- 编辑器播放语义未实现。
+- G6 ✅；G1/G2 由 I 轮吸收；G3 延后；G5 归 Z；G4 五步落地（`clock-abstraction.md` §六）。
+- G-math 15 篇落地；未实现子项：切空间/整条投影、回旋线插入策略、LUT 动态缓存（见各篇）。
+- 编辑器播放语义已实现：命名统一（`isEditorDriven()` / `isEditorPlayback()` / `isEditorPaused()`）、行为并集分组（键鼠只并游戏实例，内容行为并全部实例）、画面源取主 `RenderTarget`、20 项无头探针 PASS；实机待人工。

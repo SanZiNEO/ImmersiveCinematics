@@ -46,7 +46,7 @@ from ctypes import wintypes
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-RUN = ROOT / "fabric/run"
+RUN = Path(os.environ.get("IC_RUN_DIR") or (ROOT / "fabric/run"))
 LOG = RUN / "logs/latest.log"
 DIAG = RUN / "immersive_cinematics/diagnostics"
 SESSIONS = DIAG / "sessions"
@@ -216,6 +216,90 @@ def tail_log(lines=40):
         die(f"日志不存在：{rel(LOG)}")
     text = LOG.read_bytes().decode("gbk", errors="replace")   # 客户端日志是 GBK
     print("\n".join(text.splitlines()[-lines:]))
+
+
+GTEST_DIR = Path("E:/tmp/gtest")
+
+
+def cmd_where():
+    """打印当前世界名 / 世界类型 / 玩家登录位置 / 维度（从 latest.log + level.dat 推断）。"""
+    if not LOG.exists():
+        die(f"日志不存在：{rel(LOG)}")
+    text = LOG.read_bytes().decode("gbk", errors="replace")
+
+    pos = None
+    for m in re.finditer(r"logged in with entity id \d+ at \(([^)]+)\)", text):
+        pos = m.group(1)
+    dim = None
+    for m in re.finditer(r"dimension change: [^=]*=> (\S+)", text):
+        dim = m.group(1)
+
+    saves = RUN / "saves"
+    world = None
+    world_type = "unknown"
+    if saves.is_dir():
+        dirs = [d for d in saves.iterdir() if d.is_dir()]
+        if dirs:
+            w = max(dirs, key=lambda d: (d / "level.dat").stat().st_mtime if (d / "level.dat").exists() else 0)
+            world = w.name
+            level = w / "level.dat"
+            if level.exists():
+                try:
+                    import gzip
+                    raw = gzip.decompress(level.read_bytes())
+                    if b"minecraft:flat" in raw:
+                        world_type = "flat"
+                    elif b"minecraft:noise" in raw:
+                        world_type = "noise(default)"
+                    elif b"minecraft:debug" in raw:
+                        world_type = "debug"
+                except Exception as e:  # noqa: BLE001 - 诊断命令，失败只报原因
+                    world_type = f"unreadable({e})"
+
+    print(f"world={world} type={world_type} pos={pos} dim={dim}")
+    return 0
+
+
+def cmd_trace(out=None, lines=None, follow=False, pattern="[G-TEST]"):
+    """把 latest.log 里带诊断前缀的行过滤到独立文件（默认 E:/tmp/gtest/gtest.log）。"""
+    if not LOG.exists():
+        die(f"日志不存在：{rel(LOG)}")
+    target = Path(out) if out else GTEST_DIR / "gtest.log"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    text = LOG.read_bytes().decode("gbk", errors="replace")
+    selected = [ln for ln in text.splitlines() if pattern in ln]
+    if lines:
+        selected = selected[-lines:]
+    target.write_text("\n".join(selected) + ("\n" if selected else ""), encoding="utf-8")
+    print(f"写入 {target}（{len(selected)} 行，pattern={pattern}）")
+    if not follow:
+        return 0
+
+    offset = LOG.stat().st_size
+    print("follow（Ctrl+C 退出）…", flush=True)
+    try:
+        while True:
+            time.sleep(0.5)
+            if not LOG.exists():
+                continue
+            size = LOG.stat().st_size
+            if size < offset:
+                offset = 0
+            if size == offset:
+                continue
+            with LOG.open("rb") as f:
+                f.seek(offset)
+                chunk = f.read(size - offset)
+            offset = size
+            fresh = [ln for ln in chunk.decode("gbk", errors="replace").splitlines() if pattern in ln]
+            for ln in fresh:
+                print(ln, flush=True)
+            if fresh:
+                with target.open("a", encoding="utf-8") as f:
+                    for ln in fresh:
+                        f.write(ln + "\n")
+    except KeyboardInterrupt:
+        return 0
 
 
 def session_dirs():
@@ -565,6 +649,12 @@ def main():
 
     p = sub.add_parser("tail", help="日志尾部（GBK 解码）")
     p.add_argument("lines", nargs="?", type=int, default=40)
+    p = sub.add_parser("trace", help="过滤诊断日志到独立文件")
+    p.add_argument("--out", help="输出路径（默认 E:/tmp/gtest/gtest.log）")
+    p.add_argument("--lines", type=int, help="只取末尾 N 行")
+    p.add_argument("--follow", action="store_true", help="持续跟踪新增行")
+    p.add_argument("--pattern", default="[G-TEST]", help="过滤子串（默认 [G-TEST]）")
+    sub.add_parser("where", help="打印世界类型 / 玩家位置 / 维度")
     p = sub.add_parser("perf", help="性能摘要")
     p.add_argument("session", nargs="?")
     p = sub.add_parser("sessions", help="列出诊断会话")
@@ -600,6 +690,10 @@ def main():
     if a == "tail":
         tail_log(args.lines)
         return 0
+    if a == "trace":
+        return cmd_trace(args.out, args.lines, args.follow, args.pattern)
+    if a == "where":
+        return cmd_where()
     if a == "perf":
         print_perf(args.session)
         return 0

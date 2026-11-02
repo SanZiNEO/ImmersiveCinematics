@@ -121,9 +121,10 @@
 | G1 | 参数寻址到分量（“只让 X 动”） | — | ☐ 由 I 轮对象模型吸收，未实现 |
 | G2 | 字段形态／可关键帧声明 | G1 | ☐ 由 I 轮 schema 吸收，未实现 |
 | G3 | meta 关键帧化（listener/hide_hud/可跳过等） | I 对象模型 | ☐ 延后，不混入本轮片段对象模型 |
-| G4 | 时间精度（float → 高精度）→ **时钟抽象**（任务书已定稿：`plans/0.3.6/G-script-model/clock-abstraction.md`，2026-10-09 用户裁决五步——① Clock 抽象 + 单调秒（GameClock/PreviewClock）② elapsed 链路 double 化（消 float 截断）③ elapsed 唯一分发语义 + 去死参数 ④ overlay delta 真实化 ⑤ float 存储边界契约；顺带修跨脚本并行 hasActiveCameraTrack 算错） | — | ☐ |
+| G4 | 时间精度（float → 高精度）→ **时钟抽象**（任务书已定稿：`plans/0.3.6/G-script-model/clock-abstraction.md`，2026-10-09 用户裁决五步——① Clock 抽象 + 单调秒（GameClock/PreviewClock）② elapsed 链路 double 化（消 float 截断）③ elapsed 唯一分发语义 + 去死参数 ④ overlay delta 真实化 ⑤ float 存储边界契约；顺带修跨脚本并行 hasActiveCameraTrack 算错） | — | ✅ 2026-11-02：五步全部落地（Clock/GameClock/PreviewClock、运行侧 double、去死参数、覆盖层真实帧间隔、存储边界契约）；验收见 G-script-model/clock-abstraction.md §六 |
 | G5 | 叠化 hold 自动补帧工具/模板 | — | ⊘ 归 Z 轮（编辑器工具；见 `Z-editor/templates.md` §7） |
 | G6 | 关键帧结构升级（自带插值/手柄）——按方案 E 结案（文档标注） | — | ✅ 2026-10-10 标注完成（script-model §4-1/§8 步骤 2） |
+| G7 | 编辑器播放语义（实例维度拆分：内容行为参与、游戏控制不参与） | — | ✅ 2026-11-02：命名统一 + BehaviorEntry/computeUnion/applyUnion + instanceBehaviors 含全部实例；无头探针 E:/tmp/gunion 20/20 PASS；实机待人工 |
 
 ## 批次 H：其它
 
@@ -267,3 +268,4 @@
 | 2026-10-18（F 轮收尾） | **大脚本 gzip 传输 + l25 补齐**：`S2CPlayScriptPacket` 载荷由「整份 JSON 字符串」改为「gzip 字节数组 + `writeVarInt` 长度前缀」，解除 `writeUtf` 的 32,767 字符上限；解压后 4 MiB / 压缩后 1 MiB 双向上限，读侧同样校验；`send(...)` 改返回 `boolean`，超限只记日志（触发器路径不崩服务端）；`CinematicCommand.playScript` 在 `resolvedJson` 后、`AckTracker.expect` 前预检，超限直接 `sendFailure("§c脚本 JSON 过大：…")`。**验证**：`compileJava` + `:fabric:build` 通过；原始 l25 脚本（去 OVERLAY 轨后 47,061 字节，未做默认值压缩）直接播放成功，日志无 `String too big` / `ACK 重发失败`；`perf_l25_full` 与 `perf_l25_world_only` 均 600/600 COMPLETE（lane rows 15000、lane failure frames 0，会话 `20261018-173824-f5-acceptance`），FULL game_render p50/p95 = 27.26/39.43 ms、lane_total 22.87/33.24 ms，WORLD_ONLY 18.88/21.74 ms 与 15.07/17.30 ms；负例 4,400,160 字节脚本被预检拒绝（服务端 `WARN 拒绝播放脚本 …：脚本 JSON 过大：4400160 字节，超过 4194304 字节上限`，无异常堆栈、未进入播放）。文档回写 `f-round-issues` §1.1/§5、`multi-camera-rendering` §6、`f5-script-packet-limit`、`README`。失败处理第 1 批 P0 已落地（2026-10-25，`4eb65b7`）；P1/P2 待做。 |
 | 2026-10-25（F8 设计调查） | **跨维度相机设计按调查重写（只改文档，未改代码）**：核对 IP 1.20.1、MC 1.20.1 客户端 / 服务端、Iris 1.7.6 / Oculus 1.8.0、本仓 `LaneRenderer` / `CameraCenterManager` / `ShaderCompat` 等实现；修正“第一版范围 / 只支持原版三维度 / 单相机维度”等错误口径，改为 P0 垂直验证 + WP1–WP6，接口从第一步按 `(player, dimension, cameraId)` 设计；明确客户端第二套 `ClientLevel` / `LevelRenderer` / `LightTexture`、维度标签信封、light 队列、chunk cache 范围、服务端 ticket / 刷怪门 / `emptyTime` 冻结、光影 per-pipeline 缓存与 FABULOUS 风险。同步 F 索引、总索引、pending-discussions 与关联文档。 |
 | 2026-10-30 | **I 轮语义口径修订（只改计划，未改代码）**：规则与曲线改为脚本级独立集合、通过片段引用定位内容；规则外层必选时间门（默认局部时间 `>=` 指定值，门后继续判定、迟到成立仍执行）AND 内层条件树，门前事件/事实可采集、动作在门后确认提交；到门可暂停本实例待判，规则/片段事实可接力，成功≠动作完成，动作可延迟到片段开始/完成或局部时间，承诺动作参与自然完成；同一规则多入口各有独立运行态；曲线绑定目标位置对象/对象组的两个相邻关键帧；分支与主线同模型，正常后继由片段默认、启动/编排入口显式覆盖优先，失败 fallback 独立沿原主线继续。C6 v1 `clip.rules` 只是旧实现事实，目标权威见 I/rule-system.md。 |
+| 2026-11-02 | G 轮收口：G-math 15 篇回写、G4 时钟五步落地、编辑器播放语义实现（20 项无头探针）；实机验收通过（Fabric 0.3.6 + BMC4 Forge 0.3.6 禁用 Radium）：游戏/编辑器实例 HUD 显隐与键鼠并集、画面源（主 RenderTarget 2560×1392 → 1280×720）、退出恢复；全量验证见本轮记录 |

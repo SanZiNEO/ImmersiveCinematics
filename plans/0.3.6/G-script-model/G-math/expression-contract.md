@@ -1,6 +1,6 @@
 # 路径表达式契约
 
-> 状态：未实现
+> 状态：已实现
 > 范围：路径表达式与值变换的边界、`u/s/t`、定义/实例、最小公共契约、能力接口、算子与复合
 > 关联：`README.md`、`curve-bezier.md`、`arc-length.md`、`continuity-composition.md`、`../../I-script-core/path-collection.md`
 
@@ -89,6 +89,20 @@
 
 ## 六、实现结果
 
-状态：未实现
+状态：已实现
+
+落在 `common/src/main/java/com/immersivecinematics/immersive_cinematics/math/path/`：
+
+- `PathSpec`：解析期不可变定义（`type()` / `domain()` / `anchor()` / `bind(from, to)` / `supports()` / `constrain(AxisConstraint)`）。`bind` 在每个调用点实例化；`FREE` / `START` 锚点的 `to` 被忽略。
+- `PathExpression`：实例契约，`position(u)` / `derivative(u)` / `speed(u)` / `secondDerivative(u)` / `domain()` / `supports(PathCapability)`；求值是 `u` 的纯函数，不持跨帧状态。`speed` 被弧长链路高频调用，各曲线均覆盖为标量实现（缺省实现会分配一个向量）。
+- `PathPoint`：`record(relative, x, y, z)`，`relative` 用 dx/dy/dz 相对段起点、否则世界坐标；`resolve(segmentStart)` 才做相对解析。
+- `PathDomain`：`min`/`max`/`span`/`clamp` 与 `UNIT`（Bézier 等固定 `[0,1]` 的类型共用）。
+- `PathAnchor`：`ENDPOINTS` / `START` / `FREE`，说明调用点端点如何参与定义。
+- `PathCapability`：`ANALYTIC_ARC_LENGTH`、`ANALYTIC_SECOND_DERIVATIVE`、`PERIODIC`、`RATIONAL_WEIGHTS`、`KNOT_VECTOR` 五项能力标记，未声明即按不支持处理。
+- `PathEvaluator`：按 `(spec 引用, from/to 六分量)` 复用 `PathExpression` + `ArcLengthTable` 的绑定缓存（容量 32，环形覆盖），对外是归一化 `s` 的 `position` / `tangent`。
+
+注册与接入共用同一入口 `script/schema/PathCurveRegistry`（`DEFAULT_TYPE = "bezier"`、`create`、`types`、`capabilities`、`params`），已注册 11 种类型：`linear` / `bezier` / `rational_bezier` / `bspline` / `nurbs` / `catmull_rom` / `hermite` / `arc` / `ellipse` / `clothoid` / `fourier`。脚本侧由 `Clip.getPathSpec()`、`ScriptParser.parsePathCurve`、`ScriptValidator.checkPathCurve` 消费，schema 侧由 `SchemaExporter` 的 `curveTypes` 段导出。
+
+无头探针 `E:/tmp/gcurve` 共 470 项覆盖本契约（定义域、导数、能力声明、注册/解析/校验、绑定缓存与零分配）。
 
 

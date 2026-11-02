@@ -1,6 +1,6 @@
 # 弧长参数化
 
-> 状态：实现中（现有三次 Bézier 弧长 LUT；通用算子/多曲线未实现）
+> 状态：已实现
 > 范围：弧长积分、`u↔s` 映射、解析快路径、数值方法、动态控制点、缓存与退化
 > 关联：`expression-contract.md`、`arc-length-lut.md`、`curve-bezier.md`、`example/math/notes/umd_amsc466_numerical_quadrature.pdf`
 
@@ -13,7 +13,7 @@
 ### 2.1 问题
 
 - 贝塞尔曲线的 `u` 不是弧长；直接按 `u` 匀速会忽快忽慢。
-- 现有 `ArcLengthLUT` 只服务三次 Bézier；新增 B-spline/NURBS/Catmull-Rom 后没有通用弧长层。
+- 原有弧长 LUT 只服务三次 Bézier；新增 B-spline/NURBS/Catmull-Rom 后没有通用弧长层。
 - 动态控制点（实体跟随/触发器基准）会让 LUT 失效；每帧重建不可接受。
 - 零长、尖点、零导处反解可能不单调，必须显式处理。
 
@@ -87,8 +87,15 @@
 
 ## 六、实现结果
 
-状态：实现中
+状态：已实现
 
-现有 `ArcLengthLUT` 已服务三次 Bézier；本计划把它提升为通用弧长算子，并补齐多曲线/动态/退化口径。
+- `math/path/ArcLength`：通用算子。声明 `ANALYTIC_ARC_LENGTH` 的曲线（直线、圆弧、回旋线等）直接走 `AnalyticArcLength.arcLength(a, b)`；其余曲线用自适应 5 点 Gauss-Legendre——定义域先切 16 段，每段比较“1 次 5 点”与“2 次 5 点”之差，超相对容差 `1e-9` 且深度未到 8 就二分。区间先 clamp 到定义域，`u0 >= u1` 返回 0。
+- `math/path/ArcLengthTable`：两遍建表。先按 64 段 5 点 GL 预估总长并把相对容差折成绝对容差，再对定义域递归二分，节点累积弧长由逐叶 5 点 GL 积分 `|P'|` 累加；细分判据是叶内 `|弦长 - GL|` 相对总长的偏差，深度（16）与节点数（`MAX_NODES = 1024`）双重封顶，触顶即停不抛错。
+- `uAt(s)`：表内二分定位叶节点给初值，再牛顿迭代（归一化残差目标 `1e-9`，上限 8 次），精度与表密度解耦；`sAt(u)` 为节点累积 + 叶内 GL 积分。零长曲线 `uAt` 返回定义域起点、`sAt` 返回 0。
+- 零分配：`speed` 在各曲线上是标量覆盖，查询路径复用预分配数组，`speed` / `uAt` / `sAt` 每 1e6 次分配 0 字节。
+
+实测（`E:/tmp/gcurve` 470 项探针）：缺省构造 6 条曲线的弧长查询真实误差 ≤ `1.6e-7`（阈值 `1e-6`），`s → u → s` 往返 ≤ `1e-9`；LUT 节点数 Bézier 110、270° 弧 129（旧实现 851 / 1024 触顶）。
+
+未实现：动态控制点的缓存/重建策略见 `arc-length-lut.md`，本算子只负责单次建表与查询。
 
 

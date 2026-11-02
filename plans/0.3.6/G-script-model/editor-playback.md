@@ -1,6 +1,6 @@
 # 编辑器播放
 
-> 状态：未实现
+> 状态：已实现
 > 范围：编辑器播放的实例语义、时钟来源、内容行为参与范围、画面来源、命名与注释修正
 > 关联：`../I-script-core/runtime-evaluation.md`（实例/状态所有权）、`../I-script-core/loop-execution.md`（执行身份）、`../Z-editor/server-protocol.md`、`../Z-editor/README.md`
 
@@ -115,4 +115,35 @@
 
 ## 八、实现结果
 
-状态：未实现。
+状态：已实现（代码已合入工作树，`:common:compileJava` 通过；实机验收待人工）。
+
+**命名**
+
+- `PlaybackInstance.isEditorDriven()`（原 `isPreview()`）；`CameraManager` / `PreviewChannel` 的 `isEditorPlayback()` / `isEditorPaused()`（原 `isPreviewMode()` / `isPreviewPaused()`）。
+- 类名 `PreviewChannel` / `PreviewClock` / `WebPreviewScreen` 保留（它们是通道与时钟的具体类型，不表达“预览模式”语义）。
+
+**行为并集**
+
+- `CinematicController` 新增 `BehaviorEntry(RuntimeBehavior, boolean editorDriven)`、`Union` 值对象、纯函数 `computeUnion` 与写入端 `applyUnion`。
+- `PlaybackRegistry.instanceBehaviors()` 返回**全部实例**（含编辑器实例）。
+- 分组：`block_keyboard` / `block_mouse` **只并游戏实例**；`hide_hud`、10 个 `hide_*`、`hud_layers`、`hard_hide_hud`、`suppress_bob` / `suppress_distortion`、`render_player_model`、`block_mob_ai` **并全部实例**。
+
+**生命周期**
+
+- `PlaybackLifecycle.startScriptInternal` 的编辑器专属键鼠分支已删除，统一走 `recomputeUnion`。
+- `releaseAllKeys()` 只对游戏实例执行。
+
+**保留的排除（游戏控制语义）**
+
+- 暂停联动 `isAnyPauseWhenGamePaused`、播放队列、网络账本、服务端定向 stop、跳过投票、诊断记账、`ClientScriptNotifier`。
+
+**画面源**
+
+- `WebFrameCapture.capture` 取主 `RenderTarget`（含 HUD、lane 合成、调色），不是合成 FBO。
+- 输出尺寸仍固定 1280×720，当前无配置项（§3.2 的“按输出配置”是设计目标，尚未落地）。
+
+**验收**
+
+- 无头探针 `E:/tmp/gunion` 20/20 PASS：仅编辑器 `hide_hud=false` → `hideHud=false`；编辑器 `block_keyboard=true` → `false`；游戏 `block_keyboard=true` → `true`；`hud_layers` 并集与回落；空并集默认值。
+- 实机（Fabric 0.3.6，2026-11-02）：游戏实例 `hide_hud=false` → HUD 可见；`hide_hud=true` + `hide_hotbar=false` → 热栏可见、其余隐藏。编辑器实例（F9 预览屏 + WebSocket `editor.pushScript` / `seek` / `play`）`hide_hud=false` + `block_keyboard=true` → 并集 `hideHud=false`、`blockKeyboard=false`、`blockMouse=false`（HUD 可见、键鼠不屏蔽）；`hide_hud=true` + `hide_hotbar=false` → 热栏可见、其余隐藏；退出后恢复。画面源 `capture src=main 2560x1392 -> 1280x720`（含 HUD / lane / 调色）。
+- 复杂整合包（Better MC BMC4 Forge 0.3.6，2026-11-02，禁用 Radium 后）同样通过；Radium/Lithium 兼容见 `../F-playback/camera-center-entities.md` C1。

@@ -45,8 +45,10 @@ alias ic='E:/Documents/GitHub/ImmersiveCinematics/tools/devtools/.venv/Scripts/p
 | 命令 | 作用 |
 |---|---|
 | `ic tail [行数]` | 打印 `latest.log` 尾部（**自动按 GBK 解码**） |
+| `ic trace [--out 路径] [--lines N] [--follow] [--pattern 子串]` | 把日志里带诊断前缀的行过滤到独立文件（默认 `E:/tmp/gtest/gtest.log`；`--follow` 持续追加） |
 | `ic perf [会话目录]` | 打印诊断会话的性能摘要（valid / lane rows / p50 / p95） |
 | `ic sessions [数量]` | 列出最近的诊断会话（带 summary 数量） |
+| `ic where` | 打印当前世界名 / 世界类型（flat/noise/debug）/ 玩家登录位置 / 维度（从 `latest.log` + `level.dat` 推断） |
 | `ic doctor` | 环境自检：窗口 / 日志新鲜度 / 最新会话 / debugLogging / 光影包 / vsync+maxFps |
 
 ### 启动与取证
