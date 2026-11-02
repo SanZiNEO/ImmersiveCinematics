@@ -110,8 +110,15 @@ public class AudioTrackPlayer implements TrackPlayer {
             if (clip == activeClip) {
                 updateClipInstance(clip, inst, globalTime);
             } else {
+                if (clip.isEffectivelyInfinite()) {
+                    // 无限执行没有有限窗口末端：不淡出，直接回收
+                    inst.cleanup();
+                    it.remove();
+                    previouslyActive.remove(clip);
+                    continue;
+                }
                 double fadeOut = clip.getFadeOut();
-                double clipEnd = (double) clip.getStartTime() + clip.getDuration();
+                double clipEnd = scriptPlayer.finiteWindowEnd(clip);
                 double elapsedSinceEnd = globalTime - clipEnd;
 
                 if (fadeOut > 0.0 && elapsedSinceEnd < fadeOut && elapsedSinceEnd >= 0.0) {
@@ -286,7 +293,7 @@ public class AudioTrackPlayer implements TrackPlayer {
         CinematicAudioInstance inst;
         try {
             inst = new CinematicAudioInstance(
-                    sound, clip.getSource(), clip.isLoop(), clip.getAudioPitch(), category);
+                    sound, clip.getSource(), clip.isFileLoop(), clip.getAudioPitch(), category);
         } catch (RuntimeException e) {
             // 缺失/无法加载的音频：只报一次并跳过该 clip，不再每帧重试
             LOGGER.error("AUDIO clip failed to start: {} ({})", sound, e.getMessage());
@@ -323,7 +330,7 @@ public class AudioTrackPlayer implements TrackPlayer {
     }
 
     private void updateClipInstance(Clip clip, CinematicAudioInstance inst, double globalTime) {
-        double localTime = clipTime(clip, globalTime);
+        double localTime = scriptPlayer.executionLocalTime(clip, globalTime);
         double dur = clip.getDuration();
         boolean infinite = dur < 0f;
 
@@ -415,24 +422,9 @@ public class AudioTrackPlayer implements TrackPlayer {
 
     private Clip findActiveClip(double globalTime) {
         for (Clip clip : clips()) {
-            boolean isActive;
-            if (clip.getDuration() < 0f) {
-                isActive = globalTime >= clip.getStartTime();
-            } else {
-                double clipEnd = (double) clip.getStartTime() + clip.getDuration();
-                isActive = globalTime >= clip.getStartTime() && globalTime < clipEnd;
-            }
-            if (isActive) return clip;
+            if (scriptPlayer.isClipActive(clip, globalTime)) return clip;
         }
         return null;
-    }
-
-    private static double clipTime(Clip clip, double globalTime) {
-        double local = globalTime - clip.getStartTime();
-        if (clip.getDuration() < 0f) {
-            return Math.max(0.0, local);
-        }
-        return Math.max(0.0, Math.min(clip.getDuration(), local));
     }
 
     private static SoundSource parseCategory(String category) {
@@ -450,7 +442,7 @@ public class AudioTrackPlayer implements TrackPlayer {
             Clip clip = e.getKey();
             CinematicAudioInstance inst = e.getValue();
             if (clip == activeClip) {
-                double local = clipTime(clip, globalTime);
+                double local = scriptPlayer.executionLocalTime(clip, globalTime);
                 float vol = interpolateFloat(clip, local, "volume", clip.getVolume());
                 if (paused) {
                     inst.seekTo(local);
@@ -467,7 +459,7 @@ public class AudioTrackPlayer implements TrackPlayer {
             startClipInstance(activeClip);
             CinematicAudioInstance inst = instances.get(activeClip);
             if (inst != null) {
-                double local = clipTime(activeClip, globalTime);
+                double local = scriptPlayer.executionLocalTime(activeClip, globalTime);
                 float vol = interpolateFloat(activeClip, local, "volume", activeClip.getVolume());
                 if (paused) {
                     inst.pause();

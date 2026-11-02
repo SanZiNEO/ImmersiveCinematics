@@ -472,7 +472,7 @@ public class ScriptParser {
             data.put("loop_count", 1);
         }
 
-        return new Clip(startTime, duration, type, data, List.of(), objects);
+        return new Clip(startTime, duration, type, data, List.of(), objects, true);
     }
 
     /** 新格式 {@code loop_count}：有限整数（-1 = 无限循环，正整数 = 循环次数）。 */

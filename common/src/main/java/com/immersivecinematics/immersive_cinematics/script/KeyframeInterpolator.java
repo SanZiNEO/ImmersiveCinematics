@@ -17,10 +17,10 @@ public final class KeyframeInterpolator {
 
     /**
      * 计算 {@code clipTime} 所处的关键帧段与段内进度：返回 from / to 与弧长进度 s（= 线性进度 t）。
-     * {@code clip.loop=true} 时先按 {@code loopMode} 折叠片段内时间（{@code pingpong} 往复、其余 repeat），
-     * 达到 {@code loopCount} 后停在末段；时间在关键帧范围外时取边界帧。
+     * {@code clipTime} 是执行层给出的<b>本次执行局部时间</b>（已归一化到 {@code [0, duration]}，
+     * pingpong 反向也已由执行账本镜像）——本方法不做循环折叠；时间在关键帧范围外时取边界帧。
      *
-     * @param clipTime 片段内时间（秒）
+     * @param clipTime 本次执行的局部时间（秒）
      * @param clip     所属片段
      * @return 插值结果；关键帧列表为空时 {@code null}
      */
@@ -28,31 +28,7 @@ public final class KeyframeInterpolator {
         List<Keyframe> keyframes = clip.getKeyframes();
         if (keyframes == null || keyframes.isEmpty()) return null;
 
-        double effectiveTime = clipTime;
-
-        // 循环处理
-        if (clip.isLoop() && keyframes.size() >= 2) {
-            double animPeriod = clip.getAnimPeriod();
-            if (animPeriod > 0) {
-                if (clip.getLoopCount() > 0) {
-                    double maxLoopTime = animPeriod * clip.getLoopCount();
-                    if (effectiveTime >= maxLoopTime) {
-                        Keyframe last = keyframes.get(keyframes.size() - 1);
-                        Keyframe secondLast = keyframes.get(keyframes.size() - 2);
-                        return new InterpolationResult(secondLast, last, 1.0);
-                    }
-                }
-                double offset = keyframes.get(0).getTime();
-                if ("pingpong".equals(clip.getLoopMode())) {
-                    // 往复折返：以 2×周期为模，超周期部分镜像（监控来回摇，端点速度反向、位置连续）
-                    double t = (effectiveTime - offset) % (2.0 * animPeriod);
-                    effectiveTime = offset + (t <= animPeriod ? t : 2.0 * animPeriod - t);
-                } else {
-                    // repeat：周期内从头到尾重复
-                    effectiveTime = offset + (effectiveTime - offset) % animPeriod;
-                }
-            }
-        }
+        double localTime = clipTime;
 
         // 找到当前所处的两个关键帧
         Keyframe from = null;
@@ -60,7 +36,7 @@ public final class KeyframeInterpolator {
         int fromIndex = -1;
 
         for (int i = 0; i < keyframes.size() - 1; i++) {
-            if (effectiveTime >= keyframes.get(i).getTime() && effectiveTime <= keyframes.get(i + 1).getTime()) {
+            if (localTime >= keyframes.get(i).getTime() && localTime <= keyframes.get(i + 1).getTime()) {
                 from = keyframes.get(i);
                 to = keyframes.get(i + 1);
                 fromIndex = i;
@@ -69,7 +45,7 @@ public final class KeyframeInterpolator {
         }
 
         if (from == null || to == null) {
-            if (effectiveTime <= keyframes.get(0).getTime()) {
+            if (localTime <= keyframes.get(0).getTime()) {
                 return new InterpolationResult(keyframes.get(0), keyframes.get(0), 0f);
             } else {
                 Keyframe last = keyframes.get(keyframes.size() - 1);
@@ -84,7 +60,7 @@ public final class KeyframeInterpolator {
         if (toTime == fromTime) {
             t = 1.0;
         } else {
-            t = (effectiveTime - fromTime) / (toTime - fromTime);
+            t = (localTime - fromTime) / (toTime - fromTime);
         }
         t = Math.max(0.0, Math.min(1.0, t));
 

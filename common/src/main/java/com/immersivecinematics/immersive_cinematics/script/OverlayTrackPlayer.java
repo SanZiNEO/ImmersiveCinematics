@@ -88,7 +88,7 @@ public class OverlayTrackPlayer implements TrackPlayer {
         if (clip == null || currentLayer == null) return;
 
         // Interpolate keyframe values
-        double localTime = clipTime(clip, globalTime);
+        double localTime = scriptPlayer.executionLocalTime(clip, globalTime);
         List<Keyframe> kfs = clip.getKeyframes();
 
         // 透明度完全由关键帧 opacity 控制（fade_in / fade_out 由关键帧表达，代码层不叠加）；
@@ -333,26 +333,9 @@ public class OverlayTrackPlayer implements TrackPlayer {
 
     // ========== Helpers ==========
 
-    private double clipTime(Clip clip, double globalTime) {
-        double elapsed = globalTime - clip.getStartTime();
-        // 无限时长（duration < 0）不能参与 Math.min(duration, elapsed)（会把时间钳成 0）：
-        // 负 duration 片段从 start 起持续播放，localTime 正常推进；有限时长维持原钳制。
-        if (clip.getDuration() < 0f) {
-            return Math.max(0.0, elapsed);
-        }
-        return Math.max(0.0, Math.min(clip.getDuration(), elapsed));
-    }
-
     private Clip findActiveClip(double globalTime) {
         for (Clip clip : clips()) {
-            boolean isActive;
-            if (clip.getDuration() < 0f) {
-                isActive = globalTime >= clip.getStartTime();
-            } else {
-                double clipEnd = (double) clip.getStartTime() + clip.getDuration();
-                isActive = globalTime >= clip.getStartTime() && globalTime < clipEnd;
-            }
-            if (isActive) return clip;
+            if (scriptPlayer.isClipActive(clip, globalTime)) return clip;
         }
         return null;
     }

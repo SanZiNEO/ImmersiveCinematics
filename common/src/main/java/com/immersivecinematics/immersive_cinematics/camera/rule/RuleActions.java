@@ -353,7 +353,8 @@ public final class RuleActions {
             List<Clip> clips = track.getClips();
             for (int i = 0; i < clips.size(); i++) {
                 Clip clip = clips.get(i);
-                if (at >= clip.getStartTime() && at <= clip.getWindowEnd()) return true;
+                if (at >= clip.getStartTime()
+                        && (clip.isEffectivelyInfinite() || at <= clip.getWindowEnd())) return true;
             }
         }
         return false;

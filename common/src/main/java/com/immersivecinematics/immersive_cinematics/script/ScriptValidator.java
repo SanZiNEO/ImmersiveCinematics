@@ -465,47 +465,11 @@ public final class ScriptValidator {
                     // 层级混合（混合模式作用于调整层）：clip 级 blend_mode 枚举——只在 ADJUST 轨
                     checkBlendFields(clip, cp, null, null, issues);
                 }
-                // ===== 循环参数校验（CAMERA）=====
-                if ("CAMERA".equalsIgnoreCase(type)) {
-                    boolean loop = clip.has("loop") && clip.get("loop").getAsBoolean();
-                    if (clip.has("loop_count")) {
-                        try {
-                            int lc = clip.get("loop_count").getAsInt();
-                            if (lc == 0) {
-                                issues.add(cp + ".loop_count 不允许为 0（-1=无限循环，正整数=循环次数），运行时将按 1 处理");
-                            }
-                        } catch (Exception e) {
-                            issues.add(cp + ".loop_count 不是整数");
-                        }
-                    }
-                    checkEnum(clip, cp, "loop_mode", issues, "repeat", "pingpong");
-                    if (loop) {
-                        boolean infinite = !clip.has("loop_count") || clip.get("loop_count").getAsInt() < 0;
-                        if (infinite && ci < clips.size() - 1) {
-                            issues.add(cp + " 无限循环（loop=true + loop_count=-1）后仍有其他片段：永不结束的片段 = 时间轴终点，其后的片段不会播放");
-                        }
-                        if (clip.has("keyframes") && clip.get("keyframes").isJsonArray()) {
-                            JsonArray kfs = clip.getAsJsonArray("keyframes");
-                            if (kfs.size() >= 2) {
-                                try {
-                                    float first = kfs.get(0).getAsJsonObject().get("time").getAsFloat();
-                                    float last = kfs.get(kfs.size() - 1).getAsJsonObject().get("time").getAsFloat();
-                                    float animPeriod = last - first;
-                                    if (animPeriod <= 0f) {
-                                        issues.add(cp + " 循环周期无效：首末关键帧时间差必须 > 0");
-                                    } else if (clip.has("duration") && Math.abs(clip.get("duration").getAsFloat() - animPeriod) > 0.5f) {
-                                        issues.add(cp + " duration 与循环周期不匹配（duration=" + clip.get("duration").getAsFloat()
-                                                + "，周期=" + animPeriod + "）：有限循环窗口=周期×loop_count，不匹配会造成播放跳变");
-                                    }
-                                } catch (Exception ignored) {
-                                    // 校验期防御读取：关键帧 time 字段异常 → 跳过循环周期校验，该问题会经其它校验项
-                                    // （如 "time 不是数字"/"不单调"）单独报出，此处不重复刷屏——保留 catch 避免中断整个收集
-                                }
-                            } else {
-                                issues.add(cp + " loop=true 但关键帧不足 2 个：循环取模不生效（单帧循环 = 固定视角模式，由首帧决定位置/朝向）");
-                            }
-                        }
-                    }
+                // ===== 循环参数校验（旧格式）=====
+                // 旧格式 AUDIO 的 loop 是文件循环（由 schema / parser 管），不按执行循环校验。
+                // 无限循环后仍有其他片段是合法编排（后者在无限片段结束前不可达，由显式依赖诊断负责）。
+                if (!"AUDIO".equalsIgnoreCase(type)) {
+                    checkExecutionLoop(clip, cp, type, issues);
                 }
 
                 // 关键帧
@@ -2575,6 +2539,92 @@ public final class ScriptValidator {
         String hex = v.startsWith("#") ? v.substring(1) : v;
         if (!hex.matches("[0-9a-fA-F]{6}")) {
             issues.add(path + "." + key + " 颜色格式非法: \"" + v + "\"（需 #RRGGBB 六位十六进制，如 \"#000000\"）");
+        }
+    }
+
+    /** 视觉轨：只有这些轨道支持 pingpong（时间映射往复）。 */
+    private static boolean isVisualLoopTrack(String type) {
+        return "CAMERA".equalsIgnoreCase(type)
+                || "OVERLAY".equalsIgnoreCase(type)
+                || "ADJUST".equalsIgnoreCase(type)
+                || "LETTERBOX".equalsIgnoreCase(type);
+    }
+
+    /**
+     * 片段级循环参数（旧格式 JSON 口径，与 {@link ObjectValidator} 的新格式检查同语义）：
+     * {@code loop_count} 只能为 -1 或正整数；{@code loop=false} 时循环次数不生效；
+     * pingpong 只属于视觉轨且至少需要 2 个周期；{@code duration<0}（无限时长）不得再挂循环参数。
+     *
+     * <p>旧格式 AUDIO 的 {@code loop} 是文件循环，调用方必须跳过本方法。</p>
+     */
+    private static void checkExecutionLoop(JsonObject clip, String cp, String type, List<String> issues) {
+        boolean loop = false;
+        if (clip.has("loop")) {
+            JsonElement le = clip.get("loop");
+            if (!le.isJsonPrimitive() || !le.getAsJsonPrimitive().isBoolean()) {
+                issues.add(cp + ".loop 必须是布尔值");
+            } else {
+                loop = le.getAsBoolean();
+            }
+        }
+
+        Integer count = null;
+        if (clip.has("loop_count")) {
+            JsonElement ce = clip.get("loop_count");
+            if (!ce.isJsonPrimitive() || !ce.getAsJsonPrimitive().isNumber()) {
+                issues.add(cp + ".loop_count 不是整数");
+            } else {
+                double number = ce.getAsDouble();
+                if (!Double.isFinite(number) || number != Math.floor(number)
+                        || number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
+                    issues.add(cp + ".loop_count 不是整数");
+                } else {
+                    count = (int) number;
+                    if (count == 0) {
+                        issues.add(cp + ".loop_count 不允许为 0（-1=无限循环，正整数=循环次数），运行时将按 1 处理");
+                    } else if (count < -1) {
+                        issues.add(cp + ".loop_count 不能小于 -1（-1=无限循环，正整数=循环次数）");
+                    }
+                }
+            }
+        }
+
+        String mode = null;
+        if (clip.has("loop_mode")) {
+            JsonElement me = clip.get("loop_mode");
+            if (!me.isJsonPrimitive() || !me.getAsJsonPrimitive().isString()) {
+                issues.add(cp + ".loop_mode 不是字符串（可选: repeat / pingpong）");
+            } else {
+                mode = me.getAsString();
+                if (!"repeat".equals(mode) && !"pingpong".equals(mode)) {
+                    issues.add(cp + ".loop_mode 未知值: " + mode + "（可选: repeat / pingpong）");
+                }
+            }
+        }
+
+        if (count != null && count != 0 && count >= -1 && !loop) {
+            issues.add(cp + ".loop=false 时 loop_count 不生效：需要 loop=true 才进入执行循环");
+        }
+        if ("pingpong".equals(mode)) {
+            if (type != null && !isVisualLoopTrack(type)) {
+                issues.add(cp + ".loop_mode=pingpong 仅支持 CAMERA / OVERLAY / ADJUST / LETTERBOX 轨道");
+            }
+            if (!loop) {
+                issues.add(cp + ".loop_mode=pingpong 需要 loop=true（否则按 repeat 播放）");
+            }
+            if (count != null && count == 1) {
+                issues.add(cp + ".loop_mode=pingpong 与 loop_count=1 无往复效果（至少需要 2 个周期）");
+            }
+        }
+
+        if (clip.has("duration") && (loop || count != null || mode != null)) {
+            try {
+                if (clip.get("duration").getAsFloat() < 0f) {
+                    issues.add(cp + ".duration<0（无限时长）与循环参数冲突：无限片段不需要 loop/loop_count/loop_mode");
+                }
+            } catch (Exception ignored) {
+                // duration 非数字 / 非有限值已由片段级检查报出，此处不重复。
+            }
         }
     }
 

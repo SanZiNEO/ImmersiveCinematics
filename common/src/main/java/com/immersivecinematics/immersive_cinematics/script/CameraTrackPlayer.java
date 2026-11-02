@@ -52,8 +52,8 @@ public class CameraTrackPlayer implements TrackPlayer {
         this.cameraManager = cameraManager;
         WorldPointLocator pointLocator = new WorldPointLocator();
         entityResolver.attachSnapshots(snapshots);
-        this.evaluator = new CameraKeyframeEvaluator(entityResolver, pointLocator, originPos);
-        this.laneCollector = new LaneSnapshotCollector(entityResolver, evaluator);
+        this.evaluator = new CameraKeyframeEvaluator(entityResolver, pointLocator, originPos, scriptPlayer);
+        this.laneCollector = new LaneSnapshotCollector(entityResolver, evaluator, scriptPlayer);
     }
 
     /** 动态数据源：replaceScript 后自动用新数据，无需重建轨道 */
@@ -125,7 +125,8 @@ public class CameraTrackPlayer implements TrackPlayer {
             if (morphState != null) {
                 // 转场两侧任一声明 suppress = 本帧跳过 Modifier 链（两侧都活跃）
                 writeGlobal(morphState, prev.getSuppressModifiers() || next.getSuppressModifiers());
-                laneCollector.add(new CameraLane(morphState, next, globalTime - next.getStartTime()));
+                laneCollector.add(new CameraLane(morphState, next,
+                        scriptPlayer.executionLocalTime(next, globalTime)));
                 transitionPair = pair;
                 return;
             }
@@ -146,7 +147,8 @@ public class CameraTrackPlayer implements TrackPlayer {
 
         // 顶层 clip：正常求值（写覆盖链输出的脚本导演值，与合成顺序末位 lane 同源同值；
         // 全局状态供听者 / 预览等消费方使用，不是「主相机」——各 lane 仍用各自片段的快照）
-        CameraLane topLane = evaluator.renderSingle(globalTime, topClip, globalTime - topClip.getStartTime(),
+        CameraLane topLane = evaluator.renderSingle(globalTime, topClip,
+                scriptPlayer.executionLocalTime(topClip, globalTime),
                 false, CameraKeyframeEvaluator.TOP_LANE);
         if (topLane != null) writeGlobal(topLane.state(), topClip.getSuppressModifiers());
         // 重叠窗口内层级在下的活跃 clip：先捕获（列表顺序 = 绘制顺序，后面的在上）
@@ -166,14 +168,14 @@ public class CameraTrackPlayer implements TrackPlayer {
      * 后开始的过渡优先（进行中的旧过渡被新过渡打断：blend 以当前混合中间态为新 A 侧续接，
      * snap 立即切到新目标）。
      */
-    private static int transitionPairAt(List<Clip> clips, double globalTime) {
+    private int transitionPairAt(List<Clip> clips, double globalTime) {
         for (int i = clips.size() - 2; i >= 0; i--) {
             Clip prev = clips.get(i);
             if (!prev.isMorph() || prev.isEffectivelyInfinite()) {
                 continue;
             }
             TransitionSpec spec = prev.getTransitionSpec();
-            if (spec != null && spec.covers(globalTime, prev.getWindowEnd())) {
+            if (spec != null && spec.covers(globalTime, scriptPlayer.finiteWindowEnd(prev))) {
                 return i;
             }
         }

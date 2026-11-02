@@ -50,7 +50,7 @@ public class AdjustTrackPlayer implements TrackPlayer {
         // 恒等参数由 publish 归一化为「无调整」（渲染侧一次 GL 调用都不做）。
         // 实例标识 = 本轨所属的 ScriptPlayer：同实例多条 ADJUST 轨互相覆盖，不同实例各占一层。
         MasterColorAdjust.INSTANCE.publish(scriptPlayer,
-                ColorAdjustSampler.sample(clip, clipTime(clip, globalTime)));
+                ColorAdjustSampler.sample(clip, scriptPlayer.executionLocalTime(clip, globalTime)));
     }
 
     @Override
@@ -59,20 +59,9 @@ public class AdjustTrackPlayer implements TrackPlayer {
         MasterColorAdjust.INSTANCE.clear(scriptPlayer);
     }
 
-    private double clipTime(Clip clip, double globalTime) {
-        return Math.max(0.0, Math.min(clip.getDuration(), globalTime - clip.getStartTime()));
-    }
-
     private Clip findActiveClip(double globalTime) {
         for (Clip clip : clips()) {
-            boolean isActive;
-            if (clip.getDuration() < 0f) {
-                isActive = globalTime >= clip.getStartTime();
-            } else {
-                double clipEnd = (double) clip.getStartTime() + clip.getDuration();
-                isActive = globalTime >= clip.getStartTime() && globalTime < clipEnd;
-            }
-            if (isActive) return clip;
+            if (scriptPlayer.isClipActive(clip, globalTime)) return clip;
         }
         return null;
     }

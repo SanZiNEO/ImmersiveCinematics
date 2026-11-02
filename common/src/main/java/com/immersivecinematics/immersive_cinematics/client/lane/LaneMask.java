@@ -15,7 +15,7 @@ import java.util.List;
  *
  * 复用：实例由 {@code ScriptLaneDriver.Slot} 持有，更新槽位时调用 {@link #sample(Clip, float)}；只写自身
  * 字段、不分配；{@code full} 直接复位缺省，不扫描关键帧；{@code sample(null, 0f)} 合法（复位为 full）。
- * 时间：{@code localTime} = 片段本地时间（与相机状态同源），循环映射与 {@link KeyframeInterpolator} 同口径。
+ * 时间：{@code localTime} = 执行账本给出的本次执行局部时间（与相机状态同源），本类不做循环折叠。
  */
 public final class LaneMask {
 
@@ -65,7 +65,7 @@ public final class LaneMask {
         }
 
         List<Keyframe> keyframes = clip.getKeyframes();
-        double time = effectiveTime(clip, keyframes, localTime);
+        double time = localTime;
         this.shape = resolvedShape;
         if (resolvedShape == SHAPE_RECT) {
             this.x = KeyframeInterpolator.interpolateChannel(keyframes, time, "mask_x", DEFAULT_X);
@@ -131,32 +131,5 @@ public final class LaneMask {
             shapeClip = clip;
         }
         return cachedShape;
-    }
-
-    /**
-     * 循环时间映射：与 {@link KeyframeInterpolator#computeInterpolation(double, Clip)} 的循环段逐条一致
-     * （repeat / pingpong / 有限循环末端钳制），保证遮罩与相机状态 / 合成参数取同一时刻。
-     * 非循环 / 关键帧不足 2 个 / 周期非正 → 原样返回。
-     */
-    private static double effectiveTime(Clip clip, List<Keyframe> keyframes, double localTime) {
-        if (!clip.isLoop() || keyframes.size() < 2) {
-            return localTime;
-        }
-        double period = clip.getAnimPeriod();
-        if (!(period > 0.0)) {
-            return localTime;
-        }
-        if (clip.getLoopCount() > 0) {
-            double maxLoopTime = period * clip.getLoopCount();
-            if (localTime >= maxLoopTime) {
-                return keyframes.get(keyframes.size() - 1).getTime();
-            }
-        }
-        double offset = keyframes.get(0).getTime();
-        if ("pingpong".equals(clip.getLoopMode())) {
-            double t = (localTime - offset) % (2.0 * period);
-            return offset + (t <= period ? t : 2.0 * period - t);
-        }
-        return offset + (localTime - offset) % period;
     }
 }

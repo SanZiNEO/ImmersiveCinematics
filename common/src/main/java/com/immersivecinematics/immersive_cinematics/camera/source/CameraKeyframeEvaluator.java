@@ -14,6 +14,7 @@ import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
 import com.immersivecinematics.immersive_cinematics.script.PositionData;
 import com.immersivecinematics.immersive_cinematics.script.TangentOrientation;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipTimeSource;
 import com.immersivecinematics.immersive_cinematics.util.TimeInterpolation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
@@ -109,11 +110,15 @@ public final class CameraKeyframeEvaluator {
     /** 片段目标不可用（按空片段处理）提示只打一次 */
     private boolean clipUnusableWarnOnce;
 
+    /** 执行账本的只读时间来源（活跃窗 / 执行局部时间 / 有限窗口末端）。 */
+    private final ClipTimeSource timeSource;
+
     public CameraKeyframeEvaluator(EntityTargetResolver entityResolver, WorldPointLocator pointLocator,
-                                   Vec3 originPos) {
+                                   Vec3 originPos, ClipTimeSource timeSource) {
         this.entityResolver = entityResolver;
         this.originPos = originPos;
         this.lastWorldPos = originPos;
+        this.timeSource = timeSource;
         // 世界上下文共用同一实例：位置侧点源（结构 / 方块 / 玩家激活位置）由 EntityTargetResolver 解析
         entityResolver.attachWorldContext(pointLocator, originPos);
     }
@@ -132,7 +137,7 @@ public final class CameraKeyframeEvaluator {
             Clip prev = clips.get(i);
             if (!prev.isMorph() || prev.isEffectivelyInfinite()) continue;
             TransitionSpec spec = prev.getTransitionSpec();
-            if (spec != null && spec.covers(globalTime, prev.getWindowEnd())) return true;
+            if (spec != null && spec.covers(globalTime, timeSource.finiteWindowEnd(prev))) return true;
         }
         return false;
     }
@@ -227,9 +232,9 @@ public final class CameraKeyframeEvaluator {
      * @return 混合后的六参数快照；两端都无插值结果、或过渡本帧不产出时 {@code null}
      */
     public CameraState renderMorph(Clip prevClip, Clip nextClip, double globalTime) {
-        // B 模型：双轨各自按自身时间插值（prev 走 [dur−t/2, dur)，next 走 [0, t)），再交过渡层按声明合成
-        double prevLocal = globalTime - prevClip.getStartTime();
-        double nextLocal = globalTime - nextClip.getStartTime();
+        // B 模型：双轨各自按本次执行局部时间插值（prev 走 [dur−t/2, dur)，next 走 [0, t)），再交过渡层按声明合成
+        double prevLocal = timeSource.executionLocalTime(prevClip, globalTime);
+        double nextLocal = timeSource.executionLocalTime(nextClip, globalTime);
         KeyframeInterpolator.InterpolationResult prevResult =
                 KeyframeInterpolator.computeInterpolation(prevLocal, prevClip);
         KeyframeInterpolator.InterpolationResult nextResult =
@@ -273,8 +278,8 @@ public final class CameraKeyframeEvaluator {
                 nextFrom != null ? KeyframeInterpolator.interpolateZoom(nextFrom, nextTo, nextS) : 1f);
 
         // 过渡层：进度 / 曲线 / 分参数 / 打断（缺省 = 全六通道同权重线性斜坡）；未产出 = 本帧按常规路径处理
-        if (!transitionLayer.blendInto(globalTime, prevClip.getWindowEnd(), prevClip.getTransitionSpec(),
-                morphFrom, morphTo, morphOut)) {
+        if (!transitionLayer.blendInto(globalTime, timeSource.finiteWindowEnd(prevClip),
+                prevClip.getTransitionSpec(), morphFrom, morphTo, morphOut)) {
             return null;
         }
         Vec3 pos = new Vec3(morphOut.px, morphOut.py, morphOut.pz);
@@ -851,11 +856,10 @@ public final class CameraKeyframeEvaluator {
     }
 
     /**
-     * 收集 globalTime 时刻的全部活跃片段（按轨道顺序；轨道内后面的 clip 在上层）。
+     * 收集 {@code globalTime} 时刻的全部活跃片段（按轨道顺序；轨道内后面的 clip 在上层）。
      *
-     * 活跃窗口 = {@code [startTime, windowEnd)}；永不结束的片段
-     * （{@link Clip#isEffectivelyInfinite()}）自 {@code startTime} 起活跃，并按"终点"语义处理：
-     * 收集到它即停止，其后的内容不播放。
+     * 活跃窗由执行账本给出（{@link ClipTimeSource#isClipActive}）：有限 = {@code [windowStart, windowEnd)}，
+     * 无限执行自起点起永续。无限片段不截断同轨后续片段——后续是否活跃同样由账本逐条判定。
      *
      * @param clips 本轨片段（轨道顺序）
      */
@@ -863,14 +867,7 @@ public final class CameraKeyframeEvaluator {
         List<Clip> active = new ArrayList<>(2);
         for (int i = 0; i < clips.size(); i++) {
             Clip clip = clips.get(i);
-            if (clip.isEffectivelyInfinite()) {
-                if (globalTime >= clip.getStartTime()) {
-                    active.add(clip);
-                    break; // 终点：永不结束的片段之后的内容不播放
-                }
-                continue;
-            }
-            if (globalTime >= clip.getStartTime() && globalTime < clip.getWindowEnd()) {
+            if (timeSource.isClipActive(clip, globalTime)) {
                 active.add(clip);
             }
         }

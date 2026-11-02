@@ -61,7 +61,7 @@ public class LetterboxTrackPlayer implements TrackPlayer {
         // 两个通道都在片段本地时间处按相邻关键帧匀速线性求值（运行时统一线性：缓动由编辑器烘焙成显式关键帧，
         // 运行时不求值）；关键帧为空 / 单帧 / 首帧前 / 末帧后由插值器统一取缺省或边界值。
         List<Keyframe> kfs = activeClip.getKeyframes();
-        double localTime = clipTime(activeClip, globalTime);
+        double localTime = scriptPlayer.executionLocalTime(activeClip, globalTime);
         letterbox.setAspectRatio(KeyframeInterpolator.interpolateChannel(
                 kfs, localTime, "aspect_ratio", DEFAULT_ASPECT_RATIO));
         letterbox.setOpacity(KeyframeInterpolator.interpolateChannel(
@@ -74,25 +74,9 @@ public class LetterboxTrackPlayer implements TrackPlayer {
         overlayManager.removeLayer(letterbox);
     }
 
-    private double clipTime(Clip clip, double globalTime) {
-        double elapsed = globalTime - clip.getStartTime();
-        if (clip.getDuration() < 0f) {
-            // 无限片段（duration < 0）：不按 duration 钳制，本地时间照常推进（同 AudioTrackPlayer.clipTime）
-            return Math.max(0.0, elapsed);
-        }
-        return Math.max(0.0, Math.min(clip.getDuration(), elapsed));
-    }
-
     private Clip findActiveClip(double globalTime) {
         for (Clip clip : clips()) {
-            boolean isActive;
-            if (clip.getDuration() < 0) {
-                isActive = globalTime >= clip.getStartTime();
-            } else {
-                double clipEnd = (double) clip.getStartTime() + clip.getDuration();
-                isActive = globalTime >= clip.getStartTime() && globalTime < clipEnd;
-            }
-            if (isActive) return clip;
+            if (scriptPlayer.isClipActive(clip, globalTime)) return clip;
         }
         return null;
     }

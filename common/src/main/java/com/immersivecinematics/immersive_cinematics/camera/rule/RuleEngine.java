@@ -506,8 +506,9 @@ public final class RuleEngine {
 
     /** 片段活跃窗末端：与 {@code ClipModifierGate} 同口径（morph 前一段窗末延长半个过渡窗）。 */
     private static double windowEnd(Clip clip, Clip next) {
+        if (clip.isEffectivelyInfinite()) return Double.MAX_VALUE;
         double end = clip.getWindowEnd();
-        if (next == null || clip.isEffectivelyInfinite() || !clip.isMorph()) return end;
+        if (next == null || !clip.isMorph()) return end;
         TransitionSpec spec = clip.getTransitionSpec();
         return spec == null ? end : spec.windowEnd(end);
     }

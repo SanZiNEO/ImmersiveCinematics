@@ -5,6 +5,8 @@ import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustParam
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipExecutionLedger;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipTimeSource;
 import com.immersivecinematics.immersive_cinematics.util.Clock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.sounds.SoundEvent;
@@ -32,7 +34,7 @@ import org.slf4j.LoggerFactory;
  *
  * 轨道处理全部在各自的 TrackPlayer 内完成，本类只做调度与时间 / 内容事实的账本。
  */
-public class ScriptPlayer {
+public class ScriptPlayer implements ClipTimeSource {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/ScriptPlayer");
 
@@ -44,21 +46,6 @@ public class ScriptPlayer {
 
     /** total_duration 一致性提示的最小输出间隔（毫秒；内容未播完而时间已过时限频提示作者）。 */
     private static final long OVERRUN_WARN_INTERVAL_MS = 10_000L;
-
-    /** 空片段槽（空时间轴：不分配）。 */
-    private static final int[] EMPTY_LOOP_COUNTS = new int[0];
-
-    /** 片段消费状态：内容未进入执行路径（播放头尚未到达片段起点）。 */
-    private static final byte CLIP_PENDING = 0;
-
-    /** 片段消费状态：执行中（已进入，仍有剩余内容）。 */
-    private static final byte CLIP_ACTIVE = 1;
-
-    /** 片段消费状态：无剩余可执行内容（内容执行完，或被路径变更移出执行路径）。 */
-    private static final byte CLIP_CONSUMED = 2;
-
-    /** 空消费状态槽（空时间轴：不分配）。 */
-    private static final byte[] EMPTY_CLIP_STATES = new byte[0];
 
     // ========== 状态 ==========
 
@@ -136,30 +123,11 @@ public class ScriptPlayer {
     private double lastLocalElapsed = Double.NaN;
 
     /**
-     * 执行事实用的 per-clip 已执行圈数槽：索引 = 扁平片段序（轨道序 → 轨道内片段序），与 {@link Clip}
-     * 一一对应，由 {@link #recordContentFacts} 按播放头推进累加（有限循环片段到 {@code loop_count} = 次数耗尽）。
-     * 容量在 {@link #start} / {@link #replaceScript} 时按脚本片段总数重建，每帧路径零分配。
+     * 执行账本：执行次数 / 执行身份 / 局部采样时间 / 完成事实的唯一真源。
+     * 换脚本时按新脚本重建（{@link #start} / {@link #replaceScript}），seek / 宏观折返走
+     * {@link ClipExecutionLedger#reset(double)}，正常帧走 {@link ClipExecutionLedger#advance(double)}。
      */
-    private int[] clipLoopCounts = EMPTY_LOOP_COUNTS;
-
-    /**
-     * 执行事实用的 per-clip 消费状态槽（同索引，取值 {@link #CLIP_PENDING} / {@link #CLIP_ACTIVE} /
-     * {@link #CLIP_CONSUMED}）：只在播放头推进（{@link #recordContentFacts}）与路径变更
-     * （{@link #rederiveContentFacts}）时改写，判定侧只读。
-     */
-    private byte[] clipStates = EMPTY_CLIP_STATES;
-
-    /**
-     * 执行事实基准：上一次记录事实的播放头读数（秒）；NaN = 尚无基准（{@link #start} / {@link #replaceScript}
-     * 后由首帧建立）。播放头未推进（挂起 / 游戏暂停 / 同帧重复驱动）⇒ 不产生新事实；回退走路径重导。
-     */
-    private double contentFactTime = Double.NaN;
-
-    /**
-     * 剩余内容计数（尚未消费的片段数）：{@link #allContentConsumed()} 的唯一读点——0 = 实际执行路径上
-     * 已无剩余可执行内容。由 {@link #recordContentFacts} 递减、{@link #rederiveContentFacts} 按新路径重算。
-     */
-    private int remainingContent = 0;
+    private ClipExecutionLedger executions = new ClipExecutionLedger(null);
 
     /**
      * 本帧分发给轨道的时间轴读数（秒；宏观循环 = 圈内局部时间）——片段活跃窗判定的唯一读侧出口
@@ -204,8 +172,9 @@ public class ScriptPlayer {
 
         this.script = newScript;
         this.currentBehavior = newScript.getMeta() != null ? newScript.getMeta().getBehavior() : null;
+        this.executions = new ClipExecutionLedger(newScript);
+        this.executions.reset(timelineTime);
         this.computeMacroLoop();
-        this.resetContentFacts();
 
         if (layoutChanged) {
             // 轨道布局变化(轨道数/类型顺序不同):旧 TrackPlayer 绑定的轨道索引对新脚本失效,
@@ -322,9 +291,9 @@ public class ScriptPlayer {
         this.currentBehavior = meta.getBehavior();
 
         // 宏观循环：推导区间 [a, b] 与圈数并缓存（NaN = 不循环）
+        this.executions = new ClipExecutionLedger(script);
+        this.executions.reset(preExecuteAt);
         computeMacroLoop();
-        // 执行事实槽：按新脚本的片段总数重建（内容播完判定的唯一事实来源）
-        resetContentFacts();
 
         // block_mob_ai：清空已锁定玩家的生物目标
         if (currentBehavior.blockMobAi() && mc.level != null) {
@@ -380,6 +349,7 @@ public class ScriptPlayer {
         this.stopping = false;
         this.script = null;
         this.currentBehavior = null;
+        this.executions = new ClipExecutionLedger(null);
         resetMacroLoop();
     }
 
@@ -404,14 +374,14 @@ public class ScriptPlayer {
     }
 
     /**
-     * 内容播完谓词：读执行事实（{@link #remainingContent} = 0 = 无待进入 / 执行中的片段；
-     * 无限片段永不消费完，故无限内容恒 false）。事实由播放头推进与路径变更记录，本方法不读时钟。
+     * 内容播完谓词：读执行账本（全部片段 {@code done} = 无待进入 / 执行中的片段；
+     * 无限片段永不 done，故无限内容恒 false）。本方法不读时钟。
      * 挂起中恒 false（内容完成度含「无挂起在跑」）。
      */
     private boolean allContentConsumed() {
         if (isSuspended()) return false;
         if (script == null || script.getTimeline() == null) return false;
-        return remainingContent == 0;
+        return executions.allDone();
     }
 
     /** 当前播放脚本的 ID；无脚本时为 {@code "<none>"}。 */
@@ -420,7 +390,7 @@ public class ScriptPlayer {
     }
 
     /**
-     * 距内容终点的剩余秒数（终点 = 各片段展开结束时刻 {@link Clip#getWindowEnd()} 的最大值，不是 {@code total_duration}）。
+     * 距内容终点的剩余秒数（终点 = 执行账本的 {@link ClipExecutionLedger#contentEnd()}，不是 {@code total_duration}）。
      * 无限内容（永不结束片段 / 宏观无限圈）→ {@link Double#MAX_VALUE}（「不会自然结束」哨兵，读方无需判 NaN）；
      * 已过终点 → {@code 0}；未播放 → {@code 0}。宏观循环按 {@code a + N × (b − a)} 计；内容比声明时长长时
      * 本值可大于「{@code total_duration} − 已播时间」——时间不是结束判据。
@@ -431,9 +401,18 @@ public class ScriptPlayer {
             if (macroLoopCount < 0) return Double.MAX_VALUE; // 无限重复：不自然结束
             return Math.max(0.0, macroLoopTotalEnd() - getElapsedSeconds());
         }
-        double end = contentEnd();
-        if (Double.isNaN(end)) return Double.MAX_VALUE; // 无限内容：无内容终点
-        return Math.max(0.0, end - getElapsedSeconds());
+        if (!executions.hasFiniteContentEnd()) return Double.MAX_VALUE; // 无限内容：无内容终点
+        return Math.max(0.0, executions.contentEnd() - getElapsedSeconds());
+    }
+
+    /**
+     * hold_at_end 的驻留位置（秒）= 有限内容末端退 {@link #HOLD_END_EPSILON}，让最后一帧保持住；
+     * 无有限内容末端（永不结束片段 / 空时间轴）→ 当前播放头。
+     * 驻留点由实际内容自然完成给出，不由 {@code total_duration}（统计位，可能短于实际内容）。
+     */
+    public double holdElapsed() {
+        if (!executions.hasFiniteContentEnd()) return getElapsedSeconds();
+        return Math.max(0.0, executions.contentEnd() - HOLD_END_EPSILON);
     }
 
     /**
@@ -526,7 +505,8 @@ public class ScriptPlayer {
                 return;
             }
             // 圈边界（本帧局部时间 < 上帧）→ 折返重置（其余状态每帧按时间重查，天然自愈）
-            if (!Double.isNaN(lastLocalElapsed) && local < lastLocalElapsed) {
+            boolean folded = !Double.isNaN(lastLocalElapsed) && local < lastLocalElapsed;
+            if (folded) {
                 playerMovement.onScriptLoop();
                 for (TrackPlayer tp : trackPlayers) {
                     try {
@@ -537,24 +517,33 @@ public class ScriptPlayer {
                     }
                 }
             }
+            // 正常帧先推进；圈边界折返（或首帧播放头回退）按新位置重导，片段的新执行获得新身份
+            if (folded || local < executions.lastHead()) {
+                executions.reset(local);
+            } else {
+                executions.advance(local);
+            }
             lastLocalElapsed = local;
             elapsedSeconds = local;
         } else {
-            // 执行事实：按本帧播放头推进记录片段进入 / 消费完 / 圈数计满（判定读事实；零分配）
-            recordContentFacts(elapsedSeconds);
+            // 执行账本：按本帧播放头推进执行事实（进入 / 次数耗尽 / done；判定读事实；零分配）
+            // 只在播放头前进时推进：hold 钳制 / 同帧重复驱动会让读数不前进甚至回退，
+            // 账本停在已记录的最远事实位置（不回退、不抛异常）。
+            if (elapsedSeconds > executions.lastHead()) {
+                executions.advance(elapsedSeconds);
+            }
             if (allContentConsumed()) {
                 // 内容播完：hold_at_end 驻留在内容末端最后一帧，否则本帧不分发
                 // （isFinished() 为 true，由调用方走自然结束 / 驻留）
                 if (script.getMeta().isHoldAtEnd()) {
-                    elapsedSeconds = Math.max(0.0, contentEnd() - HOLD_END_EPSILON);
+                    elapsedSeconds = holdElapsed();
                 } else {
                     return;
                 }
             } else if (totalDuration > 0.0 && elapsedSeconds >= totalDuration) {
                 // total_duration 是统计位（记录 / 真同步），不是结束判据：内容比声明长 → 限频提示作者核对
-                double end = contentEnd();
-                if (!Double.isNaN(end)) {
-                    warnDurationOverrun(elapsedSeconds, totalDuration, end);
+                if (executions.hasFiniteContentEnd()) {
+                    warnDurationOverrun(elapsedSeconds, totalDuration, executions.contentEnd());
                 }
             }
         }
@@ -619,7 +608,7 @@ public class ScriptPlayer {
     public void alignTime(double desiredElapsedSeconds, double currentGameTimeSeconds) {
         this.startGameTimeSeconds = currentGameTimeSeconds - desiredElapsedSeconds;
         if (isSuspended()) heldElapsed = desiredElapsedSeconds;
-        rederiveContentFacts(desiredElapsedSeconds);
+        executions.reset(desiredElapsedSeconds);
     }
 
     /**
@@ -777,144 +766,13 @@ public class ScriptPlayer {
     }
 
     /**
-     * 内容终点（秒）= 各片段展开结束时刻（{@link Clip#getWindowEnd()}，含片段自身循环展开）的最大值。
-     * 存在永不结束的片段（{@link Clip#isEffectivelyInfinite()}）→ {@code NaN}（无终点：谓词恒 false、
-     * 兜底也不告警）；空时间轴 / 零长度 → {@code 0}。不用作者声明的 {@code total_duration} 当终点。
-     */
-    private double contentEnd() {
-        if (script == null || script.getTimeline() == null) return Double.NaN;
-        double end = 0.0;
-        List<TimelineTrack> tracks = script.getTimeline().getTracks();
-        for (int ti = 0; ti < tracks.size(); ti++) {
-            List<Clip> clips = tracks.get(ti).getClips();
-            for (int ci = 0; ci < clips.size(); ci++) {
-                Clip clip = clips.get(ci);
-                if (clip.isEffectivelyInfinite()) return Double.NaN; // 永不结束片段 → 终点不存在
-                end = Math.max(end, clip.getWindowEnd());
-            }
-        }
-        return end;
-    }
-
-    /**
-     * 宏观末端（秒）= {@link #contentEnd()}；不存在（永不结束片段 / 空时间轴 / 零长度）→ 返回 null（不循环）。
+     * 宏观末端（秒）= 执行账本的 {@link ClipExecutionLedger#contentEnd()}；不存在
+     * （存在无限执行 / 空时间轴 / 零长度）→ 返回 null（不循环）。
      */
     private Double computeMacroEnd() {
-        double end = contentEnd();
-        return Double.isNaN(end) || end <= 0.0 ? null : end; // 空时间轴 / 零长度：不循环，避免对 0 取模
-    }
-
-    /**
-     * 按当前脚本的片段总数重建执行事实槽（{@link #clipLoopCounts} / {@link #clipStates}）：全部片段
-     * 待进入、剩余内容 = 片段总数、基准清空（首帧建立）。只在 {@link #start} / {@link #replaceScript} 调用。
-     */
-    private void resetContentFacts() {
-        int n = 0;
-        if (script != null && script.getTimeline() != null) {
-            for (TimelineTrack track : script.getTimeline().getTracks()) {
-                n += track.getClips().size();
-            }
-        }
-        clipLoopCounts = n == 0 ? EMPTY_LOOP_COUNTS : new int[n];
-        clipStates = n == 0 ? EMPTY_CLIP_STATES : new byte[n];
-        remainingContent = n;
-        contentFactTime = Double.NaN;
-    }
-
-    /**
-     * 执行事实记录：按本帧播放头相对上帧的推进，记录每个片段的「进入」（到达片段起点）、
-     * 「消费完」（有限循环圈数计满且到达消费窗口末；无限片段永不消费完）与圈数计满，并递减剩余内容计数。
-     * 播放头未推进（挂起 / 游戏暂停 / hold 驻留）⇒ 无新事实；回退（seek）走 {@link #rederiveContentFacts}。
-     * 零分配（只写既有 byte / int 槽）；宏观循环圈数另由 {@link #macroLoopCount} 计，本方法只在非宏观路径调用。
-     */
-    private void recordContentFacts(double elapsed) {
-        if (script == null || script.getTimeline() == null) return;
-        double prev = contentFactTime;
-        if (Double.isNaN(prev)) {
-            // 首个基准（start / replaceScript 后首帧）：按当前位置定初值
-            rederiveContentFacts(elapsed);
-            return;
-        }
-        if (!(elapsed > prev)) return;          // 未推进（挂起 / 游戏暂停 / 重复驱动）：无新事实
-        contentFactTime = elapsed;
-        List<TimelineTrack> tracks = script.getTimeline().getTracks();
-        int i = 0;
-        for (int ti = 0; ti < tracks.size(); ti++) {
-            List<Clip> clips = tracks.get(ti).getClips();
-            for (int ci = 0; ci < clips.size(); ci++, i++) {
-                if (i >= clipStates.length) return;
-                Clip clip = clips.get(ci);
-                // 圈数计满事实：本帧跨过的循环边界数（未推进不计数，一帧跨多圈一次补齐）
-                if (clip.isLoop() && clip.getLoopCount() > 0 && clipLoopCounts[i] < clip.getLoopCount()) {
-                    int crossed = lapsBefore(clip, elapsed) - lapsBefore(clip, prev);
-                    if (crossed > 0) {
-                        clipLoopCounts[i] = Math.min(clipLoopCounts[i] + crossed, clip.getLoopCount());
-                    }
-                }
-                if (clipStates[i] == CLIP_CONSUMED) continue;   // 已无剩余内容：事实不再变
-                if (clipStates[i] == CLIP_PENDING) {
-                    if (elapsed < clip.getStartTime()) continue; // 尚未进入执行路径
-                    clipStates[i] = CLIP_ACTIVE;                 // 事实：片段进入
-                }
-                if (!clipConsumedAt(i, clip, elapsed)) continue;
-                clipStates[i] = CLIP_CONSUMED;                   // 事实：内容消费完
-                remainingContent--;
-            }
-        }
-    }
-
-    /**
-     * 片段在播放头 {@code head} 处是否已无剩余可执行内容：无限片段恒 false；有限片段 = 消费窗口末已到
-     * 且（有限循环时）展开圈数计满。判定唯一读点（{@link #recordContentFacts} / {@link #rederiveContentFacts} 共用）。
-     */
-    private boolean clipConsumedAt(int index, Clip clip, double head) {
-        if (clip.isEffectivelyInfinite()) return false;
-        if (head < clip.getWindowEnd()) return false;
-        if (clip.isLoop() && clip.getLoopCount() > 0 && clip.getAnimPeriod() > 0f) {
-            return clipLoopCounts[index] >= clip.getLoopCount();
-        }
-        return true;
-    }
-
-    /**
-     * 路径变更重导执行事实（{@link #alignTime}：{@code goto_clip} 分支跳转 / 编辑器 seek / 首个基准）：
-     * 新位置之前的片段 = 已无剩余内容（原路径剩余内容不再计入），覆盖新位置的片段 = 执行中（目标之后
-     * 的内容计入），之后的片段 = 待进入；有限循环圈数按新位置重算（回跳 = 重执行）。零分配。
-     */
-    private void rederiveContentFacts(double head) {
-        contentFactTime = head;
-        if (script == null || script.getTimeline() == null) return;
-        List<TimelineTrack> tracks = script.getTimeline().getTracks();
-        int remaining = 0;
-        int i = 0;
-        for (int ti = 0; ti < tracks.size(); ti++) {
-            List<Clip> clips = tracks.get(ti).getClips();
-            for (int ci = 0; ci < clips.size(); ci++, i++) {
-                if (i >= clipStates.length) return;
-                Clip clip = clips.get(ci);
-                if (clip.isLoop() && clip.getLoopCount() > 0 && clip.getAnimPeriod() > 0f) {
-                    clipLoopCounts[i] = Math.min(lapsBefore(clip, head), clip.getLoopCount());
-                }
-                if (head < clip.getStartTime()) {
-                    clipStates[i] = CLIP_PENDING;
-                    remaining++;
-                } else if (clipConsumedAt(i, clip, head)) {
-                    clipStates[i] = CLIP_CONSUMED;
-                } else {
-                    clipStates[i] = CLIP_ACTIVE;
-                    remaining++;
-                }
-            }
-        }
-        remainingContent = remaining;
-    }
-
-    /** 时间 {@code t} 处片段已展开的完整圈数（未开始 / 无循环周期 → 0）。 */
-    private static int lapsBefore(Clip clip, double t) {
-        double period = clip.getAnimPeriod();
-        if (period <= 0.0) return 0;
-        double local = t - clip.getStartTime();
-        return local <= 0.0 ? 0 : (int) (local / period);
+        if (!executions.hasFiniteContentEnd()) return null;
+        double end = executions.contentEnd();
+        return end <= 0.0 ? null : end; // 空时间轴 / 零长度：不循环，避免对 0 取模
     }
 
     /**
@@ -951,15 +809,37 @@ public class ScriptPlayer {
         if (script != null && script.getTimeline() != null) {
             for (TimelineTrack track : script.getTimeline().getTracks()) {
                 for (Clip clip : track.getClips()) {
-                    if (head < clip.getStartTime() || head >= clip.getWindowEnd()) continue;
-                    out[0] = clip.getStartTime();
-                    out[1] = (float) (head - clip.getStartTime());
+                    if (!executions.isActive(clip, head)) continue;
+                    out[0] = (float) executions.windowStart(clip);
+                    out[1] = (float) executions.localTime(clip, head);
                     return;
                 }
             }
         }
         out[0] = Float.NaN;
         out[1] = (float) head;
+    }
+
+    // ========== 执行账本 / ClipTimeSource ==========
+
+    /** 本实例的执行账本（只读访问器：轨道 / 探针查执行事实）。 */
+    public ClipExecutionLedger executions() {
+        return executions;
+    }
+
+    @Override
+    public boolean isClipActive(Clip clip, double head) {
+        return executions.isActive(clip, head);
+    }
+
+    @Override
+    public double executionLocalTime(Clip clip, double head) {
+        return executions.localTime(clip, head);
+    }
+
+    @Override
+    public double finiteWindowEnd(Clip clip) {
+        return executions.windowEnd(clip);
     }
 
     /**

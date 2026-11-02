@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.camera.transition.Transition
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
+import com.immersivecinematics.immersive_cinematics.script.execution.LoopMode;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 
 import java.util.Collections;
@@ -27,6 +28,12 @@ public class Clip {
     /** 新对象模型的采样属性集合；旧格式片段为 {@link ClipObjects#EMPTY}。 */
     private final ClipObjects objects;
 
+    /**
+     * 是否新格式（播放控制格式，I-1 {@code objects} 片段）：执行循环按格式区分——
+     * 新格式 AUDIO 的 {@code loop} 是执行循环；旧格式 AUDIO 的 {@code loop} 仍是文件循环。
+     */
+    private final boolean playControlFormat;
+
     /** 过渡声明缓存（{@link #getTransitionSpec()} 首次访问建成；片段数据解析后只读，故可缓存）。 */
     private TransitionSpec transitionSpec;
 
@@ -35,20 +42,32 @@ public class Clip {
     /** 是否已尝试建立 {@link #colorMaskSpec}（非 OVERLAY 轨的 {@code null} 结果同样只解析一次）。 */
     private boolean colorMaskSpecResolved;
 
-    /** 旧格式构造器：不携带新对象模型（{@link ClipObjects#EMPTY}）。 */
+    /** 旧格式构造器：不携带新对象模型（{@link ClipObjects#EMPTY}），执行循环按旧格式口径。 */
     public Clip(float startTime, float duration, TrackType trackType,
                 Map<String, Object> data, List<Keyframe> keyframes) {
-        this(startTime, duration, trackType, data, keyframes, ClipObjects.EMPTY);
+        this(startTime, duration, trackType, data, keyframes, ClipObjects.EMPTY, false);
     }
 
+    /** 旧格式构造器（带对象模型）：执行循环仍按旧格式口径。 */
     public Clip(float startTime, float duration, TrackType trackType,
                 Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects) {
+        this(startTime, duration, trackType, data, keyframes, objects, false);
+    }
+
+    /**
+     * @param playControlFormat 是否新格式（播放控制格式）：{@code true} = {@code objects} 片段
+     *                          （{@code ScriptParser.parseObjectClip}），AUDIO 的 {@code loop} 按执行循环解释
+     */
+    public Clip(float startTime, float duration, TrackType trackType,
+                Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects,
+                boolean playControlFormat) {
         this.startTime = startTime;
         this.duration = duration;
         this.trackType = trackType;
         this.data = data != null ? data : Collections.emptyMap();
         this.keyframes = keyframes != null ? keyframes : Collections.emptyList();
         this.objects = objects != null ? objects : ClipObjects.EMPTY;
+        this.playControlFormat = playControlFormat;
     }
 
     // ── 通用字段 ──
@@ -158,8 +177,26 @@ public class Clip {
         return getString("dimension", "");
     }
 
+    public boolean isPlayControlFormat() {
+        return playControlFormat;
+    }
+
+    /**
+     * 是否为执行循环（按次数重复执行）：{@code loop=true} 且（新格式 或 非 AUDIO 轨）。
+     * 旧格式 AUDIO 的 {@code loop} 是文件循环，不算执行循环。
+     */
+    public boolean isExecutionLoop() {
+        return getBool("loop", false) && (playControlFormat || trackType != TrackType.AUDIO);
+    }
+
+    /** 旧调用名：执行循环（旧格式 AUDIO 文件循环不算）。 */
     public boolean isLoop() {
-        return getBool("loop", false);
+        return isExecutionLoop();
+    }
+
+    /** 是否为旧格式 AUDIO 的文件循环（{@code loop=true} 且非播放控制格式）。 */
+    public boolean isFileLoop() {
+        return trackType == TrackType.AUDIO && !playControlFormat && getBool("loop", false);
     }
 
     public int getLoopCount() {
@@ -174,10 +211,9 @@ public class Clip {
         return getString("loop_mode", "repeat");
     }
 
-    /** 单次循环周期 = 末关键帧时间 - 首关键帧时间（关键帧不足 2 个时为 0） */
-    public float getAnimPeriod() {
-        if (keyframes.size() < 2) return 0f;
-        return keyframes.get(keyframes.size() - 1).getTime() - keyframes.get(0).getTime();
+    /** 归一后的循环模式（运行期不再比较字符串）。 */
+    public LoopMode getLoopModeValue() {
+        return LoopMode.fromName(getLoopMode(), LoopMode.REPEAT);
     }
 
     /**
@@ -185,30 +221,34 @@ public class Clip {
      * 注：loop_count=0 在解析期已被修正为 1（有限循环），不会到达这里。
      */
     public boolean isLoopInfinite() {
-        return isLoop() && getLoopCount() < 0;
+        return isExecutionLoop() && getLoopCount() < 0;
     }
 
     /**
      * 片段是否"永不结束"的统一判断：
-     * duration 为负（无限时长片段）或无限循环（loop=true + loop_count=-1）。
+     * duration 为负（无限时长片段）或无限执行循环（loop=true + loop_count=-1）。
      * 所有"这个片段会不会结束"的判定都应走此方法。
      */
     public boolean isEffectivelyInfinite() {
         return isInfinite() || isLoopInfinite();
     }
 
+    /** 片段是否有有限展开窗口末端（{@link #getWindowEnd()} 的唯一前置判据）。 */
+    public boolean hasFiniteWindowEnd() {
+        return !isEffectivelyInfinite();
+    }
+
     /**
      * 片段活跃窗口末端（不含）：
-     * 无限（时长或循环）→ Float.MAX_VALUE；
-     * 有限循环 → start + 周期 × 次数；
-     * 普通 → start + duration。
-     * 与 KeyframeInterpolator 的循环钳制共用同一窗口公式。
+     * 有限 = {@code start + duration × (loop ? max(1, loopCount) : 1)}；
+     * 无限（时长或循环）没有有限末端，调用抛 {@link IllegalStateException}（编程错误，不用数值哨兵）。
      */
-    public float getWindowEnd() {
-        if (isEffectivelyInfinite()) return Float.MAX_VALUE;
-        if (isLoop() && getLoopCount() > 0) {
-            float animPeriod = getAnimPeriod();
-            if (animPeriod > 0) return startTime + animPeriod * getLoopCount();
+    public double getWindowEnd() {
+        if (isEffectivelyInfinite()) {
+            throw new IllegalStateException("无限执行没有有限窗口末端：" + this);
+        }
+        if (isExecutionLoop()) {
+            return startTime + (double) duration * Math.max(1, getLoopCount());
         }
         return startTime + duration;
     }

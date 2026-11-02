@@ -199,7 +199,7 @@ public final class PlaybackInstance {
         }
         modifiers.clear();
         if (script == null) return;
-        for (ClipModifierGate gate : collectModifiers(script, player::timelineTime)) {
+        for (ClipModifierGate gate : collectModifiers(script, player, player::timelineTime)) {
             coverChain.register(gate);
             modifiers.add(gate);
         }
@@ -208,9 +208,11 @@ public final class PlaybackInstance {
     /**
      * 脚本里全部片段级静态 Modifier 的注册形态（只取 CAMERA 轨道，按轨道顺序展开；无声明 → 空列表）。
      *
+     * @param player       所属播放实例（执行账本 = 活跃窗 / 有限窗口末端来源）
      * @param timelineTime 时间轴读数来源（每实例一份：游戏实例 = 全局虚拟时钟、编辑器实例 = 编辑器播放头）
      */
-    static List<ClipModifierGate> collectModifiers(CinematicScript script, DoubleSupplier timelineTime) {
+    static List<ClipModifierGate> collectModifiers(CinematicScript script, ScriptPlayer player,
+                                                   DoubleSupplier timelineTime) {
         List<ClipModifierGate> collected = new ArrayList<>();
         for (TimelineTrack track : script.getTimeline().getTracks()) {
             if (track.getType() != TrackType.CAMERA) continue;
@@ -219,7 +221,7 @@ public final class PlaybackInstance {
                 ClipModifier declaration = clips.get(i).getModifier();
                 if (declaration == null) continue;
                 Clip next = i + 1 < clips.size() ? clips.get(i + 1) : null;
-                collected.add(new ClipModifierGate(declaration, clips.get(i), next, timelineTime));
+                collected.add(new ClipModifierGate(declaration, clips.get(i), next, player, timelineTime));
             }
         }
         return collected;

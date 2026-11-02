@@ -60,7 +60,7 @@ public final class ObjectValidator {
      */
     public static void validate(TrackType type, JsonObject clip, String clipPath, List<String> issues) {
         String prefix = clipPath == null || clipPath.isEmpty() ? "" : clipPath + ": ";
-        checkClipFields(clip, prefix, issues);
+        checkClipFields(type, clip, prefix, issues);
         rejectPingpong(type, clip, prefix, issues);
 
         JsonElement objectsElement = clip.get("objects");
@@ -78,32 +78,65 @@ public final class ObjectValidator {
     // clip 级：键白名单 + 播放控制字段类型
     // ======================================================================
 
-    private static void checkClipFields(JsonObject clip, String prefix, List<String> issues) {
+    private static void checkClipFields(TrackType type, JsonObject clip, String prefix, List<String> issues) {
         for (String key : clip.keySet()) {
             if (!CLIP_KEYS.contains(key)) {
                 issues.add(prefix + "新格式片段只允许 start_time/duration/objects/loop/loop_count/loop_mode，发现 " + key);
             }
         }
         JsonElement loop = clip.get("loop");
-        if (loop != null && (!loop.isJsonPrimitive() || !loop.getAsJsonPrimitive().isBoolean())) {
-            issues.add(prefix + "loop 必须是布尔值");
+        boolean looping = false;
+        if (loop != null) {
+            if (!loop.isJsonPrimitive() || !loop.getAsJsonPrimitive().isBoolean()) {
+                issues.add(prefix + "loop 必须是布尔值");
+            } else {
+                looping = loop.getAsBoolean();
+            }
         }
+        Integer count = null;
         JsonElement loopCount = clip.get("loop_count");
         if (loopCount != null) {
-            Integer count = intValue(loopCount);
+            count = intValue(loopCount);
             if (count == null) {
                 issues.add(prefix + "loop_count 必须是整数");
             } else if (count == 0) {
                 issues.add(prefix + "loop_count 不允许为 0（-1=无限循环，正整数=循环次数）");
+            } else if (count < -1) {
+                issues.add(prefix + "loop_count 不能小于 -1（-1=无限循环，正整数=循环次数）");
             }
         }
         JsonElement loopMode = clip.get("loop_mode");
+        String mode = null;
         if (loopMode != null) {
-            String mode = loopModeString(loopMode);
+            mode = loopModeString(loopMode);
             if (mode == null) {
                 issues.add(prefix + "loop_mode 必须是 repeat 或 pingpong");
             }
         }
+        if (count != null && count != 0 && count >= -1 && !looping) {
+            issues.add(prefix + "loop=false 时 loop_count 不生效：需要 loop=true 才进入执行循环");
+        }
+        if ("pingpong".equals(mode) && (type == null || isVisualLoopTrack(type))) {
+            if (!looping) {
+                issues.add(prefix + "loop_mode=pingpong 需要 loop=true（否则按 repeat 播放）");
+            }
+            if (count != null && count == 1) {
+                issues.add(prefix + "loop_mode=pingpong 与 loop_count=1 无往复效果（至少需要 2 个周期）");
+            }
+        }
+        if (clip.has("duration") && (looping || count != null || mode != null)) {
+            JsonElement duration = clip.get("duration");
+            if (duration.isJsonPrimitive() && duration.getAsJsonPrimitive().isNumber()
+                    && duration.getAsDouble() < 0d) {
+                issues.add(prefix + "duration<0（无限时长）与循环参数冲突：无限片段不需要 loop/loop_count/loop_mode");
+            }
+        }
+    }
+
+    /** 视觉轨：pingpong 的时间映射只对这几类轨道有意义（其余轨道由 {@link #rejectPingpong} 报错）。 */
+    private static boolean isVisualLoopTrack(TrackType type) {
+        return type == TrackType.CAMERA || type == TrackType.OVERLAY
+                || type == TrackType.ADJUST || type == TrackType.LETTERBOX;
     }
 
     private static void rejectPingpong(TrackType type, JsonObject clip, String prefix, List<String> issues) {

@@ -2,6 +2,7 @@ package com.immersivecinematics.immersive_cinematics.camera.source;
 
 import com.immersivecinematics.immersive_cinematics.script.CameraLane;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipTimeSource;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,13 +25,16 @@ public final class LaneSnapshotCollector {
 
     private final EntityTargetResolver entityResolver;
     private final CameraKeyframeEvaluator evaluator;
+    private final ClipTimeSource timeSource;
 
     private final List<CameraLane> laneSnapshots = new ArrayList<>(2);
     private final List<CameraLane> laneSnapshotsView = Collections.unmodifiableList(laneSnapshots);
 
-    public LaneSnapshotCollector(EntityTargetResolver entityResolver, CameraKeyframeEvaluator evaluator) {
+    public LaneSnapshotCollector(EntityTargetResolver entityResolver, CameraKeyframeEvaluator evaluator,
+                                 ClipTimeSource timeSource) {
         this.entityResolver = entityResolver;
         this.evaluator = evaluator;
+        this.timeSource = timeSource;
     }
 
     /** 只读视图（避免每次取用时包装）。 */
@@ -74,7 +78,8 @@ public final class LaneSnapshotCollector {
                     continue;
                 }
                 // 层号 = 距顶层 lane 的层级（顶层 = 0）：运动模型实例按层归属，本 clip 本帧只在此处 step 一次
-                CameraLane snapshot = evaluator.renderSingle(globalTime, clip, globalTime - clip.getStartTime(),
+                CameraLane snapshot = evaluator.renderSingle(globalTime, clip,
+                        timeSource.executionLocalTime(clip, globalTime),
                         true, active.size() - 1 - i);
                 if (snapshot != null) laneSnapshots.add(snapshot);
             }

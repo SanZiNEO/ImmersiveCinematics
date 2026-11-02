@@ -2,7 +2,6 @@ package com.immersivecinematics.immersive_cinematics.camera;
 
 import com.immersivecinematics.immersive_cinematics.control.ExitReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
-import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
@@ -146,13 +145,10 @@ final class FrameDriver {
                     // 本实例已播放时间（不是帧驱动的时钟读数）：并行实例的起始读数各不相同，且挂起中要冻结，
                     // 用绝对时钟读数当 elapsed 会误判活跃（见下方 hasActiveCameraTrack）。
                     double instanceTime = player.getElapsedSeconds();
-                    // 末帧保持（{@code holdAtEnd}）：时间耗尽后把渲染时间钳到总时长末尾，让最后一帧保持住
+                    // 末帧保持（{@code holdAtEnd}）：驻留点取执行账本的实际内容末端，让最后一帧保持住
+                    // （不是 total_duration——统计位，可能短于实际内容）
                     if (player.isFinished() && instance.isHoldAtEnd()) {
-                        CinematicScript s = player.getScript();
-                        if (s != null) {
-                            double total = s.getTotalDuration();
-                            if (total > 0.0) instanceTime = Math.max(0.0, total - 0.001);
-                        }
+                        instanceTime = player.holdElapsed();
                     }
                     player.onRenderFrame(instanceTime);
                     // 判定规则：轨道分发之后逐实例判定（挂起 / 恢复 / 动作都作用在本实例上）
