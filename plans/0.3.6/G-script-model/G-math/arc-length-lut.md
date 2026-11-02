@@ -1,6 +1,6 @@
 # 弧长查找表（LUT）
 
-> 状态：核心表已实现（多曲线泛化完成）；动态缓存/重建策略未实现
+> 状态：已实现（核心表 + 动态缓存/重建/降级）
 > 范围：LUT 结构、构建、查询、精度、缓存、零分配、动态控制点
 > 关联：`arc-length.md`、`curve-bezier.md`、`example/math/code/threejs/Curve.js`、`example/math/code/godot/curve.cpp`
 
@@ -85,7 +85,13 @@
 
 ## 六、实现结果
 
-状态：核心表已实现（`math/path/ArcLengthTable` 服务任意 `PathExpression`，`uAt/sAt/length/size` 齐备）；动态缓存与重建策略未实现。
+状态：已实现（核心表 + 动态缓存/重建/降级）。
+
+核心表：`math/path/ArcLengthTable` 服务任意 `PathExpression`，`uAt/sAt/length/size` 齐备。
+
+动态缓存：`math/path/DynamicArcLengthTable` 按 5 个等距采样位置指纹判定——任一点位移 ≤ 阈值（缺省 0.25 格）复用旧表，超过阈值重建，连续重建超过 8 次降级为固定采样积分 + 二分反解；降级后一次稳定更新自动恢复建表。`PathEvaluator.positionDynamic/tangentDynamic` 为动态路径提供入口（调用方每条路径持有一个缓存实例）。
+
+实测（`E:/tmp/gcurve/DynamicProbe`，12 项全 PASS）：同表达式 100 次更新只建表 1 次；小变化（≤0.25 格）复用；大变化重建；连续 30 次抖动降级；降级反解与同表达式新表的最大误差 `5.8e-10`；有表 `uAt` 1e6 次分配 ≤ 1KB（JIT 偶发，稳态 0）。
 
 构建两遍：先用 64 段 5 点 GL 预估总长，把相对容差折成绝对容差；再递归二分，判据 `|弦长 - GL| ≤ 绝对容差`，落叶弧长取对半两段 GL5 之和，累积成总长。查询 `uAt` 用「表上二分 + 叶内再二分 + 线性初值 + 至多 8 次牛顿（残差 1e-9）」；`sAt` 用「节点累积 + 叶内 GL5」。查询期零分配。
 

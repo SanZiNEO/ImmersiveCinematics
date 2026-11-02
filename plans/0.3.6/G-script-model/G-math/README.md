@@ -21,7 +21,7 @@
 | [curve-fourier.md](curve-fourier.md) | Fourier 路径：周期/非周期、端点约束、拟合、阶数 | 已实现 |
 | [exact-conics.md](exact-conics.md) | 精确圆/椭圆：有理二次、NURBS、arc 原语、与 3×120° 近似的关系 | 已实现 |
 | [arc-length.md](arc-length.md) | 通用弧长参数化：积分、反解、动态控制点、退化 | 已实现 |
-| [arc-length-lut.md](arc-length-lut.md) | 弧长查找表：构建、查询、精度、缓存、零分配 | 核心表已实现；动态缓存/重建未实现 |
+| [arc-length-lut.md](arc-length-lut.md) | 弧长查找表：构建、查询、精度、缓存、零分配 | 已实现（含动态缓存/重建/降级） |
 | [continuity-composition.md](continuity-composition.md) | G0/G1/G2、复合路径、段间约束、回旋线插入、降级 | 已实现（回旋线插入策略未实现，归 I 轮） |
 | [axis-constraints.md](axis-constraints.md) | 轴约束：控制点约束 / 切空间 / 投影、对精确性与弧长的影响 | 已实现（切空间约束与整条投影未实现，归 I 轮） |
 | [acceptance.md](acceptance.md) | 精确圆锥、弧长、连续性、退化、性能的验收口径 | 已实现 |
