@@ -106,6 +106,36 @@ def all_windows():
     return [w for w in pyautogui.getAllWindows() if "Minecraft" in (w.title or "")]
 
 
+def wait_for_new_window(before_hwnds, proc, timeout=600, poll=2.0):
+    """等一个启动前不存在的 Minecraft 窗口；proc 退出或超时返回 None。"""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if proc is not None and proc.poll() is not None:
+            return None
+        try:
+            for w in all_windows():
+                if w._hWnd not in before_hwnds:
+                    return w
+        except SystemExit:
+            pass
+        time.sleep(poll)
+    return None
+
+
+SW_MAXIMIZE = 3
+
+
+def maximize_window(win):
+    """把窗口切到「最大化」：系统会把客户区撑到工作区，边框溢出屏幕但不可见。
+
+    与 options.txt 的 overrideWidth/Height 不同——后者设的是客户区尺寸，
+    普通窗口还要额外加标题栏(23) + 边框(16)，设成工作区大小反而会顶出屏幕。
+    """
+    u.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+    u.ShowWindow.restype = wintypes.BOOL
+    u.ShowWindow(wintypes.HWND(win._hWnd), SW_MAXIMIZE)
+
+
 def find_window(pid=None):
     wins = all_windows()
     if pid is not None:
@@ -501,7 +531,7 @@ def gradle_prefix():
     die("找不到 gradlew / sh / bash")
 
 
-def launch_client(world, extra_args, env_extra=None):
+def launch_client(world, extra_args, env_extra=None, maximize=True):
     cmd = gradle_prefix() + list(extra_args) + [
         ":fabric:runClient", f"--args=--quickPlaySingleplayer {world}"]
     env = dict(os.environ)
@@ -509,11 +539,31 @@ def launch_client(world, extra_args, env_extra=None):
         env.update(env_extra)
     print(f"[client] world={world} capture={env.get('ICINEMATICS_CAPTURE', '0')}")
     print(f"[client] 日志：{rel(LOG)}（用 `devtools.py tail` 看，自动 GBK 解码）")
-    return subprocess.run(cmd, cwd=ROOT, env=env)
+
+    if not maximize or not WIN32:
+        return subprocess.run(cmd, cwd=ROOT, env=env)
+
+    # 先记下已存在的窗口：新窗口只能靠「不在集合里」识别（gradle 进程 pid ≠ 游戏 pid）
+    before = {w._hWnd for w in all_windows()}
+    proc = subprocess.Popen(cmd, cwd=ROOT, env=env)
+    print("[client] 等待游戏窗口出现（首次构建可能要 1-2 分钟）…", flush=True)
+    win = wait_for_new_window(before, proc)
+    if win is None:
+        print("[client] 没等到窗口（或游戏已退出），跳过最大化", file=sys.stderr)
+    else:
+        maximize_window(win)
+        print(f"[client] 已最大化 hwnd={win._hWnd}", flush=True)
+    return subprocess.CompletedProcess(cmd, proc.wait())
 
 
-def cmd_client(world, extra_args):
-    return launch_client(world, extra_args)
+def cmd_maximize():
+    maximize_window(find_window())
+    print("已最大化 Minecraft 窗口")
+    return 0
+
+
+def cmd_client(world, extra_args, maximize=True):
+    return launch_client(world, extra_args, maximize=maximize)
 
 
 def cmd_shadow(pack, lane, world, capture=False):
@@ -664,6 +714,8 @@ def main():
     p = sub.add_parser("client", help="启动客户端")
     p.add_argument("world", nargs="?", default="新的世界")
     p.add_argument("--offline", action="store_true", help="gradle --offline")
+    p.add_argument("--no-maximize", action="store_true", help="启动后不自动最大化窗口")
+    sub.add_parser("max", help="最大化已在运行的游戏窗口")
     p = sub.add_parser("shadow", help="A/B 取证")
     p.add_argument("pack", nargs="?", default="ComplementaryUnbound_r5.9.3.zip")
     p.add_argument("lane", nargs="?", default="cam0")
@@ -707,7 +759,10 @@ def main():
         analyze(args.session or latest_session())
         return 0
     if a == "client":
-        return cmd_client(args.world, ["--offline"] if args.offline else []).returncode
+        return cmd_client(args.world, ["--offline"] if args.offline else [],
+                          maximize=not args.no_maximize).returncode
+    if a == "max":
+        return cmd_maximize()
     if a == "shadow":
         return cmd_shadow(args.pack, args.lane, args.world, capture=args.capture).returncode
     if a == "scene":
