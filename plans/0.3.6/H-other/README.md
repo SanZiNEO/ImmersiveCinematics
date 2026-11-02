@@ -18,6 +18,7 @@
 | **H9** | **跳过投票 + 跳过 HUD**：判定对齐 MC `SleepStatus`、HUD 合成一行、位置可配 | [`skip-vote-and-hud.md`](skip-vote-and-hud.md) | 🟡 有实现但不完整（见该文档 §1.3） |
 | **H10** | **相机视图实体活性**：服务端原版实体跟踪镜像 + 客户端目标世界 tick；不做假玩家、不改 AI goal | [`entity-liveness.md`](entity-liveness.md) | ☐ 设计稿（未实现；F8 后续） |
 | **H11** | **HUD 层注册 API**：面向第三方的正式注册入口 + `hud_layers` / 固定分类口径 + Fabric/Forge 边界 | [`hud-layer-api.md`](hud-layer-api.md) | ☐ 设计稿（未实现；G 轮只有内部口子） |
+| **H12** | **对外接口（API / SPI）**：播放链路、相机只读面、轨道 / 触发器 / 模型 / 曲线 / 前置条件注册门面、注册时机与失败隔离 | [`public-api.md`](public-api.md) | ☐ 设计稿（未实现；轨道注册依赖 `TrackType` 注册表化） |
 
 H7 / H8 之间没有强绑定：H8 的**最小版本**（位置扫掠 / 朝向弧 / 进入边沿）不依赖 H7，可先落地；H8 的窗口与事件时间戳依赖 H7。
 
@@ -70,7 +71,7 @@ H7 / H8 之间没有强绑定：H8 的**最小版本**（位置扫掠 / 朝向�
 | N8 变化检测只见净额 | 仍在（快照覆盖） | `Evaluators.java:351-372` |
 | N9 播放期间冻结 | 有意行为，未变 | `TriggerEngine.java:91-95,113-119` |
 | §4.2 存在（any-instant） | 零实现：无线段/射线扫掠 | `GeometryConditions.java` 只有 `inBox` / `inRadius` / `facingInRange` 等点判定 |
-| §4.2 持续（dwell） | 零实现（触发器层；`clip.rules` 的 dwell 是另一层） | 无 dwell 字段 |
+| §4.2 持续（dwell） | 零实现（触发器层；规则层的 dwell 是另一层） | 无 dwell 字段 |
 | §4.2 边沿 | 部分：只有采样点布尔翻转 | `TriggerEngine.java:265-288` |
 | §4.2 窗口（recent） | 零实现 | 无"最近 W tick"查询 |
 | §5.1 每玩家采样快照 | 零实现 | trigger 包无 `Map<UUID, Vec3>` / 上一采样点 |
@@ -138,7 +139,8 @@ H7 / H8 之间没有强绑定：H8 的**最小版本**（位置扫掠 / 朝向�
 | [`skip-vote-and-hud.md`](skip-vote-and-hud.md) | H9，跳过投票判定 + HUD 布局/位置配置 |
 | [`screen-layers.md`](screen-layers.md) | 画面层：HUD、手臂、摇晃、屏幕效果、玩家模型；普通/白名单模式与注册接口 |
 | [`../C-trigger/trigger-conditions.md`](../C-trigger/trigger-conditions.md) | 条件怎么写、怎么组合；H7/H8 只提供它脚下的查询原语与时间语义，不改它的字段 |
-| [`../C-trigger/condition-system.md`](../C-trigger/condition-system.md) | 判定规则（`clip.rules`），与触发器判定是不同层 |
+| [`../C-trigger/condition-system.md`](../C-trigger/condition-system.md) | 判定规则（**脚本级规则定义/绑定**；I 轮迁移前的载体是片段级 `clip.rules`），与触发器判定是不同层 |
 | [`../F-playback/parallel-playback.md`](../F-playback/parallel-playback.md) | 实例账本的上游；H7 阶段 2 与之对齐 |
 | [`entity-liveness.md`](entity-liveness.md) | H10，F8 相机视图实体活性的下一项设计 |
 | [`hud-layer-api.md`](hud-layer-api.md) | H11，HUD 层正式注册入口（`hud_layers` / 固定分类 / hard 白名单的平台边界） |
+| [`public-api.md`](public-api.md) | H12，对外接口总纲：播放链路、相机只读面、轨道 / 触发器 / 模型 / 曲线 / 前置条件注册、注册时机与失败隔离 |

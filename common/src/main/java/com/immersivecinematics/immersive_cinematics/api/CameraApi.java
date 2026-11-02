@@ -5,8 +5,9 @@ package com.immersivecinematics.immersive_cinematics.api;
  *
  * 三项都是无副作用查询：{@link #getCameraState()} 取当前帧相机状态链输出，{@link #isActive()} 读活跃实例表、
  * {@link #hasActiveCameraClip()} 读帧级缓存。
- * 稳定性：不承诺跨版本兼容（破坏性变更随模组版本走）；对外只开放这三个只读方法，
- * 写入口、事件与 Modifier 注册不开放。
+ * 稳定性：本包（{@code api}）内的类型与方法**只增不删**，语义不变；破坏性变更只允许发生在
+ * {@code spi} 包与内部实现。本接口当前只开放只读查询——播放控制见 {@code PlaybackApi}，
+ * 扩展注册见 {@code spi} 门面（见 {@code plans/0.3.6/H-other/public-api.md}）。
  * 线程契约：仅客户端主线程（tick 与渲染同线程）；跨线程调用方须自行 marshal 到主线程。
  * 取得实现：客户端相机门面单例（{@code CameraManager.INSTANCE}）。
  */
