@@ -20,7 +20,7 @@
 | [track-overlay-letterbox.md](track-overlay-letterbox.md) | OVERLAY fade/image/subtitle 字段、颜色/遮罩/渐变、LETTERBOX | 未实现 |
 | [track-audio-adjust.md](track-audio-adjust.md) | AUDIO 字段/value-only、ADJUST 59 通道、曲线/LUT/混合 | 未实现 |
 | [track-event.md](track-event.md) | EVENT/MOD_EVENT 离散记录、边沿触发、事件身份 | 未实现 |
-| [loop-execution.md](loop-execution.md) | 按次数执行、执行身份与局部采样、分支片段出口、语义完成、无限编排 | 未实现 |
+| [loop-execution.md](loop-execution.md) | 按次数执行、执行身份与局部采样、分支片段出口、语义完成、无限编排 | 部分实现（I-2 执行层） |
 | [rule-system.md](rule-system.md) | 规则与路径索引：与触发器的关系、共同时间基准、分篇地图 | 未实现 |
 | [rule-collection.md](rule-collection.md) | 规则集合五层（定义/绑定/激活/事实/调度）、多条目多入口、归属与身份 | 未实现 |
 | [rule-time-gate.md](rule-time-gate.md) | 片段局部时间基准、时间门（`>=`）、门前采集与门后提交、条件树 | 未实现 |
@@ -142,6 +142,7 @@
 - **执行边界与规则**：每次执行按绑定建立独立激活；已激活观察的完成／取消归实例规则运行态；连续的相机效果和音频资源不一律归零。详见 `loop-execution.md` §3.5 与规则专篇。
 - **存储形式**：规则与路径由脚本级独立集合承载是已确认方向；具体引用形式及序列化尚未定稿。`clip.rules` 与 `objects.curve` 仅作旧实现/前稿参照，不决定新模型职责。
 - **有限显示范围**：无限内容没有自然完成点，但编辑器仍可展示有限部分与当前执行位置；数值表示不得反过来成为调度或结束条件。
+- **I-2 移交项**：执行层/分支接线/格式迁移的未完成项见 [`../I-BACKLOG.md`](../I-BACKLOG.md)；I 轮（I-5 收口）结束前必须清零，不能悬空。
 
 ## 五、非目标（本轮）
 
@@ -164,9 +165,10 @@
 
 ## 七、实现结果
 
-状态：部分实现（I-1 通用层）
+状态：部分实现（I-1 通用层；I-2 执行层）
 
 | 设计目标 | 实现 | 说明 |
 |---|---|---|
 | 对象模型 / schema / parser / validator / 槽位采样器 / 点源与朝向求值原语 | 已实现（I-1）：`script/object/`（`SampledProperty` / `ObjectDef` / `ClipSampler` / `position`）、`Clip.objects`、`ScriptParser` / `ScriptValidator` 新入口；七轨对象声明与 `SchemaExporter` 导出 | 旧 `keyframes` 链路保留；轨道装配、规则/路径集合、循环、迁移未实现 |
+| 片段循环执行层：执行次数 / 执行身份 / 局部采样轴 / 语义完成 / 无限编排 / 分支运行期策略 | 已实现（I-2）：`script/execution/`（`ClipExecution` / `ClipExecutionLedger` / `ClipTimeSource` / `LoopMode` / `ExecutionDirection`）；各轨改从账本取局部时间与活跃窗；validator 删除「无限后禁播」与「duration≠周期」；分支出口运行期 API + 探针 | 规则接线、过渡/轨道装配语义、格式迁移（`file_loop` 改名）与实机像素回归未做 |
 | 脚本级规则/路径集合、必选时间门与门前事实采集、实例级挂起、事实接力、成功≠动作完成、延迟动作、多入口独立运行态、分支同模型、A/B 实际状态采样、无限内容由作者编排 | 本次仅更新计划；运行时代码、脚本格式文档与示例未改 | 语义评审与实现分开；C/B 既有落地事实不冒充新目标已完成 |

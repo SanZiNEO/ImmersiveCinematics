@@ -1,6 +1,6 @@
 # 片段循环：按次数执行
 
-> 状态：未实现
+> 状态：部分实现（I-2 执行层；规则/过渡/轨道装配未实现）
 > 范围：片段循环的执行次数、每次执行身份/局部时间、展开窗口、自然完成、pingpong、状态策略、宏观循环边界
 > 关联：`object-model.md`、`runtime-evaluation.md`、`track-camera.md`、`track-overlay-letterbox.md`、`track-audio-adjust.md`、`track-event.md`、`rule-system.md`（本轮规则方向）、`../C-trigger/condition-system.md`（C 轮 v1 旧实现参考）
 
@@ -241,14 +241,62 @@ ClipExecution
 
 ## 六、实现结果
 
-状态：未实现
+状态：部分实现（I-2 执行层；规则/过渡/轨道装配未实现）
 
-当前实现仍是 `%`/镜像折叠 + `getAnimPeriod()` 周期 + `Float.MAX_VALUE`/`NaN` 数值哨兵；`ScriptValidator` 仍把“无限片段后仍有片段”判为禁播；规则 `once`/`until` 仍按时间回退重置、规则生命周期仍截在片段活跃窗，规则仍以 `clip.rules` 为片段元数据，门控执行资格、提前事实采集、实例级挂起、事实接力与延迟动作均未实现。这些是旧实现，不是本设计已落地；本设计尚未改代码。
+执行层已落地：`script/execution/`（`ClipExecution` / `ClipExecutionLedger` / `ClipTimeSource` / `LoopMode` / `ExecutionDirection`）取代 `%`/镜像折叠与 `getAnimPeriod()` 周期口径；`loop_count` 按 `duration` 调度 N 次执行，`executionId` / `executionIndex` / `executionLocalTime` / 方向 / `done` 由账本唯一给出；`KeyframeInterpolator` 的取模、`LaneMask.effectiveTime`、各轨的窗口数值判活已改走账本，轨道装配语义（相机六参数、过渡混合公式等）一行未动。`ScriptValidator` 已删除「无限片段后仍有片段」禁播与「`duration` 与关键帧周期不一致」错配。规则绑定、门前采集、实例级挂起、事实接力、延迟动作仍未实现（规则轮）；过渡每侧效果状态仍走旧混合（轨道轮）。
 
 | 设计目标 | 实现 | 说明 |
 |---|---|---|
-| 执行次数/执行身份/语义完成 | 未实现；当前 `KeyframeInterpolator` 取模、`ScriptPlayer.lapsBefore` 用 `getAnimPeriod`，完成事实仍混用窗口/圈数 | 本设计未落地，代码仍走旧路径 |
-| 无限只无自然完成、不禁止后续片段 | 未实现；`ScriptValidator` 仍把“无限片段后仍有片段”判为禁播 | 旧 terminal 口径未清除 |
-| `windowEnd`/`contentEnd` 只做派生显示/定位 | 未实现；`Clip.getWindowEnd()` 对无限返回 `Float.MAX_VALUE`，`ScriptPlayer.contentEnd()` 返回 `NaN` | 数值哨兵仍被当“无终点”使用 |
-| 规则绑定按每次执行独立判定时间门、门前采集、门后提交；到门可挂起整个实例等待判定，成功事实可接力，动作可延迟；待执行动作参与完成但不冻结内容推进 | 未实现；`RuleEngine` 的 `once`/`until` 仍按时间回退重置，规则生命周期截在 `[startTime, windowEnd)`；规则仍是 `clip.rules` 片段元数据，没有提前事实采集、实例级挂起、事实接力或延迟动作 | 旧重置/活跃窗口径与旧载体未清除 |
-| 过渡每侧效果状态由各自执行持有 | 未实现；当前 `CameraKeyframeEvaluator` 仍用 `nextClip` motion / `prevClip` breath 混合 | 旧混合路径未改，不能当成已实现 |
+| 执行次数/执行身份/语义完成 | 已实现（I-2）：`ClipExecutionLedger` 按 `duration` 执行 N 次；`executionId` 单调递增、seek/重导分配新身份；`done = contentDone && executionsRemaining == 0`，无限恒 false | 采样器只认升序 `executionLocalTime`；`ScriptPlayer` 不再用 `getAnimPeriod` 推圈数 |
+| 无限只无自然完成、不禁止后续片段 | 已实现（I-2）：`ScriptValidator` 不再把「无限片段后仍有片段」判禁播；账本对无限记录恒 `done=false`、无有限窗口末端 | 后续片段可达性交作者编排与显式依赖诊断，不做框架禁播 |
+| `windowEnd`/`contentEnd` 只做派生显示/定位 | 已实现（I-2）：`Clip.getWindowEnd()` 与 `ClipExecutionLedger.contentEnd()` 对无限执行抛 `IllegalStateException`；调用方先判 `hasFiniteWindowEnd()` / `hasFiniteContentEnd()`；完成只认账本 `done` | 面向显示的 `ScriptPlayer.getRemainingTime()` 仍以 `Double.MAX_VALUE` 表示「不会自然结束」，与末端判据分离 |
+| 规则绑定按每次执行独立判定时间门、门前采集、门后提交；到门可挂起整个实例等待判定，成功事实可接力，动作可延迟；待执行动作参与完成但不冻结内容推进 | 未实现（规则轮）：`RuleEngine` 仍以 `clip.rules` 为片段元数据，`once`/`until` 按时间回退重置，规则生命周期截在片段活跃窗；无提前事实采集、实例级挂起、事实接力、延迟动作 | 本轮不接规则引擎，只保留运行期执行上下文 |
+| 过渡每侧效果状态由各自执行持有 | 未实现（轨道轮）：`CameraKeyframeEvaluator` 仍用 `nextClip` motion / `prevClip` breath 混合 | 过渡混合公式按计划留轨道轮，不能当成已实现 |
+
+## 七、旧循环脚本迁移对照（I-2，只记录差异，不切换格式）
+
+本轮不改脚本格式、不改旧字段语义，只把旧实现与新执行层的差异逐条记录，供迁移/复核使用。
+
+1. **`loop_count` 语义**
+   - 旧：`loop_count` 实际被当成时间折叠次数；`KeyframeInterpolator.computeInterpolation` 用 `%`/镜像把片段局部时间折回关键帧跨度，周期取 `getAnimPeriod()`（末关键帧时间 − 首关键帧时间），不是 `duration`。
+   - 新：`loop_count` 是执行次数；账本按 `duration` 展开每次执行，`executionLocalTime ∈ [0, duration]`，采样器只认这条升序轴，不再折叠。
+   - 影响：关键帧没有铺满 `duration` 时，旧实现的循环周期是「关键帧跨度」，新实现是 `duration`；节奏与总时长都会变。
+
+2. **展开窗口**
+   - 旧：`windowEnd = start + animPeriod × N`。
+   - 新：`windowEnd = start + duration × N`（N 有限）；无限无有限末端，由 `hasFiniteWindowEnd()` 标志表达。
+   - `duration == 关键帧跨度`（首帧 `time=0`、末帧 `time=duration`）时两者数值一致；否则窗口与速度会变，必须单列复核，不能按「等价迁移」处理。
+   - `duration < 0` 的旧无限单次片段：新实现按无限执行处理，且 validator 报「无限时长与循环参数冲突」，不与 `loop`/`loop_count` 叠加。
+
+3. **局部时间与方向**
+   - 旧：`%`/镜像折叠由采样器自己做（`KeyframeInterpolator`、`LaneMask.effectiveTime`），任意全局时间都能直接算出局部位置。
+   - 新：执行账本给出 `executionLocalTime`，采样器只认升序局部时间；`pingpong` 方向由执行序号决定（`ExecutionDirection.of(loopMode, executionIndex)`），反向执行由账本镜像到 `[0, duration]`。
+   - seek：账本按新播放头重导记录并分配全新 `executionId`；旧实现「时间回退即重置」的口径不再用于执行身份。
+
+4. **`loop=false` + `loop_count`**
+   - 旧：`loop_count` 被忽略，片段按单次执行。
+   - 新：validator 告警「`loop=false` 时 `loop_count` 不生效：需要 `loop=true` 才进入执行循环」；运行期同样按单次执行。
+   - `loop_count=0`：旧解析按 1 处理并报错；新 validator 同样报错、运行期按 1，口径未变。
+
+5. **无限循环与后续片段**
+   - 旧：`ScriptValidator` 把「无限循环后仍有片段」判禁播；`ScriptPlayer.findActiveClips` 遇无限即停，后续片段不可达。
+   - 新：不截断后续片段，validator 不报错；无限只表示该片段没有自然完成点，后续片段是否可达由作者编排与显式依赖诊断决定。
+   - 运行期：无限记录恒 `done=false`，`remainingContent()` 不归零；宏观末端推导因存在无限执行返回 null（不启用宏观循环）。
+
+6. **末端与完成**
+   - 旧：`Clip.getWindowEnd()` 对无限返回 `Float.MAX_VALUE`；`ScriptPlayer.contentEnd()` 对含无限片段返回 `NaN`；完成混用窗口/圈数。
+   - 新：无有限末端用标志表达——`Clip.hasFiniteWindowEnd()`、`ClipExecutionLedger.hasFiniteWindowEnd(clip)`、`hasFiniteContentEnd()`；`getWindowEnd()` / `contentEnd()` 在无限时抛 `IllegalStateException`，调用方必须先判标志；完成由账本 `done` 给出，`allDone()` / `remainingContent()` 是聚合读法。
+   - `hold_at_end`：驻留点用账本实际内容末端 `contentEnd() - HOLD_END_EPSILON`，不再用 `timeline.total_duration`。
+   - 显示：`ScriptPlayer.getRemainingTime()` 对无限仍返回 `Double.MAX_VALUE` 作为「不会自然结束」的显示哨兵，不参与完成判定。
+
+7. **AUDIO 的 `loop`**
+   - 旧格式：`loop` 是文件循环（`Clip.isFileLoop()` = AUDIO 且非播放控制格式），由 `AudioTrackPlayer` 传给 `CinematicAudioInstance`，不算执行循环；validator 对旧格式 AUDIO 跳过执行循环校验。
+   - 新格式：`loop` 是执行循环，由账本按次数调度；文件循环字段改名为 `file_loop`。
+   - 本轮不切换格式：旧脚本 AUDIO 的 `loop` 仍按文件循环解析/播放；`file_loop` 改名与旧字段拒绝留 I-5。
+
+8. **校验删除项与状态策略**
+   - 删除：「无限片段后仍有片段」禁播；「`duration` 与关键帧周期不一致」错配；「loop 关键帧不足 2 个」的旧硬性检查。
+   - 保留：`loop_count` 只能为 -1 或正整数、`0` 报错；`loop=false + loop_count` 告警；`duration<0` 与循环参数冲突报错；`pingpong` 仅视觉轨、`loop_count=1` 提示无往复效果。
+   - 状态策略不变：执行边界不重置 motion/breath/selector/音频实例；玩家移动仍是既有复位点（`onScriptLoop`）；服务端 EVENT 去重不变。
+
+**旧夹具口径**：`cinematics/0.3.6/tests/camera/test_camera_loop_repeat.json`、`test_camera_loop_pingpong.json`、`cinematics/0.3.6/tests/rules/test_exit_loop_count.json`、`test_exit_infinite.json` 的 `duration` 等于关键帧跨度，旧/新窗口数值一致，可做画面回归基线；`cinematics/0.3.6/tests/audio/test_audio_loop.json` 只验证文件循环，不进入执行循环对照。
