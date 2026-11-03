@@ -53,6 +53,13 @@ public class ForgeConfig implements Config.ConfigProvider {
             .comment("相机中心位置上报间隔（tick）；位移 ≥1 格或相机模式翻转时会提前发送")
             .defineInRange("cameraCenterReportInterval", 5, 1, 600);
 
+    // ===== 规则命令信任边界配置 =====
+
+    private static final ForgeConfigSpec.IntValue RULE_COMMAND_PERMISSION_LEVEL = BUILDER
+            .comment("规则动作 emit_command 的权限上限（0 ~ 4），默认 2",
+                    "只影响规则命令；EVENT 轨仍为权限 4，脚本不能覆盖")
+            .defineInRange("ruleCommandPermissionLevel", 2, 0, 4);
+
     // ===== 触发器轮询间隔配置 =====
 
     private static final ForgeConfigSpec.IntValue TRIGGER_POLL_LOCATION = BUILDER
@@ -95,7 +102,8 @@ public class ForgeConfig implements Config.ConfigProvider {
                 TRIGGER_POLL_INVENTORY.get(),
                 TRIGGER_POLL_STRUCTURE.get(),
                 TRIGGER_POLL_GAMESTAGE.get(),
-                CAMERA_CENTER_REPORT_INTERVAL.get()
+                CAMERA_CENTER_REPORT_INTERVAL.get(),
+                RULE_COMMAND_PERMISSION_LEVEL.get()
         );
     }
 
@@ -129,6 +137,10 @@ public class ForgeConfig implements Config.ConfigProvider {
             case "triggerPollIntervalGamestage" -> {
                 TRIGGER_POLL_GAMESTAGE.set(value);
                 TRIGGER_POLL_GAMESTAGE.save();
+            }
+            case "ruleCommandPermissionLevel" -> {
+                RULE_COMMAND_PERMISSION_LEVEL.set(value);
+                RULE_COMMAND_PERMISSION_LEVEL.save();
             }
         }
     }

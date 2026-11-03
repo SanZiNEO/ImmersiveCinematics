@@ -146,7 +146,7 @@ public final class WebEditorApi {
             String json = doc == null ? "{}" : doc.toString();
             List<String> issues = ScriptValidator.validate(json);
             JsonObject out = new JsonObject();
-            out.addProperty("ok", issues.isEmpty());
+            out.addProperty("ok", ScriptValidator.errorsOf(issues).isEmpty());
             JsonArray arr = new JsonArray();
             for (String issue : issues) arr.add(issue);
             out.add("issues", arr);

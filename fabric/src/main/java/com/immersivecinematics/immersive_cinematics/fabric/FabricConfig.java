@@ -58,7 +58,8 @@ public class FabricConfig implements Config.ConfigProvider {
                 getInt("triggerPollIntervalInventory", 20),
                 getInt("triggerPollIntervalStructure", 20),
                 getInt("triggerPollIntervalGamestage", 20),
-                getInt("cameraCenterReportInterval", 5)
+                getInt("cameraCenterReportInterval", 5),
+                getInt("ruleCommandPermissionLevel", 2)
         );
     }
 
@@ -99,6 +100,7 @@ public class FabricConfig implements Config.ConfigProvider {
         root.addProperty("triggerPollIntervalStructure", 20);
         root.addProperty("triggerPollIntervalGamestage", 20);
         root.addProperty("cameraCenterReportInterval", 5);
+        root.addProperty("ruleCommandPermissionLevel", 2);
         save();
     }
 

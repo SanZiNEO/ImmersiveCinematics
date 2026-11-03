@@ -49,6 +49,14 @@ public class Config {
     /** 相机中心位置上报间隔（tick）；位移 ≥1 格或相机模式翻转时会提前发送 */
     public static int cameraCenterReportInterval = 5;
 
+    // ===== 规则命令信任边界配置 =====
+
+    /**
+     * 规则动作 {@code emit_command} 的权限上限（0 ~ 4），缺省 2。
+     * 只影响规则命令；EVENT 轨仍为权限 4。脚本不能覆盖。
+     */
+    public static int ruleCommandPermissionLevel = 2;
+
     private static ConfigProvider provider;
 
     /**
@@ -79,11 +87,12 @@ public class Config {
             int triggerPollIntervalInventory,
             int triggerPollIntervalStructure,
             int triggerPollIntervalGamestage,
-            int cameraCenterReportInterval
+            int cameraCenterReportInterval,
+            int ruleCommandPermissionLevel
     ) {
         /** 使用默认值构造 */
         public static ConfigValues defaults() {
-            return new ConfigValues(3000, true, 100, false, 20, 40, 20, 20, 20, 5);
+            return new ConfigValues(3000, true, 100, false, 20, 40, 20, 20, 20, 5, 2);
         }
     }
 
@@ -109,6 +118,7 @@ public class Config {
         triggerPollIntervalStructure = values.triggerPollIntervalStructure();
         triggerPollIntervalGamestage = values.triggerPollIntervalGamestage();
         cameraCenterReportInterval = values.cameraCenterReportInterval();
+        ruleCommandPermissionLevel = values.ruleCommandPermissionLevel();
     }
 
     // ===== ConfigScreen 写入接口 =====
@@ -126,5 +136,10 @@ public class Config {
     public static void setDebugLogging(boolean value) {
         debugLogging = value;
         if (provider != null) provider.setBoolean("debugLogging", value);
+    }
+
+    public static void setRuleCommandPermissionLevel(int value) {
+        ruleCommandPermissionLevel = value;
+        if (provider != null) provider.setInt("ruleCommandPermissionLevel", value);
     }
 }

@@ -2,6 +2,8 @@ package com.immersivecinematics.immersive_cinematics.script;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.trigger.server.RuleCommandRateLimiter;
+import com.immersivecinematics.immersive_cinematics.trigger.server.ScriptEventManager;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerEngine;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistration;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
@@ -146,6 +148,11 @@ public class ScriptManager {
     }
 
     public void reload(MinecraftServer server) {
+        // 脚本替换：旧动作引用与旧播放授权一律失效（动作表按新脚本重建）
+        for (String scriptId : scripts.keySet()) {
+            ScriptEventManager.INSTANCE.revokeGrants(scriptId);
+        }
+        RuleCommandRateLimiter.INSTANCE.clear();
         TriggerEngine.INSTANCE.clear();
         loadAll(server);
         // 必须重新登记，不能只 rebuildIndex：上面的 clear() 已清空 allRegistrations，

@@ -4,10 +4,15 @@ import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CPlayScriptPacket;
+import com.immersivecinematics.immersive_cinematics.trigger.server.ScriptEventManager;
 import com.immersivecinematics.immersive_cinematics.util.ScriptStructureResolver;
 import com.mojang.logging.LogUtils;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * 播放脚本动作：按 {@code target} 决定收包人——缺省 / {@code "player"} 只发触发者本人，
@@ -45,18 +50,27 @@ public class StartPlaybackAction implements TriggerAction {
         // （多人服客户端无兜底解析；单人服不受影响，客户端仍保留兜底）
         final String json = ScriptStructureResolver.resolveTargets(
                 script.getRawJson(), player.serverLevel(), player.position());
-        switch (target) {
-            case "all" -> {
-                for (ServerPlayer p : player.server.getPlayerList().getPlayers()) {
-                    sendTo(p, json);
-                }
-            }
+        List<ServerPlayer> recipients = switch (target) {
+            case "all" -> new ArrayList<>(player.server.getPlayerList().getPlayers());
             case "all_except_trigger" -> {
+                List<ServerPlayer> others = new ArrayList<>();
                 for (ServerPlayer p : player.server.getPlayerList().getPlayers()) {
-                    if (p != player) sendTo(p, json);
+                    if (p != player) others.add(p);
                 }
+                yield others;
             }
-            default -> sendTo(player, json);
+            default -> List.of(player);
+        };
+        // 规则命令信任边界：动作表按本脚本编译；观看者授权 = 本次实际收包的目标玩家。
+        // 实例 id 为空串（本路径无 refId，与 S2CPlayScriptPacket 的退化键一致）。
+        ScriptEventManager.INSTANCE.primeCommandTable(script);
+        List<UUID> grantTargets = new ArrayList<>(recipients.size());
+        for (ServerPlayer p : recipients) {
+            grantTargets.add(p.getUUID());
+        }
+        ScriptEventManager.INSTANCE.createGrant(script.getId(), "", grantTargets);
+        for (ServerPlayer p : recipients) {
+            sendTo(p, json);
         }
     }
 

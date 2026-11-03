@@ -227,6 +227,16 @@ public class CinematicCommand {
             source.sendFailure(Component.literal("§c" + sizeError));
             return 0;
         }
+        // 规则命令信任边界：动作表按即将下发的脚本版本编译；观看者授权 = 本次目标玩家。
+        // 客户端播放回执只能消费这份授权，不能自证观看者或新建实例。
+        com.immersivecinematics.immersive_cinematics.trigger.server.ScriptEventManager.INSTANCE
+                .primeCommandTable(script);
+        java.util.List<java.util.UUID> grantTargets = new java.util.ArrayList<>(targets.size());
+        for (ServerPlayer p : targets) {
+            grantTargets.add(p.getUUID());
+        }
+        com.immersivecinematics.immersive_cinematics.trigger.server.ScriptEventManager.INSTANCE
+                .createGrant(script.getId(), refId, grantTargets);
         com.immersivecinematics.immersive_cinematics.trigger.network.AckTracker.expect(refId, () -> {
             for (ServerPlayer p : ackTargets) {
                 S2CPlayScriptPacket.send(p, resolvedJson, refId);
@@ -354,12 +364,21 @@ public class CinematicCommand {
                 .map(CinematicScript::getId)
                 .collect(java.util.stream.Collectors.toSet());
         List<String> issues = com.immersivecinematics.immersive_cinematics.script.ScriptValidator.validate(json, knownIds);
-        if (issues.isEmpty()) {
-            source.sendSuccess(() -> Component.literal("§a校验通过: " + scriptPath.getFileName()), false);
+        List<String> errors = com.immersivecinematics.immersive_cinematics.script.ScriptValidator.errorsOf(issues);
+        if (errors.isEmpty()) {
+            String suffix = issues.isEmpty() ? "" : "（" + issues.size() + " 条警告）";
+            source.sendSuccess(() -> Component.literal("§a校验通过: " + scriptPath.getFileName() + suffix), false);
+            if (!issues.isEmpty()) {
+                StringBuilder warn = new StringBuilder("§e警告:\n");
+                for (String issue : issues) {
+                    warn.append("§7  - ").append(issue).append("\n");
+                }
+                source.sendSuccess(() -> Component.literal(warn.toString()), false);
+            }
             return 1;
         }
 
-        StringBuilder msg = new StringBuilder("§c发现 " + issues.size() + " 个问题:\n");
+        StringBuilder msg = new StringBuilder("§c发现 " + errors.size() + " 个问题:\n");
         for (String issue : issues) {
             msg.append("§7  - ").append(issue).append("\n");
         }
@@ -468,7 +487,8 @@ public class CinematicCommand {
                 .map(CinematicScript::getId)
                 .collect(java.util.stream.Collectors.toSet());
         List<String> issues = ScriptValidator.validate(json, knownIds);
-        if (!issues.isEmpty()) {
+        List<String> errors = ScriptValidator.errorsOf(issues);
+        if (!errors.isEmpty()) {
             StringBuilder msg = new StringBuilder("§c模板 " + id + " 的产物未通过校验（未写入文件）：\n");
             for (String issue : issues) {
                 msg.append("§7  - ").append(issue).append("\n");
