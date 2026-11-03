@@ -4,11 +4,14 @@ import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionInterrupt;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
+import com.immersivecinematics.immersive_cinematics.script.identity.ClipIdentity;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
 import com.immersivecinematics.immersive_cinematics.script.object.PropertyMode;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledProperty;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitPolicy;
 import com.immersivecinematics.immersive_cinematics.script.execution.LoopMode;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
+import com.google.gson.JsonObject;
 
 import java.util.Collections;
 import java.util.List;
@@ -44,6 +47,25 @@ public class Clip {
      */
     private final boolean playControlFormat;
 
+    /**
+     * 脚本内稳定 id（{@code null} = 未命名）：解析期从 JSON {@code id} 字段读入并按
+     * {@link ClipIdentity#PATTERN} 校验；规则 / 路径 / 分支 / 出口都按此引用片段。
+     */
+    private final String clipId;
+
+    /**
+     * 片段默认出口策略（{@code exit}，{@code null} = 未声明）。
+     *
+     * <p>解析期两段式：{@link ScriptParser} 先把原始 {@code exit} JSON 存进 {@link #rawExit}（此时脚本
+     * 还不存在，GOTO 目标无法解析），脚本装配完成后由解析器统一用
+     * {@code ClipExitPolicyParser} 解析并 {@link #setExitPolicy 写回}。运行期只读；出口策略只在
+     * <b>分支入口</b>启动的执行完成时被 {@code ClipBranchController} 解析。</p>
+     */
+    private ClipExitPolicy exitPolicy;
+
+    /** 解析期的原始 {@code exit} 对象（{@code null} = 未声明；脚本装配完成后保持原样供诊断）。 */
+    private JsonObject rawExit;
+
     /** 过渡声明缓存（{@link #getTransitionSpec()} 首次访问建成；片段数据解析后只读，故可缓存）。 */
     private TransitionSpec transitionSpec;
 
@@ -55,13 +77,13 @@ public class Clip {
     /** 旧格式构造器：不携带新对象模型（{@link ClipObjects#EMPTY}），执行循环按旧格式口径。 */
     public Clip(float startTime, float duration, TrackType trackType,
                 Map<String, Object> data, List<Keyframe> keyframes) {
-        this(startTime, duration, trackType, data, keyframes, ClipObjects.EMPTY, false);
+        this(startTime, duration, trackType, data, keyframes, ClipObjects.EMPTY, false, null, null);
     }
 
     /** 旧格式构造器（带对象模型）：执行循环仍按旧格式口径。 */
     public Clip(float startTime, float duration, TrackType trackType,
                 Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects) {
-        this(startTime, duration, trackType, data, keyframes, objects, false);
+        this(startTime, duration, trackType, data, keyframes, objects, false, null, null);
     }
 
     /**
@@ -71,6 +93,31 @@ public class Clip {
     public Clip(float startTime, float duration, TrackType trackType,
                 Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects,
                 boolean playControlFormat) {
+        this(startTime, duration, trackType, data, keyframes, objects, playControlFormat, null, null);
+    }
+
+    /**
+     * 完整构造器：在既有形态上追加脚本内稳定 id。
+     *
+     * @param clipId 脚本内 id（{@code null} = 未命名片段）；非 {@code null} 时调用方须已按
+     *               {@link ClipIdentity#PATTERN} 校验（解析器负责），这里不重复校验以免把
+     *               程序化构造路径的分支埋进异常
+     */
+    public Clip(float startTime, float duration, TrackType trackType,
+                Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects,
+                boolean playControlFormat, String clipId) {
+        this(startTime, duration, trackType, data, keyframes, objects, playControlFormat, clipId, null);
+    }
+
+    /**
+     * 完整构造器 + 片段默认出口策略。
+     *
+     * @param exitPolicy 片段默认出口策略（{@code null} = 未声明）；解析期由
+     *                   {@code ClipExitPolicyParser} 在脚本装配后填充，程序化构造路径可直接传
+     */
+    public Clip(float startTime, float duration, TrackType trackType,
+                Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects,
+                boolean playControlFormat, String clipId, ClipExitPolicy exitPolicy) {
         this.startTime = startTime;
         this.duration = duration;
         this.trackType = trackType;
@@ -78,6 +125,8 @@ public class Clip {
         this.keyframes = keyframes != null ? keyframes : Collections.emptyList();
         this.objects = objects != null ? objects : ClipObjects.EMPTY;
         this.playControlFormat = playControlFormat;
+        this.clipId = clipId;
+        this.exitPolicy = exitPolicy;
     }
 
     // ── 通用字段 ──
@@ -410,12 +459,72 @@ public class Clip {
     }
 
     /**
-     * 本片段的稳定标识（{@link CubeLutLoader#forClip} 的 clip 键）：片段对象解析期一次建成、播放期存活，
-     * 故用对象身份；不同实例理论上可能撞值，但该表只记录「哪些片段引用了 LUT」，
-     * 撞值不影响取到的实例（LUT 实例本身按文件路径共享）。
+     * 本片段的键：脚本内稳定 id（{@link #scriptClipId()}）优先；未命名片段回落到对象身份键
+     * {@code "clip@" + identityHashCode}——即既有行为，{@link CubeLutLoader#forClip} 的引用表
+     * 与 {@code ExecutionDiagnostics} 的显示名都按此记账。返回值恒非 {@code null}。
      */
     public String getClipId() {
-        return "clip@" + Integer.toHexString(System.identityHashCode(this));
+        return clipId != null ? clipId : "clip@" + Integer.toHexString(System.identityHashCode(this));
+    }
+
+    /** 脚本内稳定 id（{@code null} = 未命名片段）；与 {@link #getClipId()} 的区别是不做对象键回落。 */
+    public String scriptClipId() {
+        return clipId;
+    }
+
+    /** 本片段是否有脚本内 id。 */
+    public boolean hasClipId() {
+        return clipId != null;
+    }
+
+    /** 片段身份（未命名片段 → {@code null}）。 */
+    public ClipIdentity identity() {
+        return clipId != null ? ClipIdentity.of(clipId) : null;
+    }
+
+    // ── 出口策略（片段默认） ──
+
+    /**
+     * 片段默认出口策略（{@code exit}）；{@code null} = 未声明（运行期按 {@code CONTINUE}）。
+     *
+     * <p>只在<b>分支入口</b>启动的执行完成时生效；主线放置的片段完成时不读出策略。</p>
+     */
+    public ClipExitPolicy getExitPolicy() {
+        return exitPolicy;
+    }
+
+    /** 本片段是否声明了默认出口策略。 */
+    public boolean hasExitPolicy() {
+        return exitPolicy != null;
+    }
+
+    /**
+     * 解析期写回出口策略（{@code ScriptParser} 在脚本装配完成后统一解析，仅调用一次）。
+     * 运行期只读；重复调用是编程错误。
+     *
+     * @throws IllegalStateException 已有出口策略（两次写回）
+     */
+    void setExitPolicy(ClipExitPolicy exitPolicy) {
+        if (this.exitPolicy != null) {
+            throw new IllegalStateException("片段出口策略已写回，不能重复设置：" + this);
+        }
+        this.exitPolicy = exitPolicy;
+    }
+
+    /** 原始 {@code exit} 对象（解析期暂存；{@code null} = 未声明）。 */
+    public JsonObject getRawExit() {
+        return rawExit;
+    }
+
+    /**
+     * 暂存原始 {@code exit} 对象（解析期由 {@code ScriptParser} 在脚本对象建好之前调用；
+     * GOTO 目标此时无法解析，故延后到脚本装配完成后统一解析）。
+     */
+    void setRawExit(JsonObject rawExit) {
+        if (this.rawExit != null) {
+            throw new IllegalStateException("片段 exit 已暂存，不能重复设置：" + this);
+        }
+        this.rawExit = rawExit;
     }
 
     /**

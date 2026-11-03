@@ -26,7 +26,7 @@ public final class ObjectParser {
 
     /** 新格式片段允许的 clip 级键；其余（尤其旧 {@code keyframes}）一律拒绝。 */
     private static final Set<String> CLIP_KEYS =
-            Set.of("start_time", "duration", "objects", "loop", "loop_count", "loop_mode");
+            Set.of("start_time", "duration", "objects", "loop", "loop_count", "loop_mode", "id", "exit");
 
     /** 片段对象集合的键。 */
     private static final String OBJECTS = "objects";
@@ -48,7 +48,7 @@ public final class ObjectParser {
             String key = entry.getKey();
             if (!CLIP_KEYS.contains(key)) {
                 throw new ObjectFormatException(clipPath + "." + key,
-                        "新格式片段只允许 start_time/duration/objects/loop/loop_count/loop_mode，发现 " + key);
+                        "新格式片段只允许 start_time/duration/objects/loop/loop_count/loop_mode/id/exit，发现 " + key);
             }
         }
 

@@ -32,7 +32,7 @@ public final class ObjectValidator {
 
     /** 新格式片段允许的 clip 级键；其余键（含旧 {@code keyframes}）一律报错。 */
     private static final List<String> CLIP_KEYS = List.of(
-            "start_time", "duration", "objects", "loop", "loop_count", "loop_mode");
+            "start_time", "duration", "objects", "loop", "loop_count", "loop_mode", "id", "exit");
 
     /** 参考系切换：这些 step 对象自身的变化点必须和 {@code position.x/y/z} 关键帧对齐。 */
     private static final List<String> SPACE_SWITCH_FIELDS = List.of(
@@ -87,7 +87,7 @@ public final class ObjectValidator {
     private static void checkClipFields(TrackType type, JsonObject clip, String prefix, List<String> issues) {
         for (String key : clip.keySet()) {
             if (!CLIP_KEYS.contains(key)) {
-                issues.add(prefix + "新格式片段只允许 start_time/duration/objects/loop/loop_count/loop_mode，发现 " + key);
+                issues.add(prefix + "新格式片段只允许 start_time/duration/objects/loop/loop_count/loop_mode/id/exit，发现 " + key);
             }
         }
         JsonElement loop = clip.get("loop");
