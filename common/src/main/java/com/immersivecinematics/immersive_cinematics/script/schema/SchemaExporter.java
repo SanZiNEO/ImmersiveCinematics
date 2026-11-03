@@ -7,7 +7,9 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.immersivecinematics.immersive_cinematics.camera.rule.RuleActions;
 import com.immersivecinematics.immersive_cinematics.math.path.PathCapability;
+import com.immersivecinematics.immersive_cinematics.script.ContinuitySpec;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.script.TriggerDefinition;
 import com.immersivecinematics.immersive_cinematics.script.identity.ClipIdentity;
 import com.immersivecinematics.immersive_cinematics.script.path.PathCollectionParser;
 import com.immersivecinematics.immersive_cinematics.script.rule.ClipExitPolicyParser;
@@ -60,6 +62,30 @@ public final class SchemaExporter {
             conditions.add(e.getKey(), exportFields(e.getValue()));
         }
         triggers.add("conditions", conditions);
+        // 触发器级字段（additive）：id = 脚本内唯一身份；缺省 = type#声明下标
+        JsonObject triggerFields = new JsonObject();
+        JsonObject triggerId = field("string", false, null,
+                "脚本内唯一的触发器身份；缺省 = type#声明下标");
+        triggerId.addProperty("pattern", TriggerDefinition.ID_REGEX);
+        // exportFields 风格用 doc；同时给出 description 同义键（additive，不改既有键）
+        triggerId.addProperty("description", "脚本内唯一的触发器身份；缺省 = type#声明下标");
+        put(triggerFields, "id", triggerId);
+        // 连续语义（additive）：sweep / dwell / window；缺省 = 关闭（旧点判定路径）
+        JsonObject continuityFields = new JsonObject();
+        put(continuityFields, "sweep", field("boolean", false, false,
+                "把相邻两次采样之间的运动近似成线段 / 最短弧；只对 location / structure / facing 生效"));
+        String tickRange = "0~" + ContinuitySpec.MAX_TICKS;
+        JsonObject dwell = field("integer", false, 0,
+                "停留门槛（tick）：连续处于区域内至少该时长才触发；只对轮询类生效");
+        dwell.addProperty("range", tickRange);
+        put(continuityFields, "dwell", dwell);
+        JsonObject window = field("integer", false, 0,
+                "事件类子条件的时间窗口（tick）：all_of / any 内的事件类子条件按窗口内是否发生过求值");
+        window.addProperty("range", tickRange);
+        put(continuityFields, "window", window);
+        put(triggerFields, "continuity",
+                objectField(false, continuityFields, "触发器级连续语义；缺省 = 全部关闭"));
+        triggers.add("triggerFields", triggerFields);
         root.add("triggers", triggers);
 
         // 数学模型 schema：type → 参数表（类型顺序 = 注册顺序；编辑器类型下拉 + 参数表单直接消费）

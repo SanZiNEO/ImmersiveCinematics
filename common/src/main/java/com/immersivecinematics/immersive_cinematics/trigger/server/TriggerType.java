@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.trigger.server.continuity.TriggerEvalContext;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.function.BiPredicate;
@@ -18,13 +19,29 @@ public class TriggerType {
     /** 轮询间隔上限（tick），见 {@link #POLL_INTERVAL_MIN} */
     public static final int POLL_INTERVAL_MAX = 600;
 
+    /**
+     * 带连续语义上下文的求值器：{@code (玩家, conditions, ctx)} → 是否命中。
+     * 不需要段扫掠 / 时间窗口的类型忽略 {@code ctx} 即可（委托给 2 参重载）。
+     */
+    @FunctionalInterface
+    public interface Evaluator {
+        boolean evaluate(ServerPlayer player, JsonObject conditions, TriggerEvalContext ctx);
+    }
+
     private final String id;
     private final ListenStrategy strategy;
     private final int pollInterval;
-    private final BiPredicate<ServerPlayer, JsonObject> evaluator;
+    private final Evaluator evaluator;
 
+    /** 旧 2 参求值器：包装成 {@link Evaluator}，忽略连续语义上下文。 */
     public TriggerType(String id, ListenStrategy strategy, int pollInterval,
                        BiPredicate<ServerPlayer, JsonObject> evaluator) {
+        this(id, strategy, pollInterval,
+                (player, conditions, ctx) -> evaluator.test(player, conditions));
+    }
+
+    public TriggerType(String id, ListenStrategy strategy, int pollInterval,
+                       Evaluator evaluator) {
         this.id = id;
         this.strategy = strategy;
         this.pollInterval = pollInterval;
@@ -37,8 +54,8 @@ public class TriggerType {
     public ListenStrategy getStrategy() { return strategy; }
     /** 类型级默认轮询间隔（tick）；事件驱动类型为 0。 */
     public int getPollInterval() { return pollInterval; }
-    /** 条件求值器：{@code (玩家, conditions)} → 是否命中。 */
-    public BiPredicate<ServerPlayer, JsonObject> getEvaluator() { return evaluator; }
+    /** 条件求值器：{@code (玩家, conditions, ctx)} → 是否命中。 */
+    public Evaluator getEvaluator() { return evaluator; }
 
     /**
      * 解析一个注册项的生效轮询间隔（tick）：触发器级 {@code poll_interval} ?? 脚本级
@@ -55,8 +72,13 @@ public class TriggerType {
         return Math.max(POLL_INTERVAL_MIN, interval);
     }
 
-    /** 用本类型的求值器判定条件；异常由调用方兜底（{@code TriggerEngine} 只跳过该触发器）。 */
+    /** 用本类型的求值器判定条件（无连续语义上下文，等价于 {@code disabled(0)}）。 */
     public boolean evaluate(ServerPlayer player, JsonObject conditions) {
-        return evaluator.test(player, conditions);
+        return evaluate(player, conditions, TriggerEvalContext.disabled(0));
+    }
+
+    /** 用本类型的求值器判定条件；异常由调用方兜底（{@code TriggerEngine} 只跳过该触发器）。 */
+    public boolean evaluate(ServerPlayer player, JsonObject conditions, TriggerEvalContext ctx) {
+        return evaluator.evaluate(player, conditions, ctx);
     }
 }

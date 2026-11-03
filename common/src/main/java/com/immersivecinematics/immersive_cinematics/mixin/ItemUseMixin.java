@@ -1,9 +1,13 @@
 package com.immersivecinematics.immersive_cinematics.mixin;
 
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerEngine;
-import com.immersivecinematics.immersive_cinematics.trigger.server.evaluator.Evaluators;
+import com.immersivecinematics.immersive_cinematics.trigger.server.fact.Fact;
+import com.immersivecinematics.immersive_cinematics.trigger.server.fact.FactLedger;
+import com.immersivecinematics.immersive_cinematics.trigger.server.fact.FactType;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.UseAnim;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -25,7 +29,7 @@ public abstract class ItemUseMixin {
         LivingEntity self = (LivingEntity) (Object) this;
         if (self.level().isClientSide) return;
         if (self instanceof ServerPlayer sp && !self.getUseItem().isEmpty()) {
-            Evaluators.UseItemTracker.recordConsumed(sp, self.getUseItem());
+            recordItemFact(sp, FactType.ITEM_CONSUME, self.getUseItem());
             TriggerEngine.INSTANCE.onGameEvent("item_consume", sp);
         }
     }
@@ -38,12 +42,18 @@ public abstract class ItemUseMixin {
             UseAnim anim = self.getUseItem().getUseAnimation();
             if (anim == UseAnim.BOW || anim == UseAnim.SPEAR
                     || anim == UseAnim.CROSSBOW || anim == UseAnim.SPYGLASS) {
-                Evaluators.UseItemTracker.recordReleased(sp, self.getUseItem());
+                recordItemFact(sp, FactType.ITEM_RELEASE, self.getUseItem());
                 TriggerEngine.INSTANCE.onGameEvent("item_release", sp);
             } else {
-                Evaluators.UseItemTracker.recordInterrupted(sp, self.getUseItem());
+                recordItemFact(sp, FactType.ITEM_USE_INTERRUPT, self.getUseItem());
                 TriggerEngine.INSTANCE.onGameEvent("item_use_interrupt", sp);
             }
         }
+    }
+
+    /** 记一条物品事实（object = 物品 id，tick = 当前服务端 tick）。 */
+    private static void recordItemFact(ServerPlayer player, FactType type, ItemStack stack) {
+        FactLedger.INSTANCE.record(player.getUUID(), Fact.event(type,
+                BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), player.server.getTickCount()));
     }
 }

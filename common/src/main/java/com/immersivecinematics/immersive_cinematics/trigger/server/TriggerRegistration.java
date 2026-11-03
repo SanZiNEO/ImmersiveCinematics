@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.script.ContinuitySpec;
 import com.immersivecinematics.immersive_cinematics.script.TriggerRequirement;
 import com.immersivecinematics.immersive_cinematics.trigger.server.action.TriggerAction;
 
@@ -26,6 +27,8 @@ public class TriggerRegistration {
     private final List<TriggerRequirement> requires;
     /** 生效轮询间隔（tick）：轮询类 ≥ 1，事件驱动类 = 0（不入桶） */
     private final int effectivePollInterval;
+    /** 连续语义开关（扫掠 / 停留 / 事件子条件窗口）；{@link ContinuitySpec#DEFAULT} = 关闭，走旧点判定路径 */
+    private final ContinuitySpec continuity;
 
     /** 最简构造：无延迟、非 on_enter、无外扩、无退出条件、无前置。 */
     public TriggerRegistration(String scriptId, String triggerId, TriggerType type,
@@ -69,6 +72,15 @@ public class TriggerRegistration {
                                 JsonObject conditions, List<TriggerAction> actions,
                                 boolean repeatable, int delayMs, boolean onEnter, float exitBuffer, JsonObject exitConditions,
                                 List<TriggerRequirement> requires, int effectivePollInterval) {
+        this(scriptId, triggerId, type, conditions, actions, repeatable, delayMs, onEnter, exitBuffer, exitConditions,
+                requires, effectivePollInterval, ContinuitySpec.DEFAULT);
+    }
+
+    /** 全参构造 + 连续语义：{@code continuity} 由触发器声明的 {@code continuity} 对象解析而来。 */
+    public TriggerRegistration(String scriptId, String triggerId, TriggerType type,
+                                JsonObject conditions, List<TriggerAction> actions,
+                                boolean repeatable, int delayMs, boolean onEnter, float exitBuffer, JsonObject exitConditions,
+                                List<TriggerRequirement> requires, int effectivePollInterval, ContinuitySpec continuity) {
         this.scriptId = scriptId;
         this.triggerId = triggerId;
         this.type = type;
@@ -81,6 +93,7 @@ public class TriggerRegistration {
         this.exitBuffer = exitBuffer;
         this.requires = requires != null ? requires : List.of();
         this.effectivePollInterval = effectivePollInterval;
+        this.continuity = continuity != null ? continuity : ContinuitySpec.DEFAULT;
     }
 
     /** 触发器所属脚本 id。 */
@@ -107,4 +120,6 @@ public class TriggerRegistration {
     public List<TriggerRequirement> getRequires() { return requires; }
     /** 生效轮询间隔（tick）：轮询类 ≥ 1；事件驱动 = 0（不入桶） */
     public int getEffectivePollInterval() { return effectivePollInterval; }
+    /** 连续语义开关；{@link ContinuitySpec#DEFAULT} = 未声明（旧点判定路径） */
+    public ContinuitySpec getContinuity() { return continuity; }
 }

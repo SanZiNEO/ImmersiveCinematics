@@ -1,11 +1,19 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
+import com.immersivecinematics.immersive_cinematics.script.ContinuitySpec;
 import com.immersivecinematics.immersive_cinematics.script.TriggerRequirement;
-import com.immersivecinematics.immersive_cinematics.trigger.network.S2CTriggerStateSyncPacket;
+import com.immersivecinematics.immersive_cinematics.trigger.server.continuity.MotionSample;
+import com.immersivecinematics.immersive_cinematics.trigger.server.continuity.PlayerMotion;
+import com.immersivecinematics.immersive_cinematics.trigger.server.continuity.TriggerEdge;
+import com.immersivecinematics.immersive_cinematics.trigger.server.continuity.TriggerEvalContext;
+import com.immersivecinematics.immersive_cinematics.trigger.server.fact.Fact;
+import com.immersivecinematics.immersive_cinematics.trigger.server.fact.FactLedger;
+import com.immersivecinematics.immersive_cinematics.trigger.server.fact.FactQueries;
+import com.immersivecinematics.immersive_cinematics.trigger.server.fact.FactResult;
+import com.immersivecinematics.immersive_cinematics.trigger.server.fact.FactType;
 import com.immersivecinematics.immersive_cinematics.trigger.server.prereq.PrerequisiteRegistry;
-import com.immersivecinematics.immersive_cinematics.trigger.server.store.PlayerTriggerState;
-import com.immersivecinematics.immersive_cinematics.trigger.server.store.TriggerStateStore;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import com.mojang.logging.LogUtils;
@@ -29,7 +37,8 @@ public class TriggerEngine {
 
     private final Map<UUID, List<DelayedFire>> delayedFires = new HashMap<>();
 
-    private final Map<UUID, Map<String, Boolean>> enterStates = new HashMap<>();
+    /** 区域边沿状态：玩家 → (scriptId + ":" + triggerId) → 状态机。键与触发器身份一致。 */
+    private final Map<UUID, Map<String, TriggerEdge>> edges = new HashMap<>();
 
     private boolean initialized = false;
 
@@ -37,6 +46,7 @@ public class TriggerEngine {
 
     public void initialize() {
         initialized = true;
+        PlayerMotion.INSTANCE.clearAll();
         LOGGER.info("TriggerEngine initialized");
     }
 
@@ -71,7 +81,12 @@ public class TriggerEngine {
         eventIndex.clear();
         pollBuckets.clear();
         delayedFires.clear();
-        enterStates.clear();
+        edges.clear();
+    }
+
+    /** 玩家退出：清掉该玩家的全部区域边沿状态（触发资格 / 停留起算 / 采样点）。 */
+    public void clearPlayer(UUID player) {
+        edges.remove(player);
     }
 
     // ===== Event-driven entry =====
@@ -86,13 +101,24 @@ public class TriggerEngine {
         List<TriggerRegistration> triggers = eventIndex.get(eventTypeId);
         if (triggers == null || triggers.isEmpty()) return;
 
+        int tick = player.server.getTickCount();
         for (TriggerRegistration reg : triggers) {
             try {
                 if (!prerequisitesMet(player, reg)) continue;
                 if (shouldSkip(player, reg)) continue;
-                boolean inRegion = evaluateSafely(reg, player);
+                // 事件入口没有「离开」事件可依：只在条件为真时推进进入态，
+                // 因此 on_enter 的事件类触发器仍然只触发一次（与旧的进入态布尔语义一致）。
+                boolean inRegion = evaluateSafely(reg, player, reg.getConditions(),
+                        TriggerEvalContext.disabled(tick));
                 if (inRegion) {
-                    if (reg.isOnEnter() && !checkEnterState(player, reg, inRegion)) continue;
+                    if (reg.isOnEnter()) {
+                        TriggerEdge.Decision decision = edgeFor(player, reg)
+                                .observe(true, true, true, tick, 0, true);
+                        if (decision.entered()) {
+                            recordRegion(FactType.REGION_ENTERED, player, reg, tick);
+                        }
+                        if (!decision.fire()) continue;
+                    }
                     fireTrigger(player, reg);
                 }
             } catch (Exception e) {
@@ -109,7 +135,10 @@ public class TriggerEngine {
 
     public void onServerTick(MinecraftServer server) {
         if (!initialized) return;
+        // 采样基线必须先于求值推进：本 tick 的位移 / 载具变化决定代次，代次决定能否扫掠。
+        PlayerMotion.INSTANCE.tick(server);
         tickCounter++;
+        int tick = server.getTickCount();
 
         for (var entry : pollBuckets.int2ObjectEntrySet()) {
             int interval = entry.getIntKey();
@@ -120,15 +149,7 @@ public class TriggerEngine {
                     try {
                         if (!prerequisitesMet(player, reg)) continue;
                         if (shouldSkip(player, reg)) continue;
-                        boolean inRegion = evaluateSafely(reg, player);
-                        if (reg.isOnEnter()) {
-                            // 状态机每次轮询都要更新（含“区域外复位”），否则 on_enter 只会触发一次
-                            if (!checkEnterState(player, reg, inRegion)) continue;
-                            if (!inRegion) continue;
-                        } else if (!inRegion) {
-                            continue;
-                        }
-                        fireTrigger(player, reg);
+                        evaluatePolling(player, reg, tick);
                     } catch (Exception e) {
                         FatalErrors.rethrowIfFatal(e);
                         ErrorLog.logRateLimited("Trigger", "poll:" + reg.getTriggerId(), 5000L,
@@ -183,22 +204,21 @@ public class TriggerEngine {
 
     // ===== Script completion callback =====
 
-    public void onScriptFinished(ServerPlayer player, String scriptId, String instanceId,
-                                 com.immersivecinematics.immersive_cinematics.control.CompletionReason reason) {
-        // 完成状态落库 + 同步到客户端（C2SScriptFinishedPacket 的必经链路）
-        TriggerStateStore.INSTANCE.markScriptCompleted(player.getUUID(), scriptId);
-        PlayerTriggerState state = TriggerStateStore.INSTANCE.getOrCreate(player.getUUID());
-        S2CTriggerStateSyncPacket.send(player, state.getTriggeredScripts(), state.getCompletedScripts());
+    public void onScriptFinished(ServerPlayer player, String scriptId, String instanceId, CompletionReason reason) {
+        // 结束事实带实例与退出原因：前置条件（script_played / script_completed）与“最近一次结束”都查它。
+        FactLedger.INSTANCE.record(player.getUUID(), Fact.playbackFinished(
+                scriptId, instanceId, FactResult.of(reason), player.server.getTickCount()));
         ScriptEventManager.INSTANCE.onScriptFinished(player, scriptId, instanceId, reason);
         LOGGER.debug("Script finished: player={}, script={}, instance={}, reason={}",
                 player.getName().getString(), scriptId, instanceId, reason);
     }
 
     public void onPlaybackStarted(ServerPlayer player, String scriptId, String instanceId) {
-        // 记录“开始播放”信号：配合结束信号构成“播放过”语义。
+        // “开始播放”与“结束播放”两条事实共同构成“播放过”语义。
         // 触发器状态机的键 (玩家, 脚本, 触发器) 与实例无关；播放账本（观看者 / 跳过投票 / 事件时间线）
         // 才按实例记账——所以这里两个都要喂。
-        TriggerStateStore.INSTANCE.markScriptStarted(player.getUUID(), scriptId);
+        FactLedger.INSTANCE.record(player.getUUID(), Fact.playbackStarted(
+                scriptId, instanceId, player.server.getTickCount()));
         ScriptEventManager.INSTANCE.startPlayback(player, scriptId, instanceId);
     }
 
@@ -231,8 +251,7 @@ public class TriggerEngine {
             return true;
         }
         if (!reg.isRepeatable()) {
-            return TriggerStateStore.INSTANCE.isTriggered(
-                    player.getUUID(), reg.getScriptId(), reg.getTriggerId());
+            return FactQueries.triggerFired(player.getUUID(), reg.getScriptId(), reg.getTriggerId());
         }
         return false;
     }
@@ -240,13 +259,12 @@ public class TriggerEngine {
     private void fireTrigger(ServerPlayer player, TriggerRegistration reg) {
         LOGGER.info("Firing trigger '{}' for script '{}' (player: {})",
                 reg.getTriggerId(), reg.getScriptId(), player.getName().getString());
-        boolean isNew = TriggerStateStore.INSTANCE.markTriggered(
+        boolean existed = FactQueries.triggerFired(
                 player.getUUID(), reg.getScriptId(), reg.getTriggerId());
-        if (!isNew && !reg.isRepeatable()) return;
+        if (existed && !reg.isRepeatable()) return;
 
-        // 触发成功 → 同步最新状态到客户端（编辑器 UI 消费）
-        PlayerTriggerState state = TriggerStateStore.INSTANCE.getOrCreate(player.getUUID());
-        S2CTriggerStateSyncPacket.send(player, state.getTriggeredScripts(), state.getCompletedScripts());
+        FactLedger.INSTANCE.record(player.getUUID(), Fact.triggerFired(
+                reg.getScriptId(), reg.getTriggerId(), player.server.getTickCount()));
 
         int delayMs = reg.getDelayMs();
         if (delayMs > 0) {
@@ -284,46 +302,75 @@ public class TriggerEngine {
     private record DelayedFire(TriggerRegistration reg, int fireTick) {}
 
     /**
-     * “进入触发 + 离开复位”状态机。
-     * 调用方每次轮询都必须调用（即使玩家在区域外），否则“离开复位”分支不可达、
-     * 触发器每局只能触发一次。
-     *
-     * @param inOriginal 玩家当前是否在原始触发区域内（由调用方求值，避免重复求值）
-     * @return 是否应视为“新进入”而触发
+     * 轮询求值：未声明 {@code continuity} 的非 {@code on_enter} 触发器走旧快速路径（无状态、无采样），
+     * 其余走边沿状态机（采样 / 代次 / 扫掠 / 停留）。
      */
-    private boolean checkEnterState(ServerPlayer player, TriggerRegistration reg, boolean inOriginal) {
-        UUID uuid = player.getUUID();
-        String key = reg.getScriptId() + ":" + reg.getTriggerId();
-        Map<String, Boolean> playerStates = enterStates.computeIfAbsent(uuid, k -> new HashMap<>());
-        boolean wasInside = playerStates.getOrDefault(key, false);
-
-        JsonObject exitCond = reg.getExitConditions();
-        if (exitCond != null) {
-            if (inOriginal) {
-                playerStates.put(key, true);
-                return !wasInside;
+    private void evaluatePolling(ServerPlayer player, TriggerRegistration reg, int tick) {
+        ContinuitySpec spec = reg.getContinuity();
+        if (!reg.isOnEnter() && spec.isDefault()) {
+            // 旧路径：点判定，命中即触发。行为与 H1-6 之前逐位一致。
+            if (evaluateSafely(reg, player, reg.getConditions(), TriggerEvalContext.disabled(tick))) {
+                fireTrigger(player, reg);
             }
-            // 已在区域内且仍在离开缓冲（外扩区域）内：保持“已进入”状态，等待完全离开后复位
-            if (!evaluateSafely(reg, player, exitCond)) {
-                playerStates.put(key, false);
-            }
-            return false;
+            return;
         }
 
-        playerStates.put(key, inOriginal);
-        return inOriginal && !wasInside;
+        TriggerEdge edge = edgeFor(player, reg);
+        int generation = PlayerMotion.INSTANCE.generation(player.getUUID());
+        MotionSample now = PlayerMotion.INSTANCE.capture(player, tick);
+        // 连续 = 有上一采样点且期间没有跳变（传送 / 维度切换 / 载具变化 / 位移超阈值）。
+        boolean continuous = edge.hasSample() && edge.generation() == generation;
+        TriggerEvalContext ctx = new TriggerEvalContext(tick, spec.sweep() && continuous,
+                continuous ? edge.lastSample() : null, now, spec.windowTicks());
+
+        boolean inOriginal = evaluateSafely(reg, player, reg.getConditions(), ctx);
+        JsonObject exitConditions = reg.getExitConditions();
+        boolean inExit = exitConditions != null
+                ? evaluateSafely(reg, player, exitConditions, ctx)
+                : inOriginal;
+
+        TriggerEdge.Decision decision = edge.observe(inOriginal, inExit, continuous, tick,
+                spec.dwellTicks(), reg.isOnEnter());
+        // 采样点每轮都更新（即使本轮不触发）：下一次求值要用它做段判定。
+        edge.setSample(now, generation);
+
+        if (reg.isOnEnter()) {
+            // 区域事实只在 on_enter 触发器上记（与非 on_enter 的旧语义一致：后者没有进入/离开概念）。
+            if (decision.entered()) recordRegion(FactType.REGION_ENTERED, player, reg, tick);
+            if (decision.left()) recordRegion(FactType.REGION_LEFT, player, reg, tick);
+        }
+        if (decision.fire()) {
+            fireTrigger(player, reg);
+        }
+    }
+
+    /** 取（必要时创建）该玩家在该触发器上的边沿状态机。键 = {@code scriptId + ":" + triggerId}。 */
+    private TriggerEdge edgeFor(ServerPlayer player, TriggerRegistration reg) {
+        return edges.computeIfAbsent(player.getUUID(), k -> new HashMap<>())
+                .computeIfAbsent(reg.getScriptId() + ":" + reg.getTriggerId(), k -> new TriggerEdge());
+    }
+
+    /** 记一条区域进入 / 离开事实（会话内，退出即清）。 */
+    private void recordRegion(FactType type, ServerPlayer player, TriggerRegistration reg, int tick) {
+        FactLedger.INSTANCE.record(player.getUUID(),
+                Fact.region(type, reg.getScriptId(), reg.getTriggerId(), tick));
     }
 
     /**
      * 安全求值：触发器条件数据损坏/缺失时只跳过该触发器并记录错误，不拖垮服务端。
      */
     private boolean evaluateSafely(TriggerRegistration reg, ServerPlayer player) {
-        return evaluateSafely(reg, player, reg.getConditions());
+        return evaluateSafely(reg, player, reg.getConditions(), TriggerEvalContext.disabled(0));
     }
 
     private boolean evaluateSafely(TriggerRegistration reg, ServerPlayer player, JsonObject conditions) {
+        return evaluateSafely(reg, player, conditions, TriggerEvalContext.disabled(0));
+    }
+
+    private boolean evaluateSafely(TriggerRegistration reg, ServerPlayer player, JsonObject conditions,
+                                   TriggerEvalContext ctx) {
         try {
-            return reg.getType().evaluate(player, conditions);
+            return reg.getType().evaluate(player, conditions, ctx);
         } catch (Exception e) {
             LOGGER.error("Failed to evaluate trigger '{}' for script '{}' (player: {}); skipping trigger",
                     reg.getTriggerId(), reg.getScriptId(), player.getName().getString(), e);

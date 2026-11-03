@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "id": "test_h1_sweep_off",
+    "name": "H-1 扫掠对照（未开启）",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "同一 box，未声明 continuity：点采样在两个端点都在区域外时不触发（现状会漏）",
+    "triggers": [
+      {
+        "id": "trg_sweep_off_b",
+        "type": "location",
+        "repeatable": false,
+        "delay": 0,
+        "poll_interval": 10,
+        "conditions": {
+          "corner1": {"x": 100, "y": -64, "z": 100},
+          "corner2": {"x": 102, "y": 320, "z": 102}
+        }
+      }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 3,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 3,
+            "layer_type": "subtitle",
+            "text": "H-1 对照：未开启 sweep（不应触发）",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 3, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

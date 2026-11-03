@@ -354,7 +354,7 @@ public class ScriptParser {
         if (metaObj.has("triggers") && metaObj.get("triggers").isJsonArray()) {
             JsonArray trigArr = metaObj.getAsJsonArray("triggers");
             for (int i = 0; i < trigArr.size(); i++) {
-                triggers.add(parseTriggerDefinition(trigArr.get(i).getAsJsonObject(), p + ".triggers[" + i + "]"));
+                triggers.add(parseTriggerDefinition(trigArr.get(i).getAsJsonObject(), p + ".triggers[" + i + "]", i));
             }
         }
 
@@ -1660,8 +1660,10 @@ public class ScriptParser {
 
     // ========== 触发器定义解析 ==========
 
-    private static TriggerDefinition parseTriggerDefinition(JsonObject obj, String p) throws ScriptParseException {
+    private static TriggerDefinition parseTriggerDefinition(JsonObject obj, String p, int index) throws ScriptParseException {
         String type = requireString(obj, p, "type");
+        // 声明身份：显式 id 优先（缺省 / null = 由 type#声明下标 合成）。格式与重复归校验器，解析只判类型。
+        String id = optTriggerId(obj, p);
         Map<String, Object> conditions = obj.has("conditions")
                 ? parseDataMap(obj.getAsJsonObject("conditions"), p + ".conditions")
                 : new HashMap<>();
@@ -1672,7 +1674,81 @@ public class ScriptParser {
         List<TriggerRequirement> requires = parseTriggerRequires(obj, p);
         // 触发器级轮询间隔（可选，tick）：缺省/非法 → null，运行时回落到脚本级 → 类型级默认
         Integer pollInterval = optPollInterval(obj, "poll_interval", p);
-        return new TriggerDefinition(type, conditions, repeatable, delay, onEnter, exitBuffer, requires, pollInterval);
+        ContinuitySpec continuity = parseContinuity(obj, p);
+        return new TriggerDefinition(type, conditions, repeatable, delay, onEnter, exitBuffer, requires, pollInterval,
+                id, index, continuity);
+    }
+
+    /**
+     * 解析触发器级连续语义 {@code continuity}（可选）：缺省 / JSON null → {@link ContinuitySpec#DEFAULT}。
+     *
+     * <p>字段：{@code sweep}（布尔）、{@code dwell} / {@code window}（整数 tick，
+     * {@code 0..}{@link ContinuitySpec#MAX_TICKS}）。
+     * 未知键静默忽略（向前兼容）。非法形态直接报解析错误——连续语义写错会导致判定与作者意图不符，
+     * 静默降级比拒绝加载更难排查。
+     */
+    private static ContinuitySpec parseContinuity(JsonObject obj, String p) throws ScriptParseException {
+        if (!obj.has("continuity") || obj.get("continuity").isJsonNull()) {
+            return ContinuitySpec.DEFAULT;
+        }
+        String cp = p + ".continuity";
+        JsonElement el = obj.get("continuity");
+        if (!el.isJsonObject()) {
+            throw new ScriptParseException(cp, "continuity 必须是对象");
+        }
+        JsonObject continuity = el.getAsJsonObject();
+
+        boolean sweep = false;
+        if (continuity.has("sweep") && !continuity.get("sweep").isJsonNull()) {
+            JsonElement se = continuity.get("sweep");
+            if (!se.isJsonPrimitive() || !se.getAsJsonPrimitive().isBoolean()) {
+                throw new ScriptParseException(cp + ".sweep", "sweep 必须是布尔值");
+            }
+            sweep = se.getAsBoolean();
+        }
+
+        int dwell = parseContinuityTicks(continuity, cp, "dwell");
+        int window = parseContinuityTicks(continuity, cp, "window");
+        return new ContinuitySpec(sweep, dwell, window);
+    }
+
+    /**
+     * 解析 {@code continuity} 里的 tick 字段：整数 {@code 0..}{@link ContinuitySpec#MAX_TICKS}；
+     * 缺省 / JSON null → 0；非数字 / 非整数 / 越界 → 解析错误。
+     */
+    private static int parseContinuityTicks(JsonObject continuity, String cp, String field)
+            throws ScriptParseException {
+        if (!continuity.has(field) || continuity.get(field).isJsonNull()) {
+            return 0;
+        }
+        JsonElement el = continuity.get(field);
+        String fp = cp + "." + field;
+        String range = "0~" + ContinuitySpec.MAX_TICKS;
+        if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isNumber()) {
+            throw new ScriptParseException(fp, field + " 必须是整数（tick，" + range + "）");
+        }
+        double v = el.getAsDouble();
+        if (!Double.isFinite(v) || v != Math.floor(v)) {
+            throw new ScriptParseException(fp, field + " 必须是整数（tick，" + range + "），实际: " + el);
+        }
+        if (v < 0 || v > ContinuitySpec.MAX_TICKS) {
+            throw new ScriptParseException(fp, field + " 超出范围 " + range + "（tick），实际: " + el);
+        }
+        return (int) v;
+    }
+
+    /** 触发器声明 id：缺省 / JSON null → null；非字符串或空串 → 解析错误（格式校验归 {@code ScriptValidator}）。 */
+    private static String optTriggerId(JsonObject obj, String p) throws ScriptParseException {
+        if (!obj.has("id") || obj.get("id").isJsonNull()) return null;
+        JsonElement el = obj.get("id");
+        if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isString()) {
+            throw new ScriptParseException(p + ".id", "id 必须是字符串");
+        }
+        String id = el.getAsString();
+        if (id.isEmpty()) {
+            throw new ScriptParseException(p + ".id", "id 不能为空");
+        }
+        return id;
     }
 
     /**

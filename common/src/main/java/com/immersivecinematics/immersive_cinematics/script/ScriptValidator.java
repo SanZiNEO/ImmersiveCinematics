@@ -38,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 脚本静态校验器 — 供 /icinematics validate 命令使用。
@@ -57,6 +58,9 @@ public final class ScriptValidator {
             "motion_position", "motion_yaw", "motion_pitch", "motion_roll", "motion_fov", "motion_zoom"};
     private static final String[] KNOWN_TYPES =
             {"CAMERA", "LETTERBOX", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY", "ADJUST"};
+
+    /** 触发器声明 id 的格式判定（正则本身由 {@link TriggerDefinition#ID_REGEX} 定义）；延迟编译一次。 */
+    private static final Pattern TRIGGER_ID_PATTERN = Pattern.compile(TriggerDefinition.ID_REGEX);
 
     /**
      * 调色曲线字段（clip 级结构字段，ADJUST 轨与 CAMERA 片段共用同一套）：
@@ -315,6 +319,7 @@ public final class ScriptValidator {
             JsonObject meta = root.getAsJsonObject("meta");
             checkPollIntervalField(meta, "trigger_poll_interval", "meta", issues);
             validateTriggerRequires(meta, "meta", knownScriptIds, issues);
+            validateTriggerIdentities(meta, "meta", issues);
             validateTriggerConditions(meta, "meta", knownScriptIds, issues);
         }
 
@@ -3801,6 +3806,40 @@ public final class ScriptValidator {
     }
 
     /**
+     * 校验 meta.triggers 的声明 id：可选；存在时必须是字符串、非空、匹配
+     * {@link TriggerDefinition#ID_REGEX}，且同一脚本内不重复。格式 / 重复归校验器，解析期只判类型。
+     */
+    private static void validateTriggerIdentities(JsonObject meta, String path, List<String> issues) {
+        if (!meta.has("triggers") || !meta.get("triggers").isJsonArray()) return;
+        JsonArray triggers = meta.getAsJsonArray("triggers");
+        Map<String, Integer> firstSeen = new LinkedHashMap<>();
+        for (int i = 0; i < triggers.size(); i++) {
+            JsonElement te = triggers.get(i);
+            if (!te.isJsonObject()) continue;
+            JsonElement idElement = te.getAsJsonObject().get("id");
+            String tp = path + ".triggers[" + i + "]";
+            if (idElement == null || idElement.isJsonNull()) continue;
+            if (!isString(idElement)) {
+                issues.add(tp + ".id 需要字符串（匹配 " + TriggerDefinition.ID_REGEX + "）");
+                continue;
+            }
+            String id = idElement.getAsString();
+            if (id.isEmpty()) {
+                issues.add(tp + ".id 不能为空（匹配 " + TriggerDefinition.ID_REGEX + "）");
+                continue;
+            }
+            if (!TRIGGER_ID_PATTERN.matcher(id).matches()) {
+                issues.add(tp + ".id 不合法: " + id + "（需匹配 " + TriggerDefinition.ID_REGEX + "）");
+                continue;
+            }
+            Integer previous = firstSeen.putIfAbsent(id, i);
+            if (previous != null) {
+                issues.add("触发器 id 重复: " + id + "（出现于 " + path + ".triggers[" + previous + "] 与 " + tp + "）");
+            }
+        }
+    }
+
+    /**
      * 校验 meta.triggers 的 requires 前置条件：requires 必须是数组，元素为字符串脚本 id
      * 或对象型前置条件。字符串按 script_played 校验脚本存在 / 自引用；对象型内置
      * script_played / script_started / script_completed 需要有效的 script 字段。
@@ -3894,7 +3933,7 @@ public final class ScriptValidator {
                 } else if ("all_of".equals(type) || "any".equals(type)) {
                     // schema 表达不了：list 元素是 { type, conditions } 结构，子项可嵌套或引用前置条件
                     validateCombinationConditions(conditions, tp + ".conditions", type, 1,
-                            selfId, knownScriptIds, issues);
+                            selfId, knownScriptIds, continuityWindow(t), issues);
                 } else if ("death".equals(type)) {
                     // schema 表达不了：场景组字段互相配合（position+radius / corner1+corner2），文案带场景语义
                     validateDeathConditions(conditions, tp + ".conditions", issues);
@@ -3907,6 +3946,7 @@ public final class ScriptValidator {
                 issues.add(tp + ".exit_buffer 对 " + type + " 无效（没有可外扩的空间条件），将被忽略");
             }
             checkPollIntervalField(t, "poll_interval", tp, issues);
+            validateContinuity(t, tp, type, tt, issues);
             if (tt.getStrategy() == ListenStrategy.EVENT_DRIVEN
                     && t.has("poll_interval") && !t.get("poll_interval").isJsonNull()) {
                 issues.add(tp + ".poll_interval 对 " + type + " 无效（事件驱动触发器不参与轮询），将被忽略");
@@ -3948,6 +3988,111 @@ public final class ScriptValidator {
         if (v < TriggerType.POLL_INTERVAL_MIN || v > TriggerType.POLL_INTERVAL_MAX) {
             issues.add(fp + " 超出范围 " + range + "（tick），实际: " + v);
         }
+    }
+
+    /**
+     * 校验触发器级连续语义 {@code continuity}：形态（对象）、字段类型与范围（{@code dwell} / {@code window}
+     * 0~1200 整数），以及三个「写了也不会生效」的语义提示：
+     * <ul>
+     *   <li>{@code sweep} 只对 {@code location} / {@code structure} / {@code facing} 有几何语义；</li>
+     *   <li>{@code dwell} 只对轮询类触发器生效，事件驱动类不参与轮询；</li>
+     *   <li>{@code window} 只对 {@code all_of} / {@code any} 的事件类子条件生效。</li>
+     * </ul>
+     * 未知键保持静默（向前兼容，与 conditions 的 schema 校验同口径）。
+     */
+    private static void validateContinuity(JsonObject t, String tp, String type, TriggerType tt, List<String> issues) {
+        if (!t.has("continuity") || t.get("continuity").isJsonNull()) return;
+        String cp = tp + ".continuity";
+        JsonElement ce = t.get("continuity");
+        if (!ce.isJsonObject()) {
+            issues.add(cp + " 必须是对象");
+            return;
+        }
+        JsonObject continuity = ce.getAsJsonObject();
+
+        boolean sweep = false;
+        if (continuity.has("sweep") && !continuity.get("sweep").isJsonNull()) {
+            JsonElement se = continuity.get("sweep");
+            if (se.isJsonPrimitive() && se.getAsJsonPrimitive().isBoolean()) {
+                sweep = se.getAsBoolean();
+            } else {
+                issues.add(cp + ".sweep 需要布尔值，实际: " + se);
+            }
+        }
+
+        int dwell = 0;
+        boolean dwellValid = false;
+        if (continuity.has("dwell") && !continuity.get("dwell").isJsonNull()) {
+            JsonElement de = continuity.get("dwell");
+            String range = "0~" + ContinuitySpec.MAX_TICKS;
+            if (!isNumber(de)) {
+                issues.add(cp + ".dwell 需要整数（tick，" + range + "），实际: " + de);
+            } else {
+                double d = de.getAsDouble();
+                if (!Double.isFinite(d) || d != Math.floor(d)) {
+                    issues.add(cp + ".dwell 不是整数（tick，" + range + "），实际: " + de);
+                } else if (d < 0 || d > ContinuitySpec.MAX_TICKS) {
+                    issues.add(cp + ".dwell 超出范围 " + range + "（tick），实际: " + de);
+                } else {
+                    dwell = (int) d;
+                    dwellValid = true;
+                }
+            }
+        }
+
+        int window = 0;
+        boolean windowValid = false;
+        if (continuity.has("window") && !continuity.get("window").isJsonNull()) {
+            JsonElement we = continuity.get("window");
+            String range = "0~" + ContinuitySpec.MAX_TICKS;
+            if (!isNumber(we)) {
+                issues.add(cp + ".window 需要整数（tick，" + range + "），实际: " + we);
+            } else {
+                double w = we.getAsDouble();
+                if (!Double.isFinite(w) || w != Math.floor(w)) {
+                    issues.add(cp + ".window 不是整数（tick，" + range + "），实际: " + we);
+                } else if (w < 0 || w > ContinuitySpec.MAX_TICKS) {
+                    issues.add(cp + ".window 超出范围 " + range + "（tick），实际: " + we);
+                } else {
+                    window = (int) w;
+                    windowValid = true;
+                }
+            }
+        }
+
+        if (sweep && !isSweepableType(type)) {
+            issues.add(cp + ".sweep 对 " + type + " 无几何语义，将被忽略"
+                    + "（仅 location / structure / facing 支持段扫掠）");
+        }
+        if (dwellValid && dwell > 0 && tt.getStrategy() != ListenStrategy.POLLING) {
+            issues.add(cp + ".dwell 对 " + type + " 无效（事件驱动触发器不参与轮询，将被忽略）");
+        }
+        if (windowValid && window > 0 && !isCombinatorType(type)) {
+            issues.add(cp + ".window 对 " + type + " 无效（window 只对 all_of / any 的事件类子条件生效，将被忽略）");
+        }
+    }
+
+    /** {@code continuity.window} 有语义的触发器类型（组合器）。 */
+    private static boolean isCombinatorType(String type) {
+        return "all_of".equals(type) || "any".equals(type);
+    }
+
+    /**
+     * 该触发器声明的 {@code continuity.window}（合法整数 {@code 0..MAX_TICKS}）；
+     * 缺省 / JSON null / 非法 → 0（非法形态由 {@link #validateContinuity} 另行报错）。
+     */
+    private static int continuityWindow(JsonObject t) {
+        if (!t.has("continuity") || !t.get("continuity").isJsonObject()) return 0;
+        JsonElement we = t.getAsJsonObject("continuity").get("window");
+        if (we == null || !isNumber(we)) return 0;
+        double w = we.getAsDouble();
+        if (!Double.isFinite(w) || w != Math.floor(w) || w < 0 || w > ContinuitySpec.MAX_TICKS) return 0;
+        return (int) w;
+    }
+
+    /** {@code continuity.sweep} 有几何语义的触发器类型。 */
+    private static boolean isSweepableType(String type) {
+        return "location".equals(type) || "structure".equals(type) || "facing".equals(type);
     }
 
     /**
@@ -4075,14 +4220,16 @@ public final class ScriptValidator {
 
     /**
      * 校验组合器（all_of / any）的 conditions.list（递归，支持嵌套）：list 必须是非空数组，元素为对象且带非空
-     * 字符串 type；子类型可以是已注册的轮询类触发器、已注册前置条件（锁存）或另一个组合器（嵌套）；事件类拒绝。
+     * 字符串 type；子类型可以是已注册的轮询类触发器、已注册前置条件（锁存）或另一个组合器（嵌套）；事件类
+     * 只有在触发器声明了 {@code continuity.window > 0} 时才允许（窗口语义）。
      * 嵌套层数 = 本层 + 1（顶层 = 1），超过 {@link Evaluators#MAX_COMBINATION_DEPTH} 报错并停止下钻。
      *
-     * @param depth 本组合器所处层数，顶层 = 1（与求值侧同一常量口径）
+     * @param depth       本组合器所处层数，顶层 = 1（与求值侧同一常量口径）
+     * @param windowTicks 该触发器声明的 {@code continuity.window}（tick）；{@code <= 0} = 未启用窗口
      */
     private static void validateCombinationConditions(JsonObject c, String p, String combinator, int depth,
                                                       String selfId, Collection<String> knownScriptIds,
-                                                      List<String> issues) {
+                                                      int windowTicks, List<String> issues) {
         if (!c.has("list") || !c.get("list").isJsonArray()) {
             issues.add(p + ".list 缺失或不是数组（" + combinator
                     + " 需要 \"list\": [ { \"type\": ..., \"conditions\": { ... } }, ... ]）");
@@ -4121,7 +4268,7 @@ public final class ScriptValidator {
                 if (badConditions) continue;   // conditions 结构已报错，无法继续下钻
                 JsonObject nested = sub.has("conditions") ? sub.getAsJsonObject("conditions") : new JsonObject();
                 validateCombinationConditions(nested, sp + ".conditions", subType, depth + 1,
-                        selfId, knownScriptIds, issues);
+                        selfId, knownScriptIds, windowTicks, issues);
                 continue;
             }
             if (PrerequisiteRegistry.has(subType)) {
@@ -4137,8 +4284,11 @@ public final class ScriptValidator {
                 continue;
             }
             if (tt.getStrategy() != ListenStrategy.POLLING) {
-                issues.add(sp + " 事件类触发器不能放进 " + combinator
-                        + "（会带来“很久以前发生过也算”的误判）: " + subType);
+                // 事件类子条件按「窗口内是否发生过」求值：只有触发器声明了 continuity.window > 0 才有窗口语义。
+                if (windowTicks <= 0) {
+                    issues.add(sp + " 事件类触发器放进 " + combinator
+                            + " 需要触发器声明 continuity.window > 0（窗口语义），当前 window=0: " + subType);
+                }
             }
         }
     }

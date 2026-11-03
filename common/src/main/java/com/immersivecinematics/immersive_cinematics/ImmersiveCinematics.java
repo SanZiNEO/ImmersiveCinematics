@@ -19,7 +19,8 @@ public final class ImmersiveCinematics {
     }
 
     private static void registerTriggerTypes() {
-        TriggerRegistry.register(new TriggerType("location", ListenStrategy.POLLING, Config.triggerPollIntervalLocation, Evaluators::evaluateLocation));
+        TriggerRegistry.register(new TriggerType("location", ListenStrategy.POLLING, Config.triggerPollIntervalLocation,
+                (p, c, ctx) -> Evaluators.evaluateLocation(p, c, ctx)));
         TriggerRegistry.register(new TriggerType("advancement", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateAdvancement));
         TriggerRegistry.register(new TriggerType("biome", ListenStrategy.POLLING, Config.triggerPollIntervalBiome, Evaluators::evaluateBiome));
         TriggerRegistry.register(new TriggerType("entity_kill", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateEntityKill));
@@ -28,7 +29,8 @@ public final class ImmersiveCinematics {
         TriggerRegistry.register(new TriggerType("login", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateLogin));
         TriggerRegistry.register(new TriggerType("inventory", ListenStrategy.POLLING, Config.triggerPollIntervalInventory, Evaluators::evaluateInventory));
         TriggerRegistry.register(new TriggerType("item_craft", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateItemCraft));
-        TriggerRegistry.register(new TriggerType("structure", ListenStrategy.POLLING, Config.triggerPollIntervalStructure, Evaluators::evaluateStructure));
+        TriggerRegistry.register(new TriggerType("structure", ListenStrategy.POLLING, Config.triggerPollIntervalStructure,
+                (p, c, ctx) -> Evaluators.evaluateStructure(p, c, ctx)));
         TriggerRegistry.register(new TriggerType("gamestage", ListenStrategy.POLLING, Config.triggerPollIntervalGamestage, Evaluators::evaluateGamestage));
         TriggerRegistry.register(new TriggerType("item_use", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateItemUse));
         TriggerRegistry.register(new TriggerType("item_consume", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateItemConsume));
@@ -45,9 +47,12 @@ public final class ImmersiveCinematics {
         // 5 tick ≈ 0.25s 轮询，保证注视响应及时
         TriggerRegistry.register(new TriggerType("observation", ListenStrategy.POLLING, 5, Evaluators::evaluateObservation));
         // 朝向范围条件（yaw/pitch 区间）与条件组合器（all_of 全真 / any 任一），同样 5 tick 轮询
-        TriggerRegistry.register(new TriggerType("facing", ListenStrategy.POLLING, 5, Evaluators::evaluateFacing));
-        TriggerRegistry.register(new TriggerType("all_of", ListenStrategy.POLLING, 5, Evaluators::evaluateAllOf));
-        TriggerRegistry.register(new TriggerType("any", ListenStrategy.POLLING, 5, Evaluators::evaluateAny));
+        TriggerRegistry.register(new TriggerType("facing", ListenStrategy.POLLING, 5,
+                (p, c, ctx) -> Evaluators.evaluateFacing(p, c, ctx)));
+        TriggerRegistry.register(new TriggerType("all_of", ListenStrategy.POLLING, 5,
+                (p, c, ctx) -> Evaluators.evaluateAllOf(p, c, ctx)));
+        TriggerRegistry.register(new TriggerType("any", ListenStrategy.POLLING, 5,
+                (p, c, ctx) -> Evaluators.evaluateAny(p, c, ctx)));
         // 玩家死亡（事件驱动，场景条件按死亡时刻记录判定）
         TriggerRegistry.register(new TriggerType("death", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateDeath));
     }

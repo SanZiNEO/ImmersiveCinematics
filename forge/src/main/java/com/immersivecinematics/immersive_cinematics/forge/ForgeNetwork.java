@@ -57,9 +57,6 @@ public final class ForgeNetwork implements NetworkBridge {
         CHANNEL.registerMessage(id++, S2CStopScriptPacket.class,
                 CinematicPacket::write, S2CStopScriptPacket::new,
                 (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.STOP_SCRIPT, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
-        CHANNEL.registerMessage(id++, S2CTriggerStateSyncPacket.class,
-                CinematicPacket::write, S2CTriggerStateSyncPacket::new,
-                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.TRIGGER_STATE_SYNC, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
         CHANNEL.registerMessage(id++, S2CSkipVoteUpdatePacket.class,
                 CinematicPacket::write, S2CSkipVoteUpdatePacket::new,
                 (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.SKIP_VOTE_UPDATE, () -> pkt.handle())); ctx.get().setPacketHandled(true); });

@@ -14,7 +14,6 @@ public final class NetworkHandler {
 
     public static final String PLAY_SCRIPT = "play_script";
     public static final String STOP_SCRIPT = "stop_script";
-    public static final String TRIGGER_STATE_SYNC = "trigger_state_sync";
     public static final String SKIP_VOTE_UPDATE = "skip_vote_update";
     public static final String SCRIPT_PAUSE_ACK = "script_pause_ack";
     public static final String SCRIPT_SEEK_ACK = "script_seek_ack";

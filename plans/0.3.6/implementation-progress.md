@@ -135,8 +135,8 @@
 | H4 | feedback-04 #1 结案（按"命令归 EVENT 轨"新方向标注） | — | ✅ 2026-10-10（`476b442`，按「命令归 EVENT 轨」新方向结案标注） |
 | H5 | 文档滞后清理（审计 §三 12 条） | — | ☐ |
 | H6 | 实机验证批次（审计 §四 7 条：调色/叠化/hard-hide/模板命令/release 脚本游戏内跑） | A,B,D | ☐ |
-| H7 | **P1-impl 事实层**（布尔点状事件判定 → 事实追踪）：事实模型 / 触发器身份 / 播放生命周期 / 账本收编 / tracker 收编 / 持久化 / 消费面 | — | ☐ **零实现**（现状核对见 [`H-other/README.md`](H-other/README.md) §2.1） |
-| H8 | **P3-impl 连续语义**（离散采样 → 连续判定）：位置扫掠 / 朝向弧 / 进入边沿 / dwell·window / 事件时间戳 | 窗口与事件侧依赖 H7 | ☐ **零实现**（现状核对见 [`H-other/README.md`](H-other/README.md) §2.2） |
+| H7 | **P1-impl 事实层**（布尔点状事件判定 → 事实追踪）：事实模型 / 触发器身份 / 播放生命周期 / 账本收编 / tracker 收编 / 持久化 / 消费面 | — | ✅ **已实现（H-1，2026-11-03）**：事实层 + 五份记录收编 + 三前置条件切事实；消费面（展示）归 Z 轮 / H-12（见 [`H-other/state-tracking.md`](H-other/state-tracking.md) §六） |
+| H8 | **P3-impl 连续语义**（离散采样 → 连续判定）：位置扫掠 / 朝向弧 / 进入边沿 / dwell·window / 事件时间戳 | 窗口与事件侧依赖 H7 | ✅ **已实现（H-1，2026-11-03；`observation` 扫掠除外）**：`continuity` 触发器级配置 + 段扫掠 + 边沿 + dwell/window（见 [`H-other/trigger-continuity.md`](H-other/trigger-continuity.md) §六） |
 | H9 | **跳过投票 + 跳过 HUD**：判定对齐 MC `SleepStatus`（单一分母 / `max(1, ceil)` / 共用阈值）、HUD 合成一行、位置百分比可配 | — | 🟡 **有实现但不完整**（见 [`H-other/skip-vote-and-hud.md`](H-other/skip-vote-and-hud.md) §1.3） |
 | H10 | **相机视图实体活性**：服务端原版实体跟踪镜像 + 客户端目标世界 tick；不做假玩家、不改 AI goal | — | ☐ 设计稿（见 [`H-other/entity-liveness.md`](H-other/entity-liveness.md)） |
 | H11 | **HUD 层注册 API**：面向第三方的正式注册入口 + `hud_layers` / 固定分类口径 + Fabric/Forge 边界 | — | ☐ 设计稿（见 [`H-other/hud-layer-api.md`](H-other/hud-layer-api.md)；G 轮只有内部口子） |
@@ -163,10 +163,10 @@
 |---|---|---|---|---|
 | CLEANUP-2 | 删除运行时 pip 层（被 lane 取代；PipLayer 是占位实现从未接入真实画面）；WebUI 便捷操作留 Z 轮 | — | ✅ 2026-10-08 代码完成（`5b3265d`）；2026-10-10 表状态回写 |
 | P1 | **计划文档《脚本状态机与状态追踪》**：布尔值点状事件判定 → **事实追踪**（用户点名；后续优化基于它） | — | ✅ `6c1097f`（`plans/0.3.6/H-other/state-tracking.md`） |
-| P1-impl | 按 P1 计划实现状态机/状态追踪优化 | P1 | ☐ **= H7**（现状零实现，见 [`H-other/README.md`](H-other/README.md) §2.1） |
+| P1-impl | 按 P1 计划实现状态机/状态追踪优化 | P1 | ✅ **= H7（H-1，2026-11-03）** |
 | P2 | **计划文档《Iris/Oculus 兼容调研计划》**：挂点/可行性/风险/工作量（用户点名：先写计划，结论定策略） | — | ✅ `2ff77b6`（plans/0.3.6/F-playback/iris-oculus-compat.md） |
 | P3 | **计划文档《触发器系统的连续性》**：现状 = 全采样但不连续（离散轮询）；目标 = 做成连续的（与状态追踪同类思路；用户点名，独立成篇） | — | ✅ `8d6fc61`（`plans/0.3.6/H-other/trigger-continuity.md`） |
-| P3-impl | 按 P3 计划实现触发器连续性 | P3 | ☐ **= H8**（现状零实现，见 [`H-other/README.md`](H-other/README.md) §2.2） |
+| P3-impl | 按 P3 计划实现触发器连续性 | P3 | ✅ **= H8（H-1，2026-11-03；`observation` 扫掠除外）** |
 | B3' | 每 lane 独立可见集合 → **做**（用户裁决；工程大，拆多个子任务：设计 → 实现 → 性能实测） | — | ✅（= B3 已落地） |
 | A13' | 多实例 master 合并 → **按层级叠加**（lane 包内/包上调整 → 合成 → master 整体调整；多实例 master 按实例顺序叠加应用） | A8 | ✅ | `4aa03d8` |
 | 任务2改判 | **曲线贝塞尔手柄归 Z 轮**（2026-10-08 用户裁决，替代「手柄本轮补」）：手柄属编辑器侧运算（运行时只读只执行、**不含手柄逻辑**），产物数据形态随 Z 轮定稿；已标注 screen-color-adjust.md「本版本明确不做」 | — | ✅ 标注完成 | — |

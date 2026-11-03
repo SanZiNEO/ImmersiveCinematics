@@ -72,6 +72,26 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 | I4-R5 | `ruleCommandPermissionLevel` 只有服务端配置；作者需要权限 3/4 的命令时无法在脚本里提高 | **契约边界** | 权限只由服务端配置决定，脚本与客户端不能覆盖；作者改用服务端触发器 / EVENT，或由运营者调高配置；已写入 `rule-command-trust.md` §六 |
 | I4-R6 | 脚本级独立片段（`clips[]`）可被 `goto_clip` / `exit.goto` / `launch` 记账（账本已支持、探针覆盖），但**没有轨道播放器遍历它**，因此分支启动的独立片段没有画面 | **I-5** | 分支启动的独立片段按自己的 `track` 字段参与该轨渲染（`track` 已必填）；关闭条件 = 探针 + 实机：`clips[]` 里的 CAMERA 片段作 `goto_clip` 目标后相机真的移动。当前实机夹具用 timeline 片段验证分支，未覆盖该路径 |
 
+## F. H-1 遗留项（触发器语义：H7 事实层 + H8 连续判定）
+
+> 建立：2026-11-03。来源：H-1 验收遗留 + 实现时发现的口径变化。轮次编号以 H 轮任务书为准。
+
+| ID | 事项 | 归属 | 关闭条件 |
+|---|---|---|---|
+| H1-R1 | `observation` 射线扫掠未做（H8 步骤 3 剩余；设计明确「先成本实测再定」） | **H-2**（H8 步骤 3 剩余） | 成本实测完成（子步数 × 射线方块/实体查询，含移动实体目标）并给出纳入/不纳入结论；纳入时实现弧带 + 子步重放 |
+| H1-R2 | 短距离传送（单 tick 位移 ≤ 16 格）无法与正常移动区分，按连续移动参与扫掠 | **H-2**（如需显式钩子） | 跨平台服务端传送信号（事件或 mixin）落地后，短传送也标记为不连续；在此之前为契约边界 |
+| H1-R3 | `docs/TRIGGER_TYPES.md` / `docs/SCRIPT_FORMAT.md` 未回写 `triggers[].id`、`continuity`（sweep / dwell / window）与事实口径 | **I-5**（I2-B10） | 文档与源码一致；`grep` 无旧口径残留 |
+| H1-R4 | 事实的展示面（「触发过什么 / 为什么触发」）未做；客户端镜像已删除，服务端事实不自动下发 | **Z 轮 + H-12** | 编辑器 / 客户端有读取事实查询 API 的入口（命令或网络包），且不重建第二套记录 |
+| H1-R5 | 前置条件按退出结果筛选（「播完」含不含跳过 / 打断）未开放字段；事实层已能按 `FactResult` 查询 | **C-trigger** | `requires` 数据字段形态定稿并落地（事实查询已就绪） |
+| H1-R6 | 播放期间扫过是否补记（N9）仍按现状「不补记」 | **用户裁决 → C-trigger / H 后续** | 裁决写入 `trigger-continuity.md` §5.3 并实现（补记或不补记二选一，含与去重的交互） |
+| H1-R7 | 编辑器触发器表单未暴露 `continuity`（sweep / dwell / window） | **Z 轮** | 编辑器触发器表单含三字段，读写与 `SchemaExporter.triggers.triggerFields.continuity` 一致 |
+| H1-R8 | `entity_kill` / `item_pickup` 的 `and` 模式遇空数组由「退化返回真」收紧为 `false` | **契约边界** | 空数组无业务含义；已写入 `state-tracking.md` §六 |
+| H1-R9 | `entity_interact` 的 `target` 由「全等 + `*`」改为 `matchesId`（支持 `ns:*` 与无冒号子串） | **契约边界** | 与其它 id 条件统一；已写入 `state-tracking.md` §六 |
+| H1-R10 | 事实 `count` / `exists` / `last` 为累计口径（保留集淘汰后仍成立）；`anyWithin` / `lastWithin` / `lastMatching` 受保留深度约束 | **契约边界** | 已写入 `PlayerFacts` Javadoc 与 `state-tracking.md` §六；保留上限：事件类 64–512 条、触发命中 1024 条 |
+| H1-R11 | 窗口判定里 `entity_kill` 的 `mode=and` 按「每个目标的击杀事实各自满足场景」，与单点求值器的「最近一次击杀的场景」不同 | **契约边界** | 窗口语义按事实逐条判定；已写入 `trigger-continuity.md` §六 |
+| H1-R12 | v1 触发器状态文件做一次性转换：旧键 `type_scriptId` 仅在该脚本内**唯一**匹配时映射到新身份，歧义/无匹配丢弃（debug 日志）；v2 起按事实存储 | **契约边界** | 版本原则：不保留兼容读取层；已写入 `state-tracking.md` §六 |
+| H1-R13 | 顶层事件触发器不受 `continuity.window` 影响（窗口只作用于 `all_of` / `any` 的事件类子条件） | **契约边界** | 已写入 `trigger-continuity.md` §六 |
+
 ## 清零规则
 
 - **I-3 收口**：A 表至少完成旧循环实机基线；I2-B1 的最终全量留 I-5。

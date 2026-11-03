@@ -1,6 +1,6 @@
 # 触发器系统的连续性：从离散采样到连续语义
 
-> 状态：未实现
+> 状态：已实现（H-1，2026-11-03；`observation` 扫掠归 H-2）
 > 范围：触发器条件在时间轴上的判定语义（服务端判定层）
 > 关联：[触发器条件体系](../C-trigger/trigger-conditions.md)、[脚本状态追踪](state-tracking.md)、[判定规则](../C-trigger/condition-system.md)、`docs/TRIGGER_TYPES.md`
 
@@ -105,18 +105,50 @@
 
 ## 六、实现结果
 
-状态：未实现
-
-2026-10-24 核对：采样快照、区间判定、边沿状态、停留与窗口参数均无代码。
+状态：**已实现（H-1，2026-11-03）**
 
 | 设计目标 | 实现 | 说明 |
 |---|---|---|
-| 采样快照与轨迹补判 | 无，只读采样瞬间的坐标 / 朝向 | 尚未实现 |
-| 区间判定（段与几何体求交 / 朝向弧） | 只有点判定 | 尚未实现 |
-| 边沿状态（最近为真 tick、连续起点） | 仅有采样点裸布尔 | 尚未实现 |
-| 停留 / 窗口参数 | 无 | 尚未实现 |
-| 组合器窗口与事件类子条件解禁 | 组合器仍是同一时刻，事件类被校验层禁用 | 尚未实现 |
-| 传送 / 载具 / 维度切换的不连续标记 | 无 | 尚未实现 |
+| 采样快照与轨迹补判 | `continuity/PlayerMotion`（每 tick 基线 + 代次）+ `TriggerEdge.lastSample`（按玩家 × 触发器） | 每玩家一份 tick 基线用于跳变检测；扫掠用的是**该触发器上一次求值**的采样点 |
+| 区间判定（段与几何体求交 / 朝向弧） | `continuity/SegmentSweep`：`hitsBox`（slab）/ `hitsSphere`（点到线段）/ `hitsFacing`（最短 yaw 弧 + pitch 区间）/ `substeps` + `anyPoint`（structure 子步） | 纯函数、零 MC 依赖；点判定仍先跑，未命中才做段判定 |
+| 边沿状态（最近为真 tick、连续起点） | `continuity/TriggerEdge`（`inside` / `armed` / `trueSince` / `lastSample` / `generation`） | `enterStates` 裸布尔已删除；区域进入 / 离开同时写 `REGION_ENTERED` / `REGION_LEFT` 事实（仅 `on_enter`） |
+| 停留 / 窗口参数 | `script/ContinuitySpec(sweep, dwellTicks, windowTicks)`；`0..1200` tick | `dwell` 是采样点真值的保守近似；`window` 只作用于组合器事件子条件 |
+| 组合器窗口与事件类子条件解禁 | `fact/FactWindow` + `Evaluators.evaluateCombinationChild`；`window = 0` 仍由校验层拒绝 | `window > 0` 时事件类子条件按「最近 W tick 内发生过」求值 |
+| 传送 / 载具 / 维度切换的不连续标记 | `PlayerMotion` 代次：维度切换 `reset`、载具 UUID 变化、每 tick 位移 > 16 格 | 短距离传送（≤16 格/tick）按移动处理，见契约边界 |
+
+**触发条件 JSON（触发器级，与 `poll_interval` 同层）**：
+
+```json
+"continuity": { "sweep": true, "dwell": 20, "window": 100 }
+```
+
+- 全部可省；缺省 = `DEFAULT`（关闭）。未声明时引擎走旧快速路径，行为逐位不变。
+- `sweep` 只对 `location` / `structure` / `facing` 生效；`dwell` 只对轮询类；`window` 只对 `all_of` / `any`——其余类型校验期 warning。
+- 解析期非法（非整数 / 负数 / 超 1200）→ `ScriptParseException`；`SchemaExporter` 导出 `triggers.triggerFields.continuity`。
+
+**成本实测（无头纯几何核，best-of-5 × 100k，2026-11-03）**：
+
+| 操作 | 每 100k 次 | 每次 |
+|---|---|---|
+| `hitsBox` | 6.35 ms | ≈ 64 ns |
+| `hitsSphere` | 4.11 ms | ≈ 41 ns |
+| `hitsFacing` | 3.05 ms | ≈ 31 ns |
+| `anyPoint`（steps=1 / 4 / 8 / 16 / 32） | 4.19 / 5.61 / 11.96 / 33.96 / 97.61 ms | ≈ 42 / 56 / 120 / 340 / 976 ns |
+
+- 成本只随**位移段**增长：静止时 `substeps` 退化为 1，点判定已覆盖。
+- `structure` 的每子步含一次 `getAllStructuresAt`（世界查询），上表只含走段本身；实机未做逐 tick 采样统计（标注为未验证）。
+- 默认（未开启）不捕获采样点、不做段判定，零额外求值。
+
+**契约边界**：
+- 扫掠是相邻采样点的直线 / 最短弧近似，不是真连续时间；曲线绕行会误报或漏检。
+- `dwell` 以采样点真值为准（不知道两次采样之间的短暂离开），是保守近似。
+- 短距离传送（单 tick ≤ 16 格）无法与移动区分，按连续移动参与扫掠；≥ 16 格按跳变处理。
+- `observation` 射线扫掠**未实现**（归属 H-2，见 `I-BACKLOG.md` H1-R1）。
+- 顶层事件触发器不受 `window` 影响；窗口只作用于组合器的事件类子条件。
+- 窗口判定里 `entity_kill` 的 `mode=and` 按「每个目标的击杀事实各自满足场景」；单点求值器仍是「最近一次击杀的场景」。
+- 播放期间是否补记扫过仍按现状（不补记，N9），待用户裁决（H1-R6）。
+
+**验证（2026-11-03）**：`ContinuityGeometryProbe` 59 checks、`EdgeProbe` 71、`WindowProbe` 111 全 PASS；`SemanticsConsistencyProbe` 1,580,000 次随机比对 `GeometryConditions` 点判定 mismatches=0；旧 231 支解析 / 校验基线逐文件 diff 0；Fabric 实机穿越与 `dwell` 用例见 `state-tracking.md` §六。
 
 ## 附录：重写前原文
 

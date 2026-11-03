@@ -1,6 +1,6 @@
 # 脚本状态追踪：从布尔标记到事实追踪
 
-> 状态：未实现
+> 状态：已实现（H-1，2026-11-03；消费面/展示归 Z 轮 + H-12）
 > 范围：触发器状态的记录与查询（服务端记账层）
 > 关联：[触发器条件体系](../C-trigger/trigger-conditions.md)、[并行播放](../F-playback/parallel-playback.md)、[触发器连续性](trigger-continuity.md)、`docs/TRIGGER_TYPES.md`
 
@@ -103,19 +103,36 @@
 
 ## 六、实现结果
 
-状态：未实现
+状态：**已实现（H-1，2026-11-03）**
 
-2026-10-24 核对：事实模型、触发器身份、生命周期事实、账本与 tracker 收编均无代码；运行时仍是持久集合 + 单槽 tracker + 实例账本并存。
+事实层落在服务端 `trigger/server/fact/`；五份记录按 §5.4 收编或写明保留理由；默认行为零回归。
 
 | 设计目标 | 实现 | 说明 |
 |---|---|---|
-| 事实记录（六维）与事实存储 | 无 | 尚未实现 |
-| 查询原语（计数 / 最近一次 / 时间窗 / 分组） | 仅集合存在性判断 | 尚未实现 |
-| 触发器独立身份 | 触发器 id 仍为「类型_脚本 id」 | 尚未实现 |
-| 结束事实带实例与退出原因 | 状态层只记脚本 id，实例与原因被丢弃 | 尚未实现 |
-| 事件 tracker 改为写事实 | 仍是单槽，无时间戳 | 尚未实现 |
-| 每条事实声明持久性 | 持久性仍由存储容器决定 | 尚未实现 |
-| 账本收编时修掉跳过票路径的空指针 | 缺陷仍在：跳过票未达标时读一个从未赋值的服务器引用 | 尚未实现 |
+| 事实记录（六维）与事实存储 | `Fact`（`type` / `script` / `object` / `detail` / `instance` / `tick` / `result` / `scene`）+ `PlayerFacts` + `FactLedger` | 主体 = 玩家（按 UUID 分片）；`script` / `object` / `detail` / `instance` 为空串归一 |
+| 查询原语（存在性 / 计数 / 最近一次 / 时间窗） | `exists` / `count` / `last` / `last(requiredResult)` / `anyWithin` / `lastWithin` / `lastMatching` / `anyObject` | 前四者走常驻索引（累计口径）；窗口查询扫保留集（受保留深度约束） |
+| 触发器独立身份 | `TriggerDefinition.id`（可选，`^[A-Za-z0-9_]{1,64}$`）+ 缺省 `type#声明下标`；`getIdentity()` | 现有 232 条声明**本就全部带合法 id**，此前解析层忽略；校验报重复 / 非法；`SchemaExporter` 导出 `triggers.triggerFields.id` |
+| 结束事实带实例与退出原因 | `PLAYBACK_FINISHED(script, instance, result)`；`FactResult.of(CompletionReason)` | 自然结束 / 跳过 / 打断 / 强退 / 系统停止可区分；前置条件仍按「任一结果」判定 |
+| 事件 tracker 改为写事实 | 八个 tracker 删除；事件回调写 `ADVANCEMENT` / `ENTITY_KILL` / `DEATH` / `INTERACT_BLOCK` / `INTERACT_ENTITY` / `ITEM_*` / `DIMENSION_CHANGE` / `LOGIN` | `InventoryTracker` 保留为「采样基线」（`change=increase/decrease` 的净变化比较，不是历史事实） |
+| 每条事实声明持久性 | `FactType.Durability`：`PLAYBACK_STARTED` / `PLAYBACK_FINISHED` / `TRIGGER_FIRED` 跨存档，其余会话内 | SNBT v2；会话事实不落盘 |
+| 账本收编时修掉跳过票路径的空指针 | `ScriptPlayback.server` 由构造器接收并赋值 | `broadcastSkipVote` 不再读未赋值字段 |
+| 五份记录「同一信号只写一处」 | ①持久布尔 → 事实；②tracker → 事实；③账本只留当前态（观看者 / 暂停 / 时间线基准 / 事件游标），起止与投票进事实；④区域进入态 → `TriggerEdge` 边沿状态 + 进入/离开事实；⑤客户端镜像删除 | 起止信号：事实（历史）+ 观看者集合（当前态）是两种真相，不是双写 |
+| 跳过票 | `SKIP_VOTE` 事实 + `FactLedger` 的实例投票索引（派生索引，写事实时更新） | 索引随实例结束 `clearInstance` 清理；重复投票幂等 |
+| 客户端镜像 | `S2CTriggerStateSyncPacket` + `ClientTriggerStateCache` 删除（全仓零读面） | 展示面归后续轮次（见 §七 移交） |
+| 旧存档 | v1 一次性转换：三集合 → 事实；`triggered_scripts` 旧键仅在该脚本内**唯一**匹配时映射到新身份，歧义/无匹配丢弃（debug 日志） | 不保留兼容读取层；v2 起按事实存储 |
+
+**验证（2026-11-03）**：`FactStoreProbe` 100 checks、`PrereqFactsProbe` 50、`TrackerFactsProbe` 120、`IdentityProbe` 32、`WindowProbe` 111 全 PASS；旧 231 支解析 / 校验基线逐文件 diff 0；Fabric 实机：穿越用例（同 box，未开启 `sweep` 不触发、开启后触发）、`dwell=40`（进入后 1.2s 未触发、约 3s 触发）、持久事实文件 `version:2` 且含 `playback_started` / `playback_finished` / `trigger_fired`。
+
+**口径变化（有意，写入契约）**：
+- `entity_kill` / `item_pickup` 的 `and` 模式遇**空数组**返回 `false`（旧码退化返回真；空数组无业务含义）。
+- `entity_interact` 的 `target` 改用 `matchesId`（支持 `ns:*` 与无冒号子串，与其它 id 条件一致）。
+- 窗口判定里 `entity_kill` 的 `and` 模式按「每个目标的击杀事实各自满足场景」（与单点求值器的「最近一次击杀的场景」不同，见 `trigger-continuity.md` §六）。
+
+**未实现（归属轮次）**：
+- 事实的展示面（「触发过什么 / 为什么触发」）：**Z 轮 + H-12**（关闭条件见 `I-BACKLOG.md` H1-R4）。
+- 前置条件按退出结果筛选（含不含跳过）：**C-trigger**（H1-R5）。
+- 播放期间扫过是否补记（N9）：**用户裁决 → C-trigger / H 后续**（H1-R6）。
+- `docs/TRIGGER_TYPES.md` / `docs/SCRIPT_FORMAT.md` 口径回写：**I-5**（H1-R3）。
 
 ## 附录：重写前原文
 

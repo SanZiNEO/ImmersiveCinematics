@@ -130,7 +130,7 @@ public class ScriptManager {
                     }
                 }
                 registrations.add(new TriggerRegistration(
-                        meta.getId(), td.getType() + "_" + meta.getId(),
+                        meta.getId(), td.getIdentity(),
                         triggerType, conditions,
                         List.of(new StartPlaybackAction(meta.getId())),
                         td.isRepeatable(),
@@ -139,7 +139,8 @@ public class ScriptManager {
                         td.getExitBuffer(),
                         exitConditions,
                         td.getRequires(),
-                        effectivePollInterval
+                        effectivePollInterval,
+                        td.getContinuity()
                 ));
             }
         }

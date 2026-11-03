@@ -10,7 +10,8 @@ import net.minecraft.util.Mth;
  * 本类由 {@code Evaluators} 逐位等值平移而来（服务端改委托，行为不变）。
  *
  * 入口：{@link #matchesId}（id 通配）、{@link #inBox} / {@link #inRadius}（区域）、
- * {@link #expandConditions}（区域外扩）、{@link #facingInRange}（朝向区间，含跨 ±180° 环绕）。
+ * {@link #matchesScene}（事件时刻场景快照）、{@link #expandConditions}（区域外扩）、
+ * {@link #facingInRange}（朝向区间，含跨 ±180° 环绕）。
  * 字段名与取值语义以 {@code TriggerSchemas} 为单源。
  *
  * 分配契约：除 {@link #expandConditions} 外只读输入、不新建集合、不装箱（帧内路径安全）；
@@ -67,6 +68,28 @@ public final class GeometryConditions {
         double dy = y - py;
         double dz = z - pz;
         return dx * dx + dy * dy + dz * dz <= radius * radius;
+    }
+
+    /**
+     * 事件时刻场景条件：dimension / biome / position+radius / corner1+corner2，按事件发生时刻记录下来的
+     * 维度 / 群系 / 坐标判定（entity_kill 传击杀快照、death 传死亡快照），而不是查询时刻的玩家位置；无字段 = 恒真。
+     */
+    public static boolean matchesScene(JsonObject c, String dimension, String biome,
+                                       double x, double y, double z) {
+        if (c.has("dimension") && !matchesId(dimension, c.get("dimension").getAsString())) return false;
+        if (c.has("biome") && !matchesId(biome, c.get("biome").getAsString())) return false;
+        if (c.has("position")) {
+            if (!c.get("position").isJsonObject()) return false;
+            double radius = c.has("radius") && c.get("radius").isJsonPrimitive()
+                    && c.get("radius").getAsJsonPrimitive().isNumber()
+                    ? c.get("radius").getAsDouble() : 0.0;
+            if (!inRadius(x, y, z, c.getAsJsonObject("position"), radius)) return false;
+        }
+        if (c.has("corner1") && c.has("corner2")
+                && c.get("corner1").isJsonObject() && c.get("corner2").isJsonObject()) {
+            if (!inBox(x, y, z, c.getAsJsonObject("corner1"), c.getAsJsonObject("corner2"))) return false;
+        }
+        return true;
     }
 
     /**

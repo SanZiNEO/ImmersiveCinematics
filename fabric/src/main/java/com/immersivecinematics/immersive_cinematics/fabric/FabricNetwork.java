@@ -76,10 +76,6 @@ public final class FabricNetwork implements NetworkBridge {
             S2CStopScriptPacket pkt = new S2CStopScriptPacket(buf);
             client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.STOP_SCRIPT, () -> pkt.handle()));
         });
-        ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.TRIGGER_STATE_SYNC), (client, handler, buf, responseSender) -> {
-            S2CTriggerStateSyncPacket pkt = new S2CTriggerStateSyncPacket(buf);
-            client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.TRIGGER_STATE_SYNC, () -> pkt.handle()));
-        });
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.SKIP_VOTE_UPDATE), (client, handler, buf, responseSender) -> {
             S2CSkipVoteUpdatePacket pkt = new S2CSkipVoteUpdatePacket(buf);
             client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.SKIP_VOTE_UPDATE, () -> pkt.handle()));
@@ -143,7 +139,6 @@ public final class FabricNetwork implements NetworkBridge {
         if (packet instanceof C2SCameraViewPacket) return id(NetworkHandler.CAMERA_VIEW);
         if (packet instanceof S2CPlayScriptPacket) return id(NetworkHandler.PLAY_SCRIPT);
         if (packet instanceof S2CStopScriptPacket) return id(NetworkHandler.STOP_SCRIPT);
-        if (packet instanceof S2CTriggerStateSyncPacket) return id(NetworkHandler.TRIGGER_STATE_SYNC);
         if (packet instanceof S2CSkipVoteUpdatePacket) return id(NetworkHandler.SKIP_VOTE_UPDATE);
         if (packet instanceof S2CScriptPauseAckPacket) return id(NetworkHandler.SCRIPT_PAUSE_ACK);
         if (packet instanceof S2CScriptReloadPacket) return id(NetworkHandler.SCRIPT_RELOAD);

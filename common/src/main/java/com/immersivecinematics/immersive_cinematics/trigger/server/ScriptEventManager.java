@@ -12,6 +12,7 @@ import com.immersivecinematics.immersive_cinematics.script.event.EventRecord;
 import com.immersivecinematics.immersive_cinematics.script.event.EventSeekPlan;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CSkipVoteUpdatePacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.S2CStopScriptPacket;
+import com.immersivecinematics.immersive_cinematics.trigger.server.fact.FactLedger;
 import com.immersivecinematics.immersive_cinematics.util.RuleCommandSource;
 import com.mojang.logging.LogUtils;
 import net.minecraft.commands.CommandSourceStack;
@@ -162,7 +163,7 @@ public class ScriptEventManager {
             List<Clip> clips = extractEventClips(script);
             Integer scriptRatio = script.getMeta().getSkipVoteRatio();
             int voteRatio = scriptRatio != null ? scriptRatio : Config.skipVoteRatio;
-            pb = new ScriptPlayback(scriptId, iid, clips, player.server.getTickCount(), voteRatio);
+            pb = new ScriptPlayback(scriptId, iid, clips, player.server.getTickCount(), voteRatio, player.server);
             scriptPlaybacks.computeIfAbsent(scriptId, k -> new HashMap<>()).put(iid, pb);
         }
         // 相对玩家激活位置的 CAMERA 关键帧以本位置为基准（与客户端脚本起点的 originPos 同口径）
@@ -184,9 +185,10 @@ public class ScriptEventManager {
         return byInstance == null ? null : byInstance.get(instanceId == null ? "" : instanceId);
     }
 
-    /** 摘除单个实例；脚本下不再有实例时移除脚本条目。授权随实例结束一并撤销。 */
+    /** 摘除单个实例；脚本下不再有实例时移除脚本条目。授权与实例投票随实例结束一并清理。 */
     private void removePlayback(ScriptPlayback pb) {
         revokeGrant(pb.scriptId, pb.instanceId);
+        FactLedger.INSTANCE.clearInstance(pb.scriptId, pb.instanceId);
         Map<String, ScriptPlayback> byInstance = scriptPlaybacks.get(pb.scriptId);
         if (byInstance == null) return;
         byInstance.remove(pb.instanceId);
@@ -200,8 +202,10 @@ public class ScriptEventManager {
         UUID uuid = player.getUUID();
         pb.viewers.remove(uuid);
 
-        if (reason == CompletionReason.SKIPPED) {
-            pb.skipVoters.add(uuid);
+        boolean skipped = reason == CompletionReason.SKIPPED;
+        if (skipped) {
+            // 跳过票入事实账本：同一 (玩家, 脚本, 实例) 重复投票幂等
+            FactLedger.INSTANCE.recordVote(uuid, pb.scriptId, pb.instanceId, player.server.getTickCount());
         }
 
         LOGGER.debug("Player {} finished script '{}' (instance '{}', viewers left: {})",
@@ -215,11 +219,12 @@ public class ScriptEventManager {
 
         broadcastSkipVote(pb);
 
-        if (reason == CompletionReason.SKIPPED) {
-            int total = pb.viewers.size() + pb.skipVoters.size();
+        if (skipped) {
+            int votes = FactLedger.INSTANCE.voteCount(pb.scriptId, pb.instanceId);
+            int total = pb.viewers.size() + votes;
             int needed = Mth.ceil(total * pb.skipVoteRatio / 100f);
-            if (pb.skipVoters.size() >= needed) {
-                LOGGER.info("Script '{}' force-stopped by skip vote ({} / {} needed)", scriptId, pb.skipVoters.size(), needed);
+            if (votes >= needed) {
+                LOGGER.info("Script '{}' force-stopped by skip vote ({} / {} needed)", scriptId, votes, needed);
                 for (UUID remaining : pb.viewers) {
                     ServerPlayer p = player.server.getPlayerList().getPlayer(remaining);
                     if (p != null) S2CStopScriptPacket.send(p, scriptId, pb.instanceId, "");
@@ -231,14 +236,15 @@ public class ScriptEventManager {
 
     private void broadcastSkipVote(ScriptPlayback pb) {
         if (pb.viewers.isEmpty()) return;
-        float ratio = (float) pb.skipVoters.size() / pb.viewers.size() * 100f;
+        int votes = FactLedger.INSTANCE.voteCount(pb.scriptId, pb.instanceId);
+        float ratio = (float) votes / pb.viewers.size() * 100f;
         int requiredRatio = pb.skipVoteRatio;
         boolean skip = ratio >= requiredRatio;
         if (!skip) {
             for (UUID vid : pb.viewers) {
                 ServerPlayer vp = pb.server.getPlayerList().getPlayer(vid);
                 if (vp != null) {
-                    S2CSkipVoteUpdatePacket.send(vp, pb.scriptId, pb.skipVoters.size(), pb.viewers.size());
+                    S2CSkipVoteUpdatePacket.send(vp, pb.scriptId, votes, pb.viewers.size());
                 }
             }
         }
@@ -297,8 +303,9 @@ public class ScriptEventManager {
             byInstance.entrySet().removeIf(entry -> {
                 ScriptPlayback pb = entry.getValue();
                 if (pb.viewers.isEmpty()) {
-                    // 全部观看者已离开：实例结束，授权一并撤销（后续规则命令按无授权拒绝）
+                    // 全部观看者已离开：实例结束，授权与实例投票一并撤销（后续规则命令按无授权拒绝）
                     revokeGrant(pb.scriptId, pb.instanceId);
+                    FactLedger.INSTANCE.clearInstance(pb.scriptId, pb.instanceId);
                     return true;
                 }
 
@@ -582,12 +589,17 @@ public class ScriptEventManager {
         /** 播放实例 id；空串 = 无实例 id 的来源（该脚本的全部观看者共用一条退化账本） */
         final String instanceId;
         final Set<UUID> viewers;
-        final Set<UUID> skipVoters;
         /** 本场播放实际生效的跳过投票比例（脚本覆盖 ?? 全局配置），创建时解析一次 */
         final int skipVoteRatio;
         /** 本实例的事件身份令牌：同脚本的不同播放实例互不相等（按对象身份去重）。 */
         final Object eventToken = new Object();
-        /** 每片段一份事件运行时（记录 + 游标 + 已触发集合）。 */
+        /**
+         * 每片段一份事件运行时（记录 + 游标 + 已触发集合）。
+         *
+         * <p>保留在实例内、不进事实层：这些是「本实例已执行到哪里」的推进游标（去重 / 边沿推进用的当前态），
+         * 每 tick 被读写，不是可查询的历史信号；且与事实层不存在同一信号双写——EVENT 关键帧执行不记事实，
+         * 记事实的 TRIGGER_FIRED 是另一条链路（触发器命中，不是关键帧游标）。
+         */
         final List<EventClipRuntime> eventRuntimes;
         final int startTick;
         final List<Clip> eventClips;
@@ -599,7 +611,8 @@ public class ScriptEventManager {
         int unauthorizedSeekWarnTick = -1000;
         /** 观看者激活脚本时的位置 / 朝向（相对玩家激活位置的 CAMERA 关键帧基准） */
         final Map<UUID, ViewerOrigin> viewerOrigins = new HashMap<>();
-        MinecraftServer server;
+        /** 播放所在服务端：构造时由 {@code addViewer} 传入（广播票数 / 强停时取玩家表用）。 */
+        final MinecraftServer server;
 
         // ── 暂停状态与时间线基准 ──
         /** 本实例暂停中（暂停期间不处理 EVENT 关键帧）。 */
@@ -610,11 +623,10 @@ public class ScriptEventManager {
         int timelineAnchorTick;
 
         ScriptPlayback(String scriptId, String instanceId, List<Clip> eventClips,
-                       int startTick, int skipVoteRatio) {
+                       int startTick, int skipVoteRatio, MinecraftServer server) {
             this.scriptId = scriptId;
             this.instanceId = instanceId;
             this.viewers = new HashSet<>();
-            this.skipVoters = new HashSet<>();
             this.skipVoteRatio = skipVoteRatio;
             this.eventClips = eventClips;
             this.eventRuntimes = new ArrayList<>(eventClips.size());
@@ -623,6 +635,7 @@ public class ScriptEventManager {
             }
             this.startTick = startTick;
             this.timelineAnchorTick = startTick;
+            this.server = server;
         }
     }
 }
