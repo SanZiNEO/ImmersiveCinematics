@@ -56,6 +56,20 @@ final class PlaybackLedger {
                         new C2SScriptPausePacket(scriptId, instanceId, paused, refId, clipStart, offset)));
     }
 
+    /**
+     * seek 握手（按实例）：立即发一条 + 登记 ACK 超时重发（服务端处理幂等）。
+     * 载荷 = 目标内容时间（全局秒）；服务端据此重定 EVENT 时间线基准并重置事件游标
+     * （前跳不补触发 / 后跳不重复），见 {@code ScriptEventManager#handleSeek}。
+     */
+    void sendSeekPacket(String scriptId, String instanceId, double targetSeconds) {
+        String refId = AckTracker.newRefId();
+        AckTracker.expect(refId,
+                () -> NetworkGuard.sendToServer("C2SScriptSeek",
+                        () -> NetworkHandler.sendScriptSeekToServer(scriptId, instanceId, targetSeconds, refId)));
+        NetworkGuard.sendToServer("C2SScriptSeek",
+                () -> NetworkHandler.sendScriptSeekToServer(scriptId, instanceId, targetSeconds, refId));
+    }
+
     /** 本帧暂停↔恢复是否发生转换，并记录本帧暂停态（只跟游戏暂停）。 */
     boolean pauseTransition(boolean gamePaused) {
         boolean transition = gamePaused != lastFramePaused;

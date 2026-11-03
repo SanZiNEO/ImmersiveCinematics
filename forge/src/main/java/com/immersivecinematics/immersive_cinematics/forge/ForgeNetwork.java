@@ -90,6 +90,13 @@ public final class ForgeNetwork implements NetworkBridge {
         CHANNEL.registerMessage(id++, S2CDimensionInfoPacket.class,
                 CinematicPacket::write, S2CDimensionInfoPacket::new,
                 (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.DIMENSION_INFO, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
+        // seek 协议同样追加在最后，不改变既有包 ID
+        CHANNEL.registerMessage(id++, C2SScriptSeekPacket.class,
+                CinematicPacket::write, C2SScriptSeekPacket::new,
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.SCRIPT_SEEK, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
+        CHANNEL.registerMessage(id++, S2CScriptSeekAckPacket.class,
+                CinematicPacket::write, S2CScriptSeekAckPacket::new,
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.SCRIPT_SEEK_ACK, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
     }
 
     @Override

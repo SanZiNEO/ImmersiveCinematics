@@ -36,6 +36,10 @@ public final class FabricNetwork implements NetworkBridge {
             C2SScriptSavedPacket pkt = new C2SScriptSavedPacket(buf);
             server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.SCRIPT_SAVED, player, () -> pkt.handle(player)));
         });
+        ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.SCRIPT_SEEK), (server, player, handler, buf, responseSender) -> {
+            C2SScriptSeekPacket pkt = new C2SScriptSeekPacket(buf);
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.SCRIPT_SEEK, player, () -> pkt.handle(player)));
+        });
         ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.CAMERA_CENTER_REQUEST), (server, player, handler, buf, responseSender) -> {
             C2SCameraCenterRequestPacket pkt = new C2SCameraCenterRequestPacket(buf);
             server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.CAMERA_CENTER_REQUEST, player, () -> pkt.handle(player)));
@@ -83,6 +87,10 @@ public final class FabricNetwork implements NetworkBridge {
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.SCRIPT_PAUSE_ACK), (client, handler, buf, responseSender) -> {
             S2CScriptPauseAckPacket pkt = new S2CScriptPauseAckPacket(buf);
             client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.SCRIPT_PAUSE_ACK, () -> pkt.handle()));
+        });
+        ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.SCRIPT_SEEK_ACK), (client, handler, buf, responseSender) -> {
+            S2CScriptSeekAckPacket pkt = new S2CScriptSeekAckPacket(buf);
+            client.execute(() -> PacketGuard.handle("S2C", NetworkHandler.SCRIPT_SEEK_ACK, () -> pkt.handle()));
         });
         ClientPlayNetworking.registerGlobalReceiver(id(NetworkHandler.SCRIPT_RELOAD), (client, handler, buf, responseSender) -> {
             S2CScriptReloadPacket pkt = new S2CScriptReloadPacket(buf);

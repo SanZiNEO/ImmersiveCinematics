@@ -17,6 +17,7 @@ public final class NetworkHandler {
     public static final String TRIGGER_STATE_SYNC = "trigger_state_sync";
     public static final String SKIP_VOTE_UPDATE = "skip_vote_update";
     public static final String SCRIPT_PAUSE_ACK = "script_pause_ack";
+    public static final String SCRIPT_SEEK_ACK = "script_seek_ack";
     public static final String SCRIPT_RELOAD = "script_reload";
     public static final String RESOLVE_ENTITY_SELECTOR = "resolve_entity_selector";
     public static final String RESOLVE_ENTITY_SELECTOR_RESULT = "resolve_entity_selector_result";
@@ -24,6 +25,7 @@ public final class NetworkHandler {
     public static final String SCRIPT_FINISHED = "script_finished";
     public static final String PLAYBACK_STARTED = "playback_started";
     public static final String SCRIPT_PAUSE = "script_pause";
+    public static final String SCRIPT_SEEK = "script_seek";
     public static final String SCRIPT_SAVED = "script_saved";
     public static final String CAMERA_CENTER_REQUEST = "camera_center_request";
     public static final String CAMERA_CENTER_POSITION = "camera_center_position";
@@ -69,6 +71,21 @@ public final class NetworkHandler {
             ErrorLog.logRateLimited("Net", "send:C2S:" + name, SEND_LOG_INTERVAL_MS,
                     "发送 C2S 包失败（包: " + name + "，方向: C2S）：该包已丢弃，播放继续", e);
         }
+    }
+
+    /**
+     * 客户端 → 服务端：脚本 seek（内容时间线重定位）。走 {@link CinematicC2SPacket} 统一入口，
+     * bridge 未注入（单人/专用服务端）时静默丢弃。
+     */
+    public static void sendScriptSeekToServer(String scriptId, String instanceId, double targetSeconds,
+                                              String refId) {
+        sendToServer(new C2SScriptSeekPacket(scriptId, instanceId, targetSeconds, refId));
+    }
+
+    /** 服务端 → 客户端：seek 回执（空 refId = 无握手，直接不发送）。 */
+    public static void sendScriptSeekAck(ServerPlayer player, String refId) {
+        if (player == null || refId == null || refId.isEmpty()) return;
+        sendToPlayer(player, new S2CScriptSeekAckPacket(refId));
     }
 
     /** 空入口：bridge 已由平台在 common init 前注入，此处无需动作。 */

@@ -387,6 +387,7 @@ final class PlaybackLifecycle {
 
         // 列表顺序 = 叠放顺序：游戏实例插在编辑器实例之前，编辑器实例追加到末位（编辑器播放恒为顶层）。
         PlaybackInstance instance = new PlaybackInstance(coverChain, editorDriven);
+        instance.attachLedger(ledger);
         if (editorDriven) {
             registry.addLast(instance);
             previewChannel.setPreviewInstance(instance);
