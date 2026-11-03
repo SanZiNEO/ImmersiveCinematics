@@ -1,6 +1,6 @@
 # 触发器系统的连续性：从离散采样到连续语义
 
-> 状态：已实现（H-1，2026-11-03；`observation` 扫掠归 H-2）
+> 状态：已实现（H-1，2026-11-03；`observation` 扫掠归 H-6）
 > 范围：触发器条件在时间轴上的判定语义（服务端判定层）
 > 关联：[触发器条件体系](../C-trigger/trigger-conditions.md)、[脚本状态追踪](state-tracking.md)、[判定规则](../C-trigger/condition-system.md)、`docs/TRIGGER_TYPES.md`
 

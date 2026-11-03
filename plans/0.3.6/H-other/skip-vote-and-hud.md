@@ -1,6 +1,6 @@
 # 跳过投票与跳过 HUD
 
-> 状态：已实现（H-2，2026-11-03）。仍未做：客户端按 `scriptId` 分流票数（同脚本多实例并存时票数会互相覆盖）。
+> 状态：已实现（H-2，2026-11-03）。仍未做：客户端按 `scriptId` 分流票数（同脚本多实例并存时票数会互相覆盖）——归 H-6（`I-BACKLOG.md` H2-R1）。
 > 范围：多人播放的跳过投票统计与强停；客户端长按提示与票数显示。
 > 关联：`docs/SCRIPT_FORMAT.md`、`docs/modules/control.md`、`docs/modules/network.md`、`docs/modules/trigger.md`
 
