@@ -92,8 +92,8 @@ immersive_cinematics/
 | `hide_crosshair` | boolean/null | `null` | 同上 |
 | `hide_bossbar` | boolean/null | `null` | 同上 |
 | `hide_skip_hud` | boolean/null | `null` | **三态**：仅显式 `true` 隐藏长按跳过提示（右下角图标+进度环）；`null`（缺省）/`false` = **显示（默认开启）**，不回落 `hide_hud` |
-| `hud_layers` | object | `{}` | 模组/自定义 HUD 层的显隐覆盖：`{ "modid:layer": true/false }`，`true`=隐藏、`false`=显示 |
-| `hard_hide_hud` | boolean/null | `null` | **三态·仅 Forge**：强硬隐藏模式。`true`=除原版 HUD 与注册表 overlay 外，**连"不走 overlay 注册表、直接在 `RenderGuiEvent.Pre` 里自绘"的第三方 HUD 也一起隐藏**（接管整段 HUD 渲染，再按白名单重画）；`null`（缺省）/`false`=normal，行为与不带此字段完全一致。仅当 `hide_hud` 生效时才接管（`hide_hud=false` 时不接管）。**与 `hide_*` 的区别**：null 不回落 `hide_hud`——缺省即 normal。Fabric 无对应语义（字段被解析但不生效） |
+| `hud_layers` | object | `{}` | **非固定分类的逐层显隐覆盖**：`{ "层名": true/false }`，`true`=隐藏、`false`=显示；未声明的层回落该实例的 `hide_hud`。**11 个固定分类（`hotbar` `crosshair` `chat` `scoreboard` `bossbar` `subtitles` `action_bar` `title` `arm` `skip_hud` `bob`）不受它影响**——那些层只读各自的 `hide_*`；`health` / `status` 是 Forge 注册表分类名、走 default 分支，可被覆盖。键可以是注册分类名，也可以是 Forge overlay 的资源 ID（未注册 overlay 的隐式口子）。详见下方「HUD 层控制」小节 |
+| `hard_hide_hud` | boolean/null | `null` | **三态·仅 Forge**：强硬隐藏模式。`true`=接管整段 HUD 渲染（最高优先级取消 `RenderGuiEvent.Pre`）后按白名单重画：原版 HUD 与注册表 overlay 按分类判定，连"不走 overlay 注册表、直接在 `RenderGuiEvent.Pre` 里自绘"的第三方 HUD 也一并被跳过；`null`（缺省）/`false`=normal，行为与不带此字段完全一致。仅当 `hide_hud` 生效时才接管（`hide_hud=false` 时不接管）。**与 `hide_*` 的区别**：null 不回落 `hide_hud`——缺省即 normal。**Fabric 无对应语义**（字段被解析但不生效，行为等同 normal）。不走 Forge overlay 注册表、也不在 `RenderGuiEvent.Pre` 自绘的第三方 HUD 不在覆盖范围。详见下方「HUD 层控制」小节 |
 | `render_player_model` | boolean | `true` | 是否渲染玩家模型（第三人称时） |
 | `pause_when_game_paused` | boolean | `true` | 游戏暂停时是否暂停过场动画 |
 | `interruptible` | boolean | `true` | 是否允许被其他脚本打断（**同脚本**再触发的替换语义 + 退出原因门控；跨脚本关系见 `play_mode`） |
@@ -104,7 +104,7 @@ immersive_cinematics/
 | `macro_loop_count` | int | `-1` | 宏观循环次数：`-1`（缺省）= 无限重复，脚本不再自然结束（退出走跳过/打断路径）；正整数 N = 从 `a` 到 `b` 重复 N 圈后自然结束（总播放时长 = `a + N × (b − a)`）。`0` 非法（运行时按 1 处理） |
 | `macro_loop_mode` | enum | `repeat` | 宏观循环模式：`repeat`=折回起点重复 / `pingpong`=往复折返。**第一版只实现 `repeat`**，`pingpong` 按 `repeat` 播放（校验器会告警） |
 | `priority` | int | `0` | 播放优先级，数值越大越优先；**仅用于队列内排序**（优先级不能大于打断——不可打断脚本永不被打断，新请求一律排队） |
-| `skip_vote_ratio` | int | 无（用全局配置） | **可选**。多人跳过投票所需比例（10~100，百分比），仅当所有看过此脚本的观众投票后才生效。缺省/非法值 → 回落到全局配置 `skipVoteRatio`（默认 100 = 全票）。例：`50` = 半数观众投跳过即强制停止 |
+| `skip_vote_ratio` | int | 无（用全局配置） | **可选**。多人跳过投票所需比例（10~100，百分比）；所需票数 = `max(1, ceil(总观众数 × 比例 / 100))`，总观众数含已跳过者。缺省（或 JSON null）→ 回落到全局配置 `skipVoteRatio`（默认 100 = 全票）；**非整数或越界（<10、>100，含 0）在解析期报错**，不静默回落（校验器同口径报 issue）。例：`50` = 半数观众投跳过即强制停止 |
 | `trigger_poll_interval` | int | 无（用类型级默认） | **可选**。脚本级检测频率覆盖（tick，`1`~`600`）：该脚本**全部**轮询类触发器的缺省轮询间隔，可被触发器级 `poll_interval` 覆盖。生效链 = 触发器级 ?? 脚本级 ?? 类型级默认（`Config.triggerPollInterval_*`）；仅轮询类生效。缺省/非法值 → 告警 + 回落到类型级默认。例：`10` = 该脚本轮询类触发器默认每 10 tick 检测一次（0.3.6） |
 
 > **`play_mode` 到达组合规则**（新来者 B 到达时按**在播集合 S** 裁决，语义轴 = 在播侧）：S 空 / 仅 `parallel` → B 直接开播（并行加入）；S 含 `exclusive` → B **入队**（不设容量上限；同脚本重复请求替换自己的排队位，不占新格）；S 无 `exclusive` 但含 `interruptible` → 顶掉**全部** `interruptible` 实例后开播（S 里的 `parallel` 实例继续；打断形态 = 硬切）。B 开播后 B 自己的 `play_mode` 对后续到达者生效。**队列出队条件** = 阻塞它的 `exclusive` 实例全部结束（`parallel` / `interruptible` 实例还活着也出队——它们不阻塞队列）。出队按 `priority` 降序 + FIFO **逐项判定**：该脚本已有游戏实例在播（含退出渐出）则保留原位、不挡后面的可播项；无 `exclusive` 时一次排空所有可播项，排空途中启动的新 `exclusive` 会立即阻塞剩余项。预览实例不参与排队与接播。**同脚本再触发优先**于跨脚本裁决：`interruptible`（bool）= `true` → 立即替换该实例 / `false` → 入队。`hold_at_end` 驻留实例算「在播」（参与 `exclusive` 阻塞判定）。预览实例不参与（编辑器预览与游戏实例互不影响）。设计依据：`plans/0.3.6/C-trigger/playback-relations.md` §2/§4。
@@ -114,6 +114,74 @@ immersive_cinematics/
 > `hard_hide_hud` 是**整段播放级**的模式开关（不做逐帧切换），并集口径与其它行为开关一致：任一活跃实例显式声明 `true` 即生效。
 > 开启后其他模组在 `RenderGuiEvent.Pre` 里的**非绘制副作用**（状态准备、缓存刷新等）也会一并被跳过——这是"接管整段渲染"的固有代价。
 > 细节与取舍见 `plans/0.3.6/hud-hard-hide.md`（§落地标注）。
+
+
+#### 1b-1. HUD 层控制：`hud_layers` 与 `hard_hide_hud`
+
+两个字段分工不同：`hud_layers` 是**逐层显隐覆盖**，`hard_hide_hud` 是**整段渲染的接管模式**。两者的并集口径与其它行为开关一致——任一活跃实例声明即生效，退出后复位。
+
+**`hud_layers` 语义**
+
+```json
+"meta": {
+  "hud_layers": { "minecraft:hotbar_separator": true, "chat": false }
+}
+```
+
+- `{层名: true/false}`，`true` = 隐藏、`false` = 显示。
+- 未声明的层回落该实例的 `hide_hud`。
+- 多实例同键取并集：同一层任一实例判为隐藏即隐藏。
+
+**固定分类优先级（`hud_layers` 不覆盖）**
+
+| 固定分类 | 对应字段 |
+|---|---|
+| `hotbar` | `hide_hotbar` |
+| `crosshair` | `hide_crosshair` |
+| `chat` | `hide_chat` |
+| `scoreboard` | `hide_scoreboard` |
+| `bossbar` | `hide_bossbar` |
+| `subtitles` | `hide_subtitles` |
+| `action_bar` | `hide_action_bar` |
+| `title` | `hide_title` |
+| `arm` | `hide_arm` |
+| `skip_hud` | `hide_skip_hud` |
+| `bob` | `suppress_bob` |
+
+这 11 个分类只读各自的 `hide_*`（三态，`null` 时回落 `hide_hud`）；把 `hotbar` 之类写进 `hud_layers` **不会**覆盖它们。
+
+`health` / `status` **不是**固定分类：它们是 Forge 注册表给原版 overlay 的分类名，走 default 分支，因此**可以**被 `hud_layers: {"health": true}` 覆盖。
+
+**未注册层的隐式口子（仅 Forge）**
+
+Forge 侧的分类解析顺序 = 内置原版表 → 第三方注册表 → `overlayId.toString()`。没注册过的 Forge overlay 也能直接用资源 ID 写进 `hud_layers` 命中：
+
+```json
+"hud_layers": { "minecraft:hotbar_separator": true }
+```
+
+第三方模组想让自己的 overlay 参与固定分类（如 `chat`）判定，用公共注册门面 `com.immersivecinematics.immersive_cinematics.api.HudLayerRegistry`：
+
+```java
+HudLayerRegistry.register(new ResourceLocation("mymod", "my_overlay"), "chat");
+```
+
+注册应在客户端初始化期完成（门面内部表并发安全，但分类语义假定注册早于任何一帧判定）；注册后该 overlay 与分类一起参与普通层过滤与 Forge 的 hard 重画。
+
+**`hard_hide_hud`：仅 Forge**
+
+- `true` = 接管整段 HUD 渲染（最高优先级取消 `RenderGuiEvent.Pre`），随后按白名单逐层重画；`null`（缺省）/`false` = normal。
+- 只在 `hide_hud` 生效时接管：`hide_hud=false` 时无物可藏，接管反而会砍掉白名单判为显示的内容。
+- **Fabric 无对应语义**：字段被解析但不生效，行为等同 normal（没有可取消的整段 HUD 回调）。
+- 接管会跳过其他模组在 `RenderGuiEvent.Pre` 里的**非绘制副作用**（状态准备、缓存刷新等），这是"接管整段渲染"的固有代价。
+
+**没有挂点的第三方 HUD**
+
+不走 Forge overlay 注册表、也不在 `RenderGuiEvent.Pre` 里自绘的第三方 HUD **没有稳定挂点**：normal 模式碰不到；hard 模式只覆盖"本模组取消 `RenderGuiEvent.Pre` 之后才轮到"的绘制——直接 mixin 进 `Gui.render` 或往 `GuiGraphics` 上画的仍会显示。Fabric 侧同理：第三方需在绘制前主动调用 `FabricHudVisibility.isHidden(layerId)`，否则脚本无法控制它。
+
+**白名单模式不补发 overlay 事件**
+
+hard 模式重画时**不补发** `RenderGuiOverlayEvent.Pre/Post`。依赖这些事件的第三方逻辑（含 `receiveCanceled=true` 的监听器、读取取消态的模组）在 hard 模式下收不到事件。
 
 
 ### 1c. Triggers（触发条件）

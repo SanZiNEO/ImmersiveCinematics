@@ -27,7 +27,7 @@
   - ✅ `CinematicKeyBindings.EDITOR_WEBUI_OPEN`（默认 F9）打开 WebUI 预览屏，关闭后 500ms 防重开冷却（游戏内 Java 编辑器与 F6 键已随 0.3.6 退役删除）（`CinematicKeyBindings`）
   - ✅ 强制退出：Ctrl+P 组合键直接 `FORCE_QUIT`（`CinematicKeyBindings`）
   - ✅ `SkipHudRenderer` 渲染跳过提示：跳过键图标 + 按键名 + 长按进度环（分段三角填充的圆弧），仅在脚本模式、**顶层实例**可跳过且未隐藏时显示（`SkipHudRenderer`）
-  - ✅ 多人服务器（非本地）时在屏幕底部居中显示跳过投票进度（投票数/观看者总数，数据来自 `ClientScriptReceiver` 缓存）（`SkipHudRenderer`、`ClientScriptReceiver`）
+  - ✅ 单行（同一 y）、两个元素各自按元素中心的百分比坐标定位（`skipHudX` / `skipHudY` 与 `voteHudX` / `voteHudY`，互不影响），不做越界保护；票数仅在真多人或已发布 LAN 时显示（投票数/观看者总数，数据来自 `ClientScriptReceiver` 缓存）（`SkipHudRenderer`、`ClientScriptReceiver`）
   - ✅ 跳过 HUD 受 `Config.showSkipHud` 总开关控制（`SkipHudRenderer`）
 - **输入屏蔽与路由**
   - ✅ `InputRouter` 接口定义输入路由决策（键盘/鼠标按钮/滚轮/视角转动），两层设计：Mixin 在 HEAD 捕获原始事件，本接口决定目标（`InputRouter`）

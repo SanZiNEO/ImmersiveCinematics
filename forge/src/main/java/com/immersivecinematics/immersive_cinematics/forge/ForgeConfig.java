@@ -41,6 +41,30 @@ public class ForgeConfig implements Config.ConfigProvider {
                     "例: 100 = 所有玩家必须投跳过, 50 = 半数即可")
             .defineInRange("skipVoteRatio", 100, 10, 100);
 
+    // ===== 跳过 HUD 布局配置 =====
+
+    // 坐标指元素中心：左上角表达不了「水平居中」，只有中心点能同时覆盖贴边与居中两种摆法。
+    private static final ForgeConfigSpec.IntValue SKIP_HUD_X = BUILDER
+            .comment("跳过长按块中心（环形 + 图标 + 文案）的屏幕横坐标",
+                    "元素中心的屏幕百分比坐标（0~100），左上 (0,0) 右下 (100,100)；不做越界保护")
+            .defineInRange("skipHudX", 95, 0, 100);
+
+    private static final ForgeConfigSpec.IntValue SKIP_HUD_Y = BUILDER
+            .comment("跳过长按块中心（环形 + 图标 + 文案）的屏幕纵坐标",
+                    "元素中心的屏幕百分比坐标（0~100），左上 (0,0) 右下 (100,100)；不做越界保护")
+            .defineInRange("skipHudY", 90, 0, 100);
+
+    // 票数与长按块是两个独立元素，各有一套中心坐标，互不影响。
+    private static final ForgeConfigSpec.IntValue VOTE_HUD_X = BUILDER
+            .comment("票数文本中心的屏幕横坐标",
+                    "元素中心的屏幕百分比坐标（0~100），左上 (0,0) 右下 (100,100)；不做越界保护")
+            .defineInRange("voteHudX", 50, 0, 100);
+
+    private static final ForgeConfigSpec.IntValue VOTE_HUD_Y = BUILDER
+            .comment("票数文本中心的屏幕纵坐标",
+                    "元素中心的屏幕百分比坐标（0~100），左上 (0,0) 右下 (100,100)；不做越界保护")
+            .defineInRange("voteHudY", 90, 0, 100);
+
     // ===== 调试配置 =====
 
     private static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
@@ -96,6 +120,10 @@ public class ForgeConfig implements Config.ConfigProvider {
                 SKIP_HOLD_THRESHOLD_MS.get(),
                 SHOW_SKIP_HUD.get(),
                 SKIP_VOTE_RATIO.get(),
+                SKIP_HUD_X.get(),
+                SKIP_HUD_Y.get(),
+                VOTE_HUD_X.get(),
+                VOTE_HUD_Y.get(),
                 DEBUG_LOGGING.get(),
                 TRIGGER_POLL_LOCATION.get(),
                 TRIGGER_POLL_BIOME.get(),

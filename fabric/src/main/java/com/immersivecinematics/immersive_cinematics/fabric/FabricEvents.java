@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.fabric;
 
 import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
+import com.immersivecinematics.immersive_cinematics.api.HudLayerRegistry;
 import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
 import com.immersivecinematics.immersive_cinematics.handler.ClientEventHandler;
 import com.immersivecinematics.immersive_cinematics.handler.ServerEventHandler;
@@ -24,11 +25,19 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.resources.ResourceManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Fabric 事件注册：把 Fabric API 回调接到平台无关的 {@link ServerEventHandler} 与 {@link ClientEventHandler}。
  */
 public final class FabricEvents {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/HudLayer");
+    /** 边界说明只打一次：整合包可能批量注册，逐条刷屏会把真正有用的日志埋掉 */
+    private static final AtomicBoolean HUD_LAYER_BOUNDARY_LOGGED = new AtomicBoolean();
 
     private FabricEvents() {}
 
@@ -76,6 +85,9 @@ public final class FabricEvents {
 
     public static void registerClient() {
         ClientEventHandler.onClientInit();
+        // 门面回调只用来交代平台边界：Fabric 的 HUD 回调不可取消、没有 overlay 注册表，
+        // 注册转不成任何接管能力，写表后也就没有后续动作可做。
+        HudLayerRegistry.install(FabricEvents::onHudLayerRegistered);
         ClientEventHandler.registerKeyMappings(KeyBindingHelper::registerKeyBinding);
 
         ClientTickEvents.END_CLIENT_TICK.register(ClientEventHandler::onClientTick);
@@ -99,5 +111,17 @@ public final class FabricEvents {
                         DimensionViews.requestResourceReload();
                     }
                 });
+    }
+
+    /**
+     * 门面注册回调：首次注册时说明 Fabric 边界，之后静默。
+     * Fabric 没有 hard 模式，也没有 Forge 的 overlay 注册表——注册能影响的只有普通层过滤
+     * （{@code FabricHudVisibility.isHidden} 与固定分类），分类名本身仅作记录。
+     */
+    private static void onHudLayerRegistered(ResourceLocation overlayId, String category) {
+        if (!HUD_LAYER_BOUNDARY_LOGGED.compareAndSet(false, true)) return;
+        LOGGER.info("HUD 层注册 '{}'（分类 '{}'）：Fabric 无 hard_hide_hud、无 Forge overlay 注册表；"
+                        + "注册只影响普通层过滤（FabricHudVisibility.isHidden 与固定分类），分类仅作记录",
+                overlayId, category);
     }
 }

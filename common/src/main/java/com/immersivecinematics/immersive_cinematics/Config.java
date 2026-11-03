@@ -26,6 +26,26 @@ public class Config {
     /** 跳过投票所需比例（百分比），10 ~ 100，默认 100 */
     public static int skipVoteRatio = 100;
 
+    // ===== 跳过 HUD 布局配置 =====
+
+    /**
+     * 跳过长按块（环形 + 图标 + 文案）中心的屏幕横坐标（百分比，0 ~ 100）。
+     * 指元素中心而非左上角：只有中心点能同时表达「贴右」与「居中」。
+     */
+    public static int skipHudX = 95;
+
+    /** 跳过长按块中心的屏幕纵坐标（百分比，0 ~ 100） */
+    public static int skipHudY = 90;
+
+    /**
+     * 票数文本中心的屏幕横坐标（百分比，0 ~ 100）。
+     * 与长按块互不影响：两个元素各自按自己的中心定位。
+     */
+    public static int voteHudX = 50;
+
+    /** 票数文本中心的屏幕纵坐标（百分比，0 ~ 100） */
+    public static int voteHudY = 90;
+
     // ===== 调试配置 =====
 
     /** 启用调试日志输出 */
@@ -81,6 +101,10 @@ public class Config {
             int skipHoldThresholdMs,
             boolean showSkipHud,
             int skipVoteRatio,
+            int skipHudX,
+            int skipHudY,
+            int voteHudX,
+            int voteHudY,
             boolean debugLogging,
             int triggerPollIntervalLocation,
             int triggerPollIntervalBiome,
@@ -92,7 +116,7 @@ public class Config {
     ) {
         /** 使用默认值构造 */
         public static ConfigValues defaults() {
-            return new ConfigValues(3000, true, 100, false, 20, 40, 20, 20, 20, 5, 2);
+            return new ConfigValues(3000, true, 100, 95, 90, 50, 90, false, 20, 40, 20, 20, 20, 5, 2);
         }
     }
 
@@ -111,6 +135,10 @@ public class Config {
         skipHoldThresholdMs = values.skipHoldThresholdMs();
         showSkipHud = values.showSkipHud();
         skipVoteRatio = values.skipVoteRatio();
+        skipHudX = values.skipHudX();
+        skipHudY = values.skipHudY();
+        voteHudX = values.voteHudX();
+        voteHudY = values.voteHudY();
         debugLogging = values.debugLogging();
         triggerPollIntervalLocation = values.triggerPollIntervalLocation();
         triggerPollIntervalBiome = values.triggerPollIntervalBiome();

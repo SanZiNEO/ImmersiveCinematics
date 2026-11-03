@@ -52,6 +52,10 @@ public class FabricConfig implements Config.ConfigProvider {
                 getInt("skipHoldThresholdMs", 3000),
                 getBoolean("showSkipHud", true),
                 getInt("skipVoteRatio", 100),
+                getInt("skipHudX", 95),
+                getInt("skipHudY", 90),
+                getInt("voteHudX", 50),
+                getInt("voteHudY", 90),
                 getBoolean("debugLogging", false),
                 getInt("triggerPollIntervalLocation", 20),
                 getInt("triggerPollIntervalBiome", 40),
@@ -93,6 +97,10 @@ public class FabricConfig implements Config.ConfigProvider {
         root.addProperty("skipHoldThresholdMs", 3000);
         root.addProperty("showSkipHud", true);
         root.addProperty("skipVoteRatio", 100);
+        root.addProperty("skipHudX", 95);
+        root.addProperty("skipHudY", 90);
+        root.addProperty("voteHudX", 50);
+        root.addProperty("voteHudY", 90);
         root.addProperty("debugLogging", false);
         root.addProperty("triggerPollIntervalLocation", 20);
         root.addProperty("triggerPollIntervalBiome", 40);

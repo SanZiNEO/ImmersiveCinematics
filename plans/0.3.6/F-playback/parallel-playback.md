@@ -183,7 +183,7 @@
 - 玩家最终看到的画面 = **合成层输出**（所有 lane 按合成参数铺屏的结果）；没有任何 lane 时 = 原版视角。
 - **多脚本同时播放是功能，不是 bug**（用户原则）：**有什么就放什么，没有就不放**——活跃实例的 lane 全部渲染、全部上屏，不做互斥/裁剪。
 - 音频听者唯一：**后来者居上**——由**启动最晚的活跃实例**的 `meta.listener` 决定（与叠加秩序的实例启动顺序同一规则）；无 lane 的实例不影响听者。
-  - 实现状态（2026-10-18）：`AudioListenerController` 已按顶层实例取值，但 `hasActiveCameraClip` 仍按**并集**判定 → 多实例时「是否启用镜头听者」的口径未对齐。**开放项**，见 §5 / §6。
+  - 实现状态（H-2 核对，2026-11-03：**已对齐**）：`AudioListenerController.isCameraListener()` 按顶层实例取值——`CameraManager.topInstanceHasActiveCameraClip()` 提供帧缓存（`PlaybackRegistry` 每帧由 `FrameDriver` 写入两份缓存：全实例并集 / 顶层自身），听者门控只读后者。多实例时「是否启用镜头听者」只看顶层实例自己本帧有没有活跃 CAMERA clip，下层实例的 CAMERA clip 不再影响。（口径对齐为代码层结论；多实例实机听感未单独验证。）
 
 > **架构推论（2026-10-07，与[画面合成](camera-composition.md) / [可变画面](../D-transition/variable-frame.md) §2 的「整屏画面也是覆盖层之一」一致）**：多相机渲染落地后，**玩家看到的画面不再走"单相机替换"路径**——它只是「dest=全屏、opacity=1」的全屏 lane 特例，合成顺序不等于相机身份。相机画面与图片 / 字幕 / 黑边同类：lane 输出纹理进覆盖层体系，位置 / 大小 / 取材 / 不透明度 / 叠放顺序全部走关键帧（完全关键帧控制）。
 >
@@ -239,15 +239,15 @@
 - ✅ 已落地（2026-10-07，§7 步骤 6 落地记录）：触发器的 `shouldSkip`（播放期间跳过）按脚本口径——同脚本同玩家跳过（单实例），跨脚本不阻塞。
 - ✅ 已落地（2026-10-07，§7 步骤 5）：编辑器预览通道与游戏播放通道隔离——预览是独立实例，不挤掉游戏内播放。
 - ✅ 已落地（2026-10-17，F2，见 §7「F2 落地记录」）：队列按脚本匹配接播——出队按 `priority` / FIFO 逐项判定可播性、无 exclusive 一次排空、同脚本排队副本不被误启动、去掉容量 8；**无头行为探针 68/68，实机由 C 轮队列接播覆盖（2026-10-18）**。
-- 🟡 仍开放：听者后来者居上的口径对齐、多实例 AUDIO 空间锚点、跳过投票 UI、实例与 Base Provider 的对应关系、实例 id 网络协议形态（§5 / §6）。
+- 🟡 仍开放：多实例 AUDIO 空间锚点、跳过投票 UI、实例与 Base Provider 的对应关系、实例 id 网络协议形态（§5 / §6）。
 
 ---
 
 #### 5. 可能的问题（状态·2026-10-18）
 
-- 🟡 **听者「后来者居上」口径未对齐**：`AudioListenerController` 已按顶层实例取值，但 `hasActiveCameraClip` 仍是并集——多实例时「是否启用镜头听者」可能按「任一实例有相机 clip」判定。
+- ✅ **听者「后来者居上」口径已对齐**（H-2 核对，2026-11-03）：`AudioListenerController.isCameraListener()` 读 `CameraManager.topInstanceHasActiveCameraClip()`；`PlaybackRegistry` 每帧由 `FrameDriver` 写入两份缓存（全实例并集 / 顶层自身），听者门控只用顶层那份。（代码口径；实机多实例听感未单独验证。）
 - 🟡 **多实例 AUDIO 的空间锚点**（听者唯一，见 §3.3）。
-- 🟡 **跳过投票 UI**：多实例同时可跳过时，玩家投的是哪一个（服务端已按实例记账；`SkipHudRenderer` 只呈现顶层实例的跳过提示，未做多实例投票 UI）。
+- 🟡 **跳过投票 UI**：多实例同时可跳过时，玩家投的是哪一个（服务端已按实例记账；`SkipHudRenderer` 只呈现顶层实例的跳过提示，未做多实例投票 UI）。H-2 只做单实例跳过 HUD（H9），多实例投票 UI 未做。
 - 🟡 **实例与 Base Provider 的对应关系**（见[相机状态与覆盖链](../../complete/0.3.6/B-camera/camera-state-plan.md)）。
 - ✅ **区块预加载 ticket**：已裁决不做（2026-10-22，用户拍板：当前版本不做预加载 / 预热，区块加载交原版；见 [camera-center-entities](camera-center-entities.md) §2.7）。
 - 🟡 **实例 id 网络协议形态**：包已带 id（§3.7），但 id 的生成 / 校验 / 跨端对齐未定。
@@ -328,7 +328,7 @@
 - **跨脚本并行已放开**：`playScript` 并行决策树——同脚本冲突实例走原单实例语义（可打断替换该实例 / 不可打断排队或拒绝），跨脚本直接新建实例并行（不排队不打断不阻塞，§3.5/§3.6）；`activeInstance()` 改为顶层（后来者居上）；每帧按启动顺序驱动所有实例；任一实例结束只退该实例，全局复位只在最后一个实例退出时执行；`cameraState` 快照 = 顶层实例状态；暂停握手按实例各发一条（账本按实例）。
 - 审查修订①②③ 全部落地（实例 id 挂实例 / 暂停联动并集+跳过提示顶层 / finish·stop·pause 包带 id）。
 - 已落地：编辑器预览独立实例（`CameraManager.previewInstance`，§7 步骤 5）；跨实例 lane 收集（`ScriptLaneDriver` 按启动顺序平铺所有实例 lane，后启动实例整体在上）。
-- **仍开放**：听者后来者居上——`AudioListenerController` 已按顶层取值，但 `hasActiveCameraClip` 仍为并集，口径待对齐（§5）。
+- **已对齐**（H-2 核对，2026-11-03）：听者后来者居上——`AudioListenerController` 按顶层实例取值，`CameraManager.topInstanceHasActiveCameraClip()` 提供帧缓存（`PlaybackRegistry` 每帧由 `FrameDriver` 写入），不再读全实例并集（§3.3）。
 - **队列按脚本匹配接播 = F2**：已于 2026-10-17 实现（无头 68/68，实机由 C 轮队列接播覆盖），见下方「F2 落地记录」。
 
 ##### 步骤 6 落地记录（2026-10-07）

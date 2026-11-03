@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.forge.hud;
 
+import com.immersivecinematics.immersive_cinematics.api.HudLayerRegistry;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 
@@ -9,8 +10,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
- * Forge HUD 层注册表：第三方模组可把自己的 {@link ResourceLocation} overlay 注册到某个白名单分类，
- * 脚本通过 {@code hide_hud} / {@code hud_layers} 控制该分类。
+ * Forge HUD 层注册表：内置原版 overlay 的分类表 + 世界效果层豁免名单，供 normal / hard 两条消费链查询。
+ *
+ * <p>第三方注册请用 {@link HudLayerRegistry}（对外稳定面）：本类只保留「内置表 → 门面表 → overlay ID」
+ * 的解析优先级与 {@link #isWorldOverlay}，不再作为注册入口。</p>
  */
 public final class ForgeHudLayerRegistry {
 
@@ -51,15 +54,23 @@ public final class ForgeHudLayerRegistry {
 
     private ForgeHudLayerRegistry() {}
 
-    /** 注册一个 overlay 到指定分类（分类名可配合脚本 hide_* 或 hud_layers 使用） */
+    /**
+     * 内部实现；第三方请用 {@link HudLayerRegistry}。
+     * 原版 overlay 的内置分类由静态块直接写本类表，不经这里——本方法只是门面的转调点。
+     */
     public static void register(ResourceLocation overlayId, String category) {
-        LAYER_CATEGORIES.put(overlayId, category);
+        HudLayerRegistry.register(overlayId, category);
     }
 
-    /** 查询 overlay 的分类；未注册时返回 overlay 自身的资源 ID 字符串（作为动态层 ID） */
+    /**
+     * 查询 overlay 的分类：本类内置表 → {@link HudLayerRegistry}（第三方）→ overlay 自身的资源 ID。
+     * 最后一档是未注册 overlay 的动态层名，脚本可直接把它写进 {@code hud_layers}。
+     */
     public static String categoryOf(ResourceLocation overlayId) {
         String category = LAYER_CATEGORIES.get(overlayId);
-        return category != null ? category : overlayId.toString();
+        if (category != null) return category;
+        String external = HudLayerRegistry.categoryOf(overlayId);
+        return external != null ? external : overlayId.toString();
     }
 
     /** 是否为原版世界效果 overlay（总控隐藏时不拦截） */

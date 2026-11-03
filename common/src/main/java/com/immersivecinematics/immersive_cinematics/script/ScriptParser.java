@@ -335,12 +335,26 @@ public class ScriptParser {
         // 播放优先级（默认值来自 SchemaRegistry.getMetaFields()；仅用于队列内排序）
         int priority = optInt(metaObj, "priority", 0);
 
-        // 跳过投票比例（可选，10~100）：缺省/非法 → null，运行时回落到全局配置 Config.skipVoteRatio
-        Integer skipVoteRatio = optNullableInt(metaObj, "skip_vote_ratio");
-        if (skipVoteRatio != null && (skipVoteRatio < 10 || skipVoteRatio > 100)) {
-            ErrorLog.log("Parse", p + ".skip_vote_ratio 超出范围 10~100，实际: " + skipVoteRatio
-                    + "，已忽略（使用全局配置）");
-            skipVoteRatio = null;
+        // 跳过投票比例（可选，整数 10~100）：缺省 / JSON null → null（运行时回落到全局配置 Config.skipVoteRatio）
+        // 非整数或越界 → 解析期报错（不允许 0）
+        Integer skipVoteRatio = null;
+        if (metaObj.has("skip_vote_ratio") && !metaObj.get("skip_vote_ratio").isJsonNull()) {
+            JsonElement ratioEl = metaObj.get("skip_vote_ratio");
+            if (!ratioEl.isJsonPrimitive() || !ratioEl.getAsJsonPrimitive().isNumber()) {
+                throw new ScriptParseException("meta.skip_vote_ratio",
+                        "必须为整数（百分比 10~100），实际: " + ratioEl);
+            }
+            double ratioValue = ratioEl.getAsDouble();
+            if (!Double.isFinite(ratioValue) || ratioValue != Math.floor(ratioValue)) {
+                throw new ScriptParseException("meta.skip_vote_ratio",
+                        "必须为整数（百分比 10~100），实际: " + ratioEl);
+            }
+            int ratioInt = (int) ratioValue;
+            if (ratioInt < 10 || ratioInt > 100) {
+                throw new ScriptParseException("meta.skip_vote_ratio",
+                        "取值范围 10~100（不允许 0），实际: " + ratioInt);
+            }
+            skipVoteRatio = ratioInt;
         }
 
         // 脚本级轮询间隔（可选，tick，1~600）：该脚本全部轮询类触发器的缺省覆盖；缺省/非法 → null
@@ -1985,17 +1999,9 @@ public class ScriptParser {
         return obj.has(key) ? obj.get(key).getAsInt() : defaultVal;
     }
 
-    /** 可选整数：缺省 / JSON null / 非数字 → null */
-    private static Integer optNullableInt(JsonObject obj, String key) {
-        if (!obj.has(key) || obj.get(key).isJsonNull()) return null;
-        JsonElement el = obj.get(key);
-        if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isNumber()) return null;
-        return el.getAsInt();
-    }
-
     /**
      * 可选轮询间隔（tick，{@link TriggerType#POLL_INTERVAL_MIN}~{@link TriggerType#POLL_INTERVAL_MAX}）：
-     * 缺省 / JSON null → null（回落到下一级）；非整数 / 越界 → 告警 + null（防御式，与 skip_vote_ratio 同口径）。
+     * 缺省 / JSON null → null（回落到下一级）；非整数 / 越界 → 告警 + null（宽松防御式解析，与 skip_vote_ratio 的严格解析不同——后者非法即报错）。
      *
      * @param key  字段名（取值）
      * @param path 报错用路径（如 {@code meta.triggers[0]}）

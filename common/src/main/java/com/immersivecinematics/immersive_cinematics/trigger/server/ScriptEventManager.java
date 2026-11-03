@@ -217,37 +217,65 @@ public class ScriptEventManager {
             return;
         }
 
-        broadcastSkipVote(pb);
+        int votes = FactLedger.INSTANCE.voteCount(pb.scriptId, pb.instanceId);
+        int needed = pb.neededVotes(votes);
 
-        if (skipped) {
-            int votes = FactLedger.INSTANCE.voteCount(pb.scriptId, pb.instanceId);
-            int total = pb.viewers.size() + votes;
-            int needed = Mth.ceil(total * pb.skipVoteRatio / 100f);
-            if (votes >= needed) {
-                LOGGER.info("Script '{}' force-stopped by skip vote ({} / {} needed)", scriptId, votes, needed);
-                for (UUID remaining : pb.viewers) {
-                    ServerPlayer p = player.server.getPlayerList().getPlayer(remaining);
-                    if (p != null) S2CStopScriptPacket.send(p, scriptId, pb.instanceId, "");
-                }
-                removePlayback(pb);
+        if (skipped && votes >= needed) {
+            // 达标即终局：剩余观众马上会被停止包踢出播放，先发一包票数只会被紧随其后的停止覆盖。
+            LOGGER.info("Script '{}' force-stopped by skip vote ({} / {} needed)", scriptId, votes, needed);
+            for (UUID remaining : pb.viewers) {
+                ServerPlayer p = player.server.getPlayerList().getPlayer(remaining);
+                if (p != null) S2CStopScriptPacket.send(p, scriptId, pb.instanceId, "");
             }
+            removePlayback(pb);
+            return;
         }
+
+        boolean broadcast = broadcastSkipVote(pb, votes);
+        LOGGER.debug("Skip vote tally for script '{}' instance '{}': {} / {} (needed {}), broadcast={}",
+                scriptId, pb.instanceId, votes, pb.viewers.size() + votes, needed, broadcast);
     }
 
-    private void broadcastSkipVote(ScriptPlayback pb) {
-        if (pb.viewers.isEmpty()) return;
-        int votes = FactLedger.INSTANCE.voteCount(pb.scriptId, pb.instanceId);
-        float ratio = (float) votes / pb.viewers.size() * 100f;
-        int requiredRatio = pb.skipVoteRatio;
-        boolean skip = ratio >= requiredRatio;
-        if (!skip) {
-            for (UUID vid : pb.viewers) {
-                ServerPlayer vp = pb.server.getPlayerList().getPlayer(vid);
-                if (vp != null) {
-                    S2CSkipVoteUpdatePacket.send(vp, pb.scriptId, votes, pb.viewers.size());
-                }
+    /**
+     * 跳过投票所需票数——强停判定与票数广播共用的唯一实现。
+     *
+     * <p>分母 {@code totalViewers} 必须是「在场观众 + 已跳过者」：投票者投完就离开了观众集合，
+     * 只拿在场人数当分母等于把跳过者从分母里抹掉，比例会被整体放大（两人一票就成了 100%）。
+     *
+     * <p>{@code max(1, …)} 对齐原版 {@code SleepStatus.sleepersNeeded}：比例再低也得真有人投过票。
+     * 没有这个下限，空场或极低比例下 {@code ceil} 会算出 0，就成了「零票即通过」。
+     */
+    static int neededVotes(int totalViewers, int ratio) {
+        return Math.max(1, Mth.ceil(totalViewers * ratio / 100f));
+    }
+
+    /**
+     * 把当前票数推给仍在场的观众，只有状态变化时才真的发包。
+     *
+     * <p>包里的总人数含已跳过者，与 {@link #neededVotes(int, int)} 同分母；否则客户端看到的分母
+     * 会随每次投票一路缩小，进度条反而倒退。
+     *
+     * <p>按变化节流对齐原版 {@code SleepStatus.update()}：每个结束回执都会走到这里，
+     * 重复发包只会让每个观众反复解析同一个数值。
+     *
+     * <p>达标（{@code votes >= needed}）时调用方直接强停剩余观众并清账本，不会走到这里：
+     * 那些人马上会被停止包踢出播放，先发一包票数只会被紧随其后的停止覆盖。
+     *
+     * @return 本次是否真的广播了（调用方用于日志）
+     */
+    private boolean broadcastSkipVote(ScriptPlayback pb, int votes) {
+        if (pb.viewers.isEmpty()) return false;
+        int total = pb.viewers.size() + votes;
+        if (votes == pb.lastBroadcastVotes && total == pb.lastBroadcastTotal) return false;
+        pb.lastBroadcastVotes = votes;
+        pb.lastBroadcastTotal = total;
+        for (UUID vid : pb.viewers) {
+            ServerPlayer vp = pb.server.getPlayerList().getPlayer(vid);
+            if (vp != null) {
+                S2CSkipVoteUpdatePacket.send(vp, pb.scriptId, votes, total);
             }
         }
+        return true;
     }
 
     public void onScriptFinished(ServerPlayer player, String scriptId, String instanceId, CompletionReason reason) {
@@ -613,6 +641,20 @@ public class ScriptEventManager {
         final Map<UUID, ViewerOrigin> viewerOrigins = new HashMap<>();
         /** 播放所在服务端：构造时由 {@code addViewer} 传入（广播票数 / 强停时取玩家表用）。 */
         final MinecraftServer server;
+
+        /** 上次广播出去的票数 / 总人数；{@code -1} = 从未广播。两者都相同才算「状态没变」。 */
+        int lastBroadcastVotes = -1;
+        int lastBroadcastTotal = -1;
+
+        /**
+         * 本实例还差多少票——把「剩余观众 + 已投票数」还原成整场人数后交给唯一阈值函数。
+         *
+         * <p>{@code votes} 由调用方传入（已含刚投出的那一票，投票者本人此时已移出 {@code viewers}）：
+         * 这样分母不随投票缩水，强停判定与广播共用同一个数。
+         */
+        int neededVotes(int votes) {
+            return ScriptEventManager.neededVotes(viewers.size() + votes, skipVoteRatio);
+        }
 
         // ── 暂停状态与时间线基准 ──
         /** 本实例暂停中（暂停期间不处理 EVENT 关键帧）。 */

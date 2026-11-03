@@ -1,0 +1,55 @@
+{
+  "meta": {
+    "id": "test_h9_skip_hud",
+    "name": "H9 跳过 HUD 布局",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "H9 夹具：40s 静态机位 + 顶部说明字幕，hide_hud=false、skippable=true。播放中右下角应出现长按跳过块（环形进度 + 键位图标 + 文案），其中心落在全局坐标 skipHudX/skipHudY（缺省 95/90）。单人存档未发布时只画长按块；开启 LAN 发布后票数行出现，中心落在 voteHudX/voteHudY（缺省 50/90）——缺省两行同 y，即同一行。改坐标后两者各自独立移动。",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 40,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 40,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 },
+              { "time": 40, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 40,
+            "layer_type": "subtitle",
+            "text": "H9：跳过 HUD 布局（右下长按块 + 同一行票数）",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.10, "opacity": 1 },
+              { "time": 40, "x": 0.5, "y": 0.10, "opacity": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

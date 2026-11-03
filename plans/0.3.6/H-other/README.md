@@ -11,13 +11,13 @@
 | H1 | region-sync 全部实现（平移 / 镜像旋转 / 多区域链 / 传送 / 防乒乓 / 朝向策略） | [`region-sync.md`](region-sync.md) | ☐ 零实现（方向稿） |
 | H2 | wait-point-track | — | ⊘ 已被 C6 判定规则吸收（等待点 = `until→do` 阻塞形态） |
 | H4 | feedback-04 #1 结案（命令归 EVENT 轨） | — | ✅ 2026-10-10（`476b442`） |
-| H5 | 文档滞后清理（审计 §三 12 条） | — | ☐ |
-| H6 | 实机验证批次（审计 §四 7 条） | — | ☐ |
+| H5 | 文档滞后清理（审计 §三 12 条） | [`doc-lag-2026-11-03.md`](doc-lag-2026-11-03.md) | ✅ 2026-11-03（H-2）：12 条逐条核对，1 条本轮改，2 条文件不在本仓 |
+| H6 | 实机验证批次（审计 §四 7 条） | [`verification-2026-11-03.md`](verification-2026-11-03.md) | 🟡 2026-11-03（H-2）：4 条已跑、1 条部分跑、1 条未复现、1 条无环境 |
 | **H7** | **P1-impl 事实层**：布尔点状事件判定 → 事实追踪 | [`state-tracking.md`](state-tracking.md) | ✅ **已实现（H-1，2026-11-03）**（见该文档 §六） |
 | **H8** | **P3-impl 连续语义**：离散采样 → 连续判定 | [`trigger-continuity.md`](trigger-continuity.md) | ✅ **已实现（H-1，2026-11-03；`observation` 扫掠除外）**（见该文档 §六） |
-| **H9** | **跳过投票 + 跳过 HUD**：判定对齐 MC `SleepStatus`、HUD 合成一行、位置可配 | [`skip-vote-and-hud.md`](skip-vote-and-hud.md) | 🟡 有实现但不完整（见该文档 §1.3） |
+| **H9** | **跳过投票 + 跳过 HUD**：判定对齐 MC `SleepStatus`、HUD 合成一行、位置可配 | [`skip-vote-and-hud.md`](skip-vote-and-hud.md) | ✅ **已实现（H-2，2026-11-03）**（见该文档 §六） |
 | **H10** | **相机视图实体活性**：服务端原版实体跟踪镜像 + 客户端目标世界 tick；不做假玩家、不改 AI goal | [`entity-liveness.md`](entity-liveness.md) | ☐ 设计稿（未实现；F8 后续） |
-| **H11** | **HUD 层注册 API**：面向第三方的正式注册入口 + `hud_layers` / 固定分类口径 + Fabric/Forge 边界 | [`hud-layer-api.md`](hud-layer-api.md) | ☐ 设计稿（未实现；G 轮只有内部口子） |
+| **H11** | **HUD 层注册 API**：面向第三方的正式注册入口 + `hud_layers` / 固定分类口径 + Fabric/Forge 边界 | [`hud-layer-api.md`](hud-layer-api.md) | ✅ **已实现（H-2，2026-11-03）**（见该文档 §八） |
 | **H12** | **对外接口（API / SPI）**：播放链路、相机只读面、轨道 / 触发器 / 模型 / 曲线 / 前置条件注册门面、注册时机与失败隔离 | [`public-api.md`](public-api.md) | ☐ 设计稿（未实现；轨道注册依赖 `TrackType` 注册表化） |
 
 H7 / H8 之间没有强绑定：H8 的**最小版本**（位置扫掠 / 朝向弧 / 进入边沿）不依赖 H7，可先落地；H8 的窗口与事件时间戳依赖 H7。

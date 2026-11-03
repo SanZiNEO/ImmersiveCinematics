@@ -10,17 +10,18 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * 跳过提示 HUD：右下角画跳过键图标与长按进度环，仅脚本模式且顶层实例可跳过时出现。
+ * 跳过提示 HUD：画跳过键图标与长按进度环，仅脚本模式且顶层实例可跳过时出现。
  *
- * 连远程服时额外显示跳过投票计数；本地服没有投票（本机即服务端）。
+ * 长按块（环形 + 键位图标 + 文案）与票数文本是两个独立元素，各自按「元素中心的屏幕百分比」
+ * 定位（{@code Config.skipHudX/skipHudY} 与 {@code Config.voteHudX/voteHudY}），缺省落在同一行：
+ * 长按块靠右、票数水平居中。票数只在真多人或单人存档已开 LAN 发布时显示——
+ * 单人未发布没有第二个投票者，画出来只是噪声。
  */
 public class SkipHudRenderer {
 
     private static final ResourceLocation SKIP_KEY_TEXTURE =
             new ResourceLocation(ImmersiveCinematics.MOD_ID, "textures/gui/skip_key.png");
 
-    private static final int MARGIN_RIGHT = 2;
-    private static final int MARGIN_BOTTOM = 4;
     private static final int ICON_SIZE = 16;
     private static final int RING_RADIUS = 12;
     private static final int RING_WIDTH = 4;
@@ -53,19 +54,22 @@ public class SkipHudRenderer {
                 keyDisplay.plainCopy().withStyle(style -> style.withColor(0xFFFFFF)));
 
         int textWidth = font.width(text);
-        int totalWidth = RING_RADIUS * 2 + GAP_TEXT_RING + textWidth;
-        int totalHeight = Math.max(RING_RADIUS * 2, font.lineHeight);
+        int blockW = RING_RADIUS * 2 + GAP_TEXT_RING + textWidth;
+        int blockH = Math.max(RING_RADIUS * 2, font.lineHeight);
 
-        int baseX = sw - MARGIN_RIGHT - totalWidth;
-        int baseY = sh - MARGIN_BOTTOM - totalHeight;
+        // 坐标指元素中心：先换算屏幕像素，再按块尺寸回推左上角
+        int cx = Math.round(sw * Config.skipHudX / 100f);
+        int cy = Math.round(sh * Config.skipHudY / 100f);
+        int baseX = cx - blockW / 2;
+        int baseY = cy - blockH / 2;
 
-        int ringCenterX = baseX + totalWidth - RING_RADIUS;
-        int ringCenterY = baseY + totalHeight / 2;
+        int ringCenterX = baseX + blockW - RING_RADIUS;
+        int ringCenterY = baseY + blockH / 2;
 
         int textColor = 0xAAFFFFFF;
 
         int textX = baseX;
-        int textY = baseY + (totalHeight - font.lineHeight) / 2;
+        int textY = baseY + (blockH - font.lineHeight) / 2;
         guiGraphics.drawString(font, text, textX, textY, textColor, true);
 
         int iconX = ringCenterX - ICON_SIZE / 2;
@@ -82,16 +86,28 @@ public class SkipHudRenderer {
             drawRingArc(guiGraphics, ringCenterX, ringCenterY, RING_RADIUS, RING_WIDTH, progress, sw, sh);
         }
 
-        if (!mc.isLocalServer()) {
+        // 票数是独立元素：中心点由 voteHudX/voteHudY 单独给出，不受长按块宽度影响
+        if (shouldShowVotes(mc)) {
             int voteCount = ClientScriptReceiver.getSkipVoterCount();
             int voteTotal = ClientScriptReceiver.getSkipTotalViewers();
             if (voteTotal > 0) {
-                Component voteText = Component.translatable("hud.immersive_cinematics.skip_vote",
-                        voteCount, voteTotal);
+                Component voteText = Component.translatable("hud.immersive_cinematics.skip_vote", voteCount, voteTotal);
                 int voteW = font.width(voteText);
-                guiGraphics.drawString(font, voteText, (sw - voteW) / 2, sh - 30, textColor, true);
+                int vcx = Math.round(sw * Config.voteHudX / 100f);
+                int vcy = Math.round(sh * Config.voteHudY / 100f);
+                guiGraphics.drawString(font, voteText, vcx - voteW / 2, vcy - font.lineHeight / 2, textColor, true);
             }
         }
+    }
+
+    /**
+     * 票数只在对「别人也能投」的场合有意义：真多人，或单人存档已开 LAN 发布。
+     * 与 {@code ServerLevel.announceSleepStatus} 的 {@code !isSingleplayer() || isPublished()} 同口径。
+     */
+    private static boolean shouldShowVotes(Minecraft mc) {
+        if (!mc.isLocalServer()) return true;
+        var server = mc.getSingleplayerServer();
+        return server != null && server.isPublished();
     }
 
     private static void drawRingArc(GuiGraphics gg, int cx, int cy, int r, int w, float p, int sw, int sh) {

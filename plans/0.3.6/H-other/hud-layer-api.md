@@ -1,6 +1,6 @@
 # HUD 层注册 API（H11）
 
-> 状态：设计稿（未实现）
+> 状态：已实现（H-2，2026-11-03）
 > 范围：面向第三方模组/整合包的 HUD 层注册入口、`hud_layers` 与固定分类的优先级、Fabric/Forge 平台边界、验收
 > 关联：[`screen-layers.md`](screen-layers.md)（画面层统一语义）、[`../G-script-model/editor-playback.md`](../G-script-model/editor-playback.md)（编辑器播放的行为并集）、`forge/.../ForgeHudLayerRegistry.java`、`common/.../control/CinematicController.java`
 
@@ -78,3 +78,22 @@ G 轮完成后，`hud_layers` 的数据层（并集、回落）与消费层（no
 3. 文档：`editor-playback.md` §3.2 已写 `hud_layers` 语义；补 `screen-layers.md` 的 API 段落；
 4. 实机：BMC4 / Fabric 各一条注册 + 两条脚本用例；
 5. 验收回写。
+
+## 八、实现结果
+
+| 项 | 结果 | 落点 |
+|---|---|---|
+| 门面 | 已实现 | `common/.../api/HudLayerRegistry.java`：`final` + 私有构造；`Platform.onRegistered` 回调；唯一 `ConcurrentHashMap<ResourceLocation, String>`；`install` / `register(id, category)` / `register(id)` / `categoryOf`。null 参数忽略整次调用，未注册返回 `null`，分类为空串按未指定处理 |
+| Forge 转调 | 已实现 | `ForgeHudLayerRegistry.register(id, category)` 转调门面（javadoc 标注内部实现）；`categoryOf` = 内置原版表 → 门面表 → `overlayId.toString()`；静态块 `reg(...)` 仍写内置表，未改 |
+| Fabric 边界 | 已实现 | `FabricHudLayerRegistry.register(String, String)` 仍写自有表；`categoryOf` = 自有表 → 门面表（`ResourceLocation.tryParse`）→ 原始层 ID；只有 `FabricHudVisibility.isHidden` 一个消费点 |
+| 平台安装 | 已实现 | Forge `ForgeClientEvents.onClientSetup` 安装空回调（消费链直接读表，注册写表即生效）；Fabric `FabricEvents.registerClient()` 安装边界日志回调，`AtomicBoolean` 保证只打一次 |
+| 文档 | 已实现 | `docs/SCRIPT_FORMAT.md` 新增「1b-1. HUD 层控制：`hud_layers` 与 `hard_hide_hud`」并改写 `hud_layers` / `hard_hide_hud` 两行表格；`screen-layers.md` 新增 §3.6、更新 §九 |
+| 验收 | 待主代理统一执行 | `HudLayerProbe`：注册 → 分类、单参注册 → 资源 ID、未注册 → `null`、null 参数不抛；Forge 实机：hard 模式下未注册 overlay 被砍、`hud_layers` 能让它重画 |
+
+相对 §三 目标的口径调整：
+
+- **转发方向反过来**：门面是唯一第三方注册表，`ForgeHudLayerRegistry` 转调门面，而不是门面转调 Forge 表——否则会出现两张第三方表。
+- **Fabric 首次注册用 `INFO` 而非 `WARN`**：Fabric 缺 hard 模式是既定边界，不是异常。
+- **未做 `ServiceLoader` 自动发现**：§四 已列为非目标。
+
+未覆盖（沿用 §四 非目标）：Fabric 的 `hard_hide_hud` 等价能力、不走 overlay 管线的第三方 HUD、`hud_layers` 的白名单 DSL。

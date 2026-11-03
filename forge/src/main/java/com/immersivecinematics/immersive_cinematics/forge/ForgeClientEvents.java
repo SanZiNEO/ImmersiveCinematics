@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.forge;
 
 import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
+import com.immersivecinematics.immersive_cinematics.api.HudLayerRegistry;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.client.ConfigScreen;
 import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionViews;
@@ -43,6 +44,9 @@ public final class ForgeClientEvents {
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         ClientEventHandler.onClientInit();
+        // 门面的平台回调在 Forge 侧留空：normal 的 overlay 过滤与 hard 的白名单重画都直接读注册表，
+        // 注册写表即生效，不需要平台做任何追加动作。
+        HudLayerRegistry.install((overlayId, category) -> {});
         ModLoadingContext.get().registerExtensionPoint(
                 ConfigScreenHandler.ConfigScreenFactory.class,
                 () -> new ConfigScreenHandler.ConfigScreenFactory(

@@ -309,6 +309,24 @@ public final class ScriptValidator {
             }
         }
 
+        // ===== meta.skip_vote_ratio：整数百分比 10~100（与 ScriptParser 同口径，解析期即报错）=====
+        if (root.has("meta") && root.get("meta").isJsonObject()) {
+            JsonObject meta = root.getAsJsonObject("meta");
+            if (meta.has("skip_vote_ratio") && !meta.get("skip_vote_ratio").isJsonNull()) {
+                JsonElement ratioEl = meta.get("skip_vote_ratio");
+                if (!ratioEl.isJsonPrimitive() || !ratioEl.getAsJsonPrimitive().isNumber()) {
+                    issues.add("meta.skip_vote_ratio 必须为整数（百分比 10~100），实际: " + ratioEl);
+                } else {
+                    double ratioValue = ratioEl.getAsDouble();
+                    if (!Double.isFinite(ratioValue) || ratioValue != Math.floor(ratioValue)) {
+                        issues.add("meta.skip_vote_ratio 必须为整数（百分比 10~100），实际: " + ratioEl);
+                    } else if (ratioValue < 10 || ratioValue > 100) {
+                        issues.add("meta.skip_vote_ratio 取值范围 10~100（不允许 0），实际: " + ratioEl);
+                    }
+                }
+            }
+        }
+
         // ===== meta.base_resolution：编辑基准分辨率（分辨率转义系数 k 的分母）=====
         if (root.has("meta") && root.get("meta").isJsonObject()) {
             checkBaseResolution(root.getAsJsonObject("meta"), issues);

@@ -102,6 +102,26 @@
 - 有可取消 HUD 回调与 overlay 注册表的平台走 `allowlist`。
 - 没有这些能力的平台（只有不可取消的 HUD 回调）走 `normal`；层声明仍解析，但接管不生效。
 
+### 3.6 层注册接口（H11）
+
+对外入口是 `common` 的 `api.HudLayerRegistry`（与 `CameraApi` 同包的稳定面，只增不删）。它是第三方注册的**唯一**注册表；平台侧只负责"分类解析优先级 + 平台回调"。
+
+| 成员 | 语义 |
+|---|---|
+| `install(Platform)` | 安装平台回调；只应在客户端初始化期调用一次，后装者覆盖 |
+| `register(ResourceLocation overlayId, String category)` | 把 overlay 归入分类；`overlayId` / `category` 为 null 时忽略整次调用，`category` 为空串 = 未指定（等价于单参重载） |
+| `register(ResourceLocation overlayId)` | 分类 = 资源 ID 字符串（把隐式口子写成显式契约） |
+| `categoryOf(ResourceLocation overlayId)` | 查询分类；未注册返回 `null`，由平台自行回落 |
+
+平台边界：
+
+- **Forge**：`ForgeHudLayerRegistry.categoryOf` = 内置原版表 → 门面表 → `overlayId.toString()`；normal（`RenderGuiOverlayEvent.Pre` 过滤）与 hard（`RenderGuiEvent.Pre` 接管 + 白名单重画）两条消费链共用这一条解析。门面回调留空——消费链直接读表，注册写表即生效。
+- **Fabric**：`FabricHudLayerRegistry.categoryOf` = 自有表 → 门面表（层名按资源 ID 语法解析后查）→ 原始层 ID；唯一消费点是 `FabricHudVisibility.isHidden`。Fabric 无 overlay 注册表、无 hard 模式，注册只影响普通层过滤，分类名仅作记录（首次注册打一条 `INFO` 说明边界）。
+
+注册时机：客户端初始化期完成安装与首次注册（Forge `FMLClientSetupEvent`、Fabric `ClientModInitializer`）；注册项进程级存在，不随脚本销毁。加载器不保证模组初始化顺序：若第三方在本模组安装回调之前注册，那条边界日志不会出现，但注册本身仍写入门面表并照常参与判定。
+
+失败隔离：注册表本身没有异常路径——null 参数忽略、未注册查询返回 `null` 而不是抛；平台回调约定不得抛异常（异常会外溢到第三方注册调用）。`hud_layers` 只作用于未命中固定分类的层，注册不会改变 11 个固定分类的判定。
+
 ## 四、技术细节
 
 ### 4.1 核心模型
@@ -241,5 +261,7 @@
 状态：
 
 - `hard_hide_hud` 强制隐藏模式：已实现（仅 Forge，2026-10-07）；模式开关、并集、接管与白名单重画在代码中；Fabric 无消费者；真实客户端未实测。
-- 画面层统一语义（层清单、`screen_layers` / `screen_layer_mode`、默认白名单、注册接口）：未实现。
+- 层注册接口（H11）：**注册入口已落地**（2026-11-03）——`api.HudLayerRegistry` 门面（唯一第三方注册表）、Forge 三级解析转调、Fabric 边界（自有表 → 门面表 → 原始层 ID，首次注册打一次边界日志）；见 §3.6。对外文档已写清 `hud_layers` 语义、固定分类优先级、`hard_hide_hud` 仅 Forge、无挂点边界。
+- 画面层统一语义（层清单、`screen_layers` / `screen_layer_mode`、默认白名单）：未实现——本轮只统一了注册入口，层名与模式字段仍是设计稿。
 - 强制模式的实现边界：仅脚本级三态，无全局配置键，null 视为普通模式；接管后复位左右高度为防御性操作；重画额外豁免世界效果层；不补发 overlay 事件；Fabric 不提供等价能力；不做针对性 mixin 兜底。
+- 注册接口的实现边界：只对走平台 overlay 管线的层有效；不走 Forge overlay 注册表、也不在 `RenderGuiEvent.Pre` 自绘的 HUD（含 mixin 直绘）注册了也不受控；Fabric 侧第三方须自行调用 `FabricHudVisibility.isHidden`。
