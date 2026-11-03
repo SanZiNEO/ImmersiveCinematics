@@ -39,25 +39,45 @@ public final class ClientConditions {
     /** 组合器嵌套上限（含顶层为第 1 层）：与触发器侧同一常量（{@link Evaluators} 编译期内联）。 */
     public static final int MAX_COMBINATION_DEPTH = Evaluators.MAX_COMBINATION_DEPTH;
 
+    /**
+     * 新规则条件树的事实类型（{@code clip_fact} / {@code rule_fact}）：与 {@link #V1_TYPES} 分列——
+     * {@code V1_TYPES} 是旧 {@code clip.rules} 的判定源白名单（不含事实），旧引擎 / 校验器行为不变。
+     */
+    public static final List<String> FACT_TYPES = List.of("clip_fact", "rule_fact");
+
     /** 组合器子条件的空数据对象（只读共享：本类只调 has/get，不写）。 */
     private static final JsonObject NO_DATA = new JsonObject();
 
     private ClientConditions() {}
 
     /**
-     * 求值一条条件：未知 / 不支持的 type、结构不全一律 false（不抛：非法 JSON 不炸帧）。
+     * 求值一条条件（旧 3 参入口）：不存在事实源，{@code clip_fact} / {@code rule_fact} 恒 false。
+     * 行为与 I-4 之前逐位一致。
      *
      * @param condition     条件原文（{@code ClipRule} 存的那份）
      * @param ctx           本帧世界状态（玩家 / 相机）
      * @param clipLocalTime 片段本地时钟（秒）= timelineTime − clip.startTime
      */
     public static boolean evaluate(JsonObject condition, Context ctx, double clipLocalTime) {
+        return evaluate(condition, ctx, clipLocalTime, FactSource.NONE);
+    }
+
+    /**
+     * 求值一条条件（4 参入口）：支持 {@code clip_fact} / {@code rule_fact} 两类事实叶子。
+     *
+     * @param condition     条件原文
+     * @param ctx           本帧世界状态
+     * @param clipLocalTime 片段本地时钟（秒）
+     * @param facts         事实源（{@code null} 视为 {@link FactSource#NONE}）
+     */
+    public static boolean evaluate(JsonObject condition, Context ctx, double clipLocalTime, FactSource facts) {
         if (condition == null || ctx == null || !ctx.available()) return false;
-        return evaluateNode(condition, ctx, clipLocalTime, 1);
+        return evaluateNode(condition, ctx, clipLocalTime, 1, facts == null ? FactSource.NONE : facts);
     }
 
     /** 单个条件节点（叶子或组合器）：{@code depth} = 组合器层数（顶层 = 1），叶子不参与。 */
-    private static boolean evaluateNode(JsonObject c, Context ctx, double localTime, int depth) {
+    private static boolean evaluateNode(JsonObject c, Context ctx, double localTime, int depth,
+                                        FactSource facts) {
         String type = str(c, "type");
         if (type == null) return false;
         return switch (type) {
@@ -70,8 +90,10 @@ public final class ClientConditions {
             case "camera_facing" -> ctx.hasCamera()
                     && evalFacing(c, ctx.cameraYaw(), ctx.cameraPitch());
             case "camera_fov" -> evalCameraFov(c, ctx);
-            case "all_of" -> evalCombination(c, ctx, localTime, depth, true);
-            case "any" -> evalCombination(c, ctx, localTime, depth, false);
+            case "all_of" -> evalCombination(c, ctx, localTime, depth, true, facts);
+            case "any" -> evalCombination(c, ctx, localTime, depth, false, facts);
+            case "clip_fact" -> evalClipFact(c, facts);
+            case "rule_fact" -> evalRuleFact(c, facts);
             default -> false;
         };
     }
@@ -80,13 +102,14 @@ public final class ClientConditions {
      * 组合器（all_of = 全真 / any = 任一真，命中即短路）：list 元素 = {@code {type, conditions}}，
      * 与触发器侧同一结构；子条件为组合器时递归下钻（层数用尽即不满足）。
      */
-    private static boolean evalCombination(JsonObject c, Context ctx, double localTime, int depth, boolean allOf) {
+    private static boolean evalCombination(JsonObject c, Context ctx, double localTime, int depth,
+                                           boolean allOf, FactSource facts) {
         if (c == null || !c.has("list") || !c.get("list").isJsonArray()) return false;
         JsonArray list = c.getAsJsonArray("list");
         if (list.isEmpty()) return false;
         for (int i = 0; i < list.size(); i++) {
             JsonElement el = list.get(i);
-            boolean hit = el.isJsonObject() && evalChild(el.getAsJsonObject(), ctx, localTime, depth);
+            boolean hit = el.isJsonObject() && evalChild(el.getAsJsonObject(), ctx, localTime, depth, facts);
             if (allOf && !hit) return false;
             if (!allOf && hit) return true;
         }
@@ -94,7 +117,8 @@ public final class ClientConditions {
     }
 
     /** 组合器子条件：嵌套组合器走 {@code conditions} 递归，叶子条件按 {@code conditions} 数据求值。 */
-    private static boolean evalChild(JsonObject sub, Context ctx, double localTime, int depth) {
+    private static boolean evalChild(JsonObject sub, Context ctx, double localTime, int depth,
+                                     FactSource facts) {
         String type = str(sub, "type");
         if (type == null) return false;
         boolean nested = "all_of".equals(type) || "any".equals(type);
@@ -102,7 +126,7 @@ public final class ClientConditions {
             if (depth >= MAX_COMBINATION_DEPTH) return false;
             if (!sub.has("conditions") || !sub.get("conditions").isJsonObject()) return false;
             return evalCombination(sub.getAsJsonObject("conditions"), ctx, localTime, depth + 1,
-                    "all_of".equals(type));
+                    "all_of".equals(type), facts);
         }
         JsonObject data = sub.has("conditions") && sub.get("conditions").isJsonObject()
                 ? sub.getAsJsonObject("conditions") : NO_DATA;
@@ -115,8 +139,36 @@ public final class ClientConditions {
             case "camera_pos" -> evalCameraPos(data, ctx);
             case "camera_facing" -> ctx.hasCamera() && evalFacing(data, ctx.cameraYaw(), ctx.cameraPitch());
             case "camera_fov" -> evalCameraFov(data, ctx);
+            case "clip_fact" -> evalClipFact(data, facts);
+            case "rule_fact" -> evalRuleFact(data, facts);
             default -> false;
         };
+    }
+
+    /**
+     * {@code clip_fact}：{@code clip}（片段 id）+ {@code fact}（{@code started} / {@code completed}）。
+     * 参数缺失 / 非法 → false（帧内路径不抛）。
+     */
+    private static boolean evalClipFact(JsonObject c, FactSource facts) {
+        String clip = str(c, "clip");
+        String fact = str(c, "fact");
+        if (clip == null || clip.isEmpty()) return false;
+        if ("started".equals(fact)) return facts.clipFact(clip, true);
+        if ("completed".equals(fact)) return facts.clipFact(clip, false);
+        return false;
+    }
+
+    /**
+     * {@code rule_fact}：{@code binding}（绑定 id）+ {@code fact}（{@code succeeded} / {@code action_completed}）。
+     * 参数缺失 / 非法 → false（帧内路径不抛）。
+     */
+    private static boolean evalRuleFact(JsonObject c, FactSource facts) {
+        String binding = str(c, "binding");
+        String fact = str(c, "fact");
+        if (binding == null || binding.isEmpty()) return false;
+        if ("succeeded".equals(fact)) return facts.ruleFact(binding, false);
+        if ("action_completed".equals(fact)) return facts.ruleFact(binding, true);
+        return false;
     }
 
     /**

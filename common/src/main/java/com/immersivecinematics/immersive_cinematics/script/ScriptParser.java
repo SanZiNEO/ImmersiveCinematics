@@ -12,6 +12,12 @@ import com.immersivecinematics.immersive_cinematics.camera.transition.Transition
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionParams;
 import com.immersivecinematics.immersive_cinematics.math.MathModel;
 import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
+import com.immersivecinematics.immersive_cinematics.script.identity.ClipIdentity;
+import com.immersivecinematics.immersive_cinematics.script.identity.ClipRef;
+import com.immersivecinematics.immersive_cinematics.script.identity.UsageIndex;
+import com.immersivecinematics.immersive_cinematics.script.identity.UsageKind;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitKind;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitPolicy;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
 import com.immersivecinematics.immersive_cinematics.script.object.Interp;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectFormatException;
@@ -19,6 +25,9 @@ import com.immersivecinematics.immersive_cinematics.script.object.ObjectParser;
 import com.immersivecinematics.immersive_cinematics.script.object.PropertyMode;
 import com.immersivecinematics.immersive_cinematics.script.object.PropertyType;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledProperty;
+import com.immersivecinematics.immersive_cinematics.script.path.PathCollectionParser;
+import com.immersivecinematics.immersive_cinematics.script.rule.ClipExitPolicyParser;
+import com.immersivecinematics.immersive_cinematics.script.rule.RuleCollectionParser;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
 import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveException;
@@ -132,13 +141,108 @@ public class ScriptParser {
             throw new ScriptParseException("<root>", "根元素必须是 JSON 对象");
         }
         JsonObject rootObj = root.getAsJsonObject();
+        // 新旧规则并存检查放在最前：脚本级规则集合与片段级 clip.rules 同时出现是格式级错误，
+        // 不应被其它字段的解析错误掩盖（旧 clip.rules 仅用于旧格式脚本，见 ROUND-I-4-MAP §0.2-1）。
+        boolean hasScriptRules = rootObj.has("rules") || rootObj.has("rule_bindings");
+        if (hasScriptRules) {
+            rejectLegacyClipRules(rootObj);
+        }
         ScriptMeta meta = parseMeta(rootObj);
         Timeline timeline = parseTimeline(rootObj, "timeline");
-        CinematicScript script = new CinematicScript(meta, timeline);
+        List<Clip> standalone = parseStandaloneClips(rootObj);
+        CinematicScript script = new CinematicScript(meta, timeline, standalone);
         // 保留原始 JSON：meta.listener 等运行期扩展字段只在 rawJson 里读取；
         // 服务端推送脚本也必须走这里，否则脚本会被当成默认 listener=player。
         script.setRawJson(json);
+        script.setUsageBuilder(buildUsageIndex(timeline));
+        // 片段默认出口（exit）：脚本对象就绪后才解析 goto 目标；使用边登记进同一构建器。
+        resolveClipExits(timeline, standalone, script);
+        // 脚本级规则集合（rules / rule_bindings）：格式级的互斥检查已在前，这里只做解析与登记。
+        // 放在 setUsageBuilder 之后：绑定 / 分支 / 出口的使用边直接登记进同一构建器。
+        if (hasScriptRules) {
+            script.setRuleCollection(
+                    RuleCollectionParser.parse(rootObj, script::findClip, script.usageBuilder(), "<root>"));
+        }
+        // 脚本级路径集合（paths[]）：与规则集合同一装配顺序（usage builder 就绪后登记使用边）。
+        script.setPathCollection(
+                PathCollectionParser.parse(rootObj, script::findClip, script.usageBuilder(), "<root>"));
         return script;
+    }
+
+    /**
+     * 新旧规则并存检查：脚本级 {@code rules} / {@code rule_bindings} 与任一片段级 {@code clip.rules}
+     * 不能出现在同一脚本（旧 {@code clip.rules} 仅用于旧格式脚本，见 {@code ROUND-I-4-MAP} §0.2-1）。
+     *
+     * <p>只看 timeline 内联片段：独立片段（顶层 {@code clips[]}）是新格式，不允许挂旧规则。</p>
+     */
+    private static void rejectLegacyClipRules(JsonObject root) throws ScriptParseException {
+        JsonElement timelineElement = root.get("timeline");
+        if (timelineElement == null || !timelineElement.isJsonObject()) return;
+        JsonElement tracksElement = timelineElement.getAsJsonObject().get("tracks");
+        if (tracksElement == null || !tracksElement.isJsonArray()) return;
+        for (JsonElement trackElement : tracksElement.getAsJsonArray()) {
+            if (!trackElement.isJsonObject()) continue;
+            JsonElement clipsElement = trackElement.getAsJsonObject().get("clips");
+            if (clipsElement == null || !clipsElement.isJsonArray()) continue;
+            for (JsonElement clipElement : clipsElement.getAsJsonArray()) {
+                if (clipElement.isJsonObject() && clipElement.getAsJsonObject().has("rules")) {
+                    throw new ScriptParseException("rules",
+                            "脚本级规则集合与片段级 clip.rules 不能同时出现（旧 clip.rules 仅用于旧格式脚本）");
+                }
+            }
+        }
+    }
+
+    /**
+     * 编译轨道放置边：每条内联片段登记一条 {@code TRACK_PLACEMENT}，
+     * 宿主路径 = {@code timeline.tracks[i].clips[j]}（与校验器 / 报错文案同一套定位串）。
+     */
+    private static UsageIndex.Builder buildUsageIndex(Timeline timeline) {
+        UsageIndex.Builder builder = UsageIndex.builder();
+        List<TimelineTrack> tracks = timeline.getTracks();
+        for (int ti = 0; ti < tracks.size(); ti++) {
+            List<Clip> clips = tracks.get(ti).getClips();
+            for (int ci = 0; ci < clips.size(); ci++) {
+                builder.placement(clips.get(ci), "timeline.tracks[" + ti + "].clips[" + ci + "]");
+            }
+        }
+        return builder;
+    }
+
+    /**
+     * 解析全部片段的默认出口（内联 + 独立片段）。必须在 {@link CinematicScript} 建好且
+     * {@code usageBuilder} 已装入之后调用——{@code goto} 目标按片段 id 解析，脚本对象是唯一解析器。
+     *
+     * <p>未声明 {@code exit} 的片段保持 {@code null} 策略（运行期 = {@code CONTINUE}）。GOTO 目标登记
+     * 一条 {@link UsageKind#EXIT_TARGET} 使用边（宿主 = 片段 JSON 路径 + {@code .exit}），
+     * 于是「被引用必填 id」由同一索引覆盖。</p>
+     */
+    private static void resolveClipExits(Timeline timeline, List<Clip> standalone, CinematicScript script)
+            throws ScriptParseException {
+        List<TimelineTrack> tracks = timeline.getTracks();
+        for (int ti = 0; ti < tracks.size(); ti++) {
+            List<Clip> clips = tracks.get(ti).getClips();
+            for (int ci = 0; ci < clips.size(); ci++) {
+                applyClipExit(clips.get(ci),
+                        "timeline.tracks[" + ti + "].clips[" + ci + "].exit", script);
+            }
+        }
+        for (int i = 0; i < standalone.size(); i++) {
+            applyClipExit(standalone.get(i), "clips[" + i + "].exit", script);
+        }
+    }
+
+    private static void applyClipExit(Clip clip, String path, CinematicScript script)
+            throws ScriptParseException {
+        JsonObject rawExit = clip.getRawExit();
+        if (rawExit == null) return;
+        ClipExitPolicy policy = ClipExitPolicyParser.parse(rawExit, script::findClip, path);
+        clip.setExitPolicy(policy);
+        UsageIndex.Builder usage = script.usageBuilder();
+        if (usage != null && policy.kind() == ClipExitKind.GOTO) {
+            usage.reference(UsageKind.EXIT_TARGET, path,
+                    ClipRef.of(policy.target(), policy.entryLocalTime()));
+        }
     }
 
     // ========== ScriptMeta 解析 ==========
@@ -307,9 +411,15 @@ public class ScriptParser {
         float duration = requireFloat(obj, p, "duration");
 
         // 新格式片段：只认 objects（+ 播放控制），与旧 keyframes 分支完全分离。
+        // id 由 parseObjectClip 统一读取（内联 / 独立片段同一口径）。
         if (obj.has("objects")) {
             return parseObjectClip(obj, p, type);
         }
+        if (obj.has("exit")) {
+            throw new ScriptParseException(p + ".exit",
+                    "旧格式片段不支持 exit（出口声明只属于新格式 objects 片段）");
+        }
+        String clipId = parseClipId(obj, p);
 
         // OVERLAY 的 fade 专用字段（高级颜色遮罩）按 layer_type 分派：fade 走严格解析，
         // image / subtitle 上写 = 明确拒绝（不静默存进 data 宣称生效）
@@ -321,7 +431,8 @@ public class ScriptParser {
         Map<String, Object> data = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
             String fieldName = entry.getKey();
-            if ("start_time".equals(fieldName) || "duration".equals(fieldName) || "keyframes".equals(fieldName)) {
+            if ("start_time".equals(fieldName) || "duration".equals(fieldName)
+                    || "keyframes".equals(fieldName) || "id".equals(fieldName)) {
                 continue; // 通用字段跳过
             }
             if (type == TrackType.OVERLAY) {
@@ -413,7 +524,7 @@ public class ScriptParser {
             }
         }
 
-        Clip clip = new Clip(startTime, duration, type, data, keyframes);
+        Clip clip = new Clip(startTime, duration, type, data, keyframes, ClipObjects.EMPTY, false, clipId);
         if (fadeOverlay) {
             // fade 片段构建后立即建立 ColorMaskSpec（懒缓存首次访问）：结构 / 颜色非法在此转成
             // 带完整字段路径的解析错误，绝不把非法输入默默变黑
@@ -434,8 +545,19 @@ public class ScriptParser {
      * 的片段级白名单处即被拒绝。</p>
      */
     private static Clip parseObjectClip(JsonObject obj, String p, TrackType type) throws ScriptParseException {
-        float startTime = requireFloat(obj, p, "start_time");
+        return parseObjectClip(obj, p, type, requireFloat(obj, p, "start_time"));
+    }
+
+    /**
+     * 新格式片段的解析（显式起始秒）：独立片段没有默认放置，调用方传 {@code 0} 且不写回 JSON；
+     * 内联片段传自己的 {@code start_time}。其余逻辑与三参数版本逐位一致。
+     *
+     * @param startTime 片段起始秒（不再从 {@code obj} 读取）
+     */
+    private static Clip parseObjectClip(JsonObject obj, String p, TrackType type, float startTime)
+            throws ScriptParseException {
         float duration = requireFloat(obj, p, "duration");
+        String clipId = parseClipId(obj, p);
         // 与旧口径一致：0 非法；负数 = 无限时长
         if (duration == 0f) {
             throw new ScriptParseException(p + ".duration", "不允许为0，正数=有限时长，负数=无限时长，实际: " + duration);
@@ -479,7 +601,93 @@ public class ScriptParser {
             data.put("loop_count", 1);
         }
 
-        return new Clip(startTime, duration, type, data, List.of(), objects, true);
+        Clip clip = new Clip(startTime, duration, type, data, List.of(), objects, true, clipId);
+        // 出口声明延后解析：此刻脚本对象不存在，goto 目标无法解析。这里只做结构形态检查并暂存原文，
+        // 由 parseInternal 在脚本装配完成后统一解析（内联 / 独立片段同一口径）。
+        if (obj.has("exit")) {
+            JsonElement exitElement = obj.get("exit");
+            if (!exitElement.isJsonObject()) {
+                throw new ScriptParseException(p + ".exit", "需要对象（出口策略）");
+            }
+            clip.setRawExit(exitElement.getAsJsonObject());
+        }
+        return clip;
+    }
+
+    /**
+     * 片段 {@code id}（可选）：存在则必须是非空字符串并匹配 {@link ClipIdentity#PATTERN}。
+     * 内联片段与独立片段走同一口径；重复 / 悬空引用由 {@code ScriptValidator} 报错，
+     * 解析期只保证格式合法（避免旧解析基线漂移）。
+     */
+    private static String parseClipId(JsonObject obj, String p) throws ScriptParseException {
+        if (!obj.has("id")) return null;
+        JsonElement element = obj.get("id");
+        if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+            throw new ScriptParseException(p + ".id", "需要字符串（片段 id，匹配 " + ClipIdentity.PATTERN + "）");
+        }
+        String id = element.getAsString();
+        if (id.isEmpty()) {
+            throw new ScriptParseException(p + ".id", "不能为空字符串（片段 id 需匹配 " + ClipIdentity.PATTERN + "）");
+        }
+        if (!ClipIdentity.isValid(id)) {
+            throw new ScriptParseException(p + ".id",
+                    "不合法: " + id + "（需匹配 " + ClipIdentity.PATTERN + "）");
+        }
+        return id;
+    }
+
+    /**
+     * 解析脚本级独立片段表 {@code clips[]}（缺省 = 无独立片段）。
+     *
+     * <p>条目 = 没有默认放置的新格式片段：{@code track} 必填（决定 {@code objects} schema）、
+     * {@code duration} 必填非 0、禁止 {@code start_time}、{@code objects} 必须是新格式对象。
+     * {@code track} 只属于本表，交给 {@link #parseObjectClip} 前从副本里摘掉——片段本体不保留它。</p>
+     */
+    private static List<Clip> parseStandaloneClips(JsonObject root) throws ScriptParseException {
+        String p = "clips";
+        if (!root.has("clips")) {
+            return List.of();
+        }
+        JsonElement element = root.get("clips");
+        if (!element.isJsonArray()) {
+            throw new ScriptParseException(p, "需要数组（脚本级独立片段表；缺省 = 无独立片段）");
+        }
+        JsonArray array = element.getAsJsonArray();
+        List<Clip> clips = new ArrayList<>(array.size());
+        for (int i = 0; i < array.size(); i++) {
+            String cp = p + "[" + i + "]";
+            JsonElement entry = array.get(i);
+            if (!entry.isJsonObject()) {
+                throw new ScriptParseException(cp, "需要对象（独立片段）");
+            }
+            JsonObject obj = entry.getAsJsonObject();
+            if (obj.has("start_time")) {
+                throw new ScriptParseException(cp + ".start_time",
+                        "独立片段不能有 start_time（没有默认放置；需要放置请写 timeline.tracks[].clips[] 的内联片段）");
+            }
+            if (!obj.has("track")) {
+                throw new ScriptParseException(cp + ".track", "缺少必填字段（独立片段需要轨道类型）");
+            }
+            JsonElement trackElement = obj.get("track");
+            if (!trackElement.isJsonPrimitive() || !trackElement.getAsJsonPrimitive().isString()) {
+                throw new ScriptParseException(cp + ".track", "需要字符串（轨道类型名）");
+            }
+            TrackType type = parseTrackType(trackElement.getAsString(), cp + ".track");
+            if (!obj.has("objects")) {
+                throw new ScriptParseException(cp + ".objects",
+                        "缺少必填字段（独立片段必须是新格式：objects 对象）");
+            }
+            JsonElement objects = obj.get("objects");
+            if (!objects.isJsonObject() || objects.getAsJsonObject().size() == 0) {
+                throw new ScriptParseException(cp + ".objects",
+                        "需要非空对象（独立片段必须是新格式：objects 对象）");
+            }
+            // track 只属于独立片段表；摘掉后再走内联片段同一条新格式解析路径（startTime=0，不写回 JSON）
+            JsonObject clipObj = obj.deepCopy();
+            clipObj.remove("track");
+            clips.add(parseObjectClip(clipObj, cp, type, 0f));
+        }
+        return clips;
     }
 
     /** {@link #normalizeStructs} 的固定路径分类（不做反射扫描）。 */

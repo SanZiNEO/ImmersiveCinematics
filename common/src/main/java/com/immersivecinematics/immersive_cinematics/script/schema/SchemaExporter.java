@@ -5,11 +5,22 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import com.immersivecinematics.immersive_cinematics.camera.rule.RuleActions;
 import com.immersivecinematics.immersive_cinematics.math.path.PathCapability;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.script.identity.ClipIdentity;
+import com.immersivecinematics.immersive_cinematics.script.path.PathCollectionParser;
+import com.immersivecinematics.immersive_cinematics.script.rule.ClipExitPolicyParser;
+import com.immersivecinematics.immersive_cinematics.script.rule.RuleCollectionParser;
+import com.immersivecinematics.immersive_cinematics.script.rule.RuleControl;
+import com.immersivecinematics.immersive_cinematics.script.rule.RuleDefinition;
+import com.immersivecinematics.immersive_cinematics.script.rule.RuleReleaseKind;
+import com.immersivecinematics.immersive_cinematics.script.rule.RuleSchedule;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Locale;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,7 +33,7 @@ public final class SchemaExporter {
 
     private SchemaExporter() {}
 
-    /** 导出完整 schema（meta / tracks / triggers / models / curveTypes 五段）；只转发各注册表，不自行补字段。 */
+    /** 导出完整 schema（meta / tracks / triggers / models / curveTypes / script_structure 六段）；只转发各注册表，不自行补字段。 */
     public static JsonObject exportAll() {
         JsonObject root = new JsonObject();
         root.add("meta", exportFields(SchemaRegistry.getMetaFields()));
@@ -96,7 +107,189 @@ public final class SchemaExporter {
         }
         root.add("curveTypes", curveTypes);
 
+        // 脚本级结构 schema：clips / rules / rule_bindings / paths + 枚举（编辑器结构面板直接消费）
+        root.add("script_structure", scriptStructure());
+
         return root;
+    }
+
+    /**
+     * 脚本级结构 schema（{@code ROUND-I-4-MAP} §1.1–§1.7）：片段身份 / 规则定义 / 规则绑定 / 路径集合，
+     * 以及动作类型、出口类型、调度类型、事实条件类型四份枚举。
+     *
+     * <p>本方法只导出结构（字段名 / 类型 / 必填 / 缺省值 / 枚举 / 说明），不解析脚本、不读注册表以外的状态；
+     * {@code paths} 的解析归后续轮次，这里先给编辑器一份稳定契约。</p>
+     */
+    public static JsonObject scriptStructure() {
+        JsonObject root = new JsonObject();
+
+        // ===== clips[]：脚本级独立片段（无 start_time，track + duration 必填）=====
+        JsonObject clips = new JsonObject();
+        put(clips, "id", field("string", false, null,
+                "片段 id（" + ClipIdentity.PATTERN + "；被规则 / 路径 / 分支 / 出口引用时必填）"));
+        put(clips, "track", field("string", true, null,
+                "轨道类型（独立片段必填，决定 objects schema）", trackTypeNames()));
+        put(clips, "duration", field("number", true, null,
+                "片段时长（秒；正数=有限，负数=无限单次）"));
+        put(clips, "objects", field("object", true, null, "采样属性对象（新格式内容）"));
+        put(clips, "exit", exitField(false));
+        root.add("clips", clips);
+
+        // ===== rules[]：规则定义 =====
+        JsonObject rules = new JsonObject();
+        put(rules, "id", field("string", true, null,
+                "规则 id（" + RuleCollectionParser.ID_PATTERN + "；脚本内唯一）"));
+        put(rules, "condition", field("object", true, null,
+                "条件树（v1 状态谓词 + all_of/any + clip_fact/rule_fact，见 condition_fact_types）"));
+        put(rules, "actions", field("array", true, null, "动作数组（至少一个；类型见 action_types）"));
+        JsonObject policy = new JsonObject();
+        put(policy, "once", field("boolean", false, RuleDefinition.DEFAULT_ONCE, "只触发一次（缺省 true）"));
+        put(policy, "cooldown", field("number", false, RuleDefinition.DEFAULT_COOLDOWN,
+                "触发后静默秒数（缺省 0，>= 0）"));
+        put(policy, "mode", field("string", false, RuleDefinition.MODE_ENTER,
+                "触发方式（缺省 enter）", RuleDefinition.MODES.toArray(new String[0])));
+        put(policy, "dwell", field("number", false, RuleDefinition.DEFAULT_DWELL,
+                "驻留判定阈值秒数（缺省 0，>= 0）"));
+        put(policy, "timeout", field("number", false, RuleDefinition.TIMEOUT_NONE,
+                "等待上限秒数（缺省 -1 = 无限等待）"));
+        put(policy, "on_timeout", field("array", false, null, "超时动作（缺省空数组）"));
+        put(rules, "policy", objectField(false, policy, "触发策略（缺省值见内层字段）"));
+        root.add("rules", rules);
+
+        // ===== rule_bindings[]：定义 × 片段 × 时间门 =====
+        JsonObject bindings = new JsonObject();
+        put(bindings, "id", field("string", true, null,
+                "绑定 id（" + RuleCollectionParser.ID_PATTERN + "；脚本内唯一）"));
+        put(bindings, "rule", field("string", true, null, "规则定义 id（必须命中 rules[].id）"));
+        put(bindings, "clip", field("string", true, null, "宿主片段 id（必须命中片段 id）"));
+        JsonObject gate = new JsonObject();
+        put(gate, "at", field("number", true, null,
+                "时间门（目标片段执行局部秒；有限片段 0 ~ duration，无限片段 >= 0）"));
+        put(bindings, "gate", objectField(true, gate, "时间门（必填）"));
+        put(bindings, "control", field("string", false, RuleControl.OBSERVE.scriptName(),
+                "执行控制（缺省 observe）", RuleControl.SCRIPT_NAMES.toArray(new String[0])));
+        put(bindings, "schedule", scheduleField(false));
+        put(bindings, "exit", exitField(false));
+        root.add("rule_bindings", bindings);
+
+        // ===== paths[]：片段位置关键帧区间上的路径（I4-8 解析 / 校验 / 索引）=====
+        JsonObject paths = new JsonObject();
+        put(paths, "id", field("string", true, null, "路径 id（脚本内唯一，匹配 ^[A-Za-z0-9_]{1,64}$）"));
+        put(paths, "clip", field("string", true, null,
+                "目标片段 id（必须是 objects 片段；端点取自其 position.x/y/z 节点时间序列）"));
+        put(paths, "from", field("number", true, null,
+                "起点位置节点时间（秒，必须命中 position.x/y/z 关键帧时间，from < to）"));
+        put(paths, "to", field("number", true, null,
+                "终点位置节点时间（秒，必须命中节点时间且与 from 相邻）"));
+        put(paths, "axes", field("array", false, null,
+                "轴集合（缺省 x/y/z；去重、顺序无关、至少一项）", "x", "y", "z"));
+        JsonObject geometry = new JsonObject();
+        put(geometry, "type", field("string", true, null,
+                "曲线类型（line = linear 的别名）", geometryTypeNames()));
+        put(geometry, "control_points", field("array", false, null, "控制点（bezier 等曲线类型使用）"));
+        put(paths, "geometry", objectField(true, geometry, "曲线几何"));
+        JsonObject timing = new JsonObject();
+        put(timing, "type", field("string", false, "linear",
+                "时间映射类型（缺省 linear）", "linear", "keyframes"));
+        put(timing, "points", field("array", false, null,
+                "关键帧点 [{t,s}]（keyframes：两端 0/1、单调不减、至少 2 点）"));
+        put(paths, "timing", objectField(false, timing, "时间映射（缺省线性）"));
+        root.add("paths", paths);
+
+        // ===== 枚举 =====
+        JsonArray actionTypes = new JsonArray();
+        for (String type : RuleActions.ACTION_TYPES_V1) actionTypes.add(type);
+        root.add("action_types", actionTypes);
+        root.add("exit_kinds", stringArray(ClipExitPolicyParser.KIND_NAMES));
+        root.add("schedule_kinds", stringArray(RuleReleaseKind.SCRIPT_NAMES));
+
+        JsonObject factTypes = new JsonObject();
+        JsonObject clipFact = new JsonObject();
+        put(clipFact, "clip", field("string", true, null, "片段 id（必须可解析）"));
+        put(clipFact, "fact", field("string", true, null, "事实", "started", "completed"));
+        factTypes.add("clip_fact", clipFact);
+        JsonObject ruleFact = new JsonObject();
+        put(ruleFact, "binding", field("string", true, null, "绑定 id（必须可解析）"));
+        put(ruleFact, "fact", field("string", true, null, "事实", "succeeded", "action_completed"));
+        factTypes.add("rule_fact", ruleFact);
+        root.add("condition_fact_types", factTypes);
+
+        return root;
+    }
+
+    /** 单位段：{@code exit} 对象（片段默认出口 / 绑定入口覆盖共用）。 */
+    private static JsonObject exitField(boolean required) {
+        JsonObject fields = new JsonObject();
+        put(fields, "on_complete", field("string", true, null, "完成去向",
+                ClipExitPolicyParser.KIND_NAMES.toArray(new String[0])));
+        put(fields, "target", field("string", false, null, "目标片段 id（仅 goto，必须可解析）"));
+        put(fields, "entry_time", field("number", false, 0.0, "入口局部秒（仅 goto；缺省 0，>= 0）"));
+        return objectField(required, fields, "出口策略（片段默认 / 绑定入口覆盖）");
+    }
+
+    /** 单位段：{@code schedule} 对象（五种释放条件的具体参数）。 */
+    private static JsonObject scheduleField(boolean required) {
+        JsonObject fields = new JsonObject();
+        put(fields, "on", field("string", true, null, "释放条件（缺省 = 立即提交）",
+                RuleReleaseKind.SCRIPT_NAMES.toArray(new String[0])));
+        put(fields, "clip", field("string", false, null,
+                "目标片段 id（clip_start / clip_complete / local_time 必填）"));
+        put(fields, "at", field("number", false, null,
+                "目标片段执行局部秒（local_time 必填，>= 0）"));
+        put(fields, "seconds", field("number", false, null,
+                "判定成功后的真实秒数（delay 必填，>= 0；挂起不冻结）"));
+        put(fields, "binding", field("string", false, null, "来源绑定 id（fact 必填，必须可解析）"));
+        put(fields, "fact", field("string", false, null, "来源事实（fact 必填）",
+                RuleSchedule.FACT_NAMES.toArray(new String[0])));
+        return objectField(required, fields, "动作调度（缺省 = 成功后立即提交）");
+    }
+
+    /** 字段描述：类型 / 必填 / 缺省值 / 枚举 / 说明。 */
+    private static JsonObject field(String type, boolean required, Object defaultValue, String doc,
+                                    String... enumValues) {
+        JsonObject out = new JsonObject();
+        out.addProperty("type", type);
+        out.addProperty("required", required);
+        out.add("default", toJson(defaultValue));
+        JsonArray values = new JsonArray();
+        for (String value : enumValues) values.add(value);
+        out.add("enumValues", values);
+        out.addProperty("doc", doc);
+        return out;
+    }
+
+    /** 对象字段：附带内层字段表。 */
+    private static JsonObject objectField(boolean required, JsonObject fields, String doc) {
+        JsonObject out = field("object", required, null, doc);
+        out.add("fields", fields);
+        return out;
+    }
+
+    private static void put(JsonObject parent, String name, JsonObject field) {
+        parent.add(name, field);
+    }
+
+    private static JsonArray stringArray(Collection<String> values) {
+        JsonArray array = new JsonArray();
+        for (String value : values) array.add(value);
+        return array;
+    }
+
+    private static String[] trackTypeNames() {
+        TrackType[] types = TrackType.values();
+        String[] names = new String[types.length];
+        for (int i = 0; i < types.length; i++) names[i] = types[i].name();
+        return names;
+    }
+
+    /** 路径 geometry 的 type 枚举：{@code line}（别名）在前，其后为注册表类型（去重）。 */
+    private static String[] geometryTypeNames() {
+        List<String> names = new ArrayList<>();
+        names.add(PathCollectionParser.LINE_TYPE);
+        for (String type : PathCurveRegistry.types()) {
+            if (!names.contains(type)) names.add(type);
+        }
+        return names.toArray(new String[0]);
     }
 
     private static JsonObject exportFields(Map<String, FieldDef> fields) {

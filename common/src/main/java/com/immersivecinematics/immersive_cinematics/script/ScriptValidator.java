@@ -10,7 +10,14 @@ import com.immersivecinematics.immersive_cinematics.camera.source.PointSource;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionMode;
 import com.immersivecinematics.immersive_cinematics.client.rule.ClientConditions;
 import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitKind;
+import com.immersivecinematics.immersive_cinematics.script.identity.ClipIdentity;
+import com.immersivecinematics.immersive_cinematics.script.rule.ClipExitPolicyParser;
+import com.immersivecinematics.immersive_cinematics.script.rule.RuleCollectionParser;
+import com.immersivecinematics.immersive_cinematics.script.rule.RuleControl;
+import com.immersivecinematics.immersive_cinematics.script.rule.RuleDefinition;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectValidator;
+import com.immersivecinematics.immersive_cinematics.script.path.PathCollectionParser;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
 import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveException;
@@ -26,8 +33,11 @@ import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 脚本静态校验器 — 供 /icinematics validate 命令使用。
@@ -154,6 +164,27 @@ public final class ScriptValidator {
     private record ChannelRange(String field, float min, float max) {}
 
     private ScriptValidator() {}
+
+    /**
+     * 警告级 issue 前缀：结构合法、可以加载，但运行期会明显不达预期。
+     * 报告里与错误区分；{@link #errorsOf} 过滤掉警告后为空即视为校验通过。
+     */
+    public static final String WARNING_PREFIX = "[警告] ";
+
+    /** 是否为警告级 issue。 */
+    public static boolean isWarning(String issue) {
+        return issue != null && issue.startsWith(WARNING_PREFIX);
+    }
+
+    /** 只保留错误级 issue（去掉警告级）。 */
+    public static List<String> errorsOf(List<String> issues) {
+        if (issues == null || issues.isEmpty()) return List.of();
+        List<String> errors = new ArrayList<>(issues.size());
+        for (String issue : issues) {
+            if (!isWarning(issue)) errors.add(issue);
+        }
+        return errors;
+    }
 
     /**
      * 校验脚本 JSON 文本，返回问题清单（空 = 校验通过）。
@@ -286,6 +317,19 @@ public final class ScriptValidator {
             validateTriggerRequires(meta, "meta", knownScriptIds, issues);
             validateTriggerConditions(meta, "meta", knownScriptIds, issues);
         }
+
+        // ===== 片段身份：id 格式 / 脚本内唯一性 / 独立片段结构 =====
+        // 放在 timeline 检查之前：timeline 缺失时也能报出独立片段表的问题。
+        checkClipIdentities(root, issues);
+
+        // ===== 脚本级规则集合：rules[] / rule_bindings[]（与旧 clip.rules 互斥）=====
+        checkScriptRuleCollection(root, issues);
+
+        // ===== 脚本级路径集合：paths[]（与解析器同一套结构 / 端点规则）=====
+        checkPathCollection(root, issues);
+
+        // ===== 片段级 exit：新格式结构校验；旧格式片段不读 exit（写了即报错）=====
+        checkClipExits(root, issues);
 
         // ===== timeline =====
         if (!root.has("timeline") || !root.get("timeline").isJsonObject()) {
@@ -659,6 +703,200 @@ public final class ScriptValidator {
         return issues;
     }
 
+    // ======================================================================
+    // 片段身份（I4-1）：id 格式 / 脚本内唯一性 / 独立片段结构
+    // ======================================================================
+
+    /**
+     * 校验片段身份与脚本级独立片段表：
+     * <ul>
+     *   <li>{@code id} 格式（{@link ClipIdentity#PATTERN}）；</li>
+     *   <li>脚本内唯一性——内联片段与独立片段共用同一命名空间，重复时指出两处路径；</li>
+     *   <li>独立片段结构：{@code track} 必填合法、{@code duration} 必填非 0、{@code objects} 必填非空、
+     *       禁止 {@code start_time}（没有默认放置）。</li>
+     * </ul>
+     *
+     * <p>缺 {@code id} 不报错：未被任何宿主引用的片段可以匿名。「被引用却无 id」属于引用检查，
+     * 由规则 / 路径 / 出口的后续轮次加入。解析期不报重复（交给本校验器），避免旧解析基线漂移。</p>
+     */
+    private static void checkClipIdentities(JsonObject root, List<String> issues) {
+        Map<String, String> firstSeen = new LinkedHashMap<>();
+
+        // 内联片段：timeline.tracks[ti].clips[ci]
+        JsonElement timelineElement = root.get("timeline");
+        if (timelineElement != null && timelineElement.isJsonObject()) {
+            JsonElement tracksElement = timelineElement.getAsJsonObject().get("tracks");
+            if (tracksElement != null && tracksElement.isJsonArray()) {
+                JsonArray tracks = tracksElement.getAsJsonArray();
+                for (int ti = 0; ti < tracks.size(); ti++) {
+                    JsonElement te = tracks.get(ti);
+                    if (!te.isJsonObject()) continue;
+                    JsonElement clipsElement = te.getAsJsonObject().get("clips");
+                    if (clipsElement == null || !clipsElement.isJsonArray()) continue;
+                    JsonArray clips = clipsElement.getAsJsonArray();
+                    for (int ci = 0; ci < clips.size(); ci++) {
+                        JsonElement ce = clips.get(ci);
+                        if (!ce.isJsonObject()) continue;
+                        checkClipIdField(ce.getAsJsonObject(),
+                                "timeline.tracks[" + ti + "].clips[" + ci + "]", firstSeen, issues);
+                    }
+                }
+            }
+        }
+
+        // 独立片段：clips[i]
+        if (!root.has("clips")) return;
+        JsonElement clipsElement = root.get("clips");
+        if (!clipsElement.isJsonArray()) {
+            issues.add("clips 需要数组（脚本级独立片段表；缺省 = 无独立片段）");
+            return;
+        }
+        JsonArray clips = clipsElement.getAsJsonArray();
+        for (int i = 0; i < clips.size(); i++) {
+            String cp = "clips[" + i + "]";
+            JsonElement ce = clips.get(i);
+            if (!ce.isJsonObject()) {
+                issues.add(cp + " 需要对象（独立片段）");
+                continue;
+            }
+            JsonObject clip = ce.getAsJsonObject();
+            checkClipIdField(clip, cp, firstSeen, issues);
+            if (clip.has("start_time")) {
+                issues.add(cp + ".start_time 不允许（独立片段没有默认放置；"
+                        + "需要放置请写 timeline.tracks[].clips[] 的内联片段）");
+            }
+            checkStandaloneTrack(clip, cp, issues);
+            checkStandaloneDuration(clip, cp, issues);
+            checkStandaloneObjects(clip, cp, issues);
+        }
+    }
+
+    /**
+     * 片段级 {@code exit}（片段默认出口）：新格式片段按 {@link #checkExitStructure} 校验；
+     * 旧格式片段（无 {@code objects}）不读 {@code exit}，写了即报错——与解析器同口径，
+     * 保持旧格式纯净（出口声明只属于新格式 objects 片段）。
+     */
+    private static void checkClipExits(JsonObject root, List<String> issues) {
+        Set<String> clipIds = new LinkedHashSet<>();
+        Map<String, Float> durations = new LinkedHashMap<>();
+        collectClipDeclarations(root, clipIds, durations);
+
+        JsonElement timelineElement = root.get("timeline");
+        if (timelineElement != null && timelineElement.isJsonObject()) {
+            JsonElement tracksElement = timelineElement.getAsJsonObject().get("tracks");
+            if (tracksElement != null && tracksElement.isJsonArray()) {
+                JsonArray tracks = tracksElement.getAsJsonArray();
+                for (int ti = 0; ti < tracks.size(); ti++) {
+                    JsonElement te = tracks.get(ti);
+                    if (!te.isJsonObject()) continue;
+                    JsonElement clipsElement = te.getAsJsonObject().get("clips");
+                    if (clipsElement == null || !clipsElement.isJsonArray()) continue;
+                    JsonArray clips = clipsElement.getAsJsonArray();
+                    for (int ci = 0; ci < clips.size(); ci++) {
+                        JsonElement ce = clips.get(ci);
+                        if (!ce.isJsonObject()) continue;
+                        checkClipExitField(ce.getAsJsonObject(),
+                                "timeline.tracks[" + ti + "].clips[" + ci + "]", clipIds, issues);
+                    }
+                }
+            }
+        }
+
+        JsonElement standalone = root.get("clips");
+        if (standalone == null || !standalone.isJsonArray()) return;
+        JsonArray clips = standalone.getAsJsonArray();
+        for (int i = 0; i < clips.size(); i++) {
+            JsonElement ce = clips.get(i);
+            if (!ce.isJsonObject()) continue;
+            checkClipExitField(ce.getAsJsonObject(), "clips[" + i + "]", clipIds, issues);
+        }
+    }
+
+    /** 单个片段的 {@code exit} 字段：旧格式拒绝；新格式必须是对象并通过结构校验。 */
+    private static void checkClipExitField(JsonObject clip, String cp, Set<String> clipIds,
+                                           List<String> issues) {
+        JsonElement exit = clip.get("exit");
+        if (exit == null) return;
+        if (!clip.has("objects")) {
+            issues.add(cp + ".exit 不支持（旧格式片段不读 exit；出口声明只属于新格式 objects 片段）");
+            return;
+        }
+        if (!exit.isJsonObject()) {
+            issues.add(cp + ".exit 需要对象（出口策略）");
+            return;
+        }
+        checkExitStructure(exit.getAsJsonObject(), cp + ".exit", clipIds, issues);
+    }
+
+    /** 一个片段的 {@code id}：类型 / 格式 / 脚本内唯一（内联与独立共用命名空间）。 */
+    private static void checkClipIdField(JsonObject clip, String cp, Map<String, String> firstSeen,
+                                         List<String> issues) {
+        if (!clip.has("id")) return;
+        JsonElement idElement = clip.get("id");
+        if (!isString(idElement)) {
+            issues.add(cp + ".id 需要字符串（片段 id，匹配 " + ClipIdentity.PATTERN + "）");
+            return;
+        }
+        String id = idElement.getAsString();
+        if (!ClipIdentity.isValid(id)) {
+            issues.add(cp + ".id 不合法: " + id + "（需匹配 " + ClipIdentity.PATTERN + "）");
+            return;
+        }
+        String previous = firstSeen.putIfAbsent(id, cp);
+        if (previous != null) {
+            issues.add("重复的片段 id: " + id + "（出现于 " + previous + " 与 " + cp + "）");
+        }
+    }
+
+    /** 独立片段 {@code track}：必填、字符串、已知轨道类型（决定 {@code objects} schema）。 */
+    private static void checkStandaloneTrack(JsonObject clip, String cp, List<String> issues) {
+        if (!clip.has("track")) {
+            issues.add(cp + ".track 缺失（独立片段需要轨道类型，决定 objects schema）");
+            return;
+        }
+        JsonElement track = clip.get("track");
+        if (!isString(track)) {
+            issues.add(cp + ".track 需要字符串（轨道类型名: " + trackTypesHint() + "）");
+            return;
+        }
+        if (trackTypeOf(track.getAsString()) == null) {
+            issues.add(cp + ".track 未知类型: " + track.getAsString() + "（可选: " + trackTypesHint() + "）");
+        }
+    }
+
+    /** 独立片段 {@code duration}：必填、有限、非 0（负数 = 无限时长）。 */
+    private static void checkStandaloneDuration(JsonObject clip, String cp, List<String> issues) {
+        if (!clip.has("duration")) {
+            issues.add(cp + ".duration 缺失（正数=有限时长，负数=无限时长）");
+            return;
+        }
+        JsonElement duration = clip.get("duration");
+        if (!isNumber(duration)) {
+            issues.add(cp + ".duration 不是数字");
+            return;
+        }
+        float d = duration.getAsFloat();
+        if (!Float.isFinite(d)) {
+            issues.add(cp + ".duration 不是有限数字（NaN / Infinity）");
+        } else if (d == 0f) {
+            issues.add(cp + ".duration 不允许为 0（正数=有限时长，负数=无限时长）");
+        }
+    }
+
+    /** 独立片段 {@code objects}：必填、对象、非空（独立片段必须是新格式）。 */
+    private static void checkStandaloneObjects(JsonObject clip, String cp, List<String> issues) {
+        if (!clip.has("objects")) {
+            issues.add(cp + ".objects 缺失（独立片段必须是新格式：objects 对象）");
+            return;
+        }
+        JsonElement objects = clip.get("objects");
+        if (!objects.isJsonObject()) {
+            issues.add(cp + ".objects 需要对象（独立片段必须是新格式）");
+        } else if (objects.getAsJsonObject().size() == 0) {
+            issues.add(cp + ".objects 为空（独立片段必须是新格式：至少一个采样属性）");
+        }
+    }
+
     /**
      * 校验数值字段的取值区间（闭区间）；字段缺省时跳过（缺省值生效）。
      * 与 {@link #checkUnitFloat} 同族，区间由调用方给定（ADJUST 各通道区间不同）。
@@ -861,6 +1099,799 @@ public final class ScriptValidator {
         }
     }
 
+    // ======================================================================
+    // 脚本级规则集合（I4-2）：rules[] / rule_bindings[]
+    // ======================================================================
+
+    /**
+     * 校验脚本级规则集合（{@code rules} 定义表 + {@code rule_bindings} 绑定表）。
+     *
+     * <p>口径（{@code ROUND-I-4-MAP} §1.2–§1.5、§1.7）：
+     * <ul>
+     *   <li>新旧互斥：任一 timeline 内联片段带 {@code rules} 时不得出现脚本级集合；</li>
+     *   <li>定义：id 唯一 / 合法、{@code condition} 对象、{@code actions} 非空数组、{@code policy} 键白名单；</li>
+     *   <li>条件树：v1 判定源 + 组合器 + 事实叶子（{@code clip_fact} / {@code rule_fact}），引用须可解析；</li>
+     *   <li>绑定：id 唯一、{@code rule} / {@code clip} 可解析、{@code gate.at} 数值且在片段时长范围内、
+     *       {@code control} 枚举、{@code schedule} / {@code exit} 结构（不构造 {@link Clip} 对象）；</li>
+     *   <li>动作：{@code goto_clip} 用新形态（{@code clip} + {@code entry_time}，拒绝旧 {@code track} / {@code at}），
+     *       其余复用 v1 动作校验。</li>
+     * </ul>
+     *
+     * <p>错误路径前缀用 {@code rules[i]} / {@code rule_bindings[i]}（与片段内校验的 {@code cp} 风格一致）。</p>
+     */
+    private static void checkScriptRuleCollection(JsonObject root, List<String> issues) {
+        boolean hasRules = root.has("rules");
+        boolean hasBindings = root.has("rule_bindings");
+        if (!hasRules && !hasBindings) return;
+
+        if (hasLegacyClipRules(root)) {
+            issues.add("rules 脚本级规则集合与片段级 clip.rules 不能同时出现"
+                    + "（旧 clip.rules 仅用于旧格式脚本；两种脚本各自独立可读可播）");
+        }
+
+        Set<String> clipIds = new LinkedHashSet<>();
+        Map<String, Float> clipDurations = new LinkedHashMap<>();
+        collectClipDeclarations(root, clipIds, clipDurations);
+
+        // ===== 规则定义表 =====
+        Set<String> ruleIds = new LinkedHashSet<>();
+        List<JsonObject> pendingConditions = new ArrayList<>();
+        List<String> pendingConditionPaths = new ArrayList<>();
+        List<JsonElement> pendingActions = new ArrayList<>();
+        List<String> pendingActionPaths = new ArrayList<>();
+
+        if (hasRules) {
+            JsonElement rulesElement = root.get("rules");
+            if (!rulesElement.isJsonArray()) {
+                issues.add("rules 需要数组（规则定义表；缺省 = 无规则）");
+            } else {
+                JsonArray array = rulesElement.getAsJsonArray();
+                for (int i = 0; i < array.size(); i++) {
+                    String rp = "rules[" + i + "]";
+                    JsonElement entry = array.get(i);
+                    if (!entry.isJsonObject()) {
+                        issues.add(rp + " 需要对象（规则定义）");
+                        continue;
+                    }
+                    JsonObject rule = entry.getAsJsonObject();
+                    rejectKeys(rule, rp, issues, "id", "condition", "actions", "policy");
+                    checkRuleIdV2(rule, rp, ruleIds, issues);
+
+                    if (!rule.has("condition")) {
+                        issues.add(rp + ".condition 缺失（条件树对象必填）");
+                    } else if (!rule.get("condition").isJsonObject()) {
+                        issues.add(rp + ".condition 需要对象（条件树）");
+                    } else {
+                        pendingConditions.add(rule.getAsJsonObject("condition"));
+                        pendingConditionPaths.add(rp);
+                    }
+
+                    if (!rule.has("actions")) {
+                        issues.add(rp + ".actions 缺失（规则至少一个动作）");
+                    } else if (!rule.get("actions").isJsonArray()) {
+                        issues.add(rp + ".actions 需要数组（元素 = 动作对象）");
+                    } else if (rule.getAsJsonArray("actions").isEmpty()) {
+                        issues.add(rp + ".actions 为空（规则至少一个动作）");
+                    } else {
+                        pendingActions.add(rule.get("actions"));
+                        pendingActionPaths.add(rp + ".actions");
+                    }
+
+                    if (rule.has("policy")) {
+                        checkRulePolicy(rule.get("policy"), rp + ".policy", clipIds, issues);
+                    }
+                }
+            }
+        }
+
+        // ===== 绑定表（先收 id：fact 调度允许前向引用）=====
+        Set<String> bindingIds = new LinkedHashSet<>();
+        if (hasBindings) {
+            JsonElement bindingsElement = root.get("rule_bindings");
+            if (!bindingsElement.isJsonArray()) {
+                issues.add("rule_bindings 需要数组（规则绑定表；缺省 = 无绑定）");
+            } else {
+                JsonArray array = bindingsElement.getAsJsonArray();
+                for (int i = 0; i < array.size(); i++) {
+                    String bp = "rule_bindings[" + i + "]";
+                    JsonElement entry = array.get(i);
+                    if (!entry.isJsonObject()) {
+                        issues.add(bp + " 需要对象（规则绑定）");
+                        continue;
+                    }
+                    collectBindingId(entry.getAsJsonObject(), bp, bindingIds, issues);
+                }
+                Map<String, JsonObject> ruleObjects = collectRuleObjects(root);
+                Map<String, JsonObject> clipObjects = new LinkedHashMap<>();
+                collectClipObjects(root, clipObjects);
+                for (int i = 0; i < array.size(); i++) {
+                    JsonElement entry = array.get(i);
+                    if (!entry.isJsonObject()) continue;
+                    checkRuleBinding(entry.getAsJsonObject(), "rule_bindings[" + i + "]",
+                            ruleIds, bindingIds, clipIds, clipDurations, issues);
+                    checkHoldReachability(entry.getAsJsonObject(), "rule_bindings[" + i + "]",
+                            ruleObjects, clipObjects, issues);
+                }
+            }
+        }
+
+        // ===== 条件树 + 动作（需要两套引用 id 集全部就绪）=====
+        for (int i = 0; i < pendingConditions.size(); i++) {
+            checkRuleConditionV2(pendingConditions.get(i), pendingConditionPaths.get(i) + ".condition",
+                    issues, bindingIds, clipIds);
+        }
+        for (int i = 0; i < pendingActions.size(); i++) {
+            checkActionArray(pendingActions.get(i), pendingActionPaths.get(i), true, issues, clipIds);
+        }
+    }
+
+    /** 新旧规则互斥：任一 timeline 内联片段带 {@code rules}。 */
+    private static boolean hasLegacyClipRules(JsonObject root) {
+        JsonElement timelineElement = root.get("timeline");
+        if (timelineElement == null || !timelineElement.isJsonObject()) return false;
+        JsonElement tracksElement = timelineElement.getAsJsonObject().get("tracks");
+        if (tracksElement == null || !tracksElement.isJsonArray()) return false;
+        for (JsonElement trackElement : tracksElement.getAsJsonArray()) {
+            if (!trackElement.isJsonObject()) continue;
+            JsonElement clipsElement = trackElement.getAsJsonObject().get("clips");
+            if (clipsElement == null || !clipsElement.isJsonArray()) continue;
+            for (JsonElement clipElement : clipsElement.getAsJsonArray()) {
+                if (clipElement.isJsonObject() && clipElement.getAsJsonObject().has("rules")) return true;
+            }
+        }
+        return false;
+    }
+
+    /** 片段 id 表 + 时长表（内联 + 顶层 {@code clips[]}；非法 id / 时长由 {@link #checkClipIdentities} 报）。 */
+    private static void collectClipDeclarations(JsonObject root, Set<String> clipIds,
+                                                Map<String, Float> durations) {
+        JsonElement timelineElement = root.get("timeline");
+        if (timelineElement != null && timelineElement.isJsonObject()) {
+            JsonElement tracksElement = timelineElement.getAsJsonObject().get("tracks");
+            if (tracksElement != null && tracksElement.isJsonArray()) {
+                for (JsonElement trackElement : tracksElement.getAsJsonArray()) {
+                    if (!trackElement.isJsonObject()) continue;
+                    JsonElement clipsElement = trackElement.getAsJsonObject().get("clips");
+                    if (clipsElement == null || !clipsElement.isJsonArray()) continue;
+                    for (JsonElement clipElement : clipsElement.getAsJsonArray()) {
+                        registerClipDeclaration(clipElement, clipIds, durations);
+                    }
+                }
+            }
+        }
+        JsonElement standalone = root.get("clips");
+        if (standalone != null && standalone.isJsonArray()) {
+            for (JsonElement clipElement : standalone.getAsJsonArray()) {
+                registerClipDeclaration(clipElement, clipIds, durations);
+            }
+        }
+    }
+
+    private static void registerClipDeclaration(JsonElement clipElement, Set<String> clipIds,
+                                                Map<String, Float> durations) {
+        if (clipElement == null || !clipElement.isJsonObject()) return;
+        JsonObject clip = clipElement.getAsJsonObject();
+        JsonElement idElement = clip.get("id");
+        if (idElement == null || !isString(idElement) || idElement.getAsString().isEmpty()) return;
+        String id = idElement.getAsString();
+        clipIds.add(id);
+        JsonElement durationElement = clip.get("duration");
+        if (durationElement == null || !isNumber(durationElement)) return;
+        float duration = durationElement.getAsFloat();
+        if (Float.isFinite(duration)) {
+            durations.putIfAbsent(id, duration);
+        }
+    }
+
+    // ========== 脚本级路径集合 paths[] ==========
+
+    /**
+     * 校验脚本级路径集合 {@code paths[]}：结构与语义规则全部来自 {@link PathCollectionParser}
+     * （id 格式 / 唯一、clip 可解析、from/to 有限且 {@code from < to}、axes / geometry / timing 结构、
+     * 端点命中 position 节点时间且相邻、端点对唯一）；解析器抛异常处这里收成 issue，不抛异常。
+     */
+    private static void checkPathCollection(JsonObject root, List<String> issues) {
+        if (!root.has("paths")) return;
+        JsonElement pathsElement = root.get("paths");
+        if (!pathsElement.isJsonArray()) {
+            issues.add("paths 需要数组（路径集合；缺省 = 无路径）");
+            return;
+        }
+        JsonArray array = pathsElement.getAsJsonArray();
+        if (array.isEmpty()) return;
+
+        Map<String, JsonObject> clips = new LinkedHashMap<>();
+        collectClipObjects(root, clips);
+
+        Set<String> pathIds = new LinkedHashSet<>();
+        Map<String, String> endpointPairs = new LinkedHashMap<>();
+        for (int i = 0; i < array.size(); i++) {
+            String pp = "paths[" + i + "]";
+            JsonElement entryElement = array.get(i);
+            if (entryElement == null || !entryElement.isJsonObject()) {
+                issues.add(pp + " 需要对象（路径条目）");
+                continue;
+            }
+            checkPathEntry(entryElement.getAsJsonObject(), pp, clips, pathIds, endpointPairs, issues);
+        }
+    }
+
+    /** 单条路径条目：逐字段收集 issue（与 {@link PathCollectionParser#parse} 同一规则集）。 */
+    private static void checkPathEntry(JsonObject entry, String pp, Map<String, JsonObject> clips,
+                                       Set<String> pathIds, Map<String, String> endpointPairs,
+                                       List<String> issues) {
+        rejectKeys(entry, pp, issues, "id", "clip", "from", "to", "axes", "geometry", "timing");
+
+        // ===== id：存在 / 字符串 / 格式 / 唯一 =====
+        JsonElement idElement = entry.get("id");
+        if (idElement == null) {
+            issues.add(pp + ".id 缺失（需要字符串）");
+        } else if (!isString(idElement) || idElement.getAsString().isEmpty()) {
+            issues.add(pp + ".id 需要非空字符串（路径 id）");
+        } else {
+            String id = idElement.getAsString();
+            if (!PathCollectionParser.isValidId(id)) {
+                issues.add(pp + ".id 必须匹配 " + PathCollectionParser.ID_PATTERN + "，实际: " + id);
+            } else if (!pathIds.add(id)) {
+                issues.add(pp + ".id 路径 id 重复: " + id + "（脚本内必须唯一）");
+            }
+        }
+
+        // ===== clip：存在 / 字符串 / 可解析 / objects 片段 =====
+        String clipId = null;
+        JsonObject clip = null;
+        JsonElement clipElement = entry.get("clip");
+        if (clipElement == null) {
+            issues.add(pp + ".clip 缺失（需要片段 id 字符串）");
+        } else if (!isString(clipElement) || clipElement.getAsString().isEmpty()) {
+            issues.add(pp + ".clip 需要非空字符串（片段 id）");
+        } else {
+            clipId = clipElement.getAsString();
+            clip = clips.get(clipId);
+            if (clip == null) {
+                issues.add(pp + ".clip 未知片段引用: " + clipId + "（宿主 " + pp + "）");
+            } else if (!hasObjects(clip)) {
+                issues.add(pp + ".clip 路径集合只支持 objects 片段（目标片段 " + clipId + " 没有 objects）");
+            }
+        }
+
+        // ===== from / to：存在 / 有限 / from < to =====
+        Float from = readPathTime(entry.get("from"), pp + ".from", issues);
+        Float to = readPathTime(entry.get("to"), pp + ".to", issues);
+        boolean ordered = from != null && to != null && from < to;
+        if (from != null && to != null && !ordered) {
+            issues.add(pp + ".to to 必须大于 from（from=" + from + ", to=" + to + "）");
+        }
+
+        // ===== axes / geometry / timing：结构归解析器同一入口 =====
+        if (entry.has("axes")) {
+            try {
+                PathCollectionParser.parseAxes(entry.get("axes"), pp + ".axes");
+            } catch (ScriptParser.ScriptParseException e) {
+                issues.add(e.getMessage());
+            }
+        }
+        try {
+            PathCollectionParser.parseGeometry(entry.get("geometry"), pp + ".geometry");
+        } catch (ScriptParser.ScriptParseException e) {
+            issues.add(e.getMessage());
+        }
+        if (entry.has("timing")) {
+            try {
+                PathCollectionParser.parseTiming(entry.get("timing"), pp + ".timing");
+            } catch (ScriptParser.ScriptParseException e) {
+                issues.add(e.getMessage());
+            }
+        }
+
+        // ===== 端点：命中 position 节点时间且相邻；端点对唯一 =====
+        if (clip == null || !ordered || !hasObjects(clip)) return;
+        JsonElement objectsElement = clip.get("objects");
+        float[] nodeTimes = PathCollectionParser.positionNodeTimes(objectsElement.getAsJsonObject());
+        int fromIndex = PathCollectionParser.indexOfTime(nodeTimes, from);
+        int toIndex = PathCollectionParser.indexOfTime(nodeTimes, to);
+        String available = PathCollectionParser.formatTimes(nodeTimes);
+        if (fromIndex < 0) {
+            issues.add(pp + ".from 必须命中目标片段 " + clipId + " 的 position 节点时间（可用: "
+                    + available + "，实际: " + from + "）");
+        }
+        if (toIndex < 0) {
+            issues.add(pp + ".to 必须命中目标片段 " + clipId + " 的 position 节点时间（可用: "
+                    + available + "，实际: " + to + "）");
+        }
+        if (fromIndex < 0 || toIndex < 0) return;
+        if (toIndex != fromIndex + 1) {
+            String next = fromIndex + 1 < nodeTimes.length
+                    ? String.valueOf(nodeTimes[fromIndex + 1]) : "（无）";
+            issues.add(pp + ".to 端点必须与 from 相邻（from=" + nodeTimes[fromIndex]
+                    + " 的下一个 position 节点时间 = " + next + "，实际 to=" + to
+                    + "；节点时间 " + available + "）");
+            return;
+        }
+        String pairKey = clipId + "|" + nodeTimes[fromIndex] + "|" + nodeTimes[toIndex];
+        String firstHost = endpointPairs.putIfAbsent(pairKey, pp);
+        if (firstHost != null) {
+            issues.add(pp + ".from 同一片段的端点对重复（clip=" + clipId + ", from="
+                    + nodeTimes[fromIndex] + ", to=" + nodeTimes[toIndex] + "，先出现于 " + firstHost
+                    + "）；端点对必须唯一（区间部分重叠合法）");
+        }
+    }
+
+    /** 片段 id → 片段 JSON（内联 + 顶层 {@code clips[]}；重复 id 保留第一个，由 {@code checkClipIdentities} 报）。 */
+    private static void collectClipObjects(JsonObject root, Map<String, JsonObject> clips) {
+        JsonElement timelineElement = root.get("timeline");
+        if (timelineElement != null && timelineElement.isJsonObject()) {
+            JsonElement tracksElement = timelineElement.getAsJsonObject().get("tracks");
+            if (tracksElement != null && tracksElement.isJsonArray()) {
+                for (JsonElement trackElement : tracksElement.getAsJsonArray()) {
+                    if (!trackElement.isJsonObject()) continue;
+                    JsonElement clipsElement = trackElement.getAsJsonObject().get("clips");
+                    if (clipsElement == null || !clipsElement.isJsonArray()) continue;
+                    for (JsonElement clipElement : clipsElement.getAsJsonArray()) {
+                        registerClipObject(clipElement, clips);
+                    }
+                }
+            }
+        }
+        JsonElement standalone = root.get("clips");
+        if (standalone != null && standalone.isJsonArray()) {
+            for (JsonElement clipElement : standalone.getAsJsonArray()) {
+                registerClipObject(clipElement, clips);
+            }
+        }
+    }
+
+    private static void registerClipObject(JsonElement clipElement, Map<String, JsonObject> clips) {
+        if (clipElement == null || !clipElement.isJsonObject()) return;
+        JsonObject clip = clipElement.getAsJsonObject();
+        JsonElement idElement = clip.get("id");
+        if (idElement == null || !isString(idElement) || idElement.getAsString().isEmpty()) return;
+        clips.putIfAbsent(idElement.getAsString(), clip);
+    }
+
+    /** 片段是否为新格式（有 {@code objects} 且非空）。 */
+    private static boolean hasObjects(JsonObject clip) {
+        JsonElement objects = clip.get("objects");
+        return objects != null && objects.isJsonObject() && objects.getAsJsonObject().size() > 0;
+    }
+
+    /** 读一个路径端点时间（缺失 / 非数字 / 非有限 → issue，返回 {@code null}）。 */
+    private static Float readPathTime(JsonElement element, String path, List<String> issues) {
+        if (element == null) {
+            issues.add(path + " 缺失（需要有限数字）");
+            return null;
+        }
+        if (!isNumber(element)) {
+            issues.add(path + " 需要数字，实际: " + element);
+            return null;
+        }
+        float value = element.getAsFloat();
+        if (!Float.isFinite(value)) {
+            issues.add(path + " 必须是有限数字（NaN / Infinity 不接受）");
+            return null;
+        }
+        return value;
+    }
+
+    /** 规则 id：存在 / 字符串 / 格式 / 唯一。 */
+    private static void checkRuleIdV2(JsonObject rule, String rp, Set<String> ruleIds,
+                                      List<String> issues) {
+        JsonElement idElement = rule.get("id");
+        if (idElement == null) {
+            issues.add(rp + ".id 缺失（规则 id 必填且脚本内唯一）");
+            return;
+        }
+        if (!isString(idElement) || idElement.getAsString().isEmpty()) {
+            issues.add(rp + ".id 需要非空字符串（规则 id）");
+            return;
+        }
+        String id = idElement.getAsString();
+        if (!RuleCollectionParser.isValidId(id)) {
+            issues.add(rp + ".id 不合法: " + id + "（需匹配 " + RuleCollectionParser.ID_PATTERN + "）");
+            return;
+        }
+        if (!ruleIds.add(id)) {
+            issues.add(rp + ".id 重复的规则 id: " + id);
+        }
+    }
+
+    /** 绑定 id（第一遍只收集与查重；结构问题在第二遍按声明顺序报）。 */
+    private static void collectBindingId(JsonObject binding, String bp, Set<String> bindingIds,
+                                         List<String> issues) {
+        JsonElement idElement = binding.get("id");
+        if (idElement == null) {
+            issues.add(bp + ".id 缺失（绑定 id 必填且脚本内唯一）");
+            return;
+        }
+        if (!isString(idElement) || idElement.getAsString().isEmpty()) {
+            issues.add(bp + ".id 需要非空字符串（绑定 id）");
+            return;
+        }
+        String id = idElement.getAsString();
+        if (!RuleCollectionParser.isValidId(id)) {
+            issues.add(bp + ".id 不合法: " + id + "（需匹配 " + RuleCollectionParser.ID_PATTERN + "）");
+            return;
+        }
+        if (!bindingIds.add(id)) {
+            issues.add(bp + ".id 重复的绑定 id: " + id);
+        }
+    }
+
+    /** {@code policy}：键白名单 + 各字段取值（缺省值语义与 v1 {@code clip.rules} 同名同值）。 */
+    private static void checkRulePolicy(JsonElement policyElement, String pp, Set<String> clipIds,
+                                        List<String> issues) {
+        if (!policyElement.isJsonObject()) {
+            issues.add(pp + " 需要对象（策略字段: once / cooldown / mode / dwell / timeout / on_timeout）");
+            return;
+        }
+        JsonObject policy = policyElement.getAsJsonObject();
+        rejectKeys(policy, pp, issues, "once", "cooldown", "mode", "dwell", "timeout", "on_timeout");
+
+        JsonElement once = policy.get("once");
+        if (once != null && (!once.isJsonPrimitive() || !once.getAsJsonPrimitive().isBoolean())) {
+            issues.add(pp + ".once 需要布尔值（true = 只触发一次；缺省 true）");
+        }
+        checkOptionalNonNegative(policy, pp, "cooldown", issues);
+        checkOptionalNonNegative(policy, pp, "dwell", issues);
+
+        JsonElement mode = policy.get("mode");
+        if (mode != null && (!isString(mode) || !RuleDefinition.MODES.contains(mode.getAsString()))) {
+            issues.add(pp + ".mode 需要 enter / dwell（缺省 enter），实际: " + mode);
+        }
+        JsonElement timeout = policy.get("timeout");
+        if (timeout != null) {
+            if (!isNumber(timeout)) {
+                issues.add(pp + ".timeout 需要数字（秒，> 0；缺省 -1 = 无限等待）");
+            } else {
+                double value = timeout.getAsDouble();
+                if (value != RuleDefinition.TIMEOUT_NONE && (!Double.isFinite(value) || !(value > 0.0))) {
+                    issues.add(pp + ".timeout 需要 > 0 的有限数字或 -1（无限等待），实际: " + timeout);
+                }
+            }
+        }
+        JsonElement onTimeout = policy.get("on_timeout");
+        if (onTimeout != null) {
+            if (!onTimeout.isJsonArray()) {
+                issues.add(pp + ".on_timeout 需要数组（元素 = 动作对象）");
+            } else {
+                checkActionArray(onTimeout, pp + ".on_timeout", false, issues, clipIds);
+            }
+        }
+    }
+
+    /** 可选非负数字字段（缺失跳过）。 */
+    private static void checkOptionalNonNegative(JsonObject obj, String path, String key,
+                                                 List<String> issues) {
+        JsonElement element = obj.get(key);
+        if (element == null) return;
+        if (!isNumber(element) || !Float.isFinite(element.getAsFloat()) || element.getAsFloat() < 0f) {
+            issues.add(path + "." + key + " 需要 >= 0 的有限数字（秒），实际: " + element);
+        }
+    }
+
+    /** 单条绑定：键白名单、rule / clip 引用、gate 数值与范围、control、schedule / exit 结构。 */
+    private static void checkRuleBinding(JsonObject binding, String bp, Set<String> ruleIds,
+                                         Set<String> bindingIds, Set<String> clipIds,
+                                         Map<String, Float> clipDurations, List<String> issues) {
+        rejectKeys(binding, bp, issues, "id", "rule", "clip", "gate", "control", "schedule", "exit");
+
+        JsonElement rule = binding.get("rule");
+        if (rule == null) {
+            issues.add(bp + ".rule 缺失（必须命中 rules[].id）");
+        } else if (!isString(rule) || rule.getAsString().isEmpty()) {
+            issues.add(bp + ".rule 需要非空字符串（规则 id）");
+        } else if (!ruleIds.contains(rule.getAsString())) {
+            issues.add(bp + ".rule 未知规则引用: " + rule.getAsString());
+        }
+
+        String clipId = null;
+        JsonElement clip = binding.get("clip");
+        if (clip == null) {
+            issues.add(bp + ".clip 缺失（必须命中片段 id）");
+        } else if (!isString(clip) || clip.getAsString().isEmpty()) {
+            issues.add(bp + ".clip 需要非空字符串（片段 id）");
+        } else {
+            clipId = clip.getAsString();
+            if (!clipIds.contains(clipId)) {
+                issues.add(bp + ".clip 未知片段引用: " + clipId);
+                clipId = null;
+            }
+        }
+
+        checkBindingGate(binding, bp, clipId, clipDurations, issues);
+
+        JsonElement control = binding.get("control");
+        if (control != null && (!isString(control) || !RuleControl.SCRIPT_NAMES.contains(control.getAsString()))) {
+            issues.add(bp + ".control 需要 observe / hold（缺省 observe），实际: " + control);
+        }
+
+        JsonElement schedule = binding.get("schedule");
+        if (schedule != null) {
+            if (!schedule.isJsonObject()) {
+                issues.add(bp + ".schedule 需要对象（释放条件: clip_start / clip_complete / local_time / delay / fact）");
+            } else {
+                checkScheduleStructure(schedule.getAsJsonObject(), bp + ".schedule",
+                        bindingIds, clipIds, issues);
+            }
+        }
+
+        JsonElement exit = binding.get("exit");
+        if (exit != null) {
+            if (!exit.isJsonObject()) {
+                issues.add(bp + ".exit 需要对象（出口策略）");
+            } else {
+                checkExitStructure(exit.getAsJsonObject(), bp + ".exit", clipIds, issues);
+            }
+        }
+    }
+
+    /**
+     * {@code control=hold} 且无超时（{@code policy.timeout} 缺省 / {@code -1}）时的释放可达性：
+     * 条件树等待「另一个片段」的 {@code clip_fact}，而该片段起点晚于目标片段结束 →
+     * 冻结的内容位置不会再推进到那里。警告级（不阻止加载，运行期另有同口径限频诊断）。
+     */
+    private static void checkHoldReachability(JsonObject binding, String bp,
+                                              Map<String, JsonObject> rules,
+                                              Map<String, JsonObject> clips,
+                                              List<String> issues) {
+        JsonElement control = binding.get("control");
+        if (control == null || !isString(control) || !"hold".equals(control.getAsString())) return;
+
+        JsonElement ruleRef = binding.get("rule");
+        if (ruleRef == null || !isString(ruleRef)) return;
+        JsonObject rule = rules.get(ruleRef.getAsString());
+        if (rule == null) return;
+        if (hasFiniteTimeout(rule.get("policy"))) return;      // 超时 = 可达释放路径
+
+        JsonElement clipRef = binding.get("clip");
+        if (clipRef == null || !isString(clipRef)) return;
+        String targetId = clipRef.getAsString();
+        JsonObject target = clips.get(targetId);
+        if (target == null) return;
+        double targetStart = numberField(target, "start_time");
+        double targetDuration = numberField(target, "duration");
+        if (!Double.isFinite(targetStart) || !Double.isFinite(targetDuration) || targetDuration < 0.0) {
+            return;
+        }
+        double targetEnd = targetStart + targetDuration;
+
+        String waiting = firstClipFactBeyond(rule.get("condition"), targetId, clips, targetEnd, 1);
+        if (waiting == null) return;
+        String bindingId = bindingIdOf(binding);
+        issues.add(WARNING_PREFIX + bp + " 绑定 " + bindingId + " 声明 control=hold，但条件等待片段 "
+                + waiting + " 开始，而目标片段结束后内容位置不再推进——该持有不可达");
+    }
+
+    /** {@code rules[]} 的 id → 规则 JSON（重复 id 保留第一个，重复本身另报）。 */
+    private static Map<String, JsonObject> collectRuleObjects(JsonObject root) {
+        Map<String, JsonObject> rules = new LinkedHashMap<>();
+        JsonElement rulesElement = root.get("rules");
+        if (rulesElement == null || !rulesElement.isJsonArray()) return rules;
+        for (JsonElement element : rulesElement.getAsJsonArray()) {
+            if (!element.isJsonObject()) continue;
+            JsonObject rule = element.getAsJsonObject();
+            JsonElement id = rule.get("id");
+            if (id == null || !isString(id) || id.getAsString().isEmpty()) continue;
+            rules.putIfAbsent(id.getAsString(), rule);
+        }
+        return rules;
+    }
+
+    /** {@code policy.timeout} 是否为正的有限值（{@code -1} / 缺省 = 无限等待）。 */
+    private static boolean hasFiniteTimeout(JsonElement policy) {
+        if (policy == null || !policy.isJsonObject()) return false;
+        JsonElement timeout = policy.getAsJsonObject().get("timeout");
+        return timeout != null && isNumber(timeout) && timeout.getAsDouble() > 0.0;
+    }
+
+    /** 片段 JSON 的数值字段（缺失 / 非数字 → {@code NaN}）。 */
+    private static double numberField(JsonObject object, String key) {
+        JsonElement element = object.get(key);
+        return element != null && isNumber(element) ? element.getAsDouble() : Double.NaN;
+    }
+
+    /** 绑定的 id 原文（缺失 / 非字符串 → {@code "<unnamed>"}）。 */
+    private static String bindingIdOf(JsonObject binding) {
+        JsonElement id = binding.get("id");
+        return id != null && isString(id) && !id.getAsString().isEmpty()
+                ? id.getAsString() : "<unnamed>";
+    }
+
+    /**
+     * 条件树里第一个「等待目标片段以外、起点晚于 {@code targetEnd} 的片段」的 {@code clip_fact}
+     * 片段 id；无 → {@code null}。只读递归（{@code all_of} / {@code any} 的 {@code list} 与
+     * 嵌套组合器的 {@code conditions}）。
+     */
+    private static String firstClipFactBeyond(JsonElement node, String targetId,
+                                              Map<String, JsonObject> clips, double targetEnd, int depth) {
+        if (node == null || !node.isJsonObject() || depth > 16) return null;
+        JsonObject object = node.getAsJsonObject();
+        JsonElement typeElement = object.get("type");
+        if (typeElement == null || !isString(typeElement)) return null;
+        String type = typeElement.getAsString();
+
+        JsonObject data = object.has("conditions") && object.get("conditions").isJsonObject()
+                ? object.getAsJsonObject("conditions") : object;
+        if ("clip_fact".equals(type)) {
+            JsonElement clip = data.get("clip");
+            if (clip == null || !isString(clip)) return null;
+            String clipId = clip.getAsString();
+            if (clipId.isEmpty() || clipId.equals(targetId)) return null;
+            JsonObject referenced = clips.get(clipId);
+            if (referenced == null) return null;
+            double start = numberField(referenced, "start_time");
+            return Double.isFinite(start) && start > targetEnd ? clipId : null;
+        }
+        if (!"all_of".equals(type) && !"any".equals(type)) return null;
+
+        String hit = firstClipFactBeyondList(object.get("list"), targetId, clips, targetEnd, depth);
+        if (hit != null) return hit;
+        return data != object
+                ? firstClipFactBeyondList(data.get("list"), targetId, clips, targetEnd, depth) : null;
+    }
+
+    /** 组合器子节点数组：逐元素递归（非数组 → 无命中）。 */
+    private static String firstClipFactBeyondList(JsonElement list, String targetId,
+                                                  Map<String, JsonObject> clips,
+                                                  double targetEnd, int depth) {
+        if (list == null || !list.isJsonArray()) return null;
+        for (JsonElement element : list.getAsJsonArray()) {
+            String hit = firstClipFactBeyond(element, targetId, clips, targetEnd, depth + 1);
+            if (hit != null) return hit;
+        }
+        return null;
+    }
+
+    /** {@code gate}：必填对象、{@code at} 必填有限数值、有限片段 {@code 0 <= at <= duration}。 */
+    private static void checkBindingGate(JsonObject binding, String bp, String clipId,
+                                         Map<String, Float> durations, List<String> issues) {
+        if (!binding.has("gate")) {
+            issues.add(bp + ".gate 缺失（时间门必填：{\"at\": <目标片段执行局部秒>}）");
+            return;
+        }
+        JsonElement gateElement = binding.get("gate");
+        if (!gateElement.isJsonObject()) {
+            issues.add(bp + ".gate 需要对象 {\"at\": <秒>}");
+            return;
+        }
+        JsonObject gate = gateElement.getAsJsonObject();
+        rejectKeys(gate, bp + ".gate", issues, "at");
+        JsonElement atElement = gate.get("at");
+        if (atElement == null || !isNumber(atElement)) {
+            issues.add(bp + ".gate.at 缺失或不是数值（执行局部秒）");
+            return;
+        }
+        double at = atElement.getAsDouble();
+        if (!Double.isFinite(at) || at < 0.0) {
+            issues.add(bp + ".gate.at 需要 >= 0 的有限数字，实际: " + atElement);
+            return;
+        }
+        if (clipId == null) return;
+        Float duration = durations.get(clipId);
+        if (duration == null || duration == 0f) return;
+        if (duration > 0f && at > duration) {
+            issues.add(bp + ".gate.at 越界: " + at + "（片段 " + clipId + " 时长 " + duration
+                    + "，允许范围 0 ~ " + duration + "）");
+        }
+    }
+
+    /** {@code schedule}：{@code on} 枚举 + 各形态参数 + 引用（不构造 {@link Clip}）。 */
+    private static void checkScheduleStructure(JsonObject schedule, String sp,
+                                               Set<String> bindingIds, Set<String> clipIds,
+                                               List<String> issues) {
+        JsonElement on = schedule.get("on");
+        if (on == null || !isString(on)) {
+            issues.add(sp + ".on 缺失或不是字符串（释放条件: clip_start / clip_complete / local_time / delay / fact）");
+            return;
+        }
+        switch (on.getAsString()) {
+            case "clip_start", "clip_complete" -> {
+                checkClipRefField(schedule, sp, clipIds, issues);
+                rejectKeys(schedule, sp, issues, "on", "clip");
+            }
+            case "local_time" -> {
+                checkClipRefField(schedule, sp, clipIds, issues);
+                JsonElement at = schedule.get("at");
+                if (at == null || !isNumber(at)) {
+                    issues.add(sp + ".at 缺失或不是数值（目标片段执行局部秒，>= 0）");
+                } else if (!Double.isFinite(at.getAsDouble()) || at.getAsDouble() < 0.0) {
+                    issues.add(sp + ".at 需要 >= 0 的有限数字，实际: " + at);
+                }
+                rejectKeys(schedule, sp, issues, "on", "clip", "at");
+            }
+            case "delay" -> {
+                JsonElement seconds = schedule.get("seconds");
+                if (seconds == null || !isNumber(seconds)) {
+                    issues.add(sp + ".seconds 缺失或不是数值（真实秒数，>= 0）");
+                } else if (!Double.isFinite(seconds.getAsDouble()) || seconds.getAsDouble() < 0.0) {
+                    issues.add(sp + ".seconds 需要 >= 0 的有限数字，实际: " + seconds);
+                }
+                rejectKeys(schedule, sp, issues, "on", "seconds");
+            }
+            case "fact" -> {
+                JsonElement binding = schedule.get("binding");
+                if (binding == null || !isString(binding) || binding.getAsString().isEmpty()) {
+                    issues.add(sp + ".binding 缺失或不是非空字符串（来源绑定 id）");
+                } else if (!bindingIds.contains(binding.getAsString())) {
+                    issues.add(sp + ".binding 未知绑定引用: " + binding.getAsString());
+                }
+                checkFactName(schedule, sp, issues, "succeeded", "action_completed");
+                rejectKeys(schedule, sp, issues, "on", "binding", "fact");
+            }
+            default -> issues.add(sp + ".on 未知释放条件: " + on.getAsString()
+                    + "（可选: clip_start / clip_complete / local_time / delay / fact）");
+        }
+    }
+
+    /** {@code clip} 引用字段：非空字符串且可解析。 */
+    private static void checkClipRefField(JsonObject obj, String path, Set<String> clipIds,
+                                          List<String> issues) {
+        JsonElement clip = obj.get("clip");
+        if (clip == null || !isString(clip) || clip.getAsString().isEmpty()) {
+            issues.add(path + ".clip 缺失或不是非空字符串（目标片段 id）");
+        } else if (!clipIds.contains(clip.getAsString())) {
+            issues.add(path + ".clip 未知片段引用: " + clip.getAsString());
+        }
+    }
+
+    /**
+     * {@code exit} 结构校验（与 {@code ClipExitPolicyParser} 同口径，但不构造 {@link Clip}）：
+     * {@code on_complete} 必填枚举；{@code goto} 必须有可解析 {@code target}，{@code entry_time} 可选
+     * 有限 {@code >= 0}；其余类型禁止 {@code target} / {@code entry_time}；未知键报错。
+     */
+    private static void checkExitStructure(JsonObject exit, String ep, Set<String> clipIds,
+                                           List<String> issues) {
+        rejectKeys(exit, ep, issues,
+                ClipExitPolicyParser.KEYS.toArray(new String[0]));
+        JsonElement kindElement = exit.get("on_complete");
+        if (kindElement == null || !isString(kindElement)) {
+            issues.add(ep + ".on_complete 缺失或不是字符串（continue / goto / return / end_execution / end_script）");
+            return;
+        }
+        ClipExitKind kind = ClipExitPolicyParser.kindOf(kindElement.getAsString());
+        if (kind == null) {
+            issues.add(ep + ".on_complete 未知出口类型: " + kindElement.getAsString()
+                    + "（可选: continue / goto / return / end_execution / end_script）");
+            return;
+        }
+        if (kind == ClipExitKind.GOTO) {
+            JsonElement target = exit.get("target");
+            if (target == null || !isString(target) || target.getAsString().isEmpty()) {
+                issues.add(ep + ".target 缺失（goto 必须有目标片段 id）");
+            } else if (!clipIds.contains(target.getAsString())) {
+                issues.add(ep + ".target 未知片段引用: " + target.getAsString());
+            }
+            JsonElement entry = exit.get("entry_time");
+            if (entry != null && (!isNumber(entry) || !Double.isFinite(entry.getAsDouble())
+                    || entry.getAsDouble() < 0.0)) {
+                issues.add(ep + ".entry_time 需要 >= 0 的有限数字（入口局部秒），实际: " + entry);
+            }
+            return;
+        }
+        if (exit.has("target")) {
+            issues.add(ep + ".target 不允许（只有 goto 需要 target）");
+        }
+        if (exit.has("entry_time")) {
+            issues.add(ep + ".entry_time 不允许（只有 goto 需要 entry_time）");
+        }
+    }
+
+    /** 键白名单（未知键报 issue，不抛）。 */
+    private static void rejectKeys(JsonObject obj, String path, List<String> issues, String... allowed) {
+        for (String key : obj.keySet()) {
+            boolean known = false;
+            for (String candidate : allowed) {
+                if (candidate.equals(key)) {
+                    known = true;
+                    break;
+                }
+            }
+            if (!known) {
+                issues.add(path + "." + key + " 未知键（可用: " + String.join(" / ", allowed) + "）");
+            }
+        }
+    }
+
     /**
      * 校验 clip 级 {@code rules}（判定规则；与轨道无关，任意轨道的片段都可挂）。
      * 与 {@link ClipRule#parse} 同一口径，另加三条结构语义拦截：空数组（= 不写；写出来必是作者误解）、
@@ -960,11 +1991,47 @@ public final class ScriptValidator {
         checkRuleConditionNode(condition, cp, type.getAsString(), 1, issues);
     }
 
+    /** 条件树里的事实引用上下文（{@code null} = 旧 v1 口径，事实类型按未知判定源报错）。 */
+    private record FactRefs(Set<String> bindingIds, Set<String> clipIds) {}
+
+    /**
+     * 脚本级规则定义的条件树：与 v1 同构，额外允许 {@code clip_fact} / {@code rule_fact}
+     * （字段类型 + 枚举 + 引用可解析）；其它类型复用 {@link #checkRuleConditionNode0}。
+     */
+    private static void checkRuleConditionV2(JsonObject condition, String cp, List<String> issues,
+                                             Set<String> bindingIds, Set<String> clipIds) {
+        JsonElement type = condition.get("type");
+        if (type == null || !isString(type)) {
+            issues.add(cp + ".type 缺失或不是字符串（判定源类型；可用: "
+                    + String.join(" / ", ClientConditions.V1_TYPES) + " / all_of / any / "
+                    + String.join(" / ", ClientConditions.FACT_TYPES) + "）");
+            return;
+        }
+        checkRuleConditionNodeV2(condition, cp, type.getAsString(), 1, issues, bindingIds, clipIds);
+    }
+
+    /** 脚本级规则的条件节点入口（事实类型放行；与旧 {@link #checkRuleConditionNode} 同构）。 */
+    private static void checkRuleConditionNodeV2(JsonObject c, String cp, String type, int depth,
+                                                 List<String> issues, Set<String> bindingIds,
+                                                 Set<String> clipIds) {
+        checkRuleConditionNode0(c, cp, type, depth, issues, new FactRefs(bindingIds, clipIds));
+    }
+
     /** 单个条件节点：组合器递归下钻（层数用尽即报），叶子按类型做字段校验。 */
     private static void checkRuleConditionNode(JsonObject c, String cp, String type, int depth,
                                                List<String> issues) {
+        checkRuleConditionNode0(c, cp, type, depth, issues, null);
+    }
+
+    /** 单个条件节点（旧 v1 与脚本级规则共用；{@code facts != null} 时放行事实类型）。 */
+    private static void checkRuleConditionNode0(JsonObject c, String cp, String type, int depth,
+                                                List<String> issues, FactRefs facts) {
         if ("all_of".equals(type) || "any".equals(type)) {
-            checkRuleCombination(c, cp, type, depth, issues);
+            checkRuleCombination0(c, cp, type, depth, issues, facts);
+            return;
+        }
+        if (facts != null && ClientConditions.FACT_TYPES.contains(type)) {
+            checkRuleFactNode(c, cp, type, issues, facts);
             return;
         }
         if (!ClientConditions.V1_TYPES.contains(type)) {
@@ -986,11 +2053,57 @@ public final class ScriptValidator {
     }
 
     /**
+     * 事实叶子：{@code clip_fact} = {@code clip}（片段 id）+ {@code fact}（started / completed）；
+     * {@code rule_fact} = {@code binding}（绑定 id）+ {@code fact}（succeeded / action_completed）。
+     * 字段类型 / 枚举 / 引用可解析性逐项报 issue（文案带路径）。
+     */
+    private static void checkRuleFactNode(JsonObject c, String cp, String type, List<String> issues,
+                                          FactRefs refs) {
+        if ("clip_fact".equals(type)) {
+            JsonElement clip = c.get("clip");
+            if (clip == null || !isString(clip) || clip.getAsString().isEmpty()) {
+                issues.add(cp + ".clip 缺失或不是非空字符串（片段 id）");
+            } else if (!refs.clipIds().contains(clip.getAsString())) {
+                issues.add(cp + ".clip 未知片段引用: " + clip.getAsString());
+            }
+            checkFactName(c, cp, issues, "started", "completed");
+            return;
+        }
+        JsonElement binding = c.get("binding");
+        if (binding == null || !isString(binding) || binding.getAsString().isEmpty()) {
+            issues.add(cp + ".binding 缺失或不是非空字符串（绑定 id）");
+        } else if (!refs.bindingIds().contains(binding.getAsString())) {
+            issues.add(cp + ".binding 未知绑定引用: " + binding.getAsString());
+        }
+        checkFactName(c, cp, issues, "succeeded", "action_completed");
+    }
+
+    /** {@code fact} 字段：必填字符串且在允许枚举内。 */
+    private static void checkFactName(JsonObject c, String cp, List<String> issues, String... allowed) {
+        JsonElement fact = c.get("fact");
+        if (fact == null || !isString(fact)) {
+            issues.add(cp + ".fact 缺失或不是字符串（可选: " + String.join(" / ", allowed) + "）");
+            return;
+        }
+        for (String value : allowed) {
+            if (value.equals(fact.getAsString())) return;
+        }
+        issues.add(cp + ".fact 未知事实: " + fact.getAsString()
+                + "（可选: " + String.join(" / ", allowed) + "）");
+    }
+
+    /**
      * 组合器（all_of / any）：{@code list} 元素 = {@code {type, conditions}}（与触发器同一结构），
      * 子类型须是 v1 判定源或嵌套组合器；嵌套层数含顶层 ≤ {@link ClientConditions#MAX_COMBINATION_DEPTH}。
      */
     private static void checkRuleCombination(JsonObject c, String cp, String combinator, int depth,
                                              List<String> issues) {
+        checkRuleCombination0(c, cp, combinator, depth, issues, null);
+    }
+
+    /** 组合器（旧 v1 与脚本级规则共用；{@code facts != null} 时子类型放行事实叶子）。 */
+    private static void checkRuleCombination0(JsonObject c, String cp, String combinator, int depth,
+                                              List<String> issues, FactRefs facts) {
         if (!c.has("list") || !c.get("list").isJsonArray()) {
             issues.add(cp + ".list 缺失或不是数组（" + combinator
                     + " 需要 \"list\": [ { \"type\": ..., \"conditions\": { ... } }, ... ]）");
@@ -1027,8 +2140,16 @@ public final class ScriptValidator {
                             + " 层（组合器最大深度，含顶层）: " + subType);
                     continue;
                 }
-                checkRuleCombination(data != null ? data : new JsonObject(), sp + ".conditions", subType,
-                        depth + 1, issues);
+                checkRuleCombination0(data != null ? data : new JsonObject(), sp + ".conditions", subType,
+                        depth + 1, issues, facts);
+                continue;
+            }
+            if (facts != null && ClientConditions.FACT_TYPES.contains(subType)) {
+                if (data == null) {
+                    issues.add(sp + ".conditions 缺失（事实 " + subType + " 的数据对象）");
+                    continue;
+                }
+                checkRuleFactNode(data, sp + ".conditions", subType, issues, facts);
                 continue;
             }
             if (!ClientConditions.V1_TYPES.contains(subType)) {
@@ -1040,7 +2161,7 @@ public final class ScriptValidator {
                 issues.add(sp + ".conditions 缺失（判定源 " + subType + " 的数据对象）");
                 continue;
             }
-            checkRuleConditionNode(data, sp + ".conditions", subType, depth, issues);
+            checkRuleConditionNode0(data, sp + ".conditions", subType, depth, issues, facts);
         }
     }
 
@@ -1133,6 +2254,15 @@ public final class ScriptValidator {
      * （白名单与参数结构见 {@link #checkActionElement}）。
      */
     private static void checkActionArray(JsonElement e, String ap, boolean required, List<String> issues) {
+        checkActionArray(e, ap, required, issues, null);
+    }
+
+    /**
+     * 动作数组（脚本级规则用）：{@code clipIds != null} 时元素走新形态校验
+     * （{@code goto_clip} 用片段 id 寻址，见 {@link #checkActionElementNew}）。
+     */
+    private static void checkActionArray(JsonElement e, String ap, boolean required, List<String> issues,
+                                         Set<String> clipIds) {
         if (!e.isJsonArray()) {
             issues.add(ap + " 需要数组（元素 = 动作对象）");
             return;
@@ -1148,7 +2278,49 @@ public final class ScriptValidator {
                 issues.add(ip + " 需要对象（动作元素）");
                 continue;
             }
-            checkActionElement(el.getAsJsonObject(), ip, issues);
+            if (clipIds == null) {
+                checkActionElement(el.getAsJsonObject(), ip, issues);
+            } else {
+                checkActionElementNew(el.getAsJsonObject(), ip, clipIds, issues);
+            }
+        }
+    }
+
+    /**
+     * 新规则动作元素：{@code goto_clip} 走新形态（{@code clip} + {@code entry_time}；拒绝旧
+     * {@code track} / {@code at} 寻址），其余类型复用 v1 动作校验（{@link #checkActionElement}）。
+     */
+    private static void checkActionElementNew(JsonObject action, String ip, Set<String> clipIds,
+                                              List<String> issues) {
+        JsonElement typeEl = action.get("type");
+        if (typeEl == null || !isString(typeEl)) {
+            issues.add(ip + ".type 缺失或不是字符串（动作元素需要 type；v1 动作: "
+                    + RuleActions.typesLabel() + "）");
+            return;
+        }
+        if (!"goto_clip".equals(typeEl.getAsString())) {
+            checkActionElement(action, ip, issues);
+            return;
+        }
+        JsonElement clip = action.get("clip");
+        if (clip == null || !isString(clip) || clip.getAsString().isEmpty()) {
+            issues.add(ip + ".clip 缺失或不是非空字符串（新形态 goto_clip 用片段 id 寻址）");
+        } else if (!clipIds.contains(clip.getAsString())) {
+            issues.add(ip + ".clip 未知片段引用: " + clip.getAsString());
+        }
+        JsonElement entry = action.get("entry_time");
+        if (entry != null && (!isNumber(entry) || !Double.isFinite(entry.getAsDouble())
+                || entry.getAsDouble() < 0.0)) {
+            issues.add(ip + ".entry_time 需要 >= 0 的有限数字（入口局部秒），实际: " + entry);
+        }
+        for (String key : action.keySet()) {
+            if ("type".equals(key) || "clip".equals(key) || "entry_time".equals(key)) continue;
+            if ("track".equals(key) || "at".equals(key)) {
+                issues.add(ip + "." + key + " 旧形态字段（新规则 goto_clip 用 clip + entry_time；"
+                        + "track / at 只属于旧 clip.rules 的时间寻址）");
+            } else {
+                issues.add(ip + "." + key + " 未知键（新规则 goto_clip 可用: clip / entry_time）");
+            }
         }
     }
 
