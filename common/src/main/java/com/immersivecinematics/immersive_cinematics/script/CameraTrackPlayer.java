@@ -8,6 +8,8 @@ import com.immersivecinematics.immersive_cinematics.camera.source.LaneSnapshotCo
 import com.immersivecinematics.immersive_cinematics.camera.source.PointSourceSnapshots;
 import com.immersivecinematics.immersive_cinematics.camera.source.WorldPointLocator;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
+import com.immersivecinematics.immersive_cinematics.script.path.PathBindingSource;
+import com.immersivecinematics.immersive_cinematics.script.path.PathCollectionSource;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -38,6 +40,9 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     /** 本轨正在驱动的过渡对（相邻片段下标 i / i + 1）；-1 = 无——打断续接的尾巴据此在窗口外继续驱动。 */
     private int transitionPair = -1;
+
+    /** 上一次接入路径绑定的脚本（脚本替换时重建来源；不每帧新建）。 */
+    private CinematicScript lastPathScript;
 
     /**
      * 本帧活跃的 CAMERA 片段（按轨道顺序；morph / 过渡窗口 = prev + next）。
@@ -95,6 +100,8 @@ public class CameraTrackPlayer implements TrackPlayer {
 
     @Override
     public void onRenderFrame(double globalTime) {
+        // 脚本替换（含首次接入）→ 重建路径绑定来源；同一脚本不重复新建
+        syncPathBindings();
         // 本帧无写入 → lane 快照为空；有写入时由顶层路径与逐 clip 捕获填值
         laneCollector.clear();
         frameActiveClips.clear();
@@ -156,6 +163,21 @@ public class CameraTrackPlayer implements TrackPlayer {
         // 重叠窗口内层级在下的活跃 clip：先捕获（列表顺序 = 绘制顺序，后面的在上）
         laneCollector.captureLowerLanes(globalTime, active, topClip);
         if (topLane != null) laneCollector.add(topLane);
+    }
+
+    /**
+     * 脚本替换时重建脚本级路径绑定来源：脚本为 {@code null} 或路径集合为空 → {@link PathBindingSource#NONE}
+     * （行为与无路径集合的旧脚本一致）；同一脚本对象不重复新建来源（每帧只做一次身份比较）。
+     */
+    private void syncPathBindings() {
+        CinematicScript script = scriptPlayer.getScript();
+        if (script == lastPathScript) return;
+        lastPathScript = script;
+        if (script == null || script.getPathCollection().isEmpty()) {
+            evaluator.setPathBindingSource(PathBindingSource.NONE);
+        } else {
+            evaluator.setPathBindingSource(new PathCollectionSource(script.getPathCollection()));
+        }
     }
 
     /** 顶层写入：本轨本帧的六参数写入覆盖链输出（写入缓冲 + 链上的当前值 + 该片段的 Modifier 抑制标志）。 */

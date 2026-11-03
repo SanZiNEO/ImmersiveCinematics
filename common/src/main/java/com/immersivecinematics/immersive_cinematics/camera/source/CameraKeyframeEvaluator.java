@@ -18,6 +18,7 @@ import com.immersivecinematics.immersive_cinematics.script.TangentOrientation;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipTimeSource;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
+import com.immersivecinematics.immersive_cinematics.script.path.PathBindingSource;
 import com.immersivecinematics.immersive_cinematics.util.TimeInterpolation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
@@ -534,6 +535,14 @@ public final class CameraKeyframeEvaluator {
      */
     public void onScriptReplaced() {
         resetPaths();
+    }
+
+    /**
+     * I-4 接线：替换脚本级路径绑定来源（{@code null} = 不启用）。切换时丢弃已缓存的绑定与端点采样器
+     * （{@link ObjectCameraEvaluator#setPathBindingSource} 内部新建求值器）。
+     */
+    public void setPathBindingSource(PathBindingSource source) {
+        objectEvaluator.setPathBindingSource(source);
     }
 
     /** seek：新格式冻结桶重取（冻结的是坐标值，硬定位后重新捕获）。 */
