@@ -36,7 +36,7 @@ alias ic='E:/Documents/GitHub/ImmersiveCinematics/tools/devtools/.venv/Scripts/p
 | `ic key <键名>` | 按键：`f1..f12` / `esc` / `enter` / `tab` / `space` / 单字符 |
 | `ic play <脚本 id>` | = `cmd icinematics play <id>` |
 | `ic stop` / `ic reload` | = `cmd icinematics stop` / `reload` |
-| `ic shot [路径]` | 截游戏窗口（相对路径按 `fabric/run/` 解析；默认 `lane-captures/mc-<时间>.png`） |
+| `ic shot [路径]` | 游戏内截图（发 F2，取游戏自己帧缓冲，只含游戏画面）。相对路径按 `fabric/run/` 解析；不给路径时留在 `fabric/run/screenshots/` 并打印路径 |
 | `ic wait <秒>` | 等待 |
 | `ic run <场景文件>` | 逐行执行场景脚本 |
 

@@ -10,7 +10,7 @@
     key <键名>              按键（f1..f12 / esc / enter / tab / space / 单字符）
     play <脚本 id>          = cmd icinematics play <id>
     stop | reload           = cmd icinematics stop / reload
-    shot [路径]             截游戏窗口
+    shot [路径]             游戏内截图（F2，只含游戏画面）
     wait <秒>
     run <场景文件>          逐行执行场景脚本
 
@@ -51,6 +51,9 @@ LOG = RUN / "logs/latest.log"
 DIAG = RUN / "immersive_cinematics/diagnostics"
 SESSIONS = DIAG / "sessions"
 SHOTS = RUN / "lane-captures"
+# 原版 F2 截图的落盘目录（游戏内截图，不抓屏幕区域）
+GAME_SHOTS = RUN / "screenshots"
+SHOT_TIMEOUT = 10.0
 SCRIPTS = RUN / "immersive_cinematics/scripts"
 DEVTOOLS_RUN = RUN / "dev-tools"
 IRIS = RUN / "config/iris.properties"
@@ -187,21 +190,48 @@ def send_chat(win, text):
 
 
 def take_shot(win, path=None):
-    import pyautogui
-    if win.width <= 0 or win.height <= 0:
-        die("窗口尺寸为 0（最小化了？）")
-    # 相对路径按游戏目录（fabric/run/）解析，符合直觉：shot lane-captures/x.png
-    path = Path(path) if path else SHOTS / time.strftime("mc-%Y%m%d-%H%M%S.png")
-    if not path.is_absolute():
+    """游戏内截图（F2）：产物来自游戏自己的帧缓冲。
+
+    不用屏幕区域抓取是有意的：抓屏幕会把窗口遮挡时前景应用的内容一起拍进去（隐私事故），
+    也会被分辨率/缩放/多显示器影响。F2 走原版截图流程，只含游戏画面，且不需要窗口在前台。
+    """
+    path = Path(path) if path else None
+    if path is not None and not path.is_absolute():
+        # 相对路径按游戏目录（fabric/run/）解析，符合直觉：shot lane-captures/x.png
         path = RUN / path
-    # 窗口可能部分在屏幕外（左上负坐标），裁到屏幕内再截
-    sw, sh = pyautogui.size()
-    left, top = max(0, win.left), max(0, win.top)
-    right, bottom = min(sw, win.left + win.width), min(sh, win.top + win.height)
-    if right <= left or bottom <= top:
-        die(f"窗口不在屏幕可见区域内（@{win.left},{win.top} {win.width}x{win.height}）")
+
+    GAME_SHOTS.mkdir(parents=True, exist_ok=True)
+    before = {p.name for p in GAME_SHOTS.glob("*.png")}
+    send_key(win, VK["f2"])
+
+    # 等新文件出现并写完：原版截图是渲染线程同步写盘，但落盘仍有几十毫秒延迟
+    deadline = time.time() + SHOT_TIMEOUT
+    created = None
+    while time.time() < deadline:
+        time.sleep(0.1)
+        new_files = [p for p in GAME_SHOTS.glob("*.png") if p.name not in before]
+        if not new_files:
+            continue
+        candidate = max(new_files, key=lambda p: p.stat().st_mtime)
+        last_size, stable = -1, 0
+        while stable < 3:
+            size = candidate.stat().st_size
+            stable = stable + 1 if size == last_size and size > 0 else 0
+            last_size = size
+            if stable < 3:
+                time.sleep(0.1)
+        created = candidate
+        break
+
+    if created is None:
+        die(f"游戏内截图没有生成（等待 {SHOT_TIMEOUT:.0f}s）：确认客户端在跑、F2 未被改绑、"
+            f"且目录 {rel(GAME_SHOTS)} 可写")
+
+    if path is None:
+        print(rel(created), flush=True)
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
-    pyautogui.screenshot(region=(left, top, right - left, bottom - top)).save(path)
+    shutil.move(str(created), str(path))
     print(rel(path), flush=True)
 
 
@@ -690,7 +720,7 @@ def main():
     p.add_argument("script_id")
     sub.add_parser("stop", help="停止播放")
     sub.add_parser("reload", help="重载脚本")
-    p = sub.add_parser("shot", help="截游戏窗口")
+    p = sub.add_parser("shot", help="游戏内截图（F2，只含游戏画面）")
     p.add_argument("path", nargs="?")
     p = sub.add_parser("wait", help="等待")
     p.add_argument("seconds", type=float)
