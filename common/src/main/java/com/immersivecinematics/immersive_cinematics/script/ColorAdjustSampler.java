@@ -139,12 +139,9 @@ public final class ColorAdjustSampler {
      *
      * @param clip   产出该 lane 的相机片段（已归一曲线）
      * @param sample 该片段在 {@code lane.clipLocalTime()} 的采样
-     * @param values 该片段的 value-only 读取视图；lane 不取 LUT / 混合，此参数仅为与
-     *               {@link #sampleObjects} 保持同一调用形态
      * @param curves 曲线缓存（与 ADJUST 分开持有，脚本替换时清空）
      */
-    public static ColorAdjustParams sampleCameraLaneObjects(Clip clip, SampledClip sample, ClipValueView values,
-                                                            CurveCache curves) {
+    public static ColorAdjustParams sampleCameraLaneObjects(Clip clip, SampledClip sample, CurveCache curves) {
         ParsedCurves parsed = curves.get(clip);
         float[] rgbLut = lut(parsed.rgb);
         float[] rLut = lut(parsed.r);

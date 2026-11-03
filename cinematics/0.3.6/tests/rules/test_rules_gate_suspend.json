@@ -1,0 +1,330 @@
+{
+  "meta": {
+    "id": "test_rules_gate_suspend",
+    "name": "规则-时间门/挂起/事实接力/延迟/出口",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "验证：门在 1.0s 才触发（门前不动作）、control=hold 冻结实例并由超时释放、rule_fact 事实接力、schedule delay 延迟动作、goto_clip 分支启动与片段默认出口",
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        }
+      }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 12,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "id": "c1",
+            "start_time": 0,
+            "duration": 6,
+            "objects": {
+              "position_mode": {
+                "value": "absolute"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 6
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 64
+                  },
+                  {
+                    "time": 6,
+                    "value": 64
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 6
+                  }
+                ]
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 30
+                  }
+                ]
+              },
+              "pitch": {
+                "value": 0
+              },
+              "fov": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 70
+                  },
+                  {
+                    "time": 6,
+                    "value": 80
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "id": "branch_a",
+            "duration": 2.0,
+            "exit": {
+              "on_complete": "continue"
+            },
+            "objects": {
+              "position_mode": {
+                "value": "absolute"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 20
+                  },
+                  {
+                    "time": 2,
+                    "value": 22
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 66
+                  },
+                  {
+                    "time": 2,
+                    "value": 66
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 20
+                  },
+                  {
+                    "time": 2,
+                    "value": 20
+                  }
+                ]
+              },
+              "yaw": {
+                "value": 180
+              },
+              "pitch": {
+                "value": 0
+              }
+            },
+            "start_time": 10.0
+          }
+        ]
+      },
+      {
+        "type": "ADJUST",
+        "clips": [
+          {
+            "id": "adj",
+            "start_time": 0,
+            "duration": 6,
+            "objects": {
+              "exposure": {
+                "value": 0
+              },
+              "saturation": {
+                "value": 1
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "rules": [
+    {
+      "id": "r_gate",
+      "condition": {
+        "type": "camera_fov",
+        "from": 0,
+        "to": 180
+      },
+      "actions": [
+        {
+          "type": "adjust_set",
+          "exposure": 0.35,
+          "saturation": 1.4
+        }
+      ],
+      "policy": {
+        "once": true
+      }
+    },
+    {
+      "id": "r_hold",
+      "condition": {
+        "type": "biome",
+        "biome": "immersive_cinematics:never"
+      },
+      "actions": [
+        {
+          "type": "adjust_set",
+          "exposure": -0.35
+        }
+      ],
+      "policy": {
+        "once": true,
+        "timeout": 1.0,
+        "on_timeout": [
+          {
+            "type": "adjust_set",
+            "saturation": 0.6
+          }
+        ]
+      }
+    },
+    {
+      "id": "r_relay",
+      "condition": {
+        "type": "rule_fact",
+        "binding": "b_gate",
+        "fact": "succeeded"
+      },
+      "actions": [
+        {
+          "type": "overlay_set",
+          "layer_type": "fade",
+          "color": "#FFAA00",
+          "opacity": 0.25
+        }
+      ],
+      "policy": {
+        "once": true
+      }
+    },
+    {
+      "id": "r_delay",
+      "condition": {
+        "type": "camera_fov",
+        "from": 0,
+        "to": 180
+      },
+      "actions": [
+        {
+          "type": "adjust_set",
+          "hue": 0.1
+        }
+      ],
+      "policy": {
+        "once": true
+      }
+    },
+    {
+      "id": "r_branch",
+      "condition": {
+        "type": "camera_fov",
+        "from": 0,
+        "to": 180
+      },
+      "actions": [
+        {
+          "type": "goto_clip",
+          "clip": "branch_a",
+          "entry_time": 0
+        }
+      ],
+      "policy": {
+        "once": true
+      }
+    }
+  ],
+  "rule_bindings": [
+    {
+      "id": "b_gate",
+      "rule": "r_gate",
+      "clip": "c1",
+      "gate": {
+        "at": 1.0
+      }
+    },
+    {
+      "id": "b_hold",
+      "rule": "r_hold",
+      "clip": "c1",
+      "gate": {
+        "at": 2.0
+      },
+      "control": "hold"
+    },
+    {
+      "id": "b_relay",
+      "rule": "r_relay",
+      "clip": "c1",
+      "gate": {
+        "at": 1.5
+      }
+    },
+    {
+      "id": "b_delay",
+      "rule": "r_delay",
+      "clip": "c1",
+      "gate": {
+        "at": 1.5
+      },
+      "schedule": {
+        "on": "delay",
+        "seconds": 0.5
+      }
+    },
+    {
+      "id": "b_branch",
+      "rule": "r_branch",
+      "clip": "c1",
+      "gate": {
+        "at": 4.0
+      }
+    }
+  ]
+}
