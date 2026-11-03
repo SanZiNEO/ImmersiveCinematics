@@ -1,6 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.script.execution;
 
 import com.immersivecinematics.immersive_cinematics.script.Clip;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 分支片段出口的运行期驱动：单分支、无嵌套/调用栈。
@@ -16,6 +18,8 @@ import com.immersivecinematics.immersive_cinematics.script.Clip;
  */
 public final class ClipBranchController {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/ClipBranch");
+
     private final ClipExecutionLedger ledger;
     private final ClipExitResolver resolver;
     private final ClipBranchHost host;
@@ -24,6 +28,9 @@ public final class ClipBranchController {
     private Clip target;
     private ClipExitPolicy entryOverride;
     private BranchSnapshot launchSnapshot;
+
+    /** 播放头回退告警是否已发过（每控制器一次，避免逐帧刷屏）。 */
+    private boolean warnedHeadReorder;
 
     public ClipBranchController(ClipExecutionLedger ledger, ClipExitResolver resolver, ClipBranchHost host) {
         if (ledger == null) {
@@ -68,7 +75,16 @@ public final class ClipBranchController {
         this.entryOverride = entryOverride;
         this.launchSnapshot = snapshot;
 
-        ledger.startBranch(target, host.now(), entryLocalTime);
+        // 时间不变量（I2-B7）：执行起点不得早于账本已观察到的播放头。播放器 seek / 挂起恢复可能让
+        // host.now() 落后于 lastHead；此时以 lastHead 为起点，账本绝不回退（advance 契约）。
+        double now = host.now();
+        double lastHead = ledger.lastHead();
+        if (Double.isFinite(now) && now < lastHead && !warnedHeadReorder) {
+            warnedHeadReorder = true;
+            LOGGER.debug("分支 launch 播放头回退：now={} < lastHead={}，按 lastHead 启动", now, lastHead);
+        }
+        double launch = Double.isFinite(now) ? Math.max(now, lastHead) : lastHead;
+        ledger.startBranch(target, launch, entryLocalTime);
         host.onBranchStarted(target, execution);
         return true;
     }

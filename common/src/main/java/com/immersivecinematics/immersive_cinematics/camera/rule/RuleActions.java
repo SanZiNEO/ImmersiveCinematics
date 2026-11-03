@@ -17,6 +17,7 @@ import com.immersivecinematics.immersive_cinematics.script.ClipRule;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.script.rule.RuleBinding;
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SRuleCommandPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard;
 import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler;
@@ -71,12 +72,51 @@ public final class RuleActions {
     /**
      * 执行一条动作；未知 type / 执行异常 → 限频日志，不中断播放。
      *
-     * @param instance 触发规则的播放实例（动作作用对象；探针无宿主时为 {@code null}）
-     * @param clip     规则所在片段
-     * @param rule     规则（动作来源，日志定位用）
-     * @param action   动作原文（{@code do} / {@code on_timeout} 的一个元素）
+     * @param instance    触发规则的播放实例（动作作用对象；探针无宿主时为 {@code null}）
+     * @param clip        规则所在片段
+     * @param rule        规则（动作来源，日志定位用）
+     * @param action      动作原文（{@code do} / {@code on_timeout} 的一个元素）
+     * @param clipIndex   平铺片段索引（轨道序 → 轨道内片段序；动作引用用）
+     * @param ruleIndex   片段内规则下标
+     * @param actionIndex 动作列表下标
      */
-    public static void execute(PlaybackInstance instance, Clip clip, ClipRule rule, JsonObject action) {
+    public static void execute(PlaybackInstance instance, Clip clip, ClipRule rule, JsonObject action,
+                               int clipIndex, int ruleIndex, int actionIndex) {
+        if (action == null || instance == null) return;
+        String type = str(action, "type");
+        if (type == null) return;
+        try {
+            switch (type) {
+                case "camera_set", "overlay_set", "adjust_set", "play_sound",
+                        "exit", "pause", "resume" -> executeShared(instance, clip, action);
+                case "goto_clip" -> gotoClip(instance, action);
+                case "emit_command" -> emitCommandForLegacyRule(instance, clipIndex, ruleIndex, actionIndex);
+                case ACTION_HOLD -> ErrorLog.logRateLimited("Rules", "action:hold", LOG_INTERVAL_MS,
+                        "hold 动作用 until 无 timeout 表达（无限等待），本版本不单独实现");
+                default -> ErrorLog.logRateLimited("Rules", "action:" + type, LOG_INTERVAL_MS,
+                        "未知规则动作: " + type + "（v1 动作: " + typesLabel() + "）");
+            }
+        } catch (Exception e) {
+            ErrorLog.logRateLimited("Rules", "action:" + type, LOG_INTERVAL_MS, "规则动作执行异常: " + type, e);
+        }
+    }
+
+    /**
+     * 执行一条<b>共享</b>动作（新旧两套规则引擎共用）：{@code camera_set} / {@code overlay_set} /
+     * {@code adjust_set} / {@code play_sound} / {@code exit} / {@code pause} / {@code resume}。
+     *
+     * <p>本方法是 {@link #execute} 的抽取，逐分支语义与旧路径一致；脚本级规则引擎
+     * （{@code script.rule.runtime.RuleActionRunner}）直接调用它，{@code goto_clip} / {@code emit_command}
+     * / {@code hold} 不在此列（脚本级规则的新形态分别归 I4-6 / I4-7）。</p>
+     *
+     * <p>非共享动作 / 未知 type：本方法不做任何事（分派归调用方，避免与旧路径重复记日志）。
+     * 失败不中断播放：参数非法 / 执行异常 → 限频日志 + 继续。</p>
+     *
+     * @param instance 触发动作的播放实例（动作作用对象；{@code null} = 跳过）
+     * @param clip     规则所在片段（{@code pause} 的挂起作用域）
+     * @param action   动作原文
+     */
+    public static void executeShared(PlaybackInstance instance, Clip clip, JsonObject action) {
         if (action == null || instance == null) return;
         String type = str(action, "type");
         if (type == null) return;
@@ -85,16 +125,11 @@ public final class RuleActions {
                 case "camera_set" -> cameraSet(instance, action);
                 case "overlay_set" -> overlaySet(instance, action);
                 case "adjust_set" -> adjustSet(instance, action);
-                case "goto_clip" -> gotoClip(instance, action);
+                case "play_sound" -> playSound(instance, action);
+                case "exit" -> CameraManager.INSTANCE.requestDeclaredExit(instance);
                 case "pause" -> instance.ruleEngine().suspendByAction(clip);
                 case "resume" -> instance.ruleEngine().resumeByAction();
-                case "exit" -> CameraManager.INSTANCE.requestDeclaredExit(instance);
-                case "play_sound" -> playSound(instance, action);
-                case "emit_command" -> emitCommand(instance, action);
-                case ACTION_HOLD -> ErrorLog.logRateLimited("Rules", "action:hold", LOG_INTERVAL_MS,
-                        "hold 动作用 until 无 timeout 表达（无限等待），本版本不单独实现");
-                default -> ErrorLog.logRateLimited("Rules", "action:" + type, LOG_INTERVAL_MS,
-                        "未知规则动作: " + type + "（v1 动作: " + typesLabel() + "）");
+                default -> { }
             }
         } catch (Exception e) {
             ErrorLog.logRateLimited("Rules", "action:" + type, LOG_INTERVAL_MS, "规则动作执行异常: " + type, e);
@@ -335,7 +370,7 @@ public final class RuleActions {
                     "goto_clip 目标时间 " + at + "s 在 " + type + " 轨道上没有片段覆盖——动作跳过，播放继续");
             return;
         }
-        instance.player().seekTo(at);
+        instance.seekTo(at);
     }
 
     /** 轨道类型名 → 枚举（大小写不敏感；未知 → {@code null}）。 */
@@ -383,25 +418,63 @@ public final class RuleActions {
     }
 
     /**
-     * {@code emit_command}：命令交服务端执行（EVENT 轨同口径：{@code &&} 拆分 + 成功结果回执），
-     * 服务端只在该实例的观看者名单含发送者时才执行（防命令注入）。无脚本 / 无命令 → 限频日志 + 不动。
+     * {@code emit_command}（旧 {@code clip.rules} 路径）：只把动作引用发给服务端，
+     * 命令原文由服务端按自己加载的脚本解析（见 {@code RuleCommandTable}）。
+     *
+     * <p>动作引用 = 平铺片段索引（轨道序 → 轨道内片段序，与 {@code ClipExecutionLedger} 同口径）、
+     * 片段内规则下标、动作列表下标；{@code bindingId} 传空串表示旧形态。</p>
      */
-    private static void emitCommand(PlaybackInstance instance, JsonObject action) {
-        String command = str(action, "command");
+    public static void emitCommandForLegacyRule(PlaybackInstance instance,
+                                                int clipIndex, int ruleIndex, int actionIndex) {
+        if (!canEmitCommand(instance)) return;
+        NetworkGuard.sendToServer("C2SRuleCommand", () -> NetworkHandler.sendToServer(
+                new C2SRuleCommandPacket(instance.scriptId(), instance.instanceId(), "",
+                        clipIndex, ruleIndex, actionIndex)));
+    }
+
+    /**
+     * {@code emit_command}（脚本级规则 {@code rules} + {@code rule_bindings}）：只把动作引用发给服务端。
+     *
+     * <p>动作引用 = 绑定 id + 动作列表下标（脚本级规则的片段 / 规则维度传 -1）。
+     * 客户端先做命令非空白校验，避免把作者写错的空命令变成服务端拒绝日志。</p>
+     */
+    public static void emitCommandForBinding(PlaybackInstance instance, RuleBinding binding,
+                                             int actionIndex, JsonObject action) {
+        String command = action == null ? null : str(action, "command");
         if (command == null || command.isBlank()) {
             ErrorLog.logRateLimited("Rules", "emit_command:command", LOG_INTERVAL_MS,
                     "emit_command 缺少 command（命令原文，不含前导 /；多条用 && 分隔）——动作跳过，播放继续");
             return;
         }
+        if (binding == null) {
+            ErrorLog.logRateLimited("Rules", "emit_command:binding", LOG_INTERVAL_MS,
+                    "emit_command 缺少规则绑定（脚本级规则动作）——动作跳过");
+            return;
+        }
+        if (!canEmitCommand(instance)) return;
+        NetworkGuard.sendToServer("C2SRuleCommand", () -> NetworkHandler.sendToServer(
+                new C2SRuleCommandPacket(instance.scriptId(), instance.instanceId(), binding.id(),
+                        -1, -1, actionIndex)));
+    }
+
+    /**
+     * 发包前置条件：无宿主 / 编辑器预览 → 不发（预览不参与服务端播放账本，也没有授权）；
+     * 无脚本上下文 → 不发。
+     */
+    private static boolean canEmitCommand(PlaybackInstance instance) {
+        if (instance == null) return false;
+        if (instance.isEditorDriven()) {
+            ErrorLog.logRateLimited("Rules", "emit_command:preview", LOG_INTERVAL_MS,
+                    "emit_command 在编辑器预览实例上不发送（预览不参与服务端播放账本）");
+            return false;
+        }
         String scriptId = instance.scriptId();
         if (scriptId == null || scriptId.isEmpty() || "<none>".equals(scriptId)) {
             ErrorLog.logRateLimited("Rules", "emit_command:script", LOG_INTERVAL_MS,
                     "emit_command 无脚本上下文（脚本 id 缺失）——动作跳过");
-            return;
+            return false;
         }
-        String instanceId = instance.instanceId();
-        NetworkGuard.sendToServer("C2SRuleCommand", () -> NetworkHandler.sendToServer(
-                new C2SRuleCommandPacket(scriptId, instanceId, command)));
+        return true;
     }
 
     // ========== 工件实现（RuleArtifact） ==========

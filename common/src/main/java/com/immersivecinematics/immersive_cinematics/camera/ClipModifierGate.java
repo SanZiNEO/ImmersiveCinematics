@@ -39,9 +39,6 @@ final class ClipModifierGate implements CameraModifier {
     /** 本实例本帧的时间轴读数来源（注册时注入；每帧只读一次）。 */
     private final DoubleSupplier timelineTime;
 
-    /** 活跃窗起点 = 片段起始时间（秒）。 */
-    private final double windowStart;
-
     /**
      * @param declaration 片段级静态声明
      * @param clip        声明所在片段（活跃窗的唯一依据）
@@ -56,7 +53,6 @@ final class ClipModifierGate implements CameraModifier {
         this.next = next;
         this.timeSource = timeSource;
         this.timelineTime = timelineTime;
-        this.windowStart = clip.getStartTime();
     }
 
     @Override
@@ -81,7 +77,7 @@ final class ClipModifierGate implements CameraModifier {
         // morph 前一段：账本窗口外仍可延长半个过渡窗口（无限片段没有有限末端，不延长）
         if (next == null || clip.isEffectivelyInfinite() || !clip.isMorph()) return false;
         TransitionSpec spec = clip.getTransitionSpec();
-        return spec != null && time >= windowStart
+        return spec != null && time >= timeSource.windowStart(clip)
                 && time < spec.windowEnd(timeSource.finiteWindowEnd(clip));
     }
 

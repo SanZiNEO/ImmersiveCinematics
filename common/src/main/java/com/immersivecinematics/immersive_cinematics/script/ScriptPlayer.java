@@ -132,6 +132,13 @@ public class ScriptPlayer implements ClipTimeSource {
     private ClipExecutionLedger executions = new ClipExecutionLedger(null);
 
     /**
+     * 自然完成的额外执行依赖（缺省 = 无）：返回 {@code true} 时 {@link #allContentConsumed()} 视为
+     * 未完成——判定成功后已承诺但尚未释放的规则动作不得被主线采样结束静默丢弃
+     * （{@code ROUND-I-4-MAP} §3.4）。只推迟「已完成」结论，不冻结内容推进。
+     */
+    private java.util.function.BooleanSupplier completionDependency = () -> false;
+
+    /**
      * 本帧分发给轨道的时间轴读数（秒；宏观循环 = 圈内局部时间）——片段活跃窗判定的唯一读侧出口
      * （{@code ClipModifierGate} 按它比较声明片段的窗口）。初始为 {@code 0}，{@link #start} 后为首帧预执行时间。
      */
@@ -393,6 +400,7 @@ public class ScriptPlayer implements ClipTimeSource {
      */
     private boolean allContentConsumed() {
         if (isSuspended()) return false;
+        if (completionDependency.getAsBoolean()) return false;
         if (script == null || script.getTimeline() == null) return false;
         return executions.allDone();
     }
@@ -450,7 +458,7 @@ public class ScriptPlayer implements ClipTimeSource {
                     if (lane.clip().hasObjects()) {
                         SampledClip sample = cameraLaneRuntime.sample(lane.clip(), lane.clipLocalTime());
                         adjust = ColorAdjustSampler.sampleCameraLaneObjects(lane.clip(), sample,
-                                cameraLaneRuntime.values(lane.clip()), cameraLaneCurves);
+                                cameraLaneCurves);
                     } else {
                         adjust = ColorAdjustSampler.sample(lane.clip(), lane.clipLocalTime());
                     }
@@ -848,6 +856,16 @@ public class ScriptPlayer implements ClipTimeSource {
         return executions;
     }
 
+    /**
+     * 接线自然完成依赖（规则运行态的待执行动作）：返回 {@code true} = 仍有已承诺、尚未提交的动作。
+     * 只影响 {@link #isFinished()} 的「已完成」结论，不影响播放头推进（等待未来片段不互锁）。
+     *
+     * @param dependency 依赖谓词；{@code null} = 无依赖
+     */
+    public void setCompletionDependency(java.util.function.BooleanSupplier dependency) {
+        this.completionDependency = dependency != null ? dependency : () -> false;
+    }
+
     @Override
     public boolean isClipActive(Clip clip, double head) {
         return executions.isActive(clip, head);
@@ -861,6 +879,11 @@ public class ScriptPlayer implements ClipTimeSource {
     @Override
     public double finiteWindowEnd(Clip clip) {
         return executions.windowEnd(clip);
+    }
+
+    @Override
+    public double windowStart(Clip clip) {
+        return executions.windowStart(clip);
     }
 
     /**

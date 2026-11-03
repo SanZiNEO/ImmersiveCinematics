@@ -158,6 +158,21 @@ final class FrameDriver {
                     } catch (Exception e) {
                         ErrorLog.logRateLimited("Playback", "rule-engine", 5000L, "规则引擎判定异常（本帧跳过）", e);
                     }
+                    // 脚本级规则（rules + rule_bindings）：同一帧内、旧引擎之后判定；挂起握手按
+                    // suspendedBefore（两次判定之前）到本帧最终状态的变化发一条（两边共用同一区间）
+                    try {
+                        instance.rules().evaluate(player);
+                    } catch (Exception e) {
+                        ErrorLog.logRateLimited("Playback", "script-rules", 5000L,
+                                "脚本级规则引擎判定异常（本帧跳过）", e);
+                    }
+                    // 分支出口：规则求值之后推进（本帧 goto_clip 启动的分支在这里立即可被观察到；
+                    // 完成 / 失败都在同一帧收口）。异常只跳过本帧，不中断播放。
+                    try {
+                        instance.branch().poll();
+                    } catch (Exception e) {
+                        ErrorLog.logRateLimited("Playback", "branch", 5000L, "分支出口解析异常（本帧跳过）", e);
+                    }
                     // 挂起开始 / 结束是帧级事件：状态变化那一帧发一条暂停握手（服务端冻结 / 解冻 EVENT 时间线）
                     if (!instance.isEditorDriven() && player.isPlaying()
                             && player.isSuspended() != suspendedBefore) {

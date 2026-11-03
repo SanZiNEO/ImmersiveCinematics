@@ -43,6 +43,11 @@ public final class ClipExecution {
     double seriesStart;
     /** 分支入口局部时间（默认 0）。 */
     double localOrigin;
+    /**
+     * 脚本级独立片段（{@code clips[]}）：没有默认放置，播放头经过不使其活跃、不参与完成度；
+     * 只有被分支 / 规则 / 出口引用启动（{@code branchEntry = true}）后才按正常执行语义推进。
+     */
+    boolean standalone;
 
     ClipExecution(Clip clip, int flatIndex) {
         this.clip = clip;
@@ -64,8 +69,10 @@ public final class ClipExecution {
     public boolean infinite() { return infinite; }
     public ExecutionDirection direction() { return direction; }
     public boolean contentDone() { return contentDone; }
-    public boolean done() { return done; }
+    /** 完成事实：未启动的独立片段恒 {@code false}（它不在主线上，不参与完成计数）。 */
+    public boolean done() { return done && !(standalone && !branchEntry); }
     public boolean branchEntry() { return branchEntry; }
+    public boolean standalone() { return standalone; }
     public double windowStart() { return windowStart; }
     public boolean hasFiniteWindowEnd() { return finiteWindowEnd; }
     public double windowEnd() { return windowEnd; }
@@ -74,6 +81,12 @@ public final class ClipExecution {
 
     /** 按默认放置重导到 {@code head}（片段起点为 series 起点；{@code branchEntry=false}）。 */
     void resetDefault(double head, long id) {
+        if (standalone) {
+            // 独立片段没有默认放置：回到「未被启动」态，只换执行身份。
+            markStandalone();
+            this.executionId = id;
+            return;
+        }
         this.seriesStart = clip.getStartTime();
         this.localOrigin = 0.0;
         this.branchEntry = false;
@@ -95,10 +108,38 @@ public final class ClipExecution {
     }
 
     /**
+     * 标记为脚本级独立片段并回到「未被启动」态：无默认放置、窗口起点为无穷（播放头永不经过）、
+     * 不活跃、不计入完成度。只有 {@link #startBranch(double, double, long)} 能把它变成真实执行。
+     */
+    void markStandalone() {
+        this.standalone = true;
+        this.seriesStart = 0.0;
+        this.localOrigin = 0.0;
+        this.branchEntry = false;
+        this.duration = clip.getDuration();
+        this.loopMode = clip.getLoopModeValue();
+        this.infinite = clip.isEffectivelyInfinite();
+        this.loopCount = infinite ? -1 : effectiveLoopCount();
+        this.executionIndex = 0;
+        this.executionStart = 0.0;
+        this.direction = ExecutionDirection.FORWARD;
+        this.executionsRemaining = 1;
+        this.windowStart = Double.POSITIVE_INFINITY;
+        this.finiteWindowEnd = true;
+        this.windowEnd = Double.POSITIVE_INFINITY;
+        this.contentDone = false;
+        this.done = false;
+        this.localTime = 0.0;
+    }
+
+    /**
      * 推进到 {@code head}（调用方保证 {@code head >= 上次 head}）。
      * 跨执行边界时分配新身份（一帧跨多圈只保留最终执行的身份；中间执行从未被观察到）。
      */
     void advanceTo(double head, ClipExecutionLedger owner) {
+        if (standalone && !branchEntry) {
+            return; // 未被启动的独立片段不随播放头推进
+        }
         int previousIndex = executionIndex;
         applyHead(head);
         if (executionIndex != previousIndex) {
@@ -143,6 +184,7 @@ public final class ClipExecution {
 
     /** 逐字段深拷贝（restore 用）。 */
     void copyFrom(ClipExecution other) {
+        this.standalone = other.standalone;
         this.executionId = other.executionId;
         this.executionIndex = other.executionIndex;
         this.executionStart = other.executionStart;

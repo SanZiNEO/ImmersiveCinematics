@@ -56,6 +56,10 @@ public final class RuleEngine {
     private ClipRule[] slotRules = new ClipRule[0];
     private double[] slotWindowStart = new double[0];
     private double[] slotWindowEnd = new double[0];
+    /** 槽位所属片段的平铺索引（轨道序 → 轨道内片段序，与 {@code ClipExecutionLedger} 同口径）。 */
+    private int[] slotClipIndex = new int[0];
+    /** 槽位对应的 {@code clip.getRules()} 下标。 */
+    private int[] slotRuleIndex = new int[0];
     private int slotCount = 0;
 
     // ===== 规则状态（每槽一份；基本类型数组，帧内不新建） =====
@@ -189,22 +193,27 @@ public final class RuleEngine {
 
         allocateSlots(count);
         int slot = 0;
+        int flat = 0;
         for (TimelineTrack track : script.getTimeline().getTracks()) {
             List<Clip> clips = track.getClips();
             for (int ci = 0; ci < clips.size(); ci++) {
                 Clip clip = clips.get(ci);
                 List<ClipRule> rules = clip.getRules();
-                if (rules.isEmpty()) continue;
-                Clip next = ci + 1 < clips.size() ? clips.get(ci + 1) : null;
-                double start = clip.getStartTime();
-                double end = windowEnd(clip, next);
-                for (int ri = 0; ri < rules.size(); ri++) {
-                    slotClips[slot] = clip;
-                    slotRules[slot] = rules.get(ri);
-                    slotWindowStart[slot] = start;
-                    slotWindowEnd[slot] = end;
-                    slot++;
+                if (!rules.isEmpty()) {
+                    Clip next = ci + 1 < clips.size() ? clips.get(ci + 1) : null;
+                    double start = clip.getStartTime();
+                    double end = windowEnd(clip, next);
+                    for (int ri = 0; ri < rules.size(); ri++) {
+                        slotClips[slot] = clip;
+                        slotRules[slot] = rules.get(ri);
+                        slotWindowStart[slot] = start;
+                        slotWindowEnd[slot] = end;
+                        slotClipIndex[slot] = flat;
+                        slotRuleIndex[slot] = ri;
+                        slot++;
+                    }
                 }
+                flat++;
             }
         }
         slotCount = count;
@@ -267,7 +276,8 @@ public final class RuleEngine {
             // 本批动作的注册窗末（camera_set / overlay_set / adjust_set 的工件回收时刻）
             actionWindowEnd = slotWindowEnd[slot];
             for (int a = 0; a < actions.size(); a++) {
-                RuleActions.execute(owner, slotClips[slot], rule, actions.get(a));
+                RuleActions.execute(owner, slotClips[slot], rule, actions.get(a),
+                        slotClipIndex[slot], slotRuleIndex[slot], a);
             }
         }
         if (wantSuspend) {
@@ -471,6 +481,8 @@ public final class RuleEngine {
         slotRules = new ClipRule[0];
         slotWindowStart = new double[0];
         slotWindowEnd = new double[0];
+        slotClipIndex = new int[0];
+        slotRuleIndex = new int[0];
         onceFired = new boolean[0];
         untilDone = new boolean[0];
         untilArmed = new boolean[0];
@@ -493,6 +505,8 @@ public final class RuleEngine {
         slotRules = new ClipRule[count];
         slotWindowStart = new double[count];
         slotWindowEnd = new double[count];
+        slotClipIndex = new int[count];
+        slotRuleIndex = new int[count];
         onceFired = new boolean[count];
         untilDone = new boolean[count];
         untilArmed = new boolean[count];

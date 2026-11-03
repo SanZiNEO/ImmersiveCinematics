@@ -20,4 +20,15 @@ public interface ClipTimeSource {
 
     /** 片段有限展开窗口末端（不含）；仅有限时有效。 */
     double finiteWindowEnd(Clip clip);
+
+    /**
+     * 片段当前执行在实例时间轴上的活跃窗起点（秒）：默认放置 = 轨道放置锚点，分支入口 = 跳转时刻。
+     *
+     * <p>Modifier 活跃窗（含 morph 前一段的延长判定）必须用本值，不能用 {@link Clip#getStartTime()}
+     * ——分支入口下的执行起点不是片段默认放置锚点。默认实现回落 {@code clip.getStartTime()}，
+     * 供不持有执行账本的轻量实现使用；播放器实现必须读执行账本。</p>
+     */
+    default double windowStart(Clip clip) {
+        return clip != null ? clip.getStartTime() : 0.0;
+    }
 }

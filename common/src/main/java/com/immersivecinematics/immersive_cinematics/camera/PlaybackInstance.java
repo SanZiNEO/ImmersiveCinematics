@@ -13,6 +13,14 @@ import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipBranchController;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipBranchHost;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipExecution;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitResolver;
+import com.immersivecinematics.immersive_cinematics.script.rule.runtime.RuleRuntime;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +43,9 @@ import java.util.function.DoubleSupplier;
  * （键鼠屏蔽、暂停联动、播放队列、网络账本、跳过投票）。生命周期驱动方法为包内可见：实例只由
  * {@code CameraManager} 创建与驱动。
  */
-public final class PlaybackInstance {
+public final class PlaybackInstance implements ClipBranchHost {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CameraManager");
 
     private final ScriptPlayer player = new ScriptPlayer();
 
@@ -60,15 +70,60 @@ public final class PlaybackInstance {
      */
     private final RuleEngine ruleEngine = new RuleEngine();
 
+    /**
+     * 脚本级规则运行态（{@code rules} + {@code rule_bindings}；每实例一份）。与旧 {@link RuleEngine}
+     * 并存但不同脚本：同一脚本同时出现两套规则由解析期拒绝。帧驱动在旧引擎之后调用
+     * {@link RuleRuntime#evaluate}。
+     */
+    private final RuleRuntime rules = new RuleRuntime();
+
+    /**
+     * 片段默认出口策略表（播放实例级，不写回脚本）：{@link #start} / {@link #replaceScript} 时按脚本
+     * 全部片段（内联 + 独立）填充，{@link #stop} 时清空。解析优先级 = 入口覆盖 &gt; 片段默认 &gt; CONTINUE
+     * （见 {@link ClipExitResolver}）。
+     */
+    private final ClipExitResolver exits = new ClipExitResolver();
+
+    /**
+     * 分支出口驱动器（单分支、无嵌套/调用栈）。构造时绑定本实例的账本，{@link #start} /
+     * {@link #replaceScript} 时随播放器重建（{@link ScriptPlayer} 在每次启播/替换脚本时换新账本实例，
+     * 控制器必须指向当前账本，否则分支读到的是已废弃的记录）。
+     */
+    private ClipBranchController branch = new ClipBranchController(player.executions(), exits, this);
+
+    /**
+     * 网络侧播放账本：本实例的 seek 上报出口。由 {@code PlaybackLifecycle} 在创建实例时注入；
+     * {@code null} = 未接线（编辑器预览 / 探针），此时只做本地 seek、不发包。
+     */
+    private PlaybackLedger ledger;
+
     PlaybackInstance(CameraCoverChain coverChain, boolean editorDriven) {
         this.coverChain = coverChain;
         this.editorDriven = editorDriven;
         this.ruleEngine.attachOwner(this);
+        this.rules.attachOwner(this);
+        // 待执行动作参与自然完成：判定成功后已承诺的动作不得被内容采样结束静默丢弃
+        this.player.setCompletionDependency(() -> rules.hasPendingActions());
     }
 
     /** 本实例的判定规则引擎（帧驱动调用 {@code evaluate}；探针直取以注入上下文 / 时钟）。 */
     public RuleEngine ruleEngine() {
         return ruleEngine;
+    }
+
+    /** 本实例的脚本级规则运行态（帧驱动调用 {@code evaluate}；探针直取以注入上下文 / 时钟）。 */
+    public RuleRuntime rules() {
+        return rules;
+    }
+
+    /** 本实例的分支出口驱动器（{@code goto_clip} / 片段 {@code exit} 的运行期状态机）。 */
+    public ClipBranchController branch() {
+        return branch;
+    }
+
+    /** 本实例的片段默认出口策略表（解析优先级 = 入口覆盖 &gt; 片段默认 &gt; CONTINUE）。 */
+    public ClipExitResolver exits() {
+        return exits;
     }
 
     /** 是否由编辑器播放驱动（独立时钟源，与游戏实例并行共存；不参与游戏控制语义）。 */
@@ -146,6 +201,8 @@ public final class PlaybackInstance {
         this.playMode = meta != null ? meta.getPlayMode() : ScriptMeta.PlayMode.PARALLEL;
         syncModifiers(script);
         ruleEngine.sync(script, player);
+        rules.sync(script, player);
+        syncExits(script);
     }
 
     /** 编辑器增量替换脚本数据（常驻实例零重启）：播放数据与行为快照一起刷新。 */
@@ -160,6 +217,8 @@ public final class PlaybackInstance {
         this.playMode = meta != null ? meta.getPlayMode() : ScriptMeta.PlayMode.PARALLEL;
         syncModifiers(newScript);
         ruleEngine.sync(newScript, player);
+        rules.sync(newScript, player);
+        syncExits(newScript);
     }
 
     /** 停止播放：清空轨道（音频实例、覆盖层随之释放）+ 注销本实例的 Modifier + 清规则槽（释放挂起）。 */
@@ -169,6 +228,8 @@ public final class PlaybackInstance {
         this.player.stop(reason);
         syncModifiers(null);
         ruleEngine.reset(player);
+        rules.reset(player);
+        exits.clear();
         // 层兜底：TrackPlayer 清理抛异常时也不留残层（层归属 = 本实例，只清自己的）
         OverlayManager.INSTANCE.removeLayersOf(this);
     }
@@ -241,6 +302,108 @@ public final class PlaybackInstance {
     /** 注销一条规则动作建出的 Modifier（片段窗末 / 引擎重建 / 停播；未注册过时为无操作）。 */
     public void detachRuleModifier(CameraModifier modifier) {
         if (coverChain != null && modifier != null) coverChain.unregister(modifier);
+    }
+
+    // ========== 出口策略 / 分支接线（播放实例级） ==========
+
+    /**
+     * 按脚本同步片段默认出口策略表，并重建分支控制器。
+     *
+     * <p>覆盖内联片段（timeline 全部轨道）与脚本级独立片段：只要片段声明了 {@code exit} 就进表；
+     * 未声明 = 运行期 {@code CONTINUE}。控制器必须重建，因为 {@link ScriptPlayer} 在启播 / 替换脚本时
+     * 换新执行账本实例，旧的控制器会指向已废弃的记录。</p>
+     *
+     * 调用点：{@link #start}、{@link #replaceScript}。不在帧内调用。
+     */
+    void syncExits(CinematicScript script) {
+        exits.clear();
+        if (script != null) {
+            for (TimelineTrack track : script.getTimeline().getTracks()) {
+                for (Clip clip : track.getClips()) {
+                    if (clip.hasExitPolicy()) exits.setDefault(clip, clip.getExitPolicy());
+                }
+            }
+            List<Clip> standalone = script.getStandaloneClips();
+            if (standalone != null) {
+                for (Clip clip : standalone) {
+                    if (clip.hasExitPolicy()) exits.setDefault(clip, clip.getExitPolicy());
+                }
+            }
+        }
+        this.branch = new ClipBranchController(player.executions(), exits, this);
+    }
+
+    // ========== 分支宿主（ClipBranchHost） ==========
+
+    /** 当前播放头读数（秒）：与轨道分发同一口径（{@code ScriptPlayer.timelineTime()}）。 */
+    @Override
+    public double now() {
+        return player.timelineTime();
+    }
+
+    /** 请求脚本整体结束：走声明式退出入口（作用于本实例，跳过末尾驻留）。 */
+    @Override
+    public void requestScriptEnd() {
+        CameraManager.INSTANCE.requestDeclaredExit(this);
+    }
+
+    /**
+     * 分支入口已生效。
+     *
+     * <p>规则运行态无需显式通知：{@link RuleRuntime} 在下一帧按执行身份变化自行建立激活
+     * （见 {@code RuleRuntime.evaluate} 的 executionId 检测）。这里只留诊断日志。</p>
+     */
+    @Override
+    public void onBranchStarted(Clip clip, ClipExecution execution) {
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("分支入口启动: clip={} execution={} local={}",
+                    clip != null ? clip.getClipId() : "<null>",
+                    execution != null ? execution.executionId() : -1L,
+                    execution != null ? execution.localTime() : 0.0);
+        }
+    }
+
+    /**
+     * 分支失败：账本已恢复到 launch 快照、播放头已 seek 回快照位置（{@link ClipBranchController#fail}）。
+     *
+     * <p><b>边界</b>：只恢复执行事实，不重放内容、不回滚音频 / 覆盖层副作用——各层按自身生命周期收口。
+     * 规则运行态作废后按当前脚本重建空运行态：分支已回主线，规则继续从执行事实重新建立激活，
+     * 而不是带着失败分支的激活 / 事实继续判定。</p>
+     */
+    @Override
+    public void onBranchFailed(Clip clip, String reason) {
+        ErrorLog.logRateLimited("Branch", "failed", 5000L,
+                "分支失败，回到主线（" + (clip != null ? clip.getClipId() : "<null>") + "）：" + reason);
+        rules.reset(player);
+        rules.sync(script(), player);
+    }
+
+    // ========== 时间线定位 ==========
+
+    /**
+     * 供 {@code PlaybackLifecycle} 在创建实例时注入网络账本（seek 上报出口）。
+     */
+    void attachLedger(PlaybackLedger ledger) {
+        this.ledger = ledger;
+    }
+
+    /**
+     * 定位本实例的内容时间线到 {@code timelineSeconds}（全局秒）。
+     *
+     * <p>本地定位始终执行（{@link ScriptPlayer#seekTo}：时钟基准 + 各轨派生状态一起归位）。
+     * 上报条件：非编辑器实例、正在播放、脚本 id 非 {@code "<none>"}、实例 id 非空、已接线账本——
+     * 满足才发 {@code C2SScriptSeek}，让服务端 EVENT 时间线对齐（前跳不补触发、后跳不重复）。
+     * 编辑器预览实例只动本地播放头，不动游戏播放侧的账。</p>
+     */
+    @Override
+    public void seekTo(double timelineSeconds) {
+        if (!Double.isFinite(timelineSeconds)) return;
+        player.seekTo(timelineSeconds);
+        if (editorDriven || ledger == null || !player.isPlaying()) return;
+        if (instanceId == null || instanceId.isEmpty()) return;
+        String scriptId = scriptId();
+        if (scriptId == null || scriptId.isEmpty() || "<none>".equals(scriptId)) return;
+        ledger.sendSeekPacket(scriptId, instanceId, timelineSeconds);
     }
 
     // ========== 生命周期判定（按实例独立） ==========

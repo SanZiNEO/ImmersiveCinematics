@@ -10,8 +10,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 播放实例级执行账本：每个扁平片段（轨道序 → 轨道内片段序）一条 {@link ClipExecution}，
- * 由播放头推进重导 / 推进执行事实。执行次数、执行身份、局部采样时间与完成事实的唯一真源。
+ * 播放实例级执行账本：每个扁平片段（轨道序 → 轨道内片段序 → 脚本级独立片段序）一条
+ * {@link ClipExecution}，由播放头推进重导 / 推进执行事实。执行次数、执行身份、局部采样时间与
+ * 完成事实的唯一真源。
+ *
+ * <p>独立片段（{@link CinematicScript#getStandaloneClips()}）没有默认放置：记录以
+ * {@link ClipExecution#markStandalone()} 的「未启动」态存在，播放头经过不使其活跃、不计入
+ * 完成度 / 内容末端；只有 {@link #startBranch(Clip, double, double)} 启动后（{@code branchEntry}）
+ * 才按正常执行语义计入。</p>
  *
  * <p>默认放置：{@code seriesStart = clip.startTime}；有限窗口
  * {@code windowEnd = seriesStart + duration × (loop ? max(1, count) : 1)}。每次 {@link #reset(double)}
@@ -36,6 +42,14 @@ public final class ClipExecutionLedger {
                 for (Clip clip : track.getClips()) {
                     list.add(new ClipExecution(clip, flat++));
                 }
+            }
+        }
+        if (script != null) {
+            // 独立片段接在 timeline 铺平序之后；旧规则的扁平索引只覆盖 timeline，因此不受影响。
+            for (Clip clip : script.getStandaloneClips()) {
+                ClipExecution execution = new ClipExecution(clip, flat++);
+                execution.markStandalone();
+                list.add(execution);
             }
         }
         this.executions = list.toArray(new ClipExecution[0]);
@@ -99,6 +113,7 @@ public final class ClipExecutionLedger {
     public boolean isActive(Clip clip, double head) {
         ClipExecution execution = executionOf(clip);
         if (execution == null) return false;
+        if (isPendingStandalone(execution)) return false; // 独立片段没有默认放置
         return head >= execution.windowStart
                 && (!execution.finiteWindowEnd || head < execution.windowEnd);
     }
@@ -134,22 +149,24 @@ public final class ClipExecutionLedger {
         return execution.windowEnd;
     }
 
-    /** 全部记录是否都有有限展开末端（空脚本 = true）。 */
+    /** 全部记录是否都有有限展开末端（空脚本 = true；未启动的独立片段不计入）。 */
     public boolean hasFiniteContentEnd() {
         for (ClipExecution execution : executions) {
+            if (isPendingStandalone(execution)) continue;
             if (execution.infinite || !execution.finiteWindowEnd) return false;
         }
         return true;
     }
 
     /**
-     * 全部片段展开窗口末端的最大值（空脚本 = 0）。
+     * 全部片段展开窗口末端的最大值（空脚本 = 0；未启动的独立片段不计入）。
      *
      * @throws IllegalStateException 存在无限执行（调用方必须先判 {@link #hasFiniteContentEnd()}）
      */
     public double contentEnd() {
         double end = 0.0;
         for (ClipExecution execution : executions) {
+            if (isPendingStandalone(execution)) continue;
             if (execution.infinite || !execution.finiteWindowEnd) {
                 throw new IllegalStateException("存在无限执行，内容没有有限末端");
             }
@@ -158,19 +175,21 @@ public final class ClipExecutionLedger {
         return end;
     }
 
-    /** 全部片段是否已执行完（空脚本 = true）。 */
+    /** 全部片段是否已执行完（空脚本 = true；未启动的独立片段不计入）。 */
     public boolean allDone() {
         for (ClipExecution execution : executions) {
-            if (!execution.done) return false;
+            if (isPendingStandalone(execution)) continue;
+            if (!execution.done()) return false;
         }
         return true;
     }
 
-    /** 尚未执行完的片段数（空脚本 = 0）。 */
+    /** 尚未执行完的片段数（空脚本 = 0；未启动的独立片段不计入）。 */
     public int remainingContent() {
         int remaining = 0;
         for (ClipExecution execution : executions) {
-            if (!execution.done) remaining++;
+            if (isPendingStandalone(execution)) continue;
+            if (!execution.done()) remaining++;
         }
         return remaining;
     }
@@ -208,5 +227,10 @@ public final class ClipExecutionLedger {
             executions[i].copyFrom(snapshot.at(i));
         }
         this.lastHead = snapshot.lastHead();
+    }
+
+    /** 未启动的脚本级独立片段：不在主线上，不参与活跃判定 / 完成度 / 内容末端。 */
+    private static boolean isPendingStandalone(ClipExecution execution) {
+        return execution.standalone && !execution.branchEntry;
     }
 }
