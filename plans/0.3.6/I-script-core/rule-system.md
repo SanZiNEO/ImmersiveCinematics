@@ -1,6 +1,7 @@
 # 规则与路径（索引）
 
-> 状态：未实现（方向专篇；C 轮 v1 仅为旧实现基线，不代表新目标已在 C 轮完成）
+> 状态：已实现（I4-1 ～ I4-9 关闭）
+> 能力清单：片段身份 + 脚本级独立片段表（I4-1）；脚本级规则集合 `rules` / `rule_bindings`（I4-2）；规则运行态与必选时间门（I4-3）；实例级挂起与多来源持有（I4-4）；事实接力与五种 `schedule` 释放（I4-5）；出口策略与分支接线（I4-6）；`emit_command` 服务端信任边界（I4-7）；脚本级路径集合 `paths`（I4-8）；EVENT seek 与「循环/多入口不重放」定性（I4-9）
 > 范围：规则系统与路径集合的索引与跨篇口径；正文按“一篇一个可独立执行的目标”拆到下列分篇，本页不重复
 > 关联：`rule-collection.md`、`rule-time-gate.md`、`rule-suspension.md`、`rule-facts-scheduling.md`、`rule-exits.md`、`path-collection.md`、`rule-implementation.md`；结构侧见 `object-model.md`、`schema-and-types.md`、`runtime-evaluation.md`、`track-camera.md`
 > 口径：本篇自足承载规则方向；C 轮 `../C-trigger/condition-system.md` 只作已完成 v1 的实现证据与旧设计参考。执行者不需要从 C 正文拼接目标语义，C 正文也不因本篇被重新打开。
@@ -16,10 +17,10 @@
 | 字段 | 27 种类型 + 条件表 + `delay` / `requires` 等 | **新增字段集**，不写进触发器条目，不继承触发器类型 |
 | 共享 | 底层判定：几何 / id 匹配核、状态谓词、事件采集语义、`all_of`／`any` 组合语义 | 同左 |
 
-- 规则不是触发器的新类型，也不在 `meta.triggers` 的条目上加字段，更不挂在片段上（那是 v1 的 `clip.rules`）：触发器条目里不会出现规则字段，规则条目里也不写 `type` 去复用某个触发器类型。具体落点（脚本级字段名）由结构评审定。
+- 规则不是触发器的新类型，也不在 `meta.triggers` 的条目上加字段，更不挂在片段上（旧 `clip.rules` 是 v1 载体）：触发器条目里不会出现规则字段，规则条目里也不写 `type` 去复用某个触发器类型。落点 = 脚本顶层 `rules`（定义表）+ `rule_bindings`（绑定表），与 `clips`、`paths` 并列；字段口径见 [`rule-collection.md`](rule-collection.md) §3.4 与 `ROUND-I-4-MAP.md` §一。
 - 「复用底层判定」不等于「复用触发器定义」：共享的是几何 / id 匹配核与事件采集语义（`GeometryConditions` 一类），不是 27 种触发器类型本身。
 - 两套字段各自演化：触发器加类型不影响规则集合形态，规则集合改结构也不动 `meta.triggers`。
-- 本轮不改触发器字段；规则集合按新字段落地，不复用、不覆盖现有触发器字段。
+- 触发器字段不因规则集合改动：规则集合按新字段落地，不复用、不覆盖现有触发器字段。
 
 ## 共同时间基准（一句话）
 
@@ -27,16 +28,16 @@
 
 ## 分篇地图
 
-| 文档 | 负责的目标 | 一轮可交付的边界 |
-|---|---|---|
-| [`rule-collection.md`](rule-collection.md) | 脚本级规则集合：定义 / 绑定 / 激活 / 事实 / 调度五层，多条目多入口，归属与身份 | 集合落点、条目形态、多入口记账；不含时间门语义与动作阶段 |
-| [`rule-time-gate.md`](rule-time-gate.md) | 片段局部时间基准、时间门（`>=` 阈值）、门前采集与门后提交、条件树边界 | 时间门与采集/提交分层；不含挂起、事实与出口 |
-| [`rule-suspension.md`](rule-suspension.md) | 到门后挂起整个实例、持有来源记账、释放条件可达性 | 判定等待的持有模型；不含动作延后 |
-| [`rule-facts-scheduling.md`](rule-facts-scheduling.md) | 事实接力、判定成功与动作完成分离、延迟动作与承诺动作参与完成 | 事实与调度；不含出口策略 |
-| [`rule-exits.md`](rule-exits.md) | 正常完成（片段默认 + 入口覆盖）、失败 fallback、退出三族、与循环 / EVENT / 播放关系的边界 | 出口与边界；不含时间门与调度 |
-| [`rule-command-trust.md`](rule-command-trust.md) | `emit_command` 的服务端信任边界：客户端只发动作引用、服务端解析脚本命令、实例授权与权限上限 | 请求面与命令源；不改 EVENT 命令协议 |
-| [`path-collection.md`](path-collection.md) | 脚本级路径集合：目标片段与相邻端点对、`geometry`（`line`/`bezier`）、`timing`、多条目 | 集合契约；相机侧装配归 `track-camera.md` |
-| [`rule-implementation.md`](rule-implementation.md) | v1 实现基线、当前实现速查、与目标的差距、结构评审项汇总 | 只记录事实与差距，不定义语义 |
+| 文档 | 负责的目标 | 一轮可交付的边界 | 状态 |
+|---|---|---|---|
+| [`rule-collection.md`](rule-collection.md) | 脚本级规则集合：定义 / 绑定 / 激活 / 事实 / 调度五层，多条目多入口，归属与身份 | 集合落点、条目形态、多入口记账；不含时间门语义与动作阶段 | 已实现（I4-2 / I4-3） |
+| [`rule-time-gate.md`](rule-time-gate.md) | 片段局部时间基准、时间门（`>=` 阈值）、门前采集与门后提交、条件树边界 | 时间门与采集/提交分层；不含挂起、事实与出口 | 已实现（I4-3） |
+| [`rule-suspension.md`](rule-suspension.md) | 到门后挂起整个实例、持有来源记账、释放条件可达性 | 判定等待的持有模型；不含动作延后 | 已实现（I4-4） |
+| [`rule-facts-scheduling.md`](rule-facts-scheduling.md) | 事实接力、判定成功与动作完成分离、延迟动作与承诺动作参与完成 | 事实与调度；不含出口策略 | 已实现（I4-5） |
+| [`rule-exits.md`](rule-exits.md) | 正常完成（片段默认 + 入口覆盖）、失败 fallback、退出三族、与循环 / EVENT / 播放关系的边界 | 出口与边界；不含时间门与调度 | 已实现（I4-6） |
+| [`rule-command-trust.md`](rule-command-trust.md) | `emit_command` 的服务端信任边界：客户端只发动作引用、服务端解析脚本命令、实例授权与权限上限 | 请求面与命令源；不改 EVENT 命令协议 | 已实现（I4-7） |
+| [`path-collection.md`](path-collection.md) | 脚本级路径集合：目标片段与相邻端点对、`geometry`（`line`/`bezier`）、`timing`、多条目 | 集合契约；相机侧装配归 `track-camera.md` | 已实现（I4-8） |
+| [`rule-implementation.md`](rule-implementation.md) | 现行实现速查、现行实现表、新旧规则系统差异报告 | 只记录事实与边界，不定义语义 | 记录文档 |
 
 分篇原则：每篇只定一个可独立执行的目标，执行者能在一轮内把它拆成任务并做完；跨篇引用只指目标，不把语义散落到多篇。
 

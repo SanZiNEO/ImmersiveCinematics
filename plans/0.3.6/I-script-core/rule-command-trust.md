@@ -1,27 +1,30 @@
 # 规则命令的服务端信任边界
 
-> 状态：未实现
+> 状态：已实现（I4-7 关闭）
+> 能力清单：`C2SRuleCommandPacket` 六字段只发动作引用（无命令原文）；`PlaybackGrant` 由服务端签发、回执只能消费；`RuleCommandTable` 服务端编译命令表；`RuleCommandSource` 权限 = `Config.ruleCommandPermissionLevel`（缺省 2）；限频 + 审计；旧原文包按解码异常丢弃；EVENT 仍权限 4
 > 范围：规则动作 `emit_command` 的客户端→服务端请求身份、实例与观看者授权、命令来源、命令源权限、旧协议处置与验收
 > 关联：`rule-system.md`、`rule-collection.md`、`rule-facts-scheduling.md`、`rule-implementation.md`、`track-event.md`；代码见 `trigger/network/C2SRuleCommandPacket.java`、`trigger/server/ScriptEventManager.java`、`util/SuccessOnlySource.java`、`trigger/network/C2SPlaybackStartedPacket.java`、`script/ScriptValidator.java`
 
 ## 一、摘要
 
-规则动作 `emit_command` 让脚本在客户端条件成立时请求服务端执行命令。现行链路把客户端传来的命令原文交给权限 4 的命令源，只检查发送者是否在该播放实例的观看者集合；观看者集合又可由客户端播放回执自行登记。结果是任意能发送模组 C2S 包的客户端（包括修改过的模组客户端）只要知道一个已加载脚本的 id，就能把自己变成观看者，并以 op 权限执行任意命令。
+规则动作 `emit_command` 让脚本在客户端条件成立时请求服务端执行命令。现行链路是服务端权威：客户端只提交脚本内动作的引用，服务端按脚本定义解析命令；观看者身份由服务端在发播放包时签发，客户端回执不能自证；规则命令使用受限命令源，EVENT 轨的服务端命令不受影响。
 
-本文把这条链路改成服务端权威：客户端只提交脚本内动作的引用，服务端按脚本定义解析命令；观看者身份由服务端在发播放包时签发，客户端回执不能自证；规则命令使用受限命令源，EVENT 轨的服务端命令不受影响。状态未实现。
+具体落点：请求包只有 `scriptId` / `instanceId` / `bindingId` / `clipIndex` / `ruleIndex` / `actionIndex` 六个字段（无命令原文）；服务端 `RuleCommandTable` 在脚本加载期编译 `emit_command` 动作表，按引用取命令原文；`PlaybackGrant` 由发送播放包的路径创建，回执只能消费；`RuleCommandSource` 权限取 `Config.ruleCommandPermissionLevel`（缺省 2）；请求限频 + 审计；旧原文包不再注册，按解码异常丢弃。
 
 ## 二、为什么做
 
-### 2.1 问题
+### 2.1 v1 链路的攻击面（I4-7 已关闭）
+
+以下是最初的 v1 链路形态，用作本设计的依据；这些行为已不在现行实现里。
 
 - 客户端请求携带命令原文，服务端没有把请求与脚本中定义的 `emit_command` 动作做比对。
 - 服务端唯一检查是“发送者是否在该实例的观看者集合”，但观看者身份由客户端播放回执登记；客户端可以伪造 `started=true` 把自己加入任意已加载脚本的观看者集合。
 - 命令执行使用权限 4 的命令源；因此“能看脚本”实际等于“能以 op 权限执行任意命令”，而不是“只能执行作者写好的命令”。
 - 校验器只检查 `emit_command.command` 是非空字符串；它不限制命令内容，而且伪造的网络包不经过校验器。
-- 现有注释把观看者检查称为“防命令注入”，但它只把注入面从“能发模组 C2S 包的客户端”缩小到观看者；观看者不是权限主体，身份也可以伪造。
+- 旧注释把观看者检查称为“防命令注入”，但它只把注入面从“能发模组 C2S 包的客户端”缩小到观看者；观看者不是权限主体，身份也可以伪造。
 - EVENT 轨的权限 4 不属于本条问题：EVENT 命令由服务端事件时间线触发，没有客户端命令请求。问题在规则命令复用了同一条“客户端请求→权限 4”的路径。
 
-现状依据：`C2SRuleCommandPacket` 携带 `command` 原文；`ScriptEventManager.handleRuleCommand` 只调用 `isRuleCommandAllowed` 后执行；`SuccessOnlySource` 构造权限为 4；`C2SPlaybackStartedPacket` 的 `started` 由客户端传入并直接进入播放账本；`ScriptValidator.checkActionEmitCommand` 只检查非空字符串。
+v1 现状依据：`C2SRuleCommandPacket` 携带 `command` 原文；`ScriptEventManager.handleRuleCommand` 只调用 `isRuleCommandAllowed` 后执行；`SuccessOnlySource` 构造权限为 4；`C2SPlaybackStartedPacket` 的 `started` 由客户端传入并直接进入播放账本；`ScriptValidator.checkActionEmitCommand` 只检查非空字符串。
 
 ### 2.2 目标
 
@@ -39,7 +42,7 @@
 - 不改变 EVENT/MOD_EVENT 的命令协议、事件身份、去重与权限 4 口径。
 - 不把脚本作者当攻击者；脚本文件仍属于服务端信任域。作者在 `emit_command` 里写危险命令，仍由作者与服务器运营者负责，本文只提供权限上限和审计。
 - 不改造编辑器本地服务的 Origin/token 防护；本地预览不参与服务端播放账本。
-- 不定义规则集合的稳定绑定身份、序列化字段或引用形式；这些仍归 `rule-collection.md` 的结构评审。本文只要求请求能唯一定位到脚本内的 `emit_command` 动作。
+- 不定义规则集合的绑定身份与序列化（已定稿于 `rule-collection.md` §3.4 / `ROUND-I-4-MAP.md` §一）；本文只要求请求能唯一定位到脚本内的 `emit_command` 动作。
 
 ## 三、方案
 
@@ -120,7 +123,7 @@
 - 请求只存脚本 id、实例 id、动作引用与可选执行身份；不存命令原文。
 - 服务端动作表在脚本解析期编译，键为脚本 id + 动作引用；命令原文、动作类型、来源路径只存在于服务端内存。
 - `PlaybackGrant` 存实例 id、目标玩家 UUID 集合、创建时间与失效条件；与播放账本同生命周期，不写入脚本。
-- 动作引用的具体形式由 `rule-collection.md` 的结构评审确定：目标模型使用稳定绑定/动作身份，v1 过渡可以使用脚本版本内的稳定路径；建议语义是目标模型 `bindingId + actionIndex`、v1 过渡 `clipIndex + ruleIndex + actionIndex`，字段名由结构评审定。无论哪种形式，都必须满足“服务端可唯一解析、客户端不能借它引入命令文本”。
+- 动作引用的定稿形式：脚本级规则 = `bindingId` + `actionIndex`（`clipIndex` / `ruleIndex` 传 `-1`）；旧 `clip.rules` = 空 `bindingId` + `clipIndex`（平铺片段索引，轨道序 → 轨道内片段序）+ `ruleIndex` + `actionIndex`。字段名见 `ROUND-I-4-MAP.md` §2.5；服务端按同一键解析，客户端不能借它引入命令文本。
 - 动作引用不是授权凭证，只是定位；知道或猜中一个动作引用，不等于获得执行权限。授权仍由 grant 与播放账本决定，命令仍只来自服务端脚本定义。
 - 审计记录存玩家、脚本、实例、动作引用、结果与时间；不存完整命令原文，避免日志二次泄露。
 
@@ -140,7 +143,7 @@
 | 保留原文命令，只修观看者检查 | 继续让客户端发命令字符串，只把 viewer 登记改成服务端签发 | 客户端仍可提交任意命令；必须做文本白名单/解析，容易漏 | 请求面仍然包含命令文本，根因未除 |
 | 原文命令 + 脚本命令精确匹配 | 服务端收集脚本内所有 `emit_command` 字符串，要求请求文本精确匹配其中一条 | 仍暴露命令文本；`&&`、别名、空白归一化容易出错；可触发脚本内任意命令 | 动作引用比文本匹配更直接、更可审计 |
 | 规则命令一律权限 0 | 用最低权限源执行 | 很多正常命令（`/give`、`/tp`、`/effect`）不可用 | 默认 2 更符合实际，危险命令仍被挡 |
-| 服务端重新判定规则条件 | 把客户端规则搬到服务端执行 | 条件依赖相机/朝向/FOV 等客户端状态；仍需信任客户端；改动面过大 | 不在本轮范围；本文只收紧命令来源 |
+| 服务端重新判定规则条件 | 把客户端规则搬到服务端执行 | 条件依赖相机/朝向/FOV 等客户端状态；仍需信任客户端；改动面过大 | 不在本方案范围；本文只收紧命令来源 |
 | 删除 `emit_command` | 规则不再支持命令 | 丢失作者需要的规则动作；只能用 EVENT/触发器替代 | 保留能力，改为服务端解析动作 |
 | 客户端只发动作引用，服务端解析 + 授权 + 权限上限 | 本文方案 | 需要协议/账本/动作表改动；客户端仍可提前触发已定义动作 | 能消除任意命令注入与自证观看者，边界清晰 |
 
@@ -149,13 +152,18 @@
 - 服务端不验证规则条件，客户端仍可提前或重复触发脚本里已定义的 `emit_command`；安全责任落在“作者不要把危险命令放进规则动作”上。
 - 默认权限 2 会改变现有脚本行为：原先依赖规则执行 op 命令的脚本需要改用 EVENT/触发器，或由服务器运营者提高上限。
 - 需要新增 grant、动作表、审计与频率限制，服务端状态和协议字段增加。
-- 动作引用的序列化依赖规则集合结构评审；v1 过渡路径与目标稳定身份之间需要一次迁移。
+- 动作引用同时承载两种形态（脚本级规则用 `bindingId`，旧 `clip.rules` 用空 `bindingId` + `clipIndex` + `ruleIndex`），服务端要按两套键解析；旧形态随旧引擎一起保留到 I-5 格式清理。
 - 频率限制只能降低滥用速度，不能阻止一次恶意触发；它不是根因修复的替代。
 
 ## 六、实现结果
 
-状态：未实现
+状态：已实现（I4-7 关闭）。
 
-现行实现仍是“客户端原文命令 + 观看者检查 + 权限 4”，且观看者可由客户端播放回执登记；本文目标尚未落地。
+- **请求面**：`C2SRuleCommandPacket` 只有 `scriptId` / `instanceId` / `bindingId` / `clipIndex` / `ruleIndex` / `actionIndex` 六个字段，没有命令原文。旧布局包按解码异常丢弃（`PacketGuard` 兜底），不做兼容回落。
+- **动作表**：`trigger/server/RuleCommandTable` 在脚本加载期 `compile(CinematicScript)`；`CommandEntry(scriptId, bindingId, clipIndex, ruleIndex, actionIndex, command, sourcePath)` 只存在于服务端内存；空命令 / 非字符串 / 非 `emit_command` 动作不建条目，按未知引用拒绝。`resolve(bindingId, clipIndex, ruleIndex, actionIndex)` 返回条目。
+- **授权**：`trigger/server/PlaybackGrant`（`scriptId` / `instanceId` / `targets` / `createdTick`）由 `ScriptEventManager.createGrant` 在发送播放包时创建；`C2SPlaybackStartedPacket` 的回执只能消费已有 grant，不能新增目标或实例。
+- **命令源**：`util/RuleCommandSource` 权限 = `Config.ruleCommandPermissionLevel`（缺省 2，Forge/Fabric 配置项同名）；EVENT 轨仍用 `SuccessOnlySource` 权限 4。
+- **限频 / 审计**：`RuleCommandRateLimiter` 按 `(playerUuid, instanceId)` 令牌桶；`RuleCommandAudit` 记录被拒请求与执行结果（玩家 / 脚本 / 实例 / 动作引用 / 结果 / 时间），不存完整命令原文。
+- **契约边界**：权限上限只由服务端配置决定，脚本与客户端都不能提高；作者需要权限 3/4 的命令时改用服务端触发器 / EVENT，或由服务器运营者提高 `ruleCommandPermissionLevel`。服务端不证明规则条件成立，只保证命令来自脚本定义。
 
 

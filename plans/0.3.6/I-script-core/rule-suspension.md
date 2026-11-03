@@ -1,6 +1,6 @@
 # 实例级挂起：判定等待与持有记账
 
-> 状态：未实现
+> 状态：已实现（I4-4 关闭）
 > 范围：到门后挂起整个播放实例、持有来源记账、释放条件可达性诊断、与动作延后的区分
 > 关联：`rule-system.md`、`rule-collection.md`、`rule-time-gate.md`、`rule-facts-scheduling.md`、`rule-exits.md`、`rule-implementation.md`、`runtime-evaluation.md`、`loop-execution.md`
 
@@ -51,12 +51,42 @@
 - 挂起不等于游戏暂停：`pause_when_game_paused` 是另一套开关。
 - 非阻塞观察不阻止自然完成；需要等条件才结束，作者应声明阻塞等待或明确执行依赖。
 
-## 六、结构评审项（非用户待确认）
+## 六、结构评审项（已实现）
 
-- 持有来源与释放条件在绑定上的 schema 表达。
-- 可达性诊断的判定范围与报告形态。
-- 挂起期间提前事实、时间门与路径 timing 的保留／撤销／重建策略。
+- 持有来源与释放条件在绑定上的 schema 表达：`rule_bindings[].control = observe | hold` 决定判定是否形成持有；
+  `rule_bindings[].schedule` 表达动作延后（待执行调度，不形成内容持有，见 `rule-facts-scheduling.md`）。
+  运行态来源键 = `rule:<bindingId>`（判定持有）+ `action:pause`（`pause` 动作）。
+- 可达性诊断的判定范围与报告形态：**限频日志 + 校验器警告**。
+  - 运行期（`RuleRuntime`）：冻结期间持有等待「尚未开始的其它片段 `clip_fact`」或「未来局部时间
+    `time.at` / `time.from`」→ `Diagnostics.warn`（缺省 `ErrorLog.logRateLimited`，5 秒窗口，
+    key = `hold:unreachable:<bindingId>`）；每个「绑定 × 执行」最多一次，只告警不自动释放。
+  - 校验期（`ScriptValidator`）：`control=hold` + 无超时（`policy.timeout` 缺省 / `-1`）+ 条件等待
+    起点晚于目标片段结束的片段 → 警告级 issue（`[警告] ` 前缀，`errorsOf` 过滤后不阻止加载）。
+  - `pause` 无任何释放者（集合里无 `resume` 动作、无带 `schedule` 的绑定）→ 运行期告警并自动释放
+    `action:pause`（防卡死，与旧 `clip.rules` 同口径）。
+- 挂起期间提前事实、时间门与路径 timing 的保留策略：事实按「最近一次激活」作用域（`RuleFactStore`
+  的成功事实在新激活建立时清除）；时间门与路径 timing 只读播放器当前读数，挂起期间内容位置不推进，
+  因此不重建、不补算。
 
 ## 七、实现结果
 
-状态：未实现。v1 的 `until` 阻塞等待与 `pause` 动作共用实例级「停住」状态，但只在同片段内可释放；同片段内已无释放者时自动解除并告警。没有独立的多来源持有记账。差距见 `rule-implementation.md`。
+状态：已实现，**I4-4 关闭**。
+
+- 持有账本：`script/rule/runtime/SuspensionLedger` 按来源字符串记账（`Set` 语义、同来源幂等）。
+  来源键 = `rule:<bindingId>`（`control=hold` 判定持有）与 `action:pause`（`pause` 动作）。
+  最后一个来源释放才恢复内容推进；`releaseAll(prefix)` 供 `resume` 只释放 `action:pause`。
+- 边沿驱动：`RuleRuntime` 帧末比较账本状态，只在「0 → 1」调 `ScriptPlayer.beginSuspend()`、
+  「1 → 0」调 `endSuspend()`；`frozenByRules` 只解除本引擎造成的挂起，旧 `until` / `pause` 的
+  挂起不会被误解除。`sync` / `reset` / 停播回收全部来源。
+- 动作接线：`RuleActionRunner` 是实例方法（构造器接 `RuleRuntime`），`pause` / `resume` 走
+  `RuleRuntime.onActionPause()` / `onActionResume()`，不再转调旧 `RuleEngine.suspendByAction` /
+  `resumeByAction`；旧 `clip.rules` 路径（`RuleActions.execute`）保持不变。
+- 诊断三类：
+  1. 判定持有等待目标片段以外、播放头尚未到达其窗口起点的片段（`clip_fact`）；
+  2. 判定持有等待大于当前执行局部时间的 `time.at` / `time.from`；
+  3. `action:pause` 无释放者（无 `resume` 动作、无 `schedule` 绑定）→ 告警并自动释放。
+  前两类只告警、不自动释放，每个「绑定 × 执行」最多一次；缺省出口为
+  `ErrorLog.logRateLimited("Rules", key, 5000, ...)`，探针可注入 `Diagnostics` 计数。
+- 校验器：`rule_bindings` 的 `control=hold` + 无超时 + 条件等待目标片段结束后的片段 → 警告级 issue
+  （`[警告] ` 前缀；`ScriptValidator.errorsOf` 过滤后不影响加载）；旧 `clip.rules` 的
+  `checkPauseReleaser` 未改。

@@ -38,7 +38,7 @@ plans/0.3.6/
 ├── F-playback/        F 轮：播放/渲染主线
 ├── G-script-model/    G 轮：script-model、时钟抽象、编辑器播放语义
 ├── H-other/           H 轮：区域同步/HUD 隐藏/实机验证/触发器状态层（H7/H8）
-├── I-script-core/     I 轮：对象模型、脚本级规则/路径集合、规则控制与事实接力、次数执行（未实现）
+├── I-script-core/     I 轮：对象模型、脚本级规则/路径集合、规则控制与事实接力、次数执行（I-1/I-2/I-4 已实现）
 ├── J-media/           J 轮：媒体（运行时解码/播放、编辑器预览流、分片传输；未实现，可独立顺延）
 ├── Z-editor/          Z 轮：编辑器（最后一轮；固定格式脚本生成器，字段全量适配与打磨）
 ├── done/              主链路已完成（非 A/B 轮）
@@ -72,7 +72,7 @@ plans/0.3.6/
 | F 播放/渲染 | `F-playback/`（索引：[README](F-playback/README.md)） | parallel-playback（F2）、multi-camera-rendering（F3–F5）、camera-composition、iris-oculus-compat（P2）、camera-center-entities（F6，相机中心实体可见性）、camera-pool（F7，相机租约池）、drop-preload（已落地）、cross-dimension-camera（F8，per-view 维度渲染） | ✅ **F 轮已关单（2026-10-26）**；F2/F3/F5 已完成；F4 不做（lane 视距自动跟随玩家）；drop-preload 已落地（2026-10-25）；失败处理第 1 批 P0 已落地、P1/P2 待做（不属 F 轮关单）；F6 C0–C3/C6 已实现并提交（`8354731`）；F7 已实现并提交（`38f3972`）；F8 P0+WP1–WP4 已实现并实机验证（`c0b1ac1`/`50aa5fb`，2026-10-26），已知限制为相机附近生物无 AI。实体持续更新方案见 [H10 entity-liveness](H-other/entity-liveness.md)（H 轮，未实现）。F3 验收、F5 矩阵、光影 A/B 见 [F-playback/README](F-playback/README.md)。 |
 | G script-model | `G-script-model/` | script-model（G1–G6）、clock-abstraction（G4）、[G-math](G-script-model/G-math/README.md)（数学表达式/路径曲线 15 篇细化）、[editor-playback](G-script-model/editor-playback.md)（编辑器播放语义） | G6 ✅；G1/G2 由 I 轮吸收、未实现；G3 延后；G4 按时钟抽象计划推进，局部秒数与执行语义不互相替代；G5 归 Z 轮；G-math 现有三次 Bézier + 弧长 LUT，其余曲线/算子未实现；编辑器播放语义未实现 |
 | H 其它 | `H-other/` | region-sync（H1）、screen-layers（画面层，H4–H6）、state-tracking（H7 = P1-impl）、trigger-continuity（H8 = P3-impl）、skip-vote-and-hud（H9）、entity-liveness（H10，相机视图实体活性） | H1 ☐；H2 ⊘ 已被 C6 判定规则吸收（等待点收编为 `until→do` 阻塞形态，wait-point-track 归档 `_archive/`）；H4 ✅；H5 ☐；H6 ☐；**H7/H8 ☐ 零实现**（2026-10-18 逐条核对）；**H9 🟡 有实现但不完整**（判定两处口径不一致 + HUD 两行分居）；**H10 ☐ 设计稿**（相机视图实体活性，F8 后续）；画面层强制隐藏实现已落地（仅 Forge）、统一层名与默认白名单未实现；详见 [`H-other/README.md`](H-other/README.md) |
-| I 脚本底层 | [`I-script-core/`](I-script-core/README.md) | 对象模型／schema、脚本级规则/路径集合、规则控制与事实接力、规则命令信任边界、分支出口、实际状态过渡、次数执行、迁移（编辑器对象模型见 Z） | 🔵 未实现；规则与路径采用脚本级独立集合、通过片段引用定位内容；规则目标权威见 [`rule-system.md`](I-script-core/rule-system.md)：`>=` 时间门、实例级挂起、事实接力、成功≠动作完成、延迟动作、正常后继片段默认+入口显式覆盖、失败 fallback 独立沿原主线；规则命令信任边界见 [`rule-command-trust.md`](I-script-core/rule-command-trust.md)：客户端只发动作引用、服务端解析脚本命令、实例授权与权限上限；具体引用与序列化待结构评审 |
+| I 脚本底层 | [`I-script-core/`](I-script-core/README.md) | 对象模型／schema、脚本级规则/路径集合、规则控制与事实接力、规则命令信任边界、分支出口、实际状态过渡、次数执行、迁移（编辑器对象模型见 Z） | 🟡 部分实现：I-1 通用层、I-2 执行层、I-4 规则与路径集合已实现（`rules` / `rule_bindings` / `clips` / `paths` 四键定稿，时间门、挂起、事实接力、延迟动作、出口与分支、命令信任、EVENT seek 全部落地；见 [`rule-system.md`](I-script-core/rule-system.md) 与 [`rule-implementation.md`](I-script-core/rule-implementation.md)）；轨道装配（I-3 剩余）与格式清理/迁移（I-5）未做 |
 | J 媒体 | [`J-media/`](J-media/README.md) | 运行时视频解码/播放、音频解码、共享帧捕获、编辑器预览编码流、远程媒体分片传输、实时录屏导出；不改脚本字段 | 🔵 未实现；只依赖 OVERLAY `image` 字段与 F8 视图；三条契约 = 视频时间取片段局部时间、传输走分片、失败降级不崩 |
 | Z 编辑器 | [`Z-editor/`](Z-editor/README.md) | 固定格式脚本生成器：脚本创建/编辑/预览、模板引擎、对象与路径编辑、转场与效果生成、调色与合成面板、几何工具、架构图、触发器编辑器 | 🟡 主体已实现（桌面程序、服务端、协议、握手校验、预览推流、飞控绑定、架构图步骤 1–4）；模板引擎与对象模型未实现；剩余工作排在所有轮次之后，等 0.3.6 字段定稿启动 |
 | 主链路已完成 | `done/` | script-i18n | ✅ 既有实现记录保留；循环目标见 I 轮 [`loop-execution.md`](I-script-core/loop-execution.md)；编辑器文档见 [`Z-editor/README.md`](Z-editor/README.md) |

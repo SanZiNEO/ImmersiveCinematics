@@ -1,6 +1,6 @@
 # I 轮：脚本底层重构与运行时媒体能力（索引 / 决策日志）
 
-> 状态：I-1 通用层已实现（对象模型 / schema / parser / validator / 槽位采样器 / 点源与朝向求值原语）；轨道装配、脚本级规则/路径集合、循环执行轴、迁移未实现。规则与路径采用脚本级独立集合、通过片段引用定位内容，具体引用与序列化待结构评审；规则控制、实例级挂起、事实接力与延迟动作方向已确认；正常后继已确认由片段默认、入口显式覆盖优先；行为约束与现有实现结果分别记录
+> 状态：I-1 通用层、I-2 执行层、I-4 规则与路径集合已实现；轨道装配（I-3 剩余）、格式清理 / 迁移（I-5）未实现。规则与路径是脚本级独立集合（顶层 `rules` / `rule_bindings` / `clips` / `paths`），通过片段 id 引用定位内容；时间门、实例级挂起、事实接力、延迟动作、出口与分支、命令信任边界、EVENT seek 已落地，口径见 `rule-system.md` 与 `rule-implementation.md`
 > 范围：对象-关键帧组、schema/类型、运行时求值、脚本级规则/路径集合、规则命令信任边界、各轨道装配、片段循环与分支出口、删除 `meta.version` / `timeline.total_duration`、迁移、验收；视频播放/传输独立成 J 媒体轮，见 `../J-media/README.md`；编辑器对象模型归 `Z-editor/object-model.md`，I 轮只定义运行时脚本对象模型。
 > 关联：`G-script-model/script-model.md`（G1/G2 被本轮吸收，G3 延后）、`F-playback/`、`docs/SCRIPT_FORMAT.md`
 
@@ -13,7 +13,7 @@
 | 文档 | 负责什么 | 状态 |
 |---|---|---|
 | [object-model.md](object-model.md) | 字段形态（value/animated/event）、路径、取值/插值/边界、依赖前置条件 | 部分实现（I-1） |
-| [clip-identity.md](clip-identity.md) | 片段稳定身份、跨结构引用、使用关系索引、内容承载（内联/独立）、重排/插入/删除后的绑定 | 概念已确认；承载/序列化待评审 |
+| [clip-identity.md](clip-identity.md) | 片段稳定身份、跨结构引用、使用关系索引、内容承载（内联/独立）、重排/插入/删除后的绑定 | 已实现（I4-1 / I4-6） |
 | [schema-and-types.md](schema-and-types.md) | schema 声明、字段模式/类型、插值推导、parser/validator/editor/模板契约 | 部分实现（I-1） |
 | [runtime-evaluation.md](runtime-evaluation.md) | 同一 executionLocalTime 采样、装配边界、缓存/零分配、morph/lane 求值 | 部分实现（I-1） |
 | [track-camera.md](track-camera.md) | CAMERA 字段、位置路径绑定、独立参考系、朝向覆盖、A/B 实际状态采样、motion/breath/modifier | 未实现 |
@@ -21,15 +21,15 @@
 | [track-audio-adjust.md](track-audio-adjust.md) | AUDIO 字段/value-only、ADJUST 59 通道、曲线/LUT/混合 | 未实现 |
 | [track-event.md](track-event.md) | EVENT/MOD_EVENT 离散记录、边沿触发、事件身份 | 未实现 |
 | [loop-execution.md](loop-execution.md) | 按次数执行、执行身份与局部采样、分支片段出口、语义完成、无限编排 | 部分实现（I-2 执行层） |
-| [rule-system.md](rule-system.md) | 规则与路径索引：与触发器的关系、共同时间基准、分篇地图 | 未实现 |
-| [rule-collection.md](rule-collection.md) | 规则集合五层（定义/绑定/激活/事实/调度）、多条目多入口、归属与身份 | 未实现 |
-| [rule-time-gate.md](rule-time-gate.md) | 片段局部时间基准、时间门（`>=`）、门前采集与门后提交、条件树 | 未实现 |
-| [rule-suspension.md](rule-suspension.md) | 实例级挂起、多来源持有记账、释放条件可达性 | 未实现 |
-| [rule-facts-scheduling.md](rule-facts-scheduling.md) | 事实接力、判定成功与动作完成分离、延迟动作与承诺动作 | 未实现 |
-| [rule-exits.md](rule-exits.md) | 正常完成 / 失败 fallback、退出三族、循环与 EVENT 边界 | 未实现 |
-| [rule-command-trust.md](rule-command-trust.md) | `emit_command` 的客户端→服务端信任边界：动作引用、实例授权、命令源权限、旧协议处置 | 未实现 |
-| [path-collection.md](path-collection.md) | 脚本级路径集合：目标片段 + 相邻端点对、geometry（line/bezier）、timing（时间映射）、多条目 | 未实现 |
-| [rule-implementation.md](rule-implementation.md) | v1 基线、当前实现速查、差距表、结构评审项汇总 | 记录 |
+| [rule-system.md](rule-system.md) | 规则与路径索引：与触发器的关系、共同时间基准、分篇地图 | 已实现（I4-1 ～ I4-9） |
+| [rule-collection.md](rule-collection.md) | 规则集合五层（定义/绑定/激活/事实/调度）、多条目多入口、归属与身份 | 已实现（I4-2 / I4-3） |
+| [rule-time-gate.md](rule-time-gate.md) | 片段局部时间基准、时间门（`>=`）、门前采集与门后提交、条件树 | 已实现（I4-3） |
+| [rule-suspension.md](rule-suspension.md) | 实例级挂起、多来源持有记账、释放条件可达性 | 已实现（I4-4） |
+| [rule-facts-scheduling.md](rule-facts-scheduling.md) | 事实接力、判定成功与动作完成分离、延迟动作与承诺动作 | 已实现（I4-5） |
+| [rule-exits.md](rule-exits.md) | 正常完成 / 失败 fallback、退出三族、循环与 EVENT 边界 | 已实现（I4-6） |
+| [rule-command-trust.md](rule-command-trust.md) | `emit_command` 的客户端→服务端信任边界：动作引用、实例授权、命令源权限、旧协议处置 | 已实现（I4-7） |
+| [path-collection.md](path-collection.md) | 脚本级路径集合：目标片段 + 相邻端点对、geometry（line/bezier）、timing（时间映射）、多条目 | 已实现（I4-8） |
+| [rule-implementation.md](rule-implementation.md) | 现行两套引擎速查、现行实现表、新旧规则系统差异报告、结构评审项状态 | 记录 |
 | [format-cleanup.md](format-cleanup.md) | 删除 version/total_duration、有限末端与显示范围、定位约束、旧字段拒绝 | 未实现 |
 | [migration.md](migration.md) | 一次性转换器、稀疏保真、旧路径逐段展开、orient/offset 保留、验收/回滚 | 未实现 |
 | [acceptance.md](acceptance.md) | 数据/相机/覆盖层/音频/事件/规则集合/规则控制/路径集合/分支/循环/迁移/编辑器消费契约（按 Z）/真实机器矩阵 | 未实现 |
@@ -89,7 +89,7 @@
 10. **AUDIO `loop` 改名 `file_loop`。** 片段执行循环用公共 `loop`/`loop_count`；文件循环与执行循环分开。
 11. **EVENT/MOD_EVENT 是离散记录字段。** 一个 `event`/`mod_event` 字段的 keyframes 值是事件记录（`command`/`position`/`event_type`/`data`），不拆成可插值叶子；边沿触发；事件身份 = 实例 + clip + 字段路径 + 事件索引。
 12. **删除 `meta.version` 与 `timeline.total_duration`。** 有限末端估计与有限部分显示范围是派生信息，不是执行完成真源；含无限内容时表达“无有限自然末端”，不让同一 `contentEnd` 同时代表无限末端和有限显示范围。旧字段出现即“已移除”错误；不做兼容。
-13. **规则与路径是脚本级独立集合，不占用 `objects` 字段路径，也不新增轨道。** value-only / animated / event 只描述 `objects` 中普通字段的能力。规则定义/绑定与路径定义分别建模：前者是“时间门 + 内层条件树 + 动作”的行为声明，后者是相邻位置节点间的形状（`geometry`）与运动（`timing`）；不合并为万能对象。`clip.rules` 与 `objects.curve` 是旧实现/前稿参照，不是目标存储形式；具体引用形式与序列化留作结构评审。
+13. **规则与路径是脚本级独立集合，不占用 `objects` 字段路径，也不新增轨道。** value-only / animated / event 只描述 `objects` 中普通字段的能力。规则定义/绑定与路径定义分别建模：前者是“时间门 + 内层条件树 + 动作”的行为声明，后者是相邻位置节点间的形状（`geometry`）与运动（`timing`）；不合并为万能对象。`clip.rules` 与 `objects.curve` 是旧格式脚本的载体，不是目标存储形式；引用形式与序列化见 `ROUND-I-4-MAP.md` §一。
 14. **迁移是一次性 Java CLI，保真优先。** 旧片段曲线按旧的每一段实际用法展开为脚本级路径条目，分别保留端点、控制点、相对／绝对含义与 3D 弧长；不能只把旧 clip 曲线搬进一条全片段路径。稀疏字段用对照和修正数据保真；`orient`/offset 保留，点源与选择器按专篇归一，动态差异报告人工复核。新目标明确改变的过渡装配或规则生命周期须单列差异，不伪称与旧实现完全等值；保留备份、回滚、报告与新格式幂等跳过。
 15. **`meta` 关键帧化（G3）本轮不做。** 对象模型预留 script 级扩展点；不在 clip 对象模型里混。
 16. **视频播放/传输是运行时底层能力，独立成 J 媒体轮。** 不改变对象模型、schema 或脚本字段；见 `../J-media/README.md`。J 轮不依赖 I 轮的规则/路径重构，可独立启停。
@@ -102,7 +102,7 @@
 23. **判定成功不等于动作已执行。** 成功后记录本次绑定/执行的成功事实，供后续规则引用；动作可以立即提交，也可以延迟到指定片段开始、执行完成、指定局部时间或明确的时间条件/延迟再执行。片段开始、片段完成、规则判定成功、规则后续动作完成是可区分事实，不能统称“实现了”。已成功结果不因原状态条件之后变假而被隐式抹掉；如需再次确认，应作为明确的执行条件。成功后已承诺但尚未释放的动作不是普通非阻塞观察，作为明确执行依赖参与自然完成，不能在主线采样结束时静默丢弃；等待动作本身不必冻结内容推进，显式终止实例仍回收。
 24. **时间参照与动作目标可不同。** 例如以 A 片段的局部时间或规则成功事实启动 B，不得要求尚未进入的 B 先推进自身时间才能满足启动条件。暂停整个实例后，若需等待本实例未来片段/未来内容位置，须在依赖该进度之前释放相应判定持有，或由声明的恢复/启动控制保证目标可达；不能假装冻结的内容位置仍会推进。等待实时时长/外部事实与等待内容局部位置要区别，计时基准清楚，等待超时本身不被同一挂起冻结。对明确不可达的持有依赖给诊断，不自动解除、吞掉规则或强跳主线；可选外部解除路径与 all/any 按真实可达性区分。无限内容不自然完成，等待其完成不由推算时间假冒成功。
 
-25. **片段必须可稳定寻址，并留下使用关系。** 片段是持有 `objects` 的内容实体，有两种存储形式：内联（轨道 `clips[]`）与独立（脚本级 `clips` 表，不属于任何轨道）；身份不由轨道下标、数组顺序或 `start_time` 推导。轨道放置、规则绑定、路径条目、分支/跳转目标、启动/编排入口都通过片段引用定位，加载期编译「片段 → 使用边」反向索引；重排/插入/删除必须显式重映射或报错，不得静默改指。这里说片段「在哪里」指引用图中的位置（被谁使用），不是世界坐标或时间坐标；执行入口另属执行层。序列化/引用语法待结构评审。见 `clip-identity.md`。
+25. **片段必须可稳定寻址，并留下使用关系。** 片段是持有 `objects` 的内容实体，有两种存储形式：内联（轨道 `clips[]`）与独立（脚本级 `clips` 表，不属于任何轨道）；身份不由轨道下标、数组顺序或 `start_time` 推导。轨道放置、规则绑定、路径条目、分支/跳转目标、启动/编排入口都通过片段引用定位，加载期编译「片段 → 使用边」反向索引；重排/插入/删除必须显式重映射或报错，不得静默改指。这里说片段「在哪里」指引用图中的位置（被谁使用），不是世界坐标或时间坐标；执行入口另属执行层。序列化与引用语法见 `clip-identity.md` §七。
 
 ## 三、吸收 / 取代 / 更新
 
@@ -133,14 +133,14 @@
 - **事件条件自身的记录起点/有效期/消费（精确待评审项）**：状态谓词按实时语义判定；事件事实按原条件有效期/匹配/消费语义保留到时间门。若原条件未定义记录起点、有效期或消费方式，按结构/条件评审补定，不假设所有历史事件永久有效；不做无界历史或跨实例事件总线。见 `rule-system.md`。
 - **AUDIO `attenuation=inverse`**：现行实际按 linear 处理；实现时要么补真正反距离衰减，要么从枚举删除并迁移为 linear。见 `track-audio-adjust.md` §4.4。
 - **2D 路径 + 第三轴线性**：轴集合选 2 轴时只在该平面内做 2D 弧长；第三轴仍按自己的 position 关键帧线性走，不参与弧长，所以 3D 速度不一定匀。要整条 3D 路径匀速就选 3 轴。见 `track-camera.md` §3.2。
-- **规则/路径集合结构评审**：脚本级集合的引用形式、片段与对象/相邻关键帧的寻址、插入和重排后的绑定关系、多入口绑定身份、事件事实与规则事实的记录边界、等待持有记账、激活绑定寻址及序列化；不将这些结构问题退化为字段模式或轨道名称选择。
-- **片段身份与引用结构**：稳定身份、ClipRef 语法、使用边种类/宿主、反向索引的暴露面、重排/插入/删除后的显式重映射、旧轨道+索引引用的迁移。见 `clip-identity.md` §七。
+- **规则/路径集合结构（已定稿，I4-1 / I4-2 / I4-8）**：引用形式、片段与相邻关键帧的寻址、多入口绑定身份、事实作用域、持有记账与序列化均已定稿，见 `ROUND-I-4-MAP.md` §一 与 `rule-implementation.md` §五。仍开放的只有编辑器侧重映射（Z 轮）与迁移器（I-5）。
+- **片段身份与引用（已定稿，I4-1）**：稳定身份、ClipRef、使用边种类/宿主、反向索引与序列化见 `clip-identity.md` §七。仍开放：重排/插入/删除的显式重映射操作（Z 轮）、旧「轨道 + 下标」引用的迁移（I-5）。
 - **`orient=tangent` 的切线抖动**：轴集合段边界/控制点差异大时，导数组合的切线可能抖动；需要编辑器/验收覆盖。见 `track-camera.md` §3.3。
 - **动态相机迁移**：position_origin/选择器/动态 look_at/base 方向源无法完全预计算；旧 base 段补 `facing_entity` 保留旧方向，转换器保留语义 + 修正帧，报告人工复核。见 `migration.md` §3.5/§3.10。
 - **负 `duration` 哨兵**：保留为无限单次片段，但与 `[0,duration]` 轴冲突；后续可单独清理为只用 `loop_count=-1`。见 `loop-execution.md` §3.3。
 - **EVENT 不随片段循环重复**：服务端 EVENT 只触发一次；作者需要重复命令时用规则动作/显式分段。规则动作不复用 EVENT 的 `EventKey`，不改变 EVENT 命令协议；规则命令请求见 `rule-command-trust.md`。见 `track-event.md` §3.2 / `loop-execution.md` §3.5。
 - **执行边界与规则**：每次执行按绑定建立独立激活；已激活观察的完成／取消归实例规则运行态；连续的相机效果和音频资源不一律归零。详见 `loop-execution.md` §3.5 与规则专篇。
-- **存储形式**：规则与路径由脚本级独立集合承载是已确认方向；具体引用形式及序列化尚未定稿。`clip.rules` 与 `objects.curve` 仅作旧实现/前稿参照，不决定新模型职责。
+- **存储形式**：规则与路径由脚本级独立集合承载（顶层 `rules` / `rule_bindings` / `paths`），引用形式与序列化已定稿，见 `ROUND-I-4-MAP.md` §一。`clip.rules` 与 `objects.curve` 仅作旧格式脚本的载体，不决定新模型职责。
 - **有限显示范围**：无限内容没有自然完成点，但编辑器仍可展示有限部分与当前执行位置；数值表示不得反过来成为调度或结束条件。
 - **I-2 移交项**：执行层/分支接线/格式迁移的未完成项见 [`../I-BACKLOG.md`](../I-BACKLOG.md)；I 轮（I-5 收口）结束前必须清零，不能悬空。
 
@@ -169,6 +169,6 @@
 
 | 设计目标 | 实现 | 说明 |
 |---|---|---|
-| 对象模型 / schema / parser / validator / 槽位采样器 / 点源与朝向求值原语 | 已实现（I-1）：`script/object/`（`SampledProperty` / `ObjectDef` / `ClipSampler` / `position`）、`Clip.objects`、`ScriptParser` / `ScriptValidator` 新入口；七轨对象声明与 `SchemaExporter` 导出 | 旧 `keyframes` 链路保留；轨道装配、规则/路径集合、循环、迁移未实现 |
-| 片段循环执行层：执行次数 / 执行身份 / 局部采样轴 / 语义完成 / 无限编排 / 分支运行期策略 | 已实现（I-2）：`script/execution/`（`ClipExecution` / `ClipExecutionLedger` / `ClipTimeSource` / `LoopMode` / `ExecutionDirection`）；各轨改从账本取局部时间与活跃窗；validator 删除「无限后禁播」与「duration≠周期」；分支出口运行期 API + 探针 | 规则接线、过渡/轨道装配语义、格式迁移（`file_loop` 改名）与实机像素回归未做 |
-| 脚本级规则/路径集合、必选时间门与门前事实采集、实例级挂起、事实接力、成功≠动作完成、延迟动作、多入口独立运行态、分支同模型、A/B 实际状态采样、无限内容由作者编排 | 本次仅更新计划；运行时代码、脚本格式文档与示例未改 | 语义评审与实现分开；C/B 既有落地事实不冒充新目标已完成 |
+| 对象模型 / schema / parser / validator / 槽位采样器 / 点源与朝向求值原语 | 已实现（I-1）：`script/object/`（`SampledProperty` / `ObjectDef` / `ClipSampler` / `position`）、`Clip.objects`、`ScriptParser` / `ScriptValidator` 新入口；七轨对象声明与 `SchemaExporter` 导出 | 旧 `keyframes` 链路保留；轨道装配（I-3 剩余）、格式清理 / 迁移（I-5）未实现 |
+| 片段循环执行层：执行次数 / 执行身份 / 局部采样轴 / 语义完成 / 无限编排 / 分支运行期策略 | 已实现（I-2）：`script/execution/`（`ClipExecution` / `ClipExecutionLedger` / `ClipTimeSource` / `LoopMode` / `ExecutionDirection`）；各轨改从账本取局部时间与活跃窗；validator 删除「无限后禁播」与「duration≠周期」；分支出口运行期 API + 探针 | 过渡/轨道装配语义、格式迁移（`file_loop` 改名）与实机像素回归未做 |
+| 脚本级规则/路径集合、必选时间门与门前事实采集、实例级挂起、事实接力、成功≠动作完成、延迟动作、多入口独立运行态、分支同模型、命令信任边界、EVENT seek | 已实现（I-4）：`script/rule/`（定义 / 绑定 / 调度 / 出口策略解析）、`script/rule/runtime/`（激活 / 事实 / 挂起 / 待执行动作）、`script/path/`（路径集合）、`script/identity/`（片段身份与使用边）；脚本格式文档与示例未改 | A/B 实际状态采样与轨道装配（I-3 剩余）、格式清理 / 迁移（I-5）未做；口径见 `rule-implementation.md` |

@@ -1,6 +1,7 @@
 # 时间门与条件树：片段局部时间上的判定资格
 
-> 状态：未实现
+> 状态：已实现（I4-3 关闭）
+> 能力清单：`rule_bindings[].gate.at` 必选并按片段时长校验；判定用执行局部时间 `>=` 门阈值（持续满足，非跨点当帧）；门前事实由 `RuleFactStore` 采集、门后提交动作；条件树新增 `clip_fact` / `rule_fact` 事实叶子，`any` 不能绕过外层门
 > 范围：共同时间基准、时间门（`>=` 阈值）、门前采集与门后提交、条件树边界、判定阶段划分
 > 关联：`rule-system.md`、`rule-collection.md`、`rule-suspension.md`、`rule-facts-scheduling.md`、`rule-implementation.md`、`runtime-evaluation.md`、`loop-execution.md`、`object-model.md`
 
@@ -29,10 +30,10 @@
 
 ## 四、门前采集与门后提交
 
-- 时间门控制执行资格，不是条件监听的起点。绑定在目标执行开始后即可按各条件自身语义采集状态与事件事实；动作提交必须等门满足并完成判定。提前采集是运行态实现，不是规则生效的额外前提。
-- 状态谓词与事件事实分开：状态条件按自身实时语义判定，不能把任意一度为真的状态永久锁存；事件事实按原条件的有效期、匹配与消费语义保留到门。记录起点、有效期或消费方式若原条件未定义，列为结构评审项，不假设所有历史事件永久有效。
+- 时间门控制执行资格，不是条件监听的起点。绑定在目标执行开始后即可按各条件自身语义采集状态与事实；动作提交必须等门满足并完成判定。提前采集是运行态实现，不是规则生效的额外前提。
+- 状态谓词与事实分开：状态条件按自身实时语义逐帧判定，不能把任意一度为真的状态永久锁存；条件树没有「事件源」类型，可引用的是本实例事实（`clip_fact` / `rule_fact`），其作用域是「最近一次执行 / 最近一次激活」（见 `rule-facts-scheduling.md` §六）。
 - 提前采集按绑定与执行上下文独立；不建立无界历史记录或跨实例事件总线。
-- seek：定位策略须定义提前事实在 seek 后的保留、失效或重建；seek 落到门之后必须获得有效判定，不得以缺少跨越事件为由拒绝。
+- seek：`script_seek` 只重定位事件游标与播放头（前跳不补、后跳不重复，见 `rule-exits.md` §五）。时间门按 seek 后的执行局部时间重新比较 `>=`：落到门之后即视为门满足，不要求观测到跨越事件；门前已记录的事实（`clip_fact` / `rule_fact`）保留，不因 seek 回退而重建。
 
 ## 五、条件树
 
@@ -46,7 +47,7 @@
 
 规则执行中属于“判定”的部分，阶段事实不得混称：
 
-1. **门前采集**：时间门满足前，按条件自身语义采集有效事件事实；不提前提交规则后续动作。
+1. **门前采集**：时间门满足前，按条件自身语义采集状态与事实；不提前提交规则后续动作。
 2. **进入控制**：时间门满足后，按声明立即建立实例级等待持有（见 `rule-suspension.md`），或保持非阻塞观察。
 3. **判定**：时间门与内层条件树共同满足。时间门默认达到阈值后持续可判定，不是仅跨点当帧。
 4. **判定成功**：记录本次绑定／执行的成功事实（见 `rule-facts-scheduling.md`），供后续规则或片段引用；成功事实与动作执行完成是不同状态。
@@ -61,4 +62,10 @@
 
 ## 八、实现结果
 
-状态：未实现。v1 没有时间门：规则在片段活跃窗起点激活，窗口外不判定；时间条件只能是片段本地时钟比较，门前采集与门后提交不分层。差距见 `rule-implementation.md`。
+状态：已实现（I4-3 关闭）。
+
+- **必选门**：`RuleBinding.gateTime()` 由 `gate.at` 解析；解析期缺 `gate.at` → `ScriptParseException`；校验期按目标片段时长检查（有限片段 `0 <= at <= duration`，无限片段 `>= 0`），越界报 issue。
+- **判定**：`RuleRuntime.evaluate(player)` 每帧对每个绑定取目标片段当前执行的局部时间（`ClipTimeSource` / 账本），`localTime >= gateTime()` 后门持续满足；再叠 `policy.mode`（`enter` 边沿 / `dwell` 驻留 + `dwell` 秒）、`once`、`cooldown`、`timeout` / `on_timeout`。`any` 只在内层求值，不能替代外层门。
+- **门前采集**：`RuleRuntime.evaluate` 检测到目标片段执行身份变化即建立激活，并立即记录该执行的 `clip_fact`（started / completed）与既有 `rule_fact`（succeeded / action_completed）；门前成立的事实保留到门后；状态谓词仍按实时语义逐帧判定，不锁存。
+- **条件树**：`ClientConditions.evaluate(JsonObject, Context, double localTime, FactSource facts)` 四参重载；旧三参委托 `FactSource.NONE`（事实叶子恒 false）。新增叶子 `{"type":"clip_fact","clip":"<id>","fact":"started"|"completed"}` 与 `{"type":"rule_fact","binding":"<id>","fact":"succeeded"|"action_completed"}`，引用不可解析 → 加载期错误。
+- **边界**：条件树没有「事件源」类型（现有类型全为状态谓词 + 本实例事实）；不做无界历史、不跨实例；时间门不是完成判据。

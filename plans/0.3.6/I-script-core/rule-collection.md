@@ -1,6 +1,7 @@
 # 规则集合：定义、绑定、激活与多入口
 
-> 状态：未实现
+> 状态：已实现（I4-2 / I4-3 关闭）
+> 能力清单：顶层 `rules`（定义表）+ `rule_bindings`（绑定表）；绑定引用定义 / 目标片段 / 必选时间门；同一规则多条绑定 = 多入口，各自独立激活；与旧 `clip.rules` 同脚本互斥
 > 范围：脚本级规则集合的归属、条目形态（定义 / 绑定 / 激活 / 事实 / 调度）、多条目与多入口、身份与引用
 > 关联：`rule-system.md`（索引与跨篇口径）、`rule-time-gate.md`、`rule-suspension.md`、`rule-facts-scheduling.md`、`rule-exits.md`、`rule-implementation.md`、`object-model.md`、`schema-and-types.md`
 
@@ -41,11 +42,13 @@
 - 后一次执行的激活不重置、不取消前一次；实例结束、引擎重建、停播时全部作废。
 - 同一脚本的多个实例各自一份运行态，不共享。
 
-### 3.4 身份与引用
+### 3.4 身份与引用（已定稿：I4-1 / I4-2）
 
-- 片段引用需要稳定身份；数组下标不足以在片段重排后保持绑定。
-- 稳定标识的形式由结构评审确定；解析／校验期必须能发现悬空引用，不得静默改指。
-- 集合身份、条目身份、定义、绑定、时间门、条件树、动作与事实引用的序列化形式由结构评审统一；概念名是职责标签，不是已确认的 JSON 字段或公开类名。
+- **片段**：可选 `id`，`^[A-Za-z0-9_]{1,64}$`，脚本内唯一（内联片段与脚本级独立片段共用同一命名空间，重复 → 加载期错误）。被规则绑定、路径条目、分支目标（`goto_clip`）、出口目标（`exit.target`）引用的片段必须写 `id`；缺 id → 加载期错误「片段被 <宿主> 引用但没有 id」。未被引用的片段可匿名。
+- **定义表 `rules[]`**：`id` 必填且脚本内唯一；`condition` 必填对象（内层条件树，不得含时间门语义）；`actions` 必填非空数组；`policy` 可省，字段与 v1 同名同默认（`once=true`、`cooldown=0`、`mode=enter`、`dwell=0`、`timeout=-1`、`on_timeout=[]`）。
+- **绑定表 `rule_bindings[]`**：`id` 必填唯一；`rule` 必填（解析到 `rules[].id`）；`clip` 必填（解析到片段 id）；`gate.at` 必填（执行局部秒，有限片段 `0 <= at <= duration`，无限片段 `>= 0`）；`control` = `observe`（缺省，非阻塞）/ `hold`（到门后未成立即持有实例）；`schedule` 可省（= 成功后立即提交）；`exit` 可省（= 用片段默认出口）。
+- **动作**：v1 九种动作类型 + 新形态 `goto_clip`（`{"clip":"<id>","entry_time":<s>}`）。新集合收到旧形态 `{"track":...,"at":...}` → 加载期错误。
+- 悬空引用、重复 id、非法 id 一律在解析／校验期报错，不静默改指；字段全量口径见 `ROUND-I-4-MAP.md` §一。
 
 ## 四、技术细节
 
@@ -59,12 +62,23 @@
 - 规则集合与路径集合分开承载，不合并为万能对象；路径见 `path-collection.md`。
 - 集合条目不成为新的总时长或完成来源。
 
-## 六、结构评审项（非用户待确认）
+## 六、结构评审项（已定稿：I4-1 / I4-2 / I4-3）
 
-- 稳定片段引用与绑定身份的表达；片段重排、删除、插入后的校验与显式重建。
-- 五层条目中哪些进 schema、哪些只存在于运行态；字段名与序列化。
-- 事实记录与动作调度在条目上的声明形态（绑定可声明的阶段与目标）。
+| 评审项 | 定稿口径 |
+|---|---|
+| 稳定片段引用与绑定身份 | 片段 `id` + 绑定 `id`；引用一律用 id 字符串，不用轨道下标 / `start_time`；悬空引用加载期错误。使用边索引见 `clip-identity.md` §七 |
+| 五层条目进 schema 的范围 | 进 schema：`rules[]`（定义）、`rule_bindings[]`（绑定）、片段 `exit`、路径 `paths[]`；只在运行态：`RuleActivation`、`RuleFactStore`、`PendingAction`、`SuspensionLedger` |
+| 字段名与序列化 | 见 `ROUND-I-4-MAP.md` §一（`rules` / `rule_bindings` / `clips` / `paths` 四键与各条目字段） |
+| 事实记录与动作调度的声明形态 | 绑定上的 `schedule` 五形态（`clip_start` / `clip_complete` / `local_time` / `delay` / `fact`）；`control` = `observe` / `hold`；事实由运行态 `RuleFactStore` 记录，不写进脚本 |
 
 ## 七、实现结果
 
-状态：未实现。v1 的 `clip.rules` 是片段级数组，定义、生效位置与运行态同层，没有定义／绑定／激活分层，也没有多入口独立记账。实现基线与差距见 `rule-implementation.md`。
+状态：已实现（I4-2 / I4-3 关闭）。
+
+- **数据模型**：`script/rule/RuleDefinition`（`id` / `condition` / `actions` / `onTimeout` / `once` / `cooldown` / `mode` / `dwell` / `timeout`）、`RuleBinding`（`id` / `definition` / `target` / `clipId` / `gateTime` / `control` / `schedule` / `exitOverride`）、`RuleCollection`（`EMPTY`、`definitions()`、`definition(id)`、`bindings()`、`binding(id)`、`bindingsFor(Clip)`、`isEmpty()`）、`RuleControl`（`OBSERVE` / `HOLD`）。
+- **解析**：`RuleCollectionParser.parse(root, ClipResolver, basePath)`（另有带 `UsageIndex.Builder` 的重载登记使用边）；首个错误即抛 `ScriptParseException`（带路径）。动作类型 = v1 九种 + `goto_clip` 新形态；`goto_clip` 旧形态在解析期拒绝。
+- **校验**：`ScriptValidator.checkScriptRuleCollection` 覆盖定义 / 绑定 / 条件树 / 动作四层，错误路径前缀 `rules[i]` / `rule_bindings[i]`；`checkHoldReachability` 给「hold + 无超时 + 等待目标片段之后的片段」警告级 issue（`[警告] ` 前缀，`errorsOf` 过滤后不阻止加载）。
+- **互斥**：同一脚本出现 `clip.rules` 与顶层 `rules` → 校验期错误「rules 脚本级规则集合与片段级 clip.rules 不能同时出现」；解析期同一套判定（`ScriptParser.rejectLegacyClipRules`，先于其它字段解析）。旧引擎求值语义不变。
+- **运行态**：`script/rule/runtime/RuleActivation` 以（播放实例、绑定、片段执行）为身份；对象在 `RuleRuntime.sync` 时按绑定预分配，`evaluate` 每帧比对目标片段当前执行的 `executionId`，变化即 `beginExecution`（按执行重置基本字段；`cooldown` 按播放时钟跨执行保留）。`bindingsFor(Clip)` 索引在集合内预建（`IdentityHashMap`），运行期不扫全集合。同一规则的多条绑定各自计时 / `once` / 边沿 / 等待 / 待执行，互不遮蔽。
+- **脚本级独立片段**：顶层 `clips[]`（`track` + `duration` 必填，禁 `start_time`），与内联片段共用 id 命名空间，可被规则绑定 / 路径 / 分支 / 出口引用。
+- **边界**：规则条目不成为总时长或完成来源；激活不跨实例共享，实例终止 / 脚本替换 / 停播回收全部激活、事实与待执行动作。

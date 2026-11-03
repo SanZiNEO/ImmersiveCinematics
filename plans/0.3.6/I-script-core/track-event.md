@@ -1,6 +1,6 @@
 # EVENT / MOD_EVENT 轨道
 
-> 状态：部分实现（I-3：离散记录 / 边沿触发 / `EventKey`；服务端 seek 协议未实现）
+> 状态：已实现（I-3：离散记录 / 边沿触发 / `EventKey`；I-4：服务端 seek 协议 `script_seek` / `script_seek_ack`、循环与多入口不重放定性）
 > 范围：EVENT 离散事件对象、事件记录、边沿触发、事件身份、服务端/客户端分工、MOD_EVENT 占位
 > 关联：`object-model.md`、`runtime-evaluation.md`、`loop-execution.md`、`rule-system.md`（本轮规则方向）、`../C-trigger/condition-system.md`（C 轮 v1 旧实现参考）；参考 `docs/SCRIPT_FORMAT.md` §7–§8、`trigger/server/ScriptEventManager.java`、`script/PlayerMoveController.java`
 
@@ -71,9 +71,18 @@ EVENT / MOD_EVENT 不是采样轨道：事件是**离散边沿**，不是随时�
   - 事件时间相同（同一对象内不允许）不会出现；不同对象/不同 clip 可以同时间，按 clip/轨道顺序。
 - `command` 为空 = 占位，标记已触发但不执行。
 - 暂停/挂起：事件时间线随实例暂停，恢复从内容位置继续；不按墙钟补触发。
-- seek：跳到目标时间后，游标重置到“目标时间之后的下一个事件”；目标时间之前的事件不补触发。若作者需要 seek 后重放，使用 seek 目标之后的规则时间入口/重新播放，不在事件层做；规则的时间条件不以是否存在跨越事件为前提，详见 `rule-time-gate.md` §三。
-- 循环：EVENT 不按片段执行次数重复。服务端事件游标按实例的事件时间线推进，每条事件只触发一次；片段级 `loop` 与宏观循环都不改变这一点。`pingpong` 在 EVENT 上拒绝。
-- 如果作者需要“每次执行都执行命令”，不要依赖 EVENT 循环；用脚本级规则集合的时间入口（引用片段与局部时间，时间条件是必选执行资格门）/显式分段/多条事件轨道表达。规则入口按片段执行独立判定；门前事实采集属于规则运行态，不是 EVENT 重放；动作走动作路径，不复用 EVENT 的事件身份，不改变服务端 EVENT 的去重边界与命令协议。该边界在 `loop-execution.md` §3.5 与 `rule-exits.md` §五统一说明。
+- **seek（I3-B2 关闭）**：客户端在内容时间线被重定位时（`goto_clip` 等 gameplay 跳转，统一入口 `PlaybackInstance#seekTo`）发 `C2SScriptSeekPacket`（包名常量 `script_seek`，载荷 `scriptId` / `instanceId` / `targetSeconds` / `refId`，ACK 重发同暂停握手），服务端回 `S2CScriptSeekAckPacket`（`script_seek_ack`）。服务端 `ScriptEventManager#handleSeek`：
+  - 把本实例的 `timelineAnchorSeconds = targetSeconds`、`timelineAnchorTick = 当前 tick`、`scannedThroughSeconds = targetSeconds`；
+  - 调 `EventSeekPlan#resetAll(eventClips, eventRuntimes, targetSeconds)`：每条事件运行时 `reset(targetSeconds - clip.startTime)`，局部时间钳制到 `[0, duration]`（无限片段不钳上界）。
+  - 结果：**前跳不补触发**（目标之前的记录游标已越过，不补、不重复）；**后跳回退可重新触发**目标之后的事件（`reset` 清空已触发标记），但目标及之前的记录仍不会立刻补触发；同一运行时 `advance` 仍单调，连续推进不会二次触发同一条记录。
+- seek 与暂停**正交**：`handleSeek` 不改 `paused`；暂停中的 seek 只重定位基准与游标，恢复仍走暂停握手（`script_pause`）按上报内容位置重锚。暂停/恢复本身不重置游标（沿用既有重锚语义：前跳按边沿区间补扫，回退不重复）。
+- seek 的信任边界 = 该实例的**观看者**（`ScriptPlayback.viewers`）：无账本 / 非观看者 / 目标非有限或 `< 0` 一律丢弃，debug 日志限频（每 200 tick 最多一条）。编辑器预览实例只动本地播放头，不发包。
+- **循环 / 多入口不重放（I3-B3 关闭）**：以下三种情况都**不**重放服务端 EVENT——片段级 `loop`（片段在自己的时长内循环）、宏观循环（整段脚本循环）、同一片段的多个入口（多放置 = 同一片段对象在时间轴上出现多次；规则启动 / 分支 / `goto_clip` 把播放送回该片段）。
+  - 去重边界：事件身份仍是 `EventKey = (播放实例, clip, 对象路径, 事件索引)`；不考虑 seek 时，每个实例内每条事件最多触发一次。服务端只按 `(scannedThroughSeconds, elapsed]` 推进事件游标，循环导致的局部时间回退不会被解释成「重新开始」；唯一能让同一条记录再次触发的是显式 seek 的后跳（见上一条），与循环无关。
+  - 片段级循环因此只重复**采样轨道**的取值，不重复命令；`pingpong` 在 EVENT 上继续拒绝。
+  - **作者替代路径 1（推荐）**：脚本级规则集合的**时间入口**——`rule_bindings` 把规则绑定到「片段 + 局部秒」的门上（`gate.at` 必填），每次片段执行独立建激活、独立判定、独立释放动作（见 `rule-time-gate.md`、`rule-system.md`）。规则动作走动作路径，不复用 `EventKey`、不改事件命令协议，所以每圈都能按新执行判定一次。
+  - **作者替代路径 2**：**显式分段**——把需要重复的命令写成多个片段 / 多条事件轨道，各自拥有独立的事件时间线；不要依赖循环来表达「每圈再执行一次」。
+  - 同口径说明见 `loop-execution.md` §3.5 与 `rule-exits.md` §五。
 - 客户端 `PlayerMoveController` 读同一事件记录：只处理带 `position` 的记录；`command` 记录忽略。服务端只处理 `command`，忽略 `position`。两边用同一事件身份去重/对齐。
 
 ### 3.3 事件身份
@@ -180,7 +189,7 @@ EventRecord
 
 ## 六、实现结果
 
-状态：部分实现（I-3：离散记录 / 边沿触发 / `EventKey`；服务端 seek 协议未实现）
+状态：已实现（I-3：离散记录 / 边沿触发 / `EventKey`；I-4：服务端 seek 协议、循环与多入口不重放定性）
 
 本节同时列已实现项与差距；未列出的项按「未实现」处理。新格式 = `clip.hasObjects()` 为真；旧格式事件路径保留。
 
@@ -193,7 +202,7 @@ EventRecord
 | 客户端移动配对 | `PlayerMoveController` 新格式从事件记录的 `position`（`{x,z}` / `{dx,dz}`）原子读取，并按 `EventKey` 去重；旧格式路径保留 | 已实现 |
 | MOD_EVENT 占位 | `ModEventTrackPlayer` 仍是占位（`isActiveAt` 恒 false）；新增 `runtimeFor(Clip)` 供第三方编译 / 查询 | 已实现（占位 + 只读入口） |
 | 校验 | `ObjectValidator`：`event_type!=command` 错误；MOD_EVENT 记录缺 `event_type` 错误 | 已实现 |
-| 服务端 seek | — | 未实现：服务端没有 seek 协议，跨端 seek 对齐未做；`EventClipRuntime#reset` 已提供，等协议（见 `I-BACKLOG.md` I3-B2） |
-| 片段循环 / 宏观循环重放 | 不重放服务端 EVENT | 按设计保留；语义未变，多入口 / 循环语义待定性（I3-B3） |
+| 服务端 seek | `C2SScriptSeekPacket`（`script_seek`）/ `S2CScriptSeekAckPacket`（`script_seek_ack`）+ `ScriptEventManager#handleSeek` + `EventSeekPlan#resetAll`；客户端统一入口 `PlaybackInstance#seekTo`（`goto_clip` 已改道），ACK 超时重发在 `PlaybackLedger#sendSeekPacket` | 已实现（I3-B2 关闭）。观看者门 + 限频 debug；seek 不改暂停态 |
+| 片段循环 / 宏观循环 / 多入口重放 | 不重放服务端 EVENT | 已定性并写入 §3.2（I3-B3 关闭）；作者替代路径 = 规则时间入口 / 显式分段 |
 | `PlayerMoveController` 循环语义 | — | 未改（本轮非目标） |
 | 旧画面 / 事件实机回归 | — | 未执行：本轮无实机客户端运行，见 `ROUND-I-3-MAP.md` §九 |

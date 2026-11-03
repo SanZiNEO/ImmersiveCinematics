@@ -1,6 +1,6 @@
 # 片段身份与引用（Clip Identity / Reference）
 
-> 状态：概念已确认；承载为内联/独立两种形式，序列化待评审
+> 状态：已实现（I4-1 / I4-6）；序列化口径见 §七
 > 范围：片段作为可寻址内容实体的身份、跨结构引用、使用关系索引、内容承载（内联/独立）、轨道放置与执行入口的边界、重排/插入/删除后的绑定、迁移
 > 关联：`object-model.md`、`runtime-evaluation.md`、`loop-execution.md`、`rule-system.md`、`rule-exits.md`、`path-collection.md`、`migration.md`、`../Z-editor/object-model.md`
 
@@ -113,18 +113,30 @@ ExecutionIdentity   // instance + clipIdentity + executionIndex
 
 ## 六、实现结果
 
-状态：未实现
+状态：已实现（I4-1 / I4-6）
 
 | 设计目标 | 实现 | 说明 |
 |---|---|---|
-| 片段稳定身份、跨结构引用、使用关系索引 | `Clip` 没有 id；片段是 `track.clips[]` 的匿名元素（只有内联形式）；`goto_clip` 按轨道 + 索引；规则是 `clip.rules`；路径没有集合 | 身份/引用/索引均未实现；脚本级独立 `clips` 表未实现 |
-| 重排/插入/删除显式重映射 | 现行按轨道下标与关键帧下标，重排即改指 | 无绑定校验 |
-| 执行身份叠加在片段身份上 | 现行 `(start, offset)` 只是投影；没有执行身份 | 见 `loop-execution.md` |
+| 片段稳定身份、跨结构引用、使用关系索引 | `Clip` 带可选 `clipId`（`scriptClipId()` / `identity()`）；`CinematicScript.findClip` 统一解析内联 + 独立片段；`UsageIndex` 编译五类使用边（放置 / 规则绑定 / 路径 / 分支 / 出口） | 见 §七定稿口径 |
+| 重排/插入/删除显式重映射 | 运行期只按 id 寻址，不按下标；重排不改变引用 | 编辑器重映射操作待 Z 轮 |
+| 执行身份叠加在片段身份上 | `ClipExecution` 记录 `executionId` / `executionIndex` / 局部时间；分支入口与循环执行各自分配身份 | 见 `loop-execution.md` |
 
-## 七、待评审项
+## 七、序列化口径（结构评审定稿：I4-1 / I4-6；I2-B3 / I2-B9 关闭）
 
-- 片段身份的字段名、语法、作用域（脚本内唯一）与序列化。
-- ClipRef 的引用语法；是否引入脚本级片段表；轨道放置与引用的表达。
-- 使用边的种类、宿主表达、反向索引的暴露面（编辑器/诊断）。
-- 重排/插入/删除后的显式重映射操作与错误/警告边界。
-- 迁移：旧轨道+索引引用如何稳定映射到新身份；重复片段/删除片段报告。
+以下口径已定稿并落地（解析 / 校验 / 使用边索引同一套）：
+
+| 项 | 定稿口径 |
+|---|---|
+| 片段 `id` | 可选字段，`^[A-Za-z0-9_]{1,64}$`；脚本内唯一，内联片段与独立片段共用同一命名空间（重复 → 加载期错误）。不按下标 / 顺序 / `start_time` / 对象哈希推导 |
+| 被引用必填 | 被规则绑定、路径条目、分支目标（`goto_clip`）、出口目标（`exit.target`）引用的片段必须写 `id`；缺 id → 加载期错误「片段被 <宿主> 引用但没有 id」。未被任何结构引用的片段可匿名（231 支既有夹具零改动） |
+| 内联片段 | `timeline.tracks[].clips[]`：`start_time` + `duration` + `objects`（新格式），轨道给默认放置；`id` / `exit` 可选 |
+| 独立片段 | 顶层 `clips[]`：`track` 必填（决定 `objects` schema）、`duration` 必填非 0、禁止 `start_time`、`objects` 必须非空；`id` / `exit` 与内联同 schema。独立片段没有默认放置，只能被引用启动 |
+| 出口 `exit` | `{"on_complete":"continue"\|"goto"\|"return"\|"end_execution"\|"end_script"}`；`goto` 必须带 `target`（片段 id）与可选 `entry_time`（有限 `>= 0`，缺省 0），其余类型禁止 `target` / `entry_time`；未知键报错。片段 `exit` = 默认策略，绑定 `exit` = 入口覆盖，优先级 = 入口覆盖 > 片段默认 > `CONTINUE`；只在分支入口启动的执行完成时解析 |
+| 使用边 | 五类：`TRACK_PLACEMENT`（轨道放置）/ `RULE_BINDING`（规则绑定）/ `PATH_ENTRY`（路径条目）/ `BRANCH_TARGET`（`goto_clip` 分支目标）/ `EXIT_TARGET`（出口 goto 目标）；每条带引用种类 + 宿主 JSON 路径 + `ClipRef`（片段 + 可选入口局部时间），解析期编译成 `UsageIndex` 反向索引 |
+| 运行期寻址 | 按 id 查 `CinematicScript.findClip` / `UsageIndex.resolve`，不扫全集合、不按字符串模糊匹配；引用不可解析 = 加载期错误 |
+
+剩余待评审（不属于本轮实现范围）：
+
+- 重排 / 插入 / 删除后的显式重映射操作与错误 / 警告边界。
+- 同一片段多放置时的运行态区分（本轮不禁止也不实现）。
+- 迁移器：旧「轨道 + 下标」引用如何稳定映射到新 id；重复 / 删除片段报告。

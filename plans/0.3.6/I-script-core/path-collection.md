@@ -1,6 +1,7 @@
 # 路径集合：脚本级路径条目
 
-> 状态：未实现
+> 状态：已实现（I4-8 关闭）
+> 能力清单：顶层 `paths[]`；`PathEntry(id, target, from, to, axes, geometry, timing)`；端点按目标片段 `position` 节点时间引用并要求相邻；`geometry` 复用 `PathCurveRegistry`（`line` / `bezier` 及注册表其余类型）；`timing` 线性 / 关键帧；`PathCollectionSource` 经 `CameraKeyframeEvaluator#setPathBindingSource` 接入相机
 > 范围：脚本级路径集合的归属、条目形态（目标片段 + 相邻端点对）、geometry（形状）、timing（时间映射）、多条目、时间基准、求值顺序、与采样属性的边界
 > 关联：`rule-system.md`、`rule-time-gate.md`、`object-model.md`、`schema-and-types.md`、`track-camera.md`、`runtime-evaluation.md`、`migration.md`、`rule-implementation.md`
 
@@ -52,7 +53,7 @@
 
 - `timing` 是时间映射：片段局部时间 `t ∈ [0, T]` → 归一化进度 `s ∈ [0, 1]`，单调不减。
 - 缺省不存在 = 线性：`s(t) = t / T`。
-- 非线性表达：一组单调关键帧 `{t, s}`（端点固定 0 与 1），运行时按单调插值；或引用缓动定义（序列化待结构评审）。
+- 非线性表达：一组单调关键帧 `{t, s}`（端点固定 0 与 1），运行时按单调插值。引用缓动定义不在当前实现内：`timing.type` 只接受 `linear` / `keyframes`。
 - 求值顺序固定：
 
   ```text
@@ -82,15 +83,29 @@
 - 相机侧装配（路径与未选轴合成位置、`orient=tangent` 用条目导数）归 `track-camera.md`；本篇只定集合契约。
 - 调色曲线（`rgb_curve`、每通道曲线、六条 hue 曲线）与 `transition_curve` 是 value-only 结构或缓动声明，**不属于**本集合。
 - 路径条目不是完成判据，不成为新的总时长来源。
-- 序列化／引用表达与稳定片段标识由结构评审定。
+- 迁移（旧 `Clip.curve` → 路径条目）归 I-5（`migration.md`），不在本集合的运行时契约内。
 
-## 六、结构评审项（非用户待确认）
+## 六、结构评审项（已定稿：I4-1 / I4-8）
 
-- 路径集合的字段名、序列化与迁移形态。
-- 稳定片段引用、端点引用在重排／插入／删除后的表达；片段身份/引用/使用关系见 `clip-identity.md`，路径条目是使用边的一种。
-- `timing` 的序列化形态（单调关键帧 / 缓动引用）与校验边界。
-- 多条路径与同一段并存时的编辑器呈现（归 `../Z-editor/object-model.md`）。
+| 评审项 | 定稿口径 |
+|---|---|
+| 字段名与序列化 | 顶层 `paths[]`；条目 = `id` / `clip` / `from` / `to` / `axes`（可省，缺省三轴）/ `geometry`（必填）/ `timing`（可省，缺省线性）。见 `ROUND-I-4-MAP.md` §1.6 |
+| 稳定片段引用与端点引用 | 片段用 `id` 引用；端点用目标片段 `position.x/y/z` 节点时间（不是下标），要求 `from < to` 且相邻；插入关键帧不改变端点，删除端点 → 加载期错误（显式重映射） |
+| `timing` 的序列化与校验 | `{"type":"linear"}` 或 `{"type":"keyframes","points":[{"t":..,"s":..}]}`：至少 2 点、`t` 与 `s` 序列单调不减、端点固定 0/1 |
+| 多条路径与同一段并存 | 端点对完全相同 → 加载期错误；区间部分重叠合法，解析顺序 = `startTime` 最大者优先（与 `PathBindingResolver` 一致）；编辑器呈现归 `../Z-editor/object-model.md` |
 
 ## 七、实现结果
 
-状态：未实现。v1 的 `Clip.curve` 是 CAMERA clip 级一份 3D 控制点（恰好两个），隐式套到每个 from→to 段；`objects.curve` 从未实现。差距见 `rule-implementation.md`。
+状态：已实现（I4-8 关闭）。
+
+- **数据模型**：`script/path/PathEntry`（`record PathEntry(String id, Clip target, float from, float to, AxisConstraint axes, PathSpec geometry, PathTiming timing)`）、`PathCollection`（`EMPTY` / `entries()` / `entriesFor(Clip)` / `isEmpty()`）、`PathCollectionSource implements PathBindingSource`（按片段缓存绑定列表）。
+- **解析 / 校验**（`PathCollectionParser`，错误即抛 `ScriptParseException` 带路径）：
+  - `id` 必填唯一；`clip` 必须解析到带 `objects` 的片段；
+  - `from` / `to` 必须命中目标片段 `position` 节点时间且 `to` 是 `from` 的下一个节点（相邻性只在 `position.x/y/z` 序列内判断）；
+  - `axes` 缺省三轴，至少一项、去重、顺序无关；
+  - `geometry` 必填，`line` 只接受 `type`，其余类型按 `PathCurveRegistry` 透传；
+  - `timing` 缺省线性，`keyframes` 校验单调与端点 0/1；
+  - 同一片段端点对完全相同 → 错误；部分重叠合法。
+- **相机接线**：`CameraTrackPlayer` 按脚本切换 `evaluator.setPathBindingSource(new PathCollectionSource(script.getPathCollection()))`（无集合时 `PathBindingSource.NONE`）；`CameraKeyframeEvaluator#setPathBindingSource` 转发到 `ObjectCameraEvaluator`。路径与未选轴采样属性的合成归 `track-camera.md`。
+- **使用边**：解析期 `UsageIndex.reference(PATH_ENTRY, ...)`，路径条目计入片段的 `PATH_ENTRY` 使用边。
+- **未实现（I-5）**：旧 `Clip.curve` → 路径条目的迁移器（`migration.md`）；旧 `clip.curve` 读取链路仍在旧格式脚本里生效。
