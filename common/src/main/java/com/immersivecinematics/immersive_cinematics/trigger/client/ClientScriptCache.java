@@ -11,7 +11,8 @@ import java.util.Map;
  * 读写契约：写入以 id 覆盖旧值；读取未下发过的 id 返回 {@code null}。
  * 条目无自动淘汰，只在 {@link #clear()} 时整体清空。
  *
- * 现状：全工程无调用方，未接入播放链路。
+ * 写入方 = {@code ClientScriptReceiver}（服务端下发的播放 / 重载包解析成功后落缓存）；
+ * 读取方 = {@code PlaybackApi.scripts()} 与 {@code PlaybackApi.play(String, String)}。
  */
 public class ClientScriptCache {
 
@@ -35,6 +36,14 @@ public class ClientScriptCache {
     /** 清空全部条目。 */
     public static void clear() {
         CACHE.clear();
+    }
+
+    /**
+     * 不可变快照（id → 脚本）；调用方不得依赖实时性，也不得修改返回值。
+     * 供对外查询面（{@code PlaybackApi.scripts()}）在遍历期间不受并发写入影响。
+     */
+    public static Map<String, CinematicScript> snapshot() {
+        return Map.copyOf(CACHE);
     }
 
     public static int size() { return CACHE.size(); }

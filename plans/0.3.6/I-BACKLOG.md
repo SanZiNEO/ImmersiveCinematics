@@ -138,10 +138,34 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 
 ---
 
+## J. H-4 遗留项（H12 对外接口 + `TrackType` 注册表化）
+
+> 建立：2026-11-04。来源：H-4 验收遗留 + 实现时发现的口径变化。实现与验证见 `H-other/public-api.md` §十 / §十一。
+
+| ID | 事项 | 归属 | 关闭条件 |
+|---|---|---|---|
+| H4-R1 | `spi` 目前只收轨道注册所需类型（`TrackTypeId` / `TrackSchema` / `TrackPlayer` / `TrackContext` / `PropertyType` / `Interp` / `PropertyMode` / `ObjectDef`）。触发器（`TriggerType` / `ListenStrategy` / `TriggerEvalContext` / `TriggerPrerequisite`）、插值模型（`MathModel` / `ModelParams` / `FieldDef`）、路径曲线（`PathSpec` / `PathParams` / `PathParamDef` / `PathCapability`）仍在原包，第三方注册时需 import 内部包路径 | **未排期**（机械迁移，可并入 I-5 或单独一轮） | 第三方按 `public-api.md` §6.5 写一个最小扩展时，**只需 import `api.*` 与 `spi.*`**；`grep` 示例代码无 `trigger.server` / `math.` / `script.schema` 依赖 |
+| H4-R2 | 第三方轨道没有通用的 `loop` / `loop_mode=pingpong` 诊断：`ObjectValidator` 对未登记的内置特化走兜底无检查，作者写错不会得到提示 | **未排期** | 第三方 id 的片段写 `loop_mode=pingpong` 等通用字段时也有校验提示（把通用检查放进 `Check` 兜底分支，不掺内置特化） |
+| H4-R3 | H12 的 A1「能播」/ A3「`tick` 抛异常注入」/ A6「第三方触发器命中」/ A9「`OverlayApi` 层序与释放」缺**真实第三方调用方**：本轮没有任何模组在自己的初始化期注册轨道，探针只能覆盖到「注册 → 解析 → 采样值」 | **未排期**（需要独立 demo 模组，不能在本仓自带测试轨道——那会成为永久脚手架） | 存在一个只依赖本模组公开 API 的 demo 模组：注册 1 条第三方轨道 + 1 个触发器，实机验证 `tick` 读值与抛异常隔离、触发器命中、`OverlayApi` 图层随实例释放 |
+| H4-R4 | `implementation-progress.md:142` 仍把 H11 记为 `☐ 设计稿`，与 `H-other/README.md:21` 的 ✅ 冲突（H-2 遗留的文档滞后） | **I-5**（文档回写轮） | 两处状态一致；`grep` 无矛盾记录 |
+| H4-R5 | `CHANGELOG.md` 未收录 H-4 | **契约边界** | 该文件自述「内部重构、代码整理、开发计划不写入本文件」；H-4 无玩家可感知变化（目标恰恰是零回归），故不写入 |
+
+**H-4 契约边界（写进 `public-api.md`，不排期）**
+
+1. `spi.TrackContext#clip()` 按设计原文返回 `script.Clip`，因此 `spi` 反向依赖 `script` 包；第三方只应使用片段级只读字段，采样成员不承诺。
+2. 第三方轨道**不参与**内置特化语义：`lut` / `blend_mode` / `mask_shape` / `curve` 归属、视觉轨循环规则、相机 modifier 收集、EVENT 移动控制，全部只对内置 id 生效。
+3. 第三方 id 区分大小写；内置 id 额外接受大小写不敏感写法（旧脚本兼容）。
+4. `TrackContext` 的路径→槽位在注册期编译；注册冻结（首个脚本解析）后不可能再新增字段。
+5. 第三方轨道作用域由自己保证（客户端 / 服务端）；我们只按客户端渲染帧调度。
+6. `ExternalTrackDriver` 不对 `TrackPlayerFactory.create()` 返回 `null` 做防御——工厂返回 `null` 属注册方违约，会在首次 `start` 暴露为 NPE。
+
+---
+
 ## 清零规则
 
 - **I-3 收口**：A 表至少完成旧循环实机基线；I2-B1 的最终全量留 I-5。
 - **I-4 收口（2026-11-03 完成）**：B 表 I2-B2..B9 全部关闭；B-2 表关闭 I3-B1/B2/B3 与卫生项；新增遗留全部落在 E 表（I4-R1 归 I-5、I4-R2 归 Z 轮、I4-R3..R5 为契约边界并已写入对应专篇）。
 - **I-5 收口**：C 表全部关闭；D 表在对应专篇有明确文字；本表无“未排期”项。
 - **H-2 收口（2026-11-03 完成）**：H9（跳过投票判定 / 广播 / 解析期校验 / HUD 布局）与 H11（`api/HudLayerRegistry` 门面 + Forge 转调 + Fabric 边界 + 对外文档）全部落地；H5 的 12 条逐条核对完毕（见 `H-other/doc-lag-2026-11-03.md`）；H6 的 7 条实机记录见 `H-other/verification-2026-11-03.md`。新增遗留全部落在 G 表，无“未排期”以外的悬空项。
+- **H-4 收口（2026-11-04）**：H12 全部落地（`api` 门面 12 方法 / `spi` 轨道四件套 / `TrackType` enum → 注册表 / 43 文件迁移 / 3 张静态表 / 注册冻结 / 失败隔离 / `OverlayApi` / `ServerFactsApi`）；内置 7 轨零回归由三份 headless 探针（47 + 23 + 12 全 PASS，860 片段 × 3 时间点覆盖 7 类轨道）与两轮实机（7 个脚本起播，含 LETTERBOX / AUDIO，零轨道相关异常）共同证明。新增遗留落在 J 表；A1/A3/A6/A9 的端到端验证因缺真实第三方调用方而移交 H4-R3。
 - 任何新增遗留必须补进本表并指定轮次/关闭条件；不允许只写在轮次总结里。

@@ -2,9 +2,9 @@ package com.immersivecinematics.immersive_cinematics.script.event;
 
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.Keyframe;
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledProperty;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,7 +60,7 @@ public final class EventClipRuntime {
     public static EventClipRuntime compile(Clip clip, Object instanceToken) {
         Objects.requireNonNull(clip, "clip");
         Object token = instanceToken != null ? instanceToken : clip;
-        boolean modEvent = clip.getTrackType() == TrackType.MOD_EVENT;
+        boolean modEvent = TrackTypeId.MOD_EVENT.equals(clip.getTrackType());
         String path = modEvent ? MOD_EVENT_PATH : EVENT_PATH;
 
         List<EventRecord> records = new ArrayList<>();

@@ -1,5 +1,9 @@
 package com.immersivecinematics.immersive_cinematics.script.object;
 
+import com.immersivecinematics.immersive_cinematics.spi.Interp;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyMode;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyType;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;

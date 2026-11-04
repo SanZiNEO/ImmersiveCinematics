@@ -3,6 +3,8 @@ package com.immersivecinematics.immersive_cinematics.script;
 import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustParams;
 import com.immersivecinematics.immersive_cinematics.client.post.MasterColorAdjust;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
+import com.immersivecinematics.immersive_cinematics.script.track.TrackDriver;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.List;
 
@@ -21,12 +23,12 @@ import java.util.List;
  * 字段名 / 范围 / 缺省 / 层级混合见 {@code ColorAdjustParams} 与 {@code TrackSchemas.adjust()}，
  * 操作栈步骤与像素级公式见 {@code ic_color_adjust.fsh}。
  */
-public class AdjustTrackPlayer implements TrackPlayer {
+public class AdjustTrackPlayer implements TrackDriver {
 
     private final ScriptPlayer scriptPlayer;
     private final int trackIndex;
     /** 新格式片段的采样缓存（旧格式片段不走这里，仍由 {@link ColorAdjustSampler#sample} 扫关键帧）。 */
-    private final ClipRuntimeCache runtime = new ClipRuntimeCache(TrackType.ADJUST);
+    private final ClipRuntimeCache runtime = new ClipRuntimeCache(TrackTypeId.ADJUST);
     /** 曲线解析缓存：曲线是 value-only 结构，按 clip 只解析一次。 */
     private final ColorAdjustSampler.CurveCache curves = new ColorAdjustSampler.CurveCache();
 

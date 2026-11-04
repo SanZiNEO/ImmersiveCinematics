@@ -4,7 +4,7 @@ import com.immersivecinematics.immersive_cinematics.api.CameraState;
 import com.immersivecinematics.immersive_cinematics.math.path.AxisConstraint;
 import com.immersivecinematics.immersive_cinematics.script.CameraLaneComposite;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipSampler;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
@@ -160,7 +160,7 @@ public final class ObjectCameraEvaluator {
     private int clipKeyCounter;
 
     /**
-     * @param cache     本轨的采样缓存（{@code TrackType.CAMERA}）
+     * @param cache     本轨的采样缓存（{@code TrackTypeId.CAMERA}）
      * @param world     世界查询（选择器 / 方块 / 结构 / 玩家激活位置）
      * @param originPos 脚本激活位置（{@link #lastWorldPos} 初值）
      */
@@ -177,7 +177,7 @@ public final class ObjectCameraEvaluator {
         this.world = world;
         this.originPos = originPos;
         this.lastWorldPos = originPos;
-        this.layout = ObjectSlotLayout.of(TrackType.CAMERA);
+        this.layout = ObjectSlotLayout.of(TrackTypeId.CAMERA);
         this.pathBindings = new PathBindingResolver(
                 pathBindingSource != null ? pathBindingSource : PathBindingSource.NONE);
 

@@ -4,6 +4,8 @@ import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCac
 import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectSlotLayout;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledClip;
+import com.immersivecinematics.immersive_cinematics.script.track.TrackDriver;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.client.resources.sounds.SoundInstance;
@@ -24,7 +26,7 @@ import java.util.*;
  * {@link #pruneOneShots} / {@link #stopOneShots} / {@link #onStop} 管理生命周期。
  * 声音引擎出口收在 {@link SoundSink} 后（探针可注入桩）。
  */
-public class AudioTrackPlayer implements TrackPlayer {
+public class AudioTrackPlayer implements TrackDriver {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/Audio");
 
@@ -56,7 +58,6 @@ public class AudioTrackPlayer implements TrackPlayer {
     }
 
     private final ScriptPlayer scriptPlayer;
-    private final TrackType type;
     private final int trackIndex;
     private final Vec3 originPos;
     private final Map<Clip, CinematicAudioInstance> instances = new HashMap<>();
@@ -71,7 +72,7 @@ public class AudioTrackPlayer implements TrackPlayer {
     private static final int SLOT_Z = audioSlot("z");
 
     /** 新格式片段的采样缓存（旧格式片段仍走 data + 关键帧插值，不进这里）。 */
-    private final ClipRuntimeCache runtime = new ClipRuntimeCache(TrackType.AUDIO);
+    private final ClipRuntimeCache runtime = new ClipRuntimeCache(TrackTypeId.AUDIO);
 
     /**
      * 规则动作 {@code play_sound} 的一次性声音：独立于按 clip 键的 {@link #instances}——
@@ -92,9 +93,8 @@ public class AudioTrackPlayer implements TrackPlayer {
         return scriptPlayer.clipsForTrack(trackIndex);
     }
 
-    public AudioTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos, int trackIndex) {
+    public AudioTrackPlayer(ScriptPlayer scriptPlayer, Vec3 originPos, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
-        this.type = type;
         this.trackIndex = trackIndex;
         this.originPos = originPos;
     }
@@ -484,7 +484,7 @@ public class AudioTrackPlayer implements TrackPlayer {
     }
 
     private static int audioSlot(String path) {
-        int slot = ObjectSlotLayout.of(TrackType.AUDIO).slotOf(path);
+        int slot = ObjectSlotLayout.of(TrackTypeId.AUDIO).slotOf(path);
         if (slot < 0) {
             throw new IllegalStateException("AUDIO 缺少对象声明: " + path);
         }

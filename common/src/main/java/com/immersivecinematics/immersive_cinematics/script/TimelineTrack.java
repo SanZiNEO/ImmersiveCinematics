@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
+
 import java.util.List;
 
 /**
@@ -8,20 +10,20 @@ import java.util.List;
  */
 public class TimelineTrack {
 
-    private final TrackType type;
+    private final TrackTypeId type;
     private final List<Clip> clips;
 
     /**
      * @param type  轨道类型
      * @param clips 该轨道的片段列表（按时间轴顺序）
      */
-    public TimelineTrack(TrackType type, List<Clip> clips) {
+    public TimelineTrack(TrackTypeId type, List<Clip> clips) {
         this.type = type;
         this.clips = clips;
     }
 
     /** 轨道类型。 */
-    public TrackType getType() { return type; }
+    public TrackTypeId getType() { return type; }
 
     /** 获取通用片段列表。 */
     public List<Clip> getClips() { return clips; }

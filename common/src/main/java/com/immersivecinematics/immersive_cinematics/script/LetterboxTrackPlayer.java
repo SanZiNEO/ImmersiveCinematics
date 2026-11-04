@@ -8,10 +8,12 @@ import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectSlotLayout;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledClip;
+import com.immersivecinematics.immersive_cinematics.script.track.TrackDriver;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.List;
 
-public class LetterboxTrackPlayer implements TrackPlayer {
+public class LetterboxTrackPlayer implements TrackDriver {
 
     /**
      * 画幅比缺省（同 {@code TrackSchemas.letterbox()} / {@link Keyframe#getAspectRatio()}）：
@@ -19,17 +21,16 @@ public class LetterboxTrackPlayer implements TrackPlayer {
      */
     private static final float DEFAULT_ASPECT_RATIO = 2.35f;
 
-    private static final ObjectSlotLayout LAYOUT = ObjectSlotLayout.of(TrackType.LETTERBOX);
+    private static final ObjectSlotLayout LAYOUT = ObjectSlotLayout.of(TrackTypeId.LETTERBOX);
     private static final int SLOT_ASPECT_RATIO = LAYOUT.slotOf("aspect_ratio");
     private static final int SLOT_OPACITY = LAYOUT.slotOf("opacity");
 
     private final ScriptPlayer scriptPlayer;
-    private final TrackType type;
     private final int trackIndex;
     private final OverlayManager overlayManager;
 
     /** 新格式采样装配层：按片段对象身份缓存采样器与复用缓冲（旧格式片段不进入）。 */
-    private final ClipRuntimeCache runtimeCache = new ClipRuntimeCache(TrackType.LETTERBOX);
+    private final ClipRuntimeCache runtimeCache = new ClipRuntimeCache(TrackTypeId.LETTERBOX);
 
     /**
      * 本实例的黑边层（per-instance：多实例各自黑边互不覆盖）——构造时建层入 Manager，
@@ -37,9 +38,8 @@ public class LetterboxTrackPlayer implements TrackPlayer {
      */
     private final LetterboxLayer letterbox;
 
-    public LetterboxTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, OverlayManager overlayManager, int trackIndex) {
+    public LetterboxTrackPlayer(ScriptPlayer scriptPlayer, OverlayManager overlayManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
-        this.type = type;
         this.trackIndex = trackIndex;
         this.overlayManager = overlayManager;
         this.letterbox = new LetterboxLayer(scriptPlayer.owner());

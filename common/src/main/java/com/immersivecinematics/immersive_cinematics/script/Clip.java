@@ -6,8 +6,9 @@ import com.immersivecinematics.immersive_cinematics.camera.transition.Transition
 import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
 import com.immersivecinematics.immersive_cinematics.script.identity.ClipIdentity;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
-import com.immersivecinematics.immersive_cinematics.script.object.PropertyMode;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledProperty;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyMode;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitPolicy;
 import com.immersivecinematics.immersive_cinematics.script.execution.LoopMode;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
@@ -35,7 +36,7 @@ public class Clip {
     private final float startTime;
     /** 片段时长秒：float 存储（脚本 JSON 精度）；运行时读取后按 double 参与计算，写回时显式窄化。 */
     private final float duration;
-    private final TrackType trackType;
+    private final TrackTypeId trackType;
     private final Map<String, Object> data;
     private final List<Keyframe> keyframes;
     /** 新对象模型的采样属性集合；旧格式片段为 {@link ClipObjects#EMPTY}。 */
@@ -75,13 +76,13 @@ public class Clip {
     private boolean colorMaskSpecResolved;
 
     /** 旧格式构造器：不携带新对象模型（{@link ClipObjects#EMPTY}），执行循环按旧格式口径。 */
-    public Clip(float startTime, float duration, TrackType trackType,
+    public Clip(float startTime, float duration, TrackTypeId trackType,
                 Map<String, Object> data, List<Keyframe> keyframes) {
         this(startTime, duration, trackType, data, keyframes, ClipObjects.EMPTY, false, null, null);
     }
 
     /** 旧格式构造器（带对象模型）：执行循环仍按旧格式口径。 */
-    public Clip(float startTime, float duration, TrackType trackType,
+    public Clip(float startTime, float duration, TrackTypeId trackType,
                 Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects) {
         this(startTime, duration, trackType, data, keyframes, objects, false, null, null);
     }
@@ -90,7 +91,7 @@ public class Clip {
      * @param playControlFormat 是否新格式（播放控制格式）：{@code true} = {@code objects} 片段
      *                          （{@code ScriptParser.parseObjectClip}），AUDIO 的 {@code loop} 按执行循环解释
      */
-    public Clip(float startTime, float duration, TrackType trackType,
+    public Clip(float startTime, float duration, TrackTypeId trackType,
                 Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects,
                 boolean playControlFormat) {
         this(startTime, duration, trackType, data, keyframes, objects, playControlFormat, null, null);
@@ -103,7 +104,7 @@ public class Clip {
      *               {@link ClipIdentity#PATTERN} 校验（解析器负责），这里不重复校验以免把
      *               程序化构造路径的分支埋进异常
      */
-    public Clip(float startTime, float duration, TrackType trackType,
+    public Clip(float startTime, float duration, TrackTypeId trackType,
                 Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects,
                 boolean playControlFormat, String clipId) {
         this(startTime, duration, trackType, data, keyframes, objects, playControlFormat, clipId, null);
@@ -115,7 +116,7 @@ public class Clip {
      * @param exitPolicy 片段默认出口策略（{@code null} = 未声明）；解析期由
      *                   {@code ClipExitPolicyParser} 在脚本装配后填充，程序化构造路径可直接传
      */
-    public Clip(float startTime, float duration, TrackType trackType,
+    public Clip(float startTime, float duration, TrackTypeId trackType,
                 Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects,
                 boolean playControlFormat, String clipId, ClipExitPolicy exitPolicy) {
         this.startTime = startTime;
@@ -133,7 +134,7 @@ public class Clip {
 
     public float getStartTime() { return startTime; }
     public float getDuration() { return duration; }
-    public TrackType getTrackType() { return trackType; }
+    public TrackTypeId getTrackType() { return trackType; }
     public Map<String, Object> getData() { return data; }
     public List<Keyframe> getKeyframes() { return keyframes; }
 
@@ -257,7 +258,7 @@ public class Clip {
     }
 
     /**
-     * 本片段的 fade 颜色遮罩定义；只有 {@link TrackType#OVERLAY} 片段有，其余轨道恒 {@code null}。
+     * 本片段的 fade 颜色遮罩定义；只有 {@link TrackTypeId#OVERLAY} 片段有，其余轨道恒 {@code null}。
      * 首次访问由 {@link ColorMaskSpec#from(Clip)} 建成并缓存（片段数据解析后只读，{@code null} 也只判定一次）。
      * 结构非法时抛 {@link ColorMaskSpec.InvalidColorMaskException}，由 {@code ScriptParser} 在解析期
      * 转成带完整字段路径的 {@code ScriptParseException}。
@@ -265,7 +266,7 @@ public class Clip {
     public ColorMaskSpec getColorMaskSpec() {
         if (!colorMaskSpecResolved) {
             colorMaskSpecResolved = true;
-            colorMaskSpec = trackType == TrackType.OVERLAY ? ColorMaskSpec.from(this) : null;
+            colorMaskSpec = TrackTypeId.OVERLAY.equals(trackType) ? ColorMaskSpec.from(this) : null;
         }
         return colorMaskSpec;
     }
@@ -291,7 +292,7 @@ public class Clip {
      * 旧格式 AUDIO 的 {@code loop} 是文件循环，不算执行循环。
      */
     public boolean isExecutionLoop() {
-        return getBool("loop", false) && (playControlFormat || trackType != TrackType.AUDIO);
+        return getBool("loop", false) && (playControlFormat || !TrackTypeId.AUDIO.equals(trackType));
     }
 
     /** 旧调用名：执行循环（旧格式 AUDIO 文件循环不算）。 */
@@ -301,7 +302,7 @@ public class Clip {
 
     /** 是否为旧格式 AUDIO 的文件循环（{@code loop=true} 且非播放控制格式）。 */
     public boolean isFileLoop() {
-        return trackType == TrackType.AUDIO && !playControlFormat && getBool("loop", false);
+        return TrackTypeId.AUDIO.equals(trackType) && !playControlFormat && getBool("loop", false);
     }
 
     public int getLoopCount() {
@@ -436,7 +437,7 @@ public class Clip {
      * 按路径缓存、按 clip 记引用（键 = {@link #getClipId()}），同一文件跨片段共享同一不可变实例。
      */
     public String getLut() {
-        return trackType == TrackType.ADJUST ? getString("lut", null) : null;
+        return TrackTypeId.ADJUST.equals(trackType) ? getString("lut", null) : null;
     }
 
     /**
@@ -445,7 +446,7 @@ public class Clip {
      * 与 {@link #getLut()} 同款只对 ADJUST 轨生效（lane 路径恒得 1.0）；无 LUT 时该值被忽略（查表整步不生效）。
      */
     public float getLutInputGamma() {
-        return trackType == TrackType.ADJUST ? getFloat("lut_input_gamma", 1.0F) : 1.0F;
+        return TrackTypeId.ADJUST.equals(trackType) ? getFloat("lut_input_gamma", 1.0F) : 1.0F;
     }
 
     /**
@@ -455,7 +456,7 @@ public class Clip {
      * 与 {@link #getLut()} 同款只对 ADJUST 轨生效：lane 路径恒得 {@code "normal"}（混合步骤恒等）。
      */
     public String getBlendMode() {
-        return trackType == TrackType.ADJUST ? getString("blend_mode", "normal") : "normal";
+        return TrackTypeId.ADJUST.equals(trackType) ? getString("blend_mode", "normal") : "normal";
     }
 
     /**

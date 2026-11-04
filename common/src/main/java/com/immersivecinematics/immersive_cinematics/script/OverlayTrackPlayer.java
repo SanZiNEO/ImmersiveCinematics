@@ -2,6 +2,8 @@ package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.overlay.*;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
+import com.immersivecinematics.immersive_cinematics.script.track.TrackDriver;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
@@ -24,7 +26,7 @@ import java.util.Map;
  * （clip 级，缺省 10）。位置 / 锚点 / 缩放对 fade 不生效（效果层铺满窗口）；层创建时把编辑基准分辨率
  * （k 的分母口径）送入层，取值来源归 meta 字段。
  */
-public class OverlayTrackPlayer implements TrackPlayer {
+public class OverlayTrackPlayer implements TrackDriver {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OverlayTrackPlayer.class);
 
@@ -37,7 +39,6 @@ public class OverlayTrackPlayer implements TrackPlayer {
     private static final float DEFAULT_GRADIENT_RADIUS = 0.5f; // gradient_radius（短边比例）
 
     private final ScriptPlayer scriptPlayer;
-    private final TrackType type;
     private final int trackIndex;
     private final OverlayManager overlayManager;
     private OverlayLayer currentLayer = null;
@@ -45,13 +46,12 @@ public class OverlayTrackPlayer implements TrackPlayer {
     /** 当前 fade 片段的高级颜色遮罩定义（建层时取一次；clip 切换 / reset / stop 时清空，不逐帧新建） */
     private ColorMaskSpec activeMaskSpec = null;
     /** 新格式采样装配层：按片段对象身份缓存采样器与复用缓冲（旧格式片段不进入）。 */
-    private final ClipRuntimeCache runtimeCache = new ClipRuntimeCache(TrackType.OVERLAY);
+    private final ClipRuntimeCache runtimeCache = new ClipRuntimeCache(TrackTypeId.OVERLAY);
     /** 每片段 value-only 解析结果（按 clip 对象身份；与 {@link #runtimeCache} 同生命周期）。 */
     private final Map<Clip, OverlayClipRuntime> clipRuntimes = new IdentityHashMap<>();
 
-    public OverlayTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, OverlayManager overlayManager, int trackIndex) {
+    public OverlayTrackPlayer(ScriptPlayer scriptPlayer, OverlayManager overlayManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
-        this.type = type;
         this.trackIndex = trackIndex;
         this.overlayManager = overlayManager;
     }

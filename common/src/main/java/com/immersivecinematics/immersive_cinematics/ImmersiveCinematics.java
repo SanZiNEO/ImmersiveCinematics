@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics;
 
+import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
 import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
@@ -15,6 +16,7 @@ public final class ImmersiveCinematics {
         NetworkHandler.init();
         registerTriggerTypes();
         BuiltinPrerequisites.registerAll();
+        TrackRegistry.ensureBuiltins();
         // 平台入口负责：设置 NetworkBridge、注册服务端/客户端事件、注册键位
     }
 

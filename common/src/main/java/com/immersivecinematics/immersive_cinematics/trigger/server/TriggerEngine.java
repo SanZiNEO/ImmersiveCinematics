@@ -372,8 +372,9 @@ public class TriggerEngine {
         try {
             return reg.getType().evaluate(player, conditions, ctx);
         } catch (Exception e) {
-            LOGGER.error("Failed to evaluate trigger '{}' for script '{}' (player: {}); skipping trigger",
-                    reg.getTriggerId(), reg.getScriptId(), player.getName().getString(), e);
+            ErrorLog.logRateLimited("Trigger", "eval:" + reg.getType().getId() + ":" + reg.getScriptId(), 5000L,
+                    "触发器求值失败，本 tick 视为未命中: trigger=" + reg.getTriggerId()
+                            + " script=" + reg.getScriptId() + " player=" + player.getName().getString(), e);
             return false;
         }
     }

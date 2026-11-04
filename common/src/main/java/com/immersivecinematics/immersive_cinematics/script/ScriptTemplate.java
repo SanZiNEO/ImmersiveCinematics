@@ -6,6 +6,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
+import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.Map;
 
@@ -13,7 +15,7 @@ import java.util.Map;
  * 新建脚本的默认骨架（空脚本模板）。
  *
  * meta 默认值取自 {@link SchemaLoader#getMetaFields()}（tristate 字段无默认值则不写入，
- * 与运行时 {@code optNullableBool} 语义一致）；轨道列表跟随 {@link TrackType} 枚举，
+ * 与运行时 {@code optNullableBool} 语义一致）；轨道列表跟随内置轨道（{@code TrackRegistry.builtinIds()}），
  * 每条轨道带唯一 id 与空 clips 数组。生成的 JSON 与手写脚本同构，
  * 经 {@link ScriptParser} / {@link ScriptValidator} 校验后可正常播放。
  */
@@ -47,10 +49,10 @@ public final class ScriptTemplate {
         JsonObject timeline = new JsonObject();
         timeline.addProperty("total_duration", DEFAULT_TOTAL_DURATION);
         JsonArray tracks = new JsonArray();
-        for (TrackType t : TrackType.values()) {
+        for (TrackTypeId t : TrackRegistry.builtinIds()) {
             JsonObject track = new JsonObject();
-            track.addProperty("type", t.name());
-            track.addProperty("id", generateTrackId(tracks, t.name()));
+            track.addProperty("type", t.id());
+            track.addProperty("id", generateTrackId(tracks, t.id()));
             track.add("clips", new JsonArray());
             tracks.add(track);
         }
@@ -62,7 +64,7 @@ public final class ScriptTemplate {
 
     /** 生成唯一轨道 id：{type小写}_{n}（n 从 1 递增直到无冲突；同类型多条轨道通过 id 区分） */
     private static String generateTrackId(JsonArray tracks, String type) {
-        String base = type.toLowerCase();
+        String base = type.toLowerCase(java.util.Locale.ROOT);
         int n = 1;
         while (true) {
             String id = base + "_" + n;

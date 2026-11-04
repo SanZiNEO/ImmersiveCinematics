@@ -1,6 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.camera.source;
 
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectCallpoints;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectSlotLayout;
@@ -84,7 +84,7 @@ public final class ObjectWorldContext implements WorldContext {
         this.pointLocator = pointLocator;
         this.playerActivation = playerActivation;
 
-        ObjectSlotLayout layout = ObjectSlotLayout.of(TrackType.CAMERA);
+        ObjectSlotLayout layout = ObjectSlotLayout.of(TrackTypeId.CAMERA);
         for (int field = 0; field < FIELDS.length; field++) {
             genericSlots[field] = layout.slotOf(FIELDS[field]);
         }

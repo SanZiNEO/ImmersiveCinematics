@@ -255,6 +255,8 @@ hard 模式重画时**不补发** `RenderGuiOverlayEvent.Pre/Post`。依赖这�
 | `"overlay"` | 覆盖层（fade 颜色遮罩 / image 图片 / subtitle 字幕），**支持多条同类型轨道同时渲染** |
 | `"adjust"` | 画面颜色调整（**整体画面 = master**：作用于合成输出）：曝光 / 对比度 / 高光 / 阴影 / 白 / 黑 / 色相 / 饱和度 / 自然饱和度 / 亮度 / 色温 / 色调 / R/G/B 通道系数 / 灰度 / 反相，全部参数可关键帧；**单条相机轨画面的调色写在 CAMERA 片段上**（见 §4「相机片段调色」） |
 
+> **`type` 的取值域 = 已注册的轨道 id**：内置七种（`camera` / `letterbox` / `audio` / `event` / `mod_event` / `overlay` / `adjust`，大小写不敏感）＋ 第三方模组通过公开 API 注册的 `modid:xxx`（**区分大小写**）。未注册的 id 在解析期即报错，错误消息会列出当前可用 id。第三方轨道的对象字段（片段 `objects` 里的路径）由注册方提供的 schema 决定，写法与内置轨道一致；最小示例见 [`plans/0.3.6/H-other/public-api.md`](../plans/0.3.6/H-other/public-api.md) §6.5。
+
 ---
 
 ## 4. Camera 轨道

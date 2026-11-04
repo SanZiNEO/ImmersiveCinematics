@@ -5,6 +5,7 @@ import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCac
 import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectSlotLayout;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledClip;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 /**
  * 新格式 OVERLAY 片段的装配层：value-only 结构每片段解析一次，逐帧只读 {@link SampledClip} 槽位。
@@ -35,7 +36,7 @@ public final class OverlayClipRuntime {
     private static final float DEFAULT_GRADIENT_CENTER = 0.5f;
     private static final float DEFAULT_GRADIENT_RADIUS = 0.5f;
 
-    private static final ObjectSlotLayout LAYOUT = ObjectSlotLayout.of(TrackType.OVERLAY);
+    private static final ObjectSlotLayout LAYOUT = ObjectSlotLayout.of(TrackTypeId.OVERLAY);
     private static final int SLOT_X = LAYOUT.slotOf("x");
     private static final int SLOT_Y = LAYOUT.slotOf("y");
     private static final int SLOT_ANCHOR_X = LAYOUT.slotOf("anchor_x");

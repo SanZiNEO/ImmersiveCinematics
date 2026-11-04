@@ -12,19 +12,16 @@ public class Keyframe {
 
     /** 关键帧时间秒：float 存储（脚本 JSON 精度）；运行时读取后按 double 参与计算，写回时显式窄化。 */
     private final float time;
-    private final TrackType trackType;
     private final Map<String, Object> data;
 
-    public Keyframe(float time, TrackType trackType, Map<String, Object> data) {
+    public Keyframe(float time, Map<String, Object> data) {
         this.time = time;
-        this.trackType = trackType;
         this.data = data != null ? data : Collections.emptyMap();
     }
 
     // ── 通用字段 ──
 
     public float getTime() { return time; }
-    public TrackType getTrackType() { return trackType; }
     public Map<String, Object> getData() { return data; }
 
     // ── 泛型字段访问 ──

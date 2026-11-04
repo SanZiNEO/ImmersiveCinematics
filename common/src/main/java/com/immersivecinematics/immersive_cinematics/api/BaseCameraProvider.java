@@ -37,4 +37,14 @@ public interface BaseCameraProvider {
     default boolean suppressesModifiers() {
         return false;
     }
+
+    /**
+     * 诊断标识：默认取实现类全限定名。实现可覆盖为稳定的短名。
+     *
+     * <p>仅用于诊断 / 日志（例如查询本帧覆盖链胜出的是哪一层），不参与求值、不参与优先级比较，
+     * 调用方不得据此做行为分支。</p>
+     */
+    default String providerId() {
+        return getClass().getName();
+    }
 }

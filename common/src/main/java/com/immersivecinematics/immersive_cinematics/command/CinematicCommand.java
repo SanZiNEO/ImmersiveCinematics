@@ -399,7 +399,7 @@ public class CinematicCommand {
         StringBuilder msg = new StringBuilder("§6内置片段模板 " + templates.size() + " 个：\n");
         for (ClipTemplate t : templates) {
             msg.append("§e/icinematics template ").append(t.id())
-                    .append(" §8[").append(t.trackType().name()).append("] §f").append(t.name()).append("\n");
+                    .append(" §8[").append(t.trackType().id()).append("] §f").append(t.name()).append("\n");
             msg.append("§7    ").append(t.description()).append("\n");
             for (TemplateParam p : t.params()) {
                 msg.append("§8      ").append(p.key()).append("=§f").append(p.defaultValue())
@@ -514,7 +514,7 @@ public class CinematicCommand {
         final String out = outFile.toString();
         final String overwritten = existed ? "§7(覆盖已存在文件) " : "";
         source.sendSuccess(() -> Component.literal("§a已生成脚本 " + overwritten + out
-                + "\n§7模板: " + id + " §7| 轨道: " + template.trackType().name() + " §7| 校验通过"
+                + "\n§7模板: " + id + " §7| 轨道: " + template.trackType().id() + " §7| 校验通过"
                 + "\n§7播放: §f/icinematics play " + cmdPath
                 + "§7 | 再校验: §f/icinematics validate " + cmdPath), false);
         LOGGER.info("模板 {} 生成脚本 {}（参数 {}）", id, out, raw);

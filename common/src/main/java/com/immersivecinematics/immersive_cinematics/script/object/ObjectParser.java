@@ -3,9 +3,12 @@ package com.immersivecinematics.immersive_cinematics.script.object;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
-import com.immersivecinematics.immersive_cinematics.script.schema.ObjectDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.SchemaRegistry;
+import com.immersivecinematics.immersive_cinematics.spi.Interp;
+import com.immersivecinematics.immersive_cinematics.spi.ObjectDef;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyMode;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -43,7 +46,7 @@ public final class ObjectParser {
      * @return 路径 → 采样属性；未声明的路径不会出现
      * @throws ObjectFormatException 片段级键非法、路径未知、形态/类型/时间不合法或必填对象无值
      */
-    public static ClipObjects parse(JsonObject clip, String clipPath, TrackType type) {
+    public static ClipObjects parse(JsonObject clip, String clipPath, TrackTypeId type) {
         for (Map.Entry<String, JsonElement> entry : clip.entrySet()) {
             String key = entry.getKey();
             if (!CLIP_KEYS.contains(key)) {

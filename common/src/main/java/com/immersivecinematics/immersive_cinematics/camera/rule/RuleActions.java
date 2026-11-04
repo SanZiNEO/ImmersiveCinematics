@@ -16,7 +16,8 @@ import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.ClipRule;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleBinding;
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SRuleCommandPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard;
@@ -359,7 +360,7 @@ public final class RuleActions {
                     "goto_clip 目标时间越界: " + at + "s（总时长 " + total + "s）——动作跳过，播放继续");
             return;
         }
-        TrackType type = trackType(trackName);
+        TrackTypeId type = trackType(trackName);
         if (type == null) {
             ErrorLog.logRateLimited("Rules", "goto_clip:track", LOG_INTERVAL_MS,
                     "goto_clip 未知轨道类型: " + trackName + "——动作跳过，播放继续");
@@ -373,18 +374,15 @@ public final class RuleActions {
         instance.seekTo(at);
     }
 
-    /** 轨道类型名 → 枚举（大小写不敏感；未知 → {@code null}）。 */
-    private static TrackType trackType(String name) {
-        for (TrackType type : TrackType.values()) {
-            if (type.name().equalsIgnoreCase(name)) return type;
-        }
-        return null;
+    /** 轨道类型名 → id（精确 id 优先，内置 id 额外接受大小写变化；未知 → {@code null}）。 */
+    private static TrackTypeId trackType(String name) {
+        return TrackRegistry.resolve(name);
     }
 
     /** 该轨是否有片段覆盖目标时间（闭区间 {@code [startTime, windowEnd]}；无限片段恒真）。 */
-    private static boolean hasClipAt(CinematicScript script, TrackType type, double at) {
+    private static boolean hasClipAt(CinematicScript script, TrackTypeId type, double at) {
         for (TimelineTrack track : script.getTimeline().getTracks()) {
-            if (track.getType() != type) continue;
+            if (!type.equals(track.getType())) continue;
             List<Clip> clips = track.getClips();
             for (int i = 0; i < clips.size(); i++) {
                 Clip clip = clips.get(i);

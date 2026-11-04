@@ -1,7 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script.object;
 
 import com.immersivecinematics.immersive_cinematics.script.Clip;
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -30,7 +30,7 @@ public final class ClipRuntimeCache {
     /**
      * @param type 本轨道类型；{@code null} 不接受
      */
-    public ClipRuntimeCache(TrackType type) {
+    public ClipRuntimeCache(TrackTypeId type) {
         Objects.requireNonNull(type, "type");
         this.layout = ObjectSlotLayout.of(type);
     }

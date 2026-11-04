@@ -91,6 +91,8 @@ final class PlaybackLedger {
         if (finishedScriptId != null && !editorDriven) {
             String finishedInstanceId = instance.instanceId() != null ? instance.instanceId() : "";
             ClientScriptNotifier.notifyScriptFinished(finishedScriptId, finishedInstanceId, reason);
+            // 对外监听：与网络通知同口径（非编辑器、脚本 id 非空时逐实例一次）。
+            PlaybackListeners.finished(finishedScriptId, finishedInstanceId, reason);
         }
         if (!editorDriven) {
             ClientScriptReceiver.resetSkipVote();

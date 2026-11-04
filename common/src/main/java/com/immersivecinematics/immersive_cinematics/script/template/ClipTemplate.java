@@ -1,7 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script.template;
 
 import com.google.gson.JsonObject;
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.List;
 
@@ -25,7 +25,7 @@ public interface ClipTemplate {
     String description();
 
     /** 产物 clip 应落在哪条轨道（接入点据此插入）。 */
-    TrackType trackType();
+    TrackTypeId trackType();
 
     /** 参数声明；顺序即表单 / 帮助文本顺序。 */
     List<TemplateParam> params();

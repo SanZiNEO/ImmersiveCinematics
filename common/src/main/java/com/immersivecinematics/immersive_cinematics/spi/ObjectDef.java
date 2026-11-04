@@ -1,8 +1,4 @@
-package com.immersivecinematics.immersive_cinematics.script.schema;
-
-import com.immersivecinematics.immersive_cinematics.script.object.Interp;
-import com.immersivecinematics.immersive_cinematics.script.object.PropertyMode;
-import com.immersivecinematics.immersive_cinematics.script.object.PropertyType;
+package com.immersivecinematics.immersive_cinematics.spi;
 
 import java.util.ArrayList;
 import java.util.Collections;

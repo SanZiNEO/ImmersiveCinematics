@@ -23,7 +23,9 @@ import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegis
 import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveException;
 import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveRegistry;
 import com.immersivecinematics.immersive_cinematics.script.schema.TriggerSchemas;
+import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
 import com.immersivecinematics.immersive_cinematics.selector.SelectorSchema;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
@@ -56,8 +58,6 @@ public final class ScriptValidator {
     /** 相机片段运动模型字段（clip 级；缺省 null = 该通道不接模型 = 逐位不改变现状）。 */
     private static final String[] MOTION_FIELDS = {
             "motion_position", "motion_yaw", "motion_pitch", "motion_roll", "motion_fov", "motion_zoom"};
-    private static final String[] KNOWN_TYPES =
-            {"CAMERA", "LETTERBOX", "AUDIO", "EVENT", "MOD_EVENT", "OVERLAY", "ADJUST"};
 
     /** 触发器声明 id 的格式判定（正则本身由 {@link TriggerDefinition#ID_REGEX} 定义）；延迟编译一次。 */
     private static final Pattern TRIGGER_ID_PATTERN = Pattern.compile(TriggerDefinition.ID_REGEX);
@@ -396,7 +396,7 @@ public final class ScriptValidator {
                 type = track.get("type").getAsString();
                 if (!isKnownType(type)) {
                     issues.add(tp + ".type 未知类型: " + type
-                            + "（可选: CAMERA / LETTERBOX / AUDIO / EVENT / MOD_EVENT / OVERLAY / ADJUST）");
+                            + "（可选: " + trackTypesHint() + "）");
                 }
             }
 
@@ -2490,22 +2490,14 @@ public final class ScriptValidator {
         }
     }
 
-    /** 轨道类型名 → 枚举（大小写不敏感；未知 → {@code null}；与运行期同一口径）。 */
-    private static TrackType trackTypeOf(String name) {
-        for (TrackType type : TrackType.values()) {
-            if (type.name().equalsIgnoreCase(name)) return type;
-        }
-        return null;
+    /** 轨道类型名 → id（精确 id 优先，内置 id 额外接受大小写变化；未知 → {@code null}；与运行期同一口径）。 */
+    private static TrackTypeId trackTypeOf(String name) {
+        return TrackRegistry.resolve(name);
     }
 
     /** 轨道类型名清单（报错文案用）。 */
     private static String trackTypesHint() {
-        StringBuilder sb = new StringBuilder();
-        for (TrackType type : TrackType.values()) {
-            if (sb.length() > 0) sb.append(" / ");
-            sb.append(type.name());
-        }
-        return sb.toString();
+        return TrackRegistry.idListForMessage();
     }
 
     /** 公共修饰字段：{@code once} 布尔 / {@code cooldown} 非负 / {@code mode} 枚举 / {@code timeout} 正数。 */
@@ -4361,10 +4353,7 @@ public final class ScriptValidator {
     }
 
     private static boolean isKnownType(String type) {
-        for (String t : KNOWN_TYPES) {
-            if (t.equalsIgnoreCase(type)) return true;
-        }
-        return false;
+        return TrackRegistry.resolve(type) != null;
     }
 
     private static void requireString(JsonObject obj, String path, String key, List<String> issues) {

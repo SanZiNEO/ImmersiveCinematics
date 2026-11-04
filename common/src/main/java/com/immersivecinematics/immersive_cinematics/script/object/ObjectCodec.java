@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.script.object;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyType;
 
 import java.util.ArrayList;
 import java.util.Collections;

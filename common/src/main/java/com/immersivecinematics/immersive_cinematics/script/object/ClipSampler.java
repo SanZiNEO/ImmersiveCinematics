@@ -1,7 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.script.object;
 
 import com.immersivecinematics.immersive_cinematics.script.Clip;
-import com.immersivecinematics.immersive_cinematics.script.schema.ObjectDef;
+import com.immersivecinematics.immersive_cinematics.spi.ObjectDef;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyType;
 
 import java.util.ArrayList;
 import java.util.List;

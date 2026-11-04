@@ -5,9 +5,11 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.immersivecinematics.immersive_cinematics.script.PositionData;
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
-import com.immersivecinematics.immersive_cinematics.script.schema.ObjectDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.SchemaRegistry;
+import com.immersivecinematics.immersive_cinematics.spi.ObjectDef;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyMode;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -15,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * 新格式（{@code objects}）片段的静态校验器。
@@ -63,7 +66,7 @@ public final class ObjectValidator {
      * @param clipPath 片段路径（用于 issue 前缀，如 {@code timeline.tracks[0].clips[1]}）
      * @param issues 收集目标
      */
-    public static void validate(TrackType type, JsonObject clip, String clipPath, List<String> issues) {
+    public static void validate(TrackTypeId type, JsonObject clip, String clipPath, List<String> issues) {
         String prefix = clipPath == null || clipPath.isEmpty() ? "" : clipPath + ": ";
         checkClipFields(type, clip, prefix, issues);
         rejectPingpong(type, clip, prefix, issues);
@@ -84,7 +87,7 @@ public final class ObjectValidator {
     // clip 级：键白名单 + 播放控制字段类型
     // ======================================================================
 
-    private static void checkClipFields(TrackType type, JsonObject clip, String prefix, List<String> issues) {
+    private static void checkClipFields(TrackTypeId type, JsonObject clip, String prefix, List<String> issues) {
         for (String key : clip.keySet()) {
             if (!CLIP_KEYS.contains(key)) {
                 issues.add(prefix + "新格式片段只允许 start_time/duration/objects/loop/loop_count/loop_mode/id/exit，发现 " + key);
@@ -140,17 +143,18 @@ public final class ObjectValidator {
     }
 
     /** 视觉轨：pingpong 的时间映射只对这几类轨道有意义（其余轨道由 {@link #rejectPingpong} 报错）。 */
-    private static boolean isVisualLoopTrack(TrackType type) {
-        return type == TrackType.CAMERA || type == TrackType.OVERLAY
-                || type == TrackType.ADJUST || type == TrackType.LETTERBOX;
+    private static boolean isVisualLoopTrack(TrackTypeId type) {
+        return TrackTypeId.CAMERA.equals(type) || TrackTypeId.OVERLAY.equals(type)
+                || TrackTypeId.ADJUST.equals(type) || TrackTypeId.LETTERBOX.equals(type);
     }
 
-    private static void rejectPingpong(TrackType type, JsonObject clip, String prefix, List<String> issues) {
-        if (type != TrackType.AUDIO && type != TrackType.EVENT && type != TrackType.MOD_EVENT) {
+    private static void rejectPingpong(TrackTypeId type, JsonObject clip, String prefix, List<String> issues) {
+        if (!TrackTypeId.AUDIO.equals(type) && !TrackTypeId.EVENT.equals(type)
+                && !TrackTypeId.MOD_EVENT.equals(type)) {
             return;
         }
         if ("pingpong".equals(loopModeString(clip.get("loop_mode")))) {
-            issues.add(prefix + "loop_mode: " + type.name() + " 轨道不支持 pingpong");
+            issues.add(prefix + "loop_mode: " + type.id() + " 轨道不支持 pingpong");
         }
     }
 
@@ -185,7 +189,7 @@ public final class ObjectValidator {
 
     private static final class Check {
 
-        private final TrackType type;
+        private final TrackTypeId type;
         private final JsonObject objects;
         private final String prefix;
         private final List<String> issues;
@@ -195,7 +199,7 @@ public final class ObjectValidator {
         /** 已出现且形态为对象的属性；缺失的路径不登记。 */
         private final Map<String, Prop> props = new LinkedHashMap<>();
 
-        Check(TrackType type, JsonObject objects, String prefix, List<String> issues, Float duration) {
+        Check(TrackTypeId type, JsonObject objects, String prefix, List<String> issues, Float duration) {
             this.type = type;
             this.objects = objects;
             this.prefix = prefix;
@@ -209,23 +213,31 @@ public final class ObjectValidator {
                 checkProperty(entry.getKey(), entry.getValue());
             }
             checkRequiresAndRequired();
-            switch (type) {
-                case CAMERA -> {
-                    checkCamera();
-                    checkCurves();
-                }
-                case OVERLAY -> checkOverlay();
-                case AUDIO -> checkAudio();
-                case ADJUST -> {
-                    checkAdjust();
-                    checkCurves();
-                }
-                case EVENT -> checkEvent();
-                case MOD_EVENT -> checkModEvent();
-                default -> {
-                    // 其余轨道没有新格式语义检查
-                }
+            Consumer<Check> checker = CHECKERS.get(type);
+            if (checker != null) {
+                checker.accept(this);
             }
+        }
+
+        /**
+         * 轨道 id → 新格式语义检查；未登记（{@code LETTERBOX} 与第三方 id）走兜底 = 无额外检查。
+         * 内置轨的检查组合逐条显式登记，新增轨道不需要改这里。
+         */
+        private static final Map<TrackTypeId, Consumer<Check>> CHECKERS = new LinkedHashMap<>();
+
+        static {
+            CHECKERS.put(TrackTypeId.CAMERA, check -> {
+                check.checkCamera();
+                check.checkCurves();
+            });
+            CHECKERS.put(TrackTypeId.OVERLAY, Check::checkOverlay);
+            CHECKERS.put(TrackTypeId.AUDIO, Check::checkAudio);
+            CHECKERS.put(TrackTypeId.ADJUST, check -> {
+                check.checkAdjust();
+                check.checkCurves();
+            });
+            CHECKERS.put(TrackTypeId.EVENT, Check::checkEvent);
+            CHECKERS.put(TrackTypeId.MOD_EVENT, Check::checkModEvent);
         }
 
         // ------------------------------------------------------------------

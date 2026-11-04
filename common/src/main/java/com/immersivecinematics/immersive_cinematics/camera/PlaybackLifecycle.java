@@ -408,6 +408,12 @@ final class PlaybackLifecycle {
         // 写侧收口：instance.start 已预执行脚本首帧、直写内部状态；这里立即刷新统一快照，
         // 使同一 tick 内后续读取看到接播后的最新值，而非过期/空快照。
         refreshSnapshot.run();
+
+        // 对外监听：只有真正开始播放的游戏实例才广播（编辑器播放不对外；排队 / 被拒不进本方法）。
+        // 每个实例恰好一次：本方法是唯一的实例创建入口，且总在实例启动成功后的返回前。
+        if (!editorDriven) {
+            PlaybackListeners.started(script.getId(), instance.instanceId());
+        }
         return instance;
     }
 }

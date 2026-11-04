@@ -10,6 +10,7 @@ import com.immersivecinematics.immersive_cinematics.camera.source.WorldPointLoca
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
 import com.immersivecinematics.immersive_cinematics.script.path.PathBindingSource;
 import com.immersivecinematics.immersive_cinematics.script.path.PathCollectionSource;
+import com.immersivecinematics.immersive_cinematics.script.track.TrackDriver;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -22,10 +23,9 @@ import java.util.List;
  * 求值与过渡合成归 {@link CameraKeyframeEvaluator}，lane 捕获归 {@link LaneSnapshotCollector}；
  * 仅客户端主线程逐渲染帧调用，帧内路径不新建集合。
  */
-public class CameraTrackPlayer implements TrackPlayer {
+public class CameraTrackPlayer implements TrackDriver {
 
     private final ScriptPlayer scriptPlayer;
-    private final TrackType type;
     private final int trackIndex;
     private final CameraManager cameraManager;
 
@@ -50,9 +50,8 @@ public class CameraTrackPlayer implements TrackPlayer {
      */
     private final List<Clip> frameActiveClips = new ArrayList<>(2);
 
-    public CameraTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, Vec3 originPos, CameraManager cameraManager, int trackIndex) {
+    public CameraTrackPlayer(ScriptPlayer scriptPlayer, Vec3 originPos, CameraManager cameraManager, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
-        this.type = type;
         this.trackIndex = trackIndex;
         this.cameraManager = cameraManager;
         WorldPointLocator pointLocator = new WorldPointLocator();

@@ -64,6 +64,7 @@ public class ClientScriptReceiver {
         Minecraft.getInstance().execute(() -> {
             try {
                 CinematicScript script = ScriptParser.parse(packet.getScriptJson());
+                ClientScriptCache.putScript(script.getId(), script);
                 int result = CameraManager.INSTANCE.playCinematic(script, packet.getInstanceId());
                 LOGGER.info("Playing script from server: {} (result={}, instance={})",
                         script.getId(), result, packet.getInstanceId());
@@ -149,6 +150,7 @@ public class ClientScriptReceiver {
                 }
                 scriptFingerprints.put(fileName, fp);
                 CinematicScript script = ScriptParser.parse(new String(content, StandardCharsets.UTF_8));
+                ClientScriptCache.putScript(script.getId(), script);
                 CameraManager.INSTANCE.playCinematic(script);
                 LOGGER.info("Reloaded script from file: {}", fileName);
             } catch (Exception e) {

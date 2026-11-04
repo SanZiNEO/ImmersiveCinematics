@@ -1,12 +1,13 @@
 package com.immersivecinematics.immersive_cinematics.script.schema;
 
 import com.immersivecinematics.immersive_cinematics.script.ClipRule;
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
-import com.immersivecinematics.immersive_cinematics.script.object.Interp;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectCallpoints;
-import com.immersivecinematics.immersive_cinematics.script.object.PropertyMode;
-import com.immersivecinematics.immersive_cinematics.script.object.PropertyType;
 import com.immersivecinematics.immersive_cinematics.selector.SelectorSchema;
+import com.immersivecinematics.immersive_cinematics.spi.Interp;
+import com.immersivecinematics.immersive_cinematics.spi.ObjectDef;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyMode;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,15 +23,15 @@ public final class TrackSchemas {
 
     private TrackSchemas() {}
 
-    public static Map<TrackType, TrackTypeSchema> all() {
-        Map<TrackType, TrackTypeSchema> map = new LinkedHashMap<>();
-        map.put(TrackType.CAMERA, camera());
-        map.put(TrackType.LETTERBOX, letterbox());
-        map.put(TrackType.AUDIO, audio());
-        map.put(TrackType.EVENT, event());
-        map.put(TrackType.MOD_EVENT, modEvent());
-        map.put(TrackType.OVERLAY, overlay());
-        map.put(TrackType.ADJUST, adjust());
+    public static Map<TrackTypeId, TrackTypeSchema> all() {
+        Map<TrackTypeId, TrackTypeSchema> map = new LinkedHashMap<>();
+        map.put(TrackTypeId.CAMERA, camera());
+        map.put(TrackTypeId.LETTERBOX, letterbox());
+        map.put(TrackTypeId.AUDIO, audio());
+        map.put(TrackTypeId.EVENT, event());
+        map.put(TrackTypeId.MOD_EVENT, modEvent());
+        map.put(TrackTypeId.OVERLAY, overlay());
+        map.put(TrackTypeId.ADJUST, adjust());
         return map;
     }
 

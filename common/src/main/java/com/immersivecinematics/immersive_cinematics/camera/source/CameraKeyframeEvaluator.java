@@ -15,7 +15,7 @@ import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
 import com.immersivecinematics.immersive_cinematics.script.PositionData;
 import com.immersivecinematics.immersive_cinematics.script.TangentOrientation;
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipTimeSource;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
 import com.immersivecinematics.immersive_cinematics.script.path.PathBindingSource;
@@ -129,7 +129,7 @@ public final class CameraKeyframeEvaluator {
     private final ClipTimeSource timeSource;
 
     /** 新格式对象装配：采样缓存（按片段身份复用缓冲 / value 视图）+ 单片段求值器。 */
-    private final ClipRuntimeCache objectCache = new ClipRuntimeCache(TrackType.CAMERA);
+    private final ClipRuntimeCache objectCache = new ClipRuntimeCache(TrackTypeId.CAMERA);
     private final ObjectCameraEvaluator objectEvaluator;
 
     public CameraKeyframeEvaluator(EntityTargetResolver entityResolver, WorldPointLocator pointLocator,

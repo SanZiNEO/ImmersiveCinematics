@@ -1,7 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script.template;
 
 import com.google.gson.JsonObject;
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.List;
 
@@ -37,8 +37,8 @@ public final class OrbitArcClipTemplate implements ClipTemplate {
     }
 
     @Override
-    public TrackType trackType() {
-        return TrackType.CAMERA;
+    public TrackTypeId trackType() {
+        return TrackTypeId.CAMERA;
     }
 
     @Override

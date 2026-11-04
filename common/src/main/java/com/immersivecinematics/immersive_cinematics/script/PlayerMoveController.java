@@ -4,6 +4,7 @@ import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.script.event.EventClipRuntime;
 import com.immersivecinematics.immersive_cinematics.script.event.EventKey;
 import com.immersivecinematics.immersive_cinematics.script.event.EventRecord;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.phys.Vec3;
@@ -60,7 +61,7 @@ public class PlayerMoveController {
         Object eventToken = new Object();
         Set<EventKey> seen = new HashSet<>();
         for (TimelineTrack track : script.getTimeline().getTracks()) {
-            if (track.getType() != TrackType.EVENT) continue;
+            if (!TrackTypeId.EVENT.equals(track.getType())) continue;
             for (Clip clip : track.getClips()) {
                 double clipStart = clip.getStartTime();
                 if (clip.hasObjects()) {

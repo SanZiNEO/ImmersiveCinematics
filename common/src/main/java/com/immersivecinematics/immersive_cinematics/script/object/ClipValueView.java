@@ -1,6 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.script.object;
 
 import com.immersivecinematics.immersive_cinematics.script.Clip;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyMode;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyType;
 
 import java.util.Objects;
 

@@ -19,11 +19,8 @@ import com.immersivecinematics.immersive_cinematics.script.identity.UsageKind;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitKind;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitPolicy;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
-import com.immersivecinematics.immersive_cinematics.script.object.Interp;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectFormatException;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectParser;
-import com.immersivecinematics.immersive_cinematics.script.object.PropertyMode;
-import com.immersivecinematics.immersive_cinematics.script.object.PropertyType;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledProperty;
 import com.immersivecinematics.immersive_cinematics.script.path.PathCollectionParser;
 import com.immersivecinematics.immersive_cinematics.script.rule.ClipExitPolicyParser;
@@ -32,6 +29,11 @@ import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
 import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveException;
 import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveRegistry;
+import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
+import com.immersivecinematics.immersive_cinematics.spi.Interp;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyMode;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import net.minecraft.world.phys.Vec3;
@@ -121,8 +123,12 @@ public class ScriptParser {
      * 解析入口：{@link ScriptParseException} 原样上抛；其余 RuntimeException（典型为字段类型错误：
      * 数字字段写成字符串 → NumberFormatException，对象/数组字段写成标量 → UnsupportedOperationException）
      * 统一收敛为带根路径的解析异常，调用方只需处理一种异常。
+     *
+     * <p>首行冻结轨道注册表（进程内一次性）：此后第三方注册必须抛 {@code IllegalStateException}，
+     * 保证注册窗口 = 模组初始化期。</p>
      */
     public static CinematicScript parse(String json) throws ScriptParseException {
+        TrackRegistry.freeze();
         try {
             return parseInternal(json);
         } catch (RuntimeException e) {
@@ -407,7 +413,7 @@ public class ScriptParser {
 
     private static TimelineTrack parseTrack(JsonObject trackObj, String p) throws ScriptParseException {
         String typeStr = requireString(trackObj, p, "type");
-        TrackType type = parseTrackType(typeStr, p + ".type");
+        TrackTypeId type = parseTrackType(typeStr, p + ".type");
         JsonArray clipsArr = requireArray(trackObj, p, "clips");
 
         List<Clip> clips = new ArrayList<>();
@@ -420,7 +426,7 @@ public class ScriptParser {
 
     // ========== Clip 解析（统一 schema 驱动）==========
 
-    private static Clip parseClip(JsonObject obj, String p, TrackType type) throws ScriptParseException {
+    private static Clip parseClip(JsonObject obj, String p, TrackTypeId type) throws ScriptParseException {
         float startTime = requireFloat(obj, p, "start_time");
         float duration = requireFloat(obj, p, "duration");
 
@@ -437,8 +443,8 @@ public class ScriptParser {
 
         // OVERLAY 的 fade 专用字段（高级颜色遮罩）按 layer_type 分派：fade 走严格解析，
         // image / subtitle 上写 = 明确拒绝（不静默存进 data 宣称生效）
-        String overlayLayerType = type == TrackType.OVERLAY ? overlayLayerType(obj) : null;
-        boolean fadeOverlay = type == TrackType.OVERLAY
+        String overlayLayerType = TrackTypeId.OVERLAY.equals(type) ? overlayLayerType(obj) : null;
+        boolean fadeOverlay = TrackTypeId.OVERLAY.equals(type)
                 && !"image".equals(overlayLayerType) && !"subtitle".equals(overlayLayerType);
 
         // 解析类型特有字段到 data map
@@ -449,7 +455,7 @@ public class ScriptParser {
                     || "keyframes".equals(fieldName) || "id".equals(fieldName)) {
                 continue; // 通用字段跳过
             }
-            if (type == TrackType.OVERLAY) {
+            if (TrackTypeId.OVERLAY.equals(type)) {
                 if (fadeOverlay) {
                     // 归属交叉检查：mask_* / gradient_* 数值通道只属于关键帧（color 两级都合法）
                     if (isFadeKeyframeOnlyField(fieldName)) {
@@ -468,10 +474,10 @@ public class ScriptParser {
                 }
             }
             // 路径曲线只属于 CAMERA 轨：其余轨道上写 = 不生效（与 ScriptValidator 同一口径）
-            if ("curve".equals(fieldName) && type != TrackType.CAMERA) {
+            if ("curve".equals(fieldName) && !TrackTypeId.CAMERA.equals(type)) {
                 throw new ScriptParseException(p + "." + fieldName, "curve 只支持写在 CAMERA 轨的片段上");
             }
-            if (type == TrackType.CAMERA) {
+            if (TrackTypeId.CAMERA.equals(type)) {
                 // 归属交叉检查：形状只属于 clip 级，几何只属于关键帧；fade 渐变 / 混合模式
                 // 不被 CAMERA 接受（遮罩只有形状 + 几何，没有颜色层语义）。
                 if (CAMERA_MASK_GEOMETRY_FIELDS.contains(fieldName)) {
@@ -516,7 +522,7 @@ public class ScriptParser {
         // 所有轨道一律以 keyframes 调控：不提供 clip 级简写 / 旧格式兼容。
 
         // 结构校验
-        if (type == TrackType.CAMERA && keyframes.isEmpty()) {
+        if (TrackTypeId.CAMERA.equals(type) && keyframes.isEmpty()) {
             throw new ScriptParseException(p, "camera clip 的 keyframes 至少1个");
         }
         if (duration == 0f) {
@@ -558,7 +564,7 @@ public class ScriptParser {
      * （transition / curve / rules / position_mode 等）的归属检查——这些键在 {@link ObjectParser}
      * 的片段级白名单处即被拒绝。</p>
      */
-    private static Clip parseObjectClip(JsonObject obj, String p, TrackType type) throws ScriptParseException {
+    private static Clip parseObjectClip(JsonObject obj, String p, TrackTypeId type) throws ScriptParseException {
         return parseObjectClip(obj, p, type, requireFloat(obj, p, "start_time"));
     }
 
@@ -568,7 +574,7 @@ public class ScriptParser {
      *
      * @param startTime 片段起始秒（不再从 {@code obj} 读取）
      */
-    private static Clip parseObjectClip(JsonObject obj, String p, TrackType type, float startTime)
+    private static Clip parseObjectClip(JsonObject obj, String p, TrackTypeId type, float startTime)
             throws ScriptParseException {
         float duration = requireFloat(obj, p, "duration");
         String clipId = parseClipId(obj, p);
@@ -686,7 +692,7 @@ public class ScriptParser {
             if (!trackElement.isJsonPrimitive() || !trackElement.getAsJsonPrimitive().isString()) {
                 throw new ScriptParseException(cp + ".track", "需要字符串（轨道类型名）");
             }
-            TrackType type = parseTrackType(trackElement.getAsString(), cp + ".track");
+            TrackTypeId type = parseTrackType(trackElement.getAsString(), cp + ".track");
             if (!obj.has("objects")) {
                 throw new ScriptParseException(cp + ".objects",
                         "缺少必填字段（独立片段必须是新格式：objects 对象）");
@@ -718,12 +724,12 @@ public class ScriptParser {
      * <p>未列出的路径（{@code gradient} / {@code data} / {@code lut} / {@code curve} 等）返回 {@code null}：
      * 它们的消费方按原始 {@code Map}/{@code List} 读取，保持原样。</p>
      */
-    private static StructKind structKindOf(TrackType type, String path) {
+    private static StructKind structKindOf(TrackTypeId type, String path) {
         switch (path) {
             case "modifier":
-                return type == TrackType.CAMERA ? StructKind.MODIFIER : null;
+                return TrackTypeId.CAMERA.equals(type) ? StructKind.MODIFIER : null;
             case "transition_params":
-                return type == TrackType.CAMERA ? StructKind.TRANSITION_PARAMS : null;
+                return TrackTypeId.CAMERA.equals(type) ? StructKind.TRANSITION_PARAMS : null;
             case "transition_curve":
             case "motion_position":
             case "motion_yaw":
@@ -731,7 +737,7 @@ public class ScriptParser {
             case "motion_roll":
             case "motion_fov":
             case "motion_zoom":
-                return type == TrackType.CAMERA ? StructKind.MATH_MODEL : null;
+                return TrackTypeId.CAMERA.equals(type) ? StructKind.MATH_MODEL : null;
             case "rgb_curve":
             case "r_curve":
             case "g_curve":
@@ -758,7 +764,7 @@ public class ScriptParser {
      * 的属性原样保留（含插入顺序）。结构非法照旧抛 {@link ScriptParseException}，错误路径指向
      * {@code <clip>.objects.<path>.value}。</p>
      */
-    private static ClipObjects normalizeStructs(ClipObjects objects, JsonObject rawObjects, String p, TrackType type)
+    private static ClipObjects normalizeStructs(ClipObjects objects, JsonObject rawObjects, String p, TrackTypeId type)
             throws ScriptParseException {
         if (objects.isEmpty() || rawObjects == null) {
             return objects;
@@ -820,7 +826,7 @@ public class ScriptParser {
 
     // ========== Keyframe 解析（统一 schema 驱动）==========
 
-    private static Keyframe parseKeyframe(JsonObject obj, String p, TrackType type,
+    private static Keyframe parseKeyframe(JsonObject obj, String p, TrackTypeId type,
                                           boolean fadeOverlay, String overlayLayerType)
             throws ScriptParseException {
         float time = requireFloat(obj, p, "time");
@@ -839,7 +845,7 @@ public class ScriptParser {
                                 + " look_at_target_structure、方块用 look_at_target_block，偏移用 look_at_offset"
                                 + "（世界轴 dx/dy/dz / 基准坐标系 fwd/up/right）");
             }
-            if (type == TrackType.OVERLAY) {
+            if (TrackTypeId.OVERLAY.equals(type)) {
                 if (fadeOverlay) {
                     // 归属交叉检查：gradient / mask_shape / blend_mode 只属于 clip 级（color 两级都合法）
                     if (FADE_ONLY_CLIP_FIELDS.contains(fieldName)) {
@@ -858,7 +864,7 @@ public class ScriptParser {
                                     + "）：高级颜色遮罩只属于 layer_type=fade");
                 }
             }
-            if (type == TrackType.CAMERA) {
+            if (TrackTypeId.CAMERA.equals(type)) {
                 // 归属交叉检查：形状在 clip 级；几何严格有限 / 非负（不把非法值静默吞成缺省）。
                 if ("mask_shape".equals(fieldName)) {
                     throw new ScriptParseException(p + "." + fieldName,
@@ -887,7 +893,7 @@ public class ScriptParser {
                 throw new ScriptParseException(p + "." + e.getKey(), "缺少必填字段");
             }
         }
-        return new Keyframe(time, type, data);
+        return new Keyframe(time, data);
     }
 
     /** OVERLAY 的生效 layer_type：缺省 / 非字符串按运行期口径回落 {@code fade}（见 OverlayTrackPlayer.createLayer）。 */
@@ -1063,7 +1069,7 @@ public class ScriptParser {
      * 根据 schema 字段类型解析一个 JSON 值
      */
     private static Object parseFieldBySchema(String fieldName, JsonElement value, String p,
-                                              TrackType type, boolean isKeyframe, JsonObject kfObj)
+                                              TrackTypeId type, boolean isKeyframe, JsonObject kfObj)
             throws ScriptParseException {
         FieldDef def = isKeyframe
                 ? SchemaLoader.getKeyframeFields(type).get(fieldName)
@@ -1094,7 +1100,7 @@ public class ScriptParser {
 
         // CAMERA lane 遮罩形状（clip 级 mask_shape）：schema 里是 enum，但额外拦非法枚举值
         // （OVERLAY fade 的同名字段在 parseFadeClipField 已按同一口径严格读取，不会走到这里）
-        if (!isKeyframe && "mask_shape".equals(fieldName) && def != null && type == TrackType.CAMERA) {
+        if (!isKeyframe && "mask_shape".equals(fieldName) && def != null && TrackTypeId.CAMERA.equals(type)) {
             return parseMaskShape(value, p + "." + fieldName);
         }
 
@@ -1812,19 +1818,19 @@ public class ScriptParser {
     // ========== 轨道结构校验 ==========
 
     private static void validateTracks(List<TimelineTrack> tracks, String p) throws ScriptParseException {
-        long letterboxCount = tracks.stream().filter(t -> t.getType() == TrackType.LETTERBOX).count();
+        long letterboxCount = tracks.stream().filter(t -> TrackTypeId.LETTERBOX.equals(t.getType())).count();
         if (letterboxCount > 1) {
             com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Parse",
                     "检测到 " + letterboxCount + " 条 LETTERBOX 轨道，建议最多1条");
         }
-        long eventCount = tracks.stream().filter(t -> t.getType() == TrackType.EVENT).count();
+        long eventCount = tracks.stream().filter(t -> TrackTypeId.EVENT.equals(t.getType())).count();
         if (eventCount > 1) {
             com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Parse",
                     "检测到 " + eventCount + " 条 EVENT 轨道，建议最多1条");
         }
 
         for (TimelineTrack track : tracks) {
-            if (track.getType() == TrackType.CAMERA) {
+            if (TrackTypeId.CAMERA.equals(track.getType())) {
                 List<Clip> clips = track.getClips();
                 for (int i = 1; i < clips.size(); i++) {
                     Clip clip = clips.get(i);
@@ -1844,13 +1850,13 @@ public class ScriptParser {
 
     // ========== 枚举解析 ==========
 
-    private static TrackType parseTrackType(String value, String p) throws ScriptParseException {
-        try {
-            return TrackType.valueOf(value.toUpperCase());
-        } catch (IllegalArgumentException e) {
+    private static TrackTypeId parseTrackType(String value, String p) throws ScriptParseException {
+        TrackTypeId id = TrackRegistry.resolve(value);
+        if (id == null) {
             throw new ScriptParseException(p, "未知的轨道类型: " + value
-                    + "，支持: camera/letterbox/audio/event/mod_event/overlay/adjust");
+                    + "，支持: " + TrackRegistry.idListForMessage());
         }
+        return id;
     }
 
     // ========== JSON 辅助方法 ==========

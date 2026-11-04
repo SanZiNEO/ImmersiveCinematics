@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.script;
 import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.SchemaRegistry;
 import com.immersivecinematics.immersive_cinematics.script.schema.TrackTypeSchema;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +22,7 @@ public final class SchemaLoader {
      * @param type 轨道类型
      * @return 该类型的字段定义（clip 级 + 关键帧级）
      */
-    public static TrackTypeSchema get(TrackType type) {
+    public static TrackTypeSchema get(TrackTypeId type) {
         return SchemaRegistry.get(type);
     }
 
@@ -33,7 +34,7 @@ public final class SchemaLoader {
      * @param fieldName  字段名
      * @return 缺省值；字段不存在返回 {@code null}
      */
-    public static Object getDefaultValue(TrackType type, boolean isKeyframe, String fieldName) {
+    public static Object getDefaultValue(TrackTypeId type, boolean isKeyframe, String fieldName) {
         return SchemaRegistry.getDefaultValue(type, isKeyframe, fieldName);
     }
 
@@ -45,7 +46,7 @@ public final class SchemaLoader {
      * @param fieldName  字段名
      * @return 必填返回 true；字段不存在返回 false
      */
-    public static boolean isRequired(TrackType type, boolean isKeyframe, String fieldName) {
+    public static boolean isRequired(TrackTypeId type, boolean isKeyframe, String fieldName) {
         return SchemaRegistry.isRequired(type, isKeyframe, fieldName);
     }
 
@@ -57,7 +58,7 @@ public final class SchemaLoader {
      * @param fieldName  字段名
      * @return 存在返回 true
      */
-    public static boolean hasField(TrackType type, boolean isKeyframe, String fieldName) {
+    public static boolean hasField(TrackTypeId type, boolean isKeyframe, String fieldName) {
         return SchemaRegistry.hasField(type, isKeyframe, fieldName);
     }
 
@@ -67,7 +68,7 @@ public final class SchemaLoader {
      * @param type 轨道类型
      * @return 字段名 → 定义（只读视图）
      */
-    public static Map<String, FieldDef> getClipFields(TrackType type) {
+    public static Map<String, FieldDef> getClipFields(TrackTypeId type) {
         return SchemaRegistry.getClipFields(type);
     }
 
@@ -77,7 +78,7 @@ public final class SchemaLoader {
      * @param type 轨道类型
      * @return 字段名 → 定义（只读视图）
      */
-    public static Map<String, FieldDef> getKeyframeFields(TrackType type) {
+    public static Map<String, FieldDef> getKeyframeFields(TrackTypeId type) {
         return SchemaRegistry.getKeyframeFields(type);
     }
 
@@ -89,7 +90,7 @@ public final class SchemaLoader {
      * @param fieldName  字段名
      * @return 取值列表；字段不存在或非枚举返回空列表
      */
-    public static List<String> getEnumValues(TrackType type, boolean isKeyframe, String fieldName) {
+    public static List<String> getEnumValues(TrackTypeId type, boolean isKeyframe, String fieldName) {
         FieldDef def = isKeyframe ? getKeyframeFields(type).get(fieldName) : getClipFields(type).get(fieldName);
         return def != null ? def.enumValues() : Collections.emptyList();
     }

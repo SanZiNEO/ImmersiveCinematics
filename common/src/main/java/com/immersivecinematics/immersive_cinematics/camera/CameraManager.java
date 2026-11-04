@@ -3,9 +3,17 @@ package com.immersivecinematics.immersive_cinematics.camera;
 import com.immersivecinematics.immersive_cinematics.api.BaseCameraProvider;
 import com.immersivecinematics.immersive_cinematics.api.CameraApi;
 import com.immersivecinematics.immersive_cinematics.api.CameraState;
+import com.immersivecinematics.immersive_cinematics.api.PlaybackApi;
+import com.immersivecinematics.immersive_cinematics.api.PlaybackListener;
+import com.immersivecinematics.immersive_cinematics.api.ScriptInfo;
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraCoverChain;
+import com.immersivecinematics.immersive_cinematics.camera.cover.CameraModifier;
 import com.immersivecinematics.immersive_cinematics.control.ExitReason;
+import com.immersivecinematics.immersive_cinematics.script.CameraLane;
+import com.immersivecinematics.immersive_cinematics.script.CameraLaneComposite;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
+import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptCache;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.GameClock;
 import com.immersivecinematics.immersive_cinematics.util.PreviewClock;
 import net.minecraft.client.Camera;
@@ -13,17 +21,21 @@ import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /**
- * 相机门面：持有统一状态、双时钟与各播放组件，公开方法只转发；只读查询面见 {@link CameraApi}。
+ * 相机门面：持有统一状态、双时钟与各播放组件，公开方法只转发；只读查询面见 {@link CameraApi}，
+ * 对外的播放控制 / 监听面见 {@link PlaybackApi}。
  * 组件分工：{@link PlaybackRegistry} 实例列表、{@link PreviewChannel} 编辑器预览、{@link PlaybackLedger} 网络账本、
  * {@link PlaybackLifecycle} 生命周期与队列、{@link FrameDriver} 帧驱动、{@link ClientEntityProbe} tick / 渲染 pass 诊断；
  * {@link CameraStateHolder} 是六参数的唯一写入缓冲与统一快照来源（快照 = 覆盖链输出：先按优先级选胜出 Base 层，
  * 再按注册表合成 Modifier）。各转发方法的定义 / 缺省 / 边界见对应组件类 javadoc。
  * 线程契约：仅客户端主线程（渲染线程）。
  */
-public class CameraManager implements CameraApi {
+public class CameraManager implements CameraApi, PlaybackApi {
 
     /** 客户端单例。 */
     public static final CameraManager INSTANCE = new CameraManager();
@@ -106,6 +118,66 @@ public class CameraManager implements CameraApi {
     /** 紧急停止（世界退出/断线）：跳过退场动画直接清理全部实例，防止 OpenAL 音频残留。 */
     public void emergencyStop() { lifecycle.emergencyStop(); }
 
+    // ========== 对外播放 API（PlaybackApi）==========
+    /**
+     * {@inheritDoc}
+     *
+     * <p>脚本取自客户端缓存（{@link ClientScriptCache}）；未缓存的 id 直接 {@code -1}。
+     * 底层 {@code 0}（被拒绝）在此统一折为 {@code -1}，因此调用方只会看到 {@code 1} / {@code 2} / {@code -1}。
+     */
+    @Override
+    public int play(String scriptId, String instanceId) {
+        if (scriptId == null || scriptId.isBlank()) return -1;
+        CinematicScript script = ClientScriptCache.getScript(scriptId);
+        if (script == null) return -1;
+        int result = playCinematic(script, instanceId == null ? "" : instanceId);
+        return result == 0 ? -1 : result;
+    }
+
+    @Override
+    public boolean stop(String scriptId, String instanceId) {
+        if (scriptId == null) return false;
+        return stopScriptById(scriptId, instanceId == null ? "" : instanceId);
+    }
+
+    /** 立即停用全部活跃实例：先快照实例表再逐个停用（停用可能接播队列，避免边遍历边增删）；单个失败不影响其余。 */
+    @Override
+    public void stopAll() {
+        List<PlaybackInstance> snapshot = new ArrayList<>(instances());
+        for (int i = 0; i < snapshot.size(); i++) {
+            PlaybackInstance instance = snapshot.get(i);
+            try {
+                stopScriptById(instance.scriptId(), instance.instanceId());
+            } catch (RuntimeException e) {
+                ErrorLog.logRateLimited("Playback", "stopAll", 5000L,
+                        "stopAll 停止实例失败: script=" + instance.scriptId() + " instance=" + instance.instanceId(), e);
+            }
+        }
+    }
+
+    @Override
+    public boolean isPlaying() { return isScriptMode(); }
+
+    /** 客户端缓存快照 → 元信息，按 id 升序；返回不可变列表。 */
+    @Override
+    public List<ScriptInfo> scripts() {
+        Map<String, CinematicScript> cached = ClientScriptCache.snapshot();
+        List<ScriptInfo> result = new ArrayList<>(cached.size());
+        for (CinematicScript script : cached.values()) {
+            if (script != null) {
+                result.add(ScriptInfo.of(script));
+            }
+        }
+        result.sort(Comparator.comparing(info -> info.id() == null ? "" : info.id()));
+        return List.copyOf(result);
+    }
+
+    @Override
+    public void addListener(PlaybackListener listener) { PlaybackListeners.add(listener); }
+
+    @Override
+    public boolean removeListener(PlaybackListener listener) { return PlaybackListeners.remove(listener); }
+
     // ========== 编辑器播放（PreviewChannel）==========
     public void pushScript(String jsonContent) { previewChannel.pushScript(jsonContent); }
     /** 编辑器定位（seek）：编辑器播放头跳到 {@code seconds} 秒并保持编辑器播放激活、暂停。 */
@@ -143,6 +215,22 @@ public class CameraManager implements CameraApi {
         entityProbe.onRenderPass(renderer, frustum, camera);
     }
 
+    // ========== 覆盖链注册（对外注册门面转发；仅初始化期） ==========
+    /**
+     * 登记一层 Base 相机。null 校验与注册时机（冻结）判定在对外门面
+     * {@code api.ImmersiveCinematicsApi}；本方法只转发覆盖链。线程 = 客户端主线程。
+     */
+    public void registerBaseCamera(BaseCameraProvider provider) { coverChain.register(provider); }
+
+    /** 注销一层 Base 相机；未注册过时为无操作。线程 = 客户端主线程。 */
+    public void unregisterBaseCamera(BaseCameraProvider provider) { coverChain.unregister(provider); }
+
+    /** 登记一条相机 Modifier；按优先级升序插入。线程 = 客户端主线程。 */
+    public void registerCameraModifier(CameraModifier modifier) { coverChain.register(modifier); }
+
+    /** 注销一条相机 Modifier；未注册过时为无操作。线程 = 客户端主线程。 */
+    public void unregisterCameraModifier(CameraModifier modifier) { coverChain.unregister(modifier); }
+
     // ========== 全局相机状态 ==========
     /** 脚本导演写侧：顶层 clip 本帧六参数写入全局写入缓冲 + 同步链上的当前值（不刷新快照）。 */
     public void setScriptState(CameraState state, boolean suppressModifiers) {
@@ -159,6 +247,45 @@ public class CameraManager implements CameraApi {
      */
     @Override
     public CameraState getCameraState() { return stateHolder.snapshot(); }
+
+    /**
+     * 顶层实例本帧最上层 CAMERA lane 的合成参数（不透明度 / 目标矩形 / 素材矩形 / 遮罩）；无活跃相机片段时为
+     * {@code null}。
+     *
+     * <p>只读：直接读本帧已有的 lane 快照（{@code ScriptPlayer.activeCameraLanes()}，源自各
+     * {@code CameraTrackPlayer.getLaneSnapshots()}），不重新求值、不新建集合；同一帧内与
+     * {@link #getCameraState()} 一致。「最上层」= 跨轨拼接顺序的最后一个 lane（轨道顺序 + 轨道内 clip 顺序），
+     * 与渲染叠放次序一致。</p>
+     *
+     * <p>旧格式片段的 lane 合成参数为 {@code null}（渲染侧按旧插值器取值），此处回落
+     * {@link CameraLaneComposite#DEFAULT}——即旧链路缺省（全屏 / 不透明 / full mask），与渲染侧同义；
+     * 因此本方法只在无活跃 lane 时返回 {@code null}。</p>
+     */
+    @Override
+    public CameraLaneComposite getLaneComposite() {
+        PlaybackInstance top = activeInstance();
+        if (top == null) return null;
+        List<CameraLane> lanes = top.player().activeCameraLanes();
+        if (lanes.isEmpty()) return null;
+        CameraLaneComposite composite = lanes.get(lanes.size() - 1).composite();
+        return composite != null ? composite : CameraLaneComposite.DEFAULT;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>只读转发覆盖链：取上一次 {@code evaluate} 记下的胜出 Base 层；无胜出者时 {@code null}。
+     * 不重新选择、不重复求值。</p>
+     *
+     * <p>无活跃播放实例时覆盖链本帧不求值（{@link #refreshCameraState()} 直接置 {@code null}），
+     * 链上保留的是上一帧的选择结果；因此这里先按 {@link #isActive()} 门控，避免暴露结束后的陈旧标识。</p>
+     */
+    @Override
+    public String getActiveBaseProvider() {
+        if (!isActive()) return null;
+        return coverChain.activeProviderId();
+    }
+
     /**
      * 本帧链上是否有 Modifier 参与合成（消费方 = 合成顺序末位 lane 的覆盖链输出替换位：
      * 有 Modifier 时该 lane 取链输出）。

@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -60,9 +62,9 @@ public class Timeline {
      * @param type 轨道类型
      * @return 匹配的轨道，可能为空
      */
-    public Optional<TimelineTrack> findTrack(TrackType type) {
+    public Optional<TimelineTrack> findTrack(TrackTypeId type) {
         return tracks.stream()
-                .filter(t -> t.getType() == type)
+                .filter(t -> type.equals(t.getType()))
                 .findFirst();
     }
 
@@ -72,7 +74,7 @@ public class Timeline {
      * @return Camera 轨道，可能为空
      */
     public Optional<TimelineTrack> getCameraTrack() {
-        return findTrack(TrackType.CAMERA);
+        return findTrack(TrackTypeId.CAMERA);
     }
 
     /**
@@ -81,7 +83,7 @@ public class Timeline {
      * @return Letterbox 轨道，可能为空
      */
     public Optional<TimelineTrack> getLetterboxTrack() {
-        return findTrack(TrackType.LETTERBOX);
+        return findTrack(TrackTypeId.LETTERBOX);
     }
 
     /**
@@ -91,7 +93,7 @@ public class Timeline {
      */
     public List<TimelineTrack> getAudioTracks() {
         return tracks.stream()
-                .filter(t -> t.getType() == TrackType.AUDIO)
+                .filter(t -> TrackTypeId.AUDIO.equals(t.getType()))
                 .toList();
     }
 
@@ -101,7 +103,7 @@ public class Timeline {
      * @return Event 轨道，可能为空
      */
     public Optional<TimelineTrack> getEventTrack() {
-        return findTrack(TrackType.EVENT);
+        return findTrack(TrackTypeId.EVENT);
     }
 
     /**
@@ -111,7 +113,7 @@ public class Timeline {
      */
     public List<TimelineTrack> getModEventTracks() {
         return tracks.stream()
-                .filter(t -> t.getType() == TrackType.MOD_EVENT)
+                .filter(t -> TrackTypeId.MOD_EVENT.equals(t.getType()))
                 .toList();
     }
 

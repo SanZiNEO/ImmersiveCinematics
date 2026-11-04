@@ -9,6 +9,9 @@ import com.immersivecinematics.immersive_cinematics.script.execution.ClipExecuti
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipTimeSource;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledClip;
+import com.immersivecinematics.immersive_cinematics.script.track.TrackDriver;
+import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import com.immersivecinematics.immersive_cinematics.util.Clock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.sounds.SoundEvent;
@@ -30,11 +33,11 @@ import org.slf4j.LoggerFactory;
 /**
  * 脚本播放器 —— 驱动 {@link CinematicScript} 的运行时播放。
  *
- * 管理播放时间（按本实例的 {@link Clock} 换算）；创建并调度 {@link TrackPlayer} 实例
+ * 管理播放时间（按本实例的 {@link Clock} 换算）；创建并调度 {@link TrackDriver} 实例
  * （相机 / 黑边 / 音频 / 事件）；持有当前脚本的运行时行为（{@link ScriptMeta.RuntimeBehavior}）；
  * 处理脚本结束与 {@code hold_at_end} 驻留。宏观循环开启时对外分发圈内局部时间。
  *
- * 轨道处理全部在各自的 TrackPlayer 内完成，本类只做调度与时间 / 内容事实的账本。
+ * 轨道处理全部在各自的 TrackDriver 内完成，本类只做调度与时间 / 内容事实的账本。
  */
 public class ScriptPlayer implements ClipTimeSource {
 
@@ -73,7 +76,7 @@ public class ScriptPlayer implements ClipTimeSource {
     // 相对模式基准位置（玩家激活时的位置）
     private Vec3 originPos = Vec3.ZERO;
 
-    // 玩家移动控制（EVENT 关键帧 position 驱动，假输入走原版链路；不建 TrackPlayer，直接读 EVENT 轨道数据）
+    // 玩家移动控制（EVENT 关键帧 position 驱动，假输入走原版链路；不建 TrackDriver，直接读 EVENT 轨道数据）
     private final PlayerMoveController playerMovement = new PlayerMoveController();
 
     /**
@@ -146,17 +149,23 @@ public class ScriptPlayer implements ClipTimeSource {
 
     private boolean stopping = false;
 
-    // TrackPlayer 调度列表
-    private List<TrackPlayer> trackPlayers = Collections.emptyList();
+    // TrackDriver 调度列表
+    private List<TrackDriver> trackPlayers = Collections.emptyList();
 
     /** 本帧活跃 CAMERA 片段的拼接缓冲（{@link #collectActiveCameraClips()} 复用；调用方可当帧追加）。 */
     private final List<Clip> activeCameraClips = new ArrayList<>();
+
+    /** 本帧活跃 CAMERA lane 的拼接缓冲（{@link #activeCameraLanes()} 复用；仅本帧有效）。 */
+    private final List<CameraLane> activeCameraLanes = new ArrayList<>(2);
+
+    /** {@link #activeCameraLanes} 的只读视图（零分配；内容随上面的缓冲每次刷新）。 */
+    private final List<CameraLane> activeCameraLanesView = Collections.unmodifiableList(activeCameraLanes);
 
     /**
      * CAMERA lane 调色的对象采样缓存：仅 {@code lane.clip().hasObjects()} 时使用（旧格式 lane 仍走
      * {@link ColorAdjustSampler#sample(Clip, double)}，像素路径不变）。脚本替换 / 停播时清空。
      */
-    private final ClipRuntimeCache cameraLaneRuntime = new ClipRuntimeCache(TrackType.CAMERA);
+    private final ClipRuntimeCache cameraLaneRuntime = new ClipRuntimeCache(TrackTypeId.CAMERA);
     private final ColorAdjustSampler.CurveCache cameraLaneCurves = new ColorAdjustSampler.CurveCache();
 
     /**
@@ -175,8 +184,8 @@ public class ScriptPlayer implements ClipTimeSource {
     }
 
     /**
-     * 增量替换脚本数据（编辑器编辑路径）：只替换 {@link CinematicScript} 引用并通知各 TrackPlayer
-     * 复位 / 重映射，不重建 TrackPlayer、不重新解码音频；相机 / 音频在下一帧用新数据驱动。
+     * 增量替换脚本数据（编辑器编辑路径）：只替换 {@link CinematicScript} 引用并通知各 TrackDriver
+     * 复位 / 重映射，不重建 TrackDriver、不重新解码音频；相机 / 音频在下一帧用新数据驱动。
      */
     public void replaceScript(CinematicScript newScript) {
         if (newScript == null) return;
@@ -193,7 +202,7 @@ public class ScriptPlayer implements ClipTimeSource {
         this.computeMacroLoop();
 
         if (layoutChanged) {
-            // 轨道布局变化(轨道数/类型顺序不同):旧 TrackPlayer 绑定的轨道索引对新脚本失效,
+            // 轨道布局变化(轨道数/类型顺序不同):旧 TrackDriver 绑定的轨道索引对新脚本失效,
             // 必须重建——否则编辑器加载不同轨道结构的脚本后,OVERLAY/AUDIO 等会读到错位/越界的轨道
             // (症状:OVERLAY 层不出现、AUDIO 把字幕轨当音频报错)
             Minecraft mc = Minecraft.getInstance();
@@ -201,11 +210,11 @@ public class ScriptPlayer implements ClipTimeSource {
             cleanupTrackPlayers();
             buildTrackPlayers(newScript);
         } else {
-            for (TrackPlayer tp : trackPlayers) {
+            for (TrackDriver tp : trackPlayers) {
                 try {
                     tp.onScriptReplaced();
                 } catch (Exception e) {
-                    com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackPlayer onScriptReplaced 异常", e);
+                    com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackDriver onScriptReplaced 异常", e);
                 }
             }
         }
@@ -219,37 +228,40 @@ public class ScriptPlayer implements ClipTimeSource {
     private static boolean sameTrackLayout(List<TimelineTrack> a, List<TimelineTrack> b) {        if (a == null || b == null) return false;
         if (a.size() != b.size()) return false;
         for (int i = 0; i < a.size(); i++) {
-            if (a.get(i).getType() != b.get(i).getType()) return false;
+            if (!a.get(i).getType().equals(b.get(i).getType())) return false;
         }
         return true;
     }
 
-    /** 按脚本轨道创建 TrackPlayer(跳过 EVENT 轨道;trackIndex 用原始轨道索引,轨道布局变化时必须重建) */
+    /** 按脚本轨道创建 TrackDriver(跳过 EVENT 轨道;trackIndex 用原始轨道索引,轨道布局变化时必须重建) */
     private void buildTrackPlayers(CinematicScript script) {
         trackPlayers = new ArrayList<>();
         List<TimelineTrack> tracks = script.getTimeline().getTracks();
         for (int ti = 0; ti < tracks.size(); ti++) {
             TimelineTrack track = tracks.get(ti);
-            if (track.getType() != TrackType.EVENT) {  // event 轨道不在客户端处理
-                trackPlayers.add(TrackPlayer.create(track.getType(), this, originPos,
-                        CameraManager.INSTANCE, OverlayManager.INSTANCE, ti));
+            // EVENT 轨道不在客户端处理：TrackRegistry.createDriver 对它返回 null
+            TrackDriver driver = TrackRegistry.createDriver(track.getType(), this, originPos,
+                    CameraManager.INSTANCE, OverlayManager.INSTANCE, ti);
+            if (driver != null) {
+                trackPlayers.add(driver);
             }
         }
     }
 
     // ========== 生命周期 ==========
 
-    /** 停止并清空当前所有 TrackPlayer（start 前与 stop 时共用，防音频实例泄漏）；一次性声音宿主一并清理。 */
+    /** 停止并清空当前所有 TrackDriver（start 前与 stop 时共用，防音频实例泄漏）；一次性声音宿主一并清理。 */
     private void cleanupTrackPlayers() {
-        for (TrackPlayer tp : trackPlayers) {
+        for (TrackDriver tp : trackPlayers) {
             try {
                 tp.onStop();
             } catch (Exception e) {
-                com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackPlayer 停止异常", e);
+                com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackDriver 停止异常", e);
             }
         }
         trackPlayers = Collections.emptyList();
         activeCameraClips.clear();
+        activeCameraLanes.clear();
         cameraLaneRuntime.clear();
         cameraLaneCurves.clear();
         if (oneShotHost != null) {
@@ -330,7 +342,7 @@ public class ScriptPlayer implements ClipTimeSource {
             }
         }
 
-        // 创建 TrackPlayer 实例（replaceScript 复用；传轨道索引支持同类型多轨道）
+        // 创建 TrackDriver 实例（replaceScript 复用；传轨道索引支持同类型多轨道）
         buildTrackPlayers(script);
 
         // 玩家移动控制：提取 EVENT position 关键帧
@@ -339,17 +351,17 @@ public class ScriptPlayer implements ClipTimeSource {
         // 预执行第一帧（避免首帧闪烁）— 用调用方期望的 elapsed（编辑器播放 = previewTime，避免 t=0 跳变）
         double elapsedSeconds = preExecuteAt;
         timelineTime = elapsedSeconds;
-        for (TrackPlayer tp : trackPlayers) {
+        for (TrackDriver tp : trackPlayers) {
             if (tp.isActiveAt(elapsedSeconds)) {
                 try {
                     tp.onRenderFrame(elapsedSeconds);
                 } catch (Exception e) {
-                    com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackPlayer 首帧执行异常", e);
+                    com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackDriver 首帧执行异常", e);
                 }
             }
         }
 
-        LOGGER.info("脚本播放开始: {} (总时长: {}s, TrackPlayer数: {})",
+        LOGGER.info("脚本播放开始: {} (总时长: {}s, TrackDriver数: {})",
                 script.getName(), script.getTotalDuration(), trackPlayers.size());
     }
 
@@ -358,7 +370,7 @@ public class ScriptPlayer implements ClipTimeSource {
             LOGGER.info("脚本播放停止: {} (原因: {})", script.getName(), reason);
         }
 
-        // 通知所有 TrackPlayer 停止并清空
+        // 通知所有 TrackDriver 停止并清空
         cleanupTrackPlayers();
         // LUT：本脚本的 clip 引用释放（按路径共享的解析缓存不动；资源重载走 CubeLutLoader#clearCache）
         releaseLutClipRefs(this.script);
@@ -448,7 +460,7 @@ public class ScriptPlayer implements ClipTimeSource {
     public List<LaneFrame> collectCameraLanes() {
         List<LaneFrame> frames = new ArrayList<>();
         int cameraLaneIndex = -1;
-        for (TrackPlayer tp : trackPlayers) {
+        for (TrackDriver tp : trackPlayers) {
             if (tp instanceof CameraTrackPlayer ctp) {
                 cameraLaneIndex++;
                 for (CameraLane lane : ctp.getLaneSnapshots()) {
@@ -482,7 +494,7 @@ public class ScriptPlayer implements ClipTimeSource {
      */
     public List<Clip> collectActiveCameraClips() {
         activeCameraClips.clear();
-        for (TrackPlayer tp : trackPlayers) {
+        for (TrackDriver tp : trackPlayers) {
             if (tp instanceof CameraTrackPlayer ctp) {
                 activeCameraClips.addAll(ctp.frameActiveClips());
             }
@@ -490,12 +502,31 @@ public class ScriptPlayer implements ClipTimeSource {
         return activeCameraClips;
     }
 
+    /**
+     * 本帧全部活跃 CAMERA 轨的 lane 快照（各 {@link CameraTrackPlayer#getLaneSnapshots()} 按轨道顺序拼接，
+     * 不可变视图）。拼接顺序 = 轨道注册顺序、轨道内 = clip 顺序，因此**最后一个是叠放最上层的 lane**；
+     * 这是跨轨叠放的渲染顺序口径，不是「主相机」（每条 lane 仍用各自片段的相机）。
+     *
+     * <p>只读复用缓冲：返回的是只读视图，内容仅本帧有效（下一次调用即刷新），调用方不得持有跨帧使用。</p>
+     *
+     * @return lane 快照列表（可能为空；不新建集合，不重新求值相机）
+     */
+    public List<CameraLane> activeCameraLanes() {
+        activeCameraLanes.clear();
+        for (TrackDriver tp : trackPlayers) {
+            if (tp instanceof CameraTrackPlayer ctp) {
+                activeCameraLanes.addAll(ctp.getLaneSnapshots());
+            }
+        }
+        return activeCameraLanesView;
+    }
+
     public boolean hasActiveCameraTrack(double elapsed) {
         // 宏观循环：渲染门控（相机/FOV/roll/遮挡/玩家模型）必须与实际分发给轨道的时间一致，
         // 否则第二圈起 hasActiveCameraClip() 变 false → 相机不渲染
         double t = localTimeFor(elapsed);
         if (Double.isNaN(t)) return false; // 有限次数已播完：不渲染，等自然结束
-        for (TrackPlayer tp : trackPlayers) {
+        for (TrackDriver tp : trackPlayers) {
             if (tp instanceof CameraTrackPlayer && tp.isActiveAt(t)) {
                 return true;
             }
@@ -527,7 +558,7 @@ public class ScriptPlayer implements ClipTimeSource {
 
         if (isMacroLoopActive()) {
             // 宏观循环（repeat）：从 a 到 b 重复执行；对外分发的一律是圈内局部时间。
-            // 作用点唯一——TrackPlayer / PlayerMoveController 拿到的是圈内局部时间，不感知循环。
+            // 作用点唯一——TrackDriver / PlayerMoveController 拿到的是圈内局部时间，不感知循环。
             double local = localTimeFor(elapsedSeconds);
             if (Double.isNaN(local)) {
                 // 有限次数已播完：isFinished() 为 true，由 CameraManager 走自然结束
@@ -537,12 +568,12 @@ public class ScriptPlayer implements ClipTimeSource {
             boolean folded = !Double.isNaN(lastLocalElapsed) && local < lastLocalElapsed;
             if (folded) {
                 playerMovement.onScriptLoop();
-                for (TrackPlayer tp : trackPlayers) {
+                for (TrackDriver tp : trackPlayers) {
                     try {
                         tp.onLoopRestart();
                     } catch (Exception e) {
                         com.immersivecinematics.immersive_cinematics.util.ErrorLog.log(
-                                "Playback", "TrackPlayer onLoopRestart 异常", e);
+                                "Playback", "TrackDriver onLoopRestart 异常", e);
                     }
                 }
             }
@@ -577,13 +608,13 @@ public class ScriptPlayer implements ClipTimeSource {
             }
         }
 
-        // 调度所有 TrackPlayer（onRenderFrame 内部自行判断是否有活跃 clip，无需 isActiveAt() 预检查）
+        // 调度所有 TrackDriver（onRenderFrame 内部自行判断是否有活跃 clip，无需 isActiveAt() 预检查）
         timelineTime = elapsedSeconds;
-        for (TrackPlayer tp : trackPlayers) {
+        for (TrackDriver tp : trackPlayers) {
             try {
                 tp.onRenderFrame(elapsedSeconds);
             } catch (Exception e) {
-                com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackPlayer 执行异常", e);
+                com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackDriver 执行异常", e);
             }
         }
         // 一次性声音（规则动作 play_sound）的帧内回收：已播完的从容器移除
@@ -641,15 +672,15 @@ public class ScriptPlayer implements ClipTimeSource {
     }
 
     /**
-     * 编辑器 seek：本实例各轨道按时间推进的派生状态归位（相机运动模型实例经 {@link TrackPlayer#onSeek()}），
+     * 编辑器 seek：本实例各轨道按时间推进的派生状态归位（相机运动模型实例经 {@link TrackDriver#onSeek()}），
      * 使之后从 seek 点重新推进；时钟基准由 {@link #alignTime} 单独调整。
      */
     public void onSeek() {
-        for (TrackPlayer tp : trackPlayers) {
+        for (TrackDriver tp : trackPlayers) {
             try {
                 tp.onSeek();
             } catch (Exception e) {
-                com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackPlayer onSeek 异常", e);
+                com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Playback", "TrackDriver onSeek 异常", e);
             }
         }
     }
@@ -664,7 +695,7 @@ public class ScriptPlayer implements ClipTimeSource {
      */
     public void playOneShot(SoundEvent sound, SoundSource category, float volume, float pitch) {
         if (oneShotHost == null) {
-            oneShotHost = new AudioTrackPlayer(this, TrackType.AUDIO, Vec3.ZERO, -1);
+            oneShotHost = new AudioTrackPlayer(this, Vec3.ZERO, -1);
         }
         oneShotHost.playOneShot(sound, category, volume, pitch);
     }
@@ -680,7 +711,7 @@ public class ScriptPlayer implements ClipTimeSource {
      * 暂停所有音频轨道（游戏暂停时调用）
      */
     public void pauseAudio() {
-        for (TrackPlayer tp : trackPlayers) {
+        for (TrackDriver tp : trackPlayers) {
             if (tp instanceof AudioTrackPlayer atp) {
                 atp.pauseAll();
             }
@@ -691,7 +722,7 @@ public class ScriptPlayer implements ClipTimeSource {
      * 恢复所有音频轨道（游戏恢复时调用）
      */
     public void resumeAudio() {
-        for (TrackPlayer tp : trackPlayers) {
+        for (TrackDriver tp : trackPlayers) {
             if (tp instanceof AudioTrackPlayer atp) {
                 atp.resumeAll();
             }
@@ -700,7 +731,7 @@ public class ScriptPlayer implements ClipTimeSource {
 
     /** 把音频轨道重定位到新的全局时间（编辑器拖动播放头时由 {@code CameraManager} 调用）。 */
     public void repositionAudio(double globalTime) {
-        for (TrackPlayer tp : trackPlayers) {
+        for (TrackDriver tp : trackPlayers) {
             if (tp instanceof AudioTrackPlayer atp) {
                 atp.repositionAudio(globalTime);
             }

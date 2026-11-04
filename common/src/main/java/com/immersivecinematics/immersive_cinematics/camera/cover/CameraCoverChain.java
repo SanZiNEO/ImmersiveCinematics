@@ -39,6 +39,9 @@ public final class CameraCoverChain {
     /** 本帧胜出 Base 层的档位（{@link #evaluate} 刷新；无活跃 Base 时为 {@link Integer#MIN_VALUE}）。 */
     private int winnerPriority = Integer.MIN_VALUE;
 
+    /** 本帧胜出 Base 层对象（{@link #evaluate} 刷新；无活跃 Base / 本帧未求值为 {@code null}）——仅诊断用。 */
+    private BaseCameraProvider winner = null;
+
     /** 注册一层 Base；同一实例重复注册 = 多份（注销按对象逐个移除）。 */
     public void register(BaseCameraProvider provider) {
         providers.add(provider);
@@ -78,7 +81,7 @@ public final class CameraCoverChain {
      * @return {@code false} = 无活跃 Base（{@code out} 未改动）
      */
     public boolean evaluate(CameraStateBuffer out) {
-        BaseCameraProvider winner = selectWinner();
+        winner = selectWinner();
         if (winner == null) {
             modifiersApplied = false;
             winnerPriority = Integer.MIN_VALUE;
@@ -105,6 +108,16 @@ public final class CameraCoverChain {
      */
     public int winnerPriority() {
         return winnerPriority;
+    }
+
+    /**
+     * 本帧胜出的 Base 层标识；无胜出者返回 {@code null}。仅诊断用，不参与求值。
+     *
+     * <p>值取自胜出层的 {@link BaseCameraProvider#providerId()}，源自上一次 {@link #evaluate} 的选择结果——
+     * 本方法不重新选择、不重复求值。本帧尚未求值（或求值时无活跃 Base）时返回 {@code null}。</p>
+     */
+    public String activeProviderId() {
+        return winner == null ? null : winner.providerId();
     }
 
     /**

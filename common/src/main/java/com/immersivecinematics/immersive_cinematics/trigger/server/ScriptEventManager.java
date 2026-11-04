@@ -6,7 +6,7 @@ import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.ScriptManager;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import com.immersivecinematics.immersive_cinematics.script.event.EventClipRuntime;
 import com.immersivecinematics.immersive_cinematics.script.event.EventRecord;
 import com.immersivecinematics.immersive_cinematics.script.event.EventSeekPlan;
@@ -602,7 +602,7 @@ public class ScriptEventManager {
     private List<Clip> extractEventClips(CinematicScript script) {
         List<Clip> clips = new ArrayList<>();
         for (TimelineTrack track : script.getTimeline().getTracks()) {
-            if (track.getType() == TrackType.EVENT) {
+            if (TrackTypeId.EVENT.equals(track.getType())) {
                 clips.addAll(track.getClips());
             }
         }

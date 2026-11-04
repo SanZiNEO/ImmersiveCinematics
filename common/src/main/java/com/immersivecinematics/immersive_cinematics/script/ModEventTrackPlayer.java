@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
 import com.immersivecinematics.immersive_cinematics.script.event.EventClipRuntime;
+import com.immersivecinematics.immersive_cinematics.script.track.TrackDriver;
 
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -11,19 +12,17 @@ import java.util.Map;
  * <p>格式与编译仍然完整：{@link #runtimeFor(Clip)} 返回该片段 {@code objects.mod_event} 的
  * 编译结果（记录 + 稳定身份 + 游标），第三方以后可以接；本播放器自身不消费、不推进游标。</p>
  */
-public class ModEventTrackPlayer implements TrackPlayer {
+public class ModEventTrackPlayer implements TrackDriver {
 
     private final ScriptPlayer scriptPlayer;
-    private final TrackType type;
     private final int trackIndex;
     /** 每片段一份编译结果，按片段对象身份缓存。 */
     private final Map<Clip, EventClipRuntime> runtimes = new IdentityHashMap<>();
     /** 本播放器的实例令牌（事件身份的一部分）。 */
     private final Object instanceToken = new Object();
 
-    public ModEventTrackPlayer(ScriptPlayer scriptPlayer, TrackType type, int trackIndex) {
+    public ModEventTrackPlayer(ScriptPlayer scriptPlayer, int trackIndex) {
         this.scriptPlayer = scriptPlayer;
-        this.type = type;
         this.trackIndex = trackIndex;
     }
 

@@ -1,4 +1,4 @@
-package com.immersivecinematics.immersive_cinematics.script.object;
+package com.immersivecinematics.immersive_cinematics.spi;
 
 /**
  * 采样属性的值类型。

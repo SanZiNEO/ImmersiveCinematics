@@ -12,7 +12,7 @@ import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipBranchController;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipBranchHost;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipExecution;
@@ -276,7 +276,7 @@ public final class PlaybackInstance implements ClipBranchHost {
                                                    DoubleSupplier timelineTime) {
         List<ClipModifierGate> collected = new ArrayList<>();
         for (TimelineTrack track : script.getTimeline().getTracks()) {
-            if (track.getType() != TrackType.CAMERA) continue;
+            if (!TrackTypeId.CAMERA.equals(track.getType())) continue;
             List<Clip> clips = track.getClips();
             for (int i = 0; i < clips.size(); i++) {
                 ClipModifier declaration = clips.get(i).getModifier();

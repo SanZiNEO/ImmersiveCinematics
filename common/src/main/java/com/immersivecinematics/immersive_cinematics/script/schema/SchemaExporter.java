@@ -8,7 +8,6 @@ import com.google.gson.JsonPrimitive;
 import com.immersivecinematics.immersive_cinematics.camera.rule.RuleActions;
 import com.immersivecinematics.immersive_cinematics.math.path.PathCapability;
 import com.immersivecinematics.immersive_cinematics.script.ContinuitySpec;
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
 import com.immersivecinematics.immersive_cinematics.script.TriggerDefinition;
 import com.immersivecinematics.immersive_cinematics.script.identity.ClipIdentity;
 import com.immersivecinematics.immersive_cinematics.script.path.PathCollectionParser;
@@ -18,6 +17,9 @@ import com.immersivecinematics.immersive_cinematics.script.rule.RuleControl;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleDefinition;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleReleaseKind;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleSchedule;
+import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
+import com.immersivecinematics.immersive_cinematics.spi.ObjectDef;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -41,14 +43,14 @@ public final class SchemaExporter {
         root.add("meta", exportFields(SchemaRegistry.getMetaFields()));
 
         JsonObject tracks = new JsonObject();
-        for (TrackType type : TrackType.values()) {
+        for (TrackTypeId type : TrackRegistry.registered()) {
             TrackTypeSchema schema = SchemaRegistry.get(type);
             JsonObject track = new JsonObject();
             track.add("clips", exportFields(schema.clipFields()));
             track.add("keyframes", exportFields(schema.kfFields()));
             track.add("playControl", exportFields(schema.playControl()));
             track.add("objects", exportObjects(schema.objects()));
-            tracks.add(type.name(), track);
+            tracks.add(type.id(), track);
         }
         root.add("tracks", tracks);
 
@@ -302,9 +304,9 @@ public final class SchemaExporter {
     }
 
     private static String[] trackTypeNames() {
-        TrackType[] types = TrackType.values();
-        String[] names = new String[types.length];
-        for (int i = 0; i < types.length; i++) names[i] = types[i].name();
+        List<TrackTypeId> types = TrackRegistry.registered();
+        String[] names = new String[types.size()];
+        for (int i = 0; i < names.length; i++) names[i] = types.get(i).id();
         return names;
     }
 

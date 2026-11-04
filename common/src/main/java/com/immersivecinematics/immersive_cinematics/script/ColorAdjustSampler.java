@@ -3,9 +3,10 @@ package com.immersivecinematics.immersive_cinematics.script;
 import com.immersivecinematics.immersive_cinematics.client.post.ColorAdjustParams;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectSlotLayout;
-import com.immersivecinematics.immersive_cinematics.script.object.PropertyType;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledClip;
-import com.immersivecinematics.immersive_cinematics.script.schema.ObjectDef;
+import com.immersivecinematics.immersive_cinematics.spi.ObjectDef;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -60,10 +61,10 @@ public final class ColorAdjustSampler {
             "hue_cyan", "sat_cyan", "hue_blue", "sat_blue", "hue_magenta", "sat_magenta",
             "grayscale", "invert"};
 
-    private static final int[] ADJUST_SLOTS = resolveSlots(TrackType.ADJUST, ADJUST_CHANNEL_NAMES);
-    private static final int[] CAMERA_SLOTS = resolveSlots(TrackType.CAMERA, CAMERA_CHANNEL_NAMES);
-    private static final float[] ADJUST_DEFAULTS = resolveDefaults(TrackType.ADJUST, ADJUST_SLOTS);
-    private static final float[] CAMERA_DEFAULTS = resolveDefaults(TrackType.CAMERA, CAMERA_SLOTS);
+    private static final int[] ADJUST_SLOTS = resolveSlots(TrackTypeId.ADJUST, ADJUST_CHANNEL_NAMES);
+    private static final int[] CAMERA_SLOTS = resolveSlots(TrackTypeId.CAMERA, CAMERA_CHANNEL_NAMES);
+    private static final float[] ADJUST_DEFAULTS = resolveDefaults(TrackTypeId.ADJUST, ADJUST_SLOTS);
+    private static final float[] CAMERA_DEFAULTS = resolveDefaults(TrackTypeId.CAMERA, CAMERA_SLOTS);
 
     private ColorAdjustSampler() {
     }
@@ -258,7 +259,7 @@ public final class ColorAdjustSampler {
     }
 
     /** 按槽位解析 schema 缺省值（通道缺省只有 0 / 1 两种，仍按声明读取，避免硬编码）。 */
-    private static float[] resolveDefaults(TrackType type, int[] slots) {
+    private static float[] resolveDefaults(TrackTypeId type, int[] slots) {
         List<ObjectDef> defs = ObjectSlotLayout.of(type).defs();
         float[] defaults = new float[slots.length];
         for (int i = 0; i < slots.length; i++) {
@@ -269,7 +270,7 @@ public final class ColorAdjustSampler {
     }
 
     /** 按名字把通道名解析成槽位；类加载时执行一次，缺声明 = 编程错误（fail fast）。 */
-    private static int[] resolveSlots(TrackType type, String[] names) {
+    private static int[] resolveSlots(TrackTypeId type, String[] names) {
         ObjectSlotLayout layout = ObjectSlotLayout.of(type);
         int[] slots = new int[names.length];
         for (int i = 0; i < names.length; i++) {
@@ -370,7 +371,7 @@ public final class ColorAdjustSampler {
                 // 层级混合：clip 级 blend_mode 编码 + 关键帧 blend_amount（缺省 1 = 全量生效）；
                 // 只有 ADJUST 轨（master）带混合字段，lane 路径恒得缺省（normal + 1 = 恒等）。
                 ColorAdjustParams.blendModeCode(clip.getBlendMode()),
-                clip.getTrackType() == TrackType.ADJUST
+                TrackTypeId.ADJUST.equals(clip.getTrackType())
                         ? KeyframeInterpolator.interpolateChannel(keyframes, localTime, "blend_amount", 1.0F)
                         : 1.0F);
     }

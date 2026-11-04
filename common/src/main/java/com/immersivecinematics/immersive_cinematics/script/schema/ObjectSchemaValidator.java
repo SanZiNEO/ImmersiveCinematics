@@ -1,10 +1,11 @@
 package com.immersivecinematics.immersive_cinematics.script.schema;
 
-import com.immersivecinematics.immersive_cinematics.script.TrackType;
-import com.immersivecinematics.immersive_cinematics.script.object.Interp;
-import com.immersivecinematics.immersive_cinematics.script.object.PropertyMode;
 import com.immersivecinematics.immersive_cinematics.script.object.PropertyPath;
-import com.immersivecinematics.immersive_cinematics.script.object.PropertyType;
+import com.immersivecinematics.immersive_cinematics.spi.Interp;
+import com.immersivecinematics.immersive_cinematics.spi.ObjectDef;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyMode;
+import com.immersivecinematics.immersive_cinematics.spi.PropertyType;
+import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,8 +19,9 @@ import java.util.Set;
  * 对象声明的静态自检：路径合法性 / 唯一性、形态与类型兼容、缺省值类型、枚举、数值区间、
  * 可空约束与 {@code requires} 引用（存在 + 无环）。
  *
- * <p>只检查 schema 声明，不读脚本数据；返回中文 issue 列表，空表 = 通过。
- * {@link SchemaRegistry} 在静态初始化时调用 {@link #validateOrThrow(Map)}，声明错误在类加载期暴露。</p>
+ * 只检查 schema 声明，不读脚本数据；返回中文 issue 列表，空表 = 通过。
+ * {@code TrackRegistry#ensureBuiltins()} 在首次登记内置轨道时调用 {@link #validateOrThrow(Map)}，
+ * 第三方注册走 {@link #validateEntry}，声明错误在注册期暴露。</p>
  */
 public final class ObjectSchemaValidator {
 
@@ -31,15 +33,28 @@ public final class ObjectSchemaValidator {
      * @param schemas 轨道类型 → schema；{@code null} 视为无声明
      * @return issue 列表（中文）；空 = 通过
      */
-    public static List<String> validate(Map<TrackType, TrackTypeSchema> schemas) {
+    public static List<String> validate(Map<TrackTypeId, TrackTypeSchema> schemas) {
         List<String> issues = new ArrayList<>();
         if (schemas == null) {
             return issues;
         }
-        for (Map.Entry<TrackType, TrackTypeSchema> entry : schemas.entrySet()) {
+        for (Map.Entry<TrackTypeId, TrackTypeSchema> entry : schemas.entrySet()) {
             validateTrack(entry.getKey(), entry.getValue(), issues);
         }
         return issues;
+    }
+
+    /**
+     * 校验单条轨道声明（第三方注册入口）：把一条 entry 包成单条 map 复用 {@link #validate(Map)} 的逻辑。
+     *
+     * @param id     轨道类型 id（issue 前缀）
+     * @param schema 该轨道的 schema
+     * @return issue 列表（中文）；空 = 通过
+     */
+    public static List<String> validateEntry(TrackTypeId id, TrackTypeSchema schema) {
+        Map<TrackTypeId, TrackTypeSchema> single = new LinkedHashMap<>(2);
+        single.put(id, schema);
+        return validate(single);
     }
 
     /**
@@ -48,18 +63,18 @@ public final class ObjectSchemaValidator {
      * @param schemas 轨道类型 → schema
      * @throws IllegalStateException 任一声明不合法
      */
-    public static void validateOrThrow(Map<TrackType, TrackTypeSchema> schemas) {
+    public static void validateOrThrow(Map<TrackTypeId, TrackTypeSchema> schemas) {
         List<String> issues = validate(schemas);
         if (!issues.isEmpty()) {
             throw new IllegalStateException("对象 schema 自检失败:\n" + String.join("\n", issues));
         }
     }
 
-    private static void validateTrack(TrackType track, TrackTypeSchema schema, List<String> issues) {
+    private static void validateTrack(TrackTypeId track, TrackTypeSchema schema, List<String> issues) {
         if (track == null || schema == null) {
             return;
         }
-        String prefix = track.name() + ".objects";
+        String prefix = track.id() + ".objects";
         Map<String, ObjectDef> objects = schema.objects();
         Set<String> seen = new HashSet<>();
         Map<String, String> requiresEdges = new LinkedHashMap<>();

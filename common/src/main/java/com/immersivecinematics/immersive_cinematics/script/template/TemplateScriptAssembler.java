@@ -48,9 +48,9 @@ public final class TemplateScriptAssembler {
 
         JsonObject clip = template.expand(args);
         JsonObject timeline = script.getAsJsonObject("timeline");
-        JsonObject track = findTrack(timeline.getAsJsonArray("tracks"), template.trackType().name());
+        JsonObject track = findTrack(timeline.getAsJsonArray("tracks"), template.trackType().id());
         if (track == null) {
-            throw new IllegalStateException("脚本骨架缺少轨道类型 " + template.trackType().name());
+            throw new IllegalStateException("脚本骨架缺少轨道类型 " + template.trackType().id());
         }
         track.getAsJsonArray("clips").add(clip);
 
