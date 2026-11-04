@@ -92,8 +92,10 @@ immersive_cinematics/
 | `hide_crosshair` | boolean/null | `null` | 同上 |
 | `hide_bossbar` | boolean/null | `null` | 同上 |
 | `hide_skip_hud` | boolean/null | `null` | **三态**：仅显式 `true` 隐藏长按跳过提示（右下角图标+进度环）；`null`（缺省）/`false` = **显示（默认开启）**，不回落 `hide_hud` |
-| `hud_layers` | object | `{}` | **非固定分类的逐层显隐覆盖**：`{ "层名": true/false }`，`true`=隐藏、`false`=显示；未声明的层回落该实例的 `hide_hud`。**11 个固定分类（`hotbar` `crosshair` `chat` `scoreboard` `bossbar` `subtitles` `action_bar` `title` `arm` `skip_hud` `bob`）不受它影响**——那些层只读各自的 `hide_*`；`health` / `status` 是 Forge 注册表分类名、走 default 分支，可被覆盖。键可以是注册分类名，也可以是 Forge overlay 的资源 ID（未注册 overlay 的隐式口子）。详见下方「HUD 层控制」小节 |
-| `hard_hide_hud` | boolean/null | `null` | **三态·仅 Forge**：强硬隐藏模式。`true`=接管整段 HUD 渲染（最高优先级取消 `RenderGuiEvent.Pre`）后按白名单重画：原版 HUD 与注册表 overlay 按分类判定，连"不走 overlay 注册表、直接在 `RenderGuiEvent.Pre` 里自绘"的第三方 HUD 也一并被跳过；`null`（缺省）/`false`=normal，行为与不带此字段完全一致。仅当 `hide_hud` 生效时才接管（`hide_hud=false` 时不接管）。**与 `hide_*` 的区别**：null 不回落 `hide_hud`——缺省即 normal。**Fabric 无对应语义**（字段被解析但不生效，行为等同 normal）。不走 Forge overlay 注册表、也不在 `RenderGuiEvent.Pre` 自绘的第三方 HUD 不在覆盖范围。详见下方「HUD 层控制」小节 |
+| `screen_layers` | object | `{}` | **逐层白名单**：`{ "层名": true/false }`，**`true` = 显示**（放行）、`false` = 隐藏——与 deprecated 的 `hud_layers` **极性相反**。键域 = 15 个规范层名 + 11 个旧固定分类别名 + 注册分类名 + 未注册 overlay 的完整资源 ID。未声明的层回落该实例的旧字段（`hide_*` / `suppress_*` / `render_player_model`），再回落 `hide_hud`。**写了本字段时 `screen_layer_mode` 缺省即 `allowlist`**。详见下方「画面层控制」小节 |
+| `screen_layer_mode` | enum | 见说明 | `normal` / `allowlist`。`normal` = 逐层抑制原版 HUD 与注册表 overlay；`allowlist` = 接管整帧画面层后按 `screen_layers` 白名单重画（仅具备接管能力的平台；Fabric 降级 `normal`）。**缺省**：写了 `screen_layers` 时 = `allowlist`；完全不带新字段的旧脚本 = `normal`（零回归）。deprecated 的 `hard_hide_hud` 是同义别名，两者冲突时本字段优先 |
+| `hud_layers` | object | `{}` | **deprecated**：旧逐层覆盖入口，解析期归一为 `screen_layers`（**极性翻转**：旧 `true`=隐藏 → 新 `false`）。键为 15 个规范层名或 11 个固定分类别名时**丢弃 + 解析期告警**（今天本就是 no-op）；其余键（`health` / `status` / 未注册 overlay ID）保留**原始键**继续生效。新脚本请用 `screen_layers` |
+| `hard_hide_hud` | boolean/null | `null` | **deprecated 别名**：只映射模式——`true` → `allowlist`、`false` → `normal`。与 `screen_layer_mode` 同时出现时以 `screen_layer_mode` 为准（解析期告警）。不存在第二套判定逻辑；新脚本请用 `screen_layer_mode` |
 | `render_player_model` | boolean | `true` | 是否渲染玩家模型（第三人称时） |
 | `pause_when_game_paused` | boolean | `true` | 游戏暂停时是否暂停过场动画 |
 | `interruptible` | boolean | `true` | 是否允许被其他脚本打断（**同脚本**再触发的替换语义 + 退出原因门控；跨脚本关系见 `play_mode`） |
@@ -111,77 +113,131 @@ immersive_cinematics/
 
 > 运行时行为在脚本播放激活期间生效，**不要求存在活跃 CAMERA clip**；纯 HUD/字幕/手臂等行为的显隐只判断当前是否处于电影播放状态。
 >
-> `hard_hide_hud` 是**整段播放级**的模式开关（不做逐帧切换），并集口径与其它行为开关一致：任一活跃实例显式声明 `true` 即生效。
-> 开启后其他模组在 `RenderGuiEvent.Pre` 里的**非绘制副作用**（状态准备、缓存刷新等）也会一并被跳过——这是"接管整段渲染"的固有代价。
-> 细节与取舍见 `plans/0.3.6/hud-hard-hide.md`（§落地标注）。
+> 画面层模式（`screen_layer_mode`，含 deprecated 别名 `hard_hide_hud`）是**整段播放级**开关（不做逐帧切换），并集口径与其它行为开关一致：任一活跃实例声明 `allowlist` → 整段 `allowlist`，无实例复位。
+> `allowlist` 接管后，其他模组在 `RenderGuiEvent.Pre` 里的**非绘制副作用**（状态准备、缓存刷新等）也会一并被跳过——这是"接管整段渲染"的固有代价。
+> 细节与取舍见 `plans/0.3.6/H-other/screen-layers.md`。
 
 
-#### 1b-1. HUD 层控制：`hud_layers` 与 `hard_hide_hud`
+#### 1b-1. 画面层控制：`screen_layers` 与 `screen_layer_mode`
 
-两个字段分工不同：`hud_layers` 是**逐层显隐覆盖**，`hard_hide_hud` 是**整段渲染的接管模式**。两者的并集口径与其它行为开关一致——任一活跃实例声明即生效，退出后复位。
-
-**`hud_layers` 语义**
+`screen_layers` 是**逐层白名单**，`screen_layer_mode` 决定**怎么执行**这份白名单：`normal` 逐层抑制，`allowlist` 接管整帧后重画。两者的并集口径与其它行为开关一致——任一活跃实例声明即生效，退出后复位。
 
 ```json
 "meta": {
-  "hud_layers": { "minecraft:hotbar_separator": true, "chat": false }
+  "screen_layer_mode": "allowlist",
+  "screen_layers": { "hud.hotbar": true, "hud.chat": false }
 }
 ```
 
-- `{层名: true/false}`，`true` = 隐藏、`false` = 显示。
-- 未声明的层回落该实例的 `hide_hud`。
-- 多实例同键取并集：同一层任一实例判为隐藏即隐藏。
+**极性**
 
-**固定分类优先级（`hud_layers` 不覆盖）**
+`screen_layers` 里 **`true` = 显示**（放行）、`false` = 隐藏。这与 deprecated 的 `hud_layers` 正好相反（旧字段 `true` = 隐藏）；`hud_layers` 在解析期翻转极性后并入同一张表，因此两套写法不会互相覆盖出歧义。
 
-| 固定分类 | 对应字段 |
-|---|---|
-| `hotbar` | `hide_hotbar` |
-| `crosshair` | `hide_crosshair` |
-| `chat` | `hide_chat` |
-| `scoreboard` | `hide_scoreboard` |
-| `bossbar` | `hide_bossbar` |
-| `subtitles` | `hide_subtitles` |
-| `action_bar` | `hide_action_bar` |
-| `title` | `hide_title` |
-| `arm` | `hide_arm` |
-| `skip_hud` | `hide_skip_hud` |
-| `bob` | `suppress_bob` |
+**两种模式**
 
-这 11 个分类只读各自的 `hide_*`（三态，`null` 时回落 `hide_hud`）；把 `hotbar` 之类写进 `hud_layers` **不会**覆盖它们。
+| 模式 | 行为 | 约束力 | 适用平台 |
+|---|---|---|---|
+| `normal` | 逐层抑制原版 HUD 与注册表 overlay；直接在 `RenderGuiEvent.Pre` 自绘的界面漏网 | 弱 | 全部 |
+| `allowlist` | 接管整帧画面层：先清空，再按白名单逐层重画；连前置事件自绘的第三方 HUD 也一并跳过 | 强 | 需平台具备接管能力（见「平台差异」） |
 
-`health` / `status` **不是**固定分类：它们是 Forge 注册表给原版 overlay 的分类名，走 default 分支，因此**可以**被 `hud_layers: {"health": true}` 覆盖。
+两种模式互斥，每帧只画一次。
 
-**未注册层的隐式口子（仅 Forge）**
+**模式归一顺序（解析期）**
 
-Forge 侧的分类解析顺序 = 内置原版表 → 第三方注册表 → `overlayId.toString()`。没注册过的 Forge overlay 也能直接用资源 ID 写进 `hud_layers` 命中：
-
-```json
-"hud_layers": { "minecraft:hotbar_separator": true }
+```
+显式 screen_layer_mode                        // 最高优先
+  ?? hard_hide_hud == true  → allowlist       // deprecated 别名
+  ?? hard_hide_hud == false → normal          // 显式退出接管
+  ?? screen_layers 字段存在  → allowlist       // 新字段路径缺省
+  ?? normal                                   // 完全不带新字段的旧脚本：零回归
 ```
 
-第三方模组想让自己的 overlay 参与固定分类（如 `chat`）判定，用公共注册门面 `com.immersivecinematics.immersive_cinematics.api.HudLayerRegistry`：
+**层清单（15 个规范层名）**
+
+| 规范层名 | 空间 | 旧字段 | 旧固定分类别名 | 未声明时回落 |
+|---|---|---|---|---|
+| `hud.hotbar` | 屏幕 | `hide_hotbar` | `hotbar` | `hide_hotbar ?? hide_hud` |
+| `hud.crosshair` | 屏幕 | `hide_crosshair` | `crosshair` | `hide_crosshair ?? hide_hud` |
+| `hud.health` | 屏幕 | `hide_hud` | —（`health` 是 Forge 分类名，不作别名） | `hide_hud` |
+| `hud.experience` | 屏幕 | `hide_hud` | —（`status` 是 Forge 分类名，不作别名） | `hide_hud` |
+| `hud.bossbar` | 屏幕 | `hide_bossbar` | `bossbar` | `hide_bossbar ?? hide_hud` |
+| `hud.chat` | 屏幕 | `hide_chat` | `chat` | `hide_chat ?? hide_hud` |
+| `hud.scoreboard` | 屏幕 | `hide_scoreboard` | `scoreboard` | `hide_scoreboard ?? hide_hud` |
+| `hud.action_bar` | 屏幕 | `hide_action_bar` | `action_bar` | `hide_action_bar ?? hide_hud` |
+| `hud.title` | 屏幕 | `hide_title` | `title` | `hide_title ?? hide_hud` |
+| `hud.subtitle` | 屏幕 | `hide_subtitles` | `subtitles` | `hide_subtitles ?? hide_hud` |
+| `hud.skip_prompt` | 屏幕 | `hide_skip_hud` | `skip_hud` | **`hide_skip_hud == true`**（不回落 `hide_hud`） |
+| `viewmodel` | 世界 | `hide_arm` | `arm` | `hide_arm ?? hide_hud` |
+| `view_bobbing` | 视角 | `suppress_bob` | `bob` | `suppress_bob ?? hide_hud` |
+| `screen_effects` | 屏幕/后处理 | `suppress_distortion` | — | `suppress_distortion ?? suppress_bob ?? hide_hud` |
+| `player_model` | 世界 | `render_player_model`（`true` = 显示） | — | `!render_player_model`（不回落 `hide_hud`） |
+
+回落细节：
+
+- `hud.health` / `hud.experience` 都读 `hide_hud`——旧字段无法拆开，只有 `screen_layers` 能分别控制。
+- `hud.skip_prompt` 仅在 `hide_skip_hud == true` 时隐藏，缺省显示。
+- `screen_effects` 走三级回落（`suppress_distortion` → `suppress_bob` → `hide_hud`）。
+- `player_model` 取 `render_player_model` 的反面，不回落 `hide_hud`。
+
+**键域**
+
+- 15 个规范层名（上表）。
+- 11 个旧固定分类别名（`hotbar` `crosshair` `chat` `scoreboard` `bossbar` `subtitles` `action_bar` `title` `arm` `skip_hud` `bob`）——在 `screen_layers` 里**直接可用**（旧 `hud_layers` 里写它们是 no-op，新字段把这条路打开了）。
+- 注册分类名（`HudLayerRegistry.register(id, category)` 注册的 `category`）。
+- 未注册 overlay 的完整资源 ID（Forge 侧隐式口子）。
+
+**单层判定顺序**
+
+1. `screen_layers[规范层名]`；
+2. `screen_layers[调用方给的原始分类键]`——即 deprecated `hud_layers` 归一后保留的原始键（`health` / `status` / 未注册 overlay ID）；
+3. 该层的旧字段回落（上表）；
+4. `hide_hud`。
+
+**并集与回落**
+
+- 层集合 = 全部活跃实例 `screen_layers` 的键并集：已知层归一到规范名，其余保留原始键。
+- 每层取值按**隐藏方向 OR**：任一实例判隐藏即隐藏；显示 = 所有实例都放行。
+- 未声明的层不产生条目，按上面的判定顺序回落旧字段 → `hide_hud`。
+- 模式并集：任一活跃实例 `allowlist` → 整段 `allowlist`；无活跃实例时复位。
+
+**注册分类与完整 ID（第三方）**
+
+Forge 侧分类解析顺序 = 内置原版表 → 第三方注册表 → `overlayId.toString()`。没注册过的 Forge overlay 也能直接用资源 ID 写进 `screen_layers` 命中：
+
+```json
+"screen_layers": { "minecraft:hotbar_separator": false }
+```
+
+第三方模组想让自己的 overlay 参与分类判定，用公共注册门面 `com.immersivecinematics.immersive_cinematics.api.HudLayerRegistry`：
 
 ```java
 HudLayerRegistry.register(new ResourceLocation("mymod", "my_overlay"), "chat");
 ```
 
-注册应在客户端初始化期完成（门面内部表并发安全，但分类语义假定注册早于任何一帧判定）；注册后该 overlay 与分类一起参与普通层过滤与 Forge 的 hard 重画。
+注册应在客户端初始化期完成（门面内部表并发安全，但分类语义假定注册早于任何一帧判定）；注册后该 overlay 与分类一起参与 `normal` 过滤与 `allowlist` 重画。
 
-**`hard_hide_hud`：仅 Forge**
+**平台差异**
 
-- `true` = 接管整段 HUD 渲染（最高优先级取消 `RenderGuiEvent.Pre`），随后按白名单逐层重画；`null`（缺省）/`false` = normal。
-- 只在 `hide_hud` 生效时接管：`hide_hud=false` 时无物可藏，接管反而会砍掉白名单判为显示的内容。
-- **Fabric 无对应语义**：字段被解析但不生效，行为等同 normal（没有可取消的整段 HUD 回调）。
-- 接管会跳过其他模组在 `RenderGuiEvent.Pre` 里的**非绘制副作用**（状态准备、缓存刷新等），这是"接管整段渲染"的固有代价。
+- **Forge**：`HudLayerRegistry.Platform#supportsScreenLayerTakeover()` = `true` → `allowlist` 完整生效。
+- **Fabric**：`supportsScreenLayerTakeover()` = `false`（HUD 回调不可取消、无 overlay 注册表）→ 生效模式**降级 `normal`**；`screen_layers` 仍解析，逐层过滤照常。注册表在 Fabric 只影响普通层过滤。
+
+**接管条件（Forge `allowlist`）**
+
+有活跃实例 **且** 生效模式 = `allowlist` **且** 任一层判隐藏。旧写法 `hard_hide_hud:true` 且不带 `screen_layers` 时与此等价：15 层回落全部由 `hide_hud` 决定，`hide_hud=true` 时恒有层被判隐藏。
 
 **没有挂点的第三方 HUD**
 
-不走 Forge overlay 注册表、也不在 `RenderGuiEvent.Pre` 里自绘的第三方 HUD **没有稳定挂点**：normal 模式碰不到；hard 模式只覆盖"本模组取消 `RenderGuiEvent.Pre` 之后才轮到"的绘制——直接 mixin 进 `Gui.render` 或往 `GuiGraphics` 上画的仍会显示。Fabric 侧同理：第三方需在绘制前主动调用 `FabricHudVisibility.isHidden(layerId)`，否则脚本无法控制它。
+不走 Forge overlay 注册表、也不在 `RenderGuiEvent.Pre` 里自绘的第三方 HUD **没有稳定挂点**：`normal` 碰不到；`allowlist` 只覆盖"本模组取消 `RenderGuiEvent.Pre` 之后才轮到"的绘制——直接 mixin 进 `Gui.render` 或往 `GuiGraphics` 上画的仍会显示。Fabric 侧同理：第三方需在绘制前主动调用 `FabricHudVisibility.isHidden(layerId)`，否则脚本无法控制它。
 
 **白名单模式不补发 overlay 事件**
 
-hard 模式重画时**不补发** `RenderGuiOverlayEvent.Pre/Post`。依赖这些事件的第三方逻辑（含 `receiveCanceled=true` 的监听器、读取取消态的模组）在 hard 模式下收不到事件。
+`allowlist` 重画时**不补发** `RenderGuiOverlayEvent.Pre/Post`。依赖这些事件的第三方逻辑（含 `receiveCanceled=true` 的监听器、读取取消态的模组）收不到事件。
+
+**脚本覆盖层不参与白名单**
+
+黑边、字幕、图片、GIF 等本模组覆盖层始终按脚本轨道绘制，不受 `screen_layers` 控制。
+
+**编辑器播放**：与普通播放共用同一并集，编辑器不额外过滤画面层（`editorDriven` 只影响键鼠屏蔽）。
 
 
 ### 1c. Triggers（触发条件）

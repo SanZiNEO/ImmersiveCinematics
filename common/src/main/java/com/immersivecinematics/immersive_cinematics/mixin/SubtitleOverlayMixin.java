@@ -9,16 +9,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** 字幕：按 {@code hideSubtitles}（未设回落 {@code hideHud}）隐藏。 */
+/** 字幕：按 {@code hud.subtitle} 隐藏。 */
 @Mixin(SubtitleOverlay.class)
 public class SubtitleOverlayMixin {
     @Inject(method = "render", at = @At("HEAD"), cancellable = true)
     private void onRender(GuiGraphics guiGraphics, CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive()) {
-            Boolean setting = CinematicController.INSTANCE.isHideSubtitles();
-            if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
-                ci.cancel();
-            }
+        if (CameraManager.INSTANCE.isActive() && CinematicController.INSTANCE.isLayerHidden("hud.subtitle")) {
+            ci.cancel();
         }
     }
 }

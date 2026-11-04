@@ -111,7 +111,7 @@ N1–N9 的现状：N1/N2/N3（位置 / 朝向 / 边沿）在开启 `sweep` 后�
 | [`trigger-continuity.md`](trigger-continuity.md) | 判定层计划（P3-impl）= H8 |
 | ~~`region-sync.md`~~ | H1，**已取消**（2026-11-04 用户决定暂不做；文档已删除，git 历史可查） |
 | [`skip-vote-and-hud.md`](skip-vote-and-hud.md) | H9，跳过投票判定 + HUD 布局/位置配置 |
-| [`screen-layers.md`](screen-layers.md) | 画面层：HUD、手臂、摇晃、屏幕效果、玩家模型；普通/白名单模式与注册接口 |
+| [`screen-layers.md`](screen-layers.md) | 画面层：15 个规范层名、`screen_layers`/`screen_layer_mode`、普通/白名单模式、接管与重画、注册接口 —— ✅ 已实现（H-5，2026-11-04） |
 | [`../C-trigger/trigger-conditions.md`](../C-trigger/trigger-conditions.md) | 条件怎么写、怎么组合；H7/H8 只提供它脚下的查询原语与时间语义，不改它的字段 |
 | [`../C-trigger/condition-system.md`](../C-trigger/condition-system.md) | 判定规则（**脚本级规则定义/绑定**；I 轮迁移前的载体是片段级 `clip.rules`），与触发器判定是不同层 |
 | [`../F-playback/parallel-playback.md`](../F-playback/parallel-playback.md) | 实例账本的上游；H7 阶段 2 与之对齐 |

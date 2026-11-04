@@ -93,7 +93,7 @@ public abstract class CameraMixin {
     @Inject(method = "isDetached", at = @At("HEAD"), cancellable = true)
     private void onIsDetached(CallbackInfoReturnable<Boolean> cir) {
         if (LaneRenderer.laneOf((Camera) (Object) this) != null) {
-            cir.setReturnValue(CinematicController.INSTANCE.isRenderPlayerModel());
+            cir.setReturnValue(!CinematicController.INSTANCE.isLayerHidden("player_model"));
         }
     }
 }

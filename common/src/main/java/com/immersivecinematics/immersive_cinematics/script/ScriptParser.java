@@ -293,7 +293,7 @@ public class ScriptParser {
         Boolean hideCrosshair = optNullableBool(metaObj, "hide_crosshair");
         Boolean hideBossbar = optNullableBool(metaObj, "hide_bossbar");
         Boolean hideSkipHud = optNullableBool(metaObj, "hide_skip_hud");
-        // 强硬隐藏模式：三态，null = 未声明 → normal（不回落 hide_hud，见 CinematicController.effectiveHardHide）
+        // 旧硬隐藏开关：只作 screen_layer_mode 的别名（true → allowlist / false → normal），不进入 RuntimeBehavior
         Boolean hardHideHud = optNullableBool(metaObj, "hard_hide_hud");
         boolean renderPlayerModel = optBoolMeta(metaObj, "render_player_model");
         boolean pauseWhenGamePaused = optBoolMeta(metaObj, "pause_when_game_paused");
@@ -323,7 +323,10 @@ public class ScriptParser {
             ErrorLog.log("Parse", p + ".play_mode 非法值: " + playModeRaw + "，按 parallel 处理");
         }
         ScriptMeta.PlayMode playMode = ScriptMeta.PlayMode.fromString(playModeRaw);
-        java.util.Map<String, Boolean> hudLayers = parseHudLayers(metaObj);
+        // 画面层（screen_layers + 旧 hud_layers 归一）：值 = 显示（true 显示 / false 隐藏）
+        java.util.Map<String, Boolean> screenLayers = parseScreenLayers(metaObj);
+        // 模式归一：显式 screen_layer_mode > hard_hide_hud 别名 > screen_layers 字段存在 → allowlist > normal
+        ScreenLayerMode screenLayerMode = resolveScreenLayerMode(metaObj, hardHideHud);
         // 编辑基准分辨率（可选）：{w, h} 正整数；缺省 1920×1080，非法 → 告警 + 回落缺省（防御式）
         int[] baseResolution = parseBaseResolution(metaObj);
 
@@ -333,10 +336,10 @@ public class ScriptParser {
                 hideChat, hideScoreboard, hideActionBar,
                 hideTitle, hideSubtitles, hideHotbar, hideCrosshair,
                 hideBossbar, hideSkipHud,
-                hardHideHud,
+                screenLayerMode,
                 renderPlayerModel,
                 pauseWhenGamePaused, interruptible, skippable,
-                holdAtEnd, macroLoop, macroLoopMode, macroLoopCount, hudLayers);
+                holdAtEnd, macroLoop, macroLoopMode, macroLoopCount, screenLayers);
 
         // 播放优先级（默认值来自 SchemaRegistry.getMetaFields()；仅用于队列内排序）
         int priority = optInt(metaObj, "priority", 0);
@@ -2071,18 +2074,117 @@ public class ScriptParser {
         return (int) d;
     }
 
-    /** 解析 meta.hud_layers：模组/自定义 HUD 层的显隐覆盖（true=隐藏，false=显示） */
-    private static java.util.Map<String, Boolean> parseHudLayers(JsonObject metaObj) {
-        java.util.Map<String, Boolean> map = new java.util.LinkedHashMap<>();
-        if (!metaObj.has("hud_layers") || !metaObj.get("hud_layers").isJsonObject()) {
-            return map;
-        }
-        for (java.util.Map.Entry<String, com.google.gson.JsonElement> e : metaObj.getAsJsonObject("hud_layers").entrySet()) {
-            if (e.getValue().isJsonPrimitive() && e.getValue().getAsJsonPrimitive().isBoolean()) {
-                map.put(e.getKey(), e.getValue().getAsBoolean());
+    /**
+     * 解析 meta.screen_layers，并把旧 meta.hud_layers 归一进同一张表。
+     *
+     * <p>返回表的极性统一为「显示」：{@code true} = 显示，{@code false} = 隐藏
+     * （与 {@code ScriptMeta.RuntimeBehavior#screenLayers()} 一致）。{@code hud_layers} 的旧语义
+     * {@code true} = 隐藏，解析期翻转；同键冲突时 {@code screen_layers} 优先（{@code putIfAbsent}）。</p>
+     *
+     * <p>{@code hud_layers} 里的已知层名 / 固定分类别名（{@link ScreenLayer#byId} 命中）历来是 no-op，
+     * 解析期丢弃并告警；其余键保留原始形态，继续按动态层名参与判定（{@code health} / {@code status} /
+     * 未注册 overlay 资源 ID 等）。</p>
+     */
+    private static java.util.Map<String, Boolean> parseScreenLayers(JsonObject metaObj) {
+        java.util.Map<String, Boolean> layers = new java.util.LinkedHashMap<>();
+        if (metaObj.has("screen_layers") && !metaObj.get("screen_layers").isJsonNull()) {
+            JsonElement el = metaObj.get("screen_layers");
+            if (!el.isJsonObject()) {
+                ErrorLog.log("Parse", "meta.screen_layers 需要对象 {层名: 布尔}（true = 显示，false = 隐藏），实际: "
+                        + el + "，已忽略");
+            } else {
+                for (java.util.Map.Entry<String, JsonElement> e : el.getAsJsonObject().entrySet()) {
+                    String key = ScreenLayer.canonicalize(e.getKey());
+                    if (key == null || key.isEmpty()) {
+                        ErrorLog.log("Parse", "meta.screen_layers 存在空层名，已忽略");
+                        continue;
+                    }
+                    JsonElement v = e.getValue();
+                    if (v.isJsonPrimitive() && v.getAsJsonPrimitive().isBoolean()) {
+                        // 重复规范化键（如 "chat" 与 "hud.chat" 并存）：后者覆盖
+                        layers.put(key, v.getAsBoolean());
+                    } else {
+                        ErrorLog.log("Parse", "meta.screen_layers['" + e.getKey()
+                                + "'] 需要布尔值（true = 显示，false = 隐藏），实际: " + v + "，已忽略该键");
+                    }
+                }
             }
         }
-        return map;
+
+        if (!metaObj.has("hud_layers") || metaObj.get("hud_layers").isJsonNull()) {
+            return layers;
+        }
+        // deprecated 入口：每个脚本只提示一次（不逐键刷屏；键丢弃告警仍逐键）
+        ErrorLog.log("Parse", "meta.hud_layers 已弃用（deprecated）：请改用 meta.screen_layers"
+                + "（true = 显示 / false = 隐藏，支持 15 个规范层名）；旧键按原语义归一后继续生效");
+        JsonElement hudEl = metaObj.get("hud_layers");
+        if (!hudEl.isJsonObject()) {
+            ErrorLog.log("Parse", "meta.hud_layers 需要对象 {层名: 布尔}（true = 隐藏），实际: " + hudEl + "，已忽略");
+            return layers;
+        }
+        for (java.util.Map.Entry<String, JsonElement> e : hudEl.getAsJsonObject().entrySet()) {
+            String key = e.getKey();
+            if (key.isEmpty()) {
+                ErrorLog.log("Parse", "meta.hud_layers 存在空层名，已忽略");
+                continue;
+            }
+            ScreenLayer known = ScreenLayer.byId(key);
+            if (known != null) {
+                // 旧入口写固定分类名 / 规范层名历来不生效（控制器只按原始 category 键查表）；保持零回归
+                ErrorLog.log("Parse", "meta.hud_layers 的键 '" + key + "' 是已知层 / 固定分类，旧入口不生效，已忽略；"
+                        + "如需控制该层请改用 meta.screen_layers['" + known.id() + "']");
+                continue;
+            }
+            JsonElement v = e.getValue();
+            if (!v.isJsonPrimitive() || !v.getAsJsonPrimitive().isBoolean()) {
+                ErrorLog.log("Parse", "meta.hud_layers['" + key
+                        + "'] 需要布尔值（true = 隐藏），实际: " + v + "，已忽略该键");
+                continue;
+            }
+            // 极性翻转：旧 true = 隐藏 → 新 true = 显示；与 screen_layers 同键冲突时后者优先
+            layers.putIfAbsent(key, !v.getAsBoolean());
+        }
+        return layers;
+    }
+
+    /**
+     * 归一 {@code meta.screen_layer_mode}（解析期，结果非 null）：
+     * <pre>
+     * 显式 screen_layer_mode ?? hard_hide_hud（true → allowlist / false → normal）
+     *   ?? screen_layers 字段存在 → allowlist ?? normal
+     * </pre>
+     * 非法声明按「未声明」处理并告警；显式声明与 {@code hard_hide_hud} 冲突时显式字段优先。
+     */
+    private static ScreenLayerMode resolveScreenLayerMode(JsonObject metaObj, Boolean hardHideHud) {
+        ScreenLayerMode declared = null;
+        if (metaObj.has("screen_layer_mode") && !metaObj.get("screen_layer_mode").isJsonNull()) {
+            JsonElement el = metaObj.get("screen_layer_mode");
+            if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isString()) {
+                ErrorLog.log("Parse", "meta.screen_layer_mode 需要字符串（normal / allowlist），实际: "
+                        + el + "，按未声明处理");
+            } else if (!ScreenLayerMode.isKnown(el.getAsString())) {
+                ErrorLog.log("Parse", "meta.screen_layer_mode 非法值: " + el.getAsString()
+                        + "（可选: normal / allowlist），按未声明处理");
+            } else {
+                declared = ScreenLayerMode.fromString(el.getAsString());
+            }
+        }
+
+        if (declared != null && hardHideHud != null) {
+            ScreenLayerMode alias = hardHideHud ? ScreenLayerMode.ALLOWLIST : ScreenLayerMode.NORMAL;
+            if (declared != alias) {
+                ErrorLog.log("Parse", "meta.hard_hide_hud=" + hardHideHud + " 与 meta.screen_layer_mode="
+                        + declared.id() + " 语义不一致，按 screen_layer_mode 处理（hard_hide_hud 是 deprecated 别名）");
+            }
+        }
+        if (declared != null) return declared;
+        if (Boolean.TRUE.equals(hardHideHud)) return ScreenLayerMode.ALLOWLIST;
+        if (Boolean.FALSE.equals(hardHideHud)) return ScreenLayerMode.NORMAL;
+        // 新字段路径缺省 allowlist：字段存在（非 JSON null）且无模式声明 → 接管模式
+        if (metaObj.has("screen_layers") && !metaObj.get("screen_layers").isJsonNull()) {
+            return ScreenLayerMode.ALLOWLIST;
+        }
+        return ScreenLayerMode.NORMAL;
     }
 
     private static boolean optBool(JsonObject obj, String key, boolean defaultVal) {

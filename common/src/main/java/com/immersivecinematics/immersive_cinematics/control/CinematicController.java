@@ -1,6 +1,9 @@
 package com.immersivecinematics.immersive_cinematics.control;
 
+import com.immersivecinematics.immersive_cinematics.api.HudLayerRegistry;
 import com.immersivecinematics.immersive_cinematics.mixin.MouseHandlerAccessor;
+import com.immersivecinematics.immersive_cinematics.script.ScreenLayer;
+import com.immersivecinematics.immersive_cinematics.script.ScreenLayerMode;
 import com.immersivecinematics.immersive_cinematics.script.ScriptMeta;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
@@ -26,18 +29,18 @@ public class CinematicController {
     private Boolean hideBossbar = null;
     private Boolean hideSkipHud = null;
     /**
-     * 强硬隐藏模式（脚本字段 {@code hard_hide_hud}）：三态，null = 未声明 → normal。
-     * 开启时 Forge 侧接管 {@code RenderGuiEvent.Pre}，连不走 overlay 注册表、直接在 Pre 里自绘的第三方 HUD
-     * 一并隐藏，再按白名单重画。
+     * 画面层模式（脚本字段 {@code screen_layer_mode}）：normal = 逐层抑制；allowlist = 接管整帧后按白名单重画。
+     * 旧字段 {@code hard_hide_hud} 在解析期归一到这里。
      */
-    private Boolean hardHideHud = null;
+    private ScreenLayerMode screenLayerMode = ScreenLayerMode.NORMAL;
 
     private Boolean hideArm = null;
     private Boolean suppressBob = null;
     private Boolean suppressDistortion = null;
     private boolean renderPlayerModel = true;
     private boolean blockMobAi = false;
-    private java.util.Map<String, Boolean> hudLayers = new java.util.LinkedHashMap<>();
+    /** 画面层并集：键 = 规范名 / 原始动态键，值 = <b>隐藏</b>（与脚本 {@code screen_layers} 的显示极性相反）。 */
+    private java.util.Map<String, Boolean> screenLayers = new java.util.LinkedHashMap<>();
 
     /** 播放期间临时修改 screenEffectScale 的保存/恢复状态 */
     private double savedScreenEffectScale = 1.0;
@@ -54,14 +57,16 @@ public class CinematicController {
     /**
      * 全部活跃实例的行为并集快照（纯数据，不触达 Minecraft）。
      *
-     * <p>三态字段 {@code null} = 未声明（消费方回落各自默认值）；{@code hudLayers} 为键并集，
-     * 每个键的取值 = 全部实例按各自 {@code hide_hud} 解析后的 OR。</p>
+     * <p>三态字段 {@code null} = 未声明（消费方回落各自默认值）；{@code screenLayers} 为键并集，
+     * 键已归一到 {@link ScreenLayer#canonicalize(String)}，取值 = <b>隐藏</b>（全部实例按各自
+     * {@code screen_layers} / 旧字段 / {@code hide_hud} 解析后的 OR）。</p>
      *
      * @param anyInstance 是否有实例参与；{@code false} = 无实例要求（其余字段为默认值）
      * @param blockKeyboard 键鼠屏蔽（只由非编辑器实例投票）
      * @param blockMouse    同上
      * @param hideHud       内容行为：全部实例投票
-     * @param hudLayers     {@code hud_layers} 键并集
+     * @param screenLayerMode 画面层模式并集（任一实例 allowlist → allowlist）
+     * @param screenLayers  画面层键并集（值 = 隐藏）
      */
     public record Union(
             boolean anyInstance,
@@ -69,10 +74,10 @@ public class CinematicController {
             boolean hideHud,
             Boolean hideChat, Boolean hideScoreboard, Boolean hideActionBar, Boolean hideTitle,
             Boolean hideSubtitles, Boolean hideHotbar, Boolean hideCrosshair, Boolean hideBossbar,
-            Boolean hideSkipHud, Boolean hardHideHud, Boolean hideArm,
+            Boolean hideSkipHud, ScreenLayerMode screenLayerMode, Boolean hideArm,
             Boolean suppressBob, Boolean suppressDistortion,
             boolean renderPlayerModel, boolean blockMobAi,
-            java.util.Map<String, Boolean> hudLayers) {
+            java.util.Map<String, Boolean> screenLayers) {
 
         /** 无实例要求：与 resetBehaviorToggles() 的默认值一致。 */
         static Union none() {
@@ -81,7 +86,7 @@ public class CinematicController {
                     true,
                     null, null, null, null,
                     null, null, null, null,
-                    null, null, null,
+                    null, ScreenLayerMode.NORMAL, null,
                     null, null,
                     true, false,
                     java.util.Map.of());
@@ -95,12 +100,14 @@ public class CinematicController {
      * <ul>
      *   <li><b>游戏控制</b>（{@code block_keyboard} / {@code block_mouse}）：只对 {@code !editorDriven}
      *       的条目求 OR——编辑器播放不屏蔽键鼠，也不解除游戏实例的屏蔽。</li>
-     *   <li><b>内容行为</b>（{@code hide_hud}、各 {@code hide_*}、{@code hard_hide_hud}、{@code hide_arm}、
+     *   <li><b>内容行为</b>（{@code hide_hud}、各 {@code hide_*}、{@code screen_layer_mode}、{@code hide_arm}、
      *       {@code suppress_bob}、{@code suppress_distortion}、{@code render_player_model}、
-     *       {@code block_mob_ai}、{@code hud_layers}）：全部条目求 OR——编辑器播放与普通播放画面一致。</li>
+     *       {@code block_mob_ai}、{@code screen_layers}）：全部条目求 OR——编辑器播放与普通播放画面一致。</li>
      * </ul>
      *
-     * <p>三态开关先按各条目自己的 {@code hide_hud} 解析成有效值再 OR（单实例结果与直接读该实例一致）。</p>
+     * <p>三态开关先按各条目自己的 {@code hide_hud} 解析成有效值再 OR（单实例结果与直接读该实例一致）。
+     * {@code screen_layer_mode} 取 OR 的语义：任一实例要求 {@code allowlist} 即 {@code allowlist}；
+     * {@code screen_layers} 的键归一后按「实例声明 → 旧字段 → hide_hud」逐实例解析成隐藏极性再 OR。</p>
      *
      * @param entries 活跃实例的行为条目（顺序无关；null 条目与 null behavior 忽略；
      *                null / 空 = 无实例要求 → {@link Union#none()}）
@@ -119,6 +126,7 @@ public class CinematicController {
         boolean uHideHud = false;
         boolean uRenderPlayerModel = false;
         boolean uBlockMobAi = false;
+        boolean anyAllowlist = false;
         for (BehaviorEntry entry : active) {
             ScriptMeta.RuntimeBehavior b = entry.behavior();
             if (!entry.editorDriven()) {
@@ -128,20 +136,23 @@ public class CinematicController {
             uHideHud |= b.hideHud();
             uRenderPlayerModel |= b.renderPlayerModel();
             uBlockMobAi |= b.blockMobAi();
+            anyAllowlist |= b.screenLayerMode() == ScreenLayerMode.ALLOWLIST;
         }
 
-        // hud_layers：并集必须在全部实例上求值——未声明该键的实例按自身的 hide_hud 参与
-        // （否则该键会失去「其他实例 hide_hud=true」这一票），与消费方「未声明则回落 hide_hud」一致。
+        // screen_layers：键并集必须在全部实例上求值——未声明该键的实例按自身的旧字段 / hide_hud 参与
+        // （否则该键会失去「其他实例 hide_hud=true」这一票），与消费方「未声明则回落」一致。
+        // 键统一归一到规范名；未命中（health / status / 未注册 ID）保留原始键。
         java.util.Set<String> layerKeys = new java.util.LinkedHashSet<>();
         for (BehaviorEntry entry : active) {
-            layerKeys.addAll(entry.behavior().hudLayers().keySet());
+            for (String key : entry.behavior().screenLayers().keySet()) {
+                layerKeys.add(ScreenLayer.canonicalize(key));
+            }
         }
         java.util.Map<String, Boolean> uLayers = new java.util.LinkedHashMap<>();
         for (String key : layerKeys) {
             boolean hidden = false;
             for (BehaviorEntry entry : active) {
-                ScriptMeta.RuntimeBehavior b = entry.behavior();
-                hidden |= effective(b.hudLayers().get(key), b);
+                hidden |= perInstanceHidden(entry.behavior(), key);
             }
             uLayers.put(key, hidden);
         }
@@ -158,7 +169,7 @@ public class CinematicController {
                 union(active, e -> effective(e.behavior().hideCrosshair(), e.behavior())),
                 union(active, e -> effective(e.behavior().hideBossbar(), e.behavior())),
                 union(active, e -> effective(e.behavior().hideSkipHud(), e.behavior())),
-                union(active, e -> effectiveHardHide(e.behavior())),
+                anyAllowlist ? ScreenLayerMode.ALLOWLIST : ScreenLayerMode.NORMAL,
                 union(active, e -> effective(e.behavior().hideArm(), e.behavior())),
                 union(active, e -> effective(e.behavior().suppressBob(), e.behavior())),
                 union(active, e -> effectiveDistortion(e.behavior())),
@@ -193,13 +204,13 @@ public class CinematicController {
         this.hideCrosshair = union.hideCrosshair();
         this.hideBossbar = union.hideBossbar();
         this.hideSkipHud = union.hideSkipHud();
-        this.hardHideHud = union.hardHideHud();
+        this.screenLayerMode = union.screenLayerMode() != null ? union.screenLayerMode() : ScreenLayerMode.NORMAL;
         this.hideArm = union.hideArm();
         this.suppressBob = union.suppressBob();
         this.suppressDistortion = union.suppressDistortion();
         this.renderPlayerModel = union.renderPlayerModel();
         this.blockMobAi = union.blockMobAi();
-        this.hudLayers = new java.util.LinkedHashMap<>(union.hudLayers());
+        this.screenLayers = new java.util.LinkedHashMap<>(union.screenLayers());
         updateScreenEffectScale();
     }
 
@@ -233,12 +244,16 @@ public class CinematicController {
     }
 
     /**
-     * {@code hard_hide_hud} 在单个实例上的有效值：显式 {@code true} 才开启强硬模式。
-     * 与 {@code hide_*} 的区别：null 不回落 {@code hide_hud}——该开关是"模式"而非"显隐"，
-     * 缺省即 normal（全局默认），否则默认脚本会凭空获得强硬行为。
+     * {@code screen_layers} 键在单个实例上的有效值（<b>隐藏</b>极性）：
+     * 实例显式声明该键（值 = 显示）→ 取反；否则若键命中规范层 → 走旧字段表；
+     * 否则（{@code health} / {@code status} / 未注册 ID 等动态键）→ 回落该实例的 {@code hide_hud}。
      */
-    private static boolean effectiveHardHide(ScriptMeta.RuntimeBehavior b) {
-        return Boolean.TRUE.equals(b.hardHideHud());
+    private static boolean perInstanceHidden(ScriptMeta.RuntimeBehavior b, String key) {
+        Boolean declared = b.screenLayers().get(key);
+        if (declared != null) return !declared;
+        ScreenLayer layer = ScreenLayer.byId(key);
+        if (layer != null) return ScreenLayer.legacyHidden(layer, b);
+        return b.hideHud();
     }
 
     /** 单条目开关取值函数（局部函数式接口，避免引入额外依赖）。 */
@@ -269,13 +284,13 @@ public class CinematicController {
         this.hideCrosshair = null;
         this.hideBossbar = null;
         this.hideSkipHud = null;
-        this.hardHideHud = null;
+        this.screenLayerMode = ScreenLayerMode.NORMAL;
         this.hideArm = null;
         this.suppressBob = null;
         this.suppressDistortion = null;
         this.renderPlayerModel = true;
         this.blockMobAi = false;
-        this.hudLayers.clear();
+        this.screenLayers.clear();
     }
 
     public void revert() {
@@ -324,32 +339,72 @@ public class CinematicController {
         }
     }
 
+    /** 旧字段读取面：控制器字段的只读适配（实例复用——每帧判定不分配）。 */
+    private final ScreenLayer.LegacyFlags legacyFlags = new ScreenLayer.LegacyFlags() {
+        @Override public boolean hideHud() { return CinematicController.this.hideHud; }
+        @Override public Boolean hideHotbar() { return CinematicController.this.hideHotbar; }
+        @Override public Boolean hideCrosshair() { return CinematicController.this.hideCrosshair; }
+        @Override public Boolean hideBossbar() { return CinematicController.this.hideBossbar; }
+        @Override public Boolean hideChat() { return CinematicController.this.hideChat; }
+        @Override public Boolean hideScoreboard() { return CinematicController.this.hideScoreboard; }
+        @Override public Boolean hideActionBar() { return CinematicController.this.hideActionBar; }
+        @Override public Boolean hideTitle() { return CinematicController.this.hideTitle; }
+        @Override public Boolean hideSubtitles() { return CinematicController.this.hideSubtitles; }
+        @Override public Boolean hideSkipHud() { return CinematicController.this.hideSkipHud; }
+        @Override public Boolean hideArm() { return CinematicController.this.hideArm; }
+        @Override public Boolean suppressBob() { return CinematicController.this.suppressBob; }
+        @Override public Boolean suppressDistortion() { return CinematicController.this.suppressDistortion; }
+        @Override public boolean renderPlayerModel() { return CinematicController.this.renderPlayerModel; }
+    };
+
+    private ScreenLayer.LegacyFlags legacyFlags() { return legacyFlags; }
+
     /**
-     * 判断某个 HUD 层是否应该隐藏。固定分类优先使用对应单项开关，否则看 {@code hud_layers} 覆盖。
+     * 判断某个画面层是否应该隐藏。
+     *
+     * <p>查找顺序：并集表规范名 → 并集表原始键（{@code categoryKey}，Forge 分类名）→ 旧字段表
+     * （{@link ScreenLayer#legacyHidden(ScreenLayer, ScreenLayer.LegacyFlags)}）→ {@code hide_hud}。</p>
+     *
+     * @param layerName   层名（规范名或别名均可，内部归一）
+     * @param categoryKey 平台分类键（可为 {@code null}）；与规范名不同时作为第二优先键查询
      */
-    public boolean isLayerHidden(String layer) {
-        switch (layer) {
-            case "hotbar": return resolveLayer(hideHotbar);
-            case "crosshair": return resolveLayer(hideCrosshair);
-            case "chat": return resolveLayer(hideChat);
-            case "scoreboard": return resolveLayer(hideScoreboard);
-            case "bossbar": return resolveLayer(hideBossbar);
-            case "subtitles": return resolveLayer(hideSubtitles);
-            case "action_bar": return resolveLayer(hideActionBar);
-            case "title": return resolveLayer(hideTitle);
-            case "arm": return resolveLayer(hideArm);
-            case "skip_hud": return resolveLayer(hideSkipHud);
-            case "bob": return resolveLayer(suppressBob);
-            default: {
-                Boolean v = hudLayers.get(layer);
-                return v != null ? v : hideHud;
-            }
+    public boolean isLayerHidden(String layerName, String categoryKey) {
+        String canonical = ScreenLayer.canonicalize(layerName);
+        Boolean v = screenLayers.get(canonical);
+        if (v != null) return v;
+        if (categoryKey != null && !categoryKey.equals(canonical)) {
+            v = screenLayers.get(categoryKey);
+            if (v != null) return v;
         }
+        ScreenLayer layer = ScreenLayer.byId(canonical);
+        if (layer != null) return ScreenLayer.legacyHidden(layer, legacyFlags());
+        return hideHud;
     }
 
-    private boolean resolveLayer(Boolean setting) {
-        if (setting == null) return hideHud;
-        return setting;
+    /** 判断某个画面层是否应该隐藏（分类键 = 层名）。 */
+    public boolean isLayerHidden(String layer) {
+        return isLayerHidden(layer, layer);
+    }
+
+    /** 画面层模式并集（非 null）。 */
+    public ScreenLayerMode screenLayerMode() {
+        return screenLayerMode != null ? screenLayerMode : ScreenLayerMode.NORMAL;
+    }
+
+    /** 生效的 allowlist 模式：脚本要求 allowlist 且平台支持整帧接管（Forge 支持，Fabric 降级）。 */
+    public boolean isAllowlistMode() {
+        return screenLayerMode == ScreenLayerMode.ALLOWLIST && HudLayerRegistry.supportsScreenLayerTakeover();
+    }
+
+    /** 15 个规范层或并集表任一动态键要求隐藏。 */
+    public boolean anyScreenLayerHidden() {
+        for (ScreenLayer layer : ScreenLayer.all()) {
+            if (isLayerHidden(layer.id())) return true;
+        }
+        for (String key : screenLayers.keySet()) {
+            if (isLayerHidden(key, key)) return true;
+        }
+        return false;
     }
 
     public boolean isHideHud() { return hideHud; }
@@ -363,14 +418,6 @@ public class CinematicController {
     public Boolean isHideBossbar() { return hideBossbar; }
     public Boolean isHideSkipHud() { return hideSkipHud; }
 
-    /**
-     * 强硬隐藏模式是否生效（脚本字段 {@code hard_hide_hud}，任一活跃实例显式声明 {@code true} 即生效）。
-     * 该开关不参与「三态回落 {@code hide_hud}」：null = 未声明 = normal（全局默认值，当前无配置键）。
-     * 接管条件还需 {@code CameraManager.isActive()} 与 {@link #isHideHud()} 同时为真——{@code hide_hud=false}
-     * 时无物可藏，不接管。
-     */
-    public boolean isHardHideHud() { return Boolean.TRUE.equals(hardHideHud); }
-
     public Boolean isHideArm() { return hideArm; }
     public Boolean isSuppressBob() { return suppressBob; }
     public Boolean isSuppressDistortion() { return suppressDistortion; }
@@ -378,13 +425,11 @@ public class CinematicController {
     public boolean isBlockMobAi() { return blockMobAi; }
 
     /**
-     * 是否屏蔽屏幕扭曲（反胃/传送门旋转）：脚本显式写了 {@code suppress_distortion} 时以脚本为准；
-     * 未写时兼容旧行为——跟随 {@code suppress_bob}，再回落到 {@code hide_hud}。
+     * 是否屏蔽屏幕扭曲（反胃/传送门旋转）：统一走 {@code screen_effects} 层的判定链
+     * （{@code suppress_distortion} → {@code suppress_bob} → {@code hide_hud}）。
      */
     private boolean shouldSuppressDistortion() {
-        if (suppressDistortion != null) return suppressDistortion;
-        if (suppressBob != null) return suppressBob;
-        return hideHud;
+        return isLayerHidden(ScreenLayer.SCREEN_EFFECTS.id());
     }
 
     /**
@@ -393,7 +438,7 @@ public class CinematicController {
      */
     private void updateScreenEffectScale() {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.options == null) return;
+        if (mc == null || mc.options == null) return;
         if (shouldSuppressDistortion()) {
             if (!distortionOverridden) {
                 savedScreenEffectScale = mc.options.screenEffectScale().get();

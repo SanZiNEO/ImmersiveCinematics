@@ -332,6 +332,11 @@ public final class ScriptValidator {
             checkBaseResolution(root.getAsJsonObject("meta"), issues);
         }
 
+        // ===== meta.screen_layers / screen_layer_mode：画面层统一入口（hud_layers / hard_hide_hud 为 deprecated 别名）=====
+        if (root.has("meta") && root.get("meta").isJsonObject()) {
+            checkScreenLayers(root, issues);
+        }
+
         // ===== meta.triggers：前置依赖（requires）+ 类型/条件结构校验 =====
         if (root.has("meta") && root.get("meta").isJsonObject()) {
             JsonObject meta = root.getAsJsonObject("meta");
@@ -2914,6 +2919,90 @@ public final class ScriptValidator {
         } else if (".".equals(name) || "..".equals(name)) {
             issues.add(path + " 文件名非法：" + name);
         }
+    }
+
+    /**
+     * 校验 {@code meta.screen_layers} / {@code meta.screen_layer_mode}，并对 deprecated 的
+     * {@code meta.hud_layers} / {@code meta.hard_hide_hud} 给出提示。
+     *
+     * <p>与 {@code ScriptParser#parseScreenLayers} / {@code ScriptParser#resolveScreenLayerMode}
+     * 同一口径：{@code screen_layers} 的值 = 显示（true 显示 / false 隐藏）；未知名按动态层名处理；
+     * 显式 {@code screen_layer_mode} 优先于 {@code hard_hide_hud} 别名。</p>
+     */
+    private static void checkScreenLayers(JsonObject root, List<String> issues) {
+        if (!root.has("meta") || !root.get("meta").isJsonObject()) return;
+        JsonObject meta = root.getAsJsonObject("meta");
+
+        // screen_layers：对象 + 布尔值 + 键域（15 个规范层名 / 已知别名 / 动态层名）
+        JsonElement layersEl = meta.get("screen_layers");
+        if (layersEl != null && !layersEl.isJsonNull()) {
+            if (!layersEl.isJsonObject()) {
+                issues.add("meta.screen_layers 需要对象 {层名: 布尔}（true = 显示，false = 隐藏），实际: " + layersEl);
+            } else {
+                for (Map.Entry<String, JsonElement> entry : layersEl.getAsJsonObject().entrySet()) {
+                    String key = entry.getKey();
+                    if (key.isEmpty()) {
+                        issues.add("meta.screen_layers 存在空字符串键（层名不能为空）");
+                        continue;
+                    }
+                    if (ScreenLayer.byId(key) == null) {
+                        issues.add(WARNING_PREFIX + "meta.screen_layers 键 '" + key
+                                + "' 不是 15 个规范层名或已知别名，将按动态层名处理"
+                                + "（只匹配同名的注册分类 / 未注册 overlay 资源 ID）");
+                    }
+                    JsonElement v = entry.getValue();
+                    if (!v.isJsonPrimitive() || !v.getAsJsonPrimitive().isBoolean()) {
+                        issues.add("meta.screen_layers['" + key + "'] 需要布尔值（true = 显示，false = 隐藏），实际: " + v);
+                    }
+                }
+            }
+        }
+
+        // screen_layer_mode：字符串 + 取值域
+        JsonElement declaredEl = meta.get("screen_layer_mode");
+        if (declaredEl != null && !declaredEl.isJsonNull()) {
+            if (!isString(declaredEl)) {
+                issues.add("meta.screen_layer_mode 需要字符串（normal / allowlist），实际: " + declaredEl);
+            } else if (!ScreenLayerMode.isKnown(declaredEl.getAsString())) {
+                issues.add("meta.screen_layer_mode 未知值: " + declaredEl.getAsString()
+                        + "（可选: normal / allowlist），运行时按未声明处理");
+            }
+        }
+
+        // hard_hide_hud：deprecated 别名（true → allowlist / false → normal）；与显式模式冲突时显式字段优先
+        JsonElement hardEl = meta.get("hard_hide_hud");
+        if (hardEl != null && !hardEl.isJsonNull()) {
+            Boolean hard = boolValue(hardEl);
+            if (hard == null) {
+                issues.add("meta.hard_hide_hud 需要布尔值（deprecated 别名：true → allowlist，false → normal），实际: "
+                        + hardEl);
+            } else if (declaredEl != null && isString(declaredEl)
+                    && ScreenLayerMode.isKnown(declaredEl.getAsString())) {
+                boolean aliasAllowlist = hard;
+                boolean declaredAllowlist =
+                        ScreenLayerMode.fromString(declaredEl.getAsString()) == ScreenLayerMode.ALLOWLIST;
+                if (aliasAllowlist != declaredAllowlist) {
+                    issues.add(WARNING_PREFIX + "meta.hard_hide_hud=" + hard
+                            + " 与 meta.screen_layer_mode=" + declaredEl.getAsString()
+                            + " 语义不一致；screen_layer_mode 优先（hard_hide_hud 是 deprecated 别名）");
+                }
+            }
+        }
+
+        // hud_layers：deprecated 入口（解析期归一到 screen_layers；固定分类键不生效）
+        JsonElement hudEl = meta.get("hud_layers");
+        if (hudEl != null && !hudEl.isJsonNull()) {
+            issues.add(WARNING_PREFIX + "meta.hud_layers 已弃用（deprecated）：请改用 meta.screen_layers"
+                    + "（true = 显示 / false = 隐藏，支持 15 个规范层名）；"
+                    + "hud_layers 中的固定分类键不生效（解析期丢弃）");
+        }
+    }
+
+    /** 读 JSON 布尔：缺失 / null / 非布尔 → null。 */
+    private static Boolean boolValue(JsonElement e) {
+        if (e == null || e.isJsonNull()) return null;
+        if (e.isJsonPrimitive() && e.getAsJsonPrimitive().isBoolean()) return e.getAsBoolean();
+        return null;
     }
 
     /**

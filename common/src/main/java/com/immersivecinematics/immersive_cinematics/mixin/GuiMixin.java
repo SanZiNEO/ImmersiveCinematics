@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 电影模式下按白名单隐藏 HUD。
+ * 电影模式下按规范层名逐层隐藏 HUD（{@code hud.hotbar} / {@code hud.crosshair} / {@code hud.health} 等）。
  *
  * 挂点是每个 {@code Gui} 私有渲染方法的 HEAD + cancel，取代 Forge 的
  * {@code RenderGuiOverlayEvent.Pre}：该事件只在 Forge 存在，逐方法注入才能让 Fabric / Forge 共用同一套
@@ -45,7 +45,7 @@ public abstract class GuiMixin {
 
     @Inject(method = "render", at = @At("HEAD"))
     private void onRenderHead(GuiGraphics guiGraphics, float partialTick, CallbackInfo ci) {
-        if (isActive() && shouldHide(CinematicController.INSTANCE.isHideActionBar()) && overlayMessageTime > 0) {
+        if (isActive() && CinematicController.INSTANCE.isLayerHidden("hud.action_bar") && overlayMessageTime > 0) {
             savedOverlayMessageTime = overlayMessageTime;
             overlayMessageTime = 0;
             suppressOverlayMessage = true;
@@ -53,7 +53,7 @@ public abstract class GuiMixin {
             suppressOverlayMessage = false;
         }
 
-        if (isActive() && shouldHide(CinematicController.INSTANCE.isHideTitle()) && titleTime > 0) {
+        if (isActive() && CinematicController.INSTANCE.isLayerHidden("hud.title") && titleTime > 0) {
             savedTitleTime = titleTime;
             titleTime = 0;
             suppressTitle = true;
@@ -72,35 +72,35 @@ public abstract class GuiMixin {
 
     @Inject(method = "renderHotbar", at = @At("HEAD"), cancellable = true)
     private void onRenderHotbar(float partialTick, GuiGraphics guiGraphics, CallbackInfo ci) {
-        if (isActive() && shouldHide(CinematicController.INSTANCE.isHideHotbar())) ci.cancel();
+        if (isActive() && CinematicController.INSTANCE.isLayerHidden("hud.hotbar")) ci.cancel();
     }
 
     // ===== 准心 =====
 
     @Inject(method = "renderCrosshair", at = @At("HEAD"), cancellable = true)
     private void onRenderCrosshair(GuiGraphics guiGraphics, CallbackInfo ci) {
-        if (isActive() && shouldHide(CinematicController.INSTANCE.isHideCrosshair())) ci.cancel();
+        if (isActive() && CinematicController.INSTANCE.isLayerHidden("hud.crosshair")) ci.cancel();
     }
 
     // ===== 血量/饥饿/护甲 =====
 
     @Inject(method = "renderPlayerHealth", at = @At("HEAD"), cancellable = true)
     private void onRenderPlayerHealth(GuiGraphics guiGraphics, CallbackInfo ci) {
-        if (isActive() && shouldHide(null)) ci.cancel();
+        if (isActive() && CinematicController.INSTANCE.isLayerHidden("hud.health")) ci.cancel();
     }
 
     // ===== 载具血量 =====
 
     @Inject(method = "renderVehicleHealth", at = @At("HEAD"), cancellable = true)
     private void onRenderVehicleHealth(GuiGraphics guiGraphics, CallbackInfo ci) {
-        if (isActive() && shouldHide(null)) ci.cancel();
+        if (isActive() && CinematicController.INSTANCE.isLayerHidden("hud.health")) ci.cancel();
     }
 
     // ===== 经验栏 =====
 
     @Inject(method = "renderExperienceBar", at = @At("HEAD"), cancellable = true)
     private void onRenderExperienceBar(GuiGraphics guiGraphics, int i, CallbackInfo ci) {
-        if (isActive() && shouldHide(null)) ci.cancel();
+        if (isActive() && CinematicController.INSTANCE.isLayerHidden("hud.experience")) ci.cancel();
     }
 
     // ===== 跳跃蓄力条 =====
@@ -122,7 +122,7 @@ public abstract class GuiMixin {
 
     @Inject(method = "displayScoreboardSidebar", at = @At("HEAD"), cancellable = true)
     private void onDisplayScoreboardSidebar(GuiGraphics guiGraphics, Objective objective, CallbackInfo ci) {
-        if (isActive() && shouldHide(CinematicController.INSTANCE.isHideScoreboard())) ci.cancel();
+        if (isActive() && CinematicController.INSTANCE.isLayerHidden("hud.scoreboard")) ci.cancel();
     }
 
     // ===== 保存提示（F1 隐藏块内） =====

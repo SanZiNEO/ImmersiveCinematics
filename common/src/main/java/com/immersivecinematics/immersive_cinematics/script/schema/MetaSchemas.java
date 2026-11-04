@@ -51,6 +51,12 @@ public final class MetaSchemas {
         map.put("macro_loop", new FieldDef("bool", false, false, java.util.Collections.emptyList(), "runtime"));
         map.put("macro_loop_count", new FieldDef("int", -1, false, java.util.Collections.emptyList(), "runtime"));
         map.put("macro_loop_mode", new FieldDef("enum", "repeat", false, java.util.List.of("repeat", "pingpong"), "runtime"));
+        // 画面层统一入口（H-5）：15 个规范层名 + 已知别名 + 动态层名；值 = 显示（true 显示 / false 隐藏）
+        map.put("screen_layers", new FieldDef("object", null, false, java.util.Collections.emptyList(), "runtime"));
+        // 接管模式：normal / allowlist；缺省由 ScriptParser#resolveScreenLayerMode 归一（新字段路径 → allowlist）
+        map.put("screen_layer_mode", new FieldDef("enum", null, false,
+                java.util.List.of("normal", "allowlist"), "runtime"));
+        // 以下两项为 deprecated 兼容入口：hud_layers 解析期归一到 screen_layers（极性翻转），hard_hide_hud 归一为模式别名
         map.put("hud_layers", new FieldDef("object", null, false, java.util.Collections.emptyList(), "runtime"));
         map.put("hard_hide_hud", new FieldDef("bool", null, false, java.util.Collections.emptyList(), "runtime"));
         map.put("priority", new FieldDef("int", 0, false, java.util.Collections.emptyList(), "runtime"));

@@ -134,31 +134,22 @@ public abstract class GameRendererMixin {
      */
     @Inject(method = "renderItemInHand", at = @At("HEAD"), cancellable = true)
     private void onRenderItemInHand(CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive()) {
-            Boolean setting = CinematicController.INSTANCE.isHideArm();
-            if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
-                ci.cancel();
-            }
+        if (CameraManager.INSTANCE.isActive() && CinematicController.INSTANCE.isLayerHidden("viewmodel")) {
+            ci.cancel();
         }
     }
 
     @Inject(method = "bobHurt", at = @At("HEAD"), cancellable = true)
     private void onBobHurt(PoseStack poseStack, float partialTick, CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive()) {
-            Boolean setting = CinematicController.INSTANCE.isSuppressBob();
-            if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
-                ci.cancel();
-            }
+        if (CameraManager.INSTANCE.isActive() && CinematicController.INSTANCE.isLayerHidden("view_bobbing")) {
+            ci.cancel();
         }
     }
 
     @Inject(method = "bobView", at = @At("HEAD"), cancellable = true)
     private void onBobView(PoseStack poseStack, float partialTick, CallbackInfo ci) {
-        if (CameraManager.INSTANCE.isActive()) {
-            Boolean setting = CinematicController.INSTANCE.isSuppressBob();
-            if (setting == null ? CinematicController.INSTANCE.isHideHud() : setting) {
-                ci.cancel();
-            }
+        if (CameraManager.INSTANCE.isActive() && CinematicController.INSTANCE.isLayerHidden("view_bobbing")) {
+            ci.cancel();
         }
     }
 

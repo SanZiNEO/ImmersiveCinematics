@@ -158,7 +158,7 @@ public class ScriptMeta {
             Boolean hideCrosshair,
             Boolean hideBossbar,
             Boolean hideSkipHud,
-            Boolean hardHideHud,
+            ScreenLayerMode screenLayerMode,
             boolean renderPlayerModel,
             boolean pauseWhenGamePaused,
             boolean interruptible,
@@ -167,12 +167,12 @@ public class ScriptMeta {
             boolean macroLoop,
             String macroLoopMode,
             int macroLoopCount,
-            java.util.Map<String, Boolean> hudLayers
+            java.util.Map<String, Boolean> screenLayers
     ) {
         public static final RuntimeBehavior DEFAULT = new RuntimeBehavior(
                 true, true, false, true,
                 null, null, null,
-                null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, ScreenLayerMode.NORMAL,
                 true,
                 true, true, true, false,
                 false, "repeat", -1,
@@ -197,7 +197,7 @@ public class ScriptMeta {
             private Boolean hideCrosshair = null;
             private Boolean hideBossbar = null;
             private Boolean hideSkipHud = null;
-            private Boolean hardHideHud = DEFAULT.hardHideHud();
+            private ScreenLayerMode screenLayerMode = ScreenLayerMode.NORMAL;
             private boolean renderPlayerModel = DEFAULT.renderPlayerModel();
             private boolean pauseWhenGamePaused = DEFAULT.pauseWhenGamePaused();
             private boolean interruptible = DEFAULT.interruptible();
@@ -206,7 +206,7 @@ public class ScriptMeta {
             private boolean macroLoop = DEFAULT.macroLoop();
             private String macroLoopMode = DEFAULT.macroLoopMode();
             private int macroLoopCount = DEFAULT.macroLoopCount();
-            private java.util.Map<String, Boolean> hudLayers = new java.util.LinkedHashMap<>();
+            private java.util.Map<String, Boolean> screenLayers = new java.util.LinkedHashMap<>();
 
             public Builder blockKeyboard(boolean v) { this.blockKeyboard = v; return this; }
             public Builder blockMouse(boolean v) { this.blockMouse = v; return this; }
@@ -224,7 +224,7 @@ public class ScriptMeta {
             public Builder hideCrosshair(Boolean v) { this.hideCrosshair = v; return this; }
             public Builder hideBossbar(Boolean v) { this.hideBossbar = v; return this; }
             public Builder hideSkipHud(Boolean v) { this.hideSkipHud = v; return this; }
-            public Builder hardHideHud(Boolean v) { this.hardHideHud = v; return this; }
+            public Builder screenLayerMode(ScreenLayerMode v) { this.screenLayerMode = v; return this; }
             public Builder renderPlayerModel(boolean v) { this.renderPlayerModel = v; return this; }
             public Builder pauseWhenGamePaused(boolean v) { this.pauseWhenGamePaused = v; return this; }
             public Builder interruptible(boolean v) { this.interruptible = v; return this; }
@@ -233,7 +233,7 @@ public class ScriptMeta {
             public Builder macroLoop(boolean v) { this.macroLoop = v; return this; }
             public Builder macroLoopMode(String v) { this.macroLoopMode = v; return this; }
             public Builder macroLoopCount(int v) { this.macroLoopCount = v; return this; }
-            public Builder hudLayers(java.util.Map<String, Boolean> v) { this.hudLayers = v; return this; }
+            public Builder screenLayers(java.util.Map<String, Boolean> v) { this.screenLayers = v; return this; }
 
             public RuntimeBehavior build() {
                 return new RuntimeBehavior(
@@ -242,11 +242,11 @@ public class ScriptMeta {
                         hideChat, hideScoreboard, hideActionBar,
                         hideTitle, hideSubtitles, hideHotbar, hideCrosshair,
                         hideBossbar, hideSkipHud,
-                        hardHideHud,
+                        screenLayerMode,
                         renderPlayerModel,
                         pauseWhenGamePaused, interruptible, skippable, holdAtEnd,
                         macroLoop, macroLoopMode, macroLoopCount,
-                        hudLayers
+                        screenLayers
                 );
             }
         }

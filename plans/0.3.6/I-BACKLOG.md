@@ -161,11 +161,40 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 
 ---
 
-## 清零规则
+## K. H-5 遗留项（画面层统一语义）
+
+> 建立：2026-11-04。来源：H-5 验收遗留 + 实现时发现的口径变化。实现与验证见 `H-other/screen-layers.md` §九。
+
+| ID | 事项 | 归属 | 关闭条件 |
+|---|---|---|---|
+| H5-R1 | 真实第三方 overlay 模组（TACZ / SecurityCraft 类）未安装复测；本轮用「临时 Pre 自绘红方块」覆盖同一判定路径（承接 H2-R4） | 后续实机批次 | 装上对应模组后在 `screen_layer_mode: allowlist` 下确认其 Pre 自绘与注册 overlay 均被接管/重画；`normal` 下保留 |
+| H5-R2 | 编辑器 UI 未暴露 `screen_layers` / `screen_layer_mode` 表单（schema 已导出两字段） | **Z 轮** | 编辑器源码回仓后按 `SchemaExporter.meta` 生成控件；读写与解析口径一致 |
+| H5-R3 | Fabric 无「可取消的整段 HUD 回调」，`allowlist` 只能降级 `normal` | 未排期 | Fabric 出现等价挂点后实现接管并实机验证；在此之前为契约边界 |
+| H5-R4 | `docs/modules/control.md` / `docs/modules/mixin.md` 仍写旧 `hud_layers` / `hard_hide_hud` 口径 | 后续文档批次 | 两处按 `screen_layers` 口径改写；`grep` 无旧口径作为推荐入口 |
+| H5-R5 | `hud_layers` 的 `health` / `status` 旧键在 Fabric 上仍不生效（它们是 Forge 分类名，只经 Forge overlay 消费链命中） | **契约边界** | 已写入 `screen-layers.md` §3.3 / §5.6 与 `docs/SCRIPT_FORMAT.md`；为保持零回归不做跨平台统一 |
+| H5-R6 | `hud.health` / `hud.experience` 共用 `hide_hud`：旧字段无法分别控制，只有 `screen_layers` 能拆开 | **契约边界** | 已写入 15 层表与 `docs/SCRIPT_FORMAT.md` 回落细节 |
+| H5-R7 | `allowlist` 重画豁免世界效果层（暗角 / 传送门 / 药水图标 / 冻结 / 窥镜等），否则会被误判为隐藏 | **契约边界** | 已写入 `screen-layers.md` §5.6；新增世界效果 overlay 时同步 `ForgeHudLayerRegistry.WORLD_OVERLAYS` |
+| H5-R8 | 接管会跳过排在接管监听器之后的前置事件订阅者的**非绘制副作用**（状态准备 / 缓存刷新） | **契约边界** | 已写入 `docs/SCRIPT_FORMAT.md` 与 `screen-layers.md`；不补发事件、不做针对性 mixin |
+| H5-R9 | `screen_layers` 写成空对象也会把模式推到 `allowlist`（「字段存在」即新字段路径） | **契约边界** | 已写入 `docs/SCRIPT_FORMAT.md` 模式归一顺序；作者想保持逐层抑制请显式写 `screen_layer_mode: normal` |
+| H5-R10 | `GuiMixin.shouldHide(Boolean)` 现仅以 `null` 调用（跳跃条 / 选中物品名 / 保存提示），`setting` 分支已无调用者 | 未排期（机械清理） | 收敛为无参 `shouldHide()`；验收 grep 文本同步 |
+
+**H-5 契约边界（不排期，已写入对应专篇）**
+
+1. 世界内容（实体 / 粒子 / 天气 / 地形）不受画面层控制。
+2. 脚本覆盖层（黑边 / 字幕 / 图片 / GIF）不参与白名单，始终按脚本轨道绘制。
+3. `allowlist` 不补发 `RenderGuiOverlayEvent.Pre/Post`；依赖该事件的第三方逻辑收不到事件。
+4. 取消只影响排在接管监听器之后的订阅者；同优先级且注册更早的监听器仍会执行。
+5. 直接 mixin 进 `Gui.render` 或绕过平台入口绘制的 HUD 没有稳定挂点。
+6. Fabric 注册表只影响普通层过滤；`allowlist` 在 Fabric 降级 `normal`。
+7. `hard_hide_hud` 与 `hud_layers` 仅作 deprecated 入口，不保留第二套判定逻辑。
+
+---
+
 
 - **I-3 收口**：A 表至少完成旧循环实机基线；I2-B1 的最终全量留 I-5。
 - **I-4 收口（2026-11-03 完成）**：B 表 I2-B2..B9 全部关闭；B-2 表关闭 I3-B1/B2/B3 与卫生项；新增遗留全部落在 E 表（I4-R1 归 I-5、I4-R2 归 Z 轮、I4-R3..R5 为契约边界并已写入对应专篇）。
 - **I-5 收口**：C 表全部关闭；D 表在对应专篇有明确文字；本表无“未排期”项。
 - **H-2 收口（2026-11-03 完成）**：H9（跳过投票判定 / 广播 / 解析期校验 / HUD 布局）与 H11（`api/HudLayerRegistry` 门面 + Forge 转调 + Fabric 边界 + 对外文档）全部落地；H5 的 12 条逐条核对完毕（见 `H-other/doc-lag-2026-11-03.md`）；H6 的 7 条实机记录见 `H-other/verification-2026-11-03.md`。新增遗留全部落在 G 表，无“未排期”以外的悬空项。
 - **H-4 收口（2026-11-04）**：H12 全部落地（`api` 门面 12 方法 / `spi` 轨道四件套 / `TrackType` enum → 注册表 / 43 文件迁移 / 3 张静态表 / 注册冻结 / 失败隔离 / `OverlayApi` / `ServerFactsApi`）；内置 7 轨零回归由三份 headless 探针（47 + 23 + 12 全 PASS，860 片段 × 3 时间点覆盖 7 类轨道）与两轮实机（7 个脚本起播，含 LETTERBOX / AUDIO，零轨道相关异常）共同证明。新增遗留落在 J 表；A1/A3/A6/A9 的端到端验证因缺真实第三方调用方而移交 H4-R3。
+- **H-5 收口（2026-11-04）**：画面层统一语义全部落地（15 层 `ScreenLayer` 表 / `screen_layers` + `screen_layer_mode` 解析与归一 / `hud_layers` deprecated 归一 / `hard_hide_hud` 模式别名 / allowlist 接管与重画合并旧路径 / normal 消费点改规范层名 / 平台能力位与 Fabric 降级 / 编辑器同规则）；零回归由无头探针 46 + 26 断言与 Forge「allowlist 清空第三方 Pre 自绘、normal 保留」的像素对照共同证明，Fabric 侧验证了降级与逐层覆盖。新增遗留落在 K 表；真实第三方模组复测移交 H5-R1，编辑器表单移交 H5-R2。
 - 任何新增遗留必须补进本表并指定轮次/关闭条件；不允许只写在轮次总结里。

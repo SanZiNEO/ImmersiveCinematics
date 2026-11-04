@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "id": "test_h12_screen_layers_allowlist",
+    "name": "H12 画面层白名单",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "H12 夹具（白名单模式，仅 Forge 生效）：hide_hud=true + screen_layer_mode=allowlist + screen_layers{hud.hotbar:true, hud.chat:false}，同时旧字段 hide_chat=true。预期：快捷栏显示（screen_layers 覆盖 hide_hud 回落）、聊天隐藏（screen_layers 与 hide_chat 同向）、其余 13 层按 hide_hud 隐藏、本模组字幕照常显示。Fabric 上生效模式降级 normal，快捷栏随之隐藏。",
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": true,
+    "screen_layer_mode": "allowlist",
+    "screen_layers": { "hud.hotbar": true, "hud.chat": false },
+    "hide_chat": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 20,
+    "tracks": [
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              { "time": 0, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 },
+              { "time": 20, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "layer_type": "subtitle",
+            "text": "H12 allowlist：快捷栏应显示（screen_layers 放行）、聊天应隐藏、其余 HUD 隐藏、本模组字幕显示",
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.10, "opacity": 1 },
+              { "time": 20, "x": 0.5, "y": 0.10, "opacity": 1 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

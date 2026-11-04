@@ -44,9 +44,20 @@ public final class ForgeClientEvents {
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {
         ClientEventHandler.onClientInit();
-        // 门面的平台回调在 Forge 侧留空：normal 的 overlay 过滤与 hard 的白名单重画都直接读注册表，
-        // 注册写表即生效，不需要平台做任何追加动作。
-        HudLayerRegistry.install((overlayId, category) -> {});
+        // 门面的平台回调在 Forge 侧留空：normal 的 overlay 过滤与 allowlist 的接管重画都直接读注册表，
+        // 注册写表即生效，不需要平台做任何追加动作。能力位声明 Forge 具备
+        // 「可取消的整段 HUD 回调 + overlay 注册表」，allowlist 因此能在此平台生效。
+        HudLayerRegistry.install(new HudLayerRegistry.Platform() {
+            @Override
+            public void onRegistered(ResourceLocation overlayId, String category) {
+                // 消费链直接读表，注册写表即生效
+            }
+
+            @Override
+            public boolean supportsScreenLayerTakeover() {
+                return true;
+            }
+        });
         ModLoadingContext.get().registerExtensionPoint(
                 ConfigScreenHandler.ConfigScreenFactory.class,
                 () -> new ConfigScreenHandler.ConfigScreenFactory(
@@ -79,7 +90,7 @@ public final class ForgeClientEvents {
     public static final class Forge {
         private Forge() {}
 
-        private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/HudHardHide");
+        private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/ScreenLayers");
 
         @SubscribeEvent
         public static void onClientTick(TickEvent.ClientTickEvent event) {
@@ -89,55 +100,56 @@ public final class ForgeClientEvents {
         }
 
         /**
-         * 强硬隐藏模式（{@code meta.hard_hide_hud}）接管点，最高优先级先于其他订阅者执行：
-         * 取消 {@code RenderGuiEvent.Pre} → Forge 跳过原版 HUD、全部注册表 overlay 与 {@code Post}，
-         * 同时跳过排在本监听器之后的其他订阅者（在 Pre 里自绘的第三方 HUD，如鬼灭冷却条）。
-         * 随后由 {@link #renderHardHide} 按白名单重画 + 补画本模组 overlay。
+         * 白名单模式（{@code screen_layer_mode: allowlist}，或归一后的 {@code hard_hide_hud: true}）
+         * 接管点，最高优先级先于其他订阅者执行：取消 {@code RenderGuiEvent.Pre} → Forge 跳过原版 HUD、
+         * 全部注册表 overlay 与 {@code Post}，同时跳过排在本监听器之后的其他订阅者
+         * （在 Pre 里自绘的第三方 HUD，如鬼灭冷却条）。
+         * 随后由 {@link #renderAllowlist} 按画面层判定重画 + 补画本模组 overlay。
          *
-         * normal 模式（未声明该字段）此方法直接返回，不接管。
+         * normal 模式（未声明新字段且无 {@code hard_hide_hud}）此方法直接返回，不接管。
          */
         @SubscribeEvent(priority = EventPriority.HIGHEST)
         public static void onRenderGuiPre(RenderGuiEvent.Pre event) {
-            if (!isHardHideActive()) return;
+            if (!isAllowlistTakeoverActive()) return;
             Minecraft mc = Minecraft.getInstance();
             // Forge 下 Minecraft.gui 恒为 ForgeGui；非预期实现时不接管（取消会连重画的机会都没有）
             if (!(mc.gui instanceof ForgeGui forgeGui)) return;
             event.setCanceled(true);
-            renderHardHide(mc, forgeGui, event.getGuiGraphics(), event.getPartialTick());
+            renderAllowlist(mc, forgeGui, event.getGuiGraphics(), event.getPartialTick());
         }
 
         /**
          * normal 模式的绘制点（黑边 / 字幕 / GIF / 跳过提示）。
          *
-         * 绘制点按模式分流：hard 模式已在 {@link #onRenderGuiPre} 接管处补画，
+         * 绘制点按模式分流：allowlist 模式已在 {@link #onRenderGuiPre} 接管处补画，
          * 且 Pre 被取消后 Forge 不会再发 {@code Post}——此处早退只为让"每帧只画一次"成为显式不变式。
          */
         @SubscribeEvent
         public static void onRenderGui(RenderGuiEvent.Post event) {
-            if (isHardHideActive()) return;
+            if (isAllowlistTakeoverActive()) return;
             ClientEventHandler.onRenderHud(event.getGuiGraphics());
         }
 
         /**
-         * hard 模式是否正在生效：相机激活（有活跃播放实例）+ 脚本声明 {@code hard_hide_hud: true}
-         * + {@code hide_hud} 生效。{@code hide_hud=false} 时无物可藏，不接管——否则会连
+         * allowlist 模式是否正在生效：相机激活（有活跃播放实例）+ 生效模式为 allowlist
+         * （含平台能力位）+ 任一画面层判为隐藏。无层可藏时不接管——否则会连
          * "白名单判为显示"的第三方自绘 HUD 一起砍掉，违背脚本作者的显式意图。
          */
-        private static boolean isHardHideActive() {
+        private static boolean isAllowlistTakeoverActive() {
             return CameraManager.INSTANCE.isActive()
-                    && CinematicController.INSTANCE.isHardHideHud()
-                    && CinematicController.INSTANCE.isHideHud();
+                    && CinematicController.INSTANCE.isAllowlistMode()
+                    && CinematicController.INSTANCE.anyScreenLayerHidden();
         }
 
         /**
-         * hard 模式重画：复位左右高度 → 逐层重画白名单判为"显示"的注册表 overlay → 补画本模组 overlay；
-         * 判定复用 normal 模式同一套白名单（世界效果层豁免 + {@code isLayerHidden(category)}）。
+         * allowlist 模式重画：复位左右高度 → 逐层重画画面层判为"显示"的注册表 overlay → 补画本模组 overlay；
+         * 每层用 {@code isLayerHidden(layerOf(id), categoryOf(id))} 判定（规范层名优先，旧分类名兜底）。
          * 不补发 {@code RenderGuiOverlayEvent.Pre/Post}：构造器 {@code @ApiStatus.Internal}
          * 且 {@code NamedGuiOverlay} 无法自建，
          * {@link #onRenderGuiOverlayPre} 的效果已由上面的过滤逐层复现，补发只会多派发两轮事件。
          * 与 {@code ForgeGui.render} 的差异：不设 screenWidth/Height（Pre 前已设）、不重播 random（字段不可访问，仅影响食物图标抖动）。
          */
-        private static void renderHardHide(Minecraft mc, ForgeGui gui, GuiGraphics graphics, float partialTick) {
+        private static void renderAllowlist(Minecraft mc, ForgeGui gui, GuiGraphics graphics, float partialTick) {
             // ForgeGui.render 在 Pre 之前已复位，这里再复位一次是防御：更早的 HIGHEST 订阅者可能改过这两个公开字段
             gui.leftHeight = 39;
             gui.rightHeight = 39;
@@ -146,15 +158,18 @@ public final class ForgeClientEvents {
             int height = mc.getWindow().getGuiScaledHeight();
             for (NamedGuiOverlay entry : GuiOverlayManager.getOverlays()) {
                 ResourceLocation overlayId = entry.id();
-                if (!ForgeHudLayerRegistry.isWorldOverlay(overlayId)
-                        && CinematicController.INSTANCE.isLayerHidden(ForgeHudLayerRegistry.categoryOf(overlayId))) {
-                    continue;
+                if (!ForgeHudLayerRegistry.isWorldOverlay(overlayId)) {
+                    String layer = ForgeHudLayerRegistry.layerOf(overlayId);
+                    String category = ForgeHudLayerRegistry.categoryOf(overlayId);
+                    if (CinematicController.INSTANCE.isLayerHidden(layer, category)) {
+                        continue;
+                    }
                 }
                 try {
                     entry.overlay().render(gui, graphics, partialTick, width, height);
                 } catch (Exception e) {
                     // 与 ForgeGui 同款单层隔离：一个第三方 overlay 抛异常不应拖垮整段 HUD
-                    LOGGER.error("hard hide: overlay '{}' 渲染失败", overlayId, e);
+                    LOGGER.error("allowlist: overlay '{}' 渲染失败", overlayId, e);
                 }
             }
 
@@ -163,13 +178,20 @@ public final class ForgeClientEvents {
             ClientEventHandler.onRenderHud(graphics);
         }
 
+        /**
+         * normal 模式的逐层抑制：按画面层判定取消单个 overlay。
+         *
+         * <p>allowlist 模式下 {@link #onRenderGuiPre} 已取消整段 HUD，Forge 不会再派发本事件，
+         * 因此这里的语义只在 normal 模式生效；保留它作为逐层抑制的唯一挂点。</p>
+         */
         @SubscribeEvent
         public static void onRenderGuiOverlayPre(RenderGuiOverlayEvent.Pre event) {
             if (!CameraManager.INSTANCE.isActive()) return;
             ResourceLocation overlayId = event.getOverlay().id();
             if (ForgeHudLayerRegistry.isWorldOverlay(overlayId)) return;
+            String layer = ForgeHudLayerRegistry.layerOf(overlayId);
             String category = ForgeHudLayerRegistry.categoryOf(overlayId);
-            if (CinematicController.INSTANCE.isLayerHidden(category)) {
+            if (CinematicController.INSTANCE.isLayerHidden(layer, category)) {
                 event.setCanceled(true);
             }
         }
