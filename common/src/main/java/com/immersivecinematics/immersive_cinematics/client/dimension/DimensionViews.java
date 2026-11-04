@@ -278,6 +278,38 @@ public final class DimensionViews {
         }
     }
 
+    /**
+     * 每个客户端 tick 推进全部目标视图的实体（客户端主线程）。
+     *
+     * 门与主世界同口径：没有世界 / 没有玩家 / 游戏暂停时不推进——原版在 {@code Minecraft#tick}
+     * 里以「未暂停」为条件调用主世界的 {@code level.tickEntities()}，这里保持同一语义，
+     * 暂停时目标视图的实体也静止（不会出现暂停中远景实体继续插值的画面）。
+     *
+     * 逐视图隔离：一个视图失败只跳过它本 tick，其余视图继续；视图内部连续失败会自行停用。
+     * 只推进实体，不调用 {@link ClientLevel#tick()}（不推进时间 / 天气 / 区块）。
+     */
+    public static void tick(Minecraft mc) {
+        if (mc == null || mc.level == null || mc.player == null || mc.isPaused()) {
+            return;
+        }
+        if (VIEWS.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, DimensionView> entry : VIEWS.entrySet()) {
+            DimensionView view = entry.getValue();
+            if (view.isMain() || view.level() == null) {
+                continue;
+            }
+            try {
+                view.tickEntities();
+            } catch (Throwable t) {
+                FatalErrors.rethrowIfFatal(t);
+                ErrorLog.logRateLimited("CameraView", "tick-view:" + entry.getKey(), 5000L,
+                        "跨维度视图实体 tick 异常（维度 " + entry.getKey() + "）：本 tick 跳过该视图，其余视图继续", t);
+            }
+        }
+    }
+
     /** 世界退出（客户端 tick）：释放全部目标视图；{@link #MAIN} 不受影响。 */
     public static void closeAll() {
         reloadPending = false;

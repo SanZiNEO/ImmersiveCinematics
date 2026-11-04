@@ -1,6 +1,6 @@
 # 跨维度相机（per-view 维度渲染）
 
-> 状态：P0 + WP1–WP4 已实现并提交（2026-10-25，`8354731` / `c0b1ac1` / `50aa5fb`）；F8 已实机验证（2026-10-26，三画面、光影开启、双视图 active、无 route-fail / oversize）。WP5（光影每视角隔离）为技术收口项；已知限制：相机附近生物无 AI。实现状态与已知限制见 §八。
+> 状态：P0 + WP1–WP4 已实现并提交（2026-10-25，`8354731` / `c0b1ac1` / `50aa5fb`）；F8 已实机验证（2026-10-26，三画面、光影开启、双视图 active、无 route-fail / oversize）。WP5（光影每视角隔离）为技术收口项；**实体持续同步与目标世界 tick 已由 H10 补齐（H-3，2026-11-04）**，见 [H10 entity-liveness](../H-other/entity-liveness.md)。实现状态与已知限制见 §八。
 > 范围：相机采样带维度；同一客户端内每个画面 view 用目标维度的渲染源；服务端按相机 view 供区块、实体与刷怪中心。玩家留在原维度，不切整个客户端、不传送玩家、不开第二客户端。
 > 关联：[多相机渲染](multi-camera-rendering.md)、[画面合成](camera-composition.md)、[相机中心实体](camera-center-entities.md)、[相机租约池](camera-pool.md)、[光影兼容](iris-oculus-compat.md)、[并行播放](parallel-playback.md)。
 > 调查依据：`example/ImmersivePortalsMod-1.20.1`、MC 1.20.1 反编译源码、Iris 1.7.6 / Oculus 1.8.0、本仓客户端与服务端代码（2026-10-25）。IP 只作参考实现，不作为运行时依赖。
@@ -246,7 +246,7 @@ P0 通过，说明“采样带维度 → 目标 view → 数据流 → 合成”
 
 ## 八、实现状态
 
-状态：P0 + WP1–WP4 已实现并提交（2026-10-25，`8354731` / `c0b1ac1` / `50aa5fb`）；F8 已实机验证（2026-10-26，三画面、光影开启、双视图 active、无 route-fail / oversize）。WP5（光影每视角隔离）为技术收口项；已知限制：相机附近生物无 AI。以下按当前代码与实机结果陈述。
+状态：P0 + WP1–WP4 已实现并提交（2026-10-25，`8354731` / `c0b1ac1` / `50aa5fb`）；F8 已实机验证（2026-10-26，三画面、光影开启、双视图 active、无 route-fail / oversize）。WP5（光影每视角隔离）为技术收口项；**实体持续同步与目标世界 tick 已由 H10 补齐（H-3，2026-11-04）**。以下按当前代码与实机结果陈述。
 
 ### 8.1 已落地
 
@@ -265,22 +265,22 @@ P0 通过，说明“采样带维度 → 目标 view → 数据流 → 合成”
 |---|---|---|
 | `CameraVirtualCenterState` / `CameraAnchorManager` / `CameraCenterManager` 改造成 `(player, dimension, cameraId)` | 同维度链路保持原样；跨维度新增并行 `CameraViewManager` | 同维度零回归；三张表按 view 重做会牵动 F6 |
 | 自定义 `TicketType` / region ticket 覆盖 entity-ticking | `DistanceManager.addPlayer(相机 section, 真实玩家)` + 每 tick `resetEmptyTime()` | 复用原版 ticket 语义；目标维度实体 tick 由 `emptyTime` 重置保住 |
-| 区块 / 光照 / 方块 / 实体全量增量 | 区块首包带光照、实体只发初始配对；无方块 / 光照增量、无实体持续同步 | P0 先验证“可见”；增量发送要避开原版 `TrackedEntity` 的 dirty 数据 |
+| 区块 / 光照 / 方块 / 实体全量增量 | 区块首包带光照；实体由 H10 镜像原版 `broadcast` + 客户端 `tickEntities` 持续同步；无方块 / 光照增量 | H10 已补齐实体；增量发送仍避开原版 `TrackedEntity` 的 dirty 数据 |
 | 每 view 独立 `ParticleEngine` 或决策 | 跨维度 lane 内容档 `CROSS_DIM` 关粒子 | 粒子是主世界局部客户端状态，跨维度采样没有意义 |
 | 光影 per-pipeline / 维度缓存，shadow 每 view | 未完成；`ViewScope` 在 lane 循环内跳过刷新 | WP5；FABULOUS 直接拒绝目标视图 |
 | 客户端 `ClientChunkCache` 自定义 store | 复用 `ClientChunkCache` + `updateViewCenter` | 改动面更小；视距与 storage radius 已验证够用（P0） |
 
 ### 8.3 已知限制
 
-- **实体是快照**：目标维度实体只发初始配对，不调用 `sendChanges`；目标 `ClientLevel` 不 tick，实体不移动 / 不播放动画。
-- **相机附近生物无 AI**：F8 实机观察（2026-10-26）；目标维度实体快照是已知原因之一，同维度相机中心是否同样受影响需后续单独定位。作为已知限制记录，不阻塞 F8 关单。
+- **实体持续同步（H10 已补齐）**：目标维度实体由 `(玩家, 维度)` 实体流镜像原版 `TrackedEntity.broadcast` 的移动 / 旋转 / metadata / 装备 / 乘客等标准包，客户端对目标 `ClientLevel` 调 `tickEntities()`；末影龙本体与部件按普通实体处理。实现与验证见 [H10 entity-liveness](../H-other/entity-liveness.md) §七。
+- **相机附近生物 AI**：实体活性已补齐（服务端按原版规则 tick、客户端插值/动画正常）。仍保留原版 `noActionTime` 口径：最近玩家 32 格内才清零，相机在 32–64 格时远处生物的随机游走可能停；这是原版 AI 语义，不是同步缺陷。
 - **目标维度只有区块 + 实体**：没有方块更新、光照更新、声音、天气、方块事件、粒子（跨维度 lane 内容档关粒子）。
 - **FABULOUS 不支持**：`Minecraft.useShaderTransparency()` 为真时 `DimensionViews` 拒绝创建目标视图；光影 per-pipeline 隔离未做，`ViewScope` 跳过刷新是折中。
 - **包上限**：自定义通道约 1 MiB；超大区块包丢弃（限频日志），目标视图可能缺一块。
-- **多视图同维度**：同一玩家同一维度多个 view 会重复发区块（forget / remove 有去重）；`DistanceManager` 同 section 多视图可能重复 ticket，未实机验证。
+- **多视图同维度**：同一玩家同一维度的实体流已由 H10 共享（配对 / 更新只发一次）；区块仍按 view 各自发送（forget / remove 有去重）；同 section 多视图可能重复 ticket，未实机验证。
 - **F6 与 F8 并行**：F6 单锚点 `CameraCenterManager` 保持原样；跨维度视图是第二条链，不合并成单 key。
-- **实机验证**：三画面 fixture `test_camera_center_crossdim_view` 于 2026-10-26 实机验证（光影开启）：玩家留在主世界，末地 / 下界两条视图均 `active=true`，无 `route-fail` / `oversize`；F8 主链通过。已知限制是相机附近生物无 AI。
+- **实机验证**：三画面 fixture `test_camera_center_crossdim_view` 于 2026-10-26 实机验证（光影开启）：玩家留在主世界，末地 / 下界两条视图均 `active=true`，无 `route-fail` / `oversize`。H10 于 2026-11-04 追加验证：跨维度末影人 / 猪连续移动、末影龙本体与部件连续飞行、同维度 F6 猪游走；服务端实体 `tickCount` 递增（`ticking=true`），客户端目标世界 `tickCount` 14→174 且多项 `moved=true`。
 
 ### 8.4 下一步
 
-F8 主链已关单；后续按需补目标维度实体增量 / 方块 / 光照更新与 WP5 per-pipeline 隔离。实体持续更新（移动 / 动画 / 末影龙部件）的下一项方案见 [H10 entity-liveness](../H-other/entity-liveness.md)；这些是增强项与已知限制，不再作为 F8 关单前置。
+F8 主链已关单；实体持续同步（移动 / 动画 / 末影龙部件）已由 H10 补齐（H-3，2026-11-04）。后续按需补方块 / 光照增量与 WP5 per-pipeline 隔离；这些是增强项与已知限制，不再作为 F8 关单前置。

@@ -39,6 +39,7 @@
     "UnderwaterAmbientSoundHandlerMixin"
   ],
   "mixins": [
+    "ChunkMapCameraEntityMirrorMixin",
     "ChunkMapMixin",
     "ChunkMapTrackedEntityCameraMixin",
     "EntityAccessor",

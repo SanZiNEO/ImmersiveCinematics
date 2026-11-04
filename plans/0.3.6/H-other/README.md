@@ -17,7 +17,7 @@
 | **H7** | **P1-impl 事实层**：布尔点状事件判定 → 事实追踪 | [`state-tracking.md`](state-tracking.md) | ✅ **已实现（H-1，2026-11-03）**（见该文档 §六） |
 | **H8** | **P3-impl 连续语义**：离散采样 → 连续判定 | [`trigger-continuity.md`](trigger-continuity.md) | ✅ **已实现（H-1，2026-11-03；`observation` 扫掠除外）**（见该文档 §六） |
 | **H9** | **跳过投票 + 跳过 HUD**：判定对齐 MC `SleepStatus`、HUD 合成一行、位置可配 | [`skip-vote-and-hud.md`](skip-vote-and-hud.md) | ✅ **已实现（H-2，2026-11-03）**（见该文档 §六） |
-| **H10** | **相机视图实体活性**：服务端原版实体跟踪镜像 + 客户端目标世界 tick；不做假玩家、不改 AI goal | [`entity-liveness.md`](entity-liveness.md) | ☐ 设计稿（未实现；F8 后续） |
+| **H10** | **相机视图实体活性**：服务端原版实体跟踪镜像 + 客户端目标世界 tick；不做假玩家、不改 AI goal | [`entity-liveness.md`](entity-liveness.md) | ✅ **已实现（H-3，2026-11-04）**（见该文档 §七） |
 | **H11** | **HUD 层注册 API**：面向第三方的正式注册入口 + `hud_layers` / 固定分类口径 + Fabric/Forge 边界 | [`hud-layer-api.md`](hud-layer-api.md) | ✅ **已实现（H-2，2026-11-03）**（见该文档 §八） |
 | **H12** | **对外接口（API / SPI）**：播放链路、相机只读面、轨道 / 触发器 / 模型 / 曲线 / 前置条件注册门面、注册时机与失败隔离 | [`public-api.md`](public-api.md) | ☐ 设计稿（未实现；轨道注册依赖 `TrackType` 注册表化） |
 

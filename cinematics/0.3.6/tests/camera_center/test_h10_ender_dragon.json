@@ -1,0 +1,98 @@
+{
+  "meta": {
+    "id": "test_h10_ender_dragon",
+    "name": "H10·末影龙实体活性",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "H10 末影龙验收：玩家留在主世界，末地单画面相机 (0,80,-45) 朝 (0,80,0)。t=0 在 (0,80,0) 召唤带 PersistenceRequired 的末影龙，20s 固定机位。验收龙本体/部件连续移动，不因视图刷新退回快照。手动执行 /cinematics play test_h10_ender_dragon。",
+    "block_keyboard": true,
+    "block_mouse": true,
+    "hide_hud": true,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": false
+  },
+  "timeline": {
+    "total_duration": 20,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "layer_type": "subtitle",
+            "text": "H10 末影龙活性：相机 (0,80,-45) 固定 20s，龙在 (0,80,0) 附近飞行",
+            "x": 0.5,
+            "y": 0.06,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.06, "opacity": 1 },
+              { "time": 20, "x": 0.5, "y": 0.06, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "dimension": "minecraft:the_end",
+            "transition": "cut",
+            "loop": false,
+            "keyframes": [
+              {
+                "time": 0,
+                "position": { "x": 0, "y": 80, "z": -45 },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              },
+              {
+                "time": 20,
+                "position": { "x": 0, "y": 80, "z": -45 },
+                "yaw": 0,
+                "pitch": 0,
+                "roll": 0,
+                "fov": 70,
+                "zoom": 1,
+                "opacity": 1,
+                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
+                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 20,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0.0, "event_type": "command", "command": "execute in minecraft:overworld run tp @s 0 80 0" },
+              { "time": 0.1, "event_type": "command", "command": "gamemode creative" },
+              { "time": 0.2, "event_type": "command", "command": "execute in minecraft:the_end run kill @e[type=minecraft:ender_dragon]" },
+              { "time": 0.3, "event_type": "command", "command": "execute in minecraft:the_end run summon minecraft:ender_dragon 0 80 0 {PersistenceRequired:1b}" },
+              { "time": 0.5, "event_type": "command", "command": "say [h10-dragon] summoned ender_dragon at (0,80,0); camera fixed at (0,80,-45) for 20s" },
+              { "time": 19.5, "event_type": "command", "command": "say [h10-dragon] done: dragon must have moved continuously (body + parts)" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

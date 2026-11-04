@@ -19,10 +19,10 @@
 | [failure-handling-audit](failure-handling-audit.md) | 运行期失败 → 崩溃路径审计（60 findings / 23 P0） | 🟡 第 1 批 P0 已落地（`4eb65b7`，2026-10-25）；P1/P2 未做（不属 F 轮关单）；§0.4 已回写 | §0.4（实施状态）、§9（三批与验收） |
 | [f5-script-packet-limit](f5-script-packet-limit.md) | 大脚本传输上限（32,767 字符）→ gzip + 长度前缀 | ✅ 已修复（2026-10-18） | 全文（含 l25 复测数据） |
 | [history-consolidation](history-consolidation.md) | 光影调查分支历史压缩记录 | 📄 记录性 | 全文 |
-| [camera-center-entities](camera-center-entities.md) | 相机中心下的刷怪 / 实体可见性（C 方案） | ✅ 同维度 C0–C3 / C6 已实现并提交（`8354731`）；C4 / C5 接受项；跨维度视图流已实现（`50aa5fb`）并随 F8 实机验证；已知限制：相机附近生物无 AI | §六（实现结果）；§4.5（视图流与偏离） |
+| [camera-center-entities](camera-center-entities.md) | 相机中心下的刷怪 / 实体可见性（C 方案） | ✅ 同维度 C0–C3 / C6 已实现并提交（`8354731`）；C4 / C5 接受项；跨维度视图流已实现（`50aa5fb`）并随 F8 实机验证；实体活性已由 H10 补齐（H-3，2026-11-04） | §六（实现结果）；§4.5（视图流与偏离） |
 | [camera-pool](camera-pool.md) | 相机租约池（按 CAMERA 片段租借、归还清状态） | ✅ 已实现并提交（`38f3972`，2026-10-26）；实机重播日志已跑（2026-10-26：slot 0/1、停播 active=0、重播 gen=2） | §六（实现结果）、[camera_pool 测试说明](../../cinematics/0.3.6/tests/camera_pool/README.md) |
 | [drop-preload](drop-preload.md) | 摘掉预加载 / 预热概念：模块改名相机中心同步，删死配置、预热空转与冗余协议 | ✅ 已实现（2026-10-25） | §六（实现结果） |
-| [cross-dimension-camera](cross-dimension-camera.md) | 跨维度相机：per-view 维度渲染（相机采样带维度；每 lane 用自己的维度源；服务端按 `(player, viewId)` 供数据） | ✅ P0 + WP1–WP4 已实现并提交（2026-10-25）；F8 已实机验证（2026-10-26）；已知限制：相机附近生物无 AI；WP5 per-pipeline 为技术收口项 | §八（实现状态与已知限制）/ §六（施工与验收） |
+| [cross-dimension-camera](cross-dimension-camera.md) | 跨维度相机：per-view 维度渲染（相机采样带维度；每 lane 用自己的维度源；服务端按 `(player, viewId)` 供数据） | ✅ P0 + WP1–WP4 已实现并提交（2026-10-25）；F8 已实机验证（2026-10-26）；实体活性已由 H10 补齐（H-3，2026-11-04）；WP5 per-pipeline 为技术收口项 | §八（实现状态与已知限制）/ §六（施工与验收） |
 | [cross-dimension-lightmap](cross-dimension-lightmap.md) | 跨维度 lane 的目标 `LightTexture` 绑定：为什么目标画面发暗、`GameRenderer.lightTexture` 字段换入方案 | ✅ 字段换入已落地（2026-10-26），随 F8 实机验证通过 | §一（结论）、§三（证据）、§五（修复）、§六（验收） |
 | [script-path-resolution](script-path-resolution.md) | 命令脚本路径：`/` 为规范、colon 为兼容别名、字面优先旧解码兜底 | ✅ 已实现（2026-10-26）；实机命令验证待统一测试 | §三（解析顺序）、§五（验收）、§七（实现结果） |
 
@@ -39,13 +39,13 @@
 | 大脚本传输 | gzip 字节数组 + `writeVarInt` 长度前缀；解压后 4 MiB / 压缩后 1 MiB 双向上限；命令入口预检 | 原始 47,061 字节脚本直接播放；负例 4,400,160 字节被拒（[f5-script-packet-limit](f5-script-packet-limit.md)） |
 | F7 相机租约池 | 每片段一个 `CameraLease`，槽位 + 代际（+ 维度）作为视角键；片段结束 / 停播 / 替换脚本 / 世界卸载确定性归还；剔除槽随租约独占 | `38f3972`；fixture 与日志口径见 [camera_pool 测试说明](../../cinematics/0.3.6/tests/camera_pool/README.md) |
 | F6 相机中心 / 实体 | 同维度 C0–C3 / C6 已实现；C4 / C5 接受项；跨维度视图流已实现并随 F8 验证 | `8354731` / `50aa5fb`；[camera-center-entities](camera-center-entities.md) §六 |
-| F8 跨维度相机 | per-view 维度源、服务端视图流、三画面脚本已实现；2026-10-26 实机验证通过；已知限制：相机附近生物无 AI | `8354731` / `c0b1ac1` / `50aa5fb`；[cross-dimension-camera](cross-dimension-camera.md) §八 |
+| F8 跨维度相机 | per-view 维度源、服务端视图流、三画面脚本已实现；2026-10-26 实机验证通过；实体活性已由 H10 补齐（H-3，2026-11-04） | `8354731` / `c0b1ac1` / `50aa5fb`；[cross-dimension-camera](cross-dimension-camera.md) §八 |
 
 ---
 
 ## 3. 关单条件与剩余验证
 
-**代码关单条件 = ① [failure-handling-audit](failure-handling-audit.md) 的 P0 批次；② [camera-center-entities](camera-center-entities.md) 实现；③ [camera-pool](camera-pool.md) 实现；④ [cross-dimension-camera](cross-dimension-camera.md) 实现（per-view 维度渲染）。** 截至 2026-10-26，① P0 第 1 批已落地，②③④ 均已实现并提交；F8 已实机验证，F6 / F7 实现完成；F 轮内剩余只有已知限制收口（相机附近生物无 AI）与 WP5 per-pipeline 技术项，不改变代码关单口径。P1/P2 审计项不属 F 轮关单条件。已完成部分（性能数据、F2 / F3 / F5）见 §2。
+**代码关单条件 = ① [failure-handling-audit](failure-handling-audit.md) 的 P0 批次；② [camera-center-entities](camera-center-entities.md) 实现；③ [camera-pool](camera-pool.md) 实现；④ [cross-dimension-camera](cross-dimension-camera.md) 实现（per-view 维度渲染）。** 截至 2026-10-26，① P0 第 1 批已落地，②③④ 均已实现并提交；F8 已实机验证，F6 / F7 实现完成；实体活性已由 H10 补齐（H-3，2026-11-04），F 轮内剩余只有 WP5 per-pipeline 技术项，不改变代码关单口径。P1/P2 审计项不属 F 轮关单条件。已完成部分（性能数据、F2 / F3 / F5）见 §2。
 
 > **F1 不是独立功能项**：它是 failure-handling 第 1 批 P0 的内部批次名，不在 F 轮功能表里单列；F 轮只按「P0 批次」关单，不按 F1 编号类推。
 
@@ -56,9 +56,9 @@
 | 空体 / 仅注释 catch | 第 1 批边界已加；剩余条目按 P1/P2 处理 |
 | `PacketGuard`（统一包处理边界） | 第 1 批已落地（`4eb65b7`） |
 | 断线清理（`CameraCenterReporter` 直发、`sendToPlayer` 无防护、断线不清 viewer） | 第 1 批已落地（`4eb65b7`） |
-| camera-center-entities | ✅ C0–C3 / C6 已实现并提交（`8354731`）；C4 / C5 为接受项；跨维度视图流已实现（`50aa5fb`）并随 F8 实机验证。已知限制：相机附近生物无 AI |
+| camera-center-entities | ✅ C0–C3 / C6 已实现并提交（`8354731`）；C4 / C5 为接受项；跨维度视图流已实现（`50aa5fb`）并随 F8 实机验证；实体活性已由 H10 补齐（H-3，2026-11-04） |
 | camera-pool | ✅ 已实现并提交（`38f3972`）；`CameraLease` / `CameraLeasePool`、租约键带维度、剔除槽随租约归还；实机重播日志已跑（slot 0/1、停播 active=0、重播 gen=2） |
-| cross-dimension-camera | ✅ P0 + WP1–WP4 已实现并提交（`8354731` / `c0b1ac1` / `50aa5fb`）；F8 已实机验证（2026-10-26）；已知限制：相机附近生物无 AI；WP5 per-pipeline 为技术收口项。三画面 fixture 与观察点见 `cinematics/0.3.6/tests/camera_center/README.md` |
+| cross-dimension-camera | ✅ P0 + WP1–WP4 已实现并提交（`8354731` / `c0b1ac1` / `50aa5fb`）；F8 已实机验证（2026-10-26）；实体活性已由 H10 补齐（H-3，2026-11-04）；WP5 per-pipeline 为技术收口项。三画面 fixture 与观察点见 `cinematics/0.3.6/tests/camera_center/README.md` |
 
 批次顺序与验收标准见该文档 §9；三条硬口径（只在边界捕获、捕获必须可定位、致命不吞）见 §0.3。审计范围不含「改设计」，只加边界与降级。
 
@@ -110,7 +110,7 @@
 - C0–C3 / C6 已实现并提交：状态清理 / 超时、统一相机位置源、配对刷新节拍、刷怪局部上限、虚拟玩家 y、诊断分项计数。
 - C4 / C5 是接受项：lane pass 各用各的相机中心；非 lane pass 的共享 `ViewArea` 网格整帧单中心是客户端实现约束，不是「主相机」；客户端可见半径维持原版。
 - 跨维度数据流已实现：`CameraViewManager` 按 `(玩家, view id)` 维护 ticket / 区块 / 实体 / 虚拟玩家，不改造同维度 `CameraCenterManager`，见 [cross-dimension-camera](cross-dimension-camera.md)。
-- **已知限制**：F8 实机观察「相机附近生物没有 AI」；目标维度实体只发初始配对、不 tick，是已知原因之一。作为已知限制记录，不阻塞 F6/F8 关单。
+- **实体活性（H10 已补齐）**：跨维度实体由 `(玩家, 维度)` 实体流镜像原版包，客户端目标 `ClientLevel` 调 `tickEntities()`；F8 实机观察的「相机附近生物没有 AI」限制随之关闭（H-3，2026-11-04）。
 
 ### camera-pool（已实现）
 
@@ -125,7 +125,7 @@
 - 相机采样带维度；CAMERA clip 的 `dimension` 缺省 / 空串 = 玩家当前维度，填了才走跨维度。
 - 每条 lane 用 `DimensionView`（`ClientLevel` + `LevelRenderer` + `LightTexture` + 剔除 / 光影 / 实体状态）；同一帧顺序渲染多个维度，合成层不变。
 - 服务端按 `(玩家, view id)` 维护视图流；目标维度的区块 / 实体走独立流，不替换 vanilla 玩家差集；不传送玩家、不注册假玩家、不切整个客户端。
-- 已知限制：相机附近生物无 AI；目标维度实体是快照，不移动 / 不播放动画；没有方块 / 光照 / 声音 / 天气 / 粒子增量；`FABULOUS` 拒绝目标视图。
+- 实体活性已由 H10 补齐（H-3，2026-11-04）；剩余限制：没有方块 / 光照 / 声音 / 天气 / 粒子增量；`FABULOUS` 拒绝目标视图。
 - WP5 光影 per-pipeline 隔离仍是技术收口项，不是 F8 功能阻塞项。
 
 ---

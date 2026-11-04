@@ -1,6 +1,6 @@
 # 相机中心的实体可见性
 
-> 状态：同维度 C0–C3 / C6 已实现并提交（`8354731` / `c0b1ac1` / `50aa5fb`）；C4「每条 lane 用自己的相机作视图中心（客户端非 lane pass 的共享网格中心取合成顺序末位 lane）」与 C5「客户端可见半径维持原版」为接受项——C4 的共享网格部分只是 `ViewArea` 的实现约束，不是「主相机」，lane pass 各用各的中心；跨维度数据流已实现并随 F8 实机验证（2026-10-26）；已知限制：相机附近生物无 AI。细节见 [跨维度相机](cross-dimension-camera.md)。
+> 状态：同维度 C0–C3 / C6 已实现并提交（`8354731` / `c0b1ac1` / `50aa5fb`）；C4「每条 lane 用自己的相机作视图中心（客户端非 lane pass 的共享网格中心取合成顺序末位 lane）」与 C5「客户端可见半径维持原版」为接受项——C4 的共享网格部分只是 `ViewArea` 的实现约束，不是「主相机」，lane pass 各用各的中心；跨维度数据流已实现并随 F8 实机验证（2026-10-26）；实体活性已由 H10 补齐（H-3，2026-11-04）。细节见 [跨维度相机](cross-dimension-camera.md)。
 > 范围：相机播放期间服务端的区块中心、实体配对、刷怪与消失判定，以及客户端实体可见性。
 > 关联：`camera-pool.md`（客户端相机租约）、`multi-camera-rendering.md`（每 lane 渲染）、`docs/modules/camera.md`。
 
@@ -151,7 +151,7 @@
 
 状态：同维度 C0–C3 / C6 已实现并提交（`8354731` F6 相机中心实体、`c0b1ac1` F8 客户端跨维度视图、`50aa5fb` F8 服务端视图流与三画面脚本）；C4「每条 lane 用自己的相机作视图中心（客户端非 lane pass 的共享网格中心取合成顺序末位 lane）」与 C5「客户端可见半径维持原版」是接受项（C4 的共享网格部分是 `ViewArea` 的实现约束，不是「主相机」；lane pass 各用各的中心）；跨维度数据流已实现，细节见 §4.5 / [跨维度相机](cross-dimension-camera.md)。
 
-本表按当前代码与实机结果陈述：同维度已于 2026-10-25 实测镜像 / 反向 / 远机位三次；跨维度三画面脚本 `test_camera_center_crossdim_view` 于 2026-10-26 实机验证（双视图 active、无 route-fail / oversize）。**Radium/Lithium 兼容（2026-11-02 实机，BMC4 Forge 0.3.6 + Radium 0.12.4）**：`gt_far_1000` 主相机在玩家东侧 1000 格贴地、30s 内 z 位移 200 格并转向，同时右下角副相机跨维度看末地主岛——主世界与末地区块/实体均正常加载，无 mixin 崩溃；相机中心改由 `ServerChunkCacheCameraMixin` 在 `move` 窗口内替换位置视图，仍走原版差集。已知限制：相机附近生物无 AI；目标维度实体是快照。操作与观察点见 `cinematics/0.3.6/tests/camera_center/README.md`。
+本表按当前代码与实机结果陈述：同维度已于 2026-10-25 实测镜像 / 反向 / 远机位三次；跨维度三画面脚本 `test_camera_center_crossdim_view` 于 2026-10-26 实机验证（双视图 active、无 route-fail / oversize）。**Radium/Lithium 兼容（2026-11-02 实机，BMC4 Forge 0.3.6 + Radium 0.12.4）**：`gt_far_1000` 主相机在玩家东侧 1000 格贴地、30s 内 z 位移 200 格并转向，同时右下角副相机跨维度看末地主岛——主世界与末地区块/实体均正常加载，无 mixin 崩溃；相机中心改由 `ServerChunkCacheCameraMixin` 在 `move` 窗口内替换位置视图，仍走原版差集。已知限制：实体活性已由 H10 补齐（H-3，2026-11-04），原「相机附近生物无 AI」与「目标维度实体是快照」关闭；剩余为方块 / 光照 / 声音 / 天气 / 粒子增量。操作与观察点见 `cinematics/0.3.6/tests/camera_center/README.md`。
 
 | 设计目标 | 实现 | 说明 |
 |---|---|---|

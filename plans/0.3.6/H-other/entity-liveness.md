@@ -1,6 +1,6 @@
 # 相机视图实体活性（服务端跟踪镜像 + 客户端目标世界 tick）
 
-> 状态：H 轮 H10 设计稿（未实现）。F 轮已关单，本方案是 0.3.6 的下一项，不另开版本桶。
+> 状态：**H10 已实现（H-3，2026-11-04）**。F 轮已关单，本方案是 0.3.6 的下一项，不另开版本桶。实现与验证见 §七。
 > 范围：相机播放期间，同维度 F6 与跨维度 F8 的实体在相机画面里持续移动、转向、播放原版动画。
 > 关联：[cross-dimension-camera](../F-playback/cross-dimension-camera.md)、[camera-center-entities](../F-playback/camera-center-entities.md)、[multi-camera-rendering](../F-playback/multi-camera-rendering.md)、[camera-pool](../F-playback/camera-pool.md)、[failure-handling-audit](../F-playback/failure-handling-audit.md)。
 > 结论先行：**不是给客户端加 AI，也不是给相机造玩家。** 服务端实体已经在跑；缺的是两条链路：
@@ -606,6 +606,57 @@ DimensionViews.tick(Minecraft)
 
 5. **模组私有实体包**：是否需要提供扩展 API 让模组把自己的包也镜像？
    本文不承诺；先保证原版 `ServerEntity` 标准链。
+
+---
+
+## 七、实现结果（H-3，2026-11-04）
+
+### 7.1 落地映射
+
+| 设计点 | 实现 |
+|---|---|
+| 服务端实体流按 `(玩家, 维度)` 共享 | `trigger/server/CameraEntityStream`：`subscribers`（视图 id）+ `interests`（实体 id → `Interest{entity, views, paired}`）+ 引用计数 |
+| 初始配对只发一次 | `CameraViewManager.sendEntities` 改订阅式：同流已有 `paired` 只 `retain`；首次 `ServerEntity.sendPairingData` 成功后置 `paired`。新增区块门（实体所在区块已发到目标视图）才配对 |
+| 持续更新镜像原版包 | `mixin/ChunkMapCameraEntityMirrorMixin` 注入 `ChunkMap$TrackedEntity.broadcast(Packet)` TAIL → `CameraViewManager.mirrorTrackedEntityPacket`；不碰 `seenBy`、不调第二个 `sendChanges()` |
+| 移除 | `broadcastRemoved` HEAD → `onTrackedEntityRemoved`：按流发一条 remove、清流记录与各视图 `sentEntities`；`releaseStream` 走 `unsubscribeView`，最后一个订阅者才 remove |
+| 客户端目标世界 tick | `DimensionView.tickEntities()` 调 `ClientLevel.tickEntities()`；`DimensionViews.tick(Minecraft)` 在 `ClientEventHandler.onClientTick`（`CameraViewReporter` 之后）逐视图推进；暂停 / 无世界 / 无玩家跳过 |
+| 异常隔离 | 客户端单视图连续 3 次失败停用该视图；服务端单包 / 单流异常限频记录，不影响原版 `broadcast` |
+
+关键文件：
+- `common/.../trigger/server/CameraEntityStream.java`（新建）
+- `common/.../trigger/server/CameraViewManager.java`
+- `common/.../mixin/ChunkMapCameraEntityMirrorMixin.java`（新建；`immersive_cinematics.mixins.json` 注册）
+- `common/.../client/dimension/DimensionView.java` / `DimensionViews.java`
+- `common/.../handler/ClientEventHandler.java`
+
+### 7.2 验证结果
+
+| 项 | 结果 |
+|---|---|
+| `:common:compileJava` / `:fabric:compileJava` | PASS（mixin AP 未报新 mixin 错误） |
+| `EntityStreamProbe`（仓库外 `E:/tmp/h3/`） | 25 checks 全 PASS：配对记录、重复 retain、引用计数、最后订阅者 release、`releaseAllViews`、`forget`、`isEmpty` |
+| `FixtureValidateProbe` | 3 个 fixture 解析 + 校验全 PASS；负例被拒 |
+| F8 跨维度实机（`test_h10_entity_liveness`） | 服务端 `[camera-view] entity`：End `tick=274→294`、Nether `tick=237→257`，`ticking=true`；客户端 `[camera-view] client-tick`：End 实体 `tick=14→174`，末影人 / 下界 zombified piglin 多项 `moved=true`；末地 lane 画面末影人位置与姿态变化、下界 lane 猪移动（截图 `rt_A/rt_B`） |
+| F8 末影龙（`test_h10_ender_dragon`） | 龙本体与部件连续飞行：两帧间龙从主岛上方移动到石柱之间、翅膀姿态展开（截图 `dg2_A/dg2_B`） |
+| F6 同维度（`test_h10_same_dim`） | 4 只 AI 猪连续游走：两帧间两只走到镜头右侧近处（截图 `sd_A/sd_B`） |
+| 回归 | 无 `route-fail` / `oversize` / 镜像失败 / 实体配对失败日志；老脚本解析与播放路径未改 |
+
+验证口径：
+- 服务端探针用 `level.isPositionEntityTicking(...)` 回答「是否在 entity-ticking 范围」；`Mob.noActionTime` / `isNoAi` 逐实体输出（非 Mob 记 -1 / false）。
+- 客户端探针输出 `tickCount` / `pos` / `old` / `moved`；`moved=true` 即「收到并应用了移动，且 tick 在推进」。
+- 实机截图在运行时 60s 验证副本上采集（仓库 fixture 仍为 20s；`block_keyboard=true` 会挡 F2，验证副本临时置 false）。副本与临时脚本测完已删除。
+
+### 7.3 未覆盖 / 边界
+
+| 项 | 分类 | 说明 |
+|---|---|---|
+| 真实断线 / 维度卸载 / 服务端停止 | 移交后续实机批次（H-6） | 本轮用 `icinematics stop` + 重播覆盖释放 / 重建；未拔线验证 |
+| 同维度多 lane 共享实体流 | 后续实机批次 | 跨维度双视图（End + Nether）已验证；同维度多 lane 未单独测量 |
+| 多玩家同时看同一维度 | 后续实机批次 | 流按玩家 UUID 隔离，未双端联机验证 |
+| 包量 / 客户端 tick 耗时 | 数据触发 | 本轮未做定量性能测量；包合并按 §6.2 先测再做 |
+| 模组私有实体包 | 契约边界 | 只镜像原版 `ServerEntity` 标准链 |
+| `noActionTime` 32–64 格停游走 | 契约边界 | 原版 AI 口径，本文不改 |
+| 方块 / 光照 / 声音 / 天气 / 粒子 | 契约边界 | 仍不在本方案（F8 既有边界） |
 
 ---
 

@@ -53,12 +53,29 @@
   - **客户端**：`[camera-view] 上报 视图=lease<槽位>g<代际>@<维度> 维度=… 位置=(…) active=true 半径=…`，位移 ≥1 格或每 5 tick 一条；半径取客户端有效渲染距离（服务端夹到 2–12 后再封顶 8）。左上画面能看到末影人、右上能看到僵尸，各自地形是本维度地形。调试捕获文件名里的 `<scriptId>_cam<轨序号>_clip<片段序号>` 是 captureId 标签，不是视图 id。
   - **不应出现**：`跨维度视图不可用` / `[camera-view] route-fail` / `oversize` 的持续刷屏；出现即说明目标视图解析失败或单包超限。
 - **已知限制**：
-  - 实体只发**初始配对**（`ServerEntity.sendPairingData`），没有持续同步：目标维度里实体的移动 / 动作不会更新到画面；新进入范围的实体每 10 tick 才补配对。
+  - 实体持续同步已于 H-3（H10）补齐：服务端按 `(玩家, 维度)` 实体流镜像原版 `TrackedEntity.broadcast`（移动 / 旋转 / metadata / 装备 / 乘客等），客户端对目标 `ClientLevel` 调 `tickEntities()`；新进入范围的实体仍按 `ENTITY_INTERVAL=10` tick 补配对。观察 `[camera-view] entity`（服务端 `tick` / `ticking`）与 `[camera-view] client-tick`（客户端 `tick` / `moved`）可判断同步是否推进；实现见 [H10 entity-liveness](../../../../plans/0.3.6/H-other/entity-liveness.md) §七。
   - 区块首包带光照（`ClientboundLevelChunkWithLightPacket`），但**没有方块 / 光照增量更新**：目标维度里发生的方块变化不会反映到画面。
   - 区块半径上限 `MAX_CHUNK_RADIUS = 8`，实体半径 `ENTITY_RANGE = 64` 格；超出即缺块 / 缺实体。
   - **FABULOUS 画质不支持**（`Minecraft.useShaderTransparency()` 为真时 `DimensionViews.acquire` 返回 `null`），该 lane 本帧不上屏；改回 Fancy / Fast 再测。
   - 自定义通道单包上限 `MAX_ENVELOPE_PAYLOAD = 1_000_000` 字节，超长区块包被丢弃（客户端该区块留空，其余流继续）。
   - 玩家已在目标维度时该视图会被释放（交还原版追踪），此时不应期待 `[camera-view]` 流。
+
+### H10 实体活性 fixture（H-3，2026-11-04）
+
+三个 fixture 均放在本目录，需手动部署到 runtime 的 `immersive_cinematics/scripts/camera/center/` 后 `reload` + `/icinematics play`；无 `meta.triggers`，不会自动播放。
+
+| fixture | 场景 | 观察点 |
+|---|---|---|
+| `test_h10_entity_liveness.json` | 跨维度双画面：End 左上 / Nether 右上，各 4 只 `NoAI:0` 的猪，20s 固定机位 | 两个 `[camera-view] entity` 流 `tick` 递增、`ticking=true`；两个 `[camera-view] client-tick` 的 `tick` 递增、`moved=true`；画面里猪连续游走 |
+| `test_h10_ender_dragon.json` | 末地单画面 `(0,80,-45)` 看 `(0,80,0)` 召唤的末影龙，20s | 龙本体与部件连续飞行；无 `ender_dragon` 特判代码 |
+| `test_h10_same_dim.json` | 同维度 F6 回归：主世界 `(0,80,0)` 看 4 只 AI 猪，20s | 猪连续游走；此场景走原版跟踪 + 主 `ClientLevel` tick，不产生 `[camera-view]` 流日志 |
+
+实机记录（2026-11-04，Fabric 开发客户端，`debugLogging=true`）：
+- 跨维度：服务端 End `tick=274→294`、Nether `tick=237→257`；客户端 End 实体 `tick=14→174`，末影人 / 下界 zombified piglin 多项 `moved=true`；截图 `rt_A/rt_B`。
+- 末影龙：两帧间龙从主岛上方移动到石柱之间，翅膀姿态展开；截图 `dg2_A/dg2_B`。
+- 同维度：两帧间两只猪走到镜头右侧近处；截图 `sd_A/sd_B`。
+- 无 `route-fail` / `oversize` / 镜像失败 / 实体配对失败。
+- 截图用的 60s、`block_keyboard=false` 运行时副本测完已删除，未入库（仓库 fixture 保持 20s，`block_keyboard=true`）。
 
 ### 历史参考（旧传送路径）
 

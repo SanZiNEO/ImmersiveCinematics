@@ -103,6 +103,14 @@ public final class ClientEventHandler {
                     "客户端 tick 跨维度视图上报异常（本 tick 跳过，后续子系统继续）", e);
         }
         try {
+            // 跨维度目标视图的实体插值 / 动画 / 末影龙部件：只 tick 实体，不推进时间 / 天气 / 区块
+            DimensionViews.tick(mc);
+        } catch (Exception e) {
+            FatalErrors.rethrowIfFatal(e);
+            ErrorLog.logRateLimited("Client", "client-tick:dimension-entities", 5000L,
+                    "客户端 tick 跨维度视图实体推进异常（本 tick 跳过，后续子系统继续）", e);
+        }
+        try {
             AudioListenerReporter.INSTANCE.tick(mc);
         } catch (Exception e) {
             FatalErrors.rethrowIfFatal(e);

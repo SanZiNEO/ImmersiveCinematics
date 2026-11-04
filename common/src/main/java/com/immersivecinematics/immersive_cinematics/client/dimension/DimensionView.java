@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.client.dimension;
 
+import com.immersivecinematics.immersive_cinematics.Config;
+import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientChunkCache;
@@ -8,9 +10,14 @@ import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.core.SectionPos;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 一条跨维度 lane 的目标视图：独立的 {@link ClientLevel} + {@link LevelRenderer} + {@link LightTexture}。
@@ -29,11 +36,22 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class DimensionView {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/CameraView");
+    /** 实体活性诊断输出间隔（客户端 tick）。 */
+    private static final int LOG_INTERVAL_TICKS = 20;
+
     private final Minecraft minecraft;
     private final ResourceKey<Level> dimension;
     private final ClientLevel level;
     private final LevelRenderer renderer;
     private final LightTexture lightTexture;
+
+    /** 实体 tick 连续失败次数（成功一次即归零）。 */
+    private int tickFailures;
+    /** 实体活性诊断的 tick 计数（仅日志节流）。 */
+    private int logTickCounter;
+    /** 实体 tick 已停用：连续失败达阈值或视图已关闭，不再推进该维度的实体。 */
+    private boolean tickDisabled;
 
     /** 玩家当前维度哨兵（不持有任何目标资源）。 */
     private DimensionView() {
@@ -83,6 +101,106 @@ public final class DimensionView {
     }
 
     /**
+     * 推进目标维度的实体：插值（{@code lerpSteps} / {@code xOld}）、动画、末影龙部件等，
+     * 语义对应原版世界 tick 里的 {@code ClientLevel#tickEntities()}。
+     *
+     * 只 tick 实体，不推进时间 / 天气 / 区块（那些由服务端与本视图的区块缓存各自负责）。
+     * 主世界哨兵（{@code level == null}）与已停用的视图直接返回；逐次失败计入
+     * {@link #tickFailures}，连续 3 次失败停用该视图的实体 tick，避免每 tick 抛异常刷屏。
+     */
+    public void tickEntities() {
+        if (this.level == null || this.tickDisabled) {
+            return;
+        }
+        try {
+            this.level.tickEntities();
+            this.tickFailures = 0;
+        } catch (Throwable t) {
+            FatalErrors.rethrowIfFatal(t);
+            this.tickFailures++;
+            ResourceLocation id = this.dimension.location();
+            ErrorLog.logRateLimited("CameraView", "tick:" + id, 5000L,
+                    "目标维度实体 tick 异常（维度 " + id + "，连续 " + this.tickFailures + " 次）", t);
+            if (this.tickFailures >= 3) {
+                this.tickDisabled = true;
+            }
+            return;
+        }
+        if (Config.debugLogging && ++this.logTickCounter >= LOG_INTERVAL_TICKS) {
+            this.logTickCounter = 0;
+            try {
+                logClientTick();
+            } catch (Throwable t) {
+                // 诊断日志自身失败不算实体 tick 失败：不影响 tickFailures / 停用判定
+                FatalErrors.rethrowIfFatal(t);
+                ResourceLocation id = this.dimension.location();
+                ErrorLog.logRateLimited("CameraView", "client-log:" + id, 5000L,
+                        "实体活性日志输出失败（维度 " + id + "）：跳过本次日志", t);
+            }
+        }
+    }
+
+    /**
+     * 客户端实体活性诊断：每 {@value #LOG_INTERVAL_TICKS} tick 打一行目标视图可见实体的 tick 状态
+     * （{@link Config#debugLogging} 关闭时不进入）。
+     *
+     * <p>只遍历 {@code entitiesForRendering()} 的视图，不复制集合；采样最多 8 个。
+     * {@code moved=<getX()-xOld != 0>} 区分「收到移动包并插值」与「位置仍是快照」。
+     */
+    private void logClientTick() {
+        StringBuilder samples = null;
+        int count = 0;
+        for (Entity entity : this.level.entitiesForRendering()) {
+            count++;
+            if (count > 8) {
+                continue;
+            }
+            if (samples == null) {
+                samples = new StringBuilder(200);
+            }
+            samples.append(" sample=[id=").append(entity.getId())
+                    .append(" type=").append(EntityType.getKey(entity.getType()))
+                    .append(" tick=").append(entity.tickCount)
+                    .append(" pos=(");
+            appendFixed2(samples, entity.getX()).append(',');
+            appendFixed2(samples, entity.getY()).append(',');
+            appendFixed2(samples, entity.getZ()).append(") old=(");
+            appendFixed2(samples, entity.xOld).append(',');
+            appendFixed2(samples, entity.yOld).append(',');
+            appendFixed2(samples, entity.zOld)
+                    .append(") moved=").append(entity.getX() - entity.xOld != 0.0)
+                    .append(']');
+        }
+        StringBuilder line = new StringBuilder(320);
+        line.append("[camera-view] client-tick dim=").append(this.dimension.location())
+                .append(" entities=").append(count);
+        if (samples != null) {
+            line.append(samples);
+        }
+        LOGGER.info(line.toString());
+    }
+
+    /** 追加保留 2 位小数的数值（四舍五入；不用 {@code String.format}，避免分配与本地化差异）。 */
+    private static StringBuilder appendFixed2(StringBuilder sb, double value) {
+        long scaled = Math.round(Math.abs(value) * 100.0);
+        if (value < 0 && scaled != 0) {
+            sb.append('-');
+        }
+        sb.append(scaled / 100).append('.');
+        long fraction = scaled % 100;
+        if (fraction < 10) {
+            sb.append('0');
+        }
+        sb.append(fraction);
+        return sb;
+    }
+
+    /** 实体 tick 是否已停用（连续失败达阈值或视图已关闭）。 */
+    public boolean isTickDisabled() {
+        return this.tickDisabled;
+    }
+
+    /**
      * 把目标视图的区块缓存中心 / 半径对齐到该 lane 的相机：视图中心是单份共享状态，
      * 目标维度有自己的 {@link ClientChunkCache}，按 lane 相机逐帧推进（主画面那份由原版自己推进）。
      *
@@ -120,6 +238,8 @@ public final class DimensionView {
      * {@code setLevel} 会改写共享的实体渲染分发器，必须立刻还原到玩家当前世界。
      */
     public void close() {
+        // 关闭后视图可能仍被某帧的 lane 短暂持有：先停掉实体 tick，避免向已释放的世界推进实体
+        this.tickDisabled = true;
         if (this.renderer == null) {
             return;
         }
