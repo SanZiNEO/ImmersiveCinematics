@@ -1,6 +1,7 @@
-# H 轮：区域同步 / HUD / 实机验证 / 触发器状态层
+# H 轮：HUD / 实机验证 / 触发器状态层 / 相机视图实体活性
 
-> 本轮包含区域同步、HUD、实机验证、触发器状态层，以及相机视图实体活性（H10）。
+> 本轮包含 HUD、实机验证、触发器状态层，以及相机视图实体活性（H10）。
+> 区域同步（H1）已于 2026-11-04 由用户决定取消（暂不做），设计文档 `region-sync.md` 已删除，见 git 历史。
 > 其中 H7 / H8 是 2026-10-18 新加入的两份既有计划（`state-tracking.md` = P1-impl、
 > `trigger-continuity.md` = P3-impl，此前一直挂在 C-trigger 下）；H10 是 F8 后续的下一项设计稿。
 
@@ -8,7 +9,7 @@
 
 | ID | 任务 | 文档 | 状态 |
 |---|---|---|---|
-| H1 | region-sync 全部实现（平移 / 镜像旋转 / 多区域链 / 传送 / 防乒乓 / 朝向策略） | [`region-sync.md`](region-sync.md) | ☐ 零实现（方向稿） |
+| H1 | ~~region-sync 全部实现（平移 / 镜像旋转 / 多区域链 / 传送 / 防乒乓 / 朝向策略）~~ | ~~`region-sync.md`~~ | ⊘ **已取消（2026-11-04，用户决定暂不做区域同步传送；设计文档已删除，git 历史可查）** |
 | H2 | wait-point-track | — | ⊘ 已被 C6 判定规则吸收（等待点 = `until→do` 阻塞形态） |
 | H4 | feedback-04 #1 结案（命令归 EVENT 轨） | — | ✅ 2026-10-10（`476b442`） |
 | H5 | 文档滞后清理（审计 §三 12 条） | [`doc-lag-2026-11-03.md`](doc-lag-2026-11-03.md) | ✅ 2026-11-03（H-2）：12 条逐条核对，1 条本轮改，2 条文件不在本仓 |
@@ -108,7 +109,7 @@ N1–N9 的现状：N1/N2/N3（位置 / 朝向 / 边沿）在开启 `sweep` 后�
 |---|---|
 | [`state-tracking.md`](state-tracking.md) | 记账层计划（P1-impl）= H7 |
 | [`trigger-continuity.md`](trigger-continuity.md) | 判定层计划（P3-impl）= H8 |
-| [`region-sync.md`](region-sync.md) | H1，独立功能，与 H7/H8 无依赖 |
+| ~~`region-sync.md`~~ | H1，**已取消**（2026-11-04 用户决定暂不做；文档已删除，git 历史可查） |
 | [`skip-vote-and-hud.md`](skip-vote-and-hud.md) | H9，跳过投票判定 + HUD 布局/位置配置 |
 | [`screen-layers.md`](screen-layers.md) | 画面层：HUD、手臂、摇晃、屏幕效果、玩家模型；普通/白名单模式与注册接口 |
 | [`../C-trigger/trigger-conditions.md`](../C-trigger/trigger-conditions.md) | 条件怎么写、怎么组合；H7/H8 只提供它脚下的查询原语与时间语义，不改它的字段 |

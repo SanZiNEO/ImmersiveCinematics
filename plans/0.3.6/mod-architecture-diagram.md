@@ -215,7 +215,6 @@ flowchart LR
             DESPAWN["生物消失<br/>（最近玩家改用相机中心）"]
         end
         PLAYERMOVE["玩家移动<br/>（脚本驱动的假输入朝目标走）"]
-        REGION["区域同步 / 镜像传送<br/>（对应区域坐标映射）"]
     end
     subgraph MULTI["多相机"]
         MMAIN["主画面<br/>（理想态 = dest 全屏、opacity 1 的 lane 特例；无 lane 时 = 原版视角）"]
@@ -402,8 +401,6 @@ flowchart LR
     SPAWN -->|相机区实体| PAIR
     INST -->|玩家移动驱动| PLAYERMOVE
     MULTI -->|多 lane 中心取当前维度| CCREPORT
-    ACT -->|区域规则| REGION
-    REGION -->|坐标映射（站哪传哪）| ENT
     DEST -->|相机姿态| RPOSE
     RPOSE --> RVIEW
     RPOSE --> RPROJ
