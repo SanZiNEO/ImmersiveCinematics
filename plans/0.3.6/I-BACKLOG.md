@@ -79,7 +79,7 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 | ID | 事项 | 归属 | 关闭条件 |
 |---|---|---|---|
 | H1-R1 | `observation` 射线扫掠未做（H8 步骤 3 剩余；设计明确「先成本实测再定」） | **H-6**（原写 H-2，H-2 未承接，轮次任务书已改归） | 成本实测完成（子步数 × 射线方块/实体查询，含移动实体目标）并给出纳入/不纳入结论；纳入时实现弧带 + 子步重放 |
-| H1-R2 | 短距离传送（单 tick 位移 ≤ 16 格）无法与正常移动区分，按连续移动参与扫掠 | **H-6**（如需显式钩子） | 跨平台服务端传送信号（事件或 mixin）落地后，短传送也标记为不连续；在此之前为契约边界 |
+| H1-R2 | 短距离传送（单 tick 位移 ≤ 16 格）无法与正常移动区分，按连续移动参与扫掠 | **H-6（本轮关闭）** | 已达成：`ServerPlayerTeleportMixin` 在 `ServerPlayer#teleportTo` 两个重载（`(DDD)V`、`(ServerLevel,DDD,Set,FF)Z`）HEAD 调 `PlayerMotion.reset`，代次自增、不参与扫掠；`teleportRelative` / 直接改坐标仍由 16 格阈值兜底 |
 | H1-R3 | `docs/TRIGGER_TYPES.md` / `docs/SCRIPT_FORMAT.md` 未回写 `triggers[].id`、`continuity`（sweep / dwell / window）与事实口径 | **I-5**（I2-B10） | 文档与源码一致；`grep` 无旧口径残留 |
 | H1-R4 | 事实的展示面（「触发过什么 / 为什么触发」）未做；客户端镜像已删除，服务端事实不自动下发 | **Z 轮 + H-4（H12）** | 编辑器 / 客户端有读取事实查询 API 的入口（命令或网络包），且不重建第二套记录 |
 | H1-R5 | 前置条件按退出结果筛选（「播完」含不含跳过 / 打断）未开放字段；事实层已能按 `FactResult` 查询 | **C-trigger** | `requires` 数据字段形态定稿并落地（事实查询已就绪） |
@@ -197,4 +197,25 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 - **H-2 收口（2026-11-03 完成）**：H9（跳过投票判定 / 广播 / 解析期校验 / HUD 布局）与 H11（`api/HudLayerRegistry` 门面 + Forge 转调 + Fabric 边界 + 对外文档）全部落地；H5 的 12 条逐条核对完毕（见 `H-other/doc-lag-2026-11-03.md`）；H6 的 7 条实机记录见 `H-other/verification-2026-11-03.md`。新增遗留全部落在 G 表，无“未排期”以外的悬空项。
 - **H-4 收口（2026-11-04）**：H12 全部落地（`api` 门面 12 方法 / `spi` 轨道四件套 / `TrackType` enum → 注册表 / 43 文件迁移 / 3 张静态表 / 注册冻结 / 失败隔离 / `OverlayApi` / `ServerFactsApi`）；内置 7 轨零回归由三份 headless 探针（47 + 23 + 12 全 PASS，860 片段 × 3 时间点覆盖 7 类轨道）与两轮实机（7 个脚本起播，含 LETTERBOX / AUDIO，零轨道相关异常）共同证明。新增遗留落在 J 表；A1/A3/A6/A9 的端到端验证因缺真实第三方调用方而移交 H4-R3。
 - **H-5 收口（2026-11-04）**：画面层统一语义全部落地（15 层 `ScreenLayer` 表 / `screen_layers` + `screen_layer_mode` 解析与归一 / `hud_layers` deprecated 归一 / `hard_hide_hud` 模式别名 / allowlist 接管与重画合并旧路径 / normal 消费点改规范层名 / 平台能力位与 Fabric 降级 / 编辑器同规则）；零回归由无头探针 46 + 26 断言与 Forge「allowlist 清空第三方 Pre 自绘、normal 保留」的像素对照共同证明，Fabric 侧验证了降级与逐层覆盖。新增遗留落在 K 表；真实第三方模组复测移交 H5-R1，编辑器表单移交 H5-R2。
+## L. H-6 收口（2026-11-05）
+
+| ID | 终态 | 证据 |
+|---|---|---|
+| H1-R1 `observation` 扫掠 | **已关闭** | 弧带子步重放（5°/步、上限 16）；`Evaluators.evaluateObservation(...,ctx)` + `SegmentSweep.arcSteps`；校验放行；夹具 `test_h1_sweep_observation.json`；默认关闭零开销 |
+| H1-R2 短传送判据 | **已关闭** | `ServerPlayerTeleportMixin` 两个 `teleportTo` 重载 HEAD → `PlayerMotion.reset`，与距离无关；`teleportRelative` 仍按连续（契约边界） |
+| H2-R1 票数缓存分流 | **已关闭** | 缓存键 `(scriptId, instanceId)`；包内 `instanceId` 被消费；按实例清零 |
+| H2-R2 多实例投票 UI | **已关闭** | 每批一行；单批 `已投票跳过: a/b`、多批带脚本名；投票后不再显示长按 |
+| H2-R4 外部 overlay | **已关闭** | 功能已实现并开放接口（`api/HudLayerRegistry` + `screen_layers` 接管/重画）；接管判定路径由 H-5 红块对照验证 |
+| H2-R5 光影顺序/性能 | **已关闭** | 顺序由注入点结构性确定；LUT 在光影输出上生效（98.4% 像素、absMean 37.3）；2 lane / 1 lane 诊断会话数据 |
+| H2-R6 lane 症状 B | **已关闭** | per-lane 可见集合 + 地标塔像素 0.16% 偏差、地平线恒定 537 px |
+| H2-R9 票数行像素 | **已关闭** | 双端联机投票，用户实机确认位置与显示条件 |
+| H3-R1 断线/维度/停服 | **已关闭** | 三条路径均有现场日志：维度卸载（`player-in-dimension`）、断线（`quit`）、停服（`服务端停止，清空 2 个视图 / 2 条实体流`）；事后无残留流/进程 |
+| H3-R2 同维度多 lane | **已关闭** | `streams=2 / views=4`；错开释放后 `streams=2 / views=2`，流不误删 |
+| H3-R3 多玩家 | **已关闭** | 流键 `(玩家, 维度)`，双玩家独立流，各自释放互不影响 |
+| H3-R4 包量/耗时 | **已关闭** | 稳态 0.06–0.22 信封/tick、32–166 B/tick；客户端 p50 168–248 µs；结论不引入批量信封 |
+
+> 投票语义在 H-6 由用户裁决改为「只计票、不退出、达比例统一跳过」，H-2 旧口径（投票者先退出）已作废；详见 `H-other/skip-vote-and-hud.md` 与 `H-other/h6-handover.md`。
+
+---
+
 - 任何新增遗留必须补进本表并指定轮次/关闭条件；不允许只写在轮次总结里。

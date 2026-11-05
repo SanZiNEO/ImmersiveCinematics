@@ -636,7 +636,7 @@ DimensionViews.tick(Minecraft)
 | `:common:compileJava` / `:fabric:compileJava` | PASS（mixin AP 未报新 mixin 错误） |
 | `EntityStreamProbe`（仓库外 `E:/tmp/h3/`） | 25 checks 全 PASS：配对记录、重复 retain、引用计数、最后订阅者 release、`releaseAllViews`、`forget`、`isEmpty` |
 | `FixtureValidateProbe` | 3 个 fixture 解析 + 校验全 PASS；负例被拒 |
-| F8 跨维度实机（`test_h10_entity_liveness`） | 服务端 `[camera-view] entity`：End `tick=274→294`、Nether `tick=237→257`，`ticking=true`；客户端 `[camera-view] client-tick`：End 实体 `tick=14→174`，末影人 / 下界 zombified piglin 多项 `moved=true`；末地 lane 画面末影人位置与姿态变化、下界 lane 猪移动（截图 `rt_A/rt_B`） |
+| F8 跨维度实机（`test_h10_entity_liveness`） | 服务端 `[camera-view] entity`：End `tick=274→294`、Nether `tick=237→257`，`ticking=true`；客户端 `[camera-view] entity-sample`：End 实体 `tick=14→174`，末影人 / 下界 zombified piglin 多项 `moved=true`；末地 lane 画面末影人位置与姿态变化、下界 lane 猪移动（截图 `rt_A/rt_B`） |
 | F8 末影龙（`test_h10_ender_dragon`） | 龙本体与部件连续飞行：两帧间龙从主岛上方移动到石柱之间、翅膀姿态展开（截图 `dg2_A/dg2_B`） |
 | F6 同维度（`test_h10_same_dim`） | 4 只 AI 猪连续游走：两帧间两只走到镜头右侧近处（截图 `sd_A/sd_B`） |
 | 回归 | 无 `route-fail` / `oversize` / 镜像失败 / 实体配对失败日志；老脚本解析与播放路径未改 |
@@ -657,6 +657,22 @@ DimensionViews.tick(Minecraft)
 | 模组私有实体包 | 契约边界 | 只镜像原版 `ServerEntity` 标准链 |
 | `noActionTime` 32–64 格停游走 | 契约边界 | 原版 AI 口径，本文不改 |
 | 方块 / 光照 / 声音 / 天气 / 粒子 | 契约边界 | 仍不在本方案（F8 既有边界） |
+
+### 7.4 计量口径（H6-5）
+
+两条诊断日志都由 `debugLogging` 开启（`immersive_cinematics` 配置项），默认关闭；关闭时服务端只做两个 `long` 自增，客户端只做一次布尔判断，不取时间、不分配、不格式化。
+
+| 日志 | 产生位置 | 字段 |
+|---|---|---|
+| `[camera-view] stats tick=<n> streams=<s> views=<v> envelopes=<e> bytes=<b> entities=<x>` | 服务端主线程，`CameraViewManager.tick` 末尾，每 100 服务端 tick | `tick`：当前服务端 tick；`streams`：活跃实体流数（`(玩家, 目标维度)` 对）；`views`：活跃视图数；`envelopes`：本窗口内提交的 `S2CCameraViewPacket` 信封数；`bytes`：这些信封的载荷字节合计（`packet.write` 后的长度，未编码 / 被丢弃的包按 0 计）；`entities`：各流 `interests` 条目数之和（同一实体被多个视图订阅时按流各计一次） |
+| `[camera-view] client-tick dim=<id> samples=<n> avgUs=<a> p50Us=<p> maxUs=<m> entities=<c>` | 客户端主线程，`DimensionViews.tick`，每 100 客户端 tick、每个目标维度一行 | `dim`：目标维度 id；`samples`：本窗口内该视图 `tickEntities()` 的调用次数；`avgUs`：算术平均微秒；`p50Us`：中位数近似（16 微秒宽、覆盖 0–4095 微秒的直方图桶中点，≥4096 进溢出桶并记 4096）；`maxUs`：窗口内最大值；`entities`：打点时 `level().entitiesForRendering()` 的条目数（每 100 tick 遍历一次） |
+
+口径说明：
+
+- **采样窗口固定 100 tick**（服务端约 5 s，客户端 100 tick）。窗口在打点后清零，不跨窗口累计；没有视图时不打点。
+- 两条都是**CPU 提交区间**：服务端 `bytes` 是编码后的载荷长度，不含 Netty 写出与网络传输；客户端 `*Us` 是 `System.nanoTime()` 包住 `tickEntities()` 的差值，**不是 GPU 时间**，也不含渲染帧合成。
+- 服务端计数只旁路自增，不改变包内容、发送目标或丢弃判定；`envelopes` 统计的是「进入 `sendEnvelope` 且玩家有效的次数」，因此超长丢弃的包也计入包数、不计字节。
+- 既有 H-3 实体活性样本行（`DimensionView.logClientTick`，每 20 tick、逐实体 `tick` / `moved`）的前缀为 `[camera-view] entity-sample`（H6-5 之前为 `client-tick`），与本节的耗时行区分：样本行回答「实体有没有在动」，耗时行回答「推进一次要多久」。
 
 ---
 

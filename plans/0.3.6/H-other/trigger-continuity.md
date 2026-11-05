@@ -114,7 +114,7 @@
 | 边沿状态（最近为真 tick、连续起点） | `continuity/TriggerEdge`（`inside` / `armed` / `trueSince` / `lastSample` / `generation`） | `enterStates` 裸布尔已删除；区域进入 / 离开同时写 `REGION_ENTERED` / `REGION_LEFT` 事实（仅 `on_enter`） |
 | 停留 / 窗口参数 | `script/ContinuitySpec(sweep, dwellTicks, windowTicks)`；`0..1200` tick | `dwell` 是采样点真值的保守近似；`window` 只作用于组合器事件子条件 |
 | 组合器窗口与事件类子条件解禁 | `fact/FactWindow` + `Evaluators.evaluateCombinationChild`；`window = 0` 仍由校验层拒绝 | `window > 0` 时事件类子条件按「最近 W tick 内发生过」求值 |
-| 传送 / 载具 / 维度切换的不连续标记 | `PlayerMotion` 代次：维度切换 `reset`、载具 UUID 变化、每 tick 位移 > 16 格 | 短距离传送（≤16 格/tick）按移动处理，见契约边界 |
+| 传送 / 载具 / 维度切换的不连续标记 | `PlayerMotion` 代次：传送由 `ServerPlayerTeleportMixin`（`teleportTo` 两个重载）、维度切换 `reset`、载具 UUID 变化、每 tick 位移 > 16 格兜底 | 传送与距离无关，短传送不再参与扫掠，见契约边界 |
 
 **触发条件 JSON（触发器级，与 `poll_interval` 同层）**：
 
@@ -135,6 +135,7 @@
 | `hitsFacing` | 3.05 ms | ≈ 31 ns |
 | `anyPoint`（steps=1 / 4 / 8 / 16 / 32） | 4.19 / 5.61 / 11.96 / 33.96 / 97.61 ms | ≈ 42 / 56 / 120 / 340 / 976 ns |
 
+- `observation` 扫掠路径每轮最多 16 次 `clip` + 16 次实体查询（子步数由弧带角度决定，静止 / 无转向时点判定已覆盖、不扫掠）；实测数据由本轮实机补入。
 - 成本只随**位移段**增长：静止时 `substeps` 退化为 1，点判定已覆盖。
 - `structure` 的每子步含一次 `getAllStructuresAt`（世界查询），上表只含走段本身；实机未做逐 tick 采样统计（标注为未验证）。
 - 默认（未开启）不捕获采样点、不做段判定，零额外求值。
@@ -142,8 +143,8 @@
 **契约边界**：
 - 扫掠是相邻采样点的直线 / 最短弧近似，不是真连续时间；曲线绕行会误报或漏检。
 - `dwell` 以采样点真值为准（不知道两次采样之间的短暂离开），是保守近似。
-- 短距离传送（单 tick ≤ 16 格）无法与移动区分，按连续移动参与扫掠；≥ 16 格按跳变处理。
-- `observation` 射线扫掠**未实现**（归属 H-2，见 `I-BACKLOG.md` H1-R1）。
+- 传送经 `ServerPlayer#teleportTo` 两个重载（`(DDD)V`、`(ServerLevel,DDD,Set,FF)Z`）→ 代次自增、不参与扫掠（与距离无关）；`teleportRelative` 与直接改坐标的跳变仍按连续处理（位移 > 16 格由 `MAX_TICK_DISPLACEMENT` 兜底）。
+- `observation` 射线扫掠**已实现**（H-6）：点判定先跑（与旧路径逐位一致），未命中且 `ctx.canSweep()` 时按**弧带子步**重放——yaw 取最短弧、pitch 线性，`steps = ceil(max(|dyaw|, |dpitch|) / ARC_STEP_DEG)`，`ARC_STEP_DEG = 5.0`（`Evaluators`），上限 `SegmentSweep.SUBSTEP_MAX = 16`；每步眼位 = 位置线性插值 + 当前眼高，朝向由 `Vec3.directionFromRotation(pitch, yaw)` 还原，再跑同一射线判定。移动实体目标按**求值时刻**的位置查询（不做实体轨迹外推），任一步命中即触发。
 - 顶层事件触发器不受 `window` 影响；窗口只作用于组合器的事件类子条件。
 - 窗口判定里 `entity_kill` 的 `mode=and` 按「每个目标的击杀事实各自满足场景」；单点求值器仍是「最近一次击杀的场景」。
 - 播放期间是否补记扫过仍按现状（不补记，N9），待用户裁决（H1-R6）。
