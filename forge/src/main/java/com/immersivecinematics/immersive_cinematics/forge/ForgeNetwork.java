@@ -94,6 +94,10 @@ public final class ForgeNetwork implements NetworkBridge {
         CHANNEL.registerMessage(id++, S2CScriptSeekAckPacket.class,
                 CinematicPacket::write, S2CScriptSeekAckPacket::new,
                 (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("S2C", NetworkHandler.SCRIPT_SEEK_ACK, () -> pkt.handle())); ctx.get().setPacketHandled(true); });
+        // 跳过投票同样追加在最后，不改变既有包 ID
+        CHANNEL.registerMessage(id++, C2SSkipVotePacket.class,
+                CinematicPacket::write, C2SSkipVotePacket::new,
+                (pkt, ctx) -> { ctx.get().enqueueWork(() -> PacketGuard.handle("C2S", NetworkHandler.SKIP_VOTE, ctx.get().getSender(), () -> pkt.handle(ctx.get().getSender()))); ctx.get().setPacketHandled(true); });
     }
 
     @Override

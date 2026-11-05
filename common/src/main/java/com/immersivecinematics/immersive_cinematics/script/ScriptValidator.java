@@ -4161,7 +4161,7 @@ public final class ScriptValidator {
 
         if (sweep && !isSweepableType(type)) {
             issues.add(cp + ".sweep 对 " + type + " 无几何语义，将被忽略"
-                    + "（仅 location / structure / facing 支持段扫掠）");
+                    + "（仅 location / structure / facing / observation 支持段扫掠）");
         }
         if (dwellValid && dwell > 0 && tt.getStrategy() != ListenStrategy.POLLING) {
             issues.add(cp + ".dwell 对 " + type + " 无效（事件驱动触发器不参与轮询，将被忽略）");
@@ -4191,7 +4191,8 @@ public final class ScriptValidator {
 
     /** {@code continuity.sweep} 有几何语义的触发器类型。 */
     private static boolean isSweepableType(String type) {
-        return "location".equals(type) || "structure".equals(type) || "facing".equals(type);
+        return "location".equals(type) || "structure".equals(type) || "facing".equals(type)
+                || "observation".equals(type);
     }
 
     /**

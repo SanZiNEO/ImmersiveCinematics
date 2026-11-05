@@ -3,19 +3,28 @@ package com.immersivecinematics.immersive_cinematics.control;
 import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.ImmersiveCinematics;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
 import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
- * 跳过提示 HUD：画跳过键图标与长按进度环，仅脚本模式且顶层实例可跳过时出现。
+ * 跳过提示 HUD：画跳过键图标与长按进度环，仅脚本模式、顶层实例可跳过且本人尚未投票时出现。
  *
  * 长按块（环形 + 键位图标 + 文案）与票数文本是两个独立元素，各自按「元素中心的屏幕百分比」
  * 定位（{@code Config.skipHudX/skipHudY} 与 {@code Config.voteHudX/voteHudY}），缺省落在同一行：
  * 长按块靠右、票数水平居中。票数只在真多人或单人存档已开 LAN 发布时显示——
  * 单人未发布没有第二个投票者，画出来只是噪声。
+ *
+ * <p>票数按实例分流：每个可呈现的实例一行，顶层实例恒占 {@code voteHudX/voteHudY} 那一行，
+ * 其余实例按 {@code CameraManager.instances()} 顺序向下堆叠，因此多实例同时可跳过时不会互相覆盖。
+ * 只有一个批次时行内不带脚本名，多批并存才逐行加名前缀。
+ * 长按块仍只对顶层实例绘制，且已投票者不再看到它。
  */
 public class SkipHudRenderer {
 
@@ -36,15 +45,20 @@ public class SkipHudRenderer {
         if (mc.level == null) return;
 
         if (!CameraManager.INSTANCE.isScriptMode()) return;
-        if (!CameraManager.INSTANCE.isTopInstanceSkippable()) return;
         // hide_skip_hud 三态：仅显式 true 隐藏；未设置（null）= 显示（不回落 hide_hud）
+        // 整块开关：长按块与票数一起消失
         if (Boolean.TRUE.equals(CinematicController.INSTANCE.isHideSkipHud())) return;
 
-        float progress = CinematicKeyBindings.getSkipHoldProgress();
-        renderInternal(mc, guiGraphics, progress);
+        // 长按块只对顶层实例绘制；已投票者不再显示（服务端已记票，再按也不会重复生效）
+        PlaybackInstance top = CameraManager.INSTANCE.activeInstance();
+        if (top != null && top.isSkippable()
+                && !ClientScriptReceiver.hasVoted(top.scriptId(), top.instanceId())) {
+            renderPrompt(mc, guiGraphics, CinematicKeyBindings.getSkipHoldProgress());
+        }
+        renderVotes(mc, guiGraphics);
     }
 
-    private static void renderInternal(Minecraft mc, GuiGraphics guiGraphics, float progress) {
+    private static void renderPrompt(Minecraft mc, GuiGraphics guiGraphics, float progress) {
         var font = mc.font;
         int sw = mc.getWindow().getGuiScaledWidth();
         int sh = mc.getWindow().getGuiScaledHeight();
@@ -85,19 +99,80 @@ public class SkipHudRenderer {
         if (progress > 0f) {
             drawRingArc(guiGraphics, ringCenterX, ringCenterY, RING_RADIUS, RING_WIDTH, progress, sw, sh);
         }
+    }
 
-        // 票数是独立元素：中心点由 voteHudX/voteHudY 单独给出，不受长按块宽度影响
-        if (shouldShowVotes(mc)) {
-            int voteCount = ClientScriptReceiver.getSkipVoterCount();
-            int voteTotal = ClientScriptReceiver.getSkipTotalViewers();
-            if (voteTotal > 0) {
-                Component voteText = Component.translatable("hud.immersive_cinematics.skip_vote", voteCount, voteTotal);
-                int voteW = font.width(voteText);
-                int vcx = Math.round(sw * Config.voteHudX / 100f);
-                int vcy = Math.round(sh * Config.voteHudY / 100f);
-                guiGraphics.drawString(font, voteText, vcx - voteW / 2, vcy - font.lineHeight / 2, textColor, true);
+    /**
+     * 票数按实例分流：每个可呈现的实例一行，行中心由 {@code voteHudX/voteHudY} 与行号给出。
+     * 顶层实例恒占第一行（像素基准不变），其余实例按 {@code CameraManager.instances()} 顺序
+     * 向下堆叠，行距 {@code font.lineHeight + 2}；顶层实例没有票数时不占位，后续行从第一行起排。
+     *
+     * <p>只有一个批次在呈现时省掉名字（{@code skip_vote}，2 参）；多批并存才逐行带名字
+     * （{@code skip_vote_named}，3 参），否则每行重复同一个脚本名只是噪声。
+     */
+    private static void renderVotes(Minecraft mc, GuiGraphics guiGraphics) {
+        if (!shouldShowVotes(mc)) return;
+
+        var font = mc.font;
+        int sw = mc.getWindow().getGuiScaledWidth();
+        int sh = mc.getWindow().getGuiScaledHeight();
+        int vcx = Math.round(sw * Config.voteHudX / 100f);
+        int vcy = Math.round(sh * Config.voteHudY / 100f);
+        int lineStep = font.lineHeight + 2;
+
+        PlaybackInstance top = CameraManager.INSTANCE.activeInstance();
+        List<VoteLine> lines = new ArrayList<>();
+        ClientScriptReceiver.SkipVote topVote = top != null ? voteRow(top) : null;
+        if (topVote != null) {
+            lines.add(new VoteLine(top, topVote));
+        }
+        for (PlaybackInstance instance : CameraManager.INSTANCE.instances()) {
+            if (instance == top) continue;
+            ClientScriptReceiver.SkipVote vote = voteRow(instance);
+            if (vote != null) {
+                lines.add(new VoteLine(instance, vote));
             }
         }
+
+        boolean named = lines.size() > 1;
+        for (int row = 0; row < lines.size(); row++) {
+            VoteLine line = lines.get(row);
+            drawVoteRow(guiGraphics, line.instance(), line.vote(), vcx, vcy + row * lineStep, named);
+        }
+    }
+
+    /** 一行票数：实例 + 该实例的票数快照。 */
+    private record VoteLine(PlaybackInstance instance, ClientScriptReceiver.SkipVote vote) {}
+
+    /**
+     * 该实例的行票数快照；不该占行时返回 {@code null}。
+     * 条件：非编辑器驱动、正在播、可跳过，且缓存里有它自己的记录（总数 &gt; 0）。
+     */
+    private static ClientScriptReceiver.SkipVote voteRow(PlaybackInstance instance) {
+        if (instance.isEditorDriven() || !instance.player().isPlaying() || !instance.isSkippable()) return null;
+        ClientScriptReceiver.SkipVote vote =
+                ClientScriptReceiver.getSkipVote(instance.scriptId(), instance.instanceId());
+        return vote != null && vote.total > 0 ? vote : null;
+    }
+
+    /** 一行票数：文本按自身宽度水平居中于 {@code voteHudX}，行中心为 {@code vcy}。 */
+    private static void drawVoteRow(GuiGraphics guiGraphics, PlaybackInstance instance,
+                                    ClientScriptReceiver.SkipVote vote, int vcx, int vcy, boolean named) {
+        var font = Minecraft.getInstance().font;
+        Component voteText = named
+                ? Component.translatable("hud.immersive_cinematics.skip_vote_named",
+                        voteName(instance), vote.voters, vote.total)
+                : Component.translatable("hud.immersive_cinematics.skip_vote",
+                        vote.voters, vote.total);
+        int voteW = font.width(voteText);
+        guiGraphics.drawString(font, voteText, vcx - voteW / 2, vcy - font.lineHeight / 2, 0xAAFFFFFF, true);
+    }
+
+    /** 行身份标签：脚本 meta 名称；未命名（null / 空白）回落脚本 id，保证每行都能区分实例。 */
+    private static String voteName(PlaybackInstance instance) {
+        var script = instance.script();
+        var meta = script != null ? script.getMeta() : null;
+        String name = meta != null ? meta.getName() : null;
+        return name == null || name.isBlank() ? instance.scriptId() : name;
     }
 
     /**

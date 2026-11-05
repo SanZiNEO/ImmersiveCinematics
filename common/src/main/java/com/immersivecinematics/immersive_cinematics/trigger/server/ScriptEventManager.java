@@ -202,10 +202,11 @@ public class ScriptEventManager {
         UUID uuid = player.getUUID();
         pb.viewers.remove(uuid);
 
-        boolean skipped = reason == CompletionReason.SKIPPED;
-        if (skipped) {
-            // 跳过票入事实账本：同一 (玩家, 脚本, 实例) 重复投票幂等
+        if (reason == CompletionReason.SKIPPED) {
+            // 兼容其它结束路径（客户端仍可能带 SKIPPED 回执）：票入事实账本并标记为投票者，重复幂等。
+            // 这里只补记账、不做达标判定——强停统一由 onSkipVote 负责，避免两条路径各判一次。
             FactLedger.INSTANCE.recordVote(uuid, pb.scriptId, pb.instanceId, player.server.getTickCount());
+            pb.skipVoters.add(uuid);
         }
 
         LOGGER.debug("Player {} finished script '{}' (instance '{}', viewers left: {})",
@@ -218,13 +219,40 @@ public class ScriptEventManager {
         }
 
         int votes = FactLedger.INSTANCE.voteCount(pb.scriptId, pb.instanceId);
-        int needed = pb.neededVotes(votes);
+        // 刚离开的这位已不在 viewers 里，但仍属于这一批：分母补 1（仅日志口径，判定在 onSkipVote）
+        int needed = ScriptEventManager.neededVotes(pb.viewers.size() + 1, pb.skipVoteRatio);
+        boolean broadcast = broadcastSkipVote(pb, votes);
+        LOGGER.debug("Skip vote tally for script '{}' instance '{}': {} / {} (needed {}), broadcast={}",
+                scriptId, pb.instanceId, votes, pb.viewers.size() + 1, needed, broadcast);
+    }
 
-        if (skipped && votes >= needed) {
-            // 达标即终局：剩余观众马上会被停止包踢出播放，先发一包票数只会被紧随其后的停止覆盖。
+    /**
+     * 客户端跳过投票：只计票，投票者本人继续播放；票数达到比例后由这里统一停掉这一批全部在场者。
+     *
+     * <p>投票者仍留在 {@code viewers} 内（新语义：投票不退出播放），因此分母就是 {@code viewers.size()}。
+     * 非本实例观众的投票直接丢弃：批次外的玩家不能决定别人的播放。
+     */
+    public void onSkipVote(ServerPlayer player, String scriptId, String instanceId) {
+        ScriptPlayback pb = playback(scriptId, instanceId);
+        if (pb == null) return;
+
+        UUID uuid = player.getUUID();
+        if (!pb.viewers.contains(uuid)) return;
+        // 已投过票：重复投票（丢包重发 / 连点）直接吞掉，票数与 youVoted 都不会变，不必再广播一轮
+        if (pb.skipVoters.contains(uuid)) return;
+
+        // 账本按 (玩家, 脚本, 实例) 幂等：重复投票不改变票数
+        FactLedger.INSTANCE.recordVote(uuid, pb.scriptId, pb.instanceId, player.server.getTickCount());
+        pb.skipVoters.add(uuid);
+
+        int votes = FactLedger.INSTANCE.voteCount(pb.scriptId, pb.instanceId);
+        int needed = pb.neededVotes();
+
+        if (votes >= needed) {
+            // 达标即终局：先停这一批所有在场者，再清账本；发一包票数只会被紧随其后的停止覆盖。
             LOGGER.info("Script '{}' force-stopped by skip vote ({} / {} needed)", scriptId, votes, needed);
-            for (UUID remaining : pb.viewers) {
-                ServerPlayer p = player.server.getPlayerList().getPlayer(remaining);
+            for (UUID vid : pb.viewers) {
+                ServerPlayer p = pb.server.getPlayerList().getPlayer(vid);
                 if (p != null) S2CStopScriptPacket.send(p, scriptId, pb.instanceId, "");
             }
             removePlayback(pb);
@@ -233,14 +261,14 @@ public class ScriptEventManager {
 
         boolean broadcast = broadcastSkipVote(pb, votes);
         LOGGER.debug("Skip vote tally for script '{}' instance '{}': {} / {} (needed {}), broadcast={}",
-                scriptId, pb.instanceId, votes, pb.viewers.size() + votes, needed, broadcast);
+                scriptId, pb.instanceId, votes, pb.viewers.size(), needed, broadcast);
     }
 
     /**
-     * 跳过投票所需票数——强停判定与票数广播共用的唯一实现。
+     * 跳过投票所需票数——强停判定与票数广播共用的唯一阈值实现。
      *
-     * <p>分母 {@code totalViewers} 必须是「在场观众 + 已跳过者」：投票者投完就离开了观众集合，
-     * 只拿在场人数当分母等于把跳过者从分母里抹掉，比例会被整体放大（两人一票就成了 100%）。
+     * <p>分母是这一批的在场人数：新语义下投票不退出播放，投票者仍留在 {@code viewers} 里，
+     * 因此分母不需要任何补正，也不会随投票缩水。
      *
      * <p>{@code max(1, …)} 对齐原版 {@code SleepStatus.sleepersNeeded}：比例再低也得真有人投过票。
      * 没有这个下限，空场或极低比例下 {@code ceil} 会算出 0，就成了「零票即通过」。
@@ -250,32 +278,27 @@ public class ScriptEventManager {
     }
 
     /**
-     * 把当前票数推给仍在场的观众，只有状态变化时才真的发包。
+     * 把当前票数推给仍在场的每个观众。
      *
-     * <p>包里的总人数含已跳过者，与 {@link #neededVotes(int, int)} 同分母；否则客户端看到的分母
-     * 会随每次投票一路缩小，进度条反而倒退。
+     * <p>不再按 {@code (votes,total)} 节流：包里带 {@code youVoted}，投票者与未投票者收到的内容不同，
+     * 靠「数值没变」跳过发包会让部分观众的 {@code youVoted} 永远停在旧值（已投票者仍在响应长按）。
+     * 投票是低频事件（每人每实例最多一票），为此维护一张按观众的上次状态表不划算。
      *
-     * <p>按变化节流对齐原版 {@code SleepStatus.update()}：每个结束回执都会走到这里，
-     * 重复发包只会让每个观众反复解析同一个数值。
-     *
-     * <p>达标（{@code votes >= needed}）时调用方直接强停剩余观众并清账本，不会走到这里：
-     * 那些人马上会被停止包踢出播放，先发一包票数只会被紧随其后的停止覆盖。
-     *
-     * @return 本次是否真的广播了（调用方用于日志）
+     * @return 是否至少发给了一个在线观众（调用方用于日志）
      */
     private boolean broadcastSkipVote(ScriptPlayback pb, int votes) {
         if (pb.viewers.isEmpty()) return false;
-        int total = pb.viewers.size() + votes;
-        if (votes == pb.lastBroadcastVotes && total == pb.lastBroadcastTotal) return false;
-        pb.lastBroadcastVotes = votes;
-        pb.lastBroadcastTotal = total;
+        int total = pb.viewers.size();
+        boolean sent = false;
         for (UUID vid : pb.viewers) {
             ServerPlayer vp = pb.server.getPlayerList().getPlayer(vid);
             if (vp != null) {
-                S2CSkipVoteUpdatePacket.send(vp, pb.scriptId, votes, total);
+                S2CSkipVoteUpdatePacket.send(vp, pb.scriptId, pb.instanceId, votes, total,
+                        pb.skipVoters.contains(vid));
+                sent = true;
             }
         }
-        return true;
+        return sent;
     }
 
     public void onScriptFinished(ServerPlayer player, String scriptId, String instanceId, CompletionReason reason) {
@@ -617,6 +640,13 @@ public class ScriptEventManager {
         /** 播放实例 id；空串 = 无实例 id 的来源（该脚本的全部观看者共用一条退化账本） */
         final String instanceId;
         final Set<UUID> viewers;
+        /**
+         * 本实例已投出跳过票的玩家。
+         *
+         * <p>与 {@code viewers} 分开：新语义下投票不退出播放，投票者仍在 {@code viewers} 里，
+         * 这张集合只用来判断「谁已经投过」（客户端据此停掉长按提示），不参与人数统计。
+         */
+        final Set<UUID> skipVoters;
         /** 本场播放实际生效的跳过投票比例（脚本覆盖 ?? 全局配置），创建时解析一次 */
         final int skipVoteRatio;
         /** 本实例的事件身份令牌：同脚本的不同播放实例互不相等（按对象身份去重）。 */
@@ -642,18 +672,11 @@ public class ScriptEventManager {
         /** 播放所在服务端：构造时由 {@code addViewer} 传入（广播票数 / 强停时取玩家表用）。 */
         final MinecraftServer server;
 
-        /** 上次广播出去的票数 / 总人数；{@code -1} = 从未广播。两者都相同才算「状态没变」。 */
-        int lastBroadcastVotes = -1;
-        int lastBroadcastTotal = -1;
-
         /**
-         * 本实例还差多少票——把「剩余观众 + 已投票数」还原成整场人数后交给唯一阈值函数。
-         *
-         * <p>{@code votes} 由调用方传入（已含刚投出的那一票，投票者本人此时已移出 {@code viewers}）：
-         * 这样分母不随投票缩水，强停判定与广播共用同一个数。
+         * 本实例还差多少票。分母是 {@code viewers.size()}：投票不退出播放，投票者仍在其中。
          */
-        int neededVotes(int votes) {
-            return ScriptEventManager.neededVotes(viewers.size() + votes, skipVoteRatio);
+        int neededVotes() {
+            return ScriptEventManager.neededVotes(viewers.size(), skipVoteRatio);
         }
 
         // ── 暂停状态与时间线基准 ──
@@ -669,6 +692,7 @@ public class ScriptEventManager {
             this.scriptId = scriptId;
             this.instanceId = instanceId;
             this.viewers = new HashSet<>();
+            this.skipVoters = new HashSet<>();
             this.skipVoteRatio = skipVoteRatio;
             this.eventClips = eventClips;
             this.eventRuntimes = new ArrayList<>(eventClips.size());

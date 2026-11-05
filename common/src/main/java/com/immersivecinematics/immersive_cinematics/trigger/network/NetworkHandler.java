@@ -22,6 +22,7 @@ public final class NetworkHandler {
     public static final String RESOLVE_ENTITY_SELECTOR_RESULT = "resolve_entity_selector_result";
 
     public static final String SCRIPT_FINISHED = "script_finished";
+    public static final String SKIP_VOTE = "skip_vote";
     public static final String PLAYBACK_STARTED = "playback_started";
     public static final String SCRIPT_PAUSE = "script_pause";
     public static final String SCRIPT_SEEK = "script_seek";

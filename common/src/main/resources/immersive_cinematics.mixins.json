@@ -50,7 +50,8 @@
     "NaturalSpawnerSpawnStateMixin",
     "PlayerListAudioBroadcastMixin",
     "ServerChunkCacheCameraMixin",
-    "ServerEntityMixin"
+    "ServerEntityMixin",
+    "ServerPlayerTeleportMixin"
   ],
   "injectors": {
     "defaultRequire": 1

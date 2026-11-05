@@ -2,6 +2,10 @@ package com.immersivecinematics.immersive_cinematics.control;
 
 import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
+import com.immersivecinematics.immersive_cinematics.camera.PlaybackInstance;
+import com.immersivecinematics.immersive_cinematics.trigger.client.ClientScriptReceiver;
+import com.immersivecinematics.immersive_cinematics.trigger.network.C2SSkipVotePacket;
+import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler;
 import com.immersivecinematics.immersive_cinematics.webui.WebEditorServer;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -11,9 +15,11 @@ import org.lwjgl.glfw.GLFW;
 /**
  * 客户端键位注册与每 tick 输入轮询（跳过键长按、F9 编辑器、Ctrl+P 强制退出）。
  *
- * 跳过键要按住累计到 {@code Config.skipHoldThresholdMs} 才请求退出，且一次会话只触发一次
- * （skipTriggered 消费，避免长按重复请求）；F9 重开有 {@code EDITOR_REOPEN_COOLDOWN} 冷却，
- * 防止预览屏关闭瞬间的残留按键立刻重开。
+ * 跳过键要按住累计到 {@code Config.skipHoldThresholdMs} 才投出一张跳过票：投票不结束本机播放，
+ * 只把票记到当前播放实例上，票数达比例后由服务端统一停掉这一批。每个实例每人只投一票
+ * （{@code ClientScriptReceiver.hasVoted} 门控，已投票者不再响应长按）；
+ * {@code skipTriggered} 只负责「本轮长按已经投过」，松键即复位。
+ * F9 重开有 {@code EDITOR_REOPEN_COOLDOWN} 冷却，防止预览屏关闭瞬间的残留按键立刻重开。
  */
 public class CinematicKeyBindings {
 
@@ -83,14 +89,20 @@ public class CinematicKeyBindings {
                 if (skipKeyDownSince == 0) {
                     skipKeyDownSince = System.currentTimeMillis();
                 } else if (System.currentTimeMillis() - skipKeyDownSince >= Config.skipHoldThresholdMs) {
-                    boolean ok = mgr.requestExit(ExitReason.USER_SKIP);
-                    if (ok) {
-                        skipTriggered = true;
+                    // 长按只投一票：本机继续播放，票数达比例后由服务端统一停掉这一批。
+                    // 已投票者（本地标记或服务端回执）不再响应长按。
+                    PlaybackInstance top = mgr.activeInstance();
+                    if (top != null && top.isSkippable()
+                            && !ClientScriptReceiver.hasVoted(top.scriptId(), top.instanceId())) {
+                        NetworkHandler.sendToServer(new C2SSkipVotePacket(top.scriptId(), top.instanceId()));
+                        ClientScriptReceiver.markVoted(top.scriptId(), top.instanceId());
+                        skipTriggered = true;   // 本轮已投票，仅防重复发包；松键后复位
                         skipKeyDownSince = 0;
                     }
                 }
             } else {
                 skipKeyDownSince = 0;
+                skipTriggered = false;
             }
         }
 

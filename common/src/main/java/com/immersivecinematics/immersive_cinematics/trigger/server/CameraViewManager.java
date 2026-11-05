@@ -94,6 +94,14 @@ public final class CameraViewManager {
     /** 实体流：{@code (玩家 UUID, 目标维度)} → 共享的实体通道（视图只是订阅者）。 */
     private final Map<StreamKey, CameraEntityStream> streams = new HashMap<>();
 
+    /**
+     * H6-5 计量：当前 100 tick 窗口内已提交的信封数与载荷字节数。
+     * {@link Config#debugLogging} 关闭时仍累加（两个 {@code long} 自增，无分配），
+     * 只是不进入格式化 / 日志分支。
+     */
+    private long statEnvelopes;
+    private long statBytes;
+
     private CameraViewManager() {}
 
     // ===== 包入口 =====
@@ -196,6 +204,25 @@ public final class CameraViewManager {
                 sendEntities(st, now);
             }
         }
+        if (Config.debugLogging && server.getTickCount() % 100 == 0) {
+            logStats(server);
+        }
+    }
+
+    /**
+     * H6-5 计量：每 100 tick 汇总本窗口的信封数 / 字节数 / 活跃流与实体数，然后清零。
+     * 只在 {@link Config#debugLogging} 下进入；{@code entities} 是各流 {@code interests} 的大小之和
+     * （同一实体被多个视图订阅时按流各计一次）。
+     */
+    private void logStats(MinecraftServer server) {
+        int entities = 0;
+        for (CameraEntityStream stream : streams.values()) {
+            entities += stream.interests.size();
+        }
+        LOGGER.info("[camera-view] stats tick={} streams={} views={} envelopes={} bytes={} entities={}",
+                server.getTickCount(), streams.size(), views.size(), statEnvelopes, statBytes, entities);
+        statEnvelopes = 0L;
+        statBytes = 0L;
     }
 
     // ===== 释放 =====
@@ -222,6 +249,8 @@ public final class CameraViewManager {
         }
         views.clear();
         streams.clear();
+        statEnvelopes = 0L;
+        statBytes = 0L;
     }
 
     /** 维度卸载：释放该维度的视图（尽量补发 forget / remove，ticket 移除失败可忽略）。 */
@@ -730,6 +759,9 @@ public final class CameraViewManager {
         if (player == null || player.isRemoved() || player.hasDisconnected()) {
             return;
         }
+        // H6-5 计量：每次进入都计一个信封；未编码（无 id / 编码异常）时字节按 0 计。
+        // 只做自增，不改变发送目标、包内容或丢弃判定。
+        statEnvelopes++;
         int id;
         try {
             id = ConnectionProtocol.PLAY.getPacketId(PacketFlow.CLIENTBOUND, packet);
@@ -758,6 +790,7 @@ public final class CameraViewManager {
             }
             NetworkHandler.sendToPlayer(player,
                     new S2CCameraViewPacket(viewId, dimension, id, payload));
+            statBytes += payload.length;
         } catch (Exception e) {
             // 单个坏包（超长区块 / 编码异常）只丢本包，不影响同一 tick 的其它视图
             LOGGER.warn("[camera-view] 原版包编码失败（视图 {}，包 {}）：本包丢弃",

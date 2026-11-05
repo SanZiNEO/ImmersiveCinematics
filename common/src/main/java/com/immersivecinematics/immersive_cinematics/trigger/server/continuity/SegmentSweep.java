@@ -227,6 +227,26 @@ public final class SegmentSweep {
         return count >= (double) max ? max : (int) count;
     }
 
+    /**
+     * 按朝向转角算弧带子步数：yaw 取<b>最短弧</b>（值域 {@code [-180, 180)}）、pitch 线性，
+     * {@code steps = ceil(max(|dyaw|, |dpitch|) / stepDegrees)}，钳到 {@code [1, SUBSTEP_MAX]}。
+     *
+     * <p>{@code stepDegrees} 非有限或 {@code <= 0} → 1；任一角度非有限 → 1。
+     * 返回值即子步重放的间隔数（重放 {@code i = 1..steps}，参数 {@code t = i / steps}）。
+     * 纯函数、零分配。
+     */
+    public static int arcSteps(MotionSample from, MotionSample to, double stepDegrees) {
+        if (from == null || to == null) return 1;
+        if (!(stepDegrees > 0.0) || !Double.isFinite(stepDegrees)) return 1;
+        double dyaw = wrapDegrees((double) to.yaw() - (double) from.yaw());
+        double dpitch = (double) to.pitch() - (double) from.pitch();
+        double span = Math.max(Math.abs(dyaw), Math.abs(dpitch));
+        if (!Double.isFinite(span)) return 1;
+        double count = Math.ceil(span / stepDegrees);
+        if (!(count >= 1.0)) return 1;
+        return count >= (double) SUBSTEP_MAX ? SUBSTEP_MAX : (int) count;
+    }
+
     /** 子步取样回调：{@code true} = 命中，立即停止。 */
     public interface Visitor {
         boolean test(double x, double y, double z);
@@ -264,6 +284,14 @@ public final class SegmentSweep {
         float wrapped = value % 360.0f;
         if (wrapped >= 180.0f) wrapped -= 360.0f;
         if (wrapped < -180.0f) wrapped += 360.0f;
+        return wrapped;
+    }
+
+    /** 与 {@code wrapDegrees(float)} 同值域的 double 版本（值域 [-180, 180)）。 */
+    private static double wrapDegrees(double value) {
+        double wrapped = value % 360.0;
+        if (wrapped >= 180.0) wrapped -= 360.0;
+        if (wrapped < -180.0) wrapped += 360.0;
         return wrapped;
     }
 

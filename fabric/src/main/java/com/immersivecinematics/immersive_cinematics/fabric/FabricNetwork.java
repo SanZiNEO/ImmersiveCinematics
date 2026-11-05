@@ -24,6 +24,10 @@ public final class FabricNetwork implements NetworkBridge {
             C2SScriptFinishedPacket pkt = new C2SScriptFinishedPacket(buf);
             server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.SCRIPT_FINISHED, player, () -> pkt.handle(player)));
         });
+        ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.SKIP_VOTE), (server, player, handler, buf, responseSender) -> {
+            C2SSkipVotePacket pkt = new C2SSkipVotePacket(buf);
+            server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.SKIP_VOTE, player, () -> pkt.handle(player)));
+        });
         ServerPlayNetworking.registerGlobalReceiver(id(NetworkHandler.PLAYBACK_STARTED), (server, player, handler, buf, responseSender) -> {
             C2SPlaybackStartedPacket pkt = new C2SPlaybackStartedPacket(buf);
             server.execute(() -> PacketGuard.handle("C2S", NetworkHandler.PLAYBACK_STARTED, player, () -> pkt.handle(player)));
@@ -128,6 +132,7 @@ public final class FabricNetwork implements NetworkBridge {
 
     private static ResourceLocation idFor(CinematicPacket packet) {
         if (packet instanceof C2SScriptFinishedPacket) return id(NetworkHandler.SCRIPT_FINISHED);
+        if (packet instanceof C2SSkipVotePacket) return id(NetworkHandler.SKIP_VOTE);
         if (packet instanceof C2SPlaybackStartedPacket) return id(NetworkHandler.PLAYBACK_STARTED);
         if (packet instanceof C2SScriptPausePacket) return id(NetworkHandler.SCRIPT_PAUSE);
         if (packet instanceof C2SScriptSavedPacket) return id(NetworkHandler.SCRIPT_SAVED);

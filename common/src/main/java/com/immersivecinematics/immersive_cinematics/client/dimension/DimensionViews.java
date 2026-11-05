@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.client.dimension;
 
+import com.immersivecinematics.immersive_cinematics.Config;
 import com.immersivecinematics.immersive_cinematics.client.lane.LaneCullSlots;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
@@ -16,10 +17,12 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.Difficulty;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.dimension.DimensionType;
 import org.slf4j.Logger;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -65,6 +68,65 @@ public final class DimensionViews {
 
     /** 失败重试 / 告警间隔。 */
     private static final long FAILURE_RETRY_NANOS = 5_000_000_000L;
+
+    /** H6-5 计量：统计窗口（客户端 tick）。 */
+    private static final int TICK_STAT_INTERVAL = 100;
+    /** H6-5 计量：p50 直方图桶宽（微秒）。 */
+    private static final long STAT_BUCKET_US = 16L;
+    /** H6-5 计量：直方图覆盖上限（微秒），更慢的耗时进溢出桶。 */
+    private static final long STAT_MAX_US = 4096L;
+
+    /** H6-5 计量：窗口内客户端 tick 计数（仅 {@link Config#debugLogging} 时递增）。 */
+    private static int tickStatTicks;
+    /** H6-5 计量：维度 id → 窗口采样器；只在 {@link Config#debugLogging} 下创建 / 复用。 */
+    private static final Map<String, TickStat> TICK_STATS = new HashMap<>();
+
+    /**
+     * H6-5 计量：单个目标视图一个 100 tick 窗口内 {@code tickEntities()} 的耗时样本。
+     *
+     * <p>只记录 CPU 提交区间（{@link System#nanoTime()} 前后差值），不含 GPU 时间。
+     * p50 用 16 微秒宽、覆盖 0–4095 微秒的直方图近似（≥4096 进溢出桶），
+     * 因此 {@code p50Us} 是桶中点、误差不超过 8 微秒。
+     */
+    private static final class TickStat {
+        /** 0–255 号桶各 16 微秒，第 256 项为溢出桶。 */
+        private static final int BUCKETS = (int) (STAT_MAX_US / STAT_BUCKET_US);
+        private final long[] buckets = new long[BUCKETS + 1];
+        int samples;
+        long sumUs;
+        long maxUs;
+
+        void record(long nanos) {
+            long us = nanos / 1000L;
+            samples++;
+            sumUs += us;
+            if (us > maxUs) {
+                maxUs = us;
+            }
+            int bucket = (int) Math.min(us / STAT_BUCKET_US, BUCKETS);
+            buckets[bucket]++;
+        }
+
+        /** 中位数桶的中点（微秒）；样本全在溢出桶时返回上限。 */
+        int percentile50Us() {
+            long half = (samples + 1L) / 2L;
+            long acc = 0L;
+            for (int i = 0; i < BUCKETS; i++) {
+                acc += buckets[i];
+                if (acc >= half) {
+                    return (int) (i * STAT_BUCKET_US + STAT_BUCKET_US / 2L);
+                }
+            }
+            return (int) STAT_MAX_US;
+        }
+
+        void reset() {
+            samples = 0;
+            sumUs = 0L;
+            maxUs = 0L;
+            Arrays.fill(buckets, 0L);
+        }
+    }
 
     /** 资源重载待处理标志（重载监听器只置位；渲染线程在帧首重建）。 */
     private static volatile boolean reloadPending;
@@ -295,18 +357,67 @@ public final class DimensionViews {
         if (VIEWS.isEmpty()) {
             return;
         }
+        // H6-5 计量：关闭时只做一次布尔判断，不取时间、不分配、不进入汇总。
+        boolean stats = Config.debugLogging;
         for (Map.Entry<String, DimensionView> entry : VIEWS.entrySet()) {
             DimensionView view = entry.getValue();
             if (view.isMain() || view.level() == null) {
                 continue;
             }
+            long startNanos = stats ? System.nanoTime() : 0L;
             try {
                 view.tickEntities();
             } catch (Throwable t) {
                 FatalErrors.rethrowIfFatal(t);
                 ErrorLog.logRateLimited("CameraView", "tick-view:" + entry.getKey(), 5000L,
                         "跨维度视图实体 tick 异常（维度 " + entry.getKey() + "）：本 tick 跳过该视图，其余视图继续", t);
+            } finally {
+                if (stats) {
+                    recordTickStat(entry.getKey(), System.nanoTime() - startNanos);
+                }
             }
+        }
+        if (stats && ++tickStatTicks >= TICK_STAT_INTERVAL) {
+            tickStatTicks = 0;
+            logTickStats();
+        }
+    }
+
+    /** H6-5 计量：把一个视图本 tick 的 {@code tickEntities()} 耗时并入该维度的窗口样本。 */
+    private static void recordTickStat(String dimension, long nanos) {
+        TickStat stat = TICK_STATS.get(dimension);
+        if (stat == null) {
+            stat = new TickStat();
+            TICK_STATS.put(dimension, stat);
+        }
+        stat.record(nanos);
+    }
+
+    /**
+     * H6-5 计量：每 100 客户端 tick 每个维度打一行，然后清零该维度窗口。
+     *
+     * <p>{@code entities} 取 {@code entitiesForRendering()} 的条目数（允许 O(n)，每 100 tick 一次），
+     * 与耗时样本同窗口；视图已关闭时按 0 计。{@code avgUs / p50Us / maxUs} 都是 CPU 提交区间。
+     */
+    private static void logTickStats() {
+        for (Map.Entry<String, TickStat> entry : TICK_STATS.entrySet()) {
+            TickStat stat = entry.getValue();
+            int samples = stat.samples;
+            if (samples == 0) {
+                stat.reset();
+                continue;
+            }
+            DimensionView view = VIEWS.get(entry.getKey());
+            ClientLevel level = view != null ? view.level() : null;
+            int entities = 0;
+            if (level != null) {
+                for (Entity ignored : level.entitiesForRendering()) {
+                    entities++;
+                }
+            }
+            LOGGER.info("[camera-view] client-tick dim={} samples={} avgUs={} p50Us={} maxUs={} entities={}",
+                    entry.getKey(), samples, stat.sumUs / samples, stat.percentile50Us(), stat.maxUs, entities);
+            stat.reset();
         }
     }
 
@@ -314,6 +425,8 @@ public final class DimensionViews {
     public static void closeAll() {
         reloadPending = false;
         FAILURE_RETRY_AT.clear();
+        TICK_STATS.clear();
+        tickStatTicks = 0;
         // 缓存持有旧世界实例：不清理会把整个 ClientLevel 留到下一个存档
         cachedLevel = null;
         cachedDimensionId = "";

@@ -17,13 +17,16 @@ import java.util.UUID;
  * 划出一条现实中不存在的长线段，造成误报）：
  * <ul>
  *   <li>维度切换：{@link #reset(UUID)} 由 {@code ServerEventHandler#onChangeDimension} 调用；</li>
+ *   <li>传送：{@code ServerPlayerTeleportMixin} 在 {@code ServerPlayer#teleportTo} 的两个重载
+ *       HEAD 处调用 {@link #reset(UUID)}（目标点与当前坐标不同即自增）；</li>
  *   <li>载具变化：每 tick 比对 {@code player.getVehicle()} 的 UUID；</li>
- *   <li>每 tick 位移超过 {@link #MAX_TICK_DISPLACEMENT} 格（传送兜底，无跨平台事件）；</li>
+ *   <li>每 tick 位移超过 {@link #MAX_TICK_DISPLACEMENT} 格（兜底未经过 {@code teleportTo}
+ *       的跳变，如 {@code teleportRelative} 或模组直接改坐标）；</li>
  *   <li>玩家退出 / 重新加入：状态被移除后重新建，代次从 0 起算。</li>
  * </ul>
  *
- * <p><b>近似口径</b>：短距离传送（单 tick 位移 ≤ 16 格）无法与正常移动区分，
- * 按连续移动处理——这是保守近似，写入契约。位移阈值只兜底大跳变。
+ * <p><b>口径</b>：传送由 {@code ServerPlayer} 传送注入点标为不连续，与距离无关——
+ * 短距离传送不再被当成连续移动参与扫掠。位移阈值只兜底未经过 {@code teleportTo} 的跳变。
  *
  * <p>线程契约：只在服务端主线程使用（无同步）。
  */
@@ -31,7 +34,12 @@ public final class PlayerMotion {
 
     public static final PlayerMotion INSTANCE = new PlayerMotion();
 
-    /** 单 tick 位移超过该格数即视为跳变（传送兜底）：该段不参与扫掠。 */
+    /**
+     * 单 tick 位移超过该格数即视为跳变：该段不参与扫掠。
+     *
+     * <p>只兜底未经过 {@code ServerPlayer#teleportTo} 的跳变（{@code teleportRelative}、
+     * 模组直接改坐标、服务端强制校正等）；{@code teleportTo} 走注入点，与距离无关。
+     */
     public static final double MAX_TICK_DISPLACEMENT = 16.0;
 
     private static final double MAX_TICK_DISPLACEMENT_SQ = MAX_TICK_DISPLACEMENT * MAX_TICK_DISPLACEMENT;

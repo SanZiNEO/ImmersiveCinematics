@@ -46,8 +46,9 @@ public final class ImmersiveCinematics {
         TriggerRegistry.register(new TriggerType("dimension", ListenStrategy.POLLING, Config.triggerPollIntervalLocation, Evaluators::evaluateDimensionChange));
         TriggerRegistry.register(new TriggerType("item_pickup", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateItemPickup));
         TriggerRegistry.register(new TriggerType("item_drop", ListenStrategy.EVENT_DRIVEN, 0, Evaluators::evaluateItemDrop));
-        // 5 tick ≈ 0.25s 轮询，保证注视响应及时
-        TriggerRegistry.register(new TriggerType("observation", ListenStrategy.POLLING, 5, Evaluators::evaluateObservation));
+        // 5 tick ≈ 0.25s 轮询，保证注视响应及时；3 参重载带段扫掠（弧带子步重放）
+        TriggerRegistry.register(new TriggerType("observation", ListenStrategy.POLLING, 5,
+                (p, c, ctx) -> Evaluators.evaluateObservation(p, c, ctx)));
         // 朝向范围条件（yaw/pitch 区间）与条件组合器（all_of 全真 / any 任一），同样 5 tick 轮询
         TriggerRegistry.register(new TriggerType("facing", ListenStrategy.POLLING, 5,
                 (p, c, ctx) -> Evaluators.evaluateFacing(p, c, ctx)));

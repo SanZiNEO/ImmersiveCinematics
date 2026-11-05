@@ -1,0 +1,66 @@
+{
+  "meta": {
+    "id": "test_h1_sweep_observation",
+    "name": "触发器测试-observation 弧带扫掠",
+    "author": "ImmersiveCinematics",
+    "version": 3,
+    "description": "H-6 夹具：observation + continuity.sweep，验证两次采样之间的朝向弧带重放",
+    "triggers": [
+      {
+        "id": "trg_sweep_observation",
+        "type": "observation",
+        "repeatable": false,
+        "delay": 0,
+        "on_enter": true,
+        "conditions": { "target": "minecraft:sheep", "target_type": "entity" },
+        "continuity": { "sweep": true }
+      }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": false,
+    "suppress_bob": false,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "total_duration": 6,
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "layer_type": "subtitle",
+            "text": "测试: test_h1_sweep_observation | 功能: observation 扫掠 | 触发: observation",
+            "x": 0.5,
+            "y": 0.5,
+            "z_index": 100,
+            "keyframes": [
+              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
+              { "time": 6, "x": 0.5, "y": 0.5, "opacity": 1 }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 6,
+            "event_type": "command",
+            "keyframes": [
+              { "time": 0, "event_type": "command", "command": "say [H-6] observation 弧带扫掠已触发" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

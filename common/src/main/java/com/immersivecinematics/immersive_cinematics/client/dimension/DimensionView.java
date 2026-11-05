@@ -142,7 +142,7 @@ public final class DimensionView {
 
     /**
      * 客户端实体活性诊断：每 {@value #LOG_INTERVAL_TICKS} tick 打一行目标视图可见实体的 tick 状态
-     * （{@link Config#debugLogging} 关闭时不进入）。
+     * （前缀 {@code [camera-view] entity-sample}；{@link Config#debugLogging} 关闭时不进入）。
      *
      * <p>只遍历 {@code entitiesForRendering()} 的视图，不复制集合；采样最多 8 个。
      * {@code moved=<getX()-xOld != 0>} 区分「收到移动包并插值」与「位置仍是快照」。
@@ -172,7 +172,7 @@ public final class DimensionView {
                     .append(']');
         }
         StringBuilder line = new StringBuilder(320);
-        line.append("[camera-view] client-tick dim=").append(this.dimension.location())
+        line.append("[camera-view] entity-sample dim=").append(this.dimension.location())
                 .append(" entities=").append(count);
         if (samples != null) {
             line.append(samples);

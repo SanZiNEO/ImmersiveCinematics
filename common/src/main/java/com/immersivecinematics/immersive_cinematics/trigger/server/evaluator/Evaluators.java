@@ -24,6 +24,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.biome.Biome;
@@ -275,12 +276,59 @@ public class Evaluators {
      */
     public static boolean evaluateObservation(ServerPlayer player, JsonObject c) {
         if (!c.has("target")) return false;
+        double reach = c.has("reach") ? c.get("reach").getAsDouble() : 4.5;
+        return observeRay(player, c, player.getEyePosition(), player.getLookAngle(), reach);
+    }
+
+    /** 弧带子步的角步长（度）：yaw 走最短弧、pitch 线性，每步最多转该角度。 */
+    private static final double ARC_STEP_DEG = 5.0;
+
+    /**
+     * {@code observation} 的连续语义版本：先跑点判定（与 2 参路径逐位一致），未命中且本轮可扫掠时，
+     * 按 {@link SegmentSweep#arcSteps} 把相邻两次采样之间的朝向变化切成 {@code ARC_STEP_DEG} 的弧带，
+     * 每个子步重放一次同样的射线判定（眼位 = 位置线性插值 + 当前眼高，朝向 = yaw 最短弧插值 + pitch 线性）。
+     *
+     * <p>实体目标按<b>求值时刻</b>的位置查询（不做实体轨迹外推）；任一子步命中即 true。
+     */
+    public static boolean evaluateObservation(ServerPlayer player, JsonObject c, TriggerEvalContext ctx) {
+        if (!c.has("target")) return false;
+        double reach = c.has("reach") ? c.get("reach").getAsDouble() : 4.5;
+        boolean pointHit = observeRay(player, c, player.getEyePosition(), player.getLookAngle(), reach);
+        if (pointHit) return true;
+        if (!ctx.canSweep()) return false;
+
+        MotionSample from = ctx.from();
+        MotionSample to = ctx.to();
+        int steps = SegmentSweep.arcSteps(from, to, ARC_STEP_DEG);
+        double eyeHeight = player.getEyeHeight();
+        double dyaw = Mth.wrapDegrees((double) to.yaw() - (double) from.yaw());
+        double dpitch = (double) to.pitch() - (double) from.pitch();
+
+        for (int i = 1; i <= steps; i++) {
+            double t = (double) i / (double) steps;
+            Vec3 eye = new Vec3(
+                    from.x() + (to.x() - from.x()) * t,
+                    from.y() + (to.y() - from.y()) * t + eyeHeight,
+                    from.z() + (to.z() - from.z()) * t);
+            Vec3 look = viewVector(
+                    (float) (from.pitch() + dpitch * t),
+                    (float) (from.yaw() + dyaw * t));
+            if (observeRay(player, c, eye, look, reach)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 单次注视射线判定：从 {@code eye} 沿 {@code look} 走 {@code reach} 格，
+     * 按 {@code target_type}（block / entity / 自动）匹配目标 id。
+     */
+    private static boolean observeRay(ServerPlayer player, JsonObject c, Vec3 eye, Vec3 look, double reach) {
         String target = c.get("target").getAsString();
         String targetType = c.has("target_type") ? c.get("target_type").getAsString() : null;
-        double reach = c.has("reach") ? c.get("reach").getAsDouble() : 4.5;
-        Vec3 eye = player.getEyePosition();
-        Vec3 end = eye.add(player.getLookAngle().scale(reach));
-        AABB searchArea = player.getBoundingBox().expandTowards(player.getLookAngle().scale(reach)).inflate(1.0);
+        Vec3 end = eye.add(look.scale(reach));
+        AABB searchArea = player.getBoundingBox().expandTowards(look.scale(reach)).inflate(1.0);
 
         if ("block".equals(targetType)) {
             BlockHitResult blockHit = player.level().clip(
@@ -308,6 +356,20 @@ public class Evaluators {
                     player.level().getBlockState(blockHit.getBlockPos()).getBlock()).toString(), target);
         }
         return false;
+    }
+
+    /**
+     * 与 {@code Entity#calculateViewVector(pitch, yaw)} 逐位一致的朝向向量（不修改玩家状态）：
+     * {@code (sin(-yawR)·cos(pitchR), -sin(pitchR), cos(-yawR)·cos(pitchR))}，角度单位度。
+     */
+    private static Vec3 viewVector(float pitch, float yaw) {
+        float f = pitch * Mth.DEG_TO_RAD;
+        float f1 = -yaw * Mth.DEG_TO_RAD;
+        float f2 = Mth.cos(f1);
+        float f3 = Mth.sin(f1);
+        float f4 = Mth.cos(f);
+        float f5 = Mth.sin(f);
+        return new Vec3((double) (f3 * f4), (double) (-f5), (double) (f2 * f4));
     }
 
     public static boolean evaluateBlockInteract(ServerPlayer player, JsonObject c) {

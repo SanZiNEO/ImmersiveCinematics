@@ -19,7 +19,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 客户端 S2C 脚本指令接收与分发：播放 / 停止 / 编辑同步重载 / 跳过投票进度。
@@ -34,25 +36,70 @@ public class ClientScriptReceiver {
     /** 本地脚本文件指纹缓存（fileName → 上次加载指纹）；指纹相同则跳过重载。 */
     private static final Map<String, String> scriptFingerprints = new HashMap<>();
 
-    /** 跳过投票进度（由 S2CSkipVoteUpdatePacket 覆盖）；resetSkipVote() 清零。 */
-    private static int cachedVoterCount = 0;
-    private static int cachedTotalViewers = 0;
+    /** 跳过投票快照（不可变）：已投票人数 / 观看者总数 / 本人是否已投票。 */
+    public static final class SkipVote {
+        public final int voters;
+        public final int total;
+        /** 收包者本人是否已投过票（服务端逐人判定，同一批次内每人可能不同）。 */
+        public final boolean youVoted;
 
-    /** 最近一次同步的已投跳过票人数。 */
-    public static int getSkipVoterCount() { return cachedVoterCount; }
-    /** 最近一次同步的观众总数（0 = 无进行中的投票）。 */
-    public static int getSkipTotalViewers() { return cachedTotalViewers; }
-
-    /** 覆盖缓存的投票进度：每次同步全量替换。 */
-    public static void handleSkipVoteUpdate(S2CSkipVoteUpdatePacket packet) {
-        cachedVoterCount = packet.getVoterCount();
-        cachedTotalViewers = packet.getTotalViewers();
+        public SkipVote(int voters, int total, boolean youVoted) {
+            this.voters = voters;
+            this.total = total;
+            this.youVoted = youVoted;
+        }
     }
 
-    /** 清零投票进度；脚本结束 / 停止时调用。 */
+    /** 键为 {@code scriptId + '\0' + instanceId}（NUL 分隔，避免拼接歧义）；instanceId 为 null 时按空串存。 */
+    private static final Map<String, SkipVote> SKIP_VOTES = new HashMap<>();
+
+    /**
+     * 本地已投票标记（键同 {@link #SKIP_VOTES}）。
+     *
+     * <p>与 {@link #SKIP_VOTES} 分开：投票后到服务端回包之间有一段往返窗口，期间缓存里还没有
+     * {@code youVoted}；本地标记保证这段时间内长按不会重复发包、提示立即消失。
+     */
+    private static final Set<String> LOCAL_VOTED = new HashSet<>();
+
+    private static String skipVoteKey(String scriptId, String instanceId) {
+        return scriptId + '\0' + (instanceId != null ? instanceId : "");
+    }
+
+    /** 按 (scriptId, instanceId) 取票数快照；无记录返回 null。 */
+    public static SkipVote getSkipVote(String scriptId, String instanceId) {
+        return SKIP_VOTES.get(skipVoteKey(scriptId, instanceId));
+    }
+
+    /** 本地登记「本人已对该实例投过票」：长按不再发包、提示立即隐藏，不等服务端回包。 */
+    public static void markVoted(String scriptId, String instanceId) {
+        LOCAL_VOTED.add(skipVoteKey(scriptId, instanceId));
+    }
+
+    /** 本人是否已对该实例投过票：本地标记或服务端回执任一成立即为真。 */
+    public static boolean hasVoted(String scriptId, String instanceId) {
+        String key = skipVoteKey(scriptId, instanceId);
+        if (LOCAL_VOTED.contains(key)) return true;
+        SkipVote vote = SKIP_VOTES.get(key);
+        return vote != null && vote.youVoted;
+    }
+
+    /** 覆盖该实例的投票进度：每次同步全量替换。 */
+    public static void handleSkipVoteUpdate(S2CSkipVoteUpdatePacket packet) {
+        SKIP_VOTES.put(skipVoteKey(packet.getScriptId(), packet.getInstanceId()),
+                new SkipVote(packet.getVoterCount(), packet.getTotalViewers(), packet.isYouVoted()));
+    }
+
+    /** 清空某实例的票数与本地已投票标记；脚本结束 / 停止时按实例清零。 */
+    public static void resetSkipVote(String scriptId, String instanceId) {
+        String key = skipVoteKey(scriptId, instanceId);
+        SKIP_VOTES.remove(key);
+        LOCAL_VOTED.remove(key);
+    }
+
+    /** 清空全部投票进度与本地标记；世界退出 / 服务端停止时调用。 */
     public static void resetSkipVote() {
-        cachedVoterCount = 0;
-        cachedTotalViewers = 0;
+        SKIP_VOTES.clear();
+        LOCAL_VOTED.clear();
     }
 
     /**
@@ -122,7 +169,7 @@ public class ClientScriptReceiver {
                 LOGGER.error("Failed to handle stop script: script={}, instance={}, refId={}",
                         scriptId, instanceId, refId, e);
             } finally {
-                resetSkipVote();
+                resetSkipVote(scriptId, instanceId);
             }
         });
     }

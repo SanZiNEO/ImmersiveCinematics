@@ -82,20 +82,21 @@ final class PlaybackLedger {
     /**
      * 结束通知 + 跳过投票复位；两者都只对游戏实例生效（编辑器实例退出不动游戏播放侧的账）。
      *
-     * @param instance 刚停用的实例；{@code null} = 无实例可通知（仍复位跳过投票）
+     * <p>跳过投票缓存按 {@code (scriptId, instanceId)} 分片，这里只清刚结束的那一份：
+     * 同脚本多实例 / 多脚本并存时互不覆盖。
+     *
+     * @param instance 刚停用的实例；{@code null} = 无实例可通知（也无从定位票数分片，不复位）
      * @param reason   上报的完成原因
      */
     void reportScriptFinished(PlaybackInstance instance, CompletionReason reason) {
         boolean editorDriven = instance != null && instance.isEditorDriven();
         String finishedScriptId = instance != null ? instance.scriptId() : null;
+        String finishedInstanceId = instance != null && instance.instanceId() != null ? instance.instanceId() : "";
         if (finishedScriptId != null && !editorDriven) {
-            String finishedInstanceId = instance.instanceId() != null ? instance.instanceId() : "";
             ClientScriptNotifier.notifyScriptFinished(finishedScriptId, finishedInstanceId, reason);
             // 对外监听：与网络通知同口径（非编辑器、脚本 id 非空时逐实例一次）。
             PlaybackListeners.finished(finishedScriptId, finishedInstanceId, reason);
-        }
-        if (!editorDriven) {
-            ClientScriptReceiver.resetSkipVote();
+            ClientScriptReceiver.resetSkipVote(finishedScriptId, finishedInstanceId);
         }
     }
 }

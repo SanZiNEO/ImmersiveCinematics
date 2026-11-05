@@ -53,7 +53,7 @@
   - **客户端**：`[camera-view] 上报 视图=lease<槽位>g<代际>@<维度> 维度=… 位置=(…) active=true 半径=…`，位移 ≥1 格或每 5 tick 一条；半径取客户端有效渲染距离（服务端夹到 2–12 后再封顶 8）。左上画面能看到末影人、右上能看到僵尸，各自地形是本维度地形。调试捕获文件名里的 `<scriptId>_cam<轨序号>_clip<片段序号>` 是 captureId 标签，不是视图 id。
   - **不应出现**：`跨维度视图不可用` / `[camera-view] route-fail` / `oversize` 的持续刷屏；出现即说明目标视图解析失败或单包超限。
 - **已知限制**：
-  - 实体持续同步已于 H-3（H10）补齐：服务端按 `(玩家, 维度)` 实体流镜像原版 `TrackedEntity.broadcast`（移动 / 旋转 / metadata / 装备 / 乘客等），客户端对目标 `ClientLevel` 调 `tickEntities()`；新进入范围的实体仍按 `ENTITY_INTERVAL=10` tick 补配对。观察 `[camera-view] entity`（服务端 `tick` / `ticking`）与 `[camera-view] client-tick`（客户端 `tick` / `moved`）可判断同步是否推进；实现见 [H10 entity-liveness](../../../../plans/0.3.6/H-other/entity-liveness.md) §七。
+  - 实体持续同步已于 H-3（H10）补齐：服务端按 `(玩家, 维度)` 实体流镜像原版 `TrackedEntity.broadcast`（移动 / 旋转 / metadata / 装备 / 乘客等），客户端对目标 `ClientLevel` 调 `tickEntities()`；新进入范围的实体仍按 `ENTITY_INTERVAL=10` tick 补配对。观察 `[camera-view] entity`（服务端 `tick` / `ticking`）与 `[camera-view] entity-sample`（客户端 `tick` / `moved`）可判断同步是否推进；实现见 [H10 entity-liveness](../../../../plans/0.3.6/H-other/entity-liveness.md) §七。
   - 区块首包带光照（`ClientboundLevelChunkWithLightPacket`），但**没有方块 / 光照增量更新**：目标维度里发生的方块变化不会反映到画面。
   - 区块半径上限 `MAX_CHUNK_RADIUS = 8`，实体半径 `ENTITY_RANGE = 64` 格；超出即缺块 / 缺实体。
   - **FABULOUS 画质不支持**（`Minecraft.useShaderTransparency()` 为真时 `DimensionViews.acquire` 返回 `null`），该 lane 本帧不上屏；改回 Fancy / Fast 再测。
@@ -66,7 +66,7 @@
 
 | fixture | 场景 | 观察点 |
 |---|---|---|
-| `test_h10_entity_liveness.json` | 跨维度双画面：End 左上 / Nether 右上，各 4 只 `NoAI:0` 的猪，20s 固定机位 | 两个 `[camera-view] entity` 流 `tick` 递增、`ticking=true`；两个 `[camera-view] client-tick` 的 `tick` 递增、`moved=true`；画面里猪连续游走 |
+| `test_h10_entity_liveness.json` | 跨维度双画面：End 左上 / Nether 右上，各 4 只 `NoAI:0` 的猪，20s 固定机位 | 两个 `[camera-view] entity` 流 `tick` 递增、`ticking=true`；两个 `[camera-view] entity-sample` 的 `tick` 递增、`moved=true`；画面里猪连续游走 |
 | `test_h10_ender_dragon.json` | 末地单画面 `(0,80,-45)` 看 `(0,80,0)` 召唤的末影龙，20s | 龙本体与部件连续飞行；无 `ender_dragon` 特判代码 |
 | `test_h10_same_dim.json` | 同维度 F6 回归：主世界 `(0,80,0)` 看 4 只 AI 猪，20s | 猪连续游走；此场景走原版跟踪 + 主 `ClientLevel` tick，不产生 `[camera-view]` 流日志 |
 
