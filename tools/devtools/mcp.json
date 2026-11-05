@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "icdev": {
+      "command": "E:/Documents/GitHub/ImmersiveCinematics/tools/devtools/.venv/Scripts/python.exe",
+      "args": ["-m", "icdev.server"],
+      "cwd": "E:/Documents/GitHub/ImmersiveCinematics/tools/devtools"
+    }
+  }
+}

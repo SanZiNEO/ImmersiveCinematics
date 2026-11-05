@@ -4,6 +4,6 @@ version = "0.1.0"
 description = "ImmersiveCinematics 本地测试工具包（客户端控制 / 取证 / 日志 / 诊断校验）"
 requires-python = ">=3.10"
 dependencies = [
-    "pyautogui>=0.9.54",
+    "numpy>=1.26",
     "pillow>=10.0.0",
 ]

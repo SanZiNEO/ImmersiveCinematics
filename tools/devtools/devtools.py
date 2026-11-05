@@ -1,332 +1,348 @@
 #!/usr/bin/env python
-"""ImmersiveCinematics 本地测试工具包：一个入口做全部常用操作。
+"""ImmersiveCinematics 本地测试工具包：icdev 的薄壳 CLI。
 
     python devtools.py <子命令> [参数]
+
+所有能力都由 ``icdev`` 包实现；本文件只做参数解析与 print。同样的能力也可以
+通过 MCP server 使用（``python -m icdev.server``，注册片段见 ``mcp.json``）。
 
 控制游戏（客户端需在运行；用 Win32 定向消息，不抢焦点）：
     list                    列出 Minecraft 窗口
     cmd <文本>              聊天栏执行命令（自动补 /）
     say <文本>              聊天栏发消息（不加 /）
     key <键名>              按键（f1..f12 / esc / enter / tab / space / 单字符）
+    hold <键名> <秒>        按住指定时长（投票长按用）
     play <脚本 id>          = cmd icinematics play <id>
     stop | reload           = cmd icinematics stop / reload
     shot [路径]             游戏内截图（F2，只含游戏画面）
     wait <秒>
     run <场景文件>          逐行执行场景脚本
 
+装置与进程：
+    server [世界名]         后台起服务端（目录 E:/tmp/icdev/server）
+    rig-status              汇总服务端/客户端/端口/玩家/当前脚本
+    rig-down                结束本机 icdev 登记的所有服务端与客户端
+    ps                      列出 java 进程（role / pid / owned / 端口）
+    kill --target client|server|all [--name X]
+                            只终止 icdev 登记且三元组匹配的进程
+
+服务端：
+    rcon <命令>             向服务端发一条 RCON 命令
+
 观察：
     tail [行数]             打印 latest.log 尾部（GBK 自动解码）
+    trace [--out 路径] ...  把带诊断前缀的行过滤到独立文件
+    where                   当前世界 / 类型 / 位置 / 维度
     perf [会话目录]         打印诊断会话的性能摘要
     sessions [数量]         列出最近的诊断会话
+    analyze [会话目录]      校验诊断会话结构与数据完整性
     doctor                  环境自检（窗口 / 日志 / 配置 / 会话）
 
-启动与取证：
-    client [世界名] [--offline]          启动 Fabric 客户端并进世界
-    shadow [光影包] [lane] [世界名]      一键 A/B 取证（固定 pack + 自动播放）
-    scene [光影包] [lane]                受控场景取证（白地板 + 四色墙）
+取证：
+    pixels <图片> [--mode clusters|diff] [--compare 图] [--threshold N] ...
+    snapshot-create <名字> [目标...]
+    snapshot-restore <名字>
+    snapshot-list
+    config-get <键>
+    config-set <键> <值>
 
-校验：
-    analyze <会话目录>      校验诊断会话结构与数据完整性（结构错误退出 1）
+启动：
+    client [世界名] [--offline] [--username X]
+    max                     最大化已在运行的游戏窗口
+    shadow [光影包] [lane] [世界名] [--capture]
+    scene [光影包] [lane]
+
+自检：
+    selftest                不依赖游戏/网络的模块自检（= python -m icdev.selftest）
 
 全局：--pid <PID>           多个 Minecraft 窗口时指定目标
 """
 
+from __future__ import annotations
+
 import argparse
-import ctypes
 import json
-import math
 import os
 import re
 import shutil
-import subprocess
 import sys
 import time
 import unicodedata
-from ctypes import wintypes
+from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-RUN = Path(os.environ.get("IC_RUN_DIR") or (ROOT / "fabric/run"))
-LOG = RUN / "logs/latest.log"
-DIAG = RUN / "immersive_cinematics/diagnostics"
+from icdev import config as ic_config
+from icdev import diag as ic_diag
+from icdev import info as ic_info
+from icdev import launch, logs, process, rcon, snapshot, win32
+from icdev import rig as ic_rig
+from icdev.errors import IcdError
+from icdev.paths import (
+    DEFAULT_GAME_PORT,
+    DEFAULT_RCON_PASSWORD,
+    DEFAULT_RCON_PORT,
+    DEFAULT_SERVER_DIR,
+    FABRIC_RUN,
+    FORGE_RUN,
+    ICDEV_HOME,
+    REPO_ROOT,
+    SNAPSHOT_ROOT,
+)
+
+# ---------------------------------------------------------------- 路径与常量
+
+ROOT = REPO_ROOT
+RUN = Path(os.environ.get("IC_RUN_DIR") or FABRIC_RUN)
+LOG = RUN / "logs" / "latest.log"
+DIAG = RUN / "immersive_cinematics" / "diagnostics"
 SESSIONS = DIAG / "sessions"
-SHOTS = RUN / "lane-captures"
-# 原版 F2 截图的落盘目录（游戏内截图，不抓屏幕区域）
-GAME_SHOTS = RUN / "screenshots"
-SHOT_TIMEOUT = 10.0
-SCRIPTS = RUN / "immersive_cinematics/scripts"
+SCRIPTS = RUN / "immersive_cinematics" / "scripts"
 DEVTOOLS_RUN = RUN / "dev-tools"
-IRIS = RUN / "config/iris.properties"
-MOD_CONFIG = RUN / "config/immersive_cinematics.json"
+IRIS = RUN / "config" / "iris.properties"
 
-WM_KEYDOWN, WM_KEYUP, WM_CHAR = 0x100, 0x101, 0x102
+GTEST_DIR = Path("E:/tmp/gtest")
 
-VK = {
-    "backspace": 0x08, "tab": 0x09, "enter": 0x0D, "esc": 0x1B, "space": 0x20,
-    "end": 0x23, "home": 0x24, "left": 0x25, "up": 0x26, "right": 0x27, "down": 0x28,
-    "delete": 0x2E, "slash": 0xBF,
-    **{f"f{i}": 0x6F + i for i in range(1, 13)},
-    **{c: ord(c.upper()) for c in "abcdefghijklmnopqrstuvwxyz"},
-    **{c: ord(c) for c in "0123456789"},
-}
+CLIENT_LOG_NAME = "icdev-client.out"
+SERVER_LOG_NAME = "icdev-server.out"
 
-WIN32 = sys.platform == "win32"
-if WIN32:
-    u = ctypes.windll.user32
-    u.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
-    u.MapVirtualKeyW.argtypes = [wintypes.UINT, wintypes.UINT]
+DEFAULT_WORLD = "新的世界"
+DEFAULT_USERNAME = "Dev"
+DEFAULT_SHADOW_PACK = "ComplementaryUnbound_r5.9.3.zip"
+DEFAULT_SCENE_PACK = "MakeUp-UltraFast-9.5f.zip"
+
+#: CLI 自己维护的进程登记（跨进程的「只杀自有」依据，三元组与 icdev.process 一致）
+CLI_OWNED_FILE = ICDEV_HOME / "cli-owned.json"
+
+PERF_KEYS = re.compile(
+    r"valid|data sufficiency|lane rows|lane failure|game_render|lane_total"
+    r"|composite_total|frame_interval"
+)
 
 
-def die(msg):
+# ---------------------------------------------------------------- 小工具
+
+def die(msg: str) -> None:
     print(f"错误：{msg}", file=sys.stderr)
-    sys.exit(1)
+    raise SystemExit(1)
 
 
-def rel(p):
+def rel(p) -> str:
     try:
         return str(Path(p).relative_to(ROOT))
     except ValueError:
         return str(p)
 
 
-def _disp_width(s):
+def _disp_width(s: str) -> int:
     """中文占两列，`doctor` 的对齐按显示宽度算。"""
     return sum(2 if unicodedata.east_asian_width(ch) in "WF" else 1 for ch in s)
 
 
-# ---------------------------------------------------------------- 窗口与输入
-
-def window_pid(win):
-    pid = wintypes.DWORD()
-    u.GetWindowThreadProcessId(wintypes.HWND(win._hWnd), ctypes.byref(pid))
-    return pid.value
+def _json(value) -> None:
+    print(json.dumps(value, ensure_ascii=False, indent=2))
 
 
-def all_windows():
-    if not WIN32:
-        die("控制游戏只支持 Windows（依赖 Win32 PostMessage）")
-    import pyautogui
-    return [w for w in pyautogui.getAllWindows() if "Minecraft" in (w.title or "")]
-
-
-def wait_for_new_window(before_hwnds, proc, timeout=600, poll=2.0):
-    """等一个启动前不存在的 Minecraft 窗口；proc 退出或超时返回 None。"""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if proc is not None and proc.poll() is not None:
-            return None
+def _decode(raw: bytes) -> str:
+    """与 icdev.logs 一致的回落顺序（utf-8 → gbk → replace）。"""
+    for encoding in ("utf-8", "gbk"):
         try:
-            for w in all_windows():
-                if w._hWnd not in before_hwnds:
-                    return w
-        except SystemExit:
-            pass
-        time.sleep(poll)
-    return None
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="replace")
 
 
-SW_MAXIMIZE = 3
+# ---------------------------------------------------------------- 进程登记
+
+def _record_pid(record: dict) -> int:
+    try:
+        return int(record.get("pid") or -1)
+    except (TypeError, ValueError):
+        return -1
 
 
-def maximize_window(win):
-    """把窗口切到「最大化」：系统会把客户区撑到工作区，边框溢出屏幕但不可见。
+def _load_owned() -> list[dict]:
+    try:
+        data = json.loads(CLI_OWNED_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    items = data.get("processes") if isinstance(data, dict) else None
+    return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
 
-    与 options.txt 的 overrideWidth/Height 不同——后者设的是客户区尺寸，
-    普通窗口还要额外加标题栏(23) + 边框(16)，设成工作区大小反而会顶出屏幕。
+
+def _save_owned(records: list[dict]) -> None:
+    try:
+        ICDEV_HOME.mkdir(parents=True, exist_ok=True)
+        tmp = CLI_OWNED_FILE.with_suffix(".json.tmp")
+        tmp.write_text(
+            json.dumps({"processes": records}, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(tmp, CLI_OWNED_FILE)
+    except OSError as exc:
+        print(f"警告：进程登记写入失败：{exc}", file=sys.stderr)
+
+
+def _remember(pid: int, role: str, run_dir: Path) -> None:
+    """spawn 后把 (pid, 创建时间, cmdline 哈希) 落到 CLI 登记表，供 ps/kill 跨进程使用。"""
+    if not process.IS_WINDOWS:
+        return
+    owned = None
+    for _ in range(8):
+        try:
+            owned = process.register_owned(role, pid)
+            break
+        except IcdError:
+            time.sleep(0.3)
+    if owned is None:
+        print(f"警告：pid={pid} 所有权登记失败（ic kill 不会命中它）", file=sys.stderr)
+        return
+
+    records = [item for item in _load_owned() if _record_pid(item) != owned.pid]
+    records.append(
+        {
+            "role": owned.role,
+            "pid": owned.pid,
+            "created_at": owned.created_at,
+            "cmdline_hash": owned.cmdline_hash,
+            "run_dir": str(run_dir),
+            "registered_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+    )
+    _save_owned(records)
+
+
+def _verified_owned() -> list[tuple[dict, process.RawProc]]:
+    """登记表 ∧ 当前进程列表：pid、创建时间、命令行哈希三项全等才算自有。"""
+    records = _load_owned()
+    if not records:
+        return []
+    live = {item.pid: item for item in process.list_java_processes(use_cache=False)}
+    alive: list[tuple[dict, process.RawProc]] = []
+    for record in records:
+        pid = _record_pid(record)
+        raw = live.get(pid)
+        if raw is None:
+            continue
+        if raw.created_at != record.get("created_at"):
+            continue
+        if process.cmdline_hash(raw.cmdline) != record.get("cmdline_hash"):
+            continue
+        alive.append((record, raw))
+    if live and len(alive) != len(records):
+        _save_owned([record for record, _ in alive])
+    return alive
+
+
+def _role_matches(role: str, target: str) -> bool:
+    if target == "all":
+        return True
+    if target == "server":
+        return role == "server"
+    return role == "client" or role.startswith("client:")
+
+
+# ---------------------------------------------------------------- 装置接线
+
+def _rig_for_window(pid=None):
+    """把一个已在运行的 Minecraft 窗口装配成单客户端 Rig。
+
+    icdev.rig 没有「接管已有进程」的公开入口，而本任务约定不改 icdev/*；
+    这里只注入一个 _Client，之后输入 / 截图 / 日志等待全部走 Rig 的公开方法。
     """
-    u.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
-    u.ShowWindow.restype = wintypes.BOOL
-    u.ShowWindow(wintypes.HWND(win._hWnd), SW_MAXIMIZE)
+    window = win32.find_window(pid)
+    rig = ic_rig.get_rig()
+    rig._clients = [
+        ic_rig._Client(name="cli", run_dir=RUN, pid=window.pid, ready=True)
+    ]
+    rig._state = "ready"
+    return rig
 
 
-def find_window(pid=None):
-    wins = all_windows()
-    if pid is not None:
-        wins = [w for w in wins if window_pid(w) == pid]
-    if not wins:
-        die("没找到 Minecraft 窗口" + (f"（pid={pid}）" if pid else "") + "：客户端起了吗？")
-    if len(wins) > 1:
-        listing = "\n".join(f"  pid={window_pid(w)} hwnd={w._hWnd} {w.title}" for w in wins)
-        die(f"找到多个 Minecraft 窗口，用 --pid 指定：\n{listing}")
-    return wins[0]
+def _cmd_text(rig, text: str) -> None:
+    text = text.strip()
+    if not text.startswith("/"):
+        text = "/" + text
+    rig.cmd(text)
+    print(f"COMMAND {text.lstrip('/')}", flush=True)
 
 
-def send_key(win, vk, delay=0.01):
-    scan = u.MapVirtualKeyW(vk, 0)
-    u.PostMessageW(wintypes.HWND(win._hWnd), WM_KEYDOWN, vk, 1 | (scan << 16))
-    if delay:
-        time.sleep(delay)
-    u.PostMessageW(wintypes.HWND(win._hWnd), WM_KEYUP, vk,
-                   1 | (scan << 16) | (1 << 30) | (1 << 31))
-
-
-def type_text(win, text):
-    for ch in text:
-        u.PostMessageW(wintypes.HWND(win._hWnd), WM_CHAR, ord(ch), 1)
-        time.sleep(0.005)
-
-
-def open_input(win, opener):
-    send_key(win, opener)
-    time.sleep(0.3)
-    send_key(win, VK["end"])
-    for _ in range(320):          # 清空上次残留
-        send_key(win, VK["backspace"], delay=0)
-    time.sleep(0.15)
-
-
-def send_command(win, text):
-    open_input(win, VK["slash"])
-    type_text(win, "/" + text)
-    send_key(win, VK["enter"])
-    print(f"COMMAND {text}", flush=True)
-
-
-def send_chat(win, text):
-    open_input(win, ord("T"))
-    type_text(win, text)
-    send_key(win, VK["enter"])
+def _say(rig, text: str) -> None:
+    rig.cmd(text)
     print(f"CHAT {text}", flush=True)
 
 
-def take_shot(win, path=None):
-    """游戏内截图（F2）：产物来自游戏自己的帧缓冲。
-
-    不用屏幕区域抓取是有意的：抓屏幕会把窗口遮挡时前景应用的内容一起拍进去（隐私事故），
-    也会被分辨率/缩放/多显示器影响。F2 走原版截图流程，只含游戏画面，且不需要窗口在前台。
-    """
-    path = Path(path) if path else None
-    if path is not None and not path.is_absolute():
-        # 相对路径按游戏目录（fabric/run/）解析，符合直觉：shot lane-captures/x.png
-        path = RUN / path
-
-    GAME_SHOTS.mkdir(parents=True, exist_ok=True)
-    before = {p.name for p in GAME_SHOTS.glob("*.png")}
-    send_key(win, VK["f2"])
-
-    # 等新文件出现并写完：原版截图是渲染线程同步写盘，但落盘仍有几十毫秒延迟
-    deadline = time.time() + SHOT_TIMEOUT
-    created = None
-    while time.time() < deadline:
-        time.sleep(0.1)
-        new_files = [p for p in GAME_SHOTS.glob("*.png") if p.name not in before]
-        if not new_files:
-            continue
-        candidate = max(new_files, key=lambda p: p.stat().st_mtime)
-        last_size, stable = -1, 0
-        while stable < 3:
-            size = candidate.stat().st_size
-            stable = stable + 1 if size == last_size and size > 0 else 0
-            last_size = size
-            if stable < 3:
-                time.sleep(0.1)
-        created = candidate
-        break
-
-    if created is None:
-        die(f"游戏内截图没有生成（等待 {SHOT_TIMEOUT:.0f}s）：确认客户端在跑、F2 未被改绑、"
-            f"且目录 {rel(GAME_SHOTS)} 可写")
-
-    if path is None:
-        print(rel(created), flush=True)
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(created), str(path))
-    print(rel(path), flush=True)
+def _shot(rig, path: str | None = None) -> None:
+    target = None
+    if path:
+        candidate = Path(path)
+        target = str(candidate if candidate.is_absolute() else RUN / candidate)
+    data = rig.shot(path=target)
+    print(rel(data["path"]), flush=True)
 
 
-def dispatch(win, name, rest):
-    if name == "wait":
-        time.sleep(float(rest))
-    elif name == "cmd":
-        send_command(win, rest)
-    elif name == "say":
-        send_chat(win, rest)
-    elif name == "key":
-        vk = VK.get(rest.lower())
-        if vk is None:
-            die(f"未知键名：{rest}（可用：{', '.join(sorted(VK))}）")
-        send_key(win, vk)
-    elif name == "play":
-        send_command(win, f"icinematics play {rest}")
-    elif name == "stop":
-        send_command(win, "icinematics stop")
-    elif name == "reload":
-        send_command(win, "icinematics reload")
-    elif name == "shot":
-        take_shot(win, rest or None)
-    else:
-        die(f"场景里未知子命令：{name}")
-
-
-def run_scenario(win, path):
+def _run_scenario(rig, path: str) -> None:
     for raw in Path(path).read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
         name, _, rest = line.partition(" ")
+        rest = rest.strip()
         print(f"> {line}", flush=True)
-        dispatch(win, name, rest.strip())
+        if name == "wait":
+            time.sleep(float(rest))
+        elif name == "cmd":
+            _cmd_text(rig, rest)
+        elif name == "say":
+            _say(rig, rest)
+        elif name == "key":
+            rig.key(rest)
+        elif name == "play":
+            _cmd_text(rig, f"icinematics play {rest}")
+        elif name == "stop":
+            _cmd_text(rig, "icinematics stop")
+        elif name == "reload":
+            _cmd_text(rig, "icinematics reload")
+        elif name == "shot":
+            _shot(rig, rest or None)
+        else:
+            die(f"场景里未知子命令：{name}")
+
+
+# ---------------------------------------------------------------- 控制
+
+def cmd_list() -> int:
+    windows = win32.list_minecraft_windows()
+    if not windows:
+        print("没有找到 Minecraft 窗口")
+        return 0
+    for win in windows:
+        print(
+            f"pid={win.pid:>6} hwnd={win.hwnd:>10} "
+            f"{win.width}x{win.height} @({win.x},{win.y})  {win.title}"
+        )
+    return 0
 
 
 # ---------------------------------------------------------------- 日志与诊断
 
-def tail_log(lines=40):
+def cmd_tail(lines: int) -> int:
     if not LOG.exists():
         die(f"日志不存在：{rel(LOG)}")
-    text = LOG.read_bytes().decode("gbk", errors="replace")   # 客户端日志是 GBK
-    print("\n".join(text.splitlines()[-lines:]))
-
-
-GTEST_DIR = Path("E:/tmp/gtest")
-
-
-def cmd_where():
-    """打印当前世界名 / 世界类型 / 玩家登录位置 / 维度（从 latest.log + level.dat 推断）。"""
-    if not LOG.exists():
-        die(f"日志不存在：{rel(LOG)}")
-    text = LOG.read_bytes().decode("gbk", errors="replace")
-
-    pos = None
-    for m in re.finditer(r"logged in with entity id \d+ at \(([^)]+)\)", text):
-        pos = m.group(1)
-    dim = None
-    for m in re.finditer(r"dimension change: [^=]*=> (\S+)", text):
-        dim = m.group(1)
-
-    saves = RUN / "saves"
-    world = None
-    world_type = "unknown"
-    if saves.is_dir():
-        dirs = [d for d in saves.iterdir() if d.is_dir()]
-        if dirs:
-            w = max(dirs, key=lambda d: (d / "level.dat").stat().st_mtime if (d / "level.dat").exists() else 0)
-            world = w.name
-            level = w / "level.dat"
-            if level.exists():
-                try:
-                    import gzip
-                    raw = gzip.decompress(level.read_bytes())
-                    if b"minecraft:flat" in raw:
-                        world_type = "flat"
-                    elif b"minecraft:noise" in raw:
-                        world_type = "noise(default)"
-                    elif b"minecraft:debug" in raw:
-                        world_type = "debug"
-                except Exception as e:  # noqa: BLE001 - 诊断命令，失败只报原因
-                    world_type = f"unreadable({e})"
-
-    print(f"world={world} type={world_type} pos={pos} dim={dim}")
+    text = logs.tail(LOG, lines)
+    if text:
+        print(text)
     return 0
 
 
-def cmd_trace(out=None, lines=None, follow=False, pattern="[G-TEST]"):
+def cmd_trace(out=None, lines=None, follow=False, pattern="[G-TEST]") -> int:
     """把 latest.log 里带诊断前缀的行过滤到独立文件（默认 E:/tmp/gtest/gtest.log）。"""
     if not LOG.exists():
         die(f"日志不存在：{rel(LOG)}")
     target = Path(out) if out else GTEST_DIR / "gtest.log"
     target.parent.mkdir(parents=True, exist_ok=True)
-    text = LOG.read_bytes().decode("gbk", errors="replace")
+
+    text = logs.read_text(LOG)
     selected = [ln for ln in text.splitlines() if pattern in ln]
     if lines:
         selected = selected[-lines:]
@@ -347,263 +363,502 @@ def cmd_trace(out=None, lines=None, follow=False, pattern="[G-TEST]"):
                 offset = 0
             if size == offset:
                 continue
-            with LOG.open("rb") as f:
-                f.seek(offset)
-                chunk = f.read(size - offset)
+            with LOG.open("rb") as fh:
+                fh.seek(offset)
+                chunk = fh.read(size - offset)
             offset = size
-            fresh = [ln for ln in chunk.decode("gbk", errors="replace").splitlines() if pattern in ln]
+            fresh = [ln for ln in _decode(chunk).splitlines() if pattern in ln]
             for ln in fresh:
                 print(ln, flush=True)
             if fresh:
-                with target.open("a", encoding="utf-8") as f:
+                with target.open("a", encoding="utf-8") as fh:
                     for ln in fresh:
-                        f.write(ln + "\n")
+                        fh.write(ln + "\n")
     except KeyboardInterrupt:
         return 0
 
 
-def session_dirs():
-    if not SESSIONS.exists():
-        return []
-    return sorted((d for d in SESSIONS.iterdir() if d.is_dir()), key=lambda d: d.name)
+def cmd_where() -> int:
+    data = ic_info.where()
+    pos = data.get("pos")
+    pos_text = ", ".join(f"{value:g}" for value in pos) if isinstance(pos, list) else None
+    print(
+        f"world={data.get('world')} type={data.get('worldType')} "
+        f"pos={pos_text} dim={data.get('dimension')}"
+    )
+    for issue in data.get("issues") or []:
+        print(f"WARN {issue}", file=sys.stderr)
+    return 0
 
 
-def latest_session():
-    dirs = session_dirs()
-    if not dirs:
+def _latest_session() -> Path:
+    items = ic_diag.list_sessions(RUN, limit=1)
+    if not items:
         die(f"没有诊断会话：{rel(SESSIONS)}")
-    return dirs[-1]
+    return Path(items[0]["path"])
 
 
-PERF_KEYS = re.compile(
-    r"valid|data sufficiency|lane rows|lane failure|game_render|lane_total"
-    r"|composite_total|frame_interval")
-
-
-def print_perf(session=None):
-    d = Path(session) if session else latest_session()
-    perf = d / "performance"
-    if not perf.exists():
-        die(f"{d.name} 没有 performance/（这次会话没跑 perf case）")
-    print(f"# {d.name}")
-    files = sorted(perf.glob("*summary.md"))
-    if not files:
+def cmd_perf(session=None) -> int:
+    directory = Path(session) if session else _latest_session()
+    print(f"# {directory.name}")
+    summaries = ic_diag.read_summaries(directory)
+    if not summaries:
         print("（该会话没有性能 summary：manifest 里的 perf case 没跑，或会话被提前关闭）")
-        return
-    for f in files:
-        print(f"\n## {f.name}")
-        for line in f.read_text(encoding="utf-8").splitlines():
+        return 0
+    for key in sorted(summaries):
+        print(f"\n## {key}")
+        for line in summaries[key]["text"].splitlines():
             if PERF_KEYS.search(line):
                 print(line)
+    return 0
 
 
-def list_sessions(n=8):
-    dirs = session_dirs()[-n:]
-    if not dirs:
+def cmd_sessions(count: int = 8) -> int:
+    items = ic_diag.list_sessions(RUN, limit=count)
+    if not items:
         print(f"（没有诊断会话：{rel(SESSIONS)}）")
-        return
-    for d in dirs:
-        perf = d / "performance"
-        summaries = sorted(perf.glob("*summary.md")) if perf.exists() else []
-        print(f"{d.name}  summaries={len(summaries)}"
-              + (f"  [{', '.join(s.stem.replace('-summary', '') for s in summaries)}]" if summaries else ""))
-
-
-# ---------------------------------------------------------------- 诊断会话校验
-
-def _pct(arr, p):
-    if not arr:
         return 0
-    return arr[min(len(arr) - 1, max(0, math.ceil(p * len(arr)) - 1))]
+    for item in reversed(items):  # list_sessions 按 mtime 降序；CLI 按时间正序输出
+        names = [Path(name).stem.replace("-summary", "") for name in item["summaries"]]
+        suffix = f"  [{', '.join(names)}]" if names else ""
+        print(f"{item['name']}  summaries={len(names)}{suffix}")
+    return 0
 
 
-def analyze(session):
-    """移植自 analyze_session.mjs：结构错误退出 1，INSUFFICIENT 只告警。"""
-    d = Path(session)
-    if not d.is_dir():
-        die(f"不是目录：{session}")
-    errors, warns = [], []
-    manifest_p, env_p, events_p = d / "manifest.json", d / "environment.json", d / "events.jsonl"
-    images_d, perf_d = d / "images", d / "performance"
-    for p in (manifest_p, env_p, events_p, images_d, perf_d):
-        if not p.exists():
-            errors.append(f"missing {p.name}")
-    if errors:
-        for e in errors:
-            print("ERROR " + e)
-        sys.exit(1)
-
-    manifest = json.loads(manifest_p.read_text(encoding="utf-8"))
-    env = json.loads(env_p.read_text(encoding="utf-8"))
-    events = []
-    for i, line in enumerate(events_p.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
-            continue
-        try:
-            events.append(json.loads(line))
-        except json.JSONDecodeError:
-            errors.append(f"events.jsonl line {i}: bad JSON")
-
-    images = sorted(p for p in images_d.iterdir() if p.suffix == ".png")
-    perf_files = sorted(p.name for p in perf_d.iterdir())
-
-    print(f"session: {d}")
-    print(f"mc={env.get('minecraft_version', '?')} mod={env.get('mod_version', '?')} "
-          f"fb={env.get('framebuffer_width')}x{env.get('framebuffer_height')} "
-          f"renderDistance={env.get('effective_render_distance', '?')} "
-          f"vsync={env.get('vsync', '?')} maxfps={env.get('max_fps', '?')} "
-          f"shaderInUse={env.get('shader_pack_in_use')} shaderPack={env.get('shader_pack_name')}")
-    print(f"events={len(events)} images={len(images)} perfFiles={len(perf_files)}")
-
-    image_bytes = 0
-    for p in images:
-        size = p.stat().st_size
-        image_bytes += size
-        if size == 0:
-            errors.append(f"zero-byte image {p.name}")
-    print(f"image bytes: {image_bytes}")
-
-    captured = {}
-    for e in events:
-        if e.get("event") == "checkpoint_capture":
-            captured[e.get("case")] = captured.get(e.get("case"), 0) + 1
-    for c in manifest.get("cases", []):
-        if c.get("perf"):
-            continue
-        expected = len(c.get("checkpoints") or [])
-        got = captured.get(c.get("id"), 0)
-        if got < expected:
-            warns.append(f"feature case {c['id']}: {got}/{expected} checkpoints requested "
-                         f"(script may not have been played)")
-
-    summary = []
-    for name in perf_files:
-        if not name.endswith("-frames.csv"):
-            continue
-        base = name[: -len("-frames.csv")]
-        rows = [line.split(",") for line in
-                (perf_d / name).read_text(encoding="utf-8").strip().splitlines()]
-        header = rows[0]
-        idx = {h: i for i, h in enumerate(header)}
-        body = rows[1:]
-        valid = [r for r in body if r[idx["valid"]] == "1"]
-        reasons = {}
-        for r in body:
-            if r[idx["valid"]] != "1":
-                reasons[r[idx["reason"]]] = reasons.get(r[idx["reason"]], 0) + 1
-
-        def vals(col):
-            out = []
-            for r in valid:
-                try:
-                    v = float(r[idx[col]])
-                except (ValueError, IndexError):
-                    continue
-                if math.isfinite(v) and v > 0:
-                    out.append(v)
-            return sorted(out)
-
-        summary_md = perf_d / (base + "-summary.md")
-        text = summary_md.read_text(encoding="utf-8") if summary_md.exists() else ""
-        insufficient = "INSUFFICIENT" in text
-        if not text:
-            errors.append(f"missing {base}-summary.md")
-        if len(valid) < 600:
-            warns.append(f"{base}: {len(valid)}/600 valid frames"
-                         + (" (INSUFFICIENT recorded)" if insufficient else ""))
-        if not insufficient and len(valid) < 600:
-            errors.append(f"{base}: summary claims complete but <600 valid frames")
-        summary.append({
-            "case": base, "rows": len(body), "valid": len(valid), "reasons": reasons,
-            "game_p50": _pct(vals("game_render_ns"), 0.5),
-            "game_p95": _pct(vals("game_render_ns"), 0.95),
-            "lane_p50": _pct(vals("lane_total_ns"), 0.5),
-            "comp_p50": _pct(vals("composite_total_ns"), 0.5),
-            "interval_p50": _pct(vals("frame_interval_ns"), 0.5),
-            "insufficient": insufficient,
-        })
-
-    print("\nperf runs:")
-    for s in summary:
-        print(f"  {s['case']}: rows={s['rows']} valid={s['valid']}"
-              f" game_p50={s['game_p50']:.0f}ns game_p95={s['game_p95']:.0f}ns"
-              f" lane_p50={s['lane_p50']:.0f}ns composite_p50={s['comp_p50']:.0f}ns"
-              f" interval_p50={s['interval_p50']:.0f}ns"
-              f" invalid={json.dumps(s['reasons'], ensure_ascii=False)}"
-              + (" INSUFFICIENT" if s["insufficient"] else ""))
-
-    for c in manifest.get("cases", []):
-        if not c.get("perf"):
-            continue
-        prefix = f"{c['id']}-run{c.get('run', 1)}"
-        if not any(f.startswith(prefix) for f in perf_files):
-            warns.append(f"perf case {c['id']} run {c.get('run', 1)}: no output yet")
-
-    for w in warns:
-        print("WARN " + w)
-    if errors:
-        for e in errors:
-            print("ERROR " + e)
-        print(f"FAILED: {len(errors)} structural error(s)")
-        sys.exit(1)
-    print("OK: session structurally valid (insufficient user runs are warnings, not failures)")
+def cmd_analyze(session=None) -> int:
+    directory = Path(session) if session else _latest_session()
+    data = ic_diag.analyze(directory)
+    print(f"session: {directory}")
+    print(f"summaries={data['summaries']}")
+    for issue in data["issues"]:
+        print(f"ERROR {issue}")
+    if not data["ok"]:
+        print(f"FAILED: {len(data['issues'])} structural error(s)")
+        return 1
+    print("OK: session structurally valid")
+    return 0
 
 
-# ---------------------------------------------------------------- 启动与取证
+def cmd_doctor() -> int:
+    data = ic_info.doctor()
+    rows: list[tuple[str, str]] = []
 
-def gradle_prefix():
-    for candidate in ("sh", "bash"):
-        if shutil.which(candidate):
-            return [candidate, "gradlew"]
-    bat = ROOT / "gradlew.bat"
-    if bat.exists():
-        return [str(bat)]
-    die("找不到 gradlew / sh / bash")
-
-
-def launch_client(world, extra_args, env_extra=None, maximize=True):
-    cmd = gradle_prefix() + list(extra_args) + [
-        ":fabric:runClient", f"--args=--quickPlaySingleplayer {world}"]
-    env = dict(os.environ)
-    if env_extra:
-        env.update(env_extra)
-    print(f"[client] world={world} capture={env.get('ICINEMATICS_CAPTURE', '0')}")
-    print(f"[client] 日志：{rel(LOG)}（用 `devtools.py tail` 看，自动 GBK 解码）")
-
-    if not maximize or not WIN32:
-        return subprocess.run(cmd, cwd=ROOT, env=env)
-
-    # 先记下已存在的窗口：新窗口只能靠「不在集合里」识别（gradle 进程 pid ≠ 游戏 pid）
-    before = {w._hWnd for w in all_windows()}
-    proc = subprocess.Popen(cmd, cwd=ROOT, env=env)
-    print("[client] 等待游戏窗口出现（首次构建可能要 1-2 分钟）…", flush=True)
-    win = wait_for_new_window(before, proc)
-    if win is None:
-        print("[client] 没等到窗口（或游戏已退出），跳过最大化", file=sys.stderr)
+    windows = data.get("windows") or []
+    if windows:
+        for win in windows:
+            rows.append(
+                ("客户端窗口", f"pid={win.get('pid')} {win.get('w')}x{win.get('h')} {win.get('title')}")
+            )
     else:
-        maximize_window(win)
-        print(f"[client] 已最大化 hwnd={win._hWnd}", flush=True)
-    return subprocess.CompletedProcess(cmd, proc.wait())
+        rows.append(("客户端窗口", "未运行"))
+
+    info = data.get("log") or {}
+    if info.get("size") is not None:
+        rows.append(
+            ("latest.log", f"{rel(info.get('path'))}（{info.get('ageSec')}s 前更新，{info.get('size')} 字节）")
+        )
+    else:
+        rows.append(("latest.log", "不存在"))
+
+    rows.append(("最新诊断会话", data.get("latestSession") or "无"))
+    debug = data.get("debugLogging")
+    rows.append(("debugLogging", str(debug).lower() if debug is not None else "?"))
+    rows.append(("光影包", data.get("shaderpack") or "?"))
+
+    vsync = data.get("vsync")
+    max_fps = data.get("maxFps")
+    if vsync is None and max_fps is None:
+        rows.append(("vsync / maxFps", "?"))
+    else:
+        rows.append(
+            (
+                "vsync / maxFps",
+                f"{'off' if vsync else 'ON（性能采样要关）'} / {max_fps if max_fps is not None else '?'}",
+            )
+        )
+
+    width = max(_disp_width(key) for key, _ in rows)
+    for key, value in rows:
+        print(f"{key}{' ' * (width - _disp_width(key) + 2)}{value}")
+    for issue in data.get("issues") or []:
+        print(f"WARN {issue}", file=sys.stderr)
+    return 0
 
 
-def cmd_maximize():
-    maximize_window(find_window())
+# ---------------------------------------------------------------- 装置与进程
+
+def _prepare_server_dir(server_dir: Path, world: str | None) -> None:
+    server_dir.mkdir(parents=True, exist_ok=True)
+    (server_dir / "logs").mkdir(parents=True, exist_ok=True)
+    (server_dir / "eula.txt").write_text("eula=true\n", encoding="utf-8")
+
+    entries = [
+        (key, world if (key == "level-name" and world) else value)
+        for key, value in ic_rig.SERVER_PROPERTIES_DEFAULTS
+    ]
+    force = set(ic_rig.RCON_FORCED_KEYS)
+    if world:
+        force.add("level-name")
+    _patch_properties(server_dir / "server.properties", entries, force)
+
+
+def _patch_properties(path: Path, entries: list[tuple[str, str]], force: set[str]) -> None:
+    """按 Java properties 的 key=value 补齐缺失键；force 中的键强制覆盖。"""
+    try:
+        original = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        original = []
+
+    wanted = dict(entries)
+    seen: set[str] = set()
+    out: list[str] = []
+    for line in original:
+        stripped = line.strip()
+        if not stripped or stripped.startswith(("#", "!")):
+            out.append(line)
+            continue
+        if "=" in stripped:
+            key = stripped.split("=", 1)[0].strip()
+        elif ":" in stripped:
+            key = stripped.split(":", 1)[0].strip()
+        else:
+            out.append(line)
+            continue
+        seen.add(key)
+        out.append(f"{key}={wanted[key]}" if key in force and key in wanted else line)
+
+    missing = [(key, value) for key, value in entries if key not in seen]
+    if missing:
+        if out and out[-1].strip():
+            out.append("")
+        out.extend(f"{key}={value}" for key, value in missing)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+
+
+def cmd_ps() -> int:
+    procs = process.list_java_processes()
+    owned = {_record_pid(record): record.get("role") for record, _ in _verified_owned()}
+    for item in process.owned_processes():
+        if process.is_owned(item.pid):
+            owned[item.pid] = item.role
+
+    game_listen = process.port_listening(DEFAULT_GAME_PORT) if procs else False
+    rcon_listen = process.port_listening(DEFAULT_RCON_PORT) if procs else False
+
+    print(f"{'role':<10} {'pid':>7}  {'owned':<5} port")
+    for raw in procs:
+        role = process.role_of(raw.cmdline) or "-"
+        ports = "-"
+        if role == "server":
+            ports = (
+                f"{DEFAULT_GAME_PORT}={'listening' if game_listen else 'closed'} "
+                f"rcon={DEFAULT_RCON_PORT}:{'listening' if rcon_listen else 'closed'}"
+            )
+        print(f"{role:<10} {raw.pid:>7}  {'yes' if raw.pid in owned else 'no':<5} {ports}")
+    if not procs:
+        print("（没有 java 进程）")
+    return 0
+
+
+def cmd_kill(target: str = "all", name: str | None = None) -> int:
+    victims: list[dict] = []
+    seen: set[int] = set()
+
+    for record, raw in _verified_owned():
+        role = str(record.get("role") or "")
+        if not _role_matches(role, target):
+            continue
+        if name and name.lower() not in f"{role} {raw.cmdline}".lower():
+            continue
+        victims.append(record)
+        seen.add(_record_pid(record))
+
+    for item in process.owned_processes():
+        if item.pid in seen or not _role_matches(item.role, target):
+            continue
+        if not process.is_owned(item.pid):
+            continue
+        if name and name.lower() not in item.role.lower():
+            continue
+        victims.append({"role": item.role, "pid": item.pid})
+        seen.add(item.pid)
+
+    if not victims:
+        print("没有匹配的自有进程（只终止 icdev 登记过的进程）")
+        return 0
+
+    remaining = [
+        record for record in _load_owned() if _record_pid(record) not in seen
+    ]
+    _save_owned(remaining)
+
+    for record in victims:
+        pid = _record_pid(record)
+        if pid <= 0:
+            continue
+        process.terminate(pid, tree=True)
+        process.forget_owned(pid)
+        print(f"KILLED {record.get('role')} pid={pid}")
+    return 0
+
+
+def _current_script() -> str | None:
+    directories = [RUN]
+    directories += [
+        Path(record["run_dir"])
+        for record in _load_owned()
+        if isinstance(record.get("run_dir"), str) and record["run_dir"]
+    ]
+    for directory in dict.fromkeys(directories):
+        text = logs.tail(directory / "logs" / "latest.log", 400)
+        found = ic_rig.SCRIPT_RE.findall(text)
+        if found:
+            return found[-1]
+    return None
+
+
+def cmd_rig_status() -> int:
+    procs = process.list_java_processes()
+    servers = [item for item in procs if process.role_of(item.cmdline) == "server"]
+    clients = [item for item in procs if process.role_of(item.cmdline) == "client"]
+
+    game_listen = process.port_listening(DEFAULT_GAME_PORT) if procs else False
+    rcon_listen = process.port_listening(DEFAULT_RCON_PORT) if procs else False
+
+    if servers and game_listen:
+        state = "ready"
+    elif procs:
+        state = "partial"
+    else:
+        state = "absent"
+
+    print(f"state={state}")
+    for server in servers:
+        print(
+            f"server: pid={server.pid} port={DEFAULT_GAME_PORT}"
+            f"({'listening' if game_listen else 'closed'})"
+            f" rcon={DEFAULT_RCON_PORT}({'listening' if rcon_listen else 'closed'})"
+        )
+    if not servers:
+        print("server: -")
+
+    try:
+        windows = {win.pid for win in win32.list_minecraft_windows()}
+    except IcdError:
+        windows = set()
+    if clients:
+        for client in clients:
+            has_window = "yes" if client.pid in windows else "no"
+            print(f"client: pid={client.pid} window={has_window}")
+    else:
+        print("client: -")
+
+    players: list[str] = []
+    if servers and rcon_listen:
+        try:
+            text = rcon.command("list", port=DEFAULT_RCON_PORT, password=DEFAULT_RCON_PASSWORD)
+        except IcdError:
+            text = ""
+        match = ic_rig.LIST_RE.search(text or "")
+        if match:
+            players = [name.strip() for name in match.group(1).split(",") if name.strip()]
+    print(f"players={players}")
+    print(f"currentScript={_current_script()}")
+    return 0
+
+
+# ---------------------------------------------------------------- 服务端
+
+def cmd_rcon(command: str, port: int, password: str, timeout_ms: int) -> int:
+    client = rcon.get_client(port=port, password=password)
+    client.timeout = max(0.5, float(timeout_ms) / 1000.0)
+    print(client.command(command.lstrip("/")))
+    return 0
+
+
+# ---------------------------------------------------------------- 取证
+
+def cmd_pixels(path: str, mode: str, compare: str | None, threshold: int | None, band) -> int:
+    from icdev import pixels  # 按需导入：numpy/PIL 只在 pixels 命令里加载
+
+    image = Path(path)
+    if mode == "clusters":
+        band_value = tuple(band) if band else None
+        found = pixels.clusters(
+            image,
+            threshold=threshold if threshold is not None else 190,
+            band=band_value,
+        )
+        _json(
+            {
+                "mode": "clusters",
+                "path": str(image),
+                "threshold": threshold if threshold is not None else 190,
+                "count": len(found),
+                "clusters": found,
+            }
+        )
+        return 0
+
+    if not compare:
+        die("--mode diff 需要 --compare <对照图片>")
+    data = pixels.diff(
+        image,
+        Path(compare),
+        threshold=threshold if threshold is not None else 60,
+    )
+    _json({"mode": "diff", "path": str(image), "compare": compare, **data})
+    return 0
+
+
+def _default_snapshot_targets() -> list[Path]:
+    candidates = [
+        RUN / "immersive_cinematics" / "scripts",
+        RUN / "config" / "immersive_cinematics.json",
+        FORGE_RUN / "config" / "immersive_cinematics.json",
+    ]
+    targets = [path for path in candidates if path.exists()]
+    if not targets:
+        die("没有可快照的默认目标（fabric/forge 的配置或脚本不存在）")
+    return targets
+
+
+def cmd_snapshot_create(name: str, targets: list[str]) -> int:
+    paths = [Path(item) for item in targets] if targets else _default_snapshot_targets()
+    data = snapshot.create(name, paths)
+    print(f"created {data['name']} files={data['files']} → {rel(data['path'])}")
+    return 0
+
+
+def cmd_snapshot_restore(name: str) -> int:
+    data = snapshot.restore(name)
+    print(f"restored={data['restored']} removed={len(data['removed'])} missing={len(data['missing'])}")
+    for item in data["removed"]:
+        print(f"REMOVED {item}")
+    for item in data["missing"]:
+        print(f"MISSING {item}")
+    return 0
+
+
+def cmd_snapshot_list() -> int:
+    items = snapshot.list_snapshots()
+    if not items:
+        print(f"（没有快照：{rel(SNAPSHOT_ROOT)}）")
+        return 0
+    for item in items:
+        print(f"{item['name']}  created={item['created_at']}  files={item['files']}")
+    return 0
+
+
+def cmd_config_get(key: str) -> int:
+    print(json.dumps(ic_config.get(RUN, key), ensure_ascii=False))
+    return 0
+
+
+def cmd_config_set(key: str, raw: str) -> int:
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        value = raw
+    old = ic_config.set(RUN, key, value)
+    stored = ic_config.get(RUN, key)
+    print(f"{key}: {old!r} -> {stored!r}")
+    return 0
+
+
+# ---------------------------------------------------------------- 启动
+
+def _launch_client(
+    world: str,
+    username: str = DEFAULT_USERNAME,
+    extra_jvm: tuple[str, ...] = (),
+    run_dir: Path = RUN,
+    log_name: str = CLIENT_LOG_NAME,
+    maximize_hint: bool = True,
+    wait_exit: bool = False,
+):
+    launch.ensure_common_jar()
+    spec = launch.ensure_launch_spec()
+    if extra_jvm:
+        spec = launch.LaunchSpec(
+            main=spec.main,
+            classpath=list(spec.classpath),
+            jvm_args=[*spec.jvm_args, *extra_jvm],
+        )
+
+    cmd = launch.build_client_cmd(spec, run_dir, username, world=world)
+    log_path = Path(run_dir) / "logs" / log_name
+    proc = launch.spawn(cmd, Path(run_dir), log_path)
+
+    print(f"[client] world={world} username={username} pid={proc.pid}", flush=True)
+    print(
+        f"[client] 启动日志：{rel(log_path)}（游戏日志：{rel(Path(run_dir) / 'logs' / 'latest.log')}，"
+        "用 `ic tail` 看）"
+    )
+    print("[client] 后台运行，命令已返回（进程不会随本命令退出）", flush=True)
+    if maximize_hint:
+        print("[client] 窗口出现后用 `ic max` 最大化", flush=True)
+    _remember(proc.pid, "client", Path(run_dir))
+
+    if wait_exit:
+        print("[client] 等待游戏退出（Ctrl+C 只停止等待，不会杀进程）…", flush=True)
+        try:
+            code = launch.wait_exit(proc)
+            print(f"[client] 已退出 exit={code}", flush=True)
+        except KeyboardInterrupt:
+            print("[client] 已停止等待；游戏仍在后台运行", flush=True)
+
+    return proc
+
+
+def cmd_client(world: str, username: str, maximize_hint: bool = True) -> int:
+    _launch_client(world, username=username, maximize_hint=maximize_hint)
+    return 0
+
+
+def cmd_server(world: str | None) -> int:
+    launch.ensure_common_jar()
+    spec = launch.ensure_launch_spec()
+    _prepare_server_dir(DEFAULT_SERVER_DIR, world)
+
+    cmd = launch.build_server_cmd(spec, DEFAULT_SERVER_DIR)
+    log_path = DEFAULT_SERVER_DIR / "logs" / SERVER_LOG_NAME
+    proc = launch.spawn(cmd, DEFAULT_SERVER_DIR, log_path)
+
+    print(f"[server] dir={DEFAULT_SERVER_DIR} pid={proc.pid}", flush=True)
+    print(
+        f"[server] 启动日志：{rel(log_path)}（游戏日志：{rel(DEFAULT_SERVER_DIR / 'logs' / 'latest.log')}；"
+        "`ic tail` 只读 fabric/run 的日志）"
+    )
+    _remember(proc.pid, "server", DEFAULT_SERVER_DIR)
+    return 0
+
+
+def cmd_maximize(pid=None) -> int:
+    win32.maximize(win32.find_window(pid))
     print("已最大化 Minecraft 窗口")
     return 0
 
 
-def cmd_client(world, extra_args, maximize=True):
-    return launch_client(world, extra_args, maximize=maximize)
-
-
-def cmd_shadow(pack, lane, world, capture=False):
+def cmd_shadow(
+    pack: str,
+    lane: str,
+    world: str,
+    capture: bool = False,
+    username: str = DEFAULT_USERNAME,
+    wait_exit: bool = False,
+) -> int:
     (SCRIPTS / "fqueue").mkdir(parents=True, exist_ok=True)
     IRIS.parent.mkdir(parents=True, exist_ok=True)
 
     ab = SCRIPTS / "fqueue/test_ab_split_scale.json"
     if not ab.exists():
-        src = Path("D:/mc/.minecraft/versions/ImmersiveCinematics/immersive_cinematics"
-                   "/scripts/fqueue/test_ab_split_scale.json")
+        src = Path(
+            "D:/mc/.minecraft/versions/ImmersiveCinematics/immersive_cinematics"
+            "/scripts/fqueue/test_ab_split_scale.json"
+        )
         if not src.exists():
             die(f"A/B 测试脚本缺失：{rel(ab)}，生产实例也没有：{src}")
         shutil.copy2(src, ab)
@@ -617,13 +872,17 @@ def cmd_shadow(pack, lane, world, capture=False):
         "#This file stores configuration options for Iris, such as the currently active shaderpack\n"
         "colorSpace=SRGB\ndisableUpdateMessage=true\nenableDebugOptions=false\n"
         "maxShadowRenderDistance=32\n"
-        f"shaderPack={pack}\nenableShaders=true\n", encoding="utf-8")
+        f"shaderPack={pack}\nenableShaders=true\n",
+        encoding="utf-8",
+    )
 
     print(f"[shadow] pack={pack} lane={lane} world={world} capture={capture}")
-    return launch_client(world, [], {"ICINEMATICS_CAPTURE": "1" if capture else "0"})
+    extra = ("-Dicinematics.capture=true",) if capture else ()
+    _launch_client(world, username=username, extra_jvm=extra, wait_exit=wait_exit)
+    return 0
 
 
-def cmd_scene(pack, lane):
+def cmd_scene(pack: str, lane: str, username: str = DEFAULT_USERNAME) -> int:
     (SCRIPTS / "fqueue").mkdir(parents=True, exist_ok=True)
     src = DEVTOOLS_RUN / "test_shadow_scene.json"
     if not src.exists():
@@ -637,177 +896,236 @@ def cmd_scene(pack, lane):
         shutil.move(str(setup), str(backup))
         moved = True
     try:
-        return cmd_shadow(pack, lane, "新的世界", capture=True)
+        return cmd_shadow(
+            pack, lane, DEFAULT_WORLD, capture=True, username=username, wait_exit=True
+        )
     finally:
         if moved:
             shutil.move(str(backup), str(setup))
 
 
-# ---------------------------------------------------------------- 自检
-
-def doctor():
-    rows = []
-
-    wins = all_windows() if WIN32 else []
-    if wins:
-        for w in wins:
-            rows.append(("客户端窗口", f"pid={window_pid(w)} {w.width}x{w.height} {w.title}"))
-    else:
-        rows.append(("客户端窗口", "未运行"))
-
-    if LOG.exists():
-        age = int(time.time() - LOG.stat().st_mtime)
-        rows.append(("latest.log", f"{rel(LOG)}（{age}s 前更新，{LOG.stat().st_size} 字节）"))
-    else:
-        rows.append(("latest.log", "不存在"))
-
-    dirs = session_dirs()
-    if dirs:
-        d = dirs[-1]
-        perf = d / "performance"
-        n = len(list(perf.glob("*summary.md"))) if perf.exists() else 0
-        rows.append(("最新诊断会话", f"{d.name}（summaries={n}）"))
-    else:
-        rows.append(("最新诊断会话", "无"))
-
-    if MOD_CONFIG.exists():
-        try:
-            cfg = json.loads(MOD_CONFIG.read_text(encoding="utf-8"))
-            rows.append(("debugLogging", str(cfg.get("debugLogging")).lower()))
-        except json.JSONDecodeError:
-            rows.append(("debugLogging", "配置文件解析失败"))
-    else:
-        rows.append(("debugLogging", "配置文件不存在"))
-
-    if IRIS.exists():
-        pack = next((ln.split("=", 1)[1].strip() for ln in
-                     IRIS.read_text(encoding="utf-8").splitlines()
-                     if ln.startswith("shaderPack=")), "?")
-        rows.append(("光影包", pack))
-    else:
-        rows.append(("光影包", "iris.properties 不存在"))
-
-    opts = RUN / "options.txt"
-    if opts.exists():
-        text = opts.read_text(encoding="utf-8", errors="replace")
-        vsync = "enableVsync:false" in text
-        fps = next((ln.split(":", 1)[1] for ln in text.splitlines()
-                    if ln.startswith("maxFps:")), "?")
-        rows.append(("vsync / maxFps", f"{'off' if vsync else 'ON（性能采样要关）'} / {fps}"))
-
-    width = max(_disp_width(k) for k, _ in rows)
-    for k, v in rows:
-        print(f"{k}{' ' * (width - _disp_width(k) + 2)}{v}")
-
-
 # ---------------------------------------------------------------- 入口
 
-def main():
-    ap = argparse.ArgumentParser(
-        description="ImmersiveCinematics 本地测试工具包",
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="devtools.py",
+        description="ImmersiveCinematics 本地测试工具包（icdev 薄壳 CLI）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="子命令列表见模块 docstring：python devtools.py --help 之后看 `--help` 正文。")
-    ap.add_argument("--pid", type=int, default=None, help="多个 Minecraft 窗口时指定目标")
-    sub = ap.add_subparsers(dest="action", required=True)
+        epilog=(
+            "MCP（推荐）：python -m icdev.server，注册片段见 mcp.json\n"
+            "自检：python devtools.py selftest（= python -m icdev.selftest）"
+        ),
+    )
+    parser.add_argument("--pid", type=int, default=None, help="多个 Minecraft 窗口时指定目标")
+    sub = parser.add_subparsers(dest="action", required=True)
 
+    # 控制
     sub.add_parser("list", help="列出 Minecraft 窗口")
     for name, helptext in (("cmd", "聊天栏执行命令"), ("say", "聊天栏发消息")):
-        p = sub.add_parser(name, help=helptext)
-        p.add_argument("text")
-    p = sub.add_parser("key", help="按键")
-    p.add_argument("key")
-    p = sub.add_parser("play", help="播放脚本")
-    p.add_argument("script_id")
+        child = sub.add_parser(name, help=helptext)
+        child.add_argument("text")
+    child = sub.add_parser("key", help="按键")
+    child.add_argument("key")
+    child = sub.add_parser("hold", help="按住按键指定秒数（投票长按）")
+    child.add_argument("key")
+    child.add_argument("seconds", type=float)
+    child = sub.add_parser("play", help="播放脚本")
+    child.add_argument("script_id")
     sub.add_parser("stop", help="停止播放")
     sub.add_parser("reload", help="重载脚本")
-    p = sub.add_parser("shot", help="游戏内截图（F2，只含游戏画面）")
-    p.add_argument("path", nargs="?")
-    p = sub.add_parser("wait", help="等待")
-    p.add_argument("seconds", type=float)
-    p = sub.add_parser("run", help="执行场景文件")
-    p.add_argument("scenario")
+    child = sub.add_parser("shot", help="游戏内截图（F2，只含游戏画面）")
+    child.add_argument("path", nargs="?")
+    child = sub.add_parser("wait", help="等待")
+    child.add_argument("seconds", type=float)
+    child = sub.add_parser("run", help="执行场景文件")
+    child.add_argument("scenario")
 
-    p = sub.add_parser("tail", help="日志尾部（GBK 解码）")
-    p.add_argument("lines", nargs="?", type=int, default=40)
-    p = sub.add_parser("trace", help="过滤诊断日志到独立文件")
-    p.add_argument("--out", help="输出路径（默认 E:/tmp/gtest/gtest.log）")
-    p.add_argument("--lines", type=int, help="只取末尾 N 行")
-    p.add_argument("--follow", action="store_true", help="持续跟踪新增行")
-    p.add_argument("--pattern", default="[G-TEST]", help="过滤子串（默认 [G-TEST]）")
+    # 装置与进程
+    child = sub.add_parser("server", help="后台起服务端")
+    child.add_argument("world", nargs="?", default=None, help="世界名（缺省沿用 server.properties）")
+    sub.add_parser("rig-status", help="汇总服务端/客户端/端口/玩家")
+    sub.add_parser("rig-down", help="结束本机 icdev 登记的所有装置进程")
+    sub.add_parser("ps", help="列出 java 进程")
+    child = sub.add_parser("kill", help="只终止 icdev 登记的自有进程")
+    child.add_argument("--target", choices=("client", "server", "all"), default="all")
+    child.add_argument("--name", default=None, help="按客户端名或命令行子串过滤")
+
+    # 服务端
+    child = sub.add_parser("rcon", help="向服务端发一条 RCON 命令")
+    child.add_argument("command")
+    child.add_argument("--port", type=int, default=DEFAULT_RCON_PORT)
+    child.add_argument("--password", default=DEFAULT_RCON_PASSWORD)
+    child.add_argument("--timeout-ms", type=int, default=10000)
+
+    # 观察
+    child = sub.add_parser("tail", help="日志尾部（GBK 解码）")
+    child.add_argument("lines", nargs="?", type=int, default=40)
+    child = sub.add_parser("trace", help="过滤诊断日志到独立文件")
+    child.add_argument("--out", help="输出路径（默认 E:/tmp/gtest/gtest.log）")
+    child.add_argument("--lines", type=int, help="只取末尾 N 行")
+    child.add_argument("--follow", action="store_true", help="持续跟踪新增行")
+    child.add_argument("--pattern", default="[G-TEST]", help="过滤子串（默认 [G-TEST]）")
     sub.add_parser("where", help="打印世界类型 / 玩家位置 / 维度")
-    p = sub.add_parser("perf", help="性能摘要")
-    p.add_argument("session", nargs="?")
-    p = sub.add_parser("sessions", help="列出诊断会话")
-    p.add_argument("count", nargs="?", type=int, default=8)
+    child = sub.add_parser("perf", help="性能摘要")
+    child.add_argument("session", nargs="?")
+    child = sub.add_parser("sessions", help="列出诊断会话")
+    child.add_argument("count", nargs="?", type=int, default=8)
+    child = sub.add_parser("analyze", help="校验诊断会话")
+    child.add_argument("session", nargs="?")
     sub.add_parser("doctor", help="环境自检")
 
-    p = sub.add_parser("client", help="启动客户端")
-    p.add_argument("world", nargs="?", default="新的世界")
-    p.add_argument("--offline", action="store_true", help="gradle --offline")
-    p.add_argument("--no-maximize", action="store_true", help="启动后不自动最大化窗口")
+    # 取证
+    child = sub.add_parser("pixels", help="像素级取证（亮簇 / 双图差异）")
+    child.add_argument("path")
+    child.add_argument("--mode", choices=("clusters", "diff"), default="clusters")
+    child.add_argument("--compare", default=None, help="diff 的对照图片")
+    child.add_argument("--threshold", type=int, default=None)
+    child.add_argument("--band", nargs=2, type=float, default=None, help="相对高度带 y0 y1")
+    child = sub.add_parser("snapshot-create", help="创建运行目录快照")
+    child.add_argument("name")
+    child.add_argument("targets", nargs="*", help="相对仓库根的文件/目录（缺省为配置与脚本）")
+    child = sub.add_parser("snapshot-restore", help="还原快照（删除新增文件）")
+    child.add_argument("name")
+    sub.add_parser("snapshot-list", help="列出快照")
+    child = sub.add_parser("config-get", help="读 mod 配置项")
+    child.add_argument("key")
+    child = sub.add_parser("config-set", help="写 mod 配置项（白名单校验）")
+    child.add_argument("key")
+    child.add_argument("value")
+
+    # 启动
+    child = sub.add_parser("client", help="后台启动客户端并直进世界")
+    child.add_argument("world", nargs="?", default=DEFAULT_WORLD)
+    child.add_argument(
+        "--offline",
+        action="store_true",
+        help="兼容保留：直启路径固定以 --offline 构建 common jar",
+    )
+    child.add_argument("--username", default=DEFAULT_USERNAME, help="游戏内用户名")
+    child.add_argument(
+        "--no-maximize",
+        action="store_true",
+        help="不打印「用 ic max 最大化」提示（后台启动本身不会等窗口）",
+    )
     sub.add_parser("max", help="最大化已在运行的游戏窗口")
-    p = sub.add_parser("shadow", help="A/B 取证")
-    p.add_argument("pack", nargs="?", default="ComplementaryUnbound_r5.9.3.zip")
-    p.add_argument("lane", nargs="?", default="cam0")
-    p.add_argument("world", nargs="?", default="新的世界")
-    p.add_argument("--capture", action="store_true", help="开 ICINEMATICS_CAPTURE 出图")
-    p = sub.add_parser("scene", help="受控场景取证")
-    p.add_argument("pack", nargs="?", default="MakeUp-UltraFast-9.5f.zip")
-    p.add_argument("lane", nargs="?", default="cam0")
+    child = sub.add_parser("shadow", help="A/B 取证")
+    child.add_argument("pack", nargs="?", default=DEFAULT_SHADOW_PACK)
+    child.add_argument("lane", nargs="?", default="cam0")
+    child.add_argument("world", nargs="?", default=DEFAULT_WORLD)
+    child.add_argument("--capture", action="store_true", help="开 ICINEMATICS_CAPTURE 出图")
+    child.add_argument("--username", default=DEFAULT_USERNAME)
+    child = sub.add_parser("scene", help="受控场景取证")
+    child.add_argument("pack", nargs="?", default=DEFAULT_SCENE_PACK)
+    child.add_argument("lane", nargs="?", default="cam0")
+    child.add_argument("--username", default=DEFAULT_USERNAME)
 
-    p = sub.add_parser("analyze", help="校验诊断会话")
-    p.add_argument("session", nargs="?")
+    sub.add_parser("selftest", help="不依赖游戏/网络的模块自检")
+    return parser
 
-    args = ap.parse_args()
-    a = args.action
 
-    if a == "list":
-        wins = all_windows()
-        if not wins:
-            print("（没有 Minecraft 窗口）")
-        for w in wins:
-            print(f"pid={window_pid(w):>6} hwnd={w._hWnd:>10} "
-                  f"{w.width}x{w.height} @({w.left},{w.top})  {w.title}")
-        return 0
-    if a == "tail":
-        tail_log(args.lines)
-        return 0
-    if a == "trace":
+def _dispatch(args: argparse.Namespace) -> int:
+    action = args.action
+
+    if action == "list":
+        return cmd_list()
+    if action == "tail":
+        return cmd_tail(args.lines)
+    if action == "trace":
         return cmd_trace(args.out, args.lines, args.follow, args.pattern)
-    if a == "where":
+    if action == "where":
         return cmd_where()
-    if a == "perf":
-        print_perf(args.session)
-        return 0
-    if a == "sessions":
-        list_sessions(args.count)
-        return 0
-    if a == "doctor":
-        doctor()
-        return 0
-    if a == "analyze":
-        analyze(args.session or latest_session())
-        return 0
-    if a == "client":
-        return cmd_client(args.world, ["--offline"] if args.offline else [],
-                          maximize=not args.no_maximize).returncode
-    if a == "max":
-        return cmd_maximize()
-    if a == "shadow":
-        return cmd_shadow(args.pack, args.lane, args.world, capture=args.capture).returncode
-    if a == "scene":
-        return cmd_scene(args.pack, args.lane).returncode
+    if action == "perf":
+        return cmd_perf(args.session)
+    if action == "sessions":
+        return cmd_sessions(args.count)
+    if action == "doctor":
+        return cmd_doctor()
+    if action == "analyze":
+        return cmd_analyze(args.session)
+    if action == "client":
+        return cmd_client(args.world, args.username, not args.no_maximize)
+    if action == "server":
+        return cmd_server(args.world)
+    if action == "max":
+        return cmd_maximize(args.pid)
+    if action == "shadow":
+        return cmd_shadow(args.pack, args.lane, args.world, args.capture, args.username)
+    if action == "scene":
+        return cmd_scene(args.pack, args.lane, args.username)
+    if action == "ps":
+        return cmd_ps()
+    if action == "kill":
+        return cmd_kill(args.target, args.name)
+    if action == "rig-status":
+        return cmd_rig_status()
+    if action == "rig-down":
+        result = cmd_kill("all", None)
+        rcon.close_all()
+        return result
+    if action == "rcon":
+        return cmd_rcon(args.command, args.port, args.password, args.timeout_ms)
+    if action == "pixels":
+        return cmd_pixels(args.path, args.mode, args.compare, args.threshold, args.band)
+    if action == "snapshot-create":
+        return cmd_snapshot_create(args.name, args.targets)
+    if action == "snapshot-restore":
+        return cmd_snapshot_restore(args.name)
+    if action == "snapshot-list":
+        return cmd_snapshot_list()
+    if action == "config-get":
+        return cmd_config_get(args.key)
+    if action == "config-set":
+        return cmd_config_set(args.key, args.value)
+    if action == "selftest":
+        from icdev import selftest
 
-    win = find_window(args.pid)
-    if a == "wait":
+        return selftest.main([])
+
+    if action == "wait":
         time.sleep(args.seconds)
-    elif a == "run":
-        run_scenario(win, args.scenario)
-    else:
-        payload = (getattr(args, "text", None) or getattr(args, "key", None)
-                   or getattr(args, "script_id", None) or getattr(args, "path", None) or "")
-        dispatch(win, a, payload)
+        return 0
+
+    # 其余都需要一个已在运行的客户端窗口
+    rig = _rig_for_window(args.pid)
+    if action == "cmd":
+        _cmd_text(rig, args.text)
+    elif action == "say":
+        _say(rig, args.text)
+    elif action == "key":
+        rig.key(args.key)
+    elif action == "hold":
+        rig.hold(args.key, args.seconds)
+    elif action == "play":
+        _cmd_text(rig, f"icinematics play {args.script_id}")
+    elif action == "stop":
+        _cmd_text(rig, "icinematics stop")
+    elif action == "reload":
+        _cmd_text(rig, "icinematics reload")
+    elif action == "shot":
+        _shot(rig, args.path)
+    elif action == "run":
+        _run_scenario(rig, args.scenario)
+    else:  # pragma: no cover - argparse 已限制
+        die(f"未知子命令：{action}")
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _build_parser().parse_args(argv)
+    try:
+        return _dispatch(args)
+    except IcdError as exc:
+        print(f"错误：{exc}", file=sys.stderr)
+        detail = exc.detail
+        if isinstance(detail, list) and detail and isinstance(detail[0], dict):
+            for item in detail:
+                print(
+                    f"  pid={item.get('pid')} hwnd={item.get('hwnd')} {item.get('title')}",
+                    file=sys.stderr,
+                )
+        return 1
+    except KeyboardInterrupt:
+        return 130
 
 
 if __name__ == "__main__":
