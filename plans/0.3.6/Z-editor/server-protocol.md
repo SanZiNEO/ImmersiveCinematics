@@ -33,7 +33,7 @@
 ## 三、实施时定的差异
 
 - WebSocket 服务为自实现，未用 NanoHTTPD / Java-WebSocket。
-- 预览为 raw RGBA 720p + 约 60fps 节流；未做 JPEG / H.264 / WebRTC。
+- 预览为 raw RGBA 720p + 约 60fps 节流；未做 JPEG / H.264 / WebRTC。**2026-11-06 更新**：后续计划改为编码流（H.264，外部 ffmpeg），帧头随编码格式调整；见 [`../J-media/preview-stream.md`](../J-media/preview-stream.md)。编辑器侧接收形态不变（二进制帧 → 前端解码）。
 - Editor 是独立 Electron 应用，不由 mod 托管页面。
 - 飞控留在游戏原生环境，WebUI 只做进入 / 退出与状态显示。
 
