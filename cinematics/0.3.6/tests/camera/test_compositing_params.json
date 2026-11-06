@@ -3,9 +3,21 @@
     "id": "test_compositing_params",
     "name": "相机测试-合成参数",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "只测试合成参数关键帧：opacity 淡入淡出 + dest 目标区域（PIP 缩到右下角）+ source 取材区域（画面内局部裁剪）",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_zoom"] } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_camera_zoom"
+        ]
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 8,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +37,27 @@
           {
             "start_time": 0,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "测试: test_compositing_params | 功能: opacity/dest/source 关键帧 | 触发: biome自动",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_compositing_params | 功能: opacity/dest/source 关键帧 | 触发: biome自动"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -44,42 +67,274 @@
           {
             "start_time": 0,
             "duration": 8,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": 0, "dy": 0, "dz": 0 },
-                "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 0,
-                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 1,
-                "position": { "dx": 0, "dy": 0, "dz": 0 },
-                "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 1,
-                "dest": { "x": 0.6, "y": 0.05, "w": 0.35, "h": 0.35 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 1.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
               },
-              {
-                "time": 5,
-                "position": { "dx": 0, "dy": 0, "dz": 0 },
-                "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 1,
-                "dest": { "x": 0.6, "y": 0.05, "w": 0.35, "h": 0.35 },
-                "source": { "x": 0.25, "y": 0.25, "w": 0.5, "h": 0.5 }
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 1.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
               },
-              {
-                "time": 8,
-                "position": { "dx": 0, "dy": 0, "dz": 0 },
-                "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 0,
-                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 1.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 1.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "dest.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 1.0,
+                    "value": 0.6
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.6
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "dest.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 1.0,
+                    "value": 0.05
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.05
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "dest.w": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 1.0,
+                    "value": 0.35
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.35
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 1.0
+                  }
+                ]
+              },
+              "dest.h": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 1.0,
+                    "value": 0.35
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.35
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 1.0
+                  }
+                ]
+              },
+              "source.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 1.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.25
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "source.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 1.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.25
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "source.w": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 1.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.5
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 1.0
+                  }
+                ]
+              },
+              "source.h": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 1.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.5
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 1.0
+                  }
+                ]
               }
-            ]
+            }
           }
         ]
       }

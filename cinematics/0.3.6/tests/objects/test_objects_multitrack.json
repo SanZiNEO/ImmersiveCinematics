@@ -3,9 +3,18 @@
     "id": "test_objects_multitrack",
     "name": "对象格式-多轨合成",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "新格式多轨：CAMERA 绝对位置与朝向 + OVERLAY fade 颜色/opacity + LETTERBOX + ADJUST + AUDIO + EVENT，全部 start_time=0",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        }
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +27,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 6,
     "tracks": [
       {
         "type": "CAMERA",
@@ -27,13 +35,72 @@
             "start_time": 0,
             "duration": 6,
             "objects": {
-              "position_mode": { "value": "absolute" },
-              "position.x": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 12 } ] },
-              "position.y": { "value": 64 },
-              "position.z": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": -8 } ] },
-              "yaw": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 45 } ] },
-              "pitch": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": -10 } ] },
-              "fov": { "keyframes": [ { "time": 0, "value": 70 }, { "time": 6, "value": 80 } ] }
+              "position_mode": {
+                "value": "absolute"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 12
+                  }
+                ]
+              },
+              "position.y": {
+                "value": 64
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": -8
+                  }
+                ]
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 45
+                  }
+                ]
+              },
+              "pitch": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": -10
+                  }
+                ]
+              },
+              "fov": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 70
+                  },
+                  {
+                    "time": 6,
+                    "value": 80
+                  }
+                ]
+              }
             }
           }
         ]
@@ -45,12 +112,60 @@
             "start_time": 0,
             "duration": 6,
             "objects": {
-              "layer_type": { "value": "fade" },
-              "color": { "value": "#112233" },
-              "color.r": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 1 } ] },
-              "color.g": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 0.8 } ] },
-              "color.b": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 0.6 } ] },
-              "opacity": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 1 } ] }
+              "layer_type": {
+                "value": "fade"
+              },
+              "color": {
+                "value": "#112233"
+              },
+              "color.r": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 1
+                  }
+                ]
+              },
+              "color.g": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 0.8
+                  }
+                ]
+              },
+              "color.b": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 0.6
+                  }
+                ]
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 1
+                  }
+                ]
+              }
             }
           }
         ]
@@ -62,8 +177,30 @@
             "start_time": 0,
             "duration": 6,
             "objects": {
-              "aspect_ratio": { "keyframes": [ { "time": 0, "value": 2.35 }, { "time": 6, "value": 2.0 } ] },
-              "opacity": { "keyframes": [ { "time": 0, "value": 1 }, { "time": 6, "value": 0.9 } ] }
+              "aspect_ratio": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 2.35
+                  },
+                  {
+                    "time": 6,
+                    "value": 2.0
+                  }
+                ]
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 1
+                  },
+                  {
+                    "time": 6,
+                    "value": 0.9
+                  }
+                ]
+              }
             }
           }
         ]
@@ -75,8 +212,30 @@
             "start_time": 0,
             "duration": 6,
             "objects": {
-              "exposure": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 0.3 } ] },
-              "saturation": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": -0.3 } ] }
+              "exposure": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 0.3
+                  }
+                ]
+              },
+              "saturation": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": -0.3
+                  }
+                ]
+              }
             }
           }
         ]
@@ -88,14 +247,66 @@
             "start_time": 0,
             "duration": 6,
             "objects": {
-              "sound": { "value": "second_waltz.ogg" },
-              "category": { "value": "ambient" },
-              "fade_in": { "value": 0.5 },
-              "fade_out": { "value": 0.5 },
-              "volume": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 1 } ] },
-              "x": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 20 } ] },
-              "y": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 0 } ] },
-              "z": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 20 } ] }
+              "sound": {
+                "value": "second_waltz.ogg"
+              },
+              "category": {
+                "value": "ambient"
+              },
+              "fade_in": {
+                "value": 0.5
+              },
+              "fade_out": {
+                "value": 0.5
+              },
+              "volume": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 1
+                  }
+                ]
+              },
+              "x": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 20
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 0
+                  }
+                ]
+              },
+              "z": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 20
+                  }
+                ]
+              }
             }
           }
         ]
@@ -107,12 +318,17 @@
             "start_time": 0,
             "duration": 6,
             "objects": {
-              "event_type": { "value": "command" },
+              "event_type": {
+                "value": "command"
+              },
               "event": {
                 "keyframes": [
                   {
                     "time": 1,
-                    "value": { "command": "/say [objects] multitrack start", "event_type": "command" }
+                    "value": {
+                      "command": "/say [objects] multitrack start",
+                      "event_type": "command"
+                    }
                   }
                 ]
               }

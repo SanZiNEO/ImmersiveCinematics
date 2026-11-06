@@ -3,7 +3,6 @@
     "id": "smoke_look_block",
     "name": "部位/方块注视冒烟",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "look_at=block 方块中心（radius 12）",
     "triggers": [
       {
@@ -26,7 +25,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 8,
     "tracks": [
       {
         "type": "CAMERA",
@@ -34,42 +32,76 @@
           {
             "start_time": 0,
             "duration": 8,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position_mode": "relative",
-                "position": {
-                  "dx": 0,
-                  "dy": 3,
-                  "dz": 5
-                },
-                "yaw": 0,
-                "pitch": -10,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "look_at": "block",
-                "look_at_target_block": "block:minecraft:obsidian:12"
+            "id": "c1_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 8,
-                "position_mode": "relative",
-                "position": {
-                  "dx": 0,
-                  "dy": 3,
-                  "dz": 5
-                },
-                "yaw": 0,
-                "pitch": -10,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "look_at": "block",
-                "look_at_target_block": "block:minecraft:obsidian:12"
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 5.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 5.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": -10.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "look_at": {
+                "value": "block"
+              },
+              "look_at_target_block": {
+                "value": "block:minecraft:obsidian:12"
               }
-            ]
+            }
           }
         ]
       }

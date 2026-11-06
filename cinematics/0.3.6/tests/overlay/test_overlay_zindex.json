@@ -3,9 +3,21 @@
     "id": "test_overlay_zindex",
     "name": "覆盖层测试-ZIndex",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "D7 z 层级演示：红/蓝/黄三个高不透明度局部矩形各占一条独立 OVERLAY 轨，z=10/20/30，交叠区直观显示谁压谁。红蓝黄同时出现（旧版同轨同窗只取首 clip，故拆轨）。",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_overlay_subtitle"] } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_overlay_subtitle"
+        ]
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 10,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,17 +37,56 @@
           {
             "start_time": 0,
             "duration": 10,
-            "layer_type": "fade",
-            "z_index": 10,
-            "color": "#FF0000",
-            "mask_shape": "rect",
-            "blend_mode": "normal",
-            "keyframes": [
-              { "time": 0, "opacity": 0, "mask_x": 0.38, "mask_y": 0.45, "mask_width": 0.42, "mask_height": 0.42 },
-              { "time": 0.5, "opacity": 1, "mask_x": 0.38, "mask_y": 0.45, "mask_width": 0.42, "mask_height": 0.42 },
-              { "time": 9.2, "opacity": 1, "mask_x": 0.38, "mask_y": 0.45, "mask_width": 0.42, "mask_height": 0.42 },
-              { "time": 10, "opacity": 0, "mask_x": 0.38, "mask_y": 0.45, "mask_width": 0.42, "mask_height": 0.42 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "fade"
+              },
+              "z_index": {
+                "value": 10
+              },
+              "color": {
+                "value": "#FF0000"
+              },
+              "mask_shape": {
+                "value": "rect"
+              },
+              "blend_mode": {
+                "value": "normal"
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.5,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 9.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "mask_x": {
+                "value": 0.38
+              },
+              "mask_y": {
+                "value": 0.45
+              },
+              "mask_width": {
+                "value": 0.42
+              },
+              "mask_height": {
+                "value": 0.42
+              }
+            }
           }
         ]
       },
@@ -46,17 +96,56 @@
           {
             "start_time": 0,
             "duration": 10,
-            "layer_type": "fade",
-            "z_index": 20,
-            "color": "#0000FF",
-            "mask_shape": "rect",
-            "blend_mode": "normal",
-            "keyframes": [
-              { "time": 0, "opacity": 0, "mask_x": 0.58, "mask_y": 0.52, "mask_width": 0.42, "mask_height": 0.42 },
-              { "time": 0.5, "opacity": 1, "mask_x": 0.58, "mask_y": 0.52, "mask_width": 0.42, "mask_height": 0.42 },
-              { "time": 9.2, "opacity": 1, "mask_x": 0.58, "mask_y": 0.52, "mask_width": 0.42, "mask_height": 0.42 },
-              { "time": 10, "opacity": 0, "mask_x": 0.58, "mask_y": 0.52, "mask_width": 0.42, "mask_height": 0.42 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "layer_type": {
+                "value": "fade"
+              },
+              "z_index": {
+                "value": 20
+              },
+              "color": {
+                "value": "#0000FF"
+              },
+              "mask_shape": {
+                "value": "rect"
+              },
+              "blend_mode": {
+                "value": "normal"
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.5,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 9.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "mask_x": {
+                "value": 0.58
+              },
+              "mask_y": {
+                "value": 0.52
+              },
+              "mask_width": {
+                "value": 0.42
+              },
+              "mask_height": {
+                "value": 0.42
+              }
+            }
           }
         ]
       },
@@ -66,17 +155,56 @@
           {
             "start_time": 0,
             "duration": 10,
-            "layer_type": "fade",
-            "z_index": 30,
-            "color": "#FFFF00",
-            "mask_shape": "rect",
-            "blend_mode": "normal",
-            "keyframes": [
-              { "time": 0, "opacity": 0, "mask_x": 0.48, "mask_y": 0.62, "mask_width": 0.42, "mask_height": 0.42 },
-              { "time": 0.5, "opacity": 1, "mask_x": 0.48, "mask_y": 0.62, "mask_width": 0.42, "mask_height": 0.42 },
-              { "time": 9.2, "opacity": 1, "mask_x": 0.48, "mask_y": 0.62, "mask_width": 0.42, "mask_height": 0.42 },
-              { "time": 10, "opacity": 0, "mask_x": 0.48, "mask_y": 0.62, "mask_width": 0.42, "mask_height": 0.42 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "layer_type": {
+                "value": "fade"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#FFFF00"
+              },
+              "mask_shape": {
+                "value": "rect"
+              },
+              "blend_mode": {
+                "value": "normal"
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.5,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 9.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "mask_x": {
+                "value": 0.48
+              },
+              "mask_y": {
+                "value": 0.62
+              },
+              "mask_width": {
+                "value": 0.42
+              },
+              "mask_height": {
+                "value": 0.42
+              }
+            }
           }
         ]
       },
@@ -86,15 +214,39 @@
           {
             "start_time": 0,
             "duration": 10,
-            "layer_type": "fade",
-            "z_index": 900,
-            "color": "#000000",
-            "mask_shape": "rect",
-            "blend_mode": "normal",
-            "keyframes": [
-              { "time": 0, "opacity": 0.55, "mask_x": 0.5, "mask_y": 0.09, "mask_width": 1, "mask_height": 0.16 },
-              { "time": 10, "opacity": 0.55, "mask_x": 0.5, "mask_y": 0.09, "mask_width": 1, "mask_height": 0.16 }
-            ]
+            "id": "c4_1",
+            "objects": {
+              "layer_type": {
+                "value": "fade"
+              },
+              "z_index": {
+                "value": 900
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "mask_shape": {
+                "value": "rect"
+              },
+              "blend_mode": {
+                "value": "normal"
+              },
+              "opacity": {
+                "value": 0.55
+              },
+              "mask_x": {
+                "value": 0.5
+              },
+              "mask_y": {
+                "value": 0.09
+              },
+              "mask_width": {
+                "value": 1.0
+              },
+              "mask_height": {
+                "value": 0.16
+              }
+            }
           }
         ]
       },
@@ -104,13 +256,30 @@
           {
             "start_time": 0,
             "duration": 10,
-            "layer_type": "subtitle",
-            "z_index": 1000,
-            "text": "测试: test_overlay_zindex | z 层级 | biome 自动 / 可手动\nZ 顺序（小=底，大=顶）：红 z=10 → 蓝 z=20 → 黄 z=30\n三条独立 OVERLAY 轨；交叠区只显示上层：黄盖蓝与红，蓝盖红",
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.09, "opacity": 1, "font_scale": 2.5 },
-              { "time": 10, "x": 0.5, "y": 0.09, "opacity": 1, "font_scale": 2.5 }
-            ]
+            "id": "c5_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "z_index": {
+                "value": 1000
+              },
+              "text": {
+                "value": "测试: test_overlay_zindex | z 层级 | biome 自动 / 可手动\nZ 顺序（小=底，大=顶）：红 z=10 → 蓝 z=20 → 黄 z=30\n三条独立 OVERLAY 轨；交叠区只显示上层：黄盖蓝与红，蓝盖红"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.09
+              },
+              "opacity": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           }
         ]
       }

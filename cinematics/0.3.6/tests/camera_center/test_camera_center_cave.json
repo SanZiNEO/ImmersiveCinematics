@@ -3,10 +3,20 @@
     "id": "test_camera_center_cave",
     "name": "相机中心·洞穴刷怪测试(y=20)",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "普通世界（非超平坦；需 (0,20,0) 附近有洞穴体积，必要时改 x/z）：相机绝对坐标 (0,20,0)、pitch=0 停留 60s，t=0 设午夜/普通难度/清空非玩家实体。验收：state 行 anchorY≈20（虚拟玩家 y = 相机 y），洞穴内相机半径 128 的刷怪点应通过 24/128 格判定 → spawned>0。注意：超平坦世界 y=20 位于地表之上，本用例会退化成高空用例。",
     "triggers": [
-      { "id": "tcv_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_center_high"] }
+      {
+        "id": "tcv_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_camera_center_high"
+        ]
+      }
     ],
     "block_keyboard": true,
     "block_mouse": true,
@@ -20,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 60,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -28,15 +37,27 @@
           {
             "start_time": 0,
             "duration": 60,
-            "layer_type": "subtitle",
-            "text": "测试: test_camera_center_cave | 功能: 洞穴相机 y | 触发: biome自动",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 60, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_camera_center_cave | 功能: 洞穴相机 y | 触发: biome自动"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -46,28 +67,70 @@
           {
             "start_time": 0,
             "duration": 60,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "x": 0, "y": 20, "z": 0 },
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 60,
-                "position": { "x": 0, "y": 20, "z": 0 },
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 60.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 20.0
+                  },
+                  {
+                    "time": 60.0,
+                    "value": 20.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 60.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "absolute"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       },
@@ -77,14 +140,51 @@
           {
             "start_time": 0,
             "duration": 60,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0, "event_type": "command", "command": "time set midnight && gamerule doMobSpawning true && difficulty normal && kill @e[type=!player]" },
-              { "time": 5, "event_type": "command", "command": "say [相机中心] 洞穴：相机固定 (0,20,0)，玩家在地表；需普通世界" },
-              { "time": 20, "event_type": "command", "command": "say [相机中心] 20s：state 行 anchorY 应≈20，且与 cam.y 一致" },
-              { "time": 40, "event_type": "command", "command": "say [相机中心] 40s：洞穴刷怪点应通过 24/128 格判定，spawned 应>0" },
-              { "time": 60, "event_type": "command", "command": "say [相机中心] 结束：验收 anchorY≈20 且 spawned>0" }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "time set midnight && gamerule doMobSpawning true && difficulty normal && kill @e[type=!player]"
+                    }
+                  },
+                  {
+                    "time": 5.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [相机中心] 洞穴：相机固定 (0,20,0)，玩家在地表；需普通世界"
+                    }
+                  },
+                  {
+                    "time": 20.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [相机中心] 20s：state 行 anchorY 应≈20，且与 cam.y 一致"
+                    }
+                  },
+                  {
+                    "time": 40.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [相机中心] 40s：洞穴刷怪点应通过 24/128 格判定，spawned 应>0"
+                    }
+                  },
+                  {
+                    "time": 60.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [相机中心] 结束：验收 anchorY≈20 且 spawned>0"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       }

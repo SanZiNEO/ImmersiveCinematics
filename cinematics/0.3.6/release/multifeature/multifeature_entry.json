@@ -3,7 +3,6 @@
     "id": "multifeature_entry",
     "name": "多功能并行展示 · 入口（导演实例）",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "0.3.6 多功能一次性展示的入口/导演实例：本身没有 CAMERA 轨（不产生画面 lane），一次性把 0.3.6 的多种能力放在同一条时间线上——① EVENT 轨拉起 3 个画面实例（multifeature:multifeature_left / _right / _pip，需权限 2，命令失败静默）；② LETTERBOX 轨开场拉开 / 收尾合上 2.35 宽银幕；③ OVERLAY 字幕轨三段说明；④ AUDIO 轨三段原版音效（无外部资源依赖）；⑤ ADJUST 轨 master 调色关键帧动画（暖 → 绿 → 灰 → 冷 → 品红，作用于整屏）。macro_loop 2 圈 × 30s，播完自动结束。触发：入口默认由 quadrant_demo 播放完成后自动接续（any + script_completed 前置链，无需权限）；单独安装本组时用 /icinematics play multifeature:multifeature_entry 手动播放（脚本放在 <游戏目录>/immersive_cinematics/scripts/multifeature/ 下时命令 id 才是 multifeature:xxx；平铺复制则用 /icinematics play multifeature_entry）。",
     "triggers": [
       {
@@ -13,7 +12,12 @@
         "delay": 0.0,
         "conditions": {
           "list": [
-            { "type": "script_completed", "conditions": { "script": "quadrant_demo" } }
+            {
+              "type": "script_completed",
+              "conditions": {
+                "script": "quadrant_demo"
+              }
+            }
           ]
         }
       }
@@ -37,7 +41,6 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 30.0,
     "loop_start": 0.0,
     "loop_end": 30.0,
     "tracks": [
@@ -48,26 +51,44 @@
           {
             "start_time": 0.0,
             "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0.0,
-                "event_type": "command",
-                "command": "icinematics play multifeature:multifeature_left && icinematics play multifeature:multifeature_right"
+            "id": "c1_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "icinematics play multifeature:multifeature_left && icinematics play multifeature:multifeature_right"
+                    }
+                  }
+                ]
               }
-            ]
+            }
           },
           {
             "start_time": 2.0,
             "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0.0,
-                "event_type": "command",
-                "command": "icinematics play multifeature:multifeature_pip"
+            "id": "c1_2",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "icinematics play multifeature:multifeature_pip"
+                    }
+                  }
+                ]
               }
-            ]
+            }
           }
         ]
       },
@@ -78,12 +99,29 @@
           {
             "start_time": 0.0,
             "duration": 30.0,
-            "keyframes": [
-              { "time": 0.0,  "aspect_ratio": 0.0 },
-              { "time": 1.5,  "aspect_ratio": 2.35 },
-              { "time": 28.5, "aspect_ratio": 2.35 },
-              { "time": 30.0, "aspect_ratio": 0.0 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "aspect_ratio": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 1.5,
+                    "value": 2.35
+                  },
+                  {
+                    "time": 28.5,
+                    "value": 2.35
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -94,15 +132,203 @@
           {
             "start_time": 0.0,
             "duration": 30.0,
-            "keyframes": [
-              { "time": 0.0,  "exposure": 0.0,  "contrast": 0.0,  "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.0,  "vibrance": 0.0,  "temperature": 0.0,  "tint": 0.0,  "grayscale": 0.0, "invert": 0.0 },
-              { "time": 5.0,  "exposure": 0.3,  "contrast": 0.0,  "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.4,  "vibrance": 0.0,  "temperature": 0.9,  "tint": 0.0,  "grayscale": 0.0, "invert": 0.0 },
-              { "time": 10.0, "exposure": 0.0,  "contrast": 0.3,  "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.0,  "vibrance": 0.5,  "temperature": 0.3,  "tint": -0.8, "grayscale": 0.0, "invert": 0.0 },
-              { "time": 15.0, "exposure": -0.3, "contrast": 0.0,  "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": -1.0, "vibrance": 0.0,  "temperature": 0.0,  "tint": 0.0,  "grayscale": 0.0, "invert": 0.0 },
-              { "time": 20.0, "exposure": 0.0,  "contrast": -0.3, "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.0,  "vibrance": -0.5, "temperature": -0.9, "tint": 0.0,  "grayscale": 0.0, "invert": 0.0 },
-              { "time": 25.0, "exposure": 0.3,  "contrast": 0.0,  "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.4,  "vibrance": 0.0,  "temperature": -0.3, "tint": 0.8,  "grayscale": 0.0, "invert": 0.0 },
-              { "time": 30.0, "exposure": 0.0,  "contrast": 0.0,  "highlights": 0.0, "shadows": 0.0, "whites": 0.0, "blacks": 0.0, "saturation": 0.0,  "vibrance": 0.0,  "temperature": 0.0,  "tint": 0.0,  "grayscale": 0.0, "invert": 0.0 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "exposure": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.3
+                  },
+                  {
+                    "time": 15.0,
+                    "value": -0.3
+                  },
+                  {
+                    "time": 25.0,
+                    "value": 0.3
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "contrast": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.3
+                  },
+                  {
+                    "time": 20.0,
+                    "value": -0.3
+                  },
+                  {
+                    "time": 25.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "highlights": {
+                "value": 0.0
+              },
+              "shadows": {
+                "value": 0.0
+              },
+              "whites": {
+                "value": 0.0
+              },
+              "blacks": {
+                "value": 0.0
+              },
+              "saturation": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.4
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 25.0,
+                    "value": 0.4
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "vibrance": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.5
+                  },
+                  {
+                    "time": 20.0,
+                    "value": -0.5
+                  },
+                  {
+                    "time": 25.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "temperature": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.9
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.3
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": -0.9
+                  },
+                  {
+                    "time": 25.0,
+                    "value": -0.3
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "tint": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": -0.8
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 25.0,
+                    "value": 0.8
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "grayscale": {
+                "value": 0.0
+              },
+              "invert": {
+                "value": 0.0
+              }
+            }
           }
         ]
       },
@@ -113,41 +339,173 @@
           {
             "start_time": 0.0,
             "duration": 5.5,
-            "layer_type": "subtitle",
-            "text": "多功能并行展示 · 0.3.6\n分屏 + 小窗 + 字幕 + 宽银幕 + 调色 + 音频 + 循环",
-            "z_index": 30,
-            "keyframes": [
-              { "time": 0.0, "x": 0.5, "y": 0.40, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.0, "opacity": 0.0 },
-              { "time": 0.6, "x": 0.5, "y": 0.40, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.0, "opacity": 1.0 },
-              { "time": 4.7, "x": 0.5, "y": 0.40, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.0, "opacity": 1.0 },
-              { "time": 5.5, "x": 0.5, "y": 0.40, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.0, "opacity": 0.0 }
-            ]
+            "id": "c4_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "多功能并行展示 · 0.3.6\n分屏 + 小窗 + 字幕 + 宽银幕 + 调色 + 音频 + 循环"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.4
+              },
+              "anchor_x": {
+                "value": 0.5
+              },
+              "anchor_y": {
+                "value": 0.5
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.0
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.5,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           },
           {
             "start_time": 7.0,
             "duration": 5.5,
-            "layer_type": "subtitle",
-            "text": "同一时刻 3 个画面实例：左半屏 / 右半屏 / 右上小窗（小窗晚 2s 起，叠在右半屏之上）",
-            "z_index": 30,
-            "keyframes": [
-              { "time": 0.0, "x": 0.5, "y": 0.84, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 0.0 },
-              { "time": 0.6, "x": 0.5, "y": 0.84, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 1.0 },
-              { "time": 4.7, "x": 0.5, "y": 0.84, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 1.0 },
-              { "time": 5.5, "x": 0.5, "y": 0.84, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 0.0 }
-            ]
+            "id": "c4_2",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "同一时刻 3 个画面实例：左半屏 / 右半屏 / 右上小窗（小窗晚 2s 起，叠在右半屏之上）"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.84
+              },
+              "anchor_x": {
+                "value": 0.5
+              },
+              "anchor_y": {
+                "value": 0.5
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 1.4
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.5,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           },
           {
             "start_time": 13.0,
             "duration": 6.5,
-            "layer_type": "subtitle",
-            "text": "左半屏此刻：两段 CAMERA clip 时间重叠 + opacity 交叉 = 叠化（hold 冻结帧）\nADJUST master 关键帧：暖 → 绿 → 灰 → 冷 → 品红",
-            "z_index": 30,
-            "keyframes": [
-              { "time": 0.0, "x": 0.5, "y": 0.16, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 0.0 },
-              { "time": 0.6, "x": 0.5, "y": 0.16, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 1.0 },
-              { "time": 5.7, "x": 0.5, "y": 0.16, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 1.0 },
-              { "time": 6.5, "x": 0.5, "y": 0.16, "anchor_x": 0.5, "anchor_y": 0.5, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.4, "opacity": 0.0 }
-            ]
+            "id": "c4_3",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "左半屏此刻：两段 CAMERA clip 时间重叠 + opacity 交叉 = 叠化（hold 冻结帧）\nADJUST master 关键帧：暖 → 绿 → 灰 → 冷 → 品红"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.16
+              },
+              "anchor_x": {
+                "value": 0.5
+              },
+              "anchor_y": {
+                "value": 0.5
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 1.4
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 6.5,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -158,53 +516,140 @@
           {
             "start_time": 0.0,
             "duration": 5.0,
-            "sound": "minecraft:block.beacon.activate",
-            "source": "minecraft",
-            "category": "ambient",
-            "volume": 0.8,
-            "pitch": 1.0,
-            "loop": false,
-            "fade_in": 0.3,
-            "fade_out": 1.5,
-            "position_mode": "relative",
-            "attenuation": "none",
-            "keyframes": [
-              { "time": 0.0, "volume": 0.8, "x": 0.0, "y": 0.0, "z": 0.0 }
-            ]
+            "id": "c5_1",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "minecraft:block.beacon.activate"
+              },
+              "source": {
+                "value": "minecraft"
+              },
+              "category": {
+                "value": "ambient"
+              },
+              "volume": {
+                "value": 0.8
+              },
+              "pitch": {
+                "value": 1.0
+              },
+              "fade_in": {
+                "value": 0.3
+              },
+              "fade_out": {
+                "value": 1.5
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "attenuation": {
+                "value": "none"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 14.0,
             "duration": 6.0,
-            "sound": "minecraft:item.trident.thunder",
-            "source": "minecraft",
-            "category": "ambient",
-            "volume": 0.5,
-            "pitch": 1.0,
-            "loop": false,
-            "fade_in": 0.1,
-            "fade_out": 2.5,
-            "position_mode": "relative",
-            "attenuation": "none",
-            "keyframes": [
-              { "time": 0.0, "volume": 0.5, "x": 0.0, "y": 0.0, "z": 0.0 }
-            ]
+            "id": "c5_2",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "minecraft:item.trident.thunder"
+              },
+              "source": {
+                "value": "minecraft"
+              },
+              "category": {
+                "value": "ambient"
+              },
+              "volume": {
+                "value": 0.5
+              },
+              "pitch": {
+                "value": 1.0
+              },
+              "fade_in": {
+                "value": 0.1
+              },
+              "fade_out": {
+                "value": 2.5
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "attenuation": {
+                "value": "none"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 26.0,
             "duration": 4.0,
-            "sound": "minecraft:entity.player.levelup",
-            "source": "minecraft",
-            "category": "ambient",
-            "volume": 0.6,
-            "pitch": 1.0,
-            "loop": false,
-            "fade_in": 0.0,
-            "fade_out": 1.5,
-            "position_mode": "relative",
-            "attenuation": "none",
-            "keyframes": [
-              { "time": 0.0, "volume": 0.6, "x": 0.0, "y": 0.0, "z": 0.0 }
-            ]
+            "id": "c5_3",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "minecraft:entity.player.levelup"
+              },
+              "source": {
+                "value": "minecraft"
+              },
+              "category": {
+                "value": "ambient"
+              },
+              "volume": {
+                "value": 0.6
+              },
+              "pitch": {
+                "value": 1.0
+              },
+              "fade_in": {
+                "value": 0.0
+              },
+              "fade_out": {
+                "value": 1.5
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "attenuation": {
+                "value": "none"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           }
         ]
       }

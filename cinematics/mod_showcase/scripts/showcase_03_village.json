@@ -3,7 +3,6 @@
     "id": "showcase_03_village",
     "name": "发现村庄",
     "author": "AI",
-    "version": 3,
     "description": "进入村庄触发：高空俯瞰结构注视，展示 look_at_target_structure 结构定位",
     "triggers": [
       {
@@ -33,7 +32,6 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 15.0,
     "tracks": [
       {
         "type": "CAMERA",
@@ -41,45 +39,109 @@
           {
             "start_time": 0,
             "duration": 15,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": 0, "dy": 2, "dz": 0 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "coordinate",
-                "look_at_selector": "@p",
-                "look_at_target_x": 0,
-                "look_at_target_y": 80,
-                "look_at_target_z": 0,
-                "look_at_target_structure": "minecraft:village_plains",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 75,
-                "zoom": 1.0
+            "id": "c1_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 15,
-                "position": { "dx": 20, "dy": 15, "dz": 20 },
-                "facing_origin": "minecraft:village_plains",
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "coordinate",
-                "look_at_selector": "@p",
-                "look_at_target_x": 0,
-                "look_at_target_y": 80,
-                "look_at_target_z": 0,
-                "look_at_target_structure": "minecraft:village_plains",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 80,
-                "zoom": 1.0
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 20.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 15.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 20.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "position_origin": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": ""
+                  },
+                  {
+                    "time": 15.0,
+                    "value": "minecraft:village_plains"
+                  }
+                ]
+              },
+              "look_at": {
+                "value": "coordinate"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "look_at_target_x": {
+                "value": 0.0
+              },
+              "look_at_target_y": {
+                "value": 80.0
+              },
+              "look_at_target_z": {
+                "value": 0.0
+              },
+              "look_at_target_structure": {
+                "value": "minecraft:village_plains"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 75.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 80.0
+                  }
+                ]
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       },
@@ -89,19 +151,30 @@
           {
             "start_time": 12.0,
             "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0,
-                "event_type": "command",
-                "command": "give @p minecraft:bell 1"
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
               },
-              {
-                "time": 0.01,
-                "event_type": "command",
-                "command": "tellraw @p {\"text\":\"快去和村民交流吧！我已给了你一个钟：如果村庄里没有钟，你可以自己放一个敲\",\"color\":\"yellow\"}"
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "give @p minecraft:bell 1"
+                    }
+                  },
+                  {
+                    "time": 0.01,
+                    "value": {
+                      "event_type": "command",
+                      "command": "tellraw @p {\"text\":\"快去和村民交流吧！我已给了你一个钟：如果村庄里没有钟，你可以自己放一个敲\",\"color\":\"yellow\"}"
+                    }
+                  }
+                ]
               }
-            ]
+            }
           }
         ]
       },
@@ -112,32 +185,116 @@
           {
             "start_time": 0,
             "duration": 4,
-            "layer_type": "subtitle",
-            "text": "前方发现一座村庄",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "前方发现一座村庄"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 3.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 3.0
+              }
+            }
           },
           {
             "start_time": 11,
             "duration": 4,
-            "layer_type": "subtitle",
-            "text": "去和村民打个招呼吧",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c3_2",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "去和村民打个招呼吧"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 3.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           }
         ]
       },
@@ -147,28 +304,70 @@
           {
             "start_time": 0,
             "duration": 2.50,
-            "sound": "3_reverb_part1.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_1",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "3_reverb_part1.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 11,
             "duration": 2.45,
-            "sound": "3_reverb_part2.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_2",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "3_reverb_part2.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           }
         ]
       }

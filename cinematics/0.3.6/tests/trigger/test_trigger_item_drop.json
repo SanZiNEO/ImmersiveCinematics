@@ -3,9 +3,21 @@
     "id": "test_trigger_item_drop",
     "name": "触发器测试-item_drop",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "触发 item_drop 后显示文字提示",
-    "triggers": [ {"id":"trg_item_drop","type":"item_drop","repeatable":false,"delay":0,"requires":["test_trigger_item_craft"],"conditions":{"item":"minecraft:*"}} ],
+    "triggers": [
+      {
+        "id": "trg_item_drop",
+        "type": "item_drop",
+        "repeatable": false,
+        "delay": 0,
+        "requires": [
+          "test_trigger_item_craft"
+        ],
+        "conditions": {
+          "item": "minecraft:*"
+        }
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 6,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +37,27 @@
           {
             "start_time": 0,
             "duration": 6,
-            "layer_type": "subtitle",
-            "text": "测试: test_trigger_item_drop | 功能: item_drop | 触发: item_drop",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 6, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_trigger_item_drop | 功能: item_drop | 触发: item_drop"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -44,10 +67,23 @@
           {
             "start_time": 0,
             "duration": 6,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0, "event_type": "command", "command": "give @p minecraft:snowball 1 && say [下一步] 右键扔出雪球，触发 test_trigger_item_instant_use" }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "give @p minecraft:snowball 1 && say [下一步] 右键扔出雪球，触发 test_trigger_item_instant_use"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       }

@@ -3,9 +3,21 @@
     "id": "test_fade_white",
     "name": "转场测试-白场",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "白场转场（D3 显式 z 序）：转场 fade 两段 color=#FFFFFF、z_index=1000（显式）；说明字幕 4 段 z_index=100（显式）；对照用普通 fade 不写 z_index（默认 10）。转场 fade 与普通 fade 分属独立 OVERLAY 轨（同轨 findActiveClip 只消费首个活跃 clip，重叠会遮蔽后者）。0-2s 压场，2-4s 全遮 hold，4-6s 亮起，6-8s 转场 fade=0（普通 fade 4-6s 升到 0.5、6-8s 在 z10 hold 0.5）；4s 处 A→B 相机硬切完全发生在全白之下，8s 自然结束。采样：t=1.0 中心 (0.5,0.5) = 约 50% 白 + 50% 画面（压场）；t=3.0 中心 = 纯白 #FFFFFF（全遮 hold，字幕被 z1000 完全盖住）；t=5.0 中心 = 约 50% 白（亮起；其下 z10 普通 fade 此时 0.25）；t=7.0 转场 fade=0，普通 fade（z10）以 #808080 / opacity 0.5 压暗画面，字幕 z100 仍在普通 fade 之上可读（对照）。",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_fade_black"] } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_fade_black"
+        ]
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 8,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,46 +37,102 @@
           {
             "start_time": 0,
             "duration": 2,
-            "layer_type": "subtitle",
-            "text": "压场 0-2s：z1000 白场 0→1（字幕 z100 被盖）",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
-              { "time": 2, "x": 0.5, "y": 0.18, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "压场 0-2s：z1000 白场 0→1（字幕 z100 被盖）"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.18
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 2,
             "duration": 2,
-            "layer_type": "subtitle",
-            "text": "全遮 2-4s：z1000 = 1（纯白，字幕不可见）",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
-              { "time": 2, "x": 0.5, "y": 0.18, "opacity": 1 }
-            ]
+            "id": "c1_2",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "全遮 2-4s：z1000 = 1（纯白，字幕不可见）"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.18
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 4,
             "duration": 2,
-            "layer_type": "subtitle",
-            "text": "亮起 4-6s：z1000 白场 1→0（A→B 切镜在全遮下完成）",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
-              { "time": 2, "x": 0.5, "y": 0.18, "opacity": 1 }
-            ]
+            "id": "c1_3",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "亮起 4-6s：z1000 白场 1→0（A→B 切镜在全遮下完成）"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.18
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 6,
             "duration": 2,
-            "layer_type": "subtitle",
-            "text": "对照 6-8s：普通 fade 默认 z10 在字幕 z100 之下（字幕仍可读）",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
-              { "time": 2, "x": 0.5, "y": 0.18, "opacity": 1 }
-            ]
+            "id": "c1_4",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "对照 6-8s：普通 fade 默认 z10 在字幕 z100 之下（字幕仍可读）"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.18
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -75,46 +142,156 @@
           {
             "start_time": 0,
             "duration": 4,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": 0, "dy": 2, "dz": -6 },
-                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 1,
-                "temperature": -0.7, "saturation": 0.15
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 4,
-                "position": { "dx": 0, "dy": 2, "dz": -6 },
-                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 1,
-                "temperature": -0.7, "saturation": 0.15
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 2.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -6.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -6.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 10.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "value": 1.0
+              },
+              "temperature": {
+                "value": -0.7
+              },
+              "saturation": {
+                "value": 0.15
               }
-            ]
+            }
           },
           {
             "start_time": 4,
             "duration": 4,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": 6, "dy": 2, "dz": 0 },
-                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 1,
-                "temperature": 0.8, "saturation": 0.15
+            "id": "c2_2",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 4,
-                "position": { "dx": 6, "dy": 2, "dz": 0 },
-                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 1,
-                "temperature": 0.8, "saturation": 0.15
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 6.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 6.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 2.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 90.0
+              },
+              "pitch": {
+                "value": 10.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "value": 1.0
+              },
+              "temperature": {
+                "value": 0.8
+              },
+              "saturation": {
+                "value": 0.15
               }
-            ]
+            }
           }
         ]
       },
@@ -124,26 +301,66 @@
           {
             "start_time": 0,
             "duration": 4,
-            "layer_type": "fade",
-            "color": "#FFFFFF",
-            "z_index": 1000,
-            "keyframes": [
-              { "time": 0, "opacity": 0 },
-              { "time": 2, "opacity": 1 },
-              { "time": 4, "opacity": 1 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "layer_type": {
+                "value": "fade"
+              },
+              "color": {
+                "value": "#FFFFFF"
+              },
+              "z_index": {
+                "value": 1000
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 1.0
+                  }
+                ]
+              }
+            }
           },
           {
             "start_time": 4,
             "duration": 4,
-            "layer_type": "fade",
-            "color": "#FFFFFF",
-            "z_index": 1000,
-            "keyframes": [
-              { "time": 0, "opacity": 1 },
-              { "time": 2, "opacity": 0 },
-              { "time": 4, "opacity": 0 }
-            ]
+            "id": "c3_2",
+            "objects": {
+              "layer_type": {
+                "value": "fade"
+              },
+              "color": {
+                "value": "#FFFFFF"
+              },
+              "z_index": {
+                "value": 1000
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -153,13 +370,31 @@
           {
             "start_time": 4,
             "duration": 4,
-            "layer_type": "fade",
-            "color": "#808080",
-            "keyframes": [
-              { "time": 0, "opacity": 0 },
-              { "time": 2, "opacity": 0.5 },
-              { "time": 4, "opacity": 0.5 }
-            ]
+            "id": "c4_1",
+            "objects": {
+              "layer_type": {
+                "value": "fade"
+              },
+              "color": {
+                "value": "#808080"
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.5
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.5
+                  }
+                ]
+              }
+            }
           }
         ]
       }

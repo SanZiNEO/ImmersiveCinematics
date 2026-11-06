@@ -3,9 +3,30 @@
     "id": "test_trigger_location",
     "name": "触发器测试-location",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "触发 location 后显示文字提示",
-    "triggers": [ {"id":"trg_location","type":"location","repeatable":false,"delay":0,"requires":["test_trigger_item_use_interrupt"],"conditions":{"corner1":{"x":-50,"y":-64,"z":-50},"corner2":{"x":50,"y":320,"z":50}}} ],
+    "triggers": [
+      {
+        "id": "trg_location",
+        "type": "location",
+        "repeatable": false,
+        "delay": 0,
+        "requires": [
+          "test_trigger_item_use_interrupt"
+        ],
+        "conditions": {
+          "corner1": {
+            "x": -50,
+            "y": -64,
+            "z": -50
+          },
+          "corner2": {
+            "x": 50,
+            "y": 320,
+            "z": 50
+          }
+        }
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +39,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 6,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +46,27 @@
           {
             "start_time": 0,
             "duration": 6,
-            "layer_type": "subtitle",
-            "text": "测试: test_trigger_location | 功能: location | 触发: location",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 6, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_trigger_location | 功能: location | 触发: location"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -44,10 +76,23 @@
           {
             "start_time": 0,
             "duration": 6,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0, "event_type": "command", "command": "summon minecraft:sheep ~ ~ ~ && say [下一步] 观察羊，触发 test_trigger_observation" }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:sheep ~ ~ ~ && say [下一步] 观察羊，触发 test_trigger_observation"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       }

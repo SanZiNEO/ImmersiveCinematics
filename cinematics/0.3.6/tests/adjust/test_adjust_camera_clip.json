@@ -3,9 +3,18 @@
     "id": "test_adjust_camera_clip",
     "name": "调色测试-相机片段级调色",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "相机片段级调色：3 条 CAMERA 轨（左半屏 red 0→-1→0、右半屏 blue 0→-1→0、中央对照轨不写任何调色字段），调色直接写在相机片段的关键帧上，与 dest/opacity 同层；缺省 0 = 无效果",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        }
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +27,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 8,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +34,27 @@
           {
             "start_time": 0,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "测试: test_adjust_camera_clip | 左半屏 red 0→-1 | 右半屏 blue 0→-1 | 中央轨无调色字段",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_adjust_camera_clip | 左半屏 red 0→-1 | 右半屏 blue 0→-1 | 中央轨无调色字段"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -44,13 +64,119 @@
           {
             "start_time": 0,
             "duration": 8,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 1 }, "red": 0 },
-              { "time": 4, "position": { "dx": 2, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 1 }, "red": -1 },
-              { "time": 8, "position": { "dx": 4, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0, "y": 0, "w": 0.5, "h": 1 }, "red": 0 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 4.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": -8.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "value": 1.0
+              },
+              "dest.x": {
+                "value": 0.0
+              },
+              "dest.y": {
+                "value": 0.0
+              },
+              "dest.w": {
+                "value": 0.5
+              },
+              "dest.h": {
+                "value": 1.0
+              },
+              "red": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -60,13 +186,119 @@
           {
             "start_time": 0,
             "duration": 8,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 180, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 1 }, "blue": 0 },
-              { "time": 4, "position": { "dx": -2, "dy": 3, "dz": 8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 180, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 1 }, "blue": -1 },
-              { "time": 8, "position": { "dx": 0, "dy": 3, "dz": 8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 180, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 1 }, "blue": 0 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -2.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 8.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 8.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 8.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 180.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "value": 1.0
+              },
+              "dest.x": {
+                "value": 0.5
+              },
+              "dest.y": {
+                "value": 0.0
+              },
+              "dest.w": {
+                "value": 0.5
+              },
+              "dest.h": {
+                "value": 1.0
+              },
+              "blue": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -76,12 +308,91 @@
           {
             "start_time": 0,
             "duration": 8,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 8, "dy": 3, "dz": 0 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.25, "y": 0.25, "w": 0.5, "h": 0.5 } },
-              { "time": 8, "position": { "dx": 8, "dy": 3, "dz": -4 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1, "dest": { "x": 0.25, "y": 0.25, "w": 0.5, "h": 0.5 } }
-            ]
+            "id": "c4_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 8.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 8.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": -4.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 90.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "value": 1.0
+              },
+              "dest.x": {
+                "value": 0.25
+              },
+              "dest.y": {
+                "value": 0.25
+              },
+              "dest.w": {
+                "value": 0.5
+              },
+              "dest.h": {
+                "value": 0.5
+              }
+            }
           }
         ]
       }

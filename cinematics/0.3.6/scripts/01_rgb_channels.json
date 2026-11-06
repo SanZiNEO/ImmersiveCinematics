@@ -3,9 +3,16 @@
     "id": "showcase_rgb_channels",
     "name": "调色展示 01 · R/G/B 通道系数",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "一个功能一个脚本：R/G/B 通道系数（乘性，关键帧字段，缺省 0 = 无效果）。① R=-0.5 红通道减半；② R=-1 红通道归零（只剩 G+B）；③ G=-0.5 绿通道减半；④ B=+1 蓝通道双倍；⑤ 只留 R 通道（red=+1、green=-1、blue=-1）；⑥ 全部写回 0 → 画面逐位还原（证明全 0 = 恒等）。每段内参数 0 → 目标 → 0 渐入渐出，段间自然回到无调整；调色只写在 ADJUST 轨（master，作用于合成后整屏画面），只动 RGB、alpha 直通，透明度不在这里表达（走合成参数 opacity）。登录自动播放一次（login 触发 + repeatable=false）。",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {}
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +25,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 36,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -27,80 +33,152 @@
           {
             "start_time": 0,
             "duration": 6,
-            "layer_type": "subtitle",
-            "text": "① R/G/B 通道系数 | red = -0.5：红通道减半（画面偏青绿）",
-            "x": 0.5,
-            "y": 0.88,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 6, "x": 0.5, "y": 0.88, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "① R/G/B 通道系数 | red = -0.5：红通道减半（画面偏青绿）"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.88
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 6,
             "duration": 6,
-            "layer_type": "subtitle",
-            "text": "① R/G/B 通道系数 | red = -1：红通道归零，画面只剩 G+B",
-            "x": 0.5,
-            "y": 0.88,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 6, "x": 0.5, "y": 0.88, "opacity": 1 }
-            ]
+            "id": "c1_2",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "① R/G/B 通道系数 | red = -1：红通道归零，画面只剩 G+B"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.88
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 12,
             "duration": 6,
-            "layer_type": "subtitle",
-            "text": "① R/G/B 通道系数 | green = -0.5：绿通道减半（画面偏品红）",
-            "x": 0.5,
-            "y": 0.88,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 6, "x": 0.5, "y": 0.88, "opacity": 1 }
-            ]
+            "id": "c1_3",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "① R/G/B 通道系数 | green = -0.5：绿通道减半（画面偏品红）"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.88
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 18,
             "duration": 6,
-            "layer_type": "subtitle",
-            "text": "① R/G/B 通道系数 | blue = +1：蓝通道双倍（画面偏蓝）",
-            "x": 0.5,
-            "y": 0.88,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 6, "x": 0.5, "y": 0.88, "opacity": 1 }
-            ]
+            "id": "c1_4",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "① R/G/B 通道系数 | blue = +1：蓝通道双倍（画面偏蓝）"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.88
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 24,
             "duration": 9,
-            "layer_type": "subtitle",
-            "text": "① R/G/B 通道系数 | 只留 R：red = +1（双倍）、green = -1 与 blue = -1（各自归零）",
-            "x": 0.5,
-            "y": 0.88,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 9, "x": 0.5, "y": 0.88, "opacity": 1 }
-            ]
+            "id": "c1_5",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "① R/G/B 通道系数 | 只留 R：red = +1（双倍）、green = -1 与 blue = -1（各自归零）"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.88
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 33,
             "duration": 3,
-            "layer_type": "subtitle",
-            "text": "① R/G/B 通道系数 | 全部归零：red = green = blue = 0 → 画面逐位还原（全 0 = 恒等）",
-            "x": 0.5,
-            "y": 0.88,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 3, "x": 0.5, "y": 0.88, "opacity": 1 }
-            ]
+            "id": "c1_6",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "① R/G/B 通道系数 | 全部归零：red = green = blue = 0 → 画面逐位还原（全 0 = 恒等）"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.88
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -111,15 +189,133 @@
           {
             "start_time": 0,
             "duration": 36,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 9, "position": { "dx": 3, "dy": 3.6, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 18, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 4, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 27, "position": { "dx": -3, "dy": 3.6, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 2, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 36, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 9.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 18.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 27.0,
+                    "value": -3.0
+                  },
+                  {
+                    "time": 36.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 9.0,
+                    "value": 3.6
+                  },
+                  {
+                    "time": 18.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 27.0,
+                    "value": 3.6
+                  },
+                  {
+                    "time": 36.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 9.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 18.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 27.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 36.0,
+                    "value": -8.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 9.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 18.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 27.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 36.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -130,25 +326,141 @@
           {
             "start_time": 0,
             "duration": 36,
-            "keyframes": [
-              { "time": 0,    "red": 0,    "green": 0,    "blue": 0 },
-              { "time": 1.5,  "red": -0.5, "green": 0,    "blue": 0 },
-              { "time": 4.5,  "red": -0.5, "green": 0,    "blue": 0 },
-              { "time": 6,    "red": 0,    "green": 0,    "blue": 0 },
-              { "time": 7.5,  "red": -1,   "green": 0,    "blue": 0 },
-              { "time": 10.5, "red": -1,   "green": 0,    "blue": 0 },
-              { "time": 12,   "red": 0,    "green": 0,    "blue": 0 },
-              { "time": 13.5, "red": 0,    "green": -0.5, "blue": 0 },
-              { "time": 16.5, "red": 0,    "green": -0.5, "blue": 0 },
-              { "time": 18,   "red": 0,    "green": 0,    "blue": 0 },
-              { "time": 19.5, "red": 0,    "green": 0,    "blue": 1 },
-              { "time": 22.5, "red": 0,    "green": 0,    "blue": 1 },
-              { "time": 24,   "red": 0,    "green": 0,    "blue": 0 },
-              { "time": 25.5, "red": 1,    "green": -1,   "blue": -1 },
-              { "time": 31.5, "red": 1,    "green": -1,   "blue": -1 },
-              { "time": 33,   "red": 0,    "green": 0,    "blue": 0 },
-              { "time": 36,   "red": 0,    "green": 0,    "blue": 0 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "red": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 1.5,
+                    "value": -0.5
+                  },
+                  {
+                    "time": 4.5,
+                    "value": -0.5
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 7.5,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 10.5,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 24.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 25.5,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 31.5,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 33.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 36.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "green": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 13.5,
+                    "value": -0.5
+                  },
+                  {
+                    "time": 16.5,
+                    "value": -0.5
+                  },
+                  {
+                    "time": 18.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 24.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 25.5,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 31.5,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 33.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 36.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "blue": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 18.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 19.5,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 22.5,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 25.5,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 31.5,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 33.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 36.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           }
         ]
       }

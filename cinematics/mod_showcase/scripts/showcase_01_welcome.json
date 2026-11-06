@@ -3,7 +3,6 @@
     "id": "showcase_welcome",
     "name": "欢迎使用模组",
     "author": "AI",
-    "version": 3,
     "description": "登录开场：欢迎字幕 + 模组介绍 + 召唤羊实战演示",
     "triggers": [
       {
@@ -30,7 +29,6 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 31.5,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -39,77 +37,287 @@
           {
             "start_time": 0,
             "duration": 5,
-            "layer_type": "subtitle",
-            "text": "欢迎使用Immersive Cinematics模组",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 5.0 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 5.0 },
-              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 5.0 },
-              { "time": 5.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 5.0 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "欢迎使用Immersive Cinematics模组"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 3.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 5.0
+              }
+            }
           },
           {
             "start_time": 5,
             "duration": 7,
-            "layer_type": "subtitle",
-            "text": "Immersive Cinematics 是一款 Minecraft 过场动画模组",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 6.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 7.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c1_2",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "Immersive Cinematics 是一款 Minecraft 过场动画模组"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 6.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 7.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           },
           {
             "start_time": 12,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "编写脚本，即可操控相机运镜、播放音频、添加字幕",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 7.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 8.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c1_3",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "编写脚本，即可操控相机运镜、播放音频、添加字幕"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 7.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           },
           {
             "start_time": 20,
             "duration": 6.5,
-            "layer_type": "subtitle",
-            "text": "脚本由触发器触发，满足条件即自动播放",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 5.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 6.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c1_4",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "脚本由触发器触发，满足条件即自动播放"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 6.5,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           },
           {
             "start_time": 26.5,
             "duration": 4.5,
-            "layer_type": "subtitle",
-            "text": "接下来击败一只羊试试",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.5 },
-              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.5 },
-              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.5 }
-            ]
+            "id": "c1_5",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "接下来击败一只羊试试"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 3.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.5,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 3.5
+              }
+            }
           }
         ]
       },
@@ -119,19 +327,30 @@
           {
             "start_time": 15.8,
             "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0,
-                "event_type": "command",
-                "command": "summon minecraft:sheep ~ ~4 ~"
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
               },
-              {
-                "time": 0.01,
-                "event_type": "command",
-                "command": "give @p minecraft:diamond_sword 1 && give @p minecraft:iron_helmet 1 && give @p minecraft:iron_chestplate 1 && give @p minecraft:iron_leggings 1 && give @p minecraft:iron_boots 1"
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:sheep ~ ~4 ~"
+                    }
+                  },
+                  {
+                    "time": 0.01,
+                    "value": {
+                      "event_type": "command",
+                      "command": "give @p minecraft:diamond_sword 1 && give @p minecraft:iron_helmet 1 && give @p minecraft:iron_chestplate 1 && give @p minecraft:iron_leggings 1 && give @p minecraft:iron_boots 1"
+                    }
+                  }
+                ]
               }
-            ]
+            }
           }
         ]
       },
@@ -142,15 +361,36 @@
           {
             "start_time": 0,
             "duration": 0.83,
-            "sound": "prompt_tone.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "prompt_tone.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           }
         ]
       },
@@ -160,67 +400,172 @@
           {
             "start_time": 0,
             "duration": 3.79,
-            "sound": "1_reverb_part1.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_1",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "1_reverb_part1.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 5,
             "duration": 5.28,
-            "sound": "1_reverb_part2.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_2",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "1_reverb_part2.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 12,
             "duration": 6.36,
-            "sound": "1_reverb_part3.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_3",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "1_reverb_part3.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 20,
             "duration": 4.99,
-            "sound": "1_reverb_part4.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_4",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "1_reverb_part4.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 26.5,
             "duration": 2.86,
-            "sound": "1_reverb_part5.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_5",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "1_reverb_part5.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           }
         ]
       }

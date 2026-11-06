@@ -3,9 +3,21 @@
     "id": "test_camera_modifier_multiply",
     "name": "相机测试-覆盖链MULTIPLY",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "合成模式 MULTIPLY：关键帧 fov 恒 70 → 合成后恒 105（70×1.5，缩放叠加）；yaw 不在掩码内，照常 0→90",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_modifier_add"] } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_camera_modifier_add"
+        ]
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 8,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +37,27 @@
           {
             "start_time": 0,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "测试: 覆盖链 MULTIPLY | 关键帧 fov 恒 70 × 1.5 = 105（恒定）| yaw 0→90 照常",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: 覆盖链 MULTIPLY | 关键帧 fov 恒 70 × 1.5 = 105（恒定）| yaw 0→90 照常"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -44,17 +67,88 @@
           {
             "start_time": 0,
             "duration": 8,
-            "transition": "cut",
             "loop": false,
-            "modifier": {
-              "channels": ["fov"],
-              "mode": "multiply",
-              "fov": 1.5
-            },
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 8, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 90, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "modifier": {
+                "value": {
+                  "channels": [
+                    "fov"
+                  ],
+                  "mode": "multiply",
+                  "fov": 1.5
+                }
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 90.0
+                  }
+                ]
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           }
         ]
       }

@@ -3,7 +3,6 @@
     "id": "showcase_04_bell",
     "name": "敲钟与铁傀儡",
     "author": "AI",
-    "version": 3,
     "description": "敲钟触发：镜头跟随玩家，注视铁傀儡，展示 follow 跟拍与实体注视",
     "triggers": [
       {
@@ -32,7 +31,6 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 15.0,
     "tracks": [
       {
         "type": "CAMERA",
@@ -40,38 +38,79 @@
           {
             "start_time": 0,
             "duration": 15,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": 0, "dy": 4, "dz": -6 },
-                "position_mode": "relative",
-                "follow": "entity",
-                "follow_selector": "@p",
-                "look_at": "entity",
-                "look_at_selector": "@e[type=minecraft:iron_golem]",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1.0
+            "id": "c1_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 15,
-                "position": { "dx": 0, "dy": 4, "dz": -6 },
-                "position_mode": "relative",
-                "follow": "entity",
-                "follow_selector": "@p",
-                "look_at": "entity",
-                "look_at_selector": "@e[type=minecraft:iron_golem]",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1.0
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 4.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -6.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": -6.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "position_origin": {
+                "value": "@p"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@e[type=minecraft:iron_golem]"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       },
@@ -81,14 +120,23 @@
           {
             "start_time": 13.0,
             "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0,
-                "event_type": "command",
-                "command": "give @p minecraft:poppy 1"
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "give @p minecraft:poppy 1"
+                    }
+                  }
+                ]
               }
-            ]
+            }
           }
         ]
       },
@@ -99,47 +147,173 @@
           {
             "start_time": 0,
             "duration": 4,
-            "layer_type": "subtitle",
-            "text": "村庄的钟声响了",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "村庄的钟声响了"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 3.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 3.0
+              }
+            }
           },
           {
             "start_time": 4,
             "duration": 4.5,
-            "layer_type": "subtitle",
-            "text": "铁傀儡正在巡视村庄",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c3_2",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "铁傀儡正在巡视村庄"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 3.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.5,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           },
           {
             "start_time": 8.5,
             "duration": 4.5,
-            "layer_type": "subtitle",
-            "text": "快去送一朵花给它吧",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
-            ]
+            "id": "c3_3",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "快去送一朵花给它吧"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 3.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.5,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 3.0
+              }
+            }
           }
         ]
       },
@@ -150,69 +324,492 @@
           {
             "start_time": 0,
             "duration": 12.8,
-            "layer_type": "subtitle",
-            "text": "作者做到一半，突然想起来之前的文本展示好像和游戏原版的提示重叠了，所以加一段这个文本轨道进来",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,    "x": 0.15, "y": 0.15, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 0.2375, "x": 0.1567, "y": 0.1485, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 0.475, "x": 0.1756, "y": 0.1443, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 0.7125, "x": 0.2052, "y": 0.1381, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 0.95, "x": 0.2439, "y": 0.1304, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 1.1875, "x": 0.2902, "y": 0.122, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 1.425, "x": 0.3425, "y": 0.1133, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 1.6625, "x": 0.3993, "y": 0.1051, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 1.9,  "x": 0.4588, "y": 0.0979, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 2.1375, "x": 0.5197, "y": 0.0923, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 2.375, "x": 0.5803, "y": 0.0889, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 2.6125, "x": 0.639, "y": 0.0884, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 2.85, "x": 0.6943, "y": 0.0913, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 3.0875, "x": 0.7446, "y": 0.0984, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 3.325, "x": 0.7884, "y": 0.1101, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 3.5625, "x": 0.824, "y": 0.1271, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 3.8,  "x": 0.85, "y": 0.15, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 4.0308, "x": 0.8711, "y": 0.1842, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 4.2615, "x": 0.8892, "y": 0.2284, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 4.4923, "x": 0.9043, "y": 0.2809, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 4.7231, "x": 0.9161, "y": 0.3398, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 4.9538, "x": 0.9245, "y": 0.4031, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 5.1846, "x": 0.9293, "y": 0.4692, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 5.4154, "x": 0.9304, "y": 0.536, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 5.6462, "x": 0.9276, "y": 0.6018, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 5.8769, "x": 0.9208, "y": 0.6646, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 6.1077, "x": 0.9098, "y": 0.7228, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 6.3385, "x": 0.8944, "y": 0.7743, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 6.5692, "x": 0.8745, "y": 0.8173, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 6.8,  "x": 0.85, "y": 0.85, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 7.0308, "x": 0.8172, "y": 0.8749, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 7.2615, "x": 0.7739, "y": 0.8956, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 7.4923, "x": 0.7219, "y": 0.9121, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 7.7231, "x": 0.6633, "y": 0.9246, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 7.9538, "x": 0.5999, "y": 0.9328, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 8.1846, "x": 0.5336, "y": 0.937, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 8.4154, "x": 0.4664, "y": 0.937, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 8.6462, "x": 0.4001, "y": 0.9328, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 8.8769, "x": 0.3367, "y": 0.9246, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 9.1077, "x": 0.2781, "y": 0.9121, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 9.3385, "x": 0.2261, "y": 0.8956, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 9.5692, "x": 0.1828, "y": 0.8749, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 9.8,  "x": 0.15, "y": 0.85, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 10.0308, "x": 0.1271, "y": 0.8153, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 10.2615, "x": 0.1114, "y": 0.7668, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 10.4923, "x": 0.1022, "y": 0.7076, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 10.7231, "x": 0.0984, "y": 0.6404, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 10.9538, "x": 0.099, "y": 0.568, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 11.1846, "x": 0.1032, "y": 0.4935, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 11.4154, "x": 0.1099, "y": 0.4195, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 11.6462, "x": 0.1181, "y": 0.3491, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 11.8769, "x": 0.1271, "y": 0.2851, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 12.1077, "x": 0.1357, "y": 0.2303, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 12.3385, "x": 0.143, "y": 0.1876, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 12.5692, "x": 0.1481, "y": 0.1599, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 12.8, "x": 0.15, "y": 0.15, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 }
-            ]
+            "id": "c4_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "作者做到一半，突然想起来之前的文本展示好像和游戏原版的提示重叠了，所以加一段这个文本轨道进来"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.15
+                  },
+                  {
+                    "time": 0.2375,
+                    "value": 0.1567
+                  },
+                  {
+                    "time": 0.475,
+                    "value": 0.1756
+                  },
+                  {
+                    "time": 0.7125,
+                    "value": 0.2052
+                  },
+                  {
+                    "time": 0.95,
+                    "value": 0.2439
+                  },
+                  {
+                    "time": 1.1875,
+                    "value": 0.2902
+                  },
+                  {
+                    "time": 1.425,
+                    "value": 0.3425
+                  },
+                  {
+                    "time": 1.6625,
+                    "value": 0.3993
+                  },
+                  {
+                    "time": 1.9,
+                    "value": 0.4588
+                  },
+                  {
+                    "time": 2.1375,
+                    "value": 0.5197
+                  },
+                  {
+                    "time": 2.375,
+                    "value": 0.5803
+                  },
+                  {
+                    "time": 2.6125,
+                    "value": 0.639
+                  },
+                  {
+                    "time": 2.85,
+                    "value": 0.6943
+                  },
+                  {
+                    "time": 3.0875,
+                    "value": 0.7446
+                  },
+                  {
+                    "time": 3.325,
+                    "value": 0.7884
+                  },
+                  {
+                    "time": 3.5625,
+                    "value": 0.824
+                  },
+                  {
+                    "time": 3.8,
+                    "value": 0.85
+                  },
+                  {
+                    "time": 4.0308,
+                    "value": 0.8711
+                  },
+                  {
+                    "time": 4.2615,
+                    "value": 0.8892
+                  },
+                  {
+                    "time": 4.4923,
+                    "value": 0.9043
+                  },
+                  {
+                    "time": 4.7231,
+                    "value": 0.9161
+                  },
+                  {
+                    "time": 4.9538,
+                    "value": 0.9245
+                  },
+                  {
+                    "time": 5.1846,
+                    "value": 0.9293
+                  },
+                  {
+                    "time": 5.4154,
+                    "value": 0.9304
+                  },
+                  {
+                    "time": 5.6462,
+                    "value": 0.9276
+                  },
+                  {
+                    "time": 5.8769,
+                    "value": 0.9208
+                  },
+                  {
+                    "time": 6.1077,
+                    "value": 0.9098
+                  },
+                  {
+                    "time": 6.3385,
+                    "value": 0.8944
+                  },
+                  {
+                    "time": 6.5692,
+                    "value": 0.8745
+                  },
+                  {
+                    "time": 6.8,
+                    "value": 0.85
+                  },
+                  {
+                    "time": 7.0308,
+                    "value": 0.8172
+                  },
+                  {
+                    "time": 7.2615,
+                    "value": 0.7739
+                  },
+                  {
+                    "time": 7.4923,
+                    "value": 0.7219
+                  },
+                  {
+                    "time": 7.7231,
+                    "value": 0.6633
+                  },
+                  {
+                    "time": 7.9538,
+                    "value": 0.5999
+                  },
+                  {
+                    "time": 8.1846,
+                    "value": 0.5336
+                  },
+                  {
+                    "time": 8.4154,
+                    "value": 0.4664
+                  },
+                  {
+                    "time": 8.6462,
+                    "value": 0.4001
+                  },
+                  {
+                    "time": 8.8769,
+                    "value": 0.3367
+                  },
+                  {
+                    "time": 9.1077,
+                    "value": 0.2781
+                  },
+                  {
+                    "time": 9.3385,
+                    "value": 0.2261
+                  },
+                  {
+                    "time": 9.5692,
+                    "value": 0.1828
+                  },
+                  {
+                    "time": 9.8,
+                    "value": 0.15
+                  },
+                  {
+                    "time": 10.0308,
+                    "value": 0.1271
+                  },
+                  {
+                    "time": 10.2615,
+                    "value": 0.1114
+                  },
+                  {
+                    "time": 10.4923,
+                    "value": 0.1022
+                  },
+                  {
+                    "time": 10.7231,
+                    "value": 0.0984
+                  },
+                  {
+                    "time": 10.9538,
+                    "value": 0.099
+                  },
+                  {
+                    "time": 11.1846,
+                    "value": 0.1032
+                  },
+                  {
+                    "time": 11.4154,
+                    "value": 0.1099
+                  },
+                  {
+                    "time": 11.6462,
+                    "value": 0.1181
+                  },
+                  {
+                    "time": 11.8769,
+                    "value": 0.1271
+                  },
+                  {
+                    "time": 12.1077,
+                    "value": 0.1357
+                  },
+                  {
+                    "time": 12.3385,
+                    "value": 0.143
+                  },
+                  {
+                    "time": 12.5692,
+                    "value": 0.1481
+                  },
+                  {
+                    "time": 12.8,
+                    "value": 0.15
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.15
+                  },
+                  {
+                    "time": 0.2375,
+                    "value": 0.1485
+                  },
+                  {
+                    "time": 0.475,
+                    "value": 0.1443
+                  },
+                  {
+                    "time": 0.7125,
+                    "value": 0.1381
+                  },
+                  {
+                    "time": 0.95,
+                    "value": 0.1304
+                  },
+                  {
+                    "time": 1.1875,
+                    "value": 0.122
+                  },
+                  {
+                    "time": 1.425,
+                    "value": 0.1133
+                  },
+                  {
+                    "time": 1.6625,
+                    "value": 0.1051
+                  },
+                  {
+                    "time": 1.9,
+                    "value": 0.0979
+                  },
+                  {
+                    "time": 2.1375,
+                    "value": 0.0923
+                  },
+                  {
+                    "time": 2.375,
+                    "value": 0.0889
+                  },
+                  {
+                    "time": 2.6125,
+                    "value": 0.0884
+                  },
+                  {
+                    "time": 2.85,
+                    "value": 0.0913
+                  },
+                  {
+                    "time": 3.0875,
+                    "value": 0.0984
+                  },
+                  {
+                    "time": 3.325,
+                    "value": 0.1101
+                  },
+                  {
+                    "time": 3.5625,
+                    "value": 0.1271
+                  },
+                  {
+                    "time": 3.8,
+                    "value": 0.15
+                  },
+                  {
+                    "time": 4.0308,
+                    "value": 0.1842
+                  },
+                  {
+                    "time": 4.2615,
+                    "value": 0.2284
+                  },
+                  {
+                    "time": 4.4923,
+                    "value": 0.2809
+                  },
+                  {
+                    "time": 4.7231,
+                    "value": 0.3398
+                  },
+                  {
+                    "time": 4.9538,
+                    "value": 0.4031
+                  },
+                  {
+                    "time": 5.1846,
+                    "value": 0.4692
+                  },
+                  {
+                    "time": 5.4154,
+                    "value": 0.536
+                  },
+                  {
+                    "time": 5.6462,
+                    "value": 0.6018
+                  },
+                  {
+                    "time": 5.8769,
+                    "value": 0.6646
+                  },
+                  {
+                    "time": 6.1077,
+                    "value": 0.7228
+                  },
+                  {
+                    "time": 6.3385,
+                    "value": 0.7743
+                  },
+                  {
+                    "time": 6.5692,
+                    "value": 0.8173
+                  },
+                  {
+                    "time": 6.8,
+                    "value": 0.85
+                  },
+                  {
+                    "time": 7.0308,
+                    "value": 0.8749
+                  },
+                  {
+                    "time": 7.2615,
+                    "value": 0.8956
+                  },
+                  {
+                    "time": 7.4923,
+                    "value": 0.9121
+                  },
+                  {
+                    "time": 7.7231,
+                    "value": 0.9246
+                  },
+                  {
+                    "time": 7.9538,
+                    "value": 0.9328
+                  },
+                  {
+                    "time": 8.1846,
+                    "value": 0.937
+                  },
+                  {
+                    "time": 8.4154,
+                    "value": 0.937
+                  },
+                  {
+                    "time": 8.6462,
+                    "value": 0.9328
+                  },
+                  {
+                    "time": 8.8769,
+                    "value": 0.9246
+                  },
+                  {
+                    "time": 9.1077,
+                    "value": 0.9121
+                  },
+                  {
+                    "time": 9.3385,
+                    "value": 0.8956
+                  },
+                  {
+                    "time": 9.5692,
+                    "value": 0.8749
+                  },
+                  {
+                    "time": 9.8,
+                    "value": 0.85
+                  },
+                  {
+                    "time": 10.0308,
+                    "value": 0.8153
+                  },
+                  {
+                    "time": 10.2615,
+                    "value": 0.7668
+                  },
+                  {
+                    "time": 10.4923,
+                    "value": 0.7076
+                  },
+                  {
+                    "time": 10.7231,
+                    "value": 0.6404
+                  },
+                  {
+                    "time": 10.9538,
+                    "value": 0.568
+                  },
+                  {
+                    "time": 11.1846,
+                    "value": 0.4935
+                  },
+                  {
+                    "time": 11.4154,
+                    "value": 0.4195
+                  },
+                  {
+                    "time": 11.6462,
+                    "value": 0.3491
+                  },
+                  {
+                    "time": 11.8769,
+                    "value": 0.2851
+                  },
+                  {
+                    "time": 12.1077,
+                    "value": 0.2303
+                  },
+                  {
+                    "time": 12.3385,
+                    "value": 0.1876
+                  },
+                  {
+                    "time": 12.5692,
+                    "value": 0.1599
+                  },
+                  {
+                    "time": 12.8,
+                    "value": 0.15
+                  }
+                ]
+              },
+              "opacity": {
+                "value": 1.0
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 1.8
+              }
+            }
           }
         ]
       },
@@ -223,69 +820,489 @@
           {
             "start_time": 0,
             "duration": 12.8,
-            "layer_type": "image",
-            "path": "test_image.png",
-            "z_index": 20,
-            "color": "#000000",
-            "text": "",
-            "keyframes": [
-              { "time": 0,    "x": 0.15, "y": 0.20, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 0.2375, "x": 0.1567, "y": 0.1985, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 0.475, "x": 0.1756, "y": 0.1943, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 0.7125, "x": 0.2052, "y": 0.1881, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 0.95, "x": 0.2439, "y": 0.1804, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 1.1875, "x": 0.2902, "y": 0.172, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 1.425, "x": 0.3425, "y": 0.1633, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 1.6625, "x": 0.3993, "y": 0.1551, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 1.9,  "x": 0.4588, "y": 0.1479, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 2.1375, "x": 0.5197, "y": 0.1423, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 2.375, "x": 0.5803, "y": 0.1389, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 2.6125, "x": 0.639, "y": 0.1384, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 2.85, "x": 0.6943, "y": 0.1413, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 3.0875, "x": 0.7446, "y": 0.1484, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 3.325, "x": 0.7884, "y": 0.1601, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 3.5625, "x": 0.824, "y": 0.1771, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 3.8,  "x": 0.85, "y": 0.2, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 4.0308, "x": 0.8711, "y": 0.2342, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 4.2615, "x": 0.8892, "y": 0.2784, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 4.4923, "x": 0.9043, "y": 0.3309, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 4.7231, "x": 0.9161, "y": 0.3898, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 4.9538, "x": 0.9245, "y": 0.4531, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 5.1846, "x": 0.9293, "y": 0.5192, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 5.4154, "x": 0.9304, "y": 0.586, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 5.6462, "x": 0.9276, "y": 0.6518, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 5.8769, "x": 0.9208, "y": 0.7146, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 6.1077, "x": 0.9098, "y": 0.7728, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 6.3385, "x": 0.8944, "y": 0.8243, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 6.5692, "x": 0.8745, "y": 0.8673, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 6.8,  "x": 0.85, "y": 0.9, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 7.0308, "x": 0.8172, "y": 0.9249, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 7.2615, "x": 0.7739, "y": 0.9456, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 7.4923, "x": 0.7219, "y": 0.9621, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 7.7231, "x": 0.6633, "y": 0.9746, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 7.9538, "x": 0.5999, "y": 0.9828, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 8.1846, "x": 0.5336, "y": 0.987, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 8.4154, "x": 0.4664, "y": 0.987, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 8.6462, "x": 0.4001, "y": 0.9828, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 8.8769, "x": 0.3367, "y": 0.9746, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 9.1077, "x": 0.2781, "y": 0.9621, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 9.3385, "x": 0.2261, "y": 0.9456, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 9.5692, "x": 0.1828, "y": 0.9249, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 9.8,  "x": 0.15, "y": 0.9, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 10.0308, "x": 0.1271, "y": 0.8653, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 10.2615, "x": 0.1114, "y": 0.8168, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 10.4923, "x": 0.1022, "y": 0.7576, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 10.7231, "x": 0.0984, "y": 0.6904, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 10.9538, "x": 0.099, "y": 0.618, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 11.1846, "x": 0.1032, "y": 0.5435, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 11.4154, "x": 0.1099, "y": 0.4695, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 11.6462, "x": 0.1181, "y": 0.3991, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 11.8769, "x": 0.1271, "y": 0.3351, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 12.1077, "x": 0.1357, "y": 0.2803, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 12.3385, "x": 0.143, "y": 0.2376, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 12.5692, "x": 0.1481, "y": 0.2099, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 },
-              { "time": 12.8, "x": 0.15, "y": 0.20, "scale_x": 0.05, "scale_y": 0.05, "opacity": 1.0 }
-            ]
+            "id": "c5_1",
+            "objects": {
+              "layer_type": {
+                "value": "image"
+              },
+              "path": {
+                "value": "test_image.png"
+              },
+              "z_index": {
+                "value": 20
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "text": {
+                "value": ""
+              },
+              "x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.15
+                  },
+                  {
+                    "time": 0.2375,
+                    "value": 0.1567
+                  },
+                  {
+                    "time": 0.475,
+                    "value": 0.1756
+                  },
+                  {
+                    "time": 0.7125,
+                    "value": 0.2052
+                  },
+                  {
+                    "time": 0.95,
+                    "value": 0.2439
+                  },
+                  {
+                    "time": 1.1875,
+                    "value": 0.2902
+                  },
+                  {
+                    "time": 1.425,
+                    "value": 0.3425
+                  },
+                  {
+                    "time": 1.6625,
+                    "value": 0.3993
+                  },
+                  {
+                    "time": 1.9,
+                    "value": 0.4588
+                  },
+                  {
+                    "time": 2.1375,
+                    "value": 0.5197
+                  },
+                  {
+                    "time": 2.375,
+                    "value": 0.5803
+                  },
+                  {
+                    "time": 2.6125,
+                    "value": 0.639
+                  },
+                  {
+                    "time": 2.85,
+                    "value": 0.6943
+                  },
+                  {
+                    "time": 3.0875,
+                    "value": 0.7446
+                  },
+                  {
+                    "time": 3.325,
+                    "value": 0.7884
+                  },
+                  {
+                    "time": 3.5625,
+                    "value": 0.824
+                  },
+                  {
+                    "time": 3.8,
+                    "value": 0.85
+                  },
+                  {
+                    "time": 4.0308,
+                    "value": 0.8711
+                  },
+                  {
+                    "time": 4.2615,
+                    "value": 0.8892
+                  },
+                  {
+                    "time": 4.4923,
+                    "value": 0.9043
+                  },
+                  {
+                    "time": 4.7231,
+                    "value": 0.9161
+                  },
+                  {
+                    "time": 4.9538,
+                    "value": 0.9245
+                  },
+                  {
+                    "time": 5.1846,
+                    "value": 0.9293
+                  },
+                  {
+                    "time": 5.4154,
+                    "value": 0.9304
+                  },
+                  {
+                    "time": 5.6462,
+                    "value": 0.9276
+                  },
+                  {
+                    "time": 5.8769,
+                    "value": 0.9208
+                  },
+                  {
+                    "time": 6.1077,
+                    "value": 0.9098
+                  },
+                  {
+                    "time": 6.3385,
+                    "value": 0.8944
+                  },
+                  {
+                    "time": 6.5692,
+                    "value": 0.8745
+                  },
+                  {
+                    "time": 6.8,
+                    "value": 0.85
+                  },
+                  {
+                    "time": 7.0308,
+                    "value": 0.8172
+                  },
+                  {
+                    "time": 7.2615,
+                    "value": 0.7739
+                  },
+                  {
+                    "time": 7.4923,
+                    "value": 0.7219
+                  },
+                  {
+                    "time": 7.7231,
+                    "value": 0.6633
+                  },
+                  {
+                    "time": 7.9538,
+                    "value": 0.5999
+                  },
+                  {
+                    "time": 8.1846,
+                    "value": 0.5336
+                  },
+                  {
+                    "time": 8.4154,
+                    "value": 0.4664
+                  },
+                  {
+                    "time": 8.6462,
+                    "value": 0.4001
+                  },
+                  {
+                    "time": 8.8769,
+                    "value": 0.3367
+                  },
+                  {
+                    "time": 9.1077,
+                    "value": 0.2781
+                  },
+                  {
+                    "time": 9.3385,
+                    "value": 0.2261
+                  },
+                  {
+                    "time": 9.5692,
+                    "value": 0.1828
+                  },
+                  {
+                    "time": 9.8,
+                    "value": 0.15
+                  },
+                  {
+                    "time": 10.0308,
+                    "value": 0.1271
+                  },
+                  {
+                    "time": 10.2615,
+                    "value": 0.1114
+                  },
+                  {
+                    "time": 10.4923,
+                    "value": 0.1022
+                  },
+                  {
+                    "time": 10.7231,
+                    "value": 0.0984
+                  },
+                  {
+                    "time": 10.9538,
+                    "value": 0.099
+                  },
+                  {
+                    "time": 11.1846,
+                    "value": 0.1032
+                  },
+                  {
+                    "time": 11.4154,
+                    "value": 0.1099
+                  },
+                  {
+                    "time": 11.6462,
+                    "value": 0.1181
+                  },
+                  {
+                    "time": 11.8769,
+                    "value": 0.1271
+                  },
+                  {
+                    "time": 12.1077,
+                    "value": 0.1357
+                  },
+                  {
+                    "time": 12.3385,
+                    "value": 0.143
+                  },
+                  {
+                    "time": 12.5692,
+                    "value": 0.1481
+                  },
+                  {
+                    "time": 12.8,
+                    "value": 0.15
+                  }
+                ]
+              },
+              "y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.2
+                  },
+                  {
+                    "time": 0.2375,
+                    "value": 0.1985
+                  },
+                  {
+                    "time": 0.475,
+                    "value": 0.1943
+                  },
+                  {
+                    "time": 0.7125,
+                    "value": 0.1881
+                  },
+                  {
+                    "time": 0.95,
+                    "value": 0.1804
+                  },
+                  {
+                    "time": 1.1875,
+                    "value": 0.172
+                  },
+                  {
+                    "time": 1.425,
+                    "value": 0.1633
+                  },
+                  {
+                    "time": 1.6625,
+                    "value": 0.1551
+                  },
+                  {
+                    "time": 1.9,
+                    "value": 0.1479
+                  },
+                  {
+                    "time": 2.1375,
+                    "value": 0.1423
+                  },
+                  {
+                    "time": 2.375,
+                    "value": 0.1389
+                  },
+                  {
+                    "time": 2.6125,
+                    "value": 0.1384
+                  },
+                  {
+                    "time": 2.85,
+                    "value": 0.1413
+                  },
+                  {
+                    "time": 3.0875,
+                    "value": 0.1484
+                  },
+                  {
+                    "time": 3.325,
+                    "value": 0.1601
+                  },
+                  {
+                    "time": 3.5625,
+                    "value": 0.1771
+                  },
+                  {
+                    "time": 3.8,
+                    "value": 0.2
+                  },
+                  {
+                    "time": 4.0308,
+                    "value": 0.2342
+                  },
+                  {
+                    "time": 4.2615,
+                    "value": 0.2784
+                  },
+                  {
+                    "time": 4.4923,
+                    "value": 0.3309
+                  },
+                  {
+                    "time": 4.7231,
+                    "value": 0.3898
+                  },
+                  {
+                    "time": 4.9538,
+                    "value": 0.4531
+                  },
+                  {
+                    "time": 5.1846,
+                    "value": 0.5192
+                  },
+                  {
+                    "time": 5.4154,
+                    "value": 0.586
+                  },
+                  {
+                    "time": 5.6462,
+                    "value": 0.6518
+                  },
+                  {
+                    "time": 5.8769,
+                    "value": 0.7146
+                  },
+                  {
+                    "time": 6.1077,
+                    "value": 0.7728
+                  },
+                  {
+                    "time": 6.3385,
+                    "value": 0.8243
+                  },
+                  {
+                    "time": 6.5692,
+                    "value": 0.8673
+                  },
+                  {
+                    "time": 6.8,
+                    "value": 0.9
+                  },
+                  {
+                    "time": 7.0308,
+                    "value": 0.9249
+                  },
+                  {
+                    "time": 7.2615,
+                    "value": 0.9456
+                  },
+                  {
+                    "time": 7.4923,
+                    "value": 0.9621
+                  },
+                  {
+                    "time": 7.7231,
+                    "value": 0.9746
+                  },
+                  {
+                    "time": 7.9538,
+                    "value": 0.9828
+                  },
+                  {
+                    "time": 8.1846,
+                    "value": 0.987
+                  },
+                  {
+                    "time": 8.4154,
+                    "value": 0.987
+                  },
+                  {
+                    "time": 8.6462,
+                    "value": 0.9828
+                  },
+                  {
+                    "time": 8.8769,
+                    "value": 0.9746
+                  },
+                  {
+                    "time": 9.1077,
+                    "value": 0.9621
+                  },
+                  {
+                    "time": 9.3385,
+                    "value": 0.9456
+                  },
+                  {
+                    "time": 9.5692,
+                    "value": 0.9249
+                  },
+                  {
+                    "time": 9.8,
+                    "value": 0.9
+                  },
+                  {
+                    "time": 10.0308,
+                    "value": 0.8653
+                  },
+                  {
+                    "time": 10.2615,
+                    "value": 0.8168
+                  },
+                  {
+                    "time": 10.4923,
+                    "value": 0.7576
+                  },
+                  {
+                    "time": 10.7231,
+                    "value": 0.6904
+                  },
+                  {
+                    "time": 10.9538,
+                    "value": 0.618
+                  },
+                  {
+                    "time": 11.1846,
+                    "value": 0.5435
+                  },
+                  {
+                    "time": 11.4154,
+                    "value": 0.4695
+                  },
+                  {
+                    "time": 11.6462,
+                    "value": 0.3991
+                  },
+                  {
+                    "time": 11.8769,
+                    "value": 0.3351
+                  },
+                  {
+                    "time": 12.1077,
+                    "value": 0.2803
+                  },
+                  {
+                    "time": 12.3385,
+                    "value": 0.2376
+                  },
+                  {
+                    "time": 12.5692,
+                    "value": 0.2099
+                  },
+                  {
+                    "time": 12.8,
+                    "value": 0.2
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 0.05
+              },
+              "scale_y": {
+                "value": 0.05
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -295,41 +1312,104 @@
           {
             "start_time": 0,
             "duration": 2.50,
-            "sound": "4_reverb_part1.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c6_1",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "4_reverb_part1.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 4,
             "duration": 2.98,
-            "sound": "4_reverb_part2.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c6_2",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "4_reverb_part2.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 8.5,
             "duration": 2.86,
-            "sound": "4_reverb_part3.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c6_3",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "4_reverb_part3.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           }
         ]
       }

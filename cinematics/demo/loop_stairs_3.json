@@ -2,8 +2,7 @@
   "meta": {
     "id": "loop_stairs_3",
     "name": "循环楼梯3",
-    "author": "",
-    "version": 3,
+    "author": "ImmersiveCinematics",
     "description": "循环楼梯：从三号楼梯触发 → 传送到二号楼梯（相对传送 ~+14）",
     "dimension": "",
     "listener": "player",
@@ -23,15 +22,22 @@
         "id": "region_1",
         "type": "location",
         "conditions": {
-          "corner1": { "x": 19, "y": -46, "z": -50 },
-          "corner2": { "x": 23, "y": -44, "z": -46 }
+          "corner1": {
+            "x": 19,
+            "y": -46,
+            "z": -50
+          },
+          "corner2": {
+            "x": 23,
+            "y": -44,
+            "z": -46
+          }
         },
         "repeatable": true
       }
     ]
   },
   "timeline": {
-    "total_duration": 1.0,
     "tracks": [
       {
         "type": "EVENT",
@@ -40,10 +46,23 @@
           {
             "start_time": 0.0,
             "duration": 1.0,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0.0, "event_type": "command", "command": "tp @s ~14 ~ ~" }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "tp @s ~14 ~ ~"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       }

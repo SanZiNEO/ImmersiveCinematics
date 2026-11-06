@@ -3,9 +3,16 @@
     "id": "test_camera_point_source_snap",
     "name": "相机测试-点源快照(look_at 实体)",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "look_at_time=snapshot：注视点 = 首次解析到的盔甲架位置，此后冻结（盔甲架 4s 被 tp 走，画面注视点不动）；对照组 = 第二片段实时跟随",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {}
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +25,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 12,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +32,27 @@
           {
             "start_time": 0,
             "duration": 12,
-            "layer_type": "subtitle",
-            "text": "测试: test_camera_point_source_snapshot | 功能: look_at 实体 + look_at_time=snapshot | 0-6s 快照注视点（盔甲架 4s tp 走，注视点不动） | 6-12s 实时跟随",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_camera_point_source_snapshot | 功能: look_at 实体 + look_at_time=snapshot | 0-6s 快照注视点（盔甲架 4s tp 走，注视点不动） | 6-12s 实时跟随"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -44,18 +62,44 @@
           {
             "start_time": 0,
             "duration": 1,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0, "event_type": "command", "command": "summon minecraft:armor_stand ~ ~2 ~" }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:armor_stand ~ ~2 ~"
+                    }
+                  }
+                ]
+              }
+            }
           },
           {
             "start_time": 4,
             "duration": 1,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 4, "event_type": "command", "command": "tp @e[type=minecraft:armor_stand,limit=1] ~8 ~ ~" }
-            ]
+            "id": "c2_2",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 4.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "tp @e[type=minecraft:armor_stand,limit=1] ~8 ~ ~"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -66,22 +110,153 @@
           {
             "start_time": 1,
             "duration": 5,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "entity", "look_at_selector": "@e[type=minecraft:armor_stand,limit=1]", "look_at_time": "snapshot", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 5, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "entity", "look_at_selector": "@e[type=minecraft:armor_stand,limit=1]", "look_at_time": "snapshot", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 4.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": -8.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@e[type=minecraft:armor_stand,limit=1]"
+              },
+              "look_at_freeze": {
+                "value": true
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 6,
             "duration": 6,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "entity", "look_at_selector": "@e[type=minecraft:armor_stand,limit=1]", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 6, "position": { "dx": 0, "dy": 4, "dz": -8 }, "look_at": "entity", "look_at_selector": "@e[type=minecraft:armor_stand,limit=1]", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c3_2",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 4.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": -8.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@e[type=minecraft:armor_stand,limit=1]"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           }
         ]
       }

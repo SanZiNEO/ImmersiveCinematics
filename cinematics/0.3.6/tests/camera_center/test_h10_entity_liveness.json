@@ -3,7 +3,6 @@
     "id": "test_h10_entity_liveness",
     "name": "H10·跨维度实体活性（末地/下界）",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "H10 实体活性验收：玩家留在主世界，末地画面左上、下界画面右上，各 4 只有 AI 的猪（NoAI:0）。相机 20s 固定不动，t=0 在两个维度铺平台并召唤，验收猪在画面内连续游走、位置逐帧变化（不是静止快照）。手动执行 /cinematics play test_h10_entity_liveness。",
     "block_keyboard": true,
     "block_mouse": true,
@@ -17,7 +16,6 @@
     "render_player_model": false
   },
   "timeline": {
-    "total_duration": 20,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -25,15 +23,27 @@
           {
             "start_time": 0,
             "duration": 20,
-            "layer_type": "subtitle",
-            "text": "H10 实体活性：左上=末地 4 猪 | 右上=下界 4 猪 | 相机固定 20s",
-            "x": 0.5,
-            "y": 0.06,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.06, "opacity": 1 },
-              { "time": 20, "x": 0.5, "y": 0.06, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "H10 实体活性：左上=末地 4 猪 | 右上=下界 4 猪 | 相机固定 20s"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.06
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -43,100 +53,293 @@
           {
             "start_time": 0,
             "duration": 20,
-            "dimension": "minecraft:the_end",
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "x": 79, "y": 61.6, "z": -26 },
-                "yaw": 0,
-                "pitch": -10,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "opacity": 1,
-                "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+            "id": "c2_1",
+            "objects": {
+              "dimension": {
+                "value": "minecraft:the_end"
               },
-              {
-                "time": 20,
-                "position": { "x": 79, "y": 61.6, "z": -26 },
-                "yaw": 0,
-                "pitch": -10,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "opacity": 1,
-                "dest": { "x": 0, "y": 0, "w": 0.5, "h": 0.5 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 79.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 79.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 61.6
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 61.6
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -26.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": -26.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "absolute"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": -10.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "value": 1.0
+              },
+              "dest.x": {
+                "value": 0.0
+              },
+              "dest.y": {
+                "value": 0.0
+              },
+              "dest.w": {
+                "value": 0.5
+              },
+              "dest.h": {
+                "value": 0.5
+              },
+              "source.x": {
+                "value": 0.0
+              },
+              "source.y": {
+                "value": 0.0
+              },
+              "source.w": {
+                "value": 1.0
+              },
+              "source.h": {
+                "value": 1.0
               }
-            ]
+            }
           },
           {
             "start_time": 0,
             "duration": 20,
-            "dimension": "minecraft:the_nether",
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "x": 0, "y": 70, "z": 0 },
-                "yaw": 0,
-                "pitch": -10,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "opacity": 1,
-                "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+            "id": "c2_2",
+            "objects": {
+              "dimension": {
+                "value": "minecraft:the_nether"
               },
-              {
-                "time": 20,
-                "position": { "x": 0, "y": 70, "z": 0 },
-                "yaw": 0,
-                "pitch": -10,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "opacity": 1,
-                "dest": { "x": 0.5, "y": 0, "w": 0.5, "h": 0.5 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 70.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 70.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "absolute"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": -10.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "value": 1.0
+              },
+              "dest.x": {
+                "value": 0.5
+              },
+              "dest.y": {
+                "value": 0.0
+              },
+              "dest.w": {
+                "value": 0.5
+              },
+              "dest.h": {
+                "value": 0.5
+              },
+              "source.x": {
+                "value": 0.0
+              },
+              "source.y": {
+                "value": 0.0
+              },
+              "source.w": {
+                "value": 1.0
+              },
+              "source.h": {
+                "value": 1.0
               }
-            ]
+            }
           },
           {
             "start_time": 0,
             "duration": 20,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": 0, "dy": 0, "dz": 0 },
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "opacity": 0,
-                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+            "id": "c2_3",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 20,
-                "position": { "dx": 0, "dy": 0, "dz": 0 },
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "opacity": 0,
-                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "value": 0.0
+              },
+              "dest.x": {
+                "value": 0.0
+              },
+              "dest.y": {
+                "value": 0.0
+              },
+              "dest.w": {
+                "value": 1.0
+              },
+              "dest.h": {
+                "value": 1.0
+              },
+              "source.x": {
+                "value": 0.0
+              },
+              "source.y": {
+                "value": 0.0
+              },
+              "source.w": {
+                "value": 1.0
+              },
+              "source.h": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       },
@@ -146,28 +349,149 @@
           {
             "start_time": 0,
             "duration": 20,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0.0, "event_type": "command", "command": "execute in minecraft:overworld run tp @s 0 80 0" },
-              { "time": 0.1, "event_type": "command", "command": "gamemode creative" },
-              { "time": 0.2, "event_type": "command", "command": "execute in minecraft:the_end run fill 71 60 -25 87 63 -10 minecraft:air" },
-              { "time": 0.3, "event_type": "command", "command": "execute in minecraft:the_end run fill 71 59 -25 87 59 -10 minecraft:end_stone" },
-              { "time": 0.4, "event_type": "command", "command": "execute in minecraft:the_end run kill @e[type=minecraft:pig]" },
-              { "time": 0.5, "event_type": "command", "command": "execute in minecraft:the_end run summon minecraft:pig 78 61 -21 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}" },
-              { "time": 0.6, "event_type": "command", "command": "execute in minecraft:the_end run summon minecraft:pig 80 61 -21 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}" },
-              { "time": 0.7, "event_type": "command", "command": "execute in minecraft:the_end run summon minecraft:pig 78 61 -19 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}" },
-              { "time": 0.8, "event_type": "command", "command": "execute in minecraft:the_end run summon minecraft:pig 80 61 -19 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}" },
-              { "time": 0.9, "event_type": "command", "command": "execute in minecraft:the_nether run fill -8 69 -2 8 71 14 minecraft:air" },
-              { "time": 1.0, "event_type": "command", "command": "execute in minecraft:the_nether run fill -8 68 -2 8 68 14 minecraft:netherrack" },
-              { "time": 1.1, "event_type": "command", "command": "execute in minecraft:the_nether run kill @e[type=minecraft:pig]" },
-              { "time": 1.2, "event_type": "command", "command": "execute in minecraft:the_nether run summon minecraft:pig -1 70 5 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}" },
-              { "time": 1.3, "event_type": "command", "command": "execute in minecraft:the_nether run summon minecraft:pig 1 70 5 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}" },
-              { "time": 1.4, "event_type": "command", "command": "execute in minecraft:the_nether run summon minecraft:pig -1 70 7 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}" },
-              { "time": 1.5, "event_type": "command", "command": "execute in minecraft:the_nether run summon minecraft:pig 1 70 7 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}" },
-              { "time": 1.6, "event_type": "command", "command": "say [h10-liveness] start: 4 pigs in the_end (top-left) + 4 pigs in the_nether (top-right), cameras fixed 20s" },
-              { "time": 10.0, "event_type": "command", "command": "say [h10-liveness] t=10s: pigs must still be moving (no frozen poses)" },
-              { "time": 19.9, "event_type": "command", "command": "say [h10-liveness] done: check [camera-view] entity / client-tick lines" }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:overworld run tp @s 0 80 0"
+                    }
+                  },
+                  {
+                    "time": 0.1,
+                    "value": {
+                      "event_type": "command",
+                      "command": "gamemode creative"
+                    }
+                  },
+                  {
+                    "time": 0.2,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_end run fill 71 60 -25 87 63 -10 minecraft:air"
+                    }
+                  },
+                  {
+                    "time": 0.3,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_end run fill 71 59 -25 87 59 -10 minecraft:end_stone"
+                    }
+                  },
+                  {
+                    "time": 0.4,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_end run kill @e[type=minecraft:pig]"
+                    }
+                  },
+                  {
+                    "time": 0.5,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_end run summon minecraft:pig 78 61 -21 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}"
+                    }
+                  },
+                  {
+                    "time": 0.6,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_end run summon minecraft:pig 80 61 -21 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}"
+                    }
+                  },
+                  {
+                    "time": 0.7,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_end run summon minecraft:pig 78 61 -19 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}"
+                    }
+                  },
+                  {
+                    "time": 0.8,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_end run summon minecraft:pig 80 61 -19 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}"
+                    }
+                  },
+                  {
+                    "time": 0.9,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_nether run fill -8 69 -2 8 71 14 minecraft:air"
+                    }
+                  },
+                  {
+                    "time": 1.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_nether run fill -8 68 -2 8 68 14 minecraft:netherrack"
+                    }
+                  },
+                  {
+                    "time": 1.1,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_nether run kill @e[type=minecraft:pig]"
+                    }
+                  },
+                  {
+                    "time": 1.2,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_nether run summon minecraft:pig -1 70 5 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}"
+                    }
+                  },
+                  {
+                    "time": 1.3,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_nether run summon minecraft:pig 1 70 5 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}"
+                    }
+                  },
+                  {
+                    "time": 1.4,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_nether run summon minecraft:pig -1 70 7 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}"
+                    }
+                  },
+                  {
+                    "time": 1.5,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:the_nether run summon minecraft:pig 1 70 7 {NoAI:0b,PersistenceRequired:1b,Invulnerable:1b,Silent:1b}"
+                    }
+                  },
+                  {
+                    "time": 1.6,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [h10-liveness] start: 4 pigs in the_end (top-left) + 4 pigs in the_nether (top-right), cameras fixed 20s"
+                    }
+                  },
+                  {
+                    "time": 10.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [h10-liveness] t=10s: pigs must still be moving (no frozen poses)"
+                    }
+                  },
+                  {
+                    "time": 19.9,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [h10-liveness] done: check [camera-view] entity / client-tick lines"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       }

@@ -3,7 +3,6 @@
     "id": "test_rules_gate_suspend",
     "name": "规则-时间门/挂起/事实接力/延迟/出口",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "验证：门在 1.0s 才触发（门前不动作）、control=hold 冻结实例并由超时释放、rule_fact 事实接力、schedule delay 延迟动作、goto_clip 分支启动与片段默认出口",
     "triggers": [
       {
@@ -28,7 +27,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 12,
     "tracks": [
       {
         "type": "CAMERA",

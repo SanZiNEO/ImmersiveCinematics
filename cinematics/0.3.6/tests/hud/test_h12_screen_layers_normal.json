@@ -3,13 +3,14 @@
     "id": "test_h12_screen_layers_normal",
     "name": "H12 画面层普通模式",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "H12 夹具（普通模式）：hide_hud=false + screen_layer_mode=normal + screen_layers{hud.chat:false}。预期：只隐藏聊天，其余 HUD（快捷栏、准星、血量、经验条、Boss 血条、记分板、动作栏、标题、字幕、跳过提示）全部显示；不接管整帧，第三方前置事件自绘的界面照常出现。",
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
     "screen_layer_mode": "normal",
-    "screen_layers": { "hud.chat": false },
+    "screen_layers": {
+      "hud.chat": false
+    },
     "pause_when_game_paused": true,
     "interruptible": true,
     "skippable": true,
@@ -17,7 +18,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 20,
     "tracks": [
       {
         "type": "CAMERA",
@@ -25,12 +25,73 @@
           {
             "start_time": 0,
             "duration": 20,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 },
-              { "time": 20, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 2.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -6.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": -6.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 10.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -40,13 +101,27 @@
           {
             "start_time": 0,
             "duration": 20,
-            "layer_type": "subtitle",
-            "text": "H12 normal：只隐藏聊天，其余 HUD 全部显示，本模组字幕显示",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.10, "opacity": 1 },
-              { "time": 20, "x": 0.5, "y": 0.10, "opacity": 1 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "H12 normal：只隐藏聊天，其余 HUD 全部显示，本模组字幕显示"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.1
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       }

@@ -3,9 +3,18 @@
     "id": "test_objects_camera_basic",
     "name": "对象格式-相机基础",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "新格式 CAMERA 单片段：绝对位置三轴关键帧、yaw/pitch/roll、fov/zoom、opacity/dest.w 合成、rect 遮罩几何",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        }
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +27,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 6,
     "tracks": [
       {
         "type": "CAMERA",
@@ -27,20 +35,147 @@
             "start_time": 0,
             "duration": 6,
             "objects": {
-              "position_mode": { "value": "absolute" },
-              "position.x": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 10 } ] },
-              "position.y": { "keyframes": [ { "time": 0, "value": 64 }, { "time": 6, "value": 64 } ] },
-              "position.z": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 5 } ] },
-              "yaw": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": 90 } ] },
-              "pitch": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 6, "value": -30 } ] },
-              "roll": { "value": 0 },
-              "fov": { "keyframes": [ { "time": 0, "value": 70 }, { "time": 6, "value": 90 } ] },
-              "zoom": { "keyframes": [ { "time": 0, "value": 1 }, { "time": 6, "value": 2 } ] },
-              "opacity": { "keyframes": [ { "time": 0, "value": 1 }, { "time": 6, "value": 0.5 } ] },
-              "dest.w": { "keyframes": [ { "time": 0, "value": 1 }, { "time": 6, "value": 0.8 } ] },
-              "mask_shape": { "value": "rect" },
-              "mask_x": { "keyframes": [ { "time": 0, "value": 0.5 }, { "time": 6, "value": 0.4 } ] },
-              "mask_width": { "keyframes": [ { "time": 0, "value": 1 }, { "time": 6, "value": 0.6 } ] }
+              "position_mode": {
+                "value": "absolute"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 10
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 64
+                  },
+                  {
+                    "time": 6,
+                    "value": 64
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 5
+                  }
+                ]
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": 90
+                  }
+                ]
+              },
+              "pitch": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 6,
+                    "value": -30
+                  }
+                ]
+              },
+              "roll": {
+                "value": 0
+              },
+              "fov": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 70
+                  },
+                  {
+                    "time": 6,
+                    "value": 90
+                  }
+                ]
+              },
+              "zoom": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 1
+                  },
+                  {
+                    "time": 6,
+                    "value": 2
+                  }
+                ]
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 1
+                  },
+                  {
+                    "time": 6,
+                    "value": 0.5
+                  }
+                ]
+              },
+              "dest.w": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 1
+                  },
+                  {
+                    "time": 6,
+                    "value": 0.8
+                  }
+                ]
+              },
+              "mask_shape": {
+                "value": "rect"
+              },
+              "mask_x": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0.5
+                  },
+                  {
+                    "time": 6,
+                    "value": 0.4
+                  }
+                ]
+              },
+              "mask_width": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 1
+                  },
+                  {
+                    "time": 6,
+                    "value": 0.6
+                  }
+                ]
+              }
             }
           }
         ]

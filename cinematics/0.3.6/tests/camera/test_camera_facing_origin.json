@@ -3,9 +3,21 @@
     "id": "test_camera_facing_origin",
     "name": "相机测试-基准坐标系(连线)",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "基准点=猪(A), 基准朝向=A→牛(B) 连线, 位置用 fwd/up/right, 注视=B 并在世界 Y 上偏移 0.5",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_trigger_login"] } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_trigger_login"
+        ]
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 8,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +37,27 @@
           {
             "start_time": 0,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "测试: test_camera_facing_origin | 基准点=猪 | 基准朝向=猪→牛 | 位置=基准系 | 注视=牛 + 世界Y 0.5",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_camera_facing_origin | 基准点=猪 | 基准朝向=猪→牛 | 位置=基准系 | 注视=牛 + 世界Y 0.5"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -45,34 +68,88 @@
           {
             "start_time": 0,
             "duration": 8,
-            "transition": "cut",
-            "transition_duration": 0.0,
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position_mode": "relative",
-                "position": {
-                  "fwd": -6.0,
-                  "up": 2.0,
-                  "right": 2.0
-                },
-                "facing_origin": "@e[type=minecraft:pig,limit=1]",
-                "facing_target": "@e[type=minecraft:cow,limit=1]",
-                "look_at": "entity",
-                "look_at_selector": "@e[type=minecraft:cow,limit=1]",
-                "look_at_part": { "y": 0 },
-                "look_at_offset": { "dy": 0.5 },
-                "selector_refresh": 1.0,
-                "selector_switch_while_alive": true,
-                "selector_switch_smooth": 0.4,
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "transition_duration": {
+                "value": 0.0
+              },
+              "position.x": {
+                "value": -6.0
+              },
+              "position.y": {
+                "value": 2.0
+              },
+              "position.z": {
+                "value": 2.0
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "base"
+              },
+              "position_origin": {
+                "value": "@e[type=minecraft:pig,limit=1]"
+              },
+              "facing_source": {
+                "value": "line"
+              },
+              "facing_target": {
+                "value": "@e[type=minecraft:cow,limit=1]"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@e[type=minecraft:cow,limit=1]"
+              },
+              "look_at_part.x": {
+                "value": 50.0
+              },
+              "look_at_part.y": {
+                "value": 0.0
+              },
+              "look_at_part.z": {
+                "value": 50.0
+              },
+              "look_at_offset.x": {
+                "value": 0.0
+              },
+              "look_at_offset.y": {
+                "value": 0.5
+              },
+              "look_at_offset.z": {
+                "value": 0.0
+              },
+              "selector_refresh": {
+                "value": 1.0
+              },
+              "selector_switch_while_alive": {
+                "value": true
+              },
+              "selector_switch_smooth": {
+                "value": 0.4
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       }

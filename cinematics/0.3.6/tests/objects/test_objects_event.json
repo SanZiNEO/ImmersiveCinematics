@@ -3,9 +3,18 @@
     "id": "test_objects_event",
     "name": "对象格式-事件",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "新格式 EVENT 单片段 3 条记录（/say、带位置、空命令占位）+ MOD_EVENT 轨 1 条 mymod 事件",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        }
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +27,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 4,
     "tracks": [
       {
         "type": "EVENT",
@@ -27,24 +35,35 @@
             "start_time": 0,
             "duration": 4,
             "objects": {
-              "event_type": { "value": "command" },
+              "event_type": {
+                "value": "command"
+              },
               "event": {
                 "keyframes": [
                   {
                     "time": 1,
-                    "value": { "command": "/say [objects] event t=1", "event_type": "command" }
+                    "value": {
+                      "command": "/say [objects] event t=1",
+                      "event_type": "command"
+                    }
                   },
                   {
                     "time": 2,
                     "value": {
                       "command": "/say [objects] event t=2 at 100,-200",
                       "event_type": "command",
-                      "position": { "x": 100, "z": -200 }
+                      "position": {
+                        "x": 100,
+                        "z": -200
+                      }
                     }
                   },
                   {
                     "time": 3,
-                    "value": { "command": "", "event_type": "command" }
+                    "value": {
+                      "command": "",
+                      "event_type": "command"
+                    }
                   }
                 ]
               }
@@ -59,14 +78,19 @@
             "start_time": 0,
             "duration": 4,
             "objects": {
-              "event_type": { "value": "mod_event" },
+              "event_type": {
+                "value": "mod_event"
+              },
               "mod_event": {
                 "keyframes": [
                   {
                     "time": 1,
                     "value": {
                       "event_type": "mymod:example",
-                      "data": { "radius": 8, "mode": "pulse" }
+                      "data": {
+                        "radius": 8,
+                        "mode": "pulse"
+                      }
                     }
                   }
                 ]

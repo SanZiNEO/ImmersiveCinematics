@@ -3,7 +3,6 @@
     "id": "showcase_10_finale",
     "name": "吃面包收尾",
     "author": "AI",
-    "version": 3,
     "description": "吃面包触发：屏幕展示图片 + 宣传标语收尾，演示 OVERLAY image 轨道",
     "triggers": [
       {
@@ -32,7 +31,6 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 8.0,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -41,17 +39,59 @@
           {
             "start_time": 0,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "Immersive Cinematics —— 故事从这里开始",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.78, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 1, "x": 0.5, "y": 0.78, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 7, "x": 0.5, "y": 0.78, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 },
-              { "time": 8, "x": 0.5, "y": 0.78, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 1.8 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "Immersive Cinematics —— 故事从这里开始"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.78
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 1.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 7.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 1.8
+              }
+            }
           }
         ]
       }

@@ -3,10 +3,17 @@
     "id": "test_camera_center_crossdim_clip",
     "name": "相机中心·片段维度切换",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "历史 A 方案（服务端传送玩家）已删除；现行跨维度请用 test_camera_center_crossdim_view。本脚本仅作历史参考：CAMERA 片段 t=2 声明 dimension=minecraft:the_end、绝对位置 (79,61.6,-26)，旧实现在片段起点前 0.5s 把玩家传送到末地，现在不再传送玩家。",
     "triggers": [
-      { "id": "tccc_disabled", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "minecraft:the_void" } }
+      {
+        "id": "tccc_disabled",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "minecraft:the_void"
+        }
+      }
     ],
     "block_keyboard": true,
     "block_mouse": true,
@@ -20,7 +27,6 @@
     "render_player_model": false
   },
   "timeline": {
-    "total_duration": 22,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -28,15 +34,27 @@
           {
             "start_time": 0,
             "duration": 22,
-            "layer_type": "subtitle",
-            "text": "跨维度片段: t=2 相机片段声明 minecraft:the_end (79,61.6,-26)；服务端提前 0.5s 切换维度",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 22, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "跨维度片段: t=2 相机片段声明 minecraft:the_end (79,61.6,-26)；服务端提前 0.5s 切换维度"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -46,29 +64,73 @@
           {
             "start_time": 2,
             "duration": 20,
-            "dimension": "minecraft:the_end",
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "x": 79, "y": 61.6, "z": -26 },
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+            "id": "c2_1",
+            "objects": {
+              "dimension": {
+                "value": "minecraft:the_end"
               },
-              {
-                "time": 20,
-                "position": { "x": 79, "y": 61.6, "z": -26 },
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 79.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 79.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 61.6
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 61.6
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -26.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": -26.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "absolute"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       },
@@ -78,13 +140,44 @@
           {
             "start_time": 0,
             "duration": 22,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0, "event_type": "command", "command": "gamemode creative && gamerule doMobSpawning true && difficulty normal" },
-              { "time": 0, "event_type": "command", "command": "say [camera-center] crossdim-clip: start (overworld)" },
-              { "time": 2, "event_type": "command", "command": "say [camera-center] crossdim-clip: camera clip start -> the_end (79,61.6,-26)" },
-              { "time": 22, "event_type": "command", "command": "say [camera-center] crossdim-clip: done" }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "gamemode creative && gamerule doMobSpawning true && difficulty normal"
+                    }
+                  },
+                  {
+                    "time": 1.0E-4,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [camera-center] crossdim-clip: start (overworld)"
+                    }
+                  },
+                  {
+                    "time": 2.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [camera-center] crossdim-clip: camera clip start -> the_end (79,61.6,-26)"
+                    }
+                  },
+                  {
+                    "time": 22.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [camera-center] crossdim-clip: done"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       }

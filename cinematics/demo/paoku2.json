@@ -2,8 +2,7 @@
   "meta": {
     "id": "paoku2",
     "name": "Untitled",
-    "author": "",
-    "version": 3.0,
+    "author": "ImmersiveCinematics",
     "description": "",
     "dimension": "",
     "listener": "player",
@@ -22,8 +21,16 @@
         "id": "region_1",
         "type": "location",
         "conditions": {
-          "corner1": { "x": 16, "y": -60, "z": -21 },
-          "corner2": { "x": 35, "y": -50, "z": -10 }
+          "corner1": {
+            "x": 16,
+            "y": -60,
+            "z": -21
+          },
+          "corner2": {
+            "x": 35,
+            "y": -50,
+            "z": -10
+          }
         },
         "repeatable": true,
         "on_enter": true,
@@ -32,7 +39,6 @@
     ]
   },
   "timeline": {
-    "total_duration": 10.0,
     "tracks": [
       {
         "type": "CAMERA",
@@ -41,91 +47,141 @@
           {
             "start_time": 0.0,
             "duration": 10.0,
-            "transition": "cut",
-            "transition_duration": 0.5,
-            "dimension": "",
             "loop": true,
             "loop_count": -1.0,
             "loop_mode": "repeat",
-            "cam_breath_enabled": false,
-            "cam_breath_intensity": 0.05,
-            "cam_breath_seed": 0.0,
-            "cam_breath_type": "perlin",
-            "cam_breath_speed": 1.0,
-            "cam_breath_trauma": 1.0,
-            "cam_breath_decay": 0.5,
-            "orient": "manual",
-            "yaw_offset": 0.0,
-            "pitch_offset": 0.0,
-            "keyframes": [
-              {
-                "time": 0.0,
-                "position": {
-                  "dx": 0.0,
-                  "dy": 2.0,
-                  "dz": 7.0
-                },
-                "position_mode": "relative",
-                "facing_origin": "",
-                "facing_origin_x": 0.0,
-                "facing_origin_y": 0.0,
-                "facing_origin_z": 0.0,
-                "facing_target": "",
-                "follow": "entity",
-                "follow_selector": "@p",
-                "look_at": "none",
-                "look_at_selector": "@p",
-                "look_at_target_structure": "",
-                "selector_refresh": 1.0,
-                "selector_switch_while_alive": true,
-                "selector_switch_interval": 1.0,
-                "selector_switch_smooth": 0.0,
-                "yaw_base": "world",
-                "pitch_base": "world",
-                "yaw_base_selector": "@p",
-                "yaw_base_from": "",
-                "yaw_base_to": "",
-                "yaw": 180.0,
-                "pitch": 0.0,
-                "roll": 0.0,
-                "fov": 70.0,
-                "zoom": 1.0
+            "id": "c1_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 10.0,
-                "position": {
-                  "dx": 0.0,
-                  "dy": 2.0,
-                  "dz": 7.0
-                },
-                "position_mode": "relative",
-                "facing_origin": "",
-                "facing_origin_x": 0.0,
-                "facing_origin_y": 0.0,
-                "facing_origin_z": 0.0,
-                "facing_target": "",
-                "follow": "entity",
-                "follow_selector": "@p",
-                "look_at": "none",
-                "look_at_selector": "@p",
-                "look_at_target_structure": "",
-                "selector_refresh": 1.0,
-                "selector_switch_while_alive": true,
-                "selector_switch_interval": 1.0,
-                "selector_switch_smooth": 0.0,
-                "yaw_base": "world",
-                "pitch_base": "world",
-                "yaw_base_selector": "@p",
-                "yaw_base_from": "",
-                "yaw_base_to": "",
-                "yaw": 180.0,
-                "pitch": 0.0,
-                "roll": 0.0,
-                "fov": 70.0,
-                "zoom": 1.0
+              "transition_duration": {
+                "value": 0.5
+              },
+              "dimension": {
+                "value": ""
+              },
+              "cam_breath_enabled": {
+                "value": false
+              },
+              "cam_breath_intensity": {
+                "value": 0.05
+              },
+              "cam_breath_seed": {
+                "value": 0.0
+              },
+              "cam_breath_type": {
+                "value": "perlin"
+              },
+              "cam_breath_speed": {
+                "value": 1.0
+              },
+              "cam_breath_trauma": {
+                "value": 1.0
+              },
+              "cam_breath_decay": {
+                "value": 0.5
+              },
+              "orient": {
+                "value": "manual"
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 2.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 7.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 7.0
+                  }
+                ]
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "position_origin": {
+                "value": "@p"
+              },
+              "look_at": {
+                "value": "none"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "look_at_target_structure": {
+                "value": ""
+              },
+              "selector_refresh": {
+                "value": 1.0
+              },
+              "selector_switch_while_alive": {
+                "value": true
+              },
+              "selector_switch_interval": {
+                "value": 1.0
+              },
+              "selector_switch_smooth": {
+                "value": 0.0
+              },
+              "yaw_base": {
+                "value": "world"
+              },
+              "pitch_base": {
+                "value": "world"
+              },
+              "yaw_base_selector": {
+                "value": "@p"
+              },
+              "yaw_base_from": {
+                "value": ""
+              },
+              "yaw_base_to": {
+                "value": ""
+              },
+              "yaw": {
+                "value": 180.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ],
-            "position_mode": "relative"
+            }
           }
         ]
       },

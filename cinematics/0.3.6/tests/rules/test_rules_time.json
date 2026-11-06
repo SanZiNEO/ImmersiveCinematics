@@ -3,9 +3,16 @@
     "id": "test_rules_time",
     "name": "规则测试-时间判定源",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "判定规则 if + time 判定源（C6-2）：CAMERA 片段在片段本地时钟到 3s 时触发 do → goto_clip 跳到 8s（track CAMERA 时间寻址）；字幕轨可判别（3 秒时字幕从第一段换成第二段）",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {}
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +25,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 12,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,28 +32,52 @@
           {
             "start_time": 0,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "第一段（0-8s）：if time at 3 → goto_clip at 8 | 3 秒时画面应直接跳到 8 秒",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "第一段（0-8s）：if time at 3 → goto_clip at 8 | 3 秒时画面应直接跳到 8 秒"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 8,
             "duration": 4,
-            "layer_type": "subtitle",
-            "text": "第二段（8-12s）：已跳转（time 规则生效）",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_2",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "第二段（8-12s）：已跳转（time 规则生效）"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -57,22 +87,130 @@
           {
             "start_time": 0,
             "duration": 12,
-            "transition": "cut",
             "loop": false,
-            "rules": [
-              {
-                "if": { "type": "time", "at": 3 },
-                "do": [ { "type": "goto_clip", "track": "CAMERA", "at": 8 } ],
-                "once": true
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 90.0
+                  }
+                ]
+              },
+              "pitch": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": -10.0
+                  }
+                ]
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 70.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 60.0
+                  }
+                ]
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ],
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 12, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 90, "pitch": -10, "roll": 0, "fov": 60, "zoom": 1 }
-            ]
+            }
           }
         ]
       }
     ]
-  }
+  },
+  "rules": [
+    {
+      "id": "r_c2_1_1",
+      "condition": {
+        "type": "time",
+        "at": 3
+      },
+      "actions": [
+        {
+          "type": "goto_clip",
+          "clip": "c2_1",
+          "entry_time": 8.0
+        }
+      ],
+      "policy": {
+        "once": true
+      }
+    }
+  ],
+  "rule_bindings": [
+    {
+      "id": "b_c2_1_1",
+      "rule": "r_c2_1_1",
+      "clip": "c2_1",
+      "gate": {
+        "at": 0
+      },
+      "control": "observe"
+    }
+  ]
 }

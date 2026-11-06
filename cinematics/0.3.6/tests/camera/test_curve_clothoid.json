@@ -3,9 +3,18 @@
     "id": "test_curve_clothoid",
     "name": "相机测试-回旋线过渡",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "只测试 clothoid 曲线路径（直线→圆弧过渡：κ0=0、κ1=1/8、L=12）",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        }
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +27,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 12,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +34,27 @@
           {
             "start_time": 0,
             "duration": 12,
-            "layer_type": "subtitle",
-            "text": "测试: test_curve_clothoid | 功能: 回旋线过渡 | 触发: biome自动",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_curve_clothoid | 功能: 回旋线过渡 | 触发: biome自动"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -44,23 +64,105 @@
           {
             "start_time": 0,
             "duration": 12,
-            "transition": "cut",
             "loop": false,
-            "curve": {
-              "type": "clothoid",
-              "start_curvature": 0,
-              "end_curvature": 0.125,
-              "length": 12,
-              "start_direction": { "x": 1, "y": 0, "z": 0 },
-              "normal": { "x": 0, "y": 1, "z": 0 }
-            },
-            "keyframes": [
-              { "time": 0, "position": { "x": 0, "y": 64, "z": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 12, "position": { "x": 11.342351691256894, "y": 64, "z": -2.881600543268382 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 11.342352
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 64.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 64.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": -2.8816006
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "absolute"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           }
         ]
       }
     ]
-  }
+  },
+  "paths": [
+    {
+      "id": "p_c2_1_0",
+      "clip": "c2_1",
+      "from": 0.0,
+      "to": 12.0,
+      "axes": [
+        "x",
+        "y",
+        "z"
+      ],
+      "geometry": {
+        "type": "clothoid",
+        "start_curvature": 0,
+        "end_curvature": 0.125,
+        "length": 12,
+        "start_direction": {
+          "x": 1,
+          "y": 0,
+          "z": 0
+        },
+        "normal": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        }
+      },
+      "timing": {
+        "type": "linear"
+      }
+    }
+  ]
 }

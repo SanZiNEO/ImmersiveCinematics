@@ -3,9 +3,18 @@
     "id": "test_curve_fourier",
     "name": "相机测试-Fourier周期路径",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "只测试 fourier 曲线路径（周期级数，period=12，a0 + 2 阶 cos/sin，首末关键帧 = P(0)）",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        }
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +27,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 12,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +34,27 @@
           {
             "start_time": 0,
             "duration": 12,
-            "layer_type": "subtitle",
-            "text": "测试: test_curve_fourier | 功能: Fourier周期路径 | 触发: biome自动",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_curve_fourier | 功能: Fourier周期路径 | 触发: biome自动"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -44,29 +64,132 @@
           {
             "start_time": 0,
             "duration": 12,
-            "transition": "cut",
             "loop": false,
-            "curve": {
-              "type": "fourier",
-              "periodic": true,
-              "period": 12,
-              "a0": { "x": 0, "y": 64, "z": 0 },
-              "cos": [
-                { "dx": 4, "dy": 0, "dz": 0 },
-                { "dx": 0, "dy": 1.5, "dz": -2 }
-              ],
-              "sin": [
-                { "dx": 0, "dy": 2, "dz": 3 },
-                { "dx": 1, "dy": -0.5, "dz": 0 }
-              ]
-            },
-            "keyframes": [
-              { "time": 0, "position": { "x": 4, "y": 65.5, "z": -2 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 12, "position": { "x": 4, "y": 65.5, "z": -2 }, "yaw": 360, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 4.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 65.5
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 65.5
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -2.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": -2.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "absolute"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 360.0
+                  }
+                ]
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           }
         ]
       }
     ]
-  }
+  },
+  "paths": [
+    {
+      "id": "p_c2_1_0",
+      "clip": "c2_1",
+      "from": 0.0,
+      "to": 12.0,
+      "axes": [
+        "x",
+        "y",
+        "z"
+      ],
+      "geometry": {
+        "type": "fourier",
+        "periodic": true,
+        "period": 12,
+        "a0": {
+          "x": 0,
+          "y": 64,
+          "z": 0
+        },
+        "cos": [
+          {
+            "dx": 4,
+            "dy": 0,
+            "dz": 0
+          },
+          {
+            "dx": 0,
+            "dy": 1.5,
+            "dz": -2
+          }
+        ],
+        "sin": [
+          {
+            "dx": 0,
+            "dy": 2,
+            "dz": 3
+          },
+          {
+            "dx": 1,
+            "dy": -0.5,
+            "dz": 0
+          }
+        ]
+      },
+      "timing": {
+        "type": "linear"
+      }
+    }
+  ]
 }

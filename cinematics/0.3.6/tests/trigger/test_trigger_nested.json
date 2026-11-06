@@ -3,23 +3,100 @@
     "id": "test_trigger_nested",
     "name": "触发器测试-组合器嵌套",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "组合器嵌套（多层）：两层 all_of[location, any[facing, script_played]] 与三层 any[all_of[location, facing], dimension]",
     "triggers": [
-      {"id":"trg_nested_two","type":"all_of","repeatable":true,"conditions":{"list":[
-        {"type":"location","conditions":{"corner1":{"x":-20,"y":-64,"z":-20},"corner2":{"x":20,"y":320,"z":20}}},
-        {"type":"any","conditions":{"list":[
-          {"type":"facing","conditions":{"yaw1":-30,"pitch1":-20,"yaw2":30,"pitch2":20}},
-          {"type":"script_played","conditions":{"script":"test_prereq_a"}}
-        ]}}
-      ]}},
-      {"id":"trg_nested_three","type":"any","repeatable":true,"conditions":{"list":[
-        {"type":"all_of","conditions":{"list":[
-          {"type":"location","conditions":{"corner1":{"x":-20,"y":-64,"z":-20},"corner2":{"x":20,"y":320,"z":20}}},
-          {"type":"facing","conditions":{"yaw1":160,"pitch1":-30,"yaw2":-160,"pitch2":30}}
-        ]}},
-        {"type":"dimension","conditions":{"dimension":"minecraft:the_nether"}}
-      ]}}
+      {
+        "id": "trg_nested_two",
+        "type": "all_of",
+        "repeatable": true,
+        "conditions": {
+          "list": [
+            {
+              "type": "location",
+              "conditions": {
+                "corner1": {
+                  "x": -20,
+                  "y": -64,
+                  "z": -20
+                },
+                "corner2": {
+                  "x": 20,
+                  "y": 320,
+                  "z": 20
+                }
+              }
+            },
+            {
+              "type": "any",
+              "conditions": {
+                "list": [
+                  {
+                    "type": "facing",
+                    "conditions": {
+                      "yaw1": -30,
+                      "pitch1": -20,
+                      "yaw2": 30,
+                      "pitch2": 20
+                    }
+                  },
+                  {
+                    "type": "script_played",
+                    "conditions": {
+                      "script": "test_prereq_a"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "trg_nested_three",
+        "type": "any",
+        "repeatable": true,
+        "conditions": {
+          "list": [
+            {
+              "type": "all_of",
+              "conditions": {
+                "list": [
+                  {
+                    "type": "location",
+                    "conditions": {
+                      "corner1": {
+                        "x": -20,
+                        "y": -64,
+                        "z": -20
+                      },
+                      "corner2": {
+                        "x": 20,
+                        "y": 320,
+                        "z": 20
+                      }
+                    }
+                  },
+                  {
+                    "type": "facing",
+                    "conditions": {
+                      "yaw1": 160,
+                      "pitch1": -30,
+                      "yaw2": -160,
+                      "pitch2": 30
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "dimension",
+              "conditions": {
+                "dimension": "minecraft:the_nether"
+              }
+            }
+          ]
+        }
+      }
     ],
     "block_keyboard": false,
     "block_mouse": false,
@@ -33,7 +110,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 6,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -41,15 +117,27 @@
           {
             "start_time": 0,
             "duration": 6,
-            "layer_type": "subtitle",
-            "text": "测试: test_trigger_nested | 功能: 组合器嵌套（多层） | 触发: all_of[区域内, any[朝南 ±30°, 播放过 test_prereq_a]] 或 any[all_of[区域内, 朝北 ±20°], 下界]",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 6, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_trigger_nested | 功能: 组合器嵌套（多层） | 触发: all_of[区域内, any[朝南 ±30°, 播放过 test_prereq_a]] 或 any[all_of[区域内, 朝北 ±20°], 下界]"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       }

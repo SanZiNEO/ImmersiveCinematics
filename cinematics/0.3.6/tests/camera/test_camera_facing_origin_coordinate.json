@@ -1,11 +1,23 @@
 {
   "meta": {
-    "id": "test_camera_facing_origin_coordinate",
+    "id": "test_camera_facing_origin_coord",
     "name": "相机测试-基准点(固定坐标)",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "基准点=固定世界坐标(facing_origin:coordinate), 位置用 fwd/up/right, 朝向用玩家视线",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_trigger_login"] } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_trigger_login"
+        ]
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 8,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +37,27 @@
           {
             "start_time": 0,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "测试: test_camera_facing_origin_coordinate | 基准点=固定坐标 0,64,0 | 位置=基准系 fwd/up/right",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_camera_facing_origin_coordinate | 基准点=固定坐标 0,64,0 | 位置=基准系 fwd/up/right"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -45,33 +68,70 @@
           {
             "start_time": 0,
             "duration": 8,
-            "transition": "cut",
-            "transition_duration": 0.0,
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position_mode": "relative",
-                "position": {
-                  "fwd": 0.0,
-                  "up": 0.0,
-                  "right": 0.0
-                },
-                "facing_origin": "coordinate",
-                "facing_origin_x": 0.0,
-                "facing_origin_y": 64.0,
-                "facing_origin_z": 0.0,
-                "look_at": "coordinate",
-                "look_at_target_x": 20,
-                "look_at_target_y": 70,
-                "look_at_target_z": 0,
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "transition_duration": {
+                "value": 0.0
+              },
+              "position.x": {
+                "value": 0.0
+              },
+              "position.y": {
+                "value": 0.0
+              },
+              "position.z": {
+                "value": 0.0
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "base"
+              },
+              "position_origin": {
+                "value": "coordinate"
+              },
+              "position_origin_x": {
+                "value": 0.0
+              },
+              "position_origin_y": {
+                "value": 64.0
+              },
+              "position_origin_z": {
+                "value": 0.0
+              },
+              "look_at": {
+                "value": "coordinate"
+              },
+              "look_at_target_x": {
+                "value": 20.0
+              },
+              "look_at_target_y": {
+                "value": 70.0
+              },
+              "look_at_target_z": {
+                "value": 0.0
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       }

@@ -3,7 +3,6 @@
     "id": "test_h1_sweep_off",
     "name": "H-1 扫掠对照（未开启）",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "同一 box，未声明 continuity：点采样在两个端点都在区域外时不触发（现状会漏）",
     "triggers": [
       {
@@ -13,8 +12,16 @@
         "delay": 0,
         "poll_interval": 10,
         "conditions": {
-          "corner1": {"x": 100, "y": -64, "z": 100},
-          "corner2": {"x": 102, "y": 320, "z": 102}
+          "corner1": {
+            "x": 100,
+            "y": -64,
+            "z": 100
+          },
+          "corner2": {
+            "x": 102,
+            "y": 320,
+            "z": 102
+          }
         }
       }
     ],
@@ -30,7 +37,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 3,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -38,15 +44,27 @@
           {
             "start_time": 0,
             "duration": 3,
-            "layer_type": "subtitle",
-            "text": "H-1 对照：未开启 sweep（不应触发）",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 3, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "H-1 对照：未开启 sweep（不应触发）"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       }

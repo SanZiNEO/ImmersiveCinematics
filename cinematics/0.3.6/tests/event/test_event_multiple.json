@@ -3,9 +3,21 @@
     "id": "test_event_multiple",
     "name": "事件测试-多命令",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "只测试 EVENT 多条命令按时间触发",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_event_command"] } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_event_command"
+        ]
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 10,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +37,27 @@
           {
             "start_time": 0,
             "duration": 10,
-            "layer_type": "subtitle",
-            "text": "测试: test_event_multiple | 功能: EVENT 多命令 | 触发: biome自动",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 10, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_event_multiple | 功能: EVENT 多命令 | 触发: biome自动"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -44,8 +67,44 @@
           {
             "start_time": 0,
             "duration": 10,
-            "event_type": "command",
-            "keyframes": [ { "time": 0, "event_type": "command", "command": "say [EVENT] 0s" },{ "time": 3, "event_type": "command", "command": "say [EVENT] 3s" },{ "time": 6, "event_type": "command", "command": "say [EVENT] 6s" },{ "time": 9, "event_type": "command", "command": "say [EVENT] 9s" } ]
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [EVENT] 0s"
+                    }
+                  },
+                  {
+                    "time": 3.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [EVENT] 3s"
+                    }
+                  },
+                  {
+                    "time": 6.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [EVENT] 6s"
+                    }
+                  },
+                  {
+                    "time": 9.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [EVENT] 9s"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       }

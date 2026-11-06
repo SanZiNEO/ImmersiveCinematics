@@ -3,7 +3,6 @@
     "id": "showcase_kill_sheep",
     "name": "击败羊演示",
     "author": "AI",
-    "version": 3,
     "description": "击杀羊触发：恭喜 + 变天打雷 + 闪电劈玩家 + 天气转晴，展示 EVENT 多点触发与 look_at 注视机位",
     "triggers": [
       {
@@ -35,7 +34,6 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 24.0,
     "tracks": [
       {
         "type": "CAMERA",
@@ -43,36 +41,76 @@
           {
             "start_time": 0,
             "duration": 15,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": 8, "dy": 9, "dz": 8 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1.0
+            "id": "c1_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 15,
-                "position": { "dx": 8, "dy": 9, "dz": 8 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1.0
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 8.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 8.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 9.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 9.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 8.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 8.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       },
@@ -83,77 +121,287 @@
           {
             "start_time": 0,
             "duration": 5,
-            "layer_type": "subtitle",
-            "text": "你击败了一只羊，恭喜你",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 5.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "你击败了一只羊，恭喜你"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           },
           {
             "start_time": 5,
             "duration": 4,
-            "layer_type": "subtitle",
-            "text": "但是，要下雨了！",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
-            ]
+            "id": "c2_2",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "但是，要下雨了！"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 3.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 3.0
+              }
+            }
           },
           {
             "start_time": 9,
             "duration": 5.5,
-            "layer_type": "subtitle",
-            "text": "注意！小心被雷电击中！",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 4.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 5.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
-            ]
+            "id": "c2_3",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "注意！小心被雷电击中！"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.5,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 3.0
+              }
+            }
           },
           {
             "start_time": 14.5,
             "duration": 4.5,
-            "layer_type": "subtitle",
-            "text": "雨过天晴，继续冒险吧。",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c2_4",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "雨过天晴，继续冒险吧。"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 3.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.5,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           },
           {
             "start_time": 19,
             "duration": 5,
-            "layer_type": "subtitle",
-            "text": "我已给你发送村庄的位置。",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 5.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c2_5",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "我已给你发送村庄的位置。"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           }
         ]
       },
@@ -163,65 +411,107 @@
           {
             "start_time": 5.0,
             "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0,
-                "event_type": "command",
-                "command": "weather thunder"
+            "id": "c3_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "weather thunder"
+                    }
+                  }
+                ]
               }
-            ]
+            }
           },
           {
             "start_time": 9.0,
             "duration": 3,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0,
-                "event_type": "command",
-                "command": "summon minecraft:lightning_bolt ~5 ~ ~"
+            "id": "c3_2",
+            "objects": {
+              "event_type": {
+                "value": "command"
               },
-              {
-                "time": 0.8,
-                "event_type": "command",
-                "command": "summon minecraft:lightning_bolt ~-4 ~ ~3"
-              },
-              {
-                "time": 1.6,
-                "event_type": "command",
-                "command": "summon minecraft:lightning_bolt ~2 ~ ~-5"
-              },
-              {
-                "time": 2.4,
-                "event_type": "command",
-                "command": "summon minecraft:lightning_bolt ~ ~ ~"
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:lightning_bolt ~5 ~ ~"
+                    }
+                  },
+                  {
+                    "time": 0.8,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:lightning_bolt ~-4 ~ ~3"
+                    }
+                  },
+                  {
+                    "time": 1.6,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:lightning_bolt ~2 ~ ~-5"
+                    }
+                  },
+                  {
+                    "time": 2.4,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:lightning_bolt ~ ~ ~"
+                    }
+                  }
+                ]
               }
-            ]
+            }
           },
           {
             "start_time": 15.0,
             "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0,
-                "event_type": "command",
-                "command": "weather clear"
+            "id": "c3_3",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "weather clear"
+                    }
+                  }
+                ]
               }
-            ]
+            }
           },
           {
             "start_time": 19.5,
             "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0,
-                "event_type": "command",
-                "command": "locate structure minecraft:village_plains"
+            "id": "c3_4",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "locate structure minecraft:village_plains"
+                    }
+                  }
+                ]
               }
-            ]
+            }
           }
         ]
       },
@@ -231,67 +521,172 @@
           {
             "start_time": 0,
             "duration": 3.48,
-            "sound": "2_reverb_part1.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_1",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "2_reverb_part1.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 5,
             "duration": 2.47,
-            "sound": "2_reverb_part2.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_2",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "2_reverb_part2.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 9,
             "duration": 3.79,
-            "sound": "2_reverb_part3.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_3",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "2_reverb_part3.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 14.5,
             "duration": 3.17,
-            "sound": "2_reverb_part4.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_4",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "2_reverb_part4.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 19,
             "duration": 3.36,
-            "sound": "2_reverb_part5.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_5",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "2_reverb_part5.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           }
         ]
       }

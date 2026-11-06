@@ -3,9 +3,18 @@
     "id": "test_adjust_six_bands",
     "name": "调色测试-PS式六色带微调",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "PS 式六色带微调（Hue / Sat 分色带）：六条固定色带（红 0° / 黄 60° / 绿 120° / 青 180° / 蓝 240° / 品红 300°）各一对 hue（±1 = ±180°）/ sat（乘性 1+值）通道，带权重 = 升余弦锥形（±30° 支撑）；各 -1~1、缺省 0 = 无效果",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        }
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +27,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 8,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +34,27 @@
           {
             "start_time": 0,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "测试: test_adjust_six_bands | 调色: PS 式六色带微调（Hue / Sat 分色带）",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_adjust_six_bands | 调色: PS 式六色带微调（Hue / Sat 分色带）"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -44,12 +64,76 @@
           {
             "start_time": 0,
             "duration": 8,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 8, "position": { "dx": 8, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 8.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": -8.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -59,13 +143,289 @@
           {
             "start_time": 0,
             "duration": 8,
-            "keyframes": [
-              { "time": 0, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 },
-              { "time": 2, "hue_red": 0.5, "sat_red": 0.3, "hue_yellow": -0.2, "sat_yellow": 0.1, "hue_green": 0, "sat_green": -0.5, "hue_cyan": 0.25, "sat_cyan": 0, "hue_blue": -1, "sat_blue": 0.4, "hue_magenta": 0, "sat_magenta": -0.25 },
-              { "time": 4, "hue_red": 1, "sat_red": 0.5, "hue_yellow": 0.5, "sat_yellow": -0.5, "hue_green": -1, "sat_green": 1, "hue_cyan": -0.5, "sat_cyan": -1, "hue_blue": 1, "sat_blue": -0.5, "hue_magenta": 0.5, "sat_magenta": 0.5 },
-              { "time": 6, "hue_red": 0.25, "sat_red": -0.5, "hue_yellow": 0.75, "sat_yellow": 0.5, "hue_green": 0.5, "sat_green": 0.25, "hue_cyan": -0.75, "sat_cyan": 0.75, "hue_blue": 0.5, "sat_blue": 0.25, "hue_magenta": -0.5, "sat_magenta": 0.75 },
-              { "time": 8, "hue_red": 0, "sat_red": 0, "hue_yellow": 0, "sat_yellow": 0, "hue_green": 0, "sat_green": 0, "hue_cyan": 0, "sat_cyan": 0, "hue_blue": 0, "sat_blue": 0, "hue_magenta": 0, "sat_magenta": 0 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "hue_red": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.25
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "sat_red": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.3
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.5
+                  },
+                  {
+                    "time": 6.0,
+                    "value": -0.5
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "hue_yellow": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": -0.2
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.5
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.75
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "sat_yellow": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.1
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -0.5
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.5
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "hue_green": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.5
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "sat_green": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": -0.5
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.25
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "hue_cyan": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.25
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -0.5
+                  },
+                  {
+                    "time": 6.0,
+                    "value": -0.75
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "sat_cyan": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.75
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "hue_blue": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "sat_blue": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.4
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -0.5
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.25
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "hue_magenta": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.5
+                  },
+                  {
+                    "time": 6.0,
+                    "value": -0.5
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "sat_magenta": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": -0.25
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.5
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.75
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           }
         ]
       }

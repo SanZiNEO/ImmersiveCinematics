@@ -3,9 +3,16 @@
     "id": "test_rules_basic",
     "name": "规则测试-基础层",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "clip.rules 基础层：一条 if（location 条件 → camera_set 覆盖链叠加）+ 一条 until（time 条件 → goto_clip 时间寻址，timeout 20s → on_timeout exit）；动作形态 = 动作集 v1（C6-3）",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 0, "conditions": {} } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {}
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +25,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 12,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +32,27 @@
           {
             "start_time": 0,
             "duration": 12,
-            "layer_type": "subtitle",
-            "text": "测试: clip.rules 基础层 | if location → camera_set(position replace) | until time 12s → goto_clip(track CAMERA, at 12)（timeout 20s → exit）",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: clip.rules 基础层 | if location → camera_set(position replace) | until time 12s → goto_clip(track CAMERA, at 12)（timeout 20s → exit）"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -44,28 +62,177 @@
           {
             "start_time": 0,
             "duration": 12,
-            "transition": "cut",
             "loop": false,
-            "rules": [
-              {
-                "if": { "type": "location", "corner1": { "x": 100, "y": 60, "z": -200 }, "corner2": { "x": 120, "y": 80, "z": -180 } },
-                "do": [ { "type": "camera_set", "channels": [ "position" ], "mode": "replace", "position": { "x": 110, "y": 75, "z": -190 } } ],
-                "mode": "enter"
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "until": { "type": "time", "at": 12.0 },
-                "do": [ { "type": "goto_clip", "track": "CAMERA", "at": 12 } ],
-                "timeout": 20,
-                "on_timeout": [ { "type": "exit" } ]
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 45.0
+                  }
+                ]
+              },
+              "pitch": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": -5.0
+                  }
+                ]
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 70.0
+                  },
+                  {
+                    "time": 12.0,
+                    "value": 65.0
+                  }
+                ]
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ],
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 12, "position": { "dx": 0, "dy": 3, "dz": 0 }, "yaw": 45, "pitch": -5, "roll": 0, "fov": 65, "zoom": 1 }
-            ]
+            }
           }
         ]
       }
     ]
-  }
+  },
+  "rules": [
+    {
+      "id": "r_c2_1_1",
+      "condition": {
+        "type": "location",
+        "corner1": {
+          "x": 100,
+          "y": 60,
+          "z": -200
+        },
+        "corner2": {
+          "x": 120,
+          "y": 80,
+          "z": -180
+        }
+      },
+      "actions": [
+        {
+          "type": "camera_set",
+          "channels": [
+            "position"
+          ],
+          "mode": "replace",
+          "position": {
+            "x": 110,
+            "y": 75,
+            "z": -190
+          }
+        }
+      ],
+      "policy": {
+        "mode": "enter"
+      }
+    },
+    {
+      "id": "r_c2_1_2",
+      "condition": {
+        "type": "time",
+        "at": 12.0
+      },
+      "actions": [
+        {
+          "type": "goto_clip",
+          "clip": "c2_1",
+          "entry_time": 12.0
+        }
+      ],
+      "policy": {
+        "timeout": 20,
+        "on_timeout": [
+          {
+            "type": "exit"
+          }
+        ]
+      }
+    }
+  ],
+  "rule_bindings": [
+    {
+      "id": "b_c2_1_1",
+      "rule": "r_c2_1_1",
+      "clip": "c2_1",
+      "gate": {
+        "at": 0
+      },
+      "control": "observe"
+    },
+    {
+      "id": "b_c2_1_2",
+      "rule": "r_c2_1_2",
+      "clip": "c2_1",
+      "gate": {
+        "at": 0
+      },
+      "control": "hold"
+    }
+  ]
 }

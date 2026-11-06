@@ -1,0 +1,59 @@
+{
+  "meta": {
+    "id": "test_standalone_camera_branch",
+    "name": "独立片段相机分支",
+    "author": "ImmersiveCinematics",
+    "description": "timeline 只有 OVERLAY 轨；脚本级 clips[] 的独立 CAMERA 片段作为 intro 的 exit.goto 目标。用于验证独立片段经隐式轨道渲染（I4-R6）：登录后 2s 相机应从 (0,64,0) 移动到 (20,64,20)、yaw 0→90。",
+    "triggers": [
+      { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } }
+    ],
+    "block_keyboard": false,
+    "block_mouse": false,
+    "hide_hud": false,
+    "hide_arm": true,
+    "suppress_bob": true,
+    "pause_when_game_paused": true,
+    "interruptible": true,
+    "skippable": true,
+    "hold_at_end": false,
+    "render_player_model": true
+  },
+  "timeline": {
+    "tracks": [
+      {
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "id": "intro",
+            "start_time": 0,
+            "duration": 2,
+            "objects": {
+              "layer_type": { "value": "subtitle" },
+              "text": { "value": "standalone camera branch" },
+              "opacity": { "value": 1 }
+            },
+            "exit": { "on_complete": "goto", "target": "cam_standalone", "entry_time": 0 }
+          }
+        ]
+      }
+    ]
+  },
+  "clips": [
+    {
+      "id": "cam_standalone",
+      "track": "CAMERA",
+      "duration": 3,
+      "objects": {
+        "position_mode": { "value": "absolute" },
+        "position.x": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 3, "value": 20 } ] },
+        "position.y": { "value": 64 },
+        "position.z": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 3, "value": 20 } ] },
+        "yaw": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 3, "value": 90 } ] },
+        "pitch": { "value": 0 },
+        "roll": { "value": 0 },
+        "fov": { "value": 70 },
+        "zoom": { "value": 1 }
+      }
+    }
+  ]
+}

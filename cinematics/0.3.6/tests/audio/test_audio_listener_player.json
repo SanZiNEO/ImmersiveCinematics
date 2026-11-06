@@ -3,9 +3,21 @@
     "id": "test_audio_listener_player",
     "name": "音频测试-听者Player",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "声音放在玩家侧，听者=玩家应清晰；若错误地以相机为听者则会变远变轻",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_audio_listener_camera"] } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_audio_listener_camera"
+        ]
+      }
+    ],
     "listener": "player",
     "block_keyboard": false,
     "block_mouse": false,
@@ -19,7 +31,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 10,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -27,15 +38,27 @@
           {
             "start_time": 0,
             "duration": 10,
-            "layer_type": "subtitle",
-            "text": "测试: test_audio_listener_player | 功能: 听者Player | 触发: biome自动",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 10, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_audio_listener_player | 功能: 听者Player | 触发: biome自动"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -45,11 +68,30 @@
           {
             "start_time": 0,
             "duration": 10,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0, "event_type": "command", "command": "summon minecraft:zombie ~300 ~ ~" },
-              { "time": 0.01, "event_type": "command", "command": "summon minecraft:sheep ~ ~ ~" }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:zombie ~300 ~ ~"
+                    }
+                  },
+                  {
+                    "time": 0.01,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:sheep ~ ~ ~"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -59,12 +101,76 @@
           {
             "start_time": 0,
             "duration": 10,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 300, "dy": 20, "dz": 0 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 10, "position": { "dx": 300, "dy": 20, "dz": 0 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 300.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 300.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 20.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 20.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -74,19 +180,48 @@
           {
             "start_time": 0,
             "duration": 10,
-            "sound": "second_waltz.ogg",
-            "source": "file",
-            "category": "ambient",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "fade_in": 0.5,
-            "fade_out": 0.5,
-            "attenuation": "linear",
-            "position_mode": "relative",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_1",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "second_waltz.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "category": {
+                "value": "ambient"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "fade_in": {
+                "value": 0.5
+              },
+              "fade_out": {
+                "value": 0.5
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           }
         ]
       }

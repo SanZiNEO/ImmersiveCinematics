@@ -3,9 +3,21 @@
     "id": "test_camera_vertical_line",
     "name": "相机测试-退化连线(纯垂直/纯水平)",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "yaw_base/pitch_base=line 的边界：纯垂直连线(两端水平位置相同、只有高度差)水平角未定义 → 该朝向输入被拒(回退 world 基准 + 限频告警)；对照段为纯水平连线(合法, 基准俯仰=0)",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_trigger_login"] } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_trigger_login"
+        ]
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 10,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +37,27 @@
           {
             "start_time": 0,
             "duration": 10,
-            "layer_type": "subtitle",
-            "text": "测试: test_camera_vertical_line | 0-4s 纯垂直连线(同水平位置、只有高度差) → 该朝向输入被拒(回退 world, 有告警) | 5-10s 纯水平连线 → 合法, 基准俯仰 0",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 10, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_camera_vertical_line | 0-4s 纯垂直连线(同水平位置、只有高度差) → 该朝向输入被拒(回退 world, 有告警) | 5-10s 纯水平连线 → 合法, 基准俯仰 0"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -44,13 +67,44 @@
           {
             "start_time": 0,
             "duration": 1,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0, "event_type": "command", "command": "summon minecraft:armor_stand ~ ~ ~ {NoGravity:1b,Marker:1b,CustomName:'\"ic_vline_bottom\"'}" },
-              { "time": 0.01, "event_type": "command", "command": "summon minecraft:armor_stand ~ ~10 ~ {NoGravity:1b,Marker:1b,CustomName:'\"ic_vline_top\"'}" },
-              { "time": 0.02, "event_type": "command", "command": "summon minecraft:armor_stand ~ ~ ~ {NoGravity:1b,Marker:1b,CustomName:'\"ic_hline_west\"'}" },
-              { "time": 0.03, "event_type": "command", "command": "summon minecraft:armor_stand ~10 ~ ~ {NoGravity:1b,Marker:1b,CustomName:'\"ic_hline_east\"'}" }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:armor_stand ~ ~ ~ {NoGravity:1b,Marker:1b,CustomName:'\"ic_vline_bottom\"'}"
+                    }
+                  },
+                  {
+                    "time": 0.01,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:armor_stand ~ ~10 ~ {NoGravity:1b,Marker:1b,CustomName:'\"ic_vline_top\"'}"
+                    }
+                  },
+                  {
+                    "time": 0.02,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:armor_stand ~ ~ ~ {NoGravity:1b,Marker:1b,CustomName:'\"ic_hline_west\"'}"
+                    }
+                  },
+                  {
+                    "time": 0.03,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:armor_stand ~10 ~ ~ {NoGravity:1b,Marker:1b,CustomName:'\"ic_hline_east\"'}"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -61,63 +115,143 @@
           {
             "start_time": 0,
             "duration": 10,
-            "transition": "cut",
-            "transition_duration": 0.0,
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": 0, "dy": 4, "dz": -10 },
-                "yaw_base": "line",
-                "pitch_base": "line",
-                "yaw_base_from": "@e[type=minecraft:armor_stand,name=ic_vline_bottom]",
-                "yaw_base_to": "@e[type=minecraft:armor_stand,name=ic_vline_top]",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+            "id": "c3_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 4,
-                "position": { "dx": 0, "dy": 4, "dz": -10 },
-                "yaw_base": "line",
-                "pitch_base": "line",
-                "yaw_base_from": "@e[type=minecraft:armor_stand,name=ic_vline_bottom]",
-                "yaw_base_to": "@e[type=minecraft:armor_stand,name=ic_vline_top]",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "transition_duration": {
+                "value": 0.0
               },
-              {
-                "time": 5,
-                "position": { "dx": -2, "dy": 3, "dz": -14 },
-                "yaw_base": "line",
-                "pitch_base": "line",
-                "yaw_base_from": "@e[type=minecraft:armor_stand,name=ic_hline_west]",
-                "yaw_base_to": "@e[type=minecraft:armor_stand,name=ic_hline_east]",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": -2.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": -2.0
+                  }
+                ]
               },
-              {
-                "time": 10,
-                "position": { "dx": -2, "dy": 3, "dz": -14 },
-                "yaw_base": "line",
-                "pitch_base": "line",
-                "yaw_base_from": "@e[type=minecraft:armor_stand,name=ic_hline_west]",
-                "yaw_base_to": "@e[type=minecraft:armor_stand,name=ic_hline_east]",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -10.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -10.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": -14.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": -14.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw_base": {
+                "value": "line"
+              },
+              "pitch_base": {
+                "value": "line"
+              },
+              "yaw_base_from": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": "@e[type=minecraft:armor_stand,name=ic_vline_bottom]"
+                  },
+                  {
+                    "time": 4.0,
+                    "value": "@e[type=minecraft:armor_stand,name=ic_vline_bottom]"
+                  },
+                  {
+                    "time": 5.0,
+                    "value": "@e[type=minecraft:armor_stand,name=ic_hline_west]"
+                  },
+                  {
+                    "time": 10.0,
+                    "value": "@e[type=minecraft:armor_stand,name=ic_hline_west]"
+                  }
+                ]
+              },
+              "yaw_base_to": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": "@e[type=minecraft:armor_stand,name=ic_vline_top]"
+                  },
+                  {
+                    "time": 4.0,
+                    "value": "@e[type=minecraft:armor_stand,name=ic_vline_top]"
+                  },
+                  {
+                    "time": 5.0,
+                    "value": "@e[type=minecraft:armor_stand,name=ic_hline_east]"
+                  },
+                  {
+                    "time": 10.0,
+                    "value": "@e[type=minecraft:armor_stand,name=ic_hline_east]"
+                  }
+                ]
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       }

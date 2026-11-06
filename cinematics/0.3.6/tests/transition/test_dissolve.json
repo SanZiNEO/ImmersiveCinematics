@@ -3,9 +3,21 @@
     "id": "test_dissolve",
     "name": "转场测试-叠化",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "叠化（D1 纯关键帧 C 格式，无 transition_in/out / TRANSITION 轨 / 运行时生成器）：同一 CAMERA 轨两条全屏 clip，绘制顺序 A 在下、B 在上。A[0,6] 全程 opacity=1（不透明底图，不参与淡出）；B[4,10] 的 opacity 只在重叠窗口 [4,6) 从 0 线性升到 1，之后 hold=1 到自然结束。source-over 合成 = B.rgb×a + A.rgb×(1-a)，任何时刻都有一幅不透明画面在底，不会露出第三层原版基画面；A、B 用不同机位 + 明确调色（A 冷蓝 / B 暖橙）区分。采样：t=5.0 中心 (0.5,0.5) 为 A/B 各约 50% 的混合；t=6.0 与 t=9.5 中心为纯 B；全程字幕 z100 在画面顶部。",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_fade_white"] } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_fade_white"
+        ]
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 10,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,35 +37,77 @@
           {
             "start_time": 0,
             "duration": 4,
-            "layer_type": "subtitle",
-            "text": "阶段1 · A 独占：A 全程 opacity=1（冷蓝机位）",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
-              { "time": 4, "x": 0.5, "y": 0.18, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "阶段1 · A 独占：A 全程 opacity=1（冷蓝机位）"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.18
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 4,
             "duration": 2,
-            "layer_type": "subtitle",
-            "text": "阶段2 · 重叠 [4,6)：A 保持不透明 + B opacity 0→1（source-over，无第三底图）",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
-              { "time": 2, "x": 0.5, "y": 0.18, "opacity": 1 }
-            ]
+            "id": "c1_2",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "阶段2 · 重叠 [4,6)：A 保持不透明 + B opacity 0→1（source-over，无第三底图）"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.18
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 6,
             "duration": 4,
-            "layer_type": "subtitle",
-            "text": "阶段3 · B 独占 hold：B opacity=1 到 10s 自然结束（暖橙机位）",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.18, "opacity": 1 },
-              { "time": 4, "x": 0.5, "y": 0.18, "opacity": 1 }
-            ]
+            "id": "c1_3",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "阶段3 · B 独占 hold：B opacity=1 到 10s 自然结束（暖橙机位）"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.18
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -64,72 +117,241 @@
           {
             "start_time": 0,
             "duration": 6,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": 0, "dy": 2, "dz": -6 },
-                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 1,
-                "temperature": -0.7, "saturation": 0.15,
-                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 4,
-                "position": { "dx": 0, "dy": 2, "dz": -6 },
-                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 1,
-                "temperature": -0.7, "saturation": 0.15,
-                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.0
+                  }
+                ]
               },
-              {
-                "time": 6,
-                "position": { "dx": 0, "dy": 2, "dz": -6 },
-                "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 1,
-                "temperature": -0.7, "saturation": 0.15,
-                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 2.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -6.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -6.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": -6.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 10.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "value": 1.0
+              },
+              "temperature": {
+                "value": -0.7
+              },
+              "saturation": {
+                "value": 0.15
+              },
+              "dest.x": {
+                "value": 0.0
+              },
+              "dest.y": {
+                "value": 0.0
+              },
+              "dest.w": {
+                "value": 1.0
+              },
+              "dest.h": {
+                "value": 1.0
+              },
+              "source.x": {
+                "value": 0.0
+              },
+              "source.y": {
+                "value": 0.0
+              },
+              "source.w": {
+                "value": 1.0
+              },
+              "source.h": {
+                "value": 1.0
               }
-            ]
+            }
           },
           {
             "start_time": 4,
             "duration": 6,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": 6, "dy": 2, "dz": 0 },
-                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 0,
-                "temperature": 0.8, "saturation": 0.15,
-                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+            "id": "c2_2",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 2,
-                "position": { "dx": 6, "dy": 2, "dz": 0 },
-                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 1,
-                "temperature": 0.8, "saturation": 0.15,
-                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 6.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 6.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 6.0
+                  }
+                ]
               },
-              {
-                "time": 6,
-                "position": { "dx": 6, "dy": 2, "dz": 0 },
-                "yaw": 90, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1,
-                "opacity": 1,
-                "temperature": 0.8, "saturation": 0.15,
-                "dest": { "x": 0, "y": 0, "w": 1, "h": 1 },
-                "source": { "x": 0, "y": 0, "w": 1, "h": 1 }
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 2.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 90.0
+              },
+              "pitch": {
+                "value": 10.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 1.0
+                  }
+                ]
+              },
+              "temperature": {
+                "value": 0.8
+              },
+              "saturation": {
+                "value": 0.15
+              },
+              "dest.x": {
+                "value": 0.0
+              },
+              "dest.y": {
+                "value": 0.0
+              },
+              "dest.w": {
+                "value": 1.0
+              },
+              "dest.h": {
+                "value": 1.0
+              },
+              "source.x": {
+                "value": 0.0
+              },
+              "source.y": {
+                "value": 0.0
+              },
+              "source.w": {
+                "value": 1.0
+              },
+              "source.h": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       }

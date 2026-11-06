@@ -3,9 +3,18 @@
     "id": "test_objects_camera_lookat",
     "name": "对象格式-相机注视与切线",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "新格式 CAMERA：段一 look_at=coordinate + 目标坐标 + roll 关键帧；段二 orient=tangent + yaw_offset 关键帧",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        }
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +27,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 8,
     "tracks": [
       {
         "type": "CAMERA",
@@ -27,24 +35,66 @@
             "start_time": 0,
             "duration": 5,
             "objects": {
-              "position.x": { "value": 0 },
-              "position.y": { "value": 3 },
-              "position.z": { "value": -8 },
-              "look_at": { "value": "coordinate" },
-              "look_at_target_x": { "value": 0 },
-              "look_at_target_y": { "value": 64 },
-              "look_at_target_z": { "value": 100 },
-              "roll": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 5, "value": 15 } ] }
+              "position.x": {
+                "value": 0
+              },
+              "position.y": {
+                "value": 3
+              },
+              "position.z": {
+                "value": -8
+              },
+              "look_at": {
+                "value": "coordinate"
+              },
+              "look_at_target_x": {
+                "value": 0
+              },
+              "look_at_target_y": {
+                "value": 64
+              },
+              "look_at_target_z": {
+                "value": 100
+              },
+              "roll": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 5,
+                    "value": 15
+                  }
+                ]
+              }
             }
           },
           {
             "start_time": 5,
             "duration": 3,
             "objects": {
-              "orient": { "value": "tangent" },
-              "yaw_offset": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 3, "value": 45 } ] },
-              "pitch_offset": { "value": 0 },
-              "fov": { "value": 70 }
+              "orient": {
+                "value": "tangent"
+              },
+              "yaw_offset": {
+                "keyframes": [
+                  {
+                    "time": 0,
+                    "value": 0
+                  },
+                  {
+                    "time": 3,
+                    "value": 45
+                  }
+                ]
+              },
+              "pitch_offset": {
+                "value": 0
+              },
+              "fov": {
+                "value": 70
+              }
             }
           }
         ]

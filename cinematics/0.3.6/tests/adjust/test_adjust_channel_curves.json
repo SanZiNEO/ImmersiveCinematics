@@ -3,9 +3,18 @@
     "id": "test_adjust_channel_curves",
     "name": "调色测试-每通道曲线",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "每通道曲线（R / G / B 各一条，曲线组形态 b）：r_curve 提亮中间调、g_curve 压暗中间调、b_curve S 形提亮；三个强度关键帧各自 0 → 1 → 0.5 → 1（缺省 1 = 全量生效）",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        }
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +27,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 8,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +34,27 @@
           {
             "start_time": 0,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "测试: test_adjust_channel_curves | 每通道曲线 R/G/B | 强度 0→1→0.5→1",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_adjust_channel_curves | 每通道曲线 R/G/B | 强度 0→1→0.5→1"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -44,12 +64,76 @@
           {
             "start_time": 0,
             "duration": 8,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 8, "position": { "dx": 8, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 8.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": -8.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -59,15 +143,113 @@
           {
             "start_time": 0,
             "duration": 8,
-            "r_curve": [ [0, 0], [0.5, 0.65], [1, 1] ],
-            "g_curve": [ [0, 0], [0.5, 0.35], [1, 1] ],
-            "b_curve": [ [0, 0], [0.5, 0.8], [1, 1] ],
-            "keyframes": [
-              { "time": 0, "r_curve_strength": 0, "g_curve_strength": 1, "b_curve_strength": 0.5 },
-              { "time": 2, "r_curve_strength": 1, "g_curve_strength": 0.5, "b_curve_strength": 1 },
-              { "time": 4, "r_curve_strength": 0.5, "g_curve_strength": 0, "b_curve_strength": 0 },
-              { "time": 6, "r_curve_strength": 1, "g_curve_strength": 1, "b_curve_strength": 1 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "r_curve": {
+                "value": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0.5,
+                    0.65
+                  ],
+                  [
+                    1,
+                    1
+                  ]
+                ]
+              },
+              "g_curve": {
+                "value": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0.5,
+                    0.35
+                  ],
+                  [
+                    1,
+                    1
+                  ]
+                ]
+              },
+              "b_curve": {
+                "value": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0.5,
+                    0.8
+                  ],
+                  [
+                    1,
+                    1
+                  ]
+                ]
+              },
+              "r_curve_strength": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.5
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 1.0
+                  }
+                ]
+              },
+              "g_curve_strength": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 1.0
+                  }
+                ]
+              },
+              "b_curve_strength": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.5
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 1.0
+                  }
+                ]
+              }
+            }
           }
         ]
       }

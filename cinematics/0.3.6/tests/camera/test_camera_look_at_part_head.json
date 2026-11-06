@@ -3,7 +3,6 @@
     "id": "smoke_part_head",
     "name": "部位/方块注视冒烟",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "清场+召唤单只铁傀儡；look_at_part y=100 看头",
     "triggers": [
       {
@@ -26,7 +25,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 8,
     "tracks": [
       {
         "type": "EVENT",
@@ -34,34 +32,51 @@
           {
             "start_time": 0,
             "duration": 8,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0,
-                "event_type": "command",
-                "command": "kill @e[type=minecraft:iron_golem]"
+            "id": "c1_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
               },
-              {
-                "time": 0.1,
-                "event_type": "command",
-                "command": "kill @e[type=minecraft:armor_stand]"
-              },
-              {
-                "time": 0.2,
-                "event_type": "command",
-                "command": "fill ~-4 ~ ~-4 ~8 ~ ~8 minecraft:air replace minecraft:obsidian"
-              },
-              {
-                "time": 0.4,
-                "event_type": "command",
-                "command": "summon minecraft:iron_golem ~4 ~ ~2"
-              },
-              {
-                "time": 0.6,
-                "event_type": "command",
-                "command": "setblock ~6 ~ ~6 minecraft:obsidian"
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "kill @e[type=minecraft:iron_golem]"
+                    }
+                  },
+                  {
+                    "time": 0.1,
+                    "value": {
+                      "event_type": "command",
+                      "command": "kill @e[type=minecraft:armor_stand]"
+                    }
+                  },
+                  {
+                    "time": 0.2,
+                    "value": {
+                      "event_type": "command",
+                      "command": "fill ~-4 ~ ~-4 ~8 ~ ~8 minecraft:air replace minecraft:obsidian"
+                    }
+                  },
+                  {
+                    "time": 0.4,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:iron_golem ~4 ~ ~2"
+                    }
+                  },
+                  {
+                    "time": 0.6,
+                    "value": {
+                      "event_type": "command",
+                      "command": "setblock ~6 ~ ~6 minecraft:obsidian"
+                    }
+                  }
+                ]
               }
-            ]
+            }
           }
         ]
       },
@@ -71,48 +86,85 @@
           {
             "start_time": 0,
             "duration": 8,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position_mode": "relative",
-                "position": {
-                  "dx": 0,
-                  "dy": 3,
-                  "dz": 5
-                },
-                "yaw": 0,
-                "pitch": -10,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "look_at": "entity",
-                "look_at_selector": "@e[type=minecraft:iron_golem,limit=1]",
-                "look_at_part": {
-                  "y": 100
-                }
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 8,
-                "position_mode": "relative",
-                "position": {
-                  "dx": 0,
-                  "dy": 3,
-                  "dz": 5
-                },
-                "yaw": 0,
-                "pitch": -10,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1,
-                "look_at": "entity",
-                "look_at_selector": "@e[type=minecraft:iron_golem,limit=1]",
-                "look_at_part": {
-                  "y": 100
-                }
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 5.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 5.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": -10.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@e[type=minecraft:iron_golem,limit=1]"
+              },
+              "look_at_part.x": {
+                "value": 50.0
+              },
+              "look_at_part.y": {
+                "value": 100.0
+              },
+              "look_at_part.z": {
+                "value": 50.0
               }
-            ]
+            }
           }
         ]
       }

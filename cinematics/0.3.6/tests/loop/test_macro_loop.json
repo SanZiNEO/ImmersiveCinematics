@@ -3,9 +3,18 @@
     "id": "test_macro_loop",
     "name": "循环测试-宏观Repeat",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "只测试宏观循环 macro_loop=true（两个有限 clip：0-10 / 10-20，宏观末端=20；t=25 时轨道应拿到 folded=5，回到第一个 clip）",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        }
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -20,7 +29,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 20,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -28,15 +36,27 @@
           {
             "start_time": 0,
             "duration": 20,
-            "layer_type": "subtitle",
-            "text": "测试: test_macro_loop | 功能: 宏观循环 Repeat | 触发: biome自动",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 20, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_macro_loop | 功能: 宏观循环 Repeat | 触发: biome自动"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -46,22 +66,138 @@
           {
             "start_time": 0,
             "duration": 10,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": -6, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 10, "position": { "dx": 6, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -6.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 6.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": -10.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 10,
             "duration": 10,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 6, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 10, "position": { "dx": -6, "dy": 3, "dz": 0 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c2_2",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 6.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": -6.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 10.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           }
         ]
       }

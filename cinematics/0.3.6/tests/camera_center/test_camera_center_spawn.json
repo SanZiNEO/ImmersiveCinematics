@@ -3,10 +3,20 @@
     "id": "test_camera_center_spawn",
     "name": "相机中心·刷怪门测试(夜晚停留)",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "超平坦/任意世界：相机固定相对玩家 -X 200 格、高 2 格停留 60s，t=0 设午夜/普通难度/开启刷怪并清空非玩家实体。相机离玩家 200 格（超出 128 配对半径）时服务端仍应按相机中心刷怪：日志 gateHit>0、attempts>0、spawned>0、localCapReject 偏低；对账 pairSeen 与客户端 total/r128。",
     "triggers": [
-      { "id": "tcs_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_center_multiclip"] }
+      {
+        "id": "tcs_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_camera_center_multiclip"
+        ]
+      }
     ],
     "block_keyboard": true,
     "block_mouse": true,
@@ -20,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 60,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -28,15 +37,27 @@
           {
             "start_time": 0,
             "duration": 60,
-            "layer_type": "subtitle",
-            "text": "测试: test_camera_center_spawn | 功能: 相机中心刷怪门 | 触发: biome自动",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 60, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_camera_center_spawn | 功能: 相机中心刷怪门 | 触发: biome自动"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -46,28 +67,70 @@
           {
             "start_time": 0,
             "duration": 60,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": -200, "dy": 2, "dz": 0 },
-                "yaw": 90,
-                "pitch": 30,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 60,
-                "position": { "dx": -200, "dy": 2, "dz": 0 },
-                "yaw": 90,
-                "pitch": 30,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -200.0
+                  },
+                  {
+                    "time": 60.0,
+                    "value": -200.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 60.0,
+                    "value": 2.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 60.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 90.0
+              },
+              "pitch": {
+                "value": 30.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       },
@@ -77,14 +140,51 @@
           {
             "start_time": 0,
             "duration": 60,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0, "event_type": "command", "command": "time set midnight && gamerule doMobSpawning true && difficulty normal && kill @e[type=!player]" },
-              { "time": 5, "event_type": "command", "command": "say [相机中心] 刷怪门：相机离玩家约 200 格，等服务端按相机中心刷怪" },
-              { "time": 20, "event_type": "command", "command": "say [相机中心] 20s：日志应出现 gateHit>0 / attempts>0 / spawned>0" },
-              { "time": 40, "event_type": "command", "command": "say [相机中心] 40s：spawned 应持续增长；localCapReject 只应少量" },
-              { "time": 60, "event_type": "command", "command": "say [相机中心] 结束：对账 pairSeen 与客户端 total/r128（差值应落在 distOut/uncompiled/frustumOut）" }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "time set midnight && gamerule doMobSpawning true && difficulty normal && kill @e[type=!player]"
+                    }
+                  },
+                  {
+                    "time": 5.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [相机中心] 刷怪门：相机离玩家约 200 格，等服务端按相机中心刷怪"
+                    }
+                  },
+                  {
+                    "time": 20.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [相机中心] 20s：日志应出现 gateHit>0 / attempts>0 / spawned>0"
+                    }
+                  },
+                  {
+                    "time": 40.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [相机中心] 40s：spawned 应持续增长；localCapReject 只应少量"
+                    }
+                  },
+                  {
+                    "time": 60.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [相机中心] 结束：对账 pairSeen 与客户端 total/r128（差值应落在 distOut/uncompiled/frustumOut）"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       }

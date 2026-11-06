@@ -3,9 +3,21 @@
     "id": "test_camera_follow_entity",
     "name": "相机测试-follow实体",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "只测试 follow 会逃跑的豹猫实体",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_breath_trauma"] } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_camera_breath_trauma"
+        ]
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 12,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,46 +37,132 @@
           {
             "start_time": 0,
             "duration": 12,
-            "layer_type": "subtitle",
-            "text": "测试: test_camera_follow_entity | 功能: follow 实体 | 触发: biome自动",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 12, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_camera_follow_entity | 功能: follow 实体 | 触发: biome自动"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
       {
-  "type": "EVENT",
-  "clips": [
-    {
-      "start_time": 0,
-      "duration": 12,
-      "event_type": "command",
-      "keyframes": [
-        { "time": 0, "event_type": "command", "command": "summon minecraft:ocelot ~ ~2 ~" }
-      ]
-    }
-  ]
-},
-{
-  "type": "CAMERA",
-  "clips": [
-    {
-      "start_time": 1,
-      "duration": 11,
-      "transition": "cut",
-      "loop": false,
-      "keyframes": [
-        { "time": 0, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@e[type=minecraft:ocelot,limit=1]", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 },
-        { "time": 11, "position": { "dx": 0, "dy": 4, "dz": -5 }, "follow": "entity", "follow_selector": "@e[type=minecraft:ocelot,limit=1]", "yaw": 0, "pitch": -10, "roll": 0, "fov": 70, "zoom": 1 }
-      ]
-    }
-  ]
-}
+        "type": "EVENT",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 12,
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:ocelot ~ ~2 ~"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "CAMERA",
+        "clips": [
+          {
+            "start_time": 1,
+            "duration": 11,
+            "loop": false,
+            "id": "c3_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 11.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 11.0,
+                    "value": 4.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -5.0
+                  },
+                  {
+                    "time": 11.0,
+                    "value": -5.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "position_origin": {
+                "value": "@e[type=minecraft:ocelot,limit=1]"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": -10.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
+          }
+        ]
+      }
     ]
   }
 }

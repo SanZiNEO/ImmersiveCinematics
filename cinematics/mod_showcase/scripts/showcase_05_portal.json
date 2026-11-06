@@ -3,7 +3,6 @@
     "id": "showcase_05_portal",
     "name": "送花与传送门",
     "author": "AI",
-    "version": 3,
     "description": "手持虞美人右键铁傀儡触发：变焦特写铁傀儡，搭建黑曜石传送门框架",
     "triggers": [
       {
@@ -34,7 +33,6 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 12.0,
     "tracks": [
       {
         "type": "CAMERA",
@@ -42,83 +40,162 @@
           {
             "start_time": 0,
             "duration": 4.5,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": 7, "dy": 4, "dz": 0 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1.0
+            "id": "c1_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 4.5,
-                "position": { "dx": 5, "dy": 4, "dz": 0 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1.0
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 7.0
+                  },
+                  {
+                    "time": 4.5,
+                    "value": 5.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 4.5,
+                    "value": 4.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.5,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           },
           {
             "start_time": 4.5,
             "duration": 7.5,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": -4, "dy": 4, "dz": 11 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1.0
+            "id": "c1_2",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 3.5,
-                "position": { "dx": 0, "dy": 5, "dz": 12 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1.0
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -4.0
+                  },
+                  {
+                    "time": 3.5,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 7.5,
+                    "value": 4.0
+                  }
+                ]
               },
-              {
-                "time": 7.5,
-                "position": { "dx": 4, "dy": 6, "dz": 11 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1.0
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 3.5,
+                    "value": 5.0
+                  },
+                  {
+                    "time": 7.5,
+                    "value": 6.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 11.0
+                  },
+                  {
+                    "time": 3.5,
+                    "value": 12.0
+                  },
+                  {
+                    "time": 7.5,
+                    "value": 11.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       },
@@ -128,34 +205,51 @@
           {
             "start_time": 4.5,
             "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0,
-                "event_type": "command",
-                "command": "fill ~-1 ~0 ~6 ~2 ~0 ~6 minecraft:obsidian"
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
               },
-              {
-                "time": 0.01,
-                "event_type": "command",
-                "command": "fill ~-1 ~4 ~6 ~2 ~4 ~6 minecraft:obsidian"
-              },
-              {
-                "time": 0.02,
-                "event_type": "command",
-                "command": "fill ~-1 ~0 ~6 ~-1 ~4 ~6 minecraft:obsidian"
-              },
-              {
-                "time": 0.03,
-                "event_type": "command",
-                "command": "fill ~2 ~0 ~6 ~2 ~4 ~6 minecraft:obsidian"
-              },
-              {
-                "time": 0.04,
-                "event_type": "command",
-                "command": "fill ~0 ~1 ~6 ~1 ~3 ~6 minecraft:nether_portal"
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "fill ~-1 ~0 ~6 ~2 ~0 ~6 minecraft:obsidian"
+                    }
+                  },
+                  {
+                    "time": 0.01,
+                    "value": {
+                      "event_type": "command",
+                      "command": "fill ~-1 ~4 ~6 ~2 ~4 ~6 minecraft:obsidian"
+                    }
+                  },
+                  {
+                    "time": 0.02,
+                    "value": {
+                      "event_type": "command",
+                      "command": "fill ~-1 ~0 ~6 ~-1 ~4 ~6 minecraft:obsidian"
+                    }
+                  },
+                  {
+                    "time": 0.03,
+                    "value": {
+                      "event_type": "command",
+                      "command": "fill ~2 ~0 ~6 ~2 ~4 ~6 minecraft:obsidian"
+                    }
+                  },
+                  {
+                    "time": 0.04,
+                    "value": {
+                      "event_type": "command",
+                      "command": "fill ~0 ~1 ~6 ~1 ~3 ~6 minecraft:nether_portal"
+                    }
+                  }
+                ]
               }
-            ]
+            }
           }
         ]
       },
@@ -166,32 +260,116 @@
           {
             "start_time": 0,
             "duration": 4,
-            "layer_type": "subtitle",
-            "text": "铁傀儡接受了你的花",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "铁傀儡接受了你的花"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 3.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 3.0
+              }
+            }
           },
           {
             "start_time": 6,
             "duration": 5,
-            "layer_type": "subtitle",
-            "text": "走进传送门，前往新的世界",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 5.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c3_2",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "走进传送门，前往新的世界"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           }
         ]
       },
@@ -201,28 +379,70 @@
           {
             "start_time": 0,
             "duration": 2.59,
-            "sound": "5_reverb_part1.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_1",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "5_reverb_part1.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 6,
             "duration": 3.36,
-            "sound": "5_reverb_part2.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_2",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "5_reverb_part2.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           }
         ]
       }

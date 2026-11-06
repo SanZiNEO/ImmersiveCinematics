@@ -3,7 +3,6 @@
     "id": "showcase_09_home",
     "name": "回到主世界",
     "author": "AI",
-    "version": 3,
     "description": "从下界回主世界触发（延迟10s让玩家先自由走动）。60秒电影长镜头：开场微推→摇镜扫远景→拉升→高空贝塞尔环绕→俯拍降落→希区柯克变焦→荷兰角收尾，全程屏蔽键鼠/HUD+宽银幕，末尾给食物引导饱食度（衔接脚本10）",
     "triggers": [
       {
@@ -33,7 +32,6 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 62.0,
     "tracks": [
       {
         "type": "CAMERA",
@@ -41,105 +39,980 @@
           {
             "start_time": 0,
             "duration": 8,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0,   "position": { "dx": -2, "dy": 2.5, "dz": -8 },   "yaw": 15,  "pitch": 3,   "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 1.6, "position": { "dx": -2, "dy": 2.5, "dz": -7.7 }, "yaw": 14,  "pitch": 2.5, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 3.2, "position": { "dx": -2, "dy": 2.55, "dz": -7.4 }, "yaw": 13, "pitch": 2.5, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 4.8, "position": { "dx": -2, "dy": 2.6, "dz": -7.1 }, "yaw": 12,  "pitch": 3,   "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 6.4, "position": { "dx": -2, "dy": 2.65, "dz": -6.8 }, "yaw": 11, "pitch": 3,   "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 8,   "position": { "dx": -2, "dy": 2.7, "dz": -6.5 }, "yaw": 10,  "pitch": 2.5, "roll": 0, "fov": 70, "zoom": 1.0 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -2.0
+                  },
+                  {
+                    "time": 1.6,
+                    "value": -2.0
+                  },
+                  {
+                    "time": 3.2,
+                    "value": -2.0
+                  },
+                  {
+                    "time": 4.8,
+                    "value": -2.0
+                  },
+                  {
+                    "time": 6.4,
+                    "value": -2.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": -2.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.5
+                  },
+                  {
+                    "time": 1.6,
+                    "value": 2.5
+                  },
+                  {
+                    "time": 3.2,
+                    "value": 2.55
+                  },
+                  {
+                    "time": 4.8,
+                    "value": 2.6
+                  },
+                  {
+                    "time": 6.4,
+                    "value": 2.65
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 2.7
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 1.6,
+                    "value": -7.7
+                  },
+                  {
+                    "time": 3.2,
+                    "value": -7.4
+                  },
+                  {
+                    "time": 4.8,
+                    "value": -7.1
+                  },
+                  {
+                    "time": 6.4,
+                    "value": -6.8
+                  },
+                  {
+                    "time": 8.0,
+                    "value": -6.5
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 15.0
+                  },
+                  {
+                    "time": 1.6,
+                    "value": 14.0
+                  },
+                  {
+                    "time": 3.2,
+                    "value": 13.0
+                  },
+                  {
+                    "time": 4.8,
+                    "value": 12.0
+                  },
+                  {
+                    "time": 6.4,
+                    "value": 11.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 10.0
+                  }
+                ]
+              },
+              "pitch": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 1.6,
+                    "value": 2.5
+                  },
+                  {
+                    "time": 3.2,
+                    "value": 2.5
+                  },
+                  {
+                    "time": 4.8,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 6.4,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 2.5
+                  }
+                ]
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 7.5,
             "duration": 8.5,
-            "transition": "morph",
-            "transition_duration": 1.0,
             "loop": false,
-            "keyframes": [
-              { "time": 0,   "position": { "dx": -2, "dy": 2.7, "dz": -6.5 }, "yaw": 10,  "pitch": 2.5, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 2,   "position": { "dx": -2, "dy": 2.7, "dz": -6.5 }, "yaw": 30,  "pitch": 0,   "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 4,   "position": { "dx": -2, "dy": 2.75, "dz": -6.5 }, "yaw": 55, "pitch": -4,  "roll": 0, "fov": 72, "zoom": 1.0 },
-              { "time": 6,   "position": { "dx": -2, "dy": 2.8, "dz": -6.5 }, "yaw": 75,  "pitch": -8,  "roll": 0, "fov": 72, "zoom": 1.0 },
-              { "time": 8.5, "position": { "dx": -2, "dy": 2.8, "dz": -6.5 }, "yaw": 90,  "pitch": -10, "roll": 0, "fov": 73, "zoom": 1.0 }
-            ]
+            "id": "c1_2",
+            "objects": {
+              "transition": {
+                "value": "morph"
+              },
+              "transition_duration": {
+                "value": 1.0
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -2.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": -2.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -2.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": -2.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": -2.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.7
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 2.7
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 2.75
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 2.8
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 2.8
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -6.5
+                  },
+                  {
+                    "time": 2.0,
+                    "value": -6.5
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -6.5
+                  },
+                  {
+                    "time": 6.0,
+                    "value": -6.5
+                  },
+                  {
+                    "time": 8.5,
+                    "value": -6.5
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 30.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 55.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 75.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 90.0
+                  }
+                ]
+              },
+              "pitch": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.5
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -4.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": -10.0
+                  }
+                ]
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 70.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 70.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 72.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 72.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 73.0
+                  }
+                ]
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 15.5,
             "duration": 8.5,
-            "transition": "morph",
-            "transition_duration": 1.0,
             "loop": false,
-            "keyframes": [
-              { "time": 0,   "position": { "dx": 4,   "dy": 2.5, "dz": 4 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 2,   "position": { "dx": 3.5, "dy": 5,   "dz": 4.5 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 72, "zoom": 1.0 },
-              { "time": 4,   "position": { "dx": 2.5, "dy": 8,   "dz": 5 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 75, "zoom": 1.0 },
-              { "time": 6,   "position": { "dx": 1,   "dy": 11,  "dz": 5.5 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 78, "zoom": 1.0 },
-              { "time": 8.5, "position": { "dx": 0,   "dy": 14,  "dz": 6 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 80, "zoom": 1.0 }
-            ]
+            "id": "c1_3",
+            "objects": {
+              "transition": {
+                "value": "morph"
+              },
+              "transition_duration": {
+                "value": 1.0
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 3.5
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 2.5
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.5
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 5.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 8.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 11.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 14.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 4.5
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 5.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 5.5
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 6.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 70.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 72.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 78.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 80.0
+                  }
+                ]
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 23.5,
             "duration": 10.5,
-            "transition": "morph",
-            "transition_duration": 1.0,
             "loop": false,
-            "curve": {
-              "type": "bezier",
-              "control_points": [
-                { "dx": 0,  "dy": 0, "dz": 13.33 },
-                { "dx": -20, "dy": 0, "dz": 13.33 }
-              ]
-            },
-            "keyframes": [
-              { "time": 0,   "position": { "dx": 10,  "dy": 13, "dz": 0 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 80, "zoom": 1.0 },
-              { "time": 10.5, "position": { "dx": -10, "dy": 13, "dz": 0 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 80, "zoom": 1.0 }
-            ]
+            "id": "c1_4",
+            "objects": {
+              "transition": {
+                "value": "morph"
+              },
+              "transition_duration": {
+                "value": 1.0
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 10.5,
+                    "value": -10.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 13.0
+                  },
+                  {
+                    "time": 10.5,
+                    "value": 13.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.5,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 80.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 33.5,
             "duration": 8.5,
-            "transition": "morph",
-            "transition_duration": 1.0,
             "loop": false,
-            "keyframes": [
-              { "time": 0,   "position": { "dx": 0, "dy": 14, "dz": -10 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 80, "zoom": 1.0 },
-              { "time": 2,   "position": { "dx": 1, "dy": 10, "dz": -7 },  "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 76, "zoom": 1.0 },
-              { "time": 4,   "position": { "dx": 2, "dy": 7,  "dz": -4 },  "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 73, "zoom": 1.0 },
-              { "time": 6,   "position": { "dx": 3, "dy": 5,  "dz": -1 },  "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 71, "zoom": 1.0 },
-              { "time": 8.5, "position": { "dx": 4, "dy": 4,  "dz": 2 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0 }
-            ]
+            "id": "c1_5",
+            "objects": {
+              "transition": {
+                "value": "morph"
+              },
+              "transition_duration": {
+                "value": 1.0
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 4.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 14.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 7.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 5.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 4.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -10.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": -7.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": -4.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 2.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 80.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 76.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 73.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 71.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 70.0
+                  }
+                ]
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 41.5,
             "duration": 8.5,
-            "transition": "morph",
-            "transition_duration": 1.0,
             "loop": false,
-            "keyframes": [
-              { "time": 0,   "position": { "dx": 4,   "dy": 4,   "dz": 2 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1.0 },
-              { "time": 2,   "position": { "dx": 5,   "dy": 4,   "dz": 2.5 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 62, "zoom": 1.0 },
-              { "time": 4,   "position": { "dx": 6,   "dy": 4,   "dz": 3 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 55, "zoom": 1.0 },
-              { "time": 6,   "position": { "dx": 7,   "dy": 4,   "dz": 3.5 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 50, "zoom": 1.0 },
-              { "time": 8.5, "position": { "dx": 8,   "dy": 4,   "dz": 4 },   "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 48, "zoom": 1.0 }
-            ]
+            "id": "c1_6",
+            "objects": {
+              "transition": {
+                "value": "morph"
+              },
+              "transition_duration": {
+                "value": 1.0
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 5.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 6.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 7.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 8.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 4.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 2.5
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 3.5
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 4.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 70.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 62.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 55.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 50.0
+                  },
+                  {
+                    "time": 8.5,
+                    "value": 48.0
+                  }
+                ]
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 49.5,
             "duration": 12.5,
-            "transition": "morph",
-            "transition_duration": 1.0,
             "loop": false,
-            "keyframes": [
-              { "time": 0,   "position": { "dx": 8,   "dy": 4,   "dz": 4 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 48, "zoom": 1.0 },
-              { "time": 2,   "position": { "dx": 8.3, "dy": 4.4, "dz": 4.6 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 8, "fov": 52, "zoom": 1.0 },
-              { "time": 4,   "position": { "dx": 8.7, "dy": 4.8, "dz": 5.2 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 12, "fov": 56, "zoom": 1.0 },
-              { "time": 6,   "position": { "dx": 9.1, "dy": 5.3, "dz": 5.8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 10, "fov": 60, "zoom": 1.0 },
-              { "time": 8,   "position": { "dx": 9.6, "dy": 5.7, "dz": 6.5 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 8, "fov": 65, "zoom": 1.0 },
-              { "time": 12.5, "position": { "dx": 10.5, "dy": 6.5, "dz": 7.5 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 6, "fov": 70, "zoom": 1.0 }
-            ]
+            "id": "c1_7",
+            "objects": {
+              "transition": {
+                "value": "morph"
+              },
+              "transition_duration": {
+                "value": 1.0
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 8.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 8.3
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 8.7
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 9.1
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 9.6
+                  },
+                  {
+                    "time": 12.5,
+                    "value": 10.5
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 4.4
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 4.8
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 5.3
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 5.7
+                  },
+                  {
+                    "time": 12.5,
+                    "value": 6.5
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 4.6
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 5.2
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 5.8
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 6.5
+                  },
+                  {
+                    "time": 12.5,
+                    "value": 7.5
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 8.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 12.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 8.0
+                  },
+                  {
+                    "time": 12.5,
+                    "value": 6.0
+                  }
+                ]
+              },
+              "fov": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 48.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 60.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 65.0
+                  },
+                  {
+                    "time": 12.5,
+                    "value": 70.0
+                  }
+                ]
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -149,12 +1022,29 @@
           {
             "start_time": 0,
             "duration": 62,
-            "keyframes": [
-              { "time": 0,   "aspect_ratio": 0.0 },
-              { "time": 0.8, "aspect_ratio": 2.35 },
-              { "time": 60.5, "aspect_ratio": 2.35 },
-              { "time": 62,  "aspect_ratio": 0.0 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "aspect_ratio": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.8,
+                    "value": 2.35
+                  },
+                  {
+                    "time": 60.5,
+                    "value": 2.35
+                  },
+                  {
+                    "time": 62.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -164,14 +1054,23 @@
           {
             "start_time": 56.5,
             "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0,
-                "event_type": "command",
-                "command": "give @p minecraft:bread 8"
+            "id": "c3_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "give @p minecraft:bread 8"
+                    }
+                  }
+                ]
               }
-            ]
+            }
           }
         ]
       },
@@ -182,62 +1081,230 @@
           {
             "start_time": 0,
             "duration": 4,
-            "layer_type": "subtitle",
-            "text": "欢迎回到主世界",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 3.0 }
-            ]
+            "id": "c4_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "欢迎回到主世界"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 3.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 3.0
+              }
+            }
           },
           {
             "start_time": 8,
             "duration": 5.5,
-            "layer_type": "subtitle",
-            "text": "主世界，一切冒险开始的地方",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.7, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 5.5, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c4_2",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "主世界，一切冒险开始的地方"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.5,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           },
           {
             "start_time": 50,
             "duration": 4,
-            "layer_type": "subtitle",
-            "text": "你的冒险仍在继续",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 3.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 4.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c4_3",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "你的冒险仍在继续"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 3.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 4.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           },
           {
             "start_time": 55.5,
             "duration": 6,
-            "layer_type": "subtitle",
-            "text": "你探索了这么久，应该饿了，吃个面包吧",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 5.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 6.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c4_4",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "你探索了这么久，应该饿了，吃个面包吧"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           }
         ]
       },
@@ -248,15 +1315,36 @@
           {
             "start_time": 0,
             "duration": 62,
-            "sound": "showcase9_bgm.ogg",
-            "source": "file",
-            "volume": 0.7,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 0.7, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c5_1",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "showcase9_bgm.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 0.7
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           }
         ]
       },
@@ -266,57 +1354,172 @@
           {
             "start_time": 0,
             "duration": 2.28,
-            "sound": "9_reverb_part1.ogg",
-            "source": "file",
-            "volume": 0.7,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 0.7, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c6_1",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "9_reverb_part1.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 0.7
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 8,
             "duration": 3.67,
-            "sound": "9_reverb_part2.ogg",
-            "source": "file",
-            "volume": 0.7,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 0.7, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c6_2",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "9_reverb_part2.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 0.7
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 50,
             "duration": 2.50,
-            "sound": "9_reverb_part3.ogg",
-            "source": "file",
-            "volume": 0.7,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 0.7, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c6_3",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "9_reverb_part3.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 0.7
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 55.5,
             "duration": 4.42,
-            "sound": "9_reverb_part4.ogg",
-            "source": "file",
-            "volume": 0.7,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 0.7, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c6_4",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "9_reverb_part4.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 0.7
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           }
         ]
       }
     ]
-  }
+  },
+  "paths": [
+    {
+      "id": "p_c1_4_0",
+      "clip": "c1_4",
+      "from": 0.0,
+      "to": 10.5,
+      "axes": [
+        "x",
+        "y",
+        "z"
+      ],
+      "geometry": {
+        "type": "bezier",
+        "control_points": [
+          {
+            "dx": 0,
+            "dy": 0,
+            "dz": 13.33
+          },
+          {
+            "dx": -20,
+            "dy": 0,
+            "dz": 13.33
+          }
+        ]
+      },
+      "timing": {
+        "type": "linear"
+      }
+    }
+  ]
 }

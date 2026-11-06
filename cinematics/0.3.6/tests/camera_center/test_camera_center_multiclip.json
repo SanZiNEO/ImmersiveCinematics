@@ -3,10 +3,20 @@
     "id": "test_camera_center_multiclip",
     "name": "相机中心·多片段顺序加载测试",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "三个 CAMERA 片段依次跳远：村庄(-288,0) → 正东(288,0) → 正南(0,288)。每个片段 10s，观察 far-start 后可见区先铺、后台补全的顺序。",
     "triggers": [
-      { "id": "tpmc_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_camera_center_fly_back"] }
+      {
+        "id": "tpmc_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_camera_center_fly_back"
+        ]
+      }
     ],
     "block_keyboard": true,
     "block_mouse": true,
@@ -20,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 30,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -28,15 +37,27 @@
           {
             "start_time": 0,
             "duration": 30,
-            "layer_type": "subtitle",
-            "text": "测试: test_camera_center_multiclip | 功能: 相机中心多片段 | 触发: biome自动",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 30, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_camera_center_multiclip | 功能: 相机中心多片段 | 触发: biome自动"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -46,32 +67,206 @@
           {
             "start_time": 0,
             "duration": 10,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": -288, "dy": 40, "dz": 0 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 10, "position": { "dx": -288, "dy": 40, "dz": 0 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -288.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": -288.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 40.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 40.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 30.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 10,
             "duration": 10,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 10, "position": { "dx": 288, "dy": 40, "dz": 0 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 20, "position": { "dx": 288, "dy": 40, "dz": 0 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c2_2",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 10.0,
+                    "value": 288.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 288.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 10.0,
+                    "value": 40.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 40.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 30.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           },
           {
             "start_time": 20,
             "duration": 10,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 20, "position": { "dx": 0, "dy": 40, "dz": 288 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 30, "position": { "dx": 0, "dy": 40, "dz": 288 }, "yaw": 0, "pitch": 30, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c2_3",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 20.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 20.0,
+                    "value": 40.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 40.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 20.0,
+                    "value": 288.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 288.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 30.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -81,13 +276,44 @@
           {
             "start_time": 0,
             "duration": 30,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0, "event_type": "command", "command": "say [相机中心] 片段1：村庄(-288,0)，10s" },
-              { "time": 10, "event_type": "command", "command": "say [相机中心] 片段2：跳远到正东(288,0)，观察新 far-start 与补全顺序" },
-              { "time": 20, "event_type": "command", "command": "say [相机中心] 片段3：跳远到正南(0,288)，观察第三次 far-start" },
-              { "time": 30, "event_type": "command", "command": "say [相机中心] 结束：全程看是否每个片段可见区先铺、后台补全、无永久空洞" }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [相机中心] 片段1：村庄(-288,0)，10s"
+                    }
+                  },
+                  {
+                    "time": 10.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [相机中心] 片段2：跳远到正东(288,0)，观察新 far-start 与补全顺序"
+                    }
+                  },
+                  {
+                    "time": 20.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [相机中心] 片段3：跳远到正南(0,288)，观察第三次 far-start"
+                    }
+                  },
+                  {
+                    "time": 30.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [相机中心] 结束：全程看是否每个片段可见区先铺、后台补全、无永久空洞"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       }

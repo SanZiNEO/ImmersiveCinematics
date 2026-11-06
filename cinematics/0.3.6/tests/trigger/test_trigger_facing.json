@@ -3,9 +3,20 @@
     "id": "test_trigger_facing",
     "name": "触发器测试-facing",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "朝向范围条件：看向大致南方（yaw -30~30、pitch -20~20）时触发",
-    "triggers": [ {"id":"trg_facing","type":"facing","repeatable":true,"conditions":{"yaw1":-30,"pitch1":-20,"yaw2":30,"pitch2":20}} ],
+    "triggers": [
+      {
+        "id": "trg_facing",
+        "type": "facing",
+        "repeatable": true,
+        "conditions": {
+          "yaw1": -30,
+          "pitch1": -20,
+          "yaw2": 30,
+          "pitch2": 20
+        }
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +29,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 6,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,15 +36,27 @@
           {
             "start_time": 0,
             "duration": 6,
-            "layer_type": "subtitle",
-            "text": "测试: test_trigger_facing | 功能: facing 朝向范围 | 触发: 看向南方 ±30°",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 6, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_trigger_facing | 功能: facing 朝向范围 | 触发: 看向南方 ±30°"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       }

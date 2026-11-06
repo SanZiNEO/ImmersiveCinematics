@@ -3,12 +3,10 @@
     "id": "test_h11_hard_hide",
     "name": "H11 强硬隐藏与白名单",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "H11 夹具（仅 Forge）：hide_hud=true + hard_hide_hud=true，接管整段 HUD 后按白名单重画。hide_chat=true → 聊天层（分类 chat）在 hard 模式下同样不重画；hud_layers 写了 minecraft:chat_panel=false 也不生效——固定分类只读 hide_chat，hud_layers 不覆盖固定分类（这一条同时是「注册分类优先于 hud_layers」的回归项）。未注册 overlay 的隐式口子用临时测试 overlay 验证，见计划记录。",
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": true,
-    "hard_hide_hud": true,
     "hide_chat": true,
     "hide_arm": true,
     "suppress_bob": true,
@@ -17,10 +15,10 @@
     "skippable": true,
     "hold_at_end": false,
     "render_player_model": true,
-    "hud_layers": { "minecraft:chat_panel": false }
+    "screen_layers": {},
+    "screen_layer_mode": "allowlist"
   },
   "timeline": {
-    "total_duration": 30,
     "tracks": [
       {
         "type": "CAMERA",
@@ -28,12 +26,73 @@
           {
             "start_time": 0,
             "duration": 30,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 },
-              { "time": 30, "position": { "dx": 0, "dy": 2, "dz": -6 }, "yaw": 0, "pitch": 10, "roll": 0, "fov": 70, "zoom": 1, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 2.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -6.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": -6.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 10.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -43,13 +102,27 @@
           {
             "start_time": 0,
             "duration": 30,
-            "layer_type": "subtitle",
-            "text": "H11：hard 模式 —— 快捷栏/准星/聊天都应消失，本模组字幕仍显示",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.10, "opacity": 1 },
-              { "time": 30, "x": 0.5, "y": 0.10, "opacity": 1 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "H11：hard 模式 —— 快捷栏/准星/聊天都应消失，本模组字幕仍显示"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.1
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       }

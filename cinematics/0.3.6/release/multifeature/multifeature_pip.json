@@ -3,7 +3,6 @@
     "id": "multifeature_pip",
     "name": "多功能展示 · 右上 PIP 小画面",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "多功能并行展示 · 画中画（PIP）实例：dest = {x:0.7,y:0.06,w:0.26,h:0.26}（屏幕右上角小矩形），与左/右半屏实例同时播放。相机在触发点上方 13 格、半径 7 格绕圈俯视玩家（look_at=entity @p），是四路里唯一的俯视角度。本实例比其它两路晚 2s 启动（EVENT 命令在入口时间线 t=2 发出；免权限路径用触发器 delay=2.0），因此它在叠放顺序上位于右半屏实例之上——右上角小画面盖在右半屏之上，其余部分仍是右半屏的画面（并行实例叠放顺序 = 启动顺序）。30s 一圈回到起点姿势（macro_loop 2 圈无缝循环）。单独手动播放：/icinematics play multifeature:multifeature_pip。",
     "triggers": [
       {
@@ -13,7 +12,12 @@
         "delay": 2.0,
         "conditions": {
           "list": [
-            { "type": "script_started", "conditions": { "script": "multifeature_entry" } }
+            {
+              "type": "script_started",
+              "conditions": {
+                "script": "multifeature_entry"
+              }
+            }
           ]
         }
       }
@@ -37,7 +41,6 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 30.0,
     "loop_start": 0.0,
     "loop_end": 30.0,
     "tracks": [
@@ -48,83 +51,172 @@
           {
             "start_time": 0.0,
             "duration": 30.0,
-            "transition": "cut",
-            "transition_duration": 0.0,
-            "orient": "manual",
             "loop": false,
-            "dimension": "",
-            "keyframes": [
-              {
-                "time": 0.0,
-                "position": { "dx": 0.0, "dy": 13.0, "dz": -7.0 },
-                "position_mode": "relative",
-                "follow": "none",
-                "follow_selector": "@p",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "selector_refresh": 1.0,
-                "yaw": 0.0, "pitch": 60.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0,
-                "opacity": 1.0,
-                "dest": { "x": 0.7, "y": 0.06, "w": 0.26, "h": 0.26 },
-                "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 }
+            "id": "c1_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 7.5,
-                "position": { "dx": 7.0, "dy": 13.0, "dz": 0.0 },
-                "position_mode": "relative",
-                "follow": "none",
-                "follow_selector": "@p",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "selector_refresh": 1.0,
-                "yaw": 90.0, "pitch": 60.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0,
-                "opacity": 1.0,
-                "dest": { "x": 0.7, "y": 0.06, "w": 0.26, "h": 0.26 },
-                "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 }
+              "transition_duration": {
+                "value": 0.0
               },
-              {
-                "time": 15.0,
-                "position": { "dx": 0.0, "dy": 13.0, "dz": 7.0 },
-                "position_mode": "relative",
-                "follow": "none",
-                "follow_selector": "@p",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "selector_refresh": 1.0,
-                "yaw": 180.0, "pitch": 60.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0,
-                "opacity": 1.0,
-                "dest": { "x": 0.7, "y": 0.06, "w": 0.26, "h": 0.26 },
-                "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 }
+              "orient": {
+                "value": "manual"
               },
-              {
-                "time": 22.5,
-                "position": { "dx": -7.0, "dy": 13.0, "dz": 0.0 },
-                "position_mode": "relative",
-                "follow": "none",
-                "follow_selector": "@p",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "selector_refresh": 1.0,
-                "yaw": -90.0, "pitch": 60.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0,
-                "opacity": 1.0,
-                "dest": { "x": 0.7, "y": 0.06, "w": 0.26, "h": 0.26 },
-                "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 }
+              "dimension": {
+                "value": ""
               },
-              {
-                "time": 30.0,
-                "position": { "dx": 0.0, "dy": 13.0, "dz": -7.0 },
-                "position_mode": "relative",
-                "follow": "none",
-                "follow_selector": "@p",
-                "look_at": "entity",
-                "look_at_selector": "@p",
-                "selector_refresh": 1.0,
-                "yaw": 0.0, "pitch": 60.0, "roll": 0.0, "fov": 70.0, "zoom": 1.0,
-                "opacity": 1.0,
-                "dest": { "x": 0.7, "y": 0.06, "w": 0.26, "h": 0.26 },
-                "source": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 }
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 7.5,
+                    "value": 7.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 22.5,
+                    "value": -7.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 13.0
+                  },
+                  {
+                    "time": 7.5,
+                    "value": 13.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 13.0
+                  },
+                  {
+                    "time": 22.5,
+                    "value": 13.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 13.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -7.0
+                  },
+                  {
+                    "time": 7.5,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 7.0
+                  },
+                  {
+                    "time": 22.5,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": -7.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "selector_refresh": {
+                "value": 1.0
+              },
+              "yaw": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 7.5,
+                    "value": 90.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 180.0
+                  },
+                  {
+                    "time": 22.5,
+                    "value": -90.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "pitch": {
+                "value": 60.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              },
+              "opacity": {
+                "value": 1.0
+              },
+              "dest.x": {
+                "value": 0.7
+              },
+              "dest.y": {
+                "value": 0.06
+              },
+              "dest.w": {
+                "value": 0.26
+              },
+              "dest.h": {
+                "value": 0.26
+              },
+              "source.x": {
+                "value": 0.0
+              },
+              "source.y": {
+                "value": 0.0
+              },
+              "source.w": {
+                "value": 1.0
+              },
+              "source.h": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       }

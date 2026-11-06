@@ -3,9 +3,21 @@
     "id": "test_overlay_subtitle",
     "name": "覆盖层测试-字幕",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "只测试 subtitle 文字",
-    "triggers": [ { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_overlay_image"] } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_overlay_image"
+        ]
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,26 +30,37 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 8,
     "tracks": [
       {
-  "type": "OVERLAY",
-  "clips": [
-    {
-      "start_time": 0,
-      "duration": 8,
-      "layer_type": "subtitle",
-      "text": "测试: test_overlay_subtitle | 功能: Overlay 字幕 | 触发: biome自动",
-      "x": 0.5,
-      "y": 0.5,
-      "z_index": 100,
-      "keyframes": [
-        { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-        { "time": 8, "x": 0.5, "y": 0.5, "opacity": 1 }
-      ]
-    }
-  ]
-}
+        "type": "OVERLAY",
+        "clips": [
+          {
+            "start_time": 0,
+            "duration": 8,
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_overlay_subtitle | 功能: Overlay 字幕 | 触发: biome自动"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
+          }
+        ]
+      }
     ]
   }
 }

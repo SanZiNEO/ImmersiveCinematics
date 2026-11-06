@@ -3,9 +3,16 @@
     "id": "07_channel_mixer",
     "name": "调色展示-RGB 通道混合器（3×3 矩阵）",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "RGB 通道混合器展示（PS 式 3×3 矩阵 = 单位阵 + 参数矩阵；行 = 输出通道、列 = 输入通道）：0~8s R↔B 互换（mix_rb=1、mix_br=1、mix_rr=-1、mix_bb=-1，红蓝对调）；8~16s 蓝通道归零（mix_bb=-1，再从红/绿各借 0.2 份：mix_br=0.2、mix_bg=0.2，画面去蓝偏黄）；16~24s 三通道平均=灰度（对角 -0.667、交叉 +0.333 → out = (r+g+b)/3）；24~32s 对角 +1（三通道各 ×2，过曝泛白）；32~40s 九参数归零 = 单位阵 = 原画（证明全 0 恒等）。字段口径：九个系数 mix_rr~mix_bb 各 -1~1、缺省 0 = 无效果（单位阵），关键帧匀速线性插值 → 每段 2 秒渐入、2 秒渐出；只写在 ADJUST 轨（作用于整体画面 master，相机片段上写会被 validator 拦下）；只动 RGB，alpha 逐位直通，透明度只走合成参数 opacity。",
-    "triggers": [ { "id": "trg_login", "type": "login", "repeatable": false, "delay": 278, "conditions": {} } ],
+    "triggers": [
+      {
+        "id": "trg_login",
+        "type": "login",
+        "repeatable": false,
+        "delay": 278,
+        "conditions": {}
+      }
+    ],
     "block_keyboard": false,
     "block_mouse": false,
     "hide_hud": false,
@@ -18,7 +25,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 40,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -26,67 +32,212 @@
           {
             "start_time": 0,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "① 0~8s R↔B 通道互换：mix_rb=1、mix_br=1、mix_rr=-1、mix_bb=-1（红蓝对调）",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
-              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 7.7, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 0 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "① 0~8s R↔B 通道互换：mix_rb=1、mix_br=1、mix_rr=-1、mix_bb=-1（红蓝对调）"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.88
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.3,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 7.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           },
           {
             "start_time": 8,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "② 8~16s 蓝通道归零：mix_bb=-1，再向红/绿各借 0.2 份（mix_br=0.2、mix_bg=0.2）",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
-              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 7.7, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 0 }
-            ]
+            "id": "c1_2",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "② 8~16s 蓝通道归零：mix_bb=-1，再向红/绿各借 0.2 份（mix_br=0.2、mix_bg=0.2）"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.88
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.3,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 7.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           },
           {
             "start_time": 16,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "③ 16~24s 三通道平均 = 灰度：对角 -0.667、交叉 +0.333（out = (r+g+b)/3）",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
-              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 7.7, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 0 }
-            ]
+            "id": "c1_3",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "③ 16~24s 三通道平均 = 灰度：对角 -0.667、交叉 +0.333（out = (r+g+b)/3）"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.88
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.3,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 7.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           },
           {
             "start_time": 24,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "④ 24~32s 对角 +1：mix_rr=mix_gg=mix_bb=1（三通道各 ×2，过曝泛白）",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
-              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 7.7, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 0 }
-            ]
+            "id": "c1_4",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "④ 24~32s 对角 +1：mix_rr=mix_gg=mix_bb=1（三通道各 ×2，过曝泛白）"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.88
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.3,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 7.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           },
           {
             "start_time": 32,
             "duration": 8,
-            "layer_type": "subtitle",
-            "text": "⑤ 32~40s 九参数归零 = 单位阵 = 原画（全 0 恒等，画面逐位不变）",
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.88, "opacity": 0 },
-              { "time": 0.3, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 7.7, "x": 0.5, "y": 0.88, "opacity": 1 },
-              { "time": 8, "x": 0.5, "y": 0.88, "opacity": 0 }
-            ]
+            "id": "c1_5",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "⑤ 32~40s 九参数归零 = 单位阵 = 原画（全 0 恒等，画面逐位不变）"
+              },
+              "z_index": {
+                "value": 100
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.88
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.3,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 7.7,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -96,13 +247,88 @@
           {
             "start_time": 0,
             "duration": 40,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              { "time": 0, "position": { "dx": 0, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 20, "position": { "dx": 3, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 },
-              { "time": 40, "position": { "dx": 6, "dy": 3, "dz": -8 }, "look_at": "entity", "look_at_selector": "@p", "yaw": 0, "pitch": 0, "roll": 0, "fov": 70, "zoom": 1 }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 40.0,
+                    "value": 6.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 40.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 20.0,
+                    "value": -8.0
+                  },
+                  {
+                    "time": 40.0,
+                    "value": -8.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@p"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -112,19 +338,333 @@
           {
             "start_time": 0,
             "duration": 40,
-            "keyframes": [
-              { "time": 0, "mix_rr": 0, "mix_rg": 0, "mix_rb": 0, "mix_gr": 0, "mix_gg": 0, "mix_gb": 0, "mix_br": 0, "mix_bg": 0, "mix_bb": 0 },
-              { "time": 2, "mix_rr": -1, "mix_rg": 0, "mix_rb": 1, "mix_gr": 0, "mix_gg": 0, "mix_gb": 0, "mix_br": 1, "mix_bg": 0, "mix_bb": -1 },
-              { "time": 8, "mix_rr": -1, "mix_rg": 0, "mix_rb": 1, "mix_gr": 0, "mix_gg": 0, "mix_gb": 0, "mix_br": 1, "mix_bg": 0, "mix_bb": -1 },
-              { "time": 10, "mix_rr": 0, "mix_rg": 0, "mix_rb": 0, "mix_gr": 0, "mix_gg": 0, "mix_gb": 0, "mix_br": 0.2, "mix_bg": 0.2, "mix_bb": -1 },
-              { "time": 16, "mix_rr": 0, "mix_rg": 0, "mix_rb": 0, "mix_gr": 0, "mix_gg": 0, "mix_gb": 0, "mix_br": 0.2, "mix_bg": 0.2, "mix_bb": -1 },
-              { "time": 18, "mix_rr": -0.667, "mix_rg": 0.333, "mix_rb": 0.333, "mix_gr": 0.333, "mix_gg": -0.667, "mix_gb": 0.333, "mix_br": 0.333, "mix_bg": 0.333, "mix_bb": -0.667 },
-              { "time": 24, "mix_rr": -0.667, "mix_rg": 0.333, "mix_rb": 0.333, "mix_gr": 0.333, "mix_gg": -0.667, "mix_gb": 0.333, "mix_br": 0.333, "mix_bg": 0.333, "mix_bb": -0.667 },
-              { "time": 26, "mix_rr": 1, "mix_rg": 0, "mix_rb": 0, "mix_gr": 0, "mix_gg": 1, "mix_gb": 0, "mix_br": 0, "mix_bg": 0, "mix_bb": 1 },
-              { "time": 32, "mix_rr": 1, "mix_rg": 0, "mix_rb": 0, "mix_gr": 0, "mix_gg": 1, "mix_gb": 0, "mix_br": 0, "mix_bg": 0, "mix_bb": 1 },
-              { "time": 34, "mix_rr": 0, "mix_rg": 0, "mix_rb": 0, "mix_gr": 0, "mix_gg": 0, "mix_gb": 0, "mix_br": 0, "mix_bg": 0, "mix_bb": 0 },
-              { "time": 40, "mix_rr": 0, "mix_rg": 0, "mix_rb": 0, "mix_gr": 0, "mix_gg": 0, "mix_gb": 0, "mix_br": 0, "mix_bg": 0, "mix_bb": 0 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "mix_rr": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 16.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 18.0,
+                    "value": -0.667
+                  },
+                  {
+                    "time": 24.0,
+                    "value": -0.667
+                  },
+                  {
+                    "time": 26.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 32.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 34.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 40.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "mix_rg": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 16.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 18.0,
+                    "value": 0.333
+                  },
+                  {
+                    "time": 24.0,
+                    "value": 0.333
+                  },
+                  {
+                    "time": 26.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 40.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "mix_rb": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 16.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 18.0,
+                    "value": 0.333
+                  },
+                  {
+                    "time": 24.0,
+                    "value": 0.333
+                  },
+                  {
+                    "time": 26.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 40.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "mix_gr": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 16.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 18.0,
+                    "value": 0.333
+                  },
+                  {
+                    "time": 24.0,
+                    "value": 0.333
+                  },
+                  {
+                    "time": 26.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 40.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "mix_gg": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 16.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 18.0,
+                    "value": -0.667
+                  },
+                  {
+                    "time": 24.0,
+                    "value": -0.667
+                  },
+                  {
+                    "time": 26.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 32.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 34.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 40.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "mix_gb": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 16.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 18.0,
+                    "value": 0.333
+                  },
+                  {
+                    "time": 24.0,
+                    "value": 0.333
+                  },
+                  {
+                    "time": 26.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 40.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "mix_br": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.2
+                  },
+                  {
+                    "time": 16.0,
+                    "value": 0.2
+                  },
+                  {
+                    "time": 18.0,
+                    "value": 0.333
+                  },
+                  {
+                    "time": 24.0,
+                    "value": 0.333
+                  },
+                  {
+                    "time": 26.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 40.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "mix_bg": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.2
+                  },
+                  {
+                    "time": 16.0,
+                    "value": 0.2
+                  },
+                  {
+                    "time": 18.0,
+                    "value": 0.333
+                  },
+                  {
+                    "time": 24.0,
+                    "value": 0.333
+                  },
+                  {
+                    "time": 26.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 40.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "mix_bb": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 2.0,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 16.0,
+                    "value": -1.0
+                  },
+                  {
+                    "time": 18.0,
+                    "value": -0.667
+                  },
+                  {
+                    "time": 24.0,
+                    "value": -0.667
+                  },
+                  {
+                    "time": 26.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 32.0,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 34.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 40.0,
+                    "value": 0.0
+                  }
+                ]
+              }
+            }
           }
         ]
       }

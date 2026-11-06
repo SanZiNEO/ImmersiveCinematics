@@ -2,8 +2,7 @@
   "meta": {
     "id": "corridor_3",
     "name": "通道3",
-    "author": "",
-    "version": 3.0,
+    "author": "ImmersiveCinematics",
     "description": "通道卡视角：区域 + 朝向(yaw80~100)触发 → 播放 bingbingbing.ogg + 相对传送 ~-5 ~ ~",
     "dimension": "",
     "listener": "player",
@@ -28,15 +27,25 @@
             {
               "type": "location",
               "conditions": {
-                "corner1": { "x": 38.5, "y": -61, "z": -36 },
-                "corner2": { "x": 40.5, "y": -59, "z": -34 }
+                "corner1": {
+                  "x": 38.5,
+                  "y": -61,
+                  "z": -36
+                },
+                "corner2": {
+                  "x": 40.5,
+                  "y": -59,
+                  "z": -34
+                }
               }
             },
             {
               "type": "facing",
               "conditions": {
-                "yaw1": 80, "pitch1": -20,
-                "yaw2": 100, "pitch2": 20
+                "yaw1": 80,
+                "pitch1": -20,
+                "yaw2": 100,
+                "pitch2": 20
               }
             }
           ]
@@ -45,7 +54,6 @@
     ]
   },
   "timeline": {
-    "total_duration": 1.0,
     "tracks": [
       {
         "type": "AUDIO",
@@ -54,19 +62,48 @@
           {
             "start_time": 0.0,
             "duration": 1.0,
-            "sound": "bingbingbing.ogg",
-            "source": "file",
-            "category": "ambient",
-            "volume": 0.5,
-            "pitch": 1.0,
-            "loop": false,
-            "fade_in": 0.0,
-            "fade_out": 0.0,
-            "attenuation": "none",
-            "position_mode": "relative",
-            "keyframes": [
-              { "time": 0.0, "volume": 0.5, "x": 0.0, "y": 0.0, "z": 0.0 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "bingbingbing.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "category": {
+                "value": "ambient"
+              },
+              "volume": {
+                "value": 0.5
+              },
+              "pitch": {
+                "value": 1.0
+              },
+              "fade_in": {
+                "value": 0.0
+              },
+              "fade_out": {
+                "value": 0.0
+              },
+              "attenuation": {
+                "value": "none"
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           }
         ]
       },
@@ -77,10 +114,23 @@
           {
             "start_time": 0.0,
             "duration": 1.0,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0.0, "event_type": "command", "command": "tp @s ~-5 ~ ~" }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "tp @s ~-5 ~ ~"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       }

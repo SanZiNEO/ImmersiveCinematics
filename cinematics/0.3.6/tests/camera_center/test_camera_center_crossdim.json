@@ -3,10 +3,17 @@
     "id": "test_camera_center_crossdim",
     "name": "相机中心·跨维度探针",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "在末地启动 30 秒相机 (0,90,-60)，2 秒后把玩家传回主世界；用于验证相机是否还能停留在末地渲染远端生物。脚本不清场。",
     "triggers": [
-      { "id": "tcc_disabled", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "minecraft:the_void" } }
+      {
+        "id": "tcc_disabled",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "minecraft:the_void"
+        }
+      }
     ],
     "block_keyboard": true,
     "block_mouse": true,
@@ -20,7 +27,6 @@
     "render_player_model": false
   },
   "timeline": {
-    "total_duration": 30,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -28,15 +34,27 @@
           {
             "start_time": 0,
             "duration": 30,
-            "layer_type": "subtitle",
-            "text": "跨维度探针: 相机末地 (0,90,-60)；2s 后玩家回主世界",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 30, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "跨维度探针: 相机末地 (0,90,-60)；2s 后玩家回主世界"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -46,28 +64,70 @@
           {
             "start_time": 0,
             "duration": 30,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "x": 0, "y": 90, "z": -60 },
-                "yaw": -90,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+            "id": "c2_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 30,
-                "position": { "x": 0, "y": 90, "z": -60 },
-                "yaw": -90,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 90.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 90.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -60.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": -60.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "absolute"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "yaw": {
+                "value": -90.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       },
@@ -77,13 +137,44 @@
           {
             "start_time": 0,
             "duration": 30,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0, "event_type": "command", "command": "gamemode spectator" },
-              { "time": 2, "event_type": "command", "command": "execute in minecraft:overworld run tp @s 0 100 0" },
-              { "time": 3, "event_type": "command", "command": "say [camera-center] crossdim: player overworld, camera script still running at end coords" },
-              { "time": 30, "event_type": "command", "command": "say [camera-center] crossdim: done" }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "gamemode spectator"
+                    }
+                  },
+                  {
+                    "time": 2.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "execute in minecraft:overworld run tp @s 0 100 0"
+                    }
+                  },
+                  {
+                    "time": 3.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [camera-center] crossdim: player overworld, camera script still running at end coords"
+                    }
+                  },
+                  {
+                    "time": 30.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "say [camera-center] crossdim: done"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       }

@@ -2,8 +2,7 @@
   "meta": {
     "id": "4",
     "name": "4",
-    "author": "",
-    "version": 4,
+    "author": "ImmersiveCinematics",
     "description": "第四代：基准点=A、基准朝向=A→B、注视=B+Y0.5；后半段反过来（B 为基准点、B→A 为朝向）。单片段循环。",
     "dimension": "",
     "listener": "camera",
@@ -22,7 +21,6 @@
     "camera_mob_ai": false
   },
   "timeline": {
-    "total_duration": 30.0,
     "tracks": [
       {
         "type": "CAMERA",
@@ -31,144 +29,237 @@
           {
             "start_time": 0,
             "duration": 30,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": {
-                  "fwd": -6.0,
-                  "up": 3.0,
-                  "right": 2.0
-                },
-                "facing_origin": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
-                "facing_target": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
-                "yaw": 0.0,
-                "pitch": 0.0,
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
-                "look_at_part": { "y": 0 },
-                "look_at_offset": { "dy": 0.5 },
-                "selector_refresh": 2.0,
-                "selector_switch_while_alive": true,
-                "selector_switch_interval": 2.0,
-                "selector_switch_smooth": 0.4,
-                "yaw_base": "world",
-                "pitch_base": "world",
-                "yaw_base_selector": "@p",
-                "yaw_base_from": "",
-                "yaw_base_to": "",
-                "roll": 0.0,
-                "fov": 70.0,
-                "zoom": 1.0
-              },
-              {
-                "time": 15,
-                "position": {
-                  "fwd": -6.0,
-                  "up": 3.0,
-                  "right": 2.0
-                },
-                "facing_origin": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
-                "facing_target": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
-                "yaw": 0.0,
-                "pitch": 0.0,
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
-                "look_at_part": { "y": 0 },
-                "look_at_offset": { "dy": 0.5 },
-                "selector_refresh": 2.0,
-                "selector_switch_while_alive": true,
-                "selector_switch_interval": 2.0,
-                "selector_switch_smooth": 0.4,
-                "yaw_base": "world",
-                "pitch_base": "world",
-                "yaw_base_selector": "@p",
-                "yaw_base_from": "",
-                "yaw_base_to": "",
-                "roll": 0.0,
-                "fov": 70.0,
-                "zoom": 1.0
-              },
-              {
-                "time": 15.2,
-                "position": {
-                  "fwd": -6.0,
-                  "up": 3.0,
-                  "right": 2.0
-                },
-                "facing_origin": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
-                "facing_target": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
-                "yaw": 0.0,
-                "pitch": 0.0,
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
-                "look_at_part": { "y": 0 },
-                "look_at_offset": { "dy": 0.5 },
-                "selector_refresh": 2.0,
-                "selector_switch_while_alive": true,
-                "selector_switch_interval": 2.0,
-                "selector_switch_smooth": 0.4,
-                "yaw_base": "world",
-                "pitch_base": "world",
-                "yaw_base_selector": "@p",
-                "yaw_base_from": "",
-                "yaw_base_to": "",
-                "roll": 0.0,
-                "fov": 70.0,
-                "zoom": 1.0
-              },
-              {
-                "time": 30,
-                "position": {
-                  "fwd": -6.0,
-                  "up": 3.0,
-                  "right": 2.0
-                },
-                "facing_origin": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]",
-                "facing_target": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
-                "yaw": 0.0,
-                "pitch": 0.0,
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]",
-                "look_at_part": { "y": 0 },
-                "look_at_offset": { "dy": 0.5 },
-                "selector_refresh": 2.0,
-                "selector_switch_while_alive": true,
-                "selector_switch_interval": 2.0,
-                "selector_switch_smooth": 0.4,
-                "yaw_base": "world",
-                "pitch_base": "world",
-                "yaw_base_selector": "@p",
-                "yaw_base_from": "",
-                "yaw_base_to": "",
-                "roll": 0.0,
-                "fov": 70.0,
-                "zoom": 1.0
-              }
-            ],
-            "transition": "cut",
-            "transition_duration": 0.0,
-            "dimension": "",
             "loop": true,
             "loop_count": -1,
             "loop_mode": "repeat",
-            "cam_breath_enabled": false,
-            "cam_breath_intensity": 0.05,
-            "cam_breath_seed": 0.0,
-            "cam_breath_type": "perlin",
-            "cam_breath_speed": 1.0,
-            "cam_breath_trauma": 1.0,
-            "cam_breath_decay": 0.5,
-            "orient": "manual",
-            "yaw_offset": 0.0,
-            "pitch_offset": 0.0
+            "id": "c1_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
+              },
+              "transition_duration": {
+                "value": 0.0
+              },
+              "dimension": {
+                "value": ""
+              },
+              "cam_breath_enabled": {
+                "value": false
+              },
+              "cam_breath_intensity": {
+                "value": 0.05
+              },
+              "cam_breath_seed": {
+                "value": 0.0
+              },
+              "cam_breath_type": {
+                "value": "perlin"
+              },
+              "cam_breath_speed": {
+                "value": 1.0
+              },
+              "cam_breath_trauma": {
+                "value": 1.0
+              },
+              "cam_breath_decay": {
+                "value": 0.5
+              },
+              "orient": {
+                "value": "manual"
+              },
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -6.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": -6.0
+                  },
+                  {
+                    "time": 15.2,
+                    "value": -6.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": -6.0
+                  }
+                ]
+              },
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 15.2,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 15.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 15.2,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 30.0,
+                    "value": 2.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "base"
+              },
+              "position_origin": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]"
+                  },
+                  {
+                    "time": 15.0,
+                    "value": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]"
+                  },
+                  {
+                    "time": 15.2,
+                    "value": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]"
+                  },
+                  {
+                    "time": 30.0,
+                    "value": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]"
+                  }
+                ]
+              },
+              "facing_source": {
+                "value": "line"
+              },
+              "facing_target": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]"
+                  },
+                  {
+                    "time": 15.0,
+                    "value": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]"
+                  },
+                  {
+                    "time": 15.2,
+                    "value": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]"
+                  },
+                  {
+                    "time": 30.0,
+                    "value": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]"
+                  }
+                ]
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]"
+                  },
+                  {
+                    "time": 15.0,
+                    "value": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'red'}},sort=nearest,limit=1]"
+                  },
+                  {
+                    "time": 15.2,
+                    "value": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]"
+                  },
+                  {
+                    "time": 30.0,
+                    "value": "@e[type=!minecraft:arrow,type=!minecraft:spectral_arrow,type=!minecraft:trident,type=!minecraft:snowball,type=!minecraft:fireball,type=!minecraft:small_fireball,type=!minecraft:dragon_fireball,type=!minecraft:egg,type=!minecraft:ender_pearl,type=!minecraft:experience_bottle,type=!minecraft:potion,type=!minecraft:shulker_bullet,type=!minecraft:llama_spit,nbt={ForgeData:{'BetterEvE:FactionID':'blue'}},sort=nearest,limit=1]"
+                  }
+                ]
+              },
+              "look_at_part.x": {
+                "value": 50.0
+              },
+              "look_at_part.y": {
+                "value": 0.0
+              },
+              "look_at_part.z": {
+                "value": 50.0
+              },
+              "look_at_offset.x": {
+                "value": 0.0
+              },
+              "look_at_offset.y": {
+                "value": 0.5
+              },
+              "look_at_offset.z": {
+                "value": 0.0
+              },
+              "selector_refresh": {
+                "value": 2.0
+              },
+              "selector_switch_while_alive": {
+                "value": true
+              },
+              "selector_switch_interval": {
+                "value": 2.0
+              },
+              "selector_switch_smooth": {
+                "value": 0.4
+              },
+              "yaw_base": {
+                "value": "world"
+              },
+              "pitch_base": {
+                "value": "world"
+              },
+              "yaw_base_selector": {
+                "value": "@p"
+              },
+              "yaw_base_from": {
+                "value": ""
+              },
+              "yaw_base_to": {
+                "value": ""
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
+              }
+            }
           }
         ]
       }

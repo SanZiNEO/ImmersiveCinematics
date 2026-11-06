@@ -3,10 +3,20 @@
     "id": "test_camera_point_source",
     "name": "相机测试-统一点源(连线端点/facing_target)",
     "author": "ImmersiveCinematics",
-    "version": 3,
     "description": "yaw_base/pitch_base=line 的两个端点与 facing_target 用统一点源。0-3s 坐标→坐标；3-6s 玩家激活位置→方块(东侧黑曜石)；6-8s facing_target=方块(基准空间偏移 fwd=-6)；8-10s 实体选择器→玩家激活位置",
     "triggers": [
-      { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" }, "requires": ["test_trigger_login"] }
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        },
+        "requires": [
+          "test_trigger_login"
+        ]
+      }
     ],
     "block_keyboard": false,
     "block_mouse": false,
@@ -20,7 +30,6 @@
     "render_player_model": true
   },
   "timeline": {
-    "total_duration": 10,
     "tracks": [
       {
         "type": "OVERLAY",
@@ -28,15 +37,27 @@
           {
             "start_time": 0,
             "duration": 10,
-            "layer_type": "subtitle",
-            "text": "测试: test_camera_point_source | 0-3s 连线端点=坐标(0,64,0)→(0,64,10) 看向南 | 3-6s 端点=player→block(玩家东侧黑曜石) 看向东 | 6-8s facing_target=block 基准空间偏移 fwd=-6 | 8-10s 端点=实体选择器→player",
-            "x": 0.5,
-            "y": 0.5,
-            "z_index": 100,
-            "keyframes": [
-              { "time": 0, "x": 0.5, "y": 0.5, "opacity": 1 },
-              { "time": 10, "x": 0.5, "y": 0.5, "opacity": 1 }
-            ]
+            "id": "c1_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "测试: test_camera_point_source | 0-3s 连线端点=坐标(0,64,0)→(0,64,10) 看向南 | 3-6s 端点=player→block(玩家东侧黑曜石) 看向东 | 6-8s facing_target=block 基准空间偏移 fwd=-6 | 8-10s 端点=实体选择器→player"
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "z_index": {
+                "value": 100
+              },
+              "opacity": {
+                "value": 1.0
+              }
+            }
           }
         ]
       },
@@ -46,11 +67,30 @@
           {
             "start_time": 0,
             "duration": 1,
-            "event_type": "command",
-            "keyframes": [
-              { "time": 0, "event_type": "command", "command": "setblock ~3 ~ ~ minecraft:obsidian" },
-              { "time": 0.01, "event_type": "command", "command": "summon minecraft:armor_stand ~ ~ ~5 {NoGravity:1b,Marker:1b,CustomName:'\"ic_ps_marker\"'}" }
-            ]
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
+              },
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "setblock ~3 ~ ~ minecraft:obsidian"
+                    }
+                  },
+                  {
+                    "time": 0.01,
+                    "value": {
+                      "event_type": "command",
+                      "command": "summon minecraft:armor_stand ~ ~ ~5 {NoGravity:1b,Marker:1b,CustomName:'\"ic_ps_marker\"'}"
+                    }
+                  }
+                ]
+              }
+            }
           }
         ]
       },
@@ -61,127 +101,427 @@
           {
             "start_time": 0,
             "duration": 10,
-            "transition": "cut",
-            "transition_duration": 0.0,
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": 0, "dy": 4, "dz": -10 },
-                "yaw_base": "line",
-                "pitch_base": "line",
-                "yaw_base_from": "coordinate",
-                "yaw_base_from_x": 0,
-                "yaw_base_from_y": 64,
-                "yaw_base_from_z": 0,
-                "yaw_base_to": "coordinate",
-                "yaw_base_to_x": 0,
-                "yaw_base_to_y": 64,
-                "yaw_base_to_z": 10,
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+            "id": "c3_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 3,
-                "position": { "dx": 0, "dy": 4, "dz": -10 },
-                "yaw_base": "line",
-                "pitch_base": "line",
-                "yaw_base_from": "coordinate",
-                "yaw_base_from_x": 0,
-                "yaw_base_from_y": 64,
-                "yaw_base_from_z": 0,
-                "yaw_base_to": "coordinate",
-                "yaw_base_to_x": 0,
-                "yaw_base_to_y": 64,
-                "yaw_base_to_z": 10,
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "transition_duration": {
+                "value": 0.0
               },
-              {
-                "time": 3.01,
-                "position": { "dx": 0, "dy": 4, "dz": -10 },
-                "yaw_base": "line",
-                "pitch_base": "line",
-                "yaw_base_from": "player",
-                "yaw_base_to": "block:minecraft:obsidian:32",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 3.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 3.01,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 6.01,
+                    "value": -6.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": -6.0
+                  },
+                  {
+                    "time": 8.01,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
               },
-              {
-                "time": 6,
-                "position": { "dx": 0, "dy": 4, "dz": -10 },
-                "yaw_base": "line",
-                "pitch_base": "line",
-                "yaw_base_from": "player",
-                "yaw_base_to": "block:minecraft:obsidian:32",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 3.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 3.01,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 6.01,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 2.0
+                  },
+                  {
+                    "time": 8.01,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 4.0
+                  }
+                ]
               },
-              {
-                "time": 6.01,
-                "position": { "fwd": -6, "up": 2, "right": 0 },
-                "facing_origin": "player",
-                "facing_target": "block:minecraft:obsidian:32",
-                "yaw_base": "world",
-                "pitch_base": "world",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": -10.0
+                  },
+                  {
+                    "time": 3.0,
+                    "value": -10.0
+                  },
+                  {
+                    "time": 3.01,
+                    "value": -10.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": -10.0
+                  },
+                  {
+                    "time": 6.01,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 8.01,
+                    "value": -10.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": -10.0
+                  }
+                ]
               },
-              {
-                "time": 8,
-                "position": { "fwd": -6, "up": 2, "right": 0 },
-                "facing_origin": "player",
-                "facing_target": "block:minecraft:obsidian:32",
-                "yaw_base": "world",
-                "pitch_base": "world",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "position_mode": {
+                "value": "relative"
               },
-              {
-                "time": 8.01,
-                "position": { "dx": 0, "dy": 4, "dz": -10 },
-                "yaw_base": "line",
-                "pitch_base": "line",
-                "yaw_base_from": "@e[type=minecraft:armor_stand,name=ic_ps_marker]",
-                "yaw_base_to": "player",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "position_space": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": "world"
+                  },
+                  {
+                    "time": 3.0,
+                    "value": "world"
+                  },
+                  {
+                    "time": 3.01,
+                    "value": "world"
+                  },
+                  {
+                    "time": 6.0,
+                    "value": "world"
+                  },
+                  {
+                    "time": 6.01,
+                    "value": "base"
+                  },
+                  {
+                    "time": 8.0,
+                    "value": "base"
+                  },
+                  {
+                    "time": 8.01,
+                    "value": "world"
+                  },
+                  {
+                    "time": 10.0,
+                    "value": "world"
+                  }
+                ]
               },
-              {
-                "time": 10,
-                "position": { "dx": 0, "dy": 4, "dz": -10 },
-                "yaw_base": "line",
-                "pitch_base": "line",
-                "yaw_base_from": "@e[type=minecraft:armor_stand,name=ic_ps_marker]",
-                "yaw_base_to": "player",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 70,
-                "zoom": 1
+              "position_origin": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": ""
+                  },
+                  {
+                    "time": 3.0,
+                    "value": ""
+                  },
+                  {
+                    "time": 3.01,
+                    "value": ""
+                  },
+                  {
+                    "time": 6.0,
+                    "value": ""
+                  },
+                  {
+                    "time": 6.01,
+                    "value": "player"
+                  },
+                  {
+                    "time": 8.0,
+                    "value": "player"
+                  },
+                  {
+                    "time": 8.01,
+                    "value": ""
+                  },
+                  {
+                    "time": 10.0,
+                    "value": ""
+                  }
+                ]
+              },
+              "yaw_base": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": "line"
+                  },
+                  {
+                    "time": 3.0,
+                    "value": "line"
+                  },
+                  {
+                    "time": 3.01,
+                    "value": "line"
+                  },
+                  {
+                    "time": 6.0,
+                    "value": "line"
+                  },
+                  {
+                    "time": 6.01,
+                    "value": "world"
+                  },
+                  {
+                    "time": 8.0,
+                    "value": "world"
+                  },
+                  {
+                    "time": 8.01,
+                    "value": "line"
+                  },
+                  {
+                    "time": 10.0,
+                    "value": "line"
+                  }
+                ]
+              },
+              "pitch_base": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": "line"
+                  },
+                  {
+                    "time": 3.0,
+                    "value": "line"
+                  },
+                  {
+                    "time": 3.01,
+                    "value": "line"
+                  },
+                  {
+                    "time": 6.0,
+                    "value": "line"
+                  },
+                  {
+                    "time": 6.01,
+                    "value": "world"
+                  },
+                  {
+                    "time": 8.0,
+                    "value": "world"
+                  },
+                  {
+                    "time": 8.01,
+                    "value": "line"
+                  },
+                  {
+                    "time": 10.0,
+                    "value": "line"
+                  }
+                ]
+              },
+              "yaw_base_from": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": "coordinate"
+                  },
+                  {
+                    "time": 3.0,
+                    "value": "coordinate"
+                  },
+                  {
+                    "time": 3.01,
+                    "value": "player"
+                  },
+                  {
+                    "time": 6.0,
+                    "value": "player"
+                  },
+                  {
+                    "time": 6.01,
+                    "value": ""
+                  },
+                  {
+                    "time": 8.0,
+                    "value": ""
+                  },
+                  {
+                    "time": 8.01,
+                    "value": "@e[type=minecraft:armor_stand,name=ic_ps_marker]"
+                  },
+                  {
+                    "time": 10.0,
+                    "value": "@e[type=minecraft:armor_stand,name=ic_ps_marker]"
+                  }
+                ]
+              },
+              "yaw_base_from_x": {
+                "value": 0.0
+              },
+              "yaw_base_from_y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 64.0
+                  },
+                  {
+                    "time": 3.0,
+                    "value": 64.0
+                  },
+                  {
+                    "time": 3.01,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "yaw_base_from_z": {
+                "value": 0.0
+              },
+              "yaw_base_to": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": "coordinate"
+                  },
+                  {
+                    "time": 3.0,
+                    "value": "coordinate"
+                  },
+                  {
+                    "time": 3.01,
+                    "value": "block:minecraft:obsidian:32"
+                  },
+                  {
+                    "time": 6.0,
+                    "value": "block:minecraft:obsidian:32"
+                  },
+                  {
+                    "time": 6.01,
+                    "value": ""
+                  },
+                  {
+                    "time": 8.0,
+                    "value": ""
+                  },
+                  {
+                    "time": 8.01,
+                    "value": "player"
+                  },
+                  {
+                    "time": 10.0,
+                    "value": "player"
+                  }
+                ]
+              },
+              "yaw_base_to_x": {
+                "value": 0.0
+              },
+              "yaw_base_to_y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 64.0
+                  },
+                  {
+                    "time": 3.0,
+                    "value": 64.0
+                  },
+                  {
+                    "time": 3.01,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "yaw_base_to_z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 3.0,
+                    "value": 10.0
+                  },
+                  {
+                    "time": 3.01,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "value": 70.0
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       }

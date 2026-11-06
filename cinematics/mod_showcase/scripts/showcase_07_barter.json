@@ -3,7 +3,6 @@
     "id": "showcase_07_barter",
     "name": "猪灵交易",
     "author": "AI",
-    "version": 3,
     "description": "捡起猪灵交易掉落的黑曜石触发：交易成功展示，镜头注视猪灵",
     "triggers": [
       {
@@ -49,7 +48,6 @@
     "priority": 0
   },
   "timeline": {
-    "total_duration": 12.0,
     "tracks": [
       {
         "type": "CAMERA",
@@ -57,49 +55,101 @@
           {
             "start_time": 0,
             "duration": 10,
-            "transition": "cut",
             "loop": false,
-            "keyframes": [
-              {
-                "time": 0,
-                "position": { "dx": 4, "dy": 2.5, "dz": 4 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@e[type=minecraft:piglin]",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 65,
-                "zoom": 1.0
+            "id": "c1_1",
+            "objects": {
+              "transition": {
+                "value": "cut"
               },
-              {
-                "time": 5,
-                "position": { "dx": 3, "dy": 2.5, "dz": 3 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@e[type=minecraft:piglin]",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 60,
-                "zoom": 1.0
+              "position.x": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 3.0
+                  }
+                ]
               },
-              {
-                "time": 10,
-                "position": { "dx": 3, "dy": 2.5, "dz": 3 },
-                "position_mode": "relative",
-                "follow": "none",
-                "look_at": "entity",
-                "look_at_selector": "@e[type=minecraft:piglin]",
-                "yaw": 0,
-                "pitch": 0,
-                "roll": 0,
-                "fov": 60,
-                "zoom": 1.0
+              "position.y": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 2.5
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 2.5
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 2.5
+                  }
+                ]
+              },
+              "position.z": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 4.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 3.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 3.0
+                  }
+                ]
+              },
+              "position_mode": {
+                "value": "relative"
+              },
+              "position_space": {
+                "value": "world"
+              },
+              "look_at": {
+                "value": "entity"
+              },
+              "look_at_selector": {
+                "value": "@e[type=minecraft:piglin]"
+              },
+              "yaw": {
+                "value": 0.0
+              },
+              "pitch": {
+                "value": 0.0
+              },
+              "roll": {
+                "value": 0.0
+              },
+              "fov": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 65.0
+                  },
+                  {
+                    "time": 5.0,
+                    "value": 60.0
+                  },
+                  {
+                    "time": 10.0,
+                    "value": 60.0
+                  }
+                ]
+              },
+              "zoom": {
+                "value": 1.0
               }
-            ]
+            }
           }
         ]
       },
@@ -109,19 +159,30 @@
           {
             "start_time": 0.5,
             "duration": 0.5,
-            "event_type": "command",
-            "keyframes": [
-              {
-                "time": 0,
-                "event_type": "command",
-                "command": "give @p minecraft:obsidian 20"
+            "id": "c2_1",
+            "objects": {
+              "event_type": {
+                "value": "command"
               },
-              {
-                "time": 0.01,
-                "event_type": "command",
-                "command": "give @p minecraft:flint_and_steel 1"
+              "event": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": {
+                      "event_type": "command",
+                      "command": "give @p minecraft:obsidian 20"
+                    }
+                  },
+                  {
+                    "time": 0.01,
+                    "value": {
+                      "event_type": "command",
+                      "command": "give @p minecraft:flint_and_steel 1"
+                    }
+                  }
+                ]
               }
-            ]
+            }
           }
         ]
       },
@@ -132,32 +193,116 @@
           {
             "start_time": 0,
             "duration": 6,
-            "layer_type": "subtitle",
-            "text": "交易成功，猪灵给了你一件物品",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 5.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 6.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c3_1",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "交易成功，猪灵给了你一件物品"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           },
           {
             "start_time": 6,
             "duration": 6,
-            "layer_type": "subtitle",
-            "text": "搭一座传送门，用打火石点燃回去吧",
-            "z_index": 30,
-            "color": "#000000",
-            "path": "",
-            "keyframes": [
-              { "time": 0,   "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 0.6, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 5.2, "x": 0.5, "y": 0.5, "opacity": 1.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 },
-              { "time": 6.0, "x": 0.5, "y": 0.5, "opacity": 0.0, "scale_x": 1.0, "scale_y": 1.0, "font_scale": 2.5 }
-            ]
+            "id": "c3_2",
+            "objects": {
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "搭一座传送门，用打火石点燃回去吧"
+              },
+              "z_index": {
+                "value": 30
+              },
+              "color": {
+                "value": "#000000"
+              },
+              "path": {
+                "value": ""
+              },
+              "x": {
+                "value": 0.5
+              },
+              "y": {
+                "value": 0.5
+              },
+              "opacity": {
+                "keyframes": [
+                  {
+                    "time": 0.0,
+                    "value": 0.0
+                  },
+                  {
+                    "time": 0.6,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 5.2,
+                    "value": 1.0
+                  },
+                  {
+                    "time": 6.0,
+                    "value": 0.0
+                  }
+                ]
+              },
+              "scale_x": {
+                "value": 1.0
+              },
+              "scale_y": {
+                "value": 1.0
+              },
+              "font_scale": {
+                "value": 2.5
+              }
+            }
           }
         ]
       },
@@ -167,28 +312,70 @@
           {
             "start_time": 0,
             "duration": 4.30,
-            "sound": "7_reverb_part1.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_1",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "7_reverb_part1.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           },
           {
             "start_time": 6,
             "duration": 4.25,
-            "sound": "7_reverb_part2.ogg",
-            "source": "file",
-            "volume": 1,
-            "pitch": 1,
-            "loop": false,
-            "attenuation": "linear",
-            "keyframes": [
-              { "time": 0, "volume": 1, "x": 0, "y": 0, "z": 0 }
-            ]
+            "id": "c4_2",
+            "objects": {
+              "file_loop": {
+                "value": false
+              },
+              "sound": {
+                "value": "7_reverb_part2.ogg"
+              },
+              "source": {
+                "value": "file"
+              },
+              "volume": {
+                "value": 1.0
+              },
+              "pitch": {
+                "value": 1
+              },
+              "attenuation": {
+                "value": "linear"
+              },
+              "x": {
+                "value": 0.0
+              },
+              "y": {
+                "value": 0.0
+              },
+              "z": {
+                "value": 0.0
+              }
+            }
           }
         ]
       }
