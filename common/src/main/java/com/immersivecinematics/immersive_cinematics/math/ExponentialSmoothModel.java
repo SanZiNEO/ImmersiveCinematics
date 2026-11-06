@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.math;
 
+import com.immersivecinematics.immersive_cinematics.spi.MathModel;
+
 /**
  * exponential_smooth — 一阶指数趋近（时间常数 τ，秒）。
  *

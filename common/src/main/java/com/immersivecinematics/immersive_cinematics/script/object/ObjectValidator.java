@@ -79,7 +79,7 @@ public final class ObjectValidator {
         if (type == null) {
             return;
         }
-        new Check(type, objectsElement.getAsJsonObject(), prefix, issues,
+        new Check(type, clip, objectsElement.getAsJsonObject(), prefix, issues,
                 finiteFloat(clip.get("duration"))).run();
     }
 
@@ -93,6 +93,17 @@ public final class ObjectValidator {
                 issues.add(prefix + "新格式片段只允许 start_time/duration/objects/loop/loop_count/loop_mode/id/exit，发现 " + key);
             }
         }
+        // 第三方轨道的循环字段由 Check 兜底分支按同一份口径检查，避免同一问题报两遍。
+        if (type == null || isBuiltInTrack(type)) {
+            checkLoopFields(type, clip, prefix, issues);
+        }
+    }
+
+    /**
+     * clip 级循环字段：类型 / 取值范围 / 枚举 + 与 {@code loop} 的一致性。
+     * 内置轨道与未知类型在 {@link #checkClipFields} 里调用；第三方轨道由 {@link Check} 的兜底分支调用。
+     */
+    private static void checkLoopFields(TrackTypeId type, JsonObject clip, String prefix, List<String> issues) {
         JsonElement loop = clip.get("loop");
         boolean looping = false;
         if (loop != null) {
@@ -148,6 +159,20 @@ public final class ObjectValidator {
                 || TrackTypeId.ADJUST.equals(type) || TrackTypeId.LETTERBOX.equals(type);
     }
 
+    /** 内置轨道 id（含没有专属检查的 {@link TrackTypeId#LETTERBOX}）；其余 id 都来自第三方注册。 */
+    private static boolean isBuiltInTrack(TrackTypeId type) {
+        return TrackTypeId.CAMERA.equals(type) || TrackTypeId.LETTERBOX.equals(type)
+                || TrackTypeId.AUDIO.equals(type) || TrackTypeId.EVENT.equals(type)
+                || TrackTypeId.MOD_EVENT.equals(type) || TrackTypeId.OVERLAY.equals(type)
+                || TrackTypeId.ADJUST.equals(type);
+    }
+
+    /** 内置视觉轨：{@code pingpong} 的时间映射只对这三类轨道生效。 */
+    private static boolean isBuiltInVisualTrack(TrackTypeId type) {
+        return TrackTypeId.CAMERA.equals(type) || TrackTypeId.OVERLAY.equals(type)
+                || TrackTypeId.LETTERBOX.equals(type);
+    }
+
     private static void rejectPingpong(TrackTypeId type, JsonObject clip, String prefix, List<String> issues) {
         if (!TrackTypeId.AUDIO.equals(type) && !TrackTypeId.EVENT.equals(type)
                 && !TrackTypeId.MOD_EVENT.equals(type)) {
@@ -190,6 +215,7 @@ public final class ObjectValidator {
     private static final class Check {
 
         private final TrackTypeId type;
+        private final JsonObject clip;
         private final JsonObject objects;
         private final String prefix;
         private final List<String> issues;
@@ -199,8 +225,10 @@ public final class ObjectValidator {
         /** 已出现且形态为对象的属性；缺失的路径不登记。 */
         private final Map<String, Prop> props = new LinkedHashMap<>();
 
-        Check(TrackTypeId type, JsonObject objects, String prefix, List<String> issues, Float duration) {
+        Check(TrackTypeId type, JsonObject clip, JsonObject objects, String prefix, List<String> issues,
+              Float duration) {
             this.type = type;
+            this.clip = clip;
             this.objects = objects;
             this.prefix = prefix;
             this.issues = issues;
@@ -216,12 +244,26 @@ public final class ObjectValidator {
             Consumer<Check> checker = CHECKERS.get(type);
             if (checker != null) {
                 checker.accept(this);
+            } else if (!isBuiltInTrack(type)) {
+                // LETTERBOX 没有专属检查，但 clip 级循环字段已在 checkClipFields 里查过，这里只处理第三方轨道。
+                checkGenericLoop();
             }
         }
 
         /**
-         * 轨道 id → 新格式语义检查；未登记（{@code LETTERBOX} 与第三方 id）走兜底 = 无额外检查。
-         * 内置轨的检查组合逐条显式登记，新增轨道不需要改这里。
+         * 第三方轨道的通用循环诊断，不掺任何内置特化：循环字段按内置语义解释，
+         * 并提示 {@code pingpong} 不会被解释成往复。
+         */
+        private void checkGenericLoop() {
+            checkLoopFields(type, clip, prefix, issues);
+            if ("pingpong".equals(loopModeString(clip.get("loop_mode"))) && !isBuiltInVisualTrack(type)) {
+                issues.add(prefix + "loop_mode: pingpong 只对内置视觉轨道生效；第三方轨道按 repeat 播放");
+            }
+        }
+
+        /**
+         * 轨道 id → 新格式语义检查。未登记的 {@code LETTERBOX} 只走 clip 级检查，第三方 id 再走
+         * {@link #checkGenericLoop()} 的通用循环诊断；内置轨的检查组合逐条显式登记，新增轨道不需要改这里。
          */
         private static final Map<TrackTypeId, Consumer<Check>> CHECKERS = new LinkedHashMap<>();
 
@@ -678,9 +720,6 @@ public final class ObjectValidator {
         // ------------------------------------------------------------------
 
         private void checkAudio() {
-            if ("inverse".equals(valueOf("attenuation"))) {
-                issues.add(prefix + "attenuation: attenuation=inverse 当前按 linear 处理（反距离衰减未实现）");
-            }
             double fadeIn = staticNumber("fade_in", 0d);
             double fadeOut = staticNumber("fade_out", 0d);
             if (duration != null && duration > 0f && fadeIn > 0d && fadeOut > 0d

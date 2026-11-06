@@ -1,4 +1,4 @@
-package com.immersivecinematics.immersive_cinematics.script.schema;
+package com.immersivecinematics.immersive_cinematics.spi;
 
 import java.util.ArrayList;
 import java.util.Collections;

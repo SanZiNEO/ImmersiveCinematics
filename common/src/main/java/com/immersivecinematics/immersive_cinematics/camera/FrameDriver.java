@@ -18,7 +18,8 @@ import java.util.ArrayList;
  *
  * 顺序固定：直控层活跃窗口收口 → 时钟推进 → 逐实例驱动（按启动顺序，后驱动者后写入共享相机状态）
  * → 帧缓存写入 → 快照重建。某实例结束只退它自己，最后一个实例退出才全局复位。
- * 逐实例驱动：轨道分发之后跑本实例的判定规则引擎（{@code PlaybackInstance.ruleEngine}），挂起状态变化
+ * 逐实例驱动：轨道分发之后回收本实例的规则动作工件（{@code PlaybackInstance.artifactLedger}）并跑脚本级
+ * 规则运行态，挂起状态变化
  * 那一帧发暂停握手（服务端冻结 / 解冻 EVENT 时间线）；音频同步每帧幂等（音轨实例走全局 SoundEngine
  * 暂停链路，规则一次性声音走 per-instance 停声）。退场渐出按实例的层判定
  * （{@code OverlayManager.isAnimating(instance)}）：A 实例的渐出不牵连 B 实例的退场时机。
@@ -153,13 +154,14 @@ final class FrameDriver {
                     player.onRenderFrame(instanceTime);
                     // 判定规则：轨道分发之后逐实例判定（挂起 / 恢复 / 动作都作用在本实例上）
                     boolean suspendedBefore = player.isSuspended();
+                    // 规则动作工件（camera_set / overlay_set / adjust_set）到期回收：窗末按片段活跃窗计
                     try {
-                        instance.ruleEngine().evaluate(player);
+                        instance.artifactLedger().expireArtifacts(instanceTime);
                     } catch (Exception e) {
-                        ErrorLog.logRateLimited("Playback", "rule-engine", 5000L, "规则引擎判定异常（本帧跳过）", e);
+                        ErrorLog.logRateLimited("Playback", "rule-artifacts", 5000L, "规则工件回收异常（本帧跳过）", e);
                     }
-                    // 脚本级规则（rules + rule_bindings）：同一帧内、旧引擎之后判定；挂起握手按
-                    // suspendedBefore（两次判定之前）到本帧最终状态的变化发一条（两边共用同一区间）
+                    // 脚本级规则（rules + rule_bindings）：挂起握手按
+                    // suspendedBefore（判定之前）到本帧最终状态的变化发一条
                     try {
                         instance.rules().evaluate(player);
                     } catch (Exception e) {

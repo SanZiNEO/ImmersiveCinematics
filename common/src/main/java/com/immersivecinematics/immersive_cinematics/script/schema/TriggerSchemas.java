@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script.schema;
 
+import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

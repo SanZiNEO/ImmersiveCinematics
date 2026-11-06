@@ -11,13 +11,8 @@ import com.immersivecinematics.immersive_cinematics.client.post.MasterColorAdjus
 import com.immersivecinematics.immersive_cinematics.overlay.CanvasTransform;
 import com.immersivecinematics.immersive_cinematics.overlay.FadeLayer;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
-import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
-import com.immersivecinematics.immersive_cinematics.script.ClipRule;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
-import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
-import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
-import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleBinding;
 import com.immersivecinematics.immersive_cinematics.trigger.network.C2SRuleCommandPacket;
 import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkGuard;
@@ -33,11 +28,12 @@ import net.minecraft.sounds.SoundSource;
 import java.util.List;
 
 /**
- * 规则动作执行入口：{@code rules[].do} / {@code on_timeout} 的元素逐条执行。
+ * 规则动作执行入口：{@code rules[].actions} / {@code on_timeout} 的元素逐条执行。
  *
  * 动作集九种：{@code camera_set}（覆盖链 Modifier 叠加，工件到片段活跃窗末注销）/ {@code overlay_set}
- * （fade 临时层）/ {@code adjust_set}（master 规则调整层）/ {@code goto_clip}（{@code track} + {@code at}
- * 时间寻址）/ {@code pause} / {@code resume}（实例挂起：保持内容位置 / 从该位置续）/
+ * （fade 临时层）/ {@code adjust_set}（master 规则调整层）/ {@code goto_clip}（新形态 = 目标片段 id +
+ * 入口局部时间，分支启动归 {@code RuleActionRunner}）/ {@code pause} / {@code resume}（实例挂起：保持内容
+ * 位置 / 从该位置续，归 {@code RuleActionRunner} 与 {@code RuleRuntime} 的挂起账本）/
  * {@code exit}（声明式退出，跳过 hold_at_end 拒绝）/ {@code play_sound}（本实例一次性发声）/
  * {@code emit_command}（客户端发往服务端执行，仅观看者可执行）。
  * {@code hold} 销项（用 {@code until} 无 timeout 表达，见 {@link #ACTION_HOLD}）。
@@ -48,7 +44,7 @@ import java.util.List;
  */
 public final class RuleActions {
 
-    /** 动作 type 白名单（与 {@link #execute} 的 switch 同名单源；校验器按它拦未知动作）。 */
+    /** 动作 type 白名单（校验器 / 导出器按它拦未知动作）。 */
     public static final List<String> ACTION_TYPES_V1 = List.of(
             "camera_set", "overlay_set", "adjust_set", "goto_clip",
             "pause", "resume", "exit", "play_sound", "emit_command");
@@ -71,50 +67,16 @@ public final class RuleActions {
     private RuleActions() {}
 
     /**
-     * 执行一条动作；未知 type / 执行异常 → 限频日志，不中断播放。
+     * 执行一条<b>共享</b>动作（脚本级规则引擎 {@code script.rule.runtime.RuleActionRunner} 直接调用）：
+     * {@code camera_set} / {@code overlay_set} / {@code adjust_set} / {@code play_sound} / {@code exit}。
      *
-     * @param instance    触发规则的播放实例（动作作用对象；探针无宿主时为 {@code null}）
-     * @param clip        规则所在片段
-     * @param rule        规则（动作来源，日志定位用）
-     * @param action      动作原文（{@code do} / {@code on_timeout} 的一个元素）
-     * @param clipIndex   平铺片段索引（轨道序 → 轨道内片段序；动作引用用）
-     * @param ruleIndex   片段内规则下标
-     * @param actionIndex 动作列表下标
-     */
-    public static void execute(PlaybackInstance instance, Clip clip, ClipRule rule, JsonObject action,
-                               int clipIndex, int ruleIndex, int actionIndex) {
-        if (action == null || instance == null) return;
-        String type = str(action, "type");
-        if (type == null) return;
-        try {
-            switch (type) {
-                case "camera_set", "overlay_set", "adjust_set", "play_sound",
-                        "exit", "pause", "resume" -> executeShared(instance, clip, action);
-                case "goto_clip" -> gotoClip(instance, action);
-                case "emit_command" -> emitCommandForLegacyRule(instance, clipIndex, ruleIndex, actionIndex);
-                case ACTION_HOLD -> ErrorLog.logRateLimited("Rules", "action:hold", LOG_INTERVAL_MS,
-                        "hold 动作用 until 无 timeout 表达（无限等待），本版本不单独实现");
-                default -> ErrorLog.logRateLimited("Rules", "action:" + type, LOG_INTERVAL_MS,
-                        "未知规则动作: " + type + "（v1 动作: " + typesLabel() + "）");
-            }
-        } catch (Exception e) {
-            ErrorLog.logRateLimited("Rules", "action:" + type, LOG_INTERVAL_MS, "规则动作执行异常: " + type, e);
-        }
-    }
-
-    /**
-     * 执行一条<b>共享</b>动作（新旧两套规则引擎共用）：{@code camera_set} / {@code overlay_set} /
-     * {@code adjust_set} / {@code play_sound} / {@code exit} / {@code pause} / {@code resume}。
+     * <p>{@code goto_clip} / {@code emit_command} / {@code pause} / {@code resume} 不在此列：分支启动、
+     * 动作引用发包与挂起账本都归调用方（{@code RuleActionRunner}），避免两处各记一份日志。</p>
      *
-     * <p>本方法是 {@link #execute} 的抽取，逐分支语义与旧路径一致；脚本级规则引擎
-     * （{@code script.rule.runtime.RuleActionRunner}）直接调用它，{@code goto_clip} / {@code emit_command}
-     * / {@code hold} 不在此列（脚本级规则的新形态分别归 I4-6 / I4-7）。</p>
-     *
-     * <p>非共享动作 / 未知 type：本方法不做任何事（分派归调用方，避免与旧路径重复记日志）。
-     * 失败不中断播放：参数非法 / 执行异常 → 限频日志 + 继续。</p>
+     * <p>失败不中断播放：参数非法 / 执行异常 → 限频日志 + 继续。</p>
      *
      * @param instance 触发动作的播放实例（动作作用对象；{@code null} = 跳过）
-     * @param clip     规则所在片段（{@code pause} 的挂起作用域）
+     * @param clip     动作作用域片段（工件的回收窗末 = 该片段的活跃窗末）
      * @param action   动作原文
      */
     public static void executeShared(PlaybackInstance instance, Clip clip, JsonObject action) {
@@ -123,18 +85,21 @@ public final class RuleActions {
         if (type == null) return;
         try {
             switch (type) {
-                case "camera_set" -> cameraSet(instance, action);
-                case "overlay_set" -> overlaySet(instance, action);
-                case "adjust_set" -> adjustSet(instance, action);
+                case "camera_set" -> cameraSet(instance, clip, action);
+                case "overlay_set" -> overlaySet(instance, clip, action);
+                case "adjust_set" -> adjustSet(instance, clip, action);
                 case "play_sound" -> playSound(instance, action);
                 case "exit" -> CameraManager.INSTANCE.requestDeclaredExit(instance);
-                case "pause" -> instance.ruleEngine().suspendByAction(clip);
-                case "resume" -> instance.ruleEngine().resumeByAction();
                 default -> { }
             }
         } catch (Exception e) {
             ErrorLog.logRateLimited("Rules", "action:" + type, LOG_INTERVAL_MS, "规则动作执行异常: " + type, e);
         }
+    }
+
+    /** 工件的回收窗末：动作作用域片段的活跃窗末（无限片段 = 无有限末端）。 */
+    private static double windowEndOf(Clip clip) {
+        return clip == null || clip.isEffectivelyInfinite() ? Double.MAX_VALUE : clip.getWindowEnd();
     }
 
     /** 动作清单（报错文案用）。 */
@@ -149,7 +114,7 @@ public final class RuleActions {
      * 参数结构 = {@code modifier} 字段同款（{@code channels} + {@code mode?} + {@code priority?} + 通道值）；
      * 非法参数 → 限频日志 + 不动（播放继续）。
      */
-    private static void cameraSet(PlaybackInstance instance, JsonObject action) {
+    private static void cameraSet(PlaybackInstance instance, Clip clip, JsonObject action) {
         int mask = cameraChannels(action);
         if (mask == 0) return;
         String modeName = str(action, "mode");
@@ -170,7 +135,8 @@ public final class RuleActions {
         int priority = isNumber(action, "priority") ? action.get("priority").getAsInt() : 0;
         double[] values = new double[ClipModifier.VALUE_COUNT];
         if (!readCameraValues(action, mask, values)) return;
-        instance.ruleEngine().attachArtifact(new CameraArtifact(instance,
+        instance.artifactLedger().setWindowEnd(windowEndOf(clip));
+        instance.artifactLedger().attachArtifact(new CameraArtifact(instance,
                 new RuleModifier(priority, mask, mode, values)));
     }
 
@@ -256,7 +222,7 @@ public final class RuleActions {
      * {@code overlay_set}：建一层临时覆盖层（仅 fade，owner = 本实例）并接入覆盖层管理器，
      * 持续到片段结束移除。{@code layer_type} 非 fade / 参数非法 → 限频日志 + 不动。
      */
-    private static void overlaySet(PlaybackInstance instance, JsonObject action) {
+    private static void overlaySet(PlaybackInstance instance, Clip clip, JsonObject action) {
         String layerType = str(action, "layer_type");
         if (!OVERLAY_LAYER_TYPES_V1.contains(layerType)) {
             ErrorLog.logRateLimited("Rules", "overlay_set:type", LOG_INTERVAL_MS,
@@ -270,7 +236,8 @@ public final class RuleActions {
         layer.setOpacity(isNumber(action, "opacity") ? clamp01(action.get("opacity").getAsFloat()) : 1f);
         layer.setZIndex(isNumber(action, "z_index")
                 ? action.get("z_index").getAsInt() : CanvasTransform.DEFAULT_Z_INDEX);
-        instance.ruleEngine().attachArtifact(new OverlayArtifact(layer));
+        instance.artifactLedger().setWindowEnd(windowEndOf(clip));
+        instance.artifactLedger().attachArtifact(new OverlayArtifact(layer));
     }
 
     /**
@@ -278,10 +245,11 @@ public final class RuleActions {
      * 参数名与 ADJUST 轨关键帧字段同名）并发布到 {@link MasterColorAdjust}，持续到片段结束清除。
      * 非法通道名 / 非有限数值 → 限频日志 + 不动。
      */
-    private static void adjustSet(PlaybackInstance instance, JsonObject action) {
+    private static void adjustSet(PlaybackInstance instance, Clip clip, JsonObject action) {
         ColorAdjustParams params = ruleAdjustParams(action);
         if (params == null) return;
-        instance.ruleEngine().attachArtifact(new AdjustArtifact(instance.player(), params));
+        instance.artifactLedger().setWindowEnd(windowEndOf(clip));
+        instance.artifactLedger().attachArtifact(new AdjustArtifact(instance.player(), params));
     }
 
     /**
@@ -331,68 +299,6 @@ public final class RuleActions {
                 0f, 0f, ColorAdjustParams.BLEND_NORMAL, 1f);
     }
 
-    // ========== 分支 / 播放控制族 ==========
-
-    /**
-     * {@code goto_clip}：{@code track}（轨道类型名）+ {@code at}（目标已播放时间秒）时间寻址——
-     * 目标时间须落在该轨某个片段的闭区间窗 {@code [startTime, windowEnd]} 内（末端取闭：跳到最后一段末尾
-     * = 收尾）；轨道缺失 / 无片段覆盖 / 时间越界 → 限频日志 + 不动（播放继续）。
-     * 寻址只用轨道类型名 + 时间，不引入 clip id 字段。
-     */
-    private static void gotoClip(PlaybackInstance instance, JsonObject action) {
-        String trackName = str(action, "track");
-        if (trackName == null || trackName.isEmpty()) {
-            ErrorLog.logRateLimited("Rules", "goto_clip:track", LOG_INTERVAL_MS,
-                    "goto_clip 缺少 track（轨道类型名，如 CAMERA / OVERLAY）——动作跳过，播放继续");
-            return;
-        }
-        if (!isNumber(action, "at")) {
-            ErrorLog.logRateLimited("Rules", "goto_clip:at", LOG_INTERVAL_MS,
-                    "goto_clip 缺少数字参数 at（目标已播放时间，秒）——动作跳过，播放继续");
-            return;
-        }
-        double at = action.get("at").getAsDouble();
-        CinematicScript script = instance.script();
-        if (script == null || script.getTimeline() == null) return;
-        double total = script.getTotalDuration();
-        if (!Double.isFinite(at) || at < 0.0 || (total > 0.0 && at > total)) {
-            ErrorLog.logRateLimited("Rules", "goto_clip:range", LOG_INTERVAL_MS,
-                    "goto_clip 目标时间越界: " + at + "s（总时长 " + total + "s）——动作跳过，播放继续");
-            return;
-        }
-        TrackTypeId type = trackType(trackName);
-        if (type == null) {
-            ErrorLog.logRateLimited("Rules", "goto_clip:track", LOG_INTERVAL_MS,
-                    "goto_clip 未知轨道类型: " + trackName + "——动作跳过，播放继续");
-            return;
-        }
-        if (!hasClipAt(script, type, at)) {
-            ErrorLog.logRateLimited("Rules", "goto_clip:target", LOG_INTERVAL_MS,
-                    "goto_clip 目标时间 " + at + "s 在 " + type + " 轨道上没有片段覆盖——动作跳过，播放继续");
-            return;
-        }
-        instance.seekTo(at);
-    }
-
-    /** 轨道类型名 → id（精确 id 优先，内置 id 额外接受大小写变化；未知 → {@code null}）。 */
-    private static TrackTypeId trackType(String name) {
-        return TrackRegistry.resolve(name);
-    }
-
-    /** 该轨是否有片段覆盖目标时间（闭区间 {@code [startTime, windowEnd]}；无限片段恒真）。 */
-    private static boolean hasClipAt(CinematicScript script, TrackTypeId type, double at) {
-        for (TimelineTrack track : script.getTimeline().getTracks()) {
-            if (!type.equals(track.getType())) continue;
-            List<Clip> clips = track.getClips();
-            for (int i = 0; i < clips.size(); i++) {
-                Clip clip = clips.get(i);
-                if (at >= clip.getStartTime()
-                        && (clip.isEffectivelyInfinite() || at <= clip.getWindowEnd())) return true;
-            }
-        }
-        return false;
-    }
-
     // ========== 媒体族 ==========
 
     /** {@code play_sound}：按 id 播一条本机声音（相对听者，音量 / 音调可选，缺省 1）；未知 id → 限频日志。 */
@@ -413,21 +319,6 @@ public final class RuleActions {
         float volume = isNumber(action, "volume") ? action.get("volume").getAsFloat() : 1f;
         float pitch = isNumber(action, "pitch") ? action.get("pitch").getAsFloat() : 1f;
         instance.player().playOneShot(sound, SoundSource.AMBIENT, volume, pitch);
-    }
-
-    /**
-     * {@code emit_command}（旧 {@code clip.rules} 路径）：只把动作引用发给服务端，
-     * 命令原文由服务端按自己加载的脚本解析（见 {@code RuleCommandTable}）。
-     *
-     * <p>动作引用 = 平铺片段索引（轨道序 → 轨道内片段序，与 {@code ClipExecutionLedger} 同口径）、
-     * 片段内规则下标、动作列表下标；{@code bindingId} 传空串表示旧形态。</p>
-     */
-    public static void emitCommandForLegacyRule(PlaybackInstance instance,
-                                                int clipIndex, int ruleIndex, int actionIndex) {
-        if (!canEmitCommand(instance)) return;
-        NetworkGuard.sendToServer("C2SRuleCommand", () -> NetworkHandler.sendToServer(
-                new C2SRuleCommandPacket(instance.scriptId(), instance.instanceId(), "",
-                        clipIndex, ruleIndex, actionIndex)));
     }
 
     /**

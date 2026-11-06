@@ -5,8 +5,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
+import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.Map;
@@ -22,9 +22,6 @@ import java.util.Map;
 public final class ScriptTemplate {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-
-    /** 新建脚本的默认总时长（秒） */
-    public static final float DEFAULT_TOTAL_DURATION = 10f;
 
     private ScriptTemplate() {}
 
@@ -47,7 +44,6 @@ public final class ScriptTemplate {
         root.add("meta", meta);
 
         JsonObject timeline = new JsonObject();
-        timeline.addProperty("total_duration", DEFAULT_TOTAL_DURATION);
         JsonArray tracks = new JsonArray();
         for (TrackTypeId t : TrackRegistry.builtinIds()) {
             JsonObject track = new JsonObject();

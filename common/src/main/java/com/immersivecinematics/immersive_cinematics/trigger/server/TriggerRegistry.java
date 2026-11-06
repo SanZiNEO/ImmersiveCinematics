@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server;
 
+import com.immersivecinematics.immersive_cinematics.spi.TriggerType;
+
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;

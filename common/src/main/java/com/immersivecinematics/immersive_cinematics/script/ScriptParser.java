@@ -7,17 +7,14 @@ import com.google.gson.JsonParser;
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraChannels;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ComposeMode;
-import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionInterrupt;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionMode;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionParams;
-import com.immersivecinematics.immersive_cinematics.math.MathModel;
-import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitKind;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitPolicy;
 import com.immersivecinematics.immersive_cinematics.script.identity.ClipIdentity;
 import com.immersivecinematics.immersive_cinematics.script.identity.ClipRef;
 import com.immersivecinematics.immersive_cinematics.script.identity.UsageIndex;
 import com.immersivecinematics.immersive_cinematics.script.identity.UsageKind;
-import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitKind;
-import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitPolicy;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectFormatException;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectParser;
@@ -25,16 +22,15 @@ import com.immersivecinematics.immersive_cinematics.script.object.SampledPropert
 import com.immersivecinematics.immersive_cinematics.script.path.PathCollectionParser;
 import com.immersivecinematics.immersive_cinematics.script.rule.ClipExitPolicyParser;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleCollectionParser;
-import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
-import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveException;
-import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveRegistry;
 import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
+import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
 import com.immersivecinematics.immersive_cinematics.spi.Interp;
+import com.immersivecinematics.immersive_cinematics.spi.MathModel;
 import com.immersivecinematics.immersive_cinematics.spi.PropertyMode;
 import com.immersivecinematics.immersive_cinematics.spi.PropertyType;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
-import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
+import com.immersivecinematics.immersive_cinematics.spi.TriggerType;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
@@ -46,7 +42,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -59,10 +54,6 @@ public class ScriptParser {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("ImmersiveCinematics/ScriptParser");
 
-    /** {@code position.up_axis} 的移除口径（基准坐标系上轴固定世界竖直，方向侧改用锁字段）。 */
-    private static final String REMOVED_UP_AXIS = "已移除（0.3.6 起）：基准坐标系的上轴固定为世界竖直"
-            + "（前轴 / 右轴取水平面内分量）；方向侧每轴跟来源或锁值改用 yaw_lock / pitch_lock";
-
     /**
      * 模型定义驻留表：键 = 定义对象的归一形态（{@code type} + 参数键值 + 通道域，见 {@link #parseMathModel}）。
      *
@@ -72,29 +63,6 @@ public class ScriptParser {
      * 键为解析期一次建成的只读 map（入库后不再变更）；条目数 = 出现过的定义形态数。
      */
     private static final Map<Map<String, Object>, MathModel> MODEL_DEFINITIONS = new ConcurrentHashMap<>();
-
-    /**
-     * fade 高级颜色遮罩的 clip 级字段：只属于 {@code layer_type=fade}。
-     * {@code layer_type=image / subtitle} 上写 → 解析期明确拒绝（不静默存进 data 宣称生效）。
-     */
-    private static final Set<String> FADE_ONLY_CLIP_FIELDS =
-            Set.of("gradient", "mask_shape", "blend_mode");
-
-    /** fade 高级颜色遮罩的关键帧字段：只属于 {@code layer_type=fade}（image / subtitle 上写同样拒绝）。 */
-    private static final Set<String> FADE_ONLY_KEYFRAME_FIELDS = Set.of(
-            "color", "mask_x", "mask_y", "mask_width", "mask_height", "mask_radius",
-            "gradient_angle", "gradient_center_x", "gradient_center_y", "gradient_radius");
-
-    /**
-     * CAMERA lane 合成遮罩的几何关键帧字段：只属于关键帧。
-     * clip 级只允许形状 {@code mask_shape}；写错层级 / 写错轨道都明确拒绝。
-     */
-    private static final Set<String> CAMERA_MASK_GEOMETRY_FIELDS =
-            Set.of("mask_x", "mask_y", "mask_width", "mask_height", "mask_radius");
-
-    /** fade 渐变专用字段：CAMERA 片段 / 关键帧上写 = 明确拒绝（CAMERA 遮罩只有形状 + 几何）。 */
-    private static final Set<String> FADE_GRADIENT_FIELDS =
-            Set.of("gradient", "gradient_angle", "gradient_center_x", "gradient_center_y", "gradient_radius");
 
     /** 解析异常 — 消息 = {@code 字段路径: 说明}；{@link #getFieldPath()} 返回路径部分。 */
     public static class ScriptParseException extends Exception {
@@ -147,12 +115,7 @@ public class ScriptParser {
             throw new ScriptParseException("<root>", "根元素必须是 JSON 对象");
         }
         JsonObject rootObj = root.getAsJsonObject();
-        // 新旧规则并存检查放在最前：脚本级规则集合与片段级 clip.rules 同时出现是格式级错误，
-        // 不应被其它字段的解析错误掩盖（旧 clip.rules 仅用于旧格式脚本，见 ROUND-I-4-MAP §0.2-1）。
         boolean hasScriptRules = rootObj.has("rules") || rootObj.has("rule_bindings");
-        if (hasScriptRules) {
-            rejectLegacyClipRules(rootObj);
-        }
         ScriptMeta meta = parseMeta(rootObj);
         Timeline timeline = parseTimeline(rootObj, "timeline");
         List<Clip> standalone = parseStandaloneClips(rootObj);
@@ -173,30 +136,6 @@ public class ScriptParser {
         script.setPathCollection(
                 PathCollectionParser.parse(rootObj, script::findClip, script.usageBuilder(), "<root>"));
         return script;
-    }
-
-    /**
-     * 新旧规则并存检查：脚本级 {@code rules} / {@code rule_bindings} 与任一片段级 {@code clip.rules}
-     * 不能出现在同一脚本（旧 {@code clip.rules} 仅用于旧格式脚本，见 {@code ROUND-I-4-MAP} §0.2-1）。
-     *
-     * <p>只看 timeline 内联片段：独立片段（顶层 {@code clips[]}）是新格式，不允许挂旧规则。</p>
-     */
-    private static void rejectLegacyClipRules(JsonObject root) throws ScriptParseException {
-        JsonElement timelineElement = root.get("timeline");
-        if (timelineElement == null || !timelineElement.isJsonObject()) return;
-        JsonElement tracksElement = timelineElement.getAsJsonObject().get("tracks");
-        if (tracksElement == null || !tracksElement.isJsonArray()) return;
-        for (JsonElement trackElement : tracksElement.getAsJsonArray()) {
-            if (!trackElement.isJsonObject()) continue;
-            JsonElement clipsElement = trackElement.getAsJsonObject().get("clips");
-            if (clipsElement == null || !clipsElement.isJsonArray()) continue;
-            for (JsonElement clipElement : clipsElement.getAsJsonArray()) {
-                if (clipElement.isJsonObject() && clipElement.getAsJsonObject().has("rules")) {
-                    throw new ScriptParseException("rules",
-                            "脚本级规则集合与片段级 clip.rules 不能同时出现（旧 clip.rules 仅用于旧格式脚本）");
-                }
-            }
-        }
     }
 
     /**
@@ -257,10 +196,23 @@ public class ScriptParser {
         String p = "meta";
         JsonObject metaObj = requireObject(root, p, "meta");
 
+        // 旧字段：0.3.6 起已移除，出现即报错（不保留双读 / 兼容分支）
+        if (metaObj.has("version")) {
+            throw new ScriptParseException(p + ".version",
+                    "已移除：meta.version（0.3.6 起不再有格式版本号）");
+        }
+        if (metaObj.has("hud_layers")) {
+            throw new ScriptParseException(p + ".hud_layers",
+                    "已移除：meta.hud_layers；用 meta.screen_layers（true = 显示）");
+        }
+        if (metaObj.has("hard_hide_hud")) {
+            throw new ScriptParseException(p + ".hard_hide_hud",
+                    "已移除：meta.hard_hide_hud；用 meta.screen_layer_mode（allowlist / normal）");
+        }
+
         String id = requireString(metaObj, p, "id");
         String name = requireString(metaObj, p, "name");
         String author = requireString(metaObj, p, "author");
-        int version = requireInt(metaObj, p, "version");
         String description = optString(metaObj, "description", "");
 
         if (!id.matches("^[a-zA-Z0-9_]{1,32}$")) {
@@ -271,9 +223,6 @@ public class ScriptParser {
         }
         if (author.length() > 30) {
             throw new ScriptParseException(p + ".author", "最长30字符，实际: " + author.length());
-        }
-        if (version != 3) {
-            throw new ScriptParseException(p + ".version", "当前仅支持版本3，实际: " + version);
         }
 
         // 运行时行为默认值来自 SchemaRegistry.getMetaFields()（编辑器与播放器共用同一份 schema）
@@ -293,8 +242,6 @@ public class ScriptParser {
         Boolean hideCrosshair = optNullableBool(metaObj, "hide_crosshair");
         Boolean hideBossbar = optNullableBool(metaObj, "hide_bossbar");
         Boolean hideSkipHud = optNullableBool(metaObj, "hide_skip_hud");
-        // 旧硬隐藏开关：只作 screen_layer_mode 的别名（true → allowlist / false → normal），不进入 RuntimeBehavior
-        Boolean hardHideHud = optNullableBool(metaObj, "hard_hide_hud");
         boolean renderPlayerModel = optBoolMeta(metaObj, "render_player_model");
         boolean pauseWhenGamePaused = optBoolMeta(metaObj, "pause_when_game_paused");
         boolean interruptible = optBoolMeta(metaObj, "interruptible");
@@ -323,10 +270,10 @@ public class ScriptParser {
             ErrorLog.log("Parse", p + ".play_mode 非法值: " + playModeRaw + "，按 parallel 处理");
         }
         ScriptMeta.PlayMode playMode = ScriptMeta.PlayMode.fromString(playModeRaw);
-        // 画面层（screen_layers + 旧 hud_layers 归一）：值 = 显示（true 显示 / false 隐藏）
+        // 画面层（screen_layers）：值 = 显示（true 显示 / false 隐藏）
         java.util.Map<String, Boolean> screenLayers = parseScreenLayers(metaObj);
-        // 模式归一：显式 screen_layer_mode > hard_hide_hud 别名 > screen_layers 字段存在 → allowlist > normal
-        ScreenLayerMode screenLayerMode = resolveScreenLayerMode(metaObj, hardHideHud);
+        // 模式归一：显式 screen_layer_mode > screen_layers 字段存在 → allowlist > normal
+        ScreenLayerMode screenLayerMode = resolveScreenLayerMode(metaObj);
         // 编辑基准分辨率（可选）：{w, h} 正整数；缺省 1920×1080，非法 → 告警 + 回落缺省（防御式）
         int[] baseResolution = parseBaseResolution(metaObj);
 
@@ -381,7 +328,7 @@ public class ScriptParser {
             }
         }
 
-        return new ScriptMeta(id, name, author, version, description, behavior, priority, playMode, dimension, triggers, skipVoteRatio,
+        return new ScriptMeta(id, name, author, description, behavior, priority, playMode, dimension, triggers, skipVoteRatio,
                 triggerPollInterval, baseResolution[0], baseResolution[1]);
     }
 
@@ -393,9 +340,10 @@ public class ScriptParser {
             throw new ScriptParseException(p, "缺少必填字段: " + key);
         }
         JsonObject timelineObj = requireObject(root, p, key);
-        float totalDuration = requireFloat(timelineObj, p, "total_duration");
-        if (totalDuration == 0f) {
-            throw new ScriptParseException(p + ".total_duration", "不允许为0，正数=有限时长，负数=无限时长，实际: " + totalDuration);
+        // 旧字段：0.3.6 起已移除（有限末端 / 显示范围由片段窗口派生）
+        if (timelineObj.has("total_duration")) {
+            throw new ScriptParseException(p + ".total_duration",
+                    "已移除：timeline.total_duration；有限末端/显示范围由片段窗口派生");
         }
 
         JsonArray tracksArr = requireArray(timelineObj, p, "tracks");
@@ -409,7 +357,7 @@ public class ScriptParser {
         float loopEnd = optFloat(timelineObj, "loop_end", -1f);
 
         validateTracks(tracks, p);
-        return new Timeline(totalDuration, tracks, loopStart, loopEnd);
+        return new Timeline(tracks, loopStart, loopEnd);
     }
 
     // ========== Track 解析（统一 schema 驱动）==========
@@ -430,150 +378,65 @@ public class ScriptParser {
     // ========== Clip 解析（统一 schema 驱动）==========
 
     private static Clip parseClip(JsonObject obj, String p, TrackTypeId type) throws ScriptParseException {
-        float startTime = requireFloat(obj, p, "start_time");
-        float duration = requireFloat(obj, p, "duration");
+        // 旧字段：0.3.6 起已移除，出现即报错（不保留双读 / 兼容分支）
+        rejectRemovedClipFields(obj, p);
+        return parseObjectClip(obj, p, type);
+    }
 
-        // 新格式片段：只认 objects（+ 播放控制），与旧 keyframes 分支完全分离。
-        // id 由 parseObjectClip 统一读取（内联 / 独立片段同一口径）。
-        if (obj.has("objects")) {
-            return parseObjectClip(obj, p, type);
-        }
-        if (obj.has("exit")) {
-            throw new ScriptParseException(p + ".exit",
-                    "旧格式片段不支持 exit（出口声明只属于新格式 objects 片段）");
-        }
-        String clipId = parseClipId(obj, p);
-
-        // OVERLAY 的 fade 专用字段（高级颜色遮罩）按 layer_type 分派：fade 走严格解析，
-        // image / subtitle 上写 = 明确拒绝（不静默存进 data 宣称生效）
-        String overlayLayerType = TrackTypeId.OVERLAY.equals(type) ? overlayLayerType(obj) : null;
-        boolean fadeOverlay = TrackTypeId.OVERLAY.equals(type)
-                && !"image".equals(overlayLayerType) && !"subtitle".equals(overlayLayerType);
-
-        // 解析类型特有字段到 data map
-        Map<String, Object> data = new HashMap<>();
-        for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
-            String fieldName = entry.getKey();
-            if ("start_time".equals(fieldName) || "duration".equals(fieldName)
-                    || "keyframes".equals(fieldName) || "id".equals(fieldName)) {
-                continue; // 通用字段跳过
-            }
-            if (TrackTypeId.OVERLAY.equals(type)) {
-                if (fadeOverlay) {
-                    // 归属交叉检查：mask_* / gradient_* 数值通道只属于关键帧（color 两级都合法）
-                    if (isFadeKeyframeOnlyField(fieldName)) {
-                        throw new ScriptParseException(p + "." + fieldName,
-                                "只属于关键帧（数值通道必须写在 keyframes 元素里，clip 级不生效）");
-                    }
-                    Object maskValue = parseFadeClipField(fieldName, entry.getValue(), p);
-                    if (maskValue != null) {
-                        data.put(fieldName, maskValue);
-                        continue;
-                    }
-                } else if (FADE_ONLY_CLIP_FIELDS.contains(fieldName) || isFadeKeyframeOnlyField(fieldName)) {
-                    throw new ScriptParseException(p + "." + fieldName,
-                            "fade 专用字段（当前 layer_type=" + overlayLayerType
-                                    + "）：高级颜色遮罩只属于 layer_type=fade");
-                }
-            }
-            // 路径曲线只属于 CAMERA 轨：其余轨道上写 = 不生效（与 ScriptValidator 同一口径）
-            if ("curve".equals(fieldName) && !TrackTypeId.CAMERA.equals(type)) {
-                throw new ScriptParseException(p + "." + fieldName, "curve 只支持写在 CAMERA 轨的片段上");
-            }
-            if (TrackTypeId.CAMERA.equals(type)) {
-                // 归属交叉检查：形状只属于 clip 级，几何只属于关键帧；fade 渐变 / 混合模式
-                // 不被 CAMERA 接受（遮罩只有形状 + 几何，没有颜色层语义）。
-                if (CAMERA_MASK_GEOMETRY_FIELDS.contains(fieldName)) {
-                    throw new ScriptParseException(p + "." + fieldName,
-                            "只属于关键帧（mask_x / mask_y / mask_width / mask_height / mask_radius"
-                                    + " 必须写在 keyframes 元素里，clip 级不生效）");
-                }
-                if (FADE_GRADIENT_FIELDS.contains(fieldName)) {
-                    throw new ScriptParseException(p + "." + fieldName,
-                            "fade 专用（gradient / gradient_* 只属于 OVERLAY 的 layer_type=fade）："
-                                    + "CAMERA lane 遮罩用 clip 级 mask_shape + 关键帧 mask_* 几何");
-                }
-                if ("blend_mode".equals(fieldName)) {
-                    throw new ScriptParseException(p + "." + fieldName,
-                            "不支持（混合模式只写在 ADJUST 轨片段的 clip 级；fade 的高级遮罩只属于"
-                                    + " OVERLAY 的 layer_type=fade）");
-                }
-            }
-            Object value = parseFieldBySchema(fieldName, entry.getValue(), p, type, false, null);
-            if (value != null) {
-                data.put(fieldName, value);
+    /** 旧片段字段：0.3.6 起已移除，出现即报错（文案统一含「已移除」）。 */
+    private static void rejectRemovedClipFields(JsonObject obj, String p) throws ScriptParseException {
+        for (String field : obj.keySet()) {
+            String message = removedClipFieldMessage(field);
+            if (message != null) {
+                throw new ScriptParseException(p + "." + field, message);
             }
         }
+    }
 
-        // 校验必填字段（来自 schema）
-        for (Map.Entry<String, FieldDef> e : SchemaLoader.getClipFields(type).entrySet()) {
-            if (e.getValue().required() && !data.containsKey(e.getKey()) && !obj.has(e.getKey())) {
-                throw new ScriptParseException(p + "." + e.getKey(), "缺少必填字段");
-            }
+    /** 旧片段字段的「已移除」文案；{@code null} = 不是旧字段。 */
+    private static String removedClipFieldMessage(String field) {
+        switch (field) {
+            case "keyframes":
+                return "已移除：keyframes；用 objects（每个可调项一个采样属性）";
+            case "curve":
+                return "已移除：clip 级 curve；用脚本级 paths（每条引用目标片段与两个相邻位置关键帧）";
+            case "rules":
+                return "已移除：clip 级 rules；用脚本级 rules + rule_bindings";
+            case "interpolation":
+                return "已移除：clip.interpolation；缓动由编辑器烘焙成关键帧";
+            case "follow":
+            case "follow_selector":
+                return "已移除：" + field + "；用 objects 的 position_origin / position_origin_freeze";
+            case "orient":
+            case "yaw_offset":
+            case "pitch_offset":
+                return "已移除：clip 级 " + field + "；写进 objects";
+            default:
+                break;
         }
-
-        // 解析关键帧
-        List<Keyframe> keyframes = new ArrayList<>();
-        if (obj.has("keyframes")) {
-            JsonArray kfArr = obj.getAsJsonArray("keyframes");
-            for (int i = 0; i < kfArr.size(); i++) {
-                keyframes.add(parseKeyframe(kfArr.get(i).getAsJsonObject(), p + ".keyframes[" + i + "]",
-                        type, fadeOverlay, overlayLayerType));
-            }
+        if (field.startsWith("facing_origin")) {
+            return "已移除：" + field + "；用 objects 的 position_origin / position_origin_freeze";
         }
-
-        // 所有轨道一律以 keyframes 调控：不提供 clip 级简写 / 旧格式兼容。
-
-        // 结构校验
-        if (TrackTypeId.CAMERA.equals(type) && keyframes.isEmpty()) {
-            throw new ScriptParseException(p, "camera clip 的 keyframes 至少1个");
+        if (field.startsWith("selector_")
+                && (field.endsWith("_follow") || field.endsWith("_facing_origin"))) {
+            return "已移除：" + field + "；用 selector_*_position_origin";
         }
-        if (duration == 0f) {
-            throw new ScriptParseException(p + ".duration", "不允许为0，正数=有限时长，负数=无限时长，实际: " + duration);
-        }
-        // loop_count=0 非法：-1=无限循环，正整数=循环次数；记录错误并按 1 处理（不阻断运行）
-        Object loopCount = data.get("loop_count");
-        if (loopCount instanceof Number && ((Number) loopCount).intValue() == 0) {
-            com.immersivecinematics.immersive_cinematics.util.ErrorLog.log("Parse",
-                    p + ".loop_count 不允许为 0（-1=无限循环，正整数=循环次数），已按 1 处理");
-            data.put("loop_count", 1);
-        }
-
-        // 关键帧时间必须单调递增
-        for (int i = 1; i < keyframes.size(); i++) {
-            if (keyframes.get(i).getTime() <= keyframes.get(i - 1).getTime()) {
-                throw new ScriptParseException(p + ".keyframes[" + i + "].time",
-                        "关键帧时间必须单调递增，前一帧: " + keyframes.get(i - 1).getTime());
-            }
-        }
-
-        Clip clip = new Clip(startTime, duration, type, data, keyframes, ClipObjects.EMPTY, false, clipId);
-        if (fadeOverlay) {
-            // fade 片段构建后立即建立 ColorMaskSpec（懒缓存首次访问）：结构 / 颜色非法在此转成
-            // 带完整字段路径的解析错误，绝不把非法输入默默变黑
-            try {
-                clip.getColorMaskSpec();
-            } catch (ColorMaskSpec.InvalidColorMaskException e) {
-                throw new ScriptParseException(p + "." + e.getFieldPath(), e.getMessage());
-            }
-        }
-        return clip;
+        return null;
     }
 
     /**
-     * 新格式片段的解析：{@code start_time} / {@code duration} + 播放控制 + {@code objects}。
+     * 片段解析的唯一入口：{@code start_time} / {@code duration} + 播放控制 + {@code objects}。
      *
-     * <p>与旧分支严格分离：不做 CAMERA「keyframes 至少 1 个」检查，也不做旧 clip 级字段
-     * （transition / curve / rules / position_mode 等）的归属检查——这些键在 {@link ObjectParser}
-     * 的片段级白名单处即被拒绝。</p>
+     * <p>旧格式字段在 {@link #parseClip} 处已按「已移除」拒绝；其余未知键在 {@link ObjectParser}
+     * 的片段级白名单处被拒绝。</p>
      */
     private static Clip parseObjectClip(JsonObject obj, String p, TrackTypeId type) throws ScriptParseException {
         return parseObjectClip(obj, p, type, requireFloat(obj, p, "start_time"));
     }
 
     /**
-     * 新格式片段的解析（显式起始秒）：独立片段没有默认放置，调用方传 {@code 0} 且不写回 JSON；
-     * 内联片段传自己的 {@code start_time}。其余逻辑与三参数版本逐位一致。
+     * 片段解析（显式起始秒）：独立片段没有默认放置，调用方传 {@code 0} 且不写回 JSON；
+     * 内联片段传自己的 {@code start_time}。
      *
      * @param startTime 片段起始秒（不再从 {@code obj} 读取）
      */
@@ -624,7 +487,7 @@ public class ScriptParser {
             data.put("loop_count", 1);
         }
 
-        Clip clip = new Clip(startTime, duration, type, data, List.of(), objects, true, clipId);
+        Clip clip = new Clip(startTime, duration, type, data, objects, clipId, null);
         // 出口声明延后解析：此刻脚本对象不存在，goto 目标无法解析。这里只做结构形态检查并暂存原文，
         // 由 parseInternal 在脚本装配完成后统一解析（内联 / 独立片段同一口径）。
         if (obj.has("exit")) {
@@ -827,417 +690,6 @@ public class ScriptParser {
         return message.startsWith(prefix) ? message.substring(prefix.length()) : message;
     }
 
-    // ========== Keyframe 解析（统一 schema 驱动）==========
-
-    private static Keyframe parseKeyframe(JsonObject obj, String p, TrackTypeId type,
-                                          boolean fadeOverlay, String overlayLayerType)
-            throws ScriptParseException {
-        float time = requireFloat(obj, p, "time");
-        if (time < 0) {
-            throw new ScriptParseException(p + ".time", "不能为负数: " + time);
-        }
-        Map<String, Object> data = new HashMap<>();
-        for (Map.Entry<String, JsonElement> entry : obj.entrySet()) {
-            String fieldName = entry.getKey();
-            if ("time".equals(fieldName)) continue;
-            if ("look_at_target".equals(fieldName)) {
-                // 与 ScriptValidator 的移除报错同一口径：校验拦下的写法解析期也拒绝
-                throw new ScriptParseException(p + ".look_at_target",
-                        "已移除（0.3.6 起）：注视目标统一为点源 + 偏移——实体用 look_at_selector"
-                                + "（部位百分比 look_at_part）、坐标用 look_at_target_x/y/z、结构用"
-                                + " look_at_target_structure、方块用 look_at_target_block，偏移用 look_at_offset"
-                                + "（世界轴 dx/dy/dz / 基准坐标系 fwd/up/right）");
-            }
-            if (TrackTypeId.OVERLAY.equals(type)) {
-                if (fadeOverlay) {
-                    // 归属交叉检查：gradient / mask_shape / blend_mode 只属于 clip 级（color 两级都合法）
-                    if (FADE_ONLY_CLIP_FIELDS.contains(fieldName)) {
-                        throw new ScriptParseException(p + "." + fieldName,
-                                "只属于 clip 级（不能写在关键帧里，关键帧不生效）");
-                    }
-                    Object maskValue = parseFadeKeyframeField(fieldName, entry.getValue(), p);
-                    if (maskValue != null) {
-                        data.put(fieldName, maskValue);
-                        continue;
-                    }
-                } else if (FADE_ONLY_KEYFRAME_FIELDS.contains(fieldName)
-                        || FADE_ONLY_CLIP_FIELDS.contains(fieldName)) {
-                    throw new ScriptParseException(p + "." + fieldName,
-                            "fade 专用字段（当前 layer_type=" + overlayLayerType
-                                    + "）：高级颜色遮罩只属于 layer_type=fade");
-                }
-            }
-            if (TrackTypeId.CAMERA.equals(type)) {
-                // 归属交叉检查：形状在 clip 级；几何严格有限 / 非负（不把非法值静默吞成缺省）。
-                if ("mask_shape".equals(fieldName)) {
-                    throw new ScriptParseException(p + "." + fieldName,
-                            "只属于 clip 级（形状在片段级声明，关键帧不生效）");
-                }
-                if (FADE_GRADIENT_FIELDS.contains(fieldName)) {
-                    throw new ScriptParseException(p + "." + fieldName,
-                            "fade 专用（gradient / gradient_* 只属于 OVERLAY 的 layer_type=fade）："
-                                    + "CAMERA lane 遮罩用 clip 级 mask_shape + 关键帧 mask_* 几何");
-                }
-                if ("blend_mode".equals(fieldName)) {
-                    throw new ScriptParseException(p + "." + fieldName,
-                            "只属于 clip 级（混合模式只写在 ADJUST 轨片段的 clip 级）");
-                }
-                if (CAMERA_MASK_GEOMETRY_FIELDS.contains(fieldName)) {
-                    data.put(fieldName, parseCameraMaskKeyframeField(fieldName, entry.getValue(), p));
-                    continue;
-                }
-            }
-            Object value = parseFieldBySchema(fieldName, entry.getValue(), p, type, true, obj);
-            if (value != null) data.put(fieldName, value);
-        }
-        // 校验必填字段（来自 schema）
-        for (Map.Entry<String, FieldDef> e : SchemaLoader.getKeyframeFields(type).entrySet()) {
-            if (e.getValue().required() && !data.containsKey(e.getKey()) && !obj.has(e.getKey())) {
-                throw new ScriptParseException(p + "." + e.getKey(), "缺少必填字段");
-            }
-        }
-        return new Keyframe(time, data);
-    }
-
-    /** OVERLAY 的生效 layer_type：缺省 / 非字符串按运行期口径回落 {@code fade}（见 OverlayTrackPlayer.createLayer）。 */
-    private static String overlayLayerType(JsonObject clip) {
-        return clip.has("layer_type") && clip.get("layer_type").isJsonPrimitive()
-                ? clip.get("layer_type").getAsString() : "fade";
-    }
-
-    /**
-     * 是否 fade 的「仅关键帧」字段（{@link #FADE_ONLY_KEYFRAME_FIELDS} 去掉两级都合法的 {@code color}）。
-     * 复用同一集合做 clip 级交叉归属检查，避免再复制一套字段名。
-     */
-    private static boolean isFadeKeyframeOnlyField(String fieldName) {
-        return !"color".equals(fieldName) && FADE_ONLY_KEYFRAME_FIELDS.contains(fieldName);
-    }
-
-    /**
-     * 解析 fade 专用的 clip 级字段；返回 {@code null} = 该字段不属于本方法。
-     * 这里只做 JSON 形态检查并归一为 data map 的值；渐变内容 / 枚举取值 / 颜色格式由
-     * {@link ColorMaskSpec#from(Clip)} 在片段构建后统一校验（同一套口径，字段路径一致）。
-     * 非 fade 的 OVERLAY 片段不会走到这里——调用方先按 layer_type 拒绝。
-     */
-    private static Object parseFadeClipField(String fieldName, JsonElement value, String p)
-            throws ScriptParseException {
-        String path = p + "." + fieldName;
-        return switch (fieldName) {
-            case "color" -> {
-                if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
-                    throw new ScriptParseException(path,
-                            "需要字符串颜色（#RRGGBB 六位十六进制，# 可省）");
-                }
-                yield value.getAsString();
-            }
-            case "mask_shape" -> {
-                if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
-                    throw new ScriptParseException(path,
-                            "需要字符串（full / rect / circle；缺省 full）");
-                }
-                yield value.getAsString();
-            }
-            case "blend_mode" -> {
-                if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
-                    throw new ScriptParseException(path,
-                            "需要字符串（normal / multiply / screen / soft_light / overlay；缺省 normal）");
-                }
-                yield value.getAsString();
-            }
-            case "gradient" -> {
-                if (!value.isJsonObject()) {
-                    throw new ScriptParseException(path,
-                            "需要对象 {type: linear|radial, stops: [...]}（缺省 = 纯色）");
-                }
-                // parseDataMap 会丢弃 JSON null（数组元素 / 对象值）——那会让 stops 下标错位、非法结构被吞。
-                // 渐变结构里 null 没有合法语义，先整体拒绝，保证 ColorMaskSpec 看到的元素与作者写的逐项对应。
-                if (containsJsonNull(value)) {
-                    throw new ScriptParseException(path,
-                            "不能包含 null（type / stops / 色标 offset / color 都必须有值）");
-                }
-                // 结构数据只解析一次：这里归一为 Map，ColorMaskSpec 再一次性校验并烘成数组
-                yield parseDataMap(value.getAsJsonObject(), path);
-            }
-            default -> null;
-        };
-    }
-
-    /**
-     * 解析 fade 专用的关键帧字段；返回 {@code null} = 该字段不属于本方法。
-     * 这里严格拦非数字 / 非有限值，避免 schema 驱动的「非数字 → null → 静默回落缺省」
-     * 把非法输入悄悄变成缺省效果；取值范围（非负 / {@code > 0} / 0~1）归 {@code ScriptValidator}。
-     */
-    private static Object parseFadeKeyframeField(String fieldName, JsonElement value, String p)
-            throws ScriptParseException {
-        String path = p + "." + fieldName;
-        return switch (fieldName) {
-            case "color" -> {
-                if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
-                    throw new ScriptParseException(path,
-                            "需要字符串颜色（#RRGGBB 六位十六进制，# 可省；缺省回落 clip.color）");
-                }
-                yield value.getAsString();
-            }
-            case "mask_x", "mask_y" -> requireFiniteNumber(value, path,
-                    "需要有限数字（窗口比例，元素中心；缺省 0.5，可越界）");
-            case "mask_width", "mask_height" -> requireFiniteNumber(value, path,
-                    "需要有限数字（窗口比例，非负；缺省 1）");
-            case "mask_radius" -> requireFiniteNumber(value, path,
-                    "需要有限数字（窗口较短边比例，非负；缺省 0.5）");
-            case "gradient_angle" -> requireFiniteNumber(value, path,
-                    "需要有限数字（角度，0 = 向右、90 = 向下；缺省 0）");
-            case "gradient_center_x", "gradient_center_y" -> requireFiniteNumber(value, path,
-                    "需要有限数字（窗口比例；缺省 0.5，可越界）");
-            case "gradient_radius" -> requireFiniteNumber(value, path,
-                    "需要有限数字（窗口较短边比例；缺省 0.5，必须 > 0）");
-            default -> null;
-        };
-    }
-
-    /** 严格读取一个有限数字（新 fade 通道用；不把非数字 / NaN / Infinity 静默吞成缺省）。 */
-    private static float requireFiniteNumber(JsonElement value, String path, String message)
-            throws ScriptParseException {
-        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) {
-            throw new ScriptParseException(path, message);
-        }
-        float number = value.getAsFloat();
-        if (!Float.isFinite(number)) {
-            throw new ScriptParseException(path, message + "（实际: " + value + "）");
-        }
-        return number;
-    }
-
-    /** 严格读取一个有限非负数字（CAMERA 遮罩尺寸 / 半径用；负数与 NaN / Infinity 都带字段路径拒绝）。 */
-    private static float requireNonNegativeNumber(JsonElement value, String path, String message)
-            throws ScriptParseException {
-        float number = requireFiniteNumber(value, path, message);
-        if (number < 0f) {
-            throw new ScriptParseException(path, message + "（实际: " + number + "）");
-        }
-        return number;
-    }
-
-    /**
-     * CAMERA lane 遮罩形状（clip 级 {@code mask_shape}）：{@code full} / {@code rect} / {@code circle}。
-     * 非字符串 / 未知值都在解析期带字段路径拒绝（不静默回落 full）。
-     */
-    private static String parseMaskShape(JsonElement value, String path) throws ScriptParseException {
-        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
-            throw new ScriptParseException(path, "需要字符串（full / rect / circle；缺省 full）");
-        }
-        String shape = value.getAsString();
-        if (!"full".equals(shape) && !"rect".equals(shape) && !"circle".equals(shape)) {
-            throw new ScriptParseException(path,
-                    "未知覆盖形状: " + shape + "（可选: full / rect / circle）");
-        }
-        return shape;
-    }
-
-    /**
-     * CAMERA lane 遮罩几何（关键帧 {@code mask_*}）：中心可越界（有限即可），
-     * 宽高 / 半径有限非负。返回归一后的 {@code float} 存进关键帧 data。
-     */
-    private static float parseCameraMaskKeyframeField(String fieldName, JsonElement value, String p)
-            throws ScriptParseException {
-        String path = p + "." + fieldName;
-        return switch (fieldName) {
-            case "mask_x", "mask_y" -> requireFiniteNumber(value, path,
-                    "需要有限数字（窗口比例，中心；缺省 0.5，可越界）");
-            case "mask_width", "mask_height" -> requireNonNegativeNumber(value, path,
-                    "需要有限非负数字（窗口比例；缺省 1，0 = 不绘制）");
-            case "mask_radius" -> requireNonNegativeNumber(value, path,
-                    "需要有限非负数字（窗口短边比例；缺省 0.5，0 = 不绘制）");
-            default -> throw new ScriptParseException(path, "不是 CAMERA 遮罩几何字段");
-        };
-    }
-
-    /** 递归检查 JSON 里是否含 null（parseDataMap / parseDataArray 会丢弃 null，渐变结构不允许）。 */
-    private static boolean containsJsonNull(JsonElement value) {
-        if (value.isJsonNull()) {
-            return true;
-        }
-        if (value.isJsonArray()) {
-            for (JsonElement element : value.getAsJsonArray()) {
-                if (containsJsonNull(element)) return true;
-            }
-        } else if (value.isJsonObject()) {
-            for (Map.Entry<String, JsonElement> entry : value.getAsJsonObject().entrySet()) {
-                if (containsJsonNull(entry.getValue())) return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 根据 schema 字段类型解析一个 JSON 值
-     */
-    private static Object parseFieldBySchema(String fieldName, JsonElement value, String p,
-                                              TrackTypeId type, boolean isKeyframe, JsonObject kfObj)
-            throws ScriptParseException {
-        FieldDef def = isKeyframe
-                ? SchemaLoader.getKeyframeFields(type).get(fieldName)
-                : SchemaLoader.getClipFields(type).get(fieldName);
-
-        // LUT 文件名（clip 级 lut；只有声明该字段的轨道 = ADJUST 轨）：schema 里是 string，
-        // 但额外拦路径分隔符（见 parseLutFile）——其余轨道上同名字段走下方「未知字段」的向前兼容路径
-        if (!isKeyframe && "lut".equals(fieldName) && def != null) {
-            return parseLutFile(value, p + "." + fieldName);
-        }
-
-        // LUT 输入域适配（clip 级 lut_input_gamma；同样只有声明该字段的轨道 = ADJUST 轨）：
-        // schema 里是 float，但额外拦 ≤ 0（见 parseLutInputGamma）——其余轨道上同名字段走下方「未知字段」路径
-        if (!isKeyframe && "lut_input_gamma".equals(fieldName) && def != null) {
-            return parseLutInputGamma(value, p + "." + fieldName);
-        }
-
-        // 混合模式（clip 级 blend_mode；同样只有声明该字段的轨道 = ADJUST 轨）：schema 里是 enum，
-        // 但额外拦非法枚举值（见 parseBlendMode）——其余轨道上同名字段走下方「未知字段」路径
-        if (!isKeyframe && "blend_mode".equals(fieldName) && def != null) {
-            return parseBlendMode(value, p + "." + fieldName);
-        }
-
-        // 过渡打断规则（clip 级 transition_interrupt；schema 里是 enum，但额外拦非法枚举值）
-        if (!isKeyframe && "transition_interrupt".equals(fieldName) && def != null) {
-            return parseTransitionInterrupt(value, p + "." + fieldName);
-        }
-
-        // CAMERA lane 遮罩形状（clip 级 mask_shape）：schema 里是 enum，但额外拦非法枚举值
-        // （OVERLAY fade 的同名字段在 parseFadeClipField 已按同一口径严格读取，不会走到这里）
-        if (!isKeyframe && "mask_shape".equals(fieldName) && def != null && TrackTypeId.CAMERA.equals(type)) {
-            return parseMaskShape(value, p + "." + fieldName);
-        }
-
-        if (def == null) {
-            // 不在 schema 中的字段 — 简单类型自动解析（向前兼容）
-            if (value.isJsonPrimitive()) {
-                if (value.getAsJsonPrimitive().isNumber()) {
-                    return value.getAsFloat();
-                } else if (value.getAsJsonPrimitive().isBoolean()) {
-                    return value.getAsBoolean();
-                } else {
-                    return value.getAsString();
-                }
-            } else if (value.isJsonArray()) {
-                return parseUnknownArray(value.getAsJsonArray(), p + "." + fieldName);
-            } else if (value.isJsonObject()) {
-                return parseUnknownObject(value.getAsJsonObject(), p + "." + fieldName);
-            }
-            return null;
-        }
-
-        return switch (def.type()) {
-            case "float", "int" -> value.getAsJsonPrimitive().isNumber() ? value.getAsFloat() : null;
-            case "string", "enum" -> value.getAsString();
-            case "bool" -> value.getAsBoolean();
-            case "position" -> {
-                if (!value.isJsonObject()) throw new ScriptParseException(p + "." + fieldName, "position 需要 JSON 对象");
-                // 从 clip 级无法直接获取 position_mode，按实际 JSON 推断：
-                // 有 dx（世界轴相对）或有 fwd/up/right（基准空间相对）= 相对；有 x/y/z = 绝对
-                JsonObject posObj = value.getAsJsonObject();
-                boolean relative = posObj.has("dx") || posObj.has("fwd") || posObj.has("up") || posObj.has("right");
-                yield parsePositionData(posObj, p + "." + fieldName, relative, kfObj);
-            }
-            case "path_curve" -> parsePathCurve(value, p + "." + fieldName);
-            case "color_curve" -> parseColorCurve(value, p + "." + fieldName);
-            case "model" -> parseMathModel(value, p + "." + fieldName, fieldName);
-            case "modifier" -> parseClipModifier(value, p + "." + fieldName);
-            case "rules" -> parseClipRules(value, p + "." + fieldName);
-            case "transition_params" -> parseTransitionParams(value, p + "." + fieldName);
-            case "map" -> {
-                if (value.isJsonObject()) {
-                    yield parseDataMap(value.getAsJsonObject(), p + "." + fieldName);
-                }
-                yield null;
-            }
-            default -> null;
-        };
-    }
-
-    /**
-     * 解析 clip 级 {@code lut}（LUT 文件名，如 {@code "Teal and Orange.cube"}；ADJUST 轨专用——
-     * LUT 是对整体画面（master）的烘焙，逐 lane / 相机片段不参与）。
-     * 只从 {@code resource/} 目录取
-     * （{@link com.immersivecinematics.immersive_cinematics.util.ResourcePath}），
-     * 文件名必须非空且不含路径 / 盘符分隔符（{@code /} / {@code \} / {@code :}），
-     * 穿越、绝对路径、Windows 盘符相对路径一律拒绝（与 {@code ScriptValidator#checkLutFile} 同一口径）。
-     * 原因：查找基准固定在 {@code resource/}，放行分隔符或盘符就等于让脚本读任意路径的文件。
-     */
-    private static String parseLutFile(JsonElement value, String p) throws ScriptParseException {
-        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
-            throw new ScriptParseException(p, "需要字符串（resource/ 目录下的 .cube 文件名）");
-        }
-        String name = value.getAsString();
-        if (name.isBlank()) {
-            throw new ScriptParseException(p, "文件名不能为空");
-        }
-        if (name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 || name.indexOf(':') >= 0) {
-            throw new ScriptParseException(p, "文件名不能包含路径分隔符（LUT 只取 resource/ 目录下的文件）：" + name);
-        }
-        if (".".equals(name) || "..".equals(name)) {
-            throw new ScriptParseException(p, "文件名非法：" + name);
-        }
-        return name;
-    }
-
-    /**
-     * 解析 clip 级 {@code lut_input_gamma}（LUT 输入域适配的幂指数；ADJUST 轨专用——
-     * LUT 是对整体画面（master）的烘焙，逐 lane / 相机片段不参与）。
-     * 语义：查表前对输入 RGB 逐通道 {@code v = pow(clamp(c, 0, 1), lut_input_gamma)}，以 {@code v}
-     * 为四面体查表坐标；缺省 1 = 不变换。必须 {@code > 0}（0 会让输入域塌到 1，负数在 c = 0 处发散）。
-     * 与 {@code ScriptValidator#checkLutInputGamma} 同一口径；{@code NaN} 同样被拒。
-     */
-    private static Float parseLutInputGamma(JsonElement value, String p) throws ScriptParseException {
-        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) {
-            throw new ScriptParseException(p, "需要数字（必须大于 0；缺省 1 = 不变换）");
-        }
-        float gamma = value.getAsFloat();
-        if (!Float.isFinite(gamma) || !(gamma > 0.0F)) {
-            throw new ScriptParseException(p, "必须大于 0 的有限数字（缺省 1 = 不变换）：" + gamma);
-        }
-        return gamma;
-    }
-
-    /**
-     * 解析 clip 级 {@code blend_mode}（混合模式；ADJUST 轨专用——混合模式作用于调整层
-     * （= ADJUST 轨）的输出与基画面（{@code Sampler0} 原图），逐 lane / 相机片段不参与）。
-     * 合法值 = {@code normal} / {@code multiply} / {@code screen} / {@code soft_light} /
-     * {@code overlay}
-     * （缺省 {@code normal} = 直替换）；其余值解析期直接拒绝（与 {@code ScriptValidator} 同一口径）。
-     */
-    private static String parseBlendMode(JsonElement value, String p) throws ScriptParseException {
-        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString()) {
-            throw new ScriptParseException(p,
-                    "需要字符串（normal / multiply / screen / soft_light / overlay；缺省 normal）");
-        }
-        String mode = value.getAsString();
-        switch (mode) {
-            case "normal", "multiply", "screen", "soft_light", "overlay" -> {
-                return mode;
-            }
-            default -> throw new ScriptParseException(p, "未知混合模式：" + mode
-                    + "（合法值：normal / multiply / screen / soft_light / overlay）");
-        }
-    }
-
-    // ========== 路径曲线解析（按 type 走注册表）==========
-
-    /**
-     * 解析 clip 级 {@code curve}：{@code {type, ...参数}}。
-     *
-     * 类型 / 参数 / 必填校验全部归 {@link PathCurveRegistry#create}（与 {@code ScriptValidator} 同一入口），
-     * 这里只判「是不是对象」并把 {@link PathCurveException} 收敛成带字段路径的解析异常。
-     */
-    private static PathSpec parsePathCurve(JsonElement value, String p) throws ScriptParseException {
-        if (!value.isJsonObject()) {
-            throw new ScriptParseException(p, "需要对象 {type, ...参数}");
-        }
-        try {
-            return PathCurveRegistry.create(value.getAsJsonObject(), p);
-        } catch (PathCurveException e) {
-            throw new ScriptParseException(e.fieldPath(), e.getMessage());
-        }
-    }
-
     // ========== ColorCurve 解析（ADJUST 轨曲线组，形态 b）==========
 
     /**
@@ -1300,25 +752,6 @@ public class ScriptParser {
             Object type = key.get("type");
             return MathModelRegistry.create(type instanceof String text ? text : null, key);
         });
-    }
-
-    // ========== 判定规则解析（clip 级 rules 字段）==========
-
-    /**
-     * 解析 clip 级 {@code rules}（判定规则数组 → {@link ClipRule} 列表）：逐元素 {@link ClipRule#parse}，
-     * 元素结构非法即抛（走既有解析错误链，本片段不落地半成品规则表）。空数组 = 空规则表
-     * （与不写等价；validator 记 issue 提示作者）；条件与动作原文原样保留。
-     */
-    private static List<ClipRule> parseClipRules(JsonElement value, String p) throws ScriptParseException {
-        if (!value.isJsonArray()) {
-            throw new ScriptParseException(p, "需要数组（rules = 判定规则数组）");
-        }
-        JsonArray arr = value.getAsJsonArray();
-        List<ClipRule> rules = new ArrayList<>(arr.size());
-        for (int i = 0; i < arr.size(); i++) {
-            rules.add(ClipRule.parse(arr.get(i), p + "[" + i + "]"));
-        }
-        return rules;
     }
 
     // ========== 覆盖链 Modifier 声明解析（CAMERA clip 级 modifier 字段）==========
@@ -1547,15 +980,6 @@ public class ScriptParser {
         return new TransitionParams(modes, durations, curves);
     }
 
-    /** 过渡打断规则：脚本用名 {@code blend} / {@code snap}。 */
-    private static String parseTransitionInterrupt(JsonElement value, String p) throws ScriptParseException {
-        String name = value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() ? value.getAsString() : null;
-        if (TransitionInterrupt.byName(name) == null) {
-            throw new ScriptParseException(p, "需要 blend / snap（缺省 blend）");
-        }
-        return name;
-    }
-
     /** 过渡通道模式：脚本用名 {@code blend} / {@code hold} / {@code cut}。 */
     private static TransitionMode parseTransitionMode(JsonElement value, String p) throws ScriptParseException {
         String name = value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() ? value.getAsString() : null;
@@ -1576,109 +1000,6 @@ public class ScriptParser {
             throw new ScriptParseException(p, "需要有限正数（秒）；不做过渡请用 mode: \"cut\"");
         }
         return duration;
-    }
-
-    // ========== PositionData 解析 ==========
-
-    /**
-     * 位置通道解析：绝对模式读世界坐标 {@code x/y/z}；相对模式读偏移 + 位置点源 + 基准坐标系前轴目标。
-     * 偏移两表达空间二选一：世界轴 {@code dx/dy/dz}；基准坐标系 {@code fwd/up/right}。
-     */
-    private static PositionData parsePositionData(JsonObject obj, String p, boolean positionModeRelative,
-                                                 JsonObject kfObj) throws ScriptParseException {
-        if (!positionModeRelative) {
-            if (!obj.has("x")) {
-                throw new ScriptParseException(p, "absolute 模式需要 x/y/z 字段");
-            }
-            return PositionData.absolute(requireFloat(obj, p, "x"), requireFloat(obj, p, "y"),
-                    requireFloat(obj, p, "z"));
-        }
-        rejectRemovedOrigin(obj, p);
-        if (obj.has("up_axis")) {
-            throw new ScriptParseException(p + ".up_axis", REMOVED_UP_AXIS);
-        }
-        boolean baseSpace = obj.has("fwd") || obj.has("up") || obj.has("right");
-        if (baseSpace && (obj.has("dx") || obj.has("dy") || obj.has("dz"))) {
-            throw new ScriptParseException(p,
-                    "fwd/up/right（基准坐标系偏移）不能与 dx/dy/dz（世界轴偏移）混用");
-        }
-        if (baseSpace) {
-            return parsePositionOrigin(kfObj, p, true, optFloat(obj, "fwd", 0f), optFloat(obj, "up", 0f),
-                    optFloat(obj, "right", 0f));
-        }
-        if (!obj.has("dx")) {
-            throw new ScriptParseException(p,
-                    "relative 模式需要 dx/dy/dz（世界轴偏移）或 fwd/up/right（基准坐标系偏移）字段");
-        }
-        return parsePositionOrigin(kfObj, p, false, requireFloat(obj, p, "dx"), requireFloat(obj, p, "dy"),
-                requireFloat(obj, p, "dz"));
-    }
-
-    /**
-     * 位置点源的移除字段：位置基准统一用关键帧字段 {@code facing_origin}（五形态），
-     * {@code position.relative_origin} 与配套坐标不再存在；{@code facing_origin} / {@code facing_target}
-     * 写在关键帧上（与 {@code yaw_base_from} 同级），不写在 position 内。
-     */
-    private static void rejectRemovedOrigin(JsonObject posObj, String p) throws ScriptParseException {
-        for (String field : new String[]{"relative_origin", "relative_origin_x", "relative_origin_y",
-                "relative_origin_z"}) {
-            if (posObj.has(field)) {
-                throw new ScriptParseException(p + "." + field,
-                        "已移除（0.3.6 起）：位置基准统一用关键帧字段 facing_origin"
-                                + "（点源形态：坐标取 facing_origin_x/y/z）");
-            }
-        }
-        if (posObj.has("facing_origin") || posObj.has("facing_target")) {
-            throw new ScriptParseException(p + ".facing_origin",
-                    "facing_origin / facing_target 是关键帧字段（与 yaw_base_from 同级），不写在 position 内");
-        }
-    }
-
-    /**
-     * 位置点源 + 偏移装配。位置点源 = 关键帧字段 {@code facing_origin}（五形态：{@code "player"} 玩家激活位置 /
-     * {@code "coordinate"} + {@code facing_origin_x/y/z} / {@code block:id[:radius]} / 实体选择器 /
-     * 结构 id）；
-     * 不写 = 玩家激活位置（世界轴偏移）/ 玩家实体 {@code "@p"}（基准坐标系偏移，实时跟随）。
-     * 偏移按 {@code baseSpace} 装配：true = 基准坐标系（fwd/up/right），false = 世界轴（dx/dy/dz）。
-     * 前轴目标 = 关键帧字段 {@code facing_target}（点源形态字符串，空 = 位置点源自身朝向）。
-     */
-    private static PositionData parsePositionOrigin(JsonObject kfObj, String p, boolean baseSpace,
-                                                    float a, float b, float c)
-            throws ScriptParseException {
-        JsonElement originEl = kfObj.get("facing_origin");
-        if (originEl != null && (!originEl.isJsonPrimitive() || !originEl.getAsJsonPrimitive().isString())) {
-            throw new ScriptParseException(p + ".facing_origin", "facing_origin 只支持字符串写法");
-        }
-        String origin = originEl != null ? originEl.getAsString() : "";
-        String facingTarget = optString(kfObj, "facing_target", "");
-        PositionData pd = switch (PositionData.originKindOf(origin)) {
-            case PositionData.ORIGIN_COORDINATE -> {
-                float ox = requireFloat(kfObj, p, "facing_origin_x");
-                float oy = requireFloat(kfObj, p, "facing_origin_y");
-                float oz = requireFloat(kfObj, p, "facing_origin_z");
-                yield baseSpace ? PositionData.facingToCoordinate(a, b, c, ox, oy, oz)
-                        : PositionData.relativeToCoordinate(a, b, c, ox, oy, oz);
-            }
-            case PositionData.ORIGIN_BLOCK -> {
-                String[] parsed = PositionData.parseBlockOriginString(origin);
-                int radius = Integer.parseInt(parsed[1]);
-                yield baseSpace ? PositionData.facingToBlock(a, b, c, parsed[0], radius)
-                        : PositionData.relativeToBlock(a, b, c, parsed[0], radius);
-            }
-            case PositionData.ORIGIN_STRUCTURE -> baseSpace
-                    ? PositionData.facingToStructure(a, b, c, origin)
-                    : PositionData.relativeToStructure(a, b, c, origin);
-            case PositionData.ORIGIN_SELECTOR -> baseSpace
-                    ? PositionData.facingToEntity(origin, a, b, c)
-                    : PositionData.relativeToEntity(a, b, c, origin);
-            case PositionData.ORIGIN_PLAYER -> baseSpace
-                    ? PositionData.facingToPlayer(a, b, c)
-                    : PositionData.relative(a, b, c);
-            default -> baseSpace
-                    ? PositionData.facingToEntity("@p", a, b, c)
-                    : PositionData.relative(a, b, c);
-        };
-        return pd.withFacingTarget(facingTarget);
     }
 
     // ========== 触发器定义解析 ==========
@@ -2075,15 +1396,11 @@ public class ScriptParser {
     }
 
     /**
-     * 解析 meta.screen_layers，并把旧 meta.hud_layers 归一进同一张表。
+     * 解析 meta.screen_layers：{@code {层名: 布尔}}，极性 = 「显示」
+     * （{@code true} = 显示，{@code false} = 隐藏；与 {@code ScriptMeta.RuntimeBehavior#screenLayers()} 一致）。
      *
-     * <p>返回表的极性统一为「显示」：{@code true} = 显示，{@code false} = 隐藏
-     * （与 {@code ScriptMeta.RuntimeBehavior#screenLayers()} 一致）。{@code hud_layers} 的旧语义
-     * {@code true} = 隐藏，解析期翻转；同键冲突时 {@code screen_layers} 优先（{@code putIfAbsent}）。</p>
-     *
-     * <p>{@code hud_layers} 里的已知层名 / 固定分类别名（{@link ScreenLayer#byId} 命中）历来是 no-op，
-     * 解析期丢弃并告警；其余键保留原始形态，继续按动态层名参与判定（{@code health} / {@code status} /
-     * 未注册 overlay 资源 ID 等）。</p>
+     * <p>已知层名按 {@link ScreenLayer#canonicalize} 归一；其余键保留原始形态，继续按动态层名参与判定
+     * （{@code health} / {@code status} / 未注册 overlay 资源 ID 等）。</p>
      */
     private static java.util.Map<String, Boolean> parseScreenLayers(JsonObject metaObj) {
         java.util.Map<String, Boolean> layers = new java.util.LinkedHashMap<>();
@@ -2110,52 +1427,17 @@ public class ScriptParser {
                 }
             }
         }
-
-        if (!metaObj.has("hud_layers") || metaObj.get("hud_layers").isJsonNull()) {
-            return layers;
-        }
-        // deprecated 入口：每个脚本只提示一次（不逐键刷屏；键丢弃告警仍逐键）
-        ErrorLog.log("Parse", "meta.hud_layers 已弃用（deprecated）：请改用 meta.screen_layers"
-                + "（true = 显示 / false = 隐藏，支持 15 个规范层名）；旧键按原语义归一后继续生效");
-        JsonElement hudEl = metaObj.get("hud_layers");
-        if (!hudEl.isJsonObject()) {
-            ErrorLog.log("Parse", "meta.hud_layers 需要对象 {层名: 布尔}（true = 隐藏），实际: " + hudEl + "，已忽略");
-            return layers;
-        }
-        for (java.util.Map.Entry<String, JsonElement> e : hudEl.getAsJsonObject().entrySet()) {
-            String key = e.getKey();
-            if (key.isEmpty()) {
-                ErrorLog.log("Parse", "meta.hud_layers 存在空层名，已忽略");
-                continue;
-            }
-            ScreenLayer known = ScreenLayer.byId(key);
-            if (known != null) {
-                // 旧入口写固定分类名 / 规范层名历来不生效（控制器只按原始 category 键查表）；保持零回归
-                ErrorLog.log("Parse", "meta.hud_layers 的键 '" + key + "' 是已知层 / 固定分类，旧入口不生效，已忽略；"
-                        + "如需控制该层请改用 meta.screen_layers['" + known.id() + "']");
-                continue;
-            }
-            JsonElement v = e.getValue();
-            if (!v.isJsonPrimitive() || !v.getAsJsonPrimitive().isBoolean()) {
-                ErrorLog.log("Parse", "meta.hud_layers['" + key
-                        + "'] 需要布尔值（true = 隐藏），实际: " + v + "，已忽略该键");
-                continue;
-            }
-            // 极性翻转：旧 true = 隐藏 → 新 true = 显示；与 screen_layers 同键冲突时后者优先
-            layers.putIfAbsent(key, !v.getAsBoolean());
-        }
         return layers;
     }
 
     /**
      * 归一 {@code meta.screen_layer_mode}（解析期，结果非 null）：
      * <pre>
-     * 显式 screen_layer_mode ?? hard_hide_hud（true → allowlist / false → normal）
-     *   ?? screen_layers 字段存在 → allowlist ?? normal
+     * 显式 screen_layer_mode ?? screen_layers 字段存在 → allowlist ?? normal
      * </pre>
-     * 非法声明按「未声明」处理并告警；显式声明与 {@code hard_hide_hud} 冲突时显式字段优先。
+     * 非法声明按「未声明」处理并告警。
      */
-    private static ScreenLayerMode resolveScreenLayerMode(JsonObject metaObj, Boolean hardHideHud) {
+    private static ScreenLayerMode resolveScreenLayerMode(JsonObject metaObj) {
         ScreenLayerMode declared = null;
         if (metaObj.has("screen_layer_mode") && !metaObj.get("screen_layer_mode").isJsonNull()) {
             JsonElement el = metaObj.get("screen_layer_mode");
@@ -2170,16 +1452,7 @@ public class ScriptParser {
             }
         }
 
-        if (declared != null && hardHideHud != null) {
-            ScreenLayerMode alias = hardHideHud ? ScreenLayerMode.ALLOWLIST : ScreenLayerMode.NORMAL;
-            if (declared != alias) {
-                ErrorLog.log("Parse", "meta.hard_hide_hud=" + hardHideHud + " 与 meta.screen_layer_mode="
-                        + declared.id() + " 语义不一致，按 screen_layer_mode 处理（hard_hide_hud 是 deprecated 别名）");
-            }
-        }
         if (declared != null) return declared;
-        if (Boolean.TRUE.equals(hardHideHud)) return ScreenLayerMode.ALLOWLIST;
-        if (Boolean.FALSE.equals(hardHideHud)) return ScreenLayerMode.NORMAL;
         // 新字段路径缺省 allowlist：字段存在（非 JSON null）且无模式声明 → 接管模式
         if (metaObj.has("screen_layers") && !metaObj.get("screen_layers").isJsonNull()) {
             return ScreenLayerMode.ALLOWLIST;

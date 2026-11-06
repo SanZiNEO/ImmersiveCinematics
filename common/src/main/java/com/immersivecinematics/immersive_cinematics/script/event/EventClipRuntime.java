@@ -1,7 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script.event;
 
 import com.immersivecinematics.immersive_cinematics.script.Clip;
-import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipValueView;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledProperty;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
@@ -17,8 +16,7 @@ import java.util.function.Consumer;
  * 单片段事件编译结果：离散记录 + 稳定身份 + 边沿游标。
  *
  * <p>事件不是采样属性：{@link #compile(Clip, Object)} 在加载/实例创建时把
- * {@code objects.event}（EVENT）或 {@code objects.mod_event}（MOD_EVENT）的记录读成数组，
- * 旧格式片段则直接读 {@code keyframes}（一个旧关键帧 = 一条事件，事件下标 = keyframe 下标）。
+ * {@code objects.event}（EVENT）或 {@code objects.mod_event}（MOD_EVENT）的记录读成数组；
  * 超界事件（{@code time > duration}）在编译期丢弃。</p>
  *
  * <p>游标语义：{@link #advance(double)} / {@link #poll(double, Consumer)} 只触发
@@ -51,8 +49,8 @@ public final class EventClipRuntime {
     /**
      * 编译片段的事件列表。
      *
-     * <p>新格式从对象模型读（{@code event} / {@code mod_event}，按片段轨道类型选择）；
-     * 旧格式从 {@code keyframes} 读，事件下标 = keyframe 下标。片段没有事件对象时返回空运行时。</p>
+     * <p>从对象模型读（{@code event} / {@code mod_event}，按片段轨道类型选择）；
+     * 片段没有事件对象时返回空运行时。</p>
      *
      * @param clip          片段
      * @param instanceToken 播放实例令牌；{@code null} 时退回片段身份（仅探针/无实例场景）
@@ -66,29 +64,16 @@ public final class EventClipRuntime {
         List<EventRecord> records = new ArrayList<>();
         List<EventKey> keys = new ArrayList<>();
 
-        if (clip.hasObjects()) {
-            SampledProperty property = clip.getObjects().get(path);
-            if (property != null) {
-                ClipValueView values = new ClipValueView(clip);
-                String defaultType = values.s("event_type", modEvent ? MOD_EVENT_PATH : COMMAND);
-                Object defaultData = modEvent ? values.struct("data") : null;
-                SampledProperty.Compiled compiled = property.compile(clip.getDuration(), clip.isInfinite());
-                int count = compiled.eventCount();
-                for (int i = 0; i < count; i++) {
-                    EventRecord record = newRecord(compiled.timeAt(i), compiled.eventValue(i),
-                            defaultType, defaultData);
-                    if (record == null) continue;
-                    records.add(record);
-                    keys.add(new EventKey(token, clip, path, i));
-                }
-            }
-        } else {
-            List<Keyframe> keyframes = clip.getKeyframes();
-            for (int i = 0; i < keyframes.size(); i++) {
-                Keyframe keyframe = keyframes.get(i);
-                float time = keyframe.getTime();
-                if (!inRange(time, clip)) continue;
-                EventRecord record = modEvent ? oldModEventRecord(keyframe) : oldEventRecord(keyframe);
+        SampledProperty property = clip.getObjects().get(path);
+        if (property != null) {
+            ClipValueView values = new ClipValueView(clip);
+            String defaultType = values.s("event_type", modEvent ? MOD_EVENT_PATH : COMMAND);
+            Object defaultData = modEvent ? values.struct("data") : null;
+            SampledProperty.Compiled compiled = property.compile(clip.getDuration(), clip.isInfinite());
+            int count = compiled.eventCount();
+            for (int i = 0; i < count; i++) {
+                EventRecord record = newRecord(compiled.timeAt(i), compiled.eventValue(i),
+                        defaultType, defaultData);
                 if (record == null) continue;
                 records.add(record);
                 keys.add(new EventKey(token, clip, path, i));
@@ -191,15 +176,7 @@ public final class EventClipRuntime {
         scannedThrough = target;
     }
 
-    /** 超界过滤：有限片段只保留 {@code 0 <= time <= duration}，无限片段只要求 {@code time >= 0}。 */
-    private static boolean inRange(float time, Clip clip) {
-        if (!(time >= 0f) || !Float.isFinite(time)) {
-            return false;
-        }
-        return clip.isInfinite() || time <= clip.getDuration();
-    }
-
-    /** 新格式事件记录：{@code command}/{@code event_type}/{@code position}/{@code data}。 */
+    /** 事件记录：{@code command}/{@code event_type}/{@code position}/{@code data}。 */
     private static EventRecord newRecord(float time, Object raw, String defaultType, Object defaultData) {
         if (!(raw instanceof Map<?, ?> map)) {
             return null;
@@ -210,21 +187,6 @@ public final class EventClipRuntime {
         EventRecord.Position position = positionOf(map.get("position"));
         Object data = map.containsKey("data") ? map.get("data") : defaultData;
         return new EventRecord(time, eventType, command, position, data);
-    }
-
-    /** 旧格式 EVENT 关键帧：{@code command}/{@code event_type}/{@code position}。 */
-    private static EventRecord oldEventRecord(Keyframe keyframe) {
-        String eventType = keyframe.getString("event_type", COMMAND);
-        String command = keyframe.getString("command", null);
-        EventRecord.Position position = positionOf(keyframe.getObject("position"));
-        return new EventRecord(keyframe.getTime(), eventType, command, position, null);
-    }
-
-    /** 旧格式 MOD_EVENT 关键帧：{@code event_type}/{@code data}。 */
-    private static EventRecord oldModEventRecord(Keyframe keyframe) {
-        String eventType = keyframe.getString("event_type", MOD_EVENT_PATH);
-        Object data = keyframe.getObject("data");
-        return new EventRecord(keyframe.getTime(), eventType, null, null, data);
     }
 
     /** {@code {x,z}} = 绝对，{@code {dx,dz}} = 相对；不成对返回 {@code null}。 */

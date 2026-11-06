@@ -1,11 +1,14 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server.evaluator;
 
-import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.spi.ListenStrategy;
+import com.immersivecinematics.immersive_cinematics.spi.TriggerEvalContext;
+import com.immersivecinematics.immersive_cinematics.spi.TriggerType;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
-import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
 import com.immersivecinematics.immersive_cinematics.trigger.server.continuity.MotionSample;
 import com.immersivecinematics.immersive_cinematics.trigger.server.continuity.SegmentSweep;
-import com.immersivecinematics.immersive_cinematics.trigger.server.continuity.TriggerEvalContext;
 import com.immersivecinematics.immersive_cinematics.trigger.server.fact.EventFactMatch;
 import com.immersivecinematics.immersive_cinematics.trigger.server.fact.Fact;
 import com.immersivecinematics.immersive_cinematics.trigger.server.fact.FactLedger;
@@ -14,9 +17,6 @@ import com.immersivecinematics.immersive_cinematics.trigger.server.fact.FactWind
 import com.immersivecinematics.immersive_cinematics.trigger.server.fact.PlayerFacts;
 import com.immersivecinematics.immersive_cinematics.trigger.server.prereq.PrerequisiteRegistry;
 import com.immersivecinematics.immersive_cinematics.trigger.shared.GeometryConditions;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;

@@ -1,8 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.camera.source;
 
-import com.immersivecinematics.immersive_cinematics.math.MathModel;
 import com.immersivecinematics.immersive_cinematics.math.MathModelInstance;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
+import com.immersivecinematics.immersive_cinematics.spi.MathModel;
 
 /**
  * 一条 CAMERA 轨的运动模型实例槽：实例归属「播放实例 → lane → 通道」，每 lane 至多 6 个实例。

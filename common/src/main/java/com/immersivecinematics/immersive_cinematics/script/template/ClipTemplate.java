@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script.template;
 
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.List;

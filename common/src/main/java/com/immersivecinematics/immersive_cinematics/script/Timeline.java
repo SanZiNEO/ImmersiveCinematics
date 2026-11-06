@@ -7,12 +7,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 时间轴 —— 脚本的核心数据容器：总时长 + 并行轨道；层级 = 总时间轴 → 轨道 → 片段 → 关键帧。
+ * 时间轴 —— 脚本的核心数据容器：并行轨道；层级 = 时间轴 → 轨道 → 片段 → 关键帧。
+ * 无总时长字段：有限末端 / 无限性由片段窗口在 {@link CinematicScript} 上派生。
  */
 public class Timeline {
-
-    /** 脚本总时长（秒），负数 = 含无限时长片段（无法预计算）：float 存储（脚本 JSON 精度）；运行时读取后按 double 参与计算，写回时显式窄化。 */
-    private final float totalDuration;
 
     /** 并行轨道列表（构造后不再修改） */
     private final List<TimelineTrack> tracks;
@@ -24,19 +22,16 @@ public class Timeline {
     private final float loopEnd;
 
     /**
-     * @param totalDuration 总时长（秒）；负数 = 含无限时长片段
-     * @param tracks        并行轨道（null 视为空）
-     * @param loopStart     宏观循环区间起点（秒，负值按 0 处理）
-     * @param loopEnd       宏观循环区间终点（秒）；负数 = 未声明
+     * @param tracks    并行轨道（null 视为空）
+     * @param loopStart 宏观循环区间起点（秒，负值按 0 处理）
+     * @param loopEnd   宏观循环区间终点（秒）；负数 = 未声明
      */
-    public Timeline(float totalDuration, List<TimelineTrack> tracks, float loopStart, float loopEnd) {
-        this.totalDuration = totalDuration;
+    public Timeline(List<TimelineTrack> tracks, float loopStart, float loopEnd) {
         this.tracks = tracks != null ? tracks : Collections.emptyList();
         this.loopStart = loopStart;
         this.loopEnd = loopEnd;
     }
 
-    public float getTotalDuration() { return totalDuration; }
     public List<TimelineTrack> getTracks() { return tracks; }
 
     /**
@@ -50,9 +45,6 @@ public class Timeline {
      * 负数 = 未声明 → 运行时取宏观末端（各片段展开结束时刻的最大值）。
      */
     public float getLoopEnd() { return loopEnd; }
-
-    /** 是否为无限时长时间轴 */
-    public boolean isInfinite() { return totalDuration < 0f; }
 
     // ========== 便捷查询方法 ==========
 
@@ -119,6 +111,6 @@ public class Timeline {
 
     @Override
     public String toString() {
-        return String.format("Timeline{duration=%.2f, tracks=%d}", totalDuration, tracks.size());
+        return String.format("Timeline{tracks=%d}", tracks.size());
     }
 }

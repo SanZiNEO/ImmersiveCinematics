@@ -17,7 +17,7 @@ public final class BranchSnapshot {
         this.lastHead = lastHead;
     }
 
-    /** 记录数（= 脚本扁平片段数）。 */
+    /** 记录数（= timeline 扁平片段数 + 脚本级独立片段数）。 */
     public int size() {
         return executions.length;
     }

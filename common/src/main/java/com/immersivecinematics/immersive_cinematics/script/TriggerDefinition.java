@@ -1,6 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
-import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
+import com.immersivecinematics.immersive_cinematics.spi.TriggerType;
 
 import java.util.Collections;
 import java.util.List;

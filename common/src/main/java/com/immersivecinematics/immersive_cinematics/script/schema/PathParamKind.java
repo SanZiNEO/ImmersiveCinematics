@@ -1,5 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.script.schema;
 
+import com.immersivecinematics.immersive_cinematics.spi.PathParamDef;
+import com.immersivecinematics.immersive_cinematics.spi.PathParams;
+
 /**
  * 路径曲线参数的类型标记：{@link PathCurveRegistry} 按它把 JSON 值归一成 {@link PathParams} 里的 Java 值。
  *

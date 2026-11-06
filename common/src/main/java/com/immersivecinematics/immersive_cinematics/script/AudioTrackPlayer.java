@@ -71,7 +71,7 @@ public class AudioTrackPlayer implements TrackDriver {
     private static final int SLOT_Y = audioSlot("y");
     private static final int SLOT_Z = audioSlot("z");
 
-    /** 新格式片段的采样缓存（旧格式片段仍走 data + 关键帧插值，不进这里）。 */
+    /** 片段的采样缓存（按对象身份复用采样器 / 缓冲 / value 视图）。 */
     private final ClipRuntimeCache runtime = new ClipRuntimeCache(TrackTypeId.AUDIO);
 
     /**
@@ -130,20 +130,14 @@ public class AudioTrackPlayer implements TrackDriver {
                     previouslyActive.remove(clip);
                     continue;
                 }
-                double fadeOut = clip.hasObjects() ? fadeOutOf(clip) : clip.getFadeOut();
+                double fadeOut = fadeOutOf(clip);
                 double clipEnd = scriptPlayer.finiteWindowEnd(clip);
                 double elapsedSinceEnd = globalTime - clipEnd;
 
                 if (fadeOut > 0.0 && elapsedSinceEnd < fadeOut && elapsedSinceEnd >= 0.0) {
                     double fadeFactor = 1.0 - (elapsedSinceEnd / fadeOut);
                     fadeFactor = Math.max(0.0, Math.min(1.0, fadeFactor));
-                    float baseVol;
-                    if (clip.hasObjects()) {
-                        baseVol = volumeAt(clip, clip.getDuration());
-                    } else {
-                        Keyframe lastKf = getLastKeyframe(clip);
-                        baseVol = lastKf != null ? lastKf.getFloat("volume", clip.getVolume()) : clip.getVolume();
-                    }
+                    float baseVol = volumeAt(clip, clip.getDuration());
                     inst.setVolume((float) (baseVol * fadeFactor));
                     inst.update();
                 } else {
@@ -293,17 +287,12 @@ public class AudioTrackPlayer implements TrackDriver {
     }
 
     private void startClipInstance(Clip clip, double localTime) {
-        boolean objects = clip.hasObjects();
-        ClipValueView values = objects ? runtime.values(clip) : null;
-        String sound = objects ? values.s("sound", "") : clip.getSound();
+        ClipValueView values = runtime.values(clip);
+        String sound = values.s("sound", "");
         if (sound == null || sound.isEmpty()) {
-            if (objects) {
-                // 新格式：只报一次并记住，避免每帧重试刷日志
-                if (failedClips.add(clip)) {
-                    LOGGER.warn("AUDIO clip at time {} has no sound object, skipping", clip.getStartTime());
-                }
-            } else {
-                LOGGER.warn("AUDIO clip at time {} has no sound field, skipping", clip.getStartTime());
+            // 只报一次并记住，避免每帧重试刷日志
+            if (failedClips.add(clip)) {
+                LOGGER.warn("AUDIO clip at time {} has no sound object, skipping", clip.getStartTime());
             }
             return;
         }
@@ -311,23 +300,22 @@ public class AudioTrackPlayer implements TrackDriver {
         if (failedClips.contains(clip)) return;
 
         double dur = clip.getDuration();
-        double fadeIn = objects ? values.f("fade_in", 0f) : clip.getFadeIn();
-        double fadeOut = objects ? values.f("fade_out", 0f) : clip.getFadeOut();
+        double fadeIn = values.f("fade_in", 0f);
+        double fadeOut = values.f("fade_out", 0f);
         if (dur > 0.0 && fadeIn + fadeOut > dur) {
             LOGGER.warn("AUDIO clip '{}' fade_in+fade_out ({}+{}) exceeds duration ({}), skipping",
                     sound, fadeIn, fadeOut, dur);
             return;
         }
 
-        SoundSource category = parseCategory(
-                objects ? values.s("category", "music") : clip.getString("category", "music"));
+        SoundSource category = parseCategory(values.s("category", "music"));
         CinematicAudioInstance inst;
         try {
             inst = new CinematicAudioInstance(
                     sound,
-                    objects ? values.s("source", "file") : clip.getSource(),
-                    objects ? values.b("file_loop", false) : clip.isFileLoop(),
-                    objects ? values.f("pitch", 1f) : clip.getAudioPitch(),
+                    values.s("source", "file"),
+                    values.b("file_loop", false),
+                    values.f("pitch", 1f),
                     category);
         } catch (RuntimeException e) {
             // 缺失/无法加载的音频：只报一次并跳过该 clip，不再每帧重试
@@ -341,15 +329,10 @@ public class AudioTrackPlayer implements TrackDriver {
             return;
         }
 
-        if (objects) {
-            // 新格式：按当前执行局部时间采样，位置/音量与中段起播一致（不再假设从 0 开始）
-            SampledClip sample = runtime.sample(clip, localTime);
-            double fadeFactor = fadeEnvelope(localTime, dur, clip.isEffectivelyInfinite(), fadeIn, fadeOut);
-            inst.setVolume((float) (audioValue(sample, SLOT_VOLUME, 1f) * fadeFactor));
-        } else {
-            float initialVol = fadeIn > 0f ? 0f : clip.getVolume();
-            inst.setVolume(initialVol);
-        }
+        // 按当前执行局部时间采样，位置/音量与中段起播一致（不再假设从 0 开始）
+        SampledClip sample = runtime.sample(clip, localTime);
+        double fadeFactor = fadeEnvelope(localTime, dur, clip.isEffectivelyInfinite(), fadeIn, fadeOut);
+        inst.setVolume((float) (audioValue(sample, SLOT_VOLUME, 1f) * fadeFactor));
 
         // 两类语义：music=背景音（非空间，强制无衰减/relative）；ambient=环境音（空间，按 position_mode+attenuation）
         if (category == SoundSource.MUSIC) {
@@ -357,18 +340,12 @@ public class AudioTrackPlayer implements TrackDriver {
             inst.setAttenuation("none");
             inst.setPosition(Minecraft.getInstance().player != null
                     ? Minecraft.getInstance().player.position() : Vec3.ZERO);
-        } else if (objects) {
-            SampledClip sample = runtime.sample(clip, localTime);
+        } else {
             Vec3 offset = new Vec3(audioValue(sample, SLOT_X, 0f), audioValue(sample, SLOT_Y, 0f),
                     audioValue(sample, SLOT_Z, 0f));
             // 相对模式也允许空间衰减：声音在世界坐标 = 玩家 + offset，由原版按听者距离衰减
             inst.setAttenuation(values.s("attenuation", "linear"));
             inst.setPosition(resolveAudioPosition(values.s("position_mode", "relative"), offset));
-        } else {
-            Vec3 offset = getInterpolatedPosition(clip, 0f);
-            // 相对模式也允许空间衰减：声音在世界坐标 = 玩家 + offset，由原版按听者距离衰减
-            inst.setAttenuation(clip.getAttenuation());
-            inst.setPosition(resolveAudioPosition(clip.getAudioPositionMode(), offset));
         }
 
         inst.play();
@@ -382,56 +359,23 @@ public class AudioTrackPlayer implements TrackDriver {
         double localTime = scriptPlayer.executionLocalTime(clip, globalTime);
         double dur = clip.getDuration();
 
-        if (clip.hasObjects()) {
-            // 新格式：volume/x/y/z 来自 SampledClip；infinite 用执行语义（无限执行循环也不淡出）
-            ClipValueView values = runtime.values(clip);
-            SampledClip sample = runtime.sample(clip, localTime);
-            double fadeIn = values.f("fade_in", 0f);
-            double fadeOut = values.f("fade_out", 0f);
-            double fadeFactor = fadeEnvelope(localTime, dur, clip.isEffectivelyInfinite(), fadeIn, fadeOut);
-            inst.setVolume((float) (audioValue(sample, SLOT_VOLUME, 1f) * fadeFactor));
-            inst.setPosition(resolveAudioPosition(values.s("position_mode", "relative"),
-                    new Vec3(audioValue(sample, SLOT_X, 0f), audioValue(sample, SLOT_Y, 0f),
-                            audioValue(sample, SLOT_Z, 0f))));
-            if (!inst.isPlaying()) {
-                inst.play();
-            }
-            inst.update();
-            return;
-        }
-
-        boolean infinite = dur < 0f;
-
-        float interpolatedVolume = interpolateFloat(clip, localTime, "volume", clip.getVolume());
-        float ix = interpolateFloat(clip, localTime, "x", clip.getFloat("x", 0f));
-        float iy = interpolateFloat(clip, localTime, "y", clip.getFloat("y", 0f));
-        float iz = interpolateFloat(clip, localTime, "z", clip.getFloat("z", 0f));
-
-        double fadeFactor = 1.0;
-        double elapsed = localTime;
-
-        double fadeIn = clip.getFadeIn();
-        if (fadeIn > 0.0 && elapsed < fadeIn) {
-            fadeFactor = elapsed / fadeIn;
-        }
-        if (!infinite) {
-            double remaining = dur - elapsed;
-            double fadeOut = clip.getFadeOut();
-            if (fadeOut > 0.0 && remaining < fadeOut) {
-                fadeFactor = remaining / fadeOut;
-            }
-        }
-        fadeFactor = Math.max(0.0, Math.min(1.0, fadeFactor));
-
-        inst.setVolume((float) (interpolatedVolume * fadeFactor));
-        inst.setPosition(resolveAudioPosition(clip.getAudioPositionMode(), new Vec3(ix, iy, iz)));
+        // volume/x/y/z 来自 SampledClip；infinite 用执行语义（无限执行循环也不淡出）
+        ClipValueView values = runtime.values(clip);
+        SampledClip sample = runtime.sample(clip, localTime);
+        double fadeIn = values.f("fade_in", 0f);
+        double fadeOut = values.f("fade_out", 0f);
+        double fadeFactor = fadeEnvelope(localTime, dur, clip.isEffectivelyInfinite(), fadeIn, fadeOut);
+        inst.setVolume((float) (audioValue(sample, SLOT_VOLUME, 1f) * fadeFactor));
+        inst.setPosition(resolveAudioPosition(values.s("position_mode", "relative"),
+                new Vec3(audioValue(sample, SLOT_X, 0f), audioValue(sample, SLOT_Y, 0f),
+                        audioValue(sample, SLOT_Z, 0f))));
         if (!inst.isPlaying()) {
             inst.play();
         }
         inst.update();
     }
 
-    /** 新格式包络：与旧 {@link #updateClipInstance} 的 fade 相位同一公式（fadeOut 覆盖 fadeIn）。 */
+    /** fade 包络：fadeIn 起播渐入，fadeOut 收尾渐出（fadeOut 覆盖 fadeIn）。 */
     private static double fadeEnvelope(double localTime, double dur, boolean infinite,
                                        double fadeIn, double fadeOut) {
         double factor = 1.0;
@@ -455,12 +399,9 @@ public class AudioTrackPlayer implements TrackDriver {
         return offset;
     }
 
-    /** 当前音量：新格式取对象采样，旧格式逐关键帧插值（行为不变）。 */
+    /** 当前音量：取对象采样（未声明 → 缺省 1）。 */
     private float volumeAt(Clip clip, double localTime) {
-        if (clip.hasObjects()) {
-            return audioValue(runtime.sample(clip, localTime), SLOT_VOLUME, 1f);
-        }
-        return interpolateFloat(clip, localTime, "volume", clip.getVolume());
+        return audioValue(runtime.sample(clip, localTime), SLOT_VOLUME, 1f);
     }
 
     /** 槽位读取：作者声明过用采样值，否则回落 schema 缺省（未声明槽位的数值无意义）。 */
@@ -468,19 +409,19 @@ public class AudioTrackPlayer implements TrackDriver {
         return sample.present(slot) ? sample.f(slot) : fallback;
     }
 
-    /** 片段的声音 id：新格式读 value-only 对象，旧格式读 {@code data}。 */
+    /** 片段的声音 id（value-only 对象）。 */
     private String soundOf(Clip clip) {
-        return clip.hasObjects() ? runtime.values(clip).s("sound", "") : clip.getSound();
+        return runtime.values(clip).s("sound", "");
     }
 
-    /** 片段的 fade_in：新格式读 value-only 对象，旧格式读 {@code data}。 */
+    /** 片段的 fade_in（value-only 对象）。 */
     private float fadeInOf(Clip clip) {
-        return clip.hasObjects() ? runtime.values(clip).f("fade_in", 0f) : clip.getFadeIn();
+        return runtime.values(clip).f("fade_in", 0f);
     }
 
-    /** 片段的 fade_out：新格式读 value-only 对象，旧格式读 {@code data}。 */
+    /** 片段的 fade_out（value-only 对象）。 */
     private float fadeOutOf(Clip clip) {
-        return clip.hasObjects() ? runtime.values(clip).f("fade_out", 0f) : clip.getFadeOut();
+        return runtime.values(clip).f("fade_out", 0f);
     }
 
     private static int audioSlot(String path) {
@@ -489,55 +430,6 @@ public class AudioTrackPlayer implements TrackDriver {
             throw new IllegalStateException("AUDIO 缺少对象声明: " + path);
         }
         return slot;
-    }
-
-    private float interpolateFloat(Clip clip, double localTime, String key, float defaultValue) {
-        List<Keyframe> kfs = clip.getKeyframes();
-        if (kfs == null || kfs.isEmpty()) {
-            return defaultValue;
-        }
-        if (kfs.size() < 2) {
-            return kfs.get(0).getFloat(key, defaultValue);
-        }
-
-        Keyframe from = kfs.get(0);
-        Keyframe to = kfs.get(kfs.size() - 1);
-        boolean found = false;
-        for (int i = 0; i < kfs.size() - 1; i++) {
-            if (localTime >= kfs.get(i).getTime() && localTime <= kfs.get(i + 1).getTime()) {
-                from = kfs.get(i);
-                to = kfs.get(i + 1);
-                found = true;
-                break;
-            }
-        }
-        if (!found && localTime < kfs.get(0).getTime()) {
-            return kfs.get(0).getFloat(key, defaultValue);
-        }
-        if (!found && localTime > kfs.get(kfs.size() - 1).getTime()) {
-            return kfs.get(kfs.size() - 1).getFloat(key, defaultValue);
-        }
-
-        double span = (double) to.getTime() - from.getTime();
-        double t = (span > 0.001)
-                ? (localTime - from.getTime()) / span : 0.0;
-        t = Math.max(0.0, Math.min(1.0, t));
-        float fromVal = from.getFloat(key, defaultValue);
-        float toVal = to.getFloat(key, defaultValue);
-        return (float) (fromVal + (toVal - fromVal) * t);
-    }
-
-    private Vec3 getInterpolatedPosition(Clip clip, double localTime) {
-        return new Vec3(
-                interpolateFloat(clip, localTime, "x", clip.getFloat("x", 0f)),
-                interpolateFloat(clip, localTime, "y", clip.getFloat("y", 0f)),
-                interpolateFloat(clip, localTime, "z", clip.getFloat("z", 0f)));
-    }
-
-    private static Keyframe getLastKeyframe(Clip clip) {
-        List<Keyframe> kfs = clip.getKeyframes();
-        if (kfs == null || kfs.isEmpty()) return null;
-        return kfs.get(kfs.size() - 1);
     }
 
     private Clip findActiveClip(double globalTime) {

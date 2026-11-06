@@ -12,7 +12,7 @@ public enum CompletionReason {
     STOPPED,
     /** 被其他脚本抢占：要求实例可打断（interruptible）。 */
     INTERRUPTED,
-    /** 用户长按跳过键：要求实例可跳过（skippable）。 */
+    /** 仅供外部 API / 历史回执识别；0.3.6 起长按改为投票，本模组客户端不再产生该值。 */
     SKIPPED,
     /** 正常播放到结尾（含作者声明的 exit 动作）。 */
     FINISHED

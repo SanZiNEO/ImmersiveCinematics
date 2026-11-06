@@ -58,11 +58,9 @@ public class AdjustTrackPlayer implements TrackDriver {
         // 恒等参数由 publish 归一化为「无调整」（渲染侧一次 GL 调用都不做）。
         // 实例标识 = 本轨所属的 ScriptPlayer：同实例多条 ADJUST 轨互相覆盖，不同实例各占一层。
         double localTime = scriptPlayer.executionLocalTime(clip, globalTime);
-        // 新格式：59 通道来自对象模型；旧格式：沿用关键帧扫描（一行不改）。
-        ColorAdjustParams params = clip.hasObjects()
-                ? ColorAdjustSampler.sampleObjects(clip, runtime.sample(clip, localTime),
-                        runtime.values(clip), curves)
-                : ColorAdjustSampler.sample(clip, localTime);
+        // 59 通道来自对象模型（旧格式关键帧扫描已随格式删除）。
+        ColorAdjustParams params = ColorAdjustSampler.sampleObjects(clip, runtime.sample(clip, localTime),
+                runtime.values(clip), curves);
         MasterColorAdjust.INSTANCE.publish(scriptPlayer, params);
     }
 

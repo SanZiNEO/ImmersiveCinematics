@@ -2,12 +2,12 @@ package com.immersivecinematics.immersive_cinematics.script;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.spi.TriggerType;
 import com.immersivecinematics.immersive_cinematics.trigger.server.RuleCommandRateLimiter;
 import com.immersivecinematics.immersive_cinematics.trigger.server.ScriptEventManager;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerEngine;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistration;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
-import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
 import com.immersivecinematics.immersive_cinematics.trigger.server.action.StartPlaybackAction;
 import com.immersivecinematics.immersive_cinematics.trigger.server.evaluator.Evaluators;
 import com.mojang.logging.LogUtils;

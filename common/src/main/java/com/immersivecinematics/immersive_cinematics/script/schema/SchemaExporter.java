@@ -6,7 +6,6 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.immersivecinematics.immersive_cinematics.camera.rule.RuleActions;
-import com.immersivecinematics.immersive_cinematics.math.path.PathCapability;
 import com.immersivecinematics.immersive_cinematics.script.ContinuitySpec;
 import com.immersivecinematics.immersive_cinematics.script.TriggerDefinition;
 import com.immersivecinematics.immersive_cinematics.script.identity.ClipIdentity;
@@ -18,7 +17,10 @@ import com.immersivecinematics.immersive_cinematics.script.rule.RuleDefinition;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleReleaseKind;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleSchedule;
 import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
+import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
 import com.immersivecinematics.immersive_cinematics.spi.ObjectDef;
+import com.immersivecinematics.immersive_cinematics.spi.PathCapability;
+import com.immersivecinematics.immersive_cinematics.spi.PathParamDef;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 
 import java.util.ArrayList;

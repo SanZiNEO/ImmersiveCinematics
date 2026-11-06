@@ -1,10 +1,10 @@
 package com.immersivecinematics.immersive_cinematics;
 
 import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
+import com.immersivecinematics.immersive_cinematics.spi.ListenStrategy;
+import com.immersivecinematics.immersive_cinematics.spi.TriggerType;
 import com.immersivecinematics.immersive_cinematics.trigger.network.NetworkHandler;
-import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
-import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
 import com.immersivecinematics.immersive_cinematics.trigger.server.evaluator.Evaluators;
 import com.immersivecinematics.immersive_cinematics.trigger.server.prereq.BuiltinPrerequisites;
 

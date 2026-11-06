@@ -3,7 +3,7 @@ package com.immersivecinematics.immersive_cinematics.camera;
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraCoverChain;
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraModifier;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
-import com.immersivecinematics.immersive_cinematics.camera.rule.RuleEngine;
+import com.immersivecinematics.immersive_cinematics.camera.rule.RuleArtifactLedger;
 import com.immersivecinematics.immersive_cinematics.client.lane.CameraLeasePool;
 import com.immersivecinematics.immersive_cinematics.control.CompletionReason;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
@@ -65,15 +65,14 @@ public final class PlaybackInstance implements ClipBranchHost {
     private final List<ClipModifierGate> modifiers = new ArrayList<>();
 
     /**
-     * 判定规则引擎（{@code clip.rules}）：判定端 = 客户端逐实例，每帧由 {@code FrameDriver}
-     * 在轨道分发之后驱动。规则槽随脚本重建（{@link #start} / {@link #replaceScript}），停止时清空。
+     * 规则动作工件账本（{@code camera_set} / {@code overlay_set} / {@code adjust_set} 的实例级工件）：
+     * 触发帧接入、片段活跃窗末 / 重建 / 停播时回收。帧驱动每帧调 {@link RuleArtifactLedger#expireArtifacts}。
      */
-    private final RuleEngine ruleEngine = new RuleEngine();
+    private final RuleArtifactLedger artifactLedger = new RuleArtifactLedger();
 
     /**
-     * 脚本级规则运行态（{@code rules} + {@code rule_bindings}；每实例一份）。与旧 {@link RuleEngine}
-     * 并存但不同脚本：同一脚本同时出现两套规则由解析期拒绝。帧驱动在旧引擎之后调用
-     * {@link RuleRuntime#evaluate}。
+     * 脚本级规则运行态（{@code rules} + {@code rule_bindings}；每实例一份）。
+     * 帧驱动调用 {@link RuleRuntime#evaluate}。
      */
     private final RuleRuntime rules = new RuleRuntime();
 
@@ -100,15 +99,15 @@ public final class PlaybackInstance implements ClipBranchHost {
     PlaybackInstance(CameraCoverChain coverChain, boolean editorDriven) {
         this.coverChain = coverChain;
         this.editorDriven = editorDriven;
-        this.ruleEngine.attachOwner(this);
+        this.artifactLedger.attachOwner(this);
         this.rules.attachOwner(this);
         // 待执行动作参与自然完成：判定成功后已承诺的动作不得被内容采样结束静默丢弃
         this.player.setCompletionDependency(() -> rules.hasPendingActions());
     }
 
-    /** 本实例的判定规则引擎（帧驱动调用 {@code evaluate}；探针直取以注入上下文 / 时钟）。 */
-    public RuleEngine ruleEngine() {
-        return ruleEngine;
+    /** 本实例的规则动作工件账本（动作执行方接入工件；帧驱动逐帧到期回收）。 */
+    public RuleArtifactLedger artifactLedger() {
+        return artifactLedger;
     }
 
     /** 本实例的脚本级规则运行态（帧驱动调用 {@code evaluate}；探针直取以注入上下文 / 时钟）。 */
@@ -200,7 +199,7 @@ public final class PlaybackInstance implements ClipBranchHost {
         this.behavior = meta != null ? meta.getBehavior() : null;
         this.playMode = meta != null ? meta.getPlayMode() : ScriptMeta.PlayMode.PARALLEL;
         syncModifiers(script);
-        ruleEngine.sync(script, player);
+        artifactLedger.reset();
         rules.sync(script, player);
         syncExits(script);
     }
@@ -216,7 +215,7 @@ public final class PlaybackInstance implements ClipBranchHost {
         this.behavior = meta != null ? meta.getBehavior() : null;
         this.playMode = meta != null ? meta.getPlayMode() : ScriptMeta.PlayMode.PARALLEL;
         syncModifiers(newScript);
-        ruleEngine.sync(newScript, player);
+        artifactLedger.reset();
         rules.sync(newScript, player);
         syncExits(newScript);
     }
@@ -227,7 +226,7 @@ public final class PlaybackInstance implements ClipBranchHost {
         CameraLeasePool.releaseOwner(this);
         this.player.stop(reason);
         syncModifiers(null);
-        ruleEngine.reset(player);
+        artifactLedger.reset();
         rules.reset(player);
         exits.clear();
         // 层兜底：TrackPlayer 清理抛异常时也不留残层（层归属 = 本实例，只清自己的）
@@ -291,7 +290,7 @@ public final class PlaybackInstance implements ClipBranchHost {
     // ========== 规则动作 Modifier 接线（camera_set；注册 / 注销由规则引擎的工件生命周期驱动） ==========
 
     /**
-     * 注册一条规则动作建出的 Modifier（{@code camera_set} 触发时；见 {@code RuleEngine.attachArtifact}）。
+     * 注册一条规则动作建出的 Modifier（{@code camera_set} 触发时；见 {@code RuleArtifactLedger#attachArtifact}）。
      * 与 {@link #syncModifiers} 的静态声明分开记账：本类不持有它们的清单——回收由引擎在片段窗末 /
      * 重建 / 停播时调 {@link #detachRuleModifier}。
      */

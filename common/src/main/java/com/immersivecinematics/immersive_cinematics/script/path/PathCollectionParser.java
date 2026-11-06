@@ -5,7 +5,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.math.path.AxisConstraint;
 import com.immersivecinematics.immersive_cinematics.math.path.LinearPathSpec;
-import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
 import com.immersivecinematics.immersive_cinematics.script.ScriptParser.ScriptParseException;
 import com.immersivecinematics.immersive_cinematics.script.identity.ClipRef;
@@ -17,6 +16,7 @@ import com.immersivecinematics.immersive_cinematics.script.object.ObjectKeyframe
 import com.immersivecinematics.immersive_cinematics.script.object.SampledProperty;
 import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveException;
 import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveRegistry;
+import com.immersivecinematics.immersive_cinematics.spi.PathSpec;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;

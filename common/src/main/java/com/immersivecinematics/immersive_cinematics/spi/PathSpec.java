@@ -1,5 +1,10 @@
-package com.immersivecinematics.immersive_cinematics.math.path;
+package com.immersivecinematics.immersive_cinematics.spi;
 
+import com.immersivecinematics.immersive_cinematics.math.path.AxisConstrainedSpec;
+import com.immersivecinematics.immersive_cinematics.math.path.AxisConstraint;
+import com.immersivecinematics.immersive_cinematics.math.path.PathAnchor;
+import com.immersivecinematics.immersive_cinematics.math.path.PathDomain;
+import com.immersivecinematics.immersive_cinematics.math.path.PathExpression;
 import net.minecraft.world.phys.Vec3;
 
 /**

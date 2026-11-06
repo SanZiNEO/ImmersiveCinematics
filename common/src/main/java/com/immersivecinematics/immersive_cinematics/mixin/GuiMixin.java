@@ -28,10 +28,8 @@ public abstract class GuiMixin {
         return CameraManager.INSTANCE.isActive();
     }
 
-    private static boolean shouldHide(Boolean setting) {
-        CinematicController ctrl = CinematicController.INSTANCE;
-        if (setting == null) return ctrl.isHideHud();
-        return setting;
+    private static boolean shouldHide() {
+        return CinematicController.INSTANCE.isHideHud();
     }
 
     // ===== Action Bar / Title：在 Gui.render 内联渲染、没有独立方法可注入，帧内把计时清零再于 RETURN 还原 =====
@@ -107,7 +105,7 @@ public abstract class GuiMixin {
 
     @Inject(method = "renderJumpMeter", at = @At("HEAD"), cancellable = true)
     private void onRenderJumpMeter(PlayerRideableJumping vehicle, GuiGraphics guiGraphics, int i, CallbackInfo ci) {
-        if (isActive() && shouldHide(null)) ci.cancel();
+        if (isActive() && shouldHide()) ci.cancel();
     }
 
 
@@ -115,7 +113,7 @@ public abstract class GuiMixin {
 
     @Inject(method = "renderSelectedItemName", at = @At("HEAD"), cancellable = true)
     private void onRenderSelectedItemName(GuiGraphics guiGraphics, CallbackInfo ci) {
-        if (isActive() && shouldHide(null)) ci.cancel();
+        if (isActive() && shouldHide()) ci.cancel();
     }
 
     // ===== 计分板侧栏 =====
@@ -129,6 +127,6 @@ public abstract class GuiMixin {
 
     @Inject(method = "renderSavingIndicator", at = @At("HEAD"), cancellable = true)
     private void onRenderSavingIndicator(GuiGraphics guiGraphics, CallbackInfo ci) {
-        if (isActive() && shouldHide(null)) ci.cancel();
+        if (isActive() && shouldHide()) ci.cancel();
     }
 }

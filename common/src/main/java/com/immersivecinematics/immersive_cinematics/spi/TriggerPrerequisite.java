@@ -1,11 +1,12 @@
-package com.immersivecinematics.immersive_cinematics.trigger.server.prereq;
+package com.immersivecinematics.immersive_cinematics.spi;
 
 import com.google.gson.JsonObject;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
  * 前置条件求值接口。
- * 其他模组可以通过 {@link PrerequisiteRegistry#register(String, TriggerPrerequisite)}
+ * 其他模组可以通过
+ * {@link com.immersivecinematics.immersive_cinematics.trigger.server.prereq.PrerequisiteRegistry#register(String, TriggerPrerequisite)}
  * 注册自定义前置条件类型，并在脚本触发器的 {@code requires} 中使用对象语法：
  *
  * "requires": [

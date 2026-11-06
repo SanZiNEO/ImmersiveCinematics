@@ -1,6 +1,7 @@
-package com.immersivecinematics.immersive_cinematics.script.schema;
+package com.immersivecinematics.immersive_cinematics.spi;
 
 import com.immersivecinematics.immersive_cinematics.math.path.PathPoint;
+import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveException;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
@@ -8,9 +9,11 @@ import java.util.Map;
 
 /**
  * 路径曲线参数包：注册表按 {@link PathParamDef} 归一后的只读值表，交给曲线工厂构造
- * {@link com.immersivecinematics.immersive_cinematics.math.path.PathSpec}。
+ * {@link com.immersivecinematics.immersive_cinematics.spi.PathSpec}。
  *
- * 只由 {@link PathCurveRegistry#create} 构造：进到这里时值已按 kind 校验过，取值方法因此只做
+ * 只由
+ * {@link com.immersivecinematics.immersive_cinematics.script.schema.PathCurveRegistry#create}
+ * 构造：进到这里时值已按 kind 校验过，取值方法因此只做
  * 「有 / 无」判定——缺省由调用方给的 fallback 提供，必填缺失由注册表在构造前拦下。
  * 实例与内部集合都不可变（{@code numbers} 返回的数组由调用方只读）。
  */
@@ -21,8 +24,12 @@ public final class PathParams {
     /** 参数名 → 已归一的值（NUMBER → Double、INTEGER → Integer、POINT → PathPoint、VECTOR → Vec3 …）。 */
     private final Map<String, Object> values;
 
-    /** 包内构造：只允许 {@link PathCurveRegistry} 建包。 */
-    PathParams(String path, Map<String, Object> values) {
+    /**
+     * 由注册表建包：只允许
+     * {@link com.immersivecinematics.immersive_cinematics.script.schema.PathCurveRegistry#create}
+     * 调用（本类无其它构造入口，第三方只读）。
+     */
+    public PathParams(String path, Map<String, Object> values) {
         this.path = path;
         this.values = values;
     }

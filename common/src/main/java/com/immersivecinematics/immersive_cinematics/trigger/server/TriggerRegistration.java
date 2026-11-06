@@ -3,6 +3,7 @@ package com.immersivecinematics.immersive_cinematics.trigger.server;
 import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.script.ContinuitySpec;
 import com.immersivecinematics.immersive_cinematics.script.TriggerRequirement;
+import com.immersivecinematics.immersive_cinematics.spi.TriggerType;
 import com.immersivecinematics.immersive_cinematics.trigger.server.action.TriggerAction;
 
 import java.util.List;

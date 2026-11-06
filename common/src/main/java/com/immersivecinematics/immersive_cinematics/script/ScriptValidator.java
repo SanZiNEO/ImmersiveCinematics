@@ -12,23 +12,23 @@ import com.immersivecinematics.immersive_cinematics.client.rule.ClientConditions
 import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
 import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitKind;
 import com.immersivecinematics.immersive_cinematics.script.identity.ClipIdentity;
+import com.immersivecinematics.immersive_cinematics.script.object.ObjectValidator;
+import com.immersivecinematics.immersive_cinematics.script.path.PathCollectionParser;
 import com.immersivecinematics.immersive_cinematics.script.rule.ClipExitPolicyParser;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleCollectionParser;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleControl;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleDefinition;
-import com.immersivecinematics.immersive_cinematics.script.object.ObjectValidator;
-import com.immersivecinematics.immersive_cinematics.script.path.PathCollectionParser;
-import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.MathModelRegistry;
 import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveException;
 import com.immersivecinematics.immersive_cinematics.script.schema.PathCurveRegistry;
 import com.immersivecinematics.immersive_cinematics.script.schema.TriggerSchemas;
 import com.immersivecinematics.immersive_cinematics.script.track.TrackRegistry;
 import com.immersivecinematics.immersive_cinematics.selector.SelectorSchema;
+import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
+import com.immersivecinematics.immersive_cinematics.spi.ListenStrategy;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
-import com.immersivecinematics.immersive_cinematics.trigger.server.ListenStrategy;
+import com.immersivecinematics.immersive_cinematics.spi.TriggerType;
 import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerRegistry;
-import com.immersivecinematics.immersive_cinematics.trigger.server.TriggerType;
 import com.immersivecinematics.immersive_cinematics.trigger.server.evaluator.Evaluators;
 import com.immersivecinematics.immersive_cinematics.trigger.server.prereq.PrerequisiteRegistry;
 import net.minecraft.resources.ResourceLocation;
@@ -49,125 +49,12 @@ import java.util.regex.Pattern;
  * 一次输出完整清单（结构错误 / 字段缺失 / 语义错误 / 缺省字段提示）。
  * 面向 AI 仅凭参考指南写脚本的场景：拿到清单即可逐条修正。
  * 校验口径与解析器同源（同一口径）：校验拦下的写法解析期也会拒绝；校验器另有更严的结构语义
- * 提示（见 {@link #checkRules}）。失败只返回 issue 列表，不抛异常。
+ * 提示（见 {@code checkScriptRuleCollection}）。失败只返回 issue 列表，不抛异常。
  */
 public final class ScriptValidator {
 
-    private static final String[] CAMERA_KF_FIELDS = {"yaw", "pitch", "roll", "fov", "zoom"};
-
-    /** 相机片段运动模型字段（clip 级；缺省 null = 该通道不接模型 = 逐位不改变现状）。 */
-    private static final String[] MOTION_FIELDS = {
-            "motion_position", "motion_yaw", "motion_pitch", "motion_roll", "motion_fov", "motion_zoom"};
-
     /** 触发器声明 id 的格式判定（正则本身由 {@link TriggerDefinition#ID_REGEX} 定义）；延迟编译一次。 */
     private static final Pattern TRIGGER_ID_PATTERN = Pattern.compile(TriggerDefinition.ID_REGEX);
-
-    /**
-     * 调色曲线字段（clip 级结构字段，ADJUST 轨与 CAMERA 片段共用同一套）：
-     * {@code rgb_curve} = RGB 复合曲线；{@code r_curve} / {@code g_curve} / {@code b_curve} = 每通道曲线；
-     * 后六条 = DaVinci 曲线页口径的 hue 曲线（HvH / HvS / HvL、LvS / SvS / SvL）。
-     */
-    private static final String[] COLOR_CURVE_FIELDS = {
-            "rgb_curve", "r_curve", "g_curve", "b_curve",
-            "hv_h_curve", "hv_s_curve", "hv_l_curve", "lv_s_curve", "sv_s_curve", "sv_l_curve"};
-
-    /**
-     * 层级混合模式（clip 级 {@code blend_mode} 的合法值；顺序 = shader 的 {@code BlendMode} uniform
-     * 编码 {@code 0 ~ 4}，与 {@code client/post/ColorAdjustParams} 的 {@code BLEND_*} 常量一一对应）。
-     * 缺省 {@code normal} = 直替换；混合模式作用于调整层（= ADJUST 轨）的输出与基画面，
-     * 只写在 ADJUST 轨（master）的片段上——相机片段上写会被拦下（同 {@code lut} 口径）。
-     */
-    private static final String[] BLEND_MODES =
-            {"normal", "multiply", "screen", "soft_light", "overlay"};
-
-    /** fade 覆盖形状（缺省 full = 整窗口）。 */
-    private static final String[] FADE_MASK_SHAPES = {"full", "rect", "circle"};
-
-    /** fade 高级颜色遮罩的 clip 级字段：只属于 layer_type=fade（image / subtitle 上写直接报错）。 */
-    private static final String[] FADE_ONLY_CLIP_FIELDS = {"gradient", "mask_shape", "blend_mode"};
-
-    /** fade 高级颜色遮罩的关键帧字段：只属于 layer_type=fade（image / subtitle 上写直接报错）。 */
-    private static final String[] FADE_ONLY_KEYFRAME_FIELDS = {
-            "color", "mask_x", "mask_y", "mask_width", "mask_height", "mask_radius",
-            "gradient_angle", "gradient_center_x", "gradient_center_y", "gradient_radius"};
-
-    /** CAMERA lane 合成遮罩的几何关键帧字段：只属于关键帧。 */
-    private static final String[] CAMERA_MASK_GEOMETRY_FIELDS = {
-            "mask_x", "mask_y", "mask_width", "mask_height", "mask_radius"};
-
-    /** fade 渐变专用字段：CAMERA 片段 / 关键帧上写 = 明确报错（CAMERA 遮罩只有形状 + 几何）。 */
-    private static final String[] FADE_GRADIENT_FIELDS = {
-            "gradient", "gradient_angle", "gradient_center_x", "gradient_center_y", "gradient_radius"};
-
-    /**
-     * 调色关键帧标量通道 → 合法区间（顺序与 {@code TrackSchemas.adjust()} / {@code ColorAdjustParams} /
-     * {@code ic_color_adjust.fsh} 一致；ADJUST 轨与 CAMERA 片段共用，见 {@link #checkAdjustFields}）。
-     * 标量通道缺省 0 = 无效果；十个曲线强度（curve / r_curve / g_curve / b_curve 与 hv_h ~ sv_l）缺省 1；
-     * {@code blend_amount}（0 ~ 1，缺省 1）见 {@link #checkBlendFields}。
-     */
-    private static final List<ChannelRange> ADJUST_CHANNELS = List.of(
-            new ChannelRange("exposure", -5f, 5f),
-            new ChannelRange("contrast", -1f, 1f),
-            new ChannelRange("highlights", -1f, 1f),
-            new ChannelRange("shadows", -1f, 1f),
-            new ChannelRange("whites", -1f, 1f),
-            new ChannelRange("blacks", -1f, 1f),
-            new ChannelRange("hue", -1f, 1f),
-            new ChannelRange("saturation", -1f, 1f),
-            new ChannelRange("vibrance", -1f, 1f),
-            new ChannelRange("lightness", -1f, 1f),
-            new ChannelRange("temperature", -1f, 1f),
-            new ChannelRange("tint", -1f, 1f),
-            new ChannelRange("red", -1f, 1f),
-            new ChannelRange("green", -1f, 1f),
-            new ChannelRange("blue", -1f, 1f),
-            new ChannelRange("mix_rr", -1f, 1f),
-            new ChannelRange("mix_rg", -1f, 1f),
-            new ChannelRange("mix_rb", -1f, 1f),
-            new ChannelRange("mix_gr", -1f, 1f),
-            new ChannelRange("mix_gg", -1f, 1f),
-            new ChannelRange("mix_gb", -1f, 1f),
-            new ChannelRange("mix_br", -1f, 1f),
-            new ChannelRange("mix_bg", -1f, 1f),
-            new ChannelRange("mix_bb", -1f, 1f),
-            new ChannelRange("curve_strength", 0f, 1f),
-            new ChannelRange("r_curve_strength", 0f, 1f),
-            new ChannelRange("g_curve_strength", 0f, 1f),
-            new ChannelRange("b_curve_strength", 0f, 1f),
-            new ChannelRange("lift_r", -1f, 1f),
-            new ChannelRange("lift_g", -1f, 1f),
-            new ChannelRange("lift_b", -1f, 1f),
-            new ChannelRange("gamma_r", -1f, 1f),
-            new ChannelRange("gamma_g", -1f, 1f),
-            new ChannelRange("gamma_b", -1f, 1f),
-            new ChannelRange("gain_r", -1f, 1f),
-            new ChannelRange("gain_g", -1f, 1f),
-            new ChannelRange("gain_b", -1f, 1f),
-            new ChannelRange("hv_h_strength", 0f, 1f),
-            new ChannelRange("hv_s_strength", 0f, 1f),
-            new ChannelRange("hv_l_strength", 0f, 1f),
-            new ChannelRange("lv_s_strength", 0f, 1f),
-            new ChannelRange("sv_s_strength", 0f, 1f),
-            new ChannelRange("sv_l_strength", 0f, 1f),
-            new ChannelRange("hue_red", -1f, 1f),
-            new ChannelRange("sat_red", -1f, 1f),
-            new ChannelRange("hue_yellow", -1f, 1f),
-            new ChannelRange("sat_yellow", -1f, 1f),
-            new ChannelRange("hue_green", -1f, 1f),
-            new ChannelRange("sat_green", -1f, 1f),
-            new ChannelRange("hue_cyan", -1f, 1f),
-            new ChannelRange("sat_cyan", -1f, 1f),
-            new ChannelRange("hue_blue", -1f, 1f),
-            new ChannelRange("sat_blue", -1f, 1f),
-            new ChannelRange("hue_magenta", -1f, 1f),
-            new ChannelRange("sat_magenta", -1f, 1f),
-            new ChannelRange("grayscale", 0f, 1f),
-            new ChannelRange("invert", 0f, 1f));
-
-    /** 一个 ADJUST 通道的合法取值区间（{@code min} ~ {@code max}，闭区间）。 */
-    private record ChannelRange(String field, float min, float max) {}
-
-    private ScriptValidator() {}
 
     /**
      * 警告级 issue 前缀：结构合法、可以加载，但运行期会明显不达预期。
@@ -220,7 +107,7 @@ public final class ScriptValidator {
 
         // ===== meta =====
         if (!root.has("meta") || !root.get("meta").isJsonObject()) {
-            issues.add("meta 缺失或不是对象（需要 id/name/author/version）");
+            issues.add("meta 缺失或不是对象（需要 id/name/author）");
         } else {
             JsonObject meta = root.getAsJsonObject("meta");
             requireString(meta, "meta", "id", issues);
@@ -235,16 +122,15 @@ public final class ScriptValidator {
             }
             checkMaxLength(meta, "meta", "name", 50, issues);
             checkMaxLength(meta, "meta", "author", 30, issues);
-            if (!meta.has("version")) {
-                issues.add("meta.version 缺失（当前仅支持版本 3）");
-            } else {
-                try {
-                    if (meta.get("version").getAsInt() != 3) {
-                        issues.add("meta.version 必须为 3，实际: " + meta.get("version").getAsInt());
-                    }
-                } catch (Exception e) {
-                    issues.add("meta.version 不是整数");
-                }
+            // 旧字段：0.3.6 起已移除，出现即报错（不保留双读 / 兼容分支）
+            if (meta.has("version")) {
+                issues.add("meta.version 已移除：0.3.6 起不再有格式版本号");
+            }
+            if (meta.has("hud_layers")) {
+                issues.add("meta.hud_layers 已移除：用 meta.screen_layers（true = 显示）");
+            }
+            if (meta.has("hard_hide_hud")) {
+                issues.add("meta.hard_hide_hud 已移除：用 meta.screen_layer_mode（allowlist / normal）");
             }
         }
 
@@ -332,7 +218,7 @@ public final class ScriptValidator {
             checkBaseResolution(root.getAsJsonObject("meta"), issues);
         }
 
-        // ===== meta.screen_layers / screen_layer_mode：画面层统一入口（hud_layers / hard_hide_hud 为 deprecated 别名）=====
+        // ===== meta.screen_layers / screen_layer_mode：画面层统一入口 =====
         if (root.has("meta") && root.get("meta").isJsonObject()) {
             checkScreenLayers(root, issues);
         }
@@ -365,17 +251,9 @@ public final class ScriptValidator {
             return issues;
         }
         JsonObject timeline = root.getAsJsonObject("timeline");
-        if (!timeline.has("total_duration")) {
-            issues.add("timeline.total_duration 缺失（正数=有限时长，负数=无限）");
-        } else {
-            try {
-                float td = timeline.get("total_duration").getAsFloat();
-                if (!Float.isFinite(td)) {
-                    issues.add("timeline.total_duration 不是有限数字（NaN / Infinity）");
-                } else if (td == 0f) issues.add("timeline.total_duration 不允许为 0");
-            } catch (Exception e) {
-                issues.add("timeline.total_duration 不是数字");
-            }
+        // 旧字段：0.3.6 起已移除（有限末端 / 显示范围由片段窗口派生）
+        if (timeline.has("total_duration")) {
+            issues.add("timeline.total_duration 已移除：有限末端/显示范围由片段窗口派生");
         }
         if (!timeline.has("tracks") || !timeline.get("tracks").isJsonArray()) {
             issues.add("timeline.tracks 缺失或不是数组");
@@ -384,8 +262,6 @@ public final class ScriptValidator {
 
         // ===== 逐轨道 =====
         JsonArray tracks = timeline.getAsJsonArray("tracks");
-        int clipCount = 0;
-        int keyframeCount = 0;
         for (int ti = 0; ti < tracks.size(); ti++) {
             JsonElement te = tracks.get(ti);
             if (!te.isJsonObject()) {
@@ -406,18 +282,11 @@ public final class ScriptValidator {
             }
 
             if (!track.has("clips") || !track.get("clips").isJsonArray()) {
-                if (track.has("keyframes")) {
-                    issues.add(tp + ".clips 缺失：发现轨道直接写了 keyframes——正确结构为 "
-                            + "{ \"type\": \"...\", \"clips\": [ { \"start_time\": ..., \"duration\": ..., \"keyframes\": [...] } ] }，"
-                            + "keyframes 应嵌在 clip 内，不能直接挂在轨道上");
-                } else {
-                    issues.add(tp + ".clips 缺失或不是数组（轨道需要 clips 数组）");
-                }
+                issues.add(tp + ".clips 缺失或不是数组（轨道需要 clips 数组）");
                 continue;
             }
 
             JsonArray clips = track.getAsJsonArray("clips");
-            float prevContentEnd = -Float.MAX_VALUE;
             for (int ci = 0; ci < clips.size(); ci++) {
                 JsonElement ce = clips.get(ci);
                 if (!ce.isJsonObject()) {
@@ -426,7 +295,6 @@ public final class ScriptValidator {
                 }
                 JsonObject clip = ce.getAsJsonObject();
                 String cp = tp + ".clips[" + ci + "]";
-                clipCount++;
 
                 float start = 0f, dur = 0f;
                 if (!clip.has("start_time")) issues.add(cp + ".start_time 缺失");
@@ -450,285 +318,55 @@ public final class ScriptValidator {
                     } catch (Exception e) { issues.add(cp + ".duration 不是数字"); }
                 }
 
-                if (clip.has("objects")) {
-                    ObjectValidator.validate(type == null ? null : trackTypeOf(type), clip, cp, issues);
-                    prevContentEnd = Math.max(prevContentEnd, start + dur);
-                    continue;
-                }
-
-                if (clip.has("interpolation")) {
-                    issues.add(cp + ".interpolation 已移除（0.3.6 起）：运行时统一匀速线性插值——删掉该字段；"
-                            + "缓动由编辑器把速度曲线烘焙成显式关键帧（脚本里存的是补出的关键帧），运行时不求值");
-                }
-                checkEnum(clip, cp, "transition", issues, "cut", "morph");
-                checkEnum(clip, cp, "orient", issues, "manual", "tangent");
-                // 判定规则：与轨道无关，任意轨道的片段都可挂（轨道作用域不拦）
-                checkRules(clip, cp, issues);
-                if ("CAMERA".equalsIgnoreCase(type)) {
-                    // 拒绝 clip 级 position_mode / cam_tracking_*：这些字段只写在关键帧对象里
-                    if (clip.has("position_mode") || clip.has("cam_tracking_look_at")
-                            || clip.has("cam_tracking_look_target_x") || clip.has("cam_tracking_look_target_y")
-                            || clip.has("cam_tracking_look_target_z") || clip.has("cam_tracking_target_selector")
-                            || clip.has("cam_tracking_follow") || clip.has("cam_tracking_follow_offset_x")
-                            || clip.has("cam_tracking_follow_offset_y") || clip.has("cam_tracking_follow_offset_z")) {
-                        issues.add(cp + " 使用了已废弃的 clip 级字段（position_mode / cam_tracking_*）——已迁移到关键帧级："
-                                + "position_mode、follow、follow_selector、look_at、look_at_selector、look_at_target_x/y/z 写在关键帧对象里");
-                    }
-                    // 调色：本相机片段自带调色，作用于该相机轨的 lane——字段集与 ADJUST 轨完全一致
-                    checkRemovedScopeLane(clip, cp, issues);
-                    checkAdjustFields(clip, cp, null, null, issues);
-                    // 相机参数运动模型：clip 级 motion_* 六字段
-                    checkMotionModels(clip, cp, issues);
-                    // 覆盖链 Modifier：clip 级 modifier 声明 + suppress_modifiers 标志
-                    checkModifier(clip, cp, issues);
-                    // 过渡声明：clip 级分参数 / 权重曲线 / 打断（只对 transition=morph 生效）
-                    checkTransition(clip, cp, issues);
-                    // 渲染维度：客户端按此维度渲染该 lane（空串 = 玩家当前维度，不做服务端传送）
-                    checkCameraDimension(clip, cp, issues);
-                    // lane 合成遮罩：clip 级只允许 mask_shape，几何只属于关键帧
-                    checkCameraMaskClipFields(clip, cp, issues);
-                    // 路径曲线：按 type 走注册表（与 ScriptParser 同一入口）
-                    checkPathCurve(clip, cp, issues);
-                    // LUT 是整体画面（master）处理，只挂在 ADJUST 轨：相机片段上写 lut 不会生效，直接拦下
-                    if (clip.has("lut")) {
-                        issues.add(cp + ".lut 不支持（LUT 是对整体画面的处理，只写在 ADJUST 轨的片段上）："
-                                + "相机片段请改用逐 lane 调色字段，或把 lut 移到 ADJUST 轨");
-                    }
-                    if (clip.has("lut_strength")) {
-                        issues.add(cp + ".lut_strength 不支持（LUT 强度只随 ADJUST 轨的 lut 一起写在关键帧上）："
-                                + "相机片段请删掉该字段，或把 lut / lut_strength 移到 ADJUST 轨");
-                    }
-                    if (clip.has("lut_input_gamma")) {
-                        issues.add(cp + ".lut_input_gamma 不支持（LUT 输入域适配只随 ADJUST 轨的 lut 一起写在片段上）："
-                                + "相机片段请删掉该字段，或把 lut / lut_input_gamma 移到 ADJUST 轨");
-                    }
-                    // 混合模式作用于调整层（= ADJUST 轨）的输出与基画面：相机片段（lane 级）不参与，直接拦下
-                    if (clip.has("blend_mode")) {
-                        issues.add(cp + ".blend_mode 不支持（混合模式作用于调整层 = ADJUST 轨的输出与基画面，"
-                                + "只写在 ADJUST 轨的片段上）：相机片段请删掉该字段，或把 blend_mode 移到 ADJUST 轨");
-                    }
-                }
-                // 覆盖链 Modifier 只作用于覆盖链输出（全局相机状态）：只写在 CAMERA 片段上（其余轨道上写 = 不生效）
-                checkModifierTrackScope(clip, cp, type, issues);
-                // 路径曲线同理：只写在 CAMERA 片段上（其余轨道上写 = 不生效）
-                checkCurveTrackScope(clip, cp, type, issues);
-                if ("OVERLAY".equalsIgnoreCase(type)) {
-                    checkEnum(clip, cp, "layer_type", issues, "fade", "image", "subtitle");
-                    // layer_type 缺省时运行期按 "fade" 处理（OverlayTrackPlayer.createLayer）
-                    String layerType = overlayLayerType(clip);
-                    if ("image".equals(layerType) && !clip.has("path")) {
-                        issues.add(cp + ".path 缺失（layer_type=image 需要图片文件名，只支持 PNG）");
-                    }
-                    if ("fade".equals(layerType)) {
-                        checkHexColor(clip, cp, "color", issues);
-                        checkFadeClipFields(clip, cp, issues);
-                    } else if ("image".equals(layerType) || "subtitle".equals(layerType)) {
-                        // 高级颜色遮罩字段只属于 fade：image / subtitle 上写 = 明确报错（不宣称生效）
-                        rejectFadeOnlyFields(clip, cp, FADE_ONLY_CLIP_FIELDS, layerType, issues);
-                        rejectFadeKeyframeOnlyFields(clip, cp, layerType, issues);
-                    }
-                }
-                if ("ADJUST".equalsIgnoreCase(type)) {
-                    // ADJUST 轨只作用于整体画面（master）；lane 级调色写在 CAMERA 片段上
-                    checkRemovedScopeLane(clip, cp, issues);
-                    checkAdjustFields(clip, cp, null, null, issues);
-                    // LUT（整体画面烘焙）：clip 级 lut 文件名 + 关键帧级 lut_strength——只在 ADJUST 轨
-                    checkLutFields(clip, cp, null, null, issues);
-                    // 层级混合（混合模式作用于调整层）：clip 级 blend_mode 枚举——只在 ADJUST 轨
-                    checkBlendFields(clip, cp, null, null, issues);
-                }
-                // ===== 循环参数校验（旧格式）=====
-                // 旧格式 AUDIO 的 loop 是文件循环（由 schema / parser 管），不按执行循环校验。
-                // 无限循环后仍有其他片段是合法编排（后者在无限片段结束前不可达，由显式依赖诊断负责）。
-                if (!"AUDIO".equalsIgnoreCase(type)) {
-                    checkExecutionLoop(clip, cp, type, issues);
-                }
-
-                // 关键帧
-                if (!clip.has("keyframes") || !clip.get("keyframes").isJsonArray()) {
-                    issues.add(cp + ".keyframes 缺失或不是数组");
-                } else {
-                    JsonArray kfs = clip.getAsJsonArray("keyframes");
-                    if (kfs.size() == 0) {
-                        issues.add(cp + ".keyframes 为空（CAMERA clip 至少需要 1 个关键帧）");
-                    }
-                    float prevT = -1f;
-                    for (int ki = 0; ki < kfs.size(); ki++) {
-                        JsonElement ke = kfs.get(ki);
-                        if (!ke.isJsonObject()) {
-                            issues.add(cp + ".keyframes[" + ki + "] 不是对象");
-                            continue;
-                        }
-                        JsonObject kf = ke.getAsJsonObject();
-                        String kp = cp + ".keyframes[" + ki + "]";
-                        keyframeCount++;
-
-                        if (!kf.has("time")) {
-                            issues.add(kp + ".time 缺失");
-                        } else {
-                            try {
-                                float t = kf.get("time").getAsFloat();
-                                if (!Float.isFinite(t)) {
-                                    // 非有限时间：与 0 / 前帧的比较全为 false，必须单独拦下
-                                    issues.add(kp + ".time 不是有限数字（NaN / Infinity）");
-                                } else {
-                                    if (t < 0f) issues.add(kp + ".time 不能为负数: " + t);
-                                    if (t < prevT) issues.add(kp + ".time 不单调（" + t + " < 前一个 " + prevT + "），关键帧时间必须递增");
-                                    prevT = t;
-                                }
-                            } catch (Exception e) { issues.add(kp + ".time 不是数字"); }
-                        }
-
-                        // position 仅 CAMERA 轨道必需（与 CAMERA_KF_FIELDS 检查同条件）；
-                        // letterbox/audio/event/overlay 轨道的字段体系与 camera 不同，不检查
-                        if ("CAMERA".equalsIgnoreCase(type)) {
-                            if (!kf.has("position")) {
-                                issues.add(kp + ".position 缺失（relative 模式: {dx,dy,dz}；absolute 模式: {x,y,z}）");
-                            } else if (!kf.get("position").isJsonObject()) {
-                                issues.add(kp + ".position 应为对象 {dx,dy,dz} 或 {x,y,z}，实际是 "
-                                        + (kf.get("position").isJsonArray() ? "数组（position 不是数组，改用对象写法）" : "其他类型"));
-                            } else {
-                                JsonObject pos = kf.getAsJsonObject("position");
-                                if (pos.size() == 0) issues.add(kp + ".position 为空对象");
-                            }
-                        }
-
-                        // CAMERA 关键帧缺省字段提示
-                        if ("CAMERA".equalsIgnoreCase(type)) {
-                            for (String f : CAMERA_KF_FIELDS) {
-                                if (!kf.has(f)) issues.add(kp + "." + f + " 缺失，将使用默认值 " + cameraKfDefault(f));
-                            }
-                            checkEnum(kf, kp, "position_mode", issues, "relative", "absolute");
-                            checkEnum(kf, kp, "follow", issues, "none", "entity");
-                            checkEnum(kf, kp, "look_at", issues, "none", "player", "coordinate", "entity", "block");
-                            checkAxisLock(kf, kp, "yaw_lock", issues);
-                            checkAxisLock(kf, kp, "pitch_lock", issues);
-                            checkRemovedRelativeOrigin(kf, kp, issues);
-                            checkRemovedUpAxis(kf, kp, issues);
-                            checkRemovedLookAtTarget(kf, kp, issues);
-                            String follow = kf.has("follow") ? kf.get("follow").getAsString() : "none";
-                            String lookAt = kf.has("look_at") ? kf.get("look_at").getAsString() : "none";
-                            checkStringField(kf, kp, "follow_selector", issues,
-                                    "选择器字符串，如 @p / @e[type=minecraft:iron_golem]");
-                            if ("entity".equals(follow) && !kf.has("follow_selector")) {
-                                issues.add(kp + ".follow_selector 缺失（follow=entity 时指定目标，如 @p / @e[type=minecraft:iron_golem]），默认 @p");
-                            }
-                            if ("entity".equals(follow) && !kf.has("position")) {
-                                issues.add(kp + ".position 缺失（follow=entity 时 position 的 dx/dy/dz 即相对实体脚底的偏移）");
-                            }
-                            checkStringField(kf, kp, "look_at_selector", issues,
-                                    "选择器字符串，如 @p / @e[type=minecraft:iron_golem]");
-                            if ("entity".equals(lookAt) && !kf.has("look_at_selector")) {
-                                issues.add(kp + ".look_at_selector 缺失（look_at=entity 时指定目标），默认 @p");
-                            }
-                            checkStringField(kf, kp, "look_at_target_structure", issues, "结构 id，如 minecraft:village");
-                            checkLookAtTargetCoords(kf, kp, lookAt, issues);
-                            if ("block".equals(lookAt)) {
-                                if (!kf.has("look_at_target_block")) {
-                                    issues.add(kp + ".look_at_target_block 缺失（look_at=block 时指定方块点源，"
-                                            + "写法 block:<方块 id>[:<半径>]）");
-                                } else {
-                                    checkBlockPointSource(kf, kp, "look_at_target_block", issues);
-                                }
-                            }
-                            // 部位百分比只属于实体来源：实体包围盒内的取点（坐标 / 结构 / 方块没有部位）
-                            if (kf.has("look_at_part") && !"entity".equals(lookAt)) {
-                                issues.add(kp + ".look_at_part 只对 look_at=entity 有效（部位 = 实体包围盒内按每轴百分比取点）："
-                                        + "当前 look_at=" + lookAt + "，坐标 / 结构 / 方块来源直接改坐标微调");
-                            } else if ("entity".equals(lookAt)) {
-                                checkLookAtPart(kf, kp, issues);
-                            }
-                            // 选择器策略字段（通用 + 调用点专属）：类型 / 范围校验
-                            checkSelectorPolicy(kf, kp, issues);
-                            // 选择器锚点字段（通用 + 调用点专属）：取值枚举校验
-                            checkSelectorAnchor(kf, kp, issues);
-                            // 选择器择一字段（通用 + 调用点专属）：取值枚举校验
-                            checkSelectorPick(kf, kp, issues);
-                            checkStringField(kf, kp, "yaw_base_selector", issues,
-                                    "选择器字符串（yaw_base / pitch_base = entity 时的目标）");
-                            // 点源字段（位置点源 / 连线端点 / 基准坐标系前轴目标）：字符串形态 + coordinate 配套坐标（都写在关键帧上）
-                            checkPointSourceField(kf, kp, "facing_origin", issues);
-                            checkPointSourceField(kf, kp, "yaw_base_from", issues);
-                            checkPointSourceField(kf, kp, "yaw_base_to", issues);
-                            checkPointSourceField(kf, kp, "facing_target", issues);
-                            // 点源偏移（世界轴 / 基准坐标系二选一；见 camera/source/PointSource.Offset）
-                            checkPointOffset(kf, kp, "yaw_base_from_offset", issues);
-                            checkPointOffset(kf, kp, "yaw_base_to_offset", issues);
-                            checkPointOffset(kf, kp, "facing_target_offset", issues);
-                            checkPointOffset(kf, kp, "look_at_offset", issues);
-                            if (kf.has("facing_origin_offset")) {
-                                issues.add(kp + ".facing_origin_offset 不存在：位置点源的偏移写在 position 对象里"
-                                        + "（dx/dy/dz 世界轴 / fwd/up/right 基准坐标系）");
-                            }
-                            // 点源时态（live = 逐帧重取 / snapshot = 首次取点后冻结）：只对实体选择器形态生效，
-                            // 静态来源写 = 无效果（提示级；未知枚举值报错，运行期仍回落 live）
-                            checkPointSourceTime(kf, kp, "facing_origin", issues);
-                            checkPointSourceTime(kf, kp, "facing_target", issues);
-                            checkPointSourceTime(kf, kp, "yaw_base_from", issues);
-                            checkPointSourceTime(kf, kp, "yaw_base_to", issues);
-                            checkLookAtTime(kf, kp, lookAt, issues);
-                            // ===== 合成参数：opacity / dest / source =====
-                            checkUnitFloat(kf, kp, "opacity", issues);
-                            checkRect(kf, kp, "dest", issues);
-                            checkRect(kf, kp, "source", issues);
-                            // lane 合成遮罩几何：有限中心 + 非负宽高 / 半径；形状只属于 clip 级
-                            checkCameraMaskKeyframeFields(kf, kp, issues);
-                            // 调色：本相机片段关键帧的 57 个调色通道区间
-                            checkAdjustFields(null, null, kf, kp, issues);
-                            // LUT 是整体画面（master）处理：相机片段关键帧写 lut_strength 同样不生效，直接拦下
-                            if (kf.has("lut_strength")) {
-                                issues.add(kp + ".lut_strength 不支持（LUT 强度只随 ADJUST 轨的 lut 一起写在关键帧上）："
-                                        + "相机片段请删掉该字段，或把 lut / lut_strength 移到 ADJUST 轨");
-                            }
-                            if (kf.has("lut_input_gamma")) {
-                                issues.add(kp + ".lut_input_gamma 不支持（LUT 输入域适配只随 ADJUST 轨的 lut 一起写在片段上）："
-                                        + "相机片段请删掉该字段，或把 lut / lut_input_gamma 移到 ADJUST 轨");
-                            }
-                            // 混合模式 / 强度是调整层（= ADJUST 轨）的层级混合参数：相机片段关键帧同样拦下
-                            if (kf.has("blend_amount")) {
-                                issues.add(kp + ".blend_amount 不支持（混合强度只随 ADJUST 轨的 blend_mode 一起写在关键帧上）："
-                                        + "相机片段请删掉该字段，或把 blend_mode / blend_amount 移到 ADJUST 轨");
-                            }
-                        }
-
-                        // ADJUST 关键帧：57 个通道的取值区间（47 个标量缺省 0 = 无效果、10 个曲线强度缺省 1；写回 0 = 该项淡出）
-                        // + LUT 混合强度 lut_strength（0~1，缺省 1）+ 层级混合强度 blend_amount（0~1，缺省 1）
-                        if ("ADJUST".equalsIgnoreCase(type)) {
-                            checkAdjustFields(null, null, kf, kp, issues);
-                            checkLutFields(null, null, kf, kp, issues);
-                            checkBlendFields(null, null, kf, kp, issues);
-                        }
-
-                        // OVERLAY 关键帧：fit 已移除（元素框由素材派生，形状由 scale_x/scale_y 表达）
-                        if ("OVERLAY".equalsIgnoreCase(type)) {
-                            checkRemovedFit(kf, kp, issues);
-                            String layerType = overlayLayerType(clip);
-                            if ("fade".equals(layerType)) {
-                                checkFadeKeyframeFields(kf, kp, issues);
-                            } else if ("image".equals(layerType) || "subtitle".equals(layerType)) {
-                                rejectFadeOnlyFields(kf, kp, FADE_ONLY_KEYFRAME_FIELDS, layerType, issues);
-                                rejectFadeOnlyFields(kf, kp, FADE_ONLY_CLIP_FIELDS, layerType, issues);
-                            }
-                        }
-
-                        // LETTERBOX 关键帧：黑边不透明度 opacity（0~1，缺省 1 = 纯黑边）
-                        if ("LETTERBOX".equalsIgnoreCase(type)) {
-                            checkUnitFloat(kf, kp, "opacity", issues);
-                        }
-                    }
-                }
-
-                // 片段时间允许重叠（lane 模型）：叠化 = 上一个 clip 末尾帧复制延长（hold 等值关键帧）
-                // + 下一个 clip 首帧复制延长，两冻结区时间交叉、opacity 关键帧交叉；
-                // 重叠区按「轨道层级 → 轨道内 clip 顺序」分层（后者在上）。
-                float end = start + dur;
-                prevContentEnd = Math.max(prevContentEnd, end);
-            }
-            if (prevContentEnd > 0f) {
-                // 预留：可在此处对比 total_duration 与内容末尾（目前不校验轨道总长）
+                // 旧格式字段：0.3.6 起已移除，出现即报错
+                rejectRemovedClipFields(clip, cp, issues);
+                ObjectValidator.validate(type == null ? null : trackTypeOf(type), clip, cp, issues);
             }
         }
         return issues;
+    }
+
+    /**
+     * 旧片段字段：0.3.6 起已移除，出现即报错（不保留双读 / 兼容分支；文案统一含「已移除」）。
+     */
+    private static void rejectRemovedClipFields(JsonObject clip, String cp, List<String> issues) {
+        for (String field : clip.keySet()) {
+            String message = removedClipFieldMessage(field);
+            if (message != null) {
+                issues.add(cp + "." + field + " " + message);
+            }
+        }
+    }
+
+    /** 旧片段字段的「已移除」文案；{@code null} = 不是旧字段。 */
+    private static String removedClipFieldMessage(String field) {
+        switch (field) {
+            case "keyframes":
+                return "已移除：用 objects（每个可调项一个采样属性）";
+            case "curve":
+                return "已移除：clip 级 curve；用脚本级 paths（每条引用目标片段与两个相邻位置关键帧）";
+            case "rules":
+                return "已移除：clip 级 rules；用脚本级 rules + rule_bindings";
+            case "interpolation":
+                return "已移除：clip.interpolation；缓动由编辑器烘焙成关键帧";
+            case "follow":
+            case "follow_selector":
+                return "已移除：用 objects 的 position_origin / position_origin_freeze";
+            case "orient":
+            case "yaw_offset":
+            case "pitch_offset":
+                return "已移除：clip 级字段；写进 objects";
+            default:
+                break;
+        }
+        if (field.startsWith("facing_origin")) {
+            return "已移除：用 objects 的 position_origin / position_origin_freeze";
+        }
+        if (field.startsWith("selector_")
+                && (field.endsWith("_follow") || field.endsWith("_facing_origin"))) {
+            return "已移除：用 selector_*_position_origin";
+        }
+        return null;
     }
 
     // ======================================================================
@@ -922,208 +560,6 @@ public final class ScriptValidator {
             issues.add(cp + ".objects 需要对象（独立片段必须是新格式）");
         } else if (objects.getAsJsonObject().size() == 0) {
             issues.add(cp + ".objects 为空（独立片段必须是新格式：至少一个采样属性）");
-        }
-    }
-
-    /**
-     * 校验数值字段的取值区间（闭区间）；字段缺省时跳过（缺省值生效）。
-     * 与 {@link #checkUnitFloat} 同族，区间由调用方给定（ADJUST 各通道区间不同）。
-     */
-    private static void checkRange(JsonObject obj, String path, String key, List<String> issues,
-                                   float min, float max) {
-        if (!obj.has(key)) return;
-        JsonElement e = obj.get(key);
-        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) {
-            issues.add(path + "." + key + " 不是数字（范围 " + min + " ~ " + max + "）");
-            return;
-        }
-        float v = e.getAsFloat();
-        if (!Float.isFinite(v)) {
-            // NaN / ±Infinity：与任何区间比较都为 false，必须单独拦下（否则校验器放过、运行期直达 shader）
-            issues.add(path + "." + key + " 不是有限数字（NaN / Infinity；范围 " + min + " ~ " + max + "）：" + v);
-            return;
-        }
-        if (v < min || v > max) {
-            issues.add(path + "." + key + " 超出范围 " + min + " ~ " + max + "：" + v);
-        }
-    }
-
-    /**
-     * 校验调色字段（ADJUST 轨与 CAMERA 片段共用同一套字段集）：ADJUST 作用于整体画面（master），
-     * CAMERA 片段作用于该相机轨的 lane；clip 级 = 10 条调色曲线结构（{@link #COLOR_CURVE_FIELDS}），
-     * 关键帧级 = 57 个通道的取值区间（{@link #ADJUST_CHANNELS} = 47 标量 + 10 曲线强度）。
-     * {@code clip} / {@code kf} 按上下文各传一侧、另一侧传 {@code null}；缺省字段跳过（由缺省值生效）。
-     */
-    private static void checkAdjustFields(JsonObject clip, String cp, JsonObject kf, String kp,
-                                          List<String> issues) {
-        if (clip != null) {
-            for (String field : COLOR_CURVE_FIELDS) {
-                if (clip.has(field)) {
-                    checkColorCurve(clip.get(field), cp + "." + field, issues);
-                }
-            }
-        }
-        if (kf != null) {
-            for (ChannelRange range : ADJUST_CHANNELS) {
-                checkRange(kf, kp, range.field(), issues, range.min(), range.max());
-            }
-        }
-    }
-
-    /**
-     * 校验相机片段的运动模型定义（{@code motion_*} 六字段，clip 级）：定义对象形态、{@code type} 已注册、
-     * 参数名已知、嵌套深度 / 节点数上限（与 {@code MathModelRegistry} 同源常量）、组合域一致
-     * （结构键 {@code domain} 顶层由通道域覆盖、组合内子定义缺省继承父定义，见 {@link #checkMathModelDomain}）。
-     * 只记 issue 不阻断加载——运行期由 {@code MathModelRegistry} 按同一口径回落 {@code linear}（= 无效果）。
-     */
-    private static void checkMotionModels(JsonObject clip, String cp, List<String> issues) {
-        for (String field : MOTION_FIELDS) {
-            if (!clip.has(field)) continue;
-            checkModelDefinition(clip.get(field), cp + "." + field,
-                    MathModelRegistry.channelDomain(field).key(), "缺省 = 该通道不接模型", issues);
-        }
-    }
-
-    /**
-     * 校验一个模型定义字段（{@code motion_*} / 过渡权重曲线）：对象形态、嵌套深度 / 节点数上限
-     * （与 {@code MathModelRegistry} 同源常量）、定义树逐节点（{@code type} 已注册 / 参数名已知 / 组合域一致）。
-     *
-     * @param value          字段值
-     * @param path           字段路径（报错定位）
-     * @param expectedDomain 继承域（顶层 = 通道值域；结构键 {@code domain} 缺省继承它）
-     * @param hint           缺省语义提示（拼进对象形态错误里）
-     */
-    private static void checkModelDefinition(JsonElement value, String path, String expectedDomain,
-                                             String hint, List<String> issues) {
-        if (!value.isJsonObject()) {
-            issues.add(path + " 需要对象 {type, ...}（数学模型定义；" + hint + "）");
-            return;
-        }
-        int[] measure = {0, 0};
-        measureModel(value.getAsJsonObject(), 1, measure);
-        if (measure[0] > MathModelRegistry.MODEL_MAX_NODES || measure[1] > MathModelRegistry.MODEL_MAX_DEPTH) {
-            issues.add(path + " 模型定义超限（节点 " + measure[0] + " / 上限 "
-                    + MathModelRegistry.MODEL_MAX_NODES + "，深度 " + measure[1] + " / 上限 "
-                    + MathModelRegistry.MODEL_MAX_DEPTH + "）：运行时整链回落 linear");
-        }
-        checkMathModelNode(value.getAsJsonObject(), path, expectedDomain, true, issues);
-    }
-
-    /**
-     * 校验单个模型定义节点（递归下钻 {@code model} / {@code model_list} 参数）：
-     * {@code expectedDomain} = 继承域（顶层 = 通道值域）；{@code type} 缺失 / 未注册时无法确定参数表，不再下钻。
-     *
-     * @param root {@code true} = 字段顶层定义（{@code domain} 被解析期通道域覆盖，见 {@link #checkMathModelDomain}）；
-     *             {@code false} = 组合内子定义（{@code domain} 参与组合域一致性判定）
-     */
-    private static void checkMathModelNode(JsonObject def, String path, String expectedDomain, boolean root,
-                                           List<String> issues) {
-        JsonElement typeElement = def.get("type");
-        if (typeElement == null || !typeElement.isJsonPrimitive() || !typeElement.getAsJsonPrimitive().isString()) {
-            issues.add(path + ".type 缺失（需要字符串注册名，可选: "
-                    + String.join(" / ", MathModelRegistry.types()) + "；运行时回落 linear）");
-            return;
-        }
-        String type = typeElement.getAsString();
-        if (!MathModelRegistry.types().contains(type)) {
-            issues.add(path + ".type 未注册: " + type + "（可选: "
-                    + String.join(" / ", MathModelRegistry.types()) + "；运行时回落 linear）");
-            return;
-        }
-        String domain = checkMathModelDomain(def, path, expectedDomain, root, issues);
-        Map<String, FieldDef> params = MathModelRegistry.params(type);
-        for (Map.Entry<String, JsonElement> entry : def.entrySet()) {
-            String key = entry.getKey();
-            if ("type".equals(key) || "domain".equals(key)) continue;
-            FieldDef paramDef = params.get(key);
-            if (paramDef == null) {
-                issues.add(path + "." + key + " 未知参数（type = " + type + "；可用: "
-                        + String.join(" / ", params.keySet()) + "；运行时忽略）");
-                continue;
-            }
-            checkMathModelParam(paramDef.type(), entry.getValue(), path + "." + key, domain, issues);
-        }
-    }
-
-    /**
-     * 校验 {@code domain} 结构键：未知值域 / 与继承域不一致各记一条 issue；返回生效域。
-     *
-     * 不一致的语义分两层（与 {@code ScriptParser.parseMathModel} 的解析口径一致）：字段顶层定义的
-     * {@code domain} 在解析期被通道域覆盖（声明值被忽略，运行期按通道域跑、不回落）；只有组合内子定义
-     * 才是组合域不匹配（运行期该子模型回落 {@code linear}）。
-     *
-     * @param root {@code true} = 字段顶层定义
-     */
-    private static String checkMathModelDomain(JsonObject def, String path, String expectedDomain, boolean root,
-                                               List<String> issues) {
-        JsonElement element = def.get("domain");
-        if (element == null || element.isJsonNull()) return expectedDomain;
-        if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
-            issues.add(path + ".domain 需要字符串（scalar / angle / vector / color；缺省继承所在通道 / 父定义）");
-            return expectedDomain;
-        }
-        String declared = element.getAsString();
-        if (ValueDomain.byKey(declared) == null) {
-            issues.add(path + ".domain 未知值域: " + declared + "（合法：scalar / angle / vector / color）");
-            return expectedDomain;
-        }
-        if (!declared.equals(expectedDomain)) {
-            if (root) {
-                issues.add(path + ".domain 与通道域不一致：顶层 domain 由通道域覆盖（运行期按 " + expectedDomain
-                        + " 跑，声明的 " + declared + " 被忽略，不回落 linear）——仅组合内子定义的 domain 不匹配才回落 linear");
-            } else {
-                issues.add(path + ".domain 组合域不匹配：父定义 " + expectedDomain + "，此处 " + declared
-                        + "（运行时该子模型回落 linear）");
-            }
-        }
-        return declared;
-    }
-
-    /** 校验一个参数值：{@code model} = 子定义对象、{@code model_list} = 子定义数组；其余类型由解析期把关。 */
-    private static void checkMathModelParam(String paramType, JsonElement value, String path, String domain,
-                                            List<String> issues) {
-        switch (paramType) {
-            case "model" -> {
-                if (!value.isJsonObject()) {
-                    issues.add(path + " 需要对象（子模型定义）");
-                    return;
-                }
-                checkMathModelNode(value.getAsJsonObject(), path, domain, false, issues);
-            }
-            case "model_list" -> {
-                if (!value.isJsonArray()) {
-                    issues.add(path + " 需要数组（子模型定义数组）");
-                    return;
-                }
-                JsonArray array = value.getAsJsonArray();
-                if (array.size() == 0) {
-                    issues.add(path + " 为空数组（空链 = 恒等，无效果）");
-                }
-                for (int i = 0; i < array.size(); i++) {
-                    if (!array.get(i).isJsonObject()) {
-                        issues.add(path + "[" + i + "] 需要对象（子模型定义）");
-                        continue;
-                    }
-                    checkMathModelNode(array.get(i).getAsJsonObject(), path + "[" + i + "]", domain, false, issues);
-                }
-            }
-            default -> { }
-        }
-    }
-
-    /** 统计模型定义树的节点数与最大深度（深度含根 = 1）：{@code acc[0]} = 节点数、{@code acc[1]} = 最大深度。 */
-    private static void measureModel(JsonObject def, int depth, int[] acc) {
-        acc[0]++;
-        if (depth > acc[1]) acc[1] = depth;
-        for (Map.Entry<String, JsonElement> entry : def.entrySet()) {
-            JsonElement value = entry.getValue();
-            if (value.isJsonObject()) {
-                measureModel(value.getAsJsonObject(), depth + 1, acc);
-            } else if (value.isJsonArray()) {
-                for (JsonElement item : value.getAsJsonArray()) {
-                    if (item.isJsonObject()) measureModel(item.getAsJsonObject(), depth + 1, acc);
-                }
-            }
         }
     }
 
@@ -1920,105 +1356,6 @@ public final class ScriptValidator {
         }
     }
 
-    /**
-     * 校验 clip 级 {@code rules}（判定规则；与轨道无关，任意轨道的片段都可挂）。
-     * 与 {@link ClipRule#parse} 同一口径，另加三条结构语义拦截：空数组（= 不写；写出来必是作者误解）、
-     * {@code until} 带 {@code once} / {@code cooldown}（阻塞规则触发即解除）、{@code pause} 无同片段释放规则
-     * （见 {@link #checkPauseReleaser}）。条件 type 白名单 = v1 判定源 + 组合器；动作 type 白名单归动作集，
-     * 本层只查元素是对象且带字符串 {@code type}。
-     */
-    private static void checkRules(JsonObject clip, String cp, List<String> issues) {
-        if (!clip.has("rules")) return;
-        JsonElement rules = clip.get("rules");
-        if (!rules.isJsonArray()) {
-            issues.add(cp + ".rules 需要数组（rules = 判定规则数组）");
-            return;
-        }
-        JsonArray arr = rules.getAsJsonArray();
-        if (arr.isEmpty()) {
-            issues.add(cp + ".rules 为空数组（不写 rules 即无规则；空数组必是作者误解，删掉该字段）");
-            return;
-        }
-        for (int i = 0; i < arr.size(); i++) {
-            checkRule(arr.get(i), cp + ".rules[" + i + "]", issues);
-        }
-        checkPauseReleaser(arr, cp, issues);
-    }
-
-    /**
-     * 挂起出口：clip 声明 {@code pause} 动作但同 clip 无任何释放规则
-     * （{@code resume} 动作 / {@code until} 规则）→ issue。
-     * 暂停保持内容位置 ⇒ 后续片段不激活、时间条件不走，跨片段 / 时间门的 {@code resume} 不可达；
-     * 运行期对无释放者的 pause 自动解除 + 限频告警。
-     */
-    private static void checkPauseReleaser(JsonArray rules, String cp, List<String> issues) {
-        boolean pause = false;
-        boolean releaser = false;
-        for (int i = 0; i < rules.size(); i++) {
-            JsonElement el = rules.get(i);
-            if (!el.isJsonObject()) continue;
-            JsonObject rule = el.getAsJsonObject();
-            if (rule.has("until")) releaser = true;
-            pause |= hasActionType(rule.get("do"), "pause") || hasActionType(rule.get("on_timeout"), "pause");
-            releaser |= hasActionType(rule.get("do"), "resume") || hasActionType(rule.get("on_timeout"), "resume");
-        }
-        if (pause && !releaser) {
-            issues.add(cp + ".rules 声明了 pause 动作但同片段无释放规则（resume 动作 / until）："
-                    + "暂停保持内容位置 ⇒ 后续片段不激活、时间条件不走，跨片段 / 时间门的 resume 不可达"
-                    + "（运行期无释放者时自动解除并告警）——请在触发 pause 的同一片段里声明 resume 或 until");
-        }
-    }
-
-    /** 动作数组里是否含指定 {@code type}（结构问题归各自校验点：非数组 / 元素非对象一律忽略）。 */
-    private static boolean hasActionType(JsonElement actions, String type) {
-        if (actions == null || !actions.isJsonArray()) return false;
-        for (JsonElement el : actions.getAsJsonArray()) {
-            if (!el.isJsonObject()) continue;
-            JsonElement t = el.getAsJsonObject().get("type");
-            if (t != null && isString(t) && type.equals(t.getAsString())) return true;
-        }
-        return false;
-    }
-
-    /** 单条规则：形态互斥、条件对象、动作数组、公共修饰字段取值。 */
-    private static void checkRule(JsonElement el, String rp, List<String> issues) {
-        if (!el.isJsonObject()) {
-            issues.add(rp + " 需要对象 {if|until, do, once?, cooldown?, mode?, timeout?, on_timeout?}");
-            return;
-        }
-        JsonObject rule = el.getAsJsonObject();
-        boolean hasIf = rule.has("if");
-        boolean hasUntil = rule.has("until");
-        if (hasIf == hasUntil) {
-            issues.add(rp + (hasIf
-                    ? " if 与 until 互斥（一条规则只能一种形态：if = 持续判定，until = 挂起等待）"
-                    : " 缺少条件（if / until 恰写一个）"));
-        } else {
-            String key = hasIf ? "if" : "until";
-            if (!rule.get(key).isJsonObject()) {
-                issues.add(rp + "." + key + " 需要对象（条件定义，如 {\"type\": \"time\", \"at\": 12}）");
-            } else {
-                checkRuleCondition(rule.getAsJsonObject(key), rp + "." + key, issues);
-            }
-        }
-        checkRuleActions(rule, rp, issues);
-        checkRuleModifiers(rule, rp, issues);
-    }
-
-    /**
-     * 规则条件（{@code if} / {@code until} 的值）：type 白名单 = v1 判定源 + 组合器（嵌套 ≤
-     * {@link ClientConditions#MAX_COMBINATION_DEPTH}），叶子按各自字段结构校验；事件类 / tracker 类 /
-     * 前置条件类判定源 v1 不支持（issue），未知 type 同样报错。求值侧同名单源见 {@link ClientConditions}。
-     */
-    private static void checkRuleCondition(JsonObject condition, String cp, List<String> issues) {
-        JsonElement type = condition.get("type");
-        if (type == null || !isString(type)) {
-            issues.add(cp + ".type 缺失或不是字符串（判定源类型；v1 支持: " + v1SourceLabel() + "）");
-            return;
-        }
-        checkRuleConditionNode(condition, cp, type.getAsString(), 1, issues);
-    }
-
     /** 条件树里的事实引用上下文（{@code null} = 旧 v1 口径，事实类型按未知判定源报错）。 */
     private record FactRefs(Set<String> bindingIds, Set<String> clipIds) {}
 
@@ -2038,7 +1375,7 @@ public final class ScriptValidator {
         checkRuleConditionNodeV2(condition, cp, type.getAsString(), 1, issues, bindingIds, clipIds);
     }
 
-    /** 脚本级规则的条件节点入口（事实类型放行；与旧 {@link #checkRuleConditionNode} 同构）。 */
+    /** 脚本级规则的条件节点入口（事实类型放行；与 v1 条件节点同构）。 */
     private static void checkRuleConditionNodeV2(JsonObject c, String cp, String type, int depth,
                                                  List<String> issues, Set<String> bindingIds,
                                                  Set<String> clipIds) {
@@ -2046,10 +1383,7 @@ public final class ScriptValidator {
     }
 
     /** 单个条件节点：组合器递归下钻（层数用尽即报），叶子按类型做字段校验。 */
-    private static void checkRuleConditionNode(JsonObject c, String cp, String type, int depth,
-                                               List<String> issues) {
-        checkRuleConditionNode0(c, cp, type, depth, issues, null);
-    }
+    
 
     /** 单个条件节点（旧 v1 与脚本级规则共用；{@code facts != null} 时放行事实类型）。 */
     private static void checkRuleConditionNode0(JsonObject c, String cp, String type, int depth,
@@ -2118,15 +1452,6 @@ public final class ScriptValidator {
         }
         issues.add(cp + ".fact 未知事实: " + fact.getAsString()
                 + "（可选: " + String.join(" / ", allowed) + "）");
-    }
-
-    /**
-     * 组合器（all_of / any）：{@code list} 元素 = {@code {type, conditions}}（与触发器同一结构），
-     * 子类型须是 v1 判定源或嵌套组合器；嵌套层数含顶层 ≤ {@link ClientConditions#MAX_COMBINATION_DEPTH}。
-     */
-    private static void checkRuleCombination(JsonObject c, String cp, String combinator, int depth,
-                                             List<String> issues) {
-        checkRuleCombination0(c, cp, combinator, depth, issues, null);
     }
 
     /** 组合器（旧 v1 与脚本级规则共用；{@code facts != null} 时子类型放行事实叶子）。 */
@@ -2266,16 +1591,7 @@ public final class ScriptValidator {
     }
 
     /** 动作数组：{@code do} 必填非空、{@code on_timeout} 可省；元素 = 对象且 {@code type} 为字符串。 */
-    private static void checkRuleActions(JsonObject rule, String rp, List<String> issues) {
-        if (!rule.has("do")) {
-            issues.add(rp + ".do 缺失（规则必须声明 do 动作数组）");
-        } else {
-            checkActionArray(rule.get("do"), rp + ".do", true, issues);
-        }
-        if (rule.has("on_timeout")) {
-            checkActionArray(rule.get("on_timeout"), rp + ".on_timeout", false, issues);
-        }
-    }
+    
 
     /**
      * 动作数组：{@code required} 时空数组也报；元素须为对象且带字符串 {@code type}
@@ -2505,70 +1821,6 @@ public final class ScriptValidator {
         return TrackRegistry.idListForMessage();
     }
 
-    /** 公共修饰字段：{@code once} 布尔 / {@code cooldown} 非负 / {@code mode} 枚举 / {@code timeout} 正数。 */
-    private static void checkRuleModifiers(JsonObject rule, String rp, List<String> issues) {
-        JsonElement once = rule.get("once");
-        if (once != null && (!once.isJsonPrimitive() || !once.getAsJsonPrimitive().isBoolean())) {
-            issues.add(rp + ".once 需要布尔值（true = 只触发一次；缺省 true）");
-        }
-        JsonElement cooldown = rule.get("cooldown");
-        if (cooldown != null && (!isNumber(cooldown) || !Float.isFinite(cooldown.getAsFloat())
-                || cooldown.getAsFloat() < 0f)) {
-            issues.add(rp + ".cooldown 需要 ≥ 0 的有限数字（秒；缺省 0 = 不静默），实际: " + cooldown);
-        }
-        JsonElement mode = rule.get("mode");
-        boolean modeIsString = mode != null && isString(mode);
-        String modeText = modeIsString ? mode.getAsString() : "enter";
-        if (mode != null && (!modeIsString
-                || (!"enter".equals(mode.getAsString()) && !"dwell".equals(mode.getAsString())))) {
-            issues.add(rp + ".mode 未知值: " + (modeIsString ? mode.getAsString() : mode)
-                    + "（可选: enter / dwell；缺省 enter）");
-        }
-        JsonElement timeout = rule.get("timeout");
-        if (timeout != null && (!isNumber(timeout) || !Float.isFinite(timeout.getAsFloat())
-                || !(timeout.getAsFloat() > 0f))) {
-            issues.add(rp + ".timeout 需要 > 0 的有限数字（秒；缺省 -1 = 无限等待），实际: " + timeout);
-        }
-        JsonElement dwell = rule.get("dwell");
-        if (dwell != null && (!isNumber(dwell) || !Float.isFinite(dwell.getAsFloat())
-                || dwell.getAsFloat() < 0f)) {
-            issues.add(rp + ".dwell 需要 ≥ 0 的有限数字（秒；缺省 0 = 即刻），实际: " + dwell);
-        }
-        if (dwell != null && !"dwell".equals(modeText)) {
-            issues.add(rp + ".dwell 只在 mode=dwell 下生效（当前 mode=" + modeText
-                    + "）：请删掉该字段或改 mode");
-        }
-        if (rule.has("until")) {
-            if (once != null) {
-                issues.add(rp + ".once 在 until 形态下无效（阻塞规则触发即解除，无重复触发概念）：请删掉该字段");
-            }
-            if (cooldown != null) {
-                issues.add(rp + ".cooldown 在 until 形态下无效（阻塞规则触发即解除，无重复触发概念）：请删掉该字段");
-            }
-        }
-    }
-
-    /**
-     * 校验覆盖链 Modifier 字段（CAMERA 片段专用）：clip 级 {@code modifier} 声明与
-     * {@code suppress_modifiers} 标志；与 {@code ScriptParser#parseClipModifier} 同一口径。
-     */
-    private static void checkModifier(JsonObject clip, String cp, List<String> issues) {
-        if (clip.has("suppress_modifiers")) {
-            JsonElement e = clip.get("suppress_modifiers");
-            if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isBoolean()) {
-                issues.add(cp + ".suppress_modifiers 需要布尔值（true = 本片段活跃时跳过 Modifier 链；缺省 false）");
-            }
-        }
-        if (!clip.has("modifier")) return;
-        String mp = cp + ".modifier";
-        JsonElement e = clip.get("modifier");
-        if (!e.isJsonObject()) {
-            issues.add(mp + " 需要对象 {channels, mode?, priority?, <通道值>}");
-            return;
-        }
-        checkModifierBody(e.getAsJsonObject(), mp, issues);
-    }
-
     /**
      * 校验 Modifier 参数体（{@code channels} + {@code mode?} + {@code priority?} + 通道值）：
      * clip 级 {@code modifier} 字段与规则动作 {@code camera_set} 共用（同一份参数结构）。
@@ -2705,229 +1957,10 @@ public final class ScriptValidator {
     }
 
     /**
-     * 校验相机片段的过渡声明（clip 级 {@code transition_curve} / {@code transition_params} /
-     * {@code transition_interrupt}）：分参数形态（通道名 / {@code mode} / {@code duration} / {@code curve}）、
-     * 权重曲线模型定义（与 {@code motion_*} 同一口径）、打断枚举；与 {@code ScriptParser#parseTransitionParams}
-     * 同一口径（校验拦下的写法解析期也会拒绝）。
-     */
-    private static void checkTransition(JsonObject clip, String cp, List<String> issues) {
-        boolean declared = clip.has("transition_curve") || clip.has("transition_params")
-                || clip.has("transition_interrupt");
-        if (declared && !"morph".equals(transitionName(clip))) {
-            issues.add(cp + " 过渡声明（transition_curve / transition_params / transition_interrupt）只对"
-                    + " transition=morph 生效：把 transition 改成 morph，或删掉这些字段");
-        }
-        if (clip.has("transition_curve")) {
-            checkTransitionCurve(clip.get("transition_curve"), cp + ".transition_curve", issues);
-        }
-        if (clip.has("transition_interrupt")) {
-            checkEnum(clip, cp, "transition_interrupt", issues, "blend", "snap");
-        }
-        if (!clip.has("transition_params")) return;
-        String pp = cp + ".transition_params";
-        JsonElement e = clip.get("transition_params");
-        if (!e.isJsonObject()) {
-            issues.add(pp + " 需要对象 {<通道>: {mode?, duration?, curve?}}（通道名: "
-                    + CameraChannels.namesHint() + "）");
-            return;
-        }
-        for (Map.Entry<String, JsonElement> entry : e.getAsJsonObject().entrySet()) {
-            String path = pp + "." + entry.getKey();
-            if (CameraChannels.bitOf(entry.getKey()) == 0) {
-                issues.add(path + " 未知通道（可用: " + CameraChannels.namesHint() + "）");
-                continue;
-            }
-            if (!entry.getValue().isJsonObject()) {
-                issues.add(path + " 需要对象 {mode?, duration?, curve?}");
-                continue;
-            }
-            for (Map.Entry<String, JsonElement> key : entry.getValue().getAsJsonObject().entrySet()) {
-                switch (key.getKey()) {
-                    case "mode" -> checkTransitionMode(key.getValue(), path + ".mode", issues);
-                    case "duration" -> checkTransitionDuration(key.getValue(), path + ".duration", issues);
-                    case "curve" -> checkTransitionCurve(key.getValue(), path + ".curve", issues);
-                    default -> issues.add(path + "." + key.getKey() + " 未知键（结构键: mode / duration / curve）");
-                }
-            }
-        }
-    }
-
-    /** 片段的过渡名（{@code transition} 字段；缺失 / 非字符串 = 缺省 {@code cut}）。 */
-    private static String transitionName(JsonObject clip) {
-        JsonElement e = clip.get("transition");
-        return e != null && e.isJsonPrimitive() && e.getAsJsonPrimitive().isString() ? e.getAsString() : "cut";
-    }
-
-    /** 过渡通道模式：脚本用名 {@code blend} / {@code hold} / {@code cut}（缺省 {@code blend}）。 */
-    private static void checkTransitionMode(JsonElement value, String path, List<String> issues) {
-        String name = value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() ? value.getAsString() : null;
-        if (TransitionMode.byName(name) == null) {
-            issues.add(path + " 需要 blend / hold / cut（缺省 blend）");
-        }
-    }
-
-    /** 过渡通道时长：有限正数（秒）；不做过渡请用 {@code mode: "cut"}。 */
-    private static void checkTransitionDuration(JsonElement value, String path, List<String> issues) {
-        if (!isNumber(value)) {
-            issues.add(path + " 需要数字（秒，> 0）");
-            return;
-        }
-        float duration = value.getAsFloat();
-        if (!Float.isFinite(duration) || duration <= 0f) {
-            issues.add(path + " 需要有限正数（秒）；不做过渡请用 mode: \"cut\"");
-        }
-    }
-
-    /** 过渡权重曲线：模型定义对象（SCALAR 域；缺省 = 线性斜坡）。 */
-    private static void checkTransitionCurve(JsonElement value, String path, List<String> issues) {
-        checkModelDefinition(value, path, ValueDomain.SCALAR.key(), "缺省 = 线性斜坡", issues);
-    }
-
-    /**
-     * 校验相机片段的路径曲线（clip 级 {@code curve}）：形态 / 参数 / 必填全部归
-     * {@link PathCurveRegistry#create}（与 {@code ScriptParser} 同一入口，不重复实现校验）。
-     */
-    private static void checkPathCurve(JsonObject clip, String cp, List<String> issues) {
-        if (!clip.has("curve")) return;
-        JsonElement value = clip.get("curve");
-        if (!value.isJsonObject()) {
-            issues.add(cp + ".curve 需要对象 {type, ...参数}");
-            return;
-        }
-        try {
-            PathCurveRegistry.create(value.getAsJsonObject(), cp + ".curve");
-        } catch (PathCurveException e) {
-            issues.add(e.fieldPath() + ": " + e.getMessage());
-        }
-    }
-
-    /** 路径曲线只写在 CAMERA 片段上：其余轨道上写 = 不生效（与 {@code ScriptParser} 同一口径）。 */
-    private static void checkCurveTrackScope(JsonObject clip, String cp, String type, List<String> issues) {
-        if ("CAMERA".equalsIgnoreCase(type)) return;
-        if (clip.has("curve")) {
-            issues.add(cp + ".curve 只支持写在 CAMERA 轨的片段上");
-        }
-    }
-
-    /** 覆盖链 Modifier / 过渡声明字段只写在 CAMERA 片段上：其余轨道上写 = 不生效（与 {@code lut} 的轨道口径同款）。 */
-    private static void checkModifierTrackScope(JsonObject clip, String cp, String type, List<String> issues) {
-        if ("CAMERA".equalsIgnoreCase(type)) return;
-        for (String field : new String[]{"modifier", "suppress_modifiers"}) {
-            if (clip.has(field)) {
-                issues.add(cp + "." + field + " 不支持（覆盖链 Modifier 只作用于覆盖链输出 / 全局相机状态）："
-                        + "该字段只写在 CAMERA 轨的片段上");
-            }
-        }
-        for (String field : new String[]{"transition_curve", "transition_params", "transition_interrupt"}) {
-            if (clip.has(field)) {
-                issues.add(cp + "." + field + " 不支持（过渡声明只写在 CAMERA 轨的片段上）");
-            }
-        }
-    }
-
-    /**
-     * 校验 LUT 字段（ADJUST 轨专用：LUT 是对整体画面（master）的烘焙，逐 lane / 相机片段不参与）：
-     * clip 级 {@code lut}（文件名，见 {@link #checkLutFile}）与 {@code lut_input_gamma}（幂指数，
-     * {@code > 0}，缺省 1 = 不变换，见 {@link #checkLutInputGamma}）；关键帧级 {@code lut_strength}
-     * （0 ~ 1，缺省 1 = 全量生效，写回 0 = 淡出）。{@code clip} / {@code kf} 另一侧传 {@code null}。
-     */
-    private static void checkLutFields(JsonObject clip, String cp, JsonObject kf, String kp,
-                                       List<String> issues) {
-        if (clip != null) {
-            if (clip.has("lut")) {
-                checkLutFile(clip.get("lut"), cp + ".lut", issues);
-            }
-            if (clip.has("lut_input_gamma")) {
-                checkLutInputGamma(clip.get("lut_input_gamma"), cp + ".lut_input_gamma", issues);
-            }
-        }
-        if (kf != null) {
-            checkRange(kf, kp, "lut_strength", issues, 0f, 1f);
-        }
-    }
-
-    /**
-     * 校验层级混合字段（ADJUST 轨专用：混合模式作用于调整层 = ADJUST 轨的输出与基画面
-     * （{@code Sampler0} 原图）的层级混合，逐 lane / 相机片段不参与）：clip 级 {@code blend_mode} 枚举
-     * （缺省 {@code normal} = 直替换，见 {@link #checkBlendMode}）；关键帧级 {@code blend_amount} 0 ~ 1
-     * （缺省 1 = 全量生效，写回 0 = 调整层整体透明）。{@code clip} / {@code kf} 另一侧传 {@code null}。
-     */
-    private static void checkBlendFields(JsonObject clip, String cp, JsonObject kf, String kp,
-                                         List<String> issues) {
-        if (clip != null && clip.has("blend_mode")) {
-            checkBlendMode(clip.get("blend_mode"), cp + ".blend_mode", issues);
-        }
-        if (kf != null) {
-            checkRange(kf, kp, "blend_amount", issues, 0f, 1f);
-        }
-    }
-
-    /**
-     * 校验 clip 级 {@code blend_mode}：字符串，合法值 = {@code normal} / {@code multiply} / {@code screen} /
-     * {@code soft_light} / {@code overlay}（缺省 {@code normal} = 直替换）。
-     * 与 {@code ScriptParser#parseBlendMode} 同一口径；字段缺省时跳过。
-     */
-    private static void checkBlendMode(JsonElement e, String path, List<String> issues) {
-        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
-            issues.add(path + " 需要字符串（normal / multiply / screen / soft_light / overlay；缺省 normal）");
-            return;
-        }
-        String mode = e.getAsString();
-        for (String allowed : BLEND_MODES) {
-            if (allowed.equals(mode)) {
-                return;
-            }
-        }
-        issues.add(path + " 未知值: " + mode + "（可选: "
-                + String.join(" / ", BLEND_MODES) + "）");
-    }
-
-    /**
-     * 校验 clip 级 {@code lut_input_gamma}（LUT 输入域适配的幂指数）：数字、必须 {@code > 0}
-     * （缺省 1 = 不变换，恒合法；{@code NaN} / Infinity 同样被拒）。
-     * 与 {@code ScriptParser#parseLutInputGamma} 同一口径；字段缺省时跳过，{@code lut} 缺省时本字段被忽略。
-     */
-    private static void checkLutInputGamma(JsonElement e, String path, List<String> issues) {
-        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) {
-            issues.add(path + " 需要数字（必须大于 0；缺省 1 = 不变换）");
-            return;
-        }
-        float gamma = e.getAsFloat();
-        if (!Float.isFinite(gamma)) {
-            // +Infinity 也落在这里：`Inf > 0` 为 true，只靠「大于 0」拦不住
-            issues.add(path + " 必须大于 0 的有限数字（NaN / Infinity；缺省 1 = 不变换）：" + gamma);
-        } else if (gamma != 1.0F && !(gamma > 0.0F)) {
-            issues.add(path + " 必须大于 0（缺省 1 = 不变换）：" + gamma);
-        }
-    }
-
-    /**
-     * 校验 clip 级 {@code lut}（LUT 文件名）：字符串、非空、不含路径分隔符（{@code /} / {@code \} / {@code :}）。
-     * 与 {@code ScriptParser#parseLutFile} 同一口径。文件是否存在此处不查（校验器无游戏目录上下文；
-     * 缺失由 {@code CubeLutLoader} 记日志、按「无 LUT」继续）。
-     */
-    private static void checkLutFile(JsonElement e, String path, List<String> issues) {
-        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
-            issues.add(path + " 需要字符串（resource/ 目录下的 .cube 文件名）");
-            return;
-        }
-        String name = e.getAsString();
-        if (name.isBlank()) {
-            issues.add(path + " 文件名不能为空");
-        } else if (name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 || name.indexOf(':') >= 0) {
-            issues.add(path + " 文件名不能包含路径分隔符（LUT 只取 resource/ 目录下的文件）：" + name);
-        } else if (".".equals(name) || "..".equals(name)) {
-            issues.add(path + " 文件名非法：" + name);
-        }
-    }
-
-    /**
-     * 校验 {@code meta.screen_layers} / {@code meta.screen_layer_mode}，并对 deprecated 的
-     * {@code meta.hud_layers} / {@code meta.hard_hide_hud} 给出提示。
+     * 校验 {@code meta.screen_layers} / {@code meta.screen_layer_mode}。
      *
      * <p>与 {@code ScriptParser#parseScreenLayers} / {@code ScriptParser#resolveScreenLayerMode}
-     * 同一口径：{@code screen_layers} 的值 = 显示（true 显示 / false 隐藏）；未知名按动态层名处理；
-     * 显式 {@code screen_layer_mode} 优先于 {@code hard_hide_hud} 别名。</p>
+     * 同一口径：{@code screen_layers} 的值 = 显示（true 显示 / false 隐藏）；未知名按动态层名处理。</p>
      */
     private static void checkScreenLayers(JsonObject root, List<String> issues) {
         if (!root.has("meta") || !root.get("meta").isJsonObject()) return;
@@ -2968,41 +2001,6 @@ public final class ScriptValidator {
                         + "（可选: normal / allowlist），运行时按未声明处理");
             }
         }
-
-        // hard_hide_hud：deprecated 别名（true → allowlist / false → normal）；与显式模式冲突时显式字段优先
-        JsonElement hardEl = meta.get("hard_hide_hud");
-        if (hardEl != null && !hardEl.isJsonNull()) {
-            Boolean hard = boolValue(hardEl);
-            if (hard == null) {
-                issues.add("meta.hard_hide_hud 需要布尔值（deprecated 别名：true → allowlist，false → normal），实际: "
-                        + hardEl);
-            } else if (declaredEl != null && isString(declaredEl)
-                    && ScreenLayerMode.isKnown(declaredEl.getAsString())) {
-                boolean aliasAllowlist = hard;
-                boolean declaredAllowlist =
-                        ScreenLayerMode.fromString(declaredEl.getAsString()) == ScreenLayerMode.ALLOWLIST;
-                if (aliasAllowlist != declaredAllowlist) {
-                    issues.add(WARNING_PREFIX + "meta.hard_hide_hud=" + hard
-                            + " 与 meta.screen_layer_mode=" + declaredEl.getAsString()
-                            + " 语义不一致；screen_layer_mode 优先（hard_hide_hud 是 deprecated 别名）");
-                }
-            }
-        }
-
-        // hud_layers：deprecated 入口（解析期归一到 screen_layers；固定分类键不生效）
-        JsonElement hudEl = meta.get("hud_layers");
-        if (hudEl != null && !hudEl.isJsonNull()) {
-            issues.add(WARNING_PREFIX + "meta.hud_layers 已弃用（deprecated）：请改用 meta.screen_layers"
-                    + "（true = 显示 / false = 隐藏，支持 15 个规范层名）；"
-                    + "hud_layers 中的固定分类键不生效（解析期丢弃）");
-        }
-    }
-
-    /** 读 JSON 布尔：缺失 / null / 非布尔 → null。 */
-    private static Boolean boolValue(JsonElement e) {
-        if (e == null || e.isJsonNull()) return null;
-        if (e.isJsonPrimitive() && e.getAsJsonPrimitive().isBoolean()) return e.getAsBoolean();
-        return null;
     }
 
     /**
@@ -3045,742 +2043,8 @@ public final class ScriptValidator {
         }
     }
 
-    /**
-     * 拒绝已移除的 {@code scope} / {@code lane} 字段（ADJUST 与 CAMERA 两种轨道的 clip 都拦）：
-     * lane 级调色直接写在 CAMERA 片段上，ADJUST 轨只管整体画面（master）。
-     */
-    private static void checkRemovedScopeLane(JsonObject clip, String cp, List<String> issues) {
-        if (clip.has("scope")) {
-            issues.add(cp + ".scope 已移除（0.3.6 起 lane 级调色改为相机片段字段）："
-                    + "调色直接写在 CAMERA 片段上；ADJUST 轨只管整体画面（master）");
-        }
-        if (clip.has("lane")) {
-            issues.add(cp + ".lane 已移除（0.3.6 起 lane 级调色改为相机片段字段）："
-                    + "调色直接写在 CAMERA 片段上；ADJUST 轨只管整体画面（master）");
-        }
-    }
-
-    /**
-     * 拒绝已移除的 {@code fit} 关键帧字段（OVERLAY 轨）：元素框由素材派生，形状由
-     * {@code scale_x} / {@code scale_y} 表达，没有独立的框可适配。
-     */
-    private static void checkRemovedFit(JsonObject kf, String kp, List<String> issues) {
-        if (kf.has("fit")) {
-            issues.add(kp + ".fit 已移除（0.3.6 起）：形状由 scale_x/scale_y 表达");
-        }
-    }
-
-    /** OVERLAY 的生效 layer_type：缺省 / 非原始值按运行期口径回落 {@code fade}。 */
-    private static String overlayLayerType(JsonObject clip) {
-        return clip.has("layer_type") && clip.get("layer_type").isJsonPrimitive()
-                ? clip.get("layer_type").getAsString() : "fade";
-    }
-
-    /**
-     * 是否 fade 的「仅关键帧」字段（{@link #FADE_ONLY_KEYFRAME_FIELDS} 去掉两级都合法的 {@code color}）。
-     * 复用同一集合做 clip 级交叉归属检查，避免再复制一套字段名。
-     */
-    private static boolean isFadeKeyframeOnlyField(String fieldName) {
-        if ("color".equals(fieldName)) return false;
-        for (String candidate : FADE_ONLY_KEYFRAME_FIELDS) {
-            if (candidate.equals(fieldName)) return true;
-        }
-        return false;
-    }
-
-    /**
-     * 校验 CAMERA 片段的 {@code dimension}：声明时必须是字符串；非空时必须是合法的资源位置
-     * （{@code namespace:path}，如 {@code minecraft:overworld}）。空串 = 玩家当前维度。
-     * 该字段只描述「这条 lane 从哪个维度渲染」，不做任何玩家传送。
-     */
-    private static void checkCameraDimension(JsonObject clip, String cp, List<String> issues) {
-        if (!clip.has("dimension")) return;
-        JsonElement e = clip.get("dimension");
-        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
-            issues.add(cp + ".dimension 需要字符串（维度 id，如 minecraft:overworld；空串 = 玩家当前维度）");
-            return;
-        }
-        String dimension = e.getAsString();
-        if (dimension.isEmpty()) return;
-        if (ResourceLocation.tryParse(dimension) == null) {
-            issues.add(cp + ".dimension 不是合法的维度 id: " + dimension
-                    + "（需要 namespace:path，如 minecraft:overworld）");
-        }
-    }
-
-    /**
-     * 校验 CAMERA 片段的 clip 级 lane 合成遮罩字段：形状 {@code mask_shape} 枚举；
-     * 几何通道只属于关键帧；fade 渐变字段不被 CAMERA 接受。
-     * {@code blend_mode} 在 CAMERA 片段上已由调用方的 ADJUST 专用检查拦下（不重复报）。
-     */
-    private static void checkCameraMaskClipFields(JsonObject clip, String cp, List<String> issues) {
-        if (clip.has("mask_shape")) {
-            checkFadeEnum(clip, cp, "mask_shape", issues, FADE_MASK_SHAPES);
-        }
-        for (String field : CAMERA_MASK_GEOMETRY_FIELDS) {
-            if (clip.has(field)) {
-                issues.add(cp + "." + field
-                        + " 只属于关键帧（mask_x / mask_y / mask_width / mask_height / mask_radius"
-                        + " 必须写在 keyframes 元素里，clip 级不生效）");
-            }
-        }
-        for (String field : FADE_GRADIENT_FIELDS) {
-            if (clip.has(field)) {
-                issues.add(cp + "." + field
-                        + " fade 专用（gradient / gradient_* 只属于 OVERLAY 的 layer_type=fade）："
-                        + "CAMERA lane 遮罩用 clip 级 mask_shape + 关键帧 mask_* 几何");
-            }
-        }
-    }
-
-    /**
-     * 校验 CAMERA 关键帧的 lane 合成遮罩几何：{@code mask_x} / {@code mask_y} 有限；
-     * {@code mask_width} / {@code mask_height} / {@code mask_radius} 有限非负。形状只属于 clip 级，
-     * fade 渐变字段不属于 CAMERA。
-     */
-    private static void checkCameraMaskKeyframeFields(JsonObject kf, String kp, List<String> issues) {
-        if (kf.has("mask_shape")) {
-            issues.add(kp + ".mask_shape 只属于 clip 级（形状在片段级声明，关键帧不生效）");
-        }
-        for (String field : FADE_GRADIENT_FIELDS) {
-            if (kf.has(field)) {
-                issues.add(kp + "." + field
-                        + " fade 专用（gradient / gradient_* 只属于 OVERLAY 的 layer_type=fade）："
-                        + "CAMERA lane 遮罩用 clip 级 mask_shape + 关键帧 mask_* 几何");
-            }
-        }
-        if (kf.has("blend_mode")) {
-            issues.add(kp + ".blend_mode 只属于 clip 级（混合模式只写在 ADJUST 轨片段的 clip 级）");
-        }
-        checkFiniteFloat(kf, kp, "mask_x", issues);
-        checkFiniteFloat(kf, kp, "mask_y", issues);
-        checkNonNegativeFloat(kf, kp, "mask_width", issues);
-        checkNonNegativeFloat(kf, kp, "mask_height", issues);
-        checkNonNegativeFloat(kf, kp, "mask_radius", issues);
-    }
-
-    /**
-     * 校验 fade 片段的 clip 级高级颜色遮罩字段：{@code gradient} 结构（类型 / 至少 2 个色标 /
-     * offset 有限且 0~1 严格递增 / 颜色合法）、{@code mask_shape} 与 {@code blend_mode} 枚举。
-     * 字段缺省时跳过（缺省值生效）；色标数量不设上限，首尾 offset 不要求恰好 0 / 1
-     * （范围外由渲染侧保持端点）。
-     */
-    private static void checkFadeClipFields(JsonObject clip, String cp, List<String> issues) {
-        // 归属交叉检查：mask_* / gradient_* 数值通道只属于关键帧（color 两级都合法）
-        for (String field : FADE_ONLY_KEYFRAME_FIELDS) {
-            if (isFadeKeyframeOnlyField(field) && clip.has(field)) {
-                issues.add(cp + "." + field
-                        + " 只属于关键帧（数值通道必须写在 keyframes 元素里，clip 级不生效）");
-            }
-        }
-        if (clip.has("mask_shape")) {
-            checkFadeEnum(clip, cp, "mask_shape", issues, FADE_MASK_SHAPES);
-        }
-        if (clip.has("blend_mode")) {
-            checkFadeEnum(clip, cp, "blend_mode", issues, BLEND_MODES);
-        }
-        if (!clip.has("gradient")) return;
-
-        String gp = cp + ".gradient";
-        JsonElement gradientElement = clip.get("gradient");
-        if (!gradientElement.isJsonObject()) {
-            issues.add(gp + " 需要对象 {type: linear|radial, stops: [...]}（缺省 = 纯色）");
-            return;
-        }
-        JsonObject gradient = gradientElement.getAsJsonObject();
-        if (!gradient.has("type")) {
-            issues.add(gp + ".type 缺失（linear / radial）");
-        } else {
-            checkFadeEnum(gradient, gp, "type", issues, "linear", "radial");
-        }
-
-        if (!gradient.has("stops")) {
-            issues.add(gp + ".stops 缺失（至少 2 个色标 {offset, color}）");
-            return;
-        }
-        JsonElement stopsElement = gradient.get("stops");
-        if (!stopsElement.isJsonArray()) {
-            issues.add(gp + ".stops 需要数组 [{offset, color}, ...]（至少 2 个色标）");
-            return;
-        }
-        JsonArray stops = stopsElement.getAsJsonArray();
-        if (stops.size() < 2) {
-            issues.add(gp + ".stops 至少需要 2 个色标，实际: " + stops.size());
-        }
-        float previous = Float.NEGATIVE_INFINITY;
-        for (int i = 0; i < stops.size(); i++) {
-            String sp = gp + ".stops[" + i + "]";
-            JsonElement stopElement = stops.get(i);
-            if (!stopElement.isJsonObject()) {
-                issues.add(sp + " 需要对象 {offset, color}");
-                continue;
-            }
-            JsonObject stop = stopElement.getAsJsonObject();
-            if (!stop.has("offset")) {
-                issues.add(sp + ".offset 缺失（有限数字 0~1）");
-            } else {
-                JsonElement offsetElement = stop.get("offset");
-                if (!isNumber(offsetElement)) {
-                    issues.add(sp + ".offset 不是数字（范围 0~1）");
-                } else {
-                    float offset = offsetElement.getAsFloat();
-                    if (!Float.isFinite(offset)) {
-                        issues.add(sp + ".offset 不是有限数字（NaN / Infinity；范围 0~1）：" + offset);
-                    } else {
-                        if (offset < 0f || offset > 1f) {
-                            issues.add(sp + ".offset 超出范围 0~1：" + offset);
-                        }
-                        if (i > 0 && offset <= previous) {
-                            issues.add(sp + ".offset 必须严格递增（前一个 offset = "
-                                    + previous + "，当前 = " + offset + "）");
-                        }
-                        previous = offset;
-                    }
-                }
-            }
-            if (!stop.has("color")) {
-                issues.add(sp + ".color 缺失（#RRGGBB 六位十六进制）");
-            } else {
-                checkHexColor(stop, sp, "color", issues);
-            }
-        }
-    }
-
-    /** 校验 fade 关键帧的高级颜色遮罩通道：有限值 / 非负 / 正数 / 0~1 / 颜色格式。 */
-    private static void checkFadeKeyframeFields(JsonObject kf, String kp, List<String> issues) {
-        // 归属交叉检查：gradient / mask_shape / blend_mode 只属于 clip 级（color 两级都合法）
-        for (String field : FADE_ONLY_CLIP_FIELDS) {
-            if (kf.has(field)) {
-                issues.add(kp + "." + field
-                        + " 只属于 clip 级（不能写在关键帧里，关键帧不生效）");
-            }
-        }
-        checkUnitFloat(kf, kp, "opacity", issues);
-        checkHexColor(kf, kp, "color", issues);
-        checkFiniteFloat(kf, kp, "mask_x", issues);
-        checkFiniteFloat(kf, kp, "mask_y", issues);
-        checkNonNegativeFloat(kf, kp, "mask_width", issues);
-        checkNonNegativeFloat(kf, kp, "mask_height", issues);
-        checkNonNegativeFloat(kf, kp, "mask_radius", issues);
-        checkFiniteFloat(kf, kp, "gradient_angle", issues);
-        checkFiniteFloat(kf, kp, "gradient_center_x", issues);
-        checkFiniteFloat(kf, kp, "gradient_center_y", issues);
-        checkPositiveFloat(kf, kp, "gradient_radius", issues);
-    }
-
-    /** 枚举字段（新 fade 字段专用）：先做类型守卫，非法类型只记 issue，不抛异常。 */
-    private static void checkFadeEnum(JsonObject obj, String path, String key, List<String> issues,
-                                      String... allowed) {
-        JsonElement e = obj.get(key);
-        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
-            issues.add(path + "." + key + " 应为字符串（可选: " + String.join(" / ", allowed) + "）");
-            return;
-        }
-        String value = e.getAsString();
-        for (String candidate : allowed) {
-            if (candidate.equals(value)) return;
-        }
-        issues.add(path + "." + key + " 未知值: " + value
-                + "（可选: " + String.join(" / ", allowed) + "）");
-    }
-
-    private static void checkFiniteFloat(JsonObject obj, String path, String key, List<String> issues) {
-        if (!obj.has(key)) return;
-        JsonElement e = obj.get(key);
-        if (!isNumber(e)) {
-            issues.add(path + "." + key + " 不是数字");
-            return;
-        }
-        float value = e.getAsFloat();
-        if (!Float.isFinite(value)) {
-            issues.add(path + "." + key + " 不是有限数字（NaN / Infinity）：" + value);
-        }
-    }
-
-    private static void checkNonNegativeFloat(JsonObject obj, String path, String key, List<String> issues) {
-        if (!obj.has(key)) return;
-        JsonElement e = obj.get(key);
-        if (!isNumber(e)) {
-            issues.add(path + "." + key + " 不是数字（必须非负）");
-            return;
-        }
-        float value = e.getAsFloat();
-        if (!Float.isFinite(value)) {
-            issues.add(path + "." + key + " 不是有限数字（NaN / Infinity）：" + value);
-            return;
-        }
-        if (value < 0f) {
-            issues.add(path + "." + key + " 不能为负数：" + value);
-        }
-    }
-
-    private static void checkPositiveFloat(JsonObject obj, String path, String key, List<String> issues) {
-        if (!obj.has(key)) return;
-        JsonElement e = obj.get(key);
-        if (!isNumber(e)) {
-            issues.add(path + "." + key + " 不是数字（必须大于 0）");
-            return;
-        }
-        float value = e.getAsFloat();
-        if (!Float.isFinite(value)) {
-            issues.add(path + "." + key + " 不是有限数字（NaN / Infinity）：" + value);
-            return;
-        }
-        if (!(value > 0f)) {
-            issues.add(path + "." + key + " 必须大于 0：" + value);
-        }
-    }
-
-    /** fade 专用字段写在 image / subtitle 片段上：明确报错（不静默存值宣称生效）。 */
-    private static void rejectFadeOnlyFields(JsonObject obj, String path, String[] fields,
-                                             String layerType, List<String> issues) {
-        for (String field : fields) {
-            if (obj.has(field)) {
-                issues.add(path + "." + field + " 仅 layer_type=fade 支持（当前 layer_type="
-                        + layerType + "）：高级颜色遮罩字段只属于 fade");
-            }
-        }
-    }
-
-    /** fade 的「仅关键帧」数值通道写在 image / subtitle 的 clip 级：明确报错。 */
-    private static void rejectFadeKeyframeOnlyFields(JsonObject obj, String path, String layerType,
-                                                     List<String> issues) {
-        for (String field : FADE_ONLY_KEYFRAME_FIELDS) {
-            if (isFadeKeyframeOnlyField(field) && obj.has(field)) {
-                issues.add(path + "." + field + " 仅 layer_type=fade 支持（当前 layer_type="
-                        + layerType + "）：高级颜色遮罩字段只属于 fade");
-            }
-        }
-    }
-
-    /**
-     * 校验调色曲线（clip 级结构字段 {@link #COLOR_CURVE_FIELDS}，如 {@code rgb_curve} / {@code r_curve} /
-     * {@code g_curve} / {@code b_curve} / 六条 hue 曲线）：
-     * 控制点数组 {@code [[x,y], ...]}——至少 2 点、每点 2 个数字、{@code x} 严格递增、{@code x} / {@code y} 各 0~1
-     * （与 {@code ScriptParser#parseColorCurve} 同一口径：校验拦下的写法解析期也会拒绝）。
-     * 曲线不能静默忽略：它是作者显式写下的意图，悄悄丢掉会得到「脚本没错但画面不对」。
-     */
-    private static void checkColorCurve(JsonElement e, String path, List<String> issues) {
-        if (!e.isJsonArray()) {
-            issues.add(path + " 需要控制点数组 [[x,y], ...]");
-            return;
-        }
-        JsonArray arr = e.getAsJsonArray();
-        if (arr.size() < 2) {
-            issues.add(path + " 至少需要 2 个控制点，实际: " + arr.size());
-            return;
-        }
-        float prevX = Float.NEGATIVE_INFINITY;
-        for (int i = 0; i < arr.size(); i++) {
-            String pp = path + "[" + i + "]";
-            JsonElement pe = arr.get(i);
-            if (!pe.isJsonArray() || pe.getAsJsonArray().size() != 2
-                    || !isNumber(pe.getAsJsonArray().get(0)) || !isNumber(pe.getAsJsonArray().get(1))) {
-                issues.add(pp + " 需要 [x, y] 两个数字");
-                continue;
-            }
-            float x = pe.getAsJsonArray().get(0).getAsFloat();
-            float y = pe.getAsJsonArray().get(1).getAsFloat();
-            if (!Float.isFinite(x) || !Float.isFinite(y)) {
-                // 非有限控制点：与 0~1 及「严格递增」的比较全为 false，必须单独拦下
-                issues.add(pp + " 不是有限数字（NaN / Infinity）：" + x + ", " + y);
-                continue;
-            }
-            if (x < 0f || x > 1f || y < 0f || y > 1f) {
-                issues.add(pp + " 超出 0~1：" + x + ", " + y);
-            }
-            if (x <= prevX) {
-                issues.add(pp + " 控制点 x 必须严格递增（前一个 x = " + prevX + "，当前 = " + x + "）");
-            }
-            prevX = x;
-        }
-    }
-
     private static boolean isNumber(JsonElement e) {
         return e.isJsonPrimitive() && e.getAsJsonPrimitive().isNumber();
-    }
-
-    /**
-     * 校验归一化浮点字段（如合成参数 opacity）：必须是数字且在 0~1；字段缺省时跳过（默认值生效）。
-     */
-    private static void checkUnitFloat(JsonObject obj, String path, String key, List<String> issues) {
-        if (!obj.has(key)) return;
-        JsonElement e = obj.get(key);
-        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isNumber()) {
-            issues.add(path + "." + key + " 不是数字（范围 0~1）");
-            return;
-        }
-        float v = e.getAsFloat();
-        if (!Float.isFinite(v)) {
-            issues.add(path + "." + key + " 不是有限数字（NaN / Infinity；范围 0~1）：" + v);
-            return;
-        }
-        if (v < 0f || v > 1f) {
-            issues.add(path + "." + key + " 超出范围 0~1: " + v);
-        }
-    }
-
-    /**
-     * 校验选择器目标锁定策略字段（CAMERA 关键帧）：通用字段与调用点专属字段
-     * （{@code <字段>_<调用点>}）同口径——刷新 / 切换间隔 / 切换平滑为非负有限秒数，
-     * 存活期切换为布尔。字段缺省 = 回落（不报错）；未知调用点后缀不在名单内 = 不校验。
-     */
-    private static void checkSelectorPolicy(JsonObject kf, String path, List<String> issues) {
-        checkSelectorSeconds(kf, path, "selector_refresh", issues);
-        checkSelectorBool(kf, path, "selector_switch_while_alive", issues);
-        checkSelectorSeconds(kf, path, "selector_switch_interval", issues);
-        checkSelectorSeconds(kf, path, "selector_switch_smooth", issues);
-        for (String callpoint : SelectorSchema.CALLPOINTS) {
-            checkSelectorSeconds(kf, path, SelectorSchema.callpointField("selector_refresh", callpoint), issues);
-            checkSelectorBool(kf, path,
-                    SelectorSchema.callpointField("selector_switch_while_alive", callpoint), issues);
-            checkSelectorSeconds(kf, path,
-                    SelectorSchema.callpointField("selector_switch_interval", callpoint), issues);
-            checkSelectorSeconds(kf, path,
-                    SelectorSchema.callpointField("selector_switch_smooth", callpoint), issues);
-        }
-    }
-
-    /**
-     * 校验选择器锚点字段（CAMERA 关键帧）：通用 {@code selector_anchor} 与调用点专属
-     * {@code selector_anchor_<调用点>} 同口径——取值须为 {@link SelectorSchema#ANCHORS} 之一。
-     * 字段缺省 = 回落（不报错）；未知调用点后缀不在名单内 = 不校验。
-     */
-    private static void checkSelectorAnchor(JsonObject kf, String path, List<String> issues) {
-        checkSelectorAnchorValue(kf, path, "selector_anchor", issues);
-        for (String callpoint : SelectorSchema.CALLPOINTS) {
-            checkSelectorAnchorValue(kf, path, SelectorSchema.callpointField("selector_anchor", callpoint), issues);
-        }
-    }
-
-    /** 单个锚点字段：非字符串 / 四值集之外的取值都报错；字段缺省时跳过（回落通用字段 / 缺省 camera）。 */
-    private static void checkSelectorAnchorValue(JsonObject obj, String path, String key, List<String> issues) {
-        if (!obj.has(key)) return;
-        JsonElement e = obj.get(key);
-        String allowed = String.join(" / ", SelectorSchema.ANCHORS);
-        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
-            issues.add(path + "." + key + " 不是字符串（可选: " + allowed + "）");
-            return;
-        }
-        String v = e.getAsString();
-        for (String a : SelectorSchema.ANCHORS) {
-            if (a.equals(v)) return;
-        }
-        issues.add(path + "." + key + " 未知值: " + v + "（可选: " + allowed + "）");
-    }
-
-    /**
-     * 校验选择器择一字段（CAMERA 关键帧）：通用 {@code selector_pick} 与调用点专属
-     * {@code selector_pick_<调用点>} 同口径——取值须为 {@link SelectorSchema#PICKS} 之一。
-     * 字段缺省 = 回落（不报错）；未知调用点后缀不在名单内 = 不校验。
-     */
-    private static void checkSelectorPick(JsonObject kf, String path, List<String> issues) {
-        checkSelectorPickValue(kf, path, "selector_pick", issues);
-        for (String callpoint : SelectorSchema.CALLPOINTS) {
-            checkSelectorPickValue(kf, path, SelectorSchema.callpointField("selector_pick", callpoint), issues);
-        }
-    }
-
-    /** 单个择一字段：非字符串 / 三值集之外的取值都报错；字段缺省时跳过（回落通用字段 / 缺省 first）。 */
-    private static void checkSelectorPickValue(JsonObject obj, String path, String key, List<String> issues) {
-        if (!obj.has(key)) return;
-        JsonElement e = obj.get(key);
-        String allowed = String.join(" / ", SelectorSchema.PICKS);
-        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
-            issues.add(path + "." + key + " 不是字符串（可选: " + allowed + "）");
-            return;
-        }
-        String v = e.getAsString();
-        for (String p : SelectorSchema.PICKS) {
-            if (p.equals(v)) return;
-        }
-        issues.add(path + "." + key + " 未知值: " + v + "（可选: " + allowed + "）");
-    }
-
-    /**
-     * 校验点源偏移字段 {@code <字段>_offset}（对象形态）：{@code dx/dy/dz}（世界轴，缺省表达空间）或
-     * {@code fwd/up/right}（基准坐标系）二选一（混写报错），已给出的分量须为有限数字（单位方块）。
-     * 基准坐标系偏移需要本关键帧建立基准坐标系（见 {@link #hasFrame}），否则该偏移不生效。
-     */
-    private static void checkPointOffset(JsonObject kf, String path, String field, List<String> issues) {
-        if (!kf.has(field)) return;
-        String pp = path + "." + field;
-        JsonElement e = kf.get(field);
-        if (!e.isJsonObject()) {
-            issues.add(pp + " 应为对象（世界轴 {dx,dy,dz} 或基准坐标系 {fwd,up,right}）");
-            return;
-        }
-        JsonObject o = e.getAsJsonObject();
-        boolean world = o.has("dx") || o.has("dy") || o.has("dz");
-        boolean base = o.has("fwd") || o.has("up") || o.has("right");
-        if (world && base) {
-            issues.add(pp + " 不能混用世界轴（dx/dy/dz）与基准坐标系（fwd/up/right）分量");
-            return;
-        }
-        for (String axis : base ? new String[]{"fwd", "up", "right"} : new String[]{"dx", "dy", "dz"}) {
-            if (!o.has(axis)) continue;
-            JsonElement c = o.get(axis);
-            if (!isNumber(c) || !Float.isFinite(c.getAsFloat())) {
-                issues.add(pp + "." + axis + " 不是有限数字（偏移量，单位方块）");
-            }
-        }
-        if (base && !hasFrame(kf)) {
-            issues.add(pp + " 用基准坐标系（fwd/up/right）表达，但本关键帧没有基准坐标系"
-                    + "（需写 facing_origin / facing_target，或位置用 fwd/up/right）——该偏移不生效");
-        }
-    }
-
-    /**
-     * 本关键帧是否建立基准坐标系：写了 {@code facing_origin} / {@code facing_target}，
-     * 或位置用基准坐标系偏移（{@code fwd}/{@code up}/{@code right}）。
-     */
-    private static boolean hasFrame(JsonObject kf) {
-        if (kf.has("facing_origin") || kf.has("facing_target")) return true;
-        JsonElement pos = kf.get("position");
-        if (pos == null || !pos.isJsonObject()) return false;
-        JsonObject p = pos.getAsJsonObject();
-        return p.has("fwd") || p.has("up") || p.has("right");
-    }
-
-    /**
-     * 拒绝已移除的位置基准字段（{@code position.relative_origin} 与配套坐标）：位置基准统一用
-     * 关键帧字段 {@code facing_origin}（五形态），两种偏移表达空间共用同一位置点源。
-     */
-    private static void checkRemovedRelativeOrigin(JsonObject kf, String path, List<String> issues) {
-        JsonElement pos = kf.get("position");
-        if (pos == null || !pos.isJsonObject()) return;
-        JsonObject p = pos.getAsJsonObject();
-        for (String field : new String[]{"relative_origin", "relative_origin_x", "relative_origin_y",
-                "relative_origin_z"}) {
-            if (p.has(field)) {
-                issues.add(path + ".position." + field + " 已移除（0.3.6 起）：位置基准统一用关键帧字段 facing_origin"
-                        + "（点源形态：坐标取 facing_origin_x/y/z）");
-            }
-        }
-    }
-
-    /**
-     * 拒绝已移除的垂直面基准字段 {@code position.up_axis}：基准坐标系的上轴固定为世界竖直
-     * （前轴 / 右轴取水平面内分量），方向侧每轴跟来源 / 锁值改用 {@code yaw_lock} / {@code pitch_lock}。
-     */
-    private static void checkRemovedUpAxis(JsonObject kf, String path, List<String> issues) {
-        JsonElement pos = kf.get("position");
-        if (pos == null || !pos.isJsonObject()) return;
-        if (pos.getAsJsonObject().has("up_axis")) {
-            issues.add(path + ".position.up_axis 已移除（0.3.6 起）：基准坐标系的上轴固定为世界竖直"
-                    + "（前轴 / 右轴取水平面内分量）；方向侧每轴跟来源 / 锁值改用 yaw_lock / pitch_lock");
-        }
-    }
-
-    /**
-     * 校验方向锁字段（{@code yaw_lock} / {@code pitch_lock}）：取值须为有限数字（该轴世界角锁值，单位度）；
-     * 字段缺省 = 不锁（跟方向源），不报错。
-     */
-    private static void checkAxisLock(JsonObject kf, String path, String key, List<String> issues) {
-        if (!kf.has(key)) return;
-        JsonElement e = kf.get(key);
-        if (!isNumber(e) || !Float.isFinite(e.getAsFloat())) {
-            issues.add(path + "." + key + " 不是有限数字（方向锁 = 该轴世界角锁值，单位度；不写 = 跟方向源）");
-        }
-    }
-
-    /**
-     * 拒绝已移除的注视目标对象 {@code look_at_target}（含 {@code relative_to} / 对象内偏移）：
-     * 注视目标统一为点源 + 偏移。
-     */
-    private static void checkRemovedLookAtTarget(JsonObject kf, String path, List<String> issues) {
-        if (kf.has("look_at_target")) {
-            issues.add(path + ".look_at_target 已移除（0.3.6 起）：注视目标统一为点源 + 偏移——实体用"
-                    + " look_at_selector（部位百分比 look_at_part）、坐标用 look_at_target_x/y/z、结构用"
-                    + " look_at_target_structure、方块用 look_at_target_block，偏移用 look_at_offset"
-                    + "（世界轴 dx/dy/dz / 基准坐标系 fwd/up/right）");
-        }
-    }
-
-    /**
-     * 校验点源字段（CAMERA 关键帧的连线端点 / 基准朝向目标）：取值须为字符串，形态与判据见
-     * {@code camera/source/PointSource}（{@code player} / {@code coordinate} /
-     * {@code block:id[:radius]} / {@code @选择器} / {@code uuid:…} / 结构 id）。
-     * {@code "coordinate"} 必须带 {@code <字段>_x/_y/_z} 三个数字——缺省会被当作 (0,0,0)，
-     * 静默把点源钉在世界原点。字段缺省 / 空串 = 无点源（不报错）。
-     */
-    private static void checkPointSourceField(JsonObject kf, String path, String field, List<String> issues) {
-        if (!kf.has(field)) return;
-        JsonElement e = kf.get(field);
-        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
-            issues.add(path + "." + field
-                    + " 不是字符串（点源写法：player / coordinate / block:id[:radius] / @选择器 / uuid:… / 结构 id）");
-            return;
-        }
-        if (!"coordinate".equals(e.getAsString())) return;
-        for (String axis : new String[]{"x", "y", "z"}) {
-            String key = field + "_" + axis;
-            if (!kf.has(key) || !isNumber(kf.get(key))) {
-                issues.add(path + "." + key + " 缺失或不是数字（" + field + " = \"coordinate\" 时必须给出点源坐标）");
-            }
-        }
-    }
-
-    /**
-     * 校验点源时态字段 {@code <字段>_time}：{@code live}（缺省）= 逐帧重取，{@code snapshot} = 首次解析到的点冻结；
-     * 未知值报错（运行期按缺省回落 live，脚本仍可播，与其余枚举校验同口径）。时态只对实体选择器形态生效：
-     * 坐标 / 方块 / 结构 / 玩家激活位置天生恒定，写了 = 无效果（提示级，参照 exit_buffer 无效提示）。
-     */
-    private static void checkPointSourceTime(JsonObject kf, String path, String field, List<String> issues) {
-        String key = field + "_time";
-        if (!kf.has(key)) return;
-        checkEnum(kf, path, key, issues, "live", "snapshot");
-        JsonElement e = kf.get(field);
-        String form = e != null && e.isJsonPrimitive() && e.getAsJsonPrimitive().isString() ? e.getAsString() : "";
-        if (PointSource.kindOf(form) != PointSource.Kind.SELECTOR) {
-            issues.add(path + "." + key + " 无效果（" + field + " 的来源天生恒定，时态只对实体选择器形态生效）");
-        }
-    }
-
-    /**
-     * 校验注视点时态字段 {@code look_at_time}：形态判据是 {@code look_at} 枚举（不是点源形态字符串），故单列一份。
-     * 只有 {@code look_at = entity}（实体选择器）可切时态，其余形态（含 {@code none}）恒定 = 写了无效果（提示级）。
-     *
-     * @param lookAt 该关键帧的 {@code look_at} 取值（缺省 {@code none}）
-     */
-    private static void checkLookAtTime(JsonObject kf, String path, String lookAt, List<String> issues) {
-        if (!kf.has("look_at_time")) return;
-        checkEnum(kf, path, "look_at_time", issues, "live", "snapshot");
-        if (!"entity".equals(lookAt)) {
-            issues.add(path + ".look_at_time 无效果（look_at=" + lookAt + " 的来源天生恒定，时态只对 entity 生效）");
-        }
-    }
-
-    /**
-     * 校验字符串字段（选择器 / 结构名等形态字段）：取值须为字符串，缺省时跳过（回落缺省值）。
-     * 非字符串会在运行期被 {@code Keyframe.getString} 静默回落缺省——在此拦下，避免静默降级。
-     */
-    private static void checkStringField(JsonObject obj, String path, String key, List<String> issues, String usage) {
-        if (!obj.has(key)) return;
-        JsonElement e = obj.get(key);
-        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
-            issues.add(path + "." + key + " 不是字符串（" + usage + "）");
-        }
-    }
-
-    /**
-     * 校验 {@code look_at = coordinate} 的注视坐标：{@code look_at_target_x/y/z} 三个都要给、且为有限数字
-     * （非数字会被 {@code Keyframe.getFloat} 静默回落缺省 x=0 / y=64 / z=0）。
-     * 写了 {@code look_at_target_structure} 时结构中心优先、坐标不参与，不校验。
-     */
-    private static void checkLookAtTargetCoords(JsonObject kf, String path, String lookAt, List<String> issues) {
-        if (!"coordinate".equals(lookAt) || kf.has("look_at_target_structure")) return;
-        for (String axis : new String[]{"x", "y", "z"}) {
-            String key = "look_at_target_" + axis;
-            if (!kf.has(key)) {
-                issues.add(path + ".look_at_target_x/y/z 缺失（look_at=coordinate 时指定坐标，"
-                        + "或 look_at_target_structure 结构名）");
-                return;
-            }
-            if (!isNumber(kf.get(key)) || !Float.isFinite(kf.get(key).getAsFloat())) {
-                issues.add(path + "." + key + " 不是有限数字（look_at=coordinate 的注视坐标）");
-            }
-        }
-    }
-
-    /**
-     * 校验方块点源字段（{@code look_at_target_block}）：取值须为 {@code block:<方块 id>[:<半径>]} 字符串，
-     * 形态判据与 {@code camera/source/PointSource} 同源（{@link PositionData#originKindOf}）。
-     */
-    private static void checkBlockPointSource(JsonObject kf, String path, String field, List<String> issues) {
-        JsonElement e = kf.get(field);
-        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isString()) {
-            issues.add(path + "." + field + " 不是字符串（方块点源写法：block:<方块 id>[:<半径>]）");
-            return;
-        }
-        if (PositionData.originKindOf(e.getAsString()) != PositionData.ORIGIN_BLOCK) {
-            issues.add(path + "." + field + " 不是方块点源: " + e.getAsString()
-                    + "（写法 block:<方块 id>[:<半径>]，半径缺省 " + PositionData.DEFAULT_BLOCK_RADIUS + " 格）");
-        }
-    }
-
-    /**
-     * 校验部位百分比对象 {@code look_at_part}：须为对象 {@code {x,y,z}}，已给出的分量须为有限数字
-     * （每轴 0 ~ 100，缺省分量 50 = 包围盒中心）。越界不报错——运行时钳制在包围盒内
-     * （见 {@code camera/source/PointSource.EntityPoint}）。
-     */
-    private static void checkLookAtPart(JsonObject kf, String path, List<String> issues) {
-        if (!kf.has("look_at_part")) return;
-        String pp = path + ".look_at_part";
-        JsonElement e = kf.get("look_at_part");
-        if (!e.isJsonObject()) {
-            issues.add(pp + " 应为对象 {x,y,z}（实体包围盒内的部位百分比，每轴 0 ~ 100，缺省 50 = 中心）");
-            return;
-        }
-        JsonObject part = e.getAsJsonObject();
-        for (String axis : new String[]{"x", "y", "z"}) {
-            if (!part.has(axis)) continue;
-            JsonElement c = part.get(axis);
-            if (!isNumber(c)) {
-                issues.add(pp + "." + axis + " 不是数字（部位百分比，每轴 0 ~ 100）");
-                continue;
-            }
-            float v = c.getAsFloat();
-            if (!Float.isFinite(v)) {
-                issues.add(pp + "." + axis + " 不是有限数字（部位百分比，每轴 0 ~ 100）: " + v);
-            }
-        }
-    }
-
-    /** 非负有限秒数；字段缺省时跳过（回落通用字段 / 缺省策略）。 */
-    private static void checkSelectorSeconds(JsonObject obj, String path, String key, List<String> issues) {
-        if (!obj.has(key)) return;
-        JsonElement e = obj.get(key);
-        if (!isNumber(e)) {
-            issues.add(path + "." + key + " 不是数字（单位秒，≥ 0）");
-            return;
-        }
-        float v = e.getAsFloat();
-        if (!Float.isFinite(v)) {
-            issues.add(path + "." + key + " 不是有限数字（NaN / Infinity）：" + v);
-            return;
-        }
-        if (v < 0f) {
-            issues.add(path + "." + key + " 不能为负数（单位秒）: " + v);
-        }
-    }
-
-    /** 布尔值；字段缺省时跳过（回落通用字段 / 缺省策略）。 */
-    private static void checkSelectorBool(JsonObject obj, String path, String key, List<String> issues) {
-        if (!obj.has(key)) return;
-        JsonElement e = obj.get(key);
-        if (!e.isJsonPrimitive() || !e.getAsJsonPrimitive().isBoolean()) {
-            issues.add(path + "." + key + " 应为布尔值（true / false）");
-        }
-    }
-
-    /**
-     * 校验归一化矩形对象 {x,y,w,h}（各分量 0~1，如合成参数 dest/source）；
-     * 字段缺省时跳过（默认全屏/全幅）。
-     */
-    private static void checkRect(JsonObject obj, String path, String key, List<String> issues) {
-        if (!obj.has(key)) return;
-        String rp = path + "." + key;
-        JsonElement e = obj.get(key);
-        if (!e.isJsonObject()) {
-            issues.add(rp + " 应为对象 {x,y,w,h}（归一化矩形，各分量 0~1）");
-            return;
-        }
-        JsonObject rect = e.getAsJsonObject();
-        for (String c : new String[]{"x", "y", "w", "h"}) {
-            if (!rect.has(c) || !rect.get(c).isJsonPrimitive() || !rect.get(c).getAsJsonPrimitive().isNumber()) {
-                issues.add(rp + "." + c + " 缺失或不是数字（矩形需要 x/y/w/h）");
-                continue;
-            }
-            float v = rect.get(c).getAsFloat();
-            if (!Float.isFinite(v)) {
-                issues.add(rp + "." + c + " 不是有限数字（NaN / Infinity；范围 0~1）：" + v);
-                continue;
-            }
-            if (v < 0f || v > 1f) {
-                issues.add(rp + "." + c + " 超出范围 0~1: " + v);
-            }
-        }
     }
 
     /** 校验枚举字段，未知值时报错并列出合法值 */
@@ -3819,90 +2083,7 @@ public final class ScriptValidator {
     }
 
     /** 视觉轨：只有这些轨道支持 pingpong（时间映射往复）。 */
-    private static boolean isVisualLoopTrack(String type) {
-        return "CAMERA".equalsIgnoreCase(type)
-                || "OVERLAY".equalsIgnoreCase(type)
-                || "ADJUST".equalsIgnoreCase(type)
-                || "LETTERBOX".equalsIgnoreCase(type);
-    }
-
-    /**
-     * 片段级循环参数（旧格式 JSON 口径，与 {@link ObjectValidator} 的新格式检查同语义）：
-     * {@code loop_count} 只能为 -1 或正整数；{@code loop=false} 时循环次数不生效；
-     * pingpong 只属于视觉轨且至少需要 2 个周期；{@code duration<0}（无限时长）不得再挂循环参数。
-     *
-     * <p>旧格式 AUDIO 的 {@code loop} 是文件循环，调用方必须跳过本方法。</p>
-     */
-    private static void checkExecutionLoop(JsonObject clip, String cp, String type, List<String> issues) {
-        boolean loop = false;
-        if (clip.has("loop")) {
-            JsonElement le = clip.get("loop");
-            if (!le.isJsonPrimitive() || !le.getAsJsonPrimitive().isBoolean()) {
-                issues.add(cp + ".loop 必须是布尔值");
-            } else {
-                loop = le.getAsBoolean();
-            }
-        }
-
-        Integer count = null;
-        if (clip.has("loop_count")) {
-            JsonElement ce = clip.get("loop_count");
-            if (!ce.isJsonPrimitive() || !ce.getAsJsonPrimitive().isNumber()) {
-                issues.add(cp + ".loop_count 不是整数");
-            } else {
-                double number = ce.getAsDouble();
-                if (!Double.isFinite(number) || number != Math.floor(number)
-                        || number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
-                    issues.add(cp + ".loop_count 不是整数");
-                } else {
-                    count = (int) number;
-                    if (count == 0) {
-                        issues.add(cp + ".loop_count 不允许为 0（-1=无限循环，正整数=循环次数），运行时将按 1 处理");
-                    } else if (count < -1) {
-                        issues.add(cp + ".loop_count 不能小于 -1（-1=无限循环，正整数=循环次数）");
-                    }
-                }
-            }
-        }
-
-        String mode = null;
-        if (clip.has("loop_mode")) {
-            JsonElement me = clip.get("loop_mode");
-            if (!me.isJsonPrimitive() || !me.getAsJsonPrimitive().isString()) {
-                issues.add(cp + ".loop_mode 不是字符串（可选: repeat / pingpong）");
-            } else {
-                mode = me.getAsString();
-                if (!"repeat".equals(mode) && !"pingpong".equals(mode)) {
-                    issues.add(cp + ".loop_mode 未知值: " + mode + "（可选: repeat / pingpong）");
-                }
-            }
-        }
-
-        if (count != null && count != 0 && count >= -1 && !loop) {
-            issues.add(cp + ".loop=false 时 loop_count 不生效：需要 loop=true 才进入执行循环");
-        }
-        if ("pingpong".equals(mode)) {
-            if (type != null && !isVisualLoopTrack(type)) {
-                issues.add(cp + ".loop_mode=pingpong 仅支持 CAMERA / OVERLAY / ADJUST / LETTERBOX 轨道");
-            }
-            if (!loop) {
-                issues.add(cp + ".loop_mode=pingpong 需要 loop=true（否则按 repeat 播放）");
-            }
-            if (count != null && count == 1) {
-                issues.add(cp + ".loop_mode=pingpong 与 loop_count=1 无往复效果（至少需要 2 个周期）");
-            }
-        }
-
-        if (clip.has("duration") && (loop || count != null || mode != null)) {
-            try {
-                if (clip.get("duration").getAsFloat() < 0f) {
-                    issues.add(cp + ".duration<0（无限时长）与循环参数冲突：无限片段不需要 loop/loop_count/loop_mode");
-                }
-            } catch (Exception ignored) {
-                // duration 非数字 / 非有限值已由片段级检查报出，此处不重复。
-            }
-        }
-    }
+    
 
     /**
      * 校验 meta.triggers 的声明 id：可选；存在时必须是字符串、非空、匹配
@@ -4464,11 +2645,5 @@ public final class ScriptValidator {
         }
     }
 
-    private static String cameraKfDefault(String field) {
-        return switch (field) {
-            case "yaw", "pitch", "roll" -> "0";
-            case "fov" -> "70";
-            default -> "1.0";  // zoom
-        };
-    }
+    
 }

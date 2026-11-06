@@ -25,7 +25,9 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +51,7 @@ public class ScriptPlayer implements ClipTimeSource {
      */
     private static final double HOLD_END_EPSILON = 0.0001;
 
-    /** total_duration 一致性提示的最小输出间隔（毫秒；内容未播完而时间已过时限频提示作者）。 */
+    /** 内容末端一致性提示的最小输出间隔（毫秒；执行账本超过派生末端时限频提示作者）。 */
     private static final long OVERRUN_WARN_INTERVAL_MS = 10_000L;
 
     // ========== 状态 ==========
@@ -152,6 +154,16 @@ public class ScriptPlayer implements ClipTimeSource {
     // TrackDriver 调度列表
     private List<TrackDriver> trackPlayers = Collections.emptyList();
 
+    /**
+     * 隐式轨道表：脚本级独立片段（{@code clips[]}）按 {@code track} 类型分组，每个不同类型一条，
+     * 顺序 = 首次出现顺序；{@code EVENT} 无客户端驱动，不建。
+     *
+     * <p>隐式轨道索引 = {@code timeline.tracks.size() + k}（k = 本表下标），与 timeline 轨道索引空间
+     * 不相交——独立片段不混入 timeline 轨道，同类型多轨道的既有行为不受影响。与 {@link #script} 同源，
+     * 在 {@link #start} / {@link #replaceScript} 里随脚本刷新，{@link #stop} 清空。</p>
+     */
+    private List<TimelineTrack> implicitTracks = Collections.emptyList();
+
     /** 本帧活跃 CAMERA 片段的拼接缓冲（{@link #collectActiveCameraClips()} 复用；调用方可当帧追加）。 */
     private final List<Clip> activeCameraClips = new ArrayList<>();
 
@@ -175,12 +187,22 @@ public class ScriptPlayer implements ClipTimeSource {
      */
     private AudioTrackPlayer oneShotHost;
 
-    /** 按轨道索引取 clips（动态数据源；支持同类型多条轨道，如 OVERLAY）。 */
+    /**
+     * 按轨道索引取 clips（动态数据源；支持同类型多条轨道，如 OVERLAY）。
+     *
+     * <p>索引空间 = timeline 轨道（{@code [0, timeline.size())}）+ 隐式轨道
+     * （{@code [timeline.size(), timeline.size() + implicitTracks.size())}）。timeline 索引的返回值与
+     * 改动前逐项一致（仍是 {@code tracks.get(i).getClips()}）；隐式索引返回该类型下全部独立片段，
+     * 保持 {@code clips[]} 原顺序。</p>
+     */
     public List<Clip> clipsForTrack(int trackIndex) {
-        if (script == null) return Collections.emptyList();
+        if (script == null || trackIndex < 0) return Collections.emptyList();
         List<TimelineTrack> tracks = script.getTimeline().getTracks();
-        if (trackIndex < 0 || trackIndex >= tracks.size()) return Collections.emptyList();
-        return tracks.get(trackIndex).getClips();
+        if (trackIndex < tracks.size()) return tracks.get(trackIndex).getClips();
+        int implicitIndex = trackIndex - tracks.size();
+        return implicitIndex < implicitTracks.size()
+                ? implicitTracks.get(implicitIndex).getClips()
+                : Collections.emptyList();
     }
 
     /**
@@ -193,9 +215,13 @@ public class ScriptPlayer implements ClipTimeSource {
         releaseLutClipRefs(this.script);
         List<TimelineTrack> oldTracks = script != null ? script.getTimeline().getTracks() : null;
         List<TimelineTrack> newTracks = newScript.getTimeline().getTracks();
-        boolean layoutChanged = !sameTrackLayout(oldTracks, newTracks);
+        // 隐式轨道表必须在 layoutChanged 判定之前算出（判定要比对类型序列），并在重建驱动之前落到字段
+        List<TimelineTrack> oldImplicit = implicitTracks;
+        List<TimelineTrack> newImplicit = buildImplicitTracks(newScript);
+        boolean layoutChanged = !sameTrackLayout(oldTracks, oldImplicit, newTracks, newImplicit);
 
         this.script = newScript;
+        this.implicitTracks = newImplicit;
         this.currentBehavior = newScript.getMeta() != null ? newScript.getMeta().getBehavior() : null;
         this.executions = new ClipExecutionLedger(newScript);
         this.executions.reset(timelineTime);
@@ -224,8 +250,18 @@ public class ScriptPlayer implements ClipTimeSource {
         // 玩家移动控制：增量替换后重新提取 EVENT position 关键帧
         playerMovement.onScriptStart(newScript, originPos);
     }
-    /** 轨道布局相同判断:轨道数 + 类型顺序一致(忽略 clip 内容) */
-    private static boolean sameTrackLayout(List<TimelineTrack> a, List<TimelineTrack> b) {        if (a == null || b == null) return false;
+    /**
+     * 轨道布局相同判断：timeline 轨道与隐式轨道的「数量 + 类型顺序」都一致（忽略 clip 内容）。
+     * 隐式轨道参与比较：独立片段换了轨道类型集合时，旧驱动绑定的隐式索引对新脚本失效。
+     */
+    private static boolean sameTrackLayout(List<TimelineTrack> a, List<TimelineTrack> aImplicit,
+                                           List<TimelineTrack> b, List<TimelineTrack> bImplicit) {
+        return sameTrackTypes(a, b) && sameTrackTypes(aImplicit, bImplicit);
+    }
+
+    /** 类型序列比较（{@code null} = 不同；忽略 clip 内容）。 */
+    private static boolean sameTrackTypes(List<TimelineTrack> a, List<TimelineTrack> b) {
+        if (a == null || b == null) return false;
         if (a.size() != b.size()) return false;
         for (int i = 0; i < a.size(); i++) {
             if (!a.get(i).getType().equals(b.get(i).getType())) return false;
@@ -233,7 +269,33 @@ public class ScriptPlayer implements ClipTimeSource {
         return true;
     }
 
-    /** 按脚本轨道创建 TrackDriver(跳过 EVENT 轨道;trackIndex 用原始轨道索引,轨道布局变化时必须重建) */
+    /**
+     * 由脚本级独立片段建隐式轨道表：按 {@code track} 类型分组，每个不同类型一条，顺序 = 首次出现顺序。
+     * {@code EVENT} 无客户端驱动，不建轨道（{@link TrackRegistry#createDriver} 对它返回 {@code null}，
+     * 建了也只是占一个永不查询的索引）。
+     */
+    private static List<TimelineTrack> buildImplicitTracks(CinematicScript script) {
+        if (script == null) return Collections.emptyList();
+        List<Clip> standalone = script.getStandaloneClips();
+        if (standalone.isEmpty()) return Collections.emptyList();
+        Map<TrackTypeId, List<Clip>> grouped = new LinkedHashMap<>();
+        for (Clip clip : standalone) {
+            TrackTypeId type = clip.getTrackType();
+            if (type == null || TrackTypeId.EVENT.equals(type)) continue;
+            grouped.computeIfAbsent(type, key -> new ArrayList<>()).add(clip);
+        }
+        if (grouped.isEmpty()) return Collections.emptyList();
+        List<TimelineTrack> tracks = new ArrayList<>(grouped.size());
+        for (Map.Entry<TrackTypeId, List<Clip>> entry : grouped.entrySet()) {
+            tracks.add(new TimelineTrack(entry.getKey(), List.copyOf(entry.getValue())));
+        }
+        return List.copyOf(tracks);
+    }
+
+    /**
+     * 按脚本轨道创建 TrackDriver（EVENT 轨道跳过；trackIndex 用原始索引，轨道布局变化时必须重建）。
+     * 先建 timeline 轨道驱动，再按 {@link #implicitTracks} 建隐式轨道驱动（索引 = timeline 轨道数 + k）。
+     */
     private void buildTrackPlayers(CinematicScript script) {
         trackPlayers = new ArrayList<>();
         List<TimelineTrack> tracks = script.getTimeline().getTracks();
@@ -242,6 +304,16 @@ public class ScriptPlayer implements ClipTimeSource {
             // EVENT 轨道不在客户端处理：TrackRegistry.createDriver 对它返回 null
             TrackDriver driver = TrackRegistry.createDriver(track.getType(), this, originPos,
                     CameraManager.INSTANCE, OverlayManager.INSTANCE, ti);
+            if (driver != null) {
+                trackPlayers.add(driver);
+            }
+        }
+        // 隐式轨道：独立片段按 track 类型各自一条（索引接着 timeline 轨道往后排）
+        int base = tracks.size();
+        for (int k = 0; k < implicitTracks.size(); k++) {
+            TimelineTrack implicit = implicitTracks.get(k);
+            TrackDriver driver = TrackRegistry.createDriver(implicit.getType(), this, originPos,
+                    CameraManager.INSTANCE, OverlayManager.INSTANCE, base + k);
             if (driver != null) {
                 trackPlayers.add(driver);
             }
@@ -284,6 +356,12 @@ public class ScriptPlayer implements ClipTimeSource {
                 }
             }
         }
+        // 独立片段同样会被隐式轨道驱动采样：它们的 LUT clip 引用一并释放（未登记过时为无操作）
+        for (Clip clip : script.getStandaloneClips()) {
+            if (clip.getLut() != null) {
+                CubeLutLoader.releaseClip(clip.getClipId());
+            }
+        }
     }
 
     /**
@@ -314,6 +392,8 @@ public class ScriptPlayer implements ClipTimeSource {
         }
 
         this.script = script;
+        // 隐式轨道表随脚本刷新（必须早于 buildTrackPlayers：驱动按它的下标取片段）
+        this.implicitTracks = buildImplicitTracks(script);
         this.originPos = mc.player.position();
         this.playing = true;
         this.stopping = false;
@@ -361,8 +441,10 @@ public class ScriptPlayer implements ClipTimeSource {
             }
         }
 
-        LOGGER.info("脚本播放开始: {} (总时长: {}s, TrackDriver数: {})",
-                script.getName(), script.getTotalDuration(), trackPlayers.size());
+        LOGGER.info("脚本播放开始: {} (内容末端: {}, TrackDriver数: {})",
+                script.getName(),
+                script.hasFiniteContentEnd() ? script.contentEnd() + "s" : "无限",
+                trackPlayers.size());
     }
 
     public void stop(CompletionReason reason) {
@@ -380,6 +462,7 @@ public class ScriptPlayer implements ClipTimeSource {
         this.playing = false;
         this.stopping = false;
         this.script = null;
+        this.implicitTracks = Collections.emptyList();
         this.currentBehavior = null;
         this.executions = new ClipExecutionLedger(null);
         resetMacroLoop();
@@ -423,10 +506,10 @@ public class ScriptPlayer implements ClipTimeSource {
     }
 
     /**
-     * 距内容终点的剩余秒数（终点 = 执行账本的 {@link ClipExecutionLedger#contentEnd()}，不是 {@code total_duration}）。
+     * 距内容终点的剩余秒数（终点 = 执行账本的 {@link ClipExecutionLedger#contentEnd()}，不是静态片段窗口）。
      * 无限内容（永不结束片段 / 宏观无限圈）→ {@link Double#MAX_VALUE}（「不会自然结束」哨兵，读方无需判 NaN）；
-     * 已过终点 → {@code 0}；未播放 → {@code 0}。宏观循环按 {@code a + N × (b − a)} 计；内容比声明时长长时
-     * 本值可大于「{@code total_duration} − 已播时间」——时间不是结束判据。
+     * 已过终点 → {@code 0}；未播放 → {@code 0}。宏观循环按 {@code a + N × (b − a)} 计；内容比静态窗口长时
+     * 本值可大于「片段窗口派生末端 − 已播时间」——时间不是结束判据。
      */
     public double getRemainingTime() {
         if (!playing || script == null) return 0.0;
@@ -441,7 +524,7 @@ public class ScriptPlayer implements ClipTimeSource {
     /**
      * hold_at_end 的驻留位置（秒）= 有限内容末端退 {@link #HOLD_END_EPSILON}，让最后一帧保持住；
      * 无有限内容末端（永不结束片段 / 空时间轴）→ 当前播放头。
-     * 驻留点由实际内容自然完成给出，不由 {@code total_duration}（统计位，可能短于实际内容）。
+     * 驻留点由实际内容自然完成给出，不由静态片段窗口末端决定。
      */
     public double holdElapsed() {
         if (!executions.hasFiniteContentEnd()) return getElapsedSeconds();
@@ -465,15 +548,10 @@ public class ScriptPlayer implements ClipTimeSource {
                 cameraLaneIndex++;
                 for (CameraLane lane : ctp.getLaneSnapshots()) {
                     // 每条 lane 各自用「自己的相机片段 + 片段本地时间」采样调色（重叠窗口下各自独立）。
-                    // 新格式走对象采样（57 通道 + value-only 曲线）；旧格式仍扫关键帧，像素路径不变。
-                    ColorAdjustParams adjust;
-                    if (lane.clip().hasObjects()) {
-                        SampledClip sample = cameraLaneRuntime.sample(lane.clip(), lane.clipLocalTime());
-                        adjust = ColorAdjustSampler.sampleCameraLaneObjects(lane.clip(), sample,
-                                cameraLaneCurves);
-                    } else {
-                        adjust = ColorAdjustSampler.sample(lane.clip(), lane.clipLocalTime());
-                    }
+                    // 57 通道 + value-only 曲线全部来自对象模型（旧格式关键帧扫描已随格式删除）。
+                    SampledClip sample = cameraLaneRuntime.sample(lane.clip(), lane.clipLocalTime());
+                    ColorAdjustParams adjust = ColorAdjustSampler.sampleCameraLaneObjects(lane.clip(), sample,
+                            cameraLaneCurves);
                     // 恒等参数归一化为 null —— 渲染侧因此保持 lane FBO 直接进合成的原路径。
                     // dimension：空串 = 玩家当前维度；非空 = 客户端按该维度渲染这条 lane（无服务端传送）
                     frames.add(new LaneFrame(lane, cameraLaneIndex, ctp.indexOfClip(lane.clip()),
@@ -554,7 +632,7 @@ public class ScriptPlayer implements ClipTimeSource {
     public void onRenderFrame(double elapsedSeconds) {
         if (!playing || script == null) return;
 
-        double totalDuration = script.getTotalDuration();
+        double contentEnd = script.hasFiniteContentEnd() ? script.contentEnd() : -1.0;
 
         if (isMacroLoopActive()) {
             // 宏观循环（repeat）：从 a 到 b 重复执行；对外分发的一律是圈内局部时间。
@@ -600,10 +678,10 @@ public class ScriptPlayer implements ClipTimeSource {
                 } else {
                     return;
                 }
-            } else if (totalDuration > 0.0 && elapsedSeconds >= totalDuration) {
-                // total_duration 是统计位（记录 / 真同步），不是结束判据：内容比声明长 → 限频提示作者核对
+            } else if (contentEnd > 0.0 && elapsedSeconds >= contentEnd) {
+                // 内容末端由片段窗口派生，不是结束判据：执行账本比它长 → 限频提示作者核对
                 if (executions.hasFiniteContentEnd()) {
-                    warnDurationOverrun(elapsedSeconds, totalDuration, executions.contentEnd());
+                    warnDurationOverrun(elapsedSeconds, contentEnd, executions.contentEnd());
                 }
             }
         }
@@ -836,17 +914,17 @@ public class ScriptPlayer implements ClipTimeSource {
     }
 
     /**
-     * {@code total_duration} 一致性提示：内容未播完而播放头已过声明时长 → 限频（{@link #OVERRUN_WARN_INTERVAL_MS}）
-     * 提示作者核对声明时长（内容比声明长是合法用法：按内容继续播完，本值只作记录 / 真同步）。
+     * 内容末端一致性提示：执行账本比片段窗口派生的有限末端更长 → 限频（{@link #OVERRUN_WARN_INTERVAL_MS}）
+     * 提示作者核对编排（内容比静态窗口长是合法用法：按内容继续播完，本值只作记录 / 真同步）。
      * 只在异常路径调用（拼串 / 装箱不进每帧零分配契约）。
      */
-    private void warnDurationOverrun(double elapsed, double totalDuration, double end) {
+    private void warnDurationOverrun(double elapsed, double contentEnd, double end) {
         String endText = end + "s";
         com.immersivecinematics.immersive_cinematics.util.ErrorLog.logRateLimited(
                 "Playback", "duration-overrun:" + getScriptId(), OVERRUN_WARN_INTERVAL_MS,
-                String.format("脚本 '%s' 内容未播完而 total_duration(%ss) 已过（elapsed %ss，内容终点 %s）："
-                                + "按内容继续播完（total_duration 是统计位，不决定结束时刻）",
-                        getScriptId(), totalDuration, elapsed, endText));
+                String.format("脚本 '%s' 内容未播完而派生内容末端(%ss) 已过（elapsed %ss，执行账本内容终点 %s）："
+                                + "按内容继续播完（末端由片段窗口派生，不决定结束时刻）",
+                        getScriptId(), contentEnd, elapsed, endText));
     }
 
     /** 本帧分发给轨道的时间轴读数（秒，double 精度；宏观循环 = 圈内局部时间）。 */

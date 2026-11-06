@@ -14,12 +14,11 @@ import java.util.List;
  *
  * @param id         脚本 id
  * @param name       脚本名（作者可读名）
- * @param version    脚本版本号
- * @param duration   总时长（秒）；{@code infinite = true} 时无实际意义
- * @param infinite   是否无限循环
+ * @param duration   有限内容末端（秒，由片段窗口派生）；{@code infinite = true} 时无意义（{@code -1}）
+ * @param infinite   内容是否无限（任一无限片段或宏观循环无限）
  * @param trackTypes 时间轴里出现过的轨道类型（去重、按首次出现顺序）；无轨道时为空列表
  */
-public record ScriptInfo(String id, String name, int version, double duration, boolean infinite,
+public record ScriptInfo(String id, String name, double duration, boolean infinite,
                          List<TrackTypeId> trackTypes) {
 
     public ScriptInfo {
@@ -44,7 +43,8 @@ public record ScriptInfo(String id, String name, int version, double duration, b
                 types.add(type);
             }
         }
-        return new ScriptInfo(script.getId(), script.getName(), script.getVersion(),
-                script.getTotalDuration(), script.isInfinite(), types);
+        return new ScriptInfo(script.getId(), script.getName(),
+                script.hasFiniteContentEnd() ? script.contentEnd() : -1.0,
+                script.isInfiniteContent(), types);
     }
 }

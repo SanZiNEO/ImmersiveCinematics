@@ -4,7 +4,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.script.CinematicScript;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
-import com.immersivecinematics.immersive_cinematics.script.ClipRule;
 import com.immersivecinematics.immersive_cinematics.script.TimelineTrack;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleBinding;
 import com.immersivecinematics.immersive_cinematics.script.rule.RuleCollection;
@@ -25,7 +24,7 @@ import java.util.Map;
  *       命令取 {@code binding.definition().actions()[actionIndex].command}；</li>
  *   <li>旧片段规则（{@code clip.rules}）：键 = {@code ("", clipIndex, ruleIndex, actionIndex)}，
  *       {@code clipIndex} 是平铺片段索引（轨道序 → 轨道内片段序，与
- *       {@code ClipExecutionLedger} 同口径），{@code ruleIndex} 是 {@code clip.getRules()} 下标。</li>
+ *       {@code ClipExecutionLedger} 同口径），{@code ruleIndex} 恒为 -1（脚本级规则无片段内下标）。</li>
  * </ul>
  *
  * <p>只存服务端内存；不写脚本、不发给客户端。脚本替换时由
@@ -70,31 +69,6 @@ public final class RuleCommandTable {
         if (script == null || script.getTimeline() == null) return EMPTY;
         String scriptId = script.getId() == null ? "" : script.getId();
         Map<Key, CommandEntry> entries = new HashMap<>();
-
-        // 旧形态：平铺片段（轨道序 → 轨道内片段序），clipIndex 与 ClipExecutionLedger 一致
-        int flat = 0;
-        int trackIndex = 0;
-        for (TimelineTrack track : script.getTimeline().getTracks()) {
-            List<Clip> clips = track.getClips();
-            for (int ci = 0; ci < clips.size(); ci++) {
-                List<ClipRule> rules = clips.get(ci).getRules();
-                for (int ri = 0; ri < rules.size(); ri++) {
-                    List<JsonObject> actions = rules.get(ri).getActions();
-                    for (int ai = 0; ai < actions.size(); ai++) {
-                        JsonObject action = actions.get(ai);
-                        if (!isEmitCommand(action)) continue;
-                        String command = commandOf(action);
-                        if (command == null) continue;
-                        String path = "tracks[" + trackIndex + "].clips[" + ci
-                                + "].rules[" + ri + "].actions[" + ai + "]";
-                        entries.put(new Key("", flat, ri, ai),
-                                new CommandEntry(scriptId, "", flat, ri, ai, command, path));
-                    }
-                }
-                flat++;
-            }
-            trackIndex++;
-        }
 
         // 新形态：脚本级规则的绑定动作（键不含片段 / 规则索引）
         RuleCollection collection = script.getRuleCollection();

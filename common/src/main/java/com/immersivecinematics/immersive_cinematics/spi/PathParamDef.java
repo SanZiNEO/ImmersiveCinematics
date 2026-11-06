@@ -1,12 +1,17 @@
-package com.immersivecinematics.immersive_cinematics.script.schema;
+package com.immersivecinematics.immersive_cinematics.spi;
+
+import com.immersivecinematics.immersive_cinematics.script.schema.PathParamKind;
 
 import java.util.List;
 
 /**
  * 路径曲线参数声明：一个已注册曲线类型接受的一个 JSON 键。
  *
- * 声明即契约：{@link PathCurveRegistry#create} 按 {@code kind} 严格读值（类型不符 = 报错），
- * {@link SchemaExporter} 把同一份声明导出给编辑器（类型下拉 + 参数表单），Java 侧始终是唯一权威。
+ * 声明即契约：
+ * {@link com.immersivecinematics.immersive_cinematics.script.schema.PathCurveRegistry#create}
+ * 按 {@code kind} 严格读值（类型不符 = 报错），
+ * {@link com.immersivecinematics.immersive_cinematics.script.schema.SchemaExporter}
+ * 把同一份声明导出给编辑器（类型下拉 + 参数表单），Java 侧始终是唯一权威。
  *
  * @param name         参数名（JSON 键，不含保留键 {@code type}）
  * @param kind         取值形态

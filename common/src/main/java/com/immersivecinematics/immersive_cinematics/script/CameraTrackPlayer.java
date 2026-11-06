@@ -5,7 +5,6 @@ import com.immersivecinematics.immersive_cinematics.camera.CameraManager;
 import com.immersivecinematics.immersive_cinematics.camera.source.CameraKeyframeEvaluator;
 import com.immersivecinematics.immersive_cinematics.camera.source.EntityTargetResolver;
 import com.immersivecinematics.immersive_cinematics.camera.source.LaneSnapshotCollector;
-import com.immersivecinematics.immersive_cinematics.camera.source.PointSourceSnapshots;
 import com.immersivecinematics.immersive_cinematics.camera.source.WorldPointLocator;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
 import com.immersivecinematics.immersive_cinematics.script.path.PathBindingSource;
@@ -31,8 +30,6 @@ public class CameraTrackPlayer implements TrackDriver {
 
     /** 目标解析与锁定：selector → 实体 + 按 {@code role + selector} 维护的锁与切换平滑状态 */
     private final EntityTargetResolver entityResolver = new EntityTargetResolver();
-    /** 点源快照表（时态 = 快照的选择器点源）：本轨一份，seek / 停止 / 替换清空，loop 折返不清（延续） */
-    private final PointSourceSnapshots snapshots = new PointSourceSnapshots();
     /** 关键帧求值（六参数 / 插值 / 过渡合成） */
     private final CameraKeyframeEvaluator evaluator;
     /** 本轨本帧的 lane 快照捕获与持有 */
@@ -55,7 +52,6 @@ public class CameraTrackPlayer implements TrackDriver {
         this.trackIndex = trackIndex;
         this.cameraManager = cameraManager;
         WorldPointLocator pointLocator = new WorldPointLocator();
-        entityResolver.attachSnapshots(snapshots);
         this.evaluator = new CameraKeyframeEvaluator(entityResolver, pointLocator, originPos, scriptPlayer);
         this.laneCollector = new LaneSnapshotCollector(entityResolver, evaluator, scriptPlayer);
     }
@@ -131,10 +127,10 @@ public class CameraTrackPlayer implements TrackDriver {
             if (morphState != null) {
                 // 转场两侧任一声明 suppress = 本帧跳过 Modifier 链（两侧都活跃）
                 writeGlobal(morphState, prev.getSuppressModifiers() || next.getSuppressModifiers());
-                // 新格式 morph 的合成参数取自 next 侧本帧求值（旧格式 = null，渲染侧按旧插值取值）
+                // 新格式 morph 的合成参数取自 next 侧本帧求值
                 laneCollector.add(new CameraLane(morphState, next,
                         scriptPlayer.executionLocalTime(next, globalTime),
-                        next.hasObjects() ? evaluator.morphComposite() : null));
+                        evaluator.morphComposite()));
                 transitionPair = pair;
                 return;
             }
@@ -210,35 +206,32 @@ public class CameraTrackPlayer implements TrackDriver {
         laneCollector.clear();
         frameActiveClips.clear();
         entityResolver.clear();
-        snapshots.clear();
         evaluator.resetTransitionState();
         evaluator.resetPaths();
         transitionPair = -1;
     }
 
-    /** 编辑器 seek：点源快照重取（seek = 硬定位）；本轨运动模型实例归位（下一次求值以当帧输入为初值，dt = 0）；过渡作废。 */
+    /** 编辑器 seek：本轨运动模型实例归位（下一次求值以当帧输入为初值，dt = 0）；过渡作废。 */
     @Override
     public void onSeek() {
-        snapshots.clear();
         evaluator.resetMotionState();
         evaluator.resetFreezes();
         evaluator.resetTransitionState();
         transitionPair = -1;
     }
 
-    /** 数据替换后复位派生状态：lane 快照 / 目标锁 / 点源快照 / 过渡 / 路径绑定（都按脚本数据重建）。 */
+    /** 数据替换后复位派生状态：lane 快照 / 目标锁 / 过渡 / 路径绑定（都按脚本数据重建）。 */
     @Override
     public void onScriptReplaced() {
         laneCollector.clear();
         frameActiveClips.clear();
         entityResolver.clear();
-        snapshots.clear();
         evaluator.resetTransitionState();
         evaluator.onScriptReplaced();
         transitionPair = -1;
     }
 
-    /** 宏观循环折返：过渡归位（结算记录 / 打断留底按新一圈重新开始）；点源快照不重取（折返 = 状态延续）。 */
+    /** 宏观循环折返：过渡归位（结算记录 / 打断留底按新一圈重新开始）。 */
     @Override
     public void onLoopRestart() {
         evaluator.resetTransitionState();

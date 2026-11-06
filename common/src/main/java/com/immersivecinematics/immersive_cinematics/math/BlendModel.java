@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.math;
 
+import com.immersivecinematics.immersive_cinematics.spi.MathModel;
+
 /**
  * blend — 并联混合：{@code out = a(in)} 与 {@code b(in)} 按 weight 混合。
  *

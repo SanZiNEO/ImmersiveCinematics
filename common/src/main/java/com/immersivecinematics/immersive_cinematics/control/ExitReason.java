@@ -10,8 +10,6 @@ public enum ExitReason {
     SYSTEM_STOP,
     /** 被其他脚本抢占：实例不可打断（interruptible=false）时拒绝。 */
     INTERRUPTED,
-    /** 用户长按跳过键：实例不可跳过（skippable=false）时拒绝。 */
-    USER_SKIP,
     /** 播放到结尾：实例 hold_at_end 时拒绝（驻留）。 */
     NATURAL_END
 }

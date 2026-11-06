@@ -1,8 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.script.schema;
 
-import com.immersivecinematics.immersive_cinematics.script.ClipRule;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectCallpoints;
 import com.immersivecinematics.immersive_cinematics.selector.SelectorSchema;
+import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
 import com.immersivecinematics.immersive_cinematics.spi.Interp;
 import com.immersivecinematics.immersive_cinematics.spi.ObjectDef;
 import com.immersivecinematics.immersive_cinematics.spi.PropertyMode;
@@ -38,7 +38,7 @@ public final class TrackSchemas {
     /**
      * 全轨道 clip 共有的字段（逐轨道显式登记，不做隐式合并）：{@code all()} 里七个 builder 各调一次。
      *
-     * {@code rules} = 判定规则数组，任意轨道的片段都可挂（判定源与轨道无关，校验器不拦）；形态见 {@link ClipRule}。
+     * {@code rules} = 判定规则数组，任意轨道的片段都可挂（判定源与轨道无关，校验器不拦）；规则定义/绑定见 {@code script.rule.RuleCollection}。
      */
     private static void putCommonClipFields(Map<String, FieldDef> clips) {
         clips.put("rules", new FieldDef("rules", null, false, List.of(), "rules"));
@@ -312,7 +312,7 @@ public final class TrackSchemas {
         clips.put("loop", new FieldDef("bool", false));
         clips.put("fade_in", new FieldDef("float", 0));
         clips.put("fade_out", new FieldDef("float", 0));
-        clips.put("attenuation", new FieldDef("enum", "linear", false, List.of("none", "linear", "inverse")));
+        clips.put("attenuation", new FieldDef("enum", "linear", false, List.of("none", "linear")));
         clips.put("position_mode", new FieldDef("enum", "relative", false, List.of("relative", "absolute")));
         clips.put("category", new FieldDef("enum", "music", false, List.of("music", "ambient")));
 
@@ -811,7 +811,7 @@ public final class TrackSchemas {
         add(objects, value("fade_in", PropertyType.FLOAT, 0f).min(0).section("audio"));
         add(objects, value("fade_out", PropertyType.FLOAT, 0f).min(0).section("audio"));
         add(objects, value("attenuation", PropertyType.ENUM, "linear")
-                .enumValues("none", "linear", "inverse").section("audio"));
+                .enumValues("none", "linear").section("audio"));
         add(objects, value("position_mode", PropertyType.ENUM, "relative")
                 .enumValues("relative", "absolute").section("audio"));
         add(objects, value("category", PropertyType.ENUM, "music")

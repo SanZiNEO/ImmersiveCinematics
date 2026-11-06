@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.math.path;
 
+import com.immersivecinematics.immersive_cinematics.spi.PathCapability;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;

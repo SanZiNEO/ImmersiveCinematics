@@ -182,9 +182,12 @@ public final class ScriptGraphService {
             return;
         }
         JsonObject timeline = root.getAsJsonObject("timeline");
-        // 时长：timeline.total_duration（负数 = 无限时长；运行时口径见 Timeline.getTotalDuration）
-        node.duration = floatOf(timeline, "total_duration");
-        node.infinite = node.duration < 0f;
+        // 时长 / 无限性：由片段窗口派生（与 CinematicScript#contentEnd / #isInfiniteContent 同口径）。
+        // 本服务不依赖 ScriptParser（容错扫描），按 JSON 直接读取。
+        JsonObject meta = root.has("meta") && root.get("meta").isJsonObject()
+                ? root.getAsJsonObject("meta") : null;
+        boolean infinite = isMacroLoopInfinite(meta);
+        double contentEnd = 0.0;
         if (timeline.has("tracks") && timeline.get("tracks").isJsonArray()) {
             for (JsonElement te : timeline.getAsJsonArray("tracks")) {
                 if (!te.isJsonObject()) continue;
@@ -194,8 +197,50 @@ public final class ScriptGraphService {
                 t.addProperty("clips", track.has("clips") && track.get("clips").isJsonArray()
                         ? track.getAsJsonArray("clips").size() : 0);
                 node.tracks.add(t);
+                if (!track.has("clips") || !track.get("clips").isJsonArray()) continue;
+                for (JsonElement ce : track.getAsJsonArray("clips")) {
+                    if (!ce.isJsonObject()) continue;
+                    JsonObject clip = ce.getAsJsonObject();
+                    if (isClipInfinite(clip)) {
+                        infinite = true;
+                    } else {
+                        contentEnd = Math.max(contentEnd, clipWindowEnd(clip));
+                    }
+                }
             }
         }
+        // 独立片段没有默认放置：只参与无限性判定（不计入 contentEnd）
+        if (root.has("clips") && root.get("clips").isJsonArray()) {
+            for (JsonElement ce : root.getAsJsonArray("clips")) {
+                if (ce.isJsonObject() && isClipInfinite(ce.getAsJsonObject())) infinite = true;
+            }
+        }
+        node.infinite = infinite;
+        node.duration = infinite ? 0f : (float) contentEnd;
+    }
+
+    /** 宏观循环无限：{@code meta.macro_loop=true} 且 {@code macro_loop_count<0}（缺省 -1）。 */
+    private static boolean isMacroLoopInfinite(JsonObject meta) {
+        if (meta == null || !boolOf(meta, "macro_loop")) return false;
+        JsonElement count = meta.get("macro_loop_count");
+        if (count == null || !count.isJsonPrimitive() || !count.getAsJsonPrimitive().isNumber()) return true;
+        return count.getAsInt() < 0;
+    }
+
+    /** 片段是否永不结束：{@code duration<0} 或 {@code loop=true} + {@code loop_count<0}（与 {@code Clip#isEffectivelyInfinite} 同口径）。 */
+    private static boolean isClipInfinite(JsonObject clip) {
+        if (floatOf(clip, "duration") < 0f) return true;
+        return boolOf(clip, "loop") && intOf(clip, "loop_count") < 0;
+    }
+
+    /** 片段展开窗口末端：{@code start + duration × (loop ? max(1, loop_count) : 1)}（与 {@code Clip#getWindowEnd} 同口径）。 */
+    private static double clipWindowEnd(JsonObject clip) {
+        double start = floatOf(clip, "start_time");
+        double duration = floatOf(clip, "duration");
+        if (boolOf(clip, "loop")) {
+            return start + duration * Math.max(1, intOf(clip, "loop_count"));
+        }
+        return start + duration;
     }
 
     /** 触发器清单 + 每个触发器的 requires（元素 = 字符串脚本 id，或对象 {type, script}）。 */

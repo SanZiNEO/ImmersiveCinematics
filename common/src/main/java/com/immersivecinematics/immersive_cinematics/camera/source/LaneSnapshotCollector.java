@@ -17,8 +17,9 @@ import java.util.List;
  * （片段间隙 / 目标不可用 / 编辑器直控）。morph 过渡窗口是旧模型（两 clip 混合成一份相机状态），
  * 本轨本帧仍只产出一份 lane（合成参数取进入的片段 next）。
  * 捕获隔离：捕获前经 {@link EntityTargetResolver#snapshotLockState()} 留底，逐 clip
- * {@link EntityTargetResolver#restoreLockState()} 回写，并留底 / 回写 {@link CameraKeyframeEvaluator}
- * 的基准坐标系——每个 clip 都从同一份状态出发（等价「单独求值」），捕获求值对扫描 / 切换 / 平滑的改动一律丢弃。
+ * {@link EntityTargetResolver#restoreLockState()} 回写——每个 clip 都从同一份目标锁状态出发
+ * （等价「单独求值」），捕获求值对扫描 / 切换 / 平滑的改动一律丢弃。基准坐标系由新格式求值层按次自持
+ * （{@code position.frame()}），无跨帧共享状态需要留底。
  * 线程契约：仅客户端主线程，顺序求值，无并发共享问题。
  */
 public final class LaneSnapshotCollector {
@@ -54,8 +55,8 @@ public final class LaneSnapshotCollector {
      * 重叠窗口内层级在下的活跃 clip 的 lane 快照：顺序求值、逐 clip 捕获。
      *
      * 与顶层 clip 走同一条求值链（位置 / 朝向 / 注视 / 呼吸），只是"只捕获不写"：不写全局相机状态
-     * （全局仍由顶层 clip 决定）、不推进跨帧求值状态（{@code lastWorldPos}），本帧基准坐标系与
-     * 目标锁状态在捕获前后整体留底 / 回写——每个 clip 都从同一份状态出发（等价"单独求值"）。
+     * （全局仍由顶层 clip 决定）、不推进跨帧求值状态（{@code lastWorldPos}），目标锁状态在捕获前后
+     * 整体留底 / 回写——每个 clip 都从同一份状态出发（等价"单独求值"）。
      *
      * @param active  本帧全部活跃 clip（按轨道顺序，最后一个 = 顶层）
      * @param topClip 顶层活跃 clip（已由正常路径求值，这里跳过）
@@ -65,7 +66,6 @@ public final class LaneSnapshotCollector {
 
         // 捕获求值的"隔离基线"：目标锁状态深拷贝留底（捕获求值只在这份基线之上进行，事后丢弃）
         entityResolver.snapshotLockState();
-        evaluator.snapshotFrameState();
         try {
             for (int i = 0; i < active.size() - 1; i++) {
                 Clip clip = active.get(i);
@@ -85,7 +85,6 @@ public final class LaneSnapshotCollector {
             }
         } finally {
             entityResolver.restoreLockState();
-            evaluator.restoreFrameState();
         }
     }
 }

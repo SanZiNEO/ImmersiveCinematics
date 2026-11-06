@@ -8,13 +8,10 @@ import com.immersivecinematics.immersive_cinematics.client.dimension.DimensionVi
 import com.immersivecinematics.immersive_cinematics.script.CameraLane;
 import com.immersivecinematics.immersive_cinematics.script.CameraLaneComposite;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
-import com.immersivecinematics.immersive_cinematics.script.Keyframe;
-import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
 import com.immersivecinematics.immersive_cinematics.script.LaneFrame;
 import com.immersivecinematics.immersive_cinematics.script.ScriptPlayer;
 import com.immersivecinematics.immersive_cinematics.util.ErrorLog;
 import com.immersivecinematics.immersive_cinematics.util.FatalErrors;
-import com.immersivecinematics.immersive_cinematics.util.MathUtil;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
@@ -23,11 +20,10 @@ import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
- * 脚本 lane 驱动：把脚本播放器本帧的活跃画面 lane 注册进 {@link LaneRenderer}，并按每条 lane 所属 clip 的
- * 关键帧合成参数（{@code opacity} / {@code dest} / {@code source} / lane 遮罩）逐 lane 上屏。
+ * 脚本 lane 驱动：把脚本播放器本帧的活跃画面 lane 注册进 {@link LaneRenderer}，并按每条 lane 的合成参数快照
+ * （{@code opacity} / {@code dest} / {@code source} / lane 遮罩）逐 lane 上屏。
  * 链路：GameRenderer.render HEAD → CameraManager.onRenderFrame → ScriptPlayer.onRenderFrame
  * （填 lane 快照，按片段本地时间采样各 lane 的调色）→ 本类 tick（注册 lane + setSink）
  * → LaneRenderer.render（GameRenderer.renderLevel RETURN）→ 逐 lane 渲染 → lane 级调色
@@ -265,7 +261,8 @@ public final class ScriptLaneDriver {
         slot.source = LaneCompositor.Rect.FULL;
         slot.dest = LaneCompositor.Rect.FULL;
         // 链输出无 CAMERA clip：显式复位 full（槽位跨帧复用，防上一帧同序号 lane 的遮罩残留）
-        slot.mask.sample(null, 0.0F);
+        slot.mask.set(LaneMask.SHAPE_FULL, LaneMask.DEFAULT_X, LaneMask.DEFAULT_Y,
+                LaneMask.DEFAULT_WIDTH, LaneMask.DEFAULT_HEIGHT, LaneMask.DEFAULT_RADIUS);
         slot.captureId = CHAIN_CAPTURE_ID;
         // 链输出无 CAMERA clip：维度空串（= 玩家当前维度），不跨维度渲染；无租约，走 captureId 回退
         renderer.setLane(0, chainState, CONTENT, null, "", slot.captureId, null);
@@ -307,40 +304,23 @@ public final class ScriptLaneDriver {
     }
 
     /**
-     * 一条 lane 的合成参数：所属 clip 的关键帧在本地时间处插值（缺省 = 1 / 全屏 / 全幅），
-     * 同一时间点采样 lane 遮罩（{@link LaneMask}；无 mask 字段的 clip = full）。
-     * 段内进度匀速线性（运行时线性，缓动由编辑器烘焙成显式关键帧，运行时不求值）。
+     * 一条 lane 的合成参数：参数已由相机求值器从同一 {@code SampledClip} 算出（与六参数同一时刻），
+     * 这里只搬运快照，不再插值 / 采样；缺快照（morph 两侧等）时取
+     * {@link CameraLaneComposite#DEFAULT}（全屏、不透明、full mask）。
      */
     private static void resolve(CameraLane lane, Slot slot) {
         CameraLaneComposite composite = lane.composite();
-        if (composite != null) {
-            // 新格式：参数已由相机求值器从同一 SampledClip 算出（与六参数同一时刻），不再重新插值 / 采样
-            slot.opacity = composite.opacity();
-            slot.source = rect(composite.sourceX(), composite.sourceY(), composite.sourceW(), composite.sourceH());
-            slot.dest = rect(composite.destX(), composite.destY(), composite.destW(), composite.destH());
-            slot.mask.set(maskShape(composite.maskShape()), composite.maskX(), composite.maskY(),
-                    composite.maskWidth(), composite.maskHeight(), composite.maskRadius());
-            return;
+        if (composite == null) {
+            composite = CameraLaneComposite.DEFAULT;
         }
-        KeyframeInterpolator.InterpolationResult result =
-                KeyframeInterpolator.computeInterpolation(lane.clipLocalTime(), lane.clip());
-        if (result == null) {
-            // 关键帧为空 → 全部取默认（全屏、不透明）
-            slot.opacity = 1.0F;
-            slot.source = LaneCompositor.Rect.FULL;
-            slot.dest = LaneCompositor.Rect.FULL;
-        } else {
-            Keyframe from = result.from;
-            Keyframe to = result.to;
-            double s = result.adjustedT;
-            slot.opacity = lerp(from.getFloat("opacity", 1.0F), to.getFloat("opacity", 1.0F), s);
-            slot.source = interpolateRect(from, to, s, "source");
-            slot.dest = interpolateRect(from, to, s, "dest");
-        }
-        slot.mask.sample(lane.clip(), lane.clipLocalTime());
+        slot.opacity = composite.opacity();
+        slot.source = rect(composite.sourceX(), composite.sourceY(), composite.sourceW(), composite.sourceH());
+        slot.dest = rect(composite.destX(), composite.destY(), composite.destW(), composite.destH());
+        slot.mask.set(maskShape(composite.maskShape()), composite.maskX(), composite.maskY(),
+                composite.maskWidth(), composite.maskHeight(), composite.maskRadius());
     }
 
-    /** 新格式矩形：与旧路径同口径（缺省 = 全幅 / 全屏时复用 {@link LaneCompositor.Rect#FULL}）。 */
+    /** 新格式矩形：缺省 = 全幅 / 全屏时复用 {@link LaneCompositor.Rect#FULL}。 */
     private static LaneCompositor.Rect rect(float x, float y, float w, float h) {
         return x == 0.0F && y == 0.0F && w == 1.0F && h == 1.0F
                 ? LaneCompositor.Rect.FULL
@@ -352,38 +332,6 @@ public final class ScriptLaneDriver {
         return "rect".equals(shape) ? LaneMask.SHAPE_RECT
                 : "circle".equals(shape) ? LaneMask.SHAPE_CIRCLE
                 : LaneMask.SHAPE_FULL;
-    }
-
-    /** 关键帧矩形字段（{@code x} / {@code y} / {@code w} / {@code h}）的逐分量插值；字段缺省 = 全幅 / 全屏。 */
-    private static LaneCompositor.Rect interpolateRect(Keyframe from, Keyframe to, double s, String key) {
-        float x = lerp(component(from, key, "x", 0.0F), component(to, key, "x", 0.0F), s);
-        float y = lerp(component(from, key, "y", 0.0F), component(to, key, "y", 0.0F), s);
-        float w = lerp(component(from, key, "w", 1.0F), component(to, key, "w", 1.0F), s);
-        float h = lerp(component(from, key, "h", 1.0F), component(to, key, "h", 1.0F), s);
-        return x == 0.0F && y == 0.0F && w == 1.0F && h == 1.0F
-                ? LaneCompositor.Rect.FULL
-                : new LaneCompositor.Rect(x, y, w, h);
-    }
-
-    /** 关键帧 data 里的一个矩形分量；字段或分量缺省时取默认值。 */
-    private static float component(Keyframe kf, String key, String component, float defaultValue) {
-        Object value = kf.getObject(key);
-        if (!(value instanceof Map<?, ?> rect)) {
-            return defaultValue;
-        }
-        Object componentValue = rect.get(component);
-        if (!(componentValue instanceof Number number)) {
-            return defaultValue;
-        }
-        // 数据入口守卫（与 Keyframe.getFloat 同口径）：矩形分量直达合成层（quad 顶点 / UV），
-        // 脚本 JSON 的 NaN / Infinity 字面量或溢出数字（1e999）不得直通 GL——NaN 坐标会画飞 / 不写 = 黑
-        return MathUtil.sanitizeFloatLogged(number.floatValue(), defaultValue,
-                "keyframe." + key + "." + component);
-    }
-
-    private static float lerp(float a, float b, double s) {
-        // 矩形分量是合成层 float 值域（quad 顶点 / UV）：进度 double，输出窄化到 float
-        return (float) (a + (b - a) * s);
     }
 
     /** 合成回调：把该 lane 当帧的画面按本帧参数贴到屏幕，随后按相机 id 读回该相机的合成结果（调试捕获）。 */

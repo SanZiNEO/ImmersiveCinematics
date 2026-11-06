@@ -1,7 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.camera.transition;
 
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraChannels;
-import com.immersivecinematics.immersive_cinematics.math.MathModel;
+import com.immersivecinematics.immersive_cinematics.spi.MathModel;
 
 /**
  * 过渡分参数声明（脚本字段 {@code transition_params} 的解析形态）——未声明的通道 / 键保留「未声明」标记，

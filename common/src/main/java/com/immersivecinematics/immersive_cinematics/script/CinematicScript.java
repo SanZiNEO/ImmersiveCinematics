@@ -49,6 +49,18 @@ public class CinematicScript {
     /** 脚本级路径集合（{@code paths[]}；缺省空集合）。解析期装入一次，播放期只读。 */
     private PathCollection pathCollection = PathCollection.EMPTY;
 
+    /** 内容是否无限（构造期派生）：任一 timeline 片段或独立片段永不结束，或宏观循环无限重复。 */
+    private final boolean infiniteContent;
+
+    /** 有限内容末端（秒，构造期派生）：timeline 片段展开末端最大值；无片段 = 0。仅 {@link #hasFiniteContentEnd()} 时有效。 */
+    private final double contentEndSeconds;
+
+    /** 是否存在至少一个有限窗口的 timeline 片段（构造期派生）。 */
+    private final boolean hasFiniteDisplayEnd;
+
+    /** 有限窗口 timeline 片段展开末端最大值（构造期派生）；仅 {@link #hasFiniteDisplayEnd()} 时有效。 */
+    private final double finiteDisplayEndSeconds;
+
     public CinematicScript(ScriptMeta meta, Timeline timeline) {
         this(meta, timeline, List.of());
     }
@@ -63,6 +75,35 @@ public class CinematicScript {
                 ? List.of()
                 : Collections.unmodifiableList(new ArrayList<>(standaloneClips));
         this.rawJson = null;
+
+        boolean infinite = meta != null && meta.isMacroLoop() && meta.getMacroLoopCount() < 0;
+        double content = 0.0;
+        double display = 0.0;
+        boolean finiteDisplay = false;
+        List<TimelineTrack> tracks = timeline != null ? timeline.getTracks() : null;
+        if (tracks != null) {
+            for (TimelineTrack track : tracks) {
+                if (track == null || track.getClips() == null) continue;
+                for (Clip clip : track.getClips()) {
+                    if (clip == null) continue;
+                    if (clip.isEffectivelyInfinite()) {
+                        infinite = true;
+                        continue;
+                    }
+                    double end = clip.getWindowEnd();
+                    if (!finiteDisplay || end > display) display = end;
+                    finiteDisplay = true;
+                    if (end > content) content = end;
+                }
+            }
+        }
+        for (Clip clip : this.standaloneClips) {
+            if (clip != null && clip.isEffectivelyInfinite()) infinite = true;
+        }
+        this.infiniteContent = infinite;
+        this.contentEndSeconds = content;
+        this.hasFiniteDisplayEnd = finiteDisplay;
+        this.finiteDisplayEndSeconds = display;
     }
 
     public ScriptMeta getMeta() { return meta; }
@@ -130,11 +171,43 @@ public class CinematicScript {
 
     public String getName() { return meta.getName(); }
 
-    public int getVersion() { return meta.getVersion(); }
+    /**
+     * 内容是否无限：任一 timeline 片段或独立片段 {@link Clip#isEffectivelyInfinite()}，
+     * 或宏观循环无限（{@code macro_loop} 且 {@code macro_loop_count < 0}）。
+     * 构造期派生，播放期只读。
+     */
+    public boolean isInfiniteContent() { return infiniteContent; }
 
-    public float getTotalDuration() { return timeline.getTotalDuration(); }
+    /** 内容是否有有限末端（即 {@link #isInfiniteContent()} 的反面）。 */
+    public boolean hasFiniteContentEnd() { return !infiniteContent; }
 
-    public boolean isInfinite() { return timeline.isInfinite(); }
+    /**
+     * 有限内容末端（秒）：仅统计 timeline 片段的 {@link Clip#getWindowEnd()} 最大值；
+     * 无片段 = 0。独立片段无默认放置，不计入。
+     *
+     * @throws IllegalStateException 内容无限（没有有限末端；不用数值哨兵）
+     */
+    public double contentEnd() {
+        if (infiniteContent) {
+            throw new IllegalStateException("内容无限，没有有限末端：" + getId());
+        }
+        return contentEndSeconds;
+    }
+
+    /** 是否存在至少一个有限窗口的 timeline 片段（独立片段不计）。 */
+    public boolean hasFiniteDisplayEnd() { return hasFiniteDisplayEnd; }
+
+    /**
+     * 有限窗口 timeline 片段的 {@link Clip#getWindowEnd()} 最大值（独立片段不计）。
+     *
+     * @throws IllegalStateException 没有任何有限窗口的 timeline 片段（不用数值哨兵）
+     */
+    public double finiteDisplayEnd() {
+        if (!hasFiniteDisplayEnd) {
+            throw new IllegalStateException("没有有限窗口的 timeline 片段：" + getId());
+        }
+        return finiteDisplayEndSeconds;
+    }
 
     // ========== 内部：id 索引 ==========
 
@@ -175,7 +248,7 @@ public class CinematicScript {
 
     @Override
     public String toString() {
-        return String.format("CinematicScript{id=%s, name=%s, v%d, %s, standalone=%d}",
-                meta.getId(), meta.getName(), meta.getVersion(), timeline, standaloneClips.size());
+        return String.format("CinematicScript{id=%s, name=%s, %s, standalone=%d}",
+                meta.getId(), meta.getName(), timeline, standaloneClips.size());
     }
 }

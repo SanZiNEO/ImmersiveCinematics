@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.math;
 
+import com.immersivecinematics.immersive_cinematics.spi.MathModel;
+
 /**
  * spring — 二阶阻尼弹簧（{@code x'' = −k·e − 2ζω·x'}，{@code e = x − target}、{@code ω = √k}）。
  *

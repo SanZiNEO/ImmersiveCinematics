@@ -2,14 +2,13 @@ package com.immersivecinematics.immersive_cinematics.script;
 import java.util.Collections;
 import java.util.List;
 /**
- * 脚本元数据：标识 / 作者 / 格式版本 + 运行时行为（{@link RuntimeBehavior}）+ 触发定义 + 分辨率基准。
+ * 脚本元数据：标识 / 作者 + 运行时行为（{@link RuntimeBehavior}）+ 触发定义 + 分辨率基准。
  */
 public class ScriptMeta {
 
     private final String id;
     private final String name;
     private final String author;
-    private final int version;
     private final String description;
     private final RuntimeBehavior behavior;
     private final int priority;
@@ -31,14 +30,13 @@ public class ScriptMeta {
     /** 编辑基准分辨率缺省高（像素）：脚本未声明 {@code meta.base_resolution} 时的 H基。 */
     public static final int DEFAULT_BASE_HEIGHT = 1080;
 
-    public ScriptMeta(String id, String name, String author, int version, String description,
+    public ScriptMeta(String id, String name, String author, String description,
                       RuntimeBehavior behavior, int priority, PlayMode playMode, String dimension,
                       List<TriggerDefinition> triggers, Integer skipVoteRatio,
                       Integer triggerPollInterval, int baseWidth, int baseHeight) {
         this.id = id;
         this.name = name;
         this.author = author;
-        this.version = version;
         this.description = description;
         this.behavior = behavior;
         this.priority = priority;
@@ -54,7 +52,6 @@ public class ScriptMeta {
     public String getId() { return id; }
     public String getName() { return name; }
     public String getAuthor() { return author; }
-    public int getVersion() { return version; }
     public String getDescription() { return description; }
     public RuntimeBehavior getBehavior() { return behavior; }
     /** 播放优先级：数值越大优先级越高，仅用于队列内排序（不可打断脚本永不被打断） */
@@ -138,7 +135,7 @@ public class ScriptMeta {
 
     @Override
     public String toString() {
-        return String.format("ScriptMeta{id=%s, name=%s, author=%s, v%d}", id, name, author, version);
+        return String.format("ScriptMeta{id=%s, name=%s, author=%s}", id, name, author);
     }
 
     public record RuntimeBehavior(

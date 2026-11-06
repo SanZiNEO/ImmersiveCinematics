@@ -1,4 +1,7 @@
-package com.immersivecinematics.immersive_cinematics.math;
+package com.immersivecinematics.immersive_cinematics.spi;
+
+import com.immersivecinematics.immersive_cinematics.math.MathModelInstance;
+import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
 
 /**
  * 模型定义 — 不可变数据，可被多个调用点共享（一处定义、多处调用）。

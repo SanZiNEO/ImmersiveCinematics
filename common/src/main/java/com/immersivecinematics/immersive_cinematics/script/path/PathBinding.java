@@ -1,8 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.script.path;
 
 import com.immersivecinematics.immersive_cinematics.math.path.AxisConstraint;
-import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
+import com.immersivecinematics.immersive_cinematics.spi.PathSpec;
 
 import java.util.Objects;
 

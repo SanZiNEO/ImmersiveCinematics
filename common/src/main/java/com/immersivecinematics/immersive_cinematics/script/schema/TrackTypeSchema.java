@@ -1,5 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script.schema;
 
+import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
 import com.immersivecinematics.immersive_cinematics.spi.ObjectDef;
 
 import java.util.Collections;

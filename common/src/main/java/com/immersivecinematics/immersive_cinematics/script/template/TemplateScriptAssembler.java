@@ -11,8 +11,7 @@ import com.immersivecinematics.immersive_cinematics.script.ScriptTemplate;
  * 把片段模板的产物装进一份可播放的标准脚本（接入点用）。
  *
  * 骨架复用新建脚本的默认结构 {@link ScriptTemplate#build()}（meta 默认值 + 每种轨道一条空轨），
- * 把展开出的 clip 追加到 {@link ClipTemplate#trackType()} 对应的轨道，并把
- * {@code timeline.total_duration} 收到 clip 末端。
+ * 把展开出的 clip 追加到 {@link ClipTemplate#trackType()} 对应的轨道。
  *
  * 只做"片段 → 能播的脚本"的最小装配，不是脚本级模板（后者引用多条轨道、带触发器与默认转场）；
  * 产物与手写脚本同构，走 {@code ScriptParser} / {@code ScriptValidator} 后即可编辑 / 播放。
@@ -54,10 +53,6 @@ public final class TemplateScriptAssembler {
         }
         track.getAsJsonArray("clips").add(clip);
 
-        float end = clip.get("start_time").getAsFloat() + Math.max(clip.get("duration").getAsFloat(), 0f);
-        if (end > 0f) {
-            timeline.addProperty("total_duration", end);
-        }
         return script;
     }
 

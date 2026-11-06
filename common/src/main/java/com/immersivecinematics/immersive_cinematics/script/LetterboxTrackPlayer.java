@@ -4,7 +4,6 @@ import com.immersivecinematics.immersive_cinematics.overlay.CanvasTransform;
 import com.immersivecinematics.immersive_cinematics.overlay.OverlayManager;
 import com.immersivecinematics.immersive_cinematics.overlay.LetterboxLayer;
 import com.immersivecinematics.immersive_cinematics.script.Clip;
-import com.immersivecinematics.immersive_cinematics.script.Keyframe;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipRuntimeCache;
 import com.immersivecinematics.immersive_cinematics.script.object.ObjectSlotLayout;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledClip;
@@ -16,8 +15,8 @@ import java.util.List;
 public class LetterboxTrackPlayer implements TrackDriver {
 
     /**
-     * 画幅比缺省（同 {@code TrackSchemas.letterbox()} / {@link Keyframe#getAspectRatio()}）：
-     * 关键帧没写该通道时用。
+     * 画幅比缺省（同 {@code TrackSchemas.letterbox()} 的 {@code aspect_ratio} 声明）：
+     * 片段未声明该通道时用。
      */
     private static final float DEFAULT_ASPECT_RATIO = 2.35f;
 
@@ -29,7 +28,7 @@ public class LetterboxTrackPlayer implements TrackDriver {
     private final int trackIndex;
     private final OverlayManager overlayManager;
 
-    /** 新格式采样装配层：按片段对象身份缓存采样器与复用缓冲（旧格式片段不进入）。 */
+    /** 采样装配层：按片段对象身份缓存采样器与复用缓冲。 */
     private final ClipRuntimeCache runtimeCache = new ClipRuntimeCache(TrackTypeId.LETTERBOX);
 
     /**
@@ -68,30 +67,18 @@ public class LetterboxTrackPlayer implements TrackDriver {
             return;
         }
 
-        // 两个通道都在片段本地时间处求值；关键帧为空 / 单帧 / 首帧前 / 末帧后由插值器统一取缺省或边界值。
+        // 两个通道都在片段本地时间处求值：一个 SampledClip 提供两个对象槽位（未声明 / 未采样 → 缺省）。
         double localTime = scriptPlayer.executionLocalTime(activeClip, globalTime);
-
-        if (activeClip.hasObjects()) {
-            // 新格式：一个 SampledClip 提供两个对象槽位（未声明 / 未采样 → 缺省）
-            LetterboxParams params = compute(activeClip, localTime, runtimeCache);
-            letterbox.setAspectRatio(params.aspectRatio());
-            letterbox.setOpacity(params.opacity());
-            return;
-        }
-
-        // 旧格式：按相邻关键帧匀速线性求值（运行时统一线性：缓动由编辑器烘焙成显式关键帧，运行时不求值）
-        List<Keyframe> kfs = activeClip.getKeyframes();
-        letterbox.setAspectRatio(KeyframeInterpolator.interpolateChannel(
-                kfs, localTime, "aspect_ratio", DEFAULT_ASPECT_RATIO));
-        letterbox.setOpacity(KeyframeInterpolator.interpolateChannel(
-                kfs, localTime, "opacity", CanvasTransform.DEFAULT_OPACITY));
+        LetterboxParams params = compute(activeClip, localTime, runtimeCache);
+        letterbox.setAspectRatio(params.aspectRatio());
+        letterbox.setOpacity(params.opacity());
     }
 
     /**
-     * 新格式装配：从 {@link SampledClip} 读 {@code aspect_ratio} / {@code opacity}。
+     * 装配：从 {@link SampledClip} 读 {@code aspect_ratio} / {@code opacity}。
      *
-     * @param clip      新格式片段
-     * @param localTime 执行局部时间（与旧路径同源）
+     * @param clip      片段
+     * @param localTime 执行局部时间
      * @param cache     该片段的采样缓存
      */
     public static LetterboxParams compute(Clip clip, double localTime, ClipRuntimeCache cache) {

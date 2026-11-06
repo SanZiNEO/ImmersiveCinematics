@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.script.schema;
 
+import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -17,7 +19,6 @@ public final class MetaSchemas {
         map.put("id", new FieldDef("string", "untitled", true, java.util.Collections.emptyList(), "info"));
         map.put("name", new FieldDef("string", "Untitled", true, java.util.Collections.emptyList(), "info"));
         map.put("author", new FieldDef("string", "", false, java.util.Collections.emptyList(), "info"));
-        map.put("version", new FieldDef("int", 3, true, java.util.Collections.emptyList(), "info"));
         map.put("description", new FieldDef("string", "", false, java.util.Collections.emptyList(), "info"));
         map.put("dimension", new FieldDef("string", "", false, java.util.Collections.emptyList(), "info"));
         // 编辑基准分辨率 {w, h}（像素，正整数）：分辨率转义系数 k 的分母；缺省 null = 1920×1080

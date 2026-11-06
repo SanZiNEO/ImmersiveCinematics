@@ -1,4 +1,6 @@
-package com.immersivecinematics.immersive_cinematics.math;
+package com.immersivecinematics.immersive_cinematics.spi;
+
+import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
 
 import java.util.List;
 import java.util.Map;

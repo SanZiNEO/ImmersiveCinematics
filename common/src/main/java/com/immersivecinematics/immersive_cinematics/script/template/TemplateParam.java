@@ -1,6 +1,6 @@
 package com.immersivecinematics.immersive_cinematics.script.template;
 
-import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
+import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
 
 import java.util.Collections;
 import java.util.List;

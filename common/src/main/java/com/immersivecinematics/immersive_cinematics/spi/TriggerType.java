@@ -1,7 +1,6 @@
-package com.immersivecinematics.immersive_cinematics.trigger.server;
+package com.immersivecinematics.immersive_cinematics.spi;
 
 import com.google.gson.JsonObject;
-import com.immersivecinematics.immersive_cinematics.trigger.server.continuity.TriggerEvalContext;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.function.BiPredicate;

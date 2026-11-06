@@ -1,8 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
-import com.immersivecinematics.immersive_cinematics.script.schema.FieldDef;
 import com.immersivecinematics.immersive_cinematics.script.schema.SchemaRegistry;
 import com.immersivecinematics.immersive_cinematics.script.schema.TrackTypeSchema;
+import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
 import java.util.Collections;
 import java.util.List;

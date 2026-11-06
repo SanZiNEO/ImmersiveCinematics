@@ -1,6 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.trigger.server.prereq;
 
 import com.google.gson.JsonObject;
+import com.immersivecinematics.immersive_cinematics.spi.TriggerPrerequisite;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

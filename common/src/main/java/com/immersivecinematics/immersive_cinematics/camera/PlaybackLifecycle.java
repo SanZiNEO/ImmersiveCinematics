@@ -201,15 +201,6 @@ final class PlaybackLifecycle {
                 deactivate(instance);
                 return true;
 
-            case USER_SKIP:
-                if (instance != null && !instance.isSkippable()) {
-                    LOGGER.debug("脚本不可跳过(skippable=false)，拒绝用户退出");
-                    return false;
-                }
-                setExitReason(instance, CompletionReason.SKIPPED);
-                deactivate(instance);
-                return true;
-
             case NATURAL_END:
                 if (instance != null && instance.isHoldAtEnd()) {
                     return false;

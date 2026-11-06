@@ -247,9 +247,11 @@ public class CinematicCommand {
         }
 
         final int count = targets.size();
-        LOGGER.info("已向 {} 名玩家推送脚本: {} (总时长: {}s)",
+        LOGGER.info("已向 {} 名玩家推送脚本: {} (内容末端: {})",
                 count, script.getMeta().getName(),
-                String.format("%.1f", script.getTimeline().getTotalDuration()));
+                script.hasFiniteContentEnd()
+                        ? String.format("%.1fs", script.contentEnd())
+                        : "无限/无有限末端");
         return 1;
     }
 

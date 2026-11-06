@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.math;
 
+import com.immersivecinematics.immersive_cinematics.spi.MathModel;
+
 /**
  * inertia — 惯性：阻尼基准随输入运动的二阶追踪（{@code e'' = −k·e − 2ζω·e'}，{@code e = x − target}、
  * {@code e' = x' − target'}、{@code ω = √k}）。

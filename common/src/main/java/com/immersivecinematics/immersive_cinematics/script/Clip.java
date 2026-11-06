@@ -1,26 +1,25 @@
 package com.immersivecinematics.immersive_cinematics.script;
 
+import com.google.gson.JsonObject;
 import com.immersivecinematics.immersive_cinematics.camera.cover.ClipModifier;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionInterrupt;
 import com.immersivecinematics.immersive_cinematics.camera.transition.TransitionSpec;
-import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
+import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitPolicy;
+import com.immersivecinematics.immersive_cinematics.script.execution.LoopMode;
 import com.immersivecinematics.immersive_cinematics.script.identity.ClipIdentity;
 import com.immersivecinematics.immersive_cinematics.script.object.ClipObjects;
 import com.immersivecinematics.immersive_cinematics.script.object.SampledProperty;
+import com.immersivecinematics.immersive_cinematics.spi.PathSpec;
 import com.immersivecinematics.immersive_cinematics.spi.PropertyMode;
 import com.immersivecinematics.immersive_cinematics.spi.TrackTypeId;
-import com.immersivecinematics.immersive_cinematics.script.execution.ClipExitPolicy;
-import com.immersivecinematics.immersive_cinematics.script.execution.LoopMode;
 import com.immersivecinematics.immersive_cinematics.util.MathUtil;
-import com.google.gson.JsonObject;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**
  * 通用片段容器：所有轨道共享 {@code startTime} / {@code duration}；
- * 轨道特有字段存在 {@code data} map 中（由 {@link SchemaLoader} 定义），关键帧使用 {@link Keyframe} 泛型。
+ * 轨道特有字段存在 {@code data} map 中（由 {@link SchemaLoader} 定义），动画量走 {@code objects} 采样属性。
  *
  * <p>新格式片段把片段级字段写成 {@code objects} 里的采样属性。为了让旧消费方（过渡 / 运动模型 / 呼吸 /
  * modifier / 曲线 / LUT / dimension / 音频）继续按字段名读取，{@link #getString(String, String)}、
@@ -38,15 +37,8 @@ public class Clip {
     private final float duration;
     private final TrackTypeId trackType;
     private final Map<String, Object> data;
-    private final List<Keyframe> keyframes;
     /** 新对象模型的采样属性集合；旧格式片段为 {@link ClipObjects#EMPTY}。 */
     private final ClipObjects objects;
-
-    /**
-     * 是否新格式（播放控制格式，I-1 {@code objects} 片段）：执行循环按格式区分——
-     * 新格式 AUDIO 的 {@code loop} 是执行循环；旧格式 AUDIO 的 {@code loop} 仍是文件循环。
-     */
-    private final boolean playControlFormat;
 
     /**
      * 脚本内稳定 id（{@code null} = 未命名）：解析期从 JSON {@code id} 字段读入并按
@@ -70,62 +62,23 @@ public class Clip {
     /** 过渡声明缓存（{@link #getTransitionSpec()} 首次访问建成；片段数据解析后只读，故可缓存）。 */
     private TransitionSpec transitionSpec;
 
-    /** fade 颜色遮罩定义缓存（{@link #getColorMaskSpec()} 首次访问建成；片段数据解析后只读，故可缓存）。 */
-    private ColorMaskSpec colorMaskSpec;
-    /** 是否已尝试建立 {@link #colorMaskSpec}（非 OVERLAY 轨的 {@code null} 结果同样只解析一次）。 */
-    private boolean colorMaskSpecResolved;
-
-    /** 旧格式构造器：不携带新对象模型（{@link ClipObjects#EMPTY}），执行循环按旧格式口径。 */
-    public Clip(float startTime, float duration, TrackTypeId trackType,
-                Map<String, Object> data, List<Keyframe> keyframes) {
-        this(startTime, duration, trackType, data, keyframes, ClipObjects.EMPTY, false, null, null);
-    }
-
-    /** 旧格式构造器（带对象模型）：执行循环仍按旧格式口径。 */
-    public Clip(float startTime, float duration, TrackTypeId trackType,
-                Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects) {
-        this(startTime, duration, trackType, data, keyframes, objects, false, null, null);
-    }
-
     /**
-     * @param playControlFormat 是否新格式（播放控制格式）：{@code true} = {@code objects} 片段
-     *                          （{@code ScriptParser.parseObjectClip}），AUDIO 的 {@code loop} 按执行循环解释
-     */
-    public Clip(float startTime, float duration, TrackTypeId trackType,
-                Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects,
-                boolean playControlFormat) {
-        this(startTime, duration, trackType, data, keyframes, objects, playControlFormat, null, null);
-    }
-
-    /**
-     * 完整构造器：在既有形态上追加脚本内稳定 id。
+     * 唯一构造器。
      *
-     * @param clipId 脚本内 id（{@code null} = 未命名片段）；非 {@code null} 时调用方须已按
-     *               {@link ClipIdentity#PATTERN} 校验（解析器负责），这里不重复校验以免把
-     *               程序化构造路径的分支埋进异常
-     */
-    public Clip(float startTime, float duration, TrackTypeId trackType,
-                Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects,
-                boolean playControlFormat, String clipId) {
-        this(startTime, duration, trackType, data, keyframes, objects, playControlFormat, clipId, null);
-    }
-
-    /**
-     * 完整构造器 + 片段默认出口策略。
-     *
+     * @param objects    新对象模型的采样属性集合（{@code null} → {@link ClipObjects#EMPTY}）
+     * @param clipId     脚本内 id（{@code null} = 未命名片段）；非 {@code null} 时调用方须已按
+     *                   {@link ClipIdentity#PATTERN} 校验（解析器负责），这里不重复校验以免把
+     *                   程序化构造路径的分支埋进异常
      * @param exitPolicy 片段默认出口策略（{@code null} = 未声明）；解析期由
      *                   {@code ClipExitPolicyParser} 在脚本装配后填充，程序化构造路径可直接传
      */
     public Clip(float startTime, float duration, TrackTypeId trackType,
-                Map<String, Object> data, List<Keyframe> keyframes, ClipObjects objects,
-                boolean playControlFormat, String clipId, ClipExitPolicy exitPolicy) {
+                Map<String, Object> data, ClipObjects objects, String clipId, ClipExitPolicy exitPolicy) {
         this.startTime = startTime;
         this.duration = duration;
         this.trackType = trackType;
         this.data = data != null ? data : Collections.emptyMap();
-        this.keyframes = keyframes != null ? keyframes : Collections.emptyList();
         this.objects = objects != null ? objects : ClipObjects.EMPTY;
-        this.playControlFormat = playControlFormat;
         this.clipId = clipId;
         this.exitPolicy = exitPolicy;
     }
@@ -136,7 +89,6 @@ public class Clip {
     public float getDuration() { return duration; }
     public TrackTypeId getTrackType() { return trackType; }
     public Map<String, Object> getData() { return data; }
-    public List<Keyframe> getKeyframes() { return keyframes; }
 
     /** 新对象模型的采样属性集合（旧格式片段为空集合）。 */
     public ClipObjects getObjects() { return objects; }
@@ -257,20 +209,6 @@ public class Clip {
         return data.containsKey(key) || valueOnly(key) != null;
     }
 
-    /**
-     * 本片段的 fade 颜色遮罩定义；只有 {@link TrackTypeId#OVERLAY} 片段有，其余轨道恒 {@code null}。
-     * 首次访问由 {@link ColorMaskSpec#from(Clip)} 建成并缓存（片段数据解析后只读，{@code null} 也只判定一次）。
-     * 结构非法时抛 {@link ColorMaskSpec.InvalidColorMaskException}，由 {@code ScriptParser} 在解析期
-     * 转成带完整字段路径的 {@code ScriptParseException}。
-     */
-    public ColorMaskSpec getColorMaskSpec() {
-        if (!colorMaskSpecResolved) {
-            colorMaskSpecResolved = true;
-            colorMaskSpec = TrackTypeId.OVERLAY.equals(trackType) ? ColorMaskSpec.from(this) : null;
-        }
-        return colorMaskSpec;
-    }
-
     public boolean isPositionModeRelative() {
         return "relative".equals(getString("position_mode", "relative"));
     }
@@ -283,26 +221,14 @@ public class Clip {
         return getString("dimension", "");
     }
 
-    public boolean isPlayControlFormat() {
-        return playControlFormat;
-    }
-
-    /**
-     * 是否为执行循环（按次数重复执行）：{@code loop=true} 且（新格式 或 非 AUDIO 轨）。
-     * 旧格式 AUDIO 的 {@code loop} 是文件循环，不算执行循环。
-     */
+    /** 是否为执行循环（按次数重复执行）：{@code loop=true}。 */
     public boolean isExecutionLoop() {
-        return getBool("loop", false) && (playControlFormat || !TrackTypeId.AUDIO.equals(trackType));
+        return getBool("loop", false);
     }
 
-    /** 旧调用名：执行循环（旧格式 AUDIO 文件循环不算）。 */
+    /** 旧调用名：执行循环。 */
     public boolean isLoop() {
         return isExecutionLoop();
-    }
-
-    /** 是否为旧格式 AUDIO 的文件循环（{@code loop=true} 且非播放控制格式）。 */
-    public boolean isFileLoop() {
-        return TrackTypeId.AUDIO.equals(trackType) && !playControlFormat && getBool("loop", false);
     }
 
     public int getLoopCount() {
@@ -387,18 +313,6 @@ public class Clip {
      */
     public boolean getSuppressModifiers() {
         return getBool("suppress_modifiers", false);
-    }
-
-    /**
-     * 片段级判定规则（clip 级 {@code rules} 数组，解析期归一为 {@link ClipRule} 列表）。
-     *
-     * 顺序 = 声明顺序（阻塞规则按声明逐条生效）；本片段不写 {@code rules} 时为空表（恒非 {@code null}）。
-     * 规则随本片段对象存活、播放期只读；条件求值归判定源、动作执行归动作集，见 {@link ClipRule}。
-     */
-    @SuppressWarnings("unchecked")
-    public List<ClipRule> getRules() {
-        Object v = data.get("rules");
-        return v instanceof List ? (List<ClipRule>) v : List.of();
     }
 
     // ── Convenience: ADJUST ──
@@ -611,7 +525,7 @@ public class Clip {
 
     @Override
     public String toString() {
-        return String.format("Clip{type=%s, start=%.2f, dur=%.2f, data=%s, kfs=%d}",
-                trackType, startTime, duration, data, keyframes.size());
+        return String.format("Clip{type=%s, start=%.2f, dur=%.2f, data=%s, objects=%s}",
+                trackType, startTime, duration, data, objects);
     }
 }

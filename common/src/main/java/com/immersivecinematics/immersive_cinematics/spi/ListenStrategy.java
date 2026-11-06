@@ -1,4 +1,4 @@
-package com.immersivecinematics.immersive_cinematics.trigger.server;
+package com.immersivecinematics.immersive_cinematics.spi;
 
 /**
  * 触发器监听策略：决定该类型由事件回调驱动，还是由 {@code TriggerEngine} 按间隔轮询。

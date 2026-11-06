@@ -1,4 +1,6 @@
-package com.immersivecinematics.immersive_cinematics.trigger.server.continuity;
+package com.immersivecinematics.immersive_cinematics.spi;
+
+import com.immersivecinematics.immersive_cinematics.trigger.server.continuity.MotionSample;
 
 /**
  * 一次触发器求值的连续语义上下文：本轮的采样区间 + 时间窗口。

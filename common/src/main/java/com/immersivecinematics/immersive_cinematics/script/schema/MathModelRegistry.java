@@ -8,11 +8,12 @@ import com.immersivecinematics.immersive_cinematics.math.CurveModel;
 import com.immersivecinematics.immersive_cinematics.math.Curves;
 import com.immersivecinematics.immersive_cinematics.math.ExponentialSmoothModel;
 import com.immersivecinematics.immersive_cinematics.math.InertiaModel;
-import com.immersivecinematics.immersive_cinematics.math.MathModel;
 import com.immersivecinematics.immersive_cinematics.math.MathModelInstance;
-import com.immersivecinematics.immersive_cinematics.math.ModelParams;
 import com.immersivecinematics.immersive_cinematics.math.SpringModel;
 import com.immersivecinematics.immersive_cinematics.math.ValueDomain;
+import com.immersivecinematics.immersive_cinematics.spi.FieldDef;
+import com.immersivecinematics.immersive_cinematics.spi.MathModel;
+import com.immersivecinematics.immersive_cinematics.spi.ModelParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

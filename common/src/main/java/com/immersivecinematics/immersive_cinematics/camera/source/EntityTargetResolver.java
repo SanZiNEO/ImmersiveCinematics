@@ -1,54 +1,24 @@
 package com.immersivecinematics.immersive_cinematics.camera.source;
 
-import com.immersivecinematics.immersive_cinematics.script.Clip;
-import com.immersivecinematics.immersive_cinematics.script.Keyframe;
-import com.immersivecinematics.immersive_cinematics.script.PositionData;
 import com.immersivecinematics.immersive_cinematics.selector.EntitySelectorService;
-import com.immersivecinematics.immersive_cinematics.selector.SelectorPolicy;
-import com.immersivecinematics.immersive_cinematics.selector.SelectorSchema;
-import com.immersivecinematics.immersive_cinematics.util.TimeInterpolation;
-import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 相机侧选择器适配：把关键帧 selector 字段与点源解析接到通用 {@link EntitySelectorService}；
- * 通用机制（解析 / 目标锁与切换 / 择一 / 锚点取位 / 平滑 / 捕获留底）在 selector 包，本类只做字段读取与上下文注入。
+ * 相机侧选择器适配：把选择器解析 / 目标锁与切换 / 择一 / 锚点取位 / 平滑 / 捕获留底接到通用
+ * {@link EntitySelectorService}；策略 / 锚点 / 择一字段的读取与点源求值归新格式求值层
+ * （{@code ObjectWorldContext} / {@code PositionEvaluator}），本类只持有共享服务实例、世界上下文接线
+ * 与包围盒取点数学。
  *
- * 字段回落链 = {@code <字段>_<调用点>} → 通用 {@code <字段>} → 缺省：策略四件套
- * {@code selector_refresh}（秒）/ {@code selector_switch_while_alive}（布尔）/
- * {@code selector_switch_interval}（秒）/ {@code selector_switch_smooth}（秒）；
- * 锚点 {@code selector_anchor}（缺省 {@code camera}），择一 {@code selector_pick}（缺省 {@code first}）。
- * 调用点名与取值集见 {@link SelectorSchema}。
- *
- * 点源解析（{@link #resolvePointSource}）：五形态 + 偏移展开见 {@link PointSource}，位置点源 / 注视点 /
- * 连线端点 / 基准坐标系前轴目标共用；{@code origin} 锚点取 {@code position} 的位置侧点源（实体形态按
- * {@code camera} 锚点解析，以免绕回自身）。返回世界空间方块坐标，不可解析 = {@code null}。
- * 线程与分配：仅客户端主线程，位于每帧求值路径；帧内路径不新建集合、不装箱。
+ * 线程与分配：仅客户端主线程，包围盒取点位于每帧求值路径；不新建集合、不装箱。
  * 状态所有权：目标锁与平滑状态由内部服务实例持有，生命周期 = 所属轨道播放器（停止 / 替换经 {@link #clear()}）。
  */
 public final class EntityTargetResolver {
 
     private final EntitySelectorService service = new EntitySelectorService();
 
-    /** 点源定位器（结构 / 方块）与玩家激活位置：与求值器共用，见 {@link #attachWorldContext}。 */
+    /** 点源定位器（结构 / 方块）与玩家激活位置：与求值器共用同一实例，见 {@link #attachWorldContext}。 */
     private WorldPointLocator pointLocator;
     private Vec3 originPos;
-
-    /**
-     * 本帧基准坐标系（表达空间 base 的参照系）：由 {@code CameraKeyframeEvaluator} 在位置通道求值后注入同一份
-     * 实例；{@code null} = 本帧没有基准坐标系（base 表达空间的偏移不生效）。
-     */
-    private PointSource.Frame frame;
-
-    /**
-     * 点源快照表（时态 = 快照的选择器点源，按片段身份 + 槽位分桶）：见 {@link #attachSnapshots}；
-     * {@code null} = 未注入（快照不启用）。
-     */
-    private PointSourceSnapshots snapshots;
-
-    /** 当前求值片段（快照表的桶键）：见 {@link #attachClip}；{@code null} = 无当前片段（快照不启用）。 */
-    private Clip currentClip;
 
     /**
      * 注入世界上下文（点源定位器 + 玩家激活位置）：由 {@code CameraKeyframeEvaluator} 构造时传入同一实例，
@@ -59,28 +29,6 @@ public final class EntityTargetResolver {
         this.originPos = originPos;
     }
 
-    /** 注入本帧基准坐标系：位置通道每帧重建后调用；{@code null} = 本帧没有基准坐标系。 */
-    public void attachFrame(PointSource.Frame frame) {
-        this.frame = frame;
-    }
-
-    /**
-     * 注入点源快照表（时态 = 快照的选择器点源，见 {@link PointSourceSnapshots}）：由轨道播放器持有并注入，
-     * 停止 / 替换 / seek 由它 {@link PointSourceSnapshots#clear()}；未注入 = 不启用快照（一律按实时求值）。
-     */
-    public void attachSnapshots(PointSourceSnapshots snapshots) {
-        this.snapshots = snapshots;
-    }
-
-    /**
-     * 注入当前求值片段（快照表的桶键）：由 {@code CameraKeyframeEvaluator} 在每次进入片段求值路径时调用
-     * （位置 / 注视点 / 朝向段各入口，含 morph 两侧），保证同帧同一片段的全部调用读同一桶；
-     * {@code null} = 无当前片段（快照不启用，按实时求值）。
-     */
-    public void attachClip(Clip clip) {
-        this.currentClip = clip;
-    }
-
     /** 通用选择器服务：同包的世界上下文（{@code ObjectWorldContext}）复用同一实例，锁 / 平滑 / 留底状态同源。 */
     EntitySelectorService service() {
         return service;
@@ -89,156 +37,6 @@ public final class EntityTargetResolver {
     /** 生命周期清理：清空目标锁与客户端选择器缓存（停止播放 / 脚本替换时调用）。 */
     public void clear() {
         service.clear();
-    }
-
-    /**
-     * 解析目标实体：本地快路径同步求值，服务端选择器走请求 + 缓存回映射。
-     *
-     * @param selector  选择器字符串；{@code null} / 空串 = 无目标
-     * @param cameraPos 相机世界坐标（调用方当前视点）：锚点缺省值与全部回落分支的取值
-     * @param role      调用点名：指定策略字段、锚点字段与锁的键，见 {@link SelectorSchema#CALLPOINTS}
-     * @param kf        策略 / 锚点 / 择一字段来源关键帧；{@code null} = 三者全缺省
-     * @return 解析到的客户端实体；无匹配 / 目标未加载 / 节流未到 = {@code null}
-     */
-    public Entity resolveEntity(String selector, Vec3 cameraPos, String role, Keyframe kf) {
-        return resolveEntity(selector, cameraPos, role, kf, selectorAnchor(kf, role));
-    }
-
-    /**
-     * 按给定锚点取值解析（锚点由调用方给出，不读字段）：公共入口用 {@link #selectorAnchor} 的结果；
-     * 点源实体分支固定传 {@link SelectorSchema#ANCHOR_CAMERA}——anchor=origin 经点源实体解析会绕回自身锚点。
-     * 择一策略由 {@link #selectorPick} 按同一 role 读字段，不随锚点分支改写。
-     */
-    private Entity resolveEntity(String selector, Vec3 cameraPos, String role, Keyframe kf, String anchor) {
-        Minecraft mc = Minecraft.getInstance();
-        if (selector == null || selector.isEmpty()) return null;
-        if ("@p".equals(selector) || "@s".equals(selector)) {
-            return mc.player;
-        }
-        if (mc.level == null) return null;
-        // origin 锚点坐标由本层解析（读关键帧点源字段）；其余锚点取值不触碰关键帧
-        Vec3 originPoint = SelectorSchema.ANCHOR_ORIGIN.equals(anchor) ? originPointSource(kf, cameraPos) : null;
-        return service.resolveEntity(selector, cameraPos, role, anchor,
-                selectorPolicy(kf, role), selectorPick(kf, role), originPoint);
-    }
-
-    /**
-     * 调用点级策略：先读 {@code <字段>_<调用点>}（如 {@code selector_refresh_look_at}），缺失回落通用字段。
-     * 切换间隔缺省 = 扫描间隔（扫描到点即允许切换）；通用字段只作默认回落。
-     *
-     * @param kf   {@code null} = 缺省策略（扫描 1 秒 / 允许存活期切换 / 切换间隔 1 秒 / 无平滑）
-     * @param role 调用点名；不在 {@link SelectorSchema#CALLPOINTS} 内 = 只用通用字段
-     * @return 扫描间隔下限 0.05 秒、切换间隔与平滑不为负
-     */
-    public SelectorPolicy selectorPolicy(Keyframe kf, String role) {
-        if (kf == null) return new SelectorPolicy(1.0f, true, 1.0f, 0f);
-        String callpoint = SelectorSchema.isCallpoint(role) ? role : null;
-        float scan = floatForCallpoint(kf, "selector_refresh", callpoint, 1.0f);
-        boolean switchWhileAlive = boolForCallpoint(kf, "selector_switch_while_alive", callpoint, true);
-        // 切换间隔缺省 = 扫描间隔（保持旧行为：扫描到点就允许切换）
-        float switchInterval = floatForCallpoint(kf, "selector_switch_interval", callpoint, scan);
-        float smooth = Math.max(0f, floatForCallpoint(kf, "selector_switch_smooth", callpoint, 0f));
-        return new SelectorPolicy(Math.max(0.05f, scan), switchWhileAlive, Math.max(0f, switchInterval), smooth);
-    }
-
-    /**
-     * 该调用点在关键帧上的有效锚点取值：先读 {@code selector_anchor_<调用点>}，缺失回落通用
-     * {@code selector_anchor}，再缺省 {@link SelectorSchema#ANCHOR_CAMERA}；四值集之外的值一律按
-     * {@code camera} 处理。取值定义与回落链见 {@link SelectorSchema#ANCHORS}。
-     *
-     * @param kf   {@code null} = 锚点 {@code camera}
-     * @param role 调用点名；不在 {@link SelectorSchema#CALLPOINTS} 内 = 只用通用字段
-     * @return 锚点取值：{@code camera} / {@code player} / {@code target} / {@code origin}
-     */
-    public String selectorAnchor(Keyframe kf, String role) {
-        if (kf == null) return SelectorSchema.ANCHOR_CAMERA;
-        String callpoint = SelectorSchema.isCallpoint(role) ? role : null;
-        String value = stringForCallpoint(kf, "selector_anchor", callpoint, SelectorSchema.ANCHOR_CAMERA);
-        return SelectorSchema.isAnchor(value) ? value : SelectorSchema.ANCHOR_CAMERA;
-    }
-
-    /**
-     * 该调用点在关键帧上的有效择一策略：先读 {@code selector_pick_<调用点>}，缺失回落通用
-     * {@code selector_pick}，再缺省 {@link SelectorSchema#PICK_FIRST}；三值集之外的值一律按 {@code first} 处理。
-     * 取值定义见 {@link SelectorSchema#PICKS}。
-     *
-     * @param kf   {@code null} = {@code first}
-     * @param role 调用点名；不在 {@link SelectorSchema#CALLPOINTS} 内 = 只用通用字段
-     * @return 择一取值：{@code first} / {@code nearest} / {@code alive}
-     */
-    public String selectorPick(Keyframe kf, String role) {
-        if (kf == null) return SelectorSchema.PICK_FIRST;
-        String callpoint = SelectorSchema.isCallpoint(role) ? role : null;
-        String value = stringForCallpoint(kf, "selector_pick", callpoint, SelectorSchema.PICK_FIRST);
-        return SelectorSchema.isPick(value) ? value : SelectorSchema.PICK_FIRST;
-    }
-
-    /**
-     * 统一点源求值（五形态唯一定义处，见 {@link PointSource}）：位置点源 / 注视点 / 连线端点 / 基准坐标系
-     * 前轴目标共用；实体形态的解析原点 = {@code cameraPos}，锚点取 {@code anchor}；结果按点源偏移展开
-     * （先取点后加偏移，base 表达空间读本帧基准坐标系）。
-     * 时态 = {@link PointSource.Time#SNAPSHOT} 且形态 = 选择器（且已注入快照表与当前片段）时走快照：
-     * 首次结果（含偏移展开）存入 {@link PointSourceSnapshots}，同（片段，槽位）直接读回；解析结果为
-     * {@code null} 时不写入锁表（下一帧继续取），其余路径逐帧现算。
-     *
-     * @param source    点源规格；{@code null} = 无点源
-     * @param cameraPos 实体形态的解析原点（锚点 {@code camera} 的取值）
-     * @param role      实体形态的调用点名（策略 / 锚点 / 锁键，见 {@link SelectorSchema#CALLPOINTS}）
-     * @param kf        策略 / 锚点字段来源关键帧
-     * @param anchor    实体形态的锚点取值（{@link SelectorSchema#ANCHORS}）
-     * @return 世界空间坐标；无点源 / 不可解析 = {@code null}
-     */
-    public Vec3 resolvePointSource(PointSource source, Vec3 cameraPos, String role, Keyframe kf, String anchor) {
-        return resolvePointSource(source, cameraPos, role, kf, anchor, slotOf(role));
-    }
-
-    /**
-     * 快照槽位：调用点名与点源字段同名，故按 {@code role} 直接映射；其余调用点（位置侧点源的锚点取值，
-     * 由 {@link #originPointSource} 显式指定槽位）落 {@link PointSourceSnapshots#SLOT_ANCHOR_ORIGIN}。
-     */
-    private static int slotOf(String role) {
-        return switch (role) {
-            case "facing_target" -> PointSourceSnapshots.SLOT_FACING_TARGET;
-            case "yaw_base_from" -> PointSourceSnapshots.SLOT_YAW_BASE_FROM;
-            case "yaw_base_to" -> PointSourceSnapshots.SLOT_YAW_BASE_TO;
-            case "look_at" -> PointSourceSnapshots.SLOT_LOOK_AT;
-            default -> PointSourceSnapshots.SLOT_FACING_ORIGIN;
-        };
-    }
-
-    /** 点源求值（{@code slot} = 快照槽位，见 {@link #slotOf}）。 */
-    private Vec3 resolvePointSource(PointSource source, Vec3 cameraPos, String role, Keyframe kf, String anchor,
-                                    int slot) {
-        if (source == null) return null;
-        boolean frozen = source.time() == PointSource.Time.SNAPSHOT
-                && source.kind() == PointSource.Kind.SELECTOR
-                && snapshots != null && currentClip != null;
-        if (frozen) {
-            Vec3 captured = snapshots.get(currentClip, slot);
-            if (captured != null) return captured;
-        }
-        Vec3 point = switch (source.kind()) {
-            case WORLD -> originPos;
-            case COORDINATE -> source.coordinate();
-            case BLOCK -> pointLocator != null
-                    ? pointLocator.resolveBlockPos(source.blockId(), source.blockRadius())
-                    : null;
-            case STRUCTURE -> pointLocator != null
-                    ? pointLocator.resolveStructurePos(source.structureId())
-                    : null;
-            case SELECTOR -> selectorPoint(source, cameraPos, role, kf, anchor);
-        };
-        Vec3 result = point != null ? source.offset().apply(point, frame) : null;
-        if (frozen && result != null) snapshots.put(currentClip, slot, result);
-        return result;
-    }
-
-    /** 实体形态：解析目标实体 → 按 {@link PointSource.EntityPoint} 的每轴百分比在包围盒内取点。 */
-    private Vec3 selectorPoint(PointSource source, Vec3 cameraPos, String role, Keyframe kf, String anchor) {
-        Entity entity = resolveEntity(source.selector(), cameraPos, role, kf, anchor);
-        if (entity == null) return null;
-        return entityPoint(TimeInterpolation.entityPosition(entity), entity.getBbWidth(), entity.getBbHeight(),
-                source.entityPoint());
     }
 
     /**
@@ -256,35 +54,6 @@ public final class EntityTargetResolver {
                 pos.z + width * ((point.zPct() - 50.0) / 100.0));
     }
 
-    /**
-     * {@code origin} 锚点的点源坐标 = {@code position} 的位置侧点源（与位置基准同一解析，见 {@link PointSource}）。
-     * 实体形态固定按 {@link SelectorSchema#ANCHOR_CAMERA} 解析：锚点 {@code origin} 会绕回本锚点。
-     */
-    private Vec3 originPointSource(Keyframe kf, Vec3 cameraPos) {
-        PositionData pd = kf != null ? kf.getPosition() : null;
-        return pd != null
-                ? resolvePointSource(PointSource.of(pd, PointSource.EntityPoint.FOOT,
-                        PointSource.parseTime(kf, "facing_origin")),
-                        cameraPos, "facing_origin", kf, SelectorSchema.ANCHOR_CAMERA,
-                        PointSourceSnapshots.SLOT_ANCHOR_ORIGIN)
-                : null;
-    }
-
-    /**
-     * 目标点 / 位置切换平滑：按 {@code role + 锚点 + selector} 锁的通道（look_at / follow 位置 / 朝向基准）分别维护。
-     * 只有目标 UUID 变化（{@code switchGeneration} 前进）时才启动过渡，稳定跟踪同一目标不额外延迟。
-     *
-     * @param channel       通道名：同一把锁下各通道互不影响
-     * @param raw           本帧原始目标点（世界空间方块坐标）
-     * @param smoothSeconds 过渡时长（秒）；{@code <= 0} = 立即跳到新目标
-     * @param kf            锚点字段来源关键帧（指定用哪把锁）；{@code null} = 锚点 {@code camera}
-     * @return 平滑后的目标点；无对应锁（该目标未解析过）= {@code raw}
-     */
-    public Vec3 smoothTargetPoint(String role, String selector, String channel, Vec3 raw, float smoothSeconds,
-                                  Keyframe kf) {
-        return service.smoothTargetPoint(role, selectorAnchor(kf, role), selector, channel, raw, smoothSeconds);
-    }
-
     /** 捕获求值隔离：把当前锁状态深拷贝留底（同一时刻只保留最近一次留底）。 */
     public void snapshotLockState() {
         service.snapshotLockState();
@@ -293,25 +62,5 @@ public final class EntityTargetResolver {
     /** 捕获求值隔离：把锁状态整体恢复为最近一次 {@link #snapshotLockState()} 的留底（深拷贝回写）。 */
     public void restoreLockState() {
         service.restoreLockState();
-    }
-
-    /** 读「调用点专属字段 → 通用字段 → 缺省值」。 */
-    private static float floatForCallpoint(Keyframe kf, String field, String callpoint, float fallback) {
-        String key = SelectorSchema.callpointField(field, callpoint);
-        if (key != null && kf.getData().containsKey(key)) return kf.getFloat(key, fallback);
-        return kf.getFloat(field, fallback);
-    }
-
-    /** 读「调用点专属字段 → 通用字段 → 缺省值」（字符串口径，与 {@link #floatForCallpoint} 同规则）。 */
-    private static String stringForCallpoint(Keyframe kf, String field, String callpoint, String fallback) {
-        String key = SelectorSchema.callpointField(field, callpoint);
-        if (key != null && kf.getData().containsKey(key)) return kf.getString(key, fallback);
-        return kf.getString(field, fallback);
-    }
-
-    private static boolean boolForCallpoint(Keyframe kf, String field, String callpoint, boolean fallback) {
-        String key = SelectorSchema.callpointField(field, callpoint);
-        if (key != null && kf.getData().containsKey(key)) return kf.getBool(key, fallback);
-        return kf.getBool(field, fallback);
     }
 }

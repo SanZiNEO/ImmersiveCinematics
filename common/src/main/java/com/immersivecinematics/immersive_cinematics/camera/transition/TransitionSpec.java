@@ -1,8 +1,8 @@
 package com.immersivecinematics.immersive_cinematics.camera.transition;
 
 import com.immersivecinematics.immersive_cinematics.camera.cover.CameraChannels;
-import com.immersivecinematics.immersive_cinematics.math.MathModel;
 import com.immersivecinematics.immersive_cinematics.math.MathModelInstance;
+import com.immersivecinematics.immersive_cinematics.spi.MathModel;
 
 /**
  * 过渡声明（已归一的最终形态）——六通道各自的模式 / 时长 / 权重曲线 + 打断规则。

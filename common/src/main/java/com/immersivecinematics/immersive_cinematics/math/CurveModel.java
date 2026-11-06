@@ -1,5 +1,7 @@
 package com.immersivecinematics.immersive_cinematics.math;
 
+import com.immersivecinematics.immersive_cinematics.spi.MathModel;
+
 /**
  * 曲线模型 — 无状态逐分量变换 {@code out[i] = curve(in[i])}
  * （linear / smoothstep / ease_in / ease_out / ease_in_out / cubic_bezier 共用实现）。

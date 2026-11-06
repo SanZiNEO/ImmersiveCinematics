@@ -13,10 +13,12 @@ import com.immersivecinematics.immersive_cinematics.math.path.FourierPathSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.HermitePathSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.LinearPathSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.NurbsPathSpec;
-import com.immersivecinematics.immersive_cinematics.math.path.PathCapability;
 import com.immersivecinematics.immersive_cinematics.math.path.PathPoint;
-import com.immersivecinematics.immersive_cinematics.math.path.PathSpec;
 import com.immersivecinematics.immersive_cinematics.math.path.RationalBezierPathSpec;
+import com.immersivecinematics.immersive_cinematics.spi.PathCapability;
+import com.immersivecinematics.immersive_cinematics.spi.PathParamDef;
+import com.immersivecinematics.immersive_cinematics.spi.PathParams;
+import com.immersivecinematics.immersive_cinematics.spi.PathSpec;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;

@@ -1,21 +1,15 @@
 package com.immersivecinematics.immersive_cinematics.client.lane;
 
-import com.immersivecinematics.immersive_cinematics.script.Clip;
-import com.immersivecinematics.immersive_cinematics.script.Keyframe;
-import com.immersivecinematics.immersive_cinematics.script.KeyframeInterpolator;
-
-import java.util.List;
-
 /**
- * CAMERA lane 合成遮罩的逐帧采样结果（每条 lane 槽位复用一个实例）。
+ * CAMERA lane 合成遮罩的逐帧参数快照（每条 lane 槽位复用一个实例）。
  *
- * 数据来源 = 该 lane 所属 {@link Clip} 的 clip 级 {@code mask_shape}（{@code full} 缺省 / {@code rect} /
- * {@code circle}）与关键帧几何（{@code mask_x} / {@code mask_y} 缺省 {@code 0.5}，宽 / 高缺省 {@code 1}，
- * 半径缺省 {@code 0.5}）；中心 / 宽高为窗口比例，半径为窗口短边比例；几何独立于 {@code source} / {@code dest}。
+ * 数据来源 = 相机求值器从同一 {@code SampledClip} 算出的 {@code mask_shape}（{@code full} 缺省 /
+ * {@code rect} / {@code circle}）与遮罩几何（{@code mask_x} / {@code mask_y} 缺省 {@code 0.5}，
+ * 宽 / 高缺省 {@code 1}，半径缺省 {@code 0.5}）；中心 / 宽高为窗口比例，半径为窗口短边比例；
+ * 几何独立于 {@code source} / {@code dest}。
  *
- * 复用：实例由 {@code ScriptLaneDriver.Slot} 持有，更新槽位时调用 {@link #sample(Clip, float)}；只写自身
- * 字段、不分配；{@code full} 直接复位缺省，不扫描关键帧；{@code sample(null, 0f)} 合法（复位为 full）。
- * 时间：{@code localTime} = 执行账本给出的本次执行局部时间（与相机状态同源），本类不做循环折叠。
+ * 复用：实例由 {@code ScriptLaneDriver.Slot} 持有，更新槽位时调用 {@link #set(int, float, float, float,
+ * float, float)}；只写自身字段、不分配；{@code full} 直接复位缺省。
  */
 public final class LaneMask {
 
@@ -41,46 +35,6 @@ public final class LaneMask {
     private float width = DEFAULT_WIDTH;
     private float height = DEFAULT_HEIGHT;
     private float radius = DEFAULT_RADIUS;
-
-    /** 形状缓存：片段数据解析后只读，同一 clip 的形状解析一次即可。 */
-    private Clip shapeClip;
-    private int cachedShape = SHAPE_FULL;
-
-    /**
-     * 按片段与本地时间采样遮罩。{@code clip == null} 或未声明 {@code mask_shape} → full；
-     * {@code sample(null, 0f)} 合法（链输出主画面复用槽位 0 时复位）。
-     * full 不读关键帧；rect 只读 {@code mask_x/y/width/height}；circle 只读 {@code mask_x/y/radius}；
-     * 未消费的通道写回缺省，避免槽位复用时残留上一条 lane 的几何。
-     * 无关键帧 / 单关键帧 / 端点 / 零长段走同一插值口径，与其它通道逐条一致。
-     */
-    public void sample(Clip clip, double localTime) {
-        if (clip == null) {
-            resetFull();
-            return;
-        }
-        int resolvedShape = resolveShape(clip);
-        if (resolvedShape == SHAPE_FULL) {
-            resetFull();
-            return;
-        }
-
-        List<Keyframe> keyframes = clip.getKeyframes();
-        double time = localTime;
-        this.shape = resolvedShape;
-        if (resolvedShape == SHAPE_RECT) {
-            this.x = KeyframeInterpolator.interpolateChannel(keyframes, time, "mask_x", DEFAULT_X);
-            this.y = KeyframeInterpolator.interpolateChannel(keyframes, time, "mask_y", DEFAULT_Y);
-            this.width = KeyframeInterpolator.interpolateChannel(keyframes, time, "mask_width", DEFAULT_WIDTH);
-            this.height = KeyframeInterpolator.interpolateChannel(keyframes, time, "mask_height", DEFAULT_HEIGHT);
-            this.radius = DEFAULT_RADIUS;
-        } else {
-            this.x = KeyframeInterpolator.interpolateChannel(keyframes, time, "mask_x", DEFAULT_X);
-            this.y = KeyframeInterpolator.interpolateChannel(keyframes, time, "mask_y", DEFAULT_Y);
-            this.radius = KeyframeInterpolator.interpolateChannel(keyframes, time, "mask_radius", DEFAULT_RADIUS);
-            this.width = DEFAULT_WIDTH;
-            this.height = DEFAULT_HEIGHT;
-        }
-    }
 
     /**
      * 直接写入合成参数快照（新格式：参数已由相机求值器从同一 {@code SampledClip} 算出，不再重复采样）。
@@ -148,17 +102,5 @@ public final class LaneMask {
         width = DEFAULT_WIDTH;
         height = DEFAULT_HEIGHT;
         radius = DEFAULT_RADIUS;
-    }
-
-    /** clip 级形状 → 编码；同一 clip 只解析一次（不逐帧比较字符串）。 */
-    private int resolveShape(Clip clip) {
-        if (clip != shapeClip) {
-            String name = clip.getString("mask_shape", "full");
-            cachedShape = "rect".equals(name) ? SHAPE_RECT
-                    : "circle".equals(name) ? SHAPE_CIRCLE
-                    : SHAPE_FULL;
-            shapeClip = clip;
-        }
-        return cachedShape;
     }
 }
