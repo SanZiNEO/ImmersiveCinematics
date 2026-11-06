@@ -2,7 +2,7 @@
 
 **状态**: 🔍 调查结论（只读调查，未改任何模组源码）
 **目标版本**: 0.3.6
-**关联**: [multi-camera-rendering](../F-playback/multi-camera-rendering.md)、[camera-composition](../F-playback/camera-composition.md)、[render-routes](render-routes.md)（临时草稿）
+**关联**: [multi-camera-rendering](../../../0.3.6/F-playback/multi-camera-rendering.md)、[camera-composition](../../../0.3.6/F-playback/camera-composition.md)、[render-routes](render-routes.md)（临时草稿）
 
 > 本文回答一个问题：**在同一帧里把世界渲染再走一遍（第二个 `Camera` → 独立 FBO）要花多少代价、花在哪、怎么省、现在能不能测。**
 > 每条结论标注证据来源；无证据处明确写「未验证」。

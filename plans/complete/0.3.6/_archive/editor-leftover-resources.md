@@ -1,6 +1,7 @@
 # 编辑器退役残留资源清点（0.3.6）
 
 **状态**: ✅ 已清理（2026-10-08）—— 本文原为只清点清单；2026-10-08 已按 §3.1 执行删除，删除记录见 §3.1 末。
+**2026-11-06 更新**: 仓库根 `svg/`（74 个源文件）已按用户决定删除，本文「保留 SVG 源」的相关表述作废。
 **范围**: 0.3.6 游戏内编辑器（Java `editor/` 包）退役后，`resources/` 下遗留的、已无 live 代码引用的纹理等资源。
 **判定口径**: 「残留」= 该资源文件在当前 live 代码（common/fabric/forge 的 Java + mixin + webui 后端 + `editor/` 前端 + 资源 json/lang）中**零引用**；文档提及（`docs/`、`plans/`）**不算引用**。
 
@@ -8,7 +9,7 @@
 
 ## 1. 背景
 
-- 0.3.6 决定**不留游戏内编辑器**，只维护独立 WebUI 编辑器（Vue 3 + Electron，源码在 `editor/`）。退役于 **2026-10-07** 落地，见 [editor-webui-migration.md](../done/editor-webui-migration.md) §4。
+- 0.3.6 决定**不留游戏内编辑器**，只维护独立 WebUI 编辑器（Vue 3 + Electron，源码在 `editor/`）。退役于 **2026-10-07** 落地。
 - 退役提交：`6d0544c` `refactor(0.3.6): 游戏内编辑器退役——删除 editor/ 包（10,176 行）+ F6/配置/lang 清理`。该提交删除了 `common/.../editor/` 整包 62 文件（含 `widget/`、`panel/`、`area/`、`fields/` 等），但**没有清理它消费的纹理资源**——`common/src/main/resources/assets/immersive_cinematics/textures/gui/editor/` 与 `.../gui/flight/` 原样留下。
 - 残留的成因很直接：纹理是**按名字**被加载的，不在删除的 Java 源码里，删包时不会连带报错。加载方两处，均在已删除的 `editor/` 包里：
   - `editor/widget/EditorIcons.java`：`ICON_PATH = "textures/gui/editor/"`，`new ResourceLocation("immersive_cinematics", ICON_PATH + name + ".png")` —— 编辑器全部 64×64 UI 图标的总入口。
@@ -100,7 +101,7 @@
 | sync.png | 659 B | 同步；未命中 | 零 | 删 |
 
 > 说明：其中 **15 个**（add-clip / add-track / circle-x / delete / eye / eye-off / keyframe / lock / lock-open / mute / volume / play / pause / stop / remove-track）在退役前**确有引用**（`EditorIcons.render` / `UIButton.icon`），随编辑器一起成为孤儿；其余 **57 个**在退役前的 `editor/` 包里也**搜不到引用**——它们是 0.3.5 第 5 轮（`9555052` `0.3.5 round 5: flight HUD, editor icons, zoom rework...`）**整批引入的图标集**，属于「引进来但从未接线」的资源。两类都已零引用，删除结论相同。
-> SVG 源文件已不在 resources 下：`0590fa1` `Move SVG source files out of resources to root svg directory` 把它们移到了仓库根的 `svg/editor/`（72 个 `.svg`，与 PNG 一一对应）。
+> SVG 源文件已不在 resources 下：`0590fa1` `Move SVG source files out of resources to root svg directory` 把它们移到了仓库根的 `svg/editor/`（72 个 `.svg`，与 PNG 一一对应）。该目录已于 2026-11-06 删除，不再保留源文件。
 
 ### 2.2 飞控按键提示图标 `textures/gui/flight/*.png`（2 文件，合计 2,862 B）
 
@@ -110,7 +111,7 @@
 | mouse.png | 2085 B | 编辑器内飞控提示的「鼠标」图示；`FlightKeyHints.java:29` `MOUSE = .../flight/mouse.png` | 零 | 删 |
 
 > 现行飞控 HUD 在 `webui/WebPreviewScreen.drawFlightHud()`，**只用文字**（`I18n` + `keyLabel`）绘制按键提示，**不加载任何纹理**（已通读该函数确认）。因此 `flight/` 两张图在 WebUI 时代没有承接方。
-> SVG 源：`svg/flight/keycap.svg`、`svg/flight/mouse.svg`。
+> SVG 源 `svg/flight/keycap.svg`、`svg/flight/mouse.svg` 已于 2026-11-06 随根 `svg/` 一并删除。
 
 ### 2.3 非编辑器资源（仍被使用 / 结构文件，全部保留）
 
@@ -170,7 +171,7 @@
 - 唯一加载方 `editor/widget/EditorIcons.java`、`editor/widget/FlightKeyHints.java` 已随 `6d0544c` 删除。
 - 删除后 `textures/gui/` 仅余 `skip_key.png`（`SkipHudRenderer` 在用）。
 
-**保留**：仓库根 `svg/editor/`（72 `.svg`）+ `svg/flight/`（2 `.svg`）源文件完整未动，可随时重导出 PNG；「仍被使用」组（§3.2）未触碰。
+**保留**：仓库根 `svg/editor/`（72 `.svg`）+ `svg/flight/`（2 `.svg`）源文件当时未动；**2026-11-06 用户决定删除整个根 `svg/`（74 个源文件），不再可重导出 PNG**。「仍被使用」组（§3.2）未触碰。
 
 **验证**：
 
@@ -200,7 +201,7 @@
 
 - 无代码引用 → 删后编译、加载、运行均不受影响；`sh gradlew compileJava` 不受影响（资源不参与编译）。
 - 资源包体积：省约 58.6 KB（未压缩）。收益很小，价值主要在「不留误导性资源」。
-- **唯一风险点**：若将来 WebUI 编辑器想复用这套图标（例如把 `play/pause/stop/undo/redo` 等搬到 Electron 端），需要从根 `svg/`（源在，74 个 `.svg` 齐全）重新导出 PNG，而不是从 resources 拿。因此**删除 PNG 不丢源**——SVG 源完整保留在 `svg/editor/` 与 `svg/flight/`。
+- **原风险点（已作废）**：当时若将来 WebUI 编辑器想复用这套图标（例如把 `play/pause/stop/undo/redo` 等搬到 Electron 端），可从根 `svg/`（74 个 `.svg`）重导出 PNG。**2026-11-06 用户决定删除根 `svg/`：PNG 与 SVG 源均已不存在**；若将来需要图标，只能另行设计或从历史提交找回。
 - 若担心「图标集可能用于未来功能」，**可只删 `flight/`（2 个，明确无承接方）**，`editor/` 图标暂留；但这只是心理缓冲，`editor/` 图标同样零引用。
 
 **不做的事**：本文只清点、不 commit（提交由主代理统一进行）。删除动作已于 2026-10-08 按 §3.1.1 执行。
@@ -245,10 +246,10 @@
 | 加载方已删除 | `git show 6d0544c^:.../editor/widget/EditorIcons.java`（`ICON_PATH = "textures/gui/editor/"`）、`.../editor/widget/FlightKeyHints.java`（`KEYCAP`/`MOUSE` 两个 ResourceLocation）；两文件均在 `6d0544c` 被删 |
 | 15 个图标退役前有引用 | `git grep` 于 `6d0544c^` 命中 `TimelineArea.java`（add-clip/add-track/remove-track/delete/keyframe/circle-x/eye/eye-off/lock/lock-open/mute/volume）、`PreviewArea.java`（play/pause/stop）、`TrackListPanel.java`（eye） |
 | 57 个图标退役前亦无引用 | 上述 72 个名字逐一 `git grep -F "\"<name>\"" 6d0544c^ -- '.../editor/**'`，除 15 个外全部 0 命中 |
-| SVG 源完整 | 根 `svg/editor/`（72 `.svg`）+ `svg/flight/`（2 `.svg`），共 74 个，`git ls-files svg` = 74 |
+| SVG 源（当时） | 根 `svg/editor/`（72 `.svg`）+ `svg/flight/`（2 `.svg`），共 74 个；**2026-11-06 已全部删除** |
 | 飞控 HUD 不再用纹理 | 通读 `webui/WebPreviewScreen.drawFlightHud()`：仅 `I18n` 文本 + `keyLabel`，无 `ResourceLocation` / `blit` |
 | 前端不用 mod 纹理 | `editor/src` 只用自带 `assets/icons/*.svg` 与 `assets/icon.png`；无 `textures/`、无 `immersive_cinematics` 资源路径引用 |
 
 ### 5.3 文档落盘
 
-本文件即产物：`plans/0.3.6/_archive/editor-leftover-resources.md`。原清点阶段未删除、移动任何资源文件；2026-10-08 已按 §3.1.1 执行删除（未 commit，提交由主代理统一进行）。
+本文件即产物：`plans/complete/0.3.6/_archive/editor-leftover-resources.md`。原清点阶段未删除、移动任何资源文件；2026-10-08 已按 §3.1.1 执行删除（未 commit，提交由主代理统一进行）。

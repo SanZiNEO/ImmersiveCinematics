@@ -59,9 +59,11 @@
 | [export.md](export.md) | 实时录屏导出：按目标 fps 采样、编码、音频混音、进度/取消 | 怎么出成片 |
 | [degrade.md](degrade.md) | 外部依赖与失败分层：缺 ffmpeg、坏文件、解码失败、断线、资源回收 | 坏了怎么办 |
 | [acceptance.md](acceptance.md) | 跨篇验收矩阵与真实机器检查项 | 怎么算过 |
+| [handover.md](handover.md) | **J 轮开头的遗留验证**（承接 A–I）：B18 ④打断 / ⑤链式、B19 迟滞四象限、C-pause 复验、F 轮失败处理 P1/P2 | 老欠账怎么收 |
 
 ### 3.3 交付顺序
 
+0. `handover.md`：先把 A–I 轮遗留的验证项做完（B18 ④⑤ / B19 四象限 / C-pause / F P1-P2），再进媒体实现。
 1. `capture.md`：先把现有预览的捕获/缩放/发送拆成捕获层 + 消费者，行为不变。
 2. `decode.md` + `playback.md`：让本地视频能动，且跟随局部时间。
 3. `preview-stream.md`：预览改为编码消费者，复用捕获层。

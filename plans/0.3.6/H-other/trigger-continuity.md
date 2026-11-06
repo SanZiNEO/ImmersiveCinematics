@@ -26,7 +26,7 @@
 - 快速掠过与停留可区分：可要求连续满足达到阈值才算。
 - 进入 / 离开边沿在区间上定义，而不是只看采样点的翻转。
 - 事件与条件的时间关系可按「最近 N tick 内发生过」表达，事件类子条件不再只能被禁用。
-- 默认档与今天逐点一致，老脚本零回归。
+- 默认档与现状逐点一致，老脚本零回归。
 - 分档推进：先位置与进入边沿，再朝向，最后持续与窗口。
 
 ### 2.3 非目标
@@ -397,7 +397,7 @@
 
 - [ ] 段穿过区域必触发（含鞘翅 / 激流 / 传送三种位移）
 - [ ] 静止在区域内不重复触发（边沿语义不退化）
-- [ ] 默认档（未开启）行为与今天逐点一致（零回归）
+- [ ] 默认档（未开启）行为与现状逐点一致（零回归）
 - [ ] 成本可测：静止时零额外求值；移动时每采样点的扫掠耗时在预算内
 - [ ] `dwell` 档下「快速掠过不触发、停留触发」（档 C 落地后）
 
@@ -444,7 +444,7 @@
 | [state-tracking.md](state-tracking.md) | 事实记录与查询；本文的「窗口 / 顺序」依赖它的时间戳事实（§6） |
 | [feedback-0.3.5/04-trigger-latency.md](../../complete/0.3.6/feedback-0.3.5/04-trigger-latency.md) | 采样频率现状（用户已把 location 间隔调到 2 tick）；延迟 ≠ 连续性，但两者都在「检测频率」这个面上 |
 | [feedback-0.3.5/05-on-enter-not-repeatable.md](../../complete/0.3.6/feedback-0.3.5/05-on-enter-not-repeatable.md) | `on_enter` 状态机的修复；本文的边沿语义是它的连续版 |
-| [wait-point-track.md](../_archive/wait-point-track.md) | 等待点等「事件出现」——需要时间窗语义（与本文档 C 同源） |
+| 等待点 | 等待点等「事件出现」——需要时间窗语义（与本文档 C 同源） |
 | [temporal-interpolation.md](../../complete/0.3.6/B-camera/temporal-interpolation.md) / `util/TimeInterpolation` | 渲染侧的同类问题（tick → 帧间采样）；本文是服务端侧的对应物 |
 | [implementation-progress.md](../implementation-progress.md) | P3（本文）/ P3-impl（按本文实现） |
 | `docs/TRIGGER_TYPES.md` / `docs/modules/trigger.md` | 类型、间隔与状态机的文档口径；连续语义落地后需回改 |

@@ -477,4 +477,4 @@ hook 读到旧值，或者因为状态为 `null` 回落到原版路径。真正�
   `CameraAnchorManager.java:23-47, 69-87`。
 - 客户端租约：`plans/0.3.6/F-playback/camera-pool.md`。
 - 历史：`b457d75`、`c8cd31e`、`6718ac7`；`plans/0.3.6/F-playback/multi-camera-rendering.md` §12.8–§12.10；
-  `plans/0.3.6/_archive/quadrant-prototype-results.md` §3.5；`plans/0.3.5/chunk-preload.md:163`。
+  `plans/0.3.5/chunk-preload.md:163`。

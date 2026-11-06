@@ -3,7 +3,7 @@
 **状态**: ✅ 验收通过（2026-10-05）
 **分支**: `proto/four-quadrant`（提交 `89cd6cb`）
 **原型代码**: 已整体并入 `main`（提交 `e41ccb1`，默认关 `ICINEMATICS_QUADRANT`；清理清单见 §7）
-**相关**: [交接文档](quadrant-prototype-handover.md)（旧状态/背景）· [多相机渲染](../F-playback/multi-camera-rendering.md) · [渲染子路线](render-routes.md) · [画面合成](../F-playback/camera-composition.md)
+**相关**: [交接文档](quadrant-prototype-handover.md)（旧状态/背景）· [多相机渲染](../../../0.3.6/F-playback/multi-camera-rendering.md) · [渲染子路线](render-routes.md) · [画面合成](../../../0.3.6/F-playback/camera-composition.md)
 
 ---
 

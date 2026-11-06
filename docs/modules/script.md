@@ -5,102 +5,74 @@
 > 当前规划请先查阅 [0.3.6 计划状态索引](../../plans/0.3.6/README.md) 与 [I 轮实施基准](../../plans/0.3.6/I-script-core/README.md)，再按状态查阅对应未完成轮次。
 >
 > 计划目标不代表已经实现；核实当前代码行为时须结合源码，不得将旧文或未实现计划当作现状。
+>
+> 本次更新（2026-11-06，I-5）：按 `objects` 单格式重写本页事实；**横幅保留**——后续轮次（J 媒体、Z 编辑器）仍会改脚本栈，本页不作为权威。
 
 # script（脚本系统）
 
 对应路径：`common/src/main/java/com/immersivecinematics/immersive_cinematics/script/`
 
-功能树：
+## 一、格式与解析
 
-- **脚本解析与校验**
-  - ✅ 提供 `ScriptParser.parse()` 将 JSON 字符串解析为 `CinematicScript`，使用 Gson 树 API 手动解析并带字段路径的 `ScriptParseException` 异常（`ScriptParser`）
-  - ✅ 校验 meta 必填字段（id/name/author/version），id 必须匹配 `^[a-zA-Z0-9_]{1,32}$`，name≤50 字符、author≤30 字符，version 仅支持 3（`ScriptParser`）
-  - ✅ 校验 timeline：`total_duration` 不允许为 0（正数=有限时长，负数=无限时长）、关键帧时间必须单调递增、CAMERA clip 至少 1 个关键帧、duration 不允许为 0（`ScriptParser`）
-  - ✅ 校验贝塞尔曲线 `control_points` 必须恰好 2 个点，`curve` 非法时拒绝解析（`ScriptParser`、`BezierCurve`）
-  - ✅ 校验必填字段（来自 schema 元数据），缺失时报错（`ScriptParser`、`SchemaLoader`）
-  - ✅ 提供向后兼容：LETTERBOX 缺 keyframes 时从 clip 级 `aspect_ratio` 自动生成两个关键帧；EVENT 旧式 clip 级 `command` 自动迁移到 keyframe（`ScriptParser`）
-  - ✅ 支持未知字段自动解析（向前兼容），触发器定义解析支持 `on_enter`/`exit_buffer`/`poll_interval`（`ScriptParser`）
-  - ✅ 解析轨道级合法性：CAMERA 轨道可多条（每条 = 一个画面 lane，不再限 1 条）、LETTERBOX/EVENT 建议最多 1 条、morph 相邻 clip position_mode 不一致时告警（`ScriptParser`）
-- **脚本加载与触发器注册**
-  - ✅ 提供单例 `ScriptManager.INSTANCE`，从游戏根目录 `immersive_cinematics/scripts` 递归加载子文件夹全部 .json 脚本并缓存原始 JSON（深度 ≤ 5）（`ScriptManager`）
-  - ✅ 服务端统一从游戏根目录加载脚本，通过 S2C 包下发完整 JSON，**不再复制到世界存档**（`ScriptManager`）
-  - ✅ 提供 `registerAllTriggers()` 将脚本 meta 中的触发器定义批量注册进 `TriggerEngine`，动作统一为 `StartPlaybackAction`（`ScriptManager`）
-  - ✅ 提供 `reload()` 清空引擎、重新加载并重建索引（`ScriptManager`）
-- **Schema 驱动的字段定义（Java 元数据）**
-  - ✅ 字段元数据位于 Java 侧：`FieldDef` / `TrackSchemas` / `MetaSchemas` / `SchemaRegistry` 提供类型、默认值、必填、枚举、分组，无外部 `schema.json` 文件（`SchemaRegistry`、`TrackSchemas`、`MetaSchemas`、`FieldDef`）
-  - ✅ `SchemaLoader` 保持对外查询接口：`getDefaultValue()`/`isRequired()`/`hasField()`/`getClipFields()`/`getKeyframeFields()`/`getMetaFields()`，内部读取 Java 注册表（`SchemaLoader`、`SchemaRegistry`）
-  - ✅ 新增 `SchemaExporter`：把 Java 元数据导出为标准 JSON schema，供未来 WebUI 动态表单使用；Java 侧始终是唯一 schema 权威（`SchemaExporter`）
-  - ✅ 控件决策在 WebUI 前端：`DynamicForm.vue` + `fields/*.vue` 按 `FieldDef.type` 渲染控件（bool→开关、tristate→三态、enum→下拉/循环、数值/文本/映射等），`schema.ts` 负责按 schema 填默认值与保存前精简；Java 侧只导出 schema（`SchemaExporter`、`editor/src/DynamicForm.vue`、`editor/src/schema.ts`）。0.3.6 前这份决策由游戏内编辑器的 `editor/fields/FieldControl` 承担，已随退役删除
-- **数据模型**
-  - ✅ `CinematicScript` 为顶层容器：meta + timeline + 原始 JSON（供网络同步）（`CinematicScript`）
-  - ✅ `ScriptMeta` 持有 id/name/author/version/description/dimension/triggers、priority、skip_vote_ratio、`trigger_poll_interval`（脚本级轮询间隔，tick，1~600；0.3.6）、`base_resolution`（编辑基准分辨率 `{w,h}`，缺省 1920×1080，供分辨率转义系数 `k` 作分母）、camera_mob_* 及完整运行时行为（`ScriptMeta`）
-  - ✅ 运行时行为：屏蔽键盘/鼠标、屏蔽生物 AI、隐藏 HUD/手臂/聊天/记分板/动作栏/标题/字幕/快捷栏/准星/Boss 条/跳过 HUD、`hud_layers` 自定义 HUD 覆盖、抑制视角摆动/画面扭曲、渲染玩家模型、游戏暂停时暂停、可打断、可跳过、结尾保持（`ScriptMeta`）
-  - ✅ `Timeline` 管理总时长与并行轨道，提供按类型查询轨道的便捷方法（`Timeline`）
-  - ✅ `TimelineTrack` 为同类型通用片段数组，`Clip` 为通用片段容器（start_time/duration + data map + keyframes）（`TimelineTrack`、`Clip`）
-  - ✅ `Keyframe` 为通用关键帧容器（time + data map），`PositionData` 区分相对（dx/dy/dz）与绝对（x/y/z）两种坐标模式（`Keyframe`、`PositionData`）
-  - ✅ `TriggerDefinition` 描述脚本内嵌触发器：类型/条件/repeatable/delay/on_enter/exit_buffer/poll_interval（触发器级轮询间隔，tick，1~600；0.3.6）（`TriggerDefinition`）
-- **轨道种类**
-  - ✅ 共 6 种轨道类型：CAMERA、LETTERBOX、AUDIO、EVENT、MOD_EVENT、OVERLAY（`TrackType`）
-  - ✅ 轨道数量限制：CAMERA 不限（每条 = 一个画面 lane，轨道层级后面的在上；最后一轨的顶层 clip 决定主相机），LETTERBOX/EVENT 建议最多 1 条，AUDIO/MOD_EVENT/OVERLAY 不限（`TrackType`）
-- **关键帧插值与路径**
-  - ✅ `KeyframeInterpolator` 提供无状态静态插值：段定位、匀速时间进度、循环（`loop`/`loop_count` 取模，`loop_mode` 支持 `repeat` 重复与 `pingpong` 往复折返）、范围外钳制到首/末关键帧（`KeyframeInterpolator`）
-  - ✅ 位置/偏航/滚转插值使用角度环绕插值，俯仰/FOV/缩放使用线性插值（`KeyframeInterpolator`）
-  - ✅ 支持 clip 级 `loop` 循环与 `loop_count` 次数限制（`KeyframeInterpolator`、`Clip`）
-  - ✅ 片段过渡：`TransitionType.CUT` 硬切换（staged 原子提交）、`TransitionType.MORPH` 在 transition_duration 内从上一片段末帧飞向下一片段首帧（`TransitionType`、`CameraTrackPlayer`）
-  - ✅ 0.3.6 起：运行时关键帧插值统一**匀速线性**（两点定一段）；clip 级 `interpolation` 字段与 `InterpolationType` 枚举（旧 `smooth` = Centripetal Catmull-Rom 样条，改轨迹）一并退役——缓动/速度曲线由编辑器烘焙成显式关键帧写入脚本，运行时不求值
-  - ✅ 三次贝塞尔路径：`BezierCurve` 携带 2 个控制点，`BezierPathStrategy` 通过 `ArcLengthLUT` 弧长参数化实现匀速曲线运动（`BezierCurve`、`BezierPathStrategy`、`ArcLengthLUT`）
-  - ✅ `ArcLengthLUT` 用德卡斯特里奥自适应细分建表（平坦度容差 0.001、最大深度 8），查询时二分查找（`ArcLengthLUT`）
-  - ✅ `PathStrategies` 注册表按 curve.type 名称提供策略工厂，默认 `linear`，未知类型回退线性（`PathStrategies`、`PathStrategy`）
-- **播放器调度**
-  - ✅ `ScriptPlayer` 驱动脚本运行时：记录起始虚拟时间、相对模式基准位置（玩家激活时位置）、持有当前脚本运行时行为（`ScriptPlayer`）
-  - ✅ 启动时按轨道类型批量创建 `TrackPlayer` 实例（EVENT 轨道不在客户端处理），并预执行首帧避免闪烁；编辑器加载不同轨道布局的脚本时 `replaceScript` 按新布局重建 TrackPlayer（轨道数量/类型顺序变化时旧索引失效，重建防止 OVERLAY/AUDIO 等读错轨道）（`ScriptPlayer`、`TrackPlayer`）
-  - ✅ `TrackPlayer` 工厂按类型分发：CAMERA→`CameraTrackPlayer`、LETTERBOX→`LetterboxTrackPlayer`、AUDIO→`AudioTrackPlayer`、MOD_EVENT→`ModEventTrackPlayer`、OVERLAY→`OverlayTrackPlayer`；创建时传入轨道索引，数据源按索引定位（`TrackPlayer`）
-  - ✅ 帧回调驱动：每渲染帧调度所有 TrackPlayer；`holdAtEnd` 时钳制在最后一帧（0.1ms 偏移）等待退出（`ScriptPlayer`）
-  - ✅ 启动时若 `block_mob_ai` 开启，清空 128 格范围内以玩家为目标的生物（`ScriptPlayer`）
-  - ✅ 支持结束判定（②族按执行内容播完：片段消费状态 + 剩余内容计数，分支跳转按实际路径重导；无限内容不结束）、剩余时间查询、`hasActiveCameraTrack()` 供 Mixin 缓存（`ScriptPlayer`）
-  - ✅ 支持时间对齐 `alignTime()`（编辑器预览拖动播放头）、音频暂停/恢复/重定位（`ScriptPlayer`）
-  - ✅ 画面 lane 快照收集：`collectCameraLanes()` 按绘制顺序（轨道层级 → 轨道内 clip 顺序，后面的在上）扁平化列出各 CAMERA 轨本帧**全部活跃 clip** 的 `CameraLane`（相机六参数 + 所属 clip + clip 内本地时间；重叠窗口内一轨可贡献多份）；主相机 = 列表最后一个元素（`ScriptPlayer`、`CameraTrackPlayer`、`CameraLane`）
-- **CAMERA 轨道播放器**
-  - ✅ 支持多条 CAMERA 轨同时播放：每条轨一个独立 `CameraTrackPlayer`（各自的 clip 选择与选择器缓存状态），逐轨求值活跃 clip；轨道层级最后的活跃轨写入全局相机状态 = 主相机（零回归），每条轨同时暴露本帧 lane 快照列表 `getLaneSnapshots()`（轨道内 clip 顺序，后面的在上）（`ScriptPlayer`、`CameraTrackPlayer`）
-  - ✅ 时间重叠窗口内每个活跃 clip 各产一个 lane 快照（叠化数据前提）：顶层 clip 走正常求值路径（写全局相机 = 主相机），层级在下的活跃 clip 用同一条求值链**只捕获不写**（不写全局相机、不推进跨帧求值状态、目标锁状态整体保存/还原）→ 重叠区取到各 clip 自己的 hold 值（延长区等值关键帧 / 范围外钳到端点）（`CameraTrackPlayer`）
-  - ✅ 每渲染帧定位活跃 clip（含循环/无限片段）并写入精确相机状态，无 partialTick 插值（`CameraTrackPlayer`）
-  - ✅ morph 过渡窗口内混合上一片段末帧与下一片段首帧（位置线性混合、角度最短路径混合）（`CameraTrackPlayer`）
-  - ✅ lane 合成遮罩（0.3.6 D2）：clip 级 `mask_shape`（`full` / `rect` / `circle`）+ 关键帧 `mask_x` / `mask_y` / `mask_width` / `mask_height` / `mask_radius` 由 `LaneMask` 按 clip 本地时间采样（每槽复用、无逐帧分配）；`full` 不读几何并复位缺省，旧 clip 输出不变（`LaneMask`、`ScriptLaneDriver`）
-  - ✅ 遮罩在 `LaneCompositor` 合成阶段按窗口物理像素判定覆盖率，与 `opacity` 相乘后作为混合 alpha；`rect` 用窗口比例中心 / 宽高，`circle` 半径按短边（非方形窗口仍为真圆）；不读 lane 纹理 alpha、不改 `source` / `dest` UV；区域外保持底图，零尺寸 = 该 lane 不绘制；非 `full` 而专用 shader 不可用时跳过该 lane 并报错，不退回无遮罩输出（`LaneCompositor`）
-  - ✅ 关键帧级 `follow`（位置跟随实体，position 即相对实体偏移）与 `look_at`（注视实体/坐标/结构）：两端关键帧各自求值为世界坐标再插值 → follow↔普通、换目标、look_at 开关全部平滑过渡；look_at 目标点插值模型（none 端=该关键帧 yaw/pitch 方向远点）（`CameraTrackPlayer`）
-  - ✅ 实体选择器子集：`@p`/`@s`/`@e`/`@e[type=…,name=…]`/`uuid:…`，就近优先 + 1 秒缓存（`CameraTrackPlayer`）
-  - ✅ 切线朝向：clip 级 `orient=tangent` 时沿路径切线方向看，可叠 `yaw_offset`/`pitch_offset`；关键帧级 `yaw_base`/`pitch_base` 支持 world/entity/line 三种基准，`yaw`/`pitch` 作为相对基准偏移（`TangentOrientation`、`CameraTrackPlayer`）
-  - ✅ 注视点 = 点源 + 偏移：来源 `look_at=player/coordinate/entity/block`（结构 = coordinate + 结构 id），偏移 `look_at_offset`（世界轴 / 基准坐标系）（`CameraKeyframeEvaluator`）
-  - ✅ 结构目标：服务端 `/icinematics play` 推送前把 `look_at_target_structure` / `facing_origin`（结构 id）替换为结构 **bounding box 中心**坐标（`StructureLocator`：触发器同款附近搜寻——getAllStructuresAt 按 chunk 步进扫描玩家附近 3 区块已加载区域 → StructureStart → getBoundingBox().getCenter()；不采用原版 findNearestMapStructure 的网格环序，避免命中远处未加载结构）；编辑器预览（单人）客户端直连集成服务端兜底（`StructureLocator`、`CinematicCommand`、`CameraTrackPlayer`）
-  - ✅ 支持 `cam_breath_*` 呼吸扰动 v2（clip 级）：`cam_breath_type` 多类型（perlin/perlin_axis/sine/trauma）+ speed，确定性叠加到最终 yaw/pitch/roll（`BreathDisturbance`、`CameraTrackPlayer`）
-  - ✅ 相对/绝对坐标模式为关键帧级（position 对象自描述：有 dx=相对、有 x=绝对），统一世界坐标空间插值；位置点源可扩展：`facing_origin` = 玩家激活位置（缺省）/ 固定坐标 / 结构中心 / 方块 / 实体选择器（两种偏移表达空间共用）（`CameraKeyframeEvaluator`、`PositionData`）
-- **AUDIO 轨道播放器**
-  - ✅ 通过 LWJGL OpenAL 多音源播放：每 clip 一个 `CinematicAudioInstance`，clip 切换时淡出并清理旧实例（`AudioTrackPlayer`）
-  - ✅ 支持 OGG（stb_vorbis 文件/资源包解码）与 WAV（javax.sound，8/16 位）两种格式（`CinematicAudioInstance`）
-  - ✅ 关键帧插值驱动音量与空间位置（volume/x/y/z），支持淡入淡出、循环、音高（`AudioTrackPlayer`、`CinematicAudioInstance`）
-  - ✅ 支持空间衰减模式 none/linear/inverse（默认距离 16 格），最终音量乘以 MC 音乐音量滑块（`CinematicAudioInstance`、`AudioTrackPlayer`）
-  - ✅ 播放期间每帧压制 MC 背景音乐（`SoundSource.MUSIC`），防止原版音乐串场（`AudioTrackPlayer`）
-  - ✅ 支持暂停/恢复/按时间重定位（`syncToTime` 偏差超 0.5s 时重播）（`CinematicAudioInstance`）
-  - ✅ 音频听者：`meta.listener="camera"` 时环境音/方块音/水声等按相机采样（配合相关 Mixin）；`"player"`（默认）时 `SoundManagerMixin` 用玩家视角代理听音（`AudioListenerController`）
-- **LETTERBOX 轨道播放器**
-  - ✅ 关键帧 `aspect_ratio` / `opacity`（默认 1，0~1）复用 `KeyframeInterpolator.interpolateChannel` 匀速线性求值，首尾保持，不叠加 smoothstep；无活跃 clip 时画幅比归零并复位透明度；无限 clip 本地时间正常推进，停止时只移除本轨所属黑边层（`LetterboxTrackPlayer`）
-- **OVERLAY 轨道播放器**
-  - ✅ 按 clip 的 `layer_type` 创建对应覆盖层（fade/image/subtitle）并注册到 `OverlayManager`，支持 z_index 分层（默认 10，0.3.6 起统一；只在本模组覆盖层之间排序，不改原版 HUD）；每条轨同一时刻只消费首个活跃 clip，同时显示的层需各自独立轨道（`OverlayTrackPlayer`）
-  - ✅ fade 高级颜色遮罩（0.3.6 D4–D7）：`ScriptParser` 在 fade clip 解析期构建 `ColorMaskSpec`（clip 级 `gradient` / `mask_shape` / `blend_mode`；纯色模式缓存关键帧 `color`，渐变模式只校验格式），结构 / 颜色非法转成带字段路径的 `ScriptParseException`；`ScriptValidator` 同步枚举、有限值、非负 / 正数范围与 stops 结构。fade 的 `gradient` / `mask_shape` / `blend_mode` 只属于 fade 的 clip 级，fade 的 `mask_*` / `gradient_*` 只属于 fade 的关键帧，`color` 两级都可写；上述 fade 高级字段（含关键帧 `color`）写在 image / subtitle 上会被解析 / 校验明确拒绝（clip 级 `color` 是通用字段，image / subtitle 不消费；`ColorMaskSpec`、`ScriptParser`、`ScriptValidator`、`TrackSchemas`）
-  - ✅ CAMERA lane 合成遮罩字段归属（0.3.6 D2）：clip 级只允许 `mask_shape`（`full` / `rect` / `circle`）；关键帧只允许 `mask_x` / `mask_y` / `mask_width` / `mask_height` / `mask_radius`，复用有限 / 非负数值检查；错层级 / 错轨道带字段路径拒绝。CAMERA 拒绝 `gradient` / `gradient_*`（专属 OVERLAY fade）与 `blend_mode`（属于既有 ADJUST 轨或 fade）（`ScriptParser`、`ScriptValidator`、`TrackSchemas`）
-  - ✅ 建层时把 `clip.getColorMaskSpec()` 一次送入 `FadeLayer.setMaskSpec`；逐帧只采样该 spec 消费的几何通道：`rect` 读 `mask_x/y/width/height`，`circle` 读 `mask_x/y/radius`，`linear` 读 `gradient_angle/center_x/center_y`，`radial` 读 `gradient_center_x/center_y/radius`；颜色由 `ColorMaskSpec#sampleColor(localTime)` 缓存采样（纯色关键帧逐 RGB 线性、缺省回落 clip 级 `color`；渐变模式由 stops 决定）。未声明渐变 / `full` 时层保持初始化缺省，旧 fade 行为不变（`OverlayTrackPlayer`、`ColorMaskSpec`、`FadeLayer`）
-  - ✅ 不新增 `layer_type` / 轨道 / 转场机制；规则 `overlay_set` 仍只建静态 fade；渐变 stops 定义在 clip 级、整段固定，关键帧只驱动几何，不实现 stops 拓扑动画（`OverlayTrackPlayer`）
-  - ✅ 按统一参数字段表取值（0.3.6 步骤 4）：`x/y`（播放窗口归一化，元素中心，缺省 0.5）、`anchor_x/anchor_y`（缩放绕点，缺省 0.5）、`scale_x/scale_y`（相对素材原始像素尺寸的倍数，缺省 1）、`source`（素材归一化取材，按分量线性，缺省全幅）、`font_scale`（字号倍数，subtitle）、`opacity`（透明度，缺省 1，淡入淡出完全由关键帧表达）；创建层时把脚本 `meta.base_resolution`（缺省 1920×1080）送入层作 `k` 的分母；关键帧之间**匀速线性**插值（0.3.6 起运行时统一线性，范围外钳制到边界关键帧）（`OverlayTrackPlayer`）
-  - ✅ 支持多条同类型 OVERLAY 轨道同时渲染：TrackPlayer 数据源按轨道索引定位（`clipsForTrack(trackIndex)`），轨道 JSON 以 `id` 区分管理（`ScriptPlayer`、`TrackPlayer`）
-  - ✅ clip 切换或停止时移除并清理覆盖层（`OverlayTrackPlayer`）
-- **EVENT 轨道（服务端执行）**
-  - ✅ EVENT 轨道不在客户端处理，由服务端 `ScriptEventManager` 按关键帧时间多点触发，支持 `&&` 命令链、权限等级 4 执行（`ScriptEventManager`）
-- **MOD_EVENT 轨道播放器**
-  - ⏳ 仅为占位空壳：`isActiveAt()` 恒返回 false、`onRenderFrame()`/`onStop()` 空实现，Phase 1 不实现（`ModEventTrackPlayer`）
+- ✅ `ScriptParser.parse(String)` → `CinematicScript`；Gson 树 API 手写解析，错误抛 `ScriptParser.ScriptParseException`（带 JSON 字段路径，**首错即抛**）。
+- ✅ 顶层只有六类键：`meta` / `timeline` / 可选 `clips[]` / `rules[]` / `rule_bindings[]` / `paths[]`。
+- ✅ `meta` 必填 `id`（`^[a-zA-Z0-9_]{1,32}$`）/ `name`（≤50）/ `author`（≤30）；**没有 `version`**。
+- ✅ `timeline` 只承载 `tracks` 与宏观循环区间（`loop_start` / `loop_end`）；**没有 `total_duration`**。
+- ✅ 片段白名单（`ObjectParser.CLIP_KEYS`）：`start_time` / `duration` / `objects` / `loop` / `loop_count` / `loop_mode` / `id` / `exit`；其余 clip 级键一律拒绝。
+- ✅ 旧字段出现即报「已移除」：`meta.version`、`timeline.total_duration`、clip 级 `keyframes` / `curve` / `rules` / `interpolation`、`follow` / `follow_selector`、`facing_origin*`、`selector_*_follow` / `selector_*_facing_origin`、clip 级 `orient` / `yaw_offset` / `pitch_offset`、AUDIO 文件循环旧名 `loop`、`meta.hud_layers` / `meta.hard_hide_hud`。
+- ✅ 校验：`ScriptValidator.validate(json[, knownIds])` 收集多条 issue（parser 首错即抛，validator 汇总）。
+- ✅ 触发器定义解析：`triggers[]`（含 `id`、`continuity`、`poll_interval`）。
 
-## 已知问题
+## 二、数据模型
 
-- `PathStrategies` 注册表实际只注册了 `linear`，javadoc 声称的 `bezier` 注册缺失；动态查找 `curve.type=bezier` 会告警并回退线性，实际播放中由 `CameraTrackPlayer` 显式持有 `BezierPathStrategy` 实例才生效（来源：`PathStrategies`）
-- 多人服务器下编辑器预览（本地播放）无法解析 `look_at_target_structure`（客户端无服务端访问）；服务端 `/icinematics play` 推送前会替换为坐标，不受影响（来源：`CameraTrackPlayer`）
-- AUDIO clip 的 `fade_in + fade_out` 超过 clip 时长时整段跳过不播放（来源：`AudioTrackPlayer`）
-- 音频文件名含非 ASCII 字符（中文等）时在 Windows 下可能无法解码（stb_vorbis 内部 C fopen 使用 ANSI 代码页），仅输出警告（来源：`CinematicAudioInstance`、CHANGELOG 0.3.4）
+- ✅ `CinematicScript`：`meta` + `timeline` + `standaloneClips` + `ruleCollection` + `pathCollection` + 片段 id 索引；加载期派生 `isInfiniteContent()` / `hasFiniteContentEnd()` / `contentEnd()` / `hasFiniteDisplayEnd()` / `finiteDisplayEnd()`（只算 timeline 片段，独立片段只参与「是否无限」）。
+- ✅ `ScriptMeta`：id/name/author/description/dimension/triggers/priority/`play_mode`/`skip_vote_ratio`/`base_resolution`/`screen_layers`/`screen_layer_mode` + 运行时行为（`block_*`、`hide_*`、`suppress_*`、`render_player_model`、`pause_when_game_paused`、`interruptible`、`skippable`、`hold_at_end`、`listener`、宏观循环）。
+- ✅ `Timeline`：`tracks` + `loopStart` / `loopEnd`。
+- ✅ `TimelineTrack`：`type` + `clips`。
+- ✅ `Clip`：`startTime` / `duration` / `trackType` / `data` / `objects` / `clipId` / `exitPolicy`；`isEffectivelyInfinite()`（负时长或无限执行循环）、`getWindowEnd()`（无限时**抛异常**，调用方先判 `hasFiniteWindowEnd()`）。
+- ✅ 对象层（`script/object/`）：`ClipObjects`（路径 → `SampledProperty`）、`SampledProperty`（`VALUE` / `ANIMATED` / `EVENT` 三形态，`compile(duration, infinite)`）、`ObjectKeyframe`、`ObjectCodec`、`ObjectParser`、`ObjectValidator`、`PropertyPath`、`CompositePaths`。
+- ✅ 采样层：`ClipSampler` / `SampledClip` / `ObjectSlotLayout`（路径 → 槽位）/ `ClipRuntimeCache`（按片段身份缓存）/ `ClipValueView`（只读 value-only）。
+- ✅ 位置与朝向（`script/object/position/`）：`PositionSpec`（mode `absolute`/`relative` + space `world`/`base`）、`PointSourceSpec`、`FacingSpec`、`FreezeStore`、`PositionEvaluator`、`OrientationSpec` / `OrientationEvaluator` / `LookAtSpec` / `PathTangent`。
+- ✅ 片段身份（`script/identity/`）：`ClipIdentity`、`ClipRef`、`ClipResolver`、`UsageIndex` / `UsageEdge` / `UsageKind`（放置 / 规则绑定 / 路径条目 / 分支目标 / 出口目标）。
+
+## 三、Schema（唯一字段真源）
+
+- ✅ `TrackSchemas`（各轨对象路径 / 类型 / 插值 / 默认值 / 枚举 / `requires` / `appliesTo`）→ `TrackTypeSchema` → `ObjectDef`；`MetaSchemas`、`TriggerSchemas` 同理。
+- ✅ `SchemaRegistry` / `SchemaLoader` 提供查询；`SchemaExporter` 导出 JSON schema 给编辑器（Java 侧是唯一权威）。
+- ✅ `TrackRegistry`：内置 7 轨 + 第三方注册（`TrackTypeId` / `TrackSchema` / `TrackPlayer`），首个脚本解析后冻结。
+
+## 四、脚本级集合
+
+- ✅ `clips[]`（独立片段）：`{id, track, duration, objects, exit?}`，无 `start_time`；由分支/出口启动后按 `track` 进入对应轨道（`ScriptPlayer` 的隐式轨道表）。
+- ✅ `rules[]`：`{id, condition, actions, policy?}`；`rule_bindings[]`：`{id, rule, clip, gate:{at}, control?, schedule?, exit?}`（`gate.at` 必填）。
+- ✅ 规则运行态（`script/rule/runtime/`）：`RuleRuntime`、`RuleActivation`、`RuleFactStore`、`SuspensionLedger`、`RuleActionRunner`、`PendingAction`。
+- ✅ `paths[]`：`{id, clip, from, to, axes, geometry, timing}`；端点必须命中目标片段 `position.x/y/z` 节点时间并集且相邻（`PathCollectionParser`）；运行期 `PathBindingResolver`。
+- ✅ 路径曲线：`PathCurveRegistry`（`line` + `bezier` / `bspline` / `catmull_rom` / `clothoid` / `fourier` / `hermite` / `nurbs` / `rational_*` 等注册类型）。
+
+## 五、执行层
+
+- ✅ `ClipExecutionLedger`：每实例一份；按执行身份维护 `localTime` / `windowStart` / `windowEnd` / `done` / `contentEnd` / `allDone()`；无限执行无有限末端。
+- ✅ `ClipBranchController`：`launch(target, entryLocalTime, override)` / `poll()` / `fail(...)`；出口策略 `ClipExitResolver` + `ClipExitPolicyParser`（优先级：入口覆盖 > 片段默认 > `CONTINUE`）。
+- ✅ 自然完成读执行账本（`allDone()`），不读任何声明时长；`contentEnd` 只作显示/定位/统计。
+
+## 六、轨道播放器
+
+| 轨道 | 类 | 数据来源 |
+|---|---|---|
+| CAMERA | `CameraTrackPlayer` + `ObjectCameraEvaluator` | `ClipSampler` + `PositionEvaluator` / `OrientationEvaluator`；lane 合成参数走 `CameraLaneComposite` |
+| OVERLAY | `OverlayTrackPlayer` + `OverlayClipRuntime` | `SampledClip` + `ColorMaskSpec.forObjects`（渐变/遮罩结构 value-only） |
+| LETTERBOX | `LetterboxTrackPlayer` | `SampledClip`（`aspect_ratio` / `opacity`） |
+| AUDIO | `AudioTrackPlayer` | `ClipValueView`（`sound` / `source` / `pitch` / `file_loop` / `fade_*` / `attenuation` / `position_mode` / `category`）+ `SampledClip`（`volume` / `x/y/z`） |
+| ADJUST | `AdjustTrackPlayer` | `ColorAdjustSampler.sampleObjects`（59 通道） |
+| EVENT | 服务端 `ScriptEventManager` + `EventClipRuntime` | `objects.event` 事件记录（客户端不建驱动） |
+| MOD_EVENT | `ModEventTrackPlayer` | 格式与编译完整（`objects.mod_event`），**当前不消费**（占位，第三方以后可接） |
+
+- ✅ 每渲染帧调度：`ScriptPlayer` 持有 `TrackDriver` 列表；`clipsForTrack(i)` 的索引空间 = timeline 轨道 + 隐式轨道（脚本级独立片段按 `track` 类型分组）。
+- ✅ 画面 lane：`collectCameraLanes()` 按绘制顺序扁平列出各 CAMERA 轨本帧活跃 clip 的 `LaneFrame`；合成参数 `opacity` / `dest` / `source` / 遮罩由 `ScriptLaneDriver` 逐 lane 上屏。
+
+## 七、已知问题
+
+- 内联 timeline 片段的**默认 `exit` 不会执行**：`ClipBranchController.poll()` 只在 `branching`（规则启动的分支）时工作，普通片段播完没人读出口策略 → `I-BACKLOG.md` I5-R4。
+- 多人服务器下编辑器预览无法解析结构类目标（客户端无服务端访问）；服务端 `/icinematics play` 推送前替换为坐标，不受影响。
+- 音频文件名含非 ASCII 字符（中文等）时 Windows 下可能无法解码（stb_vorbis 内部 C `fopen` 用 ANSI 代码页），仅输出警告（`CinematicAudioInstance`）。
+- `AUDIO` 的 `fade_in + fade_out > duration` 现在是**校验期错误**（`ObjectValidator`），不再静默跳过。

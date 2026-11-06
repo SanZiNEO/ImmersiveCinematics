@@ -5,7 +5,7 @@
 > 生成：2026-10-07 晚。**批次 A（调色）2026-10-09 关单、批次 B（相机底层）2026-10-11 关单、批次 C（触发器 / 播放关系 / 判定规则）2026-10-14 关单、批次 D（转场 / 遮罩 / 覆盖层）2026-10-17 关单（D1–D8 / D10；D9 不做）；F 轮（播放/渲染）**2026-10-26 关单**：F2/F3/F5 已完成、F4 不做，F3 验收通过；F5 成本矩阵已完整（2026-10-18）；失败处理审计第 1 批 P0 已落地、P1/P2 待做；F6/F7/F8 均已实现并提交，F8 已实机验证（2026-10-26）；WP5 per-pipeline 为技术收口项；剩余 E–H 批次与遗留项（P1-impl / P3-impl / CLEANUP-3 / C 轮 `pause` 实机复验）见下方表。**
 > 目标：**0.3.6 计划全部实现**（不允许"差一点"）；**编辑器（游戏外 WebUI）放到最后**（需严密规划：参考 `example/editor/{olive,lossless-cut}`，核心 = 只产出游戏可解析的固定格式脚本）。
 > 执行方式：一个子代理只做一个小任务（任务书写全需求）→ 主代理验收（编译 + 冒烟/读码）→ 中文 commit → 更新本表。**并行口径（2026-10-08 用户明确）**：**计划类任务可并行**（各写各的文档、互不冲突）；**执行类任务必须串行**（改代码的多子代理易出错——一个完成并验收提交后才开下一个）。
-> 依据：`plans/0.3.6/_archive/implementation-audit-2026-10-07.md`（缺口总清单）；`plans/0.3.6/pending-discussions.md`（未定项清查：多数属执行时再定型、任务落地时定稿；少数需拍板）。
+> 依据：2026-10-07 全计划实现审计（缺口总清单，已随轮次归档）；`plans/0.3.6/pending-discussions.md`（未定项清查：多数属执行时再定型、任务落地时定稿；少数需拍板）。
 > 本次语义评审只改计划：规则与曲线为脚本级独立集合、通过片段引用定位内容；规则外层必选时间门 AND 内层条件树，门前事件/事实可采集、门后确认提交；到门可暂停本实例待判，规则/片段事实可接力，成功≠动作完成，动作可延迟到片段开始/完成或局部时间；正常后继由片段默认、入口显式覆盖优先，失败 fallback 独立沿原主线继续；过渡消费 A/B 实际状态；无限循环无自然完成点但不截断作者后续编排。C/B 已完成记录仍表示旧实现事实，新目标见 I 轮，未改代码、未做新语义实机验收。
 
 ## 通用原则（每个任务都必须遵守）
@@ -118,8 +118,8 @@
 
 | ID | 任务 | 依赖 | 状态 |
 |---|---|---|---|
-| G1 | 参数寻址到分量（“只让 X 动”） | — | ☐ 由 I 轮对象模型吸收，未实现 |
-| G2 | 字段形态／可关键帧声明 | G1 | ☐ 由 I 轮 schema 吸收，未实现 |
+| G1 | 参数寻址到分量（“只让 X 动”） | — | ✅ 已由 I 轮对象模型吸收（I-1，2026-11-03）：`objects` 叶子路径（`position.x` / `dest.w` / `color.r` …）各自独立关键帧 |
+| G2 | 字段形态／可关键帧声明 | G1 | ✅ 已由 I 轮 schema 吸收（I-1）：`ObjectDef.mode` = `VALUE` / `ANIMATED` / `EVENT`，value-only 字段禁止 keyframes |
 | G3 | meta 关键帧化（listener/hide_hud/可跳过等） | I 对象模型 | ☐ 延后，不混入本轮片段对象模型 |
 | G4 | 时间精度（float → 高精度）→ **时钟抽象**（任务书已定稿：`plans/0.3.6/G-script-model/clock-abstraction.md`，2026-10-09 用户裁决五步——① Clock 抽象 + 单调秒（GameClock/PreviewClock）② elapsed 链路 double 化（消 float 截断）③ elapsed 唯一分发语义 + 去死参数 ④ overlay delta 真实化 ⑤ float 存储边界契约；顺带修跨脚本并行 hasActiveCameraTrack 算错） | — | ✅ 2026-11-02：五步全部落地（Clock/GameClock/PreviewClock、运行侧 double、去死参数、覆盖层真实帧间隔、存储边界契约）；验收见 G-script-model/clock-abstraction.md §六 |
 | G5 | 叠化 hold 自动补帧工具/模板 | — | ⊘ 归 Z 轮（编辑器工具；见 `Z-editor/templates.md` §7） |
@@ -131,15 +131,27 @@
 | ID | 任务 | 依赖 | 状态 |
 |---|---|---|---|
 | H1 | ~~region-sync 全部实现（平移映射/镜像旋转/多区域链/传送/防乒乓/朝向策略）~~ | — | ⊘ **已取消（2026-11-04，用户决定暂不做区域同步传送；`H-other/region-sync.md` 已删除）** |
-| H2 | wait-point-track 全部实现（WAIT_POINT 轨 + 事件源 + pause_managed + player_death + 分支） | C2 + **P1-impl + P3-impl**（事件/事实层先行——等待点等的事件正是这一层；H2 需在二者之后） | ⊘ 已被 C6 判定规则吸收（2026-10-10 用户拍板「判定点/等待点收编」，等待点 = `until→do` 阻塞形态；事件/事实层归 P1-impl / P3-impl；`wait-point-track.md` 归档 `_archive/`，2026-10-12 整理） |
+| H2 | wait-point-track 全部实现（WAIT_POINT 轨 + 事件源 + pause_managed + player_death + 分支） | C2 + **P1-impl + P3-impl**（事件/事实层先行——等待点等的事件正是这一层；H2 需在二者之后） | ⊘ 已被 C6 判定规则吸收（2026-10-10 用户拍板「判定点/等待点收编」，等待点 = `until→do` 阻塞形态；事件/事实层归 P1-impl / P3-impl；等待点设计稿随轮次归档，2026-10-12 整理） |
 | H4 | feedback-04 #1 结案（按"命令归 EVENT 轨"新方向标注） | — | ✅ 2026-10-10（`476b442`，按「命令归 EVENT 轨」新方向结案标注） |
-| H5 | 文档滞后清理（审计 §三 12 条） | — | ☐ |
-| H6 | 实机验证批次（审计 §四 7 条：调色/叠化/hard-hide/模板命令/release 脚本游戏内跑） | A,B,D | ☐ |
+| H5 | 文档滞后清理（审计 §三 12 条） | — | ✅ 已核对并收口（H-2，2026-11-03）：逐条重核 12 条，分类「已清 / 本轮已改 / 文件不在本仓」→ `H-other/doc-lag-2026-11-03.md` |
+| H6 | 实机验证批次（审计 §四 7 条：调色/叠化/hard-hide/模板命令/release 脚本游戏内跑） | A,B,D | ✅ 已执行（H-2，2026-11-03）：7 条实机记录见 `H-other/verification-2026-11-03.md`；**遗留**：B18 ④打断/⑤链式、B19 迟滞观感量化仍未见实机记录（见下方「孤儿欠账」） |
 | H7 | **P1-impl 事实层**（布尔点状事件判定 → 事实追踪）：事实模型 / 触发器身份 / 播放生命周期 / 账本收编 / tracker 收编 / 持久化 / 消费面 | — | ✅ **已实现（H-1，2026-11-03）**：事实层 + 五份记录收编 + 三前置条件切事实；消费面（展示）归 Z 轮 / H-12（见 [`H-other/state-tracking.md`](H-other/state-tracking.md) §六） |
 | H8 | **P3-impl 连续语义**（离散采样 → 连续判定）：位置扫掠 / 朝向弧 / 进入边沿 / dwell·window / 事件时间戳 | 窗口与事件侧依赖 H7 | ✅ **已实现（H-1，2026-11-03；`observation` 扫掠除外）**：`continuity` 触发器级配置 + 段扫掠 + 边沿 + dwell/window（见 [`H-other/trigger-continuity.md`](H-other/trigger-continuity.md) §六） |
-| H9 | **跳过投票 + 跳过 HUD**：判定对齐 MC `SleepStatus`（单一分母 / `max(1, ceil)` / 共用阈值）、HUD 合成一行、位置百分比可配 | — | 🟡 **有实现但不完整**（见 [`H-other/skip-vote-and-hud.md`](H-other/skip-vote-and-hud.md) §1.3） |
+| H9 | **跳过投票 + 跳过 HUD**：判定对齐 MC `SleepStatus`（单一分母 / `max(1, ceil)` / 共用阈值）、HUD 合成一行、位置百分比可配 | — | ✅ 已实现（H-2，2026-11-03）：`neededVotes = max(1, ceil(total×ratio/100))`、分母单源（`viewers`）、按实例分流、HUD 每批一行；`skip-vote-and-hud.md` §1.3 的 5 条旧缺陷已 4 条修复（分母不一致 / 缺 `max(1,…)` / 全员跳过未清账本 / `pb.server` 未赋值），**广播节流为有意不做**（低频事件，代码注释说明） |
 | H10 | **相机视图实体活性**：服务端原版实体跟踪镜像 + 客户端目标世界 tick；不做假玩家、不改 AI goal | — | ✅ **已实现（H-3，2026-11-04）**（见 [`H-other/entity-liveness.md`](H-other/entity-liveness.md) §七） |
 | H11 | **HUD 层注册 API**：面向第三方的正式注册入口 + `hud_layers` / 固定分类口径 + Fabric/Forge 边界 | — | ✅ 已实现（H-2，2026-11-03）（见 [`H-other/hud-layer-api.md`](H-other/hud-layer-api.md) §八） |
+
+### 孤儿欠账（2026-11-06 审计发现，已定归属）
+
+以下四项在 A–H 阶段被明确写为「挂账 H6 / 待后续」，但 H-6 收口表与 `H-other/verification-h6.md` 都没有承接，也没有再转手。2026-11-06 用户裁决后，统一归属如下：
+
+| 项 | 原承诺 | 归属 | 依据 / 方法 |
+|---|---|---|---|
+| B18 ④打断 / ⑤链式 | 实机抽验（fixture 已就绪） | **J 轮**（`J-media/handover.md` §一 / §二） | 语义 = morph，窗口 = 交界 ± maxDuration/2（5s → 前后各 2.5s，两侧取实际状态）；链式按同一语义，用户判断「理论上不应有问题」，实机确认 |
+| B19 迟滞观感量化 | 实机跨帧率比对（观感） | **J 轮**（`handover.md` §三） | 人眼判定；方法 = 经典四象限：1 象限 A→B 无迟滞对照组，其余 3 象限不同对象分别挂迟滞 |
+| C-pause 实机复验 | `pause` 改执行状态暂停后的实机复验 | **J 轮**（`handover.md` §四） | 用户 2026-11-06：确实值得做；验内容位置 / EVENT 去重 / 恢复续播 / `test_rules_actions` clip3 |
+| F 轮失败处理 P1/P2 | 审计 60 findings 的 P1/P2 批 | **J 轮**（`handover.md` §五） | 原则：有什么放什么；失败不崩游戏，写日志定位（视觉上失败可见，靠日志查原因） |
+| F5 光影 WP5 per-pipeline | 技术收口项 | **K 轮**（`K-optimization/shader-per-pipeline.md`） | 用户 2026-11-06：放优化轮（编辑器前收尾） |
 
 ## 批次 I：脚本底层 ✅ 已关单（I-1~I-5，2026-11-06；运行时媒体独立为 J 轮）
 
@@ -153,7 +165,7 @@
 | 分支片段出口 | 分支与主线同片段对象/schema；正常后继由片段默认、入口显式覆盖优先；失败 fallback 独立沿原主线继续 | ✅ 已实现（I-4）：`ClipExitPolicyParser` 优先级 = 覆盖 > 默认 > `CONTINUE`；探针 `run-exit-branch` 110 checks PASS |
 | 相机与过渡 | 模组内部相机；两侧状态含各自片段效果，每帧推进一次，过渡只消费快照 | ✅ 已实现（I-3）：`track-camera.md` §六；A/B 实际状态采样 + morph 每侧完整状态 |
 | 次数执行／无限／完成 | 执行状态与边界事件是真源；无限无自然完成点，不截断独立后续内容；显示范围不驱动结束 | ✅ 已实现（I-2 执行层 / I-5 收口）：`script/execution/`；宏观循环按「语义不变、时间圈仅定位」收口（`acceptance.md` L6） |
-| 格式／迁移／编辑器／模板 | 删除 version／total_duration；旧曲线逐段迁移；几何与进度分离；生成器遵循同一结构契约 | ✅ 格式清理 + 迁移已实现（I-5）：252 支（242 迁移 / 10 新格式 / 0 错误），validator 19→17，摘要见 `I-script-core/migration-report.md`；编辑器 UI / 模板展开归 Z 轮 |
+| 格式／迁移／编辑器／模板 | 删除 version／total_duration；旧曲线逐段迁移；几何与进度分离；生成器遵循同一结构契约 | ✅ 格式清理 + 迁移已实现（I-5）：252 支（242 迁移 / 10 新格式 / 0 错误）；迁移后全量 258 支（含 5 支旧字段负例 + 1 支独立片段夹具）校验 **8 支有 issue**（3 支既有缺陷 + 5 支负例，其余 250 全绿）；摘要见 `I-script-core/migration-report.md`；编辑器 UI / 模板展开归 Z 轮 |
 | 媒体与综合验收 | 按 J-media 与 acceptance 专篇推进 | 媒体播放归 **J 轮**（独立启停，不属 I 轮关单）；I 轮验收矩阵见 `I-script-core/acceptance.md` §十四 |
 
 
@@ -195,7 +207,7 @@
 
 ---
 
-## 工作环境速查（明天直接用）
+## 工作环境速查
 
 - 版本号：`gradle.properties` = 0.3.6；`WebEditorApi.hello_ack` = 0.3.6。
 - 编译：`sh gradlew compileJava`（Git Bash，`sh` 前缀，不 && 连命令）。
@@ -220,13 +232,13 @@
 | 2026-10-08（续4） | **任务 3（文档口径修正）完成**（无代码）：批次 A 表 **A8 行改述**为「lane 级调色 = 相机片段自带（CAMERA clip / 关键帧携带调色，作用于该相机轨产出的 lane，渲染完、合成前）」（commit 列标注 `8114a85` → `b529757`，原实现数据形态错误：自创 `scope=lane` + ADJUST 轨挂调色）；**A9 行结案**为「调整层 = ADJUST 轨（顶层、不参与排序、默认比其他层级高一个）作用于整幅画面；无新机制（2026-10-08 用户口径）」（文档口径结案，无代码）；**调整层 / 两级分层口径改写**（`screen-color-adjust.md`：lane 级 = 相机片段字段 → 调整层/master = ADJUST 轨；「调整层」即 ADJUST 轨的现有顶层位置，不参与排序、默认高一级，无新机制）。顺带口径记录：**任务 2 改判跳过**（曲线贝塞尔手柄归 Z 轮，2026-10-08 用户裁决）、**任务 1 已完成**（`b529757`：lane 级调色改为相机片段自带）。 |
 | 2026-10-09 | **批次 A 关单**：A10c 欠账清偿（`ed2a18e`：CubeLutLoader 缓存释放挂接播放生命周期 + F3+T 双端、静默点告警、validator 拦相机片段 lut_strength、尺寸策略注记）；LUT 输入域适配 `lut_input_gamma`（`76f0fe7`）；A10d 文档（`43ca082`）+ LUT 创作者工作流 `docs/LUT_WORKFLOW.md`（`f8a6265`）+ re 评估 5 处 + 2 处文档滞后回写（`1f60c9d`）；**A11 六色带 12 通道**（`01cae9f`）；**A12 混合模式**（`ff1e5a5`）；**A13' 多实例 master 叠加**（`4aa03d8`）。批次 A 全 ✅；用户裁决本轮只做批次 A，B 起另起。 |
 | 2026-10-09（续） | **批次 A 展示脚本集交付**（`a253bec` + `6cf31c3`）：`cinematics/0.3.6/`（scripts/ 13 支自动播脚本入库、resource/ 6 个 cube 不追踪）——01~05 标量/曲线、06 LUT 60s 顺序 6 cube + gamma 纠偏、07~10 混合器/LGG/六色带（绿→黄）/混合模式、11 合成参数关键帧 + lane 级调色、12 多实例叠加双脚本；login 触发器错峰排队（delay=秒，`ScriptManager` ×1000→ms、`TriggerEngine` /50→ticks），一场 8m49s。实机观看验收通过（用户：没什么大问题）；启动窗口默认放大化 = options.txt `overrideWidth/Height` 2560×1392（fabric+forge run）。**欠账**：icv 校验器不查 `meta.name` ≤50 字符（运行时 `ScriptParser` 强制，10 号脚本曾因此拒载后修复）——校验规则待补。 |
-| 2026-10-09（续2） | **多脚本同屏偶发黑屏调查完成（只调查未修）**：压力实验（13 脚本同时播）实证 1 次黑屏事件（世界层纯黑/GUI 完好，截图+日志存证 `E:/tmp/icblack/out/`）；三路排查收敛——主嫌疑 = **fail-open 链式 blit**（applyTo 无条件 return true、整屏 blit 无条件信任中转缓冲、全链 0 处 glGetError/checkFramebufferStatus）+ NaN 级联（validator 不在加载/播放路径）+ LUT 单元错位；时序/并发已排除。**用户裁决（修复验收标准）：渲染错误 fail-safe = 返回原始画面直通，绝不能输出 0/黑**。报告：`plans/0.3.6/_archive/multi-instance-black-screen.md`；诊断工具 `E:/tmp/icblack/`（黑屏检测器 + 压力脚本 + RUNBOOK，可复用回归）。 |
+| 2026-10-09（续2） | **多脚本同屏偶发黑屏调查完成（只调查未修）**：压力实验（13 脚本同时播）实证 1 次黑屏事件（世界层纯黑/GUI 完好，截图+日志存证 `E:/tmp/icblack/out/`）；三路排查收敛——主嫌疑 = **fail-open 链式 blit**（applyTo 无条件 return true、整屏 blit 无条件信任中转缓冲、全链 0 处 glGetError/checkFramebufferStatus）+ NaN 级联（validator 不在加载/播放路径）+ LUT 单元错位；时序/并发已排除。**用户裁决（修复验收标准）：渲染错误 fail-safe = 返回原始画面直通，绝不能输出 0/黑**。报告：黑屏调查记录（已随轮次归档）；诊断工具 `E:/tmp/icblack/`（黑屏检测器 + 压力脚本 + RUNBOOK，可复用回归）。 |
 | 2026-10-09（续3） | **黑屏修复落地 + 结案**：四方向全修（`adfa008` fail-safe 直通 / `5bbc598` NaN 守卫 / `6deb2d7` LUT 绑定自检 / `c579f5f` lane 守门），负对照逐条证明四类机制可整屏黑、修复后正常路径逐字节不变。回归残余「黑」定性 = **极端叠加的合法数学结果**（13 套 master 连乘叠压算到全 0，同场可见全屏红/全屏绿佐证；用户裁定非 bug、作者侧解决，符合全模组调度口径）；gamma 奇异点假设被 shader 公式否决；拆锅实验取消。收尾：删交接文档、`plans/0.3.6/re/` 入 .gitignore 不提交、run 目录还原。**待讨论（先不动）**：F1「失败时返回前有效结果」语义去留。 |
-| 2026-10-09（续4） | **明日开工材料就绪**：批次 B~H 开工计划定稿（`plans/0.3.6/_archive/next-phase-batches.md`：B 逐项 19 条 + C~H 汇总 + 遗留清点 + Q1–Q32 串行队列 + 明天首批 1 编码 + 5 并行）；注释规范定稿（`plans/0.3.6/misc/code-comment-style.md`，实测基线 0.33 → 目标 ≤25%，CLEANUP-3 分片方案）；时钟抽象计划入库并排入 G4（`d419f93`）；F3/F4 新增类补交（`06b4d3d`，教训：`git add -u` 会漏新建文件，此后新文件显式 add）。F1 失败语义经讨论**保留**（与极端叠加无关、只拦真渲染故障）。 |
+| 2026-10-09（续4） | **批次 B~H 开工计划定稿**（B 逐项 19 条 + C~H 汇总 + 遗留清点 + Q1–Q32 串行队列 + 首批 1 编码 + 5 并行）；注释规范定稿（`plans/0.3.6/misc/code-comment-style.md`，实测基线 0.33 → 目标 ≤25%，CLEANUP-3 分片方案）；时钟抽象计划入库并排入 G4（`d419f93`）；F3/F4 新增类补交（`06b4d3d`，教训：`git add -u` 会漏新建文件，此后新文件显式 add）。F1 失败语义经讨论**保留**（与极端叠加无关、只拦真渲染故障）。 |
 | 2026-10-10（续3） | **Q4 B4-P1 ∪ 时钟抽象步骤 1 ✅**——新建 `util/Clock`（@FunctionalInterface `double seconds()`）/`GameClock`（暂停冻结、末实例退出归零，`lastRealNanos=0` 技巧收进类内）/`PreviewClock`（float→double）/`camera/CameraStateHolder`（path/properties 写入缓冲 + snapshot + 四刷新点），`CameraManager` 999→970 行改持双时钟 + 委托读数（调用方零改动），`ScriptPlayer.clockSource` DoubleSupplier→Clock。等值证明：快照四刷新点逐一断言 + GameClock 200k 帧含 100300 冻结帧对拍 mismatch=0 + 预览 1h 累计误差 float 2.793s → double 1.7e-8s（改善）；实机 quadrant 前后捕获 + **同码对照轮**证明像素差异分布不可区分（来自运行间时间抖动非重构）。顺带修 H5-2（挂点 javadoc LaneRendererMixin→GameRendererMixin）与 B4-P0 残留（onScriptReplaced javadoc）。注：PlaybackClock 职责由 CameraManager 直持 GameClock+PreviewClock 承接（等价布局，§15 签名草案口径）。 |
 | 2026-10-10（续2） | **B 轮串行队列推进（Q2/Q3 关单）**：**Q2 C4 动作面收敛 ✅ `476b442`**——删 3 个死代码 TriggerAction（StopPlayback/PlaySound/ExecuteCommand）+ TriggerStateStore/PlayerTriggerState 死读方法 4 对（负对照 = 7 符号删前全仓零调用者证据）；H4 结案标注（命令归 EVENT 轨，feedback-04 #1 划线结案 + README 同步）；顺带清 SuccessOnlySource javadoc 悬挂引用。**Q3 B9 ✅**——纯垂直线边界修复（两处调用点同口径：`horizontal < LINE_HORIZONTAL_EPSILON` → 拒绝 + 2 秒限频告警，回退 world；负对照 = HEAD/工作树守卫原文对拍，修复前纯垂直线产出方向无关恒定 yaw = 未定义）+ 「视线/身体朝向」措辞统一（yaw=身体朝向 yBodyRot、pitch=视线 xRot，SCRIPT_FORMAT/TrackSchemas/coordinate-frame 一致）+ coordinate-frame §6 三类线规则收口 + 新增 test_camera_vertical_line.json（icv [OK]）。 |
 | 2026-10-10（续） | **几何工作包关单（统一几何模型全链落地）**：定稿 `6975da2`（variable-frame §4.2 取代参考画布 + camera-composition 对齐）；任务一 `501950c`（CanvasTransform 新几何 `resolutionEscape`/`element` + 四图层窗口百分比改造 + fit 消费废除 + 画幅层 pillarbox + OverlayTrackPlayer 删 stepFit；负对照 = 3600 组新旧公式 k=1 对拍 0 偏差 + §4.2.6 例 1 数字 2400×337.5 核对）；任务二（meta.base_resolution 全链：MetaSchemas/ScriptMeta/ScriptParser 告警回落/ScriptValidator 正整数≤16384 + fit 废除拦截/OverlayTrackPlayer 接线 + docs 五处回写；validator 八例 + fit 拦截负对照 + 接线回读 2560×1440）。**B 轮串行队列启动**：Q1（B4-P0）✅ → Q2（C4 动作面收敛）开工。 |
-| 2026-10-10 | **今日首批 T1–T6 关单**（编排交接开局）：**T1 B4-P0 删死代码七处**（3 文件 −65/+4；负对照 = 删前 grep 全仓零调用者；主代理亲跑 compile + icv tests 3 既有 FAIL 不变 + release 5/5 + icv2/icgl 全绿）。**T2 B1-a 覆盖链定稿 ∪ B2 结案**（camera-state-plan〈覆盖链定稿〉§0–§15：§8 九条 + §9 逐条定、B2 = 已被 lane 快照模型取代结案、供 B4-P1/P2 接口形状与字段搬迁清单；**待拍板 4 项**＝§14）。**T3 B16-a 数学模型定稿**（math-models〈定稿〉1–12：接口/角度语义/实例粒度/dt/生命周期/回退/Registry+JSON/首批 10 类型/B16-c 接入面/零分配口径；**待拍板 2 项**＝定稿 12）。**T4 F3 Iris 调研 ①/② 源码级回写**（实机缺 Iris/光影包、未实测：光影合成必然早于 lane、同 RETURN 点顺序随 mixin 注册序非契约、每 lane 会重跑整条光影链 + 8 条缺陷/风险；§5 步骤 1/2 标 🟡，附缺件与实测清单）。**T5 E0 模板口径重审**（templates.md §0：模板语义运行时保留零、/icinematics template 命令倾向删、E1–E4 与 G5 全归编辑器、E 批运行时只剩删除任务（须与编辑器骨架本地化同批）；**待拍板 2 项**（命令去留阻塞删除任务））。**T6 H5 滞后清理 8 条 + G6 结案标注**。表状态回写：B2/B4-P0/G6/CLEANUP-2、E1–E4/G5 移入 Z 轮。**新增欠账**：docs/modules/script.md:28 仍写 ScriptMeta 持有 camera_mob_*（H5 新增条目）；CameraTrackPlayer.onScriptReplaced javadoc 略过时（随 Q4/Q5 顺带，倾向按 code-comment-style §2.7 改）。**另**：用户新派「example 编辑器裁切/缩放语义调查」完成（CropScaleSurvey：Olive = Crop 节点四边 0~1 + Transform 节点 pos/scale/anchor、lossless-cut 无目标点模型；我们 CAMERA dest/source = 归一化矩形、覆盖层 = 画布七参数；缺口 = 相机侧 dest 屏幕口径 vs 画布口径不统一等，详见调查汇报）。 |
+| 2026-10-10 | **首批 T1–T6 关单**（编排交接开局）：**T1 B4-P0 删死代码七处**（3 文件 −65/+4；负对照 = 删前 grep 全仓零调用者；主代理亲跑 compile + icv tests 3 既有 FAIL 不变 + release 5/5 + icv2/icgl 全绿）。**T2 B1-a 覆盖链定稿 ∪ B2 结案**（camera-state-plan〈覆盖链定稿〉§0–§15：§8 九条 + §9 逐条定、B2 = 已被 lane 快照模型取代结案、供 B4-P1/P2 接口形状与字段搬迁清单；**待拍板 4 项**＝§14）。**T3 B16-a 数学模型定稿**（math-models〈定稿〉1–12：接口/角度语义/实例粒度/dt/生命周期/回退/Registry+JSON/首批 10 类型/B16-c 接入面/零分配口径；**待拍板 2 项**＝定稿 12）。**T4 F3 Iris 调研 ①/② 源码级回写**（实机缺 Iris/光影包、未实测：光影合成必然早于 lane、同 RETURN 点顺序随 mixin 注册序非契约、每 lane 会重跑整条光影链 + 8 条缺陷/风险；§5 步骤 1/2 标 🟡，附缺件与实测清单）。**T5 E0 模板口径重审**（templates.md §0：模板语义运行时保留零、/icinematics template 命令倾向删、E1–E4 与 G5 全归编辑器、E 批运行时只剩删除任务（须与编辑器骨架本地化同批）；**待拍板 2 项**（命令去留阻塞删除任务））。**T6 H5 滞后清理 8 条 + G6 结案标注**。表状态回写：B2/B4-P0/G6/CLEANUP-2、E1–E4/G5 移入 Z 轮。**新增欠账**：docs/modules/script.md:28 仍写 ScriptMeta 持有 camera_mob_*（H5 新增条目）；CameraTrackPlayer.onScriptReplaced javadoc 略过时（随 Q4/Q5 顺带，倾向按 code-comment-style §2.7 改）。**另**：用户新派「example 编辑器裁切/缩放语义调查」完成（CropScaleSurvey：Olive = Crop 节点四边 0~1 + Transform 节点 pos/scale/anchor、lossless-cut 无目标点模型；我们 CAMERA dest/source = 归一化矩形、覆盖层 = 画布七参数；缺口 = 相机侧 dest 屏幕口径 vs 画布口径不统一等，详见调查汇报）。 |
 | 2026-10-10（续4） | **批次 B 编排开局（036-orch）**：注释规范补「引擎注释增量」§八（`1877e3d`，Godot/Unreal 引擎注释实践调研 → §8.1 引擎域必写定义清单 + §8.2 负面清单 + §8.3 任务书固定注释口径行）。**B3-a 每 lane 独立可见集合设计定稿 ✅**（multi-camera-rendering §12.9：状态拆分 15 项逐项「拆/不拆」、载体定选 b 字段级快照交换 + 5 步机制、CinematicOcclusion 替代关系与 B3-d 删除时点、停播恢复四步、内存预算公式 + 8 lane ≈ 6.3–14.7MB、风险 7 条；**视图中心按合成模型定稿 = 保持现状**——lane 是覆盖层不是替换层（camera-composition「画面 = 合成层输出」），曾误立「网格中心取谁」伪二选一，经用户指正按文档收口；留位② BFS 归槽由 B3-b 收敛）。批次 B 五路调查（MC 相机语义 / 剔除链 / Iris-Sodium / ReplayMod / 本仓挂点）结论已并入计划文档。 |
 | 2026-10-10（续5） | **Q5 B4-P2 ✅**——CameraManager 拆分等值搬迁（`refactor` 提交）：新建 `PlaybackRegistry`（G1 实例表/查询/帧缓存）、`PreviewChannel`（G4 预览通道）、`PlaybackLedger`（G6 网络账本 + pauseTransition 检测）、`PlaybackLifecycle`（G2+G8 生命周期/队列）；`CameraManager` 970→362 行（门面 + 帧驱动，39 个 public 成员签名逐一等值）。验收：compile + icv tests 3 既有 FAIL 不变 + release 5/5 + icv2/icgl 全绿；**预览/接播路径实机 + 改动前后同场景日志对拍**（qs_a 不可打断二次请求 `result=2` 入队 → `NATURAL_END→FINISHED` 后无接播 = parallel-playback 事实核查②语义；qs_b 可打断替换接播 `INTERRUPTED→停→立即新实例` ×20 轮零漂移；quadrant 四相机轨多实例并存、结束 `smartCull 交回原版判定`；改动前后归一化序列逐项一致（elapsed 72.47/72.51 运行间抖动）；全程无异常）。**未验证**：预览通道（`editor.pushScript/play/pause/seek/stop`）需 F9 预览屏开着才能连 WS 驱动，本轮未驱动。教训入档：捕获跑图前先备份 `lane-captures/`（本轮曾覆盖基线）；实机验收严格按 §5 各行口径、不加戏。 |
 | 2026-10-10（续6） | **Q6 B4-P3 ✅**——`camera/source/EntityTargetResolver` 等值搬迁（556 行新类；`CameraTrackPlayer` 1580→1094 行）：D 组选择器解析全套（resolveEntity 单入口 / 本地与服务端双路 / TargetLock·PointState·SelectorPolicy·SELECTOR_CALLPOINTS·MISS_RETRY_MS）+ targetLocks 状态整体搬迁，调用点改经新类，onStop/onScriptReplaced 清理同帧同序。等值证据：常量池字面量机械比对 0 缺 0 增 + 逐行实读核对（@p/@s 快路径、@e/uuid 本地解析、服务端节流、锁定切换、平滑数学逐字保留）。验收：compile + icv tests 3 既有 FAIL 不变（tests/trigger + camera follow 全 OK）+ release 5/5 + icv2/icgl 全绿。**接缝与登记**：新增 snapshotLockState/restoreLockState 两入口（captureLowerLanes 锁状态留底/回写，P4 随 LaneSnapshotCollector 归位）；SelectorPolicy 等放宽 public（模块内，P5 收口）；疑似缺陷 8 条只登记未修（含新发现：pitchBaseOf 读 yaw_base_selector、describeSelector 日志路径 Pattern.compile、混合时钟），B10-B15 与待办清单接手。 |

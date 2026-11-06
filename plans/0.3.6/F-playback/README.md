@@ -92,7 +92,7 @@
 - 副画面是否需要支持 `look_at` / tangent 朝向（§9）。
 - 是否允许叠化期间相机 lane 继续移动（§9；属编排 / 语义决定，合成层不限制）。
 - Rubidium 兼容：`example/` 无源码，只按入口类名覆盖，未取 jar 逐一核对 —— **已知限制**（§9 / §11）。
-- 每 lane 独立光照 / 光照更新：继承自 `_archive/render-second-pass-cost.md` §7；F3 后 lane 每遍走光影自己的注入链（[iris-oculus-compat](iris-oculus-compat.md) §7），该问题未单独复测。
+- 每 lane 独立光照 / 光照更新：F3 后 lane 每遍走光影自己的注入链（[iris-oculus-compat](iris-oculus-compat.md) §7），该问题未单独复测。
 - 跨维度 view：已实现（`c0b1ac1` / `50aa5fb`）；每个 lane 用自己的 `DimensionView`（level / renderer / lightmap / 剔除 / 光影状态），随 F8 实机验证。WP5 per-pipeline 仍是技术收口项，见 [cross-dimension-camera](cross-dimension-camera.md) §八。
 
 ### iris-oculus-compat

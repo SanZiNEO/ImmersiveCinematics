@@ -4,7 +4,7 @@
 > 原则：
 > 1. 一个主题一份权威文档；已完成的实现细节剥离为归档/实施日志，正文只留「现行口径 + 未决项」。
 > 2. 元文档从 6 份收敛为 2 份活文档（索引 + 进度），其余归档。
-> 3. 过程/调查/反馈/原型记录统一进 `_archive/` 只读区。
+> 3. 过程/调查/反馈/原型记录统一进只读归档区。
 
 ```
 plans/0.3.6/
@@ -56,21 +56,6 @@ plans/0.3.6/
 │   ├── code-comment-style.md       # CLEANUP-3
 │   └── mod-architecture-diagram.md # 更新 WAIT_POINT → 判定规则阻塞语义
 │
-├── _archive/                       # 只读归档（历史/过程/证据）
-│   ├── fact-check-2026-10-07.md    # 各篇「事实核查」小节集中归档
-│   ├── implementation-audit-2026-10-07.md
-│   ├── re-2026-10-09/              # 原 re/ 7 篇
-│   ├── next-phase-batches.md       # 原 B~H 开工计划（B 轮已执行）
-│   ├── render-routes.md            # 已并入 multi-camera-rendering
-│   ├── render-second-pass-cost.md  # 精髓已并入 multi-camera-rendering
-│   ├── quadrant-prototype-handover.md
-│   ├── quadrant-prototype-results.md  # 五坑已并入 multi-camera-rendering
-│   ├── multi-instance-black-screen.md # 结案记录（F1 指针保留）
-│   ├── editor-leftover-resources.md   # 清理记录（§2.3 保留清单抽出）
-│   ├── wait-point-track.md            # 已被 condition-system 吸收
-│   └── feedback-0.3.5/                # 反馈处理（02 §六 活待办先迁出）
-│
-└── quadrant-perf/                  # 只读性能证据（CSV + 结论 + curves.html），保留原地
 ```
 
 ---
@@ -100,14 +85,14 @@ plans/0.3.6/
 | C 设计定稿、实现未做 | condition-system / playback-relations / point-source-time-mode 保留为「规格」（§7/§9 待拍板项已给本篇答案） |
 | D/F/G/H 未做 | 各主题文档保留「待定项」章节，指向 progress 待办 |
 | P1/P3 方向稿 | state-tracking / trigger-continuity 保留为活跃方向稿 |
-| 过程/调查/反馈/原型已结案 | 统一进 `_archive/` 只读区 |
+| 过程/调查/反馈/原型已结案 | 统一进只读归档区 |
 | 跨文档重复（叠化/预热/性能/退役） | 收敛到单一权威定义（camera-composition / multi-camera-rendering / quadrant-perf） |
 
 ---
 
 ## 落地顺序建议（若决定执行）
 
-1. 建 `_archive/`，先把 9 篇「归档/删除」类文档移入（git mv，非 rm）。
+1. 建只读归档区，先把 9 篇「归档/删除」类文档移入（git mv，非 rm）。
 2. 重建 `pending-items.md`（基线）+ 精简 `progress.md` + 重写 `README.md`（三者是索引，先改）。
 3. 回写 G1/G2/G3/G4/G5 的销项与口径。
 4. 按 D/F 剥离各篇「事实核查」与「实施日志」。

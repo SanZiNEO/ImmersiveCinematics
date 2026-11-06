@@ -263,7 +263,7 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 
 **定**：B1 不实现过渡；第一版 Base 切换 = **Cut**（瞬时 = `transition.md` §1 的「duration = 0 的特例」）。
 
-- 过渡属应用层（`transition.md` §1「属于应用层」），落地顺序排在链之后（`transition.md` §9 步骤 5「接入 Base / Modifier 链」；`next-phase-batches.md` B18 = 过渡步骤 3-8，依赖 B1）。
+- 过渡属应用层（`transition.md` §1「属于应用层」），落地顺序排在链之后（`transition.md` §9 步骤 5「接入 Base / Modifier 链」；B18 = 过渡步骤 3-8，依赖 B1）。
 - 过渡**不放进 Base Provider 内部**：Base 层接口只产一个整帧状态（§5.1），而 A→B 混合需要两个状态；也**不放进 Modifier**：Modifier 字段是「掩码 + 模式」的部分修改（§5.2），装不下整帧双状态权重。→ 过渡是**独立层**，包装链的输入 / 输出（`transition.md` §6 三候选中的「独立过渡层」）。
 - B1 只保证链输出可被过渡层包装（接口留位），不在 B1 交付。
 
@@ -290,7 +290,7 @@ public record CameraState(Vec3 position, float yaw, float pitch, float roll, flo
 - `CameraCoverChain.evaluate(...)` 每帧一次：Base 选择 = 遍历按优先级预排好的注册表 + `isBaseActive()` 比较（不建列表、不排序、不分配）；Modifier 应用在同一个 `CameraStateBuffer` 上就地读写。
 - `CameraStateBuffer` = 链的唯一工作区（位置 `double`×3 + 其余 5 个 `float`），链持有、跨帧复用；`CameraState`（record，不可变）只在快照产出点创建。
 - 注册表只在注册 / 注销时改动（不在帧内）；不用 `Stream` / 装箱 / `Optional`。
-- 验收：读码 + 需要时压测（`next-phase-batches.md` B1 验收口径）。
+- 验收：读码 + 需要时压测（B1 验收口径）。
 
 ### 9. 兼容（§8-8）
 

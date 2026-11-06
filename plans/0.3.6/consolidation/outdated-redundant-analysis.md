@@ -77,7 +77,7 @@
 
 ### D1. 各篇「事实核查（2026-10-07）」小节
 - **依据**：几乎每篇都有，内容为 2026-10-07 的代码行号级证据，多处自标「行号会漂移」「已过时」「描述删除前状态」。行号在 B 轮大重构（CameraManager 1016→150 行、CameraTrackPlayer 1570→180 行）后已全部失效。
-- **选项**：(a) 逐篇删除事实核查节；(b) 集中归档到单一 `_archive/fact-check-2026-10-07.md`；(c) 就地折叠为折叠块。
+- **选项**：(a) 逐篇删除事实核查节；(b) 集中归档到单一归档文件；(c) 就地折叠为折叠块。
 - **建议**：**(b) 集中归档**——事实核查有历史价值（记录了当时的代码状态），但不应占用每篇正文；抽到一份归档文件，正文只留「已核实」结论行。
 
 ### D2. `camera-state-plan.md` §4（staged 系统删除记录）
@@ -132,7 +132,7 @@
 
 ### F1. `screen-color-adjust.md`（131KB / 716 行）——最重
 - **依据**：17 段「增量」+ 两段验证占全文 2/3（479 行），每段重复「字段表 + 公式 + 7~9 处同步点 + 测试脚本 + 冒烟数字（31/33/34/67/92/99…项）」，结构高度重复；正文 §4/§6「方向/待定」与文首定稿「已定」双写割裂。
-- **选项**：(a) 抽 17 段增量为 `_archive/screen-color-adjust-实施日志.md`，正文只留「47 标量+10 曲线字段总表 + 操作栈 20 步 + 数据落点/挂点结论 + 未做项」；(b) 整篇保留。
+- **选项**：(a) 抽 17 段增量为独立的实施日志归档，正文只留「47 标量+10 曲线字段总表 + 操作栈 20 步 + 数据落点/挂点结论 + 未做项」；(b) 整篇保留。
 - **建议**：**(a)**。这是全目录精简收益最大的一处。
 
 ### F2. `multi-camera-rendering.md`（69KB / 579 行）
@@ -185,4 +185,4 @@
 | **就地回写（销项/状态/口径）** | selector-model、hysteresis、parallel-playback、script-model、camera-composition、clock-abstraction、mod-architecture-diagram、docs/ 四件、feedback-02 §六 |
 | **保留不动（仍活跃）** | script-i18n、state-tracking、trigger-continuity、iris-oculus-compat、condition-system、playback-relations、point-source-time-mode、code-comment-style、trigger-conditions、region-sync、hud-hard-hide、overlay-color-mask、editor-webui-migration、editor-script-graph、script-loop、scene-transition（待定项保留、过程记录剥离） |
 
-> 注：以上「归档/删除」均为**建议**，本次未执行任何删除。实际执行时应先 `git` 存档或移动至 `_archive/` 而非直接删除。
+> 注：以上「归档/删除」均为**建议**，本次未执行任何删除。实际执行时应先 `git` 存档或移入归档区而非直接删除。

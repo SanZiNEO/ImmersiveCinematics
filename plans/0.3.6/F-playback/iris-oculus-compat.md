@@ -135,7 +135,7 @@
 
 **状态**: ✅ **调研完成 + 实机验证（2026-10-18）**——§3 的源码级推演已由 §7 的实机结论取代，F3 记为「实现完成 + 验收通过」；§5.2 的待定项仍未定。本文原为调研计划（只定义「查什么、怎么查」），§2.7 是 2026-10-08 用户裁决后的已定结论（主画面 master 调色挂点）。
 **目标版本**: 0.3.6
-**关联**: [multi-camera-rendering](multi-camera-rendering.md)（§7 / §7.1 / §12.5）、[render-routes](../_archive/render-routes.md)（§4）、[render-second-pass-cost](../_archive/render-second-pass-cost.md)（§7）、[screen-color-adjust](../../complete/0.3.6/A-color/screen-color-adjust.md)（§4 光影挂点段 / §5-1）
+**关联**: [multi-camera-rendering](multi-camera-rendering.md)（§7 / §7.1 / §12.5）、[screen-color-adjust](../../complete/0.3.6/A-color/screen-color-adjust.md)（§4 光影挂点段 / §5-1）
 
 > **2026-10-17 现状更新**：`LaneRenderer.isUnavailable()` 整条禁用已删除；检测保留，用于在优化模组存在时跳过只针对原版 `setupRender` 的 mixin（改走它们的 Camera / Frustum 路径）。lane 始终渲染。§3 的“缺陷 / 风险”仍全部是源码级推演，不是实测结论。
 >
@@ -394,7 +394,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 
 ##### ④ Sodium / Embeddium 下两遍 / 帧的 `frame++` 语义
 
-- **问题**：`SodiumWorldRenderer.setupTerrain(..., frame++, ...)` 的 `frame` 形参每调用一次自增，Sodium 内部用它判断「本帧是否已见过」；一帧两次 `setupTerrain`（主 pass + lane pass）会让计数语义变化——**是否引起区块渲染错误未验证**（[render-second-pass-cost](../_archive/render-second-pass-cost.md) §3.2 已标未验证；Embeddium 侧该形参已标 `@Deprecated(forRemoval = true)`，只传给 `renderSectionManager.update`）。
+- **问题**：`SodiumWorldRenderer.setupTerrain(..., frame++, ...)` 的 `frame` 形参每调用一次自增，Sodium 内部用它判断「本帧是否已见过」；一帧两次 `setupTerrain`（主 pass + lane pass）会让计数语义变化——**是否引起区块渲染错误未验证**（早期副画面成本调查已标未验证；Embeddium 侧该形参已标 `@Deprecated(forRemoval = true)`，只传给 `renderSectionManager.update`）。
 - **为什么重要**：这条决定优化模组下两遍/帧的缓存语义是否稳定；lane 已不再禁用（2026-10-17），所以这条从「被规避」变成「需要实测」。
 - **调查方法**：① 实机对照（Sodium / Embeddium 开 + 多 lane）：看是否有缺块 / 闪块 / 区块不更新（与我们在原版下遇到过的「倾斜裁切矩形」区分开）；② 反汇编 `WorldRendererMixin` 与 `SodiumWorldRenderer.setupTerrain` 的 `frame` 实际用途（`example/embeddium-20.1-forge`、`example/sodium-1.20.1-stable`）；③ 若确认有问题，评估「每帧只增一次」的绕法（在 lane pass 期间给 Sodium 一个固定的 frame 值）。
 - **预期产出**：「优化模组 + 多遍渲染的 `frame` 语义结论」+ 是否需要每帧只增一次。
@@ -410,9 +410,9 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 
 ##### ⑥ 性能影响（光影下副画面成本）
 
-- **问题**：光影下每 lane 一遍世界渲染的实际成本是多少？§3-② 已证实每 lane 会触发一次光影全链（阴影 + composite + final），成本量级从「+0.56 ms/lane（无光影轻场景，[render-second-pass-cost](../_archive/render-second-pass-cost.md) §4.2）」跳到「一 lane ≈ 一整个光影帧」——**具体倍数未测**。
+- **问题**：光影下每 lane 一遍世界渲染的实际成本是多少？§3-② 已证实每 lane 会触发一次光影全链（阴影 + composite + final），成本量级从「+0.56 ms/lane（无光影轻场景）」跳到「一 lane ≈ 一整个光影帧」——**具体倍数未测**。
 - **为什么重要**：`multi-camera-rendering.md` §6 的推荐值（不设上限、只给推荐）建立在无光影的实测曲线上；光影下若成本爆炸，推荐值 / 档位口径要另立一档（或直接落回 §4 选项 A）。
-- **调查方法**：① 复用 `render-second-pass-cost.md` §6.3 的测量方案（profiler 段 + `System.nanoTime()`，固定位姿 / 世界 / 视距，≥600 帧、丢预热）；② 矩阵 = {光影关 / 光影开} × {lane 0 / 1 / 4} × {内容档 WORLD_ONLY / FULL}；③ 光影开时额外记录 profiler 里 `iris_final` / 阴影段是否随 lane 数线性增长；④ 外部佐证（可选）：用「阴影开 / 关」的 FPS 差估「每帧一遍世界渲染」的经验占比——**只作量级参照**，不作正确性证据；⑤ 2026-10-18 起另需单独量「每视角历史 colortex 的 2 张纹理 blit」成本。
+- **调查方法**：① 复用早期副画面成本调查的测量方案（profiler 段 + `System.nanoTime()`，固定位姿 / 世界 / 视距，≥600 帧、丢预热）；② 矩阵 = {光影关 / 光影开} × {lane 0 / 1 / 4} × {内容档 WORLD_ONLY / FULL}；③ 光影开时额外记录 profiler 里 `iris_final` / 阴影段是否随 lane 数线性增长；④ 外部佐证（可选）：用「阴影开 / 关」的 FPS 差估「每帧一遍世界渲染」的经验占比——**只作量级参照**，不作正确性证据；⑤ 2026-10-18 起另需单独量「每视角历史 colortex 的 2 张纹理 blit」成本。
 - **预期产出**：「光影下成本数据表 + 推荐值修订建议」。
 - **状态（2026-10-18）**：✅ 成本已由 F5 矩阵覆盖——l0 / l1 / l4 / l16 / l25 × FULL / WORLD_ONLY 各 600/600，25 lane 档 FULL `game_render` p50/p95 = 27.26 / 39.43 ms、`lane_total` 22.87 / 33.24 ms（[f-round-issues](f-round-issues.md) §1.1）；「每视角历史 blit」与「每 lane 全链倍数」未单独拆分，记为已知限制。
 
@@ -505,8 +505,7 @@ Mixin 0.8.7 源码逐层核实（`sponge-mixin-0.15.4+mixin.0.8.7-sources.jar`�
 | 光影不改我们的注入目标方法（只 `@Inject` / `@ModifyVariable` / `@ModifyArg` / `@Redirect`） | Iris `mixin/MixinLevelRenderer.java`、`mixin/MixinGameRenderer.java` 全文（无 `@Overwrite`） |
 | Oculus 差异面：Forge / `modId=oculus` / `provides=["iris"]` / Embeddium 可选依赖与 `[mods."sodium:options"]` | `example/Oculus-1.20.1-new/src/main/resources/META-INF/mods.toml`；mixin 配置文件名对照（`mixins.oculus*.json` 含 `compat.dh` / `compat.pixelmon`） |
 | Iris / Oculus 行级规模 | `wc -l`：`MixinGameRenderer` 474 / 474、`MixinLevelRenderer` 285 / 269、`ShadowRenderer` 730 / 729、`IrisRenderingPipeline` 1323 / 1309、`CompositeRenderer` 467 / 467；`src/sodiumCompatibility` 子树条目 178 / 179（`ls -R`） |
-| 副画面成本与 `frame++` 未验证项（继承） | `plans/0.3.6/_archive/render-second-pass-cost.md` §3.2、§4.2、§6.3、§7 |
-| 光影兼容的两条既有策略口径（继承） | `plans/0.3.6/F-playback/multi-camera-rendering.md` §7 / §7.1 / §12.5；`plans/0.3.6/_archive/render-routes.md` §4；`plans/complete/0.3.6/A-color/screen-color-adjust.md` §4（光影挂点段）/ §5-1 |
+| 光影兼容的两条既有策略口径（继承） | `plans/0.3.6/F-playback/multi-camera-rendering.md` §7 / §7.1 / §12.5；`plans/complete/0.3.6/A-color/screen-color-adjust.md` §4（光影挂点段）/ §5-1 |
 
 ---
 

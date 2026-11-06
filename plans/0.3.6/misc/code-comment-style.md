@@ -35,7 +35,7 @@
 
 ### 0.3 唯一例外（代码里允许出现的「非定义」内容）
 
-**反直觉决策 / 复杂算法的简短指向**：允许**一行以内**，且必须链到 plans 段落（例：`背景与失败链：plans/0.3.6/_archive/multi-instance-black-screen.md §五。`）。
+**反直觉决策 / 复杂算法的简短指向**：允许**一行以内**，且必须链到 plans 段落（例：`背景与失败链：plans/0.3.6/F-playback/failure-handling-audit.md §0.4。`）。
 不允许：把 plans 的内容抄进代码、复述调查过程、写裁决日期与人物。
 
 ---
@@ -99,7 +99,7 @@
  * textureReady = 纹理已创建、回读的 level 0 边长与预期一致；任一条不成立 = 表不完整。
  * 两项供 ColorAdjustPass 的 LUT 步在绑定前自检：不过 = 本帧按「没有 LUT」处理（只跳过 LUT 步）。
  *
- * 背景（采样器被优化掉后的失败链）：plans/0.3.6/_archive/multi-instance-black-screen.md §五。
+ * 背景（采样器被优化掉后的失败链）：plans/0.3.6/F-playback/failure-handling-audit.md §0.4。
  */
 ```
 
@@ -120,7 +120,7 @@
  * 保留上一层输出；末尾 blit 仅在本帧确实写过中转缓冲时执行。失败按 FAILURE_LOG_INTERVAL_MS 限频告警。
  * 检查全是状态查询（无读回 / 无同步等待）。
  *
- * 语义出处：plans/0.3.6/_archive/multi-instance-black-screen.md §五。
+ * 语义出处：plans/0.3.6/F-playback/failure-handling-audit.md §0.4。
  */
 ```
 
@@ -249,7 +249,7 @@ kfs.put("sat_red", new FieldDef("float", 0f));
 
 ```java
 // TODO(0.3.6/B11): selector 缓存键补调用点（任务表见 plans/0.3.6/implementation-progress.md）
-// FIXME(0.3.6/H5): 本文件对应文档滞后条目未回写（清单见 plans/0.3.6/_archive/implementation-audit-2026-10-07.md §三）
+// FIXME(0.3.6/H5): 本文件对应文档滞后条目未回写（清单见 plans/0.3.6/H-other/doc-lag-2026-11-03.md）
 // HACK(0.3.6/B3'): 整帧 smartCull=false 补偿，待「每 lane 独立可见集合」落地后删（plans/0.3.6/F-playback/multi-camera-rendering.md §12.8）
 ```
 

@@ -1,6 +1,6 @@
 # 多画面压力测试 —— 性能曲线与原始数据
 
-> 一次性测试（2026-10-05）。原型见 `plans/0.3.6/_archive/quadrant-prototype-results.md`；
+> 一次性测试（2026-10-05）。原型见 `plans/complete/0.3.6/_archive/quadrant-prototype-results.md`；
 > 开关 `ICINEMATICS_QUADRANT=1|4|16|25|…`（1=只采样原版画面基线；≥4 取最近的**平方数**，n×n 网格，**不设上限**）；
 > 每次跑 30 秒，逐秒采样。四轮都在**同一位置**（玩家 y=137 地表）。
 > **对比曲线（浏览器打开）**：`curves.html`（单文件、离线）；原始 CSV 同目录。

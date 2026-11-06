@@ -90,7 +90,7 @@
 - 未声明的层回落该实例的旧字段（`hide_*` / `suppress_*` / `render_player_model`），再回落 `hide_hud`；判定顺序 = `screen_layers[规范层名]` → `screen_layers[原始分类键]` → 旧字段 → `hide_hud`。
 - 本模组自己的覆盖层不参与白名单，始终按脚本绘制。
 
-> `hud_layers` 已 **deprecated**：解析期归一为 `screen_layers`（极性翻转，旧 `true`=隐藏 → 新 `false`）；键为 15 个规范层名或 11 个固定分类别名时**丢弃 + 解析期告警**（今天本就是 no-op，行为不变）；其余键（`health` / `status` / 未注册 overlay ID）保留**原始键**继续生效。新脚本一律写 `screen_layers`。
+> `hud_layers` 已 **deprecated**：解析期归一为 `screen_layers`（极性翻转，旧 `true`=隐藏 → 新 `false`）；键为 15 个规范层名或 11 个固定分类别名时**丢弃 + 解析期告警**（现状本就是 no-op，行为不变）；其余键（`health` / `status` / 未注册 overlay ID）保留**原始键**继续生效。新脚本一律写 `screen_layers`。
 
 ### 3.4 接管与重画
 

@@ -123,6 +123,6 @@
 
 - `sh gradlew :common:compileJava :fabric:compileJava :forge:compileJava --offline` 通过。
 - 无头 validator（`cinematics/0.3.6/tests`）：166 支脚本，3 支已知问题（`test_camera_facing_origin_coordinate`、`test_camera_relative_axis` 两支历史问题 + `faults/bad_meta_int.json` 故障夹具），与改动前一致。
-- 命名清理：模组功能命名在代码 / 配置 / 编辑器类型 / 测试内已清零（Electron 自身的 `preload.cjs` / `webPreferences.preload` 是框架 API，不属于本模块）。计划目录与历史记录里仍有旧名（`plans/complete/0.3.5/`、`_archive/`、`implementation-progress` 历史行、`docs/` 旧文档、CHANGELOG），按「历史记录不回写」保留；`camera-composition` / `multi-camera-rendering` 里的「叠化预热」是渲染时间轴概念，与本模块无关。
+- 命名清理：模组功能命名在代码 / 配置 / 编辑器类型 / 测试内已清零（Electron 自身的 `preload.cjs` / `webPreferences.preload` 是框架 API，不属于本模块）。计划目录与历史记录里仍有旧名（`plans/complete/0.3.5/`、`implementation-progress` 历史行、`docs/` 旧文档、CHANGELOG），按「历史记录不回写」保留；`camera-composition` / `multi-camera-rendering` 里的「叠化预热」是渲染时间轴概念，与本模块无关。
 
 **未做（按设计边界）**：原版 `ChunkMap` 差集 / ticket / 发送范围、相机锚点与实体同步判定、多相机渲染的叠化窗口均未改动；旧客户端与旧配置文件不兼容，两端需同版本部署。

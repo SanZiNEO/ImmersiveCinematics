@@ -714,8 +714,8 @@ ImmersiveCinematics 的脚本是一个 JSON 文件，用一条时间线描述镜
 | 片段级 `rules` | 脚本级 `rules[]` + `rule_bindings[]` |
 | 片段级 `interpolation` | 删除；插值由字段元数据决定 |
 | `follow` / `follow_selector` | `position_origin` / `position_origin_x/y/z` |
-| `facing_origin*` | `facing_target*` |
-| `selector_*_follow` / `selector_*_facing_origin` | 对应 `selector_*_<目标>` 组 |
+| `facing_origin` / `_x` / `_y` / `_z` / `_time` | `position_origin` / `position_origin_x/y/z` / `position_origin_freeze` |
+| `selector_*_follow` / `selector_*_facing_origin` | `selector_*_position_origin` |
 | 片段级 `orient` / `yaw_offset` / `pitch_offset` | 移入 `objects` |
 | AUDIO 文件循环旧名 `loop` | `file_loop` |
 | `meta.hud_layers` | `meta.screen_layers` |
