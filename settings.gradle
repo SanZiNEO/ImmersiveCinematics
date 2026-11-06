@@ -24,4 +24,3 @@ rootProject.name = 'immersive_cinematics'
 include("common")
 include("fabric")
 include("forge")
-include("tools:script-migrate")
