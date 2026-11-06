@@ -1,16 +1,27 @@
-> **过期文档（OUTDATED）——不得作为当前设计或实施依据**
->
-> 本文未随最新设计更新，仅保留作历史参考。AI 与自动化工具不得据此推断当前格式、功能状态、接口或实施要求，也不得直接照搬其中示例用于新实现。
->
-> 当前规划请先查阅 [0.3.6 计划状态索引](../../plans/0.3.6/README.md) 与 [I 轮实施基准](../../plans/0.3.6/I-script-core/README.md)，再按状态查阅对应未完成轮次。
->
-> 计划目标不代表已经实现；核实当前代码行为时须结合源码，不得将旧文或未实现计划当作现状。
-
 # trigger（触发器系统）
 
 对应路径：`common/src/main/java/com/immersivecinematics/immersive_cinematics/trigger/server/`
 
-功能树：
+## 触发器身份、连续语义与事实层
+
+| 项 | 口径 |
+|---|---|
+| `triggers[].id` | 触发器在脚本内的**稳定身份**（唯一）。事实记录、去重、状态同步都按它定位；改 id = 换了一个新触发器，旧事实不再命中。 |
+| `continuity.sweep` | 位置扫掠：相邻两个采样点之间补一次判定（位置取线段、朝向取最短 yaw 弧 + pitch 区间），让「扫过」也算命中。只对 `location` / `structure` / `facing` 生效，其余类型写了在校验期告警。 |
+| `continuity.dwell` | 持续满足时长（tick）：条件须连续为真达到该时长才算命中，中途断开重新计时。只对轮询类生效；判定以采样点真值为准，是保守近似（不知道两次采样之间的短暂离开）。 |
+| `continuity.window` | 事件窗口（tick）：事件类子条件按「最近 W tick 内发生过」求值。**只作用于 `all_of` / `any` 的事件类子条件**；顶层事件触发器不受 `window` 影响；`window = 0` 时事件类子条件仍被校验拒绝。 |
+| 取值范围 | `ContinuitySpec(sweep, dwellTicks, windowTicks)`，`dwell` / `window` 均为 `0..1200` tick；未声明 `continuity` 走旧快速路径，行为逐位不变。 |
+
+事实层是「发生过什么、几次、何时」的记账，按（播放实例、绑定/触发器身份、执行）定位，不按玩家全局合并：
+
+| 查询面 | 口径 |
+|---|---|
+| `exists` / `count` / `last` | 走常驻索引，**累计**口径：保留集淘汰之后仍然成立 |
+| `anyWithin` / `lastWithin` / `lastMatching` | 扫保留集，受**保留深度**约束：事件类保留 64–512 条、触发命中保留 1024 条，超出范围查不到 |
+
+跳过投票的分母是该实例**当前在场**观众数（不含已离开者），计票细节见 [network.md](./network.md#跳过投票)。
+
+## 功能树
 
 - **27 种触发器类型**
   - ✅ 入口类 `ImmersiveCinematics.registerTriggerTypes()` 注册 27 种触发器：location、biome、inventory、structure、gamestage、xp、dimension、observation、facing、all_of、any（轮询）+ advancement、entity_kill、entity_interact、dimension_change、login、item_craft、item_use、item_consume、item_release、item_instant_use、item_use_interrupt、block_interact、item_on_interact、item_pickup、item_drop、death（事件驱动）（`TriggerRegistry`、`TriggerType`）
@@ -62,7 +73,7 @@
   - ✅ 每 tick 推进会话时间：有效流逝时间扣除暂停累计，按 EVENT 轨道关键帧时间多点触发命令（已触发关键帧去重）（`ScriptEventManager`）
   - ✅ 命令以观看者身份执行，支持 `&&` 命令链、权限等级 4、抑制输出（`ScriptEventManager`）
   - ✅ 支持暂停/恢复信号：记录暂停起止 tick，恢复时累计暂停时长，暂停期间不触发关键帧（`ScriptEventManager`）
-  - ✅ 跳过投票：玩家跳过计入投票，达到 `skipVoteRatio` 阈值时向其余观看者广播 `S2CStopScriptPacket` 强制停止，未达标时广播 `S2CSkipVoteUpdatePacket` 更新票数（`ScriptEventManager`、`Config`）
+  - ✅ 跳过投票：长按跳过键发 `C2SSkipVotePacket`（脚本 id + 播放实例 id），**只计票**，投票者本人继续播放；分母为该实例**当前在场**观众数（不含已离开者），重复投票被吞掉；票数达 `neededVotes(viewers, ratio)` 时对该批**全部在场者**发 `S2CStopScriptPacket` 统一停止并清账本（不产生 `SKIPPED`），未达标时逐人发 `S2CSkipVoteUpdatePacket`（`ScriptEventManager`、`Config`）
   - ✅ 提供会话状态查询：isScriptActive/isPlayerPlayingScript/isFullyComplete/getRemainingViewers（`ScriptEventManager`）
 - **触发器状态存储**
   - ✅ `TriggerStateStore` 单例按玩家持久化触发状态，存储于世界存档 `immersive_cinematics/trigger_state/<uuid>.snbt`（SNBT 文本格式，临时文件+原子替换写入）（`TriggerStateStore`）

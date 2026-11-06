@@ -139,22 +139,22 @@
 | H8 | **P3-impl 连续语义**（离散采样 → 连续判定）：位置扫掠 / 朝向弧 / 进入边沿 / dwell·window / 事件时间戳 | 窗口与事件侧依赖 H7 | ✅ **已实现（H-1，2026-11-03；`observation` 扫掠除外）**：`continuity` 触发器级配置 + 段扫掠 + 边沿 + dwell/window（见 [`H-other/trigger-continuity.md`](H-other/trigger-continuity.md) §六） |
 | H9 | **跳过投票 + 跳过 HUD**：判定对齐 MC `SleepStatus`（单一分母 / `max(1, ceil)` / 共用阈值）、HUD 合成一行、位置百分比可配 | — | 🟡 **有实现但不完整**（见 [`H-other/skip-vote-and-hud.md`](H-other/skip-vote-and-hud.md) §1.3） |
 | H10 | **相机视图实体活性**：服务端原版实体跟踪镜像 + 客户端目标世界 tick；不做假玩家、不改 AI goal | — | ✅ **已实现（H-3，2026-11-04）**（见 [`H-other/entity-liveness.md`](H-other/entity-liveness.md) §七） |
-| H11 | **HUD 层注册 API**：面向第三方的正式注册入口 + `hud_layers` / 固定分类口径 + Fabric/Forge 边界 | — | ☐ 设计稿（见 [`H-other/hud-layer-api.md`](H-other/hud-layer-api.md)；G 轮只有内部口子） |
+| H11 | **HUD 层注册 API**：面向第三方的正式注册入口 + `hud_layers` / 固定分类口径 + Fabric/Forge 边界 | — | ✅ 已实现（H-2，2026-11-03）（见 [`H-other/hud-layer-api.md`](H-other/hud-layer-api.md) §八） |
 
-## 批次 I：脚本底层（设计修订，未实现；运行时媒体独立为 J 轮）
+## 批次 I：脚本底层 ✅ 已关单（I-1~I-5，2026-11-06；运行时媒体独立为 J 轮）
 
-入口：[`I-script-core/README.md`](I-script-core/README.md)。以下是目标设计，不以旧轮次探针或关单状态代替验收。
+入口：[`I-script-core/README.md`](I-script-core/README.md)。逐项证据见各专篇「实现结果」节与 [`I-BACKLOG.md`](I-BACKLOG.md)（I-5 收口时全部关闭）。
 
 | 范围 | 当前约定 | 状态 |
 |---|---|---|
-| 规则/路径集合 | 规则与路径在脚本级独立集合声明，通过片段引用定位；路径绑定目标位置对象/对象组的两个相邻关键帧；不强制拆分片段或迁入全局资源库 | 未实现；引用与序列化待结构评审 |
-| 规则时间门／绑定／运行激活 | 外层必选时间门（默认局部时间 `>=` 指定值，门后继续判定、迟到成立仍执行）AND 内层条件树；门前事件/事实可采集、门后确认提交；同一规则多入口各有独立运行态；状态谓词与事件事实分开；运行态归实例/绑定/执行 | 未实现；保留 C6 v1（`clip.rules`）实现事实；目标权威见 `I-script-core/rule-system.md` |
-| 规则控制／事实接力／延迟动作 | 到门可暂停本实例待判；规则成功/片段完成事实可接力；成功≠动作完成；延迟到片段开始/完成/局部时间；等待不冻结自身解除源与内容推进；时间参照与动作目标可不同；承诺动作参与自然完成 | 未实现 |
-| 分支片段出口 | 分支与主线同片段对象/schema；正常后继由片段默认、入口显式覆盖优先；失败 fallback 独立沿原主线继续 | 未实现 |
-| 相机与过渡 | 模组内部相机；两侧状态含各自片段效果，每帧推进一次，过渡只消费快照 | 未实现；保留 B 轮数学与历史验收记录 |
-| 次数执行／无限／完成 | 执行状态与边界事件是真源；无限无自然完成点，不截断独立后续内容；显示范围不驱动结束 | 未实现 |
-| 格式／迁移／编辑器／模板 | 删除 version／total_duration；旧曲线逐段迁移；几何与进度分离；生成器遵循同一结构契约 | 未实现 |
-| 媒体与综合验收 | 按 J-media 与 acceptance 专篇推进 | 未实现；本次未执行运行时验收矩阵 |
+| 规则/路径集合 | 规则与路径在脚本级独立集合声明，通过片段引用定位；路径绑定目标位置对象/对象组的两个相邻关键帧；不强制拆分片段或迁入全局资源库 | ✅ 已实现（I-4）：`script/rule/` + `script/path/`；探针 `run-path-collection` 59 checks PASS；见 `path-collection.md` §七 |
+| 规则时间门／绑定／运行激活 | 外层必选时间门（默认局部时间 `>=` 指定值，门后继续判定、迟到成立仍执行）AND 内层条件树；门前事件/事实可采集、门后确认提交；同一规则多入口各有独立运行态；状态谓词与事件事实分开；运行态归实例/绑定/执行 | ✅ 已实现（I-4）：`script/rule/runtime/`（激活/事实/挂起/待执行动作）；探针 `run-rule-gate` 80 checks PASS；见 `rule-time-gate.md` |
+| 规则控制／事实接力／延迟动作 | 到门可暂停本实例待判；规则成功/片段完成事实可接力；成功≠动作完成；延迟到片段开始/完成/局部时间；等待不冻结自身解除源与内容推进；时间参照与动作目标可不同；承诺动作参与自然完成 | ✅ 已实现（I-4）：`rule-suspension.md` / `rule-facts-scheduling.md` / `rule-exits.md` §七 |
+| 分支片段出口 | 分支与主线同片段对象/schema；正常后继由片段默认、入口显式覆盖优先；失败 fallback 独立沿原主线继续 | ✅ 已实现（I-4）：`ClipExitPolicyParser` 优先级 = 覆盖 > 默认 > `CONTINUE`；探针 `run-exit-branch` 110 checks PASS |
+| 相机与过渡 | 模组内部相机；两侧状态含各自片段效果，每帧推进一次，过渡只消费快照 | ✅ 已实现（I-3）：`track-camera.md` §六；A/B 实际状态采样 + morph 每侧完整状态 |
+| 次数执行／无限／完成 | 执行状态与边界事件是真源；无限无自然完成点，不截断独立后续内容；显示范围不驱动结束 | ✅ 已实现（I-2 执行层 / I-5 收口）：`script/execution/`；宏观循环按「语义不变、时间圈仅定位」收口（`acceptance.md` L6） |
+| 格式／迁移／编辑器／模板 | 删除 version／total_duration；旧曲线逐段迁移；几何与进度分离；生成器遵循同一结构契约 | ✅ 格式清理 + 迁移已实现（I-5）：252 支（242 迁移 / 10 新格式 / 0 错误），validator 19→17，摘要见 `I-script-core/migration-report.md`；编辑器 UI / 模板展开归 Z 轮 |
+| 媒体与综合验收 | 按 J-media 与 acceptance 专篇推进 | 媒体播放归 **J 轮**（独立启停，不属 I 轮关单）；I 轮验收矩阵见 `I-script-core/acceptance.md` §十四 |
 
 
 ## 用户裁决新增（2026-10-08）
@@ -272,3 +272,4 @@
 | 2026-11-02 | G 轮收口：G-math 15 篇回写、G4 时钟五步落地、编辑器播放语义实现（20 项无头探针）；实机验收通过（Fabric 0.3.6 + BMC4 Forge 0.3.6 禁用 Radium）：游戏/编辑器实例 HUD 显隐与键鼠并集、画面源（主 RenderTarget 2560×1392 → 1280×720）、退出恢复；全量验证见本轮记录 |
 | 2026-11-02（兼容） | **相机中心兼容 Radium/Lithium**：Radium 用 `@Overwrite` 重写 `ChunkMap.move`，旧 `ChunkMapCameraMixin` 的 `@Redirect` 无法应用（服务端 tick 崩）。改为 `ServerChunkCacheCameraMixin` 在 `ServerChunkCache.move` 的 HEAD/RETURN 临时替换玩家 `position`/`blockPosition`/`chunkPosition`（`EntityAccessor`，不触发 `levelCallback`），原版与 Radium 的差集/Ticket/发送/配对仍围绕相机；窗口外玩家真实位置不变。**实机（BMC4 Forge 0.3.6 + Radium 0.12.4）**：`gt_far_1000` 主相机玩家东侧 1000 格贴地、30s 内 z 位移 200 格并转向，右下角副相机跨维度看末地主岛，主世界/末地区块与实体均加载、无崩溃。 |
 | 2026-11-02（LUT） | **弧长表动态缓存/重建/降级**：新增 `DynamicArcLengthTable`（5 点等距指纹；≤0.25 格复用、超阈值重建、连续 8 次重建后降级为固定采样积分 + 二分；稳定更新恢复建表）+ `PathEvaluator.positionDynamic/tangentDynamic` 入口；`E:/tmp/gcurve` 470 项 + DynamicProbe 12 项全 PASS（降级反解误差 5.8e-10）。 |
+| 2026-11-06（I-5 关单） | **I 轮全部实现（I-1~I-5）**：① **格式清理**——parser/validator/schema 删除 `meta.version` / `timeline.total_duration` / clip 级 `keyframes` 载体，旧字段出现即「已移除」；`CinematicScript` 加载期派生 `infinite` / `contentEnd` / `finiteDisplayEnd`，`Clip.getWindowEnd()` 无限抛异常、调用方先判 `hasFiniteWindowEnd()`；`goto_clip` 改按目标片段有效范围校验，不再用总时长；AUDIO `loop` → `objects.file_loop`，`attenuation` 收敛为 `none`/`linear`。② **迁移**——一次性 Java CLI 全量 252 支：旧格式 242 迁移 / 10 已是新格式 / **0 错误**；稀疏补齐 4 片段 13 处（填充帧 63）、路径条目 18、规则定义 16 / 绑定 16；`total_duration` 与派生末端不一致 6 支、未知路径丢弃 5 条、人工复核项（动态原点 15、`until → control=hold` 5、`orient=manual` 下 offset 4 处等）全部单列；重复运行幂等跳过；validator 19 → 17（余 17 条为既有夹具缺陷，见 `I-BACKLOG.md` L 表）。摘要见 `I-script-core/migration-report.md`（原始 124KB 报告不入库）。③ **派生范围消费者**——`ScriptPlayer` / `FrameDriver` / `CinematicCommand` / `ScriptGraphService` / `ScriptInfo` / `RuleActions` 全部改用派生值，`grep` 无 `getTotalDuration`。④ **spi 收敛**——11 类收进 `spi.*`（`TrackType` / `TriggerType` / `MathModel` / `FieldDef` / `PathSpec` 等），原包删除；第三方 `loop_mode=pingpong` 走通用诊断；`GuiMixin.shouldHide()` 无参。⑤ **独立片段渲染**——`ScriptPlayer.clipsForTrack` 接 `implicitTracks`，脚本级 `clips[]` 按 `track` 进入对应播放器。⑥ **文档回写**——I-script-core 各专篇状态、`I-BACKLOG.md` 清零、`docs/` 按新格式重写（T7 专单）。 |

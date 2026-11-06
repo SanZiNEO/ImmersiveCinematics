@@ -218,4 +218,45 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 
 ---
 
+## M. I-5 收口（2026-11-06）
+
+> 本节逐项关闭 I-2 / I-3 / I-4 / H-1 / H-2 / H-4 / H-5 移交到 I-5 的事项。证据以「文件 / 命令 / 探针」为准，不采信自述。
+
+| ID | 事项 | 终态 | 证据 |
+|---|---|---|---|
+| I2-B1 | 旧循环夹具像素回归 | **已关闭（I-5）** | 迁移后 4 支循环夹具（`test_camera_loop_repeat` / `test_camera_loop_pingpong` / `test_exit_loop_count` / `test_exit_infinite`）在 Fabric/Forge 实机矩阵中逐组跑通；像素级同帧对比结果见 `ROUND-I-5-MAP.md` §六 |
+| I2-B10 | `docs/SCRIPT_FORMAT.md` 重写 | **已关闭（I-5）** | 全文按 `objects` 重写（2125 → 741 行）；旧字段只出现在「已移除」表 |
+| I2-B11 | 宏观循环 L6 裁决 | **已关闭（I-5）** | 选 ②：宏观语义不变、`loop_start`/`loop_end` 仅区间定位；`acceptance.md` L6 已改写 |
+| I2-B12 | AUDIO `file_loop` 改名 + 旧 `loop` 双语义切换 | **已关闭（I-5）** | 迁移把 21 支 AUDIO 旧 `loop` 写为 `objects.file_loop`；parser/validator 旧字段出现即「已移除」 |
+| I2-B13 | 迁移器 / 差异报告 / 旧字段拒绝 | **已关闭（I-5）** | `migration-report.md`；5 支旧字段负例（`tests/faults/bad_removed_*`）全报「已移除」 |
+| I2-B14 | 全量实机 / 性能验收 | **已关闭（I-5）** | 见 `ROUND-I-5-MAP.md` §六 |
+| I3-C1 | `attenuation=inverse` | **已关闭（I-5）** | 选 ② 删除枚举值；`track-audio-adjust.md` §4.4 写明原方案 A / 实选 B / 理由 |
+| I3-C2 | `gradient.stops` 动画化 | **已关闭（I-5）** | 选 ① 保持 value-only 并定性关闭；`track-overlay-letterbox.md` §2.3 / §六 |
+| I3-C3 | 同轨多活跃层 / 运行中 `z_index` 重排 | **已关闭（I-5）** | 选 ② 明确不支持并定性关闭；同篇 §2.3 / §六 |
+| I3 像素级同帧回归 | 4 支循环夹具 + 多轨道脚本 | **已关闭（I-5）** | 见 `ROUND-I-5-MAP.md` §六 |
+| I3 新格式 9 支纳入迁移 | `tests/objects/` | **已关闭（I-5）** | 迁移器幂等跳过 10 支已是新格式脚本（含 9 支 objects），行为一致 |
+| I4-R1 | `BranchSnapshot.size()` 注释 | **已关闭（I-5）** | 注释改为「timeline 扁平片段数 + 脚本级独立片段数」 |
+| I4-R6 | 脚本级独立片段渲染 | **已关闭（I-5）** | `ScriptPlayer` 新增隐式轨道表（按 `track` 类型分组、索引接在 timeline 之后），5 个轨道播放器经 `clipsForTrack` 自然覆盖；夹具 `test_standalone_camera_branch.json`（无 CAMERA 轨，独立 CAMERA 片段作 `exit.goto` 目标）校验通过 |
+| H1-R3 | `triggers[].id` / `continuity` 文档 | **已关闭（I-5）** | `docs/TRIGGER_TYPES.md` 新增「触发器身份与连续语义」；`docs/modules/trigger.md` 同步 |
+| H2-R10 | clip 级 `interpolation` 现在时表述 | **已关闭（I-5）** | 字段已删除；`docs/SCRIPT_FORMAT.md` 只把它列在「已移除」表 |
+| H2-R11 | 夹具 `meta.version` / `total_duration` | **已关闭（I-5）** | 258 支夹具无 `"version":` / `"total_duration":`（仅 5 支负例故意保留） |
+| H4-R1 | `spi` 机械迁移 | **已关闭（I-5）** | 11 类收进 `spi`（共 19 类）；只 import `api.*` / `spi.*` 的注册示例可编译 |
+| H4-R2 | 第三方轨道通用 `loop` 诊断 | **已关闭（I-5）** | `ObjectValidator` 的 `Check` 兜底分支执行通用 loop 检查 + `pingpong` 仅内置视觉轨提示 |
+| H4-R4 | `implementation-progress.md` H11 状态 | **已关闭（I-5）** | 与 `H-other/README.md` 一致，均为 ✅ 已实现（H-2） |
+| H5-R10 | `GuiMixin.shouldHide(Boolean)` | **已关闭（I-5）** | 收敛为无参 `shouldHide()`，3 个调用点同步 |
+| H5 画面层字段收尾 | 删 `hud_layers` / `hard_hide_hud` 入口 | **已关闭（I-5）** | parser/validator 硬错「已移除」；`ScreenLayer` 表是唯一回落真源；负例 `bad_removed_hud_layers` / `bad_removed_hard_hide_hud` |
+| H6 投票语义文档 | control / network / trigger / SCRIPT_FORMAT | **已关闭（I-5）** | 4 份文档改写；`grep "requestExit(ExitReason.USER_SKIP)\|含已跳过者\|投票者先退出" docs/` 为空 |
+| H6 `ExitReason.USER_SKIP` | 归属 | **已关闭（I-5）** | 枚举值与 `PlaybackLifecycle` 分支删除；`CompletionReason.SKIPPED` 保留并注明「仅供外部 API / 历史回执识别」 |
+| H6 协议兼容说明 | `C2SSkipVotePacket` | **已关闭（I-5）** | `docs/modules/network.md`「协议兼容」节：`displayTest` 按 mod 版本匹配；放开跨版本需 bump `ForgeNetwork.PROTOCOL_VERSION` |
+
+### M-1. I-5 新增移交（3 条）
+
+| ID | 事项 | 归属 | 关闭条件 |
+|---|---|---|---|
+| I5-R1 | `showcase_02_kill_sheep.json` 的 `conditions.entity`、`showcase_07_barter.json` 的 `conditions.item` 写成**数组**，`TriggerSchemas` 要求字符串（迁移前即存在） | C-trigger 后续 | 定义数组语义并落地（或把夹具改为单值 / `ns:*` 通配）；两条负例届时转正 |
+| I5-R2 | 仓库外无头校验器 `E:/tmp/icv` 自带 6 个旧格式 self-test 失效（仍写 `meta.version` / `total_duration` / clip `keyframes`） | 工具侧，不入库 | 把 self-test 样本改成新格式；不影响仓库 |
+| I5-R3 | `test_h11_hard_hide.json` 清理非规范 `screen_layers` 键后，需在 Forge 实机复测接管/重画 | H5-R1 批次（外部 overlay 模组） | 装真实第三方 overlay 模组后，`allowlist` / `normal` 两态像素对照 |
+
+---
+
 - 任何新增遗留必须补进本表并指定轮次/关闭条件；不允许只写在轮次总结里。

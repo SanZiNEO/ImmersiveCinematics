@@ -1,6 +1,6 @@
 # AUDIO / ADJUST 轨道对象
 
-> 状态：部分实现（I-3：新格式对象装配；`attenuation=inverse` 归 I-5，见 §4.4 / §六）
+> 状态：已实现（I-3 新格式对象装配；I-5 收口：`file_loop` 改名、旧字段拒绝、`attenuation` 收敛为 `none`/`linear`，见 §4.4 / §六）
 > 范围：AUDIO 对象与片段级 value-only 字段、ADJUST 59 通道对象、曲线/LUT/混合的 value-only 定义、lane 与 master 的边界
 > 关联：`object-model.md`、`runtime-evaluation.md`；语义参考 `complete/0.3.6/A-color/screen-color-adjust.md`、`D-transition/color-mask-execution.md`、`docs/SCRIPT_FORMAT.md` §8/§11
 
@@ -58,7 +58,7 @@ AUDIO 的 `volume`/`x`/`y`/`z` 是对象；`sound`/`source`/`pitch`/`file_loop`/
 | `pitch` | float | 播放音高；不可关键帧 |
 | `file_loop` | bool | 音频文件循环（原 `loop` 改名） |
 | `fade_in` / `fade_out` | float | 秒；value-only 包络 |
-| `attenuation` | enum `none`/`linear`/`inverse` | 衰减；`inverse` 的现行行为见 §4.4 |
+| `attenuation` | enum `none`/`linear` | 衰减；`inverse` 已在 0.3.6 删除（见 §4.4） |
 | `position_mode` | enum `relative`/`absolute` | x/y/z 解释 |
 | `category` | enum `music`/`ambient` | 类别 |
 
@@ -152,13 +152,14 @@ AdjustClipRuntime
 - `blend_amount` 0~1；`lut_strength` 0~1；曲线强度 0~1。
 - 曲线/LUT 结构不进入 `SampledClip`；只传引用/参数包。
 
-### 4.4 已知边界：`attenuation=inverse`
+### 4.4 `attenuation=inverse` 最终裁决：删除枚举值
 
-现行 `CinematicAudioInstance.setAttenuation` 把除 `none` 外的所有值映射为 LINEAR；`inverse` 实际按线性衰减。本轮对象化不改变音频衰减数学：
+**原方案 A（实现反距离衰减）未采用；实际选 B（删除 `inverse`）。**
 
-- 选项 A（推荐在实现时）：补真正的反距离衰减；validator 保留 `inverse`。
-- 选项 B：从枚举删除 `inverse`，避免“写了但没用”的字段；迁移把旧 `inverse` 改为 `linear` 并记录。
-- 在决定前，validator 对 `inverse` 给警告“当前按 linear 处理”；文档不把 `inverse` 描述成已实现。
+- 平台边界：`SoundInstance.Attenuation` 只有 `NONE` / `LINEAR`。要「真正的反距离衰减」只能自建逐帧手动增益模型（`NONE` + 按听者距离算增益），那是新增一套音频衰减子系统，本轮没有可验证的验收手段（无法自动断言听感），也与「单一真源 / 不留死字段」冲突。
+- 因此 0.3.6 把 `attenuation` 收敛为 `none` / `linear`；`inverse` 从 `TrackSchemas` 的枚举里删除，`ObjectValidator` 的「当前按 linear 处理」告警一并删除。
+- 迁移：旧脚本的 `inverse` 写成 `linear`，并在差异报告里逐条记录（本轮全仓 252 支脚本无一处使用 `inverse`，零夹具影响）。
+- 历史：0.3.6 之前 `CinematicAudioInstance.setAttenuation` 把除 `none` 外的所有值映射为 `LINEAR`，`inverse` 实际按线性衰减——即「写了但没用」的死枚举值。
 
 ### 4.5 边界
 
@@ -188,7 +189,7 @@ AdjustClipRuntime
 
 ## 六、实现结果
 
-状态：部分实现（I-3：新格式对象装配；`attenuation=inverse` 未实现，决策归 I-5）
+状态：已实现（I-3 新格式对象装配；I-5 收口：`file_loop` 改名、旧字段拒绝、`attenuation` 收敛为 `none`/`linear`）
 
 本节同时列已实现项与差距；未列出的项按「未实现」处理。新格式 = `clip.hasObjects()` 为真；旧格式采样值不变。
 
@@ -202,8 +203,8 @@ AdjustClipRuntime
 | ADJUST 59 通道 | 按 `ObjectSlotLayout.of(ADJUST)` 槽 0..58 顺序填 `ColorAdjustParams` | 已实现 |
 | 曲线 / LUT / 混合 | 10 条曲线解析成 `ColorCurve` 并按 clip 缓存；`lut` / `lut_input_gamma` / `blend_mode` 从 value-only 读 | 已实现 |
 | CAMERA lane 调色 | `ScriptPlayer.collectCameraLanes` 对新格式 lane 走 `sampleCameraLaneObjects`（57 通道，`lut=null`、`blend_amount=1`），与相机状态同一 `executionLocalTime` | 已实现；旧格式 lane 仍走 `ColorAdjustSampler` |
-| `attenuation=inverse` | 仍按 linear 处理；validator 告警「当前按 linear 处理」 | 未实现；决策归 I-5（§4.4） |
+| `attenuation=inverse` | **已删除枚举值**（`none`/`linear`）；迁移把旧 `inverse` 写 `linear` 并记报告 | 已收口（I-5 §4.4） |
 | 曲线缺席时的强度上报 | 新格式在「曲线缺席」时上报 schema 缺省 1 | 已知偏差：渲染侧按 `curveLut==null` 归零，无像素差异 |
 | 校验 | `ObjectValidator`：`attenuation=inverse` 告警；`fade_in+fade_out>duration` 错误；`lut_input_gamma<=0` 错误；10 条曲线形状校验 | 已实现 |
-| AUDIO 旧字段切换 | — | 未实现，归 I-5（`migration.md`） |
+| AUDIO 旧字段切换 | 旧 AUDIO `loop`（文件循环）迁移为 `objects.file_loop`；新格式 `loop` 只作执行循环；旧字段出现即「已移除」 | 已收口（I-5 迁移 + parser 拒绝） |
 | 旧画面像素回归 | — | 未执行：本轮无实机客户端运行，见 `ROUND-I-3-MAP.md` §九 |

@@ -1,6 +1,6 @@
 # 一次性迁移（旧脚本 → 对象模型）
 
-> 状态：未实现
+> 状态：已实现（I-5；迁移摘要见 `migration-report.md`）
 > 范围：旧 `keyframes` 快照 → `objects`、复合值展开、稀疏字段保真、旧 `curve` 逐段展开为脚本级路径集合、旧 `clip.rules` → 脚本级规则集合、`orient`/offset 保留、`meta.version`/`timeline.total_duration` 删除、AUDIO `loop` 改名、EVENT 记录化、验收/回滚
 > 关联：`object-model.md`、`loop-execution.md`、`format-cleanup.md`、`I-script-core/rule-system.md`（规则新方向专篇，未完成轮次；旧 `C-trigger/condition-system.md` 仅作 v1 实现参照）、各 `track-*.md`
 
@@ -291,10 +291,20 @@ MigrationJob
 
 ## 六、实现结果
 
-状态：未实现
+状态：已实现（I-5）
 
-| 设计目标 | 实现 | 说明 |
+转换器 = `tools/script-migrate`（一次性 Java CLI，独立于运行时；迁移与验收通过后模块删除，证据只保留本节与 `migration-report.md` 摘要）。全量输入 `cinematics/**` 共 **252 支**：迁移 242 / 已是新格式跳过 10 / **错误 0**；重复运行全部跳过（幂等）；失败不覆盖、备份保留。
+
+| 设计目标 | 实现 | 证据 |
 |---|---|---|
-| 旧 clip 级 `curve` 逐旧段迁移为脚本级路径条目，每条目标片段/端点/控制点对应；旧 `clip.rules` → 脚本级 RuleDefinition + RuleBinding | 当前 `clip.getCurve` 返回单份曲线，旧运行时对每个 from→to 段隐式复用；`objects.curve` 从未实现；旧规则是片段级 `clip.rules`，没有定义/绑定/时间门分层 | 旧格式只有一份 `curve` 与片段级规则数组；脚本级结构是新增设计，序列化/引用待评审，迁移器尚未实现 |
-| 旧规则迁移保留定义/绑定与可提取时间门；新阶段不伪造 | 转换器尚未实现规则迁移；旧规则没有实例级持有/成功事实/延迟/接力 | 迁移未实现 |
-| 旧 `total_duration` 仅在有限时比较有限末端；含无限单列无有限末端 | 当前旧字段直接删除，转换器尚未实现有限/无限分口径报告 | 迁移未实现 |
+| 旧 `keyframes` 快照 → `objects`；复合值展开；稀疏字段保真 | 逐通道展开 + 旧语义稀疏补齐（缺失帧按字段默认值补，而不是 hold）；无损压缩仅对 `LINEAR` 且落在相邻连线上的中间点；容差对照（位置 1e-3 格 / 角度 0.01° / 颜色与调色 1e-4 / 矩形 1e-5） | 875 clip / 2519 旧关键帧 → 7315 对象；稀疏补齐 **4 片段 13 处通道**（填充帧 63）：`end_return_036.c1_8`、`showcase_036.c2_2`、`test_camera_point_source.c3_1`、`showcase_03_village.c1_1`；全量最大误差 `0.00000` |
+| 旧 clip 级 `curve` 逐旧段迁移为脚本级路径条目（目标片段 / 端点 / 控制点 / 3D 弧长） | 每个旧全局关键帧段生成一条 `paths[]` 条目；`geometry` 原样复制（`PathCurveRegistry` 注册的 `bezier` / `bspline` / `catmull_rom` / `clothoid` / `fourier` / `hermite` / `nurbs` / `rational_arc` / `rational_bezier` 全支持）；端点缺失时 materialize 位置组；`world` 段直接复制、`base` 动态段报告复核 | **路径条目 18**（`end_return_036` 2、`showcase_036` 1、其余相机夹具各 1）；无路径段保持 `position` 插值，不补全片段曲线 |
+| 旧 `clip.rules` → 脚本级 `rules[]` 定义 + `rule_bindings[]` 绑定；新阶段不伪造 | 每条旧规则 → 一条定义 + 一条绑定；`gate_time=0`（旧规则随片段活跃窗生效，差异记报告）；`if`/`until`/`once`/`cooldown`/`dwell`/`timeout` 保留；实例级持有 / 成功事实 / 动作延迟 / 事实接力不补写 | **规则定义 16 / 绑定 16**；其中 5 条旧 `until` 迁为 `control=hold`（语义近似，列人工复核） |
+| `meta.version` / `timeline.total_duration` 删除 | 直接删除，不写替代字段；旧总长只用于与派生末端对照 | `total_duration` 与派生末端不一致 **6 支**：`test_camera_relative_axis`(8/12)、`test_exit_branch_extend`(8/14)、`test_exit_content`(12/10)、`test_exit_loop_count`(10/6)、`showcase_01_welcome`(31.5/31)、`showcase_06_nether`(12/11.5)，全部单列报告 |
+| AUDIO `loop` → `file_loop`；EVENT / MOD_EVENT 记录化 | AUDIO 文件循环写 `objects.file_loop`，外层 `loop` 只留执行循环；旧事件关键帧 → `event` / `mod_event` 记录（`event_type` / `command` / `position` / `data`） | 迁移后 252 支中 AUDIO 片段全部通过新 parser；旧 `loop` 作为文件循环的写法零残留（`objects.file_loop` 计数与旧 AUDIO `loop` 命中数一致） |
+| 未知路径丢弃 | 无法映射到新 schema 的旧键记录后丢弃（不静默） | **5 条**：`transition_easing` ×3（`end_return_036.c1_1`、`showcase_036.c1_1/c1_3`，值 `ease_in_out`）、`test_overlay_fade.c2_1` 的 `fade_in` / `fade_out`（值 1，OVERLAY 无此字段） |
+| 人工复核清单 | 动态原点、规则语义近似、被旧运行时忽略的 offset、既有夹具缺陷全部单列 | 动态原点 15（`follow=entity` → `@p` / `@a` / `@r` / `@e[...]`）；`until → hold` 5；`orient=manual` 下旧 `yaw_offset` / `pitch_offset` 不参与运行时、未写入 4 处；原片段 `id` 缺失 → 生成 `c<轨>_<序>` 853 处；既有夹具缺陷：`meta.id` 超长 1、关键帧时间非严格递增 1（已排序）、同刻多条事件记录 1、关键帧 `color` 为字符串 1（按默认分量）、`conditions.entity` / `conditions.item` 写成数组 2、`meta.version=4` 1 |
+| 校验 / 幂等 / 回滚 | 迁移输出用新 parser + validator 读回；重复运行跳过；备份目录保留、失败不覆盖 | 迁移后 **validator 19 → 17**（余 17 条全部为既有夹具缺陷，逐条登记在 `../I-BACKLOG.md` M 表）；`report-idem` 显示第二次运行 252/252 跳过 |
+| 体积 | 单脚本 ≤ 4 MiB 解压 / 1 MiB 压缩 | 最大迁移产物 99,928 字节（`showcase_036` 69 KB 级），远低于上限 |
+
+**未迁移能力（不伪造）**：旧规则没有的实例级判定持有、判定成功事实、动作延迟、事实接力，以及 morph 两侧片段效果、`look_at` 动态目标、`yaw_base=entity/line` 的逐帧差异，均按设计变更单列，不通过修正帧或伪造状态重新植入旧语义。

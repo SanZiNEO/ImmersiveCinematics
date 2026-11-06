@@ -1,6 +1,6 @@
 # OVERLAY / LETTERBOX 轨道对象
 
-> 状态：已实现（I-3：新格式对象装配；单活跃层 / `gradient.stops` / 运行中 z 重排见 §六 边界）
+> 状态：已实现（I-3 新格式对象装配；I-5 收口：单活跃层 / `gradient.stops` / 运行中 `z_index` 重排三条已定性关闭，见 §2.3 与 §六）
 > 范围：OVERLAY fade/image/subtitle 的对象路径、颜色/遮罩/渐变叶子、LETTERBOX 对象、片段级 value-only 字段与执行口径
 > 关联：`object-model.md`、`runtime-evaluation.md`；语义参考 `D-transition/overlay-color-mask.md`、`D-transition/variable-frame.md`、`docs/SCRIPT_FORMAT.md` §9–§10
 
@@ -30,6 +30,8 @@ OVERLAY 的几何、透明度、取材、颜色、遮罩、渐变全部拆成叶
 
 - 不改变图层绘制/着色器；`ColorMaskRenderer`、`ImageLayer`、`SubtitleLayer`、`FadeLayer` 的数学不变。
 - 不把 `layer_type`/`path`/`text`/`gradient`/`mask_shape`/`blend_mode`/`z_index` 做成 animated/event；它们是 value-only 字段。
+- **`gradient.stops` 保持 value-only，已定性关闭**（I-5 D7）：渐变颜色不随时间变；将来若要做动画，按字段模型加 `gradient.stop.N.*` 另立需求。
+- **同轨多活跃层不支持、`z_index` 仅加入时排序，已定性关闭**（I-5 D8）：`OverlayTrackPlayer` 同轨只消费首个活跃片段；需要同时显示的 OVERLAY 层各自独立轨道；运行中改 `z_index` 不重排。
 - 不做编辑器图层 UI/时间轴分组；只定义运行时格式。
 - 不改变 LETTERBOX 的 z=0/淡出口径。
 
@@ -178,7 +180,7 @@ LetterboxClipRuntime
 | `ColorMaskSpec` 与新格式共存 | 新增 `forObjects(...)` 与 `rgb(...)`；旧 `from(Clip)` / `sampleColor` / 关键帧颜色缓存保留 | 已实现；旧格式仍走缓存 |
 | image 时间基准 | 新格式 `setTime` 传执行局部时间；旧格式仍传 `globalTime` | 已实现 |
 | LETTERBOX 对象 | `aspect_ratio` / `opacity` 从 `SampledClip` 读；0.5 秒淡出、z=0、空档复位不变 | 已实现 |
-| `gradient.stops` 动画 | — | 未实现：仍是 value-only 结构，不可动画（`ClipSampler` 不入数值数组） |
-| 运行中 `z_index` 重排 | — | 未实现：仍只在 `addLayer` 时排序，运行中改 z 不重排 |
-| 同轨多活跃层 | — | 未实现：`OverlayTrackPlayer` 仍是单活跃层（同轨重叠 clip 不支持） |
+| `gradient.stops` 动画 | **已定性关闭**（I-5 D7）：保持 value-only 结构，不随时间变；需要时另立 `gradient.stop.N.*` 需求 | 不排期 |
+| 运行中 `z_index` 重排 | **已定性关闭**（I-5 D8）：仍只在 `addLayer` 时排序 | 不排期 |
+| 同轨多活跃层 | **已定性关闭**（I-5 D8）：`OverlayTrackPlayer` 仍是单活跃层，同轨重叠 clip 不支持；需要叠加时用多条独立 OVERLAY 轨 | 不排期 |
 | 旧画面像素回归 | — | 未执行：本轮无实机客户端运行，见 `ROUND-I-3-MAP.md` §九 |
