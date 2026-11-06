@@ -3,9 +3,17 @@
     "id": "test_standalone_camera_branch",
     "name": "独立片段相机分支",
     "author": "ImmersiveCinematics",
-    "description": "timeline 只有 OVERLAY 轨；脚本级 clips[] 的独立 CAMERA 片段作为 intro 的 exit.goto 目标。用于验证独立片段经隐式轨道渲染（I4-R6）：登录后 2s 相机应从 (0,64,0) 移动到 (20,64,20)、yaw 0→90。",
+    "description": "timeline 只有 OVERLAY 轨；脚本级 clips[] 的独立 CAMERA 片段由规则 goto_clip 启动，经隐式轨道渲染（I4-R6）。登录后 2s 相机从 (0,64,0) 移动到 (20,64,20)、yaw 0→90。实机判别：把 position.y 改成 200、pitch=-80 时画面应变成夜空俯视。",
     "triggers": [
-      { "id": "trg_login", "type": "biome", "repeatable": false, "delay": 0, "conditions": { "biome": "*" } }
+      {
+        "id": "trg_login",
+        "type": "biome",
+        "repeatable": false,
+        "delay": 0,
+        "conditions": {
+          "biome": "*"
+        }
+      }
     ],
     "block_keyboard": false,
     "block_mouse": false,
@@ -28,11 +36,16 @@
             "start_time": 0,
             "duration": 2,
             "objects": {
-              "layer_type": { "value": "subtitle" },
-              "text": { "value": "standalone camera branch" },
-              "opacity": { "value": 1 }
-            },
-            "exit": { "on_complete": "goto", "target": "cam_standalone", "entry_time": 0 }
+              "layer_type": {
+                "value": "subtitle"
+              },
+              "text": {
+                "value": "standalone camera branch"
+              },
+              "opacity": {
+                "value": 1
+              }
+            }
           }
         ]
       }
@@ -42,17 +55,88 @@
     {
       "id": "cam_standalone",
       "track": "CAMERA",
-      "duration": 3,
+      "duration": 10,
       "objects": {
-        "position_mode": { "value": "absolute" },
-        "position.x": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 3, "value": 20 } ] },
-        "position.y": { "value": 64 },
-        "position.z": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 3, "value": 20 } ] },
-        "yaw": { "keyframes": [ { "time": 0, "value": 0 }, { "time": 3, "value": 90 } ] },
-        "pitch": { "value": 0 },
-        "roll": { "value": 0 },
-        "fov": { "value": 70 },
-        "zoom": { "value": 1 }
+        "position_mode": {
+          "value": "absolute"
+        },
+        "position.x": {
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0
+            },
+            {
+              "time": 10,
+              "value": 20
+            }
+          ]
+        },
+        "position.y": {
+          "value": 64
+        },
+        "position.z": {
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0
+            },
+            {
+              "time": 10,
+              "value": 20
+            }
+          ]
+        },
+        "yaw": {
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0
+            },
+            {
+              "time": 10,
+              "value": 90
+            }
+          ]
+        },
+        "pitch": {
+          "value": 0
+        },
+        "roll": {
+          "value": 0
+        },
+        "fov": {
+          "value": 70
+        },
+        "zoom": {
+          "value": 1
+        }
+      }
+    }
+  ],
+  "rules": [
+    {
+      "id": "r_go_standalone",
+      "condition": {
+        "type": "time",
+        "at": 2.0
+      },
+      "actions": [
+        {
+          "type": "goto_clip",
+          "clip": "cam_standalone",
+          "entry_time": 0
+        }
+      ]
+    }
+  ],
+  "rule_bindings": [
+    {
+      "id": "b_go_standalone",
+      "rule": "r_go_standalone",
+      "clip": "intro",
+      "gate": {
+        "at": 0
       }
     }
   ]

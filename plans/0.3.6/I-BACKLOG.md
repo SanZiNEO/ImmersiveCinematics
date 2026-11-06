@@ -256,6 +256,8 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 | I5-R1 | `showcase_02_kill_sheep.json` 的 `conditions.entity`、`showcase_07_barter.json` 的 `conditions.item` 写成**数组**，`TriggerSchemas` 要求字符串（迁移前即存在） | C-trigger 后续 | 定义数组语义并落地（或把夹具改为单值 / `ns:*` 通配）；两条负例届时转正 |
 | I5-R2 | 仓库外无头校验器 `E:/tmp/icv` 自带 6 个旧格式 self-test 失效（仍写 `meta.version` / `total_duration` / clip `keyframes`） | 工具侧，不入库 | 把 self-test 样本改成新格式；不影响仓库 |
 | I5-R3 | `test_h11_hard_hide.json` 清理非规范 `screen_layers` 键后，需在 Forge 实机复测接管/重画 | H5-R1 批次（外部 overlay 模组） | 装真实第三方 overlay 模组后，`allowlist` / `normal` 两态像素对照 |
+| I5-R4 | **内联 timeline 片段的默认 `exit` 不会执行**：`ClipBranchController.poll()` 首行 `if (!branching) return;`，只有「规则启动的分支 target」会被 poll；普通时间线片段播完后没人读 `ClipExitPolicy`。`Clip.exit` 目前只对分支 target 生效 | 后续轮次（I-6 或 Z 前收口） | 在片段完成事件处统一执行默认出口（CONTINUE / GOTO / RETURN / END_EXECUTION / END_SCRIPT），补探针；本轮夹具已改用 `rule.goto_clip` 避开该路径 |
+| I5-R5 | 4 支循环夹具的**像素级同帧新旧对比**未做：旧格式运行时已随 I-5 删除，取旧基线需 checkout 历史 commit 另建 worktree 并重新构建客户端 | 后续实机批次（若要严格像素对拍） | 建旧构建基线 → 同帧截图 diff（或明确接受「迁移为等值映射 + 数值探针」的替代证据） |
 
 ---
 

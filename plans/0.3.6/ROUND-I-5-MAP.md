@@ -288,3 +288,21 @@ T1–T8 全部；§1.1 表内所有遗留。
 3. `feat(0.3.6): I-5 独立片段渲染与派生范围消费者`（T5）
 4. `refactor(0.3.6): I-5 spi 收敛与机械清理`（T6）
 5. `docs(0.3.6): I-5 文档回写与验收记录`（T7 + T8）
+
+---
+
+## 八、实机验收记录（2026-11-06）
+
+**装置**：`icdev` rig — Fabric dev 专用服 + 1 客户端，世界「新的世界」。
+服务端脚本目录 = `E:/tmp/icdev/server/immersive_cinematics/scripts`（**不是** `fabric/run/...`；rig 的服端 run dir 在仓库外）。
+
+| 项 | 结果 | 证据 |
+|---|---|---|
+| 独立片段分支（I4-R6） | **通过** | `tests/rules/test_standalone_camera_branch.json`：规则 `time@2s` + `goto_clip` 启动 `clips[]` 里的独立 CAMERA 片段。日志 `pass=test_standalone_camera_branch_cam0_clip0#0 cam=(0.000,200.000,0.000)` 证明**隐式轨道 cam0** 产出了该片段的相机 pass；判别帧（`position.y=200` / `pitch=-80`）画面变为夜空俯视 + 右下「长按 C 跳过动画」→ 相机**实际上屏** |
+| 新格式脚本推送/自然结束 | **通过** | `已向 1 名玩家推送脚本: 独立片段相机分支`、`result=1`、`脚本播放停止 … (原因: FINISHED)` |
+| 旧格式拒绝（服端残留脚本） | **通过** | `Failed to load script from h6_liveness_long.json: meta.version: 已移除…`（仓库外旧脚本，符合预期） |
+| Forge 编译 | **通过** | `:forge:compileJava` BUILD SUCCESSFUL |
+
+**未完成**：4 支循环夹具的像素级同帧新旧对比——旧格式运行时已删除，取旧基线需 checkout 历史 commit 另建 worktree 重构建；见 `I-BACKLOG.md` I5-R5。
+
+**实机发现**：内联片段默认 `exit` 未被执行（`poll()` 只在 `branching` 时工作）→ `I5-R4`。
