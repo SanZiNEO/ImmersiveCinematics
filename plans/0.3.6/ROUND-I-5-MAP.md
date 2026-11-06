@@ -306,3 +306,19 @@ T1–T8 全部；§1.1 表内所有遗留。
 **未完成**：4 支循环夹具的像素级同帧新旧对比——旧格式运行时已删除，取旧基线需 checkout 历史 commit 另建 worktree 重构建；见 `I-BACKLOG.md` I5-R5。
 
 **实机发现**：内联片段默认 `exit` 未被执行（`poll()` 只在 `branching` 时工作）→ `I5-R4`。
+
+### 8.1 循环 / 多轨实机矩阵（2026-11-06，同一装置）
+
+服务端副本剥掉 `triggers`（避免 5 支同时自动起播），逐支 RCON `icinematics play`：
+
+| 用例 | 预期 | 实测 |
+|---|---|---|
+| `test_exit_loop_count`（有限 3 圈，跨度 6s） | 圈数耗尽自然结束 | `脚本播放停止 … (原因: FINISHED)`；相机租约 `lease0g1` 取/放各一次 |
+| `test_exit_infinite`（无限循环） | 不自然结束 | 12s 内无 `FINISHED`，lane pass 持续；手动 `stop` 收尾 |
+| `test_camera_loop_repeat`（无限循环，跨度 12s） | 跨过跨度仍继续，不结束 | 15s 内 80 个 `pass=..._cam0_clip0#0`；无 `FINISHED`；租约只取一次（同片段循环不换租约） |
+| `test_camera_loop_pingpong`（无限循环） | 同上 | 15s 内 101 个 lane pass；无 `FINISHED`；0 异常 |
+| `test_objects_multitrack`（6 轨：CAMERA/OVERLAY/LETTERBOX/ADJUST/AUDIO/EVENT） | 6s 自然结束，多租约代际 | `FINISHED`；租约到 `lease0g5`（片段切换 5 代）；相机 `(12.00, 64.0, -8.00)` |
+
+全局异常扫描：本次启动仅 4 行 ERROR，全部为 dev 客户端 `Failed to verify authentication`（401，开发环境既有噪声），**无轨道/规则/相机相关异常**。
+
+**边界**：矩阵验证的是「起播 / 循环持续 / 无限不结束 / 自然结束 / 多轨共存」的功能面；**像素级同帧新旧对比**未做（见 `I-BACKLOG.md` I5-R5）。
