@@ -1,0 +1,7 @@
+plugins { id 'application' }
+base { archivesName = 'script-migrate' }
+dependencies {
+    implementation project(':common')
+    implementation 'com.google.code.gson:gson:2.10.1'
+}
+application { mainClass = 'com.immersivecinematics.migrate.MigrateMain' }
