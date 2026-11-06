@@ -322,6 +322,6 @@ CameraClipRuntime
 | 新格式路径不依赖 clip 级 `curve` | `cameraObjects()` 移除 `curve`（新格式路径走脚本级绑定）；旧 `clipFields.curve` 保留给旧格式 | 已实现 |
 | 10 条调色曲线形状校验 | `ObjectValidator` 对 CAMERA + ADJUST 的 10 条曲线做形状校验 | 已实现 |
 | 规则集合（定义 / 绑定 / 时间门 / 激活） | — | 未实现，归 I-4（`rule-system.md`） |
-| 旧画面像素回归 | — | 未执行：本轮无实机客户端运行，见 `ROUND-I-3-MAP.md` §九 |
+| 旧画面观感回归（人工） | — | I-3 轮未跑；I-5 实机矩阵覆盖相机与多轨脚本（见 `migration-report.md` §九） |
 
 已知边界：`position_space=base` 的路径控制点参考空间沿用 `PathSpec` 的 `PathAnchor` 语义，本轮未新增声明字段。

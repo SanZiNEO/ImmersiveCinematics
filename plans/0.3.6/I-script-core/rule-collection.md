@@ -48,7 +48,7 @@
 - **定义表 `rules[]`**：`id` 必填且脚本内唯一；`condition` 必填对象（内层条件树，不得含时间门语义）；`actions` 必填非空数组；`policy` 可省，字段与 v1 同名同默认（`once=true`、`cooldown=0`、`mode=enter`、`dwell=0`、`timeout=-1`、`on_timeout=[]`）。
 - **绑定表 `rule_bindings[]`**：`id` 必填唯一；`rule` 必填（解析到 `rules[].id`）；`clip` 必填（解析到片段 id）；`gate.at` 必填（执行局部秒，有限片段 `0 <= at <= duration`，无限片段 `>= 0`）；`control` = `observe`（缺省，非阻塞）/ `hold`（到门后未成立即持有实例）；`schedule` 可省（= 成功后立即提交）；`exit` 可省（= 用片段默认出口）。
 - **动作**：v1 九种动作类型 + 新形态 `goto_clip`（`{"clip":"<id>","entry_time":<s>}`）。新集合收到旧形态 `{"track":...,"at":...}` → 加载期错误。
-- 悬空引用、重复 id、非法 id 一律在解析／校验期报错，不静默改指；字段全量口径见 `ROUND-I-4-MAP.md` §一。
+- 悬空引用、重复 id、非法 id 一律在解析／校验期报错，不静默改指；字段全量口径见 `docs/SCRIPT_FORMAT.md` §5。
 
 ## 四、技术细节
 
@@ -68,7 +68,7 @@
 |---|---|
 | 稳定片段引用与绑定身份 | 片段 `id` + 绑定 `id`；引用一律用 id 字符串，不用轨道下标 / `start_time`；悬空引用加载期错误。使用边索引见 `clip-identity.md` §七 |
 | 五层条目进 schema 的范围 | 进 schema：`rules[]`（定义）、`rule_bindings[]`（绑定）、片段 `exit`、路径 `paths[]`；只在运行态：`RuleActivation`、`RuleFactStore`、`PendingAction`、`SuspensionLedger` |
-| 字段名与序列化 | 见 `ROUND-I-4-MAP.md` §一（`rules` / `rule_bindings` / `clips` / `paths` 四键与各条目字段） |
+| 字段名与序列化 | 见 `docs/SCRIPT_FORMAT.md` §5（`rules` / `rule_bindings` / `clips` / `paths` 四键与各条目字段） |
 | 事实记录与动作调度的声明形态 | 绑定上的 `schedule` 五形态（`clip_start` / `clip_complete` / `local_time` / `delay` / `fact`）；`control` = `observe` / `hold`；事实由运行态 `RuleFactStore` 记录，不写进脚本 |
 
 ## 七、实现结果

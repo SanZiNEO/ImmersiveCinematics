@@ -42,7 +42,7 @@ v1 现状依据：`C2SRuleCommandPacket` 携带 `command` 原文；`ScriptEventM
 - 不改变 EVENT/MOD_EVENT 的命令协议、事件身份、去重与权限 4 口径。
 - 不把脚本作者当攻击者；脚本文件仍属于服务端信任域。作者在 `emit_command` 里写危险命令，仍由作者与服务器运营者负责，本文只提供权限上限和审计。
 - 不改造编辑器本地服务的 Origin/token 防护；本地预览不参与服务端播放账本。
-- 不定义规则集合的绑定身份与序列化（已定稿于 `rule-collection.md` §3.4 / `ROUND-I-4-MAP.md` §一）；本文只要求请求能唯一定位到脚本内的 `emit_command` 动作。
+- 不定义规则集合的绑定身份与序列化（已定稿于 `rule-collection.md` §3.4 / `docs/SCRIPT_FORMAT.md` §5）；本文只要求请求能唯一定位到脚本内的 `emit_command` 动作。
 
 ## 三、方案
 
@@ -123,7 +123,7 @@ v1 现状依据：`C2SRuleCommandPacket` 携带 `command` 原文；`ScriptEventM
 - 请求只存脚本 id、实例 id、动作引用与可选执行身份；不存命令原文。
 - 服务端动作表在脚本解析期编译，键为脚本 id + 动作引用；命令原文、动作类型、来源路径只存在于服务端内存。
 - `PlaybackGrant` 存实例 id、目标玩家 UUID 集合、创建时间与失效条件；与播放账本同生命周期，不写入脚本。
-- 动作引用的定稿形式：脚本级规则 = `bindingId` + `actionIndex`（`clipIndex` / `ruleIndex` 传 `-1`）；旧 `clip.rules` = 空 `bindingId` + `clipIndex`（平铺片段索引，轨道序 → 轨道内片段序）+ `ruleIndex` + `actionIndex`。字段名见 `ROUND-I-4-MAP.md` §2.5；服务端按同一键解析，客户端不能借它引入命令文本。
+- 动作引用的定稿形式：脚本级规则 = `bindingId` + `actionIndex`（`clipIndex` / `ruleIndex` 传 `-1`）；旧 `clip.rules` = 空 `bindingId` + `clipIndex`（平铺片段索引，轨道序 → 轨道内片段序）+ `ruleIndex` + `actionIndex`。字段名见 `docs/SCRIPT_FORMAT.md` §5；服务端按同一键解析，客户端不能借它引入命令文本。
 - 动作引用不是授权凭证，只是定位；知道或猜中一个动作引用，不等于获得执行权限。授权仍由 grant 与播放账本决定，命令仍只来自服务端脚本定义。
 - 审计记录存玩家、脚本、实例、动作引用、结果与时间；不存完整命令原文，避免日志二次泄露。
 

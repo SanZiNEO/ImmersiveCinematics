@@ -80,7 +80,7 @@
 
 ## 五、结构评审项
 
-已定稿（字段与运行态口径见 `ROUND-I-4-MAP.md` §一）：
+已定稿（字段与运行态口径见 `docs/SCRIPT_FORMAT.md` §5）：
 
 - 稳定片段引用与绑定身份（片段 `id` / 绑定 `id`，id 字符串寻址）。
 - 规则集合进 schema 的范围（`rules` / `rule_bindings` / `clips` / `paths` 四键；运行态不进脚本）。

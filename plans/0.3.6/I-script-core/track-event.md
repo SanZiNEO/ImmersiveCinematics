@@ -205,4 +205,4 @@ EventRecord
 | 服务端 seek | `C2SScriptSeekPacket`（`script_seek`）/ `S2CScriptSeekAckPacket`（`script_seek_ack`）+ `ScriptEventManager#handleSeek` + `EventSeekPlan#resetAll`；客户端统一入口 `PlaybackInstance#seekTo`（`goto_clip` 已改道），ACK 超时重发在 `PlaybackLedger#sendSeekPacket` | 已实现（I3-B2 关闭）。观看者门 + 限频 debug；seek 不改暂停态 |
 | 片段循环 / 宏观循环 / 多入口重放 | 不重放服务端 EVENT | 已定性并写入 §3.2（I3-B3 关闭）；作者替代路径 = 规则时间入口 / 显式分段 |
 | `PlayerMoveController` 循环语义 | — | 未改（本轮非目标） |
-| 旧画面 / 事件实机回归 | — | 未执行：本轮无实机客户端运行，见 `ROUND-I-3-MAP.md` §九 |
+| 旧画面 / 事件实机回归 | — | I-3 轮未跑；I-5 实机矩阵覆盖含 EVENT 的 6 轨脚本（见 `migration-report.md` §九） |

@@ -89,7 +89,7 @@
 
 | 评审项 | 定稿口径 |
 |---|---|
-| 字段名与序列化 | 顶层 `paths[]`；条目 = `id` / `clip` / `from` / `to` / `axes`（可省，缺省三轴）/ `geometry`（必填）/ `timing`（可省，缺省线性）。见 `ROUND-I-4-MAP.md` §1.6 |
+| 字段名与序列化 | 顶层 `paths[]`；条目 = `id` / `clip` / `from` / `to` / `axes`（可省，缺省三轴）/ `geometry`（必填）/ `timing`（可省，缺省线性）。见 `docs/SCRIPT_FORMAT.md` §5 |
 | 稳定片段引用与端点引用 | 片段用 `id` 引用；端点用目标片段 `position.x/y/z` 节点时间（不是下标），要求 `from < to` 且相邻；插入关键帧不改变端点，删除端点 → 加载期错误（显式重映射） |
 | `timing` 的序列化与校验 | `{"type":"linear"}` 或 `{"type":"keyframes","points":[{"t":..,"s":..}]}`：至少 2 点、`t` 与 `s` 序列单调不减、端点固定 0/1 |
 | 多条路径与同一段并存 | 端点对完全相同 → 加载期错误；区间部分重叠合法，解析顺序 = `startTime` 最大者优先（与 `PathBindingResolver` 一致）；编辑器呈现归 `../Z-editor/object-model.md` |

@@ -87,3 +87,45 @@ schema 里不存在、旧运行时也不消费的旧 clip 级字段；迁移不�
 - 252 支全部可被新 parser/validator 加载；无结构错误、无非有限值、无重复时间（已排序/错开的两处见上表）。
 - 迁移前后校验器差异全部可解释：消失的 11 支是「旧字段告警 / `meta.version=4` / clip 级废弃字段」随格式删除而消失；新增 5 支是本轮故意加的旧字段负例。
 - 剩余 3 支既有缺陷与迁移无关，已登记到 `I-BACKLOG.md` 的 I-5 表。
+
+---
+
+## 八、I-5 裁决摘要
+
+| 编号 | 事项 | 裁决 |
+|---|---|---|
+| D1 | 旧格式（clip 级 `keyframes`） | 整体删除：parser/validator 不再识别，出现即「已移除」；`Clip.keyframes` / `Keyframe` / `KeyframeInterpolator` 与 10 处旧消费分支一并删除 |
+| D2 | 派生范围 | `CinematicScript` 持有只读 `infinite` / `contentEnd` / `finiteDisplayEnd`，加载期派生；不用 ∞/NaN/MAX 哨兵；`Clip.getWindowEnd()` 无限抛异常，调用方先判 `hasFiniteWindowEnd()` |
+| D3 | `goto_clip` | 只接受 `{clip, entry_time}`；范围按目标片段有效范围 + 可达/覆盖，不用总时长 |
+| D4 | AUDIO `file_loop` | 旧 `loop`（文件循环）→ `objects.file_loop`；新格式 `loop` 只作执行循环 |
+| D5 | `hud_layers` / `hard_hide_hud` | 删除解析与校验入口，出现即「已移除」；`ScreenLayer` 表是唯一回落真源 |
+| D6 | `attenuation=inverse` | 选 ② 删除枚举值（`SoundInstance.Attenuation` 只有 NONE/LINEAR；自建逐帧增益无可验证验收）；迁移写 `linear` |
+| D7 | `gradient.stops` | 选 ① 保持 value-only 并定性关闭 |
+| D8 | OVERLAY 同轨多层 / 运行中 `z_index` | 选 ② 明确不支持同轨重叠、`z_index` 仅加入时排序 |
+| D9 | 宏观循环 L6 | 选 ② 语义不变、`loop_start`/`loop_end` 仅区间定位 |
+| D10 | `ExitReason.USER_SKIP` | 删除枚举值与 `PlaybackLifecycle` 分支；`CompletionReason.SKIPPED` 保留（外部 API / 历史回执识别） |
+| D11 | 脚本级独立片段渲染 | `ScriptPlayer` 隐式轨道表：按 `track` 类型分组，索引接在 timeline 之后 |
+| D12 | `spi` 机械迁移 | 11 类收进 `spi`，共 19 类；旧 FQN 零残留 |
+| D13 | 文档 | 按新格式重写；`docs/SCRIPT_FORMAT.md` 2125 → 741 行 |
+| D14 | 迁移器去留 | 一次性工具：先提交（`e55caef`），收尾删除（`e0f8afd`）；摘要留本文件 |
+
+## 九、实机验收记录（2026-11-06）
+
+**装置**：`icdev` rig — Fabric dev 专用服 + 1 客户端，世界「新的世界」。
+服务端脚本目录 = `E:/tmp/icdev/server/immersive_cinematics/scripts`（**不是** `fabric/run/...`；rig 的服端 run dir 在仓库外）。
+
+| 项 | 结果 | 证据 |
+|---|---|---|
+| 独立片段分支（I4-R6） | **通过** | `tests/rules/test_standalone_camera_branch.json`：规则 `time@2s` + `goto_clip` 启动 `clips[]` 里的独立 CAMERA 片段。日志 `pass=test_standalone_camera_branch_cam0_clip0#0 cam=(0.000,200.000,0.000)` 证明**隐式轨道 cam0** 产出了该片段的相机 pass；判别帧（`position.y=200` / `pitch=-80`）画面变为夜空俯视 + 右下「长按 C 跳过动画」→ 相机**实际上屏** |
+| 新格式脚本推送/自然结束 | **通过** | `已向 1 名玩家推送脚本`、`result=1`、`脚本播放停止 … (原因: FINISHED)` |
+| 旧格式拒绝（服端残留脚本） | **通过** | `Failed to load script … meta.version: 已移除…` |
+| Forge 编译 | **通过** | `:forge:compileJava` BUILD SUCCESSFUL |
+| `test_exit_loop_count`（有限 3 圈，跨度 6s） | **通过** | 圈数耗尽自然结束；相机租约 `lease0g1` 取/放各一次 |
+| `test_exit_infinite`（无限） | **通过** | 12s 内无 `FINISHED`；手动 `stop` 收尾 |
+| `test_camera_loop_repeat`（无限，跨度 12s） | **通过** | 15s 内 80 个 lane pass；无 `FINISHED`；租约只取一次 |
+| `test_camera_loop_pingpong`（无限） | **通过** | 15s 内 101 个 lane pass；无 `FINISHED`；0 异常 |
+| `test_objects_multitrack`（6 轨） | **通过** | `FINISHED`；租约到 `lease0g5`（片段切换 5 代）；相机 `(12.00, 64.0, -8.00)` |
+
+全局异常扫描：仅 4 行 ERROR，全部是 dev 客户端 `Failed to verify authentication`（401），**无轨道/规则/相机相关异常**。
+
+**验收口径**：功能矩阵 + 实机人工观感。沙盒环境存在生物移动、光影变化与浮点精度差异，不适用逐像素对比。

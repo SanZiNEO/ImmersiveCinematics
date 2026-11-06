@@ -207,4 +207,4 @@ AdjustClipRuntime
 | 曲线缺席时的强度上报 | 新格式在「曲线缺席」时上报 schema 缺省 1 | 已知偏差：渲染侧按 `curveLut==null` 归零，无像素差异 |
 | 校验 | `ObjectValidator`：`attenuation=inverse` 告警；`fade_in+fade_out>duration` 错误；`lut_input_gamma<=0` 错误；10 条曲线形状校验 | 已实现 |
 | AUDIO 旧字段切换 | 旧 AUDIO `loop`（文件循环）迁移为 `objects.file_loop`；新格式 `loop` 只作执行循环；旧字段出现即「已移除」 | 已收口（I-5 迁移 + parser 拒绝） |
-| 旧画面像素回归 | — | 未执行：本轮无实机客户端运行，见 `ROUND-I-3-MAP.md` §九 |
+| 旧画面观感回归（人工） | — | I-3 轮未跑；I-5 实机矩阵覆盖了 AUDIO/ADJUST 共存的多轨脚本（见 `migration-report.md` §九） |

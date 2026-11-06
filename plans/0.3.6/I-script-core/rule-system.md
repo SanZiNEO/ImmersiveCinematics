@@ -17,7 +17,7 @@
 | 字段 | 27 种类型 + 条件表 + `delay` / `requires` 等 | **新增字段集**，不写进触发器条目，不继承触发器类型 |
 | 共享 | 底层判定：几何 / id 匹配核、状态谓词、事件采集语义、`all_of`／`any` 组合语义 | 同左 |
 
-- 规则不是触发器的新类型，也不在 `meta.triggers` 的条目上加字段，更不挂在片段上（旧 `clip.rules` 是 v1 载体）：触发器条目里不会出现规则字段，规则条目里也不写 `type` 去复用某个触发器类型。落点 = 脚本顶层 `rules`（定义表）+ `rule_bindings`（绑定表），与 `clips`、`paths` 并列；字段口径见 [`rule-collection.md`](rule-collection.md) §3.4 与 `ROUND-I-4-MAP.md` §一。
+- 规则不是触发器的新类型，也不在 `meta.triggers` 的条目上加字段，更不挂在片段上（旧 `clip.rules` 是 v1 载体）：触发器条目里不会出现规则字段，规则条目里也不写 `type` 去复用某个触发器类型。落点 = 脚本顶层 `rules`（定义表）+ `rule_bindings`（绑定表），与 `clips`、`paths` 并列；字段口径见 [`rule-collection.md`](rule-collection.md) §3.4 与 [`docs/SCRIPT_FORMAT.md`](../../../docs/SCRIPT_FORMAT.md) §5。
 - 「复用底层判定」不等于「复用触发器定义」：共享的是几何 / id 匹配核与事件采集语义（`GeometryConditions` 一类），不是 27 种触发器类型本身。
 - 两套字段各自演化：触发器加类型不影响规则集合形态，规则集合改结构也不动 `meta.triggers`。
 - 触发器字段不因规则集合改动：规则集合按新字段落地，不复用、不覆盖现有触发器字段。

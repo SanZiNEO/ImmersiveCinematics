@@ -183,4 +183,4 @@ LetterboxClipRuntime
 | `gradient.stops` 动画 | **已定性关闭**（I-5 D7）：保持 value-only 结构，不随时间变；需要时另立 `gradient.stop.N.*` 需求 | 不排期 |
 | 运行中 `z_index` 重排 | **已定性关闭**（I-5 D8）：仍只在 `addLayer` 时排序 | 不排期 |
 | 同轨多活跃层 | **已定性关闭**（I-5 D8）：`OverlayTrackPlayer` 仍是单活跃层，同轨重叠 clip 不支持；需要叠加时用多条独立 OVERLAY 轨 | 不排期 |
-| 旧画面像素回归 | — | 未执行：本轮无实机客户端运行，见 `ROUND-I-3-MAP.md` §九 |
+| 旧画面观感回归（人工） | — | I-3 轮未跑；I-5 实机矩阵覆盖 OVERLAY/LETTERBOX 多轨脚本（见 `migration-report.md` §九） |

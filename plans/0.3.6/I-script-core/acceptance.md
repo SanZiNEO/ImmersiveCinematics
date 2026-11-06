@@ -226,7 +226,7 @@
 
 ## 十四、实现结果
 
-状态：已实现（I-1 ~ I-5）。本矩阵是 I 轮的验收口径；逐项执行证据分散在 `ROUND-I-1-MAP.md` ~ `ROUND-I-5-MAP.md` 与各专篇「实现结果」节。
+状态：已实现（I-1 ~ I-5）。本矩阵是 I 轮的验收口径；逐项执行证据见各专篇「实现结果」节与 `migration-report.md` §八 / §九。
 
 | 设计目标 | 实现 | 证据 / 说明 |
 |---|---|---|
@@ -237,5 +237,5 @@
 | 次数执行 / 无限 / 语义完成（L1–L11） | 已实现 | `ClipExecutionLedger` 按执行事实判定；无限执行无自然完成点；宏观循环语义不变（L6 已改写） |
 | 格式清理（L8–L10、M12） | 已实现 | `meta.version` / `timeline.total_duration` / clip 级 `keyframes` 等旧字段出现即「已移除」；`CinematicScript` 派生 `infinite` / `contentEnd` / `finiteDisplayEnd` |
 | 迁移（G1–G11） | 已实现 | 252 支 0 错误、幂等、稀疏补齐 13 处、曲线逐段 18 条、规则 21 定义 + 21 绑定；详见 `migration-report.md` |
-| 真实机器（P1–P7） | 部分 | 无头校验 258 支（8 支为已知缺陷 / 负例）；实机矩阵见 `ROUND-I-5-MAP.md` §六与 `I-BACKLOG.md` 的 I-5 表 |
+| 真实机器（P1–P7） | 部分 | 无头校验 258 支（8 支为已知缺陷 / 负例）；实机矩阵见 `migration-report.md` §九与 `I-BACKLOG.md` 的 I-5 表 |
 | 编辑器消费契约（U1–U9） | 归 Z 轮 | 编辑器源码不在本仓 |

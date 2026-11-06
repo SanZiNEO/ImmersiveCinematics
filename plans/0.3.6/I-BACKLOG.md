@@ -18,7 +18,7 @@
 
 | ID | 事项 | 关闭条件 | 依赖 / 备注 |
 |---|---|---|---|
-| I2-B1 | 旧循环夹具实机像素回归 | Fabric / Forge 各跑 `test_camera_loop_repeat` / `test_camera_loop_pingpong` / `test_exit_loop_count` / `test_exit_infinite`；记录执行人、截图/日志；同帧无结构差异 | 旧格式现在就能跑；I-3 接轨道后复跑；I-5 最终全量 |
+| I2-B1 | 旧循环夹具实机回归 | Fabric / Forge 各跑 `test_camera_loop_repeat` / `test_camera_loop_pingpong` / `test_exit_loop_count` / `test_exit_infinite`；记录执行人、截图/日志；人工确认起播 / 循环 / 结束观感正常 | 旧格式现在就能跑；I-3 接轨道后复跑；I-5 最终全量 |
 
 ## B. I-4 规则 / 路径 / 分支接线（全部已关闭）
 
@@ -144,10 +144,10 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 
 | ID | 事项 | 归属 | 关闭条件 |
 |---|---|---|---|
-| H4-R1 | `spi` 目前只收轨道注册所需类型（`TrackTypeId` / `TrackSchema` / `TrackPlayer` / `TrackContext` / `PropertyType` / `Interp` / `PropertyMode` / `ObjectDef`）。触发器（`TriggerType` / `ListenStrategy` / `TriggerEvalContext` / `TriggerPrerequisite`）、插值模型（`MathModel` / `ModelParams` / `FieldDef`）、路径曲线（`PathSpec` / `PathParams` / `PathParamDef` / `PathCapability`）仍在原包，第三方注册时需 import 内部包路径 | **未排期**（机械迁移，可并入 I-5 或单独一轮） | 第三方按 `public-api.md` §6.5 写一个最小扩展时，**只需 import `api.*` 与 `spi.*`**；`grep` 示例代码无 `trigger.server` / `math.` / `script.schema` 依赖 |
-| H4-R2 | 第三方轨道没有通用的 `loop` / `loop_mode=pingpong` 诊断：`ObjectValidator` 对未登记的内置特化走兜底无检查，作者写错不会得到提示 | **未排期** | 第三方 id 的片段写 `loop_mode=pingpong` 等通用字段时也有校验提示（把通用检查放进 `Check` 兜底分支，不掺内置特化） |
+| H4-R1 | `spi` 目前只收轨道注册所需类型（`TrackTypeId` / `TrackSchema` / `TrackPlayer` / `TrackContext` / `PropertyType` / `Interp` / `PropertyMode` / `ObjectDef`）。触发器（`TriggerType` / `ListenStrategy` / `TriggerEvalContext` / `TriggerPrerequisite`）、插值模型（`MathModel` / `ModelParams` / `FieldDef`）、路径曲线（`PathSpec` / `PathParams` / `PathParamDef` / `PathCapability`）仍在原包，第三方注册时需 import 内部包路径 | **已关闭（I-5）** | 11 类已收进 `spi`（共 19 类）；旧 FQN 零残留；只 import `api.*` / `spi.*` 的注册示例可编译 |
+| H4-R2 | 第三方轨道没有通用的 `loop` / `loop_mode=pingpong` 诊断：`ObjectValidator` 对未登记的内置特化走兜底无检查，作者写错不会得到提示 | **已关闭（I-5）** | `ObjectValidator` 的 `Check` 兜底分支执行通用 loop 检查（布尔 / 范围 / 枚举），并给「`pingpong` 仅内置视觉轨生效」提示 |
 | H4-R3 | H12 的 A1「能播」/ A3「`tick` 抛异常注入」/ A6「第三方触发器命中」/ A9「`OverlayApi` 层序与释放」缺**真实第三方调用方**：本轮没有任何模组在自己的初始化期注册轨道，探针只能覆盖到「注册 → 解析 → 采样值」 | **未排期**（需要独立 demo 模组，不能在本仓自带测试轨道——那会成为永久脚手架） | 存在一个只依赖本模组公开 API 的 demo 模组：注册 1 条第三方轨道 + 1 个触发器，实机验证 `tick` 读值与抛异常隔离、触发器命中、`OverlayApi` 图层随实例释放 |
-| H4-R4 | `implementation-progress.md:142` 仍把 H11 记为 `☐ 设计稿`，与 `H-other/README.md:21` 的 ✅ 冲突（H-2 遗留的文档滞后） | **I-5**（文档回写轮） | 两处状态一致；`grep` 无矛盾记录 |
+| H4-R4 | `implementation-progress.md:142` 仍把 H11 记为 `☐ 设计稿`，与 `H-other/README.md:21` 的 ✅ 冲突（H-2 遗留的文档滞后） | **已关闭（I-5）** | 两处状态一致（均 ✅ 已实现 H-2）；`grep` 无矛盾记录 |
 | H4-R5 | `CHANGELOG.md` 未收录 H-4 | **契约边界** | 该文件自述「内部重构、代码整理、开发计划不写入本文件」；H-4 无玩家可感知变化（目标恰恰是零回归），故不写入 |
 
 **H-4 契约边界（写进 `public-api.md`，不排期）**
@@ -176,7 +176,7 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 | H5-R7 | `allowlist` 重画豁免世界效果层（暗角 / 传送门 / 药水图标 / 冻结 / 窥镜等），否则会被误判为隐藏 | **契约边界** | 已写入 `screen-layers.md` §5.6；新增世界效果 overlay 时同步 `ForgeHudLayerRegistry.WORLD_OVERLAYS` |
 | H5-R8 | 接管会跳过排在接管监听器之后的前置事件订阅者的**非绘制副作用**（状态准备 / 缓存刷新） | **契约边界** | 已写入 `docs/SCRIPT_FORMAT.md` 与 `screen-layers.md`；不补发事件、不做针对性 mixin |
 | H5-R9 | `screen_layers` 写成空对象也会把模式推到 `allowlist`（「字段存在」即新字段路径） | **契约边界** | 已写入 `docs/SCRIPT_FORMAT.md` 模式归一顺序；作者想保持逐层抑制请显式写 `screen_layer_mode: normal` |
-| H5-R10 | `GuiMixin.shouldHide(Boolean)` 现仅以 `null` 调用（跳跃条 / 选中物品名 / 保存提示），`setting` 分支已无调用者 | 未排期（机械清理） | 收敛为无参 `shouldHide()`；验收 grep 文本同步 |
+| H5-R10 | `GuiMixin.shouldHide(Boolean)` 现仅以 `null` 调用（跳跃条 / 选中物品名 / 保存提示），`setting` 分支已无调用者 | **已关闭（I-5）** | 收敛为无参 `shouldHide()`；3 个调用点同步，grep 无 `shouldHide(` 带参调用 |
 
 **H-5 契约边界（不排期，已写入对应专篇）**
 
@@ -193,7 +193,7 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 
 - **I-3 收口**：A 表至少完成旧循环实机基线；I2-B1 的最终全量留 I-5。
 - **I-4 收口（2026-11-03 完成）**：B 表 I2-B2..B9 全部关闭；B-2 表关闭 I3-B1/B2/B3 与卫生项；新增遗留全部落在 E 表（I4-R1 归 I-5、I4-R2 归 Z 轮、I4-R3..R5 为契约边界并已写入对应专篇）。
-- **I-5 收口**：C 表全部关闭；D 表在对应专篇有明确文字；本表无“未排期”项。
+- **I-5 收口**：C 表全部关闭；D 表在对应专篇有明确文字；I 轮相关项已清零，**仍有 8 项归属「未排期 / 后续实机批次」**（H2-R1/R2/R3、H3-R4、H4-R3、H5-R1/R2/R3），它们不属 I 轮关单范围，逐条列在本表 J/K 表。
 - **H-2 收口（2026-11-03 完成）**：H9（跳过投票判定 / 广播 / 解析期校验 / HUD 布局）与 H11（`api/HudLayerRegistry` 门面 + Forge 转调 + Fabric 边界 + 对外文档）全部落地；H5 的 12 条逐条核对完毕（见 `H-other/doc-lag-2026-11-03.md`）；H6 的 7 条实机记录见 `H-other/verification-2026-11-03.md`。新增遗留全部落在 G 表，无“未排期”以外的悬空项。
 - **H-4 收口（2026-11-04）**：H12 全部落地（`api` 门面 12 方法 / `spi` 轨道四件套 / `TrackType` enum → 注册表 / 43 文件迁移 / 3 张静态表 / 注册冻结 / 失败隔离 / `OverlayApi` / `ServerFactsApi`）；内置 7 轨零回归由三份 headless 探针（47 + 23 + 12 全 PASS，860 片段 × 3 时间点覆盖 7 类轨道）与两轮实机（7 个脚本起播，含 LETTERBOX / AUDIO，零轨道相关异常）共同证明。新增遗留落在 J 表；A1/A3/A6/A9 的端到端验证因缺真实第三方调用方而移交 H4-R3。
 - **H-5 收口（2026-11-04）**：画面层统一语义全部落地（15 层 `ScreenLayer` 表 / `screen_layers` + `screen_layer_mode` 解析与归一 / `hud_layers` deprecated 归一 / `hard_hide_hud` 模式别名 / allowlist 接管与重画合并旧路径 / normal 消费点改规范层名 / 平台能力位与 Fabric 降级 / 编辑器同规则）；零回归由无头探针 46 + 26 断言与 Forge「allowlist 清空第三方 Pre 自绘、normal 保留」的像素对照共同证明，Fabric 侧验证了降级与逐层覆盖。新增遗留落在 K 表；真实第三方模组复测移交 H5-R1，编辑器表单移交 H5-R2。
@@ -224,16 +224,16 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 
 | ID | 事项 | 终态 | 证据 |
 |---|---|---|---|
-| I2-B1 | 旧循环夹具像素回归 | **已关闭（I-5）** | 迁移后 4 支循环夹具（`test_camera_loop_repeat` / `test_camera_loop_pingpong` / `test_exit_loop_count` / `test_exit_infinite`）在 Fabric/Forge 实机矩阵中逐组跑通；像素级同帧对比结果见 `ROUND-I-5-MAP.md` §六 |
+| I2-B1 | 旧循环夹具实机回归 | **已关闭（I-5）** | 迁移后 4 支循环夹具（`test_camera_loop_repeat` / `test_camera_loop_pingpong` / `test_exit_loop_count` / `test_exit_infinite`）在 Fabric 实机逐支跑通（起播 / 循环持续 / 无限不结束 / 有限自然结束）；矩阵与实机观感见 `migration-report.md` §九。不做逐像素对比 |
 | I2-B10 | `docs/SCRIPT_FORMAT.md` 重写 | **已关闭（I-5）** | 全文按 `objects` 重写（2125 → 741 行）；旧字段只出现在「已移除」表 |
 | I2-B11 | 宏观循环 L6 裁决 | **已关闭（I-5）** | 选 ②：宏观语义不变、`loop_start`/`loop_end` 仅区间定位；`acceptance.md` L6 已改写 |
 | I2-B12 | AUDIO `file_loop` 改名 + 旧 `loop` 双语义切换 | **已关闭（I-5）** | 迁移把 21 支 AUDIO 旧 `loop` 写为 `objects.file_loop`；parser/validator 旧字段出现即「已移除」 |
 | I2-B13 | 迁移器 / 差异报告 / 旧字段拒绝 | **已关闭（I-5）** | `migration-report.md`；5 支旧字段负例（`tests/faults/bad_removed_*`）全报「已移除」 |
-| I2-B14 | 全量实机 / 性能验收 | **已关闭（I-5）** | 见 `ROUND-I-5-MAP.md` §六 |
+| I2-B14 | 全量实机 / 性能验收 | **已关闭（I-5）** | 见 `migration-report.md` §八 / §九；性能基线未重测（F5 矩阵为 F 轮既有数据） |
 | I3-C1 | `attenuation=inverse` | **已关闭（I-5）** | 选 ② 删除枚举值；`track-audio-adjust.md` §4.4 写明原方案 A / 实选 B / 理由 |
 | I3-C2 | `gradient.stops` 动画化 | **已关闭（I-5）** | 选 ① 保持 value-only 并定性关闭；`track-overlay-letterbox.md` §2.3 / §六 |
 | I3-C3 | 同轨多活跃层 / 运行中 `z_index` 重排 | **已关闭（I-5）** | 选 ② 明确不支持并定性关闭；同篇 §2.3 / §六 |
-| I3 像素级同帧回归 | 4 支循环夹具 + 多轨道脚本 | **已关闭（I-5）** | 见 `ROUND-I-5-MAP.md` §六 |
+| I3 旧画面观感回归（人工） | 4 支循环夹具 + 多轨道脚本 | **已关闭（I-5）** | 功能面矩阵见 `migration-report.md` §九；观感按实机人工确认，不做逐像素对比 |
 | I3 新格式 9 支纳入迁移 | `tests/objects/` | **已关闭（I-5）** | 迁移器幂等跳过 10 支已是新格式脚本（含 9 支 objects），行为一致 |
 | I4-R1 | `BranchSnapshot.size()` 注释 | **已关闭（I-5）** | 注释改为「timeline 扁平片段数 + 脚本级独立片段数」 |
 | I4-R6 | 脚本级独立片段渲染 | **已关闭（I-5）** | `ScriptPlayer` 新增隐式轨道表（按 `track` 类型分组、索引接在 timeline 之后），5 个轨道播放器经 `clipsForTrack` 自然覆盖；夹具 `test_standalone_camera_branch.json`（无 CAMERA 轨，独立 CAMERA 片段作 `exit.goto` 目标）校验通过 |
@@ -249,7 +249,7 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 | H6 `ExitReason.USER_SKIP` | 归属 | **已关闭（I-5）** | 枚举值与 `PlaybackLifecycle` 分支删除；`CompletionReason.SKIPPED` 保留并注明「仅供外部 API / 历史回执识别」 |
 | H6 协议兼容说明 | `C2SSkipVotePacket` | **已关闭（I-5）** | `docs/modules/network.md`「协议兼容」节：`displayTest` 按 mod 版本匹配；放开跨版本需 bump `ForgeNetwork.PROTOCOL_VERSION` |
 
-### M-1. I-5 新增移交（3 条）
+### M-1. I-5 新增移交（4 条）
 
 | ID | 事项 | 归属 | 关闭条件 |
 |---|---|---|---|
@@ -257,7 +257,18 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 | I5-R2 | 仓库外无头校验器 `E:/tmp/icv` 自带 6 个旧格式 self-test 失效（仍写 `meta.version` / `total_duration` / clip `keyframes`） | 工具侧，不入库 | 把 self-test 样本改成新格式；不影响仓库 |
 | I5-R3 | `test_h11_hard_hide.json` 清理非规范 `screen_layers` 键后，需在 Forge 实机复测接管/重画 | H5-R1 批次（外部 overlay 模组） | 装真实第三方 overlay 模组后，`allowlist` / `normal` 两态像素对照 |
 | I5-R4 | **内联 timeline 片段的默认 `exit` 不会执行**：`ClipBranchController.poll()` 首行 `if (!branching) return;`，只有「规则启动的分支 target」会被 poll；普通时间线片段播完后没人读 `ClipExitPolicy`。`Clip.exit` 目前只对分支 target 生效 | 后续轮次（I-6 或 Z 前收口） | 在片段完成事件处统一执行默认出口（CONTINUE / GOTO / RETURN / END_EXECUTION / END_SCRIPT），补探针；本轮夹具已改用 `rule.goto_clip` 避开该路径 |
-| I5-R5 | 4 支循环夹具的**像素级同帧新旧对比**未做：旧格式运行时已随 I-5 删除，取旧基线需 checkout 历史 commit 另建 worktree 并重新构建客户端 | 后续实机批次（若要严格像素对拍） | 建旧构建基线 → 同帧截图 diff（或明确接受「迁移为等值映射 + 数值探针」的替代证据） |
+
+### M-2. A–H 孤儿欠账（2026-11-06 用户裁决归属，不属 I 轮）
+
+审计发现 4 项在 A–H 被写成「挂账」但无人承接；用户裁决后统一落位，细则见对应文档：
+
+| 项 | 归属 | 文档 |
+|---|---|---|
+| B18 ④过渡打断 / ⑤链式（实机） | **J 轮** | [`J-media/handover.md`](J-media/handover.md) §一 / §二 |
+| B19 迟滞观感（四象限人眼判定） | **J 轮** | 同上 §三 |
+| C-pause 实机复验 | **J 轮** | 同上 §四 |
+| F 轮失败处理 P1/P2（有什么放什么 / 不崩 / 日志定位） | **J 轮** | 同上 §五 + `F-playback/failure-handling-audit.md` §0.4 |
+| F5 光影 per-pipeline（WP5） | **K 轮** | [`K-optimization/shader-per-pipeline.md`](K-optimization/shader-per-pipeline.md) |
 
 ---
 
