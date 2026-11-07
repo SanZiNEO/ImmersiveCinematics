@@ -146,7 +146,7 @@
 - 传送经 `ServerPlayer#teleportTo` 两个重载（`(DDD)V`、`(ServerLevel,DDD,Set,FF)Z`）→ 代次自增、不参与扫掠（与距离无关）；`teleportRelative` 与直接改坐标的跳变仍按连续处理（位移 > 16 格由 `MAX_TICK_DISPLACEMENT` 兜底）。
 - `observation` 射线扫掠**已实现**（H-6）：点判定先跑（与旧路径逐位一致），未命中且 `ctx.canSweep()` 时按**弧带子步**重放——yaw 取最短弧、pitch 线性，`steps = ceil(max(|dyaw|, |dpitch|) / ARC_STEP_DEG)`，`ARC_STEP_DEG = 5.0`（`Evaluators`），上限 `SegmentSweep.SUBSTEP_MAX = 16`；每步眼位 = 位置线性插值 + 当前眼高，朝向由 `Vec3.directionFromRotation(pitch, yaw)` 还原，再跑同一射线判定。移动实体目标按**求值时刻**的位置查询（不做实体轨迹外推），任一步命中即触发。
 - 顶层事件触发器不受 `window` 影响；窗口只作用于组合器的事件类子条件。
-- 窗口判定里 `entity_kill` 的 `mode=and` 按「每个目标的击杀事实各自满足场景」；单点求值器仍是「最近一次击杀的场景」。
+- 窗口判定里「多个击杀都要满足」由 `all_of` 组合器表达（每个子条件各自查窗口内的事实，场景条件按该条事实判定）；单点求值器（单个 `entity_kill` 条件）仍是「最近一次击杀的场景」。`mode` 字段已删除，不再有 `mode=and` 分支。
 - 播放期间是否补记扫过仍按现状（不补记，N9），待用户裁决（H1-R6）。
 
 **验证（2026-11-03）**：`ContinuityGeometryProbe` 59 checks、`EdgeProbe` 71、`WindowProbe` 111 全 PASS；`SemanticsConsistencyProbe` 1,580,000 次随机比对 `GeometryConditions` 点判定 mismatches=0；旧 231 支解析 / 校验基线逐文件 diff 0；Fabric 实机穿越与 `dwell` 用例见 `state-tracking.md` §六。

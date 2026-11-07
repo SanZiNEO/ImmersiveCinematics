@@ -62,7 +62,8 @@
     key = `hold:unreachable:<bindingId>`）；每个「绑定 × 执行」最多一次，只告警不自动释放。
   - 校验期（`ScriptValidator`）：`control=hold` + 无超时（`policy.timeout` 缺省 / `-1`）+ 条件等待
     起点晚于目标片段结束的片段 → 警告级 issue（`[警告] ` 前缀，`errorsOf` 过滤后不阻止加载）。
-  - `pause` 无任何释放者（集合里无 `resume` 动作、无带 `schedule` 的绑定）→ 运行期告警并自动释放
+  - `pause` 在本执行内无仍可触发的 `resume`（静态无释放者，或释放绑定已 `finished`（含超时终结）、
+    `once` 已成功；带非立即 `schedule` 的绑定仍算活释放者）→ 运行期告警并自动释放
     `action:pause`（防卡死，与旧 `clip.rules` 同口径）。
 - 挂起期间提前事实、时间门与路径 timing 的保留策略：事实按「最近一次激活」作用域（`RuleFactStore`
   的成功事实在新激活建立时清除）；时间门与路径 timing 只读播放器当前读数，挂起期间内容位置不推进，
@@ -84,7 +85,8 @@
 - 诊断三类：
   1. 判定持有等待目标片段以外、播放头尚未到达其窗口起点的片段（`clip_fact`）；
   2. 判定持有等待大于当前执行局部时间的 `time.at` / `time.from`；
-  3. `action:pause` 无释放者（无 `resume` 动作、无 `schedule` 绑定）→ 告警并自动释放。
+  3. `action:pause` 在本执行内无仍可触发的 `resume`（无 `resume` 动作且无 `schedule` 绑定；或释放
+     绑定已 `finished`（含超时终结）、`once` 已成功）→ 告警并自动释放。
   前两类只告警、不自动释放，每个「绑定 × 执行」最多一次；缺省出口为
   `ErrorLog.logRateLimited("Rules", key, 5000, ...)`，探针可注入 `Diagnostics` 计数。
 - 校验器：`rule_bindings` 的 `control=hold` + 无超时 + 条件等待目标片段结束后的片段 → 警告级 issue

@@ -85,10 +85,10 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 | H1-R5 | 前置条件按退出结果筛选（「播完」含不含跳过 / 打断）未开放字段；事实层已能按 `FactResult` 查询 | **C-trigger** | `requires` 数据字段形态定稿并落地（事实查询已就绪） |
 | H1-R6 | 播放期间扫过是否补记（N9）仍按现状「不补记」 | **用户裁决 → C-trigger / H 后续** | 裁决写入 `trigger-continuity.md` §5.3 并实现（补记或不补记二选一，含与去重的交互） |
 | H1-R7 | 编辑器触发器表单未暴露 `continuity`（sweep / dwell / window） | **Z 轮** | 编辑器触发器表单含三字段，读写与 `SchemaExporter.triggers.triggerFields.continuity` 一致 |
-| H1-R8 | `entity_kill` / `item_pickup` 的 `and` 模式遇空数组由「退化返回真」收紧为 `false` | **契约边界** | 空数组无业务含义；已写入 `state-tracking.md` §六 |
+| H1-R8 | ~~`entity_kill` / `item_pickup` 的 `and` 模式遇空数组收紧为 `false`~~ | **契约边界（已失效）** | `mode` 与数组形态 J-1 已删除；空 `list` 由组合器校验期拒绝，见 `trigger-conditions.md` §6.1 |
 | H1-R9 | `entity_interact` 的 `target` 由「全等 + `*`」改为 `matchesId`（支持 `ns:*` 与无冒号子串） | **契约边界** | 与其它 id 条件统一；已写入 `state-tracking.md` §六 |
 | H1-R10 | 事实 `count` / `exists` / `last` 为累计口径（保留集淘汰后仍成立）；`anyWithin` / `lastWithin` / `lastMatching` 受保留深度约束 | **契约边界** | 已写入 `PlayerFacts` Javadoc 与 `state-tracking.md` §六；保留上限：事件类 64–512 条、触发命中 1024 条 |
-| H1-R11 | 窗口判定里 `entity_kill` 的 `mode=and` 按「每个目标的击杀事实各自满足场景」，与单点求值器的「最近一次击杀的场景」不同 | **契约边界** | 窗口语义按事实逐条判定；已写入 `trigger-continuity.md` §六 |
+| H1-R11 | 窗口判定里「多个击杀都要满足」由 `all_of` 组合器表达（每个子条件各自查窗口事实、场景按该条事实判定），与单点求值器「最近一次击杀的场景」不同 | **契约边界** | 窗口语义按事实逐条判定；`mode` 已删除（J-1），口径见 `trigger-continuity.md` §六 |
 | H1-R12 | v1 触发器状态文件做一次性转换：旧键 `type_scriptId` 仅在该脚本内**唯一**匹配时映射到新身份，歧义/无匹配丢弃（debug 日志）；v2 起按事实存储 | **契约边界** | 版本原则：不保留兼容读取层；已写入 `state-tracking.md` §六 |
 | H1-R13 | 顶层事件触发器不受 `continuity.window` 影响（窗口只作用于 `all_of` / `any` 的事件类子条件） | **契约边界** | 已写入 `trigger-continuity.md` §六 |
 
@@ -253,10 +253,10 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 
 | ID | 事项 | 归属 | 关闭条件 |
 |---|---|---|---|
-| I5-R1 | `showcase_02_kill_sheep.json` 的 `conditions.entity`、`showcase_07_barter.json` 的 `conditions.item` 写成**数组**，`TriggerSchemas` 要求字符串（迁移前即存在） | C-trigger 后续 | 定义数组语义并落地（或把夹具改为单值 / `ns:*` 通配）；两条负例届时转正 |
-| I5-R2 | 仓库外无头校验器 `E:/tmp/icv` 自带 6 个旧格式 self-test 失效（仍写 `meta.version` / `total_duration` / clip `keyframes`） | 工具侧，不入库 | 把 self-test 样本改成新格式；不影响仓库 |
-| I5-R3 | `test_h11_hard_hide.json` 清理非规范 `screen_layers` 键后，需在 Forge 实机复测接管/重画 | H5-R1 批次（外部 overlay 模组） | 装真实第三方 overlay 模组后，`allowlist` / `normal` 两态像素对照 |
-| I5-R4 | **内联 timeline 片段的默认 `exit` 不会执行**：`ClipBranchController.poll()` 首行 `if (!branching) return;`，只有「规则启动的分支 target」会被 poll；普通时间线片段播完后没人读 `ClipExitPolicy`。`Clip.exit` 目前只对分支 target 生效 | 后续轮次（I-6 或 Z 前收口） | 在片段完成事件处统一执行默认出口（CONTINUE / GOTO / RETURN / END_EXECUTION / END_SCRIPT），补探针；本轮夹具已改用 `rule.goto_clip` 避开该路径 |
+| I5-R1 | ~~数组型触发条件~~ | **J-1 已关闭（2026-11-07）** | 裁决 = 唯一格式 `any` / `all_of`：删除 `entity_kill` / `item_pickup` 数组形态与 `entity_kill` / `inventory` 的 `mode`；两条夹具改写（`showcase_02` 单值、`showcase_07` `any` + `continuity.window`）；见 `C-trigger/trigger-conditions.md` §6.1 |
+| I5-R2 | ~~`E:/tmp/icv` 6 个旧格式 self-test 失效~~ | **J-1 已关闭（2026-11-07）** | 样本改新格式；`SELFTEST: all validator-rule self-tests passed`，全量 `6 of 260`（6 支为 `tests/faults/` 负例） |
+| I5-R3 | `test_h11_hard_hide.json` Forge 复测 | **J-1 部分关闭（2026-11-07）**：内置层接管 + 白名单重画已复测通过（`hud.hotbar` 重画、其余全隐藏，见 `J-media/verification-2026-11-07.md` §七） | **剩余**：真实第三方 overlay 模组的 `allowlist` / `normal` 两态像素对照 → 归属 H5-R1 批次（关闭条件 = 装模组后两态对照记录） |
+| I5-R4 | ~~内联片段默认 `exit` 不执行~~ | **J-1 已关闭（2026-11-07）** | `ClipBranchController.poll()` 扫描账本全部记录、单一 `applyExit` 派发（主线与分支 target 同处）；探针 28/28；夹具改回内联 `exit.goto` 并实机通过（`J-media/verification-2026-11-07.md` §一） |
 
 ### M-2. A–H 孤儿欠账（2026-11-06 用户裁决归属，不属 I 轮）
 
@@ -264,10 +264,10 @@ I-3 移交的规则 / 路径项与 I-4 卫生项，全部在本轮关闭：
 
 | 项 | 归属 | 文档 |
 |---|---|---|
-| B18 ④过渡打断 / ⑤链式（实机） | **J 轮** | [`J-media/handover.md`](J-media/handover.md) §一 / §二 |
-| B19 迟滞观感（四象限人眼判定） | **J 轮** | 同上 §三 |
-| C-pause 实机复验 | **J 轮** | 同上 §四 |
-| F 轮失败处理 P1/P2（有什么放什么 / 不崩 / 日志定位） | **J 轮** | 同上 §五 + `F-playback/failure-handling-audit.md` §0.4 |
+| B18 ④过渡打断 / ⑤链式（实机） | **J-1 已关闭（2026-11-07）** | [`J-media/handover.md`](J-media/handover.md) §一 / §二 + `verification-2026-11-07.md` §二 / §三 |
+| B19 迟滞观感（四象限人眼判定） | **J-1 已关闭（2026-11-07）** | 同上 §三 + `verification-2026-11-07.md` §四 |
+| C-pause 实机复验 | **J-1 已关闭（2026-11-07）** | 同上 §四 + `verification-2026-11-07.md` §五（含 clip3 卡死修复） |
+| F 轮失败处理 P1/P2 | **J-1 已关闭（2026-11-07）** | 同上 §五 + `failure-handling-audit.md` §0.4 / §9 + `verification-2026-11-07.md` §六 |
 | F5 光影 per-pipeline（WP5） | **K 轮** | [`K-optimization/shader-per-pipeline.md`](K-optimization/shader-per-pipeline.md) |
 
 ---

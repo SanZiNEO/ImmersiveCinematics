@@ -183,8 +183,7 @@
 
 | 条件字段 | 类型 | 必需 | 说明 |
 |---------|------|------|------|
-| `entity` | string 或 string[] | 是 | 实体 ID，支持子串/通配符匹配 |
-| `mode` | string | 仅数组时可用 | `"or"`（默认）— 击杀任一触发；`"and"` — 全部击杀过才触发 |
+| `entity` | string | 是 | 实体 ID，支持子串/通配符匹配（只认单值） |
 | `dimension` | string | 否 | 场景条件：击杀发生时的维度（如 `"minecraft:the_nether"`） |
 | `biome` | string | 否 | 场景条件：击杀发生时的群系 |
 | `position` | object | 否 | 场景条件：击杀位置点+半径 `{ "x": ..., "y": ..., "z": ... }` |
@@ -192,6 +191,7 @@
 | `corner1`/`corner2` | object | 否 | 场景条件：击杀位置所在方体区域（两对角点） |
 
 > 场景条件按**击杀时刻**的记录判定（被杀实体的位置/维度/群系），不是玩家当前位置。
+> `entity` 只接受单个字符串；多项判定用组合器 `any` / `all_of` 表达（见下方示例）。
 
 **单实体：**
 ```json
@@ -214,27 +214,23 @@
 { "type": "entity_kill", "conditions": { "entity": "*" } }
 ```
 
-**OR 模式（默认）：**
+**击杀一组生物（`all_of` + 多个单值子条件）：**
 ```json
 {
-  "type": "entity_kill",
+  "type": "all_of",
+  "continuity": { "window": 600 },
   "conditions": {
-    "entity": ["minecraft:zombie", "minecraft:skeleton"],
-    "mode": "or"
+    "list": [
+      { "type": "entity_kill", "conditions": { "entity": "minecraft:zombie" } },
+      { "type": "entity_kill", "conditions": { "entity": "minecraft:skeleton" } },
+      { "type": "entity_kill", "conditions": { "entity": "minecraft:spider" } }
+    ]
   }
 }
 ```
 
-**AND 模式：**
-```json
-{
-  "type": "entity_kill",
-  "conditions": {
-    "entity": ["minecraft:zombie", "minecraft:skeleton", "minecraft:spider"],
-    "mode": "and"
-  }
-}
-```
+> 事件类子条件按「窗口内是否发生过」求值，所以组合器触发器必须声明 `continuity.window > 0`
+> （上例 = 600 tick / 30s 内三只都击杀过）。任一命中即可用 `any` 组合器。
 
 ---
 
@@ -449,7 +445,7 @@
 
 | 条件字段 | 类型 | 必需 | 说明 |
 |---------|------|------|------|
-| `item` | string | 是 | 物品 ID，支持子串/通配符匹配 |
+| `item` | string | 是 | 物品 ID，支持子串/通配符匹配（只认单值） |
 
 ```json
 {
@@ -457,6 +453,23 @@
   "conditions": { "item": "minecraft:diamond" }
 }
 ```
+
+**捡起一组物品中的任意一件（`any` + 多个单值子条件）：**
+```json
+{
+  "type": "any",
+  "continuity": { "window": 100 },
+  "conditions": {
+    "list": [
+      { "type": "item_pickup", "conditions": { "item": "minecraft:iron_boots" } },
+      { "type": "item_pickup", "conditions": { "item": "minecraft:ender_pearl" } }
+    ]
+  }
+}
+```
+
+> 事件类子条件需要触发器声明 `continuity.window > 0`（上例 = 100 tick / 5s 窗口内捡到任一即触发）；
+> `item` 数组与 `mode` 已删除。
 
 ---
 
@@ -553,22 +566,20 @@
 
 玩家背包物品检测（轮询，默认每 20 ticks ≈ 1 秒检测一次，可按触发器 / 脚本覆盖）。
 
-支持三种模式：
+支持两类判定（存在检测 / 数量变化）：
 
-| 模式 | 写法 | 说明 |
+| 判定 | 写法 | 说明 |
 |------|------|------|
-| 存在检测（AND） | `"mode": "and"`（默认） | **全部**拥有时才触发 |
-| 存在检测（OR） | `"mode": "or"` | 有**任一**即触发 |
-| 数量增加 | `"change": "increase"` | 物品数量增加时触发 |
-| 数量减少 | `"change": "decrease"` | 物品数量减少时触发 |
+| 存在检测 | 不写 `change` | **全部**拥有时才触发（`items` 里每个模式都要在背包里找得到） |
+| 数量增加 | `"change": "increase"` | 任一物品数量增加时触发 |
+| 数量减少 | `"change": "decrease"` | 任一物品数量减少时触发 |
 
 | 条件字段 | 类型 | 必需 | 说明 |
 |---------|------|------|------|
 | `items` | string[] | 是 | 物品 ID 列表 |
-| `mode` | string | 否 | `"and"`（默认）或 `"or"` |
 | `change` | string | 否 | `"increase"` 或 `"decrease"` |
 
-**AND 模式 — 全部拥有：**
+**存在检测 — 全部拥有：**
 ```json
 {
   "type": "inventory",
@@ -576,15 +587,20 @@
 }
 ```
 
-**OR 模式 — 有任一即可：**
+**有任一即可 — 用 `any` 组合器 + 多个单值子条件：**
 ```json
 {
-  "type": "inventory",
-  "conditions": { "items": ["minecraft:diamond", "minecraft:emerald"], "mode": "or" }
+  "type": "any",
+  "conditions": {
+    "list": [
+      { "type": "inventory", "conditions": { "items": ["minecraft:diamond"] } },
+      { "type": "inventory", "conditions": { "items": ["minecraft:emerald"] } }
+    ]
+  }
 }
 ```
 
-**数量增加 — 物品变多时触发：**
+**数量增加 — 物品变多时触发（任一物品净增即真）：**
 ```json
 {
   "type": "inventory",
@@ -599,6 +615,8 @@
   "conditions": { "items": ["minecraft:diamond_helmet"], "change": "decrease" }
 }
 ```
+
+> `inventory` 的存在检测恒为「全部拥有」；`mode` 字段已删除，需要「任一」时用 `any` 组合器表达。
 
 ---
 

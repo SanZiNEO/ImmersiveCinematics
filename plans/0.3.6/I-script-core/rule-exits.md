@@ -16,6 +16,7 @@
 - 去向：继续、指定目标、返回、结束本执行或本脚本。
 - 指定目标 = 片段引用 + 可选入口局部时间；执行起点由跳转/入口给出，不读目标片段的默认放置锚点。目标可以是内联片段或脚本级独立片段，不要求它在任何轨道里（见 `clip-identity.md`）。
 - 默认由片段定义给出；启动／编排入口可以显式覆盖；优先级为入口显式策略 > 片段默认策略。
+- 主线片段与分支 target 共用同一处完成派发（`ClipBranchController.applyExit`）：主线完成 `CONTINUE` = 时间轴继续，seek / reset 不合成完成事件；详见 §七「解析表」「分支接线」。
 - 正常完成默认与入口覆盖只使用已讨论的继续／指定目标／返回／结束能力，不为此强制全局片段库、sequence 或调用栈改造。
 - 不以嵌套调用栈、并行流程、全局 sequence 或独立分支引擎作为正常控制流的前置要求；“返回”按显式目标表达，不以隐式调用栈为必要条件。不能从“分支失败无栈回退”推出“正常控制流必须全部无栈”。
 - **`END_EXECUTION` 与 `CONTINUE` 在无调用栈前提下行为等价**：现行实现没有隐式序列 / 调用栈，二者都结束当前分支并回主线（`ClipBranchController` 对两者走同一 `ledger.endBranch(current)` 分支）；差异留给后续序列轮，届时才可能区分“结束本执行”与“继续编排”。`RETURN` 同样按显式目标表达，不以调用栈为必要条件（**I2-B4 关闭**）。
@@ -53,8 +54,8 @@
 状态：已实现（I4-6 关闭）。
 
 - **声明与解析**：片段 `exit`（内联 / 独立同 schema）与绑定 `exit` 都由 `ClipExitPolicyParser.parse` 解析（`continue` / `goto` / `return` / `end_execution` / `end_script`；`goto` 必须带 `target` 与可选 `entry_time`，其余类型禁止二者；未知键报错）。优先级 = 绑定覆盖 > 片段默认 > `CONTINUE`。
-- **解析表**：`ClipExitResolver` 在播放实例内建「片段 → 默认策略」表（`setDefault` / `defaultOf` / `resolve(clip, entryOverride)` / `clear`）；主线上轨道放置的片段完成时不走出口策略（时间轴继续），只有分支入口启动的执行完成时才解析。
-- **分支接线**：`PlaybackInstance implements ClipBranchHost`（`now()` → `player.timelineTime()`，`seekTo(t)` → `player.seekTo(t)`，`requestScriptEnd()` → 声明式退出入口，`onBranchStarted` → 诊断日志，`onBranchFailed` → 限频日志 + `rules.reset` / `rules.sync` 重建空运行态）；`FrameDriver` 在规则求值后推进 `branch().poll()`。
+- **解析表**：`ClipExitResolver` 在播放实例内建「片段 → 默认策略」表（`setDefault` / `defaultOf` / `resolve(clip, entryOverride)` / `clear`）；主线轨道放置的片段与分支 target 完成时都走同一处 `ClipBranchController.applyExit` 解析（优先级 = 入口显式覆盖 > 片段默认 > `CONTINUE`）。主线完成 `CONTINUE` = 时间轴继续（无分支状态可清）；分支 target 完成 `CONTINUE` / `RETURN` / `END_EXECUTION` = 结束分支回主线。
+- **分支接线（单一完成派发）**：`ClipBranchController.poll()` 扫描账本**全部**记录，每个 `(clip, executionId)` 只在 `done` 由 false→true 的那一帧派发一次；执行身份变化（seek / `reset` / `startBranch` / `endBranch`）只记基线、不派发 —— seek 跳过的片段不合成完成事件。`GOTO` 在已有分支在跑或目标非法时 `launch` 返回 false，按 `goto-skipped` 限频（5s）记日志，不静默。`PlaybackInstance implements ClipBranchHost`（`now()` → `player.timelineTime()`，`seekTo(t)` → `player.seekTo(t)`，`requestScriptEnd()` → 声明式退出入口，`onBranchStarted` → 诊断日志，`onBranchFailed` → 限频日志 + `rules.reset` / `rules.sync` 重建空运行态）；`FrameDriver` 在规则求值后推进 `branch().poll()`。
 - **`goto_clip` 新形态**：`{"clip":"<id>","entry_time":<s>}` → `RuleActionRunner.launchBranch` → `ClipBranchController.launch`；入口局部时间缺省 0。launch 时间不变量 = `max(host.now(), ledger.lastHead())`，`host.now() < lastHead` 时限频告警。旧形态 `{"track":...,"at":...}` 只在新引擎解析期被拒绝，旧 `clip.rules` 引擎仍按旧语义 seek。
 - **活跃窗**：`ClipTimeSource.windowStart(Clip)` 提供分支入口活跃窗起点，`ClipModifierGate` 按它判活；分支入口的 `windowStart = executionStart = launch`。
 - **独立片段作目标（I4-6b）**：顶层 `clips[]` 的片段可作 `goto_clip` / `exit.goto` / 规则绑定目标。账本为其追加 `markStandalone` 记录（`windowStart = +∞`），未启动时恒不活跃、不计入完成度；被分支启动后按普通执行记账。

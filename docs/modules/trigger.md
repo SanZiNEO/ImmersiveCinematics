@@ -51,10 +51,10 @@
   - ✅ `Evaluators` 为每种触发器提供静态求值方法（`Evaluators`）
   - ✅ location：维度匹配 + 方块区域（corner1/corner2）或 圆心+半径 判断（`Evaluators`）
   - ✅ biome/structure：按注册 id 模式匹配当前群系/所处结构，structure 支持半径范围扫描（`Evaluators`）
-  - ✅ inventory：物品列表匹配（and/or 模式），支持 `change=increase/decrease` 快照对比检测数量变化（`Evaluators`）
+  - ✅ inventory：物品列表匹配（存在检测恒为「全部拥有」，「任一」用 `any` 组合器），支持 `change=increase/decrease` 快照对比检测数量变化（`Evaluators`）
   - ✅ gamestage：通过反射调用 `GameStageHelper.hasStage` 判断游戏阶段（模组未装时返回 false）（`Evaluators`）
   - ✅ advancement：检测玩家是否已完成指定进度（`Evaluators`）
-  - ✅ entity_kill：最近击杀/累计击杀匹配，支持多实体 and/or 模式（`Evaluators`）
+  - ✅ entity_kill：最近击杀匹配（单值 `entity`；多项判定走 `any` / `all_of` 组合器）（`Evaluators`）
   - ✅ entity_interact/block_interact/item_on_interact：匹配最近一次交互目标（实体/方块）与手持物品（`Evaluators`）
   - ✅ item_craft/item_use/item_consume：匹配最近一次合成/使用/消耗的物品（`Evaluators`）
   - ✅ dimension_change：匹配玩家当前所在维度（`Evaluators`）

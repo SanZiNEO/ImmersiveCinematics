@@ -124,9 +124,9 @@
 **验证（2026-11-03）**：`FactStoreProbe` 100 checks、`PrereqFactsProbe` 50、`TrackerFactsProbe` 120、`IdentityProbe` 32、`WindowProbe` 111 全 PASS；旧 231 支解析 / 校验基线逐文件 diff 0；Fabric 实机：穿越用例（同 box，未开启 `sweep` 不触发、开启后触发）、`dwell=40`（进入后 1.2s 未触发、约 3s 触发）、持久事实文件 `version:2` 且含 `playback_started` / `playback_finished` / `trigger_fired`。
 
 **口径变化（有意，写入契约）**：
-- `entity_kill` / `item_pickup` 的 `and` 模式遇**空数组**返回 `false`（旧码退化返回真；空数组无业务含义）。
+- ~~`entity_kill` / `item_pickup` 的 `and` 模式遇空数组返回 `false`~~：`mode` 与数组形态已在 J-1（2026-11-07）删除，多项判定统一由 `any` / `all_of` 表达；空 `list` 在组合器里恒为不满足（校验期即报「list 不能为空」）。
 - `entity_interact` 的 `target` 改用 `matchesId`（支持 `ns:*` 与无冒号子串，与其它 id 条件一致）。
-- 窗口判定里 `entity_kill` 的 `and` 模式按「每个目标的击杀事实各自满足场景」（与单点求值器的「最近一次击杀的场景」不同，见 `trigger-continuity.md` §六）。
+- 窗口判定里「多个击杀都要满足」由 `all_of` 组合器表达（每个子条件各自查窗口事实、场景按该条事实判定），与单点求值器「最近一次击杀的场景」不同（见 `trigger-continuity.md` §六）。
 
 **未实现（归属轮次）**：
 - 事实的展示面（「触发过什么 / 为什么触发」）：**Z 轮 + H-12**（关闭条件见 `I-BACKLOG.md` H1-R4）。
